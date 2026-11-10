@@ -35,9 +35,10 @@ The guest prints its result bytes with SYS_WRITEC (one byte per call), which
 both the QEMU semihosting console and the chipyard ``+semiout=`` sink write
 verbatim, so the comparison is byte-exact.
 
-Only the families implemented by ``WumingDecoder`` are covered; see
-``COVERED_IDS``.  Tetra/wyde/byte (other than the `.t` arithmetic above),
-memory, control flow, FP and bit manipulation belong to later milestones.
+Only the m12-chipyard-005 integer families are covered here; see
+``COVERED_IDS``.  Memory vectors (`tests/inst/base/mem-*.yaml`) are driven by
+``tools/chipyard/mem_sweep.py``; control flow, FP and bit manipulation belong
+to later milestones.
 """
 from __future__ import annotations
 
@@ -619,8 +620,10 @@ def cmd_emit(args):
         ("sbz_shlt_imm32", "ILLI", enc_shl_t_orri(1, 2, 32), False, {}),
         ("dst_rb0_addo", "ILLI", enc_add_o_bbd(0, 1, 2), False, {}),
         # Defined and legal on the golden model (QEMU executes it), but not
-        # implemented by this milestone -> ILLI (spec/SimRISC-00 §6.1).
-        ("unimpl_ldub", "ILLI", 0x10041000, True,
+        # implemented yet -> ILLI (spec/SimRISC-00 §6.1).  `ld.ub` moved to
+        # the implemented set in m12-chipyard-008; the RF bank forms stay
+        # unimplemented until the FP milestone (m12-chipyard-011).
+        ("unimpl_ldt_rf", "ILLI", 0x16041000, True,
          {"rb": {"rb1": "0x%x" % ENTRY}}),
     ]
     for key, fault, word, qemu_executes, inp in dedicated:

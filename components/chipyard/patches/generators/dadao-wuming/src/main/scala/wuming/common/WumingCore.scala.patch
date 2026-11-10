@@ -1,13 +1,13 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..74b5fdd
+index 0000000..2821ede
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,839 @@
+@@ -0,0 +1,969 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
-+// m12-006 multi-cycle state-machine skeleton (m12-chipyard-018).
++// m12-006 multi-cycle state-machine skeleton.
 +//
 +// Structure (`.tao/knowledge/refs/m12-006-cycle-design.md` §5):
 +//
@@ -16,25 +16,36 @@ index 0000000..74b5fdd
 +//     owns its own A/D channel pair and its own request/response state, so a
 +//     slow data access cannot stall fetch progress.
 +//   * a `fetchDepth` (= 8 beats = 64 B) circular queue of consecutive beats.
-+//     The prefetch walks the queue forward over the client's spare source IDs
-+//     (source 0 = demand fetch, 1..4 = the four prefetch slots); a hit costs no
-+//     extra cycle (`EXEC` decodes straight out of the queue).
++//     The prefetch walks the queue forward over the client's spare source IDs;
++//     a hit costs no extra cycle (`EXEC` decodes straight out of the queue).
 +//   * the 12-state skeleton of §5.1: IDLE / FREQ / FWAIT / EXEC / TRAP / SEMI
 +//     / EXC / MREQ / MWAIT / SLOW / FAULT / HALT.  Cycle policy R1 = C:
 +//     shift/bit-field ops take two cycles (`EXEC` latches the operands,
 +//     `SLOW` computes and writes back), plain arithmetic takes one.  The
 +//     register file keeps its 2-write/3-read shape (R8 = 2R2W).
 +//
-+// Out of scope here (kept exactly as m12-005 left it): the instruction subset
-+// (`ld.o`/`st.o`, `jump`, semihosting `trap`, the SimRISC-04/05/08 integer
-+// families) and its fault classification.  `ldm`/`stm` are m12-chipyard-008.
++// m12-chipyard-008 adds the memory unit (spec/SimRISC-01, spec/SimRISC-05):
++//
++//   * `ld`/`st` at every integer width (b/w/t/o, zero/sign extending) in the
++//     rd, rb and ra banks; `ldm`/`stm` (1..63 registers) as 8-byte TileLink
++//     beats — every element fits inside one beat (its address is width
++//     aligned and the width divides 8), so a beat is packed from consecutive
++//     registers and unpacked into consecutive registers without per-element
++//     bus transactions.
++//   * whole-transfer precheck in `EXEC` (alignment + address-map window) so a
++//     MALIGN/CFXMEM is precise and no beat of a bad `ldm`/`stm` ever reaches
++//     the bus.  A bus denial in the middle of a transfer raises CFXMEM into
++//     the monitor; the instruction may be re-entered from its start
++//     (m12-chipyard-008 task baseline R7).
++//   * only 8-byte, beat-aligned TileLink accesses: loads are full-beat `Get`s
++//     that select/extend the addressed bytes, stores are full-beat `Put`s
++//     with a byte mask (§3.3/§5.5 of the design note).
 +//
 +// m12-chipyard-007 adds the *boot handoff* half of cfx_hmon: the CFXTRAP entry
 +// produced by `trap cfx_hmon, <magic>`, the cause frame
 +// (`excp_cause_id`/`excp_cause_ip`/`excp_cause_info`), `excp_vector` (cg3
 +// rc10; reset value = hmon SRAM base, writes drop the low 2 bits) and `escape`
-+// with the fixed 0/+4 offsets.  That is what the BootROM firmware needs
-+// (spec/Machine-v5 §6.2 steps 4-8, DADAO-12 §5.2/§5.3).
++// with the fixed 0/+4 offsets.
 +//
 +// m12-chipyard-019 completes cfx_hmon and adds cfx_power's register group
 +// (DADAO-13 §1/§2, DADAO-12 §3/§4.12, Machine-v5 §3/§4.4): the four
@@ -42,9 +53,6 @@ index 0000000..74b5fdd
 +// hypv), the cg7 space descriptors, `excp_prev_run_mode` and the five
 +// synchronous fault classes (CFXMEM/ILLI/UNDI/MALIGN/IALIGN) — each one writes
 +// the cause frame and jumps to `excp_vector` instead of terminating the core.
-+// `cg3` is hypv-only (otherwise CFXREG) and an unsupported (cg, rc) of an
-+// implemented cfx is CFXREG as well: never a silent success.  `escape`
-+// restores `excp_prev_run_mode`.
 +
 +package wuming.common
 +
@@ -108,9 +116,6 @@ index 0000000..74b5fdd
 +
 +  // ---- cfx register groups: cfx_hmon (cfx3) and cfx_power (cfx63) ----------
 +  //
-+  // m12-019 lands the register group the Tiny profile needs
-+  // (spec/DADAO-13 §1/§2, spec/DADAO-12 §3/§4.12, spec/Machine-v5 §3):
-+  //
 +  //   cg3 rc0-rc3  cfxtrap / cfxmem / cfxreg / cfxexe source masks   (RW)
 +  //   cg3 rc4      cfx_intr_mask                                     (RW)
 +  //   cg3 rc8      switch_run_mode — Tiny: writes ignored, reads 3
@@ -122,13 +127,7 @@ index 0000000..74b5fdd
 +  //   cg7 rc0-63   internal space descriptors (read-only; writes are CFXREG)
 +  //
 +  // Every other (cg, rc) of these two cfx is not implemented on this profile
-+  // and reads/writes as CFXREG — never as a silent zero (spec/Machine-v5 §3
-+  // keeps `cg8 rc1` = cfx_power_ctrl unimplemented on Tiny; cg4/cg6/cg3 rc12
-+  // and cg5 rc1/rc5 stay unimplemented as well).
-+  //
-+  // Only two cfx exist, so the state is a two-entry table: index 0 = cfx_hmon,
-+  // index 1 = cfx_power.  cg3 is hypv-only (DADAO-13 §1): in any other run
-+  // mode the whole cg3 row is CFXREG.
++  // and reads/writes as CFXREG — never as a silent zero.
 +  private val C_HMON = 3.U(6.W)
 +  private val C_POWER = 63.U(6.W)
 +
@@ -167,9 +166,7 @@ index 0000000..74b5fdd
 +  val cfxCauseIp   = RegInit(VecInit(Seq.fill(2)(0.U(64.W))))
 +  val cfxCauseInfo = RegInit(VecInit(Seq.fill(2)(0.U(64.W))))
 +
-+  // `inner_run_mode` (DADAO-12 §5.2 step 6).  Tiny starts and stays in hypv:
-+  // exception entry loads `switch_run_mode`, which the profile pins at 3, and
-+  // only `escape` can move it back to `excp_prev_run_mode`.
++  // `inner_run_mode` (DADAO-12 §5.2 step 6).  Tiny starts and stays in hypv.
 +  val runMode = RegInit(3.U(2.W))
 +
 +  val CFXTRAP_BIT = 0
@@ -243,9 +240,6 @@ index 0000000..74b5fdd
 +  val d = dec.io.dec
 +
 +  // ---- cfx register file access (m12-019) ---------------------------------
-+  // Two implemented cfx (cfx_hmon, cfx_power) and the register subset listed at
-+  // the declaration above; anything else is an unsupported register access and
-+  // raises CFXREG (never a silent read of zero / silent drop of a write).
 +  val cfxIsHmon = d.cfxHa === C_HMON
 +  val cfxIsPower = d.cfxHa === C_POWER
 +  val cfxImplemented = cfxIsHmon || cfxIsPower
@@ -293,9 +287,8 @@ index 0000000..74b5fdd
 +              Mux(isCauseInfo, cfxCauseInfo(monIdx), cg7Rdata)))))))
 +
 +  // ---- operands / ALU ----------------------------------------------------
-+  rf.io.r0Idx := d.srcAIdx; rf.io.r0Rb := d.srcARb
-+  rf.io.r1Idx := d.srcBIdx; rf.io.r1Rb := d.srcBRb
-+  rf.io.r2Idx := d.srcCIdx; rf.io.r2Rb := d.srcCRb
++  rf.io.r0Idx := d.srcAIdx; rf.io.r0Bank := d.srcABank
++  rf.io.r1Idx := d.srcBIdx; rf.io.r1Bank := d.srcBBank
 +
 +  val srcA = Mux(d.srcAIsIp, ip, rf.io.r0Data)
 +  val srcB = rf.io.r1Data
@@ -310,11 +303,11 @@ index 0000000..74b5fdd
 +  val slowWp = RegInit(0.U(2.W))
 +  val slowW0En = RegInit(false.B)
 +  val slowW0Idx = RegInit(0.U(6.W))
-+  val slowW0Rb = RegInit(false.B)
++  val slowW0Bank = RegInit(WumingBank.RD)
 +  val slowW0Sel = RegInit(0.U(1.W))
 +  val slowW1En = RegInit(false.B)
 +  val slowW1Idx = RegInit(0.U(6.W))
-+  val slowW1Rb = RegInit(false.B)
++  val slowW1Bank = RegInit(WumingBank.RD)
 +
 +  val alu = Module(new WumingALU)
 +  val aluSel = state === sSlow
@@ -326,12 +319,122 @@ index 0000000..74b5fdd
 +  alu.io.wp := Mux(aluSel, slowWp, d.wp)
 +
 +  val jumpTarget = (srcA + srcB + d.jumpOff)(63, 0)
-+  val memAddr = (srcA + d.memOff)(63, 0)
-+  val storeValue = srcB
++
++  // ---- memory unit (m12-008, spec/SimRISC-01 / SimRISC-05) ----------------
++  //
++  // One access shape covers every memory instruction: `memCount` elements of
++  // `1 << memWidth` bytes starting at `memBase`, `memStore` selecting the
++  // direction.  Single ld/st is count = 1; ldm/stm is count = immu6.  The
++  // transfer walks 8-byte beats: a store packs its beat from consecutive
++  // registers one element per cycle, a load unpacks a received beat into
++  // consecutive registers one element per cycle.  Elements never straddle a
++  // beat (a width-aligned element of 1/2/4/8 bytes always fits in its beat).
++  val memStore = RegInit(false.B)
++  val memMulti = RegInit(false.B)
++  val memWidthLat = RegInit(3.U(2.W))
++  val memSignedLat = RegInit(false.B)
++  val memBase = RegInit(0.U(64.W))
++  val memCount = RegInit(1.U(6.W))
++  val memBank = RegInit(WumingBank.RD)
++  val memStart = RegInit(0.U(6.W))
++  val memElem = RegInit(0.U(6.W))
++  val memBeat = RegInit(0.U(64.W))
++  val memData = RegInit(0.U(64.W))  // address-ordered beat payload
++  val memMask = RegInit(0.U(8.W))   // byte enable per address offset
++  val memPacked = RegInit(false.B)
++  val memBeatValid = RegInit(false.B)
++
++  val isMulti = d.isLdm || d.isStm
++  val memAddrNow = (srcA + Mux(isMulti, srcB, d.memOff))(63, 0)
++  val memCountNow = Mux(isMulti, d.mregCount, 1.U(6.W))
++  val memBytesNow = (1.U << d.memWidth)(3, 0)
++  val memAlignMask = (memBytesNow - 1.U)(2, 0)
++  val memAlignFail = (memAddrNow & memAlignMask) =/= 0.U
++  val memEndNow = memAddrNow + (memCountNow << d.memWidth) - 1.U
++
++  // m12-008: the *architectural* backing test is the Tiny three-segment window
++  // (spec/Machine-v5 §1.1 + the hmon ruling), not `manager.supportsXxx` alone:
++  // the chipyard SoC also maps a debug controller at address 0 and other
++  // peripherals that the DADAO address map does not have, so trusting the
++  // negotiated map would silently turn an unmapped access into a bus access
++  // instead of CFXMEM.  The manager capability check is kept on top of it.
++  private val sramBaseValue = requiredValue(params.loadMemBase, "loadMemBase")
++  private val sramSizeValue = requiredValue(params.loadMemSize, "loadMemSize")
++  private def inWindow(x: UInt, base: BigInt, size: BigInt): Bool = {
++    val lower = base.U(64.W)
++    val upper = (base + size).U(64.W)
++    x >= lower && x < upper
++  }
++  private def specBacked(x: UInt): Bool =
++    inWindow(x, sramBaseValue, sramSizeValue) ||
++      inWindow(x, hmonBaseValue, hmonSizeValue) ||
++      inWindow(x, bootromBaseValue, bootromSizeValue)
++
++  // The bus always moves whole 8-byte beats; check the managers that carry the
++  // first and last beat (the safe variants probe every manager, unlike the
++  // fast ones which presume a legal address).
++  def beatOf(x: UInt): UInt = Cat(x(addrBits - 1, 3), 0.U(3.W))
++  def dataGetLegal(x: UInt): Bool =
++    specBacked(x) && dataEdge.manager.supportsGetSafe(x(addrBits - 1, 0), lgSize)
++  def dataPutLegal(x: UInt): Bool =
++    specBacked(x) && dataEdge.manager.supportsPutPartialSafe(x(addrBits - 1, 0), lgSize)
++  val memGetLegalNow = dataGetLegal(beatOf(memAddrNow)) && dataGetLegal(beatOf(memEndNow))
++  val memPutLegalNow = dataPutLegal(beatOf(memAddrNow)) && dataPutLegal(beatOf(memEndNow))
++  val memRangeLegalNow = Mux(d.isSt || d.isStm, memPutLegalNow, memGetLegalNow)
++
++  val memElemAddr = memBase + (memElem << memWidthLat)
++  val memElemInBeat = memElem < memCount && memElemAddr(63, 3) === memBeat(63, 3)
++  val memElemOff = memElemAddr(2, 0)
++  val memElemBytes = (1.U << memWidthLat)(3, 0)
++  // Byte-enable for the element: `memElemBytes` lanes starting at the element's
++  // address offset (bit o = address byte o).
++  val memElemMask = (((1.U << memElemBytes) - 1.U) << memElemOff)(7, 0)
++  val memElemValueMask = MuxLookup(memWidthLat, "hffffffffffffffff".U(64.W))(Seq(
++    0.U -> "h00000000000000ff".U(64.W),
++    1.U -> "h000000000000ffff".U(64.W),
++    2.U -> "h00000000ffffffff".U(64.W)))
++  val memElemShift = ((8.U - memElemOff - memElemBytes) << 3)(5, 0)
++
++  // Extract the addressed element out of an address-ordered beat and apply
++  // the element's sign/zero extension.
++  def extractElem(v: UInt, off: UInt): UInt = {
++    val b = (0 until beatBytes).map(i => v(63 - 8 * i, 56 - 8 * i)) :+ 0.U(8.W)
++    val zx = MuxLookup(memWidthLat, 0.U(64.W))(Seq(
++      0.U -> MuxLookup(off, 0.U(64.W))((0 until 8).map(o => o.U -> b(o).pad(64))),
++      1.U -> MuxLookup(off, 0.U(64.W))((0 until 7).map(o =>
++        o.U -> Cat(b(o), b(o + 1)).pad(64))),
++      2.U -> MuxLookup(off, 0.U(64.W))((0 until 5).map(o =>
++        o.U -> Cat(b(o), b(o + 1), b(o + 2), b(o + 3)).pad(64))),
++      3.U -> MuxLookup(off, 0.U(64.W))((0 until 1).map(o =>
++        o.U -> Cat(b(0), b(1), b(2), b(3), b(4), b(5), b(6), b(7))))))
++    val sx = MuxLookup(memWidthLat, zx)(Seq(
++      0.U -> Cat(Fill(56, zx(7)), zx(7, 0)),
++      1.U -> Cat(Fill(48, zx(15)), zx(15, 0)),
++      2.U -> Cat(Fill(32, zx(31)), zx(31, 0)),
++      3.U -> zx))
++    Mux(memSignedLat, sx, zx)
++  }
++  val memLdElem = extractElem(memData, memElemOff)
++
++  // The data port: one outstanding request, held on the A channel until the
++  // handshake, then waited on in `MWAIT`.
++  val (_, memGetBits) = dataEdge.Get(DATA_SRC, memBeat(addrBits - 1, 0), lgSize)
++  val (_, memPutBits) = dataEdge.Put(DATA_SRC, memBeat(addrBits - 1, 0), lgSize,
++    laneOrder(memData), memMask)
++  io.dmem.a.valid := state === sMreq && (!memStore || memPacked)
++  io.dmem.a.bits := Mux(memStore, memPutBits, memGetBits)
++  io.dmem.d.ready := state === sMwait
++
++  // The element source for a store beat is read combinationally on the r2
++  // port while the beat is being packed; the element destination for a load
++  // beat is written through w0 while the beat is being unpacked.
++  val memElemRead = state === sMreq && memStore && !memPacked && memElemInBeat
++  val memElemWrite = state === sMwait && !memStore && memBeatValid && memElemInBeat
++  rf.io.r2Idx := Mux(memElemRead, (memStart + memElem)(5, 0), d.srcCIdx)
++  rf.io.r2Bank := Mux(memElemRead, memBank, d.srcCBank)
 +
 +  // ---- write-back --------------------------------------------------------
 +  val execFault = d.ill || d.undi
-+  val ldData = addressOrder(io.dmem.d.bits.data)
 +
 +  // R1 = C: shifts / bit-field ops take the two-cycle path.
 +  val slowOps = Seq(WumingAluOp.SHL, WumingAluOp.SHR_U, WumingAluOp.SHR_S,
@@ -340,16 +443,16 @@ index 0000000..74b5fdd
 +
 +  val execW0 = state === sExec && !execFault && !cfxFault && !aluIsSlow && d.w0En
 +  val slowW0 = state === sSlow && slowW0En
-+  val ldW0 = state === sMwait && d.isLd
 +  val semiW0 = state === sSemi && io.semi.resp.valid
 +
-+  rf.io.w0En := execW0 || slowW0 || ldW0 || semiW0
-+  rf.io.w0Idx := Mux(semiW0, semiRetReg,
-+    Mux(ldW0, d.ldDst, Mux(slowW0, slowW0Idx, d.w0Idx)))
-+  rf.io.w0Rb := Mux(semiW0 || ldW0, false.B, Mux(slowW0, slowW0Rb, d.w0Rb))
-+  rf.io.w0Data := Mux(semiW0, io.semi.resp.value,
++  rf.io.w0En := execW0 || slowW0 || memElemWrite || semiW0
++  rf.io.w0Idx := Mux(memElemWrite, (memStart + memElem)(5, 0),
++    Mux(semiW0, semiRetReg, Mux(slowW0, slowW0Idx, d.w0Idx)))
++  rf.io.w0Bank := Mux(memElemWrite, memBank,
++    Mux(semiW0, WumingBank.RD, Mux(slowW0, slowW0Bank, d.w0Bank)))
++  rf.io.w0Data := Mux(memElemWrite, memLdElem,
++    Mux(semiW0, io.semi.resp.value,
 +    Mux(d.isCfx2, cfxRdata,
-+    Mux(ldW0, ldData,
 +      Mux(slowW0, Mux(slowW0Sel === 1.U, alu.io.hi, alu.io.lo),
 +        Mux(d.w0Sel === 1.U, alu.io.hi, alu.io.lo)))))
 +
@@ -357,7 +460,7 @@ index 0000000..74b5fdd
 +  rf.io.w1En := (state === sExec && !execFault && !cfxFault && !aluIsSlow && d.w1En) ||
 +    (state === sSlow && slowW1En)
 +  rf.io.w1Idx := Mux(state === sSlow, slowW1Idx, d.w1Idx)
-+  rf.io.w1Rb := Mux(state === sSlow, slowW1Rb, d.w1Rb)
++  rf.io.w1Bank := Mux(state === sSlow, slowW1Bank, d.w1Bank)
 +  rf.io.w1Data := alu.io.lo
 +
 +  // ---- fetch port (demand + prefetch) ------------------------------------
@@ -374,29 +477,24 @@ index 0000000..74b5fdd
 +  // address can come back "legal" and reach the bus (where the monitor rejects
 +  // it).  The safe variants check every manager, which is what the
 +  // architectural CFXMEM test needs (spec/Machine-v5 §4.4).
-+  val fetchLegal = fetchEdge.manager.supportsGetSafe(fetchAddr(addrBits - 1, 0), lgSize)
++  val fetchLegal = specBacked(fetchAddr) &&
++    fetchEdge.manager.supportsGetSafe(fetchAddr(addrBits - 1, 0), lgSize)
 +
 +  // Four prefetch slots keep the queue walking forward (m12-020).  Every live
 +  // prefetch is for a beat after the newest queued one, and replies are matched
 +  // back to their slot by source ID, so no assumption is made about the order in
 +  // which the manager answers.  A demand fetch marks the outstanding prefetches
 +  // stale: their replies are dropped instead of being queued into a stream that
-+  // no longer exists (speculative fetches never fault,
-+  // `.tao/knowledge/refs/m12-006-cycle-design.md` §5.5 rule 7), which is why the
-+  // D channel is always ready.
++  // no longer exists (speculative fetches never fault, §5.5 rule 7), which is
++  // why the D channel is always ready.
 +  //
 +  // Data priority (m12-020): while the data port has a request outstanding the
 +  // core starts no new prefetch, so a long load/store burst is not crowded out
-+  // of the SRAM.  Prefetches already on the bus are left alone (their slots are
-+  // still released by their replies, and still flushed as stale).  Arbitration
-+  // resumes as soon as the data port has no outstanding request
-+  // (`MREQ`/`MWAIT` are the only states with one).
++  // of the SRAM.
 +  val pfValid = RegInit(VecInit(Seq.fill(pfSlots)(false.B)))
 +  val pfStale = RegInit(VecInit(Seq.fill(pfSlots)(false.B)))
 +  val pfBeatV = RegInit(VecInit(Seq.fill(pfSlots)(0.U(beatBits.W))))
 +  val pfLiveV = VecInit((0 until pfSlots).map(i => pfValid(i) && !pfStale(i)))
-+  // `pfLive` = prefetches that still extend the queue; `pfBusy` = source IDs in
-+  // use (a flushed request keeps its ID until its reply arrives).
 +  val pfLive = PopCount(pfLiveV)
 +  val pfBusy = PopCount(pfValid)
 +  val pfBeat = nextBeatReg + pfLive // beat index of the next prefetch
@@ -422,16 +520,12 @@ index 0000000..74b5fdd
 +  // The stream is live when the queue holds a beat or when the core is waiting
 +  // for one that is already in flight (`waitBeat`).  In the latter case the
 +  // queue is empty but `nextBeatReg` still marks the next beat of the live
-+  // stream, so the four slots can be filled ahead instead of stop-and-wait
-+  // (m12-020: with `qCount =/= 0` alone the core launched at most one prefetch
-+  // before entering `FWAIT`, which is why the extra slots had no effect).
++  // stream, so the four slots can be filled ahead instead of stop-and-wait.
 +  val pfStreamLive = qCount =/= 0.U || waitBeat
 +  val pfRoom = (qCount +& pfLive) < fetchDepth.U && pfBusy < pfSlots.U
 +  // m12-019: a prefetch is only issued when the address is backed by some
-+  // manager.  An unroutable request would never be answered (and its source ID
-+  // would leak), while the architectural answer for an unroutable *demand*
-+  // access is CFXMEM (`sFreq`).
-+  private val pfAddrLegal =
++  // manager.  An unroutable request would never be answered.
++  private val pfAddrLegal = specBacked(pfReqAddr) &&
 +    fetchEdge.manager.supportsGetSafe(pfReqAddr(addrBits - 1, 0), lgSize)
 +  val pfWanted = pfStreamLive && pfRoom && !atDemand && !dataBusy && !fifoFlush &&
 +    !pfReqValid && pfAddrLegal
@@ -478,27 +572,11 @@ index 0000000..74b5fdd
 +    pushData := addressOrder(imemD.data)
 +  }
 +
-+  // m12-020: SRAM round-trip latency of the demand fetch, in cycles.  Latched
-+  // when the demand request is accepted and sampled when its reply arrives; the
-+  // register keeps the last measurement (also printed below) and is used to
-+  // calibrate how many prefetch slots the queue actually needs.
++  // m12-020: SRAM round-trip latency of the demand fetch, in cycles.
 +  val demandSentCycle = RegInit(0.U(64.W))
 +  val fetchLatency = RegInit(0.U(64.W))
 +  when(atDemand && io.imem.a.fire) { demandSentCycle := cycles }
 +  when(fetchResp) { fetchLatency := cycles - demandSentCycle }
-+
-+  // ---- data port ---------------------------------------------------------
-+  val (_, ldBits) = dataEdge.Get(DATA_SRC, memAddr(addrBits - 1, 0), lgSize)
-+  val (_, stBits) = dataEdge.Put(DATA_SRC, memAddr(addrBits - 1, 0), lgSize,
-+    laneOrder(storeValue))
-+  // Safe legality (see the fetch port): every manager is checked, so an
-+  // unbacked address is CFXMEM instead of an unsupported bus request.
-+  val ldLegal = dataEdge.manager.supportsGetSafe(memAddr(addrBits - 1, 0), lgSize)
-+  val stLegal = dataEdge.manager.supportsPutFullSafe(memAddr(addrBits - 1, 0), lgSize)
-+
-+  io.dmem.a.valid := state === sMreq
-+  io.dmem.a.bits := Mux(d.isLd, ldBits, stBits)
-+  io.dmem.d.ready := state === sMwait
 +
 +  // ---- semihosting request (boundary lift, no host call in the core) -----
 +  io.semi.req.valid := state === sSemi
@@ -530,8 +608,7 @@ index 0000000..74b5fdd
 +
 +  /**
 +    * Synchronous exception entry into the `cfx_hmon` vector (DADAO-12 §5.2):
-+    * save the frame (`excp_prev_run_mode`/`excp_cause_ip`/`excp_cause_id`/
-+    * `excp_cause_info`), force `hypv` and jump to `excp_vector`.  The vector is
++    * save the frame, force `hypv` and jump to `excp_vector`.  The vector is
 +    * 4-byte aligned (rc10 drops the low two bits), so no further IALIGN is
 +    * possible from here.
 +    */
@@ -541,8 +618,6 @@ index 0000000..74b5fdd
 +    cfxCauseIp(0) := causeIpValue
 +    cfxCauseInfo(0) := info
 +    cfxPrevMode(0) := runMode
-+    // Tiny: cfx_hmon cg3 rc8 (`switch_run_mode`) is fixed at 3, so exception
-+    // entry always lands in hypv (spec/Machine-v5 §2).
 +    runMode := 3.U
 +    ip := cfxVector(0)
 +    continueAt(cfxVector(0))
@@ -577,8 +652,7 @@ index 0000000..74b5fdd
 +      waitBeat := false.B
 +      when(!fetchLegal) {
 +        // No manager backs this address: CFXMEM with the fetch address as
-+        // `cause_info` (spec/Machine-v5 §4.4).  The demand request is not
-+        // issued (an unroutable TileLink request would never be answered).
++        // `cause_info` (spec/Machine-v5 §4.4).
 +        enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), ip)
 +      }.elsewhen(io.imem.a.fire) {
 +        demandBeat := ip(addrBits - 1, 3)
@@ -617,9 +691,7 @@ index 0000000..74b5fdd
 +        state := sFreq
 +      }.elsewhen(execFault) {
 +        // ILLI/UNDI: a decode fault is a synchronous exception into the
-+        // monitor with the instruction word as `cause_info` (§4.4).  Reserved
-+        // cfxha (`trap`/`escape`/`cfx2*`) is ILLI as well, so this check
-+        // precedes the CFXREG check.
++        // monitor with the instruction word as `cause_info` (§4.4).
 +        enterHmon(ip,
 +          Mux(d.undi, (1.U << UNDI_BIT).pad(64), (1.U << ILLI_BIT).pad(64)),
 +          inst.pad(64))
@@ -645,11 +717,11 @@ index 0000000..74b5fdd
 +        slowWp := d.wp
 +        slowW0En := d.w0En
 +        slowW0Idx := d.w0Idx
-+        slowW0Rb := d.w0Rb
++        slowW0Bank := d.w0Bank
 +        slowW0Sel := d.w0Sel
 +        slowW1En := d.w1En
 +        slowW1Idx := d.w1Idx
-+        slowW1Rb := d.w1Rb
++        slowW1Bank := d.w1Bank
 +        state := sSlow
 +      }.elsewhen(d.isBr) {
 +        // spec/SimRISC-06 §1: target = rb0 + (imms18 << 2), rb0 = current IP.
@@ -671,8 +743,6 @@ index 0000000..74b5fdd
 +        when(d.cfxHa =/= C_HMON || !cfxHasFrame) {
 +          enterHmon(ip, (1.U << CFXESC_BIT).pad(64), inst.pad(64))
 +        }.otherwise {
-+          // The target/return cfx is always the current cfx, so the hmon frame
-+          // is the one `escape` restores (`excp_prev_run_mode`, DADAO-12 §5.3).
 +          runMode := cfxPrevMode(0)
 +          finish((cfxCauseIp(0) + d.escOff)(63, 0))
 +        }
@@ -680,15 +750,30 @@ index 0000000..74b5fdd
 +        // cfx2rd writes rd through the normal write-back path (the decoder
 +        // sets w0En); cfx2rc is committed by `cfxWriteEn` below.
 +        finish(ip + 4.U)
-+      }.elsewhen(d.isLd || d.isSt) {
-+        when(memAddr(2, 0) =/= 0.U) {
-+          // MALIGN: detected after address generation and before the access;
++      }.elsewhen(d.isLd || d.isSt || d.isLdm || d.isStm) {
++        when(memAlignFail) {
++          // MALIGN: address generated and checked before any bus request;
 +          // `cause_info` is the access address (spec/Machine-v5 §4.4).
-+          enterHmon(ip, (1.U << MALIGN_BIT).pad(64), memAddr)
-+        }.elsewhen(!Mux(d.isLd, ldLegal, stLegal)) {
-+          // CFXMEM: no manager backs the access address (§4.4).
-+          enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), memAddr)
++          enterHmon(ip, (1.U << MALIGN_BIT).pad(64), memAddrNow)
++        }.elsewhen(!memRangeLegalNow) {
++          // CFXMEM: no manager backs the access (whole `ldm`/`stm` range is
++          // checked here, before the first beat, so the fault is precise).
++          enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), memAddrNow)
 +        }.otherwise {
++          memStore := d.isSt || d.isStm
++          memMulti := isMulti
++          memWidthLat := d.memWidth
++          memSignedLat := d.memSigned
++          memBase := memAddrNow
++          memCount := memCountNow
++          memBank := Mux(isMulti, d.mregBank, Mux(d.isLd, d.ldBank, d.stBank))
++          memStart := Mux(isMulti, d.mregStart, d.ldDst)
++          memElem := 0.U
++          memBeat := beatOf(memAddrNow)
++          memData := 0.U
++          memMask := 0.U
++          memPacked := !(d.isSt || d.isStm)
++          memBeatValid := false.B
 +          state := sMreq
 +        }
 +      }.otherwise {
@@ -698,9 +783,6 @@ index 0000000..74b5fdd
 +    is(sTrap) {
 +      // §5.3 TRAP row: the semihosting window goes to SEMI; `trap cfx_hmon`
 +      // outside it is the CFXTRAP handoff into the hmon vector (m12-007).
-+      // The four synchronous source masks do not gate synchronous exceptions
-+      // (DADAO-12 §5.2(二)) and the only trap source on Tiny is the current
-+      // cfx (bit ignored), so entry is allowed here.
 +      when(semiIsHost) {
 +        state := sSemi
 +      }.elsewhen(d.cfxHa === C_HMON) {
@@ -718,21 +800,63 @@ index 0000000..74b5fdd
 +    }
 +    is(sExc) {
 +      // m12-019: every synchronous fault enters the hmon vector from the
-+      // detecting state, so this sink is defensive only (a core invariant
-+      // violation, not a guest fault) and ends in `HALT`.
++      // detecting state, so this sink is defensive only.
 +      state := sFault
 +    }
 +    is(sMreq) {
-+      when(io.dmem.a.ready) { state := sMwait }
++      when(memStore) {
++        when(!memPacked) {
++          when(memElemInBeat) {
++            // Pack one element of this beat: place the source register's
++            // low bytes at the element's address offset (big-endian within
++            // the 8-byte beat) and enable exactly those byte lanes.
++            val elem = rf.io.r2Data & memElemValueMask
++            memData := memData | (elem << memElemShift)(63, 0)
++            memMask := memMask | memElemMask
++            memElem := memElem + 1.U
++          }.otherwise {
++            memPacked := true.B
++          }
++        }.elsewhen(io.dmem.a.ready) {
++          state := sMwait
++        }
++      }.elsewhen(io.dmem.a.ready) {
++        state := sMwait
++      }
 +    }
 +    is(sMwait) {
 +      when(io.dmem.d.fire) {
-+        when(io.dmem.d.bits.denied) {
-+          // The address is mapped but the manager denies the operation (e.g. a
-+          // store into the read-only BootROM): CFXMEM with the address.
-+          enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), memAddr)
++        when(io.dmem.d.bits.denied || io.dmem.d.bits.corrupt) {
++          // The address passed the EXEC precheck but the manager still denies
++          // (or corrupts) the transfer.  A failure in the middle of an
++          // `ldm`/`stm` cannot be made precise, so it is reported as CFXMEM
++          // (task baseline R7); the monitor may re-enter the whole
++          // instruction.  `corrupt` is the same architectural outcome
++          // (design note §3.3: denied/corrupt are one CFXMEM fallback).
++          enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), memBeat)
++        }.elsewhen(memStore) {
++          when(memElem === memCount) {
++            finish(ip + 4.U)
++          }.otherwise {
++            memBeat := memBeat + 8.U
++            memData := 0.U
++            memMask := 0.U
++            memPacked := false.B
++            state := sMreq
++          }
 +        }.otherwise {
-+          finish(ip + 4.U)
++          memData := addressOrder(io.dmem.d.bits.data)
++          memBeatValid := true.B
++        }
++      }
++      when(!memStore && memBeatValid) {
++        when(memElemInBeat) {
++          memElem := memElem + 1.U
++          when(memElem + 1.U === memCount) { finish(ip + 4.U) }
++        }.otherwise {
++          memBeatValid := false.B
++          memBeat := memBeat + 8.U
++          state := sMreq
 +        }
 +      }
 +    }
@@ -762,15 +886,13 @@ index 0000000..74b5fdd
 +  when(state === sFreq && io.imem.a.fire) { nextBeatReg := ip(addrBits - 1, 3) }
 +
 +  // ---- legality assertions ------------------------------------------------
-+  // m12-019: an address that no manager backs is CFXMEM (`sFreq`/`sExec`), so
-+  // only a routable demand fetch ever reaches the A channel and only a
-+  // routable load/store ever reaches `sMreq`.
-+  assert(!(state === sMreq) || Mux(d.isLd, ldLegal, stLegal),
-+    "WumingCore: load/store address is not backed by a capable manager")
++  // Only a backed beat ever reaches the data A channel: the EXEC precheck
++  // covers the whole transfer, so this is the belt-and-braces form.
++  assert(!(state === sMreq) ||
++    Mux(memStore, dataPutLegal(memBeat), dataGetLegal(memBeat)),
++    "WumingCore: load/store beat is not backed by a capable manager")
 +
 +  // ---- cfx register writes (m12-019) --------------------------------------
-+  // rc10 drops the low 2 bits on write (DADAO-13 §1); switch_run_mode accepts
-+  // and ignores the write (Tiny keeps hypv, the saved value stays 3).
 +  val cfxWriteEn = state === sExec && d.isCfx2 && d.cfxWrite && cfxRegOk
 +  when(cfxWriteEn) {
 +    when(isMask) {
@@ -812,11 +934,24 @@ index 0000000..74b5fdd
 +  when(state === sSemi && io.semi.resp.valid) {
 +    printf(p"WumingCore: semihost 0x${Hexadecimal(semiOp)} -> rd${semiRetReg}=0x${Hexadecimal(io.semi.resp.value)} cycle=${cycles}\n")
 +  }
-+  when(state === sMwait && io.dmem.d.fire && d.isSt) {
-+    printf(p"WumingCore: st 0x${Hexadecimal(memAddr(47, 0))} <= 0x${Hexadecimal(storeValue)} ok cycle=${cycles}\n")
++  when(state === sExec && (d.isLd || d.isSt || d.isLdm || d.isStm) &&
++    !execFault && !cfxFault && !memAlignFail && memRangeLegalNow) {
++    // Kind: 0 = ld, 1 = st, 2 = ldm, 3 = stm.  `count` is the element count
++    // (1 for single ld/st) and `width` the log2 of the access size.
++    val kind = Mux(d.isSt, 1.U, Mux(d.isLdm, 2.U, Mux(d.isStm, 3.U, 0.U)))
++    printf(p"WumingCore: memop ip=0x${Hexadecimal(ip(47, 0))} kind=${kind} addr=0x${Hexadecimal(memAddrNow(47, 0))} width=${d.memWidth} count=${memCountNow} cycle=${cycles}\n")
 +  }
-+  when(state === sMwait && io.dmem.d.fire && d.isLd) {
-+    printf(p"WumingCore: ld 0x${Hexadecimal(memAddr(47, 0))} -> 0x${Hexadecimal(ldData)} ok cycle=${cycles}\n")
++  when(state === sMwait && io.dmem.d.fire && memStore) {
++    printf(p"WumingCore: beat st 0x${Hexadecimal(memBeat(47, 0))} mask=0x${Hexadecimal(memMask)} data=0x${Hexadecimal(memData)} cycle=${cycles}\n")
++  }
++  when(state === sMwait && io.dmem.d.fire && !memStore) {
++    printf(p"WumingCore: beat ld 0x${Hexadecimal(memBeat(47, 0))} -> 0x${Hexadecimal(addressOrder(io.dmem.d.bits.data))} cycle=${cycles}\n")
++  }
++  when(memElemWrite && memElem + 1.U === memCount) {
++    printf(p"WumingCore: ld 0x${Hexadecimal(memElemAddr(47, 0))} -> 0x${Hexadecimal(memLdElem)} last count=${memCount} cycle=${cycles}\n")
++  }
++  when(memStore && state === sMwait && io.dmem.d.fire && memElem === memCount) {
++    printf(p"WumingCore: st... done beat=0x${Hexadecimal(memBeat(47, 0))} count=${memCount} cycle=${cycles}\n")
 +  }
 +  when(state === sExec && d.isBr) {
 +    printf(p"WumingCore: br ip=0x${Hexadecimal(ip(47, 0))} cond=${d.brCond} off=${d.brOff} cycle=${cycles}\n")
@@ -824,10 +959,6 @@ index 0000000..74b5fdd
 +  when(state === sTrap && !semiIsHost) {
 +    printf(p"WumingCore: cfxtrap ip=0x${Hexadecimal(ip(47, 0))} magic=0x${Hexadecimal(inst(17, 0))} vector=0x${Hexadecimal(cfxVector(0)(47, 0))} cycle=${cycles}\n")
 +  }
-+  // `mode` is the run mode the instruction executes in (before `escape`
-+  // restores `excp_prev_run_mode`); `wdata` is the value a cfx2rc write puts
-+  // on the register, `data` the value a read returns.  Faulting escape/cfx2
-+  // instructions do not execute, so they print nothing.
 +  when(state === sExec && d.isEscape && !execFault) {
 +    printf(p"WumingCore: escape ip=0x${Hexadecimal(ip(47, 0))} frame=0x${Hexadecimal(cfxCauseId(0))} cause_ip=0x${Hexadecimal(cfxCauseIp(0)(47, 0))} target=0x${Hexadecimal((cfxCauseIp(0) + d.escOff)(47, 0))} mode=${runMode} cycle=${cycles}\n")
 +  }
@@ -836,7 +967,6 @@ index 0000000..74b5fdd
 +  }
 +  val faultPrinted = RegInit(false.B)
 +  when(state === sFault && !faultPrinted) {
-+    // Defensive: no synchronous fault reaches `FAULT` after m12-019.
 +    faultPrinted := true.B
 +    printf(p"WumingCore: fault ip=0x${Hexadecimal(ip(47, 0))} inst=0x${Hexadecimal(inst)} cycle=${cycles}\n")
 +  }

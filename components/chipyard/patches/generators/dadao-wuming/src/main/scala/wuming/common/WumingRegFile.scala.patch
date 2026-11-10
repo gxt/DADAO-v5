@@ -1,22 +1,28 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala
 new file mode 100644
-index 0000000..7afcf59
+index 0000000..7e97b89
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala
-@@ -0,0 +1,65 @@
+@@ -0,0 +1,82 @@
 +// See LICENSE for license details.
 +//
-+// DADAO register file banks used by the m12-chipyard-005 integer subset
-+// (spec/SimRISC-00 §2, spec/DADAO-21 ABI):
++// DADAO register file banks (spec/SimRISC-00 §2, spec/DADAO-21 ABI):
 +//
-+//   rd0  reads 0, writes are dropped (the decoder raises ILLI for the shapes
-+//        where a write is not allowed, e.g. single-destination instructions;
-+//        `rrrr` dual-destination forms may discard one half into rd0).
-+//   rb0  reads the *current instruction address* (IP) -- not PC+4 -- and is
-+//        read-only; the decoder raises ILLI for an explicit rb0 destination.
++//   rd  data registers      rd0 reads 0, writes are dropped
++//   rb  base registers      rb0 reads the *current instruction address* (IP,
++//                           not PC+4) and is read-only
++//   ra  return address stack registers; m12-chipyard-008 adds them as a plain
++//       register bank because `ld.o`/`st.o`/`ldm.o`/`stm.o` address the RA
++//       bank (spec/SimRISC-01 §3).  `ra0` is readable and writable; its
++//       RACNT/MRPTR structure is the business of the control-flow task
++//       (m12-chipyard-009), which layers the RAS semantics on top.
 +//
-+// The ra bank (return address stack) is not used by the instructions of this
-+// milestone; control flow / call / ret land in m12-chipyard-006/007.
++// The rf (floating point) bank arrives with the FP milestone
++// (m12-chipyard-011); the decoder raises ILLI for the RF forms until then.
++//
++// Read ports are asynchronous (combinational), so a single cycle can read an
++// element source register for the `ldm`/`stm` beat loop.  Every port carries a
++// 2-bit bank select (`WumingBank`).
 +
 +package wuming.common
 +
@@ -26,46 +32,57 @@ index 0000000..7afcf59
 +class WumingRegFile extends Module {
 +  val io = IO(new Bundle {
 +    // rb0's architectural value = the address of the instruction being
-+    // executed (spec/SimRISC-00: rb0 = IP, not PC+4).
++    // executed (spec/SimRISC-00 §2.2: rb0 = IP, not PC+4).
 +    val ip = Input(UInt(64.W))
 +
-+    // Four read ports: two operand sources (A/B) plus a side port used by the
-+    // legacy control/memory/semihosting forms retained from m12-003/004.
-+    val r0Idx = Input(UInt(6.W)); val r0Rb = Input(Bool())
-+    val r1Idx = Input(UInt(6.W)); val r1Rb = Input(Bool())
-+    val r2Idx = Input(UInt(6.W)); val r2Rb = Input(Bool())
++    // Three read ports: two operand sources (A/B) plus a side port used by the
++    // memory beat loop (element source), the cfx writes and semihosting.
++    val r0Idx = Input(UInt(6.W)); val r0Bank = Input(UInt(2.W))
++    val r1Idx = Input(UInt(6.W)); val r1Bank = Input(UInt(2.W))
++    val r2Idx = Input(UInt(6.W)); val r2Bank = Input(UInt(2.W))
 +    val r0Data = Output(UInt(64.W))
 +    val r1Data = Output(UInt(64.W))
 +    val r2Data = Output(UInt(64.W))
 +
-+    // Two write ports (rrrr writes a 128-bit dual result back to two rd's).
++    // Two write ports (rrrr writes a 128-bit dual result back to two rd's;
++    // `ldm` writes one element per cycle).
 +    val w0En   = Input(Bool())
 +    val w0Idx  = Input(UInt(6.W))
-+    val w0Rb   = Input(Bool())
++    val w0Bank = Input(UInt(2.W))
 +    val w0Data = Input(UInt(64.W))
 +    val w1En   = Input(Bool())
 +    val w1Idx  = Input(UInt(6.W))
-+    val w1Rb   = Input(Bool())
++    val w1Bank = Input(UInt(2.W))
 +    val w1Data = Input(UInt(64.W))
 +  })
 +
 +  val rd = RegInit(VecInit(Seq.fill(64)(0.U(64.W))))
 +  val rb = RegInit(VecInit(Seq.fill(64)(0.U(64.W))))
++  val ra = RegInit(VecInit(Seq.fill(64)(0.U(64.W))))
 +
-+  def read(idx: UInt, isRb: Bool): UInt =
-+    Mux(idx === 0.U, Mux(isRb, io.ip, 0.U(64.W)), Mux(isRb, rb(idx), rd(idx)))
++  def read(idx: UInt, bank: UInt): UInt =
++    Mux(bank === WumingBank.RB, Mux(idx === 0.U, io.ip, rb(idx)),
++      Mux(bank === WumingBank.RA, ra(idx),
++        Mux(idx === 0.U, 0.U(64.W), rd(idx))))
 +
-+  io.r0Data := read(io.r0Idx, io.r0Rb)
-+  io.r1Data := read(io.r1Idx, io.r1Rb)
-+  io.r2Data := read(io.r2Idx, io.r2Rb)
++  io.r0Data := read(io.r0Idx, io.r0Bank)
++  io.r1Data := read(io.r1Idx, io.r1Bank)
++  io.r2Data := read(io.r2Idx, io.r2Bank)
 +
-+  // rd0 / rb0: reads are special-cased above, writes are dropped here.  The
-+  // decoder has already turned an illegal rb0 destination into ILLI, so this
-+  // is the belt-and-braces form of "rb0 is read-only".
-+  when(io.w0En && io.w0Idx =/= 0.U) {
-+    when(io.w0Rb) { rb(io.w0Idx) := io.w0Data }.otherwise { rd(io.w0Idx) := io.w0Data }
++  // rd0 reads 0 and rb0 reads IP (both handled above); writes to either are
++  // dropped here as the belt-and-braces form (the decoder already raises ILLI
++  // for the shapes that may not write them).
++  def writable(idx: UInt, bank: UInt): Bool =
++    !(idx === 0.U && (bank === WumingBank.RD || bank === WumingBank.RB))
++
++  when(io.w0En && writable(io.w0Idx, io.w0Bank)) {
++    when(io.w0Bank === WumingBank.RB) { rb(io.w0Idx) := io.w0Data }
++      .elsewhen(io.w0Bank === WumingBank.RA) { ra(io.w0Idx) := io.w0Data }
++      .otherwise { rd(io.w0Idx) := io.w0Data }
 +  }
-+  when(io.w1En && io.w1Idx =/= 0.U) {
-+    when(io.w1Rb) { rb(io.w1Idx) := io.w1Data }.otherwise { rd(io.w1Idx) := io.w1Data }
++  when(io.w1En && writable(io.w1Idx, io.w1Bank)) {
++    when(io.w1Bank === WumingBank.RB) { rb(io.w1Idx) := io.w1Data }
++      .elsewhen(io.w1Bank === WumingBank.RA) { ra(io.w1Idx) := io.w1Data }
++      .otherwise { rd(io.w1Idx) := io.w1Data }
 +  }
 +}

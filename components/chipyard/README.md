@@ -60,6 +60,14 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **12 态骨架**（`m12-006` §5.1）：`IDLE/FREQ/FWAIT/EXEC/TRAP/SEMI/EXC/MREQ/MWAIT/SLOW/FAULT/HALT`。周期口径 R1 = C：移位/位域运算走 `SLOW`（`EXEC` 锁操作数、`SLOW` 算并写回，2 拍），简单算术 1 拍；寄存器堆保持 2 写 3 读（R8 = 2R2W）。`EXC` 目前只记录 cause 后进 `FAULT`——cfx 帧/向量由 `m12-chipyard-019` 落地，`ldm/stm` 语义由 `008`。
 - **诊断**：每条 `printf` 末尾带 `cycle=`（仿真时间戳，供周期验收直接量取）；`fault ... ILLI|UNDI|IALIGN|CFXMEM` 格式不变。
 
+## 访存（`m12-chipyard-008`）
+
+- **单元素 `ld`/`st`**（`spec/SimRISC-01 §1–§4`）：`ld.{ub,uw,ut,sb,sw,st}`、`st.{b,w,t}` 与 `ld.o`/`st.o` 的 rd/rb/ra 三种银行（RF 银行归 `m12-chipyard-011`，当前仍 ILLI）；地址 = `rbHB + imms12`，按访问宽度做 `MALIGN`，写回按宽度零/符号扩展。
+- **`ldm`/`stm`**（`rrri`，1–63 个寄存器）：地址 = `rbHB + rdHC`（用**原始** `rdHC`），元素 i 在 `addr + i·W`；**按 8 字节 TileLink beat 分组**（元素自然不跨 beat）——`stm` 用整拍 `Put` + byte mask 打包，`ldm` 用整拍 `Get` 后逐元素提取。整段（对齐 + 地址窗口）在 `EXEC` **预检**、第一拍之前判定 ⇒ 精确 `MALIGN`/`CFXMEM`；中途 `denied`/`corrupt` ⇒ `CFXMEM` 进 hmon（非精确，软件可重入整条指令）。
+- **地址合法性 = Tiny 三段窗口**（`spec/Machine-v5 §1.1`：BootROM / SRAM / hmon SRAM）：窗口之外一律 `CFXMEM`。不能只看 `TLXbar` 协商出的 manager 集合——chipyard 在地址 0 还有 debug-controller 等外设，会让未映射访问被当成合法总线访问；取指/预取用同一口径。
+- **`ra` 银行**：`WumingRegFile` 增加第三组 64×64 寄存器（`ra0` 可读写）；RAS 的溢出/下溢与 `call`/`ret` 语义归 `m12-chipyard-009`。
+- **字节序**：所有总线访问按 8 字节 beat 对齐，大端在 beat 内逐字节重组（`addressOrder`/`laneOrder`）；`st.b/.w/.t` 用 byte mask 只写目标字节，邻字节不变。
+
 ## 边界
 
 - **保留** rocket-chip 库（Diplomacy / TileLink / `BaseTile`）与 chipyard 仿真设施（Verilator harness / BootROM / 内存模型 / `loadmem`）。

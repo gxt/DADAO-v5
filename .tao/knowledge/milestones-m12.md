@@ -38,12 +38,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m12-chipyard-008 | 2026-11-11 04:18 | 3–4 h | 访存：ld/st 全宽度 + ldm/stm（8B beat）+ MALIGN/CFXMEM 进 hmon |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-008 | 2026-11-11 07:12 | 访存：`ld`/`st` 全宽度 + `ldm`/`stm`（8B beat、byte mask、精确 MALIGN/CFXMEM） |
 | m12-chipyard-019 | 2026-11-11 04:18 | `cfx_power`/`cfx3` 寄存器组 + 五类同步异常进 hmon（`escape` 0/+4） |
 | m12-chipyard-020 | 2026-11-11 00:38 | 取指预取优化：4 预取槽 + 数据优先仲裁（跨 beat 8→p50=1） |
 | m12-chipyard-007 | 2026-11-10 19:24 | Tiny BootROM 固定固件 + power 搬运 + 最小 hmon handler（56 B） |

@@ -40,6 +40,10 @@
   - 摘要：**cfx 寄存器组 + 五类同步异常进 hmon**。`WumingCore` 实现 `cfx_hmon`(cfx3)/`cfx_power`(cfx63) 的 `cg3`（四类同步 mask、`cfx_intr_mask`、`switch_run_mode` 恒 3、`excp_vector` 写忽略低 2 位）、`cg5`（`excp_prev_run_mode`、cause 帧）、`cg7`（16 块空间描述，只读写 `CFXREG`）与 `cg8 rc1`（未实现 ⇒ `CFXREG`）；`cg3` 仅 hypv 可访问，其它运行模式 ⇒ `CFXREG`；`CFXMEM`/`ILLI`/`UNDI`/`MALIGN`/`IALIGN` 五类同步异常写 `excp_cause_*` 并跳到 `excp_vector`（不再进 `FAULT`），`escape` 恢复 `excp_prev_run_mode`；未 backing 的访存/取指按 `TLEdge` 的 **safe** 合法性判 `CFXMEM`（fast 版对未映射地址会误报合法）。
   - 执行者：engineer
 
+- **2026-11-11 `m12-chipyard-008`**
+  - 摘要：**访存族：全宽度 `ld`/`st` + `ldm`/`stm`**。`WumingRegFile` 增加 **`ra` 银行**（第三组 64×64，`ra0` 可读写；RAS 语义归 `009`），读写口改为 2 位 bank 选择（rd/rb/ra）；`WumingDecoder` 覆盖 `SimRISC-01` 全部整数宽度（`ld.{ub,uw,ut,sb,sw,st}`/`st.{b,w,t}` + `ld.o`/`st.o` 的 rd/rb/ra 银行）与 `ldm`/`stm`（`rrri`，`mreg_zero`/`mreg_range_overflow`/`dst_rd0`/`dst_rb0` 合法性）；`WumingCore` 新增统一访存序列：**8 字节 beat 分组**（`stm` 逐元素打包 + byte-mask `Put`，`ldm` 逐元素提取写回）、**整段预检**（对齐 + Tiny 三段窗口，第一拍前）⇒ 精确 `MALIGN`/`CFXMEM`，中途 `denied`/`corrupt` ⇒ `CFXMEM` 进 hmon（可重入）；地址合法性改为 **Tiny 三段窗口**判定（`spec/Machine-v5 §1.1`），不再只看协商 manager 集合（否则地址 0 的 debug-controller 会把未映射访问变合法）。`tools/chipyard/mem_sweep.py` 驱动 `tests/inst/base/mem-*.yaml`（167 例：90 语义/边界 + 77 故障），`inst_sweep.py` 的「已定义未实现」探针改到 RF 银行形式（`ld.t rf`，FP 归 `011`）。
+  - 执行者：engineer
+
 - **2026-11-09 `m12-infra-003`**
   - 摘要：**子模块补丁集试点（testchipip）**：`generators/testchipip` 新增子模块补丁集 `submodules/testchipip/{series,patches/}`——`SimDRAM.cc` 的 `loadmem_memif_t::get_target_endianness()` 改为由 `+loadmem_be` plusarg 显式返回 `endianness_big`（默认 little 不变，stock RISC-V 配置行为不动），`SimDRAM.v` 的 `MEM_BASE` 默认值改为 `64'h0`（原无位宽 32 位推断会截断 48 位基址）；组件补丁集与子模块补丁集的分工/声明/门控见 `docs/Process-01 §14`。
   - 执行者：engineer

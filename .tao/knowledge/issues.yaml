@@ -164,7 +164,7 @@
   - infra
   status: open
   resolved_by: null
-  title: '【P2】`make check-arch` / `check-arch-smoke` 在本机 `EXIT=2`：`CMake Error: The source directory ".../.work/source/llvm-project/llvm" does not exist`（`m13-integ-007` reviewer 重试 3 次同错：默认、`-o install-host`、`-o` 全链）。检查体本身可用（m5 e2e 10/10、25 服务、14 探针全 rc=0），说明是 `install-host → build-mc` 的 llvm 源路径问题。建议：核 `.work/source/llvm-project` 的目录形态（monorepo 根 vs `llvm/` 子目录）与 `build-mc` 传入的 CMake 源路径是否一致。'
+  title: '【P2】`make check-arch` / `check-arch-smoke` 在本机 `EXIT=2`：`CMake Error: The source directory ".../.work/source/llvm-project/llvm" does not exist`（`m13-integ-007` reviewer 重试 3 次同错：默认、`-o install-host`、`-o` 全链）。检查体本身可用（m5 e2e 10/10、25 服务、14 探针全 rc=0），说明是 `install-host → build-mc` 的 llvm 源路径问题。建议：核 `.work/source/llvm-project` 的目录形态（monorepo 根 vs `llvm/` 子目录）与 `build-mc` 传入的 CMake 源路径是否一致。 补充（2026-11-11 04:5x）：architect 实测 `.work/source/llvm-project/llvm` **存在** ⇒ 非目录缺失，疑为并行任务在该目录上操作（或 worktree 软链指向差异）导致的瞬时现象；复现时先记录 `ls -ld` 与 mtime。'
 - id: ISS-380
   scope:
   - testcases
@@ -172,3 +172,9 @@
   status: open
   resolved_by: null
   title: 【P3】`m13-integ-007` 文档级遗留：① `hmon.S` 注释写「10 条」实为 11 条；② chipyard 跟随清单缺「改源树 hex → `tools/infra/make_patch.py` 重导出 → `make check-patch-tree`」一步；③ 清单里的 md5 `5143…` 是解码镜像 md5，hex 文本 md5 实为 `c499803a…`，需注明；④ chipyard 回归「构建/Verilator/TestDriver」是描述非命令；⑤ 「预置数据区哨兵」构造未做，以结构性证据替代。
+- id: ISS-381
+  scope:
+  - chipyard
+  status: open
+  resolved_by: null
+  title: 【P3】`m12-chipyard-008` 文档与覆盖遗留：F-a `stm.o N=8` 实测 72 拍（完成区写 80，超 ±2）、单元素周期描述不可复现；F-b 回归向量 87 个 `ldm`/`stm` 全 count=1 ⇒ 多元素/跨 beat 路径零覆盖（reviewer 用自建探针补证，建议补 count>1 向量）；F-c 「中途 denied ⇒ CFXMEM」只有代码证据（预检已拦掉可构造的 deny）；F-d CFXMEM 30 例全为 addr0 同形态（数量达标、形态单一）。
