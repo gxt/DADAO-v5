@@ -153,3 +153,9 @@
   status: open
   resolved_by: null
   title: 【P1】**任务收尾未做「修改文件 ↔ git 对账」导致交付文件丢失**：`m13-gem5-005` 完成区声明新增 4 个文件（`tests/arch/hmon/tiny_hmon_handler.{S,lds}`、`tiny_hmon_layout.inc`、`tools/gem5/check_tiny_hmon.py` 改动），但从未进入任何 commit、磁盘亦不存在 ⇒ `check_tiny_hmon.py` 现 `exit=2`，gem5 hmon 门控失效。根因：architect 收口时只看工作树 `git status`，未按完成区「修改文件」逐项 `git show --stat` 对账。建议：收口检查固定加一条「完成区修改文件数 == 提交 stat 文件数，逐项列名」；reviewer 也要核此项。
+- id: ISS-378
+  scope:
+  - gem5
+  status: open
+  resolved_by: null
+  title: 【P3】`m13-gem5-006` 文档级遗留：① 完成区写「hmon SRAM 全 8192 B」，实为段 248 B + 尾零 65288 B（dump 65536 B）；② 验收 3 的 `grep` 仍余 1 处活值（`expected.yaml:31`，019 合入后由该行接管）；③ 完成区把 chipyard 脏归属写成「并行 019」，实为并行的 `m12-chipyard-008`（019 已于 04:18 合入、脏文件 mtime 04:38）。
