@@ -3,6 +3,10 @@ description: 实现子代理（engineer）：按架构师任务文件执行实�
 mode: subagent
 model: deepseek/deepseek-flash
 permissions:
+  # 子代理不得直接向用户提问：需要裁定的问题写进任务书并返回主会话（用户 2026-11-10）
+  - action: question
+    resource: "*"
+    effect: deny
   - action: shell
     resource: "*"
     effect: allow
