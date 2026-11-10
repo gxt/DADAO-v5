@@ -339,3 +339,12 @@
 - **gem5 体积事实**：`build/DADAO` 4.5G；`gem5.opt` 702 MB，其中 `size` 实测 text+data 仅 34 MB，**662 MB 是 DWARF 符号**；`strip --strip-debug` 后 **40 MB**（行为不变）。`gem5.fast` 关闭 assert ⇒ 差分测试不宜盲用。
 - **逐指令信息不是大头**：跑批未使用 `--debug-flags`，每例 `m5out` 仅 280 KB；250G 来自重复的逐例运行目录。**规则**：常规跑批永不开 `--debug-flags`；需要时用 `--debug-start/--debug-end` 卡窗口并即删。
 - **待用户定**：① `docs/Process-08` 增「收尾只留 `run.sh` + 汇总 JSON + 日志（≤10MB），删逐例目录」；② `.work/build/` 只允许 `gem5`/`qemu`/`llvm` 规范名，派生构建用完即删，`gem5.debug` 按需临时建。
+
+## spec-003 / spec-004 拆分与 hmon 装载契约（用户 2026-11-10 裁定）
+
+- **选 B 拆两册**：`m12-spec-003`（题 1–5 口径统一，纯文字）+ `m12-spec-004`（题 6–8 新契约）。
+- **hmon 装载契约（用户原话）**：「hmon的代码/数据应该是放在bootrom中，然后由bootrom代码存放到相应位置；先在qemu中进行验证，然后gem5/chipyard可共用」。
+  ⇒ 废弃「宿主 loader 直装 hmon 段」的现行实现口径；**宿主只为应用下发 `PT_LOAD`**，hmon 随 BootROM 镜像走。
+- **`cfx2*` 口径（用户原话）**：「reserved cfx引发ILLI，非reserved cfx的未定义cg/rc引发CFXREG，没有冲突，只是Machine-v5文档没写清楚」⇒ 只需把文档写清。
+- **退出码（用户原话）**：「7.1写的不对，只定编码，谁产生是代码设计要决定的」⇒ spec 删除「由 handler/硬件产生」类表述。
+- **连带影响**：`m13-qemu-001`/`m13-gem5-001` 已按旧口径（直装）合入，需按新契约返工；`m12-chipyard-007` 直接按新契约实现。建议合并为一个「三平台 hmon 装载对齐」任务（待 spec-004 合并后立）。
