@@ -1,8 +1,8 @@
-# m12-chipyard-007: Tiny 的 `cfx_power` + `cfx3 hmon`（异常进向量）
+# m12-chipyard-007: Tiny 的 BootROM 固定固件 + power 搬运 + 最小 hmon handler
 
 **模块**：chipyard
 **项目里程碑**：M12
-**依赖**：`m12-chipyard-006`（设计）+ `m12-spec-004`（hmon 装载契约/rc10 口径）+ `m12-spec-003`（口径统一）——三者均已合入
+**依赖**：`m12-chipyard-018`（双 TL 端口 + 8-beat 取指 + FSM 骨架）；`m12-spec-003/004` 已合入
 **可并行分片**：否（单核实现，单写者）
 **状态**：待开始
 
@@ -43,30 +43,23 @@
 - **三平台 Tiny 的 semihosting `trap` 统一写 `trap cfx_hmon`**（实现上仍只看 `immu18`，不判断 cfxha）
 - `trap` 判定：`immu18 ∈ 0x3FF00–0x3FFFF` ⇒ semihosting；`cfxha=3` + 其它 `immu18` ⇒ 进 hmon
 
-## 目标
+## 目标（本任务只做「装载与移交」，不做异常分派）
 
-1. **`cfx_power`（cfx63）**：Tiny 的启动移交路径 `power → hmon`（与 Vast 同构），按 `DADAO-12 §5.2` 的 trap 移交语义。
-2. **`cfx3 hmon`**：
-   - hmon 寄存器组（`excp_cause`/`excp_vector`/四类同步 mask/`cfx_intr_mask`/`switch_run_mode`）
-   - 同步异常（ILLI/UNDI/`CFXMEM`/`MALIGN`/`IALIGN`）进 hmon 向量：**IP 停留语义按 `DADAO-12 §5`**（IALIGN 时 IP 停在非法地址，不写回 `nextIp`）
-   - hmon 可 `escape` 回测试本体（用户态/hypv 测试体）
-3. **`trap` 区分**：`immu18` 区间判定 semihosting vs hmon；semihosting 统一用 `trap cfx_hmon`。
-4. **地址图**：Tiny 增加 hmon SRAM `0x0fff_0000_0000`（64 KiB），与 BootROM/SRAM 并存。
-5. **BootROM 固件与搬运**：power stub（≤8 KiB）校验 image index table（`§6.1` 格式、`count=1`、`boot_magic=0x30001`）→ 逐 8 字节复制 hmon 段到 hmon SRAM → 写向量（幂等）→ `trap cfx_hmon, 0x30001` → hmon `escape` 回 stub → power 跳 `0xffff_ff01_0100`。
-6. **最小 hmon handler**（≤8 KiB）：入口即向量；分派 `CFXTRAP`/五类同步异常；算退出码 → `SYS_EXIT`；`escape +0/+4` 返回。
-7. **双 TL 端口**：取指与访存各一个 `TLBundle`（`IdRange(0,3)`），取指缓冲 8 beat。
-8. **回归**：bootrom 启动、loadmem、semihosting 闭环、005 的 273 例整数测试**全部不回归**。
+1. **BootROM 固定固件构建器**：产出恰好 64 KiB 镜像，布局 `0x0000–0x1FFF` power（8 KiB）/ `0x2000–0x3FFF` hmon（8 KiB）/ `0x4000–0xDFFF` 保留全零（40 KiB）/ `0xE000–0xFFFF` image index table（8 KiB，`§6.1` 格式、`count=1`、`type=1`、`boot_magic=0x30001`）。
+2. **power stub（≤8 KiB）**：校验表头/表项 → 逐 8 字节复制 hmon 段到 `0x0fff_0000_0000` → 写 `excp_vector`（幂等）→ `trap cfx_hmon, 0x30001` → hmon `escape` 回 stub → 跳 `0xffff_ff01_0100`。
+3. **最小 hmon handler（≤8 KiB）**：入口即向量；校验 `CFXTRAP` + magic；`escape cfx_hmon, [excp_cause_ip, 4]` 返回。**不做**异常分派/退出码（`019`）。
+4. **SoC 侧**：hmon SRAM 与 power SRAM 作为两个独立从设备；BootROM 按 `bootrom-image` 原样装入。
+5. **装载契约**：宿主只装应用段（SRAM）；`crt` 与测试程序一起链接；入口固定 `0xffff_ff01_0100`。
 
 ## 验收标准
 
-0. **BootROM 镜像可构建**：构建器产出恰好 64 KiB 镜像（布局符合上表），`boot_magic`/`offset`/`size`/`flags` 与 `§6.1` 一致
-1. `cfx_power → hmon` 移交可观测（打印/断言移交前后的运行模式与 PC）
-2. 五类同步异常各至少 3 例进 hmon 向量，`excp_cause` 正确
-3. **IALIGN 时 IP 停在非法地址**（专门断言）
-4. semihosting 的 `trap cfx_hmon` 与 `trap cfx63` 都能工作（`immu18` 判定不依赖 cfxha）
-5. 005 的 273 例整数测试**零回归**（逐字节一致）
-6. Verilator 构建 rc=0（**主控机**）；`apply-series`/`check-source-state`/`check-patch-tree`/L1/L2 rc=0
-7. 一键证据脚本（运行期证据目录下的 `run.sh`，含可达 FAIL 注入）
+1. **BootROM 镜像可构建**：恰好 65536 字节；四段偏移/大小与上表一致；表头字段与 `§6.1` 逐字段一致；保留区全零
+2. **power→hmon 移交闭环**：能观测「复制完成 → 写向量 → `trap` → hmon 入口 → `escape` 回 stub → 跳到应用入口」，且 hmon 段内容与 BootROM 内一致（逐字节比对）
+3. **hmon handler ≤8 KiB**（实测大小写入完成区），power stub ≤8 KiB
+4. **应用装载契约**：宿主向 BootROM 下发 `PT_LOAD` ⇒ 显式失败；`e_entry ≠ 0xffff_ff01_0100` ⇒ 显式失败；`crt` 在 SRAM 内（可观测）
+5. 273 例整数测试零回归；Tiny 44/44
+6. Verilator 构建 rc=0（主控机）、`%Error`=0；`apply-series`/`check-source-state`/`check-patch-tree`/L1/L2 rc=0
+7. 一键证据脚本（含可达 FAIL 注入）
 8. 完成区 ≤30 行、无运行期路径
 
 ## 非范围
