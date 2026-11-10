@@ -703,3 +703,13 @@ B. 去掉：全部走 hmon，`halted` 只在 semihosting 退出时产生（由 r
 | R15 | **B** | 当前版本无嵌套（不设上限，也就不会嵌套） |
 | R16 | **B** | 去掉硬件 `halted` 兜底；只保留 semihosting 退出 |
 
+### 8.2 补充裁定（2026-11-10，第二轮）
+
+> 原话：「取指和访存应该用两个tilelink，在m12中就拆」「cfx_power的SRAM和cfx_hmon的SRAM是两个不同的SRAM」「R4：A」「R5：2-beat是不是太保守？主流ISA通常怎么做？」「R16：hmon向量有初始值，设置上不准未对齐！初始值是其内部SRAM的地址」「ldm/stm中途总线拒绝，应该报当前运行模式的cfxmem错误」
+
+- **取指/访存双 TL 端口，M12 就拆**：`IdRange(0, 3)`（fetch + data + 预留），两个独立 `TLBundle` 与状态机；不再靠单端口轮转。
+- **power SRAM 与 hmon SRAM 是两个不同 SRAM**：`cfx63` 的 8 MiB SRAM（`0xffff_ff00_0000`）与 `cfx3` 的 64 KiB SRAM（`0x0fff_0000_0000`）各自独立，SoC 侧按两个从设备/两段实现。
+- **R4 = A**：按 hardfloat 设计移植，不引入 Chisel 依赖。
+- **R16 语义更正**：hmon 向量**有初始值**（= 该 cfx 内部 SRAM 起始地址），且**写入不得未对齐** ⇒ 「向量不可达」不成立，无需 `halted` 兜底。
+- **R7 补充**：`ldm`/`stm` 中途总线拒绝 ⇒ 报**当前运行模式**的 `CFXMEM`（Tiny 即进 hmon），不再「中途停机」。
+
