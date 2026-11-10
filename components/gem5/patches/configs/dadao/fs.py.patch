@@ -1,9 +1,9 @@
 diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
 new file mode 100644
-index 0000000..ff869fb
+index 0000000..ff692b0
 --- /dev/null
 +++ b/configs/dadao/fs.py
-@@ -0,0 +1,279 @@
+@@ -0,0 +1,295 @@
 +#!/usr/bin/env python3
 +# DADAO FS configuration (GEM5-015t Tiny, GEM5-016t Vast).
 +#
@@ -78,7 +78,8 @@ index 0000000..ff869fb
 +    parser.add_argument("--kernel", default="",
 +                        help="raw or ET_EXEC DADAO ELF image (tiny: required)")
 +    parser.add_argument("--bootrom", default="",
-+                        help="flat BootROM image (required for a Vast run)")
++                        help="flat BootROM image (tiny: the fixed exactly "
++                             "64 KiB firmware; vast: the 4 MiB image)")
 +    parser.add_argument("--semihost", choices=("on", "off"), default="on",
 +                        help="enable semihosting services")
 +    parser.add_argument("--semihost-argv", default="",
@@ -95,6 +96,10 @@ index 0000000..ff869fb
 +                        help="write a QEMU `-d cpu` compatible PC:/MODE: trace")
 +    parser.add_argument("--max-ticks", type=int, default=0,
 +                        help="safety cap; hitting it is NOT a guest exit")
++    parser.add_argument("--dump-mem", action="append", default=[],
++                        metavar="BASE:SIZE:FILE",
++                        help="dump SIZE bytes of physical memory at BASE to "
++                             "FILE when the simulation ends (repeatable)")
 +    parser.add_argument("--dump-geometry", action="store_true",
 +                        help="print the effective geometry and exit")
 +    parser.add_argument("--dump-semihost-services", action="store_true",
@@ -267,6 +272,17 @@ index 0000000..ff869fb
 +    cause = exit_event.getCause()
 +    print(f"GEM5_EXIT_CAUSE={cause}", file=sys.stderr)
 +    print(f"GEM5_EXIT_CODE={exit_event.getCode()}", file=sys.stderr)
++
++    for spec in args.dump_mem:
++        try:
++            base_s, size_s, path = spec.split(":", 2)
++            base, size = int(base_s, 0), int(size_s, 0)
++        except ValueError:
++            print(f"gem5 FS: bad --dump-mem {spec!r} (BASE:SIZE:FILE)",
++                  file=sys.stderr)
++            return NON_GUEST_EXIT
++        with open(path, "wb") as out:
++            out.write(system.physProxy.read(base, size))
 +
 +    guest_exit = (cause == LAST_THREAD_CAUSE or
 +                  cause.startswith(SEMI_PREFIX) or

@@ -1,13 +1,18 @@
 diff --git a/src/arch/dadao/fs_workload.hh b/src/arch/dadao/fs_workload.hh
 new file mode 100644
-index 0000000..0674ba0
+index 0000000..fcee423
 --- /dev/null
 +++ b/src/arch/dadao/fs_workload.hh
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,118 @@
 +// DADAO FS workload: boot image loading and reset for the two FS machines.
 +//
-+// profile="tiny" (Machine-v5-Tiny): 64 KiB BootROM + 8 MiB SRAM, raw images
-+// carry a 0x100-byte zero prefix, ELF images bring their own BootROM crt.
++// profile="tiny" (Machine-v5-Tiny): the two-piece load contract of
++// spec/Machine-v5 §6.2 -- a fixed, exactly 64 KiB BootROM firmware image
++// (power stub + hmon run segment + image index table) loaded verbatim at
++// rom_base, plus the application (raw or ELF) in SRAM only.  The host loader
++// never installs BootROM firmware or hmon from the application image; the
++// application entry is fixed (params.entry) and the reset PC stays the BootROM
++// vector.  Raw images carry a 0x100-byte zero prefix.
 +// profile="node" (Machine-v5-Node): 4 MiB BootROM (exact size) + 2 GiB PA RAM,
 +// raw images load at kernel_base with no prefix, ELF PT_LOAD segments must be
 +// in PA RAM, and the reset PC is the BootROM reset vector.
@@ -75,6 +80,7 @@ index 0000000..0674ba0
 +    Addr pmemBase() const { return p_pmem_base; }
 +    Addr kernelBase() const { return p_kernel_base; }
 +    Addr kernelReserved() const { return p_kernel_reserved; }
++    Addr appEntry() const { return p_entry; }
 +    const std::string &traceCpuPath() const { return traceCpu; }
 +
 +  private:
@@ -93,6 +99,7 @@ index 0000000..0674ba0
 +    const Addr p_kernel_base;
 +    const Addr p_kernel_reserved;
 +    const Addr p_reset_pc;
++    const Addr p_entry;
 +
 +    const std::string kernelPath;
 +    const std::string traceCpu;
@@ -106,7 +113,6 @@ index 0000000..0674ba0
 +    SimObject *semihosting = nullptr;
 +
 +    bool inRange(Addr base, Addr size, Addr addr, Addr len) const;
-+    bool inSegment(Addr addr, Addr len) const;
 +    void loadBootrom(const std::string &path);
 +    void validateElf(const std::vector<uint8_t> &file);
 +    void loadRaw(const std::vector<uint8_t> &file);

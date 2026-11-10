@@ -1,19 +1,30 @@
-@@ tiny_hmon.S — Machine-v5-Tiny cfx_power + cfx3 hmon execution case (m13-gem5-001).
+@@ tiny_hmon.S — Machine-v5-Tiny cfx_power + cfx3 hmon execution case
+@@ (m13-gem5-001; m13-gem5-005 moves it onto the §6.2 two-piece load contract).
 @@
-@@ Structure (spec/Machine-v5 §1.1/§2/§3/§4.4/§5; DADAO-12 §5):
+@@ Load contract (spec/Machine-v5 §6.2): the host loader installs exactly two
+@@ artefacts — the fixed 64 KiB BootROM firmware (shared power stub + the
+@@ dispatch hmon of tiny_hmon_handler.S, built by build_tiny_bootrom.py) and
+@@ this application ELF, whose only PT_LOAD is in SRAM and whose e_entry is the
+@@ fixed ENTRY 0xffff_ff01_0100.  The host never installs BootROM or hmon.
 @@
-@@   BootROM (0xffff_ffff_0000, power/cfx63)
-@@     * writes cfx_hmon_hypv_excp_vector = HMON_BASE with cfx2rc
-@@     * initialises the result slot pointer in SRAM
-@@     * `trap cfx_hmon, 0` (general trap -> CFXTRAP into the hmon vector)
+@@ Structure:
 @@
-@@   hmon SRAM (0x0fff_0000_0000, cfx3)
+@@   BootROM (0xffff_ffff_0000, power/cfx63) — shared firmware power stub:
+@@     * validates the image index table, copies the hmon segment into the
+@@       hmon SRAM, writes the vector (idempotent), `trap cfx_hmon, 0x30001`
+@@     * jumps to the fixed application entry after the hmon escape
+@@
+@@   hmon SRAM (0x0fff_0000_0000, cfx3) — tiny_hmon_handler.S:
+@@     * validates the hand-over trap (cause CFXTRAP + boot magic), escapes
+@@       back to the power stub without touching the result table
 @@     * synchronous-fault handler: records excp_cause_id / excp_cause_ip /
 @@       excp_cause_info / handler PC into a 32-byte result record, then
 @@       `escape cfx_hmon, [excp_cause_ip, 4]` (or rewrites excp_cause_ip for
 @@       IALIGN and escapes with 0)
 @@
-@@   Application (SRAM 0xffff_ff01_0100, running with cfx3 current)
+@@   Application (SRAM 0xffff_ff01_0100, running with cfx3 current):
+@@     * records the hand-over frame (record 0) from the still-live cfx_hmon
+@@       cg5 cause registers and the handler mailbox
 @@     * cfx2rd/cfx2rc register checks (power/hmon id, vector, switch mode,
 @@       prev mode, counters, scratch, intr mask, cg7 space descriptors)
 @@     * five synchronous fault classes x 3 cases (CFXMEM/ILLI/UNDI/MALIGN/
@@ -28,18 +39,7 @@
 
 	.include "machine.inc"
 	.include "machine-tiny.inc"
-
-	.equ	DATA_BASE, ENTRY + 0x3100
-	.equ	SLOT_PTR,  DATA_BASE + 0x00
-	.equ	RECOVERY,  DATA_BASE + 0x08
-	.equ	FAILCNT,   DATA_BASE + 0x10
-	.equ	HANDLE,    DATA_BASE + 0x18
-	.equ	PROBE,     DATA_BASE + 0x20
-	.equ	PARAM,     DATA_BASE + 0x40
-	.equ	FNAME,     DATA_BASE + 0x80
-	.equ	MSG,       DATA_BASE + 0xC0
-	.equ	RESULTS,   ENTRY + 0x4000
-	.equ	RECORD_CHECK, ENTRY + 0x2000
+	.include "tiny_hmon_layout.inc"
 
 	.equ	IALIGN_TARGET0, ENTRY + 0x1C01
 	.equ	IALIGN_TARGET1, ENTRY + 0x1C02
@@ -50,80 +50,39 @@
 	.globl	IALIGN_TARGET2
 
 @@ ---------------------------------------------------------------------------
-@@ BootROM: power (cfx63) installs the hmon vector and hands over.
+@@ Application: entered from the power stub at the fixed entry after the
+@@ hand-over.  The host loader installed only this ELF; power/hmon came from
+@@ the BootROM firmware image.
 @@ ---------------------------------------------------------------------------
-	.section .bootrom, "ax"
+	.text
 	.globl	_start
 _start:
-	@@ Initialise the result slot before any cfx access: a model defect that
-	@@ starts the machine in a non-hypv mode makes the cg3 write below fault,
-	@@ and the hmon frame must already have a valid slot to record it.
+
+	@@ Initialise the result slot before any check: the application owns the
+	@@ slot pointer (the power stub no longer prepares result memory).
 	LOAD_ADDR rd22, RESULTS
 	LOAD_ADDR rb3, SLOT_PTR
 	st.o	rd22, [rb3, 0]
+	LOAD_ADDR rb4, FAILCNT
+	st.o	rd0, [rb4, 0]
 
-	LOAD_ADDR rd22, HMON_BASE
-	cfx2rc	cfx_hmon, cg3, rc10, rd22
+	@@ Record 0: the power -> hmon hand-over frame.  The cfx_hmon cg5 cause
+	@@ registers still hold the hand-over values (the application has not
+	@@ faulted yet) and the handler mailbox holds the vector entry PC.
+	cfx2rd	cfx_hmon, cg5, rc2, rd10	@@ excp_cause_id (CFXTRAP)
+	cfx2rd	cfx_hmon, cg5, rc3, rd11	@@ excp_cause_ip (power's trap)
+	cfx2rd	cfx_hmon, cg5, rc4, rd12	@@ excp_cause_info (trap encoding)
+	LOAD_ADDR rb4, MAILBOX
+	ld.o	rd13, [rb4, 0]			@@ handler PC (hmon SRAM base)
+	LOAD_ADDR rb5, SLOT_PTR
+	ld.o	rb6, [rb5, 0]
+	st.o	rd10, [rb6, 0]
+	st.o	rd11, [rb6, 8]
+	st.o	rd12, [rb6, 16]
+	st.o	rd13, [rb6, 24]
+	add.si	rb6, 32
+	st.o	rb6, [rb5, 0]
 
-	.globl	hmon_handover
-hmon_handover:
-	trap	cfx_hmon, 0
-
-	LOAD_ADDR rb2, ENTRY
-	jump	[rb2, rd0, 0]
-	swym	0
-
-@@ ---------------------------------------------------------------------------
-@@ hmon vector: record the frame, then escape (IALIGN rewrites cause_ip).
-@@ ---------------------------------------------------------------------------
-	.section .hmon, "ax"
-	.globl	hmon_entry
-hmon_entry:
-	rb2rd	rd4, rb0, 1			@@ handler PC (must equal HMON_BASE)
-	cfx2rd	cfx_hmon, cg5, rc2, rd10	@@ excp_cause_id
-	cfx2rd	cfx_hmon, cg5, rc3, rd11	@@ excp_cause_ip
-	cfx2rd	cfx_hmon, cg5, rc4, rd12	@@ excp_cause_info
-
-	LOAD_ADDR rb4, SLOT_PTR
-	ld.o	rb5, [rb4, 0]
-	st.o	rd10, [rb5, 0]
-	st.o	rd11, [rb5, 8]
-	st.o	rd12, [rb5, 16]
-	st.o	rd4,  [rb5, 24]
-	add.si	rb5, 32
-	st.o	rb5, [rb4, 0]
-
-	@@ IALIGN (1 << 13): the illegal IP is recorded; resume at RECOVERY.
-	set.zw	rd13, wp0, 0x2000
-	cmp.so	rd14, rd10, rd13
-	br.nz	{rd14}?, [rb0, hmon_probe]
-
-	LOAD_ADDR rb7, RECOVERY
-	ld.o	rd15, [rb7, 0]
-	cfx2rc	cfx_hmon, cg5, rc3, rd15
-	escape	cfx_hmon, [excp_cause_ip, 0]
-
-hmon_probe:
-	@@ One-shot probe: read a cg3 (hypv-only) register while the handler runs.
-	LOAD_ADDR rb4, PROBE
-	ld.o	rd15, [rb4, 0]
-	cmp.so	rd16, rd15, rd0
-	br.z	{rd16}?, [rb0, hmon_escape4]
-	set.zw	rd14, wp0, 0
-	st.o	rd14, [rb4, 0]			@@ one shot: no recursion
-	cfx2rd	cfx_hmon, cg3, rc10, rd10
-	LOAD_ADDR rd11, HMON_BASE
-	set.zw	rd12, wp0, 37
-	LOAD_ADDR rb20, RECORD_CHECK
-	call	[rb20, rd0, 0]
-
-hmon_escape4:
-	escape	cfx_hmon, [excp_cause_ip, 4]
-
-@@ ---------------------------------------------------------------------------
-@@ Application.
-@@ ---------------------------------------------------------------------------
-	.text
 	.globl	main
 main:
 	LOAD_ADDR rb20, RECORD_CHECK
@@ -209,6 +168,16 @@ main:
 	cfx2rd	cfx_power, cg7, rc3, rd10
 	set.zw	rd11, wp0, 5
 	set.zw	rd12, wp0, 16
+	call	[rb20, rd0, 0]
+
+	@@ ---- cg3 rc10 write ignores the low two bits (DADAO-13 §1) -----------
+	@@ Writing HMON_BASE|3 must land as HMON_BASE: no fault, low bits cleared,
+	@@ read-back is the stored value.
+	LOAD_ADDR rd11, HMON_BASE + 3
+	cfx2rc	cfx_hmon, cg3, rc10, rd11
+	cfx2rd	cfx_hmon, cg3, rc10, rd10
+	LOAD_ADDR rd11, HMON_BASE
+	set.zw	rd12, wp0, 41
 	call	[rb20, rd0, 0]
 
 	@@ ---- CFXMEM x 3 (17..19) --------------------------------------------
@@ -332,6 +301,14 @@ f_reg:
 	set.zw	rd13, wp0, 0			@@ guest asks for user mode
 	cfx2rc	cfx_hmon, cg3, rc8, rd13
 
+	@@ Machine-v5 §2: the write is ignored -- the saved value stays 3 and a
+	@@ read returns the saved value.  Check it before the fault so the two
+	@@ checks (immediate read-back / read-back after the fault) are distinct.
+	cfx2rd	cfx_hmon, cg3, rc8, rd10
+	set.zw	rd11, wp0, 3
+	set.zw	rd12, wp0, 42
+	call	[rb20, rd0, 0]
+
 	LOAD_ADDR rb4, PROBE
 	set.zw	rd14, wp0, 1			@@ handler probes cg3 once
 	st.o	rd14, [rb4, 0]
@@ -351,13 +328,10 @@ f_hypv:
 	set.zw	rd12, wp0, 39
 	call	[rb20, rd0, 0]
 
-	cfx2rd	cfx_hmon, cg3, rc8, rd10	@@ the written value is plain data
-	set.zw	rd11, wp0, 0
+	cfx2rd	cfx_hmon, cg3, rc8, rd10	@@ still the saved value (3) after the fault
+	set.zw	rd11, wp0, 3
 	set.zw	rd12, wp0, 40
 	call	[rb20, rd0, 0]
-
-	set.zw	rd13, wp0, 3			@@ restore the hypv switch value
-	cfx2rc	cfx_hmon, cg3, rc8, rd13
 
 	@@ ---- export the result table and stop ------------------------------
 	LOAD_ADDR rb16, MSG

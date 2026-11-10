@@ -35,7 +35,7 @@
 
 ```sh
 make build-gem5                       # 组件构建（主控机）
-python3 tools/gem5/check_tiny_hmon.py # gem5 Tiny hmon 的 172 条 oracle
+python3 tools/gem5/check_tiny_hmon.py # gem5 Tiny 两件装载 + hmon 的 237 条 oracle
 python3 tools/testcases/tset/gem5-se-baseline/run_engine_ratio.py \
   --selection timeout-inventory --link-mode dynamic --jobs 48 \
   --gem5-timeout 3600 --qemu-timeout 3600 --resume

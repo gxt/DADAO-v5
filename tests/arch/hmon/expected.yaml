@@ -21,14 +21,24 @@ profile:
   hmon_size: 0x1_0000
   entry: 0xFFFF_FF01_0100
   reset_pc: 0xFFFF_FFFF_0000
+  # spec/Machine-v5 §6.1: the image index table's boot_magic, patched by the
+  # builder into the power stub's `trap cfx_hmon, <boot_magic>`.
+  boot_magic: 0x30001
+
+# The BootROM image is built from the same sources with the same builder as
+# m12-chipyard-007 (the value chipyard's image had); gem5 and chipyard boot the
+# identical 64 KiB firmware, so the hmon bytes in SRAM are identical.
+shared_bootrom_md5: 777b6bc9ba66c19783fb7f0a487249fd
 
 records:
-  # 0: power -> hmon handover (CFXTRAP).  The handler starts at the vector.
+  # 0: power -> hmon handover (CFXTRAP + table boot_magic).  The application
+  # records the still-live cfx_hmon cg5 frame and the handler mailbox; the IP
+  # is the shared power stub's trap instruction.
   - kind: cause
     cause: CFXTRAP
     cause_id: 0x1
-    ip: hmon_handover
-    info: (0x7F << 24) | (3 << 18)
+    ip: boot_magic_trap
+    info: (0x7F << 24) | (3 << 18) | 0x30001
     handler_pc: hmon_base
 
   # 1..16: cfx2rd/cfx2rc register checks.
@@ -48,6 +58,9 @@ records:
   - {kind: check, id: 14, expect: bootrom_base - (63 << 42)}  # power cg7 start
   - {kind: check, id: 15, expect: 0x1_0000}               # power cg7 size
   - {kind: check, id: 16, expect: 0x5}                    # power cg7 attr R|X
+  # 41: cg3 rc10 writes ignore the low two bits (DADAO-13 §1): writing
+  # hmon_base|3 lands as hmon_base, no fault, read-back is the stored value.
+  - {kind: check, id: 41, expect: hmon_base}
 
   # 17..19: CFXMEM (1 << 1).  info = the illegal access address.
   - {kind: cause, cause: CFXMEM, cause_id: 0x2, ip: f_mem0, info: 0x10_0000_0000, handler_pc: hmon_base}
@@ -92,8 +105,11 @@ records:
   # so the handler's cg3 read (DADAO-13 §1: cg3 is hypv-only) succeeds and
   # excp_prev_run_mode records the pre-entry mode (3).
   - {kind: check, id: 36, expect: 3}                      # cg3 switch_run_mode read
+  # 42: Machine-v5 §2 -- a write of 0 is ignored; the saved value stays 3 and
+  # the immediate read-back returns the saved value (before any fault).
+  - {kind: check, id: 42, expect: 3}
   - {kind: cause, cause: CFXMEM, cause_id: 0x2, ip: f_hypv, info: hmon_base + 0x1_0000, handler_pc: hmon_base}
   - {kind: check, id: 37, expect: hmon_base}              # cg3 read inside the handler
   - {kind: check, id: 38, expect: 3}                      # excp_prev_run_mode = hypv
   - {kind: check, id: 39, expect: hmon_base}              # cg3 read after the fault
-  - {kind: check, id: 40, expect: 0}                      # switch_run_mode value kept
+  - {kind: check, id: 40, expect: 3}                      # saved value stays 3

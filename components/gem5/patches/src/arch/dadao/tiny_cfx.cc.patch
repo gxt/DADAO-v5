@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/tiny_cfx.cc b/src/arch/dadao/tiny_cfx.cc
 new file mode 100644
-index 0000000..bdcdd33
+index 0000000..fd12346
 --- /dev/null
 +++ b/src/arch/dadao/tiny_cfx.cc
-@@ -0,0 +1,474 @@
+@@ -0,0 +1,486 @@
 +// DADAO Tiny machine model: cfx_power (cfx63) + cfx3 hmon.
 +#include "arch/dadao/tiny_cfx.hh"
 +
@@ -469,10 +469,22 @@ index 0000000..bdcdd33
 +        tinyCfxRaise(tc, s, TinyCauseCfxReg, -1, pc, info);
 +        return false;
 +    }
-+    if (cg == 3 && rc == 12)
++    if (cg == 3 && rc == 8) {
++        // Machine-v5 §2: on the Tiny profile a switch_run_mode write is
++        // ignored -- the saved value stays 3 (hypv) and a read returns the
++        // saved value (it is not a "constant 3" read-only register).  The
++        // write itself succeeds, so no fault is raised.
++        return true;
++    }
++    if (cg == 3 && rc == 10) {
++        // DADAO-13 §1: hypv_excp_vector writes ignore the low two bits
++        // (value[1:0] <- 0, 4-byte aligned), with no fault.
++        *p = val & ~0x3ULL;
++    } else if (cg == 3 && rc == 12) {
 +        *p = val | (1ULL << 3);  // DADAO-13 §1: bit3 reads back as 1
-+    else
++    } else {
 +        *p = val;
++    }
 +    return true;
 +}
 +

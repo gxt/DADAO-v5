@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_workload.cc b/src/arch/dadao/fs_workload.cc
 new file mode 100644
-index 0000000..3f930af
+index 0000000..99015a0
 --- /dev/null
 +++ b/src/arch/dadao/fs_workload.cc
-@@ -0,0 +1,340 @@
+@@ -0,0 +1,353 @@
 +// DADAO FS workload implementation.
 +#include "arch/dadao/fs_workload.hh"
 +
@@ -86,6 +86,7 @@ index 0000000..3f930af
 +    p_ram_base(p.ram_base), p_ram_size(p.ram_size),
 +    p_pmem_base(p.pmem_base), p_kernel_base(p.kernel_base),
 +    p_kernel_reserved(p.kernel_reserved), p_reset_pc(p.reset_pc),
++    p_entry(p.entry),
 +    kernelPath(p.kernel), traceCpu(p.trace_cpu), semihosting(p.semihosting)
 +{
 +    fatal_if(profileName != "tiny" && profileName != "node",
@@ -107,16 +108,14 @@ index 0000000..3f930af
 +    }
 +
 +    if (!p.bootrom.empty()) {
-+        fatal_if(!isNode && isElf,
-+                 "DADAO FS: --bootrom and an ELF --kernel (%s) cannot be "
-+                 "combined: the ELF carries its own BootROM crt", kernelPath);
 +        loadBootrom(p.bootrom);
 +    } else if (isNode) {
 +        fatal("DADAO FS: the Node profile requires --bootrom (4 MiB flat "
 +              "BootROM image)");
-+    } else if (!isElf) {
-+        fatal("DADAO FS: raw --kernel %s requires --bootrom (the raw image has "
-+              "no reset stub)", kernelPath);
++    } else {
++        fatal("DADAO FS: the Tiny profile requires --bootrom (the fixed 64 KiB "
++              "BootROM firmware: power stub + hmon segment + image index "
++              "table, spec/Machine-v5 §6.2)");
 +    }
 +
 +    if (hasKernel && isElf) {
@@ -125,13 +124,11 @@ index 0000000..3f930af
 +        fatal_if(kernelObj == nullptr,
 +                 "DADAO FS: cannot parse ELF %s", kernelPath);
 +        symbols.insert(kernelObj->symtab());
-+        if (isNode) {
-+            // The Node reset PC is the BootROM vector; the ELF e_entry is the
-+            // test body entry installed by hmon's cfx_umon vector.
-+            entry = p_reset_pc;
-+        } else {
-+            entry = kernelObj->entryPoint();
-+        }
++        // Both profiles reset at the BootROM vector: for Tiny the fixed
++        // application entry is reached by the power stub after the hmon
++        // hand-off, never by the platform rewriting the reset PC to e_entry
++        // (spec/Machine-v5 §6.2).
++        entry = p_reset_pc;
 +    } else if (hasKernel) {
 +        loadRaw(kernelFile);
 +    } else {
@@ -155,17 +152,6 @@ index 0000000..3f930af
 +    return len <= size - off;
 +}
 +
-+bool
-+FsWorkload::inSegment(Addr addr, Addr len) const
-+{
-+    if (isNode)
-+        return inRange(p_ram_base, p_ram_size, addr, len) ||
-+               inRange(p_rom_base, p_rom_size, addr, len);
-+    return inRange(p_rom_base, p_rom_size, addr, len) ||
-+           inRange(p_sram_base, p_sram_size, addr, len) ||
-+           inRange(p_hmon_base, p_hmon_size, addr, len);
-+}
-+
 +void
 +FsWorkload::loadBootrom(const std::string &path)
 +{
@@ -177,9 +163,10 @@ index 0000000..3f930af
 +                 "exactly %llu bytes", path, romData.size(),
 +                 static_cast<unsigned long long>(p_rom_size));
 +    } else {
-+        fatal_if(romData.size() > p_rom_size,
-+                 "DADAO FS: --bootrom %s is %zu bytes, BootROM holds %llu",
-+                 path, romData.size(),
++        fatal_if(romData.size() != p_rom_size,
++                 "DADAO FS: --bootrom %s is %zu bytes, the Tiny BootROM is "
++                 "exactly %llu bytes (spec/Machine-v5 §6.2)", path,
++                 romData.size(),
 +                 static_cast<unsigned long long>(p_rom_size));
 +    }
 +    entry = p_reset_pc;
@@ -216,6 +203,7 @@ index 0000000..3f930af
 +             kernelPath, phentsize, kElf64PhdrSize);
 +
 +    bool sawLoad = false;
++    bool entryCovered = false;
 +    for (unsigned i = 0; i < phnum; ++i) {
 +        const size_t off = phoff + size_t(i) * phentsize;
 +        fatal_if(off + kElf64PhdrSize > d.size(),
@@ -253,11 +241,27 @@ index 0000000..3f930af
 +                     static_cast<unsigned long long>(ppaddr),
 +                     static_cast<unsigned long long>(ppaddr + pmemsz));
 +        } else {
-+            fatal_if(!inSegment(ppaddr, pmemsz),
-+                     "DADAO FS: ELF %s segment %u [%#llx, %#llx) is outside "
-+                     "BootROM/SRAM/hmon SRAM", kernelPath, i,
++            fatal_if(inRange(p_rom_base, p_rom_size, ppaddr, pmemsz),
++                     "DADAO FS: ELF %s segment %u [%#llx, %#llx) targets the "
++                     "BootROM: the host loader must not install BootROM "
++                     "firmware; the Tiny BootROM is the fixed --bootrom image "
++                     "(spec/Machine-v5 §6.2)", kernelPath, i,
 +                     static_cast<unsigned long long>(ppaddr),
 +                     static_cast<unsigned long long>(ppaddr + pmemsz));
++            fatal_if(inRange(p_hmon_base, p_hmon_size, ppaddr, pmemsz),
++                     "DADAO FS: ELF %s segment %u [%#llx, %#llx) targets the "
++                     "hmon SRAM: hmon is installed by the BootROM power stub, "
++                     "not by the host loader (spec/Machine-v5 §6.2)",
++                     kernelPath, i,
++                     static_cast<unsigned long long>(ppaddr),
++                     static_cast<unsigned long long>(ppaddr + pmemsz));
++            fatal_if(!inRange(p_sram_base, p_sram_size, ppaddr, pmemsz),
++                     "DADAO FS: ELF %s segment %u [%#llx, %#llx) is outside "
++                     "the SRAM: the Tiny application is SRAM-only "
++                     "(spec/Machine-v5 §6.2)", kernelPath, i,
++                     static_cast<unsigned long long>(ppaddr),
++                     static_cast<unsigned long long>(ppaddr + pmemsz));
++            entryCovered |= inRange(ppaddr, pmemsz, p_entry, 4);
 +        }
 +    }
 +
@@ -273,9 +277,18 @@ index 0000000..3f930af
 +                 "DADAO FS: ELF %s e_entry %#llx is not 4-byte aligned",
 +                 kernelPath, static_cast<unsigned long long>(eentry));
 +    } else {
-+        fatal_if(!inSegment(eentry, 4),
-+                 "DADAO FS: ELF %s e_entry %#llx is outside BootROM/SRAM/hmon",
-+                 kernelPath, static_cast<unsigned long long>(eentry));
++        // The Tiny application entry is fixed by the platform (spec/Machine-v5
++        // §6.2): the power stub jumps to params.entry after the hmon hand-off.
++        // A different e_entry is a load error, never silently honoured.
++        fatal_if(eentry != p_entry,
++                 "DADAO FS: ELF %s e_entry %#llx, but the Tiny application "
++                 "entry is fixed at %#llx (spec/Machine-v5 §6.2)", kernelPath,
++                 static_cast<unsigned long long>(eentry),
++                 static_cast<unsigned long long>(p_entry));
++        fatal_if(!entryCovered,
++                 "DADAO FS: ELF %s has no PT_LOAD covering the fixed Tiny "
++                 "application entry %#llx (spec/Machine-v5 §6.2)", kernelPath,
++                 static_cast<unsigned long long>(p_entry));
 +    }
 +}
 +

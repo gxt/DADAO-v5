@@ -33,7 +33,6 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m13-integ-004 | 2026-11-10 23:48 | 4–6 h | riscv-tests 移植 + qemu/gem5 差分（chipyard 列 N/A） |
-| m13-gem5-005 | 2026-11-10 22:11 | 2–3 h | gem5 对齐 Tiny hmon 装载契约（以 QEMU 结论为准） |
 | m13-qemu-002 | 2026-11-10 22:11 | 2–3 h | QEMU 对齐 Tiny hmon 装载契约（BootROM 固定固件 + power 搬运） |
 | m13-testcases-003 | 2026-11-10 08:13 | 4–6 h | 3600s 仍超时的 150 例：120s 采样 + 7200s 复核（先 static 后 dynamic） |
 
@@ -41,6 +40,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m13-gem5-005 | 2026-11-10 23:58 | gem5 对齐 Tiny hmon 装载契约（共用 chipyard 同一 BootROM 镜像） |
 | m13-testcases-008 | 2026-11-10 22:41 | 208 接跑 B 组差集（Y=0，前提过期；登记 4 项 run_pool 缺陷） |
 | m13-testcases-007 | 2026-11-10 22:03 | 删除无意义探针 `start_busy_returns_busy`（陷入往返不是时间窗） |
 | m13-testcases-006 | 2026-11-10 21:41 | 输出判据改分通道（stdout/stderr 分离；参考按源码拆两路） |

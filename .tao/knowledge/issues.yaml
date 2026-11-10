@@ -127,3 +127,10 @@
   status: open
   resolved_by: null
   title: 【P1】**并行任务共享安装根导致互相打断**：`m13-qemu-002` 重建共享 `.dadao/` 安装根 QEMU 时，`m13-gem5-005` 正在跑的 `check-inst`/lit E2E 立即失败（Tiny 要求 `--bootrom` 的新行为对旧 E2E 不兼容），reviewer 需花时间做归属。根因：`install-host` 写的是**全局**安装根，不是 worktree 私有。建议：① 需要重建 QEMU/gem5 的任务**串行**（install 根加锁或按批调度）；② 或给每个 worktree 独立 install 根（`DADAO_INSTALL_ROOT`）；③ E2E/`check-inst` 的期望与引擎版本绑定，跨任务比对前先核安装根 md5。
+- id: ISS-374
+  scope:
+  - gem5
+  - testcases
+  status: open
+  resolved_by: null
+  title: 【P3】`m13-gem5-005` 文档级遗留：① 完成区 patch-tree 红数过时；② `--bootrom` 尺寸 fatal 用 `%zu`，gem5 fatal 不支持（显示 `<bad format>u bytes`）；③ checker 用 `-z max-page-size=0x1000` 链 app ELF，`p_align` 与 chipyard 差 2 字节；④ `e_entry == params.entry` 对 Vast 同样生效但报错文案写 "Tiny"、无门控覆盖。建议：fatal 改 `%llu`；checker 与 chipyard 用同一链接参数；报错按 profile 取名。
