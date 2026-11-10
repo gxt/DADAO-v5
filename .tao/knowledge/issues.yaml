@@ -106,3 +106,9 @@
   status: open
   resolved_by: null
   title: 【P3】`m13-testcases-006` 遗留：① `ref_split.py` 两处不可达分支（`unsupported conversion`、行数账不平）；② 证据脚本对「stderr 只比长度」不敏感（C07 靠 stdout 侧捕捉），缺同长度篡改探针；③ 「guest 多写一路而参考该路为空 ⇒ blocked」口径待确认（会把多写回归记为 blocked 而非 fail）。建议：删死分支；补同长度篡改探针；口径写入 `Process-09 §17`。
+- id: ISS-371
+  scope:
+  - testcases
+  status: open
+  resolved_by: null
+  title: 【P3】`m13-testcases-007` 遗留：① `run.sh` 的 `doc_checks_count` 期望与实现同源于同一公式（保护实际由逐字节 diff 承担）；② `--soak` 的 `soak_run_count` 用 `ls check-arch-*.log` 计数，历史日志未清会假红。建议：期望值改为从基线文件派生；日志按 run-id 隔离。

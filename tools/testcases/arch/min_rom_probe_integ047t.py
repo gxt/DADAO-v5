@@ -27,13 +27,14 @@ The encoder / run() / observe() / bootstrap_rom() helpers are copied in place
 from min_rom_probe_integ042t.py (no import, to keep the two case tables
 independent); that file is not modified.
 
-The ``start_busy_returns_busy`` case needs the BUSY window to survive between
-two traps.  It runs with the default virtual clock and self-checks its result
-through the semihosting exit code (no ``-d cpu`` dump).  The model-independent
-property is "the first START returns 0 and a back-to-back second START returns
--5": both engines keep BUSY for at least 1 us (gem5 DMA event 1 us, QEMU timer
-1 ms), while the gap between the two traps is a few hundred ns at most, so no
-instruction-count timing assumption is needed (TESTCASES-102t).
+Removed case (m13-testcases-007, ``ISS-364``): ``start_busy_returns_busy``
+used "two adjacent ``trap`` instructions" as a time window to observe BUSY.
+That premise is wrong: ``trap`` is an exception entry, so the second ``trap``
+runs only after the **whole** exception round trip (entry + handler + return),
+not a few hundred ns later.  The resulting ~5% intermittent failure was pure
+scheduling luck, not a contract violation, so the runtime case was deleted
+(user decision "B", 2026-11-10).  "START while BUSY returns -5" now has no
+runtime coverage; the ``--doc`` checks below still validate the spec text.
 
 Usage:
   min_rom_probe_integ047t.py --doc          # doc checks only (offline)
@@ -126,8 +127,6 @@ NEG5 = SBI_ERR_BUSY & 0xFFFF_FFFF_FFFF_FFFF
 NEG2 = SBI_ERR_NOT_SUPPORTED & 0xFFFF_FFFF_FFFF_FFFF
 
 EXIT_PASS = 0x00
-EXIT_BUSY_FIRST = 0x61   # guest FAIL segment
-EXIT_BUSY_SECOND = 0x62  # guest FAIL segment
 
 DATA_A = RAM_BASE + 0x1000
 
@@ -501,38 +500,6 @@ def _wait_not_supported():
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), {OFF_PMEM_HANDLER: PROVIDER}), \
         {"exit": EXIT_PASS, "rd5": NEG2, "rd6": 0, "rd7": 0}
-
-
-@case("start_busy_returns_busy",
-      "two back-to-back STARTs: first 0, second -5 (self-checked)")
-def _start_busy_returns_busy():
-    a = Asm()
-    setup_provider(a)
-    fill_sram(a, 0x0000, MAGIC)
-    store64(a, DATA_A, 0)
-    status_clear(a)
-    sbi_params(a, 0, PMEM_BASE, DATA_A, 8)
-    a.emit(trap(PMEM_HA, 6))
-    a.emit(and_o(5, 8, 8))                  # rd5 = first START
-    a.emit(trap(PMEM_HA, 6))                # second START, immediately
-    a.emit(and_o(6, 8, 8))                  # rd6 = second START
-    a.emit(*load_rd(20, SBI_SUCCESS))
-    a.br("eq", 5, 20, "first_ok")
-    a.emit(*exit_seq(EXIT_BUSY_FIRST))
-    a.mark("first_ok")
-    a.emit(*load_rd(20, NEG5))
-    a.br("eq", 6, 20, "second_ok")
-    a.emit(*exit_seq(EXIT_BUSY_SECOND))
-    a.mark("second_ok")
-    # Completion / copy correctness is covered by start_cfx_to_pa; polling to
-    # completion here would need a long virtual-time wait and is irrelevant to
-    # the busy contract.
-    a.emit(*exit_seq(EXIT_PASS))
-    # Both engines keep BUSY for at least 1 us while the gap between the two
-    # START traps is a few dozen instructions (< 1 us in either engine), so
-    # the second START must observe BUSY.  No instruction-count timing
-    # assumption is involved (TESTCASES-102t).
-    return build_rom(a.resolve(), {OFF_PMEM_HANDLER: PROVIDER}), {"exit": EXIT_PASS}
 
 
 # ---------------------------------------------------------------------------
