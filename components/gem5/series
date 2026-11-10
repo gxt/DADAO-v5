@@ -98,3 +98,4 @@ src/base/loader/elf_object.hh.patch
 src/base/loader/object_file.cc.patch
 src/base/loader/object_file.hh.patch
 src/cpu/simple/AtomicSimpleCPU.py.patch
+src/sim/process.cc.patch

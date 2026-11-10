@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/se_workload.cc b/src/arch/dadao/se_workload.cc
 new file mode 100644
-index 0000000..c23a95c
+index 0000000..b04c450
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.cc
-@@ -0,0 +1,6369 @@
+@@ -0,0 +1,6407 @@
 +// DADAO syscall-emulation workload -- loader hook and the G1 syscall surface.
 +#include "arch/dadao/se_workload.hh"
 +
@@ -4619,6 +4619,28 @@ index 0000000..c23a95c
 +    process->hasExited = true;
 +    process->waitStatus = sig ? (sig & 0x7f) : ((status & 0xff) << 8);
 +
++    // Linux discards the whole address space when the last thread exits.  The
++    // Process object stays for wait(2), but the frames have to go back to the
++    // SE pool: a fork-heavy guest (lemon runs 260 children) otherwise leaks
++    // every child's frames and the simulator dies with "Out of memory".
++    // clone(CLONE_VM) siblings share the page table, so those frames belong to
++    // the process that stays alive -- free only when no live process shares
++    // this table.
++    bool sharedPT = false;
++    for (const auto *other : liveProcesses) {
++        if (other != process && other->pTable == process->pTable) {
++            sharedPT = true;
++            break;
++        }
++    }
++    if (!sharedPT) {
++        std::vector<std::pair<Addr, Addr>> maps;
++        process->pTable->getMappings(&maps);
++        const Addr page = process->pTable->pageSize();
++        for (const auto &m : maps)
++            process->deallocateMem(m.first, page);
++    }
++
 +    // A clone(CLONE_VFORK) parent is asleep until this child execs or dies.
 +    for (ContextID ctx : process->vforkContexts) {
 +        ThreadContext *ptc = process->system->threads[ctx];
@@ -5255,6 +5277,14 @@ index 0000000..c23a95c
 +    pp->egid = process->egid();
 +    pp->release = process->release;
 +    pp->maxStackSize = process->memState->getMaxStackSize();
++    // SimObject parameters are not inherited by a C++-constructed child: a
++    // default-constructed ProcessParams leaves every bool false, so a fork(2)
++    // child (and the image execve(2) builds) used to run with zeroPages ==
++    // false while the initial process, built from the Python config, had it
++    // true.  Pages a munmap/mremap returns to the physical pool then keep
++    // their previous content, and the next anonymous mapping sees another
++    // mapping's bytes -- mallocng's metadata checks abort the guest.
++    pp->zeroPages = process->zeroPages;
 +    pp->useArchPT = process->useArchPT;
 +    pp->kvmInSE = process->kvmInSE;
 +    pp->pid = pid;
@@ -5471,6 +5501,14 @@ index 0000000..c23a95c
 +    pp->egid = process->egid();
 +    pp->release = process->release;
 +    pp->maxStackSize = process->memState->getMaxStackSize();
++    // SimObject parameters are not inherited by a C++-constructed child: a
++    // default-constructed ProcessParams leaves every bool false, so a fork(2)
++    // child (and the image execve(2) builds) used to run with zeroPages ==
++    // false while the initial process, built from the Python config, had it
++    // true.  Pages a munmap/mremap returns to the physical pool then keep
++    // their previous content, and the next anonymous mapping sees another
++    // mapping's bytes -- mallocng's metadata checks abort the guest.
++    pp->zeroPages = process->zeroPages;
 +    pp->useArchPT = process->useArchPT;
 +    pp->kvmInSE = process->kvmInSE;
 +    pp->pid = process->pid();

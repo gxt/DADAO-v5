@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/tlb.hh b/src/arch/dadao/tlb.hh
 new file mode 100644
-index 0000000..eb29826
+index 0000000..221c208
 --- /dev/null
 +++ b/src/arch/dadao/tlb.hh
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,110 @@
 +// DADAO SE TLB: a direct pass-through onto the host-side page table.
 +//
 +// Syscall-emulation does not model a hardware page table walk, PTBR or TLB
@@ -41,6 +41,29 @@ index 0000000..eb29826
 +    explicit AccessFault(Addr vaddr) : vaddr(vaddr) {}
 +
 +    FaultName name() const override { return "DADAO access fault"; }
++
++    void invoke(ThreadContext *tc, const StaticInstPtr &inst) override;
++
++  private:
++    const Addr vaddr;
++};
++
++/** Guest-visible unmapped-address fault.
++ *
++ * Returned when the address belongs to no VMA and no lazy page can be
++ * brought in: the guest really touched an address it never mapped, which is
++ * SIGSEGV/SEGV_MAPERR on Linux.  The fault is delivered to the guest (a
++ * handler may recover, SIG_DFL kills the process); it must never abort the
++ * simulator, and it is not a licence to hide a mapping gem5 forgot to make:
++ * a page that is in a VMA is allocated by Process::fixupFault() before this
++ * fault is ever considered.
++ */
++class PageFault : public FaultBase
++{
++  public:
++    explicit PageFault(Addr vaddr) : vaddr(vaddr) {}
++
++    FaultName name() const override { return "DADAO unmapped-page fault"; }
 +
 +    void invoke(ThreadContext *tc, const StaticInstPtr &inst) override;
 +
