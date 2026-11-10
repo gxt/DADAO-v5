@@ -385,3 +385,5 @@ testcases-003（207 原计划）+ 008（208 差集）→ 长尾计时；结果�
 ```
 
 规则：每一步**先合并再进下一步**；并行只允许「不同组件」或「节点上的用例执行」，不允许同组件两写者。
+
+- **`m12-testcases-002` 已取消（2026-11-10）**：原打算单独做「E2E 适配固定固件契约」；`m13-qemu-002` 的实现已覆盖（11 个 lit 用例 + `lit.cfg.py` + `picolibc-tiny.ld` + `Makefile` + `tools/testcases/**` 的 trampoline/E2E 驱动），且其 L2 `check-modules` rc=0 ⇒ 判重复，不另立册（任务书已删，仅此记录）。
