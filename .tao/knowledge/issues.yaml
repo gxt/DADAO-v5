@@ -94,3 +94,9 @@
   status: open
   resolved_by: null
   title: 【P1】**子代理在主工作树直接实现**（`m12-chipyard-018` 与 `m13-testcases-005` 均发生）：改动落在 `/mnt/tao/DADAO-v5`（master 检出）而非独立 `git worktree`，导致主工作树脏、与并行任务共享文件冲突风险高；本次由 architect 手工搬到 `m12-chipyard-018` 分支 worktree 后复原主树。建议：① 派单提示首行固定「必须在独立 worktree 内作业，禁改主工作树」；② reviewer 首查 `git worktree list` 与主树 `git status`；③ 主会话收尾前先核主树是否干净。
+- id: ISS-369
+  scope:
+  - chipyard
+  status: open
+  resolved_by: null
+  title: '【P2】`m12-chipyard-007` 证据脚本两处断言恒真：① `no_stray_stores`（无条件成立）；② `apply-series: no chipyard refusal`（当前环境 make 在 gem5 处先中止，chipyard 根本跑不到 ⇒ 恒真，靠 `check-patch-tree` ⑥/⑨ + `check-source-state` 兜底）。另有 L1 白名单只列 3 个外部目标，新增外部红会让脚本 rc=1。建议：删除恒真断言或改为「可失败」形式；白名单改为「按任务文件归属判定」而非固定名单。'
