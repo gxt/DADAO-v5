@@ -1,0 +1,28 @@
+upstream: isa/rv64ui/and.S
+upstream_sha256: 1da5c1932e0b84b8dc6c753c17ec3b71524f64cb3fca83e4e595ecc042e2b66f
+note: 只含架构可见的值用例；BYPASS/SRC*_EQ_DEST/ZERODEST 属 RISC-V 微架构/寄存器别名测试，未移植。
+cases:
+- testnum: 2
+  form: rr
+  op: and
+  expected: '0x000000000f000f00'
+  src1: '0x00000000ff00ff00'
+  src2: '0x000000000f0f0f0f'
+- testnum: 3
+  form: rr
+  op: and
+  expected: '0x0000000000f000f0'
+  src1: '0x000000000ff00ff0'
+  src2: '0x00000000f0f0f0f0'
+- testnum: 4
+  form: rr
+  op: and
+  expected: '0x00000000000f000f'
+  src1: '0x0000000000ff00ff'
+  src2: '0x000000000f0f0f0f'
+- testnum: 5
+  form: rr
+  op: and
+  expected: '0x00000000f000f000'
+  src1: '0x00000000f00ff00f'
+  src2: '0x00000000f0f0f0f0'

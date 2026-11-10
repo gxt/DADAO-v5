@@ -1,0 +1,28 @@
+upstream: isa/rv64ui/xori.S
+upstream_sha256: 70bb3ff66a89a0d5b17aacc1e21a4893c9a774a9cf35a62e9a8a596a35d7949f
+note: 只含架构可见的值用例；BYPASS/SRC*_EQ_DEST/ZERODEST 属 RISC-V 微架构/寄存器别名测试，未移植。
+cases:
+- testnum: 2
+  form: imm
+  op: xori
+  expected: '0xffffffffff00f00f'
+  src1: '0x0000000000ff0f00'
+  src2: '0xffffffffffffff0f'
+- testnum: 3
+  form: imm
+  op: xori
+  expected: '0x000000000ff00f00'
+  src1: '0x000000000ff00ff0'
+  src2: '0x00000000000000f0'
+- testnum: 4
+  form: imm
+  op: xori
+  expected: '0x0000000000ff0ff0'
+  src1: '0x0000000000ff08ff'
+  src2: '0x000000000000070f'
+- testnum: 5
+  form: imm
+  op: xori
+  expected: '0xfffffffff00ff0ff'
+  src1: '0xfffffffff00ff00f'
+  src2: '0x00000000000000f0'

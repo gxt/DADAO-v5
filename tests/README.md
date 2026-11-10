@@ -68,6 +68,7 @@
 | `shared/linker/{dadao-tiny.lds,dadao-dyn.lds}` | 共享 glue | M4 静态布局 / ET_DYN 动态布局链接脚本 | 同上 + musl/P5 驱动（dyn） |
 | `shared/runtime/{dadao_mem_runtime.ll,dadao_user_dyn_probe.c}` | 共享 glue | freestanding `mem*` 运行时 + 动态装载 auxv 探针程序 | `test-m6`/embench/手工 |
 | `case-ledger.tsv` | — | 逐条身份清单（1,962 行含表头；生成物） | `make check-case-ledger`（L1） |
+| `riscv-tests/` | I | riscv-tests RV64 移植语料：114 文件逐条分类 + 35 文件 474 例 + 裸机框架；入口 `tools/testcases/riscv_tests/run_riscv_tests.py`（qemu/gem5 差分） | 手工 / 证据脚本（暂无 make 门控） |
 
 ---
 

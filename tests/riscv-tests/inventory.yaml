@@ -1,0 +1,691 @@
+schema: riscv-tests-port-inventory-v1
+upstream_commit: 0494f954a3d8d2ca9e4972da7a01e94b6a909bce
+classes:
+  port: 可移植
+  rewrite: 需改
+  na: 不适用
+entries:
+- suite: rv64ui
+  name: add
+  class: port
+  dadao: '`add.uo {rdhi,rdlo}` 低 64 位'
+  reason: 可机械移植：`add.uo {rdhi,rdlo}` 低 64 位
+  cases: cases/rv64ui/add.yaml
+- suite: rv64ui
+  name: addi
+  class: port
+  dadao: '`add.uo {rdhi,rdlo}` + 立即数寄存器'
+  reason: 可机械移植：`add.uo {rdhi,rdlo}` + 立即数寄存器
+  cases: cases/rv64ui/addi.yaml
+- suite: rv64ui
+  name: addiw
+  class: port
+  dadao: '`add.st`（32 位符号扩展）'
+  reason: 可机械移植：`add.st`（32 位符号扩展）
+  cases: cases/rv64ui/addiw.yaml
+- suite: rv64ui
+  name: addw
+  class: port
+  dadao: '`add.st`'
+  reason: 可机械移植：`add.st`
+  cases: cases/rv64ui/addw.yaml
+- suite: rv64ui
+  name: and
+  class: port
+  dadao: '`and.o`'
+  reason: 可机械移植：`and.o`
+  cases: cases/rv64ui/and.yaml
+- suite: rv64ui
+  name: andi
+  class: port
+  dadao: '`and.o` + 立即数寄存器'
+  reason: 可机械移植：`and.o` + 立即数寄存器
+  cases: cases/rv64ui/andi.yaml
+- suite: rv64ui
+  name: auipc
+  class: rewrite
+  dadao: —
+  reason: IP 相对立即数模型不同（DADAO `aip.si` 以 4 KiB 为单位，不提供 `lui/auipc` 组合）
+  cases: null
+- suite: rv64ui
+  name: beq
+  class: rewrite
+  dadao: —
+  reason: 分支用 `br.eq`/`br.ne` 比较寄存器；测试体需重排寄存器并去掉 RISC-V x0/延迟槽假设
+  cases: null
+- suite: rv64ui
+  name: bge
+  class: rewrite
+  dadao: —
+  reason: 有序比较需 `cmp.so` + `br.np`/`br.p` 组合，测试体需改写
+  cases: null
+- suite: rv64ui
+  name: bgeu
+  class: rewrite
+  dadao: —
+  reason: 无符号比较需 `cmp.uo` + `br.np`/`br.p` 组合，测试体需改写
+  cases: null
+- suite: rv64ui
+  name: blt
+  class: rewrite
+  dadao: —
+  reason: 有序比较需 `cmp.so` + `br.n`，测试体需改写
+  cases: null
+- suite: rv64ui
+  name: bltu
+  class: rewrite
+  dadao: —
+  reason: 无符号比较需 `cmp.uo` + `br.n`，测试体需改写
+  cases: null
+- suite: rv64ui
+  name: bne
+  class: rewrite
+  dadao: —
+  reason: 同上（`br.eq`/`br.ne`）
+  cases: null
+- suite: rv64ui
+  name: fence_i
+  class: rewrite
+  dadao: —
+  reason: DADAO `fence cfxHA, immu18` 是 cfx 资源域屏障，无指令取指屏障语义
+  cases: null
+- suite: rv64ui
+  name: jal
+  class: rewrite
+  dadao: —
+  reason: DADAO 链接寄存器是 RegRAS（`call`/`ret`），不是 x1/x5 通用寄存器模型
+  cases: null
+- suite: rv64ui
+  name: jalr
+  class: rewrite
+  dadao: —
+  reason: 同上；间接跳转目标在 RB，且返回地址走 RAS
+  cases: null
+- suite: rv64ui
+  name: lb
+  class: rewrite
+  dadao: —
+  reason: 地址操作数在 RB、结果在 RD，需重排寄存器；符号扩展规则相同
+  cases: null
+- suite: rv64ui
+  name: lbu
+  class: rewrite
+  dadao: —
+  reason: 地址在 RB、结果在 RD；零扩展规则相同
+  cases: null
+- suite: rv64ui
+  name: ld
+  class: rewrite
+  dadao: —
+  reason: 地址在 RB、结果在 RD；8 字节对齐约束需在测试体中显式满足
+  cases: null
+- suite: rv64ui
+  name: lh
+  class: rewrite
+  dadao: —
+  reason: 地址在 RB、结果在 RD；半字符号扩展
+  cases: null
+- suite: rv64ui
+  name: lhu
+  class: rewrite
+  dadao: —
+  reason: 地址在 RB、结果在 RD；半字零扩展
+  cases: null
+- suite: rv64ui
+  name: lui
+  class: rewrite
+  dadao: —
+  reason: 无 `lui`；常量用 `set.zw`/`or.w` 的 wyde-position 序列构造
+  cases: null
+- suite: rv64ui
+  name: lw
+  class: rewrite
+  dadao: —
+  reason: 地址在 RB、结果在 RD；32 位符号扩展用 `ld.t`
+  cases: null
+- suite: rv64ui
+  name: lwu
+  class: rewrite
+  dadao: —
+  reason: 地址在 RB、结果在 RD；32 位零扩展用 `ld.ut`
+  cases: null
+- suite: rv64ui
+  name: ma_data
+  class: rewrite
+  dadao: —
+  reason: 测试依赖 RISC-V 地址对齐/异常模型；DADAO 对齐异常走 cfx，需重写
+  cases: null
+- suite: rv64ui
+  name: or
+  class: port
+  dadao: '`or.o`'
+  reason: 可机械移植：`or.o`
+  cases: cases/rv64ui/or.yaml
+- suite: rv64ui
+  name: ori
+  class: port
+  dadao: '`or.o` + 立即数寄存器'
+  reason: 可机械移植：`or.o` + 立即数寄存器
+  cases: cases/rv64ui/ori.yaml
+- suite: rv64ui
+  name: sb
+  class: rewrite
+  dadao: —
+  reason: 地址在 RB、数据在 RD；偏移 12 位有符号
+  cases: null
+- suite: rv64ui
+  name: sd
+  class: rewrite
+  dadao: —
+  reason: 地址在 RB、数据在 RD；8 字节对齐
+  cases: null
+- suite: rv64ui
+  name: sh
+  class: rewrite
+  dadao: —
+  reason: 地址在 RB、数据在 RD；半字存储
+  cases: null
+- suite: rv64ui
+  name: simple
+  class: rewrite
+  dadao: —
+  reason: RISC-V 冒烟程序依赖 `lui/addi` 立即数组合，需按 DADAO 重写
+  cases: null
+- suite: rv64ui
+  name: sll
+  class: port
+  dadao: '`shl.o`'
+  reason: 可机械移植：`shl.o`
+  cases: cases/rv64ui/sll.yaml
+- suite: rv64ui
+  name: slli
+  class: port
+  dadao: '`shl.o` + 立即数寄存器'
+  reason: 可机械移植：`shl.o` + 立即数寄存器
+  cases: cases/rv64ui/slli.yaml
+- suite: rv64ui
+  name: slliw
+  class: port
+  dadao: '`shl.t` + `ext.so 31`（立即数寄存器）'
+  reason: 可机械移植：`shl.t` + `ext.so 31`（立即数寄存器）
+  cases: cases/rv64ui/slliw.yaml
+- suite: rv64ui
+  name: sllw
+  class: port
+  dadao: '`shl.t` + `ext.so 31`'
+  reason: 可机械移植：`shl.t` + `ext.so 31`
+  cases: cases/rv64ui/sllw.yaml
+- suite: rv64ui
+  name: slt
+  class: port
+  dadao: '`cmp.so` + `shr.so 63` + `and.o 1`'
+  reason: 可机械移植：`cmp.so` + `shr.so 63` + `and.o 1`
+  cases: cases/rv64ui/slt.yaml
+- suite: rv64ui
+  name: slti
+  class: port
+  dadao: '`cmp.so` + `shr.so 63` + `and.o 1`'
+  reason: 可机械移植：`cmp.so` + `shr.so 63` + `and.o 1`
+  cases: cases/rv64ui/slti.yaml
+- suite: rv64ui
+  name: sltiu
+  class: port
+  dadao: '`cmp.uo` + `shr.so 63` + `and.o 1`'
+  reason: 可机械移植：`cmp.uo` + `shr.so 63` + `and.o 1`
+  cases: cases/rv64ui/sltiu.yaml
+- suite: rv64ui
+  name: sltu
+  class: port
+  dadao: '`cmp.uo` + `shr.so 63` + `and.o 1`'
+  reason: 可机械移植：`cmp.uo` + `shr.so 63` + `and.o 1`
+  cases: cases/rv64ui/sltu.yaml
+- suite: rv64ui
+  name: sra
+  class: port
+  dadao: '`shr.so`'
+  reason: 可机械移植：`shr.so`
+  cases: cases/rv64ui/sra.yaml
+- suite: rv64ui
+  name: srai
+  class: port
+  dadao: '`shr.so` + 立即数寄存器'
+  reason: 可机械移植：`shr.so` + 立即数寄存器
+  cases: cases/rv64ui/srai.yaml
+- suite: rv64ui
+  name: sraiw
+  class: port
+  dadao: '`shr.st`（立即数寄存器）'
+  reason: 可机械移植：`shr.st`（立即数寄存器）
+  cases: cases/rv64ui/sraiw.yaml
+- suite: rv64ui
+  name: sraw
+  class: port
+  dadao: '`shr.st`'
+  reason: 可机械移植：`shr.st`
+  cases: cases/rv64ui/sraw.yaml
+- suite: rv64ui
+  name: srl
+  class: port
+  dadao: '`shr.uo`'
+  reason: 可机械移植：`shr.uo`
+  cases: cases/rv64ui/srl.yaml
+- suite: rv64ui
+  name: srli
+  class: port
+  dadao: '`shr.uo` + 立即数寄存器'
+  reason: 可机械移植：`shr.uo` + 立即数寄存器
+  cases: cases/rv64ui/srli.yaml
+- suite: rv64ui
+  name: srliw
+  class: port
+  dadao: '`shr.ut` + `ext.so 31`（立即数寄存器）'
+  reason: 可机械移植：`shr.ut` + `ext.so 31`（立即数寄存器）
+  cases: cases/rv64ui/srliw.yaml
+- suite: rv64ui
+  name: srlw
+  class: port
+  dadao: '`shr.ut` + `ext.so 31`'
+  reason: 可机械移植：`shr.ut` + `ext.so 31`
+  cases: cases/rv64ui/srlw.yaml
+- suite: rv64ui
+  name: sub
+  class: port
+  dadao: '`sub.uo {rdhi,rdlo}` 低 64 位'
+  reason: 可机械移植：`sub.uo {rdhi,rdlo}` 低 64 位
+  cases: cases/rv64ui/sub.yaml
+- suite: rv64ui
+  name: subw
+  class: port
+  dadao: '`sub.st`'
+  reason: 可机械移植：`sub.st`
+  cases: cases/rv64ui/subw.yaml
+- suite: rv64ui
+  name: sw
+  class: rewrite
+  dadao: —
+  reason: 地址在 RB、数据在 RD；32 位存储
+  cases: null
+- suite: rv64ui
+  name: xor
+  class: port
+  dadao: '`xor.o`'
+  reason: 可机械移植：`xor.o`
+  cases: cases/rv64ui/xor.yaml
+- suite: rv64ui
+  name: xori
+  class: port
+  dadao: '`xor.o` + 立即数寄存器'
+  reason: 可机械移植：`xor.o` + 立即数寄存器
+  cases: cases/rv64ui/xori.yaml
+- suite: rv64um
+  name: div
+  class: port
+  dadao: '`div.so`'
+  reason: 可机械移植：`div.so`
+  cases: cases/rv64um/div.yaml
+- suite: rv64um
+  name: divu
+  class: port
+  dadao: '`div.uo`'
+  reason: 可机械移植：`div.uo`
+  cases: cases/rv64um/divu.yaml
+- suite: rv64um
+  name: divuw
+  class: rewrite
+  dadao: —
+  reason: 32 位无符号除需显式零扩展/边界派生，未纳入本轮移植
+  cases: null
+- suite: rv64um
+  name: divw
+  class: rewrite
+  dadao: —
+  reason: 32 位有符号除需显式符号扩展/边界派生，未纳入本轮移植
+  cases: null
+- suite: rv64um
+  name: mul
+  class: port
+  dadao: '`mul.so {rdhi,rdlo}` 低 64 位'
+  reason: 可机械移植：`mul.so {rdhi,rdlo}` 低 64 位
+  cases: cases/rv64um/mul.yaml
+- suite: rv64um
+  name: mulh
+  class: port
+  dadao: '`mul.so` 高 64 位'
+  reason: 可机械移植：`mul.so` 高 64 位
+  cases: cases/rv64um/mulh.yaml
+- suite: rv64um
+  name: mulhsu
+  class: rewrite
+  dadao: —
+  reason: 无混合符号 128 位乘；需用 `mul.so`/`mul.uo` 分解合成
+  cases: null
+- suite: rv64um
+  name: mulhu
+  class: port
+  dadao: '`mul.uo` 高 64 位'
+  reason: 可机械移植：`mul.uo` 高 64 位
+  cases: cases/rv64um/mulhu.yaml
+- suite: rv64um
+  name: mulw
+  class: rewrite
+  dadao: —
+  reason: 32 位乘积的高位扩展未在 DADAO `mul.st` 契约中规定，需显式 `ext.so 31` 验证
+  cases: null
+- suite: rv64um
+  name: rem
+  class: port
+  dadao: '`rem.so`'
+  reason: 可机械移植：`rem.so`
+  cases: cases/rv64um/rem.yaml
+- suite: rv64um
+  name: remu
+  class: port
+  dadao: '`rem.uo`'
+  reason: 可机械移植：`rem.uo`
+  cases: cases/rv64um/remu.yaml
+- suite: rv64um
+  name: remuw
+  class: rewrite
+  dadao: —
+  reason: 32 位无符号余需显式零扩展/边界派生，未纳入本轮移植
+  cases: null
+- suite: rv64um
+  name: remw
+  class: rewrite
+  dadao: —
+  reason: 32 位有符号余需显式符号扩展/边界派生，未纳入本轮移植
+  cases: null
+- suite: rv64ua
+  name: amoadd_d
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amoadd_w
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amoand_d
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amoand_w
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amomax_d
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amomax_w
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amomaxu_d
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amomaxu_w
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amomin_d
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amomin_w
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amominu_d
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amominu_w
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amoor_d
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amoor_w
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amoswap_d
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amoswap_w
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amoxor_d
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: amoxor_w
+  class: na
+  dadao: —
+  reason: DADAO 无 AMO 指令族；用 LR/SC 循环模拟会成为另一个测试（见 `lrsc` 的需改）
+  cases: null
+- suite: rv64ua
+  name: lrsc
+  class: rewrite
+  dadao: —
+  reason: LR/SC 存在（`lr.o`/`sc.o`），但保留集/失败码语义与 RISC-V 不同，测试体需重写
+  cases: null
+- suite: rv64uf
+  name: fadd
+  class: rewrite
+  dadao: —
+  reason: DADAO 浮点用 ft/fo 两组寄存器与 rf0 标志，测试体需按 contract-fp 重写
+  cases: null
+- suite: rv64uf
+  name: fclass
+  class: rewrite
+  dadao: —
+  reason: 同上；`fclass` 映射 `ftcls`/`focls`，分类位定义需重排
+  cases: null
+- suite: rv64uf
+  name: fcmp
+  class: rewrite
+  dadao: —
+  reason: 同上；比较结果编码与 RISC-V 不同
+  cases: null
+- suite: rv64uf
+  name: fcvt
+  class: rewrite
+  dadao: —
+  reason: 同上；转换指令与舍入模式取自 rf0
+  cases: null
+- suite: rv64uf
+  name: fcvt_w
+  class: rewrite
+  dadao: —
+  reason: 同上；整型转换边界与 NaN 语义按 contract-fp
+  cases: null
+- suite: rv64uf
+  name: fdiv
+  class: rewrite
+  dadao: —
+  reason: 同上；除法/余数/开方指令族不同
+  cases: null
+- suite: rv64uf
+  name: fmadd
+  class: rewrite
+  dadao: —
+  reason: 同上；FMA 指令族（ftfma/fofma）与 RISC-V 命名/寄存器不同
+  cases: null
+- suite: rv64uf
+  name: fmin
+  class: rewrite
+  dadao: —
+  reason: 同上；min/max NaN 规则按 DADAO
+  cases: null
+- suite: rv64uf
+  name: ldst
+  class: rewrite
+  dadao: —
+  reason: 浮点 load/store 走 RF 存取指令，地址仍在 RB
+  cases: null
+- suite: rv64uf
+  name: move
+  class: rewrite
+  dadao: —
+  reason: 浮点寄存器移动/符号注入指令族不同
+  cases: null
+- suite: rv64uf
+  name: recoding
+  class: rewrite
+  dadao: —
+  reason: NaN recoding 规则按 DADAO，需重写期望值
+  cases: null
+- suite: rv64ud
+  name: fadd
+  class: rewrite
+  dadao: —
+  reason: DADAO 64 位浮点用 fo 系列，测试体需按 contract-fp 重写
+  cases: null
+- suite: rv64ud
+  name: fclass
+  class: rewrite
+  dadao: —
+  reason: 同上；`focls` 分类位定义不同
+  cases: null
+- suite: rv64ud
+  name: fcmp
+  class: rewrite
+  dadao: —
+  reason: 同上；`foqcmp`/`foscmp` 结果编码不同
+  cases: null
+- suite: rv64ud
+  name: fcvt
+  class: rewrite
+  dadao: —
+  reason: 同上；`fo2it`/`it2fo` 等转换族不同
+  cases: null
+- suite: rv64ud
+  name: fcvt_w
+  class: rewrite
+  dadao: —
+  reason: 同上；整型转换边界与 NaN 语义不同
+  cases: null
+- suite: rv64ud
+  name: fdiv
+  class: rewrite
+  dadao: —
+  reason: 同上；除法/余数/开方族不同
+  cases: null
+- suite: rv64ud
+  name: fmadd
+  class: rewrite
+  dadao: —
+  reason: 同上；`fofma` 与 RISC-V 命名/寄存器不同
+  cases: null
+- suite: rv64ud
+  name: fmin
+  class: rewrite
+  dadao: —
+  reason: 同上；`fomin`/`fomax` NaN 规则
+  cases: null
+- suite: rv64ud
+  name: ldst
+  class: rewrite
+  dadao: —
+  reason: 浮点 load/store 走 RF 存取指令
+  cases: null
+- suite: rv64ud
+  name: move
+  class: rewrite
+  dadao: —
+  reason: 浮点寄存器移动/符号注入指令族不同
+  cases: null
+- suite: rv64ud
+  name: recoding
+  class: rewrite
+  dadao: —
+  reason: NaN recoding 规则按 DADAO
+  cases: null
+- suite: rv64ud
+  name: structural
+  class: rewrite
+  dadao: —
+  reason: 结构测试依赖 RISC-V FP 寄存器堆/流水模型，DADAO 无对应结构
+  cases: null
+- suite: rv64si
+  name: csr
+  class: na
+  dadao: —
+  reason: DADAO 无 CSR / S-mode / I-cache 别名模型；该测试无对应观察通道
+  cases: null
+- suite: rv64si
+  name: dirty
+  class: na
+  dadao: —
+  reason: DADAO 无 CSR / S-mode / I-cache 别名模型；该测试无对应观察通道
+  cases: null
+- suite: rv64si
+  name: icache-alias
+  class: na
+  dadao: —
+  reason: DADAO 无 CSR / S-mode / I-cache 别名模型；该测试无对应观察通道
+  cases: null
+- suite: rv64si
+  name: ma_fetch
+  class: na
+  dadao: —
+  reason: DADAO 无 CSR / S-mode / I-cache 别名模型；该测试无对应观察通道
+  cases: null
+- suite: rv64si
+  name: sbreak
+  class: rewrite
+  dadao: —
+  reason: DADAO 用 `trap cfxHA, immu18` 产生异常，无 `sbreak` 的 S-mode 观察通道
+  cases: null
+- suite: rv64si
+  name: scall
+  class: rewrite
+  dadao: —
+  reason: DADAO 无 S-mode ecall；系统调用走 semihosting/trap
+  cases: null
+- suite: rv64si
+  name: wfi
+  class: rewrite
+  dadao: —
+  reason: DADAO `swym` 为空转，不是 WFI 低功耗语义
+  cases: null

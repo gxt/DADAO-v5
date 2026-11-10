@@ -1,0 +1,319 @@
+{
+  "task": "m13-integ-004",
+  "upstream": {
+    "repo": "riscv-software-src/riscv-tests",
+    "commit": "0494f954a3d8d2ca9e4972da7a01e94b6a909bce",
+    "files": 114
+  },
+  "classification": {
+    "port": 35,
+    "rewrite": 57,
+    "na": 22
+  },
+  "ported_files": 35,
+  "ported_cases": 474,
+  "platforms": [
+    "qemu-system-dadao",
+    "gem5.opt"
+  ],
+  "chipyard": {
+    "status": "N/A",
+    "basis": [
+      "m12-chipyard-008",
+      "m12-chipyard-009",
+      "m12-chipyard-010",
+      "m12-chipyard-011",
+      "m12-chipyard-012",
+      "m12-chipyard-013",
+      "m12-chipyard-014",
+      "m12-chipyard-015"
+    ]
+  },
+  "differential": {
+    "agree_pass": 35,
+    "agree_fail": 0,
+    "diff": 0
+  },
+  "results": [
+    {
+      "case": "rv64ui-add",
+      "status": "AGREE_PASS",
+      "cases": 15,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-addi",
+      "status": "AGREE_PASS",
+      "cases": 15,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-addiw",
+      "status": "AGREE_PASS",
+      "cases": 15,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-addw",
+      "status": "AGREE_PASS",
+      "cases": 15,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-and",
+      "status": "AGREE_PASS",
+      "cases": 4,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-andi",
+      "status": "AGREE_PASS",
+      "cases": 4,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-or",
+      "status": "AGREE_PASS",
+      "cases": 4,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-ori",
+      "status": "AGREE_PASS",
+      "cases": 4,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-sll",
+      "status": "AGREE_PASS",
+      "cases": 23,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-slli",
+      "status": "AGREE_PASS",
+      "cases": 18,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-slliw",
+      "status": "AGREE_PASS",
+      "cases": 19,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-sllw",
+      "status": "AGREE_PASS",
+      "cases": 24,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-slt",
+      "status": "AGREE_PASS",
+      "cases": 15,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-slti",
+      "status": "AGREE_PASS",
+      "cases": 15,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-sltiu",
+      "status": "AGREE_PASS",
+      "cases": 15,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-sltu",
+      "status": "AGREE_PASS",
+      "cases": 15,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-sra",
+      "status": "AGREE_PASS",
+      "cases": 20,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-srai",
+      "status": "AGREE_PASS",
+      "cases": 15,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-sraiw",
+      "status": "AGREE_PASS",
+      "cases": 21,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-sraw",
+      "status": "AGREE_PASS",
+      "cases": 24,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-srl",
+      "status": "AGREE_PASS",
+      "cases": 20,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-srli",
+      "status": "AGREE_PASS",
+      "cases": 15,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-srliw",
+      "status": "AGREE_PASS",
+      "cases": 19,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-srlw",
+      "status": "AGREE_PASS",
+      "cases": 24,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-sub",
+      "status": "AGREE_PASS",
+      "cases": 14,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-subw",
+      "status": "AGREE_PASS",
+      "cases": 14,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-xor",
+      "status": "AGREE_PASS",
+      "cases": 4,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64ui-xori",
+      "status": "AGREE_PASS",
+      "cases": 4,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64um-div",
+      "status": "AGREE_PASS",
+      "cases": 9,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64um-divu",
+      "status": "AGREE_PASS",
+      "cases": 9,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64um-mul",
+      "status": "AGREE_PASS",
+      "cases": 10,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64um-mulh",
+      "status": "AGREE_PASS",
+      "cases": 6,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64um-mulhu",
+      "status": "AGREE_PASS",
+      "cases": 8,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64um-rem",
+      "status": "AGREE_PASS",
+      "cases": 9,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    },
+    {
+      "case": "rv64um-remu",
+      "status": "AGREE_PASS",
+      "cases": 9,
+      "qemu_exit": 0,
+      "gem5_exit": 0,
+      "signature_match": true
+    }
+  ]
+}

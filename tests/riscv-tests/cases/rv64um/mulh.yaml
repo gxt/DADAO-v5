@@ -1,0 +1,40 @@
+upstream: isa/rv64um/mulh.S
+upstream_sha256: 90ef47355319887bf7faa9d031e6ec20edf4985558df9cc30e7462689dc3ef7b
+note: 只含架构可见的值用例；BYPASS/SRC*_EQ_DEST/ZERODEST 属 RISC-V 微架构/寄存器别名测试，未移植。
+cases:
+- testnum: 2
+  form: rr
+  op: mulh
+  expected: '0x0000000000000000'
+  src1: '0x0000000000000000'
+  src2: '0x0000000000000000'
+- testnum: 3
+  form: rr
+  op: mulh
+  expected: '0x0000000000000000'
+  src1: '0x0000000000000001'
+  src2: '0x0000000000000001'
+- testnum: 4
+  form: rr
+  op: mulh
+  expected: '0x0000000000000000'
+  src1: '0x0000000000000003'
+  src2: '0x0000000000000007'
+- testnum: 5
+  form: rr
+  op: mulh
+  expected: '0x0000000000000000'
+  src1: '0x0000000000000000'
+  src2: '0xffffffffffff8000'
+- testnum: 6
+  form: rr
+  op: mulh
+  expected: '0x0000000000000000'
+  src1: '0xffffffff80000000'
+  src2: '0x0000000000000000'
+- testnum: 7
+  form: rr
+  op: mulh
+  expected: '0x0000000000000000'
+  src1: '0xffffffff80000000'
+  src2: '0xffffffffffff8000'

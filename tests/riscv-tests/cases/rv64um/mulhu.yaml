@@ -1,0 +1,52 @@
+upstream: isa/rv64um/mulhu.S
+upstream_sha256: 81c0291294668985a8099a6edfc31d540ab5530ef1bb93b2fdcdff69bfe336bc
+note: 只含架构可见的值用例；BYPASS/SRC*_EQ_DEST/ZERODEST 属 RISC-V 微架构/寄存器别名测试，未移植。
+cases:
+- testnum: 2
+  form: rr
+  op: mulhu
+  expected: '0x0000000000000000'
+  src1: '0x0000000000000000'
+  src2: '0x0000000000000000'
+- testnum: 3
+  form: rr
+  op: mulhu
+  expected: '0x0000000000000000'
+  src1: '0x0000000000000001'
+  src2: '0x0000000000000001'
+- testnum: 4
+  form: rr
+  op: mulhu
+  expected: '0x0000000000000000'
+  src1: '0x0000000000000003'
+  src2: '0x0000000000000007'
+- testnum: 5
+  form: rr
+  op: mulhu
+  expected: '0x0000000000000000'
+  src1: '0x0000000000000000'
+  src2: '0xffffffffffff8000'
+- testnum: 6
+  form: rr
+  op: mulhu
+  expected: '0x0000000000000000'
+  src1: '0xffffffff80000000'
+  src2: '0x0000000000000000'
+- testnum: 7
+  form: rr
+  op: mulhu
+  expected: '0xffffffff7fff8000'
+  src1: '0xffffffff80000000'
+  src2: '0xffffffffffff8000'
+- testnum: 30
+  form: rr
+  op: mulhu
+  expected: '0x000000000001fefe'
+  src1: '0xaaaaaaaaaaaaaaab'
+  src2: '0x000000000002fe7d'
+- testnum: 31
+  form: rr
+  op: mulhu
+  expected: '0x000000000001fefe'
+  src1: '0x000000000002fe7d'
+  src2: '0xaaaaaaaaaaaaaaab'
