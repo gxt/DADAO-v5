@@ -17,9 +17,28 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import subprocess
 import sys
 
 DEFAULT_PATHS = ["."]
+
+
+def _main_worktree_root() -> str:
+    """Return the main worktree root (works inside `git worktree` too).
+
+    A linked worktree may live on another filesystem (e.g. /tmp); checking `.`
+    there would report that filesystem instead of the repo's real one.
+    """
+    try:
+        common = subprocess.check_output(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            text=True, stderr=subprocess.DEVNULL).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return os.getcwd()
+    if not common:
+        return os.getcwd()
+    # <root>/.git  ->  <root>
+    return os.path.dirname(common) or os.getcwd()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -30,7 +49,7 @@ def main(argv: list[str] | None = None) -> int:
                     help="percent used that triggers ALERT (default 90)")
     args = ap.parse_args(argv)
 
-    paths = args.path or DEFAULT_PATHS
+    paths = args.path or [_main_worktree_root()]
     seen: dict[str, tuple[str, float]] = {}
     for raw in paths:
         path = os.path.abspath(raw)
