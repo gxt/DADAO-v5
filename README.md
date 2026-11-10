@@ -112,7 +112,7 @@
 - **SE 基线**：`libc-test` / `llvm-ts` / `embench` static 全量（589 例）在 gem5 SE 与 QEMU user 上逐例对照；预算按套件（300/600/300 s），`timeout` 单列不记能力缺口；1200 s 复测把 23 例转 PASS、72 例仍超时（纯计算量）。
 - **SE 动态**：`ET_EXEC + PT_INTERP` + ldso 装载；三套件 dynamic 全量（590 / 451 / 451），`gem5_only_fail=4` 全属输出捕获顺序问题（`ISS-357`），`qemu_only_fail=0`。
 - **FS 与 semihosting**：Tiny/Vast 双 profile；semihosting 25 服务与 `SYS_EXIT` 闭环；`math_test` 的 B7 浮点缺陷经 `INTEG-058t` 修复（f2i 舍入方向），本里程碑定位并注销登记。
-- **一致性矩阵**：`tests/parity/matrix-M11.md`（`vast/arch` 269/269、`tiny|vast inst` 各 1029）；SE 段 static/dynamic 双档，逐条归因、无未归因项。
+- **一致性矩阵**：`docs/TestReports/M11-三平台一致矩阵.md`（`vast/arch` 269/269、`tiny|vast inst` 各 1029）；SE 段 static/dynamic 双档，逐条归因、无未归因项。
 - **回归运行**：QEMU 4 成员 + gem5 SE 3 成员 + gem5 FS 1 成员（8 成员），各成员独立超时与结果 guard。
 - **规范发布**：SimRISC **0.5.6** 发布（13 册去 `-rc`，变更记录按主题归并，含编码不兼容变更）；`Machine-v5` 机器命名定为 `dadao-tiny` / `dadao-vast`（profile `Tiny`/`Vast`）。
 - **归档**：`.tao/archive/M11/`（**114 册**，含 6 个「M10 后」维护任务；回顾 `m11-retrospective.md`；关闭 issue 14 条）。
