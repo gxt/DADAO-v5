@@ -170,7 +170,7 @@
 
 ## M13 待梳理：差分产物的归属（用户 2026-11-09）
 
-- **对象**：`tests/parity/matrix-M11.md`（矩阵快照）、`.tao/knowledge/refs/*-parity-summary.*`（逐例报告）、`tools/testcases/parity/{run_parity,se_tset_matrix}.py`（生成器）、各基线 summary JSON。
+- **对象**：`docs/TestReports/M11-三平台一致矩阵.md`（矩阵快照）、`.tao/knowledge/refs/*-parity-summary.*`（逐例报告）、`tools/testcases/parity/{run_parity,se_tset_matrix}.py`（生成器）、各基线 summary JSON。
 - **问题**：矩阵与报告混在 `tests/`、`.tao/knowledge/refs/` 两处；矩阵内含运行期绝对路径（`/tmp/opencode/<任务>/...`），fresh clone 上不可复现；「哪份是快照、哪份是原始数据、哪份是生成物」的边界靠 README 口头约定。
 - **处置**：M13 开始差分对齐时统一梳理（不在当前任务里改），原则先定两条：① 生成器随产物入库；② 快照只含 md5/版本等身份指纹，不写运行期路径。
 
@@ -330,3 +330,12 @@
 | `m12-spec-003` / `spec-004` | 候选未立册；含语义变更 | 用户 |
 
 **open 但暂无对应任务**：`ISS-345`（语料不可达）、`ISS-357`（stdout/stderr 写序，属 SE 驱动口径）、`ISS-360`（流程缺陷）、`ISS-361`/`362`（随 `testcases-003` 一并处置）。
+
+## 磁盘水位与构建瘦身（2026-11-10）
+
+- **触发**：用户要求「安排评测类任务前先查磁盘，> 90% 报警」。实测主控机 `/mnt/tao` **92%**（424G/492G）。
+- **已清理**（用户同意）：归档 M11 任务的 `runtime/`/`review/` 逐例目录（8 个任务 ≈250G）+ 三份一次性 gem5 构建副本（≈72G）⇒ **92% → 23%**。
+- **已落地**：`make check-disk`（主控机，> 90% FAIL）+ `remote.py status` 的 `disk_use_pct`/`disk_alert`（节点）+ `AGENTS.md` 预检第 ⑥ 项改为「并行度与磁盘」。
+- **gem5 体积事实**：`build/DADAO` 4.5G；`gem5.opt` 702 MB，其中 `size` 实测 text+data 仅 34 MB，**662 MB 是 DWARF 符号**；`strip --strip-debug` 后 **40 MB**（行为不变）。`gem5.fast` 关闭 assert ⇒ 差分测试不宜盲用。
+- **逐指令信息不是大头**：跑批未使用 `--debug-flags`，每例 `m5out` 仅 280 KB；250G 来自重复的逐例运行目录。**规则**：常规跑批永不开 `--debug-flags`；需要时用 `--debug-start/--debug-end` 卡窗口并即删。
+- **待用户定**：① `docs/Process-08` 增「收尾只留 `run.sh` + 汇总 JSON + 日志（≤10MB），删逐例目录」；② `.work/build/` 只允许 `gem5`/`qemu`/`llvm` 规范名，派生构建用完即删，`gem5.debug` 按需临时建。
