@@ -66,8 +66,8 @@
 - id: ISS-364
   scope:
   - testcases
-  status: open
-  resolved_by: null
+  status: closed
+  resolved_by: m13-testcases-007（删除探针；用户 2026-11-10 裁定 B）
   title: 【P3】`check-arch` 的 `integ047t start_busy_returns_busy` 探针**既有 flaky**（约 5%）： `m13-qemu-001` 与本轮 `m13-gem5-002` 的 reviewer 各自在**基线源码**上复现过同样失败 （`got=0x62`），重跑即 PASS；QEMU 二进制 md5 与 mtime 未变。判为 pmem DMA 的 BUSY 窗口 跨 trap 存续所致，非交付物引入。 建议：把该探针的 BUSY 判定改为有界重试或放宽窗口，避免每次验收都要额外解释一轮。
 - id: ISS-365
   scope:
