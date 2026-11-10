@@ -693,4 +693,4 @@ group = "machine-v5"
 #   `cfx_power` 的 `cg7`/`cg8 rc1`（Tiny 访问 power ctrl ⇒ `CFXREG`）；§2/§4.4 明确 Tiny `switch_run_mode`
 #   写入被忽略、读回恒 `3`（异常进入强制 `hypv`）；册头 0.4.2-rc → `0.4.3-rc`，附录新开 `0.4.3-rc（未发布）`
 #   段（原段记为 `0.4.2（未发布，被 0.4.3-rc 取代）`）；sha256 同笔重算（本册与 `DADAO-12`；其余 19 册不变）。
-sha256 = "6ffe45b4070382991e5393eb80e50288d3d501c83ac70c2adeb82d290cd26519"
+sha256 = "fb1e4f865ea36f8f1d9fc08a301475e729bc9db5307227a069a391d12994fca2"

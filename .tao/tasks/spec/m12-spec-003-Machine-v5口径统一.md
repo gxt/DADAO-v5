@@ -132,7 +132,7 @@
 ### 第 1 轮 reviewer 验收（独立重跑，2026-11-10）
 
 **重跑记录**（worktree 根、相对路径；`echo $?` 取真实退出码）：
-- `./.work/evidence/m12-spec-003/run.sh` → 9/9 `[PASS]`（version/reserved/cause_info/escape/power_cg7/switch_run_mode/d12_typo/lock/gates），`SUMMARY: all checks PASS`，`FULL_EXIT=0`；其中 `gate check-spec-{readonly,changelog,drift,numbering,refs} rc=0`。
+- `./运行期证据目录/run.sh` → 9/9 `[PASS]`（version/reserved/cause_info/escape/power_cg7/switch_run_mode/d12_typo/lock/gates），`SUMMARY: all checks PASS`，`FULL_EXIT=0`；其中 `gate check-spec-{readonly,changelog,drift,numbering,refs} rc=0`。
 - `run.sh --inject` → 4/4「注入 md5 变更 → 该检查 FAIL → `cp` 还原 md5 一致 → 回 PASS」，`INJECT_EXIT=0`。
 - 门控独立亲跑（不走脚本）：5 个 spec 门控 rc=0；`check-spec-purity/cite-targets/codeblocks` rc=0；`check-contracts-dir/knowledge-refs/knowledge-dir/dirs/no-residue/run-artifacts/milestones-fresh` rc=0（= 完成区所称 10 门控）；`check-spec-archive` rc=0、`check-patch-tree` rc=0。
 - `check-spec-archive-verify` worktree rc=2：`git rev-parse … @ .cache/refs/DADAO.wiki: No such file`（本 worktree 未 `fetch-refs`；主仓 `make check-spec-archive-verify` rc=0）⇒ 环境性、且属 SimRISC 归档专项，不在验收清单。
@@ -172,3 +172,16 @@
 - 锁：21 册恰 2 行变（`Machine-v5`、`DADAO-12`），其余 19 册 sha 不变。
 - 实现影响（转后续任务）：QEMU/gem5 的 `switch_run_mode` 需改为「写入被忽略、读回恒 3」。
 - 文档项：`README.md` 的 Machine 在研版本随收尾同步到 `0.4.3-rc`（本收尾一并改）。
+
+### 收尾后更正（architect，2026-11-10，用户裁定）
+
+用户原话：「读回不应该恒为3，应该是保存的值，也就是3」⇒ 原措辞「读回恒 `3`」是**常量语义**，改为**寄存器保存值语义**：
+
+- `§2`：写入被忽略（保存值保持 `3`），**读回为寄存器保存值**；
+- `§4.4`：同上（引 `§2`）；
+- 附录 `0.4.3-rc`：补一条澄清；
+- 只读锁 sha 同笔重算（`Machine-v5` 一行）；
+- 门控 `check-spec-readonly` / `check-spec-changelog` / `check-spec-drift` / `check-knowledge-refs` 复跑 rc=0。
+
+实现影响不变：QEMU/gem5 需做到「写入被忽略、保存值保持 3」，而不是「读接口返回常量」。
+
