@@ -704,4 +704,4 @@ group = "machine-v5"
 #   的「hmon 启动时显式写向量、不依赖复位默认值」改为「初值 = hmon SRAM 起始，显式写为幂等」；§3 补
 #   `cfx2rd`/`cfx2rc` 到不同 cfxha 的口径（reserved ⇒ ILLI；未实现 cfx / 未定义 cg-rc ⇒ CFXREG）；§7.1 删
 #   「落点/由谁产生」表述、只留编码；册头与附录 → 0.4.4-rc；sha256 同笔重算（本册与 `DADAO-13`；其余 19 册不变）。
-sha256 = "a9ccc711efba8b37f74637086b1f69fb6ef2d7fbdb6e0f8b6322817d85a86598"
+sha256 = "adbac663c6edf0732500b4fd595cdddeaf3dec89c3a91548aa35b6ba8e2bad50"

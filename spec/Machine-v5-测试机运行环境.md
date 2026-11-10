@@ -289,9 +289,10 @@ BootROM 镜像的段表两 profile **同格式、大端**（DADAO 为大端）�
 
 | 镜像偏移 | 内容 | 规定 |
 |----------|------|------|
-| `0x0000`–`0x0FFF` | power 启动 stub（扁平分段，链接在复位向量 `0xffff_ffff_0000`） | 上限 4 KiB；偏移 0 即复位指令 |
-| `0x1000`–`0xEFFF` | hmon 运行段（扁平分段，链接在 `0x0fff_0000_0000`） | 上限 56 KiB；段首即 hmon 入口（= hmon SRAM 起始） |
-| `0xF000`–`0xFFFF` | image index table（`§6.1` 格式，`count = 1`、`type = 1`） | 表项指向 hmon 段；未用字节为 0 |
+| `0x0000`–`0x1FFF` | power 启动 stub（扁平分段，链接在复位向量 `0xffff_ffff_0000`） | **上限 8 KiB**；偏移 0 即复位指令 |
+| `0x2000`–`0x3FFF` | hmon 运行段（扁平分段，链接在 `0x0fff_0000_0000`） | **上限 8 KiB**；段首即 hmon 入口（= hmon SRAM 起始） |
+| `0x4000`–`0xDFFF` | **保留区** | 必须全零；不装入、不执行 |
+| `0xE000`–`0xFFFF` | image index table（`§6.1` 格式，`count = 1`、`type = 1`） | **8 KiB**；表项指向 hmon 段；未用字节为 0 |
 
 **power 的装载与移交顺序**
 
@@ -304,9 +305,9 @@ BootROM 镜像的段表两 profile **同格式、大端**（DADAO 为大端）�
 7. hmon 入口校验 `CFXTRAP` 与 magic、按需配置权限，`escape cfx_hmon, [excp_cause_ip, 4]` 返回 power stub（`§4.2`，`inner_cfx_code` 不因 `escape` 改变）；
 8. power 跳固定应用入口 `0xffff_ff01_0100`，不返回。
 
-**复制目标与长度上限**：目标固定为 hmon SRAM 起始 `0x0fff_0000_0000`；单段长度上限 = 56 KiB（镜像预算，必然小于 hmon SRAM 的 64 KiB）。表项须满足 `size ≤ 56 KiB`、`offset + size` 落在 BootROM 内且两值 8 字节对齐，否则**构建期失败**、power 运行时按 `§6.1` 失败语义 park（不截断、不静默继续）。hmon SRAM 未被表项覆盖的字节为 0（宿主不预置）。
+**复制目标与长度上限**：目标固定为 hmon SRAM 起始 `0x0fff_0000_0000`；单段长度上限 = **8 KiB**（镜像预算；hmon SRAM 本身 64 KiB，故 SRAM 不是约束）。表项须满足 `size ≤ 56 KiB`、`offset + size` 落在 BootROM 内且两值 8 字节对齐，否则**构建期失败**、power 运行时按 `§6.1` 失败语义 park（不截断、不静默继续）。hmon SRAM 未被表项覆盖的字节为 0（宿主不预置）。
 
-**容量结论（64 KiB 是否够用）**：够用——预算为 power ≤ 4 KiB + hmon ≤ 56 KiB + 表 4 KiB = 64 KiB；瓶颈是 hmon 段 ≤ 56 KiB（小于 hmon SRAM 的 64 KiB，故 SRAM 不是约束）。超限的处置顺序：① 把 hmon 拆成多个表项（逐段复制，消除段间空洞）；② 仍不足则增大 BootROM 尺寸——这会改动 profile 几何、`cg7` BootROM 块与 64 KiB `-bios` 复位窗口惯例，属**平台决策**，本册不单方面改。构建器须以链接断言/构建期检查强制上述上限，超限即构建失败。
+**容量结论（64 KiB 是否够用）**：够用——预算为 power ≤ 8 KiB + hmon ≤ 8 KiB + 保留区 40 KiB + 表 8 KiB = 64 KiB；**hmon 上限 8 KiB 是校验阈值（超限即构建失败），不是目标尺寸**——最小 handler 预计 1–3 KiB。超限的处置顺序：① 把 hmon 拆成多个表项（逐段复制，消除段间空洞）；② 仍不足则增大 BootROM 尺寸——这会改动 profile 几何、`cg7` BootROM 块与 64 KiB `-bios` 复位窗口惯例，属**平台决策**，本册不单方面改。构建器须以链接断言/构建期检查强制上述上限，超限即构建失败。
 
 **QEMU 先行验证接口（实现顺序约定）**：先在 QEMU 落地并用同一镜像跑通 `power → hmon → 应用`，gem5 / chipyard 复用**同一 BootROM 镜像与同一张表**（不各写一套）。QEMU 侧需要先具备的行为与字段：
 
@@ -364,6 +365,8 @@ BootROM 镜像的段表两 profile **同格式、大端**（DADAO 为大端）�
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
 
 ### 0.4.4-rc（未发布）
+
+- Tiny BootROM 布局按用户 2026-11-10 裁定重划：power stub 8 KiB（`0x0000–0x1FFF`）、hmon 段 8 KiB（`0x2000–0x3FFF`，**校验阈值非目标尺寸**）、保留区 40 KiB 全零（`0x4000–0xDFFF`）、image index table 8 KiB（`0xE000–0xFFFF`）。
 
 - **Tiny hmon 装载契约**：hmon 的代码/数据**编入 BootROM 镜像**（power stub + hmon 运行段 + image index table，`§6.1`/`§6.2`）；power 把 hmon 段复制到 hmon SRAM 后 `trap` 移交。宿主 loader **不再下发 hmon 段**、也不再向 BootROM 装应用段——应用（raw/ELF）只装 SRAM，入口固定 `0xffff_ff01_0100`；表校验/装载失败即显式失败（park，不静默继续）。容量结论：64 KiB 预算 = power ≤ 4 KiB + hmon ≤ 56 KiB + 表 4 KiB，够用。QEMU 先行验证，gem5/chipyard 共用同一镜像与同一张表。
 - **`cfx2rd`/`cfx2rc` 到不同 cfxha 的口径**：reserved cfxha ⇒ `ILLI`；已分配但未实现的 cfx、以及已实现 cfx 的未定义 cg/rc ⇒ `CFXREG`；两条为编号层/寄存器层判定，互斥不冲突（引 `DADAO-12 §5.1`、`§5.2（一）`）。

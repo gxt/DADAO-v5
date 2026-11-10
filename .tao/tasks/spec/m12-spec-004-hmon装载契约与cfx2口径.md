@@ -226,3 +226,13 @@
   4. `tests/shared/machine-profiles.yaml` 26–27 行同源，待同步。
 - **待用户确认**：① `crt 移 SRAM`（新契约，超出原裁定原话）；② `ADR-0043` 就地修订（D2/D3/D14）；③ `contract-elf` / `machine-profiles.yaml` / 设计报告 同步。
 - `run.sh --full` 实为不支持（静默忽略），记录改为无参/`--inject` 两种模式。
+
+### 收尾后更正（architect，2026-11-10，用户裁定）
+
+用户原话：「power 8KiB，hmon 8KiB，image index table 放在最后，也是8KiB」。
+
+- Tiny BootROM 布局改为：power `0x0000–0x1FFF`（8 KiB）/ hmon `0x2000–0x3FFF`（8 KiB）/ 保留区 `0x4000–0xDFFF`（40 KiB，全零）/ 段表 `0xE000–0xFFFF`（8 KiB）。
+- 复制长度上限 56 KiB → **8 KiB**；容量结论改为 `8+8+40+8=64`，并明确「**hmon 8 KiB 是校验阈值，不是目标尺寸**（最小 handler 预计 1–3 KiB）」。
+- 原「hmon ≤56 KiB」是「剩余空间全给它」的产物，用户指出后改正。
+- 锁 sha 同笔重算；`check-spec-readonly`/`check-spec-changelog`/`check-spec-drift` 复跑 rc=0。
+
