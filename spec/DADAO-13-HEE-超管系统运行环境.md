@@ -17,11 +17,16 @@
 | 3 | 4 | hypv cfx intr mask | cfx_⟨cfxname⟩_hypv_cfx_intr_mask | 全1 | RW | 异步中断来源 cfx 掩码，0=允许，1=屏蔽。按当前 cfx 过滤 |
 | 3 | 8 | hypv switch run mode | cfx_⟨cfxname⟩_hypv_switch_run_mode | 3 (hypv) | RW | 从hypv陷入时切换的运行模式 |
 | 3 | 9 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
-| 3 | 10 | hypv excp vector | cfx_⟨cfxname⟩_hypv_excp_vector | — | RW | 从hypv陷入时的异常向量入口地址；**初值不在此规定**，由平台/实现定义（v5 测试机在启动时显式写入） |
+| 3 | 10 | hypv excp vector | cfx_⟨cfxname⟩_hypv_excp_vector | 该 cfx 内部 SRAM 的起始地址（无内部 SRAM 者由平台/实现定义） | RW | 从hypv陷入时的异常向量入口地址；**写入忽略低 2 位**（`value[1:0] ← 0`，按 4 字节对齐落盘），不产生异常 |
 | 3 | 11 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 | 3 | 12 | hypv cg reg delegation | cfx_⟨cfxname⟩_hypv_cg_reg_deleg | 全1 | RW | cg访问授权，bit=0时允许supv访问。bit3固定为1 |
 
 `rc0`–`rc3` 为四类同步来源 mask，`rc4` 为异步中断来源 mask；位索引=源 cfx，`0=允许`、`1=屏蔽`，自身只绕过 cfx 轴。`rc5`–`rc7` 保留，访问触发 `CFXREG`。`cfx0`–`cfx3` 的 `cg8`/`rc1` 为 `global_cfx_intr_mask`（见 SEE §3.1）。
+
+`rc10`（`hypv_excp_vector`）的初值与写入：
+
+- **初值**：该 cfx **内部 SRAM 的起始地址**（有内部 SRAM 的 cfx 见 SEE §2.1 核内地址空间表）；**无内部 SRAM 的 cfx**（如 `cfx_power` 的 BootROM、`cfx_umon`/`cfx_jmon`）由平台/实现定义。有内部 SRAM 的 cfx，其 HBI 初始化入口应位于该 SRAM 起始（即初值所指），据此满足 HBI §3「各 cfx 的 `hypv_excp_vector` 复位值应指向其 HBI 初始化入口」。
+- **写入忽略低 2 位**：`value[1:0] ← 0`（4 字节对齐落盘），**不产生异常**；读回为落盘值（低 2 位为 0）。
 
 ## 2. cfx_hmon - hypervisor monitor
 
@@ -53,7 +58,7 @@ hmon 为 hypv 下的同步异常处理核芯功能扩展，处理 hypv 下的同
 
 ### 0.1.4-rc（未发布）
 
-- `cfx_⟨cfxname⟩_hypv_excp_vector`（`cg3 rc10`）**不再规定具体初值**（原 `cfxha<<42 + 0x3ff_ffff_0000` 删除），由平台/实现定义；v5 测试机在启动时显式写入。
+- `cfx_⟨cfxname⟩_hypv_excp_vector`（`cg3 rc10`）**必须有初值 = 该 cfx 内部 SRAM 的起始地址**（无内部 SRAM 的 cfx 由平台/实现定义）；写入**忽略低 2 位**（`value[1:0] ← 0`，4 字节对齐落盘），不产生异常。
 
 - 版本号与 HBI 同步（HBI §3 补 `HBI_<name>_INIT` 不落在 semihosting 区 `0x3FF00–0x3FFFF` 的说明）。
 - cg3 按两轴权限模型重排：`rc0`–`rc3` 为 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` 四类同步来源 mask，`rc4` 为 `cfx_intr_mask`；删除 `hypv_global_version` 与 `hypv_global_cfx_mask`；mask 初值与 SEE 一致（hmon 自身 `0x7FFF_FFFF_FFFF_FFF7`，其余 `0xFFFF_FFFF_FFFF_FFF7`）。

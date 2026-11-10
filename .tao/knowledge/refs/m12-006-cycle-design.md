@@ -721,3 +721,5 @@ B. 去掉：全部走 hmon，`halted` 只在 semihosting 退出时产生（由 r
 - **`cg3 rc10`（`hypv_excp_vector`）写入忽略低 2 位**（`value[1:0] ← 0`，即按 4 字节对齐落盘）；不报错。
 - **`DADAO-13 §1 rc10` 必须有初值 = 该 cfx 内部 SRAM 起始地址**（有内部 SRAM 的 cfx；无内部 SRAM 者由平台定义）。该修订并入 `m12-spec-004`。
 
+> **契约更新（2026-11-10，`m12-spec-004` 合入后）**：本报告 §8.1 的 R13-A「宿主 loader 直装 hmon SRAM」**已作废**，改按 `Machine-v5 §6.1/§6.2`：hmon 代码/数据编入 BootROM 固定固件，power 校验段表后复制到 hmon SRAM，宿主只装应用段；应用 crt 随之移入 SRAM、入口固定 `0xffff_ff01_0100`（该条待用户确认）。
+

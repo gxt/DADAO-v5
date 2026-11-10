@@ -488,7 +488,11 @@ group = "dadao-1x"
 # 2026-10-26（SPEC-176t）：版本号与 HBI 同步升 0.1.4-rc（互锁组一致；正文不变）；sha256 同笔重算。
 # 2026-10-30（INTEG-044t，授权同 SEE 条目）：cg3 按两轴权限布局重排（rc0–4 + rc8–12），删 hypv_global_version/global_cfx_mask，hmon 增 CFXESC/CFXPERM；附录 0.1.4-rc 补条目；sha256 同笔重算。
 # 2026-11-05（SPEC-188t，授权同上）：cg3 rc9/rc11 标 reserved；附录 0.1.4-rc 补一条；sha256 同笔重算（其余 20 册不变）。
-sha256 = "1099ebbbba1b7556712187d6a90dd670b2903b74136d27910420909a473ba9b9"
+# 2026-11-10（m12-spec-004；用户裁定原话「rc10必须有初值，初值是该cfx的SRAM的起始地址」「rc10的向量写入时，
+#   应ignore后两位」）：§1 cg3 rc10 初值 = 该 cfx 内部 SRAM 起始地址（无内部 SRAM 者由平台/实现定义），
+#   写入忽略低 2 位（`value[1:0] ← 0`）且不产生异常；附录 `0.1.4-rc` 对应条目就地改写（未发布，不另开段）；
+#   版本不变（仍 `0.1.4-rc`）；sha256 同笔重算。
+sha256 = "a284856bb0643876a5165579092bbc8751596e77f86aeae70ba6c970b8b1dabe"
 
 [[spec]]
 path = "spec/DADAO-21-ABI-应用程序二进制接口.md"
@@ -693,4 +697,11 @@ group = "machine-v5"
 #   `cfx_power` 的 `cg7`/`cg8 rc1`（Tiny 访问 power ctrl ⇒ `CFXREG`）；§2/§4.4 明确 Tiny `switch_run_mode`
 #   写入被忽略、读回恒 `3`（异常进入强制 `hypv`）；册头 0.4.2-rc → `0.4.3-rc`，附录新开 `0.4.3-rc（未发布）`
 #   段（原段记为 `0.4.2（未发布，被 0.4.3-rc 取代）`）；sha256 同笔重算（本册与 `DADAO-12`；其余 19 册不变）。
-sha256 = "fb1e4f865ea36f8f1d9fc08a301475e729bc9db5307227a069a391d12994fca2"
+# 2026-11-10（m12-spec-004；用户裁定原话「hmon的代码/数据应该是放在bootrom中，然后由bootrom代码存放到相应位置；
+#   先在qemu中进行验证，然后gem5/chipyard可共用」「7.1写的不对，只定编码，谁产生是代码设计要决定的」）：
+#   Tiny hmon 装载契约——hmon 代码/数据编入 BootROM 镜像（power stub + hmon 运行段 + image index table，
+#   §6.1/§6.2），power 复制到 hmon SRAM 后 trap 移交；宿主只装 SRAM、入口固定 `0xffff_ff01_0100`；§1.1/§2/§4.4
+#   的「hmon 启动时显式写向量、不依赖复位默认值」改为「初值 = hmon SRAM 起始，显式写为幂等」；§3 补
+#   `cfx2rd`/`cfx2rc` 到不同 cfxha 的口径（reserved ⇒ ILLI；未实现 cfx / 未定义 cg-rc ⇒ CFXREG）；§7.1 删
+#   「落点/由谁产生」表述、只留编码；册头与附录 → 0.4.4-rc；sha256 同笔重算（本册与 `DADAO-13`；其余 19 册不变）。
+sha256 = "a9ccc711efba8b37f74637086b1f69fb6ef2d7fbdb6e0f8b6322817d85a86598"
