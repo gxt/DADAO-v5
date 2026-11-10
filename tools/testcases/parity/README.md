@@ -13,6 +13,8 @@
 - `run_parity.py`：枚举 case、分别驱动两引擎、归一化、硬门判定、输出 JSON/Markdown。
 - `qemu_gem5_shim.py`：把现有驱动发出的 QEMU 系统 argv 子集映射到
   `gem5.opt --outdir … configs/dadao/fs.py`。
+- `three_platform_matrix.py`：三平台（qemu / gem5 / chipyard）逐例矩阵汇总入口
+  （只读已入库 JSON，见「三平台矩阵（m13-integ-001）」）。
 
 ## 用法
 
@@ -98,6 +100,39 @@ python3 tools/testcases/parity/se_tset_matrix.py --self-test   # 逐条反例注
   （`--compose-out --fs-matrix <run_parity 输出> --picolibc-json <tiny/picolibc
   JSON>`；旧的 `--carry-from` 只在 B7 登记未裁定时期承接上一版行）；数字一律
   现场统计，不手改。
+
+## 三平台矩阵（qemu / gem5 / chipyard，`m13-integ-001`）
+
+`three_platform_matrix.py` 是**三平台汇总入口**：不跑 guest，只读**已入库**的逐例
+JSON，复算计数/判定/归因并渲染 `docs/TestReports/<M>-<主题>.md` 形态的册
+（chipyard 列在 M12 核未就绪时记 `N/A` + 依据，不是伪值）。
+
+```sh
+# 从已入库基线重建（默认输入 = m13 长尾 static/dynamic 两份 refs）
+python3 tools/testcases/parity/three_platform_matrix.py \
+  --markdown-out <运行期目录>/m13-三平台差分矩阵.md
+# 入库册与重建结果逐字节比对（册不得手改）
+python3 tools/testcases/parity/three_platform_matrix.py \
+  --check docs/TestReports/M13-三平台差分矩阵.md
+# 追加来源 / 单独挂 chipyard 证据（`m13-integ-002`/`003` 用）
+python3 tools/testcases/parity/three_platform_matrix.py \
+  --source <canonical.json> --chipyard <chipyard.json>
+python3 tools/testcases/parity/three_platform_matrix.py --self-test
+```
+
+- **输入两种形态**（自动识别）：已入库长尾基线（`rows[]` + `qemu_klass`/
+  `gem5_klass`/`gem5_gap`）或 canonical `{"schema": "three-platform-cases/1",
+  "link_mode": …, "cases": [{case, suite, qemu/gem5/chipyard}]}`。同名
+  `(档, suite, case)` 跨输入按**平台列**合并，同一平台两值不同即 FAIL。
+- **复用不复制**：状态词表与 `qemu ↔ gem5` 判定 = `run_parity.py`（`STATUSES`、
+  `_verdict`）；owner 词表与「预算耗尽 ≠ 判定」= `se_tset_matrix.py`（`OWNERS`、
+  `TIMEOUT_CAPABILITY`）。
+- **fail-closed**：非 `AGREE_PASS` 行必须命中归因登记表（`BLOCKED_OWNERS` /
+  `GEM5_ONLY_FAIL` / `BOTH_NON_PASS`），未登记即 rc=1；legacy 基线须
+  `ok=true`/`missing=[]` 且 `selection.total`/`by_suite` 与行一致；chipyard 非
+  `N/A` 行必须带 `owner` + `basis`。
+- **可重建**：册内容只来自已入库 JSON（不写重建时刻、不写运行期路径），故
+  `--check` 在 fresh clone 上也能逐字节复现；写入仓库须显式 `--allow-repo-write`。
 
 ## M11 收口口径（TESTCASES-098t）
 

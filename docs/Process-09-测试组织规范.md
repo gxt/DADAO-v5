@@ -329,3 +329,17 @@ cmd: make check-inst-smoke CASE=base/add
 - **必备四项**：每册头部写 **生成时间 / 数据来源 / 机器指纹 / 复现命令**（`docs/TestReports/README.md §3`）。
 - **禁止项**：运行期绝对路径（`/tmp/**`、`/home/**`、具体 `.work/**`）、手改快照数值、二级主题子目录、把本目录当任务书/知识库（`docs/TestReports/README.md §4`）。
 - **门控**：`make check-test-reports`（**L1**，登记见 `docs/Process-07 §1.1`）机械核 4 条静态断言：无运行期路径 / 快照首行 `<!-- 现场生成，勿手改 -->` / 文件名形态 / 册头四项。
+
+### §15.1 四类产物归属：谁生成 / 是否入库（`m13-integ-001`）
+
+上表按「给谁看」分；本表按**数据流四层**再补一列「谁生成」，两层不重叠、不改上表口径：
+
+| 产物 | 典型内容 | 谁生成 | 落点 | 入库 |
+|---|---|---|---|---|
+| 原始基线 JSON（数据） | 逐例 `status`/`exit`/时长 + 机器指纹 | 跑批任务（如 `m13-testcases-00x`） | 运行期目录；被引用时升格 `.tao/knowledge/refs/` | 原始数据否；被引 summary 是 |
+| 逐例报告（派生） | 归一化逐例行 + 归因标记（机器派生；人读结论另册） | 生成器（`tools/testcases/parity/*.py`） | 运行期目录 | 否 |
+| 矩阵快照（展示） | `docs/TestReports/M13-三平台差分矩阵.md` | 生成器渲染 + 证据脚本写入 | `docs/TestReports/<M>-<主题>.md` | 是（只重建，不手改） |
+| 生成器（代码） | `run_parity.py` / `se_tset_matrix.py` / `three_platform_matrix.py` | 任务实现 | `tools/testcases/parity/` | 是 |
+
+- **快照只从已入库 JSON 重建**：三平台矩阵的 `--check` 要求入库册与重建结果**逐字节一致**；因此快照不写「重建时刻」（册头「生成时间」= 基线数据时间），也不写运行期路径，只写机器指纹（CPU / 引擎 md5+版本 / 源码 tree hash / driver md5）。
+- **chipyard 列未就绪**：核未就绪（`m12-chipyard-007` 未开始）时该列记 `N/A` 并附依据（不是伪值）；填列由 `m13-integ-002`/`003` 用 canonical 输入完成，生成器对非 `N/A` 行强制 `owner` + `basis`（fail-closed）。

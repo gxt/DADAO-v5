@@ -33,6 +33,7 @@
 | `docs/TestReports/M11-三平台一致矩阵.md` | M11 跨引擎一致性矩阵快照（原 `tests/parity/matrix-M11.md`） |
 | `docs/TestReports/M11-三平台一致矩阵-凡例.md` | 该快照的口径、硬门与重生成方式（原 `tests/parity/README.md`） |
 | `docs/TestReports/M13-三平台差分-qemu-gem5.md` | M13 阶段性结论：Tiny hmon 一致性、长尾计时、差异清单 |
+| `docs/TestReports/M13-三平台差分矩阵.md` | M13 三平台（qemu/gem5/chipyard）逐例差分矩阵快照；chipyard 列未就绪记 `N/A`，由已入库 JSON 重建 |
 
 ## 历史与设计理念素材（`DDLN/`）
 
