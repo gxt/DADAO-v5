@@ -23,8 +23,9 @@
 #   Tiny：地址高 6 位恒 0x3F，**无任何 cfx（含 cfx_power）**、不能 user 模式；
 #         semihosting 允许（trap 不算 cfx 类）。只跑非 cfx 的 inst、embench、
 #         picolibc；不跑 arch。raw -kernel 基址 0xffff_ff01_0000，前 0x100
-#         字节零保留，应用入口 0xffff_ff01_0100；ELF 的 crt 启动 stub 在
-#         0xffff_ffff_0000（e_entry 同址），crt 设 SP 后跳应用入口。
+#         字节零保留，应用入口 0xffff_ff01_0100；BootROM 为固定固件
+#         （power 8K + hmon 8K + 保留 40K + 表 8K），宿主只装 SRAM；
+#         ELF 的 crt 启动 stub 随应用落 SRAM（e_entry = 0xffff_ff01_0100）。
 #   Vast：entry=0x100000、sp=0x7fff_0000（初值）；完整 inst + arch + embench；
 #         不跑 picolibc；M11 不覆盖 smon。
 

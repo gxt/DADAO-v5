@@ -1,6 +1,6 @@
 # ADR-0043: 启动、power/hmon 分层与 SEE 交接
 
-**状态**：Accepted（rev. 2026-11-02: `D1`/`D2`/`D3`/`D10`/`D12` 按 Tiny/Node 两 profile 就地修订；rev. 2026-11-05: `D10`/`D11`/`D12` 首张页表改低地址线性映射、cfxha 重编号同步；rev. 2026-11-10: `D3` 就地修订——Tiny 增加 `power → hmon` 移交链，见 `## 修订`）
+**状态**：Accepted（rev. 2026-11-02: `D1`/`D2`/`D3`/`D10`/`D12` 按 Tiny/Node 两 profile 就地修订；rev. 2026-11-05: `D10`/`D11`/`D12` 首张页表改低地址线性映射、cfxha 重编号同步；rev. 2026-11-10: `D2`/`D3`/`D14` 按「hmon 编入 BootROM、power 搬运」契约就地修订；rev. 2026-11-10: `D3` 就地修订——Tiny 增加 `power → hmon` 移交链，见 `## 修订`）
 **日期**：2026-10-30
 **接受日期**：2026-10-31
 **关联**：ADR-0039（PTBR/PTW）、ADR-0040（PTE）、ADR-0042（cfx_pmem）、ADR-0045（权限）；`spec/DADAO-12` §1/§2
@@ -12,8 +12,8 @@
 ## Decision（决策）
 
 - **D1 唯一 BootROM（大小由平台 profile 规定）**：非易失启动源只有 `cfx_power`（cfx63）的 BootROM；hmon 没有独立 ROM。BootROM 自 `2^48` 向下，**大小 ≥64 KiB、由平台规范规定**：`Machine-v5-Tiny` 为 64 KiB（`0xffff_ffff_0000`–`0xffff_ffff_ffff`）、`Machine-v5-Node` 为 4 MiB（`0xffff_ffc0_0000`–`0xffff_ffff_ffff`）；复位向量两 profile 均为末 64 KiB 起点 `0xffff_ffff_0000`。`power` 不设 SRAM 属**本机约定**（非架构禁令）。
-- **D2 BootROM 布局（`Machine-v5-Node`）**：偏移 0 放 image index table；其后放 ELF 镜像；最后 64 KiB（`0xffff_ffff_0000` 起）留给复位/启动代码。表项至少 `offset/size/type/flags`，ELF 提供 `e_entry`/`PT_LOAD`/BSS；表和镜像按 8/16 字节对齐。`Machine-v5-Tiny` 的 64 KiB BootROM **无 image index table**，全部为复位/启动 stub。
-- **D3 镜像加载**：`Machine-v5-Node` 下 power 只把 hmon ELF 复制到 hmon SRAM；hmon 配好权限后把 smon ELF 复制到 smon SRAM；smon 再按需加载设备服务。Power 不设 SRAM 属本机约定，复制循环只用寄存器/无栈。`Machine-v5-Tiny` **有 power→hmon 移交链**（**2026-11-10 修订**，用户裁定「ADR0043原地修订」）：复位在 power 段 BootROM（cfx63），`trap cfx3` 移交 hmon（cfx3）；hmon 显式写 `excp_vector` 后 `escape` 回 stub 并跳应用入口。测试镜像仍由宿主 loader 按 `PT_LOAD` 装入 BootROM/SRAM；hmon 代码由 hmon 自身填充 hmon SRAM。
+- **D2 BootROM 布局**：`Machine-v5-Vast`：偏移 0 放 image index table；其后放 ELF 镜像；最后 64 KiB（`0xffff_ffff_0000` 起）留给复位/启动代码。`Machine-v5-Tiny`（**2026-11-10 修订**）：64 KiB 为**固定固件镜像**，含 image index table（与 Vast 同格式）——power `0x0000–0x1FFF`（8 KiB）、hmon 段 `0x2000–0x3FFF`（8 KiB）、保留区 `0x4000–0xDFFF`（40 KiB 全零）、表 `0xE000–0xFFFF`（8 KiB）。表项至少 `offset/size/type/flags`，ELF 提供 `e_entry`/`PT_LOAD`/BSS；表和镜像按 8/16 字节对齐。`Machine-v5-Tiny` 的 64 KiB BootROM **无 image index table**，全部为复位/启动 stub。
+- **D3 镜像加载**：`Machine-v5-Node` 下 power 只把 hmon ELF 复制到 hmon SRAM；hmon 配好权限后把 smon ELF 复制到 smon SRAM；smon 再按需加载设备服务。Power 不设 SRAM 属本机约定，复制循环只用寄存器/无栈。`Machine-v5-Tiny`（**2026-11-10 第二次修订**）：hmon 的代码/数据**编入 BootROM 固定固件**，power 校验段表后**复制**到 hmon SRAM（`0x0fff_0000_0000`），再 `trap cfx3` 移交；hmon 配置后 `escape` 回 power stub，power 跳固定应用入口 `0xffff_ff01_0100`。**宿主 loader 只装应用**（`PT_LOAD` 只允许落 SRAM；不得向 BootROM 下发段），应用的 `crt`/启动 stub 随之位于 SRAM。
 - **D4 hmon SRAM**：hmon SRAM 固定 64 KiB，起始 `0x0fff_0000_0000`；H-mode 异常向量默认等于该起始地址；hmon 入口自己设置 `rbsp`。
 - **D5 smon SRAM**：smon SRAM 64 KiB，起始 `0x0bff_0000_0000`；S-mode 异常向量默认等于该起始地址；smon 入口自己设置 `rbsp`。
 - **D6 umon/jmon**：umon 无 SRAM，异常向量 `0x03ff_0000_0000`；jmon 当前不配 SRAM/代码，向量 `0x07ff_0000_0000`；当前不启用 U/J 异常处理代码。
@@ -24,7 +24,7 @@
 - **D11 PTW 开启**：smon 写 `cfx_ptw_ptbr=0`，再置 `cfx_ptw_enable=1`；写不隐含 TLB invalidate，TLB 复位为空；随后用 `VA 0` 验证读写 PA 0。
 - **D12 内核空间**：第一张页表为**低地址线性映射**（`VA [0, 2 GiB)` → PA `[0, 2 GiB)`，4 个 512 MiB 超页），使启动期可直接以低 VA 取指/访存；内核高半区与用户空间划分**后置**（不属第一版页表）。`Machine-v5-Tiny` 不设内核空间与页表。
 - **D13 分层/交接**：hmon 保留所有权、H-mode 异常、cg3、reset/撤销；smon 获得运行期资源管理；启动后 cfx_pmem 交 smon；hmon 不保留 DMA 启动权；poweroff/reset 由 smon 通过 hmon 的 trap 服务完成。
-- **D14 park**：power 在 trap hmon 后进入 BootROM park/复位等待；hmon 在 trap smon 后进入 H-mode park/异常等待，不返回 power。
+- **D14 park**：**`Machine-v5-Vast`**：power 在 trap smon 后进入 BootROM park/复位等待；hmon 在 trap smon 后进入 H-mode park/异常等待。**`Machine-v5-Tiny`（2026-11-10 修订）**：power 在 `trap hmon` 后**不 park**——hmon 处理完装载移交的 `CFXTRAP` 后用 `escape` 返回 power stub，power 随即跳应用入口（`§6.2` 步骤 7–8）。
 - **D15 权限模型**：按 ADR-0045 两轴模型；trap 进入目标 cfx 时自动保存并屏蔽 `global_cfx_intr_mask`，escape 恢复；本 ADR 不重复寄存器细节。
 
 ## Rationale（理由）
@@ -49,8 +49,8 @@
 **rev. 2026-11-02（用户 2026-11-02 逐条确认，`SPEC-183t`）**：按 `Machine-v5-Tiny` / `Machine-v5-Node` 两 profile 就地修订启动与装载口径。
 
 - `D1`：BootROM 大小由平台 profile 规定（Tiny 64 KiB / Node 4 MiB），复位向量均为 `0xffff_ffff_0000`（末 64 KiB 起点）；「power 不设 SRAM」改为**本机约定**（非架构禁令）。
-- `D2`：image index table + ELF + 末 64 KiB 复位代码的布局限 `Machine-v5-Node`；Tiny 的 64 KiB BootROM 无 index table。
-- `D3`：`Machine-v5-Tiny` 无 power→hmon 复制链，测试镜像由宿主 loader 装入 BootROM/SRAM。
+- `D2`：Vast 为「表 + ELF + 末 64 KiB 复位代码」；Tiny 为「power + hmon + 保留区 + 表」的固定固件布局（2026-11-10 修订）。
+- `D3`：`Machine-v5-Tiny` 有 power→hmon 复制链；宿主只装应用段（SRAM），BootROM 为固定固件（2026-11-10 修订）。
 - `D10`/`D12`：Node 第一张页表改为 L1 4 个 512 MiB 超页覆盖 PA `[0, 2 GiB)`，`SPF=0xFF`；`D11` 的 PTBR/PTW 开启与验证不变。
 - **用户原话（经主会话转达）**：「Node：BootROM 4 MiB `0xffff_ffc0_0000`..、复位 `0xffff_ffff_0000`；PA RAM 2 GiB；hmon 建 L1 4×512 MiB 超页、`SPF=0xFF`、PTW/hypv；smon 路径保留」「不做双映射；不保留旧 Machine-01 几何」「用户已逐条确认 ADR-0004/0039/0040/0043 四项修订」；逐条口径见 `.tao/tasks/spec/SPEC-183t-Machine-v5-Tiny-Node规范收口.md`。
 - **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-11-02`）。
@@ -66,3 +66,8 @@
 - **流程说明**：经用户授权的**就地修订**（`Process-03` 一般规则为新增 ADR 或标 `Superseded`），不保留与现行 spec 冲突的旧数字；不新立 ADR。
 
 - **2026-11-10（用户裁定「ADR0043原地修订」）**：`D3` 的 `Machine-v5-Tiny` 由「无 power→hmon 复制链、stub 直接跳应用」改为「有 `power → hmon` 移交链（cfx63 → cfx3），hmon 显式写 `excp_vector` 后 `escape` 回 stub」；其余 decision（D1/D2/D4–D12）不变。依据：`spec/Machine-v5 §1.1/§1.2/§2/§5` 的 Tiny hmon 修订（`m12-spec-002`）。
+
+- **2026-11-10（用户裁定「ADR-0043就地修订」，第二次）**：`D2`/`D3`/`D14` 三条按 `Machine-v5 §6.1/§6.2` 的 Tiny hmon 装载契约就地修订——
+  Tiny 的 64 KiB BootROM 为固定固件（power 8 KiB + hmon 8 KiB + 保留 40 KiB + 表 8 KiB，表与 Vast 同格式）；
+  hmon 由 power 从 BootROM 复制到 hmon SRAM，宿主只装应用（`crt` 随之落 SRAM，入口固定 `0xffff_ff01_0100`）；
+  power 在 `trap hmon` 后不 park，hmon `escape` 回 stub 后 power 跳应用入口。其余 decision 不变。
