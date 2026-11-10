@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m12-chipyard-007 | 3–4 h | Tiny BootROM 固定固件 + power 搬运 + 最小 hmon handler（装载与移交） |
 | m12-chipyard-019 | 3–4 h | `cfx_power`/`cfx3` 寄存器组 + 五类同步异常进 hmon + IALIGN/cg3/rc10 |
 | m12-chipyard-008 | 4–5 h | 访存（ld/st 全宽度 + 对齐/越界 + 大端 + `ldm`/`stm`） |
 | m12-chipyard-009 | 2–3 h | 控制流 + RAS（分支/跳转/call/ret + 返回地址栈） |
@@ -41,6 +40,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m12-chipyard-007 | 2026-11-10 16:22 | 3–4 h | Tiny BootROM 固定固件 + power 搬运 + 最小 hmon handler（装载与移交） |
 
 ## 已验证
 

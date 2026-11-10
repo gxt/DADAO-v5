@@ -168,7 +168,7 @@ DADAO-v5/
 - **安装根的工具链二进制只由 `make install-host` 写入**；手工 `cp` 属例外手法（记理由 + md5 核对 + 事后补跑），规则见 `docs/Process-07 §2`（`ISS-300`）。
 
 ## 子代理硬约束（下发提示必带）
-1. **临时目录** `/tmp/opencode/<任务ID>/`，禁仓库内临时文件。
+1. **必须在独立 `git worktree` 内作业**（分支名 = 任务号；`/tmp/opencode/<任务ID>`）：**禁改主工作树**（`/mnt/tao/DADAO-v5` 固定 `master`）。临时文件放 `/tmp/opencode/<任务ID>/`，禁仓库内临时文件（`ISS-368`）。
 2. **不提交 git**（提交权归 architect）。
 3. **完成区与真实输出逐条对齐**。
 4. **只动任务书范围，越界须披露**。
