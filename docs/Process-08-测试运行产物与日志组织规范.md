@@ -86,6 +86,12 @@
 > 背景：2026-11-10 主控机 `/mnt/tao` 达 **92%**，其中 8 个已归档任务的逐例目录占 **≈250G**；清理后回到 23%。
 > 磁盘水位门控：主控机 `make check-disk`、节点 `remote.py status` 的 `disk_use_pct`/`disk_alert`，**> 90% 报警**。
 
+### 1.9 逐例进度必须即产即落（2026-11-10）
+
+- 大规模跑批**必须**每完成一例就追加一行到 `progress.jsonl`（字段：`case`/`status`/`exit`/`seconds`/`reason`/`fingerprint`/`utc`），**不得**只在套件结束时写汇总 JSON。
+- 目的：中途可观测、可调度（空闲节点能接新活）、中断后可续跑（已完成集合去重）。
+- 汇总 JSON 仍是权威结果；`progress.jsonl` 是**过程证据**，两者同目录、同期清理（`§1.8`）。
+
 ## 2. 门控口径（`tools/infra/check_run_artifacts.py`）
 
 ### A1 驱动无固定默认输出（源码级）

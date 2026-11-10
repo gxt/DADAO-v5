@@ -343,3 +343,45 @@ cmd: make check-inst-smoke CASE=base/add
 
 - **快照只从已入库 JSON 重建**：三平台矩阵的 `--check` 要求入库册与重建结果**逐字节一致**；因此快照不写「重建时刻」（册头「生成时间」= 基线数据时间），也不写运行期路径，只写机器指纹（CPU / 引擎 md5+版本 / 源码 tree hash / driver md5）。
 - **chipyard 列未就绪**：核未就绪（`m12-chipyard-007` 未开始）时该列记 `N/A` 并附依据（不是伪值）；填列由 `m13-integ-002`/`003` 用 canonical 输入完成，生成器对非 `N/A` 行强制 `owner` + `basis`（fail-closed）。
+
+## 16. 多节点批量测试的调度原则（2026-11-10）
+
+> 缘起：`m13-testcases-003` 两节点跑 150 例长尾，实测暴露「整波等最慢者」「套件内先跑完 qemu 才跑 gem5」「结果攒到最后才落盘」三类等待放大。本节定**调度原则与协议**，具体 runner 由任务实现。
+
+### 16.1 五条原则（MUST）
+
+1. **调度粒度 = 用例（case），不是套件（suite）**。队列里每个元素是一个 case；worker 取一个、跑一个、报一个。任何「同套件全部跑完才进下一步」都是等待放大源。
+2. **结果即产即落（append-only）**。每完成一例立即追加一行 JSONL（含 `status`/`exit`/`seconds`/`reason`/`fingerprint`），**不得**攒到套件结束再写。中断后可 `--resume` 按已完成集合跳过。
+3. **每例独立超时 + 分级**。超时是**每例**属性；按历史耗时把 case 分 `short`/`normal`/`long`/`xlong`，`xlong` 进独立队列、可给更大或无上限，**不得**让它挡住主队列。
+4. **节点自描述、调度按状态**。派单前用 `remote.py status` 读 `loadavg`/`disk_alert`/`running`/`commit`；**禁止**在脚本里写死节点名单或固定分片。
+5. **异构必须分组**。结果带机器指纹（CPU 型号/频率、二进制 md5、源码 tree hash）；**比值只在同指纹组内比较**，跨节点绝对值只作诊断。
+
+### 16.2 等待放大的可判定指标
+
+| 指标 | 定义 | 判据 |
+|---|---|---|
+| 吞吐 | 完成例数 / 墙钟 | 应随节点数**近线性**增长 |
+| 等待放大系数 | Σ(单例耗时) / (墙钟 × 节点数) | 越接近 1 越好；>2 说明排队/屏障在空转 |
+| 空转率 | 节点在「有活可派」时 idle 的时间占比 | 应接近 0 |
+| 屏障次数 | 需「等一批全部结束」的次数 | 应为 0（除收尾） |
+
+### 16.3 队列协议（供 runner 实现）
+
+- **任务文件**：`cases.jsonl`，一行一例：`{case, suite, link_mode, budget_s, class, expect}`。
+- **状态机**：`pending → running → done|failed|timeout|blocked`；每次状态变更追加 `state.jsonl`（带 UTC、node、attempt）。
+- **幂等续跑**：启动时读 `done` 集合，跳过已完成；`failed/timeout` 可按 `--retry` 重排，**重试次数必须记录**。
+- **结果回传**：worker 把 `result.jsonl` 追加写本地后 `rsync`/`remote.py collect` 回主控机**合并**（不去重覆盖）。
+- **工作目录**：`<运行期目录>/<case-id>/`，含 `m5out/`、`run.log`、`meta.json`（`Process-08 §1.1`）。
+
+### 16.4 禁止（MUST NOT）
+
+- 以套件为单位的「先全 qemu 后全 gem5」波次（实测：一个 1103 s 的 qemu 会挡住 35 例 gem5 起跑约 18 min）。
+- 结果攒批落盘（中断即全部丢失，且中途不可调度）。
+- 写死节点列表或「任务-节点」绑死；新增节点须能直接加入队列。
+- 跨机复制 Verilator 产物（机器相关，见 `AGENTS.md`「chipyard 分配」）。
+
+### 16.5 现状与差距
+
+- 现有 `run_engine_ratio.py` 是**套件粒度**、结果在套件结束落盘 ⇒ 仅适合小批量/里程碑门控，**不适合大规模长尾**。
+- 差距由任务补齐：case 级 pool runner（读 `cases.jsonl`、按 16.3 协议、与 `remote.py` 配合）；在此之前，大规模跑批至少要做到「按耗时分组 + 长尾独立节点」。
+
