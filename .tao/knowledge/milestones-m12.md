@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m12-spec-004 | 2–3 h | hmon 装载契约（BootROM 携带 → power 搬运）+ `cfx2*` 口径 + 退出码只定编码 |
 | m12-chipyard-007 | 5–7 h | Tiny 的 `cfx_power` + `cfx3 hmon`（异常进向量、trap 区分、IALIGN 停留） |
 | m12-chipyard-008 | 4–5 h | 访存（ld/st 全宽度 + 对齐/越界 + 大端 + `ldm`/`stm`） |
 | m12-chipyard-009 | 2–3 h | 控制流 + RAS（分支/跳转/call/ret + 返回地址栈） |
@@ -40,6 +41,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m12-spec-003 | 2026-11-10 09:00 | 1–2 h | `Machine-v5` 口径统一（reserved 集 / `cause_info` / `escape` 返回 / power cg7·cg8 / `switch_run_mode`） |
 
 ## 已验证
 
