@@ -723,40 +723,42 @@ B. 去掉：全部走 hmon，`halted` 只在 semihosting 退出时产生（由 r
 
 > **契约更新（2026-11-10，`m12-spec-004` 合入后）**：本报告 §8.1 的 R13-A「宿主 loader 直装 hmon SRAM」**已作废**，改按 `Machine-v5 §6.1/§6.2`：hmon 代码/数据编入 BootROM 固定固件，power 校验段表后复制到 hmon SRAM，宿主只装应用段；应用 crt 随之移入 SRAM、入口固定 `0xffff_ff01_0100`（该条待用户确认）。
 
-## 11. hmon handler 的最终算法（用户 2026-11-11 裁定）
+## 11. hmon handler 的最终算法（用户 2026-11-11 裁定，第二次修正后）
 
-> 用户原话：「hmon本身不应该产生退出码……保存两个临时寄存器，读取excp cause id/excp cause ip/excp cause info三个寄存器的内容，分别存储在hmon的sram的固定位置，然后从sram的另一固定位置取出异常返回地址（由测试框架程序事先写好），将其存入excp cause ip，然后恢复那两个临时寄存器，然后escape即可；余下的应该是测试框架程序要处理的事情。」
-> 后续修正：「只需要一个临时寄存器，rd63」「放在低地址；紧跟着代码区后面，8字节对齐」「跳转到0x30」「ld/st 立即数支持负值」「刚才的代码里忘了写恢复rd63的指令了」。
+> 用户原话：「hmon本身不应该产生退出码，hmon在测试环境下的代码应该是：保存两个临时寄存器，读取excp cause id/excp cause ip/excp cause info三个寄存器的内容，分别存储在hmon的sram的固定位置，然后从sram的另一固定位置取出异常返回地址（由测试框架程序事先写好），将其存入excp cause ip，然后恢复那两个临时寄存器，然后escape即可；余下的应该是测试框架程序要处理的事情。」
+> 修正一：「只需要一个临时寄存器，rd63」「放在低地址」「ld/st 支持负立即数」
+> 修正二：「代码起点的偏移是0，五个数据放在偏移0xD8的位置」「这段代码应该放在bootrom里，cfx_power在复制的时候，只需要复制代码区即可」「cfx_power无需修改hmon的异常入口」「避免过早在测试中引入jump指令」「用rd63是有保存恢复的，不会有任何问题」
 
-**hmon SRAM 布局（固定，三方共用）**
+**hmon SRAM 布局（固定）**
 
-| 偏移 | 内容 | 写方 | 读方 |
-|---|---|---|---|
-| `0x00` | `st.o rd63, [rb0, 8]` —— 入口第 1 条 | — | — |
-| `0x04` | `jump [rb0, 0x30]` —— 入口第 2 条（跳过数据区） | — | — |
-| `0x08` | 保存的 `rd63` 原值 | hmon | hmon |
-| `0x10` | `cause_id` | hmon | 测试框架 |
-| `0x18` | `cause_ip` | hmon | 测试框架 |
-| `0x20` | `cause_info` | hmon | 测试框架 |
-| `0x28` | **返回地址** | power（默认）/ 框架（覆盖） | hmon |
-| `0x30` | 主处理代码起始 | — | — |
+| 偏移 | 内容 | 说明 |
+|---|---|---|
+| `0x00` | **代码起点** | 异常向量初值 = hmon SRAM 起始 = 此处；**无需改向量** |
+| `0xD8` | 保存的 `rd63` 原值 | 数据区起点（8 字节对齐） |
+| `0xE0` | `cause_id` | hmon 写，框架读 |
+| `0xE8` | `cause_ip` | 同上 |
+| `0xF0` | `cause_info` | 同上 |
+| `0xF8` | **返回地址** | power 写默认 / 框架覆盖；hmon 读 |
 
-**主处理代码（`0x30` 起）**
+- **代码区必须 ≤ `0xD8`（216 B）**：power 复制时**只复制代码区**（表项 `size` = 代码长度），数据区不被复制、保持 SRAM 初值。
+- 数据区在代码区之外 ⇒ **不需要 jump 跳过**，也不引入多余指令。
+
+**hmon 代码（`0x00` 起，无 jump）**
 
 ```
-cfx2rd cfx_hmon, cg5, rc2, rd63   ; cause_id
-st.o   rd63, [rb0, off(0x10)]
-cfx2rd cfx_hmon, cg5, rc3, rd63   ; cause_ip
-st.o   rd63, [rb0, off(0x18)]
-cfx2rd cfx_hmon, cg5, rc4, rd63   ; cause_info
-st.o   rd63, [rb0, off(0x20)]
-ld.o   rd63, [rb0, off(0x28)]     ; 返回地址
-cfx2rc cfx_hmon, cg5, rc3, rd63   ; excp_cause_ip ← 返回地址
-ld.o   rd63, [rb0, off(0x08)]     ; 恢复 rd63
+st.o   rd63, [rb0, off(0xD8)]
+cfx2rd cfx_hmon, cg5, rc2, rd63 ; cause_id
+st.o   rd63, [rb0, off(0xE0)]
+cfx2rd cfx_hmon, cg5, rc3, rd63 ; cause_ip
+st.o   rd63, [rb0, off(0xE8)]
+cfx2rd cfx_hmon, cg5, rc4, rd63 ; cause_info
+st.o   rd63, [rb0, off(0xF0)]
+ld.o   rd63, [rb0, off(0xF8)]   ; 返回地址
+cfx2rc cfx_hmon, cg5, rc3, rd63 ; excp_cause_ip ← 返回地址
+ld.o   rd63, [rb0, off(0xD8)]   ; 恢复 rd63
 escape cfx_hmon, [excp_cause_ip, 0]
 ```
 
 - **无策略判断**：不 +4/+0、不特判 IALIGN、不产退出码、不校验 magic。
-- 返回地址默认值：**power 复位时写入**（指向框架 abort 例程），框架可覆盖。
-- 所有 `ld`/`st` 以 `rb0`（当前 IP）为基址、立即数为负偏移（已确认支持）。
-
+- **`rd63` 有保存/恢复**，应用可自由使用，无需额外约定。
+- **power 不改异常向量**（初值已指向 `0x00`），只写 `0xF8` 的默认返回地址。
