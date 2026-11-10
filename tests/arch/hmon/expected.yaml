@@ -28,7 +28,7 @@ profile:
 # The BootROM image is built from the same sources with the same builder as
 # m12-chipyard-007 (the value chipyard's image had); gem5 and chipyard boot the
 # identical 64 KiB firmware, so the hmon bytes in SRAM are identical.
-shared_bootrom_md5: 777b6bc9ba66c19783fb7f0a487249fd
+shared_bootrom_md5: 33bfe14af0e47d9e6f9c2d4a34fc5ae0
 
 records:
   # 0: power -> hmon handover (CFXTRAP + table boot_magic).  The application

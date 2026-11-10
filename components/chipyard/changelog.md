@@ -36,6 +36,10 @@
   - 摘要：**取指预取优化：4 个预取槽 + 数据优先仲裁 + SRAM 往返延迟计数**。`WumingTile` 取指客户端 `IdRange(0, 3)` → `IdRange(0, 5)`（1 需求 + 4 预取；`fetchDepth` 仍 8，source 回收/flush-stale 语义不变），`WumingCore` 的预取槽由 A/B 两个具名寄存器改为 4 槽 `Vec`（源 ID = 槽号 + 1，回复按源匹配）；**数据优先**：`MREQ`/`MWAIT`（数据端口有未完成请求）期间不发起新预取，已发出的不清空、回复仍入队；发射条件由 `qCount =/= 0 && !waitBeat` 放宽为 `qCount =/= 0 || waitBeat`（FWAIT 等已在途 beat 时继续填充槽位，否则 4 槽无效）；新增需求取指往返延迟计数器（A 握手 → D 回包拍数，`fetchresp`/`prefetch ... lat=` 诊断可见）。实测跨 beat 代价中位 8 → 1 拍（注入回 2 槽：中位 5、102/204 次 > 2 拍），SRAM 往返 4/6 拍 ⇒ 4 槽（需求 3）足够；273 例 md5 不变。
   - 执行者：engineer
 
+- **2026-11-11 `m12-chipyard-019`**
+  - 摘要：**cfx 寄存器组 + 五类同步异常进 hmon**。`WumingCore` 实现 `cfx_hmon`(cfx3)/`cfx_power`(cfx63) 的 `cg3`（四类同步 mask、`cfx_intr_mask`、`switch_run_mode` 恒 3、`excp_vector` 写忽略低 2 位）、`cg5`（`excp_prev_run_mode`、cause 帧）、`cg7`（16 块空间描述，只读写 `CFXREG`）与 `cg8 rc1`（未实现 ⇒ `CFXREG`）；`cg3` 仅 hypv 可访问，其它运行模式 ⇒ `CFXREG`；`CFXMEM`/`ILLI`/`UNDI`/`MALIGN`/`IALIGN` 五类同步异常写 `excp_cause_*` 并跳到 `excp_vector`（不再进 `FAULT`），`escape` 恢复 `excp_prev_run_mode`；未 backing 的访存/取指按 `TLEdge` 的 **safe** 合法性判 `CFXMEM`（fast 版对未映射地址会误报合法）。
+  - 执行者：engineer
+
 - **2026-11-09 `m12-infra-003`**
   - 摘要：**子模块补丁集试点（testchipip）**：`generators/testchipip` 新增子模块补丁集 `submodules/testchipip/{series,patches/}`——`SimDRAM.cc` 的 `loadmem_memif_t::get_target_endianness()` 改为由 `+loadmem_be` plusarg 显式返回 `endianness_big`（默认 little 不变，stock RISC-V 配置行为不动），`SimDRAM.v` 的 `MEM_BASE` 默认值改为 `64'h0`（原无位宽 32 位推断会截断 48 位基址）；组件补丁集与子模块补丁集的分工/声明/门控见 `docs/Process-01 §14`。
   - 执行者：engineer

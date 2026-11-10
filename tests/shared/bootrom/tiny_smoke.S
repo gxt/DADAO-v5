@@ -45,8 +45,21 @@ tiny_smoke_main:
 	st.o	rd8, [rb6, 0]
 	ld.o	rd9, [rb6, 0]
 
-	@@ 5. terminal: undefined instruction (no cfx / no semihosting on Tiny)
-	.dd.t32	0x00000000
+	@@ 5. terminal: SYS_EXIT(0).  m12-chipyard-019 routes synchronous faults
+	@@ into the cfx_hmon vector (spec/Machine-v5 §4.4), so the m12-003
+	@@ undefined-instruction terminator would be skipped by the handler
+	@@ (`escape +4`) instead of stopping the core.  The parameter block lives in
+	@@ the SRAM scratch octa above RESULT.
+	LOAD_ADDR rb6, RESULT+0x10
+	LOAD_ADDR rd8, 0x20026		@@ ADP_Stopped_ApplicationExit
+	st.o	rd8, [rb6, 0]
+	set.zw	rd8, wp0, 0x0000	@@ status 0
+	st.o	rd8, [rb6, 8]
+	set.zw	rd16, wp0, 0x0018	@@ SYS_EXIT
+	LOAD_ADDR rb16, RESULT+0x10
+	trap	cfx_hmon, 0x3FF18
+smoke_spin:
+	br.z	{rd0}?, [rb0, smoke_spin]
 
 	.section .rodata
 	.p2align 3
