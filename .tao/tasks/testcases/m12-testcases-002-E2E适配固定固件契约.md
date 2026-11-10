@@ -6,6 +6,8 @@
 **可并行分片**：否（测试资产单写者）
 **状态**：待开始
 
+> **可能与 `m13-qemu-002` 重复（2026-11-10）**：`qemu-002` 的改动已覆盖 `tests/unit/llvm/e2e/lit/*.test`、`lit.cfg.py`、`tests/shared/linker/picolibc-tiny.ld`、`Makefile`（11 文件）——正是本任务要做的 E2E 适配。**若 `qemu-002` 合并后 `make check-modules` 全绿，本任务直接取消**（不重复做）。
+
 ## 背景
 
 `m12-spec-004` 把 Tiny 的装载改为「**BootROM 固定固件 + 应用**」两件：
