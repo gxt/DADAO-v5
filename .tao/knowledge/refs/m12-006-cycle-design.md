@@ -723,3 +723,40 @@ B. 去掉：全部走 hmon，`halted` 只在 semihosting 退出时产生（由 r
 
 > **契约更新（2026-11-10，`m12-spec-004` 合入后）**：本报告 §8.1 的 R13-A「宿主 loader 直装 hmon SRAM」**已作废**，改按 `Machine-v5 §6.1/§6.2`：hmon 代码/数据编入 BootROM 固定固件，power 校验段表后复制到 hmon SRAM，宿主只装应用段；应用 crt 随之移入 SRAM、入口固定 `0xffff_ff01_0100`（该条待用户确认）。
 
+## 11. hmon handler 的最终算法（用户 2026-11-11 裁定）
+
+> 用户原话：「hmon本身不应该产生退出码……保存两个临时寄存器，读取excp cause id/excp cause ip/excp cause info三个寄存器的内容，分别存储在hmon的sram的固定位置，然后从sram的另一固定位置取出异常返回地址（由测试框架程序事先写好），将其存入excp cause ip，然后恢复那两个临时寄存器，然后escape即可；余下的应该是测试框架程序要处理的事情。」
+> 后续修正：「只需要一个临时寄存器，rd63」「放在低地址；紧跟着代码区后面，8字节对齐」「跳转到0x30」「ld/st 立即数支持负值」「刚才的代码里忘了写恢复rd63的指令了」。
+
+**hmon SRAM 布局（固定，三方共用）**
+
+| 偏移 | 内容 | 写方 | 读方 |
+|---|---|---|---|
+| `0x00` | `st.o rd63, [rb0, 8]` —— 入口第 1 条 | — | — |
+| `0x04` | `jump [rb0, 0x30]` —— 入口第 2 条（跳过数据区） | — | — |
+| `0x08` | 保存的 `rd63` 原值 | hmon | hmon |
+| `0x10` | `cause_id` | hmon | 测试框架 |
+| `0x18` | `cause_ip` | hmon | 测试框架 |
+| `0x20` | `cause_info` | hmon | 测试框架 |
+| `0x28` | **返回地址** | power（默认）/ 框架（覆盖） | hmon |
+| `0x30` | 主处理代码起始 | — | — |
+
+**主处理代码（`0x30` 起）**
+
+```
+cfx2rd cfx_hmon, cg5, rc2, rd63   ; cause_id
+st.o   rd63, [rb0, off(0x10)]
+cfx2rd cfx_hmon, cg5, rc3, rd63   ; cause_ip
+st.o   rd63, [rb0, off(0x18)]
+cfx2rd cfx_hmon, cg5, rc4, rd63   ; cause_info
+st.o   rd63, [rb0, off(0x20)]
+ld.o   rd63, [rb0, off(0x28)]     ; 返回地址
+cfx2rc cfx_hmon, cg5, rc3, rd63   ; excp_cause_ip ← 返回地址
+ld.o   rd63, [rb0, off(0x08)]     ; 恢复 rd63
+escape cfx_hmon, [excp_cause_ip, 0]
+```
+
+- **无策略判断**：不 +4/+0、不特判 IALIGN、不产退出码、不校验 magic。
+- 返回地址默认值：**power 复位时写入**（指向框架 abort 例程），框架可覆盖。
+- 所有 `ld`/`st` 以 `rb0`（当前 IP）为基址、立即数为负偏移（已确认支持）。
+
