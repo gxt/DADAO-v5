@@ -24,7 +24,9 @@ DADAO-v5 仓库布局与一次性工作区（`.work/`）约定。
 所有一次性数据集中在 `.work/` 下，其子目录职责如下：
 
 - `.work/source/`：上游组件工作树（从 `.cache/` 的 mirror 建，+ 有序补丁）；可随 `.work/` 重建。
-- `.work/build/`：树外构建目录。
+- `.work/build/`：树外构建目录。**只允许规范名** `gem5` / `qemu` / `llvm`（及工具链小产物）；**派生构建目录**（如 `gem5-se-baseline-103t`）随任务收尾删除，不得长期堆积（2026-11-10 清理时此类占 72G）。
+  - **gem5 变体**：默认只建 `gem5.opt`；**跑批一律用 `opt`**（`fast` 关闭内部 `assert`，差分测试不可用）；`gem5.debug` 仅在需要源码级调试时临时构建、用完即删。
+  - 体积参考（实测）：`gem5.opt` 702 MB，其中 DWARF 符号占 662 MB，`strip --strip-debug` 后 40 MB（行为不变，仅丢 backtrace 行号）。
 - `.work/install/`：宿主工具与产物。
 - `.work/sysroot/`：目标 sysroot。
 - `.work/log/`：构建与测试日志（agent 任务验证日志，`<任务ID>-<命令名>.log`）。
