@@ -210,3 +210,15 @@
   status: open
   resolved_by: null
   title: 【P3】`m12-chipyard-010` 遗留：F2 任务书硬约束里的临时目录名仍是派单模板笔误；F3 完成区「三套旧故障镜像 165 张重跑全绿」未纳入 `run.sh`（reviewer 独立复跑证实 165/165，建议纳入脚本防再退化）；`sc` 命中 17 拍 = 两次 SRAM 往返（重读 + 写），可优化为单次读改写，非缺陷。另：任务书「保留编码 ⇒ ILLI」口径已被 reviewer 判为文档错（真源 UNDI），同类「按 legality_rules.yaml」却与之相反的表述应在后续任务书模板里避免。
+- id: ISS-387
+  scope:
+  - testcases
+  status: open
+  resolved_by: null
+  title: 【P2】**测试向量系统性缺口：只覆盖正例分支**。`m12-chipyard-011` 发现 `cs.n/.z/.p` 的 `else` 分支（不成立时写另一源）从未被执行 —— `tests/inst/base/reg-cond-assign.yaml` 5 条语义例全在 taken 支，故 `m12-chipyard-010` 的 605 例自写 oracle 与该任务 reviewer 均漏检。010 已由 011 顺手修好（`csTaken = !isCs || csCond <= 2 || csCondTrue`，spec 依据 `SimRISC-02 §2`）。行动：立 `m13-testcases-010` 补 rd 形式 not-taken 覆盖；并在 `Process-09` 增加「每条条件语义须有 taken/not-taken 双支」的判据，防止同类漏测。
+- id: ISS-388
+  scope:
+  - chipyard
+  status: open
+  resolved_by: null
+  title: 【P3】`m12-chipyard-011` 文档级：F-a 完成区计数与现场不符（写 13200/7920，实际 10560/6620，且「4 配置×5 档×2640」自相矛盾）；F-b 任务书硬约束 1 的临时目录名仍是派单模板笔误（写 `m12-chipyard-009`）。

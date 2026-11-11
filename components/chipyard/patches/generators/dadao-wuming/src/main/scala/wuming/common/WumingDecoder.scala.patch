@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 new file mode 100644
-index 0000000..79bed59
+index 0000000..7bcb59f
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
-@@ -0,0 +1,817 @@
+@@ -0,0 +1,905 @@
 +// See LICENSE for license details.
 +//
 +// DADAO decoder for the M12 integer core.
@@ -62,6 +62,20 @@ index 0000000..79bed59
 +//   * `cs.n/.z/.p/.eq/.ne` conditional assignment and the register-block copies
 +//     `rd2rd`/`ra2rd`/`rd2ra`/`rb2rb`/`rd2rb`/`rb2rd` (with the range and
 +//     overlap legality rules).
++//
++// m12-chipyard-011 opens the `rf` (floating point) bank and the FP
++// infrastructure of spec/SimRISC-07:
++//
++//   * the rf forms of the memory family (`ld/st/ldm/stm` in the rf bank,
++//     spec/SimRISC-01 §4), `set.w rf0` (spec/SimRISC-03 §1: only the selected
++//     wyde is replaced, the FCSR write mask makes `wp2`/`wp0` the rounding mode
++//     and the flags and `wp1`/`wp3` write-invalid), `cs.*` rf
++//     (spec/SimRISC-02 §2) and `rd2rf`/`rf2rd` (spec/SimRISC-02 §1);
++//   * `ftcls`/`focls` (block classify, spec/SimRISC-07 §5);
++//   * `ftsgnj`/`ftsgnn`/`fosgnj`/`fosgnn` (sign injection, §3).
++//
++// Every other FP form (arithmetic, conversion, rounding, min/max, FMA) is
++// still ILLI: it belongs to m12-chipyard-012..015.
 +
 +package wuming.common
 +
@@ -73,6 +87,7 @@ index 0000000..79bed59
 +  val RD = 0.U(2.W)
 +  val RB = 1.U(2.W)
 +  val RA = 2.U(2.W)
++  val RF = 3.U(2.W)
 +}
 +
 +class WumingDecode extends Bundle {
@@ -158,6 +173,9 @@ index 0000000..79bed59
 +  //   csCond: 0 = n, 1 = z, 2 = p, 3 = eq, 4 = ne
 +  val isCs     = Bool()
 +  val csCond   = UInt(3.W)
++  // m12-011: block FP classification (src rf -> dst rd), one element per cycle.
++  val isCls = Bool()
++  val clsFo = Bool()
 +  // m12-010: same-bank / cross-bank register-block copy (spec/SimRISC-02 §1).
 +  val isCopy      = Bool()
 +  val copyDstBank = UInt(2.W)
@@ -222,6 +240,7 @@ index 0000000..79bed59
 +  d.isLr := false.B; d.isSc := false.B
 +  d.isFence := false.B; d.isSwym := false.B
 +  d.isCs := false.B; d.csCond := 0.U
++  d.isCls := false.B; d.clsFo := false.B
 +  d.isCopy := false.B; d.copyDstBank := WumingBank.RD; d.copySrcBank := WumingBank.RD
 +
 +  val recognized = WireDefault(false.B)
@@ -385,20 +404,63 @@ index 0000000..79bed59
 +    }
 +  }
 +
++  // ---- m12-011: FP infrastructure ---------------------------------------
++  //
++  // `set.w rfHA, wpN, immu16` (spec/SimRISC-03 §1): only the selected wyde is
++  // replaced, so the ALU op preserves the other 48 bits.  rf0 is a legal
++  // destination -> the FCSR write mask turns that into "wp2 = rounding mode,
++  // wp0 = flags, wp1/wp3 = write-invalid".
++  def setWydeRf(): Unit = {
++    d.aluOp := WumingAluOp.SET_W
++    d.opWidth := 3.U
++    d.srcAIdx := ha; d.srcABank := WumingBank.RF
++    d.useImmB := true.B
++    d.imm := zext(imm16)
++    d.w0En := true.B; d.w0Idx := ha; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
++  }
++
++  // `ftcls`/`focls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` (spec/SimRISC-07
++  // §5): one classification per cycle in the core.  `dst_rd0`, `mreg_zero` and
++  // both range checks apply.
++  def classifyBlock(isFo: Boolean): Unit = {
++    d.isCls := true.B
++    d.clsFo := isFo.B
++    d.srcAIdx := hc; d.srcABank := WumingBank.RF
++    d.useImmB := true.B; d.imm := zext(hd)
++    d.w0Idx := hb
++    when(hb === 0.U) { d.ill := true.B }                    // dst_rd0
++    when(hd === 0.U) { d.ill := true.B }                    // mreg_zero
++    when(hb +& hd > 64.U) { d.ill := true.B }               // mreg_range_overflow
++    when(hc +& hd > 64.U) { d.ill := true.B }
++  }
++
++  // `ftsgnj`/`ftsgnn`/`fosgnj`/`fosgnn` (spec/SimRISC-07 §3): rfHB =
++  // copySign(rfHC, rfHD), optionally with the sign of rfHD inverted.
++  def signInject(op: UInt, isFo: Boolean): Unit = {
++    d.aluOp := op
++    d.opWidth := (if (isFo) 3 else 2).U
++    d.srcAIdx := hc; d.srcABank := WumingBank.RF
++    d.srcBIdx := hd; d.srcBBank := WumingBank.RF
++    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }                    // dst_rf0
++  }
++
 +  // ---- m12-010: conditional assignment (spec/SimRISC-02 §2) ---------------
 +  //
 +  // class 1: cs.n/cs.z/cs.p  -> if (cond(rdHA)) rdHB = rdHC else rdHB = rdHD
 +  // class 2: cs.eq/cs.ne     -> if (rdHA ==/!= rdHB) rdHC = rdHD
-+  def condAssign(cond: UInt, class1: Boolean): Unit = {
++  def condAssign(cond: UInt, class1: Boolean, rf: Boolean = false): Unit = {
 +    d.isCs := true.B
 +    d.csCond := cond
 +    d.srcAIdx := ha; d.srcABank := WumingBank.RD
 +    if (class1) {
-+      // The "then" value is rdHC, the "else" value rdHD (r2 port).
-+      d.srcBIdx := hc; d.srcBBank := WumingBank.RD
-+      d.srcCIdx := hd; d.srcCBank := WumingBank.RD
-+      d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
-+      when(hb === 0.U) { d.ill := true.B }                  // dst_rd0
++      // The "then" value is rdHC, the "else" value rdHD (r2 port).  The rf
++      // variants read both values from the rf bank and write rfHB.
++      val bank = if (rf) WumingBank.RF else WumingBank.RD
++      d.srcBIdx := hc; d.srcBBank := bank
++      d.srcCIdx := hd; d.srcCBank := bank
++      d.w0En := true.B; d.w0Idx := hb; d.w0Bank := bank; d.w0Sel := 0.U
++      when(hb === 0.U) { d.ill := true.B }                  // dst_rd0 / dst_rf0
 +    } else {
 +      // The second comparand is rdHB; the assigned value is rdHD, and the
 +      // destination is rdHC (`dst_rd0` applies to rdHC here).
@@ -425,8 +487,11 @@ index 0000000..79bed59
 +    d.ldBank := bank
 +    d.stBank := bank
 +    // dst_rd0 / dst_rb0: the load destination may not be the bank's zero
-+    // register (the RA bank's ra0 is writable, spec/SimRISC-01 §3).
-+    when(isLoad && ha === 0.U && bank =/= WumingBank.RA) { d.ill := true.B }
++    // register.  The RA bank's ra0 and the RF bank's rf0 (FCSR) are writable
++    // (spec/SimRISC-01 §3/§4).
++    when(isLoad && ha === 0.U && (bank === WumingBank.RD || bank === WumingBank.RB)) {
++      d.ill := true.B
++    }
 +  }
 +
 +  def multiMem(isLoad: Bool, width: UInt, signed: Bool, bank: UInt): Unit = {
@@ -442,7 +507,9 @@ index 0000000..79bed59
 +    // mreg_zero / mreg_range_overflow (spec/SimRISC-01 §1, legality_rules).
 +    when(hd === 0.U) { d.ill := true.B }
 +    when(ha +& hd > 64.U) { d.ill := true.B }
-+    when(isLoad && ha === 0.U && bank =/= WumingBank.RA) { d.ill := true.B }
++    when(isLoad && ha === 0.U && (bank === WumingBank.RD || bank === WumingBank.RB)) {
++      d.ill := true.B
++    }
 +  }
 +
 +  val widthByte = 0.U(2.W)
@@ -460,8 +527,12 @@ index 0000000..79bed59
 +      .elsewhen(opc === 0x13.U) { singleMem(true.B, widthByte, true.B, WumingBank.RD) }
 +      .elsewhen(opc === 0x14.U) { singleMem(true.B, widthWyde, true.B, WumingBank.RD) }
 +      .elsewhen(opc === 0x15.U) { singleMem(true.B, widthTetra, true.B, WumingBank.RD) }
-+      // 0x16 ld.t rf: defined, the RF bank is m12-chipyard-011 -> ILLI.
-+      .otherwise { d.ill := true.B }
++      // 0x16/0x17: `ld.t`/`st.t` in the rf bank (SimRISC-01 §4).  A tetra load
++      // into an rf register sign-extends into the 64-bit register: spec says
++      // bits [63:32] are unspecified for that case and sign extension is what
++      // QEMU does (`MO_BESL`), so the two engines agree bit for bit.
++      .elsewhen(opc === 0x16.U) { singleMem(true.B, widthTetra, true.B, WumingBank.RF) }
++      .otherwise { singleMem(false.B, widthTetra, false.B, WumingBank.RF) }
 +  }.elsewhen(opc >= 0x18.U && opc <= 0x1A.U) {
 +    // st.{b,w,t} rd (SimRISC-01 §1).  rd0 as the source is legal (reads 0).
 +    recognized := true.B
@@ -477,8 +548,9 @@ index 0000000..79bed59
 +      .elsewhen(opc === 0x23.U) { singleMem(false.B, widthOcta, false.B, WumingBank.RB) }
 +      .elsewhen(opc === 0x24.U) { singleMem(true.B, widthOcta, false.B, WumingBank.RA) }
 +      .elsewhen(opc === 0x25.U) { singleMem(false.B, widthOcta, false.B, WumingBank.RA) }
-+      // 0x26/0x27 ld.o/st.o rf: defined, RF bank is m12-chipyard-011 -> ILLI.
-+      .otherwise { d.ill := true.B }
++      // 0x26/0x27: `ld.o`/`st.o` in the rf bank (SimRISC-01 §4).
++      .elsewhen(opc === 0x26.U) { singleMem(true.B, widthOcta, false.B, WumingBank.RF) }
++      .otherwise { singleMem(false.B, widthOcta, false.B, WumingBank.RF) }
 +  }.elsewhen(opc >= 0x28.U && opc <= 0x2F.U) {
 +    // ldm.{ub,uw,ut,sb,sw,st} rd + ldm.t rf (SimRISC-01 §1/§4).
 +    recognized := true.B
@@ -488,8 +560,9 @@ index 0000000..79bed59
 +      .elsewhen(opc === 0x2B.U) { multiMem(true.B, widthByte, true.B, WumingBank.RD) }
 +      .elsewhen(opc === 0x2C.U) { multiMem(true.B, widthWyde, true.B, WumingBank.RD) }
 +      .elsewhen(opc === 0x2D.U) { multiMem(true.B, widthTetra, true.B, WumingBank.RD) }
-+      // 0x2E/0x2F ldm.t/stm.t rf: defined, RF bank is m12-chipyard-011 -> ILLI.
-+      .otherwise { d.ill := true.B }
++      // 0x2E/0x2F: `ldm.t`/`stm.t` in the rf bank (SimRISC-01 §4).
++      .elsewhen(opc === 0x2E.U) { multiMem(true.B, widthTetra, true.B, WumingBank.RF) }
++      .otherwise { multiMem(false.B, widthTetra, false.B, WumingBank.RF) }
 +  }.elsewhen(opc >= 0x30.U && opc <= 0x32.U) {
 +    // stm.{b,w,t} rd (SimRISC-01 §1).  rd0 as the start register is legal.
 +    recognized := true.B
@@ -505,8 +578,9 @@ index 0000000..79bed59
 +      .elsewhen(opc === 0x3B.U) { multiMem(false.B, widthOcta, false.B, WumingBank.RB) }
 +      .elsewhen(opc === 0x3C.U) { multiMem(true.B, widthOcta, false.B, WumingBank.RA) }
 +      .elsewhen(opc === 0x3D.U) { multiMem(false.B, widthOcta, false.B, WumingBank.RA) }
-+      // 0x3E/0x3F ldm.o/stm.o rf: defined, RF bank is m12-chipyard-011 -> ILLI.
-+      .otherwise { d.ill := true.B }
++      // 0x3E/0x3F: `ldm.o`/`stm.o` in the rf bank (SimRISC-01 §4).
++      .elsewhen(opc === 0x3E.U) { multiMem(true.B, widthOcta, false.B, WumingBank.RF) }
++      .otherwise { multiMem(false.B, widthOcta, false.B, WumingBank.RF) }
 +  }.elsewhen(opc >= 0x40.U && opc <= 0x47.U) {
 +    recognized := true.B
 +    val octaRows = Seq(0x00, 0x1F, 0x0F, 0x0F, 0x03, 0x7F, 0x7F, 0x6F)
@@ -589,10 +663,26 @@ index 0000000..79bed59
 +        is(0x34.U) { subHandled := true.B; blockCopy(WumingBank.RB, WumingBank.RB) }
 +        is(0x35.U) { subHandled := true.B; blockCopy(WumingBank.RB, WumingBank.RD) }
 +        is(0x36.U) { subHandled := true.B; blockCopy(WumingBank.RD, WumingBank.RB) }
++        // m12-011: rf <-> rd block moves (SimRISC-02 §1); rf0 may be a source
++        // or a destination (the FCSR write mask applies).
++        is(0x3D.U) { subHandled := true.B; blockCopy(WumingBank.RF, WumingBank.RD) }
++        is(0x3E.U) { subHandled := true.B; blockCopy(WumingBank.RD, WumingBank.RF) }
 +        is(0x38.U) { subHandled := true.B; orrrLogic(WumingAluOp.DIV_U) }
 +        is(0x39.U) { subHandled := true.B; orrrLogic(WumingAluOp.DIV_S) }
 +        is(0x3A.U) { subHandled := true.B; orrrLogic(WumingAluOp.REM_U) }
 +        is(0x3B.U) { subHandled := true.B; orrrLogic(WumingAluOp.REM_S) }
++      }
++    }.elsewhen(opc === 0x44.U) {
++      // OPC-RF (spec/SimRISC-07): only the FP infrastructure forms of
++      // m12-chipyard-011 are implemented; every other cell of this row is a
++      // defined FP instruction that still belongs to m12-012..015 -> ILLI.
++      switch(ha) {
++        is(0x00.U) { subHandled := true.B; classifyBlock(isFo = false) }  // ftcls
++        is(0x08.U) { subHandled := true.B; classifyBlock(isFo = true) }   // focls
++        is(0x16.U) { subHandled := true.B; signInject(WumingAluOp.SGNN, false) }
++        is(0x17.U) { subHandled := true.B; signInject(WumingAluOp.SGNJ, false) }
++        is(0x1E.U) { subHandled := true.B; signInject(WumingAluOp.SGNN, true) }
++        is(0x1F.U) { subHandled := true.B; signInject(WumingAluOp.SGNJ, true) }
 +      }
 +    }.elsewhen(opc === 0x41.U) {
 +      widthTable(widthTetra, 31, 32)
@@ -647,10 +737,7 @@ index 0000000..79bed59
 +      .elsewhen(opc === 0x4C.U) { rwii(false.B, WumingAluOp.SET_ZW) }
 +      .elsewhen(opc === 0x4D.U) { rwii(false.B, WumingAluOp.SET_OW) }
 +      .elsewhen(opc === 0x4E.U) { rwii(true.B, WumingAluOp.SET_ZW) }
-+      .otherwise {
-+        // set.w rf register file: defined, not implemented here.
-+        d.ill := true.B
-+      }
++      .otherwise { setWydeRf() }  // 0x4F set.w rf (SimRISC-03 §1)
 +  }.elsewhen(opc >= 0x50.U && opc <= 0x55.U) {
 +    recognized := true.B
 +    when(opc === 0x50.U) { quad(WumingAluOp.ADD128_U) }
@@ -666,14 +753,15 @@ index 0000000..79bed59
 +    quad(WumingAluOp.CLMUL128)
 +  }.elsewhen(opc >= 0x60.U && opc <= 0x67.U) {
 +    // Conditional assignment (spec/SimRISC-02 §2).  0x61/0x63/0x65 are the rf
-+    // variants (scope fp) and stay ILLI until the FP milestone.
++    // variants (m12-011): the predicate register is still rd, both values and
++    // the destination are rf.
 +    recognized := true.B
 +    when(opc === 0x60.U) { condAssign(0.U, class1 = true) }   // cs.n
-+      .elsewhen(opc === 0x61.U) { d.ill := true.B }             // cs.n rf
++      .elsewhen(opc === 0x61.U) { condAssign(0.U, class1 = true, rf = true) } // cs.n rf
 +      .elsewhen(opc === 0x62.U) { condAssign(1.U, class1 = true) } // cs.z
-+      .elsewhen(opc === 0x63.U) { d.ill := true.B }             // cs.z rf
++      .elsewhen(opc === 0x63.U) { condAssign(1.U, class1 = true, rf = true) } // cs.z rf
 +      .elsewhen(opc === 0x64.U) { condAssign(2.U, class1 = true) } // cs.p
-+      .elsewhen(opc === 0x65.U) { d.ill := true.B }             // cs.p rf
++      .elsewhen(opc === 0x65.U) { condAssign(2.U, class1 = true, rf = true) } // cs.p rf
 +      .elsewhen(opc === 0x66.U) { condAssign(3.U, class1 = false) } // cs.eq
 +      .otherwise { condAssign(4.U, class1 = false) }           // cs.ne
 +  }.elsewhen(opc === 0x79.U) {

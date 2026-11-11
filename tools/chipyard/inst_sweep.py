@@ -620,11 +620,12 @@ def cmd_emit(args):
         ("sbz_shlt_imm32", "ILLI", enc_shl_t_orri(1, 2, 32), False, {}),
         ("dst_rb0_addo", "ILLI", enc_add_o_bbd(0, 1, 2), False, {}),
         # Defined and legal on the golden model (QEMU executes it), but not
-        # implemented yet -> ILLI (spec/SimRISC-00 §6.1).  `ld.ub` moved to
-        # the implemented set in m12-chipyard-008; the RF bank forms stay
-        # unimplemented until the FP milestone (m12-chipyard-011).
-        ("unimpl_ldt_rf", "ILLI", 0x16041000, True,
-         {"rb": {"rb1": "0x%x" % ENTRY}}),
+        # implemented yet -> ILLI (spec/SimRISC-00 §6.1).  `ld.ub` moved to the
+        # implemented set in m12-chipyard-008 and the RF bank forms (incl.
+        # `ld.t rf`) in m12-chipyard-011, so the probe now uses FP arithmetic
+        # (`ftadd rf1, rf2, rf3`), which still belongs to m12-chipyard-013.
+        ("unimpl_ftadd", "ILLI", (0x44 << 24) | (0x10 << 18) | (1 << 12) |
+         (2 << 6) | 3, True, {}),
     ]
     for key, fault, word, qemu_executes, inp in dedicated:
         faults.append({"key": key, "fault": fault, "word": "0x%08x" % word,

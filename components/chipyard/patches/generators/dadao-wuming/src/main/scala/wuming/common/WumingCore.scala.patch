@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..db90a55
+index 0000000..b34c557
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,1371 @@
+@@ -0,0 +1,1421 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -77,8 +77,10 @@ index 0000000..db90a55
 +//     writing 0/1 to rdHB.  A changed word is a legal spurious failure, so this
 +//     matches QEMU's word-granularity reservation (ADR-0034 D6).  Exception
 +//     entry, a successful/failed `sc` and another `lr` all clear it;
-+//   * `cs.*` computes the predicate in `EXEC` and gates the write-back
-+//     (`csTaken`); the value comes from rdHC/rdHD;
++//   * `cs.*` computes the predicate in `EXEC`; class 1 always writes one of the
++//     two source values and class 2 gates the write-back (`csTaken`), so the
++//     value comes from rdHC/rdHD or rdHD alone (spec/SimRISC-02 §2).  The
++//     m12-011 FP forms add the rf-bank variants;
 +//   * register-block copies run one register per cycle in the new `sCopy`
 +//     state (12 states -> 13);
 +//   * `fence`/`swym` are recognised no-ops (one cycle, no write-back).
@@ -212,7 +214,7 @@ index 0000000..db90a55
 +  // valid frame" and is what `escape` checks before switching back.
 +  val cfxHasFrame = cfxCauseId(0) =/= 0.U
 +
-+  val sIdle :: sFreq :: sFwait :: sExec :: sTrap :: sSemi :: sExc :: sMreq :: sMwait :: sSlow :: sCopy :: sFault :: sHalt :: Nil = Enum(13)
++  val sIdle :: sFreq :: sFwait :: sExec :: sTrap :: sSemi :: sExc :: sMreq :: sMwait :: sSlow :: sCopy :: sCls :: sFault :: sHalt :: Nil = Enum(14)
 +  val state = RegInit(sIdle)
 +
 +  // Simulation-time cycle stamp for the timing evidence (`+verbose`).
@@ -340,12 +342,30 @@ index 0000000..db90a55
 +  val copyDstBankL = RegInit(WumingBank.RD)
 +  val copySrcBankL = RegInit(WumingBank.RD)
 +
++  // Block classify (m12-chipyard-011): destination/source start registers, the
++  // element count, the element index and the format of the current instruction.
++  val clsDstStart = RegInit(0.U(6.W))
++  val clsSrcStart = RegInit(0.U(6.W))
++  val clsCount    = RegInit(1.U(6.W))
++  val clsIdx      = RegInit(0.U(6.W))
++  val clsFo       = RegInit(false.B)
++
 +  // ---- operands / ALU ----------------------------------------------------
-+  // The block-copy loop reads its source register through the r0 port.
++  // The block-copy and block-classify loops read their source register through
++  // the r0 port (the classify source is always in the rf bank).
 +  val inCopy = state === sCopy
-+  rf.io.r0Idx := Mux(inCopy, (copySrcStart + copyIdx)(5, 0), d.srcAIdx)
-+  rf.io.r0Bank := Mux(inCopy, copySrcBankL, d.srcABank)
++  val inCls  = state === sCls
++  rf.io.r0Idx := Mux(inCls, (clsSrcStart + clsIdx)(5, 0),
++    Mux(inCopy, (copySrcStart + copyIdx)(5, 0), d.srcAIdx))
++  rf.io.r0Bank := Mux(inCls, WumingBank.RF,
++    Mux(inCopy, copySrcBankL, d.srcABank))
 +  rf.io.r1Idx := d.srcBIdx; rf.io.r1Bank := d.srcBBank
++
++  // Exception flags of this cycle's FP operation.  The FP infrastructure of
++  // m12-011 has no flag-raising operation yet (classification and sign
++  // injection raise none); m12-012..015 drive this with the rounding/arith
++  // result.  The FCSR accumulates it (sticky) and `rf0[4:0]` reads it back.
++  rf.io.fflags := 0.U(5.W)
 +
 +  val srcA = Mux(d.srcAIsIp, ip, rf.io.r0Data)
 +  val srcB = rf.io.r1Data
@@ -567,6 +587,13 @@ index 0000000..db90a55
 +  rf.io.r2Idx := Mux(memElemRead, (memStart + memElem)(5, 0), d.srcCIdx)
 +  rf.io.r2Bank := Mux(memElemRead, memBank, d.srcCBank)
 +
++  // ---- block classify (m12-chipyard-011) ---------------------------------
++  // One element per cycle, exactly like the register-block copy: the source is
++  // read on the r0 port and the class bits are written through w0.
++  val fpClassify = Module(new WumingClassify)
++  fpClassify.io.isFo := Mux(state === sCls, clsFo, d.clsFo)
++  fpClassify.io.in := rf.io.r0Data
++
 +  // ---- write-back --------------------------------------------------------
 +  val execFault = d.ill || d.undi
 +
@@ -586,13 +613,17 @@ index 0000000..db90a55
 +    2.U -> (srcA =/= 0.U && !srcA(63)),     // cs.p
 +    3.U -> (srcA === srcB),                 // cs.eq
 +    4.U -> (srcA =/= srcB)))                // cs.ne
-+  val csTaken = !d.isCs || csCondTrue
++  // Class 1 (`cs.n`/`cs.z`/`cs.p`, codes 0-2) always writes one of the two
++  // source values (spec/SimRISC-02 §2: "if cond rdHB = rdHC; else rdHB =
++  // rdHD"); only class 2 (`cs.eq`/`cs.ne`) is a conditional write.
++  val csTaken = !d.isCs || d.csCond <= 2.U || csCondTrue
 +  val csData = Mux(d.csCond <= 2.U, Mux(csCondTrue, srcB, rf.io.r2Data),
 +    rf.io.r2Data)
 +
 +  // Block copy (spec/SimRISC-02 §1) writes one register per cycle in `sCopy`;
 +  // `sc` writes its flag / reservation result after the memory phases.
 +  val w0Copy     = state === sCopy
++  val w0Cls      = state === sCls
 +  val scFailExec = state === sExec && scFailNow
 +  val scCheckFail = state === sMwait && io.dmem.d.fire && !memStore && memAux === 2.U &&
 +    addressOrder(io.dmem.d.bits.data) =/= resvWord
@@ -611,30 +642,33 @@ index 0000000..db90a55
 +    addressOrder(io.dmem.d.bits.data)(63, 48) =/= 0.U
 +
 +  rf.io.w0En := execW0 || slowW0 || memElemWrite || semiW0 || rasRetW0 ||
-+    w0Copy || scFailExec || scCheckFail || scStoreDone
-+  rf.io.w0Idx := Mux(w0Copy, (copyDstStart + copyIdx)(5, 0),
-+    Mux(scFailExec || scCheckFail || scStoreDone, d.ldDst,
-+      Mux(rasRetW0, retRdIdx,
-+        Mux(memElemWrite, (memStart + memElem)(5, 0),
-+          Mux(semiW0, semiRetReg, Mux(slowW0, slowW0Idx, d.w0Idx))))))
-+  rf.io.w0Bank := Mux(w0Copy, copyDstBankL,
-+    Mux(scFailExec || scCheckFail || scStoreDone, WumingBank.RD,
-+      Mux(rasRetW0, WumingBank.RD,
-+        Mux(memElemWrite, memBank,
-+          Mux(semiW0, WumingBank.RD, Mux(slowW0, slowW0Bank, d.w0Bank))))))
++    w0Copy || w0Cls || scFailExec || scCheckFail || scStoreDone
++  // Write-back selection.  The block loops (`sCopy`, `sCls`) and the memory /
++  // semihosting / reservation paths take priority over the decoder's w0 fields.
 +  val w0SelData = Mux(d.w0Sel === 1.U, alu.io.hi, alu.io.lo)
-+  rf.io.w0Data := Mux(
-+    w0Copy, rf.io.r0Data,
-+    Mux(scFailExec || scCheckFail, 1.U(64.W), // reservation miss / word changed
-+      Mux(scStoreDone, 0.U(64.W),             // `sc` succeeded
-+        Mux(rasRetW0, retRdVal,
-+          Mux(memElemWrite, memLdElem,
-+            Mux(semiW0, io.semi.resp.value,
-+              Mux(d.isCfx2, cfxRdata,
-+                Mux(d.isCs, csData,
-+                  Mux(slowW0, Mux(slowW0Sel === 1.U, alu.io.hi, alu.io.lo),
-+                    w0SelData)))))))))
-+
++  val w0LoopData = Mux(slowW0, Mux(slowW0Sel === 1.U, alu.io.hi, alu.io.lo), w0SelData)
++  rf.io.w0Idx := Mux(w0Cls, (clsDstStart + clsIdx)(5, 0),
++    Mux(w0Copy, (copyDstStart + copyIdx)(5, 0),
++      Mux(scFailExec || scCheckFail || scStoreDone, d.ldDst,
++        Mux(rasRetW0, retRdIdx,
++          Mux(memElemWrite, (memStart + memElem)(5, 0),
++            Mux(semiW0, semiRetReg, Mux(slowW0, slowW0Idx, d.w0Idx)))))))
++  rf.io.w0Bank := Mux(w0Cls, WumingBank.RD,
++    Mux(w0Copy, copyDstBankL,
++      Mux(scFailExec || scCheckFail || scStoreDone, WumingBank.RD,
++        Mux(rasRetW0, WumingBank.RD,
++          Mux(memElemWrite, memBank,
++            Mux(semiW0, WumingBank.RD,
++              Mux(slowW0, slowW0Bank, d.w0Bank)))))))
++  rf.io.w0Data := Mux(w0Cls, fpClassify.io.out.pad(64),
++    Mux(w0Copy, rf.io.r0Data,
++      Mux(scFailExec || scCheckFail, 1.U(64.W), // reservation miss / word changed
++        Mux(scStoreDone, 0.U(64.W),             // `sc` succeeded
++          Mux(rasRetW0, retRdVal,
++            Mux(memElemWrite, memLdElem,
++              Mux(semiW0, io.semi.resp.value,
++                Mux(d.isCfx2, cfxRdata,
++                  Mux(d.isCs, csData, w0LoopData)))))))))
 +
 +  // rrrr: w0 = high half (w0Sel = 1), w1 = low half (m12-005 shape).
 +  rf.io.w1En := (state === sExec && !execFault && !cfxFault && !aluIsSlow && d.w1En) ||
@@ -1054,6 +1088,15 @@ index 0000000..db90a55
 +          memAux := Mux(d.isLr, 1.U, 2.U)
 +          state := sMreq
 +        }
++      }.elsewhen(d.isCls) {
++        // Block classify (spec/SimRISC-07 §5): one element per cycle; the
++        // decoder already rejected dst_rd0, mreg_zero and range overflow.
++        clsDstStart := d.w0Idx
++        clsSrcStart := d.srcAIdx
++        clsCount := d.imm(5, 0)
++        clsIdx := 0.U
++        clsFo := d.clsFo
++        state := sCls
 +      }.elsewhen(d.isCopy) {
 +        // Register-block copy (spec/SimRISC-02 §1): one register per cycle.
 +        // The decoder already rejected dst_rd0/dst_rb0, mreg_zero, range
@@ -1236,6 +1279,13 @@ index 0000000..db90a55
 +      // was rejected by the decoder, so source and destination never alias.
 +      copyIdx := copyIdx + 1.U
 +      when(copyIdx + 1.U === copyCount) { finish(ip + 4.U) }
++    }
++    is(sCls) {
++      // One register per cycle, like the block copy: the class bits are written
++      // through w0 in the same cycle the source is read (source and destination
++      // live in different banks, so they cannot alias).
++      clsIdx := clsIdx + 1.U
++      when(clsIdx + 1.U === clsCount) { finish(ip + 4.U) }
 +    }
 +    is(sFault) {
 +      state := sHalt

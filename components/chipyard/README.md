@@ -81,8 +81,18 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **位操作**（`spec/SimRISC-04 §1.5/§2.2`、`SimRISC-08/09/10`、`SimRISC-12 §3`）：`rev.o/.t/.w/.b`（块内单元顺序反转，`k` 须 one-hot 且 `k < S`，否则 `encode_onehot` ⇒ ILLI）、`rol.o/.t/.w/.b`（`orrr` 取 `rdHD` 低位 / `orri` 立即数越界 ⇒ ILLI）、`ctpop`/`ctlz`/`cttz`（`immu6` 是有效位上界 `hd`，全 0 时前导/末尾零 = `hd+1`）与 `clmul.o`（GF(2) 64×64→128，结果写 `{rdHA, rdHB}`）。`OPC-tetra/wyde/byte` 子表的 add/sub/cmp/mul/div/rem/shl/shr 一并补齐：窄位宽结果按值语义零/符号扩展，除法定值按宽度（除零 = 宽度掩码 / 全一，有符号溢出 = 宽度 `INT_MIN` 符号扩展），比较结果 −1 写 64 位全一。
 - **原子**（`spec/SimRISC-12 §1`）：`lr`/`sc` 全部 24 条形式（`<lr|sc>.<b|w|t|o>.<nn|an|ar|nr>`）。地址 = `rbHD`，数据 = `rdHC`；`sc` 的成败写 `rdHB`（`rdHB = rd0` ⇒ ILLI），`lr` 的 `rdHB` 是 SBZ 字段（非零 ⇒ ILLI）。保留标记的键 = **精确地址 + 访问宽度**；`lr` 另存下读到的 8 字节字，`sc` 命中时重读该字比对，不一致即失败（spec 允许的 spurious failure，与 QEMU `ADR-0034 D6` 的字粒度+值比对一致）。异常进入、`sc` 的成败、另一条 `lr` 都清除标记；只有真正访存时才判 `CFXMEM`，对齐按访存宽度（`MALIGN`）先判。
 - **`swym` / `fence`**：`swym N` 是 1 拍 no-op（时延由实现定义）；`fence cfxHA, immu18` 校验 `immu18[17:12]`（SBZ）与 `cfxha` 是否保留 ⇒ ILLI，合法即 no-op（顺序单周期核天然满足屏障语义，`pred = succ = 0` 合法）。
-- **杂项 / 整数补齐**（`spec/SimRISC-02`）：`cs.n/.z/.p/.eq/.ne`（条件写入：谓词不成立时目的寄存器不变）与寄存器块赋值 `rd2rd`/`ra2rd`/`rd2ra`/`rb2rb`/`rd2rb`/`rb2rd`（`immu6` 个连续寄存器，一拍一个，新增 `sCopy` 状态：12 态 → 13 态）；`mreg_zero`/`mreg_range_overflow`/`mreg_range_overlap`/`dst_rd0`/`dst_rb0` 全部静态判 ILLI。
+- **杂项 / 整数补齐**（`spec/SimRISC-02`）：`cs.n/.z/.p`（第一类：**总是**把两个源之一写进目的）与 `cs.eq/.ne`（第二类：条件成立才写）与寄存器块赋值 `rd2rd`/`ra2rd`/`rd2ra`/`rb2rb`/`rd2rb`/`rb2rd`（`immu6` 个连续寄存器，一拍一个，新增 `sCopy` 状态：12 态 → 13 态）；`mreg_zero`/`mreg_range_overflow`/`mreg_range_overlap`/`dst_rd0`/`dst_rb0` 全部静态判 ILLI。
 - **周期（trace 实测）**：`fence`/`swym`/`cs.*` 1 拍；`ctpop`/`ctlz`/`cttz`/`rev`/`rol`/`clmul` 2 拍（R1 = C 的 `SLOW` 路径）；`rd2rd` 8 个寄存器 9 拍（n + 1）；`lr.o.nn` 9 拍、`sc.o.nn` 命中 17 拍（重读 + 写）、未命中 1 拍。
+
+## FP 基础设施（`m12-chipyard-011`）
+
+- **内部表示 = recFN**（`berkeley-hardfloat` 的语义，**不引入其依赖**，代码自写）：`sign ## exp(expWidth+1) ## sig(sigWidth-1)`，比 IEEE 多一位指数 ⇒ 次正规数在内部保持规格化，只有编解码面处理反规格化。`WumingFP.scala` 提供 `recFNFromFN`/`fNFromRecFN`/`rawFloatFromFN`/`rawFloatFromRecFN`（ft = 8/24、fo = 11/53）与 `signInject`。
+- **单一舍入原语** `WumingRoundAnyRawFNToRecFN`（`spec/SimRISC-07 §1.4`）：五档方向（RNE/RTZ/RDN/RUP/RNA，编码同 hardfloat 便于逐例对照）+ `immu6` 六档解码（`0x01`/`0x02`/`0x04`/`0x08`/`0x10`/`0x20`，`0x20` 读 `rf0[33:32]`，其余值 ILLI，`ADR-0050` D2）；**tininess 取舍入后**；下溢只在「舍入后 tiny 且 inexact」置 `UF`，与 `NX` 独立；NaN 输入按 spec **传播 payload**（窄化时把丢弃位 OR 进末位），`invalidExc`/sNaN 出 canonical qNaN。
+- **`rf0`（FCSR）**（`spec/SimRISC-00 §2.3.1`）：`WumingFcsr` 保存 `[33:32]` 与 `[4:0]`，其余位读出为固定值（只读 qNaN 位 + SBZ），写入按 `[33:32]`/`[4:0]` 掩码；FP 操作抬起的标志按 `rf0[4:0]` 顺序**累积（sticky）**，软件写 `rf0` 即清零。`rf` 银行（64×64）就位，`rf0` 由 FCSR 承担。
+- **分类与符号**：`ftcls`/`focls`（块形式，一拍一个元素，新增 `sCls` 状态：13 → 14 态；`SimRISC-07 §5` 位序 bit0 sNaN … bit9 +Inf，`[63:10]` 清零）；`ftsgnj`/`ftsgnn`/`fosgnj`/`fosgnn`（`copySign`/取反符号，`hd = rf0` 即 `abs`/`-abs`）。
+- **rf 银行的形式**：`ld/st/ldm/stm` 的 `rf` 变体（`ld.t rf` 符号扩展到 64 位，与 QEMU 一致）、`set.w rf`（只替换所选 wyde；`rf0` 上 `wp2` = 舍入模式、`wp0` = 标志、`wp1`/`wp3` 写无效）、`cs.* rf`、`rd2rf`/`rf2rd`（`rf0` 作源或目的均合法，目的侧走 FCSR 掩码）。其余 FP 形式（算术/转换/取整/最小最大/FMA/除开方）仍 ILLI，归 `012`–`015`。
+- **周期（trace 实测）**：`ftcls`/`focls` = 1 + 元素个数；`ftsgnj`/`ftsgnn`/`fosgnj`/`fosgnn`、`set.w rf`、`cs.* rf` 1 拍；`rd2rf`/`rf2rd` = 1 + 个数；`ld.o rf` 13 拍（单拍数据往返）。
+- **验证**：`tools/chipyard/fp_ref.py`（独立模型 + 精确有理数 oracle）、`tools/chipyard/fp_sweep.py`（分类/符号/rf 访存/FCSR/故障 5 组镜像）、`tools/chipyard/fp_unit/`（Verilator 单元台：同一组向量同时喂本实现与 hardfloat 实例，逐例比对值 + 标志）。
 
 ## 边界
 

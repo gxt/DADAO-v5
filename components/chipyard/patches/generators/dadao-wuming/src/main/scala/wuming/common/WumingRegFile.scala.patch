@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala
 new file mode 100644
-index 0000000..f06db8e
+index 0000000..6a16649
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala
-@@ -0,0 +1,191 @@
+@@ -0,0 +1,221 @@
 +// See LICENSE for license details.
 +//
 +// DADAO register file banks (spec/SimRISC-00 §2, spec/DADAO-21 ABI):
@@ -11,6 +11,11 @@ index 0000000..f06db8e
 +//   rd  data registers      rd0 reads 0, writes are dropped
 +//   rb  base registers      rb0 reads the *current instruction address* (IP,
 +//                           not PC+4) and is read-only
++//   rf  floating-point registers 0..63 (spec/SimRISC-00 §2.3).  rf0 is the
++//       FCSR (`WumingFcsr`): its quiet-NaN bits are read-only, a write only
++//       updates `[33:32]` (rounding mode) and `[4:0]` (accrued flags), and the
++//       flags raised by FP operations accumulate (sticky).  m12-chipyard-011
++//       adds the bank together with the FP infrastructure.
 +//   ra  return address stack (spec/SimRISC-00 §2.4): ra1..ra63 are the 63
 +//       RegRAS slots (ra63 = top, `[63:48]` = recursion count, `[47:0]` =
 +//       return address) and ra0 is the pointer register
@@ -18,9 +23,6 @@ index 0000000..f06db8e
 +//       m12-chipyard-008 added the bank as plain registers for the
 +//       `ld.o`/`st.o`/`ldm.o`/`stm.o` RA forms; m12-chipyard-009 layers the
 +//       RAS push/pop semantics on top (see `WumingRasOp`).
-+//
-+// The rf (floating point) bank arrives with the FP milestone
-+// (m12-chipyard-011); the decoder raises ILLI for the RF forms until then.
 +//
 +// Read ports are asynchronous (combinational), so a single cycle can read an
 +// element source register for the `ldm`/`stm` beat loop.  Every port carries a
@@ -77,6 +79,10 @@ index 0000000..f06db8e
 +    val w1Bank = Input(UInt(2.W))
 +    val w1Data = Input(UInt(64.W))
 +
++    // Exception flags raised by this cycle's FP operation (rf0[4:0] order);
++    // they accumulate into the FCSR until software writes rf0.
++    val fflags = Input(UInt(5.W))
++
 +    // RAS operation and the operands it needs (m12-chipyard-009).
 +    val rasOp        = Input(UInt(3.W))
 +    val rasPushAddr  = Input(UInt(48.W)) // PUSH/SPILL: the `call` return address
@@ -95,6 +101,9 @@ index 0000000..f06db8e
 +  val rb = RegInit(VecInit(Seq.fill(64)(0.U(64.W))))
 +  // ra(0) is not stored: the ra0 pointer register is `{RACNT, MRPTR}` below.
 +  val ra = RegInit(VecInit(Seq.fill(64)(0.U(64.W))))
++  // rf(0) is the FCSR and lives in its own module; sf holds rf1..rf63.
++  val fcsr = Module(new WumingFcsr)
++  val sf = RegInit(VecInit(Seq.fill(64)(0.U(64.W))))
 +
 +  // ---- RAS state (spec/SimRISC-00 §2.4) -----------------------------------
 +  val racnt = RegInit(0.U(6.W)) // valid entries, 0..63
@@ -112,10 +121,13 @@ index 0000000..f06db8e
 +  // asks for the oldest entry on the C3b path, which requires RACNT == 63).
 +  io.rasOldest := ra((64.U - racnt)(5, 0))
 +
++  def rfRead(idx: UInt): UInt = Mux(idx === 0.U, fcsr.io.read, sf(idx))
++
 +  def read(idx: UInt, bank: UInt): UInt =
 +    Mux(bank === WumingBank.RB, Mux(idx === 0.U, io.ip, rb(idx)),
 +      Mux(bank === WumingBank.RA, raRead(idx),
-+        Mux(idx === 0.U, 0.U(64.W), rd(idx))))
++        Mux(bank === WumingBank.RF, rfRead(idx),
++          Mux(idx === 0.U, 0.U(64.W), rd(idx)))))
 +
 +  io.r0Data := read(io.r0Idx, io.r0Bank)
 +  io.r1Data := read(io.r1Idx, io.r1Bank)
@@ -184,14 +196,32 @@ index 0000000..f06db8e
 +    }
 +  }
 +
++  // rf0 writes are handed to the FCSR (which applies the [33:32]/[4:0] mask,
++  // so the quiet-NaN bits and the SBZ columns keep their value); every other rf
++  // register is a plain 64-bit register.  One instruction has one destination,
++  // so the two write ports can never touch rf0 in the same cycle.
++  def writeRf(idx: UInt, data: UInt): Unit = {
++    when(idx =/= 0.U) { sf(idx) := data }
++  }
++
++  val w0Fcsr = io.w0En && io.w0Bank === WumingBank.RF && io.w0Idx === 0.U
++  val w1Fcsr = io.w1En && io.w1Bank === WumingBank.RF && io.w1Idx === 0.U
++  fcsr.io.writeEn := w0Fcsr || w1Fcsr
++  fcsr.io.writeData := Mux(w1Fcsr, io.w1Data, io.w0Data)
++  fcsr.io.fflags := io.fflags
++
 +  when(io.w0En && writable(io.w0Idx, io.w0Bank)) {
 +    when(io.w0Bank === WumingBank.RB) { rb(io.w0Idx) := io.w0Data }
 +      .elsewhen(io.w0Bank === WumingBank.RA) { writeRa(io.w0Idx, io.w0Data) }
++      .elsewhen(io.w0Bank === WumingBank.RF) { writeRf(io.w0Idx, io.w0Data) }
 +      .otherwise { rd(io.w0Idx) := io.w0Data }
 +  }
 +  when(io.w1En && writable(io.w1Idx, io.w1Bank)) {
 +    when(io.w1Bank === WumingBank.RB) { rb(io.w1Idx) := io.w1Data }
 +      .elsewhen(io.w1Bank === WumingBank.RA) { writeRa(io.w1Idx, io.w1Data) }
++      .elsewhen(io.w1Bank === WumingBank.RF) { writeRf(io.w1Idx, io.w1Data) }
 +      .otherwise { rd(io.w1Idx) := io.w1Data }
 +  }
++
++
 +}

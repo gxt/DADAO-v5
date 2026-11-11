@@ -1,0 +1,186 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
+new file mode 100644
+index 0000000..b13af63
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
+@@ -0,0 +1,180 @@
++// See LICENSE for license details.
++//
++// Unit bench for the FP infrastructure (m12-chipyard-011).
++//
++// This module is **bench only**: nothing in the SoC instantiates it.  It is
++// emitted on its own (`sbt "wuming/runMain wuming.common.WumingFPUnitEmit"`)
++// and driven by `tools/chipyard/fp_unit/tb_fp_unit.cpp` under Verilator, which
++// is how the rounding primitive is compared against berkeley-hardfloat's
++// `RoundAnyRawFNToRecFN` bit for bit.  Using hardfloat here (and only here)
++// keeps the *core* free of the hardfloat dependency while still making the
++// equivalence check a real RTL/RTL comparison instead of a model comparison.
++//
++// Ops (io.op):
++//   0  recFNFromFN       ft   in = fn32              out = recFN(33)
++//   1  fNFromRecFN       ft   in = recFN(33)         out = fn32
++//   2  recFNFromFN       fo   in = fn64              out = recFN(65)
++//   3  fNFromRecFN       fo   in = recFN(65)         out = fn64
++//   4  round (8,26)->(8,24)   in = raw pack (41)     out = recFN(33)
++//   5  round (11,55)->(11,53) in = raw pack (73)     out = recFN(65)
++//   6  round (11,55)->(8,24)  in = raw pack (73)     out = recFN(33)
++//   7  round (8,26)->(11,53)  in = raw pack (41)     out = recFN(65)
++//   8  classifyFN        ft   in = fn32              out = class bits
++//   9  classifyFN        fo   in = fn64              out = class bits
++//  10  sgnj ft  in = {rfHD[63:0], rfHC[63:0]}        out = rfHB
++//  11  sgnn ft
++//  12  sgnj fo
++//  13  sgnn fo
++//
++// `hfOut`/`hfFlags` carry the hardfloat result of the same operation for ops
++// 4-7 (its raw `exceptionFlags` order: NV, DZ, OF, UF, NX) and are zero
++// otherwise.  `io.flags` uses the DADAO `rf0[4:0]` order.
++//
++// The `WumingFcsr` instance is the clocked part of the bench (ops are
++// combinational, so the TB just holds the clock while evaluating them).
++
++package wuming.common
++
++import chisel3._
++import chisel3.util._
++
++class WumingFPUnitHarness extends Module {
++  val io = IO(new Bundle {
++    val op = Input(UInt(4.W))
++    val mode = Input(UInt(3.W))
++    val inLo = Input(UInt(64.W))
++    val inHi = Input(UInt(64.W))
++    val outLo = Output(UInt(64.W))
++    val outHi = Output(UInt(64.W))
++    val flags = Output(UInt(5.W))
++    val hfOutLo = Output(UInt(64.W))
++    val hfOutHi = Output(UInt(64.W))
++    val hfFlags = Output(UInt(5.W))
++    val fcsrWrEn = Input(Bool())
++    val fcsrWrData = Input(UInt(64.W))
++    val fcsrFflags = Input(UInt(5.W))
++    val fcsrRead = Output(UInt(64.W))
++  })
++
++  /** The 128-bit bench word, split so the C++ side only deals with 64-bit
++    * values (Verilator's wide-port handling would otherwise leak into the TB).
++    */
++  val in = Cat(io.inHi, io.inLo)
++
++  // ---- encode / decode ---------------------------------------------------
++  val ftFnWidth = WumingFmt.ftExp + WumingFmt.ftSig
++  val foFnWidth = WumingFmt.foExp + WumingFmt.foSig
++  val ftRecWidth = WumingRecFN.width(WumingFmt.ftExp, WumingFmt.ftSig)
++  val foRecWidth = WumingRecFN.width(WumingFmt.foExp, WumingFmt.foSig)
++
++  // ---- rounding units (mine + hardfloat, same parameters) ---------------
++  def rawPort(ie: Int, isig: Int, pack: UInt) = {
++    // pack = sign, isZero, isInf, isNaN, sExp(ie+2), sig(isig+1)
++    val r = Wire(new WumingRawFloat(ie, isig))
++    val sigW = isig + 1
++    val expW = ie + 2
++    r.sig := pack(sigW - 1, 0)
++    r.sExp := pack(expW + sigW - 1, sigW).asSInt
++    r.isNaN := pack(expW + sigW)
++    r.isInf := pack(expW + sigW + 1)
++    r.isZero := pack(expW + sigW + 2)
++    r.sign := pack(expW + sigW + 3)
++    r
++  }
++  def rawPackWidth(ie: Int, isig: Int) = ie + 2 + isig + 1 + 4
++
++  final class RoundCfg(ie: Int, isig: Int, oe: Int, osig: Int) {
++    val mine = Module(new WumingRoundAnyRawFNToRecFN(ie, isig, oe, osig))
++    val hf = Module(new hardfloat.RoundAnyRawFNToRecFN(
++      ie, isig, oe, osig, hardfloat.consts.flRoundOpt_sigMSBitAlwaysZero))
++    val pack = rawPort(ie, isig, in)
++    mine.io.in := pack
++    hf.io.in.isNaN := pack.isNaN
++    hf.io.in.isInf := pack.isInf
++    hf.io.in.isZero := pack.isZero
++    hf.io.in.sign := pack.sign
++    hf.io.in.sExp := pack.sExp
++    hf.io.in.sig := pack.sig
++    mine.io.invalidExc := false.B
++    hf.io.invalidExc := false.B
++    mine.io.infiniteExc := false.B
++    hf.io.infiniteExc := false.B
++    mine.io.roundingMode := io.mode
++    hf.io.roundingMode := io.mode
++    // spec/SimRISC-07 §1.4: tininess is detected after rounding
++    hf.io.detectTininess := hardfloat.consts.tininess_afterRounding
++    def out: UInt = mine.io.out
++    def flags: UInt = mine.io.exceptionFlags
++    def hfO: UInt = hf.io.out
++    def hfF: UInt = hf.io.exceptionFlags
++  }
++
++  val cfgFtFt = new RoundCfg(WumingFmt.ftExp, WumingFmt.ftSig + 2,
++    WumingFmt.ftExp, WumingFmt.ftSig)
++  val cfgFoFo = new RoundCfg(WumingFmt.foExp, WumingFmt.foSig + 2,
++    WumingFmt.foExp, WumingFmt.foSig)
++  val cfgFoFt = new RoundCfg(WumingFmt.foExp, WumingFmt.foSig + 2,
++    WumingFmt.ftExp, WumingFmt.ftSig)
++  val cfgFtFo = new RoundCfg(WumingFmt.ftExp, WumingFmt.ftSig + 2,
++    WumingFmt.foExp, WumingFmt.foSig)
++
++  // ---- classify / sign injection ----------------------------------------
++  val classifyFt = WumingRecFN.classifyFN(WumingFmt.ftExp, WumingFmt.ftSig,
++    in(ftFnWidth - 1, 0))
++  val classifyFo = WumingRecFN.classifyFN(WumingFmt.foExp, WumingFmt.foSig,
++    in(foFnWidth - 1, 0))
++
++  val sgnHc = in(63, 0)
++  val sgnHd = in(127, 64)
++
++  // ---- output mux -------------------------------------------------------
++  val out = WireDefault(0.U(128.W))
++  val flags = WireDefault(0.U(5.W))
++  val hfOut = WireDefault(0.U(128.W))
++  val hfFlags = WireDefault(0.U(5.W))
++  switch(io.op) {
++    is(0.U) { out := WumingRecFN.recFNFromFN(WumingFmt.ftExp, WumingFmt.ftSig,
++      in(ftFnWidth - 1, 0)).pad(128) }
++    is(1.U) { out := WumingRecFN.fNFromRecFN(WumingFmt.ftExp, WumingFmt.ftSig,
++      in(ftRecWidth - 1, 0)).pad(128) }
++    is(2.U) { out := WumingRecFN.recFNFromFN(WumingFmt.foExp, WumingFmt.foSig,
++      in(foFnWidth - 1, 0)).pad(128) }
++    is(3.U) { out := WumingRecFN.fNFromRecFN(WumingFmt.foExp, WumingFmt.foSig,
++      in(foRecWidth - 1, 0)).pad(128) }
++    is(4.U) { out := cfgFtFt.out.pad(128); flags := cfgFtFt.flags
++              hfOut := cfgFtFt.hfO.pad(128); hfFlags := cfgFtFt.hfF }
++    is(5.U) { out := cfgFoFo.out.pad(128); flags := cfgFoFo.flags
++              hfOut := cfgFoFo.hfO.pad(128); hfFlags := cfgFoFo.hfF }
++    is(6.U) { out := cfgFoFt.out.pad(128); flags := cfgFoFt.flags
++              hfOut := cfgFoFt.hfO.pad(128); hfFlags := cfgFoFt.hfF }
++    is(7.U) { out := cfgFtFo.out.pad(128); flags := cfgFtFo.flags
++              hfOut := cfgFtFo.hfO.pad(128); hfFlags := cfgFtFo.hfF }
++    is(8.U) { out := classifyFt.pad(128) }
++    is(9.U) { out := classifyFo.pad(128) }
++    is(10.U) { out := WumingRecFN.signInject(sgnHc, sgnHd, 31, false).pad(128) }
++    is(11.U) { out := WumingRecFN.signInject(sgnHc, sgnHd, 31, true).pad(128) }
++    is(12.U) { out := WumingRecFN.signInject(sgnHc, sgnHd, 63, false).pad(128) }
++    is(13.U) { out := WumingRecFN.signInject(sgnHc, sgnHd, 63, true).pad(128) }
++  }
++  io.outLo := out(63, 0)
++  io.outHi := out(127, 64)
++  io.flags := flags
++  io.hfOutLo := hfOut(63, 0)
++  io.hfOutHi := hfOut(127, 64)
++  io.hfFlags := hfFlags
++
++  val fcsr = Module(new WumingFcsr)
++  fcsr.io.writeEn := io.fcsrWrEn
++  fcsr.io.writeData := io.fcsrWrData
++  fcsr.io.fflags := io.fcsrFflags
++  io.fcsrRead := fcsr.io.read
++}
++
++/** Emits the bench as a standalone SystemVerilog model. */
++object WumingFPUnitEmit extends App {
++  val outDir = if (args.nonEmpty) args(0) else "."
++  _root_.circt.stage.ChiselStage.emitSystemVerilog(
++    new WumingFPUnitHarness,
++    Array(),
++    Array("-o", s"$outDir/WumingFPUnitHarness.sv"))
++}

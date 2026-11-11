@@ -4,6 +4,10 @@
 
 ## M12
 
+- **2026-11-11 `m12-chipyard-011`**
+  - 摘要：**FP 基础设施（recFN / 六档舍入 / 异常标志 / 分类）**。新增 `wuming/common/WumingFP.scala`：recFN 编解码（`recFNFromFN`/`fNFromRecFN`/`rawFloatFromFN`/`rawFloatFromRecFN`，语义对齐 berkeley-hardfloat，未引入其依赖）、单一舍入原语 `WumingRoundAnyRawFNToRecFN`（RNE/RTZ/RDN/RUP/RNA 五档 + `immu6` 六档解码、tininess 按 spec 取**舍入后**、`rf0[4:0]` 顺序的异常标志、qNaN payload 传播）、`classifyRaw`（`SimRISC-07 §5` 位序，bit0 sNaN … bit9 +Inf）、`signInject` 与 `WumingFcsr`（sticky 标志、`[33:32]`/`[4:0]` 写掩码、只读 qNaN 位）。`WumingRegFile` 打开 `rf` 银行并把 `rf0` 接到 `WumingFcsr`；`WumingDecoder` 解 `ld/st/ldm/stm` 的 rf 形式、`set.w rf`、`cs.* rf`、`rd2rf`/`rf2rd`、`ftcls`/`focls`、`ftsgnj`/`ftsgnn`/`fosgnj`/`fosgnn`；`WumingCore` 新增块分类状态 `sCls`（每拍一个元素）并修正 `cs.*` 第一类「恒写两值之一」的语义（第二类才条件写）；`WumingALU` 增 `SET_W`/`SGNJ`/`SGNN`。另增仅用于单元验证的 `WumingFPUnitHarness.scala`（旁挂一个 hardfloat 实例做 RTL/RTL 逐例对照，不进 SoC）。工具：`tools/chipyard/fp_ref.py`（独立模型 + 精确有理数 oracle）、`tools/chipyard/fp_sweep.py`、`tools/chipyard/fp_unit/`（Verilator 单元台）。
+  - 执行者：engineer
+
 - **2026-11-11 `m12-chipyard-010`**
   - 摘要：**位操作 + 原子 + 杂项（收齐非 cfx 指令）**：`rev.o/.t/.w/.b`（块内单元反序，`k` one-hot 且 `< S`）、`rol` 四位宽（`orrr`/`orri`）、`ctpop`/`ctlz`/`cttz`（`hd` = 有效位上界，全 0 ⇒ `hd+1`）、`clmul.o`（GF(2) 128 位积）；`lr`/`sc` 全部 24 条形式（保留标记 = 精确地址 + 宽度，`sc` 另比对 8 字节字值 ⇒ 与 QEMU 字粒度行为一致；`sc` 的 `rdHB = rd0` ⇒ ILLI、`lr` 的 `rdHB` 是 SBZ）；`swym`/`fence` 合法即 no-op（`fence` 的 `hb != 0` 或保留 `cfxha` ⇒ ILLI）；`cs.n/.z/.p/.eq/.ne` 条件赋值与 `rd2rd`/`ra2rd`/`rd2ra`/`rb2rb`/`rd2rb`/`rb2rd` 块赋值（新增 `sCopy` 状态）；`OPC-tetra/wyde/byte` 子表的算术/比较/移位补齐（窄位宽值语义 + 按宽度的除法定值）。新增 `tools/chipyard/bit_sweep.py`（964 条 `tests/inst` 向量分三组镜像 + QEMU 同镜像比对 + 3 条保留标记探针 + 周期探针）。
   - 执行者：engineer

@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingALU.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingALU.scala
 new file mode 100644
-index 0000000..117f8de
+index 0000000..19d80bb
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingALU.scala
-@@ -0,0 +1,258 @@
+@@ -0,0 +1,272 @@
 +// See LICENSE for license details.
 +//
 +// DADAO integer ALU (m12-chipyard-005, extended by m12-chipyard-010).
@@ -79,6 +79,10 @@ index 0000000..117f8de
 +  val CTLZ     = 34.U(6.W)
 +  val CTTZ     = 35.U(6.W)
 +  val CLMUL128 = 36.U(6.W)
++  // m12-chipyard-011 (FP infrastructure)
++  val SET_W    = 37.U(6.W) // set.w rf: replace the selected wyde only
++  val SGNJ     = 38.U(6.W) // copySign (spec/SimRISC-07 §3)
++  val SGNN     = 39.U(6.W) // negated copySign
 +}
 +
 +class WumingALU extends Module {
@@ -210,6 +214,13 @@ index 0000000..117f8de
 +  val immWyde   = (io.b << wydeShift)(63, 0)
 +  val wydeMask  = ("hffff".U(64.W) << wydeShift)(63, 0)
 +
++  // ---- floating-point sign injection (spec/SimRISC-07 §3) --------------
++  // Only the format's sign bit moves; every other bit comes from the first
++  // source.  `opWidth` 2 = ft (sign at bit 31), 3 = fo (sign at bit 63).
++  val sgnMask =
++    Mux(io.opWidth === 2.U, "h0000000080000000".U(64.W),
++      "h8000000000000000".U(64.W))
++
 +  val lo = WireDefault(0.U(64.W))
 +  val hi = WireDefault(0.U(64.W))
 +
@@ -258,6 +269,9 @@ index 0000000..117f8de
 +    is(WumingAluOp.SET_OW)  { lo := (~wydeMask) | immWyde }
 +    is(WumingAluOp.OR_W)    { lo := io.a | immWyde }
 +    is(WumingAluOp.ANDN_W)  { lo := io.a & ~immWyde }
++    is(WumingAluOp.SET_W)   { lo := (io.a & ~wydeMask) | immWyde }
++    is(WumingAluOp.SGNJ)    { lo := (io.a & ~sgnMask) | (io.b & sgnMask) }
++    is(WumingAluOp.SGNN)    { lo := (io.a & ~sgnMask) | ((io.b & sgnMask) ^ sgnMask) }
 +  }
 +  io.lo := lo
 +  io.hi := hi

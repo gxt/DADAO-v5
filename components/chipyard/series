@@ -12,6 +12,8 @@ generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingSemi.v.patch
 generators/dadao-wuming/src/main/scala/wuming/common/WumingALU.scala.patch
 generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala.patch
 generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala.patch
+generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala.patch
+generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala.patch
 generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala.patch
 generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala.patch
 generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala.patch

@@ -1,0 +1,534 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
+new file mode 100644
+index 0000000..84e9fe6
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
+@@ -0,0 +1,528 @@
++// See LICENSE for license details.
++//
++// DADAO floating-point infrastructure (m12-chipyard-011).
++//
++// The internal representation, the encode/decode primitives, the rounding
++// primitive and the classification predicate follow the *semantics* of
++// berkeley-hardfloat (John R. Hauser), which the DADAO specification borrows
++// for its IEEE 754 behaviour (spec/SimRISC-07, ADR-0050):
++//
++//   berkeley-hardfloat primitive      | this file                            | semantics point
++//   ----------------------------------|--------------------------------------|---------------------------------
++//   recFNFromFN.scala                 | WumingRecFN.recFNFromFN              | IEEE binary -> recoded format
++//   fNFromRecFN.scala                 | WumingRecFN.fNFromRecFN              | recoded format -> IEEE binary
++//   rawFloatFromFN.scala              | WumingRecFN.rawFloatFromFN           | unpack + normalise FN
++//   rawFloatFromRecFN.scala           | WumingRecFN.rawFloatFromRecFN        | unpack recFN
++//   primitives.scala (countLeadingZeros) | WumingRecFN.countLeadingZeros     | subnormal normalisation
++//   RoundAnyRawFNToRecFN.scala        | WumingRoundAnyRawFNToRecFN           | the one rounding primitive
++//   classifyRecFN.scala               | WumingRecFN.classifyRecFN            | SimRISC-07 §5 class bits
++//   consts.scala (round_*)            | WumingRoundMode                      | the five rounding directions
++//
++// The code is written from scratch against those semantics; **hardfloat is not
++// a build dependency of the core** (a hardfloat instance appears only in the
++// unit bench `WumingFPUnitHarness.scala`, which is never elaborated into the
++// SoC).  Two DADAO-specific differences from the upstream primitives are
++// deliberate and are marked `DADAO:` below:
++//
++//   * the exception flags are packed in the `rf0[4:0]` order of
++//     spec/SimRISC-00 §2.3.1 (bit0 NV, bit1 DZ, bit2 OF, bit3 UF, bit4 NX),
++//     i.e. the reverse of hardfloat's `exceptionFlags` ordering;
++//   * a quiet NaN input propagates its payload (spec/SimRISC-07 §1.4
++//     "*NaN 传播 payload*"), where hardfloat canonicalises it.  A signalling
++//     NaN and an invalid operation are signalled by the caller through
++//     `invalidExc` and produce the canonical quiet NaN.
++//
++// The recoded format (hardfloat's "recFN") is the format all FP data takes
++// inside the core: `sign ## exp(expWidth+1) ## sig(sigWidth-1)`, i.e. one
++// exponent bit more than the IEEE format, so that subnormals stay normalised
++// and only the encoder/decoder deal with denormalisation.
++
++package wuming.common
++
++import chisel3._
++import chisel3.util._
++
++/** Field widths of the two IEEE formats (spec/SimRISC-00 §2.3: ft = binary32,
++  * fo = binary64).  `sigWidth` counts the hidden bit, so the significand
++  * carried in the internal bundles has `sigWidth - 1` fraction bits.
++  */
++object WumingFmt {
++  val ftExp = 8
++  val ftSig = 24
++  val foExp = 11
++  val foSig = 53
++}
++
++/** The rounded directions of spec/SimRISC-07 §1.1 / ADR-0050 D2.
++  *
++  * The 3-bit codes are hardfloat's `round_*` constants, which keeps the unit
++  * bench a one-to-one comparison against `RoundAnyRawFNToRecFN`; only the five
++  * directions DADAO can request are implemented (no `round_odd`).
++  */
++object WumingRoundMode {
++  val RNE = 0.U(3.W) // round_near_even   (0x01 static, rf0 00)
++  val RTZ = 1.U(3.W) // round_minMag      (0x04 static, rf0 01)
++  val RDN = 2.U(3.W) // round_min         (0x10 static, rf0 10)
++  val RUP = 3.U(3.W) // round_max         (0x08 static, rf0 11)
++  val RNA = 4.U(3.W) // round_near_maxMag (0x02 static, no rf0 encoding)
++
++  /** `rf0[33:32]` -> direction (`00` RNE, `01` RTZ, `10` RDN, `11` RUP). */
++  def fromFcsr(bits: UInt): UInt = MuxLookup(bits, RNE)(Seq(
++    0.U -> RNE, 1.U -> RTZ, 2.U -> RDN, 3.U -> RUP))
++
++  /** The `immu6` one-hot field of the six-direction forms (ADR-0050 D2,
++    * spec/SimRISC-07 §1.1): `0x01` RNE, `0x02` RNA, `0x04` RTZ, `0x08` RUP,
++    * `0x10` RDN, `0x20` dynamic (read `rf0[33:32]`).  Returns
++    * `(legal, direction)`; every other value is ILLI.
++    */
++  def fromOneHot(immu6: UInt, fcsrMode: UInt): (Bool, UInt) = {
++    val legal = immu6 === 0x01.U || immu6 === 0x02.U || immu6 === 0x04.U ||
++      immu6 === 0x08.U || immu6 === 0x10.U || immu6 === 0x20.U
++    val dir = MuxLookup(immu6, RNE)(Seq(
++      0x01.U -> RNE,
++      0x02.U -> RNA,
++      0x04.U -> RTZ,
++      0x08.U -> RUP,
++      0x10.U -> RDN,
++      0x20.U -> fromFcsr(fcsrMode)))
++    (legal, dir)
++  }
++}
++
++/** Unpacked floating-point value (hardfloat's `RawFloat`).
++  *
++  * Invariants: at most one of `isNaN`/`isInf`/`isZero` is set; for any other
++  * value `sig(sigWidth)` is 0 and `sig(sigWidth-1)` is 1 (the significand is
++  * normalised, the exponent is not).  `sExp` is the recoded exponent: the IEEE
++  * biased exponent plus `2^(expWidth-1) + 1`, so the smallest normal value has
++  * `sExp = 2^(expWidth-1) + 2`.
++  */
++class WumingRawFloat(val expWidth: Int, val sigWidth: Int) extends Bundle {
++  val isNaN = Bool()
++  val isInf = Bool()
++  val isZero = Bool()
++  val sign = Bool()
++  val sExp = SInt((expWidth + 2).W)
++  val sig = UInt((sigWidth + 1).W)
++
++  /** Signalling NaN: a NaN whose payload's most significant bit is clear
++    * (hardfloat `isSigNaNRawFloat`; spec/SimRISC-07 §5 classification).
++    */
++  def isSigNaN: Bool = isNaN && !sig(sigWidth - 2)
++}
++
++object WumingRecFN {
++  def width(expWidth: Int, sigWidth: Int): Int = expWidth + sigWidth + 1
++
++  def minNormExp(expWidth: Int): BigInt = (BigInt(1) << (expWidth - 1)) + 2
++
++  /** Index of the most significant set bit, `n` when the input is zero
++    * (hardfloat `countLeadingZeros`, used for subnormal normalisation).
++    */
++  def countLeadingZeros(in: UInt): UInt = PriorityEncoder(in.asBools.reverse)
++
++  /** IEEE binary -> unpacked raw float (hardfloat `rawFloatFromFN`). */
++  def rawFloatFromFN(expWidth: Int, sigWidth: Int, in: UInt): WumingRawFloat = {
++    val sign = in(expWidth + sigWidth - 1)
++    val expIn = in(expWidth + sigWidth - 2, sigWidth - 1)
++    val fractIn = in(sigWidth - 2, 0)
++
++    val isZeroExpIn = expIn === 0.U
++    val isZeroFractIn = fractIn === 0.U
++
++    // A subnormal is normalised by shifting the fraction left by the number of
++    // leading zeros and dropping the exponent accordingly (the wrapped
++    // arithmetic below lands it one step below the smallest normal).
++    val normDist = countLeadingZeros(fractIn)
++    val subnormFract = (fractIn << normDist)(sigWidth - 3, 0) << 1
++    val adjustedExp =
++      Mux(isZeroExpIn,
++        normDist ^ ((BigInt(1) << (expWidth + 1)) - 1).U,
++        expIn) + ((BigInt(1) << (expWidth - 1)).U | Mux(isZeroExpIn, 2.U, 1.U))
++
++    val isZero = isZeroExpIn && isZeroFractIn
++    // `DADAO:` hardfloat leaves the exponent of a zero value as a don't-care
++    // (the leading-zero count of an all-zero fraction).  Pinning it to 0 keeps
++    // the encoder deterministic and independent of the leading-zero counter's
++    // all-zero behaviour; every consumer tests `isZero` first anyway.
++    val exponent = Mux(isZero, 0.U, adjustedExp(expWidth, 0))
++    val isSpecial = exponent(expWidth, expWidth - 1) === 3.U
++
++    val out = Wire(new WumingRawFloat(expWidth, sigWidth))
++    out.isNaN := isSpecial && !isZeroFractIn
++    out.isInf := isSpecial && isZeroFractIn
++    out.isZero := isZero
++    out.sign := sign
++    out.sExp := exponent.zext
++    out.sig := 0.U(1.W) ## !isZero ## Mux(isZeroExpIn, subnormFract, fractIn)
++    out
++  }
++
++  /** Unpacked raw float -> IEEE binary (inverse of `rawFloatFromFN`). */
++  def recFNFromFN(expWidth: Int, sigWidth: Int, in: UInt): UInt = {
++    val rawIn = rawFloatFromFN(expWidth, sigWidth, in)
++    rawIn.sign ##
++      (Mux(rawIn.isZero, 0.U(3.W), rawIn.sExp(expWidth, expWidth - 2)) |
++        Mux(rawIn.isNaN, 1.U, 0.U)) ##
++      rawIn.sExp(expWidth - 3, 0) ##
++      rawIn.sig(sigWidth - 2, 0)
++  }
++
++  /** Recoded format -> unpacked raw float (hardfloat `rawFloatFromRecFN`). */
++  def rawFloatFromRecFN(expWidth: Int, sigWidth: Int, in: UInt): WumingRawFloat = {
++    val exp = in(expWidth + sigWidth - 1, sigWidth - 1)
++    // The recoded exponent carries one bit more than the IEEE format; the two
++    // top exponent bits therefore also flag the special values.
++    val isZero = exp(expWidth, expWidth - 2) === 0.U
++    val isSpecial = exp(expWidth, expWidth - 1) === 3.U
++
++    val out = Wire(new WumingRawFloat(expWidth, sigWidth))
++    out.isNaN := isSpecial && exp(expWidth - 2)
++    out.isInf := isSpecial && !exp(expWidth - 2)
++    out.isZero := isZero
++    out.sign := in(expWidth + sigWidth)
++    out.sExp := exp.zext
++    out.sig := 0.U(1.W) ## !isZero ## in(sigWidth - 2, 0)
++    out
++  }
++
++  /** Unpacked raw float -> recoded format (hardfloat `recFNFromRawFN`, the
++    * inverse of `rawFloatFromRecFN`; used by arithmetic modules that build a
++    * raw result and hand it to the rounding primitive).
++    */
++  def recFNFromRawFloat(rawIn: WumingRawFloat): UInt = {
++    val ew = rawIn.expWidth
++    val sw = rawIn.sigWidth
++    rawIn.sign ##
++      (Mux(rawIn.isZero, 0.U(3.W), rawIn.sExp(ew, ew - 2)) |
++        Mux(rawIn.isNaN, 1.U, 0.U)) ##
++      rawIn.sExp(ew - 3, 0) ##
++      rawIn.sig(sw - 2, 0)
++  }
++
++  /** Recoded format -> IEEE binary (hardfloat `fNFromRecFN`).
++    *
++    * The recoded exponent of a subnormal is below the smallest normal one; the
++    * significand is shifted back down by exactly the number of steps it was
++    * normalised up by, giving the IEEE subnormal encoding with a zero
++    * exponent field.
++    */
++  def fNFromRecFN(expWidth: Int, sigWidth: Int, in: UInt): UInt = {
++    val minNorm = minNormExp(expWidth)
++    val rawIn = rawFloatFromRecFN(expWidth, sigWidth, in)
++
++    val isSubnormal = rawIn.sExp < minNorm.S
++    val denormShiftDist = 1.U - rawIn.sExp(log2Up(sigWidth - 1) - 1, 0)
++    val denormFract = ((rawIn.sig >> 1) >> denormShiftDist)(sigWidth - 2, 0)
++
++    val expOut =
++      Mux(isSubnormal,
++        0.U,
++        rawIn.sExp(expWidth - 1, 0) -
++          ((BigInt(1) << (expWidth - 1)) + 1).U) |
++        Fill(expWidth, rawIn.isNaN || rawIn.isInf)
++    val fractOut =
++      Mux(isSubnormal,
++        denormFract,
++        Mux(rawIn.isInf, 0.U, rawIn.sig(sigWidth - 2, 0)))
++    Cat(rawIn.sign, expOut, fractOut)
++  }
++
++  /** Classification bits of spec/SimRISC-07 §5.
++    *
++    * `DADAO:` the bit order is the manual's, bit0 signalling NaN ... bit9
++    * positive infinity, which is the reverse of hardfloat's `classifyRecFN`
++    * (that one follows the RISC-V `fclass` numbering).  Only `[9:0]` is
++    * meaningful; the caller zero-extends to the 64-bit `rd` value.
++    */
++  def classifyRaw(rawIn: WumingRawFloat): UInt = {
++    val minNorm = minNormExp(rawIn.expWidth)
++    val isSigNaN = rawIn.isSigNaN
++    val isQuietNaN = rawIn.isNaN && !isSigNaN
++    val isFiniteNonzero = !rawIn.isNaN && !rawIn.isInf && !rawIn.isZero
++    val isSubnormal = rawIn.sExp < minNorm.S
++    val isNormal = isFiniteNonzero && !isSubnormal
++    Cat(
++      !rawIn.sign && rawIn.isInf,                        // 9 positiveInfinity
++      !rawIn.sign && isNormal,                           // 8 positiveNormal
++      !rawIn.sign && isFiniteNonzero && isSubnormal,     // 7 positiveSubnormal
++      !rawIn.sign && rawIn.isZero,                       // 6 positiveZero
++      rawIn.sign && rawIn.isZero,                        // 5 negativeZero
++      rawIn.sign && isFiniteNonzero && isSubnormal,      // 4 negativeSubnormal
++      rawIn.sign && isNormal,                            // 3 negativeNormal
++      rawIn.sign && rawIn.isInf,                         // 2 negativeInfinity
++      isQuietNaN,                                        // 1 quietNaN
++      isSigNaN)                                          // 0 signalingNaN
++  }
++
++  /** copySign / negate-copySign (spec/SimRISC-07 §3): every bit of `hc` except
++    * the format's sign bit, combined with the sign of `hd` (optionally
++    * inverted).  `hd` = 0 therefore yields `abs(hc)` / `-abs(hc)`.
++    */
++  def signInject(hc: UInt, hd: UInt, signPos: Int, invert: Boolean): UInt = {
++    // Both operands are 64-bit `rf` registers; the sign sits at bit 31 (ft) or
++    // 63 (fo) of that word, so the mask is formed at full register width.
++    val mask = (BigInt(1) << signPos).U(64.W)
++    val hdSign = if (invert) (hd & mask) ^ mask else hd & mask
++    (hc.pad(64) & ~mask) | hdSign
++  }
++
++  def classifyRecFN(expWidth: Int, sigWidth: Int, in: UInt): UInt =
++    classifyRaw(rawFloatFromRecFN(expWidth, sigWidth, in))
++
++  def classifyFN(expWidth: Int, sigWidth: Int, in: UInt): UInt =
++    classifyRaw(rawFloatFromFN(expWidth, sigWidth, in))
++}
++
++/** The single rounding primitive (hardfloat `RoundAnyRawFNToRecFN`).
++  *
++  * `in.sig` must have the canonical raw-float shape (`sig(inSigWidth)` = 0,
++  * `sig(inSigWidth-1)` = 1 for non-special values); the "significand MSB is
++  * always zero" variant that hardfloat uses for some arithmetic modules is not
++  * needed by the FP conversion family and is not implemented.
++  *
++  * Tininess is detected **after rounding** as spec/SimRISC-07 §1.4 requires,
++  * so there is no `detectTininess` port.  `exceptionFlags` is in `rf0[4:0]`
++  * order (`DADAO:`) and `infiniteExc` is the divide-by-zero input that the
++  * division family drives (unused by the conversion family).
++  */
++class WumingRoundAnyRawFNToRecFN(
++    inExpWidth: Int,
++    inSigWidth: Int,
++    outExpWidth: Int,
++    outSigWidth: Int)
++    extends Module {
++  val io = IO(new Bundle {
++    val invalidExc = Input(Bool()) // invalid operation (sNaN, 0*Inf, ...)
++    val infiniteExc = Input(Bool()) // divide by zero
++    val in = Input(new WumingRawFloat(inExpWidth, inSigWidth))
++    val roundingMode = Input(UInt(3.W))
++    val out = Output(UInt(WumingRecFN.width(outExpWidth, outSigWidth).W))
++    // rf0[4:0] order: NV, DZ, OF, UF, NX
++    val exceptionFlags = Output(UInt(5.W))
++  })
++
++  // `neverUnderflows`/`neverOverflows` are hardfloat's names; the narrower input
++  // exponent range is exactly the widening-conversion case, where an
++  // underflow/overflow of the target format cannot occur.
++  val neverUnderflows = inExpWidth < outExpWidth
++  val neverOverflows = inExpWidth < outExpWidth
++
++  val outNaNExp = BigInt(7) << (outExpWidth - 2)
++  val outInfExp = BigInt(6) << (outExpWidth - 2)
++  val outMaxFiniteExp = outInfExp - 1
++  val outMinNormExp = WumingRecFN.minNormExp(outExpWidth)
++  val outMinNonzeroExp = outMinNormExp - outSigWidth + 1
++
++  val roundingMode_near_even = io.roundingMode === WumingRoundMode.RNE
++  val roundingMode_minMag = io.roundingMode === WumingRoundMode.RTZ
++  val roundingMode_min = io.roundingMode === WumingRoundMode.RDN
++  val roundingMode_max = io.roundingMode === WumingRoundMode.RUP
++  val roundingMode_near_maxMag = io.roundingMode === WumingRoundMode.RNA
++
++  // Rounding the magnitude up happens for RDN on a negative value and RUP on a
++  // positive one (hardfloat `roundMagUp`).
++  val roundMagUp =
++    (roundingMode_min && io.in.sign) || (roundingMode_max && !io.in.sign)
++
++  // ---- align the significand on the target exponent ----------------------
++  // `sAdjustedExp` re-bases the input exponent on the output bias; when the
++  // input format is narrower the sum is taken in the wider width and truncated
++  // back, which is what keeps the widening conversions exact.
++  val sAdjustedExp: SInt =
++    if (inExpWidth < outExpWidth) {
++      (io.in.sExp +&
++        ((BigInt(1) << outExpWidth) - (BigInt(1) << inExpWidth)).S)(outExpWidth, 0).zext
++    } else if (inExpWidth == outExpWidth) {
++      io.in.sExp
++    } else {
++      io.in.sExp +& ((BigInt(1) << outExpWidth) - (BigInt(1) << inExpWidth)).S
++    }
++
++  // Keep `outSigWidth + 2` significand bits: the hidden bit lands on bit
++  // `outSigWidth + 1`, bit 1 is the round bit and bit 0 the sticky bit.  A
++  // wider input folds every dropped bit into the sticky position.
++  val adjustedSig: UInt =
++    if (inSigWidth <= outSigWidth + 2) {
++      (io.in.sig << (outSigWidth - inSigWidth + 2))(outSigWidth + 2, 0)
++    } else {
++      io.in.sig(inSigWidth, inSigWidth - outSigWidth - 1) ##
++        io.in.sig(inSigWidth - outSigWidth - 2, 0).orR
++    }
++
++  // ---- rounding position -------------------------------------------------
++  // Base drop is 2 bits; a result below the smallest normal loses one further
++  // bit per step of denormalisation, because the subnormal quantum is coarser
++  // than the value's own last bit (hardfloat expresses the same thing as a
++  // growing round mask).  The cap only has to be wide enough to clear the whole
++  // significand; beyond that the result is zero (or the pegged minimum).
++  val sigWidthBits = outSigWidth + 3
++  val denormSteps = outMinNormExp.S - sAdjustedExp
++  val extraDrop =
++    Mux(denormSteps <= 0.S, 0.U,
++      Mux(denormSteps >= sigWidthBits.S, sigWidthBits.U(8.W),
++        denormSteps(7, 0)))
++  val drop = extraDrop + 2.U
++
++  // Mask of the bits strictly below the round bit: `drop - 1` low bits.
++  val fullMask = ((BigInt(1) << sigWidthBits) - 1).U(sigWidthBits.W)
++  val belowMask =
++    Mux(drop === 0.U, 0.U(sigWidthBits.W),
++      Mux(drop - 1.U >= sigWidthBits.U, fullMask,
++        fullMask >> (sigWidthBits.U - (drop - 1.U))))
++  val roundPosBit = Mux(drop >= 1.U, (adjustedSig >> (drop - 1.U))(0), false.B)
++  val anyRoundExtra = (adjustedSig & belowMask).orR
++  val anyRound = roundPosBit || anyRoundExtra
++
++  val kept = adjustedSig >> drop
++  val roundIncr =
++    (roundingMode_near_even && roundPosBit && (anyRoundExtra || kept(0))) ||
++      (roundingMode_near_maxMag && roundPosBit) ||
++      (roundMagUp && anyRound)
++  // Re-normalise the rounded magnitude: a subnormal result carries its
++  // significand shifted back up, so the recoded word has exactly one spelling
++  // (the decoder discards the redundant low bits anyway).  A rounded-up
++  // subnormal carries into bit `outSigWidth`, which is the exponent step.
++  val roundedSig =
++    ((kept +& roundIncr.asUInt) << extraDrop)(outSigWidth, 0)
++
++  // The exponent step from a rounding carry is a positive one: `asUInt.zext`
++  // (not `asSInt`, which would read the 1-bit carry as -1).
++  val expCarry = roundedSig(outSigWidth)
++  val sRoundedExp: SInt = sAdjustedExp +& expCarry.asUInt.zext
++
++  val common_expOut = sRoundedExp(outExpWidth, 0)
++  val common_fractOut = roundedSig(outSigWidth - 2, 0)
++
++  // Magnitude below the smallest positive value representable in the target
++  // format (rounds to zero); it also makes the result inexact.
++  val common_totalUnderflow =
++    if (neverUnderflows) false.B else sRoundedExp < outMinNonzeroExp.S
++  val common_overflow =
++    if (neverOverflows) false.B else (sRoundedExp >> (outExpWidth - 1) >= 3.S)
++  val common_inexact = common_totalUnderflow || anyRound
++  // Underflow: the *rounded* magnitude is below the smallest normal (tininess
++  // after rounding) and the rounding dropped a nonzero part.  A value that
++  // rounds up onto the smallest normal is therefore not tiny.
++  val common_underflow = common_inexact && (sRoundedExp < outMinNormExp.S)
++
++  // ---- special values and pegging ---------------------------------------
++  val isNaNOut = io.invalidExc || io.in.isNaN
++  val notNaN_isSpecialInfOut = io.infiniteExc || io.in.isInf
++  val commonCase = !isNaNOut && !notNaN_isSpecialInfOut && !io.in.isZero
++
++  val overflow = commonCase && common_overflow
++  val underflow = if (neverUnderflows) false.B else commonCase && common_underflow
++  val inexact = overflow || (commonCase && common_inexact)
++
++  val overflow_roundMagUp =
++    roundingMode_near_even || roundingMode_near_maxMag || roundMagUp
++  val pegMinNonzeroMagOut = commonCase && common_totalUnderflow && roundMagUp
++  val pegMaxFiniteMagOut = overflow && !overflow_roundMagUp
++  val notNaN_isInfOut =
++    notNaN_isSpecialInfOut || (overflow && overflow_roundMagUp)
++
++  val signOut = Mux(isNaNOut, false.B, io.in.sign)
++  val expOut =
++    (common_expOut &
++      ~Mux(io.in.isZero || common_totalUnderflow,
++        (BigInt(7) << (outExpWidth - 2)).U((outExpWidth + 1).W),
++        0.U((outExpWidth + 1).W)) &
++      ~Mux(pegMinNonzeroMagOut,
++        ~outMinNonzeroExp.U((outExpWidth + 1).W),
++        0.U((outExpWidth + 1).W)) &
++      ~Mux(pegMaxFiniteMagOut,
++        (BigInt(1) << (outExpWidth - 1)).U((outExpWidth + 1).W),
++        0.U((outExpWidth + 1).W)) &
++      ~Mux(notNaN_isInfOut,
++        (BigInt(1) << (outExpWidth - 2)).U((outExpWidth + 1).W),
++        0.U((outExpWidth + 1).W))) |
++      Mux(pegMinNonzeroMagOut, outMinNonzeroExp.U((outExpWidth + 1).W), 0.U) |
++      Mux(pegMaxFiniteMagOut, outMaxFiniteExp.U((outExpWidth + 1).W), 0.U) |
++      Mux(notNaN_isInfOut, outInfExp.U((outExpWidth + 1).W), 0.U) |
++      Mux(isNaNOut, outNaNExp.U((outExpWidth + 1).W), 0.U)
++
++  // DADAO: a quiet NaN input keeps its payload (truncated on narrowing, with
++  // the dropped bits OR-ed into the last payload bit; shifted up on widening).
++  // An invalid operation produces the canonical quiet NaN, like hardfloat.
++  val payload =
++    if (inSigWidth == outSigWidth) {
++      io.in.sig(outSigWidth - 2, 0)
++    } else if (inSigWidth > outSigWidth) {
++      io.in.sig(inSigWidth - 2, inSigWidth - outSigWidth) |
++        Fill(outSigWidth - 1, io.in.sig(inSigWidth - outSigWidth - 1, 0).orR)
++    } else {
++      io.in.sig(inSigWidth - 2, 0) << (outSigWidth - inSigWidth)
++    }
++  val quietBit = (BigInt(1) << (outSigWidth - 2)).U((outSigWidth - 1).W)
++  val nanFract = Mux(io.invalidExc || !io.in.isNaN,
++    quietBit,
++    payload.pad(outSigWidth - 1) | quietBit)
++
++  val fractOut =
++    Mux(isNaNOut || io.in.isZero || common_totalUnderflow,
++      Mux(isNaNOut, nanFract, 0.U),
++      common_fractOut) |
++      Fill(outSigWidth - 1, pegMaxFiniteMagOut)
++
++  io.out := signOut ## expOut ## fractOut
++  io.exceptionFlags :=
++    Cat(inexact, underflow, overflow, io.infiniteExc, io.invalidExc)
++}
++
++/** Classify one `rf` register (spec/SimRISC-07 §5).
++  *
++  * `ft` values live in the low 32 bits of the register, `fo` values in all 64
++  * (spec/SimRISC-00 §2.3); the class bits are returned in the manual's order
++  * (`WumingRecFN.classifyRaw`) and padded to 64 bits by the core.
++  */
++class WumingClassify extends Module {
++  val io = IO(new Bundle {
++    val isFo = Input(Bool())
++    val in = Input(UInt(64.W))
++    val out = Output(UInt(10.W))
++  })
++  io.out := Mux(io.isFo,
++    WumingRecFN.classifyFN(WumingFmt.foExp, WumingFmt.foSig, io.in),
++    WumingRecFN.classifyFN(WumingFmt.ftExp, WumingFmt.ftSig, io.in(31, 0)))
++}
++
++/** Software-visible part of the FP environment: `rf0` (spec/SimRISC-00 §2.3.1).
++  *
++  * `rf0` is simultaneously the FCSR and the quiet NaN of both formats:
++  * `[63:51]`/`[31:22]` are read-only quiet-NaN bits, `[50:34]`/`[21:5]` are
++  * SBZ and read back zero, `[33:32]` is the rounding mode and `[4:0]` the
++  * accrued exception flags.  A write only updates `[33:32]` and `[4:0]`
++  * (everything else keeps its value), and a software write sets the flag field
++  * outright, which is how the software clears it; the flags raised by FP
++  * operations accumulate (sticky) until then.
++  */
++class WumingFcsr extends Module {
++  val io = IO(new Bundle {
++    val writeEn = Input(Bool())
++    val writeData = Input(UInt(64.W))
++    val fflags = Input(UInt(5.W)) // flags raised by this cycle's FP operation
++    val read = Output(UInt(64.W))
++    val mode = Output(UInt(2.W))
++    val flags = Output(UInt(5.W))
++  })
++
++  val resetValue = "h7ff800007fc00000".U(64.W)
++  val modeReg = RegInit(resetValue(33, 32))
++  val flagsReg = RegInit(resetValue(4, 0))
++
++  when(io.writeEn) {
++    modeReg := io.writeData(33, 32)
++    flagsReg := io.writeData(4, 0)
++  }.otherwise {
++    flagsReg := flagsReg | io.fflags
++  }
++
++  io.mode := modeReg
++  io.flags := flagsReg
++  // Everything except `[33:32]` and `[4:0]` is read-only: the quiet-NaN bits
++  // are fixed and the SBZ columns read as zero.
++  val writableMask = ("h3".U(64.W) << 32) | "h1f".U(64.W)
++  io.read := (resetValue & ~writableMask) |
++    (modeReg << 32) | flagsReg.pad(64)
++}
