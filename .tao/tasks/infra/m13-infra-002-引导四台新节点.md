@@ -4,7 +4,7 @@
 **项目里程碑**：M13
 **依赖**：无
 **可并行分片**：是（四台独立，互不干扰；主控机只做编排）
-**状态**：待验收
+**状态**：已验证
 
 ## 用户授权（2026-11-12，原话）
 
@@ -88,4 +88,12 @@
   ② QEMU 的 **meson subprojects 不在 `.cache`**，`install-host` 会逐个去 gitlab 拉（先 `keycodemapdb`、再 `berkeley-softfloat-3`）⇒ 需从主控机 rsync **整个** `.work/source/qemu/subprojects/`（6.5 MB）
 - 日志：主控机该任务的运行期日志目录（`apt-*` / `clone-*` / `sync-cache` / `bootstrap{,2,3}-*` / `verify-*`）
 - 未改任何仓库代码；节点侧只有仓库本体与构建产物
+
+#### 收尾（architect，2026-11-12 01:27）
+
+- reviewer **Accepted**：四台 `make check` rc=0 ×4、`check-inst` **991/996（5 deferred）+ 44/44**、载体 24 册、1040 例；与主控机同 commit 结果**逐字相同**；`/home` 余 252 GB、`/` 余 82 GB、125 GiB、40 vCPU。
+- **finding 1 已修（我的违规）**：任务书曾把 SSH 端口 + `HostName` + 账号写进仓库，违反用户 2026-11-07 裁定；已删，只留「映射在主控机本地 SSH 配置，不入库」。
+- 其余 finding 已改：任务号 001→002、家目录路径改「节点仓库根」、完成区「8 步」→「`[step 0]`–`[step 8]` 9 行」、披露 apt 首轮 `APT_RC=255`（needrestart 断连、包已装上，`dpkg -s` 复核）。
+- `nodes.md §8 step 3` 已补「无外网节点要带 QEMU 的 meson subprojects」；§1.1 记两个坑。
+- 主控机 `make -s check` rc=2 属并发任务中间态（`check-patch-tree` 的 qemu 未导出 + 他任务临时目录），四台节点同门控全绿。
 
