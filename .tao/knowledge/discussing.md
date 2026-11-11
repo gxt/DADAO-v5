@@ -412,3 +412,16 @@ reviewer 建议 ①（随 `019` 做）。**待用户裁定。**
 `m12-chipyard-013` 的 spec 草案暴露：我们把 `ftqcmp`/`foqcmp` 写成「任何 NaN 都不置 NV」，但 IEEE 754-2019 §5.11 要求 **quiet 谓词遇 sNaN 仍置 invalid**（hardfloat 同）。用户裁定（原话）：「改为置 NV（跟 IEEE）」。
 
 影响面：chipyard RTL（`ftqcmp`/`foqcmp` 的 NV 条件改为「sNaN 输入即置」）、QEMU 同、模型/向量同步、spec 补写。跨模块，拆两个任务串行（`m13-qemu-004` 先行 → `m12-chipyard-024`）。**注意**：这与 2026-11-11 的 signaling 裁定不冲突——signaling 是「任何无序（含 qNaN）都置」，quiet 是「仅 sNaN 置」。
+
+## 已定规则：浮点差分一律以 IEEE-754 2019 为准（2026-11-12）
+
+用户原话：「MEMORY.md中增加一条spec规则：浮点设计和实现过程中出现的差分问题，都以IEEE-754 2019中规定的行为为准，SimRISC指令系统和各模拟器都应以此更新和修订」
+
+落盘：`.tao/knowledge/MEMORY.md`「DADAO 反套用清单」末条（硬约束）。
+
+**推论**：已知的实现/spec 偏离需逐条按 IEEE 复核，不再以「与 hardfloat/QEMU 一致」或「spec 原文如此」为终局依据。已识别候选（待审计）：
+1. `fo2ft` 溢出**恒** ±Inf（`SimRISC-07 §1.4` / `contract-fp §2`）；IEEE 按舍入模式：RNE/RUP → ±Inf，RTZ/RDN → ±最大有限。**这是 spec 与 IEEE 的直接冲突**。
+2. quiet compare 遇 sNaN 不置 `NV`（已立 `qemu-004` + `chipyard-024` 改为置）。
+3. sNaN 结果 payload：本核 canonical vs softfloat 保留输入 payload；IEEE 只要求 quiet 位、不强制 payload 传播。
+4. NaN 结果符号位：本核清 0 vs softfloat 保留；IEEE 未规定符号位，属实现自由（需在 spec 写明）。
+5. `ld.t rf0` 保留只读 qNaN 位（`SimRISC-00 §2.3.1`）——IEEE 无此只读位概念，属**测试机约定**，需在 spec 标为架构附加。
