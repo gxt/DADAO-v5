@@ -397,3 +397,12 @@ testcases-003（207 原计划）+ 008（208 差集）→ 长尾计时；结果�
 - **② 修 `Machine-v5 §6`**：承认该窗口为测试机约定（改动小，但 spec 多一条历史例外）。
 
 reviewer 建议 ①（随 `019` 做）。**待用户裁定。**
+
+## 已裁定：signaling compare 遇 qNaN 置 `NV`（2026-11-11）
+
+`m12-chipyard-013` 报「待裁定」：`ftscmp`/`foscmp` 遇 **qNaN** 操作数是否置 `NV`。
+`spec/SimRISC-07` / `contract-fp` 未写；任务书与 QEMU 原口径为「不置（仅 sNaN 置）」；IEEE 754 / hardfloat 为「任何无序都置」。
+
+**用户裁定（原话）**：「按 IEEE/hardfloat：任何无序都置」。
+
+影响面（需立任务）：① chipyard RTL（`ftscmp`/`foscmp` 的 NV 条件）；② QEMU（当前比较族完全不置标志）；③ 模型/oracle + 向量（现 `cmp_snan` 12 例为 model-only，需补 qNaN 例并从 model-only 转为三方对照）；④ spec 补写该条（`SimRISC-07`）。属**跨模块**改动，按 `AGENTS.md` 需用户确认后立册。
