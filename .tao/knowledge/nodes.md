@@ -128,6 +128,7 @@
    - **时区必须设为 `Asia/Shanghai`**：`bootstrap_node.sh` 的 **step 0** 会自动 `sudo timedatectl set-timezone Asia/Shanghai` 并校验（幂等：已是 CST 则跳过）；手工引导时同样执行该命令，并 `date` 与主控机比对（差异 ≤ 1 s）。节点原厂多为 `Etc/UTC`；不统一会让跨机日志时间戳差 8 h，导致「任务到底在哪台做」判断错误（2026-11-09 实际发生过）。
 2. 装 4.2 的包（或让 `bootstrap_node.sh` step 1 报清单后照单安装）。
 3. 同步仓库（bundle 或内网 rsync）+ 本地 `.cache/*.git`。
+   - **无外网节点还要带 QEMU 的 meson subprojects**：从主控机 `rsync` 整个 `.work/source/qemu/subprojects/`（约 6.5 MB）到节点同路径，否则 `install-host` 会逐个去 gitlab 拉（先 `keycodemapdb`、再 `berkeley-softfloat-3`），在无网环境必然失败。详见 §1.1「网络」末条。
 4. `tools/infra/bootstrap_node.sh`：`fetch → apply-series → compiler-rt configure → install-host → make check`。
    - **补丁集变更后必须先 reset**：`apply-series` 只接受「base」或「base+1 且内容等于补丁集」；上游 v5 的补丁集更新后，节点源树仍是旧的 base+1 ⇒ 它会拒绝并退出非零。做法：`git -C .work/source/<组件> reset --hard <manifests 里的 commit>`，再 `make apply-series`。
 5. 验收：`make check` rc=0、`make check-inst` 与本机同 commit 结果一致；用 `tools/infra/remote.py status/preflight` 确认。
