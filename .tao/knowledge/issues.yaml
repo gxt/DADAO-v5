@@ -264,3 +264,10 @@
   status: open
   resolved_by: null
   title: 【P2】**并发派单事故：改变差分参照的任务与使用该参照验收的任务并行**。`m13-qemu-003`（改 QEMU 比较族 NV 语义）与 `m12-chipyard-013`（以 QEMU 为对照验收）并发，导致 013 验收块从 `211/0` 变成 `209/2`、`check-patch-tree` 因 qemu 源树未导出补丁而红。规则建议：派单前标出「本任务是否改变其它任务的差分/基线参照」；若是，要么串行，要么在该任务任务书里冻结参照版本（写 commit/md5）。
+- id: ISS-396
+  scope:
+  - chipyard
+  - spec
+  status: open
+  resolved_by: null
+  title: 【P2】**`spec/SimRISC-07 §4` 比较族标志草案不能直接入册（待用户裁定 quiet+sNaN）**：① 条号写 `§5.7.1`（应为 `§5.6.1`/`§5.11`）；② **quiet compare 遇 sNaN** —— IEEE 754-2019 §5.11 要求仍置 `invalid`（hardfloat 同），本核与 QEMU 选择不置 ⇒ 属**有意偏离**，草案里写成「hardfloat 是唯一例外」需改为「DADAO 口径取舍、明示偏离」；③ 草案把「quiet 不置」并入用户原话，而用户 2026-11-11 原话仅「按 IEEE/hardfloat：任何无序都置」（针对 signaling）⇒ 按 `ISS-365` 待用户确认后再入册。

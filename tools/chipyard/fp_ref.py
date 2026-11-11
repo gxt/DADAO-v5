@@ -353,6 +353,21 @@ def round_exact(ie, isig, oe, osig, r, mode, invalid_exc=False,
     # exact magnitude: sig * 2^(s_exp - 2^ie - (isig-1))
     mant = r["sig"]
     e2 = r["s_exp"] - (1 << ie) - (isig - 1)
+    return round_dyadic(oe, osig, sign, mant, e2, mode)
+
+
+def round_dyadic(oe, osig, sign, mant, e2, mode):
+    """Round the exact dyadic value ``(-1)^sign * mant * 2^e2`` to the IEEE
+    format ``(oe, osig)``; returns ``(recoded word, rf0[4:0] flags)``.
+
+    This is the *only* place a value is rounded: every arithmetic oracle below
+    forms its exact result as an integer mantissa and an exponent, so the
+    arithmetic oracles and the rounding oracle cannot drift apart, and none of
+    them mirrors the RTL.
+    """
+    if mant == 0:
+        return sign << (oe + osig), 0
+
     emin = 2 - (1 << (oe - 1))              # smallest normal exponent
     emax = (1 << (oe - 1)) - 1
     e_floor = mant.bit_length() - 1 + e2    # floor(log2(value))
@@ -369,12 +384,9 @@ def round_exact(ie, isig, oe, osig, r, mode, invalid_exc=False,
 
     # significand carry: normalise an exact power of two result
     e_res = qexp  # exponent of the LSB of `mag`
-    # `mag` is a multiple of 2^qexp; if mag shifted up to 2^osig the value
-    # becomes 2^(e_res + osig)
     if mag >= (1 << osig):
         mag >>= 1
         e_res += 1
-    # magnitude of the rounded result
     res_e = e_res + (mag.bit_length() - 1) if mag else 0
 
     if mag == 0:
@@ -524,6 +536,230 @@ def f2f_exact(src_ew, src_sw, dst_ew, dst_sw, x, mode, force_inf_on_overflow):
     return out, flags
 
 
+# ── arithmetic oracles (m12-chipyard-013, spec/SimRISC-07 §2) ────────────
+#
+# Every oracle forms the *exact* result (an integer mantissa with a binary
+# exponent) and hands it to `round_dyadic`, i.e. the value is rounded once from
+# its exact value -- never from an intermediate rounded result.  The special
+# cases follow spec/SimRISC-07: `NV` for a signalling NaN input and for the
+# invalid operations, a quiet NaN input propagating its payload for add/sub/mul
+# (§1.4), the canonical quiet NaN for the fused multiply-add (§2.5), `-0` below
+# `+0` for the comparisons and min/max, the canonical quiet NaN for two NaN
+# operands of min/max (§2.4), and `NV` from a signalling compare on any
+# unordered pair (§4).
+def _is_snan(r, sig_width):
+    """Signalling NaN: a NaN whose payload's most significant bit is clear."""
+    return r["is_nan"] and not ((r["sig"] >> (sig_width - 2)) & 1)
+
+
+def _exp_all_ones(ew, sw):
+    return ((1 << ew) - 1) << (sw - 1)
+
+
+def _canon_qnan(ew, sw):
+    """Canonical quiet NaN: sign 0, payload all zero (IEEE 754-2019 §6.2)."""
+    return _exp_all_ones(ew, sw) | (1 << (sw - 2))
+
+
+def _quieted(r, ew, sw):
+    """The NaN `r` as a quiet NaN with its payload kept (spec §1.4)."""
+    return _exp_all_ones(ew, sw) | (r["sig"] & ((1 << (sw - 1)) - 1)) \
+        | (1 << (sw - 2))
+
+
+def _inf_bits(sign, ew, sw):
+    return (sign << (ew + sw - 1)) | _exp_all_ones(ew, sw)
+
+
+def _dyadic(r, ew, sw):
+    """``(sign, mant, e2)`` of a raw float with ``value = +-mant * 2^e2``."""
+    mant = 0 if r["is_zero"] else r["sig"]
+    return r["sign"], mant, r["s_exp"] - (1 << ew) - (sw - 1)
+
+
+def _add_dyadic(x, y):
+    """Exact sum of two dyadics, as ``(sign, mant, e2)``."""
+    sx, mx, ex = x
+    sy, my, ey = y
+    e = min(ex, ey)
+    v = (-mx if sx else mx) << (ex - e)
+    v += (-my if sy else my) << (ey - e)
+    if v < 0:
+        return 1, -v, e
+    return 0, v, e
+
+
+def _mul_dyadic(x, y):
+    sx, mx, ex = x
+    sy, my, ey = y
+    return sx ^ sy, mx * my, ex + ey
+
+
+def _sum_or_zero(terms, mode):
+    """Add dyadics; an exact zero takes the IEEE 754-2019 §6.3 sign: the common
+    sign when every term has it, `-0` under RDN otherwise."""
+    if not terms:
+        return 0, 0, 0
+    acc = terms[0]
+    for t in terms[1:]:
+        acc = _add_dyadic(acc, t)
+    if acc[1] == 0:
+        signs = {t[0] for t in terms if t[1] != 0}
+        if len(signs) == 0:
+            # all terms are zeros: same sign -> that sign, else the RDN rule
+            if len({t[0] for t in terms}) == 1:
+                return terms[0][0], 0, 0
+            return (1 if mode == RDN else 0), 0, 0
+        if len(signs) == 1:
+            return signs.pop(), 0, 0
+        return (1 if mode == RDN else 0), 0, 0
+    return acc
+
+
+def add_exact(ew, sw, a, b, sub, mode):
+    """Exact add/sub oracle: ``(IEEE result bits, rf0[4:0] flags)``."""
+    ra = raw_from_fn(ew, sw, a)
+    rb = raw_from_fn(ew, sw, b)
+    sign_b = rb["sign"] ^ (1 if sub else 0)
+
+    if _is_snan(ra, sw) or _is_snan(rb, sw):
+        return _canon_qnan(ew, sw), NV
+    if ra["is_nan"] or rb["is_nan"]:
+        src = ra if ra["is_nan"] else rb
+        return _quieted(src, ew, sw), 0
+    if ra["is_inf"] or rb["is_inf"]:
+        if ra["is_inf"] and rb["is_inf"] and ra["sign"] != sign_b:
+            return _canon_qnan(ew, sw), NV
+        sign = ra["sign"] if ra["is_inf"] else sign_b
+        return _inf_bits(sign, ew, sw), 0
+
+    x = _dyadic(ra, ew, sw)
+    y = _dyadic(rb, ew, sw)
+    y = (sign_b,) + y[1:]
+    sign, mant, e2 = _sum_or_zero([x, y], mode)
+    if mant == 0:
+        return sign << (ew + sw - 1), 0
+    rec, flags = round_dyadic(ew, sw, sign, mant, e2, mode)
+    return fn_from_recfn(ew, sw, rec), flags
+
+
+def mul_exact(ew, sw, a, b, mode):
+    """Exact multiply oracle: ``(IEEE result bits, rf0[4:0] flags)``."""
+    ra = raw_from_fn(ew, sw, a)
+    rb = raw_from_fn(ew, sw, b)
+    sign = ra["sign"] ^ rb["sign"]
+
+    if _is_snan(ra, sw) or _is_snan(rb, sw):
+        return _canon_qnan(ew, sw), NV
+    if ra["is_nan"] or rb["is_nan"]:
+        src = ra if ra["is_nan"] else rb
+        return _quieted(src, ew, sw), 0
+    if (ra["is_inf"] and rb["is_zero"]) or (ra["is_zero"] and rb["is_inf"]):
+        return _canon_qnan(ew, sw), NV
+    if ra["is_inf"] or rb["is_inf"]:
+        return _inf_bits(sign, ew, sw), 0
+    if ra["is_zero"] or rb["is_zero"]:
+        return sign << (ew + sw - 1), 0
+
+    sign, mant, e2 = _mul_dyadic(_dyadic(ra, ew, sw), _dyadic(rb, ew, sw))
+    rec, flags = round_dyadic(ew, sw, sign, mant, e2, mode)
+    return fn_from_recfn(ew, sw, rec), flags
+
+
+def fma_exact(ew, sw, a, b, c, mode):
+    """Exact fused multiply-add oracle: ``(IEEE result bits, flags)``.
+
+    `a * b` is formed exactly and added to `c` exactly; the sum is rounded once
+    (spec/SimRISC-07 §2.5).  The NaN result is the canonical quiet NaN.
+    """
+    ra = raw_from_fn(ew, sw, a)
+    rb = raw_from_fn(ew, sw, b)
+    rc = raw_from_fn(ew, sw, c)
+    sign_prod = ra["sign"] ^ rb["sign"]
+    # The product is infinite only when both factors are numbers; a NaN
+    # multiplicand makes the product NaN even if the other factor is an
+    # infinity (spec/SimRISC-07 §2.5: the Inf rule is "Inf x finite non-zero").
+    prod_inf = (ra["is_inf"] or rb["is_inf"]) and \
+        not (ra["is_nan"] or rb["is_nan"])
+
+    inf_zero = (ra["is_inf"] and rb["is_zero"]) or \
+        (ra["is_zero"] and rb["is_inf"])
+    inf_diff = prod_inf and rc["is_inf"] and (sign_prod != rc["sign"])
+
+    if _is_snan(ra, sw) or _is_snan(rb, sw) or _is_snan(rc, sw):
+        return _canon_qnan(ew, sw), NV
+    if inf_zero or inf_diff:
+        return _canon_qnan(ew, sw), NV
+    if ra["is_nan"] or rb["is_nan"] or rc["is_nan"]:
+        return _canon_qnan(ew, sw), 0
+    if prod_inf or rc["is_inf"]:
+        sign = sign_prod if prod_inf else rc["sign"]
+        return _inf_bits(sign, ew, sw), 0
+
+    prod = _mul_dyadic(_dyadic(ra, ew, sw), _dyadic(rb, ew, sw))
+    addend = _dyadic(rc, ew, sw)
+    sign, mant, e2 = _sum_or_zero([prod, addend], mode)
+    if mant == 0:
+        return sign << (ew + sw - 1), 0
+    rec, flags = round_dyadic(ew, sw, sign, mant, e2, mode)
+    return fn_from_recfn(ew, sw, rec), flags
+
+
+def _order_key(x, ew, sw):
+    """Monotone key of an IEEE encoding (``-0`` below ``+0``)."""
+    w = ew + sw
+    x &= (1 << w) - 1
+    sign = (x >> (w - 1)) & 1
+    return (~x) & ((1 << w) - 1) if sign else (x | (1 << (w - 1)))
+
+
+def cmp_exact(ew, sw, a, b, signaling):
+    """Compare oracle: ``(64-bit result, rf0[4:0] flags)``.
+
+    Ordered pairs give 1 / 0 / -1; an unordered pair gives a quiet NaN (quiet
+    compare) or a signalling NaN (signalling compare), sign bit clear.  `NV`
+    follows spec/SimRISC-07 §4: a signalling compare raises it for **any**
+    unordered pair, quiet NaN included (IEEE 754-2019 §5.7.1), while a quiet
+    compare raises no flag.
+    """
+    ra = raw_from_fn(ew, sw, a)
+    rb = raw_from_fn(ew, sw, b)
+    nv = NV if (signaling and (ra["is_nan"] or rb["is_nan"])) else 0
+    if ra["is_nan"] or rb["is_nan"]:
+        nan = _exp_all_ones(ew, sw) | ((1 << 0) if signaling else (1 << (sw - 2)))
+        return nan, nv
+    if ra["is_zero"] and rb["is_zero"]:
+        return 0, 0                     # every zero encoding compares equal
+    ka = _order_key(a, ew, sw)
+    kb = _order_key(b, ew, sw)
+    if ka > kb:
+        return 1, 0
+    if ka < kb:
+        return (1 << 64) - 1, 0
+    return 0, 0
+
+
+def minmax_exact(ew, sw, a, b, is_max):
+    """minimumNumber/maximumNumber oracle: ``(64-bit result, flags)``.
+
+    A single NaN returns the number, two NaNs return the canonical quiet NaN,
+    and a signalling NaN input raises `NV` either way (spec §2.4).
+    """
+    ra = raw_from_fn(ew, sw, a)
+    rb = raw_from_fn(ew, sw, b)
+    nv = NV if (_is_snan(ra, sw) or _is_snan(rb, sw)) else 0
+    if ra["is_nan"] and rb["is_nan"]:
+        return _canon_qnan(ew, sw), nv
+    if ra["is_nan"]:
+        return b & ((1 << (ew + sw)) - 1), nv
+    if rb["is_nan"]:
+        return a & ((1 << (ew + sw)) - 1), nv
+    ka = _order_key(a, ew, sw)
+    kb = _order_key(b, ew, sw)
+    pick_a = (ka >= kb) if is_max else (ka <= kb)
+    return (a if pick_a else b) & ((1 << (ew + sw)) - 1), nv
+
+
 # ── vector domains used by the self-check and the unit bench ──────────────
 def sample_raw(ie, isig, n, rng):
     """Raw floats covering every corner the rounding primitive must handle:
@@ -598,6 +834,134 @@ def sample_fn(ew, sw, n, rng):
         pats.append((rng.getrandbits(1) << (w - 1))
                     | (e << (sw - 1)) | rng.getrandbits(sw - 1))
     return pats
+
+
+def _arith_patterns(ew, sw):
+    """The operand patterns the arithmetic family must get right: every special
+    value, the extremes of the exponent range, the subnormal boundary and the
+    exact-cancellation partner of each."""
+    w = ew + sw
+    exp_all = (1 << ew) - 1
+    min_norm = 1 << (sw - 1)          # exponent field of the smallest normal
+    pats = []
+    for sign in (0, 1):
+        s = sign << (w - 1)
+        pats += [s,                                  # +-0
+                 s | 1,                              # +-smallest subnormal
+                 s | (min_norm - 1),                 # +-largest subnormal
+                 s | min_norm,                       # +-smallest normal
+                 s | min_norm | 1,
+                 s | (min_norm | (1 << (sw - 2))),   # +-1.0
+                 s | (min_norm | 1),                 # 1 + ulp
+                 s | ((exp_all - 1) << (sw - 1)) | ((1 << (sw - 1)) - 1),
+                 s | ((exp_all - 1) << (sw - 1)),    # +-largest finite
+                 s | (exp_all << (sw - 1)),          # +-inf
+                 s | (exp_all << (sw - 1)) | 1,      # sNaN
+                 s | (exp_all << (sw - 1)) | (1 << (sw - 2)),  # qNaN
+                 s | (exp_all << (sw - 1)) | (1 << (sw - 2)) | 0x3F]
+    # the sub/super-normal boundary of both formats
+    pats += [min_norm - 1, min_norm, min_norm + 1, 1, 2]
+    pats += [((1 << (ew - 1)) << (sw - 1)), ((1 << (ew - 1)) - 1) << (sw - 1)]
+    return pats
+
+
+def sample_pairs(ew, sw, n, rng):
+    """``(a, b)`` pairs for add/sub/mul: the structural cases (exact
+    cancellation, both zeros of every sign, operands on the same binade, far
+    apart exponents) plus random pairs."""
+    pats = _arith_patterns(ew, sw)
+    w = ew + sw
+    mask = (1 << w) - 1
+    pairs = []
+    for a in pats:
+        pairs.append((a, a))                       # equal
+        pairs.append((a, a ^ (1 << (w - 1))))      # negated -> cancellation
+        pairs.append((a, pats[(pats.index(a) + 3) % len(pats)]))
+    one = (1 << (ew - 1)) << (sw - 1) | (1 << (ew - 1))   # 1.0 encoding
+    for delta in (0, 1, 2, sw - 1, sw, sw + 1, sw + 3, 2 * sw):
+        for _ in range(max(1, n // 16)):
+            a = rng.getrandbits(w) & mask
+            ea = (a >> (sw - 1)) & ((1 << ew) - 1)
+            nb = (a & ((1 << (sw - 1)) - 1)) | (a & (1 << (w - 1)))
+            ne = min(max(ea + rng.choice([-delta, delta]), 0), (1 << ew) - 1)
+            pairs.append((a, nb | (ne << (sw - 1))))
+    for _ in range(n):
+        pairs.append((rng.getrandbits(w) & mask, rng.getrandbits(w) & mask))
+    # a tiny operand next to a huge one (the far path of the alignment)
+    for _ in range(n // 4):
+        ea = rng.randrange(1, (1 << ew) - 1)
+        eb = max(1, min((1 << ew) - 2, ea + rng.choice([-1, 1]) *
+                        rng.randrange(sw, 2 * sw + 6)))
+        a = (rng.getrandbits(1) << (w - 1)) | (ea << (sw - 1)) | \
+            rng.getrandbits(sw - 1)
+        b = (rng.getrandbits(1) << (w - 1)) | (eb << (sw - 1)) | \
+            rng.getrandbits(sw - 1)
+        pairs.append((a, b))
+    _ = one
+    return pairs
+
+
+def sample_fma_triples(ew, sw, n, rng):
+    """``(a, b, c)`` triples for the fused multiply-add: the single-rounding
+    counterexample of spec/SimRISC-07 §2.5, c chosen as (minus) the rounded or
+    the exact product (catastrophic cancellation of the fused sum), overflow and
+    underflow of the product, and random triples."""
+    w = ew + sw
+    mask = (1 << w) - 1
+    exp_all = (1 << ew) - 1
+    one = ((1 << (ew - 1)) << (sw - 1)) | (1 << (ew - 1))
+    triples = []
+    # Spec §2.5 counterexample: (1 + ulp)(1 - ulp) - 1 = -ulp^2 for ft.
+    a = one + 1 if sw == 24 else one + 1
+    b = one - 1 if sw == 24 else one - 1
+    triples.append((a, b, (1 << (w - 1)) | one))         # -1
+    # A NaN multiplicand makes the product NaN even next to an infinity, so
+    # `qNaN x Inf + (-Inf)` is a propagation (no NV) while `Inf x 1 + (-Inf)`
+    # is the invalid Inf + (-Inf) (spec/SimRISC-07 §2.5).
+    qnan = (exp_all << (sw - 1)) | (1 << (sw - 2))
+    inf = exp_all << (sw - 1)
+    triples += [(qnan, inf, (1 << (w - 1)) | inf),
+                (qnan, inf, inf),
+                (inf, one, (1 << (w - 1)) | inf),
+                (inf, one, inf),
+                (0, inf, qnan)]
+    # exact cancellation of the fused sum: c = -(a*b) when that is representable
+    for _ in range(n // 4):
+        ea = rng.randrange(1, exp_all - 1)
+        a = (ea << (sw - 1)) | (1 << (sw - 1)) | rng.getrandbits(sw - 2)
+        b = one
+        triples.append((a, b, ((1 << (w - 1)) | (ea << (sw - 1)) |
+                               (1 << (sw - 1)) | (a & ((1 << (sw - 2)) - 1)))))
+    # product at the extremes with an addend just below / above it
+    for ea, eb in ((exp_all - 2, 2), (2, exp_all - 2), (exp_all - 2, exp_all - 2),
+                   (1, 1), (1, 2), (2, 1)):
+        a = (ea << (sw - 1)) | (1 << (sw - 1)) | ((1 << (sw - 1)) - 1)
+        b = (eb << (sw - 1)) | (1 << (sw - 1)) | ((1 << (sw - 1)) - 1)
+        for c in (0, one, (1 << (w - 1)) | one, 1, (1 << (w - 1)) | 1,
+                  (exp_all - 1) << (sw - 1)):
+            triples.append((a, b, c))
+    for a in _arith_patterns(ew, sw):
+        triples.append((a, one, one))
+        triples.append((a, one, 0))
+        triples.append((a, 0, one))
+        triples.append((a, a, a))
+    for _ in range(n):
+        triples.append((rng.getrandbits(w) & mask, rng.getrandbits(w) & mask,
+                        rng.getrandbits(w) & mask))
+    # random triples whose product and addend are within a few binades (where
+    # the fused sum can cancel)
+    for _ in range(n):
+        ea = rng.randrange(1, exp_all - 1)
+        eb = rng.randrange(1, exp_all - 1)
+        ec = max(1, min(exp_all - 1, ea + eb - (1 << (ew - 1)) +
+                        rng.randrange(-4, 5)))
+        triples.append(((rng.getrandbits(1) << (w - 1)) | (ea << (sw - 1)) |
+                        rng.getrandbits(sw - 1),
+                        (rng.getrandbits(1) << (w - 1)) | (eb << (sw - 1)) |
+                        rng.getrandbits(sw - 1),
+                        (rng.getrandbits(1) << (w - 1)) | (ec << (sw - 1)) |
+                        rng.getrandbits(sw - 1)))
+    return triples
 
 
 def sample_ints(int_width, n, rng):

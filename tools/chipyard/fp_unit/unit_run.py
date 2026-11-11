@@ -54,10 +54,11 @@ def run_vectors(binary, path):
             continue
         res.append(dict(op=int(f[1]), in_lo=int(f[2], 16),
                         in_hi=int(f[3], 16), mode=int(f[4]),
-                        out=int(f[6], 16) << 64 | int(f[5], 16),
-                        flags=int(f[7], 16),
-                        hf_out=int(f[9], 16) << 64 | int(f[8], 16),
-                        hf_flags=int(f[10], 16)))
+                        in_extra=int(f[5], 16),
+                        out=int(f[7], 16) << 64 | int(f[6], 16),
+                        flags=int(f[8], 16),
+                        hf_out=int(f[10], 16) << 64 | int(f[9], 16),
+                        hf_flags=int(f[11], 16)))
     return res
 
 
@@ -75,6 +76,31 @@ def _write(args, name, lines):
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
     return path
+
+
+def is_uf_boundary(out, flags, hf_flags, ew, sw):
+    """hardfloat reports `UF|NX` where spec/SimRISC-07 §1.4 (tininess detected
+    *after* rounding) does not: the rounded result is exactly the smallest
+    normal, so it is not tiny.  Only that exact difference is tolerated, and
+    only when the result magnitude is the smallest normal.
+    """
+    if hf_flags != (flags | F.UF) or (flags & F.UF) or not (flags & F.NX):
+        return False
+    v = out & ((1 << (ew + sw)) - 1)
+    exp = (v >> (sw - 1)) & ((1 << ew) - 1)
+    return exp == 1
+
+
+def is_cmp_snan_quiet_divergence(ew, sw, a, b, signaling, mine, hf_flags):
+    """hardfloat's *quiet* compare raises `NV` for an sNaN input; spec/SimRISC-07
+    §4 (and QEMU) raise no flag on a quiet compare.  Only that exact difference
+    is tolerated, so the signalling forms (where the rule agrees) still assert
+    the hardfloat flag bit for bit."""
+    if signaling or mine != 0 or hf_flags != F.NV:
+        return False
+    ra = F.raw_from_fn(ew, sw, a)
+    rb = F.raw_from_fn(ew, sw, b)
+    return F._is_snan(ra, sw) or F._is_snan(rb, sw)
 
 
 def fn_val(x, ew, sw):
@@ -356,6 +382,147 @@ def check(args):
           f"dz-flag-raised={ndz} inf-shape-checked={dz_inf_checked}")
     fails += dz_hf + dz_bad
     summary.append(("dz lane", len(got), dz_hf + dz_bad))
+
+    # ── arithmetic family (m12-chipyard-013) ──────────────────────────────
+    # add/sub/mul/fma: value compared against hardfloat's RTL (NaNs collapsed,
+    # since the two implementations pick different NaN payloads) and against
+    # the exact oracle bit for bit (the DADAO payload rule is part of the
+    # contract).  compare: value against hardfloat's lt/eq/gt and the NaN
+    # constant, flags against hardfloat's own form (signalling compare raises
+    # NV on any unordered pair; quiet compare raises it for an sNaN input
+    # only, a documented divergence from spec/SimRISC-07 §4, which the core
+    # follows).  min/max have no hardfloat counterpart: oracle only.
+    BIN = {25: ("add ft", F.FT, False), 26: ("sub ft", F.FT, True),
+           27: ("mul ft", F.FT, None),
+           29: ("add fo", F.FO, False), 30: ("sub fo", F.FO, True),
+           31: ("mul fo", F.FO, None)}
+    FMA = {28: ("fma ft", F.FT), 32: ("fma fo", F.FO)}
+    CMP = {33: ("qcmp ft", F.FT, False), 34: ("scmp ft", F.FT, True),
+           35: ("qcmp fo", F.FO, False), 36: ("scmp fo", F.FO, True)}
+    MM = {37: ("min ft", F.FT, False), 38: ("max ft", F.FT, True),
+          39: ("min fo", F.FO, False), 40: ("max fo", F.FO, True)}
+    MODES = (F.RNE, F.RTZ, F.RDN, F.RUP, F.RNA)
+
+    for op, (name, (ew, sw), sub) in BIN.items():
+        pairs = F.sample_pairs(ew, sw, args.n, rng)
+        lines = [f"{op} {a:x} {b:x} {mode} 0"
+                 for (a, b) in pairs for mode in MODES]
+        got = run_vectors(args.bin, _write(args, f"vectors_op{op}.txt", lines))
+        bad_hf = bad_flag = bad_oracle = uf_boundary = 0
+        for r in got:
+            a, b, mode = r["in_lo"], r["in_hi"], r["mode"]
+            if sub is None:
+                want, wflags = F.mul_exact(ew, sw, a, b, mode)
+            else:
+                want, wflags = F.add_exact(ew, sw, a, b, sub, mode)
+            if r["out"] != want or r["flags"] != wflags:
+                bad_oracle += 1
+                if bad_oracle <= 6:
+                    print(f"  [ORACLE] {name} a={a:x} b={b:x} mode={mode} "
+                          f"want={want:x}/{wflags:x} got={r['out']:x}/{r['flags']:x}")
+            if fn_val(r["out"], ew, sw) != fn_val(r["hf_out"], ew, sw):
+                bad_hf += 1
+                if bad_hf <= 6:
+                    print(f"  [DIFF] {name} a={a:x} b={b:x} mode={mode} "
+                          f"mine={r['out']:x} hf={r['hf_out']:x}")
+            if r["flags"] != r["hf_flags"]:
+                if is_uf_boundary(r["out"], r["flags"], r["hf_flags"], ew, sw):
+                    uf_boundary += 1
+                    continue
+                bad_flag += 1
+                if bad_flag <= 6:
+                    print(f"  [FLAG] {name} a={a:x} b={b:x} mode={mode} "
+                          f"mine={r['flags']:x} hf={r['hf_flags']:x}")
+        print(f"  {name}: {len(got)} vectors | hf-value-diff={bad_hf} "
+              f"hf-flag-diff={bad_flag} uf-boundary={uf_boundary} "
+              f"oracle-diff={bad_oracle}")
+        fails += bad_hf + bad_flag + bad_oracle
+        summary.append((name, len(got), bad_hf + bad_flag + bad_oracle))
+
+    for op, (name, (ew, sw)) in FMA.items():
+        triples = F.sample_fma_triples(ew, sw, args.n, rng)
+        lines = [f"{op} {a:x} {b:x} {mode} {c:x}"
+                 for (a, b, c) in triples for mode in MODES]
+        got = run_vectors(args.bin, _write(args, f"vectors_op{op}.txt", lines))
+        bad_hf = bad_flag = bad_oracle = uf_boundary = 0
+        for r in got:
+            a, b, c, mode = r["in_lo"], r["in_hi"], r["in_extra"], r["mode"]
+            want, wflags = F.fma_exact(ew, sw, a, b, c, mode)
+            if r["out"] != want or r["flags"] != wflags:
+                bad_oracle += 1
+                if bad_oracle <= 6:
+                    print(f"  [ORACLE] {name} a={a:x} b={b:x} c={c:x} "
+                          f"mode={mode} want={want:x}/{wflags:x} "
+                          f"got={r['out']:x}/{r['flags']:x}")
+            if fn_val(r["out"], ew, sw) != fn_val(r["hf_out"], ew, sw):
+                bad_hf += 1
+                if bad_hf <= 6:
+                    print(f"  [DIFF] {name} a={a:x} b={b:x} c={c:x} "
+                          f"mode={mode} mine={r['out']:x} hf={r['hf_out']:x}")
+            if r["flags"] != r["hf_flags"]:
+                if is_uf_boundary(r["out"], r["flags"], r["hf_flags"], ew, sw):
+                    uf_boundary += 1
+                    continue
+                bad_flag += 1
+                if bad_flag <= 6:
+                    print(f"  [FLAG] {name} a={a:x} b={b:x} c={c:x} "
+                          f"mode={mode} mine={r['flags']:x} hf={r['hf_flags']:x}")
+        print(f"  {name}: {len(got)} vectors | hf-value-diff={bad_hf} "
+              f"hf-flag-diff={bad_flag} uf-boundary={uf_boundary} "
+              f"oracle-diff={bad_oracle}")
+        fails += bad_hf + bad_flag + bad_oracle
+        summary.append((name, len(got), bad_hf + bad_flag + bad_oracle))
+
+    for op, (name, (ew, sw), signaling) in CMP.items():
+        pairs = F.sample_pairs(ew, sw, max(1, args.n // 4), rng)
+        lines = [f"{op} {a:x} {b:x} 0 0" for (a, b) in pairs]
+        got = run_vectors(args.bin, _write(args, f"vectors_op{op}.txt", lines))
+        bad_hf = bad_flag = bad_oracle = quiet_snan = 0
+        for r in got:
+            a, b = r["in_lo"], r["in_hi"]
+            want, wflags = F.cmp_exact(ew, sw, a, b, signaling)
+            if r["out"] != want or r["flags"] != wflags:
+                bad_oracle += 1
+                if bad_oracle <= 6:
+                    print(f"  [ORACLE] {name} a={a:x} b={b:x} "
+                          f"want={want:x}/{wflags:x} got={r['out']:x}/{r['flags']:x}")
+            if r["out"] != r["hf_out"]:
+                bad_hf += 1
+                if bad_hf <= 6:
+                    print(f"  [DIFF] {name} a={a:x} b={b:x} "
+                          f"mine={r['out']:x} hf={r['hf_out']:x}")
+            if r["flags"] != r["hf_flags"]:
+                if is_cmp_snan_quiet_divergence(ew, sw, a, b, signaling,
+                                                r["flags"], r["hf_flags"]):
+                    quiet_snan += 1
+                    continue
+                bad_flag += 1
+                if bad_flag <= 6:
+                    print(f"  [FLAG] {name} a={a:x} b={b:x} "
+                          f"mine={r['flags']:x} hf={r['hf_flags']:x}")
+        print(f"  {name}: {len(got)} vectors | hf-value-diff={bad_hf} "
+              f"hf-flag-diff={bad_flag} hf-quiet-snan-divergence={quiet_snan} "
+              f"oracle-diff={bad_oracle}")
+        fails += bad_hf + bad_flag + bad_oracle
+        summary.append((name, len(got), bad_hf + bad_flag + bad_oracle))
+
+    for op, (name, (ew, sw), is_max) in MM.items():
+        pairs = F.sample_pairs(ew, sw, max(1, args.n // 4), rng)
+        lines = [f"{op} {a:x} {b:x} 0 0" for (a, b) in pairs]
+        got = run_vectors(args.bin, _write(args, f"vectors_op{op}.txt", lines))
+        bad_oracle = 0
+        for r in got:
+            a, b = r["in_lo"], r["in_hi"]
+            want, wflags = F.minmax_exact(ew, sw, a, b, is_max)
+            if r["out"] != want or r["flags"] != wflags:
+                bad_oracle += 1
+                if bad_oracle <= 6:
+                    print(f"  [ORACLE] {name} a={a:x} b={b:x} "
+                          f"want={want:x}/{wflags:x} got={r['out']:x}/{r['flags']:x}")
+        print(f"  {name}: {len(got)} vectors | hf-value-diff=n/a "
+              f"hf-flag-diff=n/a oracle-diff={bad_oracle}")
+        fails += bad_oracle
+        summary.append((name, len(got), bad_oracle))
 
     # ── FCSR (clocked) ────────────────────────────────────────────────────
     fpath = os.path.join(args.workdir, "fcsr.txt")

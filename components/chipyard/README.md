@@ -103,6 +103,15 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **验证**：`tools/chipyard/fp_ref.py` 的 `f2i_exact`/`i2f_exact`/`f2f_exact`（精确值 + 一次舍入 + 饱和/标志判定，独立于 RTL）、`fp_unit/`（同一组向量喂本实现与 hardfloat `RecFNToIN`/`INToRecFN`，逐例比值与 5 位标志；另含 `infiniteExc`/DZ 通道）、`fp_sweep.py` 的 9 个 `cvt_*` 组（整核上跑并回读 `rf0`）、`inst_case_run.py`（把 `tests/inst/fp/convert.yaml` 驱动到本核，并与 QEMU 同镜像逐字节比对）。
 - **与 QEMU 的一处已知差异**：sNaN 作 `ft2fo` 输入时本核（同 hardfloat / gem5）返回**规范 qNaN**，QEMU/softfloat 保留输入的 payload；spec 只要求「返回 qNaN」，故该组不进 QEMU 对照（`cvt_snan`）。
 
+## FP 算术族（`m12-chipyard-013`）
+
+- **单元**（`WumingFP.scala`，语义对齐 berkeley-hardfloat 的 `AddRecFN` / `MulRecFN` / `MulAddRecFN` / `CompareRecFN`，仍未引入其依赖）：`WumingAddRecFN`（加减）、`WumingMulRecFN`（乘）、`WumingMulAddRecFN`（融合乘加）、`WumingCompareRecFN`（quiet/signaling 比较）、`WumingMinMax`（最小最大），由 `WumingFPArith` 按 `kind`+`isFo` 选出。三种舍入运算都先把精确结果做成**定点整数**，再经**同一个**舍入原语 `WumingRoundAnyRawFNToRecFN` 一次舍入：加/减在对齐窗口（大于数精确、小数只丢到 sticky 位）内求和取 floor + sticky；乘法用 `2*sigWidth` 位精确积；FMA 用 `2*sigWidth+guard` 位窗口把精确积与加数对齐到同一刻度求和 —— 因此**只在最后舍入一次**（`spec/SimRISC-07 §2.5`），与「先乘后加」不同（`tests/inst/fp/arith.yaml` 用 spec 的 ft 反例与其 fo 类比各留一例对照）。
+- **NaN 口径**：加/减/乘 传播**第一个** qNaN 的 payload（`SimRISC-07 §1.4`），sNaN 或无效运算（`0×Inf`、`Inf+(−Inf)`）⇒ `NV` + canonical qNaN；FMA 的 NaN 结果按 `§2.5` **恒为 canonical qNaN**（与 QEMU 的 default-NaN 模式一致），**NaN 乘数即使另一因子是 Inf 也使积为 NaN**（Inf 规则的前提是「Inf × 有限非零数」），故 `qNaN×Inf+(−Inf)` 不置 `NV`。比较：无序 ⇒ `ftqcmp`/`foqcmp` 返回 qNaN、`ftscmp`/`foscmp` 返回 sNaN（符号位 0）；**`NV` 只由 signaling 形式抬起，且对任何无序（qNaN 或 sNaN）都置**（IEEE 754-2019 §5.7.1），quiet 形式不置任何标志（用户 2026-11-11 裁定；QEMU 同口径）。最小最大：单 NaN 返回那个数、双 NaN 返回 canonical qNaN、`−0 < +0`、sNaN 输入 ⇒ `NV`、不涉舍入（`§2.4`）。
+- **解码**（`WumingDecoder`）：`orrr` 的 `ftadd/ftsub/ftmul`、`foadd/fosub/fomul`、`ftmin/ftmax/fomin/fomax`、`ftqcmp/ftscmp/foqcmp/foscmp`（目的 `rf0`/`rd0` ⇒ ILLI），以及 `rrrr` 单目的 `ftfma/fofma`（`opc 0x5E/0x5F`，`rfHA` 目的、三个源可与其重叠）。舍入方向恒取 `rf0[33:32]`。
+- **标志**：`WumingCore` 把算术单元的 5 位标志接到 `rf.io.fflags` —— **`OF`/`UF`/`NX` 首次由算术指令抬起**（`NV` 的算术路径随 sNaN/无效运算一并到位），sticky 累积与软件清零沿用 `WumingFcsr`。
+- **周期（trace 实测）**：`foadd`/`fomul`/`fofma`/`foqcmp`/`fomin`/`fomax` 各 **1 拍**。
+- **验证**：`fp_unit/` 把同一组向量同时喂本实现与 hardfloat 的 `AddRecFN`/`MulRecFN`/`MulAddRecFN`/`CompareRecFN`（值 + 5 位标志逐例比对；quiet compare 的 sNaN 输入是 hardfloat 与 `§4` 的已知差异，单列计数）并比对 `fp_ref` 的精确 oracle（加/乘/FMA 用**精确整数尾数 + 指数**、比较/最小最大用单调键）；`fp_sweep.py` 的 12 个 `arith_*` 组（含 FMA 特殊值组）+ `cmp_nan` 组在整核上跑并回读 `rf0`，同一镜像在 QEMU 上逐字节比对（仅 `arith_nan` 因 sNaN payload 口径为模型only）；`tests/inst/fp/arith.yaml` 28 例（含 3 条 ILLI）在本核与 QEMU 上逐字节一致。
+
 ## 边界
 - **保留** rocket-chip 库（Diplomacy / TileLink / `BaseTile`）与 chipyard 仿真设施（Verilator harness / BootROM / 内存模型 / `loadmem`）。
 - **抛开** Rocket 核与 RISC-V 语义（CSR / misa / PMP / MMU / TLB / 异常码）；`WumingCoreParams` 不继承 `CoreParams`。

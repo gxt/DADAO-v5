@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
 new file mode 100644
-index 0000000..40fe18a
+index 0000000..621657b
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
-@@ -0,0 +1,369 @@
+@@ -0,0 +1,577 @@
 +// See LICENSE for license details.
 +//
 +// Unit bench for the FP infrastructure (m12-chipyard-011).
@@ -44,13 +44,29 @@ index 0000000..40fe18a
 +//  24  rounding primitive with `infiniteExc` raised (the divide-by-zero /
 +//      `DZ` lane) on a normal ft input -- the m12-011 bench tied that port to
 +//      0, so this op is what first exercises it
++//  25  add ft           in = a, inHi = b
++//  26  sub ft
++//  27  mul ft
++//  28  fma ft           in = a, inHi = b, inExtra = c
++//  29  add fo
++//  30  sub fo
++//  31  mul fo
++//  32  fma fo
++//  33  qcmp ft          in = a, inHi = b        (quiet compare)
++//  34  scmp ft                                  (signalling compare)
++//  35  qcmp fo
++//  36  scmp fo
++//  37  min ft
++//  38  max ft
++//  39  min fo
++//  40  max fo
 +//
 +// `hfOut`/`hfFlags` carry the hardfloat result of the same operation for ops
-+// 4-7 (its raw `exceptionFlags` order: NV, DZ, OF, UF, NX) and are zero
-+// otherwise.  `io.flags` uses the DADAO `rf0[4:0]` order.  For ops 14-24 the
-+// hardfloat result is already normalised to the DADAO flag order (and, for
-+// `fo2ft`, the contract's overflow-to-Infinity override applied), so the
-+// comparison is a direct one.
++// 4-7 (its raw `exceptionFlags` order: NV, DZ, OF, UF, NX), for the conversion
++// ops (already normalised) and for ops 25-36 (hardfloat's `AddRecFN`,
++// `MulRecFN`, `MulAddRecFN` and `CompareRecFN`).  The two min/max ops have no
++// hardfloat counterpart and are checked against the exact oracle only.
++// `io.flags` uses the DADAO `rf0[4:0]` order.
 +//
 +// The `WumingFcsr` instance is the clocked part of the bench (ops are
 +// combinational, so the TB just holds the clock while evaluating them).
@@ -62,10 +78,11 @@ index 0000000..40fe18a
 +
 +class WumingFPUnitHarness extends Module {
 +  val io = IO(new Bundle {
-+    val op = Input(UInt(5.W))
++    val op = Input(UInt(6.W))
 +    val mode = Input(UInt(3.W))
 +    val inLo = Input(UInt(64.W))
 +    val inHi = Input(UInt(64.W))
++    val inExtra = Input(UInt(64.W)) // third source of the fused multiply-add
 +    val outLo = Output(UInt(64.W))
 +    val outHi = Output(UInt(64.W))
 +    val flags = Output(UInt(5.W))
@@ -249,14 +266,126 @@ index 0000000..40fe18a
 +  dzHf.io.roundingMode := io.mode
 +  dzHf.io.detectTininess := hardfloat.consts.tininess_afterRounding
 +
-+  def rev5(x: UInt): UInt = Cat(x(0), x(1), x(2), x(3), x(4))
-+  /** hardfloat's float->integer result at the 64-bit `rd` width (DADAO signs
++  def rev5(x: UInt): UInt = Cat(x(0), x(1), x(2), x(3), x(4))  /** hardfloat's float->integer result at the 64-bit `rd` width (DADAO signs
 +    * or zero-extends the 32-bit forms).
 +    */
 +  def hfF2iValue(u: UInt, signed: Bool): UInt =
 +    Mux(signed, u.asSInt.pad(64).asUInt, u.pad(64))
 +
-+  // ---- output mux -------------------------------------------------------
++  // ---- arithmetic family (m12-chipyard-013) ------------------------------
++  // Mine = `WumingFPArith` (the production unit); the hardfloat counterpart of
++  // the same operation sits next to it, so every result is an RTL/RTL
++  // comparison.  `min`/`max` have no hardfloat module and are checked against
++  // the exact oracle only.
++  val arith = Module(new WumingFPArith)
++  arith.io.a := in(63, 0)
++  arith.io.b := in(127, 64)
++  arith.io.c := io.inExtra
++  arith.io.mode := io.mode
++
++  val OP_ADD_FT = 25.U
++  val OP_SUB_FT = 26.U
++  val OP_MUL_FT = 27.U
++  val OP_FMA_FT = 28.U
++  val OP_ADD_FO = 29.U
++  val OP_SUB_FO = 30.U
++  val OP_MUL_FO = 31.U
++  val OP_FMA_FO = 32.U
++  val OP_QCMP_FT = 33.U
++  val OP_SCMP_FT = 34.U
++  val OP_QCMP_FO = 35.U
++  val OP_SCMP_FO = 36.U
++  val OP_MIN_FT = 37.U
++  val OP_MAX_FT = 38.U
++  val OP_MIN_FO = 39.U
++  val OP_MAX_FO = 40.U
++
++  val arithKind = MuxLookup(io.op, WumingFPArithOp.ADD)(Seq(
++    OP_ADD_FT -> WumingFPArithOp.ADD, OP_SUB_FT -> WumingFPArithOp.SUB,
++    OP_MUL_FT -> WumingFPArithOp.MUL, OP_FMA_FT -> WumingFPArithOp.FMA,
++    OP_ADD_FO -> WumingFPArithOp.ADD, OP_SUB_FO -> WumingFPArithOp.SUB,
++    OP_MUL_FO -> WumingFPArithOp.MUL, OP_FMA_FO -> WumingFPArithOp.FMA,
++    OP_QCMP_FT -> WumingFPArithOp.QCMP, OP_SCMP_FT -> WumingFPArithOp.SCMP,
++    OP_QCMP_FO -> WumingFPArithOp.QCMP, OP_SCMP_FO -> WumingFPArithOp.SCMP,
++    OP_MIN_FT -> WumingFPArithOp.MIN, OP_MAX_FT -> WumingFPArithOp.MAX,
++    OP_MIN_FO -> WumingFPArithOp.MIN, OP_MAX_FO -> WumingFPArithOp.MAX))
++  val arithFo = (io.op === OP_ADD_FO) || (io.op === OP_SUB_FO) ||
++    (io.op === OP_MUL_FO) || (io.op === OP_FMA_FO) ||
++    (io.op === OP_QCMP_FO) || (io.op === OP_SCMP_FO) ||
++    (io.op === OP_MIN_FO) || (io.op === OP_MAX_FO)
++  arith.io.kind := arithKind
++  arith.io.isFo := arithFo
++
++  // hardfloat counterparts, one per (operation, format).
++  val hfAddFt = Module(new hardfloat.AddRecFN(WumingFmt.ftExp, WumingFmt.ftSig))
++  val hfAddFo = Module(new hardfloat.AddRecFN(WumingFmt.foExp, WumingFmt.foSig))
++  val hfSubFt = Module(new hardfloat.AddRecFN(WumingFmt.ftExp, WumingFmt.ftSig))
++  val hfSubFo = Module(new hardfloat.AddRecFN(WumingFmt.foExp, WumingFmt.foSig))
++  val hfMulFt = Module(new hardfloat.MulRecFN(WumingFmt.ftExp, WumingFmt.ftSig))
++  val hfMulFo = Module(new hardfloat.MulRecFN(WumingFmt.foExp, WumingFmt.foSig))
++  val hfFmaFt = Module(new hardfloat.MulAddRecFN(WumingFmt.ftExp, WumingFmt.ftSig))
++  val hfFmaFo = Module(new hardfloat.MulAddRecFN(WumingFmt.foExp, WumingFmt.foSig))
++
++  def driveHfArith(
++      u: hardfloat.AddRecFN, ew: Int, sw: Int, sub: Boolean): Unit = {
++    u.io.a := WumingRecFN.recFNFromFN(ew, sw, in(ew + sw - 1, 0))
++    u.io.b := WumingRecFN.recFNFromFN(ew, sw, in(127, 64)(ew + sw - 1, 0))
++    u.io.subOp := sub.B
++    u.io.roundingMode := io.mode
++    u.io.detectTininess := hardfloat.consts.tininess_afterRounding
++  }
++  driveHfArith(hfAddFt, WumingFmt.ftExp, WumingFmt.ftSig, sub = false)
++  driveHfArith(hfAddFo, WumingFmt.foExp, WumingFmt.foSig, sub = false)
++  driveHfArith(hfSubFt, WumingFmt.ftExp, WumingFmt.ftSig, sub = true)
++  driveHfArith(hfSubFo, WumingFmt.foExp, WumingFmt.foSig, sub = true)
++  for ((u, ew, sw) <- Seq((hfMulFt, WumingFmt.ftExp, WumingFmt.ftSig),
++                            (hfMulFo, WumingFmt.foExp, WumingFmt.foSig))) {
++    u.io.a := WumingRecFN.recFNFromFN(ew, sw, in(ew + sw - 1, 0))
++    u.io.b := WumingRecFN.recFNFromFN(ew, sw, in(127, 64)(ew + sw - 1, 0))
++    u.io.roundingMode := io.mode
++    u.io.detectTininess := hardfloat.consts.tininess_afterRounding
++  }
++  for ((u, ew, sw) <- Seq((hfFmaFt, WumingFmt.ftExp, WumingFmt.ftSig),
++                            (hfFmaFo, WumingFmt.foExp, WumingFmt.foSig))) {
++    u.io.op := 0.U
++    u.io.a := WumingRecFN.recFNFromFN(ew, sw, in(ew + sw - 1, 0))
++    u.io.b := WumingRecFN.recFNFromFN(ew, sw, in(127, 64)(ew + sw - 1, 0))
++    u.io.c := WumingRecFN.recFNFromFN(ew, sw, io.inExtra(ew + sw - 1, 0))
++    u.io.roundingMode := io.mode
++    u.io.detectTininess := hardfloat.consts.tininess_afterRounding
++  }
++
++  // hardfloat's quiet compare raises NV for a signalling NaN input, and its
++  // signalling compare for any unordered pair (IEEE 754-2019 §5.7.1) -- the
++  // latter is the spec/SimRISC-07 §4 contract, so the signalling forms compare
++  // flags against the signalling instance.
++  val hfCmpFtQ = Module(new hardfloat.CompareRecFN(WumingFmt.ftExp, WumingFmt.ftSig))
++  val hfCmpFtS = Module(new hardfloat.CompareRecFN(WumingFmt.ftExp, WumingFmt.ftSig))
++  val hfCmpFoQ = Module(new hardfloat.CompareRecFN(WumingFmt.foExp, WumingFmt.foSig))
++  val hfCmpFoS = Module(new hardfloat.CompareRecFN(WumingFmt.foExp, WumingFmt.foSig))
++  for ((u, ew, sw, signaling) <- Seq(
++      (hfCmpFtQ, WumingFmt.ftExp, WumingFmt.ftSig, false),
++      (hfCmpFtS, WumingFmt.ftExp, WumingFmt.ftSig, true),
++      (hfCmpFoQ, WumingFmt.foExp, WumingFmt.foSig, false),
++      (hfCmpFoS, WumingFmt.foExp, WumingFmt.foSig, true))) {
++    u.io.a := WumingRecFN.recFNFromFN(ew, sw, in(ew + sw - 1, 0))
++    u.io.b := WumingRecFN.recFNFromFN(ew, sw, in(127, 64)(ew + sw - 1, 0))
++    u.io.signaling := signaling.B
++  }
++
++  // Value of a hardfloat comparison: 1 / 0 / -1, or the NaN constant the
++  // DADAO compare returns for an unordered pair.
++  def hfCmpValue(q: hardfloat.CompareRecFN, s: hardfloat.CompareRecFN,
++      ew: Int, sw: Int): UInt = {
++    val unordered = !(q.io.lt || q.io.eq || q.io.gt)
++    val expOnes = ((BigInt(1) << ew) - 1) << (sw - 1)
++    val nanBits = Mux(q.io.signaling, (expOnes | 1).U((ew + sw).W),
++      (expOnes | (BigInt(1) << (sw - 2))).U((ew + sw).W))
++    val cmp = Mux(q.io.lt, "hffff_ffff_ffff_ffff".U,
++      Mux(q.io.gt, 1.U, 0.U))
++    Mux(unordered, nanBits.pad(64), cmp.pad(64))
++  }
++
 +  val out = WireDefault(0.U(128.W))
 +  val flags = WireDefault(0.U(5.W))
 +  val hfOut = WireDefault(0.U(128.W))
@@ -350,6 +479,85 @@ index 0000000..40fe18a
 +      out := dzRounder.io.out.pad(128); flags := dzRounder.io.exceptionFlags
 +      hfOut := dzHf.io.out.pad(128); hfFlags := rev5(dzHf.io.exceptionFlags)
 +    }
++    // ---- arithmetic family (m12-chipyard-013) ----------------------------
++    is(OP_ADD_FT) {
++      out := arith.io.out.pad(128); flags := arith.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.ftExp, WumingFmt.ftSig,
++        hfAddFt.io.out).pad(128)
++      hfFlags := rev5(hfAddFt.io.exceptionFlags)
++    }
++    is(OP_SUB_FT) {
++      out := arith.io.out.pad(128); flags := arith.io.flags
++      // `ftsub` uses the same hardfloat adder with `subOp`; a second instance
++      // keeps the bench a pure wiring layer.
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.ftExp, WumingFmt.ftSig,
++        hfSubFt.io.out).pad(128)
++      hfFlags := rev5(hfSubFt.io.exceptionFlags)
++    }
++    is(OP_MUL_FT) {
++      out := arith.io.out.pad(128); flags := arith.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.ftExp, WumingFmt.ftSig,
++        hfMulFt.io.out).pad(128)
++      hfFlags := rev5(hfMulFt.io.exceptionFlags)
++    }
++    is(OP_FMA_FT) {
++      out := arith.io.out.pad(128); flags := arith.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.ftExp, WumingFmt.ftSig,
++        hfFmaFt.io.out).pad(128)
++      hfFlags := rev5(hfFmaFt.io.exceptionFlags)
++    }
++    is(OP_ADD_FO) {
++      out := arith.io.out.pad(128); flags := arith.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.foExp, WumingFmt.foSig,
++        hfAddFo.io.out).pad(128)
++      hfFlags := rev5(hfAddFo.io.exceptionFlags)
++    }
++    is(OP_SUB_FO) {
++      out := arith.io.out.pad(128); flags := arith.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.foExp, WumingFmt.foSig,
++        hfSubFo.io.out).pad(128)
++      hfFlags := rev5(hfSubFo.io.exceptionFlags)
++    }
++    is(OP_MUL_FO) {
++      out := arith.io.out.pad(128); flags := arith.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.foExp, WumingFmt.foSig,
++        hfMulFo.io.out).pad(128)
++      hfFlags := rev5(hfMulFo.io.exceptionFlags)
++    }
++    is(OP_FMA_FO) {
++      out := arith.io.out.pad(128); flags := arith.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.foExp, WumingFmt.foSig,
++        hfFmaFo.io.out).pad(128)
++      hfFlags := rev5(hfFmaFo.io.exceptionFlags)
++    }
++    is(OP_QCMP_FT) {
++      out := arith.io.out.pad(128); flags := arith.io.flags
++      hfOut := hfCmpValue(hfCmpFtQ, hfCmpFtS, WumingFmt.ftExp, WumingFmt.ftSig).pad(128)
++      hfFlags := Cat(false.B, false.B, false.B, false.B,
++        hfCmpFtQ.io.exceptionFlags(4))
++    }
++    is(OP_SCMP_FT) {
++      out := arith.io.out.pad(128); flags := arith.io.flags
++      hfOut := hfCmpValue(hfCmpFtS, hfCmpFtS, WumingFmt.ftExp, WumingFmt.ftSig).pad(128)
++      hfFlags := Cat(false.B, false.B, false.B, false.B,
++        hfCmpFtS.io.exceptionFlags(4))
++    }
++    is(OP_QCMP_FO) {
++      out := arith.io.out.pad(128); flags := arith.io.flags
++      hfOut := hfCmpValue(hfCmpFoQ, hfCmpFoS, WumingFmt.foExp, WumingFmt.foSig).pad(128)
++      hfFlags := Cat(false.B, false.B, false.B, false.B,
++        hfCmpFoQ.io.exceptionFlags(4))
++    }
++    is(OP_SCMP_FO) {
++      out := arith.io.out.pad(128); flags := arith.io.flags
++      hfOut := hfCmpValue(hfCmpFoS, hfCmpFoS, WumingFmt.foExp, WumingFmt.foSig).pad(128)
++      hfFlags := Cat(false.B, false.B, false.B, false.B,
++        hfCmpFoS.io.exceptionFlags(4))
++    }
++    is(OP_MIN_FT) { out := arith.io.out.pad(128); flags := arith.io.flags }
++    is(OP_MAX_FT) { out := arith.io.out.pad(128); flags := arith.io.flags }
++    is(OP_MIN_FO) { out := arith.io.out.pad(128); flags := arith.io.flags }
++    is(OP_MAX_FO) { out := arith.io.out.pad(128); flags := arith.io.flags }
 +  }
 +  io.outLo := out(63, 0)
 +  io.outHi := out(127, 64)

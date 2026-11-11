@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
 new file mode 100644
-index 0000000..b5b738c
+index 0000000..37d1e0c
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
-@@ -0,0 +1,858 @@
+@@ -0,0 +1,1433 @@
 +// See LICENSE for license details.
 +//
 +// DADAO floating-point infrastructure (m12-chipyard-011).
@@ -804,6 +804,581 @@ index 0000000..b5b738c
 +  }
 +  io.out := out
 +  io.flags := flags
++}
++
++/** The operations behind `WumingFPArith` (spec/SimRISC-07 §2). */
++object WumingFPArithOp {
++  val ADD = 0.U(3.W) // ftadd / foadd            (spec §2.1)
++  val SUB = 1.U(3.W) // ftsub / fosub            (add with the sign of b inverted)
++  val MUL = 2.U(3.W) // ftmul / fomul            (spec §2.1)
++  val FMA = 3.U(3.W) // ftfma / fofma            (spec §2.5, single rounding)
++  val MIN = 4.U(3.W) // ftmin / fomin            (spec §2.4)
++  val MAX = 5.U(3.W) // ftmax / fomax
++  val QCMP = 6.U(3.W) // ftqcmp / foqcmp         (spec §4)
++  val SCMP = 7.U(3.W) // ftscmp / foscmp
++}
++
++/** Fixed-point helpers shared by the arithmetic units (m12-chipyard-013).
++  *
++  * The three rounding operations (add/sub, multiply, fused multiply-add) are
++  * computed as *exact* integer significands at a common scale, then normalised
++  * into the single rounding primitive (`WumingRoundAnyRawFNToRecFN`).  Two
++  * guard bits below the target significand carry the round bit and the sticky
++  * bit; four more window bits let the smaller operand of a sum stay exact
++  * whenever a cancellation is possible.
++  */
++object WumingFPAlu {
++  /** Index of the most significant set bit of `in`; 0 when `in` is zero.
++    *
++    * `PriorityEncoder(in.asBools.reverse)` is hardfloat's `countLeadingZeros`
++    * (the number of leading zeros, not the bit index), so it is subtracted
++    * from the width here.  An all-zero input returns 0 explicitly (Chisel's
++    * `PriorityEncoder` answers 0 for it, which would alias bit `width-1`).
++    */
++  def msbIndex(in: UInt): UInt = {
++    val n = in.getWidth
++    val leadingZeros = PriorityEncoder(in.asBools.reverse)
++    Mux(in.orR, (n - 1).U - leadingZeros, 0.U)
++  }
++
++  /** `sig * 2^sh` placed in a `w`-bit window (negative `sh` shifts right).
++    *
++    * Returns `(window, sticky)` where `window` is the magnitude truncated
++    * towards zero and `sticky` is set when any bit of `sig` fell out of the
++    * window.  The window is the magnitude's integer part at the caller's scale
++    * and `sticky` is the "there is something below the window" flag, which is
++    * exactly the guard/round/sticky contract of the rounding primitive.
++    */
++  def place(sig: UInt, sh: SInt, w: Int): (UInt, Bool) = {
++    val lw = log2Ceil(w + 1)
++    val left = sh >= 0.S
++    val mag = Mux(left, sh.asUInt, (-sh).asUInt)
++    val over = mag >= w.U
++    val m = Mux(over, (w - 1).U, mag)(lw - 1, 0)
++
++    val leftShifted = sig << m
++    val leftBits = leftShifted(w - 1, 0)
++    val leftDropped = (leftShifted >> w).orR
++
++    // `pad` keeps the discarded low bits visible in the comparison below.
++    val rightWide = sig.pad(sig.getWidth + w + 1)
++    val rightShifted = rightWide >> m
++    val rightBits = rightShifted(w - 1, 0)
++    val rightDropped = ((rightShifted << m) =/= rightWide)
++
++    val bits = Mux(over, 0.U, Mux(left, leftBits, rightBits))
++    val sticky = Mux(over, sig.orR, Mux(left, leftDropped, rightDropped))
++    (bits, sticky)
++  }
++
++  /** Normalise the fixed-point magnitude `mag * 2^qExp` into the rounding
++    * primitive's input form for a `sigWidth`-wide significand: a
++    * `sigWidth+2`-bit word whose bit `sigWidth+1` is the hidden bit and whose
++    * two low bits are the round bit and the sticky flag.
++    *
++    * The recoded exponent is `qExp + msbIndex + 2^expWidth` (the scale
++    * relation `value = sig * 2^(sExp - 2^expWidth - (sigWidth+1))`), clamped
++    * into the overflow region rather than wrapping: a magnitude that large is
++    * an overflow for the rounding primitive to report, never a value.
++    */
++  def normalise(mag: UInt, qExp: SInt, expWidth: Int, sigWidth: Int)
++      : (UInt, SInt) = {
++    val top = sigWidth + 1
++    val k = msbIndex(mag)
++    val down = Mux(k > top.U, k - top.U, 0.U)
++    val up = Mux(k < top.U, top.U - k, 0.U)
++
++    val shiftedDown = mag >> down
++    val hi = shiftedDown(top, 0)
++    val dropped = (shiftedDown << down) =/= mag
++    val sigRight = Cat(hi(top, 1), hi(0) || dropped)
++    val sigLeft = (mag << up)(top, 0)
++    val sig = Mux(k <= top.U, sigLeft, sigRight)
++
++    val kS = k.pad(qExp.getWidth + 1).asSInt
++    val unit = (BigInt(1) << expWidth).S((qExp.getWidth + 2).W)
++    val sExpWide = qExp + kS + unit
++    // `outInfExp + 2` (6 << (expWidth-2)) is inside the overflow region the
++    // primitive tests for (`sRoundedExp >> (expWidth-1) >= 3`).
++    val maxSExp = ((BigInt(6) << (expWidth - 2)) + 2).S(sExpWide.getWidth.W)
++    val clamped =
++      Mux(sExpWide > maxSExp, maxSExp,
++        Mux(sExpWide < 0.S, 0.S(sExpWide.getWidth.W), sExpWide))
++    (sig, clamped(expWidth + 1, 0).asSInt)
++  }
++}
++
++/** Addition / subtraction (hardfloat `AddRecFN`), spec/SimRISC-07 §2.1.
++  *
++  * The two magnitudes are aligned in a fixed-point window whose least
++  * significant bit sits below the larger operand's LSB: the larger operand is
++  * exact and the smaller one loses only bits below the window (folded into the
++  * sticky flag).  With opposite signs the *magnitude* is
++  * `floor(|large| - |small|)` and the sticky flag says whether a positive
++  * remainder follows, which is precisely how the rounding primitive wants a
++  * value it must round.
++  *
++  * `DADAO:` a quiet NaN input propagates its payload (spec/SimRISC-07 §1.4);
++  * a signalling NaN or `Inf + (-Inf)` raises `NV` and returns the canonical
++  * quiet NaN (the rounding primitive's `invalidExc` path).
++  */
++class WumingAddRecFN(expWidth: Int, sigWidth: Int) extends Module {
++  val io = IO(new Bundle {
++    val subOp = Input(Bool())
++    val a = Input(UInt(64.W)) // IEEE binary (ft uses the low 32 bits)
++    val b = Input(UInt(64.W))
++    val roundingMode = Input(UInt(3.W))
++    val out = Output(UInt(64.W))
++    val flags = Output(UInt(5.W)) // rf0[4:0] order
++  })
++
++  val guard = 4
++  val win = sigWidth + 2 + guard
++
++  val rawA = WumingRecFN.rawFloatFromFN(expWidth, sigWidth,
++    io.a(expWidth + sigWidth - 1, 0))
++  val rawB = WumingRecFN.rawFloatFromFN(expWidth, sigWidth,
++    io.b(expWidth + sigWidth - 1, 0))
++  val signB = rawB.sign ^ io.subOp
++
++  // The datapath only sees finite non-zero magnitudes.  A special operand
++  // contributes a zero significand at the smallest exponent (so it loses every
++  // magnitude comparison and never disturbs the alignment) and the result is
++  // overridden below.
++  val specA = rawA.isNaN || rawA.isInf || rawA.isZero
++  val specB = rawB.isNaN || rawB.isInf || rawB.isZero
++  val sigA = Mux(specA, 0.U, rawA.sig(sigWidth - 1, 0))
++  val sigB = Mux(specB, 0.U, rawB.sig(sigWidth - 1, 0))
++  val expA = Mux(specA, 0.S, rawA.sExp)
++  val expB = Mux(specB, 0.S, rawB.sExp)
++
++  // The larger magnitude is the one placed at the top of the window, so only
++  // the smaller one can lose bits.
++  val aLarger = (expA > expB) || (expA === expB && sigA >= sigB)
++  val largeSig = Mux(aLarger, sigA, sigB)
++  val smallSig = Mux(aLarger, sigB, sigA)
++  val largeExp = Mux(aLarger, expA, expB)
++  val smallExp = Mux(aLarger, expB, expA)
++
++  // Window units: 2^(largeExp - (sigWidth-1) - guard).
++  val smallShift = guard.S - (largeExp - smallExp)
++  val (smallWin, smallSticky) = WumingFPAlu.place(smallSig, smallShift, win)
++  val largeWin = (largeSig.pad(win) << guard)(win - 1, 0)
++
++  val sameSign = rawA.sign === signB
++  val magAbs = Mux(sameSign, largeWin +& smallWin,
++    largeWin - smallWin - smallSticky.asUInt)
++  val sticky = smallSticky
++
++  val signLarge = Mux(aLarger, rawA.sign, signB)
++  val sumSign = Mux(sameSign, rawA.sign, signLarge)
++
++  // Window units: 2^(largeExp - 2^expWidth - (sigWidth-1) - guard), i.e. the
++  // scale the recoded exponent is expressed in.
++  val qExp = largeExp - (BigInt(1) << expWidth).S - (sigWidth - 1).S - guard.S
++  val (sigNorm, sExpNorm) = WumingFPAlu.normalise(magAbs, qExp, expWidth, sigWidth)
++  // A magnitude below one window unit: the exact value is in (0, 2^qExp) and
++  // `qExp` is at least `guard` bits below the smallest subnormal quantum, so
++  // the primitive's total-underflow path rounds it to zero (or pegs the
++  // smallest magnitude) with UF|NX.
++  val tinyOnly = (magAbs === 0.U) && sticky
++  // The smaller operand's dropped bits are the result's sticky bit; they must
++  // ride along in the rounder's LSB whatever the normalisation did.
++  val sigOut = Mux(tinyOnly, 1.U, sigNorm | sticky.asUInt)
++
++  val invalidExc = rawA.isSigNaN || rawB.isSigNaN ||
++    (rawA.isInf && rawB.isInf && (rawA.sign =/= signB))
++  val nanIn = rawA.isNaN || rawB.isNaN
++  val isInfOut = (rawA.isInf || rawB.isInf) && !invalidExc
++  val infSign = Mux(rawA.isInf, rawA.sign, signB)
++  val zeroSign = Mux(rawA.sign === signB, rawA.sign,
++    io.roundingMode === WumingRoundMode.RDN)
++  val exactZero = (magAbs === 0.U) && !sticky && !isInfOut && !nanIn
++
++  // First NaN wins (a quiet NaN keeps its payload, spec/SimRISC-07 §1.4); the
++  // primitive expects the payload at `inSigWidth-2` downwards, i.e. shifted up
++  // by the two guard bits of the arithmetic input.
++  val nanSrc = Mux(rawA.isNaN, rawA, rawB)
++  val nanSig = (nanSrc.sig << 2)(sigWidth + 2, 0)
++
++  val rounder = Module(new WumingRoundAnyRawFNToRecFN(
++    expWidth, sigWidth + 2, expWidth, sigWidth))
++  rounder.io.in.isNaN := nanIn
++  rounder.io.in.isInf := isInfOut
++  rounder.io.in.isZero := exactZero
++  rounder.io.in.sign := Mux(isInfOut, infSign, Mux(exactZero, zeroSign, sumSign))
++  rounder.io.in.sExp := Mux(isInfOut || exactZero, 0.S, sExpNorm)
++  rounder.io.in.sig := Mux(nanIn, nanSig.pad(sigWidth + 3),
++    Mux(isInfOut || exactZero, 0.U, sigOut.pad(sigWidth + 3)))
++  rounder.io.invalidExc := invalidExc
++  rounder.io.infiniteExc := false.B
++  rounder.io.roundingMode := io.roundingMode
++
++  io.out := WumingRecFN.fNFromRecFN(expWidth, sigWidth, rounder.io.out).pad(64)
++  io.flags := rounder.io.exceptionFlags
++}
++
++/** Multiplication (hardfloat `MulRecFN`), spec/SimRISC-07 §2.1.
++  *
++  * The significands are multiplied exactly (a `2*sigWidth`-bit product) and
++  * rounded once, so the result is the correctly rounded product rather than a
++  * sequence of rounded partial products.
++  */
++class WumingMulRecFN(expWidth: Int, sigWidth: Int) extends Module {
++  val io = IO(new Bundle {
++    val a = Input(UInt(64.W))
++    val b = Input(UInt(64.W))
++    val roundingMode = Input(UInt(3.W))
++    val out = Output(UInt(64.W))
++    val flags = Output(UInt(5.W))
++  })
++
++  val rawA = WumingRecFN.rawFloatFromFN(expWidth, sigWidth,
++    io.a(expWidth + sigWidth - 1, 0))
++  val rawB = WumingRecFN.rawFloatFromFN(expWidth, sigWidth,
++    io.b(expWidth + sigWidth - 1, 0))
++
++  val specA = rawA.isNaN || rawA.isInf || rawA.isZero
++  val specB = rawB.isNaN || rawB.isInf || rawB.isZero
++  val sigA = Mux(specA, 0.U, rawA.sig(sigWidth - 1, 0))
++  val sigB = Mux(specB, 0.U, rawB.sig(sigWidth - 1, 0))
++  val expA = Mux(specA, 0.S, rawA.sExp)
++  val expB = Mux(specB, 0.S, rawB.sExp)
++
++  // value = pSig * 2^(sExpA + sExpB - 2^(expWidth+1) - 2*(sigWidth-1))
++  val pSig = (sigA * sigB)(2 * sigWidth - 1, 0)
++  val pExp = (expA +& expB) -
++    ((BigInt(1) << (expWidth + 1)) + 2 * (sigWidth - 1)).S((expWidth + 4).W)
++  val (sigNorm, sExpNorm) =
++    WumingFPAlu.normalise(pSig, pExp, expWidth, sigWidth)
++
++  val signProd = rawA.sign ^ rawB.sign
++  val invalidExc = rawA.isSigNaN || rawB.isSigNaN ||
++    (rawA.isInf && rawB.isZero) || (rawA.isZero && rawB.isInf)
++  val nanIn = rawA.isNaN || rawB.isNaN
++  val isInfOut = (rawA.isInf || rawB.isInf) && !invalidExc
++  val isZeroOut = (rawA.isZero || rawB.isZero) && !invalidExc && !nanIn
++
++  val nanSrc = Mux(rawA.isNaN, rawA, rawB)
++  val nanSig = (nanSrc.sig << 2)(sigWidth + 2, 0)
++
++  val rounder = Module(new WumingRoundAnyRawFNToRecFN(
++    expWidth, sigWidth + 2, expWidth, sigWidth))
++  rounder.io.in.isNaN := nanIn
++  rounder.io.in.isInf := isInfOut
++  rounder.io.in.isZero := isZeroOut
++  rounder.io.in.sign := signProd
++  rounder.io.in.sExp := Mux(isInfOut || isZeroOut, 0.S, sExpNorm)
++  rounder.io.in.sig := Mux(nanIn, nanSig.pad(sigWidth + 3),
++    Mux(isInfOut || isZeroOut, 0.U, sigNorm.pad(sigWidth + 3)))
++  rounder.io.invalidExc := invalidExc
++  rounder.io.infiniteExc := false.B
++  rounder.io.roundingMode := io.roundingMode
++
++  io.out := WumingRecFN.fNFromRecFN(expWidth, sigWidth, rounder.io.out).pad(64)
++  io.flags := rounder.io.exceptionFlags
++}
++
++/** Fused multiply-add (hardfloat `MulAddRecFN`), spec/SimRISC-07 §2.5.
++  *
++  * The product is formed exactly (`2*sigWidth` bits) and added to the addend at
++  * a common scale, so the sum is rounded **once**: the result is
++  * `fma(a, b, c)`, not `round(round(a*b) + c)`.  The window is two
++  * significands wide plus the guard bits, and it is anchored on whichever of the
++  * product and the addend has the higher exponent, so that operand stays exact;
++  * only the other one can be truncated, and only below the rounding position.
++  *
++  * `DADAO:` the contract fixes the NaN result of this family to the canonical
++  * quiet NaN (spec/SimRISC-07 §2.5 "canonical 化"), so no payload is passed to
++  * the primitive here.
++  */
++class WumingMulAddRecFN(expWidth: Int, sigWidth: Int) extends Module {
++  val io = IO(new Bundle {
++    val a = Input(UInt(64.W)) // multiplicand (rfHB)
++    val b = Input(UInt(64.W)) // multiplier   (rfHC)
++    val c = Input(UInt(64.W)) // addend       (rfHD)
++    val roundingMode = Input(UInt(3.W))
++    val out = Output(UInt(64.W))
++    val flags = Output(UInt(5.W))
++  })
++
++  val guard = 4
++  val win = 2 * sigWidth + 2 + guard
++
++  val rawA = WumingRecFN.rawFloatFromFN(expWidth, sigWidth,
++    io.a(expWidth + sigWidth - 1, 0))
++  val rawB = WumingRecFN.rawFloatFromFN(expWidth, sigWidth,
++    io.b(expWidth + sigWidth - 1, 0))
++  val rawC = WumingRecFN.rawFloatFromFN(expWidth, sigWidth,
++    io.c(expWidth + sigWidth - 1, 0))
++
++  val specA = rawA.isNaN || rawA.isInf || rawA.isZero
++  val specB = rawB.isNaN || rawB.isInf || rawB.isZero
++  val specC = rawC.isNaN || rawC.isInf || rawC.isZero
++  val sigA = Mux(specA, 0.U, rawA.sig(sigWidth - 1, 0))
++  val sigB = Mux(specB, 0.U, rawB.sig(sigWidth - 1, 0))
++  val sigC = Mux(specC, 0.U, rawC.sig(sigWidth - 1, 0))
++  val expC = Mux(specC, 0.S, rawC.sExp)
++
++  val pSig = (sigA * sigB)(2 * sigWidth - 1, 0)
++  // Product least significant bit: value = pSig * 2^pExp.
++  val pExp = (Mux(specA, 0.S, rawA.sExp) +& Mux(specB, 0.S, rawB.sExp)) -
++    ((BigInt(1) << (expWidth + 1)) + 2 * (sigWidth - 1)).S((expWidth + 4).W)
++  val cExp = Mux(specC, 0.S, rawC.sExp) - (BigInt(1) << expWidth).S - (sigWidth - 1).S
++
++  // Anchor the window on the operand with the higher top bit, so that operand
++  // is exact (the product occupies `2*sigWidth` bits from the window top, the
++  // addend `sigWidth`).
++  val tP = pExp + (2 * sigWidth - 1).S
++  val tC = cExp + (sigWidth - 1).S
++  val cDominant = tC >= tP
++  val qExp = Mux(cDominant, tC, tP) - (win - 1).S
++  val (pWin, pSticky) = WumingFPAlu.place(pSig, pExp - qExp, win)
++  val (cWin, cSticky) = WumingFPAlu.place(sigC, cExp - qExp, win)
++
++  // Magnitude order of the two summands; on equal window values the one with a
++  // truncated remainder is the larger one.
++  val pLarger = (pWin > cWin) || ((pWin === cWin) && !cSticky)
++  val sameSign = (rawA.sign ^ rawB.sign) === rawC.sign
++  val magAbs = Mux(sameSign, pWin +& cWin,
++    Mux(pLarger, pWin - cWin - cSticky.asUInt,
++      cWin - pWin - pSticky.asUInt))
++  val sticky = Mux(sameSign, pSticky || cSticky, Mux(pLarger, cSticky, pSticky))
++
++  val signProd = rawA.sign ^ rawB.sign
++  val sumSign = Mux(sameSign, signProd, Mux(pLarger, signProd, rawC.sign))
++  val zeroSign = Mux(signProd === rawC.sign, signProd,
++    io.roundingMode === WumingRoundMode.RDN)
++
++  val (sigNorm, sExpNorm) = WumingFPAlu.normalise(magAbs, qExp, expWidth, sigWidth)
++  val tinyOnly = (magAbs === 0.U) && sticky
++  // The truncated summand's dropped bits are the result's sticky bit (see the
++  // adder's note).
++  val sigOut = Mux(tinyOnly, 1.U, sigNorm | sticky.asUInt)
++
++  // ---- special values (spec/SimRISC-07 §2.5) ------------------------------
++  // `prodInf` means "the product is +-Inf", which needs both factors to be
++  // numbers: a NaN multiplicand makes the product NaN even when the other
++  // factor is an infinity (the Inf rule is "Inf x finite non-zero").
++  val mulNan = rawA.isNaN || rawB.isNaN
++  val prodInf = (rawA.isInf || rawB.isInf) && !mulNan
++  // 0 x Inf is invalid even when the addend is a quiet NaN.
++  val infZero = (rawA.isInf && rawB.isZero) || (rawA.isZero && rawB.isInf)
++  val infDiff = prodInf && rawC.isInf && (signProd =/= rawC.sign)
++  val invalidExc = rawA.isSigNaN || rawB.isSigNaN || rawC.isSigNaN ||
++    infZero || infDiff
++  val nanIn = rawA.isNaN || rawB.isNaN || rawC.isNaN
++  val isInfOut = (prodInf || rawC.isInf) && !invalidExc
++  val infSign = Mux(prodInf, signProd, rawC.sign)
++  val exactZero = (magAbs === 0.U) && !sticky && !isInfOut && !nanIn
++
++  val rounder = Module(new WumingRoundAnyRawFNToRecFN(
++    expWidth, sigWidth + 2, expWidth, sigWidth))
++  rounder.io.in.isNaN := nanIn
++  rounder.io.in.isInf := isInfOut
++  rounder.io.in.isZero := exactZero
++  rounder.io.in.sign := Mux(isInfOut, infSign, Mux(exactZero, zeroSign, sumSign))
++  rounder.io.in.sExp := Mux(isInfOut || exactZero, 0.S, sExpNorm)
++  // The fused family's NaN result is canonical (spec/SimRISC-07 §2.5), so no
++  // payload is handed to the primitive.
++  rounder.io.in.sig := Mux(nanIn || isInfOut || exactZero, 0.U,
++    sigOut.pad(sigWidth + 3))
++  rounder.io.invalidExc := invalidExc
++  rounder.io.infiniteExc := false.B
++  rounder.io.roundingMode := io.roundingMode
++
++  io.out := WumingRecFN.fNFromRecFN(expWidth, sigWidth, rounder.io.out).pad(64)
++  io.flags := rounder.io.exceptionFlags
++}
++
++/** Quiet / signalling compare (hardfloat `CompareRecFN`), spec/SimRISC-07 §4.
++  *
++  * The comparison itself is the total order on the IEEE encoding (sign then
++  * magnitude, so `-0 < +0`); an unordered pair returns a quiet NaN for
++  * `ftqcmp`/`foqcmp` and a signalling NaN for `ftscmp`/`foscmp`, both with a
++  * clear sign bit.  `NV` follows spec/SimRISC-07 §4: a signalling compare
++  * (`ftscmp`/`foscmp`) raises it for **any** unordered pair, quiet NaN
++  * included (IEEE 754-2019 §5.7.1); a quiet compare raises no flag.
++  */
++class WumingCompareRecFN(expWidth: Int, sigWidth: Int) extends Module {
++  val io = IO(new Bundle {
++    val a = Input(UInt(64.W))
++    val b = Input(UInt(64.W))
++    val signaling = Input(Bool())
++    val out = Output(UInt(64.W))
++    val flags = Output(UInt(5.W))
++  })
++
++  val fmtW = expWidth + sigWidth
++  val aBits = io.a(fmtW - 1, 0)
++  val bBits = io.b(fmtW - 1, 0)
++  val rawA = WumingRecFN.rawFloatFromFN(expWidth, sigWidth, aBits)
++  val rawB = WumingRecFN.rawFloatFromFN(expWidth, sigWidth, bBits)
++
++  // Monotone key of the IEEE encoding: flip the magnitude bits of a negative
++  // value and set the sign bit of a non-negative one.  This makes the unsigned
++  // key order identical to the IEEE numeric order, `-0` below `+0` included.
++  val signBit = (BigInt(1) << (fmtW - 1)).U(fmtW.W)
++  val keyA = Mux(rawA.sign, ~aBits, aBits | signBit)
++  val keyB = Mux(rawB.sign, ~bBits, bBits | signBit)
++
++  val unordered = rawA.isNaN || rawB.isNaN
++  // Every zero encoding is numerically equal to every other one (the monotone
++  // key deliberately orders `-0` below `+0`, which is the min/max rule but not
++  // the comparison rule).
++  val bothZero = rawA.isZero && rawB.isZero
++  val lt = !unordered && !bothZero && keyA < keyB
++  val gt = !unordered && !bothZero && keyA > keyB
++
++  val expOnes = ((BigInt(1) << expWidth) - 1) << (sigWidth - 1)
++  val quietNan = expOnes | (BigInt(1) << (sigWidth - 2))
++  val sigNan = expOnes | 1
++  val nanBits = Mux(io.signaling, sigNan.U(fmtW.W), quietNan.U(fmtW.W))
++
++  val cmp = Mux(lt, "hffff_ffff_ffff_ffff".U, Mux(gt, 1.U, 0.U))
++  io.out := Mux(unordered, nanBits.pad(64), cmp.pad(64))
++  io.flags := Cat(false.B, false.B, false.B, false.B,
++    Mux(io.signaling, unordered, false.B))
++}
++
++/** `minimumNumber` / `maximumNumber` (spec/SimRISC-07 §2.4).
++  *
++  * Neither operand is rounded: the result is one of the input encodings (or the
++  * canonical quiet NaN for two NaNs).  A single NaN returns the number (a
++  * signalling NaN still raises `NV`); two NaNs return the canonical quiet NaN
++  * of the format and raise `NV` if either was signalling.  `-0` is ordered
++  * below `+0`, which the monotone key comparison gives for free.
++  */
++class WumingMinMax(expWidth: Int, sigWidth: Int) extends Module {
++  val io = IO(new Bundle {
++    val a = Input(UInt(64.W))
++    val b = Input(UInt(64.W))
++    val isMax = Input(Bool())
++    val out = Output(UInt(64.W))
++    val flags = Output(UInt(5.W))
++  })
++
++  val fmtW = expWidth + sigWidth
++  val aBits = io.a(fmtW - 1, 0)
++  val bBits = io.b(fmtW - 1, 0)
++  val rawA = WumingRecFN.rawFloatFromFN(expWidth, sigWidth, aBits)
++  val rawB = WumingRecFN.rawFloatFromFN(expWidth, sigWidth, bBits)
++
++  val signBit = (BigInt(1) << (fmtW - 1)).U(fmtW.W)
++  val keyA = Mux(rawA.sign, ~aBits, aBits | signBit)
++  val keyB = Mux(rawB.sign, ~bBits, bBits | signBit)
++  val pickA = Mux(io.isMax, keyA >= keyB, keyA <= keyB)
++  val numeric = Mux(pickA, aBits, bBits)
++
++  val canonNan = (((BigInt(1) << expWidth) - 1) << (sigWidth - 1)) |
++    (BigInt(1) << (sigWidth - 2))
++  val bothNan = rawA.isNaN && rawB.isNaN
++  val sel = Mux(bothNan, canonNan.U(fmtW.W),
++    Mux(rawA.isNaN, bBits, Mux(rawB.isNaN, aBits, numeric)))
++
++  io.out := sel.pad(64)
++  io.flags := Cat(false.B, false.B, false.B, false.B,
++    rawA.isSigNaN || rawB.isSigNaN)
++}
++
++/** Every arithmetic unit of spec/SimRISC-07 §2 behind one port, so the core
++  * instantiates and routes a single module (m12-chipyard-013).
++  *
++  * `a`/`b` are the two `orrr` sources (`rfHC`/`rfHD`) and, for the FMA, the
++  * multiplicand and multiplier (`rfHB`/`rfHC`); `c` is the FMA addend
++  * (`rfHD`).  All operands and results are IEEE binary words: `ft` occupies
++  * the low 32 bits and results are zero-extended to the 64-bit register
++  * (spec/SimRISC-00 §2.3).
++  */
++class WumingFPArith extends Module {
++  val io = IO(new Bundle {
++    val kind = Input(UInt(3.W))
++    val isFo = Input(Bool())
++    val mode = Input(UInt(3.W))
++    val a = Input(UInt(64.W))
++    val b = Input(UInt(64.W))
++    val c = Input(UInt(64.W))
++    val out = Output(UInt(64.W))
++    val flags = Output(UInt(5.W))
++  })
++
++  val ftExp = WumingFmt.ftExp
++  val ftSig = WumingFmt.ftSig
++  val foExp = WumingFmt.foExp
++  val foSig = WumingFmt.foSig
++
++  val addFt = Module(new WumingAddRecFN(ftExp, ftSig))
++  val addFo = Module(new WumingAddRecFN(foExp, foSig))
++  val subFt = Module(new WumingAddRecFN(ftExp, ftSig))
++  val subFo = Module(new WumingAddRecFN(foExp, foSig))
++  val mulFt = Module(new WumingMulRecFN(ftExp, ftSig))
++  val mulFo = Module(new WumingMulRecFN(foExp, foSig))
++  val fmaFt = Module(new WumingMulAddRecFN(ftExp, ftSig))
++  val fmaFo = Module(new WumingMulAddRecFN(foExp, foSig))
++  val minFt = Module(new WumingMinMax(ftExp, ftSig))
++  val minFo = Module(new WumingMinMax(foExp, foSig))
++  val maxFt = Module(new WumingMinMax(ftExp, ftSig))
++  val maxFo = Module(new WumingMinMax(foExp, foSig))
++  val qcmpFt = Module(new WumingCompareRecFN(ftExp, ftSig))
++  val qcmpFo = Module(new WumingCompareRecFN(foExp, foSig))
++  val scmpFt = Module(new WumingCompareRecFN(ftExp, ftSig))
++  val scmpFo = Module(new WumingCompareRecFN(foExp, foSig))
++
++  for ((u, sub) <- Seq((addFt, false), (addFo, false),
++                        (subFt, true), (subFo, true))) {
++    u.io.a := io.a
++    u.io.b := io.b
++    u.io.subOp := sub.B
++    u.io.roundingMode := io.mode
++  }
++  for (u <- Seq(mulFt, mulFo)) {
++    u.io.a := io.a
++    u.io.b := io.b
++    u.io.roundingMode := io.mode
++  }
++  for (u <- Seq(fmaFt, fmaFo)) {
++    u.io.a := io.a
++    u.io.b := io.b
++    u.io.c := io.c
++    u.io.roundingMode := io.mode
++  }
++  for ((u, isMax) <- Seq((minFt, false), (minFo, false),
++                          (maxFt, true), (maxFo, true))) {
++    u.io.a := io.a
++    u.io.b := io.b
++    u.io.isMax := isMax.B
++  }
++  for ((u, sgn) <- Seq((qcmpFt, false), (qcmpFo, false),
++                        (scmpFt, true), (scmpFo, true))) {
++    u.io.a := io.a
++    u.io.b := io.b
++    u.io.signaling := sgn.B
++  }
++
++  def pick(isFo: Bool, ft: UInt, fo: UInt): UInt = Mux(isFo, fo, ft)
++
++  val outs = Seq(
++    WumingFPArithOp.ADD -> pick(io.isFo, addFt.io.out, addFo.io.out),
++    WumingFPArithOp.SUB -> pick(io.isFo, subFt.io.out, subFo.io.out),
++    WumingFPArithOp.MUL -> pick(io.isFo, mulFt.io.out, mulFo.io.out),
++    WumingFPArithOp.FMA -> pick(io.isFo, fmaFt.io.out, fmaFo.io.out),
++    WumingFPArithOp.MIN -> pick(io.isFo, minFt.io.out, minFo.io.out),
++    WumingFPArithOp.MAX -> pick(io.isFo, maxFt.io.out, maxFo.io.out),
++    WumingFPArithOp.QCMP -> pick(io.isFo, qcmpFt.io.out, qcmpFo.io.out),
++    WumingFPArithOp.SCMP -> pick(io.isFo, scmpFt.io.out, scmpFo.io.out))
++
++  val flagss = Seq(
++    WumingFPArithOp.ADD -> pick(io.isFo, addFt.io.flags, addFo.io.flags),
++    WumingFPArithOp.SUB -> pick(io.isFo, subFt.io.flags, subFo.io.flags),
++    WumingFPArithOp.MUL -> pick(io.isFo, mulFt.io.flags, mulFo.io.flags),
++    WumingFPArithOp.FMA -> pick(io.isFo, fmaFt.io.flags, fmaFo.io.flags),
++    WumingFPArithOp.MIN -> pick(io.isFo, minFt.io.flags, minFo.io.flags),
++    WumingFPArithOp.MAX -> pick(io.isFo, maxFt.io.flags, maxFo.io.flags),
++    WumingFPArithOp.QCMP -> pick(io.isFo, qcmpFt.io.flags, qcmpFo.io.flags),
++    WumingFPArithOp.SCMP -> pick(io.isFo, scmpFt.io.flags, scmpFo.io.flags))
++
++  io.out := MuxLookup(io.kind, 0.U(64.W))(outs)
++  io.flags := MuxLookup(io.kind, 0.U(5.W))(flagss)
 +}
 +
 +/** Classify one `rf` register (spec/SimRISC-07 §5).

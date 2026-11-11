@@ -1,15 +1,18 @@
-// Verilator test bench for the m12-chipyard-011/012 FP unit bench
+// Verilator test bench for the m12-chipyard-011/012/013 FP unit bench
 // (`WumingFPUnitHarness`, emitted by `wuming.common.WumingFPUnitEmit`).
 //
 // The bench is a plain combinational multiplexer over the FP primitives plus a
 // `WumingFcsr` instance, so the TB only drives `op`/`mode`/`in` and reads the
-// outputs; every check is done on the Python side (`fp_unit.py`), which owns
+// outputs; every check is done on the Python side (`unit_run.py`), which owns
 // the vector files and the oracle.  This program prints
 //
 //   * `--vectors FILE`, one line per vector:
-//         V <op> <inLo> <inHi> <mode> <outLo> <outHi> <flags> <hfLo> <hfHi> <hfFlags>
+//         V <op> <inLo> <inHi> <mode> <extra> <outLo> <outHi> <flags> <hfLo> <hfHi> <hfFlags>
 //   * `--fcsr FILE`, one clocked step per line:
 //         F <wr_en> <wr_data> <fflags> <read>
+//
+// Vector input lines are `<op> <inLo> <inHi> <mode> [<extra>]`; `extra` is the
+// fused multiply-add's third source (the addend) and defaults to 0.
 //
 // Values are printed as hex without a prefix.
 
@@ -41,6 +44,7 @@ int main(int argc, char **argv) {
     dut->io_mode = 0;
     dut->io_inLo = 0;
     dut->io_inHi = 0;
+    dut->io_inExtra = 0;
     dut->io_fcsrWrEn = 0;
     dut->io_fcsrWrData = 0;
     dut->io_fcsrFflags = 0;
@@ -65,19 +69,23 @@ int main(int argc, char **argv) {
         if (line[0] == '#' || line[0] == '\n') continue;
         if (!fcsr) {
             unsigned op, mode;
-            unsigned long long inLo, inHi;
-            if (std::sscanf(line, "%u %llx %llx %u", &op, &inLo, &inHi, &mode) != 4) {
+            unsigned long long inLo, inHi, inExtra = 0;
+            const int n = std::sscanf(line, "%u %llx %llx %u %llx", &op, &inLo,
+                                      &inHi, &mode, &inExtra);
+            if (n < 4) {
                 std::fprintf(stderr, "tb_fp_unit: bad vector line: %s", line);
                 return 3;
             }
-            dut->io_op = op & 0x1f;
+            dut->io_op = op & 0x3f;
             dut->io_mode = mode & 0x7;
             dut->io_inLo = inLo;
             dut->io_inHi = inHi;
+            dut->io_inExtra = inExtra;
             dut->eval();
             dut->eval();
-            std::printf("V %u %llx %llx %u %llx %llx %x %llx %llx %x\n", op, inLo,
-                        inHi, mode, (unsigned long long)dut->io_outLo,
+            std::printf("V %u %llx %llx %u %llx %llx %llx %x %llx %llx %x\n", op,
+                        inLo, inHi, mode, inExtra,
+                        (unsigned long long)dut->io_outLo,
                         (unsigned long long)dut->io_outHi, (unsigned)dut->io_flags,
                         (unsigned long long)dut->io_hfOutLo,
                         (unsigned long long)dut->io_hfOutHi,

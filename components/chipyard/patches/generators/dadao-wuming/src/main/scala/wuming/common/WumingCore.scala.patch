@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..0e5f2b9
+index 0000000..4b447d4
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,1446 @@
+@@ -0,0 +1,1461 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -612,6 +612,18 @@ index 0000000..0e5f2b9
 +  fpConvert.io.in := srcA
 +  fpConvert.io.signedOp := d.cvtSigned
 +
++  // ---- arithmetic family (m12-chipyard-013) ------------------------------
++  // add/sub/mul/min/max/compare take `rfHC`/`rfHD`; the FMA takes
++  // `rfHB`/`rfHC`/`rfHD` as its three sources (all rf, read before the write).
++  // The rounding direction is always `rf0[33:32]` (spec/SimRISC-07 §2).
++  val fpArith = Module(new WumingFPArith)
++  fpArith.io.kind := d.fpKind
++  fpArith.io.isFo := d.fpFo
++  fpArith.io.mode := WumingRoundMode.fromFcsr(rf.io.fcsrMode)
++  fpArith.io.a := srcA
++  fpArith.io.b := srcB
++  fpArith.io.c := rf.io.r2Data
++
 +  // ---- write-back --------------------------------------------------------
 +  val execFault = d.ill || d.undi
 +
@@ -619,6 +631,8 @@ index 0000000..0e5f2b9
 +  // above); a faulting instruction raises nothing.
 +  when(state === sExec && !execFault && d.isCvt) {
 +    rf.io.fflags := fpConvert.io.flags
++  }.elsewhen(state === sExec && !execFault && d.isFpArith) {
++    rf.io.fflags := fpArith.io.flags
 +  }
 +
 +  // R1 = C: shifts / bit-field ops take the two-cycle path.
@@ -693,7 +707,8 @@ index 0000000..0e5f2b9
 +              Mux(semiW0, io.semi.resp.value,
 +                Mux(d.isCfx2, cfxRdata,
 +                  Mux(d.isCvt, fpConvert.io.out,
-+                    Mux(d.isCs, csData, w0LoopData))))))))))
++                    Mux(d.isFpArith, fpArith.io.out,
++                      Mux(d.isCs, csData, w0LoopData)))))))))))
 +
 +  // rrrr: w0 = high half (w0Sel = 1), w1 = low half (m12-005 shape).
 +  rf.io.w1En := (state === sExec && !execFault && !cfxFault && !aluIsSlow && d.w1En) ||

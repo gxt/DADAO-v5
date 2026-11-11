@@ -1,0 +1,827 @@
+# FP 算术族（加/减/乘、融合乘加、比较、最小最大）— m12-chipyard-013。
+#
+# 期望值独立派生自 spec/SimRISC-07 §2/§4 与 IEEE 754-2019（经
+# tools/chipyard/fp_ref.py 的精确 oracle），**不**从 QEMU 或 RTL 反推。
+# rf 组无 input_state 通道：源用 `ld.o rf` 从内存装载，结果用
+# `rf2rd rd5, rf4` / `rf2rd rd6, rf0` 读回（rd6 = FCSR 复位值 + 标志；
+# 比较类的比较结果直接落在 rd5）。
+# 覆盖：加/减（±0 符号、精确抵消、远指数差、溢出）、乘（精确/下溢/溢出）、
+# 融合乘加单次舍入（含 spec §2.5 的 ft 反例与「先乘后加」对照）、
+# 比较（有序/无序/±0；signaling compare 任何无序置 NV、quiet 不置）、
+# 最小最大（±0 定序、单 NaN、sNaN⇒NV、双 NaN⇒
+# canonical qNaN）、三条合法性（dst_rf0 / dst_rd0）。
+
+- mnemonic: foadd
+  id: foadd_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44604042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0xBFF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foadd'
+  notes: foadd rf4, rf1, rf2：1.0 + (−1.0) = +0（IEEE 754-2019 §6.3，RNE）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44604042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: foadd
+  id: foadd_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44604042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF8000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF8000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x4008000000000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foadd'
+  notes: foadd：1.5 + 1.5 = 3.0（精确，无标志）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44604042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: foadd
+  id: foadd_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44604042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0xBFF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x8000000000000000'
+      rd6: '0x7FF800027FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foadd'
+  notes: foadd 精确抵消 + rf0[33:32]=10b（RDN）⇒ −0
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x4F020002'
+  - '0x44604042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: foadd
+  id: foadd_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44604042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FEFFFFFFFFFFFFF'
+    - address: '@ENTRY+0x100008'
+      value: '0x7FEFFFFFFFFFFFFF'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF0000000000000'
+      rd6: '0x7FF800007FC00014'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foadd'
+  notes: foadd 溢出：最大有限 + 最大有限 ⇒ +Inf + OF|NX
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44604042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: foadd
+  id: foadd_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44604042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FEFFFFFFFFFFFFF'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000000000001'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FEFFFFFFFFFFFFF'
+      rd6: '0x7FF800007FC00010'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foadd'
+  notes: foadd 远指数差：结果取最大有限 + NX（sticky）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44604042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: fomul
+  id: fomul_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44684042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x4000000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x4000000000000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: fomul'
+  notes: fomul：2.0 × 1.0 = 2.0（精确）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44684042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: fomul
+  id: fomul_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44684042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000000000001'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FE0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00018'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: fomul'
+  notes: fomul 下溢：最小次正规 × 0.5 ⇒ +0 + UF|NX
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44684042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: fomul
+  id: fomul_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44684042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FEFFFFFFFFFFFFF'
+    - address: '@ENTRY+0x100008'
+      value: '0x4000000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF0000000000000'
+      rd6: '0x7FF800007FC00014'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: fomul'
+  notes: fomul 溢出：最大有限 × 2 ⇒ +Inf + OF|NX
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44684042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: fofma
+  id: fofma_rrrr_rf
+  format: rrrr
+  class: semantic
+  encoding:
+    word: '0x5F101083'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF0000000000001'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FEFFFFFFFFFFFFF'
+    - address: '@ENTRY+0x100010'
+      value: '0xBFF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x3C9FFFFFFFFFFFFE'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: fofma'
+  notes: fofma 单次舍入：(1+2⁻⁵²)(1−2⁻⁵³) − 1 = 2⁻⁵³ − 2⁻¹⁰⁵（精确积只舍入一次）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1010'
+  - '0x5F101083'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: fomul
+  id: fomul_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44684042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF0000000000001'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FEFFFFFFFFFFFFF'
+    - address: '@ENTRY+0x100010'
+      value: '0xBFF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00010'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: fomul'
+  notes: 对照：先 fomul 再 foadd 得 +0（积被提前舍入成 1.0）——与上面 fofma 不同
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1010'
+  - '0x44684042'
+  - '0x44604103'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: fofma
+  id: fofma_rrrr_rf
+  format: rrrr
+  class: semantic
+  encoding:
+    word: '0x5F101083'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF8000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4000000000000000'
+    - address: '@ENTRY+0x100010'
+      value: '0xC000000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x3FF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: fofma'
+  notes: fofma 精确抵消：1.5 × 2 + (−3) = +0
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1010'
+  - '0x5F101083'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: fofma
+  id: fofma_rrrr_rf
+  format: rrrr
+  class: semantic
+  encoding:
+    word: '0x5F101083'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FEFFFFFFFFFFFFF'
+    - address: '@ENTRY+0x100008'
+      value: '0x4000000000000000'
+    - address: '@ENTRY+0x100010'
+      value: '0x0000000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF0000000000000'
+      rd6: '0x7FF800007FC00014'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: fofma'
+  notes: fofma 溢出：最大有限 × 2 ⇒ +Inf + OF|NX
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1010'
+  - '0x5F101083'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: fofma
+  id: fofma_rrrr_rf
+  format: rrrr
+  class: semantic
+  encoding:
+    word: '0x5F101083'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FF8000000001234'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    - address: '@ENTRY+0x100010'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF8000000000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: fofma'
+  notes: fofma qNaN 输入 ⇒ canonical qNaN（spec §2.5，不置标志）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1010'
+  - '0x5F101083'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: ftfma
+  id: ftfma_rrrr_rf
+  format: rrrr
+  class: semantic
+  encoding:
+    word: '0x5E101083'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000003F800001'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000003F7FFFFE'
+    - address: '@ENTRY+0x100010'
+      value: '0x00000000BF800000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x00000000A8800000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: ftfma'
+  notes: ftfma 单次舍入（spec §2.5 反例）：(1+2⁻²³)(1−2⁻²³) − 1 = −2⁻⁴⁶
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1010'
+  - '0x5E101083'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: ftmul
+  id: ftmul_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44484042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000003F800001'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000003F7FFFFE'
+    - address: '@ENTRY+0x100010'
+      value: '0x00000000BF800000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00010'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: ftmul'
+  notes: 对照：先 ftmul 再 ftadd 得 +0（积舍入为 1.0），证明单次舍入
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1010'
+  - '0x44484042'
+  - '0x44404103'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: foqcmp
+  id: foqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44A05042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4000000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0xFFFFFFFFFFFFFFFF'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foqcmp'
+  notes: foqcmp：1.0 < 2.0 ⇒ rd5 = −1
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44A05042'
+  - '0x40F86001'
+- mnemonic: foqcmp
+  id: foqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44A05042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FF8000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF8000000000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foqcmp'
+  notes: foqcmp 含 qNaN ⇒ 无序，返回 qNaN（符号位 0），不置标志
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44A05042'
+  - '0x40F86001'
+- mnemonic: foscmp
+  id: foscmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44A45042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FF8000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF0000000000001'
+      rd6: '0x7FF800007FC00001'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foscmp'
+  notes: foscmp 含 qNaN ⇒ 无序，返回 sNaN 0x7FF0000000000001，signaling compare 对任何无序置 NV（IEEE 754-2019 §5.7.1）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44A45042'
+  - '0x40F86001'
+- mnemonic: foqcmp
+  id: foqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44A05042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x8000000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foqcmp'
+  notes: foqcmp：+0 与 −0 相等 ⇒ 0（比较不区分零的符号）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44A05042'
+  - '0x40F86001'
+- mnemonic: fomin
+  id: fomin_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44B84042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x8000000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x8000000000000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: fomin'
+  notes: fomin(+0, −0) = −0（IEEE 754-2019 §9.6 定序）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44B84042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: fomax
+  id: fomax_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44BC4042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x8000000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: fomax'
+  notes: fomax(+0, −0) = +0
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44BC4042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: fomin
+  id: fomin_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44B84042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FF8000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x3FF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: fomin'
+  notes: fomin：单 NaN ⇒ 返回那个数（不传播 NaN、不置标志）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44B84042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: fomin
+  id: fomin_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44B84042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FF0000000000001'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x3FF0000000000000'
+      rd6: '0x7FF800007FC00001'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: fomin'
+  notes: fomin：sNaN 作输入 ⇒ 返回那个数 + NV
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44B84042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: fomax
+  id: fomax_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44BC4042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FF8000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x7FF0000000000001'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF8000000000000'
+      rd6: '0x7FF800007FC00001'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: fomax'
+  notes: fomax：双 NaN（q+s）⇒ canonical qNaN + NV
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44BC4042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: ftmin
+  id: ftmin_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44984042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000080000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000003F800000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x0000000080000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: ftmin'
+  notes: ftmin(−1.0, 1.0) = −1.0（ft 只用寄存器低 32 位）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44984042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: foadd
+  id: foadd_orrr_rf
+  format: orrr
+  class: legality
+  encoding:
+    word: '0x44600042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state: null
+  expected_pc: null
+  expected_fault: ILLI
+  status: active
+  spec_cite: 'SimRISC-07: foadd'
+  notes: foadd 目的 rf0 ⇒ ILLI（dst_rf0）
+  sequence:
+  - '0x26041000'
+  - '0x44600042'
+- mnemonic: foqcmp
+  id: foqcmp_orrr_rf
+  format: orrr
+  class: legality
+  encoding:
+    word: '0x44A00042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state: null
+  expected_pc: null
+  expected_fault: ILLI
+  status: active
+  spec_cite: 'SimRISC-07: foqcmp'
+  notes: foqcmp 目的 rd0 ⇒ ILLI（dst_rd0）
+  sequence:
+  - '0x26041000'
+  - '0x44A00042'
+- mnemonic: fofma
+  id: fofma_rrrr_rf
+  format: rrrr
+  class: legality
+  encoding:
+    word: '0x5F001083'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    - address: '@ENTRY+0x100010'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state: null
+  expected_pc: null
+  expected_fault: ILLI
+  status: active
+  spec_cite: 'SimRISC-07: fofma'
+  notes: fofma 目的 rf0 ⇒ ILLI（dst_rf0）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1010'
+  - '0x5F001083'

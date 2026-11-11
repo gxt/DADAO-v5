@@ -4,6 +4,10 @@
 
 ## M12
 
+- **2026-11-11 `m12-chipyard-013`**
+  - 摘要：**FP 算术族（加/减/乘、融合乘加、比较、最小最大）**。`WumingFP.scala` 增 `WumingAddRecFN` / `WumingMulRecFN` / `WumingMulAddRecFN` / `WumingCompareRecFN` / `WumingMinMax` 与选择器 `WumingFPArith`：三种舍入运算都先把**精确**结果做成定点整数（加/减在对齐窗口内、乘法用 `2*sigWidth` 位精确积、FMA 用 `2*sigWidth+guard` 位窗口把精确积与加数对齐），再经**同一**舍入原语一次舍入 —— FMA 因此是**单次舍入**（`spec/SimRISC-07 §2.5`），与「先乘后加」在 spec 反例及其 fo 类比上结果不同（`tests/inst/fp/arith.yaml` 各留一例对照）。NaN 口径：加/减/乘传播第一个 qNaN 的 payload（`§1.4`）、FMA 恒 canonical qNaN（`§2.5`）、sNaN/`0×Inf`/`Inf−Inf` ⇒ `NV`，且 NaN 乘数下 Inf 因子不构成无穷积（`qNaN×Inf+(−Inf)` 不置 `NV`）；比较的无序结果按 quiet/signaling 取 qNaN/sNaN（符号位 0），signaling 形式对任何无序（qNaN 或 sNaN）置 `NV`、quiet 形式不置（`§4`，IEEE 754-2019 §5.7.1）；最小最大按 `§2.4`（`−0<+0`、单 NaN 返回数、双 NaN canonical qNaN、sNaN⇒`NV`）。`WumingDecoder` 解 14 条 `orrr` + 2 条 `rrrr`（`opc 0x5E/0x5F`，单目的）；`WumingCore` 把算术标志送 `rf.io.fflags`（**首次由算术抬起 `OF`/`UF`/`NX`**）。工具：`fp_ref` 增五个精确 oracle（`round_dyadic` 统一入口）、`fp_unit` 增 16 个 op（含 hardfloat `AddRecFN`/`MulRecFN`/`MulAddRecFN`/`CompareRecFN` 对照）、`fp_sweep` 增 12 个 `arith_*` 组 + `cmp_nan` 组（均入 QEMU 三方对照）+ 12 条合法性镜像，新增 `tests/inst/fp/arith.yaml`（28 例，本核 == YAML == QEMU）。
+  - 执行者：engineer
+
 - **2026-11-11 `m12-chipyard-012`**
   - 摘要：**FP 转换族接入（浮点↔整数 / 浮点↔浮点 / 复制）**。`WumingFP.scala` 增三个单元并合成 `WumingFPConvert`：`WumingRecFNToIN`（f2i，饱和 + `NV`，`NX` 与 `NV` 互斥）、`WumingINToRecFN`（i2f，整数规格化后走同一舍入原语，只可能 `NX`）、`WumingF2F`（`ft2fo` 精确 / `fo2ft` 六档且**溢出恒 ±Inf + `OF`**，与 IEEE 按方向取最大有限值不同——`spec/SimRISC-07 §1.4`/`contract-fp §2`）。`WumingDecoder` 解 20 条转换：15 条六档（`encode_onehot`）、3 条 SBZ（`encode_sbz`）、2 条窗口复制（复用 `sCopy`，`rf0` 作目的 ⇒ ILLI）；`WumingCore` 每拍接入转换单元并把其标志送 `rf.io.fflags`（**首次由硬件抬起 `NV`**；`DZ` 通道在单元台单独验证，其真实生产者属除法），`WumingRegFile` 增 `fcsrMode` 输出供 `immu6=0x20` 读 `rf0[33:32]`。工具：`fp_ref` 增三条精确转换 oracle、`fp_unit` 增 11 个 op（含 hardfloat `RecFNToIN`/`INToRecFN` 对照与 `infiniteExc`/DZ 通道）、`fp_sweep` 增 9 组镜像（281 例/23 故障）、新增 `tools/chipyard/inst_case_run.py`（把 `tests/inst` 向量文件驱动到本核，与 QEMU 同镜像比对）。
   - 执行者：engineer
