@@ -26,8 +26,9 @@
 - 已实测通过：四台 `[step 4] make fetch` 与 `[step 5] apply-series` 均 **rc=0**（全程未触网）。
 - **已踩坑：QEMU 的 meson subproject 不走 `.cache`**。`make install-host` 在无外网节点上失败于
   `meson` 抓 `https://gitlab.com/qemu-project/keycodemapdb.git`（`ERROR: Subproject keycodemapdb is buildable: NO`）。
-  修法：从主控机 `rsync` 已填充的 `.work/source/qemu/subprojects/keycodemapdb/`（约 560 KB）到节点同路径，再重跑 `install-host`。
-  ⇒ **新建节点时，除 `.cache` 外还要带 QEMU 的 subprojects**（至少 `keycodemapdb`）。
+  修法：从主控机 `rsync` **整个** `.work/source/qemu/subprojects/`（约 6.5 MB：`keycodemapdb` / `berkeley-softfloat-3` / `berkeley-testfloat-3` / `libvduse` / `libvhost-user` / `packagefiles`）到节点同路径，再重跑 `install-host`。
+  实测是**逐个子项目**报错（先 `keycodemapdb`、再 `berkeley-softfloat-3`），所以不要只拷一个。
+  ⇒ **新建节点时，除 `.cache` 外还要带 QEMU 的整个 `subprojects/` 目录**。
 
 
 ## 1.1 `ics150`–`ics180`（2026-11-12 新增，待引导）
