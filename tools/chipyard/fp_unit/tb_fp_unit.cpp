@@ -1,4 +1,4 @@
-// Verilator test bench for the m12-chipyard-011 FP unit bench
+// Verilator test bench for the m12-chipyard-011/012 FP unit bench
 // (`WumingFPUnitHarness`, emitted by `wuming.common.WumingFPUnitEmit`).
 //
 // The bench is a plain combinational multiplexer over the FP primitives plus a
@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
                 std::fprintf(stderr, "tb_fp_unit: bad vector line: %s", line);
                 return 3;
             }
-            dut->io_op = op & 0xf;
+            dut->io_op = op & 0x1f;
             dut->io_mode = mode & 0x7;
             dut->io_inLo = inLo;
             dut->io_inHi = inHi;

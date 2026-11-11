@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
 new file mode 100644
-index 0000000..b13af63
+index 0000000..40fe18a
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
-@@ -0,0 +1,180 @@
+@@ -0,0 +1,369 @@
 +// See LICENSE for license details.
 +//
 +// Unit bench for the FP infrastructure (m12-chipyard-011).
@@ -31,10 +31,26 @@ index 0000000..b13af63
 +//  11  sgnn ft
 +//  12  sgnj fo
 +//  13  sgnn fo
++//  14  f2i  ft -> 32-bit integer   in = fn32        inHi[0] = signedOut
++//  15  f2i  ft -> 64-bit integer
++//  16  f2i  fo -> 32-bit integer   in = fn64
++//  17  f2i  fo -> 64-bit integer
++//  18  i2f  32-bit integer -> ft   in = int        inHi[0] = signedIn
++//  19  i2f  64-bit integer -> ft
++//  20  i2f  32-bit integer -> fo
++//  21  i2f  64-bit integer -> fo
++//  22  ft2fo (exact, SBZ)          in = fn32
++//  23  fo2ft (six directions)      in = fn64
++//  24  rounding primitive with `infiniteExc` raised (the divide-by-zero /
++//      `DZ` lane) on a normal ft input -- the m12-011 bench tied that port to
++//      0, so this op is what first exercises it
 +//
 +// `hfOut`/`hfFlags` carry the hardfloat result of the same operation for ops
 +// 4-7 (its raw `exceptionFlags` order: NV, DZ, OF, UF, NX) and are zero
-+// otherwise.  `io.flags` uses the DADAO `rf0[4:0]` order.
++// otherwise.  `io.flags` uses the DADAO `rf0[4:0]` order.  For ops 14-24 the
++// hardfloat result is already normalised to the DADAO flag order (and, for
++// `fo2ft`, the contract's overflow-to-Infinity override applied), so the
++// comparison is a direct one.
 +//
 +// The `WumingFcsr` instance is the clocked part of the bench (ops are
 +// combinational, so the TB just holds the clock while evaluating them).
@@ -46,7 +62,7 @@ index 0000000..b13af63
 +
 +class WumingFPUnitHarness extends Module {
 +  val io = IO(new Bundle {
-+    val op = Input(UInt(4.W))
++    val op = Input(UInt(5.W))
 +    val mode = Input(UInt(3.W))
 +    val inLo = Input(UInt(64.W))
 +    val inHi = Input(UInt(64.W))
@@ -133,6 +149,113 @@ index 0000000..b13af63
 +  val sgnHc = in(63, 0)
 +  val sgnHd = in(127, 64)
 +
++  // ---- conversions (m12-chipyard-012) ------------------------------------
++  // Mine = the production wrapper; hardfloat's `RecFNToIN` / `INToRecFN` /
++  // `RoundAnyRawFNToRecFN` next to it, with the same parameters.  The
++  // hardfloat results are normalised here so the comparison is bit-exact on
++  // both the value and the five flags: DADAO's `rf0[4:0]` order (bit0 NV ...
++  // bit4 NX) is the reverse of hardfloat's, and `fo2ft`'s overflow must return
++  // ±Infinity whatever the direction (spec/SimRISC-07 §1.4), which hardfloat
++  // does not do.
++  val opKind = (io.op - 14.U)(3, 0)
++  val cvt = Module(new WumingFPConvert)
++  cvt.io.kind := opKind
++  cvt.io.mode := io.mode
++  cvt.io.in := in(63, 0)
++  cvt.io.signedOp := io.inHi(0)
++
++  val ftRec = WumingRecFN.recFNFromFN(WumingFmt.ftExp, WumingFmt.ftSig,
++    in(31, 0))
++  val foRec = WumingRecFN.recFNFromFN(WumingFmt.foExp, WumingFmt.foSig,
++    in(63, 0))
++
++  val hfF2iFt32 = Module(new hardfloat.RecFNToIN(
++    WumingFmt.ftExp, WumingFmt.ftSig, 32))
++  val hfF2iFt64 = Module(new hardfloat.RecFNToIN(
++    WumingFmt.ftExp, WumingFmt.ftSig, 64))
++  val hfF2iFo32 = Module(new hardfloat.RecFNToIN(
++    WumingFmt.foExp, WumingFmt.foSig, 32))
++  val hfF2iFo64 = Module(new hardfloat.RecFNToIN(
++    WumingFmt.foExp, WumingFmt.foSig, 64))
++  hfF2iFt32.io.in := ftRec
++  hfF2iFt64.io.in := ftRec
++  hfF2iFo32.io.in := foRec
++  hfF2iFo64.io.in := foRec
++  for (u <- Seq(hfF2iFt32, hfF2iFt64, hfF2iFo32, hfF2iFo64)) {
++    u.io.roundingMode := io.mode
++    u.io.signedOut := io.inHi(0)
++  }
++
++  val hfI2f32Ft = Module(new hardfloat.INToRecFN(32, WumingFmt.ftExp, WumingFmt.ftSig))
++  val hfI2f64Ft = Module(new hardfloat.INToRecFN(64, WumingFmt.ftExp, WumingFmt.ftSig))
++  val hfI2f32Fo = Module(new hardfloat.INToRecFN(32, WumingFmt.foExp, WumingFmt.foSig))
++  val hfI2f64Fo = Module(new hardfloat.INToRecFN(64, WumingFmt.foExp, WumingFmt.foSig))
++  for (u <- Seq(hfI2f32Ft, hfI2f64Ft, hfI2f32Fo, hfI2f64Fo)) {
++    u.io.signedIn := io.inHi(0)
++    u.io.roundingMode := io.mode
++    u.io.detectTininess := hardfloat.consts.tininess_afterRounding
++  }
++  hfI2f32Ft.io.in := in(31, 0)
++  hfI2f64Ft.io.in := in(63, 0)
++  hfI2f32Fo.io.in := in(31, 0)
++  hfI2f64Fo.io.in := in(63, 0)
++
++  val hfFt2fo = Module(new hardfloat.RoundAnyRawFNToRecFN(
++    WumingFmt.ftExp, WumingFmt.ftSig, WumingFmt.foExp, WumingFmt.foSig, 0))
++  val hfFo2ft = Module(new hardfloat.RoundAnyRawFNToRecFN(
++    WumingFmt.foExp, WumingFmt.foSig, WumingFmt.ftExp, WumingFmt.ftSig, 0))
++  val hfFtRaw = WumingRecFN.rawFloatFromFN(WumingFmt.ftExp, WumingFmt.ftSig, in(31, 0))
++  val hfFoRaw = WumingRecFN.rawFloatFromFN(WumingFmt.foExp, WumingFmt.foSig, in(63, 0))
++  def driveHf(u: hardfloat.RoundAnyRawFNToRecFN, raw: WumingRawFloat): Unit = {
++    u.io.in.isNaN := raw.isNaN
++    u.io.in.isInf := raw.isInf
++    u.io.in.isZero := raw.isZero
++    u.io.in.sign := raw.sign
++    u.io.in.sExp := raw.sExp
++    u.io.in.sig := raw.sig
++    u.io.invalidExc := raw.isSigNaN
++    u.io.infiniteExc := false.B
++    u.io.roundingMode := io.mode
++    u.io.detectTininess := hardfloat.consts.tininess_afterRounding
++  }
++  driveHf(hfFt2fo, hfFtRaw)
++  driveHf(hfFo2ft, hfFoRaw)
++  // contract-fp §2 / SimRISC-07 §1.4: fo2ft overflow returns ±Infinity.
++  val hfFo2ftOut = Mux(hfFo2ft.io.exceptionFlags(2),
++    Cat(hfFoRaw.sign, Fill(WumingFmt.ftExp, true.B),
++      0.U((WumingFmt.ftSig - 1).W)).pad(64),
++    WumingRecFN.fNFromRecFN(WumingFmt.ftExp, WumingFmt.ftSig,
++      hfFo2ft.io.out).pad(64))
++
++  // The `DZ` lane: the m12-011 bench tied the primitive's `infiniteExc` to 0,
++  // so this is the first time the divide-by-zero input is compared at all.
++  val dzRounder = Module(new WumingRoundAnyRawFNToRecFN(
++    WumingFmt.ftExp, WumingFmt.ftSig, WumingFmt.ftExp, WumingFmt.ftSig))
++  val dzHf = Module(new hardfloat.RoundAnyRawFNToRecFN(
++    WumingFmt.ftExp, WumingFmt.ftSig, WumingFmt.ftExp, WumingFmt.ftSig, 0))
++  val dzRaw = WumingRecFN.rawFloatFromFN(WumingFmt.ftExp, WumingFmt.ftSig, in(31, 0))
++  dzRounder.io.in := dzRaw
++  dzRounder.io.invalidExc := false.B
++  dzRounder.io.infiniteExc := true.B
++  dzRounder.io.roundingMode := io.mode
++  dzHf.io.in.isNaN := dzRaw.isNaN
++  dzHf.io.in.isInf := dzRaw.isInf
++  dzHf.io.in.isZero := dzRaw.isZero
++  dzHf.io.in.sign := dzRaw.sign
++  dzHf.io.in.sExp := dzRaw.sExp
++  dzHf.io.in.sig := dzRaw.sig
++  dzHf.io.invalidExc := false.B
++  dzHf.io.infiniteExc := true.B
++  dzHf.io.roundingMode := io.mode
++  dzHf.io.detectTininess := hardfloat.consts.tininess_afterRounding
++
++  def rev5(x: UInt): UInt = Cat(x(0), x(1), x(2), x(3), x(4))
++  /** hardfloat's float->integer result at the 64-bit `rd` width (DADAO signs
++    * or zero-extends the 32-bit forms).
++    */
++  def hfF2iValue(u: UInt, signed: Bool): UInt =
++    Mux(signed, u.asSInt.pad(64).asUInt, u.pad(64))
++
 +  // ---- output mux -------------------------------------------------------
 +  val out = WireDefault(0.U(128.W))
 +  val flags = WireDefault(0.U(5.W))
@@ -161,6 +284,72 @@ index 0000000..b13af63
 +    is(11.U) { out := WumingRecFN.signInject(sgnHc, sgnHd, 31, true).pad(128) }
 +    is(12.U) { out := WumingRecFN.signInject(sgnHc, sgnHd, 63, false).pad(128) }
 +    is(13.U) { out := WumingRecFN.signInject(sgnHc, sgnHd, 63, true).pad(128) }
++    is(14.U) {
++      out := cvt.io.out.pad(128); flags := cvt.io.flags
++      hfOut := hfF2iValue(hfF2iFt32.io.out, io.inHi(0)).pad(128)
++      hfFlags := Cat(hfF2iFt32.io.intExceptionFlags(0), false.B, false.B,
++        false.B, hfF2iFt32.io.intExceptionFlags(2) ||
++          hfF2iFt32.io.intExceptionFlags(1))
++    }
++    is(15.U) {
++      out := cvt.io.out.pad(128); flags := cvt.io.flags
++      hfOut := hfF2iValue(hfF2iFt64.io.out, io.inHi(0)).pad(128)
++      hfFlags := Cat(hfF2iFt64.io.intExceptionFlags(0), false.B, false.B,
++        false.B, hfF2iFt64.io.intExceptionFlags(2) ||
++          hfF2iFt64.io.intExceptionFlags(1))
++    }
++    is(16.U) {
++      out := cvt.io.out.pad(128); flags := cvt.io.flags
++      hfOut := hfF2iValue(hfF2iFo32.io.out, io.inHi(0)).pad(128)
++      hfFlags := Cat(hfF2iFo32.io.intExceptionFlags(0), false.B, false.B,
++        false.B, hfF2iFo32.io.intExceptionFlags(2) ||
++          hfF2iFo32.io.intExceptionFlags(1))
++    }
++    is(17.U) {
++      out := cvt.io.out.pad(128); flags := cvt.io.flags
++      hfOut := hfF2iValue(hfF2iFo64.io.out, io.inHi(0)).pad(128)
++      hfFlags := Cat(hfF2iFo64.io.intExceptionFlags(0), false.B, false.B,
++        false.B, hfF2iFo64.io.intExceptionFlags(2) ||
++          hfF2iFo64.io.intExceptionFlags(1))
++    }
++    is(18.U) {
++      out := cvt.io.out.pad(128); flags := cvt.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.ftExp, WumingFmt.ftSig,
++        hfI2f32Ft.io.out).pad(128)
++      hfFlags := rev5(hfI2f32Ft.io.exceptionFlags)
++    }
++    is(19.U) {
++      out := cvt.io.out.pad(128); flags := cvt.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.ftExp, WumingFmt.ftSig,
++        hfI2f64Ft.io.out).pad(128)
++      hfFlags := rev5(hfI2f64Ft.io.exceptionFlags)
++    }
++    is(20.U) {
++      out := cvt.io.out.pad(128); flags := cvt.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.foExp, WumingFmt.foSig,
++        hfI2f32Fo.io.out).pad(128)
++      hfFlags := rev5(hfI2f32Fo.io.exceptionFlags)
++    }
++    is(21.U) {
++      out := cvt.io.out.pad(128); flags := cvt.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.foExp, WumingFmt.foSig,
++        hfI2f64Fo.io.out).pad(128)
++      hfFlags := rev5(hfI2f64Fo.io.exceptionFlags)
++    }
++    is(22.U) {
++      out := cvt.io.out.pad(128); flags := cvt.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.foExp, WumingFmt.foSig,
++        hfFt2fo.io.out).pad(128)
++      hfFlags := rev5(hfFt2fo.io.exceptionFlags)
++    }
++    is(23.U) {
++      out := cvt.io.out.pad(128); flags := cvt.io.flags
++      hfOut := hfFo2ftOut.pad(128); hfFlags := rev5(hfFo2ft.io.exceptionFlags)
++    }
++    is(24.U) {
++      out := dzRounder.io.out.pad(128); flags := dzRounder.io.exceptionFlags
++      hfOut := dzHf.io.out.pad(128); hfFlags := rev5(dzHf.io.exceptionFlags)
++    }
 +  }
 +  io.outLo := out(63, 0)
 +  io.outHi := out(127, 64)

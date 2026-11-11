@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala
 new file mode 100644
-index 0000000..6a16649
+index 0000000..2713190
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala
-@@ -0,0 +1,221 @@
+@@ -0,0 +1,225 @@
 +// See LICENSE for license details.
 +//
 +// DADAO register file banks (spec/SimRISC-00 §2, spec/DADAO-21 ABI):
@@ -82,6 +82,9 @@ index 0000000..6a16649
 +    // Exception flags raised by this cycle's FP operation (rf0[4:0] order);
 +    // they accumulate into the FCSR until software writes rf0.
 +    val fflags = Input(UInt(5.W))
++    // `rf0[33:32]`: the rounding mode the dynamic (`immu6 = 0x20`) conversions
++    // and round-to-integral follow (spec/SimRISC-07 §1.1).
++    val fcsrMode = Output(UInt(2.W))
 +
 +    // RAS operation and the operands it needs (m12-chipyard-009).
 +    val rasOp        = Input(UInt(3.W))
@@ -209,6 +212,7 @@ index 0000000..6a16649
 +  fcsr.io.writeEn := w0Fcsr || w1Fcsr
 +  fcsr.io.writeData := Mux(w1Fcsr, io.w1Data, io.w0Data)
 +  fcsr.io.fflags := io.fflags
++  io.fcsrMode := fcsr.io.mode
 +
 +  when(io.w0En && writable(io.w0Idx, io.w0Bank)) {
 +    when(io.w0Bank === WumingBank.RB) { rb(io.w0Idx) := io.w0Data }

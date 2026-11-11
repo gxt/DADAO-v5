@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
 new file mode 100644
-index 0000000..84e9fe6
+index 0000000..b5b738c
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
-@@ -0,0 +1,528 @@
+@@ -0,0 +1,858 @@
 +// See LICENSE for license details.
 +//
 +// DADAO floating-point infrastructure (m12-chipyard-011).
@@ -474,6 +474,336 @@ index 0000000..84e9fe6
 +  io.out := signOut ## expOut ## fractOut
 +  io.exceptionFlags :=
 +    Cat(inexact, underflow, overflow, io.infiniteExc, io.invalidExc)
++}
++
++/** Floating-point -> integer (hardfloat `RecFNToIN.scala`), m12-chipyard-012.
++  *
++  * Converts one recoded float to an `intWidth`-bit integer with the requested
++  * rounding direction, saturating instead of raising (spec/SimRISC-07 §1.4:
++  * "NaN/Inf/超出目标整型范围 ⇒ 返回整型饱和值（最大/最小）并置 NV，不置 NX").
++  *
++  * The alignment trick is the same one hardfloat uses: shift the significand
++  * so that bit 2 of `alignedSig` becomes the units bit (bits 1/0 are then the
++  * half and sticky bits), then round the low two bits.  `DADAO:` the upstream
++  * module reports `{invalid, overflow, inexact}`; here the first two are folded
++  * into the single `NV` bit of `rf0[4:0]` because a conversion that cannot be
++  * represented in the destination integer is one IEEE "invalid operation"
++  * (spec/SimRISC-07 §1.4), not an overflow.
++  */
++class WumingRecFNToIN(expWidth: Int, sigWidth: Int, intWidth: Int)
++    extends Module {
++  val io = IO(new Bundle {
++    val in = Input(UInt(WumingRecFN.width(expWidth, sigWidth).W))
++    val roundingMode = Input(UInt(3.W))
++    val signedOut = Input(Bool())
++    val out = Output(UInt(intWidth.W))
++    val flags = Output(UInt(5.W)) // rf0[4:0] order
++  })
++
++  val rawIn = WumingRecFN.rawFloatFromRecFN(expWidth, sigWidth, io.in)
++
++  // `sExp` is the recoded exponent (= unbiased exponent + 2^expWidth), so
++  // |v| >= 1 exactly when its bit `expWidth` is set and `posExp` is then the
++  // unbiased exponent itself.  Everything in [0.5, 1) has `posExp` all ones
++  // with `magGeOne` clear.
++  val magGeOne = rawIn.sExp(expWidth)
++  val posExp = rawIn.sExp(expWidth - 1, 0)
++  val magJustBelowOne = !magGeOne && posExp.andR
++
++  // Shifting by the unbiased exponent puts the binary point two bits above the
++  // bottom of `alignedSig`.  The shift is capped at the point beyond which any
++  // result would overflow anyway (that case is decided from `posExp`, not from
++  // the shifted bits), which keeps the shifter small.
++  val shiftCap = math.min(expWidth - 2, log2Ceil(intWidth) - 1)
++  val shiftedSig = (magGeOne ## rawIn.sig(sigWidth - 2, 0)) <<
++    Mux(magGeOne, rawIn.sExp(shiftCap, 0), 0.U)
++  val alignedSig =
++    (shiftedSig >> (sigWidth - 2)) ## shiftedSig(sigWidth - 3, 0).orR
++  val unroundedInt = (alignedSig >> 2).pad(intWidth)
++
++  // Any non-zero bit below the units bit makes the result inexact; a value
++  // with magnitude below 1 is inexact unless it is exactly zero.
++  val common_inexact = Mux(magGeOne, alignedSig(1, 0).orR, !rawIn.isZero)
++  val roundIncr_near_even =
++    (magGeOne && (alignedSig(2, 1).andR || alignedSig(1, 0).andR)) ||
++      (magJustBelowOne && alignedSig(1, 0).orR)
++  val roundIncr_near_maxMag = (magGeOne && alignedSig(1)) || magJustBelowOne
++  // Rounding the magnitude away from zero: RDN on a negative value, RUP on a
++  // positive one (hardfloat `roundMagUp`).
++  val roundIncr =
++    (io.roundingMode === WumingRoundMode.RNE && roundIncr_near_even) ||
++      (io.roundingMode === WumingRoundMode.RNA && roundIncr_near_maxMag) ||
++      (io.roundingMode === WumingRoundMode.RDN && rawIn.sign && common_inexact) ||
++      (io.roundingMode === WumingRoundMode.RUP && !rawIn.sign && common_inexact)
++
++  // Two's-complement result: rounding up a negative value decrements it, which
++  // is the same as incrementing the complemented magnitude.
++  val complUnroundedInt = Mux(rawIn.sign, ~unroundedInt, unroundedInt)
++  val roundedInt =
++    Mux(roundIncr ^ rawIn.sign, complUnroundedInt + 1.U, complUnroundedInt)
++
++  // ---- destination range -------------------------------------------------
++  val magGeOne_atOverflowEdge = posExp === (intWidth - 1).U
++  // Adding the rounding increment carries out of the top of the magnitude.
++  val roundCarryBut2 = unroundedInt(intWidth - 3, 0).andR && roundIncr
++  val common_overflow = Mux(magGeOne,
++    posExp >= intWidth.U ||
++      Mux(io.signedOut,
++        Mux(rawIn.sign,
++          magGeOne_atOverflowEdge &&
++            (unroundedInt(intWidth - 2, 0).orR || roundIncr),
++          magGeOne_atOverflowEdge ||
++            ((posExp === (intWidth - 2).U) && roundCarryBut2)),
++        rawIn.sign ||
++          (magGeOne_atOverflowEdge && unroundedInt(intWidth - 2) &&
++            roundCarryBut2)),
++    // |v| < 1: only a negative value that rounds to -1 is out of range for an
++    // unsigned destination (rounding to 0 is exact-or-inexact, never invalid).
++    !io.signedOut && rawIn.sign && roundIncr)
++
++  val invalidExc = rawIn.isNaN || rawIn.isInf
++  val overflow = !invalidExc && common_overflow
++  val inexact = !invalidExc && !common_overflow && common_inexact
++
++  // Saturation value: the largest/smallest integer of the destination, with
++  // the sign of the input (a NaN counts as positive, as in hardfloat / QEMU /
++  // gem5's `toInt`).
++  val excSign = !rawIn.isNaN && rawIn.sign
++  val excOut =
++    Mux(io.signedOut === excSign,
++      (BigInt(1) << (intWidth - 1)).U(intWidth.W), 0.U(intWidth.W)) |
++      Mux(!excSign,
++        ((BigInt(1) << (intWidth - 1)) - 1).U(intWidth.W), 0.U(intWidth.W))
++
++  io.out := Mux(invalidExc || common_overflow, excOut, roundedInt)
++  io.flags := Cat(inexact, false.B, false.B, false.B, invalidExc || overflow)
++}
++
++/** Integer -> floating point (hardfloat `INToRecFN.scala` + `rawFloatFromIN`),
++  * m12-chipyard-012.
++  *
++  * The integer magnitude is normalised into a raw float and handed to the one
++  * rounding primitive, so integer->float shares the rounding, tininess and
++  * flag logic with every other conversion.  An integer is never tiny, so only
++  * `NX` (a precision loss) can be raised; the primitive's derived
++  * `neverUnderflows`/`neverOverflows` cover both because the integer exponent
++  * range is narrower than either IEEE format's.
++  */
++class WumingINToRecFN(intWidth: Int, outExpWidth: Int, outSigWidth: Int)
++    extends Module {
++  val io = IO(new Bundle {
++    val in = Input(UInt(64.W)) // the integer in the low `intWidth` bits
++    val signedIn = Input(Bool())
++    val roundingMode = Input(UInt(3.W))
++    val out = Output(UInt(64.W))
++    val flags = Output(UInt(5.W)) // rf0[4:0] order
++  })
++
++  // hardfloat's `rawFloatFromIN`: the exponent width follows from the integer
++  // width, so the largest magnitude (2^(intWidth-1)) is representable.
++  val inExpWidth = log2Ceil(intWidth) + 1
++  val inBits = io.in(intWidth - 1, 0)
++  val sign = io.signedIn && inBits(intWidth - 1)
++  val absIn = Mux(sign, (~inBits).asUInt + 1.U, inBits)
++  val isZero = absIn === 0.U
++  val normDist = WumingRecFN.countLeadingZeros(absIn)
++  // After the shift the hidden bit is at `intWidth - 1`, which is exactly the
++  // canonical raw-float shape for `inSigWidth = intWidth`.
++  val sigWide = (0.U(1.W) ## absIn) << normDist
++  val sExpU = (BigInt(1) << inExpWidth).U((inExpWidth + 2).W) +
++    (intWidth - 1).U - normDist
++
++  val raw = Wire(new WumingRawFloat(inExpWidth, intWidth))
++  raw.isNaN := false.B
++  raw.isInf := false.B
++  raw.isZero := isZero
++  raw.sign := sign
++  raw.sExp := Mux(isZero, 0.S, sExpU.asSInt)
++  raw.sig := Cat(0.U(1.W), sigWide(intWidth - 1, 0))
++
++  val rounder = Module(new WumingRoundAnyRawFNToRecFN(
++    inExpWidth, intWidth, outExpWidth, outSigWidth))
++  rounder.io.in := raw
++  rounder.io.invalidExc := false.B
++  rounder.io.infiniteExc := false.B
++  rounder.io.roundingMode := io.roundingMode
++
++  // The `rf` register holds IEEE binary (spec/SimRISC-00 §2.3), so the recoded
++  // result is decoded back before it leaves the unit.
++  io.out := WumingRecFN.fNFromRecFN(outExpWidth, outSigWidth,
++    rounder.io.out).pad(64)
++  io.flags := rounder.io.exceptionFlags
++}
++
++/** Float -> float format conversion (hardfloat `RoundAnyRawFNToRecFN`),
++  * m12-chipyard-012: `ft2fo` (widening, exact, SBZ) and `fo2ft` (narrowing,
++  * six rounding directions).
++  *
++  * An sNaN input raises `NV` and produces the canonical quiet NaN, which is
++  * what the other two engines do for a format conversion as well
++  * (`SimRISC-07 §1.4`: sNaN as an arithmetic input).
++  *
++  * `DADAO:` `fo2ft` returns ±Infinity and sets `OF` on overflow **whatever the
++  * rounding direction** (spec/SimRISC-07 §1.4 "fo2ft 溢出返回 ±Inf（置 OF）",
++  * contract-fp §2), where IEEE 754 would return the largest finite value under
++  * RTZ/RDN/RUP.  `forceInfOnOverflow` implements that; the widening direction
++  * cannot overflow and leaves it off.
++  */
++class WumingF2F(
++    srcExpWidth: Int,
++    srcSigWidth: Int,
++    dstExpWidth: Int,
++    dstSigWidth: Int,
++    forceInfOnOverflow: Boolean)
++    extends Module {
++  val io = IO(new Bundle {
++    val in = Input(UInt(64.W))
++    val roundingMode = Input(UInt(3.W))
++    val out = Output(UInt(64.W))
++    val flags = Output(UInt(5.W)) // rf0[4:0] order
++  })
++
++  val rawIn = WumingRecFN.rawFloatFromFN(srcExpWidth, srcSigWidth,
++    io.in(srcExpWidth + srcSigWidth - 1, 0))
++  val rounder = Module(new WumingRoundAnyRawFNToRecFN(
++    srcExpWidth, srcSigWidth, dstExpWidth, dstSigWidth))
++  rounder.io.in := rawIn
++  rounder.io.invalidExc := rawIn.isSigNaN
++  rounder.io.infiniteExc := false.B
++  rounder.io.roundingMode := io.roundingMode
++
++  val infBits = Cat(rawIn.sign, Fill(dstExpWidth, true.B),
++    0.U((dstSigWidth - 1).W))
++  val converted = WumingRecFN.fNFromRecFN(dstExpWidth, dstSigWidth,
++    rounder.io.out)
++
++  io.out := (if (forceInfOnOverflow) {
++    Mux(rounder.io.exceptionFlags(2), infBits.pad(64), converted.pad(64))
++  } else {
++    converted.pad(64)
++  })
++  io.flags := rounder.io.exceptionFlags
++}
++
++/** The kind selectors of `WumingFPConvert` (m12-chipyard-012). */
++object WumingCvtKind {
++  val F2I_FT_T = 0.U(4.W) // ft -> 32-bit integer  (ft2it / ft2ut)
++  val F2I_FT_O = 1.U(4.W) // ft -> 64-bit integer  (ft2io / ft2uo)
++  val F2I_FO_T = 2.U(4.W) // fo -> 32-bit integer  (fo2it / fo2ut)
++  val F2I_FO_O = 3.U(4.W) // fo -> 64-bit integer  (fo2io / fo2uo)
++  val I2F_T_FT = 4.U(4.W) // 32-bit integer -> ft (it2ft / ut2ft)
++  val I2F_O_FT = 5.U(4.W) // 64-bit integer -> ft (io2ft / uo2ft)
++  val I2F_T_FO = 6.U(4.W) // 32-bit integer -> fo (it2fo / ut2fo, exact)
++  val I2F_O_FO = 7.U(4.W) // 64-bit integer -> fo (io2fo / uo2fo)
++  val FT2FO = 8.U(4.W) // ft -> fo (exact, SBZ)
++  val FO2FT = 9.U(4.W) // fo -> ft (six directions)
++}
++
++/** Every conversion unit of spec/SimRISC-07 §1 behind one port, so the core
++  * instantiates and routes a single module (m12-chipyard-012).
++  *
++  * `signedOp` is the signedness of the *integer* side: `signedOut` for
++  * float->integer, `signedIn` for integer->float (unused by the two f2f
++  * kinds).  All results are returned at the `rd`/`rf` width the core writes.
++  */
++class WumingFPConvert extends Module {
++  val io = IO(new Bundle {
++    val kind = Input(UInt(4.W))
++    val mode = Input(UInt(3.W))
++    val in = Input(UInt(64.W))
++    val signedOp = Input(Bool())
++    val out = Output(UInt(64.W))
++    val flags = Output(UInt(5.W))
++  })
++
++  val f2iFtT = Module(new WumingRecFNToIN(
++    WumingFmt.ftExp, WumingFmt.ftSig, 32))
++  val f2iFtO = Module(new WumingRecFNToIN(
++    WumingFmt.ftExp, WumingFmt.ftSig, 64))
++  val f2iFoT = Module(new WumingRecFNToIN(
++    WumingFmt.foExp, WumingFmt.foSig, 32))
++  val f2iFoO = Module(new WumingRecFNToIN(
++    WumingFmt.foExp, WumingFmt.foSig, 64))
++  val i2fTFt = Module(new WumingINToRecFN(32, WumingFmt.ftExp, WumingFmt.ftSig))
++  val i2fOFt = Module(new WumingINToRecFN(64, WumingFmt.ftExp, WumingFmt.ftSig))
++  val i2fTFo = Module(new WumingINToRecFN(32, WumingFmt.foExp, WumingFmt.foSig))
++  val i2fOFo = Module(new WumingINToRecFN(64, WumingFmt.foExp, WumingFmt.foSig))
++  val ft2fo = Module(new WumingF2F(WumingFmt.ftExp, WumingFmt.ftSig,
++    WumingFmt.foExp, WumingFmt.foSig, forceInfOnOverflow = false))
++  val fo2ft = Module(new WumingF2F(WumingFmt.foExp, WumingFmt.foSig,
++    WumingFmt.ftExp, WumingFmt.ftSig, forceInfOnOverflow = true))
++
++  // ---- float -> integer: the recoded input comes from the ft/fo encoding ---
++  // `rawFloatFromFN` is combinational, so the recoding is done here once for
++  // the two ft and the two fo units instead of in each unit.
++  val ftRec = WumingRecFN.recFNFromFN(WumingFmt.ftExp, WumingFmt.ftSig,
++    io.in(31, 0))
++  val foRec = WumingRecFN.recFNFromFN(WumingFmt.foExp, WumingFmt.foSig, io.in)
++
++  for ((unit, rec) <- Seq(
++      (f2iFtT, ftRec), (f2iFtO, ftRec), (f2iFoT, foRec), (f2iFoO, foRec))) {
++    unit.io.in := rec
++  }
++  for (unit <- Seq(f2iFtT, f2iFtO, f2iFoT, f2iFoO)) {
++    unit.io.roundingMode := io.mode
++    unit.io.signedOut := io.signedOp
++  }
++
++  for (unit <- Seq(i2fTFt, i2fOFt, i2fTFo, i2fOFo)) {
++    unit.io.in := io.in
++    unit.io.signedIn := io.signedOp
++    unit.io.roundingMode := io.mode
++  }
++
++  for (unit <- Seq(ft2fo, fo2ft)) {
++    unit.io.in := io.in
++    unit.io.roundingMode := io.mode
++  }
++
++  // The SBZ conversions (`it2fo`/`ut2fo`, and the 32-bit -> fo widening) are
++  // exact: their result never depends on the rounding direction.
++  val out = WireDefault(0.U(64.W))
++  val flags = WireDefault(0.U(5.W))
++  switch(io.kind) {
++    is(WumingCvtKind.F2I_FT_T) {
++      // 32-bit results are widened to the 64-bit rd: sign for signed, zero for
++      // unsigned (spec/SimRISC-04 §2 value semantics).
++      out := Mux(io.signedOp, f2iFtT.io.out.asSInt.pad(64).asUInt,
++        f2iFtT.io.out.pad(64))
++      flags := f2iFtT.io.flags
++    }
++    is(WumingCvtKind.F2I_FT_O) {
++      out := f2iFtO.io.out; flags := f2iFtO.io.flags
++    }
++    is(WumingCvtKind.F2I_FO_T) {
++      out := Mux(io.signedOp, f2iFoT.io.out.asSInt.pad(64).asUInt,
++        f2iFoT.io.out.pad(64))
++      flags := f2iFoT.io.flags
++    }
++    is(WumingCvtKind.F2I_FO_O) {
++      out := f2iFoO.io.out; flags := f2iFoO.io.flags
++    }
++    is(WumingCvtKind.I2F_T_FT) {
++      out := i2fTFt.io.out; flags := i2fTFt.io.flags
++    }
++    is(WumingCvtKind.I2F_O_FT) {
++      out := i2fOFt.io.out; flags := i2fOFt.io.flags
++    }
++    is(WumingCvtKind.I2F_T_FO) {
++      out := i2fTFo.io.out; flags := i2fTFo.io.flags
++    }
++    is(WumingCvtKind.I2F_O_FO) {
++      out := i2fOFo.io.out; flags := i2fOFo.io.flags
++    }
++    is(WumingCvtKind.FT2FO) {
++      out := ft2fo.io.out; flags := ft2fo.io.flags
++    }
++    is(WumingCvtKind.FO2FT) {
++      out := fo2ft.io.out; flags := fo2ft.io.flags
++    }
++  }
++  io.out := out
++  io.flags := flags
 +}
 +
 +/** Classify one `rf` register (spec/SimRISC-07 §5).

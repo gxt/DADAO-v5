@@ -408,6 +408,330 @@ def fcsr_clear():
     return [enc_set_w_rf(0, 2, 0), enc_set_w_rf(0, 0, 0)]
 
 
+# ── m12-012: format conversions ───────────────────────────────────────────
+# `ha` of the 20 conversion encodings (contracts/opcodes.yaml, opc 0x44).
+CVT_HA = {
+    "ft2it": 0x30, "ft2io": 0x31, "ft2ut": 0x32, "ft2uo": 0x33,
+    "it2ft": 0x34, "io2ft": 0x35, "ut2ft": 0x36, "uo2ft": 0x37,
+    "fo2it": 0x38, "fo2io": 0x39, "fo2ut": 0x3A, "fo2uo": 0x3B,
+    "it2fo": 0x3C, "io2fo": 0x3D, "ut2fo": 0x3E, "uo2fo": 0x3F,
+    "ft2fo": 0x01, "fo2ft": 0x09,
+}
+# op -> (kind, integer width, signed, out format) of the 8 f2i instructions
+F2I_DESC = {
+    "ft2it": (F.FT, 32, True), "ft2io": (F.FT, 64, True),
+    "ft2ut": (F.FT, 32, False), "ft2uo": (F.FT, 64, False),
+    "fo2it": (F.FO, 32, True), "fo2io": (F.FO, 64, True),
+    "fo2ut": (F.FO, 32, False), "fo2uo": (F.FO, 64, False),
+}
+# op -> (integer width, signed, out format) of the 8 i2f instructions
+I2F_DESC = {
+    "it2ft": (32, True, F.FT), "io2ft": (64, True, F.FT),
+    "ut2ft": (32, False, F.FT), "uo2ft": (64, False, F.FT),
+    "it2fo": (32, True, F.FO), "io2fo": (64, True, F.FO),
+    "ut2fo": (32, False, F.FO), "uo2fo": (64, False, F.FO),
+}
+FCSR_BASE = 0x7FF800007FC00000
+
+
+def enc_cvt(mn, dst, src, imm6):
+    """A one-register conversion (`orri`, opc 0x44)."""
+    return (0x44 << 24) | (CVT_HA[mn] << 18) | ((dst & 0x3F) << 12) | \
+        ((src & 0x3F) << 6) | (imm6 & 0x3F)
+
+
+def enc_cvt_ff(mn, dst, src, count):
+    """`ft2ft`/`fo2fo`: the register-window copy form."""
+    ha = 0x02 if mn == "ft2ft" else 0x0A
+    return (0x44 << 24) | (ha << 18) | ((dst & 0x3F) << 12) | \
+        ((src & 0x3F) << 6) | (count & 0x3F)
+
+
+def _cvt_case(name, setup, exec_words, dumps, expect):
+    return {"name": name, "setup": setup, "exec": exec_words,
+            "dumps": dumps, "expect": expect}
+
+
+CVT_MODES = (("rne", 0x01), ("rna", 0x02), ("rtz", 0x04), ("rup", 0x08),
+             ("rdn", 0x10), ("dyn", 0x20))
+
+
+def _cvt_imm6_setup(imm6):
+    """Reset the FCSR, and for the dynamic code set `rf0[33:32]` to RTZ so the
+    "follows rf0" path is distinguishable from the RNE default."""
+    return fcsr_clear() + ([enc_set_w_rf(0, 2, 1)] if imm6 == 0x20 else [])
+
+
+def fcsr_after(imm6, flags):
+    """The `rf0` value a conversion case leaves behind: the reset qNaN bits,
+    the mode the case selected (`0x20` = dynamic sets `rf0[33:32]` = RTZ) and
+    the accrued flags."""
+    return FCSR_BASE | ((1 if imm6 == 0x20 else 0) << 32) | flags
+
+
+def cases_cvt_f2i_ft():
+    """The four ft -> integer conversions, all six directions (spec/SimRISC-07
+    §1.1).  2.5f and 2.7f are ties/inexacts that separate every direction."""
+    out = []
+    for mn in ("ft2it", "ft2io", "ft2ut", "ft2uo"):
+        iw, signed = F2I_DESC[mn][1], F2I_DESC[mn][2]
+        for label, imm6 in CVT_MODES:
+            vals = ("2.5", "2.7", "-2.5", "-2.7") if mn == "ft2it" else ("2.7",)
+            for tie in vals:
+                x = {"2.5": 0x40200000, "2.7": 0x402CCCCD,
+                     "-2.5": 0xC0200000, "-2.7": 0xC02CCCCD}[tie]
+                value, flags = F.f2i_exact(F.FT[0], F.FT[1], x, iw, signed,
+                                           _mode(imm6))
+                out.append(_cvt_case(
+                    f"{mn}_{label}_{tie.replace('-', 'n').replace('.', 'p')}",
+                    _cvt_imm6_setup(imm6) + load_rf(1, x),
+                    [enc_cvt(mn, 5, 1, imm6)],
+                    [("rd", 5), ("rf", 0)], [value, fcsr_after(imm6, flags)]))
+    return out
+
+
+def cases_cvt_f2i_fo():
+    """The four fo -> integer conversions, all six directions."""
+    out = []
+    for mn in ("fo2it", "fo2io", "fo2ut", "fo2uo"):
+        iw, signed = F2I_DESC[mn][1], F2I_DESC[mn][2]
+        for label, imm6 in CVT_MODES:
+            vals = ("2.5", "2.7", "-2.5", "-2.7") if mn == "fo2it" else ("2.7",)
+            for tie in vals:
+                x = {"2.5": 0x4004000000000000, "2.7": 0x400599999999999A,
+                     "-2.5": 0xC004000000000000,
+                     "-2.7": 0xC00599999999999A}[tie]
+                value, flags = F.f2i_exact(F.FO[0], F.FO[1], x, iw, signed,
+                                           _mode(imm6))
+                out.append(_cvt_case(
+                    f"{mn}_{label}_{tie.replace('-', 'n').replace('.', 'p')}",
+                    _cvt_imm6_setup(imm6) + load_rf(1, x),
+                    [enc_cvt(mn, 5, 1, imm6)],
+                    [("rd", 5), ("rf", 0)], [value, fcsr_after(imm6, flags)]))
+    return out
+
+
+def cases_cvt_i2f_ft():
+    """it2ft/io2ft/ut2ft/uo2ft in all six directions: 2^24+1 forces a real
+    rounding decision in ft."""
+    out = []
+    for mn in ("it2ft", "io2ft", "ut2ft", "uo2ft"):
+        iw, signed, fmt = I2F_DESC[mn]
+        for label, imm6 in CVT_MODES:
+            n = 0x1000001 & ((1 << iw) - 1)
+            rec, flags = F.i2f_exact(iw, fmt[0], fmt[1], n, signed, _mode(imm6))
+            out.append(_cvt_case(
+                f"{mn}_{label}", _cvt_imm6_setup(imm6) +
+                sweep.load_rd(3, n), [enc_cvt(mn, 6, 3, imm6)],
+                [("rf", 6), ("rf", 0)],
+                [F.fn_from_recfn(fmt[0], fmt[1], rec), fcsr_after(imm6, flags)]))
+    return out
+
+
+def cases_cvt_i2f_fo():
+    """io2fo/uo2fo in all six directions (2^53+1 rounds), and the exact
+    it2fo/ut2fo (SBZ 0, no flags)."""
+    out = []
+    for mn in ("io2fo", "uo2fo"):
+        iw, signed, fmt = I2F_DESC[mn]
+        for label, imm6 in CVT_MODES:
+            n = 0x20000000000001 & ((1 << iw) - 1)
+            rec, flags = F.i2f_exact(iw, fmt[0], fmt[1], n, signed, _mode(imm6))
+            out.append(_cvt_case(
+                f"{mn}_{label}", _cvt_imm6_setup(imm6) +
+                sweep.load_rd(3, n), [enc_cvt(mn, 6, 3, imm6)],
+                [("rf", 6), ("rf", 0)],
+                [F.fn_from_recfn(fmt[0], fmt[1], rec), fcsr_after(imm6, flags)]))
+    return out
+
+
+def cases_cvt_exact():
+    """The three SBZ conversions (`ft2fo`/`it2fo`/`ut2fo`): exact, no flags."""
+    out = []
+    for tag, x in (("normal", 0x402CCCCD), ("subnormal", 0x00000001),
+                   ("qnan", 0x7FC00000), ("inf", 0x7F800000),
+                   ("nzero", 0x80000000)):
+        rec, flags = F.f2f_exact(F.FT[0], F.FT[1], F.FO[0], F.FO[1], x,
+                                 F.RNE, False)
+        out.append(_cvt_case(
+            f"ft2fo_{tag}", fcsr_clear() + load_rf(1, x),
+            [enc_cvt("ft2fo", 4, 1, 0)],
+            [("rf", 4), ("rf", 0)],
+            [F.fn_from_recfn(F.FO[0], F.FO[1], rec), FCSR_BASE | flags]))
+    for mn in ("it2fo", "ut2fo"):
+        iw, signed, fmt = I2F_DESC[mn]
+        for n in (0, 1, 0xFFFFFFFF, 0x7FFFFFFF, 0x80000000):
+            if not signed:
+                n &= 0xFFFFFFFF
+            rec, flags = F.i2f_exact(iw, fmt[0], fmt[1], n, signed, F.RNE)
+            out.append(_cvt_case(
+                f"{mn}_{n:x}", fcsr_clear() + sweep.load_rd(3, n),
+                [enc_cvt(mn, 6, 3, 0)],
+                [("rf", 6), ("rf", 0)],
+                [F.fn_from_recfn(fmt[0], fmt[1], rec), FCSR_BASE | flags]))
+    return out
+
+
+def cases_cvt_snan():
+    """An sNaN through `ft2fo`: NV and a quiet NaN (spec/SimRISC-07 §1.4).
+
+    The return value of a quieted sNaN is a quiet NaN; the spec does not fix
+    its payload, and the three implementations disagree: this core (like
+    hardfloat and gem5) returns the canonical quiet NaN, QEMU/softfloat
+    propagates the input payload.  The case therefore asserts the core/model
+    pair only and stays out of the QEMU cross-check.
+    """
+    x = 0x7F800001
+    rec, flags = F.f2f_exact(F.FT[0], F.FT[1], F.FO[0], F.FO[1], x, F.RNE, False)
+    return [_cvt_case("ft2fo_snan", fcsr_clear() + load_rf(1, x),
+                      [enc_cvt("ft2fo", 4, 1, 0)],
+                      [("rf", 4), ("rf", 0)],
+                      [F.fn_from_recfn(F.FO[0], F.FO[1], rec), FCSR_BASE | flags])]
+
+
+def cases_cvt_ff():
+    """fo2ft in all six directions (including overflow, which must return
+    ±Inf whatever the direction), and the two block copies."""
+    out = []
+    for label, imm6 in CVT_MODES:
+        for tag, x in (("tie", 0x400599999999999A),
+                       ("narrow", 0x3FF0000000000001),
+                       ("ovf", 0x7FEFFFFFFFFFFFFF),
+                       ("unf", 0x3690000000000000)):
+            rec, flags = F.f2f_exact(F.FO[0], F.FO[1], F.FT[0], F.FT[1], x,
+                                     _mode(imm6), True)
+            out.append(_cvt_case(
+                f"fo2ft_{label}_{tag}", _cvt_imm6_setup(imm6) + load_rf(1, x),
+                [enc_cvt("fo2ft", 4, 1, imm6)],
+                [("rf", 4), ("rf", 0)],
+                [F.fn_from_recfn(F.FT[0], F.FT[1], rec), fcsr_after(imm6, flags)]))
+    vals = [0x7FF800007FC00000, 0x8000000000000001, 0x3F800000DEADBEEF]
+    for mn in ("ft2ft", "fo2fo"):
+        out.append(_cvt_case(
+            f"{mn}_block", fcsr_clear() +
+            sum((load_rf(1 + i, v) for i, v in enumerate(vals)), []),
+            [enc_cvt_ff(mn, 8, 1, 3)],
+            [("rf", 8), ("rf", 9), ("rf", 10), ("rf", 0)],
+            vals + [FCSR_BASE]))
+    out.append(_cvt_case(
+        "ft2ft_single", fcsr_clear() + load_rf(1, 0x12345678),
+        [enc_cvt_ff("ft2ft", 2, 1, 1)],
+        [("rf", 2), ("rf", 0)], [0x12345678, FCSR_BASE]))
+    return out
+
+
+def cases_cvt_sat():
+    """Saturation and the NV / NX boundary: ±Inf, NaN, ±2^31, ±2^63, huge
+    values, and the unsigned cases (a negative value that rounds to zero is
+    inexact, not invalid)."""
+    sat = [
+        ("ft2it_pinf", "ft2it", F.FT, 0x7F800000, 32, True),
+        ("ft2it_ninf", "ft2it", F.FT, 0xFF800000, 32, True),
+        ("ft2it_p2p31", "ft2it", F.FT, 0x4F000000, 32, True),
+        ("ft2it_n2p31", "ft2it", F.FT, 0xCF000000, 32, True),
+        ("ft2io_p2p63", "ft2io", F.FT, 0x5F000000, 64, True),
+        ("ft2io_n2p63", "ft2io", F.FT, 0xDF000000, 64, True),
+        ("ft2it_big", "ft2it", F.FT, 0x7149F2CA, 32, True),
+        ("ft2ut_big", "ft2ut", F.FT, 0x7149F2CA, 32, False),
+        ("fo2io_p2p63", "fo2io", F.FO, 0x43E0000000000000, 64, True),
+        ("fo2io_2p63m1", "fo2io", F.FO, 0x43DFFFFFFFFFFFFF, 64, True),
+        ("fo2io_n2p63", "fo2io", F.FO, 0xC3E0000000000000, 64, True),
+        ("fo2ut_p2p32", "fo2ut", F.FO, 0x41F0000000000000, 32, False),
+        ("fo2ut_neg_small", "fo2ut", F.FO, 0xBFD999999999999A, 32, False),
+        ("fo2ut_neg_tiny", "fo2ut", F.FO, 0xBFB999999999999A, 32, False),
+        ("ft2it_qnan", "ft2it", F.FT, 0x7FC00000, 32, True),
+        ("ft2it_qnan_neg", "ft2it", F.FT, 0xFFC00000, 32, True),
+        ("ft2ut_snan", "ft2ut", F.FT, 0x7F800001, 32, False),
+        ("fo2io_snan", "fo2io", F.FO, 0x7FF0000000000001, 64, True),
+    ]
+    out = []
+    for name, mn, fmt, x, iw, signed in sat:
+        value, flags = F.f2i_exact(fmt[0], fmt[1], x, iw, signed, F.RTZ)
+        out.append(_cvt_case(name, fcsr_clear() + load_rf(1, x),
+                             [enc_cvt(mn, 5, 1, 0x04)],
+                             [("rd", 5), ("rf", 0)],
+                             [value, FCSR_BASE | flags]))
+    return out
+
+
+def cases_cvt_flags():
+    """`rf0[4:0]` end to end: the flags a conversion raises read back through
+    `rf2rd rf0`, accumulate (sticky), and are cleared by a software write."""
+    x = 0x402CCCCD
+    v1, f1 = F.f2i_exact(F.FT[0], F.FT[1], x, 32, True, F.RTZ)
+    v2, f2 = F.f2i_exact(F.FT[0], F.FT[1], x, 64, True, F.RNE)
+    return [
+        _cvt_case("flags_accumulate", fcsr_clear() + load_rf(1, x),
+                  [enc_cvt("ft2it", 5, 1, 0x04), enc_cvt("ft2io", 6, 1, 0x01)],
+                  [("rd", 5), ("rd", 6), ("rf", 0)],
+                  [v1, v2, FCSR_BASE | (f1 | f2)]),
+        _cvt_case("flags_clear_then_exact",
+                  fcsr_clear() + load_rf(1, x) + load_rf(2, 0x40000000),
+                  [enc_cvt("ft2it", 5, 1, 0x04),   # NX
+                   enc_set_w_rf(0, 0, 0),          # software clear
+                   enc_cvt("ft2it", 5, 2, 0x04)],  # exact: no flag
+                  [("rd", 5), ("rf", 0)], [2, FCSR_BASE]),
+        _cvt_case("flags_nv_sticky",
+                  fcsr_clear() + load_rf(1, 0x7F800000) + load_rf(2, 0x402CCCCD),
+                  [enc_cvt("ft2it", 5, 1, 0x04),   # NV
+                   enc_cvt("ft2it", 6, 2, 0x04)],  # NX accumulates on top
+                  [("rd", 5), ("rd", 6), ("rf", 0)],
+                  [0x7FFFFFFF, 2, FCSR_BASE | 0x11]),
+        _cvt_case("flags_of_uf_nx",
+                  fcsr_clear() + load_rf(1, 0x7FEFFFFFFFFFFFFF) +
+                  load_rf(2, 0x3690000000000000),
+                  [enc_cvt("fo2ft", 4, 1, 0x04),   # OF|NX
+                   enc_cvt("fo2ft", 5, 2, 0x01)],  # UF|NX accumulates
+                  [("rf", 4), ("rf", 5), ("rf", 0)],
+                  [0x7F800000, 0, FCSR_BASE | (0x04 | 0x10 | 0x08 | 0x10)]),
+    ]
+
+
+def _mode(imm6):
+    """The rounding direction a static `immu6` code names (`0x20` is the
+    dynamic code; the tests that use it set `rf0` = RTZ first)."""
+    return {0x01: F.RNE, 0x02: F.RNA, 0x04: F.RTZ, 0x08: F.RUP,
+            0x10: F.RDN, 0x20: F.RTZ}[imm6]
+
+
+def cases_cvtfaults():
+    """Legality of the conversion family: `encode_onehot` on the 15 rounded
+    conversions, `encode_sbz` on the 3 exact ones, `dst_rd0`/`dst_rf0` and the
+    two block copies' range/overlap rules (spec/SimRISC-07 §1.5)."""
+    return [
+        {"name": "fault_ft2it_onehot_zero", "word": enc_cvt("ft2it", 5, 1, 0x00),
+         "fault": "ILLI", "setup": load_rf(1, 0x402CCCCD)},
+        {"name": "fault_ft2it_onehot_three", "word": enc_cvt("ft2it", 5, 1, 0x03),
+         "fault": "ILLI", "setup": load_rf(1, 0x402CCCCD)},
+        {"name": "fault_fo2ft_onehot_21", "word": enc_cvt("fo2ft", 5, 1, 0x21),
+         "fault": "ILLI", "setup": load_rf(1, 0x400599999999999A)},
+        {"name": "fault_io2fo_onehot_40", "word": enc_cvt("io2fo", 6, 3, 0x40),
+         "fault": "ILLI", "setup": sweep.load_rd(3, 7)},
+        {"name": "fault_ft2fo_sbz", "word": enc_cvt("ft2fo", 4, 1, 0x01),
+         "fault": "ILLI", "setup": load_rf(1, 0x402CCCCD)},
+        {"name": "fault_it2fo_sbz", "word": enc_cvt("it2fo", 6, 3, 0x04),
+         "fault": "ILLI", "setup": sweep.load_rd(3, 7)},
+        {"name": "fault_ut2fo_sbz", "word": enc_cvt("ut2fo", 6, 3, 0x20),
+         "fault": "ILLI", "setup": sweep.load_rd(3, 7)},
+        {"name": "fault_ft2it_dst_rd0", "word": enc_cvt("ft2it", 0, 1, 0x04),
+         "fault": "ILLI", "setup": load_rf(1, 0x402CCCCD)},
+        {"name": "fault_ut2ft_dst_rf0", "word": enc_cvt("ut2ft", 0, 3, 0x04),
+         "fault": "ILLI", "setup": sweep.load_rd(3, 7)},
+        {"name": "fault_ft2fo_dst_rf0", "word": enc_cvt("ft2fo", 0, 1, 0),
+         "fault": "ILLI", "setup": load_rf(1, 0x402CCCCD)},
+        {"name": "fault_ft2ft_dst_rf0", "word": enc_cvt_ff("ft2ft", 0, 1, 1),
+         "fault": "ILLI", "setup": load_rf(1, 0x402CCCCD)},
+        {"name": "fault_ft2ft_mreg_zero", "word": enc_cvt_ff("ft2ft", 4, 1, 0),
+         "fault": "ILLI", "setup": []},
+        {"name": "fault_fo2fo_overlap",
+         "word": enc_cvt_ff("fo2fo", 4, 3, 3), "fault": "ILLI", "setup": []},
+        {"name": "fault_ft2ft_dst_range",
+         "word": enc_cvt_ff("ft2ft", 62, 1, 4), "fault": "ILLI", "setup": []},
+        {"name": "fault_ft2ft_src_range",
+         "word": enc_cvt_ff("ft2ft", 1, 62, 4), "fault": "ILLI", "setup": []},
+    ]
+
+
 def cases_fcsr():
     out = []
     fcsr_reset = 0x7FF800007FC00000
@@ -513,7 +837,7 @@ def cases_faults():
         {"name": "fault_cs_n_rf_dst_rf0",
          "word": enc_cs_rf(0x61, 1, 0, 2, 3), "fault": "ILLI",
          "setup": load_rf(2, 0x1) + load_rf(3, 0x2)},
-    ]
+    ] + cases_cvtfaults()
 
 
 GROUPS = {
@@ -522,12 +846,23 @@ GROUPS = {
     "rfmem": cases_rfmem,
     "fcsr": cases_fcsr,
     "rf0ldt": cases_rf0ldt,
+    "cvt_f2i_ft": cases_cvt_f2i_ft,
+    "cvt_f2i_fo": cases_cvt_f2i_fo,
+    "cvt_i2f_ft": cases_cvt_i2f_ft,
+    "cvt_i2f_fo": cases_cvt_i2f_fo,
+    "cvt_exact": cases_cvt_exact,
+    "cvt_snan": cases_cvt_snan,
+    "cvt_ff": cases_cvt_ff,
+    "cvt_sat": cases_cvt_sat,
+    "cvt_flags": cases_cvt_flags,
 }
 
 # Groups whose bytes are also compared against QEMU.  `rf0ldt` is excluded: the
 # ld.t-rf0 case asserts the read-only qNaN field, which QEMU deliberately
 # overrides (documented divergence, see `cases_rf0ldt`).
-QEMU_GROUPS = ("classify", "sign", "rfmem", "fcsr")
+QEMU_GROUPS = ("classify", "sign", "rfmem", "fcsr",
+               "cvt_f2i_ft", "cvt_f2i_fo", "cvt_i2f_ft", "cvt_i2f_fo",
+               "cvt_exact", "cvt_ff", "cvt_sat", "cvt_flags")
 
 
 # ── program builders ──────────────────────────────────────────────────────

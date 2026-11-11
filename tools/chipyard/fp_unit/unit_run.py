@@ -69,6 +69,22 @@ def requires_show(op):
     return _shown[op] <= 4
 
 
+def _write(args, name, lines):
+    """Write one vector file and return its path."""
+    path = os.path.join(args.workdir, name)
+    with open(path, "w") as f:
+        f.write("\n".join(lines) + "\n")
+    return path
+
+
+def fn_val(x, ew, sw):
+    """An IEEE binary word with every NaN collapsed to one value (hardfloat
+    canonicalises the payload, this core propagates it)."""
+    if F.raw_from_fn(ew, sw, x)["is_nan"]:
+        return "nan"
+    return x & ((1 << (ew + sw)) - 1)
+
+
 def check(args):
     rng = random.Random(args.seed)
     fails = 0
@@ -184,6 +200,162 @@ def check(args):
               f"hf-flag-diff={bad_flag} oracle-diff={bad_oracle}")
         fails += bad_hf + bad_flag + bad_oracle
         summary.append((name, len(got), bad_hf + bad_flag + bad_oracle))
+
+    # ── conversions (m12-chipyard-012): mine vs hardfloat vs the oracle ─────
+    MODES = (F.RNE, F.RTZ, F.RDN, F.RUP, F.RNA)
+    # op -> (name, srcExp, srcSig, intWidth) / i2f (name, intWidth, outE, outS)
+    F2I = {14: ("f2i ft->t32", F.FT[0], F.FT[1], 32),
+           15: ("f2i ft->o64", F.FT[0], F.FT[1], 64),
+           16: ("f2i fo->t32", F.FO[0], F.FO[1], 32),
+           17: ("f2i fo->o64", F.FO[0], F.FO[1], 64)}
+    I2F = {18: ("i2f t32->ft", 32, F.FT[0], F.FT[1]),
+           19: ("i2f o64->ft", 64, F.FT[0], F.FT[1]),
+           20: ("i2f t32->fo", 32, F.FO[0], F.FO[1]),
+           21: ("i2f o64->fo", 64, F.FO[0], F.FO[1])}
+    F2F = {22: ("f2f ft2fo", F.FT[0], F.FT[1], F.FO[0], F.FO[1], False),
+           23: ("f2f fo2ft", F.FO[0], F.FO[1], F.FT[0], F.FT[1], True)}
+
+    for op, (name, ew, sw, iw) in F2I.items():
+        vals = F.sample_fn(ew, sw, args.n, rng)
+        lines = [f"{op} {x:x} {signed:x} {mode}"
+                 for x in vals for signed in (0, 1) for mode in MODES]
+        got = run_vectors(args.bin, _write(args, f"vectors_op{op}.txt", lines),
+                          )
+        bad_hf = bad_flag = bad_oracle = 0
+        for r in got:
+            x, signed = r["in_lo"], bool(r["in_hi"] & 1)
+            want, wflags = F.f2i_exact(ew, sw, x, iw, signed, r["mode"])
+            if r["out"] != want or r["flags"] != wflags:
+                bad_oracle += 1
+                if bad_oracle <= 6:
+                    print(f"  [ORACLE] {name} x={x:x} signed={signed} "
+                          f"mode={r['mode']} want={want:x}/{wflags:x} "
+                          f"got={r['out']:x}/{r['flags']:x}")
+            if r["out"] != r["hf_out"]:
+                bad_hf += 1
+                if bad_hf <= 6:
+                    print(f"  [DIFF] {name} x={x:x} signed={signed} "
+                          f"mode={r['mode']} mine={r['out']:x} "
+                          f"hf={r['hf_out']:x}")
+            if r["flags"] != r["hf_flags"]:
+                bad_flag += 1
+                if bad_flag <= 6:
+                    print(f"  [FLAG] {name} x={x:x} signed={signed} "
+                          f"mode={r['mode']} mine={r['flags']:x} "
+                          f"hf={r['hf_flags']:x}")
+        print(f"  {name}: {len(got)} vectors | hf-value-diff={bad_hf} "
+              f"hf-flag-diff={bad_flag} oracle-diff={bad_oracle}")
+        fails += bad_hf + bad_flag + bad_oracle
+        summary.append((name, len(got), bad_hf + bad_flag + bad_oracle))
+
+    for op, (name, iw, oe, osig) in I2F.items():
+        vals = F.sample_ints(iw, args.n, rng)
+        lines = [f"{op} {v:x} {signed:x} {mode}"
+                 for v in vals for signed in (0, 1) for mode in MODES]
+        got = run_vectors(args.bin, _write(args, f"vectors_op{op}.txt", lines))
+        bad_hf = bad_flag = bad_oracle = 0
+        for r in got:
+            v, signed = r["in_lo"], bool(r["in_hi"] & 1)
+            want_rec, wflags = F.i2f_exact(iw, oe, osig, v, signed, r["mode"])
+            want = F.fn_from_recfn(oe, osig, want_rec)
+            if r["out"] != want or r["flags"] != wflags:
+                bad_oracle += 1
+                if bad_oracle <= 6:
+                    print(f"  [ORACLE] {name} v={v:x} signed={signed} "
+                          f"mode={r['mode']} want={want:x}/{wflags:x} "
+                          f"got={r['out']:x}/{r['flags']:x}")
+            if fn_val(r["out"], oe, osig) != fn_val(r["hf_out"], oe, osig):
+                bad_hf += 1
+                if bad_hf <= 6:
+                    print(f"  [DIFF] {name} v={v:x} signed={signed} "
+                          f"mode={r['mode']} mine={r['out']:x} "
+                          f"hf={r['hf_out']:x}")
+            if r["flags"] != r["hf_flags"]:
+                bad_flag += 1
+                if bad_flag <= 6:
+                    print(f"  [FLAG] {name} v={v:x} signed={signed} "
+                          f"mode={r['mode']} mine={r['flags']:x} "
+                          f"hf={r['hf_flags']:x}")
+        print(f"  {name}: {len(got)} vectors | hf-value-diff={bad_hf} "
+              f"hf-flag-diff={bad_flag} oracle-diff={bad_oracle}")
+        fails += bad_hf + bad_flag + bad_oracle
+        summary.append((name, len(got), bad_hf + bad_flag + bad_oracle))
+
+    for op, (name, sew, ssw, dew, dsw, force_inf) in F2F.items():
+        vals = F.sample_fn(sew, ssw, args.n, rng)
+        lines = [f"{op} {x:x} 0 {mode}" for x in vals for mode in MODES]
+        got = run_vectors(args.bin, _write(args, f"vectors_op{op}.txt", lines))
+        bad_hf = bad_flag = bad_oracle = 0
+        for r in got:
+            x = r["in_lo"]
+            want_rec, wflags = F.f2f_exact(sew, ssw, dew, dsw, x, r["mode"],
+                                           force_inf)
+            want = F.fn_from_recfn(dew, dsw, want_rec)
+            if r["out"] != want or r["flags"] != wflags:
+                bad_oracle += 1
+                if bad_oracle <= 6:
+                    print(f"  [ORACLE] {name} x={x:x} mode={r['mode']} "
+                          f"want={want:x}/{wflags:x} got={r['out']:x}/{r['flags']:x}")
+            if fn_val(r["out"], dew, dsw) != fn_val(r["hf_out"], dew, dsw):
+                bad_hf += 1
+                if bad_hf <= 6:
+                    print(f"  [DIFF] {name} x={x:x} mode={r['mode']} "
+                          f"mine={r['out']:x} hf={r['hf_out']:x}")
+            if r["flags"] != r["hf_flags"]:
+                bad_flag += 1
+                if bad_flag <= 6:
+                    print(f"  [FLAG] {name} x={x:x} mode={r['mode']} "
+                          f"mine={r['flags']:x} hf={r['hf_flags']:x}")
+        print(f"  {name}: {len(got)} vectors | hf-value-diff={bad_hf} "
+              f"hf-flag-diff={bad_flag} oracle-diff={bad_oracle}")
+        fails += bad_hf + bad_flag + bad_oracle
+        summary.append((name, len(got), bad_hf + bad_flag + bad_oracle))
+
+    # ── the divide-by-zero (`DZ`) lane of the rounding primitive ───────────
+    # m12-011 tied `infiniteExc` to zero, so this lane had never been
+    # compared.  With the flag raised the primitive's own output pattern for a
+    # plain normal input is not an architectural value (the real producer, the
+    # division family, drives `in.isInf`, arriving in m12-chipyard-014), so
+    # what is asserted here is: the `DZ` bit is raised (plus the `NX` of an
+    # inexact input), the sign is the input's, the result is ±Infinity for the
+    # input shapes the division family drives (`in` zero or infinite), and the
+    # whole value/flag word equals hardfloat's bit for bit.
+    vals = F.sample_fn(F.FT[0], F.FT[1], args.n, rng)
+    lines = [f"24 {x:x} 0 {mode}" for x in vals for mode in MODES]
+    got = run_vectors(args.bin, _write(args, "vectors_op24.txt", lines))
+    dz_bad = dz_hf = 0
+    dz_inf_checked = 0
+    for r in got:
+        x = r["in_lo"]
+        raw = F.raw_from_fn(F.FT[0], F.FT[1], x)
+        _, own_flags = F.round_exact(F.FT[0], F.FT[1], F.FT[0], F.FT[1],
+                                     raw, F.RNE)
+        want_flags = F.DZ | (own_flags & F.NX)
+        if F.recfn_value(r["out"], F.FT[0], F.FT[1]) != \
+                F.recfn_value(r["hf_out"], F.FT[0], F.FT[1]) or \
+                r["flags"] != r["hf_flags"]:
+            dz_hf += 1
+            if dz_hf <= 6:
+                print(f"  [DIFF] dz x={x:x} mine={r['out']:x}/{r['flags']:x} "
+                      f"hf={r['hf_out']:x}/{r['hf_flags']:x}")
+        inf_pattern = (raw["sign"] << (F.FT[0] + F.FT[1])) | \
+            ((6 << (F.FT[0] - 2)) << (F.FT[1] - 1))
+        want_value = r["out"]
+        if raw["is_zero"] or raw["is_inf"]:
+            want_value = inf_pattern
+            dz_inf_checked += 1
+        if r["flags"] != want_flags or r["out"] != want_value or \
+                (not raw["is_nan"] and
+                 (r["out"] >> (F.FT[0] + F.FT[1])) != raw["sign"]):
+            dz_bad += 1
+            if dz_bad <= 6:
+                print(f"  [ORACLE] dz x={x:x} want={want_value:x}/{want_flags:x} "
+                      f"got={r['out']:x}/{r['flags']:x}")
+    ndz = sum(1 for r in got if (r["flags"] & F.DZ) != 0)
+    print(f"  dz lane: {len(got)} vectors | hf-diff={dz_hf} oracle-diff={dz_bad} "
+          f"dz-flag-raised={ndz} inf-shape-checked={dz_inf_checked}")
+    fails += dz_hf + dz_bad
+    summary.append(("dz lane", len(got), dz_hf + dz_bad))
 
     # ── FCSR (clocked) ────────────────────────────────────────────────────
     fpath = os.path.join(args.workdir, "fcsr.txt")

@@ -94,8 +94,16 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **周期（trace 实测）**：`ftcls`/`focls` = 1 + 元素个数；`ftsgnj`/`ftsgnn`/`fosgnj`/`fosgnn`、`set.w rf`、`cs.* rf` 1 拍；`rd2rf`/`rf2rd` = 1 + 个数；`ld.o rf` 13 拍（单拍数据往返）。
 - **验证**：`tools/chipyard/fp_ref.py`（独立模型 + 精确有理数 oracle）、`tools/chipyard/fp_sweep.py`（分类/符号/rf 访存/FCSR/故障 5 组镜像）、`tools/chipyard/fp_unit/`（Verilator 单元台：同一组向量同时喂本实现与 hardfloat 实例，逐例比对值 + 标志）。
 
-## 边界
+## FP 转换族（`m12-chipyard-012`）
 
+- **单元**（`WumingFP.scala`，语义对齐 berkeley-hardfloat 的 `RecFNToIN` / `INToRecFN` / `rawFloatFromIN`，仍未引入其依赖）：`WumingRecFNToIN`（floa→整，`signedOut` 运行时选择，**饱和**而非报错——NaN/Inf/超范围 ⇒ 最大/最小值 + `NV`，`NX` 只用于有限的 inexact 结果）、`WumingINToRecFN`（整→浮，整数幅值规格化后交给**同一个舍入原语**，结构上不会 tiny/overflow ⇒ 只可能 `NX`）、`WumingF2F`（`ft2fo` 精确、`fo2ft` 六档；**`fo2ft` 溢出恒返回 ±Inf 并置 `OF`**，与 IEEE 在 RTZ/RDN/RUP 下取最大有限值不同，依据 `spec/SimRISC-07 §1.4` 与 `contract-fp §2`）。三者合成 `WumingFPConvert`，`kind` 选单元、`signedOp` 选有无符号。
+- **解码**（`WumingDecoder`）：20 条转换 = 15 条舍入六档（`immu6` one-hot，`0x20` 动态读 `rf0[33:32]`，其他值 ⇒ ILLI）+ 3 条 SBZ（`ft2fo`/`it2fo`/`ut2fo`，非 0 ⇒ ILLI）+ 2 条窗口复制（`ft2ft`/`fo2fo`，复用 `sCopy` 计数形式，`dst_rf0`/`mreg_zero`/两处范围/重叠均 ILLI）。f2i 目的为 `rd`（`dst_rd0`），其余目的为 `rf`（`dst_rf0`）。
+- **标志**：`WumingCore` 在 `EXEC` 把转换单元的 5 位标志接到 `rf.io.fflags`，`WumingFcsr` 累积（sticky），软件写 `rf0` 清零 —— **`NV` 的硬件抬升路径自本任务起真实存在**；`DZ` 的通道（舍入原语的 `infiniteExc`）在单元台单独比对，其真实生产者是除法（`m12-chipyard-014`）。
+- **周期（trace 实测）**：单寄存器转换 1 拍；`ft2ft`/`fo2fo` = 1 + 个数（与其它块复制一致）。
+- **验证**：`tools/chipyard/fp_ref.py` 的 `f2i_exact`/`i2f_exact`/`f2f_exact`（精确值 + 一次舍入 + 饱和/标志判定，独立于 RTL）、`fp_unit/`（同一组向量喂本实现与 hardfloat `RecFNToIN`/`INToRecFN`，逐例比值与 5 位标志；另含 `infiniteExc`/DZ 通道）、`fp_sweep.py` 的 9 个 `cvt_*` 组（整核上跑并回读 `rf0`）、`inst_case_run.py`（把 `tests/inst/fp/convert.yaml` 驱动到本核，并与 QEMU 同镜像逐字节比对）。
+- **与 QEMU 的一处已知差异**：sNaN 作 `ft2fo` 输入时本核（同 hardfloat / gem5）返回**规范 qNaN**，QEMU/softfloat 保留输入的 payload；spec 只要求「返回 qNaN」，故该组不进 QEMU 对照（`cvt_snan`）。
+
+## 边界
 - **保留** rocket-chip 库（Diplomacy / TileLink / `BaseTile`）与 chipyard 仿真设施（Verilator harness / BootROM / 内存模型 / `loadmem`）。
 - **抛开** Rocket 核与 RISC-V 语义（CSR / misa / PMP / MMU / TLB / 异常码）；`WumingCoreParams` 不继承 `CoreParams`。
 

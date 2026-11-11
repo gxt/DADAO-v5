@@ -425,6 +425,105 @@ def mode_from_onehot(immu6, fcsr_mode):
     return False, None
 
 
+# ── conversion oracle (m12-chipyard-012, spec/SimRISC-07 §1) ──────────────
+#
+# Exact oracles for the three conversion families, derived from the IEEE 754
+# definitions and the DADAO flag contract (spec/SimRISC-07 §1.4): from the
+# exact value of the operand, round once to the destination, then decide
+# saturation / flags.  Nothing here mirrors the RTL: f2i works on the exact
+# rational, i2f on the exact integer.
+NV, DZ, OF, UF, NX = 1, 2, 4, 8, 16
+
+
+def _widen_int(value, width, signed):
+    """Widen an integer to the 64-bit `rd` width (sign or zero extension)."""
+    value &= (1 << width) - 1
+    if signed and (value >> (width - 1)) & 1:
+        value -= 1 << width
+    return value & ((1 << 64) - 1)
+
+
+def f2i_exact(ew, sw, x, int_width, signed, mode):
+    """Exact float -> integer oracle: (64-bit result, rf0[4:0] flags).
+
+    NaN / Inf / a rounded result outside the destination range saturates to
+    the largest (positive, including a NaN) or smallest value and raises NV
+    only; a finite inexact result raises NX (spec/SimRISC-07 §1.4).
+    """
+    hi = (1 << (int_width - 1)) - 1 if signed else (1 << int_width) - 1
+    lo = -(1 << (int_width - 1)) if signed else 0
+    r = raw_from_fn(ew, sw, x)
+    if r["is_nan"] or r["is_inf"]:
+        # A NaN carries no sign for this purpose (hardfloat / QEMU / gem5 all
+        # saturate it to the positive maximum).
+        pos = not r["is_nan"] and r["sign"]
+        return _widen_int(lo if pos else hi, int_width, signed), NV
+    if r["is_zero"]:
+        return 0, 0
+    mant = r["sig"]
+    e2 = r["s_exp"] - (1 << ew) - (sw - 1)
+    if e2 >= 0:
+        num, den = mant << e2, 1
+    else:
+        num, den = mant, 1 << (-e2)
+    mag, inexact = _round_int(num, den, mode, bool(r["sign"]))
+    value = -mag if r["sign"] else mag
+    if value < lo:
+        return _widen_int(lo, int_width, signed), NV
+    if value > hi:
+        return _widen_int(hi, int_width, signed), NV
+    return _widen_int(value, int_width, signed), (NX if inexact else 0)
+
+
+def i2f_exact(int_width, oe, osig, value, signed, mode):
+    """Exact integer -> float oracle: (recoded output, rf0[4:0] flags).
+
+    The integer magnitude is rounded to `osig` significant bits; a precision
+    loss raises NX, an out-of-range result raises OF and returns +-Infinity
+    (contract-fp §4).  An integer is never tiny, so UF is unreachable.
+    """
+    raw_val = value & ((1 << int_width) - 1)
+    sign = 1 if (signed and (raw_val >> (int_width - 1)) & 1) else 0
+    mag = (1 << int_width) - raw_val if sign else raw_val
+    if mag == 0:
+        return 0, 0
+    k = mag.bit_length() - 1
+    drop = k - (osig - 1)
+    if drop <= 0:
+        q, inexact = mag << (-drop), False
+    else:
+        q, inexact = _round_int(mag, 1 << drop, mode, bool(sign))
+    if q >> osig:                       # rounding carried into a new binade
+        q >>= 1
+        k += 1
+    emax = (1 << (oe - 1)) - 1
+    if k > emax:
+        # +-Infinity with OF|NX (the overflowed result is inexact by contract)
+        return ((sign << (oe + osig)) | ((6 << (oe - 2)) << (osig - 1))), (OF | NX)
+    t = q.bit_length() - 1
+    sig_sel = q << (osig - 1 - t)
+    s_exp = k + (1 << oe)
+    out = ((sign << (oe + osig)) | (s_exp << (osig - 1)) | bits(sig_sel, osig - 1))
+    return out, (NX if inexact else 0)
+
+
+def f2f_exact(src_ew, src_sw, dst_ew, dst_sw, x, mode, force_inf_on_overflow):
+    """Exact format-conversion oracle: (destination bits, rf0[4:0] flags).
+
+    An sNaN is an invalid (arithmetic) input: NV and the canonical quiet NaN.
+    A quiet NaN propagates its payload (spec/SimRISC-07 §1.4).  On overflow
+    `fo2ft` returns +-Infinity whatever the direction (spec/SimRISC-07 §1.4,
+    contract-fp §2); the widening direction cannot overflow.
+    """
+    r = raw_from_fn(src_ew, src_sw, x)
+    is_sig_nan = r["is_nan"] and not ((r["sig"] >> (src_sw - 2)) & 1)
+    out, flags = round_exact(src_ew, src_sw, dst_ew, dst_sw, r, mode,
+                             invalid_exc=is_sig_nan)
+    if force_inf_on_overflow and (flags & OF):
+        out = (r["sign"] << (dst_ew + dst_sw)) | ((6 << (dst_ew - 2)) << (dst_sw - 1))
+    return out, flags
+
+
 # ── vector domains used by the self-check and the unit bench ──────────────
 def sample_raw(ie, isig, n, rng):
     """Raw floats covering every corner the rounding primitive must handle:
@@ -498,6 +597,24 @@ def sample_fn(ew, sw, n, rng):
         e = exp_all - 1 - rng.randrange(0, 3)
         pats.append((rng.getrandbits(1) << (w - 1))
                     | (e << (sw - 1)) | rng.getrandbits(sw - 1))
+    return pats
+
+
+def sample_ints(int_width, n, rng):
+    """Integer patterns covering the conversion boundaries: 0, +-1, the
+    largest/smallest values of the width, the powers of two around the
+    significand width of both formats (24 and 53 bits) and their neighbours,
+    plus random patterns.
+    """
+    mask = (1 << int_width) - 1
+    pats = [0, 1, 2, 3, 1 << (int_width - 1), (1 << (int_width - 1)) - 1,
+            (1 << (int_width - 1)) + 1, mask, mask - 1, mask >> 1]
+    for sh in (2, 8, 16, 22, 23, 24, 25, 31, 32, 33, 52, 53, 54, 62, 63):
+        if sh < int_width:
+            for base in (1 << sh, (1 << sh) - 1, (1 << sh) + 1):
+                pats += [base & mask, (-base) & mask]
+    for _ in range(n):
+        pats.append(rng.getrandbits(int_width))
     return pats
 
 

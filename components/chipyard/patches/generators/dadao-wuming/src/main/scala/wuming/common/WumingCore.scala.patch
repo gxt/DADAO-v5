@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..b34c557
+index 0000000..0e5f2b9
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,1421 @@
+@@ -0,0 +1,1446 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -361,10 +361,12 @@ index 0000000..b34c557
 +    Mux(inCopy, copySrcBankL, d.srcABank))
 +  rf.io.r1Idx := d.srcBIdx; rf.io.r1Bank := d.srcBBank
 +
-+  // Exception flags of this cycle's FP operation.  The FP infrastructure of
-+  // m12-011 has no flag-raising operation yet (classification and sign
-+  // injection raise none); m12-012..015 drive this with the rounding/arith
-+  // result.  The FCSR accumulates it (sticky) and `rf0[4:0]` reads it back.
++  // Exception flags of this cycle's FP operation.  m12-011 had no
++  // flag-raising operation (classification and sign injection raise none);
++  // m12-012 drives this port from the conversion units, so `NV` (NaN / Inf /
++  // out-of-range for f2i, sNaN for the format conversions), `OF`/`UF`/`NX`
++  // (format narrowing) and the FCSR's sticky accumulation are live hardware
++  // paths.  The flags of an instruction that faults are never raised.
 +  rf.io.fflags := 0.U(5.W)
 +
 +  val srcA = Mux(d.srcAIsIp, ip, rf.io.r0Data)
@@ -594,8 +596,30 @@ index 0000000..b34c557
 +  fpClassify.io.isFo := Mux(state === sCls, clsFo, d.clsFo)
 +  fpClassify.io.in := rf.io.r0Data
 +
++  // ---- format conversions (m12-chipyard-012) ------------------------------
++  // One cycle, like the plain arithmetic path: the decoder has already checked
++  // the low 6 bits (six-direction field / SBZ) and the destination rules.  The
++  // direction of the 15 rounding conversions is decoded here because the
++  // dynamic code `0x20` needs `rf0[33:32]`, which only the FCSR knows; the
++  // three SBZ conversions are exact and always use RNE.
++  val fpConvert = Module(new WumingFPConvert)
++  val (cvtLegal, cvtDirection) =
++    WumingRoundMode.fromOneHot(d.cvtImm6, rf.io.fcsrMode)
++  fpConvert.io.kind := d.cvtKind
++  fpConvert.io.mode :=
++    Mux(d.cvtExact, WumingRoundMode.RNE,
++      Mux(cvtLegal, cvtDirection, WumingRoundMode.RNE))
++  fpConvert.io.in := srcA
++  fpConvert.io.signedOp := d.cvtSigned
++
 +  // ---- write-back --------------------------------------------------------
 +  val execFault = d.ill || d.undi
++
++  // Flags of this cycle's FP conversion (see the `rf.io.fflags` comment
++  // above); a faulting instruction raises nothing.
++  when(state === sExec && !execFault && d.isCvt) {
++    rf.io.fflags := fpConvert.io.flags
++  }
 +
 +  // R1 = C: shifts / bit-field ops take the two-cycle path.
 +  val slowOps = Seq(WumingAluOp.SHL, WumingAluOp.SHR_U, WumingAluOp.SHR_S,
@@ -668,7 +692,8 @@ index 0000000..b34c557
 +            Mux(memElemWrite, memLdElem,
 +              Mux(semiW0, io.semi.resp.value,
 +                Mux(d.isCfx2, cfxRdata,
-+                  Mux(d.isCs, csData, w0LoopData)))))))))
++                  Mux(d.isCvt, fpConvert.io.out,
++                    Mux(d.isCs, csData, w0LoopData))))))))))
 +
 +  // rrrr: w0 = high half (w0Sel = 1), w1 = low half (m12-005 shape).
 +  rf.io.w1En := (state === sExec && !execFault && !cfxFault && !aluIsSlow && d.w1En) ||

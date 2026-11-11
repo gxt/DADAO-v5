@@ -4,6 +4,10 @@
 
 ## M12
 
+- **2026-11-11 `m12-chipyard-012`**
+  - 摘要：**FP 转换族接入（浮点↔整数 / 浮点↔浮点 / 复制）**。`WumingFP.scala` 增三个单元并合成 `WumingFPConvert`：`WumingRecFNToIN`（f2i，饱和 + `NV`，`NX` 与 `NV` 互斥）、`WumingINToRecFN`（i2f，整数规格化后走同一舍入原语，只可能 `NX`）、`WumingF2F`（`ft2fo` 精确 / `fo2ft` 六档且**溢出恒 ±Inf + `OF`**，与 IEEE 按方向取最大有限值不同——`spec/SimRISC-07 §1.4`/`contract-fp §2`）。`WumingDecoder` 解 20 条转换：15 条六档（`encode_onehot`）、3 条 SBZ（`encode_sbz`）、2 条窗口复制（复用 `sCopy`，`rf0` 作目的 ⇒ ILLI）；`WumingCore` 每拍接入转换单元并把其标志送 `rf.io.fflags`（**首次由硬件抬起 `NV`**；`DZ` 通道在单元台单独验证，其真实生产者属除法），`WumingRegFile` 增 `fcsrMode` 输出供 `immu6=0x20` 读 `rf0[33:32]`。工具：`fp_ref` 增三条精确转换 oracle、`fp_unit` 增 11 个 op（含 hardfloat `RecFNToIN`/`INToRecFN` 对照与 `infiniteExc`/DZ 通道）、`fp_sweep` 增 9 组镜像（281 例/23 故障）、新增 `tools/chipyard/inst_case_run.py`（把 `tests/inst` 向量文件驱动到本核，与 QEMU 同镜像比对）。
+  - 执行者：engineer
+
 - **2026-11-11 `m12-chipyard-011`**
   - 摘要：**FP 基础设施（recFN / 六档舍入 / 异常标志 / 分类）**。新增 `wuming/common/WumingFP.scala`：recFN 编解码（`recFNFromFN`/`fNFromRecFN`/`rawFloatFromFN`/`rawFloatFromRecFN`，语义对齐 berkeley-hardfloat，未引入其依赖）、单一舍入原语 `WumingRoundAnyRawFNToRecFN`（RNE/RTZ/RDN/RUP/RNA 五档 + `immu6` 六档解码、tininess 按 spec 取**舍入后**、`rf0[4:0]` 顺序的异常标志、qNaN payload 传播）、`classifyRaw`（`SimRISC-07 §5` 位序，bit0 sNaN … bit9 +Inf）、`signInject` 与 `WumingFcsr`（sticky 标志、`[33:32]`/`[4:0]` 写掩码、只读 qNaN 位）。`WumingRegFile` 打开 `rf` 银行并把 `rf0` 接到 `WumingFcsr`；`WumingDecoder` 解 `ld/st/ldm/stm` 的 rf 形式、`set.w rf`、`cs.* rf`、`rd2rf`/`rf2rd`、`ftcls`/`focls`、`ftsgnj`/`ftsgnn`/`fosgnj`/`fosgnn`；`WumingCore` 新增块分类状态 `sCls`（每拍一个元素）并修正 `cs.*` 第一类「恒写两值之一」的语义（第二类才条件写）；`WumingALU` 增 `SET_W`/`SGNJ`/`SGNN`。另增仅用于单元验证的 `WumingFPUnitHarness.scala`（旁挂一个 hardfloat 实例做 RTL/RTL 逐例对照，不进 SoC）。工具：`tools/chipyard/fp_ref.py`（独立模型 + 精确有理数 oracle）、`tools/chipyard/fp_sweep.py`、`tools/chipyard/fp_unit/`（Verilator 单元台）。
   - 执行者：engineer

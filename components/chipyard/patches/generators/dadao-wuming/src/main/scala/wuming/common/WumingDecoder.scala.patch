@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 new file mode 100644
-index 0000000..7bcb59f
+index 0000000..c5a4764
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
-@@ -0,0 +1,905 @@
+@@ -0,0 +1,1008 @@
 +// See LICENSE for license details.
 +//
 +// DADAO decoder for the M12 integer core.
@@ -180,6 +180,15 @@ index 0000000..7bcb59f
 +  val isCopy      = Bool()
 +  val copyDstBank = UInt(2.W)
 +  val copySrcBank = UInt(2.W)
++  // m12-012: format conversions (spec/SimRISC-07 §1, ADR-0050).  `cvtKind`
++  // selects the unit inside `WumingFPConvert`, `cvtImm6` is the low 6 bits of
++  // the instruction (six-direction field or SBZ) and `cvtExact` marks the three
++  // SBZ conversions, whose result never depends on a rounding direction.
++  val isCvt     = Bool()
++  val cvtKind   = UInt(4.W)
++  val cvtImm6   = UInt(6.W)
++  val cvtExact  = Bool()
++  val cvtSigned = Bool()
 +}
 +
 +class WumingDecoder extends Module {
@@ -242,6 +251,8 @@ index 0000000..7bcb59f
 +  d.isCs := false.B; d.csCond := 0.U
 +  d.isCls := false.B; d.clsFo := false.B
 +  d.isCopy := false.B; d.copyDstBank := WumingBank.RD; d.copySrcBank := WumingBank.RD
++  d.isCvt := false.B; d.cvtKind := WumingCvtKind.F2I_FT_T; d.cvtImm6 := 0.U
++  d.cvtExact := false.B; d.cvtSigned := true.B
 +
 +  val recognized = WireDefault(false.B)
 +
@@ -471,6 +482,75 @@ index 0000000..7bcb59f
 +    }
 +  }
 +
++  // ---- m12-012: format conversions (spec/SimRISC-07 §1, ADR-0050) --------
++  //
++  // 18 of the 20 conversions carry their rounding direction (15) or a SBZ (3)
++  // in the low 6 bits; the remaining two (`ft2ft`/`fo2fo`) keep the 1..63
++  // register-window form and reuse the block-copy machinery.
++  //
++  // `encode_onehot` (ADR-0050 D2): the direction field is one of the six
++  // one-hot values, anything else (including 0) is ILLI.  `encode_sbz`
++  // (ADR-0050 D3): the exact conversions require 0.
++  def cvtDirection(): Unit = {
++    d.cvtImm6 := hd
++    when(!(hd === 0x01.U || hd === 0x02.U || hd === 0x04.U ||
++      hd === 0x08.U || hd === 0x10.U || hd === 0x20.U)) { d.ill := true.B }
++  }
++
++  // float -> integer: `rdHB` destination (`dst_rd0`), `rfHC` source.
++  def cvtF2I(kind: UInt, signed: Boolean): Unit = {
++    d.isCvt := true.B
++    d.cvtKind := kind
++    d.cvtSigned := signed.B
++    d.srcAIdx := hc; d.srcABank := WumingBank.RF
++    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }                   // dst_rd0
++    cvtDirection()
++  }
++
++  // integer -> float: `rfHB` destination (`dst_rf0`), `rdHC` source.
++  def cvtI2F(kind: UInt, signed: Boolean, exact: Boolean): Unit = {
++    d.isCvt := true.B
++    d.cvtKind := kind
++    d.cvtSigned := signed.B
++    d.cvtExact := exact.B
++    d.srcAIdx := hc; d.srcABank := WumingBank.RD
++    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }                   // dst_rf0
++    if (exact) { when(hd =/= 0.U) { d.ill := true.B } }    // encode_sbz
++    else { cvtDirection() }                                // encode_onehot
++  }
++
++  // float -> float: `rfHB` destination, `rfHC` source.
++  def cvtF2F(kind: UInt, exact: Boolean): Unit = {
++    d.isCvt := true.B
++    d.cvtKind := kind
++    d.srcAIdx := hc; d.srcABank := WumingBank.RF
++    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }                   // dst_rf0
++    if (exact) { when(hd =/= 0.U) { d.ill := true.B } }    // encode_sbz
++    else { cvtDirection() }                                // encode_onehot
++  }
++
++  // `ft2ft`/`fo2fo` (spec/SimRISC-07 §1.3): the same register-window copy as
++  // `rd2rd`, in the rf bank, with the copy legality set plus `dst_rf0`
++  // (unlike `rd2rf`, the block conversions of §1.3 may not target rf0).
++  def fpCopy(): Unit = {
++    d.isCopy := true.B
++    d.copyDstBank := WumingBank.RF
++    d.copySrcBank := WumingBank.RF
++    d.srcAIdx := hc; d.srcABank := WumingBank.RF
++    d.useImmB := true.B; d.imm := zext(hd)
++    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
++    when(hd === 0.U) { d.ill := true.B }                    // mreg_zero
++    when(hb +& hd > 64.U) { d.ill := true.B }               // mreg_range_overflow
++    when(hc +& hd > 64.U) { d.ill := true.B }
++    when(hb === 0.U) { d.ill := true.B }                    // dst_rf0
++    // mreg_range_overlap: same bank, so a source/destination intersection
++    // (including a full overlap) is ILLI.
++    when(hb < (hc +& hd) && hc < (hb +& hd)) { d.ill := true.B }
++  }
++
 +  // ---- memory shapes (spec/SimRISC-01) ----------------------------------
 +  // `memWidth` = log2(access bytes); `memSigned` selects sb/sw/st vs ub/uw/ut.
 +  // Single-element address = rbHB + imms12; multi-register address =
@@ -673,9 +753,9 @@ index 0000000..7bcb59f
 +        is(0x3B.U) { subHandled := true.B; orrrLogic(WumingAluOp.REM_S) }
 +      }
 +    }.elsewhen(opc === 0x44.U) {
-+      // OPC-RF (spec/SimRISC-07): only the FP infrastructure forms of
-+      // m12-chipyard-011 are implemented; every other cell of this row is a
-+      // defined FP instruction that still belongs to m12-012..015 -> ILLI.
++      // OPC-RF (spec/SimRISC-07): the FP infrastructure (m12-011) plus the
++      // format conversions (m12-012).  Every other cell of this row is a
++      // defined FP instruction that still belongs to m12-013..015 -> ILLI.
 +      switch(ha) {
 +        is(0x00.U) { subHandled := true.B; classifyBlock(isFo = false) }  // ftcls
 +        is(0x08.U) { subHandled := true.B; classifyBlock(isFo = true) }   // focls
@@ -683,6 +763,29 @@ index 0000000..7bcb59f
 +        is(0x17.U) { subHandled := true.B; signInject(WumingAluOp.SGNJ, false) }
 +        is(0x1E.U) { subHandled := true.B; signInject(WumingAluOp.SGNN, true) }
 +        is(0x1F.U) { subHandled := true.B; signInject(WumingAluOp.SGNJ, true) }
++        // convert_ff (spec/SimRISC-07 §1.3): ft2fo (SBZ, exact), ft2ft
++        // (count), fo2ft (six directions), fo2fo (count).
++        is(0x01.U) { subHandled := true.B; cvtF2F(WumingCvtKind.FT2FO, exact = true) }
++        is(0x02.U) { subHandled := true.B; fpCopy() }
++        is(0x09.U) { subHandled := true.B; cvtF2F(WumingCvtKind.FO2FT, exact = false) }
++        is(0x0A.U) { subHandled := true.B; fpCopy() }
++        // convert_f2i (spec/SimRISC-07 §1.5): rdHB destination, rfHC source.
++        is(0x30.U) { subHandled := true.B; cvtF2I(WumingCvtKind.F2I_FT_T, signed = true) }
++        is(0x31.U) { subHandled := true.B; cvtF2I(WumingCvtKind.F2I_FT_O, signed = true) }
++        is(0x32.U) { subHandled := true.B; cvtF2I(WumingCvtKind.F2I_FT_T, signed = false) }
++        is(0x33.U) { subHandled := true.B; cvtF2I(WumingCvtKind.F2I_FT_O, signed = false) }
++        is(0x34.U) { subHandled := true.B; cvtI2F(WumingCvtKind.I2F_T_FT, signed = true, exact = false) }
++        is(0x35.U) { subHandled := true.B; cvtI2F(WumingCvtKind.I2F_O_FT, signed = true, exact = false) }
++        is(0x36.U) { subHandled := true.B; cvtI2F(WumingCvtKind.I2F_T_FT, signed = false, exact = false) }
++        is(0x37.U) { subHandled := true.B; cvtI2F(WumingCvtKind.I2F_O_FT, signed = false, exact = false) }
++        is(0x38.U) { subHandled := true.B; cvtF2I(WumingCvtKind.F2I_FO_T, signed = true) }
++        is(0x39.U) { subHandled := true.B; cvtF2I(WumingCvtKind.F2I_FO_O, signed = true) }
++        is(0x3A.U) { subHandled := true.B; cvtF2I(WumingCvtKind.F2I_FO_T, signed = false) }
++        is(0x3B.U) { subHandled := true.B; cvtF2I(WumingCvtKind.F2I_FO_O, signed = false) }
++        is(0x3C.U) { subHandled := true.B; cvtI2F(WumingCvtKind.I2F_T_FO, signed = true, exact = true) }
++        is(0x3D.U) { subHandled := true.B; cvtI2F(WumingCvtKind.I2F_O_FO, signed = true, exact = false) }
++        is(0x3E.U) { subHandled := true.B; cvtI2F(WumingCvtKind.I2F_T_FO, signed = false, exact = true) }
++        is(0x3F.U) { subHandled := true.B; cvtI2F(WumingCvtKind.I2F_O_FO, signed = false, exact = false) }
 +      }
 +    }.elsewhen(opc === 0x41.U) {
 +      widthTable(widthTetra, 31, 32)
