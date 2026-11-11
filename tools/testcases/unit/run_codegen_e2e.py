@@ -345,7 +345,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     # is the other-cfx/monitor segment) is classified *before* the expected-value
     # comparison, so a faulting guest can never be a PASS even if an expected
     # value were wrong (load_programs also rejects such values).  Guest SYS_EXIT
-    # codes are 0x00..0x3F PASS and 0x40..0x7F FAIL.
+    # codes are 0x00 = PASS and 0x01..0x7F = FAIL (check point index).
     if rc >= 0x80:
         res.reason = f"machine fault {FAULT_NAMES.get(rc, 'unknown')} (0x{rc:02X})"
     elif rc == prog["expected"]:

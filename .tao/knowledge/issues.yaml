@@ -184,3 +184,17 @@
   status: open
   resolved_by: null
   title: 【P1】**预取自 `m12-chipyard-008` 起全部失效（回归）**：008 把 `specBacked(pfReqAddr)` 加进 `pfAddrLegal`，而 `pfReqAddr` 取自复位值 0 的 `pfReqBeat` ⇒ 地址 0 不在 Tiny 三段窗口 ⇒ `pfWanted` 恒假。`m12-chipyard-009` reviewer 用 400 条直线 `or.o` 实测 `prefetch=0 / demand_fetch=313 / exec=618`，跨 beat 全付 6 拍，与「用例短/跳转打散」无关。`020` 的 p50=1 测于 008 合入之前，故未暴露；现有门控无「预取是否真的发过」的断言。修复：`pfAddrLegal` 改查待发的 `pfBeat`；并补一条「直线流 prefetch > 0」的门控断言。
+- id: ISS-383
+  scope:
+  - testcases
+  - spec
+  status: open
+  resolved_by: null
+  title: 【P3】`m13-spec-001` 收尾遗留：F1 `tools/testcases/lib/README.md:155` 仍写「report 0x40 (guest FAIL)」与同文件新表矛盾（漏改一处）；F2 冲突登记「14 个程序」实为 15 个非零 expected（13 个取值），计数笔误；F3 上轮审阅记录 L80 含具体 `.work/inject-backup` 路径；F5 `components/qemu/patches/target/dadao/cpu.h.patch:98` `DADAO_EXIT_GUEST_FAIL 0x40` 未列入冲突登记（patch 内无引用、惰性）；另 codegen 语料 15 例以非零 guest 码承载结果值（`rc == expected` 判 PASS），新 §7.1 下这些码即 FAIL ⇒ 需重做语料与判据（用户已定「不动 riscv-tests」，codegen 待定）。
+- id: ISS-384
+  scope:
+  - spec
+  - chipyard
+  status: open
+  resolved_by: null
+  title: 【P2】**需用户裁定**：`m13-spec-001` 只授权就地修订 `ADR-0004`，但两处活正文仍写旧 guest 分区——`ADR-0009 D5`（decision 正文，非修订节）与 `components/chipyard/README.md:44`。选项：① 就地修订这两处（需用户逐条确认 ADR-0009 的 decision 变更）；② 改为指针引用 `spec/Machine-v5 §7.1`（ADR 不承载规范正文）。

@@ -12,8 +12,8 @@ Usage (TESTCASES-072t 迁入本目录；TESTCASES-076t 删除旧薄 wrapper):
 只在 `tests/inst/`。
 
 Exit code protocol (spec/Machine-v5 §7.1; guest halt via SYS_EXIT, ADR-0020 D8):
-  0x00-0x3F  = PASS (guest defined pass token)
-  0x40-0x7F  = FAIL (guest defined fail code)
+  0x00       = PASS (the only PASS value)
+  0x01-0x7F  = FAIL (value = failing check point index 1-127)
   0x80-0xBF  = Machine fault, other cfx  (bit5:0 = cfxHA)
   0xC0-0xFF  = Machine fault, monitor    (bit5:4 = run mode, bit3:0 = cause index)
 """
@@ -118,9 +118,8 @@ def resolve_legacy_vector_path(path: str) -> str:
     return cand if os.path.exists(cand) else path
 
 # Exit code ranges (spec/Machine-v5 §7.1)
-EXIT_PASS_MIN = 0x00
-EXIT_PASS_MAX = 0x3F
-EXIT_FAIL_MIN = 0x40
+EXIT_PASS = 0x00
+EXIT_FAIL_MIN = 0x01
 EXIT_FAIL_MAX = 0x7F
 EXIT_FAULT_MIN = 0x80
 EXIT_FAULT_MAX = 0xFF
@@ -559,18 +558,18 @@ def interpret_exit_code(exit_code, expected_fault=None, dump_mode=False):
         return "FAIL", (f"QEMU killed by {format_exit_code(exit_code)} — "
                         f"guest did not reach SYS_EXIT (dirty failure)")
 
-    if EXIT_PASS_MIN <= exit_code <= EXIT_PASS_MAX:
+    if exit_code == EXIT_PASS:
         if expected_fault:
             return "FAIL", (f"Expected fault {expected_fault} but got "
                             f"PASS (guest code 0x{exit_code:02X})")
-        return "PASS", ("Test passed" if exit_code == EXIT_PASS_MIN
-                        else f"Test passed (guest pass token 0x{exit_code:02X})")
+        return "PASS", "Test passed"
 
     if EXIT_FAIL_MIN <= exit_code <= EXIT_FAIL_MAX:
         if expected_fault:
             return "FAIL", (f"Expected fault {expected_fault}, got guest "
                             f"FAIL(0x{exit_code:02X})")
-        return "FAIL", f"Test failed with code 0x{exit_code:02X}"
+        return "FAIL", (f"Test failed at check point {exit_code} "
+                        f"(0x{exit_code:02X})")
 
     if EXIT_FAULT_MIN <= exit_code <= EXIT_FAULT_MAX:
         name = fault_name(exit_code)

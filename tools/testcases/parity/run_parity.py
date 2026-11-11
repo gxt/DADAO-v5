@@ -91,7 +91,7 @@ STATUSES = ("PASS", "FAIL", "DEFERRED", "SKIP_PROFILE", "BLOCKED", "ERROR",
 VERDICTS = ("AGREE_PASS", "AGREE_FAIL", "GEM5_ONLY_FAIL", "QEMU_ONLY_FAIL",
             "DIFF", "BLOCKED_SIDE", "N/A")
 # Machine-fault exit codes (spec/Machine-v5 §7.1): other cfx 0x80-0xBF and
-# monitor 0xC0-0xFF.  Guest PASS is 0x00-0x3F and guest FAIL 0x40-0x7F, so a
+# monitor 0xC0-0xFF.  Guest PASS is 0x00 only and guest FAIL 0x01-0x7F, so a
 # process status is a machine fault iff it is >= 0x80.
 def _is_machine_fault(rc):
     return 0x80 <= rc <= 0xFF

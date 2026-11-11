@@ -431,7 +431,7 @@ def check_adr_alignment():
                "QEMU patch 未找到 RAM 的 memory_region_add_subregion 注册")
 
     # --- Exit code segments (spec/Machine-v5 §7.1) ---
-    # Guest 0x00-0x3F PASS / 0x40-0x7F FAIL; other cfx 0x80-0xBF (cfxHA);
+    # Guest 0x00 PASS / 0x01-0x7F FAIL; other cfx 0x80-0xBF (cfxHA);
     # monitor 0xC0-0xFF (run mode + cause index).  The old single-formula
     # per-cause constants must be gone.
     formula_text = re.sub(r'(?m)^\+', '', patch_content)

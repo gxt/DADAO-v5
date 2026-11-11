@@ -171,8 +171,8 @@ The `SYS_EXIT` epilogue writes the 64-bit argument block
 
 | Range | Source | Meaning |
 |-------|--------|---------|
-| `0x00`-`0x3F` | `SYS_EXIT` (guest) | PASS (guest pass token) |
-| `0x40`-`0x7F` | `SYS_EXIT` (guest) | FAIL (guest-defined code) |
+| `0x00` | `SYS_EXIT` (guest) | PASS (the only PASS value) |
+| `0x01`-`0x7F` | `SYS_EXIT` (guest) | FAIL (value = failing check point index 1-127) |
 | `0x80`-`0xBF` | Machine fault, other cfx | `0x80 | cfxHA` (`CFXTRAP`/`CFXESC` entering the target/current cfx) |
 | `0xC0`-`0xFF` | Machine fault, monitor | `0xC0 | (run_mode << 4) | cause_index` |
 

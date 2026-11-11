@@ -12,7 +12,7 @@ Design decisions (ADR-0009):
   D1: raw-encoding via struct.pack, no llvm-mc
   D2: guest-internal comparison via XOR+ORR accumulator
   D4: RD scratch=rd60-63, RB scratch=rb60-63, RA not scratch
-  D5: exit code 0x00-0x3F=PASS, 0x40-0x7F=FAIL, 0x80-0xFF=machine fault
+  D5: exit code 0x00=PASS, 0x01-0x7F=FAIL (check point 1-127), 0x80-0xFF=machine fault
       (spec/Machine-v5 §7.1)
 
 Exit channel (ADR-0020 D8: semihosting SYS_EXIT replaces the legacy MMIO halt device):
@@ -62,7 +62,7 @@ PC_DUMP_OFF = 0x400                  # pc (rb0 via rb2rd→st.o-rd) at +0x400
 SEMIHOST_TAG = 0x3FF00               # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 SYS_EXIT = 0x18                      # SYS_EXIT service number
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
-EXIT_GUEST_FAIL = 0x40               # spec/Machine-v5 §7.1 guest FAIL segment
+EXIT_GUEST_FAIL = 0x01               # spec/Machine-v5 §7.1 guest FAIL = failing check point 1
 
 # Register conventions (ADR-0009 D4)
 TEMP_RD     = 60                      # rd60: temp for loading expected values
@@ -654,7 +654,7 @@ def build_exit_section(vector_case, dump_mode=False, loader_words=0, relocate_ra
         # Layout (word indices from the br.nz itself):
         #   [b]                 br.nz rd61, N  -> if != 0, jump to FAIL block
         #   [b+1 .. b+P]        PASS block: EXIT_RD = 0; SYS_EXIT  (P words)
-        #   [b+P+1 ..]          FAIL block: EXIT_RD = 0x40; SYS_EXIT
+        #   [b+P+1 ..]          FAIL block: EXIT_RD = 0x01 (check point 1); SYS_EXIT
         # v5 branch base = the br.nz instruction's own PC (ISS-309): the offset
         # is derived from the word indices, so `N = (fail start) - (br index)`.
         pass_block = emit_load_imm64_rd(EXIT_RD, 0) + emit_sys_exit(EXIT_RD)
