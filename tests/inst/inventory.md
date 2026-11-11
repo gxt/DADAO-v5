@@ -251,5 +251,6 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `clmul/clmul.yaml` | — | ✓ |
 | `fp/scaleb.yaml` | — | ✓ |
 | `fp/convert.yaml` | — | ✓ |
+| `fp/cond-assign.yaml` | — | ✓ |
 | `rev/rev.yaml` | — | — |
 | `bitcnt/bitcnt.yaml` | — | — |

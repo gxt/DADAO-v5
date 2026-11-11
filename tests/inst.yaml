@@ -221,6 +221,12 @@
   - system
   level: full
   requires: []
+- id: inst-fp-003
+  file: inst/fp/cond-assign.yaml
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-minmax-001
   file: inst/minmax/minmax_c23.c
   platforms:

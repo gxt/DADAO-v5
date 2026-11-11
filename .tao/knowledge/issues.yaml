@@ -240,3 +240,9 @@
   status: open
   resolved_by: null
   title: 【P3】`m12-chipyard-012` 计数类遗留：F-a `run.sh` G 段 `nx_all/nv_all/nx_only` 用 `expect[1]` 取错槽（打印 15/146/134，真值 13/149/135；阈值仍成立、非假绿，但覆盖计数失真）；F-b 完成区「NV 端到端 15 例」应为 13；F-c 「281 例语义（9 组）」实为 14 组全量、9 个 `cvt_*` 组 185 例；F-d 「144 例」现场为 84 例/168 dump 字、整台 67150−fcsr10=67140。教训与 `ISS-388` 同源：完成区的计数必须由脚本现场输出直接抄，不得手工换算或跨口径合并。
+- id: ISS-392
+  scope:
+  - testcases
+  status: open
+  resolved_by: null
+  title: 【P3】`m13-testcases-010` 文档级：F-a 完成区写「L1 红 3 项」实为 4 项（漏记 `check-patch-tree`，根因是组件源检出树里 `011` 的未提交 RTL 修复）；F-b 证据脚本 `inst_sweep covered` 期望值写死 273、标签却写「现场派生」。**证据缺口（转 `m12-chipyard-016`）**：真 RTL 重建注入（`csTaken` 改回 `!d.isCs || csCondTrue` ⇒ 必红）与 chipyard 侧 rf 载体（`fp_sweep` 仅 4 例 `cs.*` rf）仍未做，本任务只完成「推演 + 等价输出注入」。

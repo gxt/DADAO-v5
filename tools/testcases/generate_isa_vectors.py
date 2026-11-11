@@ -15,7 +15,8 @@ All encoding words, expected values, and spec_cite are derived from
 contracts/opcodes.yaml, .tao/contracts/contract-isa.md, and
 .tao/adr/adr-0004-test-machine.md.  No LLVM/QEMU reverse-engineering.
 
-Output: tests/inst/base/reg-*.yaml（默认：六册全渲染 + 写盘；位置参数可限定册）。
+Output: tests/inst/base/reg-*.yaml（默认：六册全渲染 + 写盘；位置参数可限定册）；
+        tests/inst/fp/cond-assign.yaml（`cs.n/.z/.p` 的 rf 形式，scope fp）。
 Check:  python3 tools/testcases/generate_isa_vectors.py --check [册 ...]
         （只读：重渲染后与磁盘逐字节比，不一致/缺失 ⇒ rc=1，不写盘）
 """
@@ -25,6 +26,7 @@ import os, sys, yaml, copy
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT = os.path.join(REPO, "tests", "inst", "base")
+FP_OUT = os.path.join(REPO, "tests", "inst", "fp")
 
 def _int(v):
     if isinstance(v, int): return v
@@ -830,6 +832,91 @@ def gen_cs_semantic(rec, cond_val, val_true, val_false, taken):
 
     return _case(mnem, insn, fmt, "semantic", word, inp, out, None,
                  "active", None, None, sc, notes)
+
+# ── Conditional assignment: not-taken branch (ISS-387) ────────────────
+# SimRISC-02 §2: cs.n/.z/.p **always** write one of the two sources
+# (`if (cond) rdHB=rdHC; else rdHB=rdHD`); cs.eq/.ne only write rdHC when the
+# condition holds.  The taken branch alone cannot distinguish "wrote rdHC"
+# from "did not write at all" when the destination preset equals neither
+# source, so the else branch needs its own case (a "conditional write"
+# implementation was invisible to the old 5 cases — `m12-chipyard-011`).
+_CS_DST_PRESET = 0x1111222233334444   # destination preset, != both sources
+_CS_TRUE_VAL = 0x000000000000AAAA     # source written when the condition holds
+_CS_FALSE_VAL = 0x000000000000BBBB    # source written when it does not
+
+def gen_cs_not_taken(rec):
+    """rd-form (rrrr) semantic case for the *else* branch of cs.*."""
+    mnem = rec["mnemonic"]
+    insn = rec["id"]
+    fmt = rec["format"]
+    sc = rec.get("spec_cite", "")
+    word = _build_word_rrrr(rec, 1, 2, 3, 4)   # rdha=1, rdhb=2(dst), rdhc=3, rdhd=4
+
+    if mnem in ("cs.eq", "cs.ne"):
+        # cs.eq: rdHA != rdHB → not taken; cs.ne: rdHA == rdHB → not taken.
+        rdha, rdhb = (0x2A, 0x63) if mnem == "cs.eq" else (0x2A, 0x2A)
+        inp = {"rd": {"rd1": _hex64(rdha), "rd2": _hex64(rdhb),
+                      "rd3": _hex64(_CS_DST_PRESET), "rd4": _hex64(_CS_FALSE_VAL)}}
+        # Second class is a conditional write: rdHC keeps its old value.
+        out = {"rd": {"rd3": _hex64(_CS_DST_PRESET)},
+               "rb": {}, "ra": {}, "memory": []}
+        notes = ("%s: rd1=%s, rd2=%s → not taken, rdHC(rd3) keeps %s "
+                 "(rd4=%s must not be written)"
+                 % (mnem, hex(rdha), hex(rdhb), hex(_CS_DST_PRESET),
+                    hex(_CS_FALSE_VAL)))
+    else:
+        # Condition values that make cs.n/cs.z/cs.p false.
+        cond = {"cs.n": 0, "cs.z": 1, "cs.p": 0xFFFFFFFFFFFFFFFF}[mnem]
+        inp = {"rd": {"rd1": _hex64(cond), "rd2": _hex64(_CS_DST_PRESET),
+                      "rd3": _hex64(_CS_TRUE_VAL), "rd4": _hex64(_CS_FALSE_VAL)}}
+        # First class always writes one source: the else branch writes rdHD.
+        out = {"rd": {"rd2": _hex64(_CS_FALSE_VAL)},
+               "rb": {}, "ra": {}, "memory": []}
+        notes = ("%s: rd1=%s → not taken, rdHD(rd4)=%s → rd2 "
+                 "(rd2 preset %s, rdHC=%s must not be written)"
+                 % (mnem, hex(cond), hex(_CS_FALSE_VAL),
+                    hex(_CS_DST_PRESET), hex(_CS_TRUE_VAL)))
+
+    return _case(mnem, insn, fmt, "semantic", word, inp, out, None,
+                 "active", None, None, sc, notes)
+
+def gen_cs_rf_semantic(rec, taken):
+    """cs.n/.z/.p rf-form (scope fp) semantic case: rdHA picks rfHC or rfHD.
+
+    The harness has no `rf` input_state channel (schema: rd/rb/ra/memory), so
+    the two sources are loaded with `ld.o rf` from memory and the destination
+    is read back with `rf2rd` — the same idiom as `tests/inst/fp/convert.yaml`.
+    """
+    mnem = rec["mnemonic"]
+    insn = rec["id"]
+    fmt = rec["format"]
+    sc = rec.get("spec_cite", "")
+    word = _build_word_rrrr(rec, 1, 2, 3, 4)   # rdha=1, rfhB=2(dst), rfHC=3, rfHD=4
+
+    cond_taken = {"cs.n": 0xFFFFFFFFFFFFFFFF, "cs.z": 0, "cs.p": 1}
+    cond_not_taken = {"cs.n": 0, "cs.z": 1, "cs.p": 0xFFFFFFFFFFFFFFFF}
+    cond = cond_taken[mnem] if taken else cond_not_taken[mnem]
+    expected = _CS_TRUE_VAL if taken else _CS_FALSE_VAL
+
+    # ld.o rfC, [rb1, 0] / ld.o rfD, [rb1, 8]: load the two sources (rrii, op 0x26).
+    ld_true = (0x26 << 24) | (3 << 18) | (1 << 12) | 0
+    ld_false = (0x26 << 24) | (4 << 18) | (1 << 12) | 8
+    # rf2rd rd5, rf2, 1 (orri, op 0x40 ha 0x3E): read the destination back.
+    read_back = (0x40 << 24) | (0x3E << 18) | (5 << 12) | (2 << 6) | 1
+
+    c = _case(mnem, insn, fmt, "semantic", word,
+              {"rd": {"rd1": _hex64(cond)},
+               "memory": [{"address": "@ENTRY+0x100000", "value": _hex64(_CS_TRUE_VAL)},
+                          {"address": "@ENTRY+0x100008", "value": _hex64(_CS_FALSE_VAL)}],
+               "rb": {"rb1": "@ENTRY+0x100000"}},
+              {"rd": {"rd5": _hex64(expected)}, "rb": {}, "ra": {}, "memory": []},
+              None, "active", None, None, sc,
+              "%s rf: rd1=%s → %s, %s → rf2, read back rd5=%s"
+              % (mnem, hex(cond), "taken" if taken else "not taken",
+                 "rfHC" if taken else "rfHD", hex(expected)))
+    c["sequence"] = ["0x%08X" % ld_true, "0x%08X" % ld_false,
+                     "0x%08X" % word, "0x%08X" % read_back]
+    return c
 
 # ── Immediate / Block ─────────────────────────────────────────────────
 def gen_imm_semantic(rec, wpN, immu16, rdha_old=0):
@@ -1672,7 +1759,32 @@ def generate_file(filename, recs):
 
     # Append deferred overlap cases at end (ordering: encoding/semantic first, then overlap)
     cases.extend(deferred_overlap)
+
+    # ISS-387: the *else* branch of cs.* (rd form).  Appended **after** the
+    # deferred block on purpose — the semantics gate pins the deferred cases by
+    # (file, index), so inserting earlier would silently renumber them.
+    if filename == "reg-cond-assign.yaml":
+        for rec in recs:
+            if rec["mnemonic"] in ("cs.n", "cs.z", "cs.p", "cs.eq", "cs.ne"):
+                cases.append(gen_cs_not_taken(rec))
     return cases
+
+
+def generate_fp_cond_assign():
+    """`cs.n/.z/.p` rf-form cases (scope fp), both branches.
+
+    scope fp ⇒ 不能进 `base/`（validator 要求 base 册的 id ∈ M1 身份集），故单独
+    产出一册 `tests/inst/fp/cond-assign.yaml`（同 `rol`/`atomics`/`clmul`/`fp`
+    既有载体口径，见 `tools/qemu/semantics_gate.py` CARRIER_DIRS）。
+    """
+    recs = [r for r in ALL
+            if r.get("scope") == "fp" and r["mnemonic"] in ("cs.n", "cs.z", "cs.p")]
+    recs.sort(key=lambda r: r["id"])
+    cases = []
+    for rec in recs:
+        for taken in (True, False):
+            cases.append(gen_cs_rf_semantic(rec, taken))
+    return cases, len(recs)
 
 
 # ── Render / check / main ─────────────────────────────────────────────
@@ -1681,11 +1793,15 @@ HEADER = (
     "# Source: contracts/opcodes.yaml + contract-isa.md + adr-0004\n"
     "# Each case has spec_cite and notes for traceability.\n\n"
 )
+FP_HEADER = HEADER + (
+    "# cs.n/.z/.p 的 rf 形式（scope fp）：validator 要求 base 册 id ∈ M1 身份集，\n"
+    "# 故 rf 载体单列本册（语义来自 SimRISC-02 §3；taken/not-taken 双支）。\n\n"
+)
 
 
-def _render_yaml(cases):
+def _render_yaml(cases, header=HEADER):
     """渲染一册 YAML 的完整内容（写盘与 --check 共用，保证同源）。"""
-    return HEADER + yaml.dump(cases, default_flow_style=False,
+    return header + yaml.dump(cases, default_flow_style=False,
                               allow_unicode=True, width=120)
 
 
@@ -1701,31 +1817,45 @@ def _selected_files(selected):
     return out
 
 
+def _render_targets(selected):
+    """[(relative path, absolute path, rendered text, n_cases, n_ids)] 现场派生。"""
+    out = []
+    for fname, recs in _selected_files(selected):
+        cases = generate_file(fname, recs)
+        out.append((os.path.join("tests", "inst", "base", fname),
+                    os.path.join(OUT, fname), _render_yaml(cases),
+                    len(cases), len(recs)))
+    if not selected or "cond-assign.yaml" in selected:
+        cases, n_ids = generate_fp_cond_assign()
+        out.append((os.path.join("tests", "inst", "fp", "cond-assign.yaml"),
+                    os.path.join(FP_OUT, "cond-assign.yaml"),
+                    _render_yaml(cases, FP_HEADER), len(cases), n_ids))
+    return out
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(
         description="生成 reg-* 向量；--check 只读校验。"
-                    "位置参数可选：只处理指定册（缺省六册全做）。")
+                    "位置参数可选：只处理指定册（缺省全做）。")
     ap.add_argument("--check", action="store_true",
-                    help="只读：重渲染并与 tests/inst/base 现存文件逐字节比较")
-    ap.add_argument("files", nargs="*", choices=sorted(FILE_MAP),
+                    help="只读：重渲染并与 tests/inst/{base,fp} 现存文件逐字节比较")
+    ap.add_argument("files", nargs="*", choices=sorted(FILE_MAP) + ["cond-assign.yaml"],
                     help="只重生成/校验指定的册（如 reg-arith.yaml）")
     args = ap.parse_args(argv)
 
-    targets = _selected_files(set(args.files))
+    targets = _render_targets(set(args.files))
 
     if args.check:
         ok = True
         n_pass = 0
-        for fname, recs in targets:
-            path = os.path.join(OUT, fname)
-            rel = os.path.join("tests", "inst", "base", fname)
+        for rel, path, text, _n_cases, _n_ids in targets:
             if not os.path.isfile(path):
                 print("FAIL %s: missing" % rel, file=sys.stderr)
                 ok = False
                 continue
             with open(path) as f:
                 have = f.read()
-            if have != _render_yaml(generate_file(fname, recs)):
+            if have != text:
                 print("FAIL %s: mismatch" % rel, file=sys.stderr)
                 ok = False
                 continue
@@ -1737,15 +1867,15 @@ def main(argv=None):
         print("generate_isa_vectors --check: PASS（%d 册 byte-identical）" % n_pass)
         return 0
 
-    os.makedirs(OUT, exist_ok=True)
-    for fname, recs in targets:
-        cases = generate_file(fname, recs)
-        with open(os.path.join(OUT, fname), "w") as f:
-            f.write(_render_yaml(cases))
-        print("Wrote %s: %d cases for %d identities" % (fname, len(cases), len(recs)))
+    for rel, path, text, n_cases, n_ids in targets:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            f.write(text)
+        print("Wrote %s: %d cases for %d identities"
+              % (rel, n_cases, n_ids))
 
     print("\nDone. Total identities: %d"
-          % sum(len(recs) for _, recs in targets))
+          % sum(n_ids for _rel, _path, _text, _n, n_ids in targets))
     return 0
 
 

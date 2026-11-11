@@ -357,3 +357,124 @@
   notes: 'overlap C-27: cs.ne snapshot — condition & source register aliasing deferred'
   spec_cite: 'SimRISC-02: cs.ne'
   status: deferred
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x600420C4'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd2: '0x000000000000BBBB'
+  format: rrrr
+  id: cs.n_rrrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000000'
+      rd2: '0x1111222233334444'
+      rd3: '0x000000000000AAAA'
+      rd4: '0x000000000000BBBB'
+  mnemonic: cs.n
+  notes: 'cs.n: rd1=0x0 → not taken, rdHD(rd4)=0xbbbb → rd2 (rd2 preset 0x1111222233334444, rdHC=0xaaaa must not be written)'
+  spec_cite: 'SimRISC-02: cs.n'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x620420C4'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd2: '0x000000000000BBBB'
+  format: rrrr
+  id: cs.z_rrrr_rd
+  input_state:
+    rd:
+      rd1: '0x0000000000000001'
+      rd2: '0x1111222233334444'
+      rd3: '0x000000000000AAAA'
+      rd4: '0x000000000000BBBB'
+  mnemonic: cs.z
+  notes: 'cs.z: rd1=0x1 → not taken, rdHD(rd4)=0xbbbb → rd2 (rd2 preset 0x1111222233334444, rdHC=0xaaaa must not be written)'
+  spec_cite: 'SimRISC-02: cs.z'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x640420C4'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd2: '0x000000000000BBBB'
+  format: rrrr
+  id: cs.p_rrrr_rd
+  input_state:
+    rd:
+      rd1: '0xFFFFFFFFFFFFFFFF'
+      rd2: '0x1111222233334444'
+      rd3: '0x000000000000AAAA'
+      rd4: '0x000000000000BBBB'
+  mnemonic: cs.p
+  notes: 'cs.p: rd1=0xffffffffffffffff → not taken, rdHD(rd4)=0xbbbb → rd2 (rd2 preset 0x1111222233334444, rdHC=0xaaaa must
+    not be written)'
+  spec_cite: 'SimRISC-02: cs.p'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x660420C4'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd3: '0x1111222233334444'
+  format: rrrr
+  id: cs.eq_rrrr_rd
+  input_state:
+    rd:
+      rd1: '0x000000000000002A'
+      rd2: '0x0000000000000063'
+      rd3: '0x1111222233334444'
+      rd4: '0x000000000000BBBB'
+  mnemonic: cs.eq
+  notes: 'cs.eq: rd1=0x2a, rd2=0x63 → not taken, rdHC(rd3) keeps 0x1111222233334444 (rd4=0xbbbb must not be written)'
+  spec_cite: 'SimRISC-02: cs.eq'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x670420C4'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    memory: []
+    ra: {}
+    rb: {}
+    rd:
+      rd3: '0x1111222233334444'
+  format: rrrr
+  id: cs.ne_rrrr_rd
+  input_state:
+    rd:
+      rd1: '0x000000000000002A'
+      rd2: '0x000000000000002A'
+      rd3: '0x1111222233334444'
+      rd4: '0x000000000000BBBB'
+  mnemonic: cs.ne
+  notes: 'cs.ne: rd1=0x2a, rd2=0x2a → not taken, rdHC(rd3) keeps 0x1111222233334444 (rd4=0xbbbb must not be written)'
+  spec_cite: 'SimRISC-02: cs.ne'
+  status: active
