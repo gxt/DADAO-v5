@@ -4,7 +4,7 @@
 **项目里程碑**：M13
 **依赖**：`m13-testcases-003`（A 组结果已出）、`m13-testcases-008`（run_pool 可用）
 **可并行分片**：是（节点 208 独立跑，不与 207 的 B 组重叠）
-**状态**：待开始
+**状态**：待验收
 
 ## 背景
 
@@ -60,3 +60,15 @@
 ## 审阅记录
 
 （待填）
+
+## 完成区（architect 收口，2026-11-11 23:08）
+
+**结论：A 组长尾在 48 h 上限内全部跑完，无一例仍 blocked。**
+
+- 数据：节点 208 运行期目录 `split/A-long/`；三份 ratio JSON 均 `ok=true`、`driver_rc` 两引擎 0、`missing=[]`、`reused_rounds=[]`
+- **15 例有比值输出**：static llvm-ts 7（8778–18132 s，比 304–869，中位 699）、dynamic llvm-ts 7（7082–17159 s，比 306–817，中位 703）、dynamic libc-test 1（7547 s）
+- 最长单例 `JM/lencod` gem5 18132 s ≈ 5.0 h、qemu 21 s ⇒ **869×**；比值下界 `Rodinia/backprop` 304×
+- **未收口 2 例**：static libc-test 的 `functional/clocale_mbfuncs`、`regression/raise-race` —— 有 driver 目录与 qemu 侧 JSON，但**无 `ratio-static-libc-test.json`**，故不含结论
+- **覆盖 15/17**（任务书预期 9 static + 8 dynamic）；差 2 例即上述
+- 人读结论已落 `docs/TestReports/M13-A组长尾计时.md`
+- **B 组（`m13-testcases-003`）仍在 207 上运行**（已 1 天 13 h，`--gem5-timeout 172800`），本册不含其结论
