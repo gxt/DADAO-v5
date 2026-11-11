@@ -198,3 +198,9 @@
   status: open
   resolved_by: null
   title: 【P2】**需用户裁定**：`m13-spec-001` 只授权就地修订 `ADR-0004`，但两处活正文仍写旧 guest 分区——`ADR-0009 D5`（decision 正文，非修订节）与 `components/chipyard/README.md:44`。选项：① 就地修订这两处（需用户逐条确认 ADR-0009 的 decision 变更）；② 改为指针引用 `spec/Machine-v5 §7.1`（ADR 不承载规范正文）。
+- id: ISS-385
+  scope:
+  - chipyard
+  status: open
+  resolved_by: null
+  title: 【P3】`m12-chipyard-022` 遗留：F-a 证据脚本 `ONLY` 非空但不匹配任何 section 时 `PASS=0 FAIL=0` 仍退出 0（缺「至少跑到 1 个 section」护栏）；F-b E 段不校验 bench 自身退出码，`core halted` 判据自 `009` 起恒假（`halted_cycle=0`，仅计数断言有效）；F-c `prefetch>0` 断言只在运行期证据脚本，仓库内无常驻门控（建议升格 `tools/` 并纳入 L2）。另 `ISS-382` 的教训已覆盖：性能机制须断言「机制真的生效」。

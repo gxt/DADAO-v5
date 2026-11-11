@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..2fc0eed
+index 0000000..29c991e
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,1155 @@
+@@ -0,0 +1,1160 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -606,8 +606,13 @@ index 0000000..2fc0eed
 +  val pfRoom = (qCount +& pfLive) < fetchDepth.U && pfBusy < pfSlots.U
 +  // m12-019: a prefetch is only issued when the address is backed by some
 +  // manager.  An unroutable request would never be answered.
-+  private val pfAddrLegal = specBacked(pfReqAddr) &&
-+    fetchEdge.manager.supportsGetSafe(pfReqAddr(addrBits - 1, 0), lgSize)
++  // m12-022: judge the *next* beat (`pfBeat`), not the address latched by the
++  // previous launch.  `pfReqBeat` is a register and still holds its reset value
++  // when this is first evaluated, so checking `pfReqAddr` tested address 0 (an
++  // unbacked address) and `pfWanted` never became true.
++  private val pfNextAddr = Cat(0.U((64 - addrBits).W), pfBeat, 0.U(3.W))
++  private val pfAddrLegal = specBacked(pfNextAddr) &&
++    fetchEdge.manager.supportsGetSafe(pfNextAddr(addrBits - 1, 0), lgSize)
 +  val pfWanted = pfStreamLive && pfRoom && !atDemand && !dataBusy && !fifoFlush &&
 +    !pfReqValid && pfAddrLegal
 +  when(pfWanted) {

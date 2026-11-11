@@ -37,12 +37,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m12-chipyard-022 | 2026-11-11 09:29 | 1 h | 修复预取回归：`pfAddrLegal` 用复位值地址致 `prefetch=0`（ISS-382） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-022 | 2026-11-11 10:34 | 修预取回归（`pfAddrLegal` 判待发 beat；prefetch 0→338、p50 8→1）+ 补 `prefetch>0` 门控 |
 | m12-chipyard-009 | 2026-11-11 09:29 | 控制流 + RAS（63 槽、溢出写 MRPTR-8、下溢先读再判，精确 RASOF/RASUF） |
 | m12-chipyard-008 | 2026-11-11 07:12 | 访存：`ld`/`st` 全宽度 + `ldm`/`stm`（8B beat、byte mask、精确 MALIGN/CFXMEM） |
 | m12-chipyard-019 | 2026-11-11 04:18 | `cfx_power`/`cfx3` 寄存器组 + 五类同步异常进 hmon（`escape` 0/+4） |

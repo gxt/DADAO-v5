@@ -4,6 +4,10 @@
 
 ## M12
 
+- **2026-11-11 `m12-chipyard-022`**
+  - 摘要：**修复预取回归（`ISS-382`）**：`WumingCore` 的预取地址合法性改判**待发** beat 的地址（`pfNextAddr = Cat(0, pfBeat, 0)`），不再用已锁存的 `pfReqAddr`/`pfReqBeat`（复位值 0 ⇒ 地址 0 不在 Tiny 三段窗口 ⇒ `pfWanted` 恒假、预取从未发起）。400 条直线 `or.o`：应用段 `prefetch` 0 → 218、需求取指 212 → 1，跨 beat 中位 8 → 1 拍（199 次全为 1）；数据优先仍为 `fetch_requests_after_data_request=0`；273 例 md5 不变。`fetch_probe` 的 `xbeat`/`timing` 程序改以 `SYS_EXIT` 收尾（`m12-009` 起 `UNDI` 会进 hmon 异常路径，不再 halt）。
+  - 执行者：engineer
+
 - **2026-11-11 `m12-chipyard-009`**
   - 摘要：**控制流全形式 + 返回地址栈**（`spec/SimRISC-06`、`spec/SimRISC-00 §2.4`）：解码器补 `br.eq`/`br.ne`（`rrii`）、相对 `jump`（`iiii`）、`call`（`iiii`/`rrii`）与 `ret rdHA, imms18`（`rd0` 配非零立即数 ⇒ ILLI）；`WumingRegFile` 把 `ra` 银行升级为 RegRAS（`ra1`–`ra63` + `RACNT`/`MRPTR`，`ra0` 读出 `{SBZ,RACNT,MRPTR}`、写入拆分、`[63:54]` 写无效），新增单周期 RAS 操作（PUSH/FOLD/SPILL/POP/DEC/REFILL/CONSUME）；`WumingCore` 在 `EXEC` 组合完成 C1/C2/C3a 与 D1/D2/D3，C3b 溢出走数据端口 8 字节存储、D4b 下溢走 8 字节读取，两者都先判定后修改（精确异常）；新增 `RASOF`/`RASUF`（`1<<10`/`1<<11`）进 hmon。返回地址 = 当前 `call` 地址 + 4。
   - 执行者：engineer

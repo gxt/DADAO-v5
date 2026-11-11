@@ -84,9 +84,10 @@ def timing_program():
     shl_start = len(words)
     for _ in range(8):
         words.append(enc_shl_o(4, 4, 2))
-    words.append(0x0000_0000)                     # UNDI: bounded stop
+    shl_end = len(words) - 1
+    words += S.asm_sys_exit(0)                    # bounded, clean stop
     return words, {"or_start": or_start, "or_end": shl_start,
-                   "shl_start": shl_start, "shl_end": len(words) - 1}
+                   "shl_start": shl_start, "shl_end": shl_end}
 
 
 XBEAT_ALU_COUNT = 400
@@ -99,6 +100,11 @@ def xbeat_program():
     evidence script can measure the cost of crossing a beat boundary: with the
     fetch queue draining at every crossing (m12-018) it is the SRAM round trip
     (7-8 cycles); with enough prefetch slots it is one cycle.
+
+    The stream ends with ``SYS_EXIT`` rather than an ``UNDI`` word: since
+    m12-009 an undefined instruction raises a synchronous exception into the
+    hmon handler, which would keep the core running past the measured block
+    (m12-022).
     """
     words = []
     words += S.load_rd(2, 3)                      # second operand of or.o
@@ -106,7 +112,7 @@ def xbeat_program():
     start = len(words)
     for _ in range(XBEAT_ALU_COUNT):
         words.append(enc_or_o(4, 4, 2))
-    words.append(0x0000_0000)                     # UNDI: bounded stop
+    words += S.asm_sys_exit(0)                    # bounded, clean stop
     return words, {"block_start": start, "block_len": XBEAT_ALU_COUNT}
 
 
