@@ -4,6 +4,10 @@
 
 ## M12
 
+- **2026-11-11 `m12-chipyard-010`**
+  - 摘要：**位操作 + 原子 + 杂项（收齐非 cfx 指令）**：`rev.o/.t/.w/.b`（块内单元反序，`k` one-hot 且 `< S`）、`rol` 四位宽（`orrr`/`orri`）、`ctpop`/`ctlz`/`cttz`（`hd` = 有效位上界，全 0 ⇒ `hd+1`）、`clmul.o`（GF(2) 128 位积）；`lr`/`sc` 全部 24 条形式（保留标记 = 精确地址 + 宽度，`sc` 另比对 8 字节字值 ⇒ 与 QEMU 字粒度行为一致；`sc` 的 `rdHB = rd0` ⇒ ILLI、`lr` 的 `rdHB` 是 SBZ）；`swym`/`fence` 合法即 no-op（`fence` 的 `hb != 0` 或保留 `cfxha` ⇒ ILLI）；`cs.n/.z/.p/.eq/.ne` 条件赋值与 `rd2rd`/`ra2rd`/`rd2ra`/`rb2rb`/`rd2rb`/`rb2rd` 块赋值（新增 `sCopy` 状态）；`OPC-tetra/wyde/byte` 子表的算术/比较/移位补齐（窄位宽值语义 + 按宽度的除法定值）。新增 `tools/chipyard/bit_sweep.py`（964 条 `tests/inst` 向量分三组镜像 + QEMU 同镜像比对 + 3 条保留标记探针 + 周期探针）。
+  - 执行者：engineer
+
 - **2026-11-11 `m12-chipyard-022`**
   - 摘要：**修复预取回归（`ISS-382`）**：`WumingCore` 的预取地址合法性改判**待发** beat 的地址（`pfNextAddr = Cat(0, pfBeat, 0)`），不再用已锁存的 `pfReqAddr`/`pfReqBeat`（复位值 0 ⇒ 地址 0 不在 Tiny 三段窗口 ⇒ `pfWanted` 恒假、预取从未发起）。400 条直线 `or.o`：应用段 `prefetch` 0 → 218、需求取指 212 → 1，跨 beat 中位 8 → 1 拍（199 次全为 1）；数据优先仍为 `fetch_requests_after_data_request=0`；273 例 md5 不变。`fetch_probe` 的 `xbeat`/`timing` 程序改以 `SYS_EXIT` 收尾（`m12-009` 起 `UNDI` 会进 hmon 异常路径，不再 halt）。
   - 执行者：engineer

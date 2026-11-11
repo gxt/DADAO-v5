@@ -204,3 +204,9 @@
   status: open
   resolved_by: null
   title: 【P3】`m12-chipyard-022` 遗留：F-a 证据脚本 `ONLY` 非空但不匹配任何 section 时 `PASS=0 FAIL=0` 仍退出 0（缺「至少跑到 1 个 section」护栏）；F-b E 段不校验 bench 自身退出码，`core halted` 判据自 `009` 起恒假（`halted_cycle=0`，仅计数断言有效）；F-c `prefetch>0` 断言只在运行期证据脚本，仓库内无常驻门控（建议升格 `tools/` 并纳入 L2）。另 `ISS-382` 的教训已覆盖：性能机制须断言「机制真的生效」。
+- id: ISS-386
+  scope:
+  - chipyard
+  status: open
+  resolved_by: null
+  title: 【P3】`m12-chipyard-010` 遗留：F2 任务书硬约束里的临时目录名仍是派单模板笔误；F3 完成区「三套旧故障镜像 165 张重跑全绿」未纳入 `run.sh`（reviewer 独立复跑证实 165/165，建议纳入脚本防再退化）；`sc` 命中 17 拍 = 两次 SRAM 往返（重读 + 写），可优化为单次读改写，非缺陷。另：任务书「保留编码 ⇒ ILLI」口径已被 reviewer 判为文档错（真源 UNDI），同类「按 legality_rules.yaml」却与之相反的表述应在后续任务书模板里避免。

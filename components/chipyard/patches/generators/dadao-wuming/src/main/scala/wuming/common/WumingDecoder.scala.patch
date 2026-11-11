@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 new file mode 100644
-index 0000000..8ddaae5
+index 0000000..79bed59
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
-@@ -0,0 +1,621 @@
+@@ -0,0 +1,817 @@
 +// See LICENSE for license details.
 +//
 +// DADAO decoder for the M12 integer core.
@@ -49,6 +49,19 @@ index 0000000..8ddaae5
 +// rrii, return address = current IP + 4) and `ret rdHA, imms18` (the return
 +// address comes from the RAS, not from an operand).  The RAS push/pop cases
 +// (C1-C3b / D1-D4b) live in the core; the decoder only marks the operation.
++//
++// m12-chipyard-010 closes the non-cfx instruction set:
++//
++//   * bit manipulation: `rev.o/.t/.w/.b` (`encode_onehot` on the unit size),
++//     `rol.o/.t/.w/.b` (orrr/orri), `ctpop`/`ctlz`/`cttz` (the immediate is the
++//     valid-bit bound, so every value is legal) and `clmul.o`;
++//   * the whole OPC-tetra/wyde/byte sub-table layout (arithmetic, compare,
++//     shifts) through one shared `widthTable` helper;
++//   * atomics `lr`/`sc` (24 forms: `sc`'s rdHB is the result, `lr`'s is SBZ)
++//     and the barrier/no-op pair `fence`/`swym`;
++//   * `cs.n/.z/.p/.eq/.ne` conditional assignment and the register-block copies
++//     `rd2rd`/`ra2rd`/`rd2ra`/`rb2rb`/`rd2rb`/`rb2rd` (with the range and
++//     overlap legality rules).
 +
 +package wuming.common
 +
@@ -66,7 +79,7 @@ index 0000000..8ddaae5
 +  val ill  = Bool()
 +  val undi = Bool()
 +
-+  val aluOp = UInt(5.W)
++  val aluOp = UInt(6.W)
 +  val opWidth = UInt(2.W) // 3 = octa, 2 = tetra
 +
 +  val srcAIdx  = UInt(6.W)
@@ -131,6 +144,24 @@ index 0000000..8ddaae5
 +  val cfxCg    = UInt(6.W)
 +  val cfxRc    = UInt(6.W)
 +  val cfxDst   = UInt(6.W)
++
++  // m12-010: `lr`/`sc` (spec/SimRISC-12 §1).  The address register is `rbHD`,
++  // the loaded value / stored value register is `rdHC`; `sc`'s success flag is
++  // `rdHB` and its access width is that of the mnemonic.
++  val isLr     = Bool()
++  val isSc     = Bool()
++  // m12-010: `fence` (spec/SimRISC-11 §5) and `swym` (spec/SimRISC-12 §2) are
++  // recognised no-ops on this core: they only consume the fetch slot.
++  val isFence  = Bool()
++  val isSwym   = Bool()
++  // m12-010: conditional assignment (spec/SimRISC-02 §2).
++  //   csCond: 0 = n, 1 = z, 2 = p, 3 = eq, 4 = ne
++  val isCs     = Bool()
++  val csCond   = UInt(3.W)
++  // m12-010: same-bank / cross-bank register-block copy (spec/SimRISC-02 §1).
++  val isCopy      = Bool()
++  val copyDstBank = UInt(2.W)
++  val copySrcBank = UInt(2.W)
 +}
 +
 +class WumingDecoder extends Module {
@@ -188,6 +219,10 @@ index 0000000..8ddaae5
 +  d.isTrap := false.B; d.isEscape := false.B; d.escOff := 0.U
 +  d.isCfx2 := false.B; d.cfxWrite := false.B
 +  d.cfxHa := 0.U; d.cfxCg := 0.U; d.cfxRc := 0.U; d.cfxDst := 0.U
++  d.isLr := false.B; d.isSc := false.B
++  d.isFence := false.B; d.isSwym := false.B
++  d.isCs := false.B; d.csCond := 0.U
++  d.isCopy := false.B; d.copyDstBank := WumingBank.RD; d.copySrcBank := WumingBank.RD
 +
 +  val recognized = WireDefault(false.B)
 +
@@ -263,27 +298,6 @@ index 0000000..8ddaae5
 +    when(hb === 0.U) { d.ill := true.B }
 +  }
 +
-+  def tetraOrrr(op: UInt): Unit = {
-+    d.aluOp := op
-+    d.opWidth := 2.U
-+    d.srcAIdx := hc; d.srcABank := WumingBank.RD
-+    d.srcBIdx := hd; d.srcBBank := WumingBank.RD
-+    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
-+    when(hb === 0.U) { d.ill := true.B }
-+  }
-+
-+  def tetraOrri(op: UInt): Unit = {
-+    d.aluOp := op
-+    d.opWidth := 2.U
-+    d.srcAIdx := hc; d.srcABank := WumingBank.RD
-+    d.shamtFromImm := true.B
-+    d.imm := zext(hd)
-+    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
-+    when(hb === 0.U) { d.ill := true.B }
-+    // shl.t/rol.t/shr.ut/shr.st take immu6 0..31; 32..63 is encode_sbz.
-+    when(hd > 31.U) { d.ill := true.B }
-+  }
-+
 +  def octaOrri(op: UInt): Unit = {
 +    d.aluOp := op
 +    d.opWidth := 3.U
@@ -292,6 +306,107 @@ index 0000000..8ddaae5
 +    d.imm := zext(hd)
 +    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
 +    when(hb === 0.U) { d.ill := true.B }
++  }
++
++  // ---- m12-010: bit manipulation across the four width sub-tables ---------
++  //
++  // `width` is the log2 code (0 = byte, 1 = wyde, 2 = tetra, 3 = octa).  The
++  // shift/rotate immediate forms take `immu6` as `shamt`; the spec bounds it by
++  // the width (N = 8*2^width - 1) and out-of-range values are `encode_sbz`
++  // (SimRISC-08/09/10 §2).  The register forms mask the amount to N bits, so
++  // they never need a legality check (spec/SimRISC-04 §2.2).
++  def widthOrrr(op: UInt, width: UInt): Unit = {
++    d.aluOp := op
++    d.opWidth := width
++    d.srcAIdx := hc; d.srcABank := WumingBank.RD
++    d.srcBIdx := hd; d.srcBBank := WumingBank.RD
++    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }
++  }
++
++  def widthOrri(op: UInt, width: UInt, shamtMax: Int): Unit = {
++    d.aluOp := op
++    d.opWidth := width
++    d.srcAIdx := hc; d.srcABank := WumingBank.RD
++    d.shamtFromImm := true.B
++    d.imm := zext(hd)
++    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }
++    when(hd > shamtMax.U) { d.ill := true.B }
++  }
++
++  // `rev.<width> rdHB, rdHC, immu6`: block size S = 8*2^width, unit k.  Legality
++  // `encode_onehot`: k must be a power of two and strictly smaller than S
++  // (SimRISC-04 §2.2.1, SimRISC-08/09/10 §2.1).
++  def revOrri(width: UInt, blockBits: Int): Unit = {
++    d.aluOp := WumingAluOp.REV
++    d.opWidth := width
++    d.srcAIdx := hc; d.srcABank := WumingBank.RD
++    d.shamtFromImm := true.B
++    d.imm := zext(hd)
++    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }
++    when(PopCount(hd) =/= 1.U || hd >= blockBits.U) { d.ill := true.B }
++  }
++
++  // `ctpop`/`ctlz`/`cttz rdHB, rdHC, immu6`: `immu6` is the valid-bit upper
++  // bound `hd` (0..63), so every immediate is legal (spec/SimRISC-12 §3).
++  def bitCount(op: UInt): Unit = {
++    d.aluOp := op
++    d.opWidth := 3.U
++    d.srcAIdx := hc; d.srcABank := WumingBank.RD
++    d.shamtFromImm := true.B
++    d.imm := zext(hd)
++    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }
++  }
++
++  // ---- m12-010: register-block copy (spec/SimRISC-02 §1) ------------------
++  //
++  // `orri`: hb = destination start (or rbHB/raHB), hc = source start,
++  // hd = immu6 register count (1..63).
++  def blockCopy(dstBank: UInt, srcBank: UInt): Unit = {
++    d.isCopy := true.B
++    d.copyDstBank := dstBank
++    d.copySrcBank := srcBank
++    d.srcAIdx := hc; d.srcABank := srcBank
++    d.useImmB := true.B; d.imm := zext(hd)
++    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := dstBank; d.w0Sel := 0.U
++    when(hd === 0.U) { d.ill := true.B }                    // mreg_zero
++    when(hb +& hd > 64.U) { d.ill := true.B }               // mreg_range_overflow
++    when(hc +& hd > 64.U) { d.ill := true.B }               // mreg_range_overflow
++    // dst_rd0 / dst_rb0: ra0 and rf0 are legal destinations (spec/SimRISC-02 §1).
++    when(hb === 0.U && (dstBank === WumingBank.RD || dstBank === WumingBank.RB)) {
++      d.ill := true.B
++    }
++    // mreg_range_overlap: only same-bank copies can overlap.
++    when(dstBank === srcBank) {
++      when(hb < (hc +& hd) && hc < (hb +& hd)) { d.ill := true.B }
++    }
++  }
++
++  // ---- m12-010: conditional assignment (spec/SimRISC-02 §2) ---------------
++  //
++  // class 1: cs.n/cs.z/cs.p  -> if (cond(rdHA)) rdHB = rdHC else rdHB = rdHD
++  // class 2: cs.eq/cs.ne     -> if (rdHA ==/!= rdHB) rdHC = rdHD
++  def condAssign(cond: UInt, class1: Boolean): Unit = {
++    d.isCs := true.B
++    d.csCond := cond
++    d.srcAIdx := ha; d.srcABank := WumingBank.RD
++    if (class1) {
++      // The "then" value is rdHC, the "else" value rdHD (r2 port).
++      d.srcBIdx := hc; d.srcBBank := WumingBank.RD
++      d.srcCIdx := hd; d.srcCBank := WumingBank.RD
++      d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
++      when(hb === 0.U) { d.ill := true.B }                  // dst_rd0
++    } else {
++      // The second comparand is rdHB; the assigned value is rdHD, and the
++      // destination is rdHC (`dst_rd0` applies to rdHC here).
++      d.srcBIdx := hb; d.srcBBank := WumingBank.RD
++      d.srcCIdx := hd; d.srcCBank := WumingBank.RD
++      d.w0En := true.B; d.w0Idx := hc; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
++      when(hc === 0.U) { d.ill := true.B }                  // dst_rd0
++    }
 +  }
 +
 +  // ---- memory shapes (spec/SimRISC-01) ----------------------------------
@@ -411,12 +526,43 @@ index 0000000..8ddaae5
 +
 +    val subHandled = WireDefault(false.B)
 +
++    // The tetra/wyde/byte sub-tables share one layout (spec/SimRISC-00 §4.3-§4.5):
++    // `rev` at 001-100, shifts at 010-xxx / 011-xxx, add/sub/cmp/mul/div/rem in
++    // rows 100..111.  `width` is the log2 code, `shamtMax` = N and `blockBits` =
++    // S (the `rev` block size).
++    def widthTable(width: UInt, shamtMax: Int, blockBits: Int): Unit = {
++      switch(ha) {
++        is(0x0C.U) { subHandled := true.B; revOrri(width, blockBits) }
++        is(0x10.U) { subHandled := true.B; widthOrrr(WumingAluOp.SHL, width) }
++        is(0x11.U) { subHandled := true.B; widthOrrr(WumingAluOp.ROL, width) }
++        is(0x12.U) { subHandled := true.B; widthOrrr(WumingAluOp.SHR_U, width) }
++        is(0x13.U) { subHandled := true.B; widthOrrr(WumingAluOp.SHR_S, width) }
++        is(0x18.U) { subHandled := true.B; widthOrri(WumingAluOp.SHL, width, shamtMax) }
++        is(0x19.U) { subHandled := true.B; widthOrri(WumingAluOp.ROL, width, shamtMax) }
++        is(0x1A.U) { subHandled := true.B; widthOrri(WumingAluOp.SHR_U, width, shamtMax) }
++        is(0x1B.U) { subHandled := true.B; widthOrri(WumingAluOp.SHR_S, width, shamtMax) }
++        is(0x20.U) { subHandled := true.B; widthOrrr(WumingAluOp.ADD_U, width) }
++        is(0x21.U) { subHandled := true.B; widthOrrr(WumingAluOp.ADD_S, width) }
++        is(0x28.U) { subHandled := true.B; widthOrrr(WumingAluOp.SUB_U, width) }
++        is(0x29.U) { subHandled := true.B; widthOrrr(WumingAluOp.SUB_S, width) }
++        is(0x2A.U) { subHandled := true.B; widthOrrr(WumingAluOp.CMP_U, width) }
++        is(0x2B.U) { subHandled := true.B; widthOrrr(WumingAluOp.CMP_S, width) }
++        is(0x30.U) { subHandled := true.B; widthOrrr(WumingAluOp.MUL_U, width) }
++        is(0x31.U) { subHandled := true.B; widthOrrr(WumingAluOp.MUL_S, width) }
++        is(0x38.U) { subHandled := true.B; widthOrrr(WumingAluOp.DIV_U, width) }
++        is(0x39.U) { subHandled := true.B; widthOrrr(WumingAluOp.DIV_S, width) }
++        is(0x3A.U) { subHandled := true.B; widthOrrr(WumingAluOp.REM_U, width) }
++        is(0x3B.U) { subHandled := true.B; widthOrrr(WumingAluOp.REM_S, width) }
++      }
++    }
++
 +    when(opc === 0x40.U) {
 +      switch(ha) {
 +        is(0x08.U) { subHandled := true.B; orrrLogic(WumingAluOp.AND) }
 +        is(0x09.U) { subHandled := true.B; orrrLogic(WumingAluOp.OR) }
 +        is(0x0A.U) { subHandled := true.B; orrrLogic(WumingAluOp.XOR) }
 +        is(0x0B.U) { subHandled := true.B; orrrLogic(WumingAluOp.XNOR) }
++        is(0x0C.U) { subHandled := true.B; revOrri(widthOcta, 64) }
 +        is(0x10.U) { subHandled := true.B; orrrShift(WumingAluOp.SHL); d.srcBIdx := hd }
 +        is(0x11.U) { subHandled := true.B; orrrShift(WumingAluOp.ROL); d.srcBIdx := hd }
 +        is(0x12.U) { subHandled := true.B; orrrShift(WumingAluOp.SHR_U); d.srcBIdx := hd }
@@ -431,37 +577,61 @@ index 0000000..8ddaae5
 +        is(0x29.U) { subHandled := true.B; octaOrri(WumingAluOp.EXT_S) }
 +        is(0x2A.U) { subHandled := true.B; orrrLogic(WumingAluOp.CMP_U) }
 +        is(0x2B.U) { subHandled := true.B; orrrLogic(WumingAluOp.CMP_S) }
++        // m12-010 block copy (SimRISC-02 §1): orri, hb = dst start, hc = src
++        // start, hd = count.  `rd2ra`/`ra2rd` cross the RA bank.
++        is(0x2C.U) { subHandled := true.B; blockCopy(WumingBank.RD, WumingBank.RD) }
++        is(0x2D.U) { subHandled := true.B; blockCopy(WumingBank.RA, WumingBank.RD) }
++        is(0x2E.U) { subHandled := true.B; blockCopy(WumingBank.RD, WumingBank.RA) }
 +        is(0x30.U) { subHandled := true.B; bbd(WumingAluOp.ADD_U) }
 +        is(0x31.U) { subHandled := true.B; bbd(WumingAluOp.SUB_U) }
 +        is(0x32.U) { subHandled := true.B; dbb(WumingAluOp.CMP_U) }
 +        is(0x33.U) { subHandled := true.B; dbb(WumingAluOp.SUB_U) }
++        is(0x34.U) { subHandled := true.B; blockCopy(WumingBank.RB, WumingBank.RB) }
++        is(0x35.U) { subHandled := true.B; blockCopy(WumingBank.RB, WumingBank.RD) }
++        is(0x36.U) { subHandled := true.B; blockCopy(WumingBank.RD, WumingBank.RB) }
 +        is(0x38.U) { subHandled := true.B; orrrLogic(WumingAluOp.DIV_U) }
 +        is(0x39.U) { subHandled := true.B; orrrLogic(WumingAluOp.DIV_S) }
 +        is(0x3A.U) { subHandled := true.B; orrrLogic(WumingAluOp.REM_U) }
 +        is(0x3B.U) { subHandled := true.B; orrrLogic(WumingAluOp.REM_S) }
 +      }
 +    }.elsewhen(opc === 0x41.U) {
-+      switch(ha) {
-+        is(0x10.U) { subHandled := true.B; tetraOrrr(WumingAluOp.SHL) }
-+        is(0x11.U) { subHandled := true.B; tetraOrrr(WumingAluOp.ROL) }
-+        is(0x12.U) { subHandled := true.B; tetraOrrr(WumingAluOp.SHR_U) }
-+        is(0x13.U) { subHandled := true.B; tetraOrrr(WumingAluOp.SHR_S) }
-+        is(0x18.U) { subHandled := true.B; tetraOrri(WumingAluOp.SHL) }
-+        is(0x19.U) { subHandled := true.B; tetraOrri(WumingAluOp.ROL) }
-+        is(0x1A.U) { subHandled := true.B; tetraOrri(WumingAluOp.SHR_U) }
-+        is(0x1B.U) { subHandled := true.B; tetraOrri(WumingAluOp.SHR_S) }
-+        is(0x20.U) { subHandled := true.B; tetraOrrr(WumingAluOp.ADD_U) }
-+        is(0x21.U) { subHandled := true.B; tetraOrrr(WumingAluOp.ADD_S) }
-+        is(0x28.U) { subHandled := true.B; tetraOrrr(WumingAluOp.SUB_U) }
-+        is(0x29.U) { subHandled := true.B; tetraOrrr(WumingAluOp.SUB_S) }
-+        is(0x2A.U) { subHandled := true.B; tetraOrrr(WumingAluOp.CMP_U) }
-+        is(0x2B.U) { subHandled := true.B; tetraOrrr(WumingAluOp.CMP_S) }
-+        is(0x30.U) { subHandled := true.B; tetraOrrr(WumingAluOp.MUL_U) }
-+        is(0x31.U) { subHandled := true.B; tetraOrrr(WumingAluOp.MUL_S) }
-+        is(0x38.U) { subHandled := true.B; tetraOrrr(WumingAluOp.DIV_U) }
-+        is(0x39.U) { subHandled := true.B; tetraOrrr(WumingAluOp.DIV_S) }
-+        is(0x3A.U) { subHandled := true.B; tetraOrrr(WumingAluOp.REM_U) }
-+        is(0x3B.U) { subHandled := true.B; tetraOrrr(WumingAluOp.REM_S) }
++      widthTable(widthTetra, 31, 32)
++    }.elsewhen(opc === 0x42.U) {
++      widthTable(widthWyde, 15, 16)
++    }.elsewhen(opc === 0x43.U) {
++      widthTable(widthByte, 7, 8)
++    }.elsewhen(opc === 0x47.U) {
++      // OPC-MISC (spec/SimRISC-00 §4.1): lr (000/001), sc (010/011),
++      // swym (100-010), ctpop/ctlz/cttz (100-101/110/111).
++      val lrWidth = widthOcta - ha(1, 0)
++      when(ha <= 0x0B.U) {
++        subHandled := true.B
++        d.isLr := true.B
++        d.memWidth := lrWidth
++        d.srcAIdx := hd; d.srcABank := WumingBank.RB
++        d.ldDst := hc; d.ldBank := WumingBank.RD
++        // `lr` carries only two operands: rdHB is a fixed-zero (SBZ) field
++        // (spec/SimRISC-12 §1.1, `encode_sbz`).
++        when(hb =/= 0.U) { d.ill := true.B }
++      }.elsewhen(ha >= 0x10.U && ha <= 0x1B.U) {
++        subHandled := true.B
++        d.isSc := true.B
++        d.memWidth := lrWidth
++        d.srcAIdx := hd; d.srcABank := WumingBank.RB
++        d.srcBIdx := hc; d.srcBBank := WumingBank.RD
++        d.ldDst := hb
++        // rdHB is the success/failure result, so discarding it is illegal
++        // (spec/SimRISC-12 §1.1; contracts/legality_rules.yaml `dst_rd0`).
++        when(hb === 0.U) { d.ill := true.B }
++      }.elsewhen(ha === 0x22.U) {
++        subHandled := true.B
++        d.isSwym := true.B // 1-cycle no-op (delay N is implementation defined)
++      }.elsewhen(ha === 0x25.U) {
++        subHandled := true.B; bitCount(WumingAluOp.CTPOP)
++      }.elsewhen(ha === 0x26.U) {
++        subHandled := true.B; bitCount(WumingAluOp.CTLZ)
++      }.elsewhen(ha === 0x27.U) {
++        subHandled := true.B; bitCount(WumingAluOp.CTTZ)
 +      }
 +    }
 +
@@ -489,6 +659,32 @@ index 0000000..8ddaae5
 +      .elsewhen(opc === 0x53.U) { quad(WumingAluOp.SUB128_S) }
 +      .elsewhen(opc === 0x54.U) { quad(WumingAluOp.MUL128_U) }
 +      .otherwise { quad(WumingAluOp.MUL128_S) }
++  }.elsewhen(opc === 0x56.U) {
++    // clmul.o {rdHA, rdHB}, rdHC, rdHD: GF(2) 64x64 -> 128 product
++    // (spec/SimRISC-04 §1.5).
++    recognized := true.B
++    quad(WumingAluOp.CLMUL128)
++  }.elsewhen(opc >= 0x60.U && opc <= 0x67.U) {
++    // Conditional assignment (spec/SimRISC-02 §2).  0x61/0x63/0x65 are the rf
++    // variants (scope fp) and stay ILLI until the FP milestone.
++    recognized := true.B
++    when(opc === 0x60.U) { condAssign(0.U, class1 = true) }   // cs.n
++      .elsewhen(opc === 0x61.U) { d.ill := true.B }             // cs.n rf
++      .elsewhen(opc === 0x62.U) { condAssign(1.U, class1 = true) } // cs.z
++      .elsewhen(opc === 0x63.U) { d.ill := true.B }             // cs.z rf
++      .elsewhen(opc === 0x64.U) { condAssign(2.U, class1 = true) } // cs.p
++      .elsewhen(opc === 0x65.U) { d.ill := true.B }             // cs.p rf
++      .elsewhen(opc === 0x66.U) { condAssign(3.U, class1 = false) } // cs.eq
++      .otherwise { condAssign(4.U, class1 = false) }           // cs.ne
++  }.elsewhen(opc === 0x79.U) {
++    // fence cfxHA, immu18 (spec/SimRISC-11 §5): hb = immu18[17:12] is SBZ and
++    // a reserved cfxha is ILLI.  A valid fence has no architectural effect on
++    // this in-order single-cycle core: every access is already ordered.
++    recognized := true.B
++    d.isFence := true.B
++    d.cfxHa := ha
++    when(imm18(17, 12) =/= 0.U) { d.ill := true.B }
++    when(!cfxAccessible(ha)) { d.ill := true.B }
 +  }.elsewhen(opc === 0x59.U) {
 +    recognized := true.B
 +    d.aluOp := WumingAluOp.ADD_S; d.opWidth := 3.U

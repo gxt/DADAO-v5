@@ -76,6 +76,14 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **MemRAS**：C3b 把最旧条目写到 `MRPTR-8`（数据端口一次 8 字节 `Put`），D4b 从 `MRPTR` 读一条（一次 `Get`）再按条目递归计数决定 RASUF/consume/refill。两种情况都**先完成全部判定再改 RA 或内存**，中途 `denied`/`corrupt` 或窗口外 ⇒ `CFXMEM` 且 RAS 保持原状（精确异常）。
 - **RASOF（`1<<10`）/RASUF（`1<<11`）** 是精确同步异常进 hmon：`call` 的 `cause_info` 是压不进去的返回地址，`ret` 的为 0，`excp_cause_ip` 停在触发指令。
 
+## 位操作 / 原子 / 杂项（`m12-chipyard-010`）
+
+- **位操作**（`spec/SimRISC-04 §1.5/§2.2`、`SimRISC-08/09/10`、`SimRISC-12 §3`）：`rev.o/.t/.w/.b`（块内单元顺序反转，`k` 须 one-hot 且 `k < S`，否则 `encode_onehot` ⇒ ILLI）、`rol.o/.t/.w/.b`（`orrr` 取 `rdHD` 低位 / `orri` 立即数越界 ⇒ ILLI）、`ctpop`/`ctlz`/`cttz`（`immu6` 是有效位上界 `hd`，全 0 时前导/末尾零 = `hd+1`）与 `clmul.o`（GF(2) 64×64→128，结果写 `{rdHA, rdHB}`）。`OPC-tetra/wyde/byte` 子表的 add/sub/cmp/mul/div/rem/shl/shr 一并补齐：窄位宽结果按值语义零/符号扩展，除法定值按宽度（除零 = 宽度掩码 / 全一，有符号溢出 = 宽度 `INT_MIN` 符号扩展），比较结果 −1 写 64 位全一。
+- **原子**（`spec/SimRISC-12 §1`）：`lr`/`sc` 全部 24 条形式（`<lr|sc>.<b|w|t|o>.<nn|an|ar|nr>`）。地址 = `rbHD`，数据 = `rdHC`；`sc` 的成败写 `rdHB`（`rdHB = rd0` ⇒ ILLI），`lr` 的 `rdHB` 是 SBZ 字段（非零 ⇒ ILLI）。保留标记的键 = **精确地址 + 访问宽度**；`lr` 另存下读到的 8 字节字，`sc` 命中时重读该字比对，不一致即失败（spec 允许的 spurious failure，与 QEMU `ADR-0034 D6` 的字粒度+值比对一致）。异常进入、`sc` 的成败、另一条 `lr` 都清除标记；只有真正访存时才判 `CFXMEM`，对齐按访存宽度（`MALIGN`）先判。
+- **`swym` / `fence`**：`swym N` 是 1 拍 no-op（时延由实现定义）；`fence cfxHA, immu18` 校验 `immu18[17:12]`（SBZ）与 `cfxha` 是否保留 ⇒ ILLI，合法即 no-op（顺序单周期核天然满足屏障语义，`pred = succ = 0` 合法）。
+- **杂项 / 整数补齐**（`spec/SimRISC-02`）：`cs.n/.z/.p/.eq/.ne`（条件写入：谓词不成立时目的寄存器不变）与寄存器块赋值 `rd2rd`/`ra2rd`/`rd2ra`/`rb2rb`/`rd2rb`/`rb2rd`（`immu6` 个连续寄存器，一拍一个，新增 `sCopy` 状态：12 态 → 13 态）；`mreg_zero`/`mreg_range_overflow`/`mreg_range_overlap`/`dst_rd0`/`dst_rb0` 全部静态判 ILLI。
+- **周期（trace 实测）**：`fence`/`swym`/`cs.*` 1 拍；`ctpop`/`ctlz`/`cttz`/`rev`/`rol`/`clmul` 2 拍（R1 = C 的 `SLOW` 路径）；`rd2rd` 8 个寄存器 9 拍（n + 1）；`lr.o.nn` 9 拍、`sc.o.nn` 命中 17 拍（重读 + 写）、未命中 1 拍。
+
 ## 边界
 
 - **保留** rocket-chip 库（Diplomacy / TileLink / `BaseTile`）与 chipyard 仿真设施（Verilator harness / BootROM / 内存模型 / `loadmem`）。
