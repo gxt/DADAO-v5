@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-018 | 2–3 h | signaling compare 对齐 IEEE：任何无序置 `NV`（RTL + 模型 + 向量 + spec 补写） |
 | m12-chipyard-014 | 3–4 h | FP 除法/开方/取余（允许多周期状态机） |
 | m12-chipyard-015 | 2–3 h | FP 取整/缩放/符号（收齐 47 条 FP 指令） |
 | m12-chipyard-016 | 3–4 h | T0 冒烟（inst 全量非 cfx + embench + tset 子集，三平台） |
