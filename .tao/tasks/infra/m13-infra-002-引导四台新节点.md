@@ -64,6 +64,6 @@
 - **两个坑（已入 `nodes.md`）**：
   ① 节点**无外网**（GitHub / PyPI 不可达，apt 通）⇒ 只能 bundle + `.cache`；
   ② QEMU 的 **meson subprojects 不在 `.cache`**，`install-host` 会逐个去 gitlab 拉（先 `keycodemapdb`、再 `berkeley-softfloat-3`）⇒ 需从主控机 rsync **整个** `.work/source/qemu/subprojects/`（6.5 MB）
-- 日志：主控机 `.work/log/infra/m13-infra-002/`（`apt-*` / `clone-*` / `sync-cache` / `bootstrap{,2,3}-*` / `verify-*`）
+- 日志：主控机该任务的运行期日志目录（`apt-*` / `clone-*` / `sync-cache` / `bootstrap{,2,3}-*` / `verify-*`）
 - 未改任何仓库代码；节点侧只有仓库本体与构建产物
 
