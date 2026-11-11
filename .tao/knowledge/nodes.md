@@ -18,6 +18,13 @@
 - 节点**不跑 AI 会话**，只跑 `make` 目标与测试驱动；派单与结果汇总回主控机。
 - 节点数量会继续增加；判据是「同一 commit 的 `make check` + `make check-inst` 结果与主控机一致」，不是「机器装好了」。
 
+### 网络（2026-11-12 实测，用户提醒后核）
+
+- **`ics150`–`ics180` 无外网**：`https://github.com`、`https://pypi.org` 均不可达（curl 无响应）；**apt 有内部镜像**（`archive.ubuntu.com` 返回 302，装包正常）。
+- 因此引导链**只能**走：主控机 `git bundle` → 节点 `git clone`；`.cache/<name>.git` 由 `tools/infra/sync_cache.py` 推送后 `make fetch` 走本地镜像。
+- **禁**：节点上 `make fetch` 直连 GitHub、`pip install` 从 PyPI、任何 `git clone https://…`。仓库侧已无此类调用（`Makefile`/`bootstrap_node.sh` 实测无 `pip install`/`clone https`）。
+- 已实测通过：四台 `[step 4] make fetch` 与 `[step 5] apply-series` 均 **rc=0**（全程未触网）。
+
 ## 1.1 `ics150`–`ics180`（2026-11-12 新增，待引导）
 
 - 登录：SSH 别名 `ics150` / `ics160` / `ics170` / `ics180`（**地址与端口只在本地 `~/.ssh/config`**，按本文件维护规则不入库）；账号 `ubuntu`，`sudo` 免密。
