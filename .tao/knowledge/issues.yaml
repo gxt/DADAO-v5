@@ -252,3 +252,15 @@
   status: open
   resolved_by: null
   title: 【P2】**把「仍在跑」写成「全部跑完」**：`m13-testcases-009` 收口时依据 3 份 ratio JSON 判定 A 组长尾「48 h 内全部跑完」，但 runner（pid 522444）仍存活 23 h19 m、`regression/raise-race` 正在执行、`ratio-static-libc-test.json` 尚未落盘（reviewer 第 1 轮判 Needs Revision）。另：验证脚本的 `static+dynamic == total` 属同源恒真，无法发现「从真实名单删一例」的静默缩水。教训：① 收口判据必须是「名单逐项三态齐全 + runner 已退出 + EXIT 文件存在」，不能只数已有 JSON；② 覆盖类断言必须与**独立名单源**比对，不能与自身派生量比。
+- id: ISS-394
+  scope:
+  - chipyard
+  status: open
+  resolved_by: null
+  title: 【P1】**FMA `qNaN × ±Inf + ∓Inf` 错误抬 `NV`，且模型与 RTL 同错**（`m12-chipyard-013` reviewer 发现）：例 `qNaN × +Inf + (−Inf)` ⇒ core/hardfloat `1/0`；`fp_ref.fma_exact` 的 `prod_inf` 未排除 NaN 乘数 ⇒ 台架与核上对照互相印证「错误答案」，两边都绿。依据 `contract-fp §20` / `SimRISC-07 §2.5`（Inf 条前提为「±Inf × 有限非零数」，NaN 条只对 sNaN 置 NV）。修法：`WumingMulAddRecFN` 的 `infDiff`/`prodInf` 先排除 NaN 乘数，模型同步，并补「NaN×Inf」与「Inf+Inf 异号」两组区分例。**教训**：模型与被测实现共享同一前提缺失时，差分不产生信号——须有独立 oracle（reviewer 自写 IEEE oracle 14356 例才覆盖到）。
+- id: ISS-395
+  scope:
+  - infra
+  status: open
+  resolved_by: null
+  title: 【P2】**并发派单事故：改变差分参照的任务与使用该参照验收的任务并行**。`m13-qemu-003`（改 QEMU 比较族 NV 语义）与 `m12-chipyard-013`（以 QEMU 为对照验收）并发，导致 013 验收块从 `211/0` 变成 `209/2`、`check-patch-tree` 因 qemu 源树未导出补丁而红。规则建议：派单前标出「本任务是否改变其它任务的差分/基线参照」；若是，要么串行，要么在该任务任务书里冻结参照版本（写 commit/md5）。
