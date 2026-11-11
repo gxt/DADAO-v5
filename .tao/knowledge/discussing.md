@@ -406,3 +406,9 @@ reviewer 建议 ①（随 `019` 做）。**待用户裁定。**
 **用户裁定（原话）**：「按 IEEE/hardfloat：任何无序都置」。
 
 影响面（需立任务）：① chipyard RTL（`ftscmp`/`foscmp` 的 NV 条件）；② QEMU（当前比较族完全不置标志）；③ 模型/oracle + 向量（现 `cmp_snan` 12 例为 model-only，需补 qNaN 例并从 model-only 转为三方对照）；④ spec 补写该条（`SimRISC-07`）。属**跨模块**改动，按 `AGENTS.md` 需用户确认后立册。
+
+## 已裁定：quiet compare 遇 sNaN 也置 `NV`（2026-11-12）
+
+`m12-chipyard-013` 的 spec 草案暴露：我们把 `ftqcmp`/`foqcmp` 写成「任何 NaN 都不置 NV」，但 IEEE 754-2019 §5.11 要求 **quiet 谓词遇 sNaN 仍置 invalid**（hardfloat 同）。用户裁定（原话）：「改为置 NV（跟 IEEE）」。
+
+影响面：chipyard RTL（`ftqcmp`/`foqcmp` 的 NV 条件改为「sNaN 输入即置」）、QEMU 同、模型/向量同步、spec 补写。跨模块，拆两个任务串行（`m13-qemu-004` 先行 → `m12-chipyard-024`）。**注意**：这与 2026-11-11 的 signaling 裁定不冲突——signaling 是「任何无序（含 qNaN）都置」，quiet 是「仅 sNaN 置」。
