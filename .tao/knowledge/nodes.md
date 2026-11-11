@@ -24,6 +24,11 @@
 - 因此引导链**只能**走：主控机 `git bundle` → 节点 `git clone`；`.cache/<name>.git` 由 `tools/infra/sync_cache.py` 推送后 `make fetch` 走本地镜像。
 - **禁**：节点上 `make fetch` 直连 GitHub、`pip install` 从 PyPI、任何 `git clone https://…`。仓库侧已无此类调用（`Makefile`/`bootstrap_node.sh` 实测无 `pip install`/`clone https`）。
 - 已实测通过：四台 `[step 4] make fetch` 与 `[step 5] apply-series` 均 **rc=0**（全程未触网）。
+- **已踩坑：QEMU 的 meson subproject 不走 `.cache`**。`make install-host` 在无外网节点上失败于
+  `meson` 抓 `https://gitlab.com/qemu-project/keycodemapdb.git`（`ERROR: Subproject keycodemapdb is buildable: NO`）。
+  修法：从主控机 `rsync` 已填充的 `.work/source/qemu/subprojects/keycodemapdb/`（约 560 KB）到节点同路径，再重跑 `install-host`。
+  ⇒ **新建节点时，除 `.cache` 外还要带 QEMU 的 subprojects**（至少 `keycodemapdb`）。
+
 
 ## 1.1 `ics150`–`ics180`（2026-11-12 新增，待引导）
 
