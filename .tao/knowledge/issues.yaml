@@ -178,3 +178,9 @@
   status: open
   resolved_by: null
   title: 【P3】`m12-chipyard-008` 文档与覆盖遗留：F-a `stm.o N=8` 实测 72 拍（完成区写 80，超 ±2）、单元素周期描述不可复现；F-b 回归向量 87 个 `ldm`/`stm` 全 count=1 ⇒ 多元素/跨 beat 路径零覆盖（reviewer 用自建探针补证，建议补 count>1 向量）；F-c 「中途 denied ⇒ CFXMEM」只有代码证据（预检已拦掉可构造的 deny）；F-d CFXMEM 30 例全为 addr0 同形态（数量达标、形态单一）。
+- id: ISS-382
+  scope:
+  - chipyard
+  status: open
+  resolved_by: null
+  title: 【P1】**预取自 `m12-chipyard-008` 起全部失效（回归）**：008 把 `specBacked(pfReqAddr)` 加进 `pfAddrLegal`，而 `pfReqAddr` 取自复位值 0 的 `pfReqBeat` ⇒ 地址 0 不在 Tiny 三段窗口 ⇒ `pfWanted` 恒假。`m12-chipyard-009` reviewer 用 400 条直线 `or.o` 实测 `prefetch=0 / demand_fetch=313 / exec=618`，跨 beat 全付 6 拍，与「用例短/跳转打散」无关。`020` 的 p50=1 测于 008 合入之前，故未暴露；现有门控无「预取是否真的发过」的断言。修复：`pfAddrLegal` 改查待发的 `pfBeat`；并补一条「直线流 prefetch > 0」的门控断言。

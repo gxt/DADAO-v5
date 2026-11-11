@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala
 new file mode 100644
-index 0000000..7e97b89
+index 0000000..f06db8e
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala
-@@ -0,0 +1,82 @@
+@@ -0,0 +1,191 @@
 +// See LICENSE for license details.
 +//
 +// DADAO register file banks (spec/SimRISC-00 §2, spec/DADAO-21 ABI):
@@ -11,11 +11,13 @@ index 0000000..7e97b89
 +//   rd  data registers      rd0 reads 0, writes are dropped
 +//   rb  base registers      rb0 reads the *current instruction address* (IP,
 +//                           not PC+4) and is read-only
-+//   ra  return address stack registers; m12-chipyard-008 adds them as a plain
-+//       register bank because `ld.o`/`st.o`/`ldm.o`/`stm.o` address the RA
-+//       bank (spec/SimRISC-01 §3).  `ra0` is readable and writable; its
-+//       RACNT/MRPTR structure is the business of the control-flow task
-+//       (m12-chipyard-009), which layers the RAS semantics on top.
++//   ra  return address stack (spec/SimRISC-00 §2.4): ra1..ra63 are the 63
++//       RegRAS slots (ra63 = top, `[63:48]` = recursion count, `[47:0]` =
++//       return address) and ra0 is the pointer register
++//       (`[53:48]` = RACNT, `[47:0]` = MRPTR, `[63:54]` = SBZ/read zero).
++//       m12-chipyard-008 added the bank as plain registers for the
++//       `ld.o`/`st.o`/`ldm.o`/`stm.o` RA forms; m12-chipyard-009 layers the
++//       RAS push/pop semantics on top (see `WumingRasOp`).
 +//
 +// The rf (floating point) bank arrives with the FP milestone
 +// (m12-chipyard-011); the decoder raises ILLI for the RF forms until then.
@@ -28,6 +30,26 @@ index 0000000..7e97b89
 +
 +import chisel3._
 +import chisel3.util._
++
++/** Single-cycle RAS operations (spec/SimRISC-00 §2.4.1 / §2.4.2).
++  *
++  * The core decides *which* case applies (C1/C2/C3a / D1-D3 / D4b) and asks
++  * for exactly one operation per cycle; the register file owns the RegRAS
++  * array, `RACNT` and `MRPTR`, so the architectural view (`ra_i`, `ra0`) is
++  * always consistent.  MemRAS traffic (C3b spill, D4b refill) is done by the
++  * core through the data port and only committed when it succeeds.
++  */
++object WumingRasOp {
++  val NONE    = 0.U(3.W)
++  val PUSH    = 1.U(3.W) // C1/C3a: shift up, ra63 = {1, addr}, RACNT += 1
++  val FOLD    = 2.U(3.W) // C2: ra63[63:48] += 1 (recursive fold)
++  val SPILL   = 3.U(3.W) // C3b: MRPTR -= 8, shift up, ra63 = {1, addr}
++  val POP     = 4.U(3.W) // D3: ra63 consumed, shift down, RACNT -= 1
++  val DEC     = 5.U(3.W) // D2: ra63[63:48] -= 1
++  val REFILL  = 6.U(3.W) // D4b (count > 1): ra63 = {count-1, addr}, RACNT = 1,
++                         //                    MRPTR += 8
++  val CONSUME = 7.U(3.W) // D4b (count == 1): MRPTR += 8 only
++}
 +
 +class WumingRegFile extends Module {
 +  val io = IO(new Bundle {
@@ -45,7 +67,7 @@ index 0000000..7e97b89
 +    val r2Data = Output(UInt(64.W))
 +
 +    // Two write ports (rrrr writes a 128-bit dual result back to two rd's;
-+    // `ldm` writes one element per cycle).
++    // `ldm` writes one element per cycle; `ld.o ra` writes the RA bank).
 +    val w0En   = Input(Bool())
 +    val w0Idx  = Input(UInt(6.W))
 +    val w0Bank = Input(UInt(2.W))
@@ -54,35 +76,122 @@ index 0000000..7e97b89
 +    val w1Idx  = Input(UInt(6.W))
 +    val w1Bank = Input(UInt(2.W))
 +    val w1Data = Input(UInt(64.W))
++
++    // RAS operation and the operands it needs (m12-chipyard-009).
++    val rasOp        = Input(UInt(3.W))
++    val rasPushAddr  = Input(UInt(48.W)) // PUSH/SPILL: the `call` return address
++    val rasPushCount = Input(UInt(16.W)) // REFILL: the MemRAS entry count - 1
++    val rasMemAddr   = Input(UInt(48.W)) // REFILL: the MemRAS entry address
++
++    // RAS status, read combinationally by the core's push/pop decision logic.
++    val rasRacnt    = Output(UInt(6.W))
++    val rasMrptr    = Output(UInt(48.W))
++    val rasTopCount = Output(UInt(16.W)) // ra63[63:48]
++    val rasTopAddr  = Output(UInt(48.W)) // ra63[47:0]
++    val rasOldest   = Output(UInt(64.W)) // ra[64 - RACNT] (C3b spill source)
 +  })
 +
 +  val rd = RegInit(VecInit(Seq.fill(64)(0.U(64.W))))
 +  val rb = RegInit(VecInit(Seq.fill(64)(0.U(64.W))))
++  // ra(0) is not stored: the ra0 pointer register is `{RACNT, MRPTR}` below.
 +  val ra = RegInit(VecInit(Seq.fill(64)(0.U(64.W))))
++
++  // ---- RAS state (spec/SimRISC-00 §2.4) -----------------------------------
++  val racnt = RegInit(0.U(6.W)) // valid entries, 0..63
++  val mrptr = RegInit(0.U(48.W)) // MemRAS next-pop slot, 0 = disabled
++
++  /** Architectural read of the RA bank; ra0 = {SBZ, RACNT, MRPTR}. */
++  def raRead(idx: UInt): UInt =
++    Mux(idx === 0.U, Cat(0.U(10.W), racnt, mrptr), ra(idx))
++
++  io.rasRacnt := racnt
++  io.rasMrptr := mrptr
++  io.rasTopCount := ra(63)(63, 48)
++  io.rasTopAddr := ra(63)(47, 0)
++  // racnt == 0 leaves the stack empty; the value is then unused (the core only
++  // asks for the oldest entry on the C3b path, which requires RACNT == 63).
++  io.rasOldest := ra((64.U - racnt)(5, 0))
 +
 +  def read(idx: UInt, bank: UInt): UInt =
 +    Mux(bank === WumingBank.RB, Mux(idx === 0.U, io.ip, rb(idx)),
-+      Mux(bank === WumingBank.RA, ra(idx),
++      Mux(bank === WumingBank.RA, raRead(idx),
 +        Mux(idx === 0.U, 0.U(64.W), rd(idx))))
 +
 +  io.r0Data := read(io.r0Idx, io.r0Bank)
 +  io.r1Data := read(io.r1Idx, io.r1Bank)
 +  io.r2Data := read(io.r2Idx, io.r2Bank)
 +
++  // ---- RAS operation ------------------------------------------------------
++  // One operation per cycle.  `ra63` is the top, so a push moves the live
++  // window one slot towards the low indices (`new(i) = old(i+1)`) and puts the
++  // new entry at the top; a pop moves it back (`new(i) = old(i-1)`).  The slots
++  // outside the `RACNT` window are architecturally undefined.  MemRAS traffic
++  // is not touched here.
++  val raNext = WireDefault(ra)
++  val racntNext = WireDefault(racnt)
++  val mrptrNext = WireDefault(mrptr)
++
++  switch(io.rasOp) {
++    is(WumingRasOp.PUSH) {
++      for (i <- 1 to 62) { raNext(i) := ra(i + 1) }
++      raNext(63) := Cat(1.U(16.W), io.rasPushAddr)
++      racntNext := racnt + 1.U
++    }
++    is(WumingRasOp.FOLD) {
++      raNext(63) := Cat(ra(63)(63, 48) + 1.U, ra(63)(47, 0))
++    }
++    is(WumingRasOp.SPILL) {
++      for (i <- 1 to 62) { raNext(i) := ra(i + 1) }
++      raNext(63) := Cat(1.U(16.W), io.rasPushAddr)
++      mrptrNext := mrptr - 8.U
++    }
++    is(WumingRasOp.POP) {
++      for (i <- 2 to 63) { raNext(i) := ra(i - 1) }
++      racntNext := racnt - 1.U
++    }
++    is(WumingRasOp.DEC) {
++      raNext(63) := Cat(ra(63)(63, 48) - 1.U, ra(63)(47, 0))
++    }
++    is(WumingRasOp.REFILL) {
++      // RACNT == 0 when this happens, so the refilled entry becomes the top.
++      raNext(63) := Cat(io.rasPushCount, io.rasMemAddr)
++      racntNext := 1.U
++      mrptrNext := mrptr + 8.U
++    }
++    is(WumingRasOp.CONSUME) {
++      mrptrNext := mrptr + 8.U
++    }
++  }
++
++  ra := raNext
++  racnt := racntNext
++  mrptr := mrptrNext
++
++  // ---- software writes (they never coincide with a RAS operation) ---------
 +  // rd0 reads 0 and rb0 reads IP (both handled above); writes to either are
 +  // dropped here as the belt-and-braces form (the decoder already raises ILLI
 +  // for the shapes that may not write them).
 +  def writable(idx: UInt, bank: UInt): Bool =
 +    !(idx === 0.U && (bank === WumingBank.RD || bank === WumingBank.RB))
 +
++  // ra0 write: `[53:48]` = RACNT, `[47:0]` = MRPTR, `[63:54]` = SBZ (dropped).
++  def writeRa(idx: UInt, data: UInt): Unit = {
++    when(idx === 0.U) {
++      racnt := data(53, 48)
++      mrptr := data(47, 0)
++    }.otherwise {
++      ra(idx) := data
++    }
++  }
++
 +  when(io.w0En && writable(io.w0Idx, io.w0Bank)) {
 +    when(io.w0Bank === WumingBank.RB) { rb(io.w0Idx) := io.w0Data }
-+      .elsewhen(io.w0Bank === WumingBank.RA) { ra(io.w0Idx) := io.w0Data }
++      .elsewhen(io.w0Bank === WumingBank.RA) { writeRa(io.w0Idx, io.w0Data) }
 +      .otherwise { rd(io.w0Idx) := io.w0Data }
 +  }
 +  when(io.w1En && writable(io.w1Idx, io.w1Bank)) {
 +    when(io.w1Bank === WumingBank.RB) { rb(io.w1Idx) := io.w1Data }
-+      .elsewhen(io.w1Bank === WumingBank.RA) { ra(io.w1Idx) := io.w1Data }
++      .elsewhen(io.w1Bank === WumingBank.RA) { writeRa(io.w1Idx, io.w1Data) }
 +      .otherwise { rd(io.w1Idx) := io.w1Data }
 +  }
 +}

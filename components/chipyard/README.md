@@ -68,6 +68,14 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **`ra` 银行**：`WumingRegFile` 增加第三组 64×64 寄存器（`ra0` 可读写）；RAS 的溢出/下溢与 `call`/`ret` 语义归 `m12-chipyard-009`。
 - **字节序**：所有总线访问按 8 字节 beat 对齐，大端在 beat 内逐字节重组（`addressOrder`/`laneOrder`）；`st.b/.w/.t` 用 byte mask 只写目标字节，邻字节不变。
 
+## 控制流与 RAS（`m12-chipyard-009`）
+
+- **控制流全形式**（`spec/SimRISC-06`）：`br.{eq,ne}`（`rrii`，比较两个 rd）、`br.{n,nn,z,nz,p,np}`（rd 与 rb 形式）、`jump`（`iiii` 相对 / `rrii` 绝对）、`call`（`iiii`/`rrii`）、`ret rdHA, imms18`。目标地址按 `rb0 = 当前 IP` 做 64 位加法后取低 48 位；`ret` 的目的 rd 写符号扩展的 `imms18`，`rd0` 配非零立即数 ⇒ `ILLI`。
+- **返回地址 = 当前 `call` 的地址 + 4**（两种形式一致），压栈/弹栈流程是 `spec/SimRISC-00 §2.4.1/§2.4.2` 的 C1/C2/C3a、D1/D2/D3，全部在 `EXEC` 组合完成（1 拍）。
+- **RegRAS 状态在 `WumingRegFile` 内**：`ra1`–`ra63` 为 63 槽（`ra63` 是栈顶，`[63:48]` 递归计数、`[47:0]` 返回地址），`RACNT`（6 位）与 `MRPTR`（48 位）是独立寄存器，`ra0` 读出为 `{SBZ, RACNT, MRPTR}`、写入按 `[53:48]`/`[47:0]` 拆分（`[63:54]` 写无效）。压/弹由 `WumingRasOp` 单周期语义完成（PUSH/FOLD/SPILL/POP/DEC/REFILL/CONSUME）。
+- **MemRAS**：C3b 把最旧条目写到 `MRPTR-8`（数据端口一次 8 字节 `Put`），D4b 从 `MRPTR` 读一条（一次 `Get`）再按条目递归计数决定 RASUF/consume/refill。两种情况都**先完成全部判定再改 RA 或内存**，中途 `denied`/`corrupt` 或窗口外 ⇒ `CFXMEM` 且 RAS 保持原状（精确异常）。
+- **RASOF（`1<<10`）/RASUF（`1<<11`）** 是精确同步异常进 hmon：`call` 的 `cause_info` 是压不进去的返回地址，`ret` 的为 0，`excp_cause_ip` 停在触发指令。
+
 ## 边界
 
 - **保留** rocket-chip 库（Diplomacy / TileLink / `BaseTile`）与 chipyard 仿真设施（Verilator harness / BootROM / 内存模型 / `loadmem`）。

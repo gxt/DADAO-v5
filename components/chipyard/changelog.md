@@ -4,6 +4,10 @@
 
 ## M12
 
+- **2026-11-11 `m12-chipyard-009`**
+  - 摘要：**控制流全形式 + 返回地址栈**（`spec/SimRISC-06`、`spec/SimRISC-00 §2.4`）：解码器补 `br.eq`/`br.ne`（`rrii`）、相对 `jump`（`iiii`）、`call`（`iiii`/`rrii`）与 `ret rdHA, imms18`（`rd0` 配非零立即数 ⇒ ILLI）；`WumingRegFile` 把 `ra` 银行升级为 RegRAS（`ra1`–`ra63` + `RACNT`/`MRPTR`，`ra0` 读出 `{SBZ,RACNT,MRPTR}`、写入拆分、`[63:54]` 写无效），新增单周期 RAS 操作（PUSH/FOLD/SPILL/POP/DEC/REFILL/CONSUME）；`WumingCore` 在 `EXEC` 组合完成 C1/C2/C3a 与 D1/D2/D3，C3b 溢出走数据端口 8 字节存储、D4b 下溢走 8 字节读取，两者都先判定后修改（精确异常）；新增 `RASOF`/`RASUF`（`1<<10`/`1<<11`）进 hmon。返回地址 = 当前 `call` 地址 + 4。
+  - 执行者：engineer
+
 - **2026-11-08 `m12-chipyard-001`**
   - 摘要：**chipyard 首次进入 v5 补丁集**（`ADR-0024 D1` 就地修订，用户裁定 B）：新增 `generators/dadao-wuming/**`（`WumingTile extends BaseTile`、自声明 `TLClientNode`/`TLIdentityNode`、`WumingCoreParams` 不继承 `CoreParams`、桩核）、`generators/chipyard/src/main/scala/config/DadaoConfigs.scala`（`WumingTinyConfig`）、根 `build.sbt` 的 `wuming` 项目与 chipyard 依赖、`PeripheralFragments.WithBootROM` 的 BootROM 资源名参数。
   - 执行者：engineer

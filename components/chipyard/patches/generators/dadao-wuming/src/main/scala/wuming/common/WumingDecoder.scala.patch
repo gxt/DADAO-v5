@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 new file mode 100644
-index 0000000..6f4966f
+index 0000000..8ddaae5
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
-@@ -0,0 +1,565 @@
+@@ -0,0 +1,621 @@
 +// See LICENSE for license details.
 +//
 +// DADAO decoder for the M12 integer core.
@@ -43,6 +43,12 @@ index 0000000..6f4966f
 +//
 +// The rest of control flow (`call`/`ret`/relative `jump`/`br.eq`/`br.ne`/RAS)
 +// and the full cfx register group stay with m12-chipyard-009/019.
++//
++// m12-chipyard-009 completes control flow (spec/SimRISC-06, spec/SimRISC-00
++// §2.4): `br.eq`/`br.ne` (rrii), the relative `jump` (iiii), `call` (iiii and
++// rrii, return address = current IP + 4) and `ret rdHA, imms18` (the return
++// address comes from the RAS, not from an operand).  The RAS push/pop cases
++// (C1-C3b / D1-D4b) live in the core; the decoder only marks the operation.
 +
 +package wuming.common
 +
@@ -87,6 +93,11 @@ index 0000000..6f4966f
 +
 +  val isJump  = Bool()
 +  val jumpOff = UInt(64.W)
++  // m12-009: `call` reuses the jump target arithmetic and additionally pushes
++  // the return address (ip + 4); `ret` pops the RAS and writes one rd with the
++  // sign-extended imms18 (spec/SimRISC-06 §3/§4).
++  val isCall  = Bool()
++  val isRet   = Bool()
 +  val isLd    = Bool()
 +  val isSt    = Bool()
 +  val memOff  = UInt(64.W)
@@ -139,6 +150,7 @@ index 0000000..6f4966f
 +  val imm16 = inst(15, 0)
 +  val imm12 = inst(11, 0)
 +  val imm18 = inst(17, 0)
++  val imm24 = inst(23, 0)
 +
 +  def sext(x: UInt): UInt = x.asSInt.pad(64).asUInt
 +  def zext(x: UInt): UInt = x.pad(64)
@@ -165,6 +177,7 @@ index 0000000..6f4966f
 +  d.w0En := false.B; d.w0Idx := 0.U; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
 +  d.w1En := false.B; d.w1Idx := 0.U; d.w1Bank := WumingBank.RD; d.w1Sel := 0.U
 +  d.isJump := false.B; d.jumpOff := 0.U
++  d.isCall := false.B; d.isRet := false.B
 +  d.isLd := false.B; d.isSt := false.B; d.memOff := 0.U; d.ldDst := 0.U
 +  d.isLdm := false.B; d.isStm := false.B
 +  d.memWidth := 3.U; d.memSigned := false.B
@@ -500,12 +513,29 @@ index 0000000..6f4966f
 +    recognized := true.B; rriiDst(WumingAluOp.CMP_U, signedImm = false.B)
 +  }.elsewhen(opc === 0x5D.U) {
 +    recognized := true.B; rriiDst(WumingAluOp.CMP_S, signedImm = true.B)
++  }.elsewhen(opc === 0x70.U) {
++    // jump [rb0, imms26]: target = rb0 + (imms24 << 2) with rb0 = current IP
++    // (spec/SimRISC-06 §2).  No RAS side effect.
++    recognized := true.B
++    d.isJump := true.B
++    d.srcAIdx := 0.U; d.srcABank := WumingBank.RB
++    d.srcBIdx := 0.U; d.srcBBank := WumingBank.RD
++    d.jumpOff := (sext(imm24) << 2)(63, 0)
 +  }.elsewhen(opc === 0x71.U) {
 +    recognized := true.B
 +    d.isJump := true.B
 +    d.srcAIdx := ha; d.srcABank := WumingBank.RB
 +    d.srcBIdx := hb; d.srcBBank := WumingBank.RD
 +    d.jumpOff := (imms12 << 2)(63, 0)
++  }.elsewhen(opc === 0x6E.U || opc === 0x6F.U) {
++    // br.eq / br.ne (rrii): compare rdHA with rdHB, target = rb0 + (imms12 << 2)
++    // (spec/SimRISC-06 §1).  Condition codes continue the rd-form numbering.
++    recognized := true.B
++    d.isBr := true.B
++    d.brCond := Mux(opc === 0x6E.U, 6.U, 7.U)
++    d.brOff := (imms12 << 2)(63, 0)
++    d.srcAIdx := ha; d.srcABank := WumingBank.RD
++    d.srcBIdx := hb; d.srcBBank := WumingBank.RD
 +  }.elsewhen(opc >= 0x68.U && opc <= 0x6D.U) {
 +    // br.n / br.nn / br.z / br.nz / br.p / br.np (rd): spec/SimRISC-06 §1.
 +    // Target = rb0 + (imms18 << 2) with rb0 = current IP; the condition code
@@ -522,6 +552,32 @@ index 0000000..6f4966f
 +    d.brCond := opc - 0x70.U
 +    d.brOff := (imms18 << 2)(63, 0)
 +    d.srcAIdx := ha; d.srcABank := WumingBank.RB
++  }.elsewhen(opc === 0x74.U) {
++    // call [rb0, imms26]: target as `jump iiii`; the RAS push (return address
++    // = ip + 4) is the core's job (spec/SimRISC-06 §3).
++    recognized := true.B
++    d.isJump := true.B; d.isCall := true.B
++    d.srcAIdx := 0.U; d.srcABank := WumingBank.RB
++    d.srcBIdx := 0.U; d.srcBBank := WumingBank.RD
++    d.jumpOff := (sext(imm24) << 2)(63, 0)
++  }.elsewhen(opc === 0x75.U) {
++    // call [rbHA, rdHB, imms14]: rbHA is read-only for both call forms.
++    recognized := true.B
++    d.isJump := true.B; d.isCall := true.B
++    d.srcAIdx := ha; d.srcABank := WumingBank.RB
++    d.srcBIdx := hb; d.srcBBank := WumingBank.RD
++    d.jumpOff := (imms12 << 2)(63, 0)
++  }.elsewhen(opc === 0x76.U) {
++    // ret rdHA, imms18: rdHA = sign-extended imms18, then jump to the RAS
++    // pop result.  `ret rd0, <imm18 != 0>` is illegal (dst_rd0_nonzero,
++    // spec/SimRISC-06 §4).
++    recognized := true.B
++    d.isRet := true.B
++    d.aluOp := WumingAluOp.ADD_U
++    d.srcAIdx := 0.U; d.srcABank := WumingBank.RD // rd0 reads 0
++    d.useImmB := true.B; d.imm := imms18
++    d.w0En := true.B; d.w0Idx := ha; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
++    when(ha === 0.U && imm18 =/= 0.U) { d.ill := true.B }
 +  }.elsewhen(opc === 0x7F.U) {
 +    // trap (spec/SimRISC-11).  The semihosting window is judged on immu18 only
 +    // (Machine-v5 §5.4, user ruling 2026-11-09), independent of cfxha; every
