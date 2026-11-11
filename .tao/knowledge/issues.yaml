@@ -246,3 +246,9 @@
   status: open
   resolved_by: null
   title: 【P3】`m13-testcases-010` 文档级：F-a 完成区写「L1 红 3 项」实为 4 项（漏记 `check-patch-tree`，根因是组件源检出树里 `011` 的未提交 RTL 修复）；F-b 证据脚本 `inst_sweep covered` 期望值写死 273、标签却写「现场派生」。**证据缺口（转 `m12-chipyard-016`）**：真 RTL 重建注入（`csTaken` 改回 `!d.isCs || csCondTrue` ⇒ 必红）与 chipyard 侧 rf 载体（`fp_sweep` 仅 4 例 `cs.*` rf）仍未做，本任务只完成「推演 + 等价输出注入」。
+- id: ISS-393
+  scope:
+  - testcases
+  status: open
+  resolved_by: null
+  title: 【P2】**把「仍在跑」写成「全部跑完」**：`m13-testcases-009` 收口时依据 3 份 ratio JSON 判定 A 组长尾「48 h 内全部跑完」，但 runner（pid 522444）仍存活 23 h19 m、`regression/raise-race` 正在执行、`ratio-static-libc-test.json` 尚未落盘（reviewer 第 1 轮判 Needs Revision）。另：验证脚本的 `static+dynamic == total` 属同源恒真，无法发现「从真实名单删一例」的静默缩水。教训：① 收口判据必须是「名单逐项三态齐全 + runner 已退出 + EXIT 文件存在」，不能只数已有 JSON；② 覆盖类断言必须与**独立名单源**比对，不能与自身派生量比。

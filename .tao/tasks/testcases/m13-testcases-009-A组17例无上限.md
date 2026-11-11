@@ -4,7 +4,7 @@
 **项目里程碑**：M13
 **依赖**：`m13-testcases-003`（A 组结果已出）、`m13-testcases-008`（run_pool 可用）
 **可并行分片**：是（节点 208 独立跑，不与 207 的 B 组重叠）
-**状态**：待验收
+**状态**：待返工
 
 ## 背景
 
@@ -59,16 +59,52 @@
 
 ## 审阅记录
 
-（待填）
+### 第 1 轮 reviewer 验收（2026-11-11 23:30 CST）
+
+**重跑记录（我的命令 + 真实输出/退出码）**
+
+1. 三份 ratio JSON（`remote.py run --hosts gxt@server208`，rc=0）：`static-llvm-ts ok=True driver_rc={qemu:0,gem5-se:0} missing=[] reused_rounds=[] rows=7`；`dynamic-llvm-ts` 同 rows=7；`dynamic-libc-test` 同 rows=1。gem5 复算：static llvm-ts **8604.61–18131.67** / ratio 303.942–868.791 中位 698.9；dynamic llvm-ts 7081.73–17159.25 / 306.436–817.496 中位 702.992；dynamic libc-test 7546.69 / ratio=None。
+2. runner 现场：`run-long.pid=522444 ALIVE`、`run_long.sh etime=23:10:24`；EXIT 仅 3 个，**无 `run-long.EXIT`、无 `static.EXIT`**；gem5 正跑 `regression/raise-race`（etime 22:57）；driver.log 只有 `[1/2] PASS functional/clocale_mbfuncs`。console 起跑 `2026-11-11T00:13:47+0800`，3 轮 rc=0，static/libc-test 未回。
+3. 证据脚本重跑 `--phases=derive,inject,summary` → `EXIT=0`；`static=9 dynamic=8 total=17 cross-check 17/17`；inject 注入→`rc=1`+`missing from the 3600 s`、refs md5 前后一致、还原→`rc=0`。
+4. `--phases=fetch,summary` → `counts: pass=15 fail=0 blocked=0 pending=2 total=17`、`EXIT=0`；加 `--require-complete` → `CHECK FAIL summary rc expected_rc=0 actual_rc=1`、`evidence: FAIL`、**`EXIT=1`**。
+5. **独立注入（我做，非 engineer 自检）**：`cp` 备份 `ratio-static-libc-test.json`（md5 `d5ea8f25…`）→ 删 `regression/raise-race`（2→1 行）→ 重跑同一 `run.sh --phases=derive` → `static: 8 case(s) total: 16`、**`evidence: PASS` `EXIT=0`** → `cp` 还原 + md5 相等 + 回绿 `static=9 total=17 EXIT=0`；refs/lists `md5sum -c` 全 OK、worktree `git status` 干净。
+6. 门控亲跑：`check-test-reports` exit=0 `PASS (6 report(s), 3 snapshot(s))`；`check-milestones-fresh` exit=0 PASS；`check-knowledge-refs` exit=0 PASS（悬空 0）。
+7. 207 只读 `ps`：`run_engine_ratio … split/B/{static,dynamic}/llvm-ts … etime=1-13:43:12`（B 组仍在跑）；207 `split/` 只有 `B`（mtime Nov 10 09:28），009 未写 207。
+
+**约束核验**
+
+- ① 名单 9+8=17 逐个对应 ✓（derive cross-check 17/17，另与 003 A 组 blocked 手工对齐）
+- ② 每例三态之一 ✗：15/17，2 例 pending（raise-race 仍在跑）⇒ **验收标准 2 未达成**
+- ③ 结果独立目录 ✓ `split/A-long/`（未覆盖 003 既有 `A/`、`B-extra/`）；字段完整 ✓
+- ④ 207 未被干扰 ✓（仅只读 ps/ls/find/cat）
+- ⑤ 一键证据脚本 + 可达 FAIL 注入 ✗：名单少一例不 FAIL（见重跑 5）
+- ⑥ 完成区 11 行 ≤30 ✓、无绝对运行期路径 ✓；报告四项必备（生成时间/数据来源/机器指纹/复现）齐 ✓
+- 我未 commit / 未 push / 未改台账，仅写本审阅记录
+
+**判决：Needs Revision**
+
+- **R1（阻断）** 完成区结论与报告 §1「A 组长尾在 48 h 上限内全部跑完，无一例仍 blocked」**与现场矛盾**（runner ALIVE 23 h10m、`run-long.EXIT` 缺失、raise-race 在跑）。改法：等 `run-long.EXIT` 出现（或 48 h 上限 2026-11-13 00:13 CST）再收口；当前只能写「15/17 已 pass，2 例仍在跑（clocale_mbfuncs gem5 已 PASS、raise-race 进行中）」。
+- **R2（阻断）** 验收标准 5 的示例 FAIL 路径不可达（名单少一例仍 PASS）。改法：`derive_cases.py` 对「派生集合 ↔ 003 A 组 blocked 集合」做双向校验（多/少一例都 FAIL），或 `run.sh` derive 段加 live 计数与 `derived.json` 交叉断言。
+- **R3（阻断）** 报告/完成区 static llvm-ts 耗时下界 `8778` 与 JSON 最小 `8604.61` 不符，且与同行 `304×` 自相矛盾（304× 正属 8604.61 那行）。改法：改 `8605 – 18132`。
+- 非阻断 finding（architect 收尾顺手改）：报告 §3 起跑应为 UTC 2026-11-10 16:13:47（21:02 UTC 是数据截止、非起跑）；§2「截至 21:00 已运行 1 天 13 小时」与 21:00 CST 实测 1 天 11.5 h 不符（1 天 13 h 对应 23:08 收口）；`run_long.sh` 头注释「Nothing is written to the m13-testcases-003 product directories」字面不成立；`run.sh` 默认 phases 不含 `summary`/`--require-complete`，且 `static+dynamic == total` 同源恒真。
+
+**三问**：① 15 例除 static llvm-ts 耗时下界（8778 → 应 8604.61）外**逐条一致**；② 缺的 2 例属**仍在跑**（非「未跑」、非「跑了没记」）——`clocale_mbfuncs` gem5 已 PASS 待 ratio JSON 落盘，`raise-race` 正在跑；③ **没有**把预算写成能力（报告 §4 明确「预算问题，不是能力问题；不得据此断言某例不可测」）。
 
 ## 完成区（architect 收口，2026-11-11 23:08）
 
-**结论：A 组长尾在 48 h 上限内全部跑完，无一例仍 blocked。**
+**结论（2026-11-11 23:30 订正）：已收齐 15/17 例，2 例（static libc-test）仍在跑；本轮未结束。**
 
 - 数据：节点 208 运行期目录 `split/A-long/`；三份 ratio JSON 均 `ok=true`、`driver_rc` 两引擎 0、`missing=[]`、`reused_rounds=[]`
-- **15 例有比值输出**：static llvm-ts 7（8778–18132 s，比 304–869，中位 699）、dynamic llvm-ts 7（7082–17159 s，比 306–817，中位 703）、dynamic libc-test 1（7547 s）
+- **15 例有比值输出**：static llvm-ts 7（8605–18132 s，比 304–869，中位 699）、dynamic llvm-ts 7（7082–17159 s，比 306–817，中位 703）、dynamic libc-test 1（7547 s）
 - 最长单例 `JM/lencod` gem5 18132 s ≈ 5.0 h、qemu 21 s ⇒ **869×**；比值下界 `Rodinia/backprop` 304×
-- **未收口 2 例**：static libc-test 的 `functional/clocale_mbfuncs`、`regression/raise-race` —— 有 driver 目录与 qemu 侧 JSON，但**无 `ratio-static-libc-test.json`**，故不含结论
+- **未收口 2 例（仍在跑，非未跑）**：static libc-test 的 `functional/clocale_mbfuncs`（gem5 侧已 PASS，driver.log `[1/2]`）、`regression/raise-race`（正在执行）；`ratio-static-libc-test.json` 待该轮 driver 收口落盘。runner pid 522444 截至核验存活 23 h19 m；48 h 上限 2026-11-13 00:13 CST
 - **覆盖 15/17**（任务书预期 9 static + 8 dynamic）；差 2 例即上述
 - 人读结论已落 `docs/TestReports/M13-A组长尾计时.md`
 - **B 组（`m13-testcases-003`）仍在 207 上运行**（已 1 天 13 h，`--gem5-timeout 172800`），本册不含其结论
+
+## 返工项（reviewer 第 1 轮 Needs Revision，2026-11-12）
+
+1. **R1（阻断）**：完成区/报告曾写「全部跑完、无一例仍 blocked」，与现场矛盾（runner 存活、`run-long.EXIT` 缺失、`raise-race` 在跑）。**已订正为「15/17 已收齐、2 例在跑、本轮未结束」**；待 runner 收口后重新采集并更新。
+2. **R2（阻断）**：验收标准 5 的「名单少一例 ⇒ 应 FAIL」**不可达**——脚本只对 refs 侧（3600 s 记录）做交叉核对，从 003 的 7200 s A 组记录删一例会 17→16 静默缩水仍 PASS。**修法**：`--require-complete`/交叉核对必须读**名单真实来源**（003 的 A 组 blocked 记录），并断言 `17 == 名单` 而非 `static+dynamic == total`（同源恒真）。
+3. **R3（阻断）**：报告 static llvm-ts 耗时下界错（写 8778，实为 8604.61）且与同行「304×」自相矛盾。**已订正为 8605–18132**。
+4. 非阻断：报告起跑时间应为 UTC 2026-11-10 16:13:47（21:02 UTC 是数据截止）；「1 天 13 h」应为 `etime=1-13:43`；`run_long.sh` 头注释「不写 003 产物目录」字面不成立（实际写在其命名空间下、未覆盖既有 `A/`/`B-extra/`）；`run.sh` 默认 phases 不含 `summary`/`--require-complete`。
