@@ -24,6 +24,11 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m13-integ-009 | 4–6 h | FP-IEEE 对齐审计（47 条，等 `015` 后执行） |
+| m13-testcases-011 | 2–3 h | `fo2ft` 溢出向量 + 三方对照（等三实现改完） |
+| m13-gem5-007 | 2–3 h | `fo2ft` 溢出按 IEEE 舍入模式（gem5 + checker） |
+| m13-qemu-005 | 2–3 h | `fo2ft` 溢出按 IEEE 舍入模式（QEMU） |
+| m13-spec-002 | 1–2 h | `fo2ft` 溢出按 IEEE 舍入模式（spec + 合约修订） |
 | m13-qemu-004 | 1–2 h | quiet compare 遇 sNaN 置 `NV`（跟 IEEE；与 signaling 口径并存） |
 | m13-integ-002 | 5–7 h | FP 语义三平台差分（47 条，含舍入/标志） （**暂不进行**，用户 2026-11-11） |
 | m13-integ-003 | 4–6 h | 整数与访存三平台差分（inst 全量非 cfx） （**暂不进行**，用户 2026-11-11） |
