@@ -21,7 +21,7 @@
 
 1. **名单**：从 `refs/m13-001-static-3600s-full.json` 的 A 组 static blocked（9 例）与 `refs/m13-002-dynamic-3600s-full.json` 的 A 组 dynamic blocked（8 例）派生，**逐 id 对应、不增不减**（现场统计）。
 2. **在 208 上跑**：`run_engine_ratio.py` 或 `run_pool.py`，每例 `--gem5-timeout 172800 --qemu-timeout 172800`，32 并发。
-3. **结果落独立目录**（`.work/evidence/m13-testcases-003/split/A-long/`），**不回写 003 的产物**。
+3. **结果落独立目录**（`运行期目录下的 `split/…``），**不回写 003 的产物**。
 4. **给三态结论**：每例 `pass` / `fail` / 仍 `blocked`（超 48 h），附 `gem5_seconds`（或"超 48 h"）。
 
 ## 非范围

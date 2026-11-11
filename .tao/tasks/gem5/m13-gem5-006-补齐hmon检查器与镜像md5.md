@@ -78,8 +78,8 @@
 
 **重跑记录（全部为我自己的输出，workdir = 该 worktree 仓库根）**
 - `python3 tools/gem5/check_tiny_hmon.py` ⇒ **rc=0**，`check_tiny_hmon: PASS (210 checks, 44 records)`；现场统计 `grep -c '^  \[PASS\]'`=**210**、`[FAIL]`=**0**
-- `bash .work/evidence/m13-gem5-006/run.sh` ⇒ rc=0，`evidence: PASS=18 FAIL=0`；`--inject` ⇒ rc=0，`PASS=23 FAIL=0`（oracle md5 注入 rc=1 且命中 `[FAIL] shared BootROM md5`；固件 +8B 注入 rc=1；`cp`+md5 还原 `344c50ad…`/`fdbfebb2…` 相等后回绿）
-- **反造比对**：我重建 handler → `md5=32f1d2b0b67f4f18263e7c634a543b49`、248 B、`cmp` 与 `.work/tests/m13-gem5-005/evidence/chk/tiny_hmon_handler.bin` **无差异**（该遗留文件 mtime 11-10 23:42，早于本任务）
+- `bash 运行期证据目录下的 `run.sh`` ⇒ rc=0，`evidence: PASS=18 FAIL=0`；`--inject` ⇒ rc=0，`PASS=23 FAIL=0`（oracle md5 注入 rc=1 且命中 `[FAIL] shared BootROM md5`；固件 +8B 注入 rc=1；`cp`+md5 还原 `344c50ad…`/`fdbfebb2…` 相等后回绿）
+- **反造比对**：我重建 handler → `md5=32f1d2b0b67f4f18263e7c634a543b49`、248 B、`cmp` 与 ``m13-gem5-005` 运行期遗留的 handler 段` **无差异**（该遗留文件 mtime 11-10 23:42，早于本任务）
 - **我的独立注入**（各 `cp` 备份 + md5 还原，末态 `md5sum -c` 全 OK、`git status --porcelain -uall` 0 行）：① layout `DATA_BASE +0x3108` ⇒ checker rc=1（`semihosting…missing`、`result table…missing`）；② oracle id7 期望值 +1 ⇒ rc=1（`record 7 check 7 value` FAIL，2/210）；③ handler lds `ORIGIN +8` ⇒ rc=2（builder 报 `e_entry … != 0xfff00000000`）；④ 同①注入后**重跑同一 run.sh** ⇒ rc=1，`PASS=12 FAIL=6`（含 `layout SLOT_PTR == app .data` FAIL）
 - **lds 8 KiB 断言可达**：handler 追加 `.space 9000` ⇒ `ld.lld` **rc=1** `tiny hmon dispatch segment exceeds its 8 KiB budget`（还原后 md5 `8e1751fd…` 与快照相等）
 - **门控**：`check-modules` rc=0、`check-inst` rc=0（Vast 980/985+5 deferred、Tiny 44/44，与完成区一致）、`check-unit` rc=0、`check-tests-index`/`check-test-reports` rc=0；L1 `make check` **rc=2 仅停 `check-patch-tree`**（7 条全 chipyard：共享 chipyard 源树 3 个 scala 文件脏，mtime 04:38）；另跑 `check-knowledge-refs`(4)/`check-run-artifacts`(3)/`check-temp-dirs`(5) 红项，**逐条查无 m13-gem5-006 命中**（属 integ-004/testcases-004/night 日志等）
@@ -109,7 +109,7 @@
 
 #### 收尾（architect，2026-11-11 04:52）
 
-- reviewer **Accepted**：4 文件真补齐（重建 handler md5 `32f1d2b0…` 与 `.work/tests/m13-gem5-005/` 遗留段 `cmp` 无差异 ⇒ 非现造）；3 个 include 全部解析。
+- reviewer **Accepted**：4 文件真补齐（重建 handler md5 `32f1d2b0…` 与 ``m13-gem5-005` 运行期证据目录` 遗留段 `cmp` 无差异 ⇒ 非现造）；3 个 include 全部解析。
 - `check_tiny_hmon` rc=0 `PASS (210 checks, 44 records)`；md5 **动态派生**（checker 内无硬编码 32 位 hex），与 chipyard 入库 hex 逐字节对账。
 - **019 合入后仍 PASS**：临时树（master `42ffef5b`）实测 `33bfe14a…`、hmon 段 120 B、210/44 全绿 ⇒ 无需改代码。
 - reviewer 4 次独立注入 + 8 KiB 预算断言（追加 `.space 9000` ⇒ `ld.lld` 超限失败）均可达 FAIL。

@@ -100,7 +100,7 @@ hmon handler 是**guest 代码**（BootROM 固件的一部分），三平台共�
 ### 第 1 轮 reviewer 验收（2026-11-11，全部本人执行）
 
 **重跑记录（workdir=本 worktree，命令+真实输出/退出码）**
-1. 证据脚本 `.work/evidence/m13-integ-007/run.sh --full` → `== RESULT: PASS=25 FAIL=0 ==`、`EVIDENCE_EXIT=0`；其中 `injected +4 probe must FAIL expected=nonzero rc=1`、`md5 restored expected=ecfb0c2a63109ed3c70e24c30593cea7 actual=ecfb0c2a63109ed3c70e24c30593cea7`、`restored probe must go green rc=0`。
+1. 证据脚本 `运行期证据目录下的 `run.sh` --full` → `== RESULT: PASS=25 FAIL=0 ==`、`EVIDENCE_EXIT=0`；其中 `injected +4 probe must FAIL expected=nonzero rc=1`、`md5 restored expected=ecfb0c2a63109ed3c70e24c30593cea7 actual=ecfb0c2a63109ed3c70e24c30593cea7`、`restored probe must go green rc=0`。
 2. `make check-inst` → `check-inst: PASS（44/44，载体 23 册）` `EXIT=0`；`make check-test-reports` → `PASS (5 report(s), 3 snapshot(s))` `EXIT=0`；`make check-dirs`/`check-no-residue` → `PASS`。
 3. `make check-arch-smoke`、`make check-arch` → **`EXIT=2`（环境、非交付物）**：`CMake Error: The source directory ".../.work/source/llvm-project/llvm" does not exist`；重试 3 次（默认 / `-o install-host` / `-o` 全链）同错 ⇒ 本 review worktree 无组件源、`install-host` 不可跑。改以 Makefile 同款命令+env 直接跑其检查体（证据脚本 `--full`）：m5 e2e `Results: 10/10 passed`、25-service `RESULT: PASS`、14 探针（含 `integ007t`）全 `rc=0`。
 4. 反汇编（本人 `llvm-mc`+`ld.lld`+`llvm-objdump`，`.text=0x2C`）：`00 st.o rd63,[rb0,216]` `04 cfx2rd…cause_id` `08 st.o(→0xE0)` `0c …cause_ip` `10 st.o(→0xE8)` `14 …cause_info` `18 st.o(→0xF0)` `1c ld.o [rb0,220](→0xF8)` `20 cfx2rc cause_ip←rd63` `24 ld.o [rb0,180](→0xD8)` `28 escape [excp_cause_ip,0]` = **11 条**，与 §11 逐条一致；`grep -niE "magic|park|ialign|\+4" hmon.S` → `rc=1`（删除项清零）。
