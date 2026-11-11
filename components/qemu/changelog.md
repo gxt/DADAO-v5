@@ -310,6 +310,10 @@
 
 ## M13
 
+- **2026-11-11 `m13-qemu-003`**
+  - 摘要：**比较族标志对齐 IEEE 754-2019 §5.6.1（用户裁定「任何无序都置」）**。`target/dadao/insn_trans/trans_fp.c.inc` 的 `gen_fp_cmp()` 增 `signal_nv` 参数：`ftscmp`/`foscmp` 在结果为 unordered（任一操作数为 qNaN 或 sNaN）时把 `unord`（1/0）OR 进 `rf0` 的 NV 位（经 `store_rf()` 写入，只读 qNaN/SBZ 位保持）；`ftqcmp`/`foqcmp` 仍不置任何标志；比较结果（quiet→qNaN、signaling→sNaN、有→`-1/0/1`）与其它 FP 标志路径不变。补丁 1 份改。
+  - 执行者：engineer
+
 - **2026-11-10 `m13-qemu-002`**
   - 摘要：**Tiny 对齐 hmon 装载契约（`spec/Machine-v5` 0.4.4-rc §6/§6.1/§6.2、`DADAO-13` rc10、`Machine-v5 §2` switch_run_mode）**。`hw/dadao/dadao-machine.c`：Tiny 的契约路径改为 `bootrom-image` 固定 64 KiB 固件 + 应用（真实执行 power → hmon → escape → `0xffff_ff01_0100`）；ELF PT_LOAD 只允许 SRAM（BootROM/hmon SRAM 下发即具名报错）、Tiny `e_entry` 必须等于固定入口；`-bios` 的 64 KiB 文件按同一固定固件走契约路径，≤4096 B 保留为 pre-contract 的平坦 trampoline 窗口（raw `-kernel`），中间尺寸具名报错。`cpu.{h,c}`：Tiny 关闭 `rom_elf_segments`/`mon_elf_segments`、增 `bootrom_required`/`fixed_kernel_entry`/`switch_run_mode_write_ignored`；`cg3 rc10` 初值改为该 cfx 内部 SRAM 起始（hmon `0x0fff_0000_0000`）。`helper.c`：`rc10` 写入掩掉低 2 位；Tiny `switch_run_mode` 写入忽略、保存值保持 3。测试侧：`tools/testcases/lib/gen_trampoline.py` 的 legacy trampoline 先把 hmon 向量指到不可达地址，保持 44/44 的机器 fault 退出码口径；lit/test-elf/picolibc/embench 的 Tiny ELF 应用改用 SRAM 应用链接脚本 + `bootrom-image`。
   - 执行者：engineer
