@@ -222,3 +222,15 @@
   status: open
   resolved_by: null
   title: 【P3】`m12-chipyard-011` 文档级：F-a 完成区计数与现场不符（写 13200/7920，实际 10560/6620，且「4 配置×5 档×2640」自相矛盾）；F-b 任务书硬约束 1 的临时目录名仍是派单模板笔误（写 `m12-chipyard-009`）。
+- id: ISS-389
+  scope:
+  - infra
+  status: open
+  resolved_by: null
+  title: 【P2】**任务 worktree 的 `.work/` 未软链到主工作树时会从零编 LLVM（13 GB）并撑爆 tmpfs**（`m12-chipyard-012` 实测）。主工作树已有 `.work/build`/`.work/source`，任务 worktree 里跑 `make check-*` 会解析到自己的空 `.work`，触发全量 LLVM 构建。建议：① 建 worktree 后立即 `ln -s <主树>/.work /tmp/opencode/<task>/.work`（或在 `git worktree add` 后由脚本自动建链）；② 在 AGENTS.md 子代理硬约束里加一条「`.work` 必须是软链，禁止在任务树内重建」；③ `check-disk` 增加「任务树内 `.work` 非软链」的告警。
+- id: ISS-390
+  scope:
+  - infra
+  status: open
+  resolved_by: null
+  title: 【P3】任务书硬约束 1 的临时目录名连续三次写成前一个任务号（`011` 写 `-009`、`012` 写 `-010`、`010` 写 `-008`），来源是派单时复制上一册模板未改任务号。建议在任务书模板里改成 `<任务ID>` 占位符，禁止写具体编号。
