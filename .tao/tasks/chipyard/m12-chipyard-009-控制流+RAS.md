@@ -90,7 +90,7 @@
 ### 第 1 轮 reviewer 验收
 
 **重跑记录**（reviewer 亲跑，worktree 根、相对路径）：
-- `bash .work/evidence/m12-chipyard-009/run.sh` → `== summary: PASS=95 FAIL=0 ==`、`RERUN_EXIT=0`，逐条与完成区一致：273 例 md5 `2d4d9465…`；48 例 DUT/QEMU/期望三向 md5 `ab4ec3fe…`（960 B）；19 故障例（RASOF=1/RASUF=2/CFXMEM=12/ILLI=2/UNDI=2，resumable 5/terminal 14，`bad=` 空）；RASOF 3 / RASUF 6；周期「不跳 1、跳转·`call`·`ret`(RegRAS) 8、MemRAS `call` 26/`ret` 15」；`tests/inst` 67/67；L2 rc=0；L1 三红 offender 逐条核为 night/gem5/testcases 他任务，无本任务。
+- `bash 运行期证据目录下的 `run.sh`` → `== summary: PASS=95 FAIL=0 ==`、`RERUN_EXIT=0`，逐条与完成区一致：273 例 md5 `2d4d9465…`；48 例 DUT/QEMU/期望三向 md5 `ab4ec3fe…`（960 B）；19 故障例（RASOF=1/RASUF=2/CFXMEM=12/ILLI=2/UNDI=2，resumable 5/terminal 14，`bad=` 空）；RASOF 3 / RASUF 6；周期「不跳 1、跳转·`call`·`ret`(RegRAS) 8、MemRAS `call` 26/`ret` 15」；`tests/inst` 67/67；L2 rc=0；L1 三红 offender 逐条核为 night/gem5/testcases 他任务，无本任务。
 - `bash run.sh --self-test-inject` → `INJECT_EXIT=0`，2/2「注入→FAIL→`cp`+md5 还原→回绿」（retaddr 红 D/G、rasuf 红 E），源 md5 `31f5a9fe…` 还原一致。
 - **reviewer 独立注入**：`WumingRegFile.scala` SPILL 分支 `mrptrNext := mrptr - 8.U`→`mrptr`（去 C3b `MRPTR-=8`）⇒ 重建 ⇒ `ONLY=B,H` ⇒ `[FAIL] spill == expected dump (byte-exact) expected=0 actual=1`、`PASS=14 FAIL=1`、`INJ2_EXIT=1`（refill 仍绿，符合 REFILL 不经 SPILL）；`cp` 还原 md5 `90d44908…`=审前 ⇒ `touch`+重建 ⇒ `[PASS] spill … actual=0`、`RESTORE2_EXIT=0`（首轮回绿失败系 `cp -p` 旧 mtime 致 make 跳过重编译，非还原失败）。
 - **cause_ip 实测**：`call_4` → `cause=0x400 cause_ip=0xffffff010178 info=0xffffff01017c`，同拍 `exec ip=0xffffff010178 inst=0x74000002`（info=ip+4）；`ret_4`/`ret_5` → `cause=0x800` 停在 `inst=0x76000000`、`info=0`。
