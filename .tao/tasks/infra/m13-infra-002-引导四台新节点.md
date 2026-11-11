@@ -4,7 +4,7 @@
 **项目里程碑**：M13
 **依赖**：无
 **可并行分片**：是（四台独立，互不干扰；主控机只做编排）
-**状态**：待开始
+**状态**：待验收
 
 ## 用户授权（2026-11-12，原话）
 
@@ -54,3 +54,16 @@
 ## 审阅记录
 
 （待填）
+
+## 完成区（2026-11-12 00:24）
+
+- **四台全 8 步 rc=0**：时区 / 预检 / git / 仓库同步 / `make fetch`（本地 `.cache`，未触网）/ `apply-series` / `build-mc build-lld` / `install-host` / `make check`
+- **就绪判据**（`nodes.md §5`）：四台 `HEAD=e8d212cd`、`make check-inst` **PASS（44/44，载体 24 册）**、`check-inst: PASS (vast full + tiny subset)`
+- **磁盘**：构建后 `/home` 用 69 GB、**余 252 GB**（`/` 83 GB 可用）
+- **装包**：`build-essential cmake ninja-build scons ccache` 等 §4.2 全套，四台逐项 `install ok installed`；apt 走内部镜像（外网不可达）
+- **两个坑（已入 `nodes.md`）**：
+  ① 节点**无外网**（GitHub / PyPI 不可达，apt 通）⇒ 只能 bundle + `.cache`；
+  ② QEMU 的 **meson subprojects 不在 `.cache`**，`install-host` 会逐个去 gitlab 拉（先 `keycodemapdb`、再 `berkeley-softfloat-3`）⇒ 需从主控机 rsync **整个** `.work/source/qemu/subprojects/`（6.5 MB）
+- 日志：主控机 `.work/log/infra/m13-infra-002/`（`apt-*` / `clone-*` / `sync-cache` / `bootstrap{,2,3}-*` / `verify-*`）
+- 未改任何仓库代码；节点侧只有仓库本体与构建产物
+
