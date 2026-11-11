@@ -31,8 +31,8 @@
 
 ## 非范围
 
-- chipyard RTL / 模型 / 向量（`m12-chipyard-018`）
-- `spec/SimRISC-07` 正文补写（归 `m12-chipyard-018`，避免两处漂移）
+- chipyard RTL / 模型 / 向量（`m12-chipyard-023`）
+- `spec/SimRISC-07` 正文补写（归 `m12-chipyard-023`，避免两处漂移）
 - 其它 FP 指令的标志语义
 
 ## 验收标准
@@ -49,7 +49,7 @@
 
 ## 说明
 
-- 本任务是 `m12-chipyard-018` 的**前置**：QEMU 先对齐，chipyard 才有可信的差分参照。
+- 本任务是 `m12-chipyard-023` 的**前置**：QEMU 先对齐，chipyard 才有可信的差分参照。
 - QEMU 组件单写者：本任务期间不要有其它任务重建 QEMU。
 - 若发现 QEMU 当前**完全不为比较族置任何标志**（`013` 报告如此），需先补上 sNaN 路径再补 qNaN 路径，两步都要有证据。
 - `.work` 必须软链到主工作树（`ISS-389`）。

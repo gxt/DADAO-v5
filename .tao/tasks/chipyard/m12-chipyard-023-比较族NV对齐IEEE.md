@@ -1,4 +1,4 @@
-# m12-chipyard-018: signaling compare 对齐 IEEE（RTL + 模型 + 向量 + spec 补写）
+# m12-chipyard-023: signaling compare 对齐 IEEE（RTL + 模型 + 向量 + spec 补写）
 
 **模块**：chipyard
 **项目里程碑**：M12
