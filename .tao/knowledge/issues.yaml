@@ -271,3 +271,12 @@
   status: open
   resolved_by: null
   title: 【P2】**`spec/SimRISC-07 §4` 比较族标志草案不能直接入册（待用户裁定 quiet+sNaN）**：① 条号写 `§5.7.1`（应为 `§5.6.1`/`§5.11`）；② **quiet compare 遇 sNaN** —— IEEE 754-2019 §5.11 要求仍置 `invalid`（hardfloat 同），本核与 QEMU 选择不置 ⇒ 属**有意偏离**，草案里写成「hardfloat 是唯一例外」需改为「DADAO 口径取舍、明示偏离」；③ 草案把「quiet 不置」并入用户原话，而用户 2026-11-11 原话仅「按 IEEE/hardfloat：任何无序都置」（针对 signaling）⇒ 按 `ISS-365` 待用户确认后再入册。
+- id: ISS-397
+  scope:
+  - spec
+  - chipyard
+  - qemu
+  - gem5
+  status: open
+  resolved_by: null
+  title: 【P1】按新规则（IEEE-754 2019 为准）需审计的 FP 偏离清单：① **`fo2ft` 溢出恒 ±Inf** —— `SimRISC-07 §1.4`/`contract-fp §2` 明文如此，但 IEEE 按舍入模式（RNE/RUP → ±Inf，RTZ/RDN → ±最大有限）⇒ **spec 与 IEEE 直接冲突，需改 spec + 改 RTL/QEMU/gem5 + 改向量**；② quiet compare 遇 sNaN 不置 NV（已由 `m13-qemu-004`+`m12-chipyard-024` 处理）；③ sNaN 结果 payload：本核 canonical vs softfloat 保留（IEEE 不强制，需在 spec 写明取值）；④ NaN 结果符号位：本核清 0 vs softfloat 保留（IEEE 未规定，需写明）；⑤ `ld.t rf0` 只读 qNaN 位属测试机约定（IEEE 无此概念，spec 需标为架构附加）。行动：立一个 FP-IEEE 对齐审计任务，逐条给出「IEEE 条文 → 改/不改 → 影响面」。
