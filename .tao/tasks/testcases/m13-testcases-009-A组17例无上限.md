@@ -4,7 +4,7 @@
 **项目里程碑**：M13
 **依赖**：`m13-testcases-003`（A 组结果已出）、`m13-testcases-008`（run_pool 可用）
 **可并行分片**：是（节点 208 独立跑，不与 207 的 B 组重叠）
-**状态**：待验收
+**状态**：已验证
 
 ## 背景
 
@@ -111,6 +111,61 @@
 
 **三问**：① **17 例与 JSON 逐条一致、16/1/0 成立**（四份 `ok=true`/`missing=[]`，rows 17，与 003 A 组 blocked 集合完全相等、无多无少）；② **合规**——`gem5_timeout=true` + `gap=time budget` + driver log 三重证明是截断，按任务书记 `blocked(>48h)`，**未**推断「永远跑不完」；③ **报告载体不足**——两份报告都不含最终 17 例三态（009 册停在 15 例并明写不含 2 例），结论本身由 JSON 支撑、与 JSON 不矛盾，但人读载体有缺口。
 
+### 第 1 轮 engineer 自审
+
+| finding | 处置 | 改了什么 | 复验证据 |
+| --- | --- | --- | --- |
+| `REMOTE_REPO` 赋值未加引号，`~` 被本地展开成主控机家目录，远端 `cd` 失败 | ✅已修 | 改为 `'~/DADAO-v5'` | 远端 md5 两行 CHECK PASS；文件已上传 |
+| 启动用 `ssh … setsid … &`，远端外层 bash 不退出，harness 挂住 | ✅已修 | 改为 `( setsid … & )` 子 shell 形式 | 重试后 60 s 内 PASS；运行中 PID 522444 存活 |
+| `--require-complete` 的 summary 退出码被忽略 | ✅已修 | 先取 `rc` 再 `check_rc` | pending 17 时 rc=1、默认 rc=0 |
+| 注入失败信息未落盘、内联 python 多打印一行 | ✅已修 | 保存 `inject.err`；去掉 print | 失败行显示 `clocale_mbfuncs: missing from the 3600 s…` |
+| 启动后校验读了本地不存在的总控台日志 | ✅已修 | 改远端 `grep -cF` | `runner log started` PASS |
+| 重复执行会再拉一次长跑 | ✅已修 | 以 pidfile 存活 + `run-long.EXIT` 双重幂等 | 第二次执行打印 reuse，未起第二份 |
+| 名单若因源记录缺行而静默缩小 | ✅已修 | derive 对「refs A 组 + A 组输入名单」逐 id 交叉校验 | 注入删 1 行 ⇒ rc=1；还原 ⇒ rc=0 |
+
+判决：无未修 finding；**长跑未完成，状态保持 `待开始`**，返回主会话。
+
+### 第 2 轮 engineer 自审（返工 reviewer B1）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+| --- | --- | --- | --- |
+| B1：`derive_cases.py` 只做正向成员校验，主源删 1 行 17→16 仍 `EXIT=0` | ✅已修 | 新增 `source_rows()` 双向差集（缺例/多例均打印 case 名）；并核 `selection.total`/`by_suite` 与 `rows` 数量一致；删去因覆盖等值而冗余的 `key not in inputs` | 副本删 `regression/raise-race` ⇒ rc=1 且首行指名该例；`cp` 还原 + md5 相等 ⇒ rc=0 |
+| `static+dynamic == total` 同源恒真 | ✅已修 | 删除该 check，改打印现场 `source coverage` | 绿跑输出 `26/26`、`34/34` |
+| 多例方向是否可达（防只测单侧） | ✅已验 | 副本加 1 行不在名单内 | rc=1，打印 `extra 003 A-group result row` |
+| inject 只注入 3600 s refs，未触名单真实来源 | ✅已修 | inject 改为先注入 003 主源副本（`split` + `lists-split` 同拷以保相对路径），refs 注入保留为第二项 | 两项均 CHECK PASS，真实文件 md5 前后一致 |
+
+判决：无未修 finding；状态改 `待验收`。
+
+### 返工补充（2026-11-13，reviewer 第 2 轮 B1）
+
+**处置：✅已修**。仅改运行期证据目录内的 `derive_cases.py` 与 `run.sh`；数据、驱动、引擎、用例 **0 改动**。
+
+- `derive_cases.py`：`input_list_ids()` 改返回 `{suite: set(case)}`；`prior_rows()` → `source_rows()`（双向差集 + 源自带计数一致性）；`derived.json` 的 `cross_checks` 记 `source_coverage(rows<->declared-ids, both sides)` 并新增 `source_coverage` 现场计数。
+- `run.sh`：`derive()` 增 prior-dir 参数并传真实 003 目录；**删掉恒真 check**；inject 改为注入 003 主源副本删 1 行（详见自审表）。
+
+**复验证据**：三阶段脚本 **EXIT=0**，`static: 9 (libc-test=2, llvm-ts=7)` / `dynamic: 8 (libc-test=1, llvm-ts=7)` / `total: 17` / `source coverage 26/26 + 34/34` / `counts: pass=16 fail=0 blocked=1 pending=0 total=17 extra=0`；单独注入 ⇒ **rc=1**（指名 `regression/raise-race`，`static: 8`、`total: 16`），`cp` 还原 + md5 相等 ⇒ **rc=0** 回绿；四份 003 ratio JSON 与两份 3600 s refs 的 md5 注入前后一致；`git status -uall` 仅本任务书。
+
+**数据现状**：17/17 已落盘（16 pass / 1 blocked），上段「长跑未完成」为历史段落，不改写。
+
+### 第 3 轮 reviewer 验收（2026-11-13）
+
+**重跑记录（我的命令 + 真实输出/退出码）**
+
+1. 正常路径 `run.sh --phases=derive,inject,summary --require-complete` → **EXIT=0**；`static: 9 (libc-test=2, llvm-ts=7)` / `dynamic: 8 (1/7)` / `total: 17` / `source coverage 26/26 + 34/34` / `counts: pass=16 fail=0 blocked=1 pending=0 total=17 extra=0`；脚本自带注入段两项 rc=1、还原 rc=0、末行 `evidence: PASS`。
+2. **B1 独立复验**（我自建审查临时树拷贝 003 主源 + A 组输入名单，直接跑被审 `derive_cases.py`，非读 engineer 转述）：删 `regression/raise-race` 行 ⇒ **rc=1**，stderr `FAIL static/libc-test/regression/raise-race: missing from the 003 A-group run results (declared by the A-group input list)`，stdout `static: 8 … total: 16`；改删同文件另一行 `functional/clocale_mbfuncs` ⇒ **rc=1** 并指名该例（非写死）；向 static llvm-ts 副本加 1 行 `MultiSource/NotInList/extra-row` ⇒ **rc=1**，stderr `… extra 003 A-group result row (not in the A-group input list)`；`cp` 还原后 **rc=0 / total: 17**。
+3. **恒真项已清**：`run.sh` / `derive_cases.py` / `summarize.py` 全文无 `static+dynamic == total`、无 `present/total` 类同源比值；`grep -n '17'` 只命中注释，无写死 17 的断言；`counts` 的 `total=len(want)` 现场统计，`extra` 可达非零。
+4. **数据一致（独立重算，非被审脚本）**：003 A 组 blocked = 运行名单 = 208 结果 rows = **17**，两两差集为空；17 ⊆ refs 3600 s A 组(60)。抽 3 条复核：`raise-race` blocked 172800.01、`static Rodinia/backprop` pass 8604.61、`dynamic Misc/ReedSolomon` pass 16426.98，refs 侧均 blocked 且 qemu≤30。
+5. **源未污染**：四份 003 A ratio JSON 与两份 3600 s refs 的 md5 注入前/后与本轮开始逐一相等（`d5ea8f25…`/`ba6289ea…`/`7a8fd028…`/`68bc50c6…`；refs `7d3ffb71…`/`0b5aeba5…`）；208 **只读** md5 与本地四份逐一相等。
+6. 门控只读亲跑：`check-knowledge-refs` PASS（具体 `.work/**` 引用 0、悬空 0）、`check-test-reports` PASS、`check-tasks` exit=0。
+
+**约束核验**：① 名单 17 例逐个对应 ✓（集合相等）② 每例三态+时耗 ✓（16/1/0）③ 结果独立目录+字段 ✓ ④ 207 只读未干扰 ✓ ⑤ 一键脚本 + 可达 FAIL 注入 ✓（删行/加行均 rc=1 且按名打印）⑥ 完成区 13 行 ≤30、完成区与审阅记录无具体运行期路径 ✓；我未 commit / 未 push / 未改台账，仅追加本节（改前任务书 md5 `a8d928e8…`）。
+
+**判决：Accepted**
+
+- 非阻断 finding（文档级，按 2026-10-22 裁定随收尾改）：① 报告载体 `docs/TestReports/M13-A组长尾计时.md` 仍停 **15/17、2 例在跑**，且「已由 `M13-长尾7200s.md` 覆盖」表述过强（该册对 `7793.61`/`172800.01` 0 命中）；17 例最终结论目前只在任务书（完成区 / 补充收口），**未落报告也未明确指向某册** ⇒ architect 收尾补写并订正（第 2 轮 ① 未闭）。
+- ② **任务书两副本分叉**：master 副本含第 1/2 轮 reviewer 记录（第 2 轮 ③ 未闭），任务分支副本含第 1/2 轮 engineer 自审与返工补充；本节写在任务分支副本，合并时两组章节须并存，不得二选一。
+- ③ 分支副本「目标 3」仍写具体 `.work/**` 路径（master 副本已改「运行期目录」措辞）；合并随 master 版本消解。
+
 ## 完成区（architect 收口，2026-11-11 23:08）
 
 **结论（2026-11-11 23:30 订正）：已收齐 15/17 例，2 例（static libc-test）仍在跑；本轮未结束。**
@@ -138,3 +193,12 @@
   - `functional/clocale_mbfuncs` **pass @ 7793.61 s**（此前缺的两例之一，已在 11-13 00:15 落盘）。
 - 至此 `m13-testcases-009` 的验收标准 1（名单 17 例逐个对应）与 2（每例三态 + 时耗）**均已达成**；上一轮 Needs Revision 的阻断项（报告缺 A 组数据/口径错）已由 `m13-testcases-003` 收口时补齐的 `docs/TestReports/M13-长尾7200s.md` 与本次数据覆盖。
 - 判据仍以 JSON 的 `ok`/`rows` 为准，不以包装脚本 rc 为准（`ISS-398`）。
+
+#### 收尾（architect，）
+
+- 第 3 轮 reviewer **Accepted**：B1 真修（双向差集按名报错）；reviewer 自建临时树重做注入——删 `raise-race` ⇒ rc=1 指名该例、**改删 `clocale_mbfuncs` 同样指名**（非写死）、加一行 ⇒ `extra` 方向也红；正常路径 `EXIT=0`、`counts: 16/0/1/0/17/0`。
+- 恒真项清干净（`static+dynamic == total`、`present/total` 全无；`grep 17` 只命中注释）。
+- 真实源未污染：四份 003 ratio JSON + 两份 3600s refs md5 注入前后一致；208 只读 md5 与本地一致。
+- **报告载体已补**：`docs/TestReports/M13-A组长尾计时.md` 由 15/17 更新为 **17/17**（16 pass / 1 blocked），并订正「已由 `M13-长尾7200s.md` 覆盖」的过强表述。
+- **两副本合并**：本册现含 master 的第 1/2 轮 reviewer 记录 + 分支的第 1/2 轮 engineer 自审、「返工补充」与第 3 轮 reviewer 验收，两组章节并存。
+
