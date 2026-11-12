@@ -507,3 +507,11 @@ M16 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个
 - **RA / RF 形式：不适用**——传送范围在 RA/RF bank，基址在 RB、索引在 RD，结构上不可能重叠（「基址寄存器：与rf/ra没有关系」）
 
 **影响面**：spec（`SimRISC-01` 限制列表）+ `contracts/legality_rules.yaml`/`opcodes.yaml` 的 legality + 三个实现（chipyard/QEMU/gem5）+ `m13-testcases-013` 的 overlap 用例（改为 ILLI 用例）。
+
+## 已裁定：`st.o rb0` 与 `ld.o ra0` 的测法（2026-11-13）
+
+用户回答两问（原话要点）：
+1. 「**用 `aip.si` 指令**」——`st.o rb0`（源 = 当前指令地址）的期望值用 `aip.si` + `add.si` 构造：`aip.si rbX, K*4096` 先取到 IP 的 4 KiB 基址，再用 `add.si` 加精确字节差，得到被测指令自身地址，然后与 `st.o rb0` 写出的值比对。
+2. 「**读写都测**，`ra0` 写的时候，对 **SBZ 的 10 位写忽略**」——`ld.o ra0` 既测读（构造已知 RAS 状态）也测写（写全 1，验证 `[63:54]` 保持 0、`[53:48]`/`[47:0]` 生效）；三平台须一致，不一致如实记红。
+
+注：`spec/SimRISC-00` 已写「`ra0[63:54]` = SBZ（写无效）」，与第 2 条一致，**无需改 spec**。
