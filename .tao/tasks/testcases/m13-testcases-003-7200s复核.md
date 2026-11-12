@@ -4,7 +4,7 @@
 **项目里程碑**：M13
 **依赖**：`m13-testcases-001` + `m13-testcases-002`（取「3600s 仍超时」的名单）
 **可并行分片**：否（单机 48 并发跑批；测时间要求进程独占核）
-**状态**：待验收
+**状态**：已验证
 
 ## 用户裁定（原话）
 
@@ -160,4 +160,47 @@
 **修法（机械，可由 JSON 生成）**：结论册补全量逐例表 `case / gem5_s / qemu_s / ratio / klass / exit`（B 组 90 行；A 组 60 行同册承载或在任务书指明由哪一册承载），并保持现有计数/指纹/复现/边界不变 ⇒ 即判 Accepted。
 
 **非阻断 findings（architect 收尾改）**：① 完成区首版归因行（cwd 不符 / 第 94 行 rc 未初始化 / 0 个 EXIT 文件）按「不改写既有完成区」未回改，而新增行只订正了 EXIT 计数 ⇒ 建议再追加一行指向 `ISS-398` 的更正；② 目标 3 的 `simInsts_120s` 采样列在入库材料中无载体，是否入册留 architect/用户裁定。
+
+### 第 3 轮 reviewer 验收（2026-11-12）
+
+**判决：Needs Revision（仅 1 项范围/口径问题，标注供 architect 定夺；本轮其余全部通过）**
+
+**重跑记录（本机亲跑，RC=退出码）**
+1. §2 全量逐例表 **90 行** vs 两份 JSON 逐格核（python，`CHECK_RC=0`）：`case / klass / gem5 exit / 比值 / gem5秒 / qemu秒` 全对，缺 0 多 0；最大偏差 比值 0.05、gem5 0.05 s、qemu 0.0000（＝1 位小数显示取整）；`blocked` 3 行 `gem5 exit` 全为 `—`、非 blocked 87 行全非 `—`；klass 分布 `85/3/2` 与 §1 一致。
+2. 章节编号 1→7 连贯，§1 交叉引用已改指 §6（复现）✓；`make check-test-reports` RC=0 ⇒ `PASS (7 report(s), 3 snapshot(s))`。
+3. 完成区新增「收尾归因更正（指向 `ISS-398`）」行：三条证伪点与 `ISS-398` 逐条一致、**未再写错归因** ✓；完成区 11 行 ≤30 ✓；`git status -uall` 仅本任务书、HEAD `fd628027`、未 commit/push/未改台账 ✓；`ISS-398` 复核仍与现场一致（`check_issues` RC=0）。
+4. A 组承载说法实测：`m13-001-static-3600s-full.md` `## 逐例` = **72 行**（全 blocked）✓、覆盖 A-static 26 例 ✓；`m13-002-dynamic-3600s-full.md` `## 逐例` = **93 行**（blocked 78 + pass 14 + fail 1，文件标题即「dynamic 长尾 93 例」）⇒ 报告写「78 行」**与现场不符**；A-dynamic 34 例覆盖 ✓。
+
+**阻断项（范围/口径，供 architect 定夺，reviewer 不自行放行）**
+- 两册是 **3600 s 基线**（文件名即 `*-3600s-*`），A 组 60 例的 **7200 s** 逐例结果与其 **60/60 数值不同**：`SPASS` refs=`blocked @3600.01` → A 组=`pass @6898.2`（klass 相反），`lencod` 3600.01 → 7200.02。tracked 文件中检索 A 组 7200 s 特征值（`6898.2`、`7200.02` 等）**无命中**；三类计数 `40 pass/17 blocked/3 fail` 只在台账讨论册一行。
+- ⇒ 按 §4 指针取值会取到**另一批实验**的数据，验收标准 3 对 A 组的「逐例表」实际无入库载体。
+- **二选一（落地即判 Accepted）**：① 本册补 A 组 60 行（源 = A 组四份 ratio JSON，列同 §2）；② architect/用户**明示裁定**「A 组 7200 s 逐例不入册」，则 §4 如实改写（refs＝3600 s 基线逐例；A 组三类计数见台账）并留裁定原话。
+
+**非阻断 findings（architect 收尾改）**：① §4「`m13-002-dynamic-3600s-full.md`（78 行）」应为 **93 行**（或注明「其中 blocked 78」）；② `simInsts_120s` 采样列仍无入库载体（与本阻断项同属范围裁定，可一并定）。
+
+### 第 4 轮 reviewer 验收（2026-11-12）
+
+**判决：Accepted**（验收标准 1–7 在本轮重跑下全部通过；2 条非阻断 findings 见末，由 architect 收尾改）
+
+**重跑记录（本机亲跑，RC=退出码）**
+1. **A 组 60 行逐格核**（§2.1 vs 节点 208 四份 ratio JSON，`CHECK_RC=0`）：`suite/case/klass/gem5 exit/比值/gem5秒/qemu秒` 全对、缺 0 多 0；klass 分布 **40/17/3**；`blocked` 17 行 exit 全 `—`、非 blocked 43 行全非 `—`；最大偏差 比值 0.049、gem5 0.05 s、qemu 0.0000（1 位小数取整）。
+2. **同源核**：四份 JSON 在节点 208 的 md5 与本地运行期证据逐份相同（`68bc50c6…` / `7a8fd028…` / `ba6289ea…` / `d5ea8f25…`），报告确以节点 208 数据为源。
+3. **B 组 90 行（§2.2）复核**仍全对（缺 0 不符 0）；§1 的 A `40/17/3`、B `85/3/2` 与两表 klass 分布一致；标题「两档预算（A 7200 s / B 172800 s）」与 §1、§2.1/§2.2 自洽。
+4. **§4 订正与 refs 现场一致**：`m13-001-…md` `## 逐例`=**72 行**、`m13-002-…md` `## 逐例`=**93 行**（blocked 78 + pass 14 + fail 1）；§4 已写明二者是 3600 s 基线、**不能替代**本册两档结果、§2.1/§2.2 才是逐例表 ⇒ 上轮阻断项已消。
+5. `make check-test-reports` RC=0 ⇒ `PASS (7 report(s), 3 snapshot(s))`；`check-knowledge-refs` / `check-milestones-fresh` / `check_issues` 均 RC=0；报告无 `.work/` 路径、章节 1–7 连贯、§1 交叉引用指 §6。
+6. **反例注入（只在临时树，仓库 md5 前后同 `d014489b…`）**：基线 `PASS rc=0` → 注入①（A 首行 blocked→pass）`FAIL rc=1`（klass/exit 不符）→ 注入②（删一行）`FAIL rc=1`（rows=59、缺 1）→ 还原 `PASS rc=0`。
+7. 约束：`a72116ec`（71+/6-）与 `f1b54d4f`（6+/5-）**只改本册**，无源码/测试资产/契约改动（验收标准 4）✓；完成区 11 行 ≤30、无运行期路径 ✓；本轮我未 commit/push/未改台账（`git status -uall` 只有本任务书）✓；207/208 只读查询 ✓。
+
+**非阻断 findings（architect 收尾改）**
+- §1 计数表只有 `static / dynamic / 合计`（实为 **B 组**，合计 90）却未标组名，易被读成两组总和 150 ⇒ 表头或合计行标「B 组」；可顺带补 A 组比值行（非 blocked n=43：min 152.8 / 中位 431.3 / max 1575.7）。
+- **范围裁定（非本册缺陷）**：`simInsts_120s` 不在验收标准 2/3 必备项内，本册未承载不构成缺陷；现场采样产物只有两份 `sample-static.json`（36+36，与 static 全量 72 例逐一对齐、`interrupted_sigint` 72/72、simInsts 18.0 M–53.2 M）+ 运行期 168 个含 simInsts 的文件，**未见 dynamic 采样产物**（EXIT 仅 `sample-static*`）⇒ 覆盖 72/150，与执行方式「合并覆盖全部 150 例」的计划不一致。**建议**：把两份采样 JSON 并成 72 行表入册或入 `refs/` 并注明 dynamic 未采样；否则在任务书遗留段登记口径，不要停在「计划 150、实际 72」的无记录状态。
+
+#### 收尾（architect，2026-11-12 10:53）
+
+- 第 4 轮 reviewer **Accepted**：A 组 60 行 / B 组 90 行逐例表与节点 JSON **逐格一致**（缺 0 不符 0，只有 1 位小数显示取整）；四份 A 组 JSON md5 与本地证据逐份相同。
+- §4 已订正为「refs 的 72/93 行是 **3600 s 基线**，不可替代本册两档结果」。
+- 反例注入（临时树）：A 首行 blocked→pass ⇒ FAIL；删一行 ⇒ rows=59 FAIL；还原 ⇒ PASS。
+- 本册补：§1 表头标「B 组」、A 组比值行（n=43：152.8 / 431.3 / 1575.7）、`simInsts` 覆盖 72/150 的口径。
+- 采样工具 `sample_insts.py` 的 `fingerprint`（引擎/宿主身份）随本任务合入。
+- 遗留：`simInsts_120s` 只覆盖 static 72/150，dynamic 未采样；数据留运行期，未入册（reviewer 判为范围裁定，非本册缺陷）。
 

@@ -53,6 +53,7 @@ import datetime
 import importlib.util
 import json
 import os
+import platform
 import re
 import shlex
 import signal
@@ -388,6 +389,35 @@ def driver_json_cases(path):
 # ---------------------------------------------------------------------------
 # report
 # ---------------------------------------------------------------------------
+def fingerprint(ratio, repo_root, args, work_dir, gem5, drivers):
+    """Engine/host identity of this sampling round.
+
+    Reuses ``run_engine_ratio``'s helpers so the sampling record and the
+    7200 s record describe the same engine the same way (md5 + the ``sim.log``
+    banner, no guessed version string).
+    """
+    version, compiled = ratio.gem5_banner(work_dir)
+    return dict(
+        host=platform.node(),
+        cpu_model=ratio.cpu_model(),
+        nproc=os.cpu_count(),
+        jobs=args.jobs,
+        sample_seconds=args.sample_seconds,
+        grace_seconds=args.grace_seconds,
+        link_mode=args.link_mode,
+        gem5_binary=os.path.basename(gem5),
+        gem5_md5=ratio.md5_file(gem5),
+        gem5_version=version,
+        gem5_compiled=compiled,
+        driver_md5={suite: ratio.md5_file(os.path.join(repo_root, path))
+                    for suite, path in drivers.items()},
+        repo_root_is_script_root=(os.path.normpath(repo_root) ==
+                                  os.path.normpath(REPO_ROOT)),
+        loadavg=([round(v, 2) for v in os.getloadavg()]
+                 if hasattr(os, "getloadavg") else None),
+    )
+
+
 def summarize(results, selection):
     counts = dict(requested=0, sampled=0, completed=0, interrupted_sigint=0,
                   killed_after_sigint=0, launch_failed=0, elf_gate=0,
@@ -406,7 +436,7 @@ def summarize(results, selection):
 
 
 def build_report(args, selection, results, driver_rc, driver_jsons,
-                 listed_total):
+                 listed_total, prints=None):
     return dict(
         task=TASK,
         generated_utc=iso_utc(),
@@ -414,6 +444,7 @@ def build_report(args, selection, results, driver_rc, driver_jsons,
         sample_seconds=args.sample_seconds,
         grace_seconds=args.grace_seconds,
         jobs=args.jobs,
+        fingerprint=prints or {},
         case_list=dict(source=os.path.basename(args.case_list),
                        field="timeout_recheck.<suite>.still_blocked",
                        total=listed_total,
@@ -789,8 +820,12 @@ def main() -> int:
 
     unaccounted = [key for key, row in all_results.items()
                    if row.get("outcome") in (None, "unaccounted")]
+    gem5_bin = (args.gem5_bin or
+                (engine.default_gem5() if engine is not None else None))
+    prints = (fingerprint(ratio, repo_root, args, work_dir, gem5_bin, DRIVERS)
+              if gem5_bin else {})
     report = build_report(args, selection, all_results, driver_rc, driver_jsons,
-                          listed_total)
+                          listed_total, prints)
     report["counts"]["unaccounted"] = len(unaccounted)
     json_out = abspath(args.json_out, repo_root)
     os.makedirs(os.path.dirname(json_out) or ".", exist_ok=True)
