@@ -80,7 +80,7 @@
 
 **重跑记录**（workdir=仓库根，退出码取 `cmd; echo $?`；日志落 `.work/log/chipyard/m12-chipyard-025-reviewer-*.log`）：
 1. `git status --porcelain -uall && git diff --stat` ⇒ **8 文件 / 276 insertions(+), 59 deletions(-)**（与声称一致；本段为追加本审阅记录之前的快照，追加后为 8 文件 / 295(+), 59(−)）；主工作树 `master` 的 `git status -uall`、`git diff` 均空 ⇒ 主树干净；分支停在基线 `3e4f218a`、全部未 commit。
-2. `bash .work/evidence/m12-chipyard-025/run.sh` ⇒ `RUNSH_EXIT=1`、`summary: PASS=61 FAIL=1`（逐项与完成区一致）：唯一红 `check-patch-tree rc actual=2`；elab/Verilator rc=0 且 `%Error`=0；L2 rc=0；`index-blobs`/`source-state` rc=0；`f2f fo2ft ovf: 40 vectors | table/hf-value/hf-flag/oracle=0`；`f2f fo2ft`/`ft2fo` 各 1000 三方 0 差；核上 38 例 `MISMATCH 0`、severe 18/18 `rf0` 低 5 位 `0x14`、`cvt_ff` 27 例逐字节；273 md5 `2d4d94651346ef673c5a855e024c1489`。
+2. `bash 该任务的运行期证据脚本 run.sh` ⇒ `RUNSH_EXIT=1`、`summary: PASS=61 FAIL=1`（逐项与完成区一致）：唯一红 `check-patch-tree rc actual=2`；elab/Verilator rc=0 且 `%Error`=0；L2 rc=0；`index-blobs`/`source-state` rc=0；`f2f fo2ft ovf: 40 vectors | table/hf-value/hf-flag/oracle=0`；`f2f fo2ft`/`ft2fo` 各 1000 三方 0 差；核上 38 例 `MISMATCH 0`、severe 18/18 `rf0` 低 5 位 `0x14`、`cvt_ff` 27 例逐字节；273 md5 `2d4d94651346ef673c5a855e024c1489`。
 3. 逐格核（我方抄录）：核心 38 行 + 单元台 40 行（8 形状×5 档）全合 spec 表——`RUP 负` sev `−ft_max/0x14`、mild `−ft_max/0x10`；`RDN 正` sev `+ft_max/0x14`、mild `+ft_max/0x10`；`RTZ` 双向 mild `±ft_max/0x10`；恰为 `ftmax` 10 行全 `0x00`；`dyn0..3` 的 `rf0[33:32]`=00/01/10/11 且逐例等于 RNE/RTZ/RDN/RUP 静态档。
 4. x86 SSE 独立 32 格（8 形状 × RNE/RTZ/RDN/RUP，`fesetround`+`fetestexcept`）与模型 `mismatch=0`；实测 mild 的 RTZ/正 RDN/负 RUP = `--|NX`（无 OF），恰为 `ft_max` 四档**无任何异常位**。
 5. `run.sh --self-test-inject` ⇒ `INJECT_EXIT=0`：RTL 注入 `table-diff=4`、`unit total failures=320`，还原 md5 `a3fd385f…` 回绿；模型注入 `8/38 mismatch`，还原 md5 `fb953019…` 回绿。

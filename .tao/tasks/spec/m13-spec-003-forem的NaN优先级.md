@@ -85,7 +85,7 @@ IEEE 754-2019 **§7.2 f)**（无效操作的条件）原文：
 
 **重跑记录**（worktree HEAD `85f72e59`，全部现场执行，输出为真实终端摘录）：
 
-- 证据脚本 `bash .work/evidence/m13-spec-003/run.sh` ⇒ `小结：31 项检查，PASS 31，FAIL 0`、`exit=0`；`--inject` ⇒ I1 红 `C1/C2/C18/C18b/G:check-spec-readonly`（exit=5）、I2 红 `C7/C11/C18/C18b/readonly`（exit=5），两轮还原 md5 均 `fb9a9295…` 相等、回绿 `31/31 exit=0`——与完成区逐条一致。
+- 证据脚本 `bash 该任务的运行期证据脚本 run.sh` ⇒ `小结：31 项检查，PASS 31，FAIL 0`、`exit=0`；`--inject` ⇒ I1 红 `C1/C2/C18/C18b/G:check-spec-readonly`（exit=5）、I2 红 `C7/C11/C18/C18b/readonly`（exit=5），两轮还原 md5 均 `fb9a9295…` 相等、回绿 `31/31 exit=0`——与完成区逐条一致。
 - 7 门控亲跑全 rc=0：`check-spec-readonly`（`21 read-only spec volume(s) OK`）、`-changelog`（`PASS`）、`-drift`（`PASS`）、`-numbering`（`PASS`）、`-refs`（`PASS (0 violations)`）、`check-fp-contract`（`PASS`）、`check-knowledge-refs`（`PASS (0 具体 .work/** 引用)`）；另 `check-spec-codeblocks`/`check-asm-prose` 亦 rc=0（完成区补充声明属实）。
 - 锁 sha 独立重算：`MATCH 21 / MISMATCH 0`；`SimRISC-00=5c2c8665…`、`SimRISC-07=f826ca07…`，与锁及完成区一致。
 - 版本：`.tao/archive/` 无 `SimRISC-0.5.7*`；补 `.cache` 软链后 `check-spec-archive-verify` rc=0、输出 `SKIP SimRISC-0.5.7-rc（预发布 -rc：不纳入归档校验）`（跑完删软链，`git status` 空）；`check-spec-archive` rc=0。
