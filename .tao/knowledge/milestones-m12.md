@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-027 | 2 h | `ldm`/`stm` 基址重叠 ⇒ ILLI（RTL + 模型） |
 | m12-chipyard-016 | 3–4 h | T0 冒烟（inst 全量非 cfx + embench + tset 子集，三平台） |
 | m12-chipyard-017 | 4–6 h | T1 适配集 + M12 验收 |
 
