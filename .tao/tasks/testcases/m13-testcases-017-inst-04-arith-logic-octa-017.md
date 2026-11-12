@@ -10,14 +10,14 @@
 
 延续 `012`/`013` 的形态：**一 id 一 `.S`、一行一用例、期望内联、失败点号 = 用例序号**（`SYS_EXIT(1..127)`）。分类与用例模板见 `tests/inst/MIGRATION.md`（12 大类 / 18 任务 / YAML 迁移台账）。
 
-本任务覆盖 **20 个 id**（04 64 位数据运算（逻辑/移位/扩展） 册：`and`/`or`/`xor`/`xnor`/`shl`/`shr`/`ext` 全形式）。
+本任务覆盖 **14 个 id**（`04-arith-logic-octa` 逻辑/移位/扩展）
 
 ## 范围（id 清单，以 `contracts/opcodes.yaml` 为准）
 
 ```
-and.o_orrr_rd ext.so_orri_rd ext.so_orrr_rd ext.uo_orri_rd ext.uo_orrr_rd or.o_orrr_rd shl.b_orri_rd
-shl.b_orrr_rd shl.o_orri_rd shl.o_orrr_rd shl.t_orri_rd shl.t_orrr_rd shl.w_orri_rd shl.w_orrr_rd
-shr.so_orri_rd shr.so_orrr_rd shr.uo_orri_rd shr.uo_orrr_rd xnor.o_orrr_rd xor.o_orrr_rd
+and.o_orrr_rd ext.so_orri_rd ext.so_orrr_rd ext.uo_orri_rd ext.uo_orrr_rd or.o_orrr_rd shl.o_orri_rd
+shl.o_orrr_rd shr.so_orri_rd shr.so_orrr_rd shr.uo_orri_rd shr.uo_orrr_rd xnor.o_orrr_rd
+xor.o_orrr_rd
 ```
 
 ## 用例设计（5 类，模板见 `MIGRATION.md §3`）

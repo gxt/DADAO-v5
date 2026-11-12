@@ -10,14 +10,15 @@
 
 延续 `012`/`013` 的形态：**一 id 一 `.S`、一行一用例、期望内联、失败点号 = 用例序号**（`SYS_EXIT(1..127)`）。分类与用例模板见 `tests/inst/MIGRATION.md`（12 大类 / 18 任务 / YAML 迁移台账）。
 
-本任务覆盖 **16 个 id**（09 16 位数据运算 册：`.uw`/`.sw` 全族）。
+本任务覆盖 **21 个 id**（`09-arith-logic-wyde`）
 
 ## 范围（id 清单，以 `contracts/opcodes.yaml` 为准）
 
 ```
 add.sw_orrr_rd add.uw_orrr_rd cmp.sw_orrr_rd cmp.uw_orrr_rd div.sw_orrr_rd div.uw_orrr_rd
-mul.sw_orrr_rd mul.uw_orrr_rd rem.sw_orrr_rd rem.uw_orrr_rd shr.sw_orri_rd shr.sw_orrr_rd
-shr.uw_orri_rd shr.uw_orrr_rd sub.sw_orrr_rd sub.uw_orrr_rd
+mul.sw_orrr_rd mul.uw_orrr_rd rem.sw_orrr_rd rem.uw_orrr_rd rev.w_orri_rd rol.w_orri_rd
+rol.w_orrr_rd shl.w_orri_rd shl.w_orrr_rd shr.sw_orri_rd shr.sw_orrr_rd shr.uw_orri_rd
+shr.uw_orrr_rd sub.sw_orrr_rd sub.uw_orrr_rd
 ```
 
 ## 用例设计（5 类，模板见 `MIGRATION.md §3`）

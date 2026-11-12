@@ -1,4 +1,4 @@
-# m13-testcases-027: `11-cfx` —— `lr.*`/`sc.*`/`fence`/`swym`
+# m13-testcases-027: `11-cfx` —— `cfx2rc`/`cfx2rd`/`escape`/`fence`/`trap`
 
 **模块**：testcases
 **项目里程碑**：M13
@@ -10,16 +10,12 @@
 
 延续 `012`/`013` 的形态：**一 id 一 `.S`、一行一用例、期望内联、失败点号 = 用例序号**（`SYS_EXIT(1..127)`）。分类与用例模板见 `tests/inst/MIGRATION.md`（12 大类 / 18 任务 / YAML 迁移台账）。
 
-本任务覆盖 **25 个 id**（11 核芯功能扩展（原子/屏障） 册：`lr.*`/`sc.*`/`fence`/`swym`）。
+本任务覆盖 **5 个 id**（`11-cfx`（cfx2rc/cfx2rd/escape/fence/trap））
 
 ## 范围（id 清单，以 `contracts/opcodes.yaml` 为准）
 
 ```
-fence_ciii_cfx lr.b.an_orrr_rd lr.b.ar_orrr_rd lr.b.nn_orrr_rd lr.o.an_orrr_rd lr.o.ar_orrr_rd
-lr.o.nn_orrr_rd lr.t.an_orrr_rd lr.t.ar_orrr_rd lr.t.nn_orrr_rd lr.w.an_orrr_rd lr.w.ar_orrr_rd
-lr.w.nn_orrr_rd sc.b.ar_orrr_rd sc.b.nn_orrr_rd sc.b.nr_orrr_rd sc.o.ar_orrr_rd sc.o.nn_orrr_rd
-sc.o.nr_orrr_rd sc.t.ar_orrr_rd sc.t.nn_orrr_rd sc.t.nr_orrr_rd sc.w.ar_orrr_rd sc.w.nn_orrr_rd
-sc.w.nr_orrr_rd
+cfx2rc_crrr_cfx cfx2rd_crrr_cfx escape_ciii_cfx fence_ciii_cfx trap_ciii_cfx
 ```
 
 ## 用例设计（5 类，模板见 `MIGRATION.md §3`）

@@ -10,7 +10,7 @@
 
 延续 `012`/`013` 的形态：**一 id 一 `.S`、一行一用例、期望内联、失败点号 = 用例序号**（`SYS_EXIT(1..127)`）。分类与用例模板见 `tests/inst/MIGRATION.md`（12 大类 / 18 任务 / YAML 迁移台账）。
 
-本任务覆盖 **4 个 id**（12 其它指令 册：`swym`/`ctpop`/`ctlz`/`cttz`）。
+本任务覆盖 **4 个 id**（`12-misc` 其余（swym/ctpop/ctlz/cttz））
 
 ## 范围（id 清单，以 `contracts/opcodes.yaml` 为准）
 

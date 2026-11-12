@@ -10,12 +10,15 @@
 
 延续 `012`/`013` 的形态：**一 id 一 `.S`、一行一用例、期望内联、失败点号 = 用例序号**（`SYS_EXIT(1..127)`）。分类与用例模板见 `tests/inst/MIGRATION.md`（12 大类 / 18 任务 / YAML 迁移台账）。
 
-本任务覆盖 **4 个 id**（11 核芯功能扩展（cfx/system） 册：`trap`/`escape`/`cfx2rd`/`cfx2rc`）。
+本任务覆盖 **24 个 id**（`12-misc` 原子（lr/sc 24 形态））
 
 ## 范围（id 清单，以 `contracts/opcodes.yaml` 为准）
 
 ```
-cfx2rc_crrr_cfx cfx2rd_crrr_cfx escape_ciii_cfx trap_ciii_cfx
+lr.b.an_orrr_rd lr.b.ar_orrr_rd lr.b.nn_orrr_rd lr.o.an_orrr_rd lr.o.ar_orrr_rd lr.o.nn_orrr_rd
+lr.t.an_orrr_rd lr.t.ar_orrr_rd lr.t.nn_orrr_rd lr.w.an_orrr_rd lr.w.ar_orrr_rd lr.w.nn_orrr_rd
+sc.b.ar_orrr_rd sc.b.nn_orrr_rd sc.b.nr_orrr_rd sc.o.ar_orrr_rd sc.o.nn_orrr_rd sc.o.nr_orrr_rd
+sc.t.ar_orrr_rd sc.t.nn_orrr_rd sc.t.nr_orrr_rd sc.w.ar_orrr_rd sc.w.nn_orrr_rd sc.w.nr_orrr_rd
 ```
 
 ## 用例设计（5 类，模板见 `MIGRATION.md §3`）

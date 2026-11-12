@@ -10,14 +10,15 @@
 
 延续 `012`/`013` 的形态：**一 id 一 `.S`、一行一用例、期望内联、失败点号 = 用例序号**（`SYS_EXIT(1..127)`）。分类与用例模板见 `tests/inst/MIGRATION.md`（12 大类 / 18 任务 / YAML 迁移台账）。
 
-本任务覆盖 **18 个 id**（07 浮点（转换/比较/分类） 册：f2f/f2i/i2f/比较/分类）。
+本任务覆盖 **26 个 id**（`07-floating-point` 转换/比较/分类）
 
 ## 范围（id 清单，以 `contracts/opcodes.yaml` 为准）
 
 ```
 fo2fo_orri_rf fo2ft_orri_rf fo2io_orri_rf fo2it_orri_rf fo2uo_orri_rf fo2ut_orri_rf focls_orri_rf
 foqcmp_orrr_rf foscmp_orrr_rf ft2fo_orri_rf ft2ft_orri_rf ft2io_orri_rf ft2it_orri_rf ft2uo_orri_rf
-ft2ut_orri_rf ftcls_orri_rf ftqcmp_orrr_rf ftscmp_orrr_rf
+ft2ut_orri_rf ftcls_orri_rf ftqcmp_orrr_rf ftscmp_orrr_rf io2fo_orri_rf io2ft_orri_rf it2fo_orri_rf
+it2ft_orri_rf uo2fo_orri_rf uo2ft_orri_rf ut2fo_orri_rf ut2ft_orri_rf
 ```
 
 ## 用例设计（5 类，模板见 `MIGRATION.md §3`）

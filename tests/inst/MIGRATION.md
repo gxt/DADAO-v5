@@ -58,7 +58,7 @@
 
 合计每 id 约 15–25 条；一文件一个 ELF，检查点 ≤127。
 
-## 4. 任务拆分（18 个，编号已落册）
+## 4. 任务拆分（18 个，编号已落册；**id 清单以各册附录 A 为准**）
 
 | # | 任务号 | 覆盖 | id 数 |
 |---|---|---|---|
@@ -66,23 +66,23 @@
 | 2 | `m13-testcases-013` | `01-load-store` 多元素（`ldm`/`stm`） | 19 |
 | 3 | `m13-testcases-014` | `02-reg-copy`（复制 + `cs.*`） | 16 |
 | 4 | `m13-testcases-015` | `03-wyde-imm` | 8 |
-| 5 | `m13-testcases-016` | `04-arith-logic-octa` 算术 | 16 |
-| 6 | `m13-testcases-017` | `04-arith-logic-octa` 逻辑/移位/扩展 | 20 |
-| 7 | `m13-testcases-018` | `04-arith-logic-octa` 位操作 | 21 |
-| 8 | `m13-testcases-019` | `05-arith-addr` | 5 |
+| 5 | `m13-testcases-016` | `04-arith-logic-octa` 算术 | 15 |
+| 6 | `m13-testcases-017` | `04-arith-logic-octa` 逻辑/移位/扩展 | 14 |
+| 7 | `m13-testcases-018` | `04-arith-logic-octa` 位操作 | 4 |
+| 8 | `m13-testcases-019` | `05-arith-addr` | 6 |
 | 9 | `m13-testcases-020` | `06-control-flow` | 15 |
-| 10 | `m13-testcases-021` | `07-floating-point` 算术 | 14 |
-| 11 | `m13-testcases-022` | `07-floating-point` 转换/比较/分类 | 18 |
-| 12 | `m13-testcases-023` | `07-floating-point` 取整/缩放/符号 | 12 |
-| 13 | `m13-testcases-024` | `08-arith-logic-tetra` | 16 |
-| 14 | `m13-testcases-025` | `09-arith-logic-wyde` | 16 |
-| 15 | `m13-testcases-026` | `10-arith-logic-byte` | 16 |
-| 16 | `m13-testcases-027` | `11-cfx` 原子/屏障 | 25 |
-| 17 | `m13-testcases-028` | `11-cfx` cfx/system | 4 |
-| 18 | `m13-testcases-029` | `12-misc`（`swym`/`ct*`） | 4 |
+| 10 | `m13-testcases-021` | `07-floating-point` 算术与最小最大 | 18 |
+| 11 | `m13-testcases-022` | `07-floating-point` 转换/比较/分类 | 26 |
+| 12 | `m13-testcases-023` | `07-floating-point` 取整/缩放/符号 | 8 |
+| 13 | `m13-testcases-024` | `08-arith-logic-tetra` | 21 |
+| 14 | `m13-testcases-025` | `09-arith-logic-wyde` | 21 |
+| 15 | `m13-testcases-026` | `10-arith-logic-byte` | 21 |
+| 16 | `m13-testcases-027` | `11-cfx`（5 条 cfx/system） | 5 |
+| 17 | `m13-testcases-028` | `12-misc` 原子（`lr`/`sc`） | 24 |
+| 18 | `m13-testcases-029` | `12-misc` 其余（`swym`/`ct*`） | 4 |
 | — | `m13-testcases-030` | `.S` 接入门控 + YAML 退役（`ISS-413`） | — |
 
-合计 **264** 个 id。
+合计 **264** 个 id（与 `contracts/opcodes.yaml` 一致；各册实测：01 38 / 02 16 / 03 8 / 04 33 / 05 6 / 06 15 / 07 52 / 08 21 / 09 21 / 10 21 / 11 5 / 12 28）。
 
 ## 5. YAML 台账（迁移与删除）
 

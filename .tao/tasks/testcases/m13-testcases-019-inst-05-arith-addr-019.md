@@ -10,12 +10,12 @@
 
 延续 `012`/`013` 的形态：**一 id 一 `.S`、一行一用例、期望内联、失败点号 = 用例序号**（`SYS_EXIT(1..127)`）。分类与用例模板见 `tests/inst/MIGRATION.md`（12 大类 / 18 任务 / YAML 迁移台账）。
 
-本任务覆盖 **5 个 id**（05 64 位地址运算 册：`add.si`/`aip.si`/`cmp.ui`/`cmp.si`）。
+本任务覆盖 **6 个 id**（`05-arith-addr` 地址运算）
 
 ## 范围（id 清单，以 `contracts/opcodes.yaml` 为准）
 
 ```
-add.si_riii_rb add.si_riii_rd aip.si_riii_rb cmp.si_rrii_rd cmp.ui_rrii_rd
+add.o_orrr_bbd add.si_riii_rb aip.si_riii_rb cmp.uo_orrr_dbb sub.o_orrr_bbd sub.o_orrr_dbb
 ```
 
 ## 用例设计（5 类，模板见 `MIGRATION.md §3`）

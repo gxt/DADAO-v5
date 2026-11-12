@@ -10,14 +10,14 @@
 
 延续 `012`/`013` 的形态：**一 id 一 `.S`、一行一用例、期望内联、失败点号 = 用例序号**（`SYS_EXIT(1..127)`）。分类与用例模板见 `tests/inst/MIGRATION.md`（12 大类 / 18 任务 / YAML 迁移台账）。
 
-本任务覆盖 **16 个 id**（04 64 位数据运算（算术） 册：`add.*`/`sub.*`/`mul.*`/`div.*`/`rem.*`/`cmp.*`（含宽度×符号））。
+本任务覆盖 **15 个 id**（`04-arith-logic-octa` 算术（add/sub/mul/div/rem/cmp））
 
 ## 范围（id 清单，以 `contracts/opcodes.yaml` 为准）
 
 ```
-add.o_orrr_bbd add.so_rrrr_rd add.uo_rrrr_rd cmp.so_orrr_rd cmp.uo_orrr_dbb cmp.uo_orrr_rd
-div.so_orrr_rd div.uo_orrr_rd mul.so_rrrr_rd mul.uo_rrrr_rd rem.so_orrr_rd rem.uo_orrr_rd
-sub.o_orrr_bbd sub.o_orrr_dbb sub.so_rrrr_rd sub.uo_rrrr_rd
+add.si_riii_rd add.so_rrrr_rd add.uo_rrrr_rd cmp.si_rrii_rd cmp.so_orrr_rd cmp.ui_rrii_rd
+cmp.uo_orrr_rd div.so_orrr_rd div.uo_orrr_rd mul.so_rrrr_rd mul.uo_rrrr_rd rem.so_orrr_rd
+rem.uo_orrr_rd sub.so_rrrr_rd sub.uo_rrrr_rd
 ```
 
 ## 用例设计（5 类，模板见 `MIGRATION.md §3`）

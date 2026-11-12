@@ -10,13 +10,14 @@
 
 延续 `012`/`013` 的形态：**一 id 一 `.S`、一行一用例、期望内联、失败点号 = 用例序号**（`SYS_EXIT(1..127)`）。分类与用例模板见 `tests/inst/MIGRATION.md`（12 大类 / 18 任务 / YAML 迁移台账）。
 
-本任务覆盖 **14 个 id**（07 浮点（算术） 册：加/乘/FMA/除/开方/取余）。
+本任务覆盖 **18 个 id**（`07-floating-point` 算术与最小最大）
 
 ## 范围（id 清单，以 `contracts/opcodes.yaml` 为准）
 
 ```
-foadd_orrr_rf fodiv_orrr_rf fofma_rrrr_rf fomul_orrr_rf forem_orrr_rf foroot_orri_rf fosub_orrr_rf
-ftadd_orrr_rf ftdiv_orrr_rf ftfma_rrrr_rf ftmul_orrr_rf ftrem_orrr_rf ftroot_orri_rf ftsub_orrr_rf
+foadd_orrr_rf fodiv_orrr_rf fofma_rrrr_rf fomax_orrr_rf fomin_orrr_rf fomul_orrr_rf forem_orrr_rf
+foroot_orri_rf fosub_orrr_rf ftadd_orrr_rf ftdiv_orrr_rf ftfma_rrrr_rf ftmax_orrr_rf ftmin_orrr_rf
+ftmul_orrr_rf ftrem_orrr_rf ftroot_orri_rf ftsub_orrr_rf
 ```
 
 ## 用例设计（5 类，模板见 `MIGRATION.md §3`）
