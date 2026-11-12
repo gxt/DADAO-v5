@@ -382,3 +382,11 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`m12-chipyard-025` 遗留的**过时表述**：① 完成区与 `tools/chipyard/fp_sweep.py` 的 `QEMU_GROUPS` 注释仍称「QEMU 仍恒 ±Inf、未落地」，但 `m13-qemu-005` 已于 12:03 合入且 `cvt_ff_ovf` 38/38 与核一致；② 完成区把 `check-patch-tree` 的 6 项红归因为「并发在途」，真实原因是**任务分支基线过旧**（`3e4f218a` 早于 qemu/gem5 两次合入）。随 `m13-testcases-011` 补矩阵时一并改注释。
+- id: ISS-405
+  scope:
+  - chipyard
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P1】**`m12-chipyard-025` 的实现未落 master**：合入 `be447dbc` 只含任务书；仓库 `WumingFP.scala.patch` 仍含 5 处 `forceInfOnOverflow`（恒 ±Inf），而共享源树已是新逻辑 ⇒ **仓库补丁 ≠ 源树**，fresh checkout 会在 14 格上红，`check-patch-tree` chipyard 4 红即此。丢失项：两个 RTL 补丁、`fp_ref.f2f_exact`、`fp_sweep`/`unit_run` 口径、README/changelog。**根因链**：子代理把改动写进共享源树/主工作树（`ISS-402`）→ 主会话合入时只带任务书 → `git worktree remove --force` 销毁 worktree 内未提交实现。**修法**：以共享源树为准重导补丁（`m12-chipyard-026`）；**流程补丁**：① 合入前必须 `git show --stat` 确认含实现文件、② 删 worktree 前必须核 `git status -uall` 是否干净、③ 子代理交付必须自证改动在 worktree 内。

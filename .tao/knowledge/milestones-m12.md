@@ -32,6 +32,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m12-chipyard-026 | 2026-11-12 14:23 | 2–3 h | 修复 `fo2ft` 实现未落 master（补丁与源树不一致；`forceInfOnOverflow` 5 处残留） |
 | m12-chipyard-024 | 2026-11-12 13:35 | 2–3 h | quiet compare 遇 sNaN 置 `NV`（RTL + 模型 + 向量 + spec） |
 
 ## 已验证
