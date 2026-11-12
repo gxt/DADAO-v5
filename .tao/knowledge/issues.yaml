@@ -374,3 +374,11 @@
   closed_in: null
   resolved_by: null
   title: 【P2·**已部分澄清**】`fo2ft` 的 `OF` 判定口径：`m13-gem5-007` 的 reviewer 用 IEEE 754-2019 §7.4 原文 + 实测确认——① `spec/SimRISC-07 §1.4` 的「以无限指数范围按所选方向舍入后…大于 `ft_max`」**本来就是 IEEE 原文同构，spec 无需改**；② gem5 与 QEMU 实测 8 格轻微溢出（正向 RNE/RTZ/RDN、负向 RNE/RTZ/RUP ⇒ ±ft_max + 仅 NX；正向 RUP / 负向 RDN ⇒ ±Inf + OF|NX）**两者一致**，实现也无需改；③ 真正的缺口只是**向量覆盖**：chipyard-025 / gem5-007 / qemu-005 的 18 格全为严重溢出 ⇒ 由 `m13-testcases-011` 补轻微溢出格（≥8 例三方对照）即可关闭。另：`m13-spec-002` 完成区那句「无论结果为 Inf 还是最大有限，均置 OF+NX」是**概述性措辞**，spec 正文判据无误、不需回改。
+- id: ISS-404
+  scope:
+  - chipyard
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m12-chipyard-025` 遗留的**过时表述**：① 完成区与 `tools/chipyard/fp_sweep.py` 的 `QEMU_GROUPS` 注释仍称「QEMU 仍恒 ±Inf、未落地」，但 `m13-qemu-005` 已于 12:03 合入且 `cvt_ff_ovf` 38/38 与核一致；② 完成区把 `check-patch-tree` 的 6 项红归因为「并发在途」，真实原因是**任务分支基线过旧**（`3e4f218a` 早于 qemu/gem5 两次合入）。随 `m13-testcases-011` 补矩阵时一并改注释。

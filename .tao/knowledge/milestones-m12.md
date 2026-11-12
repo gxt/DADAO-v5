@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m12-chipyard-024 | 2–3 h | quiet compare 遇 sNaN 置 `NV`（RTL + 模型 + 向量 + spec 补写） |
 | m12-chipyard-015 | 2–3 h | FP 取整/缩放/符号（收齐 47 条 FP 指令） |
 | m12-chipyard-016 | 3–4 h | T0 冒烟（inst 全量非 cfx + embench + tset 子集，三平台） |
 | m12-chipyard-017 | 4–6 h | T1 适配集 + M12 验收 |
@@ -33,12 +32,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m12-chipyard-025 | 2026-11-12 11:25 | 2–3 h | `fo2ft` 溢出按 IEEE 舍入模式（RTL + 模型） |
+| m12-chipyard-024 | 2026-11-12 13:35 | 2–3 h | quiet compare 遇 sNaN 置 `NV`（RTL + 模型 + 向量 + spec） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-025 | 2026-11-12 13:35 | `fo2ft` 溢出按 IEEE 舍入模式（RTL + 模型；轻微溢出只置 NX，与 QEMU 38/38 一致） |
 | m12-chipyard-014 | 2026-11-12 11:25 | FP 除法/开方/取余（fo 56 拍恒定、`forem` 53+d+1；`DZ` 端到端首个生产者） |
 | m12-chipyard-013 | 2026-11-12 01:26 | FP 算术（加/乘/FMA 单次舍入/比较/最小最大；FMA NaN×Inf 缺陷修复；compare NV 对齐 IEEE） |
 | m12-chipyard-012 | 2026-11-11 20:32 | FP 转换（8 条 f2i + 格式转换 + SBZ + 复制；`NV`/`DZ` 标志端到端接入） |
