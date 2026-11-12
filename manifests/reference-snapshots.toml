@@ -1,0 +1,42 @@
+format = 1
+captured_on = "2026-11-12"
+policy = "reference-only; tarball snapshot, NO git history"
+
+# 为什么用快照而不是 `references.lock.toml` 里的 git 镜像：
+# 2026-11-12 实测，GitHub 的 git 协议（clone/fetch）在本机不可用——
+#   `git clone --mirror` 超时（curl 56）；`--depth 1` 触发 "less than 1000 bytes/sec"；
+# 而 codeload 的 tar.gz 走普通 HTTPS 正常（~1.4 MB/s）。
+# 因此这两份参考材料以 tarball 快照保存：可读、可 grep，但**不能 git log/blame/diff 历史**。
+# 需要历史版本时：另找网络时段做全量克隆，或走镜像（源需用户确认）。
+
+[[snapshot]]
+id = "riscv-unified-db"
+path = ".cache/refs/riscv-unified-db"
+upstream = "https://github.com/riscv/riscv-unified-db"
+url = "https://codeload.github.com/riscv/riscv-unified-db/tar.gz/refs/heads/main"
+commit = "176fc36018be56925061566447a656b93eba0ddb"
+sha256 = "bdce73757213f62b160976ee84b91c72dd8c77232398d60c282c3e966d2d1b37"
+reuse = "机器可读 ISA 数据与 IDL 的形态参考（数据模型 / operation 块 / 生成器矩阵 / resolved spec）；不复制数据、不复用其 RISC-V 专属结构"
+key_files = [
+  "doc/idl.adoc",                     # IDL 语言定义
+  "doc/idl/idlc.md",                  # 编译器内部
+  "spec/std/isa/inst/I/add.yaml",     # 一条指令的完整定义形态
+  "spec/schemas",                     # 数据 schema
+  "backends",                         # 生成器矩阵（doc / ISS / header / sverilog）
+]
+
+[[snapshot]]
+id = "DADAO-v5-pr4"
+path = ".cache/refs/DADAO-v5-pr4"
+upstream = "https://github.com/shuaige666666/DADAO-v5"
+url = "https://codeload.github.com/shuaige666666/DADAO-v5/tar.gz/refs/heads/pr/rtl-m1-tilelink-cpu"
+commit = "a8448e60d98274ca2b06297d74259e64cf96ec31"
+sha256 = "bb1f1cddef6b05ee7a3a0b632b9907b678e203d3276930149db3cd511d39fcaa"
+reuse = "RTL 单周期核 + 28 字段 exec descriptor + 独立 oracle 表 + negative gate 的形态参考；不复制实现"
+key_files = [
+  "rtl/dadao/src/test/scala/dadao/DADAOALUOracleTable.scala",   # 生成物 vs 独立校验器
+  "rtl/dadao/src/main/scala/dadao/DADAOExecTable.scala",        # 微操作描述符（28 字段）
+  "tools/rtl/generate_dadao_exec_table.py",                     # 从 opcodes 生成描述符
+  "tools/rtl/check_dadao_exec_coverage.py",                     # 独立重算 + 逐 id 断言
+  "tools/rtl/check_dadao_alu_oracle.py",                        # ALU 语义独立实现
+]

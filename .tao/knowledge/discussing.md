@@ -464,3 +464,11 @@ M16 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个
 - **`riscv-unified-db`**（`manifests/references.lock.toml` 已登记）：机器可读 ISA 数据的**形态**——`operation()` 挂在编码旁、`resolved spec` 展开、生成器矩阵（文档/ISS/头文件/解码包）；**不复制其 RISC-V 专属结构**（扩展体系、CSR、`X[]`）。
 - **`DADAO-0628`**：Python 解释器（逐指令 handler + 合法性单列）与 Sail 两套独立实现的**经验**；尤其「独立投影同一份散文规范」的纪律。
 - **`DADAO-v5-pr4`**（本次新增）：RTL 侧的**微操作分层**（24 个 op code + width/signed/dual/aux 的 28 字段 exec descriptor）与「生成器 vs 独立校验器」对偶、negative gate 的写法；**微操作只留在 RTL 层，不进规范与分类**。
+
+### 参考材料落盘方式（2026-11-12 实测调整）
+
+`riscv-unified-db` 与 `DADAO-v5-pr4` 两份参考材料**不用 git 镜像**，改为 **tarball 快照**（`manifests/reference-snapshots.toml` 记录 URL/commit/sha256）。
+
+原因：当日 GitHub git 协议不可用（`clone --mirror` 超时、`--depth 1` 触发低速阈值），而 codeload 的 tar.gz 走普通 HTTPS 正常（约 1.4 MB/s，UDB 56 MB / PR#4 8 MB 均成功）。
+
+影响：两份材料**可读、可 grep，但不能 `git log`/`blame`/`diff` 历史**；需要历史版本时另找网络时段做全量克隆，或走镜像（源需用户确认）。
