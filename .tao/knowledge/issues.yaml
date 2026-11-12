@@ -2,6 +2,7 @@
   scope:
   - gem5
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】gem5 SE futex 细节与 Linux/QEMU 不完全一致：`FUTEX_UNLOCK_PI` 未校验调用者是否为 owner （Linux 返回 EPERM）；`FUTEX_REQUEUE` 返回值语义（唤醒+改挂之和）待与内核/QEMU 对齐； `parkOnFutex` 在等待队列 deadline 分支提前返回时漏 `delete FutexWaiter`（宿主内存小泄漏）。 语料当前不可达；随下一次 futex 任务修。
 - id: ISS-355
@@ -9,12 +10,14 @@
   - infra
   - gem5
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P2】`tools/gem5/build_gem5.py:191` 在 `.work/build/gem5` 不存在时抛 `ValueError`： 首次 `make build-gem5` rc=2，需先跑 `check-gem5-decode` 才能建出构建目录（`m12-gem5-001` 实测）。 建议改为按需 `mkdir -p` 或明确报错「先跑 X」；属工具缺陷，不阻塞任务但影响新机器首建。
 - id: ISS-356
   scope:
   - infra
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`check_milestone_tasks.py` 两处基线残留：① 新式核验册名 `mNN-<module>-*` 不被 `MBOOK_NAME_RE` 命中，会按「无 m 册」跳过；② m 册标题自引自身文件名号可绕 vacuous 检查。 两者均非本次（m12-infra-002）引入；当前 m 册已可选，影响低，登记待清理。
 - id: ISS-357
@@ -22,12 +25,14 @@
   - gem5
   - testcases
   status: closed
+  closed_in: M13
   resolved_by: m13-testcases-006（分通道判据）
   title: 【P2】gem5 SE 输出捕获的 stdout/stderr 顺序与参考不一致（`2>&1` 交错 vs fd1/fd2 分开后按 `stdout+stderr` 串接）。已确认**至少 4 例**可由 `stderr+stdout+exit` 与参考逐字节相等：FreeBench `analyzer`/`pifft`/`mason`/`neural` （前两例本在第一轮 9 个 fail 内；后两例是 `gem5_only_fail` 9→11 的差值）。 **不可全局交换顺序**：另有 1 例需 `stdout+stderr`，31 例 pass 走非逐字节比对。 修复方向：SE 驱动层保留 fd1/fd2 写出顺序；修复前不按能力缺口计。详见 `.tao/knowledge/refs/TESTCASES-103t-timeout-recheck.md`。
 - id: ISS-358
   scope:
   - gem5
   status: closed
+  closed_in: M13
   resolved_by: m13-gem5-003
   title: 【P2】gem5 `BaseSemihosting::callWrite` 句柄越界判断写成 `handle > files.size()`（应为 `>=`）： 未 `SYS_OPEN` 时 handle=1 会读 `files[1]` 越界，实测 segfault（`m12-chipyard-004` 探针）。 同时 QEMU arm-compat 模式未预置 guest fd 0/1/2 ⇒ 三平台的 `SYS_WRITE` 行为不可直接比对。 建议：gem5 修正边界判断；三平台比对的 semihosting 用例改用 `SYS_WRITE0`/`SYS_WRITEC`（不依赖句柄）， `SYS_WRITE` 单独按引擎成像。
 - id: ISS-359
@@ -35,12 +40,14 @@
   - gem5
   - testcases
   status: closed
+  closed_in: M13
   resolved_by: m13-gem5-003
   title: 【P2】gem5 SE loader 拒绝字节对齐的 `.bss` 子段：`src/sim/process.cc:196` 的 `fatal_if((seg.base & 3) != 0, ...)` 在 `p_vaddr + p_filesz` 非 4 字节对齐时直接 fatal。 dynamic llvm-ts 有 7 例因此 blocked（QEMU 可正常装载），名单见 `refs/INTEG-059t-se-parity-summary.json` 的 `new_findings`。 建议：改为「按对齐要求零填到下一个对齐边界」而不是 fatal；属 gem5 实现缺口，另立任务。
 - id: ISS-360
   scope:
   - infra
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m12-chipyard-005` 在第 1 轮验收期间出现**重复 reviewer**（两个 reviewer session 同时验收 同一 HEAD）：主会话在其一已在跑时又派了一个，违反「同一任务同一时刻只允许一个 reviewer」。 两次判决一致（Needs Revision、F1 `sub.uo` 借位），未造成结论分叉，但浪费一轮。 建议：派 reviewer 前先查任务书「第 N 轮 reviewer」记录、worktree 内 `.work/log` 与进程，确认无在跑者。
 - id: ISS-361
@@ -48,6 +55,7 @@
   - gem5
   - testcases
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P1】gem5 SE 长尾 **72/72 在 3600s 仍超时**（qemu 侧 72/72 全 pass），且最小时耗例 （`functional/clocale_mbfuncs`、`regression/raise-race`，qemu 0.0 s）同样吃满 3600 s ⇒ 不像「单纯慢」（qemu 中位 44 s、最大 1103 s，按 10–50× 放大也解释不了 0 s 例）。 疑为 gem5 SE 挂死（FP 未实现死循环 / syscall 重试 / IO 自旋）。影响：M13 比值分布 `n=0`，`m13-testcases-003`（7200s 复核）很可能无效。 证据：`m13-testcases-001` 全量结果（72 例，gem5 全部 `blocked`/`time budget`）。 建议：003 改为「定位 72 例挂死根因」而非「加预算」；先挑最小例（qemu 0.0 s）做 单例诊断（gem5 stats/指令计数/`--debug-flags` 分段）。 实测（2026-11-10，`functional/clocale_mbfuncs`，SIGINT 90 s 后 dump stats）： `simInsts=40,847,163`、`numCycles=40,847,163`、退出原因 `user interrupt received`、 无 guest exit ⇒ 该例在 90 s 内跑了 4085 万条指令仍未结束，符合「死循环」而非「慢」。
 - id: ISS-362
@@ -55,30 +63,35 @@
   - gem5
   - testcases
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P1】gem5 SE（dynamic）`MultiSource/Benchmarks/FreeBench/neural` **oracle mismatch**： 输出长度相同（358 B vs 358 B）但内容不同，qemu 侧同例通过（输出 == reference）。 首行 `Matrix size is 20x28` 一致 ⇒ 差异在后段，疑浮点舍入/格式化（与 M13 FP 差分同源）。 证据：`m13-testcases-002` 全量（93 例）结果，`refs/m13-002-dynamic-3600s-full.json`。 建议：M13 FP 差分任务（`m13-integ-002`）把它作为首个定位样本；先 `cmp` 逐字节定位差异列。
 - id: ISS-363
   scope:
   - gem5
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P2】gem5 `tinyEnter` 直接取 `switch_run_mode` 作为新运行模式：guest 先把该寄存器写成 !=3 再触发同步异常，就会**离开 hypv**；QEMU 对非 user profile 强制 `HYPV`（引 `Machine-v5 §2` 「Tiny 运行模式恒 hypv」）。同时 gem5 未实现 `cg3 仅 hypv 可访问`（`DADAO-13 §1`）。 影响：三平台差分时 Tiny 的越权路径会分叉。建议在 M13 差分（`m13-integ-002`/`003`）前修， 改动量小（`tinyEnter` 强制 HYPV + cg3 访问检查）。 证据：`m13-gem5-001` reviewer 第 1 轮 finding 3。
 - id: ISS-364
   scope:
   - testcases
   status: closed
+  closed_in: M13
   resolved_by: m13-testcases-007（删除探针；用户 2026-11-10 裁定 B）
   title: 【P3】`check-arch` 的 `integ047t start_busy_returns_busy` 探针**既有 flaky**（约 5%）： `m13-qemu-001` 与本轮 `m13-gem5-002` 的 reviewer 各自在**基线源码**上复现过同样失败 （`got=0x62`），重跑即 PASS；QEMU 二进制 md5 与 mtime 未变。判为 pmem DMA 的 BUSY 窗口 跨 trap 存续所致，非交付物引入。 建议：把该探针的 BUSY 判定改为有界重试或放宽窗口，避免每次验收都要额外解释一轮。
 - id: ISS-365
   scope:
   - infra
   status: closed
+  closed_in: M13
   resolved_by: permissions deny(question) in .opencode/agents/{architect,engineer,reviewer}.md + AGENTS 规则
   title: '【P1·根因更正】子代理**可以绕过主会话直接向用户提问**，而子会话问答对父会话不可见 ⇒ 主会话只能看到任务书里一句「用户裁定（原话）」却无法溯源，误判为伪造并触发返工。 实际经过：`m13-infra-001` 的 engineer 三轮追问用户并拿到裁定「不修 ①」（事后用户 2026-11-10 又改判「删掉核验册机制」），主会话侧无记录 ⇒ 判为伪造。 修复（已落地）：`.opencode/agents/*.md` 增加 `{action: question, resource: "*", effect: deny}` （实测子代理调用返回 `Unknown tool ''question''`）；需要裁定的问题一律写进任务书并返回主会话， 由主会话统一问、统一转达、统一落盘。 教训：判「伪造」前先问「模型是否具备直接问用户的通道」；把不可见通道先关掉，再谈溯源。'
 - id: ISS-366
   scope:
   - testcases
   status: open
+  closed_in: null
   resolved_by: null
   title: '【P2】`run_engine_ratio.py` **逐套件串行**执行（`for suite in selection: for engine: run_driver`）： 当某分片里一个套件只有 1 例时（本仓 dynamic/static 长尾分片各有 1 个 libc-test 例）， 该例会**独占整个预算窗口**（7200 s），其余 35 例 llvm-ts 才开始跑 ⇒ 「48 并发」实际只有 1 路。 实测：`m13-testcases-003` 首轮 long static 在前 36 分钟只有 1 个 `gem5.opt`（load≈1.0）。 规避：`run.sh` 已改为**按套件并发**（每套件一个进程、各自 work-dir/json），合并在分析侧。 建议：在 `run_engine_ratio` 内部支持跨套件并发（或至少按预计耗时排序，短套件先跑）。'
 - id: ISS-367
@@ -86,30 +99,35 @@
   - gem5
   - testcases
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P1】gem5 SE（static）`MultiSource/Benchmarks/FreeBench/pcompress2` oracle mismatch：gem5 跑完（4408 s，exit=0）但输出与参考不同，qemu 通过；比值 404×。与 `ISS-362`（dynamic `neural`）同类，疑浮点/格式化。证据：`m13-testcases-003` A 组 static 结果（`split/A/static/ratio-static-llvm-ts.json`）。建议：与 `ISS-362` 合并为「gem5 输出差异」样本集，交 `m13-integ-002` 定位。
 - id: ISS-368
   scope:
   - infra
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P1】**子代理在主工作树直接实现**（`m12-chipyard-018` 与 `m13-testcases-005` 均发生）：改动落在 `/mnt/tao/DADAO-v5`（master 检出）而非独立 `git worktree`，导致主工作树脏、与并行任务共享文件冲突风险高；本次由 architect 手工搬到 `m12-chipyard-018` 分支 worktree 后复原主树。建议：① 派单提示首行固定「必须在独立 worktree 内作业，禁改主工作树」；② reviewer 首查 `git worktree list` 与主树 `git status`；③ 主会话收尾前先核主树是否干净。
 - id: ISS-369
   scope:
   - chipyard
   status: open
+  closed_in: null
   resolved_by: null
   title: '【P2】`m12-chipyard-007` 证据脚本两处断言恒真：① `no_stray_stores`（无条件成立）；② `apply-series: no chipyard refusal`（当前环境 make 在 gem5 处先中止，chipyard 根本跑不到 ⇒ 恒真，靠 `check-patch-tree` ⑥/⑨ + `check-source-state` 兜底）。另有 L1 白名单只列 3 个外部目标，新增外部红会让脚本 rc=1。建议：删除恒真断言或改为「可失败」形式；白名单改为「按任务文件归属判定」而非固定名单。'
 - id: ISS-370
   scope:
   - testcases
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m13-testcases-006` 遗留：① `ref_split.py` 两处不可达分支（`unsupported conversion`、行数账不平）；② 证据脚本对「stderr 只比长度」不敏感（C07 靠 stdout 侧捕捉），缺同长度篡改探针；③ 「guest 多写一路而参考该路为空 ⇒ blocked」口径待确认（会把多写回归记为 blocked 而非 fail）。建议：删死分支；补同长度篡改探针；口径写入 `Process-09 §17`。
 - id: ISS-371
   scope:
   - testcases
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m13-testcases-007` 遗留：① `run.sh` 的 `doc_checks_count` 期望与实现同源于同一公式（保护实际由逐字节 diff 承担）；② `--soak` 的 `soak_run_count` 用 `ls check-arch-*.log` 计数，历史日志未清会假红。建议：期望值改为从基线文件派生；日志按 run-id 隔离。
 - id: ISS-372
@@ -117,6 +135,7 @@
   - testcases
   - infra
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P2】`run_pool` 与派单流程 4 项缺陷（`m13-testcases-008` 现场发现）：① 队列键只有 `case`，同一 case 的 static/dynamic 两档无法共存，`--resume` 会误跳另一档；② 逐例节点目录硬编码到 005 的 evidence 路径；③ `fingerprint.driver_md5` 取主控机驱动 md5，与节点实际执行的不一致，跨节点不可比；④ 派单预检缺「目标节点实时已开始集」核对（本次 Y=0 前提过期即因此，208 白等 9 小时）。建议：键改 `(case, link_mode)`；目录参数化；指纹取节点侧 md5；分载任务派单前强制读实时 started 集。
 - id: ISS-373
@@ -125,6 +144,7 @@
   - qemu
   - gem5
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P1】**并行任务共享安装根导致互相打断**：`m13-qemu-002` 重建共享 `.dadao/` 安装根 QEMU 时，`m13-gem5-005` 正在跑的 `check-inst`/lit E2E 立即失败（Tiny 要求 `--bootrom` 的新行为对旧 E2E 不兼容），reviewer 需花时间做归属。根因：`install-host` 写的是**全局**安装根，不是 worktree 私有。建议：① 需要重建 QEMU/gem5 的任务**串行**（install 根加锁或按批调度）；② 或给每个 worktree 独立 install 根（`DADAO_INSTALL_ROOT`）；③ E2E/`check-inst` 的期望与引擎版本绑定，跨任务比对前先核安装根 md5。
 - id: ISS-374
@@ -132,18 +152,21 @@
   - gem5
   - testcases
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m13-gem5-005` 文档级遗留：① 完成区 patch-tree 红数过时；② `--bootrom` 尺寸 fatal 用 `%zu`，gem5 fatal 不支持（显示 `<bad format>u bytes`）；③ checker 用 `-z max-page-size=0x1000` 链 app ELF，`p_align` 与 chipyard 差 2 字节；④ `e_entry == params.entry` 对 Vast 同样生效但报错文案写 "Tiny"、无门控覆盖。建议：fatal 改 `%llu`；checker 与 chipyard 用同一链接参数；报错按 profile 取名。
 - id: ISS-375
   scope:
   - chipyard
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m12-chipyard-020` 证据脚本与观察遗留：① G 段归因用 `git diff --name-only HEAD`（任务改动已进 HEAD ⇒ `OUTSIDE` 恒 0）、且 `same gate red on master` 是固定回显（脚本未真跑 master）；② E 段「data burst 不劣化」对仲裁拖慢不敏感（bench 两 slave 独立），属结构性论证（`ldm`/`stm` 未实现）；③ `018` 既有：`io.imem.a.valid := atDemand || pfReqValid` 在 flush 且 `a.ready=0` 时可能 valid 保持期间换 bits。建议：归因基准改任务基线；burst 判据待 008 后补；imem valid 加锁存。
 - id: ISS-376
   scope:
   - testcases
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m13-integ-004` 遗留：① fresh-clone 下证据脚本为 14+SKIP（依赖上游检出，需注明）；② 任务书写「BootROM 设 SP」与 spec §6「crt 设 SP」不符（本镜像无 crt，无行为影响）；③ `dadao_test.inc` 头注释列 6 个 `--defsym` 实只注入 2 个；④ `auipc` 需改理由措辞；⑤ 4 个 log 落 worktree 根未入运行期日志目录。
 - id: ISS-377
@@ -151,18 +174,21 @@
   - infra
   - gem5
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P1】**任务收尾未做「修改文件 ↔ git 对账」导致交付文件丢失**：`m13-gem5-005` 完成区声明新增 4 个文件（`tests/arch/hmon/tiny_hmon_handler.{S,lds}`、`tiny_hmon_layout.inc`、`tools/gem5/check_tiny_hmon.py` 改动），但从未进入任何 commit、磁盘亦不存在 ⇒ `check_tiny_hmon.py` 现 `exit=2`，gem5 hmon 门控失效。根因：architect 收口时只看工作树 `git status`，未按完成区「修改文件」逐项 `git show --stat` 对账。建议：收口检查固定加一条「完成区修改文件数 == 提交 stat 文件数，逐项列名」；reviewer 也要核此项。
 - id: ISS-378
   scope:
   - gem5
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m13-gem5-006` 文档级遗留：① 完成区写「hmon SRAM 全 8192 B」，实为段 248 B + 尾零 65288 B（dump 65536 B）；② 验收 3 的 `grep` 仍余 1 处活值（`expected.yaml:31`，019 合入后由该行接管）；③ 完成区把 chipyard 脏归属写成「并行 019」，实为并行的 `m12-chipyard-008`（019 已于 04:18 合入、脏文件 mtime 04:38）。
 - id: ISS-379
   scope:
   - infra
   status: open
+  closed_in: null
   resolved_by: null
   title: '【P2】`make check-arch` / `check-arch-smoke` 在本机 `EXIT=2`：`CMake Error: The source directory ".../.work/source/llvm-project/llvm" does not exist`（`m13-integ-007` reviewer 重试 3 次同错：默认、`-o install-host`、`-o` 全链）。检查体本身可用（m5 e2e 10/10、25 服务、14 探针全 rc=0），说明是 `install-host → build-mc` 的 llvm 源路径问题。建议：核 `.work/source/llvm-project` 的目录形态（monorepo 根 vs `llvm/` 子目录）与 `build-mc` 传入的 CMake 源路径是否一致。 补充（2026-11-11 04:5x）：architect 实测 `.work/source/llvm-project/llvm` **存在** ⇒ 非目录缺失，疑为并行任务在该目录上操作（或 worktree 软链指向差异）导致的瞬时现象；复现时先记录 `ls -ld` 与 mtime。'
 - id: ISS-380
@@ -170,18 +196,21 @@
   - testcases
   - gem5
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m13-integ-007` 文档级遗留：① `hmon.S` 注释写「10 条」实为 11 条；② chipyard 跟随清单缺「改源树 hex → `tools/infra/make_patch.py` 重导出 → `make check-patch-tree`」一步；③ 清单里的 md5 `5143…` 是解码镜像 md5，hex 文本 md5 实为 `c499803a…`，需注明；④ chipyard 回归「构建/Verilator/TestDriver」是描述非命令；⑤ 「预置数据区哨兵」构造未做，以结构性证据替代。
 - id: ISS-381
   scope:
   - chipyard
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m12-chipyard-008` 文档与覆盖遗留：F-a `stm.o N=8` 实测 72 拍（完成区写 80，超 ±2）、单元素周期描述不可复现；F-b 回归向量 87 个 `ldm`/`stm` 全 count=1 ⇒ 多元素/跨 beat 路径零覆盖（reviewer 用自建探针补证，建议补 count>1 向量）；F-c 「中途 denied ⇒ CFXMEM」只有代码证据（预检已拦掉可构造的 deny）；F-d CFXMEM 30 例全为 addr0 同形态（数量达标、形态单一）。
 - id: ISS-382
   scope:
   - chipyard
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P1】**预取自 `m12-chipyard-008` 起全部失效（回归）**：008 把 `specBacked(pfReqAddr)` 加进 `pfAddrLegal`，而 `pfReqAddr` 取自复位值 0 的 `pfReqBeat` ⇒ 地址 0 不在 Tiny 三段窗口 ⇒ `pfWanted` 恒假。`m12-chipyard-009` reviewer 用 400 条直线 `or.o` 实测 `prefetch=0 / demand_fetch=313 / exec=618`，跨 beat 全付 6 拍，与「用例短/跳转打散」无关。`020` 的 p50=1 测于 008 合入之前，故未暴露；现有门控无「预取是否真的发过」的断言。修复：`pfAddrLegal` 改查待发的 `pfBeat`；并补一条「直线流 prefetch > 0」的门控断言。
 - id: ISS-383
@@ -189,6 +218,7 @@
   - testcases
   - spec
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m13-spec-001` 收尾遗留：F1 `tools/testcases/lib/README.md:155` 仍写「report 0x40 (guest FAIL)」与同文件新表矛盾（漏改一处）；F2 冲突登记「14 个程序」实为 15 个非零 expected（13 个取值），计数笔误；F3 上轮审阅记录 L80 含具体 `.work/inject-backup` 路径；F5 `components/qemu/patches/target/dadao/cpu.h.patch:98` `DADAO_EXIT_GUEST_FAIL 0x40` 未列入冲突登记（patch 内无引用、惰性）；另 codegen 语料 15 例以非零 guest 码承载结果值（`rc == expected` 判 PASS），新 §7.1 下这些码即 FAIL ⇒ 需重做语料与判据（用户已定「不动 riscv-tests」，codegen 待定）。
 - id: ISS-384
@@ -196,72 +226,84 @@
   - spec
   - chipyard
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P2】**需用户裁定**：`m13-spec-001` 只授权就地修订 `ADR-0004`，但两处活正文仍写旧 guest 分区——`ADR-0009 D5`（decision 正文，非修订节）与 `components/chipyard/README.md:44`。选项：① 就地修订这两处（需用户逐条确认 ADR-0009 的 decision 变更）；② 改为指针引用 `spec/Machine-v5 §7.1`（ADR 不承载规范正文）。
 - id: ISS-385
   scope:
   - chipyard
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m12-chipyard-022` 遗留：F-a 证据脚本 `ONLY` 非空但不匹配任何 section 时 `PASS=0 FAIL=0` 仍退出 0（缺「至少跑到 1 个 section」护栏）；F-b E 段不校验 bench 自身退出码，`core halted` 判据自 `009` 起恒假（`halted_cycle=0`，仅计数断言有效）；F-c `prefetch>0` 断言只在运行期证据脚本，仓库内无常驻门控（建议升格 `tools/` 并纳入 L2）。另 `ISS-382` 的教训已覆盖：性能机制须断言「机制真的生效」。
 - id: ISS-386
   scope:
   - chipyard
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m12-chipyard-010` 遗留：F2 任务书硬约束里的临时目录名仍是派单模板笔误；F3 完成区「三套旧故障镜像 165 张重跑全绿」未纳入 `run.sh`（reviewer 独立复跑证实 165/165，建议纳入脚本防再退化）；`sc` 命中 17 拍 = 两次 SRAM 往返（重读 + 写），可优化为单次读改写，非缺陷。另：任务书「保留编码 ⇒ ILLI」口径已被 reviewer 判为文档错（真源 UNDI），同类「按 legality_rules.yaml」却与之相反的表述应在后续任务书模板里避免。
 - id: ISS-387
   scope:
   - testcases
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P2】**测试向量系统性缺口：只覆盖正例分支**。`m12-chipyard-011` 发现 `cs.n/.z/.p` 的 `else` 分支（不成立时写另一源）从未被执行 —— `tests/inst/base/reg-cond-assign.yaml` 5 条语义例全在 taken 支，故 `m12-chipyard-010` 的 605 例自写 oracle 与该任务 reviewer 均漏检。010 已由 011 顺手修好（`csTaken = !isCs || csCond <= 2 || csCondTrue`，spec 依据 `SimRISC-02 §2`）。行动：立 `m13-testcases-010` 补 rd 形式 not-taken 覆盖；并在 `Process-09` 增加「每条条件语义须有 taken/not-taken 双支」的判据，防止同类漏测。
 - id: ISS-388
   scope:
   - chipyard
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m12-chipyard-011` 文档级：F-a 完成区计数与现场不符（写 13200/7920，实际 10560/6620，且「4 配置×5 档×2640」自相矛盾）；F-b 任务书硬约束 1 的临时目录名仍是派单模板笔误（写 `m12-chipyard-009`）。
 - id: ISS-389
   scope:
   - infra
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P2】**任务 worktree 的 `.work/` 未软链到主工作树时会从零编 LLVM（13 GB）并撑爆 tmpfs**（`m12-chipyard-012` 实测）。主工作树已有 `.work/build`/`.work/source`，任务 worktree 里跑 `make check-*` 会解析到自己的空 `.work`，触发全量 LLVM 构建。建议：① 建 worktree 后立即 `ln -s <主树>/.work /tmp/opencode/<task>/.work`（或在 `git worktree add` 后由脚本自动建链）；② 在 AGENTS.md 子代理硬约束里加一条「`.work` 必须是软链，禁止在任务树内重建」；③ `check-disk` 增加「任务树内 `.work` 非软链」的告警。
 - id: ISS-390
   scope:
   - infra
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】任务书硬约束 1 的临时目录名连续三次写成前一个任务号（`011` 写 `-009`、`012` 写 `-010`、`010` 写 `-008`），来源是派单时复制上一册模板未改任务号。建议在任务书模板里改成 `<任务ID>` 占位符，禁止写具体编号。
 - id: ISS-391
   scope:
   - chipyard
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m12-chipyard-012` 计数类遗留：F-a `run.sh` G 段 `nx_all/nv_all/nx_only` 用 `expect[1]` 取错槽（打印 15/146/134，真值 13/149/135；阈值仍成立、非假绿，但覆盖计数失真）；F-b 完成区「NV 端到端 15 例」应为 13；F-c 「281 例语义（9 组）」实为 14 组全量、9 个 `cvt_*` 组 185 例；F-d 「144 例」现场为 84 例/168 dump 字、整台 67150−fcsr10=67140。教训与 `ISS-388` 同源：完成区的计数必须由脚本现场输出直接抄，不得手工换算或跨口径合并。
 - id: ISS-392
   scope:
   - testcases
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P3】`m13-testcases-010` 文档级：F-a 完成区写「L1 红 3 项」实为 4 项（漏记 `check-patch-tree`，根因是组件源检出树里 `011` 的未提交 RTL 修复）；F-b 证据脚本 `inst_sweep covered` 期望值写死 273、标签却写「现场派生」。**证据缺口（转 `m12-chipyard-016`）**：真 RTL 重建注入（`csTaken` 改回 `!d.isCs || csCondTrue` ⇒ 必红）与 chipyard 侧 rf 载体（`fp_sweep` 仅 4 例 `cs.*` rf）仍未做，本任务只完成「推演 + 等价输出注入」。
 - id: ISS-393
   scope:
   - testcases
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P2】**把「仍在跑」写成「全部跑完」**：`m13-testcases-009` 收口时依据 3 份 ratio JSON 判定 A 组长尾「48 h 内全部跑完」，但 runner（pid 522444）仍存活 23 h19 m、`regression/raise-race` 正在执行、`ratio-static-libc-test.json` 尚未落盘（reviewer 第 1 轮判 Needs Revision）。另：验证脚本的 `static+dynamic == total` 属同源恒真，无法发现「从真实名单删一例」的静默缩水。教训：① 收口判据必须是「名单逐项三态齐全 + runner 已退出 + EXIT 文件存在」，不能只数已有 JSON；② 覆盖类断言必须与**独立名单源**比对，不能与自身派生量比。
 - id: ISS-394
   scope:
   - chipyard
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P1】**FMA `qNaN × ±Inf + ∓Inf` 错误抬 `NV`，且模型与 RTL 同错**（`m12-chipyard-013` reviewer 发现）：例 `qNaN × +Inf + (−Inf)` ⇒ core/hardfloat `1/0`；`fp_ref.fma_exact` 的 `prod_inf` 未排除 NaN 乘数 ⇒ 台架与核上对照互相印证「错误答案」，两边都绿。依据 `contract-fp §20` / `SimRISC-07 §2.5`（Inf 条前提为「±Inf × 有限非零数」，NaN 条只对 sNaN 置 NV）。修法：`WumingMulAddRecFN` 的 `infDiff`/`prodInf` 先排除 NaN 乘数，模型同步，并补「NaN×Inf」与「Inf+Inf 异号」两组区分例。**教训**：模型与被测实现共享同一前提缺失时，差分不产生信号——须有独立 oracle（reviewer 自写 IEEE oracle 14356 例才覆盖到）。
 - id: ISS-395
   scope:
   - infra
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P2】**并发派单事故：改变差分参照的任务与使用该参照验收的任务并行**。`m13-qemu-003`（改 QEMU 比较族 NV 语义）与 `m12-chipyard-013`（以 QEMU 为对照验收）并发，导致 013 验收块从 `211/0` 变成 `209/2`、`check-patch-tree` 因 qemu 源树未导出补丁而红。规则建议：派单前标出「本任务是否改变其它任务的差分/基线参照」；若是，要么串行，要么在该任务任务书里冻结参照版本（写 commit/md5）。
 - id: ISS-396
@@ -269,6 +311,7 @@
   - chipyard
   - spec
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P2】**`spec/SimRISC-07 §4` 比较族标志草案不能直接入册（待用户裁定 quiet+sNaN）**：① 条号写 `§5.7.1`（应为 `§5.6.1`/`§5.11`）；② **quiet compare 遇 sNaN** —— IEEE 754-2019 §5.11 要求仍置 `invalid`（hardfloat 同），本核与 QEMU 选择不置 ⇒ 属**有意偏离**，草案里写成「hardfloat 是唯一例外」需改为「DADAO 口径取舍、明示偏离」；③ 草案把「quiet 不置」并入用户原话，而用户 2026-11-11 原话仅「按 IEEE/hardfloat：任何无序都置」（针对 signaling）⇒ 按 `ISS-365` 待用户确认后再入册。
 - id: ISS-397
@@ -278,5 +321,6 @@
   - qemu
   - gem5
   status: open
+  closed_in: null
   resolved_by: null
   title: 【P1】按新规则（IEEE-754 2019 为准）需审计的 FP 偏离清单：① **`fo2ft` 溢出恒 ±Inf** —— `SimRISC-07 §1.4`/`contract-fp §2` 明文如此，但 IEEE 按舍入模式（RNE/RUP → ±Inf，RTZ/RDN → ±最大有限）⇒ **spec 与 IEEE 直接冲突，需改 spec + 改 RTL/QEMU/gem5 + 改向量**；② quiet compare 遇 sNaN 不置 NV（已由 `m13-qemu-004`+`m12-chipyard-024` 处理）；③ sNaN 结果 payload：本核 canonical vs softfloat 保留（IEEE 不强制，需在 spec 写明取值）；④ NaN 结果符号位：本核清 0 vs softfloat 保留（IEEE 未规定，需写明）；⑤ `ld.t rf0` 只读 qNaN 位属测试机约定（IEEE 无此概念，spec 需标为架构附加）。行动：立一个 FP-IEEE 对齐审计任务，逐条给出「IEEE 条文 → 改/不改 → 影响面」。
