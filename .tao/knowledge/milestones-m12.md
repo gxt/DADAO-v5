@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m12-chipyard-025 | 2–3 h | `fo2ft` 溢出按 IEEE 舍入模式（RTL + 模型） |
 | m12-chipyard-024 | 2–3 h | quiet compare 遇 sNaN 置 `NV`（RTL + 模型 + 向量 + spec 补写） |
 | m12-chipyard-015 | 2–3 h | FP 取整/缩放/符号（收齐 47 条 FP 指令） |
 | m12-chipyard-016 | 3–4 h | T0 冒烟（inst 全量非 cfx + embench + tset 子集，三平台） |
@@ -34,6 +33,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m12-chipyard-025 | 2026-11-12 11:25 | 2–3 h | `fo2ft` 溢出按 IEEE 舍入模式（RTL + 模型） |
 
 ## 已验证
 
