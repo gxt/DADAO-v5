@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
 new file mode 100644
-index 0000000..06d391b
+index 0000000..0093bc8
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
-@@ -0,0 +1,1869 @@
+@@ -0,0 +1,1865 @@
 +// See LICENSE for license details.
 +//
 +// DADAO floating-point infrastructure (m12-chipyard-011).
@@ -643,18 +643,19 @@ index 0000000..06d391b
 +  * what the other two engines do for a format conversion as well
 +  * (`SimRISC-07 §1.4`: sNaN as an arithmetic input).
 +  *
-+  * `DADAO:` `fo2ft` returns ±Infinity and sets `OF` on overflow **whatever the
-+  * rounding direction** (spec/SimRISC-07 §1.4 "fo2ft 溢出返回 ±Inf（置 OF）",
-+  * contract-fp §2), where IEEE 754 would return the largest finite value under
-+  * RTZ/RDN/RUP.  `forceInfOnOverflow` implements that; the widening direction
-+  * cannot overflow and leaves it off.
++  * Overflow follows IEEE 754-2019 §7.4 (spec/SimRISC-07 §1.4): the result is
++  * the unrounded magnitude rounded with an unbounded exponent range, so
++  * RNE/RNA give `±Inf`, RUP gives `+Inf` on a positive / `−ft_max` on a
++  * negative overflow, RDN gives `+ft_max` on a positive / `−Inf` on a negative
++  * one, and RTZ gives `±ft_max`; `OF|NX` is raised either way.  That is exactly
++  * what `WumingRoundAnyRawFNToRecFN` produces via `pegMaxFiniteMagOut`
++  * (m12-chipyard-025 removed the former "always ±Inf" override).
 +  */
 +class WumingF2F(
 +    srcExpWidth: Int,
 +    srcSigWidth: Int,
 +    dstExpWidth: Int,
-+    dstSigWidth: Int,
-+    forceInfOnOverflow: Boolean)
++    dstSigWidth: Int)
 +    extends Module {
 +  val io = IO(new Bundle {
 +    val in = Input(UInt(64.W))
@@ -672,16 +673,8 @@ index 0000000..06d391b
 +  rounder.io.infiniteExc := false.B
 +  rounder.io.roundingMode := io.roundingMode
 +
-+  val infBits = Cat(rawIn.sign, Fill(dstExpWidth, true.B),
-+    0.U((dstSigWidth - 1).W))
-+  val converted = WumingRecFN.fNFromRecFN(dstExpWidth, dstSigWidth,
-+    rounder.io.out)
-+
-+  io.out := (if (forceInfOnOverflow) {
-+    Mux(rounder.io.exceptionFlags(2), infBits.pad(64), converted.pad(64))
-+  } else {
-+    converted.pad(64)
-+  })
++  io.out := WumingRecFN.fNFromRecFN(dstExpWidth, dstSigWidth,
++    rounder.io.out).pad(64)
 +  io.flags := rounder.io.exceptionFlags
 +}
 +
@@ -729,9 +722,9 @@ index 0000000..06d391b
 +  val i2fTFo = Module(new WumingINToRecFN(32, WumingFmt.foExp, WumingFmt.foSig))
 +  val i2fOFo = Module(new WumingINToRecFN(64, WumingFmt.foExp, WumingFmt.foSig))
 +  val ft2fo = Module(new WumingF2F(WumingFmt.ftExp, WumingFmt.ftSig,
-+    WumingFmt.foExp, WumingFmt.foSig, forceInfOnOverflow = false))
++    WumingFmt.foExp, WumingFmt.foSig))
 +  val fo2ft = Module(new WumingF2F(WumingFmt.foExp, WumingFmt.foSig,
-+    WumingFmt.ftExp, WumingFmt.ftSig, forceInfOnOverflow = true))
++    WumingFmt.ftExp, WumingFmt.ftSig))
 +
 +  // ---- float -> integer: the recoded input comes from the ft/fo encoding ---
 +  // `rawFloatFromFN` is combinational, so the recoding is done here once for
@@ -1632,9 +1625,12 @@ index 0000000..06d391b
 +  * The comparison itself is the total order on the IEEE encoding (sign then
 +  * magnitude, so `-0 < +0`); an unordered pair returns a quiet NaN for
 +  * `ftqcmp`/`foqcmp` and a signalling NaN for `ftscmp`/`foscmp`, both with a
-+  * clear sign bit.  `NV` follows spec/SimRISC-07 §4: a signalling compare
-+  * (`ftscmp`/`foscmp`) raises it for **any** unordered pair, quiet NaN
-+  * included (IEEE 754-2019 §5.7.1); a quiet compare raises no flag.
++  * clear sign bit.  `NV` follows spec/SimRISC-07 §4 and IEEE 754-2019 §5.6.1
++  * / §5.11 (m12-chipyard-024): a signalling compare (`ftscmp`/`foscmp`) raises
++  * it for **any** unordered pair, quiet NaN included; a quiet compare
++  * (`ftqcmp`/`foqcmp`) raises it only when an operand is a signalling NaN --
++  * a quiet NaN operand alone raises nothing.  This is hardfloat's
++  * `CompareRecFN` rule bit for bit.
 +  */
 +class WumingCompareRecFN(expWidth: Int, sigWidth: Int) extends Module {
 +  val io = IO(new Bundle {
@@ -1674,7 +1670,7 @@ index 0000000..06d391b
 +  val cmp = Mux(lt, "hffff_ffff_ffff_ffff".U, Mux(gt, 1.U, 0.U))
 +  io.out := Mux(unordered, nanBits.pad(64), cmp.pad(64))
 +  io.flags := Cat(false.B, false.B, false.B, false.B,
-+    Mux(io.signaling, unordered, false.B))
++    Mux(io.signaling, unordered, rawA.isSigNaN || rawB.isSigNaN))
 +}
 +
 +/** `minimumNumber` / `maximumNumber` (spec/SimRISC-07 §2.4).

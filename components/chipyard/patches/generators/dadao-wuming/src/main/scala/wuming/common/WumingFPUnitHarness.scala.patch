@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
 new file mode 100644
-index 0000000..b081481
+index 0000000..ef11e8f
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
-@@ -0,0 +1,658 @@
+@@ -0,0 +1,656 @@
 +// See LICENSE for license details.
 +//
 +// Unit bench for the FP infrastructure (m12-chipyard-011).
@@ -188,9 +188,9 @@ index 0000000..b081481
 +  // `RoundAnyRawFNToRecFN` next to it, with the same parameters.  The
 +  // hardfloat results are normalised here so the comparison is bit-exact on
 +  // both the value and the five flags: DADAO's `rf0[4:0]` order (bit0 NV ...
-+  // bit4 NX) is the reverse of hardfloat's, and `fo2ft`'s overflow must return
-+  // ±Infinity whatever the direction (spec/SimRISC-07 §1.4), which hardfloat
-+  // does not do.
++  // bit4 NX) is the reverse of hardfloat's.  The `DADAO:` conversions match
++  // hardfloat value for value and flag for flag, `fo2ft` overflow included
++  // (IEEE 754-2019 §7.4 is both engines' rule since m12-chipyard-025).
 +  val opKind = (io.op - 14.U)(3, 0)
 +  val cvt = Module(new WumingFPConvert)
 +  cvt.io.kind := opKind
@@ -254,12 +254,10 @@ index 0000000..b081481
 +  }
 +  driveHf(hfFt2fo, hfFtRaw)
 +  driveHf(hfFo2ft, hfFoRaw)
-+  // contract-fp §2 / SimRISC-07 §1.4: fo2ft overflow returns ±Infinity.
-+  val hfFo2ftOut = Mux(hfFo2ft.io.exceptionFlags(2),
-+    Cat(hfFoRaw.sign, Fill(WumingFmt.ftExp, true.B),
-+      0.U((WumingFmt.ftSig - 1).W)).pad(64),
-+    WumingRecFN.fNFromRecFN(WumingFmt.ftExp, WumingFmt.ftSig,
-+      hfFo2ft.io.out).pad(64))
++  // hardfloat's own `RoundAnyRawFNToRecFN` result is the reference as-is
++  // (spec/SimRISC-07 §1.4 = IEEE 754-2019 §7.4); no post-processing.
++  val hfFo2ftOut = WumingRecFN.fNFromRecFN(WumingFmt.ftExp, WumingFmt.ftSig,
++    hfFo2ft.io.out).pad(64)
 +
 +  // The `DZ` lane: the m12-011 bench tied the primitive's `infiniteExc` to 0,
 +  // so this is the first time the divide-by-zero input is compared at all.
@@ -373,9 +371,9 @@ index 0000000..b081481
 +  }
 +
 +  // hardfloat's quiet compare raises NV for a signalling NaN input, and its
-+  // signalling compare for any unordered pair (IEEE 754-2019 §5.7.1) -- the
-+  // latter is the spec/SimRISC-07 §4 contract, so the signalling forms compare
-+  // flags against the signalling instance.
++  // signalling compare for any unordered pair (IEEE 754-2019 §5.6.1 / §5.11) --
++  // exactly the spec/SimRISC-07 §4 contract (m12-chipyard-024), so every
++  // compare form compares flags against its own hardfloat instance.
 +  val hfCmpFtQ = Module(new hardfloat.CompareRecFN(WumingFmt.ftExp, WumingFmt.ftSig))
 +  val hfCmpFtS = Module(new hardfloat.CompareRecFN(WumingFmt.ftExp, WumingFmt.ftSig))
 +  val hfCmpFoQ = Module(new hardfloat.CompareRecFN(WumingFmt.foExp, WumingFmt.foSig))

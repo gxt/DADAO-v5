@@ -584,21 +584,21 @@ def i2f_exact(int_width, oe, osig, value, signed, mode):
     return out, (NX if inexact else 0)
 
 
-def f2f_exact(src_ew, src_sw, dst_ew, dst_sw, x, mode, force_inf_on_overflow):
+def f2f_exact(src_ew, src_sw, dst_ew, dst_sw, x, mode):
     """Exact format-conversion oracle: (destination bits, rf0[4:0] flags).
 
     An sNaN is an invalid (arithmetic) input: NV and the canonical quiet NaN.
     A quiet NaN propagates its payload (spec/SimRISC-07 §1.4).  On overflow
-    `fo2ft` returns +-Infinity whatever the direction (spec/SimRISC-07 §1.4,
-    contract-fp §2); the widening direction cannot overflow.
+    `fo2ft` returns `±Inf` for RNE/RNA, for a positive RUP overflow and for a
+    negative RDN overflow, and `±ft_max` for the other three cells
+    (spec/SimRISC-07 §1.4 = IEEE 754-2019 §7.4); `_round_mag` applies that
+    rule, so there is no separate "always ±Inf" override any more.  The
+    widening direction cannot overflow.
     """
     r = raw_from_fn(src_ew, src_sw, x)
     is_sig_nan = r["is_nan"] and not ((r["sig"] >> (src_sw - 2)) & 1)
-    out, flags = round_exact(src_ew, src_sw, dst_ew, dst_sw, r, mode,
-                             invalid_exc=is_sig_nan)
-    if force_inf_on_overflow and (flags & OF):
-        out = (r["sign"] << (dst_ew + dst_sw)) | ((6 << (dst_ew - 2)) << (dst_sw - 1))
-    return out, flags
+    return round_exact(src_ew, src_sw, dst_ew, dst_sw, r, mode,
+                       invalid_exc=is_sig_nan)
 
 
 # ── arithmetic oracles (m12-chipyard-013, spec/SimRISC-07 §2) ────────────

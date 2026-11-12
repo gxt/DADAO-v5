@@ -241,8 +241,8 @@ def check(args):
            19: ("i2f o64->ft", 64, F.FT[0], F.FT[1]),
            20: ("i2f t32->fo", 32, F.FO[0], F.FO[1]),
            21: ("i2f o64->fo", 64, F.FO[0], F.FO[1])}
-    F2F = {22: ("f2f ft2fo", F.FT[0], F.FT[1], F.FO[0], F.FO[1], False),
-           23: ("f2f fo2ft", F.FO[0], F.FO[1], F.FT[0], F.FT[1], True)}
+    F2F = {22: ("f2f ft2fo", F.FT[0], F.FT[1], F.FO[0], F.FO[1]),
+           23: ("f2f fo2ft", F.FO[0], F.FO[1], F.FT[0], F.FT[1])}
 
     for op, (name, ew, sw, iw) in F2I.items():
         vals = F.sample_fn(ew, sw, args.n, rng)
@@ -310,15 +310,14 @@ def check(args):
         fails += bad_hf + bad_flag + bad_oracle
         summary.append((name, len(got), bad_hf + bad_flag + bad_oracle))
 
-    for op, (name, sew, ssw, dew, dsw, force_inf) in F2F.items():
+    for op, (name, sew, ssw, dew, dsw) in F2F.items():
         vals = F.sample_fn(sew, ssw, args.n, rng)
         lines = [f"{op} {x:x} 0 {mode}" for x in vals for mode in MODES]
         got = run_vectors(args.bin, _write(args, f"vectors_op{op}.txt", lines))
         bad_hf = bad_flag = bad_oracle = 0
         for r in got:
             x = r["in_lo"]
-            want_rec, wflags = F.f2f_exact(sew, ssw, dew, dsw, x, r["mode"],
-                                           force_inf)
+            want_rec, wflags = F.f2f_exact(sew, ssw, dew, dsw, x, r["mode"])
             want = F.fn_from_recfn(dew, dsw, want_rec)
             if r["out"] != want or r["flags"] != wflags:
                 bad_oracle += 1
@@ -339,6 +338,98 @@ def check(args):
               f"hf-flag-diff={bad_flag} oracle-diff={bad_oracle}")
         fails += bad_hf + bad_flag + bad_oracle
         summary.append((name, len(got), bad_hf + bad_flag + bad_oracle))
+
+    # ── `fo2ft` overflow, cell by cell (spec/SimRISC-07 §1.4 = IEEE 754-2019
+    # §7.4; m12-chipyard-025, restored by m12-chipyard-026) ─────────────────
+    # Eight input shapes x the five static directions.  The expected
+    # (value, rf0[4:0]) below are transcribed from the rule -- round the exact
+    # value with an UNBOUNDED exponent in the selected direction, and only if
+    # that magnitude exceeds `ft_max` replace it by `±Inf` (RNE/RNA, RUP on a
+    # positive overflow, RDN on a negative one) or by `±ft_max` (the other
+    # three cells), raising `OF|NX` -- **not** taken from the oracle, so the
+    # table is an independent opinion next to hardfloat and `fp_ref`.
+    #
+    # `sev` = the largest double (overflow in every direction), `mild` = one
+    # double ulp above the midpoint between `ft_max` and 2^128, `mid` = that
+    # midpoint (a tie: RNE goes up to 2^128 and overflows), `ftmax` = exactly
+    # `ft_max` (no exception at all).  A `mild`/`mid` value that the direction
+    # rounds down to `ft_max` is *not* an overflow: it reports `NX` only.
+    FT_MAX = 0x7F7FFFFF
+    FT_MAX_NEG = 0xFF7FFFFF
+    INF = 0x7F800000
+    INF_NEG = 0xFF800000
+    OFNX = F.OF | F.NX
+    OVF_ROWS = (
+        # shape, fo input bits, expected (value, flags) in MODES order
+        ("pos_sev", 0x7FEFFFFFFFFFFFFF,
+         ((INF, OFNX), (FT_MAX, OFNX), (FT_MAX, OFNX), (INF, OFNX),
+          (INF, OFNX))),
+        ("neg_sev", 0xFFEFFFFFFFFFFFFF,
+         ((INF_NEG, OFNX), (FT_MAX_NEG, OFNX), (INF_NEG, OFNX),
+          (FT_MAX_NEG, OFNX), (INF_NEG, OFNX))),
+        ("pos_mild", 0x47EFFFFFF0000001,
+         ((INF, OFNX), (FT_MAX, F.NX), (FT_MAX, F.NX), (INF, OFNX),
+          (INF, OFNX))),
+        ("neg_mild", 0xC7EFFFFFF0000001,
+         ((INF_NEG, OFNX), (FT_MAX_NEG, F.NX), (INF_NEG, OFNX),
+          (FT_MAX_NEG, F.NX), (INF_NEG, OFNX))),
+        ("pos_mid", 0x47EFFFFFF0000000,
+         ((INF, OFNX), (FT_MAX, F.NX), (FT_MAX, F.NX), (INF, OFNX),
+          (INF, OFNX))),
+        ("neg_mid", 0xC7EFFFFFF0000000,
+         ((INF_NEG, OFNX), (FT_MAX_NEG, F.NX), (INF_NEG, OFNX),
+          (FT_MAX_NEG, F.NX), (INF_NEG, OFNX))),
+        ("pos_ftmax", 0x47EFFFFFE0000000,
+         ((FT_MAX, 0), (FT_MAX, 0), (FT_MAX, 0), (FT_MAX, 0), (FT_MAX, 0))),
+        ("neg_ftmax", 0xC7EFFFFFE0000000,
+         ((FT_MAX_NEG, 0), (FT_MAX_NEG, 0), (FT_MAX_NEG, 0),
+          (FT_MAX_NEG, 0), (FT_MAX_NEG, 0))),
+    )
+    ovf_lines, ovf_want = [], []
+    for shape, x, table in OVF_ROWS:
+        for mode, (wv, wf) in zip(MODES, table):
+            ovf_lines.append(f"23 {x:x} 0 {mode}")
+            ovf_want.append((f"{shape}", wv, wf))
+    got = run_vectors(args.bin,
+                      _write(args, "vectors_fo2ft_ovf.txt", ovf_lines))
+    if len(got) != len(ovf_lines):
+        print(f"  [FAIL] f2f fo2ft ovf: sent {len(ovf_lines)} got {len(got)}")
+        fails += 1
+    ovf_table = ovf_hf = ovf_hfflag = ovf_oracle = 0
+    for r, (cname, wv, wf) in zip(got, ovf_want):
+        mine = r["out"]                     # the conversion outputs an FN word
+        if (mine, r["flags"]) != (wv, wf):
+            ovf_table += 1
+            if ovf_table <= 8:
+                print(f"  [TABLE] {cname:10s} mode={r['mode']} "
+                      f"want={wv:08x}/{wf:02x} mine={mine:08x}/{r['flags']:02x}")
+        if fn_val(r["out"], F.FT[0], F.FT[1]) != \
+                fn_val(r["hf_out"], F.FT[0], F.FT[1]):
+            ovf_hf += 1
+            if ovf_hf <= 8:
+                print(f"  [DIFF] {cname} mode={r['mode']} mine={r['out']:x} "
+                      f"hf={r['hf_out']:x}")
+        if r["flags"] != r["hf_flags"]:
+            ovf_hfflag += 1
+            if ovf_hfflag <= 8:
+                print(f"  [FLAG] {cname} mode={r['mode']} "
+                      f"mine={r['flags']:x} hf={r['hf_flags']:x}")
+        want_rec, wflags = F.f2f_exact(F.FO[0], F.FO[1], F.FT[0], F.FT[1],
+                                       r["in_lo"], r["mode"])
+        if (mine, r["flags"]) != (F.fn_from_recfn(F.FT[0], F.FT[1], want_rec),
+                                  wflags):
+            ovf_oracle += 1
+            if ovf_oracle <= 8:
+                print(f"  [ORACLE] {cname} mode={r['mode']} "
+                      f"mine={mine:08x}/{r['flags']:02x} "
+                      f"oracle={F.fn_from_recfn(F.FT[0], F.FT[1], want_rec):08x}"
+                      f"/{wflags:02x}")
+    print(f"  f2f fo2ft ovf: {len(got)} vectors | table-diff={ovf_table} "
+          f"hf-value-diff={ovf_hf} hf-flag-diff={ovf_hfflag} "
+          f"oracle-diff={ovf_oracle}")
+    fails += ovf_table + ovf_hf + ovf_hfflag + ovf_oracle
+    summary.append(("f2f fo2ft ovf", len(got),
+                    ovf_table + ovf_hf + ovf_hfflag + ovf_oracle))
 
     # ── the divide-by-zero (`DZ`) lane of the rounding primitive ───────────
     # m12-011 tied `infiniteExc` to zero, so this lane had never been

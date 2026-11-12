@@ -96,7 +96,7 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 
 ## FP 转换族（`m12-chipyard-012`）
 
-- **单元**（`WumingFP.scala`，语义对齐 berkeley-hardfloat 的 `RecFNToIN` / `INToRecFN` / `rawFloatFromIN`，仍未引入其依赖）：`WumingRecFNToIN`（floa→整，`signedOut` 运行时选择，**饱和**而非报错——NaN/Inf/超范围 ⇒ 最大/最小值 + `NV`，`NX` 只用于有限的 inexact 结果）、`WumingINToRecFN`（整→浮，整数幅值规格化后交给**同一个舍入原语**，结构上不会 tiny/overflow ⇒ 只可能 `NX`）、`WumingF2F`（`ft2fo` 精确、`fo2ft` 六档；**`fo2ft` 溢出恒返回 ±Inf 并置 `OF`**，与 IEEE 在 RTZ/RDN/RUP 下取最大有限值不同，依据 `spec/SimRISC-07 §1.4` 与 `contract-fp §2`）。三者合成 `WumingFPConvert`，`kind` 选单元、`signedOp` 选有无符号。
+- **单元**（`WumingFP.scala`，语义对齐 berkeley-hardfloat 的 `RecFNToIN` / `INToRecFN` / `rawFloatFromIN`，仍未引入其依赖）：`WumingRecFNToIN`（floa→整，`signedOut` 运行时选择，**饱和**而非报错——NaN/Inf/超范围 ⇒ 最大/最小值 + `NV`，`NX` 只用于有限的 inexact 结果）、`WumingINToRecFN`（整→浮，整数幅值规格化后交给**同一个舍入原语**，结构上不会 tiny/overflow ⇒ 只可能 `NX`）、`WumingF2F`（`ft2fo` 精确、`fo2ft` 六档；`fo2ft` 的**溢出按舍入方向**给出结果，见下文「`fo2ft` 溢出按舍入方向」）。三者合成 `WumingFPConvert`，`kind` 选单元、`signedOp` 选有无符号。
 - **解码**（`WumingDecoder`）：20 条转换 = 15 条舍入六档（`immu6` one-hot，`0x20` 动态读 `rf0[33:32]`，其他值 ⇒ ILLI）+ 3 条 SBZ（`ft2fo`/`it2fo`/`ut2fo`，非 0 ⇒ ILLI）+ 2 条窗口复制（`ft2ft`/`fo2fo`，复用 `sCopy` 计数形式，`dst_rf0`/`mreg_zero`/两处范围/重叠均 ILLI）。f2i 目的为 `rd`（`dst_rd0`），其余目的为 `rf`（`dst_rf0`）。
 - **标志**：`WumingCore` 在 `EXEC` 把转换单元的 5 位标志接到 `rf.io.fflags`，`WumingFcsr` 累积（sticky），软件写 `rf0` 清零 —— **`NV` 的硬件抬升路径自本任务起真实存在**；`DZ` 的通道（舍入原语的 `infiniteExc`）在单元台单独比对，其真实生产者是除法（`m12-chipyard-014`）。
 - **周期（trace 实测）**：单寄存器转换 1 拍；`ft2ft`/`fo2fo` = 1 + 个数（与其它块复制一致）。
@@ -121,6 +121,14 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **核**（`WumingCore`）：新增第 14 个状态 `sFpSlow`；`EXEC` 一拍发 `start`、`sFpSlow` 等 `done`，`done` 那一拍写回 `rf` 并把 5 位标志送 `rf.io.fflags`（`nv`/`dz`/`of`/`uf`/`nx` 都由此族在指令级到达）。
 - **周期（trace 实测）**：fo 的 `fodiv`/`foroot` **56 拍** = `sigWidth + 3`，与操作数无关（4 组除法 + 3 组开方逐例相同；ft 为 27）；`forem` = `sigWidth + (ea − eb) + 1` 拍（`ea − eb` = 1/10/100/1000 时实测 55/64/154/1054；余数提前为 0 时早退，但那是精确整除路径）。单元台自测的 tick 数同量级（div ft 26 / fo 55、rem 最长 1866）。
 - **验证**：`fp_unit/` 把 div/sqrt 的三方对照（本实现 / hardfloat `DivSqrtRecFN_small` / `fp_ref` 精确 oracle）跑满（值 + 标志），`forem` 只有 oracle（hardfloat 无 remainder 模块）；`fp_sweep.py` 增 `div_ft/div_fo/sqrt_ft/sqrt_fo/rem_ft/rem_fo/divrem_special` 七组（均入 QEMU 三方对照）+ `divrem_nan` 组（模型only）+ 10 条合法性镜像；`tests/inst/fp/divrem.yaml` 32 例（26 语义 + 6 ILLI）在本核与 QEMU 上逐字节一致（sNaN payload 一例模型only）。
+
+## `fo2ft` 溢出按舍入方向（`m12-chipyard-025` / `m12-chipyard-026`）
+
+- **条款**（`spec/SimRISC-07 §1.4` = IEEE 754-2019 §7.4）：溢出 = **以无限指数范围**按所选方向舍入后的幅值大于 `ft_max = (2 − 2^−23) × 2^127`；结果形态由方向决定 —— RNE/RNA、正向 RUP、负向 RDN ⇒ `±Inf`，其余三格（RTZ 双向、正向 RDN、负向 RUP）⇒ `±ft_max`；两种情况都置 `OF|NX`。**因此「结果变成 Inf」与「溢出」不等价**：轻微溢出（`ft_max` 之上、`2^128` 中点之下）在把幅值舍下来的方向上只置 `NX`、不置 `OF`。
+- **RTL**（`WumingF2F` → 舍入原语 `WumingRoundAnyRawFNToRecFN`）：`common_overflow = sRoundedExp >> (outExpWidth − 1) >= 3`（进位后的无界指数），`val pegMaxFiniteMagOut = overflow && !overflow_roundMagUp` 把方向决定落到「Inf 还是最大有限幅值」；旧的 `forceInfOnOverflow` 覆写已删除。
+- **模型**（`tools/chipyard/fp_ref.py`）：`round_dyadic`/`_round_mag` 就是该条款的唯一实现，`f2f_exact` 不再有「恒 ±Inf」覆写参数（`m12-chipyard-026` 补回）。
+- **向量**：单元台 `f2f fo2ft ovf` 40 例 = 8 形状（最大 double / 中点上方 1 ulp / 中点 tie / 恰为 `ft_max`，各双符号）× 5 档，期望值是从条款**逐格抄写**的常量表（不取自 oracle），与 RTL、hardfloat 三方对照；核上 `fp_sweep.py` 的 `cvt_ff_ovf` 38 例（severe 10 + mild 10 + 中点 10 + 动态 `0x20` 四码双向 8）逐例比 `rd` 与 `rf0`。
+- **验证**：`make_patch chipyard` 从源树重导补丁（`m12-chipyard-026`，此前只合入了任务书 ⇒ 仓库补丁仍是旧行为，`ISS-405`）；`make check-patch-tree` / `check-source-state` / `apply-series` 幂等、L2 全绿。
 
 ## 边界
 - **保留** rocket-chip 库（Diplomacy / TileLink / `BaseTile`）与 chipyard 仿真设施（Verilator harness / BootROM / 内存模型 / `loadmem`）。

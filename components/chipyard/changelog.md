@@ -4,6 +4,14 @@
 
 ## M12
 
+- **2026-11-12 `m12-chipyard-026`**
+  - 摘要：**修复 `m12-chipyard-025` 的实现未落 master（`ISS-405`）**：补丁从共享源树重导 —— 实质变化只有 `WumingFP.scala.patch` 与 `WumingFPUnitHarness.scala.patch`（其余 19 + 2 条补丁逐字未变），`WumingFP.scala.patch` 内 `forceInfOnOverflow` 由 5 处降为 **0**。模型侧补回 `025` 的口径：`fp_ref.f2f_exact` 删除 `force_inf_on_overflow` 参数与「恒 ±Inf」覆写（溢出只用舍入原语的 `_round_mag` 那一套方向规则）；`fp_sweep` 的 `cvt_ff` 改为按方向期待，`cvt_flags` 的 `flags_of_uf_nx` 不再写死 `+Inf` 字面量（改为由 oracle 导出，原字面量编码的正是旧规则），并新增 `cvt_ff_ovf` 38 例（severe / 中点上方 1 ulp / 中点 tie 各 5 档 × 双符号 = 30，加动态 `0x20` 四码 × 双符号 8）；`fp_unit/unit_run` 的 `f2f` 组去掉 hardfloat 结果的后处理，新增 `f2f fo2ft ovf` 40 例 —— 8 形状（最大 double / 中点上方 1 ulp / 中点 / 恰为 `ft_max`，各双符号）× 5 档，期望值按条款**逐格抄写**成常量表，与 RTL、hardfloat、oracle 四方对照。
+  - 执行者：engineer
+
+- **2026-11-12 `m12-chipyard-025`**
+  - 摘要：**`fo2ft` 溢出按 IEEE 舍入方向**（`spec/SimRISC-07 §1.4` = IEEE 754-2019 §7.4）。`WumingFP.scala` 的 `WumingF2F` 删除 `forceInfOnOverflow` 覆写，改由舍入原语以**无界指数**判溢出：`common_overflow = sRoundedExp >> (outExpWidth − 1) >= 3`，`pegMaxFiniteMagOut = overflow && !overflow_roundMagUp` ⇒ RNE/RNA、正向 RUP、负向 RDN 给 `±Inf`，其余三格给 `±ft_max`，两种情况都置 `OF|NX`（轻微溢出在把幅值舍下来的方向上只置 `NX`）；`WumingFPUnitHarness` 不再对 hardfloat 的 `fo2ft` 结果做后处理，hardfloat 自身结果即参考。模型 `fp_ref.f2f_exact` 同步去掉「恒 ±Inf」覆写（实现补入由 `m12-chipyard-026` 完成）。
+  - 执行者：engineer
+
 - **2026-11-12 `m12-chipyard-014`**
   - 摘要：**FP 除法 / 开方 / 取余**（`spec/SimRISC-07 §2.1/§2.2`）。`WumingFP.scala` 增 `WumingDivSqrtRecFN`（除法与开方共用每拍一位的数字迭代状态机，`N = sigWidth+2` 步、耗时常数）、`WumingRemRecFN`（restoring 长除，`sigWidth + (ea−eb)` 步，`ea−eb < 0` 不进循环）与选择器 `WumingFpSlow`（`DIV`/`SQRT`/`REM` × ft/fo，**只 start 被选中的那一个实例**）。除法把手算的**精确截断商** `Q = floor(|a|/|b|·2^N)` 与余数非零标志一起交同一舍入原语（仍单次舍入）；开方逐位 restoring、radicand 按奇偶 `p` 对偶数指数；取余由 `2·rem` 与 `|b|` 及商奇偶定就近取偶，**结果精确、不置 `NX`/`OF`/`UF`**。`DZ` 由本族首次在指令级产生：`±Inf` 值走 `in.isInf`、`DZ` 位走 `infiniteExc`，两者同拍置（`0/0`、`Inf/0`、`NaN/0` 均不置 `DZ`）；`0/0`、`Inf/Inf`、`sqrt(负数)` ⇒ canonical qNaN + `NV`；qNaN 传播 payload（符号清 0，同 hardfloat；softfloat 保留符号——一例模型only）、sNaN ⇒ canonical + `NV`；`forem` 三边界（`rfHC`±Inf、`rfHD`±0、sNaN）⇒ `NV`+qNaN，`rfHD`±Inf/`rfHC`±0 ⇒ 原样返回。`WumingDecoder` 解 6 条（`orrr` 4 + `orri` 2，`foroot`/`ftroot` 仅 n = 2，其他 ILLI；目的 `rf0` ⇒ ILLI）；`WumingCore` 增第 14 态 `sFpSlow`（`EXEC` 发 `start`、`done` 拍写回并送标志）。周期实测：fo 的 div/sqrt **56 拍**（`sigWidth+3`，与操作数无关）、`forem` = `sigWidth+(ea−eb)+1`（d = 1/10/100/1000 → 55/64/154/1054）。工具：`fp_ref` 增 `round_ratio`/`round_prefix` 与三条精确 oracle + `divrem` 性质自检（Fraction 精确比对）、`fp_unit` 增 6 个 clocked op（div/sqrt 与 hardfloat `DivSqrtRecFN_small` 双对照）、`fp_sweep` 增 7 组 + `divrem_nan`（模型only）+ 10 条合法性镜像，新增 `tests/inst/fp/divrem.yaml`（32 例，本核 == YAML == QEMU）。
   - 执行者：engineer

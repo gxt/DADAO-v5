@@ -551,8 +551,7 @@ def cases_cvt_exact():
     for tag, x in (("normal", 0x402CCCCD), ("subnormal", 0x00000001),
                    ("qnan", 0x7FC00000), ("inf", 0x7F800000),
                    ("nzero", 0x80000000)):
-        rec, flags = F.f2f_exact(F.FT[0], F.FT[1], F.FO[0], F.FO[1], x,
-                                 F.RNE, False)
+        rec, flags = F.f2f_exact(F.FT[0], F.FT[1], F.FO[0], F.FO[1], x, F.RNE)
         out.append(_cvt_case(
             f"ft2fo_{tag}", fcsr_clear() + load_rf(1, x),
             [enc_cvt("ft2fo", 4, 1, 0)],
@@ -582,7 +581,7 @@ def cases_cvt_snan():
     pair only and stays out of the QEMU cross-check.
     """
     x = 0x7F800001
-    rec, flags = F.f2f_exact(F.FT[0], F.FT[1], F.FO[0], F.FO[1], x, F.RNE, False)
+    rec, flags = F.f2f_exact(F.FT[0], F.FT[1], F.FO[0], F.FO[1], x, F.RNE)
     return [_cvt_case("ft2fo_snan", fcsr_clear() + load_rf(1, x),
                       [enc_cvt("ft2fo", 4, 1, 0)],
                       [("rf", 4), ("rf", 0)],
@@ -590,8 +589,12 @@ def cases_cvt_snan():
 
 
 def cases_cvt_ff():
-    """fo2ft in all six directions (including overflow, which must return
-    ±Inf whatever the direction), and the two block copies."""
+    """fo2ft in all six directions (overflow follows the rounding direction:
+    RNE/RNA, RUP+ and RDN- give ±Inf, the other cells give ±ft_max -- see
+    spec/SimRISC-07 §1.4 / IEEE 754-2019 §7.4), and the two block copies.
+
+    The five static directions here carry the severe-overflow cells; the full
+    five-direction x sign x severe/mild/midpoint matrix lives in `cvt_ff_ovf`."""
     out = []
     for label, imm6 in CVT_MODES:
         for tag, x in (("tie", 0x400599999999999A),
@@ -599,7 +602,7 @@ def cases_cvt_ff():
                        ("ovf", 0x7FEFFFFFFFFFFFFF),
                        ("unf", 0x3690000000000000)):
             rec, flags = F.f2f_exact(F.FO[0], F.FO[1], F.FT[0], F.FT[1], x,
-                                     _mode(imm6), True)
+                                     _mode(imm6))
             out.append(_cvt_case(
                 f"fo2ft_{label}_{tag}", _cvt_imm6_setup(imm6) + load_rf(1, x),
                 [enc_cvt("fo2ft", 4, 1, imm6)],
@@ -617,6 +620,56 @@ def cases_cvt_ff():
         "ft2ft_single", fcsr_clear() + load_rf(1, 0x12345678),
         [enc_cvt_ff("ft2ft", 2, 1, 1)],
         [("rf", 2), ("rf", 0)], [0x12345678, FCSR_BASE]))
+    return out
+
+
+def cases_cvt_ff_ovf():
+    """`fo2ft` overflow in every cell (spec/SimRISC-07 §1.4 = IEEE 754-2019
+    §7.4; `m13-testcases-011` builds the same matrix): 38 cases --
+
+    * ``sev``: the largest double, five static directions x both signs (10);
+      overflow in every direction, so the result is `±Inf` or `±ft_max` with
+      `OF|NX`;
+    * ``mild``: one double ulp above the midpoint between `ft_max` and 2^128,
+      five directions x both signs (10); the directions that round down land on
+      `ft_max`, which is *not* an overflow (`NX` only);
+    * ``mid``: exactly that midpoint, i.e. the tie (10); RNE/RNA go up to
+      2^128 and overflow;
+    * ``dyn``: the dynamic `immu6 = 0x20` code with `rf0[33:32]` = 00/01/10/11,
+      both signs (8), so the "follows `rf0`" path covers all four directions.
+    """
+    out = []
+    sev = {"pos": 0x7FEFFFFFFFFFFFFF, "neg": 0xFFEFFFFFFFFFFFFF}
+    shapes = (("sev", sev), ("mild", {"pos": 0x47EFFFFFF0000001,
+                                      "neg": 0xC7EFFFFFF0000001}),
+              ("mid", {"pos": 0x47EFFFFFF0000000,
+                       "neg": 0xC7EFFFFFF0000000}))
+    for tag, xs in shapes:
+        for label, imm6 in CVT_MODES[:5]:          # the five static codes
+            for sgn in ("pos", "neg"):
+                x = xs[sgn]
+                rec, flags = F.f2f_exact(F.FO[0], F.FO[1], F.FT[0], F.FT[1],
+                                         x, _mode(imm6))
+                name = (f"fo2ft_mid_{label}_{sgn}" if tag == "mid"
+                        else f"fo2ft_ovf_{label}_{sgn}_{tag}")
+                out.append(_cvt_case(
+                    name, fcsr_clear() + load_rf(1, x),
+                    [enc_cvt("fo2ft", 4, 1, imm6)],
+                    [("rf", 4), ("rf", 0)],
+                    [F.fn_from_recfn(F.FT[0], F.FT[1], rec),
+                     fcsr_after(imm6, flags)]))
+    for code, mode in enumerate((F.RNE, F.RTZ, F.RDN, F.RUP)):
+        for sgn in ("pos", "neg"):
+            x = sev[sgn]
+            rec, flags = F.f2f_exact(F.FO[0], F.FO[1], F.FT[0], F.FT[1],
+                                     x, mode)
+            out.append(_cvt_case(
+                f"fo2ft_ovf_dyn{code}_{sgn}_sev",
+                fcsr_clear() + [enc_set_w_rf(0, 2, code)] + load_rf(1, x),
+                [enc_cvt("fo2ft", 4, 1, 0x20)],
+                [("rf", 4), ("rf", 0)],
+                [F.fn_from_recfn(F.FT[0], F.FT[1], rec),
+                 FCSR_BASE | (code << 32) | flags]))
     return out
 
 
@@ -660,6 +713,14 @@ def cases_cvt_flags():
     x = 0x402CCCCD
     v1, f1 = F.f2i_exact(F.FT[0], F.FT[1], x, 32, True, F.RTZ)
     v2, f2 = F.f2i_exact(F.FT[0], F.FT[1], x, 64, True, F.RNE)
+    # The last case drives `fo2ft` over the overflow *and* the underflow edge.
+    # RTZ pegs a positive overflow to `+ft_max` (not `+Inf`: spec/SimRISC-07
+    # §1.4 = IEEE 754-2019 §7.4), so the expected word comes from the oracle
+    # rather than a literal that would encode the old "always ±Inf" rule.
+    v_ovf, f_ovf = F.f2f_exact(F.FO[0], F.FO[1], F.FT[0], F.FT[1],
+                               0x7FEFFFFFFFFFFFFF, F.RTZ)
+    v_unf, f_unf = F.f2f_exact(F.FO[0], F.FO[1], F.FT[0], F.FT[1],
+                               0x3690000000000000, F.RNE)
     return [
         _cvt_case("flags_accumulate", fcsr_clear() + load_rf(1, x),
                   [enc_cvt("ft2it", 5, 1, 0x04), enc_cvt("ft2io", 6, 1, 0x01)],
@@ -680,10 +741,11 @@ def cases_cvt_flags():
         _cvt_case("flags_of_uf_nx",
                   fcsr_clear() + load_rf(1, 0x7FEFFFFFFFFFFFFF) +
                   load_rf(2, 0x3690000000000000),
-                  [enc_cvt("fo2ft", 4, 1, 0x04),   # OF|NX
+                  [enc_cvt("fo2ft", 4, 1, 0x04),   # OF|NX, pegged to +ft_max
                    enc_cvt("fo2ft", 5, 2, 0x01)],  # UF|NX accumulates
                   [("rf", 4), ("rf", 5), ("rf", 0)],
-                  [0x7F800000, 0, FCSR_BASE | (0x04 | 0x10 | 0x08 | 0x10)]),
+                  [F.fn_from_recfn(F.FT[0], F.FT[1], v_ovf), v_unf,
+                   FCSR_BASE | (f_ovf | f_unf)]),
     ]
 
 
@@ -1726,6 +1788,7 @@ GROUPS = {
     "cvt_exact": cases_cvt_exact,
     "cvt_snan": cases_cvt_snan,
     "cvt_ff": cases_cvt_ff,
+    "cvt_ff_ovf": cases_cvt_ff_ovf,
     "cvt_sat": cases_cvt_sat,
     "cvt_flags": cases_cvt_flags,
     # m12-013 arithmetic family (spec/SimRISC-07 §2/§4)
