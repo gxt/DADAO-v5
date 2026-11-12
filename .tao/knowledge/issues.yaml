@@ -412,3 +412,18 @@
   closed_in: null
   resolved_by: null
   title: '【P2】**FP 指令计数的三个口径不一致**：`discussing.md` 写「47 条」，`spec/SimRISC-07` 附录 A 列 **52** 行，`contracts/fp_semantics.yaml` 的 `scope: fp` 是 **66** 个 id（52 + 8 rf 内存形式 + 3 `cs.* rf` + `set.w rf` + `rd2rf`/`rf2rd`）。**47 在任何机器可读源里都复现不出**（52−47=5 无自洽切分）。已定（`m12-chipyard-015` reviewer 同意）：`m13-integ-009` 审 **66**（可做漏一即 FAIL 的门控）、按 **52** 排版、47 退役为历史别名。遗留：`discussing.md` 与相关任务书里的「47」应逐步改写。'
+- id: ISS-410
+  scope:
+  - testcases
+  - chipyard
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P1】**chipyard BootROM hex 的 hmon 仍走 `escape +4`，与 QEMU/gem5 的 `bootrom_tiny.bin`（槽 `0xF8`）不一致**：`m13-testcases-012` 只能靠「运行期把自建 hmon 处理器拷到 hmon SRAM 基址再触发异常」来对齐三方。这是 `m13-integ-007`/`ISS-380` 的未跟进项（hex 未用新 builder 重生成）。行动：用 `tools/testcases/arch/build_tiny_bootrom.py` 重生成 chipyard 签入 hex（目标共享镜像 md5 `514300876ea66ec108396334f3ef2b0f`），改源树 hex → `tools/infra/make_patch.py` 重导出 → `check-patch-tree`；之后删除测试里的 workaround。
+- id: ISS-411
+  scope:
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`tests/inst` 重构（汇编+宏）的三项遗留：① 新 `.S` **未入 `check-inst` 门控**（载体派生仍只吃 YAML，新套件靠 `run_asm_suite.py` 单跑）⇒ 需扩载体并同步 `inventory.md`；② `st.o rb0`（源 = 当前指令地址）未覆盖（宏层拿不到被测指令自身地址）；③ `ld.o ra0`（RACNT/MRPTR 特殊写语义）未覆盖 ⇒ 跨平台写语义需先裁定。
