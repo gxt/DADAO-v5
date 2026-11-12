@@ -459,3 +459,10 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`m13-spec-004` 完成区用「根 `README` 在研列未变」佐证 `DADAO-12 0.7.3-rc` 未发布，但 README 该列实为 `0.7.2-rc`（与册头滞后，属 `SPEC-177t` 既有问题）⇒ 措辞不准；未发布的结论由附录 rc 段独立成立。建议：随下次 spec 任务订正 README 在研列与册头一致性，或改完成区措辞。
+- id: ISS-416
+  scope:
+  - spec
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】**`tools/spec/generate_opcodes.py` 与 `contracts/opcodes.yaml` 漂移**（`m13-spec-005` 发现）：自 `SPEC-194t` 起该任务只改 yaml 未重跑生成器 ⇒ 现在重跑会改 **93 行 FP 记录**。本次 `spec-005` 用定点编辑规避，未重生成整表。行动：另立任务「生成器 ↔ yaml 对齐」，对齐后恢复「只改生成器、重跑产出 yaml」的单一真源流程。
