@@ -700,7 +700,17 @@ ARITH_HA = {
     "foadd": 0x18, "fosub": 0x19, "fomul": 0x1A,
     "ftmin": 0x26, "ftmax": 0x27, "fomin": 0x2E, "fomax": 0x2F,
     "ftqcmp": 0x20, "ftscmp": 0x21, "foqcmp": 0x28, "foscmp": 0x29,
+    # m12-014: the multi-cycle family (spec/SimRISC-07 §2.1/§2.2)
+    "ftdiv": 0x13, "ftrem": 0x14, "fodiv": 0x1B, "forem": 0x1C,
 }
+
+ROOT_HA = {"ftroot": 0x06, "foroot": 0x0E}
+
+
+def enc_root(mn, dst, src, n):
+    """`ftroot`/`foroot rfHB, rfHC, immu6` (`orri`, opc 0x44; n = 2 only)."""
+    return (0x44 << 24) | (ROOT_HA[mn] << 18) | ((dst & 0x3F) << 12) | \
+        ((src & 0x3F) << 6) | (n & 0x3F)
 # rf0[33:32] -> rounding direction (spec/SimRISC-00 §浮点状态寄存器)
 ARITH_MODES = (("rne", 0), ("rtz", 1), ("rdn", 2), ("rup", 3))
 
@@ -1048,6 +1058,343 @@ def cases_cmp_nan():
     return out
 
 
+# ── m12-014: divide / root / remainder (spec/SimRISC-07 §2.1/§2.2) ────────
+#
+# Operand pairs with one purpose each: exact quotients, repeating quotients
+# (every direction is distinguishable), 0/0 and Inf/Inf (NV), a finite value
+# over +-0 (`DZ` with the right infinite sign), the infinite and zero results
+# of the other operand shapes, overflow, underflow, quiet/signalling NaN, and
+# the subnormal boundaries.
+DIVREM_PAIRS = [
+    ("one_one", 0x3F800000, 0x3F800000, 0x3FF0000000000000, 0x3FF0000000000000),
+    ("three_two", 0x40400000, 0x40000000, 0x4008000000000000,
+     0x4000000000000000),
+    ("one_three", 0x3F800000, 0x40400000, 0x3FF0000000000000,
+     0x4008000000000000),
+    ("two_three", 0x40000000, 0x40400000, 0x4000000000000000,
+     0x4008000000000000),
+    ("zero_zero", 0x00000000, 0x00000000, 0x0000000000000000,
+     0x0000000000000000),
+    ("inf_inf", 0x7F800000, 0x7F800000, 0x7FF0000000000000,
+     0x7FF0000000000000),
+    ("one_zero", 0x3F800000, 0x00000000, 0x3FF0000000000000,
+     0x0000000000000000),
+    ("n_one_zero", 0xBF800000, 0x00000000, 0xBFF0000000000000,
+     0x0000000000000000),
+    ("one_nzero", 0x3F800000, 0x80000000, 0x3FF0000000000000,
+     0x8000000000000000),
+    ("zero_one", 0x00000000, 0x3F800000, 0x0000000000000000,
+     0x3FF0000000000000),
+    ("nzero_one", 0x80000000, 0x3F800000, 0x8000000000000000,
+     0x3FF0000000000000),
+    ("inf_one", 0x7F800000, 0x3F800000, 0x7FF0000000000000,
+     0x3FF0000000000000),
+    ("ninf_one", 0xFF800000, 0x3F800000, 0xFFF0000000000000,
+     0x3FF0000000000000),
+    ("one_inf", 0x3F800000, 0x7F800000, 0x3FF0000000000000,
+     0x7FF0000000000000),
+    ("one_ninf", 0x3F800000, 0xFF800000, 0x3FF0000000000000,
+     0xFFF0000000000000),
+    ("ovf", 0x7F7FFFFF, 0x3F000000, 0x7FEFFFFFFFFFFFFF,
+     0x3FE0000000000000),
+    ("unf", 0x00000001, 0x40000000, 0x0000000000000001,
+     0x4000000000000000),
+    ("tiny_tiny", 0x00000001, 0x00800000, 0x0000000000000001,
+     0x0010000000000000),
+    ("max_one", 0x7F7FFFFF, 0x3F800000, 0x7FEFFFFFFFFFFFFF,
+     0x3FF0000000000000),
+    ("one_tiny", 0x3F800000, 0x00000001, 0x3FF0000000000000,
+     0x0000000000000001),
+    ("subnorm_edge", 0x007FFFFF, 0x3F800000, 0x000FFFFFFFFFFFFF,
+     0x3FF0000000000000),
+    ("qnan", 0x7FC00123, 0x3F800000, 0x7FF8000000000123,
+     0x3FF0000000000000),
+    ("qnan_zero", 0x7FC00123, 0x00000000, 0x7FF8000000000123,
+     0x0000000000000000),
+]
+
+# Square-root operands: exact roots, the smallest/largest normals, subnormals,
+# every special value and the sign of zero.
+DIVREM_UNARY = [
+    ("four", 0x40800000, 0x4010000000000000),
+    ("two", 0x40000000, 0x4000000000000000),
+    ("one", 0x3F800000, 0x3FF0000000000000),
+    ("nine", 0x41100000, 0x4022000000000000),
+    ("third", 0x3EAAAAAB, 0x3FD5555555555555),
+    ("half", 0x3F000000, 0x3FE0000000000000),
+    ("min_norm", 0x00800000, 0x0010000000000000),
+    ("max", 0x7F7FFFFF, 0x7FEFFFFFFFFFFFFF),
+    ("min_sub", 0x00000001, 0x0000000000000001),
+    ("max_sub", 0x007FFFFF, 0x000FFFFFFFFFFFFF),
+    ("zero", 0x00000000, 0x0000000000000000),
+    ("nzero", 0x80000000, 0x8000000000000000),
+    ("inf", 0x7F800000, 0x7FF0000000000000),
+    ("ninf", 0xFF800000, 0xFFF0000000000000),
+    ("neg", 0xC0800000, 0xC010000000000000),
+    ("nsub", 0x80000001, 0x8000000000000001),
+    ("qnan", 0x7FC00123, 0x7FF8000000000123),
+]
+
+# Remainder pairs: the tie cases (3 rem 2 and 1 rem 0.5 both round to the even
+# quotient), sign of the dividend, the three invalid shapes (both signs:
+# +-Inf dividend, +-0 divisor), the pass-through shapes and a large exponent
+# distance (the long-iteration case).
+REM_PAIRS = [
+    ("five_two", 0x40A00000, 0x40000000, 0x4014000000000000,
+     0x4000000000000000),
+    ("three_two", 0x40400000, 0x40000000, 0x4008000000000000,
+     0x4000000000000000),
+    ("two_half", 0x40200000, 0x3F000000, 0x4008000000000000,
+     0x3FE0000000000000),
+    ("two5_one", 0x40200000, 0x3F800000, 0x4004000000000000,
+     0x3FF0000000000000),
+    ("n5_two", 0xC0A00000, 0x40000000, 0xC014000000000000,
+     0x4000000000000000),
+    ("5_n2", 0x40A00000, 0xC0000000, 0x4014000000000000,
+     0xC000000000000000),
+    ("one_zero", 0x3F800000, 0x00000000, 0x3FF0000000000000,
+     0x0000000000000000),
+    ("one_nzero", 0x3F800000, 0x80000000, 0x3FF0000000000000,
+     0x8000000000000000),
+    ("inf_two", 0x7F800000, 0x40000000, 0x7FF0000000000000,
+     0x4000000000000000),
+    ("ninf_two", 0xFF800000, 0x40000000, 0xFFF0000000000000,
+     0x4000000000000000),
+    ("three_inf", 0x40400000, 0x7F800000, 0x4008000000000000,
+     0x7FF0000000000000),
+    ("zero_three", 0x00000000, 0x40400000, 0x0000000000000000,
+     0x4008000000000000),
+    ("nzero_three", 0x80000000, 0x40400000, 0x8000000000000000,
+     0x4008000000000000),
+    ("qnan", 0x7FC00123, 0x40000000, 0x7FF8000000000123,
+     0x4000000000000000),
+    ("exact", 0x40800000, 0x40000000, 0x4010000000000000,
+     0x4000000000000000),
+    ("tiny_max", 0x00000001, 0x7F7FFFFF, 0x0000000000000001,
+     0x7FEFFFFFFFFFFFFF),
+    ("max_tiny", 0x7F7FFFFF, 0x00000001, 0x7FEFFFFFFFFFFFFF,
+     0x0000000000000001),
+    ("sub_sub", 0x00000003, 0x00000002, 0x0000000000000003,
+     0x0000000000000002),
+]
+
+
+def _divrem_pair(entry, fo):
+    return (entry[3], entry[4]) if fo else (entry[1], entry[2])
+
+
+def _cases_div(want_fo):
+    """`ftdiv`/`fodiv` in all four `rf0` directions (the quotient is rounded,
+    so the direction is architecturally visible)."""
+    out = []
+    for mn, fo in (("ftdiv", False), ("fodiv", True)):
+        if fo != want_fo:
+            continue
+        ew, sw = F.FO if fo else F.FT
+        for label, mode in ARITH_MODES:
+            for entry in DIVREM_PAIRS:
+                a, b = _divrem_pair(entry, fo)
+                value, flags = F.div_exact(ew, sw, a, b, mode)
+                out.append(_cvt_case(
+                    f"{mn}_{entry[0]}_m{mode}",
+                    arith_mode_setup(mode) + load_rf(1, a) + load_rf(2, b),
+                    [enc_arith(mn, 3, 1, 2)],
+                    [("rf", 3), ("rf", 0)],
+                    [value, arith_fcsr(mode, flags)]))
+    return out
+
+
+def _cases_sqrt(want_fo):
+    """`ftroot`/`foroot` with `immu6` = 2 in all four directions."""
+    out = []
+    for mn, fo in (("ftroot", False), ("foroot", True)):
+        if fo != want_fo:
+            continue
+        ew, sw = F.FO if fo else F.FT
+        for label, mode in ARITH_MODES:
+            for entry in DIVREM_UNARY:
+                a = entry[2] if fo else entry[1]
+                value, flags = F.sqrt_exact(ew, sw, a, mode)
+                out.append(_cvt_case(
+                    f"{mn}_{entry[0]}_m{mode}",
+                    arith_mode_setup(mode) + load_rf(1, a),
+                    [enc_root(mn, 3, 1, 2)],
+                    [("rf", 3), ("rf", 0)],
+                    [value, arith_fcsr(mode, flags)]))
+    return out
+
+
+def _cases_rem(want_fo):
+    """`ftrem`/`forem`: the result is exact, so one direction suffices and the
+    coverage is in the operand pairs (tie-to-even, signs, invalid shapes,
+    pass-through, the largest exponent distance)."""
+    out = []
+    for mn, fo in (("ftrem", False), ("forem", True)):
+        if fo != want_fo:
+            continue
+        ew, sw = F.FO if fo else F.FT
+        for entry in REM_PAIRS:
+            a, b = _divrem_pair(entry, fo)
+            value, flags = F.rem_exact(ew, sw, a, b)
+            out.append(_cvt_case(
+                f"{mn}_{entry[0]}",
+                arith_mode_setup(0) + load_rf(1, a) + load_rf(2, b),
+                [enc_arith(mn, 3, 1, 2)],
+                [("rf", 3), ("rf", 0)],
+                [value, arith_fcsr(0, flags)]))
+    return out
+
+
+def cases_div_ft():
+    return _cases_div(False)
+
+
+def cases_div_fo():
+    return _cases_div(True)
+
+
+def cases_sqrt_ft():
+    return _cases_sqrt(False)
+
+
+def cases_sqrt_fo():
+    return _cases_sqrt(True)
+
+
+def cases_rem_ft():
+    return _cases_rem(False)
+
+
+def cases_rem_fo():
+    return _cases_rem(True)
+
+
+def cases_divrem_nan():
+    """Signalling NaNs across the family: `NV` plus the *canonical* quiet NaN
+    (spec/SimRISC-07 §1.4; the same rule the fused multiply-add follows).
+
+    Model-only, like the arithmetic family's `arith_nan` group: QEMU/softfloat
+    keeps the quieted payload of an sNaN while this core (and hardfloat, and
+    gem5) canonicalises it, so the *value* of these cases is not comparable
+    byte for byte.  The `NV` bit and the "is a NaN" property are, which is what
+    the `divrem_special` group asserts next to the invalid operations.
+    """
+    out = []
+    for mn, fo, a, b, kind in (("fodiv", True, 0x7FF0000000000001,
+                                0x3FF0000000000000, "div"),
+                               ("fodiv", True, 0x3FF0000000000000,
+                                0xFFF0000000000001, "div"),
+                               ("ftdiv", False, 0x7F800001, 0x3F800000, "div"),
+                               ("foroot", True, 0x7FF0000000000001, 0, "sqrt"),
+                               ("ftroot", False, 0x7F800001, 0, "sqrt"),
+                               ("forem", True, 0x7FF0000000000001,
+                                0x4000000000000000, "rem"),
+                               ("ftrem", False, 0x7F800001, 0x40000000, "rem"),
+                               ("forem", True, 0x3FF0000000000000,
+                                0x7FF0000000000001, "rem"),
+                               # the *sign* of a propagated NaN: this core (and
+                               # hardfloat) return sign 0, softfloat/QEMU keep
+                               # the operand's sign -- model-only
+                               ("fodiv", True, 0x3FF0000000000000,
+                                0xFFF8000000000456, "div"),
+                               ("ftdiv", False, 0x3F800000, 0xFFC00456,
+                                "div")):
+        ew, sw = F.FO if fo else F.FT
+        if kind == "sqrt":
+            value, flags = F.sqrt_exact(ew, sw, a, F.RNE)
+            word = enc_root(mn, 3, 1, 2)
+        elif kind == "div":
+            value, flags = F.div_exact(ew, sw, a, b, F.RNE)
+            word = enc_arith(mn, 3, 1, 2)
+        else:
+            value, flags = F.rem_exact(ew, sw, a, b)
+            word = enc_arith(mn, 3, 1, 2)
+        setup = arith_mode_setup(0) + load_rf(1, a) + load_rf(2, b)
+        out.append(_cvt_case(f"divrem_snan_{mn}_{kind}", setup, [word],
+                             [("rf", 3), ("rf", 0)],
+                             [value, arith_fcsr(0, flags)]))
+    return out
+
+
+def cases_divrem_special():
+    """The shapes the task calls out by name, in both formats: `0/0` and
+    `Inf/Inf` (`NV` + canonical quiet NaN), `sqrt(-x)` and `sqrt(-Inf)` (`NV`
+    + canonical quiet NaN), and the `DZ` lane (a finite non-zero value over
+    +-0 => `±Inf` with exactly `DZ`, no `NX`).  Each entry carries its own ft
+    and fo bit patterns, so the ft cases really are ft values.
+    """
+    div = [
+        ("div_0_0", 0x00000000, 0x00000000,
+         0x0000000000000000, 0x0000000000000000),
+        ("div_inf_inf", 0x7F800000, 0x7F800000,
+         0x7FF0000000000000, 0x7FF0000000000000),
+        ("div_1_0", 0x3F800000, 0x00000000,
+         0x3FF0000000000000, 0x0000000000000000),
+        ("div_n1_0", 0xBF800000, 0x00000000,
+         0xBFF0000000000000, 0x0000000000000000),
+        ("div_1_n0", 0x3F800000, 0x80000000,
+         0x3FF0000000000000, 0x8000000000000000),
+        ("div_tiny_0", 0x00000001, 0x80000000,
+         0x0000000000000001, 0x8000000000000000),
+    ]
+    root = [
+        ("sqrt_neg", 0xC0800000, 0xC010000000000000),
+        ("sqrt_ninf", 0xFF800000, 0xFFF0000000000000),
+        ("sqrt_neg_zero", 0x80000000, 0x8000000000000000),
+        ("sqrt_zero", 0x00000000, 0x0000000000000000),
+        ("sqrt_inf", 0x7F800000, 0x7FF0000000000000),
+    ]
+    out = []
+    for name, fa, fb, da, db in div:
+        for fo, a, b in ((True, da, db), (False, fa, fb)):
+            value, flags = F.div_exact(11 if fo else 8, 53 if fo else 24,
+                                       a, b, F.RNE)
+            out.append(_cvt_case(
+                f"special_{name}_{'fo' if fo else 'ft'}",
+                arith_mode_setup(0) + load_rf(1, a) + load_rf(2, b),
+                [enc_arith("fodiv" if fo else "ftdiv", 3, 1, 2)],
+                [("rf", 3), ("rf", 0)],
+                [value, arith_fcsr(0, flags)]))
+    for name, fa, da in root:
+        for fo, a in ((True, da), (False, fa)):
+            value, flags = F.sqrt_exact(11 if fo else 8, 53 if fo else 24,
+                                        a, F.RNE)
+            out.append(_cvt_case(
+                f"special_{name}_{'fo' if fo else 'ft'}",
+                arith_mode_setup(0) + load_rf(1, a),
+                [enc_root("foroot" if fo else "ftroot", 3, 1, 2)],
+                [("rf", 3), ("rf", 0)],
+                [value, arith_fcsr(0, flags)]))
+    return out
+
+
+def cases_divrem_faults():
+    """Legality of the multi-cycle family: `dst_rf0` on all six forms and the
+    `encode_fp_root_n` rule (`immu6` = n must be 2)."""
+    return [
+        {"name": "fault_ftdiv_dst_rf0", "word": enc_arith("ftdiv", 0, 1, 2),
+         "fault": "ILLI", "setup": load_rf(1, 0x3F800000)},
+        {"name": "fault_fodiv_dst_rf0", "word": enc_arith("fodiv", 0, 1, 2),
+         "fault": "ILLI", "setup": load_rf(1, 0x3FF0000000000000)},
+        {"name": "fault_ftrem_dst_rf0", "word": enc_arith("ftrem", 0, 1, 2),
+         "fault": "ILLI", "setup": load_rf(1, 0x3F800000)},
+        {"name": "fault_forem_dst_rf0", "word": enc_arith("forem", 0, 1, 2),
+         "fault": "ILLI", "setup": load_rf(1, 0x3FF0000000000000)},
+        {"name": "fault_ftroot_dst_rf0", "word": enc_root("ftroot", 0, 1, 2),
+         "fault": "ILLI", "setup": load_rf(1, 0x3F800000)},
+        {"name": "fault_foroot_dst_rf0", "word": enc_root("foroot", 0, 1, 2),
+         "fault": "ILLI", "setup": load_rf(1, 0x3FF0000000000000)},
+        {"name": "fault_ftroot_n1", "word": enc_root("ftroot", 3, 1, 1),
+         "fault": "ILLI", "setup": load_rf(1, 0x3F800000)},
+        {"name": "fault_foroot_n3", "word": enc_root("foroot", 3, 1, 3),
+         "fault": "ILLI", "setup": load_rf(1, 0x3FF0000000000000)},
+        {"name": "fault_foroot_n0", "word": enc_root("foroot", 3, 1, 0),
+         "fault": "ILLI", "setup": load_rf(1, 0x3FF0000000000000)},
+        {"name": "fault_ftroot_n63", "word": enc_root("ftroot", 3, 1, 63),
+         "fault": "ILLI", "setup": load_rf(1, 0x3F800000)},
+    ]
+
+
 def cases_arith_fma_special():
     """FMA with a NaN factor next to an infinity, three ways.
 
@@ -1363,7 +1710,7 @@ def cases_faults():
         {"name": "fault_cs_n_rf_dst_rf0",
          "word": enc_cs_rf(0x61, 1, 0, 2, 3), "fault": "ILLI",
          "setup": load_rf(2, 0x1) + load_rf(3, 0x2)},
-    ] + cases_cvtfaults() + cases_arith_faults()
+    ] + cases_cvtfaults() + cases_arith_faults() + cases_divrem_faults()
 
 
 GROUPS = {
@@ -1395,6 +1742,15 @@ GROUPS = {
     "arith_nan": cases_arith_nan,
     "arith_fma_special": cases_arith_fma_special,
     "cmp_nan": cases_cmp_nan,
+    # m12-014 divide / root / remainder (spec/SimRISC-07 §2.1/§2.2)
+    "div_ft": cases_div_ft,
+    "div_fo": cases_div_fo,
+    "sqrt_ft": cases_sqrt_ft,
+    "sqrt_fo": cases_sqrt_fo,
+    "rem_ft": cases_rem_ft,
+    "rem_fo": cases_rem_fo,
+    "divrem_special": cases_divrem_special,
+    "divrem_nan": cases_divrem_nan,
 }
 
 # Groups whose bytes are also compared against QEMU.  `rf0ldt` is excluded: the
@@ -1406,7 +1762,9 @@ QEMU_GROUPS = ("classify", "sign", "rfmem", "fcsr",
                "arith_add_ft", "arith_add_fo", "arith_mul_ft",
                "arith_mul_fo", "arith_fma_ft", "arith_fma_fo", "arith_cmp",
                "arith_minmax_ft", "arith_minmax_fo", "arith_flags",
-               "arith_fma_special", "cmp_nan")
+               "arith_fma_special", "cmp_nan",
+               "div_ft", "div_fo", "sqrt_ft", "sqrt_fo", "rem_ft", "rem_fo",
+               "divrem_special")
 
 
 # ── program builders ──────────────────────────────────────────────────────

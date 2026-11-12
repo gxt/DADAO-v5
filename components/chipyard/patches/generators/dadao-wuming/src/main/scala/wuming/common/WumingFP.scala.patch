@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
 new file mode 100644
-index 0000000..37d1e0c
+index 0000000..06d391b
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
-@@ -0,0 +1,1433 @@
+@@ -0,0 +1,1869 @@
 +// See LICENSE for license details.
 +//
 +// DADAO floating-point infrastructure (m12-chipyard-011).
@@ -1189,6 +1189,442 @@ index 0000000..37d1e0c
 +
 +  io.out := WumingRecFN.fNFromRecFN(expWidth, sigWidth, rounder.io.out).pad(64)
 +  io.flags := rounder.io.exceptionFlags
++}
++
++/** Division and square root (hardfloat `DivSqrtRecFN_small` semantics),
++  * spec/SimRISC-07 §2.1 (`fodiv`) / §2.2 (`foroot` = `rootn(x, 2)`),
++  * m12-chipyard-014.
++  *
++  * A one-bit-per-cycle fixed-point state machine: `start` latches the operands
++  * and `done` pulses for one cycle once `out`/`flags` are settled.  The
++  * iteration count is fixed (`sigWidth + 2` steps for both operations), so the
++  * latency does not depend on the operands.
++  *
++  * Division keeps an exact *truncated* quotient together with the remainder
++  * the truncation threw away: `Q = floor(|a| / |b| * 2^N)` with
++  * `N = sigWidth + 2` holds the quotient's digits down to and past the
++  * rounding position, and `R != 0` says the quotient continues below them.
++  * That pair is exactly the `(significand, round bit, sticky)` form the
++  * rounding primitive wants, so the result is rounded once from the exact
++  * quotient.
++  *
++  * Square root works digit by digit the same way: `root = floor(sqrt(X))` over
++  * a radicand scaled to an even exponent, `rem != 0` marking the irrational
++  * tail.  `rootn(-0, 2)` is unspecified by spec §2.2; -0 is returned, which is
++  * what both reference engines produce.
++  *
++  * `DADAO:` a quiet NaN input propagates its payload and a signalling NaN or
++  * an invalid operation (0/0, Inf/Inf, sqrt of a negative number) produces the
++  * canonical quiet NaN with `NV` (spec/SimRISC-07 §1.4).  The divide-by-zero
++  * lane splits its two roles: `infiniteExc` is the sole source of `DZ` (and,
++  * with `sExp = 0`, already pegs the exponent to infinity), while `in.isInf`
++  * carries the `±Inf` results that raise no `DZ` (infinite dividend,
++  * `sqrt(+Inf)`), as hardfloat splits them; both are family-level, not per shape.
++  */
++class WumingDivSqrtRecFN(expWidth: Int, sigWidth: Int) extends Module {
++  val io = IO(new Bundle {
++    val start  = Input(Bool())
++    val sqrtOp = Input(Bool())
++    val a      = Input(UInt(64.W)) // dividend / radicand (rfHC)
++    val b      = Input(UInt(64.W)) // divisor (rfHD), unused for the root
++    val mode   = Input(UInt(3.W))
++    val out    = Output(UInt(64.W))
++    val flags  = Output(UInt(5.W))
++    val done   = Output(Bool())
++    val busy   = Output(Bool())
++  })
++
++  val sw = sigWidth
++  val ew = expWidth
++  val nSteps = sw + 2            // quotient bits (div) / radicand digit pairs
++
++  val rawA = WumingRecFN.rawFloatFromFN(ew, sw, io.a(ew + sw - 1, 0))
++  val rawB = WumingRecFN.rawFloatFromFN(ew, sw, io.b(ew + sw - 1, 0))
++
++  // ---- special values (hardfloat's DivSqrtRawFN_small decode) ------------
++  val invalidDiv  = (rawA.isZero && rawB.isZero) || (rawA.isInf && rawB.isInf)
++  val invalidSqrt = !rawA.isNaN && !rawA.isZero && rawA.sign
++  val invalid = Mux(io.sqrtOp, rawA.isSigNaN || invalidSqrt,
++    rawA.isSigNaN || rawB.isSigNaN || invalidDiv)
++  val nanIn = Mux(io.sqrtOp, rawA.isNaN, rawA.isNaN || rawB.isNaN)
++  // A *finite non-zero* dividend over zero is the one divide-by-zero: 0/0 is
++  // the invalid case above and an infinity over zero is infinite without a
++  // `DZ` (softfloat and hardfloat both order them that way).
++  val divZero = !io.sqrtOp && !rawA.isNaN && !rawA.isInf && !rawA.isZero &&
++    rawB.isZero
++  val infOut = Mux(io.sqrtOp, rawA.isInf, rawA.isInf || rawB.isZero)
++  val zeroOut = Mux(io.sqrtOp, rawA.isZero, rawA.isZero || rawB.isInf)
++  val normal = Mux(io.sqrtOp,
++    !(rawA.isNaN || rawA.isInf || rawA.isZero) && !rawA.sign,
++    !(rawA.isNaN || rawA.isInf || rawA.isZero) &&
++      !(rawB.isNaN || rawB.isInf || rawB.isZero))
++  val sign = Mux(io.sqrtOp, rawA.sign, rawA.sign ^ rawB.sign)
++  val nanSrc = Mux(rawA.isNaN, rawA, rawB)
++  val nanSig = (nanSrc.sig << 2)(sw + 2, 0)
++
++  // ---- exponent bookkeeping ---------------------------------------------
++  // `ea` is the exponent of the significand's least significant bit:
++  // value = sig * 2^(sExp - 2^expWidth - (sigWidth-1)).
++  val ea = rawA.sExp - (BigInt(1) << ew).S - (sw - 1).S
++  val dExp = rawA.sExp - rawB.sExp
++  // Square root: sqrt(sig * 2^ea) = sqrt(sig << (sw+2+p)) * 2^((ea-sw-2-p)/2),
++  // where p = (ea - (sw+2)) mod 2 makes the half exponent integral.
++  val pBit = ea(0) ^ ((sw + 2) % 2).B
++  val pS = Mux(pBit, 1.S(4.W), 0.S(4.W))
++  val sqrtExp = (ea - (sw + 2).S - pS) >> 1
++  val divExp = dExp - nSteps.S
++
++  // ---- state -------------------------------------------------------------
++  val busy = RegInit(false.B)
++  val doneReg = RegInit(false.B)
++  val step = RegInit(0.U(log2Ceil(nSteps + 1).W))
++  val loopZ = RegInit(false.B)
++  val sqrtZ = RegInit(false.B)
++  val remZ = RegInit(0.U((sw + 5).W))
++  val sigZ = RegInit(0.U((sw + 3).W))
++  val xZ = RegInit(0.U((2 * sw + 4).W))
++  val mbZ = RegInit(0.U(sw.W))
++  val qExpZ = RegInit(0.S((ew + 6).W))
++  val signZ = RegInit(false.B)
++  val invalidZ = RegInit(false.B)
++  val divZeroZ = RegInit(false.B)
++  val nanInZ = RegInit(false.B)
++  val infZ = RegInit(false.B)
++  val zeroZ = RegInit(false.B)
++  val nanSigZ = RegInit(0.U((sw + 3).W))
++
++  val lastStep = step === (nSteps - 1).U
++  val startNow = io.start && !busy
++
++  // Quotient bit (division) and root digit (square root) of this cycle.
++  val divRem2 = remZ << 1
++  val divBit = divRem2 >= mbZ.pad(sw + 6)
++  val divSig = (sigZ << 1) | divBit
++  val divRem = Mux(divBit, divRem2 - mbZ.pad(sw + 6), divRem2)
++
++  // The radicand register is shifted left by two each step, so the digit pair
++  // being consumed always sits at the top of the register (constant indices).
++  val pairBits = xZ(2 * nSteps - 1, 2 * nSteps - 2)
++  val sqrtRem2 = (remZ << 2) | pairBits.pad(3)
++  val sqrtTrial = (sigZ << 2) | 1.U
++  val sqrtBit = sqrtRem2 >= sqrtTrial.pad(sw + 7)
++  val sqrtSig = (sigZ << 1) | sqrtBit
++  val sqrtRem = Mux(sqrtBit, sqrtRem2 - sqrtTrial.pad(sw + 7), sqrtRem2)
++
++  // The significand ratio lies in (0.5, 2), so the quotient's integer part is
++  // the single bit `ma >= mb`; taking it out first leaves a remainder below the
++  // divisor, which is the invariant every following step relies on.
++  val leadBit = rawA.sig(sw - 1, 0) >= rawB.sig(sw - 1, 0)
++  val leadRem = Mux(leadBit,
++    (rawA.sig(sw - 1, 0) - rawB.sig(sw - 1, 0))(sw - 1, 0), rawA.sig(sw - 1, 0))
++
++  when(startNow) {
++    busy := normal
++    loopZ := normal
++    step := 0.U
++    sqrtZ := io.sqrtOp
++    remZ := Mux(io.sqrtOp, 0.U(sw + 5), leadRem.pad(sw + 5))
++    sigZ := Mux(io.sqrtOp, 0.U(sw + 3), Cat(Fill(sw + 2, false.B), leadBit))
++    // Radicand: sig << (sw+2+p), i.e. the same scale the exponent path uses.
++    xZ := Mux(pBit,
++      (rawA.sig(sw - 1, 0).pad(2 * sw + 4) << (sw + 3))(2 * sw + 3, 0),
++      (rawA.sig(sw - 1, 0).pad(2 * sw + 4) << (sw + 2))(2 * sw + 3, 0))
++    mbZ := rawB.sig(sw - 1, 0)
++    qExpZ := Mux(io.sqrtOp, sqrtExp, divExp).pad(ew + 6)
++    signZ := sign
++    invalidZ := invalid
++    divZeroZ := divZero
++    nanInZ := nanIn
++    infZ := infOut
++    zeroZ := zeroOut
++    nanSigZ := nanSig.pad(sw + 3)
++  }.elsewhen(busy) {
++    step := step + 1.U
++    when(loopZ) {
++      remZ := Mux(sqrtZ, sqrtRem, divRem)(sw + 4, 0)
++      sigZ := Mux(sqrtZ, sqrtSig, divSig)(sw + 2, 0)
++      xZ := Mux(sqrtZ, (xZ << 2)(2 * sw + 3, 0), xZ)
++    }
++    when(lastStep) { busy := false.B }
++  }
++  // A special-value operation has no iteration: its result is ready one cycle
++  // after `start` (the same `done` shape as the remainder's no-loop path).
++  doneReg := (busy && lastStep) || (startNow && !normal)
++  io.done := doneReg
++  io.busy := busy
++
++  // ---- result ------------------------------------------------------------
++  // `R != 0` is the sticky bit: the quotient/root continues below its last
++  // computed digit.  The rounding primitive consumes both from here.
++  val (sigNorm, sExpNorm) = WumingFPAlu.normalise(sigZ, qExpZ, ew, sw)
++  val sigOut = sigNorm | remZ.orR
++
++  val rounder = Module(new WumingRoundAnyRawFNToRecFN(ew, sw + 2, ew, sw))
++  rounder.io.in.isNaN := nanInZ
++  rounder.io.in.isInf := infZ
++  rounder.io.in.isZero := zeroZ
++  rounder.io.in.sign := signZ
++  rounder.io.in.sExp := Mux(loopZ, sExpNorm, 0.S)
++  rounder.io.in.sig := Mux(loopZ, sigOut.pad(sw + 3),
++    Mux(nanInZ, nanSigZ, 0.U))
++  rounder.io.invalidExc := invalidZ
++  rounder.io.infiniteExc := divZeroZ
++  rounder.io.roundingMode := io.mode
++
++  io.out := WumingRecFN.fNFromRecFN(ew, sw, rounder.io.out).pad(64)
++  io.flags := rounder.io.exceptionFlags
++}
++
++/** IEEE 754 remainder (`ftrem` / `forem`), spec/SimRISC-07 §2.1,
++  * m12-chipyard-014.
++  *
++  * `r = a - n*b` with `n` the integer nearest `a/b`, ties to even.  The
++  * computation is the classic restoring long division over the significands:
++  * at the end `rem = |a| mod |b|`, so the only remaining decisions are "is
++  * 2*rem above, equal to or below |b|" (round the quotient up / exact tie /
++  * down) plus the quotient's parity for the tie.  Both operands share the
++  * scale of the smaller exponent, so the remainder is an integer times
++  * `2^(min(ea, eb))`: it never needs rounding, hence `NX`/`OF`/`UF` are never
++  * raised.
++  *
++  * One digit per cycle: `sigWidth + d` steps for `d = ea - eb >= 0`, and no
++  * iteration at all when `d < 0` -- then `|a/b| < 2`, so `n` is 0 or 1 and a
++  * single comparison decides it.  The step count therefore tracks the
++  * exponent distance: this is the operation whose cost depends on its
++  * operands.
++  */
++class WumingRemRecFN(expWidth: Int, sigWidth: Int) extends Module {
++  val io = IO(new Bundle {
++    val start = Input(Bool())
++    val a     = Input(UInt(64.W)) // dividend (rfHC)
++    val b     = Input(UInt(64.W)) // divisor  (rfHD)
++    val out   = Output(UInt(64.W))
++    val flags = Output(UInt(5.W))
++    val done  = Output(Bool())
++    val busy  = Output(Bool())
++  })
++
++  val sw = sigWidth
++  val ew = expWidth
++
++  val rawA = WumingRecFN.rawFloatFromFN(ew, sw, io.a(ew + sw - 1, 0))
++  val rawB = WumingRecFN.rawFloatFromFN(ew, sw, io.b(ew + sw - 1, 0))
++
++  // NaN first (softfloat/QEMU order): `Inf rem qNaN` is a propagation, not
++  // the invalid operation `Inf rem x` is.  A finite dividend over an infinite
++  // divisor and a zero dividend both return the dividend unchanged, which the
++  // pass-through below hands back bit for bit (sign of zero included).
++  val nanIn = rawA.isNaN || rawB.isNaN
++  // A signalling NaN is an invalid (arithmetic) input even next to another
++  // NaN: `NV` plus the canonical quiet NaN (spec/SimRISC-07 §1.4).
++  val invalid = rawA.isSigNaN || rawB.isSigNaN ||
++    (!nanIn && (rawA.isInf || rawB.isZero))
++  val passThrough = !nanIn && !invalid && (rawB.isInf || rawA.isZero)
++  val nanSrc = Mux(rawA.isNaN, rawA, rawB)
++  val nanSig = (nanSrc.sig << 2)(sw + 2, 0)
++  val normal = !nanIn && !invalid && !rawB.isInf && !rawA.isZero
++
++  val ma = rawA.sig(sw - 1, 0)
++  val mb = rawB.sig(sw - 1, 0)
++  val dExp = rawA.sExp - rawB.sExp            // ea - eb
++  val dNeg = dExp < 0.S
++  val ea = rawA.sExp - (BigInt(1) << ew).S - (sw - 1).S
++  val eb = rawB.sExp - (BigInt(1) << ew).S - (sw - 1).S
++  val rExp = Mux(dNeg, ea, eb)                // min(ea, eb)
++
++  // `d == -1` is the only negative distance that can round the quotient up:
++  // n = 1 needs |b| < 2|a|, i.e. d > -2.  Then n = 1 exactly when ma > mb.
++  val n1 = (dExp === (-1).S) && (ma > mb)
++  val rmagNeg = Mux(n1, (mb << 1) - ma, ma)
++  val rsignNeg = rawA.sign ^ n1
++
++  // ---- state -------------------------------------------------------------
++  val busy = RegInit(false.B)
++  val doneReg = RegInit(false.B)
++  val i = RegInit(0.U(16.W))
++  val nTotal = RegInit(0.U(16.W))
++  val rem = RegInit(0.U((sw + 1).W))
++  val mbZ = RegInit(0.U(sw.W))
++  val maZ = RegInit(0.U(sw.W))
++  val signZ = RegInit(false.B)
++  val rmagZ = RegInit(0.U(sw.W))
++  val rexpZ = RegInit(0.S((ew + 6).W))
++  val nanInZ = RegInit(false.B)
++  val invalidZ = RegInit(false.B)
++  val passZ = RegInit(false.B)
++  val passBitsZ = RegInit(0.U(64.W))
++  val nanSigZ = RegInit(0.U((sw + 3).W))
++
++  val startNow = io.start && !busy
++  // One long-division step: shift in the next dividend digit (zero once the
++  // significand is exhausted) and subtract the divisor when it fits.
++  val inSig = i < sw.U
++  val aBit = (maZ >> ((sw - 1).U - i))(0)
++  val rem2 = (rem << 1) | Mux(inSig, aBit, false.B)
++  val ge = rem2 >= mbZ.pad(sw + 2)
++  val remNew = Mux(ge, rem2 - mbZ.pad(sw + 2), rem2)
++
++  val lastStep = i === (nTotal - 1.U)
++  // Once the significand is exhausted a zero remainder stays zero: every
++  // remaining quotient digit is 0, so the result is already exact.
++  val earlyOut = !inSig && remNew === 0.U && !lastStep
++
++  // Final remainder: the quotient is rounded to nearest, ties to even.  The
++  // decision uses the remainder *after* this cycle's step (`remNew`) and `ge`,
++  // which is the quotient's least significant digit at that point.
++  val finalRem2 = remNew << 1
++  val roundUp = (finalRem2 > mbZ.pad(sw + 3)) ||
++    (finalRem2 === mbZ.pad(sw + 3) && ge)
++
++  val runLoop = normal && !dNeg
++  when(startNow) {
++    busy := runLoop
++    i := 0.U
++    nTotal := sw.U + Mux(dNeg, 0.U, dExp.asUInt.pad(16))
++    // The loop consumes the dividend's digits (then `d` zeros), so it starts
++    // from an empty remainder: `rem` ends as `ma * 2^d mod mb`.
++    rem := 0.U
++    maZ := ma
++    mbZ := mb
++    signZ := Mux(dNeg, rsignNeg, rawA.sign)
++    nanInZ := nanIn
++    invalidZ := invalid
++    passZ := passThrough
++    passBitsZ := io.a(ew + sw - 1, 0).pad(64)
++    nanSigZ := nanSig.pad(sw + 3)
++    rmagZ := Mux(dNeg, rmagNeg, 0.U)
++    rexpZ := rExp.pad(ew + 6)
++  }.elsewhen(busy) {
++    i := i + 1.U
++    rem := remNew(sw, 0)
++    when(lastStep || earlyOut) {
++      busy := false.B
++      rmagZ := Mux(roundUp, mbZ - remNew, remNew)(sw - 1, 0)
++      rexpZ := eb.pad(ew + 6)
++      signZ := rawA.sign ^ roundUp
++    }
++  }
++  doneReg := busy && (lastStep || earlyOut)
++  // The negative-distance path has no loop: its result is ready one cycle
++  // after `start`.
++  when(startNow && !runLoop) { doneReg := true.B }
++  io.done := doneReg
++  io.busy := busy
++
++  // ---- result ------------------------------------------------------------
++  val isZeroOut = !nanInZ && !invalidZ && !passZ && rmagZ === 0.U
++  // `normalise` masks the magnitude to `sigWidth + 2` bits, so the final
++  // remainder (which is narrower than that) is zero-extended first.
++  val (sigNorm, sExpNorm) =
++    WumingFPAlu.normalise(rmagZ.pad(sw + 2), rexpZ, ew, sw)
++
++  val rounder = Module(new WumingRoundAnyRawFNToRecFN(ew, sw + 2, ew, sw))
++  rounder.io.in.isNaN := nanInZ
++  rounder.io.in.isInf := false.B
++  rounder.io.in.isZero := isZeroOut
++  rounder.io.in.sign := signZ
++  rounder.io.in.sExp := Mux(nanInZ || invalidZ || passZ || isZeroOut, 0.S,
++    sExpNorm)
++  rounder.io.in.sig := Mux(nanInZ, nanSigZ,
++    Mux(passZ || invalidZ || isZeroOut, 0.U, sigNorm.pad(sw + 3)))
++  rounder.io.invalidExc := invalidZ
++  rounder.io.infiniteExc := false.B
++  rounder.io.roundingMode := WumingRoundMode.RNE
++
++  val self = WumingRecFN.fNFromRecFN(ew, sw, rounder.io.out).pad(64)
++  // `a rem Inf` and `0 rem b` return the dividend unchanged and raise nothing
++  // (spec/SimRISC-07 §2.1), so that lane bypasses the rounding primitive whole.
++  io.out := Mux(passZ, passBitsZ, self)
++  io.flags := Mux(passZ, 0.U(5.W), rounder.io.exceptionFlags)
++}
++
++/** The multi-cycle floating-point operations behind one port
++  * (m12-chipyard-014), so the core instantiates and routes a single module.
++  *
++  * `kind` selects the unit (`DIV`/`SQRT`/`REM`) and `isFo` the format; `start`
++  * is a one-cycle pulse, and `done` is a one-cycle pulse one cycle after the
++  * last iteration, at which point `out`/`flags` are valid.  `mode` is
++  * `rf0[33:32]` decoded (the division family rounds with it).
++  */
++object WumingFpSlowKind {
++  val DIV  = 0.U(2.W) // ftdiv / fodiv    (spec/SimRISC-07 §2.1)
++  val SQRT = 1.U(2.W) // ftroot / foroot  (§2.2, `immu6` = n = 2)
++  val REM  = 2.U(2.W) // ftrem / forem    (§2.1, IEEE 754 remainder)
++}
++
++class WumingFpSlow extends Module {
++  val io = IO(new Bundle {
++    val kind  = Input(UInt(2.W))
++    val isFo  = Input(Bool())
++    val mode  = Input(UInt(3.W))
++    val a     = Input(UInt(64.W)) // rfHC
++    val b     = Input(UInt(64.W)) // rfHD
++    val start = Input(Bool())
++    val out   = Output(UInt(64.W))
++    val flags = Output(UInt(5.W))
++    val done  = Output(Bool())
++    val busy  = Output(Bool())
++  })
++
++  val ftExp = WumingFmt.ftExp
++  val ftSig = WumingFmt.ftSig
++  val foExp = WumingFmt.foExp
++  val foSig = WumingFmt.foSig
++
++  val divFt = Module(new WumingDivSqrtRecFN(ftExp, ftSig))
++  val divFo = Module(new WumingDivSqrtRecFN(foExp, foSig))
++  val sqrtFt = Module(new WumingDivSqrtRecFN(ftExp, ftSig))
++  val sqrtFo = Module(new WumingDivSqrtRecFN(foExp, foSig))
++  val remFt = Module(new WumingRemRecFN(ftExp, ftSig))
++  val remFo = Module(new WumingRemRecFN(foExp, foSig))
++
++  // Only the selected unit is started; the others stay idle and their outputs
++  // are ignored.  `kind` is a one-of-three selector, so at most one unit runs.
++  val selDiv = io.kind === WumingFpSlowKind.DIV
++  val selSqrt = io.kind === WumingFpSlowKind.SQRT
++  val selRem = io.kind === WumingFpSlowKind.REM
++
++  // Only the selected unit *of the selected format* is started: a unit left
++  // running the other format's operands would still be busy when the next
++  // operation of its own format arrives, and that one would silently be
++  // dropped.
++  for ((u, isFo) <- Seq((divFt, false), (divFo, true))) {
++    u.io.start := io.start && selDiv && (io.isFo === isFo.B)
++    u.io.sqrtOp := false.B
++    u.io.a := io.a
++    u.io.b := io.b
++    u.io.mode := io.mode
++  }
++  for ((u, isFo) <- Seq((sqrtFt, false), (sqrtFo, true))) {
++    u.io.start := io.start && selSqrt && (io.isFo === isFo.B)
++    u.io.sqrtOp := true.B
++    u.io.a := io.a
++    u.io.b := io.b
++    u.io.mode := io.mode
++  }
++  for ((u, isFo) <- Seq((remFt, false), (remFo, true))) {
++    u.io.start := io.start && selRem && (io.isFo === isFo.B)
++    u.io.a := io.a
++    u.io.b := io.b
++  }
++
++  def pick[T <: chisel3.Data](isFo: Bool, ft: T, fo: T): T = Mux(isFo, fo, ft)
++  io.out := MuxLookup(io.kind, 0.U(64.W))(Seq(
++    WumingFpSlowKind.DIV -> pick(io.isFo, divFt.io.out, divFo.io.out),
++    WumingFpSlowKind.SQRT -> pick(io.isFo, sqrtFt.io.out, sqrtFo.io.out),
++    WumingFpSlowKind.REM -> pick(io.isFo, remFt.io.out, remFo.io.out)))
++  io.flags := MuxLookup(io.kind, 0.U(5.W))(Seq(
++    WumingFpSlowKind.DIV -> pick(io.isFo, divFt.io.flags, divFo.io.flags),
++    WumingFpSlowKind.SQRT -> pick(io.isFo, sqrtFt.io.flags, sqrtFo.io.flags),
++    WumingFpSlowKind.REM -> pick(io.isFo, remFt.io.flags, remFo.io.flags)))
++  io.done := MuxLookup(io.kind, false.B)(Seq(
++    WumingFpSlowKind.DIV -> pick(io.isFo, divFt.io.done, divFo.io.done),
++    WumingFpSlowKind.SQRT -> pick(io.isFo, sqrtFt.io.done, sqrtFo.io.done),
++    WumingFpSlowKind.REM -> pick(io.isFo, remFt.io.done, remFo.io.done)))
++  io.busy := MuxLookup(io.kind, false.B)(Seq(
++    WumingFpSlowKind.DIV -> pick(io.isFo, divFt.io.busy, divFo.io.busy),
++    WumingFpSlowKind.SQRT -> pick(io.isFo, sqrtFt.io.busy, sqrtFo.io.busy),
++    WumingFpSlowKind.REM -> pick(io.isFo, remFt.io.busy, remFo.io.busy)))
 +}
 +
 +/** Quiet / signalling compare (hardfloat `CompareRecFN`), spec/SimRISC-07 §4.

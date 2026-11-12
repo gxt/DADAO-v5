@@ -112,6 +112,16 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **周期（trace 实测）**：`foadd`/`fomul`/`fofma`/`foqcmp`/`fomin`/`fomax` 各 **1 拍**。
 - **验证**：`fp_unit/` 把同一组向量同时喂本实现与 hardfloat 的 `AddRecFN`/`MulRecFN`/`MulAddRecFN`/`CompareRecFN`（值 + 5 位标志逐例比对；quiet compare 的 sNaN 输入是 hardfloat 与 `§4` 的已知差异，单列计数）并比对 `fp_ref` 的精确 oracle（加/乘/FMA 用**精确整数尾数 + 指数**、比较/最小最大用单调键）；`fp_sweep.py` 的 12 个 `arith_*` 组（含 FMA 特殊值组）+ `cmp_nan` 组在整核上跑并回读 `rf0`，同一镜像在 QEMU 上逐字节比对（仅 `arith_nan` 因 sNaN payload 口径为模型only）；`tests/inst/fp/arith.yaml` 28 例（含 3 条 ILLI）在本核与 QEMU 上逐字节一致。
 
+## FP 除法 / 开方 / 取余（`m12-chipyard-014`）
+
+- **单元**（`WumingFP.scala`）：`WumingDivSqrtRecFN`（除法与开方共用一个数字迭代状态机，`start` 一个脉冲开始、`done` 一个脉冲结束）、`WumingRemRecFN`（IEEE 754 remainder），由 `WumingFpSlow` 按 `kind`+`isFo` 选出（`DIV`/`SQRT`/`REM`）。六个实例（每格式每操作一个）**只有被选中的那个被 `start`**，否则另一格式的长循环会让本格式的下一条指令静默丢掉。
+- **算法**：除法把商的**精确截断** `Q = floor(|a|/|b| · 2^N)`（`N = sigWidth+2`）与「被截掉的那部分是否非零」一起交给同一舍入原语 —— 前者是 round 位以上的真数字、后者是 sticky，因此仍然只舍入一次；先取掉 `ma >= mb` 的整数商位（比值的整数部分只可能是 0/1），剩下 `< |b|` 的余数才开始移位。开方逐位做 restoring 开方（每位消耗两个基数位），radicand 按 `sigWidth+2+p` 移位、`p` 取使 `(ea−sigWidth−2−p)` 为偶数的奇偶位，`rem != 0` 即无理尾。取余是 restoring 长除：`rem = |a| mod |b|` 出来后只要「`2·rem` 与 `|b|` 比大小 + 商的奇偶」就能定就近取偶；**结果精确，不置 `NX`/`OF`/`UF`**。`d = ea − eb < 0` 时 `|a/b| < 2`，商只可能是 0 或 1（`d = −1` 时比较 `ma > mb`），**不进循环**。
+- **特殊值**：`0/0`、`Inf/Inf`、`sqrt(负数)` ⇒ canonical qNaN + `NV`；**有限非零被除数 / ±0 ⇒ ±Inf + `DZ`**（`infiniteExc` 单独给 `DZ`，且该路径 `sExp=0` 时指数已由 `infiniteExc || in.isInf` 钉到 Inf；不置 `DZ` 的 ±Inf 结果（无穷被除数、`sqrt(+Inf)`）由 `rounder.in.isInf` 给 —— 两者各管一类形状，hardfloat 同法）—— 这是本族成为 `DZ` 首个**端到端**生产者；`Inf/0` 与 `NaN/0` 都不置 `DZ`；qNaN 传播 payload（符号位清 0，与 hardfloat 同，softfloat 保留符号），sNaN ⇒ canonical qNaN + `NV`；`forem` 的三个边界（`rfHC` 为 ±Inf、`rfHD` 为 ±0、sNaN）⇒ `NV` + qNaN，`rfHD` 为 ±Inf 或 `rfHC` 为 ±0 ⇒ 原样返回被除数；`rootn(−0, 2)` 规范未定，返回 −0（与 hardfloat/QEMU 一致，不作**值**断言）。
+- **解码**（`WumingDecoder`）：`orrr` 的 `ftdiv/ftrem/fodiv/forem`、`orri` 的 `ftroot/foroot`（`immu6` = n，**仅 n = 2**，其他 ⇒ ILLI）；六条都禁止 `rf0` 作目的（ILLI）。
+- **核**（`WumingCore`）：新增第 14 个状态 `sFpSlow`；`EXEC` 一拍发 `start`、`sFpSlow` 等 `done`，`done` 那一拍写回 `rf` 并把 5 位标志送 `rf.io.fflags`（`nv`/`dz`/`of`/`uf`/`nx` 都由此族在指令级到达）。
+- **周期（trace 实测）**：fo 的 `fodiv`/`foroot` **56 拍** = `sigWidth + 3`，与操作数无关（4 组除法 + 3 组开方逐例相同；ft 为 27）；`forem` = `sigWidth + (ea − eb) + 1` 拍（`ea − eb` = 1/10/100/1000 时实测 55/64/154/1054；余数提前为 0 时早退，但那是精确整除路径）。单元台自测的 tick 数同量级（div ft 26 / fo 55、rem 最长 1866）。
+- **验证**：`fp_unit/` 把 div/sqrt 的三方对照（本实现 / hardfloat `DivSqrtRecFN_small` / `fp_ref` 精确 oracle）跑满（值 + 标志），`forem` 只有 oracle（hardfloat 无 remainder 模块）；`fp_sweep.py` 增 `div_ft/div_fo/sqrt_ft/sqrt_fo/rem_ft/rem_fo/divrem_special` 七组（均入 QEMU 三方对照）+ `divrem_nan` 组（模型only）+ 10 条合法性镜像；`tests/inst/fp/divrem.yaml` 32 例（26 语义 + 6 ILLI）在本核与 QEMU 上逐字节一致（sNaN payload 一例模型only）。
+
 ## 边界
 - **保留** rocket-chip 库（Diplomacy / TileLink / `BaseTile`）与 chipyard 仿真设施（Verilator harness / BootROM / 内存模型 / `loadmem`）。
 - **抛开** Rocket 核与 RISC-V 语义（CSR / misa / PMP / MMU / TLB / 异常码）；`WumingCoreParams` 不继承 `CoreParams`。

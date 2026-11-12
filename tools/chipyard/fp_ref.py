@@ -23,7 +23,9 @@
 #   python3 tools/chipyard/fp_ref.py vectors DIR   # write unit-bench vectors
 #   python3 tools/chipyard/fp_ref.py dir           # task book directory
 
+import math
 import os
+from fractions import Fraction
 import random
 import struct
 import sys
@@ -381,7 +383,70 @@ def round_dyadic(oe, osig, sign, mant, e2, mode):
     else:
         num, den = mant, 1 << (-shift)
     mag, inexact = _round_int(num, den, mode, bool(sign))
+    return _round_mag(oe, osig, sign, qexp, mag, inexact, mode)
 
+
+def round_ratio(oe, osig, sign, num, den, mode):
+    """Round the exact rational ``(-1)^sign * num/den`` (``num >= 0``,
+    ``den > 0``) to the IEEE format ``(oe, osig)``.
+
+    A quotient is not a dyadic in general, so the division oracle cannot use
+    `round_dyadic`; both end in `_round_mag`, i.e. there is still exactly one
+    place where an IEEE exponent and the five flags are produced.
+    """
+    if num == 0:
+        return sign << (oe + osig), 0
+    emin = 2 - (1 << (oe - 1))
+    # floor(log2(num/den)), exactly
+    k = num.bit_length() - den.bit_length()
+    if k >= 0:
+        if num < (den << k):
+            k -= 1
+    elif (num << (-k)) < den:
+        k -= 1
+    qexp = max(k, emin) - (osig - 1)
+    if qexp >= 0:
+        n2, d2 = num, den << qexp
+    else:
+        n2, d2 = num << (-qexp), den
+    mag, inexact = _round_int(n2, d2, mode, bool(sign))
+    return _round_mag(oe, osig, sign, qexp, mag, inexact, mode)
+
+
+def round_prefix(oe, osig, sign, qexp, prefix, rest, den, tail, mode):
+    """Round ``(prefix + (rest + delta)/den) * 2^qexp`` (``0 <= rest < den``,
+    ``0 <= delta < 1``, ``delta > 0`` iff ``tail``) to ``(oe, osig)``.
+
+    This is the shape a square root has: the root's digits down to the quantum
+    are exact integers and everything below them is known only to be "there"
+    (an irrational tail).  Nearest-even needs the tie case, which is
+    ``2*rest == den and not tail`` -- an exact half.
+    """
+    twice = 2 * rest
+    above = (twice > den) or (twice == den and tail)
+    tie = (twice == den and not tail)
+    exact = (rest == 0 and not tail)
+    if exact:
+        mag, inexact = prefix, False
+    elif mode == RTZ:
+        mag, inexact = prefix, True
+    elif mode == RUP:
+        mag, inexact = ((prefix, True) if sign else (prefix + 1, True))
+    elif mode == RDN:
+        mag, inexact = ((prefix + 1, True) if sign else (prefix, True))
+    elif mode == RNA:
+        mag, inexact = (prefix + 1 if (above or tie) else prefix), True
+    else:  # RNE
+        up = above or (tie and (prefix & 1))
+        mag, inexact = (prefix + 1 if up else prefix), True
+    return _round_mag(oe, osig, sign, qexp, mag, inexact, mode)
+
+
+def _round_mag(oe, osig, sign, qexp, mag, inexact, mode):
+    """Turn a rounded integer magnitude at scale ``2^qexp`` into
+    ``(recoded word, rf0[4:0] flags)``."""
+    emin = 2 - (1 << (oe - 1))              # smallest normal exponent
+    emax = (1 << (oe - 1)) - 1
     # significand carry: normalise an exact power of two result
     e_res = qexp  # exponent of the LSB of `mag`
     if mag >= (1 << osig):
@@ -705,6 +770,149 @@ def fma_exact(ew, sw, a, b, c, mode):
     return fn_from_recfn(ew, sw, rec), flags
 
 
+# ── division / square root / remainder (m12-chipyard-014, spec §2.1/§2.2) ──
+#
+# The three oracles below form the *exact* value of the operation and round it
+# once through a shared rounding entry point (`round_ratio` for a quotient,
+# `round_prefix` for the digits of a square root, `round_dyadic` for the exact
+# remainder), so no intermediate result is ever rounded.  Special values follow
+# spec/SimRISC-07 §2.1 (`fodiv`) and §2.2 (`foroot` = `rootn(x, 2)`): `NV` for
+# 0/0, Inf/Inf, sqrt(negative) and a signalling NaN (with the canonical quiet
+# NaN), `DZ` for a finite dividend over a zero divisor, a quiet NaN input
+# propagating its payload, `±Inf` for the infinite results and `±0` for the
+# zero results (spec/SimRISC-07 §1.4).
+def _dyadic_parts(r, ew, sw):
+    """``(mant, e2)`` of a finite raw float: ``value = mant * 2^e2``."""
+    return r["sig"], r["s_exp"] - (1 << ew) - (sw - 1)
+
+
+def div_exact(ew, sw, a, b, mode):
+    """Exact divide oracle: ``(IEEE result bits, rf0[4:0] flags)``."""
+    ra = raw_from_fn(ew, sw, a)
+    rb = raw_from_fn(ew, sw, b)
+    sign = ra["sign"] ^ rb["sign"]
+
+    if _is_snan(ra, sw) or _is_snan(rb, sw):
+        return _canon_qnan(ew, sw), NV
+    if ra["is_nan"] or rb["is_nan"]:
+        src = ra if ra["is_nan"] else rb
+        return _quieted(src, ew, sw), 0
+    if (ra["is_zero"] and rb["is_zero"]) or (ra["is_inf"] and rb["is_inf"]):
+        return _canon_qnan(ew, sw), NV
+    if ra["is_inf"]:
+        return _inf_bits(sign, ew, sw), 0
+    if rb["is_inf"]:
+        return sign << (ew + sw - 1), 0
+    if rb["is_zero"]:
+        # A finite non-zero dividend over zero is the one divide-by-zero
+        # (`DZ`); 0/0 was handled as invalid above.
+        return _inf_bits(sign, ew, sw), DZ
+    if ra["is_zero"]:
+        return sign << (ew + sw - 1), 0
+
+    ma, ea = _dyadic_parts(ra, ew, sw)
+    mb, eb = _dyadic_parts(rb, ew, sw)
+    d = ea - eb
+    if d >= 0:
+        num, den = ma << d, mb
+    else:
+        num, den = ma, mb << (-d)
+    rec, flags = round_ratio(ew, sw, sign, num, den, mode)
+    return fn_from_recfn(ew, sw, rec), flags
+
+
+def sqrt_exact(ew, sw, a, mode):
+    """Exact `rootn(x, 2)` oracle: ``(IEEE result bits, rf0[4:0] flags)``.
+
+    `rootn(-0, 2)` is explicitly unspecified (spec/SimRISC-07 §2.2); the -0 the
+    two reference engines produce is returned so the differential runs agree,
+    and no test asserts a *value* for it.
+    """
+    ra = raw_from_fn(ew, sw, a)
+    if _is_snan(ra, sw):
+        return _canon_qnan(ew, sw), NV
+    if ra["is_nan"]:
+        return _quieted(ra, ew, sw), 0
+    if ra["is_inf"]:
+        if ra["sign"]:
+            return _canon_qnan(ew, sw), NV
+        return _inf_bits(0, ew, sw), 0
+    if ra["is_zero"]:
+        return ra["sign"] << (ew + sw - 1), 0
+    if ra["sign"]:
+        return _canon_qnan(ew, sw), NV
+
+    ma, ea = _dyadic_parts(ra, ew, sw)
+    # value = sqrt(ma * 2^ea).  Scale the radicand so the exponent is even --
+    # sqrt(ma << (sw+2+p)) * 2^((ea-sw-2-p)/2) with (ea-sw-2-p) even -- which
+    # keeps every digit of the square root integral.
+    p = (ea - sw - 2) & 1
+    x = ma << (sw + 2 + p)
+    root = math.isqrt(x)
+    rem = x - root * root
+    qexp = (ea - sw - 2 - p) // 2
+    # value = (root + delta) * 2^qexp with delta > 0 iff rem > 0
+    emin = 2 - (1 << (ew - 1))
+    e_floor = root.bit_length() - 1 + qexp
+    q = max(e_floor, emin) - (sw - 1)
+    sh = q - qexp                 # digits of `root` dropped; >= 0 (never tiny)
+    if sh < 0:
+        raise AssertionError("sqrt: negative rounding shift")
+    prefix, rest = divmod(root, 1 << sh)
+    rec, flags = round_prefix(ew, sw, 0, q, prefix, rest, 1 << sh,
+                              rem != 0, mode)
+    return fn_from_recfn(ew, sw, rec), flags
+
+
+def rem_exact(ew, sw, a, b):
+    """Exact IEEE 754 remainder oracle: ``(IEEE result bits, rf0[4:0] flags)``.
+
+    ``a - n*b`` with ``n`` the integer nearest ``a/b`` (ties to even); the
+    result is exact, so `NX`/`OF`/`UF` are never raised (spec §2.1).  `NV` +
+    quiet NaN for an infinite dividend, a zero divisor or a signalling NaN; a
+    finite dividend over an infinite divisor returns the dividend itself.
+    """
+    ra = raw_from_fn(ew, sw, a)
+    rb = raw_from_fn(ew, sw, b)
+    mask = (1 << (ew + sw)) - 1
+    if _is_snan(ra, sw) or _is_snan(rb, sw):
+        return _canon_qnan(ew, sw), NV
+    if ra["is_nan"] or rb["is_nan"]:
+        src = ra if ra["is_nan"] else rb
+        return _quieted(src, ew, sw), 0
+    if ra["is_inf"] or rb["is_zero"]:
+        return _canon_qnan(ew, sw), NV
+    if rb["is_inf"] or ra["is_zero"]:
+        return a & mask, 0
+
+    ma, ea = _dyadic_parts(ra, ew, sw)
+    mb, eb = _dyadic_parts(rb, ew, sw)
+    sign = ra["sign"]
+    d = ea - eb
+    if d < 0:
+        # |a/b| < 2: n is 0 or 1, decided by comparing 2|a| with |b|; a tie is
+        # n = 0 (the even quotient).  n = 1 forces |b| < 2|a|, so -d <= 2.
+        if (2 * ma) > (mb << (-d)):
+            rmag = (mb << (-d)) - ma
+            sign ^= 1                     # a - b lies on the other side of 0
+        else:
+            rmag = ma
+        rexp = ea
+    else:
+        q, r = divmod(ma << d, mb)
+        twice = 2 * r
+        up = (twice > mb) or (twice == mb and (q & 1))
+        rmag = (mb - r) if up else r
+        sign ^= 1 if up else 0
+        rexp = eb
+    if rmag == 0:
+        return ra["sign"] << (ew + sw - 1), 0
+    rec, flags = round_dyadic(ew, sw, sign, rmag, rexp, RNE)
+    if flags:
+        raise AssertionError(f"remainder must be exact, got flags {flags:#x}")
+    return fn_from_recfn(ew, sw, rec), 0
+
+
 def _order_key(x, ew, sw):
     """Monotone key of an IEEE encoding (``-0`` below ``+0``)."""
     w = ew + sw
@@ -1019,6 +1227,172 @@ def raw_unpack(v, ie, isig):
                 is_zero=bool(is_zero), sign=sign, s_exp=s_exp, sig=sig)
 
 
+def _frac(r, ew, sw):
+    """Exact value of a raw float as a Fraction."""
+    if r["is_zero"]:
+        return Fraction(0)
+    v = Fraction(r["sig"]) * Fraction(2) ** (r["s_exp"] - (1 << ew) - (sw - 1))
+    return -v if r["sign"] else v
+
+
+def _ulp(v, ew, sw):
+    """Quantum of the encoding `v` (the value of one LSB of its format).
+
+    A subnormal's value is normalised by `rawFloatFromFN`, so its quantum is
+    the fixed subnormal one, not the normalised significand's last bit.
+    """
+    r = raw_from_fn(ew, sw, v)
+    return Fraction(2) ** max(r["s_exp"] - (1 << ew) - (sw - 1),
+                              (2 - (1 << (ew - 1))) - (sw - 1))
+
+
+def selfcheck_divrem(n=300, seed=20260114):
+    """Property check of the divide / root / remainder oracles.
+
+    Nothing here re-uses the oracle's own rounding: the division is checked
+    against the exact rational `a/b` (nearest, tie-to-even, `NX` iff inexact),
+    the square root against the exact integer inequality that defines the
+    correct rounding of a root (no square root of a rational is ever formed),
+    and the remainder against the exact identity `r = a - n*b` with the
+    nearest-even quotient.
+    """
+    from fractions import Fraction
+    rng = random.Random(seed)
+    bad = 0
+    shown = [0]
+    counts = {"div": 0, "sqrt": 0, "rem": 0, "div_flags": 0, "rem_exact": 0}
+
+    def fail(what, *vals):
+        nonlocal bad
+        bad += 1
+        if shown[0] < 10:
+            shown[0] += 1
+            print("  [MISMATCH] " + what + " " +
+                  " ".join(f"{v}" for v in vals))
+    for (ew, sw) in (FT, FO):
+        w = ew + sw
+        pats = sample_fn(ew, sw, n, rng)
+        # ── division ───────────────────────────────────────────────────────
+        for _ in range(n):
+            a, b = rng.getrandbits(w), rng.getrandbits(w)
+            ra, rb = raw_from_fn(ew, sw, a), raw_from_fn(ew, sw, b)
+            if ra["is_nan"] or rb["is_nan"]:
+                continue
+            invalid = ((ra["is_zero"] and rb["is_zero"]) or
+                       (ra["is_inf"] and rb["is_inf"]))
+            for mode in (RNE, RTZ, RDN, RUP, RNA):
+                v, flags = div_exact(ew, sw, a, b, mode)
+                rv = raw_from_fn(ew, sw, v)
+                if invalid:
+                    if v != _canon_qnan(ew, sw) or (flags & 0x1F) != NV:
+                        fail("div invalid shape", hex(a), hex(b), hex(v),
+                             hex(flags))
+                    continue
+                if rb["is_zero"] and not ra["is_zero"] and not ra["is_inf"]:
+                    if (flags & 0x1F) != DZ or not rv["is_inf"]:
+                        fail("div by zero", hex(a), hex(b), hex(v), hex(flags))
+                    continue
+                if ra["is_inf"] or rb["is_inf"] or ra["is_zero"]:
+                    if flags & 0x1F:
+                        fail("div infinite/zero shape", hex(a), hex(b),
+                             hex(flags))
+                    continue
+                exact = _frac(ra, ew, sw) / _frac(rb, ew, sw)
+                got = _frac(rv, ew, sw)
+                counts["div"] += 1
+                if rv["is_inf"]:
+                    # the quotient overflowed: OF|NX at RNE, the largest finite
+                    # magnitude under the truncating directions
+                    want = OF | NX
+                    if (flags & 0x1F) != want:
+                        fail("div overflow flags", hex(a), hex(b), hex(flags))
+                    continue
+                if got == exact:
+                    if flags & NX:
+                        fail("div NX on an exact quotient", hex(a), hex(b))
+                    continue
+                if not (flags & NX):
+                    fail("div missing NX", hex(a), hex(b), hex(v))
+                    continue
+                if mode != RNE:
+                    continue
+                # nearest, ties to even: not farther than half a quantum, and
+                # an exact half needs an even significand
+                half = _ulp(v, ew, sw) / 2
+                dist = abs(got - exact)
+                if dist > half:
+                    fail("div not nearest", f"fmt={ew},{sw}", hex(a), hex(b),
+                         hex(v), f"ratio={float(dist / half):.3f}")
+                elif dist == half and (rv["sig"] & 1):
+                    fail("div tie not even", hex(a), hex(b), hex(v))
+        # ── square root ────────────────────────────────────────────────────
+        for x in pats:
+            rx = raw_from_fn(ew, sw, x)
+            if rx["is_nan"] or rx["is_inf"] or rx["sign"]:
+                continue
+            v, flags = sqrt_exact(ew, sw, x, RNE)
+            if rx["is_zero"]:
+                if v != (rx["sign"] << (w - 1)) or flags:
+                    fail("sqrt of zero", hex(x), hex(v), hex(flags))
+                continue
+            rv = raw_from_fn(ew, sw, v)
+            counts["sqrt"] += 1
+            ax = _frac(rx, ew, sw)
+            s = rv["sig"]
+            q = rv["s_exp"] - (1 << ew) - (sw - 1)
+            two_q = Fraction(2) ** q
+            lo = Fraction(s) * two_q
+            # Correctly rounded root, checked against the exact value: `v` must
+            # not lie beyond either midpoint of its two neighbours.  With
+            # r = root(a) and v = s*2^q:
+            #   r < (s+1/2)2^q  <=>  4a < (2s+1)^2 2^2q
+            #   r > (s-1/2)2^q  <=>  4a > (2s-1)^2 2^2q
+            # (both comparisons are exact integer arithmetic on `a`).
+            lhs = 4 * ax
+            up = Fraction(2 * s + 1) ** 2 * two_q * two_q
+            dn = Fraction(2 * s - 1) ** 2 * two_q * two_q
+            if lhs > up:
+                fail("sqrt rounded down", f"fmt={ew},{sw}", hex(x), hex(v))
+            elif lhs == up and (s & 1):
+                fail("sqrt tie not even", f"fmt={ew},{sw}", hex(x), hex(v))
+            if lhs < dn:
+                fail("sqrt rounded up", f"fmt={ew},{sw}", hex(x), hex(v))
+            elif lhs == dn and (s & 1):
+                fail("sqrt tie not even", f"fmt={ew},{sw}", hex(x), hex(v))
+            if (flags & NX) != (0 if lo * lo == ax else NX):
+                fail("sqrt NX", f"fmt={ew},{sw}", hex(x), hex(v), hex(flags))
+        # ── remainder ──────────────────────────────────────────────────────
+        for _ in range(n):
+            a = rng.getrandbits(w)
+            ea = (a >> (sw - 1)) & ((1 << ew) - 1)
+            # pair the dividend with a divisor a few binades away, so the
+            # long-iteration path is exercised too
+            eb = max(1, min((1 << ew) - 2, ea + rng.randrange(-3, 4)))
+            b = (rng.getrandbits(1) << (w - 1)) | (eb << (sw - 1)) | \
+                rng.getrandbits(sw - 1)
+            ra, rb = raw_from_fn(ew, sw, a), raw_from_fn(ew, sw, b)
+            if ra["is_nan"] or rb["is_nan"] or ra["is_inf"] or rb["is_inf"] \
+                    or ra["is_zero"] or rb["is_zero"]:
+                continue
+            v, flags = rem_exact(ew, sw, a, b)
+            counts["rem"] += 1
+            if flags:
+                fail("rem raised a flag", hex(a), hex(b), hex(flags))
+                continue
+            x = _frac(ra, ew, sw)
+            y = _frac(rb, ew, sw)
+            r = _frac(raw_from_fn(ew, sw, v), ew, sw)
+            n_int = round(x / y)              # Fraction: ties to even
+            if r != x - n_int * y:
+                fail("rem identity", f"fmt={ew},{sw}", hex(a), hex(b), hex(v))
+            if abs(r) > abs(y) / 2:
+                fail("rem magnitude", f"fmt={ew},{sw}", hex(a), hex(b), hex(v))
+            counts["rem_exact"] += 1
+    print("divrem selfcheck: " + " ".join(f"{k}={v}" for k, v in counts.items())
+          + f" mismatches={bad}")
+    return 0 if bad == 0 else 1
+
+
 def selfcheck(n=4000, seed=20260111):
     rng = random.Random(seed)
     bad = 0
@@ -1050,6 +1424,9 @@ def main(argv):
     if len(argv) > 1 and argv[1] == "selfcheck":
         n = int(argv[2]) if len(argv) > 2 else 4000
         return selfcheck(n)
+    if len(argv) > 1 and argv[1] == "divrem":
+        n = int(argv[2]) if len(argv) > 2 else 300
+        return selfcheck_divrem(n)
     if len(argv) > 1 and argv[1] == "roundtrip":
         bad = 0
         rng = random.Random(7)

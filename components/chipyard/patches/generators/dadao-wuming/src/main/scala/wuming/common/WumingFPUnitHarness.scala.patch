@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
 new file mode 100644
-index 0000000..621657b
+index 0000000..b081481
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
-@@ -0,0 +1,577 @@
+@@ -0,0 +1,658 @@
 +// See LICENSE for license details.
 +//
 +// Unit bench for the FP infrastructure (m12-chipyard-011).
@@ -61,6 +61,18 @@ index 0000000..621657b
 +//  39  min fo
 +//  40  max fo
 +//
++//  41  fodiv (multi-cycle)     in = a, inHi = b
++//  42  fodiv fo
++//  43  foroot                  in = a
++//  44  foroot fo
++//  45  forem                   in = a, inHi = b
++//  46  forem fo
++//
++// Ops 41-46 are clocked: `io.slowStart` is a one-cycle pulse and `io.slowDone`
++// (or the hardfloat twin's `outValid`) marks the cycle whose `outLo`/`outHi`/
++// `flags` -- `hfOutLo`/`hfOutHi`/`hfFlags` -- are the result.  The TB holds the
++// clock for the combinational ops and ticks it for these.
++//
 +// `hfOut`/`hfFlags` carry the hardfloat result of the same operation for ops
 +// 4-7 (its raw `exceptionFlags` order: NV, DZ, OF, UF, NX), for the conversion
 +// ops (already normalised) and for ops 25-36 (hardfloat's `AddRecFN`,
@@ -93,6 +105,11 @@ index 0000000..621657b
 +    val fcsrWrData = Input(UInt(64.W))
 +    val fcsrFflags = Input(UInt(5.W))
 +    val fcsrRead = Output(UInt(64.W))
++    // m12-014: the multi-cycle family's start pulse and completion strobes.
++    val slowStart = Input(Bool())
++    val slowDone = Output(Bool())
++    val slowBusy = Output(Bool())
++    val hfValid = Output(Bool())
 +  })
 +
 +  /** The 128-bit bench word, split so the C++ side only deals with 64-bit
@@ -390,6 +407,58 @@ index 0000000..621657b
 +  val flags = WireDefault(0.U(5.W))
 +  val hfOut = WireDefault(0.U(128.W))
 +  val hfFlags = WireDefault(0.U(5.W))
++
++  // ---- divide / root / remainder (m12-chipyard-014) ----------------------
++  // Mine = `WumingFpSlow` (the production unit); the hardfloat twin
++  // `DivSqrtRecFN_small` sits next to it for the two operations it implements
++  // (division and square root; the IEEE remainder has no hardfloat module and
++  // is checked against the exact oracle only).
++  val OP_DIV_FT = 41.U
++  val OP_DIV_FO = 42.U
++  val OP_SQRT_FT = 43.U
++  val OP_SQRT_FO = 44.U
++  val OP_REM_FT = 45.U
++  val OP_REM_FO = 46.U
++  val slowKind = MuxLookup(io.op, WumingFpSlowKind.DIV)(Seq(
++    OP_DIV_FT -> WumingFpSlowKind.DIV, OP_DIV_FO -> WumingFpSlowKind.DIV,
++    OP_SQRT_FT -> WumingFpSlowKind.SQRT, OP_SQRT_FO -> WumingFpSlowKind.SQRT,
++    OP_REM_FT -> WumingFpSlowKind.REM, OP_REM_FO -> WumingFpSlowKind.REM))
++  val slowFo = (io.op === OP_DIV_FO) || (io.op === OP_SQRT_FO) ||
++    (io.op === OP_REM_FO)
++  val slow = Module(new WumingFpSlow)
++  slow.io.kind := slowKind
++  slow.io.isFo := slowFo
++  slow.io.mode := io.mode
++  slow.io.a := in(63, 0)
++  slow.io.b := in(127, 64)
++  slow.io.start := io.slowStart
++  io.slowDone := slow.io.done
++  io.slowBusy := slow.io.busy
++
++  val hfDivFt = Module(new hardfloat.DivSqrtRecFN_small(
++    WumingFmt.ftExp, WumingFmt.ftSig, 0))
++  val hfDivFo = Module(new hardfloat.DivSqrtRecFN_small(
++    WumingFmt.foExp, WumingFmt.foSig, 0))
++  for ((u, ew, sw) <- Seq((hfDivFt, WumingFmt.ftExp, WumingFmt.ftSig),
++                            (hfDivFo, WumingFmt.foExp, WumingFmt.foSig))) {
++    u.io.inValid := io.slowStart && (slowKind =/= WumingFpSlowKind.REM)
++    u.io.a := WumingRecFN.recFNFromFN(ew, sw, in(ew + sw - 1, 0))
++    u.io.b := WumingRecFN.recFNFromFN(ew, sw, in(127, 64)(ew + sw - 1, 0))
++    u.io.roundingMode := io.mode
++    u.io.detectTininess := hardfloat.consts.tininess_afterRounding
++    u.io.sqrtOp := slowKind === WumingFpSlowKind.SQRT
++  }
++  val hfSlowValue = Mux(slowFo,
++    WumingRecFN.fNFromRecFN(WumingFmt.foExp, WumingFmt.foSig,
++      hfDivFo.io.out).pad(64),
++    WumingRecFN.fNFromRecFN(WumingFmt.ftExp, WumingFmt.ftSig,
++      hfDivFt.io.out).pad(64))
++  val hfSlowFlags = Mux(slowFo,
++    rev5(hfDivFo.io.exceptionFlags), rev5(hfDivFt.io.exceptionFlags))
++  io.hfValid := Mux(slowFo,
++    hfDivFo.io.outValid_div || hfDivFo.io.outValid_sqrt,
++    hfDivFt.io.outValid_div || hfDivFt.io.outValid_sqrt)
++
 +  switch(io.op) {
 +    is(0.U) { out := WumingRecFN.recFNFromFN(WumingFmt.ftExp, WumingFmt.ftSig,
 +      in(ftFnWidth - 1, 0)).pad(128) }
@@ -558,6 +627,18 @@ index 0000000..621657b
 +    is(OP_MAX_FT) { out := arith.io.out.pad(128); flags := arith.io.flags }
 +    is(OP_MIN_FO) { out := arith.io.out.pad(128); flags := arith.io.flags }
 +    is(OP_MAX_FO) { out := arith.io.out.pad(128); flags := arith.io.flags }
++    // ---- divide / root / remainder (m12-chipyard-014) --------------------
++    is(OP_DIV_FT) { out := slow.io.out.pad(128); flags := slow.io.flags
++                    hfOut := hfSlowValue.pad(128); hfFlags := hfSlowFlags }
++    is(OP_DIV_FO) { out := slow.io.out.pad(128); flags := slow.io.flags
++                    hfOut := hfSlowValue.pad(128); hfFlags := hfSlowFlags }
++    is(OP_SQRT_FT) { out := slow.io.out.pad(128); flags := slow.io.flags
++                     hfOut := hfSlowValue.pad(128); hfFlags := hfSlowFlags }
++    is(OP_SQRT_FO) { out := slow.io.out.pad(128); flags := slow.io.flags
++                     hfOut := hfSlowValue.pad(128); hfFlags := hfSlowFlags }
++    // The remainder has no hardfloat module; the oracle decides.
++    is(OP_REM_FT) { out := slow.io.out.pad(128); flags := slow.io.flags }
++    is(OP_REM_FO) { out := slow.io.out.pad(128); flags := slow.io.flags }
 +  }
 +  io.outLo := out(63, 0)
 +  io.outHi := out(127, 64)

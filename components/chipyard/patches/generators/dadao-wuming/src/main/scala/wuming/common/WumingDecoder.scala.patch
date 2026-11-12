@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 new file mode 100644
-index 0000000..276be6a
+index 0000000..cc50c38
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
-@@ -0,0 +1,1088 @@
+@@ -0,0 +1,1128 @@
 +// See LICENSE for license details.
 +//
 +// DADAO decoder for the M12 integer core.
@@ -82,8 +82,11 @@ index 0000000..276be6a
 +// `orrr` add/sub/multiply, the min/max and the quiet/signalling compare forms,
 +// plus the single-destination `rrrr` fused multiply-add (`opc 0x5E/0x5F`).
 +//
-+// Every other FP form (division, remainder, scaleB, rounding, square root,
-+// shift-by-exponent) is still ILLI: it belongs to m12-chipyard-014/015.
++// m12-chipyard-014 adds the multi-cycle family (spec/SimRISC-07 §2.1/§2.2):
++// `ftdiv`/`fodiv`, `ftrem`/`forem` and `ftroot`/`foroot` (n = 2 only).
++//
++// Every other FP form (scaleB, rounding, shift-by-exponent) is still ILLI: it
++// belongs to m12-chipyard-015.
 +
 +package wuming.common
 +
@@ -202,6 +205,11 @@ index 0000000..276be6a
 +  val isFpArith = Bool()
 +  val fpKind    = UInt(3.W)
 +  val fpFo      = Bool()
++  // m12-014: the multi-cycle divide / root / remainder family.  `fpSlowKind`
++  // selects the unit inside `WumingFpSlow`; `fpFo` is shared with the
++  // arithmetic family above.
++  val isFpSlow   = Bool()
++  val fpSlowKind = UInt(2.W)
 +}
 +
 +class WumingDecoder extends Module {
@@ -267,6 +275,7 @@ index 0000000..276be6a
 +  d.isCvt := false.B; d.cvtKind := WumingCvtKind.F2I_FT_T; d.cvtImm6 := 0.U
 +  d.cvtExact := false.B; d.cvtSigned := true.B
 +  d.isFpArith := false.B; d.fpKind := WumingFPArithOp.ADD; d.fpFo := false.B
++  d.isFpSlow := false.B; d.fpSlowKind := WumingFpSlowKind.DIV
 +
 +  val recognized = WireDefault(false.B)
 +
@@ -606,6 +615,29 @@ index 0000000..276be6a
 +    when(ha === 0.U) { d.ill := true.B }                    // dst_rf0
 +  }
 +
++  // ---- m12-014: divide / root / remainder (spec/SimRISC-07 §2) -----------
++  //
++  // `ftdiv`/`fodiv` and `ftrem`/`forem` are `orrr` (rfHB destination,
++  // rfHC/rfHD sources); `ftroot`/`foroot` are `orri` with `immu6` = n, and
++  // `encode_fp_root_n` (contracts/legality_rules.yaml) accepts only n = 2 --
++  // `rootn(x, 2)` is the square root (spec §2.2).  All six are multi-cycle in
++  // the core and forbid `rf0` as the destination (`dst_rf0`).
++  def fpSlow(kind: UInt, isFo: Boolean): Unit = {
++    d.isFpSlow := true.B
++    d.fpSlowKind := kind
++    d.fpFo := isFo.B
++    d.srcAIdx := hc; d.srcABank := WumingBank.RF
++    d.srcBIdx := hd; d.srcBBank := WumingBank.RF
++    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }                    // dst_rf0
++  }
++
++  def fpRoot(isFo: Boolean): Unit = {
++    fpSlow(WumingFpSlowKind.SQRT, isFo)
++    // `immu6` is the root degree; only n = 2 exists (encode_fp_root_n).
++    when(hd =/= 2.U) { d.ill := true.B }
++  }
++
 +  // ---- memory shapes (spec/SimRISC-01) ----------------------------------
 +  // `memWidth` = log2(access bytes); `memSigned` selects sb/sw/st vs ub/uw/ut.
 +  // Single-element address = rbHB + imms12; multi-register address =
@@ -819,13 +851,21 @@ index 0000000..276be6a
 +        is(0x1E.U) { subHandled := true.B; signInject(WumingAluOp.SGNN, true) }
 +        is(0x1F.U) { subHandled := true.B; signInject(WumingAluOp.SGNJ, true) }
 +        // m12-013 S2D1 arithmetic (spec/SimRISC-07 §2.1): ftadd/ftsub/ftmul
-+        // and foadd/fosub/fomul.  div/rem/scaleB stay with m12-014/015.
++        // and foadd/fosub/fomul.  div/rem are m12-014, scaleB is m12-015.
 +        is(0x10.U) { subHandled := true.B; fpArith(WumingFPArithOp.ADD, false) }
 +        is(0x11.U) { subHandled := true.B; fpArith(WumingFPArithOp.SUB, false) }
 +        is(0x12.U) { subHandled := true.B; fpArith(WumingFPArithOp.MUL, false) }
 +        is(0x18.U) { subHandled := true.B; fpArith(WumingFPArithOp.ADD, true) }
 +        is(0x19.U) { subHandled := true.B; fpArith(WumingFPArithOp.SUB, true) }
 +        is(0x1A.U) { subHandled := true.B; fpArith(WumingFPArithOp.MUL, true) }
++        // m12-014 multi-cycle family (spec/SimRISC-07 §2.1/§2.2): the divide,
++        // remainder and root forms.
++        is(0x13.U) { subHandled := true.B; fpSlow(WumingFpSlowKind.DIV, false) }
++        is(0x14.U) { subHandled := true.B; fpSlow(WumingFpSlowKind.REM, false) }
++        is(0x1B.U) { subHandled := true.B; fpSlow(WumingFpSlowKind.DIV, true) }
++        is(0x1C.U) { subHandled := true.B; fpSlow(WumingFpSlowKind.REM, true) }
++        is(0x06.U) { subHandled := true.B; fpRoot(false) }   // ftroot (n = 2)
++        is(0x0E.U) { subHandled := true.B; fpRoot(true) }    // foroot (n = 2)
 +        // m12-013 compare (spec §4) and min/max (spec §2.4).
 +        is(0x20.U) { subHandled := true.B; fpCmp(false, signaling = false) }
 +        is(0x21.U) { subHandled := true.B; fpCmp(false, signaling = true) }

@@ -34,6 +34,9 @@ static void tick() {
     dut->eval();
 }
 
+static bool is_slow(unsigned op) { return op >= 41 && op <= 46; }
+static bool has_hf(unsigned op) { return op >= 41 && op <= 44; }
+
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
     dut = new VWumingFPUnitHarness;
@@ -48,6 +51,7 @@ int main(int argc, char **argv) {
     dut->io_fcsrWrEn = 0;
     dut->io_fcsrWrData = 0;
     dut->io_fcsrFflags = 0;
+    dut->io_slowStart = 0;
     tick();
     tick();
     dut->reset = 0;
@@ -81,6 +85,46 @@ int main(int argc, char **argv) {
             dut->io_inLo = inLo;
             dut->io_inHi = inHi;
             dut->io_inExtra = inExtra;
+            if (is_slow(op)) {
+                // m12-014: clocked operation.  A one-cycle `slowStart` pulse
+                // starts both units (hardfloat's `inReady` is high in idle);
+                // then tick until each side has reported its result.
+                unsigned long long oLo = 0, oHi = 0, hLo = 0, hHi = 0;
+                unsigned fl = 0, hfl = 0;
+                bool gotMine = false, gotHf = !has_hf(op);
+                int ticks = 0;
+                dut->io_slowStart = 1;
+                dut->eval();
+                tick();
+                dut->io_slowStart = 0;
+                for (int g = 0; g < 40000 && !(gotMine && gotHf); g++) {
+                    dut->eval();
+                    if (!gotMine && dut->io_slowDone) {
+                        oLo = dut->io_outLo; oHi = dut->io_outHi;
+                        fl = dut->io_flags; gotMine = true;
+                    }
+                    if (!gotHf && dut->io_hfValid) {
+                        hLo = dut->io_hfOutLo; hHi = dut->io_hfOutHi;
+                        hfl = dut->io_hfFlags; gotHf = true;
+                    }
+                    if (gotMine && gotHf) break;
+                    tick();
+                    ticks++;
+                }
+                if (!gotMine || !gotHf) {
+                    std::fprintf(stderr, "tb_fp_unit: op %u did not finish "
+                                 "(mine=%d hf=%d)\n", op, (int)gotMine,
+                                 (int)gotHf);
+                    return 4;
+                }
+                // `C` reports the measured latency (clock ticks until both
+                // sides finished); `unit_run.py` prints the per-op range.
+                std::printf("C %u %d\n", op, ticks);
+                std::printf("V %u %llx %llx %u %llx %llx %llx %x %llx %llx %x\n",
+                            op, inLo, inHi, mode, inExtra, oLo, oHi, fl,
+                            hLo, hHi, hfl);
+                continue;
+            }
             dut->eval();
             dut->eval();
             std::printf("V %u %llx %llx %u %llx %llx %llx %x %llx %llx %x\n", op,

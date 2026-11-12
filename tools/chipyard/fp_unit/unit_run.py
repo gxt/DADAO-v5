@@ -44,12 +44,15 @@ def rev5(x):
     return out
 
 
-def run_vectors(binary, path):
+def run_vectors(binary, path, ticks_out=None):
     out = subprocess.run([binary, "--vectors", path], check=True,
                          capture_output=True, text=True).stdout
     res = []
     for line in out.splitlines():
         f = line.split()
+        if f and f[0] == "C" and ticks_out is not None:
+            ticks_out[int(f[1])] = max(ticks_out.get(int(f[1]), 0), int(f[2]))
+            continue
         if not f or f[0] != "V":
             continue
         res.append(dict(op=int(f[1]), in_lo=int(f[2], 16),
@@ -523,6 +526,70 @@ def check(args):
               f"hf-flag-diff=n/a oracle-diff={bad_oracle}")
         fails += bad_oracle
         summary.append((name, len(got), bad_oracle))
+
+    # ── divide / square root / remainder (m12-chipyard-014) ───────────────
+    # Division and the root are clocked (the TB pulses `slowStart` and ticks);
+    # their value is compared against hardfloat's `DivSqrtRecFN_small` with the
+    # NaN payload collapsed (the two implementations choose different NaN
+    # payloads) and against the exact oracle bit for bit.  The IEEE remainder
+    # has no hardfloat module, so only the oracle decides -- and since it is
+    # exact, one rounding mode suffices.
+    SLOW_DIV = {41: ("div ft", F.FT), 42: ("div fo", F.FO)}
+    SLOW_SQRT = {43: ("sqrt ft", F.FT), 44: ("sqrt fo", F.FO)}
+    SLOW_REM = {45: ("rem ft", F.FT), 46: ("rem fo", F.FO)}
+    ticks = {}
+    for op in list(SLOW_DIV) + list(SLOW_SQRT) + list(SLOW_REM):
+        name = (SLOW_DIV.get(op) or SLOW_SQRT.get(op) or SLOW_REM.get(op))[0]
+        ew, sw = (SLOW_DIV.get(op) or SLOW_SQRT.get(op) or SLOW_REM.get(op))[1]
+        if op in SLOW_REM:
+            pairs = F.sample_pairs(ew, sw, args.n, rng)
+            lines = [f"{op} {a:x} {b:x} {F.RNE} 0" for (a, b) in pairs]
+        elif op in SLOW_DIV:
+            pairs = F.sample_pairs(ew, sw, args.n, rng)
+            lines = [f"{op} {a:x} {b:x} {mode} 0"
+                     for (a, b) in pairs for mode in MODES]
+        else:
+            vals = F.sample_fn(ew, sw, args.n, rng)
+            lines = [f"{op} {x:x} 0 {mode} 0" for x in vals for mode in MODES]
+        got = run_vectors(args.bin, _write(args, f"vectors_op{op}.txt", lines),
+                          ticks)
+        bad_hf = bad_flag = bad_oracle = uf_boundary = 0
+        for r in got:
+            a, b, mode = r["in_lo"], r["in_hi"], r["mode"]
+            if op in SLOW_DIV:
+                want, wflags = F.div_exact(ew, sw, a, b, mode)
+            elif op in SLOW_SQRT:
+                want, wflags = F.sqrt_exact(ew, sw, a, mode)
+            else:
+                want, wflags = F.rem_exact(ew, sw, a, b)
+            if r["out"] != want or r["flags"] != wflags:
+                bad_oracle += 1
+                if bad_oracle <= 8:
+                    print(f"  [ORACLE] {name} a={a:x} b={b:x} mode={mode} "
+                          f"want={want:x}/{wflags:x} got={r['out']:x}/{r['flags']:x}")
+            if op in SLOW_REM:
+                continue
+            if fn_val(r["out"], ew, sw) != fn_val(r["hf_out"], ew, sw):
+                bad_hf += 1
+                if bad_hf <= 6:
+                    print(f"  [DIFF] {name} a={a:x} b={b:x} mode={mode} "
+                          f"mine={r['out']:x} hf={r['hf_out']:x}")
+            if r["flags"] != r["hf_flags"]:
+                if is_uf_boundary(r["out"], r["flags"], r["hf_flags"], ew, sw):
+                    uf_boundary += 1
+                    continue
+                bad_flag += 1
+                if bad_flag <= 6:
+                    print(f"  [FLAG] {name} a={a:x} b={b:x} mode={mode} "
+                          f"mine={r['flags']:x} hf={r['hf_flags']:x}")
+        print(f"  {name}: {len(got)} vectors | hf-value-diff={bad_hf} "
+              f"hf-flag-diff={bad_flag} uf-boundary={uf_boundary} "
+              f"oracle-diff={bad_oracle}")
+        fails += bad_hf + bad_flag + bad_oracle
+        summary.append((name, len(got), bad_hf + bad_flag + bad_oracle))
+    if ticks:
+        print("  measured latency (clock ticks to completion, per op): "
+              + " ".join(f"op{o}={t}" for o, t in sorted(ticks.items())))
 
     # ── FCSR (clocked) ────────────────────────────────────────────────────
     fpath = os.path.join(args.workdir, "fcsr.txt")
