@@ -181,3 +181,6 @@ DADAO-v5/
 11. **反例注入的还原纪律**：**禁** `git checkout`/`git restore`/`git stash`/`git show <commit>:<path>` 还原（会清未提交改动）；一律 `cp` 备份 + md5 对账，或优先临时树注入；`git status`/`git diff` 干净**不作**「已还原」证据。
 12. **命令作用域 = workdir（= 仓库根）**：命令一律在 workdir 内、用**相对路径**；**禁出界** `cd /*`、`cd ~*`、`cd ..*`；换目录用工具的 **`workdir` 参数**。
 13. **`discussing.md` 只由主会话修改**：子代理（architect/engineer/reviewer）不得改 `.tao/knowledge/discussing.md`；讨论项记录归主会话，子代理只写任务书/完成区。
+14. **改动落盘自证**：动手前先 `git rev-parse --show-toplevel` 确认等于自己的 worktree；收尾必须贴**该 worktree** 的 `git status -uall` + `git diff --stat` 证明改动真实存在。
+15. **禁 `reset --hard`/`checkout -- .`**：需要干净树重放就另建 `-verify` 临时树；注入还原只用 `cp`+md5（`ISS-402`）。
+16. **architect 合入前三查**：`git show --stat <branch>` 必须含实现文件（不只任务书）；**禁 `git add -A`/`git add .`**，逐项 staging；删 worktree 前先核其 `git status -uall` 干净（`ISS-402`/`ISS-405`）。
