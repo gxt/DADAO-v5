@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m13-gem5-010 | 2–3 h | gem5 的 hmon 测试 fixture 迁到最小 handler（清 `[PENDING]`） |
 | m13-testcases-031 | 1–2 天 | 补 `st.o rb0`（`aip.si` 构造期望）+ `ld.o ra0` 读写（SBZ 写忽略） |
 | m13-testcases-014 | 4–5 天 | `02-reg-copy` 16 个 id 改汇编+宏（复制 + `cs.*`） |
 | m13-testcases-015 | 2–3 天 | `03-wyde-imm` 8 个 id 改汇编+宏 |
