@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m13-spec-003 | 1 h | `forem` 的 NaN 优先级按 IEEE §7.2 f) 写明（qNaN/sNaN 与 ±0 除数） |
 | m13-integ-009 | 4–6 h | FP-IEEE 对齐审计（47 条，等 `015` 后执行） |
 | m13-testcases-011 | 2–3 h | `fo2ft` 溢出向量 + 三方对照（等三实现改完） |
 | m13-gem5-007 | 2–3 h | `fo2ft` 溢出按 IEEE 舍入模式（gem5 + checker） |
