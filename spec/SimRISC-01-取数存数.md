@@ -61,12 +61,13 @@ stm.o    {rdHA:rdHA+immu6-1}, [rbHB, rdHC]
 - `immu6` = 0 时触发 ILLI 异常
 - `rdHA + immu6 > 64`（超出 rd63）时触发 ILLI 异常，不环绕、不截断
 - `ldm.o`/`stm.o`（64-bit）需 8 字节地址对齐；`ldm.st`/`stm.t`/`ldm.ut`（32-bit）需 4 字节对齐；`ldm.sw`/`stm.w`/`ldm.uw`（16-bit）需 2 字节对齐；`ldm.sb`/`stm.b`/`ldm.ub`（8-bit）无对齐要求。未对齐将触发 MALIGN 异常
-- 当多寄存器读写的范围包括`rdHC`时，地址计算仍然按照原始的`rdHC`中的数据进行
-- 装入类指令的源寄存器范围与目的寄存器范围可以重叠。硬件按序号递增逐对处理，每对先读后写。重叠时行为依赖顺序，使用者应避免在同一寄存器同时出现在源和目的中
+- **`ldm` 禁止索引寄存器落入传送范围**：RD 形式的传送范围在 RD 组、索引寄存器是同组的 `rdHC`；`rdHA <= rdHC < rdHA + immu6` 时触发 ILLI 异常（静态：在指令执行前判定，不产生任何元素的效果）。理由：`ldm` 逐元素写入传送范围内的寄存器，索引寄存器一旦被在先元素覆盖，后续元素的地址就取决于处理进度（与本节「部分生效」的中断点相关），结果不确定。
+- **`stm` 允许索引寄存器落入传送范围**：`stm` 只读出传送范围内的寄存器、不写任何寄存器，地址全程由指令开始执行时的 `rdHC` 给出，与处理进度无关 ⇒ 行为确定，不触发异常。
+- **基址寄存器不适用**：RD 形式的基址寄存器 `rbHB` 属于 RB 组，而传送范围在 RD 组，结构上不可能落入范围（RB 形式相反，见 §2）。
 
 > **部分生效（不保证无副作用）**：§1–§4 的全部 `ldm`/`stm` 形式在处理多个元素时，若某个元素触发同步异常（如 `MALIGN`/`CFXMEM`/`CFXPERM`），**不保证**目的寄存器或内存未被修改——异常前已处理的元素可能已经生效，故这类指令**不是精确异常**；异常原因码仍须与触发元素一致，IP 仍指向该指令。实现可在执行前对全部元素做**整段预检**（任一检查失败即不产生副作用），表现为精确；这是**允许的更强行为**，软件**不得依赖**。
 >
-> **与部分生效相关的顺序约束**：地址寄存器 `rdHC` 落在多寄存器处理范围内时，地址一律按**原始** `rdHC` 计算（见上条限制），不随已生效元素改变——这正是为消除部分生效的中间态改变地址、使结果依赖中断点。（寄存器复制类块复制**不适用**本例外、保持精确，其源/目的重叠被禁止，见 SimRISC-02 与 DADAO-12 §5。）
+> **与部分生效相关的顺序约束**：地址寄存器凡与传送范围同组者，**不得**落入该范围（`ldm`，违反 ⇒ ILLI，见 §1/§2 的 `ldm` 禁令）；`stm` 不写寄存器、RA/RF 形式的地址寄存器与传送范围分属不同寄存器组（不被写入）⇒ 无论异常落在哪个元素，地址都不随已生效元素改变。（寄存器复制类块复制**不适用**本例外、保持精确，其源/目的重叠被禁止，见 SimRISC-02 与 DADAO-12 §5。）
 
 ## 2. 存取RB寄存器
 
@@ -86,8 +87,9 @@ stm.o    {rbHA:rbHA+immu6-1}, [rbHB, rdHC]
 - `ld.o`/`ldm.o` 指令的 `rbHA` 为 `rb0` 时触发 ILLI 异常（rb0 通用约定见 SimRISC-00）；`st.o`/`stm.o` 指令允许 `rbHA` 为 `rb0`（rb0 作为源寄存器读出为当前指令的地址）
 - `immu6` = 0 时触发 ILLI 异常
 - `rbHA + immu6 > 64`（超出 rb63）时触发 ILLI 异常
-- 源和目的寄存器范围可以重叠。硬件按序号递增逐对处理，每对先读后写。重叠时行为依赖顺序，使用者应避免在同一寄存器同时出现在源和目的中
-- 当多寄存器读写的范围包括`rbHB`时，地址计算仍然按照原始的`rbHB`中的数据进行
+- **`ldm.o` 禁止基址寄存器落入传送范围**：RB 形式的传送范围在 RB 组、基址寄存器是同组的 `rbHB`；`rbHA <= rbHB < rbHA + immu6` 时触发 ILLI 异常（静态：在指令执行前判定，不产生任何元素的效果；理由同 §1：写入传送范围会使后续元素的地址依赖处理进度）。
+- **`stm.o` 允许基址寄存器落入传送范围**：`stm.o` 只读出传送范围内的寄存器、不写任何寄存器 ⇒ 地址与处理进度无关，行为确定。
+- **索引寄存器不适用**：RB 形式的索引寄存器 `rdHC` 属于 RD 组，而传送范围在 RB 组，结构上不可能落入范围（RD 形式相反，见 §1）。
 
 ## 3. 存取RA寄存器
 
@@ -107,6 +109,7 @@ stm.o    {raHA:raHA+immu6-1}, [rbHB, rdHC]
 - `raHA` 为 `ra0` 时不触发异常（ra0 可读写）
 - `immu6` = 0 时触发 ILLI 异常
 - `raHA + immu6 > 64` 时触发 ILLI 异常（超出 ra63）
+- **基址/索引寄存器与传送范围的重叠：不适用**——传送范围在 RA 组，基址寄存器 `rbHB` 在 RB 组、索引寄存器 `rdHC` 在 RD 组，结构上不可能落入范围。
 
 ## 4. 存取RF寄存器
 
@@ -131,6 +134,7 @@ stm.o   {rfHA:rfHA+immu6-1}, [rbHB, rdHC]
 - `immu6` = 0 时触发 ILLI 异常
 - 任一起始寄存器 + immu6 > 64 时触发 ILLI 异常
 - `rfHA + immu6 > 64`（超出 rf63）时触发 ILLI 异常
+- **基址/索引寄存器与传送范围的重叠：不适用**（同 §3）——传送范围在 RF 组，基址寄存器 `rbHB` 在 RB 组、索引寄存器 `rdHC` 在 RD 组，结构上不可能落入范围。
 
 > **注**：`rf0` 作**目的**合法（`ld.o`/`ldm.o`/`ld.t`/`ldm.t`），写入按 SimRISC-00 的写语义（`ld.t`/`ldm.t` 的 `[63:32]` 不变）；`rf0` 作**源**（`st.o`/`st.t`/`stm.o`/`stm.t`）读出完整 64 位。
 
@@ -187,6 +191,7 @@ stm.o   {rfHA:rfHA+immu6-1}, [rbHB, rdHC]
 * `dst_rb0`：目的 rb0 → ILLI — `ld.o_rrii_rb`, `ldm.o_rrri_rb`（2 条）
 * `mreg_zero`：immu6=0 → ILLI — `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.o_rrri_rf`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.t_rrri_rf`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `stm.b_rrri_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.o_rrri_rf`, `stm.t_rrri_rd`, `stm.t_rrri_rf`, `stm.w_rrri_rd`（19 条）
 * `mreg_range_overflow`：起始+immu6>64 → ILLI — `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.o_rrri_rf`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.t_rrri_rf`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `stm.b_rrri_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.o_rrri_rf`, `stm.t_rrri_rd`, `stm.t_rrri_rf`, `stm.w_rrri_rd`（19 条）
+* `mreg_range_addr_overlap`：`ldm` 基址/索引落入传送范围 → ILLI — `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`（8 条）
 * `excp_malign`（动态）：未对齐访问 → MALIGN — `ld.o_rrii_ra`, `ld.o_rrii_rb`, `ld.o_rrii_rd`, `ld.st_rrii_rd`, `ld.sw_rrii_rd`, `ld.ut_rrii_rd`, `ld.uw_rrii_rd`, `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `st.o_rrii_ra`, `st.o_rrii_rb`, `st.o_rrii_rd`, `st.t_rrii_rd`, `st.w_rrii_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.t_rrri_rd`, `stm.w_rrri_rd`（24 条）
 
 **无附加合法性规则：**

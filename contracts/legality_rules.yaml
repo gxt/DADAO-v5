@@ -153,6 +153,27 @@ rules:
       格式转换中除 ft2ft/fo2fo 外的 18 条亦不适用——其低 6 位是舍入方向档或 SBZ，
       不是寄存器窗口（无可重叠的范围）。
 
+  - id: mreg_range_addr_overlap
+    fault: ILLI
+    kind: static
+    spec_cite: "SimRISC-01: 存取RD寄存器; SimRISC-01: 存取RB寄存器"
+    status: active
+    description: >
+      多元素取数指令 `ldm` 的**地址寄存器**（基址或索引）落在该指令传送的寄存器范围内时
+      触发 ILLI 异常（静态，指令执行前判定）；传送范围 = `[起始, 起始+immu6)`。
+      **仅 `ldm` 适用**（共 8 条）。RD 形式（范围在 RD 组、索引寄存器与范围同组）：
+      `rdhc ∈ [rdha, rdha+immu6)` ⇒ ILLI——ldm.ub/ldm.uw/ldm.ut/ldm.sb/ldm.sw/ldm.st 的
+      rd 变体与 ldm.o-rd（7 条）。RB 形式（范围在 RB 组、基址寄存器与范围同组）：
+      `rbhb ∈ [rbha, rbha+immu6)` ⇒ ILLI——ldm.o-rb（1 条）。
+      理由：`ldm` 逐元素写入目的寄存器，地址寄存器一旦被在先元素覆盖，后续元素的地址
+      就取决于处理进度（与「多元素内存指令允许部分生效」的中断点相关），结果不确定。
+      **`stm` 允许该重叠、不加本规则**：`stm` 只读传送范围内的寄存器、不写任何寄存器，
+      地址全程由指令开始执行时的操作数给出，行为确定。
+      **RA/RF 形式不适用**：传送范围在 RA/RF 组，基址寄存器在 RB 组、索引寄存器在 RD 组
+      （结构性不可能落入范围）。
+      与 `mreg_range_overlap`（同组块赋值的源/目的范围交集）同族：
+      该规则比较两段范围，本规则比较单个地址寄存器与一段范围。
+
   # ── 异常规则 ──────────────────────────────────────────────────────────────────
   - id: excp_malign
     fault: MALIGN

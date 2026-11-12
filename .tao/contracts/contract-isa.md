@@ -331,8 +331,7 @@ SimRISC 通常将目的操作数放在最前面，然后是寄存器源操作数
 - `rdha` 指定第一个寄存器，`rbhb + rdhc` 指定地址，`immu6` 指定寄存器个数，有效范围 1–63。[SimRISC-01 §存取RD寄存器]
 - 存取 8/16/32 位数据时，每个寄存器只存放一个数据，多个数据使用多个连续的寄存器。[SimRISC-01 §存取RD寄存器]
 - 对齐要求同 §3.1.1（`ldm.o`/`stm.o` 8 字节，`ldm.st`/`stm.t`/`ldm.ut` 4 字节，`ldm.sw`/`stm.w`/`ldm.uw` 2 字节，`ldm.sb`/`stm.b`/`ldm.ub` 无）。[SimRISC-01 §存取RD寄存器]
-- 当多寄存器读写范围包括 `rdhc` 时，地址计算仍按原始 `rdhc` 中的数据进行。[SimRISC-01 §存取RD寄存器]
-- 装入类指令的源寄存器范围与目的寄存器范围可以重叠；硬件按序号递增逐对处理，每对先读后写。[SimRISC-01 §存取RD寄存器]
+- `ldm` 的索引寄存器 `rdhc` 与传送范围同组（RD）：`rdha <= rdhc < rdha + immu6` → **ILLI**（见 `mreg_range_addr_overlap`）；`stm` **允许**该重叠（只读传送范围、不写寄存器，地址不随处理进度改变）。基址寄存器 `rbhb` 属 RB 组，结构性不可能落入 RD 传送范围。[SimRISC-01 §存取RD寄存器]
 
 异常条件：[SimRISC-01 §存取RD寄存器]
 - `ldm`：`rdha` 为 `rd0` → **ILLI**（目的不可为 rd0）
@@ -358,7 +357,7 @@ RB 寄存器都是 64 位，不需指定数据长度。[SimRISC-01 §存取RB寄
 - `st.o`/`stm.o`：`rbha` 为 `rb0` **允许**（rb0 作源，读出为当前指令的地址）[ADR-0015 D3]
 - `immu6 = 0` → **ILLI**
 - `rbha + immu6 > 64`（超出 rb63）→ **ILLI**
-- 当多寄存器读写范围包括 `rbhb` 时，地址计算仍按原始 `rbhb` 中的数据进行。[SimRISC-01 §存取RB寄存器]
+- `ldm.o` 的基址寄存器 `rbhb` 与传送范围同组（RB）：`rbha <= rbhb < rbha + immu6` → **ILLI**（见 `mreg_range_addr_overlap`）；`stm.o` **允许**该重叠。索引寄存器 `rdhc` 属 RD 组，结构性不可能落入 RB 传送范围。[SimRISC-01 §存取RB寄存器]
 
 ### §3.3 存取 RA 寄存器与 RA↔RD 块赋值
 
@@ -387,6 +386,7 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 - `raha` 为 `ra0` 时不触发异常（ra0 可读写）
 - `immu6 = 0` → **ILLI**
 - `raha + immu6 > 64`（超出 ra63）→ **ILLI**
+- 基址/索引寄存器与传送范围的重叠：**不适用**——范围在 RA 组，基址 `rbhb` 在 RB 组、索引 `rdhc` 在 RD 组，结构性不可能重叠。[SimRISC-01 §存取RA寄存器]
 
 #### §3.3.3 RA↔RD 块赋值（orri 格式）
 

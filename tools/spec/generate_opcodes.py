@@ -310,6 +310,16 @@ def aligned(n):
     return f"aligned({n})"
 
 
+def leg_addr_out_of_range(addr, start):
+    """`ldm` 的地址寄存器 `addr` 不得落入传送范围 `[start, start+immu6)`。
+
+    仅 `ldm` 适用（写入目的寄存器，重叠会让后续元素地址依赖处理进度）；
+    `stm` 只读传送范围、不写寄存器 ⇒ 允许重叠，不加此表达式。
+    表达式只用字段名 + 比较/算术，`validate_encoding.py` 的字段引用检查无需新增豁免。
+    """
+    return f"{addr} < {start} || {addr} >= {start} + immu6"
+
+
 def onehot_expr(S):
     """`rev.*`（ADR-0012 D10）的 one-hot 合法集表达式（immu6 的合法档位）。
 
@@ -385,6 +395,7 @@ def build_main_table(records):
         leg = [LEG_RD_DST, LEG_IMMU6, "rdha + immu6 <= 64"]
         if align:
             leg.append(aligned(align))
+        leg.append(leg_addr_out_of_range("rdhc", "rdha"))
         records.append(rec(f"{mnem}-rd", mnem, "rrri", op,
                            f_rrri("rdha", "rbhb", "rdhc", "immu6"), leg, S01_LD))
     records.append(rec("ldm.t-rf", "ldm.t", "rrri", 0x2E,
@@ -408,14 +419,16 @@ def build_main_table(records):
     # ── 0011-1xxx：o 多 load/store RD/RB/RA + RF（excluded）──
     records.append(rec("ldm.o-rd", "ldm.o", "rrri", 0x38,
                        f_rrri("rdha", "rbhb", "rdhc", "immu6"),
-                       [LEG_RD_DST, LEG_IMMU6, "rdha + immu6 <= 64", aligned(8)], S01_LD))
+                       [LEG_RD_DST, LEG_IMMU6, "rdha + immu6 <= 64", aligned(8),
+                        leg_addr_out_of_range("rdhc", "rdha")], S01_LD))
     records.append(rec("stm.o-rd", "stm.o", "rrri", 0x39,
                        f_rrri("rdha", "rbhb", "rdhc", "immu6",
                               roles=("src", "src", "src")),
                        [LEG_IMMU6, "rdha + immu6 <= 64", aligned(8)], S01_LD))
     records.append(rec("ldm.o-rb", "ldm.o", "rrri", 0x3A,
                        f_rrri("rbha", "rbhb", "rdhc", "immu6"),
-                       [LEG_RB_DST, LEG_IMMU6, "rbha + immu6 <= 64", aligned(8)], S01_RB_LD))
+                       [LEG_RB_DST, LEG_IMMU6, "rbha + immu6 <= 64", aligned(8),
+                        leg_addr_out_of_range("rbhb", "rbha")], S01_RB_LD))
     records.append(rec("stm.o-rb", "stm.o", "rrri", 0x3B,
                        f_rrri("rbha", "rbhb", "rdhc", "immu6",
                               roles=("src", "src", "src")),
@@ -855,7 +868,8 @@ def build_misc_rf(records):
 # ────────────────────────────── rule_refs 映射 ──────────────────────────────
 
 # legality 表达式 → legality_rules.yaml id 的完整映射。
-# 来源：contracts/legality_rules.yaml（SPEC-070t 定稿 15 条 + SPEC-083t 新增 dst_rd0_nonzero = 16 条）。
+# 来源：contracts/legality_rules.yaml（SPEC-070t 定稿 15 条 + SPEC-083t 新增 dst_rd0_nonzero = 16 条；
+# M13 新增 mreg_range_addr_overlap = 18 条）。
 # 仅映射 opcodes.yaml legality 中实际出现的表达式；
 # 运行时/兜底规则（excp_ialign/excp_rasof/excp_rasuf/excp_undi）不由 legality 表达式触发，
 # 在 check_rule_refs.py 中通过显式豁免清单处理。
@@ -885,6 +899,9 @@ EXPR_TO_RULE = OrderedDict([
     # ── 块赋值重叠 ──
     ("no_overlap(rdhb, rdhc, immu6)",             "mreg_range_overlap"),
     ("no_overlap(rbhb, rbhc, immu6)",             "mreg_range_overlap"),
+    # ── `ldm` 地址寄存器落入传送范围（`stm` 允许，不加表达式）──
+    ("rdhc < rdha || rdhc >= rdha + immu6",       "mreg_range_addr_overlap"),
+    ("rbhb < rbha || rbhb >= rbha + immu6",       "mreg_range_addr_overlap"),
     # ── FP（scope: fp）目的/范围（SPEC-089t；来源 contract-fp.md §15 + fp_semantics.yaml）──
     ("rfha != rf0",                               "dst_rf0"),
     ("rfhb != rf0",                               "dst_rf0"),

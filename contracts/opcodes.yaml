@@ -534,12 +534,14 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
+  - rdhc < rdha || rdhc >= rdha + immu6
   spec_cite: 'SimRISC-01: ldm.ub'
   scope: m1
   rule_refs:
   - dst_rd0
   - mreg_zero
   - mreg_range_overflow
+  - mreg_range_addr_overlap
 - id: ldm.uw_rrri_rd
   mnemonic: ldm.uw
   format: rrri
@@ -569,6 +571,7 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   - aligned(2)
+  - rdhc < rdha || rdhc >= rdha + immu6
   spec_cite: 'SimRISC-01: ldm.uw'
   scope: m1
   rule_refs:
@@ -576,6 +579,7 @@
   - mreg_zero
   - mreg_range_overflow
   - excp_malign
+  - mreg_range_addr_overlap
 - id: ldm.ut_rrri_rd
   mnemonic: ldm.ut
   format: rrri
@@ -605,6 +609,7 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   - aligned(4)
+  - rdhc < rdha || rdhc >= rdha + immu6
   spec_cite: 'SimRISC-01: ldm.ut'
   scope: m1
   rule_refs:
@@ -612,6 +617,7 @@
   - mreg_zero
   - mreg_range_overflow
   - excp_malign
+  - mreg_range_addr_overlap
 - id: ldm.sb_rrri_rd
   mnemonic: ldm.sb
   format: rrri
@@ -640,12 +646,14 @@
   - rdha != rd0
   - immu6 != 0
   - rdha + immu6 <= 64
+  - rdhc < rdha || rdhc >= rdha + immu6
   spec_cite: 'SimRISC-01: ldm.sb'
   scope: m1
   rule_refs:
   - dst_rd0
   - mreg_zero
   - mreg_range_overflow
+  - mreg_range_addr_overlap
 - id: ldm.sw_rrri_rd
   mnemonic: ldm.sw
   format: rrri
@@ -675,6 +683,7 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   - aligned(2)
+  - rdhc < rdha || rdhc >= rdha + immu6
   spec_cite: 'SimRISC-01: ldm.sw'
   scope: m1
   rule_refs:
@@ -682,6 +691,7 @@
   - mreg_zero
   - mreg_range_overflow
   - excp_malign
+  - mreg_range_addr_overlap
 - id: ldm.st_rrri_rd
   mnemonic: ldm.st
   format: rrri
@@ -711,6 +721,7 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   - aligned(4)
+  - rdhc < rdha || rdhc >= rdha + immu6
   spec_cite: 'SimRISC-01: ldm.st'
   scope: m1
   rule_refs:
@@ -718,6 +729,7 @@
   - mreg_zero
   - mreg_range_overflow
   - excp_malign
+  - mreg_range_addr_overlap
 - id: ldm.t_rrri_rf
   mnemonic: ldm.t
   format: rrri
@@ -911,6 +923,7 @@
   - immu6 != 0
   - rdha + immu6 <= 64
   - aligned(8)
+  - rdhc < rdha || rdhc >= rdha + immu6
   spec_cite: 'SimRISC-01: ldm.o'
   scope: m1
   rule_refs:
@@ -918,6 +931,7 @@
   - mreg_zero
   - mreg_range_overflow
   - excp_malign
+  - mreg_range_addr_overlap
 - id: stm.o_rrri_rd
   mnemonic: stm.o
   format: rrri
@@ -981,6 +995,7 @@
   - immu6 != 0
   - rbha + immu6 <= 64
   - aligned(8)
+  - rbhb < rbha || rbhb >= rbha + immu6
   spec_cite: 'SimRISC-01: ldm.o'
   scope: m1
   rule_refs:
@@ -988,6 +1003,7 @@
   - mreg_zero
   - mreg_range_overflow
   - excp_malign
+  - mreg_range_addr_overlap
 - id: stm.o_rrri_rb
   mnemonic: stm.o
   format: rrri

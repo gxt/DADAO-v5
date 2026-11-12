@@ -3,8 +3,8 @@
 
 Sources
 -------
-* ``contracts/legality_rules.yaml`` -- 16 rules (active + deferred)
-* ``contracts/opcodes.yaml`` -- 264 entries, 219 with ``rule_refs``
+* ``contracts/legality_rules.yaml`` -- 合法性规则目录（active + deferred）
+* ``contracts/opcodes.yaml`` -- 编码记录（含 ``rule_refs``）
 
 Reuses ``classify()``, ``SECTION_ORDER``, ``CLASS_TO_SPEC`` from
 ``tools/llvm/gen_asm_list.py`` (DRY: no duplicated classification logic).
@@ -44,6 +44,7 @@ SEMANTIC_MAP: dict[str, str] = {
     "mreg_zero":         "操作数范围",
     "mreg_range_overflow": "操作数范围",
     "mreg_range_overlap": "操作数组合",
+    "mreg_range_addr_overlap": "操作数组合",
     "excp_malign":       "数据对齐",
     "excp_ialign":       "指令对齐",
     "encode_sbz":        "编码合法性",
@@ -74,6 +75,7 @@ RULE_SUMMARY: dict[str, str] = {
     "mreg_zero":         "immu6=0 → ILLI",
     "mreg_range_overflow": "起始+immu6>64 → ILLI",
     "mreg_range_overlap": "源/目的范围交集 → ILLI",
+    "mreg_range_addr_overlap": "`ldm` 基址/索引落入传送范围 → ILLI",
     "excp_malign":       "未对齐访问 → MALIGN",
     "excp_ialign":       "IP[1:0]≠0 → IALIGN",
     "encode_sbz":        "SBZ 非零 → ILLI",
