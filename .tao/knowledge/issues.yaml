@@ -310,10 +310,10 @@
   scope:
   - chipyard
   - spec
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】**`spec/SimRISC-07 §4` 比较族标志草案不能直接入册（待用户裁定 quiet+sNaN）**：① 条号写 `§5.7.1`（应为 `§5.6.1`/`§5.11`）；② **quiet compare 遇 sNaN** —— IEEE 754-2019 §5.11 要求仍置 `invalid`（hardfloat 同），本核与 QEMU 选择不置 ⇒ 属**有意偏离**，草案里写成「hardfloat 是唯一例外」需改为「DADAO 口径取舍、明示偏离」；③ 草案把「quiet 不置」并入用户原话，而用户 2026-11-11 原话仅「按 IEEE/hardfloat：任何无序都置」（针对 signaling）⇒ 按 `ISS-365` 待用户确认后再入册。
+  status: closed
+  closed_in: M13
+  resolved_by: m13-spec-002（fo2ft）+ m13-spec-003（forem NaN）+ m12-chipyard-024/m13-qemu-004（quiet+sNaN，用户 2026-11-12 裁定）
+  title: 【P2】**`spec/SimRISC-07 §4` 比较族标志草案不能直接入册（待用户裁定 quiet+sNaN）**：① 条号写 `§5.7.1`（应为 `§5.6.1`/`§5.11`）；② **quiet compare 遇 sNaN** —— IEEE 754-2019 §5.11 要求仍置 `invalid`（hardfloat 同），本核与 QEMU 选择不置 ⇒ 属**有意偏离**，草案里写成「hardfloat 是唯一例外」需改为「DADAO 口径取舍、明示偏离」；③ 草案把「quiet 不置」并入用户原话，而用户 2026-11-11 原话仅「按 IEEE/hardfloat：任何无序都置」（针对 signaling）⇒ 按 `ISS-365` 待用户确认后再入册。 【2026-11-12 关闭：②③ 已由用户裁定「quiet 遇 sNaN 置 NV」消解；①条号已在 spec 落地时改用 §5.6.1/§5.11】
 - id: ISS-397
   scope:
   - spec
@@ -386,10 +386,10 @@
   scope:
   - chipyard
   - infra
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P1】**`m12-chipyard-025` 的实现未落 master**：合入 `be447dbc` 只含任务书；仓库 `WumingFP.scala.patch` 仍含 5 处 `forceInfOnOverflow`（恒 ±Inf），而共享源树已是新逻辑 ⇒ **仓库补丁 ≠ 源树**，fresh checkout 会在 14 格上红，`check-patch-tree` chipyard 4 红即此。丢失项：两个 RTL 补丁、`fp_ref.f2f_exact`、`fp_sweep`/`unit_run` 口径、README/changelog。**根因链**：子代理把改动写进共享源树/主工作树（`ISS-402`）→ 主会话合入时只带任务书 → `git worktree remove --force` 销毁 worktree 内未提交实现。**修法**：以共享源树为准重导补丁（`m12-chipyard-026`）；**流程补丁**：① 合入前必须 `git show --stat` 确认含实现文件、② 删 worktree 前必须核 `git status -uall` 是否干净、③ 子代理交付必须自证改动在 worktree 内。
+  status: closed
+  closed_in: M12
+  resolved_by: m12-chipyard-026（补丁重导，`forceInfOnOverflow` 5→0，`check-patch-tree` 333 OK）
+  title: 【P1】**`m12-chipyard-025` 的实现未落 master**：合入 `be447dbc` 只含任务书；仓库 `WumingFP.scala.patch` 仍含 5 处 `forceInfOnOverflow`（恒 ±Inf），而共享源树已是新逻辑 ⇒ **仓库补丁 ≠ 源树**，fresh checkout 会在 14 格上红，`check-patch-tree` chipyard 4 红即此。丢失项：两个 RTL 补丁、`fp_ref.f2f_exact`、`fp_sweep`/`unit_run` 口径、README/changelog。**根因链**：子代理把改动写进共享源树/主工作树（`ISS-402`）→ 主会话合入时只带任务书 → `git worktree remove --force` 销毁 worktree 内未提交实现。**修法**：以共享源树为准重导补丁（`m12-chipyard-026`）；**流程补丁**：① 合入前必须 `git show --stat` 确认含实现文件、② 删 worktree 前必须核 `git status -uall` 是否干净、③ 子代理交付必须自证改动在 worktree 内。 【2026-11-12 关闭：026 重导补丁后 `forceInfOnOverflow` 0 处、apply-series 幂等、38 例 0 差】
 - id: ISS-407
   scope:
   - qemu
