@@ -425,3 +425,42 @@ reviewer 建议 ①（随 `019` 做）。**待用户裁定。**
 3. sNaN 结果 payload：本核 canonical vs softfloat 保留输入 payload；IEEE 只要求 quiet 位、不强制 payload 传播。
 4. NaN 结果符号位：本核清 0 vs softfloat 保留；IEEE 未规定符号位，属实现自由（需在 spec 写明）。
 5. `ld.t rf0` 保留只读 qNaN 位（`SimRISC-00 §2.3.1`）——IEEE 无此只读位概念，属**测试机约定**，需在 spec 标为架构附加。
+
+## IDL 里程碑归属（用户 2026-11-12 裁定）
+
+- **M13 不加任何 IDL 任务**（M13 收口判据不变：三平台差分矩阵冻结）。
+- **M14 已分配给内核**，不占用。
+- IDL 分 **M15 / M16**，分界 = **不执行 / 执行**：
+  - **M15「ISA 语义结构化」**：把 spec 升级为「每条指令一段可解析的 operation」，但**不执行**。
+  - **M16「可执行参考模型」**：把 M15 的 `.idl` 跑起来，作为第四方差分参照。
+
+### M15 候选任务（未立册，待批次授权后立）
+
+| 候选号 | 内容 | 估时 |
+|---|---|---|
+| `m15-spec-001` | 语法 v0（`contracts/isa/idl-v0.md`）+ 5 条样板（add.so / ld.o / br.eq / lr.o.nn / trap）+ `extract.py` 原型 | 3–5 天 |
+| `m15-spec-002` | 6 族形状定稿（alu/mem/ctrl/atomic/system/fp 各一条完整族）+ 共享函数层 | 5–8 天 |
+| `m15-spec-003` | 全量 operations：264 条记录 → 约 90 个语义单元（按族参数化，共享函数 + 薄 block） | 25–35 天 |
+| `m15-infra-004` | 抽取器 + L1 门控「spec 抽取结果 == 仓库 `.idl` 逐字节」 | 6–8 天 |
+| `m15-infra-005` | 文档渲染：spec 里显示格式化 operation（不是原始 IDL） | 4–5 天 |
+| `m15-spec-006` | 版本与只读锁同步、`Process-03` 附录条目 | 1–2 天 |
+
+M15 exit：264 条记录 **100%** 有 operation 块且 id 一对一；抽取结果与 `.idl` 逐字节一致；6 族各一条完整通过；`check-spec-*` 全绿。
+
+### M16 候选任务（未立册）
+
+| 候选号 | 内容 | 估时 |
+|---|---|---|
+| `m16-infra-001` | lexer / parser / AST / 类型检查（Python） | 12–16 天 |
+| `m16-infra-002` | 解释器：加载 ELF、四 bank 状态、48 位地址/大端、异常与 monitor、trace | 10–14 天 |
+| `m16-testcases-003` | 差分接入：273（整数）+ 167（访存）+ 67（控制流）逐例与 QEMU 一致，纳入 L2 | 8–10 天 |
+| `m16-testcases-004` | 向量「算期望」派生（输入仍人挑，期望由 IDL 算；**不做输入自动生成**） | 8–10 天 |
+| `m16-chipyard-005` | FP 特殊值语义（NaN/Inf/次正规/五类标志；数值舍入交引用库并显式标注） | 15–20 天 |
+
+M16 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个向量走到；`make check-idl` 进 L2；分歧归因落 spec 裁定（**不是「IDL 一定对」**）。
+
+### 参考材料分工（`.cache/refs/`，只读参考、不复制实现）
+
+- **`riscv-unified-db`**（`manifests/references.lock.toml` 已登记）：机器可读 ISA 数据的**形态**——`operation()` 挂在编码旁、`resolved spec` 展开、生成器矩阵（文档/ISS/头文件/解码包）；**不复制其 RISC-V 专属结构**（扩展体系、CSR、`X[]`）。
+- **`DADAO-0628`**：Python 解释器（逐指令 handler + 合法性单列）与 Sail 两套独立实现的**经验**；尤其「独立投影同一份散文规范」的纪律。
+- **`DADAO-v5-pr4`**（本次新增）：RTL 侧的**微操作分层**（24 个 op code + width/signed/dual/aux 的 28 字段 exec descriptor）与「生成器 vs 独立校验器」对偶、negative gate 的写法；**微操作只留在 RTL 层，不进规范与分类**。

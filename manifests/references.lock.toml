@@ -18,3 +18,17 @@ path = ".cache/refs/DADAO"
 repository = "https://github.com/gxt/DADAO.git"
 head = "f9bde0481668ffab325db8d8c5d8c4cc791c6232"
 reuse = "各阶段早期实现的架构与工程教训，不复制实现"
+
+[[reference]]
+id = "riscv-unified-db"
+path = ".cache/refs/riscv-unified-db"
+repository = "https://github.com/riscv/riscv-unified-db.git"
+head = "404e4468f453e007b37358b201a3f59da11719d9"
+reuse = "机器可读 ISA 数据与 IDL 的形态参考（数据模型/operation 块/生成器矩阵）；不复制数据、不复用其 RISC-V 专属结构"
+
+[[reference]]
+id = "DADAO-v5-pr4"
+path = ".cache/refs/DADAO-v5-pr4"
+repository = "https://github.com/shuaige666666/DADAO-v5.git"
+head = "a8448e60d98274ca2b06297d74259e64cf96ec31"
+reuse = "RTL 单周期核与 28 字段 exec descriptor 的参考（微操作分层、独立 oracle 表）；不复制实现"
