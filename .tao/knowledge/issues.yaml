@@ -332,3 +332,13 @@
   closed_in: null
   resolved_by: null
   title: '【P2】`m13-testcases-003` 的包装脚本 `run_split.sh` 收尾三处缺陷（**reviewer 更正了首版归因**）：① 第 61 行写 `<split>/<mode>/llvm-ts.EXIT` 失败——`mkdir -p` 是 2026-11-10 13:36 才补进脚本，而 B 组 09:30:43 起跑，**运行实例里没有 mkdir**、父目录从未建立（不是「cwd 不符」）；② 第 94 行 `rc: unbound variable`——现文件 94 行是 `main "$@"`，`rc` 在 66/72 行已 `local rc=0`，真因是**运行中改脚本致 bash 重读错位**（不是「rc 未初始化」）；③ 第三因：`remote.py run --log-prefix <任务号>-split-…` 不合任务号正则，校验在远端跑完写日志时触发 `rc=2`。三处都只在收尾（EXIT 写入 / 返回码 / 本地日志落盘），不触碰 90 例数据（数据由节点侧 driver 产出、`ok=true`、`missing=[]`）。修法：① 脚本启动即 `mkdir -p`（或收尾前建目录）；② 长跑期间禁止改动正在执行的脚本；③ 日志前缀用合法任务号。另：line 62 的 `$?` 取的是 `mkdir` 的返回码而非 python 的。'
+- id: ISS-399
+  scope:
+  - spec
+  - chipyard
+  - qemu
+  - gem5
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】**`spec/SimRISC-07 §2.5` 的 FMA 溢出表述与 IEEE §7.4 同类冲突**（`m13-spec-002` 发现、未在其范围内修）：原文「融合乘加溢出 ⇒ ±Inf 并置 OF」，与 `fo2ft` 修订前的口径同源；IEEE 要求按舍入模式（RNE/RUP ⇒ ±Inf，RTZ/RDN ⇒ ±最大有限），两种都置 OF|NX。同一文件里现在同时存在「§1.4 已按方向」与「§2.5 仍恒 Inf」两种口径，属**内部不一致**。行动：立 spec 子任务改 §2.5，随后 chipyard/qemu/gem5 三个实现同步（与 `fo2ft` 那套 5 子任务同形）。另附带项：§1.4 的 i2f「超范围 ⇒ ±Inf」对现有 8 条 i2f 不可达，措辞可随同修。
