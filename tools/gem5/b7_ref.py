@@ -176,8 +176,24 @@ def value_of(fmt, bits):
 
 
 def _overflow_bits(fmt, sign, mode):
-    magnitude = Fraction(10) ** 400
-    return encode(-magnitude if sign else magnitude, fmt, mode)
+    """Shape of an overflow result by direction (spec/SimRISC-07 §1.4).
+
+    Built here instead of going through ``encode`` (which would recurse).
+    ``mode`` is 0 RNE / 1 RTZ / 2 RDN / 3 RUP, plus the conversion-only
+    4 RNA (ties away from zero, which overflows to infinity like RNE).
+    """
+    f = FMT[fmt]
+    inf = inf_bits(fmt, sign)
+    maxfin = ((sign_bit(fmt) if sign else 0) |
+              (((1 << f["eb"]) - 2) << f["fracbits"]) |
+              ((1 << f["fracbits"]) - 1))
+    if mode in (0, 4):                    # RNE / RNA: ±Inf
+        return inf
+    if mode == 1:                         # RTZ: ±largest finite
+        return maxfin
+    if mode == 3:                         # RUP: +Inf / −max
+        return inf if sign == 0 else maxfin
+    return inf if sign == 1 else maxfin   # RDN: +max / −Inf
 
 
 def _tiny_bits(fmt, sign, mode):
@@ -287,7 +303,7 @@ def op_sclb(fmt, mode, x, n):
     if k["kind"] == "zero":
         return zero_bits(fmt, k["sign"]), 0
     if n > 6000:  # far outside the format range: overflow, no iteration
-        return _overflow_bits(fmt, k["sign"], mode)
+        return _overflow_bits(fmt, k["sign"], mode), F_OF | F_NX
     if n < -6000:
         return _tiny_bits(fmt, k["sign"], mode)
     return encode(k["value"] * Fraction(2) ** n, fmt, mode)
@@ -315,7 +331,7 @@ def _pack_significand(fmt, sign, n, qexp, inexact, half_cmp, mode):
         return zero_bits(fmt, sign), (F_UF | F_NX if inexact else 0)
     e = qexp + n.bit_length() - 1
     if e > f["emax"]:
-        return _overflow_bits(fmt, sign, mode)
+        return _overflow_bits(fmt, sign, mode), F_OF | F_NX
     if e < f["emin"]:
         return (sign_bit(fmt) if sign else 0) | n, (F_UF | F_NX if inexact
                                                     else 0)
@@ -476,10 +492,9 @@ def op_convert_ff(dst_fmt, mode, src_fmt, bits):
     if k["kind"] == "zero":
         return zero_bits(dst_fmt, k["sign"]), 0
     out, flags = encode(k["value"], dst_fmt, mode)
-    if flags & F_OF:
-        # contract-fp §2 / SimRISC-07: conversion overflow => ±Inf + OF for
-        # every direction (IEEE would keep max finite under RTZ/RDN/RUP).
-        out = inf_bits(dst_fmt, k["sign"])
+    # Overflow rides on the single rounding step: ``encode`` already returns
+    # ±Inf or the largest finite value of ``dst_fmt`` as the direction
+    # dictates (spec/SimRISC-07 §1.4, IEEE 754-2019 §7.4) and sets OF|NX.
     return out, flags
 
 
@@ -675,6 +690,8 @@ def entry_fields(inst_id):
 def conv_mode(code, rf_mode):
     """One-hot conversion code -> reference mode (4 = RNA, 0x20 = rf0)."""
     table = {0x01: 0, 0x02: 4, 0x04: 1, 0x08: 3, 0x10: 2}
+    if code == 0x20:          # dynamic: rf0[33:32]
+        return rf_mode
     if code not in table:
         raise AssertionError("bad conversion code 0x%02x" % code)
     return table[code]
@@ -1408,6 +1425,19 @@ def edge_vectors():
                     code = (0x01, 0x04, 0x08, 0x10)[mode]
                 add(inst_id, f"m{mode}-{pos}", {"rfhb": 2, "rfhc": 8,
                                                 "immu6": code}, rf)
+    # ---- fo2ft overflow: the 18 cells of spec/SimRISC-07 §1.4 ------------
+    # Sign of the exact result crossed with the rounding direction; the shape
+    # is ±Inf only for RNE/RNA, RUP+ and RDN-.  The dynamic code 0x20 reads
+    # rf0[33:32] (00 RNE / 01 RTZ / 10 RDN / 11 RUP); the RNA code 0x02 is
+    # static, so its rf0 mode is irrelevant (set to 0).
+    fo_max = 0x7FEFFFFFFFFFFFFF
+    for code, rf_mode in ((0x01, 0), (0x02, 0), (0x04, 1), (0x08, 3),
+                          (0x10, 2), (0x20, 0), (0x20, 1), (0x20, 2),
+                          (0x20, 3)):
+        for pos, value in enumerate((fo_max, fo_max | (1 << 63))):
+            rf = {0: (RF0_RESET & ~RF0_WRITABLE) | (rf_mode << 32), 8: value}
+            add("fo2ft_orri_rf", f"of-{code:02x}-{rf_mode}-{pos}",
+                {"rfhb": 2, "rfhc": 8, "immu6": code}, rf)
     # ---- sign: abs/neg/copy/negate with a NaN payload --------------------
     for fmt, (isgnn, isgnj) in (("ft", ("ftsgnn_orrr_rf", "ftsgnj_orrr_rf")),
                                 ("fo", ("fosgnn_orrr_rf",

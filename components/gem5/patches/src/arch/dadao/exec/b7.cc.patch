@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b7.cc b/src/arch/dadao/exec/b7.cc
 new file mode 100644
-index 0000000..c497f79
+index 0000000..7cdd314
 --- /dev/null
 +++ b/src/arch/dadao/exec/b7.cc
-@@ -0,0 +1,640 @@
+@@ -0,0 +1,634 @@
 +// DADAO gem5 B7 execution core -- the 55 floating-point ids.
 +//
 +// Dispatch is by `entry->id` only: `ft*`/`fo*`, `ft2it`/`ft2ut`,
@@ -377,17 +377,11 @@ index 0000000..c497f79
 +    const fp::Mode m = (spec.legal & LegalSbz)
 +                           ? fp::Mode::RNE
 +                           : modeFromCode(field(inst, spec.modeField), mode);
-+    fp::Val result = fp::convert(spec.outFmt, m, spec.fmt, value);
-+    if (result.flags & fp::OF) {
-+        // contract-fp §2 / SimRISC-07: conversion overflow returns ±Inf and
-+        // sets OF regardless of the direction (IEEE would keep max finite
-+        // under RTZ/RDN/RUP).
-+        const bool sign = spec.fmt == F32 ? (raw >> 31) & 1 : (raw >> 63) & 1;
-+        result.bits = sign ? (spec.outFmt == F32 ? 0xFF800000ull
-+                                                 : 0xFFF0000000000000ull)
-+                           : (spec.outFmt == F32 ? 0x7F800000ull
-+                                                 : 0x7FF0000000000000ull);
-+    }
++    // Overflow is part of the single round-and-pack step: `fp::convert`
++    // already returns ±Inf or the largest finite value of the destination
++    // format as the direction dictates (spec/SimRISC-07 §1.4, IEEE 754-2019
++    // §7.4) and carries OF|NX.  Do not override the shape here.
++    const fp::Val result = fp::convert(spec.outFmt, m, spec.fmt, value);
 +    writeF(spec.outFmt, dst, result.bits);
 +    flags = result.flags;
 +    ctx.accrueFlags(flags);

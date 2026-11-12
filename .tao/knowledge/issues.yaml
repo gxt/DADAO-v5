@@ -373,4 +373,4 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P2】**`fo2ft` 的 `OF` 判定口径需按 IEEE §7.4 精确化**：`m13-spec-002` 写「无论结果为 Inf 还是最大有限值，均置 OF+NX」；但 `m12-chipyard-025` 实测（并用 x86 SSE 对照）表明，IEEE §7.4 的判定是「**假设指数范围无界时的舍入结果**是否超出格式最大有限值」——当舍入（如 RTZ / 正向 RDN）落在 `ft_max` 上时**只置 NX、不置 OF**。两者冲突。行动：① spec §1.4 把 OF 条件改写成上述精确表述，并补「轻微溢出只置 NX」的格子；② QEMU/gem5 的现有 18 格可能只覆盖严重溢出，需补轻微溢出向量并复核实现；③ 向量补两档（严重/轻微）。等 `m12-chipyard-025` 重跑交付后一并处理。
+  title: 【P2·**已部分澄清**】`fo2ft` 的 `OF` 判定口径：`m13-gem5-007` 的 reviewer 用 IEEE 754-2019 §7.4 原文 + 实测确认——① `spec/SimRISC-07 §1.4` 的「以无限指数范围按所选方向舍入后…大于 `ft_max`」**本来就是 IEEE 原文同构，spec 无需改**；② gem5 与 QEMU 实测 8 格轻微溢出（正向 RNE/RTZ/RDN、负向 RNE/RTZ/RUP ⇒ ±ft_max + 仅 NX；正向 RUP / 负向 RDN ⇒ ±Inf + OF|NX）**两者一致**，实现也无需改；③ 真正的缺口只是**向量覆盖**：chipyard-025 / gem5-007 / qemu-005 的 18 格全为严重溢出 ⇒ 由 `m13-testcases-011` 补轻微溢出格（≥8 例三方对照）即可关闭。另：`m13-spec-002` 完成区那句「无论结果为 Inf 还是最大有限，均置 OF+NX」是**概述性措辞**，spec 正文判据无误、不需回改。

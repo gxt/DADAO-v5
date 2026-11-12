@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b7_test.cc b/src/arch/dadao/exec/b7_test.cc
 new file mode 100644
-index 0000000..29a7da4
+index 0000000..e70af81
 --- /dev/null
 +++ b/src/arch/dadao/exec/b7_test.cc
-@@ -0,0 +1,2044 @@
+@@ -0,0 +1,2095 @@
 +/*
 + * DADAO gem5 B7 execution assertions (GEM5-012t).
 + *
@@ -1177,14 +1177,65 @@ index 0000000..29a7da4
 +    check(ft(ctx, 2) == kFtSNaN && flagsOf(ctx) == 0,
 +          "ft2ft sNaN is a bit copy: no quieting, no NV");
 +    // fo2ft: overflow, underflow (tiny+inexact) and NX.  Code 0x20 follows
-+    // rf0 (RNE by default), matching the old rf0-driven behaviour.
++    // rf0 (RNE by default): its overflow cell is +Inf like the RNE row.
 +    initContext(ctx);
 +    w.immu6 = 0x20;
 +    ctx.rf[3] = kFoMax;  // 1.797...e308 -> +Inf in ft
 +    (void)runWord(ctx, "fo2ft_orri_rf", w);
 +    check(ft(ctx, 2) == kFtInf && flagsOf(ctx) == (kFlagOF | kFlagNX),
 +          "fo2ft overflow => +Inf + OF|NX");
++    // fo2ft overflow, all 18 cells of spec/SimRISC-07 §1.4 (IEEE 754-2019
++    // §7.4): the shape of a finite result follows the rounding direction, so
++    // it is ±Inf only for RNE/RNA, RUP+ and RDN-; RTZ, RUP- and RDN+ give the
++    // largest finite ft value.  Every cell sets OF|NX and never UF.  The
++    // dynamic code 0x20 takes its direction from rf0[33:32] (00 RNE, 01 RTZ,
++    // 10 RDN, 11 RUP).
++    struct OverflowCell
++    {
++        const char *name;
++        uint64_t code;
++        unsigned rfMode;
++        bool negative;
++        uint64_t expect;
++    };
++    const OverflowCell kOverflowCells[] = {
++        {"RNE", 0x01, 0, false, kFtInf},
++        {"RNE", 0x01, 0, true, kFtSign | kFtInf},
++        {"RNA", 0x02, 0, false, kFtInf},
++        {"RNA", 0x02, 0, true, kFtSign | kFtInf},
++        {"RTZ", 0x04, 0, false, kFtMax},
++        {"RTZ", 0x04, 0, true, kFtSign | kFtMax},
++        {"RUP", 0x08, 0, false, kFtInf},
++        {"RUP", 0x08, 0, true, kFtSign | kFtMax},
++        {"RDN", 0x10, 0, false, kFtMax},
++        {"RDN", 0x10, 0, true, kFtSign | kFtInf},
++        {"dyn=00 RNE", 0x20, 0, false, kFtInf},
++        {"dyn=00 RNE", 0x20, 0, true, kFtSign | kFtInf},
++        {"dyn=01 RTZ", 0x20, 1, false, kFtMax},
++        {"dyn=01 RTZ", 0x20, 1, true, kFtSign | kFtMax},
++        {"dyn=10 RDN", 0x20, 2, false, kFtMax},
++        {"dyn=10 RDN", 0x20, 2, true, kFtSign | kFtInf},
++        {"dyn=11 RUP", 0x20, 3, false, kFtInf},
++        {"dyn=11 RUP", 0x20, 3, true, kFtSign | kFtMax},
++    };
++    for (const OverflowCell &cell : kOverflowCells) {
++        initContext(ctx);
++        w = WordSpec{};
++        w.rfhb = 2;
++        w.rfhc = 3;
++        w.immu6 = cell.code;
++        ctx.rf[0] = withMode(ctx.rf[0], cell.rfMode);
++        ctx.rf[3] = cell.negative ? (kFoSign | kFoMax) : kFoMax;
++        (void)runWord(ctx, "fo2ft_orri_rf", w);
++        check(ft(ctx, 2) == cell.expect &&
++                  flagsOf(ctx) == (kFlagOF | kFlagNX),
++              "fo2ft overflow %-10s %s => 0x%08" PRIx64 " + OF|NX "
++              "(r 0x%08" PRIx64 " f 0x%" PRIx64 ")",
++              cell.name, cell.negative ? "-" : "+", cell.expect, ft(ctx, 2),
++              flagsOf(ctx));
++    }
 +    initContext(ctx);
++    w.immu6 = 0x20;  // back to the dynamic code (= RNE here)
 +    ctx.rf[3] = kFoMinSub << 30;  // still tiny in ft, inexact
 +    (void)runWord(ctx, "fo2ft_orri_rf", w);
 +    check(flagsOf(ctx) == (kFlagUF | kFlagNX),
