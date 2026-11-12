@@ -109,8 +109,9 @@
 - 与 A-long 对照：B 组中位约 **350×**，A-long 约 **700×** ⇒ 两者不是同一量级，「跑不完」的判定阈值应分开。
 - **收尾异常（`ISS-398`）**：包装脚本 `run_split.sh` 在最后写 EXIT 时用相对路径（cwd 不符）⇒ `No such file or directory`；第 94 行 `rc` 未初始化 ⇒ `unbound variable`，整体 rc=1、**0 个 EXIT 文件**。数据本身未受影响（JSON 已落盘且 `ok=true`）。
 - 判据以 JSON 为准，不以脚本 rc 为准；`m13-testcases-003` 的 A 组结论不受影响。
+- **收尾归因更正（指向 `ISS-398`）**：本完成区首版写的「cwd 不符」「第 94 行 `rc` 未初始化」「0 个 EXIT 文件」三条**已证伪**，正确归因见 `ISS-398`（运行实例无 mkdir / 运行中改脚本致重读错位 / `--log-prefix` 不合正则），保留原文以守「不改写既有完成区」纪律。
 - **EXIT 计数订正（reviewer）**：per-suite `.EXIT` 0 个；`split-A.EXIT`/`split-B.EXIT` 各 1 个（内容 `1`）。
-- 人读结论已落 `docs/TestReports/M13-长尾7200s.md`（逐例表 + 三类计数 + 环境指纹）。
+- 人读结论已落 `docs/TestReports/M13-长尾7200s.md`：**全量逐例表 90 行**（组/case/klass/gem5 exit/比值/两引擎秒）+ 三类计数 + 5 例未通过归因 + 名单对账 + 环境指纹 + 复现 + 边界；A 组 60 例逐例表由 `refs/m13-001/002-*-full.md` 承载（本册 §4 注明）。
 
 ### 第 1 轮 reviewer 验收（2026-11-12，全部独立重跑）
 
@@ -139,4 +140,24 @@
 **非阻断 findings（architect 收尾改）**：① ISS-398 两条归因与修法按上文更正；② 「0 个 EXIT 文件」应为「per-suite 0 个、`split-A/B.EXIT` 各 1（内容 1）」；③ 现 line 62 的 `$?` 取的是 `mkdir` 返回码，不是 python 的 rc。
 
 **Needs Revision 具体项**：补 `docs/TestReports/M13-长尾7200s.md`（A+B 逐例表、转 PASS/仍超时/异常三类计数、执行环境指纹；原始 JSON 仍留运行期不入库），补齐即判 Accepted。
+
+### 第 2 轮 reviewer 验收（2026-11-12）
+
+**判决：Needs Revision（仅剩「逐例表」一项；其余本轮全部通过）**
+
+**重跑记录（本机亲跑，RC=退出码）**
+1. `make check-test-reports` RC=0 ⇒ `PASS (7 report(s), 3 snapshot(s))`（与主会话声明一致）；`python3 tools/infra/check_issues.py` RC=0（40 open/5 closed）。
+2. 报告数字 vs 两份 JSON 现场全量比对（python 逐格核，`CHECK_RC=0 BAD=[]`）：三类计数表 static `46/43/2/1  141.7/349.9/1269.2`、dynamic `44/42/1/1  157.2/352.8/1284.6`、合计 `90/85/3/2` **全等**；§2 五行 `case/klass/ratio/gem5秒/qemu秒` 与 JSON 逐格相等（172800.0 = 172800.02/.03 取整），表内非 pass 集合 == JSON 非 pass 集合。
+3. `ISS-398` 逐条对现场证据：① `mkdir -p` 13:36 才入脚本、B 09:30:43 起跑 ⇒ 运行实例无 mkdir（非 cwd）✓；② `rc` 在 66/72 行 `local rc=0`、真因运行中改脚本致 bash 重读错位（非未初始化）✓；③ `--log-prefix` 非任务号正则 ⇒ 远端写日志时 `rc=2` ✓；`line 62 $? = mkdir 返回码` ✓。**无残留错误归因**。
+4. 完成区新增行「EXIT 计数订正：per-suite 0 个、`split-A/B.EXIT` 各 1（内容 1）」与现场一致 ✓；报告 §4 口径同 ✓。
+5. 快照：HEAD `fa1f7ea3`，`git status -uall` 仅本轮审阅记录；未 commit / 未 push / 未改台账 ✓。
+
+**阻断项（验收标准 3「报告含：逐例表」）**
+- 报告**没有全量逐例表**：§2 标题即「未通过项（5 例）」，全文出现 case 名仅 **3/90**；A 组 60 例也无承载册（本册标题限定 B 组）。
+- 项目先例同措辞下是全量：`m13-001-*-full.md` 逐例 72 行（`grep -c '^|'`=74）、`m13-002-*-full.md` 78 行（=104），且 001/002 的 JSON 同样不入库、靠结论册承载 ⇒ 本任务 85 例 pass 的逐例 `gem5/qemu 秒与比值`目前只在运行期 JSON，未入册。
+- 且完成区新增行自称「（逐例表 + 三类计数 + 环境指纹）」⇒ **断言与产物不一致**（补表即消）。
+
+**修法（机械，可由 JSON 生成）**：结论册补全量逐例表 `case / gem5_s / qemu_s / ratio / klass / exit`（B 组 90 行；A 组 60 行同册承载或在任务书指明由哪一册承载），并保持现有计数/指纹/复现/边界不变 ⇒ 即判 Accepted。
+
+**非阻断 findings（architect 收尾改）**：① 完成区首版归因行（cwd 不符 / 第 94 行 rc 未初始化 / 0 个 EXIT 文件）按「不改写既有完成区」未回改，而新增行只订正了 EXIT 计数 ⇒ 建议再追加一行指向 `ISS-398` 的更正；② 目标 3 的 `simInsts_120s` 采样列在入库材料中无载体，是否入册留 architect/用户裁定。
 
