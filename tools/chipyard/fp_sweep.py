@@ -1096,11 +1096,13 @@ def _cases_arith_minmax(want_fo):
 def cases_cmp_nan():
     """Compare with a NaN operand, both forms and both NaN classes.
 
-    `NV` follows spec/SimRISC-07 §4: the signalling forms raise it for **any**
-    unordered pair (sNaN or qNaN, IEEE 754-2019 §5.7.1), the quiet forms raise
-    nothing even on an sNaN input.  The result value still follows the form
-    (quiet compare -> qNaN, signalling compare -> sNaN).  QEMU implements the
-    same rule (`signal_nv`), so the group is compared three ways.
+    `NV` follows spec/SimRISC-07 §4 and IEEE 754-2019 §5.6.1 / §5.11: the
+    signalling forms raise it for **any** unordered pair (sNaN or qNaN), the
+    quiet forms only when an operand is a signalling NaN (a quiet NaN operand
+    alone raises nothing, m12-chipyard-024).  The result value still follows
+    the form (quiet compare -> qNaN, signalling compare -> sNaN).  QEMU
+    implements the signalling rule and -- after m13-qemu-004 -- the same quiet
+    rule, so the group is comparable three ways.
     """
     out = []
     for mn, fo, signaling in (("ftqcmp", False, False), ("ftscmp", False, True),
@@ -1818,7 +1820,10 @@ GROUPS = {
 
 # Groups whose bytes are also compared against QEMU.  `rf0ldt` is excluded: the
 # ld.t-rf0 case asserts the read-only qNaN field, which QEMU deliberately
-# overrides (documented divergence, see `cases_rf0ldt`).
+# overrides (documented divergence, see `cases_rf0ldt`).  `cmp_nan` is listed
+# because the signalling rule agrees three ways and the quiet rule is the
+# target of m13-qemu-004; until that QEMU-side change lands, the four
+# quiet+sNaN cases differ in bit0 of rf0 only (value bytes still agree).
 QEMU_GROUPS = ("classify", "sign", "rfmem", "fcsr",
                "cvt_f2i_ft", "cvt_f2i_fo", "cvt_i2f_ft", "cvt_i2f_fo",
                "cvt_exact", "cvt_ff", "cvt_sat", "cvt_flags",

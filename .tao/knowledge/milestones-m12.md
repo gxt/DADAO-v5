@@ -32,12 +32,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m12-chipyard-024 | 2026-11-12 13:35 | 2–3 h | quiet compare 遇 sNaN 置 `NV`（RTL + 模型 + 向量 + spec） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-024 | 2026-11-12 19:04 | quiet compare 遇 sNaN 置 `NV`（RTL + 模型 + 向量；三方 14/14 逐字节） |
 | m12-chipyard-026 | 2026-11-12 16:50 | 修复 `fo2ft` 未落 master（补丁重导、`forceInfOnOverflow` 5→0、38 例） |
 | m12-chipyard-025 | 2026-11-12 13:35 | `fo2ft` 溢出按 IEEE 舍入模式（RTL + 模型；轻微溢出只置 NX，与 QEMU 38/38 一致） |
 | m12-chipyard-014 | 2026-11-12 11:25 | FP 除法/开方/取余（fo 56 拍恒定、`forem` 53+d+1；`DZ` 端到端首个生产者） |

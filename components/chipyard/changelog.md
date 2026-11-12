@@ -4,6 +4,9 @@
 
 ## M12
 
+- **2026-11-12 `m12-chipyard-024`**
+  - 摘要：**quiet compare 遇 sNaN 置 `NV`（跟 IEEE 754-2019 §5.11）**。用户裁定「改为置 NV（跟 IEEE）」后，`WumingFP.scala` 的 `WumingCompareRecFN` 的 `NV` 条件由 `Mux(io.signaling, unordered, false.B)` 改为 `Mux(io.signaling, unordered, rawA.isSigNaN || rawB.isSigNaN)`：signaling（`ftscmp`/`foscmp`）仍对**任何**无序（含 qNaN）置 `NV`（§5.6.1），quiet（`ftqcmp`/`foqcmp`）**仅**在 sNaN 输入时置、qNaN 输入不置 —— 与 hardfloat `CompareRecFN` 的 `isSigNaNRawFloat(a) || isSigNaNRawFloat(b) || (signaling && !ordered)` 逐位一致，单元台因此取消 quiet 的 sNaN 容差（`hf-flag-diff` 改为严格）。工具：`fp_ref.cmp_exact` 同步同一口径；`fp_sweep` 的 `cmp_nan` 组按模型自动跟随；`tests/inst/fp/arith.yaml` 补 10 例（quiet 的 sNaN/qNaN × 两个操作数方向 × ft/fo，加 ft/fo 的 signaling 对照：qNaN ⇒ `NV`、有序 ⇒ 不置）。比较仍为组合逻辑，拍数不变。
+
 - **2026-11-12 `m12-chipyard-026`**
   - 摘要：**修复 `m12-chipyard-025` 的实现未落 master（`ISS-405`）**：补丁从共享源树重导 —— 实质变化只有 `WumingFP.scala.patch` 与 `WumingFPUnitHarness.scala.patch`（其余 19 + 2 条补丁逐字未变），`WumingFP.scala.patch` 内 `forceInfOnOverflow` 由 5 处降为 **0**。模型侧补回 `025` 的口径：`fp_ref.f2f_exact` 删除 `force_inf_on_overflow` 参数与「恒 ±Inf」覆写（溢出只用舍入原语的 `_round_mag` 那一套方向规则）；`fp_sweep` 的 `cvt_ff` 改为按方向期待，`cvt_flags` 的 `flags_of_uf_nx` 不再写死 `+Inf` 字面量（改为由 oracle 导出，原字面量编码的正是旧规则），并新增 `cvt_ff_ovf` 38 例（severe / 中点上方 1 ulp / 中点 tie 各 5 档 × 双符号 = 30，加动态 `0x20` 四码 × 双符号 8）；`fp_unit/unit_run` 的 `f2f` 组去掉 hardfloat 结果的后处理，新增 `f2f fo2ft ovf` 40 例 —— 8 形状（最大 double / 中点上方 1 ulp / 中点 / 恰为 `ft_max`，各双符号）× 5 档，期望值按条款**逐格抄写**成常量表，与 RTL、hardfloat、oracle 四方对照。
   - 执行者：engineer

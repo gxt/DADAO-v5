@@ -94,18 +94,6 @@ def is_uf_boundary(out, flags, hf_flags, ew, sw):
     return exp == 1
 
 
-def is_cmp_snan_quiet_divergence(ew, sw, a, b, signaling, mine, hf_flags):
-    """hardfloat's *quiet* compare raises `NV` for an sNaN input; spec/SimRISC-07
-    §4 (and QEMU) raise no flag on a quiet compare.  Only that exact difference
-    is tolerated, so the signalling forms (where the rule agrees) still assert
-    the hardfloat flag bit for bit."""
-    if signaling or mine != 0 or hf_flags != F.NV:
-        return False
-    ra = F.raw_from_fn(ew, sw, a)
-    rb = F.raw_from_fn(ew, sw, b)
-    return F._is_snan(ra, sw) or F._is_snan(rb, sw)
-
-
 def fn_val(x, ew, sw):
     """An IEEE binary word with every NaN collapsed to one value (hardfloat
     canonicalises the payload, this core propagates it)."""
@@ -571,7 +559,7 @@ def check(args):
         pairs = F.sample_pairs(ew, sw, max(1, args.n // 4), rng)
         lines = [f"{op} {a:x} {b:x} 0 0" for (a, b) in pairs]
         got = run_vectors(args.bin, _write(args, f"vectors_op{op}.txt", lines))
-        bad_hf = bad_flag = bad_oracle = quiet_snan = 0
+        bad_hf = bad_flag = bad_oracle = 0
         for r in got:
             a, b = r["in_lo"], r["in_hi"]
             want, wflags = F.cmp_exact(ew, sw, a, b, signaling)
@@ -586,16 +574,12 @@ def check(args):
                     print(f"  [DIFF] {name} a={a:x} b={b:x} "
                           f"mine={r['out']:x} hf={r['hf_out']:x}")
             if r["flags"] != r["hf_flags"]:
-                if is_cmp_snan_quiet_divergence(ew, sw, a, b, signaling,
-                                                r["flags"], r["hf_flags"]):
-                    quiet_snan += 1
-                    continue
                 bad_flag += 1
                 if bad_flag <= 6:
                     print(f"  [FLAG] {name} a={a:x} b={b:x} "
                           f"mine={r['flags']:x} hf={r['hf_flags']:x}")
         print(f"  {name}: {len(got)} vectors | hf-value-diff={bad_hf} "
-              f"hf-flag-diff={bad_flag} hf-quiet-snan-divergence={quiet_snan} "
+              f"hf-flag-diff={bad_flag} "
               f"oracle-diff={bad_oracle}")
         fails += bad_hf + bad_flag + bad_oracle
         summary.append((name, len(got), bad_hf + bad_flag + bad_oracle))

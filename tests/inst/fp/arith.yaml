@@ -582,6 +582,286 @@
   - '0x26081008'
   - '0x44A05042'
   - '0x40F86001'
+- mnemonic: ftqcmp
+  id: ftqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44805042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000007F800001'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000003F800000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x000000007FC00000'
+      rd6: '0x7FF800007FC00001'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: ftqcmp'
+  notes: ftqcmp 的 rfHC 为 sNaN ⇒ 无序，返回 qNaN 0x7FC00000；quiet compare 遇 sNaN 置 NV（IEEE 754-2019 §5.11）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44805042'
+  - '0x40F86001'
+- mnemonic: ftqcmp
+  id: ftqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44805042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000003F800000'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000007FBFFFFF'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x000000007FC00000'
+      rd6: '0x7FF800007FC00001'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: ftqcmp'
+  notes: ftqcmp 的 rfHD 为 sNaN ⇒ 无序，返回 qNaN；quiet compare 遇 sNaN 置 NV（§5.11，两个方向同）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44805042'
+  - '0x40F86001'
+- mnemonic: ftqcmp
+  id: ftqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44805042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000007FC00000'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000003F800000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x000000007FC00000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: ftqcmp'
+  notes: ftqcmp 的 rfHC 为 qNaN ⇒ 无序，返回 qNaN；quiet compare 遇 qNaN 不置 NV（§5.11 只点名 sNaN）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44805042'
+  - '0x40F86001'
+- mnemonic: ftqcmp
+  id: ftqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44805042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000003F800000'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000007FE00001'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x000000007FC00000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: ftqcmp'
+  notes: ftqcmp 的 rfHD 为 qNaN（带 payload）⇒ 无序，返回 canonical qNaN；qNaN 输入不置 NV
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44805042'
+  - '0x40F86001'
+- mnemonic: foqcmp
+  id: foqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44A05042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FF0000000000001'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF8000000000000'
+      rd6: '0x7FF800007FC00001'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foqcmp'
+  notes: foqcmp 的 rfHC 为 sNaN ⇒ 无序，返回 qNaN 0x7FF8000000000000；quiet compare 遇 sNaN 置 NV（§5.11）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44A05042'
+  - '0x40F86001'
+- mnemonic: foqcmp
+  id: foqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44A05042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0xFFF0000000000001'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF8000000000000'
+      rd6: '0x7FF800007FC00001'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foqcmp'
+  notes: foqcmp 的 rfHD 为负 sNaN ⇒ 无序，返回 qNaN（符号位 0）；quiet compare 遇 sNaN 置 NV（两个方向同）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44A05042'
+  - '0x40F86001'
+- mnemonic: foqcmp
+  id: foqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44A05042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0xFFF8000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF8000000000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foqcmp'
+  notes: foqcmp 的 rfHD 为负 qNaN ⇒ 无序，返回 canonical qNaN；qNaN 输入不置 NV
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44A05042'
+  - '0x40F86001'
+- mnemonic: ftscmp
+  id: ftscmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44845042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000007FC00000'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000003F800000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x000000007F800001'
+      rd6: '0x7FF800007FC00001'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: ftscmp'
+  notes: ftscmp 的 rfHC 为 qNaN ⇒ 无序，返回 sNaN 0x7F800001；signaling compare 对任何无序置 NV（§5.6.1）
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44845042'
+  - '0x40F86001'
+- mnemonic: ftscmp
+  id: ftscmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44845042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000003F800000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000040000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0xFFFFFFFFFFFFFFFF'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: ftscmp'
+  notes: ftscmp：1.0 < 2.0 ⇒ rd5 = −1；有序比较不置 NV
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44845042'
+  - '0x40F86001'
+- mnemonic: foscmp
+  id: foscmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44A45042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4000000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0xFFFFFFFFFFFFFFFF'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foscmp'
+  notes: foscmp：1.0 < 2.0 ⇒ rd5 = −1；有序比较不置 NV
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44A45042'
+  - '0x40F86001'
 - mnemonic: fomin
   id: fomin_orrr_rf
   format: orrr

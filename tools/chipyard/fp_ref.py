@@ -926,13 +926,17 @@ def cmp_exact(ew, sw, a, b, signaling):
 
     Ordered pairs give 1 / 0 / -1; an unordered pair gives a quiet NaN (quiet
     compare) or a signalling NaN (signalling compare), sign bit clear.  `NV`
-    follows spec/SimRISC-07 §4: a signalling compare raises it for **any**
-    unordered pair, quiet NaN included (IEEE 754-2019 §5.7.1), while a quiet
-    compare raises no flag.
+    follows spec/SimRISC-07 §4 and IEEE 754-2019 §5.6.1 / §5.11: a signalling
+    compare raises it for **any** unordered pair, quiet NaN included; a quiet
+    compare raises it only when an operand is a signalling NaN (a quiet NaN
+    operand alone raises nothing).
     """
     ra = raw_from_fn(ew, sw, a)
     rb = raw_from_fn(ew, sw, b)
-    nv = NV if (signaling and (ra["is_nan"] or rb["is_nan"])) else 0
+    if signaling:
+        nv = NV if (ra["is_nan"] or rb["is_nan"]) else 0
+    else:
+        nv = NV if (_is_snan(ra, sw) or _is_snan(rb, sw)) else 0
     if ra["is_nan"] or rb["is_nan"]:
         nan = _exp_all_ones(ew, sw) | ((1 << 0) if signaling else (1 << (sw - 2)))
         return nan, nv
