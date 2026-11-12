@@ -498,9 +498,10 @@ M16 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个
 
 用户原话：「不允许重叠，改spec」
 
-**含义**（按编码 `{rdHA:rdHA+immu6-1}, [rbHB, rdHC]`）：
-- RD 形式：索引寄存器 `rdHC` 不得落在 `[rdHA, rdHA+immu6)` 内
-- RB/RF/RA 形式：基址寄存器（`rbHB` 等）不得落在被传送的同 bank 寄存器范围内
+**含义**（编码统一为 `[bank]HA:HA+immu6-1, [rbHB, rdHC]`；**基址恒在 RB、索引恒在 RD**）：
+- **RD 形式**：索引寄存器 `rdHC`（RD bank）不得落在传送范围 `[rdHA, rdHA+immu6)`（RD bank）内
+- **RB 形式**：基址寄存器 `rbHB`（RB bank）不得落在传送范围 `[rbHA, rbHA+immu6)`（RB bank）内
+- **RA / RF 形式：不适用**——传送范围在 RA/RF bank，而基址在 RB、索引在 RD，**结构上不可能重叠**（用户 2026-11-13：「基址寄存器：与rf/ra没有关系」）
 - 违反 ⇒ **ILLI**（不再沿用「按原始值计算、行为依赖顺序」的旧口径）
 
 **影响面**：spec（`SimRISC-01` 限制列表）+ `contracts/legality_rules.yaml`/`opcodes.yaml` 的 legality + 三个实现（chipyard/QEMU/gem5）+ `m13-testcases-013` 的 overlap 用例（改为 ILLI 用例）。
