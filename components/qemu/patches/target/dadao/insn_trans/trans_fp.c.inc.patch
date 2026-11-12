@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..f85f209
+index 0000000..4c4b150
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,1168 @@
+@@ -0,0 +1,1187 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
@@ -208,6 +208,18 @@ index 0000000..f85f209
 +    return fp_and2(e_all, m_nz);
 +}
 +
++/* True (1) iff v is a signaling NaN: a NaN whose mantissa MSB (the quiet bit)
++ * is 0.  isdbl selects fo(64)/ft(low 32). */
++static TCGv_i64 fp_is_snan(TCGv_i64 v, bool isdbl)
++{
++    const int mantbits = isdbl ? 52 : 23;
++    TCGv_i64 qbit = tcg_temp_new_i64();
++
++    tcg_gen_shri_i64(qbit, v, mantbits - 1);
++    tcg_gen_andi_i64(qbit, qbit, 1);
++    return fp_and2(fp_is_nan(v, isdbl), fp_bool_not(qbit));
++}
++
 +/* Classify one raw value into the [9:0] category mask
 + * (SimRISC-07 §浮点分类指令).  isdbl selects fo(64)/ft(low 32). */
 +static TCGv_i64 fp_classify_one(TCGv_i64 raw, bool isdbl)
@@ -265,14 +277,19 @@ index 0000000..f85f209
 +
 +/* IEEE three-way compare of two raw values (already width-masked):
 + *   rfHC > rfHD → 1, == → 0, < → -1; unordered → nan_const.
-+ * ±0 compare equal.  A signaling compare (ftscmp/foscmp) raises NV on ANY
-+ * unordered result — IEEE 754-2019 §5.6.1: an sNaN operand is one cause of
-+ * the invalid operation, and a qNaN operand also makes the operation
-+ * unordered, so both sNaN and qNaN raise; a quiet compare (ftqcmp/foqcmp)
-+ * raises nothing.  The result itself is unaffected (qNaN for quiet, sNaN for
-+ * signaling, sign bit 0).  Only NV is touched; no other flag is possible. */
++ * ±0 compare equal.  The result itself is unaffected by the NV rule (qNaN for
++ * quiet, sNaN for signaling, sign bit 0).  NV accrual depends on the kind:
++ *   FP_CMP_NV_UNORDERED — signaling compare (ftscmp/foscmp): ANY unordered
++ *                         result raises, i.e. an sNaN or a qNaN operand
++ *                         (IEEE 754-2019 §5.6.1 / user ruling 2026-11-11);
++ *   FP_CMP_NV_SNAN      — quiet compare (ftqcmp/foqcmp): only a *signaling*
++ *                         NaN operand raises; a qNaN operand does not
++ *                         (IEEE 754-2019 §5.11 / user ruling 2026-11-12).
++ * Only NV is touched; no other flag is possible. */
++enum { FP_CMP_NV_UNORDERED, FP_CMP_NV_SNAN };
++
 +static void gen_fp_cmp(arg_misc *a, bool isdbl, uint64_t nan_const,
-+                       bool signal_nv)
++                       int nv_rule)
 +{
 +    const int signpos = isdbl ? 63 : 31;
 +    const uint64_t signmask = 1ULL << signpos;
@@ -335,14 +352,16 @@ index 0000000..f85f209
 +    tcg_gen_sub_i64(cmp, gt, lt);          /* 1 / 0 / -1 (two's complement) */
 +    tcg_gen_movcond_i64(TCG_COND_NE, res, unord, zero,
 +                        tcg_constant_i64(nan_const), cmp);
-+    if (signal_nv) {
-+        /* unord is exactly 1/0 and rf0 bit0 is NV, so OR-ing it into the
-+         * accrued FCSR sets NV iff either operand is a NaN.  store_rf()
-+         * keeps the read-only qNaN/SBZ fields intact. */
-+        TCGv_i64 fcsr = load_rf(0);
-+        tcg_gen_or_i64(fcsr, fcsr, unord);
-+        store_rf(0, fcsr);
-+    }
++    /* NV accrual: the predicate is exactly 1/0 and rf0 bit0 is NV, so OR-ing
++     * it into the accrued FCSR sets NV iff the rule fires (any unordered for a
++     * signaling compare, a signaling-NaN operand for a quiet compare).
++     * store_rf() keeps the read-only qNaN/SBZ fields intact. */
++    TCGv_i64 nv = (nv_rule == FP_CMP_NV_SNAN)
++                  ? fp_or2(fp_is_snan(va, isdbl), fp_is_snan(vb, isdbl))
++                  : unord;
++    TCGv_i64 fcsr = load_rf(0);
++    tcg_gen_or_i64(fcsr, fcsr, nv);
++    store_rf(0, fcsr);
 +    store_rd(a->hb, res);
 +}
 +
@@ -1015,7 +1034,7 @@ index 0000000..f85f209
 +    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
 +        return true;
 +    }
-+    gen_fp_cmp(a, false, FP_FT_QNAN, false);
++    gen_fp_cmp(a, false, FP_FT_QNAN, FP_CMP_NV_SNAN);
 +    return true;
 +}
 +
@@ -1024,7 +1043,7 @@ index 0000000..f85f209
 +    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
 +        return true;
 +    }
-+    gen_fp_cmp(a, false, FP_FT_SNAN, true);
++    gen_fp_cmp(a, false, FP_FT_SNAN, FP_CMP_NV_UNORDERED);
 +    return true;
 +}
 +
@@ -1033,7 +1052,7 @@ index 0000000..f85f209
 +    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
 +        return true;
 +    }
-+    gen_fp_cmp(a, true, FP_FO_QNAN, false);
++    gen_fp_cmp(a, true, FP_FO_QNAN, FP_CMP_NV_SNAN);
 +    return true;
 +}
 +
@@ -1042,7 +1061,7 @@ index 0000000..f85f209
 +    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
 +        return true;
 +    }
-+    gen_fp_cmp(a, true, FP_FO_SNAN, true);
++    gen_fp_cmp(a, true, FP_FO_SNAN, FP_CMP_NV_UNORDERED);
 +    return true;
 +}
 +

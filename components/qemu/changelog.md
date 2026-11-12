@@ -325,3 +325,7 @@
 - **2026-11-12 `m13-qemu-005`**
   - 摘要：**`fo2ft` 溢出按 IEEE 754-2019 §7.4 / `SimRISC-07 §1.4` 定稿按舍入方向分派**。`target/dadao/helper.c`：`conv_select_mode()` 改为返回解析后的 `FloatRoundMode`（`0x20` 动态档已按 `rf0[33:32]` 展开），`helper_fp_cvt_ff()` 的 `fo2ft` 溢出路径改用新增 `fo2ft_overflow_result(mode, neg)`——RNE/RNA、RUP 正溢出、RDN 负溢出 ⇒ `±Inf`；RTZ 双向、RUP 负溢出、RDN 正溢出 ⇒ `±ft_max`（`0x7F7F_FFFF`/`0xFF7F_FFFF`），符号取精确结果（有限源）的符号。`OF|NX` 仍由 softfloat 溢出路径置位并经 `fp_status_commit()` 累积；`ft2fo` 精确转换与其它 FP 路径不变。补丁 1 份改。
   - 执行者：engineer
+
+- **2026-11-12 `m13-qemu-004`**
+  - 摘要：**quiet compare 遇 sNaN 置 `NV`（IEEE 754-2019 §5.11；用户裁定 2026-11-12「改为置 NV（跟 IEEE）」）**。`target/dadao/insn_trans/trans_fp.c.inc`：新增 `fp_is_snan()`（NaN 且尾数静默位为 0）；`gen_fp_cmp()` 的 `signal_nv` 改为 `nv_rule` 二档——`FP_CMP_NV_UNORDERED`（signaling compare，任何无序置，口径不变）/ `FP_CMP_NV_SNAN`（quiet compare，**仅任一操作数为 sNaN 时置**，qNaN 不置）；`ftqcmp`/`foqcmp` 改传后者，NV 仍经 `store_rf()` 写 `rf0` 的 bit0（只读 qNaN/SBZ 位保持）。比较结果值（quiet→qNaN、signaling→sNaN、有序→`−1/0/1`）与其它 FP 标志路径不变。补丁 1 份改。
+  - 执行者：engineer

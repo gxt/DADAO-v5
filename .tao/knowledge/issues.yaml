@@ -390,3 +390,10 @@
   closed_in: null
   resolved_by: null
   title: 【P1】**`m12-chipyard-025` 的实现未落 master**：合入 `be447dbc` 只含任务书；仓库 `WumingFP.scala.patch` 仍含 5 处 `forceInfOnOverflow`（恒 ±Inf），而共享源树已是新逻辑 ⇒ **仓库补丁 ≠ 源树**，fresh checkout 会在 14 格上红，`check-patch-tree` chipyard 4 红即此。丢失项：两个 RTL 补丁、`fp_ref.f2f_exact`、`fp_sweep`/`unit_run` 口径、README/changelog。**根因链**：子代理把改动写进共享源树/主工作树（`ISS-402`）→ 主会话合入时只带任务书 → `git worktree remove --force` 销毁 worktree 内未提交实现。**修法**：以共享源树为准重导补丁（`m12-chipyard-026`）；**流程补丁**：① 合入前必须 `git show --stat` 确认含实现文件、② 删 worktree 前必须核 `git status -uall` 是否干净、③ 子代理交付必须自证改动在 worktree 内。
+- id: ISS-407
+  scope:
+  - qemu
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】**覆盖声明与探针状态不一致**（`m13-qemu-004`）：完成区称「另加 sNaN 在右（ft/fo）」两例，但 reviewer 用探针 dump 证明两例机器状态**完全相同**（`set.w` 是 wyde 部分写、写序可交换），NaN 实际都在左操作数 ⇒ 代码无缺陷，但**覆盖声明不实**、向量 notes 也写成「`ftqcmp(1.0, sNaN)`」。教训：凡声明「左右/先后/边界」的用例，必须由探针 dump 证明两侧状态确实不同，否则只是同一用例跑两遍。
