@@ -58,7 +58,7 @@
 
 - 指令：`ftadd`/`ftsub`/`ftmul`/`ftdiv`/`ftrem`/`ftsclb` 与 `foadd`/`fosub`/`fomul`/`fodiv`/`forem`/`fosclb`（orrr：`rfHB` 目的、`rfHC` 第一源；`ftrem`/`forem` 的第二源为 `rfHD`，`ftsclb`/`fosclb` 的第二源为 `rdHD`）。[SimRISC-07 §S2D1]
 - 硬件先读全部源操作数再写结果；源被目的覆盖前其值已捕获，行为确定。[SimRISC-07 §S2D1]
-- `ftrem`/`forem` 为 IEEE754 remainder：结果 = `rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数；`rfHC` 为 ±Inf、`rfHD` 为 ±0、任一源为 sNaN ⇒ NV + qNaN；`rfHD` 为 ±Inf（`rfHC` 有限）⇒ 返回 `rfHC`；qNaN 作输入 ⇒ 返回 qNaN（不置标志）；结果精确，不置 NX/OF/UF。[SimRISC-07 §S2D1]
+- `ftrem`/`forem` 为 IEEE754 remainder：结果 = `rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数；**无效操作（IEEE 754-2019 §7.2 f）仅当「`rfHD` 为 ±0 或 `rfHC` 为 ±Inf」且两个操作数都不是 NaN** ⇒ NV + qNaN；**NaN 输入优先**：任一为 qNaN ⇒ 返回 qNaN、**不置** NV（即使另一为 ±0/±Inf），任一为 sNaN ⇒ **NV** + qNaN（§7.2 a）；`rfHD` 为 ±Inf（`rfHC` 有限）⇒ 返回 `rfHC`；除数为 ±0 属 NV 而非 DZ；结果精确，不置 NX/OF/UF。[SimRISC-07 §S2D1]
 - `ftsclb`/`fosclb` 为 IEEE754 scaleB：计算 `rfHC × 2^rdHD`；`rdHD` 为 `rd` 组的**有符号 64 位整数指数**（非浮点寄存器），`rdHD = rd0` 表示指数 0；沿用原 `orrr` 编码、不新增 opcode，旧 `rf` 第三操作数写法失效；舍入模式由 rf0 控制，NaN/Inf/溢出/下溢行为遵循 IEEE754。[SimRISC-07 §S2D1]
 - 异常标志 NV/DZ/OF/UF/NX 按 IEEE754 设置。[SimRISC-07 §S2D1]
 - 目的 `rfHB` 为 `rf0` → ILLI。[SimRISC-00 §浮点寄存器]

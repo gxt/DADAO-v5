@@ -122,7 +122,21 @@ fosclb  rfHB, rfHC, rdHD
 
 其中，rfHB为目的操作数，rfHC为第一个源操作数。除 `ftsclb`/`fosclb` 外，rfHD为第二个源操作数；`ftsclb`/`fosclb` 的第三个操作数为 `rdHD`（`rd` 组的**有符号 64 位整数指数**，非浮点寄存器；`rdHD = rd0` 表示指数 0）。硬件先读全部源操作数再写结果，源寄存器被目的覆盖前其值已捕获，行为确定。
 
-`ftrem`/`forem` 为 IEEE 754 remainder 操作：结果 = `rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数。`rfHC` 为 ±Inf、`rfHD` 为 ±0、任一源为 sNaN ⇒ 置 NV 并返回 qNaN；否则 `rfHD` 为 ±Inf（`rfHC` 有限）⇒ 返回 `rfHC`；qNaN 作输入 ⇒ 返回 qNaN（不置标志）。本操作结果精确，不置 NX/OF/UF。
+`ftrem`/`forem` 为 IEEE 754-2019 remainder 操作：结果 = `rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数；舍入方向（`rf0[33:32]`）不参与本操作。结果恒精确，**不置** NX/OF/UF；除数为 ±0 属**无效操作**（NV）而**不是**除零（DZ）。
+
+**无效操作的条件（IEEE 754-2019 §7.2 f）**：`remainder(x, y)`（`x` = `rfHC` 被除数、`y` = `rfHD` 除数）**仅当**「`y` 为 ±0 **或** `x` 为 ±Inf」**且两个操作数都不是 NaN** 时属无效操作 ⇒ 置 **NV** 并返回 qNaN。**NaN 输入优先于该无效条件**：只要任一操作数为 NaN，即使另一操作数为 ±0 或 ±Inf，也不因 §7.2 f) 置 NV（IEEE 原文以「and neither is a NaN」限定这两条条件）；signaling NaN 仍按 §7.2 a) 置 NV——sNaN 作任一操作数即无效操作，与另一操作数是否为 ±0/±Inf 无关。
+
+逐条期望：
+
+| `rfHC`（`x`） | `rfHD`（`y`） | NV | 结果 |
+|---|---|---|---|
+| qNaN | ±0 | 不置 | qNaN（IEEE 754-2019 §6.2：quiet NaN 输入不触发异常；payload 按 §6.2.3） |
+| sNaN | ±0 | **置** | qNaN（IEEE 754-2019 §7.2 a)） |
+| 有限（含 ±0） | ±0 | **置** | qNaN（IEEE 754-2019 §7.2 f：除数为零） |
+| ±Inf | 有限（含 ±0） | **置** | qNaN（IEEE 754-2019 §7.2 f：被除数为无穷） |
+| ±Inf | ±Inf | **置** | qNaN（IEEE 754-2019 §7.2 f：被除数为无穷） |
+| 有限（含 ±0） | ±Inf | 不置 | 返回 `rfHC`（商为 0 ⇒ n = 0，精确；`±0` 保留符号） |
+| 有限 | 有限非零 | 不置 | 精确余数 `rfHC − n × rfHD`（符号随 `rfHC`） |
 
 `ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作：计算 `rfHC × 2^rdHD`（`rdHD` 为整数指数），舍入模式由 rf0 控制。两种形式使用同一 `orrr` 编码，不新增 opcode；旧写法 `ftsclb rfHB, rfHC, rfHD` / `fosclb rfHB, rfHC, rfHD`（第三操作数为 `rf` 组）不再接受。NaN/Inf/溢出/下溢行为遵循 IEEE 754。
 
