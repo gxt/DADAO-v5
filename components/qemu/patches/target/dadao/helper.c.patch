@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..9dbc48f
+index 0000000..d194434
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2938 @@
+@@ -0,0 +1,2962 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -1348,11 +1348,37 @@ index 0000000..9dbc48f
 +}
 +
 +/* Decode the packed conversion operand: low 8 bits = kind, bits [15:8] = the
-+ * 6-bit direction field. */
-+static void conv_select_mode(CPUDADAOState *env, float_status *st,
-+                             uint32_t packed)
++ * 6-bit direction field.  Returns the resolved direction (0x20 is already
++ * replaced by rf0[33:32]) so that callers needing the direction itself do not
++ * have to decode it twice. */
++static FloatRoundMode conv_select_mode(CPUDADAOState *env, float_status *st,
++                                       uint32_t packed)
 +{
-+    set_float_rounding_mode(conv_round_mode(env, (packed >> 8) & 0x3F), st);
++    FloatRoundMode mode = conv_round_mode(env, (packed >> 8) & 0x3F);
++
++    set_float_rounding_mode(mode, st);
++    return mode;
++}
++
++/* fo2ft overflow result (IEEE 754-2019 §7.4; SimRISC-07 §1.4):
++ *   RNE / RNA            -> ±Inf  (either sign)
++ *   RTZ                  -> ±ft_max
++ *   RUP (towards +Inf)   -> +Inf, -ft_max
++ *   RDN (towards -Inf)   -> +ft_max, -Inf
++ * The result sign is the sign of the exact result (the finite source's sign);
++ * softfloat raises OF|NX on the overflow path for every direction, so only
++ * the result value is chosen here. */
++static uint32_t fo2ft_overflow_result(FloatRoundMode mode, bool neg)
++{
++    bool to_inf = mode == float_round_nearest_even ||
++                  mode == float_round_ties_away ||
++                  (mode == float_round_up && !neg) ||
++                  (mode == float_round_down && neg);
++
++    if (to_inf) {
++        return neg ? 0xFF800000u : 0x7F800000u;
++    }
++    return neg ? 0xFF7FFFFFu : 0x7F7FFFFFu;
 +}
 +
 +/* convert_ff (float→float):
@@ -1364,18 +1390,16 @@ index 0000000..9dbc48f
 +    float_status st;
 +    uint64_t res;
 +    uint32_t kind = packed & 0xFF;
++    FloatRoundMode mode;
 +
 +    fp_status_init(env, &st);
-+    conv_select_mode(env, &st, packed);
++    mode = conv_select_mode(env, &st, packed);
 +    if (kind == 0) {
 +        res = (uint64_t)float32_to_float64((float32)src, &st);
 +    } else {
 +        res = (uint64_t)(uint32_t)float64_to_float32((float64)src, &st);
-+        /* contract-fp §2 / SimRISC-07: conversion overflow returns ±Inf and
-+         * sets OF regardless of the rounding direction (IEEE 754 would return
-+         * the largest finite under RTZ/RDN/RUP). */
 +        if (get_float_exception_flags(&st) & float_flag_overflow) {
-+            res = (src >> 63) ? 0xFF800000ull : 0x7F800000ull;
++            res = fo2ft_overflow_result(mode, (src >> 63) != 0);
 +        }
 +    }
 +    fp_status_commit(env, &st);

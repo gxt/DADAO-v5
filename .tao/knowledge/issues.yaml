@@ -349,3 +349,10 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`tests/inst/fp/divrem.yaml` 第 4 例的注释写「两路同时置」，事实成立但表达式易读反（易被误读成「同时置两个标志位」）；engineer 自述不修、reviewer 认作 finding。建议随 `m13-testcases-011` 一并改措辞。
+- id: ISS-401
+  scope:
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`tests/inst/fp/convert.yaml` 头注释仍写「`fo2ft` 溢出（`+Inf` + `OF|NX`）」，但 `m13-qemu-005` 已把其中 RTZ 例改成 `+ft_max` ⇒ 注释与内容不符。随 `m13-testcases-011` 补全四档矩阵时一并改注释。

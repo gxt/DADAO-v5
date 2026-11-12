@@ -296,7 +296,7 @@
   expected_pc: null
   expected_state:
     rd:
-      rd5: '0x7F80000000000000'
+      rd5: '0x7F7FFFFF00000000'
       rd6: '0x7FF800007FC00014'
   format: orri
   id: fo2ft_orri_rf
@@ -309,7 +309,7 @@
     rb:
       rb1: '@ENTRY+0x100000'
   mnemonic: fo2ft
-  notes: 'fo2ft rf4, rf1, 4（RTZ）：f64 最大有限 → +Inf + OF|NX（f32 在 [63:32]）'
+  notes: 'fo2ft rf4, rf1, 4（RTZ）：f64 最大有限 → +ft_max（0x7F7FFFFF）+ OF|NX（f32 在 [63:32]）'
   sequence:
   - '0x26041000'
   - '0x44244044'
