@@ -363,7 +363,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: '【P1】**子代理自报「已完成」但盘上零改动**：`m12-chipyard-025` 的 engineer 汇报了完整的 18 格实测/注入/门控数字，但任务 worktree `git status` 只剩两个未跟踪 scratch 文件，`git log` 无新提交，reflog 显示 11:26 有一次 `reset: moving to HEAD`（疑为它自己「干净树重放」时把未提交改动抹掉），`git fsck` 无可用 dangling commit ⇒ 改动**不可恢复**。教训：① 任务收尾必须用 `git status -uall` 与 `git diff --stat` 证明改动存在，不能只凭运行输出；② 任务 worktree 内**禁止 `reset --hard`/`checkout -- .`**（需要干净树重放时用临时副本或 `stash` 前先导出补丁）；③ 主会话收到「完成」后必须核盘上事实（`git log`/`git status`）再决定续链。'
+  title: '【P1】**子代理自报「已完成」但盘上零改动**：`m12-chipyard-025` 的 engineer 汇报了完整的 18 格实测/注入/门控数字，但任务 worktree `git status` 只剩两个未跟踪 scratch 文件，`git log` 无新提交，reflog 显示 11:26 有一次 `reset: moving to HEAD`（疑为它自己「干净树重放」时把未提交改动抹掉），`git fsck` 无可用 dangling commit ⇒ 改动**不可恢复**。教训：① 任务收尾必须用 `git status -uall` 与 `git diff --stat` 证明改动存在，不能只凭运行输出；② 任务 worktree 内**禁止 `reset --hard`/`checkout -- .`**（需要干净树重放时用临时副本或 `stash` 前先导出补丁）；③ 主会话收到「完成」后必须核盘上事实（`git log`/`git status`）再决定续链。 **补充（025 重跑时查明）**：上一轮改动其实**写在主工作树 `/mnt/tao/DADAO-v5`**（8 个文件，mtime 11:28–12:09），任务 worktree 从未有过改动 ⇒ 违反 `ISS-368`；`reset` 抹掉的是 worktree，工作成果在别处。**次生事故**：主会话在 `m13-spec-003` 合入时用 `git add -A .tao/` 把这份散落在主树的**任务书改动**扫进了 master（`9f32fbfe`），导致 master 上该任务书带「待验收 + 旧 24 例完成区」。教训追加：① 子代理必须自证「改动在任务 worktree 内」（贴 worktree 路径下的 `git status`）；② 主会话**禁用 `git add -A`/`git add .`**，只逐项 staging（`ISS-377` 的延伸）；③ 合入前用 `git status -uall` 全量核对，发现非预期改动先问再提交。'
 - id: ISS-403
   scope:
   - spec
