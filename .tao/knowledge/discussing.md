@@ -493,3 +493,14 @@ M16 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个
 3. **beat 内的字节级原子性由实现自定**，语义正确即可 ⇒ 不单独验、不写进 spec；测试的「保持区」断言按语义正确即可。
 
 ⇒ **「允许部分生效」的适用范围收窄为：多元素*内存*指令（`ldm.*`/`stm.*` 及其 rf 形式）的故障路径**。其它类别一律精确。
+
+## 已裁定：`ldm`/`stm` 禁止基址/索引寄存器落入传送范围（2026-11-13）
+
+用户原话：「不允许重叠，改spec」
+
+**含义**（按编码 `{rdHA:rdHA+immu6-1}, [rbHB, rdHC]`）：
+- RD 形式：索引寄存器 `rdHC` 不得落在 `[rdHA, rdHA+immu6)` 内
+- RB/RF/RA 形式：基址寄存器（`rbHB` 等）不得落在被传送的同 bank 寄存器范围内
+- 违反 ⇒ **ILLI**（不再沿用「按原始值计算、行为依赖顺序」的旧口径）
+
+**影响面**：spec（`SimRISC-01` 限制列表）+ `contracts/legality_rules.yaml`/`opcodes.yaml` 的 legality + 三个实现（chipyard/QEMU/gem5）+ `m13-testcases-013` 的 overlap 用例（改为 ILLI 用例）。
