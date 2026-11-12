@@ -92,7 +92,7 @@
 
 ### 第 2 轮 reviewer 验收（2026-11-13）
 
-**重跑记录（我的命令 + 真实输出/退出码；长输出落 `.work/log/testcases/m13-testcases-009/review-round2-20261113.log`）**
+**重跑记录（我的命令 + 真实输出/退出码；长输出落 `该任务的运行期日志`）**
 
 1. 208 **只读**直取四份 `ratio-*.json`（scp，rc=0）：四份均 `ok=true`、`missing=[]`、`reused_rounds=[]`；rows 1+7+2+7=**17**；现场计数 `pass=16 blocked=1 fail=0`；`regression/raise-race` = `gem5_seconds=172800.01 / gem5_timeout=true / gap=time budget / exit=None`；static `functional/clocale_mbfuncs` = **pass 7793.61**。runner：`run-long.EXIT=0`（11-13 00:15）、pid 522444 **DEAD**、7 个 `.EXIT` 全 0。
 2. 名单逐 id **独立重算**（本地 python，非被审脚本）：003 A 组 blocked=**17**（static 9=libc 2+llvm 7；dynamic 8=libc 1+llvm 7）；`A-long − prior = ∅`、`prior − A-long = ∅`；17 例 ⊆ A 组输入名单(60)、⊆ refs 3600s A blocked(60)。⇒ **无多无少**。
