@@ -26,20 +26,20 @@
 | --- | --- | --- |
 | m13-testcases-014 | 4–5 天 | `02-reg-copy` 16 个 id 改汇编+宏（复制 + `cs.*`） |
 | m13-testcases-015 | 2–3 天 | `03-wyde-imm` 8 个 id 改汇编+宏 |
-| m13-testcases-016 | 3–4 天 | `04-arith-logic-octa` 算术 16 个 id 改汇编+宏 |
-| m13-testcases-017 | 3–4 天 | `04-arith-logic-octa` 逻辑/移位/扩展 20 个 id 改汇编+宏 |
-| m13-testcases-018 | 3–4 天 | `04-arith-logic-octa` 位操作 21 个 id 改汇编+宏 |
-| m13-testcases-019 | 2 天 | `05-arith-addr` 5 个 id 改汇编+宏 |
+| m13-testcases-016 | 3–4 天 | `04-arith-logic-octa` 算术 15 个 id 改汇编+宏 |
+| m13-testcases-017 | 3–4 天 | `04-arith-logic-octa` 逻辑/移位/扩展 14 个 id 改汇编+宏 |
+| m13-testcases-018 | 3–4 天 | `04-arith-logic-octa` 位操作 4 个 id 改汇编+宏 |
+| m13-testcases-019 | 2 天 | `05-arith-addr` 6 个 id 改汇编+宏 |
 | m13-testcases-020 | 3–4 天 | `06-control-flow` 15 个 id 改汇编+宏（含 RAS） |
-| m13-testcases-021 | 4–5 天 | `07-floating-point` 算术 14 个 id 改汇编+宏 |
-| m13-testcases-022 | 4–5 天 | `07-floating-point` 转换/比较/分类 18 个 id 改汇编+宏 |
-| m13-testcases-023 | 3–4 天 | `07-floating-point` 取整/缩放/符号 12 个 id 改汇编+宏 |
-| m13-testcases-024 | 2–3 天 | `08-arith-logic-tetra` 16 个 id 改汇编+宏 |
-| m13-testcases-025 | 2–3 天 | `09-arith-logic-wyde` 16 个 id 改汇编+宏 |
-| m13-testcases-026 | 2–3 天 | `10-arith-logic-byte` 16 个 id 改汇编+宏 |
-| m13-testcases-027 | 3–4 天 | `11-cfx` 原子/屏障 25 个 id 改汇编+宏 |
-| m13-testcases-028 | 1–2 天 | `11-cfx` cfx/system 4 个 id 改汇编+宏 |
-| m13-testcases-029 | 1–2 天 | `12-misc` 4 个 id 改汇编+宏（`swym`/`ct*`） |
+| m13-testcases-021 | 4–5 天 | `07-floating-point` 算术与最小最大 18 个 id 改汇编+宏 |
+| m13-testcases-022 | 4–5 天 | `07-floating-point` 转换/比较/分类 26 个 id 改汇编+宏 |
+| m13-testcases-023 | 3–4 天 | `07-floating-point` 取整/缩放/符号 8 个 id 改汇编+宏 |
+| m13-testcases-024 | 2–3 天 | `08-arith-logic-tetra` 21 个 id 改汇编+宏 |
+| m13-testcases-025 | 2–3 天 | `09-arith-logic-wyde` 21 个 id 改汇编+宏 |
+| m13-testcases-026 | 2–3 天 | `10-arith-logic-byte` 21 个 id 改汇编+宏 |
+| m13-testcases-027 | 3–4 天 | `11-cfx` 5 个 id 改汇编+宏（cfx/system） |
+| m13-testcases-028 | 1–2 天 | `12-misc` 原子 24 个 id 改汇编+宏（`lr`/`sc`） |
+| m13-testcases-029 | 1–2 天 | `12-misc` 其余 4 个 id 改汇编+宏（`swym`/`ct*`） |
 | m13-testcases-030 | 2–3 天 | `.S` 接入门控 + YAML 退役（ISS-413） |
 | m13-spec-006 | 2–3 h | 融合乘加溢出按 IEEE 舍入模式（`SimRISC-07 §2.5`，ISS-399） |
 | m13-qemu-007 | 2 h | `ld.t rf0` 只读位（QEMU，争议 6 裁定 A） |
