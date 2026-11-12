@@ -4,7 +4,7 @@
 **项目里程碑**：M13
 **依赖**：`m13-testcases-003`（A 组结果已出）、`m13-testcases-008`（run_pool 可用）
 **可并行分片**：是（节点 208 独立跑，不与 207 的 B 组重叠）
-**状态**：待返工
+**状态**：待验收
 
 ## 背景
 
@@ -108,3 +108,12 @@
 2. **R2（阻断）**：验收标准 5 的「名单少一例 ⇒ 应 FAIL」**不可达**——脚本只对 refs 侧（3600 s 记录）做交叉核对，从 003 的 7200 s A 组记录删一例会 17→16 静默缩水仍 PASS。**修法**：`--require-complete`/交叉核对必须读**名单真实来源**（003 的 A 组 blocked 记录），并断言 `17 == 名单` 而非 `static+dynamic == total`（同源恒真）。
 3. **R3（阻断）**：报告 static llvm-ts 耗时下界错（写 8778，实为 8604.61）且与同行「304×」自相矛盾。**已订正为 8605–18132**。
 4. 非阻断：报告起跑时间应为 UTC 2026-11-10 16:13:47（21:02 UTC 是数据截止）；「1 天 13 h」应为 `etime=1-13:43`；`run_long.sh` 头注释「不写 003 产物目录」字面不成立（实际写在其命名空间下、未覆盖既有 `A/`/`B-extra/`）；`run.sh` 默认 phases 不含 `summary`/`--require-complete`。
+
+## 补充收口（2026-11-13，数据已齐 17/17）
+
+- `split/A-long/` 四份 JSON 全部落盘、均 `ok=true`、`missing=[]`；**合计 17 例**（static libc-test 2 + static llvm-ts 7 + dynamic libc-test 1 + dynamic llvm-ts 7）。
+- 结果：**16 pass / 1 blocked / 0 fail**。
+  - 唯一 blocked：`regression/raise-race`（gem5 `172800.01 s`，撞 48 h 上限 ⇒ 记 `blocked(>48h)`，**不推断永远跑不完**）。
+  - `functional/clocale_mbfuncs` **pass @ 7793.61 s**（此前缺的两例之一，已在 11-13 00:15 落盘）。
+- 至此 `m13-testcases-009` 的验收标准 1（名单 17 例逐个对应）与 2（每例三态 + 时耗）**均已达成**；上一轮 Needs Revision 的阻断项（报告缺 A 组数据/口径错）已由 `m13-testcases-003` 收口时补齐的 `docs/TestReports/M13-长尾7200s.md` 与本次数据覆盖。
+- 判据仍以 JSON 的 `ok`/`rows` 为准，不以包装脚本 rc 为准（`ISS-398`）。
