@@ -397,3 +397,10 @@
   closed_in: null
   resolved_by: null
   title: 【P3】**覆盖声明与探针状态不一致**（`m13-qemu-004`）：完成区称「另加 sNaN 在右（ft/fo）」两例，但 reviewer 用探针 dump 证明两例机器状态**完全相同**（`set.w` 是 wyde 部分写、写序可交换），NaN 实际都在左操作数 ⇒ 代码无缺陷，但**覆盖声明不实**、向量 notes 也写成「`ftqcmp(1.0, sNaN)`」。教训：凡声明「左右/先后/边界」的用例，必须由探针 dump 证明两侧状态确实不同，否则只是同一用例跑两遍。
+- id: ISS-408
+  scope:
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m13-testcases-011` 文档级：① 完成区「L1 4 红」实为 **5 红**、`check-patch-tree` 实为 **6 条**（chipyard 4 + qemu 2）；② 完成区未记 `UNIT_BIN` 路径/md5 ⇒ C3 那条红不可复现；③ `gen_block.py` 只在 gitignored 的 `.work` ⇒ 建议随产物落 `tools/testcases/`，或在本册写明「手维护」。
