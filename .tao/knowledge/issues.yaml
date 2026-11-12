@@ -356,3 +356,11 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`tests/inst/fp/convert.yaml` 头注释仍写「`fo2ft` 溢出（`+Inf` + `OF|NX`）」，但 `m13-qemu-005` 已把其中 RTZ 例改成 `+ft_max` ⇒ 注释与内容不符。随 `m13-testcases-011` 补全四档矩阵时一并改注释。
+- id: ISS-402
+  scope:
+  - infra
+  - chipyard
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P1】**子代理自报「已完成」但盘上零改动**：`m12-chipyard-025` 的 engineer 汇报了完整的 18 格实测/注入/门控数字，但任务 worktree `git status` 只剩两个未跟踪 scratch 文件，`git log` 无新提交，reflog 显示 11:26 有一次 `reset: moving to HEAD`（疑为它自己「干净树重放」时把未提交改动抹掉），`git fsck` 无可用 dangling commit ⇒ 改动**不可恢复**。教训：① 任务收尾必须用 `git status -uall` 与 `git diff --stat` 证明改动存在，不能只凭运行输出；② 任务 worktree 内**禁止 `reset --hard`/`checkout -- .`**（需要干净树重放时用临时副本或 `stash` 前先导出补丁）；③ 主会话收到「完成」后必须核盘上事实（`git log`/`git status`）再决定续链。'
