@@ -435,3 +435,11 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`m13-testcases-012` 文档级：① **encoding 类实为「寄存器字段极值 + 语义」而非 mask/value 校验**（审阅记录曾声称「已在 §2 与文件头写明口径」，grep 0 命中，声明与盘上不符）；② 完成区「故障例 1–4（合计 15–19）」实为 2–4（16–19）；③ `spec/SimRISC-01` 附录 B `excp_malign` 列 24 条但漏 4 个 rf 形式，与同册「对齐要求」口径不一致。
+- id: ISS-413
+  scope:
+  - testcases
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: '【P1】**YAML 退役被门控挡住**（`m13-testcases-013` 实测）：`base/mem-rd/mem-ra/mem-rb` 三册里 `ld`/`st`/`ldm`/`stm` 的 id 已全部有 `.S`，但删 YAML 会让三个门控立刻红——① `validate_vectors` 报 `DATA COVERAGE: 116 gap(s)`（`inventory.md` 的类登记仍以 YAML 为真源）；② `check_case_ledger` 多 167 行；③ `check-generator-sync` 的 `generate_mem_vectors --check` 无输入。**结论**：`.S` 套件目前**不在任何门控里**，YAML 一删就失去回归。行动（需立册）：把载体从 YAML 切到 `.S`——`inventory.md` 的类登记改由 `.S` 的注释/宏派生、`run_asm_suite.py` 进 L2、`generate_*_vectors` 与 `check-generator-sync` 随之退役，然后才能批量 `git rm` YAML。'
