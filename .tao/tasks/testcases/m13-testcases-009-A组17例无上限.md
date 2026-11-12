@@ -90,6 +90,27 @@
 
 **三问**：① 15 例除 static llvm-ts 耗时下界（8778 → 应 8604.61）外**逐条一致**；② 缺的 2 例属**仍在跑**（非「未跑」、非「跑了没记」）——`clocale_mbfuncs` gem5 已 PASS 待 ratio JSON 落盘，`raise-race` 正在跑；③ **没有**把预算写成能力（报告 §4 明确「预算问题，不是能力问题；不得据此断言某例不可测」）。
 
+### 第 2 轮 reviewer 验收（2026-11-13）
+
+**重跑记录（我的命令 + 真实输出/退出码；长输出落 `.work/log/testcases/m13-testcases-009/review-round2-20261113.log`）**
+
+1. 208 **只读**直取四份 `ratio-*.json`（scp，rc=0）：四份均 `ok=true`、`missing=[]`、`reused_rounds=[]`；rows 1+7+2+7=**17**；现场计数 `pass=16 blocked=1 fail=0`；`regression/raise-race` = `gem5_seconds=172800.01 / gem5_timeout=true / gap=time budget / exit=None`；static `functional/clocale_mbfuncs` = **pass 7793.61**。runner：`run-long.EXIT=0`（11-13 00:15）、pid 522444 **DEAD**、7 个 `.EXIT` 全 0。
+2. 名单逐 id **独立重算**（本地 python，非被审脚本）：003 A 组 blocked=**17**（static 9=libc 2+llvm 7；dynamic 8=libc 1+llvm 7）；`A-long − prior = ∅`、`prior − A-long = ∅`；17 例 ⊆ A 组输入名单(60)、⊆ refs 3600s A blocked(60)。⇒ **无多无少**。
+3. 证据脚本重跑 `run.sh --phases=derive,inject,summary` → `EXIT=0`，但 `counts: pass=15 blocked=0 pending=2`（本地未重新 fetch）；`--phases=summary --require-complete` → `CHECK FAIL summary rc … actual_rc=1`、`evidence: FAIL`、**EXIT=1**。
+4. 我执行 `--phases=fetch`（只读 208、只写本地 `.work`）→ `EXIT=0`；随后 `--require-complete` → `counts: pass=16 fail=0 blocked=1 pending=0 total=17 extra=0`、**EXIT=0**；四份 JSON md5 与 208 副本逐一相等。
+5. **独立注入（我做，非 engineer 自检）**：`cp -p` 备份**主源** `split/A/static/gxt_server208/ratio-static-libc-test.json`（md5 `d5ea8f25…`）→ 删 `raise-race`（rows 2→1）→ 重跑同一 `run.sh --phases=derive` → `static: 8 … total: 16 … evidence: PASS`、**EXIT=0** ⇒ **「名单少一例 ⇒ 应 FAIL」仍不可达（R2 未修）**；`cp` 还原 → md5 仍 `d5ea8f25…` → 回绿 `static=9 total=17 EXIT=0`；`git status -uall` 干净。
+6. 门控亲跑（主控机，exit 全 0）：`check-milestones-fresh` **PASS**；`check-knowledge-refs` **PASS（悬空 0、具体 `.work/**` 0）**；`check-test-reports` **PASS（7 report(s), 3 snapshot(s)）**。
+7. 207 只读：`split/` 只有 `B`、无 `A-long`，且无 `run_engine_ratio` 进程 ⇒ 未被干扰。截断旁证（208 只读）：`libc-test-gem5-se-r1.log`「`BLOCKED regression/raise-race: timeout after 172800s (SE, not a verdict)`」。
+
+**约束核验**：① 名单 17 例逐个对应 ✓（现场 set 相等）② 每例三态+时耗 ✓（17/17）③ 独立目录+字段 ✓（`split/A-long/` 4 份 ratio JSON + 8 个 `run.json`）④ 207 未被干扰 ✓（只读）⑤ 一键脚本+可达 FAIL 注入 ✗（见重跑 5）⑥ 完成区 13 行 ≤30 ✓、全文无 `.work/` 与绝对运行期路径 ✓；我未 commit / 未 push / 未改台账；改前任务书 md5 `f8a99496…`，本次仅追加本节。
+
+**判决：Needs Revision**
+
+- **B1（阻断 = 验收标准 5，上一轮 R2 未修）**：`derive_cases.py` 只对 3600s refs 与 A 组输入名单做**正向**成员校验，缺「派生集 ↔ 003 A 组 blocked 集合」的反向/总量断言 ⇒ 从**名单真实来源**删一例 17→16 静默缩水仍 `EXIT=0`（重跑 5 实测）；`static+dynamic == total` 仍是同源恒真（ISS-393 已记）。修法：derive 加双向差集断言（两侧差集均空才过，或断言 `total ==` 现场交集计数）；`--inject` 的注入对象改为主源副本删 1 行 ⇒ 必须 `rc=1` 并打印缺例；删掉恒真检查。
+- 非阻断 finding（文档级，按 2026-10-22 裁定不单独阻断，随收尾改）：① **报告缺口**——`M13-A组长尾计时.md` 仍写「15/17、2 例在跑、本报告暂不含其结论」，`M13-长尾7200s.md` 对 `7793.61`/`172800.01` **0 命中**（该册只承载 A 组 60 行 @7200s，与 JSON 不矛盾但**不含 009 无上限结果**）⇒ 无报告承载最终 17/17；补充收口「已由 `M13-长尾7200s.md` 覆盖」表述过强，须订正并补写。② 完成区仍为「15/17、本轮未结束」（带日期的历史段落，按「收尾不改写完成区」加一行指针即可）。③ 任务书最新版在 master `4b9daccb`、任务分支停在 `867f2d13`（副本 91 行、无补充收口），提交落点请 architect 定夺。④ 审查中我的临时目录 `/tmp/opencode/m13-testcases-009-review/` 被并发清理（非交付物；注入先已还原并 md5 核对）。
+
+**三问**：① **17 例与 JSON 逐条一致、16/1/0 成立**（四份 `ok=true`/`missing=[]`，rows 17，与 003 A 组 blocked 集合完全相等、无多无少）；② **合规**——`gem5_timeout=true` + `gap=time budget` + driver log 三重证明是截断，按任务书记 `blocked(>48h)`，**未**推断「永远跑不完」；③ **报告载体不足**——两份报告都不含最终 17 例三态（009 册停在 15 例并明写不含 2 例），结论本身由 JSON 支撑、与 JSON 不矛盾，但人读载体有缺口。
+
 ## 完成区（architect 收口，2026-11-11 23:08）
 
 **结论（2026-11-11 23:30 订正）：已收齐 15/17 例，2 例（static libc-test）仍在跑；本轮未结束。**

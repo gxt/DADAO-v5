@@ -13,15 +13,15 @@
 ## 范围（只改 QEMU）
 
 1. `target/dadao/insn_trans/` 的 `ldm`/`stm` 译码函数（`trans_block.c.inc` 一族）加检查：
-   - **RD 形式**：索引 `rdHC ∈ [rdHA, rdHA+immu6)` ⇒ 非法
-   - **RB 形式**：基址 `rbHB ∈ [rbHA, rbHA+immu6)` ⇒ 非法
-   - **RA/RF 形式：不适用**（范围在 RA/RF bank，基址/索引分别在 RB/RD）⇒ 不加检查
+   - **只检查 `ldm`**：RD 形式 `rdHC ∈ [rdHA, rdHA+immu6)` ⇒ 非法；RB 形式 `rbHB ∈ [rbHA, rbHA+immu6)` ⇒ 非法
+   - **`stm` 不加检查**（允许重叠：只读传送范围、不写寄存器）
+   - **RA/RF 形式：不适用**（范围在 RA/RF bank，基址/索引分别在 RB/RD）
 2. 检查必须在**任何元素处理之前**（与既有的 `immu6=0`/范围检查同位置）。
 3. 不改其它语义。
 
 ## 验收
 
-构造 2 组例（RD、RB）；RA/RF 不适用，用一条「正常执行」作对照：
+构造 3 组例：`ldm` RD、`ldm` RB（应 ILLI）；`stm` RD/RB 重叠（应正常执行）：
 - 基址落在范围内 ⇒ **ILLI**（且不发访存、不写寄存器）
 - 基址在范围外一位（边界）⇒ 正常执行
 

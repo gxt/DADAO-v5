@@ -1,4 +1,4 @@
-# m13-spec-005: `ldm`/`stm` 禁止基址/索引寄存器落入传送范围
+# m13-spec-005: `ldm` 禁止基址/索引落入传送范围（`stm` 允许）
 
 **模块**：spec
 **项目里程碑**：M13
@@ -20,11 +20,13 @@
 
 ## 目标
 
-1. **`spec/SimRISC-01`** 的限制列表加一条，**只覆盖 RD 与 RB 两种形式**：
-   - **RD 形式**：索引寄存器 `rdHC`（RD bank）不得落在传送范围 `[rdHA, rdHA+immu6)` 内 ⇒ 违反 **ILLI**
-   - **RB 形式**：基址寄存器 `rbHB`（RB bank）不得落在传送范围 `[rbHA, rbHA+immu6)` 内 ⇒ 违反 **ILLI**
-   - **RA / RF 形式：不适用**——传送范围在 RA/RF bank，基址在 RB、索引在 RD，结构上不可能重叠（用户 2026-11-13 明确指出「基址寄存器与 rf/ra 没有关系」）；spec 应写明「不适用」，**不要**编造约束
-   - 删除旧句「可以重叠…按序先读后写…行为依赖顺序」；「地址按原始 `rdHC` 计算」这句在非重叠场景已无必要，评估是否保留
+1. **`spec/SimRISC-01`** 的限制列表改写：
+   - **`ldm`（装入）禁止重叠**（会写目的寄存器，重叠导致地址依赖处理进度）：
+     - RD 形式：`rdHC ∉ [rdHA, rdHA+immu6)` ⇒ 违反 **ILLI**
+     - RB 形式：`rbHB ∉ [rbHA, rbHA+immu6)` ⇒ 违反 **ILLI**
+   - **`stm`（存储）允许重叠**（只读传送范围、不写寄存器 ⇒ 行为确定）；spec 要写明「允许」及理由，**不要**给它加禁令
+   - **RA / RF 形式**：结构上不可能重叠（范围在 RA/RF，基址在 RB、索引在 RD）⇒ 写明「不适用」
+   - 删除旧句「可以重叠…按序先读后写…行为依赖顺序」（对 `ldm` 已经不成立）；「地址按原始 `rdHC` 计算」评估是否保留
 2. **`contracts/legality_rules.yaml`**：新增规则（如 `mreg_range_base_overlap`），并给 `contracts/opcodes.yaml` 对应记录的 `legality` 加上该规则 id。
 3. 与块复制的 `mreg_range_overlap` 保持语义一致（同一族规则的命名/写法）。
 
@@ -36,7 +38,7 @@
 
 ## 验收标准
 
-1. `SimRISC-01` **RD/RB 两种形式**写明禁令与 ILLI；**RA/RF 写明「不适用」及理由**
+1. `SimRISC-01`：`ldm` 的 **RD/RB** 写明禁令与 ILLI；**`stm` 写明允许**及理由；**RA/RF 写明「不适用」**
 2. `legality_rules.yaml` 新规则 + `opcodes.yaml` 的 legality 引用（`check-legality-drift`/`check-rule-refs` rc=0）
 3. `git grep` 无残留「可以重叠」「行为依赖顺序」类表述（保留历史段除外）
 4. 5 个 spec 门控 + `check-legality-drift`/`check-rule-refs`/`check-knowledge-refs` rc=0
