@@ -146,7 +146,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P1】**并行任务共享安装根导致互相打断**：`m13-qemu-002` 重建共享 `.dadao/` 安装根 QEMU 时，`m13-gem5-005` 正在跑的 `check-inst`/lit E2E 立即失败（Tiny 要求 `--bootrom` 的新行为对旧 E2E 不兼容），reviewer 需花时间做归属。根因：`install-host` 写的是**全局**安装根，不是 worktree 私有。建议：① 需要重建 QEMU/gem5 的任务**串行**（install 根加锁或按批调度）；② 或给每个 worktree 独立 install 根（`DADAO_INSTALL_ROOT`）；③ E2E/`check-inst` 的期望与引擎版本绑定，跨任务比对前先核安装根 md5。
+  title: 【P1】**并行任务共享安装根导致互相打断**：`m13-qemu-002` 重建共享 `.dadao/` 安装根 QEMU 时，`m13-gem5-005` 正在跑的 `check-inst`/lit E2E 立即失败（Tiny 要求 `--bootrom` 的新行为对旧 E2E 不兼容），reviewer 需花时间做归属。根因：`install-host` 写的是**全局**安装根，不是 worktree 私有。建议：① 需要重建 QEMU/gem5 的任务**串行**（install 根加锁或按批调度）；② 或给每个 worktree 独立 install 根（`DADAO_INSTALL_ROOT`）；③ E2E/`check-inst` 的期望与引擎版本绑定，跨任务比对前先核安装根 md5。 **再次实测（`m13-qemu-004`，2026-11-12）**：注入期间**他任务的 `make install-host` 把注入版 QEMU 装进了共享 `.dadao` 安装根**，导致安装根 md5 与构建树背离、quiet+sNaN 回退成 NV=0；该任务靠「装后 + 末尾」两次 md5 断言并重装才收口。⇒ 任何改 QEMU/LLVM 的任务，**注入期间与收尾前都必须断言 `md5(安装根) == md5(构建树)`**，并在并发窗口内避免 `install-host`。
 - id: ISS-374
   scope:
   - gem5
