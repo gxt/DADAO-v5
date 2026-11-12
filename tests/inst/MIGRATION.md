@@ -7,7 +7,7 @@
 
 | 目录 | SimRISC 册 | id 数（初估，待按各册附录 A 校准） |
 |---|---|---|
-| `01-load-store/` | 01 取数存数 | 38 |
+| `01-load-store/` | 01 取数存数 | 38（单元素 19 已迁；`ldm`/`stm` 19 待 `01-b`） |
 | `02-reg-copy/` | 02 寄存器复制 | 16 |
 | `03-wyde-imm/` | 03 16 位立即数操作 | 8 |
 | `04-arith-logic-octa/` | 04 64 位数据运算 | 60 |
@@ -26,6 +26,25 @@
 
 - 文件名 = **`<id>.S`**（id 里已含 format 与 bank，不重复写，如 `ld.o_rrii_rd.S`）
 - 目录内不再按 bank 分层
+- 一行一个用例，期望值**内联**（宏层 `tests/inst/macros/inst_test.inc`）：
+
+```
+	TEST_LD        3, ld.ub,  rd2,   rb4,   TEST_DATA,          0x000,    0x0000000000000001
+	TEST_ST       10, st.w,   rd2,   rb3,   TEST_DATA,          0x044,    0xDEADBEEFCAFEF00D, 0x00000000F00DFFFF
+	TEST_FAULT    16, ld.ub,  rd0,   ILLI,  rb3,                TEST_DATA, 0x000
+```
+
+| 宏 | 参数 | 判据 |
+|---|---|---|
+| `TEST_LD` / `TEST_LD_RB` / `TEST_LD_RA` / `TEST_LD_RF`（`_LO32` 只比低 32 位） | `检查点, 助记符, 目的, 基址, 基址值, 偏移, 期望值` | 目的寄存器 == 期望值 |
+| `TEST_ST` / `TEST_ST_RB` / `TEST_ST_RA` / `TEST_ST_RF` | `检查点, 助记符, 源, 基址, 基址值, 偏移, 源值, beat 期望` | 存储后该 8 字节 beat 逐字节相等（b/w/t 只改几条通道，其余保持） |
+| `TEST_FAULT` | `检查点, 助记符, 目的/源, 故障名, 基址, 基址值, 偏移` | 该指令触发 `CFXMEM`/`CFXREG`/`ILLI`/`MALIGN`/`IALIGN`，退出码 = `0xF0|异常位索引` |
+
+- **一个 `.S` = 两种镜像**：`CASE_N=0`（缺省）= 链例（非故障用例顺序跑，逐检查点把
+  实测 8 字节写进结果缓冲并打印）；`CASE_N=<检查点>` = 该故障例单独成像（异常不返回
+  被测指令之后，故故障例一例一镜像）。检查点数 ≤ 127，失败点号 = 用例序号。
+- 三方比较（同一份 ELF）：`tools/testcases/inst/run_asm_suite.py`（chipyard
+  `WumingTinyConfig` / QEMU `dadao-tiny` / gem5 FS `tiny`）。
 
 ## 3. 每个 id 的用例设计模板（5 类）
 
@@ -43,7 +62,7 @@
 
 | # | 任务 | 覆盖 | id 数 |
 |---|---|---|---|
-| 1 | 01-a | `ld.*` + `st.*`（单元素） | 19 |
+| 1 | 01-a ✅ | `ld.*` + `st.*`（单元素；见 §6） | 19 |
 | 2 | 01-b | `ldm.*` + `stm.*`（多元素） | 19 |
 | 3 | 02 | 复制 + 条件选择 | 16 |
 | 4 | 03 | 16 位立即数 | 8 |
@@ -81,10 +100,11 @@
 | `base/reg-imm-block.yaml` | — | — | 待迁 |
 | `base/reg-logic.yaml` | — | — | 待迁 |
 | `base/reg-shift-extend.yaml` | 112 | — | 待迁 |
-| `base/mem-rd.yaml` | 122 | — | 待迁 |
-| `base/mem-ra.yaml` / `mem-rb.yaml` / `mem-rf.yaml` | — | — | 待迁 |
+| `base/mem-rd.yaml` | 122 | 22 | 部分迁移（`ld.`/`st.` 单元素 11 个 id 已迁；`ldm`/`stm` 11 个 id 待 `01-b`） |
+| `base/mem-ra.yaml` | 22 | 4 | 部分迁移（`ld.o`/`st.o` ra 已迁；`ldm`/`stm` ra 待 `01-b`） |
+| `base/mem-rb.yaml` | 23 | 4 | 部分迁移（同上，rb 形式） |
 | `base/misc.yaml` | — | — | 待迁 |
-| `base/reserved.yaml` | — | — | 待迁 |
+| `base/reserved.yaml` | 9 | 4+3 | 部分迁移（`ld.`/`st.` 的 6 条 reserved-cfx `CFXMEM` 已迁；3 条 reserved-opcode `UNDI` 无 id，待 `12-misc`） |
 | `fp/*.yaml`（`arith`/`convert`/`divrem`/`cond-assign`） | — | — | 待迁 |
 | `bitcnt/`、`clmul/`、`fma/`、`minmax/`、`rev/`、`rol/`、`roundint/` 各自 | 414/81/… | — | 待迁 |
 
@@ -92,4 +112,17 @@
 
 ## 6. 已完成
 
-（空）
+### `m13-testcases-012`：`01-load-store` 单元素（`ld.*` + `st.*`，19 个 id）
+
+- `tests/inst/macros/inst_test.inc`：宏层（`TEST_LD*`/`TEST_ST*`/`TEST_FAULT`/
+  `__CHECK_RD`/`__CHECK_MEM`；失败 ⇒ `SYS_EXIT(检查点号)`；结果缓冲逐字节打印）。
+- `tests/inst/01-load-store/{<id>.S}`（19 个）+ `inst-tiny.lds`（固定布局，ASSERT 钉住）。
+- 用例：每 id 16–18 条（encoding 2 / legality 2–5 / semantic 5 / boundary 5–6 /
+  overlap 2）；四处 YAML 中属于这 19 个 id 的用例已并入（含 `reserved.yaml` 的
+  reserved-cfx `CFXMEM` 6 例）。
+- 三方逐字节：`tools/testcases/inst/run_asm_suite.py` 跑 19 链例 + 49 故障例
+  （同一 ELF：chipyard / QEMU / gem5），链例比较结果字节流、故障例比较 monitor
+  段退出码。
+- **YAML 未删**：`mem-rd.yaml`/`mem-ra.yaml`/`mem-rb.yaml` 仍含 `ldm`/`stm` id，
+  `reserved.yaml` 仍含 3 条无 id 的 reserved-opcode 例 ⇒ 按本文件 §5 的删除规则，
+  要等 `01-b`/`12-misc` 迁完才 `git rm`。

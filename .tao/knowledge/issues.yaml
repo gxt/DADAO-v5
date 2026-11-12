@@ -427,3 +427,11 @@
   closed_in: null
   resolved_by: null
   title: 【P2】`tests/inst` 重构（汇编+宏）的三项遗留：① 新 `.S` **未入 `check-inst` 门控**（载体派生仍只吃 YAML，新套件靠 `run_asm_suite.py` 单跑）⇒ 需扩载体并同步 `inventory.md`；② `st.o rb0`（源 = 当前指令地址）未覆盖（宏层拿不到被测指令自身地址）；③ `ld.o ra0`（RACNT/MRPTR 特殊写语义）未覆盖 ⇒ 跨平台写语义需先裁定。
+- id: ISS-412
+  scope:
+  - testcases
+  - spec
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m13-testcases-012` 文档级：① **encoding 类实为「寄存器字段极值 + 语义」而非 mask/value 校验**（审阅记录曾声称「已在 §2 与文件头写明口径」，grep 0 命中，声明与盘上不符）；② 完成区「故障例 1–4（合计 15–19）」实为 2–4（16–19）；③ `spec/SimRISC-01` 附录 B `excp_malign` 列 24 条但漏 4 个 rf 形式，与同册「对齐要求」口径不一致。

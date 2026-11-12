@@ -11,6 +11,120 @@
 #
 # 门控：make check-tests-index（L1，静态）；`TESTCASES-072t` 首次填入实际 case。
 # 本清单逐文件一条（向量 YAML + 探针 C/IR 源）；条数由 `check-tests-index` 现场统计。
+- id: inst-01-load-store-001
+  file: inst/01-load-store/ld.o_rrii_ra.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-002
+  file: inst/01-load-store/ld.o_rrii_rb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-003
+  file: inst/01-load-store/ld.o_rrii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-004
+  file: inst/01-load-store/ld.o_rrii_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-005
+  file: inst/01-load-store/ld.sb_rrii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-006
+  file: inst/01-load-store/ld.st_rrii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-007
+  file: inst/01-load-store/ld.sw_rrii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-008
+  file: inst/01-load-store/ld.t_rrii_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-009
+  file: inst/01-load-store/ld.ub_rrii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-010
+  file: inst/01-load-store/ld.ut_rrii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-011
+  file: inst/01-load-store/ld.uw_rrii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-012
+  file: inst/01-load-store/st.b_rrii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-013
+  file: inst/01-load-store/st.o_rrii_ra.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-014
+  file: inst/01-load-store/st.o_rrii_rb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-015
+  file: inst/01-load-store/st.o_rrii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-016
+  file: inst/01-load-store/st.o_rrii_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-017
+  file: inst/01-load-store/st.t_rrii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-018
+  file: inst/01-load-store/st.t_rrii_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-019
+  file: inst/01-load-store/st.w_rrii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-atomics-001
   file: inst/atomics/aba_treiber.c
   platforms:
