@@ -109,4 +109,34 @@
 - 与 A-long 对照：B 组中位约 **350×**，A-long 约 **700×** ⇒ 两者不是同一量级，「跑不完」的判定阈值应分开。
 - **收尾异常（`ISS-398`）**：包装脚本 `run_split.sh` 在最后写 EXIT 时用相对路径（cwd 不符）⇒ `No such file or directory`；第 94 行 `rc` 未初始化 ⇒ `unbound variable`，整体 rc=1、**0 个 EXIT 文件**。数据本身未受影响（JSON 已落盘且 `ok=true`）。
 - 判据以 JSON 为准，不以脚本 rc 为准；`m13-testcases-003` 的 A 组结论不受影响。
+- **EXIT 计数订正（reviewer）**：per-suite `.EXIT` 0 个；`split-A.EXIT`/`split-B.EXIT` 各 1 个（内容 `1`）。
+- 人读结论已落 `docs/TestReports/M13-长尾7200s.md`（逐例表 + 三类计数 + 环境指纹）。
+
+### 第 1 轮 reviewer 验收（2026-11-12，全部独立重跑）
+
+**判决：Needs Revision** —— 验收标准 2/3 未达：人读结论册 `docs/TestReports/M13-长尾7200s.md` **不存在**（`git log --all` 检索 0 条；`docs/TestReports/` 现有 7 册无一含 B 组数据）⇒ 逐例表 + 三类计数 + 执行环境指纹无载体。其余项全部通过。完整输出留运行期日志目录 `m13-testcases-003-reviewer-r1.log`。
+
+**重跑记录（本机亲跑，RC=退出码）**
+1. `make check-milestones-fresh` RC=0（m12/m13 两册 PASS）；`make check-knowledge-refs` RC=0；`python3 tools/infra/check_issues.py` RC=0（40 open/5 closed；**Makefile 无 `check-issues` 目标**，按脚本跑）。
+2. 两份 ratio JSON（节点 207 只读取回临时树，md5 static `1c4aa1c0…` / dynamic `ac53c734…`）python3 全量重算：static `rows=46 ok=True missing=[]` → `{pass 43, blocked 2, fail 1}`、`summary.ratio n=44 min 141.726 median 349.880 max 1269.211`；dynamic `rows=44 ok=True missing=[]` → `{pass 42, blocked 1, fail 1}`、`n=43 min 157.202 median 352.761 max 1284.603`。**与完成区逐数字一致**，合计 90 = **85/3/2** ✓。
+3. 逐行 `ratio == gem5_seconds / qemu_seconds` 90/90，最大相对偏差 2.96e-06（3 位小数取整量级）。
+4. 排除口径：`n = rows − (gem5_klass==blocked)`（46−2=44、44−1=43），`excluded_truncated=2/1`；**fail 未被排除**（fourinarow 的 141.7/157.2 正是 min）——不是「blocked/fail 都排除」。
+5. 名单对账：`static 72 = A26+B46`、`dynamic 78 = A34+B44`，A∩B=0，对 001/002 全量 blocked 集合 `missing=[] extra=[]` ✓。
+6. 5 例归属（节点上 driver 自带 reason，只读）：blocked×3 = `Applications/lua`(static+dynamic)、`Benchmarks/mafft`(static)，`timeout after 172800s (SE, not a verdict)` / gap `no guest exit within 172800s` ⇒ **撞 172800 s 预算截断，非崩溃**；fail×2 = `FreeBench/fourinarow`(static+dynamic)，`exit=0` 但 `oracle mismatch … output differs (3007 B vs 3007 B, sha256 54dba77cdbbf8b49)` ⇒ **输出比对不通过**（两轮同 sha，确定性）。
+7. 节点侧独立佐证：static gem5-se/qemu case 目录各 46 = rows 46；dynamic 各 45 vs rows 44（多 1 为首轮被 pkill 的残留目录，名单/JSON 仍 44 且逐 case 对齐）；节点 `*.EXIT` 0 个。
+
+**rc=1 归因（读 `run_split.sh` 61/94 行 + 会话留存原始输出）**
+- 原始输出逐字：`line 61: …/split/B/<mode>/llvm-ts.EXIT: No such file or directory` ×2 → `[2026-11-12 09:33:41] B: rc=1` → `line 94: rc: unbound variable`。
+- 61 行**运行时**是 printf：`mkdir -p` 是 2026-11-10 13:36 才补进脚本，而 B 于 09:30:43 起跑 ⇒ 运行实例无 mkdir、本地父目录从未建立；**不是「cwd 不符」**（同一相对 `$EVID` 的 `split-B.EXIT` 写成了 `1`）。
+- 94 行是 `main "$@"`，`rc` 在 72/66 行已 `local rc=0`，且 `B: rc=1` 已打印 ⇒ **不是「rc 未初始化」**，是运行中改脚本致 bash 重读错位；按 ISS-398 原修法（`${rc:-1}`）改不掉真因。
+- 第三因未登记：`remote.py run --log-prefix <任务号>-split-…` 不合任务号正则，校验在**远端跑完写日志时**触发 ⇒ `rc=2`（两份 per-suite 日志只剩该 ERROR）。
+- 三处都只在包装脚本收尾（EXIT 写入 / 返回码 / 本地日志落盘），**不触碰 90 例数据**（数据由节点上 `run_engine_ratio.py` 产出，rows/ok/missing/逐行 ratio 已独立核）⇒ 「判据以 JSON 为准、rc=1 只影响收尾」成立。
+
+**A 组独立性**：A 四份 ratio JSON（208）rows 2+24+1+33=60、`ok=True missing=[]`，2026-11-10 13:34 收口，早于 B 收尾 2 天；A 有同样 line-61 失败但数据完好；`M13-A组长尾计时.md`（009，中位 699/703 ≈ 700×，与完成区「A-long 约 700×」一致）独立于本次 B 收尾 ⇒ **A 组结论不受影响**。
+
+**约束核验**：architect 完成区 11 行 ≤30、无运行期路径 ✓；本轮未 commit / 未 push / 未改台账（开工快照 `git status --porcelain -uall` 空、HEAD `9366db6b`；收尾快照唯一改动 = 本审阅记录，HEAD 仍 `9366db6b`）✓；207 仅只读（ls/find/python3 读 + scp 取回）✓；运行期证据目录下的 `split/B-extra/run.sh`（29 检查/0 失败、inject 段真 FAIL 后还原）**未重跑**——其 pilot 段会在 208 起真实用例，超只读范围，采信留存输出。
+
+**非阻断 findings（architect 收尾改）**：① ISS-398 两条归因与修法按上文更正；② 「0 个 EXIT 文件」应为「per-suite 0 个、`split-A/B.EXIT` 各 1（内容 1）」；③ 现 line 62 的 `$?` 取的是 `mkdir` 返回码，不是 python 的 rc。
+
+**Needs Revision 具体项**：补 `docs/TestReports/M13-长尾7200s.md`（A+B 逐例表、转 PASS/仍超时/异常三类计数、执行环境指纹；原始 JSON 仍留运行期不入库），补齐即判 Accepted。
 
