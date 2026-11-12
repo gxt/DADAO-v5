@@ -341,4 +341,4 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P2】**`spec/SimRISC-07 §2.5` 的 FMA 溢出表述与 IEEE §7.4 同类冲突**（`m13-spec-002` 发现、未在其范围内修）：原文「融合乘加溢出 ⇒ ±Inf 并置 OF」，与 `fo2ft` 修订前的口径同源；IEEE 要求按舍入模式（RNE/RUP ⇒ ±Inf，RTZ/RDN ⇒ ±最大有限），两种都置 OF|NX。同一文件里现在同时存在「§1.4 已按方向」与「§2.5 仍恒 Inf」两种口径，属**内部不一致**。行动：立 spec 子任务改 §2.5，随后 chipyard/qemu/gem5 三个实现同步（与 `fo2ft` 那套 5 子任务同形）。另附带项：§1.4 的 i2f「超范围 ⇒ ±Inf」对现有 8 条 i2f 不可达，措辞可随同修。
+  title: 【P2】**`spec/SimRISC-07 §2.5` 的 FMA 溢出表述与 IEEE §7.4 同类冲突**（`m13-spec-002` 发现、未在其范围内修）：原文「融合乘加溢出 ⇒ ±Inf 并置 OF」，与 `fo2ft` 修订前的口径同源；IEEE 要求按舍入模式（RNE/RUP ⇒ ±Inf，RTZ/RDN ⇒ ±最大有限），两种都置 OF|NX。同一文件里现在同时存在「§1.4 已按方向」与「§2.5 仍恒 Inf」两种口径，属**内部不一致**。行动：立 spec 子任务改 §2.5，随后 chipyard/qemu/gem5 三个实现同步（与 `fo2ft` 那套 5 子任务同形）。另附带项：§1.4 的 i2f「超范围 ⇒ ±Inf」对现有 8 条 i2f 不可达，措辞可随同修。 另：reviewer 证实 `§1.4` i2f「超范围 ⇒ ±Inf」**不可达**（uint64 max 1.84e19 ≪ ft 3.40e38），措辞可随修；并建议补一条机械门控「全册条目要么合 IEEE、要么显式标注偏离」（现 C5 只验规范性引用句存在）。

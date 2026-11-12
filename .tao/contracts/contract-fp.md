@@ -34,7 +34,7 @@
 - `fo2ft` 的 `immu6` = 舍入方向 one-hot 六档：`0x01` RNE / `0x02` RNA / `0x04` RTZ / `0x08` RUP / `0x10` RDN / `0x20` 动态（读 `rf0[33:32]`）；其他取值（含 `0x00`）⇒ ILLI，5 个静态档不受 `rf0[33:32]` 影响。[SimRISC-07 §格式转换指令][SimRISC-07 §取整（roundToIntegral）]
 - `ft2fo`（f32→f64）结果恒可精确表示 ⇒ 不涉舍入、不置 NX；`immu6` 为 SBZ（必须为 0，非 0 ⇒ ILLI）。[SimRISC-07 §格式转换指令]
 - 复制类 `ft2ft`/`fo2fo`：源范围与目的范围不可有任何交集（含完全重合），否则 → ILLI（见 `mreg_range_overlap`）；`immu6 = 0` 或任一起始寄存器 + `immu6 > 64` → ILLI（见 `mreg_zero`/`mreg_range_overflow`）；无交集时按序号递增逐对进行，**先读后写**。[SimRISC-07 §格式转换指令]
-- `fo2ft` 溢出返回 ±Inf 并置 OF；下溢（结果 tiny 且 inexact）按舍入方向处理并置 UF（并置 NX）；NaN 传播 payload；sNaN 作为算术输入置 NV 并返回 qNaN。[SimRISC-07 §格式转换指令]
+- `fo2ft` **溢出**按 IEEE 754-2019 §7.4 由**舍入方向**决定并置 **OF** + **NX**：RNE/RNA ⇒ `±Inf`；RTZ ⇒ `±最大有限值`；RUP ⇒ 正溢出 `+Inf`、负溢出 `−最大有限值`；RDN ⇒ 正溢出 `+最大有限值`、负溢出 `−Inf`（动态档 `0x20` 按 `rf0[33:32]` 取对应方向；`ft` 最大有限值 = `0x7F7F_FFFF`）。下溢（结果 tiny 且 inexact）按舍入方向处理并置 UF（并置 NX）；NaN 传播 payload；sNaN 作为算术输入置 NV 并返回 qNaN。[SimRISC-07 §格式转换指令]
 - 目的 `rfHB` 为 `rf0` → ILLI。[SimRISC-00 §浮点寄存器]
 
 ## §3 `convert_f2i`（浮点→整型）<a id="convert_f2i"></a>

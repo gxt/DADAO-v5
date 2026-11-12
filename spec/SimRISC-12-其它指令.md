@@ -1,6 +1,6 @@
 # SimRISC其它指令
 
-> **版本：0.5.6**（与 SimRISC-00 一致）
+> **版本：0.5.7-rc**（与 SimRISC-00 一致）
 > **分类：其它指令** — lr.*/sc.*/swym/ctlz/cttz/ctpop
 
 ## 1. 原子指令
