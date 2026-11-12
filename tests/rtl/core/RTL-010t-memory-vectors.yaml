@@ -1,0 +1,1803 @@
+- name: positive-ld.ub_rrii_rd
+  instruction_id: 0
+  word: '0x10202000'
+  coverage: true
+  category: single_load
+  width_bytes: 1
+  signed: false
+  is_block: false
+  is_store: false
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000107'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0x00000000000000f1'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-ld.uw_rrii_rd
+  instruction_id: 1
+  word: '0x11202000'
+  coverage: true
+  category: single_load
+  width_bytes: 2
+  signed: false
+  is_block: false
+  is_store: false
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000106'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0x000000000000f0f1'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-ld.ut_rrii_rd
+  instruction_id: 2
+  word: '0x12202000'
+  coverage: true
+  category: single_load
+  width_bytes: 4
+  signed: false
+  is_block: false
+  is_store: false
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000104'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0x000000008433f0f1'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-ld.sb_rrii_rd
+  instruction_id: 3
+  word: '0x13202000'
+  coverage: true
+  category: single_load
+  width_bytes: 1
+  signed: true
+  is_block: false
+  is_store: false
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000107'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0xfffffffffffffff1'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-ld.sw_rrii_rd
+  instruction_id: 4
+  word: '0x14202000'
+  coverage: true
+  category: single_load
+  width_bytes: 2
+  signed: true
+  is_block: false
+  is_store: false
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000106'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0xfffffffffffff0f1'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-ld.st_rrii_rd
+  instruction_id: 5
+  word: '0x15202000'
+  coverage: true
+  category: single_load
+  width_bytes: 4
+  signed: true
+  is_block: false
+  is_store: false
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000104'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0xffffffff8433f0f1'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-st.b_rrii_rd
+  instruction_id: 8
+  word: '0x18202000'
+  coverage: true
+  category: single_store
+  width_bytes: 1
+  signed: false
+  is_block: false
+  is_store: true
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xeeddccbbaa998877'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000107'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers: []
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f077'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-st.w_rrii_rd
+  instruction_id: 9
+  word: '0x19202000'
+  coverage: true
+  category: single_store
+  width_bytes: 2
+  signed: false
+  is_block: false
+  is_store: true
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xeeddccbbaa998877'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000106'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers: []
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x8877665584338877'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-st.t_rrii_rd
+  instruction_id: 10
+  word: '0x1a202000'
+  coverage: true
+  category: single_store
+  width_bytes: 4
+  signed: false
+  is_block: false
+  is_store: true
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xeeddccbbaa998877'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000104'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers: []
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x88776655aa998877'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-ld.o_rrii_rd
+  instruction_id: 11
+  word: '0x20202000'
+  coverage: true
+  category: single_load
+  width_bytes: 8
+  signed: false
+  is_block: false
+  is_store: false
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0x887766558433f0f1'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-st.o_rrii_rd
+  instruction_id: 12
+  word: '0x21202000'
+  coverage: true
+  category: single_store
+  width_bytes: 8
+  signed: false
+  is_block: false
+  is_store: true
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xeeddccbbaa998877'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers: []
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0xeeddccbbaa998877'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-ld.o_rrii_rb
+  instruction_id: 13
+  word: '0x22202000'
+  coverage: true
+  category: single_load
+  width_bytes: 8
+  signed: false
+  is_block: false
+  is_store: false
+  count: 1
+  initial_registers:
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  - bank: 1
+    index: 8
+    value: '0xd000000000000008'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 1
+    index: 8
+    value: '0x887766558433f0f1'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-st.o_rrii_rb
+  instruction_id: 14
+  word: '0x23202000'
+  coverage: true
+  category: single_store
+  width_bytes: 8
+  signed: false
+  is_block: false
+  is_store: true
+  count: 1
+  initial_registers:
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  - bank: 1
+    index: 8
+    value: '0xeeddccbbaa998877'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers: []
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0xeeddccbbaa998877'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-ld.o_rrii_ra
+  instruction_id: 15
+  word: '0x24202000'
+  coverage: true
+  category: single_load
+  width_bytes: 8
+  signed: false
+  is_block: false
+  is_store: false
+  count: 1
+  initial_registers:
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  - bank: 2
+    index: 8
+    value: '0xd000000000000008'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 2
+    index: 8
+    value: '0x887766558433f0f1'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-st.o_rrii_ra
+  instruction_id: 16
+  word: '0x25202000'
+  coverage: true
+  category: single_store
+  width_bytes: 8
+  signed: false
+  is_block: false
+  is_store: true
+  count: 1
+  initial_registers:
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  - bank: 2
+    index: 8
+    value: '0xeeddccbbaa998877'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers: []
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0xeeddccbbaa998877'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 1
+- name: positive-ldm.ub_rrri_rd
+  instruction_id: 19
+  word: '0x28202043'
+  coverage: true
+  category: block_load
+  width_bytes: 1
+  signed: false
+  is_block: true
+  is_store: false
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 0
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 0
+    index: 10
+    value: '0xd00000000000000a'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0x0000000000000088'
+  - bank: 0
+    index: 9
+    value: '0x0000000000000077'
+  - bank: 0
+    index: 10
+    value: '0x0000000000000066'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-ldm.uw_rrri_rd
+  instruction_id: 20
+  word: '0x29202043'
+  coverage: true
+  category: block_load
+  width_bytes: 2
+  signed: false
+  is_block: true
+  is_store: false
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 0
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 0
+    index: 10
+    value: '0xd00000000000000a'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0x0000000000008877'
+  - bank: 0
+    index: 9
+    value: '0x0000000000006655'
+  - bank: 0
+    index: 10
+    value: '0x0000000000008433'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-ldm.ut_rrri_rd
+  instruction_id: 21
+  word: '0x2a202043'
+  coverage: true
+  category: block_load
+  width_bytes: 4
+  signed: false
+  is_block: true
+  is_store: false
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 0
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 0
+    index: 10
+    value: '0xd00000000000000a'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0x0000000088776655'
+  - bank: 0
+    index: 9
+    value: '0x000000008433f0f1'
+  - bank: 0
+    index: 10
+    value: '0x000000008b746556'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-ldm.sb_rrri_rd
+  instruction_id: 22
+  word: '0x2b202043'
+  coverage: true
+  category: block_load
+  width_bytes: 1
+  signed: true
+  is_block: true
+  is_store: false
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 0
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 0
+    index: 10
+    value: '0xd00000000000000a'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0xffffffffffffff88'
+  - bank: 0
+    index: 9
+    value: '0x0000000000000077'
+  - bank: 0
+    index: 10
+    value: '0x0000000000000066'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-ldm.sw_rrri_rd
+  instruction_id: 23
+  word: '0x2c202043'
+  coverage: true
+  category: block_load
+  width_bytes: 2
+  signed: true
+  is_block: true
+  is_store: false
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 0
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 0
+    index: 10
+    value: '0xd00000000000000a'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0xffffffffffff8877'
+  - bank: 0
+    index: 9
+    value: '0x0000000000006655'
+  - bank: 0
+    index: 10
+    value: '0xffffffffffff8433'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-ldm.st_rrri_rd
+  instruction_id: 24
+  word: '0x2d202043'
+  coverage: true
+  category: block_load
+  width_bytes: 4
+  signed: true
+  is_block: true
+  is_store: false
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 0
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 0
+    index: 10
+    value: '0xd00000000000000a'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0xffffffff88776655'
+  - bank: 0
+    index: 9
+    value: '0xffffffff8433f0f1'
+  - bank: 0
+    index: 10
+    value: '0xffffffff8b746556'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-stm.b_rrri_rd
+  instruction_id: 27
+  word: '0x30202043'
+  coverage: true
+  category: block_store
+  width_bytes: 1
+  signed: false
+  is_block: true
+  is_store: true
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xeeddccbbaa998877'
+  - bank: 0
+    index: 9
+    value: '0xddccbbaa99887766'
+  - bank: 0
+    index: 10
+    value: '0xccbbaa9988776655'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers: []
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x776655558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-stm.w_rrri_rd
+  instruction_id: 28
+  word: '0x31202043'
+  coverage: true
+  category: block_store
+  width_bytes: 2
+  signed: false
+  is_block: true
+  is_store: true
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xeeddccbbaa998877'
+  - bank: 0
+    index: 9
+    value: '0xddccbbaa99887766'
+  - bank: 0
+    index: 10
+    value: '0xccbbaa9988776655'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers: []
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887777666655f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-stm.t_rrri_rd
+  instruction_id: 29
+  word: '0x32202043'
+  coverage: true
+  category: block_store
+  width_bytes: 4
+  signed: false
+  is_block: true
+  is_store: true
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xeeddccbbaa998877'
+  - bank: 0
+    index: 9
+    value: '0xddccbbaa99887766'
+  - bank: 0
+    index: 10
+    value: '0xccbbaa9988776655'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers: []
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0xaa99887799887766'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x887766558730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-ldm.o_rrri_rd
+  instruction_id: 30
+  word: '0x38202043'
+  coverage: true
+  category: block_load
+  width_bytes: 8
+  signed: false
+  is_block: true
+  is_store: false
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 0
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 0
+    index: 10
+    value: '0xd00000000000000a'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 3
+    address: '0x0000fc0000000110'
+    data: '0x8a7564578631f2e3'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0x887766558433f0f1'
+  - bank: 0
+    index: 9
+    value: '0x8b7465568730f3fa'
+  - bank: 0
+    index: 10
+    value: '0x8a7564578631f2e3'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 3
+    address: '0x0000fc0000000110'
+    data: '0x8a7564578631f2e3'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-stm.o_rrri_rd
+  instruction_id: 31
+  word: '0x39202043'
+  coverage: true
+  category: block_store
+  width_bytes: 8
+  signed: false
+  is_block: true
+  is_store: true
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xeeddccbbaa998877'
+  - bank: 0
+    index: 9
+    value: '0xddccbbaa99887766'
+  - bank: 0
+    index: 10
+    value: '0xccbbaa9988776655'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 3
+    address: '0x0000fc0000000110'
+    data: '0x8a7564578631f2e3'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers: []
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0xeeddccbbaa998877'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0xddccbbaa99887766'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 3
+    address: '0x0000fc0000000110'
+    data: '0xccbbaa9988776655'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-ldm.o_rrri_rb
+  instruction_id: 32
+  word: '0x3a202043'
+  coverage: true
+  category: block_load
+  width_bytes: 8
+  signed: false
+  is_block: true
+  is_store: false
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  - bank: 1
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 1
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 1
+    index: 10
+    value: '0xd00000000000000a'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 3
+    address: '0x0000fc0000000110'
+    data: '0x8a7564578631f2e3'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 1
+    index: 8
+    value: '0x887766558433f0f1'
+  - bank: 1
+    index: 9
+    value: '0x8b7465568730f3fa'
+  - bank: 1
+    index: 10
+    value: '0x8a7564578631f2e3'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 3
+    address: '0x0000fc0000000110'
+    data: '0x8a7564578631f2e3'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-stm.o_rrri_rb
+  instruction_id: 33
+  word: '0x3b202043'
+  coverage: true
+  category: block_store
+  width_bytes: 8
+  signed: false
+  is_block: true
+  is_store: true
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  - bank: 1
+    index: 8
+    value: '0xeeddccbbaa998877'
+  - bank: 1
+    index: 9
+    value: '0xddccbbaa99887766'
+  - bank: 1
+    index: 10
+    value: '0xccbbaa9988776655'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 3
+    address: '0x0000fc0000000110'
+    data: '0x8a7564578631f2e3'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers: []
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0xeeddccbbaa998877'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0xddccbbaa99887766'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 3
+    address: '0x0000fc0000000110'
+    data: '0xccbbaa9988776655'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-ldm.o_rrri_ra
+  instruction_id: 34
+  word: '0x3c202043'
+  coverage: true
+  category: block_load
+  width_bytes: 8
+  signed: false
+  is_block: true
+  is_store: false
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  - bank: 2
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 2
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 2
+    index: 10
+    value: '0xd00000000000000a'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 3
+    address: '0x0000fc0000000110'
+    data: '0x8a7564578631f2e3'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers:
+  - bank: 2
+    index: 8
+    value: '0x887766558433f0f1'
+  - bank: 2
+    index: 9
+    value: '0x8b7465568730f3fa'
+  - bank: 2
+    index: 10
+    value: '0x8a7564578631f2e3'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 3
+    address: '0x0000fc0000000110'
+    data: '0x8a7564578631f2e3'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: positive-stm.o_rrri_ra
+  instruction_id: 35
+  word: '0x3d202043'
+  coverage: true
+  category: block_store
+  width_bytes: 8
+  signed: false
+  is_block: true
+  is_store: true
+  count: 3
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  - bank: 2
+    index: 8
+    value: '0xeeddccbbaa998877'
+  - bank: 2
+    index: 9
+    value: '0xddccbbaa99887766'
+  - bank: 2
+    index: 10
+    value: '0xccbbaa9988776655'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0x887766558433f0f1'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x8b7465568730f3fa'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 3
+    address: '0x0000fc0000000110'
+    data: '0x8a7564578631f2e3'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers: []
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0xeeddccbbaa998877'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0xddccbbaa99887766'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 3
+    address: '0x0000fc0000000110'
+    data: '0xccbbaa9988776655'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000004'
+  expected_fault: false
+  expected_fault_code: 0
+  expected_data_requests: 3
+- name: fault-single-load-unmapped
+  instruction_id: 0
+  word: '0x10202000'
+  coverage: false
+  category: fault_single
+  width_bytes: 1
+  signed: false
+  is_block: false
+  is_store: false
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 1
+    index: 2
+    value: '0x0000ffff80000000'
+  initial_memory: []
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  expected_memory: []
+  expected_pc: '0x0000fc0000000000'
+  expected_fault: true
+  expected_fault_code: 135
+  expected_data_requests: 0
+- name: fault-single-store-bootrom
+  instruction_id: 8
+  word: '0x18202000'
+  coverage: false
+  category: fault_single
+  width_bytes: 1
+  signed: false
+  is_block: false
+  is_store: true
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xeeddccbbaa998877'
+  - bank: 1
+    index: 2
+    value: '0x0000ffffffff0000'
+  initial_memory: []
+  expected_registers: []
+  expected_memory: []
+  expected_pc: '0x0000fc0000000000'
+  expected_fault: true
+  expected_fault_code: 136
+  expected_data_requests: 0
+- name: fault-single-load-misaligned
+  instruction_id: 2
+  word: '0x12202000'
+  coverage: false
+  category: fault_single
+  width_bytes: 4
+  signed: false
+  is_block: false
+  is_store: false
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000102'
+  initial_memory: []
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  expected_memory: []
+  expected_pc: '0x0000fc0000000000'
+  expected_fault: true
+  expected_fault_code: 140
+  expected_data_requests: 0
+- name: fault-priority-unmapped-over-misaligned
+  instruction_id: 2
+  word: '0x12202000'
+  coverage: false
+  category: fault_single
+  width_bytes: 4
+  signed: false
+  is_block: false
+  is_store: false
+  count: 1
+  initial_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 1
+    index: 2
+    value: '0x0000ffff80000002'
+  initial_memory: []
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  expected_memory: []
+  expected_pc: '0x0000fc0000000000'
+  expected_fault: true
+  expected_fault_code: 135
+  expected_data_requests: 0
+- name: fault-block-store-late-unmapped
+  instruction_id: 31
+  word: '0x39202042'
+  coverage: false
+  category: fault_block_store
+  width_bytes: 8
+  signed: false
+  is_block: true
+  is_store: true
+  count: 2
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xeeddccbbaa998877'
+  - bank: 0
+    index: 9
+    value: '0xddccbbaa99887766'
+  - bank: 0
+    index: 10
+    value: '0xccbbaa9988776655'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000fffff8'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000fffff8'
+    data: '0x1122334455667788'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_registers: []
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000fffff8'
+    data: '0x1122334455667788'
+    writable: true
+    fault: false
+    fault_code: 0
+  expected_pc: '0x0000fc0000000000'
+  expected_fault: true
+  expected_fault_code: 135
+  expected_data_requests: 0
+- name: fault-block-load-late-response
+  instruction_id: 30
+  word: '0x38202042'
+  coverage: false
+  category: fault_block_response
+  width_bytes: 8
+  signed: false
+  is_block: true
+  is_store: false
+  count: 2
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 0
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 0
+    index: 10
+    value: '0xd00000000000000a'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0xaabbccddeeff0011'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x0000000000000000'
+    writable: true
+    fault: true
+    fault_code: 135
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 0
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 0
+    index: 10
+    value: '0xd00000000000000a'
+  expected_memory:
+  - index: 1
+    address: '0x0000fc0000000100'
+    data: '0xaabbccddeeff0011'
+    writable: true
+    fault: false
+    fault_code: 0
+  - index: 2
+    address: '0x0000fc0000000108'
+    data: '0x0000000000000000'
+    writable: true
+    fault: true
+    fault_code: 135
+  expected_pc: '0x0000fc0000000000'
+  expected_fault: true
+  expected_fault_code: 135
+  expected_data_requests: 2
+- name: fault-block-load-zero-count
+  instruction_id: 30
+  word: '0x38202040'
+  coverage: false
+  category: fault_static
+  width_bytes: 8
+  signed: false
+  is_block: true
+  is_store: false
+  count: 0
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 0
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 0
+    index: 10
+    value: '0xd00000000000000a'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory: []
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 0
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 0
+    index: 10
+    value: '0xd00000000000000a'
+  expected_memory: []
+  expected_pc: '0x0000fc0000000000'
+  expected_fault: true
+  expected_fault_code: 136
+  expected_data_requests: 0
+- name: fault-block-load-range-overflow
+  instruction_id: 30
+  word: '0x38fc2042'
+  coverage: false
+  category: fault_static
+  width_bytes: 8
+  signed: false
+  is_block: true
+  is_store: false
+  count: 2
+  initial_registers:
+  - bank: 0
+    index: 1
+    value: '0x0000000000000000'
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 0
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 0
+    index: 10
+    value: '0xd00000000000000a'
+  - bank: 1
+    index: 2
+    value: '0x0000fc0000000100'
+  initial_memory: []
+  expected_registers:
+  - bank: 0
+    index: 8
+    value: '0xd000000000000008'
+  - bank: 0
+    index: 9
+    value: '0xd000000000000009'
+  - bank: 0
+    index: 10
+    value: '0xd00000000000000a'
+  expected_memory: []
+  expected_pc: '0x0000fc0000000000'
+  expected_fault: true
+  expected_fault_code: 136
+  expected_data_requests: 0
