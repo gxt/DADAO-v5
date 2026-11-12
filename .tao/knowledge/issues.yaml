@@ -448,7 +448,7 @@
   - qemu
   - gem5
   - spec
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P1】**QEMU 与 gem5 的多元素访存异常不精确（违反 `spec/DADAO-12 §5`）**：`m13-testcases-013` 的 21 条「整段越出地址窗口 ⇒ `CFXMEM`」哨兵断言实测——**chipyard 227/227 全过**（`EXEC` 阶段 `memRangeLegalNow` 整段预检），**QEMU 206/227、gem5 206/227，21/21 红**（红集恰等于越窗口清单，差集为空）。字节证据：`stm.b` EA=`0xFFFFFF7FFFFF` 后 SRAM 尾拍 `5A5A5A5A5A5A5A11`（首元素 `0x11` 已写）；`ldm.uw` EA=`0xFFFFFF7FFFFE` 后 rd5=`0`（被首元素覆盖）。根因：gem5 `b1.cc` 元素循环内 `readMem/writeMem` 失败即 `return Fault::Memory`；QEMU `trans_mem.c.inc` 按元素展开 TCG ⇒ 前面元素已提交。行动：立 `m13-qemu-006` + `m13-gem5-008` 补「整段预检」（与 chipyard 同口径），修好后 013 的 G 段转绿。
+  status: closed
+  closed_in: M13
+  resolved_by: 用户 2026-11-13 裁定：多元素指令（ldm/stm/r2r）不要求无副作用，允许部分元素生效 ⇒ 非精确不是缺陷
+  title: 【P1】**QEMU 与 gem5 的多元素访存异常不精确（违反 `spec/DADAO-12 §5`）**：`m13-testcases-013` 的 21 条「整段越出地址窗口 ⇒ `CFXMEM`」哨兵断言实测——**chipyard 227/227 全过**（`EXEC` 阶段 `memRangeLegalNow` 整段预检），**QEMU 206/227、gem5 206/227，21/21 红**（红集恰等于越窗口清单，差集为空）。字节证据：`stm.b` EA=`0xFFFFFF7FFFFF` 后 SRAM 尾拍 `5A5A5A5A5A5A5A11`（首元素 `0x11` 已写）；`ldm.uw` EA=`0xFFFFFF7FFFFE` 后 rd5=`0`（被首元素覆盖）。根因：gem5 `b1.cc` 元素循环内 `readMem/writeMem` 失败即 `return Fault::Memory`；QEMU `trans_mem.c.inc` 按元素展开 TCG ⇒ 前面元素已提交。行动：立 `m13-qemu-006` + `m13-gem5-008` 补「整段预检」（与 chipyard 同口径），修好后 013 的 G 段转绿。 【2026-11-13 关闭：用户裁定多元素指令允许部分生效，不要求精确；chipyard 整段预检保留但不作要求；测试哨兵对这类指令放宽】
