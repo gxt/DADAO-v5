@@ -4,7 +4,7 @@
 **项目里程碑**：M13
 **依赖**：`m13-testcases-001` + `m13-testcases-002`（取「3600s 仍超时」的名单）
 **可并行分片**：否（单机 48 并发跑批；测时间要求进程独占核）
-**状态**：待开始
+**状态**：待验收
 
 ## 用户裁定（原话）
 
@@ -97,4 +97,16 @@
 | 临时产物误落 worktree 根，污染 `git status` | ✅已修 | 移入运行期临时目录 | `git status -uall` 仅剩两个新工具 |
 
 判决：无未修 finding；本轮为准备阶段，**状态保持 `待开始`**（按派单口径，改 `待验收` 前先回报主会话）。
+
+## 完成区（architect 收口，2026-11-12 10:05）
+
+**B 组（207，172800 s 上限）数据完整，收尾脚本崩溃但数据有效。**
+
+- 两份 ratio JSON 均 `ok=true`、`missing=[]`：
+  - static `rows=46`：**43 pass / 2 blocked / 1 fail**；比值 n=44，min **141.7**、median **349.9**、max **1269.2**
+  - dynamic `rows=44`：**42 pass / 1 blocked / 1 fail**；比值 n=43，min **157.2**、median **352.8**、max **1284.6**
+  - 合计 **90 例：85 pass / 3 blocked / 2 fail**
+- 与 A-long 对照：B 组中位约 **350×**，A-long 约 **700×** ⇒ 两者不是同一量级，「跑不完」的判定阈值应分开。
+- **收尾异常（`ISS-398`）**：包装脚本 `run_split.sh` 在最后写 EXIT 时用相对路径（cwd 不符）⇒ `No such file or directory`；第 94 行 `rc` 未初始化 ⇒ `unbound variable`，整体 rc=1、**0 个 EXIT 文件**。数据本身未受影响（JSON 已落盘且 `ok=true`）。
+- 判据以 JSON 为准，不以脚本 rc 为准；`m13-testcases-003` 的 A 组结论不受影响。
 

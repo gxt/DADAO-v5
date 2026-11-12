@@ -324,3 +324,11 @@
   closed_in: null
   resolved_by: null
   title: 【P1】按新规则（IEEE-754 2019 为准）需审计的 FP 偏离清单：① **`fo2ft` 溢出恒 ±Inf** —— `SimRISC-07 §1.4`/`contract-fp §2` 明文如此，但 IEEE 按舍入模式（RNE/RUP → ±Inf，RTZ/RDN → ±最大有限）⇒ **spec 与 IEEE 直接冲突，需改 spec + 改 RTL/QEMU/gem5 + 改向量**；② quiet compare 遇 sNaN 不置 NV（已由 `m13-qemu-004`+`m12-chipyard-024` 处理）；③ sNaN 结果 payload：本核 canonical vs softfloat 保留（IEEE 不强制，需在 spec 写明取值）；④ NaN 结果符号位：本核清 0 vs softfloat 保留（IEEE 未规定，需写明）；⑤ `ld.t rf0` 只读 qNaN 位属测试机约定（IEEE 无此概念，spec 需标为架构附加）。行动：立一个 FP-IEEE 对齐审计任务，逐条给出「IEEE 条文 → 改/不改 → 影响面」。
+- id: ISS-398
+  scope:
+  - testcases
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`m13-testcases-003` 的包装脚本 `run_split.sh` 收尾有两处 bug：① 写 `<split>/<mode>/llvm-ts.EXIT` 用相对路径，cwd 不符 ⇒ `No such file or directory`，最终 0 个 EXIT 文件；② 第 94 行引用未初始化的 `rc` ⇒ `unbound variable`，整体 rc=1。结果：**90 例数据完整且 `ok=true`，但任务被脚本 rc 判成失败**（`m13-testcases-003` B 组长跑 6.5 天/跨 2 天运行后收尾失败）。修法：EXIT 路径用脚本自身绝对根；`rc` 初始化并 `set -u` 下用 `${rc:-1}`；收尾以「JSON ok + missing 为空」为主判据，脚本 rc 只作辅助。
