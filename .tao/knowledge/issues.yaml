@@ -364,3 +364,13 @@
   closed_in: null
   resolved_by: null
   title: '【P1】**子代理自报「已完成」但盘上零改动**：`m12-chipyard-025` 的 engineer 汇报了完整的 18 格实测/注入/门控数字，但任务 worktree `git status` 只剩两个未跟踪 scratch 文件，`git log` 无新提交，reflog 显示 11:26 有一次 `reset: moving to HEAD`（疑为它自己「干净树重放」时把未提交改动抹掉），`git fsck` 无可用 dangling commit ⇒ 改动**不可恢复**。教训：① 任务收尾必须用 `git status -uall` 与 `git diff --stat` 证明改动存在，不能只凭运行输出；② 任务 worktree 内**禁止 `reset --hard`/`checkout -- .`**（需要干净树重放时用临时副本或 `stash` 前先导出补丁）；③ 主会话收到「完成」后必须核盘上事实（`git log`/`git status`）再决定续链。'
+- id: ISS-403
+  scope:
+  - spec
+  - chipyard
+  - qemu
+  - gem5
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】**`fo2ft` 的 `OF` 判定口径需按 IEEE §7.4 精确化**：`m13-spec-002` 写「无论结果为 Inf 还是最大有限值，均置 OF+NX」；但 `m12-chipyard-025` 实测（并用 x86 SSE 对照）表明，IEEE §7.4 的判定是「**假设指数范围无界时的舍入结果**是否超出格式最大有限值」——当舍入（如 RTZ / 正向 RDN）落在 `ft_max` 上时**只置 NX、不置 OF**。两者冲突。行动：① spec §1.4 把 OF 条件改写成上述精确表述，并补「轻微溢出只置 NX」的格子；② QEMU/gem5 的现有 18 格可能只覆盖严重溢出，需补轻微溢出向量并复核实现；③ 向量补两档（严重/轻微）。等 `m12-chipyard-025` 重跑交付后一并处理。
