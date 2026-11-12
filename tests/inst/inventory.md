@@ -254,5 +254,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `fp/cond-assign.yaml` | — | ✓ |
 | `fp/arith.yaml` | — | ✓ |
 | `fp/divrem.yaml` | — | ✓ |
+| `fp/roundint.yaml` | — | ✓ |
+| `fp/sign.yaml` | — | ✓ |
 | `rev/rev.yaml` | — | — |
 | `bitcnt/bitcnt.yaml` | — | — |

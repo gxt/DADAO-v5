@@ -1459,6 +1459,31 @@ def cases_divrem_faults():
     ]
 
 
+def cases_rndsclb_faults():
+    """Legality of m12-015: `dst_rf0` on all four forms, the `encode_onehot`
+    rule of `ftrnd`/`fornd` (every non-one-hot code, `0x00` included) and the
+    one-hot codes' own two values `0x03`/`0x40`."""
+    out = [
+        {"name": "fault_ftrnd_dst_rf0", "word": enc_rnd("ftrnd", 0, 1, 0x01),
+         "fault": "ILLI", "setup": load_rf(1, 0x3F800000)},
+        {"name": "fault_fornd_dst_rf0", "word": enc_rnd("fornd", 0, 1, 0x20),
+         "fault": "ILLI", "setup": load_rf(1, 0x3FF0000000000000)},
+        {"name": "fault_ftsclb_dst_rf0", "word": enc_sclb("ftsclb", 0, 1, 3),
+         "fault": "ILLI", "setup": load_rf(1, 0x3F800000)},
+        {"name": "fault_fosclb_dst_rf0", "word": enc_sclb("fosclb", 0, 1, 3),
+         "fault": "ILLI", "setup": load_rf(1, 0x3FF0000000000000)},
+    ]
+    for code in (0x00, 0x03, 0x06, 0x11, 0x21, 0x3F):
+        out.append({"name": f"fault_ftrnd_code{code:02x}",
+                    "word": enc_rnd("ftrnd", 3, 1, code), "fault": "ILLI",
+                    "setup": load_rf(1, 0x3F800000)})
+    for code in (0x00, 0x30, 0x40):
+        out.append({"name": f"fault_fornd_code{code:02x}",
+                    "word": enc_rnd("fornd", 3, 1, code), "fault": "ILLI",
+                    "setup": load_rf(1, 0x3FF0000000000000)})
+    return out
+
+
 def cases_arith_fma_special():
     """FMA with a NaN factor next to an infinity, three ways.
 
@@ -1774,7 +1799,281 @@ def cases_faults():
         {"name": "fault_cs_n_rf_dst_rf0",
          "word": enc_cs_rf(0x61, 1, 0, 2, 3), "fault": "ILLI",
          "setup": load_rf(2, 0x1) + load_rf(3, 0x2)},
-    ] + cases_cvtfaults() + cases_arith_faults() + cases_divrem_faults()
+    ] + cases_cvtfaults() + cases_arith_faults() + cases_divrem_faults() \
+        + cases_rndsclb_faults()
+
+
+# ── m12-015: roundToIntegral (spec §2.3) and scaleB (§2.1) ────────────────
+RND_HA = {"ftrnd": 0x03, "fornd": 0x0B}
+SCLB_HA = {"ftsclb": 0x15, "fosclb": 0x1D}
+
+
+def enc_rnd(mn, dst, src, code):
+    """`ftrnd`/`fornd rfHB, rfHC, immu6` (`orri`, opc 0x44)."""
+    return (0x44 << 24) | (RND_HA[mn] << 18) | ((dst & 0x3F) << 12) | \
+        ((src & 0x3F) << 6) | (code & 0x3F)
+
+
+def enc_sclb(mn, dst, hc, hd):
+    """`ftsclb`/`fosclb rfHB, rfHC, rdHD` (`orrr`, opc 0x44): the third field is
+    a register of the **rd** bank, not of rf (spec §2.1)."""
+    return (0x44 << 24) | (SCLB_HA[mn] << 18) | ((dst & 0x3F) << 12) | \
+        ((hc & 0x3F) << 6) | (hd & 0x3F)
+
+
+# One row per shape: `(name, ft bits, fo bits)`.  The ties and the values just
+# above/below them are the ones where the five static directions disagree; the
+# subnormals, the |x| >= 2^p pass-through values and the specials cover the
+# rules of spec/SimRISC-07 §2.3.
+RND_INPUTS = [
+    ("0p5", 0x3F000000, 0x3FE0000000000000),
+    ("n0p5", 0xBF000000, 0xBFE0000000000000),
+    ("1p5", 0x3FC00000, 0x3FF8000000000000),
+    ("n1p5", 0xBFC00000, 0xBFF8000000000000),
+    ("2p5", 0x40200000, 0x4004000000000000),
+    ("n2p5", 0xC0200000, 0xC004000000000000),
+    ("3p5", 0x40600000, 0x400C000000000000),
+    ("n3p5", 0xC0600000, 0xC00C000000000000),
+    ("0p4", 0x3ECCCCCD, 0x3FD999999999999A),
+    ("n0p4", 0xBECCCCCD, 0xBFD999999999999A),
+    ("2p7", 0x402CCCCD, 0x400599999999999A),
+    ("n2p7", 0xC02CCCCD, 0xC00599999999999A),
+    ("minsub", 0x00000001, 0x0000000000000001),
+    ("nmaxsub", 0x807FFFFF, 0x800FFFFFFFFFFFFF),
+    ("half_at_p", 0x4A800001, 0x4330000000000001),   # 2^22+0.5 / 2^52+0.5
+    ("2p", 0x4B800000, 0x4340000000000000),          # |x| = 2^p, unchanged
+    ("maxf", 0x7F7FFFFF, 0x7FEFFFFFFFFFFFFF),
+    ("inf", 0x7F800000, 0x7FF0000000000000),
+    ("ninf", 0xFF800000, 0xFFF0000000000000),
+    ("qnan", 0x7FC00123, 0x7FF8000000000123),
+    ("snan", 0x7F800001, 0x7FF0000000000001),
+    ("zp", 0x00000000, 0x0000000000000000),
+    ("zn", 0x80000000, 0x8000000000000000),
+]
+
+SCLB_VALUES = {
+    "1p5": (0x3FC00000, 0x3FF8000000000000),
+    "n1p5": (0xBFC00000, 0xBFF8000000000000),
+    "3": (0x40400000, 0x4008000000000000),
+    "tenth": (0x3DCCCCCD, 0x3FB999999999999A),
+    "minsub": (0x00000001, 0x0000000000000001),
+    "maxsub": (0x007FFFFF, 0x000FFFFFFFFFFFFF),
+    "minnorm": (0x00800000, 0x0010000000000000),
+    "maxf": (0x7F7FFFFF, 0x7FEFFFFFFFFFFFFF),
+    "big": (0x7F000000, 0x7E37E43C8800759C),
+    "zp": (0x00000000, 0x0000000000000000),
+    "zn": (0x80000000, 0x8000000000000000),
+    "inf": (0x7F800000, 0x7FF0000000000000),
+    "ninf": (0xFF800000, 0xFFF0000000000000),
+    "qnan": (0x7FC00123, 0x7FF8000000000123),
+    "snan": (0x7F800001, 0x7FF0000000000001),
+}
+
+# scaleB, one row per (value, exponent) shape.  The three groups exist because
+# the expectations differ by *kind*: exact scaling (no flag), overflow (`OF|NX`
+# with the direction deciding Inf vs the pegged maximum) and underflow
+# (`UF|NX`, the directed modes pegging to the smallest subnormal).  Every row
+# is run under the four `rf0[33:32]` directions.
+SCLB_EXACT = [
+    ("1p5_2", "1p5", 2), ("1p5_m1", "1p5", -1), ("n1p5_3", "n1p5", 3),
+    ("three_10", "3", 10), ("tenth_0", "tenth", 0),
+    ("minsub_24", "minsub", 24), ("maxsub_m1", "maxsub", -1),
+    ("minnorm_5", "minnorm", 5), ("maxf_m1", "maxf", -1),
+    ("zp_7", "zp", 7), ("zn_m7", "zn", -7),
+    ("inf_5", "inf", 5), ("ninf_m5", "ninf", -5),
+    ("qnan_5", "qnan", 5),
+]
+SCLB_OVF = [
+    ("maxf_1", "maxf", 1), ("maxf_2000", "maxf", 2000),
+    ("big_1", "big", 1), ("big_100", "big", 100),
+    ("one_200", "1p5", 200), ("one_2000", "n1p5", 2000),
+    ("minsub_200", "minsub", 200), ("maxsub_2000", "maxsub", 2000),
+    ("one_i32", "1p5", 2 ** 31), ("one_i64", "n1p5", 2 ** 63 - 1),
+    ("inf_1", "inf", 1), ("qnan_2000", "qnan", 2000),
+]
+SCLB_UNF = [
+    ("minsub_m1", "minsub", -1), ("minsub_m200", "minsub", -200),
+    ("maxsub_m24", "maxsub", -24), ("minnorm_m1", "minnorm", -1),
+    ("one_m150", "1p5", -150), ("one_m200", "n1p5", -200),
+    ("maxf_m2000", "maxf", -2000), ("one_m1074", "1p5", -1074),
+    ("one_i32", "1p5", -(2 ** 31)), ("one_i64", "n1p5", -(2 ** 63)),
+    ("ninf_m1", "ninf", -1),
+]
+
+# The sNaN result payload is unspecified (spec §2.1 only says "返回 qNaN"), and
+# softfloat/QEMU keep the quieted payload while this core (and hardfloat)
+# canonicalise it -- the same declared divergence as `forem` (m12-chipyard-014).
+# Those rows therefore live in their own model-only groups and are *not*
+# compared against QEMU.
+SCLB_NAN = [
+    ("snan_5", "snan", 5), ("snan_m5", "snan", -5),
+    ("snan_2000", "snan", 2000), ("snan_m2000", "snan", -2000),
+    ("qnan_5", "qnan", 5), ("qnan_m2000", "qnan", -2000),
+    ("inf_5", "inf", 5), ("ninf_m5", "ninf", -5),
+]
+
+
+def _rnd_case(mn, is_fo, name, bits, code, rmode=0):
+    """One `ftrnd`/`fornd` case: value + the `rf0` it leaves behind (mode and
+    accrued flags), so the static codes' "never sets NX" rule is observable."""
+    ew, sw = F.FO if is_fo else F.FT
+    direction = F.mode_from_onehot(code, rmode)[1]
+    exact = code == 0x20
+    val, fl = F.rnd_exact(ew, sw, bits, direction, exact)
+    setup = fcsr_clear()
+    if exact:
+        setup = setup + [enc_set_w_rf(0, 2, rmode)]
+    setup = setup + load_rf(1, bits)
+    return {"name": f"rnd_{name}_{code:02x}_rm{rmode}", "setup": setup,
+            "exec": [enc_rnd(mn, 3, 1, code)],
+            "dumps": [("rf", 3), ("rf", 0)],
+            "expect": [val, FCSR_BASE | ((rmode if exact else 0) << 32) |
+                       (fl & 0x1F)]}
+
+
+def cases_rnd_ft():
+    return [_rnd_case("ftrnd", False, name, ft, code)
+            for name, ft, _fo in RND_INPUTS
+            for code in (0x01, 0x02, 0x04, 0x08, 0x10)]
+
+
+def cases_rnd_fo():
+    return [_rnd_case("fornd", True, name, fo, code)
+            for name, _ft, fo in RND_INPUTS
+            for code in (0x01, 0x02, 0x04, 0x08, 0x10)]
+
+
+def cases_rnd_dyn():
+    """`immu6 = 0x20` (roundToIntegralExact) under all four `rf0[33:32]`
+    directions: the value follows `rf0` and `NX` is raised iff the result
+    differs from the input (spec §2.3)."""
+    out = []
+    picks = [r for r in RND_INPUTS
+             if r[0] in ("0p5", "n0p5", "1p5", "n1p5", "2p5", "n2p5", "2p7",
+                         "n2p7", "minsub", "half_at_p", "maxf", "snan",
+                         "qnan", "inf", "zp", "zn")]
+    for name, ft, fo in picks:
+        for rmode in (0, 1, 2, 3):
+            out.append(_rnd_case("ftrnd", False, name, ft, 0x20, rmode))
+            out.append(_rnd_case("fornd", True, name, fo, 0x20, rmode))
+    return out
+
+
+def _sclb_case(mn, is_fo, name, bits, n, mode, rd=3):
+    ew, sw = F.FO if is_fo else F.FT
+    val, fl = F.sclb_exact(ew, sw, bits, n, mode)
+    setup = fcsr_clear() + [enc_set_w_rf(0, 2, mode)] + load_rf(1, bits)
+    if rd == 3:
+        setup = setup + sweep.load_rd(3, n & ((1 << 64) - 1))
+    return {"name": f"sclb_{name}_rm{mode}", "setup": setup,
+            "exec": [enc_sclb(mn, 4, 1, rd)],
+            "dumps": [("rf", 4), ("rf", 0)],
+            "expect": [val, FCSR_BASE | (mode << 32) | (fl & 0x1F)]}
+
+
+def _cases_sclb(is_fo, table):
+    mn = "fosclb" if is_fo else "ftsclb"
+    tag = "fo" if is_fo else "ft"
+    return [_sclb_case(mn, is_fo, f"{name}_{tag}", SCLB_VALUES[val][is_fo],
+                       n, mode)
+            for name, val, n in table for mode in (0, 1, 2, 3)]
+
+
+def cases_sclb_exact_ft():
+    return _cases_sclb(False, SCLB_EXACT)
+
+
+def cases_sclb_exact_fo():
+    return _cases_sclb(True, SCLB_EXACT)
+
+
+def cases_sclb_ovf_ft():
+    return _cases_sclb(False, SCLB_OVF)
+
+
+def cases_sclb_ovf_fo():
+    return _cases_sclb(True, SCLB_OVF)
+
+
+def cases_sclb_unf_ft():
+    return _cases_sclb(False, SCLB_UNF)
+
+
+def cases_sclb_unf_fo():
+    return _cases_sclb(True, SCLB_UNF)
+
+
+def cases_sclb_nan_ft():
+    return _cases_sclb(False, SCLB_NAN)
+
+
+def cases_sclb_nan_fo():
+    return _cases_sclb(True, SCLB_NAN)
+
+
+def cases_sclb_rd0():
+    """`ftsclb`/`fosclb ... rd0`: `rd0` reads as zero, so the result is the
+    source unchanged with no flags.  A decoy `rd3` (10) is loaded: reading the
+    third operand from anywhere but `rd0` would change the result."""
+    out = []
+    picks = ("1p5", "n1p5", "minsub", "maxsub", "maxf", "zp", "zn", "inf",
+             "qnan")
+    for is_fo, mn in ((False, "ftsclb"), (True, "fosclb")):
+        tag = "fo" if is_fo else "ft"
+        ew, sw = F.FO if is_fo else F.FT
+        for name in picks:
+            bits = SCLB_VALUES[name][is_fo]
+            # the decoy lives in rd3; the exponent operand of the instruction
+            # is rd0, which reads as zero
+            setup = fcsr_clear() + [enc_set_w_rf(0, 2, 0)] + load_rf(1, bits) \
+                + sweep.load_rd(3, 10)
+            val, fl = F.sclb_exact(ew, sw, bits, 0, F.RNE)
+            if not F.raw_from_fn(ew, sw, bits)["is_nan"]:
+                # x * 2^0 is x itself: exact, no flags
+                assert fl == 0 and val == bits, "rd0: exponent 0 must be exact"
+            out.append({"name": f"sclb_rd0_{name}_{tag}",
+                        "setup": setup,
+                        "exec": [enc_sclb(mn, 4, 1, 0)],
+                        "dumps": [("rf", 4), ("rf", 0)],
+                        "expect": [val, FCSR_BASE | (fl & 0x1F)]})
+    return out
+
+
+def cases_sign_flags():
+    """spec/SimRISC-07 §3: the sign-injection family is pure bit manipulation,
+    so it raises **no** flag -- not even `NV` for a signalling NaN input."""
+    out = []
+    for invert in (False, True):
+        for is_fo in (False, True):
+            if is_fo:
+                mn = "fosgnn" if invert else "fosgnj"
+            else:
+                mn = "ftsgnn" if invert else "ftsgnj"
+            pos = 63 if is_fo else 31
+            inf = 0x7FF0000000000000 if is_fo else 0x7F800000
+            pairs = [
+                ("snan", 0x7FF0000000000001 if is_fo else 0x7F800001, inf),
+                ("qnan_pay", 0x7FF8000000000123 if is_fo else 0x7FC00123,
+                 0x3FF0000000000000 if is_fo else 0x3F800000),
+                ("ninf", 0xFFF0000000000000 if is_fo else 0xFF800000,
+                 0x3FF0000000000000 if is_fo else 0x3F800000),
+                ("nzero", 0x8000000000000000 if is_fo else 0x80000000,
+                 0x7FF0000000000000 if is_fo else 0x7F800000),
+                ("mixed", 0xC0123456789ABCDE if is_fo else 0xC0A12345,
+                 0x7FF0000000000001 if is_fo else 0x7F800001),
+            ]
+            for i, (pname, hc, hd) in enumerate(pairs):
+                setup = fcsr_clear() + load_rf(1, hc & ((1 << 64) - 1)) \
+                    + load_rf(2, hd & ((1 << 64) - 1))
+                want = F.sign_inject(hc, hd, pos, invert)
+                out.append({
+                    "name": f"signflag_{mn}_{pname}_{i}",
+                    "setup": setup,
+                    "exec": [enc_sgn(3, 1, 2, fo=is_fo, invert=invert)],
+                    "dumps": [("rf", 3), ("rf", 0)],
+                    "expect": [want, FCSR_BASE],
+                })
+    return out
 
 
 GROUPS = {
@@ -1816,6 +2115,20 @@ GROUPS = {
     "rem_fo": cases_rem_fo,
     "divrem_special": cases_divrem_special,
     "divrem_nan": cases_divrem_nan,
+    # m12-015 roundToIntegral / scaleB / sign flags (spec §2.3/§2.1/§3)
+    "rnd_ft": cases_rnd_ft,
+    "rnd_fo": cases_rnd_fo,
+    "rnd_dyn": cases_rnd_dyn,
+    "sclb_exact_ft": cases_sclb_exact_ft,
+    "sclb_exact_fo": cases_sclb_exact_fo,
+    "sclb_ovf_ft": cases_sclb_ovf_ft,
+    "sclb_ovf_fo": cases_sclb_ovf_fo,
+    "sclb_unf_ft": cases_sclb_unf_ft,
+    "sclb_unf_fo": cases_sclb_unf_fo,
+    "sclb_rd0": cases_sclb_rd0,
+    "sclb_nan_ft": cases_sclb_nan_ft,
+    "sclb_nan_fo": cases_sclb_nan_fo,
+    "sign_flags": cases_sign_flags,
 }
 
 # Groups whose bytes are also compared against QEMU.  `rf0ldt` is excluded: the
@@ -1832,7 +2145,10 @@ QEMU_GROUPS = ("classify", "sign", "rfmem", "fcsr",
                "arith_minmax_ft", "arith_minmax_fo", "arith_flags",
                "arith_fma_special", "cmp_nan",
                "div_ft", "div_fo", "sqrt_ft", "sqrt_fo", "rem_ft", "rem_fo",
-               "divrem_special")
+               "divrem_special", "rnd_ft", "rnd_fo", "rnd_dyn",
+               "sclb_exact_ft", "sclb_exact_fo", "sclb_ovf_ft",
+               "sclb_ovf_fo", "sclb_unf_ft", "sclb_unf_fo", "sclb_rd0",
+               "sign_flags")
 
 
 # ── program builders ──────────────────────────────────────────────────────

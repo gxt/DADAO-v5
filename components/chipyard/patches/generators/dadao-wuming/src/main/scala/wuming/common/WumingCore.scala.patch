@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..e9c91e9
+index 0000000..5652d15
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,1507 @@
+@@ -0,0 +1,1526 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -647,6 +647,22 @@ index 0000000..e9c91e9
 +  fpSlow.io.start := state === sExec && queueHit && d.isFpSlow &&
 +    !(d.ill || d.undi) && !cfxFault
 +
++  // ---- roundToIntegral / scaleB (m12-chipyard-015) -----------------------
++  // Both are single-cycle, like the conversion and arithmetic families.  The
++  // one-hot code of `ftrnd`/`fornd` is resolved here because the dynamic code
++  // `0x20` needs `rf0[33:32]` (ADR-0050 D2); `scaleB` always follows
++  // `rf0[33:32]`, and its integer exponent is the `rd` operand (`rd0` = 0).
++  val fpMisc = Module(new WumingFpMisc)
++  val (rndLegal, rndDirection) =
++    WumingRoundMode.fromOneHot(d.fpRndCode, rf.io.fcsrMode)
++  fpMisc.io.op := Mux(d.isFpSclb, WumingFpMiscOp.SCLB, WumingFpMiscOp.RND)
++  fpMisc.io.isFo := d.fpFo
++  fpMisc.io.mode := Mux(d.isFpSclb, WumingRoundMode.fromFcsr(rf.io.fcsrMode),
++    Mux(rndLegal, rndDirection, WumingRoundMode.RNE))
++  fpMisc.io.exact := d.fpRndCode === 0x20.U
++  fpMisc.io.a := srcA
++  fpMisc.io.n := srcB.asSInt
++
 +  // ---- write-back --------------------------------------------------------
 +  val execFault = d.ill || d.undi
 +
@@ -658,6 +674,8 @@ index 0000000..e9c91e9
 +    rf.io.fflags := fpArith.io.flags
 +  }.elsewhen(state === sFpSlow && fpSlow.io.done) {
 +    rf.io.fflags := fpSlow.io.flags
++  }.elsewhen(state === sExec && !execFault && (d.isFpRnd || d.isFpSclb)) {
++    rf.io.fflags := fpMisc.io.flags
 +  }
 +
 +  // R1 = C: shifts / bit-field ops take the two-cycle path.
@@ -736,8 +754,9 @@ index 0000000..e9c91e9
 +                Mux(d.isCfx2, cfxRdata,
 +                  Mux(d.isCvt, fpConvert.io.out,
 +                    Mux(d.isFpArith, fpArith.io.out,
-+                      Mux(fpSlowW0, fpSlow.io.out,
-+                        Mux(d.isCs, csData, w0LoopData))))))))))))
++                      Mux(d.isFpRnd || d.isFpSclb, fpMisc.io.out,
++                        Mux(fpSlowW0, fpSlow.io.out,
++                          Mux(d.isCs, csData, w0LoopData)))))))))))))
 +
 +  // rrrr: w0 = high half (w0Sel = 1), w1 = low half (m12-005 shape).
 +  rf.io.w1En := (state === sExec && !execFault && !cfxFault && !aluIsSlow && d.w1En) ||

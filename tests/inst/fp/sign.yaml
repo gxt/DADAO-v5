@@ -1,0 +1,815 @@
+# 浮点符号位操作（`ftsgnj`/`ftsgnn`/`fosgnj`/`fosgnn`，spec/SimRISC-07 §3）— m12-chipyard-015。
+#
+# 期望值独立派生自 spec/SimRISC-07 §3（copySign / 符号位取反的逐位定义），由
+# tools/chipyard/fp_ref.py 的 `sign_inject` 计算，**不**从 QEMU 或 RTL 反推。
+# 该族是纯位操作：**不置任何标志**（连 sNaN 输入也不置 NV），因此每个用例都
+# 用 rf2rd rd6, rf0 断言 rf0 仍是复位值 0x7FF800007FC00000。
+# `hd = rf0` ⇒ abs / −abs；`hc == hd` ⇒ copy / negate（spec §3 的四个特例）。
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x445C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: ftsgnj_orrr_rf
+  input_state: {}
+  mnemonic: ftsgnj
+  notes: 'ftsgnj 编码（opc 0x44，immu6 = 六档 one-hot 码）'
+  spec_cite: 'SimRISC-07: ftsgnj'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x445C4040'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000003F800000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: ftsgnj_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000BF800000'
+    - address: '@ENTRY+0x100008'
+      value: '0x7FF800007FC00000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftsgnj
+  notes: 'ftsgnj abs: hd = rf0 ⇒ abs(rfHC)'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x445C4040'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftsgnj'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x445C4040'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000003F800000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: ftsgnj_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000BF800000'
+    - address: '@ENTRY+0x100008'
+      value: '0x7FF800007FC00000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftsgnj
+  notes: 'ftsgnj fabs_neg: hd = rf0 ⇒ |−1.5|'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x445C4040'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftsgnj'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x445C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x00000000C0A12345'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: ftsgnj_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000C0A12345'
+    - address: '@ENTRY+0x100008'
+      value: '0x00000000C0A12345'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftsgnj
+  notes: 'ftsgnj copy: hc == hd ⇒ copy(rfHC)'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x445C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftsgnj'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x445C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x00000000C0A12345'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: ftsgnj_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000C0A12345'
+    - address: '@ENTRY+0x100008'
+      value: '0x00000000C0A12345'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftsgnj
+  notes: 'ftsgnj negate: hc == hd ⇒ negate(rfHC)'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x445C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftsgnj'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x445C4042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000007F800001'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: ftsgnj_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000007F800001'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000003F800000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftsgnj
+  notes: 'ftsgnj snan_sign: sNaN 输入 + 正号源 ⇒ 不置 NV（纯位操作）'
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1008'
+  - '0x445C4042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftsgnj'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x445C4042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: ftsgnj_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000080000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000003F800000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftsgnj
+  notes: 'ftsgnj nzero_sign: −0 的符号位来自 rfHD'
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1008'
+  - '0x445C4042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftsgnj'
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x44584041'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: ftsgnn_orrr_rf
+  input_state: {}
+  mnemonic: ftsgnn
+  notes: 'ftsgnn 编码（opc 0x44，immu6 = 六档 one-hot 码）'
+  spec_cite: 'SimRISC-07: ftsgnn'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44584040'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x00000000BF800000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: ftsgnn_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000BF800000'
+    - address: '@ENTRY+0x100008'
+      value: '0x7FF800007FC00000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftsgnn
+  notes: 'ftsgnn abs: hd = rf0 ⇒ abs(rfHC)'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44584040'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftsgnn'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44584040'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x00000000BF800000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: ftsgnn_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000BF800000'
+    - address: '@ENTRY+0x100008'
+      value: '0x7FF800007FC00000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftsgnn
+  notes: 'ftsgnn fabs_neg: hd = rf0 ⇒ |−1.5|'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44584040'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftsgnn'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44584041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000040A12345'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: ftsgnn_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000C0A12345'
+    - address: '@ENTRY+0x100008'
+      value: '0x00000000C0A12345'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftsgnn
+  notes: 'ftsgnn copy: hc == hd ⇒ copy(rfHC)'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44584041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftsgnn'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44584041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000040A12345'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: ftsgnn_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000C0A12345'
+    - address: '@ENTRY+0x100008'
+      value: '0x00000000C0A12345'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftsgnn
+  notes: 'ftsgnn negate: hc == hd ⇒ negate(rfHC)'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44584041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftsgnn'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44584042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x00000000FF800001'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: ftsgnn_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000007F800001'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000003F800000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftsgnn
+  notes: 'ftsgnn snan_sign: sNaN 输入 + 正号源 ⇒ 不置 NV（纯位操作）'
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1008'
+  - '0x44584042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftsgnn'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44584042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000080000000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: ftsgnn_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000080000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000003F800000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftsgnn
+  notes: 'ftsgnn nzero_sign: −0 的符号位来自 rfHD'
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1008'
+  - '0x44584042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftsgnn'
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x447C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: fosgnj_orrr_rf
+  input_state: {}
+  mnemonic: fosgnj
+  notes: 'fosgnj 编码（opc 0x44，immu6 = 六档 one-hot 码）'
+  spec_cite: 'SimRISC-07: fosgnj'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x447C4040'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x3FF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: fosgnj_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xBFF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x7FF800007FC00000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fosgnj
+  notes: 'fosgnj abs: hd = rf0 ⇒ abs(rfHC)'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x447C4040'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fosgnj'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x447C4040'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x3FF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: fosgnj_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xBFF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x7FF800007FC00000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fosgnj
+  notes: 'fosgnj fabs_neg: hd = rf0 ⇒ |−1.5|'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x447C4040'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fosgnj'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x447C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0xC0123456789ABCDE'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: fosgnj_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xC0123456789ABCDE'
+    - address: '@ENTRY+0x100008'
+      value: '0xC0123456789ABCDE'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fosgnj
+  notes: 'fosgnj copy: hc == hd ⇒ copy(rfHC)'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x447C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fosgnj'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x447C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0xC0123456789ABCDE'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: fosgnj_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xC0123456789ABCDE'
+    - address: '@ENTRY+0x100008'
+      value: '0xC0123456789ABCDE'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fosgnj
+  notes: 'fosgnj negate: hc == hd ⇒ negate(rfHC)'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x447C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fosgnj'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x447C4042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x7FF0000000000001'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: fosgnj_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FF0000000000001'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fosgnj
+  notes: 'fosgnj snan_sign: sNaN 输入 + 正号源 ⇒ 不置 NV（纯位操作）'
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1008'
+  - '0x447C4042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fosgnj'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x447C4042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: fosgnj_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x8000000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fosgnj
+  notes: 'fosgnj nzero_sign: −0 的符号位来自 rfHD'
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1008'
+  - '0x447C4042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fosgnj'
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x44784041'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orrr
+  id: fosgnn_orrr_rf
+  input_state: {}
+  mnemonic: fosgnn
+  notes: 'fosgnn 编码（opc 0x44，immu6 = 六档 one-hot 码）'
+  spec_cite: 'SimRISC-07: fosgnn'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44784040'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0xBFF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: fosgnn_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xBFF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x7FF800007FC00000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fosgnn
+  notes: 'fosgnn abs: hd = rf0 ⇒ abs(rfHC)'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44784040'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fosgnn'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44784040'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0xBFF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: fosgnn_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xBFF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x7FF800007FC00000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fosgnn
+  notes: 'fosgnn fabs_neg: hd = rf0 ⇒ |−1.5|'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44784040'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fosgnn'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44784041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x40123456789ABCDE'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: fosgnn_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xC0123456789ABCDE'
+    - address: '@ENTRY+0x100008'
+      value: '0xC0123456789ABCDE'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fosgnn
+  notes: 'fosgnn copy: hc == hd ⇒ copy(rfHC)'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44784041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fosgnn'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44784041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x40123456789ABCDE'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: fosgnn_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xC0123456789ABCDE'
+    - address: '@ENTRY+0x100008'
+      value: '0xC0123456789ABCDE'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fosgnn
+  notes: 'fosgnn negate: hc == hd ⇒ negate(rfHC)'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44784041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fosgnn'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44784042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0xFFF0000000000001'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: fosgnn_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FF0000000000001'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fosgnn
+  notes: 'fosgnn snan_sign: sNaN 输入 + 正号源 ⇒ 不置 NV（纯位操作）'
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1008'
+  - '0x44784042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fosgnn'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44784042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x8000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: fosgnn_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x8000000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fosgnn
+  notes: 'fosgnn nzero_sign: −0 的符号位来自 rfHD'
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x260C1008'
+  - '0x44784042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fosgnn'
+  status: active

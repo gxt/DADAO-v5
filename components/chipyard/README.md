@@ -141,3 +141,11 @@ make apply-series
 make check-source-state
 make check-patch-tree
 ```
+
+## FP 取整 / 缩放 / 符号（`m12-chipyard-015`）
+
+- **单元**（`WumingFP.scala`）：`WumingFpRound`（`roundToIntegral`，`spec/SimRISC-07 §2.3` / IEEE 754-2019 §5.3.1）与 `WumingFpScale`（`scaleB`，`§2.1` / IEEE 754-2019 §9.2），由 `WumingFpMisc` 按 `op`+`isFo` 选出，单拍完成。
+- **取整**：值 `sig * 2^qExp`；`qExp >= 0`（对 p 位有效数即 `|x| >= 2^p`）原样返回，否则用 `WumingFPAlu.place` 把 `2|x|` 截到整数刻度，得整数部分 + round 位 + sticky 位，按六档方向决定是否加一，再把整数精确编码回原格式（`±0` 保留输入符号）。`immu6` 是六档 one-hot（`0x01` RNE / `0x02` RNA / `0x04` RTZ / `0x08` RUP / `0x10` RDN / `0x20` 读 `rf0[33:32]`），只有 `0x20` 且结果 ≠ 输入才置 `NX`；NaN 一律 canonical qNaN（sNaN 另置 `NV`）；不置 `OF`/`UF`/`DZ`。
+- **缩放**：只把 recoded 指数加上 `rd` 组的有符号 64 位整数 `n`（饱和到远超出可表示范围的两端，故不会改变结果），有效数与其余字段原样交给**同一个**舍入原语 `WumingRoundAnyRawFNToRecFN` ⇒ 全程只舍入一次（这正是 `scaleB` 与「乘一个 2 的幂」的区别：后者在 `2^n` 不可表示时会二次舍入）。`OF`/`UF`/`NX` 是原语的 IEEE 判据；`rd0` 读作零 ⇒ 指数 0；sNaN 置 `NV`（结果 payload 归一，softfloat/QEMU 保留 quieted payload，属已声明差异）。
+- **符号**：`ftsgnj/j`、`fosgnj/j`（`§3`）沿用 `m12-011` 的 ALU 位操作路径（`WumingRecFN.signInject`），纯位操作、**不置任何标志**（含 sNaN 输入），`tests/inst/fp/sign.yaml` 逐例用 `rf2rd rd6, rf0` 断言 `rf0` 不动。
+- **验证**：单元台 op 47–50（`rnd` 对精确 oracle 且断言静态档不受 `rf0[33:32]` 影响；`sclb` 在 `2^n` 可表示范围内对 hardfloat `MulRecFN` 值/标志全等，全程对 oracle）；核上 sweep（`fp_sweep.py` 的 `rnd_*` / `sclb_*` / `sign_flags`）与同镜像 QEMU 逐字节一致；`tests/inst/fp/roundint.yaml`、`sign.yaml` 经 `make check-inst` 门控（QEMU）。

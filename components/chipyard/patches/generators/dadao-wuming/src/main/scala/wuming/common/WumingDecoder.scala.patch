@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 new file mode 100644
-index 0000000..cc50c38
+index 0000000..bc71bbc
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
-@@ -0,0 +1,1128 @@
+@@ -0,0 +1,1171 @@
 +// See LICENSE for license details.
 +//
 +// DADAO decoder for the M12 integer core.
@@ -85,8 +85,9 @@ index 0000000..cc50c38
 +// m12-chipyard-014 adds the multi-cycle family (spec/SimRISC-07 §2.1/§2.2):
 +// `ftdiv`/`fodiv`, `ftrem`/`forem` and `ftroot`/`foroot` (n = 2 only).
 +//
-+// Every other FP form (scaleB, rounding, shift-by-exponent) is still ILLI: it
-+// belongs to m12-chipyard-015.
++// m12-chipyard-015 adds `roundToIntegral` (spec/SimRISC-07 §2.3) and `scaleB`
++// (§2.1) -- the last two FP groups; with them every defined FP instruction is
++// decoded and `opc 0x44` has no ILLI cell left except the undefined ones.
 +
 +package wuming.common
 +
@@ -210,6 +211,13 @@ index 0000000..cc50c38
 +  // arithmetic family above.
 +  val isFpSlow   = Bool()
 +  val fpSlowKind = UInt(2.W)
++  // m12-015: `roundToIntegral` (§2.3) and `scaleB` (§2.1).  `fpRndCode` is the
++  // low 6 bits of `ftrnd`/`fornd` (the six one-hot directions of ADR-0050 D2);
++  // `isFpSclb` marks the forms whose second source is the *integer* `rdHD`.
++  // Both reuse `fpFo` for the format and are single-cycle.
++  val isFpRnd   = Bool()
++  val fpRndCode = UInt(6.W)
++  val isFpSclb  = Bool()
 +}
 +
 +class WumingDecoder extends Module {
@@ -276,6 +284,7 @@ index 0000000..cc50c38
 +  d.cvtExact := false.B; d.cvtSigned := true.B
 +  d.isFpArith := false.B; d.fpKind := WumingFPArithOp.ADD; d.fpFo := false.B
 +  d.isFpSlow := false.B; d.fpSlowKind := WumingFpSlowKind.DIV
++  d.isFpRnd := false.B; d.fpRndCode := 0.U; d.isFpSclb := false.B
 +
 +  val recognized = WireDefault(false.B)
 +
@@ -638,6 +647,34 @@ index 0000000..cc50c38
 +    when(hd =/= 2.U) { d.ill := true.B }
 +  }
 +
++  // ---- m12-015: roundToIntegral / scaleB (spec/SimRISC-07 §2.3/§2.1) ------
++  //
++  // `ftrnd`/`fornd rfHB, rfHC, immu6`: the low 6 bits are the six-direction
++  // one-hot code (ADR-0050 D2) instead of a register count, so the legality is
++  // `encode_onehot` -- the same rule the rounded conversions use.
++  def fpRoundInt(isFo: Boolean): Unit = {
++    d.isFpRnd := true.B
++    d.fpFo := isFo.B
++    d.fpRndCode := hd
++    d.srcAIdx := hc; d.srcABank := WumingBank.RF
++    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }                    // dst_rf0
++    when(!(hd === 0x01.U || hd === 0x02.U || hd === 0x04.U ||
++      hd === 0x08.U || hd === 0x10.U || hd === 0x20.U)) { d.ill := true.B }
++  }
++
++  // `ftsclb`/`fosclb rfHB, rfHC, rdHD`: the third operand is a signed 64-bit
++  // integer from the `rd` bank, not a float register -- `rd0` therefore means
++  // exponent 0, which falls out of `rd0` reading as zero.
++  def fpScaleB(isFo: Boolean): Unit = {
++    d.isFpSclb := true.B
++    d.fpFo := isFo.B
++    d.srcAIdx := hc; d.srcABank := WumingBank.RF
++    d.srcBIdx := hd; d.srcBBank := WumingBank.RD
++    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
++    when(hb === 0.U) { d.ill := true.B }                    // dst_rf0
++  }
++
 +  // ---- memory shapes (spec/SimRISC-01) ----------------------------------
 +  // `memWidth` = log2(access bytes); `memSigned` selects sb/sw/st vs ub/uw/ut.
 +  // Single-element address = rbHB + imms12; multi-register address =
@@ -866,6 +903,12 @@ index 0000000..cc50c38
 +        is(0x1C.U) { subHandled := true.B; fpSlow(WumingFpSlowKind.REM, true) }
 +        is(0x06.U) { subHandled := true.B; fpRoot(false) }   // ftroot (n = 2)
 +        is(0x0E.U) { subHandled := true.B; fpRoot(true) }    // foroot (n = 2)
++        // m12-015: roundToIntegral (§2.3) and scaleB (§2.1) -- the last two
++        // FP groups, so every defined FP cell of this row is now handled.
++        is(0x03.U) { subHandled := true.B; fpRoundInt(false) } // ftrnd
++        is(0x0B.U) { subHandled := true.B; fpRoundInt(true) }  // fornd
++        is(0x15.U) { subHandled := true.B; fpScaleB(false) }   // ftsclb
++        is(0x1D.U) { subHandled := true.B; fpScaleB(true) }    // fosclb
 +        // m12-013 compare (spec §4) and min/max (spec §2.4).
 +        is(0x20.U) { subHandled := true.B; fpCmp(false, signaling = false) }
 +        is(0x21.U) { subHandled := true.B; fpCmp(false, signaling = true) }

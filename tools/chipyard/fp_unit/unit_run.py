@@ -21,6 +21,7 @@
 import argparse
 import os
 import random
+import struct
 import subprocess
 import sys
 
@@ -665,6 +666,139 @@ def check(args):
     if ticks:
         print("  measured latency (clock ticks to completion, per op): "
               + " ".join(f"op{o}={t}" for o, t in sorted(ticks.items())))
+
+    # ── roundToIntegral / scaleB (m12-chipyard-015) ───────────────────────
+    # `rnd` (47/48): `inHi[5:0]` = the one-hot `immu6` code, `mode` =
+    # `rf0[33:32]`.  berkeley-hardfloat has no `roundToIntegral`, so the
+    # reference is the exact oracle (`fp_ref.rnd_exact`, cross-checked against
+    # the independent `tools/testcases/oracle_rnd.py` in the evidence script).
+    # The five static codes are driven under every `rf0[33:32]` setting too:
+    # their results must not move (IEEE 754-2019 §5.9 / spec §2.3).
+    # `sclb` (49/50): the hardfloat reference is a multiply by `2^n` whenever
+    # that power is a normal value of the format (an exact power of two, so the
+    # product rounds once, i.e. genuine scaleB); outside that range there is no
+    # hardfloat reference and the oracle decides.
+    for op, (name, ew, sw) in ((47, ("rnd ft", F.FT[0], F.FT[1])),
+                               (48, ("rnd fo", F.FO[0], F.FO[1]))):
+        fmt = ">f" if (ew, sw) == F.FT else ">d"
+        word = ">I" if (ew, sw) == F.FT else ">Q"
+
+        def fnb(val):
+            return struct.unpack(word, struct.pack(fmt, val))[0]
+
+        w = ew + sw
+        vals = [fnb(v) for v in (0.5, -0.5, 1.5, -1.5, 2.5, -2.5, 3.5, -3.5,
+                                 0.4, -0.4, 2.7, -2.7, 1e-8, -1e-8)]
+        ints = [0, 1 << (w - 1), 1, 0x7F7FFFFF if w == 32 else 0x7FEFFFFFFFFFFFFF]
+        vals += ints
+        vals += [1, (1 << (sw - 1)) - 1, 1 << (sw - 1)]  # subnormal / normal
+        vals += F.sample_fn(ew, sw, args.n, rng)
+        lines, meta = [], []
+        for x in vals:
+            for code in (0x01, 0x02, 0x04, 0x08, 0x10, 0x20):
+                for fcs in (0, 1, 2, 3):
+                    lines.append(f"{op} {x:x} {code:x} {fcs}")
+                    meta.append((x, code, fcs))
+        got = run_vectors(args.bin, _write(args, f"vectors_op{op}.txt", lines))
+        if len(got) != len(lines):
+            print(f"  [FAIL] {name}: vector count {len(lines)} vs {len(got)}")
+            fails += 1
+        bad_oracle = 0
+        per_shape = {}
+        for r, (x, code, fcs) in zip(got, meta):
+            _, direction = F.mode_from_onehot(code, fcs)
+            want, wflags = F.rnd_exact(ew, sw, x, direction, code == 0x20)
+            if r["out"] != want or r["flags"] != wflags:
+                bad_oracle += 1
+                if bad_oracle <= 8:
+                    print(f"  [ORACLE] {name} x={x:x} code={code:x} "
+                          f"rf0={fcs} want={want:x}/{wflags:x} "
+                          f"got={r['out']:x}/{r['flags']:x}")
+            per_shape.setdefault((x, code), []).append(r["out"])
+        moved = 0
+        for (x, code), outs in per_shape.items():
+            if code != 0x20 and len(set(outs)) != 1:
+                moved += 1
+                if moved <= 4:
+                    print(f"  [STATIC] {name} x={x:x} code={code:x} moved "
+                          f"with rf0[33:32]: {[f'{o:x}' for o in outs]}")
+        print(f"  {name}: {len(got)} vectors | hf-value-diff=0 "
+              f"oracle-diff={bad_oracle} static-rf0-sensitive={moved}")
+        fails += bad_oracle + moved
+        summary.append((name, len(got), bad_oracle + moved))
+
+    MODES4 = (F.RNE, F.RTZ, F.RDN, F.RUP)
+    SCLB_N = (0, 1, -1, 2, -2, 24, -24, 25, -25, 52, -52, 53, -53, 126, 127,
+              -126, 128, 1023, 1024, -1022, -1023, -1074, 2000, -2000,
+              2 ** 31, -(2 ** 31), 2 ** 63 - 1, -(2 ** 63))
+    for op, (name, ew, sw) in ((49, ("sclb ft", F.FT[0], F.FT[1])),
+                               (50, ("sclb fo", F.FO[0], F.FO[1]))):
+        fmt = ">f" if (ew, sw) == F.FT else ">d"
+        word = ">I" if (ew, sw) == F.FT else ">Q"
+
+        def fnb(val):
+            return struct.unpack(word, struct.pack(fmt, val))[0]
+
+        w = ew + sw
+        vals = [fnb(v) for v in (0.0, -0.0, 1.0, -1.0, 1.5, -1.5, 0.1, -0.1,
+                                 1e-8, -1e-8, 3.0, -3.0)]
+        vals += [1, (1 << (sw - 1)) - 1, 1 << (sw - 1),
+                 0x7F800000 if w == 32 else 0x7FF0000000000000,
+                 0xFF800000 if w == 32 else 0xFFF0000000000000,
+                 0x7FC00000 if w == 32 else 0x7FF8000000000000,
+                 0x7FC00123 if w == 32 else 0x7FF8000000000123,
+                 0x7F800001 if w == 32 else 0x7FF0000000000001,
+                 0x7F7FFFFF if w == 32 else 0x7FEFFFFFFFFFFFFF]
+        vals += F.sample_fn(ew, sw, args.n, rng)
+        # scaleB's direction is `rf0[33:32]`, which has the four directions
+        # only (RNE/RTZ/RDN/RUP): `roundTiesToAway` is not encodable there.
+        lines, meta = [], []
+        for x in vals:
+            for n in SCLB_N:
+                for mode in MODES4:
+                    lines.append(f"{op} {x:x} {n & ((1 << 64) - 1):x} {mode}")
+                    meta.append((x, n, mode))
+        got = run_vectors(args.bin, _write(args, f"vectors_op{op}.txt", lines))
+        if len(got) != len(lines):
+            print(f"  [FAIL] {name}: vector count {len(lines)} vs {len(got)}")
+            fails += 1
+        bad_oracle = bad_hf = bad_flag = 0
+        emin, emax = 1 - ((1 << (ew - 1)) - 1), (1 << (ew - 1)) - 1
+        hf_cases = 0
+        for r, (x, n, mode) in zip(got, meta):
+            want, wflags = F.sclb_exact(ew, sw, x, n, mode)
+            # A NaN result's *sign* is unspecified (IEEE 754-2019 §6.2.3): this
+            # core and hardfloat clear it, softfloat/QEMU keep it, so only the
+            # "is a NaN"/value distinction is asserted here (`fn_val`).
+            if fn_val(r["out"], ew, sw) != fn_val(want, ew, sw) or \
+                    r["flags"] != wflags:
+                bad_oracle += 1
+                if bad_oracle <= 8:
+                    print(f"  [ORACLE] {name} x={x:x} n={n} mode={mode} "
+                          f"want={want:x}/{wflags:x} "
+                          f"got={r['out']:x}/{r['flags']:x}")
+            if emin <= n <= emax:  # 2^n is a normal value of this format
+                hf_cases += 1
+                if fn_val(r["out"], ew, sw) != fn_val(r["hf_out"], ew, sw):
+                    bad_hf += 1
+                    if bad_hf <= 8:
+                        print(f"  [DIFF] {name} x={x:x} n={n} mode={mode} "
+                              f"mine={r['out']:x} hf={r['hf_out']:x}")
+                if r["flags"] != r["hf_flags"]:
+                    if is_uf_boundary(r["out"], r["flags"], r["hf_flags"],
+                                      ew, sw):
+                        pass
+                    else:
+                        bad_flag += 1
+                        if bad_flag <= 8:
+                            print(f"  [FLAG] {name} x={x:x} n={n} "
+                                  f"mode={mode} mine={r['flags']:x} "
+                                  f"hf={r['hf_flags']:x}")
+        print(f"  {name}: {len(got)} vectors | hf-value-diff={bad_hf} "
+              f"hf-flag-diff={bad_flag} oracle-diff={bad_oracle} "
+              f"hf-cases={hf_cases}")
+        fails += bad_hf + bad_flag + bad_oracle
+        summary.append((name, len(got), bad_hf + bad_flag + bad_oracle))
 
     # ── FCSR (clocked) ────────────────────────────────────────────────────
     fpath = os.path.join(args.workdir, "fcsr.txt")

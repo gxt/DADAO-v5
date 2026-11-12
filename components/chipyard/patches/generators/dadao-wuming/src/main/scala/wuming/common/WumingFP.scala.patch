@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
 new file mode 100644
-index 0000000..0093bc8
+index 0000000..f318084
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
-@@ -0,0 +1,1865 @@
+@@ -0,0 +1,2044 @@
 +// See LICENSE for license details.
 +//
 +// DADAO floating-point infrastructure (m12-chipyard-011).
@@ -1618,6 +1618,185 @@ index 0000000..0093bc8
 +    WumingFpSlowKind.DIV -> pick(io.isFo, divFt.io.busy, divFo.io.busy),
 +    WumingFpSlowKind.SQRT -> pick(io.isFo, sqrtFt.io.busy, sqrtFo.io.busy),
 +    WumingFpSlowKind.REM -> pick(io.isFo, remFt.io.busy, remFo.io.busy)))
++}
++
++/** `roundToIntegral` (spec/SimRISC-07 §2.3, IEEE 754-2019 §5.3.1),
++  * m12-chipyard-015.
++  *
++  * The six `immu6` codes are resolved by the core (ADR-0050 D2): `mode` is the
++  * direction (`RNE`/`RNA`/`RTZ`/`RUP`/`RDN`) and `exact` marks the dynamic code
++  * `0x20` (`roundToIntegralExact`), the only variant that accrues `NX`
++  * (IEEE 754-2019 §5.9: the five static variants never signal inexact).
++  *
++  * The value is `raw.sig * 2^qExp`.  `qExp >= 0` means every significand bit is
++  * an integer bit -- for a `p`-bit significand that is exactly `|x| >= 2^p`,
++  * the spec's "原样返回" case -- so the input passes through unchanged.
++  * Otherwise the magnitude is truncated at the binary point
++  * (`WumingFPAlu.place`), which yields the integer part plus the round bit and
++  * the sticky flag; the rounded integer is encoded back exactly (an integer
++  * below `2^p` always fits the format) and the `±0` results keep the input's
++  * sign (IEEE 754-2019 §5.9).
++  *
++  * `DADAO:` every NaN result is the canonical quiet NaN (spec §2.3
++  * "canonical 化", the same rule as QEMU's default-NaN mode); an sNaN input
++  * raises `NV`, a quiet NaN does not (IEEE 754-2019 §6.2).  This operation can
++  * never raise `OF`/`UF`/`DZ`, and `NX` only for the `0x20` code.
++  */
++class WumingFpRound(expWidth: Int, sigWidth: Int) extends Module {
++  val io = IO(new Bundle {
++    val mode  = Input(UInt(3.W))
++    val exact = Input(Bool())
++    val in    = Input(UInt((expWidth + sigWidth).W))
++    val out   = Output(UInt(64.W))
++    val flags = Output(UInt(5.W)) // rf0[4:0] order: NV, DZ, OF, UF, NX
++  })
++
++  val raw = WumingRecFN.rawFloatFromFN(expWidth, sigWidth, io.in)
++  val bias = (BigInt(1) << (expWidth - 1)) - 1
++
++  // Exponent of the least significant significand bit: `value = sig * 2^qExp`
++  // in the recoded convention of `WumingRawFloat` (same expression as the
++  // divisor/remainder units above).
++  val qExp: SInt = raw.sExp - (BigInt(1) << expWidth).S - (sigWidth - 1).S
++  val integral = qExp >= 0.S
++
++  // Integer part and the two bits below it.  Working on `2 * |x|` puts the
++  // round bit in bit 0 of the window and leaves everything below it to the
++  // sticky flag: `place` truncates towards zero and reports any dropped bit.
++  val (twiceBits, belowRound) =
++    WumingFPAlu.place(raw.sig, qExp +& 1.S, sigWidth + 2)
++  val mag = twiceBits(sigWidth + 1, 1)
++  val roundBit = twiceBits(0)
++  val inexact = roundBit || belowRound
++
++  val roundUp = MuxLookup(io.mode, false.B)(Seq(
++    WumingRoundMode.RNE -> (roundBit && (belowRound || mag(0))),
++    WumingRoundMode.RNA -> roundBit,
++    WumingRoundMode.RTZ -> false.B,
++    WumingRoundMode.RUP -> (!raw.sign && inexact),
++    WumingRoundMode.RDN -> (raw.sign && inexact)))
++  val res = mag +& roundUp
++
++  // Encode the integer exactly: `res <= 2^sigWidth` (`|x| < 2^sigWidth` because
++  // `qExp < 0`), so it is either zero or a normal value of this format.
++  val msb = WumingFPAlu.msbIndex(res)
++  val shift = Mux(msb <= (sigWidth - 1).U, (sigWidth - 1).U - msb, 0.U)
++  val fract = Mux(msb <= (sigWidth - 1).U, (res << shift)(sigWidth - 2, 0),
++    0.U((sigWidth - 1).W))
++  val expOut = Mux(res === 0.U, 0.U, (msb +& bias.U)(expWidth - 1, 0))
++  val rounded = raw.sign ## expOut ## fract
++
++  // Canonical quiet NaN of this format: sign 0, payload 0 (spec §2.3).
++  val qnan = 0.U(1.W) ##
++    ((BigInt(1) << expWidth) - 1).U(expWidth.W) ##
++    (BigInt(1) << (sigWidth - 2)).U((sigWidth - 1).W)
++
++  io.out := Mux(raw.isNaN, qnan,
++    Mux(integral, io.in, rounded)).pad(64)
++  // `NX` only for `roundToIntegralExact` and only when the value changed; the
++  // pass-through shapes (already integral, Inf, zero) are never inexact.
++  // `rf0[4:0]` order: bit4 NX ... bit0 NV, so `NX` comes first in the `Cat`.
++  io.flags := Cat(io.exact && !integral && inexact && !raw.isNaN,
++    false.B, false.B, false.B, raw.isSigNaN)
++}
++
++/** `scaleB` (spec/SimRISC-07 §2.1, IEEE 754-2019 §9.2), m12-chipyard-015.
++  *
++  * `x * 2^n` with `n` the signed 64-bit integer of the `rd` operand.  The
++  * significand is untouched and only the recoded exponent moves, so the single
++  * rounding primitive rounds exactly once (this is what makes the operation
++  * `scaleB` rather than "multiply by a power of two", which would round twice
++  * whenever `2^n` itself is not representable).  Overflow, underflow and
++  * inexact are then the primitive's IEEE rules (spec §2.1: "NaN/Inf/溢出/下溢
++  * 行为遵循 IEEE 754"): a magnitude that only *rounds* back to the largest
++  * finite value reports `NX` without `OF` (IEEE 754-2019 §7.4), and a result
++  * that lands on the smallest normal after rounding is not tiny (§7.5).
++  *
++  * The exponent sum is clamped outside the range where it can still change
++  * the result: at or below `lo` every direction yields ±0 (or the pegged
++  * minimum) and at or above `hi` the operation overflows, exactly as a much
++  * larger `|n|` would.  Clamping therefore cannot alter the result, and it
++  * keeps the arithmetic inside the exponent field's width.
++  */
++class WumingFpScale(expWidth: Int, sigWidth: Int) extends Module {
++  val io = IO(new Bundle {
++    val mode  = Input(UInt(3.W))
++    val in    = Input(UInt((expWidth + sigWidth).W))
++    val n     = Input(SInt(64.W)) // rdHD: the signed 64-bit integer exponent
++    val out   = Output(UInt(64.W))
++    val flags = Output(UInt(5.W))
++  })
++
++  val raw = WumingRecFN.rawFloatFromFN(expWidth, sigWidth, io.in)
++  val rounder = Module(new WumingRoundAnyRawFNToRecFN(
++    expWidth, sigWidth, expWidth, sigWidth))
++
++  val lo = WumingRecFN.minNormExp(expWidth) - sigWidth - 2
++  val hi = (BigInt(6) << (expWidth - 2)) + 2
++  val wide = 72
++  val sum: SInt = raw.sExp.pad(wide) + io.n.pad(wide)
++  val hiS = hi.S((wide + 1).W)
++  val loS = lo.S((wide + 1).W)
++  val clamped = Mux(sum > hiS, hiS, Mux(sum < loS, loS, sum))
++
++  val scaled = Wire(new WumingRawFloat(expWidth, sigWidth))
++  scaled.isNaN := raw.isNaN
++  scaled.isInf := raw.isInf
++  scaled.isZero := raw.isZero
++  scaled.sign := raw.sign
++  scaled.sExp := clamped(expWidth + 1, 0).asSInt
++  scaled.sig := raw.sig
++
++  rounder.io.in := scaled
++  rounder.io.invalidExc := raw.isSigNaN // sNaN raises NV; a qNaN only propagates
++  rounder.io.infiniteExc := false.B // scaleB has no divide-by-zero lane
++  rounder.io.roundingMode := io.mode
++
++  io.out := WumingRecFN.fNFromRecFN(expWidth, sigWidth, rounder.io.out).pad(64)
++  io.flags := rounder.io.exceptionFlags
++}
++
++/** `roundToIntegral` and `scaleB` behind one port (m12-chipyard-015). */
++object WumingFpMiscOp {
++  val RND  = 0.U(1.W) // ftrnd / fornd  (spec/SimRISC-07 §2.3)
++  val SCLB = 1.U(1.W) // ftsclb / fosclb (§2.1)
++}
++
++class WumingFpMisc extends Module {
++  val io = IO(new Bundle {
++    val op    = Input(UInt(1.W))
++    val isFo  = Input(Bool())
++    val mode  = Input(UInt(3.W))
++    val exact = Input(Bool())
++    val a     = Input(UInt(64.W)) // rfHC
++    val n     = Input(SInt(64.W)) // rdHD (scaleB only)
++    val out   = Output(UInt(64.W))
++    val flags = Output(UInt(5.W))
++  })
++
++  val rndFt = Module(new WumingFpRound(WumingFmt.ftExp, WumingFmt.ftSig))
++  val rndFo = Module(new WumingFpRound(WumingFmt.foExp, WumingFmt.foSig))
++  val sclbFt = Module(new WumingFpScale(WumingFmt.ftExp, WumingFmt.ftSig))
++  val sclbFo = Module(new WumingFpScale(WumingFmt.foExp, WumingFmt.foSig))
++
++  for ((u, isFo) <- Seq((rndFt, false), (rndFo, true))) {
++    u.io.mode := io.mode
++    u.io.exact := io.exact
++    u.io.in := io.a
++  }
++  for ((u, isFo) <- Seq((sclbFt, false), (sclbFo, true))) {
++    u.io.mode := io.mode
++    u.io.in := io.a
++    u.io.n := io.n
++  }
++
++  def pick[T <: chisel3.Data](isFo: Bool, ft: T, fo: T): T = Mux(isFo, fo, ft)
++  io.out := MuxLookup(io.op, 0.U(64.W))(Seq(
++    WumingFpMiscOp.RND -> pick(io.isFo, rndFt.io.out, rndFo.io.out),
++    WumingFpMiscOp.SCLB -> pick(io.isFo, sclbFt.io.out, sclbFo.io.out)))
++  io.flags := MuxLookup(io.op, 0.U(5.W))(Seq(
++    WumingFpMiscOp.RND -> pick(io.isFo, rndFt.io.flags, rndFo.io.flags),
++    WumingFpMiscOp.SCLB -> pick(io.isFo, sclbFt.io.flags, sclbFo.io.flags)))
 +}
 +
 +/** Quiet / signalling compare (hardfloat `CompareRecFN`), spec/SimRISC-07 §4.

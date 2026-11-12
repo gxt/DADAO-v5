@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
 new file mode 100644
-index 0000000..ef11e8f
+index 0000000..8c3728c
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
-@@ -0,0 +1,656 @@
+@@ -0,0 +1,726 @@
 +// See LICENSE for license details.
 +//
 +// Unit bench for the FP infrastructure (m12-chipyard-011).
@@ -67,6 +67,11 @@ index 0000000..ef11e8f
 +//  44  foroot fo
 +//  45  forem                   in = a, inHi = b
 +//  46  forem fo
++//
++//  47  ftrnd   in = fn32, inHi[5:0] = one-hot code, mode = rf0[33:32]
++//  48  fornd   in = fn64, same fields
++//  49  ftsclb  in = fn32, inHi = signed 64-bit exponent, mode = rf0[33:32]
++//  50  fosclb  in = fn64, same fields
 +//
 +// Ops 41-46 are clocked: `io.slowStart` is a one-cycle pulse and `io.slowDone`
 +// (or the hardfloat twin's `outValid`) marks the cycle whose `outLo`/`outHi`/
@@ -457,6 +462,56 @@ index 0000000..ef11e8f
 +    hfDivFo.io.outValid_div || hfDivFo.io.outValid_sqrt,
 +    hfDivFt.io.outValid_div || hfDivFt.io.outValid_sqrt)
 +
++  // ---- roundToIntegral / scaleB (m12-chipyard-015) -----------------------
++  // Mine = `WumingFpMisc` (the production unit).  `scaleB`'s hardfloat twin is
++  // a multiply by an exact power of two: whenever `2^n` is a normal value of
++  // the format the multiply is exact in its operand and rounds once, which is
++  // exactly `scaleB`; outside that range `2^n` is not representable and there
++  // is no hardfloat reference (the oracle and QEMU decide).  The two `rnd` ops
++  // have no hardfloat counterpart at all -- berkeley-hardfloat does not
++  // implement `roundToIntegral` -- so they are checked against the oracle (and,
++  // on the core, against QEMU) only.
++  val OP_RND_FT = 47.U
++  val OP_RND_FO = 48.U
++  val OP_SCLB_FT = 49.U
++  val OP_SCLB_FO = 50.U
++  val misc = Module(new WumingFpMisc)
++  val miscSclb = (io.op === OP_SCLB_FT) || (io.op === OP_SCLB_FO)
++  // `io.mode` carries `rf0[33:32]` for these ops (the DADAO encoding), and
++  // `inHi[5:0]` the one-hot `immu6` code of `rnd`.
++  val (rndLegal, rndDir) =
++    WumingRoundMode.fromOneHot(io.inHi(5, 0), io.mode(1, 0))
++  misc.io.op := Mux(miscSclb, WumingFpMiscOp.SCLB, WumingFpMiscOp.RND)
++  misc.io.isFo := (io.op === OP_RND_FO) || (io.op === OP_SCLB_FO)
++  misc.io.mode := Mux(miscSclb, WumingRoundMode.fromFcsr(io.mode(1, 0)),
++    Mux(rndLegal, rndDir, WumingRoundMode.RNE))
++  misc.io.exact := io.inHi(5, 0) === 0x20.U
++  misc.io.a := in(63, 0)
++  misc.io.n := in(127, 64).asSInt
++
++  // 2^n in the same format, valid while `n` is the exponent of a normal value.
++  val nFt = in(127, 64).asSInt
++  val powFtOk = nFt >= (-126).S && nFt <= 127.S
++  val powFt = Mux(powFtOk, (((nFt + 127.S)(7, 0)) << 23).pad(32), 0.U(32.W))
++  val nFo = in(127, 64).asSInt
++  val powFoOk = nFo >= (-1022).S && nFo <= 1023.S
++  val powFo = Mux(powFoOk, (((nFo + 1023.S)(10, 0)) << 52).pad(64),
++    0.U(64.W))
++  val hfSclbFt = Module(new hardfloat.MulRecFN(WumingFmt.ftExp, WumingFmt.ftSig))
++  val hfSclbFo = Module(new hardfloat.MulRecFN(WumingFmt.foExp, WumingFmt.foSig))
++  hfSclbFt.io.a := WumingRecFN.recFNFromFN(WumingFmt.ftExp, WumingFmt.ftSig,
++    in(31, 0))
++  hfSclbFt.io.b := WumingRecFN.recFNFromFN(WumingFmt.ftExp, WumingFmt.ftSig,
++    powFt)
++  hfSclbFt.io.roundingMode := WumingRoundMode.fromFcsr(io.mode(1, 0))
++  hfSclbFt.io.detectTininess := hardfloat.consts.tininess_afterRounding
++  hfSclbFo.io.a := WumingRecFN.recFNFromFN(WumingFmt.foExp, WumingFmt.foSig,
++    in(63, 0))
++  hfSclbFo.io.b := WumingRecFN.recFNFromFN(WumingFmt.foExp, WumingFmt.foSig,
++    powFo)
++  hfSclbFo.io.roundingMode := WumingRoundMode.fromFcsr(io.mode(1, 0))
++  hfSclbFo.io.detectTininess := hardfloat.consts.tininess_afterRounding
++
 +  switch(io.op) {
 +    is(0.U) { out := WumingRecFN.recFNFromFN(WumingFmt.ftExp, WumingFmt.ftSig,
 +      in(ftFnWidth - 1, 0)).pad(128) }
@@ -637,6 +692,21 @@ index 0000000..ef11e8f
 +    // The remainder has no hardfloat module; the oracle decides.
 +    is(OP_REM_FT) { out := slow.io.out.pad(128); flags := slow.io.flags }
 +    is(OP_REM_FO) { out := slow.io.out.pad(128); flags := slow.io.flags }
++    // ---- roundToIntegral / scaleB (m12-chipyard-015) ---------------------
++    is(OP_RND_FT) { out := misc.io.out.pad(128); flags := misc.io.flags }
++    is(OP_RND_FO) { out := misc.io.out.pad(128); flags := misc.io.flags }
++    is(OP_SCLB_FT) {
++      out := misc.io.out.pad(128); flags := misc.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.ftExp, WumingFmt.ftSig,
++        hfSclbFt.io.out).pad(128)
++      hfFlags := rev5(hfSclbFt.io.exceptionFlags)
++    }
++    is(OP_SCLB_FO) {
++      out := misc.io.out.pad(128); flags := misc.io.flags
++      hfOut := WumingRecFN.fNFromRecFN(WumingFmt.foExp, WumingFmt.foSig,
++        hfSclbFo.io.out).pad(128)
++      hfFlags := rev5(hfSclbFo.io.exceptionFlags)
++    }
 +  }
 +  io.outLo := out(63, 0)
 +  io.outHi := out(127, 64)

@@ -972,6 +972,64 @@ def minmax_exact(ew, sw, a, b, is_max):
     return (a if pick_a else b) & ((1 << (ew + sw)) - 1), nv
 
 
+# ── roundToIntegral / scaleB (m12-chipyard-015, spec §2.3 / §2.1) ─────────
+#
+# `roundToIntegral` never changes the format and never rounds to a coarser
+# grid than the integers, so it is exact integer arithmetic on the float's own
+# value: the spec's "|x| >= 2^p 原样返回" is exactly the case where the value
+# has no fractional bit.  Only the dynamic code `0x20` reports `NX`, and every
+# NaN result is the canonical quiet NaN (spec §2.3).
+def rnd_exact(ew, sw, x, mode, exact):
+    """``ftrnd``/``fornd`` oracle: ``(format word, rf0[4:0] flags)``."""
+    r = raw_from_fn(ew, sw, x)
+    w = ew + sw
+    if r["is_nan"]:
+        return _canon_qnan(ew, sw), (NV if _is_snan(r, sw) else 0)
+    if r["is_inf"] or r["is_zero"]:
+        return x & ((1 << w) - 1), 0
+    sign, mant, e2 = _dyadic(r, ew, sw)
+    if e2 >= 0:
+        # |x| >= 2^p: already an integer -> returned unchanged, no exception
+        return x & ((1 << w) - 1), 0
+    mag, inexact = _round_int(mant, 1 << (-e2), mode, bool(sign))
+    rec, fl = round_dyadic(ew, sw, sign, mag, 0, RNE)
+    assert fl == 0, "roundToIntegral must not round again"
+    return fn_from_recfn(ew, sw, rec), (NX if (exact and inexact) else 0)
+
+
+def sclb_exact(ew, sw, x, n, mode):
+    """``ftsclb``/``fosclb`` oracle: ``(format word, rf0[4:0] flags)``.
+
+    scaleB is one rounding of the exact value ``x * 2^n`` (IEEE 754-2019 §9.2):
+    the significand is unchanged, so `round_dyadic` rounds the exact product
+    once and reports `OF`/`UF`/`NX` by the IEEE rules.  A quiet NaN propagates
+    its payload, an sNaN raises `NV` and canonicalises, and ±0/±Inf pass
+    through unchanged (§9.2).
+    """
+    r = raw_from_fn(ew, sw, x)
+    w = ew + sw
+    if r["is_nan"]:
+        if _is_snan(r, sw):
+            return _canon_qnan(ew, sw), NV
+        return x & ((1 << w) - 1), 0
+    if r["is_inf"] or r["is_zero"]:
+        return x & ((1 << w) - 1), 0
+    _, mant, e2 = _dyadic(r, ew, sw)
+    # Clamp the scaled exponent far outside the representable range: every
+    # direction gives the same ±Inf/±0/pegged result there, and Python must not
+    # try to build an integer with 2^63 bits for `n = INT64_MIN`.  The bounds
+    # are in `e2` terms (the exponent of the significand's last bit), so they
+    # sit one full significand below the smallest subnormal / above the largest
+    # normal -- a clamp that could still alter a representable value would make
+    # this oracle wrong, so it must stay outside `[emin - 2p, emax + 2p]`.
+    emin = 2 - (1 << (ew - 1))
+    emax = (1 << (ew - 1)) - 1
+    lo, hi = emin - 2 * sw, emax + 2 * sw
+    e2s = max(lo, min(hi, e2 + n))
+    rec, flags = round_dyadic(ew, sw, r["sign"], mant, e2s, mode)
+    return fn_from_recfn(ew, sw, rec), flags
+
+
 # ── vector domains used by the self-check and the unit bench ──────────────
 def sample_raw(ie, isig, n, rng):
     """Raw floats covering every corner the rounding primitive must handle:
@@ -1397,6 +1455,274 @@ def selfcheck_divrem(n=300, seed=20260114):
     return 0 if bad == 0 else 1
 
 
+def selfcheck_rndsclb(n=300, seed=20260115):
+    """Property check of the roundToIntegral / scaleB oracles (m12-015).
+
+    Nothing here assumes the oracle's rounding: every claim is a property of
+    the exact rational value read off the encoding (`_frac`/`_ulp`):
+    roundToIntegral returns an integer of the same sign whose distance from the
+    input is at most 1/2 (nearest), on the correct side (directed), tie-even /
+    tie-away where a tie exists; scaleB's result is one rounding of the exact
+    product, so `NX` holds iff the product is not representable, the directed
+    modes stay on their side, and a magnitude that only exceeds the largest
+    finite value *before* rounding reports `NX` without `OF` (IEEE 754-2019
+    §7.4).
+    """
+    rng = random.Random(seed)
+    bad = 0
+    shown = [0]
+    counts = {"rnd": 0, "rnd_exact": 0, "sclb": 0, "sclb_ovf": 0,
+              "sclb_unf": 0}
+
+    def fail(what, *vals):
+        nonlocal bad
+        bad += 1
+        if shown[0] < 12:
+            shown[0] += 1
+            print("  [MISMATCH] " + what + " " +
+                  " ".join(f"{v}" for v in vals))
+
+    HALF = Fraction(1, 2)
+    # `k` values whose exact product stays small enough to compare exactly;
+    # the 64-bit extremes are checked separately against their saturated
+    # semantics (an exponent that large cannot be represented at all).
+    NORMAL_K = (0, 1, -1, 3, -3, 24, -24, 200, -200, 1023, -1022, -1074)
+    EXTREME_K = (2 ** 31, -(2 ** 31), 2 ** 62, -(2 ** 62))
+    for (ew, sw) in (FT, FO):
+        w = ew + sw
+        p = sw
+        min_norm = 2 - (1 << (ew - 1))
+        max_finite = ((1 << (ew - 1)) - 1)
+        max_finite_bits = _inf_bits(0, ew, sw) - 1
+        max_v = _frac(raw_from_fn(ew, sw, max_finite_bits), ew, sw)
+        for x in sample_fn(ew, sw, n, rng):
+            rx = raw_from_fn(ew, sw, x)
+            xbits = x & ((1 << w) - 1)
+            # ── roundToIntegral ────────────────────────────────────────────
+            if rx["is_nan"]:
+                for mode in (RNE, RNA, RTZ, RUP, RDN):
+                    v, flags = rnd_exact(ew, sw, x, mode, False)
+                    counts["rnd"] += 1
+                    want = NV if _is_snan(rx, sw) else 0
+                    if v != _canon_qnan(ew, sw) or (flags & 0x1F) != want:
+                        fail("rnd nan", f"fmt={ew},{sw}", hex(x), hex(v),
+                             hex(flags))
+                continue
+            if rx["is_inf"] or rx["is_zero"]:
+                for mode in (RNE, RNA, RTZ, RUP, RDN):
+                    v, flags = rnd_exact(ew, sw, x, mode, False)
+                    counts["rnd"] += 1
+                    if v != xbits or flags & 0x1F:
+                        fail("rnd special pass-through", f"fmt={ew},{sw}",
+                             hex(x), hex(v), hex(flags))
+                continue
+            xv = _frac(rx, ew, sw)
+            integral = xv.denominator == 1
+            if abs(xv) >= Fraction(2) ** p and not integral:
+                fail("model: |x| >= 2^p but not integral", hex(x))
+            for mode in (RNE, RNA, RTZ, RUP, RDN):
+                v, flags = rnd_exact(ew, sw, x, mode, False)
+                counts["rnd"] += 1
+                if flags & 0x1F:
+                    fail("rnd static mode raised a flag", f"fmt={ew},{sw}",
+                         hex(x), mode, hex(flags))
+                if integral:
+                    if v != xbits:
+                        fail("rnd integral pass-through", hex(x), hex(v))
+                    continue
+                rv = raw_from_fn(ew, sw, v)
+                rvv = _frac(rv, ew, sw)
+                if rvv.denominator != 1:
+                    fail("rnd result not integral", hex(x), hex(v))
+                    continue
+                if rv["sign"] != rx["sign"]:
+                    fail("rnd changed the sign", hex(x), hex(v))
+                dist = abs(xv - rvv)
+                if mode in (RNE, RNA):
+                    if dist > HALF:
+                        fail("rnd not nearest", f"fmt={ew},{sw}", hex(x),
+                             mode, hex(v))
+                    elif dist == HALF:
+                        even = int(abs(rvv)) % 2 == 0
+                        away = abs(rvv) == abs(xv) // 1 + 1
+                        if mode == RNE and not even:
+                            fail("rnd tie not even", hex(x), hex(v))
+                        if mode == RNA and not away:
+                            fail("rnd tie not away", hex(x), hex(v))
+                elif mode == RTZ and abs(rvv) > abs(xv):
+                    fail("rnd tz grew", hex(x), hex(v))
+                elif mode == RUP and rvv < xv:
+                    fail("rnd up went down", hex(x), hex(v))
+                elif mode == RDN and rvv > xv:
+                    fail("rnd dn went up", hex(x), hex(v))
+            for mode in (RNE, RTZ, RDN, RUP):
+                v, flags = rnd_exact(ew, sw, x, mode, True)
+                counts["rnd_exact"] += 1
+                want = NX if not integral else 0
+                if (flags & 0x1F) != want:
+                    fail("rnd dynamic-mode NX", f"fmt={ew},{sw}", hex(x), mode,
+                         hex(flags), f"want={want:x}")
+            # ── scaleB ─────────────────────────────────────────────────────
+            for k in NORMAL_K:
+                for mode in (RNE, RNA, RTZ, RUP, RDN):
+                    v, flags = sclb_exact(ew, sw, x, k, mode)
+                    counts["sclb"] += 1
+                    fl = flags & 0x1F
+                    if rx["is_nan"]:
+                        if _is_snan(rx, sw):
+                            ok = v == _canon_qnan(ew, sw) and fl == NV
+                        else:
+                            ok = v == xbits and fl == 0
+                        if not ok:
+                            fail("sclb nan", f"fmt={ew},{sw}", hex(x), k,
+                                 hex(v), hex(flags))
+                        continue
+                    if rx["is_inf"] or rx["is_zero"]:
+                        if v != xbits or fl:
+                            fail("sclb special pass-through", hex(x), k,
+                                 hex(v), hex(flags))
+                        continue
+                    exact = xv * Fraction(2) ** k
+                    rv = raw_from_fn(ew, sw, v)
+                    rvv = _frac(rv, ew, sw)
+                    if rv["sign"] != rx["sign"]:
+                        fail("sclb changed the sign", hex(x), k, hex(v))
+                    if rv["is_inf"]:
+                        if fl != (OF | NX):
+                            fail("sclb inf without OF|NX", hex(x), k, hex(flags))
+                        counts["sclb_ovf"] += 1
+                        continue
+                    if rv["is_zero"]:
+                        if fl != (UF | NX) or exact == 0:
+                            fail("sclb zero without UF|NX", hex(x), k,
+                                 hex(flags))
+                        counts["sclb_unf"] += 1
+                        continue
+                    if OF & fl:
+                        counts["sclb_ovf"] += 1
+                        if fl != (OF | NX) or abs(rvv) != max_v:
+                            fail("sclb OF pegged wrong", hex(x), k, mode,
+                                 hex(v), hex(flags))
+                        continue
+                    if UF & fl:
+                        counts["sclb_unf"] += 1
+                        # subnormal in the *recoded* convention: the smallest
+                        # normal has `sExp = 2^(ew-1) + 2`
+                        if not (NX & fl) or rv["s_exp"] >= ((1 << (ew - 1)) + 2):
+                            fail("sclb UF not subnormal/inexact", hex(x), k,
+                                 mode, hex(v), hex(flags))
+                    if rvv == exact:
+                        if fl:
+                            fail("sclb inexact flag on an exact result",
+                                 hex(x), k, hex(flags))
+                        continue
+                    if not (NX & fl):
+                        fail("sclb missing NX", hex(x), k, mode, hex(v),
+                             hex(flags))
+                    if abs(exact) > max_v and not (OF & fl):
+                        # scaleB keeps the significand, so a magnitude above the
+                        # largest finite value is always at least 2^(emax+1):
+                        # a "mild" (NX-only) overflow cannot exist here.  If
+                        # this ever fires the scaling model is wrong.
+                        fail("sclb overflow without OF", hex(x), k, mode,
+                             hex(v), hex(flags))
+                    ulp = _ulp(v, ew, sw)
+                    if mode in (RNE, RNA):
+                        if abs(rvv - exact) > ulp / 2:
+                            fail("sclb not nearest", f"fmt={ew},{sw}", hex(x),
+                                 k, mode, hex(v))
+                        elif abs(rvv - exact) == ulp / 2:
+                            even = (rv["sig"] & 1) == 0
+                            if mode == RNE and not even:
+                                fail("sclb tie not even", hex(x), k, hex(v))
+                            if mode == RNA and abs(rvv) < abs(exact):
+                                fail("sclb tie not away", hex(x), k, hex(v))
+                    elif mode == RTZ and abs(rvv) > abs(exact):
+                        fail("sclb tz grew", hex(x), k, hex(v))
+                    elif mode == RUP and rvv < exact:
+                        fail("sclb up went down", hex(x), k, hex(v))
+                    elif mode == RDN and rvv > exact:
+                        fail("sclb dn went up", hex(x), k, hex(v))
+            # 64-bit extremes: the exact product cannot be represented at all,
+            # so only the saturated result and its flags are meaningful.
+            for k in EXTREME_K:
+                for mode in (RNE, RNA, RTZ, RUP, RDN):
+                    v, flags = sclb_exact(ew, sw, x, k, mode)
+                    counts["sclb"] += 1
+                    fl = flags & 0x1F
+                    if rx["is_nan"]:
+                        ok = (v == _canon_qnan(ew, sw) and fl == NV) \
+                            if _is_snan(rx, sw) else (v == xbits and fl == 0)
+                        if not ok:
+                            fail("sclb extreme nan", hex(x), k, hex(v),
+                                 hex(flags))
+                        continue
+                    if rx["is_inf"] or rx["is_zero"]:
+                        if v != xbits or fl:
+                            fail("sclb extreme pass-through", hex(x), k,
+                                 hex(v), hex(flags))
+                        continue
+                    sign_bit = rx["sign"] << (w - 1)
+                    if k > 0:
+                        to_inf = (mode in (RNE, RNA)) or \
+                            (mode == RUP and not rx["sign"]) or \
+                            (mode == RDN and rx["sign"])
+                        want_v = (sign_bit | _exp_all_ones(ew, sw)) if to_inf \
+                            else (sign_bit | (max_finite_bits & ((1 << w) - 1)))
+                        if fl != (OF | NX) or v != want_v:
+                            fail("sclb extreme overflow", f"fmt={ew},{sw}",
+                                 hex(x), k, mode, hex(v), hex(flags))
+                        counts["sclb_ovf"] += 1
+                    else:
+                        up = (mode == RUP and not rx["sign"]) or \
+                            (mode == RDN and rx["sign"])
+                        want_v = (sign_bit | 1) if up else sign_bit
+                        if fl != (UF | NX) or v != want_v:
+                            fail("sclb extreme underflow", f"fmt={ew},{sw}",
+                                 hex(x), k, mode, hex(v), hex(flags))
+                        counts["sclb_unf"] += 1
+    # Hand-derived anchors next to the property checks: the roundToIntegral
+    # ties in every direction (2.5, -2.5, +-0.5) and the mild-overflow cells of
+    # scaleB (`max * 2` only *rounds back* onto the largest finite value, so it
+    # reports NX without OF, IEEE 754-2019 §7.4).
+    for (ew, sw) in (FT, FO):
+        fmt = ">f" if (ew, sw) == FT else ">d"
+        word = ">I" if (ew, sw) == FT else ">Q"
+
+        def fnb(val):
+            return struct.unpack(word, struct.pack(fmt, val))[0]
+
+        ties = [(2.5, RNE, 2.0), (2.5, RNA, 3.0), (2.5, RTZ, 2.0),
+                (2.5, RUP, 3.0), (2.5, RDN, 2.0),
+                (-2.5, RNE, -2.0), (-2.5, RNA, -3.0), (-2.5, RDN, -3.0),
+                (0.5, RNE, 0.0), (0.5, RNA, 1.0),
+                (-0.5, RTZ, -0.0), (-0.5, RUP, -0.0),
+                (-0.5, RDN, -1.0), (-0.5, RNA, -1.0)]
+        for val, mode, want in ties:
+            v, fl = rnd_exact(ew, sw, fnb(val), mode, False)
+            if v != fnb(want) or (fl & 0x1F):
+                fail("rnd tie anchor", f"fmt={ew},{sw}", val, mode, hex(v),
+                     hex(fl))
+        maxb = _inf_bits(0, ew, sw) - 1
+        # `max * 2`: scaleB keeps the significand and only moves the exponent,
+        # so an inexact overflow cannot occur -- a scaled value is either
+        # representable or at least `2^(emax+1)`, there is no value between the
+        # largest finite one and `2^(emax+1)` with this significand.  Hence all
+        # five directions raise OF|NX here (IEEE 754-2019 §7.4), the truncating
+        # ones peg to the largest finite magnitude.
+        for mode, to_inf in ((RNE, True), (RNA, True), (RUP, True),
+                             (RTZ, False), (RDN, False)):
+            v, fl = sclb_exact(ew, sw, maxb, 1, mode)
+            want_v = _inf_bits(0, ew, sw) if to_inf else maxb
+            if (fl & 0x1F) != (OF | NX) or v != want_v:
+                fail("sclb overflow anchor", f"fmt={ew},{sw}", mode, hex(v),
+                     hex(fl))
+    print("rndsclb selfcheck: " +
+          " ".join(f"{k}={v}" for k, v in counts.items()) +
+          f" mismatches={bad}")
+    return 0 if bad == 0 else 1
+
+
 def selfcheck(n=4000, seed=20260111):
     rng = random.Random(seed)
     bad = 0
@@ -1431,6 +1757,9 @@ def main(argv):
     if len(argv) > 1 and argv[1] == "divrem":
         n = int(argv[2]) if len(argv) > 2 else 300
         return selfcheck_divrem(n)
+    if len(argv) > 1 and argv[1] == "rndsclb":
+        n = int(argv[2]) if len(argv) > 2 else 300
+        return selfcheck_rndsclb(n)
     if len(argv) > 1 and argv[1] == "roundtrip":
         bad = 0
         rng = random.Random(7)

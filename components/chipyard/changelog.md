@@ -86,3 +86,7 @@
 - **2026-11-09 `m12-infra-003`**
   - 摘要：**子模块补丁集试点（testchipip）**：`generators/testchipip` 新增子模块补丁集 `submodules/testchipip/{series,patches/}`——`SimDRAM.cc` 的 `loadmem_memif_t::get_target_endianness()` 改为由 `+loadmem_be` plusarg 显式返回 `endianness_big`（默认 little 不变，stock RISC-V 配置行为不动），`SimDRAM.v` 的 `MEM_BASE` 默认值改为 `64'h0`（原无位宽 32 位推断会截断 48 位基址）；组件补丁集与子模块补丁集的分工/声明/门控见 `docs/Process-01 §14`。
   - 执行者：engineer
+
+- **2026-11-12 `m12-chipyard-015`**
+  - 摘要：**FP 取整 / 缩放 / 符号收尾（FP 47 条指令全部落地）**。`WumingFP.scala` 新增 `WumingFpRound`（`roundToIntegral`：`2|x|` 定点化取整数部分 + round/sticky 位，六档方向由核解析，`|x| ≥ 2^p` 原样返回、`±0` 保留符号、NaN 归一为 canonical qNaN、只有 `0x20` 且结果 ≠ 输入才置 `NX`）与 `WumingFpScale`（`scaleB`：只搬 recoded 指数再交给**同一个**舍入原语一次舍入，`n` 为 `rd` 组 64 位有符号整数并按上下界饱和，`OF`/`UF`/`NX` 全由该原语的 IEEE 判据给出）；两者合成 `WumingFpMisc`（1 拍）。`WumingDecoder` 补 `ftrnd`/`fornd`（`immu6` 六档 one-hot，`encode_onehot` 合法性）与 `ftsclb`/`fosclb`（第三操作数取 **rd 银行**，`rd0` = 指数 0）；`WumingCore` 下发/写回/累积标志；单元台新增 op 47–50（`roundToIntegral` 无 hardfloat 对应模块 ⇒ 只对精确 oracle，`scaleB` 对 `2^n` 可表示范围的 `MulRecFN`）。`tests/inst/fp/{roundint,sign}.yaml` 新增、`scaleb.yaml` 补 `fosclb rd0`。
+  - 执行者：engineer

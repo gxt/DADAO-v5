@@ -1,0 +1,1406 @@
+# roundToIntegral（`ftrnd`/`fornd`，spec/SimRISC-07 §2.3）— m12-chipyard-015。
+#
+# 期望值独立派生自 spec/SimRISC-07 §2.3 与 IEEE 754-2019 §5.3.1：由
+# tools/chipyard/fp_ref.py 的精确 oracle 计算（`rnd_exact`，与另一份独立实现
+# tools/testcases/oracle_rnd.py 逐例互证），**不**从 QEMU 或 RTL 反推。
+# `immu6` 是六档 one-hot 码（ADR-0050 D2）：0x01 就近取偶 / 0x02 平局远离零 /
+# 0x04 向零 / 0x08 向 +∞ / 0x10 向 −∞ / 0x20 动态（读 rf0[33:32]）。
+# 只有 0x20 置 NX（且仅当结果 ≠ 输入）；其余五档不置任何标志。
+# 序列：内存装 rf1（源）→ [可选 set.w rf0 定方向] → 指令 → rf2rd 读回结果与
+# rf0（rd6 = FCSR：模式位 + 累积标志），故「静态档不受 rf0 影响、不置 NX」可观测。
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x440C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orri
+  id: ftrnd_orri_rf
+  input_state: {}
+  mnemonic: ftrnd
+  notes: 'ftrnd 编码（opc 0x44，immu6 = 六档 one-hot 码）'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x440C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000003F000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd 0p5_rne: immu6=0x01，源 0x3f000000 ⇒ 0x0，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x440C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x00000000C0000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000BFC00000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd n1p5_rne: immu6=0x01，源 0xbfc00000 ⇒ 0xc0000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x440C4042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000003F800000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000003F000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd 0p5_rna: immu6=0x02，源 0x3f000000 ⇒ 0x3f800000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x440C4042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x00000000C0000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000BFC00000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd n1p5_rna: immu6=0x02，源 0xbfc00000 ⇒ 0xc0000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x440C4042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000040400000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000040200000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd 2p5_rna: immu6=0x02，源 0x40200000 ⇒ 0x40400000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x440C4044'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000003F800000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000003FC00000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd 1p5_rtz: immu6=0x04，源 0x3fc00000 ⇒ 0x3f800000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4044'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x440C4044'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000080000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000BF000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd n0p5_rtz: immu6=0x04，源 0xbf000000 ⇒ 0x80000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4044'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x440C4048'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x00000000BF800000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000BFC00000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd n1p5_rup: immu6=0x08，源 0xbfc00000 ⇒ 0xbf800000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4048'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x440C4048'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000003F800000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000003F000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd 0p5_rup: immu6=0x08，源 0x3f000000 ⇒ 0x3f800000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4048'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x440C4050'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000003F800000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000003FC00000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd 1p5_rdn: immu6=0x10，源 0x3fc00000 ⇒ 0x3f800000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4050'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x440C4050'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x00000000BF800000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000BF000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd n0p5_rdn: immu6=0x10，源 0xbf000000 ⇒ 0xbf800000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4050'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x440C4060'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000040000000'
+      rd6: '0x7FF800007FC00010'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000040200000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd 2p5_dyn_rne: immu6=0x20，rf0[33:32]=0，源 0x40200000 ⇒ 0x40000000，rf0 标志 0x10'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x4F020000'
+  - '0x440C4060'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x440C4060'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x00000000C0400000'
+      rd6: '0x7FF800027FC00010'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000C0200000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd n2p5_dyn_rdn: immu6=0x20，rf0[33:32]=2，源 0xc0200000 ⇒ 0xc0400000，rf0 标志 0x10'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x4F020002'
+  - '0x440C4060'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x440C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000000000001'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd minsub: immu6=0x01，源 0x1 ⇒ 0x0，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x440C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000007FFFFF'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd maxsub: immu6=0x01，源 0x7fffff ⇒ 0x0，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x440C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000007F800000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000007F800000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd inf: immu6=0x01，源 0x7f800000 ⇒ 0x7f800000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x440C4050'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x00000000FF800000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000FF800000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd ninf: immu6=0x10，源 0xff800000 ⇒ 0xff800000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4050'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x440C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000007FC00000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000007FC00123'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd qnan: immu6=0x01，源 0x7fc00123 ⇒ 0x7fc00000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x440C4044'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000007FC00000'
+      rd6: '0x7FF800007FC00001'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000007F800001'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd snan: immu6=0x04，源 0x7f800001 ⇒ 0x7fc00000，rf0 标志 0x01'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4044'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x440C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000004B800000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000004B800000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd 2p: immu6=0x01，源 0x4b800000 ⇒ 0x4b800000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x440C4044'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000080000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000080000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd nzero: immu6=0x04，源 0x80000000 ⇒ 0x80000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4044'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x440C4048'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000080000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftrnd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000BF000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftrnd
+  notes: 'ftrnd n0p5_rup: immu6=0x08，源 0xbf000000 ⇒ 0x80000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x440C4048'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftrnd'
+  status: active
+- class: encoding
+  deferred_reason: null
+  encoding:
+    word: '0x442C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state: null
+  format: orri
+  id: fornd_orri_rf
+  input_state: {}
+  mnemonic: fornd
+  notes: 'fornd 编码（opc 0x44，immu6 = 六档 one-hot 码）'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x442C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FE0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd 0p5_rne: immu6=0x01，源 0x3fe0000000000000 ⇒ 0x0，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x442C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0xC000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xBFF8000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd n1p5_rne: immu6=0x01，源 0xbff8000000000000 ⇒ 0xc000000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x442C4042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x3FF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FE0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd 0p5_rna: immu6=0x02，源 0x3fe0000000000000 ⇒ 0x3ff0000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x442C4042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0xC000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xBFF8000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd n1p5_rna: immu6=0x02，源 0xbff8000000000000 ⇒ 0xc000000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x442C4042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x4008000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x4004000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd 2p5_rna: immu6=0x02，源 0x4004000000000000 ⇒ 0x4008000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4042'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x442C4044'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x3FF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF8000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd 1p5_rtz: immu6=0x04，源 0x3ff8000000000000 ⇒ 0x3ff0000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4044'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x442C4044'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x8000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xBFE0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd n0p5_rtz: immu6=0x04，源 0xbfe0000000000000 ⇒ 0x8000000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4044'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x442C4048'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0xBFF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xBFF8000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd n1p5_rup: immu6=0x08，源 0xbff8000000000000 ⇒ 0xbff0000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4048'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x442C4048'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x3FF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FE0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd 0p5_rup: immu6=0x08，源 0x3fe0000000000000 ⇒ 0x3ff0000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4048'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x442C4050'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x3FF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF8000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd 1p5_rdn: immu6=0x10，源 0x3ff8000000000000 ⇒ 0x3ff0000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4050'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x442C4050'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0xBFF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xBFE0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd n0p5_rdn: immu6=0x10，源 0xbfe0000000000000 ⇒ 0xbff0000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4050'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x442C4060'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x4000000000000000'
+      rd6: '0x7FF800007FC00010'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x4004000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd 2p5_dyn_rne: immu6=0x20，rf0[33:32]=0，源 0x4004000000000000 ⇒ 0x4000000000000000，rf0 标志 0x10'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x4F020000'
+  - '0x442C4060'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x442C4060'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0xC008000000000000'
+      rd6: '0x7FF800027FC00010'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xC004000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd n2p5_dyn_rdn: immu6=0x20，rf0[33:32]=2，源 0xc004000000000000 ⇒ 0xc008000000000000，rf0 标志 0x10'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x4F020002'
+  - '0x442C4060'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x442C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000000000001'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd minsub: immu6=0x01，源 0x1 ⇒ 0x0，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x442C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000FFFFFFFFFFFFF'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd maxsub: immu6=0x01，源 0xfffffffffffff ⇒ 0x0，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x442C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x7FF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd inf: immu6=0x01，源 0x7ff0000000000000 ⇒ 0x7ff0000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x442C4050'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0xFFF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xFFF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd ninf: immu6=0x10，源 0xfff0000000000000 ⇒ 0xfff0000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4050'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x442C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x7FF8000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FF8000000000123'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd qnan: immu6=0x01，源 0x7ff8000000000123 ⇒ 0x7ff8000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x442C4044'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x7FF8000000000000'
+      rd6: '0x7FF800007FC00001'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FF0000000000001'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd snan: immu6=0x04，源 0x7ff0000000000001 ⇒ 0x7ff8000000000000，rf0 标志 0x01'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4044'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x442C4041'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x4340000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x4340000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd 2p: immu6=0x01，源 0x4340000000000000 ⇒ 0x4340000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4041'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x442C4044'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x8000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x8000000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd nzero: immu6=0x04，源 0x8000000000000000 ⇒ 0x8000000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4044'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
+- class: boundary
+  deferred_reason: null
+  encoding:
+    word: '0x442C4048'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x8000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: fornd_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xBFE0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: fornd
+  notes: 'fornd n0p5_rup: immu6=0x08，源 0xbfe0000000000000 ⇒ 0x8000000000000000，rf0 标志 0x00'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x442C4048'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fornd'
+  status: active
