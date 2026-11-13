@@ -117,6 +117,7 @@
 - **启动 ABI 值已冻结（用户 2026-11-13）**：内核 `0x0010_0000`、boot info PA `0x0001_0000`、initramfs `0x0400_0000`、`rb17` 承载、入口 `supv` + 身份映射。
 - **spec/Process 授权（2026-11-13）**：`m14-spec-001` 可改 `spec/Machine-v5`+锁、`m14-linux-001` 可改 `docs/Process-01`、`m14-infra-003` 可改 `docs/Process-07`；其余仍需逐次授权。
 - **initramfs 的 syscall 范围（用户 2026-11-13）**：**不做特殊限制，别滥用就行**——不要求「ELF syscall 全集 ⊆ 4」；验收以「init 自有 syscall = write/getpid/brk/exit_group」+ 运行期 trace 说明为准。
+- **栈保护 SSP（用户 2026-11-13）**：**现在补后端**（DADAO 后端 stackguard lowering），不再长期用 `-fno-stack-protector` 规避；K0 内核按 KSPP 默认开 `-fstack-protector-strong`。
 - **工具链缺口（用户 2026-11-13）**：`llvm-ar`/`llvm-ranlib`/`llvm-strip` **先补进工具链**，不长期用 GNU ar / `llvm-objcopy` 规避。
 - **启动 ABI 口径（用户 2026-11-13，已落 spec/ADR）**：
   - ABI 地址一律 **VA**（`addr[41:0]`）；PA 只出现在页表项、`PTBR`、loader 写内存。
