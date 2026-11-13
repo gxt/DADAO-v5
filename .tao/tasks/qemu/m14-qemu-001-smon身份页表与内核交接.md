@@ -5,7 +5,7 @@
 **依赖**：`m14-spec-001`（已合入：`spec/Machine-v5 §6.3`、`.tao/contracts/contract-linux-boot.md`、`contracts/linux-boot.yaml`、ADR-0051 Accepted）；`m14-linux-002`（提供 vmlinux 作**可选**集成输入，未合入前该项登记 BLOCKED，本任务以最小 raw 探针镜像承担主验收）；与其它 **qemu 组件任务串行**（组件单写者，同改 `hw/dadao/dadao-machine.c` 补丁）
 **可并行分片**：否（组件单写者；同一条 BootROM/探针链与同一 machine 装载路径）
 **预估**：4–6 h（不含节点 QEMU 重建等待）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：主控机（仓库改动、补丁导出、本机构建/探针）+ 远端 `server207`（评测节点：`apply-series` 重建 QEMU 并复跑同一探针；`server208` 可替代，二者不并用）
@@ -189,6 +189,13 @@ ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`�
 3. **PTE `G=1`**（本任务自决）：`spec/Machine-v5 §6` 未点名 `G`；按 ADR-0043 D10 断言 `G=1`。若评审要求只核 §6 清单位，探针退化为掩码比较即可（不需用户裁定）。
 4. **节点**：默认 `server207`（`server208` 可替代，不同时占）；若两节点均忙/不可用，验收 7 登记 BLOCKED 并说明，不阻塞其余项。
 
+5. **首张页表的 L1 索引措辞（本任务自决；建议改文档措辞，须用户/主会话裁定）**：`spec/Machine-v5 §6.3`、`.tao/contracts/contract-linux-boot.md §2` 与 `ADR-0051 D6` 均写「smon 在 L1 index `0` 写 1 个 512 MiB 超页 PTE，映射 `VA [0x0200_0000_0000, +512 MiB)`」，但 `spec/DADAO-12 §2.2.1/§2.2.3` 规定 L1 索引 = `VA[41:29]` ⇒ `0x0200_0000_0000 >> 29 = 4096`。按字面写 index 0 会映射 `VA [0, 512 MiB)`（用户空间），内核窗口反而不映射 ⇒ 内核第一条指令即 `CFXMEM`、无法启动。本任务按「映射的 VA 范围」（文义真源）实现：PTE 落在 L1 index `4096`，页内其余 8191 项为 0。
+   - 选项 A（推荐）：三处文档的「L1 index `0`」改为「L1 index `VA[41:29]`（= 4096）」，硬件语义不变。
+   - 选项 B：保留文档、改硬件索引定义（破坏 42 位 VA 的页表索引，不可取）。
+   - 临时处置：按 A 的语义实现并记录于 `tests/shared/bootrom/k0/README.md`；文档属 spec/契约正文，改动须用户裁定，本任务不改。
+
+6. **验收 1d / §3 / §5 的旧口径（与 5 同根因，本任务自决）**：任务书 §3「4 个 PTE（`i=0..3`）覆盖 `VA [0, 2 GiB)`」与 §5「`VA [0, 2 GiB) → PA [0, 2 GiB)` 身份映射」是「内核窗口 +2 TiB 修订」之前的文本。本任务按 `spec/Machine-v5 §6.3.4` 与 `contracts/linux-boot.yaml::startup_model`（`superpage_size` + `prebuilt_page_table`）断言 **1 个 512 MiB 超页**：`rd28 == 1`、`PTE[4096] = 0xC000_0000_0000_FFEF`、`PTE[4097..4099] = 0`。若坚持任务书字面（4 个 PTE、`rd28 == 4`），须同笔改 spec/契约/ADR，且与「内核窗口下内核不可达」冲突。
+
 ## 硬约束（子代理必读）
 
 1. 必须在独立 `git worktree` 内作业（分支名 = 任务号）；禁改主工作树；临时文件放运行期临时目录（`/tmp/opencode/<任务ID>/`）。
@@ -207,13 +214,57 @@ ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`�
 ## 完成区
 
 **测试结果**：
-**修改文件**：
+- `k0_boot_probe.py` 全量 **101 PASS / 0 FAIL**（现场统计：main 37 + raw 37 + loader 负例 21 + smon 负例 6）；`--only main --inject` 45 PASS（两路源码注入「注入→红→`cp`+md5→回绿」）；`--only vmlinux --kernel <vmlinux>` 4 PASS；一键证据脚本 47 项 CHECK 全 PASS（含脚本自身 `--inject` 自检：改一行期望→红→还原→绿）。
+- L2 `make check-modules` rc=0；`make check-inst` **1141 total / 1135 passed / 1 failed（= 既有 `divrem.yaml[23]`）/ 5 deferred / 44 skipped**。
+- rc=0 项：`check-arch`、`check-arch-smoke`、`check_qemu_trans`（264/264）、`check-qemu-forms`、`check-component-changelog`、`gen_machine_inc --check`、`make_patch` 幂等（0 written / 66 unchanged）。
+- `check_patch_tree` qemu 段 0 问题、`--source-state` qemu OK（HEAD=base+1、clean）；安装根 == 构建树（md5 相同）；step5 固件产物 md5 全不变。
+
+**修改文件**：`components/qemu/patches/hw/dadao/dadao-machine.c.patch`（源树 `hw/dadao/dadao-machine.c`：K1 装载 + boot info）、`components/qemu/changelog.md`（M14 一条）、`tests/shared/machine-profiles.yaml`（Vast `smon: reserved → true`）、`tests/shared/bootrom/k0/{hmon.S,hmon.lds,smon.S,smon.lds,probe_kernel.S,probe_kernel.lds,README.md}`（新）、`tools/qemu/k0_boot_probe.py`（新）、本任务书；与 `git status -uall` 一致（4 改 + 8 新）。
+
 **验收结果**：
-**新发现/坑**：
+- main 现场：guest rc=0、`MODE=2`、`CFXCODE=2`、`PTBR=0`、`PTW_ENABLE=1`、`GIM`/`M2 INTRMASK` 全 `1`、`PTE[4096]=0xC000_0000_0000_FFEF`（`4097..4099`=0）、`rd28=1`、`rd29=0`、`rb16=0x200_0010_0000`/`rb17=0x200_0001_0000`/`rb3=0`、四窗口 `[0,1,2,3]`、`CFX02 TRAPN=1 / ESCN=1`；boot info 15 字段逐字段相等（现场 `kernel_size=0x498`）。
+- loader 负例 7 路，各 `rc=1` + 具名 + 无内核执行块：`ELF-ENTRY` / `ELF-NO-OVERLAP` / `ELF-RANGE` / `ELF-ALIGN` / `ELF-VA-TO-PA` / `ELF-FORMAT` / `RAW-LENGTH`。
+- smon 负例 3 路：`size=0x20→0xC2`、`kernel_base|1→0xC3`、`hart_id=5→0xC7`（末路兼证注入字节真落盘），均无内核执行块。
+- 注入：`machine.c` boot info `kernel_base` 偏移 `0x18→0x20` ⇒ 1c 红；`smon.S` PTE PPN `0→0x2000` ⇒ 1d 红；md5 见审阅记录 F5/F6。
+- vmlinux：进入内核窗口时 `MODE=2`/`PTBR=0`/`PTW_ENABLE=1`（vmlinux 不自行退出，按入口 4 字节窗口断言）。
+
+**新发现/坑**：① DMA 的 cfx 地址按 42 位掩码只覆盖 pmem SRAM，hmon/smon SRAM 地址掩码后与 pmem 同窗 ⇒「DMA 到 monitor SRAM」实际写 pmem（本次两处踩到，已写入 `k0/README.md`）；② semihosting 参数块走 QEMU 恒等 debug 翻译（只覆盖 RAM/ROM/monitor SRAM），PTW 开启后传 VA 读不到块，探针须传 PA（观测通道细节，不属启动 ABI）；③ `cp`/`copy2` 还原源码带回旧 mtime ⇒ 增量构建不重编、「回绿」假红，还原后须刷新 mtime；④ `-d cpu` 在 chained TB 上会带上一块 PC（窗口交错），「阶段不回退」改判「首次出现顺序 + 内核进入后无早期阶段 + CFX02 计数」；⑤ LLVM `--defsym` 只收十进制有符号 64 位（`0xC000…FFEF` 须转负数）；⑥ L1 其余红项属并行会话（其它组件 patch tree、musl 工具链戳、两条历史运行期证据路径引用、本任务台账尚未移入「进行中」），逐条已归属非本任务。
+
 **遗留问题**：
+- **待裁定 5/6**：spec/契约/ADR 的「L1 index `0`」与 `VA[41:29]` 索引规则冲突；任务书 §3/§5/验收 1d（4 个 PTE、`rd28==4`）是 +2 TiB 修订前口径。实现按 spec（1 个超页、PTE 在 index 4096、`rd28==1`），文档改动须用户裁定。
+- **节点重建（验收 7）BLOCKED**：未执行节点 `apply-series` + `build-qemu`/`install-host` + 同探针复跑；补丁已幂等导出、主控机全链绿，交主会话续派。
+- vmlinux 能进入内核窗口但不自行退出（控制台/中断归后续 K1 任务）；本任务只断言入口态。
+- smon 未打开 `cfx_smon_supv_*_cfx_mask`（SBI 面）；K0 内核不调 SBI，归后续 K1 任务。
 
 ## 审阅记录
 
-### 第 1 轮 engineer 自审（待填）
+### 第 1 轮 engineer 自审
 
-### 第 1 轮 reviewer 验收（待填）
+自审范围：K1 装载与 boot info（`dadao-machine.c`）、`k0/{hmon,smon,probe_kernel}.S` + `.lds`、`tools/qemu/k0_boot_probe.py`、`k0/README.md`、`machine-profiles.yaml`；逐行复核 + 现场反复复跑。
+
+- **F1（已修）** smon 常量拼装：用 `LD64` 四段 16 位字手拼 `0x0200_0000_0000` 时把 `0x0200` 写成 `0x0002`（少两位），`ram_base` 比对必失。处置：`smon.S` 全部常量改用 `set.rd` 全 64 位立即数。复验：`--only main` 的 `boot info ram_base` 由 FAIL 转 PASS。
+- **F2（已修）** boot info 读回通道：把 DMA 目标写成 smon SRAM（`0x0bff…`）——DMA 的 cfx 地址按 42 位掩码只覆盖 pmem SRAM，实际写进 pmem，读 smon SRAM 得 0 ⇒ `0xC1`。处置：暂存/回读一律用 pmem SRAM，并在清页前完成读取与校验。复验：`main` 由 0xC1 转 0x00。
+- **F3（已修）** 清页循环 `stm.o {rd8:rd63}` 要求这 56 个寄存器全 0，而此前已用的 `rd9/rd20/rd2` 非零 ⇒ 页表页残留 736 个非零 8 字节字。处置：清页前显式 `set.rd` 清零 rd8–rd63。复验：`page table non-zero words` 由 0x2E0 转 1。
+- **F4（已修）** 读回 DMA 把 `PMEM_BASE+0x8000` 当 PA 传给 DIR=1 的 `dma_src` ⇒ DMA ERROR（`0xC5`）。处置：`dma_src` 用 PA `0x8000`（= `PTE_INDEX*8`）。复验：`main` 由 0xC5 转 0x00。
+- **F5（已修）** 源码注入 ① 用 `shutil.copy2` 还原会带回原 mtime，增量构建判定「未变化」不重编 ⇒ 「回绿」假红。处置：还原后 `os.utime` 刷新 mtime 再重建。复验：`inject machine-kernel-base-offset: green again` PASS。
+- **F6（已修）** 源码注入 ② 不触发固件重建（`rerun()` 复用启动时构建的 BootROM）⇒ 注入不生效、假绿。处置：`rerun()` 每次从源重建固件。复验：`inject smon-pte-ppn: probe FAILs` PASS。
+- **F7（已修）** `-d cpu` 的 chained-TB 记录会带上一块 PC（power/hmon 块交错），逐块「不回退」断言不可靠。处置：改成「四窗口各 ≥1 + 首次出现严格递增 + 内核进入后无早期阶段 + CFX02 TRAPN=1/ESCN=1」。复验：`main` 1f 三项 PASS。
+- **F8（已修）** smon 反例的注入槽位放在 hmon SRAM（DMA 掩码后落到 pmem 别处）⇒ 注入值实际为 0，`0xC2/0xC3` 属「凑巧正确」。处置：槽位改 pmem SRAM，并新增 `SMON_NEG_CASE=3`（`hart_id = 5`，合法值为 0）——零填充会使 smon 变绿，故该路证明注入字节真的落盘。复验：`smon neg hart_id = 5` 得 `0xC7`。
+- **F9（⏸ 待裁定）** 任务书 §3/§5/验收 1d（4 个 PTE、`rd28==4`）与 `spec/Machine-v5 §6.3.4`（1 个 512 MiB 超页）冲突；且文档「L1 index 0」与 `VA[41:29]` 索引规则冲突。处置：按 spec 实现（PTE 在 L1 index 4096、`rd28==1`），登记「待裁定 5/6」交主会话，未单方改 spec/契约。
+- **F10（❌ 不修，有据）** 内核探针把 semihosting 参数块的 **PA** 传给 `rb16`：QEMU 的 debug 翻译是恒等映射（`target/dadao/cpu.c::dadao_cpu_translate_for_debug`），传 VA 会让 `SYS_EXIT` 读块失败。属观测通道实现细节、不属启动 ABI，已在 `probe_kernel.S` 头注释与 `k0/README.md` 记录。
+
+判决：F1–F8 已修并有复验；F9 为文档口径冲突（需用户/主会话裁定，实现按 spec）；F10 有据不修。无未修的代码缺陷。
+
+### 第 1 轮 reviewer 验收
+
+**重跑（全部亲跑，rc=取真实退出码）**：
+- 探针 `python3 tools/qemu/k0_boot_probe.py` → **rc=0，101 PASS / 0 FAIL**（现场统计 main 37 + raw 37 + loader 21 + smon 6，与完成区逐项吻合）。main 段：guest rc=0、`MODE=2/CFXCODE=2/PTBR=0/PTW_ENABLE=1`、GIM 与 M2 INTRMASK 全 `ff..ff`、boot info 15 字段逐字段与 `contracts/linux-boot.yaml` 相等（`kernel_size=0x498`＝现场 raw 字节数 1176，ELF 口径由脚本强制相等）、`initramfs_size=0`、**`PTE[4096]=0xC000_0000_0000_FFEF`（4097..4099=0）、页表页非零字=1、boot info 页尾非零字=0**、`rb16=0x200_0010_0000/rb17=0x200_0001_0000/rb3=0`、四窗口 `[0,1,2,3]`、`TRAPN=1/ESCN=1`。
+- **独立构造 4 条违规镜像**（自写 `review/neg4.py`，不复用探针负例）：`ELF-ENTRY`/`ELF-ALIGN`/`ELF-RANGE`/`RAW-LENGTH` 均 **rc=1 + 诊断点名规则 + 无内核执行块**，`ALL_NAMED_REJECTIONS_OK=True`。
+- 门控：`check-inst` **rc=2，红集恰 `divrem.yaml[23]`**（1141/1135/1/5/44）；`check-arch` rc=0（含 smoke 两段 PASS）；`check-modules`(L2) rc=0；`check_qemu_trans` rc=0 **264/264**；`check-qemu-forms` rc=0；`check-component-changelog` rc=0；`make_patch qemu` **0 written / 66 unchanged** rc=0；`check_patch_tree` qemu 段 **0 assertion**（整树 24 问题全属 llvm/gem5/chipyard 在飞）；`--source-state` **qemu: OK**（base+1 clean）；安装根==构建树 `a4ec042d…`；step5 产物重建前后 md5 `3ec4ab3e…/4cb5208d…` 不变（step5 源不在改动集）。
+- **证据脚本**：审 `.work/evidence/m14-qemu-001/run.sh`（`BASE_COMMIT=6a531824` 派单常量非 HEAD；每条断言可达 FAIL、无 pipe 吞码、selfinject 自检有效）后重跑 `run.sh --inject` → 46 PASS / **1 FAIL / 1 BLOCKED**。唯一 FAIL = `source state` **整树 rc=1**，根因＝并行会话审查期间改脏 gem5 源树（mtime 04:26/04:29，8 文件 M），**qemu 段仍 OK**；46+source-state 当时绿=47，与完成区「47 项全 PASS」自洽。node replay BLOCKED 已披露（任务书待裁定 4 允许）。
+- **独立注入 1 路（自设计，非其 2 路）**：`dadao-machine.c` boot info `page_size_log2` 写值 `DADAO_K0_PAGE_SHIFT` → `- 4`，md5 `7756efb7→ddaa303c` → 重建（build/install rc=0，二进制 `a4ec042d→0083d0db`）→ 探针 **rc=1（22 FAIL；smon 按 §7 以 `0xC7` 拒绝、无内核执行块）** → `cp`+md5 还原（`7756efb7` 相等、源树 clean）→ 重建回绿 **37 PASS/0 FAIL、二进制回 `a4ec042d`**。全程未用 `git checkout/restore/stash`。
+- 快照对账：审前后 `git status -uall` 均 0 行；4 个目标文件 md5 与注入前快照 `md5sum -c` 全 OK；`git diff c6c61e7e..HEAD` = 13 项（12 工程师 + 1 台账）与完成区声明一致，无越界。完成区 26 行、第 1 轮自审 18 行；任务书无具体运行期路径。
+
+**索引自洽性（第 4 点）**：`spec/DADAO-12 §2.2.1` 定 L1 index=`VA[41:29]` ⇒ `0x0200_0000_0000>>29=4096`；而 `contract-linux-boot §2`/`Machine-v5 §6.3.4` 声明的映射区间是 `VA[0x0200_0000_0000,+512MiB)`。字面 index 0 映射的是 `VA[0,512MiB)` 用户空间，**与合约自述的映射区间直接矛盾**且内核首条指令即不可达。**实现（index 4096、1 超页、其余 8191 项 0）与合约「映射区间」自洽**；三处文档「L1 index 0」为笔误，已由主会话记 `discussing.md` 待用户裁定，本审查不改 spec/契约。
+
+**判决：Accepted**（主会话可置 `已验证`）。阻断项为零；以下为不阻断 findings：F-a `run.sh` 的 source-state 断言按**整树 rc** 判（标签却写 qemu），共享树下会被他组件打红，建议改同脚本 patch-tree 式的 qemu 段归属；F-b 验收 7 节点重建 BLOCKED 待续派；F-c 待裁定 5/6 文档三处 index 措辞待用户裁定。

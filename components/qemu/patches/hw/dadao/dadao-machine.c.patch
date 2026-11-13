@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..4d0158a
+index 0000000..17b78a0
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,914 @@
+@@ -0,0 +1,1300 @@
 +/*
 + * DADAO Machine-v5 bare-metal test machines for QEMU
 + *
@@ -630,6 +630,386 @@ index 0000000..4d0158a
 +    }
 +}
 +
++/* ---------------------------------------------------------------------------
++ * Machine-v5-Vast K0 kernel boot ABI (spec/Machine-v5 §6.3)
++ *
++ * The `bootrom-image` + `-kernel` path is the K1 (kernel boot) path: the host
++ * loader validates the kernel image against §6.3.2 (ELF: 7 rules; raw: 4
++ * rules), places it at the PA its VA maps to (`VA = PA + 2 TiB`; the page
++ * table carrying that mapping is built by smon, never here), writes the fixed
++ * 15-field boot info at VA 0x0200_0001_0000 (§6.3.3), and leaves the reset PC
++ * at the firmware reset vector (§6.3.2: the only entry jump is smon's
++ * `escape`).  The boot info page is written by the *host loader*; power, hmon
++ * and smon only read it.
++ *
++ * Every violation is a load-stage error: error_report() names the rule and the
++ * offending value, then exit(1) (FAIL-HOST).  No truncation, relocation or
++ * silent downgrade, and no half-loaded image is ever paired with a boot info.
++ *
++ * Rule names are the frozen identifiers of §6.3.2 / contracts/linux-boot.yaml
++ * `rules[].id`, so a rejected image can be attributed mechanically.
++ * ------------------------------------------------------------------------- */
++#define DADAO_K0_VA_OFFSET        0x0000020000000000ULL /* kernel window bias */
++#define DADAO_K0_RAM_BASE_VA      0x0000020000000000ULL /* ram_base (VA) */
++#define DADAO_K0_RAM_SIZE         0x0000000080000000ULL /* 2 GiB */
++#define DADAO_K0_BOOTINFO_VA      0x0000020000010000ULL
++#define DADAO_K0_RESERVED_END_VA  0x0000020000020000ULL
++#define DADAO_K0_KERNEL_BASE_VA   0x0000020000100000ULL
++#define DADAO_K0_KERNEL_END_VA    0x0000020004000000ULL
++#define DADAO_K0_INITRAMFS_BASE_VA 0x0000020004000000ULL
++#define DADAO_K0_INITRAMFS_END_VA 0x0000020006000000ULL
++#define DADAO_K0_PAGE_SHIFT       16
++#define DADAO_K0_PAGE_SIZE        (1ULL << DADAO_K0_PAGE_SHIFT) /* 64 KiB */
++#define DADAO_K0_KERNEL_ALIGN     DADAO_K0_PAGE_SIZE
++#define DADAO_K0_BOOTINFO_SIZE    0x60
++#define DADAO_K0_BOOTINFO_MAGIC   0x4442494E /* ASCII "DBIN" */
++#define DADAO_K0_BOOTINFO_VERSION 1
++#define DADAO_K0_HART_ID          0
++#define DADAO_K0_FLAGS            0x1 /* bit0: semihosting console available */
++
++/*
++ * The §6.3 contract is Machine-v5-Vast's: it is the only profile with the
++ * page-table walker and the smon firmware (spec/Machine-v5 §1.1/§6.3).
++ */
++static bool dadao_k0_contract(const DadaoProfile *prof)
++{
++    return prof->ptw_supported && prof->smon_sram && prof->pmem_sram;
++}
++
++/* VA of the kernel window -> PA, the only place the bias is applied. */
++static uint64_t dadao_k0_pa(uint64_t va)
++{
++    return va - DADAO_K0_VA_OFFSET;
++}
++
++/* Big-endian boot info writers (§6.3.3: every multi-byte field is big-endian). */
++static void dadao_wr_be16(uint8_t *p, uint16_t v)
++{
++    p[0] = (uint8_t)(v >> 8);
++    p[1] = (uint8_t)v;
++}
++
++static void dadao_wr_be32(uint8_t *p, uint32_t v)
++{
++    dadao_wr_be16(p, (uint16_t)(v >> 16));
++    dadao_wr_be16(p + 2, (uint16_t)v);
++}
++
++static void dadao_wr_be64(uint8_t *p, uint64_t v)
++{
++    dadao_wr_be32(p, (uint32_t)(v >> 32));
++    dadao_wr_be32(p + 4, (uint32_t)v);
++}
++
++/*
++ * Write the fixed boot info at VA 0x0200_0001_0000 (§6.3.3): 15 fields,
++ * `size = 0x60`, everything after `size` up to the page end stays zero (RAM is
++ * zero on reset and no loaded segment may touch this page).  `kernel_size` is
++ * computed by the caller: ELF = max(p_vaddr + p_memsz) - kernel_base, raw =
++ * the image's byte count.  K1 installs no initramfs (initramfs_size = 0).
++ */
++static void dadao_k0_write_boot_info(const char *filename, uint64_t kernel_size)
++{
++    uint8_t bi[DADAO_K0_BOOTINFO_SIZE];
++    MemTxResult res;
++
++    memset(bi, 0, sizeof(bi));
++    dadao_wr_be32(bi + 0x00, DADAO_K0_BOOTINFO_MAGIC);
++    dadao_wr_be16(bi + 0x04, DADAO_K0_BOOTINFO_VERSION);
++    dadao_wr_be16(bi + 0x06, DADAO_K0_BOOTINFO_SIZE);
++    dadao_wr_be64(bi + 0x08, DADAO_K0_RAM_BASE_VA);
++    dadao_wr_be64(bi + 0x10, DADAO_K0_RAM_SIZE);
++    dadao_wr_be64(bi + 0x18, DADAO_K0_KERNEL_BASE_VA);
++    dadao_wr_be64(bi + 0x20, kernel_size);
++    dadao_wr_be64(bi + 0x28, DADAO_K0_INITRAMFS_BASE_VA);
++    dadao_wr_be64(bi + 0x30, 0);                 /* initramfs_size (K1: none) */
++    dadao_wr_be64(bi + 0x38, 0);                 /* cmdline_base */
++    dadao_wr_be64(bi + 0x40, 0);                 /* cmdline_size */
++    dadao_wr_be64(bi + 0x48, 0);                 /* ptbr (PA; PPN << 16) */
++    dadao_wr_be32(bi + 0x50, DADAO_K0_PAGE_SHIFT);
++    dadao_wr_be32(bi + 0x54, DADAO_K0_HART_ID);
++    dadao_wr_be64(bi + 0x58, DADAO_K0_FLAGS);
++
++    res = address_space_write(&address_space_memory,
++                              dadao_k0_pa(DADAO_K0_BOOTINFO_VA),
++                              MEMTXATTRS_UNSPECIFIED, bi, sizeof(bi));
++    if (res != MEMTX_OK) {
++        error_report("dadao: boot info write at VA %#" PRIx64 " (PA %#" PRIx64
++                     ") failed for kernel '%s': FAIL-HOST (boot info)",
++                     (uint64_t)DADAO_K0_BOOTINFO_VA,
++                     (uint64_t)dadao_k0_pa(DADAO_K0_BOOTINFO_VA), filename);
++        exit(1);
++    }
++}
++
++/* True when [base, end) intersects the §6.3 forbidden windows. */
++static bool dadao_k0_forbidden_overlap(uint64_t base, uint64_t end,
++                                       const DadaoProfile *prof,
++                                       const char **what)
++{
++    if (base < DADAO_K0_RESERVED_END_VA && end > DADAO_K0_RAM_BASE_VA) {
++        *what = "the boot reservation (page table + boot info page)";
++        return true;
++    }
++    if (base < prof->rom_base + prof->rom_size && end > prof->rom_base) {
++        *what = "the BootROM";
++        return true;
++    }
++    if (base < DADAO_HMON_CFX_BASE + DADAO_MON_SRAM_SIZE &&
++        end > DADAO_HMON_CFX_BASE) {
++        *what = "the hmon SRAM";
++        return true;
++    }
++    if (base < DADAO_SMON_CFX_BASE + DADAO_MON_SRAM_SIZE &&
++        end > DADAO_SMON_CFX_BASE) {
++        *what = "the smon SRAM";
++        return true;
++    }
++    return false;
++}
++
++/*
++ * §6.3.2 ELF path (7 rules).  The header/phdr tables are read big-endian by
++ * hand because the §6.3 contract has its own placement semantics (`p_vaddr` is
++ * the load address, `p_paddr` must be the matching PA) that the upstream
++ * loader does not check; the placement itself is then delegated to load_elf()
++ * (PA = p_paddr = p_vaddr - 2 TiB), which also zero-fills `.bss`.
++ */
++static uint64_t dadao_k0_check_elf(const char *filename,
++                                   const DadaoProfile *prof)
++{
++    uint8_t ehdr[sizeof(Elf64_Ehdr)];
++    uint8_t phdr[sizeof(Elf64_Phdr)];
++    uint64_t phoff, entry, kernel_size = 0;
++    uint16_t phentsize, phnum;
++    bool saw_load = false;
++    ssize_t n;
++    int fd;
++    unsigned i;
++
++    fd = qemu_open(filename, O_RDONLY | O_BINARY, NULL);
++    if (fd < 0) {
++        error_report("dadao: K0 ELF kernel '%s': cannot open", filename);
++        exit(1);
++    }
++    n = read(fd, ehdr, sizeof(ehdr));
++    if (n != (ssize_t)sizeof(ehdr)) {
++        error_report("dadao: K0 ELF kernel '%s': ELF-FORMAT: file is %" PRId64
++                     " bytes, smaller than Elf64_Ehdr", filename, (int64_t)n);
++        close(fd);
++        exit(1);
++    }
++    /* ELF-FORMAT: ELFCLASS64, big-endian, e_machine, ET_EXEC, e_flags v1. */
++    if (!dadao_is_elf_magic(ehdr, SELFMAG) ||
++        ehdr[EI_CLASS] != ELFCLASS64 || ehdr[EI_DATA] != ELFDATA2MSB) {
++        error_report("dadao: K0 ELF kernel '%s': ELF-FORMAT: expected "
++                     "ELFCLASS64/ELFDATA2MSB, got class %u/data %u",
++                     filename, ehdr[EI_CLASS], ehdr[EI_DATA]);
++        close(fd);
++        exit(1);
++    }
++    {
++        uint16_t e_type = dadao_rd_be16(ehdr + offsetof(Elf64_Ehdr, e_type));
++        uint16_t e_machine =
++            dadao_rd_be16(ehdr + offsetof(Elf64_Ehdr, e_machine));
++        uint32_t e_flags =
++            dadao_rd_be32(ehdr + offsetof(Elf64_Ehdr, e_flags));
++
++        if (e_machine != DADAO_EM_MACHINE || e_type != ET_EXEC ||
++            (e_flags & DADAO_EFLAGS_VERSION_MASK) != DADAO_EFLAGS_VERSION_1 ||
++            (e_flags & DADAO_EFLAGS_RESERVED_MASK) != 0) {
++            error_report("dadao: K0 ELF kernel '%s': ELF-FORMAT: e_machine "
++                         "%#x, e_type %u, e_flags %#x (expected %#x/ET_EXEC/"
++                         "version 1, reserved 0)", filename, e_machine, e_type,
++                         e_flags, DADAO_EM_MACHINE);
++            close(fd);
++            exit(1);
++        }
++    }
++    entry = dadao_rd_be64(ehdr + offsetof(Elf64_Ehdr, e_entry));
++    phoff = dadao_rd_be64(ehdr + offsetof(Elf64_Ehdr, e_phoff));
++    phentsize = dadao_rd_be16(ehdr + offsetof(Elf64_Ehdr, e_phentsize));
++    phnum = dadao_rd_be16(ehdr + offsetof(Elf64_Ehdr, e_phnum));
++    if (phentsize != sizeof(Elf64_Phdr) || phnum == 0) {
++        error_report("dadao: K0 ELF kernel '%s': ELF-FORMAT: e_phentsize %u "
++                     "(expected 56), e_phnum %u", filename, phentsize, phnum);
++        close(fd);
++        exit(1);
++    }
++
++    for (i = 0; i < phnum; i++) {
++        uint32_t p_type;
++        uint64_t p_vaddr, p_paddr, p_filesz, p_memsz, p_align, end;
++        uint64_t off = phoff + (uint64_t)i * phentsize;
++        const char *what = NULL;
++
++        if (lseek(fd, (off_t)off, SEEK_SET) != (off_t)off ||
++            read(fd, phdr, sizeof(phdr)) != (ssize_t)sizeof(phdr)) {
++            error_report("dadao: K0 ELF kernel '%s': ELF-PT-LOAD: program "
++                         "header table is outside the file", filename);
++            close(fd);
++            exit(1);
++        }
++        p_type = dadao_rd_be32(phdr + offsetof(Elf64_Phdr, p_type));
++        if (p_type != PT_LOAD) {
++            continue; /* ELF-PT-LOAD: only PT_LOAD is ever loaded */
++        }
++        p_vaddr = dadao_rd_be64(phdr + offsetof(Elf64_Phdr, p_vaddr));
++        p_paddr = dadao_rd_be64(phdr + offsetof(Elf64_Phdr, p_paddr));
++        p_filesz = dadao_rd_be64(phdr + offsetof(Elf64_Phdr, p_filesz));
++        p_memsz = dadao_rd_be64(phdr + offsetof(Elf64_Phdr, p_memsz));
++        p_align = dadao_rd_be64(phdr + offsetof(Elf64_Phdr, p_align));
++
++        if (p_filesz > p_memsz) {
++            /* contract-elf §6.1.2 program-header consistency; no §6.3 rule
++             * name covers it on its own, so it is reported as ELF-PT-LOAD. */
++            error_report("dadao: K0 ELF kernel '%s': ELF-PT-LOAD: PT_LOAD "
++                         "segment %u has p_filesz %#" PRIx64 " > p_memsz %#"
++                         PRIx64, filename, i, p_filesz, p_memsz);
++            close(fd);
++            exit(1);
++        }
++        if (p_memsz == 0) {
++            /* An empty PT_LOAD places nothing (same rationale as the legacy
++             * Vast path: the link script may emit an empty .rom segment). */
++            continue;
++        }
++        saw_load = true;
++        /* ELF-VA-TO-PA: p_vaddr is the VA, p_paddr its PA (bias 2 TiB). */
++        if (p_paddr != p_vaddr - DADAO_K0_VA_OFFSET ||
++            p_vaddr < DADAO_K0_VA_OFFSET) {
++            error_report("dadao: K0 ELF kernel '%s': ELF-VA-TO-PA: PT_LOAD "
++                         "segment %u has p_vaddr %#" PRIx64 ", p_paddr %#"
++                         PRIx64 " (expected p_paddr = p_vaddr - %#" PRIx64 ")",
++                         filename, i, p_vaddr, p_paddr,
++                         (uint64_t)DADAO_K0_VA_OFFSET);
++            close(fd);
++            exit(1);
++        }
++        /* ELF-ALIGN: 64 KiB page aligned, p_align at least one page. */
++        if ((p_vaddr % DADAO_K0_KERNEL_ALIGN) != 0 ||
++            p_align < DADAO_K0_KERNEL_ALIGN) {
++            error_report("dadao: K0 ELF kernel '%s': ELF-ALIGN: PT_LOAD "
++                         "segment %u p_vaddr %#" PRIx64 " p_align %#" PRIx64
++                         " (both must be a multiple of/at least %#" PRIx64 ")",
++                         filename, i, p_vaddr, p_align,
++                         (uint64_t)DADAO_K0_KERNEL_ALIGN);
++            close(fd);
++            exit(1);
++        }
++        if (p_memsz > UINT64_MAX - p_vaddr) {
++            error_report("dadao: K0 ELF kernel '%s': ELF-RANGE: PT_LOAD "
++                         "segment %u [%#" PRIx64 ", +%#" PRIx64 ") overflows",
++                         filename, i, p_vaddr, p_memsz);
++            close(fd);
++            exit(1);
++        }
++        end = p_vaddr + p_memsz;
++        /* ELF-NO-OVERLAP is checked before ELF-RANGE so a segment aimed at the
++         * boot info page is reported by the rule that names the clash. */
++        if (dadao_k0_forbidden_overlap(p_vaddr, end, prof, &what)) {
++            error_report("dadao: K0 ELF kernel '%s': ELF-NO-OVERLAP: PT_LOAD "
++                         "segment %u interval [%#" PRIx64 ", %#" PRIx64
++                         ") overlaps %s", filename, i, p_vaddr, end, what);
++            close(fd);
++            exit(1);
++        }
++        /* ELF-RANGE: inside the kernel image region. */
++        if (p_vaddr < DADAO_K0_KERNEL_BASE_VA ||
++            end > DADAO_K0_KERNEL_END_VA) {
++            error_report("dadao: K0 ELF kernel '%s': ELF-RANGE: PT_LOAD "
++                         "segment %u interval [%#" PRIx64 ", %#" PRIx64
++                         ") is outside [%#" PRIx64 ", %#" PRIx64 ")",
++                         filename, i, p_vaddr, end,
++                         (uint64_t)DADAO_K0_KERNEL_BASE_VA,
++                         (uint64_t)DADAO_K0_KERNEL_END_VA);
++            close(fd);
++            exit(1);
++        }
++        if (end - DADAO_K0_KERNEL_BASE_VA > kernel_size) {
++            kernel_size = end - DADAO_K0_KERNEL_BASE_VA;
++        }
++    }
++    close(fd);
++
++    if (!saw_load) {
++        error_report("dadao: K0 ELF kernel '%s': ELF-PT-LOAD: no non-empty "
++                     "PT_LOAD segment", filename);
++        exit(1);
++    }
++    /* ELF-ENTRY: the entry is the kernel base (VA), exactly. */
++    if (entry != DADAO_K0_KERNEL_BASE_VA) {
++        error_report("dadao: K0 ELF kernel '%s': ELF-ENTRY: e_entry %#"
++                     PRIx64 " is not the kernel base VA %#" PRIx64,
++                     filename, entry, (uint64_t)DADAO_K0_KERNEL_BASE_VA);
++        exit(1);
++    }
++    return kernel_size;
++}
++
++static void dadao_k0_load_elf(const char *filename, const DadaoProfile *prof)
++{
++    uint64_t kernel_size = dadao_k0_check_elf(filename, prof);
++    uint64_t entry = 0;
++    ssize_t loaded;
++
++    loaded = load_elf(filename, NULL, NULL, NULL, &entry, NULL, NULL, NULL,
++                      ELFDATA2MSB, DADAO_EM_MACHINE, 0, 0);
++    if (loaded < 0) {
++        error_report("dadao: K0 ELF kernel '%s': ELF-PT-LOAD: the image could "
++                     "not be loaded into PA memory: %s", filename,
++                     load_elf_strerror(loaded));
++        exit(1);
++    }
++    dadao_k0_write_boot_info(filename, kernel_size);
++}
++
++/*
++ * §6.3.2 raw path (4 rules): the flat image *is* the kernel, so RAW-BASE is
++ * the load address (VA kernel_base), RAW-ENTRY its first byte, RAW-LENGTH the
++ * 63 MiB cap and RAW-BSS the kernel's own `.bss` duty (the loader does not
++ * interpret the blob).  The image is placed at the PA of kernel_base.
++ */
++static void dadao_k0_load_raw(const char *filename, const DadaoProfile *prof)
++{
++    Error *err = NULL;
++    int64_t size = get_image_size(filename, NULL);
++    uint64_t limit = DADAO_K0_KERNEL_END_VA - DADAO_K0_KERNEL_BASE_VA;
++    ssize_t loaded;
++
++    if (size < 0) {
++        error_report("dadao: K0 raw kernel '%s': RAW-BASE: cannot read the "
++                     "image", filename);
++        exit(1);
++    }
++    if ((uint64_t)size > limit) {
++        error_report("dadao: K0 raw kernel '%s': RAW-LENGTH: %" PRId64
++                     " bytes exceeds the %#" PRIx64 "-byte kernel image "
++                     "region", filename, size, limit);
++        exit(1);
++    }
++    loaded = load_image_targphys_as(filename, dadao_k0_pa(DADAO_K0_KERNEL_BASE_VA),
++                                    limit, &address_space_memory, &err);
++    if (loaded < 0) {
++        error_report("dadao: K0 raw kernel '%s': RAW-BASE: could not load at "
++                     "VA %#" PRIx64 " (PA %#" PRIx64 "): %s", filename,
++                     (uint64_t)DADAO_K0_KERNEL_BASE_VA,
++                     (uint64_t)dadao_k0_pa(DADAO_K0_KERNEL_BASE_VA),
++                     err ? error_get_pretty(err) : "unknown error");
++        exit(1);
++    }
++    dadao_k0_write_boot_info(filename, (uint64_t)size);
++}
++
++static void dadao_k0_load_kernel(const char *filename, const DadaoProfile *prof)
++{
++    if (dadao_kernel_is_elf(filename)) {
++        dadao_k0_load_elf(filename, prof);
++    } else {
++        dadao_k0_load_raw(filename, prof);
++    }
++}
++
 +static void dadao_load_bios(const char *filename, const DadaoProfile *prof)
 +{
 +    Error *err = NULL;
@@ -814,11 +1194,17 @@ index 0000000..4d0158a
 +    }
 +
 +    /* Path C: BootROM image (ADR-0043 D1/D2).  -kernel is optional; a given
-+     * ELF is preloaded but does not override the reset PC. */
++     * ELF is preloaded but does not override the reset PC.
++     *
++     * Machine-v5-Vast with `bootrom-image` is the K1 boot path: the kernel is
++     * the payload smon hands over to, so §6.3.2/§6.3.3 apply (validated load
++     * at the VA's PA + host-written boot info).  Tiny returned above. */
 +    if (bootrom) {
 +        dadao_load_bootrom_image(bootrom, prof);
 +        if (kernel) {
-+            if (dadao_kernel_is_elf(kernel)) {
++            if (dadao_k0_contract(prof)) {
++                dadao_k0_load_kernel(kernel, prof);
++            } else if (dadao_kernel_is_elf(kernel)) {
 +                (void)dadao_load_elf_kernel(kernel, prof);
 +            } else {
 +                dadao_load_raw_kernel(kernel, prof);

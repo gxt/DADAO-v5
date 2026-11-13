@@ -78,7 +78,7 @@ profiles:
     kernel_reserved: 0x0
     ptw: true
     hmon: true
-    smon: reserved
+    smon: true
     cfx: true
     semihosting: true
     arch: true
