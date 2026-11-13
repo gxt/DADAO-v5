@@ -1,6 +1,8 @@
 # Linux syscall 映射合约（M8 用户态映射 + M14 内核侧接口）
 
-> **版本：0.10.0**（M14 起扩内核侧 §8–§11；M8 用户态映射 §1–§7 口径不变）[DADAO-21 §4. 系统调用规范]
+> **版本：0.9.2**（随 ABI 册 `DADAO-21` 版本线；M14 的**内核侧扩展** §8–§11 属 v5 自定内容，见下方「v5 扩展」注记，不计入本版本号）[DADAO-21 §4. 系统调用规范]
+>
+> **v5 扩展（M14）**：§8–§11（`umon`/`jmon`/`smon` 入口与分工、errno 边界、`rb3=rbtp`、`lr/sc` 原子性前提）**不在 `DADAO-21` 正文内**，按 `DADAO-12/13/23`、`SimRISC-00/12`、`Machine-v5` 与 `ADR-0025` 归一化；其变更记录见 §12，版本号不随之变动（`check-spec-drift` 要求合约版本 == 上游册版本）。
 >
 > **来源**：`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）§4 系统调用规范、§1 寄存器规范、§3.2 传参、§3.4 返回值；`spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.1）§1 调用约定、§2 用户态异常处理（umon / jmon）；**M14 内核侧**另引 `spec/DADAO-12-SEE-主管系统运行环境.md`（§3.1 / §3.2 / §3.3 / §3.6 / §3.7 / §5.1 / §5.2 / §5.3 / §2.2.6）、`spec/DADAO-13-HEE-超管系统运行环境.md §1`、`spec/DADAO-23-HBI-超管系统二进制接口.md §1–§3`、`spec/SimRISC-00-指令系统设计.md §3.1`、`spec/SimRISC-12-其它指令.md §1`、`spec/Machine-v5-测试机运行环境.md §1.2`；决策 `.tao/adr/adr-0025-m8-scope-linux-compat.md`（`ADR-0025`，Accepted，`D1`/`D2`/`D6`/`D7`）；端序与 ELF machine id 引用 `.tao/contracts/contract-abi.md`（§1.7）、`.tao/contracts/contract-elf.md`；TLS 模型分工引用 `.tao/contracts/contract-dynlink.md`（§2.4 / §7）。号表口径之**上游参照** = Linux 内核 `7.2.10`（**内容溯源，非执行依赖**，锁定见 §1.2）。[DADAO-21 §4. 系统调用规范][DADAO-22 §2. 用户态异常处理（umon / jmon）][ADR-0025]
 >

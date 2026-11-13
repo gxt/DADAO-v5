@@ -513,3 +513,11 @@
   closed_in: null
   resolved_by: null
   title: 【P2】`ext.uo/ext.so` 的 orrr 形式：**`rdHD` 值应截低 6 位作为起始位 `hd` 后继续执行**（用户 2026-11-13 裁定）；chipyard 已如此实现（rc=2 正常执行），**QEMU/gem5 反而判 ILLI（rc=248）⇒ 二者为缺陷**。同时 `spec/SimRISC-04` 现写「hd 须 ≤ N（octa=63），否则 ILLI」与该裁定冲突，需改措辞。`m13-testcases-017` 因此未收录该故障例（不能再按 ILLI 收）。修完后补「rdHD=64 ⇒ 等价 hd=0」的跨平台用例。
+- id: ISS-423
+  scope:
+  - spec
+  - infra
+  status: closed
+  closed_in: M14
+  resolved_by: 契约版本回退到 0.9.2（随 ABI 册），M14 内核侧 §8–§11 改为「v5 扩展」注记；`check-spec-drift` 由 FAIL 转 PASS
+  title: 【P2】`m14-spec-002` 把 `contract-syscall` 版本从 0.9.2 升到 0.10.0，违反 `check-spec-drift` 的「spec-sourced 合约版本 == 上游册版本」不变量 ⇒ L1 红（reviewer 当时未复跑 drift）。处置：版本号回退、扩展内容以「v5 扩展」注记承载。
