@@ -20,6 +20,11 @@
 4. **YAML 删除**：三册清空后 `git rm`，`tests/inst.yaml` 索引条目同步，`check_case_ledger --write` 重生成
 5. `MIGRATION.md` §5 台账勾掉
 
+## 前置（已知红，接入前必须处置）
+
+- **`ld.o_rrii_ra` 链例点 20 在 QEMU/gem5 红**（`ISS-426`：`ra0` 写未丢弃 SBZ `[63:54]`；chipyard 合规）。本任务把 `run_asm_suite.py` 接入 L2 时，该红会让 `check-inst-asm` 直接红 ⇒ **先修 `ISS-426`（或在本门控里按「已知缺陷 pin + 到期清算」处理并写清判据）**，不得放宽用例期望。
+- 另：`m12-chipyard-028` 已撤 hmon 自装 workaround，故障例按固件 hmon 口径（返回槽 `0xF8`、cause_id `0xE0`）读数；`m13-testcases-031` 提示 `st.o_rrii_rb.S` 的 `.text` 已到 `0x1920`（上限 `0x1E00`），若收紧上限需复查。
+
 ## 验收
 
 1. 删除三册 YAML 后：`validate_vectors` / `check_case_ledger` / `check-tests-index` / `check-generator-sync` **全部 rc=0**
