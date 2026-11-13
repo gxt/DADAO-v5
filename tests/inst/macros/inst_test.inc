@@ -86,11 +86,22 @@
 	.include "tests/shared/asm/machine.inc"
 
 	@@ 机器几何一律取 `machine-tiny.inc`（生成物）里的符号，本节只补本宏层的布局。
+	@@ `__FP_LAYOUT`（07-floating-point 在 `.include` 前 `.equ` 为 1）：浮点册的
+	@@ 用例体较长，`01-load-store/inst-tiny.lds` 的 0x1E00 `.text` 窗口不够 ⇒ 该册
+	@@ 用自己的一份布局（`07-floating-point/inst-tiny-fp.lds`，段址见该文件头）。
+	.ifdef __FP_LAYOUT
+	.equ TEST_PAD,    ENTRY + 0x4000
+	.equ TEST_DATA,   ENTRY + 0x5800
+	.equ TEST_BUF,    ENTRY + 0x7000
+	.equ TEST_EXITB,  ENTRY + 0x7800
+	.equ TEST_FAULTV, ENTRY + 0x4080
+	.else
 	.equ TEST_PAD,    ENTRY + 0x1F00
 	.equ TEST_DATA,   ENTRY + 0x2800
 	.equ TEST_BUF,    ENTRY + 0x4000
 	.equ TEST_EXITB,  ENTRY + 0x5000
 	.equ TEST_FAULTV, ENTRY + 0x1F80        @@ 故障期望槽（3 × 8 B；见文件头）
+	.endif
 
 @@ 多元素数据区（见文件头；偏移相对 TEST_DATA）
 	.equ MDATA_B, TEST_DATA + 0x800
@@ -1280,6 +1291,124 @@ __fault_case:
 	__LI	rd5, MEMRAS              @@ MRPTR = MEMRAS、RACNT = 0（高 16 位 = 0）
 	rd2ra	{ra0}, {rd5}
 	\inst
+	__EXIT	\pt
+	.endif
+.endm
+
+@@ ---------------------------------------------------------------------------
+@@ 浮点运算（07-floating-point，`spec/SimRISC-07 §2`）
+@@
+@@ 链例（一行一个检查点；点号 = 用例序号）：
+@@   TEST_FP3(pt, 宽度, 助记符, 目的, 源C, C值, 源D, D值, 舍入模式, 期望值, 期望标志)
+@@   TEST_FP4(pt, 宽度, 助记符, 目的, 源B, B值, 源C, C值, 源D, D值,
+@@             舍入模式, 期望值, 期望标志)
+@@   TEST_FPROOT(pt, 宽度, 助记符, 目的, 源, 源值, n, 舍入模式, 期望值, 期望标志)
+@@   宽度 = `ft`（单精：只比/只记低 32 位，高 32 位不作规定）| `fo`（双精：64 位全比）。
+@@   舍入模式 = rf0[33:32] 的 0..3（RNE/RTZ/RDN/RUP）。
+@@   每个用例先清 rf0[4:0] 再设 rf0[33:32]，执行后**先断言标志**再比结果：
+@@   期望标志按 rf0[4:0] 位序 NV=0x01 / DZ=0x02 / OF=0x04 / UF=0x08 / NX=0x10
+@@   （`spec/SimRISC-00 §2.3.1`）；标志与结果共用一个点号，结果缓冲只记结果。
+@@   初值经 `__LI`（set.zw/or.w）+ `rd2rf` 装配 ⇒ 不借任何浮点指令造期望值。
+@@   故障例（汇编器会拒绝的非法编码，如目的 rf0 / root 的 n≠2）：
+@@   TEST_FAULT_FP(pt, 故障名, 编码字) —— 只比异常码（浮点指令不产生陷阱）。
+@@ ---------------------------------------------------------------------------
+
+@@ 64 位位型 → rf 寄存器（不经浮点运算指令）
+.macro __LI_RF rf, val
+	__LI	rd20, \val
+	rd2rf	{\rf:\rf}, {rd20:rd20}
+.endm
+
+@@ FCSR 环境：清异常状态（wp0 只命中 [4:0]）+ 设舍入模式（wp2 只命中 [33:32]）
+.macro __FP_ENV rm
+	set.w	rf0, wp0, 0x0000
+	set.w	rf0, wp2, \rm
+.endm
+
+@@ 标志断言 + 结果比较（共用一个点号；结果追加进结果缓冲）
+.macro __FP_CHECK pt, w, dst, exp, flags
+	rf2rd	{rd21:rd21}, {rf0:rf0}
+	ext.uo	rd21, rd21, 4
+	__VERIFY_RD \pt, rd21, \flags
+	rf2rd	{rd21:rd21}, {\dst:\dst}
+	.ifc	\w, ft
+	ext.uo	rd21, rd21, 31
+	.endif
+	__CHECK_RD \pt, rd21, \exp
+.endm
+
+.macro TEST_FP3 pt, w, mnem, dst, a, aval, b, bval, rm, exp, flags
+	__FP_ENV \rm
+	__LI_RF	\a, \aval
+	.ifnc	\b, \a
+	__LI_RF	\b, \bval
+	.endif
+	\mnem	\dst, \a, \b
+	__FP_CHECK \pt, \w, \dst, \exp, \flags
+.endm
+
+.macro TEST_FP4 pt, w, mnem, dst, a, aval, b, bval, c, cval, rm, exp, flags
+	__FP_ENV \rm
+	__LI_RF	\a, \aval
+	.ifnc	\b, \a
+	__LI_RF	\b, \bval
+	.endif
+	.ifnc	\c, \a
+	.ifnc	\c, \b
+	__LI_RF	\c, \cval
+	.endif
+	.endif
+	\mnem	\dst, \a, \b, \c
+	__FP_CHECK \pt, \w, \dst, \exp, \flags
+.endm
+
+.macro TEST_FPROOT pt, w, mnem, dst, src, sval, n, rm, exp, flags
+	__FP_ENV \rm
+	__LI_RF	\src, \sval
+	\mnem	\dst, \src, \n
+	__FP_CHECK \pt, \w, \dst, \exp, \flags
+.endm
+
+@@ encoding 例：直接给**规范编码字**（钉 opc/mask/value 与字段位置），不写助记符
+.macro TEST_FPENC pt, w, enc, dst, a, aval, b, bval, exp, flags
+	__FP_ENV 0
+	__LI_RF	\a, \aval
+	.ifnc	\b, \a
+	__LI_RF	\b, \bval
+	.endif
+	.dd.t32	\enc
+	__FP_CHECK \pt, \w, \dst, \exp, \flags
+.endm
+
+.macro TEST_FPENC4 pt, w, enc, dst, a, aval, b, bval, c, cval, exp, flags
+	__FP_ENV 0
+	__LI_RF	\a, \aval
+	.ifnc	\b, \a
+	__LI_RF	\b, \bval
+	.endif
+	.ifnc	\c, \a
+	.ifnc	\c, \b
+	__LI_RF	\c, \cval
+	.endif
+	.endif
+	.dd.t32	\enc
+	__FP_CHECK \pt, \w, \dst, \exp, \flags
+.endm
+
+.macro TEST_FPENC_ROOT pt, w, enc, dst, src, sval, exp, flags
+	__FP_ENV 0
+	__LI_RF	\src, \sval
+	.dd.t32	\enc
+	__FP_CHECK \pt, \w, \dst, \exp, \flags
+.endm
+
+@@ 原始编码故障例（汇编器拒绝的编码：目的 rf0 ⇒ ILLI；root 的 n≠2 ⇒ ILLI）
+.macro TEST_FAULT_FP pt, fault, enc
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	.dd.t32	\enc
 	__EXIT	\pt
 	.endif
 .endm

@@ -112,7 +112,7 @@
 | `base/mem-rb.yaml` | 23 | 4 | **id 全部已迁**（同上，rb 形式）；文件未删（同 §5.1） |
 | `base/misc.yaml` | — | — | 待迁 |
 | `base/reserved.yaml` | 9 | 4+3 | 部分迁移（`ld.`/`st.` 的 6 条 reserved-cfx `CFXMEM` 已迁；3 条 reserved-opcode `UNDI` 无 id，待 `12-misc`） |
-| `fp/*.yaml`（`arith`/`convert`/`divrem`/`cond-assign`） | — | — | 部分迁移：`cond-assign.yaml` 的 3 个 `cs.*_rrrr_rf` id 已迁（见 §6，文件未删 §5.1）；其余四册待迁 |
+| `fp/*.yaml`（`arith`/`convert`/`divrem`/`cond-assign`） | — | — | 部分迁移：`cond-assign.yaml` 的 3 个 `cs.*_rrrr_rf` id 已迁（见 §6，文件未删 §5.1）；`arith.yaml` 的 8 个 id（`foadd`/`fomul`/`fofma`/`fomin`/`fomax`/`ftmul`/`ftfma`/`ftmin`）与 `divrem.yaml` **全部 6 个 id** 已迁（见 §6/021，文件未删：前者仍含 4 个比较 id 待 022，后者是 `check-inst` L3 载体 + §5.1 前置）；其余待迁 |
 | `bitcnt/`、`clmul/`、`fma/`、`minmax/`、`rev/`、`rol/`、`roundint/` 各自 | 414/81/… | — | 部分迁移（`clmul.o`/`rev.o`/`rol.o` 的 64 位形式见 §6/018；其余宽度与 `bitcnt` 待迁） |
 
 > 精确「文件 → id」清单由 `tools/testcases/` 现场导出（不写死在本表，避免漂移）。
@@ -411,3 +411,29 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
 - **门控**：`.S` 不入 `check-inst`（YAML 载体）⇒ `check-inst` 红集仍**恰**
   `{divrem.yaml[23]}`；`check-tests-index`/`check-case-ledger`/`validate_vectors`/
   273 例 sweep md5/`check-generator-sync` 全绿。
+
+### `m13-testcases-021`：`07-floating-point` 算术与最小最大（18 个 id）
+
+- `tests/inst/07-floating-point/{<id>.S}`（18 个）：`foadd/fosub/fomul/fodiv/forem`、
+  `ftadd/ftsub/ftmul/ftdiv/ftrem`、`fofma/ftfma`、`fomin/fomax/ftmin/ftmax`、`foroot/ftroot`；
+  另有 `inst-tiny-fp.lds`（**本册专用布局**：`.text` 0x0000–0x4000 / `.faultpad` 0x4000 /
+  `.testdata` 0x5000–0x7000（`TEST_DATA` = +0x5800）/ 结果缓冲 0x7000 / 退出块 0x7800；
+  01 册的 `.text` 已用到 0x1E00，浮点册每条用例更长，故另起布局）。
+- 宏层（`tests/inst/macros/inst_test.inc`，`__FP_LAYOUT` 分支）：`TEST_FP3`（orrr 双源）/
+  `TEST_FP4`（fma 三源）/`TEST_FPROOT`（orri）/`TEST_FPENC*`（原始编码字）/`TEST_FAULT_FP`；
+  `__FP_ENV` 清 `rf0[4:0]` 并按参数设 `rf0[33:32]`，`__FP_CHECK` **先断言标志**再比结果
+  （共用点号；期望标志 NV=1/DZ=2/OF=4/UF=8/NX=16）。初值一律 `__LI`+`rd2rf`，不借浮点指令；
+  ft 只比低 32 位（高 32 位不作规定）。
+- 用例：链例 318 + 故障例 20（每 id 16–21 链例 + 1–2 故障；encoding 2 / semantic 4 / boundary 6 /
+  overlap 2 为骨架）。覆盖：五类标志全部至少一条；RNE/RTZ/RDN/RUP 四档（含 `1.0±2^-25`
+  中点、`1/3`、`sqrt(2)`、溢出形态 ±Inf 与 ±max）；canonical qNaN 与 sNaN⇒NV（含
+  `qNaN rem 0`/`qNaN×0` 不置 NV 的优先级、`0×Inf+qNaN` 置 NV）；±0 的加减零符号随 RDN、
+  min/max 的 `-0<+0` 定序、`rootn(±0)=+0`；次正规精确（不置 UF）与 tiny+inexact（UF|NX）；
+  `forem/ftrem` 的 IEEE 余数（平局取偶、符号随被减数、除零是 NV 不是 DZ、qNaN 传播按 §1.4 取 canonical 而非 payload —— 与既有 `divrem.yaml[23]` 的旧口径相反，该例即 `check-inst` 的既有红 pin）；`fofma/ftfma`
+  单次舍入反例（`(1±2^-23)(1∓2^-23)−1`）与溢出；root 的负数/±Inf⇒NV、n≠2⇒ILLI。
+- 三方逐字节：`run_asm_suite.py`（同一份 ELF：chipyard / QEMU / gem5）38 个镜像全绿 ——
+  链例比结果字节流、故障例比 monitor 段退出码（20 例全 `0xF8` ILLI：目的 rf0 / root 的 n≠2）。
+  故障例走 BootROM **固件** hmon（写 `0xF8` 返回槽、读 `0xE0` cause_id），三方固件同版。
+- **YAML**：`fp/divrem.yaml` 的 6 个 id 全部有 `.S` 载体，但文件**未删**（它是 `check-inst`
+  的 L3 载体，且 §5.1 前置未解）；`fp/arith.yaml` 的 8 个 id 已并入（余 4 个比较 id 待 022）；
+  `fosub`/`ftadd`/`ftsub`/`ftmax` 原本无 YAML 载体。
