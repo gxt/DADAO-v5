@@ -1,4 +1,4 @@
-# m14-llvm-001: 补 `llvm-ar` / `llvm-ranlib` / `llvm-strip`（构建目标 + 安装集 + 断言）
+# m14-llvm-001: 补 LLVM 工具族（`llvm-ar`/`llvm-ranlib`/`llvm-strip` + `llvm-link`/`llvm-config`/`llvm-profdata`/`llvm-size`/`llvm-cov`）
 
 **模块**：llvm
 **项目里程碑**：M14
@@ -22,7 +22,9 @@
 
 ## 目标
 
-1. 构建目标 + 安装集补齐三项，使安装根可独立提供 `llvm-ar` 工具族；
+1. 构建目标 + 安装集补齐**用户 2026-11-13 裁定的全套**：
+   - **必需**（内核构建直接用）：`llvm-ar`（实副本）、`llvm-ranlib`（`argv[0]` 符号链接）、`llvm-strip`（符号链接到 `llvm-objcopy`）；
+   - **同批补齐**（用户裁定 A）：`llvm-link`、`llvm-config`、`llvm-profdata`、`llvm-size`、`llvm-cov`——同样走 `LLVM_MC_FULL_TARGETS` + `HOST_LLVM_TOOLS`（符号链接按上游 `add_llvm_tool_symlink` 形态），`check_install_tools.py` 一并断言；
 2. 安装集断言由「Makefile 变量」自动扩展（脚本**不得**另立第二份清单），并对三项增加**在 DADAO 大端 ELF 上可用**的功能断言；
 3. 给 `m14-linux-002` / `m14-infra-001` 可消费的结论（`AR`/`RANLIB`/`STRIP` 改为 `llvm-*`；矩阵三行 `present`）。
 

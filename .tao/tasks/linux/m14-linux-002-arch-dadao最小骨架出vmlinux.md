@@ -37,6 +37,13 @@
 - **early stack**：在 `.bss`/链接脚本保留区中定义（大小自定，≥ 16 KiB、16 B 对齐）；**不得**依赖 boot info 提供 SP。
 - **不执行**：K0 的 `head.S` 只需能链接；若实现走到 C 入口，C 入口可以是最小 `dadao_start_kernel()`（打印一条 stub 消息后自旋/退出），**不得**声称进入 `start_kernel` 或任何 Linux 子系统已工作。
 
+## 汇编/编译口径（用户 2026-11-13 裁定）
+
+- 汇编数据伪指令**只用** `.dd.o64`/`.dd.t32`/`.dd.w16`/`.dd.b08`；**不用** `.quad/.long/.short/.byte`（DADAO MC 明确不支持）。
+- 对齐**只用** `.p2align`/`.balign`，**不用** `.align`。
+- 代码模型用 `default`（= `-mcmodel=small`）；**不用** `-mcmodel=kernel`（ADR-0036 只有 `default` 与 `large`）。
+- 栈保护：本任务不依赖 `-fstack-protector`（后端支持见 `m14-llvm-002`），K0 Kconfig 先关。
+
 ## 范围（改哪些文件）
 
 - `components/linux/series`、`components/linux/patches/arch/dadao/**`（新建补丁；`patches/.gitkeep` 在有首个补丁后删除）

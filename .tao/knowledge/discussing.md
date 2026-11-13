@@ -117,6 +117,12 @@
 - **启动 ABI 值已冻结（用户 2026-11-13）**：内核 `0x0010_0000`、boot info PA `0x0001_0000`、initramfs `0x0400_0000`、`rb17` 承载、入口 `supv` + 身份映射。
 - **spec/Process 授权（2026-11-13）**：`m14-spec-001` 可改 `spec/Machine-v5`+锁、`m14-linux-001` 可改 `docs/Process-01`、`m14-infra-003` 可改 `docs/Process-07`；其余仍需逐次授权。
 - **initramfs 的 syscall 范围（用户 2026-11-13）**：**不做特殊限制，别滥用就行**——不要求「ELF syscall 全集 ⊆ 4」；验收以「init 自有 syscall = write/getpid/brk/exit_group」+ 运行期 trace 说明为准。
+- **LLVM/汇编器缺口裁定（用户 2026-11-13）**：
+  - **数据伪指令 `.quad/.long/.short/.byte` 与 `.align` 不做支持**；内核与汇编统一用 DADAO 支持的 `.dd.o64/.dd.t32/.dd.w16/.dd.b08` 与 `.p2align/.balign`。
+  - **代码模型只有两个**：`default`（= `CodeModel::Small`，可写 `-mcmodel=small`）与 `large`；`kernel/medium/tiny` 按 ADR-0036 设计上拒绝，**不算缺口**。
+  - **CFI 崩溃**（`llvm-mc` 断言 `RAReg <= 255`）：与"64 位 DWARF"无关，是 DADAO 缺 DWARF 寄存器编号、return-address 寄存器编号 >255；先立任务（正面支持编号表，或至少改报错不 abort）。
+  - **`llvm-link`/`llvm-config`/`llvm-profdata`/`llvm-size`/`llvm-cov`**：并入 `m14-llvm-001` 同批补齐。
+  - **`-fpatchable-function-entry`**：立 `m14-llvm-003` 现在补。
 - **栈保护 SSP（用户 2026-11-13）**：**现在补后端**（DADAO 后端 stackguard lowering），不再长期用 `-fno-stack-protector` 规避；K0 内核按 KSPP 默认开 `-fstack-protector-strong`。
 - **工具链缺口（用户 2026-11-13）**：`llvm-ar`/`llvm-ranlib`/`llvm-strip` **先补进工具链**，不长期用 GNU ar / `llvm-objcopy` 规避。
 - **启动 ABI 口径（用户 2026-11-13，已落 spec/ADR）**：
