@@ -31,13 +31,13 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m14-qemu-001 | 2026-11-14 02:50 | 4–6 h | 最小 smon：建 64 KiB 身份页表 + PTBR/ptw_enable + VA 入口交内核（K1） |
-| m14-infra-003 | 2026-11-14 03:05 | 4–5 h | K0 收口门控 `check-linux-k0`（vmlinux/initramfs/工具链矩阵/反例注入） |
 | m14-llvm-004 | 2026-11-14 02:35 | 4–8 h | DADAO DWARF 编号 + CFI（修 abort、RA≤255、`.eh_frame` absptr） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-infra-003 | 2026-11-14 03:40 | K0 收口门控 `check-linux-k0`（119 项；K1–K13；10 路注入；入 L2） |
 | m14-linux-002 | 2026-11-14 03:00 | `arch/dadao` 骨架出 vmlinux（56 补丁；跨度 3.06 MiB、REL26 余量 29.04 MiB） |
 | m14-llvm-003 | 2026-11-14 02:30 | `-fpatchable-function-entry`（`swym 0` 槽；N=1/2/4、M 前置；lit 166/166） |
 | m14-llvm-001 | 2026-11-14 01:00 | LLVM 工具族补齐（ar/ranlib/strip + link/config/profdata/size/cov；安装根 8 工具、功能断言 104 项） |

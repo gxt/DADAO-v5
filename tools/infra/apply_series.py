@@ -34,6 +34,12 @@ are not yet applied get ``git apply``.
 they are skipped explicitly (``component=<name>: patchless, skip``) instead
 of raising ``KeyError``; same guard as ``check_patch_tree.py``.
 
+``--component <name>`` (``m14-infra-003``) restricts the run to the named
+components (repeatable, manifest order preserved).  It exists so a gate can
+touch **one** component (the K0 closure gate only re-applies ``linux``) without
+writing the other source trees.  Without the flag the traversal is exactly the
+one described above — same components, same order, same output.
+
 Submodule patch sets (§14, rev. 2026-11-09)
 -------------------------------------------
 A component may declare ``[[component.submodule_patch]]`` entries (see
@@ -59,6 +65,7 @@ already ``base+1`` and are skipped idempotently).
 """
 from __future__ import annotations
 
+import argparse
 import os
 import subprocess
 import tempfile
@@ -224,11 +231,31 @@ def apply_patch_set(
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="apply each enabled component's patch series (docs/Process-01)")
+    parser.add_argument(
+        "--component", action="append", default=[], metavar="NAME",
+        help="only process this component (repeatable); default = every enabled "
+             "component, in manifest order",
+    )
+    args = parser.parse_args()
+
     manifest = load_manifest()
     enabled = [c for c in manifest.get("component", []) if c.get("enabled")]
     if not enabled:
         print("apply-series: no components enabled")
         return 0
+    if args.component:
+        known = [c["name"] for c in enabled]
+        unknown = [name for name in args.component if name not in known]
+        if unknown:
+            # Never silently drop a requested component: an unknown/disabled
+            # name is a caller error, not an empty selection.
+            raise SystemExit(
+                f"apply-series: --component {unknown} is not an enabled component "
+                f"(enabled: {known})")
+        wanted = set(args.component)
+        enabled = [c for c in enabled if c["name"] in wanted]
 
     source_root = ROOT / manifest.get("work_root", ".work") / "source"
     for component in enabled:

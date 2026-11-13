@@ -205,7 +205,7 @@ help:
 	@echo "  make linux-semihosting-smoke  Boot the kernel under QEMU semihosting (smoke; M14; script lands later)"
 	@echo "  make check-linux-toolchain  Check the dadao cross toolchain can build the kernel (L1; M14)"
 	@echo "  make check-linux-boot-contract  Check the boot ABI contract against spec/Machine-v5 (L1; M14)"
-	@echo "  make check-linux-k0  K0 closure gate: toolchain + boot + smoke in one run (L2; M14)"
+	@echo "  make check-linux-k0  K0 closure gate: vmlinux ELF/boot-ABI + initramfs (reproducible, /init) + toolchain matrix + boot contract + apply-series idempotence (L2; m14-infra-003)"
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
@@ -1131,13 +1131,14 @@ _locked-build-musl-shared:
 
 # ── Linux 内核（M14；目标名与脚本路径由 m14-linux-001 一次声明）─────────────────
 # 本块只声明目标，脚本随各任务落地（m14-linux-002..006 / m14-infra-00x）；以后
-# 加目标才改这里，本批任务不再改 Makefile。路径解析唯一来源 =
-# tools/linux/paths.py（脚本不得各自拼路径）。写者（defconfig/vmlinux/initramfs/
-# semihosting-smoke）与会**增量构建**的 check-linux-k0 列入
-# $(GATE_LOCKED_TARGETS)（docs/Process-07 §2）；两个只读门控
-# （check-linux-toolchain / check-linux-boot-contract）不占锁。L1/L2 成员接线由
-# m14-infra-003 完成。脚本尚未落地 ⇒ python3 直接报 "can't open file"（明确报错，
-# 不静默成功）。并行度经环境变量 JOBS 传给脚本（未用亦无害）。
+# 加目标才改这里。路径解析唯一来源 = tools/linux/paths.py（脚本不得各自拼路径）。
+# 写者（defconfig/vmlinux/initramfs/semihosting-smoke）与会**增量构建**的
+# check-linux-k0 列入 $(GATE_LOCKED_TARGETS)（docs/Process-07 §2）；两个只读门控
+# （check-linux-toolchain / check-linux-boot-contract）不占锁。
+# L1/L2 成员接线（m14-infra-003）：L1 `_locked-check` 含 check-linux-toolchain +
+# check-linux-boot-contract；L2 `_locked-check-modules` 含 check-linux-k0。
+# 并行度经环境变量 JOBS 传给脚本；check-linux-k0 的增量构建/apply-series 超时可用
+# K0_{VMLINUX,INITRAMFS,TOOLCHAIN,BOOT_CONTRACT,SERIES}_TIMEOUT 调（`timeout` ⇒ rc 124 判 FAIL）。
 _locked-linux-defconfig:
 	@JOBS=$(JOBS) $(PYTHON) tools/linux/make_defconfig.py
 
@@ -1183,7 +1184,13 @@ _locked-clean-work:
 # 旧名 `check-qemu-semantics`/`check-qemu-smoke`/`test-semihost`/`check-{libc-test,llvm-ts,embench}-smoke`
 # 已于 TESTCASES-076t 删除（P6 收口）；现行名 = check-inst / check-inst-smoke / check-arch-smoke /
 # check-tset-{libc,llvm,embench}-smoke。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-temp-dirs
+# Linux（m14-infra-003）：`check-linux-toolchain`（工具链矩阵声明==实测）与
+# `check-linux-boot-contract`（§6.3 ↔ 契约 ↔ 投影三方一致）只读静态/探针、不跑被测语义
+# ⇒ 归 L1（docs/Process-07 §1.1 登记）；K0 收口 `check-linux-k0` 归 L2（见下）。
+# 两条排在 `check-temp-dirs` **之前**：它们在 `$DADAO_TMP`（`check_toolchain.py`
+# 默认建任务临时目录）下跑探针，先跑可让该目录 mtime 保持新鲜，避免陈旧临时
+# 目录误报；`check_k0.py`（L2）另行把 DADAO_TMP 指到自己的 scratch。
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-temp-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1194,7 +1201,9 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 #   arch : check-arch-smoke
 #   unit : check-unit（= check-lit + test-codegen + test-elf + ir-lli + picolibc fast）
 #   tset : check-tset-{libc,llvm,embench}-smoke
-_locked-check-modules: check-inst-smoke check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-generator-sync
+#   linux: check-linux-k0（K0 收口：vmlinux + initramfs + 矩阵 + 启动契约 + 补丁集幂等；
+#         m14-infra-003。只读产物 + 增量构建（秒级），不跑被测语义的全量套件）
+_locked-check-modules: check-inst-smoke check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-generator-sync check-linux-k0
 	@echo "module checks (L2): PASS"
 
 # L3 = 全量（TESTCASES-076t；2026-10-27 用户裁定「一个检查只在一层」严格化；TESTCASES-082t 去 tset smoke）。
