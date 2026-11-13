@@ -341,7 +341,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P2】**`spec/SimRISC-07 §2.5` 的 FMA 溢出表述与 IEEE §7.4 同类冲突**（`m13-spec-002` 发现、未在其范围内修）：原文「融合乘加溢出 ⇒ ±Inf 并置 OF」，与 `fo2ft` 修订前的口径同源；IEEE 要求按舍入模式（RNE/RUP ⇒ ±Inf，RTZ/RDN ⇒ ±最大有限），两种都置 OF|NX。同一文件里现在同时存在「§1.4 已按方向」与「§2.5 仍恒 Inf」两种口径，属**内部不一致**。行动：立 spec 子任务改 §2.5，随后 chipyard/qemu/gem5 三个实现同步（与 `fo2ft` 那套 5 子任务同形）。另附带项：§1.4 的 i2f「超范围 ⇒ ±Inf」对现有 8 条 i2f 不可达，措辞可随同修。 另：reviewer 证实 `§1.4` i2f「超范围 ⇒ ±Inf」**不可达**（uint64 max 1.84e19 ≪ ft 3.40e38），措辞可随修；并建议补一条机械门控「全册条目要么合 IEEE、要么显式标注偏离」（现 C5 只验规范性引用句存在）。
+  title: 【P2】**`spec/SimRISC-07 §2.5` 的 FMA 溢出表述与 IEEE §7.4 同类冲突**（`m13-spec-002` 发现、未在其范围内修）：原文「融合乘加溢出 ⇒ ±Inf 并置 OF」，与 `fo2ft` 修订前的口径同源；IEEE 要求按舍入模式（RNE/RUP ⇒ ±Inf，RTZ/RDN ⇒ ±最大有限），两种都置 OF|NX。同一文件里现在同时存在「§1.4 已按方向」与「§2.5 仍恒 Inf」两种口径，属**内部不一致**。行动：立 spec 子任务改 §2.5，随后 chipyard/qemu/gem5 三个实现同步（与 `fo2ft` 那套 5 子任务同形）。另附带项：§1.4 的 i2f「超范围 ⇒ ±Inf」对现有 8 条 i2f 不可达，措辞可随同修。 另：reviewer 证实 `§1.4` i2f「超范围 ⇒ ±Inf」**不可达**（uint64 max 1.84e19 ≪ ft 3.40e38），措辞可随修；并建议补一条机械门控「全册条目要么合 IEEE、要么显式标注偏离」（现 C5 只验规范性引用句存在）。（2026-11-13：QEMU/gem5 侧实测**本就合规**，仅 chipyard 侧未知）
 - id: ISS-400
   scope:
   - testcases
@@ -487,3 +487,12 @@
   closed_in: null
   resolved_by: 用户 2026-11-13 重装 207/208：账号改为 `ubuntu` + 反向隧道，`remote.py` 默认用户已匹配；本地 `~/.ssh/config` 补 `server207`/`server208` 别名（端口不入库）。实测 `remote.py status` rc=0
   title: 【P2】`tools/infra/remote.py` 对 `server207`/`server208` 恒连不上：它固定用 `ubuntu@`，而这两台的免密用户是 `gxt@` ⇒ `Permission denied (publickey)`、`overall rc=1`。`ics150`–`ics180` 是 `ubuntu` 所以没暴露。影响：派单前的「并行度与磁盘」预检对 207/208 永远失败（假红）。建议：允许按 host 指定用户（`--user` 或 `DADAO_NODE_USER` / host→user 映射），并在 `nodes.md` 记录各节点登录用户。（2026-11-13 已随重装解决）
+- id: ISS-420
+  scope:
+  - qemu
+  - gem5
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】FMA 溢出的 70/48 格矩阵**没有常驻门控**：`m13-qemu-008`（QEMU 本就合规）与 `m13-gem5-009`（gem5 本就合规）只把格子放进各自证据脚本/组件测试，`tests/inst` 侧尚无 FMA 用例守护。载体已定：`m13-testcases-021`/`022`（`07-floating-point` 汇编套件）落地后由三平台套件守护；chipyard 侧由 `m12-chipyard-029` 按同一张 spec 表实测（禁止用 QEMU/gem5 结论推定）。
