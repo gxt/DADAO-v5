@@ -279,3 +279,10 @@
 - 现状：主控机 `/tmp` 由 `/etc/fstab` 配成 16G tmpfs；节点 `/tmp` 已在 ext4 磁盘上（无需改）。
 - 用户 2026-11-08 决定改回磁盘，**推迟到用户自行选时间执行**（`sudo` 由用户操作）。
 - **不再主动提醒重启**；切换前置 = `/tmp/opencode` 下无活动 worktree（由主会话在切换前清理/迁移）。
+
+### 3.3 门控/套件在节点上的实测（2026-11-13，server207）
+
+- **L2（`make check-modules`）**：605 s，但**该轮无效**——新引导节点缺 `.work/source/musl/lib/libc.a`，3 个 tset smoke 早退（`ERROR: run 'make build-musl'`）。**引导清单须补 `build-musl`**。
+- **L3（`make check-full`）**：在节点上跑到 `tset:m6-integration` 仍未结束（**> 50 min**，手动终止）；**对照主控机 6.9–8.0 min（4 次实测）** ⇒ 节点单核慢是主因（`server207` 是 E7-4820 @2.0 GHz，主控机 EPYC 7773X 单核快 4–6×）。
+- **含义（对「15 min 分档」很关键）**：单线程重的套件搬节点**不会变快、反而慢数倍**；6 台的收益只在**用例级可并行**时才成立（节点 vCPU 总量 ≈ 300 vs 主控机 64）。
+- **`check-arch`（L3 成员 `arch:cfx`）在节点上 rc=2**，原因未查（待办：可能依赖 chipyard 模拟器或某环境）。在查清前，节点不能算「L3 就绪」。
