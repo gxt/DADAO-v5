@@ -26,7 +26,6 @@
 | --- | --- | --- |
 | m12-chipyard-028 | 2–3 h | 用新 builder 重生成 chipyard `bootrom.tiny.hex`（ISS-410） |
 | m12-chipyard-029 | 2–3 h | 融合乘加溢出按 IEEE 舍入模式（RTL + 模型） |
-| m12-chipyard-027 | 2 h | `ldm`/`stm` 基址重叠 ⇒ ILLI（RTL + 模型） |
 | m12-chipyard-016 | 3–4 h | T0 冒烟（inst 全量非 cfx + embench + tset 子集，三平台） |
 | m12-chipyard-017 | 4–6 h | T1 适配集 + M12 验收 |
 
@@ -34,6 +33,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m12-chipyard-027 | 2026-11-13 08:33 | 2 h | `ldm` 地址寄存器重叠 ⇒ ILLI（chipyard RTL；`stm` 允许） |
 
 ## 已验证
 
