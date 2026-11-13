@@ -8,8 +8,8 @@
 | 主机名 | 角色 | 状态 |
 | --- | --- | --- |
 | `tao-clab` | **主控机**：唯一装 OpenCode 的机器，会话 / 派单 / 合并都在这里 | 在用 |
-| `server207` | 评测节点（纯执行；**反向隧道访问**，登录用户 `ubuntu`；2026-11-13 重装） | **待引导** |
-| `server208` | 评测节点（纯执行；**反向隧道访问**，登录用户 `ubuntu`；2026-11-13 重装） | **待引导** |
+| `server207` | 评测节点（纯执行；**反向隧道访问**，用户 `ubuntu`；2026-11-13 重装并引导，仓库+自制工具链就绪） | **就绪** |
+| `server208` | 评测节点（纯执行；**反向隧道访问**，用户 `ubuntu`；2026-11-13 重装并引导，仓库+自制工具链就绪） | **就绪** |
 | `ics150` | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
 | `ics160` | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
 | `ics170` | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
@@ -96,7 +96,18 @@
 - **已装**：`git` `make` `gcc` `python3`(3.12, 带 `yaml`) `ninja` `cmake` `bison` `flex` `pkg-config` `rsync` `tar`。
 - **缺**：`verilator`（apt 有 5.020，与主控机同版）、`conda`/`sbt`/`java`（chipyard 依赖）。
 - **外网通**（`github.com` / `archive.ubuntu.com` 均 200）——与 `ics150`–`ics180` 不同，可直接 `make fetch`。
-- `remote.py status --hosts server207,server208` 现可用（`rc=0`，`clang/qemu=MISSING`、`disk_use_pct=14`、`running=none`）。
+- `remote.py status --hosts server207,server208` 现可用（`rc=0`）。
+
+### 3.2 引导结果（2026-11-13，两台 ac 全新引导）
+
+- `bootstrap_node.sh --bundle` 全 8 步 **rc=0**；`make check`（L1）**rc=0**、工作树 clean。
+- 就绪态：`clang 23.1.3`、`qemu-dadao 11.1.1`（安装根 `.dadao/cross-toolchain`），`.cache` 1.7 G / `.work` 约 44–47 G / `.dadao` 11 G。
+- **内容一致性判据**（不比较 commit 号，因为 `apply-series` 的 base+1 提交含本机时间戳）：`llvm-project`/`qemu` 的 `HEAD^{tree}` 两台相等；`chipyard` 的非 gitlink 文件集 md5 相等、55 个 gitlink 与 `generators/testchipip` 子树相等。
+- **踩到的三个坑**（下次引导直接照做）：
+  1. **`apply-series` 在补丁集更新后拒绝应用**（chipyard HEAD 既非 base 也不等于新补丁的 base+1）⇒ 按 `apply_series.py` 文档的 E5 恢复：`git -C .work/source/chipyard reset --hard <base>` 再 `make apply-series`（这是**组件源树**的既定恢复动作，不是任务工作树）。
+  2. **gate lock 超时**：208 首次 step 6 因 `build-lld` 等 `gate.lock` 3600 s 超时（`Error 75`）⇒ 重跑 `bootstrap_node.sh`（幂等）即补齐 step 6/7/8。
+  3. **`/tmp/opencode` 归属**：旧 `gxt` 账号留下的 `/tmp/opencode` 为 `gxt:gxt 775`，`ubuntu` 不可写 ⇒ `check-decodetree-repro` `PermissionError`；清空重建为 `ubuntu:ubuntu` 即可。
+- **尚未建**：chipyard 的 conda 评测环境（`§11`：环境 6.1 G + firtool 759 MB + fesvr + 子模块镜像），**不能**跑 chipyard 评测；等派评测任务前再建。
 
 ## 4. 软件包安装情况
 
