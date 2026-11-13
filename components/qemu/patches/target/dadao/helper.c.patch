@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..d194434
+index 0000000..8dcc2cc
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2962 @@
+@@ -0,0 +1,2984 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -1304,16 +1304,21 @@ index 0000000..d194434
 +     * (the invalid-operation results of add/sub/mul/div/rem/scalb/sqrt would
 +     * otherwise be malformed or abort the assert). */
 +    set_float_default_nan_pattern(0b01000000, st);
-+    /* 2-NaN propagation rule.  Which input NaN is propagated when both
-+     * operands are NaN is implementation-defined: IEEE 754-2019 §6.2.3 only
-+     * *recommends* the sNaN-first s_ab order, and SimRISC-07/contract-fp.md
-+     * require merely "符合 IEEE 754" (payload selection is not specified).
-+     * We match the current host (x86_64 scalar SSE, -mfpmath=sse): for
-+     * +,-,*,/ with qNaN/sNaN operand pairs in both orders the host returns
-+     * the FIRST operand's NaN (quieted if signalling) regardless of sNaN vs
-+     * qNaN — i.e. float_2nan_prop_ab.  Without a rule here softfloat aborts
-+     * (parts64_pick_nan g_assert_not_reached) as soon as any NaN operand
-+     * reaches add/sub/mul/div/rem (ISS-195). */
++    /* Every NaN *result* is the canonical quiet NaN of its format
++     * (SimRISC-07 §异常与标志, contract-fp.md §1: sign 0, payload 0 ⇒
++     * 0x7FC00000 / 0x7FF8000000000000).  With default-NaN mode on, softfloat's
++     * partsN(return_nan) / partsN(pick_nan) / partsN(pick_nan_muladd) return
++     * partsN(default_nan) *before* any payload-propagation rule is consulted,
++     * so arithmetic, sqrt, rem, scaleB and the f2f conversions all land on the
++     * FCSR qNaN pattern above without per-op code.  sNaN operands still raise
++     * NV — that happens before the default-NaN short-circuit. */
++    set_default_nan_mode(1, st);
++    /* Fallback 2-NaN propagation rule (ISS-195).  It never defines a result
++     * while default-NaN mode is on (the short-circuit above runs first), but
++     * softfloat requires *some* rule whenever it is off — without one
++     * partsN(pick_nan) hits g_assert_not_reached() as soon as two NaN operands
++     * reach add/sub/mul/div/rem.  Keeping it therefore guards the abort path
++     * without weakening the canonical-NaN contract above. */
 +    set_float_2nan_prop_rule(float_2nan_prop_ab, st);
 +}
 +
@@ -1583,11 +1588,28 @@ index 0000000..d194434
 +}
 +
 +/* rootn(x, 2): the translate layer has already enforced n == 2 and selects
-+ * the format via isdbl (0 = ft/float32, 1 = fo/float64). */
++ * the format via isdbl (0 = ft/float32, 1 = fo/float64).
++ *
++ * rootn(±0, 2) is +0 (SimRISC-07 §2.2; IEEE 754-2019 §9.2.1, whose NOTE calls
++ * out that rootn(-0, 2) differs from squareRoot(-0) = -0).  A zero magnitude is
++ * therefore short-circuited to +0: softfloat's sqrt() would return -0 for -0.
++ * No flag is raised on this path, and sqrt(±0) raises none either, so skipping
++ * fp_status_init()/fp_status_commit() leaves rf0 untouched.  Every other input
++ * keeps squareRoot semantics (including the negative-input NV + qNaN case). */
 +uint64_t helper_fp_root(CPUDADAOState *env, uint64_t x, uint32_t isdbl)
 +{
 +    float_status st;
 +    uint64_t res;
++
++    if (isdbl) {
++        if ((x & 0x7FFFFFFFFFFFFFFFULL) == 0) {
++            return 0;
++        }
++    } else {
++        if (((uint32_t)x & 0x7FFFFFFFu) == 0) {
++            return 0;
++        }
++    }
 +
 +    fp_status_init(env, &st);
 +    if (isdbl) {

@@ -52,12 +52,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m13-qemu-009 | 2026-11-13 16:31 | 3–4 h | `rootn(±0,2)⇒+0`、结果 NaN ⇒ canonical（QEMU） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m13-qemu-009 | 2026-11-13 18:32 | `rootn(±0,2)⇒+0`、结果 NaN ⇒ canonical（QEMU；check-inst 余 1 红归 032） |
 | m13-gem5-011 | 2026-11-13 16:49 | quiet compare sNaN 置 NV、`rootn(±0,2)⇒+0`、convert NaN ⇒ canonical（gem5；vectors 4098） |
 | m13-spec-007 | 2026-11-13 16:29 | 定稿 rootn(±0,2)=+0、结果 NaN canonical、比较族 NV 条款（spec + contract-fp） |
 | m13-testcases-014 | 2026-11-13 16:01 | `02-reg-copy` 16 个 id 改汇编+宏（58/58 三平台逐字节） |

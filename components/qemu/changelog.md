@@ -333,3 +333,7 @@
 - **2026-11-13 `m13-qemu-006`**
   - 摘要：**`ldm` 地址寄存器落入传送范围 ⇒ ILLI（`mreg_range_addr_overlap`；用户裁定「不允许重叠，改spec」+ 补充「stm 应该是允许这种重叠的」）**。`target/dadao/insn_trans/trans_mem.c.inc`：新增静态判定 `mreg_addr_in_range()`（`addr ∈ [start, start+immu6)`）；RD 形式 7 条 `ldm`（`ldm.ub/uw/ut/sb/sw/st/o` 的 rd 变体）在既有 `immu6=0`/范围检查同处增 `rdhc` 判定，RB 形式 `ldm.o` 增 `rbhb` 判定；命中即 `gen_exception_illegal()`，任何元素都不产生效果（不发访存、不写寄存器）。`stm` 不加检查（只读传送范围、不写寄存器 ⇒ 允许重叠）；RA/RF 形式结构上不可能重叠，不适用。补丁 1 份改。
   - 执行者：engineer
+
+- **2026-11-13 `m13-qemu-009`**
+  - 摘要：**`rootn(±0, 2) = +0` 与「结果 NaN 一律 canonical」**（`SimRISC-07 §2.2` / `§异常与标志`、`contract-fp.md §1`；用户裁定 R1/R2）。`target/dadao/helper.c` 两处：① `fp_status_init()` 增 `set_default_nan_mode(1, &st)`——softfloat 的 `partsN(return_nan)` / `pick_nan` / `pick_nan_muladd` 在任何 payload 传播规则**之前**短路返回 `default_nan`，故算术、开方、取余、scaleB 与 f2f 转换一次覆盖，结果统一为 FCSR 的 qNaN 位型 `0x7FC0_0000` / `0x7FF8_0000_0000_0000`（符号 0、payload 0），sNaN 仍置 NV（早于短路）；原 `float_2nan_prop_ab`（为对齐 x86_64 主机而设）降级为**仅在 default-NaN 关闭时**防 `g_assert_not_reached` 的兜底（ISS-195），不再定义 ISA 结果；`set_float_default_nan_pattern(0b01000000)` 不变。② `helper_fp_root()` 零量值（`±0`）短路返回 `+0`（IEEE 754-2019 §9.2.1；NOTE 明确 `rootn(−0,2) ≠ squareRoot(−0)`），不置标志、不进 softfloat；其余输入仍为 squareRoot 语义（负数 ⇒ NV + canonical qNaN）。`roundint`/`minmax`/`fma` 三处 per-op `set_default_nan_mode(1,&st)` 变冗余，保留（最小改动）。`tests/inst` 的既有非 canonical qNaN pin（`divrem.yaml[23]`）随之转红，由 `m13-testcases-032` 收口。补丁 1 份改。
+  - 执行者：engineer
