@@ -58,8 +58,8 @@
 | m12-chipyard-018 | 2026-11-10 16:21 | 核心结构改造：双 TL 端口 + 8-beat 取指 + FSM 骨架 |
 | m12-spec-004 | 2026-11-10 12:14 | hmon 装载契约（BootROM→power 搬运）+ rc10 初值/对齐 + `cfx2*` 口径 + 退出码只定编码 |
 | m12-spec-003 | 2026-11-10 09:30 | `Machine-v5` 口径统一（reserved 改为引用上游 / `switch_run_mode` 读回 3 / 修 `DADAO-12` 笔误） |
-| m12-spec-002 | 2026-11-10 02:16 | Tiny 引入 cfx_power + cfx3 hmon 规范 + 只读锁（0.4.2-rc） |
 | m12-chipyard-005 | 2026-11-10 02:16 | 解码器 + 整数 ALU + 寄存器堆（273 例三方一致，含 ILLI/UNDI） |
+| m12-spec-002 | 2026-11-10 02:16 | Tiny 引入 cfx_power + cfx3 hmon 规范 + 只读锁（0.4.2-rc） |
 | m12-chipyard-006 | 2026-11-10 00:48 | 多周期状态机设计（12 态 FSM + 转移表 + hmon 异常/ip 语义 + §9 spec 偏差清单） |
 | m12-infra-003 | 2026-11-09 19:02 | 子模块补丁机制（manifest/apply/make_patch/check_patch_tree + testchipip 试点） |
 | m12-chipyard-004 | 2026-11-09 14:06 | harness 侧 semihosting 应答者（最小 5 服务 + 核内抬边界） |
@@ -67,8 +67,8 @@
 | m12-chipyard-002 | 2026-11-09 05:22 | Tiny 地址图落地（BootROM `0xffff_ffff_0000` + SRAM 8 MiB，paddrBits≥48） |
 | m12-integ-001 | 2026-11-09 03:17 | 移除过渡别名（`dadao-m1`、`profile=node`） |
 | m12-testcases-001 | 2026-11-09 02:27 | 测试与 profile 迁移到 `tiny`/`vast`（yaml/inc/env/46 文件） |
-| m12-infra-002 | 2026-11-09 01:25 | 取消 m 册门控（m 册从必需改为可选，其余校验项保留） |
 | m12-chipyard-001 | 2026-11-09 01:25 | chipyard 补丁集接入 + `dadao-wuming` 最小骨架（外壳 B，core 桩） |
+| m12-infra-002 | 2026-11-09 01:25 | 取消 m 册门控（m 册从必需改为可选，其余校验项保留） |
 | m12-gem5-001 | 2026-11-09 00:25 | gem5 FS profile `node`→`vast`（保留 node 过渡别名） |
 | m12-qemu-001 | 2026-11-08 23:19 | QEMU 拆两台机器 `dadao-tiny`/`dadao-vast`（保留 m1 过渡别名） |
 | m12-spec-001 | 2026-11-08 22:25 | 机器命名定稿 Tiny/Vast（spec + contracts + docs，含锁更新） |
