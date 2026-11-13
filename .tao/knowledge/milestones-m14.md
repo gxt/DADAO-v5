@@ -28,13 +28,13 @@
 | m14-llvm-004 | 4–8 h | DADAO DWARF 寄存器编号 + CFI（修 `llvm-mc` abort、RA≤255、`.eh_frame` absptr） |
 | m14-llvm-002 | 1–2 天 | 栈保护后端 lowering（`-fstack-protector{,-strong,-all}`，guard=global） |
 | m14-qemu-001 | 4–6 h | 最小 smon：建 64 KiB 身份页表 + PTBR/ptw_enable + VA 入口交内核（K1） |
-| m14-linux-002 | 6–7 h | `arch/dadao` 最小骨架，`make ARCH=dadao` 出 vmlinux（不要求启动） |
 | m14-infra-003 | 4–5 h | K0 收口门控 `check-linux-k0`（vmlinux/initramfs/工具链矩阵/反例注入） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-linux-002 | 2026-11-14 00:20 | 6–7 h | `arch/dadao` 最小骨架，`make ARCH=dadao` 出 vmlinux（不要求启动） |
 | m14-llvm-001 | 2026-11-13 23:10 | 3–4 h | 补 `llvm-ar`/`llvm-ranlib`/`llvm-strip` + 其余工具族（裁定 A） |
 
 ## 已验证
