@@ -735,6 +735,18 @@ constexpr unsigned kNumInstructionRows = {count};
  * empty string means «static»).  ``classMask`` has one bit per CycleClass, so
  * an instruction dispatched at run time (``trap`` -> F/G1/G2, ``call``/``ret``
  * -> A3/A4) keeps every class it can take.
+ *
+ * The remaining fields are the document figures for the dynamic classes
+ * (m16-gem5-004), emitted by the same parse; -1 means "not applicable".  They
+ * exist so the policy header never carries a hand-copied cycle count:
+ *
+ *   defaultCycles  mul-config default (§3 "3（可配）" / "1（可配）")
+ *   memCycles      ras-kind MemRAS figure (call 26 / ret 15)
+ *   hostCycles     trap-target semihosting base (§3 "1 + 变长" -> 1)
+ *   rangeLo/Hi     documented range endpoints (escape 3–4, trap G1/G2 4–5)
+ *   dynBase/dynAdd exponent-diff formula "base + d + add" (53+d+1)
+ *   semihostMask   trap semihosting test: (immu18 & mask) == value
+ *   semihostValue  (0/0 when the row has no semihosting variant)
  */
 struct CycleRow
 {{
@@ -742,6 +754,15 @@ struct CycleRow
     const char *mnemonic;
     uint32_t classMask;
     int16_t cycles;
+    int16_t defaultCycles;
+    int16_t memCycles;
+    int16_t hostCycles;
+    int16_t rangeLo;
+    int16_t rangeHi;
+    int16_t dynBase;
+    int16_t dynAdd;
+    uint32_t semihostMask;
+    uint32_t semihostValue;
     const char *dynamic;
     uint16_t docLine;
 }};
@@ -764,13 +785,79 @@ const char *rowClasses(const CycleRow &row);
 """
 
 
+def policy_fields(entry) -> dict:
+    """Document figures for the dynamic classes, parsed from the same tables.
+
+    Every value is either a verbatim doc number or an endpoint of a doc range;
+    a dynamic class this policy knows about but whose figure cannot be located
+    aborts the generator instead of emitting a made-up row.
+    """
+    out = {
+        "default_cycles": -1, "mem_cycles": -1, "host_cycles": -1,
+        "range_lo": -1, "range_hi": -1, "dyn_base": -1, "dyn_add": -1,
+        "semihost_mask": 0, "semihost_value": 0,
+    }
+    dyn = entry["dynamic"]
+    variants = entry.get("variants") or []
+
+    def leading_int(text: str, why: str) -> int:
+        m = re.search(r"\d+", text or "")
+        if not m:
+            raise SystemExit(f"{DOC.name}: {entry['id']}: {why} 中找不到数字")
+        return int(m.group(0))
+
+    if dyn == "mul-config":
+        out["default_cycles"] = leading_int(entry["cycles"], "乘法可配默认值")
+    elif dyn == "ras-kind":
+        for v in variants:
+            when = v.get("when") or ""
+            if "MemRAS" in when:
+                out["mem_cycles"] = v["value"]
+            elif "RegRAS" in when:
+                out["default_cycles"] = v["value"]
+        if out["mem_cycles"] < 0 or out["default_cycles"] < 0:
+            raise SystemExit(f"{DOC.name}: {entry['id']}: ras-kind 缺 RegRAS/MemRAS 变体")
+    elif dyn == "trap-target":
+        for v in variants:
+            if v.get("dynamic") == "host-latency":
+                out["host_cycles"] = leading_int(v["cycles"], "trap semihosting")
+                m = re.search(r"immu18\[(\d+):(\d+)\]\s*==\s*0x([0-9A-Fa-f]+)",
+                              v.get("when") or "")
+                if not m:
+                    raise SystemExit(f"{DOC.name}: {entry['id']}: "
+                                     "trap semihosting 行缺 immu18 判据")
+                low, high, want = int(m.group(2)), int(m.group(1)), int(m.group(3), 16)
+                if high < low:
+                    raise SystemExit(f"{DOC.name}: {entry['id']}: 位域上下界颠倒")
+                mask = want << low
+                out["semihost_mask"] = mask
+                out["semihost_value"] = mask
+            elif v.get("range"):
+                out["range_lo"], out["range_hi"] = v["range"]
+        if out["host_cycles"] < 0 or out["range_lo"] < 0:
+            raise SystemExit(f"{DOC.name}: {entry['id']}: trap-target 缺 F/G 档")
+    elif dyn == "exponent-diff":
+        m = re.search(r"(\d+)\s*\+\s*d\s*\+\s*(\d+)", entry["cycles"])
+        if not m:
+            raise SystemExit(f"{DOC.name}: {entry['id']}: exponent-diff 公式无法解析")
+        out["dyn_base"], out["dyn_add"] = int(m.group(1)), int(m.group(2))
+    elif dyn == "range" and entry["mnemonic"] == "escape":
+        out["range_lo"], out["range_hi"] = entry["range"]
+    return out
+
+
 def emit_cc(table, order) -> str:
     lines = []
     for entry in sorted(table, key=lambda e: e["id"]):
         cycles = entry["value"] if entry["value"] is not None else -1
         dynamic = entry["dynamic"] or ""
+        pol = policy_fields(entry)
         lines.append(f'    {{"{entry["id"]}", "{entry["mnemonic"]}", '
                      f'{class_mask(entry["klass"], order)}u, {cycles}, '
+                     f'{pol["default_cycles"]}, {pol["mem_cycles"]}, '
+                     f'{pol["host_cycles"]}, {pol["range_lo"]}, '
+                     f'{pol["range_hi"]}, {pol["dyn_base"]}, {pol["dyn_add"]}, '
+                     f'{pol["semihost_mask"]}u, {pol["semihost_value"]}u, '
                      f'"{dynamic}", {entry["doc"]}}},')
     names = "\n".join(f'    "{name}",' for name in order)
     seen: dict[int, str] = {}

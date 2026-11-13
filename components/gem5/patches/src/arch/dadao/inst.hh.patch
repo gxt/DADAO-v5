@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.hh b/src/arch/dadao/inst.hh
 new file mode 100644
-index 0000000..0757bad
+index 0000000..6ddd9c2
 --- /dev/null
 +++ b/src/arch/dadao/inst.hh
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,77 @@
 +// DADAO StaticInst (B0 decode + B1/B2/B3/B4/B5/B6/B7 execution).
 +#
 +// One instruction class carries the decode result.  Batches B1 (load/store),
@@ -70,6 +70,11 @@ index 0000000..0757bad
 +    {
 +        return decoded.entry != nullptr ? decoded.entry->id : nullptr;
 +    }
++
++    /** One decoded field by name (``immu18``, ``imms18``, ``cfxha``, ``rfhc``,
++     *  ...).  False when the instruction/encoding has no such field; the
++     *  latency policy treats that as "no dynamic model", never as zero. */
++    bool fieldValue(const char *name, uint64_t &value) const;
 +};
 +
 +} // namespace DadaoISAInst

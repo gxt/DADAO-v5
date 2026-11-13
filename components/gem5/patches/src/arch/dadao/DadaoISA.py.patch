@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/DadaoISA.py b/src/arch/dadao/DadaoISA.py
 new file mode 100644
-index 0000000..8ec96ed
+index 0000000..1cad1f2
 --- /dev/null
 +++ b/src/arch/dadao/DadaoISA.py
-@@ -0,0 +1,16 @@
+@@ -0,0 +1,24 @@
 +from m5.objects.BaseISA import BaseISA
 +from m5.params import *
 +
@@ -17,6 +17,14 @@ index 0000000..8ec96ed
 +    # parsed into arch/dadao/wuming_cycles.{hh,cc}).  Off by default: the DADAO
 +    # ISA then keeps gem5's upstream one-cycle execution model bit for bit, so
 +    # every pre-M16 run stays byte-identical.  m16-gem5-003 drives the static
-+    # classes, m16-gem5-004/005/006 the parameterised ones.
++    # classes, m16-gem5-004 the width/mode classes.
 +    enable_wuming_cycles = Param.Bool(
 +        False, "Drive ISA::extraExecLatency from the wuming cycle table (M16)")
++
++    # B1/B2 multiplication latency is a hardware configuration (R2: initial 3,
++    # configurable 1/2/3).  When set, this gem5 TimingExpr overrides the table
++    # default (3 for B1, 1 for B2 -- both are read from the generated table, never
++    # hand-copied).  NULL keeps the table default.  Any gem5 TimingExpr works;
++    # m16-gem5-004 exercises TimingExprLiteral for the 1/2/3 configurations.
++    wuming_mul_expr = Param.TimingExpr(
++        NULL, "B1/B2 multiplier latency as a gem5 TimingExpr (NULL = table default)")

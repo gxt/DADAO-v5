@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
 new file mode 100644
-index 0000000..8ac5a29
+index 0000000..c5d410a
 --- /dev/null
 +++ b/src/arch/dadao/isa.hh
-@@ -0,0 +1,131 @@
+@@ -0,0 +1,142 @@
 +// DADAO ISA object (B0 skeleton + B6 LR/SC reservation state).
 +#ifndef __ARCH_DADAO_ISA_HH__
 +#define __ARCH_DADAO_ISA_HH__
@@ -22,6 +22,7 @@ index 0000000..8ac5a29
 +{
 +
 +struct DadaoISAParams;
++class TimingExpr;
 +
 +namespace DadaoISA
 +{
@@ -113,6 +114,16 @@ index 0000000..8ac5a29
 +
 +    /** Wuming per-instruction cycle table switch (M16, off by default). */
 +    bool wumingCycles = false;
++
++    /** Optional gem5 TimingExpr for the B1/B2 multiplier latency (m16-gem5-004;
++     *  NULL keeps the generated table default). */
++    TimingExpr *wumingMulExpr = nullptr;
++
++    /** MRPTR of the previous completed instruction (m16-gem5-004 RAS kind:
++     *  a call that pushed to MemRAS lowers MRPTR, a ret that popped from it
++     *  raises MRPTR; unchanged MRPTR means the RegRAS path). */
++    mutable uint64_t wumingLastMrptr = 0;
++    mutable bool wumingRasSeen = false;
 +
 +    /** Harts that currently hold a reservation (store-side invalidation). */
 +    static std::vector<ISA *> holders;

@@ -1,13 +1,14 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..8bbc284
+index 0000000..05faf1e
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,334 @@
+@@ -0,0 +1,420 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
 +#include <cstdio>
++#include <string_view>
 +
 +#include "arch/dadao/fs_machine.hh"
 +#include "arch/dadao/fs_workload.hh"
@@ -18,6 +19,7 @@ index 0000000..8bbc284
 +#include "arch/dadao/wuming_latency.hh"
 +#include "base/logging.hh"
 +#include "cpu/thread_context.hh"
++#include "cpu/timing_expr.hh"
 +#include "debug/CCRegs.hh"
 +#include "debug/MatRegs.hh"
 +#include "debug/VecPredRegs.hh"
@@ -42,10 +44,50 @@ index 0000000..8bbc284
 +// cfxha order of the fixed register dump (spec/DADAO-12 §1).
 +constexpr int kTraceCfxha[9] = {0, 1, 2, 3, 4, 15, 32, 34, 63};
 +
++/** Runtime inputs of one dynamic cycle row (m16-gem5-004).  False means the
++ *  class has no executable model in this milestone (memory ranges); the hook
++ *  then keeps the one-cycle placeholder instead of guessing. */
++bool
++fillDynamicState(const DadaoISAInst::DadaoInst &inst,
++                 const wuming::CycleRow &row, ThreadContext *tc,
++                 wuming::DynamicState &state)
++{
++    const std::string_view dyn(row.dynamic);
++    const std::string_view mnemonic(row.mnemonic);
++    if (dyn == "ras-kind") {
++        // `state.rasMem` is set by the hook from the MRPTR before/after diff;
++        // a shallow stack uses RegRAS even though MRPTR is non-zero.
++        return tc != nullptr;
++    }
++    if (dyn == "trap-target")
++        return inst.fieldValue("immu18", state.immu18) &&
++               inst.fieldValue("cfxha", state.cfxha);
++    if (dyn == "range") {
++        if (mnemonic == "escape")
++            return inst.fieldValue("imms18", state.imms18);
++        return false;
++    }
++    if (dyn == "exponent-diff") {
++        if (tc == nullptr)
++            return false;
++        uint64_t reg1 = 0, reg2 = 0;
++        if (!inst.fieldValue("rfhc", reg1) || !inst.fieldValue("rfhd", reg2))
++            return false;
++        const RegVal a =
++            tc->getReg(RegId(floatRegClass, static_cast<RegIndex>(reg1)));
++        const RegVal b =
++            tc->getReg(RegId(floatRegClass, static_cast<RegIndex>(reg2)));
++        state.expDiff = wuming::fpExponentDiff(a, b, mnemonic == "forem");
++        return true;
++    }
++    return true; // mul-config: the optional TimingExpr is handled by the hook
++}
++
 +} // anonymous namespace
 +
 +ISA::ISA(const Params &p)
-+    : BaseISA(p, "dadao"), wumingCycles(p.enable_wuming_cycles)
++    : BaseISA(p, "dadao"), wumingCycles(p.enable_wuming_cycles),
++      wumingMulExpr(p.wuming_mul_expr)
 +{
 +    _regClasses = {&intRegClass, &floatRegClass, &vecRegClass,
 +        &vecElemClass, &vecPredRegClass, &matRegClass, &ccRegClass,
@@ -169,8 +211,52 @@ index 0000000..8bbc284
 +    const char *id = dadao->contractId();
 +    if (id == nullptr)
 +        return Cycles(0);
++    const wuming::CycleRow *row = wuming::byId(std::string_view(id));
++    if (row == nullptr)
++        return Cycles(0);
 +
-+    return Cycles(wuming::extraExecCycles(std::string_view(id)));
++    // RAS kind: the document's MemRAS figures are the overflow/underflow
++    // paths, i.e. the call/ret that actually touched MemRAS.  Compare the
++    // architectural MRPTR before and after the instruction instead of merely
++    // testing MRPTR != 0 (a shallow stack still uses RegRAS).
++    uint64_t mrptr = 0;
++    bool rasHistory = false;
++    if (tc != nullptr) {
++        const RegVal ra0 = tc->getReg(RegId(intRegClass, int_reg::RaBase));
++        mrptr = ra0 & 0x0000ffffffffffffULL;
++        rasHistory = wumingRasSeen;
++    }
++    const bool mrptrDropped = rasHistory && mrptr < wumingLastMrptr;
++    const bool mrptrGrew = rasHistory && mrptr > wumingLastMrptr;
++
++    unsigned total = 0;
++    const std::string_view dyn(row->dynamic);
++    const std::string_view mnemonic(row->mnemonic);
++    if (dyn == "mul-config" && wumingMulExpr != nullptr) {
++        // B1/B2 latency is a hardware configuration (R2): evaluate the gem5
++        // TimingExpr the platform attached (m16-gem5-004 uses a literal 1/2/3).
++        StaticInstPtr self(const_cast<StaticInst *>(inst));
++        TimingExprEvalContext context(self, tc, nullptr);
++        total = static_cast<unsigned>(wumingMulExpr->eval(context));
++    } else if (mnemonic == "swym") {
++        uint64_t immu18 = 0;
++        if (dadao->fieldValue("immu18", immu18))
++            total = wuming::swymCycles(*row, immu18);
++    } else if (!dyn.empty()) {
++        wuming::DynamicState state;
++        state.rasMem = mnemonic == "call" ? mrptrDropped
++                     : mnemonic == "ret"  ? mrptrGrew : false;
++        if (fillDynamicState(*dadao, *row, tc, state))
++            total = wuming::dynamicCycles(*row, state);
++    } else {
++        total = wuming::staticCycles(*row);
++    }
++
++    if (tc != nullptr) {
++        wumingLastMrptr = mrptr;
++        wumingRasSeen = true;
++    }
++    return Cycles(wuming::extraFromTotal(total));
 +}
 +
 +void

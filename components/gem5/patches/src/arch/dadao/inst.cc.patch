@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..efb28c5
+index 0000000..6c12d78
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,739 @@
+@@ -0,0 +1,745 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -560,6 +560,12 @@ index 0000000..efb28c5
 +DadaoInst::generateDisassembly(Addr, const loader::SymbolTable *) const
 +{
 +    return csprintf("%s 0x%08x", mnemonic, word);
++}
++
++bool
++DadaoInst::fieldValue(const char *name, uint64_t &value) const
++{
++    return exec::fieldValue(decoded, std::string_view(name), value);
 +}
 +
 +Fault

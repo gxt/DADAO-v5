@@ -1,23 +1,28 @@
 diff --git a/src/arch/dadao/wuming_latency.hh b/src/arch/dadao/wuming_latency.hh
 new file mode 100644
-index 0000000..ea12269
+index 0000000..d8614af
 --- /dev/null
 +++ b/src/arch/dadao/wuming_latency.hh
-@@ -0,0 +1,91 @@
-+// Static per-instruction latency policy for the wuming cycle table (M16).
+@@ -0,0 +1,184 @@
++// Wuming per-instruction latency policy (M16).
 +//
 +// The table itself (``wuming_cycles.hh``) is generated from
 +// ``docs/core-wuming-cycle-model.md``; this header is the *policy* that turns
-+// one row into the extra cycles gem5 must add after an instruction completes.
-+// It is plain C++ so the standalone policy harness can exercise all 264 rows
-+// without gem5 headers.
++// one row into gem5's extra execution latency.  It is plain C++ so the
++// standalone policy harness can exercise all 264 rows (and every endpoint of
++// the parameterised classes) without gem5 headers.
 +//
-+// Milestones: m16-gem5-003 maps the classes whose rows already carry a fixed
-+// figure (A / A2 / A3 / B4 / G1-G4); the parameterised classes (B1/B2/B3/B5,
-+// C, D, D', E, F, and the ``dynamic`` rows inside B4/A3/G1-G3) keep gem5's
-+// one-cycle placeholder until m16-gem5-004 (width/mode), 005 (block transfer)
-+// and 006 (memory timing).  There is no guessed cycle count here: a row is
-+// used only when the document gives a literal fixed value.
++// Milestones:
++//   m16-gem5-003  fixed-figure classes (A / A2 / B4 / G4)
++//   m16-gem5-004  width/mode classes: B1/B2 (mul-config, overridable with a
++//                 gem5 TimingExpr), B3 (radix-4 widths), B5 (FP div/root and
++//                 the exponent-difference remainder), ``swym N``, the RAS kind
++//                 of call/ret, and the trap/escape ranges
++//   m16-gem5-005  block transfer (D / D')
++//   m16-gem5-006  memory (C / E and the remaining ranges)
++//
++// Every figure used here comes from a field of the generated row; there is no
++// hand-copied cycle count in this file.
 +#ifndef __ARCH_DADAO_WUMING_LATENCY_HH__
 +#define __ARCH_DADAO_WUMING_LATENCY_HH__
 +
@@ -33,14 +38,15 @@ index 0000000..ea12269
 +namespace wuming
 +{
 +
-+/** Classes whose cycle figures this milestone feeds into gem5.  A3/G1/G2/G3
-+ *  only have parameterised rows today (RAS kind, trap target, range), so they
-+ *  contribute zero until their dynamic model lands. */
++/** Classes whose fixed figures this policy feeds into gem5.  Dynamic rows are
++ *  routed by ``CycleRow::dynamic`` before this mask is consulted. */
 +constexpr uint32_t kStaticClassMask =
 +    (1u << static_cast<unsigned>(CycleClass::A)) |
 +    (1u << static_cast<unsigned>(CycleClass::A2)) |
 +    (1u << static_cast<unsigned>(CycleClass::A3)) |
++    (1u << static_cast<unsigned>(CycleClass::B3)) |
 +    (1u << static_cast<unsigned>(CycleClass::B4)) |
++    (1u << static_cast<unsigned>(CycleClass::B5)) |
 +    (1u << static_cast<unsigned>(CycleClass::G1)) |
 +    (1u << static_cast<unsigned>(CycleClass::G2)) |
 +    (1u << static_cast<unsigned>(CycleClass::G3)) |
@@ -59,35 +65,122 @@ index 0000000..ea12269
 +           mnemonic.compare(0, 3, "st.") == 0;
 +}
 +
-+/** Extra cycles after the instruction for one table row.
++/** Runtime inputs for the dynamic classes.  The ISA hook fills them from the
++ *  decoded instruction and the thread state; the policy harness fills them
++ *  directly, which is how the classes the TimingSimpleCPU cannot execute
++ *  (trap/escape/MemRAS) are unit-checked. */
++struct DynamicState
++{
++    uint64_t immu18 = 0;
++    uint64_t imms18 = 0;
++    uint64_t cfxha = 0;
++    bool rasMem = false;
++    unsigned expDiff = 0;
++};
++
++/** Total EXEC cycles of a fixed-figure row, or 0 when this policy does not
++ *  model it (dynamic row, class not mapped yet, memory row, one-cycle value). */
++inline unsigned
++staticCycles(const CycleRow &row)
++{
++    if (row.dynamic[0] != '\0')
++        return 0;
++    if ((row.classMask & kStaticClassMask) == 0)
++        return 0;
++    if (memoryRow(row))
++        return 0;
++    return row.cycles > 1 ? static_cast<unsigned>(row.cycles) : 0;
++}
++
++/** Absolute difference of two IEEE-754 biased exponents.
 + *
-+ *  The document counts EXEC-to-writeback cycles, and TimingSimpleCPU already
-+ *  spends one cycle in execute(), so the extra is ``value - 1``.  Zero means
-+ *  "keep the one-cycle placeholder": no fixed figure in the table (dynamic
-+ *  row), class outside this milestone, a memory row, or a one-cycle value.
-+ */
++ *  ``a`` / ``b`` are the raw 64-bit register values (the F32 value lives in
++ *  the low 32 bits); the divide/remainder model uses ``53 + d + 1`` with this
++ *  ``d`` (docs §3 07 / §5 014). */
++inline unsigned
++fpExponentDiff(uint64_t a, uint64_t b, bool isDouble)
++{
++    const unsigned ea = isDouble ? static_cast<unsigned>((a >> 52) & 0x7ff)
++                                 : static_cast<unsigned>((a >> 23) & 0xff);
++    const unsigned eb = isDouble ? static_cast<unsigned>((b >> 52) & 0x7ff)
++                                 : static_cast<unsigned>((b >> 23) & 0xff);
++    return ea > eb ? ea - eb : eb - ea;
++}
++
++/** Total EXEC cycles of a dynamic row given its runtime inputs.
++ *
++ *  The ranges are the document's: ``trap`` G1/G2 take the lower bound 4 (the
++ *  G1 ILLI entry into hmon is the +1 the document leaves open), ``escape``
++ *  takes ``3 + imms18`` (imms18 is the encoded {0,1} byte offset), the RAS
++ *  kind takes the RegRAS figure when MemRAS is not configured and the MemRAS
++ *  figure otherwise, and ``ftrem``/``forem`` take ``base + d + add``. */
++inline unsigned
++dynamicCycles(const CycleRow &row, const DynamicState &state)
++{
++    const std::string_view dyn(row.dynamic);
++    if (dyn == "mul-config")
++        return row.defaultCycles > 0 ? static_cast<unsigned>(row.defaultCycles)
++                                     : 0;
++    if (dyn == "ras-kind") {
++        const int16_t figure = state.rasMem ? row.memCycles : row.defaultCycles;
++        return figure > 0 ? static_cast<unsigned>(figure) : 0;
++    }
++    if (dyn == "trap-target") {
++        if (row.semihostMask != 0 && state.cfxha == 0 &&
++            (state.immu18 & row.semihostMask) == row.semihostValue)
++            return row.hostCycles > 0
++                ? static_cast<unsigned>(row.hostCycles) : 0;
++        return row.rangeLo > 0 ? static_cast<unsigned>(row.rangeLo) : 0;
++    }
++    if (dyn == "range") {
++        if (std::string_view(row.mnemonic) == "escape") {
++            const unsigned offset = state.imms18 & 1u;
++            unsigned cycles = static_cast<unsigned>(row.rangeLo) + offset;
++            if (row.rangeHi >= row.rangeLo && cycles > unsigned(row.rangeHi))
++                cycles = static_cast<unsigned>(row.rangeHi);
++            return row.rangeLo > 0 ? cycles : 0;
++        }
++        return 0; // memory ranges belong to m16-gem5-006
++    }
++    if (dyn == "exponent-diff")
++        return row.dynBase > 0
++            ? static_cast<unsigned>(row.dynBase + int(state.expDiff) + row.dynAdd)
++            : 0;
++    return 0;
++}
++
++/** ``swym N``: the document's event is one cycle; SimRISC-12 makes N a delay
++ *  parameter, "about N+1 times swym 0", so the table's one-cycle figure for
++ *  ``swym`` is scaled by N here.  The table never carries an N-specific
++ *  number, and 015 is free to cap it once the core measurement exists. */
++inline unsigned
++swymCycles(const CycleRow &row, uint64_t immu18)
++{
++    if (row.cycles < 1)
++        return 0;
++    return static_cast<unsigned>(row.cycles) + static_cast<unsigned>(immu18);
++}
++
++/** Extra cycles after the instruction: the document counts EXEC-to-writeback,
++ *  and TimingSimpleCPU already spends one cycle in execute(). */
++inline unsigned
++extraFromTotal(unsigned total)
++{
++    return total > 1 ? total - 1 : 0;
++}
++
++/** Extra cycles for a fixed-figure row (kept for the m16-gem5-003 callers). */
 +inline unsigned
 +extraExecCycles(const CycleRow *row)
 +{
-+    if (row == nullptr)
-+        return 0;
-+    if (row->dynamic[0] != '\0')
-+        return 0;
-+    if ((row->classMask & kStaticClassMask) == 0)
-+        return 0;
-+    if (memoryRow(*row))
-+        return 0;
-+    if (row->cycles <= 1)
-+        return 0;
-+    return static_cast<unsigned>(row->cycles) - 1;
++    return row == nullptr ? 0 : extraFromTotal(staticCycles(*row));
 +}
 +
 +/** Same, for a contract id (nullptr / unknown id => 0). */
 +inline unsigned
 +extraExecCycles(std::string_view id)
 +{
-+    const CycleRow *row = byId(id);
-+    return extraExecCycles(row);
++    return extraExecCycles(byId(id));
 +}
 +
 +} // namespace wuming
