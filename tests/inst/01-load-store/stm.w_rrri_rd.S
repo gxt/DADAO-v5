@@ -1,0 +1,86 @@
+@@ stm.w_rrri_rd.S — stm.w {rdHA:rdHA+immu6-1}, [rbHB, rdHC]（rrri, opc 0x31）
+@@ 大类：01-load-store（取数存数，`spec/SimRISC-01 §1`）
+@@ id：stm.w_rrri_rd　形式：rrri　opc：0x31　mask：0xFF000000
+@@ 语义：mem16[EA + 2i] ← 源 i 低 16 位；EA = rb[47:0] + rd[63:0]（immu6 = 元素个数 1..63；元素宽度整除 8 且起址按宽度对齐 ⇒ 元素不跨 8 B 拍）
+@@ 合法性：rd0 作源合法（读出 0/当前指令地址）；允许索引 rdHC 落在源范围内（`stm` 只读，行为确定，不触发 ILLI）；immu6=0 ⇒ ILLI；rdHA+immu6>64 ⇒ ILLI（不环绕、不截断）；首址未按 2 B 对齐 ⇒ MALIGN
+@@ 数据块：`tests/inst/macros/inst_test.inc` 的多元素区（MDATA_B/W/T/O、MUNI、MDUMP、MSTORE；字面量见该文件）
+@@ 用例：链例 9 + 故障例 7（故障例一例一镜像，`-defsym CASE_N=<点号>`）
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
+
+	.include "tests/inst/macros/inst_test.inc"
+
+	__TEST_BEGIN
+
+	@@ encoding：count=2
+	TEST_STM         1, stm.w, rd, {rd1:rd2}, rb4, MSTORE, rd19, 0x000, MDATA_W + 0x000, 0x80008001000000A0
+
+	@@ semantic：count=3
+	TEST_STM         2, stm.w, rd, {rd5:rd7}, rb4, MSTORE, rd19, 0x018, MDATA_W + 0x010, 0x80088009800A00A3
+
+	@@ semantic：count=16（多拍，元素不跨 8 B 拍）
+	TEST_STM         3, stm.w, rd, {rd24:rd39}, rb4, MSTORE, rd19, 0x030, MDATA_W + 0x020, 0x8010801180128013, 0x8014801580168017, 0x80188019801A801B, 0x801C801D801E801F
+
+	@@ 保持区：存储区左侧拍保持不变
+	__CHECK_MEM         4, MSTORE, 0x028, 0xC0DE0000000000A5
+
+	@@ boundary：EA 在拍内（+2）—— 首拍前 2 字节保持
+	TEST_STM         5, stm.w, rd, {rd5:rd7}, rb4, MSTORE, rd19, 0x062, MDATA_W + 0x058, 0xC0DE802C802D802E
+
+	@@ boundary：偏移寄存器为负（EA = 基址 + 负偏移，取 48 位模加）
+	TEST_STM         6, stm.w, rd, {rd5:rd6}, rb4, MSTORE + 0x878, rd19, -0x800, MDATA_W + 0x050, 0x80288029000000AF
+
+	@@ boundary：SRAM 尾拍（0xffffff7ffff8）可写，读写逐字节相等
+	LOAD_ADDR rb28, MDATA_W + 0x090
+	ldm.uw	{rd5:rd8}, [rb28, rd0]
+	__LI    rd19, 0x000
+	LOAD_ADDR rb4, 0xFFFFFF7FFFF8
+	stm.w	{rd5:rd8}, [rb4, rd19]
+	LOAD_ADDR rb21, 0xFFFFFF7FFFF8
+	ld.o	rd21, [rb21, 0]
+	__CHECK_RD         7, rd21, 0x80488049804A804B
+
+	@@ overlap：索引 rd19 落在源组内（`stm` 允许重叠）⇒ 正常执行，行为确定
+	LOAD_ADDR rb28, MDATA_W + 0x0A0
+	ldm.uw	{rd17:rd21}, [rb28, rd0]
+	__LI    rd19, 0x090
+	LOAD_ADDR rb4, MSTORE
+	stm.w	{rd17:rd21}, [rb4, rd19]
+
+	@@ overlap：`stm` 只读，源组 rd17..rd21 事后仍是原值
+	LOAD_ADDR rb28, MDUMP + 0x100
+	stm.w	{rd17:rd21}, [rb28, rd0]
+	__CHECK_MEM         8, MDUMP, 0x100, 0x8050805100908053
+	__CHECK_MEM         9, MDUMP, 0x108, 0x8054000000000000
+	__CHECK_MEM        10, MSTORE, 0x090, 0x8050805100908053
+	__CHECK_MEM        11, MSTORE, 0x098, 0x80540000000000B3
+
+	@@ legality：stm 允许 rd0 作源（读出 0），不触发 ILLI
+	LOAD_ADDR rb28, MDATA_W + 0x078
+	ldm.uw	{rd1:rd2}, [rb28, rd0]
+	__LI    rd19, 0x000
+	LOAD_ADDR rb4, MSTORE + 0x0B0
+	stm.w	{rd0:rd2}, [rb4, rd19]
+	__CHECK_MEM        12, MSTORE, 0x0B0, 0x0000803C803D00B6
+
+	__TEST_END
+
+	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ 口径：多元素指令**允许部分元素已生效**（用户 2026-11-13 裁定）⇒ 故障例只比异常码，
+	@@   不判目的寄存器/目标内存的副作用（单元素 `ld`/`st` 的精确性见 `012`，不在本文件）
+	@@ immu6=0 ⇒ ILLI（mreg_zero；汇编器拒绝该编码，故用原始字）
+	TEST_FAULT_ENC        13, ILLI, 0x31143040, rb3, MDATA_W, rd19, 0x000
+	@@ 组首+immu6=65 > 64 ⇒ ILLI（mreg_range_overflow）
+	TEST_FAULT_ENC        14, ILLI, 0x31DC304A, rb3, MDATA_W, rd19, 0x000
+	@@ bank 顶端 63 + immu6=2 = 65 > 64 ⇒ ILLI（边界不环绕）
+	TEST_FAULT_ENC        15, ILLI, 0x31FC3042, rb3, MDATA_W, rd19, 0x000
+	@@ 首址未按 2 B 对齐 ⇒ MALIGN
+	TEST_FAULT_M        16, stm.w, {rd5:rd6}, MALIGN, rb3, MDATA_W, rd19, 0x001
+	@@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
+	TEST_FAULT_M        17, stm.w, {rd5:rd6}, CFXMEM, rb3, 0x0, rd19, 0x000
+	@@ 整段越出地址窗口（首元素在 SRAM 尾、后续元素越界）⇒ CFXMEM
+	TEST_FAULT_M        18, stm.w, {rd5:rd6}, CFXMEM, rb3, 0xFFFFFF7FFFFE, rd19, 0x000
+	@@ 保留 cfx 地址空间（addr[47:42]=6）的普通访存 ⇒ CFXMEM
+	TEST_FAULT_M        19, stm.w, {rd5:rd6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000
+
+	__TEST_SECTIONS

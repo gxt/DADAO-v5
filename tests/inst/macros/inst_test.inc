@@ -31,13 +31,32 @@
 @@ 固定地址（Tiny；`.lds` 的 ASSERT 与本节 `.equ` 共同钉住）：
 @@   ENTRY+0x0000 .. +0x1E00  .text          链例 + 故障例体
 @@   ENTRY+0x1E00             .hmon_stub     测试自有 hmon 处理器（≤64 B）
-@@   ENTRY+0x1F00             .faultpad      故障落点（≤256 B）
+@@   ENTRY+0x1F00             .faultpad      故障落点（≤128 B）
 @@   ENTRY+0x1F80             TEST_FAULTV    故障期望槽：+0 one-hot、+8 退出码、
 @@                                           +16 失败码（=检查点号）、+32 实测 one-hot
-@@   ENTRY+0x2000 .. +0x3000  .testdata     数据块（TEST_DATA = +0x2800，0x800 负偏移
-@@                                           区在前、0x780 尾部零填充在后）
-@@   ENTRY+0x3000 .. +0x3800  结果字节缓冲（每检查点 8 字节，≤127 点 ⇒ ≤1016 B）
-@@   ENTRY+0x4000             SYS_EXIT 参数块
+@@   ENTRY+0x2000 .. +0x4000  .testdata     数据块（TEST_DATA = +0x2800，0x800 负偏移
+@@                                           区在前；单元素 24 拍模式；多元素区见下）
+@@   ENTRY+0x4000 .. +0x4800  结果字节缓冲（每检查点 8 字节，≤127 点 ⇒ ≤1016 B）
+@@   ENTRY+0x5000             SYS_EXIT 参数块
+@@
+@@ 副作用口径（用户 2026-11-13 裁定，`ldm`/`stm`/`r2r` 等多寄存器/多元素指令）：
+@@   **不要求无副作用** —— 这类指令**允许部分元素已经生效**（「源/目范围不得重叠」正是为此）；
+@@   chipyard **无需整段预检**。故多元素故障例（`TEST_FAULT_M`/`TEST_FAULT_ENC`）
+@@   **只比异常码**（`SYS_EXIT(0xF0|位索引)`），不对目的寄存器/目标内存做哨兵断言；
+@@   `.S` 注释一律写「允许部分生效」，不得写「不写任何元素 / 第一拍之前」之类断言。
+@@   **单元素 `ld`/`st` 仍须精确**（`012` 的 `TEST_FAULT` 路径不变，不动）。
+@@   另：中途总线 `denied` 不可构造（`ISS-381` F-c；`m12-chipyard-008` 已定其语义为 `CFXMEM`）。
+@@
+@@ 多元素（ldm.*/stm.*）数据区（TEST_DATA 内偏移，均 8 字节对齐；字面量由本节
+@@ `.testdata` 现场生成，与 012 单元素用例使用的 0x000-0x0E8 区互不重叠）：
+@@   +0x800  MDATA_B   256 个字节 0x80..0xBF 循环（高位置 1 ⇒ ub/sb 各一档）
+@@   +0x900  MDATA_W   128 个 16 位元素 0x8000..0x807F
+@@   +0xA00  MDATA_T   64 个 32 位元素 0x80000000..0x8000003F
+@@   +0xB00  MDATA_O   64 个 64 位元素 0x0102030405060708 + i（拍内字节互不相同）
+@@   +0xD00  MUNI      64 个同值拍 0x0F1E2D3C4B5A6978（最大个数例用；字节互不相同）
+@@   +0xF00  MDUMP     512 B 零区（多元素装入后的回写落点）
+@@   +0x1100 MSTORE    64 拍保持区模式 0xC0DE0000000000A0 + i（多元素存储落点）
+@@   （`TEST_DATA+0x0C0`..`+0x800` 保持全零：单元素用例的零区读数依赖它）
 
 	.include "tests/shared/asm/machine-tiny.inc"
 	.include "tests/shared/asm/machine.inc"
@@ -45,10 +64,19 @@
 	@@ 机器几何一律取 `machine-tiny.inc`（生成物）里的符号，本节只补本宏层的布局。
 	.equ TEST_HSEC,   ENTRY + 0x1E00
 	.equ TEST_PAD,    ENTRY + 0x1F00
-	.equ TEST_FAULTV, ENTRY + 0x1F80
 	.equ TEST_DATA,   ENTRY + 0x2800
-	.equ TEST_BUF,    ENTRY + 0x3000
-	.equ TEST_EXITB,  ENTRY + 0x4000
+	.equ TEST_BUF,    ENTRY + 0x4000
+	.equ TEST_EXITB,  ENTRY + 0x5000
+	.equ TEST_FAULTV, ENTRY + 0x1F80        @@ 故障期望槽（4 × 8 B；见文件头）
+
+@@ 多元素数据区（见文件头；偏移相对 TEST_DATA）
+	.equ MDATA_B, TEST_DATA + 0x800
+	.equ MDATA_W, TEST_DATA + 0x900
+	.equ MDATA_T, TEST_DATA + 0xA00
+	.equ MDATA_O, TEST_DATA + 0xB00
+	.equ MUNI,    TEST_DATA + 0xD00
+	.equ MDUMP,   TEST_DATA + 0xF00
+	.equ MSTORE,  TEST_DATA + 0x1100
 
 @@ semihosting：服务号在 rd16、参数块指针在 rb16、trap 标签 0x3FF00+服务号
 @@ （`contract-semihosting` §1/§2）。
@@ -242,7 +270,135 @@ __ck_\@:
 .endm
 
 @@ ---------------------------------------------------------------------------
+@@ 多元素（ldm.*/stm.*，rrri）：一个组 ↔ 内存多点（`spec/SimRISC-01 §1-4`）
+@@   TEST_LDM(pt, 助记符, 组, 基址, 基址值, 偏移寄存器, 偏移值, 回写区, 拍数, 期望拍...)
+@@   TEST_STM(pt, 助记符, 组别, 组, 基址, 基址值, 偏移寄存器, 偏移值, 源区, 期望拍...)
+@@
+@@ 判据（一行 = 一个检查点，失败 ⇒ `SYS_EXIT(pt)`）：
+@@   * `TEST_LDM`：装入后用**同宽度、同组**的 `stm.*` 把该组回写到 `回写区`（通常
+@@     `MDUMP` 零区），再逐 8 字节拍与内联期望比较 —— 元素不跨拍（宽度整除 8 且起址
+@@     宽度对齐），所以「拍 = 若干元素」的字节布局是确定的；末尾记录最后一拍实测。
+@@   * `TEST_STM`：先用**同宽度、同组**的 `ldm.*` 从 `源区` 预装该组，再执行存储，逐拍
+@@     与内联期望比较（期望里同时含相邻「保持字节」⇒ 顺带钉住不越界写）。
+@@   组 = 寄存器范围文本（`{rd5:rd8}`）；寄存器组别由组名自身给出（rd/rb/ra/rf）。
+@@   拍数由调用者给出并与期望拍个数强制相等（漏写拍 ⇒ `.error`）；`TEST_LDM` 的
+@@   回写区必须是「本文件尚未写过」的零区（尾巴不足一拍的字节按 0 比），故各例按
+@@   各自的偏移分段使用（见各 `.S` 的 `MDUMP + 0x…`）。
+@@ 依赖：`TEST_LDM` 的回写借 `stm.*`、`TEST_STM` 的预装借 `ldm.*`（互为逆操作）；
+@@   抽样元素另有 `__CHECK_RD` 独立核对（见各 `.S`），不依赖这一对。
+@@ ---------------------------------------------------------------------------
+
+@@ 助记符 → 同宽度 `stm.*`（回写用）；组文本原样沿用
+.macro __DMP_STM mnem, grp, base, off
+	.ifc	\mnem, ldm.ub
+	stm.b	\grp, [\base, \off]
+	.endif
+	.ifc	\mnem, ldm.sb
+	stm.b	\grp, [\base, \off]
+	.endif
+	.ifc	\mnem, ldm.uw
+	stm.w	\grp, [\base, \off]
+	.endif
+	.ifc	\mnem, ldm.sw
+	stm.w	\grp, [\base, \off]
+	.endif
+	.ifc	\mnem, ldm.ut
+	stm.t	\grp, [\base, \off]
+	.endif
+	.ifc	\mnem, ldm.st
+	stm.t	\grp, [\base, \off]
+	.endif
+	.ifc	\mnem, ldm.o
+	stm.o	\grp, [\base, \off]
+	.endif
+	.ifc	\mnem, ldm.t
+	stm.t	\grp, [\base, \off]
+	.endif
+	.ifc	\mnem, stm.t
+	stm.t	\grp, [\base, \off]
+	.endif
+	.ifc	\mnem, stm.o
+	stm.o	\grp, [\base, \off]
+	.endif
+.endm
+
+@@ 助记符 → 同宽度 `ldm.*`（预装用）；组文本原样沿用（宽度 + 组别共同决定助记符：
+@@ b/w/t 的 RD 形式是 `ldm.ub/uw/ut`，而 RF 只有 `ldm.t`）
+.macro __PRE_LDM mnem, bank, grp, base, off
+	.ifc	\mnem, stm.b
+	ldm.ub	\grp, [\base, \off]
+	.endif
+	.ifc	\mnem, stm.w
+	ldm.uw	\grp, [\base, \off]
+	.endif
+	.ifc	\mnem, stm.t
+	.ifc	\bank, rf
+	ldm.t	\grp, [\base, \off]
+	.endif
+	.ifc	\bank, rd
+	ldm.ut	\grp, [\base, \off]
+	.endif
+	.endif
+	.ifc	\mnem, stm.o
+	ldm.o	\grp, [\base, \off]
+	.endif
+.endm
+
+@@ 多元素装入
+.macro TEST_LDM pt, mnem, grp, base, baseval, offreg, offval, dump, nb, beats:vararg
+	__LI	\offreg, \offval
+	LOAD_ADDR \base, \baseval
+	\mnem	\grp, [\base, \offreg]
+	LOAD_ADDR rb28, \dump
+	__DMP_STM \mnem, \grp, rb28, rd0
+	.set	__ne, 0
+	.irp	v, \beats
+	.set	__ne, __ne + 1
+	.endr
+	.if	__ne != \nb
+	.error	"TEST_LDM: 期望拍个数与拍数不符"
+	.endif
+	.set	__b, 0
+	.irp	v, \beats
+	LOAD_ADDR rb21, \dump + (8 * __b)
+	ld.o	rd21, [rb21, 0]
+	__LI	rd20, \v
+	br.ne	{rd20, rd21}?, [rb0, __lmbad_\@]
+	.set	__b, __b + 1
+	.endr
+	__REC	rd21
+	jump	[rb0, __lmdone_\@]
+__lmbad_\@:
+	__EXIT	\pt
+__lmdone_\@:
+.endm
+
+@@ 多元素存储
+.macro TEST_STM pt, mnem, bank, grp, base, baseval, offreg, offval, src, beats:vararg
+	LOAD_ADDR rb28, \src
+	__PRE_LDM \mnem, \bank, \grp, rb28, rd0
+	__LI	\offreg, \offval
+	LOAD_ADDR \base, \baseval
+	\mnem	\grp, [\base, \offreg]
+	.set	__b, 0
+	.irp	v, \beats
+	LOAD_ADDR rb21, (((\baseval) + (\offval) + 8 * __b) / 8) * 8
+	ld.o	rd21, [rb21, 0]
+	__LI	rd20, \v
+	br.ne	{rd20, rd21}?, [rb0, __smbad_\@]
+	.set	__b, __b + 1
+	.endr
+	__REC	rd21
+	jump	[rb0, __smdone_\@]
+__smbad_\@:
+	__EXIT	\pt
+__smdone_\@:
+.endm
+
+@@ ---------------------------------------------------------------------------
 @@ 故障例：TEST_FAULT(pt, 助记符, 目的/源, 故障名, 基址, 基址值, 偏移)
+@@        TEST_FAULT_M(pt, 助记符, 组, 故障名, 基址, 基址值, 偏移寄存器, 偏移值)
+@@        TEST_FAULT_ENC(pt, 故障名, 编码字, 基址, 基址值, 偏移寄存器, 偏移值)
 @@   只有 `-defsym CASE_N=<pt>` 才展开该例代码；链例镜像里它不产码。
 @@   落点核对 cause_id one-hot，随后 `SYS_EXIT(0xF0|位索引)`。
 @@ ---------------------------------------------------------------------------
@@ -261,10 +417,8 @@ __cp_\@:
 	br.nz	{rd22}?, [rb0, __cp_\@]
 .endm
 
-.macro TEST_FAULT pt, mnem, reg, fault, base, baseval, off
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+@@ 故障例公共体：装 hmon 处理器 + 把 one-hot / 退出码 / 失败点号写进 TEST_FAULTV
+.macro __FAULT_GUARD pt, fault
 	__INSTALL_HMON
 	.set	__onehot, 0
 	.set	__code, 0
@@ -298,9 +452,43 @@ __fault_case:
 	st.o	rd21, [rb11, 8]
 	__LI	rd22, \pt
 	st.o	rd22, [rb11, 16]
+.endm
+
+.macro TEST_FAULT pt, mnem, reg, fault, base, baseval, off
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
 	LOAD_ADDR \base, \baseval
 	\mnem	\reg, [\base, \off]
 	@@ 走到这里 = 预期故障没有发生 ⇒ 仍按该例检查点号判 guest FAIL
+	__EXIT	\pt
+	.endif
+.endm
+
+@@ 多元素（rrri）故障例：只比异常码（多元素指令允许部分元素已生效，用户 2026-11-13 裁定）
+@@   TEST_FAULT_M(pt, 助记符, 组, 故障名, 基址, 基址值, 偏移寄存器, 偏移值)
+.macro TEST_FAULT_M pt, mnem, grp, fault, base, baseval, offreg, offval
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	LOAD_ADDR \base, \baseval
+	__LI	\offreg, \offval
+	\mnem	\grp, [\base, \offreg]
+	__EXIT	\pt
+	.endif
+.endm
+
+@@ 原始编码故障例（汇编器会拒绝的编码，如 immu6 = 0）：同样只比异常码
+.macro TEST_FAULT_ENC pt, fault, enc, base, baseval, offreg, offval
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	LOAD_ADDR \base, \baseval
+	__LI	\offreg, \offval
+	.dd.t32	\enc
 	__EXIT	\pt
 	.endif
 .endm
@@ -392,5 +580,43 @@ TEST_DATA_PATTERN:
 	.dd.o64	0x0F0F0F0F0F0F0F0F
 	.dd.o64	0xF0F0F0F0F0F0F0F0
 	.dd.o64	0x1111111111111111
+	@@ 0x0C0..0x800 保持零（单元素用例的零区读数，含 +0x7F8）
 	.space	0x740, 0
+	@@ MDATA_B（+0x800）：256 个字节 0x80..0xBF 循环
+	.set	__i, 0
+	.rept	256
+	.dd.b08	0x80 + (__i & 0x3F)
+	.set	__i, __i + 1
+	.endr
+	@@ MDATA_W（+0x900）：128 个 16 位元素 0x8000..0x807F
+	.set	__i, 0
+	.rept	128
+	.dd.w16	0x8000 + __i
+	.set	__i, __i + 1
+	.endr
+	@@ MDATA_T（+0xA00）：64 个 32 位元素 0x80000000..0x8000003F
+	.set	__i, 0
+	.rept	64
+	.dd.t32	0x80000000 + __i
+	.set	__i, __i + 1
+	.endr
+	@@ MDATA_O（+0xB00）：64 个 64 位元素 0x0102030405060708 + i
+	.set	__i, 0
+	.rept	64
+	.dd.o64	0x0102030405060708 + __i
+	.set	__i, __i + 1
+	.endr
+	@@ MUNI（+0xD00）：64 个同值拍（最大个数例）
+	.rept	64
+	.dd.o64	0x0F1E2D3C4B5A6978
+	.endr
+	@@ MDUMP（+0xF00）：512 B 零区，多元素装入的回写落点
+	.space	0x200, 0
+	@@ MSTORE（+0x1100）：64 拍保持区模式 0xC0DE0000000000A0 + i
+	.set	__i, 0
+	.rept	64
+	.dd.o64	0xC0DE0000000000A0 + __i
+	.set	__i, __i + 1
+	.endr
+	.space	0x500, 0
 .endm

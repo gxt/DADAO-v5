@@ -1,5 +1,5 @@
 /*
- * inst-tiny.lds — `tests/inst/01-load-store/*.S`（单元素 ld/st）的链接布局
+ * inst-tiny.lds — `tests/inst/01-load-store/*.S`（单/多元素 ld/st）的链接布局
  *
  * 固定地址（与 `tests/inst/macros/inst_test.inc` 顶部 `.equ` 逐项对应；
  * 偏移错位由本脚本的 ASSERT 直接报错，不靠人记）：
@@ -7,10 +7,11 @@
  *   ENTRY + 0x0000  .text           链例 + 故障例体（≤ 0x1E00）
  *   ENTRY + 0x1E00  .hmon_stub      测试自有 hmon 处理器（≤ 0x100）
  *   ENTRY + 0x1F00  .faultpad       故障落点（≤ 0x80）
- *   ENTRY + 0x1F80  （TEST_FAULTV，落点段内，无独立段）
- *   ENTRY + 0x2000  .testdata       数据块：前 0x800 B 负偏移区 + 192 B 模式 + 尾部零
- *   ENTRY + 0x3000  结果字节缓冲（运行时写，不进镜像）
- *   ENTRY + 0x4000  SYS_EXIT 参数块（运行时写，不进镜像）
+ *   ENTRY + 0x1F80  （TEST_FAULTV，落点段之后，无独立段）
+ *   ENTRY + 0x2000  .testdata       数据块：0x800 负偏移区 + 单元素 24 拍模式 +
+ *                                   多元素区（MDATA_B/W/T/O、MUNI、MDUMP、MSTORE）
+ *   ENTRY + 0x4000  结果字节缓冲（运行时写，不进镜像）
+ *   ENTRY + 0x5000  SYS_EXIT 参数块（运行时写，不进镜像）
  *
  * 单 PT_LOAD、RWX：chipyard `+loadmem=`、QEMU `-kernel <ELF>`、gem5 FS
  * `--kernel <ELF>` 三方装载同一份镜像（`spec/Machine-v5 §6`）。
@@ -52,7 +53,7 @@ SECTIONS
     *(.testdata)
   } : image
 
-  ASSERT(SIZEOF(.testdata) == 0x1000, "inst-tiny: 数据块必须恰为 0x1000 B")
+  ASSERT(SIZEOF(.testdata) == 0x2000, "inst-tiny: 数据块必须恰为 0x2000 B")
 
   /DISCARD/ : {
     *(.note.GNU-stack)

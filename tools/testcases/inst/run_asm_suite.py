@@ -51,10 +51,16 @@ import paths  # noqa: E402
 FAULT_CODE = {"CFXMEM": 0xF1, "CFXREG": 0xF2, "ILLI": 0xF8,
               "MALIGN": 0xFC, "IALIGN": 0xFD}
 
-# 链例用例行（检查点计数的口径：每个 TEST_LD*/TEST_ST*/__CHECK_* 一行 = 一个检查点）
+# 链例用例行（检查点计数的口径：每个 TEST_LD*/TEST_ST*/__CHECK_* 一行 = 一个检查点；
+# `TEST_LDM`/`TEST_STM` 每行只记一个检查点，与宏内单次 `__REC` 对齐）
 CHAIN_CASE_RE = re.compile(r"^\t(TEST_LD\w*|TEST_ST\w*|__CHECK_RD|__CHECK_MEM)\b")
-FAULT_RE = re.compile(r"^\tTEST_FAULT\s+(\d+),\s*(\S+?),\s*(\S+?),\s*"
+# 链例行**写下的点号字面量**（断言用：点号必须等于它在文件里的序号，不能只靠计数器自增）
+CHAIN_PT_RE = re.compile(r"^\t(?:TEST_LD\w*|TEST_ST\w*|__CHECK_RD|__CHECK_MEM)"
+                         r"\s+(\d+),")
+FAULT_RE = re.compile(r"^\tTEST_FAULT(?:_M)?\s+(\d+),\s*(\S+?),\s*(\S+?),\s*"
                       r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
+FAULT_ENC_RE = re.compile(r"^\tTEST_FAULT_ENC\s+(\d+),\s*"
+                          r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
 END_RE = re.compile(r"^\t__TEST_END\b")
 
 DEFAULT_LDS = "tests/inst/01-load-store/inst-tiny.lds"
@@ -73,7 +79,8 @@ def scan_source(path: Path) -> dict:
     """从 `.S` 现场读出：链例检查点数、故障例（点号, 故障名）、点号是否连续。
 
     点号不变式（任务书验收 2）：**链例点号 1..N、故障例续 N+1..N+M，无跳号/重号**；
-    即「失败点号 = 用例序号」。任一不满足 ⇒ `pts_ok = False`。
+    即「失败点号 = 用例序号」。链例点号取**行内写下的字面量**（而非计数器），
+    字面量与序号不符 / 解析不出 ⇒ `pts_ok = False`（fail-closed）。
     """
     checks = 0
     faults = []
@@ -85,12 +92,19 @@ def scan_source(path: Path) -> dict:
             continue
         if in_chain and CHAIN_CASE_RE.match(line):
             checks += 1
-            pts.append(checks)
+            m = CHAIN_PT_RE.match(line)
+            pts.append(int(m.group(1)) if m else -1)
             continue
         m = FAULT_RE.match(line)
         if m:
             faults.append({"pt": int(m.group(1)), "reg": m.group(3),
                            "fault": m.group(4)})
+            pts.append(int(m.group(1)))
+            continue
+        m = FAULT_ENC_RE.match(line)
+        if m:
+            faults.append({"pt": int(m.group(1)), "reg": "-",
+                           "fault": m.group(2)})
             pts.append(int(m.group(1)))
     return {"checks": checks, "faults": faults,
             "pts_ok": pts == list(range(1, len(pts) + 1))}

@@ -103,15 +103,30 @@
 | `base/reg-imm-block.yaml` | — | — | 待迁 |
 | `base/reg-logic.yaml` | — | — | 待迁 |
 | `base/reg-shift-extend.yaml` | 112 | — | 待迁 |
-| `base/mem-rd.yaml` | 122 | 22 | 部分迁移（`ld.`/`st.` 单元素 11 个 id 已迁；`ldm`/`stm` 11 个 id 待 `01-b`） |
-| `base/mem-ra.yaml` | 22 | 4 | 部分迁移（`ld.o`/`st.o` ra 已迁；`ldm`/`stm` ra 待 `01-b`） |
-| `base/mem-rb.yaml` | 23 | 4 | 部分迁移（同上，rb 形式） |
+| `base/mem-rd.yaml` | 122 | 22 | **id 全部已迁**（`ld.*`/`st.*` 单元素 11 + `ldm.*`/`stm.*` 11，见 §6）；**文件未删** —— 删除依赖 inventory 载体登记改造（见 §5.1） |
+| `base/mem-ra.yaml` | 22 | 4 | **id 全部已迁**（`ld.o`/`st.o` ra + `ldm.o`/`stm.o` ra）；文件未删（同 §5.1） |
+| `base/mem-rb.yaml` | 23 | 4 | **id 全部已迁**（同上，rb 形式）；文件未删（同 §5.1） |
 | `base/misc.yaml` | — | — | 待迁 |
 | `base/reserved.yaml` | 9 | 4+3 | 部分迁移（`ld.`/`st.` 的 6 条 reserved-cfx `CFXMEM` 已迁；3 条 reserved-opcode `UNDI` 无 id，待 `12-misc`） |
 | `fp/*.yaml`（`arith`/`convert`/`divrem`/`cond-assign`） | — | — | 待迁 |
 | `bitcnt/`、`clmul/`、`fma/`、`minmax/`、`rev/`、`rol/`、`roundint/` 各自 | 414/81/… | — | 待迁 |
 
 > 精确「文件 → id」清单由 `tools/testcases/` 现场导出（不写死在本表，避免漂移）。
+
+### 5.1 删除规则的一个前置（`m13-testcases-013` 现场结论）
+
+「所有 id 迁完」是**必要**条件，不是**充分**条件：`inventory.md` 的类清单列仍是
+YAML 载体真源，`validate_vectors.py` 按它做数据覆盖门控、`check-generator-sync`
+按它校验生成器落盘。把 `base/mem-{rd,ra,rb}.yaml` 移走后实测：
+
+- `validate_vectors.py` rc=1：`DATA COVERAGE: 116 gap(s)`（30 个 id 声明了
+  类但 `tests/inst/base/*.yaml` 里已无 active 用例）；
+- `check_case_ledger.py` rc=1：清单多 167 行（需 `--write` 重生成）；
+- `make check-generator-sync` 的 `generate_mem_vectors.py --check` 无输入。
+
+⇒ 删除须与「`inventory.md` 载体/类登记改为 `.S` 载体 + 数据覆盖门控认得 `.S` +
+mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` 已把结论与实测
+输出写进任务书「待裁定」）。在此之前三册保留在盘，`git status` 干净。
 
 ## 6. 已完成
 
@@ -129,3 +144,32 @@
 - **YAML 未删**：`mem-rd.yaml`/`mem-ra.yaml`/`mem-rb.yaml` 仍含 `ldm`/`stm` id，
   `reserved.yaml` 仍含 3 条无 id 的 reserved-opcode 例 ⇒ 按本文件 §5 的删除规则，
   要等 `01-b`/`12-misc` 迁完才 `git rm`。
+
+### `m13-testcases-013`：`01-load-store` 多元素（`ldm.*` + `stm.*`，19 个 id）
+
+- 宏层新增（`tests/inst/macros/inst_test.inc`）：`TEST_LDM`（装入 → 同宽度/同组
+  `stm.*` 回写 → 逐 8 B 拍比内联期望）、`TEST_STM`（同宽度/同组 `ldm.*` 预装 →
+  存储 → 逐拍比期望，期望含保持字节）、`TEST_FAULT_M`（rrri 故障例）、
+  `TEST_FAULT_ENC`（汇编器拒绝的编码：`immu6=0`、组首+`immu6>64`）。
+  一行 = 一个检查点（宏内单次 `__REC`），点号仍 = 用例序号。
+- 数据区新增（`.testdata`，与单元素用例的 0x000–0x0E8 区不重叠）：`MDATA_B/W/T/O`
+  （逐元素可辨）、`MUNI`（同值拍，最大个数例）、`MDUMP`（装入回写落点）、
+  `MSTORE`（存储落点 + 保持区模式）。`.testdata` 0x1000→0x2000、结果缓冲
+  0x3000→0x4000、退出参数块 0x4000→0x5000（`inst-tiny.lds` ASSERT 同步）。
+- 用例：每 id 13–21 点；多元素例 `count>1` 占多数（1/2/3/8/9/16 与 63；63 只出现在
+  `ldm.o_rd`/`ldm.ub_rd`/`ldm.o_ra`/`ldm.o_rf`）；`stm.b` 9 元素 = 2 拍且第二拍只开
+  1 lane；存储例都带左右保持区核对；`ldm` 抽样元素用 `__CHECK_RD` 独立核对。
+- 故障：`immu6=0`/组首+`immu6>64`/目的 rd0·rb0/`ldm` 重叠 ⇒ ILLI；`MALIGN`；
+  CFXMEM 三形态（cfxha 0 段、整段越 SRAM 尾、保留 cfx 段）。
+  **多元素不要求无副作用**（用户 2026-11-13 裁定：允许部分元素已生效）⇒ 故障例**只比异常码**，
+  不判目的寄存器/目标内存；「中途总线 denied」在 Tiny 不可构造（`ISS-381` F-c）。
+- **overlap**（规范 `SimRISC-01` + `mreg_range_addr_overlap`，`m13-spec-005` 定稿）：`ldm` **禁重叠**
+  —— RD 形式索引 `rdHC`、RB 形式基址 `rbHB` 落在传送范围内 ⇒ ILLI；`stm` **允许重叠**（只读，
+  行为确定）⇒ 正常执行并核源组未被改写；RA/RF 形式结构上不可能相交 ⇒ 不适用。
+  实现进度：QEMU（`m13-qemu-006`）/ gem5（`m13-gem5-008`）已合入；chipyard 待 `m12-chipyard-027`。
+- **`immu6=63` 的索引选择**：RD 形式的 `{rd1:rd63}` 已把 RD 组占满，索引只能用 `rd0`
+  （rd0 读出 0 ⇒ EA = 基址）；用 `rd19` 会落进传送范围 ⇒ ILLI（`mreg_range_addr_overlap`）。
+- 三方逐字节：`run_asm_suite.py`（同镜像 chipyard / QEMU / gem5）链例比字节流、
+  故障例比 monitor 段退出码；沿用 `012` 的 hmon 自装 workaround（`ISS-410` 未修）。
+- **YAML**：三册里 30 个 id（含 `012` 的 19 个单元素 id）全部有 `.S` 载体；文件
+  删除被 §5.1 的前置阻塞，未删。
