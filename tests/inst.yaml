@@ -503,6 +503,96 @@
   - system
   level: full
   requires: []
+- id: inst-06-control-flow-001
+  file: inst/06-control-flow/br.eq_rrii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-002
+  file: inst/06-control-flow/br.n_riii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-003
+  file: inst/06-control-flow/br.ne_rrii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-004
+  file: inst/06-control-flow/br.nn_riii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-005
+  file: inst/06-control-flow/br.np_riii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-006
+  file: inst/06-control-flow/br.nz_riii_rb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-007
+  file: inst/06-control-flow/br.nz_riii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-008
+  file: inst/06-control-flow/br.p_riii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-009
+  file: inst/06-control-flow/br.z_riii_rb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-010
+  file: inst/06-control-flow/br.z_riii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-011
+  file: inst/06-control-flow/call_iiii_ra.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-012
+  file: inst/06-control-flow/call_rrii_ra.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-013
+  file: inst/06-control-flow/jump_iiii_rb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-014
+  file: inst/06-control-flow/jump_rrii_rb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-06-control-flow-015
+  file: inst/06-control-flow/ret_riii_ra.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-atomics-001
   file: inst/atomics/aba_treiber.c
   platforms:

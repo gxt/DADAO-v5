@@ -49,21 +49,40 @@ sys.path.insert(0, str(_REPO / "tools" / "infra"))
 import paths  # noqa: E402
 
 FAULT_CODE = {"CFXMEM": 0xF1, "CFXREG": 0xF2, "ILLI": 0xF8,
-              "MALIGN": 0xFC, "IALIGN": 0xFD}
+              "MALIGN": 0xFC, "IALIGN": 0xFD,
+              # 控制流（06）额外用到：保留编码 UNDI、RAS 上溢/下溢（`spec/Machine-v5 §7.1`）
+              "UNDI": 0xF9, "RASOF": 0xFA, "RASUF": 0xFB}
 
 # 链例用例行（检查点计数的口径：每个 TEST_LD*/TEST_ST*/TEST_MOV*/TEST_CS*/TEST_WI*/__CHECK_* 一行
 # = 一个检查点；`TEST_LDM`/`TEST_STM` 每行只记一个检查点，与宏内单次 `__REC` 对齐；
 # `TEST_MOV1`/`TEST_CS*`（02-reg-copy）/`TEST_WI*`（03-wyde-imm）/`TEST_AR*`
 # （04-arith-logic-octa 算术/逻辑族）同理，多条 `__VERIFY_*` 断言共用一个点号）
 CHAIN_CASE_RE = re.compile(r"^\t(TEST_LD\w*|TEST_ST\w*|TEST_MOV\w*|TEST_CS\w*|"
-                           r"TEST_WI\w*|TEST_AR\w*|__CHECK_RD|__CHECK_MEM)\b")
+                           r"TEST_WI\w*|TEST_AR\w*|TEST_BR\w*|__CHECK_RD|__CHECK_MEM)\b")
 # 链例行**写下的点号字面量**（断言用：点号必须等于它在文件里的序号，不能只靠计数器自增）
 CHAIN_PT_RE = re.compile(r"^\t(?:TEST_LD\w*|TEST_ST\w*|TEST_MOV\w*|TEST_CS\w*|"
-                         r"TEST_WI\w*|TEST_AR\w*|__CHECK_RD|__CHECK_MEM)\s+(\d+),")
+                         r"TEST_WI\w*|TEST_AR\w*|TEST_BR\w*|__CHECK_RD|__CHECK_MEM)\s+(\d+),")
 FAULT_RE = re.compile(r"^\tTEST_FAULT(?:_MOV|_CS2|_CS|_M|_WI)?\s+(\d+),\s*(\S+?),\s*(\S+?),\s*"
-                      r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
+                      r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
 FAULT_ENC_RE = re.compile(r"^\tTEST_FAULT_ENC\s+(\d+),\s*"
-                          r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
+                          r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
+# 06-control-flow 的故障宏：`TEST_FAULT_CF(pt, 故障名, 编码字)` 与
+#   `TEST_FAULT_RAS(pt, 故障名, call/ret 全文)` / `TEST_FAULT_RASUF_MEM(pt, ret 全文)`
+FAULT_CF_RE = re.compile(r"^\tTEST_FAULT_CF\s+(\d+),\s*"
+                         r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
+# `TEST_FAULT_CF1(pt, 寄存器, 值, 故障名, 编码字)`：故障名前还有两个参数
+FAULT_CF1_RE = re.compile(r"^\tTEST_FAULT_CF1\s+(\d+),\s*\S+,\s*\S+?,\s*"
+                          r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
+FAULT_RAS_RE = re.compile(r"^\tTEST_FAULT_RAS\s+(\d+),\s*"
+                          r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
+# `TEST_FAULT_RASUF_MEM(pt, ret 全文)`：MemRAS 条目计数 0 ⇒ 固定 RASUF
+FAULT_RASUF_MEM_RE = re.compile(r"^\tTEST_FAULT_RASUF_MEM\s+(\d+),")
+# `TEST_FAULT_BR{1,2}(pt, 助记符, …, 故障名, 目标)`：故障名在目标之前
+FAULT_BR_RE = re.compile(r"^\tTEST_FAULT_BR[12]\s+(\d+),.*,\s*"
+                         r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
+# `TEST_FAULT_ADDR0(pt, 助记符, 故障名)`：rrii 跳转/调用的目标地址 0 ⇒ CFXMEM
+FAULT_ADDR0_RE = re.compile(r"^\tTEST_FAULT_ADDR0\s+(\d+),\s*\S+,\s*"
+                            r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
 # 04-arith-logic-octa 算术/逻辑族与 05-arith-addr 的故障宏
 # （`TEST_FAULT_{DUAL,ALU3,ALU_ORRI,ALU_SI,ALU_CMPI}` = 04 族；
 #   `TEST_FAULT_{BBD,DBB,RB_SI}` = 05 族，参数 = 检查点, 助记符, 故障名, …）
@@ -120,6 +139,30 @@ def scan_source(path: Path) -> dict:
         if m:
             faults.append({"pt": int(m.group(1)), "reg": m.group(2),
                            "fault": m.group(3)})
+            pts.append(int(m.group(1)))
+            continue
+        m = FAULT_CF_RE.match(line) or FAULT_CF1_RE.match(line)
+        if m:
+            faults.append({"pt": int(m.group(1)), "reg": "-",
+                           "fault": m.group(2)})
+            pts.append(int(m.group(1)))
+            continue
+        m = FAULT_RAS_RE.match(line)
+        if m:
+            faults.append({"pt": int(m.group(1)), "reg": "-",
+                           "fault": m.group(2)})
+            pts.append(int(m.group(1)))
+            continue
+        m = FAULT_RASUF_MEM_RE.match(line)
+        if m:
+            faults.append({"pt": int(m.group(1)), "reg": "-",
+                           "fault": "RASUF"})
+            pts.append(int(m.group(1)))
+            continue
+        m = FAULT_BR_RE.match(line) or FAULT_ADDR0_RE.match(line)
+        if m:
+            faults.append({"pt": int(m.group(1)), "reg": "-",
+                           "fault": m.group(2)})
             pts.append(int(m.group(1)))
     return {"checks": checks, "faults": faults,
             "pts_ok": pts == list(range(1, len(pts) + 1))}

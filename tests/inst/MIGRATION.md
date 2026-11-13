@@ -12,7 +12,7 @@
 | `03-wyde-imm/` | 03 16 位立即数操作 | 8 |
 | `04-arith-logic-octa/` | 04 64 位数据运算 | 60 |
 | `05-arith-addr/` | 05 64 位地址运算 | 5 |
-| `06-control-flow/` | 06 控制流 | 15 |
+| `06-control-flow/` | 06 控制流 | 15（已迁） |
 | `07-floating-point/` | 07 浮点运算 | 44 |
 | `08-arith-logic-tetra/` | 08 32 位数据运算 | 16 |
 | `09-arith-logic-wyde/` | 09 16 位数据运算 | 16 |
@@ -103,6 +103,10 @@
 | `base/reg-imm-block.yaml` | 48 | 7+6 | **id 全部已迁**（6 个块复制 id 见 §6/014，7 个 rwii id 见 §6/015）；文件未删（§5.1 前置） |
 | `base/reg-logic.yaml` | 16 | 4 | **id 全部已迁**（4 个逻辑 id，见 §6/017）；文件未删（§5.1 前置） |
 | `base/reg-shift-extend.yaml` | 112 | — | 部分迁移（10 个 64 位 id 见 §6/017；其余 32/16/8 位待 024/025/026） |
+| `base/ctrl-br.yaml` | 40 | 9 | **id 全部已迁**（`br.*` 9 个 id，见 §6/020；`br.z_riii_rd` 原本无 YAML 载体）；文件未删（见 §5.2） |
+| `base/ctrl-jump.yaml` | 6 | 2 | **id 全部已迁**（`jump` 2 个 id，见 §6/020）；文件未删（见 §5.2） |
+| `base/ctrl-call.yaml` | 11 | 2 | **id 全部已迁**（`call` 2 个 id，见 §6/020）；文件未删（见 §5.2） |
+| `base/ctrl-ret.yaml` | 10 | 1 | **id 全部已迁**（`ret` 1 个 id，见 §6/020）；文件未删（见 §5.2） |
 | `base/mem-rd.yaml` | 122 | 22 | **id 全部已迁**（`ld.*`/`st.*` 单元素 11 + `ldm.*`/`stm.*` 11，见 §6）；**文件未删** —— 删除依赖 inventory 载体登记改造（见 §5.1） |
 | `base/mem-ra.yaml` | 22 | 4 | **id 全部已迁**（`ld.o`/`st.o` ra + `ldm.o`/`stm.o` ra）；文件未删（同 §5.1） |
 | `base/mem-rb.yaml` | 23 | 4 | **id 全部已迁**（同上，rb 形式）；文件未删（同 §5.1） |
@@ -127,6 +131,22 @@ YAML 载体真源，`validate_vectors.py` 按它做数据覆盖门控、`check-g
 ⇒ 删除须与「`inventory.md` 载体/类登记改为 `.S` 载体 + 数据覆盖门控认得 `.S` +
 mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` 已把结论与实测
 输出写进任务书「待裁定」）。在此之前三册保留在盘，`git status` 干净。
+
+### 5.2 删除规则的前置（`m13-testcases-020` 现场结论：4 个 ctrl YAML）
+
+`ctrl-br`/`ctrl-jump`/`ctrl-call`/`ctrl-ret` 的 id 已全部有 `.S` 载体，但**删除仍被
+四条门控阻塞**（`cp` 备份 → `mv` 走 → 逐门控跑 → 还原，md5 对账一致）：
+
+- `tests/inst/inventory.md` 的类清单仍以 YAML 为真源 ⇒ `validate_vectors.py` rc=1
+  （**44 条** `DATA COVERAGE GAP`：inventory 声明 ✓ 但 `tests/inst/base/*.yaml`
+  里已无 active 用例）；
+- `tests/case-ledger.tsv` 逐条身份清单 ⇒ `check_case_ledger.py` rc=1（多 67 行）；
+- `tests/inst.yaml` 里有 4 条 `file:` 指向这 4 个 YAML ⇒ `check_tests_index.py` rc=1；
+- `check-generator-sync`（L2）的 `generate_ctrl_br.py --check` 与
+  `generate_ctrl_jump_call_ret.py --check` **以这 4 个文件为渲染目标** ⇒ 缺文件 rc=1。
+
+⇒ 与 §5.1 同批处理（`m13-testcases-030`）：inventory 载体登记改 `.S` + 数据覆盖门控
+认得 `.S` + 生成器退役 + 台账重生成，四条一起做才可 `git rm`。
 
 ## 6. 已完成
 
@@ -325,3 +345,38 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
   `add.o_bbd`/`add.si_riii_rb`/`sub.o_bbd` 与 `base/reg-compare.yaml` 的 `cmp.uo_orrr_dbb`
   用例已并入（`sub.o_orrr_dbb` 无 YAML 载体）；三文件**未删** —— `aip-si.yaml` 的 id 虽
   全迁，删除仍受 §5.1 前置阻塞，另两文件仍含 32/16/8 位 id。
+
+### `m13-testcases-020`：`06-control-flow`（`br.*`/`jump`/`call`/`ret`，15 个 id）
+
+- `tests/inst/06-control-flow/{<id>.S}`（15 个）：`br.*` 10 个（`eq`/`ne` 的 rrii，
+  `n`/`nn`/`z`/`nz`/`p`/`np` 的 riii-rd，`z`/`nz` 的 riii-rb）+ `jump` 2 + `call` 2 +
+  `ret` 1；链接布局复用 `01-load-store/inst-tiny.lds`。
+- 宏层新增（`tests/inst/macros/inst_test.inc`）：`TEST_BR2`（rrii 条件分支）、
+  `TEST_BR1`/`TEST_BR1_RB`（riii rd/rb）、`__LAND_IP`（落点 IP 捕获：`aip.si rb24, 0`
+  + `rb2rd` ⇒ 期望可写成 `ENTRY + <字面偏移>`）、故障宏 `TEST_FAULT_CF`/`CF1`
+  （原始编码）、`TEST_FAULT_BR1/BR2`（目标不可取指 ⇒ UNDI）、`TEST_FAULT_RAS`
+  （建立 RA 状态后执行 call/ret ⇒ RASOF/RASUF）、`TEST_FAULT_RASUF_MEM`（D4b）、
+  `TEST_FAULT_ADDR0`（rrii 目标地址 0 ⇒ CFXMEM）。`__FAULT_GUARD` 增
+  UNDI `0xF9` / RASOF `0xFA` / RASUF `0xFB`；数据区新增 `MEMRAS`（`TEST_DATA+0x1700`）。
+  驱动器 `run_asm_suite.py`：`FAULT_CODE` 增三类、新增 `TEST_FAULT_CF1`/`_BR1/2`/
+  `_ADDR0`/`_RAS`/`_RASUF_MEM` 的行识别、链例行识别增 `TEST_BR*`。
+- **跳转距离/落点**：条件分支与 `jump` 的「距离」用例把被测指令用 `.org` 钉在固定槽位，
+  目标用**字面字节偏移**（如 `+0x800` / `-0x420` / `+0xEC0`），落点用 `__LAND_IP` 捕获后
+  与 `ENTRY + <槽位偏移>` 比对 ⇒ 同时钉住「目标计算」与「落点地址」。`br.rrii` 的立即数
+  只有 ±8 KiB（够不到 Tiny 的 8 MiB SRAM 边界）⇒ 越界目标只能落在 SRAM 内的非代码区
+  （零字 ⇒ UNDI）；`br.riii`（±512 KiB）、`jump`（±32 MiB）用 CFXMEM 覆盖越界方向。
+- **RAS**：`call` 的压栈按 C1/C2/C3a 覆盖（冷栈、同返回地址的递归折叠、异地址压栈并
+  把旧顶下移 `ra62`），`ret` 按 D2/D3（计数 > 1 只减计数、= 1 弹栈）与 D4a/D4b
+  （MRPTR = 0 / MemRAS 条目计数 0 ⇒ RASUF）覆盖；`RACNT` 与 `MRPTR` 都在 `ra0`
+  （`[53:48]` / `[47:0]`），用例用 `rd2ra` 全 64 位写建立状态、`ra2rd` 只读观测。
+  返回地址一律核「`call` 地址 + 4」与递归计数（1 或 2）。
+- 故障例：`dst_rd0_nonzero`（`ret rd0, 1` / `ret rd0, -1` ⇒ ILLI，汇编器拒绝故给编码字）、
+  RASOF（C3b）、RASUF（D4a、D4b）、CFXMEM（`br.riii`/`jump`/`call` 越界目标、
+  rrii 目标地址 0）、UNDI（`br.eq`/`br.ne` 落到零字）。
+- 三方逐字节：链例比结果字节流、故障例比 monitor 段退出码；**同一份 ELF** 在 chipyard /
+  QEMU / gem5 上 34 个镜像全一致（含 `0xF1`/`0xF8`/`0xF9`/`0xFA`/`0xFB` 五种故障码）。
+- **独立复算**：`oracle` 是自写的 Tiny 子集解释器（控制流 + 宏层用到的指令 + RAS
+  压/弹流程），逐检查点把实测值与内联期望比对（194 点），并把结果字节流与三平台输出
+  逐字节比对；`encode_check` 另核原始编码字的 `opc`/`mask`/`value` 与「编码字段 ↔
+  装载寄存器」一致。
+- **YAML**：4 个 ctrl 册的 id 全部有 `.S` 载体，但**未删**（§5.2 的四条阻塞实测）。

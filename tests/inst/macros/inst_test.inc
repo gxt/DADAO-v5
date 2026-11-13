@@ -28,7 +28,8 @@
 @@ rd20/rd21/rb21=期望/实测/临时、rd22/rd23=临时与退出码、
 @@ rd31/rb31=故障处理器暂存、rd16/rb16=semihosting、r?4/rd4=退出参数块、
 @@ rb29=寄存器复制实测落点（SCRATCH）、rb27=rf0 写语义例的前/后落点（WSCRATCH）、
-@@ rd25/rd26=rf0 写语义例的「写前值 / 期望字节」。
+@@ rd25/rd26=rf0 写语义例的「写前值 / 期望字节」、
+@@ rd24/rb24=控制流（06）用例的「跳转标记 / 落点 IP」与 RAS 实测临时。
 @@
 @@ 固定地址（Tiny；`.lds` 的 ASSERT 与本节 `.equ` 共同钉住）：
 @@   ENTRY+0x0000 .. +0x1E00  .text          链例 + 故障例体
@@ -76,6 +77,9 @@
 @@ 16 位立即数操作（03-wyde-imm）的数据区（同上，偏移相对 TEST_DATA）：
 @@   +0x1500 WDATA      16 拍：初值/边界 + 4 个 id 的「独立 oracle」期望（`_MEM` 变体装载）
 @@   +0x1580 WSCRATCH   16 B：rf0 写语义例的「写前 8 B / 写后 8 B」（rb27 指）
+@@ 控制流（06-control-flow）的数据区（同上，偏移相对 TEST_DATA）：
+@@   +0x1700 MEMRAS     8 B：MemRAS 条目（`ret` 的 D4b 下溢例：计数 0）；MRPTR 指此
+@@   （+0x1600..+0x1700 与 +0x1708..+0x1800 保持零：控制流用例不使用）
 
 	.include "tests/shared/asm/machine-tiny.inc"
 	.include "tests/shared/asm/machine.inc"
@@ -104,6 +108,9 @@
 @@ 16 位立即数操作数据区（见文件头；偏移相对 TEST_DATA）
 	.equ WDATA,    TEST_DATA + 0x1500  @@ 16 拍：初值/边界 + 独立 oracle 期望
 	.equ WSCRATCH, TEST_DATA + 0x1580  @@ rf0 写语义例的前/后 8 B（rb27 指）
+
+@@ 控制流数据区（见文件头；偏移相对 TEST_DATA）
+	.equ MEMRAS,   TEST_DATA + 0x1700  @@ MemRAS 条目（ret 的 D4b 下溢例）
 
 @@ semihosting：服务号在 rd16、参数块指针在 rb16、trap 标签 0x3FF00+服务号
 @@ （`contract-semihosting` §1/§2）。
@@ -859,6 +866,18 @@ __cp_\@:
 	.set	__onehot, 0x2000
 	.set	__code, 0xFD
 	.endif
+	.ifc	\fault, UNDI
+	.set	__onehot, 0x0200
+	.set	__code, 0xF9
+	.endif
+	.ifc	\fault, RASOF
+	.set	__onehot, 0x0400
+	.set	__code, 0xFA
+	.endif
+	.ifc	\fault, RASUF
+	.set	__onehot, 0x0800
+	.set	__code, 0xFB
+	.endif
 	.if	__onehot == 0
 	.error	"unknown fault name"
 	.endif
@@ -1070,6 +1089,191 @@ __fault_case:
 __fault_case:
 	__FAULT_GUARD \pt, \fault
 	\mnem	\dst, \imm
+	__EXIT	\pt
+	.endif
+.endm
+
+@@ ---------------------------------------------------------------------------
+@@ 控制流（06-control-flow，`spec/SimRISC-06`）：条件分支 / 无条件跳转 / 调用 / 返回
+@@   TEST_BR2(pt, 助记符, A, A值, B, B值, 期望)：`rrii` 条件分支（br.eq/br.ne）
+@@   TEST_BR1(pt, 助记符, 寄存器, 值, 期望)：`riii` rd 条件分支（br.n/nn/z/nz/p/np）
+@@   TEST_BR1_RB(pt, 助记符, 寄存器, 值, 期望)：`riii` rb 条件分支（br.z/br.nz 的 -rb 形式）
+@@     期望：1 = 条件成立（跳转），0 = 不成立（不跳）。跳转路径把 rd24 置 1、不跳路径
+@@     保持 0，由 `__CHECK_RD` 比 ⇒ 一个用例一个检查点。**落点地址**不在这三条宏里核
+@@     （地址用 `.org` 钉住后另设检查点，见各 `.S` 的边界段：`__LAND_IP`）。
+@@     源为 rd0/rb0 时跳过装载（硬连零）；两源同名（overlap）只装一次。
+@@   __LAND_IP：落点 IP 捕获 —— `aip.si rb24, 0` 取**该指令自身地址**（`rb0` 口径），
+@@     再 `rb2rd` 搬到 rd24 ⇒ 实测值 = 落点绝对地址。必须紧放在落点第一条指令。
+@@     用途：把「跳转距离/落点」的期望写成 `ENTRY + <字面偏移>`——llvm-mc 只折装
+@@     **绝对常量**，标签差在立即数里会被折成 0（`tests/inst/MIGRATION.md §6/019`）。
+@@   链例里分支/跳转的「跳过」一律用 `jump`；`.org` 填充的零字只允许被 `jump`/分支跨过。
+@@   故障例：`TEST_FAULT_CF`/`TEST_FAULT_CF1`（原始编码：越界跳转目标、`ret rd0` 非零
+@@   立即数、保留编码；`CF1` 另给条件寄存器初值）、`TEST_FAULT_BR1`/`TEST_FAULT_BR2`
+@@   （条件成立后跳到不可取指的目标 ⇒ UNDI）、`TEST_FAULT_ADDR0`（rrii 目标地址 0 ⇒
+@@   CFXMEM）、`TEST_FAULT_RAS`（建立 RA 状态后执行 call/ret ⇒ RASOF/RASUF）、
+@@   `TEST_FAULT_RASUF_MEM`（MemRAS 条目计数 0 ⇒ D4b RASUF）。
+@@ ---------------------------------------------------------------------------
+
+.macro TEST_BR2 pt, mnem, a, aval, b, bval, want
+	.ifnc	\a, rd0
+	__LI	\a, \aval
+	.endif
+	.ifnc	\b, rd0
+	.ifnc	\b, \a
+	__LI	\b, \bval
+	.endif
+	.endif
+	__LI	rd24, 0
+	\mnem	{\a, \b}?, [rb0, __bt_\@]
+	jump	[rb0, __bl_\@]
+__bt_\@:
+	__LI	rd24, 1
+__bl_\@:
+	__CHECK_RD \pt, rd24, \want
+.endm
+
+.macro TEST_BR1 pt, mnem, r, rval, want
+	.ifnc	\r, rd0
+	__LI	\r, \rval
+	.endif
+	__LI	rd24, 0
+	\mnem	{\r}?, [rb0, __bt_\@]
+	jump	[rb0, __bl_\@]
+__bt_\@:
+	__LI	rd24, 1
+__bl_\@:
+	__CHECK_RD \pt, rd24, \want
+.endm
+
+.macro TEST_BR1_RB pt, mnem, r, rval, want
+	.ifnc	\r, rb0
+	__LI_RB	\r, \rval
+	.endif
+	__LI	rd24, 0
+	\mnem	{\r}?, [rb0, __bt_\@]
+	jump	[rb0, __bl_\@]
+__bt_\@:
+	__LI	rd24, 1
+__bl_\@:
+	__CHECK_RD \pt, rd24, \want
+.endm
+
+@@ 落点 IP 捕获（必须紧放在落点第一条指令）：rd24 = IP = 该 `aip.si` 的地址
+.macro __LAND_IP
+	aip.si	rb24, 0
+	rb2rd	{rd24:rd24}, {rb24:rb24}
+.endm
+
+@@ 控制流故障例（原始编码；汇编器会拒绝的编码或越界目标）
+@@   TEST_FAULT_CF(pt, 故障名, 编码字)
+.macro TEST_FAULT_CF pt, fault, enc
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	.dd.t32	\enc
+	__EXIT	\pt
+	.endif
+.endm
+
+@@ 同上，另给条件寄存器初值（riii 条件分支的越界目标例）
+@@   TEST_FAULT_CF1(pt, 寄存器, 值, 故障名, 编码字)
+.macro TEST_FAULT_CF1 pt, r, rval, fault, enc
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	.ifnc	\r, rd0
+	.ifnc	\r, rb0
+	__LI	\r, \rval
+	.endif
+	.endif
+	.dd.t32	\enc
+	__EXIT	\pt
+	.endif
+.endm
+
+@@ 控制流「目标不可取指」故障例：条件成立 ⇒ 跳到 `target`（零字区/非代码区）
+@@   TEST_FAULT_BR2(pt, 助记符, A, A值, B, B值, 故障名, 目标)
+@@   TEST_FAULT_BR1(pt, 助记符, 寄存器, 值, 故障名, 目标)
+@@   目标用标签（分支目标走正常重定位，不是立即数常量）⇒ 可用 `TEST_DATA + 偏移`
+.macro TEST_FAULT_BR2 pt, mnem, a, aval, b, bval, fault, target
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	__LI	\a, \aval
+	.ifnc	\b, \a
+	__LI	\b, \bval
+	.endif
+	\mnem	{\a, \b}?, [rb0, \target]
+	__EXIT	\pt
+	.endif
+.endm
+
+.macro TEST_FAULT_BR1 pt, mnem, r, rval, fault, target
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	.ifnc	\r, rd0
+	__LI	\r, \rval
+	.endif
+	\mnem	{\r}?, [rb0, \target]
+	__EXIT	\pt
+	.endif
+.endm
+
+@@ jump/call 的 rrii 形式：目标地址 0（`rbHA = 0`、`rdHB = 0`、`imms12 = 0`）⇒ 取指 CFXMEM
+@@   TEST_FAULT_ADDR0(pt, 助记符, 故障名)
+.macro TEST_FAULT_ADDR0 pt, mnem, fault
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	__LI_RB	rb5, 0
+	__LI	rd6, 0
+	\mnem	[rb5, rd6, 0]
+	__EXIT	\pt
+	.endif
+.endm
+
+@@ RAS 故障例：按故障名建立最小 RA 前置，再执行 `inst`（call/ret 的完整文本）
+@@   RASOF ⇒ C3b：RACNT = 63、MRPTR = 0、ra63 = [计数 1, 返回地址 0xCCCC00000000]
+@@           （返回地址与待压入的不同 ⇒ 不走 C2 折叠，直接落 C3b 溢出）
+@@   RASUF ⇒ D4a：RACNT = 0、MRPTR = 0
+@@   `inst` 用 `:vararg` 收整段文本（含 `[..]` 内的逗号），如 `call [rb0, 4]`
+.macro TEST_FAULT_RAS pt, fault, inst:vararg
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	.ifc	\fault, RASOF
+	__LI	rd5, 0x0001CCCC00000000
+	rd2ra	{ra63}, {rd5}
+	__LI	rd5, 0x003F000000000000
+	rd2ra	{ra0}, {rd5}
+	.endif
+	.ifc	\fault, RASUF
+	rd2ra	{ra0}, {rd0}
+	.endif
+	\inst
+	__EXIT	\pt
+	.endif
+.endm
+
+@@ MemRAS 下溢（D4b）：ra0 = {RACNT = 0, MRPTR = MEMRAS}、MemRAS[MRPTR] 的递归计数 = 0
+.macro TEST_FAULT_RASUF_MEM pt, inst:vararg
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, RASUF
+	__LI	rd5, 0
+	LOAD_ADDR rb5, MEMRAS
+	st.o	rd5, [rb5, 0]           @@ MemRAS[MRPTR] 的递归计数 = 0
+	__LI	rd5, MEMRAS              @@ MRPTR = MEMRAS、RACNT = 0（高 16 位 = 0）
+	rd2ra	{ra0}, {rd5}
+	\inst
 	__EXIT	\pt
 	.endif
 .endm
