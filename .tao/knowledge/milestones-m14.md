@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m14-qemu-001 | 4–6 h | 最小 smon：建 64 KiB 身份页表 + PTBR/ptw_enable + VA 入口交内核（K1） |
 | m14-linux-002 | 6–7 h | `arch/dadao` 最小骨架，`make ARCH=dadao` 出 vmlinux（不要求启动） |
 | m14-infra-003 | 4–5 h | K0 收口门控 `check-linux-k0`（vmlinux/initramfs/工具链矩阵/反例注入） |
 
@@ -31,7 +32,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-qemu-001 | 2026-11-13 20:15 | 4–6 h | 最小 smon：建 64 KiB 身份页表 + PTBR/ptw_enable + VA 入口交内核（K1） |
 | m14-spec-002 | 2026-11-13 20:10 | 3–4 h | 内核侧 syscall/errno/TLS 契约（`rb3=rbtp`、clone/futex 原子性） |
 | m14-infra-001 | 2026-11-13 20:05 | 4–5 h | 工具链缺口矩阵 + `check-linux-toolchain` 门控 |
 | m14-infra-002 | 2026-11-13 20:05 | 5–6 h | initramfs（静态 musl init）+ semihosting 控制台/退出闭环 |
