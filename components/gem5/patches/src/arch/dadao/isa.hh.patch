@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
 new file mode 100644
-index 0000000..5414bbd
+index 0000000..8ac5a29
 --- /dev/null
 +++ b/src/arch/dadao/isa.hh
-@@ -0,0 +1,121 @@
+@@ -0,0 +1,131 @@
 +// DADAO ISA object (B0 skeleton + B6 LR/SC reservation state).
 +#ifndef __ARCH_DADAO_ISA_HH__
 +#define __ARCH_DADAO_ISA_HH__
@@ -54,6 +54,13 @@ index 0000000..5414bbd
 +
 +    bool inUserMode() const override;
 +
++    /** Extra cycles the timing CPU adds after ``inst`` before fetching the next
++     *  instruction (M16 wuming cycle model).  Zero unless the ISA was
++     *  configured with ``enable_wuming_cycles``; see wuming_latency.hh for the
++     *  row policy (static classes only, table value minus the one cycle the
++     *  TimingSimpleCPU already spends in execute()). */
++    Cycles extraExecLatency(const StaticInst *inst) const override;
++
 +    /** Node architectural state (cfx register file, PTW, DMA, counters).
 +     *  Only meaningful when nodeActive(); the SE and Tiny paths never read it. */
 +    NodeState &nodeState() { return node; }
@@ -103,6 +110,9 @@ index 0000000..5414bbd
 +    bool reservationValid = false;
 +    Addr reservationAddr = 0;
 +    unsigned reservationWidth = 0;
++
++    /** Wuming per-instruction cycle table switch (M16, off by default). */
++    bool wumingCycles = false;
 +
 +    /** Harts that currently hold a reservation (store-side invalidation). */
 +    static std::vector<ISA *> holders;

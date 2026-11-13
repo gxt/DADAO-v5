@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..90f938b
+index 0000000..8bbc284
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,313 @@
+@@ -0,0 +1,334 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
@@ -11,9 +11,11 @@ index 0000000..90f938b
 +
 +#include "arch/dadao/fs_machine.hh"
 +#include "arch/dadao/fs_workload.hh"
++#include "arch/dadao/inst.hh"
 +#include "arch/dadao/node_cfx.hh"
 +#include "arch/dadao/regs/float.hh"
 +#include "arch/dadao/regs/int.hh"
++#include "arch/dadao/wuming_latency.hh"
 +#include "base/logging.hh"
 +#include "cpu/thread_context.hh"
 +#include "debug/CCRegs.hh"
@@ -42,7 +44,8 @@ index 0000000..90f938b
 +
 +} // anonymous namespace
 +
-+ISA::ISA(const Params &p) : BaseISA(p, "dadao")
++ISA::ISA(const Params &p)
++    : BaseISA(p, "dadao"), wumingCycles(p.enable_wuming_cycles)
 +{
 +    _regClasses = {&intRegClass, &floatRegClass, &vecRegClass,
 +        &vecElemClass, &vecPredRegClass, &matRegClass, &ccRegClass,
@@ -150,6 +153,24 @@ index 0000000..90f938b
 +        return false;
 +    }
 +    return true;
++}
++
++Cycles
++ISA::extraExecLatency(const StaticInst *inst) const
++{
++    if (!wumingCycles || inst == nullptr)
++        return Cycles(0);
++
++    // The hook is handed the generic StaticInst; only DADAO instructions carry
++    // a contract id, and anything else keeps the upstream one-cycle model.
++    const auto *dadao = dynamic_cast<const DadaoISAInst::DadaoInst *>(inst);
++    if (dadao == nullptr)
++        return Cycles(0);
++    const char *id = dadao->contractId();
++    if (id == nullptr)
++        return Cycles(0);
++
++    return Cycles(wuming::extraExecCycles(std::string_view(id)));
 +}
 +
 +void

@@ -93,6 +93,7 @@ src/arch/dadao/tlb.hh.patch
 src/arch/dadao/types.hh.patch
 src/arch/dadao/wuming_cycles.cc.patch
 src/arch/dadao/wuming_cycles.hh.patch
+src/arch/dadao/wuming_latency.hh.patch
 src/arch/generic/SConscript.patch
 src/arch/generic/isa.hh.patch
 src/arch/generic/semihosting.cc.patch

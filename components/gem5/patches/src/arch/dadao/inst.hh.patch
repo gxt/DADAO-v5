@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.hh b/src/arch/dadao/inst.hh
 new file mode 100644
-index 0000000..9d11309
+index 0000000..0757bad
 --- /dev/null
 +++ b/src/arch/dadao/inst.hh
-@@ -0,0 +1,63 @@
+@@ -0,0 +1,72 @@
 +// DADAO StaticInst (B0 decode + B1/B2/B3/B4/B5/B6/B7 execution).
 +#
 +// One instruction class carries the decode result.  Batches B1 (load/store),
@@ -60,6 +60,15 @@ index 0000000..9d11309
 +    asBytes(void *buf, size_t maxSize) override
 +    {
 +        return simpleAsBytes(buf, maxSize, word);
++    }
++
++    /** Contract id of the decoded instruction (``contracts/opcodes.yaml``,
++     *  e.g. "shl.o_orrr_rd"), or nullptr for an illegal encoding.  Used by the
++     *  ISA latency hook (M16). */
++    const char *
++    contractId() const
++    {
++        return decoded.entry != nullptr ? decoded.entry->id : nullptr;
 +    }
 +};
 +

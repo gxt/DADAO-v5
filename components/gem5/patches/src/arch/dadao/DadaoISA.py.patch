@@ -1,13 +1,22 @@
 diff --git a/src/arch/dadao/DadaoISA.py b/src/arch/dadao/DadaoISA.py
 new file mode 100644
-index 0000000..10a68eb
+index 0000000..8ec96ed
 --- /dev/null
 +++ b/src/arch/dadao/DadaoISA.py
-@@ -0,0 +1,7 @@
+@@ -0,0 +1,16 @@
 +from m5.objects.BaseISA import BaseISA
++from m5.params import *
 +
 +
 +class DadaoISA(BaseISA):
 +    type = "DadaoISA"
 +    cxx_class = "gem5::DadaoISA::ISA"
 +    cxx_header = "arch/dadao/isa.hh"
++
++    # Wuming per-instruction execution latency (M16: docs/core-wuming-cycle-model.md
++    # parsed into arch/dadao/wuming_cycles.{hh,cc}).  Off by default: the DADAO
++    # ISA then keeps gem5's upstream one-cycle execution model bit for bit, so
++    # every pre-M16 run stays byte-identical.  m16-gem5-003 drives the static
++    # classes, m16-gem5-004/005/006 the parameterised ones.
++    enable_wuming_cycles = Param.Bool(
++        False, "Drive ISA::extraExecLatency from the wuming cycle table (M16)")
