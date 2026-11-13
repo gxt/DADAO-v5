@@ -195,6 +195,6 @@
 - NaN：qNaN ⇒ 返回 qNaN（canonical 化）；**sNaN ⇒ 置 NV**、返回 qNaN。`0 × ±Inf` ⇒ **NV** + qNaN（即使 `rfHD` 为 qNaN 也置 NV）。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
 - Inf：`±Inf × 有限非零数` ⇒ 同号 Inf；`Inf + (−Inf)`（积与加数异号）⇒ **NV** + qNaN；同号 ⇒ 该 Inf。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
 - 精确和为零 ⇒ 依 IEEE 754-2019 §6.3 零符号规则（RDN ⇒ `−0`，其余 ⇒ `+0`）。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
-- 标志：溢出 ⇒ `±Inf` + **OF**；下溢 ⇒ 次正规数或 `±0` + **UF**；**NX 最多置一次**；不触发陷阱，只累积 `rf0[4:0]`。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
+- 标志（IEEE 754-2019 §7.4，与 §2 `fo2ft` 同口径）：**溢出判据** = 以**无限指数范围**按 `rf0[33:32]` 舍入后的精确和，其绝对值**大于**最大有限值（`ftfma` 为 `ft_max = 0x7F7F_FFFF`、`fofma` 为 `fo_max = 0x7FEF_FFFF_FFFF_FFFF`）⇒ 置 **OF** + **NX**，结果形态由「精确和符号 × 舍入方向」决定：RNE ⇒ 正 `+Inf` / 负 `−Inf`；RTZ ⇒ 正 `+max` / 负 `−max`；RUP（向 +∞）⇒ 正 `+Inf` / 负 `−max`；RDN（向 −∞）⇒ 正 `+max` / 负 `−Inf`（有限结果符号恒为精确和符号；本族方向仅 `rf0[33:32]` 四档、**无** RNA）。**轻微溢出**（精确和略超 `max`、但无限指数舍入结果仍为 `max`）⇒ `±max` + **仅 NX**、**不置 OF**：正向 RNE（未达下述分界时）/RTZ/RDN、负向 RNE（同）/RTZ/RUP 属此列；正向 RUP、负向 RDN 已舍到 `2^(emax+1)` ⇒ 溢出。RNE 分界 = `max` + 半个 ulp（ft `+2^103`、fo `+2^970`），达到或超过即溢出。溢出结果非 tiny ⇒ 不置 `UF`；下溢（tiny 且 inexact、检测点 = 舍入后）⇒ 次正规数或 `±0` + **UF**（并 NX）；**NX 最多置一次**；不触发陷阱，只累积 `rf0[4:0]`。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
 - 目的 `rfHA = rf0` ⇒ ILLI（`dst_rf0`）；源可为 `rf0`（读出 FCSR 中的 qNaN）；**不采用**双目的形态（无 `dst_dual_same`）。[SimRISC-07 §融合乘加（fusedMultiplyAdd）][SimRISC-00 §浮点寄存器]
 - **负向约束**：不提供 `fmsub`/`fnmadd`/`fnmsub` 独立编码；`a × b − c` 等形态用 `ftsgnn`/`fosgnn` 对 `rfHD` 取负后执行本族（符号位取反逐位精确、不涉舍入）。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
