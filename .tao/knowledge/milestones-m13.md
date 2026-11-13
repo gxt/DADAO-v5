@@ -25,6 +25,10 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m13-spec-007 | 2–3 h | 定稿 rootn(±0,2)=+0、结果 NaN canonical、比较族 NV 条款（spec + contract-fp） |
+| m13-qemu-009 | 3–4 h | `rootn(±0,2)⇒+0`、结果 NaN ⇒ canonical（QEMU） |
+| m13-gem5-011 | 3–4 h | quiet compare sNaN 置 NV、`rootn(±0,2)⇒+0`、convert NaN ⇒ canonical（gem5） |
+| m13-testcases-032 | 4–6 h | rootn ±0 / NaN canonical / quiet-sNaN 向量与三平台期望 |
 | m13-testcases-031 | 2–3 h | 补 `st.o rb0`（`aip.si` 构造期望）+ `ld.o ra0` 读写（SBZ 写忽略） |
 | m13-testcases-015 | 2–3 h | `03-wyde-imm` 8 个 id 改汇编+宏 |
 | m13-testcases-016 | 3–4 h | `04-arith-logic-octa` 算术 15 个 id 改汇编+宏 |
