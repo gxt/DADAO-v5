@@ -116,7 +116,11 @@
 - K0 七件已落 `.tao/tasks/{linux,spec,infra}/m14-*`（`milestones-m14.md` 台账）；`m14-linux-001`、`m14-spec-001` 已派。
 - **启动 ABI 值已冻结（用户 2026-11-13）**：内核 `0x0010_0000`、boot info PA `0x0001_0000`、initramfs `0x0400_0000`、`rb17` 承载、入口 `supv` + 身份映射。
 - **spec/Process 授权（2026-11-13）**：`m14-spec-001` 可改 `spec/Machine-v5`+锁、`m14-linux-001` 可改 `docs/Process-01`、`m14-infra-003` 可改 `docs/Process-07`；其余仍需逐次授权。
-- **待裁定**：启动 ABI 属跨模块外部契约（命中 ADR 判据）——是否立 ADR，待用户决定。
+- **启动 ABI 口径（用户 2026-11-13，已落 spec/ADR）**：
+  - ABI 地址一律 **VA**（`addr[41:0]`）；PA 只出现在页表项、`PTBR`、loader 写内存。
+  - 启动模型 **M1**：进入内核前已有 64 KiB 页身份映射 `VA[0,2GiB)→PA[0,2GiB)`、`PTBR` 指向、`ptw_enable=1`；VA 入口。依据：`ptw_enable=0` 时内存窗口取指/访存 ⇒ `CFXMEM`，不存在 MMU 关运行。
+  - **身份页表由 smon 固件预建**；宿主 loader 只装镜像（ELF/raw）到对应 PA，不代写页表页。
+  - ADR：`adr-0051-linux-boot-abi.md`（`Accepted`，D1–D8 已逐条确认）。
 
 ## 待裁定 ADR：Linux bring-up charter（未落文件）
 
