@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_mem.c.inc b/target/dadao/insn_trans/trans_mem.c.inc
 new file mode 100644
-index 0000000..aa6041b
+index 0000000..82c7356
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_mem.c.inc
-@@ -0,0 +1,593 @@
+@@ -0,0 +1,615 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +
 +/* §4.1.1 Single RD Load (rrii): ld.sb/ld.ub/ld.sw/ld.uw/ld.st/ld.ut/ld.o
@@ -158,13 +158,26 @@ index 0000000..aa6041b
 +    return true;
 +}
 +
++/* mreg_range_addr_overlap (SimRISC-01 §存取RD寄存器 / §存取RB寄存器): an
++ * `ldm` address register must not fall inside the transferred range
++ * [start, start+immu6) -- the range is written element by element, so an
++ * overlap would make later element addresses depend on how far the loop got
++ * (indeterminate).  `stm` allows the overlap (it only reads the range) and
++ * the RA/RF forms cannot overlap structurally (address regs live in RB/RD). */
++static bool mreg_addr_in_range(unsigned start, unsigned len, unsigned addr)
++{
++    return addr >= start && addr < start + len;
++}
++
 +/* §4.1.2 Multi RD Load (rrri): ldm.sb/ldm.ub/ldm.sw/ldm.uw/ldm.st/ldm.ut/ldm.o
 + * EA_i = (rbhb + rdhc + i*N) mod 2^48, rd(ha)..rd(ha+immu6-1)
-+ * ILLI: rdha==0, immu6==0, rdha+immu6>64
++ * ILLI: rdha==0, immu6==0, rdha+immu6>64,
++ *       rdhc in [rdha, rdha+immu6) (mreg_range_addr_overlap)
 + * rdhc snapshotted before loop. */
 +static bool trans_ldm_ub_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64 ||
++        mreg_addr_in_range(a->ha, a->hd, a->hc)) {
 +        gen_exception_illegal(ctx); return true;
 +    }
 +    TCGv_i64 base = load_rb(ctx, a->hb);
@@ -187,7 +200,8 @@ index 0000000..aa6041b
 +
 +static bool trans_ldm_uw_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64 ||
++        mreg_addr_in_range(a->ha, a->hd, a->hc)) {
 +        gen_exception_illegal(ctx); return true;
 +    }
 +    TCGv_i64 base = load_rb(ctx, a->hb);
@@ -206,7 +220,8 @@ index 0000000..aa6041b
 +
 +static bool trans_ldm_ut_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64 ||
++        mreg_addr_in_range(a->ha, a->hd, a->hc)) {
 +        gen_exception_illegal(ctx); return true;
 +    }
 +    TCGv_i64 base = load_rb(ctx, a->hb);
@@ -225,7 +240,8 @@ index 0000000..aa6041b
 +
 +static bool trans_ldm_sb_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64 ||
++        mreg_addr_in_range(a->ha, a->hd, a->hc)) {
 +        gen_exception_illegal(ctx); return true;
 +    }
 +    TCGv_i64 base = load_rb(ctx, a->hb);
@@ -248,7 +264,8 @@ index 0000000..aa6041b
 +
 +static bool trans_ldm_sw_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64 ||
++        mreg_addr_in_range(a->ha, a->hd, a->hc)) {
 +        gen_exception_illegal(ctx); return true;
 +    }
 +    TCGv_i64 base = load_rb(ctx, a->hb);
@@ -267,7 +284,8 @@ index 0000000..aa6041b
 +
 +static bool trans_ldm_st_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64 ||
++        mreg_addr_in_range(a->ha, a->hd, a->hc)) {
 +        gen_exception_illegal(ctx); return true;
 +    }
 +    TCGv_i64 base = load_rb(ctx, a->hb);
@@ -348,7 +366,8 @@ index 0000000..aa6041b
 +
 +static bool trans_ldm_o_rrri_rd(DisasContext *ctx, arg_main *a)
 +{
-+    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64 ||
++        mreg_addr_in_range(a->ha, a->hd, a->hc)) {
 +        gen_exception_illegal(ctx); return true;
 +    }
 +    TCGv_i64 base = load_rb(ctx, a->hb);
@@ -386,10 +405,13 @@ index 0000000..aa6041b
 +static bool trans_ldm_o_rrri_rb(DisasContext *ctx, arg_main *a)
 +{
 +    /* S4.2 ldm.o rbha, rbhb, rdhc, immu6 (rrri): multi RB load
-+     * ILLI: rbha==rb0, immu6==0, rbha+immu6>64 (before any write)
++     * ILLI: rbha==rb0, immu6==0, rbha+immu6>64,
++     *       rbhb in [rbha, rbha+immu6) (mreg_range_addr_overlap)
++     *       (all before any write)
 +     * EA = (rb[hb] + rd[hc]) & 0x0000FFFFFFFFFFFF; stride=8 (octa)
 +     * rdhc snapshotted before loop; big-endian 8B aligned load. */
-+    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64) {
++    if (a->ha == 0 || a->hd == 0 || a->ha + a->hd > 64 ||
++        mreg_addr_in_range(a->ha, a->hd, a->hb)) {
 +        gen_exception_illegal(ctx); return true;
 +    }
 +    TCGv_i64 base = load_rb(ctx, a->hb);

@@ -473,3 +473,10 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`m13-spec-005` 的残留扫描面偏窄：`checks.py` 的 S11–S13 只扫 `spec/` 与 `contracts/`，不含 `docs/DDLN/` ⇒ DDLN A006 里的旧口径（「`ldm`/`stm` 可重叠」）测不到，靠 reviewer 人工 grep 才发现。建议把 `docs/DDLN/` 纳入「旧口径残留」扫描（它是讲义、不是判据，但会误导读者）。另：`run.sh` 头注「5 路注入」实为 6 路（笔误）。
+- id: ISS-418
+  scope:
+  - qemu
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`m13-qemu-006` 证据脚本的 `8/8`（CFXMEM/guest FAIL 数）是**字面期望**而非现场计数 ⇒ 若日后设计变更（例如新增非法例）会**假红**（不会假绿）。建议改为按集合比对或现场派生。

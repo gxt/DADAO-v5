@@ -90,7 +90,7 @@
 ### 第 1 轮 reviewer 验收（2026-11-13）
 
 重跑（HEAD `2c55fa58`；全程未 commit；结束 `git status -uall` 空、5 目标文件 md5 与注入前逐字相等）：
-- `./.work/evidence/m13-spec-005/run.sh` ⇒ `semantic: 24/24 PASS` + 15 门控全 `rc=0`，`RESULT: PASS`，**exit=0**（39 项）
+- `./该任务的运行期证据目录/run.sh` ⇒ `semantic: 24/24 PASS` + 15 门控全 `rc=0`，`RESULT: PASS`，**exit=0**（39 项）
 - `run.sh --inject` ⇒ P1–P6 六路全 `PROBE PASS`（各先红后绿、还原 md5 一致），`SELF-CHECK PASS`，**exit=0**
 - 负控（临时副本把 P1 期望改为无关 `S24`）⇒ `注入后语义 FAIL 项=0`、`PROBE FAIL：P1`、`SELF-CHECK FAIL`，**exit=1**（探针 FAIL 路径可达）
 - reviewer 独立注入 3 路（`cp` 备份 + md5 还原）：① `ldm.o_rrri_ra` 加规则 ⇒ `S15 FAIL(9≠8)` 且 `check-legality-drift exit=2`；② §2 区间式改 `+immu6*2` ⇒ `S7 FAIL`；③ 删 §3 RA「不适用」行 ⇒ `S9 FAIL`；还原后 `24/24 PASS`、`git status` 空、md5 相等

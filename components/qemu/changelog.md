@@ -329,3 +329,7 @@
 - **2026-11-12 `m13-qemu-004`**
   - 摘要：**quiet compare 遇 sNaN 置 `NV`（IEEE 754-2019 §5.11；用户裁定 2026-11-12「改为置 NV（跟 IEEE）」）**。`target/dadao/insn_trans/trans_fp.c.inc`：新增 `fp_is_snan()`（NaN 且尾数静默位为 0）；`gen_fp_cmp()` 的 `signal_nv` 改为 `nv_rule` 二档——`FP_CMP_NV_UNORDERED`（signaling compare，任何无序置，口径不变）/ `FP_CMP_NV_SNAN`（quiet compare，**仅任一操作数为 sNaN 时置**，qNaN 不置）；`ftqcmp`/`foqcmp` 改传后者，NV 仍经 `store_rf()` 写 `rf0` 的 bit0（只读 qNaN/SBZ 位保持）。比较结果值（quiet→qNaN、signaling→sNaN、有序→`−1/0/1`）与其它 FP 标志路径不变。补丁 1 份改。
   - 执行者：engineer
+
+- **2026-11-13 `m13-qemu-006`**
+  - 摘要：**`ldm` 地址寄存器落入传送范围 ⇒ ILLI（`mreg_range_addr_overlap`；用户裁定「不允许重叠，改spec」+ 补充「stm 应该是允许这种重叠的」）**。`target/dadao/insn_trans/trans_mem.c.inc`：新增静态判定 `mreg_addr_in_range()`（`addr ∈ [start, start+immu6)`）；RD 形式 7 条 `ldm`（`ldm.ub/uw/ut/sb/sw/st/o` 的 rd 变体）在既有 `immu6=0`/范围检查同处增 `rdhc` 判定，RB 形式 `ldm.o` 增 `rbhb` 判定；命中即 `gen_exception_illegal()`，任何元素都不产生效果（不发访存、不写寄存器）。`stm` 不加检查（只读传送范围、不写寄存器 ⇒ 允许重叠）；RA/RF 形式结构上不可能重叠，不适用。补丁 1 份改。
+  - 执行者：engineer
