@@ -577,3 +577,11 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`m14-llvm-005` 后 `.set VD, L1-L0` 再 `set.zw rbX, wpN, VD` 由「静默 0」变为**报错**（`VD` 是 Absolute 符号、本可编码 4）。禁静默是对的，但把「已由 `.set` 固化为绝对符号」的操作数也一并拒了，属表达能力回退；诊断文案还把它称作 symbol difference（其实是单符号操作数）。建议：对 `.set` 定义的 Absolute 符号放行，或至少改文案 + lit 固化。"
+- id: ISS-431
+  scope:
+  - testcases
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`run_asm_suite.py` 默认共享 work-dir（`harness/inst-asm`）在**两批 suite 并发**时会互相覆盖产物，产生**假红**（`m13-testcases-021` 首轮 20 个故障例读回 rc=点号，同参空闲重跑 38/38 全绿、独立 work-dir 三轮全绿；sim/bootrom md5 未变 ⇒ 非 `ISS-429`）。建议：按 `<task-id>`/pid 派生 work-dir，或加文件锁；至少在启动时检测 work-dir 已被占用则报错退出。"
