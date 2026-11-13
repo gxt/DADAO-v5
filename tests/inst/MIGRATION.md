@@ -99,8 +99,8 @@
 | `base/bitcnt.yaml` | — | — | 待迁 |
 | `base/reg-arith.yaml` | 224 | — | 待迁 |
 | `base/reg-compare.yaml` | — | — | 待迁 |
-| `base/reg-cond-assign.yaml` | — | — | 待迁 |
-| `base/reg-imm-block.yaml` | — | — | 待迁 |
+| `base/reg-cond-assign.yaml` | 25 | 5 | **id 全部已迁**（5 个 `cs.*_rrrr_rd`，见 §6）；文件未删（§5.1 四个门控阻塞） |
+| `base/reg-imm-block.yaml` | 48 | 7+6 | 部分迁移（6 个块复制 id 已迁，见 §6；其余 7 个 rwii/算术 id 仍待迁） |
 | `base/reg-logic.yaml` | — | — | 待迁 |
 | `base/reg-shift-extend.yaml` | 112 | — | 待迁 |
 | `base/mem-rd.yaml` | 122 | 22 | **id 全部已迁**（`ld.*`/`st.*` 单元素 11 + `ldm.*`/`stm.*` 11，见 §6）；**文件未删** —— 删除依赖 inventory 载体登记改造（见 §5.1） |
@@ -108,7 +108,7 @@
 | `base/mem-rb.yaml` | 23 | 4 | **id 全部已迁**（同上，rb 形式）；文件未删（同 §5.1） |
 | `base/misc.yaml` | — | — | 待迁 |
 | `base/reserved.yaml` | 9 | 4+3 | 部分迁移（`ld.`/`st.` 的 6 条 reserved-cfx `CFXMEM` 已迁；3 条 reserved-opcode `UNDI` 无 id，待 `12-misc`） |
-| `fp/*.yaml`（`arith`/`convert`/`divrem`/`cond-assign`） | — | — | 待迁 |
+| `fp/*.yaml`（`arith`/`convert`/`divrem`/`cond-assign`） | — | — | 部分迁移：`cond-assign.yaml` 的 3 个 `cs.*_rrrr_rf` id 已迁（见 §6，文件未删 §5.1）；其余四册待迁 |
 | `bitcnt/`、`clmul/`、`fma/`、`minmax/`、`rev/`、`rol/`、`roundint/` 各自 | 414/81/… | — | 待迁 |
 
 > 精确「文件 → id」清单由 `tools/testcases/` 现场导出（不写死在本表，避免漂移）。
@@ -173,3 +173,33 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
   故障例比 monitor 段退出码；沿用 `012` 的 hmon 自装 workaround（`ISS-410` 未修）。
 - **YAML**：三册里 30 个 id（含 `012` 的 19 个单元素 id）全部有 `.S` 载体；文件
   删除被 §5.1 的前置阻塞，未删。
+
+### `m13-testcases-014`：`02-reg-copy`（块复制 + `cs.*`，16 个 id）
+
+- `tests/inst/02-reg-copy/{<id>.S}`（16 个）：8 个块复制（`rd2rd`/`rb2rb`/`rb2rd`/`rd2rb`/
+  `ra2rd`/`rd2ra`/`rd2rf`/`rf2rd`）+ 5 个 `cs.*_rrrr_rd` + 3 个 `cs.*_rrrr_rf`；
+  链接布局复用 `01-load-store/inst-tiny.lds`（段地址由宏层固定，见该 .lds 头注释）。
+- 宏层新增（`tests/inst/macros/inst_test.inc`）：`TEST_MOV1`（单寄存器块复制）、
+  `TEST_CS1`/`TEST_CS2`/`TEST_CS1_RF`（条件赋值）、`TEST_FAULT_MOV`/`TEST_FAULT_CS`/
+  `TEST_FAULT_CS2`（故障例）、`__VERIFY_RD`/`__VERIFY_MEM`/`__VERIFY_EQ_RD`（同判据但
+  **不占检查点**，一个用例可含多条断言）、`__SET_MEM`（RDATA → ra/rf 的装载通路）。
+- **探针不借被测指令**：目的在 rd 直接比；在 rb/ra/rf 用**同组 `st.o`** 落到
+  `SCRATCH`（`TEST_DATA+0x1400`）再逐字节比 —— 期望不依赖另一条复制指令。
+  ra/rf 初值只能经内存给（`set.zw`/`or.w` 无 ra/rf 形式）⇒ `RDATA`（`TEST_DATA+0x1300`，
+  16 拍字面量）；`+0x70` 的 `[63:54]=0` 值专供 `ra0` 作目的。
+- **覆盖**：每 id 15–17 点；块复制含 encoding（助记符 + 规范编码字 `.dd.t32`）、
+  semantic（1/2/3/7 元素、源含 0 号寄存器）、boundary（组顶端、最大个数：同组 31 /
+  跨组 63）、legality（`dst_rd0`/`dst_rb0`、`immu6=0`、两侧 `起始+immu6>64`）、
+  overlap（`rd2rd`/`rb2rb` 部分交错与完全重合 ⇒ ILLI；跨组同号合法）。
+- **`cs.*` 的 C-27**：条件/候选与目的**同名**的别名语义仍 deferred（`inventory.md`）⇒
+  用例一律不同名，「未被选中侧不被改写」用 `__VERIFY_*` 断言；`rf0` 作目的只断言
+  「不触发 ILLI」（FCSR 掩码写内容不断言），`rf0` 作源用「与当前 `rf0` 相等」断言。
+- **YAML**：`base/reg-cond-assign.yaml`（5 个 rd 变体）、`base/reg-imm-block.yaml` 的 6 个
+  复制 id、`fp/cond-assign.yaml`（3 个 rf 变体）的用例均已有 `.S` 载体（`rd2rf`/`rf2rd`
+  原本无 YAML 载体）。
+  三文件**未删**，实测阻塞（`cp`+md5 备份后 `mv` 走再逐门控跑，随后还原）：
+  `reg-cond-assign.yaml` ⇒ `validate_vectors` rc=1（**15 gap**）、`check_case_ledger`
+  rc=1（多 25 行）、`check_tests_index` rc=1（`file` 不存在）、`generate_isa_vectors
+  --check` rc=1（missing）；`fp/cond-assign.yaml` ⇒ `check_case_ledger` rc=1（多 6 行）、
+  `check_tests_index` rc=1、`generate_isa_vectors --check` rc=1、
+  `semantics_gate --check-only` rc=1（缺册 + 门控覆盖表登记不符）。⇒ 与 §5.1 同批处理。

@@ -26,7 +26,8 @@
 @@
 @@ 保留寄存器（用例不得占用）：rb3=数据基址、rb30=结果缓冲写指针、
 @@ rd20/rd21/rb21=期望/实测/临时、rd22/rd23=临时与退出码、
-@@ rd31/rb31=故障处理器暂存、rd16/rb16=semihosting、r?4/rd4=退出参数块。
+@@ rd31/rb31=故障处理器暂存、rd16/rb16=semihosting、r?4/rd4=退出参数块、
+@@ rb29=寄存器复制实测落点（SCRATCH）。
 @@
 @@ 固定地址（Tiny；`.lds` 的 ASSERT 与本节 `.equ` 共同钉住）：
 @@   ENTRY+0x0000 .. +0x1E00  .text          链例 + 故障例体
@@ -47,6 +48,17 @@
 @@   **单元素 `ld`/`st` 仍须精确**（`012` 的 `TEST_FAULT` 路径不变，不动）。
 @@   另：中途总线 `denied` 不可构造（`ISS-381` F-c；`m12-chipyard-008` 已定其语义为 `CFXMEM`）。
 @@
+@@ 寄存器复制 / 条件赋值（02-reg-copy，`spec/SimRISC-02`）的实测通路：
+@@   目的在 rd ⇒ `__CHECK_RD` 直接比；目的在 rb/ra/rf ⇒ 同组 `st.o` 落到 SCRATCH
+@@   （8 B 独立落点，逐次覆写）再 `__CHECK_MEM` —— 探针**不借被测的复制指令**，
+@@   否则期望会依赖另一条复制指令。`__VERIFY_*` 判据相同但**不占检查点**：一个用例的
+@@   多条断言共用点号，只有最后一条（`__CHECK_*`）追加结果缓冲，故「失败点号 = 用例序号」。
+@@   ra/rf 的源/目的初值只能经内存给（`set.zw`/`or.w` 无 ra/rf 形式）⇒ `__SET_MEM`
+@@   从 RDATA（TEST_DATA + 0x1300 的 16 拍）装载；rd 用 `__LI`、rb 用 `__LI_RB`。
+@@   `rb29` = 复制类实测落点基址（保留；`__TEST_BEGIN` 装好），用例不得占用。
+@@   条件赋值（`cs.*`）的同名别名语义按 C-27 仍 deferred（`tests/inst/inventory.md`）
+@@   ⇒ 用例只覆盖「条件 / 候选 / 目的互不同名」的路径，不断言别名快照。
+@@
 @@ 多元素（ldm.*/stm.*）数据区（TEST_DATA 内偏移，均 8 字节对齐；字面量由本节
 @@ `.testdata` 现场生成，与 012 单元素用例使用的 0x000-0x0E8 区互不重叠）：
 @@   +0x800  MDATA_B   256 个字节 0x80..0xBF 循环（高位置 1 ⇒ ub/sb 各一档）
@@ -57,6 +69,9 @@
 @@   +0xF00  MDUMP     512 B 零区（多元素装入后的回写落点）
 @@   +0x1100 MSTORE    64 拍保持区模式 0xC0DE0000000000A0 + i（多元素存储落点）
 @@   （`TEST_DATA+0x0C0`..`+0x800` 保持全零：单元素用例的零区读数依赖它）
+@@ 寄存器复制（02-reg-copy）的数据区（同上，偏移相对 TEST_DATA）：
+@@   +0x1300 RDATA      16 拍装载源（ra/rf 初值 + 条件赋值的 rf 候选取值）
+@@   +0x1400 SCRATCH    8 B 落点（rb/ra/rf 实测逐次覆写）
 
 	.include "tests/shared/asm/machine-tiny.inc"
 	.include "tests/shared/asm/machine.inc"
@@ -77,6 +92,10 @@
 	.equ MUNI,    TEST_DATA + 0xD00
 	.equ MDUMP,   TEST_DATA + 0xF00
 	.equ MSTORE,  TEST_DATA + 0x1100
+
+@@ 寄存器复制数据区（见文件头；偏移相对 TEST_DATA）
+	.equ RDATA,   TEST_DATA + 0x1300   @@ 16 拍装载源（ra/rf 初值与候选取值）
+	.equ SCRATCH, TEST_DATA + 0x1400   @@ rb/ra/rf 实测落点（逐次覆写）
 
 @@ semihosting：服务号在 rd16、参数块指针在 rb16、trap 标签 0x3FF00+服务号
 @@ （`contract-semihosting` §1/§2）。
@@ -166,6 +185,30 @@ __ck_\@:
 	br.eq	{rd20, rd21}?, [rb0, __ck_\@]
 	__EXIT	\pt
 __ck_\@:
+.endm
+
+@@ 同上判据但**不占检查点**（同一用例的多条断言共用点号；失败同样 `SYS_EXIT(pt)`）
+.macro __VERIFY_RD pt, reg, exp
+	__LI	rd20, \exp
+	br.eq	{rd20, \reg}?, [rb0, __vr_\@]
+	__EXIT	\pt
+__vr_\@:
+.endm
+
+.macro __VERIFY_MEM pt, baseval, off, exp
+	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
+	ld.o	rd21, [rb21, 0]
+	__LI	rd20, \exp
+	br.eq	{rd20, rd21}?, [rb0, __vm_\@]
+	__EXIT	\pt
+__vm_\@:
+.endm
+
+@@ 两个 rd 寄存器相等（值不可预测时的比较，如 rf0 读出的 FCSR）
+.macro __VERIFY_EQ_RD pt, a, b
+	br.eq	{\a, \b}?, [rb0, __ve_\@]
+	__EXIT	\pt
+__ve_\@:
 .endm
 
 @@ ---------------------------------------------------------------------------
@@ -396,6 +439,105 @@ __smdone_\@:
 .endm
 
 @@ ---------------------------------------------------------------------------
+@@ 寄存器块复制（orri；`spec/SimRISC-02 §1`）
+@@   TEST_MOV1(pt, 助记符, 目的, 源, 期望) —— 单寄存器（immu6 = 1）一行一个检查点。
+@@   多寄存器用例直接写 `助记符 {dst:dst+k-1}, {src:src+k-1}` + 若干 `__VERIFY_*`
+@@   （不占点号）+ 末尾一条 `__CHECK_*`（点号在这里）；失败点号仍 = 用例序号。
+@@   目的银行由助记符决定：目的在 rd ⇒ `__CHECK_RD`；在 rb/ra/rf ⇒ 同组 `st.o` 落到
+@@   SCRATCH 再 `__CHECK_MEM`（探针不经过任何复制指令）。
+@@ ---------------------------------------------------------------------------
+
+@@ 从 RDATA 装载 8 字节到任意银行（ra/rf 初值的独立通路：内存 → 组）
+.macro __SET_MEM reg, off
+	LOAD_ADDR rb3, RDATA + \off
+	ld.o	\reg, [rb3, 0]
+.endm
+
+.macro TEST_MOV1 pt, mnem, dst, src, exp
+	\mnem	{\dst:\dst}, {\src:\src}
+	.ifc	\mnem, rd2rd
+	__CHECK_RD \pt, \dst, \exp
+	.endif
+	.ifc	\mnem, rb2rd
+	__CHECK_RD \pt, \dst, \exp
+	.endif
+	.ifc	\mnem, ra2rd
+	__CHECK_RD \pt, \dst, \exp
+	.endif
+	.ifc	\mnem, rf2rd
+	__CHECK_RD \pt, \dst, \exp
+	.endif
+	.ifc	\mnem, rb2rb
+	st.o	\dst, [rb29, 0]
+	__CHECK_MEM \pt, SCRATCH, 0, \exp
+	.endif
+	.ifc	\mnem, rd2rb
+	st.o	\dst, [rb29, 0]
+	__CHECK_MEM \pt, SCRATCH, 0, \exp
+	.endif
+	.ifc	\mnem, rd2ra
+	st.o	\dst, [rb29, 0]
+	__CHECK_MEM \pt, SCRATCH, 0, \exp
+	.endif
+	.ifc	\mnem, rd2rf
+	st.o	\dst, [rb29, 0]
+	__CHECK_MEM \pt, SCRATCH, 0, \exp
+	.endif
+.endm
+
+@@ ---------------------------------------------------------------------------
+@@ 条件赋值（rrrr；`spec/SimRISC-02 §2`）
+@@   TEST_CS1(pt, 助记符, 条件寄存器, 条件值, 目的, 目的初值,
+@@            「成立」侧寄存器, 值, 「不成立」侧寄存器, 值, 期望)
+@@     cs.n/cs.z/cs.p（目的 rdHB）：条件成立 ⇒ 目的 = 「成立」侧（rdHC），否则 = rdHD
+@@   TEST_CS2(pt, 助记符, a, a 值, b, b 值, 目的, 目的初值, 赋值源, 源值, 期望)
+@@     cs.eq/cs.ne（目的 rdHC）：条件成立 ⇒ 目的 = 赋值源（rdHD），否则目的不变
+@@   TEST_CS1_RF(pt, 助记符, 条件寄存器, 条件值, 目的 rf, 目的初值偏移,
+@@               候选 rf, 偏移, 候选 rf, 偏移, 期望)
+@@     cs.n/z/p 的 rf 变体：目的与候选都在 rf 组，初值经 RDATA 装载、期望经落点比
+@@   「未被选中侧不被改写」由用例内的 `__VERIFY_*` 断言（本组宏只判目的）；
+@@   条件寄存器与目的/候选同名的别名语义按 C-27 deferred，用例一律不同名。
+@@ ---------------------------------------------------------------------------
+
+.macro TEST_CS1 pt, mnem, cond, condval, dst, dstinit, tc, tcval, td, tdval, exp
+	@@ 条件寄存器可为 rd0（硬连零）：写 rd0 会触发 ILLI（dst_rd0），故跳过装载
+	.ifnc	\cond, rd0
+	__LI	\cond, \condval
+	.endif
+	__LI	\dst, \dstinit
+	__LI	\tc, \tcval
+	__LI	\td, \tdval
+	\mnem	{\cond}?, \dst, \tc, \td
+	__CHECK_RD \pt, \dst, \exp
+.endm
+
+.macro TEST_CS2 pt, mnem, a, aval, b, bval, dst, dstinit, d, dval, exp
+	@@ 比较操作数可为 rd0（硬连零）：写 rd0 会触发 ILLI（dst_rd0），故跳过装载
+	.ifnc	\a, rd0
+	__LI	\a, \aval
+	.endif
+	.ifnc	\b, rd0
+	__LI	\b, \bval
+	.endif
+	__LI	\dst, \dstinit
+	__LI	\d, \dval
+	\mnem	{\a, \b}?, \dst, \d
+	__CHECK_RD \pt, \dst, \exp
+.endm
+
+.macro TEST_CS1_RF pt, mnem, cond, condval, dst, dstoff, tc, tcoff, td, tdoff, exp
+	.ifnc	\cond, rd0
+	__LI	\cond, \condval
+	.endif
+	__SET_MEM \dst, \dstoff
+	__SET_MEM \tc, \tcoff
+	__SET_MEM \td, \tdoff
+	\mnem	{\cond}?, \dst, \tc, \td
+	st.o	\dst, [rb29, 0]
+	__CHECK_MEM \pt, SCRATCH, 0, \exp
+.endm
+
+@@ ---------------------------------------------------------------------------
 @@ 故障例：TEST_FAULT(pt, 助记符, 目的/源, 故障名, 基址, 基址值, 偏移)
 @@        TEST_FAULT_M(pt, 助记符, 组, 故障名, 基址, 基址值, 偏移寄存器, 偏移值)
 @@        TEST_FAULT_ENC(pt, 故障名, 编码字, 基址, 基址值, 偏移寄存器, 偏移值)
@@ -493,6 +635,42 @@ __fault_case:
 	.endif
 .endm
 
+@@ 块复制故障例（寄存器操作数形式；组文本原样给出，如 `{rd0}` / `{rb0}`）
+@@   TEST_FAULT_MOV(pt, 助记符, 目的组, 故障名, 源组)
+.macro TEST_FAULT_MOV pt, mnem, dstg, fault, srcg
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	\mnem	\dstg, \srcg
+	__EXIT	\pt
+	.endif
+.endm
+
+@@ 条件赋值故障例（第一类 `cs.n/z/p`）
+@@   TEST_FAULT_CS(pt, 助记符, 目的, 故障名, 条件寄存器, 「成立」侧, 「不成立」侧)
+.macro TEST_FAULT_CS pt, mnem, dst, fault, cond, tc, td
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	\mnem	{\cond}?, \dst, \tc, \td
+	__EXIT	\pt
+	.endif
+.endm
+
+@@ 条件赋值故障例（第二类 `cs.eq/ne`：两个比较操作数分开给，组文本里的逗号会断参数）
+@@   TEST_FAULT_CS2(pt, 助记符, 目的, 故障名, a, b, 赋值源)
+.macro TEST_FAULT_CS2 pt, mnem, dst, fault, a, b, d
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	\mnem	{\a, \b}?, \dst, \d
+	__EXIT	\pt
+	.endif
+.endm
+
 @@ ---------------------------------------------------------------------------
 @@ 镜像骨架
 @@ ---------------------------------------------------------------------------
@@ -506,6 +684,7 @@ _start:
 	jump	[rb0, __fault_case]
 .endif
 	LOAD_ADDR rb30, TEST_BUF
+	LOAD_ADDR rb29, SCRATCH
 .endm
 
 @@ 链例收尾：打印结果缓冲（8 × 检查点数）并 PASS
@@ -618,5 +797,23 @@ TEST_DATA_PATTERN:
 	.dd.o64	0xC0DE0000000000A0 + __i
 	.set	__i, __i + 1
 	.endr
-	.space	0x500, 0
+	@@ RDATA（+0x1300）：16 拍装载源（ra/rf 初值 + 条件赋值的 rf 候选取值）
+	.dd.o64	0x1111111111111111      @@ +0x00
+	.dd.o64	0x2222222222222222      @@ +0x08
+	.dd.o64	0x3333333333333333      @@ +0x10
+	.dd.o64	0xABCDEF0123456789      @@ +0x18
+	.dd.o64	0x0000000000000000      @@ +0x20
+	.dd.o64	0x00000000FFFFFFFF      @@ +0x28
+	.dd.o64	0x8000000000000000      @@ +0x30
+	.dd.o64	0x0000000000000001      @@ +0x38
+	.dd.o64	0x0123456789ABCDEF      @@ +0x40
+	.dd.o64	0xFEDCBA9876543210      @@ +0x48
+	.dd.o64	0xAAAAAAAAAAAAAAAA      @@ +0x50
+	.dd.o64	0x5555555555555555      @@ +0x58
+	.dd.o64	0x0F1E2D3C4B5A6978      @@ +0x60
+	.dd.o64	0x7FFFFFFFFFFFFFFF      @@ +0x68
+	.dd.o64	0x000A000000001234      @@ +0x70（[63:54]=0 ⇒ ra0 可作目的）
+	.dd.o64	0x000000000000FFFF      @@ +0x78
+	@@ +0x1400 SCRATCH（8 B 落点）与其余保持零
+	.space	0x480, 0
 .endm

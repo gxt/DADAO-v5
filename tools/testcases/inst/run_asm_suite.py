@@ -51,13 +51,15 @@ import paths  # noqa: E402
 FAULT_CODE = {"CFXMEM": 0xF1, "CFXREG": 0xF2, "ILLI": 0xF8,
               "MALIGN": 0xFC, "IALIGN": 0xFD}
 
-# 链例用例行（检查点计数的口径：每个 TEST_LD*/TEST_ST*/__CHECK_* 一行 = 一个检查点；
-# `TEST_LDM`/`TEST_STM` 每行只记一个检查点，与宏内单次 `__REC` 对齐）
-CHAIN_CASE_RE = re.compile(r"^\t(TEST_LD\w*|TEST_ST\w*|__CHECK_RD|__CHECK_MEM)\b")
+# 链例用例行（检查点计数的口径：每个 TEST_LD*/TEST_ST*/TEST_MOV*/TEST_CS*/__CHECK_* 一行
+# = 一个检查点；`TEST_LDM`/`TEST_STM` 每行只记一个检查点，与宏内单次 `__REC` 对齐；
+# `TEST_MOV1`/`TEST_CS*`（02-reg-copy）同理，多条 `__VERIFY_*` 断言共用一个点号）
+CHAIN_CASE_RE = re.compile(r"^\t(TEST_LD\w*|TEST_ST\w*|TEST_MOV\w*|TEST_CS\w*|"
+                           r"__CHECK_RD|__CHECK_MEM)\b")
 # 链例行**写下的点号字面量**（断言用：点号必须等于它在文件里的序号，不能只靠计数器自增）
-CHAIN_PT_RE = re.compile(r"^\t(?:TEST_LD\w*|TEST_ST\w*|__CHECK_RD|__CHECK_MEM)"
-                         r"\s+(\d+),")
-FAULT_RE = re.compile(r"^\tTEST_FAULT(?:_M)?\s+(\d+),\s*(\S+?),\s*(\S+?),\s*"
+CHAIN_PT_RE = re.compile(r"^\t(?:TEST_LD\w*|TEST_ST\w*|TEST_MOV\w*|TEST_CS\w*|"
+                         r"__CHECK_RD|__CHECK_MEM)\s+(\d+),")
+FAULT_RE = re.compile(r"^\tTEST_FAULT(?:_MOV|_CS2|_CS|_M)?\s+(\d+),\s*(\S+?),\s*(\S+?),\s*"
                       r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
 FAULT_ENC_RE = re.compile(r"^\tTEST_FAULT_ENC\s+(\d+),\s*"
                           r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")

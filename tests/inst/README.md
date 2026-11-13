@@ -21,9 +21,10 @@
 | `inventory.md` | M1 覆盖矩阵（以 `id` 为行，含 `format`/`file` 列与 deferred reason） |
 | `base/*.yaml` | 向量数据（由 `TESTCASES-003t`~`007t` 生成） |
 | `MIGRATION.md` | YAML → 汇编+宏 的迁移台账（大类/小类/用例模板/任务拆分/删除规则） |
-| `macros/inst_test.inc` | 汇编宏层（`TEST_LD*`/`TEST_ST*`/`TEST_FAULT`/`__CHECK_*`，期望值内联） |
+| `macros/inst_test.inc` | 汇编宏层（`TEST_LD*`/`TEST_ST*`/`TEST_MOV1`/`TEST_CS*`/`TEST_FAULT*`/`__CHECK_*`，期望值内联） |
 | `01-load-store/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（单元素 `ld.*`/`st.*`，19 个） |
-| `01-load-store/inst-tiny.lds` | 上面这册的链接布局（固定段地址 + ASSERT 钉住） |
+| `01-load-store/inst-tiny.lds` | 上面这册的链接布局（固定段地址 + ASSERT 钉住）；`02-reg-copy` 复用同一布局 |
+| `02-reg-copy/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（块复制 8 + `cs.*` 8，共 16 个） |
 
 ## 汇编载体（M13 起）
 
@@ -34,7 +35,10 @@
 
 ```
 python3 tools/testcases/inst/run_asm_suite.py --id ld.o_rrii_rd   # 单个 id
-python3 tools/testcases/inst/run_asm_suite.py                     # 全册
+python3 tools/testcases/inst/run_asm_suite.py                     # 01-load-store 全册
+python3 tools/testcases/inst/run_asm_suite.py \
+    --vectors tests/inst/02-reg-copy \
+    --lds tests/inst/01-load-store/inst-tiny.lds                  # 02-reg-copy 全册
 ```
 
 判据 = **同一份 ELF** 在 chipyard `WumingTinyConfig` / QEMU `dadao-tiny` / gem5 FS
