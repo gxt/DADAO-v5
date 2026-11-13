@@ -1,0 +1,22 @@
+diff --git a/llvm/lib/MC/MCObjectFileInfo.cpp b/llvm/lib/MC/MCObjectFileInfo.cpp
+index e9a861204..a96be1ad6 100644
+--- a/llvm/lib/MC/MCObjectFileInfo.cpp
++++ b/llvm/lib/MC/MCObjectFileInfo.cpp
+@@ -384,6 +384,17 @@ void MCObjectFileInfo::initELFMCObjectFileInfo(const Triple &T, bool Large) {
+   case Triple::xtensa:
+     FDECFIEncoding = dwarf::DW_EH_PE_sdata4;
+     break;
++  case Triple::dadao:
++    // DADAO has no 32-bit PC-relative *data* relocation channel: the ISA only
++    // provides instructions-field PC-relative relocations (REL26/20/14) and the
++    // 8-byte absolute R_DADAO_ABS48.  The generic default (pcrel|sdata4) would
++    // therefore leave an unrelocatable 4-byte field in every FDE, so encode the
++    // FDE address range with a full pointer-sized absolute address (absptr maps
++    // to R_DADAO_ABS48).  Fine for the static / bare-metal linking this target
++    // serves; dynamic load-bias semantics are out of scope (.eh_frame is then
++    // not position independent).
++    FDECFIEncoding = dwarf::DW_EH_PE_absptr;
++    break;
+   default:
+     FDECFIEncoding = dwarf::DW_EH_PE_pcrel | dwarf::DW_EH_PE_sdata4;
+     break;

@@ -39,6 +39,7 @@ llvm/include/llvm/IR/IntrinsicsDADAO.td.patch
 llvm/include/llvm/MC/MCTargetOptions.h.patch
 llvm/include/llvm/Object/ELFObjectFile.h.patch
 llvm/include/llvm/TargetParser/Triple.h.patch
+llvm/lib/MC/MCObjectFileInfo.cpp.patch
 llvm/lib/MC/MCParser/ELFAsmParser.cpp.patch
 llvm/lib/Object/ELF.cpp.patch
 llvm/lib/Target/DADAO/AsmParser/CMakeLists.txt.patch

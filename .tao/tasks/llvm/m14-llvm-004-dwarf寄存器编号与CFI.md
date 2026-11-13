@@ -5,7 +5,7 @@
 **依赖**：`m14-llvm-003`（**串行**：同为 DADAO 后端补丁面，且共用同一构建树/安装根；003 的 E2E 夹具也刻意不写 `.cfi_*`，本任务补齐后再考虑 CFI 夹具）
 **可并行分片**：否（单一组件补丁集 + 单一构建树/安装根；`build-mc`/`install-host` 为整树串行操作）
 **预估**：4–8 h（含 1–2 轮 `build-mc` ≈10–20 min/轮、`install-host` ≈10–20 min，启动前申报）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 
@@ -157,14 +157,57 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：`make check-lit` rc=0（168/168 现场统计，含新增 2 例）；`make check` rc=2（**唯一红点是 `check-patch-tree`：llvm-project 99 补丁 0 问题**；该次全仓 14 项问题全在 qemu/gem5/chipyard/linux 且随他任务在建波动，同项二次跑为 20 项；`make` 因此在其后中止）；`make -k check` rc=2（5 项红逐条归因：`check-patch-tree` 全仓问题均落在 qemu/gem5/chipyard/linux；`check-knowledge-refs` 1 条在 m16-gem5-002 任务书；`check-musl-freshness` 2 条建议 `make build-musl-shared`；`check-milestones-fresh` R1 命中 m13-qemu-010 与**本 worktree 基线早于派单提交**导致的 m14-llvm-004（主工作树该行已在「进行中」）；`check-temp-dirs` 命中非本任务的旧临时目录；均非本任务产物）（全项归因见下）；`make check-gem5-decode` rc=0（264/264+388/388，与本任务无关的旁证）；`check_install_tools.py --sha-tools clang,llc,llvm-mc` rc=0；`check_component_changelog` rc=0；`check_patch_tree --source-state`：llvm-project OK（HEAD=12ed4deeecea，count=1，clean=True），FAIL 仅 gem5（dirty）/linux（expected=0 实 1）。一键证据脚本（落运行期证据目录 `.work/evidence/<任务ID>/run.sh` 形）44 检查 0 失败（rc=0）；`--inject` 15 检查 0 失败（rc=0）。
+**修改文件**：`components/llvm-project/patches/llvm/lib/Target/DADAO/DADAORegisterInfo.td.patch`（改）、`.../MCTargetDesc/DADAOMCTargetDesc.cpp.patch`（改）、`.../llvm/lib/MC/MCObjectFileInfo.cpp.patch`（新）、`components/llvm-project/series`（+1 行，98→99）、`components/llvm-project/changelog.md`（M14 追加 1 条）、`tests/unit/llvm/lit/MC/DADAO/cfi-dwarf-regs.s`（新）、`tests/unit/llvm/e2e/cfi_e2e.s`（新）、`tests/unit/llvm/e2e/lit/cfi_e2e.test`（新）、本任务书。组件检出内本地 commit `12ed4deee`（仅用于导出补丁，Process-01 E1；未推送）。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+- ①不崩溃：配对 `.cfi_startproc/.cfi_endproc` 默认路径 rc=0、产物存在、stderr 无 `Assertion`/`PLEASE submit`；基线工具同命令 rc=134 + `RAReg <= 255` 原文。
+- ②RA 编号：`.eh_frame` CIE `Version: 1` + `Return address column: 255`；`.debug_frame`（`-g`，DWARF64 `Version: 4`）亦 255；原始 `.eh_frame` 字节解码 RA 字段=255、FDE 地址域 8+8=16 字节、FDE 编码字节 0x00(absptr)、`.rela.eh_frame` 为 `R_DADAO_ABS48`。
+- ③编号表：`.td` 现场派生 256 个本体寄存器（四 bank 各 64，现场计数），逐寄存器「名字 vs 期望号」目标文件 md5 全等（0 处不符）、号唯一且 ∈[0,255]；生成表两 flavour 均 RBSP/rb1→65，逆表 256 号一一对应。
+- ④指令面：`.cfi_def_cfa`/`_offset`/`_register`、`.cfi_offset rb2|rf8|ra63` rc=0；`nosuchreg` rc=1（既有解析错误，非 abort）。
+- ⑤可链接：crt0+Tiny 脚本 `ld.lld` rc=0，链接产物含 `.eh_frame`，qemu 退出码 0，ELF 内 FDE `pc=ffffff010168...ffffff010170` 已解析为绝对区间。
+- ⑥关闭态不变：无 CFI 汇编与 `-O1 -c` C 源反汇编 md5 与派单前一致（`9b868621…` / `d2661a62…`）；安装根 == 构建树（clang/llc/llvm-mc 三件 md5 双侧相同）。
+- ⑦成本：`build-mc` 增量 ≈4 min（TableGen 全量重生成）；`install-host` 502 s；`series` 98→99 行。
+**新发现/坑**：① `.cfi_*` 的寄存器操作数走 **EH flavour**（`AsmParser::parseRegisterOrRegisterNumber` 用 `getDwarfRegNum(…, isEH=true)`），CIE 的 RA 列按段取 `IsEH` ⇒ 必须用单值 `DwarfRegNum` 让两 flavour 同号（双值写法会让 EH 侧落 -1、断言照旧）。② `ra63=255` 是**恰好上限**（`.eh_frame` CIE 恒 v1、RA 列只一字节），再扩 bank 即破。③ ABI 别名在汇编器不可见（`DADAOAsmParser::matchRegisterName` 只认 `rd/rb/rf/ra`+序号）⇒ `.cfi_offset rbsp` 不能当验证路径，别名改用 `.td` 的 `DwarfRegAlias<rb1>` + 生成表核对。④ 有编号表后 `llvm-dwarfdump` 按**寄存器名**打印 CFI 操作数（`rb1/rf8/ra63`，非 `reg<N>`），期望值须兼容两形态。⑤ `-g -O1` 对象 `dwarfdump --debug-info` 段错误（`DWARFListTableHeader::getOffsetEntry`，loclist 表在 ABS48 未解析时畸形）；旧 dwarfdump 同输入同 139，非本任务引入。
+**遗留问题**：① 全仓 `check-patch-tree` / `--source-state` 红在 qemu/gem5/chipyard/linux（他任务在建，未代改）；`check-milestones-fresh` 的 R1 在本 worktree 命中 m14-llvm-004（本分支基线早于派单提交 c3e1b6d9，主工作树该行已在「进行中」）与其它任务行，归主会话/基线处置。② `.o` 上 `R_DADAO_ABS48` 的 dwarfdump 缺口（含 `-g` loclist 段错误）建议另立任务。③ `.eh_frame` 用绝对地址：静态/裸机够用，动态/共享库 load-bias 未覆盖。④ RegRAS 的 DWARF 展开语义（硬件栈+递归计数）未定义，本任务只保证 CFI 结构合法可解析。
 
 ## 审阅记录
 
-### 第 1 轮 engineer 自审（待填）
+### 第 1 轮 engineer 自审（2026-11-14，engineer 自主逐行审查）
 
-### 第 1 轮 reviewer 验收（待填）
+审查范围：3 份组件补丁（`.td` 编号表 / `MCTargetDesc` 的 RA / `MCObjectFileInfo` 的 FDE 编码）+ 3 个测试文件 + `series`/changelog。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 四个 bank 若按「bank 内序号」编号会撞号（rd8/rb8/rf8/ra8 同为 8） | ✅已修（设计即此） | 每 bank 独占 64 号段（基址 0/64/128/192） | 生成表 256 号唯一；dwarfdump 读回 rb2/rf8/ra63 |
+| F2 `.eh_frame` CIE 恒 v1 ⇒ RA 列只一字节，RA 号必须 ≤255 | ✅已修 | RA 由 `RBSP`(65) 改 `ra63`(255) | CIE `Return address column: 255`；原始字节 RA 字段=255 |
+| F3 `DwarfRegNum<[N]>` 是否同时喂 EH flavour（CFI 指令走 isEH=true） | ✅已修（实证确认，未改代码） | 注释写明单值形式两 flavour 同号 | 两个 flavour 生成表均 256 项 + RBSP/rb1→65 |
+| F4 `.eh_frame` 默认 `pcrel|sdata4` 在 DADAO 无重定位通道 | ✅已修 | 新增 `case Triple::dadao` → `DW_EH_PE_absptr` | `.rela.eh_frame`=`R_DADAO_ABS48`；raw 解码地址域 16 字节；链接后 FDE `pc=` 为绝对区间 |
+| F5 断言若写死 dwarfdump 打印形态（名字 vs `reg<N>`）会脆 | ✅已修 | CFA 断言改 `{{(rb2|reg66)}}` 交替式 | lit 复跑 PASS |
+| F6 我最初手写的测试夹具用了不存在的助记符（`ld.ri`/`cmp.rrr`） | ✅已修 | 改用既有语料中的合法指令（`add.si`/`swym`/`br.n`） | 全部 rc=0 |
+| F7 `rbsp` 别名无法用 `.cfi_offset rbsp` 验（汇编器不认别名，既有行为） | ✅已修（改验证路径） | 别名改由「`.td` 有 `DwarfRegAlias<rb1>` + 生成表两 flavour RBSP→65」核对 | 证据脚本 alias 两项 PASS，并披露该边界 |
+| F8 `-g -O1` 对象 `dwarfdump --debug-info` 段错误 | ⏸延后（非本任务引入，另立任务） | 未改 | 旧 dwarfdump 同输入同 139；栈在 `DWARFListTableHeader::getOffsetEntry`（ABS48 未解析→loclist 表畸形） |
+| F9 `--inject` 模式曾因缺 `cfi-min.o` 假红 | ✅已修 | 第 10 节自行按需生成夹具 | `--inject` 复跑 15/0 rc=0 |
+| F10 证据脚本两处 `objdump | tail` 会吞 objdump 退出码 | ✅已修 | 拆成「落盘 → 校验 rc → tail」 | 新增 2 条 `*-objdump-rc` PASS |
+
+判决：全部 finding 已处置（F8 属既有缺口、已登记遗留），任务产物与验收证据一致。
+
+### 第 1 轮 reviewer 验收（2026-11-14，reviewer 独立重跑）
+
+**审阅对象**：3 份组件补丁 + `series`/`changelog` + 3 个新测试 + `run.sh`（逐条审 FAIL 路径，无 `tee` 吞码、计数现场派生）+ 任务书完成区。
+
+**重跑（任务树内，均本人执行）**
+- `make _locked-check-lit` rc=0、`make check-lit` rc=0 ⇒ **168/168 现场统计**（含新 `cfi-dwarf-regs.s`、`cfi_e2e.test`）。注：本人前两次 `make check-lit` 误在主工作树执行得 166（主树无本任务新测试），已在任务树重跑纠正，主树 `git status` 仍干净。
+- 证据脚本：`run.sh` rc=0 **44 检查 0 失败**；`run.sh --inject` rc=0 **15 检查 0 失败**（与完成区逐字一致）。
+- 验收1/2 独立验证：当前 `llvm-mc` 配对 `.cfi_startproc/.cfi_endproc` rc=0、stderr 无 `Assertion`；`llvm-dwarfdump --debug-frame -v` ⇒ `Version: 1`、`Return address column: 255`；**基线** `baseline-llvm-mc`（md5 3ffcfd0058…）同输入 **rc=134 + `RAReg <= 255` 断言原文**。
+- 门控：`check_install_tools --sha-tools clang,llc,llvm-mc` rc=0（108 PASS，sha256 双侧相等）；`check_patch_tree` rc=1 但 **llvm-project 99 补丁 0 问题**（红全在 gem5/chipyard/linux 他任务）；`--source-state` **llvm OK**（HEAD=12ed4deeecea clean=True；FAIL 仅 qemu/linux）；`check_component_changelog` rc=0。
+- `make check` rc=2（首红 check-patch-tree）、`make -k check` rc=2：红=patch-tree / knowledge-refs（m16-gem5-002 任务书）/ musl-freshness（2，建议 build-musl-shared）/ milestones-fresh（R1=m13-testcases-020，**m14-llvm-004 已不在违规内**；temp-dirs 本轮 PASS）——与完成区归因一致项均复核，差异属台账/临时目录状态漂移，逐项均非本任务产物。
+
+**独立注入（本人自设计，`cp`+md5，未用 git checkout/restore）**
+- ① 改**真实** lit 文件 `Return address column: 255→254`（md5 4bed44b2→88e70aad）⇒ `llvm-lit` **rc=1 FAIL**、`run.sh` **rc=1 `FAIL [inject-lit-restored-green]`**；`cp` 还原 md5=4bed44b2 相等 ⇒ lit rc=0、`run.sh` 44/0 rc=0。
+- ② 改 `MCObjectFileInfo.cpp.patch`（`absptr→pcrel`，md5 d6cf2bed→2a25ee3f）⇒ `check_patch_tree` 出现 **llvm 断言⑨+⑥**（23→25 项）；还原 md5=d6cf2bed 相等 ⇒ llvm 段回 0 问题。
+
+**约束核验**：`git show --stat f3261b9d` = 9 文件全在「范围」，未碰 spec/contracts/Makefile/tools/`MCDwarf.cpp`；补丁与 E1 commit 12ed4deee 机械一致（⑥/⑨ 绿，未手工编辑痕迹）；RA=ra63 与 spec「ra63 恒为 RegRAS 栈顶」一致，`getRARegister()` 全量 grep 仅 MCDwarf CIE 消费（DADAO/通用 CodeGen 无其它调用）；关闭态基线核真：**基线 llvm-mc 现场产 plain 对象反汇编 md5=9b868621… == run.sh 常数**，归档 `plain-base-c.dis` 尾部 md5=d2661a62… == C 常数（01:07 派单时捕获）；完成区 16 行 ≤30；审阅前后 `git status -uall` 快照均空、目标文件 md5 不变（对账 diff 空）。
+
+**遗留/未决判定**：① `.o` ABS48 `--debug-info` 段错误：**本人复现 rc=139**（含 `.debug_loclists` 的 `-g -O1` 对象），触发为 `.rela.debug_info/addr` 的 ABS48 地址重定位不可解（`dwarf64-default.s` 记为既有），该对象**无任何 frame 段**、任务三改不触及 ⇒ **判既有缺口、接受，建议另立任务**（注：完成区「旧 dwarfdump 同 139」无留档原输出、系统内旧二进制已不存在，以本人复现+机制分析支撑结论）。② `.eh_frame` absptr 动态/共享库 load-bias 未覆盖 ⇒ 静态/裸机范围外且已披露，**接受为遗留**。非阻塞发现（交 architect 收口酌处）：`DADAORegisterInfo.cpp:38` CodeGen 侧仍 `DADAOGenRegisterInfo(DADAO::RBSP /* RA=SP */)` 与 MC 侧不一致（现无消费者）；`run.sh` 内 per-bank 计数/越界 FAIL 仅打印未进退出码（映射/唯一性/生成表均已门控）。
+
+**判决：Accepted** —— 验收 1–10 在本人重跑下全部通过，无约束违反；遗留①②可接受。

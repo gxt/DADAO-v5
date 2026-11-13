@@ -529,3 +529,10 @@
   closed_in: null
   resolved_by: null
   title: 【P2】`llvm-mc`/`clang` 对**标签差**（`. - _start`、`L1 - L0`）作指令立即数时**静默折成 0**、无诊断：`m13-testcases-019` 的 `aip.si` 用例因此无法在汇编期表达「当前 IP + 偏移」，只能用绝对常量 `ENTRY + 字面偏移` 绕开。风险：后续 `.S` 会静默得到 0 期望（假绿）。建议：MC 层对不可解析的符号差报错（或至少 warning），并补 lit 用例。
+- id: ISS-425
+  scope:
+  - llvm
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】LLVM DADAO **CodeGen 侧** `DADAORegisterInfo.cpp` 仍以 `DADAO::RBSP`（= SP）作 RA 寄存器，与 MC 侧（`ra63`，DWARF 255）不一致；当前无消费者（grep 证实），但形态上是同一口径两处真源。建议后续统一并补断言。

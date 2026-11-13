@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCTargetDesc.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCTargetDesc.cpp
 new file mode 100644
-index 000000000000..cb130216c839
+index 000000000..9ace35607
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOMCTargetDesc.cpp
-@@ -0,0 +1,137 @@
+@@ -0,0 +1,145 @@
 +//===-- DADAOMCTargetDesc.cpp - DADAO Target Descriptions -----------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -79,9 +79,17 @@ index 000000000000..cb130216c839
 +// (256 RegisterDefs: 4 banks × 64 regs; see DADAORegisterInfo.td).
 +// Heap-allocated (not static) to avoid destruction-order issues with
 +// DenseMap/vector members inside MCRegisterInfo (Lanai convention).
++//
++// The second argument is the "return address" register that the generic CIE
++// emitter (FrameEmitterImpl::EmitCIE in MCDwarf.cpp) names in the
++// return_address_register column.  DADAO keeps the return address on the RegRAS
++// hardware stack, whose top slot is ra63 (spec/SimRISC-00 §2.4); it is NOT rb1
++// (the stack pointer).  `MCRegisterInfo::getRARegister()` has exactly one
++// consumer in the generic MC/CodeGen code (MCDwarf.cpp), so this choice only
++// affects CFI and never code generation.
 +static MCRegisterInfo *createDadaoMCRegInfo(const Triple & /*TT*/) {
 +  MCRegisterInfo *X = new MCRegisterInfo();
-+  InitDADAOMCRegisterInfo(X, DADAO::RBSP /* RA = SP */);
++  InitDADAOMCRegisterInfo(X, DADAO::ra63 /* RA = RegRAS top (DWARF 255) */);
 +  return X;
 +}
 +
