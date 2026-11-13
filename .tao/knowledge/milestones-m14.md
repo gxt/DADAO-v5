@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-spec-004 | 2–3 h | `contract-syscall` 内核入口口径：放行/自配、cause_info 推导、clone/execve 分层 |
 | m14-llvm-003 | 2–4 h | `-fpatchable-function-entry=N[,M]`（ftrace/static_call 插桩） |
 | m14-llvm-004 | 4–8 h | DADAO DWARF 寄存器编号 + CFI（修 `llvm-mc` abort、RA≤255、`.eh_frame` absptr） |
 | m14-llvm-002 | 1–2 天 | 栈保护后端 lowering（`-fstack-protector{,-strong,-all}`，guard=global） |
@@ -36,6 +35,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-spec-004 | 2026-11-13 23:45 | 2–3 h | `contract-syscall` 内核入口口径：放行/自配、cause_info 推导、clone/execve 分层 |
 | m14-llvm-001 | 2026-11-13 23:10 | 3–4 h | 补 `llvm-ar`/`llvm-ranlib`/`llvm-strip` + 其余工具族（裁定 A） |
 
 ## 已验证
