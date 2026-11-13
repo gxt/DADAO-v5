@@ -536,3 +536,12 @@
   closed_in: null
   resolved_by: null
   title: 【P2】LLVM DADAO **CodeGen 侧** `DADAORegisterInfo.cpp` 仍以 `DADAO::RBSP`（= SP）作 RA 寄存器，与 MC 侧（`ra63`，DWARF 255）不一致；当前无消费者（grep 证实），但形态上是同一口径两处真源。建议后续统一并补断言。
+- id: ISS-426
+  scope:
+  - qemu
+  - gem5
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`ld.o ra0`/`rd2ra {ra0}` 未丢弃 `[63:54]` 的 SBZ 位：`SimRISC-00 §2.4` 规定 `ra0 = {SBZ(10),RACNT(6),MRPTR(48)}` 且 `[63:54]` 写无效（读回恒 0）；chipyard `WumingRegFile.writeRa` 合规，QEMU `trans_ld_o_rrii_ra → store_ra(0,val)` 写全 64 位、gem5 RA 写口未掩码（只有 RAS 头更新用 `kRasSbzMask`）。现场：写 `0xFFFF000000000000` 读回原值、期望 `0x003F000000000000`；`m13-testcases-031` 链例点 20 在 QEMU/gem5 红（按 spec 未放宽）。修法：两平台 RA 写口对 `[63:54]` 置 0。
