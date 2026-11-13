@@ -25,12 +25,12 @@
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
 | m14-llvm-002 | 1–2 天 | 栈保护后端 lowering（`-fstack-protector{,-strong,-all}`，guard=global） |
-| m14-qemu-001 | 4–6 h | 最小 smon：建 64 KiB 身份页表 + PTBR/ptw_enable + VA 入口交内核（K1） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-qemu-001 | 2026-11-14 02:50 | 4–6 h | 最小 smon：建 64 KiB 身份页表 + PTBR/ptw_enable + VA 入口交内核（K1） |
 | m14-infra-003 | 2026-11-14 03:05 | 4–5 h | K0 收口门控 `check-linux-k0`（vmlinux/initramfs/工具链矩阵/反例注入） |
 | m14-llvm-004 | 2026-11-14 02:35 | 4–8 h | DADAO DWARF 编号 + CFI（修 abort、RA≤255、`.eh_frame` absptr） |
 
