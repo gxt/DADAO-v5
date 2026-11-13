@@ -1,9 +1,8 @@
 # 讨论项
 
-> **组织方式（用户 2026-11-08）**：按里程碑分节，**M12 / M13 / M14** 各为一级标题，M11 已归档（其仍有效的口径见「跨期口径」）；**不在这些里程碑内**的事项集中到「三个里程碑之外」。
-> 只记**当前未决/待裁定**与**仍然生效的口径**；任务流水看 `milestones.md`（M11 及以前）/ `milestones-m12.md`（M12 起），历史与已落地项见 `.tao/archive/`。
-
----
+> **组织方式（用户 2026-11-08）**：按里程碑分节，**M12 / M13 / M14** 各为一级标题；M11 已归档（仍有效的口径见「跨期口径」）；**不在这些里程碑内**的事项集中到「三个里程碑之外」。
+>
+> **维护规则（2026-11-13）**：本文件**只记** ① 当前未决 / 待裁定；② **仍然生效**的口径。裁定一旦落成 `spec/`、ADR、任务书或 `AGENTS.md`，**从本文件删除**（git 历史可回溯）；过程快照、已完成任务的方案叙述、过期队列状态一律不留。任务流水看 `milestones-m12/m13/m14.md`，历史见 `.tao/archive/`。
 
 # 跨期口径（M11 收口后仍有效，M12/M13 共用）
 
@@ -16,130 +15,13 @@
 - **`SYS_chmod` 不新增号段**：`chmod()` 经 musl 走 `fchmodat`，不虚构 ABI 号。
 - **输出捕获的 stdout/stderr 顺序（`ISS-357`）**：至少 4 例受影响，修复必须保留 fd1/fd2 写序，不能只交换拼接方向。
 
-# M12：chipyard 上跑 `Machine-v5-Tiny` + 单周期 `dadao-wuming`
+# M12：chipyard 上跑 `Machine-v5-Tiny`（收口中）
 
-## 范围与编号（用户裁定）
-
-- **三线 = 三个里程碑，分开进行**：`M12`（chipyard-tiny）/ `M13`（inst-golden）/ `M14`（linux-bootup）；**讨论清楚一个就开一个**，不并行开三个。
-- **M12 测试范围**：只用 `inst`/`tset` 中**已被 qemu/gem5 验证过的子集**；**riscv-tests 移出 M12**，移植与调整放 M13。
-- **任务编号**：`m12-<module>-<NNNN>`（模块小写，3–4 位序号，**无 k/t/m 后缀**）；M12 用独立台账 `milestones-m12.md`。
-- **chipyard 构建/运行/调试全部在 `server207`**，串行；**所有对仓库的修改仍在主控机**（已写入 `AGENTS.md` 与 `nodes.md`）。
-- **m 册门控取消**（用户选 B）：由 `m12-infra-002` 执行；M11 收口改用 `INTEG-061t` 核验（无 m 后缀）。
-- **判据**：Tiny 阶段不涉及 syscall；测试判据 = 与 qemu/gem5 一致，**不用独立 oracle**。
-- **rocket 边界 = A（用户 2026-11-08）**：抛开 **Rocket 核**与 RISC-V 语义（CSR/misa/PMP/MMU/TLB/异常码），**保留** rocket-chip 库（Diplomacy / TileLink / `BaseTile`）与 chipyard 仿真基础设施（Verilator harness / BootROM / 内存模型 / `loadmem`）；核完全自研，只挂在 TL 上。
-- **`dadao-wuming` 外壳 = B（用户 2026-11-08）**：自写最小 Tile（只用 `BaseTile` 接口 + 自己声明 TL 端口），**不继承 `CoreParams`** 的 RISC-V 语义（misa/PMP/mtvec/断点/异常码）；参考实现虽走 `BaseTile + CoreParams`，但本仓库不沿用其语义壳。
-
-## 机器命名定稿（用户裁定）
-
-- **机器名**：`dadao-tiny` / **`dadao-vast`**（不再用 `dadao-m1`，也不再考虑 `dadao-node`/`mega`/`huge`）。
-- **范围 B（一次到位）**：profile 概念同步改名 **Tiny / Vast**（`Machine-v5 §1`、`profile=tiny|vast`、`DADAO_TEST_PROFILE=tiny|vast`、qemu profile 字符串、contracts、docs）。
-- **不改**：已 Accepted 的 ADR 原文（历史记录）、历史任务书、组件 changelog。
-- **已授权**：`spec/Machine-v5` 的机器名/profile 改名 + 同笔更新只读锁；contracts 命令行示例同步。
-- **排期**：改名波次**优先于** M11 的 `103t`/`104t`（避免 104t 二次返工，用户选 A）。
-
-## 改名波次（5 任务，已立册 `待开始`）
-
-| 任务 | 内容 | 预估 |
-| --- | --- | --- |
-| `m12-spec-001` | spec `Node`→`Vast`（约 22 处）+ 定位行机器名 + `0.4.1-rc` 段 + 锁；三份契约 + `spec/README` + `docs/execution-environment-tiers` | 1–2 h |
-| `m12-qemu-001` | 拆 `dadao-tiny`/`dadao-vast`、去 `profile=`、**暂留 `dadao-m1` 别名** | 2–3 h |
-| `m12-gem5-001` | gem5 FS `--profile vast`，**暂留 `node` 别名** | 0.5–1 h |
-| `m12-testcases-001` | `machine-profiles.yaml`（`node`→`vast`）、`machine-vast.inc`、`DADAO_TEST_PROFILE`、46 个测试文件机器名、Makefile | 2–3 h |
-| `m12-integ-001` | 删两处过渡别名；`-M dadao-m1` / `--profile node` 明确报错 | 0.5–1 h |
-
-- **为什么留别名**：测试迁移尚未完成，中间提交必须保持 L1 绿；最后一步统一删。
-- **顺序**：`spec-001` → `qemu-001` → `gem5-001` → `testcases-001` → `integ-001`。
-
-## chipyard 实现方案（待用户确认拆分）
-
-### `loadmem` 与 TSI 的关系（实测）
-
-- **`+loadmem=<elf>` 是「预载捷径」**：chipyard 生成的 `SimDRAM.cc` 在 `memory_init` 里解析该参数，用 `load_elf()` 直接把 ELF 段写进 **backing memory**（其 `memif_t::write` 就是 `memcpy`）——**不经总线、不跑仿真**，零开销。
-- **TSI 是「运行时通道」**：`SimTSI.v` 通过 DPI 调 `tsi_tick` → fesvr 的 `tsi_t`（32 位串行命令：READ=0/WRITE=1、2 字地址、2 字长度），程序跑起来之后供宿主**读写内存、代理 syscall**（htif `tohost/fromhost`）。
-- **两者有交集**：`testchip_tsi.cc` 也解析 `+loadmem=`，置 `has_loadmem` ⇒ `is_loadmem` 时 memif 读写走 `load_mem_write/read`（绕开 TSI 的逐字写与 cache flush）；否则走 `tsi_t::write_chunk`。
-- **对 M12 的含义**：不含 syscall 的 Tiny 测试用 `loadmem` 就够（`bss` 由 loader 零填）；TSI 只用于「guest 要请求宿主」的场景，属可选增强（原拟的 `012/013`）。
-
-### semihosting 应答者：开发方式（建议）
-
-- **分层**：应答者放 **harness 侧 C++**，与 qemu 的 `semihosting/arm-compat-semi.c`、gem5 的 `src/arch/dadao/semihosting.cc` **同层**；**核内不实现宿主 I/O**。
-- **核内只做「抬到边界」**：命中 `trap <any cfxha>, 0x3FF00+op`（判定只依赖 `immu18[17:8]`）时，把 `(op, 参数寄存器, 返回寄存器号)` 通过一个可观测通道（导出端口或 MMIO）交给 harness；harness 执行宿主调用后把返回值写回 guest 返回寄存器（`§5.2` 的 `rd8`）。这与 FS/SE 无关、与 profile 无关。
-- **最小集先行**：Tiny 阶段只需 `SYS_WRITEC(0x03)` / `SYS_WRITE0(0x04)` / `SYS_WRITE(0x05)` / `SYS_EXIT(0x18)` / `SYS_CLOCK(0x10)`；完整 25 服务按 `spec/Machine-v5 §5.3` 表后补。
-- **不复用现成实现的原因**：qemu 共享层依赖 glib 与 qemu CPU 状态；gem5 那份依赖 gem5 `ThreadContext`；二者都无法直接链入 harness。可行做法是 harness 侧写一份 table-driven 的薄应答器（约 300 行），语义**从 spec §5.3 表派生**。
-- **验证方式**：同一 ELF 在 qemu / gem5 / chipyard 三平台的 stdout 与退出码一致（M12 判据）；不写独立 oracle。
-- **备选（不推荐首选）**：接 fesvr 的 syscall proxy（TSI 已具备）——但 fesvr 实现的是 RISC-V newlib syscall ABI，不是 Arm semihosting，需要一层映射，语义易漂。
-
-### 实现任务拆分（用户 2026-11-08 裁定）
-
-**范围收缩**：Tiny 只用 `loadmem` 预载；**TSI 不在 M12 实现**；**M12 不考虑 fesvr/pk**；semihosting 应答者在 **harness 侧**（`003`）。
-
-拟 14 个任务（正式编号 `m12-chipyard-001`…`014`），每件 ≤2–3 h：
-
-- `001` 骨架 + `build.sbt` + `WumingTinyConfig`（接线 + 编译）✅
-- `002` Tiny 地址图落地（48 位核内地址）✅
-- `003` BootROM + `loadmem` 最小闭环 ✅
-- `004` harness 侧 semihosting 应答者 ✅
-- `005` 解码器 + 整数 ALU + 寄存器堆（进行中）
-- `006` 多周期状态机设计分析（**待用户裁定**：逐类指令周期 + 状态机推荐方案）
-- `007`–`016` 已全部立册（访存含 `ldm`/`stm` / 控制流 / 位·原子·杂项 / FP 五组 / T0 / T1）
-- `002` BootROM + `loadmem` 最小闭环（Tiny SRAM 基址与 `load_elf` 目标窗口对齐）
-- `003` harness 侧 semihosting 应答者（最小 5 服务 + 核内 `trap` 抬边界）
-- `004` 解码器 + 整数 ALU + 寄存器堆
-- `005` 访存
-- `006` 控制流 + RAS
-- `007` 位操作 + 原子 + 杂项（用户 2026-11-08 确认）：位操作与整数补齐 + `lr`/`sc`/`swym`（`SimRISC-12`）+ `fence`（`SimRISC-11 §5`：`hb!=0` 或保留 `cfxha` ⇒ ILLI，其余 no-op；单周期核天然满足屏障语义）
-- `008` FP 基础设施：recFN 编解码 + 六档舍入 + 异常标志 + 分类/符号（hardfloat `recFNFromFN`/`fNFromRecFN`/`RoundAnyRawFNToRecFN`/`classifyRecFN`）
-- `009` FP 转换：`ft2i*`/`fo2i*`/`fo2ft`/SBZ/复制（hardfloat `INToRecFN`/`RecFNToIN`/`RecFNToRecFN`/`resizeRawFloat`）
-- `010` FP 算术：加/乘/FMA/比较/最小最大（hardfloat `AddRecFN`/`MulRecFN`/`MulAddRecFN`/`CompareRecFN`）
-- `011` FP 除法/开方/取余（hardfloat `DivSqrtRecFN_small`）
-- `012` FP 取整/缩放/符号操作（`fornd`/`fosclb`/`fosgnj`）
-- `013` T0 冒烟：inst（全部非 cfx）+ tset 已验证子集，qemu/gem5/chipyard 三平台比对
-- `014` T1 适配集 + M12 验收
-
-- **FP 覆盖范围（用户 2026-11-08）**：**全做 5 组**；原则是「所有非 cfx 指令都应实现」。
-- **M12 指令覆盖（用户 2026-11-08）**：**全部非 cfx 指令**（不再只是 inst 子集），含 `fence`、`lr`/`sc`、`swym`；cfx 本身（`trap`/`escape`/`cfx2rd`/`cfx2rc`）不在 Tiny 实现，`trap` 仅用于 semihosting。
-- **FP 实现方式（用户 2026-11-09）**：**参考** berkeley-hardfloat 的 recFN 语义、**自写**组合逻辑，**不引入 `hardfloat` 子模块依赖**；代码与任务书**逐处注明来源**。
-- **「单周期」= 无流水线，不是「每条指令一个周期」**（用户 2026-11-09）：多寄存器/ldm/stm 本就多周期；**FP 除法/开方允许走多周期状态机**。
-- **M12/M13 边界（用户 2026-11-09）**：M12 = **功能性**（pass/fail/exit/board markers 一致）；M13 第一阶段 = **完整准确的语义定义 + 重新生成边界向量**，做**语义性**差分。
-- **M12 纳入 embench 全量**（38 例；裸机 semihosting 5 服务足够：`WRITE0`/`WRITE` + `EXIT` + 可选 `CLOCK`）。
-- **T1 范围（用户 2026-11-09）**：`tests/inst` 全量（非 cfx）+ tset（embench 全量 + libc-test/llvm-ts 无文件 I/O 子集）；**不含 `tests/arch`**（`tiny.arch=false`）。
-- **`fence` 已确认纳入 M12（用户 2026-11-08）**：`fence` 属核芯功能扩展（`SimRISC-11 §5`，`fence_ciii_cfx`），但 **inst 测试集含 fence 用例**（`tests/inst/atomics/atomics-fence.yaml`，生成自 `contracts/opcodes.yaml` + spec）；qemu（`trans_fence_ciii_cfx`：`hb!=0` 或保留 cfxa ⇒ ILLI、`pred==succ==0` ⇒ no-op）与 gem5（`b6_test.cc` 同判据）均已实现。单周期核无 cache/store buffer/乱序，非零掩码的屏障语义天然满足 ⇒ 实现成本 ≈ 20 行。**建议 M12 实现**（否则 T0 子集缺一条指令，M13 也要补）。
-- **FP 分组依据（用户建议参考 berkeley-hardfloat）**：按 hardfloat 的原语边界切——转换 / 算术 / 除法开方 / 取整缩放，每组对应一组 `RecFN` 原语，便于复用 IP 与逐组比对（本地 chipyard 子模块 `generators/hardfloat/hardfloat` 即该库）。
-- **DADAO FP 指令集共 47 条**（`spec/SimRISC-07`）：转换、运算（加/乘/FMA/除/余/开方/取整/缩放/最小最大）、符号位、比较、分类。
-
-## chipyard 子模块补丁与 loadmem 路径（2026-11-09 用户质疑 + reviewer 复核）
-
-- **用户三点质疑的查证结果**：
-  - ① `MEM_BASE` **override 后不截断**（reviewer 用 Verilator 5.020 最小复现：`#(.MEM_BASE(48'hffffff000000))` ⇒ `bits=48`、值正确）；「未声明位宽默认 32」只在不 override 时成立。
-  - ② fesvr 大端**可开**（`riscv.ac` 的 `--enable-dual-endian`），但**开了还不够**：`SimDRAM.cc` 的 `get_target_endianness()` 仍返回 `little`，dual-endian 分支仍 throw ⇒ 须同时改 testchipip 的 `SimDRAM.cc`。
-  - ③ 子模块补丁**应该做**（用户原话「现在不做，以后也要做」），已立 `m12-infra-003`，量级约 0.5–1 天。
-- **关键反转（reviewer 读码 + 实测）**：**stock `+loadmem` 写不到 Tiny 的 SRAM**——
-  - `+loadmem` 的写入目标是 SimDRAM 的 host mmap backing，只在 `WithBlackBoxSimMem` 绑到 AXI4MemPort 时存在；
-  - Tiny 主存是 `BankedScratchpadKey → ScratchpadBank → TLRAM`（on-chip TL slave），**不经 AXI**；
-  - 当前设计**没有 SimDRAM 实例**（elab/构建日志 `SimDRAM` 0 次、链接行 `SimDRAM.o`=0）。
-  - ⇒ **`m12-chipyard-003` 的 tile 内 loader 不是绕路，是当前设计下唯一能写 SRAM 的路径**（写总线 = 写 SRAM），方案保留。
-- **修正我此前的错误判断**：此前记「tile 内 loader 属绕路、应回到 stock loadmem」是**错的**；已按 reviewer 证据撤回。
-- 子模块补丁机制的价值不因此消失（fesvr/SimDRAM.cc、将来 Vast 的反备内存、其它子模块改动）。
-
-## chipyard 骨架实测结论（`m12-chipyard-001`，待 reviewer 复核）
-
-- **`BaseTile` 自写端口的抽象成员**：`intInwardNode` / `intOutwardNode` / `masterNode` / `slaveNode` / `module`；`halt`/`cease`/`wfi` 由 `SourcesExternalNotifications` 提供；`HartidKey` / `TileVisibilityNodeKey` / `LookupByHartId` 由 `BaseTile` 构造器自动注入。
-- **`TileParams.core: CoreParams` 是绕不开的 RISC-V 形状** ⇒ 用一层 `private[common] WumingCompatCoreParams` 做**形状兼容适配**，`WumingCoreParams` 本身无 RISC-V 字段（这是「外壳 B」的实际代价，需在 M12 后续保持）。
-- **地址宽度实测**：`xLen=64` + `useVM=false` ⇒ `maxPAddrBits=64`；`paddrBits` 取 TL 协商值，**stock chipyard 地址图实测为 32** ⇒ `m12-002` 要靠改地址图把它推上去，不是改 `PAddrBits`。
-- **`common.mk` 偏离**：chipyard 1.14 全树已无 `BOOTROM_TARGETS`/`BOOTROM_FILES_DIR`（0 命中），BootROM 改走 classpath 资源 ⇒ 用 `WithBootROM(contentFileName=...)` 等价接线。
-- **构建**：`sbt compile` rc=0；Verilator `CONFIG=WumingTinyConfig` rc=0（产物 10 MB，`server207`）；有界运行打印 `PutFull 0x80000000 <= 0xdeadbeefcafebabe`（core 桩跑通，随后有界超时 rc=255 属预期）。
-
-## chipyard 定位与技术结论
-
-- **用户原话**：「chipyard --help 的事情：我们没有必要去调试！！！我们不需要去测试 chipyard 本身，这只是我们要用的平台和工具」⇒ 撤销 `INFRA-136t/137t`（零源码改动），`INFRA-133t` 不再验证 `--help`。
-- **`--help`/`+help`/无参数都崩溃的根因（已定，不再投入）**：`htif_t::parse_arguments`（fesvr）→ `htif_t` → `tsi_t` → `testchip_tsi_t` → `SimTSI.cc::tsi_tick()`（**首个时钟 tick 才构造**）→ Verilator `--main` 生成的 `main()`（**无 try/catch**）；`--help` 为 `User queried htif_t help text`，无参数为 `No binary specified`，rc=255。属**上游行为**，非环境偏离（chipyard `0acc1e1` clean、testchipip 与 riscv-isa-sim 均为锁定态、Verilator 5.022 符合 conda-reqs）。
-- **命名/补丁方式（用户裁定）**：按**实现**分类——`dadao-wuming`（单周期）/ `dadao-wuqing`（五周期）/ `dadao-wuxing`（超标量），每种实现内部再按 Tiny / Vast 做测试配置；**补丁方式 A**（全部进 chipyard 补丁集，newfiles 也写成补丁）。
-- **参考实现**：`.cache/refs/DADAO/SOC-chipyard/`（`chipyard-0111-newfiles/generators/dadao-wuming` + 5 个接线补丁 + `chipyard.mk`）；riscv-sodor 为第二参考；PR #4 仅参考。
+> 已完成 34 项；剩 `m12-chipyard-028`（重生成 bootrom hex）、`029`（FMA RTL）、`016`（T0 冒烟）、`017`（T1 + 验收）。方案细节见任务书与 `components/chipyard/README.md`。
 
 ## M12 未决
 
-- **Tiny 的 SRAM 基址与 `loadmem` 目标窗口**需在 `002` 定稿（`load_elf` 目标基址必须与 Tiny 地址图一致）。→ 已定（`002` 地址图 hmon SRAM 段），本条可删。
-- ~~`006` 的 R12/R13/R14~~ **已裁定（2026-11-10）**：R12=A 扩展+大改、R13=hmon 编入 BootROM+power 搬运、R14=最小 handler；R1–R16 全部落纸（`refs/m12-006-cycle-design.md §8.1–8.3`）。
-- ~~`spec-003` 候选范围~~ **已立册并完成**（`m12-spec-003` 口径统一、`m12-spec-004` hmon 装载契约）。残留项：
+- **口径残留（`spec-003`/`spec-004` 未覆盖项）**：
   - #9 `cfx2rd`/`cfx2rc` 到**保留** cfxha ⇒ `ILLI`（`Machine-v5` 现只说「不存在 cfx 寄存器 ⇒ `CFXREG`」，与 `DADAO-12 §5.2(一)` 冲突）
   - #10 reserved 集统一（正文 `19–61` vs 附录 0.4.0 `16–31、35–61`）
   - #6 退出码由 hmon handler 生成（`§7.1` 只定编码、未定生成方）
@@ -167,12 +49,6 @@
 - **任务分解**：`m13-testcases-001`（static 72 例 × 3600s）、`m13-testcases-002`（dynamic 93 例 × 3600s）、`m13-testcases-003`（3600s 仍超时的例 × 7200s）。
 - **只记录不改源码**：这三个任务不做根因分析、不调试；结果由用户分析裁定。
 - **M13 台账**：新建 `.tao/knowledge/milestones-m13.md`（`项目里程碑 = M13`），Makefile 的 `check-milestones-fresh` 扩展为校验 M11 + M12 + M13。
-
-## M13 待梳理：差分产物的归属（用户 2026-11-09）
-
-- **对象**：`docs/TestReports/M11-三平台一致矩阵.md`（矩阵快照）、`.tao/knowledge/refs/*-parity-summary.*`（逐例报告）、`tools/testcases/parity/{run_parity,se_tset_matrix}.py`（生成器）、各基线 summary JSON。
-- **问题**：矩阵与报告混在 `tests/`、`.tao/knowledge/refs/` 两处；矩阵内含运行期绝对路径（`/tmp/opencode/<任务>/...`），fresh clone 上不可复现；「哪份是快照、哪份是原始数据、哪份是生成物」的边界靠 README 口头约定。
-- **处置**：M13 开始差分对齐时统一梳理（不在当前任务里改），原则先定两条：① 生成器随产物入库；② 快照只含 md5/版本等身份指纹，不写运行期路径。
 
 ## golden / Sail 定位（结论，待落流程）
 
@@ -217,12 +93,9 @@
 - **cache/LLC**：该阶段不引入，留到后续。
 - **0628**：只参考阶段划分、踩坑和测试思路；不复制 `arch/dadao`、补丁或实现代码。
 
-## 补丁策略（待 K0 落任务书）
+## 补丁策略（已由 `m14-linux-001` 承载）
 
-- 当前 `manifests/components.lock.toml` 的 `linux` 条目是 `patchless = true`，角色仅为 syscall 号表参考。
-- 恢复时复用同一 7.2.10 commit，转为受补丁组件：`patch_dir = components/linux/patches`、`patch_series = components/linux/series`，角色改为「Linux 内核移植目标 + syscall 参考」。
-- 按 `docs/Process-01`：干净 git 基线；一文件一补丁；新增 `arch/dadao/**` 也用 `new file mode` 补丁；`make apply-series` + `check-source-state`。
-- 不直接改源树作为真源，不复制 0628 的补丁集。
+- 口径不变：复用同一 7.2.10 commit 转受补丁组件（`patch_dir`/`patch_series`）、按 `docs/Process-01` 一文件一补丁、不直接改源树作真源、不复制 0628 补丁集。落地细节见任务书。
 
 ## 阶段与任务量（K0 后校准）
 
@@ -234,16 +107,16 @@
 - K5 用户态闭环：5–7 个。
 - 合计约 30–42 个任务；收口只到 K5，busybox/UART/cache/LLC/gem5 等不阻塞。
 
-## K0 兼容性缺口（待矩阵化）
+## K0 兼容性缺口（已由 `m14-infra-001` 承载）
 
-- 缺口：`arch/dadao`、`llvm-ar/ranlib/strip`、`asm goto` 输出、栈保护、`.quad/.long/.short/.byte`、inline asm 约束、`-mcmodel=kernel`。
-- 入口判据：spike 清单归零或有规避法 + 工具链就位 + `arch/dadao` 最小骨架能 `make ARCH=dadao` 出 vmlinux。
-- 详细兼容性记录 K0 落任务书/矩阵后移入对应文档。
+- 缺口清单与逐项判据进工具链矩阵任务（`llvm-ar/ranlib/strip`、`asm goto`、栈保护、`.quad/.long/.short/.byte`、inline asm、`-mcmodel=kernel`）；入口判据 = 缺口全部有规避法 + `arch/dadao` 骨架能出 vmlinux。
 
-## 待办
+## 待办（K0 已立册）
 
-- Linux 启动前：立定义与 K0 任务书（`linux` 模块）；拟议 ADR 的 decision 逐条确认。
-- K0 前不写内核代码；先冻结补丁策略、启动 ABI、工具链缺口和测试门控。
+- K0 七件已落 `.tao/tasks/{linux,spec,infra}/m14-*`（`milestones-m14.md` 台账）；`m14-linux-001`、`m14-spec-001` 已派。
+- **启动 ABI 值已冻结（用户 2026-11-13）**：内核 `0x0010_0000`、boot info PA `0x0001_0000`、initramfs `0x0400_0000`、`rb17` 承载、入口 `supv` + 身份映射。
+- **spec/Process 授权（2026-11-13）**：`m14-spec-001` 可改 `spec/Machine-v5`+锁、`m14-linux-001` 可改 `docs/Process-01`、`m14-infra-003` 可改 `docs/Process-07`；其余仍需逐次授权。
+- **待裁定**：启动 ABI 属跨模块外部契约（命中 ADR 判据）——是否立 ADR，待用户决定。
 
 ## 待裁定 ADR：Linux bring-up charter（未落文件）
 
@@ -255,19 +128,7 @@
 
 # 三个里程碑之外
 
-## 发布与回归（不阻塞 M11 收口）
-
-- **回归运行（原「夜跑」）加 gem5（用户 2026-11-08）**：「夜跑」是**全量回归成员集**的意思，不是只在夜里跑；成员应含 **gem5 SE + gem5 FS**。拟立 `TESTCASES-105t`。
-- **SimRISC 发布 `0.5.6`（用户 2026-11-08）**：可以发布；须**重新整理版本与变更记录**（13 册册头统一、变更记录按重要性/主题归并、去 `-rc`）。拟立 `SPEC-196t`。
-- 两者均**不是 M11 收口条件**（收口判据见 M11 节）。
-
 ## 待用户裁定：ADR
-
-### chipyard 集成（已裁定 B，2026-11-08）
-
-- **用户裁定**：选 **B**（就地修订 `ADR-0024 D1`），并对四处修订文本回「可以」。
-- **已落地**：`ADR-0024` 的 D1、Rationale 被否方案、Consequences 约束、状态说明修订记录同步改为「做（2）+ 补丁集」；`D2`–`D5` 不变。
-- **待随 `m12-001` 落地**：`manifests/components.lock.toml` 去掉 `patchless`、加 `patch_dir`/`patch_series`；建 `components/chipyard/patches/` + `series`（同笔，避免「ADR 说打补丁、锁说 patchless」的过渡态门控红）。
 
 ### `SPEC-180t` 的 ADR
 
@@ -314,80 +175,6 @@
 - `reserved.yaml` 是否拆册（当前同册承载「保留编码 ⇒ UNDI」与「reserved cfx 地址空间 ⇒ CFXMEM」两类语义）。
 - `trap`/`escape` → reserved cfx 的 active 向量仍 deferred（`TESTCASES-033t`）。
 
-## 队列状态（2026-11-10 巡检）
-
-**在跑**：`m13-gem5-002`（Tiny 恒 hypv + cg3）、`m13-infra-001`（ISS-355/356）。
-
-**待开始但被阻塞**（阻塞原因，非队列空）：
-
-| 任务 | 阻塞源 | 归谁 |
-| --- | --- | --- |
-| `m13-gem5-003`（ISS-358/359） | 组件单写者：与 `m13-gem5-002` 串行 | 主会话（002 收口后立刻派） |
-| `m12-chipyard-007` | 需裁定 R12/R13/R14（改造范围、hmon 镜像装载、handler 出退出码）+ `spec-003` 的 §9 七条 | 用户 |
-| `m12-chipyard-008`–`017` | 依赖 `007`（同一 `WumingCore` 单写者） | 主会话（007 收口后） |
-| `m13-testcases-003` | 需裁定「7200s 加预算」还是「转定位挂死」（`ISS-361`） | 用户 |
-| `m13-integ-001`–`005` | 任务书声明依赖 `m12-chipyard-015`（M13 主体待 M12 核完成） | 用户（若要提前，需改依赖） |
-| ~~`m12-spec-003`/`spec-004`~~ | **已立册并完成** | — |
-
-**open 但暂无对应任务**：`ISS-345`（语料不可达）、`ISS-357`（stdout/stderr 写序，属 SE 驱动口径）、`ISS-360`（流程缺陷）、`ISS-361`/`362`（随 `testcases-003` 一并处置）。
-
-## 磁盘水位与构建瘦身（2026-11-10）
-
-- **触发**：用户要求「安排评测类任务前先查磁盘，> 90% 报警」。实测主控机 `/mnt/tao` **92%**（424G/492G）。
-- **已清理**（用户同意）：归档 M11 任务的 `runtime/`/`review/` 逐例目录（8 个任务 ≈250G）+ 三份一次性 gem5 构建副本（≈72G）⇒ **92% → 23%**。
-- **已落地**：`make check-disk`（主控机，> 90% FAIL）+ `remote.py status` 的 `disk_use_pct`/`disk_alert`（节点）+ `AGENTS.md` 预检第 ⑥ 项改为「并行度与磁盘」。
-- **gem5 体积事实**：`build/DADAO` 4.5G；`gem5.opt` 702 MB，其中 `size` 实测 text+data 仅 34 MB，**662 MB 是 DWARF 符号**；`strip --strip-debug` 后 **40 MB**（行为不变）。`gem5.fast` 关闭 assert ⇒ 差分测试不宜盲用。
-- **逐指令信息不是大头**：跑批未使用 `--debug-flags`，每例 `m5out` 仅 280 KB；250G 来自重复的逐例运行目录。**规则**：常规跑批永不开 `--debug-flags`；需要时用 `--debug-start/--debug-end` 卡窗口并即删。
-- **待用户定**：① `docs/Process-08` 增「收尾只留 `run.sh` + 汇总 JSON + 日志（≤10MB），删逐例目录」；② `.work/build/` 只允许 `gem5`/`qemu`/`llvm` 规范名，派生构建用完即删，`gem5.debug` 按需临时建。
-
-## spec-003 / spec-004 拆分与 hmon 装载契约（用户 2026-11-10 裁定）
-
-- **选 B 拆两册**：`m12-spec-003`（题 1–5 口径统一，纯文字）+ `m12-spec-004`（题 6–8 新契约）。
-- **hmon 装载契约（用户原话）**：「hmon的代码/数据应该是放在bootrom中，然后由bootrom代码存放到相应位置；先在qemu中进行验证，然后gem5/chipyard可共用」。
-  ⇒ 废弃「宿主 loader 直装 hmon 段」的现行实现口径；**宿主只为应用下发 `PT_LOAD`**，hmon 随 BootROM 镜像走。
-- **`cfx2*` 口径（用户原话）**：「reserved cfx引发ILLI，非reserved cfx的未定义cg/rc引发CFXREG，没有冲突，只是Machine-v5文档没写清楚」⇒ 只需把文档写清。
-- **退出码（用户原话）**：「7.1写的不对，只定编码，谁产生是代码设计要决定的」⇒ spec 删除「由 handler/硬件产生」类表述。
-- **连带影响**：`m13-qemu-001`/`m13-gem5-001` 已按旧口径（直装）合入，需按新契约返工；`m12-chipyard-007` 直接按新契约实现。建议合并为一个「三平台 hmon 装载对齐」任务（待 spec-004 合并后立）。
-
-## spec-003 三点裁定（用户 2026-11-10）
-
-- **reserved cfx 不写编号**：编号列表以后会变，`Machine-v5` 只写规则并指向 `DADAO-12 §1`（单一真源），不重复列举。
-- **Tiny `switch_run_mode`**：写入即 3、读回 3（用户原话「Tiny下，写入3，读回3」）。
-  ⇒ QEMU/gem5 现为「保存写入值」需改；与「hmon 装载契约」一起归并到后续「三平台 Tiny 对齐」任务。
-- **`DADAO-12 §2.1` 笔误**：确认并修正（`0x3_ffff_0000`→`0x3ff_ffff_0000`、`0x3_ffc0_0000`→`0x3ff_ffc0_0000`），用户授权本次 `spec/` 改动。
-
-
-## 执行顺序（2026-11-10 定稿，按依赖串行）
-
-用户：「这是正常依赖关系导致的串行，确定好顺序串行即可」。
-
-**M12 主链（严格串行，单写者 chipyard）**
-```
-020 预取 4 槽 → 019 cfx 寄存器 + 五类异常进 hmon
-  → 008 访存(ld/st/ldm/stm) → 009 控制流+RAS → 010 位操作+原子+杂项
-  → 011 FP 基础设施 → 012 FP 转换 → 013 FP 算术 → 014 FP 除法/开方/取余
-  → 015 FP 取整/缩放/符号 → 016 T0 冒烟 → 017 T1 + M12 验收
-```
-
-**M13 前置（与主链并行，独立组件）**
-```
-qemu-002 ‖ gem5-005（Tiny 装载契约对齐；以 QEMU 结论为准）
-```
-
-**M13 差分（必须等 015 + qemu/gem5 对齐后，串行）**
-```
-integ-002 FP 差分 → integ-003 整数/访存差分 → integ-004 riscv-tests → integ-005 收口
-```
-
-**后台常驻（不占串行槽位）**
-```
-testcases-003（207 原计划）+ 008（208 差集）→ 长尾计时；结果待合并
-```
-
-规则：每一步**先合并再进下一步**；并行只允许「不同组件」或「节点上的用例执行」，不允许同组件两写者。
-
-- **`m12-testcases-002` 已取消（2026-11-10）**：原打算单独做「E2E 适配固定固件契约」；`m13-qemu-002` 的实现已覆盖（11 个 lit 用例 + `lit.cfg.py` + `picolibc-tiny.ld` + `Makefile` + `tools/testcases/**` 的 trampoline/E2E 驱动），且其 L2 `check-modules` rc=0 ⇒ 判重复，不另立册（任务书已删，仅此记录）。
-
 ## 待裁定：`-bios` 的 legacy trampoline 窗口（2026-11-11）
 
 `m13-qemu-002` 的 reviewer 发现：`Machine-v5 §6` 字面要求 `-bios` 装**同一固定固件**、不再带 trampoline；但实现保留了 **≤4096 B 的 legacy 窗口**（44 例 `tests/inst` Tiny 中 43 例的 `expected_fault` 退出码口径依赖它）。
@@ -397,34 +184,6 @@ testcases-003（207 原计划）+ 008（208 差集）→ 长尾计时；结果�
 - **② 修 `Machine-v5 §6`**：承认该窗口为测试机约定（改动小，但 spec 多一条历史例外）。
 
 reviewer 建议 ①（随 `019` 做）。**待用户裁定。**
-
-## 已裁定：signaling compare 遇 qNaN 置 `NV`（2026-11-11）
-
-`m12-chipyard-013` 报「待裁定」：`ftscmp`/`foscmp` 遇 **qNaN** 操作数是否置 `NV`。
-`spec/SimRISC-07` / `contract-fp` 未写；任务书与 QEMU 原口径为「不置（仅 sNaN 置）」；IEEE 754 / hardfloat 为「任何无序都置」。
-
-**用户裁定（原话）**：「按 IEEE/hardfloat：任何无序都置」。
-
-影响面（需立任务）：① chipyard RTL（`ftscmp`/`foscmp` 的 NV 条件）；② QEMU（当前比较族完全不置标志）；③ 模型/oracle + 向量（现 `cmp_snan` 12 例为 model-only，需补 qNaN 例并从 model-only 转为三方对照）；④ spec 补写该条（`SimRISC-07`）。属**跨模块**改动，按 `AGENTS.md` 需用户确认后立册。
-
-## 已裁定：quiet compare 遇 sNaN 也置 `NV`（2026-11-12）
-
-`m12-chipyard-013` 的 spec 草案暴露：我们把 `ftqcmp`/`foqcmp` 写成「任何 NaN 都不置 NV」，但 IEEE 754-2019 §5.11 要求 **quiet 谓词遇 sNaN 仍置 invalid**（hardfloat 同）。用户裁定（原话）：「改为置 NV（跟 IEEE）」。
-
-影响面：chipyard RTL（`ftqcmp`/`foqcmp` 的 NV 条件改为「sNaN 输入即置」）、QEMU 同、模型/向量同步、spec 补写。跨模块，拆两个任务串行（`m13-qemu-004` 先行 → `m12-chipyard-024`）。**注意**：这与 2026-11-11 的 signaling 裁定不冲突——signaling 是「任何无序（含 qNaN）都置」，quiet 是「仅 sNaN 置」。
-
-## 已定规则：浮点差分一律以 IEEE-754 2019 为准（2026-11-12）
-
-用户原话：「MEMORY.md中增加一条spec规则：浮点设计和实现过程中出现的差分问题，都以IEEE-754 2019中规定的行为为准，SimRISC指令系统和各模拟器都应以此更新和修订」
-
-落盘：`.tao/knowledge/MEMORY.md`「DADAO 反套用清单」末条（硬约束）。
-
-**推论**：已知的实现/spec 偏离需逐条按 IEEE 复核，不再以「与 hardfloat/QEMU 一致」或「spec 原文如此」为终局依据。已识别候选（待审计）：
-1. `fo2ft` 溢出**恒** ±Inf（`SimRISC-07 §1.4` / `contract-fp §2`）；IEEE 按舍入模式：RNE/RUP → ±Inf，RTZ/RDN → ±最大有限。**这是 spec 与 IEEE 的直接冲突**。
-2. quiet compare 遇 sNaN 不置 `NV`（已立 `qemu-004` + `chipyard-024` 改为置）。
-3. sNaN 结果 payload：本核 canonical vs softfloat 保留输入 payload；IEEE 只要求 quiet 位、不强制 payload 传播。
-4. NaN 结果符号位：本核清 0 vs softfloat 保留；IEEE 未规定符号位，属实现自由（需在 spec 写明）。
-5. `ld.t rf0` 保留只读 qNaN 位（`SimRISC-00 §2.3.1`）——IEEE 无此只读位概念，属**测试机约定**，需在 spec 标为架构附加。
 
 ## IDL 里程碑归属（用户 2026-11-12 裁定）
 
@@ -473,111 +232,6 @@ M16 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个
 
 影响：两份材料**可读、可 grep，但不能 `git log`/`blame`/`diff` 历史**；需要历史版本时另找网络时段做全量克隆，或走镜像（源需用户确认）。
 
-## 已裁定：多元素指令不要求「无副作用」（2026-11-13）
-
-用户原话：「ldm/stm/r2r在多寄存器或多个内存的处理过程，不要求 无副作用；换言之，这类指令允许部分元素已经生效，之所以规定不能重叠也是为了这个考虑；chipyard无需整段预检；测试程序的哨兵可对这类指令放宽」
-
-**影响**：
-
-1. `ISS-414`（QEMU/gem5 越窗口 CFXMEM 非精确）**不是缺陷** ⇒ 关闭；chipyard 现有整段预检**保留但不作要求**（精确是允许的更强行为）。
-2. **spec 需补例外条款**：`DADAO-12 §5`「所有同步异常均为精确异常」对 `ldm`/`stm`/`rd2rd` 等块操作设例外——允许部分元素已生效；相应「源/目不得重叠」的合法性规则正是为此。
-3. **测试口径**：这类指令的故障例**不比对目标寄存器/内存**（哨兵放宽）；仍必须比对**异常码**。单元素 `ld`/`st` 保持精确性断言不变。
-4. 三平台差分：这类指令的**部分生效状态不参与跨平台比对**（各平台进度可不同）。
-
-## 补充裁定：多元素精确性的适用范围（2026-11-13，第二问）
-
-用户回答三点：
-
-1. **寄存器类块操作保留哨兵**（不随内存类放宽）——即 `rd2rd`/`rb2rb`/`rb2rd`/`rd2rb`/`ra2rd`/`rd2ra`、`ft2ft`/`fo2fo`、`rd2rf`/`rf2rd`、`ftcls`/`focls` **仍须精确**（三实现都在译码期做范围/重叠检查，天然精确）。
-2. **不在 spec 明写 `ftcls` 的 `immu6` 边界约束**。
-3. **beat 内的字节级原子性由实现自定**，语义正确即可 ⇒ 不单独验、不写进 spec；测试的「保持区」断言按语义正确即可。
-
-⇒ **「允许部分生效」的适用范围收窄为：多元素*内存*指令（`ldm.*`/`stm.*` 及其 rf 形式）的故障路径**。其它类别一律精确。
-
-## 已裁定：`rootn(±0,2)` 收严为 `+0`；NaN 结果统一 canonical（2026-11-13）
-
-`m13-integ-009`（FP-IEEE 审计）报两处待裁定，用户裁定：
-
-1. **R1 `rootn(±0,2)`：收严为 IEEE `+0`**（IEEE 754-2019 §9.2.1：`rootn(±0, even n>0) = +0`，且 NOTE 明确「`rootn(−0,2) ≠ squareRoot(−0)`」）。当前三实现均返回 `−0`、`spec §2.2` 写「不做具体要求」。
-2. **R2 NaN 结果口径：统一 canonical qNaN**（payload 全零、符号 0；binary64 即 `0x7FF8_0000_0000_0000`）。依据：IEEE §6.2.3 payload 传播是 **should**、「多个 NaN 取哪个不规定」，§6.3 符号位不规定 ⇒ 不构成偏离；**Berkeley hardfloat 即 canonical**（`RoundAnyRawFNToRecFN.scala`：`signOut = Mux(isNaNOut, false.B, …)`，NaN 时有效位只置 quiet 位），与 gem5 现值一致；QEMU（`float_2nan_prop_ab`）与自写 RTL（传首 NaN payload）需改。
-
-**影响面**：spec/合约措辞 + QEMU + chipyard RTL + gem5（仅 `rootn`；quiet compare 的 sNaN 见下）+ 向量/期望。
-**同时确认**：`m13-integ-009` 的 D1（gem5 quiet compare 遇 sNaN 不置 `NV`）按 2026-11-12 裁定「改为置 NV（跟 IEEE）」补做 gem5 侧。
-
-## 已裁定：`ldm`/`stm` 禁止基址/索引寄存器落入传送范围（2026-11-13）
-
-用户原话：「不允许重叠，改spec」
-
-**含义**（编码统一为 `[bank]HA:HA+immu6-1, [rbHB, rdHC]`；**基址恒在 RB、索引恒在 RD**）：
-
-- **只对 `ldm`（装入）禁止**——因为 `ldm` 会**写**目的寄存器范围，若基址/索引落在其中，后续地址会依赖处理进度：
-  - RD 形式：`rdHC ∉ [rdHA, rdHA+immu6)`，违反 ⇒ **ILLI**
-  - RB 形式：`rbHB ∉ [rbHA, rbHA+immu6)`，违反 ⇒ **ILLI**
-- **`stm`（存储）允许重叠**（用户 2026-11-13：「stm应该是允许这种重叠的」）——`stm` 只**读**传送范围、不写寄存器，基址/索引即便落在范围内也不会被改写 ⇒ 行为确定，无需禁止
-- **RA / RF 形式：不适用**——传送范围在 RA/RF bank，基址在 RB、索引在 RD，结构上不可能重叠（「基址寄存器：与rf/ra没有关系」）
-
-**影响面**：spec（`SimRISC-01` 限制列表）+ `contracts/legality_rules.yaml`/`opcodes.yaml` 的 legality + 三个实现（chipyard/QEMU/gem5）+ `m13-testcases-013` 的 overlap 用例（改为 ILLI 用例）。
-
-## 已裁定：`st.o rb0` 与 `ld.o ra0` 的测法（2026-11-13）
-
-用户回答两问（原话要点）：
-1. 「**用 `aip.si` 指令**」——`st.o rb0`（源 = 当前指令地址）的期望值用 `aip.si` + `add.si` 构造：`aip.si rbX, K*4096` 先取到 IP 的 4 KiB 基址，再用 `add.si` 加精确字节差，得到被测指令自身地址，然后与 `st.o rb0` 写出的值比对。
-2. 「**读写都测**，`ra0` 写的时候，对 **SBZ 的 10 位写忽略**」——`ld.o ra0` 既测读（构造已知 RAS 状态）也测写（写全 1，验证 `[63:54]` 保持 0、`[53:48]`/`[47:0]` 生效）；三平台须一致，不一致如实记红。
-
-注：`spec/SimRISC-00` 已写「`ra0[63:54]` = SBZ（写无效）」，与第 2 条一致，**无需改 spec**。
-
-## 已裁定：节点机只作评测用（2026-11-13）
-
-用户原话：「**节点机全部都作为评测用，不做其它用途**」
-
-**含义（已细化，见下方补充问答）**：
-
-- 节点（`server207`/`server208`/`ics150`–`ics180`）**不承担**：仓库修改、台账/文档、补丁导出、调试迭代、L1 静态门控
-- 节点只承担**评测**（所有测试套件）+ 为评测自建组件
-
-**现状（证据）**：两台旧节点自 11-09/11-10 起空置，最后一轮是 gem5/chipyard 构建（`nodes.md §10.1` 的原分配）；新节点 `ics150`–`ics180` 未派过活。
-
-**补充问答（同日）**：
-
-1. 问「评测的边界怎么划」⇒ 用户答：**「所有测试套件都算」**（含 `tests/inst` 全量、三平台差分、门控里的测试执行）
-2. 问「节点为跑评测可否自己重建组件」⇒ 用户答：**「可以，构建是评测前置（推荐）」**
-
-**定稿口径**：
-
-- **节点 = 评测执行机**：跑所有测试套件（`tests/inst` 全量、三平台差分、架构/单元/tset 冒烟与全量、L3 测试部分）
-- **节点可为评测自建**：主控机改仓库 → 导出补丁 → 同步节点 → 节点 `apply-series` → 节点重建 chipyard/gem5/qemu（Verilator 产物与机器相关，禁止跨机复制）
-- **节点不做**：仓库修改、台账/文档、补丁导出、调试迭代、L1 静态门控
-- **主控机 = 唯一仓库写者 + 构建调试 + L1 静态门控 + 文档/台账**
-
-**启用时点（用户 2026-11-13）**：**等当前批次收口后再启用节点**（本批 `m12-chipyard-027` / `m13-testcases-013` / `m13-qemu-008` / `m13-gem5-009` / `m12-chipyard-028` 的测试仍在主控机跑）。启用步骤：同步 200+ commit → 节点 `apply-series` → 节点重建 chipyard/gem5/qemu（预计 40–60 分钟/台，两台并行）。
-
-## 已裁定：6 台节点不区分测试内容 + 测试时长分档（2026-11-13）
-
-用户原话（两条）：
-
-1. 「**6台节点机不需要区分测试内容，qemu/gem5/chipyard测试都可以分到任何一条节点机上进行，也不需要考虑在一台机器上测某一个testcases，只有做时间对比分析的时候才需要**」
-2. 「**测试时间建议划分：15m/6h/24h三档，整体测试时间小于15m，不需要分解到节点机上；整体测试时间大于15m，则分解到节点机并行测试；单个测试时间大于15m且小于6h的，你可以自行安排到某个节点机上进行；单个测试时间超过6h的，需要汇报给我再决定；单个测试时间超过24h，且明确不是bug，单独归类，通常不进行测试，除非单独指定**」
-
-**落成规则**：
-
-| 判据 | 处置 |
-|---|---|
-| 整体套件 **< 15 min** | **不分解**，就近跑（主控机或任一节点） |
-| 整体套件 **> 15 min** | **分解到节点并行**（分片粒度按用例/镜像，不要求同一 testcase 留在同一台） |
-| 单个测试 **15 min – 6 h** | 我自行安排到某台节点 |
-| 单个测试 **> 6 h** | **先汇报用户**再决定 |
-| 单个测试 **> 24 h 且确认不是 bug** | **单独归类，默认不跑**（除非单独指定） |
-
-**附带结论**：
-
-- 之前我提的「chipyard 只放 207/208、其余跑 QEMU/gem5」的组件亲和方案**作废**；6 台同构，任何套件都可派任一台（前提是该台已重建所需组件）。
-- 「同一 testcase 的三平台必须同机」**只在做时间对比分析时**才是要求；常规分片按镜像甚至按平台切开都允许，比对在汇总侧做。
-
-**补充澄清（用户 2026-11-13，同一议题）**：
-
-1. 「**上面的测试时间划分不考虑构建时间，注意整体测试和个体测试的区别，不要混了**」⇒ 分档判据**只算测试执行墙钟**：同步、`apply-series`、组件重建（qemu/gem5/chipyard/LLVM）**不计入**；「整体」= 一套完整套件的总墙钟，「个体」= 单个用例/单个测试的墙钟，两者分别判档、不得混用。
-2. 「**6台节点机应保持同步，该同步的仓库同步好，该构建的环境都构建好；注意，其中四台无国际网访问权限**」⇒ 6 台常态保持：仓库 = 同一 master、`.cache` 增量同步、组件已构建（含 gem5/musl/chipyard 环境）；`ics150`–`ics180` **无国际网**，所有外部依赖（conda 环境、firtool、子模块镜像）必须从主控机离线搬运，不得在节点上直连。
-
 ## 规则修订待办（待裁定；2026-11-13 起 `lessons.md` 退役）
 
 > 口径：**可执行规则**进 `AGENTS.md`，**可复用经验**进 `docs/DDLN/Y-研发流程`，**未定案**留本节。以下三项尚未定：
@@ -585,14 +239,3 @@ M16 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个
 1. **证据脚本的静态门控**：目前「禁恒真 / 禁同源自比 / 禁 `tee` 吞码」靠 reviewer 人工审脚本；是否做成对证据脚本的静态扫描并进 L2（误报率待评估）。
 2. **「已知红」豁免载体统一**：现存三种写法（issue 号 / 任务书登记 / 门控 defer 清单）；是否统一为「issue 号 + 门控精确 id 清单」双写，其余禁止。
 3. **经验落 DDLN 的粒度**：本次按「既有 Y 册各追加一节一句话结论」；若条目继续增长，是否改为单独「工程经验清单」分册（先生效观察一轮再定）。
-
-## 已裁定：会话按里程碑组织 + 单写会话（2026-11-13）
-
-**背景**：本会话（`ses_f76d4b1e…`）自 2026-09-10 起累计 **31,639 条消息 / 52.5 M 输入 token / $53.13**，加载与延迟随历史线性增长；OpenCode V2 的自动压缩默认只保留最近 15k token（有损）。
-
-**用户同意**（原话「可以，你说得有道理！」「可以」）：
-
-1. **会话按里程碑/批次组织**，不再用单会话横跨数月；切换时先收尾 + push + 更新 `MEMORY.md` 交接段。
-2. **同一仓库同一时刻只允许一个「写会话」**（已写入 `AGENTS.md`「并行任务上限」）；并行会话只读，或按「独立 worktree + 台账分片 + 组件/节点分配」由用户指定。
-3. 并行优先用**同一会话内的子代理**（≤8），不用多会话。
-
