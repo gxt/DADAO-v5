@@ -165,3 +165,7 @@
 - **2026-11-13 m13-gem5-008**
   - 摘要：**`ldm` 的地址寄存器落入传送范围 ⇒ ILLI（SimRISC-01 §1/§2，用户裁定「重叠不再按原始值计算」）**。`exec/b1.cc` 在 `immu6 == 0` / `起始+immu6 <= 64` 同一静态检查段加规则：`ldm`（`Access::Load && Shape::Multi`）同组地址寄存器落在 `[dst, dst+immu6)` ⇒ ILLI，先于任何元素处理（不发访存、不写寄存器）——RD 形式查索引 `rdhc`、RB 形式查基址 `rbhb`；`stm` 不加检查（只读传送范围、地址由指令开始时的操作数给出），RA/RF 形式结构性不适用。`b1_test.cc` 的 `knownRules`/`knownLegality` 收录 `mreg_range_addr_overlap` 与两条新 legality 并按规则逐 id 消费（范围内 ILLI、范围外一位正常），块传送用例改成三组验收（`ldm` RD 内/外、`ldm` RB 内/外、`stm` RD/RB 重叠正常执行、RA/RF 不适用），`1+63` 边界例同时保持地址寄存器在块外。解码表按已合入的 `contracts/opcodes.yaml` 重生成（8 条 `ldm` 增该 rule/legality）；`tools/gem5/check_converge.py` 的 b1 PASS 基线 2102 → 2156。补丁 4 份改，`make_patch.py` 重导出。
   - 执行者：engineer
+
+- **2026-11-13 m13-gem5-009**
+  - 摘要：**`ftfma`/`fofma` 溢出按舍入方向取 `±Inf` / `±max`，并区分「轻微溢出只置 `NX`」（SimRISC-07 §2.5、IEEE 754-2019 §7.4）**。`exec/fp_soft.cc` 的 fma 与 `mul`/`add` 共用单次 `roundPack`，`overflowBits` 的形态表已按方向（RNE ⇒ `±Inf`；RTZ ⇒ `±max`；RDN ⇒ 正 `+max`、负 `−Inf`；RUP ⇒ 正 `+Inf`、负 `−max`）给出，溢出判据为「无界指数下舍入后的量值 > max」——因此「max < 精确和 < 2^(emax+1) 且按该方向舍回 max」的轻微溢出落在有限分支、只置 `NX`，RNE 分界为 `max + 半个 ulp`（ft `2^103`、fo `2^970`，达到即舍入到 `2^128`/`2^1024` ⇒ `OF|NX`）；本任务不改语义，只在该路径写明映射（§2.5 无 RNA 档）。`exec/b7_test.cc` 新增 48 格断言（2 格式 × 3 带 × 2 符号 × 4 方向）：`2*max` 严重溢出、`max + 2^(emax-fb-2)` 轻微溢出、`max + 半个 ulp` 分界，逐格校验结果位型与 `rf0[4:0]`，期望表由 §2.5 表手抄、不从实现回读；参考模型 `tools/gem5/b7_ref.py` 的 fma 向量补同一 6 带 × 2 符号 × 4 方向（48 向量），由精确 `Fraction` oracle 独立给期望。补丁 2 份改（`fp_soft.cc`/`b7_test.cc`），`make_patch.py` 重导出。
+  - 执行者：engineer

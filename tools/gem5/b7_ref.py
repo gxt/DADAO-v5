@@ -1367,6 +1367,27 @@ def edge_vectors():
             (pool[2], pool[2], tie[fmt]),     # 1*1 + 2^-p: exact tie
             (pool[3], pool[2], tie[fmt]),     # -1 + 2^-p: tie
         ]
+        # spec/SimRISC-07 §2.5 overflow, all four directions x both signs:
+        # 2*max overflows outright; the two bands just above max are where the
+        # rounding direction alone decides between ±max (NX only) and a real
+        # overflow (OF|NX) -- "mild overflow" at 2^(emax-fracbits-2) and the
+        # RNE boundary max + half an ulp (2^(emax-fracbits-1)).
+        nb = FMT[fmt]
+        fb, signpos = nb["fracbits"], nb["signpos"]
+        maxbits = (((1 << nb["eb"]) - 2) << fb) | ((1 << fb) - 1)
+        signbit = 1 << signpos
+        one = nb["bias"] << fb
+        two = (nb["bias"] + 1) << fb
+        mild = (nb["emax"] - fb - 2 + nb["bias"]) << fb
+        half = (nb["emax"] - fb - 1 + nb["bias"]) << fb
+        cases += [
+            (maxbits, two, 0),
+            (maxbits | signbit, two, 0),
+            (maxbits, one, mild),
+            (maxbits | signbit, one, mild | signbit),
+            (maxbits, one, half),
+            (maxbits | signbit, one, half | signbit),
+        ]
         for mode in range(4):
             for pos, (a, b, c) in enumerate(cases):
                 rf = {0: (RF0_RESET & ~RF0_WRITABLE) | (mode << 32),

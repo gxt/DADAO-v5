@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b7_test.cc b/src/arch/dadao/exec/b7_test.cc
 new file mode 100644
-index 0000000..e70af81
+index 0000000..8c0c34c
 --- /dev/null
 +++ b/src/arch/dadao/exec/b7_test.cc
-@@ -0,0 +1,2095 @@
+@@ -0,0 +1,2209 @@
 +/*
 + * DADAO gem5 B7 execution assertions (GEM5-012t).
 + *
@@ -1054,6 +1054,119 @@ index 0000000..e70af81
 +          ctx3.rf[1]);
 +}
 +
++// ---------------------------------------------------------------------------
++// fma overflow: spec/SimRISC-07 §2.5 (IEEE 754-2019 §7.4), transcribed by
++// hand from the spec table -- never read back from the implementation.
++//
++// The exact a*b + c is rounded ONCE with an unbounded exponent range; it
++// overflows only when that rounded value exceeds max.  [+-Inf | +-max] by
++// [mode][sign of the exact sum]:
++// ---------------------------------------------------------------------------
++
++const bool kOverflowToInf[4][2] = {
++    // sign of the exact sum:  +      -
++    /* RNE */                 {true,  true},
++    /* RTZ */                 {false, false},
++    /* RDN */                 {false, true},
++    /* RUP */                 {true,  false},
++};
++
++void
++checkFmaOverflow()
++{
++    struct Shape
++    {
++        const char *id;
++        const char *tag;
++        bool isFt;  // F32 result register keeps [63:32]; read the low 32
++        uint64_t maxv;
++        uint64_t infv;
++        uint64_t sign;
++        uint64_t one;
++        uint64_t two;
++        uint64_t mild;     // 2^(emax-fracbits-2): below half an ulp of max
++        uint64_t halfUlp;  // 2^(emax-fracbits-1): half an ulp (RNE boundary)
++    };
++    const Shape shapes[] = {
++        // ft: half an ulp of ft_max is 2^103, the mild step below it 2^102.
++        {"ftfma_rrrr_rf", "ft", true, kFtMax, kFtInf, kFtSign, kFtOne, kFtTwo,
++         0x72800000ull, 0x73000000ull},
++        // fo: 2^970 (half ulp) and 2^969 (below it).
++        {"fofma_rrrr_rf", "fo", false, kFoMax, kFoInf, kFoSign, kFoOne, kFoTwo,
++         0x7C80000000000000ull, 0x7C90000000000000ull},
++    };
++    for (const Shape &s : shapes) {
++        for (unsigned mode = 0; mode < 4; ++mode) {
++            for (unsigned neg = 0; neg < 2; ++neg) {
++                const uint64_t sg = neg ? s.sign : 0;
++                struct Cell
++                {
++                    enum class Band
++                    {
++                        Always,  // 2*max: above 2^(emax+1) in every direction
++                        Mild,    // max < |exact| < max + 1/2 ulp (below the tie)
++                        Half,    // |exact| = max + 1/2 ulp (the RNE boundary)
++                    } band;
++                    const char *tag;  // probe-compatible cell name fragment
++                    const char *what;
++                    uint64_t b;  // a = maxv (sign above), so a*b is the exact
++                    uint64_t c;  // product and c the exact addend
++                };
++                const Cell cells[] = {
++                    {Cell::Band::Always, "sev", "2*max", s.two, 0},
++                    {Cell::Band::Mild, "mild", "max+mild", s.one, s.mild | sg},
++                    {Cell::Band::Half, "half", "max+half", s.one,
++                     s.halfUlp | sg},
++                };
++                for (const Cell &cell : cells) {
++                    MockContext ctx;
++                    initContext(ctx);
++                    ctx.rf[0] = withMode(kFcsrReset, mode);
++                    ctx.rf[2] = s.maxv | sg;
++                    ctx.rf[3] = cell.b;
++                    ctx.rf[4] = cell.c;
++                    WordSpec w;
++                    w.rfha = 1;
++                    w.rfhb = 2;
++                    w.rfhc = 3;
++                    w.rfhd = 4;
++                    const exec::Fault fault = runWord(ctx, s.id, w);
++                    const bool toInf = kOverflowToInf[mode][neg != 0];
++                    // Overflow <=> the rounded-with-unbounded-exponent value
++                    // exceeds max.  Below the tie only the direction that
++                    // pushes away from zero gets there (RUP on a positive,
++                    // RDN on a negative exact sum); at the tie RNE rounds max
++                    // (odd significand) up as well, which is exactly the
++                    // direction table.
++                    bool overflows = true;
++                    switch (cell.band) {
++                      case Cell::Band::Always: overflows = true; break;
++                      case Cell::Band::Half: overflows = toInf; break;
++                      case Cell::Band::Mild:
++                        overflows = neg ? (mode == 2) : (mode == 3);
++                        break;
++                    }
++                    const uint64_t want =
++                        (overflows && toInf) ? (s.infv | sg) : (s.maxv | sg);
++                    // An overflow raises OF|NX; a band that rounds back to max
++                    // is no overflow at all: NX only (spec/SimRISC-07 §2.5).
++                    const uint64_t wantFlags =
++                        overflows ? (kFlagOF | kFlagNX) : kFlagNX;
++                    const uint64_t got = s.isFt ? ft(ctx, 1) : ctx.rf[1];
++                    const uint64_t flags = flagsOf(ctx);
++                    check(fault == exec::Fault::None && got == want &&
++                              flags == wantFlags,
++                          "fma overflow %s-%s-%s-m%u (%s) => 0x%016" PRIx64
++                          " flags=0x%02" PRIx64
++                          " (want 0x%016" PRIx64 " flags=0x%02" PRIx64 ")",
++                          s.tag, cell.tag, neg ? "neg" : "pos", mode,
++                          cell.what, got, flags, want, wantFlags);
++                }
++            }
++        }
++    }
++}
++
 +void
 +checkCs()
 +{
@@ -2080,6 +2193,7 @@ index 0000000..e70af81
 +    staticIlli();
 +    checkArith();
 +    checkFma();
++    checkFmaOverflow();
 +    checkCs();
 +    checkClassify();
 +    checkConvertFF();

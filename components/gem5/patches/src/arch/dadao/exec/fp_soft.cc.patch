@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/fp_soft.cc b/src/arch/dadao/exec/fp_soft.cc
 new file mode 100644
-index 0000000..866e730
+index 0000000..1046f9b
 --- /dev/null
 +++ b/src/arch/dadao/exec/fp_soft.cc
-@@ -0,0 +1,1035 @@
+@@ -0,0 +1,1046 @@
 +// DADAO gem5 B7 execution core -- pure-integer IEEE 754-2019 arithmetic.
 +//
 +// Every operation is a bit-exact integer algorithm; no host float/double takes
@@ -149,7 +149,14 @@ index 0000000..866e730
 +    uint8_t flags;
 +};
 +
-+/** Overflow result: ±Inf or the largest finite, per rounding mode. */
++/** Overflow result: ±Inf or the largest finite, per rounding mode.
++ *
++ * This is the single shape the spec/SimRISC-07 overflow tables ask for
++ * (§1.4 conversions, §2.5 fma): RNE => ±Inf, RTZ => ±max, RDN => +max/−Inf,
++ * RUP => +Inf/−max, always with OF|NX.  fma has no RNA direction (rf0[33:32]
++ * only has four codes), so the RNA case is reachable only from the encoding
++ * forms that carry a six-way direction field.
++ */
 +uint64_t
 +overflowBits(Fmt fmt, bool sign, Mode mode)
 +{
@@ -266,6 +273,10 @@ index 0000000..866e730
 +        return {zeroBits(fmt, sign), flags};
 +    }
 +
++    // Only a rounded magnitude beyond max is an overflow: the "mild overflow"
++    // band (max < |exact| < 2^(emax+1)) rounds back to max under this
++    // direction, lands in the finite branch below, and reports NX only, never
++    // OF (spec/SimRISC-07 §2.5).
 +    const int64_t e = qexp + int64_t(bitLen128(kept)) - 1;
 +    if (e > emax)
 +        return {overflowBits(fmt, sign, mode), uint8_t(OF | NX)};
