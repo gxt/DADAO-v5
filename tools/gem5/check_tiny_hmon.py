@@ -7,13 +7,12 @@ on the gem5 Tiny FS profile, and compares the guest-exported result table
 against the independent oracle in `tests/arch/hmon/expected.yaml`
 (spec-derived cause ids, ELF-symbol IPs, and profile-derived cg7 offsets).
 
-The BootROM digest is *not* hardcoded here: it is cross-checked against
-`expected.yaml:shared_bootrom_md5`, so a firmware change only needs the
-oracle/builder updated (one source of truth, no second copy to drift).
-m13-integ-007 changed the shared hmon handler to the minimal save-and-jump
-algorithm; the chipyard checked-in hex still carries the old firmware, so the
-chipyard identity check is reported as `PENDING` (listed in
-`expected.yaml:pending_followups`) instead of failing, until chipyard follows.
+The BootROM is the *shared* firmware (power stub + the minimal save-and-jump
+hmon handler of m13-integ-007); the gem5 case carries no dispatch handler of
+its own.  Cause records are the four hmon SRAM data slots the application
+reads at its landing address (0xE0/0xE8/0xF0/0xF8).  The BootROM digest is not
+hardcoded here: it is cross-checked against
+`expected.yaml:shared_bootrom_md5`.
 
 Usage:
     python3 tools/gem5/check_tiny_hmon.py [--gem5 BIN] [--config fs.py]
@@ -39,9 +38,6 @@ CASE_DIR = ROOT / "tests" / "arch" / "hmon"
 SHARED_ASM = ROOT / "tests" / "shared" / "asm"
 TINY_FW = ROOT / "tests" / "shared" / "bootrom" / "tiny"
 BUILDER = ROOT / "tools" / "testcases" / "arch" / "build_tiny_bootrom.py"
-CHIPYARD_HEX = (ROOT / "components" / "chipyard" / "patches" / "generators" /
-                "dadao-wuming" / "src" / "main" / "resources" / "dadao" /
-                "bootrom" / "bootrom.tiny.hex.patch")
 DEFAULT_GEM5 = ROOT / ".work" / "source" / "gem5" / "build" / "DADAO" / "gem5.opt"
 DEFAULT_CONFIG = ROOT / ".work" / "source" / "gem5" / "configs" / "dadao" / "fs.py"
 PASS_EXIT = 0x21
@@ -153,7 +149,7 @@ def read_records(path: Path) -> list[tuple[int, int, int, int]]:
 
 
 def build_image(bld, work: Path, tc: Path, power: Path, hmon: Path,
-                name: str, require_layout: bool = True) -> tuple[bytes, dict]:
+                name: str) -> tuple[bytes, dict]:
     out_dir = work / f"img-{name}"
     args = argparse.Namespace(out_dir=str(out_dir),
                               power_elf=str(power), hmon_elf=str(hmon),
@@ -162,33 +158,14 @@ def build_image(bld, work: Path, tc: Path, power: Path, hmon: Path,
     try:
         path, image, _ranges, power_len, hmon_len = bld.build(
             args, bld.HMON_SEG_MAX, bld.DEFAULT_BOOT_MAGIC,
-            bld.DEFAULT_HMON_FLAGS, f"bootrom_{name}.bin",
-            require_layout=require_layout)
-        bld.verify_image(image, bld.DEFAULT_BOOT_MAGIC, bld.DEFAULT_HMON_FLAGS,
-                         require_layout=require_layout)
+            bld.DEFAULT_HMON_FLAGS, f"bootrom_{name}.bin")
+        bld.verify_image(image, bld.DEFAULT_BOOT_MAGIC, bld.DEFAULT_HMON_FLAGS)
     except bld.BuildError as exc:
         print(f"check_tiny_hmon: ERROR: {name} BootROM build failed: {exc}",
               file=sys.stderr)
         raise SystemExit(2)
     return image, {"path": Path(path), "power_len": power_len,
-                   "hmon_len": hmon_len, "require_layout": require_layout}
-
-
-def chipyard_image(bld, work: Path) -> bytes:
-    """Decode the checked-in chipyard sparse hex (inside its patch file)."""
-    text = []
-    for raw in CHIPYARD_HEX.read_text().splitlines():
-        if raw.startswith("+++"):
-            continue
-        if raw.startswith("+"):
-            text.append(raw[1:])
-    hex_path = work / "chipyard_bootrom.tiny.hex"
-    hex_path.write_text("\n".join(text) + "\n")
-    try:
-        return bld.hex_to_bytes(str(hex_path), bld.BOOTROM_SIZE)
-    except bld.BuildError as exc:
-        print(f"check_tiny_hmon: ERROR: chipyard hex: {exc}", file=sys.stderr)
-        raise SystemExit(2)
+                   "hmon_len": hmon_len}
 
 
 def elf_entry_and_loads(path: Path) -> tuple[int, list[dict]]:
@@ -288,82 +265,72 @@ def main() -> int:
     oracle = yaml.safe_load((CASE_DIR / "expected.yaml").read_text())
     prof = oracle["profile"]
 
-    # ---- build inputs: shared firmware, test dispatch firmware, application --
+    # ---- build inputs: shared firmware + application ------------------------
     power_elf = build_elf(tc, TINY_FW / "power.S", TINY_FW / "power.lds",
                           work, "power")
     shared_hmon = build_elf(tc, TINY_FW / "hmon.S", TINY_FW / "hmon.lds",
                             work, "shared_hmon")
-    test_hmon = build_elf(tc, CASE_DIR / "tiny_hmon_handler.S",
-                          CASE_DIR / "tiny_hmon_handler.lds", work,
-                          "tiny_hmon_handler")
     app_elf = build_elf(tc, CASE_DIR / "tiny_hmon.S", CASE_DIR / "tiny_hmon.lds",
                         work, "tiny_hmon")
+    hmon_code = flatten(tc, shared_hmon, work / "shared_hmon.bin")
     syms = symbols(tc, app_elf, power_elf)
     ns: dict[str, object] = dict(prof)
     ns.update(syms)
 
     shared_img, shared_meta = build_image(bld, work, tc, power_elf, shared_hmon,
                                           "shared")
-    # The gem5 dispatch fixture still implements the old magic/IALIGN/+4
-    # policy and is larger than the 0xD8 contract; migration is a pending
-    # follow-up (expected.yaml:pending_followups), so only this test image
-    # opts out of the new layout contract.
-    test_img, test_meta = build_image(bld, work, tc, power_elf, test_hmon, "test",
-                                      require_layout=False)
 
-    # ---- shared firmware identity: builder == chipyard hex == oracle --------
+    # ---- shared firmware identity: builder == oracle -----------------------
     report(len(shared_img) == bld.BOOTROM_SIZE, "shared BootROM size",
            bld.BOOTROM_SIZE, len(shared_img))
     shared_md5 = hashlib.md5(shared_img).hexdigest()
     report(shared_md5 == oracle["shared_bootrom_md5"], "shared BootROM md5",
            oracle["shared_bootrom_md5"], shared_md5)
-    chip = chipyard_image(bld, work)
-    # m13-integ-007: the shared hmon handler changed to the minimal
-    # save-and-jump algorithm.  The chipyard checked-in hex is firmware data
-    # owned by the chipyard follow-up (see expected.yaml:pending_followups);
-    # until it is regenerated this identity check is a *pending* item, not a
-    # silent pass: the mismatch is printed explicitly with both digests.
-    if chip == shared_img:
-        report(True, "shared BootROM == chipyard checked-in hex",
-               "byte-identical", "identical")
-    else:
-        print("  [PENDING] shared BootROM == chipyard checked-in hex: "
-              f"builder {shared_md5}, chipyard {hashlib.md5(chip).hexdigest()} "
-              "-- regenerate chipyard's bootrom.tiny.hex (follow-up)")
-    print(f"  [info] shared hmon segment = {shared_meta['hmon_len']} B, "
+    print(f"  [info] shared hmon segment = {shared_meta['hmon_len']} B "
+          f"(code {len(hmon_code)} B), "
           f"power segment = {shared_meta['power_len']} B")
 
     # ---- image layout (spec/Machine-v5 §6.1/§6.2) ---------------------------
-    for tag, img, meta in (("shared", shared_img, shared_meta),
-                           ("test", test_img, test_meta)):
-        report(len(img) == 65536, f"{tag} image size", 65536, len(img))
-        magic = struct.unpack_from(">I", img, bld.TABLE_OFF)[0]
-        version, count = struct.unpack_from(">HH", img, bld.TABLE_OFF + 4)
-        boot_magic = struct.unpack_from(">I", img, bld.TABLE_OFF + 8)[0]
-        report((magic, version, count, boot_magic) ==
-               (bld.MAGIC, bld.VERSION, 1, 0x30001),
-               f"{tag} table header", (hex(bld.MAGIC), 1, 1, hex(0x30001)),
-               (hex(magic), version, count, hex(boot_magic)))
-        typ, flags, off, size, resv = struct.unpack_from(
-            ">IIQQQ", img, bld.TABLE_OFF + bld.TABLE_HDR)
-        report((typ, flags, off, resv) ==
-               (1, bld.DEFAULT_HMON_FLAGS, bld.HMON_SEG_OFF, 0),
-               f"{tag} hmon entry", (1, hex(bld.DEFAULT_HMON_FLAGS),
-                                     hex(bld.HMON_SEG_OFF), 0),
-               (typ, hex(flags), hex(off), resv))
-        report(size == meta["hmon_len"] and size % 8 == 0 and
-               0 < size <= bld.HMON_SEG_MAX, f"{tag} hmon segment size",
-               f"{meta['hmon_len']} B (8-aligned, <= 8 KiB)", f"{size} B")
-        report(not any(img[bld.RESERVED_OFF:bld.TABLE_OFF]),
-               f"{tag} reserved 40 KiB is zero", "all zero",
-               "all zero" if not any(img[bld.RESERVED_OFF:bld.TABLE_OFF])
-               else "non-zero")
+    img, meta, tag = shared_img, shared_meta, "shared"
+    report(len(img) == 65536, f"{tag} image size", 65536, len(img))
+    magic = struct.unpack_from(">I", img, bld.TABLE_OFF)[0]
+    version, count = struct.unpack_from(">HH", img, bld.TABLE_OFF + 4)
+    boot_magic = struct.unpack_from(">I", img, bld.TABLE_OFF + 8)[0]
+    report((magic, version, count, boot_magic) ==
+           (bld.MAGIC, bld.VERSION, 1, 0x30001),
+           f"{tag} table header", (hex(bld.MAGIC), 1, 1, hex(0x30001)),
+           (hex(magic), version, count, hex(boot_magic)))
+    typ, flags, off, size, resv = struct.unpack_from(
+        ">IIQQQ", img, bld.TABLE_OFF + bld.TABLE_HDR)
+    report((typ, flags, off, resv) ==
+           (1, bld.DEFAULT_HMON_FLAGS, bld.HMON_SEG_OFF, 0),
+           f"{tag} hmon entry", (1, hex(bld.DEFAULT_HMON_FLAGS),
+                                 hex(bld.HMON_SEG_OFF), 0),
+           (typ, hex(flags), hex(off), resv))
+    report(size == meta["hmon_len"] and size % 8 == 0 and
+           0 < size <= bld.HMON_SEG_MAX, f"{tag} hmon segment size",
+           f"{meta['hmon_len']} B (8-aligned, <= 8 KiB)", f"{size} B")
+    # m13-integ-007 layout contract: the segment carries only the code
+    # (bld.HMON_CODE_MIN = 44 B, 8-aligned to 48 B) and stops below the
+    # 0xD8 data base, so power never copies over the data slots.
+    report(len(hmon_code) == bld.HMON_CODE_MIN,
+           f"{tag} hmon code length", f"{bld.HMON_CODE_MIN} B",
+           f"{len(hmon_code)} B")
+    report(meta["hmon_len"] % 8 == 0 and
+           meta["hmon_len"] <= bld.HMON_DATA_BASE,
+           f"{tag} hmon segment stops below the data base",
+           f"8-aligned, <= {bld.HMON_DATA_BASE:#x}",
+           f"{meta['hmon_len']} B")
+    report(not any(img[bld.RESERVED_OFF:bld.TABLE_OFF]),
+           f"{tag} reserved 40 KiB is zero", "all zero",
+           "all zero" if not any(img[bld.RESERVED_OFF:bld.TABLE_OFF])
+           else "non-zero")
 
     # ---- application ELF obeys the two-piece load contract ------------------
     entry, loads = elf_entry_and_loads(app_elf)
     report(entry == prof["entry"], "app ELF e_entry", hex(prof["entry"]),
            hex(entry))
-    h_entry, _ = elf_entry_and_loads(test_hmon)
+    h_entry, _ = elf_entry_and_loads(shared_hmon)
     report(h_entry == prof["hmon_base"], "handler ELF entry",
            hex(prof["hmon_base"]), hex(h_entry))
     report(len(loads) == 1, "app ELF PT_LOAD count", 1, len(loads))
@@ -378,7 +345,7 @@ def main() -> int:
 
     # ---- run: power -> hmon hand-off -> application -------------------------
     dump_file = work / "hmon_sram.bin"
-    r = run_gem5(gem5, config, work, "hmon", app_elf, test_meta["path"],
+    r = run_gem5(gem5, config, work, "hmon", app_elf, shared_meta["path"],
                  args.max_ticks,
                  [f"{hex(prof['hmon_base'])}:{prof['hmon_size']}:"
                   f"{dump_file}"])
@@ -394,34 +361,46 @@ def main() -> int:
            next((ln for ln in r.stderr.splitlines()
                  if ln.startswith("GEM5_EXIT_CAUSE=")), "missing"))
 
-    # ---- the power stub installed exactly the firmware's hmon segment -------
+    # ---- the power stub installed exactly the firmware's hmon code ----------
     if dump_file.is_file():
         sram = dump_file.read_bytes()
-        hmon_len = test_meta["hmon_len"]
-        segment = test_img[bld.HMON_SEG_OFF:bld.HMON_SEG_OFF + hmon_len]
-        report(sram[:hmon_len] == segment, "hmon SRAM == firmware segment",
-               f"{hmon_len} B byte-identical",
-               "identical" if sram[:hmon_len] == segment else "differs")
-        if test_meta["require_layout"]:
-            report(not any(sram[hmon_len:]), "hmon SRAM tail is zero",
-                   f"{len(sram) - hmon_len} B zero",
-                   "all zero" if not any(sram[hmon_len:]) else "non-zero")
-        else:
-            # Legacy gem5 fixture (pending migration): power writes the
-            # default return address at 0xF8, which is outside this fixture's
-            # code (248 B) and therefore non-zero in the tail by contract.
-            slot = 0xF8 - hmon_len
-            tail = sram[hmon_len:]
-            rest = bytearray(tail)
-            if 0 <= slot and slot + 8 <= len(rest):
-                rest[slot:slot + 8] = b"\x00" * 8
-            report(not any(rest), "hmon SRAM tail zero (except 0xF8 slot)",
-                   f"{len(tail)} B except 0xF8",
-                   "as expected" if not any(rest) else "unexpected non-zero")
-            print("  [PENDING] legacy gem5 hmon fixture: migrate to the "
-                  "minimal handler (expected.yaml:pending_followups)")
+        hmon_len = shared_meta["hmon_len"]
+        segment = shared_img[bld.HMON_SEG_OFF:bld.HMON_SEG_OFF + hmon_len]
         report(len(sram) == prof["hmon_size"], "hmon SRAM dump size",
                prof["hmon_size"], len(sram))
+        report(sram[:len(hmon_code)] == hmon_code,
+               "hmon SRAM code == firmware code",
+               f"{len(hmon_code)} B byte-identical",
+               "identical" if sram[:len(hmon_code)] == hmon_code else "differs")
+        report(sram[len(hmon_code):hmon_len] == segment[len(hmon_code):],
+               "hmon SRAM alignment padding == firmware padding",
+               f"{hmon_len - len(hmon_code)} B", "identical"
+               if sram[len(hmon_code):hmon_len] == segment[len(hmon_code):]
+               else "differs")
+        # The data slots live above the segment end (power copies only the
+        # table `size` bytes), so they keep their SRAM value and are written
+        # at run time: power writes 0xF8, the handler writes 0xD8--0xF0.
+        report(not any(sram[hmon_len:bld.HMON_DATA_BASE]),
+               "hmon SRAM gap below the data base is untouched",
+               f"{bld.HMON_DATA_BASE - hmon_len} B zero",
+               "all zero" if not any(sram[hmon_len:bld.HMON_DATA_BASE])
+               else "non-zero")
+        slot_offs = (bld.HMON_SLOT_CAUSE_ID, bld.HMON_SLOT_CAUSE_IP,
+                     bld.HMON_SLOT_CAUSE_INFO, bld.HMON_SLOT_RETURN)
+        last = next(r for r in oracle["records"]
+                    if r.get("kind") == "cause" and r.get("ip") == "f_hypv")
+        want_slots = tuple(evaluate(last[k], ns) for k in
+                           ("cause_id", "ip", "info", "return_slot"))
+        got_slots = tuple(int.from_bytes(sram[off:off + 8], "big")
+                          for off in slot_offs)
+        report(got_slots == want_slots, "hmon SRAM data slots (last fault)",
+               tuple(hex(v) for v in want_slots),
+               tuple(hex(v) for v in got_slots))
+        report(not any(sram[bld.HMON_SLOT_RETURN + 8:]),
+               "hmon SRAM tail above the data slots is zero",
+               f"{len(sram) - bld.HMON_SLOT_RETURN - 8} B zero",
+               "all zero" if not any(sram[bld.HMON_SLOT_RETURN + 8:])
+               else "non-zero")
     else:
         report(False, "hmon SRAM dump", "dump file", "missing")
 
@@ -451,14 +430,14 @@ def main() -> int:
         else:
             ip = evaluate(want["ip"], ns)
             info = evaluate(want["info"], ns)
-            hpc = evaluate(want["handler_pc"], ns)
+            ret = evaluate(want["return_slot"], ns)
             cid = evaluate(want["cause_id"], ns)
             report(got[0] == cid, f"record {idx} cause {want['cause']}",
                    hex(cid), hex(got[0]))
             report(got[1] == ip, f"record {idx} cause_ip", hex(ip), hex(got[1]))
             report(got[2] == info, f"record {idx} cause_info", hex(info),
                    hex(got[2]))
-            report(got[3] == hpc, f"record {idx} handler PC", hex(hpc),
+            report(got[3] == ret, f"record {idx} return_slot", hex(ret),
                    hex(got[3]))
 
     # ---- loader negatives: each must fail loudly, never silently -----------
@@ -468,7 +447,7 @@ def main() -> int:
     r = run_gem5(gem5, config, work, "no-bootrom", app_elf, None, args.max_ticks)
     cases.append(("missing --bootrom", r, "requires --bootrom"))
     short = work / "bootrom_short.bin"
-    short.write_bytes(test_img[:65535])
+    short.write_bytes(shared_img[:65535])
     r = run_gem5(gem5, config, work, "bootrom-short", app_elf, short,
                  args.max_ticks)
     cases.append(("BootROM not 64 KiB", r, "exactly 65536 bytes"))
@@ -478,12 +457,12 @@ def main() -> int:
         elf = bad_dir / f"ptload_{name.split()[0].lower()}.elf"
         patch_elf(app_elf, elf, paddr=base)
         r = run_gem5(gem5, config, work, f"ptload-{name.split()[0].lower()}",
-                     elf, test_meta["path"], args.max_ticks)
+                     elf, shared_meta["path"], args.max_ticks)
         cases.append((f"PT_LOAD into {name}", r, needle))
     elf = bad_dir / "entry_not_fixed.elf"
     patch_elf(app_elf, elf, entry=prof["entry"] + 0x40)
     r = run_gem5(gem5, config, work, "entry-not-fixed", elf,
-                 test_meta["path"], args.max_ticks)
+                 shared_meta["path"], args.max_ticks)
     cases.append((f"e_entry != {hex(prof['entry'])}", r,
                   f"fixed at {hex(prof['entry'])}"))
     for name, proc, needle in cases:

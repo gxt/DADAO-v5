@@ -1,36 +1,41 @@
 @@ tiny_hmon.S — Machine-v5-Tiny cfx_power + cfx3 hmon execution case
-@@ (m13-gem5-001; m13-gem5-005 moves it onto the §6.2 two-piece load contract).
+@@ (m13-gem5-001; m13-gem5-005 moves it onto the §6.2 two-piece load contract;
+@@  m13-gem5-010 records the shared minimal handler's SRAM slots.)
 @@
 @@ Load contract (spec/Machine-v5 §6.2): the host loader installs exactly two
-@@ artefacts — the fixed 64 KiB BootROM firmware (shared power stub + the
-@@ dispatch hmon of tiny_hmon_handler.S, built by build_tiny_bootrom.py) and
-@@ this application ELF, whose only PT_LOAD is in SRAM and whose e_entry is the
-@@ fixed ENTRY 0xffff_ff01_0100.  The host never installs BootROM or hmon.
+@@ artefacts — the fixed 64 KiB BootROM firmware (shared power stub + the shared
+@@ minimal hmon of tests/shared/bootrom/tiny/hmon.S, built by
+@@ build_tiny_bootrom.py) and this application ELF, whose only PT_LOAD is in
+@@ SRAM and whose e_entry is the fixed ENTRY 0xffff_ff01_0100.  The host never
+@@ installs BootROM or hmon.
 @@
 @@ Structure:
 @@
 @@   BootROM (0xffff_ffff_0000, power/cfx63) — shared firmware power stub:
-@@     * validates the image index table, copies the hmon segment into the
-@@       hmon SRAM, writes the vector (idempotent), `trap cfx_hmon, 0x30001`
+@@     * validates the image index table, copies the hmon code into the hmon
+@@       SRAM, writes the default return address (slot 0xF8), `trap cfx_hmon,
+@@       0x30001`
 @@     * jumps to the fixed application entry after the hmon escape
 @@
-@@   hmon SRAM (0x0fff_0000_0000, cfx3) — tiny_hmon_handler.S:
-@@     * validates the hand-over trap (cause CFXTRAP + boot magic), escapes
-@@       back to the power stub without touching the result table
-@@     * synchronous-fault handler: records excp_cause_id / excp_cause_ip /
-@@       excp_cause_info / handler PC into a 32-byte result record, then
-@@       `escape cfx_hmon, [excp_cause_ip, 4]` (or rewrites excp_cause_ip for
-@@       IALIGN and escapes with 0)
+@@   hmon SRAM (0x0fff_0000_0000, cfx3) — shared minimal handler (m13-integ-007):
+@@     * saves excp_cause_id / excp_cause_ip / excp_cause_info to the data slots
+@@       0xE0 / 0xE8 / 0xF0, restores rd63, and escapes to the framework return
+@@       address read from slot 0xF8; no magic check, no IALIGN rewrite, no
+@@       `+4` policy, no park loop (data slots 0xD8–0xFF are outside the
+@@       image segment)
 @@
 @@   Application (SRAM 0xffff_ff01_0100, running with cfx3 current):
-@@     * records the hand-over frame (record 0) from the still-live cfx_hmon
-@@       cg5 cause registers and the handler mailbox
+@@     * records the hand-over (record 0) from the hmon data slots
+@@       0xE0/0xE8/0xF0/0xF8
 @@     * cfx2rd/cfx2rc register checks (power/hmon id, vector, switch mode,
 @@       prev mode, counters, scratch, intr mask, cg7 space descriptors)
 @@     * five synchronous fault classes x 3 cases (CFXMEM/ILLI/UNDI/MALIGN/
-@@       IALIGN), plus CFXTRAP/CFXESC/CFXPERM/CFXREG
+@@       IALIGN), plus CFXTRAP/CFXESC/CFXPERM/CFXREG: before each fault the
+@@       application writes its landing address to slot 0xF8; at the landing it
+@@       records the four hmon data slots, so every cause record is the
+@@       handler's own saved state (no test-only dispatch path)
 @@     * Tiny hypv invariance: write switch_run_mode = user, take CFXMEM,
-@@       handler reads a cg3 (hypv-only) register, prev_run_mode stays 3
+@@       read a cg3 (hypv-only) register, prev_run_mode stays 3
 @@     * exports the result table through SYS_OPEN + SYS_WRITE and stops with
 @@       SYS_EXIT (0x21 pass, 0x71 fail)
 @@
@@ -40,6 +45,16 @@
 	.include "machine.inc"
 	.include "machine-tiny.inc"
 	.include "tiny_hmon_layout.inc"
+
+	.macro	LOAD_ABS reg, sym
+	@@ Absolute symbol address (link-time R_DADAO_ABS48): the linker fills the
+	@@ four 16-bit fields from the symbol value (LOAD_ADDR only masks numeric
+	@@ constants and cannot take a section-relative label).
+	set.zw	\reg, wp0, \sym
+	or.w	\reg, wp1, \sym
+	or.w	\reg, wp2, \sym
+	or.w	\reg, wp3, \sym
+	.endm
 
 	.equ	IALIGN_TARGET0, ENTRY + 0x1C01
 	.equ	IALIGN_TARGET1, ENTRY + 0x1C02
@@ -65,23 +80,13 @@ _start:
 	st.o	rd22, [rb3, 0]
 	LOAD_ADDR rb4, FAILCNT
 	st.o	rd0, [rb4, 0]
+	LOAD_ABS rb21, record_cause		@@ append a cause record from the slots
+	LOAD_ADDR rb22, HMON_BASE		@@ hmon data slot base
 
-	@@ Record 0: the power -> hmon hand-over frame.  The cfx_hmon cg5 cause
-	@@ registers still hold the hand-over values (the application has not
-	@@ faulted yet) and the handler mailbox holds the vector entry PC.
-	cfx2rd	cfx_hmon, cg5, rc2, rd10	@@ excp_cause_id (CFXTRAP)
-	cfx2rd	cfx_hmon, cg5, rc3, rd11	@@ excp_cause_ip (power's trap)
-	cfx2rd	cfx_hmon, cg5, rc4, rd12	@@ excp_cause_info (trap encoding)
-	LOAD_ADDR rb4, MAILBOX
-	ld.o	rd13, [rb4, 0]			@@ handler PC (hmon SRAM base)
-	LOAD_ADDR rb5, SLOT_PTR
-	ld.o	rb6, [rb5, 0]
-	st.o	rd10, [rb6, 0]
-	st.o	rd11, [rb6, 8]
-	st.o	rd12, [rb6, 16]
-	st.o	rd13, [rb6, 24]
-	add.si	rb6, 32
-	st.o	rb6, [rb5, 0]
+	@@ Record 0: the power -> hmon hand-over.  The shared minimal handler
+	@@ saved the CFXTRAP cause registers to 0xE0/0xE8/0xF0 and escaped to the
+	@@ power stub via the return address power put in slot 0xF8 (trap + 4).
+	call	[rb21, rd0, 0]
 
 	.globl	main
 main:
@@ -181,114 +186,202 @@ main:
 	call	[rb20, rd0, 0]
 
 	@@ ---- CFXMEM x 3 (17..19) --------------------------------------------
+	@@ Before each fault: slot 0xF8 <- the landing address the framework wants
+	@@ the handler to escape to.  At the landing, record_cause reads the hmon
+	@@ data slots (0xE0/0xE8/0xF0/0xF8) into one 32-byte record.
+	LOAD_ABS rb5, land_mem0
+	st.o	rb5, [rb22, 0xF8]
 	LOAD_ADDR rb3, 0x1000000000
 	.globl	f_mem0
 f_mem0:
 	ld.o	rd10, [rb3, 0]
+	.globl	land_mem0
+land_mem0:
+	call	[rb21, rd0, 0]
 
+	LOAD_ABS rb5, land_mem1
+	st.o	rb5, [rb22, 0xF8]
 	LOAD_ADDR rb3, 0xFFFFFF800000
 	.globl	f_mem1
 f_mem1:
 	ld.o	rd10, [rb3, 0]
+	.globl	land_mem1
+land_mem1:
+	call	[rb21, rd0, 0]
 
+	LOAD_ABS rb5, land_mem2
+	st.o	rb5, [rb22, 0xF8]
 	LOAD_ADDR rb3, HMON_BASE + 0x10000
 	.globl	f_mem2
 f_mem2:
 	ld.o	rd10, [rb3, 0]
+	.globl	land_mem2
+land_mem2:
+	call	[rb21, rd0, 0]
 
 	@@ ---- ILLI x 3 (20..22) ----------------------------------------------
+	LOAD_ABS rb5, land_illi0
+	st.o	rb5, [rb22, 0xF8]
 	.globl	f_illi0
 f_illi0:
 	trap	cfx7, 0
+	.globl	land_illi0
+land_illi0:
+	call	[rb21, rd0, 0]
 
+	LOAD_ABS rb5, land_illi1
+	st.o	rb5, [rb22, 0xF8]
 	.globl	f_illi1
 f_illi1:
 	cfx2rd	cfx7, cg0, rc0, rd10
+	.globl	land_illi1
+land_illi1:
+	call	[rb21, rd0, 0]
 
+	LOAD_ABS rb5, land_illi2
+	st.o	rb5, [rb22, 0xF8]
 	.globl	f_illi2
 f_illi2:
 	escape	cfx7, [excp_cause_ip, 4]
+	.globl	land_illi2
+land_illi2:
+	call	[rb21, rd0, 0]
 
 	@@ ---- UNDI x 3 (23..25) ----------------------------------------------
+	LOAD_ABS rb5, land_undi0
+	st.o	rb5, [rb22, 0xF8]
 	.globl	f_undi0
 f_undi0:
 	.dd.t32	0x08040001
+	.globl	land_undi0
+land_undi0:
+	call	[rb21, rd0, 0]
 
+	LOAD_ABS rb5, land_undi1
+	st.o	rb5, [rb22, 0xF8]
 	.globl	f_undi1
 f_undi1:
 	.dd.t32	0x1B040001
+	.globl	land_undi1
+land_undi1:
+	call	[rb21, rd0, 0]
 
+	LOAD_ABS rb5, land_undi2
+	st.o	rb5, [rb22, 0xF8]
 	.globl	f_undi2
 f_undi2:
 	.dd.t32	0x58040001
+	.globl	land_undi2
+land_undi2:
+	call	[rb21, rd0, 0]
 
 	@@ ---- MALIGN x 3 (26..28) --------------------------------------------
+	LOAD_ABS rb5, land_malign0
+	st.o	rb5, [rb22, 0xF8]
 	LOAD_ADDR rb3, RAM_BASE + 1
 	.globl	f_malign0
 f_malign0:
 	ld.o	rd10, [rb3, 0]
+	.globl	land_malign0
+land_malign0:
+	call	[rb21, rd0, 0]
 
+	LOAD_ABS rb5, land_malign1
+	st.o	rb5, [rb22, 0xF8]
 	LOAD_ADDR rb3, RAM_BASE + 4
 	.globl	f_malign1
 f_malign1:
 	st.o	rd10, [rb3, 0]
+	.globl	land_malign1
+land_malign1:
+	call	[rb21, rd0, 0]
 
+	LOAD_ABS rb5, land_malign2
+	st.o	rb5, [rb22, 0xF8]
 	LOAD_ADDR rb3, RAM_BASE + 2
 	.globl	f_malign2
 f_malign2:
 	ld.ut	rd10, [rb3, 0]
+	.globl	land_malign2
+land_malign2:
+	call	[rb21, rd0, 0]
 
 	@@ ---- IALIGN x 3 (29..31) --------------------------------------------
-	LOAD_ADDR rb3, RECOVERY
-ialign_pre0:
-	rb2rd	rd2, rb0, 1			@@ rd2 = address of ialign_pre0
-	add.si	rd2, 32				@@ -> ialign_rec0
-	st.o	rd2, [rb3, 0]
+	@@ The recorded IP is the illegal target itself (no next-IP write-back):
+	@@ the fail-and-resume path goes through the framework return slot only.
+	LOAD_ABS rb5, land_ialign0
+	st.o	rb5, [rb22, 0xF8]
 	LOAD_ADDR rb2, IALIGN_TARGET0
+	.globl	f_ialign0
+f_ialign0:
 	jump	[rb2, rd0, 0]
-ialign_rec0:
+	.globl	land_ialign0
+land_ialign0:
+	call	[rb21, rd0, 0]
 
-	LOAD_ADDR rb3, RECOVERY
-ialign_pre1:
-	rb2rd	rd2, rb0, 1
-	add.si	rd2, 32				@@ -> ialign_rec1
-	st.o	rd2, [rb3, 0]
+	LOAD_ABS rb5, land_ialign1
+	st.o	rb5, [rb22, 0xF8]
 	LOAD_ADDR rb2, IALIGN_TARGET1
+	.globl	f_ialign1
+f_ialign1:
 	jump	[rb2, rd0, 0]
-ialign_rec1:
+	.globl	land_ialign1
+land_ialign1:
+	call	[rb21, rd0, 0]
 
-	LOAD_ADDR rb3, RECOVERY
-ialign_pre2:
-	rb2rd	rd2, rb0, 1
-	add.si	rd2, 32				@@ -> ialign_rec2
-	st.o	rd2, [rb3, 0]
+	LOAD_ABS rb5, land_ialign2
+	st.o	rb5, [rb22, 0xF8]
 	LOAD_ADDR rb2, IALIGN_TARGET2
+	.globl	f_ialign2
+f_ialign2:
 	jump	[rb2, rd0, 0]
-ialign_rec2:
+	.globl	land_ialign2
+land_ialign2:
+	call	[rb21, rd0, 0]
 
 	@@ ---- general trap into hmon (32) ------------------------------------
+	LOAD_ABS rb5, land_trap
+	st.o	rb5, [rb22, 0xF8]
 	.globl	f_trap
 f_trap:
 	trap	cfx_hmon, 0x0123
+	.globl	land_trap
+land_trap:
+	call	[rb21, rd0, 0]
 
 	@@ ---- escape target error => CFXESC (33) ------------------------------
+	LOAD_ABS rb5, land_esc
+	st.o	rb5, [rb22, 0xF8]
 	.globl	f_esc
 f_esc:
 	escape	cfx_power, [excp_cause_ip, 4]
+	.globl	land_esc
+land_esc:
+	call	[rb21, rd0, 0]
 
 	@@ ---- cfxtrap mask denial => CFXPERM (34) ----------------------------
 	cfx2rd	cfx_power, cg3, rc0, rd20
 	set.zw	rd10, wp0, 8
 	cfx2rc	cfx_power, cg3, rc0, rd10
+	LOAD_ABS rb5, land_perm
+	st.o	rb5, [rb22, 0xF8]
 	.globl	f_perm
 f_perm:
 	trap	cfx_power, 0
+	.globl	land_perm
+land_perm:
+	call	[rb21, rd0, 0]
 	cfx2rc	cfx_power, cg3, rc0, rd20
 
 	@@ ---- unimplemented cfx register => CFXREG (35) ----------------------
+	LOAD_ABS rb5, land_reg
+	st.o	rb5, [rb22, 0xF8]
 	.globl	f_reg
 f_reg:
 	cfx2rd	cfx5, cg0, rc0, rd10
+	.globl	land_reg
+land_reg:
+	call	[rb21, rd0, 0]
 
 	@@ ---- Tiny stays in hypv under a guest-written switch mode (36..40) --
 	@@ Machine-v5 §2: Tiny has no mode-switch path; a guest write of
@@ -309,14 +402,18 @@ f_reg:
 	set.zw	rd12, wp0, 42
 	call	[rb20, rd0, 0]
 
-	LOAD_ADDR rb4, PROBE
-	set.zw	rd14, wp0, 1			@@ handler probes cg3 once
-	st.o	rd14, [rb4, 0]
-
+	@@ No handler probe: the shared minimal handler has no test hook.  The
+	@@ mode invariance is observed after the fault (checks 38-40); the old
+	@@ in-handler cg3 read belonged to the dispatch fixture and is gone.
+	LOAD_ABS rb5, land_hypv
+	st.o	rb5, [rb22, 0xF8]
 	LOAD_ADDR rb3, HMON_BASE + 0x10000	@@ unmapped => CFXMEM
 	.globl	f_hypv
 f_hypv:
 	ld.o	rd10, [rb3, 0]
+	.globl	land_hypv
+land_hypv:
+	call	[rb21, rd0, 0]
 
 	cfx2rd	cfx_hmon, cg5, rc0, rd10	@@ excp_prev_run_mode
 	set.zw	rd11, wp0, 3
@@ -405,8 +502,30 @@ rc_ok:
 	ret	rd0, 0
 
 @@ ---------------------------------------------------------------------------
+@@ record_cause: append one cause record {cause_id, cause_ip, cause_info,
+@@ return_slot} read from the hmon SRAM data slots.  The shared minimal handler
+@@ saved 0xE0/0xE8/0xF0 before it overwrote excp_cause_ip, and 0xF8 holds the
+@@ framework return address; the application only observes, it never decides.
+@@ rb22 = HMON_BASE is set once in _start.
+@@ ---------------------------------------------------------------------------
+record_cause:
+	LOAD_ADDR rb4, SLOT_PTR
+	ld.o	rb5, [rb4, 0]
+	ld.o	rd10, [rb22, 0xE0]		@@ excp_cause_id
+	ld.o	rd11, [rb22, 0xE8]		@@ excp_cause_ip (fault IP)
+	ld.o	rd12, [rb22, 0xF0]		@@ excp_cause_info
+	ld.o	rd13, [rb22, 0xF8]		@@ framework return address
+	st.o	rd10, [rb5, 0]
+	st.o	rd11, [rb5, 8]
+	st.o	rd12, [rb5, 16]
+	st.o	rd13, [rb5, 24]
+	add.si	rb5, 32
+	st.o	rb5, [rb4, 0]
+	ret	rd0, 0
+
+@@ ---------------------------------------------------------------------------
 @@ Fixed data area (DATA_BASE = ENTRY + 0x3100, see tiny_hmon.lds).
-@@ +0x00 slot_ptr / +0x08 recovery / +0x10 failcnt / +0x18 handle
+@@ +0x00 slot_ptr / +0x10 failcnt
 @@ +0x40 SYS_OPEN|SYS_WRITE|SYS_EXIT parameter block
 @@ +0x80 file name / +0xC0 console message
 @@ ---------------------------------------------------------------------------

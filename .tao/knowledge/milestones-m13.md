@@ -54,13 +54,13 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m13-qemu-008 | 2026-11-13 09:39 | 2 h | 融合乘加溢出按 IEEE 舍入模式（QEMU） |
-| m13-gem5-010 | 2026-11-13 08:50 | 2–3 h | gem5 的 hmon 测试 fixture 迁到最小 handler（清 `[PENDING]`） |
 | m13-testcases-013 | 2026-11-12 23:58 | 3–4 天 | `01-load-store` 多元素（`ldm`/`stm` 19 个 id）改汇编+宏 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m13-gem5-010 | 2026-11-13 09:41 | gem5 的 hmon fixture 迁到最小 handler（删第二份 handler；`records` 改槽派生；`[PENDING]` 清零） |
 | m13-spec-006 | 2026-11-13 09:38 | FMA 溢出按 IEEE 舍入模式（`SimRISC-07 §2.5` 四档×正负 + 轻微溢出只置 NX） |
 | m13-gem5-008 | 2026-11-13 08:32 | `ldm` 地址寄存器重叠 ⇒ ILLI（gem5；解码表 8 条、`check_b1` 2156 PASS） |
 | m13-qemu-006 | 2026-11-13 08:25 | `ldm` 地址寄存器重叠 ⇒ ILLI（QEMU；translate 期静态、TCG dump 证零副作用） |
