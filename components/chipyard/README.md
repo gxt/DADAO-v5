@@ -130,6 +130,14 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **向量**：单元台 `f2f fo2ft ovf` 40 例 = 8 形状（最大 double / 中点上方 1 ulp / 中点 tie / 恰为 `ft_max`，各双符号）× 5 档，期望值是从条款**逐格抄写**的常量表（不取自 oracle），与 RTL、hardfloat 三方对照；核上 `fp_sweep.py` 的 `cvt_ff_ovf` 38 例（severe 10 + mild 10 + 中点 10 + 动态 `0x20` 四码双向 8）逐例比 `rd` 与 `rf0`。
 - **验证**：`make_patch chipyard` 从源树重导补丁（`m12-chipyard-026`，此前只合入了任务书 ⇒ 仓库补丁仍是旧行为，`ISS-405`）；`make check-patch-tree` / `check-source-state` / `apply-series` 幂等、L2 全绿。
 
+## 融合乘加溢出按舍入方向（`m12-chipyard-029`）
+
+- **条款**（`spec/SimRISC-07 §2.5` = IEEE 754-2019 §7.4，`m13-spec-006` 定稿）：溢出 = 以**无限指数范围**按 `rf0[33:32]` 所选方向舍入后的**精确和**幅值大于该格式最大有限值（`ft_max = (2 − 2^−23) × 2^127`、`fo_max = (2 − 2^−52) × 2^1023`）。形态由「精确和的符号 × 方向」共同决定 —— RNE、正向 RUP、负向 RDN ⇒ `±Inf`；RTZ 双向、正向 RDN、负向 RUP ⇒ `±max`；两种情况都置 `OF|NX`。轻微溢出（方向把幅值舍回 `max`）**不是溢出**，给 `±max` 且**只置 `NX`**；RNE 分界为 `max + ulp/2`（ft `2^103`、fo `2^970`）。融加族无 RNA 档。
+- **RTL**（`WumingMulAddRecFN` → 舍入原语 `WumingRoundAnyRawFNToRecFN`）：精确积与加数在同一 `2*sigWidth+guard` 位窗口内求和后**一次**舍入，溢出由原语的 `common_overflow = sRoundedExp >> (outExpWidth − 1) >= 3`（进位后）与 `pegMaxFiniteMagOut = overflow && !overflow_roundMagUp` 决定 —— **RTL 不另设 Inf 覆写**（`fo2ft` 那套 `forceInfOnOverflow` 从未出现在本族），因此本任务**无需改行为**；实测 96 格（两格式 × 12 形状 × 双符号 × 四档）与条款逐格一致。模块注释已写明该条款并禁止再加 Inf 覆写（防回退）。
+- **模型**（`tools/chipyard/fp_ref.py`）：`fma_exact` 走 `round_dyadic`/`_round_mag` 的同一套方向规则（无「恒 ±Inf」分支），`fma_exact` 文档注明轻微溢出只置 `NX`。
+- **向量**：单元台新增 `fma ovf` 96 例 = 12 形状（最大乘 2 的严重溢出、`max` 上方 1/4 ulp 的轻微溢出、RNE 中点上下、恰为 `max`、精确 `2^128`/`2^1024`；各双符号）× 四档，期望值从条款**逐格抄写**成常量表（不取自 oracle），与 RTL、hardfloat、`fp_ref` 四方对照；核上 `fp_sweep.py` 的 `arith_fma_ft`/`arith_fma_fo` 各增 12 个溢出三元组（同形状、四档 × 双符号），逐例比 `rd` 与 `rf0`（各 92 例）。
+- **验证**：单元台 `fma ovf` table/hf-value/hf-flag/oracle 四差 0；核上 `arith_fma_ft`/`arith_fma_fo` 逐字节一致；注入「溢出恒 ±Inf」与「轻微溢出也置 `OF`」两路 ⇒ 对应格红、模型注入 ⇒ oracle 红。
+
 ## 结果 NaN 统一 canonical 与 `rootn(±0,2)=+0`（`m12-chipyard-030`）
 
 - **条款**（`spec/SimRISC-07 §1.4` / §2.2，用户 2026-11-13 裁定 R1/R2）：凡结果应为 quiet NaN 的情形一律 **canonical quiet NaN** —— 符号位 0、payload 全零（ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）；`rootn(±0, 2)` 收严为 IEEE **`+0`**（§9.2.1 的 NOTE 明确它与 `squareRoot(−0) = −0` 不同）。IEEE §6.2.3 的 payload 传播只是 *should*、§6.3 不规定结果符号 ⇒ canonical 是允许的实现选择，不是偏离。

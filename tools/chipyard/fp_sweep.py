@@ -883,6 +883,44 @@ ARITH_TRIPLES = [
     ("third_plus", 0x3EAAAAAB, 0x40400000, 0xBF800000),
 ]
 
+# m12-chipyard-029: the overflow cells of spec/SimRISC-07 §2.5 (= IEEE
+# 754-2019 §7.4), one triple per shape and sign so that the four `rf0[33:32]`
+# directions separate inside the same image.  `a = max`, `b = 1.0`, `c` = the
+# amount carried above `max` (`atmax` has c = 0); `sev` doubles `max` (every
+# direction overflows), `pow2` is the exactly representable 2^128 / 2^1024,
+# `mild` is a quarter ulp above `max`, `tielo`/`tie` straddle the RNE midpoint
+# `max + ulp/2`.  A direction that rounds back onto `max` is *not* an
+# overflow: `NX` only, no `OF` -- the expected flags come from `fp_ref`, whose
+# exact oracle is the clause's implementation, and the RTL is measured against
+# the transcribed table in the unit bench (`fma ovf`).
+FMA_OVF_TRIPLES = [
+    # name, ft (a, b, c), fo (a, b, c)
+    ("ovf_sev_pos", (0x7F7FFFFF, 0x40000000, 0x0),
+     (0x7FEFFFFFFFFFFFFF, 0x4000000000000000, 0x0)),
+    ("ovf_sev_neg", (0xFF7FFFFF, 0x40000000, 0x0),
+     (0xFFEFFFFFFFFFFFFF, 0x4000000000000000, 0x0)),
+    ("ovf_mild_pos", (0x7F7FFFFF, 0x3F800000, 0x72800000),
+     (0x7FEFFFFFFFFFFFFF, 0x3FF0000000000000, 0x7C80000000000000)),
+    ("ovf_mild_neg", (0xFF7FFFFF, 0x3F800000, 0xF2800000),
+     (0xFFEFFFFFFFFFFFFF, 0x3FF0000000000000, 0xFC80000000000000)),
+    ("ovf_tie_pos", (0x7F7FFFFF, 0x3F800000, 0x73000000),
+     (0x7FEFFFFFFFFFFFFF, 0x3FF0000000000000, 0x7C90000000000000)),
+    ("ovf_tie_neg", (0xFF7FFFFF, 0x3F800000, 0xF3000000),
+     (0xFFEFFFFFFFFFFFFF, 0x3FF0000000000000, 0xFC90000000000000)),
+    ("ovf_tielo_pos", (0x7F7FFFFF, 0x3F800000, 0x72FF0000),
+     (0x7FEFFFFFFFFFFFFF, 0x3FF0000000000000, 0x7C8FFFFE00000000)),
+    ("ovf_tielo_neg", (0xFF7FFFFF, 0x3F800000, 0xF2FF0000),
+     (0xFFEFFFFFFFFFFFFF, 0x3FF0000000000000, 0xFC8FFFFE00000000)),
+    ("ovf_atmax_pos", (0x7F7FFFFF, 0x3F800000, 0x0),
+     (0x7FEFFFFFFFFFFFFF, 0x3FF0000000000000, 0x0)),
+    ("ovf_atmax_neg", (0xFF7FFFFF, 0x3F800000, 0x0),
+     (0xFFEFFFFFFFFFFFFF, 0x3FF0000000000000, 0x0)),
+    ("ovf_pow2_pos", (0x5F800000, 0x5F800000, 0x0),
+     (0x5FF0000000000000, 0x5FF0000000000000, 0x0)),
+    ("ovf_pow2_neg", (0xDF800000, 0x5F800000, 0x0),
+     (0xDFF0000000000000, 0x5FF0000000000000, 0x0)),
+]
+
 
 def cases_arith_add_ft():
     return _cases_arith_add(False)
@@ -990,7 +1028,9 @@ def _cases_arith_mul(want_fo):
 def _cases_arith_fma(want_fo):
     """`ftfma`/`fofma`: the single-rounding counterexample of
     spec/SimRISC-07 §2.5, exact cancellation of the fused sum, overflow and
-    underflow of the product, and the addend-only / product-only shapes."""
+    underflow of the product, and the addend-only / product-only shapes.  The
+    `FMA_OVF_TRIPLES` block walks the overflow table of the same clause (all
+    four `rf0[33:32]` directions, both signs, severe / mild / tie / exact)."""
     out = []
     for mn, fo in (("ftfma", False), ("fofma", True)):
         if fo != want_fo:
@@ -1002,6 +1042,16 @@ def _cases_arith_fma(want_fo):
                     a, b, c = _fo_triple(name, a, b, c)
                 else:
                     a, b, c = a & 0xFFFFFFFF, b & 0xFFFFFFFF, c & 0xFFFFFFFF
+                value, flags = F.fma_exact(ew, sw, a, b, c, mode)
+                out.append(_cvt_case(
+                    f"{mn}_{label}_{name}",
+                    arith_mode_setup(mode) + load_rf(1, a) + load_rf(2, b) +
+                    load_rf(3, c),
+                    [enc_fma(mn, 4, 1, 2, 3)],
+                    [("rf", 4), ("rf", 0)],
+                    [value, arith_fcsr(mode, flags)]))
+            for name, ft_triple, fo_triple in FMA_OVF_TRIPLES:
+                a, b, c = fo_triple if fo else ft_triple
                 value, flags = F.fma_exact(ew, sw, a, b, c, mode)
                 out.append(_cvt_case(
                     f"{mn}_{label}_{name}",

@@ -4,6 +4,10 @@
 
 ## M12
 
+- **2026-11-13 `m12-chipyard-029`**
+  - 摘要：**融合乘加溢出按 IEEE 舍入方向 + 严重/轻微之分**（`spec/SimRISC-07 §2.5` = IEEE 754-2019 §7.4，`m13-spec-006` 定稿）。结论先行：`WumingMulAddRecFN` 的溢出**本就**由共享舍入原语按 `rf0[33:32]` 决定（本族从未有 `forceInfOnOverflow` 覆写），实测 96 格（ft/fo × 12 形状 × 双符号 × 四档）与条款逐格一致 ⇒ **RTL 行为无需改动**；只补 `WumingMulAddRecFN` 的条款注释（写明 RNE/正向 RUP/负向 RDN ⇒ `±Inf`、其余三格 ⇒ `±max`、轻微溢出只置 `NX`，并注明禁止再加 Inf 覆写）。模型 `fp_ref.fma_exact` 同一套规则（`round_dyadic`），文档注明轻微溢出口径。工具：单元台新增 `fma ovf` 96 例（12 形状：`max×2` 严重溢出 / `max` 上方 1/4 ulp 轻微溢出 / RNE 中点上下 / 恰为 `max` / 精确 `2^128`·`2^1024`，各双符号 × 四档；期望值按条款逐格抄写成常量表，与 RTL、hardfloat、oracle 四方对照）；`fp_sweep` 的 `arith_fma_ft`/`arith_fma_fo` 各增 12 个溢出三元组（同形状，四档 × 双符号），核上 `rd` 与 `rf0` 逐字节。
+  - 执行者：engineer
+
 - **2026-11-13 `m12-chipyard-030`**
   - 摘要：**结果 NaN 统一 canonical quiet NaN + `rootn(±0,2)=+0`**（`spec/SimRISC-07 §1.4`/§2.2，用户 2026-11-13 裁定 R1/R2）。`WumingFP.scala`：舍入原语 `WumingRoundAnyRawFNToRecFN` 不再复制输入 payload（`nanFract` → 只置 quiet 位，删 `payload`）；`WumingAddRecFN`/`WumingMulRecFN`/`WumingRemRecFN`/`WumingDivSqrtRecFN` 删除 `nanSrc`/`nanSig`/`nanSigZ` 的 payload 注入，NaN 结果只由原语按 `isNaN`/`invalidExc` 生成（符号恒 0、payload 全零）；`WumingDivSqrtRecFN` 的 root 零结果 `sign = rawA.sign && !rawA.isZero` ⇒ `rootn(±0,2)=+0`、不置标志。不适用面保持：`ft2ft`/`fo2fo` 复制、signaling compare 的 sNaN 位型、min/max 单 NaN 返回数。模型 `fp_ref`：`round_bits`/`round_exact` 的 NaN 分支取 canonical、`add/mul/div/rem/sqrt_exact` 的 qNaN 分支取 canonical、`sqrt_exact` 零分支返回 `+0`、`selfcheck` 增 NaN 位级 canonical 断言。工具：`fp_unit/unit_run` 增 `spec points` 20 例（期望值逐条抄条款），`sqrt` 组对 hardfloat 只容忍零符号差（`squareRoot(-0)=-0`）；`fp_sweep` 增 `cvt_nan` 18 例、扩 `arith_nan`（ft + 负号 qNaN）与 `divrem_nan`（root ±0 四档）；`QEMU_GROUPS` 注明 qNaN 结果与 softfloat 的 payload/符号差异（QEMU 侧归 `m13-integ-010`，汇总归 `m13-testcases-032`）。
   - 执行者：engineer

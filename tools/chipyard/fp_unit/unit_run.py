@@ -69,6 +69,104 @@ def run_vectors(binary, path, ticks_out=None):
 _shown = {}
 
 
+FT_MAX = 0x7F7FFFFF
+FT_MAX_NEG = 0xFF7FFFFF
+FT_INF = 0x7F800000
+FT_INF_NEG = 0xFF800000
+FO_MAX = 0x7FEFFFFFFFFFFFFF
+FO_MAX_NEG = 0xFFEFFFFFFFFFFFFF
+FO_INF = 0x7FF0000000000000
+FO_INF_NEG = 0xFFF0000000000000
+OFNX = F.OF | F.NX
+OVF_MODES = (F.RNE, F.RTZ, F.RDN, F.RUP)
+FMA_OVF_ROWS = (
+    # format, shape, a, b, c, expected (value, rf0[4:0]) per OVF_MODES
+    ("ft", "pos_sev", 0x7F7FFFFF, 0x40000000, 0,
+     ((FT_INF, OFNX), (FT_MAX, OFNX), (FT_MAX, OFNX), (FT_INF, OFNX))),
+    ("ft", "neg_sev", 0xFF7FFFFF, 0x40000000, 0,
+     ((FT_INF_NEG, OFNX), (FT_MAX_NEG, OFNX), (FT_INF_NEG, OFNX),
+      (FT_MAX_NEG, OFNX))),
+    ("ft", "pos_mild", 0x7F7FFFFF, 0x3F800000, 0x72800000,
+     ((FT_MAX, F.NX), (FT_MAX, F.NX), (FT_MAX, F.NX), (FT_INF, OFNX))),
+    ("ft", "neg_mild", 0xFF7FFFFF, 0x3F800000, 0xF2800000,
+     ((FT_MAX_NEG, F.NX), (FT_MAX_NEG, F.NX), (FT_INF_NEG, OFNX),
+      (FT_MAX_NEG, F.NX))),
+    ("ft", "pos_tie", 0x7F7FFFFF, 0x3F800000, 0x73000000,
+     ((FT_INF, OFNX), (FT_MAX, F.NX), (FT_MAX, F.NX), (FT_INF, OFNX))),
+    ("ft", "neg_tie", 0xFF7FFFFF, 0x3F800000, 0xF3000000,
+     ((FT_INF_NEG, OFNX), (FT_MAX_NEG, F.NX), (FT_INF_NEG, OFNX),
+      (FT_MAX_NEG, F.NX))),
+    ("ft", "pos_tielo", 0x7F7FFFFF, 0x3F800000, 0x72FF0000,
+     ((FT_MAX, F.NX), (FT_MAX, F.NX), (FT_MAX, F.NX), (FT_INF, OFNX))),
+    ("ft", "neg_tielo", 0xFF7FFFFF, 0x3F800000, 0xF2FF0000,
+     ((FT_MAX_NEG, F.NX), (FT_MAX_NEG, F.NX), (FT_INF_NEG, OFNX),
+      (FT_MAX_NEG, F.NX))),
+    ("ft", "pos_atmax", 0x7F7FFFFF, 0x3F800000, 0,
+     ((FT_MAX, 0), (FT_MAX, 0), (FT_MAX, 0), (FT_MAX, 0))),
+    ("ft", "neg_atmax", 0xFF7FFFFF, 0x3F800000, 0,
+     ((FT_MAX_NEG, 0), (FT_MAX_NEG, 0), (FT_MAX_NEG, 0),
+      (FT_MAX_NEG, 0))),
+    ("ft", "pos_pow2", 0x5F800000, 0x5F800000, 0,
+     ((FT_INF, OFNX), (FT_MAX, OFNX), (FT_MAX, OFNX), (FT_INF, OFNX))),
+    ("ft", "neg_pow2", 0xDF800000, 0x5F800000, 0,
+     ((FT_INF_NEG, OFNX), (FT_MAX_NEG, OFNX), (FT_INF_NEG, OFNX),
+      (FT_MAX_NEG, OFNX))),
+    ("fo", "pos_sev", 0x7FEFFFFFFFFFFFFF, 0x4000000000000000, 0,
+     ((FO_INF, OFNX), (FO_MAX, OFNX), (FO_MAX, OFNX), (FO_INF, OFNX))),
+    ("fo", "neg_sev", 0xFFEFFFFFFFFFFFFF, 0x4000000000000000, 0,
+     ((FO_INF_NEG, OFNX), (FO_MAX_NEG, OFNX), (FO_INF_NEG, OFNX),
+      (FO_MAX_NEG, OFNX))),
+    ("fo", "pos_mild", 0x7FEFFFFFFFFFFFFF, 0x3FF0000000000000,
+     0x7C80000000000000,
+     ((FO_MAX, F.NX), (FO_MAX, F.NX), (FO_MAX, F.NX), (FO_INF, OFNX))),
+    ("fo", "neg_mild", 0xFFEFFFFFFFFFFFFF, 0x3FF0000000000000,
+     0xFC80000000000000,
+     ((FO_MAX_NEG, F.NX), (FO_MAX_NEG, F.NX), (FO_INF_NEG, OFNX),
+      (FO_MAX_NEG, F.NX))),
+    ("fo", "pos_tie", 0x7FEFFFFFFFFFFFFF, 0x3FF0000000000000,
+     0x7C90000000000000,
+     ((FO_INF, OFNX), (FO_MAX, F.NX), (FO_MAX, F.NX), (FO_INF, OFNX))),
+    ("fo", "neg_tie", 0xFFEFFFFFFFFFFFFF, 0x3FF0000000000000,
+     0xFC90000000000000,
+     ((FO_INF_NEG, OFNX), (FO_MAX_NEG, F.NX), (FO_INF_NEG, OFNX),
+      (FO_MAX_NEG, F.NX))),
+    ("fo", "pos_tielo", 0x7FEFFFFFFFFFFFFF, 0x3FF0000000000000,
+     0x7C8FFFFE00000000,
+     ((FO_MAX, F.NX), (FO_MAX, F.NX), (FO_MAX, F.NX), (FO_INF, OFNX))),
+    ("fo", "neg_tielo", 0xFFEFFFFFFFFFFFFF, 0x3FF0000000000000,
+     0xFC8FFFFE00000000,
+     ((FO_MAX_NEG, F.NX), (FO_MAX_NEG, F.NX), (FO_INF_NEG, OFNX),
+      (FO_MAX_NEG, F.NX))),
+    ("fo", "pos_atmax", 0x7FEFFFFFFFFFFFFF, 0x3FF0000000000000, 0,
+     ((FO_MAX, 0), (FO_MAX, 0), (FO_MAX, 0), (FO_MAX, 0))),
+    ("fo", "neg_atmax", 0xFFEFFFFFFFFFFFFF, 0x3FF0000000000000, 0,
+     ((FO_MAX_NEG, 0), (FO_MAX_NEG, 0), (FO_MAX_NEG, 0),
+      (FO_MAX_NEG, 0))),
+    ("fo", "pos_pow2", 0x5FF0000000000000, 0x5FF0000000000000, 0,
+     ((FO_INF, OFNX), (FO_MAX, OFNX), (FO_MAX, OFNX), (FO_INF, OFNX))),
+    ("fo", "neg_pow2", 0xDFF0000000000000, 0x5FF0000000000000, 0,
+     ((FO_INF_NEG, OFNX), (FO_MAX_NEG, OFNX), (FO_INF_NEG, OFNX),
+      (FO_MAX_NEG, OFNX))),
+)
+
+# ── `ftfma`/`fofma` overflow, cell by cell (spec/SimRISC-07 §2.5 =
+# IEEE 754-2019 §7.4; m12-chipyard-029) ────────────────────────────────
+# The expectations are transcribed from the clause, *not* taken from the
+# oracle, so the table is an independent opinion next to hardfloat and
+# `fp_ref`: round the EXACT fused sum with an UNBOUNDED exponent in the
+# selected direction, and only if that magnitude exceeds `max` replace it
+# by `±Inf` (RNE, RUP on a positive sum, RDN on a negative one) or by
+# `±max` (the other directions), raising `OF|NX`.  A magnitude that the
+# direction rounds back onto `max` is *not* an overflow: `±max` with `NX`
+# only.  The fused family has no RNA direction -- `rf0[33:32]` is the only
+# source, four cells (`§2.5`).
+#
+# Operands: `a = max`, `b = 1.0`, `c` = the amount carried above `max`
+# (`atmax` has `c = 0`); `sev` doubles `max` (every direction overflows),
+# `pow2` is the exactly representable 2^128 / 2^1024, `mild` is a quarter
+# ulp above `max`, `tielo`/`tie` straddle the RNE midpoint `max + ulp/2`.
+
+
 def requires_show(op):
     _shown[op] = _shown.get(op, 0) + 1
     return _shown[op] <= 4
@@ -599,6 +697,58 @@ def check(args):
               f"oracle-diff={bad_oracle}")
         fails += bad_hf + bad_flag + bad_oracle
         summary.append((name, len(got), bad_hf + bad_flag + bad_oracle))
+
+    ovf_lines, ovf_want = [], []
+    for fmt, shape, a, b, c, table in FMA_OVF_ROWS:
+        op = 28 if fmt == "ft" else 32
+        for mode, (wv, wf) in zip(OVF_MODES, table):
+            ovf_lines.append(f"{op} {a:x} {b:x} {mode} {c:x}")
+            ovf_want.append((f"{fmt}/{shape}", fmt, a, b, c, mode, wv, wf))
+    got = run_vectors(args.bin,
+                      _write(args, "vectors_fma_ovf.txt", ovf_lines))
+    if len(got) != len(ovf_lines):
+        print(f"  [FAIL] fma ovf: sent {len(ovf_lines)} got {len(got)}")
+        fails += 1
+    ovf_table = ovf_hf = ovf_hfflag = ovf_oracle = 0
+    cells = {}
+    for r, (cname, fmt, a, b, c, mode, wv, wf) in zip(got, ovf_want):
+        ew, sw = F.FT if fmt == "ft" else F.FO
+        mask = (1 << (ew + sw)) - 1
+        mine = r["out"] & mask
+        cells.setdefault(cname, []).append((mode, mine, r["flags"]))
+        if (mine, r["flags"]) != (wv, wf):
+            ovf_table += 1
+            if ovf_table <= 8:
+                print(f"  [TABLE] {cname:12s} mode={mode} "
+                      f"want={wv:016x}/{wf:02x} mine={mine:016x}"
+                      f"/{r['flags']:02x}")
+        if fn_val(r["out"], ew, sw) != fn_val(r["hf_out"], ew, sw):
+            ovf_hf += 1
+            if ovf_hf <= 8:
+                print(f"  [DIFF] {cname} mode={mode} mine={mine:x} "
+                      f"hf={r['hf_out'] & mask:x}")
+        if r["flags"] != r["hf_flags"]:
+            ovf_hfflag += 1
+            if ovf_hfflag <= 8:
+                print(f"  [FLAG] {cname} mode={mode} mine={r['flags']:x} "
+                      f"hf={r['hf_flags']:x}")
+        ow, ofl = F.fma_exact(ew, sw, a, b, c, mode)
+        if (mine, r["flags"]) != (ow & mask, ofl):
+            ovf_oracle += 1
+            if ovf_oracle <= 8:
+                print(f"  [ORACLE] {cname} mode={mode} mine={mine:x}"
+                      f"/{r['flags']:x} oracle={ow & mask:x}/{ofl:x}")
+    for cname, row in cells.items():
+        print(f"  fma ovf {cname:12s} "
+              + " ".join(f"{n}={v:016x}/{f:02x}"
+                         for n, (_m, v, f)
+                         in zip(("RNE", "RTZ", "RDN", "RUP"), row)))
+    print(f"  fma ovf: {len(got)} vectors | table-diff={ovf_table} "
+          f"hf-value-diff={ovf_hf} hf-flag-diff={ovf_hfflag} "
+          f"oracle-diff={ovf_oracle}")
+    fails += ovf_table + ovf_hf + ovf_hfflag + ovf_oracle
+    summary.append(("fma ovf", len(got),
+                    ovf_table + ovf_hf + ovf_hfflag + ovf_oracle))
 
     for op, (name, (ew, sw), is_max) in MM.items():
         pairs = F.sample_pairs(ew, sw, max(1, args.n // 4), rng)

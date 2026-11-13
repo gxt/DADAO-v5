@@ -720,6 +720,13 @@ def fma_exact(ew, sw, a, b, c, mode):
 
     `a * b` is formed exactly and added to `c` exactly; the sum is rounded once
     (spec/SimRISC-07 §2.5).  The NaN result is the canonical quiet NaN.
+
+    Overflow follows the shared rounding primitive's rule (spec/SimRISC-07
+    §2.5 = IEEE 754-2019 §7.4): the exact sum is rounded with an unbounded
+    exponent and only a magnitude above `max` overflows -- RNE, a positive RUP
+    and a negative RDN give `±Inf`, the other cells `±max`, both `OF|NX` --
+    while a "mild" overflow, which the direction rounds back onto `max`,
+    reports `NX` alone.  Hence no Inf special case belongs in this function.
     """
     ra = raw_from_fn(ew, sw, a)
     rb = raw_from_fn(ew, sw, b)
