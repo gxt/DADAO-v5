@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.h b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
 new file mode 100644
-index 000000000..f96d3d049
+index 000000000..c2aa16665
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.h
-@@ -0,0 +1,146 @@
+@@ -0,0 +1,154 @@
 +//===-- DADAOInstrInfo.h - DADAO Instruction Info ---------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -122,6 +122,14 @@ index 000000000..f96d3d049
 +  /// insertBranch to report BytesRemoved / BytesAdded; every DADAO
 +  /// instruction is a fixed 4 bytes (DADAOInstrFormats.td).  (LLVM-059t)
 +  unsigned getInstSizeInBytes(const MachineInstr &MI) const override;
++
++  /// Return the canonical DADAO nop -- `swym 0` (0x47880000) -- as an MCInst.
++  /// Required by `AsmPrinter::emitNops`, which emits the
++  /// `-fpatchable-function-entry` sled and the M prefix slots (m14-llvm-003).
++  /// Deliberately the same byte sequence as `DADAOAsmBackend::writeNopData`
++  /// (contract-isa.md §13.1/§13.3): `swym 0` has no architectural effect
++  /// beyond advancing IP, so a patchable slot and alignment padding agree.
++  MCInst getNop() const override;
 +
 +  /// Return true iff a PC-relative branch of opcode \p BranchOpc can reach a
 +  /// target \p BrOffset bytes away.  \p BrOffset is measured from the branch

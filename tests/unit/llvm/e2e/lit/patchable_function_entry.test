@@ -1,0 +1,111 @@
+# m14-llvm-003: object-level `-fpatchable-function-entry=N[,M]` checks.
+#
+# Pipeline under test: clang driver accepts the option for dadao -> frontend
+# writes the `patchable-function-entry` (= N-M) / `patchable-function-prefix`
+# (= M) IR attributes -> DADAO `getNop()` + AsmPrinter emit the sled -> ELF
+# object carries one `__patchable_function_entries` section per instrumented
+# function with an 8-byte R_DADAO_ABS48 entry pointing at its first slot.
+#
+# Contract (task m14-llvm-003 接口规范 1-4):
+#   * every slot is the 4-byte word `47 88 00 00` (`swym 0`, 4-byte aligned),
+#     contiguous, with no padding in between;
+#   * N-M slots follow the function symbol, M slots precede it;
+#   * `__patchable_function_entries` holds one 8-byte pointer per function to
+#     the first slot;
+#   * `=0` / no option => no attribute, no slot, no section;
+#   * the empty value and M>N keep the common driver diagnostics (no new
+#     diagnostic ids).
+#
+# The fixture is tests/unit/llvm/e2e/patchable_entry.c (two external functions,
+# so the section carries exactly two entries).  The linked-ELF side (section
+# survives linking, entry == first-slot address) is covered by
+# patchable_entry_e2e.test; the numeric identity is asserted live by the task's
+# evidence script.
+
+# --- N=4, M=0: four slots per function, then the real body. ---
+# RUN: %clang --target=dadao-unknown-elf -O1 -fpatchable-function-entry=4 -c %e2e_dir/patchable_entry.c -o %t.n4.o
+# RUN: %llvm_objdump -d %t.n4.o | %FileCheck %s --check-prefix=N4
+# RUN: %llvm_objdump -h %t.n4.o | %FileCheck %s --check-prefix=SEC
+# RUN: %llvm_objdump -r %t.n4.o | %FileCheck %s --check-prefix=REL
+# RUN: %llvm_objdump -s -j __patchable_function_entries %t.n4.o | %FileCheck %s --check-prefix=DATA
+#
+# N4-LABEL: <patched>:
+# N4:         47 88 00 00  swym 0
+# N4-NEXT:    47 88 00 00  swym 0
+# N4-NEXT:    47 88 00 00  swym 0
+# N4-NEXT:    47 88 00 00  swym 0
+# N4-NEXT:    st.o
+# N4-LABEL: <patched2>:
+# N4:         47 88 00 00  swym 0
+# N4-NEXT:    47 88 00 00  swym 0
+# N4-NEXT:    47 88 00 00  swym 0
+# N4-NEXT:    47 88 00 00  swym 0
+# N4-NEXT:    st.o
+#
+# One 8-byte DATA section per instrumented function (SHF_LINK_ORDER ties each
+# to its own function), so the live count is two -- no hard-coded total size.
+# SEC-COUNT-2: __patchable_function_entries{{ +}}00000008 {{[0-9a-f]{16} }}DATA
+# SEC:         .symtab
+# SEC-NOT:     __patchable_function_entries
+#
+# Each entry is filled in by an ABS48 relocation (the object stores zeros).
+# REL-COUNT-2: R_DADAO_ABS48
+# DATA-COUNT-2: {{^}} 0000 00000000 00000000
+#
+# --- N=4, M=2: two slots before the function symbol, two after it. ---
+# RUN: %clang --target=dadao-unknown-elf -O1 -fpatchable-function-entry=4,2 -c %e2e_dir/patchable_entry.c -o %t.n42.o
+# RUN: %llvm_objdump -d %t.n42.o | %FileCheck %s --check-prefix=M2
+#
+# The prefix slots are the first thing in .text; the function symbol must land
+# exactly after them (the temp label names the first prefix slot, which is also
+# what the section relocation points at).
+# M2:         <.Ltmp{{[0-9]+}}>:
+# M2-NEXT:    {{[0-9a-f]+}}: 47 88 00 00  swym 0
+# M2-NEXT:    {{[0-9a-f]+}}: 47 88 00 00  swym 0
+# M2-NOT:     swym
+# M2-LABEL:   <patched>:
+# M2:         47 88 00 00  swym 0
+# M2-NEXT:    47 88 00 00  swym 0
+# M2-NEXT:    st.o
+#
+# --- `=0` and no option: no attribute, no slot, no section. ---
+# RUN: %clang --target=dadao-unknown-elf -O1 -fpatchable-function-entry=0 -c %e2e_dir/patchable_entry.c -o %t.n0.o
+# RUN: %llvm_objdump -h %t.n0.o | %FileCheck %s --check-prefix=ZERO
+# RUN: %llvm_objdump -d %t.n0.o | %FileCheck %s --check-prefix=NOSLOT
+# ZERO:       .text
+# ZERO-NOT:   __patchable_function_entries
+# ZERO:       .symtab
+# NOSLOT-LABEL: <patched>:
+# NOSLOT-NOT:  swym
+# NOSLOT:      ret
+#
+# RUN: %clang --target=dadao-unknown-elf -O1 -c %e2e_dir/patchable_entry.c -o %t.plain.o
+# RUN: %llvm_objdump -h %t.plain.o | %FileCheck %s --check-prefix=ZERO
+# RUN: %llvm_objdump -d %t.plain.o | %FileCheck %s --check-prefix=NOSLOT
+#
+# The un-instrumented object must be byte-identical to the `=0` one (both are
+# the "off" state; the md5 identity against the pre-change toolchain is pinned
+# by the evidence script).
+# RUN: cmp %t.n0.o %t.plain.o
+#
+# --- Option semantics: N=1/2/4 with -fsyntax-only and -c all succeed. ---
+# RUN: %clang --target=dadao-unknown-elf -fsyntax-only -fpatchable-function-entry=1 %e2e_dir/patchable_entry.c
+# RUN: %clang --target=dadao-unknown-elf -fsyntax-only -fpatchable-function-entry=2 %e2e_dir/patchable_entry.c
+# RUN: %clang --target=dadao-unknown-elf -fsyntax-only -fpatchable-function-entry=4 %e2e_dir/patchable_entry.c
+# RUN: %clang --target=dadao-unknown-elf -O1 -fpatchable-function-entry=1 -c %e2e_dir/patchable_entry.c -o %t.n1.o
+# RUN: %clang --target=dadao-unknown-elf -O1 -fpatchable-function-entry=2 -c %e2e_dir/patchable_entry.c -o %t.n2.o
+# RUN: %llvm_objdump -d %t.n1.o | %FileCheck %s --check-prefix=N1
+# RUN: %llvm_objdump -d %t.n2.o | %FileCheck %s --check-prefix=N2
+# N1-LABEL: <patched>:
+# N1:         47 88 00 00  swym 0
+# N1-NEXT:    st.o
+# N2-LABEL: <patched>:
+# N2:         47 88 00 00  swym 0
+# N2-NEXT:    47 88 00 00  swym 0
+# N2-NEXT:    st.o
+#
+# --- Diagnostics are the common ones (no dadao-specific wording). ---
+# RUN: %not %clang --target=dadao-unknown-elf -fsyntax-only -fpatchable-function-entry= %e2e_dir/patchable_entry.c 2>&1 | %FileCheck %s --check-prefix=ERR-EMPTY
+# RUN: %not %clang --target=dadao-unknown-elf -fsyntax-only -fpatchable-function-entry=2,3 %e2e_dir/patchable_entry.c 2>&1 | %FileCheck %s --check-prefix=ERR-ORDER
+# ERR-EMPTY: error: invalid argument '' to -fpatchable-function-entry=
+# ERR-ORDER: error: the second argument of '-fpatchable-function-entry' must be smaller than the first argument

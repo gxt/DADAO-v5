@@ -1,0 +1,52 @@
+# m14-llvm-003: end-to-end `-fpatchable-function-entry=2`.
+#
+# Pipeline (linked ELF, contract-elf.md §6.1.2):
+#   llvm-mc tests/shared/crt0/minimal_crt0.s        -> crt0.o (_start calls @main)
+#   clang -fpatchable-function-entry=2 -c patchable_entry.c -> patched.o
+#       (patched/patched2 each start with two `swym 0` slots and carry a
+#        __patchable_function_entries entry)
+#   llvm-mc patchable_entry_e2e.s                   -> main.o (hand-written main:
+#       main() { return patched(41); }, and patched(41) == 0)
+#   ld.lld -T dadao-tiny-app.lds crt0.o main.o patched.o -> prog.elf
+#   qemu-system-dadao -M dadao-tiny -kernel prog.elf ...
+#
+# Exit code 0 therefore requires the sled to be executed for real: an illegal
+# slot word, a wrong slot size or a broken link of the SHF_LINK_ORDER section
+# traps / returns non-zero.
+#
+# The section content is compared against the function's own first-slot address
+# live: the low 16 address bits are captured from the disassembly label and must
+# reappear (big-endian, 8 bytes) in __patchable_function_entries.
+
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
+# RUN: %clang --target=dadao-unknown-elf -O1 -fpatchable-function-entry=2 -c %e2e_dir/patchable_entry.c -o %t.patch.o
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %e2e_dir/patchable_entry_e2e.s -o %t.main.o
+# RUN: %ld -T %linker_script %t.crt0.o %t.main.o %t.patch.o -o %t.elf
+# RUN: timeout 30 %qemu -machine dadao-tiny,bootrom-image=%bootrom -kernel %t.elf -semihosting-config enable=on,target=native -display none -nographic
+# RUN: %llvm_objdump -h %t.elf | %FileCheck %s --check-prefix=SEC
+# RUN: %llvm_objdump -d %t.elf | %FileCheck %s --check-prefix=SLOT
+# RUN: %llvm_objdump -d %t.elf > %t.dis
+# RUN: %llvm_objdump -s -j __patchable_function_entries %t.elf > %t.sec
+# RUN: cat %t.dis %t.sec | %FileCheck %s --check-prefix=ADDR
+#
+# One output section, 2 entries x 8 bytes (live: the count is the number of
+# instrumented functions in the fixture, not a hard-coded total).
+# SEC: __patchable_function_entries{{ +}}00000010 {{[0-9a-f]{16} }}DATA
+# SEC-NOT: __patchable_function_entries{{ +}}00000000
+#
+# Both instrumented functions begin with their two slots, then real code.
+# SLOT-LABEL: <patched>:
+# SLOT:       47 88 00 00  swym 0
+# SLOT-NEXT:  47 88 00 00  swym 0
+# SLOT-NEXT:  st.o
+# SLOT-LABEL: <patched2>:
+# SLOT:       47 88 00 00  swym 0
+# SLOT-NEXT:  47 88 00 00  swym 0
+# SLOT-NEXT:  st.o
+#
+# The section content must be exactly the first-slot address of each function
+# (big-endian 8-byte words in the Tiny program region 0x0000_ffff_ff01_xxxx).
+# ADDR: {{[0-9a-f]+}}[[LOW1:[0-9a-f]{4}]] <patched>:
+# ADDR: {{[0-9a-f]+}}[[LOW2:[0-9a-f]{4}]] <patched2>:
+# ADDR: Contents of section __patchable_function_entries:
+# ADDR-NEXT: {{[0-9a-f]+ }}0000ffff ff01[[LOW1]] 0000ffff ff01[[LOW2]]

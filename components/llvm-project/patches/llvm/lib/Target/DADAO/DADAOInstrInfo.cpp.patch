@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
 new file mode 100644
-index 000000000..d13886e0e
+index 000000000..12b2121da
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOInstrInfo.cpp
-@@ -0,0 +1,811 @@
+@@ -0,0 +1,835 @@
 +//===-- DADAOInstrInfo.cpp - DADAO Instruction Info -------------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -42,7 +42,9 @@ index 000000000..d13886e0e
 +#include "llvm/CodeGen/MachineFrameInfo.h"
 +#include "llvm/CodeGen/MachineFunction.h"
 +#include "llvm/CodeGen/MachineInstrBuilder.h"
++#include "llvm/IR/Function.h"
 +#include "llvm/MC/MCContext.h"
++#include "llvm/MC/MCInst.h"
 +#include "llvm/MC/MCSymbol.h"
 +#include "llvm/Support/ErrorHandling.h"
 +#include "llvm/Support/MathExtras.h"
@@ -772,8 +774,30 @@ index 000000000..d13886e0e
 +}
 +
 +unsigned DADAOInstrInfo::getInstSizeInBytes(const MachineInstr &MI) const {
++  // `PatchableFunction` inserts one PATCHABLE_FUNCTION_ENTER at the top of the
++  // entry block (m14-llvm-003) and it expands to 4*N bytes of `swym 0`, while
++  // the generic pseudo descriptor reports size 0.  BranchRelaxation runs after
++  // that pass and sizes basic blocks with this hook, so an under-count would
++  // leave an out-of-range branch unrelaxed.  The attribute holds N-M (the slots
++  // *after* the function symbol); the M prefix slots are outside every block.
++  if (MI.getOpcode() == TargetOpcode::PATCHABLE_FUNCTION_ENTER) {
++    const Function &F = MI.getParent()->getParent()->getFunction();
++    if (F.hasFnAttribute("patchable-function-entry"))
++      return 4 * static_cast<unsigned>(
++                     F.getFnAttributeAsParsedInteger("patchable-function-entry"));
++  }
 +  // Every DADAO instruction is a fixed 32-bit word (DADAOInstrFormats.td).
 +  return MI.getDesc().getSize();
++}
++
++MCInst DADAOInstrInfo::getNop() const {
++  // The canonical DADAO nop is `swym 0` = 0x47880000 (oiii: op 0x47, ha 0x22,
++  // imm18 0; contract-isa.md §13.1/§13.3).  Same bytes as
++  // DADAOAsmBackend::writeNopData, which pads with this word.
++  MCInst Nop;
++  Nop.setOpcode(DADAO::swym_oiii);
++  Nop.addOperand(MCOperand::createImm(0));
++  return Nop;
 +}
 +
 +// ===--------------------------------------------------------------------=== //

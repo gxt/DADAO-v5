@@ -1,8 +1,22 @@
 diff --git a/clang/lib/Driver/ToolChains/Clang.cpp b/clang/lib/Driver/ToolChains/Clang.cpp
-index db7893c54..c460fd3d9 100644
+index db7893c54..b7f20756a 100644
 --- a/clang/lib/Driver/ToolChains/Clang.cpp
 +++ b/clang/lib/Driver/ToolChains/Clang.cpp
-@@ -9319,6 +9319,24 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
+@@ -7178,8 +7178,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
+   if (Arg *A = Args.getLastArg(options::OPT_fpatchable_function_entry_EQ)) {
+     StringRef S0 = A->getValue(), S = S0;
+     unsigned Size, Offset = 0;
++    // DADAO accepts the option (m14-llvm-003): `DADAOInstrInfo::getNop()`
++    // supplies the 4-byte `swym 0` slot and the AsmPrinter lowers the generic
++    // PATCHABLE_FUNCTION_ENTER pseudo; the validation and the cc1 arguments
++    // below are the common ones (no DADAO-specific parsing).
+     if (!Triple.isAArch64() && !Triple.isLoongArch() && !Triple.isRISCV() &&
+         !Triple.isX86() && !Triple.isSystemZ() &&
++        Triple.getArch() != llvm::Triple::dadao &&
+         !(!Triple.isOSAIX() && (Triple.getArch() == llvm::Triple::ppc ||
+                                 Triple.getArch() == llvm::Triple::ppc64 ||
+                                 Triple.getArch() == llvm::Triple::ppc64le)))
+@@ -9319,6 +9324,24 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
    RenderDebugEnablingArgs(Args, CmdArgs, DebugInfoKind, DwarfVersion,
                            llvm::DebuggerKind::Default);
    renderDwarfFormat(D, Triple, Args, CmdArgs, DwarfVersion);

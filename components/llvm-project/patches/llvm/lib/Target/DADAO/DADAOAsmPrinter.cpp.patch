@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
 new file mode 100644
-index 000000000..523d89c57
+index 000000000..3b163a11f
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOAsmPrinter.cpp
-@@ -0,0 +1,267 @@
+@@ -0,0 +1,288 @@
 +//===-- DADAOAsmPrinter.cpp - DADAO LLVM Assembly Printer ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -253,6 +253,27 @@ index 000000000..523d89c57
 +}
 +
 +void DADAOAsmPrinter::emitInstruction(const MachineInstr *MI) {
++  // `-fpatchable-function-entry=N[,M]` support (m14-llvm-003).  The generic
++  // `PatchableFunction` pass puts this pseudo first in the entry block; the
++  // sled is N-M `swym 0` words emitted *after* the function symbol, and the M
++  // prefix slots plus the `__patchable_function_entries` entry are emitted by
++  // the base `AsmPrinter` (emitFunctionHeader / emitPatchableFunctionEntries).
++  // Handle it before the fail-closed pseudo check below, which stays as-is for
++  // every other pseudo.
++  if (MI->getOpcode() == TargetOpcode::PATCHABLE_FUNCTION_ENTER) {
++    const Function &F = MI->getParent()->getParent()->getFunction();
++    // The pass only inserts the pseudo for the attribute, and DADAO has no
++    // XRay support (the other producer of this pseudo) -- so a missing
++    // attribute is a real bug, not a shape to paper over.
++    if (!F.hasFnAttribute("patchable-function-entry"))
++      report_fatal_error("DADAO: PATCHABLE_FUNCTION_ENTER without a "
++                         "'patchable-function-entry' attribute (XRay sleds "
++                         "are not supported)");
++    emitNops(static_cast<unsigned>(
++        F.getFnAttributeAsParsedInteger("patchable-function-entry")));
++    return;
++  }
++
 +  // Every CodeGen-only pseudo must already be expanded: the arithmetic /
 +  // constant / RET pseudos by DADAOInstrInfo::expandPostRAPseudo, the frame
 +  // indices and call-frame adjustments by PrologEpilogInserter.  A leftover

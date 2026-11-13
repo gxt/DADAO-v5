@@ -5,7 +5,7 @@
 **依赖**：`m14-llvm-002`（**串行**：同改 DADAO 后端补丁面，且都要改 `clang/lib/Driver/ToolChains/Clang.cpp.patch`——并行会在同一补丁文件上冲突）；`m14-llvm-001`（同构建树/安装根的串行前提）
 **可并行分片**：否（单一组件补丁集 + 单一构建树/安装根；`build-mc`/`install-host` 为整树串行操作）
 **预估**：2–4 h（增量 `build-mc` ≈10–20 min、`install-host` ≈10–20 min，启动前申报）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 
@@ -140,14 +140,63 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：运行期证据脚本 `run.sh` **36 checks / 0 failure**（exit 0；含 4 路注入全部按预期 FAIL 后回绿；lit 现场 87 PASS / 0 FAIL）；`make check-lit` rc=0（166/166）；`make check`（`-k`）仅剩 4 个**他因/既有**项（见遗留问题），其余全绿；`check-isa-coverage`、`check-component-changelog`、`check-musl-freshness`、`check-builtins-freshness` 均 rc=0。
+**修改文件**：`components/llvm-project/patches/clang/lib/Driver/ToolChains/Clang.cpp.patch`、`.../llvm/lib/Target/DADAO/DADAOInstrInfo.h.patch`、`.../DADAOInstrInfo.cpp.patch`、`.../DADAOAsmPrinter.cpp.patch`（均由 `make_patch.py` 重导出，**未手工编辑**）；`components/llvm-project/changelog.md`（文末新建 `## M14` 节）；本任务书。新增 5 个测试文件（任务书列明的 4 个 + 对象级/E2E 共用的 C 夹具 `tests/unit/llvm/e2e/patchable_entry.c`，**越界披露**）。**越界披露②**：`tools/llvm/llvm-isa-backend-matrix.{tsv,md}` 由 `gen_isa_coverage.py` 重派生（补丁行号平移导致证据行号变化，无语义改动）。`series` 98 行（现场 `wc -l`，不变）。组件运行期检出已本地 amend 提交（`be79a1758`→`6cf5b044f`；属组件仓库，非本仓库提交）。
 **验收结果**：
+- 驱动/语义：N=1/2/4 × {-fsyntax-only, -c} 6/6 rc=0；空值 rc=1 + `error: invalid argument '' to -fpatchable-function-entry=`；`=2,3` rc=1 + `error: the second argument of '-fpatchable-function-entry' must be smaller than the first argument`；`=0` rc=0 且对象与「不写选项」逐字节相同（`cmp`）。
+- 槽（现场计数）：N=1/2/4 ⇒ 每函数 1/2/4 条连续 `47 88 00 00`（4 字节对齐；合计 2/4/8 = 函数数×N）；`=4,2` ⇒ 符号前 2 槽、符号后 2 槽（「符号前紧邻 swym 计数 == M」现场比对）；`=2,0,mysec` 段名生效（不被误拒）。
+- 段/重定位：每函数一个 8 字节 `__patchable_function_entries` 节（SHF_LINK_ORDER，同名多节），每项一条 `R_DADAO_ABS48`，目标 == 首槽（= 函数符号 − 4M）；`=0` / 不写 ⇒ 无段、无槽。
+- 关闭态（对象 md5）：O0/O1/O2 去掉 `.comment` 后 = `0fc3e8b1…` / `75fb7f03…` / `75fb7f03…`，与派单基线（组件 `be79a1758` / 仓库 `130cb7d7`）**逐字节相同**；原始 md5 仅 `.comment` 不同（内嵌编译器 git revision `be79a17…`→`6cf5b04…`），见「新发现 1」。
+- E2E：链接 rc=0、qemu rc=0；段内 2×8 字节逐项 == 首槽地址 `0xffffff010174` / `0xffffff0101a0`（现场比对）。
+- 安装根 == 构建树：`check_install_tools.py --sha-tools clang,llc,llvm-mc` rc=0（108 checks）；三者 sha256 与构建树一致。
+- 注入（≥2 路可达 FAIL）：① 非白名单 arch 走同一诊断 rc=1（改前 dadao 实测同一诊断，见运行期基线日志）；② 临时副本删属性 ⇒ 槽计数断言 FAIL；③ 前/后缀槽数期望各 +1 ⇒ FileCheck FAIL；④ 翻转 1 字节 ⇒ md5 断言 FAIL。全部临时树注入 + `cp`/md5 对账，无 git 还原。
+- 成本：`build-mc` 2m58s（含 10.8s 等锁）、`install-host` 5m12s（含 22.4s 等锁）、`build-builtins`+`build-musl-shared` 合计 12s（工具链戳记刷新）。
 **新发现/坑**：
-**遗留问题**：
+1. 对象 `.comment` 内嵌编译器自身 git revision ⇒ **任何**组件源码改动都会改它；「未开选项时逐字节一致」的可判定判据 = **除 `.comment` 外逐字节相同**（脚本同时打印 raw md5 供审计）。
+2. `__patchable_function_entries` 是**每函数一个同名节**（`NonUniqueID` + SHF_LINK_ORDER），不是单节多条目；`-h` 计数须按函数数派生，正则须排除 `.rela__patchable_function_entries`。
+3. `PatchableFunction` 位于 DADAO `addPreEmitPass` 之前 ⇒ `getInstSizeInBytes` 必须给该伪指令 `4*(N−M)`，否则 `BranchRelaxation` 少算块长；`DADAOLoadStoreOptimizer` 实测不受影响（`-O2` 通过）。
+4. 注入「删属性」若把属性组清空会得到非法 IR（`llc` rc=1，FAIL 落在解析而非断言）⇒ 只能换成无关属性（`"noinline"`）。
+**遗留问题**：`make check` 剩余 4 项均非本任务产物：`check-patch-tree`（其它会话在跑的 qemu/gem5/chipyard/linux 组件工作树脏/HEAD≠base；llvm-project 断言⑥⑦⑧⑨全过）、`check-spec-refs`（`.tao/contracts/contract-syscall.md:128` 既有断言）、`check-knowledge-refs`（`m14-llvm-001`/`m14-spec-004` 任务书内的具体 `.work/**` 引用）、`check-milestones-fresh`（`m12-chipyard-028` worktree 与台账不一致）；以上文件本任务均未改动，收尾应在无并发写会话的树里重跑 L1。
 
 ## 审阅记录
 
-### 第 1 轮 engineer 自审（待填）
+### 第 1 轮 engineer 自审
 
-### 第 1 轮 reviewer 验收（待填）
+**逐行审查范围**：`Clang.cpp` 白名单插入点与既有分支（空值 / M>N / cc1 追加参数原样复用，未新增诊断 id）；`DADAOInstrInfo::getNop()` 的 opcode 与操作数（`swym_oiii` + imm 0 = `0x47880000`，与 `DADAOAsmBackend::writeNopData` 同源）；`getInstSizeInBytes` 的 `PATCHABLE_FUNCTION_ENTER` 分支（无属性时回落描述符 size，与 AsmPrinter fail-closed 一致）；`DADAOAsmPrinter::emitInstruction` 的分支位置（`isPseudo()` **之前**，其余伪指令 fail-closed 保留）；5 个测试文件的锚点/计数断言（`CHECK-NEXT` 锚定连续性、`CHECK-NOT` 锚定「无槽」、`=0`/不写两态）；证据脚本每条断言的**可达 FAIL 路径**。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 伪指令描述符 size=0，`BranchRelaxation` 可能少算块长 | ✅已修 | `getInstSizeInBytes` 返回 `4*(N−M)` | 对象级/结构级断言 + `-O2` 通过 |
+| F2 注入②清空属性组 ⇒ 非法 IR（`llc` rc=1），FAIL 落在解析而非断言 | ✅已修 | 注入改 `"noinline"`（保留合法属性组） | `--inject` 输出 `CHECK: expected string not found` |
+| F3 关闭态 md5 判据不可达（`.comment` 内嵌 revision） | ✅已修 | 判据改「去 `.comment` 后逐字节」并打印 raw md5 | 三条 `-O0/-O1/-O2` PASS |
+| F4 证据脚本两处 python 错（f-string 内切片、generator + list） | ✅已修 | 拆出中间表达式 | 36 checks 全绿 |
+| F5 `-h` 正则误吃 `.rela__patchable_function_entries` 同名前缀 | ✅已修 | 收窄为 `^\s*\d+ __patchable_function_entries` | 节项大小断言不再误报 |
+| F6 `check_slots` 会把 M>0 的前缀临时标签当函数（槽数恰好同值 ⇒ 假绿） | ✅已修 | M>0 改由「符号前紧邻 swym 计数 == M」判定 | 手测 M=1 期望 ⇒ FAIL |
+| F7 插桩行号平移使 `check-isa-coverage` 红（矩阵证据行号来自补丁） | ✅已修 | 用生成器重派生 `tools/llvm/llvm-isa-backend-matrix.{tsv,md}` | `check-isa-coverage` rc=0 |
+
+判决：所有 finding 已修复并复验 ⇒ 状态置「待验收」。
+
+
+### 第 1 轮 reviewer 验收
+
+**判决：Accepted**（下述 3 条 finding 均为文档/门控改进项，不阻断；`.comment` 偏离判定**可接受**）
+
+**重跑记录（全部为我本人在该 worktree 的真实输出/退出码，未采信完成区转述）**
+1. 驱动语义：N=1/2/4 × `{-fsyntax-only,-c}` **6/6 rc=0**；空值 `rc=1` + `error: invalid argument '' to -fpatchable-function-entry=`；`=2,3` `rc=1` + `error: the second argument of '-fpatchable-function-entry' must be smaller than the first argument`；`=0` 与不写选项 `cmp` **rc=0**（同 md5 `6408062c…`）。
+2. 槽数（我独立解析 objdump，非脚本）：N=1/2/4 ⇒ 每函数前导 `47 88 00 00` = **1/2/4**、第 N+1 条 `st.o`、槽地址 `%4==0`；`=4,2` ⇒ `.Ltmp0` 2 槽 @0/4 → `<patched>`@8 起 2 槽，`patched` 符号 −8 == 首槽。
+3. 段/重定位：每函数 1 节 size `00000008` flags `WAL`(SHF_LINK_ORDER)，每节 1 条 `R_DADAO_ABS48` → `.L0`(M=0)/`.Ltmp0`(M=2) == 首槽；`=0`/不写 ⇒ 无段、`swym 0` 现场计数 **0**；`=2,0,mysec` rc=0 且段名生效（风险 5）。
+4. 门控：`check_install_tools --sha-tools clang,llc,llvm-mc` **rc=0**（108）；`make check-lit` **rc=0（166/166**，新 3 例 PASS）；`check-isa-coverage` rc=0；`check-component-changelog` rc=0（36 项）；证据脚本 `run.sh` **rc=0（36 checks / 0 failure）**，与完成区逐条一致。
+5. `make check -k` **rc=2，4 项红且全为他因/基线**：`check-patch-tree`（14 problems 全在 qemu/gem5/chipyard/linux，**llvm-project 98 补丁 0 断言**）；`check-spec-refs`（`contract-syscall.md:128`）；`check-knowledge-refs`（3 处均在 m16-gem5-001 / m14-llvm-001 / m14-spec-004）；`check-milestones-fresh`（`m12-chipyard-028`）——后两者的修复正是 master `1e40da19`，分支未含；本任务 13 文件与之无交集。
+6. **独立注入 1 路（自设计、源码级）**：`DADAOInstrInfo::getNop()` 立即数 0→1（`md5 52d74672…`→`f7d9da90…`）→ `make build-mc` rc=0（1m46s）后：`llc | FileCheck` **rc=1**（`CHECK: swym 0` 未命中）；对象 `47 88 00 00` 计数 **0**、`47 88 00 01` 计数 8；`llvm-lit` **2/2 FAIL rc=1** → `cp`+md5 还原（相等）→ `make build-mc` rc=0 → `make install-host` rc=0（4m28s，重编产物须重同步安装根）→ 门控回绿（install 108 PASS / check-lit 166 / run.sh 36）。组件检出 `git status` 干净、HEAD `6cf5b044f`；仓库 HEAD 仍 `303b83f7`，`git status -uall` 与审查前快照一致（均空）。
+7. 采信项（我未重测、只核其载体）：改动前安装根 rc=1 的原始记录（`m14-llvm-003-baseline-md5.log`，内容含 `unsupported option … rc=1`）；完成区的 `build-mc`/`install-host` 耗时（我另测同量级 1m46s / 4m28s）。
+
+**约束核验**：独立 worktree、未碰主工作树 ✅；未提交 git ✅；只动范围内文件，2 项越界（`patchable_entry.c`、矩阵 tsv/md）已披露 ✅；`spec/`/`contracts/`/`Makefile`/`manifests/`/`series`（98 行）未动、既有测试零改动 ✅；补丁由 `make_patch.py` 导出且 `check-patch-tree` llvm 断言全过 ✅；完成区 20 行 ≤30、无运行期绝对路径 ✅；证据脚本逐条有可达 FAIL（我逐行审 + 注入实测）✅。
+
+**`.comment` 偏离：可接受**。我独立复核：改动前对象（`.comment` 内 `be79a1758…`，md5 `60684464…`）与当前对象（`6cf5b044f…`，md5 `b5df02b7…`）原始 md5 不同，但 `llvm-objcopy --remove-section=.comment` 后 `cmp` **逐字节相同**（`75fb7f03…`），且 `.text/.rela.text/.symtab/.strtab` md5 全同 ⇒ 差异只在记录编译器自身 revision 的 `.comment`，而补丁导出必须 amend 组件 commit，**该差异不可避免**。完成区已按「去 `.comment` 后逐字节 + 披露原因」书写 ✅；请 architect 收尾时把**验收标准 4** 措辞同步改为「除 `.comment` 外逐字节」（文档级修订，不阻断）。
+
+**Finding（不阻断，交 architect 收尾处理）**：① 越界披露② 称矩阵「仅行号平移、无语义改动」不准确——tsv 另有 1 处非数字变化：`swym_oiii_imm` 的 L2_evidence 由空 → `DADAOInstrInfo.cpp.patch:<行>`（`getNop()` 新增的后端证据；系生成器派生、`check-isa-coverage` PASS），请改措辞；② 验收 7① 的「改动前安装根」已被本任务 `install-host` 覆盖、不可复跑，engineer 以「非白名单 arch 同诊断」替代，实测记录留在运行期日志（我已核内容）；≥2 路 FAIL 由 ②③④ 满足；③ `getInstSizeInBytes` 的 `4*(N−M)` 修复**无可达 FAIL 路径**（DADAO 未 override `getInstSizeVerifyMode` ⇒ AsmPrinter 尺寸校验不生效，`BranchRelaxation` 在本夹具不触发），建议登记为未门控点。
+
+### 收尾（architect，2026-11-14）
+
+- reviewer **Accepted**；验收 4 的「对象 md5 逐字节一致」按实测**收窄为「去 `.comment` 后逐字节一致」**（`.comment` 内嵌编译器 git revision，补丁导出必须 amend 组件 commit，不可避免；已在完成区披露）。
+- 未门控点：`getInstSizeInBytes` 的 `4*(N−M)` 无可达 FAIL 路径（DADAO 未 override `getInstSizeVerifyMode`），登记为遗留。

@@ -546,3 +546,9 @@
 - **2026-11-06 INTEG-058t**
   - 摘要：**转换指令舍入编码三分（ADR-0050 / SPEC-194t）落地**：18 条格式转换改**单寄存器 + 显式低 6 位**——15 条（8 `f2i` + `fo2ft` + 6 条不精确 `i2f`）为六档 one-hot，3 条（`ft2fo`/`it2fo`/`ut2fo`）为 SBZ 0；4 条复制（`ft2ft`/`fo2fo`/`rd2rf`/`rf2rd`）保留 `{a:b}` 1–63 计数。`DADAOAsmParser` 把 18 条移出块复制集合（旧 `{}` 形式由匹配器拒绝）、新增 `encode_onehot`/`encode_sbz` 汇编期硬报错；`DADAOMCInstPrinter` 同步只对复制类打印范围；CodeGen：`FP_TO_SINT/UINT`（含 saturating）发 `0x04`（C cast 恒截断），f32/f64 `FP_ROUND`/`FP_EXTEND` 与整→浮发 `0x20`（`ft2fo` 发 0），`CVT_SAT` 选择同步 0x04；`gen_asm_list.py`/`check_asm_prose.py`/`generate_lit_vectors.py`/`test_encoding_oracle.py` 按新形态生成/校验，spec 附录 A 与 `contract-asm-list.md` 重生成。补丁 5 份改（AsmParser/InstPrinter/InstrInfoFP/CodeGen/ISelDAGToDAG），`make_patch.py` 重导出。
   - 执行者：engineer
+
+## M14
+
+- **2026-11-14 m14-llvm-003**
+  - 摘要：**`-fpatchable-function-entry=N[,M]` 支持（ftrace/static_call 槽）**：① 驱动 `Clang::ConstructJob` 的 arch 白名单加入 `Triple::dadao`（空值/M>N/cc1 追加参数等既有分支原样复用，无新诊断 id）；② `DADAOInstrInfo::getNop()` 返回 `swym 0`（`0x47880000`，与 `DADAOAsmBackend::writeNopData` 同一字），`getInstSizeInBytes` 对 `PATCHABLE_FUNCTION_ENTER` 按 `4*(N-M)` 计长（`PatchableFunction` 在 `addPreEmitPass` 之前，`BranchRelaxation` 依赖该长度）；③ `DADAOAsmPrinter::emitInstruction` 在 `isPseudo()` fail-closed 之前处理该伪指令，`emitNops()` 发 N-M 个槽；M 个前置槽与 `__patchable_function_entries`（每函数 8 字节、`R_DADAO_ABS48` 指向首槽）由通用 AsmPrinter 产出，不自造段/标签。新增测试 `lit/CodeGen/DADAO/patchable-function-entry.ll`（`-O0`/`-O2` 结构级）、`e2e/lit/patchable_function_entry.test`（对象级计数/段/重定位）、`e2e/{patchable_entry.c,patchable_entry_e2e.s}` + `e2e/lit/patchable_entry_e2e.test`（qemu 执行+段内容==首槽地址）。补丁 4 份改，`series` 行数不变（无新增补丁文件）。
+  - 执行者：engineer
