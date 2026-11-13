@@ -18,30 +18,31 @@
 - **派单时间**：`YYYY-MM-DD HH:MM`，派单动作发生时由主会话填写。
 - **预估时间**：人工估值，只作参考；格式 `N h` / `N–M h` / `N 天` / `N–M 天` / `N min`。
 - **完成时间**：`YYYY-MM-DD HH:MM`；「已验证」表按完成时间**倒序**（同时间按编号升序）。
+- **testcases 系列估时口径**（2026-11-13 校准）：按 `012`/`013` 实测折算，约 **12–20 min/id**（FP/原子/控制流取上限，寄存器复制/位操作取下限）；不再用「天」级估值。
 - **一句改动**：≤120 字符，只作索引，细节在任务书。
 
 ## 待开始（未开工）
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m13-testcases-031 | 1–2 天 | 补 `st.o rb0`（`aip.si` 构造期望）+ `ld.o ra0` 读写（SBZ 写忽略） |
-| m13-testcases-014 | 4–5 天 | `02-reg-copy` 16 个 id 改汇编+宏（复制 + `cs.*`） |
-| m13-testcases-015 | 2–3 天 | `03-wyde-imm` 8 个 id 改汇编+宏 |
-| m13-testcases-016 | 3–4 天 | `04-arith-logic-octa` 算术 15 个 id 改汇编+宏 |
-| m13-testcases-017 | 3–4 天 | `04-arith-logic-octa` 逻辑/移位/扩展 14 个 id 改汇编+宏 |
-| m13-testcases-018 | 3–4 天 | `04-arith-logic-octa` 位操作 4 个 id 改汇编+宏 |
-| m13-testcases-019 | 2 天 | `05-arith-addr` 6 个 id 改汇编+宏 |
-| m13-testcases-020 | 3–4 天 | `06-control-flow` 15 个 id 改汇编+宏（含 RAS） |
-| m13-testcases-021 | 4–5 天 | `07-floating-point` 算术与最小最大 18 个 id 改汇编+宏 |
-| m13-testcases-022 | 4–5 天 | `07-floating-point` 转换/比较/分类 26 个 id 改汇编+宏 |
-| m13-testcases-023 | 3–4 天 | `07-floating-point` 取整/缩放/符号 8 个 id 改汇编+宏 |
-| m13-testcases-024 | 2–3 天 | `08-arith-logic-tetra` 21 个 id 改汇编+宏 |
-| m13-testcases-025 | 2–3 天 | `09-arith-logic-wyde` 21 个 id 改汇编+宏 |
-| m13-testcases-026 | 2–3 天 | `10-arith-logic-byte` 21 个 id 改汇编+宏 |
-| m13-testcases-027 | 3–4 天 | `11-cfx` 5 个 id 改汇编+宏（cfx/system） |
-| m13-testcases-028 | 1–2 天 | `12-misc` 原子 24 个 id 改汇编+宏（`lr`/`sc`） |
-| m13-testcases-029 | 1–2 天 | `12-misc` 其余 4 个 id 改汇编+宏（`swym`/`ct*`） |
-| m13-testcases-030 | 2–3 天 | `.S` 接入门控 + YAML 退役（ISS-413） |
+| m13-testcases-031 | 2–3 h | 补 `st.o rb0`（`aip.si` 构造期望）+ `ld.o ra0` 读写（SBZ 写忽略） |
+| m13-testcases-014 | 3–4 h | `02-reg-copy` 16 个 id 改汇编+宏（复制 + `cs.*`） |
+| m13-testcases-015 | 2–3 h | `03-wyde-imm` 8 个 id 改汇编+宏 |
+| m13-testcases-016 | 3–4 h | `04-arith-logic-octa` 算术 15 个 id 改汇编+宏 |
+| m13-testcases-017 | 3–4 h | `04-arith-logic-octa` 逻辑/移位/扩展 14 个 id 改汇编+宏 |
+| m13-testcases-018 | 1–2 h | `04-arith-logic-octa` 位操作 4 个 id 改汇编+宏 |
+| m13-testcases-019 | 1–2 h | `05-arith-addr` 6 个 id 改汇编+宏 |
+| m13-testcases-020 | 4–6 h | `06-control-flow` 15 个 id 改汇编+宏（含 RAS） |
+| m13-testcases-021 | 5–7 h | `07-floating-point` 算术与最小最大 18 个 id 改汇编+宏 |
+| m13-testcases-022 | 6–8 h | `07-floating-point` 转换/比较/分类 26 个 id 改汇编+宏 |
+| m13-testcases-023 | 2–3 h | `07-floating-point` 取整/缩放/符号 8 个 id 改汇编+宏 |
+| m13-testcases-024 | 4–5 h | `08-arith-logic-tetra` 21 个 id 改汇编+宏 |
+| m13-testcases-025 | 4–5 h | `09-arith-logic-wyde` 21 个 id 改汇编+宏 |
+| m13-testcases-026 | 4–5 h | `10-arith-logic-byte` 21 个 id 改汇编+宏 |
+| m13-testcases-027 | 2–3 h | `11-cfx` 5 个 id 改汇编+宏（cfx/system） |
+| m13-testcases-028 | 5–7 h | `12-misc` 原子 24 个 id 改汇编+宏（`lr`/`sc`） |
+| m13-testcases-029 | 1–2 h | `12-misc` 其余 4 个 id 改汇编+宏（`swym`/`ct*`） |
+| m13-testcases-030 | 4–6 h | `.S` 接入门控 + YAML 退役（ISS-413） |
 | m13-qemu-007 | 2 h | `ld.t rf0` 只读位（QEMU，争议 6 裁定 A） |
 | m13-integ-009 | 4–6 h | FP-IEEE 对齐审计（47 条，等 `015` 后执行） |
 | m13-integ-002 | 5–7 h | FP 语义三平台差分（47 条，含舍入/标志） （**暂不进行**，用户 2026-11-11） |
