@@ -22,7 +22,7 @@
 ## 验收
 
 1. 上述三点在契约内有明确条款（逐条 grep 可命中）。
-2. `check-syscall-abi` / `check-contracts-dir` / `check-contracts-pending` / `check-knowledge-refs` rc=0；版本号按契约惯例升位（0.10.0 → 0.10.1）。
+2. `check-syscall-abi` / `check-contracts-dir` / `check-contracts-pending` / `check-knowledge-refs` rc=0；**版本号不动**（`contract-syscall` 0.9.2 随 ABI 册；M14 扩展记 §12 变更记录，见 `ISS-423`）。
 3. 不改 `spec/`、不改 `contracts/*.yaml`、不改 Makefile。
 4. ≥1 路注入可达 FAIL + `cp`+md5 还原。
 5. 完成区 ≤30 行；不改台账/`discussing.md`。
