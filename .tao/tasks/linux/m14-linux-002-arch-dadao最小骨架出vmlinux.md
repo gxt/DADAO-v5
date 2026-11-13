@@ -11,7 +11,7 @@
 
 `linux` 已成为受补丁组件（`m14-linux-001`），但补丁集为空。K0 的入口判据之一是「`arch/dadao` 最小骨架能 `make ARCH=dadao` 出 vmlinux」。本任务只要求**链接出可解析的 vmlinux**，**不要求能启动**：不声称 console/memblock/trap/initramfs/userspace 可用。
 
-入口/内存/装载规则以 `m14-spec-001` 冻结的契约为唯一依据，**但内核 VA 窗口已由用户 2026-11-13 修订为 `[3 TiB, 4 TiB)`**（`m14-spec-003` 负责改 spec）：内核链接/入口 = **`0x0000_0300_0010_0000`**、boot info = `0x0000_0300_0001_0000`、initramfs = `0x0000_0300_0400_0000`；用户空间 `[0, 3 TiB)`；映射为 `VA = PA + 3 TiB`；工具选择以 `m14-infra-001` 的矩阵为唯一依据。**不得**从 0628 的 `arch/dadao` 复制代码/补丁。
+入口/内存/装载规则以 `m14-spec-001` 冻结的契约为唯一依据，**但内核 VA 窗口已由用户 2026-11-13 修订为 `[2 TiB, 3 TiB)`**（`m14-spec-003` 负责改 spec）：内核链接/入口 = **`0x0000_0200_0010_0000`**、boot info = `0x0000_0200_0001_0000`、initramfs = `0x0000_0200_0400_0000`；用户空间 `[0, 2 TiB)`；映射为 `VA = PA + 2 TiB`；工具选择以 `m14-infra-001` 的矩阵为唯一依据。**不得**从 0628 的 `arch/dadao` 复制代码/补丁。
 
 ## 目标
 
@@ -20,11 +20,11 @@
    - `arch/dadao/Makefile`（`KBUILD` 钩子 + `core-y`/`libs-y` 最小集）；
    - `arch/dadao/configs/defconfig`（最小配置：单核、无 SMP、无 MMU 高级特性、无设备树/DTB、semihosting 控制台 stub 开）；
    - `arch/dadao/kernel/head.S`（入口 `_start`/`dadao_start`：自建 early stack、清零 `__bss_start..__bss_stop`（raw 路径需要）、校验 boot info magic/version/size（失败走 semihosting `SYS_EXIT` 的固定失败码）、随后进入最小 C 入口）；
-   - `arch/dadao/kernel/vmlinux.lds.S`（链接地址/入口 = `0x0000_0300_0010_0000`，`PT_LOAD` 规则按 spec-001；`__bss_start/_end` 等符号）；
+   - `arch/dadao/kernel/vmlinux.lds.S`（链接地址/入口 = `0x0000_0200_0010_0000`，`PT_LOAD` 规则按 spec-001；`__bss_start/_end` 等符号）；
    - `arch/dadao/kernel/setup.c` + early console stub（semihosting `SYS_WRITE0`，仅编译链接，K0 不执行）；
    - 链接所需的最小 arch 头/符号（按真实链接错误逐项补齐，**不得**批量塞「永不调用的空 stub」掩盖缺口）。
 2. 构建包装：`tools/linux/make_defconfig.py` / `tools/linux/make_vmlinux.py`（目标 `make linux-defconfig` / `make linux-vmlinux` 已由 `m14-linux-001` 声明）；使用 `tools/linux/paths.py` 解析源树/构建树，工具来自 `m14-infra-001` 矩阵。
-3. 产物断言：`vmlinux` 为 ELF64 大端、`e_machine = 0x0DA0`、`e_entry = 0x0000_0300_0010_0000`、仅 `PT_LOAD`、`p_vaddr = p_paddr + 3 TiB`（VA 与 PA 差固定偏置）、`p_vaddr % 0x10000 == 0`、`p_align >= 0x10000`、段落在 `[0x0000_0300_0010_0000, 0x0000_0300_0400_0000)`；`llvm-nm -u vmlinux` 为空。
+3. 产物断言：`vmlinux` 为 ELF64 大端、`e_machine = 0x0DA0`、`e_entry = 0x0000_0200_0010_0000`、仅 `PT_LOAD`、`p_vaddr = p_paddr + 2 TiB`（VA 与 PA 差固定偏置）、`p_vaddr % 0x10000 == 0`、`p_align >= 0x10000`、段落在 `[0x0000_0200_0010_0000, 0x0000_0200_0400_0000)`；`llvm-nm -u vmlinux` 为空。
 4. 补丁集可重建：`make apply-series` 在干净 base 上得到 `base+1`，`make check-patch-tree` / `make check-source-state` 绿。
 
 ## 接口规范
@@ -61,7 +61,7 @@
 3. `make linux-defconfig` rc=0；`make linux-vmlinux` rc=0，产物 `vmlinux` 存在且通过：
    - `llvm-readelf -h`：ELF64、`Data: 2's complement, big endian`、`Machine: DADAO (0x0da0)`、`Type: EXEC`；
    - `e_entry = 0x0000_0000_0010_0000`；
-   - `llvm-readelf -l`：仅 `PT_LOAD`（+ 允许 `PT_GNU_STACK` 等非装载段，须在完成区列出并说明）；每段 `p_vaddr = p_paddr + 3 TiB`（VA 与 PA 差固定偏置）、`p_vaddr % 0x10000 == 0`、`p_align >= 0x10000`、落在 `[0x0010_0000, 0x0400_0000)`；
+   - `llvm-readelf -l`：仅 `PT_LOAD`（+ 允许 `PT_GNU_STACK` 等非装载段，须在完成区列出并说明）；每段 `p_vaddr = p_paddr + 2 TiB`（VA 与 PA 差固定偏置）、`p_vaddr % 0x10000 == 0`、`p_align >= 0x10000`、落在 `[0x0010_0000, 0x0400_0000)`；
    - `llvm-nm -u vmlinux` 输出为空（**无未定义符号**）。
 4. **不批量造假 stub**：完成区列出所有为链接补齐的 arch 符号/文件，逐条给依据（`spec/`/`contract`/`DADAO-21` 或「K0 最小链接所需、K1 替换」）；不得出现「永不调用且无注释」的整批符号。
 5. **不复制 0628**：补丁按 `m14-spec-001`/`DADAO-21` 独立推导；reviewer 抽查 `arch/dadao` 与 `.cache/refs/DADAO-0628/components/linux/patches` 的同名文件（**内容溯源，非执行依赖**），如结构/命名相似须在完成区说明「按 v5 契约重写，非复制」。
