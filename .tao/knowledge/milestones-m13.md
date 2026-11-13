@@ -25,6 +25,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m13-gem5-013 | 2–3 h | gem5 `ld.t rf0` 经 FCSR 写掩码（只读位不覆盖） |
 | m13-qemu-011 | 2–3 h | `-bios` 收紧为固定固件，删 legacy trampoline 窗口 |
 | m13-testcases-034 | 2–3 h | Tiny `expected_fault` oracle 迁到 hmon 分派口径 |
 | m13-spec-008 | 1–2 h | `ext.*` 的 `hd` 取 `rdHD` 低 6 位（仅 orrr）；删「否则 ILLI」措辞 |
