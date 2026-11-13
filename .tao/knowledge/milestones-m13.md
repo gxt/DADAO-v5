@@ -52,13 +52,13 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m13-testcases-020 | 2026-11-14 02:12 | 4–6 h | `06-control-flow` 15 个 id 改汇编+宏（含 RAS） |
-| m13-qemu-010 | 2026-11-14 03:25 | 3–4 h | QEMU `ext.*` orrr 的 `hd` 改 `reg & 0x3F`（去掉 ILLI 路径） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
 | m13-qemu-007 | 2026-11-14 03:20 | `ld.t rf0` 只读位（掩码写入；tetra/octa 与 chipyard 逐字节） |
+| m13-qemu-010 | 2026-11-14 02:35 | `ext.*` orrr 的 `hd` 取 `rdHD[5:0]`（去 ILLI；uo/so 71/71，gem5 缺口钉 GAP） |
 | m13-testcases-019 | 2026-11-14 01:20 | `05-arith-addr` 6 id（12/12 三平台；节点跑批） |
 | m13-testcases-018 | 2026-11-14 01:15 | `04-arith-logic-octa` 位操作 4 id（12/12 三平台；节点跑批） |
 | m13-testcases-017 | 2026-11-13 22:35 | `04-arith-logic-octa` 逻辑/移位/扩展 14 id（28/28 三平台；ext hd 归属按裁定） |

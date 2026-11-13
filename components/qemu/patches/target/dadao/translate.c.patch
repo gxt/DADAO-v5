@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..1d1d8d1
+index 0000000..4e1070f
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,696 @@
+@@ -0,0 +1,676 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -87,16 +87,8 @@ index 0000000..1d1d8d1
 +    ctx->base.is_jmp = DISAS_NORETURN;
 +}
 +
-+/* Raise ILLI at runtime without setting is_jmp.
-+ * Use inside runtime conditional branches where the normal path must continue. */
-+static void gen_raise_exception_illi(DisasContext *ctx)
-+{
-+    gen_helper_raise_exception(tcg_env, tcg_constant_i32(DADAO_EXCP_ILLI),
-+                               tcg_constant_i64(ctx->opcode));
-+}
-+
-+/* Raise MALIGN at runtime without setting is_jmp (same shape as ILLI above:
-+ * used by the lr/sc alignment check, whose aligned path must keep running).
++/* Raise MALIGN at runtime without setting is_jmp (used by the lr/sc
++ * alignment check, whose aligned path must keep running).
 + * `addr` (big-endian effective address) is the monitor's cause_info. */
 +static void gen_raise_exception_malign(DisasContext *ctx, TCGv_i64 addr)
 +{
@@ -178,18 +170,6 @@ index 0000000..1d1d8d1
 +    TCGv_i64 dst = tcg_temp_new_i64();
 +    tcg_gen_andi_i64(dst, src, (1ULL << (bit + 1)) - 1);
 +    return dst;
-+}
-+
-+/* Runtime ILLI check: if cond is false, raise ILLI and continue TB.
-+ * Use for runtime value checks (e.g., ext orrr hd>N) where the TB
-+ * must continue past the check point. */
-+static void gen_runtime_illi_check(DisasContext *ctx,
-+                                   TCGv_i64 val, uint64_t limit)
-+{
-+    TCGLabel *label_ok = gen_new_label();
-+    tcg_gen_brcondi_i64(TCG_COND_LEU, val, limit, label_ok);
-+    gen_raise_exception_illi(ctx);
-+    gen_set_label(label_ok);
 +}
 +
 +/* ── Compare helper ──────────────────────────────────────────────────── */

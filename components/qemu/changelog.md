@@ -341,3 +341,7 @@
 - **2026-11-14 `m13-qemu-007`**
   - 摘要：**`ld.t`/`ldm.t` 写 `rf0` 不再改写只读位（争议 6 裁定 A）**。`target/dadao/insn_trans/trans_fp.c.inc` 删掉 `ld.t`/`ldm.t` 目的写的 rf0 专用旁路 `store_rf_tetra_dst()`（原实现把装入值的低 32 位整体写入，覆盖只读 `[31:22]` ft qNaN 与 SBZ `[21:5]`；去掉旁路后该包装与非零 rf 无差别，一并删除，两个调用点直接走 `store_rf()`）：`RF0_WRITE_MASK` 只放行 `[33:32]`/`[4:0]`，`[63:51]`/`[31:22]` 只读 qNaN 与 SBZ 写无效、保持原值（`spec/SimRISC-00 §2.3.1`、`SimRISC-01 §存取RF寄存器` 注、`contract-fp §1`）。tetra 装入仍按既有语义符号扩展到 64 位（与 chipyard `memLdElem` 一致），故 `ld.t rf0 ← 0xFFFF_FFFF` 读回 `0x7FF8_0003_7FC0_001F`。`ld.o`/`ldm.o`/`rd2rf`/`set.w`/FP helper 路径不变（原本就经 `store_rf()`/掩码 OR）。补丁 1 份改。
   - 执行者：engineer
+
+- **2026-11-14 `m13-qemu-010`**
+  - 摘要：**`ext.uo`/`ext.so` orrr 的 `hd` 取 `rdHD[5:0]`，删运行时 ILLI 路径**（用户裁定 2026-11-13，`ISS-422`：`rdHD` 高位忽略、不抛 ILLI）。`target/dadao/insn_trans/trans_extend.c.inc`：`trans_ext_{uo,so}_orrr_rd` 删除 `gen_runtime_illi_check(ctx, rdhd, 63)` 及其注释，保留既有 `tcg_gen_andi_i64(pos, rdhd, 0x3F)`，头注释改述 `hd = rdHD[5:0]`（chipyard `WumingDecoder.orrrShift` 即把该值送 6 位 `shamt` 端口）。`target/dadao/translate.c`：`gen_runtime_illi_check()` 随之无调用者、删除；其唯一被调用者 `gen_raise_exception_illi()` 亦无调用者，同步删除（避免新增 `-Wunused-function`）。orri 分支的 `a->hd > 63` 检查保留（`immu6` 为 6 位字段 ⇒ 不可达，留作防御、最小改动）。语义：`rdHD=64 ≡ 0`、`67 ≡ 3`、`2^64−1 ≡ 63`、`63 ≡ 63`；`ext.so` 仍按 `rdhc[hd]` 符号扩展。补丁 2 份改。
+  - 执行者：engineer
