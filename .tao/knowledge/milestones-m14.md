@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-spec-003 | 3–4 h | 内核 VA 窗口改 `[2TiB, 3TiB)`（四项冻结地址 +2 TiB；spec/契约/ADR 同笔） |
 | m14-llvm-003 | 2–4 h | `-fpatchable-function-entry=N[,M]`（ftrace/static_call 插桩） |
 | m14-llvm-004 | 4–8 h | DADAO DWARF 寄存器编号 + CFI（修 `llvm-mc` abort、RA≤255、`.eh_frame` absptr） |
 | m14-llvm-002 | 1–2 天 | 栈保护后端 lowering（`-fstack-protector{,-strong,-all}`，guard=global） |
@@ -37,6 +36,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-spec-003 | 2026-11-13 21:30 | 3–4 h | 内核 VA 窗口改 `[2TiB, 3TiB)`（四项冻结地址 +2 TiB；spec/契约/ADR 同笔） |
 
 ## 已验证
 
