@@ -105,6 +105,11 @@ exclude:
   - ir: tests/unit/llvm/codegen/m4/m4_section_main.ll
     class: multi-tu
     reason: "references data/symbols defined in m4_section_data.ll; requires multi-TU linking."
+  - ir: tests/unit/llvm/lit/CodeGen/DADAO/patchable-function-entry.ll
+    class: no-value-entry
+    reason: >-
+      FileCheck structural test for `-fpatchable-function-entry` slots; no
+      `i64 @main()` value channel (exit-code differential not applicable).
   - ir: tests/unit/llvm/lit/CodeGen/DADAO/branch-fold-insert.ll
     class: multi-tu
     reason: >-

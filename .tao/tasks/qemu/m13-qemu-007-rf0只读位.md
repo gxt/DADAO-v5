@@ -90,7 +90,7 @@
 **脚本审阅**：逐行审 `run.sh`/`node-run.sh`——每条 `ck/expect_rc` 均有可达 FAIL 路径（锚点 `assert count==1`、红集/覆盖数现场派生、字节比对双向），无恒真、无「两支写同一结果」；两路注入走不同失败路径（旁路 vs 掩码）；还原只用 `cp`+`md5`+`touch`，未用 `git checkout/restore/stash`；退出码捕获被检命令自身（无 `| tee` 吞码）。
 
 **重跑记录（全部 reviewer 亲跑，不采信完成区）**
-1. 证据脚本全量重跑 ×2：`bash .work/evidence/m13-qemu-007/run.sh` ⇒ 第 1 次 `summary: PASS=49 FAIL=0` / `RESULT: PASS`；第 2 次 `RUN_RC=0`、`PASS=49 FAIL=0`，两轮 `[PASS]` 集合 `diff` **完全一致**、`[FAIL]` 计数 0。
+1. 证据脚本全量重跑 ×2：`bash <运行期证据目录>/run.sh` ⇒ 第 1 次 `summary: PASS=49 FAIL=0` / `RESULT: PASS`；第 2 次 `RUN_RC=0`、`PASS=49 FAIL=0`，两轮 `[PASS]` 集合 `diff` **完全一致**、`[FAIL]` 计数 0。
 2. 改前 QEMU 复现：`xz -dc …/pre-change/qemu-system-dadao.xz` ⇒ md5 `389ffb969e503f291f8e1b7c718392d8`（= 钉值）；用它跑探针 `RC=1`、`rf0_ld_tetra.S rc=2`（首红@2）、`rf0_ld_octa.S rc=0` ⇒ 改前确红、缺陷只在 tetra 路径。
 3. 三平台（server207）：`chipyard==QEMU` tetra md5 `a06b14d6d06afb17bed094a56208c6d4`、octa `59b4e10540c83217379f0ac6eea8f2e1`；gem5 tetra `rc=1`/`GEM5_EXIT_CODE=2`、octa `rc=0`；`node summary: PASS=8 FAIL=0`。reviewer 另独立 `xxd`/`md5sum` 本地 QEMU 输出得同一对 md5 ⇒ 与节点 chipyard 逐字节一致。
 4. 门控（reviewer 亲跑/亲 grep）：`make check-inst` rc=2、红集恰 `FAIL divrem.yaml[23]`、`Results: 1141 total / 1135 passed / 1 failed / 5 deferred`；`inst_sweep` md5 `2d4d94651346ef673c5a855e024c1489`、`covered=273`；`check_qemu_trans` `264/264` rc=0；`check_patch_tree.py` qemu 段 `assertion` 命中 0（`qemu: 66 patch(es)`）、`--source-state: qemu: OK`；`check_component_changelog` rc=0。
