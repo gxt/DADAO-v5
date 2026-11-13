@@ -18,7 +18,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m16-gem5-004 | 3–4 h | 动态类（乘法宽度/radix-4/FP 除开方/`swym N`）用 `TimingExpr` |
 | m16-gem5-005 | 3–4 h | 块传送计拍（`ldm/stm` 微操作展开、`rd2rd` 类 ⌈N/2⌉/N） |
 | m16-gem5-006 | 3–4 h | 访存时序（`NoncoherentXBar`+`SimpleMemory`）+ Atomic/Timing 墙钟比 |
 | m16-gem5-007 | 3–4 h | 对标脚手架 + embench 子集 + 报告 |
@@ -27,6 +26,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-gem5-004 | 2026-11-14 05:20 | 3–4 h | 动态类接入（B1/B2/B3/B5/`swym` + ras-kind/trap-target/range） |
 
 ## 已验证
 
