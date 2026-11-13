@@ -10,7 +10,7 @@
 #   requires   依赖项列表（可为空）
 #
 # 门控：make check-tests-index（L1，静态）；`TESTCASES-072t` 首次填入实际 case。
-# 本清单逐文件一条（向量 YAML + 探针 C/IR 源）；条数由 `check-tests-index` 现场统计。
+
 - id: inst-01-load-store-001
   file: inst/01-load-store/ld.o_rrii_ra.S
   platforms:
@@ -463,6 +463,42 @@
   requires: []
 - id: inst-04-arith-logic-octa-033
   file: inst/04-arith-logic-octa/rol.o_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-05-arith-addr-001
+  file: inst/05-arith-addr/add.o_orrr_bbd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-05-arith-addr-002
+  file: inst/05-arith-addr/add.si_riii_rb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-05-arith-addr-003
+  file: inst/05-arith-addr/aip.si_riii_rb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-05-arith-addr-004
+  file: inst/05-arith-addr/cmp.uo_orrr_dbb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-05-arith-addr-005
+  file: inst/05-arith-addr/sub.o_orrr_bbd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-05-arith-addr-006
+  file: inst/05-arith-addr/sub.o_orrr_dbb.S
   platforms:
   - system
   level: full

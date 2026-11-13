@@ -27,6 +27,8 @@
 | `02-reg-copy/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（块复制 8 + `cs.*` 8，共 16 个） |
 | `03-wyde-imm/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（`set.zw`/`set.ow`/`or.w`/`andn.w`/`set.w`，8 个） |
 | `04-arith-logic-octa/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（算术族 `add.*`/`sub.*`/`mul.*`/`div.*`/`rem.*`/`cmp.*` 15 个；逻辑/移位/扩展 14 个；位操作 `rev.o`/`rol.o`/`clmul.o` 4 个） |
+| `04-arith-logic-octa/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（算术族 `add.*`/`sub.*`/`mul.*`/`div.*`/`rem.*`/`cmp.*`，15 个；逻辑/移位/位操作见后续任务） |
+| `05-arith-addr/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（64 位地址运算 `add.o`/`sub.o` 的 bbd·dbb、`cmp.uo`、`add.si`、`aip.si`，6 个） |
 
 ## 汇编载体（M13 起）
 

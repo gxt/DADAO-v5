@@ -64,9 +64,11 @@ FAULT_RE = re.compile(r"^\tTEST_FAULT(?:_MOV|_CS2|_CS|_M|_WI)?\s+(\d+),\s*(\S+?)
                       r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
 FAULT_ENC_RE = re.compile(r"^\tTEST_FAULT_ENC\s+(\d+),\s*"
                           r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
-# 04-arith-logic-octa 算术/逻辑族的故障宏（`TEST_FAULT_{DUAL,ALU3,ALU_ORRI,ALU_SI,ALU_CMPI}`：
-# 参数 = 检查点, 助记符, 故障名, …）
-FAULT_AR_RE = re.compile(r"^\tTEST_FAULT_(?:DUAL|ALU3|ALU_ORRI|ALU_SI|ALU_CMPI)\s+(\d+),\s*"
+# 04-arith-logic-octa 算术/逻辑族与 05-arith-addr 的故障宏
+# （`TEST_FAULT_{DUAL,ALU3,ALU_ORRI,ALU_SI,ALU_CMPI}` = 04 族；
+#   `TEST_FAULT_{BBD,DBB,RB_SI}` = 05 族，参数 = 检查点, 助记符, 故障名, …）
+FAULT_AR_RE = re.compile(r"^\tTEST_FAULT_(?:DUAL|ALU3|ALU_ORRI|ALU_SI|ALU_CMPI|BBD|DBB|RB_SI)"
+                         r"\s+(\d+),\s*"
                          r"(\S+?),\s*(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
 END_RE = re.compile(r"^\t__TEST_END\b")
 

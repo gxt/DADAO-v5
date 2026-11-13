@@ -95,10 +95,10 @@
 | `atomics/atomics-fence.yaml` | 17 | 1 | 待迁 |
 | `atomics/atomics-lrsc.yaml` | 108 | 24 | 待迁 |
 | `atomics/sc-rd0.yaml` | 14 | 24 | 待迁 |
-| `base/aip-si.yaml` | 12 | 1 | 待迁 |
+| `base/aip-si.yaml` | 12 | 1 | **id 全部已迁**（`aip.si_riii_rb`，见 §6/019）；文件未删（§5.1 前置） |
 | `base/bitcnt.yaml` | — | — | 待迁 |
-| `base/reg-arith.yaml` | 224 | — | 待迁 |
-| `base/reg-compare.yaml` | — | — | 待迁 |
+| `base/reg-arith.yaml` | 224 | — | 部分迁移（05 族 3 个 id `add.o_bbd`/`add.si_riii_rb`/`sub.o_bbd` 见 §6/019；余 32/16/8 位待 024/025/026） |
+| `base/reg-compare.yaml` | — | — | 部分迁移（05 族 `cmp.uo_orrr_dbb` 见 §6/019；余各宽度 id 待 024/025/026） |
 | `base/reg-cond-assign.yaml` | 25 | 5 | **id 全部已迁**（5 个 `cs.*_rrrr_rd`，见 §6）；文件未删（§5.1 四个门控阻塞） |
 | `base/reg-imm-block.yaml` | 48 | 7+6 | **id 全部已迁**（6 个块复制 id 见 §6/014，7 个 rwii id 见 §6/015）；文件未删（§5.1 前置） |
 | `base/reg-logic.yaml` | 16 | 4 | **id 全部已迁**（4 个逻辑 id，见 §6/017）；文件未删（§5.1 前置） |
@@ -299,3 +299,29 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
   满宽随机 semantic）取全部非随机类例 + 2 例随机代表（19 点）——`.text` 上限
   `0x1E00`（`.lds` ASSERT）不容纳 81 个双目的检查点。三文件均**未删**：`rev`/`rol`
   仍含 32/16/8 位 id，`clmul.yaml` 是 `make check-inst` 的 L3 载体（§5.1）。
+### `m13-testcases-019`：`05-arith-addr`（64 位地址运算，6 个 id）
+- `tests/inst/05-arith-addr/{add.o_orrr_bbd,sub.o_orrr_bbd,cmp.uo_orrr_dbb,sub.o_orrr_dbb,
+  add.si_riii_rb,aip.si_riii_rb}.S`（6 个）；链接布局复用 `01-load-store/inst-tiny.lds`。
+- 宏层新增（`tests/inst/macros/inst_test.inc`）：`TEST_AR_BBD`（目的 RB、源 = RB + RD）、
+  `TEST_AR_DBB`（目的 RD、两源 RB）、`TEST_AR_RB_SI`（riii rb，目的兼源）；
+  故障宏 `TEST_FAULT_{BBD,DBB,RB_SI}`（`dst_rb0` / `dst_rd0` ⇒ ILLI）；驱动器
+  `run_asm_suite.py` 的 `FAULT_AR_RE` 增补这三个名字。**目的只写不读** ⇒ 不装初值；
+  目的在 RB ⇒ 同组 `st.o` 落 SCRATCH 再 `__CHECK_MEM`。
+- 语义要点（`spec/SimRISC-05`）：`add.o`/`sub.o`（bbd 与 dbb 两形态）与 `add.si` 都是
+  **全 64 位二进制补码**加减、**不做地址截断**（`[63:48]` 只是地址溢出指示，仅访存时取 `[47:0]`）；
+  `cmp.uo` 是**整 64 位无符号**比较（`bits[63:48]` 参与）⇒ 0x0000FFFF.. < 0x0001_0000_0000_0000，
+  只比低 48 位会判「相等」；`aip.si` 的 `IP` = **该指令自身地址**（非下一条、无 ±4、低位不清零），
+  立即数按 4 KiB 块（汇编层字节、编码层 `>>12`）。
+- **`aip.si` 的链接期期望值**：llvm-mc 只把**绝对常量**表达式折进指令立即数，标签差
+  （`. - _start`、`L1 - L0`）在立即数里被**静默折成 0**（本任务现场实测，`__LI`/`set.zw`
+  均如此，无诊断）⇒ 该文件把 `aip.si` 用 `.org 0x200` 钉在 `ENTRY+0x200` 起的连续 4 B 槽
+  （`jump` 跳过填充的零字），期望一律写 `ENTRY + <字面偏移>`。**不要**在本仓其它 `.S` 里
+  用标签算术造立即数（会得到 0 而静默失败）。
+- 用例：每 id 11–13 链例 + 1 故障例（encoding 2 / semantic 3–5 / boundary 3–6 / overlap 2）；
+  覆盖 `[63:48]` 参与的比较、跨 2^64 进位/借位、48 位边界内的进位与借位、立即数 ±上下界、
+  `rd0` 作源、源=目（bbd）与同源（dbb）、`aip` 的 IP=自身/`<<12`/低位不清零/同目的连写。
+  链例 6 + 故障例 6）。
+- **YAML**：`base/aip-si.yaml`（1 个 id）的 12 条用例、`base/reg-arith.yaml` 的
+  `add.o_bbd`/`add.si_riii_rb`/`sub.o_bbd` 与 `base/reg-compare.yaml` 的 `cmp.uo_orrr_dbb`
+  用例已并入（`sub.o_orrr_dbb` 无 YAML 载体）；三文件**未删** —— `aip-si.yaml` 的 id 虽
+  全迁，删除仍受 §5.1 前置阻塞，另两文件仍含 32/16/8 位 id。
