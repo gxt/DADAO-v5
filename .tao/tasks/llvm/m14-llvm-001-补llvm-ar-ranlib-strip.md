@@ -150,7 +150,7 @@
 - `make check-install-tools` → **rc=0**，`PASS (104 check(s))`，含 3 组功能断言 PASS 行。
 - `check_install_tools.py --self-test` → **rc=0**；8 路注入逐条红、还原逐条绿（inject-6 归档丢成员 2 FAIL / inject-7 索引 0 条 / inject-8 strip rc=1），既有 5 类注入语义未削弱（1–5 仍各自报红）。
 - `make check-linux-toolchain` → **rc=0**（8/8 行一致）；`make check-component-changelog` → **rc=0**（9 文件×4=36 项）。
-- 证据脚本 `bash .work/evidence/m14-llvm-001/run.sh` → **rc=0（58/58）**；`--inject` → **rc=0（60/60）**（与完成区 60/60 一致）。
+- 证据脚本 `bash <运行期证据目录>/run.sh` → **rc=0（58/58）**；`--inject` → **rc=0（60/60）**（与完成区 60/60 一致）。
 - 独立功能测试（reviewer 自写 `/tmp/opencode/m14-llvm-001/review-func.sh`，两枚**不同** DADAO 对象 md5 `ea3ab24e…`/`7233173c…`）→ **rc=0**：`ar rcs/t/x` 往返解出 md5==原件；`ar rcS` 后 `llvm-nm --print-armap` **0 条** → `llvm-ranlib` → **5 条**且 `ar t` 仍列 2 成员；`strip --strip-all` 后 `Data: big endian`、`Machine: da0` 不变、`objdump -d` rc=0（341 行）；`llvm-size` rc=0、`llvm-config --version`=23.1.3 rc=0。
 - **独立反例注入**（真安装根，注入前 `cp -a` 备份 + md5；注入期间无进程占用工具链）：把 `llvm-ranlib` 换成 `exit 0` 桩 → **同一脚本 rc=1，2 FAIL**（`is a relative symlink` + `archive map written by ranlib: expected>=1 actual=0 entries`）；`cp -a` 还原 → 链接文本 md5 `92fcae…`、`llvm-ar` md5 `6b03ce…` 与注入前相同，重跑 **rc=0（104 PASS / 0 FAIL）**。
 - 形态：安装根与构建树 8 工具齐；`llvm-ranlib -> llvm-ar`(7B)、`llvm-strip -> llvm-objcopy`(12B) 为**相对**链接，`llvm-ar` 实文件 277129752 B，双侧 md5 `6b03ce4b…89b4`；8 个 `--version` **rc=0**。

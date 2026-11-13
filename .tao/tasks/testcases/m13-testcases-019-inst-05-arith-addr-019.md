@@ -82,7 +82,7 @@ add.o_orrr_bbd add.si_riii_rb aip.si_riii_rb cmp.uo_orrr_dbb sub.o_orrr_bbd sub.
 
 **重跑（我本人执行；真实输出/退出码）**
 - 节点 `run_asm_suite.py --vectors tests/inst/05-arith-addr --lds tests/inst/01-load-store/inst-tiny.lds --jobs 8` ⇒ `rc=0`、`12/12 镜像通过`；链例 `104/96/88/104/104/104 B`（== 8×`13/12/11/13/13/13`），故障例三平台 rc 全 `248(0xF8)`。
-- 节点 `.work/evidence/m13-testcases-019/run.sh` ⇒ `RV_RUN_EXIT=0`、`CHECK=32 FAIL=0 PASS`；`run.sh --inject` ⇒ `RV_INJECT_EXIT=0`、`CHECK=38 FAIL=0`（与完成区逐字一致：`7be0cb3e…→58175a30…`、oracle rc≠0、跑批 rc=6、还原 `7be0cb3e…`、回绿 rc=0）。
+- 节点 `<运行期证据目录>/run.sh` ⇒ `RV_RUN_EXIT=0`、`CHECK=32 FAIL=0 PASS`；`run.sh --inject` ⇒ `RV_INJECT_EXIT=0`、`CHECK=38 FAIL=0`（与完成区逐字一致：`7be0cb3e…→58175a30…`、oracle rc≠0、跑批 rc=6、还原 `7be0cb3e…`、回绿 rc=0）。
 - 主控机门控：`check_tests_index rc=0(322)`｜`check_case_ledger rc=0(2170)`｜`validate_vectors rc=0(723, gaps 0)`｜`inst_sweep emit rc=0` ⇒ md5 `2d4d94651346ef673c5a855e024c1489`(covered=273)｜`check-dirs rc=0`｜`check-no-residue rc=0`｜`check-knowledge-refs rc=2`（2 命中属 `m14-infra-001`/`m14-spec-003`，非本任务）。
 - 独立复算（自写 `recheck.py`，语义取自 `spec/SimRISC-05 §1–§4` + `opcodes.yaml` 位域，不复用 `oracle.py`）⇒ `75 点/不符 0/跳过 0, rc=0`：含 add/sub `[63:48]` 不截断、`cmp.uo` 整 64 位、`add.si` 符号扩展、`aip.si` 12 槽连续 4B 且 `ENTRY+字面偏移`。
 - 独立注入（自设计，非 `cmp.uo` 点 6）：`add.o_orrr_bbd` 点 7 期望 `0x0001000000000000→0x0000000000000000`，md5 `9ad65e7f…→a5eaeece…` ⇒ 三平台 rc 全 **7**、`SUITE_EXIT=1` ⇒ `cp` 还原 md5 `9ad65e7f…` 相等 ⇒ 回绿 `RESTORE_SUITE_EXIT=0`、`1/1 PASS`、104 B，无 `.preinject` 残留。

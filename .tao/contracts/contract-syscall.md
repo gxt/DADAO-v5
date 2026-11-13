@@ -125,7 +125,7 @@
 ## §9 errno 表示（扩 §4；不改变 A 口径）
 
 - **载体与符号**：`rd8` 按 **64 位有符号**解释；成功 = `>= 0`；错误 = `-errno`，取值范围 **`[-4095, -1]`**；`-4096` 及以下**不是** errno。判据与 musl `__syscall_ret()` 的 `r > -4096UL` 一致 ⇒ musl **零改**。[contract-syscall §4][外部权威 musl `src/internal/syscall_ret.c`]
-- **内核内部码不外泄**：`ERESTARTSYS` / `ERESTARTNOINTR` 等 Linux **内核内部重启码**不得出现在用户可见的 `rd8` 上；内核必须在返回用户态前转成 `-errno` 或重新执行该系统调用。[外部权威 Linux 内核 `include/linux/errno.h`]
+- **内核内部码不外泄**：`ERESTARTSYS` / `ERESTARTNOINTR` 等 Linux **内核内部重启码**不得出现在用户可见的 `rd8` 上；内核必须在返回用户态前转成 `-errno` 或重新执行该系统调用。[spec-decision]（Linux 内核内部重启码语义的 v5 归一化；外部依据 = Linux `include/linux/errno.h`，非 DADAO 规范）
 - **未支持 / 参数错**：不支持的系统调用返回 **`-ENOSYS`**，参数错误返回对应 **`-EINVAL`** 等负值；两者都是 `-errno` 形态、走 `rd8`。[contract-syscall §4][DADAO-21 §4. 系统调用规范]
 - **不用 `rd1`**：不得用 `rd1`（`rderrno`）承载 syscall 错误，也不得与 `rd8` 双写；`rd1` 的 spec 语义与 syscall 错误路径无关（§4 已裁定 A）。[contract-syscall §4][DADAO-21 §1. 寄存器规范]
 - **可见返回寄存器**：用户态只从 `rd8` 取 syscall 结果；指针返回值仍按 `rb8` 的既有 ABI 规则（`DADAO-21 §返回值`），但 **syscall 的标量结果不放 `rb8`**。[DADAO-21 §返回值][contract-syscall §3]

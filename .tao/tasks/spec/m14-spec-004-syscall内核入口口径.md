@@ -55,7 +55,7 @@
 ### 第 1 轮 reviewer 验收（2026-11-13，本人重跑；判决只据自身命令输出/退出码）
 
 **重跑记录（worktree 内，命令 → 真实退出码）**：
-- `bash .work/evidence/m14-spec-004/run.sh` → **rc=0，21/21 PASS**（`RESULT: PASS`、FAIL=0）。
+- `bash <运行期证据目录>/run.sh` → **rc=0，21/21 PASS**（`RESULT: PASS`、FAIL=0）。
 - `make check-syscall-abi` → rc=0（`80/80 checks passed`）；`make check-contracts-dir` → rc=0（13 md / 7 yaml）；`make check-contracts-pending` → rc=0（现场 4126 行、标记 0）；`make check-spec-drift` → rc=0（contract-syscall `spec-sourced 0.9.2` == README AEE/ABI，错误 0）。
 - `make check-knowledge-refs`（本 worktree）→ **rc=2**（脚本 rc=1），违规恰 2 条 = `.tao/tasks/infra/m14-infra-001:157`、`.tao/tasks/spec/m14-spec-003:100`（他任务既有，本任务未触碰）；**主工作树重跑 → rc=0 PASS**（`0 具体 .work/** 引用`，已含 `8929d8ae` 清理）⇒ 红是本分支基线落后于 master，非本任务缺陷，合并后消。
 - **独立注入 1 路（自设计，未复用 engineer 路）**：`cp` 备份 md5 `d2ddf0f9bb1c3dd875d5cf7050ddb4d4` → `sed` 把 §8/§12 `**入口寄存器由内核自配**` 改「由固件代配」（残留命中 2）→ `run.sh` **rc=1**、`[FAIL] §8 固件只放行 / 入口寄存器由内核自配(同一条) expected=1 actual=0`（`RESULT: FAIL`、FAIL=1）→ `cp` 还原 md5 `d2ddf0f9…` 相等、`代配` 残留 0 → `run.sh` **rc=0、21/21 PASS**。全程 `cp`+md5，未用 git checkout/restore。
