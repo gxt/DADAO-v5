@@ -26,6 +26,7 @@
 | `01-load-store/inst-tiny.lds` | 上面这册的链接布局（固定段地址 + ASSERT 钉住）；`02-reg-copy`/`03-wyde-imm` 复用同一布局 |
 | `02-reg-copy/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（块复制 8 + `cs.*` 8，共 16 个） |
 | `03-wyde-imm/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（`set.zw`/`set.ow`/`or.w`/`andn.w`/`set.w`，8 个） |
+| `04-arith-logic-octa/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（算术族 `add.*`/`sub.*`/`mul.*`/`div.*`/`rem.*`/`cmp.*`，15 个；逻辑/移位/位操作见后续任务） |
 
 ## 汇编载体（M13 起）
 
@@ -43,6 +44,9 @@ python3 tools/testcases/inst/run_asm_suite.py \
 python3 tools/testcases/inst/run_asm_suite.py \
     --vectors tests/inst/03-wyde-imm \
     --lds tests/inst/01-load-store/inst-tiny.lds                  # 03-wyde-imm 全册
+python3 tools/testcases/inst/run_asm_suite.py \
+    --vectors tests/inst/04-arith-logic-octa \
+    --lds tests/inst/01-load-store/inst-tiny.lds                  # 04 算术族全册
 ```
 
 判据 = **同一份 ELF** 在 chipyard `WumingTinyConfig` / QEMU `dadao-tiny` / gem5 FS

@@ -662,6 +662,101 @@ __r0w_\@:
 .endm
 
 @@ ---------------------------------------------------------------------------
+@@ 64 位数据运算（04-arith-logic-octa 算术族，`spec/SimRISC-04 §1`）：一行 = 一个检查点
+@@   TEST_AR_DUAL(pt, 助记符, 高半, 低半, 高初值, 低初值,
+@@               源C, C值, 源D, D值, 高期望, 低期望)
+@@     rrrr 双目的 add/sub/mul：`{rdHA, rdHB}` = 128 位结果（HA 高、HB 低）。
+@@     高半用 `__VERIFY_RD`、低半用 `__CHECK_RD` ⇒ 两条断言共用点号，失败点号仍 = 用例序号。
+@@   TEST_AR_ORRR(pt, 助记符, 目的, 目的初值, 源C, C值, 源D, D值, 期望)
+@@     orrr 单目的 cmp/div/rem：目的写满 64 位。
+@@   TEST_AR_SI(pt, 助记符, 目的, 初值, imms18, 期望)
+@@     riii `add.si dst, imms18`：目的兼源，立即数符号扩展后加。
+@@   TEST_AR_CMPI(pt, 助记符, 目的, 目的初值, 源B, B值, imm12, 期望)
+@@     rrii `cmp.si/cmp.ui dst, src, imm`：结果 -1/0/1 写满 64 位。
+@@ 初值装载顺序 = 高/低（或目的）/源C/源D；**与已装载寄存器同名者跳过**（`.ifnc`），
+@@   故别名用例（目的=源）的「源值」必须等于该寄存器已装载的初值 —— 用例须自洽，
+@@   证据脚本的独立重算按同一规则校验（不一致即红）。**rd0 一律不装载**
+@@   （rd0 只读、写它会 ILLI；作源时读出 0），双目的为 rd0 的那一半不做比对、点号落在留下的一半。
+@@ 探针不借被测指令：初值用 `__LI`（set.zw/or.w，见 03 册），期望内联；比较只用 br.eq。
+@@ ---------------------------------------------------------------------------
+
+.macro TEST_AR_DUAL pt, mnem, hi, lo, hiinit, loinit, c, cval, d, dval, exphi, explo
+	.ifnc	\hi, rd0
+	__LI	\hi, \hiinit
+	.endif
+	.ifnc	\lo, rd0
+	__LI	\lo, \loinit
+	.endif
+	.ifnc	\c, rd0
+	.ifnc	\c, \hi
+	.ifnc	\c, \lo
+	__LI	\c, \cval
+	.endif
+	.endif
+	.endif
+	.ifnc	\d, rd0
+	.ifnc	\d, \hi
+	.ifnc	\d, \lo
+	.ifnc	\d, \c
+	__LI	\d, \dval
+	.endif
+	.endif
+	.endif
+	.endif
+	\mnem	{\hi, \lo}, \c, \d
+	@@ 被丢弃的一半（目的 = rd0）无从核对 ⇒ 点号落在留下的那一半
+	.ifnc	\hi, rd0
+	.ifnc	\lo, rd0
+	__VERIFY_RD \pt, \hi, \exphi
+	.endif
+	.endif
+	.ifnc	\lo, rd0
+	__CHECK_RD  \pt, \lo, \explo
+	.else
+	__CHECK_RD  \pt, \hi, \exphi
+	.endif
+.endm
+
+.macro TEST_AR_ORRR pt, mnem, dst, dstinit, c, cval, d, dval, exp
+	.ifnc	\dst, rd0
+	__LI	\dst, \dstinit
+	.endif
+	.ifnc	\c, rd0
+	.ifnc	\c, \dst
+	__LI	\c, \cval
+	.endif
+	.endif
+	.ifnc	\d, rd0
+	.ifnc	\d, \dst
+	.ifnc	\d, \c
+	__LI	\d, \dval
+	.endif
+	.endif
+	.endif
+	\mnem	\dst, \c, \d
+	__CHECK_RD \pt, \dst, \exp
+.endm
+
+.macro TEST_AR_SI pt, mnem, dst, init, imm, exp
+	__LI	\dst, \init
+	\mnem	\dst, \imm
+	__CHECK_RD \pt, \dst, \exp
+.endm
+
+.macro TEST_AR_CMPI pt, mnem, dst, dstinit, b, bval, imm, exp
+	.ifnc	\dst, rd0
+	__LI	\dst, \dstinit
+	.endif
+	.ifnc	\b, rd0
+	.ifnc	\b, \dst
+	__LI	\b, \bval
+	.endif
+	.endif
+	\mnem	\dst, \b, \imm
+	__CHECK_RD \pt, \dst, \exp
+.endm
+
+@@ ---------------------------------------------------------------------------
 @@ 故障例：TEST_FAULT(pt, 助记符, 目的/源, 故障名, 基址, 基址值, 偏移)
 @@        TEST_FAULT_M(pt, 助记符, 组, 故障名, 基址, 基址值, 偏移寄存器, 偏移值)
 @@        TEST_FAULT_ENC(pt, 故障名, 编码字, 基址, 基址值, 偏移寄存器, 偏移值)
@@ -804,6 +899,63 @@ __fault_case:
 __fault_case:
 	__FAULT_GUARD \pt, \fault
 	\mnem	\dst, \wp, \imm
+	__EXIT	\pt
+	.endif
+.endm
+
+@@ 64 位数据运算故障例（`spec/SimRISC-04 §1`；汇编器对非法编码同样放行）
+@@   TEST_FAULT_DUAL(pt, 助记符, 故障名, 高半, 低半, 源C, 源D)  —— dst_dual_same
+@@   TEST_FAULT_ALU3(pt, 助记符, 故障名, 目的, 源C, 源D)        —— dst_rd0（orrr）
+@@   TEST_FAULT_ALU_SI(pt, 助记符, 故障名, 目的, imms18)        —— dst_rd0（riii）
+@@   TEST_FAULT_ALU_CMPI(pt, 助记符, 故障名, 目的, 源B, imm12)  —— dst_rd0（rrii）
+@@   源寄存器给固定非零值（rd0 作源合法，不装载 ⇒ 跳过 `__LI rd0`）。
+.macro __FAULT_LOAD_SRC reg, val
+	.ifnc	\reg, rd0
+	__LI	\reg, \val
+	.endif
+.endm
+
+.macro TEST_FAULT_DUAL pt, mnem, fault, hi, lo, c, d
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	__FAULT_LOAD_SRC \c, 0x0123456789ABCDEF
+	__FAULT_LOAD_SRC \d, 0x0000000000000007
+	\mnem	{\hi, \lo}, \c, \d
+	__EXIT	\pt
+	.endif
+.endm
+
+.macro TEST_FAULT_ALU3 pt, mnem, fault, dst, c, d
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	__FAULT_LOAD_SRC \c, 0x0123456789ABCDEF
+	__FAULT_LOAD_SRC \d, 0x0000000000000007
+	\mnem	\dst, \c, \d
+	__EXIT	\pt
+	.endif
+.endm
+
+.macro TEST_FAULT_ALU_SI pt, mnem, fault, dst, imm
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	\mnem	\dst, \imm
+	__EXIT	\pt
+	.endif
+.endm
+
+.macro TEST_FAULT_ALU_CMPI pt, mnem, fault, dst, b, imm
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	__FAULT_LOAD_SRC \b, 0x0123456789ABCDEF
+	\mnem	\dst, \b, \imm
 	__EXIT	\pt
 	.endif
 .endm

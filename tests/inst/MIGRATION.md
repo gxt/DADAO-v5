@@ -230,3 +230,23 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
   链例 8 + 故障例 7）。
 - **YAML**：`base/reg-imm-block.yaml` 的 7 个 rwii id 用例已并入
   （`set.w_rwii_rf` 原本无 YAML 载体）；文件**未删**（§5.1 前置未解）。
+
+### `m13-testcases-016`：`04-arith-logic-octa` 算术族（15 个 id）
+
+- `tests/inst/04-arith-logic-octa/{<id>.S}`（15 个）：6 个双目的 rrrr（`add/sub/mul` 的
+  `.uo`/`.so`）+ `add.si`（riii）+ 2 个 rrii（`cmp.ui`/`cmp.si`）+ 6 个单目的 orrr
+  （`cmp`/`div`/`rem` 的 `.uo`/`.so`）；链接布局复用 `01-load-store/inst-tiny.lds`。
+- 宏层新增（`tests/inst/macros/inst_test.inc`）：`TEST_AR_DUAL`（双目的：高半
+  `__VERIFY_RD` + 低半 `__CHECK_RD`，共用点号）、`TEST_AR_ORRR`/`TEST_AR_SI`/`TEST_AR_CMPI`、
+  `TEST_FAULT_{DUAL,ALU3,ALU_SI,ALU_CMPI}`（`dst_dual_same` / `dst_rd0` ⇒ ILLI）。
+  **rd0 一律不装载**（写 rd0 会 ILLI）；双目的中为 rd0 的那一半不比对，点号落在另一半。
+- 语义要点（`spec/SimRISC-04 §1`）：`add.uo`/`sub.uo` 的 `rdHA` 是**进位/借位 0/1**
+  （不是 128 位高位）；`.so` 变体 `rdHA` = 符号扩展高 64 位；`div.*`/`rem.*` 的除零与
+  `INT64_MIN ÷ −1` 走**定值表**（不触发异常）；`cmp.*` 结果 −1/0/1 写满 64 位。
+- 用例：每 id 14–15 链例 + 1–2 故障例（encoding 2 / semantic 4–7 / boundary 5–6 /
+  overlap 3）；覆盖进位·借位·跨符号·最值·双目的丢弃·源=目别名·两源同名，
+  以及 `div`/`rem` 的除零、溢出定值与 `cmp` 的零扩展/符号扩展立即数。
+- 三方逐字节：`run_asm_suite.py`（同一份 ELF：chipyard / QEMU / gem5，36 个镜像 =
+  链例 15 + 故障例 21）。
+- **YAML**：`base/reg-arith.yaml`（11 个 id）与 `base/reg-compare.yaml`（4 个 id）的用例
+  已并入；两文件仍含其它宽度 id，**未删**（按 §5 删除规则等 024/025/026 迁完）。
