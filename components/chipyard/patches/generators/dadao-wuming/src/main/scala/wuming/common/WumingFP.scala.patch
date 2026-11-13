@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
 new file mode 100644
-index 0000000..29a9b94
+index 0000000..bf72238
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
-@@ -0,0 +1,2041 @@
+@@ -0,0 +1,2050 @@
 +// See LICENSE for license details.
 +//
 +// DADAO floating-point infrastructure (m12-chipyard-011).
@@ -1081,6 +1081,15 @@ index 0000000..29a9b94
 +  * `DADAO:` the contract fixes the NaN result of this family to the canonical
 +  * quiet NaN (spec/SimRISC-07 §2.5 "canonical 化"), so no payload is passed to
 +  * the primitive here.
++  *
++  * `DADAO:` the overflow of the fused sum is decided by the shared rounding
++  * primitive from the **exact** sum (spec/SimRISC-07 §2.5 = IEEE 754-2019
++  * §7.4): the magnitude rounded with an unbounded exponent is compared against
++  * the format's `max`, so `RNE`, a positive `RUP` and a negative `RDN` give
++  * `±Inf` while the other three cells peg to `±max`, both with `OF|NX`; a
++  * magnitude the direction rounds back onto `max` is *not* an overflow and
++  * reports `NX` alone.  **No Inf override may be added here** -- `m12-chipyard-029`
++  * measures every cell of that table (unit bench `fma ovf`, core `arith_fma`).
 +  */
 +class WumingMulAddRecFN(expWidth: Int, sigWidth: Int) extends Module {
 +  val io = IO(new Bundle {
