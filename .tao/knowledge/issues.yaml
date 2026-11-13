@@ -503,3 +503,11 @@
   closed_in: null
   resolved_by: null
   title: 【P3】`components/chipyard/{README,changelog}.md` 的 `ldm`/`stm` 合法性条目未列 `mreg_range_addr_overlap` 新规则（`m12-chipyard-027` 范围限 RTL+补丁，未越界改文档）⇒ 组件文档与实现不同步。
+- id: ISS-422
+  scope:
+  - chipyard
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`ext.uo/ext.so` 的 orrr 形式**起始位越界**（如 `rd7=64`）三方不一致：QEMU/gem5 判 `ILLI`（rc=248），chipyard 截低 6 位后继续执行（rc=2）⇒ RTL 缺合法性检查。`m13-testcases-017` 已实测并因此未收录该故障例（仅留注释）。建议立 `m12-chipyard-*` 修复 RTL + 补故障例（等当前 chipyard 使用方结束后派）。
