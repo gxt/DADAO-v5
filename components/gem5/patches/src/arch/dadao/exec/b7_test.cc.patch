@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b7_test.cc b/src/arch/dadao/exec/b7_test.cc
 new file mode 100644
-index 0000000..8c0c34c
+index 0000000..26bcecc
 --- /dev/null
 +++ b/src/arch/dadao/exec/b7_test.cc
-@@ -0,0 +1,2209 @@
+@@ -0,0 +1,2274 @@
 +/*
 + * DADAO gem5 B7 execution assertions (GEM5-012t).
 + *
@@ -1267,13 +1267,24 @@ index 0000000..8c0c34c
 +    check(fault == exec::Fault::None && ctx.rf[2] == 0x3FF8000000000000ull,
 +          "ft2fo 1.5 is exact (actual 0x%016" PRIx64 ")", ctx.rf[2]);
 +    check(flagsOf(ctx) == 0, "ft2fo exact: no flags");
-+    // payload propagation: f32 qNaN payload 0x123456 -> f64.
-+    ctx.rf[3] = 0x7FC12345ull;
++    // NaN results are canonical (sign 0, payload 0): no payload propagation.
++    ctx.rf[3] = 0x7FC12345ull;  // f32 qNaN with a payload
 +    (void)runWord(ctx, "ft2fo_orri_rf", w);
-+    check(ctx.rf[2] == 0x7FF82468A0000000ull,
-+          "ft2fo propagates the qNaN payload (actual 0x%016" PRIx64 ")",
++    check(ctx.rf[2] == kFoQNaN,
++          "ft2fo qNaN => canonical fo qNaN (actual 0x%016" PRIx64 ")",
 +          ctx.rf[2]);
-+    // ft2ft: bit identical for a qNaN; sNaN is quieted with NV.
++    check(flagsOf(ctx) == 0, "ft2fo qNaN: no NV");
++    initContext(ctx);
++    ctx.rf[3] = kFtSign | kFtSNaN;  // negative f32 sNaN (0xFF800001)
++    w.rfhb = 2;
++    w.rfhc = 3;
++    w.immu6 = 0;
++    (void)runWord(ctx, "ft2fo_orri_rf", w);
++    check(ctx.rf[2] == kFoQNaN && flagsOf(ctx) == kFlagNV,
++          "ft2fo sNaN => canonical fo qNaN + NV (actual 0x%016" PRIx64
++          " flags 0x%" PRIx64 ")", ctx.rf[2], flagsOf(ctx));
++    // ft2ft/fo2fo are pure bit copies: a NaN keeps its sign, payload and
++    // quiet bit, and no flag is set (spec §1.4 "不适用" list).
 +    initContext(ctx);
 +    ctx.rf[3] = 0xABCD00007FC12345ull;
 +    w.rfhb = 2;
@@ -1289,6 +1300,23 @@ index 0000000..8c0c34c
 +    (void)runWord(ctx, "ft2ft_orri_rf", w);
 +    check(ft(ctx, 2) == kFtSNaN && flagsOf(ctx) == 0,
 +          "ft2ft sNaN is a bit copy: no quieting, no NV");
++    // fo2ft: a NaN result is canonical (sign 0, payload 0); a signed qNaN
++    // payload is dropped, an sNaN still accrues NV.
++    initContext(ctx);
++    w.rfhb = 2;
++    w.rfhc = 3;
++    w.immu6 = 0x01;
++    ctx.rf[3] = 0xFFF8000000000123ull;  // negative fo qNaN with a payload
++    (void)runWord(ctx, "fo2ft_orri_rf", w);
++    check(ft(ctx, 2) == kFtQNaN && flagsOf(ctx) == 0,
++          "fo2ft negative qNaN => canonical ft qNaN (actual 0x%08" PRIx64
++          " flags 0x%" PRIx64 ")", ft(ctx, 2), flagsOf(ctx));
++    initContext(ctx);
++    ctx.rf[3] = 0xFFF0000000000123ull;  // negative fo sNaN
++    (void)runWord(ctx, "fo2ft_orri_rf", w);
++    check(ft(ctx, 2) == kFtQNaN && flagsOf(ctx) == kFlagNV,
++          "fo2ft sNaN => canonical ft qNaN + NV (actual 0x%08" PRIx64
++          " flags 0x%" PRIx64 ")", ft(ctx, 2), flagsOf(ctx));
 +    // fo2ft: overflow, underflow (tiny+inexact) and NX.  Code 0x20 follows
 +    // rf0 (RNE by default): its overflow cell is +Inf like the RNE row.
 +    initContext(ctx);
@@ -1405,11 +1433,24 @@ index 0000000..8c0c34c
 +          "ftroot minSub = 2^-74.5 + NX (actual 0x%08" PRIx64 ")",
 +          r & 0xFFFFFFFF);
 +    r = run1("ftroot_orri_rf", kFtSign, 0, 0, f, &ok, 2);
-+    check(ok && r == (kFtSign), "ftroot -0 = -0 (model choice)");
++    check(ok && r == 0 && f == 0,
++          "ftroot -0 = +0, no flags (rootn, IEEE 754-2019 §9.2.1)");
++    r = run1("ftroot_orri_rf", 0, 0, 0, f, &ok, 2);
++    check(ok && r == 0 && f == 0, "ftroot +0 = +0, no flags");
 +    r = run1("ftroot_orri_rf", kFtSign | kFtOne, 0, 0, f, &ok, 2);
 +    check(ok && r == kFtQNaN && f == kFlagNV, "ftroot -1 = qNaN + NV");
 +    r = run1("foroot_orri_rf", kFoOne, 0, 0, f, &ok, 2);
 +    check(ok && r == kFoOne && f == 0, "foroot 1 = 1 exact");
++    r = run1("foroot_orri_rf", kFoSign, 0, 0, f, &ok, 2);
++    check(ok && r == 0 && f == 0,
++          "foroot -0 = +0, no flags (actual 0x%016" PRIx64 " flags 0x%"
++          PRIx64 ")", r, f);
++    r = run1("foroot_orri_rf", 0, 0, 0, f, &ok, 2);
++    check(ok && r == 0 && f == 0, "foroot +0 = +0, no flags");
++    r = run1("foroot_orri_rf", kFoSign | (4ull << 48), 0, 0, f, &ok, 2);
++    check(ok && r == kFoQNaN && f == kFlagNV,
++          "foroot -4.0 = canonical qNaN + NV (actual 0x%016" PRIx64
++          " flags 0x%" PRIx64 ")", r, f);
 +}
 +
 +void
@@ -1818,9 +1859,33 @@ index 0000000..8c0c34c
 +    check(ok && r == 0, "ftqcmp +0 == -0");
 +    ok = runCmp("ftqcmp_orrr_rf", kFtQNaN, kFtOne, r, f);
 +    check(ok && r == kFtQNaN && f == 0, "ftqcmp unordered(quiet) => qNaN, no NV");
++    // Quiet compare accrues NV only when an operand is an sNaN, in either
++    // direction (contract-fp §8, IEEE 754-2019 §5.11).
++    ok = runCmp("ftqcmp_orrr_rf", kFtSNaN, kFtOne, r, f);
++    check(ok && r == kFtQNaN && f == kFlagNV,
++          "ftqcmp sNaN,1.0 => canonical qNaN + NV (actual 0x%08" PRIx64
++          " flags 0x%" PRIx64 ")", r & 0xFFFFFFFF, f);
++    ok = runCmp("ftqcmp_orrr_rf", kFtOne, kFtSNaN, r, f);
++    check(ok && r == kFtQNaN && f == kFlagNV,
++          "ftqcmp 1.0,sNaN => canonical qNaN + NV (actual 0x%08" PRIx64
++          " flags 0x%" PRIx64 ")", r & 0xFFFFFFFF, f);
++    ok = runCmp("foqcmp_orrr_rf", kFoSNaN, kFoOne, r, f);
++    check(ok && r == kFoQNaN && f == kFlagNV,
++          "foqcmp sNaN,1.0 => canonical qNaN + NV (flags 0x%" PRIx64 ")",
++          f);
++    ok = runCmp("foqcmp_orrr_rf", kFoOne, kFoSNaN, r, f);
++    check(ok && r == kFoQNaN && f == kFlagNV,
++          "foqcmp 1.0,sNaN => canonical qNaN + NV (flags 0x%" PRIx64 ")",
++          f);
++    ok = runCmp("foqcmp_orrr_rf", kFoSNaN, kFoQNaN, r, f);
++    check(ok && r == kFoQNaN && f == kFlagNV,
++          "foqcmp sNaN,qNaN => NV (any sNaN operand)");
 +    ok = runCmp("ftscmp_orrr_rf", kFtQNaN, kFtOne, r, f);
 +    check(ok && r == kFtSNaN && f == kFlagNV,
 +          "ftscmp unordered => sNaN + NV (user ruling 3)");
++    ok = runCmp("ftscmp_orrr_rf", kFtSNaN, kFtOne, r, f);
++    check(ok && r == kFtSNaN && f == kFlagNV,
++          "ftscmp sNaN => sNaN + NV (unchanged)");
 +    ok = runCmp("foqcmp_orrr_rf", kFoQNaN, kFoOne, r, f);
 +    check(ok && r == kFoQNaN && f == 0, "foqcmp unordered => fo qNaN");
 +    ok = runCmp("foscmp_orrr_rf", kFoInf, kFoOne, r, f);

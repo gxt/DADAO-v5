@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b7.cc b/src/arch/dadao/exec/b7.cc
 new file mode 100644
-index 0000000..7cdd314
+index 0000000..f45452e
 --- /dev/null
 +++ b/src/arch/dadao/exec/b7.cc
-@@ -0,0 +1,634 @@
+@@ -0,0 +1,637 @@
 +// DADAO gem5 B7 execution core -- the 55 floating-point ids.
 +//
 +// Dispatch is by `entry->id` only: `ft*`/`fo*`, `ft2it`/`ft2ut`,
@@ -501,8 +501,11 @@ index 0000000..7cdd314
 +      case fp::Cmp::Less: result = ~uint64_t(0); break;
 +      case fp::Cmp::Unordered:
 +        // Ordering compares are invalid operations (IEEE 754-2019 §5.11): the
-+        // signaling form accrues NV, the quiet form does not (user ruling 3).
++        // signaling form accrues NV for any unordered result, the quiet form
++        // only when an operand is an sNaN (contract-fp §8).
 +        if (spec.quietCompare) {
++            if (fp::isSNaNBits(spec.fmt, a) || fp::isSNaNBits(spec.fmt, b))
++                flags = fp::NV;
 +            result = fp::qnanBits(spec.fmt);
 +        } else {
 +            result = fp::snanBits(spec.fmt);

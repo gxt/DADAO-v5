@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/fp_soft.cc b/src/arch/dadao/exec/fp_soft.cc
 new file mode 100644
-index 0000000..1046f9b
+index 0000000..0b21c0d
 --- /dev/null
 +++ b/src/arch/dadao/exec/fp_soft.cc
-@@ -0,0 +1,1046 @@
+@@ -0,0 +1,1032 @@
 +// DADAO gem5 B7 execution core -- pure-integer IEEE 754-2019 arithmetic.
 +//
 +// Every operation is a bit-exact integer algorithm; no host float/double takes
@@ -753,7 +753,8 @@ index 0000000..1046f9b
 +    if (u.kind == Kind::NaN)
 +        return {qnanBits(fmt), u.quiet ? uint8_t(0) : uint8_t(NV)};
 +    if (u.kind == Kind::Zero)
-+        return {zeroBits(fmt, u.sign), 0};  // rootn(-0, 2) model: -0
++        // rootn(±0, 2) = +0 (IEEE 754-2019 §9.2.1), unlike squareRoot(-0).
++        return {zeroBits(fmt, false), 0};
 +    if (u.sign)
 +        return {qnanBits(fmt), NV};
 +    if (u.kind == Kind::Inf)
@@ -901,27 +902,12 @@ index 0000000..1046f9b
 +Val
 +convert(Fmt dst, Mode mode, Fmt src, uint64_t bits)
 +{
-+    const Info &df = infoOf(dst);
-+    const Info &sf = infoOf(src);
 +    const Unpacked u = unpack(src, bits);
 +    if (u.kind == Kind::NaN) {
-+        const uint64_t srcFrac = u.sig & ((uint64_t(1) << sf.fracbits) - 1);
-+        uint64_t dstFrac;
-+        if (df.fracbits >= sf.fracbits) {
-+            dstFrac = srcFrac << (df.fracbits - sf.fracbits);
-+        } else {
-+            const unsigned shift = sf.fracbits - df.fracbits;
-+            dstFrac = srcFrac >> shift;
-+            if (dstFrac == 0 && srcFrac != 0)
-+                dstFrac = 1;  // never turn a NaN into an infinity
-+        }
-+        if (dstFrac == 0)
-+            dstFrac = 1;
-+        if (!u.quiet)
-+            dstFrac |= uint64_t(1) << (df.fracbits - 1);
-+        return {(u.sign ? signBit(dst) : 0) | (expAll(dst) << df.fracbits) |
-+                    dstFrac,
-+                u.quiet ? uint8_t(0) : uint8_t(NV)};
++        // A NaN result is the canonical quiet NaN (sign 0, payload 0) for
++        // every conversion (contract-fp §1, spec/SimRISC-07 §1.4); an sNaN
++        // input still accrues NV.  Only the copy forms ft2ft/fo2fo keep bits.
++        return {qnanBits(dst), u.quiet ? uint8_t(0) : uint8_t(NV)};
 +    }
 +    if (u.kind == Kind::Inf)
 +        return {infBits(dst, u.sign), 0};

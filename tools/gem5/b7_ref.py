@@ -348,7 +348,8 @@ def op_sqrt(fmt, mode, x):
     if k["kind"] == "nan":
         return qnan_bits(fmt), (0 if k["quiet"] else F_NV)
     if k["kind"] == "zero":
-        return zero_bits(fmt, k["sign"]), 0  # rootn(-0, 2) model choice: -0
+        # rootn(±0, 2) = +0 (IEEE 754-2019 §9.2.1), unlike squareRoot(-0).
+        return zero_bits(fmt, False), 0
     if k["sign"]:
         return qnan_bits(fmt), F_NV
     if k["kind"] == "inf":
@@ -474,19 +475,9 @@ def op_to_int(fmt, mode, bits, width, signed):
 def op_convert_ff(dst_fmt, mode, src_fmt, bits):
     k = classify(src_fmt, bits)
     if k["kind"] == "nan":
-        sf, df = FMT[src_fmt], FMT[dst_fmt]
-        src_frac = mask_bits(src_fmt, bits) & ((1 << sf["fracbits"]) - 1)
-        if df["fracbits"] >= sf["fracbits"]:
-            dst_frac = src_frac << (df["fracbits"] - sf["fracbits"])
-        else:
-            dst_frac = src_frac >> (sf["fracbits"] - df["fracbits"])
-        if dst_frac == 0:
-            dst_frac = 1
-        if not k["quiet"]:
-            dst_frac |= 1 << (df["fracbits"] - 1)
-        out = ((sign_bit(dst_fmt) if k["sign"] else 0) |
-               (((1 << df["eb"]) - 1) << df["fracbits"]) | dst_frac)
-        return out, (0 if k["quiet"] else F_NV)
+        # Canonical quiet NaN for every conversion (contract-fp §1,
+        # spec/SimRISC-07 §1.4); sNaN input still accrues NV.
+        return qnan_bits(dst_fmt), (0 if k["quiet"] else F_NV)
     if k["kind"] == "inf":
         return inf_bits(dst_fmt, k["sign"]), 0
     if k["kind"] == "zero":
@@ -854,8 +845,14 @@ def model(vec):
         _, b = read_float(fmt, src_fields[1].name)
         rel = op_compare(fmt, a, b)
         if rel == "unordered":
+            ka, kb = classify(fmt, a), classify(fmt, b)
+            snan = any(k["kind"] == "nan" and not k["quiet"]
+                       for k in (ka, kb))
             if quiet:
+                # Quiet compare accrues NV only for an sNaN operand
+                # (contract-fp §8); the result is the canonical quiet NaN.
                 out = qnan_bits(fmt)
+                flags = F_NV if snan else 0
             else:
                 out = snan_bits(fmt)
                 flags = F_NV
@@ -1414,7 +1411,11 @@ def edge_vectors():
         pairs = [(pool[2], pool[3]), (pool[2], pool[2]), (pool[3], pool[2]),
                  (pool[0], pool[1]), (pool[8], pool[2]), (pool[2], pool[8]),
                  (pool[2], pool[10]), (pool[11], pool[11]),
-                 (pool[14], pool[0])]
+                 (pool[14], pool[0]),
+                 # sNaN in either position: the quiet form still accrues NV
+                 # (contract-fp §8), the signaling form always does.
+                 (pool[11], pool[2]), (pool[2], pool[11]),
+                 (pool[11], pool[10]), (pool[10], pool[11])]
         for inst_id in (ins_q, ins_s):
             for pos, (a, b) in enumerate(pairs):
                 rf = {3: a, 4: b}
@@ -1426,12 +1427,21 @@ def edge_vectors():
             rf = {8: pool[pos],
                   9: 0xDEADBEEFDEADBEEF}
             add(inst_id, f"{pos}", {"rdhb": 2, "rfhc": 8, "immu6": 2}, rf)
+    # ---- root: rootn(±0, 2) = +0, the sign/inf/NaN branches -------------
+    for fmt, inst_id in (("ft", "ftroot_orri_rf"), ("fo", "foroot_orri_rf")):
+        pool = edge_bits(fmt)
+        for pos, value in enumerate(
+                [pool[0], pool[1], pool[2], pool[3], pool[8], pool[9],
+                 pool[10], pool[11], pool[12], pool[14], pool[15]]):
+            rf = {3: value, 2: 0xAAAA000000000000}
+            add(inst_id, f"{pos}", {"rfhb": 2, "rfhc": 3, "immu6": 2}, rf)
     # ---- convert_ff: payload, overflow, underflow ------------------------
     for src, dst in (("ft", "fo"), ("ft", "ft"), ("fo", "ft"), ("fo", "fo")):
         inst_id = f"{src}2{dst}_orri_rf"
         pool = edge_bits(src)
-        values = pool + ([0x7FC12345] if src == "ft" else
-                         [0x7FF8000000000123, 0x7FF0000000000001])
+        values = pool + ([0x7FC12345, 0xFFC12345, 0xFF800001] if src == "ft"
+                         else [0x7FF8000000000123, 0xFFF8000000000123,
+                               0x7FF0000000000001, 0xFFF0000000000001])
         for mode in range(4):
             for pos, value in enumerate(values):
                 if pos % 3 and mode != (pos % 4):

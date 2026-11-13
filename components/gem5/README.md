@@ -72,11 +72,13 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `mreg_range_overlap`/`encode_onehot`/`encode_fp_root_n`）先于任何寄存器读；
   块形式按序号递增逐对先读后写；标志 sticky-OR 进 `rf0[4:0]`，无标志不写 `rf0`。
 - **B7 模型选择**（spec 未规定处，**非 spec 断言**）：① `ft` 结果只写低 32 位、
-  保留 `[63:32]`（与 B1 `ld.t` 一致）；② `rootn(-0,2) = -0`（spec 明示不作要求）；
-  ③ compare 的 unordered 结果按 ft 为 `0x7FC0_0000`/`0x7F80_0001` **零扩展**到 64 位
-  rd，fo 为 `0x7FF8_...`/`0x7FF0_..._0001`（符号位 0）；④ `ft2it`/`ft2ut` 等 32 位
+  保留 `[63:32]`（与 B1 `ld.t` 一致）；
+  ② compare 的 unordered 结果按 ft 为 `0x7FC0_0000`/`0x7F80_0001` **零扩展**到 64 位
+  rd，fo 为 `0x7FF8_...`/`0x7FF0_..._0001`（符号位 0）；③ `ft2it`/`ft2ut` 等 32 位
   f2i 结果按 SimRISC 约定**符号/零扩展**到 64 位 rd（与 SimRISC-08 的 `.st`/`.ut`
-  一致）；⑤ signaling compare 的 unordered 置 NV（用户 2026-11-02 裁定 3）。
+  一致）；④ signaling compare 的 unordered 置 NV（用户 2026-11-02 裁定 3）。
+  （`rootn(±0,2) = +0` 原为此列第 2 项，`m13-spec-007` 后已由 spec 明文规定，
+  不再是模型选择。）
 - **B0–B7 全覆盖**：264 条全部有执行核；`inst.cc` 的 `batch<1 || batch>7`
   仅作防御分支（返回 `UnimplementedInstruction`），未匹配/保留编码仍返回
   `IllegalInstruction`（ILLI）。不做跨批混写。
@@ -97,7 +99,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   （55/55、non-B7 209/209、静态 ILLI 零读写、各族边界/标志/舍入/NaN/Inf/±0/rem/
   sclb/f2i/fma/minmax/compare、FCSR sticky、ft 高 32 位、`rdHD` 字段陷阱）由
   `tools/gem5/check_b7.py` 编译运行，并由 `tools/gem5/b7_ref.py`（独立
-  `Fraction` 精确模型）做 **3980 条**位级差分（目标寄存器 + 新 FCSR 逐位相等，
+  `Fraction` 精确模型）做 **4098 条**位级差分（目标寄存器 + 新 FCSR 逐位相等，
   `oracle mismatch=0`；fma/minmax/roundint 另与 `tests/inst` 的 oracle 三方交叉）
   （均不进 gem5 二进制，不改 `tests/**`）。
 - **GEM5-005t 增量**：`ftsclb`/`fosclb` 第三操作数 `rfhd/rf` → `rdhd/rd`
@@ -531,7 +533,7 @@ python3 tools/gem5/check_b3.py --source .work/source/gem5   # B3 执行断言（
 python3 tools/gem5/check_b4.py --source .work/source/gem5   # B4 执行断言（63/63）
 python3 tools/gem5/check_b5.py --source .work/source/gem5   # B5 执行断言（28/28）
 python3 tools/gem5/check_b6.py --source .work/source/gem5   # B6 执行断言（30/30）
-python3 tools/gem5/check_b7.py --source .work/source/gem5   # B7 执行断言 + 3980 条 oracle 差分
+python3 tools/gem5/check_b7.py --source .work/source/gem5   # B7 执行断言 + 4098 条 oracle 差分
 make check-patch-tree
 ```
 
