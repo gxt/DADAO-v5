@@ -1,0 +1,238 @@
+# 机器可读投影 —— 启动 ABI（`Machine-v5-Vast` 内核装载 + 固定 boot info）
+#
+# 人读契约：.tao/contracts/contract-linux-boot.md（0.1.0）
+# 规范正文：spec/Machine-v5-测试机运行环境.md §6.3（v5 自定册，0.4.6-rc）
+# 一致性：tools/linux/check_boot_contract.py 逐字段三方比对（正文表 ↔ 契约表 ↔ 本文件）。
+# 地址模型：ABI 地址一律 VA（addr[41:0]）；PA 只用于页表项 / PTBR / loader 写内存。
+# 本文件只承载已冻结的启动 ABI；装载的执行实现（写内存与 boot info、装 initramfs）不在投影范围。
+
+format: 1
+contract: linux-boot
+version: "0.1.0"
+spec_doc: "spec/Machine-v5-测试机运行环境.md"
+spec_section: "6.3"
+
+# 地址术语（用户 2026-11-13 裁定：VA 为 ABI 地址）。
+address_model:
+  abi_addresses: va
+  va_width_bits: 42                       # VA = addr[41:0]（addr[47:42] = 0 的内存窗口）
+  pa_allowed_in: [page_table_entry, ptbr, loader_store]
+  # 正文/契约须逐项出现的术语（缺一即 FAIL）。
+  required_terms: ["VA", "addr[41:0]", "ptw_enable", "PTBR", "CFXMEM", "身份映射", "预建"]
+  # 旧口径措辞，正文/契约中不得再出现。
+  forbidden_terms: ["p_vaddr == p_paddr", "固定 PA `0x0001_0000`"]
+
+# 启动模型（用户 2026-11-13 裁定：M1 预建页表 + VA 入口）。
+startup_model:
+  mode: M1
+  prebuilt_identity_map: true
+  page_size: 0x10000
+  ptw_enable: 1
+  entry_register: rb16
+  boot_info_register: rb17
+
+boot_info:
+  va: 0x10000
+  size: 0x60
+  endianness: big
+  alignment: 8
+  # kind：va = 地址字段（语义须写 VA、不得写 PA）/ pa = 页表根（唯一允许 PA 的字段）
+  #       / runtime = 运行期写入 / scalar = 标量
+  fields:
+    - name: magic
+      offset: 0x00
+      width: 4
+      kind: scalar
+      value: 0x4442494E
+      display: "0x4442_494E"
+    - name: version
+      offset: 0x04
+      width: 2
+      kind: scalar
+      value: 1
+      display: "1"
+    - name: size
+      offset: 0x06
+      width: 2
+      kind: scalar
+      value: 0x60
+      display: "0x0060"
+    - name: ram_base
+      offset: 0x08
+      width: 8
+      kind: va
+      value: 0
+      display: "0"
+    - name: ram_size
+      offset: 0x10
+      width: 8
+      kind: scalar
+      value: 0x80000000
+      display: "0x8000_0000"
+    - name: kernel_base
+      offset: 0x18
+      width: 8
+      kind: va
+      value: 0x100000
+      display: "0x0010_0000"
+    - name: kernel_size
+      offset: 0x20
+      width: 8
+      kind: runtime
+      value: runtime
+      display: "运行期"
+    - name: initramfs_base
+      offset: 0x28
+      width: 8
+      kind: va
+      value: 0x4000000
+      display: "0x0400_0000"
+    - name: initramfs_size
+      offset: 0x30
+      width: 8
+      kind: runtime
+      value: runtime
+      display: "运行期"
+    - name: cmdline_base
+      offset: 0x38
+      width: 8
+      kind: va
+      value: 0
+      display: "0"
+    - name: cmdline_size
+      offset: 0x40
+      width: 8
+      kind: scalar
+      value: 0
+      display: "0"
+    - name: ptbr
+      offset: 0x48
+      width: 8
+      kind: pa
+      value: 0
+      display: "0"
+    - name: page_size_log2
+      offset: 0x50
+      width: 4
+      kind: scalar
+      value: 16
+      display: "16"
+    - name: hart_id
+      offset: 0x54
+      width: 4
+      kind: scalar
+      value: 0
+      display: "0"
+    - name: flags
+      offset: 0x58
+      width: 8
+      kind: scalar
+      value: 0x1
+      display: "0x1"
+
+# 内存窗口分区（VA）；`start`/`end` 均为 VA，`rest` 行不占固定区间。
+memory_map:
+  - name: page_table
+    start: 0x0
+    end: 0x10000
+    use: "首张页表页（`PTBR = 0`；由固件在移交前建立，见 `§6`）"
+  - name: boot_info
+    start: 0x10000
+    end: 0x20000
+    use: "boot info 页（固定 VA `0x0001_0000`；其余字节为 0）"
+  - name: kernel
+    start: 0x100000
+    end: 0x4000000
+    use: "内核镜像区（`kernel_base = 0x0010_0000`，VA）"
+  - name: initramfs
+    start: 0x4000000
+    end: 0x6000000
+    use: "initramfs 区（上限 32 MiB，VA）"
+  - name: rest
+    start: null
+    end: null
+    use: "内核页分配器可用"
+
+# 进入内核第一条指令处的状态（地址项均为 VA）。
+entry_state:
+  - item: 运行模式
+    value: "`supv`"
+  - item: PTW
+    value: "开启（预建身份映射页表，`PTBR = 0`，`ptw_enable = 1`，64 KiB 页，`VA [0, 2 GiB) → PA [0, 2 GiB)`）"
+  - item: "`rb17`"
+    value: "`0x0001_0000`（boot info VA）"
+  - item: "`rb16`"
+    value: "`0x0010_0000`（入口 VA）"
+  - item: "`rb1`（SP）"
+    value: "未定义（内核自建 early stack，栈为 VA）"
+  - item: "`rb3`（rbtp）"
+    value: "`0`"
+  - item: "`rd15` 与其它通用寄存器"
+    value: "未定义"
+  - item: 异步中断
+    value: "全部屏蔽"
+  - item: hart
+    value: "仅 `hart_id = 0` 在线；其它 hart 状态未定义（K0 不启动、不得依赖）"
+  - item: "cache / LLC"
+    value: "不引入、不假设一致性"
+
+# 装载与失败规则；`rule` 与人读契约 §3 的「规定」列逐字相等，
+# `id` 在 §6.3 正文中须各出现且仅出现一次（唯一断言句）。
+rules:
+  - id: ELF-FORMAT
+    category: elf
+    rule: "`ELFCLASS64`、大端（`EI_DATA = 2`）、`e_machine = 0x0DA0`、`ET_EXEC`；`e_flags` 版本字段 = 1（`contract-elf` §1.3）"
+  - id: ELF-PT-LOAD
+    category: elf
+    rule: "只装载 `PT_LOAD` 段，其它类型的程序头段不装入"
+  - id: ELF-VA-TO-PA
+    category: elf
+    rule: "每段按 `p_vaddr` 的映射写入对应 PA（K0 身份映射 ⇒ PA 数值 = `p_vaddr`）；`p_paddr` 不作为装载地址"
+  - id: ELF-ALIGN
+    category: elf
+    rule: "每段 `p_vaddr % 0x10000 == 0` 且 `p_align >= 0x10000`（64 KiB 页对齐）"
+  - id: ELF-RANGE
+    category: elf
+    rule: "每段 `[p_vaddr, p_vaddr + p_memsz)` 落在内核镜像区的 VA 范围 `[0x0010_0000, 0x0400_0000)` 内"
+  - id: ELF-NO-OVERLAP
+    category: elf
+    rule: "任何段不得与低端保留区 VA `[0, 0x0002_0000)`、BootROM 或 hmon SRAM 的映射区间重叠"
+  - id: ELF-ENTRY
+    category: elf
+    rule: "`e_entry == 0x0010_0000`（VA，= `kernel_base`）"
+  - id: RAW-BASE
+    category: raw
+    rule: "整体装入 VA `0x0010_0000`（= `kernel_base`）"
+  - id: RAW-ENTRY
+    category: raw
+    rule: "镜像首字节即入口指令（VA 入口 `0x0010_0000`），loader 不解析 ELF 头"
+  - id: RAW-LENGTH
+    category: raw
+    rule: "镜像长度 ≤ 63 MiB"
+  - id: RAW-BSS
+    category: raw
+    rule: "扁平镜像不含 `.bss`；内核 `head.S` 在进入 C 代码前自清 `__bss_start..__bss_stop`，与 ELF 路径零填充等价"
+  - id: INITRAMFS-FORMAT
+    category: initramfs
+    rule: "`cpio`「newc」格式"
+  - id: INITRAMFS-BASE
+    category: initramfs
+    rule: "装入 VA `0x0400_0000`（= `initramfs_base`）"
+  - id: INITRAMFS-LIMIT
+    category: initramfs
+    rule: "长度 ≤ 32 MiB；实际字节数写入 `initramfs_size`（`0` ⇒ 无 initramfs）"
+  - id: FAIL-HOST
+    category: fail
+    rule: "任一校验失败 ⇒ loader 非零退出；不得静默降级、截断或改址装载"
+  - id: FAIL-KERNEL
+    category: fail
+    rule: "`magic`/`version`/`size` 任一不符 ⇒ 内核 `head.S` 显式失败（semihosting `SYS_EXIT` + 固定失败码）"
+
+# 明示不定义的能力（§6.3 与契约 §6 的「不定义」句须逐项点名）。
+not_defined:
+  - TLB
+  - cache
+  - LLC
+  - 设备树（DTB）
+  - UART
+  - 多核

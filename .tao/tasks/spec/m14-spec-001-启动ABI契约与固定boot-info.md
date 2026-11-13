@@ -5,7 +5,7 @@
 **依赖**：`m14-linux-001`（批次先行；不共享文件）
 **可并行分片**：否（单册单写者；与 `m14-spec-002` **串行**，同改 spec 版本锁与 `.tao/contracts/README.md`）
 **预估**：6–7 h
-**状态**：待开始
+**状态**：已验证
 
 ## 背景
 
@@ -138,18 +138,132 @@ M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Mac
 
 ## 待裁定
 
-（需用户语义裁定的事项写这里：问题 + 选项 + 建议 + 自决的临时处置；返回主会话。）
+**用户裁定（2026-11-13，渠道 = 主会话问答；原话：裁定 A「VA 为 ABI 地址」、裁定 B「M1 预建页表 + VA 入口」）**：
+- **A 地址术语**：ABI 里的地址一律是 VA（48 位核内地址、`addr[47:42]=0` 的内存窗口 ⇒ `VA=addr[41:0]`，42 位）；PA 只出现在页表项、`PTBR = PPN<<16`、宿主 loader 写内存的那一刻；入口地址、`rb17` 指向的 boot info、`kernel_base`、initramfs 区、栈指针全部按 VA；`p_vaddr == p_paddr` 改为「ELF/raw 地址是 VA、loader 写到该 VA 映射到的 PA，K0 身份映射下数值相等但术语分开」。
+- **B 启动模型 M1**：loader/固件**预建身份映射页表**（64 KiB 页、`VA[0,2 GiB) → PA[0,2 GiB)`、`PTBR` 指向该表、`ptw_enable=1`），随后进入内核 VA 入口（`rb16`）；须写明 `ptw_enable=0` 时访存/取指直接 `CFXMEM`（内核不可能 MMU 关运行）；写明其它 hart 在 K0 状态未定义，以及低端保留区与 initramfs 区不得回收。
+- **处置**：已按两项裁定返工 §6.3 / 契约 / YAML / 检查器 / 证据脚本（见「第 2 轮 engineer 自审」）；冻结数值（内核 `0x0010_0000`、boot info `0x0001_0000`、initramfs `0x0400_0000`、`rb17`、`supv` + 身份映射）不变。
+
+**仍待裁定（reviewer 第 1 轮非阻断建议）**：契约版本线 `0.1.0` 与 README `Machine` 列 `0.4.0` 的对齐口径（当前按 ADR-sourced 分类通过 `check-spec-drift`），以及是否为本启动 ABI 立 ADR。
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
+**测试结果**（返工后全量重跑）：`python3 tools/linux/check_boot_contract.py` **rc=0**（boot info 15 字段 ×〔正文/契约〕+ 语义列 15 + 每字段 kind 地址术语断言、分区 5 行、进入状态 10 项、规则 16 条＝elf:7/raw:4/initramfs:3/fail:2、术语/启动模型断言，条数全现场统计）；`--self-test` **rc=0**（**6 类**注入：偏移 / magic / 入口基址 / 字段缺失 / 术语缺失 / boot info 改称 PA，各「注入⇒FAIL⇒还原⇒回绿」）；运行期证据脚本（`.work/evidence/**`）**rc=0**（`PASS=53 FAIL=0`，3 路真实文件注入 + `cp`+md5 还原、锁 21 册仅 1 册变、H 段术语/启动模型逐项）。
+
+**修改文件**（= `git status --porcelain -uall`）：
+- `M spec/Machine-v5-测试机运行环境.md`（§6.3 按**裁定 A/B**重写：地址术语 VA / 启动模型 M1 预建页表 + VA 入口 / `ptw_enable=0 ⇒ CFXMEM` 硬约束 / 其它 hart 未定义；§1.1 与 §6 各 1 条指针；册头与附录 `0.4.6-rc`）
+- `A .tao/contracts/contract-linux-boot.md`（新建；`0.1.0`；同步 VA 术语与 M1）
+- `A contracts/linux-boot.yaml`（新建；增 `address_model` / `startup_model` / 每字段 `kind`、`pa`→`va`）
+- `A tools/linux/check_boot_contract.py`（新建；增术语/启动模型断言、kind 地址断言、6 类 self-test）
+- `M .tao/contracts/README.md`（文件表 + 投影清单各 1 行）
+- `M manifests/spec-readonly.lock.toml`（仅 Machine-v5 sha + 注记；其余 20 册 sha 与基线逐册相同）
+- `M` 本任务书（裁定留纸 / 完成区 / 第 2 轮自审 / 状态）
+
+**验收结果**：①**裁定 A** — ABI 地址一律 VA（`addr[41:0]`），PA 仅剩页表项/`PTBR`/loader 写内存（检查器按 `kind` 逐字段断言 va 字段写 VA、`ptbr` 写 PA，并断言旧口径 `p_vaddr == p_paddr`、`固定 PA \`0x0001_0000\`` 已消失）②**裁定 B** — §6.3 明写预建身份映射页表 + `ptw_enable = 1` + `rb16` VA 入口，并写明 `ptw_enable = 0` 取指/访存即 `CFXMEM`（引 `§1.2`）、M1 无 MMU 关中间态；其它 hart 状态未定义；低端保留区与 initramfs 区不得回收③boot info 15 字段逐字段一致（偏移/宽度/字段/值/语义）④规则 16 条各有唯一断言句⑤不定义项逐项点名⑥`check-spec-readonly`/`changelog`/`drift`/`numbering`/`refs`/`contracts-dir`/`contracts-pending`/`test-reports`/`dirs`/`no-residue`/`purity`/`cite-targets` 全 rc=0⑦证据脚本见「测试结果」⑧reviewer 非阻断 finding：§6.3.3 页末措辞已改（「页内偏移 `0x60` 之后至该页末」）；`contracts/README.md` 未改（超范围，登记遗留）。
+
 **新发现/坑**：
+- **`check-spec-drift` 对 spec-sourced 契约强制「契约版本 == README 已发布版本」**：本契约 `0.1.0` ≠ README `Machine` 列 `0.4.0`，故按 ADR-sourced 分类（引 `adr-0004-test-machine.md`，Accepted；装载模型确为其 `§D2.2`/`§D2.3` 的延伸），版本行写 `> **契约版本**：0.1.0`（reviewer 第 1 轮已确认成立；版本线对齐口径仍列待裁定）。
+- **门控前缀**：`check-spec-refs` 只识别 `Machine-\d+`；`[Machine-v5 §6.3]` **不被校验**（不是判红——reviewer 订正），故契约统一写 `[Machine-01 §6.3]`（契约头注明 = `Machine-v5` 册），spec 册内引用按册内惯例写 `§N.M`。
+- `check-knowledge-refs` **既有红**（rc=1，5 处具体 `.work/**` 引用全在 `m13-testcases-013` 任务书）：该文件相对基线 `8cd4c184` 未改 ⇒ 非本任务引入（证据脚本 F 段断言归属）。
+- `make check-linux-boot-contract` **BLOCKED**：Makefile 目标声明归 `m14-linux-001`（主会话边界裁定「本任务不改 Makefile」）；本任务以直接调用脚本取证。
+- 既有 `tests/shared/machine-profiles.yaml` 的 vast profile（`kernel_base`/`entry`/`ram_base`/`ram_size`）与 boot info 冻结值数值一致（仅佐证，不作 oracle）。
+
 **遗留问题**：
+- BLOCKED：`make check-linux-boot-contract` 目标接线待 `m14-linux-001`（脚本已就绪，接线即一行）。
+- `contracts/README.md` 不在任务书范围，未改（建议合入时补 `linux-boot.yaml` 一行，保持两处 README 对称）。
+- 待裁定：契约版本线（`0.1.0` vs README `Machine` `0.4.0`）与「是否为本启动 ABI 立 ADR」；本任务未写 `adr-*.md`。
 
 ## 审阅记录
 
-### 第 1 轮 engineer 自审（待填）
+### 第 1 轮 engineer 自审
 
-### 第 1 轮 reviewer 验收（待填）
+改动 6 个文件（spec §6.3 / 契约 / YAML / 检查器 / 契约 README / 只读锁）；逐行审查后逐条处置：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 行数断言把 int 与 `15/15` 串比较，恒 FAIL | ✅已修 | 拆成「正文==YAML」「契约==YAML」两条 | 检查器 rc=0，行数现场打印 |
+| F2 `其余` 行的区间列被按 PA 格式化 | ✅已修 | null-start 行区间 = `其余` | 内存分区 5 行双向 PASS |
+| F3 `FAIL-KERNEL` 在契约出现 2 次，唯一性断言红 | ✅已修 | 正文改述、不带 id | 规则 id 唯一性全 PASS |
+| F4 契约头 `[DADAO-23 §3 …]` 占位被 `check-spec-refs` 当真实引用 | ✅已修 | 改为可解析完整节名 | `check-spec-refs` rc=0（1136 引用，失败 0） |
+| F5 §6.3 文字微调后锁 sha 过期 | ✅已修 | 重算并同步 sha（`6dadcbb…`） | `check-spec-readonly` rc=0；相对基线仅 1 册变 |
+| F6 证据脚本用字符串比较判「rc!=0」⇒ 恒 FAIL | ✅已修 | 改数值判定；`[PASS]` 前缀匹配顺序修正 | `run.sh` rc=0（PASS=27 FAIL=0） |
+| F7 证据脚本把字段/行数期望写死 30/10/20 | ✅已修 | 改为「2 × 正文行数」现场派生 | 断言全 PASS |
+| F8 §6.3.1 写「三段固定分区」但表列四段 | ✅已修 | 正文与附录统一为四段 | 检查器 5 行 PASS + 人工核对 |
+| F9 §6 原句与 §6.3 内核布局定义存在文字张力 | ✅已修 | 限定为「测试镜像」并加 §6.3 指针 | 验收 1 自查 |
+| F10 `self_test` 用 `Path.cwd()` 定位源文件 | ✅已修 | 改用脚本 `ROOT` | self-test rc=0 |
+
+**判决**：无未修 finding；任务置 `待验收`。
+
+### 第 1 轮 reviewer 验收
+
+**判决：Accepted**（下列输出全部为本人在本任务 worktree 独立重跑所得；最终接受归 architect 终审）
+
+**重跑记录（命令 | 退出码 | 关键输出）**
+- `python3 tools/linux/check_boot_contract.py` | **rc=0** | `[PASS]` 162 项 / `[FAIL]` 0；现场统计 `§6.3 行数=106`、`规则=elf:7,fail:2,initramfs:3,raw:4`、`DTB 提及=3`
+- `python3 tools/linux/check_boot_contract.py --self-test` | **rc=0** | 4 类注入（偏移/magic/入口基址/字段缺失）各自 `注入后 rc=1` → `还原后 rc=0`，`4 类注入，失败 0 项`
+- 证据脚本（`.work/evidence/**` 下 run.sh）| **rc=0** | `汇总: PASS=27 FAIL=0`（含 2 路真实文件注入 + `cp`+md5 还原、锁 21 册仅 1 册变）
+- 证据脚本 D 段 7 门控（numbering/changelog/refs/drift/contracts-dir/contracts-pending/readonly）**全 rc=0**；本人另直接重跑 `check-spec-refs`（`失败: 0`）、`check-spec-readonly`（`21 read-only spec volume(s) OK`）、`make check-test-reports`/`check-dirs`/`check-no-residue`/`check-spec-purity`/`check-spec-cite-targets` **均 rc=0**
+- `python3 tools/infra/check_knowledge_refs.py` | **rc=1** | 5 处全在 `m13-testcases-013` 任务书；该文件与检查器相对基线 `8cd4c184` 的 `git diff` 为空 ⇒ 基线既有红（验收7 该项 BLOCKED，完成区已披露）
+- `grep -n check-linux-boot-contract Makefile` | **rc=1**（目标缺席）⇒ `make check-linux-boot-contract` BLOCKED，归 `m14-linux-001` 接线，已披露
+- `make check` | **rc=2** | 卡在 `check-patch-tree: chipyard …WumingFP.scala` 补丁与工作树不符；本任务基线以来 diff 仅 7 文件、未触碰 `components/`，该门输入（补丁集 + 组件工作树）与本任务无关 ⇒ 既有/环境红，非本任务引入
+
+**独立核对（不采信检查器）**：spec §6.3 ↔ 契约三表 `diff` 逐字节一致（boot info 17 行 / 分区 7 行 / 状态 12 行）；spec ↔ YAML 15/15 字段偏移·宽度·名·值独立解析全等，抽核 5 字段 = `magic 0x4442_494E@0x00/4`、`ram_size 0x8000_0000@0x10/8`、`kernel_base 0x0010_0000@0x18/8`、`page_size_log2 16@0x50/4`、`flags 0x1@0x58/8`；布局自算 `max(offset+width)=0x60=size`、自然对齐、无重叠、PA `0x1_0000` 页对齐、全字段大端；分区自算 64 KiB / 64 KiB / 63 MiB / 32 MiB；冻结值（内核 `0x0010_0000`、boot info `0x0001_0000`、initramfs `0x0400_0000`、`rb17`、`supv`+身份映射）三处一致。
+
+**独立注入（非工程师自检）**：`cp` 契约→`.preinject` + md5 `173033c7…` → §5 `rb17 0x0001_0000→0x0002_0000` → 检查器 **rc=1**（`进入状态[2] 契约==YAML` FAIL）、同一证据脚本 **rc=1**（`PASS=20 FAIL=7`）→ `cp` 回、md5 相等 → 检查器 **rc=0**、证据脚本 **rc=0**（`PASS=27 FAIL=0`）。快照对账：验收前后 7 文件 md5 逐一相等、`git status --porcelain -uall` 输出为空、无 `.preinject` 残留。
+
+**约束核验**：改动 = 基线 `8cd4c184`→HEAD 恰 7 文件（spec 册 + 契约 + YAML + 检查器 + `.tao/contracts/README.md` + 锁 + 任务书），越界 0；完成区 27 行 ≤30、无运行期路径；证据基线钉 commit 常量非 `HEAD`；`DADAO-23` 与其余 20 册未改（锁现算 sha 全对、仅 Machine-v5 变，册头/附录 `0.4.6-rc`）；全程未提交 git、未动主工作树。
+
+**check-spec-drift 分类裁定：成立（非凑绿）** —— ① ADR-0004 引用有实质：`§D2.2/D2.3` = ELF+raw 双路径与「装载越界 ⇒ host 非零退出」，状态 Accepted，`contract-elf` 同源同引；② 任务同时硬性要求契约 `0.1.0` 与 drift rc=0，而 spec-sourced 分支强制 == README Machine `0.4.0`，二者不可兼得（改 README Machine 列＝篡改「spec 册已发布版本」语义、改契约版本＝违反验收2，均不成立）；③ 仓库已有 ADR-sourced 先例（`contract-elf`、`contract-see`）。**finding**：版本线对齐口径（自有 `0.1.0` vs Machine `0.4.0`）宜登记「待裁定」，与遗留的「是否立启动 ABI ADR」一并交用户/architect 裁定。
+
+**非阻断 finding（文档级，architect 收尾改）**：① spec §6.3.3「`0x60` 之后到页尾（`0x1_0000`）」含混（页为 `[0x0001_0000, 0x0002_0000)`，建议改「页内偏移至 `0x1_0000`」，改后须同笔重算锁 sha）；② 根 `contracts/README.md` 投影表缺 `linux-boot.yaml` 行（超范围，完成区已披露）；③ 自审表 F5 中间 sha `6dadcbb…` ≠ 最终锁值 `b0216180…`（其后改动重算所致）；④ 完成区称 `[Machine-v5 §6.3]` 会被 `check-spec-refs` 判红——本人在临时树全量替换为该形 rc=0，实为「不被校验」而非判红，理由措辞不准（改用 `Machine-01` 前缀的结论仍对，`contract-see` 同惯例）。
+
+
+### 第 2 轮 engineer 自审（返工：裁定 A 地址术语 / 裁定 B 启动模型）
+
+改动面 = 6 个文件（spec §6.3 / 契约 / YAML / 检查器 / 只读锁 / 任务书），逐行审查并逐条处置：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| R1 ABI 文本仍把入口/boot info/kernel_base/initramfs/栈写成 PA | ✅已修 | 全量改 VA；PA 仅存于页表项/`PTBR`/loader 写内存 | 检查器 `kind: va` 逐字段「语义标注 VA、不得写 PA」全 PASS |
+| R2 `p_vaddr == p_paddr` 旧口径留在规则/PROSE | ✅已修 | 规则改 `ELF-VA-TO-PA`（VA→映射 PA，`p_paddr` 不作为装载地址） | 检查器 + 证据脚本均断言该串出现 0 次 |
+| R3 未写「`ptw_enable=0` ⇒ `CFXMEM`」硬约束与 M1 中间态不存在 | ✅已修 | §6.3 增「硬约束」段并引 `§1.2`；契约 §1 同步 | 检查器断言 §6.3 含 `CFXMEM` + `ptw_enable = 0`；self-test 术语缺失类可达 FAIL |
+| R4 未写其它 hart 在 K0 的状态 | ✅已修 | 进入状态表 + bullet：仅 hart 0 在线、其它未定义、不得依赖 | 检查器断言进入状态 hart 项含「其它 hart」 |
+| R5 YAML 只有 `boot_info.pa`，字段无地址类别，无法机械核术语 | ✅已修 | 增 `address_model`/`startup_model`、`pa`→`va`、每字段 `kind`（va/pa/scalar/runtime） | 检查器按 kind 断言；页大小/`ptw_enable`/寄存器与 YAML 交叉一致 |
+| R6 self-test 仅 4 类，未覆盖新裁定 | ✅已修 | 增「术语缺失（CFXMEM→CFXPERM）」「boot info 改称固定 PA」两类 ⇒ 6 类，各可达 FAIL | `--self-test` rc=0，6 类注入 6 次「注入 FAIL → 还原回绿」 |
+| R7 证据脚本注入类数写死 4、缺术语/启动模型段 | ✅已修 | 类数由 self-test 日志现场派生；新增 H 段（术语/旧口径/M1/其它 hart/保留区）与第 3 路真实注入 | 证据脚本 rc=0，`PASS=53 FAIL=0` |
+| R8 reviewer finding① §6.3.3「页尾」措辞含混 | ✅已修 | 改「页内偏移 `0x60` 之后至该页末（页内偏移 `0x1_0000`）」 | 文本核对；锁 sha 同笔重算 |
+| R9 reviewer finding④ 完成区称 `[Machine-v5 §6.3]`「判红」不准 | ✅已修 | 改为「不被校验」 | 完成区已更新 |
+| R10 表格 header 改「区间（VA）」后检查器未同步 | ✅已修 | 检查器表头匹配同步改「区间（VA）」 | 分区 5 行双向 PASS |
+| R11 新块拼接后 §6.3.5 与 `---` 缺空行 | ✅已修 | 补空行 | 结构检查（numbering/changelog）rc=0 |
+
+**判决**：无未修 finding；任务置 `待验收`（返工部分待第 2 轮 reviewer 复核）。
+
+### 第 2 轮 reviewer 验收
+
+**判决：Accepted**（下列输出全部为本人在本任务 worktree 独立重跑所得；最终接受归 architect 终审）
+
+**重跑记录（命令 | rc | 关键输出）**
+- `python3 tools/linux/check_boot_contract.py` | **0** | `[PASS]` 199 项 / `[FAIL]` 0；现场统计 `§6.3 行数=115`、`规则=elf:7,fail:2,initramfs:3,raw:4`、`DTB 提及=3`
+- `… --self-test` | **0** | `self-test: 6 类注入，失败 0 项`；6 类（偏移/magic/入口基址/字段缺失/术语缺失/地址术语回退）逐类「命中 1 处 → 注入后 rc=1 → 还原后 rc=0」
+- `bash .work/evidence/m14-spec-001/run.sh` | **0** | `汇总: PASS=53 FAIL=0`（返工后跑 2 次均绿；3 路真实文件注入 + `cp`+md5 还原；日志内 4 条 `[FAIL]` 均为 `[INFO]` 回显的注入态失败，非断言失败）
+- 门控 `make check-spec-{readonly,changelog,drift,numbering,refs}`、`check-contracts-{dir,pending}`、`check-test-reports`、`check-{dirs,no-residue}`、`check-spec-{purity,cite-targets}` **全 rc=0**（readonly=`21 read-only spec volume(s) OK`，refs=`0 violations`，drift=`错误 0 个`）
+- `python3 tools/infra/check_knowledge_refs.py` | **1** | 5 条全在 `m13-testcases-013` 任务书；该文件与检查器相对基线 `8cd4c184` diff 为空 ⇒ 基线既有红（非本任务引入，验收7 该项照旧 BLOCKED）
+- 锁现算：`sha256sum spec/Machine-v5-…` = `e13ac126…` 与锁值相等；`git diff 8cd4c184..HEAD -- manifests/spec-readonly.lock.toml` 仅 1 hunk、仅 Machine-v5（其余 20 册 sha 不变）
+- `grep check-linux-boot-contract Makefile` **本分支缺席**（分支基线早于 `m14-linux-001` 的 `6e1b0f14` 合入）；用 `make -f <(git show master:Makefile) check-linux-boot-contract` 验 master 侧目标 **rc=0** ⇒ 目标可用，合入 master 后即可直接跑
+
+**裁定落地（逐条核）**：**A ✓** — §6.3 L324「地址术语硬约定：一律 VA、`addr[41:0]`、PA 只三处」、L385/L416/L417 VA 口径、L351/L357 `p_paddr` 不作装载地址；YAML `address_model.abi_addresses: va` + 每字段 `kind`（`pa` 仅 `ptbr`）。**B ✓** — L326 M1「预建 64 KiB 身份映射 `VA[0,2GiB)→PA[0,2GiB)`、`PTBR` 指向、`ptw_enable=1`、`rb16` VA 入口」、L328「`ptw_enable=0` 取指/访存直接 `CFXMEM`（引 §1.2）、不存在 MMU 关运行」、L422/L428 其它 hart 未定义、L345 保留区与 initramfs 区不得回收；契约 §1/§7 与 YAML `startup_model` 同步。
+
+**独立核对（自写解析器，不 import 被测脚本）**：boot info 15 行 / 分区 5 行 / 进入状态 10 项 / 规则 16 条，spec↔契约↔YAML 三方全等；布局自算 `max(offset+width)=0x60=size`、自然对齐无重叠；分区自算 64 KiB / 64 KiB / 63 MiB / 32 MiB。抽 5 字段：`ram_base`/`kernel_base`/`initramfs_base` 语义带（VA）、`ptbr` 语义 PA（唯一）、`flags` 标量，语义列 spec==契约。`grep -n "PA"` 逐条判：spec 仅 §1.1 PA RAM 行、§6 smon 写 PA 0/PTE、§6.3 三处术语说明+身份映射+loader 写 PA+`ptbr`、附录历史；契约/YAML 同构；旧口径 `p_vaddr == p_paddr`、`固定 PA \`0x0001_0000\`` 出现 **0 次**，**无 ABI 地址被称 PA**。
+
+**独立注入（自设计，`cp`+md5）**：① spec 表 `kernel_base` 语义（VA）→（PA）⇒ **rc=1**（3 条 FAIL：语义列不等 / 标注 VA / 不得写 PA）→ 还原 md5 `2ec9b06b…` 相等、rc=0；② 删 §6.3「硬约束」整段 ⇒ **rc=1**（2 条 FAIL：术语 `CFXMEM` 缺、`ptw_enable=0 ⇒ CFXMEM` 缺）→ 还原 rc=0。验收前后 `git status --porcelain -uall` 均 0 行、md5 与验收前快照一致、无 `.preinject`/self-test 临时树残留。
+
+**约束核验**：基线 `8cd4c184`→HEAD 恰 7 文件，与完成区声明逐一对上（越界 0）；完成区 28 行 ≤30、无宿主绝对路径；证据基线钉 commit 常量非 `HEAD`；`DADAO-23` 与其余 20 册未改；全程未提交 git、未动主工作树、未重建组件。
+
+**非阻断 finding（文档级，architect 收尾改）**：① 任务书「目标」L22 与「接口规范」L38/L50/L80 仍写 PA（与裁定 A 冲突；`待裁定` 段已声明以裁定为准，建议改 VA 或加注）；② 检查器 L405 注释「4 类注入」应为 6 类、L72 `fmt_addr` docstring 误写「PA 格式」；③ 证据脚本 L65 注释「4 类注入」；④ `--self-test` 用 `tempfile.mkdtemp()` 落系统 `/tmp`（已自清），建议 `dir=` 指到任务临时目录；⑤ 根 `contracts/README.md` 缺 `linux-boot.yaml` 行（沿第 1 轮遗留）。
+
+**未决（交 architect/用户）**：「页表由谁建」在 §6.3 L326 与契约 §1 写成**固件（smon）建立、loader 亦可预置**两可（与裁定 B 原话「loader/固件」一致），但 K1 须钉唯一写者与冲突语义（smon 重写 loader 预置表是否等价）；另沿第 1 轮：契约版本线 `0.1.0` vs README `Machine` `0.4.0`、是否立启动 ABI ADR。
+
+### 收尾（architect，2026-11-13）
+
+- 用户追加裁定：**身份页表只由 `smon` 固件建立**（宿主 loader 不代写页表页）。已按此改写 `Machine-v5 §6.3` 启动模型段与 `contract-linux-boot.md §1`；检查器 `check_boot_contract.py` 复跑仍 PASS（`--self-test` 6 类）。
+- 顺带修 reviewer 非阻断项：`check_boot_contract.py` 注释「4 类」→「6 类」、`fmt_addr` docstring 改「地址格式（VA/PA 通用）」、根 `contracts/README.md` 补 `linux-boot.yaml` 行、锁 sha 按 §6.3 改动重算（`c9a373e4…`）。
+- 台账/`discussing.md` 由主会话维护。

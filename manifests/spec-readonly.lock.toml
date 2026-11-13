@@ -778,4 +778,13 @@ group = "machine-v5"
 #   3、1-7f都用做失败点；4、不用动riscv-tests，后续会全部改为新格式」）：§7.1 guest 段重划——PASS 只剩 `0x00`、
 #   FAIL 扩为 `0x01`–`0x7F`（值 = 失败点序号 1–127）；`0x80`–`0xBF`/`0xC0`–`0xFF` 两段与位域逐字不变；
 #   册头与附录 → 0.4.5-rc；sha256 同笔重算（仅本册；其余 20 册不变）。
-sha256 = "6d67ab2cd0dcdaa34ceaf6c9833611e93ca1533c8413d272c215a97bc87cbf57"
+# 2026-11-13（m14-spec-001；授权依据 = 用户 2026-11-13 裁定「授权这三处（推荐）」（授权原话落纸于
+#   `.tao/tasks/spec/m14-spec-001-启动ABI契约与固定boot-info.md` §用户授权），同日用户确认 boot ABI
+#   「按提案冻结」并裁定「VA 为 ABI 地址」「M1 预建页表 + VA 入口」）：新增 §6.3「`Machine-v5-Vast`
+#   内核装载与启动 ABI」——ELF/raw 两条装载路径与校验规则、内存窗口四段固定 VA 分区、固定 boot info 结构
+#   （VA `0x0001_0000`、`size = 0x60`、大端、15 字段）、进入时状态（`supv`、PTW 开启、`rb17` = boot info VA、
+#   `rb16` = 入口 VA、其它 hart 状态未定义）；ABI 地址一律 VA（`addr[41:0]`），PA 只用于页表项/`PTBR`/
+#   loader 写内存；启动模型 M1 = 预建身份映射页表 + VA 入口（`ptw_enable = 0` 访存即 `CFXMEM`）；
+#   §1.1 的 Vast PA RAM 行与 §6 的 Vast 装载段各加一条 `§6.3` 指针；册头与附录 → `0.4.6-rc`；
+#   sha256 同笔重算（仅本册；其余 20 册不变）。
+sha256 = "c9a373e4bce022ce23aeb29b8625a9eb2db8eca0ee8a96ae11e04b505c9ca197"

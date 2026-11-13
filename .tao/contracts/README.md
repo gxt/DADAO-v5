@@ -1,6 +1,6 @@
 # .tao/contracts/ — 人读契约正文（归一化叙述）
 
-**机器可读投影在 `../../contracts/`**（`opcodes.yaml` / `abi.yaml` / `legality_rules.yaml` / `fp_semantics.yaml`）——本目录是**源**（叙述型正文），仓库根 `contracts/` 是**派生**（机器数据）。
+**机器可读投影在 `../../contracts/`**（`opcodes.yaml` / `abi.yaml` / `legality_rules.yaml` / `fp_semantics.yaml` / `linux-boot.yaml`）——本目录是**源**（叙述型正文），仓库根 `contracts/` 是**派生**（机器数据）。
 
 本目录由 `INFRA-071t`（Phase B，2026-10-14）自 `.tao/knowledge/` 迁入（`INFRA-070t` 为 Phase A）；顶层白名单门控 = `check-contracts-dir`（`tools/infra/check_contracts_dir.py`，L1 成员）。
 
@@ -16,6 +16,7 @@
 | `contract-elf.md` | SimRISC M1 ELF 合约（Object ABI） |
 | `contract-fp.md` | `scope: fp` 60 条浮点语义合约（0.5.4） |
 | `contract-isa.md` | SimRISC ISA 规范合约（M1 范围；0.5.4） |
+| `contract-linux-boot.md` | 启动 ABI 合约（Vast 内核装载 + 固定 boot info；0.1.0） |
 | `contract-see.md` | SEE/HEE 运行环境合约（M5；0.7.1） |
 | `contract-semihosting.md` | semihosting 合约（M5；0.7.1） |
 | `contract-syscall.md` | Linux syscall 映射合约（M8：无内核的 Linux 用户态栈） |
