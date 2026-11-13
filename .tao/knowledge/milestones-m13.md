@@ -31,7 +31,6 @@
 | m13-testcases-033 | 2–3 h | 补 `ext.*` `rdHD=64/67/63` 跨平台用例（截低 6 位） |
 | m13-testcases-032 | 4–6 h | rootn ±0 / NaN canonical / quiet-sNaN 向量与三平台期望 |
 | m13-testcases-031 | 2–3 h | 补 `st.o rb0`（`aip.si` 构造期望）+ `ld.o ra0` 读写（SBZ 写忽略） |
-| m13-testcases-018 | 1–2 h | `04-arith-logic-octa` 位操作 4 个 id 改汇编+宏 |
 | m13-testcases-019 | 1–2 h | `05-arith-addr` 6 个 id 改汇编+宏 |
 | m13-testcases-020 | 4–6 h | `06-control-flow` 15 个 id 改汇编+宏（含 RAS） |
 | m13-testcases-021 | 5–7 h | `07-floating-point` 算术与最小最大 18 个 id 改汇编+宏 |
@@ -53,6 +52,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m13-testcases-018 | 2026-11-13 22:40 | 1–2 h | `04-arith-logic-octa` 位操作 4 个 id 改汇编+宏 |
 
 ## 已验证
 
