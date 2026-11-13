@@ -58,10 +58,10 @@ FAULT_CODE = {"CFXMEM": 0xF1, "CFXREG": 0xF2, "ILLI": 0xF8,
 # `TEST_MOV1`/`TEST_CS*`（02-reg-copy）/`TEST_WI*`（03-wyde-imm）/`TEST_AR*`
 # （04-arith-logic-octa 算术/逻辑族）同理，多条 `__VERIFY_*` 断言共用一个点号）
 CHAIN_CASE_RE = re.compile(r"^\t(TEST_LD\w*|TEST_ST\w*|TEST_MOV\w*|TEST_CS\w*|"
-                           r"TEST_WI\w*|TEST_AR\w*|TEST_BR\w*|__CHECK_RD|__CHECK_MEM)\b")
+                           r"TEST_WI\w*|TEST_AR\w*|TEST_BR\w*|__CHECK_(?:RD|MEM)\w*)\b")
 # 链例行**写下的点号字面量**（断言用：点号必须等于它在文件里的序号，不能只靠计数器自增）
 CHAIN_PT_RE = re.compile(r"^\t(?:TEST_LD\w*|TEST_ST\w*|TEST_MOV\w*|TEST_CS\w*|"
-                         r"TEST_WI\w*|TEST_AR\w*|TEST_BR\w*|__CHECK_RD|__CHECK_MEM)\s+(\d+),")
+                         r"TEST_WI\w*|TEST_AR\w*|TEST_BR\w*|__CHECK_(?:RD|MEM)\w*)\s+(\d+),")
 FAULT_RE = re.compile(r"^\tTEST_FAULT(?:_MOV|_CS2|_CS|_M|_WI)?\s+(\d+),\s*(\S+?),\s*(\S+?),\s*"
                       r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
 FAULT_ENC_RE = re.compile(r"^\tTEST_FAULT_ENC\s+(\d+),\s*"

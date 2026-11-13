@@ -22,7 +22,7 @@
 | `base/*.yaml` | 向量数据（由 `TESTCASES-003t`~`007t` 生成） |
 | `MIGRATION.md` | YAML → 汇编+宏 的迁移台账（大类/小类/用例模板/任务拆分/删除规则） |
 | `macros/inst_test.inc` | 汇编宏层（`TEST_LD*`/`TEST_ST*`/`TEST_MOV1`/`TEST_CS*`/`TEST_WI*`/`TEST_FAULT*`/`__CHECK_*`，期望值内联） |
-| `01-load-store/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（单元素 `ld.*`/`st.*`，19 个） |
+| `01-load-store/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（单元素 `ld.*`/`st.*`，19 个；含 `st.o rb0`（IP 作源/作基址）与 `ld.o ra0`（RAS 窗口读写）补测） |
 | `01-load-store/inst-tiny.lds` | 上面这册的链接布局（固定段地址 + ASSERT 钉住）；`02-reg-copy`/`03-wyde-imm` 复用同一布局 |
 | `02-reg-copy/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（块复制 8 + `cs.*` 8，共 16 个） |
 | `03-wyde-imm/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（`set.zw`/`set.ow`/`or.w`/`andn.w`/`set.w`，8 个） |
@@ -57,6 +57,18 @@ python3 tools/testcases/inst/run_asm_suite.py \
 
 判据 = **同一份 ELF** 在 chipyard `WumingTinyConfig` / QEMU `dadao-tiny` / gem5 FS
 `tiny` 上，链例的结果字节流逐字节一致、故障例的退出码一致。
+
+### 特殊寄存器取值的期望怎么给（补测）
+
+- **`rb0`（当前指令地址）**：期望值随链接布局变化，而 `llvm-mc` 只折装绝对常量（标签差
+  被静默折 0，`ISS-424`）⇒ 三种写法：①`aip.si rbX, 0` + `add.si rbX, <delta>`；
+  ②`rb2rb rbX, rb0, 1` + `add.si rbX, <delta>`（`delta` = 被测指令与取指指令的**字节差**，
+  相邻两条即 4）；③`.org` 钉住被测指令后写 `ENTRY + <字面偏移>`（钉真实地址，防「两条
+  IP 通路同错也自洽」）。实测经 `__CHECK_MEM_RB`（期望在 RB 时先 `rb2rd` 再比）。
+- **`ra0`（`{SBZ(10), RACNT(6), MRPTR(48)}`）**：读用 `call`/`ret` 构造已知 `RACNT`/`MRPTR`
+  后 `ra2rd` 拷出；写用 `ld.o ra0, …` 装入含 SBZ 置位的值再读回，`[63:54]` 必须仍为 0。
+  **该写语义 QEMU/gem5 与 RTL 不一致**（前者保留写入的 SBZ 位）⇒ `ld.o_rrii_ra` 链例在
+  QEMU/gem5 红、chipyard 绿（issue 候选号见 `m13-testcases-031` 任务书「遗留问题」；期望**不放宽**）。
 
 ## 校验
 

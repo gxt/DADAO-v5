@@ -380,3 +380,33 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
   逐字节比对；`encode_check` 另核原始编码字的 `opc`/`mask`/`value` 与「编码字段 ↔
   装载寄存器」一致。
 - **YAML**：4 个 ctrl 册的 id 全部有 `.S` 载体，但**未删**（§5.2 的四条阻塞实测）。
+
+### `m13-testcases-031`：补 `st.o rb0` / `ld.o ra0`（`01-load-store` 三文件）
+
+- 改动（**不改已通过用例**，只追加段）：`st.o_rrii_rb.S`（+3 链例点，`rb0` 作**源** =
+  当前指令地址）、`st.o_rrii_rd.S`（+1 点，`rb0` 作**基址**，该 id 的源银行是 rd ⇒ 只有
+  `rbhb` 能编 `rb0`）、`ld.o_rrii_ra.S`（+7 点 = `ra0` 读 4 + 写 3）；故障例点号顺延。
+  宏层新增 `__CHECK_MEM_RB`（内存 beat vs **运行期派生**的 RB 期望：先 `rb2rd` 到 rd22 再比）；
+  驱动器 `run_asm_suite.py` 的链例行识别放宽为 `__CHECK_(?:RD|MEM)\w*`。
+- **`rb0` 期望值**：`llvm-mc` 只折装绝对常量（标签差折 0，`ISS-424`）⇒ ①`aip.si rbX, 0`
+  + `add.si rbX, <delta>`；②`rb2rb rbX, rb0, 1` + `add.si rbX, <delta>`；③`.org` 钉住
+  被测指令后写 `ENTRY + <字面偏移>`。**`delta` = 被测指令与取指指令的字节差**（相邻即 4；
+  本册 `aip.si`/`rb2rb` 后隔一条 `add.si` ⇒ 8，注释逐条写清）。`rb2rb`/`aip.si` 的地址
+  差用 ELF 反汇编核算（oracle），写错 delta 必红。
+- **`rb0` 作基址**（`st.o_rrii_rd`）：EA = 本条 `st.o` 地址 + imms12 ⇒ 目标只能落在
+  `.text` 内；用例用 `.org` 留出**被 `jump` 跳过的零填充槽**（只写不执行），两侧都是链接期
+  常量。三平台一致（写 RAM 无只读保护）。
+- **`ra0` 读写**：写 = `ld.o ra0, [rbX, imm]` 装入含 SBZ 置位的值（源值就地 `st.o` 预置，
+  不新增数据区字节——`.testdata` 恰 0x2000 已满），`ra2rd` 读回，`[63:54]` 必须为 0；
+  读 = `call`（C1/C3a）、满栈 `call`（C3b ⇒ MRPTR −= 8）、`ret`（D4b ⇒ MRPTR += 8）构造
+  已知 `RACNT`/`MRPTR` 后 `ra2rd` 拷出。**顺序先读后写**：写段是三平台分歧点（见下）。
+- **跨平台分歧（issue 候选号见 `m13-testcases-031` 任务书「遗留问题」）**：`ld.o ra0` 的 `[63:54]`（SBZ，`SimRISC-00 §2.4` 规定写无效）
+  chipyard（RTL `WumingRegFile.writeRa` 丢弃 SBZ、读回恒 0）**绿**；QEMU/gem5 **全 64 位
+  可写**（读回保留写入位）⇒ 点 20（第一例）红。期望**不放宽**，红按文档化处理。
+  读段（16–19 点）三平台一致。
+- **独立复算**：`oracle.py`（自写）= ELF 反汇编取指令地址（`rb0` 期望 + delta 核算）+
+  自写 RAS 状态机（C1/C2/C3a/C3b、D1–D4b ⇒ `ra0` 两字段）+ SBZ 掩码；并把派生期望与
+  三平台结果字节流逐点比对。
+- **门控**：`.S` 不入 `check-inst`（YAML 载体）⇒ `check-inst` 红集仍**恰**
+  `{divrem.yaml[23]}`；`check-tests-index`/`check-case-ledger`/`validate_vectors`/
+  273 例 sweep md5/`check-generator-sync` 全绿。

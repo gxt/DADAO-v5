@@ -202,6 +202,19 @@ __ck_\@:
 __ck_\@:
 .endm
 
+@@ 内存实测 vs **运行期派生**的期望（RB 银行，如 `aip.si`/`rb2rb` 取出的 IP）：
+@@   期望先 `rb2rd` 搬到 rd22 再比 —— 探针不借被测的 `st` 指令，也不要求链接期常量
+@@   （`st.o rb0` 的期望值随链接布局变化，见 `tests/inst/MIGRATION.md §6`）。
+.macro __CHECK_MEM_RB pt, baseval, off, rbsrc
+	rb2rd	{rd22:rd22}, {\rbsrc:\rbsrc}
+	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
+	ld.o	rd21, [rb21, 0]
+	__REC	rd21
+	br.eq	{rd22, rd21}?, [rb0, __ck_\@]
+	__EXIT	\pt
+__ck_\@:
+.endm
+
 @@ 同上判据但**不占检查点**（同一用例的多条断言共用点号；失败同样 `SYS_EXIT(pt)`）
 .macro __VERIFY_RD pt, reg, exp
 	__LI	rd20, \exp
