@@ -1,0 +1,160 @@
+diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
+new file mode 100644
+index 000000000..94b0139f5
+--- /dev/null
++++ b/arch/dadao/kernel/setup.c
+@@ -0,0 +1,154 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DADAO kernel setup (K0: compiles and links; the boot path runs in K1).
++ *
++ * The boot ABI is the fixed boot info block of contract-linux-boot §4 and
++ * the M1 entry state of §5.
++ */
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/memblock.h>
++#include <linux/mm.h>
++#include <linux/sched.h>
++#include <linux/sched/task.h>
++#include <linux/sched/task_stack.h>
++#include <linux/string.h>
++#include <linux/console.h>
++#include <linux/seq_file.h>
++
++#include <asm/setup.h>
++#include <asm/page.h>
++#include <asm/pgtable.h>
++#include <asm/processor.h>
++#include <asm/ptrace.h>
++#include <asm/switch_to.h>
++
++static struct dadao_boot_info boot_info;
++static unsigned long boot_info_va;
++
++/* RAM window base/size in PA (the boot info carries VAs). */
++unsigned long dadao_ram_base;
++unsigned long dadao_ram_size;
++
++void __init dadao_start_kernel(void *info)
++{
++	boot_info_va = (unsigned long)info;
++
++	/*
++	 * K0 entry: report reachability and stop.  This is deliberately not
++	 * start_kernel(): no subsystem is claimed to work before K1.
++	 */
++	pr_info("dadao: K0 entry reached, boot info at %#lx\n", boot_info_va);
++
++	for (;;)
++		;
++}
++
++static void __init parse_boot_info(void)
++{
++	struct dadao_boot_info *bi = (struct dadao_boot_info *)boot_info_va;
++
++	memcpy(&boot_info, bi, sizeof(boot_info));
++	dadao_ram_base = (unsigned long)__pa(boot_info.ram_base);
++	dadao_ram_size = boot_info.ram_size;
++}
++
++void __init setup_arch(char **cmdline_p)
++{
++	parse_boot_info();
++
++	memblock_add(dadao_ram_base, dadao_ram_size);
++
++	/* No DTB, no command line in K0 (contract-linux-boot §4). */
++	*cmdline_p = boot_command_line;
++
++	paging_init();
++}
++
++/* /proc/cpuinfo: one line describing the hart (K0: hart 0 only). */
++static void *cpuinfo_start(struct seq_file *m, loff_t *pos)
++{
++	return *pos ? NULL : SEQ_START_TOKEN;
++}
++
++static void *cpuinfo_next(struct seq_file *m, void *v, loff_t *pos)
++{
++	++*pos;
++	return NULL;
++}
++
++static void cpuinfo_stop(struct seq_file *m, void *v)
++{
++}
++
++static int cpuinfo_show(struct seq_file *m, void *v)
++{
++	seq_printf(m, "processor\t: 0\n"
++		   "hart\t\t: 0\n"
++		   "mmu\t\t: 64 KiB pages, 2-level table\n");
++	return 0;
++}
++
++const struct seq_operations cpuinfo_op = {
++	.start	= cpuinfo_start,
++	.next	= cpuinfo_next,
++	.stop	= cpuinfo_stop,
++	.show	= cpuinfo_show,
++};
++
++void __init trap_init(void)
++{
++	/* Trap/exception entry lands in K1 (contract-see §2). */
++}
++
++void __init init_IRQ(void)
++{
++	/* No interrupt controller in K0: semihosting is a synchronous trap. */
++}
++
++void __init time_init(void)
++{
++	/* No timer in K0. */
++}
++
++void start_thread(struct pt_regs *regs, unsigned long pc, unsigned long sp)
++{
++	memset(regs, 0, sizeof(*regs));
++	regs->ip = pc;
++	regs->rb[1] = sp;
++	regs->rb[3] = 0;
++	regs->status = 0;
++}
++
++int copy_thread(struct task_struct *p, const struct kernel_clone_args *args)
++{
++	unsigned long sp = (unsigned long)task_stack_page(p) + THREAD_SIZE -
++			   sizeof(struct pt_regs);
++	struct pt_regs *childregs = (struct pt_regs *)sp;
++
++	*childregs = *current_pt_regs();
++	childregs->rd[8] = 0;
++	childregs->rb[1] = sp;
++	p->thread.sp = sp;
++
++	return 0;
++}
++
++__visible struct task_struct *__switch_to(struct task_struct *prev,
++					  struct task_struct *next)
++{
++	/*
++	 * K0 links this C placeholder; the register-save/restore helper is
++	 * part of the K1 context-switch work.  switch_to() expects the task
++	 * that was running, i.e. @prev.
++	 */
++	return prev;
++}
++
++void flush_thread(void)
++{
++}
++
++void release_thread(struct task_struct *dead_task)
++{
++}

@@ -1,0 +1,13 @@
+diff --git a/arch/dadao/include/asm/sections.h b/arch/dadao/include/asm/sections.h
+new file mode 100644
+index 000000000..db60b1487
+--- /dev/null
++++ b/arch/dadao/include/asm/sections.h
+@@ -0,0 +1,7 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_SECTIONS_H
++#define __ASM_SECTIONS_H
++
++#include <asm-generic/sections.h>
++
++#endif

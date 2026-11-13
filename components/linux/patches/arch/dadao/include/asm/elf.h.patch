@@ -1,0 +1,53 @@
+diff --git a/arch/dadao/include/asm/elf.h b/arch/dadao/include/asm/elf.h
+new file mode 100644
+index 000000000..7ada99183
+--- /dev/null
++++ b/arch/dadao/include/asm/elf.h
+@@ -0,0 +1,47 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_ELF_H
++#define __ASM_ELF_H
++
++#include <linux/types.h>
++#include <linux/personality.h>
++
++#include <asm/ptrace.h>
++#include <asm/page.h>
++#include <asm/processor.h>
++
++/* ELF machine id for DADAO (contract-elf §1.1). */
++#define EM_DADAO		0x0DA0
++
++#define ELF_ARCH		EM_DADAO
++#define ELF_CLASS		ELFCLASS64
++#define ELF_DATA		ELFDATA2MSB
++#define ELF_EXEC_PAGESIZE	PAGE_SIZE
++
++/* User space starts at 0; ET_DYN has no randomisation in K0. */
++#define ELF_ET_DYN_BASE		(TASK_SIZE / 3 * 2)
++
++#define elf_check_arch(x)	((x)->e_machine == EM_DADAO)
++
++#define ELF_HWCAP		0
++#define ELF_HWCAP2		0
++
++#define ELF_PLATFORM		(NULL)
++#define ELF_PLAT_INIT(_r, load_addr)	do { } while (0)
++
++#define SET_PERSONALITY(ex)	set_personality(PER_LINUX)
++
++/*
++ * Register set exported through ptrace/ELF core files.  The kernel-internal
++ * struct pt_regs is the same register file (asm/ptrace.h).
++ */
++typedef unsigned long elf_greg_t;
++#define ELF_NGREG	(sizeof(struct pt_regs) / sizeof(elf_greg_t))
++typedef elf_greg_t elf_gregset_t[ELF_NGREG];
++
++typedef unsigned long elf_fpreg_t;
++typedef elf_fpreg_t elf_fpregset_t[1];
++
++/* No FPU state is saved in K0: elf_core_copy_task_fpregs() returns 0,
++ * i.e. "no FP registers", so no PRFPREG note is written (kernel/traps.c). */
++
++#endif /* __ASM_ELF_H */

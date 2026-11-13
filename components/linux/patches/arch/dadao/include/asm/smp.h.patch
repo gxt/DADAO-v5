@@ -1,0 +1,16 @@
+diff --git a/arch/dadao/include/asm/smp.h b/arch/dadao/include/asm/smp.h
+new file mode 100644
+index 000000000..18758bc60
+--- /dev/null
++++ b/arch/dadao/include/asm/smp.h
+@@ -0,0 +1,10 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_SMP_H
++#define __ASM_SMP_H
++
++#include <linux/cpumask.h>
++
++/* Single hart in K0: hart_id 0 is the only online CPU. */
++#define raw_smp_processor_id()	0
++
++#endif

@@ -1,0 +1,40 @@
+diff --git a/arch/dadao/kernel/syscalls.c b/arch/dadao/kernel/syscalls.c
+new file mode 100644
+index 000000000..2bc73d6cc
+--- /dev/null
++++ b/arch/dadao/kernel/syscalls.c
+@@ -0,0 +1,34 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DADAO syscalls that the generic table expects from the architecture.
++ */
++#include <linux/linkage.h>
++#include <linux/mm.h>
++#include <linux/syscalls.h>
++#include <linux/uaccess.h>
++
++#include <asm/ptrace.h>
++
++/*
++ * The generic table uses the byte-offset mmap form (architectures without
++ * the legacy mmap2 split), so shift the offset here.
++ */
++SYSCALL_DEFINE6(mmap, unsigned long, addr, unsigned long, len,
++		unsigned long, prot, unsigned long, flags,
++		unsigned long, fd, unsigned long, off)
++{
++	if (offset_in_page(off) != 0)
++		return -EINVAL;
++
++	return ksys_mmap_pgoff(addr, len, prot, flags, fd, off >> PAGE_SHIFT);
++}
++
++/*
++ * Signal delivery/restore needs the signal frame, which K0 does not define.
++ * The syscall exists so the table is coherent; with no signal frame format a
++ * return here is the only honest answer until user mode exists (K2).
++ */
++SYSCALL_DEFINE0(rt_sigreturn)
++{
++	return -EINVAL;
++}

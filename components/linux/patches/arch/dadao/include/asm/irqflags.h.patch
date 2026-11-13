@@ -1,0 +1,60 @@
+diff --git a/arch/dadao/include/asm/irqflags.h b/arch/dadao/include/asm/irqflags.h
+new file mode 100644
+index 000000000..bd066ad43
+--- /dev/null
++++ b/arch/dadao/include/asm/irqflags.h
+@@ -0,0 +1,54 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_IRQFLAGS_H
++#define __ASM_IRQFLAGS_H
++
++#ifndef __ASSEMBLY__
++
++/*
++ * K0: no interrupt source exists yet (semihosting is a synchronous trap),
++ * so every asynchronous interrupt stays masked.  The status-register
++ * save/restore lands with the trap entry (K1); until then these helpers
++ * keep the "always disabled" invariant instead of pretending to save state.
++ */
++static inline unsigned long arch_local_irq_save(void)
++{
++	return 0;
++}
++
++static inline void arch_local_irq_restore(unsigned long flags)
++{
++}
++
++static inline void arch_local_irq_disable(void)
++{
++}
++
++static inline void arch_local_irq_enable(void)
++{
++}
++
++static inline unsigned long arch_local_save_flags(void)
++{
++	return 0;
++}
++
++static inline int arch_irqs_disabled(void)
++{
++	return 1;
++}
++
++static inline int arch_irqs_disabled_flags(unsigned long flags)
++{
++	return 1;
++}
++
++#define arch_local_irq_save	arch_local_irq_save
++#define arch_local_irq_restore	arch_local_irq_restore
++#define arch_local_irq_disable	arch_local_irq_disable
++#define arch_local_irq_enable	arch_local_irq_enable
++#define arch_local_save_flags	arch_local_save_flags
++#define arch_irqs_disabled	arch_irqs_disabled
++#define arch_irqs_disabled_flags arch_irqs_disabled_flags
++
++#endif /* !__ASSEMBLY__ */
++#endif /* __ASM_IRQFLAGS_H */

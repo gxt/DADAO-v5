@@ -1,0 +1,257 @@
+diff --git a/arch/dadao/include/asm/pgtable.h b/arch/dadao/include/asm/pgtable.h
+new file mode 100644
+index 000000000..97c9548de
+--- /dev/null
++++ b/arch/dadao/include/asm/pgtable.h
+@@ -0,0 +1,251 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_PGTABLE_H
++#define __ASM_PGTABLE_H
++
++#include <asm/page.h>
++#include <asm-generic/pgtable-nopmd.h>
++
++/*
++ * Two-level page tables, 64 KiB pages (spec/DADAO-12 §2.2.2):
++ *   VA[41:29] -> L1 index (8192 entries, one 64 KiB table)
++ *   VA[28:16] -> L2 index (8192 entries, one 64 KiB table)
++ *   VA[15:0]  -> page offset
++ * pmd/pud/p4d are folded (asm-generic/pgtable-nopmd.h).
++ */
++#define PGDIR_SHIFT		29
++#define PTRS_PER_PGD		(1 << 13)
++#define PGDIR_SIZE		(_AC(1, UL) << PGDIR_SHIFT)
++#define PGDIR_MASK		(~(PGDIR_SIZE - 1))
++
++#define PTRS_PER_PTE		(1 << 13)
++#define PFN_PTE_SHIFT		PAGE_SHIFT
++#define USER_PTRS_PER_PGD	(TASK_SIZE / PGDIR_SIZE)
++#define FIRST_USER_ADDRESS	0UL
++
++/* PTE bits: spec/DADAO-12 §2.2.3 (L1) and §2.2.4 (L2) share the low bits. */
++#define _PAGE_PRESENT		(_AC(1, UL) << 0)
++#define _PAGE_SUPER		(_AC(1, UL) << 1)	/* L1: 512 MiB superpage */
++#define _PAGE_DIRTY		(_AC(1, UL) << 2)
++#define _PAGE_ACCESSED		(_AC(1, UL) << 3)
++#define _PAGE_GLOBAL		(_AC(1, UL) << 4)
++#define _PAGE_EXEC		(_AC(1, UL) << 5)
++#define _PAGE_WRITE		(_AC(1, UL) << 6)
++#define _PAGE_READ		(_AC(1, UL) << 7)
++/* Fragment-present bits: 0xff = all 8 fragments resident. */
++#define _PAGE_FRAG_SHIFT	8
++#define _PAGE_FRAG_ALL		(0xffUL << _PAGE_FRAG_SHIFT)
++/* HSJU access mask, bits[63:60]: H=63, S=62, J=61, U=60. */
++#define _PAGE_H			(_AC(1, UL) << 63)
++#define _PAGE_S			(_AC(1, UL) << 62)
++#define _PAGE_J			(_AC(1, UL) << 61)
++#define _PAGE_U			(_AC(1, UL) << 60)
++
++#define _PAGE_PFN_SHIFT		PAGE_SHIFT
++#define _PAGE_PFN_MASK		(0x000000ffffffffffUL << _PAGE_PFN_SHIFT)
++
++#ifndef __ASSEMBLY__
++
++struct vm_area_struct;
++
++extern pgd_t swapper_pg_dir[];
++
++#define pgd_ERROR(e) \
++	pr_err("%s:%d: bad pgd %016lx\n", __FILE__, __LINE__, pgd_val(e))
++#define pte_ERROR(e) \
++	pr_err("%s:%d: bad pte %016lx\n", __FILE__, __LINE__, pte_val(e))
++
++#define pgd_index(address)	(((address) >> PGDIR_SHIFT) & (PTRS_PER_PGD - 1))
++
++/* Kernel mappings: supervisor mode, readable/writable/executable, all
++ * fragments resident. */
++#define _PAGE_KERNEL	(_PAGE_S | _PAGE_READ | _PAGE_WRITE | _PAGE_EXEC | \
++			 _PAGE_PRESENT | _PAGE_ACCESSED | _PAGE_DIRTY | \
++			 _PAGE_FRAG_ALL | _PAGE_GLOBAL)
++
++#define PAGE_KERNEL		__pgprot(_PAGE_KERNEL)
++#define PAGE_KERNEL_EXEC	__pgprot(_PAGE_KERNEL)
++#define PAGE_KERNEL_RO		__pgprot(_PAGE_KERNEL & ~_PAGE_WRITE)
++#define PAGE_KERNEL_NC		__pgprot(_PAGE_KERNEL)
++
++#define __P000	PAGE_KERNEL_RO
++#define __P001	PAGE_KERNEL_RO
++#define __P010	PAGE_KERNEL_RO
++#define __P011	PAGE_KERNEL_RO
++#define __P100	PAGE_KERNEL_EXEC
++#define __P101	PAGE_KERNEL_EXEC
++#define __P110	PAGE_KERNEL_EXEC
++#define __P111	PAGE_KERNEL_EXEC
++#define __S000	PAGE_KERNEL_RO
++#define __S001	PAGE_KERNEL_RO
++#define __S010	PAGE_KERNEL
++#define __S011	PAGE_KERNEL
++#define __S100	PAGE_KERNEL_EXEC
++#define __S101	PAGE_KERNEL_EXEC
++#define __S110	PAGE_KERNEL_EXEC
++#define __S111	PAGE_KERNEL_EXEC
++
++#define pgprot_noncached(prot)	(prot)
++#define pgprot_writecombine(prot) (prot)
++#define pgprot_device(prot)	(prot)
++
++static inline int pte_present(pte_t pte)	{ return !!(pte_val(pte) & _PAGE_PRESENT); }
++static inline int pte_none(pte_t pte)		{ return !pte_val(pte); }
++static inline int pte_write(pte_t pte)		{ return !!(pte_val(pte) & _PAGE_WRITE); }
++static inline int pte_dirty(pte_t pte)		{ return !!(pte_val(pte) & _PAGE_DIRTY); }
++static inline int pte_young(pte_t pte)		{ return !!(pte_val(pte) & _PAGE_ACCESSED); }
++static inline int pte_user(pte_t pte)		{ return !!(pte_val(pte) & _PAGE_U); }
++
++static inline unsigned long pte_pfn(pte_t pte)
++{
++	return (pte_val(pte) & _PAGE_PFN_MASK) >> _PAGE_PFN_SHIFT;
++}
++
++static inline pte_t pfn_pte(unsigned long pfn, pgprot_t prot)
++{
++	return __pte((pfn << _PAGE_PFN_SHIFT) | pgprot_val(prot));
++}
++
++static inline pte_t pte_mkwrite_novma(pte_t pte)
++{
++	return __pte(pte_val(pte) | _PAGE_WRITE);
++}
++static inline pte_t pte_wrprotect(pte_t pte)
++{
++	return __pte(pte_val(pte) & ~_PAGE_WRITE);
++}
++static inline pte_t pte_mkdirty(pte_t pte)
++{
++	return __pte(pte_val(pte) | _PAGE_DIRTY);
++}
++static inline pte_t pte_mkclean(pte_t pte)
++{
++	return __pte(pte_val(pte) & ~_PAGE_DIRTY);
++}
++static inline pte_t pte_mkyoung(pte_t pte)
++{
++	return __pte(pte_val(pte) | _PAGE_ACCESSED);
++}
++static inline pte_t pte_mkold(pte_t pte)
++{
++	return __pte(pte_val(pte) & ~_PAGE_ACCESSED);
++}
++
++static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
++{
++	unsigned long val = pte_val(pte) & _PAGE_PFN_MASK;
++
++	return __pte(val | pgprot_val(newprot));
++}
++
++static inline void set_pte(pte_t *ptep, pte_t pte)	{ *ptep = pte; }
++static inline void pte_clear(struct mm_struct *mm, unsigned long addr, pte_t *ptep)
++{
++	*ptep = __pte(0);
++}
++
++/*
++ * Swap entries.  CONFIG_SWAP is off in K0, but the generic headers still
++ * require the encoding helpers; the exclusive marker uses L2 bit1, which the
++ * hardware reserves for non-leaf entries (spec/DADAO-12 §2.2.4).
++ */
++#define _PAGE_SWP_EXCLUSIVE	_PAGE_SUPER
++
++#define __swp_type(x)		(((x).val >> 5) & 0x1f)
++#define __swp_offset(x)		((x).val >> 10)
++#define __swp_entry(type, offset) \
++	((swp_entry_t) { ((unsigned long)(type) << 5) | \
++			 ((unsigned long)(offset) << 10) })
++#define __pte_to_swp_entry(pte)	((swp_entry_t) { pte_val(pte) })
++#define __swp_entry_to_pte(x)	((pte_t) { (x).val })
++
++static inline int pte_swp_exclusive(pte_t pte)
++{
++	return !!(pte_val(pte) & _PAGE_SWP_EXCLUSIVE);
++}
++static inline pte_t pte_swp_mkexclusive(pte_t pte)
++{
++	return __pte(pte_val(pte) | _PAGE_SWP_EXCLUSIVE);
++}
++static inline pte_t pte_swp_clear_exclusive(pte_t pte)
++{
++	return __pte(pte_val(pte) & ~_PAGE_SWP_EXCLUSIVE);
++}
++#define pte_swp_exclusive		pte_swp_exclusive
++#define pte_swp_mkexclusive		pte_swp_mkexclusive
++#define pte_swp_clear_exclusive		pte_swp_clear_exclusive
++
++/*
++ * Folded pmd helpers: the pgd entry *is* the L2 page-table pointer, so the
++ * "pmd" value carries our L1 PTE (spec/DADAO-12 §2.2.3: P bit + PPN).
++ */
++static inline int pmd_none(pmd_t pmd)
++{
++	return !pgd_val(pmd.pud.p4d.pgd);
++}
++
++static inline int pmd_present(pmd_t pmd)
++{
++	return !pmd_none(pmd);
++}
++
++static inline int pmd_bad(pmd_t pmd)
++{
++	/* A present L1 entry pointing at a table is never bad on DADAO. */
++	return 0;
++}
++
++static inline int pmd_leaf(pmd_t pmd)
++{
++	/* K0 never installs 512 MiB superpages in a kernel-owned table. */
++	return 0;
++}
++
++static inline unsigned long pmd_page_vaddr(pmd_t pmd)
++{
++	return (unsigned long)__va((pgd_val(pmd.pud.p4d.pgd) & _PAGE_PFN_MASK) >>
++				   _PAGE_PFN_SHIFT);
++}
++
++/* Macro: pfn_to_page() is not resolvable while mm_types.h is loading. */
++#define pmd_page(pmd)							\
++	pfn_to_page((pgd_val((pmd).pud.p4d.pgd) & _PAGE_PFN_MASK) >>	\
++		    _PAGE_PFN_SHIFT)
++
++#define pmd_clear(pmdp)		set_pmd((pmdp), __pmd(0))
++
++#define set_pmd(pmdptr, pmdval)		(*(pmdptr) = (pmdval))
++
++/* Tell the generic headers these are implemented here, not to be replaced. */
++#define pte_present	pte_present
++#define pte_none	pte_none
++#define pte_write	pte_write
++#define pte_dirty	pte_dirty
++#define pte_young	pte_young
++#define pte_user	pte_user
++#define pte_pfn		pte_pfn
++#define pfn_pte		pfn_pte
++#define pte_mkwrite_novma pte_mkwrite_novma
++#define pte_wrprotect	pte_wrprotect
++#define pte_mkdirty	pte_mkdirty
++#define pte_mkclean	pte_mkclean
++#define pte_mkyoung	pte_mkyoung
++#define pte_mkold	pte_mkold
++#define pte_modify	pte_modify
++#define set_pte		set_pte
++#define pte_clear	pte_clear
++#define pte_page(pte)		pfn_to_page(pte_pfn(pte))
++
++/* No cache/TLB maintenance hook exists yet (K3 adds the cfx_tlb calls). */
++#define update_mmu_cache_range(vmf, vma, addr, ptep, nr)	do { } while (0)
++#define update_mmu_cache(vma, addr, ptep)			do { } while (0)
++
++#define pmd_pfn(pmd)		(pgd_val((pmd).pud.p4d.pgd) >> _PAGE_PFN_SHIFT)
++
++#define pmd_none	pmd_none
++#define pmd_present	pmd_present
++#define pmd_bad		pmd_bad
++#define pmd_leaf	pmd_leaf
++#define pmd_page_vaddr	pmd_page_vaddr
++
++#endif /* !__ASSEMBLY__ */
++#endif /* __ASM_PGTABLE_H */

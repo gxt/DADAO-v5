@@ -1,0 +1,13 @@
+diff --git a/arch/dadao/include/asm/bitops.h b/arch/dadao/include/asm/bitops.h
+new file mode 100644
+index 000000000..a050dd473
+--- /dev/null
++++ b/arch/dadao/include/asm/bitops.h
+@@ -0,0 +1,7 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_BITOPS_H
++#define __ASM_BITOPS_H
++
++#include <asm-generic/bitops.h>
++
++#endif

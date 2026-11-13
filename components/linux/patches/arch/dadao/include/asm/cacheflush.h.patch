@@ -1,0 +1,30 @@
+diff --git a/arch/dadao/include/asm/cacheflush.h b/arch/dadao/include/asm/cacheflush.h
+new file mode 100644
+index 000000000..551ee179b
+--- /dev/null
++++ b/arch/dadao/include/asm/cacheflush.h
+@@ -0,0 +1,24 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_CACHEFLUSH_H
++#define __ASM_CACHEFLUSH_H
++
++/*
++ * No cache is introduced in K0 (contract-linux-boot §6), so the flush
++ * hooks are compile-level no-ops by design, not by omission.
++ */
++#define flush_cache_all()			do { } while (0)
++#define flush_cache_mm(mm)			do { } while (0)
++#define flush_cache_dup_mm(mm)			do { } while (0)
++#define flush_cache_range(vma, start, end)	do { } while (0)
++#define flush_cache_page(vma, vmaddr, pfn)	do { } while (0)
++#define flush_dcache_page(page)			do { } while (0)
++#define flush_dcache_mmap_lock(mapping)		do { } while (0)
++#define flush_dcache_mmap_unlock(mapping)	do { } while (0)
++#define flush_icache_range(start, end)		do { } while (0)
++/* The generic layer owns flush_icache_page()/flush_icache_pages(). */
++#define ARCH_IMPLEMENTS_FLUSH_DCACHE_PAGE 0
++#define flush_cache_vmap(start, end)		do { } while (0)
++#define flush_cache_vunmap(start, end)		do { } while (0)
++#define flush_icache_user_page(vma, page, addr, len)	do { } while (0)
++
++#endif

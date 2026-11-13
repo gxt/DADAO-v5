@@ -1,0 +1,59 @@
+diff --git a/arch/dadao/mm/init.c b/arch/dadao/mm/init.c
+new file mode 100644
+index 000000000..ee4a5f5b6
+--- /dev/null
++++ b/arch/dadao/mm/init.c
+@@ -0,0 +1,53 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DADAO memory initialisation (K0: compiles and links; K1 fills the map).
++ *
++ * The kernel runs with the M1 prebuilt page table, so paging_init() only
++ * adopts the prebuilt root and hands the physical memory to the generic
++ * page allocator.  Growing/replacing the map is K3 work.
++ */
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/memblock.h>
++#include <linux/mm.h>
++#include <linux/pgtable.h>
++
++#include <asm/page.h>
++#include <asm/pgtable.h>
++#include <asm/setup.h>
++
++/*
++ * Protection map: index = (VM_READ | VM_WRITE | VM_EXEC) bits of a VMA.
++ * DADAO PTE bits are per-permission (contract: spec/DADAO-12 §2.2.5), so
++ * supervisor pages are always readable and execute permission is what the
++ * VMA asks for.
++ */
++const pgprot_t protection_map[16] = {
++	__P000, __P001, __P010, __P011,
++	__P100, __P101, __P110, __P111,
++	__S000, __S001, __S010, __S011,
++	__S100, __S101, __S110, __S111,
++};
++
++pgd_t swapper_pg_dir[PTRS_PER_PGD] __aligned(PAGE_SIZE);
++
++void __init arch_zone_limits_init(unsigned long *max_zone_pfns)
++{
++	max_zone_pfns[ZONE_NORMAL] = PFN_DOWN(dadao_ram_base + dadao_ram_size);
++}
++
++pgprot_t vm_get_page_prot(vm_flags_t vm_flags)
++{
++	return protection_map[vm_flags & (VM_READ | VM_WRITE | VM_EXEC)];
++}
++
++void __init paging_init(void)
++{
++	/*
++	 * M1: the page table is prebuilt by smon and PTW is already on, so the
++	 * kernel adopts that root instead of building one.  Copying/rewriting
++	 * the map for kernel-managed mappings is K3 work; K0 only needs the
++	 * pointer for the generic MM code to link and initialise correctly.
++	 */
++	init_mm.pgd = swapper_pg_dir;
++}

@@ -1,0 +1,14 @@
+diff --git a/arch/dadao/include/uapi/asm/byteorder.h b/arch/dadao/include/uapi/asm/byteorder.h
+new file mode 100644
+index 000000000..85def82d9
+--- /dev/null
++++ b/arch/dadao/include/uapi/asm/byteorder.h
+@@ -0,0 +1,8 @@
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
++#ifndef __ASM_UAPI_BYTEORDER_H
++#define __ASM_UAPI_BYTEORDER_H
++
++/* DADAO is big endian (contract-abi §1.7). */
++#include <linux/byteorder/big_endian.h>
++
++#endif

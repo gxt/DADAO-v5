@@ -1,0 +1,41 @@
+diff --git a/arch/dadao/include/asm/ptrace.h b/arch/dadao/include/asm/ptrace.h
+new file mode 100644
+index 000000000..e98d7ebfb
+--- /dev/null
++++ b/arch/dadao/include/asm/ptrace.h
+@@ -0,0 +1,35 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_PTRACE_H
++#define __ASM_PTRACE_H
++
++#include <uapi/asm/ptrace.h>
++
++#ifndef __ASSEMBLY__
++
++struct pt_regs {
++	unsigned long rd[32];
++	unsigned long rb[32];
++	unsigned long ra[8];
++	unsigned long ip;
++	unsigned long status;
++};
++
++static inline int user_mode(struct pt_regs *regs)
++{
++	/* Status bit layout lands with the trap entry (K1); K0 is kernel only. */
++	return 0;
++}
++
++#define instruction_pointer(regs)	((regs)->ip)
++#define user_stack_pointer(regs)	((regs)->rb[1])
++#define regs_return_value(regs)		((regs)->rd[8])
++#define current_pt_regs()	((struct pt_regs *)((unsigned long)current_thread_info() + THREAD_SIZE) - 1)
++
++static inline void instruction_pointer_set(struct pt_regs *regs,
++					   unsigned long val)
++{
++	regs->ip = val;
++}
++
++#endif /* !__ASSEMBLY__ */
++#endif /* __ASM_PTRACE_H */

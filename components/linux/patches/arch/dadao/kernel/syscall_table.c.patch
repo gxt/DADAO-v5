@@ -1,0 +1,26 @@
+diff --git a/arch/dadao/kernel/syscall_table.c b/arch/dadao/kernel/syscall_table.c
+new file mode 100644
+index 000000000..80a946027
+--- /dev/null
++++ b/arch/dadao/kernel/syscall_table.c
+@@ -0,0 +1,20 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DADAO syscall table.  Numbers come from the asm-generic table
++ * (scripts/syscall.tbl, emitted into syscall_table_64.h), which is the
++ * numbering contract of contract-syscall §1.
++ */
++#include <linux/linkage.h>
++#include <linux/syscalls.h>
++#include <asm-generic/syscalls.h>
++#include <asm/syscall.h>
++
++#undef __SYSCALL
++#define __SYSCALL(nr, call)		[nr] = (call),
++#define __SYSCALL_WITH_COMPAT(nr, native, compat) __SYSCALL(nr, native)
++#define __SYSCALL_NORETURN(nr, call)	__SYSCALL(nr, call)
++
++void * const sys_call_table[__NR_syscalls] = {
++	[0 ... __NR_syscalls - 1] = sys_ni_syscall,
++#include <asm/syscall_table.h>
++};

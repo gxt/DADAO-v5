@@ -1,0 +1,19 @@
+diff --git a/arch/dadao/include/asm/vmalloc.h b/arch/dadao/include/asm/vmalloc.h
+new file mode 100644
+index 000000000..769033c38
+--- /dev/null
++++ b/arch/dadao/include/asm/vmalloc.h
+@@ -0,0 +1,13 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_VMALLOC_H
++#define __ASM_VMALLOC_H
++
++/*
++ * vmalloc area = the free part of the kernel VA window above the fixed
++ * partitions (contract-linux-boot §2: initramfs ends at 0x0200_0600_0000
++ * and the rest of [2 TiB, 3 TiB) belongs to the kernel).
++ */
++#define VMALLOC_START		0x20006000000UL
++#define VMALLOC_END		0x30000000000UL
++
++#endif /* __ASM_VMALLOC_H */

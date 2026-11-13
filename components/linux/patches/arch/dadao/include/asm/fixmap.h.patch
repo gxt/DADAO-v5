@@ -1,0 +1,20 @@
+diff --git a/arch/dadao/include/asm/fixmap.h b/arch/dadao/include/asm/fixmap.h
+new file mode 100644
+index 000000000..72ff33abb
+--- /dev/null
++++ b/arch/dadao/include/asm/fixmap.h
+@@ -0,0 +1,14 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_FIXMAP_H
++#define __ASM_FIXMAP_H
++
++/*
++ * K0 uses no fixmap: there is no highmem, no early ioremap and no FDT.
++ * The generic code only needs the header to exist for its guards.
++ */
++enum fixed_addresses {
++	FIX_NONE,
++	__end_of_fixed_addresses
++};
++
++#endif

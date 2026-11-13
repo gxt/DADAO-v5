@@ -1,0 +1,17 @@
+diff --git a/arch/dadao/include/asm/timex.h b/arch/dadao/include/asm/timex.h
+new file mode 100644
+index 000000000..42be32d60
+--- /dev/null
++++ b/arch/dadao/include/asm/timex.h
+@@ -0,0 +1,11 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_TIMEX_H
++#define __ASM_TIMEX_H
++
++/*
++ * K0 has no timer.  The constant is what the generic time code needs to
++ * compile; K1 replaces it with the semihosting tick frequency.
++ */
++#define CLOCK_TICK_RATE		1000000
++
++#endif

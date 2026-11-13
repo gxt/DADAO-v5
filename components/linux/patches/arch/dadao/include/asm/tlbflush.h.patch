@@ -1,0 +1,37 @@
+diff --git a/arch/dadao/include/asm/tlbflush.h b/arch/dadao/include/asm/tlbflush.h
+new file mode 100644
+index 000000000..0fb22be57
+--- /dev/null
++++ b/arch/dadao/include/asm/tlbflush.h
+@@ -0,0 +1,31 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_TLBFLUSH_H
++#define __ASM_TLBFLUSH_H
++
++#include <linux/mm_types.h>
++
++/*
++ * K0 has a prebuilt page table and never changes it, so the TLB does not
++ * need maintenance yet.  K3 adds the cfx_tlb CLEAN/FLUSH/INVALID calls.
++ */
++static inline void local_flush_tlb_all(void)		{ }
++static inline void local_flush_tlb_mm(struct mm_struct *mm) { }
++static inline void local_flush_tlb_page(struct vm_area_struct *vma,
++					unsigned long addr) { }
++static inline void local_flush_tlb_range(struct vm_area_struct *vma,
++					 unsigned long start,
++					 unsigned long end) { }
++static inline void local_flush_tlb_kernel_range(unsigned long start,
++						unsigned long end) { }
++static inline void flush_tlb_all(void)			{ }
++static inline void flush_tlb_mm(struct mm_struct *mm)	{ }
++static inline void flush_tlb_page(struct vm_area_struct *vma,
++				  unsigned long addr)	{ }
++static inline void flush_tlb_range(struct vm_area_struct *vma,
++				   unsigned long start,
++				   unsigned long end)	{ }
++static inline void flush_tlb_kernel_range(unsigned long start,
++					  unsigned long end) { }
++#define flush_tlb_pgtables(mm, start, end)	do { } while (0)
++
++#endif

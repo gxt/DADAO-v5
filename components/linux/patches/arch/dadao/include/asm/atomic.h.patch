@@ -1,0 +1,170 @@
+diff --git a/arch/dadao/include/asm/atomic.h b/arch/dadao/include/asm/atomic.h
+new file mode 100644
+index 000000000..3739f7936
+--- /dev/null
++++ b/arch/dadao/include/asm/atomic.h
+@@ -0,0 +1,164 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_ATOMIC_H
++#define __ASM_ATOMIC_H
++
++#include <linux/types.h>
++#include <linux/irqflags.h>
++#include <asm/cmpxchg.h>
++#include <asm/barrier.h>
++
++/*
++ * K0 runs on a single hart (contract-linux-boot §5: only hart_id 0 online),
++ * so a read-modify-write is atomic w.r.t. the kernel once asynchronous
++ * interrupts are masked.  This is the same shape asm-generic/atomic.h uses
++ * for uniprocessor builds; the LR/SC based version is K3 work.
++ */
++#ifndef CONFIG_SMP
++
++#define DADAO_ATOMIC_OP(op, c_op)					\
++static inline void arch_atomic_##op(int i, atomic_t *v)			\
++{									\
++	unsigned long flags;						\
++									\
++	raw_local_irq_save(flags);					\
++	v->counter = v->counter c_op i;					\
++	raw_local_irq_restore(flags);					\
++}
++
++#define DADAO_ATOMIC_OP_RETURN(op, c_op)				\
++static inline int arch_atomic_##op##_return(int i, atomic_t *v)		\
++{									\
++	unsigned long flags;						\
++	int ret;							\
++									\
++	raw_local_irq_save(flags);					\
++	ret = (v->counter = v->counter c_op i);				\
++	raw_local_irq_restore(flags);					\
++									\
++	return ret;							\
++}
++
++#define DADAO_ATOMIC_FETCH_OP(op, c_op)					\
++static inline int arch_atomic_fetch_##op(int i, atomic_t *v)		\
++{									\
++	unsigned long flags;						\
++	int ret;							\
++									\
++	raw_local_irq_save(flags);					\
++	ret = v->counter;						\
++	v->counter = v->counter c_op i;					\
++	raw_local_irq_restore(flags);					\
++									\
++	return ret;							\
++}
++
++DADAO_ATOMIC_OP_RETURN(add, +)
++DADAO_ATOMIC_OP_RETURN(sub, -)
++DADAO_ATOMIC_FETCH_OP(add, +)
++DADAO_ATOMIC_FETCH_OP(sub, -)
++DADAO_ATOMIC_FETCH_OP(and, &)
++DADAO_ATOMIC_FETCH_OP(or, |)
++DADAO_ATOMIC_FETCH_OP(xor, ^)
++DADAO_ATOMIC_OP(add, +)
++DADAO_ATOMIC_OP(sub, -)
++DADAO_ATOMIC_OP(and, &)
++DADAO_ATOMIC_OP(or, |)
++DADAO_ATOMIC_OP(xor, ^)
++
++#undef DADAO_ATOMIC_FETCH_OP
++#undef DADAO_ATOMIC_OP_RETURN
++#undef DADAO_ATOMIC_OP
++
++#define DADAO_ATOMIC64_OP(op, c_op)					\
++static inline void arch_atomic64_##op(s64 i, atomic64_t *v)		\
++{									\
++	unsigned long flags;						\
++									\
++	raw_local_irq_save(flags);					\
++	v->counter = v->counter c_op i;					\
++	raw_local_irq_restore(flags);					\
++}
++
++#define DADAO_ATOMIC64_OP_RETURN(op, c_op)				\
++static inline s64 arch_atomic64_##op##_return(s64 i, atomic64_t *v)	\
++{									\
++	unsigned long flags;						\
++	s64 ret;							\
++									\
++	raw_local_irq_save(flags);					\
++	ret = (v->counter = v->counter c_op i);				\
++	raw_local_irq_restore(flags);					\
++									\
++	return ret;							\
++}
++
++#define DADAO_ATOMIC64_FETCH_OP(op, c_op)				\
++static inline s64 arch_atomic64_fetch_##op(s64 i, atomic64_t *v)	\
++{									\
++	unsigned long flags;						\
++	s64 ret;							\
++									\
++	raw_local_irq_save(flags);					\
++	ret = v->counter;						\
++	v->counter = v->counter c_op i;					\
++	raw_local_irq_restore(flags);					\
++									\
++	return ret;							\
++}
++
++DADAO_ATOMIC64_OP_RETURN(add, +)
++DADAO_ATOMIC64_OP_RETURN(sub, -)
++DADAO_ATOMIC64_FETCH_OP(add, +)
++DADAO_ATOMIC64_FETCH_OP(sub, -)
++DADAO_ATOMIC64_FETCH_OP(and, &)
++DADAO_ATOMIC64_FETCH_OP(or, |)
++DADAO_ATOMIC64_FETCH_OP(xor, ^)
++DADAO_ATOMIC64_OP(add, +)
++DADAO_ATOMIC64_OP(sub, -)
++DADAO_ATOMIC64_OP(and, &)
++DADAO_ATOMIC64_OP(or, |)
++DADAO_ATOMIC64_OP(xor, ^)
++
++#undef DADAO_ATOMIC64_FETCH_OP
++#undef DADAO_ATOMIC64_OP_RETURN
++#undef DADAO_ATOMIC64_OP
++
++#endif /* !CONFIG_SMP */
++
++#define arch_atomic_add			arch_atomic_add
++#define arch_atomic_sub			arch_atomic_sub
++#define arch_atomic_and			arch_atomic_and
++#define arch_atomic_or			arch_atomic_or
++#define arch_atomic_xor			arch_atomic_xor
++#define arch_atomic_add_return			arch_atomic_add_return
++#define arch_atomic_sub_return			arch_atomic_sub_return
++#define arch_atomic_fetch_add			arch_atomic_fetch_add
++#define arch_atomic_fetch_sub			arch_atomic_fetch_sub
++#define arch_atomic_fetch_and			arch_atomic_fetch_and
++#define arch_atomic_fetch_or			arch_atomic_fetch_or
++#define arch_atomic_fetch_xor			arch_atomic_fetch_xor
++
++#define arch_atomic64_add		arch_atomic64_add
++#define arch_atomic64_sub		arch_atomic64_sub
++#define arch_atomic64_and		arch_atomic64_and
++#define arch_atomic64_or		arch_atomic64_or
++#define arch_atomic64_xor		arch_atomic64_xor
++#define arch_atomic64_add_return		arch_atomic64_add_return
++#define arch_atomic64_sub_return		arch_atomic64_sub_return
++#define arch_atomic64_fetch_add		arch_atomic64_fetch_add
++#define arch_atomic64_fetch_sub		arch_atomic64_fetch_sub
++#define arch_atomic64_fetch_and		arch_atomic64_fetch_and
++#define arch_atomic64_fetch_or		arch_atomic64_fetch_or
++#define arch_atomic64_fetch_xor		arch_atomic64_fetch_xor
++
++#define ATOMIC64_INIT(i)		{ (i) }
++
++#define arch_atomic_read(v)		READ_ONCE((v)->counter)
++#define arch_atomic_set(v, i)		WRITE_ONCE(((v)->counter), (i))
++#define arch_atomic64_read(v)		READ_ONCE((v)->counter)
++#define arch_atomic64_set(v, i)		WRITE_ONCE(((v)->counter), (i))
++
++#define arch_atomic_xchg(v, new)	arch_xchg(&((v)->counter), (new))
++#define arch_atomic64_xchg(v, new)	arch_xchg(&((v)->counter), (new))
++
++#endif /* __ASM_ATOMIC_H */

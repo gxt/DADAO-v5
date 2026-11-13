@@ -1,0 +1,21 @@
+diff --git a/arch/dadao/include/asm/mmu.h b/arch/dadao/include/asm/mmu.h
+new file mode 100644
+index 000000000..5874c77d8
+--- /dev/null
++++ b/arch/dadao/include/asm/mmu.h
+@@ -0,0 +1,15 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_MMU_H
++#define __ASM_MMU_H
++
++/* mm_types.h pulls the page-table types through <asm/mmu.h>. */
++#include <asm/pgtable.h>
++
++#ifndef __ASSEMBLY__
++/* K0 has a single address space; ASID allocation is deferred to K3. */
++typedef struct {
++	unsigned long asid;
++} mm_context_t;
++#endif
++
++#endif

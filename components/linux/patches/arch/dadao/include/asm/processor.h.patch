@@ -1,0 +1,60 @@
+diff --git a/arch/dadao/include/asm/processor.h b/arch/dadao/include/asm/processor.h
+new file mode 100644
+index 000000000..674ca1100
+--- /dev/null
++++ b/arch/dadao/include/asm/processor.h
+@@ -0,0 +1,54 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_PROCESSOR_H
++#define __ASM_PROCESSOR_H
++
++#include <asm/page.h>
++#include <asm/ptrace.h>
++#include <asm/thread_info.h>
++
++
++#ifndef __ASSEMBLY__
++
++struct task_struct;
++
++struct thread_struct {
++	unsigned long sp;
++	unsigned long ra;	/* return address (link register) */
++	unsigned long tp;	/* thread pointer (rb3 / rbtp) */
++	unsigned long regs[0];
++};
++
++#define INIT_THREAD  { .sp = 0, .ra = 0, .tp = 0 }
++
++extern void start_thread(struct pt_regs *regs, unsigned long pc,
++			 unsigned long sp);
++
++/* No lazy FPU, no cpu_idle state machine in K0. */
++struct cpu_context {
++	unsigned long regs[0];
++};
++
++/* Stack grows down from the top of user space. */
++#define STACK_TOP		TASK_SIZE
++#define STACK_TOP_MAX		TASK_SIZE
++
++/* mmap layout: user space [0, 2 TiB), K0 has no ASLR. */
++#define TASK_UNMAPPED_BASE	(TASK_SIZE / 3)
++
++/* No unwinder in K0: the scheduler asks for a task's PC, which we do not have. */
++#define __get_wchan(p)		(0)
++
++#define cpu_relax()		barrier()
++#define cpu_relax_lowlatency()	cpu_relax()
++#define cpu_relax_yield()	cpu_relax()
++
++/* Macros: the body is expanded after <linux/sched.h> completes. */
++#define task_pt_regs(task)						\
++	((struct pt_regs *)((char *)task_stack_page(task) +		\
++			    THREAD_SIZE - sizeof(struct pt_regs)))
++
++#define KSTK_EIP(task)	(task_pt_regs(task)->ip)
++#define KSTK_ESP(task)	(task_pt_regs(task)->rb[1])
++
++#endif /* !__ASSEMBLY__ */
++#endif /* __ASM_PROCESSOR_H */

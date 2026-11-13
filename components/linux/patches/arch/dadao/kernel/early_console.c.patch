@@ -1,0 +1,63 @@
+diff --git a/arch/dadao/kernel/early_console.c b/arch/dadao/kernel/early_console.c
+new file mode 100644
+index 000000000..dc9bb8a74
+--- /dev/null
++++ b/arch/dadao/kernel/early_console.c
+@@ -0,0 +1,57 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Semihosting console stub (K0: compiles and links, output is claimed
++ * only once the K1 boot path runs).
++ *
++ * The call convention is contract-semihosting §1/§2: `trap <cfx>, 0x3FF00+op`
++ * with the service number in immu18[7:0] and the address parameter in rb16.
++ */
++#include <linux/console.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/string.h>
++
++#define SEMIHOST_SYS_WRITE0	0x04
++#define SEMIHOST_TAG		0x3ff00
++
++static void semihost_write0(const char *str)
++{
++	register const char *addr __asm__("rb16") = str;
++
++	__asm__ __volatile__("trap cfx0, %0" : : "i"(SEMIHOST_TAG |
++			     SEMIHOST_SYS_WRITE0), "r"(addr) : "memory");
++}
++
++static void dadao_console_write(struct console *con, const char *s,
++				unsigned int count)
++{
++	char buf[128];
++	unsigned int chunk;
++
++	/*
++	 * SYS_WRITE0 wants a NUL-terminated string; hand it out in bounded
++	 * chunks so printk()'s counted buffer can be used as-is.
++	 */
++	while (count) {
++		chunk = count < sizeof(buf) - 1 ? count : sizeof(buf) - 1;
++		memcpy(buf, s, chunk);
++		buf[chunk] = '\0';
++		semihost_write0(buf);
++		s += chunk;
++		count -= chunk;
++	}
++}
++
++static struct console dadao_console = {
++	.name	= "semihost",
++	.write	= dadao_console_write,
++	.flags	= CON_PRINTBUFFER,
++	.index	= -1,
++};
++
++static int __init dadao_console_init(void)
++{
++	register_console(&dadao_console);
++	return 0;
++}
++console_initcall(dadao_console_init);

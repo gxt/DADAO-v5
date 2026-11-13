@@ -1,0 +1,18 @@
+diff --git a/arch/dadao/include/asm/cache.h b/arch/dadao/include/asm/cache.h
+new file mode 100644
+index 000000000..46e94f749
+--- /dev/null
++++ b/arch/dadao/include/asm/cache.h
+@@ -0,0 +1,12 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_CACHE_H
++#define __ASM_CACHE_H
++
++/* K0 introduces no cache/LLC (contract-linux-boot §6: cache/LLC 不引入). */
++#define L1_CACHE_SHIFT		7
++#define L1_CACHE_BYTES		(1 << L1_CACHE_SHIFT)
++
++#define SMP_CACHE_BYTES		L1_CACHE_BYTES
++#define ARCH_DMA_MINALIGN	L1_CACHE_BYTES
++
++#endif

@@ -1,0 +1,8 @@
+diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
+new file mode 100644
+index 000000000..8416625fc
+--- /dev/null
++++ b/arch/dadao/Kconfig.debug
+@@ -0,0 +1,2 @@
++# SPDX-License-Identifier: GPL-2.0
++# DADAO debug options (K0: none beyond the generic ones).

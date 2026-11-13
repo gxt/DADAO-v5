@@ -1,0 +1,16 @@
+diff --git a/arch/dadao/include/asm/string.h b/arch/dadao/include/asm/string.h
+new file mode 100644
+index 000000000..7a31af070
+--- /dev/null
++++ b/arch/dadao/include/asm/string.h
+@@ -0,0 +1,10 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_STRING_H
++#define __ASM_STRING_H
++
++/*
++ * K0 uses the generic C string routines (lib/string.o).  A DADAO-optimised
++ * set is a performance item and lands after K0.
++ */
++
++#endif

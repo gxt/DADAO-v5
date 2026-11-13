@@ -1,0 +1,13 @@
+diff --git a/arch/dadao/include/asm/unaligned.h b/arch/dadao/include/asm/unaligned.h
+new file mode 100644
+index 000000000..65f95e74c
+--- /dev/null
++++ b/arch/dadao/include/asm/unaligned.h
+@@ -0,0 +1,7 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_UNALIGNED_H
++#define __ASM_UNALIGNED_H
++
++#include <asm-generic/unaligned.h>
++
++#endif

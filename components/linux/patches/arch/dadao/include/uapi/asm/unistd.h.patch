@@ -1,0 +1,16 @@
+diff --git a/arch/dadao/include/uapi/asm/unistd.h b/arch/dadao/include/uapi/asm/unistd.h
+new file mode 100644
+index 000000000..de3235542
+--- /dev/null
++++ b/arch/dadao/include/uapi/asm/unistd.h
+@@ -0,0 +1,10 @@
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
++#ifndef __ASM_UNISTD_H
++#define __ASM_UNISTD_H
++
++/* DADAO uses the asm-generic syscall numbering (contract-syscall §1). */
++#define __ARCH_WANT_NEW_STAT		/* fstat/newfstatat: 64-bit struct stat */
++#define __ARCH_WANT_SYS_CLONE		/* clone() with the DADAO argument order */
++#include <asm-generic/unistd.h>
++
++#endif

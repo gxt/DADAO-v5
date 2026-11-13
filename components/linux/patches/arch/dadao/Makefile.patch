@@ -1,0 +1,49 @@
+diff --git a/arch/dadao/Makefile b/arch/dadao/Makefile
+new file mode 100644
+index 000000000..ab03645c9
+--- /dev/null
++++ b/arch/dadao/Makefile
+@@ -0,0 +1,43 @@
++# SPDX-License-Identifier: GPL-2.0
++#
++# DADAO architecture makefile (v5 test machine "Vast").
++
++KBUILD_DEFCONFIG := defconfig
++KBUILD_IMAGE := vmlinux
++
++# The compiler driver carries no dadao-unknown-elf prefix; pin the triple.
++KBUILD_CFLAGS += --target=dadao-unknown-elf
++KBUILD_AFLAGS += --target=dadao-unknown-elf
++
++# ADR-0036: the only code models are `default` (= -mcmodel=small) and
++# `large`; `kernel` does not exist for DADAO.  K0 keeps `default`.
++KBUILD_CFLAGS += -mcmodel=small
++KBUILD_AFLAGS += -mcmodel=small -fno-pic
++
++# Stack protector lowering is not available yet (m14-llvm-002); Kconfig
++# keeps it off and the flag is spelled out so a stray default cannot turn
++# it on.
++KBUILD_CFLAGS += -fno-stack-protector
++
++# No frame pointer unwinder, no FPU in K0.
++KBUILD_CFLAGS += -fno-asynchronous-unwind-tables -fno-unwind-tables
++
++# Kernel coding style expects a freestanding build.
++KBUILD_CFLAGS += -fno-builtin -fno-common -fshort-wchar -fno-PIE
++KBUILD_CFLAGS += -pipe
++
++# CONFIG_MODULES=n in K0.  EXPORT_SYMBOL() would emit the modpost
++# ".export_symbol" records with a GAS `.quad`, which the DADAO assembler
++# rejects (spec/Toolchain-01 §7.1).  Export tables come back with modules.
++KBUILD_CFLAGS += -D__DISABLE_EXPORTS
++
++core-y += arch/dadao/kernel/ arch/dadao/mm/
++libs-y += arch/dadao/lib/
++
++# 64 KiB max-page-size so every PT_LOAD is 64 KiB aligned (contract rule
++# ELF-ALIGN) and p_align >= 0x10000.
++LDFLAGS_vmlinux := -z max-page-size=0x10000 -z common-page-size=0x10000 --no-rosegment
++
++define archhelp
++  echo  '* vmlinux         - Linked kernel image (K0: links, does not boot)'
++endef

@@ -1,0 +1,57 @@
+diff --git a/arch/dadao/include/asm/syscall.h b/arch/dadao/include/asm/syscall.h
+new file mode 100644
+index 000000000..06b4934ef
+--- /dev/null
++++ b/arch/dadao/include/asm/syscall.h
+@@ -0,0 +1,51 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_SYSCALL_H
++#define __ASM_SYSCALL_H
++
++#include <uapi/linux/audit.h>
++#include <linux/err.h>
++#include <asm/ptrace.h>
++
++#define AUDIT_ARCH_DADAO	(EM_DADAO | __AUDIT_ARCH_64BIT)
++#include <asm/elf.h>
++
++extern void * const sys_call_table[];
++
++static inline long syscall_get_nr(struct task_struct *task,
++				  struct pt_regs *regs)
++{
++	return regs->rd[15];
++}
++
++static inline void syscall_set_nr(struct task_struct *task,
++				  struct pt_regs *regs, int nr)
++{
++	regs->rd[15] = nr;
++}
++
++static inline unsigned long syscall_get_return_value(struct task_struct *task,
++						     struct pt_regs *regs)
++{
++	return regs->rd[8];
++}
++
++static inline void syscall_set_return_value(struct task_struct *task,
++					    struct pt_regs *regs,
++					    int error, long val)
++{
++	regs->rd[8] = error ? -error : val;
++}
++
++static inline unsigned long *syscall_get_arguments(struct task_struct *task,
++						   struct pt_regs *regs)
++{
++	/* rda0..rda5 are rd16..rd21 (DADAO-21 parameter registers). */
++	return &regs->rd[16];
++}
++
++static inline int syscall_get_arch(struct task_struct *task)
++{
++	return AUDIT_ARCH_DADAO;
++}
++
++#endif

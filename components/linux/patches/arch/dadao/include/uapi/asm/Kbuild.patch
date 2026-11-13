@@ -1,0 +1,11 @@
+diff --git a/arch/dadao/include/uapi/asm/Kbuild b/arch/dadao/include/uapi/asm/Kbuild
+new file mode 100644
+index 000000000..832668954
+--- /dev/null
++++ b/arch/dadao/include/uapi/asm/Kbuild
+@@ -0,0 +1,5 @@
++# SPDX-License-Identifier: GPL-2.0
++# Mandatory UAPI headers fall back to asm-generic automatically; the port
++# provides byteorder.h (no asm-generic counterpart) itself.
++
++generic-y += ucontext.h

@@ -1,0 +1,108 @@
+diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
+new file mode 100644
+index 000000000..56de2835a
+--- /dev/null
++++ b/arch/dadao/kernel/traps.c
+@@ -0,0 +1,102 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DADAO traps, register dumps and machine stop (K0: no trap entry yet).
++ */
++#include <linux/kernel.h>
++#include <linux/init.h>
++#include <linux/ptrace.h>
++#include <linux/interrupt.h>
++#include <linux/reboot.h>
++#include <linux/sched.h>
++#include <linux/sched/debug.h>
++#include <linux/sched/task_stack.h>
++#include <linux/seq_file.h>
++
++#include <linux/elfcore.h>
++
++#include <asm/elf.h>
++#include <asm/ptrace.h>
++
++/* Semihosting SYS_EXIT: contract-semihosting §1/§2/§5. */
++#define SEMIHOST_SYS_EXIT	0x18
++#define SEMIHOST_TAG		0x3ff00
++#define ADP_STOPPED_APP_EXIT	0x20026
++
++static void __noreturn semihost_exit(unsigned long reason, unsigned long code)
++{
++	unsigned long block[2] = { reason, code };
++	register const unsigned long *addr __asm__("rb16") = block;
++
++	__asm__ __volatile__("trap cfx0, %0" : : "i"(SEMIHOST_TAG |
++			     SEMIHOST_SYS_EXIT), "r"(addr) : "memory");
++
++	for (;;)
++		;
++}
++
++void machine_restart(char *cmd)
++{
++	semihost_exit(ADP_STOPPED_APP_EXIT, 0);
++}
++
++void machine_halt(void)
++{
++	semihost_exit(ADP_STOPPED_APP_EXIT, 0);
++}
++
++void machine_power_off(void)
++{
++	semihost_exit(ADP_STOPPED_APP_EXIT, 0);
++}
++
++void show_regs(struct pt_regs *regs)
++{
++	int i;
++
++	pr_info("IP: %016lx STATUS: %016lx\n", regs->ip, regs->status);
++	for (i = 0; i < 32; i += 4)
++		pr_info("rd%02d: %016lx %016lx %016lx %016lx\n", i,
++			regs->rd[i], regs->rd[i + 1], regs->rd[i + 2],
++			regs->rd[i + 3]);
++	for (i = 0; i < 32; i += 4)
++		pr_info("rb%02d: %016lx %016lx %016lx %016lx\n", i,
++			regs->rb[i], regs->rb[i + 1], regs->rb[i + 2],
++			regs->rb[i + 3]);
++}
++
++void show_stack(struct task_struct *task, unsigned long *sp, const char *loglvl)
++{
++	/*
++	 * No unwinder in K0 (frame layout and CFI land with m14-llvm-004).
++	 * Print the stack pointer so a crash still tells where we were.
++	 */
++	if (!task)
++		task = current;
++
++	printk("%sCPU: %d PID: %d Comm: %.20s\n", loglvl,
++	       raw_smp_processor_id(), task_pid_nr(task), task->comm);
++	printk("%sStack pointer: %p\n", loglvl, sp ? sp : (unsigned long *)KSTK_ESP(task));
++}
++
++int show_interrupts(struct seq_file *p, void *v)
++{
++	/* No interrupt controller exists in K0. */
++	return 0;
++}
++
++long arch_ptrace(struct task_struct *child, long request, unsigned long addr,
++		 unsigned long data)
++{
++	/* No hardware breakpoints / single-step support in K0. */
++	return -EIO;
++}
++
++void ptrace_disable(struct task_struct *child)
++{
++}
++
++int elf_core_copy_task_fpregs(struct task_struct *t, elf_fpregset_t *fpu)
++{
++	/* K0 has no FP context: report "no FP register set". */
++	return 0;
++}

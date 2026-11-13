@@ -1,0 +1,48 @@
+diff --git a/arch/dadao/lib/delay.c b/arch/dadao/lib/delay.c
+new file mode 100644
+index 000000000..0b693b431
+--- /dev/null
++++ b/arch/dadao/lib/delay.c
+@@ -0,0 +1,42 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DADAO busy-wait delay primitives.
++ *
++ * The loop count is scaled by loops_per_jiffy, which init/calibrate.c
++ * measures at boot (CONFIG_GENERIC_CALIBRATE_DELAY).  K0 does not run, so
++ * this only has to be a correct implementation, not a fast one.
++ */
++#include <linux/delay.h>
++#include <linux/kernel.h>
++#include <linux/export.h>
++
++#include <asm/processor.h>
++
++void __delay(unsigned long loops)
++{
++	while (loops--)
++		cpu_relax();
++}
++EXPORT_SYMBOL(__delay);
++
++void __const_udelay(unsigned long xloops)
++{
++	unsigned long long loops;
++
++	loops = (unsigned long long)xloops * loops_per_jiffy * HZ;
++
++	__delay(loops >> 32);
++}
++EXPORT_SYMBOL(__const_udelay);
++
++void __udelay(unsigned long usecs)
++{
++	__const_udelay(usecs * 0x10C7UL);	/* 2**32 / 1000000 */
++}
++EXPORT_SYMBOL(__udelay);
++
++void __ndelay(unsigned long nsecs)
++{
++	__const_udelay(nsecs * 0x5UL);		/* 2**32 / 1000000000 */
++}
++EXPORT_SYMBOL(__ndelay);

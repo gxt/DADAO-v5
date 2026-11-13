@@ -1,0 +1,101 @@
+diff --git a/arch/dadao/Kconfig b/arch/dadao/Kconfig
+new file mode 100644
+index 000000000..9727cc675
+--- /dev/null
++++ b/arch/dadao/Kconfig
+@@ -0,0 +1,95 @@
++# SPDX-License-Identifier: GPL-2.0
++#
++# DADAO (v5 test machine "Vast") architecture.
++#
++# K0 scope: a kernel that links.  No SMP, no device tree, no UART, no PCI;
++# the console is a semihosting stub and the boot ABI is the fixed boot info
++# block (spec/Machine-v5 §6.3, contract-linux-boot).
++
++config DADAO
++	def_bool y
++	select 64BIT
++	select HAVE_PAGE_SIZE_64KB
++	select ARCH_HAS_DMA_PREP_COHERENT if DMA
++	select MMU_GATHER_NO_RANGE if MMU
++	select UACCESS_MEMCPY
++	help
++	  DADAO is a 64-bit big-endian architecture with a 42-bit memory
++	  window (addr[41:0]) and 64 KiB pages.  The v5 test machine boots
++	  the kernel with a prebuilt page table and a fixed boot info block.
++
++config 64BIT
++	def_bool y
++
++config CPU_BIG_ENDIAN
++	def_bool y
++
++config MMU
++	def_bool y
++
++config NO_IOPORT_MAP
++	def_bool y
++	help
++	  K0 has no I/O port space: no UART, no PCI, no ISA.
++
++config GENERIC_HWEIGHT
++	def_bool y
++
++config GENERIC_CALIBRATE_DELAY
++	def_bool y
++
++config GENERIC_CSUM
++	def_bool y
++
++config NR_CPUS
++	int "Maximum number of CPUs"
++	default 1
++	range 1 1
++	help
++	  K0 is single-hart: only hart_id 0 is online and the boot ABI does
++	  not define SMP bring-up.
++
++config ARCH_FORCE_MAX_ORDER
++	int "Order of maximal physically contiguous allocations"
++	default 10
++	help
++	  Left at the kernel default; kept arch-visible because the generic
++	  page allocator expects the symbol to exist on 64 KiB-page targets.
++
++config PAGE_OFFSET
++	hex
++	default 0x20000000000
++	help
++	  Kernel VA window base: VA = PA + 2 TiB inside [2 TiB, 3 TiB).
++
++config PHYS_OFFSET
++	hex
++	default 0x0
++
++config ARCH_DMA_MINALIGN
++	int
++	default 128
++
++config ARCH_SEMIHOSTING_CONSOLE
++	bool "Semihosting console stub"
++	default y
++	help
++	  Register a printk console that writes through the semihosting
++	  SYS_WRITE0 trap.  K0 only needs this to link; no output is
++	  claimed until the K1 boot path runs.
++
++menu "Kernel features"
++source "kernel/Kconfig.hz"
++endmenu
++
++menu "Boot options"
++
++config CMDLINE
++	string "Default kernel command string"
++	default ""
++	help
++	  K0 has no command line: the boot info block carries
++	  cmdline_base/cmdline_size = 0.  Kept so the generic boot code has
++	  the symbol it references.
++
++endmenu

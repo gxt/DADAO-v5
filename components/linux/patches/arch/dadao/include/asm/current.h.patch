@@ -1,0 +1,24 @@
+diff --git a/arch/dadao/include/asm/current.h b/arch/dadao/include/asm/current.h
+new file mode 100644
+index 000000000..e57b20eee
+--- /dev/null
++++ b/arch/dadao/include/asm/current.h
+@@ -0,0 +1,18 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_CURRENT_H
++#define __ASM_CURRENT_H
++
++#include <asm/thread_info.h>
++
++#ifndef __ASSEMBLY__
++struct task_struct;
++
++static __always_inline struct task_struct *get_current(void)
++{
++	return current_thread_info()->task;
++}
++
++#define current get_current()
++#endif
++
++#endif /* __ASM_CURRENT_H */

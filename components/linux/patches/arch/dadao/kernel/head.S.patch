@@ -1,0 +1,82 @@
+diff --git a/arch/dadao/kernel/head.S b/arch/dadao/kernel/head.S
+new file mode 100644
+index 000000000..03a170e31
+--- /dev/null
++++ b/arch/dadao/kernel/head.S
+@@ -0,0 +1,76 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * DADAO kernel entry (K0: links; K1 runs).
++ *
++ * Entered with: PTW on and a prebuilt page table (M1), rb16 = entry VA,
++ * rb17 = boot info VA, SP undefined, every other register undefined
++ * (contract-linux-boot §5).  This stub builds its own stack, clears
++ * .bss, validates the boot info block and hands over to C.  A validation
++ * failure stops through semihosting SYS_EXIT with a fixed code
++ * (contract-linux-boot §3.3 FAIL-KERNEL).
++ */
++
++#define FAIL_MAGIC	0x100
++#define FAIL_VERSION	0x101
++#define FAIL_SIZE	0x102
++
++	.section .head.text,"ax"
++	.globl _start
++	.p2align 4
++_start:
++	/* Early stack: rb1 (SP) is undefined on entry. */
++	set.rb rb1, init_stack_top
++
++	/* Raw images carry no .bss: clear __bss_start..__bss_stop. */
++	set.rb rb2, __bss_start
++	set.rb rb3, __bss_stop
++.Lbss_loop:
++	br.eq {rb2, rb3}?, [rb0, .Lbss_done]
++	st.o rd0, [rb2, 0]
++	add.si rb2, 8
++	jump [rb0, .Lbss_loop]
++.Lbss_done:
++
++	/* magic == 0x4442_494e */
++	ld.ut rd4, [rb17, 0]
++	set.zw rd5, wp1, 0x4442
++	or.w rd5, wp0, 0x494e
++	set.rd rd9, FAIL_MAGIC
++	br.ne {rd4, rd5}?, [rb0, .Lfail]
++
++	/* version == 1 */
++	ld.uw rd6, [rb17, 4]
++	set.rd rd5, 1
++	set.rd rd9, FAIL_VERSION
++	br.ne {rd6, rd5}?, [rb0, .Lfail]
++
++	/* size >= 0x60 */
++	ld.uw rd7, [rb17, 6]
++	add.si rd7, -0x60		/* rd7 = size - 0x60 */
++	set.rd rd9, FAIL_SIZE
++	br.n {rd7}?, [rb0, .Lfail]
++
++	/* Hand over to C with the boot info VA in rb16. */
++	set.rb rb16, dadao_start_kernel
++	jump [rb16, rd0, 0]
++
++	/* Fixed-code failure: semihosting SYS_EXIT (contract-semihosting §5). */
++.Lfail:
++	set.rb rb16, .Lexit_block
++	st.o rd9, [rb16, 8]
++	trap cfx0, 0x3ff18
++.Lhang:
++	jump [rb0, .Lhang]
++	.size _start, .-_start
++
++	.section .data,"aw"
++	.p2align 3
++.Lexit_block:
++	.dd.o64 0x20026		/* ADP_Stopped_ApplicationExit */
++	.dd.o64 0		/* subcode, overwritten above */
++
++	.section .bss,"aw",%nobits
++	.p2align 4
++init_stack:
++	.zero 16384
++init_stack_top:

@@ -1,0 +1,30 @@
+diff --git a/arch/dadao/include/asm/mmu_context.h b/arch/dadao/include/asm/mmu_context.h
+new file mode 100644
+index 000000000..e18450aa3
+--- /dev/null
++++ b/arch/dadao/include/asm/mmu_context.h
+@@ -0,0 +1,24 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_MMU_CONTEXT_H
++#define __ASM_MMU_CONTEXT_H
++
++#include <linux/mm_types.h>
++#include <asm/page.h>
++#include <asm/pgtable.h>
++
++static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
++			     struct task_struct *tsk)
++{
++	/* K0: the PTBR switch lands with the smon hand-off (K1). */
++}
++
++static inline void activate_mm(struct mm_struct *prev, struct mm_struct *next)
++{
++	switch_mm(prev, next, current);
++}
++#define activate_mm	activate_mm
++
++#include <asm-generic/mm_hooks.h>
++#include <asm-generic/mmu_context.h>
++
++#endif

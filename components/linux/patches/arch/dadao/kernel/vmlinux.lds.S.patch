@@ -1,0 +1,156 @@
+diff --git a/arch/dadao/kernel/vmlinux.lds.S b/arch/dadao/kernel/vmlinux.lds.S
+new file mode 100644
+index 000000000..57760e673
+--- /dev/null
++++ b/arch/dadao/kernel/vmlinux.lds.S
+@@ -0,0 +1,150 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * DADAO kernel linker script (K0).
++ *
++ * Link address = kernel VA `0x0200_0010_0000` (= kernel_base, e_entry).
++ * The image is loaded through its VA mapping `VA = PA + 2 TiB`, so every
++ * section's LMA is `ADDR - LOAD_OFFSET` and p_paddr = p_vaddr - 2 TiB
++ * (contract-linux-boot §3.1).
++ *
++ * Layout rule (contract ELF-ALIGN): every segment boundary sits on a 64 KiB
++ * page, so every PT_LOAD has p_vaddr % 0x10000 == 0 and p_align >= 0x10000.
++ */
++
++#define LOAD_OFFSET	0x20000000000
++#define KERNEL_BASE	0x20000100000
++
++#include <asm-generic/vmlinux.lds.h>
++#include <asm/page.h>
++#include <asm/thread_info.h>
++#include <asm/cache.h>
++
++OUTPUT_ARCH(dadao)
++ENTRY(_start)
++
++jiffies = jiffies_64;
++
++SECTIONS
++{
++	. = KERNEL_BASE;
++
++	__init_begin = .;
++	HEAD_TEXT_SECTION
++	INIT_TEXT_SECTION(PAGE_SIZE)
++	__init_end = .;
++
++	. = ALIGN(PAGE_SIZE);
++	_stext = .;
++	.text : AT(ADDR(.text) - LOAD_OFFSET) {
++		_text = .;
++		TEXT_TEXT
++		SCHED_TEXT
++		LOCK_TEXT
++		KPROBES_TEXT
++		IRQENTRY_TEXT
++		SOFTIRQENTRY_TEXT
++		*(.fixup)
++		_etext = .;
++	}
++
++	/* Read-only data: one page-aligned group per segment. */
++	. = ALIGN(PAGE_SIZE);
++	.rodata : AT(ADDR(.rodata) - LOAD_OFFSET) {
++		__start_rodata = .;
++		*(.rodata) *(.rodata.*) *(.data.rel.ro*)
++		SCHED_DATA
++		. = ALIGN(8);
++		BOUNDED_SECTION_BY(__tracepoints_ptrs, ___tracepoints_ptrs)
++		*(__tracepoints_strings)
++	}
++
++	. = ALIGN(PAGE_SIZE);
++	__param : AT(ADDR(__param) - LOAD_OFFSET) {
++		__start___param = .;
++		KEEP(*(__param))
++		__stop___param = .;
++	}
++
++	. = ALIGN(PAGE_SIZE);
++	.notes : AT(ADDR(.notes) - LOAD_OFFSET) {
++		__start_notes = .;
++		KEEP(*(.note.*))
++		__stop_notes = .;
++	}
++
++	/*
++	 * Symbol/parameter metadata that is empty in a K0 build (no modules,
++	 * no PCI, no BTF): keep the sections so their boundary symbols exist.
++	 */
++	. = ALIGN(PAGE_SIZE);
++	.rodata1 : AT(ADDR(.rodata1) - LOAD_OFFSET) { *(.rodata1) }
++	.pci_fixup : AT(ADDR(.pci_fixup) - LOAD_OFFSET) {
++		KEEP(*(.pci_fixup_early))
++		KEEP(*(.pci_fixup_header))
++		KEEP(*(.pci_fixup_final))
++		KEEP(*(.pci_fixup_enable))
++		KEEP(*(.pci_fixup_resume))
++		KEEP(*(.pci_fixup_suspend))
++		KEEP(*(.pci_fixup_resume_early))
++		KEEP(*(.pci_fixup_suspend_late))
++	}
++	.builtin_fw : AT(ADDR(.builtin_fw) - LOAD_OFFSET) {
++		__start_builtin_fw = .;
++		KEEP(*(.builtin_fw))
++		__end_builtin_fw = .;
++	}
++	__ksymtab : AT(ADDR(__ksymtab) - LOAD_OFFSET) {
++		__start___ksymtab = .;
++		KEEP(*(SORT(___ksymtab+*)))
++		__stop___ksymtab = .;
++	}
++	__kcrctab : AT(ADDR(__kcrctab) - LOAD_OFFSET) {
++		__start___kcrctab = .;
++		KEEP(*(SORT(___kcrctab+*)))
++		__stop___kcrctab = .;
++	}
++	__kflagstab : AT(ADDR(__kflagstab) - LOAD_OFFSET) {
++		__start___kflagstab = .;
++		KEEP(*(SORT(___kflagstab+*)))
++		__stop___kflagstab = .;
++	}
++	__ksymtab_strings : AT(ADDR(__ksymtab_strings) - LOAD_OFFSET) {
++		*(__ksymtab_strings)
++	}
++	__init_rodata : AT(ADDR(__init_rodata) - LOAD_OFFSET) {
++		*(.ref.rodata)
++	}
++	__modver : AT(ADDR(__modver) - LOAD_OFFSET) {
++		KEEP(*(__modver))
++	}
++	__end_rodata = .;
++
++	/* Written during boot, read-only afterwards. */
++	. = ALIGN(PAGE_SIZE);
++	__start_ro_after_init = .;
++	.data..ro_after_init : AT(ADDR(.data..ro_after_init) - LOAD_OFFSET) {
++		*(.data..ro_after_init)
++	}
++	__end_ro_after_init = .;
++
++	. = ALIGN(PAGE_SIZE);
++	_sdata = .;
++	RW_DATA(L1_CACHE_BYTES, PAGE_SIZE, THREAD_SIZE)
++	_edata = .;
++
++	. = ALIGN(PAGE_SIZE);
++	INIT_DATA_SECTION(PAGE_SIZE)
++
++	. = ALIGN(PAGE_SIZE);
++	EXCEPTION_TABLE(16)
++
++	BSS_SECTION(PAGE_SIZE, PAGE_SIZE, PAGE_SIZE)
++
++	_end = .;
++
++	STABS_DEBUG
++	DWARF_DEBUG
++	ELF_DETAILS
++
++	DISCARDS
++}

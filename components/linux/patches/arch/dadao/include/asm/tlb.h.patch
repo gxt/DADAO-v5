@@ -1,0 +1,13 @@
+diff --git a/arch/dadao/include/asm/tlb.h b/arch/dadao/include/asm/tlb.h
+new file mode 100644
+index 000000000..8ec7df07c
+--- /dev/null
++++ b/arch/dadao/include/asm/tlb.h
+@@ -0,0 +1,7 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_TLB_H
++#define __ASM_TLB_H
++
++#include <asm-generic/tlb.h>
++
++#endif

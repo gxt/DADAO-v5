@@ -1,0 +1,39 @@
+diff --git a/arch/dadao/configs/defconfig b/arch/dadao/configs/defconfig
+new file mode 100644
+index 000000000..35c0c7c30
+--- /dev/null
++++ b/arch/dadao/configs/defconfig
+@@ -0,0 +1,33 @@
++# K0 minimal defconfig: single hart, big endian, 64 KiB pages, no SMP,
++# no device tree, no UART/PCI, semihosting console stub.
++CONFIG_DADAO=y
++CONFIG_64BIT=y
++CONFIG_CPU_BIG_ENDIAN=y
++CONFIG_MMU=y
++CONFIG_PAGE_SIZE_64KB=y
++CONFIG_NR_CPUS=1
++CONFIG_SMP=n
++CONFIG_ARCH_SEMIHOSTING_CONSOLE=y
++CONFIG_BINFMT_ELF=y
++CONFIG_PRINTK=y
++CONFIG_TTY=y
++CONFIG_PROC_FS=y
++CONFIG_SYSFS=y
++CONFIG_BUG=y
++CONFIG_EMBEDDED=y
++CONFIG_EXPERT=y
++# No storage, no networking, no drivers in K0.
++CONFIG_BLOCK=n
++CONFIG_NET=n
++CONFIG_PCI=n
++CONFIG_OF=n
++CONFIG_ACPI=n
++CONFIG_MODULES=n
++CONFIG_SWAP=n
++CONFIG_HUGETLBFS=n
++CONFIG_HUGETLB_PAGE=n
++# kallsyms emission uses GAS .long/.short, which the DADAO assembler rejects
++# (spec/Toolchain-01 §7.1; same class as .quad).  K0 links without symbols;
++# K1 brings a DADAO-aware emitter.
++CONFIG_KALLSYMS=n
++CONFIG_DEBUG_INFO=n

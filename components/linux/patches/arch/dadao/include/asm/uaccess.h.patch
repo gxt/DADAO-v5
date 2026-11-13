@@ -1,0 +1,18 @@
+diff --git a/arch/dadao/include/asm/uaccess.h b/arch/dadao/include/asm/uaccess.h
+new file mode 100644
+index 000000000..93f2a1073
+--- /dev/null
++++ b/arch/dadao/include/asm/uaccess.h
+@@ -0,0 +1,12 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_UACCESS_H
++#define __ASM_UACCESS_H
++
++/*
++ * K0 has no user mode and no fault fixup.  CONFIG_UACCESS_MEMCPY selects the
++ * generic C accessors that assume kernel and user memory share an address
++ * space; K1 replaces them with exception-table backed copies.
++ */
++#include <asm-generic/uaccess.h>
++
++#endif

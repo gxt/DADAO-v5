@@ -1,0 +1,43 @@
+diff --git a/arch/dadao/include/asm/pgalloc.h b/arch/dadao/include/asm/pgalloc.h
+new file mode 100644
+index 000000000..69a4de439
+--- /dev/null
++++ b/arch/dadao/include/asm/pgalloc.h
+@@ -0,0 +1,37 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_PGALLOC_H
++#define __ASM_PGALLOC_H
++
++#include <asm/page.h>
++#include <asm/pgtable.h>
++#include <asm-generic/pgalloc.h>
++
++#ifndef __ASSEMBLY__
++
++/*
++ * One page table is exactly one 64 KiB page: 8192 entries of 8 bytes
++ * (spec/DADAO-12 §2.2.2).  Page-table allocation/free comes from
++ * asm-generic/pgalloc.h (one page per level); only the "install the L2
++ * table into the L1 entry" step is arch specific.
++ */
++static inline pgd_t *pgd_alloc(struct mm_struct *mm)
++{
++	return __pgd_alloc(mm, 0);
++}
++
++static inline void pmd_populate(struct mm_struct *mm, pmd_t *pmd,
++				pgtable_t pte)
++{
++	set_pmd(pmd, __pmd((unsigned long)page_to_virt(pte) | _PAGE_PRESENT));
++}
++
++static inline void pmd_populate_kernel(struct mm_struct *mm, pmd_t *pmd,
++				       pte_t *pte)
++{
++	set_pmd(pmd, __pmd((unsigned long)pte | _PAGE_PRESENT));
++}
++
++#define __pte_free_tlb(tlb, pte, addr)	pte_free((tlb)->mm, (pte))
++
++#endif /* !__ASSEMBLY__ */
++#endif /* __ASM_PGALLOC_H */

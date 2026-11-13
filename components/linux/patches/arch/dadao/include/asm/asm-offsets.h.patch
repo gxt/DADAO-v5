@@ -1,0 +1,11 @@
+diff --git a/arch/dadao/include/asm/asm-offsets.h b/arch/dadao/include/asm/asm-offsets.h
+new file mode 100644
+index 000000000..b21a46206
+--- /dev/null
++++ b/arch/dadao/include/asm/asm-offsets.h
+@@ -0,0 +1,5 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_ASM_OFFSETS_H
++#define __ASM_ASM_OFFSETS_H
++#include <generated/asm-offsets.h>
++#endif

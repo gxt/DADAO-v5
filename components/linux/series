@@ -1,6 +1,56 @@
-# Linux 内核补丁清单（树形补丁：`patches/<上游相对路径>.patch`，一文件一补丁）。
-# 顺序按路径字典序；一行一个，路径相对 patches/。
-#
-# 空首态（m14-linux-001，2026-11-13）：零条目是**合法首态**（docs/Process-01 §2），
-# patches/ 下只有 `.gitkeep`。首个补丁由 m14-linux-002（arch/dadao/**）落地时
-# 在此追加；`.gitkeep` 在 series 非空时必须删除（否则 check-patch-tree FAIL）。
+arch/dadao/Kconfig.debug.patch
+arch/dadao/Kconfig.patch
+arch/dadao/Makefile.patch
+arch/dadao/configs/defconfig.patch
+arch/dadao/include/asm/Kbuild.patch
+arch/dadao/include/asm/asm-offsets.h.patch
+arch/dadao/include/asm/atomic.h.patch
+arch/dadao/include/asm/bitops.h.patch
+arch/dadao/include/asm/cache.h.patch
+arch/dadao/include/asm/cacheflush.h.patch
+arch/dadao/include/asm/current.h.patch
+arch/dadao/include/asm/elf.h.patch
+arch/dadao/include/asm/fixmap.h.patch
+arch/dadao/include/asm/io.h.patch
+arch/dadao/include/asm/irq.h.patch
+arch/dadao/include/asm/irqflags.h.patch
+arch/dadao/include/asm/mmu.h.patch
+arch/dadao/include/asm/mmu_context.h.patch
+arch/dadao/include/asm/page.h.patch
+arch/dadao/include/asm/pgalloc.h.patch
+arch/dadao/include/asm/pgtable.h.patch
+arch/dadao/include/asm/processor.h.patch
+arch/dadao/include/asm/ptrace.h.patch
+arch/dadao/include/asm/sections.h.patch
+arch/dadao/include/asm/setup.h.patch
+arch/dadao/include/asm/smp.h.patch
+arch/dadao/include/asm/string.h.patch
+arch/dadao/include/asm/switch_to.h.patch
+arch/dadao/include/asm/syscall.h.patch
+arch/dadao/include/asm/syscall_table.h.patch
+arch/dadao/include/asm/thread_info.h.patch
+arch/dadao/include/asm/timex.h.patch
+arch/dadao/include/asm/tlb.h.patch
+arch/dadao/include/asm/tlbflush.h.patch
+arch/dadao/include/asm/uaccess.h.patch
+arch/dadao/include/asm/unaligned.h.patch
+arch/dadao/include/asm/vmalloc.h.patch
+arch/dadao/include/uapi/asm/Kbuild.patch
+arch/dadao/include/uapi/asm/byteorder.h.patch
+arch/dadao/include/uapi/asm/ptrace.h.patch
+arch/dadao/include/uapi/asm/setup.h.patch
+arch/dadao/include/uapi/asm/sigcontext.h.patch
+arch/dadao/include/uapi/asm/unistd.h.patch
+arch/dadao/kernel/Makefile.patch
+arch/dadao/kernel/asm-offsets.c.patch
+arch/dadao/kernel/early_console.c.patch
+arch/dadao/kernel/head.S.patch
+arch/dadao/kernel/setup.c.patch
+arch/dadao/kernel/syscall_table.c.patch
+arch/dadao/kernel/syscalls.c.patch
+arch/dadao/kernel/traps.c.patch
+arch/dadao/kernel/vmlinux.lds.S.patch
+arch/dadao/lib/Makefile.patch
+arch/dadao/lib/delay.c.patch
+arch/dadao/mm/Makefile.patch
+arch/dadao/mm/init.c.patch

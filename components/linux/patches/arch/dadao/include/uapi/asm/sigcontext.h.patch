@@ -1,0 +1,18 @@
+diff --git a/arch/dadao/include/uapi/asm/sigcontext.h b/arch/dadao/include/uapi/asm/sigcontext.h
+new file mode 100644
+index 000000000..3d8051375
+--- /dev/null
++++ b/arch/dadao/include/uapi/asm/sigcontext.h
+@@ -0,0 +1,12 @@
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
++#ifndef __ASM_SIGCONTEXT_H
++#define __ASM_SIGCONTEXT_H
++
++#include <uapi/asm/ptrace.h>
++
++struct sigcontext {
++	struct user_regs_struct regs;
++	unsigned long __unused[4];
++};
++
++#endif

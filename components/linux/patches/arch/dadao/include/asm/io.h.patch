@@ -1,0 +1,22 @@
+diff --git a/arch/dadao/include/asm/io.h b/arch/dadao/include/asm/io.h
+new file mode 100644
+index 000000000..4008343f4
+--- /dev/null
++++ b/arch/dadao/include/asm/io.h
+@@ -0,0 +1,16 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_IO_H
++#define __ASM_IO_H
++
++/*
++ * K0 has no MMIO: no UART, no PCI, no device tree.  The generic accessors
++ * are kept so driver-less generic code compiles, and ioremap is the
++ * identity on the kernel window (VA == PA + 2 TiB).
++ */
++#include <asm-generic/io.h>
++
++#define __raw_readb __raw_readb
++#define ioremap(addr, size)	((void __iomem *)(addr))
++#define iounmap(addr)		do { } while (0)
++
++#endif

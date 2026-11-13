@@ -1,0 +1,8 @@
+diff --git a/arch/dadao/mm/Makefile b/arch/dadao/mm/Makefile
+new file mode 100644
+index 000000000..ee99c593e
+--- /dev/null
++++ b/arch/dadao/mm/Makefile
+@@ -0,0 +1,2 @@
++# SPDX-License-Identifier: GPL-2.0
++obj-y += init.o

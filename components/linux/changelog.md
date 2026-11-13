@@ -6,3 +6,6 @@
 
 - **2026-11-13 `m14-linux-001`**
   - 摘要：**组件转正：去 `patchless`、建空补丁集首态**。锁条目新增 `patch_dir = "components/linux/patches"` / `patch_series = "components/linux/series"`，`role` 改为「Linux 内核移植目标（`arch/dadao`）+ syscall 号表参考」；基线（`7.2.10` / `7b20d05f…` / `shallow_ref = v7.2.10`）与 `source[]` 不变。新增本目录 `README.md`/`changelog.md`/`series`（零条目）/`patches/.gitkeep`；**首个补丁由 `m14-linux-002` 落地**。空补丁集成为合法首态由 `docs/Process-01 §2/§8` 登记（`series` 零条目 + `patches/` 无 `.patch` + `.gitkeep` 至多一个 且仅空 `series` 时合法），E1 期望条数随之为 `base+0`；非空补丁集的 `base+1` 口径不放宽。
+
+- **2026-11-14 `m14-linux-002`**
+  - 摘要：**`arch/dadao` K0 最小骨架，`make ARCH=dadao … vmlinux` 出镜像（不启动）**。56 份树形补丁（全部 `arch/dadao/**`；上游文件零改动）：`Kconfig`/`Kconfig.debug`/`Makefile`/`configs/defconfig`、`kernel/{head.S,vmlinux.lds.S,setup.c,traps.c,syscalls.c,syscall_table.c,early_console.c,asm-offsets.c,Makefile}`、`mm/init.c`、`lib/delay.c`、`include/{asm,uapi/asm}/**`。链接地址/入口 = `0x0200_0010_0000`、`p_vaddr = p_paddr + 2 TiB`、64 KiB 页两级页表（`spec/DADAO-12 §2.2`）；产物断言与代码跨度护栏进 `tools/linux/make_vmlinux.py`。K0 关：SMP/DTB/UART/PCI/模块/`CONFIG_KALLSYMS`（kallsyms 发射用 GAS `.long/.short`，DADAO 汇编器不受理）。

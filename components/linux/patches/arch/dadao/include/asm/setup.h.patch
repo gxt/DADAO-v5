@@ -1,0 +1,55 @@
+diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
+new file mode 100644
+index 000000000..11d67ced0
+--- /dev/null
++++ b/arch/dadao/include/asm/setup.h
+@@ -0,0 +1,49 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_SETUP_H
++#define __ASM_SETUP_H
++
++#include <uapi/asm/setup.h>
++
++#define COMMAND_LINE_SIZE	1024
++
++#ifndef __ASSEMBLY__
++/* Fixed boot info block (contract-linux-boot §4). */
++struct dadao_boot_info {
++	u32	magic;
++	u16	version;
++	u16	size;
++	u64	ram_base;
++	u64	ram_size;
++	u64	kernel_base;
++	u64	kernel_size;
++	u64	initramfs_base;
++	u64	initramfs_size;
++	u64	cmdline_base;
++	u64	cmdline_size;
++	u64	ptbr;
++	u32	page_size_log2;
++	u32	hart_id;
++	u64	flags;
++} __aligned(8);
++
++#define DADAO_BOOT_MAGIC	0x4442494e	/* "DBIN" */
++#define DADAO_BOOT_VERSION	1
++#define DADAO_BOOT_SIZE		0x60
++
++/* Boot hooks called by the generic init/main.c sequence. */
++void trap_init(void);
++void init_IRQ(void);
++void time_init(void);
++
++/* Memory init, called from setup_arch() after memblock_add(). */
++void paging_init(void);
++
++/* Kernel entry, called from head.S with the boot info VA. */
++void dadao_start_kernel(void *boot_info);
++
++/* RAM window in PA, filled from the boot info block by setup_arch(). */
++extern unsigned long dadao_ram_base;
++extern unsigned long dadao_ram_size;
++#endif
++
++#endif

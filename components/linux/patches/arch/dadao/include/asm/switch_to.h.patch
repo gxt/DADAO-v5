@@ -1,0 +1,29 @@
+diff --git a/arch/dadao/include/asm/switch_to.h b/arch/dadao/include/asm/switch_to.h
+new file mode 100644
+index 000000000..ef174947b
+--- /dev/null
++++ b/arch/dadao/include/asm/switch_to.h
+@@ -0,0 +1,23 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_SWITCH_TO_H
++#define __ASM_SWITCH_TO_H
++
++#include <linux/sched.h>
++
++struct task_struct;
++
++/*
++ * K0 context switch: only callee-saved registers and the stack pointer are
++ * preserved.  Written as a statement-expression so the surrounding code
++ * compiles before the assembly helper exists (K1 provides
++ * __switch_to_asm).
++ */
++struct task_struct *__switch_to(struct task_struct *prev,
++				struct task_struct *next);
++
++#define switch_to(prev, next, last)					\
++	do {								\
++		last = __switch_to(prev, next);				\
++	} while (0)
++
++#endif /* __ASM_SWITCH_TO_H */

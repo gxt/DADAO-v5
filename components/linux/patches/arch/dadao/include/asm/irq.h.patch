@@ -1,0 +1,13 @@
+diff --git a/arch/dadao/include/asm/irq.h b/arch/dadao/include/asm/irq.h
+new file mode 100644
+index 000000000..690855c23
+--- /dev/null
++++ b/arch/dadao/include/asm/irq.h
+@@ -0,0 +1,7 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef __ASM_IRQ_H
++#define __ASM_IRQ_H
++
++#include <asm-generic/irq.h>
++
++#endif

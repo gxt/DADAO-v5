@@ -1,0 +1,11 @@
+diff --git a/arch/dadao/include/uapi/asm/setup.h b/arch/dadao/include/uapi/asm/setup.h
+new file mode 100644
+index 000000000..00fdd1186
+--- /dev/null
++++ b/arch/dadao/include/uapi/asm/setup.h
+@@ -0,0 +1,5 @@
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
++#ifndef __ASM_UAPI_SETUP_H
++#define __ASM_UAPI_SETUP_H
++/* DADAO passes boot information through the fixed boot info block. */
++#endif
