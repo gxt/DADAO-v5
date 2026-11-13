@@ -40,7 +40,7 @@ QEMU 的 `fofma` 溢出恒 ±Inf；按 `spec-006` 改为按舍入模式，并覆
 **判决：Accepted**（3 条文档级 finding + 1 条台账观察，architect 收尾处置；不返工）
 
 **重跑（我亲自执行，workdir=任务 worktree、相对路径）**
-- `./.work/evidence/m13-qemu-008/run.sh`：首跑被**我自己**生成的 `vecspec/vspec.check.yaml` 污染（批次 140 例、红集索引翻倍）⇒ `PASS=94 FAIL=1`、`RUN_EXIT=1`；清掉该临时文件后干净重跑 ⇒ `== summary: PASS=95 FAIL=0 ==`、`RUN_EXIT=0`。现场：spec `Results: 70 total, 70 passed, 0 failed`；前提表 `70 total, 30 passed, 40 failed`；`check-inst` `1141 total, 1136 passed, 0 failed, 5 deferred, 0 errors` + `44 total, 44 passed`；`covered=273, 2d4d94651346ef673c5a855e024c1489`；注入 `70 total, 30 passed, 40 failed` 且红集==两表差异集；还原 `70 total, 70 passed`。
+- `./该任务的运行期证据脚本`：首跑被**我自己**生成的 `vecspec/vspec.check.yaml` 污染（批次 140 例、红集索引翻倍）⇒ `PASS=94 FAIL=1`、`RUN_EXIT=1`；清掉该临时文件后干净重跑 ⇒ `== summary: PASS=95 FAIL=0 ==`、`RUN_EXIT=0`。现场：spec `Results: 70 total, 70 passed, 0 failed`；前提表 `70 total, 30 passed, 40 failed`；`check-inst` `1141 total, 1136 passed, 0 failed, 5 deferred, 0 errors` + `44 total, 44 passed`；`covered=273, 2d4d94651346ef673c5a855e024c1489`；注入 `70 total, 30 passed, 40 failed` 且红集==两表差异集；还原 `70 total, 70 passed`。
 - 逐格独立核：按 `spec/SimRISC-07 §2.5` 自行推 70 格位型+flags，与 `spec.tsv` 逐行相符；抽 14 格亲跑（轻微 4 方向 1/7/13/19、RNE 分界 24/60、粘滞 2/52、控制 32/33、严重 0/12/44/53）⇒ `spot: OK=14 MISMATCH=0`。
 - **独立注入（改被测产物，非 engineer 自检）**：`fpu/softfloat-parts.c.inc` 的 `uncanon_normal` 把 RNE 平局改判向下（+4 行）⇒ `run.sh --no-inject` → `RUN_EXIT=1`、`FAIL spec table … (red: 24 25 59 60)`、前提红集 `44` ≠ `40` ⇒ 集合运算是活的、非写死 40；`cp`+md5 还原至 `ed61388baa93a6c353b14b52daea3c4e`、marker 消失、源树空 diff ⇒ 复跑 `RUN_EXIT=0`、`PASS=83 FAIL=0`。
 - 该注入同时**因果证明** FMA 结果确实经 `uncanon_normal`（非 host-FMA 旁路），支撑根因归属。
@@ -54,7 +54,7 @@ QEMU 的 `fofma` 溢出恒 ±Inf；按 `spec-006` 改为按舍入模式，并覆
 - **F2** 根因对照句「`fo2ft` 窄化路径没有这条」不准确：`float64_to_float32`→`float32_round_pack_canonical`→`parts64_uncanon` 走的是**同一个** `uncanon_normal`；`m13-qemu-005` 前的恒 ±Inf 来自 `helper.c` 硬编码 `res=(src>>63)?0xFF800000:0x7F800000`（`git show 91d8591c`），005 是把硬编码换成方向分派。主结论不受影响。
 - **F3** 验收项「与 chipyard 逐字节」本轮未跑 ⇒ 收尾须显式记 **BLOCKED/移交**，不得记作已满足（已披露：`m12-chipyard-027` 08:33 派单占用构建树、chipyard 侧同名前提未测）。
 
-**台账观察（我不改台账）**：`m13-qemu-008`、`m13-gem5-009` 两行仍留在 `milestones-m13.md`「待开始」表（派单即应移入「进行中」）；`m13-gem5-009` 本树任务书仍 `待开始`/审阅记录「待填」，但 `.work/evidence/m13-gem5-009/REVIEWER-RUN.log`（10:07，PASS=33 FAIL=0 EXIT=0）显示它已在跑 ⇒ 请 architect 核对。
+**台账观察（我不改台账）**：`m13-qemu-008`、`m13-gem5-009` 两行仍留在 `milestones-m13.md`「待开始」表（派单即应移入「进行中」）；`m13-gem5-009` 本树任务书仍 `待开始`/审阅记录「待填」，但 `该任务引用的 reviewer 运行日志`（10:07，PASS=33 FAIL=0 EXIT=0）显示它已在跑 ⇒ 请 architect 核对。
 
 **外溢判定**：**不能**推定 chipyard。QEMU 结论依赖 upstream softfloat `uncanon_normal` 的实现细节；chipyard 是独立 RTL（`m12-chipyard-013`，hardfloat recFN 路径），`m12-chipyard-029` 仍 `待开始`、其任务书前提仍写「恒 ±Inf」且未经实测；hardfloat 是否有同类分派属**推测**，不作依据。gem5 亦为独立实现，其自身证据我未独立核验，同样不作依据。
 
