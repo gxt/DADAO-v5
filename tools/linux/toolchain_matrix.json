@@ -1,0 +1,107 @@
+{
+  "format": 1,
+  "toolchain": {
+    "target": "dadao-unknown-elf",
+    "resolved_from": "tools/linux/paths.py",
+    "install_root": "<install-root>",
+    "llvm_build": "<llvm-build>"
+  },
+  "rows": [
+    {
+      "id": "llvm-ar",
+      "required_for_k0": false,
+      "declared": "absent",
+      "probe": "<install-root>/bin/llvm-ar --version || <llvm-build>/bin/llvm-ar --version",
+      "measured": "absent",
+      "workaround": "AR=/usr/bin/ar（GNU ar 2.42；归档格式与目标机无关，rcs/t 已在 DADAO 目标对象上验证）",
+      "workaround_probe": "ar rcs <lib.a> <obj>; ar t <lib.a>",
+      "workaround_measured": "verified",
+      "k0_impact": "none",
+      "owner": "m14-linux-002"
+    },
+    {
+      "id": "llvm-ranlib",
+      "required_for_k0": false,
+      "declared": "absent",
+      "probe": "<install-root>/bin/llvm-ranlib --version || <llvm-build>/bin/llvm-ranlib --version",
+      "measured": "absent",
+      "workaround": "RANLIB=/usr/bin/ranlib（GNU ranlib 2.42，索引已在 DADAO 目标 .a 上验证）",
+      "workaround_probe": "ar rcs <lib.a> <obj>; ranlib <lib.a>",
+      "workaround_measured": "verified",
+      "k0_impact": "none",
+      "owner": "m14-linux-002"
+    },
+    {
+      "id": "llvm-strip",
+      "required_for_k0": false,
+      "declared": "absent",
+      "probe": "<install-root>/bin/llvm-strip --version || <llvm-build>/bin/llvm-strip --version",
+      "measured": "absent",
+      "workaround": "STRIP=<install-root>/bin/llvm-objcopy（追加 --strip-all/--strip-debug；GNU strip 2.42 无法识别 DADAO ELF：EM 0xDA0 + 大端）",
+      "workaround_probe": "<install-root>/bin/llvm-objcopy --strip-all <obj> <stripped>",
+      "workaround_measured": "verified",
+      "k0_impact": "none",
+      "owner": "m14-linux-002"
+    },
+    {
+      "id": "asm-goto",
+      "required_for_k0": true,
+      "declared": "supported",
+      "probe": "clang --target=dadao-unknown-elf -fsyntax-only <src>; clang --target=dadao-unknown-elf -O1 -S <src>",
+      "measured": "supported",
+      "workaround": "",
+      "workaround_probe": "",
+      "workaround_measured": "n/a",
+      "k0_impact": "none",
+      "owner": "m14-linux-002"
+    },
+    {
+      "id": "stack-protector",
+      "required_for_k0": false,
+      "declared": "unsupported",
+      "probe": "clang --target=dadao-unknown-elf -O1 -fstack-protector-strong -S <src>",
+      "measured": "unsupported",
+      "workaround": "-fno-stack-protector（Kconfig 关栈保护；-mstack-protector-guard=* 同不支持）",
+      "workaround_probe": "clang --target=dadao-unknown-elf -O1 -fno-stack-protector -S <src>",
+      "workaround_measured": "verified",
+      "k0_impact": "none",
+      "owner": "m14-linux-002"
+    },
+    {
+      "id": "data-directives",
+      "required_for_k0": false,
+      "declared": "unsupported",
+      "probe": "llvm-mc -triple=dadao-unknown-elf -filetype=obj <src.s>",
+      "measured": "unsupported",
+      "workaround": "改写为 DADAO 唯一数据伪指令 .dd.o64/.dd.t32/.dd.w16/.dd.b08（spec/Toolchain-01 §7.1；clang codegen 亦只用该组）",
+      "workaround_probe": "llvm-mc -triple=dadao-unknown-elf -filetype=obj <src.s>; llvm-objcopy -O binary --only-section=.data <obj> <bin>",
+      "workaround_measured": "verified",
+      "k0_impact": "none",
+      "owner": "m14-linux-002"
+    },
+    {
+      "id": "inline-asm-constraints",
+      "required_for_k0": true,
+      "declared": "supported",
+      "probe": "clang --target=dadao-unknown-elf -O1 -S <src>（约束 r/i/m/=&r + memory clobber）",
+      "measured": "supported",
+      "workaround": "",
+      "workaround_probe": "",
+      "workaround_measured": "n/a",
+      "k0_impact": "none",
+      "owner": "m14-linux-002"
+    },
+    {
+      "id": "mcmodel-kernel",
+      "required_for_k0": false,
+      "declared": "unsupported",
+      "probe": "clang --target=dadao-unknown-elf -O1 -mcmodel=kernel -S <src>",
+      "measured": "unsupported",
+      "workaround": "-mcmodel=small（=default；内核基址 1 MiB 落在 REL26 ±32 MiB 内）；镜像 >32 MiB 时用 -mcmodel=large",
+      "workaround_probe": "clang --target=dadao-unknown-elf -O1 -mcmodel=small -S <src>",
+      "workaround_measured": "verified",
+      "k0_impact": "none",
+      "owner": "m14-linux-002"
+    }
+  ]
+}

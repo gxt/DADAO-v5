@@ -5,7 +5,7 @@
 **依赖**：`m14-linux-001`（目标名与 Makefile 接线已由该任务声明；本任务不改 `Makefile`）
 **可并行分片**：否（单一矩阵 + 单一门控；探针可并行执行但产出单份数据/报告）
 **预估**：4–5 h
-**状态**：待开始
+**状态**：已验证
 
 ## 背景
 
@@ -116,14 +116,56 @@ M14 K0 的入口判据是「gaps 归零或有规避法 + 工具链就位」。�
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：`make check-linux-toolchain` rc=0（`8/8 行一致, gaps=6 (blockers=0)`）；`python3 tools/linux/check_toolchain.py --inject` rc=0（6 例注入各自 FAIL、`cp`+md5 还原回绿）；`--report --check` rc=0；`make check-test-reports` rc=0；`make check` rc=2，唯一红 = `check-milestones-fresh` 4 项台账路由（本任务 A1 状态未移表 + 3 个在跑任务仍在「待开始」表），属主会话职责，本任务未改台账；其余全绿。
+**修改文件**：`tools/linux/toolchain_matrix.json`（新）、`tools/linux/check_toolchain.py`（新）、`docs/TestReports/M14-K0-toolchain-gaps.md`（新，生成物）、`docs/README.md`（索引 1 行）、本任务书。
 **验收结果**：
+- 矩阵 8 行实测（现场 exit code）：`llvm-ar` absent(127)、`llvm-ranlib` absent(127)、`llvm-strip` absent(127)、`asm-goto` supported(0)、`stack-protector` unsupported(1)、`data-directives` unsupported(1)、`inline-asm-constraints` supported(0)、`mcmodel-kernel` unsupported(1)。
+- required 2 行全 present：`asm-goto`、`inline-asm-constraints`；6 个缺口全 `workaround_measured=verified`（ar/ranlib、llvm-objcopy strip、`.dd.*` 字节比对、`-fno-stack-protector`、`-mcmodel=small` 现场重验）。
+- target 绑定：能力探针全带 `--target=dadao-unknown-elf`（汇编 `-triple=`）；同源宿主 x86 clang 对栈保护/`-mcmodel=kernel` rc=0，target rc=1 ⇒ 结论由 target 决定。
+- 报告四必备项齐、无运行期路径、首行快照标记；`--report --check` rc=0；`docs/README.md` 已索引。
+- 未改工具链：安装根 bin 的 size/mtime 与 `llvm-mc` md5 前后一致；无 `.dadao/**`/LLVM 源码改动。
+- 一键证据脚本（运行期证据目录）rc=0：含 2 例真实文件注入「注入→FAIL→`cp`+md5 还原→回绿」；反例（报告追加漂移行）rc=1，还原 md5 一致后回绿。
+- L1 判据文本（交 `m14-infra-003` 登记）：`check-linux-toolchain` = ① 每行 `declared == measured == 现场实测`；② `required_for_k0` 行 measured 为 present/supported；③ 缺口态行 `workaround` 非空且 `workaround_measured=verified` 且现场重验通过；④ 行 id 集合 == 8 行覆盖表；⑤ 能力探针 probe 含 target；⑥ 报告 == `--report` 重渲染。
 **新发现/坑**：
-**遗留问题**：
+- DADAO ELF 大端、`e_machine=0xDA0`：GNU `strip` 无法识别（rc=1），GNU `ar/ranlib/nm` 可用 ⇒ `STRIP=<install-root>/bin/llvm-objcopy`。
+- `llvm-ar/ranlib/strip` 在**构建树**也缺（非仅安装根）；补齐需改构建配置 + `HOST_LLVM_TOOLS`，属跨任务决策。
+- `asm goto` 需 `%l0` + `jump [rb0, %l0]`（DADAO `jump` 要求基址寄存器）；`j`/`beq` 等 mnemonic 不存在。
+- `.quad/.long/.short/.byte` 被 llvm-mc 拒绝（唯一数据指令集 `.dd.b08/w16/t32/o64`；clang codegen 亦只出 `.dd.*`）⇒ 手写汇编须翻译。
+- 栈保护不是「开关不支持」而是后端 `unable to lower stackguard` + fatal error（rc=1）；日后要 SSP 须后端补齐。
+- `-mcmodel` 仅接受 `default`/`small`/`large`（`kernel`/`medlow` 均拒）；K0 用 `small`（基址 1 MiB，REL26 ±32 MiB）。
+- 报告机器指纹不得含 `git HEAD`（每次提交即漂移 ⇒ 同步门控假红）；改用工具版本 + 版本摘要 md5。`required_for_k0` 的 2 行与 `k0_impact=none` 判法是本任务**自决**。
+**遗留问题**：`check-milestones-fresh` 外部红（本任务状态未移入「进行中」表 + 3 个在跑任务仍在「待开始」表；需主会话改台账）；`llvm-ar/ranlib/strip` 补齐属跨任务决策、L1 接线归 `m14-infra-003`。
 
 ## 审阅记录
 
-### 第 1 轮 engineer 自审（待填）
+### 第 1 轮 engineer 自审
 
-### 第 1 轮 reviewer 验收（待填）
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `measure(rows)` 形参未用 | ✅已修 | 去掉形参，3 处调用同步 | `python3 -m py_compile` rc=0；gate rc=0 |
+| F2 报告 detail 未 scrub，出现临时目录绝对路径 | ✅已修 | `measure` 内对 detail/规避法 detail 做 `scrub`+`_trim` | 报告 grep 无运行期路径；`make check-test-reports` rc=0 |
+| F3 机器指纹含 `git HEAD` ⇒ 每次提交后报告同步假红 | ✅已修 | 指纹改 CPU+target+工具版本+版本摘要 md5 | `--report --check` rc=0；重生成后仍 rc=0 |
+| F4 `--inject` 的 R2 用例只命中词表/R1，未触 R2 分支 | ✅已修 | 用例改为「声明+模拟实测同步为 unsupported」，首判据命中 R2 | `--inject` 输出首判据 `R2 required 行非 supported` |
+| F5 `host_contrast` 死代码 / `_obj` 返回伪路径 | ✅已修 | 删死分支；`_obj` 失败返回 `None` | `--inject` rc=0；gate rc=0 |
+| F6 `cmd_gate` 逐行 `[ok]` 恒真 | ✅已修 | 改为 declared vs live 真比较（不一致打 `!!`） | 负例中 `[FAIL]` 行出现；正常跑 8 行 `[ok]` |
+| F7 证据脚本用管道接 `tee` 会吞退出码 | ✅已修 | 改「重定向到日志 + `cat`」；`git status` 同改 | 证据脚本 rc=0；反例 rc=1（9 项 FAIL） |
+| F8 报告表头「类别」实为 declared | ✅已修 | 表头改「声明」 | 报告正文；`--report --check` rc=0 |
+
+
+### 第 1 轮 reviewer 验收（2026-11-13，本人重跑；采信项：engineer 自审 F1–F8 的文字描述，其复验证据命令已由我重跑）
+
+**重跑记录（命令 → 真实退出码）**：`make check-linux-toolchain` → rc=0，`toolchain matrix: 8/8 行一致, gaps=6 (blockers=0)` + `PASS`；`python3 tools/linux/check_toolchain.py --inject` → rc=0（R1/R3/R2/R4/R5/R6 六例 `expected rc=1 actual rc=1`、`cp`+md5 还原回绿、真实矩阵 md5 未变）；`bash .work/evidence/m14-infra-001/run.sh` → rc=0（31 PASS / 0 FAIL）；`make check-test-reports` → rc=0（9 report(s), 4 snapshot(s)）；`make check` → rc=2、249 PASS、唯一红 = `check-milestones-fresh`：m13 台账 1 项（`m13-testcases-016`），`--file milestones-m14.md` rc=1（4 项 = A1 `m14-infra-001` + 3×R1），而**主工作树** m13/m14 两台账 `--file` 均 rc=0 PASS ⇒ 红是任务 worktree 台账基线落后，非本任务缺陷。
+
+**独立探针（不采信矩阵 8 行，现场 rc）**：① `llvm-ar/ranlib/strip` 在 `.dadao/cross-toolchain/bin` 与 `.work/build/llvm/bin` 六处全 ABSENT（构建树只有源码目录 `tools/llvm-ar`、无 bin 产物）；② `-fstack-protector-strong` target rc=1 `error: unable to lower stackguard`，宿主 clang rc=0；③ `.quad`/`.long` 经 `llvm-mc -triple=dadao-unknown-elf` rc=1（`unsupported directive`），`.dd.o64/.dd.b08` rc=0 且段字节 `1122334455667788aa` == 期望；④ `-mcmodel=kernel` rc=1（`unsupported code model`）、`-mcmodel=small` rc=0；⑤ `asm goto`（自写源）`-fsyntax-only` rc=0、`-O1 -S` rc=0、标签降级 1 处；另自写 inline asm 约束 r/i/m/=&r/memory 5 例 rc=0。规避法复验：`ar rcs`/`ar t`/`ranlib` rc=0、`llvm-objcopy --strip-all` rc=0（800→312，与报告同值）、GNU `strip` rc=1；ELF64 大端 `Machine da0`。
+
+**同源核验（报告非手写）**：改矩阵 workaround 文本（不重生成）→ `--report --check` rc=1 `[FAIL] 报告与矩阵不同源`；`--report` rc=0 后再查 rc=0 且报告含改动标记；用原始矩阵重生成的报告与入库报告**除「生成时间/机器指纹」两行外 diff 为空**。
+
+**独立注入 1 路（`cp`+md5，禁 git 还原）**：`llvm-ar declared: absent→present` → `make check-linux-toolchain` rc=2、脚本 rc=1 `[FAIL] R1 声明!=实测 …现场='absent' (rc=127)`；还原后矩阵 md5 `39ea51b02484…`、报告 md5 `888bd7e1f53b…` 均 match → gate rc=0、`--report --check` rc=0、`--inject` rc=0。
+
+**约束核验**：`master..HEAD` 仅 5 个文件（矩阵 / 脚本 / 报告 / docs README / 任务书），无 `Makefile`、`docs/Process-07`、`manifests/`、`.dadao/**`、LLVM 源码改动；审查前后 `git status --porcelain -uall` 快照逐行一致、`git diff HEAD` 为空；安装根 clang/llvm-mc mtime 14:25–14:27（早于任务 19:58–20:02，未重建）；完成区 21 行 ≤30 且无运行期路径；报告四必备项齐、grep `/tmp|/home|\.work` 无命中；完成区数字（8/8、gaps=6、6 例注入、800→312、rc=2）与我现场值逐条一致。
+
+**判定：Accepted**（验收命令块在本人重跑下全部通过、约束无违反、未改契约/测试/判据；本判定为「工程师达标」证据，architect 仍终审）。
+
+**findings（文档级，不阻断，architect 收尾时改）**：F1 完成区「唯一红 = 4 项台账路由」与单次 `make check` 实际输出不完全一致（make 停在 m13 台账 1 项；「4 项」是 `--file m14` 的结果，且主工作树两台账已 PASS）；F2 缺失工具行的 `exit 127` 是脚本约定值（文件不存在即返回、未真正执行），报告宜注明；F3 报告结论行 `gaps=N (blockers=0)` 中 `blockers=0` 为字面量（gaps 为算出值；blockers>0 时 `--report` 被 validate 拦下不写，实际无假结论）；F4 已提交脚本默认临时目录写死任务 ID（可被 `DADAO_TMP` 覆盖），建议改通用名。
+
+**未决（供 architect/用户裁定）**：`llvm-ar/llvm-ranlib/llvm-strip` 缺失——安装根与构建树均缺（我独立 `find` 确认），规避法（GNU ar/ranlib + `llvm-objcopy` strip）现场验证可用、K0 无阻塞；补齐须改 LLVM 构建配置 + `HOST_LLVM_TOOLS` + `make install-host`（动安装根、影响全仓、须重建），超出本任务「不修工具链」范围 ⇒ **建议另立任务**（独立 infra 任务或作 `m14-infra-003` 前置），由用户裁定；矩阵 `owner=m14-linux-002` 只标规避消费方，不替代该决策。
