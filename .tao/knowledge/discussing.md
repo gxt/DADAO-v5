@@ -178,6 +178,11 @@ M15 exit：264 条记录 **100%** 有 operation 块且 id 一对一；抽取结�
 - **仓内既有资产**：`contracts/opcodes.yaml`（编码真源）、`contracts/fp_semantics.yaml`（FP 语义投影）、`contracts/legality_rules.yaml`、`spec/SimRISC-0x` 附录 A（id 清单）、`spec/README.md`（分册与修订流程）、`docs/DDLN/B002`（ISA 语义模型讲义）。
 - **外部标准形态**（只作形态参考）：ARM ASL（可执行伪代码 + 生成文档）、RISC-V Sail（形式化 + C 模拟器生成）、x86/ARM 官方手册的「伪代码块」体例。
 
+## 设计取向（用户 2026-11-13 裁定）
+
+- **以 `riscv-unified-db` 的 IDL 为准**（`doc/idl.adoc`：`Bits<N>` / `X(rs1)` / `jump()` / `raise(ExceptionCode::…)` / `function` / 配置常量），**优先复用其语法与工具**（`idlc`、`yamlidl`）；**只在不合适处扩展**，不自造"四不像"语法。
+- 扩展方式优先用 **IDL 的 `function` 定义**（四 bank 读写、48 位地址、大端访存、cfx 分发），语言本身能不改就不改；确需语法扩展时单列「扩展提案」逐条裁定。
+
 ## 对标维度（讨论提纲）
 
 1. **载体**：operation 写在 spec 正文每条指令旁，还是独立 `.idl` 文件（spec 只保留渲染视图）？
@@ -189,6 +194,7 @@ M15 exit：264 条记录 **100%** 有 operation 块且 id 一对一；抽取结�
 
 ## 待定
 
+- 是否直接采用 UDB `idlc` 作为抽取器（版本/许可证/可离线），还是只借语法、自写抽取器。
 - 是否在 M15 就冻结 `.idl` 语法版本（`contracts/isa/idl-v0.md`）并进 L1 门控。
 - 渲染形态（spec 里显示格式化伪代码，而非原始 IDL）是否需要单独任务。
 - 语料次序：先 5 条样板 → 6 族各一条 → 全量，是否按此三阶段立册。

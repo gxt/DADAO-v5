@@ -505,9 +505,11 @@
   title: 【P3】`components/chipyard/{README,changelog}.md` 的 `ldm`/`stm` 合法性条目未列 `mreg_range_addr_overlap` 新规则（`m12-chipyard-027` 范围限 RTL+补丁，未越界改文档）⇒ 组件文档与实现不同步。
 - id: ISS-422
   scope:
-  - chipyard
+  - qemu
+  - gem5
+  - spec
   - testcases
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P2】`ext.uo/ext.so` 的 orrr 形式**起始位越界**（如 `rd7=64`）三方不一致：QEMU/gem5 判 `ILLI`（rc=248），chipyard 截低 6 位后继续执行（rc=2）⇒ RTL 缺合法性检查。`m13-testcases-017` 已实测并因此未收录该故障例（仅留注释）。建议立 `m12-chipyard-*` 修复 RTL + 补故障例（等当前 chipyard 使用方结束后派）。
+  title: 【P2】`ext.uo/ext.so` 的 orrr 形式：**`rdHD` 值应截低 6 位作为起始位 `hd` 后继续执行**（用户 2026-11-13 裁定）；chipyard 已如此实现（rc=2 正常执行），**QEMU/gem5 反而判 ILLI（rc=248）⇒ 二者为缺陷**。同时 `spec/SimRISC-04` 现写「hd 须 ≤ N（octa=63），否则 ILLI」与该裁定冲突，需改措辞。`m13-testcases-017` 因此未收录该故障例（不能再按 ILLI 收）。修完后补「rdHD=64 ⇒ 等价 hd=0」的跨平台用例。
