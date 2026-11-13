@@ -101,8 +101,8 @@
 | `base/reg-compare.yaml` | — | — | 待迁 |
 | `base/reg-cond-assign.yaml` | 25 | 5 | **id 全部已迁**（5 个 `cs.*_rrrr_rd`，见 §6）；文件未删（§5.1 四个门控阻塞） |
 | `base/reg-imm-block.yaml` | 48 | 7+6 | **id 全部已迁**（6 个块复制 id 见 §6/014，7 个 rwii id 见 §6/015）；文件未删（§5.1 前置） |
-| `base/reg-logic.yaml` | — | — | 待迁 |
-| `base/reg-shift-extend.yaml` | 112 | — | 待迁 |
+| `base/reg-logic.yaml` | 16 | 4 | **id 全部已迁**（4 个逻辑 id，见 §6/017）；文件未删（§5.1 前置） |
+| `base/reg-shift-extend.yaml` | 112 | — | 部分迁移（10 个 64 位 id 见 §6/017；其余 32/16/8 位待 024/025/026） |
 | `base/mem-rd.yaml` | 122 | 22 | **id 全部已迁**（`ld.*`/`st.*` 单元素 11 + `ldm.*`/`stm.*` 11，见 §6）；**文件未删** —— 删除依赖 inventory 载体登记改造（见 §5.1） |
 | `base/mem-ra.yaml` | 22 | 4 | **id 全部已迁**（`ld.o`/`st.o` ra + `ldm.o`/`stm.o` ra）；文件未删（同 §5.1） |
 | `base/mem-rb.yaml` | 23 | 4 | **id 全部已迁**（同上，rb 形式）；文件未删（同 §5.1） |
@@ -250,3 +250,30 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
   链例 15 + 故障例 21）。
 - **YAML**：`base/reg-arith.yaml`（11 个 id）与 `base/reg-compare.yaml`（4 个 id）的用例
   已并入；两文件仍含其它宽度 id，**未删**（按 §5 删除规则等 024/025/026 迁完）。
+
+### `m13-testcases-017`：`04-arith-logic-octa` 逻辑/移位/扩展族（14 个 id）
+
+- `tests/inst/04-arith-logic-octa/{and.o_orrr_rd,or.o_orrr_rd,xor.o_orrr_rd,xnor.o_orrr_rd,
+  shl.o_orrr_rd,shl.o_orri_rd,shr.uo_orrr_rd,shr.uo_orri_rd,shr.so_orrr_rd,shr.so_orri_rd,
+  ext.uo_orrr_rd,ext.so_orrr_rd,ext.uo_orri_rd,ext.so_orri_rd}.S`（14 个）；链接布局复用
+  `01-load-store/inst-tiny.lds`。
+- 宏层新增（`tests/inst/macros/inst_test.inc`）：`TEST_AR_ORRI`（orri 移位/扩展：目的/源C/
+  immu6）、`TEST_FAULT_ALU_ORRI`（orri 的 `dst_rd0`）。驱动器 `run_asm_suite.py` 的
+  `FAULT_AR_RE` 增补 `ALU_ORRI`。
+- 语义要点（`spec/SimRISC-04 §2`）：`and`/`or`/`xor`/`xnor` 全 64 位逐位运算；`xnor` 的源
+  为 rd0（读出 0）时得到**另一源的按位取反**（规范明示的 not 用法）；`shl.o`/`shr.uo`/`shr.so`
+  的移位量取 `rdHD[5:0]`（寄存器形式）或 `immu6`（立即数形式），**64 与更大值只取低 6 位、
+  不触发 ILLI**；`ext.uo/ext.so` 的起始位同口径 —— orrr 的 `hd = rdHD[5:0]`（低 6 位、
+  越界位忽略、**不抛 ILLI**；用户裁定 2026-11-13），orri 的 `immu6` 是 6 位域天然满足。
+- **QEMU/gem5 缺陷 `ISS-422`（未收录为用例，待修）**：`ext.*` orrr 的 `rdHD = 64`（hd 越界）
+  实测 chipyard 按裁定口径 `hd = rdHD[5:0] = 0` 执行（**正确**），QEMU/gem5 判 ILLI（0xF8）
+  ⇒ 判 ILLI 一侧是缺陷。`.S` 里只保留注释说明、不写故障例；QEMU/gem5 修好后补 `TEST_FAULT`
+  一例（任务书「待裁定」1）。`spec/SimRISC-04 §2.2` 的「hd ≤ N 否则 ILLI」措辞待 spec 任务修正。
+- 用例：每 id 12–16 链例 + 1 故障例（encoding 2 / semantic 5–6 / boundary 3–5 / overlap 1–3）；
+  覆盖 0/1/31/32/62/63 边界、移位量 64 的掩码、`immu6=0` 合法、ext 起始位 0 与 63、
+  符号扩展按 `rdHC[hd]` 取值、源=目与两源同名。
+- 三方逐字节：`run_asm_suite.py`（同一份 ELF：chipyard / QEMU / gem5，28 个镜像 =
+  链例 14 + 故障例 14）。
+- **YAML**：`base/reg-logic.yaml`（4 个 id）与 `base/reg-shift-extend.yaml` 的 10 个 64 位 id
+  用例已并入；`reg-logic.yaml` 的 id **全部已迁**，但文件**未删**（§5.1 前置：删后
+  `validate_vectors` 数据覆盖出现 gap），`reg-shift-extend.yaml` 仍含 32/16/8 位 id。

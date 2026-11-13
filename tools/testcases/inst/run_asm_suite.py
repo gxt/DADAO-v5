@@ -54,7 +54,7 @@ FAULT_CODE = {"CFXMEM": 0xF1, "CFXREG": 0xF2, "ILLI": 0xF8,
 # 链例用例行（检查点计数的口径：每个 TEST_LD*/TEST_ST*/TEST_MOV*/TEST_CS*/TEST_WI*/__CHECK_* 一行
 # = 一个检查点；`TEST_LDM`/`TEST_STM` 每行只记一个检查点，与宏内单次 `__REC` 对齐；
 # `TEST_MOV1`/`TEST_CS*`（02-reg-copy）/`TEST_WI*`（03-wyde-imm）/`TEST_AR*`
-# （04-arith-logic-octa 算术族）同理，多条 `__VERIFY_*` 断言共用一个点号）
+# （04-arith-logic-octa 算术/逻辑族）同理，多条 `__VERIFY_*` 断言共用一个点号）
 CHAIN_CASE_RE = re.compile(r"^\t(TEST_LD\w*|TEST_ST\w*|TEST_MOV\w*|TEST_CS\w*|"
                            r"TEST_WI\w*|TEST_AR\w*|__CHECK_RD|__CHECK_MEM)\b")
 # 链例行**写下的点号字面量**（断言用：点号必须等于它在文件里的序号，不能只靠计数器自增）
@@ -64,9 +64,9 @@ FAULT_RE = re.compile(r"^\tTEST_FAULT(?:_MOV|_CS2|_CS|_M|_WI)?\s+(\d+),\s*(\S+?)
                       r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
 FAULT_ENC_RE = re.compile(r"^\tTEST_FAULT_ENC\s+(\d+),\s*"
                           r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
-# 04-arith-logic-octa 算术族的故障宏（`TEST_FAULT_{DUAL,ALU3,ALU_SI,ALU_CMPI}`：
+# 04-arith-logic-octa 算术/逻辑族的故障宏（`TEST_FAULT_{DUAL,ALU3,ALU_ORRI,ALU_SI,ALU_CMPI}`：
 # 参数 = 检查点, 助记符, 故障名, …）
-FAULT_AR_RE = re.compile(r"^\tTEST_FAULT_(?:DUAL|ALU3|ALU_SI|ALU_CMPI)\s+(\d+),\s*"
+FAULT_AR_RE = re.compile(r"^\tTEST_FAULT_(?:DUAL|ALU3|ALU_ORRI|ALU_SI|ALU_CMPI)\s+(\d+),\s*"
                          r"(\S+?),\s*(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
 END_RE = re.compile(r"^\t__TEST_END\b")
 

@@ -669,6 +669,9 @@ __r0w_\@:
 @@     高半用 `__VERIFY_RD`、低半用 `__CHECK_RD` ⇒ 两条断言共用点号，失败点号仍 = 用例序号。
 @@   TEST_AR_ORRR(pt, 助记符, 目的, 目的初值, 源C, C值, 源D, D值, 期望)
 @@     orrr 单目的 cmp/div/rem：目的写满 64 位。
+@@   TEST_AR_ORRI(pt, 助记符, 目的, 目的初值, 源C, C值, immu6, 期望)
+@@     orri 移位/扩展：immu6 = 移位量（shl/shr）或扩展起始位（ext），0..63；
+@@     immu6=0 合法（`legality_rules.yaml::immu6_zero` 明确不适用于 orri 移位/扩展）。
 @@   TEST_AR_SI(pt, 助记符, 目的, 初值, imms18, 期望)
 @@     riii `add.si dst, imms18`：目的兼源，立即数符号扩展后加。
 @@   TEST_AR_CMPI(pt, 助记符, 目的, 目的初值, 源B, B值, imm12, 期望)
@@ -734,6 +737,19 @@ __r0w_\@:
 	.endif
 	.endif
 	\mnem	\dst, \c, \d
+	__CHECK_RD \pt, \dst, \exp
+.endm
+
+.macro TEST_AR_ORRI pt, mnem, dst, dstinit, c, cval, imm, exp
+	.ifnc	\dst, rd0
+	__LI	\dst, \dstinit
+	.endif
+	.ifnc	\c, rd0
+	.ifnc	\c, \dst
+	__LI	\c, \cval
+	.endif
+	.endif
+	\mnem	\dst, \c, \imm
 	__CHECK_RD \pt, \dst, \exp
 .endm
 
@@ -906,6 +922,7 @@ __fault_case:
 @@ 64 位数据运算故障例（`spec/SimRISC-04 §1`；汇编器对非法编码同样放行）
 @@   TEST_FAULT_DUAL(pt, 助记符, 故障名, 高半, 低半, 源C, 源D)  —— dst_dual_same
 @@   TEST_FAULT_ALU3(pt, 助记符, 故障名, 目的, 源C, 源D)        —— dst_rd0（orrr）
+@@   TEST_FAULT_ALU_ORRI(pt, 助记符, 故障名, 目的, 源C, immu6)  —— dst_rd0（orri）
 @@   TEST_FAULT_ALU_SI(pt, 助记符, 故障名, 目的, imms18)        —— dst_rd0（riii）
 @@   TEST_FAULT_ALU_CMPI(pt, 助记符, 故障名, 目的, 源B, imm12)  —— dst_rd0（rrii）
 @@   源寄存器给固定非零值（rd0 作源合法，不装载 ⇒ 跳过 `__LI rd0`）。
@@ -935,6 +952,17 @@ __fault_case:
 	__FAULT_LOAD_SRC \c, 0x0123456789ABCDEF
 	__FAULT_LOAD_SRC \d, 0x0000000000000007
 	\mnem	\dst, \c, \d
+	__EXIT	\pt
+	.endif
+.endm
+
+.macro TEST_FAULT_ALU_ORRI pt, mnem, fault, dst, c, imm
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	__FAULT_LOAD_SRC \c, 0x0123456789ABCDEF
+	\mnem	\dst, \c, \imm
 	__EXIT	\pt
 	.endif
 .endm

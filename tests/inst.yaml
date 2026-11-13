@@ -359,6 +359,90 @@
   - system
   level: full
   requires: []
+- id: inst-04-arith-logic-octa-016
+  file: inst/04-arith-logic-octa/and.o_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-017
+  file: inst/04-arith-logic-octa/ext.so_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-018
+  file: inst/04-arith-logic-octa/ext.so_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-019
+  file: inst/04-arith-logic-octa/ext.uo_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-020
+  file: inst/04-arith-logic-octa/ext.uo_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-021
+  file: inst/04-arith-logic-octa/or.o_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-022
+  file: inst/04-arith-logic-octa/shl.o_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-023
+  file: inst/04-arith-logic-octa/shl.o_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-024
+  file: inst/04-arith-logic-octa/shr.so_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-025
+  file: inst/04-arith-logic-octa/shr.so_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-026
+  file: inst/04-arith-logic-octa/shr.uo_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-027
+  file: inst/04-arith-logic-octa/shr.uo_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-028
+  file: inst/04-arith-logic-octa/xnor.o_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-029
+  file: inst/04-arith-logic-octa/xor.o_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-atomics-001
   file: inst/atomics/aba_treiber.c
   platforms:

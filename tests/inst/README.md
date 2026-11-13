@@ -46,7 +46,7 @@ python3 tools/testcases/inst/run_asm_suite.py \
     --lds tests/inst/01-load-store/inst-tiny.lds                  # 03-wyde-imm 全册
 python3 tools/testcases/inst/run_asm_suite.py \
     --vectors tests/inst/04-arith-logic-octa \
-    --lds tests/inst/01-load-store/inst-tiny.lds                  # 04 算术族全册
+    --lds tests/inst/01-load-store/inst-tiny.lds                  # 04 全册（算术 + 逻辑/移位/扩展）
 ```
 
 判据 = **同一份 ELF** 在 chipyard `WumingTinyConfig` / QEMU `dadao-tiny` / gem5 FS
