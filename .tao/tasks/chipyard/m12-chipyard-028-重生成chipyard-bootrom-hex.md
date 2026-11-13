@@ -86,3 +86,7 @@ chipyard 签入的 BootROM hex 仍是**旧 hmon**（`escape +4`、120 B），而
 
 **遗留问题**：① `tests/inst` 其余册任务书（020–031）仍写「沿用 012 的 hmon 自装 workaround（`ISS-410` 未修前必须保留）」——已过时，建议主会话统一改为「已撤除」；② 节点 chipyard 组件树仅同步 hex（`apply-series` 因节点 llvm-project 与主控机 manifest 不同代被拒），RTL 用节点自身 base+1——本任务未改 RTL，判据不受影响；③ 主控机 gem5 在验证期间被并行任务反复重建（二进制多次消失/重现），本地三平台依赖其空闲窗口；证据脚本已按存在性降级并打印 NOTE，三平台判据以节点段为准。
 
+## 合入后验证（architect，2026-11-14）
+
+- 合入 `c125fae9`（028 + `m13-testcases-031` 已同时落地）后，在节点 `server207` 跑 `run_asm_suite.py --vectors tests/inst/01-load-store`（三平台）⇒ **234/235**，唯一红 = `ld.o_rrii_ra` 链例点 20（`ISS-426`：QEMU/gem5 的 `ra0` 写未丢弃 SBZ；chipyard 合规）⇒ **撤 workaround 后 `031` 新增用例仍成立**。
+- 首轮跑到 37/235 是**环境假红**：节点模拟器固件未随 hex 更新（`ISS-429`）；节点无 JVM 不能自行 elab，已用主控机已验证的 Verilator 二进制同步替换后复跑。
