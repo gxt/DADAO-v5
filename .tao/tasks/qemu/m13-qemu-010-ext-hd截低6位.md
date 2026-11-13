@@ -110,7 +110,7 @@
 ### 第 1 轮 reviewer 验收（独立重跑）
 
 **重跑记录**（workdir = 本任务 worktree；以下全是我自己的输出/退出码）
-1. `bash .work/evidence/m13-qemu-010/run.sh` ⇒ `summary: PASS=71 FAIL=0`、`RESULT: PASS`、`RERUN_EXIT=0`；与 engineer 留存 `log/run-all.log` 的 PASS/FAIL/summary/RESULT 行 `diff` ⇒ `IDENTICAL`（输出真实性核过）。
+1. `bash <运行期证据目录>/run.sh` ⇒ `summary: PASS=71 FAIL=0`、`RESULT: PASS`、`RERUN_EXIT=0`；与 engineer 留存 `log/run-all.log` 的 PASS/FAIL/summary/RESULT 行 `diff` ⇒ `IDENTICAL`（输出真实性核过）。
 2. 现场值：改前二进制 `9837631c…`；构建树==安装根 `1dfc56c9…`；`check-inst rc=2` = `1141 total/1135 passed/1 failed/5 deferred/0 errors`，红集**恰** `FAIL divrem.yaml[23]`、无 `ext.*`，改前同门控红集逐条相同，smoke rc=0；`check-patch-tree` qemu 0 assertion、整树 14 问题全 attributable；`--source-state: qemu: OK`（base+1 clean）；changelog rc=0；`check_qemu_trans 264/264`；注入 A 钉 0、B 红@5/@11、C 链例 `-2`+故障例 `248`；还原后源 md5 `d5bc601d…/b33826b9…`、二进制 `1dfc56c9…`、探针回绿、源树 clean；节点 `PASS=8`（chipyard==QEMU `475e16ce…`/`8a3f43da…`，gem5 `-2` 按 GAP 钉住）。
 3. 我独立重算 28 条期望（自写解析 + oracle，不复用 engineer 脚本）⇒ `MISMATCH total = 0`；等价类 `64≡0 / 67≡3 / 2^64−1≡63`（uo/so × 两组源值）全 OK；uo pt1=`0x1` vs so pt1=`0xFF…FF`（bit0 区分两助记符）。
 4. **改前两形态独立核实**（我自己 `llvm-mc`/`ld.lld` 汇编链接，不用 engineer 的 `.elf`）：故障例 `ext_{uo,so}_orrr_hd_illi` 跑改前 ⇒ **`rc=248`**（0xF8=ILLI）；链例 14 点同图跑改前 ⇒ `timeout 60` **`rc=124`**、输出 0 B（60 s 无退出）⇒ runner 记 **`-2`**。两种形态均为真。

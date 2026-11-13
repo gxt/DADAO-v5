@@ -108,12 +108,12 @@ K0 各任务各自有局部验收，但缺一个**跨产物**的收口门控：v
 - `tools/infra/apply_series.py`：新增 `--component <name>`（可重复；未知名非零退出）；不带 flag 时遍历/顺序/输出不变。
 - `Makefile`：L1 `_locked-check` += `check-linux-toolchain`、`check-linux-boot-contract`（置于 `check-temp-dirs` 之前）；L2 `_locked-check-modules` += `check-linux-k0`；分层注释/帮助行同步。
 - `docs/Process-07-门控分层规范.md`：§1.1 登记三行（2×L1 + 1×L2，判据列机械可判）。
-- 本任务书；证据脚本 `.work/evidence/<任务ID>/run.sh`（运行期，未入库）。
+- 本任务书；证据脚本 `<运行期证据目录>/<任务ID>/run.sh`（运行期，未入库）。
 **验收结果**（真实输出）：
 - 门控：`119/119 项通过（失败 0，耗时 4.3 s）` / `check-linux-k0: PASS`（rc=0）
 - 计数：`补丁 56 个；PT_LOAD 10 个；cpio 条目 3 个；vmlinux 5279264 B；initramfs 18872 B；init 18520 B`；增量耗时 vmlinux 1.3 s / initramfs 0.4 s / 矩阵 0.6 s / 契约 0.1 s / apply-series 1.8 s（冷启动一度 28–31 s）
 - L2 成员：`_locked-check-modules` 把其它成员标 up-to-date 后只剩 `check-linux-k0` ⇒ `check-linux-k0: PASS` + `module checks (L2): PASS`（rc=0，嵌套锁直接放行）；`make check-modules` 全量 rc=2，红项 = `check-unit`→`diff_ir_lli` structural（`patchable-function-entry.ll` 未归类，该文件由 `m14-llvm-003` 提交，属既有）⇒ 外部
-- L1 成员：`make -k check` 中 `check-linux-toolchain: PASS`、`check-linux-boot-contract` → `结果：PASS（失败项 0，退出码 0）`；全量 rc=2，4 个红项逐个归属外部：`check-patch-tree`（llvm-project/qemu/gem5 被并行任务改动）、`check-knowledge-refs`（`m16-gem5-002` / `m14-linux-002` 两处 `.work/evidence/…` 具体路径）、`check-musl-freshness`（并发重建 builtins 后 `libc.so` 待重建）、`check-milestones-fresh`（见遗留）；收尾复核时 `check-temp-dirs` 另因外部空目录 `INFRA-098t` 满 2 h 转红（0 B，只报告不删除）
+- L1 成员：`make -k check` 中 `check-linux-toolchain: PASS`、`check-linux-boot-contract` → `结果：PASS（失败项 0，退出码 0）`；全量 rc=2，4 个红项逐个归属外部：`check-patch-tree`（llvm-project/qemu/gem5 被并行任务改动）、`check-knowledge-refs`（`m16-gem5-002` / `m14-linux-002` 两处 `<运行期证据目录>/…` 具体路径）、`check-musl-freshness`（并发重建 builtins 后 `libc.so` 待重建）、`check-milestones-fresh`（见遗留）；收尾复核时 `check-temp-dirs` 另因外部空目录 `INFRA-098t` 满 2 h 转红（0 B，只报告不删除）
 - `--inject` 10/10：I1 e_entry(K3)/I2 删 init(K7)/I3 矩阵行 absent(R1)/I4 多一个 commit(K12)/I4b 树脏(K12)/I5 内核区缩小(K4)/I5b 窗口收窄(K5)/I6 归档 mtime 差(K8)/I7 未知名过滤/I8 vmlinux 截断(K13)，真实产物 md5 与源树 HEAD 未变
 - 缺产物：vmlinux 移走 ⇒ `[FAIL] K1 vmlinux 存在` + `下一步: make linux-vmlinux`（rc=1；还原 md5 `84b971d7…` 后回绿）；`initramfs.cpio` 移走 ⇒ `[FAIL] K7 initramfs 产物齐全` + `下一步: make linux-initramfs`（rc=1；还原 md5 一致后回绿）
 **新发现/坑**：任务书断言表 K4 写旧口径 `p_vaddr == p_paddr`，而契约已冻结 `VA = PA + 2 TiB`（该式还属 `forbidden_terms`）⇒ 按契约实现为 `p_vaddr − p_paddr == va_pa_offset`（越界处披露，判据以契约为准）。`check_toolchain.py` 的 `DADAO_TMP` 默认建「其任务临时目录」且不自清（`rmtree` 只删 mkdtemp 子目录）。
@@ -147,9 +147,9 @@ K0 各任务各自有局部验收，但缺一个**跨产物**的收口门控：v
 
 **重跑记录**（命令 → 真实输出 / 退出码）
 1. `make check-linux-k0` → `119/119 项通过（失败 0，耗时 4.3 s）` + `check-linux-k0: PASS`，rc=0；日志内 `[PASS]`=119、`[FAIL]`=0、`SKIP`=0（现场计数，不采信转述）。
-2. `make -k check`（L1）→ rc=2；`check-linux-toolchain: PASS`；`check-linux-boot-contract` 段 `结果：PASS（失败项 0，退出码 0）`；输出顺序 = 两条 Linux 门控在 `check-temp-dirs` **之前**（`_locked-check` 末尾 `… check-linux-toolchain check-linux-boot-contract check-temp-dirs`）。4 红项逐条外部：`check-patch-tree`（llvm/qemu/gem5 在飞）、`check-knowledge-refs`（他任务书两处 `.work/evidence/…` 具体路径）、`check-musl-freshness`（并发重建）、`check-milestones-fresh`（m13 册他任务两行）。
+2. `make -k check`（L1）→ rc=2；`check-linux-toolchain: PASS`；`check-linux-boot-contract` 段 `结果：PASS（失败项 0，退出码 0）`；输出顺序 = 两条 Linux 门控在 `check-temp-dirs` **之前**（`_locked-check` 末尾 `… check-linux-toolchain check-linux-boot-contract check-temp-dirs`）。4 红项逐条外部：`check-patch-tree`（llvm/qemu/gem5 在飞）、`check-knowledge-refs`（他任务书两处 `<运行期证据目录>/…` 具体路径）、`check-musl-freshness`（并发重建）、`check-milestones-fresh`（m13 册他任务两行）。
 3. `make -k check-modules`（L2）→ rc=2；`check-linux-k0: PASS`（成员表内实跑）；唯一红 = `check-unit` → `unclassified *.ll … patchable-function-entry.ll`（已知外部）。
-4. 证据脚本 `bash .work/evidence/m14-infra-003/run.sh` → `RESULT: PASS (38 checks)`，rc=0。
+4. 证据脚本 `bash <运行期证据目录>/run.sh` → `RESULT: PASS (38 checks)`，rc=0。
 5. 缺产物（`cp` 备份 + md5 还原）：`--no-build` 下移走 vmlinux ⇒ rc=1 `[FAIL] K1 vmlinux 存在` + `下一步: make linux-vmlinux`；移走 initramfs.cpio ⇒ rc=1 `[FAIL] K7 initramfs 产物齐全` + `make linux-initramfs`；均无 SKIP，还原后 rc=0、md5 与基线一致（`84b971d7…` / `05059107…`）。**默认 `make check-linux-k0` 下同样移走 ⇒ 先增量重建再 PASS（rc=0）**（见 F1）。
 6. 独立注入 2 路（自设计，不复用 10 路）：① 真实 vmlinux 副本 `e_machine 0x0DA0→0x0D0A` ⇒ rc=1、首条 `[FAIL] K2 e_machine`，`cp`+md5 还原回绿；② 契约副本把 initramfs 区收到 `start+0x1000` ⇒ 仅 `[FAIL] K9 initramfs 大小 <= initramfs 区（4096 B）`，真实契约 md5 未变 ⇒ `reviewer-inject: PASS`。
 7. 现场计数与完成区一致：补丁 56 / PT_LOAD 10 / cpio 条目 3 / vmlinux 5279264 B / initramfs 18872 B / init 18520 B。
