@@ -1827,7 +1827,7 @@ check-fp-contract:
 # `tests/inst/inventory.md`「门控覆盖」）。ISS-235 = 载体集曾只覆盖 3/16 册。
 # 结构断言（缺册/basename 重复/断链/0 册/运行 total ≠ 派生总数）+ 自证日志
 # （ISS-236）在 `tools/qemu/semantics_gate.py`；`--check-only` 只跑派生+结构断言。
-# 并发走 --jobs $(JOBS)（默认 8，禁 nproc）；退出码直传（无管道）。
+# 并发走 --jobs $(JOBS)（默认 nproc/2）；退出码直传（无管道）。
 # D6：gate 目录在 TEST_ARTIFACTS_DIR 下，日志在 .work/log/qemu/。
 INST_DIR = $(CURDIR)/tests/inst
 INST_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
@@ -1929,5 +1929,6 @@ check-night-report:
 check-l3-report:
 	@$(PYTHON) tools/testcases/check_l3_report.py --root "$(TESTS_ROOT)" $(if $(L3_STAMP),--stamp $(L3_STAMP),)
 
-# 构建并行度（用户裁定 2026-10-01：限制 cc1plus 类进程）
-JOBS ?= 8
+# 构建并行度（用户 2026-11-13 修订：默认 = nproc/2；主控机 64 核 ⇒ 32，节点 40 核 ⇒ 20）
+NPROC := $(shell nproc 2>/dev/null || echo 4)
+JOBS ?= $(shell expr $(NPROC) / 2)
