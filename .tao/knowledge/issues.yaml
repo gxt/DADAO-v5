@@ -484,7 +484,7 @@
   scope:
   - infra
   status: closed
-  closed_in: null
+  closed_in: M13
   resolved_by: 用户 2026-11-13 重装 207/208：账号改为 `ubuntu` + 反向隧道，`remote.py` 默认用户已匹配；本地 `~/.ssh/config` 补 `server207`/`server208` 别名（端口不入库）。实测 `remote.py status` rc=0
   title: 【P2】`tools/infra/remote.py` 对 `server207`/`server208` 恒连不上：它固定用 `ubuntu@`，而这两台的免密用户是 `gxt@` ⇒ `Permission denied (publickey)`、`overall rc=1`。`ics150`–`ics180` 是 `ubuntu` 所以没暴露。影响：派单前的「并行度与磁盘」预检对 207/208 永远失败（假红）。建议：允许按 host 指定用户（`--user` 或 `DADAO_NODE_USER` / host→user 映射），并在 `nodes.md` 记录各节点登录用户。（2026-11-13 已随重装解决）
 - id: ISS-420
