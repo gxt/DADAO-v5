@@ -23,13 +23,11 @@
 | `infra` | `INFRA` | 构建基础设施（组件锁、fetch/apply、Makefile、容器） |
 | `spec` | `SPEC` | 规范锁定、ISA 合约、编码表、ABI/ELF/SBI 合约 |
 | `testcases` | `TESTCASES` | 测试用例：向量（schema/validator）+ benchmark |
-| `golden` | `GOLDEN` | Python 黄金模型（**未开工**） |
 | `llvm` | `LLVM` | LLVM MC + CodeGen |
 | `qemu` | `QEMU` | QEMU |
 | `integ` | `INTEG` | 集成验证（E2E 套件与回归 + 跨模块接口对齐） |
 | `linux` | `LINUX` / `mNN-linux` | Linux 内核移植（`arch/dadao`、启动 ABI、initramfs、K0–K5） |
 | `idl` | `mNN-idl` | ISA 语义结构化（IDL 语法/抽取/门控）+ 可执行参考模型（M15/M16） |
-| `gem5` | `GEM5` | gem5（**未开工**） |
-| `sail` | `SAIL` | Sail（**未开工**） |
+| `gem5` | `GEM5` | gem5：功能模型（SE/FS 已实现）+ 时序模型（wuming 待建） |
 
 **文档三分界**：`spec/`（技术规范正文）/ `docs/`（工程流程规范 + 索引 + `DDLN/`）/ `.tao/knowledge/`（结论·设计·口径）——主判据与落点见 `AGENTS.md`「文档分层与单一真源」。
