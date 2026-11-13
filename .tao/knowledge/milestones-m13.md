@@ -27,7 +27,6 @@
 | --- | --- | --- |
 | m13-testcases-032 | 4–6 h | rootn ±0 / NaN canonical / quiet-sNaN 向量与三平台期望 |
 | m13-testcases-031 | 2–3 h | 补 `st.o rb0`（`aip.si` 构造期望）+ `ld.o ra0` 读写（SBZ 写忽略） |
-| m13-testcases-015 | 2–3 h | `03-wyde-imm` 8 个 id 改汇编+宏 |
 | m13-testcases-016 | 3–4 h | `04-arith-logic-octa` 算术 15 个 id 改汇编+宏 |
 | m13-testcases-017 | 3–4 h | `04-arith-logic-octa` 逻辑/移位/扩展 14 个 id 改汇编+宏 |
 | m13-testcases-018 | 1–2 h | `04-arith-logic-octa` 位操作 4 个 id 改汇编+宏 |
@@ -52,6 +51,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m13-testcases-015 | 2026-11-13 18:47 | 2–3 h | `03-wyde-imm` 8 个 id 改汇编+宏 |
 
 ## 已验证
 
