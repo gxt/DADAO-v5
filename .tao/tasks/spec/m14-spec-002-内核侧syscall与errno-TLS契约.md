@@ -5,7 +5,7 @@
 **依赖**：`m14-spec-001`（**串行**：同改 `.tao/contracts/README.md` 版本表；`m14-spec-001` 另改 spec 版本锁，两者不得并行）
 **可并行分片**：否（单册单写者）
 **预估**：3–4 h
-**状态**：待开始
+**状态**：已验证
 
 ## 背景
 
@@ -102,22 +102,112 @@
 
 ## 用户依据
 
-（由主会话在派单前填入用户原话/问答摘要；未填 ⇒ 新增条款标 `[spec-decision]` 并列 §7 待裁定。）
+（主会话**未在派单前填入原话**；本任务新增条款一律按 `[spec-decision]` 处理并列入 §7 #5–#8，**未编造**用户裁定或原话。）
 
 ## 待裁定
 
-（需用户语义裁定的事项写这里：问题 + 选项 + 建议 + 自决的临时处置；返回主会话。）
+1. **固件放行 `supv` 对 `cfx_umon` / `cfx_jmon` 的配置权**：问题 = 内核（`supv`）能否写 `cfx_umon_user_*` / `cfx_umon_supv_*`；事实 = 源位默认屏蔽（`0xFFFF…F7`：smon 位 = 1）且 `hypv_cg_reg_deleg` 另设一道门。选项 = A（hmon HBI 初始化放行 umon/jmon 对 smon 的 `cfxreg`/`cfxtrap` 源位，内核自配置）/ B（hmon 代配入口寄存器，内核只读）。**建议 A**（责任在内核、固件只放行）。**自决临时处置**：合约只写「责任 + 前提」，不假定内核总能自配置。
+2. **`excp_cause_info` 与 `immu18` 的关系**：`DADAO-12 §3.6` 只写「指令编码」，本合约据 `SimRISC-00 §3.1` 位段推得 `immu18 = cause_info & 0x3FFFF`。建议上游补一句明文（「`CFXTRAP` 的 `cause_info` = 触发指令编码」）；**自决临时处置** = 按位段推导使用，不改 `spec/`。
+3. **`clone` 双返回 / `execve` 清零 `rbtp` 的上游落点**：`DADAO-21 §4` 未规定二者；本合约按 Linux 语义冻结（`[spec-decision]`）。建议在上游 ABI 补一小节，或在 `contract-dynlink`/musl 移植任务中承载；**自决临时处置** = 留本合约 §10。
 
 ## 完成区
 
-**测试结果**：
+**测试结果**：`check_syscall_contract.py` rc=0（§8/§9/§10/§11 规范句现场统计 = 11/6/6/5，合计 28）；`--self-test` rc=0（5 类注入各自 FAIL 且失败原因 = 该项断言，还原回绿 5/5）；一键证据脚本 rc=0（**PASS=42 / FAIL=0**，含 3 路真实文件注入；变更集断言改用 `8352b41b..HEAD` ∪ 工作树，`BASE=HEAD` 重放判红）。
 **修改文件**：
+- `.tao/contracts/contract-syscall.md`（0.9.2→0.10.0；§6 加 M14 注记；§7 补 #5–#8；新增 §8–§11；附录 A 补 §8–§11；版本头「暂落」旧句就地修正）
+- `tools/linux/check_syscall_contract.py`（新建；含 `--self-test` 5 类注入）
+- 本任务书（状态 / 用户依据 / 待裁定 / 完成区 / 自审）
 **验收结果**：
+- §1 与派单基线 `174298eb` **逐字节一致**：检查器 `cur_sha == base_sha`（`6eda79ae…`）；证据脚本独立复算 §1 sha 一致（`7b3e0ec3…`）、§1 内 `rd15` 出现 4==4；§4 亦逐字节一致；§6 基线原文缺失行 0。
+- 门控 rc=0：`check-contracts-pending` / `check-syscall-abi` / `check-contracts-dir` / `check-knowledge-refs`。
+- 范围：`git diff 174298eb..HEAD -- spec/ contracts/ manifests/` 与工作树同名域均为空（号表正文 / `contracts/*.yaml` / `manifests/` 未动）；未进入 linux 组件树（内核 `scripts/syscall.tbl` 未动）；变更集 = `8352b41b..HEAD` ∪ 工作树 = 契约 + 任务书 + 检查器（WIP 提交 `61e41247` 后仍成立）。
 **新发现/坑**：
-**遗留问题**：
+1. `.tao/contracts/README.md` 的 `contract-syscall` 行**没有版本号**（只写一句话）⇒ 任务书「README 版本行 0.9.2→0.10.0」无对应内容，未改（派单提示亦限定只改契约 + 检查器）。建议后续给 README 补版本列或删该项。
+2. 版本头「来源」行仍写 `DADAO-22`（0.7.1）、实际册为 `0.7.3-rc`：既有陈旧，按最小修改未动。
+3. 上游口径：`cfx_umon_supv_*` 的 smon 源位默认屏蔽，且 `supv` 自配置还受 `*_supv_cfxreg` + `hypv_cg_reg_deleg` 门控 ⇒ 合约只写责任与前提，不写「内核总能自配置」。
+4. 检查器自检注入串必须在全文件唯一：`[-4095, -1]` 在 §7/§9 各一处，需带上下文（`取值范围 **…**`）才能唯一命中。
+5. **台账现场事实**：本分支基线 `8352b41b` 的 `milestones-m14.md` 仍把本任务列在「待开始」⇒ `check-milestones-fresh --file milestones-m14.md` 报 A1/R1 红；`master` 的 `174298eb` 已移入「进行中」（含派单时间），合并后自愈。另 `m13-testcases-016` 红属他任务。本任务未改台账。
+6. **审阅记录也会撞 `.work/**` 门控**：审阅记录里写具体 `.work/**` 路径即被 `check-knowledge-refs` 判红（本次 2 处已改为「运行期证据目录的 `run.sh`」，结论/数字未改）。
+**遗留问题**：无（3 项口径问题已入「待裁定」，不阻塞 K0 实现）。
 
 ## 审阅记录
 
-### 第 1 轮 engineer 自审（待填）
+### 第 1 轮 engineer 自审
 
-### 第 1 轮 reviewer 验收（待填）
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 初稿把「`escape cfx_umon` 受 `cfx_umon_supv_*` 源位约束」写成返回路径条件，与 `DADAO-12 §5.3`（`escape` 的 `cfxha` 必须等于当前 cfx，源 = 目标 ⇒ 自身位忽略）冲突 | ✅已修 | §8 改写为「源 = 目标 ⇒ 自身位忽略；被拒只可能是帧/目标错误 ⇒ `CFXESC`」，另立「`supv` 期跨 cfx 转移掩码」与「自配置前提」两条 | 检查器 §8 要点 PASS；`check-contracts-pending` rc=0 |
+| `excp_cause_info & 0x3FFFF` 需先证明 `ciii` 立即数占指令位 `[17:0]` | ✅已核并补标注 | 核对 `SimRISC-00 §3.1`（`opc[31:24]` + `ha/hb/hc/hd` ⇒ 立即数 `[17:0]`）；数值不变，补 `[SimRISC-00 §3.1]` | 检查器 `§8 点名 excp_cause_info & 0x3FFFF` PASS |
+| `--self-test` errno 注入串 `[-4095, -1]` 命中 2 处（§7 + §9）⇒ 自检报「注入点不唯一」，自检红 | ✅已修 | 注入串改唯一上下文 `取值范围 **\`[-4095, -1]\`**` | `--self-test` rc=0；5/5 注入各自命中预期 FAIL 标签 |
+| 证据脚本「改动文件集」期望串未按 `sort` 序（写成 契约/检查器/任务书） | ✅已修 | 期望串改 契约/任务书/检查器（按路径序） | 一键证据 `改动文件集 == 任务书范围` PASS |
+| 任务书「范围」第 2 项（README 版本行）在文件中无对应内容 | ⏸延后 | 未改 README（派单限定只改契约 + 检查器；且 README 与 `m14-spec-001` 共享） | 已记「新发现/坑」#1 |
+| 检查器把「不定义」类 bullet 也要求来源标注 | ❌不修 | 这是有意的（判据一致、避免以「不定义」逃标注）；§11 该类条已标 `[spec-decision][ADR-0025 D6]` | 检查器 §11 5/5 标注 PASS |
+| 新增条款用了 `[外部权威 …]` / `[Machine-v5 §1.2]`（不在任务书列举的 6 类） | ❌不修 | 沿用 `contract-dynlink` 既有「外部权威」体例；`Machine-v5` 是 v5 自定 spec 册 | 检查器 `TAG_SOURCES` 覆盖这些前缀；`check-contracts-pending` rc=0 |
+
+判决：无未修 finding ⇒ 状态置 **待验收**。
+
+### 第 1 轮 reviewer 验收
+
+**判决：Needs Revision**（1 项阻断 = 证据脚本提交后 rc=1；其余全部通过）
+
+**重跑记录（本人独立执行，workdir = 任务树）**
+- `python3 tools/linux/check_syscall_contract.py` → **rc=0**；§8/§9/§10/§11 bullet 现场统计 11/6/6/5。
+- `python3 tools/linux/check_syscall_contract.py --self-test` → **rc=0**；5 类注入各自 `rc=1` 且 FAIL 标签逐条命中（`contract-abi rb3 行`／`§9 区间`／`§8 来源标注`／`§1 逐字节`／`版本=0.10.0`），还原回绿 5/5（自检日志 1321 行逐项核过）。
+- `bash` 运行期证据目录的 `run.sh` → **rc=1，汇总 PASS=40 FAIL=1**（完成区称 rc=0 / PASS=41 / FAIL=0 ⇒ 数字不符）。
+  - 唯一失败：`[FAIL] 改动文件集 == 任务书范围 | expected=<契约 任务书 检查器> actual=`（run.sh L140 用裸 `git status --porcelain -uall`；WIP `61e41247` 于 19:59:21 落盘后工作树干净 ⇒ 该断言恒空）。
+  - 其余全绿：A 检查器、B self-test、C 3 路真实注入（注入→FAIL→`cp`+md5 一致→回绿）、D 4 门控、F §1 独立复算（`7b3e0ec3…`==`7b3e0ec3…`、`rd15` 4==4）。
+- `make -s check-contracts-pending` / `check-syscall-abi`（80/80）/ `check-contracts-dir` / `check-knowledge-refs` → **全 rc=0**。
+- `make -s check-milestones-fresh` → rc≠0，红项 = `m13-testcases-016`（他任务，m14 段未跑到）⇒ 移交主会话，非本任务。
+
+**§1 硬判据（不采信检查器，自写脚本独立算）** 临时树的独立脚本 `extract_sec1.py`（`git show <base>:<path>` 切 `## §1`→`## §2` + sha256）：
+- 基线 `8352b41b` = 5561 B `7b3e0ec32af7a31f68e832efa773758c02e0cc1816eccdf5094da850fe6cbe17`；基线 `174298eb` 同；当前同 ⇒ **逐字节一致（exit=0）**；两基线仅差 `milestones-m14.md` 一行，契约内容等价。
+
+**独立注入 1 路（自设计，不复用 5 类自检 / 3 路脚本）**：删 §6「M14 注记」整行 → 检查器 **rc=1** 且唯一 FAIL = `§6 含 M14 注记指针（§8）` → `cp` 还原 + md5 `32b32ff300e7b6d45c05d29fd9aa033a` 前后相等 → **rc=0 回绿**；`git status -uall` 还原后干净。
+
+**约束核验**
+- 越界：`git diff 8352b41b -- spec/ contracts/ manifests/` 与 `git diff 174298eb -- spec/ contracts/ manifests/` 均为空（exit=0）；改动集 = 契约 + 任务书 + 检查器 3 件 = 完成区声明；完成区 19 行 ≤30；未重建组件、未改 `spec/`/`Makefile`/`contracts/*.yaml`。
+- §8–§11 逐条抽核可定位：DADAO-12 §3.1/§3.3/§3.6/§3.7/§5.1/§5.2/§5.3（cg0 复位 2、cg5 字段、`escape` 帧错误⇒`CFXESC`）、DADAO-13 §1 `hypv_cg_reg_deleg`、DADAO-22 §1（同 cfx 递归须存 cg6、A→B 免保存）与 §2（`immu18=0`/`rd15`/`rd8`/独立编号）、DADAO-23 §1–§3、SimRISC-00 §3.1（`hb‖hc‖hd` = 指令位 `[17:0]`）、SimRISC-12 §1（spurious failure／异常清保留标记／对齐／序变体）、Machine-v5 §1.2（PTW 未映射⇒CFXMEM、权限⇒CFXPERM）、contract-abi §1.3/§4.5、contract-dynlink §2.4/§7；`immu18 = cause_info & 0x3FFFF` 另有 DADAO-22 §7.2/§12.2 `set.rd rd3, 0x3FFFF @@ 掩码提取 immu18` 佐证。
+- `[spec-decision]` 均落 §7 #5–#8 + 任务书「待裁定」#1–#3；契约内无编造的 `[用户裁定 2026-11-13]`（仅既有 2026-10-14）。
+
+**返工要求（仅此 1 项）**：运行期证据目录的 `run.sh` L140「改动文件集」断言改用**钉常量基线**（分支基线 `8352b41b`：`git diff --name-only 8352b41b`；或 `<base>..HEAD` ∪ `git status`），使提交前后均成立——禁裸 `git status`（提交后恒空 ⇒ 假 FAIL）；改后重跑至 rc=0（PASS=41 FAIL=0）并同步完成区数字。
+
+**非阻断 finding（交 architect 收尾改）**：① §8 第 3 条「supv 期 `escape` 走 cg2 掩码行」与第 4 条「`escape` 不查掩码、不因掩码被拒」措辞张力（DADAO-12 §5.3 无掩码检查），建议第 3 条去掉 `escape`；② §8「`cfx_hmon` 放行责任在固件（HBI 初始化）侧」与 DADAO-23 §3「hmon 除外、由 hypv/HEE 保留」略有出入；③ 完成区 #5 对 `check-milestones-fresh` 红项归因不准（实为 `m13-testcases-016`；`174298eb` 已把本任务行移入「进行中」，合并后自愈）。
+
+### 第 2 轮 engineer 自审（返工；对应 reviewer Needs Revision 1 项阻断 + 3 项非阻断）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 【阻断】证据脚本用裸 `git status --porcelain -uall` 断言改动集：WIP `61e41247` 提交后工作树干净 ⇒ 断言恒空、rc=1 | ✅已修 | 拆两基线：`CONTRACT_BASE=174298eb`（§1/§4/§6 与 spec/contracts 范围，钉常量、不可覆盖）+ `BASE=${BASE:-8352b41b}`（变更集，可覆盖）；改动集 = `$BASE..HEAD` ∪ 工作树（`core.quotepath=false`，`sort -u`）；脚本开头打印解析后 base sha | `bash run.sh` rc=0 `PASS=42 FAIL=0`；`BASE=HEAD bash run.sh` rc=1，唯一 FAIL = 「改动文件集 == 任务书范围」（`actual` 只剩工作树 2 件、缺已提交的检查器） |
+| 自证「断言可失败」 | ✅已加 | 新增 G 段：以 `BASE=HEAD` 重放同一判据、期望 mismatch；若仍相等则判 FAIL（防恒真） | `[PASS] 反例：BASE=HEAD 时「改动文件集 == 任务书范围」判红 | expected=mismatch actual=mismatch` |
+| 【非阻断①】§8 第 3 条把 `escape` 归入「走 cg2 掩码行」，与第 4 条「`escape` 不因掩码被拒」张力 | ✅已修 | 第 3 条删 `escape`，改为「`supv` 期 `trap` 与 `supv` 期同步异常」，并指向下条帧/目标判据 | 检查器 rc=0（§8 要点 13/13 PASS）；`--self-test` rc=0 |
+| 【非阻断②】「`cfx_hmon` 放行责任在固件（HBI 初始化）侧」与 `DADAO-23 §3`（hmon 不参与逐 cfx HBI 初始化）不符 | ✅已修 | 改为「固件（hypv / HEE 引导）侧（`hmon` 不参与逐 cfx 的 HBI 初始化）」 | 同上；§8 来源标注仍齐 |
+| 【连带】审阅记录含具体 `.work/**` 路径 ⇒ `check-knowledge-refs` 判红（2 处，非本任务正文） | ✅已修（仅改路径措辞，结论/数字不动） | 2 处改为「运行期证据目录的 `run.sh`」 | `make -s check-knowledge-refs` rc=0（0 具体引用） |
+| 完成区数字与门槛同步 | ✅已修 | PASS 41→42；范围句改「`..HEAD` ∪ 工作树」；#5 台账归因改现场事实、新增 #6 | 见完成区 |
+
+判决：1 项阻断 + 3 项非阻断全部处置，无未修 finding ⇒ 状态保持 **待验收**。
+
+### 第 2 轮 reviewer 验收
+
+**判决：Accepted**（第 1 轮唯一阻断已修，回归全绿；本记录为独立重跑结果）
+
+**1. 阻断项复核（证据脚本）**
+- `bash 运行期证据目录的 run.sh` → **rc=0，`== 汇总：PASS=42 FAIL=0 ==`**（与完成区 42/0 一致）。
+- 改动集断言已改「钉常量基线 + `$BASE..HEAD` ∪ 工作树」：`CONTRACT_BASE=174298eb`（§1/§4/§6 与 spec/contracts 范围，不可覆盖）+ `BASE=${BASE:-8352b41b}`（默认钉常量、非 `HEAD`）；E 段现场变更集 = 契约 + 任务书 + 检查器 3 件。
+- 可达 FAIL 自证（本人重放，不采信自审）：`BASE=HEAD bash …run.sh` → **rc=1，`PASS=41 FAIL=1`**，计数 FAIL 仅 `改动文件集 == 任务书范围`（`actual` 只剩工作树 2 件、缺已提交的检查器）；G 段 `[PASS] BASE=HEAD 判红 | expected=mismatch actual=mismatch` ⇒ 非恒真。
+- 覆盖方向核：`BASE` 只会让变更集变大 ⇒ 无「凑绿」路径；§1/§4/§6 走不可覆盖的 `CONTRACT_BASE`。
+
+**2. §1 硬判据（自写脚本独立算，不采信被审脚本）**：`extract_sec1.py 8352b41b` → 5561 B `7b3e0ec32af7a31f68e832efa773758c02e0cc1816eccdf5094da850fe6cbe17` == 当前，`byte_identical=True`，exit=0。
+
+**3. 回归（全部本人重跑）**
+- `python3 tools/linux/check_syscall_contract.py` → **rc=0**、FAIL 0；§8/§9/§10/§11 = **11/6/6/5**（合计 28，与完成区一致）。
+- `… --self-test` → **rc=0**；`5 类注入，失败 0 项`；注入后非零 5 / 还原回绿 5。
+- `make -s check-contracts-pending`、`check-syscall-abi`（`80/80 checks passed`）、`check-contracts-dir`、`check-knowledge-refs`（`0 具体 .work/** 引用`）→ **全 rc=0**。
+- 独立注入回归：删 §6「M14 注记」→ rc=1、唯一 FAIL `§6 含 M14 注记指针（§8）` → `cp`+md5 `be9cf9fc6ae5fc50d…` 前后相等 → rc=0。
+
+**4. 越界与对账**：`git diff 8352b41b -- spec/ contracts/ manifests/` 空（exit=0）、`git diff 174298eb..HEAD -- …` 空；改动集 3 件 = 完成区声明；完成区 20 行 ≤30；第 1 轮记录 27 行 ≤40；`git status -uall` 仅契约 + 任务书两处改动。
+
+**5. 返工范围核**：契约改动仅 §8 第 3 条（删 `escape`、指向下条帧/目标判据）与第 6 条（`固件（hypv / HEE 引导）侧`、`hmon 不参与逐 cfx 的 HBI 初始化`），与 `DADAO-12 §5.2/§5.3`、`DADAO-23 §3` 一致，均在任务书范围内；未改 `spec/`、`Makefile`、`contracts/*.yaml`、`manifests/`。
+
+**自查修正**：第 1 轮记录中我方所写的临时目录绝对路径改为措辞（结论/数字不动）；具体 `.work/**` 2 处已由返工改措辞且 `check-knowledge-refs` PASS。
+
+**未决（移交主会话，不阻断）**：台账行移位（`174298eb` 已移入「进行中」，合并后自愈）；`m13-testcases-016` 红属他任务；证据脚本是否常驻 L1 待 K0 收口裁定。

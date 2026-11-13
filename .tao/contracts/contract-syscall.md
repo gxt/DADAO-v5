@@ -1,18 +1,18 @@
-# Linux syscall 映射合约（M8：无内核的 Linux 用户态栈）
+# Linux syscall 映射合约（M8 用户态映射 + M14 内核侧接口）
 
-> **版本：0.9.2** [DADAO-21 §4. 系统调用规范]
+> **版本：0.10.0**（M14 起扩内核侧 §8–§11；M8 用户态映射 §1–§7 口径不变）[DADAO-21 §4. 系统调用规范]
 >
-> **来源**：`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）§4 系统调用规范、§1 寄存器规范、§3.2 传参、§3.4 返回值；`spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.1）§1 调用约定、§2 用户态异常处理（umon / jmon）；决策 `.tao/adr/adr-0025-m8-scope-linux-compat.md`（`ADR-0025`，Accepted，`D1`/`D2`/`D6`/`D7`）；端序与 ELF machine id 引用 `.tao/contracts/contract-abi.md`（§1.7）、`.tao/contracts/contract-elf.md`。号表口径之**上游参照** = Linux 内核 `7.2.10`（**内容溯源，非执行依赖**，锁定见 §1.2）。[DADAO-21 §4. 系统调用规范][DADAO-22 §2. 用户态异常处理（umon / jmon）][ADR-0025]
+> **来源**：`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）§4 系统调用规范、§1 寄存器规范、§3.2 传参、§3.4 返回值；`spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.1）§1 调用约定、§2 用户态异常处理（umon / jmon）；**M14 内核侧**另引 `spec/DADAO-12-SEE-主管系统运行环境.md`（§3.1 / §3.2 / §3.3 / §3.6 / §3.7 / §5.1 / §5.2 / §5.3 / §2.2.6）、`spec/DADAO-13-HEE-超管系统运行环境.md §1`、`spec/DADAO-23-HBI-超管系统二进制接口.md §1–§3`、`spec/SimRISC-00-指令系统设计.md §3.1`、`spec/SimRISC-12-其它指令.md §1`、`spec/Machine-v5-测试机运行环境.md §1.2`；决策 `.tao/adr/adr-0025-m8-scope-linux-compat.md`（`ADR-0025`，Accepted，`D1`/`D2`/`D6`/`D7`）；端序与 ELF machine id 引用 `.tao/contracts/contract-abi.md`（§1.7）、`.tao/contracts/contract-elf.md`；TLS 模型分工引用 `.tao/contracts/contract-dynlink.md`（§2.4 / §7）。号表口径之**上游参照** = Linux 内核 `7.2.10`（**内容溯源，非执行依赖**，锁定见 §1.2）。[DADAO-21 §4. 系统调用规范][DADAO-22 §2. 用户态异常处理（umon / jmon）][ADR-0025]
 >
-> **版本基准**：版本头取 **ABI 册（0.9.2）** 为投影基准（syscall 的**寄存器约定本体**在 `DADAO-21 §4`）；SBI 册（0.7.1）为**入口 / 分发**参照。[DADAO-21 §4. 系统调用规范][DADAO-22 §2. 用户态异常处理（umon / jmon）]
+> **版本基准**：版本头取 **ABI 册（0.9.2）** 为投影基准（syscall 的**寄存器约定本体**在 `DADAO-21 §4`）；SBI 册（0.7.1）为**入口 / 分发**参照；M14 内核侧接口以 SEE / HEE / HBI 三册的寄存器与异常路由为**唯一真源**（本合约只归一化、不重定义）。[DADAO-21 §4. 系统调用规范][DADAO-22 §2. 用户态异常处理（umon / jmon）][DADAO-12 §5. 异常进入与异常退出]
 >
-> **范围**：M8 P0 契约①——**Linux 语义映射**：号表口径与来源锁定（§1）、入口（§2）、参数与返回（§3）、errno 约定（§4）、独立 oracle 口径（§5）、QEMU user-mode 角色与范围外边界（§6）、裁定 / 锁定清单（§7）。syscall 的**寄存器约定**不在本合约重复定义，一律**指针**到 `spec/DADAO-21-ABI §4` / `spec/DADAO-22-SBI §2`；动态链接 ABI 见 `SPEC-139t`（`contract-dynlink.md`）。[DADAO-21 §4. 系统调用规范][DADAO-22 §2. 用户态异常处理（umon / jmon）]
+> **范围**：M8 P0 契约①——**Linux 语义映射**：号表口径与来源锁定（§1）、入口（§2）、参数与返回（§3）、errno 约定（§4）、独立 oracle 口径（§5）、QEMU user-mode 角色与范围外边界（§6）、裁定 / 锁定清单（§7）；**M14 起**增内核侧接口：内核侧入口与 `umon`/`smon`/`hmon` 分工（§8）、errno 表示与边界（§9）、TLS（`rb3 = rbtp`）维护责任（§10）、原子性前提（§11）。syscall 的**寄存器约定**不在本合约重复定义，一律**指针**到 `spec/DADAO-21-ABI §4` / `spec/DADAO-22-SBI §2`；动态链接 ABI 见 `SPEC-139t`（`contract-dynlink.md`）。[DADAO-21 §4. 系统调用规范][DADAO-22 §2. 用户态异常处理（umon / jmon）]
 >
 > **来源标注**：每条规范性断言句末以 `[DADAO-NN §章节名]` 标注 spec/ 来源；ADR 决策补足者标 `[ADR-NNNN DN]`；**用户逐条裁定**者标 `[用户裁定 YYYY-MM-DD]`（写明原话 / 选项标签 + 渠道）；spec/ 与 ADR 均未定者标 `[spec-decision]` 并写明「待用户裁定」。不写行号。
 >
 > **说明**：本合约**不复制**上游 `spec/` 正文（只**指针**）；与 `spec/` 冲突时阻断实现，走变更流程（`docs/Process-02-合约编写规范.md`）。[DADAO-21 §4. 系统调用规范]
 >
-> **落点**：本合约暂落 `.tao/knowledge/`（`check-knowledge-dir` 白名单允许 `contract-*.md`）。若 `INFRA-071t`（`contract-*.md` → `contracts/`，**待用户授权**）获批，本合约随之**整体迁移**；引用方按文件名 `contract-syscall.md` 解析，不硬编码目录。[ADR-0025]
+> **落点**：本合约位于 `.tao/contracts/`（`INFRA-071t` Phase B 迁移落点；`check-contracts-dir` 白名单允许 `contract-*.md`）。引用方按文件名 `contract-syscall.md` 解析，不硬编码目录。[INFRA-071t]
 
 ---
 
@@ -91,7 +91,9 @@
 - **停机协议不混用**：用户态进程退出由 syscall `exit` / `exit_group` 承载；测试机侧 **exit port**（`ADR-0004 D3`）与 semihosting **`SYS_EXIT`**（`ADR-0020 D8`）是**另外的**停机协议，不得与本 syscall 路径混用。[ADR-0004 D3][ADR-0020 D8]
 - **范围外（指针）**：动态链接 ABI / PIC·GOT·PLT / `PT_INTERP`·`AT_*`（→ `SPEC-139t`）；TLS/线程（`ADR-0025 D5` 先查证再定）；具体号值正文（→ §1.2 锁定来源）；内核语义本体（→ §6 首条）。[ADR-0025 D6][ADR-0025 D5]
 
-## §7 裁定 / 锁定清单（原「待裁定」；#1–#3 已于 2026-10-14 裁定）
+> **M14 注记**：本节「无内核目标」是 **M8 的历史范围**（`ADR-0025 D2`），原文与 M8 结论**不改写**；M14 引入内核后，**内核侧**入口 / errno 边界 / TLS / 原子性见 **§8–§11**。[ADR-0025 D2][DADAO-12 §5. 异常进入与异常退出]
+
+## §7 裁定 / 锁定清单（原「待裁定」；#1–#4 已裁定 / 锁定，#5–#8 = M14 内核侧自决项）
 
 | # | 项 | 状态 | 归属 / 指针 |
 |---|----|------|------------|
@@ -99,6 +101,54 @@
 | 2 | DADAO 是否另设 arch-specific 私有号 | **已裁定**：不另设，沿用 RISC-V arch-specific〔2026-10-14〕 | §1.3；`ADR-0025 D1` [ADR-0025 D1] |
 | 3 | `AUDIT_ARCH_*` 取值端序位（`__AUDIT_ARCH_LE` vs 大端） | **已裁定**：`AUDIT_ARCH_DADAO` = `EM_DADAO`\|`AUDIT_ARCH_64BIT`（BE，64 位），不带 `__AUDIT_ARCH_LE`〔2026-10-14〕 | §1.3；`ADR-0003 D1` [ADR-0003 D1] |
 | 4 | 号表快照对应的**上游内核版本** | **已锁定**：内核 `7.2.10`（身份 = git commit `7b20d05f…`；与快照 uapi 逐字节相同 / 号表 0 冲突，见 §1.2） | 本合约 §1.2；pin 承载 `INFRA-075t` [ADR-0025 D1] |
+| 5 | 内核侧入口与三方分工（`umon` 承载 / `smon` 异常 / `hmon` 服务；cg0 进入 vs cg2 返回与异常） | **已冻结（自决，`[spec-decision]`）**：`umon` 入口 + `escape cfx_umon` 自帧返回；cg0 与 cg2 不得混用 | §8 [spec-decision] |
+| 6 | errno 边界与内核内部码（`[-4095, -1]`；重启码不外泄；`-ENOSYS`；不用 `rd1`） | **已冻结（自决，`[spec-decision]`）**：边界取 musl `__syscall_ret()` 判据，§4 的 A 口径不变 | §9 [spec-decision] |
+| 7 | TLS 内核侧责任（`rb3` 保存 / 恢复；`clone` SETTLS；`execve` 清零；`initial-exec` / `local-exec` 分工） | **已冻结（自决，`[spec-decision]`）**；TP 方向 / 偏置仍归 musl arch 宏（§10） | §10 [spec-decision] |
+| 8 | 原子性前提（`lr` / `sc` 沿用 `SimRISC-12 §1`；`futex` 无丢唤醒；`clone` 原子可见） | **已冻结（自决，`[spec-decision]`）**；不定义 TLB / cache / 多核保留标记仲裁 | §11 [spec-decision] |
+
+## §8 内核侧入口（`umon` / `smon` / `hmon` 的分工）
+
+- **用户 syscall 的路径（M14 K0 口径）**：用户态执行 `trap cfx_umon, 0`（`SBI_UMON_SYSCALL`）⇒ 目标 `cfx_umon` 收到 `excp_cause_id = CFXTRAP`（`1 << 0`）；模式切换取 **user 行（cg0）** 的 `cfx_umon_user_switch_run_mode`（复位值 `2 = supv`），向量取 `cfx_umon_user_excp_vector`（复位值 `0`，内核须改写）⇒ 内核向量**在 `supv` 模式、`cfx_umon` 上下文内**开始执行；返回 = `escape cfx_umon, [excp_cause_ip, 4]`，落回 `trap` 下一条。[DADAO-12 §3.1 cg0 - user mode 寄存器][DADAO-12 §5.2 异常进入流程][DADAO-22 §2 用户态异常处理（umon / jmon）]
+- **`jmon` 同构**：`trap cfx_jmon, 0`（`SBI_JMON_SYSCALL`）走 **jail 行（cg1）** 的 `cfx_jmon_jail_switch_run_mode` / `cfx_jmon_jail_excp_vector`；`immu18` 与 `umon` **各自独立编号**，号表 / 传参 / 返回 / errno 口径与本合约相同（§2）。[DADAO-22 §2 用户态异常处理（umon / jmon）][DADAO-12 §3.2 cg1 - jail mode 寄存器]
+- **cg0 与 cg2 的分工（不得混用）**：**进入** user→monitor 一律走 **cg0（`cfx_umon_user_switch_run_mode` / `cfx_umon_user_excp_vector`）** 行；**`supv` 期**发起的 `trap` / `escape` 与 `supv` 期同步异常走 **cg2（`cfx_umon_supv_*` / `cfx_smon_supv_*`）** 行与 `cfx_smon_supv_excp_vector`（内核提供）。`_supv_` 行**不是** user 入口配置，不得把同名 `_supv_` 当作 user 入口。[DADAO-12 §3.1 cg0 - user mode 寄存器][DADAO-12 §3.3 cg2 - supv mode 寄存器]
+- **返回路径的帧与目标**：`escape` 的 `cfxha` 必须等于当前 cfx（本路径 = `cfx_umon`），返回的 cfx / 运行模式 / `IP` 全取自当前 cfx 的异常帧；因源 cfx = 目标 cfx，来源掩码的**自身位**被硬件忽略 ⇒ 该路径不因掩码被拒，被拒只可能是帧 / 目标错误（`cfxha` 非当前 cfx 或 `excp_cause_id = 0`）⇒ `CFXESC`，不得与 `CFXPERM` 混同。[DADAO-12 §3.3 cg2 - supv mode 寄存器][DADAO-12 §5.1 指令行为说明][DADAO-12 §5.3 异常退出流程]
+- **`supv` 期跨 cfx 转移的掩码**：内核在 `supv` 下向其它 cfx `trap`（如 `cfx_hmon`）或访问其寄存器，受**目标 cfx** 的 `*_supv_cfxtrap` / `*_supv_cfxreg` 第「源 cfx = 当前 `inner_cfx_code`」位约束（`0=允许`、`1=屏蔽`；自身 cfx 位硬件忽略）；被掩码拒绝 ⇒ `CFXPERM`。内核须在启动时把所需来源位清 `0`，**不得**依赖固件默认掩码长期放行宽于需要的来源。[DADAO-12 §3.3 cg2 - supv mode 寄存器][DADAO-12 §5.2 异常进入流程]
+- **自配置的前提（固件放行）**：`supv` 能否写某 cfx 的 cg0 / cg2 行，还取决于该 cfx 的 `*_supv_cfxreg` 源位与 hypv 侧的 `hypv_cg_reg_deleg`；内核**不得**假定「总能自配置」，对 `cfx_hmon` 等 hypv 保留扩展的放行责任在固件（HBI 初始化）侧。[DADAO-12 §3.3 cg2 - supv mode 寄存器][DADAO-13 §1 cg3 - hypv mode 寄存器][DADAO-23 §3 启动与引导移交约定]
+- **硬件现场只有 cg5 异常现场字段**（`excp_prev_run_mode` / `excp_cause_id` / `excp_cause_ip` / `excp_cause_info` / `excp_pending`）：**不保存通用寄存器**。内核向量必须在使用任何寄存器前自行保存、返回前恢复，**不得**把 cg5 当 `pt_regs`；少量暂存用 cg6（`scratch_regs_num ≥ 2`），其余落栈。[DADAO-12 §3.6 cg5 - 异常现场寄存器][DADAO-12 §3.7 cg6 - 暂存寄存器]
+- **入口可见状态**：`rd15 = nr`；参数按 §3（`rd16–rd31` / `rb16–rb31` / `rf16–rf31`）；`excp_cause_ip` = `trap` 指令地址；`excp_cause_id = 1 << 0`（`CFXTRAP`）；`excp_cause_info` = 触发指令编码，`immu18 = excp_cause_info & 0x3FFFF`（`ciii` 的 18 位立即数占指令位 `[17:0]` = `hb‖hc‖hd`，`hb` 高 / `hd` 低）。[DADAO-12 §3.6 cg5 - 异常现场寄存器][SimRISC-00 §3.1 指令域说明]
+- **`smon`（`supv` 同步异常）**：内核运行期同步异常（页表 / 对齐 / 非法指令 / cfx 权限等）按 `excp_cause_id` / `excp_cause_info` 分派，入口 = `cfx_smon_supv_excp_vector`（内核提供）；PTW 的异常归因（未映射 / 权限）沿用 `DADAO-12 §2.2.6` 与 `Machine-v5 §1.2`，本合约**不重定义**。[DADAO-12 §5.2 异常进入流程][DADAO-12 §2.2.6 异常检查优先级][Machine-v5 §1.2 越界访问与越界取指异常]
+- **`hmon` / HBI**：内核→hypv 的服务调用走 `trap cfx_hmon, immu18`，返回 `escape cfx_hmon, …`；`hmon` 为**固件**、不是内核的一部分；函数号与语义不在此重抄，指针到 `spec/DADAO-23`（HBI）。[DADAO-23 §1 调用约定][DADAO-23 §2 系统信息（cfx_hmon）]
+- **嵌套**：不同 cfx 的 cg5 相互独立（A→B 无需保存）；**同 cfx 递归**（如 `umon` 内再进 `umon`）前必须把 cg5 现场保存到 cg6 暂存、退出恢复。[DADAO-22 §1 调用约定][DADAO-12 §5. 异常进入与异常退出]
+
+## §9 errno 表示（扩 §4；不改变 A 口径）
+
+- **载体与符号**：`rd8` 按 **64 位有符号**解释；成功 = `>= 0`；错误 = `-errno`，取值范围 **`[-4095, -1]`**；`-4096` 及以下**不是** errno。判据与 musl `__syscall_ret()` 的 `r > -4096UL` 一致 ⇒ musl **零改**。[contract-syscall §4][外部权威 musl `src/internal/syscall_ret.c`]
+- **内核内部码不外泄**：`ERESTARTSYS` / `ERESTARTNOINTR` 等 Linux **内核内部重启码**不得出现在用户可见的 `rd8` 上；内核必须在返回用户态前转成 `-errno` 或重新执行该系统调用。[外部权威 Linux 内核 `include/linux/errno.h`]
+- **未支持 / 参数错**：不支持的系统调用返回 **`-ENOSYS`**，参数错误返回对应 **`-EINVAL`** 等负值；两者都是 `-errno` 形态、走 `rd8`。[contract-syscall §4][DADAO-21 §4. 系统调用规范]
+- **不用 `rd1`**：不得用 `rd1`（`rderrno`）承载 syscall 错误，也不得与 `rd8` 双写；`rd1` 的 spec 语义与 syscall 错误路径无关（§4 已裁定 A）。[contract-syscall §4][DADAO-21 §1. 寄存器规范]
+- **可见返回寄存器**：用户态只从 `rd8` 取 syscall 结果；指针返回值仍按 `rb8` 的既有 ABI 规则（`DADAO-21 §返回值`），但 **syscall 的标量结果不放 `rb8`**。[DADAO-21 §返回值][contract-syscall §3]
+- **与 §4 的关系**：本节只补边界与内核侧责任，§4 的 A 口径（错误 = `rd8` 负值；`rd1` 不参与）**不变**。[contract-syscall §4][ADR-0025 D7]
+
+## §10 TLS（`rb3 = rbtp`）
+
+| 寄存器 | ABI 名 | 角色 | 内核侧责任 |
+|--------|--------|------|------------|
+| `rb3` | `rbtp` | thread pointer（TP） | 入口保存、返回恢复；不作传参 / 临时寄存器 |
+
+- **事实**：`rb3` = `rbtp`（thread pointer）；v5 编译器**保留不分配**。[DADAO-21 §1.2 RB寄存器（Base registers）][contract-abi §1.3 RB 寄存器角色][contract-abi §4.5 callee-saved / caller-saved 与 CSR]
+- **syscall 路径**：`rbtp` 属保留（编译器不分配）且跨 syscall 必须保持 ⇒ 内核入口保存、返回恢复；**不得**用 `rb3` 传参或作临时寄存器。[contract-abi §4.5 callee-saved / caller-saved 与 CSR][spec-decision]
+- **`clone`（含 `CLONE_SETTLS`）**：子线程的 `rbtp` = `tls` 参数；父线程不变；子线程从 syscall 返回处以 `rd8 = 0` 开始（双返回语义），其余寄存器现场 = 父现场副本（除返回寄存器与架构约定的差异）。[外部权威 Linux `clone(2)`][DADAO-21 §4. 系统调用规范][spec-decision]
+- **`execve`**：新映像的 `rbtp` 清 `0`；TCB 由 libc 在进入 `main` 前自行初始化（musl `__init_tls` / `__set_thread_area` 路径），**内核不代设 TCB 布局**。[外部权威 musl `ldso/dynlink.c`][spec-decision]
+- **`initial-exec` / `local-exec` 的分工**：两者都是**用户态**链接 / TLS 模型；内核只保证「`rbtp` 的保存 / 恢复」+「`clone` / `execve` 的设置语义」。TP 方向（`TLS_ABOVE_TP` 等）与偏置（`TP_OFFSET` / `DTP_OFFSET`）**不在本合约决定**，归 musl arch 宏。[contract-dynlink §2.4 GOT 基址寄存器与 TP：口径][contract-dynlink §7 TLS][ADR-0025 D5]
+- **单线程静态 init**：允许只用 `initial-exec`；内核仍须初始化 / 清零 `rbtp` 并保存 / 恢复，不得因「单线程」跳过。[spec-decision]
+
+## §11 原子性（`clone` / `futex` / 用户 `lr`+`sc`）
+
+- **基线语义不重抄**：`lr` / `sc` 的保留标记、成功 / 失败、宽度、对齐与清标记条件**一律**按 `SimRISC-12 §1`；`sc` 可能**偶发失败**（spurious failure），软件须循环重试；**异常或中断进入清除保留标记** ⇒ `lr`…`sc` **不能跨任何 syscall / 异常**。[SimRISC-12 §1 原子指令]
+- **用户原子操作**：Linux `atomic_*` / `cmpxchg` 由 `lr` / `sc` 循环实现（可按宽度选 `.b` / `.w` / `.t` / `.o`）；acquire / release 变体（`lr.*.an` / `lr.*.ar` / `sc.*.ar` / `sc.*.nr`）用于 `smp_mb` / `smp_rmb` 等；单核 K0 下**不得**把「单核」当作免内存序假设，生成的序须与多核一致。[SimRISC-12 §1 原子指令][spec-decision]
+- **`futex`**：`FUTEX_WAIT` 的「检查用户字 → 睡眠」必须原子：内核在持锁下用 `lr` 语义复核用户字（或等价的单核原子读）后再入队；`FUTEX_WAKE` 不得丢唤醒；`futex` 不改变用户 `lr` / `sc` 的语义。[外部权威 Linux `futex(2)`][spec-decision]
+- **`clone`**：线程创建对用户可见的状态切换必须原子（子现场 = 父现场副本、`rd8 = 0`）；子线程 `rbtp` 按 §10 设置；不得让子线程看到半初始化的 TCB 指针。[contract-syscall §10][spec-decision]
+- **不定义**：TLB 填充 / 失效 / ASID（K3）、cache / LLC 一致性、**跨 hart** 的保留标记仲裁（K0 单核，多核另立契约）。[spec-decision][ADR-0025 D6]
 
 ---
 
@@ -113,4 +163,8 @@
 | §3 | 参数 `rd16–31`/`rb16–31`/`rf16–31`、返回 `rd8`、提升与溢出（caller 扩展 = `ADR-0018 C4`） | `DADAO-21-ABI §3.2.1`/`§3.2.2`/`§3.2.4`/`§4`；`DADAO-22-SBI §2`；`ADR-0018 C4` |
 | §4 | errno 载体 = `rd8` 负值（A，2026-10-14 已裁定）；musl/Linux 负值约定（对照证据） | `DADAO-21-ABI §4`/`§1`；musl 上游 `syscall_ret.c`；`ADR-0025 D7`；用户裁定 2026-10-14 |
 | §5 | 独立 oracle：期望值来源与禁止项；golden = RISC-V+musl | `ADR-0025 D1`/`D6`/`D7` |
-| §6 | QEMU user-mode 角色 / 边界；停机协议不混用；范围外 | `ADR-0025 D2`/`D6`；`ADR-0004 D3`；`ADR-0020 D8` |
+| §6 | QEMU user-mode 角色 / 边界；停机协议不混用；范围外；M14 注记指针 | `DADAO-12 §5`；`ADR-0025 D2`/`D6`；`ADR-0004 D3`；`ADR-0020 D8` |
+| §8 | 内核侧入口：`umon` 入口 / 自帧返回、cg0 与 cg2 分工、cg5 现场、`smon` 同步异常、`hmon`/HBI 指针、同 cfx 嵌套、自配置前提 | `DADAO-12 §3.1`/`§3.2`/`§3.3`/`§3.6`/`§3.7`/`§5.1`/`§5.2`/`§5.3`/`§2.2.6`；`DADAO-13 §1`；`DADAO-22 §1`/`§2`；`DADAO-23 §1`/`§2`/`§3`；`SimRISC-00 §3.1`；`Machine-v5 §1.2` |
+| §9 | errno `[-4095, -1]`、内部重启码不外泄、`-ENOSYS`、不用 `rd1`、结果只走 `rd8` | `contract-syscall §3`/`§4`；`DADAO-21 §1`/`§4`/`§返回值`；musl `syscall_ret.c`；Linux `errno.h`；`ADR-0025 D7` |
+| §10 | `rb3 = rbtp` 的内核侧责任；`clone` SETTLS / `execve` 清零；`initial-exec` / `local-exec` 分工 | `DADAO-21 §1.2`；`contract-abi §1.3`/`§4.5`；`contract-dynlink §2.4`/`§7`；Linux `clone(2)`；musl `ldso/dynlink.c`；`ADR-0025 D5` |
+| §11 | 原子性：`lr`/`sc` 基线不重抄、`futex` 无丢唤醒、`clone` 原子可见、不定义 TLB / cache / 多 hart | `SimRISC-12 §1`；Linux `futex(2)`；`contract-syscall §10`；`ADR-0025 D6` |
