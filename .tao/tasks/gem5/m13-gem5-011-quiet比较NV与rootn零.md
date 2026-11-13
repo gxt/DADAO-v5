@@ -87,7 +87,7 @@ NV；`convert` 的 `ft2ft`/`fo2fo` 复制路径不经过 `fp::convert`，未被 
 - `python3 tools/gem5/check_b7.py --source .work/source/gem5` ⇒ **rc=0**；`[FAIL]`=0、`[PASS]`=3128、`summary: B7 coverage 55/55, failures 0`、`oracle vectors=4098`（现场值）、`oracle mismatch=0`、`cross-check disagreements=0`。
 - `make check-gem5-decode` ⇒ **rc=0**（`positive 264/264, negative 388/388, legality 28/28, legacy 2/2, failures 0`）；`make check-component-changelog` ⇒ **rc=0**（`8 文件 × 4 断言 = 32 项` PASS）。
 - `check_patch_tree.py --source-state` ⇒ rc=0，`gem5: OK HEAD=85c525f count=1 clean=True`；`check_patch_tree.py` 全局 rc=1，4 条 problem 全为 qemu/chipyard（他任务在途）、无任何 `gem5:` 行 ⇒ **gem5 段干净**。
-- 证据脚本 `.work/evidence/m13-gem5-011/run.sh` ⇒ **rc=0**、`TOTAL failures=0`；两路注入 `[FAIL]` 5/2 条、`oracle mismatch` 10/2、md5 还原、回绿——与完成区数字逐条一致。
+- 证据脚本 `<运行期证据目录>/run.sh` ⇒ **rc=0**、`TOTAL failures=0`；两路注入 `[FAIL]` 5/2 条、`oracle mismatch` 10/2、md5 还原、回绿——与完成区数字逐条一致。
 
 **独立语义核对**（自建 14 条向量，期望按 SimRISC-07 §1.4/§2.2/§4 + contract-fp §1/§6/§8 手推，不读 engineer 探针）⇒ **14/14 passed, rc=0**：quiet 两方向 sNaN ⇒ canonical qNaN 且 `FCSR=0x7ff800007fc00001`（全值与验收 item1 相符）、qNaN 对照 f0、signaling qNaN ⇒ sNaN（符号 0）+f1、`foroot(−0)`/`ftroot(±0,2)=+0` 无标志、`foroot(−4.0)` ⇒ canonical+f1、`fo2ft`/`ft2fo` 带符号/带载荷 qNaN ⇒ canonical 无 NV、sNaN ⇒ canonical+NV、`ftadd(qNaN)` 回归 canonical。
 

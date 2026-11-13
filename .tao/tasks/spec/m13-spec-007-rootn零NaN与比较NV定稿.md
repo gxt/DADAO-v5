@@ -102,7 +102,7 @@
 ### 第 1 轮 reviewer 验收
 
 - **IEEE 独立核对**（现场下载官方 84 页 PDF + `pdftotext`，不采信转述）：§9.2.1 原文 `rootn (±0, n) is +0 for even n > 0` + `NOTE — rootn (−0, 2) differs from squareRoot(−0)` ✓；§6.2.3 payload 传播皆 *should*、多 NaN「does not specify which of the input NaNs」✓；§6.3「does not specify the sign bit of a NaN result」✓；§5.11 quiet 谓词仅 sNaN 置 NV、signaling 谓词对 qNaN 亦置、NV 为比较唯一可置异常 ✓（§5.6.1/§5.11 引用准确）。**finding（文档级，不阻断）**：§6.2 实为 *shall*（「the result shall be a canonical quiet NaN」、§6.2.3 末句「a NaN result shall be canonical」），spec 依据句只引 should/不规定——结论「非有意偏离」成立且更强，建议后续补引 §6.2。
-- **重跑**：`bash .work/evidence/m13-spec-007/run.sh` → **EXIT=0，PASS=46 FAIL=0**（独立两轮）；9 门控（readonly/changelog/drift/numbering/refs/purity/codeblocks/cite-targets/fp-contract）逐个 rc=0；`python3 tools/spec/check_fp_ieee_audit.py` → **EXIT=0，failures 0**；`git grep "不做具体要求" -- spec/ .tao/contracts/` → **EXIT=1（0 命中）**；锁文件 **全 21 条**现场重算 mismatch=0（脚本只验 2 册，reviewer 补验全量）。
+- **重跑**：`bash <运行期证据目录>/run.sh` → **EXIT=0，PASS=46 FAIL=0**（独立两轮）；9 门控（readonly/changelog/drift/numbering/refs/purity/codeblocks/cite-targets/fp-contract）逐个 rc=0；`python3 tools/spec/check_fp_ieee_audit.py` → **EXIT=0，failures 0**；`git grep "不做具体要求" -- spec/ .tao/contracts/` → **EXIT=1（0 命中）**；锁文件 **全 21 条**现场重算 mismatch=0（脚本只验 2 册，reviewer 补验全量）。
 - **基线红（不据此返工）**：`make check-knowledge-refs` → rc=2，5 条命中全在 `m13-testcases-013` 任务书 114/115/146/159/276 行（审阅现场日志），非本任务引入。
 - **证据脚本审核**：逐条断言有可达 FAIL 路径（残留/位型/§16 rootn/门控/锁均实测过反例），无恒真、无两支同果；PASS/FAIL 与锁条目数均现场统计不写死。
 - **独立注入**（自设计，contract-fp 侧，非工程师 3 路）：① `contract-fp §1` fo 位型 `_0000`→`_0001` → **EXIT=1**、FAIL「§1 含 ft 与 fo 位型」；② `§16` 加 rootn 条 → **EXIT=1**、FAIL「contract-fp §16 无 rootn 条」；两路均 `cp` 备份+md5 还原（9346d79d… MATCH）→ 回绿 EXIT=0。全程未用 `git checkout/restore/stash`。
