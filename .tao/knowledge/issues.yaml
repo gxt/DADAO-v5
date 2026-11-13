@@ -570,3 +570,10 @@
   closed_in: null
   resolved_by: null
   title: "【P2】节点上的 chipyard 模拟器在**固件/hex 变更后不会自动失效**：`sims/verilator/simulator-chipyard.harness-WumingTinyConfig` 与 `generated-src/.../gen-collateral/TLROM.sv` 仍是旧固件，三平台跑批会给出**假红**（实测 server207 在 `m12-chipyard-028` 合入后跑 `01-load-store` 得 37/235：chipyard 报点号、qemu/gem5 报 `0xF1`）。判据：`TLROM.sv` 解析的镜像 md5 必须等于 `bootrom_tiny.bin` 的 md5。处置：`rm -rf generated-src/<cfg> .classpath_cache/chipyard.jar` → `make verilog CONFIG=... -jN` → `make CONFIG=... -jN`。建议节点跑批前加一步自动校验（或 `run_asm_suite` 启动时比对 TLROM md5 并报错）。另：**节点无 JVM/JDK**（`java` 不存在、`/usr/lib/jvm` 空）⇒ 节点无法自行 elab/重建 chipyard 模拟器，只能同步主控机已验证的 Verilator 二进制（或先给节点装 JDK，需用户决定）。"
+- id: ISS-430
+  scope:
+  - llvm
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`m14-llvm-005` 后 `.set VD, L1-L0` 再 `set.zw rbX, wpN, VD` 由「静默 0」变为**报错**（`VD` 是 Absolute 符号、本可编码 4）。禁静默是对的，但把「已由 `.set` 固化为绝对符号」的操作数也一并拒了，属表达能力回退；诊断文案还把它称作 symbol difference（其实是单符号操作数）。建议：对 `.set` 定义的 Absolute 符号放行，或至少改文案 + lit 固化。"
