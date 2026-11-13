@@ -521,3 +521,11 @@
   closed_in: M14
   resolved_by: 契约版本回退到 0.9.2（随 ABI 册），M14 内核侧 §8–§11 改为「v5 扩展」注记；`check-spec-drift` 由 FAIL 转 PASS
   title: 【P2】`m14-spec-002` 把 `contract-syscall` 版本从 0.9.2 升到 0.10.0，违反 `check-spec-drift` 的「spec-sourced 合约版本 == 上游册版本」不变量 ⇒ L1 红（reviewer 当时未复跑 drift）。处置：版本号回退、扩展内容以「v5 扩展」注记承载。
+- id: ISS-424
+  scope:
+  - llvm
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P2】`llvm-mc`/`clang` 对**标签差**（`. - _start`、`L1 - L0`）作指令立即数时**静默折成 0**、无诊断：`m13-testcases-019` 的 `aip.si` 用例因此无法在汇编期表达「当前 IP + 偏移」，只能用绝对常量 `ENTRY + 字面偏移` 绕开。风险：后续 `.S` 会静默得到 0 期望（假绿）。建议：MC 层对不可解析的符号差报错（或至少 warning），并补 lit 用例。
