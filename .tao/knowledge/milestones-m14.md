@@ -24,6 +24,8 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m14-llvm-003 | 2–4 h | `-fpatchable-function-entry=N[,M]`（ftrace/static_call 插桩） |
+| m14-llvm-004 | 4–8 h | DADAO DWARF 寄存器编号 + CFI（修 `llvm-mc` abort、RA≤255、`.eh_frame` absptr） |
 | m14-llvm-002 | 1–2 天 | 栈保护后端 lowering（`-fstack-protector{,-strong,-all}`，guard=global） |
 | m14-llvm-001 | 3–4 h | 补 `llvm-ar`/`llvm-ranlib`/`llvm-strip` 到构建与安装根（用户裁定先补工具链） |
 | m14-qemu-001 | 4–6 h | 最小 smon：建 64 KiB 身份页表 + PTBR/ptw_enable + VA 入口交内核（K1） |
