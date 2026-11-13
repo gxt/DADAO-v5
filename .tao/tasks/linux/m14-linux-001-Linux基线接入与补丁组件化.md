@@ -116,7 +116,9 @@ role = "Linux kernel port target (arch/dadao) + syscall numbering-table referenc
 
 ## 用户授权
 
-（由主会话在派单前填入用户原话；未填 ⇒ 本任务不得动 `docs/Process-01`。）
+**用户授权（2026-11-13，渠道 = 主会话问答；选项「授权这三处（推荐）」）**：用户同意本批任务修改 `spec/Machine-v5`（含只读锁）、`docs/Process-01`、`docs/Process-07` 三处；本任务按授权执行，其余 `spec/` 与 `docs/Process-*` 改动仍需逐次授权。
+
+本任务范围：`docs/Process-01`（补丁集组织/空系列合法性一行登记）。
 
 ## 待裁定
 

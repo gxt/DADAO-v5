@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-linux-001 | 4–5 h | Linux 基线接入与补丁组件化（去 `patchless`、建空 series、`apply-series` 幂等） |
 | m14-spec-001 | 6–7 h | 启动 ABI 契约：Vast 装载/入口状态/内存映射/固定 boot info 结构 |
 | m14-spec-002 | 3–4 h | 内核侧 syscall/errno/TLS 契约（`rb3=rbtp`、clone/futex 原子性） |
 | m14-infra-001 | 4–5 h | 工具链缺口矩阵 + `check-linux-toolchain` 门控 |
@@ -36,6 +35,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-linux-001 | 2026-11-13 18:45 | 4–5 h | Linux 基线接入与补丁组件化（去 `patchless`、建空 series、`apply-series` 幂等） |
 
 ## 已验证
 

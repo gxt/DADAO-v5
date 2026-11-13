@@ -27,6 +27,7 @@
 | `llvm` | `LLVM` | LLVM MC + CodeGen |
 | `qemu` | `QEMU` | QEMU |
 | `integ` | `INTEG` | 集成验证（E2E 套件与回归 + 跨模块接口对齐） |
+| `linux` | `LINUX` / `mNN-linux` | Linux 内核移植（`arch/dadao`、启动 ABI、initramfs、K0–K5） |
 | `gem5` | `GEM5` | gem5（**未开工**） |
 | `sail` | `SAIL` | Sail（**未开工**） |
 
