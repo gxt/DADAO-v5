@@ -2,7 +2,7 @@
 
 # M14 K0 工具链缺口矩阵
 
-- **生成时间**：2026-11-13 20:00:45 +0800（UTC 2026-11-13T12:00:45Z）
+- **生成时间**：2026-11-13 23:12:53 +0800（UTC 2026-11-13T15:12:53Z）
 - **数据来源**：`tools/linux/toolchain_matrix.json`（format 1）+ 现场探针（本册由生成器按矩阵重跑探针后写出）
 - **机器指纹**：CPU `AMD EPYC 7773X 64-Core Processor`；target `dadao-unknown-elf`；clang `clang version 23.1.3 (be79a1758026)`；llvm-mc `LLVM version 23.1.3`；工具版本摘要 md5 `80649bd8afe8`
 - **复现**：`make check-linux-toolchain`（门控）；`python3 tools/linux/check_toolchain.py --report`（重新生成本册）；`python3 tools/linux/check_toolchain.py --inject`（自检）
@@ -10,7 +10,7 @@
 ## 1. 结论
 
 - 8 行矩阵，8/8 行「声明 == 实测」。
-- `gaps=6 (blockers=0)`：缺口行全部有**现场验证过**的规避法，对 K0 无阻塞。
+- `gaps=3 (blockers=0)`：缺口行全部有**现场验证过**的规避法，对 K0 无阻塞。
 - `required_for_k0` 共 2 行（asm-goto、inline-asm-constraints），全部 present/supported。
 - 结论由 **DADAO target** 决定：能力探针一律带 `--target=dadao-unknown-elf`（汇编用 `-triple=dadao-unknown-elf`）；宿主 x86 上同类探针另见 §5 对照。
 
@@ -18,9 +18,9 @@
 
 | 行 | 声明 | 实测 | exit | 规避法验证 | K0 影响 | 归属 |
 | --- | --- | --- | --- | --- | --- | --- |
-| `llvm-ar` | absent | absent | 127 | verified | none | `m14-linux-002` |
-| `llvm-ranlib` | absent | absent | 127 | verified | none | `m14-linux-002` |
-| `llvm-strip` | absent | absent | 127 | verified | none | `m14-linux-002` |
+| `llvm-ar` | present | present | 0 | verified | none | `m14-linux-002` |
+| `llvm-ranlib` | present | present | 0 | verified | none | `m14-linux-002` |
+| `llvm-strip` | present | present | 0 | verified | none | `m14-linux-002` |
 | `asm-goto` | supported | supported | 0 | n/a | none | `m14-linux-002` |
 | `stack-protector` | unsupported | unsupported | 1 | verified | none | `m14-linux-002` |
 | `data-directives` | unsupported | unsupported | 1 | verified | none | `m14-linux-002` |
@@ -29,26 +29,23 @@
 
 ## 3. 逐行证据（现场输出摘要）
 
-### `llvm-ar` — absent
+### `llvm-ar` — present
 
 - 探针：`<install-root>/bin/llvm-ar --version || <llvm-build>/bin/llvm-ar --version`
-- 实测：absent（exit 127）；输出摘要：`llvm-ar 不在 install-root/bin 也不在 llvm-build/bin`
-- 规避法：AR=/usr/bin/ar（GNU ar 2.42；归档格式与目标机无关，rcs/t 已在 DADAO 目标对象上验证）
-- 规避法验证：verified（`ar rcs rc=0; ar t rc=0`）
+- 实测：present（exit 0）；输出摘要：`install-root/bin/llvm-ar --version -> LLVM (http://llvm.org/):`
+- 规避法：不需要（能力已具备）
 
-### `llvm-ranlib` — absent
+### `llvm-ranlib` — present
 
 - 探针：`<install-root>/bin/llvm-ranlib --version || <llvm-build>/bin/llvm-ranlib --version`
-- 实测：absent（exit 127）；输出摘要：`llvm-ranlib 不在 install-root/bin 也不在 llvm-build/bin`
-- 规避法：RANLIB=/usr/bin/ranlib（GNU ranlib 2.42，索引已在 DADAO 目标 .a 上验证）
-- 规避法验证：verified（`ar rcs rc=0; ranlib rc=0`）
+- 实测：present（exit 0）；输出摘要：`install-root/bin/llvm-ranlib --version -> LLVM (http://llvm.org/):`
+- 规避法：不需要（能力已具备）
 
-### `llvm-strip` — absent
+### `llvm-strip` — present
 
 - 探针：`<install-root>/bin/llvm-strip --version || <llvm-build>/bin/llvm-strip --version`
-- 实测：absent（exit 127）；输出摘要：`llvm-strip 不在 install-root/bin 也不在 llvm-build/bin`
-- 规避法：STRIP=<install-root>/bin/llvm-objcopy（追加 --strip-all/--strip-debug；GNU strip 2.42 无法识别 DADAO ELF：EM 0xDA0 + 大端）
-- 规避法验证：verified（`llvm-objcopy --strip-all rc=0; size 800 -> 312`）
+- 实测：present（exit 0）；输出摘要：`install-root/bin/llvm-strip --version -> llvm-strip, compatible with GNU strip`
+- 规避法：不需要（能力已具备）
 
 ### `asm-goto` — supported
 

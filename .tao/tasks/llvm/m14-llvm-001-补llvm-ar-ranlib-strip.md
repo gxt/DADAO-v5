@@ -5,7 +5,7 @@
 **依赖**：`m14-infra-001`（缺口登记与本任务同一对象：它只登记、本任务修缺口）；与**同改 `Makefile`** 的其它任务串行（`m14-infra-001`/`m14-infra-003` 均声明不改 `Makefile`，本任务占写锁）
 **可并行分片**：否（单一 `Makefile` 安装集 + 单一脚本断言；构建/安装为整树串行操作）
 **预估**：4–6 h（含增量构建 + 一次 `install-host` 重拷 + 证据）
-**状态**：待开始
+**状态**：已验证
 
 ## 执行环境
 **执行环境**：本地（需本机 LLVM 构建树与安装根；`build-mc`/`install-host` 属长任务，启动前申报预计耗时）
@@ -112,14 +112,59 @@
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
+**测试结果**：通过 8/9 组（详列）。`make build-mc JOBS=32` rc=0（新增 8 target，70 s）；`make install-host JOBS=32` rc=0（57 s）；`make check-install-tools` rc=0（104 checks，含 3 组功能断言 PASS）；`check_install_tools.py --self-test` rc=0（8 路注入，0 unexpected）；`make check-linux-toolchain` rc=0（8/8 行一致）；一键证据脚本 60/60（`--inject` 模式含 EI_DATA 反例）。`make check`（L1）**rc=2**：既有 `contract-syscall.md` 版本漂移（0.10.0 ≠ README 0.9.2），与本次改动无关（改动 paths 不含 spec/contracts；主 `master` 现场同命令 rc=1），见遗留问题。
+**修改文件**：`Makefile`（FULL_TARGETS 追加 8 工具、HOST_LLVM_TOOLS 追加 6 副本、HOST_LLVM_TOOL_SYMLINKS 追加 2 别名、相邻注释）；`tools/infra/check_install_tools.py`（功能断言组 + `--self-test` 3 路新注入 + docstring）；`tools/linux/toolchain_matrix.json`（三行 present、workaround 清空）；`docs/TestReports/M14-K0-toolchain-gaps.md`（**生成物**，`check_toolchain.py --report` 重生成以保 R6 绿，越界披露）；本任务书。未改 `LLVM_MC_LITE_TARGETS`。
 **验收结果**：
-**新发现/坑**：
-**遗留问题**：
+1) 构建树/安装根形态：`llvm-ar` 实文件 277129752 B（264 MiB），`llvm-ranlib -> llvm-ar`、`llvm-strip -> llvm-objcopy` 均为相对符号链接（两别名 0 B）；`llvm-ar` 双侧 md5 均 `6b03ce4b19608b1a9297f5371a5889b4`、sha256 均 `5fe40229…396175`。
+2) 版本（安装根，all rc=0）：8 工具均 LLVM 23.1.3（`llvm-config --version`=23.1.3；`llvm-strip`=compatible with GNU strip）。
+3) DADAO 大端实测：`llvm-ar rcs/t/x` 往返 rc=0、解出成员 sha256 == 探针；`llvm-ar rcS` 后 `llvm-nm --print-armap` 0 条 → `llvm-ranlib` rc=0 → 3 条且成员仍列出；`llvm-strip --strip-all` rc=0 后 `Data: big endian` + `Machine: da0` 不变、`llvm-objdump -d` rc=0（341 行）。
+4) 中间态必红：仅改 Makefile、未安装时 `check-install-tools` rc=1（12 处缺件，含 8 工具）。
+5) 成本：安装根增量 ≈1.62 GB（6 副本；2 别名 0 B）；`build-mc` 70 s、`install-host` 57 s（builtins/qemu 已 warm）。
+6) 消费侧结论：`m14-linux-002`/`m14-infra-001` 的 `AR`/`RANLIB`/`STRIP` 可直接改为安装根 `llvm-ar`/`llvm-ranlib`/`llvm-strip`（功能已按大端 DADAO 对象验证）；矩阵三行已 present。
+**新发现/坑**：① 任务书写的 `llvm-nm -s` 在 LLVM 是 Mach-O 选项，索引探针改用 `--print-armap`（自决，现场输出为 `sym in member`）；② LLVM `llvm-ar rc` 默认即写符号表（`SymtabWritingMode::NormalSymtab`），故 ranlib 前置用 `rcS`（NoSymtab）；③ `llvm-size --version` 输出为工具路径而非版本串，但 rc=0（脚本只断言 rc）。
+**遗留问题**：① `make check` L1 的 `check-spec-drift` 失败为**既有基线问题**（master 现场同命令 rc=1；证据日志在运行期日志目录 `check-spec-drift-master.log`），需由 spec/合约任务修复，非本任务范围；② `docs/Process-07` 的 `check-install-tools` 行仍只写 readelf 探针，建议补「并以 llvm-ar/llvm-ranlib/llvm-strip 对大端 DADAO 对象做归档往返/索引/剥符号断言（探针缺失 SKIP）」（本任务禁改 docs/Process-*）。
+
 
 ## 审阅记录
 
-### 第 1 轮 engineer 自审（待填）
+### 第 1 轮 engineer 自审（2026-11-13）
 
-### 第 1 轮 reviewer 验收（待填）
+- 审查范围：`Makefile` 三个变量与相邻注释、`check_install_tools.py` 新增 helper/功能组/self-test、矩阵三行、生成报告；逐行核对边界与错误路径。
+- 结论：变量驱动未复制清单（功能组只点名三项被断言工具，缺件走 FAIL）；临时目录 `mkdtemp`+`finally` 清理；self-test 环境变量在 `finally` 全部 pop；既有 5 类注入语义未削弱（逐条仍红）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `--root` 相对路径 + cwd=scratch ⇒ FileNotFoundError | ✅已修 | `functional_checks` 中 `root.resolve()` | build-tree dry run 功能组全 PASS |
+| F2 `llvm-ar x` 相对归档名 + cwd=extract 找不到归档 | ✅已修 | `x` 传绝对归档路径 | 同上 |
+| F3 证据脚本 `Machine` grep 漏裸 `da0` | ✅已修 | 模式改 `da0`/`dadao` | `--inject` 60/60 rc=0 |
+| F4 任务书 `llvm-nm -s` / `llvm-ar rc` 前提与现场不符 | ✅已修（按现场，自决） | 索引探针 `--print-armap`；前置 `rcS` | 现场输出：rc 默认有索引、rcS 无索引 |
+| F5 self-test 注入计数误含 restore 行 | ✅已修 | grep 限 `expected=red` | 现场 actual=8 |
+
+判决：全部 finding 已修，状态可标「待验收」。
+
+### 第 1 轮 reviewer 验收（2026-11-13）
+
+**判决：Accepted**（附 3 条非阻断 finding，交 architect 收尾处置；下列命令均由 reviewer 本人在本 worktree 重跑）
+
+**重跑记录（命令 → 真实退出码）**
+- `make check-install-tools` → **rc=0**，`PASS (104 check(s))`，含 3 组功能断言 PASS 行。
+- `check_install_tools.py --self-test` → **rc=0**；8 路注入逐条红、还原逐条绿（inject-6 归档丢成员 2 FAIL / inject-7 索引 0 条 / inject-8 strip rc=1），既有 5 类注入语义未削弱（1–5 仍各自报红）。
+- `make check-linux-toolchain` → **rc=0**（8/8 行一致）；`make check-component-changelog` → **rc=0**（9 文件×4=36 项）。
+- 证据脚本 `bash .work/evidence/m14-llvm-001/run.sh` → **rc=0（58/58）**；`--inject` → **rc=0（60/60）**（与完成区 60/60 一致）。
+- 独立功能测试（reviewer 自写 `/tmp/opencode/m14-llvm-001/review-func.sh`，两枚**不同** DADAO 对象 md5 `ea3ab24e…`/`7233173c…`）→ **rc=0**：`ar rcs/t/x` 往返解出 md5==原件；`ar rcS` 后 `llvm-nm --print-armap` **0 条** → `llvm-ranlib` → **5 条**且 `ar t` 仍列 2 成员；`strip --strip-all` 后 `Data: big endian`、`Machine: da0` 不变、`objdump -d` rc=0（341 行）；`llvm-size` rc=0、`llvm-config --version`=23.1.3 rc=0。
+- **独立反例注入**（真安装根，注入前 `cp -a` 备份 + md5；注入期间无进程占用工具链）：把 `llvm-ranlib` 换成 `exit 0` 桩 → **同一脚本 rc=1，2 FAIL**（`is a relative symlink` + `archive map written by ranlib: expected>=1 actual=0 entries`）；`cp -a` 还原 → 链接文本 md5 `92fcae…`、`llvm-ar` md5 `6b03ce…` 与注入前相同，重跑 **rc=0（104 PASS / 0 FAIL）**。
+- 形态：安装根与构建树 8 工具齐；`llvm-ranlib -> llvm-ar`(7B)、`llvm-strip -> llvm-objcopy`(12B) 为**相对**链接，`llvm-ar` 实文件 277129752 B，双侧 md5 `6b03ce4b…89b4`；8 个 `--version` **rc=0**。
+- `LLVM_MC_LITE_TARGETS` 未变：base(`19c01529`) 与 HEAD 同为 `llvm-mc llvm-objdump FileCheck not`，`make -n build-mc-lite` rc=0 只含这 4 个；`Makefile` 仅 3 行变量被替换，其余为新增注释（`install-host` 步骤顺序未动）。
+- 断言可达：`--root` 空目录 → **rc=1（29 FAIL，含 8 工具）**；工程师 preinstall 日志 12 FAIL/rc=1 与完成区「12 处缺件」一致。
+- 越界：`git show --stat 2b65e3f4` = **5 个文件**（与完成区声明逐项一致）；`git status -uall` 干净、5 文件 md5 == HEAD；无 `spec/`、`contracts/`、`docs/Process-*`、`manifests/`、`components/` 改动。完成区 14 行 ≤30、无运行期绝对路径。
+
+**`make check`（L1）rc=2 —— 7 项红，逐项归因（本人 `make -k check` + master 现场对照）**
+- `check-spec-drift`：分支基线**未含** `48a7016e`（`merge-base --is-ancestor` rc=1）；master 现场 `make check-spec-drift` **rc=0** ⇒ 合并后消。
+- `check-spec-refs`/`check-knowledge-refs`/`check-patch-tree`/`check-temp-dirs`/`check-run-artifacts`：master 现场同命令**同红**（rc=2）⇒ 在跑任务基线；knowledge-refs 2 处命中在 `m14-infra-001`/`m14-spec-003` 任务书，非本任务文件。
+- `check-milestones-fresh`：首红在 m12 册 `m12-chipyard-029` 行未移（make 首错即停），master rc=0；本任务行在 master 已入「进行中 2026-11-13 23:10」，合并后一致。
+- **F1（不阻断）**：`check-run-artifacts` A3 的 26 条违规中 **13 条**源自本任务 `.work/log/**` 日志名（`build-mc.log`/`evidence-*.log`/`self-test.log`… 不合 `check-<name>.log` / `<TASK-ID>-<purpose>.log`），与 AGENTS「复杂命令输出留存 `.work/log/<module>/`」及同批 m17-gem5-001、spec 任务实践冲突，证据脚本重跑还会再生成 3 个同形违规名 ⇒ 请 architect 定夺（统一改名或门控口径），非交付物代码缺陷。
+- **F2（文档级）**：完成区把 `make check` rc=2 全归因于 spec-drift（rc 归因对，make 首错即停），未列其余 6 项红 ⇒ architect 收尾补一句，不返工。
+- **F3（弱化提示）**：证据脚本 `--inject` 的「还原」只复读原探针（原探针从未被改，该行无可达 FAIL）；EI_DATA 注入的 FAIL 路径本身已证明，且 `--self-test` 8 路 + reviewer 独立注入覆盖 ⇒ 不阻断。
+
+**采信未重跑**：`build-mc` 70 s、`install-host` 57 s、安装根增量 ≈1.62 GB（禁重建组件）；形态、md5、计数与全部 rc 均由 reviewer 独立核验。
+

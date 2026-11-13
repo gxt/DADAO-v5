@@ -35,12 +35,12 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m14-linux-002 | 2026-11-14 00:20 | 6–7 h | `arch/dadao` 最小骨架，`make ARCH=dadao` 出 vmlinux（不要求启动） |
-| m14-llvm-001 | 2026-11-13 23:10 | 3–4 h | 补 `llvm-ar`/`llvm-ranlib`/`llvm-strip` + 其余工具族（裁定 A） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-llvm-001 | 2026-11-14 01:00 | LLVM 工具族补齐（ar/ranlib/strip + link/config/profdata/size/cov；安装根 8 工具、功能断言 104 项） |
 | m14-spec-004 | 2026-11-14 00:15 | `contract-syscall` 内核入口口径（放行/自配、cause_info 推导、clone/execve 留合约+musl） |
 | m14-spec-003 | 2026-11-13 22:15 | 内核 VA 窗口改 `[2TiB,3TiB)`（spec/契约/YAML/检查器/ADR-0051 同笔；旧地址仅存作废段） |
 | m14-infra-002 | 2026-11-13 21:02 | initramfs（确定性 newc）+ musl init + semihosting 退出闭环（证据 79/79） |

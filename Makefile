@@ -348,7 +348,16 @@ LLVM_BUILD_CONFIG = targets=$(LLVM_TARGETS) projects=$(LLVM_PROJECTS) build_type
 # configuration differs.  A failing cmake aborts before the stamp is written.
 LLVM_CONFIGURE = echo '$(LLVM_BUILD_CONFIG)' | cmp -s - $(LLVM_BUILD)/.dadao-llvm-config 2>/dev/null || { echo "llvm: configuring $(LLVM_BUILD) [$(LLVM_BUILD_CONFIG)] (ccache: $(if $(CCACHE),$(CCACHE),off))"; cmake -G Ninja -B $(LLVM_BUILD) -S $(LLVM_SRC) -DLLVM_TARGETS_TO_BUILD="$(LLVM_TARGETS)" -DLLVM_ENABLE_PROJECTS="$(LLVM_PROJECTS)" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DLLVM_ENABLE_ASSERTIONS=ON $(if $(CCACHE),-DCMAKE_C_COMPILER_LAUNCHER=$(CCACHE) -DCMAKE_CXX_COMPILER_LAUNCHER=$(CCACHE)) || exit 1; echo '$(LLVM_BUILD_CONFIG)' > $(LLVM_BUILD)/.dadao-llvm-config; }
 
-LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm llvm-readelf llvm-dwarfdump FileCheck not LLVMDADAOCodeGen llc lli clang
+# M14 (m14-llvm-001): the kernel build needs llvm-ar/llvm-ranlib/llvm-strip
+# (plus the same-batch llvm-link/llvm-config/llvm-profdata/llvm-size/llvm-cov).
+# Upstream forms (read-only source check): llvm-ar is a real tool
+# (llvm/tools/llvm-ar/CMakeLists.txt `add_llvm_tool`), llvm-ranlib is
+# `add_llvm_tool_symlink(llvm-ranlib llvm-ar)`, and llvm-strip is
+# `add_llvm_tool_symlink(llvm-strip llvm-objcopy)`; the aliases dispatch on
+# argv[0].  Each name still has its own ninja target, so all of them are listed
+# here even though two are symlink-generation steps.  LLVM_MC_LITE_TARGETS is
+# deliberately unchanged (lite = the minimal MC set).
+LLVM_MC_FULL_TARGETS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm llvm-readelf llvm-dwarfdump FileCheck not LLVMDADAOCodeGen llc lli clang llvm-ar llvm-ranlib llvm-strip llvm-link llvm-config llvm-profdata llvm-size llvm-cov
 LLVM_MC_LITE_TARGETS = llvm-mc llvm-objdump FileCheck not
 
 _locked-build-mc: manifest-check
@@ -474,6 +483,9 @@ _locked-check-gem5-decode:
 # symbol/ELF/DWARF inspection),
 # llc (CodeGen), llvm-objcopy (test-codegen), lld + ld.lld (test-elf), clang
 # (M6 cross compiler, INFRA-050t), qemu-system-dadao (D4), llvm-lit (lit runner).
+# M14 (m14-llvm-001) adds the kernel-build binutils: llvm-ar (real copy),
+# llvm-ranlib/llvm-strip (zero-copy argv[0] aliases), plus llvm-link,
+# llvm-config, llvm-profdata, llvm-size and llvm-cov.
 # No full `cmake --install`.  (llvm-nm/llvm-readelf: INFRA-098t / ISS-261.)
 #
 # INFRA-050t dual destination: the cross toolchain (clang/llc/ld.lld) and the
@@ -500,7 +512,7 @@ _locked-check-gem5-decode:
 # processes wait (bounded by GATE_LOCK_WAIT, rc=75 with the holder's pid/target
 # on timeout) or are refused at once with GATE_LOCK_FAILFAST=1; nested calls
 # from the same make tree pass through.  See docs/Process-07 §2.
-HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm llvm-dwarfdump FileCheck not llc clang
+HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm llvm-dwarfdump FileCheck not llc clang llvm-ar llvm-link llvm-config llvm-profdata llvm-size llvm-cov
 # Zero-copy aliases, `<link>:<target>` (both live in $(HOST_TOOLCHAIN_BIN)).
 # Single source of truth for the install aliases: the install recipe creates
 # them and tools/infra/check_install_tools.py asserts their shape.  Relative
@@ -513,7 +525,15 @@ HOST_LLVM_TOOLS = llvm-mc llvm-objdump llvm-objcopy llvm-readobj llvm-nm llvm-dw
 #     tree's bin/llvm-readelf is a relative symlink too (ISS-261 / INFRA-098t).
 #   clang++ -> clang : same binary as the C driver (INFRA-056t).
 #   ld.lld -> lld    : lld's post-build copies (INFRA-043t).
-HOST_LLVM_TOOL_SYMLINKS = ld.lld:lld clang++:clang llvm-readelf:llvm-readobj
+#   llvm-ranlib -> llvm-ar : upstream `add_llvm_tool_symlink(llvm-ranlib
+#     llvm-ar)`; ranlib mode writes the archive symbol table (argv[0] dispatch).
+#     NOT in HOST_LLVM_TOOLS: atomic-install would `cp -aL` dereference it into a
+#     second multi-hundred-MB copy and break the "alias is the same binary"
+#     assertion.
+#   llvm-strip -> llvm-objcopy : upstream `add_llvm_tool_symlink(llvm-strip
+#     llvm-objcopy)`; strip mode is objcopy's strip options (argv[0] dispatch).
+#     Same zero-copy reasoning as llvm-ranlib (m14-llvm-001).
+HOST_LLVM_TOOL_SYMLINKS = ld.lld:lld clang++:clang llvm-readelf:llvm-readobj llvm-ranlib:llvm-ar llvm-strip:llvm-objcopy
 HOST_LIT_DIR = $(HOST_TOOLCHAIN_DIR)/share/lit
 
 # $(call atomic-install,<src>,<dst>): install <src> over <dst> via a per-process
