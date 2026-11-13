@@ -27,7 +27,8 @@
 @@ 保留寄存器（用例不得占用）：rb3=数据基址、rb30=结果缓冲写指针、
 @@ rd20/rd21/rb21=期望/实测/临时、rd22/rd23=临时与退出码、
 @@ rd31/rb31=故障处理器暂存、rd16/rb16=semihosting、r?4/rd4=退出参数块、
-@@ rb29=寄存器复制实测落点（SCRATCH）。
+@@ rb29=寄存器复制实测落点（SCRATCH）、rb27=rf0 写语义例的前/后落点（WSCRATCH）、
+@@ rd25/rd26=rf0 写语义例的「写前值 / 期望字节」。
 @@
 @@ 固定地址（Tiny；`.lds` 的 ASSERT 与本节 `.equ` 共同钉住）：
 @@   ENTRY+0x0000 .. +0x1E00  .text          链例 + 故障例体
@@ -72,6 +73,9 @@
 @@ 寄存器复制（02-reg-copy）的数据区（同上，偏移相对 TEST_DATA）：
 @@   +0x1300 RDATA      16 拍装载源（ra/rf 初值 + 条件赋值的 rf 候选取值）
 @@   +0x1400 SCRATCH    8 B 落点（rb/ra/rf 实测逐次覆写）
+@@ 16 位立即数操作（03-wyde-imm）的数据区（同上，偏移相对 TEST_DATA）：
+@@   +0x1500 WDATA      16 拍：初值/边界 + 4 个 id 的「独立 oracle」期望（`_MEM` 变体装载）
+@@   +0x1580 WSCRATCH   16 B：rf0 写语义例的「写前 8 B / 写后 8 B」（rb27 指）
 
 	.include "tests/shared/asm/machine-tiny.inc"
 	.include "tests/shared/asm/machine.inc"
@@ -96,6 +100,10 @@
 @@ 寄存器复制数据区（见文件头；偏移相对 TEST_DATA）
 	.equ RDATA,   TEST_DATA + 0x1300   @@ 16 拍装载源（ra/rf 初值与候选取值）
 	.equ SCRATCH, TEST_DATA + 0x1400   @@ rb/ra/rf 实测落点（逐次覆写）
+
+@@ 16 位立即数操作数据区（见文件头；偏移相对 TEST_DATA）
+	.equ WDATA,    TEST_DATA + 0x1500  @@ 16 拍：初值/边界 + 独立 oracle 期望
+	.equ WSCRATCH, TEST_DATA + 0x1580  @@ rf0 写语义例的前/后 8 B（rb27 指）
 
 @@ semihosting：服务号在 rd16、参数块指针在 rb16、trap 标签 0x3FF00+服务号
 @@ （`contract-semihosting` §1/§2）。
@@ -538,9 +546,126 @@ __smdone_\@:
 .endm
 
 @@ ---------------------------------------------------------------------------
+@@ 16 位立即数操作（rwii；`spec/SimRISC-03 §1`）：一行 = 一个检查点
+@@   TEST_WI_RD(pt, 助记符, 目的 rd, wpN, immu16, 初值, 期望)
+@@   TEST_WI_RB(pt, 助记符, 目的 rb, wpN, immu16, 初值, 期望)
+@@   TEST_WI_RF(pt, 助记符, 目的 rf, wpN, immu16, 初值, 期望)
+@@   TEST_WI_{RD,RB,RF}_MEM(pt, 助记符, 目的, wpN, immu16, 初值, WDATA 偏移)
+@@ 判据：目的在 rd ⇒ 直接比；在 rb/rf ⇒ 同组 `st.o` 落到 SCRATCH 再逐字节比
+@@   （探针不借被测的立即数指令）。`_MEM` 变体的**期望从 WDATA 装载**（不经任何 rwii
+@@   指令）—— `__LI` 自身用 set.zw/or.w 拼常量，故该变体防「期望由被测指令自证」。
+@@ 初值装载：rd 用 `__LI`、rb 用 `__LI_RB`、rf 用 `__LI` + `rd2rf`（复制指令，独立于本册）。
+@@ ---------------------------------------------------------------------------
+
+.macro TEST_WI_RD pt, mnem, dst, wp, imm, init, exp
+	__LI	\dst, \init
+	\mnem	\dst, \wp, \imm
+	__CHECK_RD \pt, \dst, \exp
+.endm
+
+.macro TEST_WI_RB pt, mnem, dst, wp, imm, init, exp
+	__LI_RB	\dst, \init
+	\mnem	\dst, \wp, \imm
+	st.o	\dst, [rb29, 0]
+	__CHECK_MEM \pt, SCRATCH, 0, \exp
+.endm
+
+.macro TEST_WI_RF pt, mnem, dst, wp, imm, init, exp
+	__LI	rd20, \init
+	rd2rf	{\dst:\dst}, {rd20:rd20}
+	\mnem	\dst, \wp, \imm
+	st.o	\dst, [rb29, 0]
+	__CHECK_MEM \pt, SCRATCH, 0, \exp
+.endm
+
+.macro TEST_WI_RD_MEM pt, mnem, dst, wp, imm, init, off
+	__LI	\dst, \init
+	\mnem	\dst, \wp, \imm
+	LOAD_ADDR rb21, WDATA + \off
+	ld.o	rd20, [rb21, 0]
+	__REC	\dst
+	br.eq	{rd20, \dst}?, [rb0, __wrm_\@]
+	__EXIT	\pt
+__wrm_\@:
+.endm
+
+.macro TEST_WI_RB_MEM pt, mnem, dst, wp, imm, init, off
+	__LI_RB	\dst, \init
+	\mnem	\dst, \wp, \imm
+	st.o	\dst, [rb29, 0]
+	LOAD_ADDR rb21, WDATA + \off
+	ld.o	rd20, [rb21, 0]
+	ld.o	rd21, [rb29, 0]
+	__REC	rd21
+	br.eq	{rd20, rd21}?, [rb0, __wrm_\@]
+	__EXIT	\pt
+__wrm_\@:
+.endm
+
+.macro TEST_WI_RF_MEM pt, mnem, dst, wp, imm, init, off
+	__LI	rd20, \init
+	rd2rf	{\dst:\dst}, {rd20:rd20}
+	\mnem	\dst, \wp, \imm
+	st.o	\dst, [rb29, 0]
+	LOAD_ADDR rb21, WDATA + \off
+	ld.o	rd20, [rb21, 0]
+	ld.o	rd21, [rb29, 0]
+	__REC	rd21
+	br.eq	{rd20, rd21}?, [rb0, __wrm_\@]
+	__EXIT	\pt
+__wrm_\@:
+.endm
+
+@@ rf0（FCSR）的 `set.w` 写语义（`spec/SimRISC-03 §1` 注 + `spec/SimRISC-00` 写语义：
+@@   只更新 [33:32]（舍入模式）与 [4:0]（异常状态），其余位写无效）
+@@   TEST_WI_RF0_NOOP(pt, wpN, immu16)：wp1/wp3 完全写无效 ⇒ 写前后 rf0 逐位相等。
+@@   TEST_WI_RF0_WRITE(pt, wpN, immu16)：wp2/wp0 只写各自可写域 —— 前置先把该域清 0，
+@@     期望 = 写前值对应字节 + 写入增量（其余 7 字节不变），逐字节比。大端下
+@@     [39:32] = 第 3 字节（[33:32] 是其低 2 位）、[7:0] = 第 7 字节（[4:0] 是其低 5 位）。
+@@   前置写若被实现忽略，期望字节也会跟着错 ⇒ 断言必红（fail-closed，不会假绿）。
+@@ ---------------------------------------------------------------------------
+
+.macro TEST_WI_RF0_NOOP pt, wp, imm
+	st.o	rf0, [rb27, 0]
+	ld.o	rd25, [rb27, 0]
+	set.w	rf0, \wp, \imm
+	st.o	rf0, [rb27, 0]
+	ld.o	rd20, [rb27, 0]
+	__REC	rd20
+	br.eq	{rd20, rd25}?, [rb0, __r0n_\@]
+	__EXIT	\pt
+__r0n_\@:
+.endm
+
+.macro TEST_WI_RF0_WRITE pt, wp, imm
+	set.w	rf0, \wp, 0x0000
+	st.o	rf0, [rb27, 0]
+	ld.o	rd25, [rb27, 0]
+	set.w	rf0, \wp, \imm
+	st.o	rf0, [rb27, 8]
+	.ifc	\wp, wp2
+	ld.ub	rd26, [rb27, 3]
+	add.si	rd26, ((\imm) & 3)
+	st.b	rd26, [rb27, 3]
+	.endif
+	.ifc	\wp, wp0
+	ld.ub	rd26, [rb27, 7]
+	add.si	rd26, ((\imm) & 0x1F)
+	st.b	rd26, [rb27, 7]
+	.endif
+	ld.o	rd20, [rb27, 0]
+	ld.o	rd21, [rb27, 8]
+	__REC	rd21
+	br.eq	{rd20, rd21}?, [rb0, __r0w_\@]
+	__EXIT	\pt
+__r0w_\@:
+.endm
+
+@@ ---------------------------------------------------------------------------
 @@ 故障例：TEST_FAULT(pt, 助记符, 目的/源, 故障名, 基址, 基址值, 偏移)
 @@        TEST_FAULT_M(pt, 助记符, 组, 故障名, 基址, 基址值, 偏移寄存器, 偏移值)
 @@        TEST_FAULT_ENC(pt, 故障名, 编码字, 基址, 基址值, 偏移寄存器, 偏移值)
+@@        TEST_FAULT_WI(pt, 助记符, 目的, 故障名, wpN, immu16)
 @@   只有 `-defsym CASE_N=<pt>` 才展开该例代码；链例镜像里它不产码。
 @@   落点核对 cause_id one-hot，随后 `SYS_EXIT(0xF0|位索引)`。
 @@ ---------------------------------------------------------------------------
@@ -671,6 +796,18 @@ __fault_case:
 	.endif
 .endm
 
+@@ 16 位立即数操作故障例（rwii：目的 rd0/rb0 ⇒ ILLI）
+@@   TEST_FAULT_WI(pt, 助记符, 目的, 故障名, wpN, immu16)
+.macro TEST_FAULT_WI pt, mnem, dst, fault, wp, imm
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	\mnem	\dst, \wp, \imm
+	__EXIT	\pt
+	.endif
+.endm
+
 @@ ---------------------------------------------------------------------------
 @@ 镜像骨架
 @@ ---------------------------------------------------------------------------
@@ -685,6 +822,7 @@ _start:
 .endif
 	LOAD_ADDR rb30, TEST_BUF
 	LOAD_ADDR rb29, SCRATCH
+	LOAD_ADDR rb27, WSCRATCH
 .endm
 
 @@ 链例收尾：打印结果缓冲（8 × 检查点数）并 PASS
@@ -814,6 +952,27 @@ TEST_DATA_PATTERN:
 	.dd.o64	0x7FFFFFFFFFFFFFFF      @@ +0x68
 	.dd.o64	0x000A000000001234      @@ +0x70（[63:54]=0 ⇒ ra0 可作目的）
 	.dd.o64	0x000000000000FFFF      @@ +0x78
-	@@ +0x1400 SCRATCH（8 B 落点）与其余保持零
-	.space	0x480, 0
+	@@ +0x1380..+0x1500 保持零（含 +0x1400 SCRATCH —— rb/ra/rf 实测落点，rb29 指）
+	.space	0x180, 0
+	@@ WDATA（+0x1500）：16 拍 —— 16 位立即数操作（03-wyde-imm）的初值/边界表；
+	@@   `_MEM` 变体从这里装载期望（独立 oracle：不经 set.zw/set.ow/or.w/andn.w/set.w）
+WDATA:
+	.dd.o64	0x0000000000000000      @@ +0x00
+	.dd.o64	0x0123456789ABCDEF      @@ +0x08（四个 wyde 互不相同）
+	.dd.o64	0x8899AABBCCDDEEFF      @@ +0x10
+	.dd.o64	0xFFFFFFFFFFFFFFFF      @@ +0x18
+	.dd.o64	0x000000000000FFFF      @@ +0x20
+	.dd.o64	0xFFFF0000FFFF0000      @@ +0x28
+	.dd.o64	0x8000000000000000      @@ +0x30
+	.dd.o64	0x7FFFFFFFFFFFFFFF      @@ +0x38
+	.dd.o64	0x0000ABCD00000000      @@ +0x40（set.zw  wp2 0xABCD，init +0x08）
+	.dd.o64	0xFFFF1234FFFFFFFF      @@ +0x48（set.ow  wp2 0x1234，init 0）
+	.dd.o64	0x0123456789ABDDFF      @@ +0x50（or.w    wp0 0x1111，init +0x08）
+	.dd.o64	0x012345670000CDEF      @@ +0x58（andn.w  wp1 0xFFFF，init +0x08）
+	.dd.o64	0x0123FFFF89ABCDEF      @@ +0x60（set.w   wp2 0xFFFF，init +0x08）
+	.dd.o64	0xDEADBEEFCAFEF00D      @@ +0x68
+	.dd.o64	0xA5A55A5A0F0FF0F0      @@ +0x70
+	.dd.o64	0x13579BDF2468ACE0      @@ +0x78
+	@@ WSCRATCH（+0x1580）：rf0 写语义例的「写前 / 写后」8 B（rb27 指）与其余零
+	.space	0x280, 0
 .endm

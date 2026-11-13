@@ -100,7 +100,7 @@
 | `base/reg-arith.yaml` | 224 | — | 待迁 |
 | `base/reg-compare.yaml` | — | — | 待迁 |
 | `base/reg-cond-assign.yaml` | 25 | 5 | **id 全部已迁**（5 个 `cs.*_rrrr_rd`，见 §6）；文件未删（§5.1 四个门控阻塞） |
-| `base/reg-imm-block.yaml` | 48 | 7+6 | 部分迁移（6 个块复制 id 已迁，见 §6；其余 7 个 rwii/算术 id 仍待迁） |
+| `base/reg-imm-block.yaml` | 48 | 7+6 | **id 全部已迁**（6 个块复制 id 见 §6/014，7 个 rwii id 见 §6/015）；文件未删（§5.1 前置） |
 | `base/reg-logic.yaml` | — | — | 待迁 |
 | `base/reg-shift-extend.yaml` | 112 | — | 待迁 |
 | `base/mem-rd.yaml` | 122 | 22 | **id 全部已迁**（`ld.*`/`st.*` 单元素 11 + `ldm.*`/`stm.*` 11，见 §6）；**文件未删** —— 删除依赖 inventory 载体登记改造（见 §5.1） |
@@ -203,3 +203,30 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
   --check` rc=1（missing）；`fp/cond-assign.yaml` ⇒ `check_case_ledger` rc=1（多 6 行）、
   `check_tests_index` rc=1、`generate_isa_vectors --check` rc=1、
   `semantics_gate --check-only` rc=1（缺册 + 门控覆盖表登记不符）。⇒ 与 §5.1 同批处理。
+
+### `m13-testcases-015`：`03-wyde-imm`（16 位立即数操作，8 个 id）
+
+- `tests/inst/03-wyde-imm/{<id>.S}`（8 个）：`set.zw`（rd/rb）、`set.ow`（rd）、
+  `or.w`（rd/rb）、`andn.w`（rd/rb）、`set.w`（rf）；链接布局复用
+  `01-load-store/inst-tiny.lds`（段地址由宏层固定）。
+- 宏层新增（`tests/inst/macros/inst_test.inc`）：`TEST_WI_{RD,RB,RF}`（一行一个用例、
+  期望内联）、`TEST_WI_{RD,RB,RF}_MEM`（期望**从 WDATA 装载**的独立 oracle ——
+  `__LI` 自身用 `set.zw`/`or.w` 拼常量，故这组变体防「期望由被测指令自证」）、
+  `TEST_WI_RF0_NOOP`/`TEST_WI_RF0_WRITE`（rf0 的 FCSR 写掩码，见下）、
+  `TEST_FAULT_WI`（`dst_rd0`/`dst_rb0` ⇒ ILLI）。数据区新增 WDATA（`+0x1500`，
+  16 拍）/ WSCRATCH（`+0x1580`，rf0 例的前/后 8 B）。
+- **探针不借被测指令**：目的在 rd 直接比；在 rb/rf 用同组 `st.o` 落到 SCRATCH
+  再逐字节比。初值：rd 用 `__LI`、rb 用 `__LI_RB`、rf 用 `__LI` + `rd2rf`。
+- 用例：每 id 14 点（encoding 2 / semantic 5 / boundary 6 / overlap 1），`set.w` 17 点
+  （多 3 点 rf0 写语义：wp1/wp3 写无效、wp2/wp0 只管各自可写域）+ 故障例 1；
+  `set.w_rwii_rf` 无合法性规则（`spec/SimRISC-03 附录 B`）⇒ **无故障例**。
+  16 位立即数分片按 `wp0`..`wp3` 全覆盖；`immu16` 取 0 / `0xFFFF` / `0x8000` /
+  最小非零 / 最大正 15 位等边界；`set.zw` 另钉「高 16 位归零」（rb 地址溢出检测用法）。
+- **rf0（FCSR）写语义**：wp2 立即数的**低 2 位**命中 `[33:32]`（舍入模式）、
+  wp0 的低 5 位命中 `[4:0]`（异常状态），其余位写无效（写掩码
+  `0x000000030000001F`，QEMU/chipyard/gem5 实测一致）。用例前置把该域清 0，
+  期望 = 写前值对应字节 + 增量 ⇒ 若实现忽略了「写无效」位，断言必红（fail-closed）。
+- 三方逐字节：`run_asm_suite.py`（同一份 ELF：chipyard / QEMU / gem5，15 个镜像 =
+  链例 8 + 故障例 7）。
+- **YAML**：`base/reg-imm-block.yaml` 的 7 个 rwii id 用例已并入
+  （`set.w_rwii_rf` 原本无 YAML 载体）；文件**未删**（§5.1 前置未解）。

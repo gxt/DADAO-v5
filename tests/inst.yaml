@@ -221,6 +221,54 @@
   - system
   level: full
   requires: []
+- id: inst-03-wyde-imm-001
+  file: inst/03-wyde-imm/andn.w_rwii_rb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-03-wyde-imm-002
+  file: inst/03-wyde-imm/andn.w_rwii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-03-wyde-imm-003
+  file: inst/03-wyde-imm/or.w_rwii_rb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-03-wyde-imm-004
+  file: inst/03-wyde-imm/or.w_rwii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-03-wyde-imm-005
+  file: inst/03-wyde-imm/set.ow_rwii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-03-wyde-imm-006
+  file: inst/03-wyde-imm/set.w_rwii_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-03-wyde-imm-007
+  file: inst/03-wyde-imm/set.zw_rwii_rb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-03-wyde-imm-008
+  file: inst/03-wyde-imm/set.zw_rwii_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-atomics-001
   file: inst/atomics/aba_treiber.c
   platforms:
