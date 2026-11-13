@@ -2,6 +2,15 @@
 
 > **维护规则**：本页只承载三样——① **入口指针**（导航）；② **DADAO 反套用清单**（与主流 ISA 的硬差异，防止 AI 用其他 ISA 经验补全）；③ **权威文档地图**（职责、读取顺序、冲突处置）。**不复述规范正文**；正文以 `spec/`、`contracts/`/`.tao/contracts/`、`.tao/adr/` 为准，复制必漂移。
 
+## 当前交接（滚动；每次会话切换时更新，≤12 行）
+
+- **2026-11-13**：M12 已验证 34 / 待开始 4；M13 已验证 41 / 待开始 23；进行中 **0**。
+- 最近合入：`spec-005`（`ldm` 禁地址寄存器重叠）、`spec-006`（FMA 溢出按 IEEE）、`qemu-006`/`gem5-008`（`ldm` ILLI 实现）、`qemu-008`/`gem5-009`（FMA：两平台**本就合规**，只补断言）、`gem5-010`（hmon fixture 迁移）、`chipyard-027`（RTL ILLI）、`testcases-013`（235/235 三平台）。
+- 下一件：`m13-testcases-014`（`02-reg-copy` 16 id，2–3 h）；`m12-chipyard-028`（重生成 `bootrom.tiny.hex`，补齐 `pending_followups` 最后一条）；`m12-chipyard-029`（FMA RTL，须按 spec 实测，**不得**用 QEMU/gem5 结论推定）。`028` 与 `029` 组件互斥，串行。
+- 未决 issue：`ISS-410`（hmon 自装 workaround，待 028 后撤）、`ISS-416`（生成器漂移）、`ISS-417`（DDLD 残留扫描面）、`ISS-420`（FMA 常驻门控，载体 `testcases-021/022`）、`ISS-421`（chipyard README/changelog）。
+- 节点：6 台同构（2×64 + 4×40 vCPU）。`207/208` 已引导（L1 绿、gem5 已建、musl 已建）；`ics150–180` 已同步仓库 + `.cache`，`install-host`/`musl`/`gem5` **未建**，chipyard conda 环境**全 6 台未建**。
+- 裁定（原话见 `discussing.md` 末）：节点只作评测；测试时长 15m/6h/24h 分档且**不含构建时间**；`ldm` 禁重叠 / `stm` 允 / RA·RF 不适用。
+
 ## 入口指针
 
 | 主题 | 真源 |
