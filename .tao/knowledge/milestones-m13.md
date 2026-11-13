@@ -29,7 +29,6 @@
 | m13-qemu-011 | 2–3 h | `-bios` 收紧为固定固件，删 legacy trampoline 窗口 |
 | m13-testcases-034 | 2–3 h | Tiny `expected_fault` oracle 迁到 hmon 分派口径 |
 | m13-spec-008 | 1–2 h | `ext.*` 的 `hd` 取 `rdHD` 低 6 位（仅 orrr）；删「否则 ILLI」措辞 |
-| m13-qemu-010 | 3–4 h | QEMU `ext.*` orrr 的 `hd` 改 `reg & 0x3F`（去掉 ILLI 路径） |
 | m13-gem5-012 | 3–4 h | gem5 `ext.*` orrr 的 `hd` 改 `reg & 0x3F`（B3 表同步） |
 | m13-testcases-033 | 2–3 h | 补 `ext.*` `rdHD=64/67/63` 跨平台用例（截低 6 位） |
 | m13-testcases-032 | 4–6 h | rootn ±0 / NaN canonical / quiet-sNaN 向量与三平台期望 |
@@ -53,6 +52,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m13-qemu-010 | 2026-11-14 03:25 | 3–4 h | QEMU `ext.*` orrr 的 `hd` 改 `reg & 0x3F`（去掉 ILLI 路径） |
 
 ## 已验证
 
