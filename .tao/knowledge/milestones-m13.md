@@ -25,6 +25,10 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m13-spec-008 | 1–2 h | `ext.*` 的 `hd` 取 `rdHD` 低 6 位（仅 orrr）；删「否则 ILLI」措辞 |
+| m13-qemu-010 | 3–4 h | QEMU `ext.*` orrr 的 `hd` 改 `reg & 0x3F`（去掉 ILLI 路径） |
+| m13-gem5-012 | 3–4 h | gem5 `ext.*` orrr 的 `hd` 改 `reg & 0x3F`（B3 表同步） |
+| m13-testcases-033 | 2–3 h | 补 `ext.*` `rdHD=64/67/63` 跨平台用例（截低 6 位） |
 | m13-testcases-032 | 4–6 h | rootn ±0 / NaN canonical / quiet-sNaN 向量与三平台期望 |
 | m13-testcases-031 | 2–3 h | 补 `st.o rb0`（`aip.si` 构造期望）+ `ld.o ra0` 读写（SBZ 写忽略） |
 | m13-testcases-018 | 1–2 h | `04-arith-logic-octa` 位操作 4 个 id 改汇编+宏 |
