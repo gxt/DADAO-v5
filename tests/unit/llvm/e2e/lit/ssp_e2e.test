@@ -1,0 +1,62 @@
+# Stack protector end-to-end and object-level vector (m14-llvm-002).
+#
+# The DADAO backend supports -fstack-protector* by lowering the guard through
+# RTLIB::STACK_CHECK_GUARD -> __stack_chk_guard and the fail block through
+# RTLIB::STACKPROTECTOR_CHECK_FAIL -> __stack_chk_fail (registered in
+# DADAOSubtarget::initLibcallLoweringInfo).  Both symbols are only *declared*:
+# the runtime defines them, and for this vector tests/unit/llvm/e2e/
+# ssp_runtime.s plays that role (non-zero .data guard, SYS_EXIT 66).
+#
+# What this file pins, in order:
+#   1. object level: -fstack-protector-strong emits the guard address
+#      materialisation (R_DADAO_ABS48 __stack_chk_guard) + the guard load, the
+#      canary store into the frame, the epilogue reload + compare + branch, and
+#      the __stack_chk_fail call (R_DADAO_REL26);
+#   2. off switch: -fno-stack-protector emits no __stack_chk_* reference at all
+#      (relocation and symbol views);
+#   3. option semantics: -mstack-protector-guard=global is byte-identical to the
+#      default -S output, while -mstack-protector-guard=tls is rejected with a
+#      diagnostic that names the accepted value (no silent downgrade);
+#   4. E2E: with SSP on the program links (the two symbols are defined by
+#      ssp_runtime.s, so lld's undefined-symbol error would fire otherwise) and
+#      runs on qemu: the in-bounds control run exits 0, and the run that writes
+#      32 bytes into a 16-byte volatile buffer exits 66 -- the canary really was
+#      clobbered and __stack_chk_fail really ran.  The exact exit code is
+#      asserted with `test $? -eq N` rather than `%not`, so a timeout (124) or a
+#      crash cannot be mistaken for the expected failure.
+#
+# RUN: %clang -target dadao-unknown-elf -nostdlib -O1 -fstack-protector-strong -c %e2e_dir/ssp_e2e.c -o %t.o
+# RUN: %llvm_objdump -dr %t.o | %FileCheck %s --check-prefix=OBJ
+# RUN: %clang -target dadao-unknown-elf -nostdlib -O1 -fno-stack-protector -c %e2e_dir/ssp_e2e.c -o %t.off.o
+# RUN: %llvm_objdump -dr %t.off.o | %not grep -q __stack_chk
+# RUN: %llvm_objdump -t %t.off.o | %not grep -q __stack_chk
+# RUN: %clang -target dadao-unknown-elf -nostdlib -O1 -fstack-protector-strong -S %e2e_dir/ssp_e2e.c -o %t.def.s
+# RUN: %clang -target dadao-unknown-elf -nostdlib -O1 -fstack-protector-strong -mstack-protector-guard=global -S %e2e_dir/ssp_e2e.c -o %t.glob.s
+# RUN: diff %t.def.s %t.glob.s
+# RUN: %not %clang -target dadao-unknown-elf -nostdlib -O1 -fstack-protector-strong -mstack-protector-guard=tls -S %e2e_dir/ssp_e2e.c -o %t.tls.s 2>&1 | %FileCheck %s --check-prefix=TLS
+# RUN: %not ls %t.tls.s
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %e2e_dir/ssp_runtime.s -o %t.rt.o
+# RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
+# RUN: %ld -T %linker_script %t.crt0.o %t.o %t.rt.o -o %t.ctl.elf
+# RUN: %llvm_objdump -t %t.ctl.elf | %FileCheck %s --check-prefix=SYM
+# RUN: bash -c 'timeout 30 %qemu -machine dadao-tiny,bootrom-image=%bootrom -kernel %t.ctl.elf -semihosting-config enable=on,target=native -display none -nographic; test $? -eq 0'
+# RUN: %clang -target dadao-unknown-elf -nostdlib -O2 -fstack-protector-strong -DSSP_TRIGGER -c %e2e_dir/ssp_e2e.c -o %t.trig.o
+# RUN: %ld -T %linker_script %t.crt0.o %t.trig.o %t.rt.o -o %t.trig.elf
+# RUN: bash -c 'timeout 30 %qemu -machine dadao-tiny,bootrom-image=%bootrom -kernel %t.trig.elf -semihosting-config enable=on,target=native -display none -nographic; test $? -eq 66'
+
+# OBJ: R_DADAO_ABS48 __stack_chk_guard
+# OBJ: ld.o rd{{[0-9]+}}, [rb{{[0-9]+}}, 0]
+# OBJ: st.o rd{{[0-9]+}}, [rb{{[0-9]+}}, {{-?[0-9]+}}]
+# OBJ: R_DADAO_ABS48 __stack_chk_guard
+# OBJ: br.ne
+# OBJ: call [rb0, {{[0-9]+}}]
+# OBJ: R_DADAO_REL26 __stack_chk_fail
+
+# The front end rejects the TLS guard for dadao: the diagnostic must name the
+# accepted value, so the user is not left with a bare "unsupported option".
+# TLS: error: invalid value 'tls' in 'mstack-protector-guard=', expected one of: global
+
+# Both symbols are definitions in the linked image (lld would have failed on an
+# undefined reference, so this also proves the declaration/definition split).
+# SYM: g .data {{[0-9a-f]+}} __stack_chk_guard
+# SYM: g .text {{[0-9a-f]+}} __stack_chk_fail

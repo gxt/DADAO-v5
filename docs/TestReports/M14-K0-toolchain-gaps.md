@@ -2,15 +2,15 @@
 
 # M14 K0 工具链缺口矩阵
 
-- **生成时间**：2026-11-13 23:12:53 +0800（UTC 2026-11-13T15:12:53Z）
+- **生成时间**：2026-11-14 03:27:58 +0800（UTC 2026-11-13T19:27:58Z）
 - **数据来源**：`tools/linux/toolchain_matrix.json`（format 1）+ 现场探针（本册由生成器按矩阵重跑探针后写出）
-- **机器指纹**：CPU `AMD EPYC 7773X 64-Core Processor`；target `dadao-unknown-elf`；clang `clang version 23.1.3 (be79a1758026)`；llvm-mc `LLVM version 23.1.3`；工具版本摘要 md5 `80649bd8afe8`
+- **机器指纹**：CPU `AMD EPYC 7773X 64-Core Processor`；target `dadao-unknown-elf`；clang `clang version 23.1.3 (53b40870777e)`；llvm-mc `LLVM version 23.1.3`；工具版本摘要 md5 `6b897fdaa2b8`
 - **复现**：`make check-linux-toolchain`（门控）；`python3 tools/linux/check_toolchain.py --report`（重新生成本册）；`python3 tools/linux/check_toolchain.py --inject`（自检）
 
 ## 1. 结论
 
 - 8 行矩阵，8/8 行「声明 == 实测」。
-- `gaps=3 (blockers=0)`：缺口行全部有**现场验证过**的规避法，对 K0 无阻塞。
+- `gaps=2 (blockers=0)`：缺口行全部有**现场验证过**的规避法，对 K0 无阻塞。
 - `required_for_k0` 共 2 行（asm-goto、inline-asm-constraints），全部 present/supported。
 - 结论由 **DADAO target** 决定：能力探针一律带 `--target=dadao-unknown-elf`（汇编用 `-triple=dadao-unknown-elf`）；宿主 x86 上同类探针另见 §5 对照。
 
@@ -22,7 +22,7 @@
 | `llvm-ranlib` | present | present | 0 | verified | none | `m14-linux-002` |
 | `llvm-strip` | present | present | 0 | verified | none | `m14-linux-002` |
 | `asm-goto` | supported | supported | 0 | n/a | none | `m14-linux-002` |
-| `stack-protector` | unsupported | unsupported | 1 | verified | none | `m14-linux-002` |
+| `stack-protector` | supported | supported | 0 | verified | none | `m14-llvm-002` |
 | `data-directives` | unsupported | unsupported | 1 | verified | none | `m14-linux-002` |
 | `inline-asm-constraints` | supported | supported | 0 | n/a | none | `m14-linux-002` |
 | `mcmodel-kernel` | unsupported | unsupported | 1 | verified | none | `m14-linux-002` |
@@ -53,12 +53,11 @@
 - 实测：supported（exit 0）；输出摘要：`-fsyntax-only rc=0; -O1 -S rc=0; 标签降级=yes`
 - 规避法：不需要（能力已具备）
 
-### `stack-protector` — unsupported
+### `stack-protector` — supported
 
 - 探针：`clang --target=dadao-unknown-elf -O1 -fstack-protector-strong -S <src>`
-- 实测：unsupported（exit 1）；输出摘要：`-O1 -fstack-protector-strong -S rc=1; canary=no; error: unable to lower stackguard`
-- 规避法：-fno-stack-protector（Kconfig 关栈保护；-mstack-protector-guard=* 同不支持）
-- 规避法验证：verified（`-fno-stack-protector -S rc=0; canary=absent`）
+- 实测：supported（exit 0）；输出摘要：`-O1 -fstack-protector-strong -S rc=0; canary=yes`
+- 规避法：不需要（能力已具备）
 
 ### `data-directives` — unsupported
 

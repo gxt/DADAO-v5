@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOSubtarget.cpp b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
 new file mode 100644
-index 000000000..9408ea445
+index 000000000..45cd77b82
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOSubtarget.cpp
-@@ -0,0 +1,199 @@
+@@ -0,0 +1,224 @@
 +//===-- DADAOSubtarget.cpp - DADAO Subtarget Information --------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -202,4 +202,29 @@ index 000000000..9408ea445
 +  Info.setLibcallImpl(RTLIB::OLE_F128, RTLIB::impl___letf2);
 +  Info.setLibcallImpl(RTLIB::OGT_F128, RTLIB::impl___gttf2);
 +  Info.setLibcallImpl(RTLIB::UO_F128, RTLIB::impl___unordtf2);
++
++  // m14-llvm-002: stack protector (SSP) lowering.  These two libcall impls are
++  // the whole backend channel for `-fstack-protector*`:
++  //
++  //   STACK_CHECK_GUARD         -> __stack_chk_guard
++  //   STACKPROTECTOR_CHECK_FAIL -> __stack_chk_fail
++  //
++  // With them registered, TargetLoweringBase::insertSSPDeclarations declares
++  // the guard as an external, pointer-wide (8-byte) object and
++  // getSDagStackGuard hands it to SelectionDAGBuilder, where the
++  // `llvm.stackguard` intrinsic becomes one volatile 8-byte load;
++  // StackProtector::CreateFailBB emits the no-argument `noreturn` call.
++  // Without them DADAO landed in SelectionDAGBuilder's "unable to lower
++  // stackguard" branch and StackProtector reported "no libcall available for
++  // stack protector" -- every `-fstack-protector*` compilation failed
++  // (m14-infra-001 gap).  `impl___stack_chk_guard` (not `impl___guard_local`)
++  // is deliberate: getIRStackGuard keys on `__guard_local`, so the guard stays
++  // on the SelectionDAG path, which is the one DADAO can lower.  Only
++  // declarations are emitted; the definitions belong to the runtime the
++  // program links against (Linux kernel CONFIG_STACKPROTECTOR, picolibc
++  // libc/ssp, musl).
++  Info.setLibcallImpl(RTLIB::STACK_CHECK_GUARD,
++                      RTLIB::impl___stack_chk_guard);
++  Info.setLibcallImpl(RTLIB::STACKPROTECTOR_CHECK_FAIL,
++                      RTLIB::impl___stack_chk_fail);
 +}

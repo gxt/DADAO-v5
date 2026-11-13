@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.h b/llvm/lib/Target/DADAO/DADAOISelLowering.h
 new file mode 100644
-index 000000000..87b305263
+index 000000000..60f609a17
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.h
-@@ -0,0 +1,449 @@
+@@ -0,0 +1,462 @@
 +//===-- DADAOISelLowering.h - DADAO DAG Lowering Interface ------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -311,6 +311,19 @@ index 000000000..87b305263
 +  /// libcall.
 +  AtomicExpansionKind
 +  shouldExpandAtomicRMWInIR(const AtomicRMWInst *RMW) const override;
++
++  /// Stack-protector guard placement (m14-llvm-002).  The only guard DADAO
++  /// supports is the external global `__stack_chk_guard`, so the generic
++  /// declaration (external, pointer-wide, ABI-aligned) is exactly right and is
++  /// inherited.  The one thing the generic hook cannot know is that a `tls`
++  /// request must not be silently served by that global: since
++  /// getIRStackGuard() is null for DADAO, StackProtector routes both the empty
++  /// and the "tls" guard mode through the SelectionDAG path, i.e. a `tls`
++  /// module flag would quietly produce a global-symbol load.  DADAO's ABI does
++  /// not define a TLS canary slot, so reject it here (fail closed; the module
++  /// error makes llc/cc1 exit non-zero and no object is written).
++  void insertSSPDeclarations(Module &M,
++                             const LibcallLoweringInfo &Libcalls) const override;
 +
 +  /// Expand the lr/sc CAS pseudos into the retry loop (LLVM-121t).  The hook
 +  /// runs in FinalizeISel (before register allocation), which is where new

@@ -58,14 +58,14 @@
     {
       "id": "stack-protector",
       "required_for_k0": false,
-      "declared": "unsupported",
+      "declared": "supported",
       "probe": "clang --target=dadao-unknown-elf -O1 -fstack-protector-strong -S <src>",
-      "measured": "unsupported",
-      "workaround": "-fno-stack-protector（Kconfig 关栈保护；-mstack-protector-guard=* 同不支持）",
-      "workaround_probe": "clang --target=dadao-unknown-elf -O1 -fno-stack-protector -S <src>",
-      "workaround_measured": "verified",
+      "measured": "supported",
+      "workaround": "",
+      "workaround_probe": "",
+      "workaround_measured": "n/a",
       "k0_impact": "none",
-      "owner": "m14-linux-002"
+      "owner": "m14-llvm-002"
     },
     {
       "id": "data-directives",

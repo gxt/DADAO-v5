@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/DADAOISelLowering.cpp b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
 new file mode 100644
-index 000000000..48d9837c5
+index 000000000..c4fdb3e06
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/DADAOISelLowering.cpp
-@@ -0,0 +1,3100 @@
+@@ -0,0 +1,3127 @@
 +//===-- DADAOISelLowering.cpp - DADAO DAG Lowering Impl ---------*- C++ -*-===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -48,6 +48,7 @@ index 000000000..48d9837c5
 +#include "llvm/IR/Instructions.h"
 +#include "llvm/IR/Intrinsics.h"
 +#include "llvm/IR/IntrinsicsDADAO.h"
++#include "llvm/IR/Module.h"
 +#include "llvm/MC/MCRegister.h"
 +#include "llvm/Support/ErrorHandling.h"
 +#include "llvm/Support/MathExtras.h"
@@ -3103,4 +3104,30 @@ index 000000000..48d9837c5
 +
 +  MI.eraseFromParent();
 +  return exitMBB;
++}
++
++// m14-llvm-002: the stack-protector guard mode.  DADAO only has the external
++// global `__stack_chk_guard`, so the generic declaration (external,
++// pointer-wide, ABI-aligned) is used as-is; every non-"global" mode -- in
++// practice `tls` -- is rejected instead of being served by that global.
++// getIRStackGuard() is null here, so StackProtector routes both the empty and
++// the "tls" mode through the same SelectionDAG path: without this check a
++// `tls` request would silently emit a global load, i.e. a guard the user did
++// not ask for.  The DADAO ABI defines no TLS canary slot (rb3 = rbtp exists,
++// but no canary offset is frozen), so an error is the only correct answer.
++// Codegen still completes (the guard is declared right after the diagnostic)
++// so the module stays well-formed; llc and clang report the error and write no
++// output.
++void DADAOTargetLowering::insertSSPDeclarations(
++    Module &M, const LibcallLoweringInfo &Libcalls) const {
++  const StringRef GuardMode = M.getStackProtectorGuard();
++  if (!GuardMode.empty() && GuardMode != "global")
++    M.getContext()
++        .emitError(Twine("stack protector guard '") + GuardMode +
++                   "' is not supported for target DADAO (the ABI defines no "
++                   "TLS canary slot); use -mstack-protector-guard=global, "
++                   "which reads the external symbol __stack_chk_guard (the "
++                   "default)");
++
++  TargetLowering::insertSSPDeclarations(M, Libcalls);
 +}

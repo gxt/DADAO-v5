@@ -1,8 +1,33 @@
 diff --git a/clang/lib/Driver/ToolChains/Clang.cpp b/clang/lib/Driver/ToolChains/Clang.cpp
-index db7893c54..b7f20756a 100644
+index db7893c54..20db78eac 100644
 --- a/clang/lib/Driver/ToolChains/Clang.cpp
 +++ b/clang/lib/Driver/ToolChains/Clang.cpp
-@@ -7178,8 +7178,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
+@@ -3644,9 +3644,23 @@ static void RenderSSPOptions(const Driver &D, const ToolChain &TC,
+     if (!EffectiveTriple.isX86() && !EffectiveTriple.isAArch64() &&
+         !EffectiveTriple.isARM() && !EffectiveTriple.isThumb() &&
+         !EffectiveTriple.isRISCV() && !EffectiveTriple.isPPC() &&
+-        !EffectiveTriple.isSystemZ())
++        !EffectiveTriple.isSystemZ() &&
++        EffectiveTriple.getArch() != llvm::Triple::dadao)
+       D.Diag(diag::err_drv_unsupported_opt_for_target)
+           << A->getAsString(Args) << TripleStr;
++    // DADAO (m14-llvm-002): the canary is the external global
++    // __stack_chk_guard, so "global" is the only guard form the backend can
++    // lower.  Reject anything else -- in particular "tls" -- instead of
++    // letting it through: DADAO has no IR guard (getIRStackGuard() is null),
++    // so a "tls" request would silently take the same SelectionDAG path as
++    // the default and read the global anyway, and the ABI defines no TLS
++    // canary slot.  The suggestion names the accepted value.
++    if (EffectiveTriple.getArch() == llvm::Triple::dadao &&
++        GuardValue != "global") {
++      D.Diag(diag::err_drv_invalid_value_with_suggestion)
++          << A->getOption().getName() << GuardValue << "global";
++      return;
++    }
+     // z/OS only supports the tls mode.
+     if (EffectiveTriple.isOSzOS() && GuardValue != "tls") {
+       D.Diag(diag::err_drv_invalid_value_with_suggestion)
+@@ -7178,8 +7192,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
    if (Arg *A = Args.getLastArg(options::OPT_fpatchable_function_entry_EQ)) {
      StringRef S0 = A->getValue(), S = S0;
      unsigned Size, Offset = 0;
@@ -16,7 +41,7 @@ index db7893c54..b7f20756a 100644
          !(!Triple.isOSAIX() && (Triple.getArch() == llvm::Triple::ppc ||
                                  Triple.getArch() == llvm::Triple::ppc64 ||
                                  Triple.getArch() == llvm::Triple::ppc64le)))
-@@ -9319,6 +9324,24 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
+@@ -9319,6 +9338,24 @@ void ClangAs::ConstructJob(Compilation &C, const JobAction &JA,
    RenderDebugEnablingArgs(Args, CmdArgs, DebugInfoKind, DwarfVersion,
                            llvm::DebuggerKind::Default);
    renderDwarfFormat(D, Triple, Args, CmdArgs, DwarfVersion);
