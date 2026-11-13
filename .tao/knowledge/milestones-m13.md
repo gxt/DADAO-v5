@@ -32,7 +32,6 @@
 | m13-gem5-012 | 3–4 h | gem5 `ext.*` orrr 的 `hd` 改 `reg & 0x3F`（B3 表同步） |
 | m13-testcases-033 | 2–3 h | 补 `ext.*` `rdHD=64/67/63` 跨平台用例（截低 6 位） |
 | m13-testcases-032 | 4–6 h | rootn ±0 / NaN canonical / quiet-sNaN 向量与三平台期望 |
-| m13-testcases-031 | 2–3 h | 补 `st.o rb0`（`aip.si` 构造期望）+ `ld.o ra0` 读写（SBZ 写忽略） |
 | m13-testcases-021 | 5–7 h | `07-floating-point` 算术与最小最大 18 个 id 改汇编+宏 |
 | m13-testcases-022 | 6–8 h | `07-floating-point` 转换/比较/分类 26 个 id 改汇编+宏 |
 | m13-testcases-023 | 2–3 h | `07-floating-point` 取整/缩放/符号 8 个 id 改汇编+宏 |
@@ -51,6 +50,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m13-testcases-031 | 2026-11-14 04:35 | 2–3 h | 补 `st.o rb0`（当前指令地址）+ `ld.o ra0`（RAS 窗口读写） |
 
 ## 已验证
 
