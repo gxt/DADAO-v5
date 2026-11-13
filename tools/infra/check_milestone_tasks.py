@@ -219,11 +219,11 @@ def self_test() -> int:
         _write_tree(found_dir, {"milestones.md": "项目里程碑 = M11",
                                 "milestones-m12.md": "项目里程碑 = M12",
                                 "milestones-m13.md": "项目里程碑 = M13",
-                                "lessons.md": "不是台账"},
+                                "notes.md": "不是台账"},
                     {"INFRA-085t-x.md": "正文"})
         ok &= _assert("台账自动发现（3 本，排除其它 md）", 3, len(discover_ledgers(found_dir)))
         empty_dir = tmp / "no-ledger"
-        _write_tree(empty_dir, {"lessons.md": "不是台账"}, {"INFRA-085t-x.md": "正文"})
+        _write_tree(empty_dir, {"notes.md": "不是台账"}, {"INFRA-085t-x.md": "正文"})
         ok &= _assert("无台账 ⇒ 发现为空", 0, len(discover_ledgers(empty_dir)))
 
         # ── 端到端：PASS 分支（号存在 / 号仅存于归档）──

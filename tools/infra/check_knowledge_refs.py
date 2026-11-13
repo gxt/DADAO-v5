@@ -3,7 +3,7 @@
 （INFRA-058t / INTEG-037t 立，INFRA-135t 改判据）；
 (B) `.tao/knowledge/**` 内的**小节级互指**须指向真实存在的文档小节 (INFRA-080t)。
 
-背景（用户 2026-10-11 裁定「认 + 并入 INFRA-058t」，`lessons §3.16`）：
+背景（用户 2026-10-11 裁定「认 + 并入 INFRA-058t」；规则见 `AGENTS.md`「文档分层与单一真源」）：
   - `.work/` 被 `.gitignore` 整体忽略、只在本机存在 ⇒ 仅放 `.work/` 的**被引用材料**
     会**悬空**、不可复现。
   - 归类判据（四分类）：`spec/` = 规范正文；`.tao/knowledge/` = 结论/设计/口径（含长文）；
@@ -17,7 +17,7 @@
   假绿、节点/新机器才红（12 小时内复发 3 次）。被引用的材料须改为运行期措辞，或升格到
   `.tao/knowledge/refs/`。
 
-引用形态口径（详见 AGENTS.md「文档分层与单一真源」与 lessons §3.16）：
+引用形态口径（详见 AGENTS.md「文档分层与单一真源」与 `AGENTS.md`「文档分层与单一真源」）：
   - `<>` / `*` / `$` 形（占位或通配，如 `.work/log/<模块>/`、`.work/log/**`、
     `.work/log/testcases/TESTCASES-036t-*.log`）⇒ **不可判定，跳过**；
   - 以 `-` 结尾（前缀截断，如 `.work/log/testcases/TESTCASES-039t-`）⇒ **跳过**；

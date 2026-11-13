@@ -72,8 +72,10 @@ agent: build
 **B. project_*.md 文件**
 - 若任务涉及某个活跃项目，找到对应的 `knowledge/project_*.md` 并更新进展/状态
 
-**C. lessons.md 文件（按触发时机分 4 节（判据/规范））**
-- 若任务暴露了新的教训或操作规范（"应该这样做"/"不该那样做"），追加到 `$TAO_ROOT/knowledge/lessons.md`（**不另建 `feedback_*.md`**；新增条目 ≤3 行 + 指针，细节进 `.work/log/`）
+**C. 规则 / 经验 / 待裁定（按效力分三处，`lessons.md` 已退役）**
+- **可执行规则**（"必须做 / 禁止做 + 可机械判"）⇒ 写 `AGENTS.md`（每条 ≤2 行 + 门控名 / 指针）
+- **可复用经验/判据**（讲得清、可教学）⇒ 写 `docs/DDLN/Y-研发流程` 对应分册（不写仓库路径/任务号）
+- **尚未定案的口径** ⇒ 写 `$TAO_ROOT/knowledge/discussing.md`「规则修订待办」；**不另建 `feedback_*.md`**，细节进运行期日志目录
 
 **D. 知识库文件**（`$TAO_ROOT/knowledge/`）
 - 若任务包含新的技术结论，检查知识库是否需要新增章节

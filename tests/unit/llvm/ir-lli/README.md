@@ -67,7 +67,7 @@ the independent oracles / execution vectors (`tests/inst/`,
 `tools/testcases/validate_*.py`, `make test-codegen` / `check-qemu-semantics`).
 The `lli` result must never be used as a substitute for those.
 
-## Structural closure (lessons §2.20 / §2.21)
+## Structural closure (AGENTS.md「验证脚本反例门控」)
 
 - **§2.21 (set/structural):** `include` ∪ `exclude` **MUST equal** every `*.ll`
   found on disk under `corpus_roots`, and the two sets **MUST be disjoint**.

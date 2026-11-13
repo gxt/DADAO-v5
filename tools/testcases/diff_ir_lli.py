@@ -27,12 +27,12 @@ Judgement (fail-closed):
   * any mismatch / compile failure / timeout           -> FAIL
   * manifest set mismatch / missing IR / bad class     -> FAIL (structural)
 
-Structural closure (lessons §2.21): the union of the manifest `include` and
+Structural closure (AGENTS.md「验证脚本反例门控」): the union of the manifest `include` and
 `exclude` IR sets MUST equal every ``*.ll`` found on disk under `corpus_roots`,
 and the two sets MUST be disjoint.  Any unclassified ``*.ll`` -> FAIL, so a
 manifest entry cannot be deleted to silently shrink coverage.  Every compared
 case is reported with its per-case hit (host/dadao values), so a "no error"
-run is never mistaken for a live check (lessons §2.20).
+run is never mistaken for a live check (AGENTS.md「验证脚本反例门控」).
 
 Boundary (hard constraint): VALUE-LEVEL only.  Endianness / memory-layout class
 modules are excluded (manifest `exclude`, classes `endianness` /
@@ -469,7 +469,7 @@ def main():
     sys.stdout.write(f"diff_ir_lli: manifest={_norm(os.path.relpath(manifest_path, corpus_root))} "
                      f"work_dir={work_dir}\n")
 
-    # ---- structural closure (lessons §2.21) --------------------------------
+    # ---- structural closure (AGENTS.md「验证脚本反例门控」) --------------------------------
     serrs = structural_check(corpus_root, roots, inc, exc)
     for err in serrs:
         sys.stdout.write(f"[FAIL] structural: {err}\n")

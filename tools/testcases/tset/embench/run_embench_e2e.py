@@ -30,12 +30,12 @@ Judgement (fail-closed):
   * build-step non-zero / non-zero or faulted exit / timeout -> FAIL
   * source tree missing / zero benchmarks / missing tool -> setup error (2)
 
-Structural closure (lessons §2.21): the benchmark corpus IS ``<embench-src>/src/``
+Structural closure (AGENTS.md「验证脚本反例门控」): the benchmark corpus IS ``<embench-src>/src/``
 (a manifest-locked component, so it cannot silently change).  The driver
 enumerates that directory live and requires *every* discovered benchmark to be
 compiled, linked and executed -- the executed set must equal the discovered set,
 so a driver bug cannot silently skip a benchmark.  Counts are reported live
-(never hardcoded; lessons §2.20).
+(never hardcoded; AGENTS.md「验证脚本反例门控」).
 
 Exit status:
   0  every case PASS

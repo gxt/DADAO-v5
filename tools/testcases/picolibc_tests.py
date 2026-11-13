@@ -499,7 +499,7 @@ def main() -> int:
             {"stage": args.stage, "counts": counts, "total": len(results),
              "inject": bool(args.inject), "results": results}, indent=1))
 
-    # Structural self-assertions (fail-closed, lessons §2.20/§2.21): every test
+    # Structural self-assertions (fail-closed, AGENTS.md Validation-script rules): every test
     # lands in exactly one bucket and the buckets sum to the live total.
     if sum(counts.values()) != len(results) or len(results) == 0:
         print("picolibc-tests: FAIL (bucket sum != total or empty inventory)", file=sys.stderr)

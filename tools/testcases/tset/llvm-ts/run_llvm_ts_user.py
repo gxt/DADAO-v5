@@ -338,7 +338,7 @@ Exit status: 0 = no ``fail`` and no ``blocked`` and the census/closure audit
 holds; 1 = otherwise; 2 = setup error (missing tool / source / library
 product / zero cases).
 
-Structural closure (lessons §2.21): the driver enumerates live, requires the
+Structural closure (AGENTS.md「验证脚本反例门控」): the driver enumerates live, requires the
 executed set to equal the discovered scope-A set (minus ``--only``/``--limit``
 pilot selection) and prints both numbers; a silently skipped case makes the
 run fail.  Counts are printed, never hard-coded.

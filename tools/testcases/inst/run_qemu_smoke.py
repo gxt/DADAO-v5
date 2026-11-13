@@ -10,7 +10,7 @@
 `(class, mnemonic)` 分组——`class` = 用例的语义类别（encoding/semantic/boundary/
 legality），`mnemonic` = 指令语义类别——每组取文件序**第一条**为代表。
 
-结构断言（fail-closed，`lessons §2.20`「自证命中」/`§2.21`「断言结构」）：
+结构断言（fail-closed，`AGENTS.md`「验证脚本反例门控」：自证命中 / 断言结构）：
   - 代表集非空，且**每个源 `class` 与每个源 `mnemonic` 均有代表**（覆盖 ≥ 源集合）；
   - 运行结果 `total == 代表数`、`failed == errors == deferred == 0`。
 

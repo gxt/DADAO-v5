@@ -15,7 +15,7 @@
     llvm-mc/llvm-objdump 运行时读取的纯数据） / **子目录**
     ——``contract-*.md`` **不在**白名单（Phase B 已迁出 ⇒ 残留在 `contracts/` 顶层即 FAIL）。
 
-设计要点（沿用 `check_knowledge_dir.py` 体例，`lessons §2.13`）：
+设计要点（沿用 `check_knowledge_dir.py` 体例，`AGENTS.md`「验证脚本反例门控」）：
 
   - **计数现场统计、不写死**；
   - **fail-closed**：任一目录缺失、或顶层**无任何条目**（空 ⇒ 扫描面 vacuous）⇒ 非零退出；

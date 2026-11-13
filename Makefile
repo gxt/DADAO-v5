@@ -1755,7 +1755,7 @@ check-instrinfo:
 # ISA<->backend coverage matrix drift gate (LLVM-081t; INFRA-069t 并入 L1):
 # regenerates the two-layer projection from contracts/opcodes.yaml + the DADAO
 # patch tree and byte-compares it against the committed matrix; drift => FAIL
-# (lessons §2.11: generated projections need a drift gate).  Needs llvm-mc
+# (AGENTS.md「验证脚本反例门控」: generated projections need a drift gate).  Needs llvm-mc
 # (run 'make install-host' first); counts are recomputed live, never hardcoded.
 check-isa-coverage:
 	@$(PYTHON) tools/llvm/gen_isa_coverage.py --check

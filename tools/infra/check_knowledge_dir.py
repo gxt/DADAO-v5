@@ -43,7 +43,6 @@ _ALLOWED_FILES = frozenset({
     "milestones-m14.md",              # M14 分册台账（Linux bring-up）
     "MEMORY.md",                     # 入口指针 + 上游↔v5 偏离台账
     "issues.yaml",                   # issue 台账
-    "lessons.md",                    # 教训/判据
     "milestones.md",                 # 任务流水 / 进度
     "discussing.md",                 # 讨论项 backlog（非任务流水）
     "cfx-register-usage.md",         # CFX 寄存器 usage profile（ADR-0046）

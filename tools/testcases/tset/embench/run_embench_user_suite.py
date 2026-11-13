@@ -77,7 +77,7 @@ Classification (counted live, never hard-coded)
 Exit status: 0 = no ``fail`` and no ``blocked``; 1 = otherwise; 2 = setup error
 (missing tool / source / library product / zero benchmarks).
 
-Structural closure (lessons §2.21): the driver enumerates ``src/*/`` live and
+Structural closure (AGENTS.md「验证脚本反例门控」): the driver enumerates ``src/*/`` live and
 requires the executed set to equal the discovered set (per requested
 optimisation level); a case that is silently skipped makes the run fail.
 

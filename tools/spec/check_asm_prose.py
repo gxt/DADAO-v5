@@ -41,7 +41,7 @@ Scan scope
 ----------
 * ``spec/**/*.md``
 * ``docs/**/*.md``
-* ``.tao/contracts/contract-*.md`` + ``.tao/adr/*.md``  (excl. ``lessons.md``)
+* ``.tao/contracts/contract-*.md`` + ``.tao/adr/*.md`` 
 
 Only fenced code blocks (```…```) are inspected; generated regions delimited by
 ``<!-- ASSEMBLY_LIST_* -->`` / ``<!-- LEGALITY_* -->`` are excluded.
@@ -80,7 +80,6 @@ _ONEHOT_CODES = {"0x01", "0x02", "0x04", "0x08", "0x10", "0x20",
 
 # Files explicitly excluded
 _EXCLUDE_FILES = {
-    ROOT / ".tao" / "knowledge" / "lessons.md",
 }
 
 # Override root for --root mode (set by CLI before scanning)

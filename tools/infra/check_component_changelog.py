@@ -16,7 +16,7 @@
      **vacuous FAIL**；且**带补丁集的 tset 套件**（`tests/tset/<suite>/series`
      存在）必须有 `<suite>/changelog.md`（删掉即 FAIL，防「扫描面缩小 ⇒ 静默变绿」）。
 
-计数一律**现场统计**、不写死（`lessons §2`）。任一断言失败 ⇒ rc=1。
+计数一律**现场统计**、不写死（`AGENTS.md`「验证脚本反例门控」）。任一断言失败 ⇒ rc=1。
 
 `--self-test`：在 `/tmp/opencode/check-component-changelog/` 的**临时树**上逐条注入反例
 （含 `tests/tset/*/changelog.md` 扫描面与「删 tset changelog」）⇒ 断言可达 FAIL，

@@ -108,7 +108,7 @@
 ### 第 2 轮 reviewer 验收（2026-11-13，全部由 reviewer 亲自重跑；轮次与 engineer 自审连续编号）
 
 **重跑记录（真实输出/退出码）**
-- `bash .work/evidence/m13-qemu-009/run.sh` ×3：基线 `PASS=80 FAIL=0, RUN1_EXIT=0`；注入 run `PASS=45 FAIL=35, RUN2_EXIT=1`；还原后回绿 `PASS=80 FAIL=0, RUN3_EXIT=0`。
+- `bash <运行期证据目录>/run.sh` ×3：基线 `PASS=80 FAIL=0, RUN1_EXIT=0`；注入 run `PASS=45 FAIL=35, RUN2_EXIT=1`；还原后回绿 `PASS=80 FAIL=0, RUN3_EXIT=0`。
 - 向量批跑（安装根 38 例）`rc=0`：`38 total, 38 passed`；改前二进制（md5 `b366e491…`）`rc=1`：`16 passed, 22 failed`，红集=声明的 `0 1 8–23 27–30`（run.sh 内 `PASS pre-change red set == declared`）。
 - `JOBS=32 make check-inst`：`rc=2`，Vast `1141 total / 1135 passed / 1 failed / 5 deferred`，红集恰 `divrem.yaml[23]`（Tiny 段未跑）；`make check-inst-smoke` `rc=0` PASS。
 - **独立红集枚举**（reviewer 自写扫描：tests/inst 全 yaml 的 `expected_state.rd5`、fp 结果族白名单、排除位搬移/信号比较/符号注入、rd6=FCSR 不扫）：**恰 1 条 = `divrem.yaml:714`（0-based 23）**，与 check-inst 红集逐条相等、无清单外红；该红由 `m13-testcases-032` 收口，不判本任务失败。

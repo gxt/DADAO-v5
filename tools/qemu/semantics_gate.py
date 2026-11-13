@@ -33,7 +33,7 @@
 
 日志自证（`ISS-236`）：默认档打印载体清单 + 载体数 + 用例总数 + 逐册用例数
 （相对改造前载体集的增量）+ `total/passed/failed` + 与 `ISS-235` 旧值 161 的差值；
-全部现场统计（`lessons §2`）。
+全部现场统计（`AGENTS.md`「验证脚本反例门控」）。
 
 Usage:
     python3 tools/qemu/semantics_gate.py --gate-dir DIR [--vectors DIR]

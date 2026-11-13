@@ -54,7 +54,6 @@ SCAN_FILES = ("Makefile", "README.md", "AGENTS.md")
 HISTORY_PREFIXES = (
     ".tao/adr/",
     ".tao/tasks/",
-    ".tao/knowledge/lessons.md",
     ".tao/knowledge/issues.yaml",
 )
 SKIP_PARTS = {"__pycache__", ".git", ".work", ".cache", "node_modules"}
