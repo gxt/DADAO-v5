@@ -237,7 +237,7 @@ help:
 	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
-	@echo "  make check-milestones-fresh  milestone ledgers three-table gate: class/coverage/length/order/format + per-milestone ledger routing (milestones.md / milestones-m12.md / milestones-m13.md 存在则校验) (L1; INFRA-091t/INFRA-141t/m12-infra-001)"
+	@echo "  make check-milestones-fresh  milestone ledgers three-table gate: class/coverage/length/order/format + per-milestone ledger routing (milestones.md / milestones-m12.md / milestones-m13.md / milestones-m14.md 存在则校验) (L1; INFRA-091t/INFRA-141t/m12-infra-001)"
 	@echo "  make check-archive   .tao/archive/M<i>/ structure + task-book fields + README five sections + issues snapshot (L1; INFRA-116t)"
 	@echo "  make check-milestone  Milestone closure: SIMRISC archive + sha + sync-nonmaskable + ledger-listed task ids exist (m-book mechanism removed 2026-11-10) + L3 report + check-tasks --strict (not L1; night run is observation only)"
 	@echo "  make check-sync-nonmaskable  Sync exception causes must not be maskable (only IPI/TIMER/UART*/… may; SPEC-175t; not L1)"
@@ -1253,7 +1253,7 @@ check-disk:
 # ⓪ SimRISC 归档：结构（`check-spec-archive`）+ 内容 sha256（`check-spec-archive-verify`）
 #    ——归档只在发布/里程碑边界变化，故不入 L1（INFRA-109t；用户 2026-10-25 裁定）；
 # ① 里程碑台账（自动发现 `.tao/knowledge/milestones*.md`：M11 `milestones.md` + M12 起
-#    `milestones-m12.md`/`milestones-m13.md`；亦可 `--file` 指定）逐本须有
+#    `milestones-m12.md`/`milestones-m13.md`/`milestones-m14.md`；亦可 `--file` 指定）逐本须有
 #    `项目里程碑 = M<n>` 断言（否则 vacuous FAIL）；
 # ② 台账列出的全部任务号须在 `.tao/tasks/**`（或 `.tao/archive/**`，已完成并归档）
 #    有对应任务书；台账零任务号 ⇒ vacuous FAIL（防「漏立任务」）；
@@ -1354,9 +1354,10 @@ check-install-tools:
 MILESTONES_M11 := .tao/knowledge/milestones.md
 MILESTONES_M12 := .tao/knowledge/milestones-m12.md
 MILESTONES_M13 := .tao/knowledge/milestones-m13.md
+MILESTONES_M14 := .tao/knowledge/milestones-m14.md
 
 check-milestones-fresh:
-	@for f in "$(MILESTONES_M11)" "$(MILESTONES_M12)" "$(MILESTONES_M13)"; do \
+	@for f in "$(MILESTONES_M11)" "$(MILESTONES_M12)" "$(MILESTONES_M13)" "$(MILESTONES_M14)"; do \
 	  if [ -f "$$f" ]; then \
 	    $(PYTHON) tools/infra/check_milestones_fresh.py --file "$$f"; rc=$$?; \
 	    [ $$rc -eq 0 ] || exit $$rc; \
