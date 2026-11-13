@@ -111,8 +111,8 @@ chipyard 的整段预检只是更强的实现（不要求）；相关断言已�
 
 ### 第 1 轮 reviewer 验收（2026-11-13）
 
-**重跑（我方命令 → 真实输出/退出码；全量日志 `.work/log/testcases/m13-013-reviewer-run.log`）**
-1. `bash .work/evidence/m13-testcases-013/run.sh --inject` → **`REVIEW_RUN_EXIT=0`、`summary: PASS=21 FAIL=0`**：`ldm*.S=11 + stm*.S=8`；`--scan-only` 现场 **38 id / 208 镜像**、点号 1..13–23 连续 ≤127（链例 ldm 11–16 / stm 7–15）；`run_asm_suite: 208/208 镜像通过（链例 38、故障例 170）`；`.testdata` 6 区 `一致=True`；`check-tests-index 263`、`check-case-ledger 现场 2170`、`validate_vectors gaps: 0`、273 md5 `2d4d94651346ef673c5a855e024c1489`、`check-inst rc=0`（vast 1136/1141 + tiny 44/44）。
+**重跑（我方命令 → 真实输出/退出码；全量日志 <运行期日志目录>/reviewer-run.log）**
+1. `bash <运行期证据目录>/run.sh --inject` → **`REVIEW_RUN_EXIT=0`、`summary: PASS=21 FAIL=0`**：`ldm*.S=11 + stm*.S=8`；`--scan-only` 现场 **38 id / 208 镜像**、点号 1..13–23 连续 ≤127（链例 ldm 11–16 / stm 7–15）；`run_asm_suite: 208/208 镜像通过（链例 38、故障例 170）`；`.testdata` 6 区 `一致=True`；`check-tests-index 263`、`check-case-ledger 现场 2170`、`validate_vectors gaps: 0`、273 md5 `2d4d94651346ef673c5a855e024c1489`、`check-inst rc=0`（vast 1136/1141 + tiny 44/44）。
 2. 抽 5 故障例（`suite.json`，我方解析）：`ldm.ub pt18 CFXMEM→241`、`stm.b pt11 ILLI→248`、`stm.w pt12 MALIGN→252`、`stm.o pt19 CFXMEM→241`、`ldm.uw pt12 ILLI→248`，三平台同值 = `0xF0|cause 位`（0xF1/0xF8/0xFC，`__FAULT_GUARD` one-hot 0x0002/0x0100/0x1000 对得上）；38 链例字节数全 = 8×点、0 异常；多元素故障形态 **CFXMEM 59 / ILLI 46 / MALIGN 16 = 121**，与完成区同值。
 3. 期望独立复算（数据模型按 `inst_test.inc` 段落自建，**不引用** `gen_inst.py`）：**`TEST_LDM` 99 行 + `TEST_STM` 40 行逐拍相等，mismatch = 0**；手写例另抽 `stm.b` 4/6/7/9/10、`stm.w` 5/7/8/9、`ldm.ub` 12–15 全对（含 `0x088` 处 `rd19` 落源组内取 offval 的 overlap 期望 `0xA0A188A3A40000B1`）。
 4. `stm.b` 9 元素第二拍**字节级**证据（非看次数）：MSTORE 初值 beat11 = `C0 DE 00 00 00 00 00 AB`（模式 `0xC0DE0000000000A0+i`），期望 = `88 DE 00 00 00 00 00 AB` ⇒ 仅 lane0 由元素 `0x88`（`MDATA_B+0x048`）改写、7 个保持字节逐字节不变；beat10 八字节被 `0x80..0x87` 全覆盖 ⇒ **2 拍、第二拍单 lane 成立**。
@@ -143,7 +143,7 @@ chipyard 的整段预检只是更强的实现（不要求）；相关断言已�
 | 哨兵组按字节取整、未按「元素数」取整 ⇒ 尾巴不足一拍的 dump 被比成整拍 `SENT_VAL` | ✅已修 | `sent_reg` 改为按 `8//宽度` 取整（1–2 拍），`nbeat = 元素数/(8//w)` | 修前 7 例假红（`rc=点号`）→ 修后 227/227 |
 | bank 顶端例（`rdha=63, immu6=2`）的哨兵组越界/命中处理器暂存的 `rd63` | ✅已修 | `pick_sent` 按距离搜索并避让 `rd19/20-23/25/31/63`、`rb3/11/16/20/21/26-28/30/31` | 19 例 bank 顶端故障全绿 |
 | 「首元素即不可映射」与「整段越窗口」混为一谈 | ✅已修 | 前者 `reg`/`mem` 判精确；后者标 `none` 并在 `.S` 注释写清「中途失败不判精确性（元素逐个实现可能已提交前面元素）」 | 分类计数 none 37 / reg 72 / mem 31 |
-| 哨兵断言可能「写了但不可达」 | ✅已修 | 证据脚本加 `F2` 注入：把落点期望值 `SENT_VAL` 改 1 ⇒ 带哨兵的 7 个故障例**各自**按点号失败、`none` 例仍 0xF1，三平台同值 | `.work/log/testcases/m13-testcases-013-evidence-r2.log` |
+| 哨兵断言可能「写了但不可达」 | ✅已修 | 证据脚本加 `F2` 注入：把落点期望值 `SENT_VAL` 改 1 ⇒ 带哨兵的 7 个故障例**各自**按点号失败、`none` 例仍 0xF1，三平台同值 | <运行期日志目录>/evidence-r2.log |
 
 **R2**：① `inst_test.inc` 段内 7 处行内偏移注释统一差 0x700 已订正（只改注释，`.equ`/文件头不动）；
 ② `run_asm_suite.scan_source` 链例点号改为取**行内字面量**（解析不出 ⇒ fail-closed），
@@ -156,7 +156,7 @@ chipyard 的整段预检只是更强的实现（不要求）；相关断言已�
 
 ### 第 2 轮 reviewer 验收（2026-11-13）
 
-**重跑（我方命令 → 真实输出/退出码；全量日志 `.work/log/testcases/m13-013-reviewer-r2-run.log`）**
+**重跑（我方命令 → 真实输出/退出码；全量日志 <运行期日志目录>/reviewer-r2-run.log）**
 1. `bash .work/evidence/<任务ID>/run.sh --inject` → **`R2_REVIEW_RUN_EXIT=0`、`summary: PASS=25 FAIL=0`**；section B 现场 **`run_asm_suite: 227/227 镜像通过（38 个 id；链例 38，故障例 189）`**、`FAIL 0`。我方解析 `suite.json`：227 条全 `ok`；38 链例字节全 = `8×点` 且三平台 rc 全 0；189 故障例三平台 rc 全等（`241×84 / 248×73 / 252×32`）；多元素故障 140 = **ILLI 65 / CFXMEM 59 / MALIGN 16**（与完成区同值）。
 2. R1 结构核（读 `inst_test.inc`）：`TEST_FAULT_M/_ENC` 展开 = `__FAULT_GUARD → __SENT_PRE（被测指令之前预置）→ LOAD_ADDR/offreg → 被测指令 → .faultpad 段首 __FAULT_PAD`；`__FAULT_PAD` 顺序 = **先 `cause` one-hot（不符 ⇒ `rd23=点号 → __pad_exit`）→ 再 reg/mem 逐拍 `br.ne` 哨兵（不符 ⇒ `rd23=点号`）→ 才装故障码** ✓。140 条故障行逐条结构核：`reg 72 / mem 31 / none 37`；72 条 `reg` 哨兵组均覆盖被测组（`{rd0:rd1}` 用 `{rd1:rd8}` 特例）、`span×宽度` 恰整拍、`nbeat = span×w/8`；31 条 `mem` 的 `taddr` **全 = EA 所在拍**；0 异常。
 3. 可达性（脚本 `F2`，我方重跑）：落点期望 `SENT_VAL → …5B` ⇒ `ldm.uw` 的 MALIGN 例 **点号 15、三平台 `{15,15,15}`** ✓。
@@ -273,7 +273,7 @@ bank 顶端 6 条 ILLI 例的哨兵组改为覆盖组末（`{rd60:rd63}` / `{rf6
 ### 第 3 轮 reviewer 验收（2026-11-13）
 
 **重跑（我方命令 → 真实输出/退出码；全量日志留运行期证据目录）**
-1. `bash .work/evidence/m13-testcases-013/run.sh --inject` → **`RUN_INJECT_EXIT=0`、`summary: PASS=26 FAIL=0`**；B 段 `run_asm_suite: 235/235 镜像通过（38 个 id；链例 38，故障例 197）`、`镜像通过数==镜像总数 235/235`、形态 `CFXMEM 59 / ILLI 73 / MALIGN 16`、`.testdata` 6 区 `一致=True`；F 段注入→失败点号 5 三平台同值→`cp` 还原回绿；F2 方向漂移→`run.sh rc=1`（A 段 `stray` 反向检查判红）→还原回绿。
+1. `bash <运行期证据目录>/run.sh --inject` → **`RUN_INJECT_EXIT=0`、`summary: PASS=26 FAIL=0`**；B 段 `run_asm_suite: 235/235 镜像通过（38 个 id；链例 38，故障例 197）`、`镜像通过数==镜像总数 235/235`、形态 `CFXMEM 59 / ILLI 73 / MALIGN 16`、`.testdata` 6 区 `一致=True`；F 段注入→失败点号 5 三平台同值→`cp` 还原回绿；F2 方向漂移→`run.sh rc=1`（A 段 `stray` 反向检查判红）→还原回绿。
 2. **故障例逐条对账（我方脚本，期望只从 `.S` 现场读、不引用生成器）**：197 条（单 49 + 多 148）的「`.S` 期望码 ↔ JSON `expected` ↔ 三平台 rc」**不符 0 项**；形态 `CFXMEM 84 / ILLI 81 / MALIGN 32`；链例 38 条 rc 全 0、字节全 = 8×点、三平台字节全等。
 3. **overlap 逐条对照 spec**（`SimRISC-01` §1 行64/65、§2 行90/91、§3 行112、§4 行137 + `legality_rules.yaml:mreg_range_addr_overlap`「仅 ldm 8 条」）：`ldm` 范围内⇒ILLI **8 条三平台全 248=0xF8**（rb pt22 / rd pt23 / sb pt18 / st pt19 / sw pt19 / ub pt22 / ut pt19 / uw pt19）、恰在外一位正常 **8 条**、`stm` 允许重叠正常 **5 条**（所在链例三平台 rc=0、字节=8×点）、RA/RF「不适用」**6 文件** ⇒ 8/8/5/6 与 `run.sh` 门控同值。
 4. **63 例**：静态唯一性（immu6=63 ⇒ rdHA≤1；`ldm` 的 rdHA=rd0 ⇒ ILLI，spec 行60 ⇒ rdHA=1、范围 `[rd1,rd64)` 占满 RD 组 ⇒ 索引只能 `rd0`）+ **实证**：`rd0→rd19` 注入 ⇒ `RUN_RC=1`、三平台 `chipyard=12 / qemu=-2 / gem5=-2` 全红，`cp`+md5 还原 ⇒ `RECOVER_RC=0`、`1/1`；`rd0` 版三平台 rc=0 / 120 B。

@@ -165,13 +165,13 @@ role = "Linux kernel port target (arch/dadao) + syscall numbering-table referenc
 ### 第 1 轮 reviewer 验收
 
 **重跑（workdir=任务树，均本人执行；采信项 = 仅「m12-chipyard-030 在飞」的归属，其余全部实跑）**
-- 证据脚本 `bash .work/evidence/m14-linux-001/run.sh` ⇒ **rc=0，PASS=69 FAIL=0**；跑后 7 目标 `md5sum -c` 全 OK、`git status -uall` 空、linux 源树 `7b20d05f…`/脏 0。
+- 证据脚本 `bash <运行期证据目录>/run.sh` ⇒ **rc=0，PASS=69 FAIL=0**；跑后 7 目标 `md5sum -c` 全 OK、`git status -uall` 空、linux 源树 `7b20d05f…`/脏 0。
 - `make manifest-check` rc=0；`python3 tools/infra/manifest_check.py` rc=0；`make check-component-changelog` rc=0（9 文件×4 断言=36 项）。
 - `make check-source-state` rc=0：`linux: OK HEAD=7b20d05fd38d count=0 clean=True expected=0`，其余 10 行均 `expected=1 … OK`。
 - `make check-patch-tree` rc=2（make Error 1）：仅 chipyard ⑨/⑥ 两红（`WumingFP.scala`）；`linux: 0 patch(es)` + `empty patch set; assertions ④⑥ skipped`，**非** `patchless; skipped`。
 - `make -n` 7 目标 rc=0 全解析出 `tools/linux/*.py`；`make -p` 现场：5 个写者/增量目标在 `GATE_LOCKED_TARGETS`、2 个只读不在；`_locked-*` 5 条可解析。
 - `make apply-series` rc=2（chipyard 拒绝，外因）；前后 `.work/source/*` 的 HEAD+脏项快照逐行 diff **完全一致（无写入）**；linux 单组件探针（本人自建）两次 rc=0、均打印 `linux has an empty series`、HEAD/count/脏不变。
-- `make -k check`（L1）rc=2，失败目标恰 5 个：`check-patch-tree` / `check-knowledge-refs`（5 条全在 `m13-testcases-013` 任务书）/ `check-milestones-fresh`（`m13-testcases-015` 台账行）/ `check-run-artifacts`（17 个 `.work/log/{gem5,infra}` 日志名）/ `check-temp-dirs`（`/tmp/opencode/node-env`）——逐个复跑确认**均非本任务文件**。
+- `make -k check`（L1）rc=2，失败目标恰 5 个：`check-patch-tree` / `check-knowledge-refs`（5 条全在 `m13-testcases-013` 任务书）/ `check-milestones-fresh`（`m13-testcases-015` 台账行）/ `check-run-artifacts`（17 个 gem5/infra 模块日志名）/ `check-temp-dirs`（`/tmp/opencode/node-env`）——逐个复跑确认**均非本任务文件**。
 - 与改动前 checker 对比（`git show 065b9829^:tools/infra/check_patch_tree.py` 于临时树实跑）：错误集**逐行相同**，唯一差异 = 少 `linux: series is empty`；`--source-state` 仅增 `expected=` 字段并 `linux FAIL→OK` ⇒ **非空集 `base+1` 一字未放宽**。
 
 **独立注入（自设计、临时树 / `cp`+md5，未复用工程师用例）**

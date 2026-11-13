@@ -89,7 +89,7 @@
 
 **重跑（我自己的命令 → 真实输出/退出码；长输出落运行期临时目录 `/tmp/opencode/<任务ID>/`）**
 
-1. `JOBS=32 bash .work/evidence/m12-chipyard-030/run.sh`（注入前后各一次）⇒ 两次均 `== summary: PASS=84 FAIL=0 ==`、`EXIT=0`：elab rc=0/%Error=0、Verilator rc=0、50/50 组 2118 例逐字节、58/58 镜像 cause、273 例 md5 `2d4d94651346ef673c5a855e024c1489`==基线、单元台 `TOTAL failed=0`（45 组）与 `spec points: 20 vectors table-diff=0`、`apply-series` 21 补丁+二次 0+树 hash `462516e6…` 不变、L2 rc=0。
+1. `JOBS=32 bash <运行期证据目录>/run.sh`（注入前后各一次）⇒ 两次均 `== summary: PASS=84 FAIL=0 ==`、`EXIT=0`：elab rc=0/%Error=0、Verilator rc=0、50/50 组 2118 例逐字节、58/58 镜像 cause、273 例 md5 `2d4d94651346ef673c5a855e024c1489`==基线、单元台 `TOTAL failed=0`（45 组）与 `spec points: 20 vectors table-diff=0`、`apply-series` 21 补丁+二次 0+树 hash `462516e6…` 不变、L2 rc=0。
 2. `run.sh --self-test-inject` ⇒ `EXIT=0`：3 路注入均达 FAIL（table-diff=1/4、模型 oracle-diff=5）→ 还原 md5 `eb0ab6665d7b0e86036fb168843f4ab6` → 回绿。
 3. `make check-patch-tree` ⇒ rc=2，8 problem 全为 qemu/gem5 并行脏树、**chipyard 段 0 条**；`make check-source-state` ⇒ rc=0 `chipyard: OK HEAD=c5d592c clean=True`（testchipip 同 OK）；`check-component-changelog`/`check-index-blobs` ⇒ rc=0；`make apply-series` ⇒ rc=1（拒绝 qemu HEAD、未动任何树），chipyard 幂等以脚本隔离实测为准。
 4. `python3 tools/chipyard/fp_ref.py selfcheck 400` / `divrem 200` / `rndsclb 200` ⇒ 三次 rc=0、mismatches=0（8560 对）。

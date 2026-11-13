@@ -244,7 +244,7 @@ M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Mac
 **重跑记录（命令 | rc | 关键输出）**
 - `python3 tools/linux/check_boot_contract.py` | **0** | `[PASS]` 199 项 / `[FAIL]` 0；现场统计 `§6.3 行数=115`、`规则=elf:7,fail:2,initramfs:3,raw:4`、`DTB 提及=3`
 - `… --self-test` | **0** | `self-test: 6 类注入，失败 0 项`；6 类（偏移/magic/入口基址/字段缺失/术语缺失/地址术语回退）逐类「命中 1 处 → 注入后 rc=1 → 还原后 rc=0」
-- `bash .work/evidence/m14-spec-001/run.sh` | **0** | `汇总: PASS=53 FAIL=0`（返工后跑 2 次均绿；3 路真实文件注入 + `cp`+md5 还原；日志内 4 条 `[FAIL]` 均为 `[INFO]` 回显的注入态失败，非断言失败）
+- `bash <运行期证据目录>/run.sh` | **0** | `汇总: PASS=53 FAIL=0`（返工后跑 2 次均绿；3 路真实文件注入 + `cp`+md5 还原；日志内 4 条 `[FAIL]` 均为 `[INFO]` 回显的注入态失败，非断言失败）
 - 门控 `make check-spec-{readonly,changelog,drift,numbering,refs}`、`check-contracts-{dir,pending}`、`check-test-reports`、`check-{dirs,no-residue}`、`check-spec-{purity,cite-targets}` **全 rc=0**（readonly=`21 read-only spec volume(s) OK`，refs=`0 violations`，drift=`错误 0 个`）
 - `python3 tools/infra/check_knowledge_refs.py` | **1** | 5 条全在 `m13-testcases-013` 任务书；该文件与检查器相对基线 `8cd4c184` diff 为空 ⇒ 基线既有红（非本任务引入，验收7 该项照旧 BLOCKED）
 - 锁现算：`sha256sum spec/Machine-v5-…` = `e13ac126…` 与锁值相等；`git diff 8cd4c184..HEAD -- manifests/spec-readonly.lock.toml` 仅 1 hunk、仅 Machine-v5（其余 20 册 sha 不变）
