@@ -33,12 +33,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m12-chipyard-027 | 2026-11-13 08:33 | 2 h | `ldm` 地址寄存器重叠 ⇒ ILLI（chipyard RTL；`stm` 允许） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-027 | 2026-11-13 11:43 | `ldm` 地址寄存器落入传送范围 ⇒ ILLI（chipyard RTL；`stm` 允许、RA/RF 不适用） |
 | m12-chipyard-015 | 2026-11-12 21:49 | FP 取整/缩放/符号（6 档舍入/scalB 三类/符号无标志；四条各 1 拍） |
 | m12-chipyard-024 | 2026-11-12 19:04 | quiet compare 遇 sNaN 置 `NV`（RTL + 模型 + 向量；三方 14/14 逐字节） |
 | m12-chipyard-026 | 2026-11-12 16:50 | 修复 `fo2ft` 未落 master（补丁重导、`forceInfOnOverflow` 5→0、38 例） |

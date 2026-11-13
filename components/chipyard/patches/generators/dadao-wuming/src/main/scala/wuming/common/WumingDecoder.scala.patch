@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 new file mode 100644
-index 0000000..bc71bbc
+index 0000000..36ff550
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
-@@ -0,0 +1,1171 @@
+@@ -0,0 +1,1187 @@
 +// See LICENSE for license details.
 +//
 +// DADAO decoder for the M12 integer core.
@@ -26,7 +26,7 @@ index 0000000..bc71bbc
 +//     contracts/legality_rules.yaml `excp_undi`)
 +// and the legality rules of contracts/legality_rules.yaml are applied to the
 +// implemented families (`dst_rd0`, `dst_rb0`, `dst_dual_same`, `encode_sbz`,
-+// `mreg_zero`, `mreg_range_overflow`).
++// `mreg_zero`, `mreg_range_overflow`, `mreg_range_addr_overlap`).
 +//
 +// m12-chipyard-007 adds exactly what the BootROM firmware needs to make the
 +// `power -> hmon -> application` handoff run on this core (fixed firmware,
@@ -713,6 +713,22 @@ index 0000000..bc71bbc
 +    when(ha +& hd > 64.U) { d.ill := true.B }
 +    when(isLoad && ha === 0.U && (bank === WumingBank.RD || bank === WumingBank.RB)) {
 +      d.ill := true.B
++    }
++    // mreg_range_addr_overlap (spec/SimRISC-01 §1/§2, legality_rules): `ldm`
++    // writes the transferred range one element at a time, so an address
++    // register that is itself inside the range would make the later element
++    // addresses depend on how far the loop got.  RD form: the index `rdHC`
++    // lives in the RD bank, like the range.  RB form: the base `rbHB` lives in
++    // the RB bank, like the range.  `stm` only *reads* the range and writes no
++    // register, so it may overlap; the RA/RF forms keep the range and both
++    // address registers in different banks (N/A).
++    when(isLoad) {
++      when(bank === WumingBank.RD && hc >= ha && hc < (ha +& hd)) {
++        d.ill := true.B
++      }
++      when(bank === WumingBank.RB && hb >= ha && hb < (ha +& hd)) {
++        d.ill := true.B
++      }
 +    }
 +  }
 +

@@ -496,3 +496,10 @@
   closed_in: null
   resolved_by: null
   title: 【P3】FMA 溢出的 70/48 格矩阵**没有常驻门控**：`m13-qemu-008`（QEMU 本就合规）与 `m13-gem5-009`（gem5 本就合规）只把格子放进各自证据脚本/组件测试，`tests/inst` 侧尚无 FMA 用例守护。载体已定：`m13-testcases-021`/`022`（`07-floating-point` 汇编套件）落地后由三平台套件守护；chipyard 侧由 `m12-chipyard-029` 按同一张 spec 表实测（禁止用 QEMU/gem5 结论推定）。
+- id: ISS-421
+  scope:
+  - chipyard
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: 【P3】`components/chipyard/{README,changelog}.md` 的 `ldm`/`stm` 合法性条目未列 `mreg_range_addr_overlap` 新规则（`m12-chipyard-027` 范围限 RTL+补丁，未越界改文档）⇒ 组件文档与实现不同步。
