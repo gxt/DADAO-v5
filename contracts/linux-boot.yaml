@@ -1,38 +1,52 @@
 # 机器可读投影 —— 启动 ABI（`Machine-v5-Vast` 内核装载 + 固定 boot info）
 #
-# 人读契约：.tao/contracts/contract-linux-boot.md（0.1.0）
-# 规范正文：spec/Machine-v5-测试机运行环境.md §6.3（v5 自定册，0.4.6-rc）
+# 人读契约：.tao/contracts/contract-linux-boot.md（0.2.0）
+# 规范正文：spec/Machine-v5-测试机运行环境.md §6.3（v5 自定册，0.4.7-rc）
 # 一致性：tools/linux/check_boot_contract.py 逐字段三方比对（正文表 ↔ 契约表 ↔ 本文件）。
 # 地址模型：ABI 地址一律 VA（addr[41:0]）；PA 只用于页表项 / PTBR / loader 写内存。
+#           内核 VA 窗口 [2 TiB, 3 TiB) 内固定偏置 VA = PA + 2 TiB（用户空间 [0, 2 TiB)）。
 # 本文件只承载已冻结的启动 ABI；装载的执行实现（写内存与 boot info、装 initramfs）不在投影范围。
 
 format: 1
 contract: linux-boot
-version: "0.1.0"
+version: "0.2.0"
 spec_doc: "spec/Machine-v5-测试机运行环境.md"
 spec_section: "6.3"
 
-# 地址术语（用户 2026-11-13 裁定：VA 为 ABI 地址）。
+# 地址术语（用户 2026-11-13 裁定：VA 为 ABI 地址；内核窗口 [2 TiB, 3 TiB)、四项冻结地址 +2 TiB）。
 address_model:
   abi_addresses: va
   va_width_bits: 42                       # VA = addr[41:0]（addr[47:42] = 0 的内存窗口）
+  va_pa_offset: 0x20000000000             # 内核窗口固定偏置：VA = PA + 2 TiB
   pa_allowed_in: [page_table_entry, ptbr, loader_store]
   # 正文/契约须逐项出现的术语（缺一即 FAIL）。
-  required_terms: ["VA", "addr[41:0]", "ptw_enable", "PTBR", "CFXMEM", "身份映射", "预建"]
-  # 旧口径措辞，正文/契约中不得再出现。
-  forbidden_terms: ["p_vaddr == p_paddr", "固定 PA `0x0001_0000`"]
+  required_terms: ["VA", "addr[41:0]", "ptw_enable", "PTBR", "CFXMEM", "预建", "2 TiB", "VA = PA + 2 TiB"]
+  # 旧口径措辞，正文 §6.3 / 契约中不得再出现（回潮即 FAIL）；旧地址由检查器按
+  # `VA − va_pa_offset` **现场派生**后分别断言（本文件不写旧地址字面量）。
+  forbidden_terms: ["p_vaddr == p_paddr", "固定 PA", "身份映射"]
 
-# 启动模型（用户 2026-11-13 裁定：M1 预建页表 + VA 入口）。
+# VA 窗口划分（42 位内存窗口内）：用户空间 [0, 2 TiB)、内核窗口 [2 TiB, 3 TiB)。
+va_layout:
+  user:
+    start: 0x0
+    end: 0x20000000000
+  kernel:
+    start: 0x20000000000
+    end: 0x30000000000
+
+# 启动模型（用户 2026-11-13 裁定：M1 预建页表 + VA 入口；预建表带 +2 TiB 偏置）。
 startup_model:
   mode: M1
-  prebuilt_identity_map: true
+  prebuilt_page_table: true
   page_size: 0x10000
   ptw_enable: 1
   entry_register: rb16
   boot_info_register: rb17
+  # smon 预建的首张页表只映射内核窗口基址段：1 个 512 MiB 超页。
+  superpage_size: 0x20000000
 
 boot_info:
-  va: 0x10000
+  va: 0x20000010000
   size: 0x60
   endianness: big
   alignment: 8
@@ -61,8 +75,8 @@ boot_info:
       offset: 0x08
       width: 8
       kind: va
-      value: 0
-      display: "0"
+      value: 0x20000000000
+      display: "0x0200_0000_0000"
     - name: ram_size
       offset: 0x10
       width: 8
@@ -73,8 +87,8 @@ boot_info:
       offset: 0x18
       width: 8
       kind: va
-      value: 0x100000
-      display: "0x0010_0000"
+      value: 0x20000100000
+      display: "0x0200_0010_0000"
     - name: kernel_size
       offset: 0x20
       width: 8
@@ -85,8 +99,8 @@ boot_info:
       offset: 0x28
       width: 8
       kind: va
-      value: 0x4000000
-      display: "0x0400_0000"
+      value: 0x20004000000
+      display: "0x0200_0400_0000"
     - name: initramfs_size
       offset: 0x30
       width: 8
@@ -130,39 +144,44 @@ boot_info:
       value: 0x1
       display: "0x1"
 
-# 内存窗口分区（VA）；`start`/`end` 均为 VA，`rest` 行不占固定区间。
+# 内存窗口分区（VA）；`start`/`end` 均为 VA，`pa_start` 为同一分区的 PA 侧起点
+# （VA − pa_start 须恒 == address_model.va_pa_offset），`rest` 行不占固定区间。
 memory_map:
   - name: page_table
-    start: 0x0
-    end: 0x10000
-    use: "首张页表页（`PTBR = 0`；由固件在移交前建立，见 `§6`）"
+    start: 0x20000000000
+    end: 0x20000010000
+    pa_start: 0x0
+    use: "首张页表页（`PTBR = 0`（PA）；由固件在移交前建立，见 `§6`）"
   - name: boot_info
-    start: 0x10000
-    end: 0x20000
-    use: "boot info 页（固定 VA `0x0001_0000`；其余字节为 0）"
+    start: 0x20000010000
+    end: 0x20000020000
+    pa_start: 0x10000
+    use: "boot info 页（固定 VA `0x0200_0001_0000`；其余字节为 0）"
   - name: kernel
-    start: 0x100000
-    end: 0x4000000
-    use: "内核镜像区（`kernel_base = 0x0010_0000`，VA）"
+    start: 0x20000100000
+    end: 0x20004000000
+    pa_start: 0x100000
+    use: "内核镜像区（`kernel_base = 0x0200_0010_0000`，VA）"
   - name: initramfs
-    start: 0x4000000
-    end: 0x6000000
+    start: 0x20004000000
+    end: 0x20006000000
+    pa_start: 0x4000000
     use: "initramfs 区（上限 32 MiB，VA）"
   - name: rest
     start: null
     end: null
-    use: "内核页分配器可用"
+    use: "内核 VA 窗口内其余区间归内核页分配器"
 
 # 进入内核第一条指令处的状态（地址项均为 VA）。
 entry_state:
   - item: 运行模式
     value: "`supv`"
   - item: PTW
-    value: "开启（预建身份映射页表，`PTBR = 0`，`ptw_enable = 1`，64 KiB 页，`VA [0, 2 GiB) → PA [0, 2 GiB)`）"
+    value: "开启（预建页表，`PTBR = 0`（PA），`ptw_enable = 1`，64 KiB 页，`VA [0x0200_0000_0000, 0x0200_2000_0000) → PA [0, 0x2000_0000)`，`VA = PA + 2 TiB`）"
   - item: "`rb17`"
-    value: "`0x0001_0000`（boot info VA）"
+    value: "`0x0200_0001_0000`（boot info VA）"
   - item: "`rb16`"
-    value: "`0x0010_0000`（入口 VA）"
+    value: "`0x0200_0010_0000`（入口 VA）"
   - item: "`rb1`（SP）"
     value: "未定义（内核自建 early stack，栈为 VA）"
   - item: "`rb3`（rbtp）"
@@ -187,25 +206,25 @@ rules:
     rule: "只装载 `PT_LOAD` 段，其它类型的程序头段不装入"
   - id: ELF-VA-TO-PA
     category: elf
-    rule: "每段按 `p_vaddr` 的映射写入对应 PA（K0 身份映射 ⇒ PA 数值 = `p_vaddr`）；`p_paddr` 不作为装载地址"
+    rule: "每段按 `p_vaddr` 的映射写入对应 PA（`VA = PA + 2 TiB` ⇒ 目标 PA = `p_vaddr - 2 TiB`）；`p_paddr` 不作为装载地址"
   - id: ELF-ALIGN
     category: elf
     rule: "每段 `p_vaddr % 0x10000 == 0` 且 `p_align >= 0x10000`（64 KiB 页对齐）"
   - id: ELF-RANGE
     category: elf
-    rule: "每段 `[p_vaddr, p_vaddr + p_memsz)` 落在内核镜像区的 VA 范围 `[0x0010_0000, 0x0400_0000)` 内"
+    rule: "每段 `[p_vaddr, p_vaddr + p_memsz)` 落在内核镜像区的 VA 范围 `[0x0200_0010_0000, 0x0200_0400_0000)` 内"
   - id: ELF-NO-OVERLAP
     category: elf
-    rule: "任何段不得与低端保留区 VA `[0, 0x0002_0000)`、BootROM 或 hmon SRAM 的映射区间重叠"
+    rule: "任何段不得与启动保留区 VA `[0x0200_0000_0000, 0x0200_0002_0000)`、BootROM 或 hmon SRAM 的映射区间重叠"
   - id: ELF-ENTRY
     category: elf
-    rule: "`e_entry == 0x0010_0000`（VA，= `kernel_base`）"
+    rule: "`e_entry == 0x0200_0010_0000`（VA，= `kernel_base`）"
   - id: RAW-BASE
     category: raw
-    rule: "整体装入 VA `0x0010_0000`（= `kernel_base`）"
+    rule: "整体装入 VA `0x0200_0010_0000`（= `kernel_base`）"
   - id: RAW-ENTRY
     category: raw
-    rule: "镜像首字节即入口指令（VA 入口 `0x0010_0000`），loader 不解析 ELF 头"
+    rule: "镜像首字节即入口指令（VA 入口 `0x0200_0010_0000`），loader 不解析 ELF 头"
   - id: RAW-LENGTH
     category: raw
     rule: "镜像长度 ≤ 63 MiB"
@@ -217,7 +236,7 @@ rules:
     rule: "`cpio`「newc」格式"
   - id: INITRAMFS-BASE
     category: initramfs
-    rule: "装入 VA `0x0400_0000`（= `initramfs_base`）"
+    rule: "装入 VA `0x0200_0400_0000`（= `initramfs_base`）"
   - id: INITRAMFS-LIMIT
     category: initramfs
     rule: "长度 ≤ 32 MiB；实际字节数写入 `initramfs_size`（`0` ⇒ 无 initramfs）"

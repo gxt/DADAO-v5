@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""check_boot_contract.py — 启动 ABI 三方一致性门控（`m14-spec-001`）。
+"""check_boot_contract.py — 启动 ABI 三方一致性门控（`m14-spec-001`／`m14-spec-003`）。
 
 校验对象（Spec-first；期望值一律**现场派生**，不写死条数）：
   * `spec/Machine-v5-测试机运行环境.md` **§6.3**（规范正文，唯一真源）
-  * `.tao/contracts/contract-linux-boot.md`（人读契约 0.1.0）
+  * `.tao/contracts/contract-linux-boot.md`（人读契约 0.2.0）
   * `contracts/linux-boot.yaml`（机器可读投影）
 
 断言（任一不满足 ⇒ 非零退出）：
@@ -13,15 +13,19 @@
      `max(offset+width) == size`、`size ≤ 页大小`、`va` 页对齐；
   2b. 地址术语与启动模型（用户 2026-11-13 裁定）：正文/契约须逐项出现
      `address_model.required_terms`（`VA`/`addr[41:0]`/`ptw_enable`/`PTBR`/`CFXMEM`/
-     `身份映射`/`预建`），且不得出现 `forbidden_terms`（旧口径）；boot info 的
-     `kind: va` 字段语义须写 VA、`kind: pa` 字段（`ptbr`）须写 PA；启动模型
-     页大小/`ptw_enable`/寄存器与 YAML 一致；
+     `预建`/`2 TiB`/`VA = PA + 2 TiB`），且不得出现 `forbidden_terms`（旧口径与**旧地址**，
+     回潮即 FAIL）；boot info 的 `kind: va` 字段语义须写 VA、`kind: pa` 字段（`ptbr`）须写 PA；
+     启动模型页大小/`ptw_enable`/寄存器与 YAML 一致；
+  2c. **内核窗口与偏置（硬断言）**：`va_pa_offset == 2 TiB`、`va_layout.kernel = [2 TiB, 3 TiB)`、
+     用户空间终点接内核窗口起点、正文与契约明写 `[2 TiB, 3 TiB)`；每个固定分区的
+     `VA − PA == va_pa_offset`（即 `VA = PA + 2 TiB`）、全部落在内核窗口内；`ram_base` ==
+     内核窗口起点；正文/契约的预建页表映射 == 内核窗口基址 + 1 个 512 MiB 超页；
   3. 内存分区：正文 `§6.3` 表 ↔ 契约 §2 表 ↔ YAML `memory_map`（区间/大小/用途）相等；
      区间与大小由 YAML 数值**现场格式化**，不读正文里的字面量；
   4. 进入时状态：正文表 ↔ 契约表 ↔ YAML `entry_state` 相等；
   5. 装载规则：YAML `rules` 的 id 集合/顺序 == 契约规则表 id；`rule` 文本与契约
      「规定」列逐字相等；每个 id 在正文 `§6.3` 与契约中**各出现且仅一次**；
-  6. 交叉：`kernel_base`/`initramfs_base`/`ptbr`/`ram_base` 字段 == 对应分区起点，
+  6. 交叉：`kernel_base`/`initramfs_base`/`ptbr`/`ram_base` 与对应分区起点（`ptbr` 比 PA 侧）、
      页表页大小 == `1 << page_size_log2`，各分区不越过 `ram_base + ram_size`；
   7. `not_defined` 的每项在正文与契约的「不定义」句中**逐项点名**；
   8. 全册无「设备树/DTB/DTS 由本机传入」类表述：正文中提及 设备树/DTB/DTS 的行，
@@ -31,7 +35,7 @@
 
 用法：
   python3 tools/linux/check_boot_contract.py [--root DIR]
-  python3 tools/linux/check_boot_contract.py --self-test     # 6 类注入（临时树；不碰真实文件）
+  python3 tools/linux/check_boot_contract.py --self-test     # 注入自检（临时树；不碰真实文件）
 
 退出码：0 = 全部一致；1 = 有不一致 / 自检失败；2 = 输入缺失或无法解析。
 """
@@ -69,8 +73,10 @@ def norm(cell: str) -> str:
 
 
 def fmt_addr(value: int) -> str:
-    """地址格式（VA/PA 通用）：0x + 4 位一组下划线（`0x0001_0000` 形）。"""
+    """地址格式（VA/PA 通用）：0x + 4 位一组下划线（`0x0001_0000` / `0x0200_0000_0000` 形）。"""
     digits = f"{value:08x}"
+    if len(digits) % 4:
+        digits = digits.rjust((len(digits) + 3) // 4 * 4, "0")
     groups = [digits[i:i + 4] for i in range(0, len(digits), 4)]
     return "0x" + "_".join(groups)
 
@@ -290,10 +296,38 @@ def run_checks(root: Path) -> tuple[int, Report]:
         rep.check(f"契约无旧口径「{term}」", 0, contract_text.count(term))
     rep.check("启动模型页大小 == 1 << page_size_log2", page_size, sm["page_size"])
     rep.check("启动模型 PTW 已开（ptw_enable=1）", 1, sm["ptw_enable"])
+    rep.check("启动模型预建页表（非 loader 代写）", True, sm.get("prebuilt_page_table"))
     rep.check("启动模型入口寄存器", "rb16", sm["entry_register"])
     rep.check("启动模型 boot info 寄存器", "rb17", sm["boot_info_register"])
     rep.check("正文写明 ptw_enable=0 ⇒ CFXMEM（硬约束）", True,
               "CFXMEM" in block and "ptw_enable = 0" in block)
+
+    # ── 2c. 内核 VA 窗口与 VA = PA + 2 TiB（硬断言；用户 2026-11-13 裁定）──
+    va_layout = data["va_layout"]
+    two_tib = 1 << 41
+    rep.check("偏置 va_pa_offset == 2 TiB", two_tib, am["va_pa_offset"])
+    rep.check("内核窗口起点 == 2 TiB", two_tib, va_layout["kernel"]["start"])
+    rep.check("内核窗口终点 == 3 TiB", two_tib + (1 << 40), va_layout["kernel"]["end"])
+    rep.check("用户空间起点 == 0", 0, va_layout["user"]["start"])
+    rep.check("用户空间终点 == 内核窗口起点", va_layout["kernel"]["start"], va_layout["user"]["end"])
+    window_text = "[2 TiB, 3 TiB)"
+    rep.check("正文 §6.3 明写内核窗口 [2 TiB, 3 TiB)", True, window_text in block)
+    rep.check("契约明写内核窗口 [2 TiB, 3 TiB)", True, window_text in contract_text)
+    rep.check("ram_base == 内核窗口起点（VA）", va_layout["kernel"]["start"],
+              by_name["ram_base"]["value"])
+    sup = sm["superpage_size"]
+    sm_map = (f"VA [{fmt_addr(va_layout['kernel']['start'])}, "
+              f"{fmt_addr(va_layout['kernel']['start'] + sup)}) → PA [0, {fmt_addr(sup)})")
+    rep.check("正文 §6.3 预建页表映射 == 窗口基址 1 个超页", True, sm_map in block)
+    rep.check("契约预建页表映射 == 窗口基址 1 个超页", True, sm_map in contract_text)
+    # 旧地址回潮：旧值 = 当前 VA − 偏置（现场派生，不写死字面量），不得再出现在正文/契约。
+    legacy_pairs = (("boot info", bi["va"]),
+                    ("kernel_base", by_name["kernel_base"]["value"]),
+                    ("initramfs_base", by_name["initramfs_base"]["value"]))
+    for what, va in legacy_pairs:
+        legacy = fmt_addr(va - am["va_pa_offset"])
+        rep.check(f"正文 §6.3 无旧地址（{what} 旧值 {legacy}）", 0, block.count(legacy))
+        rep.check(f"契约无旧地址（{what} 旧值 {legacy}）", 0, contract_text.count(legacy))
 
     # ── 3. 内存分区 ────────────────────────────────────────────────────────
     mem = data["memory_map"]
@@ -321,13 +355,27 @@ def run_checks(root: Path) -> tuple[int, Report]:
     reps = rows_by_name.get("rest")
     if reps is not None and reps["start"] is not None:
         rep.bad("内存分区 rest 行", "start=null", reps["start"])
-    # 交叉：字段 ↔ 分区起点
-    for fname, row_name in (("kernel_base", "kernel"), ("initramfs_base", "initramfs"),
-                            ("ptbr", "page_table"), ("ram_base", "page_table")):
+    # 交叉：字段 ↔ 分区起点（`ptbr` 是 PA，比 PA 侧）
+    for fname, row_name in (("kernel_base", "kernel"), ("initramfs_base", "initramfs")):
         rep.check(f"字段 {fname} == 分区 {row_name} 起点",
                   rows_by_name[row_name]["start"], by_name[fname]["value"])
+    rep.check("字段 boot_info.va == 分区 boot_info 起点",
+              rows_by_name["boot_info"]["start"], bi["va"])
+    rep.check("字段 ptbr == 分区 page_table 的 PA 起点（PTBR 记 PA）",
+              rows_by_name["page_table"]["pa_start"], by_name["ptbr"]["value"])
+    rep.check("分区 page_table 的 VA 起点 == 偏置", am["va_pa_offset"],
+              rows_by_name["page_table"]["start"])
     rep.check("页表页大小 == 1 << page_size_log2", page_size,
               rows_by_name["page_table"]["end"] - rows_by_name["page_table"]["start"])
+    # 交叉：VA = PA + offset、落在内核窗口内、不越过 RAM 上限
+    for row in mem:
+        if row["start"] is None:
+            continue
+        rep.check(f"分区 {row['name']} VA − PA == 偏置（VA = PA + 2 TiB）", am["va_pa_offset"],
+                  row["start"] - row["pa_start"])
+        rep.check(f"分区 {row['name']} 落在内核窗口内", True,
+                  va_layout["kernel"]["start"] <= row["start"]
+                  and row["end"] <= va_layout["kernel"]["end"])
     limit = by_name["ram_base"]["value"] + by_name["ram_size"]["value"]
     for row in mem:
         if row["start"] is not None:
@@ -346,8 +394,12 @@ def run_checks(root: Path) -> tuple[int, Report]:
 
     entry_by_item = {norm(r["item"]): norm(r["value"]) for r in state}
     ptw_cell = entry_by_item.get("PTW", "")
-    rep.check("进入状态 PTW 含 ptw_enable/PTBR/身份映射", True,
-              all(t in ptw_cell for t in ("ptw_enable", "PTBR", "身份映射")))
+    rep.check("进入状态 PTW 含 ptw_enable/PTBR/偏置", True,
+              all(t in ptw_cell for t in ("ptw_enable", "PTBR", "VA = PA + 2 TiB")))
+    rep.check("进入状态 rb17 == boot info VA", True,
+              fmt_addr(bi["va"]) in entry_by_item.get("rb17", ""))
+    rep.check("进入状态 rb16 == 入口 VA", True,
+              fmt_addr(by_name["kernel_base"]["value"]) in entry_by_item.get("rb16", ""))
     rep.check("进入状态 rb17 标注 boot info VA", True, "boot info VA" in entry_by_item.get("rb17", ""))
     rep.check("进入状态 hart 写明其它 hart 未定义", True, "其它 hart" in entry_by_item.get("hart", ""))
 
@@ -418,10 +470,10 @@ INJECTIONS = [
         "new": "| `0x00` | 4 | `magic` | `0x4442_494F` |",
     },
     {
-        "name": "入口/基址错（YAML kernel_base 0x100000 → 0x101000）",
+        "name": "入口/基址错（YAML kernel_base 0x20000100000 → 0x20000101000）",
         "file": YAML_REL,
-        "old": "value: 0x100000",
-        "new": "value: 0x101000",
+        "old": "value: 0x20000100000",
+        "new": "value: 0x20000101000",
     },
     {
         "name": "字段缺失（契约 §4 删 cmdline_size 行）",
@@ -438,8 +490,20 @@ INJECTIONS = [
     {
         "name": "地址术语回退（boot info 页改称「固定 PA」）",
         "file": SPEC_REL,
-        "old": "boot info 页（固定 VA `0x0001_0000`",
-        "new": "boot info 页（固定 PA `0x0001_0000`",
+        "old": "boot info 页（固定 VA `0x0200_0001_0000`",
+        "new": "boot info 页（固定 PA `0x0200_0001_0000`",
+    },
+    {
+        "name": "旧地址回潮（契约 kernel_base 改回旧值 0x0010_0000）",
+        "file": CONTRACT_REL,
+        "old": "| `0x18` | 8 | `kernel_base` | `0x0200_0010_0000` |",
+        "new": "| `0x18` | 8 | `kernel_base` | `0x0010_0000` |",
+    },
+    {
+        "name": "偏置回潮（YAML va_pa_offset 2 TiB → 1 TiB）",
+        "file": YAML_REL,
+        "old": "va_pa_offset: 0x20000000000",
+        "new": "va_pa_offset: 0x10000000000",
     },
 ]
 

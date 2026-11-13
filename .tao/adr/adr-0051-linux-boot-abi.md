@@ -1,9 +1,9 @@
 # ADR-0051: Linux 启动 ABI —— 固定 boot info 结构取代设备树
 
-**状态**：Accepted（2026-11-13 用户逐条确认 `D1`–`D8`；同日按裁定 A「地址术语改 VA」、裁定 B「启动模型 M1」与「身份页表由 smon 固件建」落实）
+**状态**：Accepted（2026-11-13 用户逐条确认 `D1`–`D8`；同日按裁定 A「地址术语改 VA」、裁定 B「启动模型 M1」与「页表由 smon 固件建」落实）
 **日期**：2026-11-13
 **接受日期**：2026-11-13
-**关联**：ADR-0004（测试机装载双路径，`D2.2`/`D2.3`）、ADR-0043（启动/交接与首张页表，`D10`–`D12`）、ADR-0039（PTBR/PTW）；`spec/Machine-v5` `§6.3`（`§6.3.1`–`§6.3.5`）、`spec/DADAO-12` `§2.2`、`spec/DADAO-23` `§3`、`.tao/contracts/contract-linux-boot.md`（0.1.0）、`contracts/linux-boot.yaml`；任务 `m14-spec-001`、`m14-linux-001`、`m14-linux-002`、`m14-infra-003`
+**关联**：ADR-0004（测试机装载双路径，`D2.2`/`D2.3`）、ADR-0043（启动/交接与首张页表，`D10`–`D12`）、ADR-0039（PTBR/PTW）；`spec/Machine-v5` `§6.3`（`§6.3.1`–`§6.3.5`）、`spec/DADAO-12` `§2.2`、`spec/DADAO-23` `§3`、`.tao/contracts/contract-linux-boot.md`（0.2.0）、`contracts/linux-boot.yaml`；任务 `m14-spec-001`、`m14-spec-003`、`m14-linux-001`、`m14-linux-002`、`m14-infra-003`
 
 ## Context（背景）
 
@@ -27,16 +27,16 @@ M14 = Linux bring-up（用户 2026-11-13 定位）：基线 Linux `7.2.10`，平
 - **D2 `rb17` 位置不变、语义改变**：`rb17` 仍承载「启动参数指针」，但语义由「设备树地址」改为「**boot info 的 VA**」；`rb16` 仍为入口地址（VA），移交后不再使用。内核**不得**把 `rb17` 当 DTB 解析；`DADAO-23` `§3` 的「设备树地址」在 v5 Vast 上由本条**收窄**（只改本机口径，不改上游 spec 正文）。
   - 理由：移交流程与寄存器约定完全不变，smon 的 `escape` 不需改动；仅换指针所指内容，实现面最小。
   - 被否：另用新寄存器承载（须改 HBI 移交约定与 smon）；`rb17 = 0` + 内核硬编码固定地址（丢失传递能力，无法在装载期注入运行期值）。
-- **D3 boot info 结构身份可机械判定**：固定 **VA** `0x0001_0000`（内存窗口；身份映射下映射到 PA `0x0001_0000`）、定长 `size`、`magic`（ASCII `DBIN`）、`version = 1`、全部多字节字段**大端**、8 字节字段自然对齐、`size` 之后到页尾为零；共 **15 个字段**（身份三元组 + RAM/内核/initramfs/cmdline 几何 + `ptbr`/`page_size_log2`/`hart_id`/`flags`，逐字段偏移/宽度/取值见 `§6.3.3`）。字段语义一律按 VA/长度描述；机器可读投影为 `contracts/linux-boot.yaml`，与正文、人读契约逐字段一致。
+- **D3 boot info 结构身份可机械判定**：固定 **VA** `0x0200_0001_0000`（内核 VA 窗口内；`VA = PA + 2 TiB` ⇒ PA `0x1_0000`）、定长 `size`、`magic`（ASCII `DBIN`）、`version = 1`、全部多字节字段**大端**、8 字节字段自然对齐、`size` 之后到页尾为零；共 **15 个字段**（身份三元组 + RAM/内核/initramfs/cmdline 几何 + `ptbr`/`page_size_log2`/`hart_id`/`flags`，逐字段偏移/宽度/取值见 `§6.3.3`）。字段语义一律按 VA/长度描述；机器可读投影为 `contracts/linux-boot.yaml`，与正文、人读契约逐字段一致。
   - 理由：`magic` + `version` + `size` 三元组让内核可**显式失败**且可**向前兼容**（`size` 更大 ⇒ 忽略尾部未知字段）；大端与 `contract-abi §1.7` 一致，避免端序转换分支。
   - 被否：无 `version`/`size`（字段无法演进）；小端或本机序（与 ABI 冲突）；TLV/变长编码（K0 字段固定，解析复杂度无回报）。
-- **D4 内存分区与上限固定（按 VA 表述）**：内存窗口 `VA [0, 2 GiB)`（`addr[47:42] = 0`、`VA = addr[41:0]`）内划四段 —— 首张页表页 `[0, 0x1_0000)`（`PTBR = 0`，即页表物理基址 = `PPN << 16` = PA 0）、boot info 页 `[0x1_0000, 0x2_0000)`、内核镜像区 `[0x10_0000, 0x400_0000)`（63 MiB，`kernel_base = 0x10_0000`）、initramfs 区 `[0x400_0000, 0x600_0000)`（上限 32 MiB）；低位 `[0, 0x2_0000)` 与 initramfs 区在内核接管后**须保留**，不得被页分配器回收或复用。分区全部经身份映射到达 PA（K0 下 VA 与 PA 数值相等，但术语分开：分区、入口、参数结构写 VA；PA 只出现在页表项与 `PTBR`）。
-  - 理由：与既有 Vast 几何、首张页表低地址线性映射（ADR-0043 `D10`/`D12`，`PTBR = 0`）自洽；boot info 页紧接首张页表页，smon 建表时唯一需要避让的低端页就是它；固定上限让 loader 在写内存**之前**就能拒绝超限镜像。
-  - 被否：boot info 放内核镜像区尾部（位置随镜像变化，且可能被 `.bss` 覆盖）；内核放高半区（首张页表仅覆盖 `VA [0, 2 GiB)`，高地址在进入时不可达）。
-- **D5 装载路径 ELF 与 raw 并存、语义等价；装载地址一律按 VA 解释**：两条路径装载后进入状态（D6）相同。ELF 路径按 `PT_LOAD` 装载、`p_vaddr` 与 `e_entry` 均为 **VA**、段须 64 KiB 页对齐（`p_vaddr % 0x10000 == 0` 且 `p_align >= 0x10000`）、落在内核镜像区 VA 内且不与低端保留区/BootROM/hmon SRAM 重叠、`e_entry = kernel_base`；loader 把每段写到其 VA 所映射的 PA（K0 身份映射下数值相等）。`ELF-VADDR-EQ-PADDR` 校验保留，含义改为「装载 VA 与目标 PA 数值一致（K0 身份映射）」；`p_memsz - p_filesz` 由 **loader 零填充**。raw 路径整体装入 `kernel_base`（VA）、不解析 ELF 头、长度 ≤ 63 MiB、扁平镜像**不含 `.bss`**，由内核 `head.S` 在进入 C 代码前自清 `__bss_start..__bss_stop`。initramfs 为 `cpio`「newc」，装入其固定基址（VA），超限即失败。
-  - 理由：双路径并存是 ADR-0004 `D2.2`/`D2.3` 的既有契约，M1–M3 向量依赖 raw；ELF 是 Linux 链接产物的自然形态；身份映射使「装载 VA = 目标 PA 数值」成为硬约束，但两者仍是不同地址空间（`DADAO-12 §2.2`）。
+- **D4 内存分区与上限固定（内核 VA 窗口 `[2 TiB, 3 TiB)`、按 VA 表述）**：42 位 VA 空间（`addr[47:42] = 0`、`VA = addr[41:0]`）划分为用户空间 `[0, 2 TiB)` 与内核窗口 `[2 TiB, 3 TiB)`；内核窗口内 `VA = PA + 2 TiB`，划四段 —— 首张页表页 `[0x0200_0000_0000, 0x0200_0001_0000)`（`PTBR = 0`，即页表物理基址 = `PPN << 16` = PA 0）、boot info 页 `[0x0200_0001_0000, 0x0200_0002_0000)`、内核镜像区 `[0x0200_0010_0000, 0x0200_0400_0000)`（63 MiB，`kernel_base = 0x0200_0010_0000`）、initramfs 区 `[0x0200_0400_0000, 0x0200_0600_0000)`（上限 32 MiB）；启动保留区 `[0x0200_0000_0000, 0x0200_0002_0000)` 与 initramfs 区在内核接管后**须保留**，不得被页分配器回收或复用。分区、入口、参数结构一律写 VA；PA 只出现在页表项与 `PTBR`（PA = VA − 2 TiB）。
+  - 理由：内核地址不从 0 开始、与用户/物理低端分离（用户 2026-11-13 裁定）；`PTBR = 0` 与既有 Vast 页表几何（ADR-0043 `D10`/`D12`）自洽；boot info 页紧接首张页表页，smon 建表时唯一需要避让的页就是它；固定上限让 loader 在写内存**之前**就能拒绝超限镜像；2 TiB 偏置在 42 位 VA 内（窗口终点 3 TiB < 4 TiB），且前 512 MiB 可用 1 个 512 MiB 超页覆盖。
+  - 被否：内核留在低端 `[0, 2 GiB)`（与用户/物理低端混在一起、内核地址从 0 开始；用户 2026-11-13 更正）；内核窗口放到 `addr[47:42] ≠ 0` 的 cfx 核内空间（不是可映射的内存窗口）；boot info 放内核镜像区尾部（位置随镜像变化，且可能被 `.bss` 覆盖）。
+- **D5 装载路径 ELF 与 raw 并存、语义等价；装载地址一律按 VA 解释**：两条路径装载后进入状态（D6）相同。ELF 路径按 `PT_LOAD` 装载、`p_vaddr` 与 `e_entry` 均为 **VA**、段须 64 KiB 页对齐（`p_vaddr % 0x10000 == 0` 且 `p_align >= 0x10000`）、落在内核镜像区 VA 内且不与启动保留区/BootROM/hmon SRAM 重叠、`e_entry = kernel_base`；loader 把每段写到其 VA 所映射的 PA（`VA = PA + 2 TiB` ⇒ 目标 PA = `p_vaddr - 2 TiB`）。`ELF-VA-TO-PA` 校验按该偏置执行（`p_paddr` 不作装载地址）；`p_memsz - p_filesz` 由 **loader 零填充**。raw 路径整体装入 `kernel_base`（VA）、不解析 ELF 头、长度 ≤ 63 MiB、扁平镜像**不含 `.bss`**，由内核 `head.S` 在进入 C 代码前自清 `__bss_start..__bss_stop`。initramfs 为 `cpio`「newc」，装入其固定基址（VA），超限即失败。
+  - 理由：双路径并存是 ADR-0004 `D2.2`/`D2.3` 的既有契约，M1–M3 向量依赖 raw；ELF 是 Linux 链接产物的自然形态；固定偏置使「装载 VA → 目标 PA」成为可机械校验的确定性映射（`PA = VA − 2 TiB`），但两者仍是不同地址空间（`DADAO-12 §2.2`）。
   - 被否：只保留 ELF（回归既有 raw 向量路径）；只保留 raw（丢符号/段信息，须额外 objcopy 步骤，且 `.bss` 责任转移更易错）。
-- **D6 启动模型 = M1（预建身份映射页表 + VA 入口）与进入时状态**：**身份映射页表由 `smon` 启动固件预建**（ADR-0043 `D10`/`D11` 的建表与开 PTW 流程）：64 KiB 页、`VA [0, 2 GiB) → PA [0, 2 GiB)`、`PTBR` 指向页表物理基址（`PTBR = 0`）、`ptw_enable = 1`；**宿主 loader 只负责把镜像（ELF/raw）装载到其 VA 对应的 PA，不代写页表页**。内核以 **VA 入口** `kernel_base` 进入。进入时：模式 `supv`；PTW 开启；`rb17` = boot info VA、`rb16` = 入口 VA、`rb3`（`rbtp`）= 0；`rb1`（SP）与 `rd15`/其它通用寄存器**未定义**（内核 `head.S` 须在任何栈使用前自建 early stack）；异步中断全屏蔽；仅 `hart_id = 0` 在线；不引入、不假设 cache/LLC 一致性。
+- **D6 启动模型 = M1（预建带偏置页表 + VA 入口）与进入时状态**：**页表由 `smon` 启动固件预建**（ADR-0043 `D10`/`D11` 的建表与开 PTW 流程）：64 KiB 页、在 L1 index `0` 写 1 个 512 MiB 超页 PTE，映射 `VA [0x0200_0000_0000, 0x0200_2000_0000) → PA [0, 0x2000_0000)`（`VA = PA + 2 TiB`，覆盖 D4 的全部固定分区）、`PTBR` 指向页表物理基址（`PTBR = 0`）、`ptw_enable = 1`；**宿主 loader 只负责把镜像（ELF/raw）装载到其 VA 对应的 PA，不代写页表页**。内核以 **VA 入口** `kernel_base` 进入。进入时：模式 `supv`；PTW 开启；`rb17` = boot info VA、`rb16` = 入口 VA、`rb3`（`rbtp`）= 0；`rb1`（SP）与 `rd15`/其它通用寄存器**未定义**（内核 `head.S` 须在任何栈使用前自建 early stack）；异步中断全屏蔽；仅 `hart_id = 0` 在线；不引入、不假设 cache/LLC 一致性。
   - 理由（DADAO 特有约束）：`ptw_enable = 0` 时内存窗口访存（含取指）触发 `CFXMEM`，内核无法在 MMU 关状态下从 RAM 取指/访存（`DADAO-12 §2.2`）⇒ 页表必须在进入前由 smon 预建，内核不能「先跑起来再建表」。M1 同时沿用 ADR-0043 `D10`/`D11` 的既有建表/开 PTW 流程，不新增交接协议；页表只有 smon 一个写者，避免 loader 与固件对同一页表页的先后/覆盖歧义。
   - 被否：**M2**（内核从 cfx 核内地址空间进入、在 PTW 关闭下自建页表）—— 受 `CFXMEM` 硬约束不可行，且要求内核代码先落在 cfx SRAM；**M3**（经 SBI 交接，由 smon 提供建表服务）—— 需先存在可执行的受控环境（同样受 `CFXMEM` 限制），且 K0 不定义 SBI 服务面，交接协议成本高于收益；**进入时 PTW 关**（含「关着进、第一条指令人工置位」）—— 第一条指令本身就取不到，直接不可行；**宿主 loader 代写页表页**—— 与「页表归 smon」冲突，需 loader 复制 smon 的建表细节（页大小/PTE 内容/顺序），且 `ptw_enable` 仍须 smon 置位，收益为零而多一处契约面。
 - **D7 失败语义显式化，禁止静默降级**：host/loader 侧任一校验失败（格式/端序/机器号/`ET_EXEC`、入口不符、段越界或重叠、`p_vaddr` 与目标 PA 数值不一致、对齐不足、initramfs 超限、boot info 无法写入）⇒ loader **非零退出**，不得截断、改址或降级装载（页表由 smon 建，其失败属固件侧，同样不得带病移交）；guest 侧 `magic`/`version`/`size` 任一不符 ⇒ 内核 `head.S` 用 semihosting `SYS_EXIT` + 固定失败码**显式失败**（码值属实现，本 ADR 与 spec 均不规定）。
@@ -51,15 +51,15 @@ M14 = Linux bring-up（用户 2026-11-13 定位）：基线 Linux `7.2.10`，平
 - **启动模型由硬件语义决定，不是偏好**：`ptw_enable = 0` ⇒ 内存窗口访存即 `CFXMEM`（`DADAO-12 §2.2`）⇒ 「进入前表已就绪」是唯一可行前提（D6/M1）；这同时把「谁来建表」的争论收敛为「`smon` 固件建表、内核只管用」。
 - **可机械校验**：固定布局 + 定长 + 三元组身份，使「正文 ↔ 人读契约 ↔ 机器可读投影」可逐字段比对，也能被 loader 与内核在进入前各自判定；DTB 做不到同等强度的静态门控。
 - **术语单一**：ABI 只说 VA（D3–D6），PA 仅出现在页表项/`PTBR`/loader 写内存，避免同一数字被当成两种地址而在实现与门控里漂移。
-- **与既有架构自洽**：不改移交流程（`rb17` 同位）、不改首张页表几何（`PTBR = 0`、身份映射）、不改双装载路径（ADR-0004）；本 ABI 是 Vast 内核装载的新增契约，既有向量路径行为仍由 ADR-0004 覆盖。
+- **与既有架构自洽**：不改移交流程（`rb17` 同位）、不改首张页表的「`PTBR = 0` + 由 `smon` 建表」归属（映射几何见 `D6`）、不改双装载路径（ADR-0004）；本 ABI 是 Vast 内核装载的新增契约，既有向量路径行为仍由 ADR-0004 覆盖。
 - **最小化 K0 面**：只传内核真正需要且装载期才可知的事实（`kernel_size`、`initramfs_size` 等运行期值由 loader 写），其余几何全部固定，减少 loader 与内核之间的自由度。
 
 ## Consequences（影响）
 
-- QEMU 侧（K1）：`smon` 启动固件预建 64 KiB 页身份映射页表并置 `PTBR`/`ptw_enable = 1`；装载器只做两条路径的全部校验、把镜像装到其 VA 对应的 PA、boot info 经其 VA 写入（含运行期 `kernel_size`/`initramfs_size`）、以 VA 入口跳转与失败非零退出；写 `PTBR`/`ptw_enable` 不隐含 TLB 失效（`DADAO-12 §2.2`），须按规范显式处理。不得省略校验换取「能启动」。
+- QEMU 侧（K1）：`smon` 启动固件预建 64 KiB 页、带 `+2 TiB` 偏置的页表（内核窗口基址段 1 个 512 MiB 超页）并置 `PTBR`/`ptw_enable = 1`；装载器只做两条路径的全部校验、把镜像装到其 VA 对应的 PA、boot info 经其 VA 写入（含运行期 `kernel_size`/`initramfs_size`）、以 VA 入口跳转与失败非零退出；写 `PTBR`/`ptw_enable` 不隐含 TLB 失效（`DADAO-12 §2.2`），须按规范显式处理。不得省略校验换取「能启动」。
 - 内核侧 `arch/dadao` `head.S` 须：自建 early stack、校验 `magic`/`version`/`size` 并显式失败、raw 路径自清 `.bss`；**不建首张页表**（M1 已预建），K0 只消费进入态。
 - `DADAO-23` `§3` 在 v5 Vast 上的口径被 D2 收窄：引用其 `rb17` 语义时必须同时声明「本机为 boot info VA，不是 DTB」；上游 spec 正文不改。
-- **术语同步待办**：`spec/Machine-v5 §6.3`、人读契约与 `contracts/linux-boot.yaml` 现行按「PA」叙述，与本 ADR 的 VA 术语需同笔统一（或在各处注明「身份映射下数值相等」）；该同步属 spec/契约改动，由主会话派单，本 ADR 单方面不改正文。
+- **术语与地址已同笔同步**：`spec/Machine-v5 §6.3`、人读契约与 `contracts/linux-boot.yaml` 现按 VA 叙述并使用 `VA = PA + 2 TiB` 偏置（`m14-spec-001`／`m14-spec-003`）；后续改动须继续「四处同笔」。
 - 契约改动成本为「四处同笔更新」：`spec/Machine-v5 §6.3`、人读契约、`contracts/linux-boot.yaml`、检查器；由 `make check-linux-boot-contract`（L1）兜底，缺一处即红。
 - boot info 的 `flags` 等能力位成为后续扩展的入口；新增能力须同时纳入 D8 的演进流程，防止字段语义被就地改写。
 
@@ -67,8 +67,9 @@ M14 = Linux bring-up（用户 2026-11-13 定位）：基线 Linux `7.2.10`，平
 
 - **确认记录（2026-11-13，经主会话逐条确认）**：`D1`–`D8` 全部确认，本 ADR 转 `Accepted`。
   - 用户原话摘要：「**确认剩余并转 Accepted（推荐）**」；身份页表归属「**smon 固件建（推荐）**」。
-  - 前序裁定（同日，已并入 `D3`–`D6`）：**裁定 A「地址术语改 VA」**（ABI 地址一律 VA；PA 只出现在页表项、`PTBR = PPN << 16`、宿主 loader 写内存）；**裁定 B「启动模型 M1」**（预建身份映射页表 + VA 入口；依据 `ptw_enable = 0` ⇒ `CFXMEM`）。
+  - 前序裁定（同日，已并入 `D3`–`D6`）：**裁定 A「地址术语改 VA」**（ABI 地址一律 VA；PA 只出现在页表项、`PTBR = PPN << 16`、宿主 loader 写内存）；**裁定 B「启动模型 M1」**（预建页表 + VA 入口；映射几何见 `D6` 的 `rev.` 修订值；依据 `ptw_enable = 0` ⇒ `CFXMEM`）。
   - 依据：`AGENTS.md`「ADR decision 逐条确认」（每个 decision 逐条与用户确认后方可写为 `Accepted`）；确认渠道 = 主会话问答。
 - 本 ADR 不复制规范正文：字段表、校验规则、进入态表以 `spec/Machine-v5 §6.3` 与人读契约 `contract-linux-boot.md` 为准，本 ADR 只承载决策与理由。
-- 决策变更时**新增 ADR 或标注 `Superseded`**，不改写已接受的口径（`docs/Process-03`）。
+- 决策变更时**新增 ADR 或标注 `Superseded`**；经用户授权的**就地修订**须在「状态说明」记录授权原话摘要与渠道（`AGENTS.md`「ADR decision 逐条确认」）。
 - 修订记录：`rev. 2026-11-13` 按裁定 A（ABI 地址一律 VA）与裁定 B（启动模型 M1：预建页表 + VA 入口）改写 `D3`–`D6`；同日按用户确认把 `D6` 的页表建立方收敛为 **`smon` 固件**（宿主 loader 不代写页表页）。
+- 修订记录（`rev. 2026-11-13`，内核 VA 窗口；渠道 = 主会话问答）：用户裁定「内核空间 `[2 TiB, 3 TiB)`、用户空间 `[0, 2 TiB)`，四项冻结地址整体 +2 TiB（`VA = PA + 2 TiB`）」——经用户授权的**就地修订**，只改 `D3`/`D4`/`D5`/`D6` 的地址与映射（`D1`/`D2`/`D7` 决策语义不变；`D8` 中引用的旧 `VA [0, 2 GiB)` 几何以 `D4`/`D6` 修订值为准，`D7` 的「`p_vaddr` 与目标 PA」校验按 `PA = VA − 2 TiB` 解释）。此前任务书记录的 `[3 TiB, 4 TiB)` / +3 TiB 提案经用户同日**更正**为 +2 TiB，以更正后为准。
