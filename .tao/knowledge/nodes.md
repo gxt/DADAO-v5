@@ -274,6 +274,13 @@
 - 主控机把它镜像成 `.cache/submodules/<path 派生名>.git`（`generators/testchipip` → `generators__testchipip.git`）：主控机联网用 `fetch.py --populate-submodules` 建镜像；节点只从主控机 `sync_cache.py` 同步，缺镜像时 `make fetch` 明确失败并指向该脚本（节点不向 GitHub 拉子模块）。
 - 约定正文（镜像布局 / 命名 / 失败语义）见 `docs/Process-01 §14「子模块（submodule）的获取与镜像」`。
 
+### 11.6 离线节点建 chipyard 环境（2026-11-13 实测，四台无国际网）
+
+- **conda env 用 `conda-pack` 搬运**：主控机 `conda-pack -p .work/source/chipyard/.conda-env -o <tgz> --ignore-missing-files`（3.5 GiB → 1.3 GiB），节点解包到同路径后跑 `<env>/bin/conda-unpack` 修正前缀（**该脚本执行后自删**，缺失不等于失败）。
+- **sbt 必须带缓存**：离线节点上 `make CONFIG=...` 会先重建 `chipyard.jar`，sbt 去 maven 拉 `sbt 1.8.2` 超时 ⇒ 需从主控机同步 `~/.sbt`、`~/.cache/coursier`、`~/.ivy2` **和** `<repo>/.work/source/chipyard/.sbt`（约 430 + 61 MB）；缺一项即 `unresolved dependency: org.scala-sbt#sbt;1.8.2`。
+- **`generated-src/**/sim_files*.f` 含绝对路径**：直接 rsync 主控机的 gen-collateral 会带上 `/mnt/tao/DADAO-v5/...` ⇒ Verilator 报 `Cannot find file containing module .../TestDriver.v`；须在节点 `sed -i "s|/mnt/tao/DADAO-v5|$HOME/DADAO-v5|g"` 后再构建。
+- **同一节点不要并发起两轮解包**：`rm -rf` 与 `tar` 竞态会留下半残 env（实测缺 `verilator`），只能整包重解。
+
 ## 12. 主控机 `/tmp`（待切回磁盘，用户自理）
 
 - 现状：主控机 `/tmp` 由 `/etc/fstab` 配成 16G tmpfs；节点 `/tmp` 已在 ext4 磁盘上（无需改）。

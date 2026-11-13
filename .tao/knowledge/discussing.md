@@ -494,6 +494,16 @@ M16 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个
 
 ⇒ **「允许部分生效」的适用范围收窄为：多元素*内存*指令（`ldm.*`/`stm.*` 及其 rf 形式）的故障路径**。其它类别一律精确。
 
+## 已裁定：`rootn(±0,2)` 收严为 `+0`；NaN 结果统一 canonical（2026-11-13）
+
+`m13-integ-009`（FP-IEEE 审计）报两处待裁定，用户裁定：
+
+1. **R1 `rootn(±0,2)`：收严为 IEEE `+0`**（IEEE 754-2019 §9.2.1：`rootn(±0, even n>0) = +0`，且 NOTE 明确「`rootn(−0,2) ≠ squareRoot(−0)`」）。当前三实现均返回 `−0`、`spec §2.2` 写「不做具体要求」。
+2. **R2 NaN 结果口径：统一 canonical qNaN**（payload 全零、符号 0；binary64 即 `0x7FF8_0000_0000_0000`）。依据：IEEE §6.2.3 payload 传播是 **should**、「多个 NaN 取哪个不规定」，§6.3 符号位不规定 ⇒ 不构成偏离；**Berkeley hardfloat 即 canonical**（`RoundAnyRawFNToRecFN.scala`：`signOut = Mux(isNaNOut, false.B, …)`，NaN 时有效位只置 quiet 位），与 gem5 现值一致；QEMU（`float_2nan_prop_ab`）与自写 RTL（传首 NaN payload）需改。
+
+**影响面**：spec/合约措辞 + QEMU + chipyard RTL + gem5（仅 `rootn`；quiet compare 的 sNaN 见下）+ 向量/期望。
+**同时确认**：`m13-integ-009` 的 D1（gem5 quiet compare 遇 sNaN 不置 `NV`）按 2026-11-12 裁定「改为置 NV（跟 IEEE）」补做 gem5 侧。
+
 ## 已裁定：`ldm`/`stm` 禁止基址/索引寄存器落入传送范围（2026-11-13）
 
 用户原话：「不允许重叠，改spec」
