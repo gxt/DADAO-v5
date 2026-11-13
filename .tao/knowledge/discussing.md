@@ -69,6 +69,9 @@
 
 - **`ext.*` 的 `hd` 口径（用户 2026-11-13）**：取 `rdHD[5:0]`、越界位忽略、**不抛 ILLI**（chipyard 已合规；QEMU/gem5 为缺陷，见 `ISS-422`）；该口径**不单独立 ADR**，以 `spec/SimRISC-04` 措辞 + `ISS-422` 为载体（用户裁定「不立 ADR」）。
 
+- **ADR-0050 D5 的范围（用户 2026-11-13）**：D5 只管**浮点→整数**（饱和 + `NV`）；`fo2ft` 这类**格式间转换**溢出按 IEEE 754-2019 §5.4.2 + §7.4（±Inf 或最大有限值 + `OF|NX`）。ADR 不改。
+- **`-bios` legacy trampoline（用户 2026-11-13）**：选 ①——已立 `m13-qemu-011`（收紧）+ `m13-testcases-034`（44 例 oracle 迁移），同批合入。
+
 ## M13 未决
 
 - 差分矩阵的判据、参与引擎、失败归因口径（启动 M13 时专门讨论）。
@@ -116,7 +119,8 @@
 ## 待办（K0 已立册）
 
 - K0 七件已落 `.tao/tasks/{linux,spec,infra}/m14-*`（`milestones-m14.md` 台账）；`m14-linux-001`、`m14-spec-001` 已派。
-- **启动 ABI 值已冻结（用户 2026-11-13）**：内核 `0x0010_0000`、boot info PA `0x0001_0000`、initramfs `0x0400_0000`、`rb17` 承载、入口 `supv` + 身份映射。
+- **启动 ABI 值已冻结（用户 2026-11-13；内核窗口改 `[2TiB,3TiB)` 后）**：内核 `0x0000_0200_0010_0000`、boot info `0x0000_0200_0001_0000`、initramfs `0x0000_0200_0400_0000`、`rb17` 承载 boot info VA、入口 `supv`；`VA = PA + 2 TiB`；页表由 `smon` 预建。
+- **`m14-spec-002` 三条（用户 2026-11-13）**：① 固件只**放行源位/deleg**、入口寄存器由**内核自配**；② `excp_cause_info` 与 `immu18` 的关系**只在合约推导**、不补上游；③ `clone` 双返回 / `execve` 清 `rbtp` **留 contract-syscall §10**，由 musl 移植任务实现并校准。
 - **spec/Process 授权（2026-11-13）**：`m14-spec-001` 可改 `spec/Machine-v5`+锁、`m14-linux-001` 可改 `docs/Process-01`、`m14-infra-003` 可改 `docs/Process-07`；其余仍需逐次授权。
 - **initramfs 的 syscall 范围（用户 2026-11-13）**：**不做特殊限制，别滥用就行**——不要求「ELF syscall 全集 ⊆ 4」；验收以「init 自有 syscall = write/getpid/brk/exit_group」+ 运行期 trace 说明为准。
 - **LLVM/汇编器缺口裁定（用户 2026-11-13）**：
@@ -249,16 +253,6 @@ M15 exit：264 条记录 **100%** 有 operation 块且 id 一对一；抽取结�
 
 - `reserved.yaml` 是否拆册（当前同册承载「保留编码 ⇒ UNDI」与「reserved cfx 地址空间 ⇒ CFXMEM」两类语义）。
 - `trap`/`escape` → reserved cfx 的 active 向量仍 deferred（`TESTCASES-033t`）。
-
-## 待裁定：`-bios` 的 legacy trampoline 窗口（2026-11-11）
-
-`m13-qemu-002` 的 reviewer 发现：`Machine-v5 §6` 字面要求 `-bios` 装**同一固定固件**、不再带 trampoline；但实现保留了 **≤4096 B 的 legacy 窗口**（44 例 `tests/inst` Tiny 中 43 例的 `expected_fault` 退出码口径依赖它）。
-
-两条路：
-- **① 绑 `m12-chipyard-019`**：故障分派进 hmon 后，把那 44 例 oracle 迁到新口径，再删 legacy 窗口（口径收敛、无历史包袱）。
-- **② 修 `Machine-v5 §6`**：承认该窗口为测试机约定（改动小，但 spec 多一条历史例外）。
-
-reviewer 建议 ①（随 `019` 做）。**待用户裁定。**
 
 ## IDL 里程碑归属（用户 2026-11-12 裁定）
 
