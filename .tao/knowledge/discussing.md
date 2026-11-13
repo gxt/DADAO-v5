@@ -41,7 +41,7 @@
 
 | 任务 | 内容 | 预估 |
 | --- | --- | --- |
-| `m12-spec-001` | spec `Node`→`Vast`（约 22 处）+ 定位行机器名 + `0.4.1-rc` 段 + 锁；三份契约 + `spec/README` + `docs/Machine-00` | 1–2 h |
+| `m12-spec-001` | spec `Node`→`Vast`（约 22 处）+ 定位行机器名 + `0.4.1-rc` 段 + 锁；三份契约 + `spec/README` + `docs/execution-environment-tiers` | 1–2 h |
 | `m12-qemu-001` | 拆 `dadao-tiny`/`dadao-vast`、去 `profile=`、**暂留 `dadao-m1` 别名** | 2–3 h |
 | `m12-gem5-001` | gem5 FS `--profile vast`，**暂留 `node` 别名** | 0.5–1 h |
 | `m12-testcases-001` | `machine-profiles.yaml`（`node`→`vast`）、`machine-vast.inc`、`DADAO_TEST_PROFILE`、46 个测试文件机器名、Makefile | 2–3 h |

@@ -1,6 +1,6 @@
-# Machine-00（Draft）：执行环境分层
+# 执行环境分层（execution environment tiers）
 
-> **状态**：**草案（Draft）**——**仅供讨论，不作判据真源**（定稿后再议是否升为正式册、是否纳入只读锁）。
+> **状态**：**草案（Draft）**——**仅供讨论，不作判据真源**（定稿后再议是否升为正式册、是否纳入只读锁）。**内容为 M7 快照**；M14 引入 Linux 后需复审 L2（semihosting 现状）与 L3（无内核现状）。
 > **目的**：承载"**这一类问题**"——即 **C 库 / 系统调用接口 / 资源管理（内核行为）/ 平台** 四层之间的分工与落地选择；典型问句如"**syscall 由谁执行**"、"动态链接在哪一层"、"什么时候需要内核或 proxy kernel"。
 > **关系（不重复正文，只放指针）**：`spec/Machine-v5`（qemu 测试机 `dadao-tiny` / `dadao-vast` 的具体运行环境与 semihosting **正文**）、`.tao/contracts/contract-semihosting.md`、`spec/DADAO-12/13`（SEE/HEE 语义）、`ADR-0020`（SEE/semihosting 决策）、`ADR-0004`（测试机地址图）、`INTEG-033k §排除项`（M7 排除项）。
 

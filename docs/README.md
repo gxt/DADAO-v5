@@ -26,6 +26,7 @@
 | `docs/fp-oracle-design.md` | **FP 独立 oracle 方案**（被 `contract-fp.md`、`contracts/fp_semantics.yaml` 引用） |
 | `docs/core-implementation-tiers.md` | **核实现分层**：三型（`wuming` / `wuqing` / `wuxing`）定义、两条正交轴、平台映射、不变量（实现口径，非 ISA 规范） |
 | `docs/core-wuming-cycle-model.md` | **wuming 核的指令周期模型**：分类周期表、逐册逐族、快路径 CPI、实测回填规则（实现口径，非 ISA 规范） |
+| `docs/execution-environment-tiers.md` | **执行环境分层**（Draft）：C 库 / syscall 接口 / 内核行为 / 平台四层的分工与选择、平台 × 能力矩阵、测试与基准矩阵（M7 快照，M14 后复审） |
 
 ## 测试报告（`TestReports/`）
 
