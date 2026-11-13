@@ -8,7 +8,7 @@
 - 最近合入：`spec-005`（`ldm` 禁地址寄存器重叠）、`spec-006`（FMA 溢出按 IEEE）、`qemu-006`/`gem5-008`（`ldm` ILLI 实现）、`qemu-008`/`gem5-009`（FMA：两平台**本就合规**，只补断言）、`gem5-010`（hmon fixture 迁移）、`chipyard-027`（RTL ILLI）、`testcases-013`（235/235 三平台）。
 - 下一件：`m13-testcases-014`（`02-reg-copy` 16 id，3–4 h）；`m12-chipyard-028`（重生成 `bootrom.tiny.hex`，补齐 `pending_followups` 最后一条）；`m12-chipyard-029`（FMA RTL，须按 spec 实测，**不得**用 QEMU/gem5 结论推定）。`028` 与 `029` 组件互斥，串行。
 - 未决 issue：`ISS-410`（hmon 自装 workaround，待 028 后撤）、`ISS-416`（生成器漂移）、`ISS-417`（DDLD 残留扫描面）、`ISS-420`（FMA 常驻门控，载体 `testcases-021/022`）、`ISS-421`（chipyard README/changelog）。
-- 节点：6 台同构（2×64 + 4×40 vCPU）。`207/208` 已引导（L1 绿、gem5 已建、musl 已建）；`ics150–180` 已同步仓库 + `.cache`，`install-host`/`musl`/`gem5` **未建**，chipyard conda 环境**全 6 台未建**。
+- 节点：6 台同构（2×64 + 4×40 vCPU）。**六台环境已建齐**（gem5 / musl / chipyard conda env + Verilator 仿真器；`+loadmem` 冒烟一致、207 上 02-reg-copy 三平台 58/58）⇒ 可承接评测任务；四台无国际网，依赖靠主控机离线搬运（`nodes.md §11.6`）。
 - 裁定（原话见 `discussing.md` 末）：节点只作评测；测试时长 15m/6h/24h 分档且**不含构建时间**；`ldm` 禁重叠 / `stm` 允 / RA·RF 不适用。
 
 ## 入口指针
