@@ -5,7 +5,6 @@
  * 偏移错位由本脚本的 ASSERT 直接报错，不靠人记）：
  *
  *   ENTRY + 0x0000  .text           链例 + 故障例体（≤ 0x1E00）
- *   ENTRY + 0x1E00  .hmon_stub      测试自有 hmon 处理器（≤ 0x100）
  *   ENTRY + 0x1F00  .faultpad       故障落点（≤ 0x80）
  *   ENTRY + 0x1F80  （TEST_FAULTV，落点段之后，无独立段）
  *   ENTRY + 0x2000  .testdata       数据块：0x800 负偏移区 + 单元素 24 拍模式 +
@@ -32,14 +31,7 @@ SECTIONS
     *(.text)
   } : image
 
-  ASSERT(SIZEOF(.text) <= 0x1E00, "inst-tiny: .text 越过 handler 窗口（0x1E00）")
-
-  . = 0xffffff010100 + 0x1E00;
-  .hmon_stub : {
-    *(.hmon_stub)
-  } : image
-
-  ASSERT(SIZEOF(.hmon_stub) <= 0x100, "inst-tiny: hmon 处理器超过 256 B")
+  ASSERT(SIZEOF(.text) <= 0x1E00, "inst-tiny: .text 越过故障落点窗口（0x1F00）")
 
   . = 0xffffff010100 + 0x1F00;
   .faultpad : {

@@ -14,29 +14,30 @@
 @@     gem5）比较的就是这串字节 ⇒ **逐字节一致**，而不只是退出码一致。
 @@
 @@   CASE_N = <检查点> = **故障例镜像**：`_start` 直接跳到该例。该例执行一条会触发
-@@     同步异常的指令，由**测试自己的** hmon 处理器把 `cause_id` 交回落点，落点核对
-@@     one-hot 后 `SYS_EXIT(0xF0|位索引)`。故障例必须一例一镜像——异常不返回到
-@@     被测指令之后，因此同一个镜像无法继续下一例。
+@@     同步异常的指令，由**BootROM 固件**的 hmon 处理器（最小保存-跳转算法，
+@@     `tests/shared/bootrom/tiny/hmon.S`）把 `cause_id` 存进自己的槽（hmon SRAM
+@@     +0xE0）并 `escape` 回落点，落点读该槽、核对 one-hot 后
+@@     `SYS_EXIT(0xF0|位索引)`。故障例必须一例一镜像——异常不返回到被测指令之后，
+@@     因此同一个镜像无法继续下一例。
 @@
-@@ 为什么自装 hmon 处理器：hmon 的「保存-跳转」由 BootROM 固件提供，而固件的分派
-@@ 策略随版本变化（芯片侧 BootROM hex 与 QEMU/gem5 装载的 `bootrom_tiny.bin` 可能
-@@ 不同版）。测试程序在运行期把本文件的处理器拷到 hmon SRAM 基址（`excp_vector`
-@@ 初值 = hmon SRAM 起始，`spec/Machine-v5 §4.4`），于是三方行为一致，同时仍然走
-@@ 硬件异常入口（向量 → 异常帧 → `escape`），不是软件模拟。
+@@ hmon 的返回地址：固件 hmon 从 hmon SRAM +0xF8 读返回地址（`spec/Machine-v5
+@@ §6.2`：power 写默认值 `trap+4`，**框架可覆盖**）。故障例在触发前把落点
+@@ `TEST_PAD` 写进 0xF8，于是三方走同一个硬件入口（向量 → 异常帧 → 固件 hmon →
+@@ `escape`），测试不再自带处理器。`m12-chipyard-028` 起三方 BootROM 固件同版
+@@ （`ISS-410` 已修）。
 @@
 @@ 保留寄存器（用例不得占用）：rb3=数据基址、rb30=结果缓冲写指针、
 @@ rd20/rd21/rb21=期望/实测/临时、rd22/rd23=临时与退出码、
-@@ rd31/rb31=故障处理器暂存、rd16/rb16=semihosting、r?4/rd4=退出参数块、
+@@ rd16/rb16=semihosting、r?4/rd4=退出参数块、
 @@ rb29=寄存器复制实测落点（SCRATCH）、rb27=rf0 写语义例的前/后落点（WSCRATCH）、
 @@ rd25/rd26=rf0 写语义例的「写前值 / 期望字节」、
 @@ rd24/rb24=控制流（06）用例的「跳转标记 / 落点 IP」与 RAS 实测临时。
 @@
 @@ 固定地址（Tiny；`.lds` 的 ASSERT 与本节 `.equ` 共同钉住）：
 @@   ENTRY+0x0000 .. +0x1E00  .text          链例 + 故障例体
-@@   ENTRY+0x1E00             .hmon_stub     测试自有 hmon 处理器（≤64 B）
 @@   ENTRY+0x1F00             .faultpad      故障落点（≤128 B）
 @@   ENTRY+0x1F80             TEST_FAULTV    故障期望槽：+0 one-hot、+8 退出码、
-@@                                           +16 失败码（=检查点号）、+32 实测 one-hot
+@@                                           +16 失败码（=检查点号）
 @@   ENTRY+0x2000 .. +0x4000  .testdata     数据块（TEST_DATA = +0x2800，0x800 负偏移
 @@                                           区在前；单元素 24 拍模式；多元素区见下）
 @@   ENTRY+0x4000 .. +0x4800  结果字节缓冲（每检查点 8 字节，≤127 点 ⇒ ≤1016 B）
@@ -85,12 +86,11 @@
 	.include "tests/shared/asm/machine.inc"
 
 	@@ 机器几何一律取 `machine-tiny.inc`（生成物）里的符号，本节只补本宏层的布局。
-	.equ TEST_HSEC,   ENTRY + 0x1E00
 	.equ TEST_PAD,    ENTRY + 0x1F00
 	.equ TEST_DATA,   ENTRY + 0x2800
 	.equ TEST_BUF,    ENTRY + 0x4000
 	.equ TEST_EXITB,  ENTRY + 0x5000
-	.equ TEST_FAULTV, ENTRY + 0x1F80        @@ 故障期望槽（4 × 8 B；见文件头）
+	.equ TEST_FAULTV, ENTRY + 0x1F80        @@ 故障期望槽（3 × 8 B；见文件头）
 
 @@ 多元素数据区（见文件头；偏移相对 TEST_DATA）
 	.equ MDATA_B, TEST_DATA + 0x800
@@ -840,23 +840,16 @@ __r0w_\@:
 @@   落点核对 cause_id one-hot，随后 `SYS_EXIT(0xF0|位索引)`。
 @@ ---------------------------------------------------------------------------
 
-@@ 把处理器代码（TEST_HSEC 起 64 B）拷到 hmon SRAM 基址
-.macro __INSTALL_HMON
-	LOAD_ADDR rb20, TEST_HSEC
-	LOAD_ADDR rb21, HMON_BASE
-	set.zw	rd22, wp0, 8
-__cp_\@:
-	ld.o	rd23, [rb20, 0]
-	st.o	rd23, [rb21, 0]
-	add.si	rb20, 8
-	add.si	rb21, 8
-	add.si	rd22, -1
-	br.nz	{rd22}?, [rb0, __cp_\@]
+@@ 把落点写进固件 hmon 的返回地址槽（hmon SRAM + 0xF8；`spec/Machine-v5 §6.2`）
+.macro __SET_HMON_RETURN
+	LOAD_ADDR rb20, HMON_BASE
+	LOAD_ADDR rb21, TEST_PAD
+	st.o	rb21, [rb20, 0xF8]
 .endm
 
-@@ 故障例公共体：装 hmon 处理器 + 把 one-hot / 退出码 / 失败点号写进 TEST_FAULTV
+@@ 故障例公共体：写 hmon 返回槽 + 把 one-hot / 退出码 / 失败点号写进 TEST_FAULTV
 .macro __FAULT_GUARD pt, fault
-	__INSTALL_HMON
+	__SET_HMON_RETURN
 	.set	__onehot, 0
 	.set	__code, 0
 	.ifc	\fault, CFXMEM
@@ -1314,26 +1307,14 @@ _start:
 	__EXIT	0
 .endm
 
-@@ 处理器段 / 落点段 / 数据块（不含用例；每个文件调用一次）
+@@ 落点段 / 数据块（不含用例；每个文件调用一次）
 .macro __TEST_SECTIONS
-	.section .hmon_stub, "ax"
-	.p2align 3
-	.globl	__hmon_stub
-__hmon_stub:
-	LOAD_ADDR rb31, TEST_FAULTV + 32
-	cfx2rd	cfx_hmon, cg5, rc2, rd31
-	st.o	rd31, [rb31, 0]
-	LOAD_ADDR rd63, TEST_PAD
-	cfx2rc	cfx_hmon, cg5, rc3, rd63
-	escape	cfx_hmon, [excp_cause_ip, 0]
-	.dd.t32	0
-	.dd.t32	0
-
 	.section .faultpad, "ax"
 	.globl	__pad
 __pad:
 	LOAD_ADDR rb11, TEST_FAULTV
-	ld.o	rd20, [rb11, 32]
+	LOAD_ADDR rb21, HMON_BASE + 0xE0	@@ 固件 hmon 的 cause_id 槽
+	ld.o	rd20, [rb21, 0]
 	ld.o	rd21, [rb11, 0]
 	br.ne	{rd20, rd21}?, [rb0, __pad_fail]
 	ld.o	rd23, [rb11, 8]

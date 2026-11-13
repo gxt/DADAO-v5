@@ -4,6 +4,10 @@
 
 ## M12
 
+- **2026-11-14 `m12-chipyard-028`**
+  - 摘要：**签入 BootROM hex 由新 builder 重生成，hmon 与 QEMU/gem5 同版**（`ISS-410`）。旧 hex 仍是 `escape +4` 的 120 B hmon，与共享 `bootrom_tiny.bin`（槽 `0xF8`、48 B）不同 ⇒ `tests/inst` 只能靠运行期自装处理器对齐三方，现已撤除该 workaround。新 hex：解码镜像 md5 `514300876ea66ec108396334f3ef2b0f`（65536 B）、文本 md5 `c499803ae452d21f372acdb5cad12f4e`、hmon 代码 44 B/表项 `size=48`、`flags=0x3`、`off=0x2000`。补丁集只重导出该 1 份补丁（20 unchanged）。**坑**：`sims/verilator` 的 jar 只依赖 Scala/Verilog 源，资源（hex）变更不会使 `.classpath_cache/chipyard.jar` 失效 ⇒ 必须先删该 jar 再 `make verilog`，否则 elaboration 静默沿用旧固件。
+  - 执行者：engineer
+
 - **2026-11-13 `m12-chipyard-029`**
   - 摘要：**融合乘加溢出按 IEEE 舍入方向 + 严重/轻微之分**（`spec/SimRISC-07 §2.5` = IEEE 754-2019 §7.4，`m13-spec-006` 定稿）。结论先行：`WumingMulAddRecFN` 的溢出**本就**由共享舍入原语按 `rf0[33:32]` 决定（本族从未有 `forceInfOnOverflow` 覆写），实测 96 格（ft/fo × 12 形状 × 双符号 × 四档）与条款逐格一致 ⇒ **RTL 行为无需改动**；只补 `WumingMulAddRecFN` 的条款注释（写明 RNE/正向 RUP/负向 RDN ⇒ `±Inf`、其余三格 ⇒ `±max`、轻微溢出只置 `NX`，并注明禁止再加 Inf 覆写）。模型 `fp_ref.fma_exact` 同一套规则（`round_dyadic`），文档注明轻微溢出口径。工具：单元台新增 `fma ovf` 96 例（12 形状：`max×2` 严重溢出 / `max` 上方 1/4 ulp 轻微溢出 / RNE 中点上下 / 恰为 `max` / 精确 `2^128`·`2^1024`，各双符号 × 四档；期望值按条款逐格抄写成常量表，与 RTL、hardfloat、oracle 四方对照）；`fp_sweep` 的 `arith_fma_ft`/`arith_fma_fo` 各增 12 个溢出三元组（同形状，四档 × 双符号），核上 `rd` 与 `rf0` 逐字节。
   - 执行者：engineer

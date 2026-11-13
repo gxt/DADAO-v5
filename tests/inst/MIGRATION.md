@@ -190,7 +190,8 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
 - **`immu6=63` 的索引选择**：RD 形式的 `{rd1:rd63}` 已把 RD 组占满，索引只能用 `rd0`
   （rd0 读出 0 ⇒ EA = 基址）；用 `rd19` 会落进传送范围 ⇒ ILLI（`mreg_range_addr_overlap`）。
 - 三方逐字节：`run_asm_suite.py`（同镜像 chipyard / QEMU / gem5）链例比字节流、
-  故障例比 monitor 段退出码；沿用 `012` 的 hmon 自装 workaround（`ISS-410` 未修）。
+  故障例比 monitor 段退出码；故障例走 BootROM **固件** hmon（写 `0xF8` 返回槽、
+  读 `0xE0` cause_id），三方固件自 `m12-chipyard-028` 起同版，不再自装处理器（`ISS-410` 已修）。
 - **YAML**：三册里 30 个 id（含 `012` 的 19 个单元素 id）全部有 `.S` 载体；文件
   删除被 §5.1 的前置阻塞，未删。
 
