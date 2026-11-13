@@ -97,7 +97,7 @@ DADAO 内存窗口 `VA` 只有 42 位（`addr[47:42]=0`，即 `[0, 4 TiB)`），
 **独立注入 2 路（自设计；`cp`+md5 备份还原，未用 git checkout/restore）**
 - ① 正文 `kernel_base`→`0x0010_0000` ⇒ rc=1、2 条 FAIL（含「无旧地址（kernel_base 旧值 0x0010_0000）」）；还原 md5 `0cecb330…` 相等、复查 rc=0
 - ② YAML `va_pa_offset`→1 TiB ⇒ rc=1、6 条 FAIL（含「偏置 va_pa_offset == 2 TiB」）、`make check-linux-boot-contract` rc=2；还原 md5 `9e2fb179…` 相等、复查 rc=0
-- 还原后 `git status --porcelain -uall` 空、`git diff` 空、HEAD 仍 `9e2b00d9`；另重跑 `.work/evidence/m14-spec-003/run.sh` ⇒ rc=0，35 PASS / 0 FAIL
+- 还原后 `git status --porcelain -uall` 空、`git diff` 空、HEAD 仍 `9e2b00d9`；另重跑 <运行期证据目录>/run.sh ⇒ rc=0，35 PASS / 0 FAIL
 
 **独立数值核（python 直读三处，不依赖检查器）**：四段与偏置在 spec §6.3 / 契约 / YAML 完全一致——页表页 `0x0200_0000_0000`（PA 0）、boot info `0x0200_0001_0000`（PA `0x1_0000`）、内核区 `[0x0200_0010_0000,0x0200_0400_0000)`、initramfs `[0x0200_0400_0000,0x0200_0600_0000)`；四段 `VA−PA` 恒 == 2 TiB；`PTBR=0`（YAML `kind=pa`）；用户 `[0,2TiB)` / 内核 `[2TiB,3TiB)`；`ram_base=0x0200_0000_0000` 三方同值、语义列均写「内存窗口基址（VA；内核窗口起点）」，§1 PA RAM 仍 0 未动 ⇒ 与「PA RAM 从 0」未混淆，**接受**。
 
