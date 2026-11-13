@@ -4,7 +4,7 @@
 **项目里程碑**：M13
 **依赖**：无（本族第一个；`m13-qemu-009` / `m12-chipyard-030` / `m13-gem5-011` / `m13-testcases-032` 等它定稿）
 **可并行分片**：否（单册单写者，`spec/SimRISC-07` + `SimRISC-00` + `contract-fp`）
-**状态**：待开始
+**状态**：已验证
 
 **预估**：2–3 h
 
@@ -90,4 +90,45 @@
 
 ## 审阅记录
 
-（待填）
+### 第 1 轮 engineer 自审
+
+- 范围：4 个文件改动逐行复核；`check-spec-purity` / `-numbering` / `-refs` / `-changelog` / `-codeblocks` / `-cite-targets` / `-drift` / `-readonly` / `check-fp-contract` 全绿。
+- finding 1：`§2.2` 原措辞引用 `ftsqrt`/`fosqrt`（本 ISA 无此助记符），新句沿用会留下悬空助记符 ⇒ ✅已修：改「与 IEEE 754-2019 的 `squareRoot` 运算相同」。
+- finding 2：`§1.4` 新增段内用「见下方」文本指针而非 §引用 ⇒ ❌不修：`§` 引用只解析标题，跨小节指正文措辞更稳，`check-spec-refs` 已绿。
+- finding 3：`contract-fp §2` 残留「NaN 传播 payload」与新全局 canonical 条冲突 ⇒ ✅已修：改 canonical 口径（投影一致性，非新增语义）。
+- finding 4：证据脚本注入③原为「删 §4 quiet 行」，但 §4 另有 quiet 字样 ⇒ 不可达 FAIL（恒绿）⇒ ✅已修：改判「四条比较指令只可能置 `NV`」规则句，注入后实测 rc=1。
+- 判决：无未修 finding ⇒ 状态置 `待验收`。
+
+### 第 1 轮 reviewer 验收
+
+- **IEEE 独立核对**（现场下载官方 84 页 PDF + `pdftotext`，不采信转述）：§9.2.1 原文 `rootn (±0, n) is +0 for even n > 0` + `NOTE — rootn (−0, 2) differs from squareRoot(−0)` ✓；§6.2.3 payload 传播皆 *should*、多 NaN「does not specify which of the input NaNs」✓；§6.3「does not specify the sign bit of a NaN result」✓；§5.11 quiet 谓词仅 sNaN 置 NV、signaling 谓词对 qNaN 亦置、NV 为比较唯一可置异常 ✓（§5.6.1/§5.11 引用准确）。**finding（文档级，不阻断）**：§6.2 实为 *shall*（「the result shall be a canonical quiet NaN」、§6.2.3 末句「a NaN result shall be canonical」），spec 依据句只引 should/不规定——结论「非有意偏离」成立且更强，建议后续补引 §6.2。
+- **重跑**：`bash .work/evidence/m13-spec-007/run.sh` → **EXIT=0，PASS=46 FAIL=0**（独立两轮）；9 门控（readonly/changelog/drift/numbering/refs/purity/codeblocks/cite-targets/fp-contract）逐个 rc=0；`python3 tools/spec/check_fp_ieee_audit.py` → **EXIT=0，failures 0**；`git grep "不做具体要求" -- spec/ .tao/contracts/` → **EXIT=1（0 命中）**；锁文件 **全 21 条**现场重算 mismatch=0（脚本只验 2 册，reviewer 补验全量）。
+- **基线红（不据此返工）**：`make check-knowledge-refs` → rc=2，5 条命中全在 `m13-testcases-013` 任务书 114/115/146/159/276 行（审阅现场日志），非本任务引入。
+- **证据脚本审核**：逐条断言有可达 FAIL 路径（残留/位型/§16 rootn/门控/锁均实测过反例），无恒真、无两支同果；PASS/FAIL 与锁条目数均现场统计不写死。
+- **独立注入**（自设计，contract-fp 侧，非工程师 3 路）：① `contract-fp §1` fo 位型 `_0000`→`_0001` → **EXIT=1**、FAIL「§1 含 ft 与 fo 位型」；② `§16` 加 rootn 条 → **EXIT=1**、FAIL「contract-fp §16 无 rootn 条」；两路均 `cp` 备份+md5 还原（9346d79d… MATCH）→ 回绿 EXIT=0。全程未用 `git checkout/restore/stash`。
+- **快照对账**：审前/审后 4 文件 md5 逐一相同（66325bea / 8fb17f90 / 9346d79d / ac6a4921），`git status --porcelain -uall` 两轮均空；`git show --stat e1099077` = 4 个产出文件 + 本任务书，与完成区「修改文件」逐项一致；未动 components/**、tests/**、台账（git 范围核过）。
+- **文本一致性**：spec §1.4/§2.2/§4 与 contract §1/§2/§6/§8/§16 同口径、无自相矛盾；§16 rootn 条已删；「NaN 传播 payload」旧措辞全清（grep 0 命中）；变更记录 3 条落在 `0.5.7-rc（未发布）` 段、双册版本 0.5.7-rc 不变、正文无任务号/里程碑号（`check-spec-purity` rc=0 + grep 0 命中）。
+- **约束核验**：硬约束 1–9 逐条通过（独立 worktree、不提交、完成区与真实输出对账、只动任务书范围、失败留痕、一键证据脚本+注入、无 reset/checkout、临时文件在 `/tmp/opencode/<任务ID>/`、spec 纯净）。
+- **判决：Accepted**（无阻断项；§6.2 补引为文档级建议，交 architect 收尾处理）。
+
+## 完成区
+
+**测试结果**：一键证据脚本 PASS=46 / FAIL=0（rc=0）。注入自检 3 路均「注入→预期 FAIL（rc=1）→`cp`+md5 还原（md5 与注入前一致）→回绿（rc=0）」：①`§2.2` 改回「不做具体要求」⇒ 残留清扫红；②`§1.4` ft 位型改 `0x7FC0_0001` ⇒ 位型断言红；③`§4` 删「四条比较指令只可能置 `NV`」⇒ NV 规则断言红。
+
+**修改文件**（`git status --porcelain -uall` 现场 5 项 = 下列 4 个 + 本任务书）：
+`spec/SimRISC-07-浮点运算.md`、`spec/SimRISC-00-指令系统设计.md`、`.tao/contracts/contract-fp.md`、`manifests/spec-readonly.lock.toml`
+
+**验收结果**：
+1. 残留清扫：`git grep -n "不做具体要求" -- spec/ .tao/contracts/` = **0 命中**；`contract-fp §16` 无 `rootn` 条（`grep -F rootn` 无匹配）。
+2. 条款在场：脚本逐条命中并打印——`§2.2` 含 `+0`/`9.2.1`/「不置任何标志」；`§1.4` 含 `0x7FC0_0000`+`0x7FF8_0000_0000_0000`（两种写法分支均接受）与不适用三项（复制类 / signaling compare / 单 NaN）；`§4` 三档 + `NV`；`contract-fp §1/§6/§8` 同口径，`§8` NV 分 signaling / quiet 两条。
+3. 门控 rc=0：`check-spec-readonly`、`-changelog`、`-drift`、`-numbering`、`-refs`、`-purity`、`-codeblocks`、`-cite-targets`、`check-fp-contract`；另 `check_fp_ieee_audit` rc=0（failures 0）。`check-knowledge-refs` 见遗留。
+4. 锁：现场重算锁文件 21 条，本次 2 册逐行 **MATCH**（`SimRISC-00` `5abb9fc6…`、`SimRISC-07` `e4ee5d76…`）。
+5. 见「测试结果」。
+6. 证据脚本为运行期产物（`.work/evidence/<任务ID>/`），门控/复杂日志留 `.work/log/<模块>/`。
+7. 完成区 30 行内、无运行期具体路径；「修改文件」= `git status -uall` 的 4 项。
+
+**新发现/坑**：
+- 变更记录里写「原『不做具体要求』作废」会让「残留清扫」（`grep` 扫含 `spec/` 全册、变更记录亦在内）变红 ⇒ 改用「原『结果未予规定』」；即该门控的语义是**全册字面归零**，历史口径须换措辞描述。
+- `contract-fp §8` 把 signaling/quiet 的 `NV` 合写一条与任务「补 `NV` 两条」不对应，拆两条后逐条 grep 更可核对。
+
+**遗留问题**：`make check-knowledge-refs` rc=2（**基线同红、与本次改动无关**）：5 条具体 `.work/**` 引用全在 `.tao/tasks/testcases/m13-testcases-013-inst-01-load-store-多元素.md`（114/115/146/159/276 行）；改动前后命中行 `diff` 为空，本任务文件未引入任何 `.work/**` 引用。需由 testcases 侧任务清理后方可转绿。

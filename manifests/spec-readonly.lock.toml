@@ -2,6 +2,14 @@ format = 1
 # 只读册（上游 20 册 + v5 自定 1 册）：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
 # 同一变更内更新此处哈希。见 docs/Process-06-spec目录保护规范.md。
 policy = "readonly-requires-authorization"
+# 2026-11-13（m13-spec-007，授权依据 = 用户 2026-11-13 裁定原话（落纸于该任务书 §用户裁定）：
+#   「已裁定：`rootn(±0, 2)` 收严为 `+0`；NaN 结果统一 canonical（2026-11-13）」）：
+#   `SimRISC-07 §S1D1` 收严 `rootn(±0, 2) = +0`（IEEE 754-2019 §9.2.1，源为 ±0 一律 `+0`、不置任何标志）；
+#   `§异常与标志` 新增「NaN 结果的取值（全册适用）」——结果 quiet NaN 一律 canonical（ft `0x7FC0_0000`、
+#   fo `0x7FF8_0000_0000_0000`），并列不适用清单（复制类 / signaling compare 无序结果 / 最小最大单 NaN）；
+#   `§浮点比较指令` 补异常标志三档（signaling 无序即 `NV`、quiet 仅 sNaN 置 `NV`、有序不置）；
+#   `contract-fp` §1/§2/§6/§8/§16 同步投影；`SimRISC-00` 附录 `0.5.7-rc` 段追加 3 条（版本不变：
+#   `0.5.7-rc` 未发布）。上述 2 册 sha256 于同一变更内重算（其余 19 册不变）。
 # 2026-11-13（m13-spec-006，授权依据 = 用户 2026-11-12 裁定「浮点差分一律以 IEEE-754 2019 为准」+ 本册任务
 #   派发的 spec 修订授权，落纸于 `.tao/tasks/spec/m13-spec-006-FMA溢出按IEEE.md`）：`ftfma`/`fofma` 的溢出由
 #   「恒 `±Inf`」改为按 IEEE 754-2019 §7.4 的舍入方向分派——RNE ⇒ `±Inf`；RTZ ⇒ `±` 最大有限值；RUP 正溢出
@@ -308,7 +316,9 @@ group = "simrisc-00..12"
 # 2026-11-13（m13-spec-005，授权见文件头条目）：0.5.7-rc 段追加 1 条（`ldm` 地址寄存器不得落入传送范围）。
 # 2026-11-13（m13-spec-006，授权见文件头条目）：0.5.7-rc 段追加 1 条（融合乘加溢出按舍入方向 + 轻微溢出只置 NX）；
 #   sha256 同笔重算（其余只读册不变）。
-sha256 = "ec46a40a6aca11992c754664b7f13c5b5d64b100819fa1c2f5fb892d4e61e98d"
+# 2026-11-13（m13-spec-007，授权见文件头条目）：0.5.7-rc 段追加 3 条（`rootn(±0, 2)` 收严为 `+0`；结果 qNaN
+#   统一 canonical（含不适用清单）；浮点比较族异常标志）；sha256 同笔重算（其余只读册不变）。
+sha256 = "5abb9fc6e345a51a64c5f1daf1126e8aba32b197254660e13ba7ae73e47152e1"
 # 2026-10-22（SPEC-164t，授权原话见 `.tao/tasks/spec/SPEC-164t-OPC-MISC迁移与解excluded.md` §立项来源：「还有一个编码改动过：OPC-MISC的编码改为：0100-0111」「修改编码：ctpop_orri_rd ctlz_orri_rd cttz_orri_rd 从 OPC-octa 改为 OPC-MISC，opx：100-101/100-110/100-111」）：§4 QFC 主表 `OPC-MISC` 由 `0111-0111` 迁 `0100-0111`（原格置空）；§4.1 `100-101/110/111` 填 `ctpop`/`ctlz`/`cttz`；§4.2 删同三格与「借用 OPC-octa 格位」例外说明；附录 0.5.5 两条同步；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -416,7 +426,11 @@ group = "simrisc-00..12"
 # 2026-11-13（m13-spec-006 返工，授权同上）：`fo_max` 闭式指数勘误 `2^−53` → `2^−52`（与同行位型
 #   `0x7FEF_FFFF_FFFF_FFFF` 及 RNE 分界 `fo_max + 2^970` 对齐；原式恰等于分界值、自相矛盾）；
 #   sha256 同笔重算（其余只读册不变）。
-sha256 = "62b24eaefe02447f449e13f6b0b99338c991e38f09f64eafdb8bb3ae271c672d"
+# 2026-11-13（m13-spec-007，授权见文件头条目）：§2.2 收严 `rootn(±0, 2) = +0`（IEEE 754-2019 §9.2.1，
+#   不置任何标志）；§1.4 新增「NaN 结果的取值（全册适用）」（canonical qNaN 位型 + 不适用清单 + 非偏离说明），
+#   `fo2ft` 的「NaN 传播 payload」改口径；§4 补比较族异常标志三档与 quiet 无序结果 canonical；
+#   sha256 同笔重算（其余只读册不变）。
+sha256 = "e4ee5d76d17f9da871719aa44f657981b086814d6c4e390d68a0e88fa5dba8ab"
 
 [[spec]]
 path = "spec/SimRISC-08-32位数据运算.md"

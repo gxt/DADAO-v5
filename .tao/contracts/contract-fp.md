@@ -23,6 +23,7 @@
 - 舍入模式 `rf0[33:32]`：`00` RNE（就近取偶）、`01` RTZ（向零）、`10` RDN（向下）、`11` RUP（向上）。[SimRISC-00 §浮点状态寄存器]
 - 异常标志 `rf0[4:0]` 按 IEEE754 累积（accrued、**sticky**：置位后保持到软件清零）：bit0 NV、bit1 DZ、bit2 OF、bit3 UF、bit4 NX；`UF` 仅在结果 **tiny 且 inexact** 时置位（**tininess 检测点 = 舍入后**），`UF ⇒ NX`，反之不成立。[SimRISC-00 §浮点状态寄存器][SimRISC-07 §格式转换指令]
 - 浮点格式符合 IEEE754；浮点指令**不触发异常**，始终按 IEEE754 返回结果（NaN/Inf 等）。[SimRISC-00 §浮点状态寄存器]
+- **结果 NaN 一律 canonical quiet NaN**：凡结果应为 quiet NaN 的情形（算术、缩放、开方、取余、融合乘加、取整、最小最大、格式转换、比较的 quiet 无序结果，以及一切无效操作产生的 qNaN）一律取符号位 0、payload 全零（ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）；IEEE 754-2019 §6.2.3 对 payload 传播只是 *should*、§6.3 不规定 NaN 结果的符号位 ⇒ 取 canonical 属 IEEE 允许的实现选择，**不是**有意偏离。**不适用**：`ft2ft`/`fo2fo` 复制类（纯位搬移、不改位、不置标志）；signaling compare（`ftscmp`/`foscmp`）的无序结果（保持 signaling NaN 位型、符号位 0）；`ftmin`/`ftmax`/`fomin`/`fomax` 的单 NaN 情形（返回那个数）。sNaN 作输入仍按各节规则置 `NV`，结果同样取 canonical quiet NaN。[SimRISC-07 §异常与标志]
 - `immu6` 多重语义：作**连续个数**（1–63）用于复制类转换（`ft2ft`/`fo2fo`）/ 分类 / RF 多寄存器；作**舍入方向六档**用于 15 条结果依赖舍入的格式转换；作 **SBZ**（必须为 0）用于 3 条精确格式转换；作 **n** 用于 `root`（仅 2）。[SimRISC-07 §格式转换指令][SimRISC-07 §取整（roundToIntegral）][SimRISC-07 §S1D1]
 - 浮点寄存器只能用于浮点类指令（RF 组）。[SimRISC-00 §浮点寄存器]
 
@@ -34,7 +35,7 @@
 - `fo2ft` 的 `immu6` = 舍入方向 one-hot 六档：`0x01` RNE / `0x02` RNA / `0x04` RTZ / `0x08` RUP / `0x10` RDN / `0x20` 动态（读 `rf0[33:32]`）；其他取值（含 `0x00`）⇒ ILLI，5 个静态档不受 `rf0[33:32]` 影响。[SimRISC-07 §格式转换指令][SimRISC-07 §取整（roundToIntegral）]
 - `ft2fo`（f32→f64）结果恒可精确表示 ⇒ 不涉舍入、不置 NX；`immu6` 为 SBZ（必须为 0，非 0 ⇒ ILLI）。[SimRISC-07 §格式转换指令]
 - 复制类 `ft2ft`/`fo2fo`：源范围与目的范围不可有任何交集（含完全重合），否则 → ILLI（见 `mreg_range_overlap`）；`immu6 = 0` 或任一起始寄存器 + `immu6 > 64` → ILLI（见 `mreg_zero`/`mreg_range_overflow`）；无交集时按序号递增逐对进行，**先读后写**。[SimRISC-07 §格式转换指令]
-- `fo2ft` **溢出**按 IEEE 754-2019 §7.4 由**舍入方向**决定并置 **OF** + **NX**：RNE/RNA ⇒ `±Inf`；RTZ ⇒ `±最大有限值`；RUP ⇒ 正溢出 `+Inf`、负溢出 `−最大有限值`；RDN ⇒ 正溢出 `+最大有限值`、负溢出 `−Inf`（动态档 `0x20` 按 `rf0[33:32]` 取对应方向；`ft` 最大有限值 = `0x7F7F_FFFF`）。下溢（结果 tiny 且 inexact）按舍入方向处理并置 UF（并置 NX）；NaN 传播 payload；sNaN 作为算术输入置 NV 并返回 qNaN。[SimRISC-07 §格式转换指令]
+- `fo2ft` **溢出**按 IEEE 754-2019 §7.4 由**舍入方向**决定并置 **OF** + **NX**：RNE/RNA ⇒ `±Inf`；RTZ ⇒ `±最大有限值`；RUP ⇒ 正溢出 `+Inf`、负溢出 `−最大有限值`；RDN ⇒ 正溢出 `+最大有限值`、负溢出 `−Inf`（动态档 `0x20` 按 `rf0[33:32]` 取对应方向；`ft` 最大有限值 = `0x7F7F_FFFF`）。下溢（结果 tiny 且 inexact）按舍入方向处理并置 UF（并置 NX）；NaN 结果取 canonical quiet NaN；sNaN 作为算术输入置 NV 并返回 canonical qNaN。[SimRISC-07 §格式转换指令][SimRISC-07 §异常与标志]
 - 目的 `rfHB` 为 `rf0` → ILLI。[SimRISC-00 §浮点寄存器]
 
 ## §3 `convert_f2i`（浮点→整型）<a id="convert_f2i"></a>
@@ -67,7 +68,7 @@
 
 - 指令：`ftroot`/`foroot`（orri：`rfHB` 目的、`rfHC` 源、`immu6` = n）。[SimRISC-07 §S1D1]
 - 实现 `rootn(x, n)`，n 存放在 `immu6`；**仅支持 n=2**，其他 n 值 → ILLI。[SimRISC-07 §S1D1]
-- `rootn(-0, 2)` 的运算结果**不做具体要求**。[SimRISC-07 §S1D1]
+- `rootn(±0, 2) = +0`（IEEE 754-2019 §9.2.1；该节 NOTE 明确 `rootn(−0, 2)` 与 `squareRoot(−0) = −0` 不同）：源为 `+0` 或 `−0` 时结果一律为 `+0`、不置任何标志；其余情形与平方根运算相同。[SimRISC-07 §S1D1]
 - 硬件先读源操作数再写结果，行为确定。[SimRISC-07 §S1D1]
 - 目的 `rfHB` 为 `rf0` → ILLI。[SimRISC-00 §浮点寄存器]
 
@@ -84,7 +85,9 @@
 
 - 指令：`ftqcmp`/`ftscmp`/`foqcmp`/`foscmp`（orrr：`rdHB` 目的、`rfHC`/`rfHD` 源）。[SimRISC-07 §浮点比较指令]
 - 结果写入 rdHB：`rfHC > rfHD` → 1、`=` → 0、`<` → −1。[SimRISC-07 §浮点比较指令]
-- unordered（含 NaN）：Quiet Compare 返回 qNaN、Signaling Compare 返回 sNaN，**符号位为 0**。[SimRISC-07 §浮点比较指令]
+- unordered（含 NaN）：Quiet Compare 返回 **canonical quiet NaN**（符号位 0、payload 全零）、Signaling Compare 返回 sNaN（符号位为 0、payload 不限）。[SimRISC-07 §浮点比较指令][SimRISC-07 §异常与标志]
+- **异常标志（signaling compare）**（IEEE 754-2019 §5.6.1 / §5.11）：`ftscmp`/`foscmp` 只要比较**无序**（任一操作数为 sNaN 或 qNaN）即置 **`NV`**；有序比较不置标志。[SimRISC-07 §浮点比较指令]
+- **异常标志（quiet compare）**：`ftqcmp`/`foqcmp` **仅**在操作数含 **sNaN** 时置 **`NV`**，只含 qNaN 时为安静的无序结果、**不置任何标志**；有序比较不置标志。四条比较指令只可能置 `NV`，不置 `DZ`/`OF`/`UF`/`NX`，标志按累积（sticky）语义写入 `rf0[4:0]`。[SimRISC-07 §浮点比较指令][SimRISC-00 §浮点状态寄存器]
 - qNaN/sNaN 按整型解读为**正数**；配合 `cs.*-rf`（SimRISC-02 §浮点条件赋值）的使用约定，可区分 Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered 等关系。[SimRISC-07 §浮点比较指令]
 - 目的为 rd 组（非 rf），不受 rf0 目的约束；但受 `dst_rd0` 约束（目的 `rdHB` 为 `rd0` → ILLI）。[SimRISC-00 §浮点寄存器][SimRISC-00 §数据寄存器]
 
@@ -145,7 +148,6 @@
 
 ## §16 开放点（spec 未明，如实记录、不臆造）<a id="open-points"></a>
 
-- `rootn(-0, 2)`：spec 明确**不做具体要求**。[SimRISC-07 §S1D1]
 - `ftsclb`/`fosclb` 的边界（NaN/Inf/溢出/下溢）按 IEEE754，spec 未给逐位细则。[SimRISC-07 §S2D1]
 
 ## §17 oracle 独立派生原则

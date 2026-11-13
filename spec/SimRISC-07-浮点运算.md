@@ -69,7 +69,7 @@ fo2fo   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
 
 - **浮点→整数**（8 条）：有限值结果无法精确表示 ⇒ 置 NX；NaN/Inf/超出目标整型范围 ⇒ 返回整型饱和值（最大/最小）并置 **NV**，**不置 NX**。
 - **整数→浮点**（8 条：6 条六档 + 精确的 `it2fo`/`ut2fo`）：精度损失 ⇒ 置 NX；结果超出目标格式范围 ⇒ ±Inf 并置 OF；结果 **tiny 且 inexact** ⇒ 按方向处理并置 UF（同时置 NX）。两条精确转换恒不置标志。
-- **浮点→浮点**（`fo2ft` 六档 / `ft2fo` 精确）：`ft2fo` 为精确转换，不置标志；`fo2ft` 的下溢（结果 **tiny 且 inexact**）按方向处理并置 UF（同时置 NX）、NaN 传播 payload、sNaN 作为算术输入置 NV 并返回 qNaN；`fo2ft` 的**溢出**按下方「溢出」段处理。
+- **浮点→浮点**（`fo2ft` 六档 / `ft2fo` 精确）：`ft2fo` 为精确转换，不置标志；`fo2ft` 的下溢（结果 **tiny 且 inexact**）按方向处理并置 UF（同时置 NX）；NaN 结果取 canonical quiet NaN、sNaN 作为算术输入置 NV 并返回 qNaN（见下方「NaN 结果的取值」）；`fo2ft` 的**溢出**按下方「溢出」段处理。
 
 **`fo2ft` 溢出（IEEE 754-2019 §7.4）**：溢出指以**无限指数范围**按所选方向舍入后的结果，其绝对值大于 ft 的最大有限值 `ft_max = (2 − 2^−23) × 2^127`（`0x7F7F_FFFF`）。结果形态由**舍入方向**决定；无论结果为 `±Inf` 还是 `±ft_max`，都置 **OF** 且置 **NX**：
 
@@ -86,6 +86,8 @@ fo2fo   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
 - 溢出与「结果变为 Inf」不等价：只有 RNE/RNA，以及 RUP 的正溢出、RDN 的负溢出，结果才是 `±Inf`；其余情形结果为**最大有限值**。
 
 **异常标志口径（IEEE 754-2019 §7.5）**：`UF` 仅在结果 **tiny 且 inexact** 时置位——结果 tiny 但可精确表示时**不置** `UF`（也不置 `NX`）；`NX` 与 `UF` **相互独立**（inexact 但非 tiny ⇒ 只置 `NX`）。**tininess 检测点 = 舍入后**（after rounding：按目标格式舍入后再判结果是否小于最小正规数）。标志为 **sticky**（置位后保持到软件清零，见 `SimRISC-00 §浮点状态寄存器`）。
+
+**NaN 结果的取值（全册适用）**：凡结果应为 quiet NaN 的情形——算术（加/减/乘/除）、缩放（scaleB）、开方（root）、取余（remainder）、融合乘加、取整、最小最大（双 NaN）、格式转换（`fo2ft`/`ft2fo`）、比较的 **quiet** 无序结果，以及任何无效操作产生的 qNaN——一律返回 **canonical quiet NaN**：符号位 0、payload 全零，即 ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`；signaling NaN 作输入仍按各节规则置 `NV`，结果同样取 canonical quiet NaN。**不适用**（须按各自规则处理）：`ft2ft`/`fo2fo` 复制类（纯位搬移、不改位、不置标志）；signaling compare（`ftscmp`/`foscmp`）的无序结果（保持 signaling NaN 位型、符号位 0）；`ftmin`/`ftmax`/`fomin`/`fomax` 的**单 NaN** 情形（返回那个数）。IEEE 754-2019 §6.2.3 对 NaN payload 的传播只是 *should*、§6.3 不规定 NaN 结果的符号位，取 canonical 属 IEEE 允许的实现选择，**不是**有意偏离。
 
 ### 1.5 合法性
 
@@ -152,7 +154,7 @@ foroot  rfHB, rfHC, immu6
 
 ftroot和foroot指令用来实现`rootn(x, n)`运算，其中 n 的值存放在 immu6 中。仅支持 n=2（平方根）；其他 n 值触发 ILLI 异常。
 
-> 注意：`ftroot/foroot` 的运算基本等同于 `ftsqrt/fosqrt`，但是在 IEEE754-2019 中特意指出，`rootn(-0, 2)` 不等于 `squareRoot(-0)`，因此，对于 `rootn(-0, 2)` 的运算结果不做具体要求。
+> `ftroot`/`foroot` 实现 `rootn(x, 2)`，与 IEEE 754-2019 的 `squareRoot` 运算相同，**唯一例外**是零的符号：IEEE 754-2019 §9.2.1 规定 `rootn(±0, 2) = +0`（该节 NOTE 明确 `rootn(−0, 2)` 与 `squareRoot(−0) = −0` 不同），因此源为 `+0` 或 `−0` 时结果一律为 **`+0`**，不置任何标志。
 
 S1D1 指令硬件先读源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 
@@ -354,9 +356,11 @@ rdHB中的比较结果有四种情况：
 - 1：`rfHC > rfHD`
 - 0：`rfHC = rfHD`
 - -1：`rfHC < rfHD`
-- NaN：unordered，Quiet Compare的结果为qNaN（符号位为0），Signaling Compare的结果为sNaN（符号位为0）
+- NaN：unordered，Quiet Compare 的结果为 **canonical quiet NaN**（符号位 0、payload 全零，见 §异常与标志），Signaling Compare 的结果为 sNaN（符号位为 0）
 
 由于qNaN和sNaN的二进制数据按整型看是正数，因此，可以用零和负数的条件立刻判断出Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered六种关系，而当rdHB的结果为正数则需要进一步判断结果数据是否为1，才能得出Unordered和Greater分开进行判断的结果。
+
+**异常标志**（IEEE 754-2019 §5.6.1 / §5.11）：Signaling Compare（`ftscmp`/`foscmp`）只要比较**无序**（任一操作数为sNaN或qNaN）即置 **`NV`**；Quiet Compare（`ftqcmp`/`foqcmp`）**仅**在操作数含 **sNaN** 时置 **`NV`**，只含 qNaN 时为安静的无序结果、**不置任何标志**；有序比较**不置**标志。四条比较指令只可能置 `NV`，不置 `DZ`/`OF`/`UF`/`NX`，标志按累积（sticky）语义写入 `rf0[4:0]`。
 
 ## 5. 浮点分类指令
 
