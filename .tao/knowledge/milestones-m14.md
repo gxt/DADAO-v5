@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m14-llvm-002 | 1–2 天 | 栈保护后端 lowering（`-fstack-protector{,-strong,-all}`，guard=global） |
 | m14-llvm-001 | 3–4 h | 补 `llvm-ar`/`llvm-ranlib`/`llvm-strip` 到构建与安装根（用户裁定先补工具链） |
 | m14-qemu-001 | 4–6 h | 最小 smon：建 64 KiB 身份页表 + PTBR/ptw_enable + VA 入口交内核（K1） |
 | m14-linux-002 | 6–7 h | `arch/dadao` 最小骨架，`make ARCH=dadao` 出 vmlinux（不要求启动） |
