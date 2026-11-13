@@ -8,8 +8,8 @@
 | 主机名 | 角色 | 状态 |
 | --- | --- | --- |
 | `tao-clab` | **主控机**：唯一装 OpenCode 的机器，会话 / 派单 / 合并都在这里 | 在用 |
-| `server207` | 构建 / 测试节点（纯执行，不装 OpenCode） | 就绪 |
-| `server208` | 构建 / 测试节点（纯执行，不装 OpenCode） | 就绪 |
+| `server207` | 评测节点（纯执行；**反向隧道访问**，登录用户 `ubuntu`；2026-11-13 重装） | **待引导** |
+| `server208` | 评测节点（纯执行；**反向隧道访问**，登录用户 `ubuntu`；2026-11-13 重装） | **待引导** |
 | `ics150` | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
 | `ics160` | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
 | `ics170` | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
@@ -77,14 +77,26 @@
 
 判据含义：64 vCPU 支持 `JOBS=32`（单机一半核）稳定跑；128 GiB 内存使 LLVM/gem5 并行链接不触发 swap。
 
-## 3. 组网（Tailscale）
+## 3. 组网（2026-11-13 起：反向隧道；Tailscale 已弃用）
 
-- 三台（`tao-clab` + 两节点）**同属一个 tailnet**，`tailscale` 版本 **1.104.5**，服务 `tailscaled` 常驻。
+- **现状**：`server207`/`server208` 重装为 `ubuntu` 账号 + **反向隧道**，与 `ics150`–`ics180` 同一方式（本地端口转发，别名与端口只写本地 `~/.ssh/config`，不入库）。**Tailscale 弃用**（旧 tailnet 解析与应用仍可能残留，不要依赖）。
+- **实测（2026-11-13）**：两端口均可 `ubuntu@` 免密登录、`sudo -n` 可用；带宽 **≈6–7 MiB/s**（上传 500 MiB 实测）⇒ 大文件仍走本地缓存/盘内 `mv`，不要靠网络搬几十 GB。
+- 历史（Tailscale 时代，2026-11-12 及以前）：三台（`tao-clab` + 两节点）**同属一个 tailnet**，`tailscale` 版本 **1.104.5**，服务 `tailscaled` 常驻。
 - 节点的可达性由 tailnet 保证；**主控机与节点之间不要求直连**：`server207` 曾观测到 direct，`server208` 走 DERP 中继（当前中继点在 `nue`，即德国纽伦堡）。
 - 含义：**DERP 走公网中继，延迟高、带宽有限** ⇒
   - 适合：小文件、日志、结果回传；
   - 不适合：大仓库 clone、组件 tarball 传输。故仓库用 **bundle + 内网 rsync**，组件用**本地裸仓库 cache**，不依赖公网直连。
-- 免密登录只对 `gxt` 账号配置；所有跨机脚本一律 `ssh -o BatchMode=yes`（缺 key 时就地失败，不静默降级）。
+- 免密登录：`ics150`–`ics180` 与 `server207`/`server208` 均为 `ubuntu`；所有跨机脚本一律 `ssh -o BatchMode=yes`（缺 key 时就地失败，不静默降级）。
+
+### 3.1 `server207`/`server208` 现状（2026-11-13 重装后实测）
+
+- 硬件不变：64 vCPU / 125 GiB / `/` 可用 **675 GiB**。
+- **空用户**：`/home/ubuntu` 下无仓库、无 `.cache`、无 `.dadao`、无 `.work`。
+- **旧数据仍在**：`/home/gxt/DADAO-v5`（`.cache` 1.5 G、`.work` 74 G、`.dadao` 11 G），目录 `750 gxt:gxt` ⇒ 需 `sudo`；同盘可 `mv` 后 `chown` 复用（秒级）。
+- **已装**：`git` `make` `gcc` `python3`(3.12, 带 `yaml`) `ninja` `cmake` `bison` `flex` `pkg-config` `rsync` `tar`。
+- **缺**：`verilator`（apt 有 5.020，与主控机同版）、`conda`/`sbt`/`java`（chipyard 依赖）。
+- **外网通**（`github.com` / `archive.ubuntu.com` 均 200）——与 `ics150`–`ics180` 不同，可直接 `make fetch`。
+- `remote.py status --hosts server207,server208` 现可用（`rc=0`，`clang/qemu=MISSING`、`disk_use_pct=14`、`running=none`）。
 
 ## 4. 软件包安装情况
 
