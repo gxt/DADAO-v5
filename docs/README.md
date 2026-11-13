@@ -36,6 +36,7 @@
 | `docs/TestReports/M13-三平台差分-qemu-gem5.md` | M13 阶段性结论：Tiny hmon 一致性、长尾计时、差异清单 |
 | `docs/TestReports/M13-三平台差分矩阵.md` | M13 三平台（qemu/gem5/chipyard）逐例差分矩阵快照；chipyard 列未就绪记 `N/A`，由已入库 JSON 重建 |
 | `docs/TestReports/M13-riscv-tests移植与差分.md` | riscv-tests RV64 114 文件逐条分类（移植/需改/不适用）；35 文件 474 例 qemu/gem5 差分，chipyard 列 `N/A` |
+| `docs/TestReports/M13-FP-IEEE对齐审计.md` | `scope: fp` 全量 66 条逐条对齐 IEEE 754-2019：条文/三实现/结论/动作；52 行按附录 A 排版，偏离 4 行（gem5 quiet 比较 `NV`、`rootn(±0,2)`） |
 
 ## 历史与设计理念素材（`DDLN/`）
 
