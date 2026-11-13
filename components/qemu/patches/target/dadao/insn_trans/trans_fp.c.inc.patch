@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..4c4b150
+index 0000000..d87902c
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,1187 @@
+@@ -0,0 +1,1173 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
@@ -31,8 +31,10 @@ index 0000000..4c4b150
 + *   - QEMU-070t implements fused multiply-add:
 + *       fma     (2): ftfma/fofma (softfloat muladd, single rounding)
 + *
-+ * rf0 is the FCSR: reads expose the full 64 bits, writes go through
-+ * store_rf() which applies RF0_WRITE_MASK for rf0.
++ * rf0 is the FCSR: reads expose the full 64 bits; every write (octa or tetra
++ * destination) goes through store_rf(), which applies RF0_WRITE_MASK, so only
++ * [33:32] and [4:0] can change and the read-only qNaN/SBZ fields keep their
++ * value.
 + */
 +
 +/* ── FP legality helpers (translate-time ILLI, ADR-0004 0x88) ─────────── */
@@ -100,25 +102,6 @@ index 0000000..4c4b150
 +    tcg_gen_add_i64(base, base, offset);
 +    tcg_gen_andi_i64(base, base, 0x0000FFFFFFFFFFFFULL);
 +    return base;
-+}
-+
-+/* tetra (32-bit) RF destination write, e.g. ld.t / ldm.t.
-+ * Per SimRISC-01 §存取RF寄存器, when the destination is rf0 the whole low
-+ * 32 bits are written and [63:32] is preserved (this intentionally overrides
-+ * the read-only qNaN(ft) field; the "write-invalid" rule of SimRISC-00 only
-+ * covers explicit rf0 writes). Non-zero rf destinations store the value. */
-+static void store_rf_tetra_dst(int n, TCGv_i64 val)
-+{
-+    if (n != 0) {
-+        store_rf(n, val);
-+        return;
-+    }
-+    TCGv_i64 old = load_rf(0);
-+    TCGv_i64 lo = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(old, old, 0xFFFFFFFF00000000ULL);
-+    tcg_gen_andi_i64(lo, val, 0xFFFFFFFFULL);
-+    tcg_gen_or_i64(old, old, lo);
-+    tcg_gen_st_i64(old, tcg_env, offsetof(CPUDADAOState, rf[0]));
 +}
 +
 +/* ── QEMU-035t: bit-level FP helpers (sign / classify / compare) ─────── */
@@ -372,7 +355,10 @@ index 0000000..4c4b150
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
 +    TCGv_i64 val = tcg_temp_new_i64();
 +    tcg_gen_qemu_ld_i64(val, ea, ctx->memidx, MO_BESL | MO_ALIGN_4);
-+    store_rf_tetra_dst(a->ha, val);
++    /* tetra is sign-extended to 64 bits (MO_BESL, as in chipyard), and rf0 is
++     * written through the FCSR mask: [63:51]/[31:22] stay read-only, only
++     * [33:32]/[4:0] take the written value (SimRISC-00 §2.3.1). */
++    store_rf(a->ha, val);
 +    return true;
 +}
 +
@@ -415,7 +401,7 @@ index 0000000..4c4b150
 +        tcg_gen_andi_i64(ea, ea, 0x0000FFFFFFFFFFFFULL);
 +        TCGv_i64 val = tcg_temp_new_i64();
 +        tcg_gen_qemu_ld_i64(val, ea, ctx->memidx, MO_BESL | MO_ALIGN_4);
-+        store_rf_tetra_dst(a->ha + i, val);
++        store_rf(a->ha + i, val);
 +    }
 +    return true;
 +}
