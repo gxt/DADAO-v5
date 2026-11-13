@@ -5,7 +5,7 @@
 **依赖**：无（M14 K0 首个任务，先行；本批 Makefile 接线写者）
 **可并行分片**：否（唯一改 `manifests/`、`docs/Process-01` 与 `Makefile` 的任务；单写者）
 **预估**：4–5 h
-**状态**：待开始
+**状态**：已验证
 
 ## 背景
 
@@ -122,18 +122,64 @@ role = "Linux kernel port target (arch/dadao) + syscall numbering-table referenc
 
 ## 待裁定
 
-（实现中发现需用户语义裁定的问题写这里：问题 + 选项 + 建议 + 自决的临时处置；返回主会话。）
+无（实现中未出现需用户语义裁定的问题；外因红逐条归因见完成区）。
 
 ## 完成区
 
-**测试结果**：
-**修改文件**：
-**验收结果**：
-**新发现/坑**：
-**遗留问题**：
+**测试结果**：一键证据脚本 **69/69 PASS，rc=0**（运行期证据目录 `run.sh`，未归档；内含注入→FAIL→`cp`+md5 还原→回绿）。现场：`manifest-check` rc=0；`check-patch-tree` 输出 `linux: 0 patch(es)` + `linux: empty patch set; assertions ④⑥ skipped`（**不再** `patchless; skipped`）；`check-source-state` → `linux: OK HEAD=7b20d05fd38d count=0 clean=True expected=0`；`apply-series`（linux 单组件探针）两次 rc=0，均打印 `linux has an empty series`，HEAD/count/clean 不变。
+
+**修改文件**：`manifests/components.lock.toml`（linux 去 `patchless`、加 `patch_dir`/`patch_series`、改 `role`、重写注释；修 2 处「same class as linux」过期引用）· 新增 `components/linux/{README.md,changelog.md,series,patches/.gitkeep}` · `tools/infra/check_patch_tree.py` · 新增 `tools/linux/paths.py` · `docs/Process-01-组件补丁组织与构建编排.md`（§2/§6.1/§8/§13）· `Makefile` · 本任务书。
+
+**验收结果**：①锁条目形态 PASS，`patchless`+`patch_dir` 反例在临时树 FAIL；②series 零条目、`.patch` 数 0、仅 `.gitkeep`；③linux 空补丁集 apply 两次 rc=0、无新 commit、非静默；④linux 行 `count=0 clean=True`，注入未跟踪文件 rc=2 点名 linux、删除后回绿；⑤三条非法形态均 rc=1（`missing` / `not listed` / `.gitkeep`；md5 还原一致）+ 隔离单元探针 0/1/1/0 errors；⑥qemu 临时树期望 0/2 两侧均 FAIL、原样 `1 patch set(s), 66 patches OK` 回绿；⑦docs/README/changelog 同步、`check-component-changelog` rc=0；⑧7 目标 `make -n` 解析出脚本、5 个进 `GATE_LOCKED_TARGETS`、脚本缺失 rc=2 明确报错、私有锁实测「独立进程拒绝」+「嵌套放行」；⑨`paths.py` 无宿主绝对路径字面量、返回值与 manifests 一致；⑩见测试结果。
+- L1：`make check` rc=2，**5 项红全为外因**（逐条归因）：`check-patch-tree`（chipyard `WumingFP.scala` ⑥/⑨，m12-chipyard-030 在飞）、`check-knowledge-refs`（5 条具体运行期路径引用全在 m13-testcases-013 任务书）、`check-milestones-fresh`（R1：m13-testcases-015 有 worktree 仍在「待开始」）、`check-run-artifacts`（17 个运行期日志文件名非法，属 node-bootstrap/gem5 他任务）、`check-temp-dirs`（1 处非活动临时目录，他任务）；其余 46 目标 rc=0（含 `check_issues`、`compileall tools`）。
+- `make apply-series` 全目标 rc=2：chipyard 拒绝（`HEAD c5d592c… is neither base (0acc1e1…) nor base+1 matching the patch set`），发生在 linux 之前、**无写入**；linux 侧幂等性用单组件探针实测（见测试结果）。
+
+**新发现/坑**：①`git apply` 无参数读 stdin ⇒ 空补丁集若照跑断言④会假 FAIL，必须显式跳过并打印；②空 series 的 E1 只能是 `base+0`，且 `series` 一旦有 1 条，「`.gitkeep` 合法」与「`base+0`」同笔失效（注入实测）⇒ 判据必须收敛为一个函数（`expected_commit_count`），不得两套；③`Path.resolve()` 把共享的 `.work`/`.dadao` 软链解析到主仓绝对路径，`tools/linux/paths.py` 返回值即主仓路径（预期行为，非硬编码）；④证据脚本初版自身两处 bug（`source[]` 期望串写错、探针树缺 `manifests/*.toml`+`components/` 致回绿假红）——修后 69/69，探针树须镜像 manifest 与 components。
+
+**遗留问题**：本任务范围无未完成项。非本任务（待主会话/归各任务处置）：chipyard、m13-testcases-013、m13-testcases-015、node-bootstrap/gem5 日志与一处非活动临时目录的外因红，随各自任务落地转绿。
 
 ## 审阅记录
 
-### 第 1 轮 engineer 自审（待填）
+### 第 1 轮 engineer 自审
 
-### 第 1 轮 reviewer 验收（待填）
+**逐行审查**（`check_patch_tree.py` 全 diff、`Makefile` 新增块、`paths.py`、manifest 段、`Process-01 §2/§6.1/§8/§13`）：
+
+- 判据单一真源：`expected_commit_count(entries)` 被断言⑧（`check_source_invariant(expected=)`）、断言⑨（自 `entries` 派生）、`--source-state`（`expected_series_commits` 读 manifest `patch_series`）共用，无第二套阈值；非空集恒 `1`（qemu 期望 0/2 两侧注入实测仍 FAIL）。
+- 空集分支：仅 `series` 零条目时放开 ⑤ 的 `.gitkeep`，且要求 `parent == patches_dir`（嵌套 `.gitkeep` 仍 FAIL）；`patches/` 任何 `.patch` 仍由断言③（`not listed`）抓住；④⑥ 打印跳过而非静默。
+- 边界：`patches/` 缺失时 `rglob` 空转（`manifest_check.py` 报缺目录，fail-closed）；HEAD 落后 base 时净 diff 断言仍 FAIL；`patchless` 组件路径未改（`llvm-test-suite`/`ansibench` 行为不变）。
+- 输出契约：新增逐集 `N patch(es)` 行（stdout；汇总行 `N patch set(s), M patches OK` 保留）；⑧ 文案「expected exactly 1 commit」→「expected base+N」，仓内仅 M2 归档任务书引用旧文案（历史证据，无门控/脚本匹配）。
+- 签名：仅 `check_source_invariant` 增关键字 `expected: int = 1`（验收④/⑥要求；默认可兼容旧调用），其余签名未变。
+- `Makefile`：5 个写者/增量构建目标进 `GATE_LOCKED_TARGETS`（由既有 `gate-locked-rule` 生成锁门控，`_locked-*` 落同一块）；只读两门控不入锁；缺脚本 ⇒ python 报错 ⇒ make 非零（实测 rc=2）。
+- `paths.py`：只读 `manifests/`，无宿主绝对路径字面量（脚本内 grep 实测 0 命中），复用 `tools/infra/paths.py` 取工具链 bin（DRY）。
+- 防造假：证据脚本每条断言有可达 FAIL 分支（注入→非零→`cp`+md5 还原→回绿），计数现场生成（69 项），两轮实跑（首轮 2 FAIL 全为脚本自身 bug）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 证据脚本 `source[]` 期望串写错（`kernel/git/linux.git`）⇒ 假红 | ✅已修 | 改 `kernel/git/stable/linux.git` | 第 2 轮 `linux 条目形态` PASS |
+| F2 临时树探针未镜像 `manifests/*.toml` 与 `components/` ⇒ 回绿假红 | ✅已修 | 探针树 `cp manifests/*.toml` + 软链 `components`/`tests` | 第 2 轮 `临时树还原后 manifest_check 回绿` PASS |
+| F3 ⑧ 文案变更影响 M2 归档引用 | ❌不修 | — | 旧文案仅见于归档任务书（历史证据），无门控/脚本匹配；新文案更准确 |
+| F4 全局 `check-patch-tree` rc=1（chipyard 2 红） | ⏸延后 | — | 外因（m12-chipyard-030 在飞），逐条归因见完成区；linux 段 0 红 |
+
+**判决**：范围内 finding 全闭合（F3 判不修、F4 外因）⇒ 任务置「待验收」。
+
+### 第 1 轮 reviewer 验收
+
+**重跑（workdir=任务树，均本人执行；采信项 = 仅「m12-chipyard-030 在飞」的归属，其余全部实跑）**
+- 证据脚本 `bash .work/evidence/m14-linux-001/run.sh` ⇒ **rc=0，PASS=69 FAIL=0**；跑后 7 目标 `md5sum -c` 全 OK、`git status -uall` 空、linux 源树 `7b20d05f…`/脏 0。
+- `make manifest-check` rc=0；`python3 tools/infra/manifest_check.py` rc=0；`make check-component-changelog` rc=0（9 文件×4 断言=36 项）。
+- `make check-source-state` rc=0：`linux: OK HEAD=7b20d05fd38d count=0 clean=True expected=0`，其余 10 行均 `expected=1 … OK`。
+- `make check-patch-tree` rc=2（make Error 1）：仅 chipyard ⑨/⑥ 两红（`WumingFP.scala`）；`linux: 0 patch(es)` + `empty patch set; assertions ④⑥ skipped`，**非** `patchless; skipped`。
+- `make -n` 7 目标 rc=0 全解析出 `tools/linux/*.py`；`make -p` 现场：5 个写者/增量目标在 `GATE_LOCKED_TARGETS`、2 个只读不在；`_locked-*` 5 条可解析。
+- `make apply-series` rc=2（chipyard 拒绝，外因）；前后 `.work/source/*` 的 HEAD+脏项快照逐行 diff **完全一致（无写入）**；linux 单组件探针（本人自建）两次 rc=0、均打印 `linux has an empty series`、HEAD/count/脏不变。
+- `make -k check`（L1）rc=2，失败目标恰 5 个：`check-patch-tree` / `check-knowledge-refs`（5 条全在 `m13-testcases-013` 任务书）/ `check-milestones-fresh`（`m13-testcases-015` 台账行）/ `check-run-artifacts`（17 个 `.work/log/{gem5,infra}` 日志名）/ `check-temp-dirs`（`/tmp/opencode/node-env`）——逐个复跑确认**均非本任务文件**。
+- 与改动前 checker 对比（`git show 065b9829^:tools/infra/check_patch_tree.py` 于临时树实跑）：错误集**逐行相同**，唯一差异 = 少 `linux: series is empty`；`--source-state` 仅增 `expected=` 字段并 `linux FAIL→OK` ⇒ **非空集 `base+1` 一字未放宽**。
+
+**独立注入（自设计、临时树 / `cp`+md5，未复用工程师用例）**
+- 合成组件 `fakecomp` 11 例：空集+根 `.gitkeep` ⇒ 绿；空集+未列 `.patch` ⇒ `not listed`；空集+`README.txt` ⇒ `non-patch file`；嵌套 `.gitkeep` ⇒ FAIL；非空 series ⇒ `missing patch` + `.gitkeep 非法` + `expected base+1`（source-state `expected=1 FAIL`）；空集但源树多 1 commit ⇒ `expected base+0` FAIL；非空集停在 base ⇒ `expected base+1` FAIL；非空集正确形态 ⇒ rc=0；写坏补丁（2×`diff --git`）⇒ 断言①、不适用补丁 ⇒ 断言④；series 文件缺失 ⇒ `missing series` 且 source-state `expected=1`（fail-closed）；monkeypatch 期望 0/2 ⇒ 断言⑧ 必 FAIL。
+- 真 gate 现场注入（`make check-patch-tree`，`cp`+md5 还原）：series 追加不存在补丁 ⇒ rc=2 且 missing/.gitkeep 非法/expected base+1 三红齐发，还原 md5 一致；`patches/` 放未列 `.patch` ⇒ `not listed`，还原树 md5 一致；回绿后 linux 0 红。
+- `patchless`+`patch_dir` 同声明（临时树）⇒ `manifest_check` rc=1 `patchless component must not declare patch_dir/patch_series`，还原 md5 一致 rc=0。
+- 各集 `N patch(es)` 与 `series` 现场行数逐一吻合（98/66/101/4/15/21/2/0/25/1），无写死值。
+
+**约束核验**：改动 10 文件全在任务书范围；`docs/Process-01` 仅 §2/§6.1/§8/§13 四处 hunk（授权段已落原话）；完成区 7 行 ≤30；任务书无运行期绝对路径；工作树 `git status -uall` 空、7 目标 md5 与审查前一致、linux 源树未被改动、共享 `gate.lock` 空闲；未动 chipyard；未提交 git。
+
+**判决：Accepted**（空补丁集为同笔收紧的新增首态，三条件均可达 FAIL，非空集判据实证未放宽；验收命令在我方重跑下达标，L1/apply-series 红全为外因并逐条归属）。**非阻断 finding（交 architect 收尾改，不返工）**：① `Makefile:186`/`Makefile:1238`/`check_patch_tree.py:554` 帮助文案仍写 `base+1`；② 自审 F3「仓内仅 M2 归档引用旧文案」与事实有出入（本任务书 16/150 行亦引用，描述性）；③ `tools/infra/remote.py:176` 另有一套 `expected = 1 if lines else 0` 且 series 缺失时恒 0（**本提交前既有、未改**），建议后续收口到 `expected_commit_count`；④ `make -n <gate-locked>` 会真实抢共享 `.dadao/gate.lock`（`build-qemu` 同样，既有行为，实测 18 s 取得并已释放）。

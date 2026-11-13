@@ -32,6 +32,11 @@ components/<name>/
 - **必须**保留 `components/<name>/series`，其内容为补丁相对 `patches/` 的路径，一行一个，**顺序按路径字典序**。
 - 上述两个路径**必须**在 `manifests/components.lock.toml` 中显式声明：`patch_dir`（镜像树根）与 `patch_series`（清单文件）；脚本**不得**从其一推导其二。
 - **不得**设 `newfiles/`、`fixups/` 等多层目录；新增文件亦以补丁表达（见 §5）。
+- **空补丁集首态**（2026-11-13 用户裁定；`m14-linux-001` 起）：组件**可以**先声明 `patch_dir`/`patch_series` 而 `series` 零条目——这是补丁集的首态（首个补丁尚未落地），**不是** `patchless`。合法条件三条**同时**成立，缺一即 FAIL：
+  1. `series` 存在且**零个非注释条目**（注释行不计条目）；
+  2. `patches/` 下 `.patch` 文件数为 **0**；
+  3. 组件条目**不是** `patchless`（`patchless` 与 `patch_dir`/`patch_series` 仍互斥，见 `tools/infra/manifest_check.py`）。
+- **`.gitkeep` 是断言⑤的唯一例外**：空补丁集允许 `patches/` **根下恰好一个** `.gitkeep`（空目录否则不被 git 跟踪）；它**仅**在 `series` 零条目时合法——`series` 一旦非空，`patches/` 下出现 `.gitkeep` **即 FAIL**（不得借它夹带非补丁文件，嵌套目录下的 `.gitkeep` 同样 FAIL）。
 
 ## 3. 命名
 
@@ -56,7 +61,7 @@ components/<name>/
 - **硬规则**：补丁文件**不得**手工编辑或直接修改（§6.1.1）；改组件源码**必须**在 working tree（`.work/source/<name>`）中进行。
 - **不变量 E1**：`.work/source/<name>` 在**任何时刻**都**必须**满足：
   1. **worktree 干净**：`git status --porcelain` 输出为空；
-  2. **HEAD = 上游 base commit + 恰好 1 个 commit**：`git rev-list --count <base>..HEAD == 1`。
+  2. **HEAD = 上游 base commit + 期望条数**：`git rev-list --count <base>..HEAD == 1`（非空补丁集）；空补丁集首态为 `== 0`（无补丁可应用 ⇒ 钉住的 base 就是收敛态，判据见 §2/§8）。
 - **E8 澄清**：导出的补丁**仍是裸 `git diff <base>`**（**不含**作者/提交信息）；本地 commit **只用于维持干净工作树**，**永不推送上游**。
 - E1 由 §8 断言 ⑦⑧⑨ 机械校验；模块改动前/后可用 §8.1 的 `--source-state` 自检。
 
@@ -132,15 +137,16 @@ components/<name>/
 | ② | **目标路径全局唯一** | 覆盖 §4 第二条与 §5（新增文件终态） |
 | ③ | **`series` ↔ `patches/` 树双向一致** | 无遗漏、无多余、顺序为路径字典序 |
 | ④ | **应用后最终 tree 与期望一致** | 见 §9 |
-| ⑤ | **`patches/` 为纯镜像** | 其下每个文件均为 `<上游相对路径>.patch`；覆盖 §2 的纯镜像要求 |
+| ⑤ | **`patches/` 为纯镜像** | 其下每个文件均为 `<上游相对路径>.patch`；覆盖 §2 的纯镜像要求。**唯一例外**：空补丁集（`series` 零条目）的 `patches/.gitkeep`，仅根下至多一个（§2） |
 | ⑥ | **应用产物内容一致性** | 补丁集全量应用到 base 后，各受影响路径 blob **必须** == `.work/source` 对应文件；不一致 ⇒ FAIL |
 | ⑦ | **worktree 干净（E6）** | `.work/source/<name>` 的 `git status --porcelain` 为空 |
-| ⑧ | **HEAD = base + 恰好 1 个 commit（E6）** | `git rev-list --count <base>..HEAD == 1` |
+| ⑧ | **HEAD = base + 期望条数（E6）** | `git rev-list --count <base>..HEAD == 1`（非空补丁集）／`== 0`（空补丁集首态，§2） |
 | ⑨ | **HEAD 的净 diff == 补丁集（E6）** | `git diff <base> HEAD` 的净 diff（按路径、`index` 行归一化后）与补丁集**逐路径一致** |
 | ⑩ | **组件 HEAD 记录子模块 HEAD（仅子模块补丁集）** | 组件 `HEAD:<子模块 path>` 的 gitlink **必须** == 该子模块 HEAD（组件 commit 钉住了打过补丁的子模块；缺此则组件工作树永远不可能干净） |
 
 - 断言 ①–⑨ 对**每个**补丁集各跑一次（组件顶层集与每个 `submodule_patch` 集，见 §14）；子模块集在**子模块仓库**里判（base = `submodule_lock` 中该 `path` 的 commit），⑩ 是组件侧的补充断言。
 - 断言 ⑥ 与 ⑨ 分工不同：**⑥**＝补丁应用产物 vs **工作树**；**⑨**＝**HEAD commit** vs **补丁集**。
+- **空补丁集首态的口径**（§2；判定实现 = `check_patch_tree.py::expected_commit_count`，断言 ⑦⑧⑨ 与 `--source-state` 共用同一函数，不得两套判据）：期望条数 `expected = 1 if series 非空 else 0`；断言 ④⑥ 因无可应用内容而**明确打印跳过**（不是静默通过）。非空补丁集的口径**一字不放宽**：`base+1`、`patches/` 纯镜像、`.gitkeep` 即 FAIL。
 - 若 `.work/source/<name>` 缺失：沿用既有「跳过 apply 检查」的通知语义，**断言 ⑦⑧⑨ 亦随之明确打印跳过**（不得静默）。
 - 任一断言失败 **必须**以非零退出码终止。
 
@@ -231,4 +237,5 @@ components/<name>/
 - **rev. 2026-11-08（INFRA-138t）**：新增 §14「子模块的获取与镜像」——子模块按 `manifests/chipyard-submodules.lock.toml` 锁定（`lite` 标最小集）、**不参与补丁集**、以 `.cache/submodules/` bare 镜像离线分发，`fetch` 校验 commit、`sync_cache` 校验节点镜像。属**新增约定**，不改 `ADR-0002 D4`。
 - **rev. 2026-11-08（INFRA-140t）**：§14 拆出两个标记——`lite` 保持 chipyard 上游最小集原义，新增 `dadao_extra` 表示本仓库额外需要的子模块（`riscv-isa-sim` / fesvr）；取用条件统一为 `lite or dadao_extra`，`fetch` 与 `sync_cache` 用同一并集。属**新标记 + 派生实现**，不改 `ADR-0002 D4`。
 - **rev. 2026-11-09（m12-infra-003，用户裁定「我们当然需要给子模块打 patch，现在不做，以后也要做」）**：§14 由「子模块不参与补丁集」改为「子模块补丁集」——新增 manifest 声明 `[[component.submodule_patch]]`（`path`/`patch_dir`/`patch_series`，base 取 `submodule_lock` 的 pin）、目录落 `components/<component>/submodules/<path>/`、应用为「子模块内 base+1 + 组件 commit 记录 gitlink」、断言增至 ⑩（组件 HEAD 钉住子模块 HEAD）、`fetch` 的就绪判据放宽为「pin 或其后代且干净」；§7 增第 7 条、§8 增断言⑩。属**新增能力 + 派生实现**（E1/E5/E6 语义不变，各仓库各判一次），不改 `ADR-0002 D4`。
+- **rev. 2026-11-13（m14-linux-001，用户裁定「空 series 合法首篇」）**：新增**空补丁集首态**——组件可先声明 `patch_dir`/`patch_series` 而 `series` 零条目（合法条件三条见 §2），`patches/.gitkeep` 为其唯一例外（`series` 非空即 FAIL）；E1 期望条数随之为 `base+0`（非空仍 `base+1`），§2/§6.1/§8 口径同步，判定收敛到 `check_patch_tree.py::expected_commit_count` 单一函数（断言 ⑦⑧⑨ 与 `--source-state` 共用）。属**新增合法状态 + 同笔收紧**（非空集断言一字不放宽），不改 `ADR-0002 D4`。
 - 相关决策变更记录见 `.tao/adr/adr-0002-build-orchestration.md` 的 `## 修订`（rev. 2026-09-23）。

@@ -23,8 +23,10 @@ own top-level set *and* each ``[[component.submodule_patch]]`` set (§14):
      hand-edited ``@@`` hunk headers)
   7. (E6) ``.work/source/<name>`` worktree is clean (``git status --porcelain``
      is empty)
-  8. (E6) HEAD is the pinned base plus **exactly one** commit
-     (``git rev-list --count <base>..HEAD == 1``)
+  8. (E6) HEAD is the pinned base plus the **expected** number of commits
+     (``git rev-list --count <base>..HEAD == expected``, ``expected = 1`` for a
+     non-empty patch set, ``expected = 0`` for the legal empty first state --
+     see the *empty patch set* note below)
   9. (E6) that commit's net diff (``git diff <base> HEAD``, per path with the
      ``index`` line normalized) equals the patch set, path by path
  10. (submodules only) the **component's** HEAD records the submodule HEAD as
@@ -36,6 +38,19 @@ Assertion 6 compares the *patched index* against the *worktree*; assertion 9
 compares the *HEAD commit* against the *patch set*.  Both are needed: 6 catches
 patches that do not reproduce the worktree, 9 catches a local commit that does
 not correspond to the patch set.
+
+Empty patch set (legal first state, docs/Process-01 §2)
+-------------------------------------------------------
+A component may declare ``patch_dir``/``patch_series`` before its first patch
+lands (user ruling 2026-11-13).  That first state is accepted only in the exact
+shape ``series`` has zero non-comment entries and ``patches/`` holds no
+``.patch`` file and at most one ``patches/.gitkeep``; the component itself must
+not be ``patchless`` (``manifest_check.py`` keeps that pair mutually exclusive).
+For such a set the E1 expectation is ``base+0`` (nothing is applied, so the
+pinned base *is* the converged state), the ``.gitkeep`` is the sole exception
+to assertion ⑤, and assertions ④/⑥ are skipped because there is nothing to
+apply or compare.  Everything else is unchanged: as soon as the series has one
+entry the expectation is ``base+1`` and ``.gitkeep`` becomes a failure.
 
 Submodule sets are checked in the *submodule* repository (own base from the
 component's ``submodule_lock``), which is why assertion 4 works there: the
@@ -124,16 +139,45 @@ def source_state(source: Path, base: str) -> tuple[bool, int, str]:
     return clean, count_value, porcelain
 
 
-def check_source_invariant(label: str, base: str, errors: list[str], source: Path) -> None:
-    """Assertions ⑦ (clean) and ⑧ (base + exactly 1 commit)."""
+def expected_commit_count(entries: list[str]) -> int:
+    """E1 expected ``base..HEAD`` commit count for one patch set.
+
+    Single criterion for assertions ⑦⑧⑨ and ``--source-state`` (docs/Process-01
+    §8): a non-empty patch set always converges to ``base+1``; the legal empty
+    first state applies nothing, so its pinned base *is* the converged state
+    (``base+0``).  Do not grow a second rule next to this one.
+    """
+    return 1 if entries else 0
+
+
+def expected_series_commits(series_rel: str | None) -> int:
+    """E1 expected commit count, read from a manifest-declared *series path*.
+
+    ``None`` (component without its own top-level set) ⇒ 1: only the commit
+    that records the submodule gitlinks (assertion ⑩) is expected.  A *missing*
+    series file is **not** the legal empty state ⇒ 1 (fail-closed;
+    ``check_patch_set`` reports the missing file separately).
+    """
+    if not series_rel:
+        return 1
+    series = ROOT / series_rel
+    if not series.is_file():
+        return 1
+    return expected_commit_count(series_entries(series))
+
+
+def check_source_invariant(
+    label: str, base: str, errors: list[str], source: Path, expected: int = 1
+) -> None:
+    """Assertions ⑦ (clean) and ⑧ (base + *expected* commits)."""
     clean, count, porcelain = source_state(source, base)
     if not clean:
         errors.append(
             f"{label}: assertion ⑦: worktree is not clean (git status --porcelain):\n{porcelain.rstrip()}"
         )
-    if count != 1:
+    if count != expected:
         errors.append(
-            f"{label}: assertion ⑧: HEAD is base+{count} (expected exactly 1 commit)"
+            f"{label}: assertion ⑧: HEAD is base+{count} (expected base+{expected})"
         )
 
 
@@ -151,9 +195,9 @@ def check_commit_matches_patches(
     *skip_paths* are paths the component commit is *expected* to change without
     a patch: the submodule gitlinks recorded in assertion ⑩.
     """
-    if source_state(source, base)[1] != 1:
+    if source_state(source, base)[1] != expected_commit_count(entries):
         # ⑧ already reported the wrong count; a net diff comparison is only
-        # meaningful for exactly one commit.
+        # meaningful at the expected commit count.
         return
     commit_paths = set(
         git("diff", "--name-only", base, "HEAD", cwd=source).stdout.splitlines()
@@ -235,9 +279,14 @@ def check_patch_set(
         return
 
     entries = series_entries(series_path)
-    if not entries:
-        errors.append(f"{label}: series is empty")
-        return
+    empty_set = not entries
+    # An empty patch set is a *legal first state* (docs/Process-01 §2, user
+    # ruling 2026-11-13): the component is already a patched one, its first
+    # patch has simply not landed yet.  Only this exact shape is accepted --
+    # zero series entries, no `.patch` file, at most one `patches/.gitkeep`.
+    # A stray patch (assertion ③ below), a `.gitkeep` next to a non-empty
+    # series (assertion ⑤ below) and `patchless` (manifest_check.py) still fail.
+    print(f"check-patch-tree: {label}: {len(entries)} patch(es)")
     if entries != sorted(entries):
         errors.append(f"{label}: series is not sorted lexicographically")
 
@@ -254,11 +303,16 @@ def check_patch_set(
         errors.append(f"{label}: patch not listed in series: {extra.relative_to(ROOT)}")
 
     # assertion 5: patches/ is a pure mirror -- every file is `<upstream>.patch`.
+    # Sole exception (docs/Process-01 §2): `patches/.gitkeep` keeps an *empty*
+    # patch set tracked by git; it is legal only while the series has no entry.
     for path in sorted(patches_dir.rglob("*")):
-        if path.is_file() and not path.name.endswith(".patch"):
-            errors.append(
-                f"{label}: non-patch file under patches/: {path.relative_to(ROOT)}"
-            )
+        if not path.is_file() or path.name.endswith(".patch"):
+            continue
+        if empty_set and path.name == ".gitkeep" and path.parent == patches_dir:
+            continue
+        errors.append(
+            f"{label}: non-patch file under patches/: {path.relative_to(ROOT)}"
+        )
 
     # assertions 1 & 2.
     seen: dict[str, str] = {}
@@ -292,10 +346,17 @@ def check_patch_set(
         return
 
     # assertions 7, 8, 9 (E6): HEAD/worktree state vs the patch set.
-    check_source_invariant(label, base, errors, source)
+    expected = expected_commit_count(entries)
+    check_source_invariant(label, base, errors, source, expected)
     check_commit_matches_patches(
         label, base, entries, patches_dir, errors, source, skip_paths
     )
+
+    if empty_set:
+        # Nothing to apply: ④ and ⑥ are vacuously satisfied at base+0, which
+        # ⑦⑧⑨ have just asserted (clean worktree, no commit, empty net diff).
+        print(f"check-patch-tree: {label}: empty patch set; assertions ④⑥ skipped")
+        return
 
     # assertion 4: apply cleanly to the pinned base, using a scratch index.
     with tempfile.TemporaryDirectory() as scratch:
@@ -426,13 +487,13 @@ def patch_count(component: dict) -> int:
 
 
 def run_source_state(enabled: list[dict], root: Path) -> int:
-    """E7: report the E1 invariant (clean + base+1) for each enabled component."""
+    """E7: report the E1 invariant (clean + base+expected) for each enabled component."""
     failed = False
     for component in enabled:
         name = component["name"]
         if component.get("patchless"):
             # Reference-only component (ADR-0024 D1): no patch set, so the
-            # "base + exactly one commit" E1 invariant does not apply.
+            # "base + expected commits" E1 invariant does not apply.
             print(f"check-patch-tree --source-state: {name}: patchless; skipped")
             continue
         source = root / name
@@ -440,12 +501,13 @@ def run_source_state(enabled: list[dict], root: Path) -> int:
             print(f"check-patch-tree --source-state: {name}: source worktree absent; skipped")
             continue
         clean, count, porcelain = source_state(source, component["commit"])
+        expected = expected_series_commits(component.get("patch_series"))
         head = git("rev-parse", "HEAD", cwd=source).stdout.strip()
-        ok = clean and count == 1
+        ok = clean and count == expected
         verdict = "OK" if ok else "FAIL"
         print(
             f"check-patch-tree --source-state: {name}: {verdict} "
-            f"HEAD={head[:12]} count={count} clean={clean}"
+            f"HEAD={head[:12]} count={count} clean={clean} expected={expected}"
         )
         if porcelain.strip():
             print(f"check-patch-tree --source-state: {name}: dirty paths:")
@@ -465,11 +527,13 @@ def run_source_state(enabled: list[dict], root: Path) -> int:
                 )
                 continue
             clean, count, porcelain = source_state(sub_source, base)
+            expected = expected_series_commits(entry["patch_series"])
             head = git("rev-parse", "HEAD", cwd=sub_source).stdout.strip()
-            ok = clean and count == 1
+            ok = clean and count == expected
             print(
                 f"check-patch-tree --source-state: {label}: "
-                f"{'OK' if ok else 'FAIL'} HEAD={head[:12]} count={count} clean={clean}"
+                f"{'OK' if ok else 'FAIL'} HEAD={head[:12]} count={count} "
+                f"clean={clean} expected={expected}"
             )
             if porcelain.strip():
                 print(f"check-patch-tree --source-state: {label}: dirty paths:")

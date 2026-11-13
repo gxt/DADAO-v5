@@ -1,0 +1,6 @@
+# Linux 内核补丁清单（树形补丁：`patches/<上游相对路径>.patch`，一文件一补丁）。
+# 顺序按路径字典序；一行一个，路径相对 patches/。
+#
+# 空首态（m14-linux-001，2026-11-13）：零条目是**合法首态**（docs/Process-01 §2），
+# patches/ 下只有 `.gitkeep`。首个补丁由 m14-linux-002（arch/dadao/**）落地时
+# 在此追加；`.gitkeep` 在 series 非空时必须删除（否则 check-patch-tree FAIL）。

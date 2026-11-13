@@ -61,6 +61,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
         build-builtins build-qemu build-qemu-reconfig build-gem5 check-gem5-decode build-bootrom build-picolibc \
         build-musl build-musl-shared test-picolibc-smoke install-host install-cfx-aliases docker-image docker-shell check \
+        linux-defconfig linux-vmlinux linux-initramfs linux-semihosting-smoke \
+        check-linux-toolchain check-linux-boot-contract check-linux-k0 \
         check-picolibc-tests check-picolibc-tests-full check-rnd-probe \
         check-minmax-probe check-fma-probe check-clmul-probe \
         check-testcases-suites check-testcases-suites-full \
@@ -117,6 +119,8 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       build-mc build-mc-lite build-mc-reconfig build-lld build-qemu build-qemu-reconfig \
                       build-gem5 check-gem5-decode \
                       build-builtins build-bootrom build-picolibc build-musl build-musl-shared \
+                      linux-defconfig linux-vmlinux linux-initramfs linux-semihosting-smoke \
+                      check-linux-k0 \
                       test-codegen test-elf test-m6 test-picolibc-smoke \
                       check-lit check-lit-full \
                       check-inst check-inst-smoke check-arch check-arch-smoke \
@@ -194,6 +198,13 @@ help:
 	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl-shared  Build musl shared/PIC libc.so + the PIC static archive libc_pic.a (for -static-pie) + link a dynamic smoke executable (PT_INTERP/DT_NEEDED), and install libc.so + libc_pic.a + the ld-musl-dadao.so.1 symlink into the target sysroot (INFRA-085t stage A1/B1, INFRA-108t; needs install-host + fetch/apply-series)"
 	@echo "  make build-builtins  Rebuild the compiler-rt builtins with the current build-tree clang and stage the archive into that clang's resource dir (ISS-293; needs build-mc + a configured compiler-rt build tree)"
+	@echo "  make linux-defconfig  Configure the Linux kernel for dadao (M14; glibc-free defconfig; script lands in a later m14-linux task)"
+	@echo "  make linux-vmlinux   Build the Linux kernel image (M14; JOBS= parallel make; script lands later)"
+	@echo "  make linux-initramfs Build the initramfs image (M14; script lands later)"
+	@echo "  make linux-semihosting-smoke  Boot the kernel under QEMU semihosting (smoke; M14; script lands later)"
+	@echo "  make check-linux-toolchain  Check the dadao cross toolchain can build the kernel (L1; M14)"
+	@echo "  make check-linux-boot-contract  Check the boot ABI contract against spec/Machine-v5 (L1; M14)"
+	@echo "  make check-linux-k0  K0 closure gate: toolchain + boot + smoke in one run (L2; M14)"
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
@@ -1086,6 +1097,36 @@ _locked-build-musl:
 _locked-build-musl-shared:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "build-musl-shared: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host' first"; exit 1; }
 	@$(PYTHON) tools/infra/build_musl.py --jobs $(JOBS) --shared
+
+# ── Linux 内核（M14；目标名与脚本路径由 m14-linux-001 一次声明）─────────────────
+# 本块只声明目标，脚本随各任务落地（m14-linux-002..006 / m14-infra-00x）；以后
+# 加目标才改这里，本批任务不再改 Makefile。路径解析唯一来源 =
+# tools/linux/paths.py（脚本不得各自拼路径）。写者（defconfig/vmlinux/initramfs/
+# semihosting-smoke）与会**增量构建**的 check-linux-k0 列入
+# $(GATE_LOCKED_TARGETS)（docs/Process-07 §2）；两个只读门控
+# （check-linux-toolchain / check-linux-boot-contract）不占锁。L1/L2 成员接线由
+# m14-infra-003 完成。脚本尚未落地 ⇒ python3 直接报 "can't open file"（明确报错，
+# 不静默成功）。并行度经环境变量 JOBS 传给脚本（未用亦无害）。
+_locked-linux-defconfig:
+	@JOBS=$(JOBS) $(PYTHON) tools/linux/make_defconfig.py
+
+_locked-linux-vmlinux:
+	@JOBS=$(JOBS) $(PYTHON) tools/linux/make_vmlinux.py
+
+_locked-linux-initramfs:
+	@JOBS=$(JOBS) $(PYTHON) tools/linux/make_initramfs.py
+
+_locked-linux-semihosting-smoke:
+	@JOBS=$(JOBS) $(PYTHON) tools/linux/run_semihosting_smoke.py
+
+_locked-check-linux-k0:
+	@JOBS=$(JOBS) $(PYTHON) tools/linux/check_k0.py
+
+check-linux-toolchain:
+	@$(PYTHON) tools/linux/check_toolchain.py
+
+check-linux-boot-contract:
+	@$(PYTHON) tools/linux/check_boot_contract.py
 
 docker-image:
 	docker build -t $(DOCKER_TAG) containers/dev
