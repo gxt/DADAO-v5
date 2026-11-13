@@ -561,3 +561,12 @@
   closed_in: null
   resolved_by: null
   title: "【P2】节点（server207）上 `tools/qemu/k0_boot_probe.py` 复跑失败（`main` 段 guest exit 1、`-d cpu` dump 0 字节、`rd*` 全 -1），主控机同源同探针 101/101 全绿。节点二进制含 K1 新串（`strings | grep -c ELF-VA-TO-PA` = 1），说明补丁在；差异点在运行期（疑 `bootrom-image`+`-kernel` 路径在节点触发 loader 拒绝后 exit 1，或 semihosting 退出未被接管）。影响：M14 K1 的节点侧验证与后续节点三平台对比暂不可信。需在节点侧抓 stderr 与 QEMU 退出路径定位（探针正例目前丢弃 stderr）。"
+- id: ISS-429
+  scope:
+  - infra
+  - testcases
+  - chipyard
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】节点上的 chipyard 模拟器在**固件/hex 变更后不会自动失效**：`sims/verilator/simulator-chipyard.harness-WumingTinyConfig` 与 `generated-src/.../gen-collateral/TLROM.sv` 仍是旧固件，三平台跑批会给出**假红**（实测 server207 在 `m12-chipyard-028` 合入后跑 `01-load-store` 得 37/235：chipyard 报点号、qemu/gem5 报 `0xF1`）。判据：`TLROM.sv` 解析的镜像 md5 必须等于 `bootrom_tiny.bin` 的 md5。处置：`rm -rf generated-src/<cfg> .classpath_cache/chipyard.jar` → `make verilog CONFIG=... -jN` → `make CONFIG=... -jN`。建议节点跑批前加一步自动校验（或 `run_asm_suite` 启动时比对 TLROM md5 并报错）。"
