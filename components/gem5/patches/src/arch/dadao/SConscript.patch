@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/SConscript b/src/arch/dadao/SConscript
 new file mode 100644
-index 0000000..e37ac23
+index 0000000..a04130f
 --- /dev/null
 +++ b/src/arch/dadao/SConscript
-@@ -0,0 +1,84 @@
+@@ -0,0 +1,89 @@
 +# DADAO ISA build description (B0 decode + B1/B2/B3/B4/B5/B6/B7 execution).
 +Import('*')
 +
@@ -64,6 +64,11 @@ index 0000000..e37ac23
 +# Tiny cfx_power/cfx3 hmon model (M13 preamble): separate from the Vast
 +# (Node) register file; SE and Vast behaviour is unchanged.
 +Source('tiny_cfx.cc', tags=['dadao isa'])
++# wuming per-instruction cycle table (M16, m16-gem5-002): generated from
++# docs/core-wuming-cycle-model.md by tools/gem5/gen_wuming_cycles.py -- never
++# edited by hand.  It only carries data; nothing calls it until the hook lands
++# in m16-gem5-003, so the default (zero extra latency) behaviour is unchanged.
++Source('wuming_cycles.cc', tags=['dadao isa'])
 +
 +SimObject('DadaoDecoder.py', sim_objects=['DadaoDecoder'], tags=['dadao isa'])
 +SimObject('DadaoISA.py', sim_objects=['DadaoISA'], tags=['dadao isa'])

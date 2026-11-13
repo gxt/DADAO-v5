@@ -59,7 +59,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
 
 .PHONY: help manifest-check doctor status fetch fetch-refs apply-series prepare sync-node-repo \
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
-        build-builtins build-qemu build-qemu-reconfig build-gem5 check-gem5-decode build-bootrom build-picolibc \
+        build-builtins build-qemu build-qemu-reconfig build-gem5 check-gem5-decode check-wuming-cycles build-bootrom build-picolibc \
         build-musl build-musl-shared test-picolibc-smoke install-host install-cfx-aliases docker-image docker-shell check \
         linux-defconfig linux-vmlinux linux-initramfs linux-semihosting-smoke \
         check-linux-toolchain check-linux-boot-contract check-linux-k0 \
@@ -193,6 +193,7 @@ help:
 	@echo "  ccache               $(if $(CCACHE),$(CCACHE) (auto-detected on PATH; pass CCACHE= to disable),off — ccache not on PATH; LLVM uses the cmake compiler launcher, QEMU the CC/CXX prefix)"
 	@echo "  make build-gem5      Build gem5 with the DADAO arch skeleton (SCons; GEM5_SCONS=... if not on PATH; GEM5-004t)"
 	@echo "  make check-gem5-decode  Regenerate/compare the decode table and run the 264-row decode assertions (GEM5-004t)"
+	@echo "  make check-wuming-cycles Re-parse the cycle model doc and check the 264-id cycle table + generated C++ (m16-gem5-002)"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
@@ -471,6 +472,16 @@ _locked-check-gem5-decode:
 	@$(PYTHON) tools/gem5/gen_decode_table.py --check --source $(GEM5_SRC)
 	@$(PYTHON) tools/gem5/check_decode.py --source $(GEM5_SRC) \
 	  --out $(GEM5_BUILD)/dadao-decode-test
+
+# check-wuming-cycles (m16-gem5-002): re-parse docs/core-wuming-cycle-model.md
+# (the only source of the class taxonomy and of every cycle figure) and verify
+# 264/264 coverage, class set == §2, parameterised rows carry their parameter,
+# each cycle text is verbatim in the doc line it cites, and both artifacts
+# (tools/gem5/wuming_cycles.yaml + the generated gem5 C++ table
+# src/arch/dadao/wuming_cycles.{hh,cc}) are a byte-identical fresh parse.
+# Read-only and build-free, so it stays outside $(GATE_LOCKED_TARGETS).
+check-wuming-cycles:
+	@$(PYTHON) tools/gem5/gen_wuming_cycles.py --check --source $(GEM5_SRC)
 
 # install-host (INFRA-047t, ADR-0016 D3/D4/D5/D11): stage only the needed host
 # tool set from the .work/ build trees into the install root's bin/, install the
