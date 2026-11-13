@@ -4,12 +4,12 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
-- **2026-11-13**：M12 已验证 34 / 待开始 4；M13 已验证 41 / 待开始 23；进行中 **0**。
-- 最近合入：`spec-005`（`ldm` 禁地址寄存器重叠）、`spec-006`（FMA 溢出按 IEEE）、`qemu-006`/`gem5-008`（`ldm` ILLI 实现）、`qemu-008`/`gem5-009`（FMA：两平台**本就合规**，只补断言）、`gem5-010`（hmon fixture 迁移）、`chipyard-027`（RTL ILLI）、`testcases-013`（235/235 三平台）。
-- 下一件：`m13-testcases-014`（`02-reg-copy` 16 id，3–4 h）；`m12-chipyard-028`（重生成 `bootrom.tiny.hex`，补齐 `pending_followups` 最后一条）；`m12-chipyard-029`（FMA RTL，须按 spec 实测，**不得**用 QEMU/gem5 结论推定）。`028` 与 `029` 组件互斥，串行。
+- **2026-11-13（夜）**：M12 已验证 35 / 待开始 4；M13 已验证 46 / 进行中 1 / 待开始 21；M14 已验证 2 / 待开始 6。
+- 最近合入：FP 口径三连（`spec-007`/`qemu-009`/`chipyard-030`/`gem5-011`：`rootn(±0,2)=+0`、结果 NaN canonical、quiet compare sNaN 置 NV）；`testcases-014`（58/58）；M14 K0 立册（`milestones-m14.md` + 7 件）+ `linux-001`（Linux 补丁组件化）+ `spec-001` 启动 ABI 契约 & `ADR-0051 Accepted`（VA 术语 / M1 / smon 建身份页表）。
+- 下一件：`m13-testcases-015`（`03-wyde-imm`，返工复核中；合入后按链派 `016`…`029`）；`m12-chipyard-028`（重生成 `bootrom.tiny.hex`）与 `029`（FMA RTL）组件互斥、串行；M14 `m14-qemu-001`（最小 smon）与 `m14-spec-002`/`infra-001`/`infra-002` 待派。
 - 未决 issue：`ISS-410`（hmon 自装 workaround，待 028 后撤）、`ISS-416`（生成器漂移）、`ISS-417`（DDLD 残留扫描面）、`ISS-420`（FMA 常驻门控，载体 `testcases-021/022`）、`ISS-421`（chipyard README/changelog）。
 - 节点：6 台同构（2×64 + 4×40 vCPU）。**六台环境已建齐**（gem5 / musl / chipyard conda env + Verilator 仿真器；`+loadmem` 冒烟一致、207 上 02-reg-copy 三平台 58/58）⇒ 可承接评测任务；四台无国际网，依赖靠主控机离线搬运（`nodes.md §11.6`）。
-- 裁定（原话见 `discussing.md` 末）：节点只作评测；测试时长 15m/6h/24h 分档且**不含构建时间**；`ldm` 禁重叠 / `stm` 允 / RA·RF 不适用。
+- 裁定：节点只作评测、测试时长 15m/6h/24h 分档；`ldm` 禁重叠 / `stm` 允 / RA·RF 不适用；启动 ABI = VA + M1 + smon 建页表（ADR-0051）；`lessons.md` 已退役（规则→AGENTS、经验→DDLN、待裁定→discussing）。
 
 ## 入口指针
 
