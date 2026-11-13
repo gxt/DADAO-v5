@@ -29,6 +29,7 @@
 | m14-infra-002 | 5–6 h | initramfs（静态 musl init）+ semihosting 控制台/退出闭环 |
 | m14-linux-002 | 6–7 h | `arch/dadao` 最小骨架，`make ARCH=dadao` 出 vmlinux（不要求启动） |
 | m14-infra-003 | 4–5 h | K0 收口门控 `check-linux-k0`（vmlinux/initramfs/工具链矩阵/反例注入） |
+| m14-qemu-001 | 4–6 h | 最小 smon：建 64 KiB 身份页表 + PTBR/ptw_enable + VA 入口交内核（K1） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
