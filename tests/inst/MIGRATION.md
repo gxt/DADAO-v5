@@ -109,7 +109,7 @@
 | `base/misc.yaml` | — | — | 待迁 |
 | `base/reserved.yaml` | 9 | 4+3 | 部分迁移（`ld.`/`st.` 的 6 条 reserved-cfx `CFXMEM` 已迁；3 条 reserved-opcode `UNDI` 无 id，待 `12-misc`） |
 | `fp/*.yaml`（`arith`/`convert`/`divrem`/`cond-assign`） | — | — | 部分迁移：`cond-assign.yaml` 的 3 个 `cs.*_rrrr_rf` id 已迁（见 §6，文件未删 §5.1）；其余四册待迁 |
-| `bitcnt/`、`clmul/`、`fma/`、`minmax/`、`rev/`、`rol/`、`roundint/` 各自 | 414/81/… | — | 待迁 |
+| `bitcnt/`、`clmul/`、`fma/`、`minmax/`、`rev/`、`rol/`、`roundint/` 各自 | 414/81/… | — | 部分迁移（`clmul.o`/`rev.o`/`rol.o` 的 64 位形式见 §6/018；其余宽度与 `bitcnt` 待迁） |
 
 > 精确「文件 → id」清单由 `tools/testcases/` 现场导出（不写死在本表，避免漂移）。
 
@@ -277,3 +277,25 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
 - **YAML**：`base/reg-logic.yaml`（4 个 id）与 `base/reg-shift-extend.yaml` 的 10 个 64 位 id
   用例已并入；`reg-logic.yaml` 的 id **全部已迁**，但文件**未删**（§5.1 前置：删后
   `validate_vectors` 数据覆盖出现 gap），`reg-shift-extend.yaml` 仍含 32/16/8 位 id。
+
+### `m13-testcases-018`：`04-arith-logic-octa` 位操作族（4 个 id）
+
+- `tests/inst/04-arith-logic-octa/{rev.o_orri_rd,rol.o_orri_rd,rol.o_orrr_rd,
+  clmul.o_rrrr_rd}.S`（4 个）；链接布局复用 `01-load-store/inst-tiny.lds`。
+- 复用 `016`/`017` 的宏层：单目的 orri/orrr 用 `TEST_AR_ORRI`/`TEST_AR_ORRR`，双目的
+  `clmul.o` 用 `TEST_AR_DUAL`（高半 `__VERIFY_RD` + 低半 `__CHECK_RD`），故障例用
+  `TEST_FAULT_ALU_ORRI`/`TEST_FAULT_ALU3`/`TEST_FAULT_ENC`（**无宏层改动**）。
+- 语义要点（`spec/SimRISC-04 §2.2.1/§2.2.2/§1.5`）：`rev.o` 把 64 位切成 `64/k` 个
+  `k` 位单元倒序（k=8 ⇒ bswap64、k=1 ⇒ bitreverse64），k 须 one-hot 且 k<64；`rol.o`
+  是 64 位循环左移，orrr 的旋转量取 `rdHD[5:0]`（64/65 只取低 6 位、**不触发 ILLI**），
+  orri 的 `immu6 = 0..63` 全部合法；`clmul.o` 是 GF(2) 无进位乘（128 位高/低半），
+  两个目的不得同为 rd0、也不得同号，单半丢弃合法，源先读后写。
+- 用例：`rev.o` 13 链例 + 4 故障、`rol.o` orri 12+1、orrr 14+1、`clmul.o` 19+2
+  （encoding / semantic / boundary / overlap 五类；点号 1..N 连续）。
+- 三方逐字节：`run_asm_suite.py`（同一份 ELF：chipyard / QEMU / gem5，12 个镜像 =
+  链例 4 + 故障例 8；故障例全 `0xF8` ILLI）。
+- **YAML**：`rev/rev.yaml` 的 `rev.o`（16 例，含全部非随机类例）、`rol/rol.yaml` 的
+  `rol.o` 两形式（17 例）已并入；`clmul/clmul.yaml` 的 `clmul.o`（81 例，其中 60+ 为
+  满宽随机 semantic）取全部非随机类例 + 2 例随机代表（19 点）——`.text` 上限
+  `0x1E00`（`.lds` ASSERT）不容纳 81 个双目的检查点。三文件均**未删**：`rev`/`rol`
+  仍含 32/16/8 位 id，`clmul.yaml` 是 `make check-inst` 的 L3 载体（§5.1）。

@@ -443,6 +443,30 @@
   - system
   level: full
   requires: []
+- id: inst-04-arith-logic-octa-030
+  file: inst/04-arith-logic-octa/clmul.o_rrrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-031
+  file: inst/04-arith-logic-octa/rev.o_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-032
+  file: inst/04-arith-logic-octa/rol.o_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-04-arith-logic-octa-033
+  file: inst/04-arith-logic-octa/rol.o_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-atomics-001
   file: inst/atomics/aba_treiber.c
   platforms:
