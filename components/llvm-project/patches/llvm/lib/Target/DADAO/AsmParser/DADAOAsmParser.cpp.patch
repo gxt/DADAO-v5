@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..70cddd085
+index 000000000..20dc15a00
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2699 @@
+@@ -0,0 +1,2717 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -546,9 +546,21 @@ index 000000000..70cddd085
 +    // kind").  Reject it here, while the operand's source location is known.
 +    // A single symbol (or symbol + constant), which a relocation *can* carry,
 +    // is unaffected and keeps going to the fixup/relocation path.
++    //
++    // The same judgement covers the branch/address operand paths
++    // (parseAddressExpr / parseBranchAddress): they cannot decide foldability
++    // without the layout, so every non-absolute expression they produce is
++    // handed to the fixup layer, where DADAOAsmBackend applies this criterion
++    // uniformly (m14-llvm-006).
++    //
++    // A *single symbol* whose equated value is a difference (`.set VD, L1-L0`,
++    // ISS-430) is not a written-out difference and must not be reported as
++    // one: it goes to the fixup path, where the assembler folds it when both
++    // labels share a section (the normal case) and DADAOAsmBackend diagnoses
++    // the cross-section case.
 +    MCValue V;
 +    if (Expr->evaluateAsRelocatable(V, /*Asm=*/nullptr) && V.getAddSym() &&
-+        V.getSubSym())
++        V.getSubSym() && !isa<MCSymbolRefExpr>(Expr))
 +      return Error(StartLoc,
 +                   "cannot use a symbol difference ('A - B') as an instruction "
 +                   "immediate: there is no relocation form for it; use an "
@@ -951,7 +963,11 @@ index 000000000..70cddd085
 +  // for fixup generation. If constant, validate and encode.
 +  int64_t OffsetVal;
 +  if (!OffsetExpr->evaluateAsAbsolute(OffsetVal)) {
-+    // Non-constant expression — push as expr (fixup).
++    // Non-constant expression — push as expr (fixup).  Whether a symbol
++    // difference (`A - B`) is representable is decided in the fixup layer
++    // (DADAOAsmBackend), the only place with the layout that can tell whether
++    // the difference folded in place; the same criterion is shared with
++    // parseImmediate / parseBranchAddress (m14-llvm-006).
 +    if (!getParser().getTok().is(AsmToken::RBrac))
 +      return Error(getParser().getTok().getLoc(),
 +                   "expected ']' to close address expression");
@@ -1084,7 +1100,9 @@ index 000000000..70cddd085
 +  // for fixup generation. If constant, validate and encode.
 +  int64_t OffsetVal;
 +  if (!OffsetExpr->evaluateAsAbsolute(OffsetVal)) {
-+    // Non-constant expression — push as expr (fixup).
++    // Non-constant expression — push as expr (fixup).  A symbol difference is
++    // accepted only when the fixup layer can fold it; see parseImmediate /
++    // parseAddressExpr and DADAOAsmBackend::evaluateFixup (m14-llvm-006).
 +    if (!Parser.getTok().is(AsmToken::RBrac))
 +      return true;
 +    Parser.Lex(); // consume ']'

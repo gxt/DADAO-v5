@@ -24,6 +24,10 @@
 @@ A plain symbol operand (no difference) still goes to a relocation:
 @@ OBJ: {{[0-9a-f]+:}} 5a 1c 00 00{{.*}}aip.si{{.*}}rb7, 0
 @@ OBJ: {{[0-9a-f]+:}} 4e 20 00 00{{.*}}set.zw{{.*}}rb8, wp0, 0x0
+@@ `ISS-430` (m14-llvm-006): a single symbol equated to a same-section label
+@@ difference (`.set VD, L1 - L0`, VD = 4) is an absolute value and encodable;
+@@ the old diagnostic wrongly called this single-symbol operand a difference:
+@@ OBJ: {{[0-9a-f]+:}} 4e 24 00 04{{.*}}set.zw{{.*}}rb9, wp0, 0x4
 @@
 @@ REL: R_DADAO_ABS48 target 0x20
 @@ REL: R_DADAO_PCREL_HI target 0x0
@@ -47,3 +51,5 @@ target:
 	.set	FW2, 0x123456
 	aip.si	rb7, target
 	set.zw	rb8, wp0, target
+	.set	VD, L1 - L0
+	set.zw	rb9, wp0, VD

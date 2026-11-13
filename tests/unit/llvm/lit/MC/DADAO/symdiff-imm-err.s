@@ -24,8 +24,6 @@
 @@ ERR: error: cannot use a symbol difference ('A - B') as an instruction immediate
 @@ ERR-NEXT: {{.*}}add.si{{.*}}rb4, rb4, . - _start
 @@ ERR: error: cannot use a symbol difference ('A - B') as an instruction immediate
-@@ ERR-NEXT: {{.*}}set.zw{{.*}}rb5, wp0, VD
-@@ ERR: error: cannot use a symbol difference ('A - B') as an instruction immediate
 @@ ERR-NEXT: {{.*}}set.zw{{.*}}rb6, wp0, . - other
 @@
 @@ CLANG: error: cannot use a symbol difference ('A - B') as an instruction immediate
@@ -42,8 +40,6 @@ L1:
 	set.zw	rb2, wp0, L1 - L0
 	add.si	rb3, . - _start
 	add.si	rb4, rb4, . - _start
-	.set	VD, L1 - L0
-	set.zw	rb5, wp0, VD
 	set.zw	rb6, wp0, . - other
 	.section	.data
 other:

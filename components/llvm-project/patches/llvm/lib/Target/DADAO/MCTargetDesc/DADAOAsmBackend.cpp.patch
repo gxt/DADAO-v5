@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000..df228b9b0
+index 000000000..9639828ca
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
-@@ -0,0 +1,415 @@
+@@ -0,0 +1,495 @@
 +//===-- DADAOAsmBackend.cpp - DADAO Assembler Backend ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -31,6 +31,7 @@ index 000000000..df228b9b0
 +#include "llvm/MC/MCAssembler.h"
 +#include "llvm/MC/MCContext.h"
 +#include "llvm/MC/MCELFObjectWriter.h"
++#include "llvm/MC/MCExpr.h"
 +#include "llvm/MC/MCFixup.h"
 +#include "llvm/MC/MCObjectWriter.h"
 +#include "llvm/MC/MCSymbol.h"
@@ -98,6 +99,55 @@ index 000000000..df228b9b0
 +    return MCAsmBackend::getFixupKindInfo(Kind);
 +  }
 +
++  // Report a symbol difference ('A - B') where the encoding has room for only
++  // one relocation symbol.  A relocation carries one symbol plus a constant
++  // addend, so such an expression can never be recovered at link time.
++  //
++  // The operand as *written* is part of the diagnostic: a single symbol whose
++  // equated value is a difference (`.set VD, L1-L0`; ISS-430) must not be
++  // described as if the source had written 'A - B' (m14-llvm-006).
++  void reportSymbolDifference(const MCFixup &Fixup, unsigned Kind) const {
++    const char *Role;
++    switch (Kind) {
++    case llvm::DADAO::DADAO_FK_PCRel_12:
++    case llvm::DADAO::DADAO_FK_PCRel_18:
++    case llvm::DADAO::DADAO_FK_PCRel_24:
++      Role = "a branch/jump target";
++      break;
++    case llvm::DADAO::DADAO_FK_PCREL_HI:
++    case llvm::DADAO::DADAO_FK_PCREL_LO:
++      Role = "a PC-relative hi/lo operand";
++      break;
++    case llvm::DADAO::DADAO_FK_REL12:
++      Role = "a PC-relative address offset";
++      break;
++    case llvm::DADAO::DADAO_FK_ABS48:
++      Role = "an instruction immediate";
++      break;
++    default:
++      Role = "a base-relative displacement";
++      break;
++    }
++
++    std::string Storage;
++    std::string Subject = "a symbol difference ('A - B')";
++    if (const auto *SRE = dyn_cast<MCSymbolRefExpr>(Fixup.getValue())) {
++      Storage = (Twine("'") + SRE->getSymbol().getName() +
++                 "' (its value is a symbol difference ('A - B'))")
++                    .str();
++      Subject = Storage;
++    }
++    const char *Hint =
++        Kind == llvm::DADAO::DADAO_FK_ABS48
++            ? "use an absolute constant, or compute the IP at run time "
++              "(aip.si / rb2rb)"
++            : "use a single symbol or an absolute constant";
++    Asm->getContext().reportError(
++        Fixup.getLoc(), (Twine("cannot use ") + Subject + " as " + Role +
++                         ": there is no relocation form for it; " + Hint)
++                            .str());
++  }
++
 +  // M1 self-contained TU: section-local labels are resolved in place.
 +  //
 +  // The shared ELF writer (ELFObjectWriter::isSymbolRefDifferenceFullyResolved-
@@ -116,6 +166,36 @@ index 000000000..df228b9b0
 +                                    MCValue &Target,
 +                                    uint64_t &Value) override {
 +    unsigned Kind = Fixup.getKind();
++
++    // Unified symbol-difference judgement (m14-llvm-006; ISS-424/ISS-430).
++    // All three operand parsers (parseImmediate / parseAddressExpr /
++    // parseBranchAddress) hand a non-absolute expression to this layer, and
++    // this is the only place that has the layout to tell whether the
++    // assembler folded the difference:
++    //   * same-section difference: folds to a constant while the fixup value
++    //     is evaluated.  The value-like forms consume that constant (ABS48
++    //     immediate, ABS12 base-relative displacement), which is why
++    //     `ld.o rb4, [rb2, L1-L0]` keeps encoding 4;
++    //   * PC-relative form with the folded constant: the target address was
++    //     lost with the symbols, and the remaining address difference is not
++    //     the displacement the encoding needs.  Patching it in place would
++    //     jump to a wrong address, and relocating it records symbol 0 with the
++    //     difference as addend (the bug fixed here); reject it.
++    //   * cross-section difference: keeps both symbols and would likewise be
++    //     recorded against symbol 0 as a silently wrong link-time value.
++    // The PC-relative hi/lo kinds keep their own "requires a symbol operand"
++    // diagnostic for the folded case; a difference is rejected here for them
++    // as well.
++    if (Kind >= llvm::DADAO::DADAO_FK_PCRel_12 &&
++        Kind <= llvm::DADAO::DADAO_FK_PCREL_LO && Asm->hasFinalLayout()) {
++      const bool IsPcrelHiLo = Kind == llvm::DADAO::DADAO_FK_PCREL_HI ||
++                               Kind == llvm::DADAO::DADAO_FK_PCREL_LO;
++      if (Target.getSubSym() ||
++          (!IsPcrelHiLo && Fixup.isPCRel() && !Target.getAddSym())) {
++        reportSymbolDifference(Fixup, Kind);
++        return true; // error reported: do not emit a relocation
++      }
++    }
 +
 +    // The PC-relative hi/lo pair (ADR-0029 D2/D3) is never resolved in the
 +    // assembler: both halves are link-time values and the low half is derived
