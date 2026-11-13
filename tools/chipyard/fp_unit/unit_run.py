@@ -96,11 +96,26 @@ def is_uf_boundary(out, flags, hf_flags, ew, sw):
 
 
 def fn_val(x, ew, sw):
-    """An IEEE binary word with every NaN collapsed to one value (hardfloat
-    canonicalises the payload, this core propagates it)."""
+    """An IEEE binary word with every NaN collapsed to one value (hardfloat's
+    word and mine are both canonical now, m12-chipyard-030, but collapsing
+    keeps the comparison about values rather than about NaN spellings)."""
     if F.raw_from_fn(ew, sw, x)["is_nan"]:
         return "nan"
     return x & ((1 << (ew + sw)) - 1)
+
+
+def fn_val_root(x, ew, sw):
+    """`fn_val` with the two zero spellings collapsed.
+
+    This is the one intentional value difference between the two RTLs:
+    `rootn(+-0, 2)` is `+0` by spec/SimRISC-07 §2.2 (= IEEE 754-2019 §9.2.1),
+    while hardfloat's `DivSqrtRecFN_small` implements `squareRoot`, whose
+    `squareRoot(-0)` is `-0`.  Every other shape must still agree bit for bit.
+    """
+    v = fn_val(x, ew, sw)
+    if v == 0 or v == (1 << (ew + sw - 1)):
+        return 0
+    return v
 
 
 def check(args):
@@ -645,7 +660,13 @@ def check(args):
                           f"want={want:x}/{wflags:x} got={r['out']:x}/{r['flags']:x}")
             if op in SLOW_REM:
                 continue
-            if fn_val(r["out"], ew, sw) != fn_val(r["hf_out"], ew, sw):
+            # The root's zero sign is the only intentional divergence from
+            # hardfloat (`+0` per §9.2.1 vs `squareRoot(-0) = -0`).
+            mine_v = fn_val_root(r["out"], ew, sw) if op in SLOW_SQRT \
+                else fn_val(r["out"], ew, sw)
+            hf_v = fn_val_root(r["hf_out"], ew, sw) if op in SLOW_SQRT \
+                else fn_val(r["hf_out"], ew, sw)
+            if mine_v != hf_v:
                 bad_hf += 1
                 if bad_hf <= 6:
                     print(f"  [DIFF] {name} a={a:x} b={b:x} mode={mode} "
@@ -666,6 +687,73 @@ def check(args):
     if ticks:
         print("  measured latency (clock ticks to completion, per op): "
               + " ".join(f"op{o}={t}" for o, t in sorted(ticks.items())))
+
+    # ── the two rules closed by m12-chipyard-030, point by point ──────────
+    # The expected values below are transcribed from the clause, *not* taken
+    # from the oracle, so this table is an independent opinion next to
+    # `fp_ref` and hardfloat:
+    #   * `rootn(+-0, 2) = +0`, no flags (spec/SimRISC-07 §2.2 = IEEE
+    #     754-2019 §9.2.1; the sign is cleared, the direction is irrelevant);
+    #   * every NaN result is the canonical quiet NaN -- sign 0, payload all
+    #     zero (§1.4) -- for arithmetic, the conversions and the quiet
+    #     compare; an sNaN input adds `NV`;
+    #   * the exclusions the spec keeps: the signalling compare returns the
+    #     sNaN bit pattern (0x7F80_0001 for ft, 0x7FF0_..._0001 for fo) and
+    #     min/max returns the number for a single NaN.
+    SPEC_POINTS = (
+        # name, op, in_lo, in_hi, mode, value, rf0[4:0]
+        ("root ft(-0)", 43, 0x80000000, 0, F.RNE, 0x00000000, 0),
+        ("root ft(+0)", 43, 0x00000000, 0, F.RNE, 0x00000000, 0),
+        ("root fo(-0)", 44, 0x8000000000000000, 0, F.RNE, 0, 0),
+        ("root fo(+0)", 44, 0x0000000000000000, 0, F.RNE, 0, 0),
+        ("root ft(-0) RUP", 43, 0x80000000, 0, F.RUP, 0x00000000, 0),
+        ("root fo(-0) RDN", 44, 0x8000000000000000, 0, F.RDN, 0, 0),
+        ("root ft(-4.0)", 43, 0xC0800000, 0, F.RNE, 0x7FC00000, F.NV),
+        ("root fo(-4.0)", 44, 0xC010000000000000, 0, F.RNE,
+         0x7FF8000000000000, F.NV),
+        ("add ft(qNaN payload,1.0)", 25, 0x7FC12345, 0x3F800000, F.RNE,
+         0x7FC00000, 0),
+        ("sub ft(1.0,qNaN -payload)", 26, 0x3F800000, 0xFFC12345, F.RNE,
+         0x7FC00000, 0),
+        ("add fo(qNaN -payload,1.0)", 29, 0xFFF8000000000123,
+         0x3FF0000000000000, F.RNE, 0x7FF8000000000000, 0),
+        ("mul fo(1.0,qNaN payload)", 31, 0x3FF0000000000000,
+         0x7FF8000000000123, F.RNE, 0x7FF8000000000000, 0),
+        ("add ft(sNaN,1.0)", 25, 0x7F800001, 0x3F800000, F.RNE,
+         0x7FC00000, F.NV),
+        ("fo2ft(qNaN -payload)", 23, 0xFFF8000000000123, 0, F.RNE,
+         0x7FC00000, 0),
+        ("ft2fo(qNaN payload)", 22, 0x7FC12345, 0, F.RNE,
+         0x7FF8000000000000, 0),
+        ("scmp ft(qNaN,1.0)", 34, 0x7FC00000, 0x3F800000, 0,
+         0x7F800001, F.NV),
+        ("scmp fo(qNaN,1.0)", 36, 0x7FF8000000000123,
+         0x3FF0000000000000, 0, 0x7FF0000000000001, F.NV),
+        ("qcmp fo(qNaN,1.0)", 35, 0x7FF8000000000123,
+         0x3FF0000000000000, 0, 0x7FF8000000000000, 0),
+        ("min fo(single qNaN)", 39, 0x7FF8000000000123,
+         0x3FF0000000000000, 0, 0x3FF0000000000000, 0),
+        ("min fo(qNaN,qNaN)", 39, 0x7FF8000000000123, 0x7FFC0000000000456,
+         0, 0x7FF8000000000000, 0),
+    )
+    lines = [f"{op} {lo:x} {hi:x} {mode} 0"
+             for (_n, op, lo, hi, mode, _v, _fl) in SPEC_POINTS]
+    got = run_vectors(args.bin, _write(args, "vectors_spec_points.txt", lines))
+    if len(got) != len(SPEC_POINTS):
+        print(f"  [FAIL] spec points: sent {len(SPEC_POINTS)} got {len(got)}")
+        fails += 1
+    sp_bad = 0
+    for r, (name, op, lo, hi, mode, wv, wfl) in zip(got, SPEC_POINTS):
+        mark = "ok" if (r["out"], r["flags"]) == (wv, wfl) else "MISMATCH"
+        if mark != "ok":
+            sp_bad += 1
+            print(f"  [SPEC] {name:30s} op{op} in={lo:x}/{hi:x} "
+                  f"want={wv:x}/{wfl:x} got={r['out']:x}/{r['flags']:x}")
+        print(f"  spec {name:30s} value=0x{r['out']:016x} "
+              f"rf0=0x{r['flags']:02x} expect=0x{wv:016x}/0x{wfl:02x} {mark}")
+    print(f"  spec points: {len(got)} vectors | table-diff={sp_bad}")
+    fails += sp_bad
+    summary.append(("spec points (m12-030)", len(got), sp_bad))
 
     # ── roundToIntegral / scaleB (m12-chipyard-015) ───────────────────────
     # `rnd` (47/48): `inHi[5:0]` = the one-hot `immu6` code, `mode` =

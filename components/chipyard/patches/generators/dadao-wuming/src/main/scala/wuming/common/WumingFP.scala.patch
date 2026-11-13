@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
 new file mode 100644
-index 0000000..f318084
+index 0000000..29a9b94
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
-@@ -0,0 +1,2044 @@
+@@ -0,0 +1,2041 @@
 +// See LICENSE for license details.
 +//
 +// DADAO floating-point infrastructure (m12-chipyard-011).
@@ -27,16 +27,19 @@ index 0000000..f318084
 +// The code is written from scratch against those semantics; **hardfloat is not
 +// a build dependency of the core** (a hardfloat instance appears only in the
 +// unit bench `WumingFPUnitHarness.scala`, which is never elaborated into the
-+// SoC).  Two DADAO-specific differences from the upstream primitives are
-+// deliberate and are marked `DADAO:` below:
++// SoC).  One DADAO-specific difference from the upstream primitives is
++// deliberate and is marked `DADAO:` below:
 +//
 +//   * the exception flags are packed in the `rf0[4:0]` order of
 +//     spec/SimRISC-00 §2.3.1 (bit0 NV, bit1 DZ, bit2 OF, bit3 UF, bit4 NX),
-+//     i.e. the reverse of hardfloat's `exceptionFlags` ordering;
-+//   * a quiet NaN input propagates its payload (spec/SimRISC-07 §1.4
-+//     "*NaN 传播 payload*"), where hardfloat canonicalises it.  A signalling
-+//     NaN and an invalid operation are signalled by the caller through
-+//     `invalidExc` and produce the canonical quiet NaN.
++//     i.e. the reverse of hardfloat's `exceptionFlags` ordering.
++//
++// Every quiet NaN *result* is the canonical quiet NaN -- sign 0, payload all
++// zero (spec/SimRISC-07 §1.4 "NaN 结果的取值") -- which is what hardfloat and
++// gem5 also produce (m12-chipyard-030); the non-canonical shapes the spec keeps
++// are the copy family (`ft2ft`/`fo2fo`), the signalling compare's sNaN result
++// and min/max's single-NaN pass-through, and those never reach this file's
++// rounding primitive.
 +//
 +// The recoded format (hardfloat's "recFN") is the format all FP data takes
 +// inside the core: `sign ## exp(expWidth+1) ## sig(sigWidth-1)`, i.e. one
@@ -291,6 +294,10 @@ index 0000000..f318084
 +  * so there is no `detectTininess` port.  `exceptionFlags` is in `rf0[4:0]`
 +  * order (`DADAO:`) and `infiniteExc` is the divide-by-zero input that the
 +  * division family drives (unused by the conversion family).
++  *
++  * `DADAO:` a NaN result (either `in.isNaN` or `invalidExc`) is the canonical
++  * quiet NaN -- sign 0, payload all zero (spec/SimRISC-07 §1.4) -- so `in.sig`
++  * is irrelevant whenever the primitive produces a NaN.
 +  */
 +class WumingRoundAnyRawFNToRecFN(
 +    inExpWidth: Int,
@@ -448,26 +455,18 @@ index 0000000..f318084
 +      Mux(notNaN_isInfOut, outInfExp.U((outExpWidth + 1).W), 0.U) |
 +      Mux(isNaNOut, outNaNExp.U((outExpWidth + 1).W), 0.U)
 +
-+  // DADAO: a quiet NaN input keeps its payload (truncated on narrowing, with
-+  // the dropped bits OR-ed into the last payload bit; shifted up on widening).
-+  // An invalid operation produces the canonical quiet NaN, like hardfloat.
-+  val payload =
-+    if (inSigWidth == outSigWidth) {
-+      io.in.sig(outSigWidth - 2, 0)
-+    } else if (inSigWidth > outSigWidth) {
-+      io.in.sig(inSigWidth - 2, inSigWidth - outSigWidth) |
-+        Fill(outSigWidth - 1, io.in.sig(inSigWidth - outSigWidth - 1, 0).orR)
-+    } else {
-+      io.in.sig(inSigWidth - 2, 0) << (outSigWidth - inSigWidth)
-+    }
++  // DADAO: a *quiet* NaN result is the canonical quiet NaN -- sign 0 (above)
++  // and payload all zero, so only the quiet bit survives (spec/SimRISC-07
++  // §1.4 "NaN 结果的取值"; IEEE 754-2019 §6.2.3 makes payload propagation a
++  // *should* and §6.3 leaves the result's sign unspecified, so canonical is
++  // an implementation choice the contract fixes).  The input payload is
++  // therefore never copied through, whatever a caller puts in `io.in.sig`;
++  // hardfloat's `RoundAnyRawFNToRecFN` does the same.
 +  val quietBit = (BigInt(1) << (outSigWidth - 2)).U((outSigWidth - 1).W)
-+  val nanFract = Mux(io.invalidExc || !io.in.isNaN,
-+    quietBit,
-+    payload.pad(outSigWidth - 1) | quietBit)
 +
 +  val fractOut =
 +    Mux(isNaNOut || io.in.isZero || common_totalUnderflow,
-+      Mux(isNaNOut, nanFract, 0.U),
++      Mux(isNaNOut, quietBit, 0.U),
 +      common_fractOut) |
 +      Fill(outSigWidth - 1, pegMaxFiniteMagOut)
 +
@@ -639,9 +638,11 @@ index 0000000..f318084
 +  * m12-chipyard-012: `ft2fo` (widening, exact, SBZ) and `fo2ft` (narrowing,
 +  * six rounding directions).
 +  *
-+  * An sNaN input raises `NV` and produces the canonical quiet NaN, which is
-+  * what the other two engines do for a format conversion as well
-+  * (`SimRISC-07 §1.4`: sNaN as an arithmetic input).
++  * A NaN input produces the canonical quiet NaN -- sign 0, payload all zero,
++  * both for a quiet NaN (whose payload and sign are dropped, m12-chipyard-030)
++  * and for an sNaN, which additionally raises `NV` (`SimRISC-07 §1.4`: sNaN as
++  * an arithmetic input).  That is what hardfloat and gem5 do for a format
++  * conversion as well.
 +  *
 +  * Overflow follows IEEE 754-2019 §7.4 (spec/SimRISC-07 §1.4): the result is
 +  * the unrounded magnitude rounded with an unbounded exponent range, so
@@ -911,9 +912,10 @@ index 0000000..f318084
 +  * remainder follows, which is precisely how the rounding primitive wants a
 +  * value it must round.
 +  *
-+  * `DADAO:` a quiet NaN input propagates its payload (spec/SimRISC-07 §1.4);
-+  * a signalling NaN or `Inf + (-Inf)` raises `NV` and returns the canonical
-+  * quiet NaN (the rounding primitive's `invalidExc` path).
++  * `DADAO:` every NaN result is the canonical quiet NaN (spec/SimRISC-07 §1.4:
++  * sign 0, payload all zero); a signalling NaN or `Inf + (-Inf)` raises `NV`.
++  * The rounding primitive builds that NaN from its `isNaN`/`invalidExc` inputs
++  * alone, so no payload is routed to it.
 +  */
 +class WumingAddRecFN(expWidth: Int, sigWidth: Int) extends Module {
 +  val io = IO(new Bundle {
@@ -988,12 +990,6 @@ index 0000000..f318084
 +    io.roundingMode === WumingRoundMode.RDN)
 +  val exactZero = (magAbs === 0.U) && !sticky && !isInfOut && !nanIn
 +
-+  // First NaN wins (a quiet NaN keeps its payload, spec/SimRISC-07 §1.4); the
-+  // primitive expects the payload at `inSigWidth-2` downwards, i.e. shifted up
-+  // by the two guard bits of the arithmetic input.
-+  val nanSrc = Mux(rawA.isNaN, rawA, rawB)
-+  val nanSig = (nanSrc.sig << 2)(sigWidth + 2, 0)
-+
 +  val rounder = Module(new WumingRoundAnyRawFNToRecFN(
 +    expWidth, sigWidth + 2, expWidth, sigWidth))
 +  rounder.io.in.isNaN := nanIn
@@ -1001,8 +997,10 @@ index 0000000..f318084
 +  rounder.io.in.isZero := exactZero
 +  rounder.io.in.sign := Mux(isInfOut, infSign, Mux(exactZero, zeroSign, sumSign))
 +  rounder.io.in.sExp := Mux(isInfOut || exactZero, 0.S, sExpNorm)
-+  rounder.io.in.sig := Mux(nanIn, nanSig.pad(sigWidth + 3),
-+    Mux(isInfOut || exactZero, 0.U, sigOut.pad(sigWidth + 3)))
++  // The NaN result is the canonical quiet NaN (spec/SimRISC-07 §1.4), which
++  // the primitive builds by itself: no payload is handed to it.
++  rounder.io.in.sig := Mux(nanIn || isInfOut || exactZero, 0.U,
++    sigOut.pad(sigWidth + 3))
 +  rounder.io.invalidExc := invalidExc
 +  rounder.io.infiniteExc := false.B
 +  rounder.io.roundingMode := io.roundingMode
@@ -1052,9 +1050,6 @@ index 0000000..f318084
 +  val isInfOut = (rawA.isInf || rawB.isInf) && !invalidExc
 +  val isZeroOut = (rawA.isZero || rawB.isZero) && !invalidExc && !nanIn
 +
-+  val nanSrc = Mux(rawA.isNaN, rawA, rawB)
-+  val nanSig = (nanSrc.sig << 2)(sigWidth + 2, 0)
-+
 +  val rounder = Module(new WumingRoundAnyRawFNToRecFN(
 +    expWidth, sigWidth + 2, expWidth, sigWidth))
 +  rounder.io.in.isNaN := nanIn
@@ -1062,8 +1057,10 @@ index 0000000..f318084
 +  rounder.io.in.isZero := isZeroOut
 +  rounder.io.in.sign := signProd
 +  rounder.io.in.sExp := Mux(isInfOut || isZeroOut, 0.S, sExpNorm)
-+  rounder.io.in.sig := Mux(nanIn, nanSig.pad(sigWidth + 3),
-+    Mux(isInfOut || isZeroOut, 0.U, sigNorm.pad(sigWidth + 3)))
++  // Canonical quiet NaN for every NaN result (spec/SimRISC-07 §1.4): the
++  // primitive raises the quiet bit itself, no payload is passed in.
++  rounder.io.in.sig := Mux(nanIn || isInfOut || isZeroOut, 0.U,
++    sigNorm.pad(sigWidth + 3))
 +  rounder.io.invalidExc := invalidExc
 +  rounder.io.infiniteExc := false.B
 +  rounder.io.roundingMode := io.roundingMode
@@ -1203,16 +1200,19 @@ index 0000000..f318084
 +  *
 +  * Square root works digit by digit the same way: `root = floor(sqrt(X))` over
 +  * a radicand scaled to an even exponent, `rem != 0` marking the irrational
-+  * tail.  `rootn(-0, 2)` is unspecified by spec §2.2; -0 is returned, which is
-+  * what both reference engines produce.
++  * tail.  `rootn(+-0, 2) = +0` (spec/SimRISC-07 §2.2 = IEEE 754-2019 §9.2.1,
++  * whose NOTE distinguishes it from `squareRoot(-0) = -0`), which the `sign`
++  * expression below enforces; every other shape is plain square root.
 +  *
-+  * `DADAO:` a quiet NaN input propagates its payload and a signalling NaN or
-+  * an invalid operation (0/0, Inf/Inf, sqrt of a negative number) produces the
-+  * canonical quiet NaN with `NV` (spec/SimRISC-07 §1.4).  The divide-by-zero
-+  * lane splits its two roles: `infiniteExc` is the sole source of `DZ` (and,
-+  * with `sExp = 0`, already pegs the exponent to infinity), while `in.isInf`
-+  * carries the `±Inf` results that raise no `DZ` (infinite dividend,
-+  * `sqrt(+Inf)`), as hardfloat splits them; both are family-level, not per shape.
++  * `DADAO:` every NaN result is the canonical quiet NaN -- sign 0 and payload
++  * all zero (spec/SimRISC-07 §1.4) -- built by the rounding primitive from its
++  * `isNaN`/`invalidExc` inputs alone, so no payload is routed to it; a
++  * signalling NaN or an invalid operation (0/0, Inf/Inf, sqrt of a negative
++  * number) additionally raises `NV`.  The divide-by-zero lane splits its two
++  * roles: `infiniteExc` is the sole source of `DZ` (and, with `sExp = 0`,
++  * already pegs the exponent to infinity), while `in.isInf` carries the `±Inf`
++  * results that raise no `DZ` (infinite dividend, `sqrt(+Inf)`), as hardfloat
++  * splits them; both are family-level, not per shape.
 +  */
 +class WumingDivSqrtRecFN(expWidth: Int, sigWidth: Int) extends Module {
 +  val io = IO(new Bundle {
@@ -1251,9 +1251,11 @@ index 0000000..f318084
 +    !(rawA.isNaN || rawA.isInf || rawA.isZero) && !rawA.sign,
 +    !(rawA.isNaN || rawA.isInf || rawA.isZero) &&
 +      !(rawB.isNaN || rawB.isInf || rawB.isZero))
-+  val sign = Mux(io.sqrtOp, rawA.sign, rawA.sign ^ rawB.sign)
-+  val nanSrc = Mux(rawA.isNaN, rawA, rawB)
-+  val nanSig = (nanSrc.sig << 2)(sw + 2, 0)
++  // `rootn(+-0, 2) = +0` (spec/SimRISC-07 §2.2 = IEEE 754-2019 §9.2.1, whose
++  // NOTE distinguishes it from `squareRoot(-0) = -0`), so the root lane
++  // clears the sign of its zero result; the division lane keeps
++  // `sign(a) ^ sign(b)`.
++  val sign = Mux(io.sqrtOp, rawA.sign && !rawA.isZero, rawA.sign ^ rawB.sign)
 +
 +  // ---- exponent bookkeeping ---------------------------------------------
 +  // `ea` is the exponent of the significand's least significant bit:
@@ -1284,7 +1286,6 @@ index 0000000..f318084
 +  val nanInZ = RegInit(false.B)
 +  val infZ = RegInit(false.B)
 +  val zeroZ = RegInit(false.B)
-+  val nanSigZ = RegInit(0.U((sw + 3).W))
 +
 +  val lastStep = step === (nSteps - 1).U
 +  val startNow = io.start && !busy
@@ -1330,7 +1331,6 @@ index 0000000..f318084
 +    nanInZ := nanIn
 +    infZ := infOut
 +    zeroZ := zeroOut
-+    nanSigZ := nanSig.pad(sw + 3)
 +  }.elsewhen(busy) {
 +    step := step + 1.U
 +    when(loopZ) {
@@ -1358,8 +1358,7 @@ index 0000000..f318084
 +  rounder.io.in.isZero := zeroZ
 +  rounder.io.in.sign := signZ
 +  rounder.io.in.sExp := Mux(loopZ, sExpNorm, 0.S)
-+  rounder.io.in.sig := Mux(loopZ, sigOut.pad(sw + 3),
-+    Mux(nanInZ, nanSigZ, 0.U))
++  rounder.io.in.sig := Mux(loopZ, sigOut.pad(sw + 3), 0.U)
 +  rounder.io.invalidExc := invalidZ
 +  rounder.io.infiniteExc := divZeroZ
 +  rounder.io.roundingMode := io.mode
@@ -1413,8 +1412,6 @@ index 0000000..f318084
 +  val invalid = rawA.isSigNaN || rawB.isSigNaN ||
 +    (!nanIn && (rawA.isInf || rawB.isZero))
 +  val passThrough = !nanIn && !invalid && (rawB.isInf || rawA.isZero)
-+  val nanSrc = Mux(rawA.isNaN, rawA, rawB)
-+  val nanSig = (nanSrc.sig << 2)(sw + 2, 0)
 +  val normal = !nanIn && !invalid && !rawB.isInf && !rawA.isZero
 +
 +  val ma = rawA.sig(sw - 1, 0)
@@ -1446,7 +1443,6 @@ index 0000000..f318084
 +  val invalidZ = RegInit(false.B)
 +  val passZ = RegInit(false.B)
 +  val passBitsZ = RegInit(0.U(64.W))
-+  val nanSigZ = RegInit(0.U((sw + 3).W))
 +
 +  val startNow = io.start && !busy
 +  // One long-division step: shift in the next dividend digit (zero once the
@@ -1484,7 +1480,6 @@ index 0000000..f318084
 +    invalidZ := invalid
 +    passZ := passThrough
 +    passBitsZ := io.a(ew + sw - 1, 0).pad(64)
-+    nanSigZ := nanSig.pad(sw + 3)
 +    rmagZ := Mux(dNeg, rmagNeg, 0.U)
 +    rexpZ := rExp.pad(ew + 6)
 +  }.elsewhen(busy) {
@@ -1518,8 +1513,9 @@ index 0000000..f318084
 +  rounder.io.in.sign := signZ
 +  rounder.io.in.sExp := Mux(nanInZ || invalidZ || passZ || isZeroOut, 0.S,
 +    sExpNorm)
-+  rounder.io.in.sig := Mux(nanInZ, nanSigZ,
-+    Mux(passZ || invalidZ || isZeroOut, 0.U, sigNorm.pad(sw + 3)))
++  // Canonical quiet NaN (spec/SimRISC-07 §1.4): no payload is passed in.
++  rounder.io.in.sig := Mux(nanInZ || passZ || invalidZ || isZeroOut, 0.U,
++    sigNorm.pad(sw + 3))
 +  rounder.io.invalidExc := invalidZ
 +  rounder.io.infiniteExc := false.B
 +  rounder.io.roundingMode := WumingRoundMode.RNE
@@ -1748,7 +1744,8 @@ index 0000000..f318084
 +  scaled.sig := raw.sig
 +
 +  rounder.io.in := scaled
-+  rounder.io.invalidExc := raw.isSigNaN // sNaN raises NV; a qNaN only propagates
++  // sNaN raises NV; a qNaN is canonicalised by the primitive (spec §1.4).
++  rounder.io.invalidExc := raw.isSigNaN
 +  rounder.io.infiniteExc := false.B // scaleB has no divide-by-zero lane
 +  rounder.io.roundingMode := io.mode
 +

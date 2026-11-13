@@ -588,6 +588,41 @@ def cases_cvt_snan():
                       [F.fn_from_recfn(F.FO[0], F.FO[1], rec), FCSR_BASE | flags])]
 
 
+def cases_cvt_nan():
+    """A quiet NaN through the float<->float conversions: canonical result.
+
+    Every NaN result is the canonical quiet NaN -- sign 0, payload all zero
+    (`spec/SimRISC-07 §1.4`, m12-chipyard-030) -- both for `fo2ft` (narrowing;
+    the old rule also OR-ed the dropped bits into the last payload bit) and for
+    `ft2fo` (widening; the old rule shifted the payload up).  An sNaN input is
+    covered by `cvt_snan`; these are the quiet-NaN cells, in every static
+    direction for the narrowing form.  Model-only: QEMU keeps the sign and the
+    payload of a converted NaN, so the bytes are not comparable with it.
+    """
+    out = []
+    for label, imm6 in CVT_MODES[:5]:
+        for tag, x in (("qnan_pay", 0x7FF8000000000123),
+                       ("qnan_neg", 0xFFF8000000000123),
+                       ("qnan_all", 0x7FFFFFFFFFFFFFFF)):
+            rec, flags = F.f2f_exact(F.FO[0], F.FO[1], F.FT[0], F.FT[1], x,
+                                     _mode(imm6))
+            out.append(_cvt_case(
+                f"fo2ft_nan_{tag}_{label}", fcsr_clear() + load_rf(1, x),
+                [enc_cvt("fo2ft", 4, 1, imm6)],
+                [("rf", 4), ("rf", 0)],
+                [F.fn_from_recfn(F.FT[0], F.FT[1], rec),
+                 fcsr_after(imm6, flags)]))
+    for tag, x in (("qnan_pay", 0x7FC12345), ("qnan_neg", 0xFFC12345),
+                   ("qnan_all", 0x7FFFFFFF)):
+        rec, flags = F.f2f_exact(F.FT[0], F.FT[1], F.FO[0], F.FO[1], x, F.RNE)
+        out.append(_cvt_case(
+            f"ft2fo_nan_{tag}", fcsr_clear() + load_rf(1, x),
+            [enc_cvt("ft2fo", 4, 1, 0)],
+            [("rf", 4), ("rf", 0)],
+            [F.fn_from_recfn(F.FO[0], F.FO[1], rec), FCSR_BASE | flags]))
+    return out
+
+
 def cases_cvt_ff():
     """fo2ft in all six directions (overflow follows the rounding direction:
     RNE/RNA, RUP+ and RDN- give ±Inf, the other cells give ±ft_max -- see
@@ -1269,7 +1304,12 @@ def _cases_div(want_fo):
 
 
 def _cases_sqrt(want_fo):
-    """`ftroot`/`foroot` with `immu6` = 2 in all four directions."""
+    """`ftroot`/`foroot` with `immu6` = 2 in all four directions.
+
+    The operand list carries `+0` and `-0`; both must give `+0` with no flag
+    (spec/SimRISC-07 §2.2 = IEEE 754-2019 §9.2.1).  The `-0` cell is one of the
+    QEMU-divergent shapes listed at `QEMU_GROUPS`.
+    """
     out = []
     for mn, fo in (("ftroot", False), ("foroot", True)):
         if fo != want_fo:
@@ -1334,14 +1374,22 @@ def cases_rem_fo():
 
 
 def cases_divrem_nan():
-    """Signalling NaNs across the family: `NV` plus the *canonical* quiet NaN
-    (spec/SimRISC-07 §1.4; the same rule the fused multiply-add follows).
+    """NaN operands and the root's zero sign across the family (m12-chipyard-030).
+
+    Three groups of cells:
+
+    * a signalling NaN input: `NV` plus the canonical quiet NaN;
+    * a quiet NaN input: the canonical quiet NaN, payload *and* sign dropped
+      (spec/SimRISC-07 §1.4);
+    * `rootn(+-0, 2) = +0` in all four directions, both formats and both zero
+      signs (§2.2 = IEEE 754-2019 §9.2.1), no flag in any of them.
 
     Model-only, like the arithmetic family's `arith_nan` group: QEMU/softfloat
-    keeps the quieted payload of an sNaN while this core (and hardfloat, and
-    gem5) canonicalises it, so the *value* of these cases is not comparable
-    byte for byte.  The `NV` bit and the "is a NaN" property are, which is what
-    the `divrem_special` group asserts next to the invalid operations.
+    keeps the payload (and the sign) of a NaN operand, and returns the
+    `squareRoot` answer `-0` for a `-0` radicand, so the *value* of these cases
+    is not comparable byte for byte.  The `NV` bit and the "is a NaN" property
+    are, which is what the `divrem_special` group asserts next to the invalid
+    operations.
     """
     out = []
     for mn, fo, a, b, kind in (("fodiv", True, 0x7FF0000000000001,
@@ -1362,6 +1410,18 @@ def cases_divrem_nan():
                                ("fodiv", True, 0x3FF0000000000000,
                                 0xFFF8000000000456, "div"),
                                ("ftdiv", False, 0x3F800000, 0xFFC00456,
+                                "div"),
+                               # quiet NaN inputs: canonical quiet NaN, so the
+                               # payload *and* the sign are dropped (m12-030)
+                               ("foroot", True, 0x7FF8000000000123, 0, "sqrt"),
+                               ("ftroot", False, 0xFFC12345, 0, "sqrt"),
+                               ("forem", True, 0x7FF8000000000123,
+                                0x4000000000000000, "rem"),
+                               ("ftrem", False, 0xFFC12345, 0x40000000,
+                                "rem"),
+                               ("fodiv", True, 0x7FF8000000000123,
+                                0x3FF0000000000000, "div"),
+                               ("ftdiv", False, 0xFFC12345, 0x3F800000,
                                 "div")):
         ew, sw = F.FO if fo else F.FT
         if kind == "sqrt":
@@ -1377,6 +1437,23 @@ def cases_divrem_nan():
         out.append(_cvt_case(f"divrem_snan_{mn}_{kind}", setup, [word],
                              [("rf", 3), ("rf", 0)],
                              [value, arith_fcsr(0, flags)]))
+    # `rootn(+-0, 2) = +0` in every direction (spec/SimRISC-07 §2.2 = IEEE
+    # 754-2019 §9.2.1): the sign is cleared and no flag is raised, whatever
+    # `rf0[33:32]` says.  Model-only: QEMU (and gem5) still return the
+    # `squareRoot` answer `-0` for a `-0` radicand.
+    for mn, fo in (("ftroot", False), ("foroot", True)):
+        ew, sw = F.FO if fo else F.FT
+        for direction, mode in ARITH_MODES:
+            for tag, a in (("pzero", 0),
+                           ("nzero", 0x80000000 if not fo
+                            else 0x8000000000000000)):
+                value, flags = F.sqrt_exact(ew, sw, a, mode)
+                out.append(_cvt_case(
+                    f"divrem_nan_{mn}_{tag}_{direction}",
+                    arith_mode_setup(mode) + load_rf(1, a),
+                    [enc_root(mn, 3, 1, 2)],
+                    [("rf", 3), ("rf", 0)],
+                    [value, arith_fcsr(mode, flags)]))
     return out
 
 
@@ -1587,26 +1664,37 @@ def cases_arith_flags():
 
 
 def cases_arith_nan():
-    """Arithmetic with NaN operands, model-only: an sNaN is quieted here (this
-    core, like hardfloat and gem5, returns the canonical quiet NaN) while
-    softfloat/QEMU propagates the quieted payload; the flag (NV) and the
-    "is a NaN" answer agree.  A quiet NaN input keeps its payload for
-    add/sub/mul (`spec/SimRISC-07 §1.4`) and is canonicalised by the fused
-    multiply-add (`§2.5`)."""
+    """Arithmetic with NaN operands, model-only.
+
+    Every NaN *result* is the canonical quiet NaN -- sign 0, payload all zero,
+    quiet-NaN inputs included (`spec/SimRISC-07 §1.4`, m12-chipyard-030) -- so
+    a qNaN's payload and sign are dropped rather than propagated.  softfloat/
+    QEMU keeps the first NaN's payload *and* sign (`float_2nan_prop_ab`), so
+    the value bytes of these cases are not comparable with QEMU; the flag
+    (NV for an sNaN input) and the "is a NaN" answer are.  The ft forms cover
+    the 32-bit payload/sign spellings, the fo forms the 64-bit ones.
+    """
     out = []
-    for mn, fo in (("foadd", True), ("fomul", True)):
-        ew, sw = (11, 53)
-        for name, a, b in (("qnan_a", 0x7FF8000000000123, 0x3FF0000000000000),
-                           ("qnan_b", 0x3FF0000000000000,
-                            0xFFF8000000000456),
-                           ("snan_a", 0x7FF0000000000001,
-                            0x3FF0000000000000),
-                           ("snan_qnan", 0x7FF0000000000001,
-                            0x7FF8000000000000)):
-            if mn == "fomul":
+    F_FORMS = (("ftadd", False, False), ("ftsub", False, True),
+               ("ftmul", False, None), ("foadd", True, False),
+               ("fomul", True, None))
+    for mn, fo, sub in F_FORMS:
+        ew, sw = F.FO if fo else F.FT
+        if fo:
+            pairs = (("qnan_a", 0x7FF8000000000123, 0x3FF0000000000000),
+                     ("qnan_b", 0x3FF0000000000000, 0xFFF8000000000456),
+                     ("snan_a", 0x7FF0000000000001, 0x3FF0000000000000),
+                     ("snan_qnan", 0x7FF0000000000001, 0x7FF8000000000000))
+        else:
+            pairs = (("qnan_a", 0x7FC12345, 0x3F800000),
+                     ("qnan_b", 0x3F800000, 0xFFC12345),
+                     ("snan_a", 0x7F800001, 0x3F800000),
+                     ("snan_qnan", 0x7F800001, 0x7FC00000))
+        for name, a, b in pairs:
+            if sub is None:
                 value, flags = F.mul_exact(ew, sw, a, b, F.RNE)
             else:
-                value, flags = F.add_exact(ew, sw, a, b, False, F.RNE)
+                value, flags = F.add_exact(ew, sw, a, b, sub, F.RNE)
             out.append(_cvt_case(
                 f"{mn}_{name}", arith_mode_setup(0) + load_rf(1, a) +
                 load_rf(2, b), [enc_arith(mn, 3, 1, 2)],
@@ -2088,6 +2176,7 @@ GROUPS = {
     "cvt_i2f_fo": cases_cvt_i2f_fo,
     "cvt_exact": cases_cvt_exact,
     "cvt_snan": cases_cvt_snan,
+    "cvt_nan": cases_cvt_nan,
     "cvt_ff": cases_cvt_ff,
     "cvt_ff_ovf": cases_cvt_ff_ovf,
     "cvt_sat": cases_cvt_sat,
@@ -2137,6 +2226,17 @@ GROUPS = {
 # because the signalling rule agrees three ways and the quiet rule is the
 # target of m13-qemu-004; until that QEMU-side change lands, the four
 # quiet+sNaN cases differ in bit0 of rf0 only (value bytes still agree).
+#
+# NaN-result payload/sign (m12-chipyard-030): this core now returns the
+# canonical quiet NaN for every NaN result (sign 0, payload 0), while QEMU's
+# softfloat keeps the first operand's payload *and* sign.  The groups below
+# therefore still agree with QEMU on every non-NaN-result case but not on the
+# qNaN-input cells they carry (`div_*`/`sqrt_*`/`rem_*` "qnan", the `nzero`
+# root whose result is now `+0`, `divrem_special`'s `sqrt_neg_zero`,
+# `cvt_ff`/`cvt_exact`/`sclb_*` where a NaN input is converted or scaled).  The
+# groups that are *built* around NaN results (`cvt_snan`, `cvt_nan`,
+# `arith_nan`, `divrem_nan`, `sclb_nan_*`) stay out of this list; reconciling
+# QEMU is m13-integ-010, summarised by m13-testcases-032.
 QEMU_GROUPS = ("classify", "sign", "rfmem", "fcsr",
                "cvt_f2i_ft", "cvt_f2i_fo", "cvt_i2f_ft", "cvt_i2f_fo",
                "cvt_exact", "cvt_ff", "cvt_sat", "cvt_flags",

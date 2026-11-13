@@ -4,7 +4,7 @@
 **项目里程碑**：M12
 **依赖**：`m13-spec-007`（口径定稿；本任务不据 QEMU/gem5 结论推定 RTL 行为）
 **可并行分片**：否（单组件单写者）
-**状态**：待开始
+**状态**：已验证
 
 **预估**：3–4 h（含 elab + Verilator 重建）
 
@@ -70,4 +70,55 @@
 
 ## 审阅记录
 
-（待填）
+### 第 1 轮 engineer 自审（2026-11-13）
+
+逐行审查 `WumingFP.scala` 改动、`fp_ref.py`/`fp_sweep.py`/`unit_run.py` 的改动与证据脚本；判决：**可标「待验收」**（findings 全部已修，复验见右列）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `fp_ref.sclb_exact` 对 qNaN 输入仍返回原 payload（`return x & mask`），与 R1/R2 矛盾 | ✅已修 | 改为 `_canon_qnan`，docstring 与 `selfcheck_rndsclb` 的 NaN 锚点同改 | `fp_ref rndsclb 200` mismatches=0；核上 `sclb_nan_ft/fo`、`sclb_exact_ft/fo`、`sclb_ovf_*`、`sclb_unf_*` byte-exact（修前这 7 组红） |
+| F2 `round_exact` 的 NaN 分支一度写成 `_canon_qnan`（那是**IEEE** 字），而该函数契约是**recoded** 字 | ✅已修 | 改为 recfn 形式（NaN 指数 `7 <<(oe-2)` 置在 `oe+1` 位上，再接 quiet 位），并注明「本函数所有返回值都是 recoded」 | 新增 `selfcheck` NaN 位级锚点：修前 240 mismatches，修后 0（10560 组） |
+| F3 故障镜像判据沿用 `m12-005` 的「rc≠0 / 无 POST」——自 `m12-019` 起同步故障进 cfx 处理机、继续执行 | ✅已修 | 改判 hmon 的 `excp cause=0x…`（one-hot 逐镜像比对）；证据脚本注释说明判据来源 | 58/58 镜像命中期望 cause |
+| F4 `unit_run` 的 sqrt 组对 hardfloat 逐值比较会在 `sqrt(±0)` 变红（hardfloat 是 `squareRoot(−0)=−0`） | ✅已修 | 新增 `fn_val_root`（只折叠零的两种写法）并注明这是与 hardfloat 唯一有意的值差异；oracle 侧仍逐字节 | `sqrt ft/fo` hf-value-diff=0、oracle-diff=0 |
+| F5 `_quieted` 变成死代码、多处 `src = …` 赋值无用 | ✅已修 | 删除 helper 与 4 处 `src` 局部 | `grep _quieted` 无命中；三个自检 rc=0 |
+| F6 `QEMU_GROUPS` 的注释在 qNaN 结果改为 canonical 后不再准确 | ✅已修 | 补一段：哪些组带 qNaN 结果格、与 softfloat 的 payload/符号差异、QEMU 侧归 `m13-integ-010`、汇总归 `m13-testcases-032` | 注释与 `cases_*_nan` 组的归属一致；组数 50（现场） |
+
+证据脚本自身的三个坑（已修，留作知识沉淀）：① 不能把 chipyard conda 环境放进全局 `PATH`（其 python 3.10 无 `tomllib`，仓库 `make` 全红）；② Verilator harness 会读 stdin，循环读文件时每条 sim 必须 `</dev/null`（否则键名被吃掉前 9 字节）；③ 汇总表格式是 `vectors= N failed=N`（无冒号/竖线），与明细行不同，解析助手须分开。
+
+### 第 2 轮 reviewer 验收（2026-11-13）
+
+**重跑（我自己的命令 → 真实输出/退出码；长输出落运行期临时目录 `/tmp/opencode/<任务ID>/`）**
+
+1. `JOBS=32 bash .work/evidence/m12-chipyard-030/run.sh`（注入前后各一次）⇒ 两次均 `== summary: PASS=84 FAIL=0 ==`、`EXIT=0`：elab rc=0/%Error=0、Verilator rc=0、50/50 组 2118 例逐字节、58/58 镜像 cause、273 例 md5 `2d4d94651346ef673c5a855e024c1489`==基线、单元台 `TOTAL failed=0`（45 组）与 `spec points: 20 vectors table-diff=0`、`apply-series` 21 补丁+二次 0+树 hash `462516e6…` 不变、L2 rc=0。
+2. `run.sh --self-test-inject` ⇒ `EXIT=0`：3 路注入均达 FAIL（table-diff=1/4、模型 oracle-diff=5）→ 还原 md5 `eb0ab6665d7b0e86036fb168843f4ab6` → 回绿。
+3. `make check-patch-tree` ⇒ rc=2，8 problem 全为 qemu/gem5 并行脏树、**chipyard 段 0 条**；`make check-source-state` ⇒ rc=0 `chipyard: OK HEAD=c5d592c clean=True`（testchipip 同 OK）；`check-component-changelog`/`check-index-blobs` ⇒ rc=0；`make apply-series` ⇒ rc=1（拒绝 qemu HEAD、未动任何树），chipyard 幂等以脚本隔离实测为准。
+4. `python3 tools/chipyard/fp_ref.py selfcheck 400` / `divrem 200` / `rndsclb 200` ⇒ 三次 rc=0、mismatches=0（8560 对）。
+5. **我自设计的反例注入**（改本轮未动的 `WumingCompareRecFN.quietNan |= 1`）：`ONLY=C run.sh` ⇒ `EXIT=1`（`qcmp fo(qNaN,1.0)` 实测 `0x7ff8000000000001` vs 条款 `0x7ff8000000000000`、`total failed=107`、`spec-point failures=1`；root 各格仍绿，证明逐格独立）→ `cp`+md5 还原（md5 相等、源树 `git status` 0 行、HEAD 仍 `c5d592c`）→ 同一脚本重跑 ⇒ `EXIT=0`、`PASS=25 FAIL=0`。
+6. **独立语义核验**（期望值我按 spec 条款手写，不经模型/oracle）：44 点 0 差错 = 单元台 20 个 spec point（RTL 实测 `outLo/outHi/flags`）+ 核上 24 个 `.out` dump：`ft2ft/fo2fo` 复制原样、`ftrnd/ftsclb/fo2ft/ft2fo` 的 qNaN ⇒ canonical 且无标志、root `±0` 四档 ⇒ `+0`、`forem/fodiv/foroot` 的 qNaN ⇒ canonical 且不置 NV、`fomin` 单 NaN 返数/双 NaN canonical；模型侧另 15 点同表全对。
+7. **同源判断**：`fp_ref.round_bits` 自述「mirroring WumingRoundAnyRawFNToRecFN」⇒ 舍入原语的特殊值装配两边**同源、该条差分发现力有限**；但 `round_exact` 是独立精确有理数路径（`selfcheck` 把两者钉齐 0 mismatch）、数值路径两套算法、单元台另有 hardfloat 第三方，加上 SPEC_POINTS 抄条款 + 本次独立推导 ⇒ 本任务新规则不靠同源自比。
+
+**约束核验**：改动恰 7 文件（`git show --name-only` 与完成区逐项一致，未触 tests/spec/contracts/Makefile）；双树 `git status -uall` 0 行、HEAD 未变（`289492d7` / `c5d592c`）；完成区 19 行、第 1 轮审阅 15 行；无运行期绝对路径；计数全部现场对上（84 / 45 / 50 / 2118 / 58 / 21 / 20）；注入全程 `cp`+md5，未用 `git checkout/restore/stash`；`JOBS=32 < nproc`，未全核。
+
+**Findings（不阻断，交 architect 收尾处置）**：① 任务书验收 1「`foscmp(qNaN,1.0)` ⇒ `0x7F80_0001`」是笔误——`0x7F80_0001` 是 ft 位型，fo 应为 `0x7FF0_0000_0000_0001`（RTL/条款/SPEC_POINTS 三处都对）；② 任务书验收 6「`JOBS=8`」与 AGENTS 2026-11-13「`JOBS = nproc/2`」冲突，实际按脚本默认 32（未全核）；③ 跨册陈旧表述待同步（均非本任务范围）：`docs/DDLN/…/DD-A009:102`、`docs/fp-oracle-design.md:45/49/65`、`components/gem5/README.md:75`、`tools/gem5/b7_ref.py:351`、`tests/inst/fp/divrem.yaml:727`；④ `divrem_nan` 新增 6 个 qNaN case 沿用 `divrem_snan_*` 重名（识别须靠操作数）；⑤ `fn_val_root` 只放宽对 hardfloat 的零符号对照，oracle 侧仍逐字节严格（已核 `unit_run.py` 的 `r["out"] != want` 分支）。
+
+**判决：Accepted**——终态复核：全量 `run.sh` `PASS=84 FAIL=0` `EXIT=0`、独立语义 44/0、双树干净、组件源 `c5d592c` 未变。
+
+## 完成区
+
+**测试结果**：通过 84/84（`run.sh` → `PASS=84 FAIL=0`，rc=0；默认 `FORCE_BUILD=1` 抹掉 generated 树后**真** elab+Verilator 重建）；注入自检 3/3 路可达 FAIL 并还原回绿（`run.sh --self-test-inject` rc=0）。失败原因：无。
+
+**修改文件**（与 `git status -uall` 逐项一致，7 项）：① `components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala.patch`（`make_patch chipyard` 重导出：1 written / 20 unchanged，`series` 未变）；② `components/chipyard/README.md`；③ `components/chipyard/changelog.md`；④ `tools/chipyard/fp_ref.py`；⑤ `tools/chipyard/fp_sweep.py`；⑥ `tools/chipyard/fp_unit/unit_run.py`；⑦ 本任务书。`WumingFPUnitHarness` **未改**（无需新断言；hardfloat 参考照旧）。组件源树 HEAD=`c5d592c`（base+1、clean），未提交本仓 git。
+
+**验收结果**（RTL 实测：单元台 Verilator，装载值 → 读回 `outLo/outHi`+`flags`；期望值逐条抄条款，不取自 oracle）：
+- `foroot(0x8000…0,2)`/`ftroot(0x8000_0000,2)` ⇒ `0x0`/`0x0`、rf0=0；`±0` 双格式、`RNE/RUP/RDN` 各档同（方向不敏感）
+- `ftroot(0xC080_0000)` ⇒ `0x7FC0_0000`+NV；`foroot(0xC010_…0)` ⇒ `0x7FF8_…_0000`+NV
+- `ftadd(0x7FC1_2345,1.0)` ⇒ `0x7FC0_0000`；`ftsub(1.0,0xFFC1_2345)` ⇒ 同；`foadd(0xFFF8_…_0123,1.0)`、`fomul(1.0,0x7FF8_…_0123)` ⇒ `0x7FF8_…_0000`；均 rf0=0
+- `fo2ft(0xFFF8_…_0123)` ⇒ `0x7FC0_0000`；`ft2fo(0x7FC1_2345)` ⇒ `0x7FF8_…_0000`
+- 排除项：`ftscmp(qNaN,1.0)` ⇒ `0x7F80_0001`+NV、`foscmp` ⇒ `0x7FF0_…_0001`+NV；`foqcmp` 无序 ⇒ `0x7FF8_…_0000`、rf0=0；`fomin` 单 NaN ⇒ `0x3FF0_…0`（数）、双 NaN ⇒ `0x7FF8_…_0000`；`ft2ft`/`fo2fo` 带 payload NaN 复制 ⇒ 原样（核上 `cvt_ff` 逐字节）
+- 单元台：`TOTAL failed=0`（45 组；sqrt ft/fo 各 3100 向量 hf/oracle-diff=0，sclb 71792×2，rnd 15384×2，`spec points` 20/20 table-diff=0）
+- 核上 `fp_sweep`：50/50 组逐字节一致（2118 例；新增 `cvt_nan` 18、扩 `arith_nan`→23、`divrem_nan`→32）；58/58 合法性镜像 cause 命中；273 整数例 md5 `2d4d9465…` == 基线
+- 门控：`check-patch-tree` chipyard problem=0（全局 8 条系并行任务 qemu/gem5 脏树）、`check-source-state` chipyard+子模块 OK、`apply-series` 幂等（21 补丁 / 二次无写入 / 树 hash 不变）、`check-component-changelog`·`check-index-blobs`·L2 rc=0；elab+Verilator 重建（抹树后）rc=0、`%Error`=0，镜像新于源码
+
+**新发现/坑**：① `fp_ref.round_exact`/`f2f_exact` 返回 **recoded** 字（比较前须 `fn_from_recfn`），把 canonical NaN 写成 IEEE 字会让 `selfcheck` 立红（本轮实踩 240 处）；② `faults.json` 的判据自 `m12-019` 起不再是「rc≠0/无 POST」（同步故障进 cfx 处理机后继续执行），只能看 hmon `excp cause=0x…`（48 位零填充）；③ Verilator harness 会读 **stdin**，循环读文件时每条 sim 须 `</dev/null`，否则键名被吃掉 9 字节；④ chipyard conda 的 `python3` 是 3.10（无 `tomllib`），不能进全局 `PATH`，否则仓库 `make` 门控全红（只包住 sbt/verilator/make verilog）；⑤ hardfloat `DivSqrtRecFN_small` 实为 `squareRoot`（`sqrt(−0)=−0`），`rootn(±0,2)=+0` 是与 hardfloat 唯一有意的值差异；⑥ `fp_ref.sclb_exact` 原对 qNaN 返回原 payload（与 §1.4 矛盾），本轮一并收口。
+
+**遗留问题**：无。QEMU/gem5 与 `tests/inst` 向量的同步按任务书非范围，归 `m13-integ-010`/`m13-testcases-032`（`QEMU_GROUPS` 注释已写明差异面）。

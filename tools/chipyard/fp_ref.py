@@ -275,16 +275,10 @@ def round_bits(ie, isig, oe, osig, r, mode, invalid_exc=False,
         exp_out |= out_nan_exp
 
     quiet_bit = 1 << (osig - 2)
-    if isig == osig:
-        payload = bits(r["sig"], osig - 1)
-    elif isig > osig:
-        low = 1 if bits(r["sig"], isig - osig) else 0
-        payload = bits(bits(r["sig"] >> (isig - osig), osig - 1)
-                       | (low * ((1 << (osig - 1)) - 1)), osig - 1)
-    else:
-        payload = bits(bits(r["sig"], isig - 1) << (osig - isig), osig - 1)
-    nan_fract = quiet_bit if (invalid_exc or not r["is_nan"]) \
-        else (payload | quiet_bit)
+    # A NaN result is the canonical quiet NaN: sign 0 (above) and payload all
+    # zero, so only the quiet bit survives (spec/SimRISC-07 §1.4 "NaN 结果的
+    # 取值").  Nothing is copied from `r["sig"]`, whatever the caller fed in.
+    nan_fract = quiet_bit
 
     if is_nan_out or r["is_zero"] or total_under:
         fract_out = nan_fract if is_nan_out else 0
@@ -335,18 +329,12 @@ def round_exact(ie, isig, oe, osig, r, mode, invalid_exc=False,
         return (((0 << (oe + osig)) | ((7 << (oe - 2)) << (osig - 1))
                  | (1 << (osig - 2))), (1 << 0))
     if r["is_nan"]:
-        quiet_bit = 1 << (osig - 2)
-        if isig == osig:
-            payload = bits(r["sig"], osig - 1)
-        elif isig > osig:
-            low = 1 if bits(r["sig"], isig - osig) else 0
-            payload = bits(bits(r["sig"] >> (isig - osig), osig - 1)
-                           | (low * ((1 << (osig - 1)) - 1)), osig - 1)
-        else:
-            payload = bits(bits(r["sig"], isig - 1) << (osig - isig),
-                           osig - 1)
-        return (((0 << (oe + osig)) | ((7 << (oe - 2)) << (osig - 1))
-                 | payload | quiet_bit), 0)
+        # canonical quiet NaN: sign 0, payload 0 (spec/SimRISC-07 §1.4).  The
+        # sign and payload of the input are dropped; IEEE 754-2019 §6.2.3 makes
+        # payload propagation only a *should* and §6.3 leaves the sign open.
+        # The word is in the *recoded* format, like every return of this
+        # function (so the NaN exponent is `7 << (oe-2)` over `oe+1` bits).
+        return ((((7 << (oe - 2)) << (osig - 1)) | (1 << (osig - 2))), 0)
     if r["is_inf"]:
         return (((sign << (oe + osig)) | ((6 << (oe - 2)) << (osig - 1))), 0)
     if r["is_zero"]:
@@ -587,8 +575,8 @@ def i2f_exact(int_width, oe, osig, value, signed, mode):
 def f2f_exact(src_ew, src_sw, dst_ew, dst_sw, x, mode):
     """Exact format-conversion oracle: (destination bits, rf0[4:0] flags).
 
-    An sNaN is an invalid (arithmetic) input: NV and the canonical quiet NaN.
-    A quiet NaN propagates its payload (spec/SimRISC-07 §1.4).  On overflow
+    Every NaN result is the canonical quiet NaN, sign 0 and payload 0
+    (spec/SimRISC-07 §1.4); an sNaN input additionally raises NV.  On overflow
     `fo2ft` returns `±Inf` for RNE/RNA, for a positive RUP overflow and for a
     negative RDN overflow, and `±ft_max` for the other three cells
     (spec/SimRISC-07 §1.4 = IEEE 754-2019 §7.4); `_round_mag` applies that
@@ -607,8 +595,8 @@ def f2f_exact(src_ew, src_sw, dst_ew, dst_sw, x, mode):
 # exponent) and hands it to `round_dyadic`, i.e. the value is rounded once from
 # its exact value -- never from an intermediate rounded result.  The special
 # cases follow spec/SimRISC-07: `NV` for a signalling NaN input and for the
-# invalid operations, a quiet NaN input propagating its payload for add/sub/mul
-# (§1.4), the canonical quiet NaN for the fused multiply-add (§2.5), `-0` below
+# invalid operations, the canonical quiet NaN for *every* NaN result -- quiet
+# NaN input included, whose payload and sign are dropped (§1.4) -- `-0` below
 # `+0` for the comparisons and min/max, the canonical quiet NaN for two NaN
 # operands of min/max (§2.4), and `NV` from a signalling compare on any
 # unordered pair (§4).
@@ -624,12 +612,6 @@ def _exp_all_ones(ew, sw):
 def _canon_qnan(ew, sw):
     """Canonical quiet NaN: sign 0, payload all zero (IEEE 754-2019 §6.2)."""
     return _exp_all_ones(ew, sw) | (1 << (sw - 2))
-
-
-def _quieted(r, ew, sw):
-    """The NaN `r` as a quiet NaN with its payload kept (spec §1.4)."""
-    return _exp_all_ones(ew, sw) | (r["sig"] & ((1 << (sw - 1)) - 1)) \
-        | (1 << (sw - 2))
 
 
 def _inf_bits(sign, ew, sw):
@@ -690,8 +672,9 @@ def add_exact(ew, sw, a, b, sub, mode):
     if _is_snan(ra, sw) or _is_snan(rb, sw):
         return _canon_qnan(ew, sw), NV
     if ra["is_nan"] or rb["is_nan"]:
-        src = ra if ra["is_nan"] else rb
-        return _quieted(src, ew, sw), 0
+        # A quiet NaN input yields the canonical quiet NaN: its payload and
+        # sign are dropped (spec/SimRISC-07 §1.4), so no source is picked.
+        return _canon_qnan(ew, sw), 0
     if ra["is_inf"] or rb["is_inf"]:
         if ra["is_inf"] and rb["is_inf"] and ra["sign"] != sign_b:
             return _canon_qnan(ew, sw), NV
@@ -717,8 +700,9 @@ def mul_exact(ew, sw, a, b, mode):
     if _is_snan(ra, sw) or _is_snan(rb, sw):
         return _canon_qnan(ew, sw), NV
     if ra["is_nan"] or rb["is_nan"]:
-        src = ra if ra["is_nan"] else rb
-        return _quieted(src, ew, sw), 0
+        # A quiet NaN input yields the canonical quiet NaN: its payload and
+        # sign are dropped (spec/SimRISC-07 §1.4), so no source is picked.
+        return _canon_qnan(ew, sw), 0
     if (ra["is_inf"] and rb["is_zero"]) or (ra["is_zero"] and rb["is_inf"]):
         return _canon_qnan(ew, sw), NV
     if ra["is_inf"] or rb["is_inf"]:
@@ -777,10 +761,11 @@ def fma_exact(ew, sw, a, b, c, mode):
 # `round_prefix` for the digits of a square root, `round_dyadic` for the exact
 # remainder), so no intermediate result is ever rounded.  Special values follow
 # spec/SimRISC-07 §2.1 (`fodiv`) and §2.2 (`foroot` = `rootn(x, 2)`): `NV` for
-# 0/0, Inf/Inf, sqrt(negative) and a signalling NaN (with the canonical quiet
-# NaN), `DZ` for a finite dividend over a zero divisor, a quiet NaN input
-# propagating its payload, `±Inf` for the infinite results and `±0` for the
-# zero results (spec/SimRISC-07 §1.4).
+# 0/0, Inf/Inf, sqrt(negative) and a signalling NaN, the canonical quiet NaN for
+# every NaN result (a quiet NaN's payload and sign are dropped, §1.4), `DZ` for
+# a finite dividend over a zero divisor, `±Inf` for the infinite results and
+# `±0` for the zero results -- the root's zero being `+0` for both signs
+# (§9.2.1).
 def _dyadic_parts(r, ew, sw):
     """``(mant, e2)`` of a finite raw float: ``value = mant * 2^e2``."""
     return r["sig"], r["s_exp"] - (1 << ew) - (sw - 1)
@@ -795,8 +780,9 @@ def div_exact(ew, sw, a, b, mode):
     if _is_snan(ra, sw) or _is_snan(rb, sw):
         return _canon_qnan(ew, sw), NV
     if ra["is_nan"] or rb["is_nan"]:
-        src = ra if ra["is_nan"] else rb
-        return _quieted(src, ew, sw), 0
+        # A quiet NaN input yields the canonical quiet NaN: its payload and
+        # sign are dropped (spec/SimRISC-07 §1.4), so no source is picked.
+        return _canon_qnan(ew, sw), 0
     if (ra["is_zero"] and rb["is_zero"]) or (ra["is_inf"] and rb["is_inf"]):
         return _canon_qnan(ew, sw), NV
     if ra["is_inf"]:
@@ -824,21 +810,24 @@ def div_exact(ew, sw, a, b, mode):
 def sqrt_exact(ew, sw, a, mode):
     """Exact `rootn(x, 2)` oracle: ``(IEEE result bits, rf0[4:0] flags)``.
 
-    `rootn(-0, 2)` is explicitly unspecified (spec/SimRISC-07 §2.2); the -0 the
-    two reference engines produce is returned so the differential runs agree,
-    and no test asserts a *value* for it.
+    `rootn(+-0, 2) = +0` (spec/SimRISC-07 §2.2 = IEEE 754-2019 §9.2.1, whose
+    NOTE distinguishes it from `squareRoot(-0) = -0`), so the sign of a zero
+    radicand is cleared and no flag is raised.  Every NaN result is the
+    canonical quiet NaN, with `NV` for an sNaN input and for a negative
+    (non-zero, finite) radicand.
     """
     ra = raw_from_fn(ew, sw, a)
     if _is_snan(ra, sw):
         return _canon_qnan(ew, sw), NV
     if ra["is_nan"]:
-        return _quieted(ra, ew, sw), 0
+        return _canon_qnan(ew, sw), 0
     if ra["is_inf"]:
         if ra["sign"]:
             return _canon_qnan(ew, sw), NV
         return _inf_bits(0, ew, sw), 0
     if ra["is_zero"]:
-        return ra["sign"] << (ew + sw - 1), 0
+        # +0 for both signs: the one place rootn differs from squareRoot.
+        return 0, 0
     if ra["sign"]:
         return _canon_qnan(ew, sw), NV
 
@@ -878,8 +867,9 @@ def rem_exact(ew, sw, a, b):
     if _is_snan(ra, sw) or _is_snan(rb, sw):
         return _canon_qnan(ew, sw), NV
     if ra["is_nan"] or rb["is_nan"]:
-        src = ra if ra["is_nan"] else rb
-        return _quieted(src, ew, sw), 0
+        # A quiet NaN input yields the canonical quiet NaN: its payload and
+        # sign are dropped (spec/SimRISC-07 §1.4), so no source is picked.
+        return _canon_qnan(ew, sw), 0
     if ra["is_inf"] or rb["is_zero"]:
         return _canon_qnan(ew, sw), NV
     if rb["is_inf"] or ra["is_zero"]:
@@ -1002,16 +992,16 @@ def sclb_exact(ew, sw, x, n, mode):
 
     scaleB is one rounding of the exact value ``x * 2^n`` (IEEE 754-2019 §9.2):
     the significand is unchanged, so `round_dyadic` rounds the exact product
-    once and reports `OF`/`UF`/`NX` by the IEEE rules.  A quiet NaN propagates
-    its payload, an sNaN raises `NV` and canonicalises, and ±0/±Inf pass
-    through unchanged (§9.2).
+    once and reports `OF`/`UF`/`NX` by the IEEE rules.  Every NaN result is the
+    canonical quiet NaN (spec/SimRISC-07 §1.4), an sNaN input adding `NV`; ±0
+    and ±Inf pass through unchanged (§9.2).
     """
     r = raw_from_fn(ew, sw, x)
     w = ew + sw
     if r["is_nan"]:
         if _is_snan(r, sw):
             return _canon_qnan(ew, sw), NV
-        return x & ((1 << w) - 1), 0
+        return _canon_qnan(ew, sw), 0
     if r["is_inf"] or r["is_zero"]:
         return x & ((1 << w) - 1), 0
     _, mant, e2 = _dyadic(r, ew, sw)
@@ -1390,11 +1380,14 @@ def selfcheck_divrem(n=300, seed=20260114):
         # ── square root ────────────────────────────────────────────────────
         for x in pats:
             rx = raw_from_fn(ew, sw, x)
-            if rx["is_nan"] or rx["is_inf"] or rx["sign"]:
+            # `-0` is *not* skipped: `rootn(+-0, 2) = +0` (IEEE 754-2019
+            # §9.2.1) is the one rule that tells the root apart from
+            # `squareRoot(-0) = -0`, so both zero signs are exercised below.
+            if rx["is_nan"] or rx["is_inf"] or (rx["sign"] and not rx["is_zero"]):
                 continue
             v, flags = sqrt_exact(ew, sw, x, RNE)
             if rx["is_zero"]:
-                if v != (rx["sign"] << (w - 1)) or flags:
+                if v != 0 or flags:
                     fail("sqrt of zero", hex(x), hex(v), hex(flags))
                 continue
             rv = raw_from_fn(ew, sw, v)
@@ -1651,8 +1644,10 @@ def selfcheck_rndsclb(n=300, seed=20260115):
                     counts["sclb"] += 1
                     fl = flags & 0x1F
                     if rx["is_nan"]:
-                        ok = (v == _canon_qnan(ew, sw) and fl == NV) \
-                            if _is_snan(rx, sw) else (v == xbits and fl == 0)
+                        # every NaN result is canonical (m12-chipyard-030);
+                        # an sNaN input adds NV, a qNaN none
+                        ok = v == _canon_qnan(ew, sw) and \
+                            fl == (NV if _is_snan(rx, sw) else 0)
                         if not ok:
                             fail("sclb extreme nan", hex(x), k, hex(v),
                                  hex(flags))
@@ -1734,6 +1729,14 @@ def selfcheck(n=4000, seed=20260111):
         ("ft2fo", FT, (8, 26), FO),
     ]
     for name, (ie, isig), raw_fmt, (oe, osig) in cases:
+        # The canonical quiet NaN of the destination *IEEE* format (sign 0,
+        # payload 0, spec/SimRISC-07 §1.4).  Rounding a NaN input must land on
+        # it bit for bit from either model; `recfn_value` collapses NaN
+        # payloads, so this is checked on the encoded word instead.  (The
+        # recoded word itself may keep don't-care exponent bits below the
+        # special-value pattern, exactly as hardfloat's primitive does; the
+        # encoder forces the IEEE exponent to all ones.)
+        canon_nan = _canon_qnan(oe, osig)
         for r in sample_raw(ie, isig, n, rng):
             for mode in (RNE, RTZ, RDN, RUP, RNA):
                 a = round_bits(ie, isig, oe, osig, r, mode)
@@ -1746,6 +1749,17 @@ def selfcheck(n=4000, seed=20260111):
                         print(f"  [{name} {MODE_NAMES[mode]}] "
                               f"in={raw_pack(r, ie, isig):x} "
                               f"bits={a[0]:x}/{a[1]} exact={b[0]:x}/{b[1]}")
+                if r["is_nan"]:
+                    fa = fn_from_recfn(oe, osig, a[0])
+                    fb = fn_from_recfn(oe, osig, b[0])
+                    if fa != canon_nan or fb != canon_nan:
+                        bad += 1
+                        if bad <= 10:
+                            print(f"  [{name} {MODE_NAMES[mode]} "
+                                  f"NaN not canonical] "
+                                  f"in={raw_pack(r, ie, isig):x} "
+                                  f"bits={fa:x} exact={fb:x} "
+                                  f"want={canon_nan:x}")
     print(f"selfcheck: {checked} (input, mode) pairs, {bad} mismatches")
     return 0 if bad == 0 else 1
 

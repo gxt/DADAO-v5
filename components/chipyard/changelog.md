@@ -4,6 +4,10 @@
 
 ## M12
 
+- **2026-11-13 `m12-chipyard-030`**
+  - 摘要：**结果 NaN 统一 canonical quiet NaN + `rootn(±0,2)=+0`**（`spec/SimRISC-07 §1.4`/§2.2，用户 2026-11-13 裁定 R1/R2）。`WumingFP.scala`：舍入原语 `WumingRoundAnyRawFNToRecFN` 不再复制输入 payload（`nanFract` → 只置 quiet 位，删 `payload`）；`WumingAddRecFN`/`WumingMulRecFN`/`WumingRemRecFN`/`WumingDivSqrtRecFN` 删除 `nanSrc`/`nanSig`/`nanSigZ` 的 payload 注入，NaN 结果只由原语按 `isNaN`/`invalidExc` 生成（符号恒 0、payload 全零）；`WumingDivSqrtRecFN` 的 root 零结果 `sign = rawA.sign && !rawA.isZero` ⇒ `rootn(±0,2)=+0`、不置标志。不适用面保持：`ft2ft`/`fo2fo` 复制、signaling compare 的 sNaN 位型、min/max 单 NaN 返回数。模型 `fp_ref`：`round_bits`/`round_exact` 的 NaN 分支取 canonical、`add/mul/div/rem/sqrt_exact` 的 qNaN 分支取 canonical、`sqrt_exact` 零分支返回 `+0`、`selfcheck` 增 NaN 位级 canonical 断言。工具：`fp_unit/unit_run` 增 `spec points` 20 例（期望值逐条抄条款），`sqrt` 组对 hardfloat 只容忍零符号差（`squareRoot(-0)=-0`）；`fp_sweep` 增 `cvt_nan` 18 例、扩 `arith_nan`（ft + 负号 qNaN）与 `divrem_nan`（root ±0 四档）；`QEMU_GROUPS` 注明 qNaN 结果与 softfloat 的 payload/符号差异（QEMU 侧归 `m13-integ-010`，汇总归 `m13-testcases-032`）。
+  - 执行者：engineer
+
 - **2026-11-12 `m12-chipyard-024`**
   - 摘要：**quiet compare 遇 sNaN 置 `NV`（跟 IEEE 754-2019 §5.11）**。用户裁定「改为置 NV（跟 IEEE）」后，`WumingFP.scala` 的 `WumingCompareRecFN` 的 `NV` 条件由 `Mux(io.signaling, unordered, false.B)` 改为 `Mux(io.signaling, unordered, rawA.isSigNaN || rawB.isSigNaN)`：signaling（`ftscmp`/`foscmp`）仍对**任何**无序（含 qNaN）置 `NV`（§5.6.1），quiet（`ftqcmp`/`foqcmp`）**仅**在 sNaN 输入时置、qNaN 输入不置 —— 与 hardfloat `CompareRecFN` 的 `isSigNaNRawFloat(a) || isSigNaNRawFloat(b) || (signaling && !ordered)` 逐位一致，单元台因此取消 quiet 的 sNaN 容差（`hf-flag-diff` 改为严格）。工具：`fp_ref.cmp_exact` 同步同一口径；`fp_sweep` 的 `cmp_nan` 组按模型自动跟随；`tests/inst/fp/arith.yaml` 补 10 例（quiet 的 sNaN/qNaN × 两个操作数方向 × ft/fo，加 ft/fo 的 signaling 对照：qNaN ⇒ `NV`、有序 ⇒ 不置）。比较仍为组合逻辑，拍数不变。
 
