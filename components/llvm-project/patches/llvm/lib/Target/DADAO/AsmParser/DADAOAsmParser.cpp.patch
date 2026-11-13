@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..415fb0162
+index 000000000..70cddd085
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2680 @@
+@@ -0,0 +1,2699 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -44,6 +44,7 @@ index 000000000..415fb0162
 +#include "llvm/MC/MCSubtargetInfo.h"
 +#include "llvm/MC/MCSymbol.h"
 +#include "llvm/MC/MCTargetOptions.h"
++#include "llvm/MC/MCValue.h"
 +#include "llvm/MC/TargetRegistry.h"
 +#include "llvm/Support/MathExtras.h"
 +#include "llvm/Support/raw_ostream.h"
@@ -535,6 +536,24 @@ index 000000000..415fb0162
 +  if (Expr->evaluateAsAbsolute(Val)) {
 +    Operands.push_back(DADAOOperand::createImm(Val, StartLoc, EndLoc));
 +  } else {
++    // A symbol *difference* (`A - B`) has no single-relocation form: an ELF
++    // relocation carries one symbol plus a constant addend, so the value can
++    // never be recovered at link time.  Such an expression must therefore not
++    // become an instruction immediate -- the operand classes below cannot
++    // represent it, and the old behaviour was either a silently 0 immediate
++    // (the assembler folded the difference, and the ABS48 applyFixup dropped
++    // the value; ISS-424) or a report_fatal_error ("no PC-relative fixup
++    // kind").  Reject it here, while the operand's source location is known.
++    // A single symbol (or symbol + constant), which a relocation *can* carry,
++    // is unaffected and keeps going to the fixup/relocation path.
++    MCValue V;
++    if (Expr->evaluateAsRelocatable(V, /*Asm=*/nullptr) && V.getAddSym() &&
++        V.getSubSym())
++      return Error(StartLoc,
++                   "cannot use a symbol difference ('A - B') as an instruction "
++                   "immediate: there is no relocation form for it; use an "
++                   "absolute constant, or compute the IP at run time "
++                   "(aip.si / rb2rb)");
 +    Operands.push_back(DADAOOperand::createImmExpr(Expr, StartLoc, EndLoc));
 +  }
 +  return false;

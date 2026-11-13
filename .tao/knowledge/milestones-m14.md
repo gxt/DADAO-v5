@@ -29,12 +29,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-llvm-005 | 2026-11-14 06:35 | 3–4 h | 标签差作指令立即数须报错（`ISS-424`；禁静默写 0） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-llvm-005 | 2026-11-14 08:10 | 标签差立即数报错 + ABS48 wyde 写回（`ISS-424` 关闭；lit 174/174） |
 | m14-llvm-002 | 2026-11-14 06:20 | DADAO SSP 后端（`STACK_CHECK_GUARD`/`CHECK_FAIL`；guard 模式 fail-closed；9/9 + E2E 66） |
 | m14-qemu-001 | 2026-11-14 05:40 | Vast 最小 smon（boot info 15 字段 + 1 超页 index 4096 + PTBR=0/ptw_enable=1 + VA 入口） |
 | m14-llvm-004 | 2026-11-14 04:10 | DWARF 编号（256 寄存器）+ CFI（RA=ra63/255；`.eh_frame` absptr；修 `llvm-mc` abort） |

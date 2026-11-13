@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000..461982b68
+index 000000000..df228b9b0
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
-@@ -0,0 +1,388 @@
+@@ -0,0 +1,415 @@
 +//===-- DADAOAsmBackend.cpp - DADAO Assembler Backend ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -254,10 +254,37 @@ index 000000000..461982b68
 +      return;
 +    }
 +
-+    // ABS48 is an absolute address fixed up at link time; the assembler never
-+    // resolves it in place (relaxation disabled, contract-elf.md §4).
-+    if (Kind == llvm::DADAO::DADAO_FK_ABS48)
++    // ABS48 is an absolute 48-bit address.  At link time the linker writes the
++    // 16-bit wyde selected by the instruction's wyde-position
++    // (hb[5:4], i.e. bits[17:16]) into the low 16 bits, preserving the opcode
++    // and register fields (lld R_DADAO_ABS48 exec path).  A fixup that the
++    // assembler itself resolved -- the expression folded to an absolute value
++    // (a forward absolute symbol, or a same-section symbol difference that
++    // survived the parser) -- must be patched exactly the same way.  Returning
++    // without writing anything left the field at its 0 placeholder, i.e. a
++    // silently wrong immediate (ISS-424); an address that does not fit the
++    // 48-bit space is an error, never a truncated slice.
++    if (Kind == llvm::DADAO::DADAO_FK_ABS48) {
++      if (!isUInt<48>(Value)) {
++        Asm->getContext().reportError(
++            Fixup.getLoc(),
++            Twine("absolute address 0x") + Twine::utohexstr(Value) +
++                " does not fit in the 48-bit DADAO address space");
++        return;
++      }
++      uint32_t Inst = (static_cast<uint32_t>(Data[0]) << 24) |
++                      (static_cast<uint32_t>(Data[1]) << 16) |
++                      (static_cast<uint32_t>(Data[2]) << 8) |
++                      static_cast<uint32_t>(Data[3]);
++      const unsigned WP = (Inst >> 16) & 0x3;
++      Inst = (Inst & 0xFFFF0000u) |
++             (static_cast<uint32_t>(Value >> (16 * WP)) & 0xFFFFu);
++      Data[0] = (Inst >> 24) & 0xFF;
++      Data[1] = (Inst >> 16) & 0xFF;
++      Data[2] = (Inst >> 8) & 0xFF;
++      Data[3] = Inst & 0xFF;
 +      return;
++    }
 +
 +    // ld/st symbol displacement (DADAO_FK_REL12 / DADAO_FK_ABS12): both live in
 +    // the rrii imms12 field, Inst{11:0}.  REL12 is PC-relative (Value = S + A -

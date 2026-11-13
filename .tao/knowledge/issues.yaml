@@ -525,10 +525,10 @@
   scope:
   - llvm
   - testcases
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: 【P2】`llvm-mc`/`clang` 对**标签差**（`. - _start`、`L1 - L0`）作指令立即数时**静默折成 0**、无诊断：`m13-testcases-019` 的 `aip.si` 用例因此无法在汇编期表达「当前 IP + 偏移」，只能用绝对常量 `ENTRY + 字面偏移` 绕开。风险：后续 `.S` 会静默得到 0 期望（假绿）。建议：MC 层对不可解析的符号差报错（或至少 warning），并补 lit 用例。
+  status: closed
+  closed_in: M14
+  resolved_by: "m14-llvm-005（符号差立即数明确报错 + ABS48 已解析路径按 wp 写回 wyde、>48 位报错；lit 174/174、tests/inst 116/116 对象逐字节不变）"
+  title: "【P2】`llvm-mc`/`clang` 对**标签差**（`. - _start`、`L1 - L0`）作指令立即数时**静默折成 0**、无诊断：`m13-testcases-019` 的 `aip.si` 用例因此无法在汇编期表达「当前 IP + 偏移」，只能用绝对常量 `ENTRY + 字面偏移` 绕开。风险：后续 `.S` 会静默得到 0 期望（假绿）。建议：MC 层对不可解析的符号差报错（或至少 warning），并补 lit 用例。"
 - id: ISS-425
   scope:
   - llvm
