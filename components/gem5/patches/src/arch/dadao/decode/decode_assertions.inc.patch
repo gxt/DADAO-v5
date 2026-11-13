@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/decode/decode_assertions.inc b/src/arch/dadao/decode/decode_assertions.inc
 new file mode 100644
-index 0000000..7227907
+index 0000000..4e866dc
 --- /dev/null
 +++ b/src/arch/dadao/decode/decode_assertions.inc
 @@ -0,0 +1,796 @@
@@ -35,18 +35,18 @@ index 0000000..7227907
 +inline constexpr const char *kAssertRules15[] = {"excp_malign"};
 +inline constexpr const char *kAssertLegality16[] = {"aligned(8)"};
 +inline constexpr const char *kAssertRules16[] = {"excp_malign"};
-+inline constexpr const char *kAssertLegality19[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64"};
-+inline constexpr const char *kAssertRules19[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kAssertLegality20[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(2)"};
-+inline constexpr const char *kAssertRules20[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign"};
-+inline constexpr const char *kAssertLegality21[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(4)"};
-+inline constexpr const char *kAssertRules21[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign"};
-+inline constexpr const char *kAssertLegality22[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64"};
-+inline constexpr const char *kAssertRules22[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kAssertLegality23[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(2)"};
-+inline constexpr const char *kAssertRules23[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign"};
-+inline constexpr const char *kAssertLegality24[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(4)"};
-+inline constexpr const char *kAssertRules24[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign"};
++inline constexpr const char *kAssertLegality19[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "rdhc < rdha || rdhc >= rdha + immu6"};
++inline constexpr const char *kAssertRules19[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "mreg_range_addr_overlap"};
++inline constexpr const char *kAssertLegality20[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(2)", "rdhc < rdha || rdhc >= rdha + immu6"};
++inline constexpr const char *kAssertRules20[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign", "mreg_range_addr_overlap"};
++inline constexpr const char *kAssertLegality21[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(4)", "rdhc < rdha || rdhc >= rdha + immu6"};
++inline constexpr const char *kAssertRules21[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign", "mreg_range_addr_overlap"};
++inline constexpr const char *kAssertLegality22[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "rdhc < rdha || rdhc >= rdha + immu6"};
++inline constexpr const char *kAssertRules22[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "mreg_range_addr_overlap"};
++inline constexpr const char *kAssertLegality23[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(2)", "rdhc < rdha || rdhc >= rdha + immu6"};
++inline constexpr const char *kAssertRules23[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign", "mreg_range_addr_overlap"};
++inline constexpr const char *kAssertLegality24[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(4)", "rdhc < rdha || rdhc >= rdha + immu6"};
++inline constexpr const char *kAssertRules24[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign", "mreg_range_addr_overlap"};
 +inline constexpr const char *kAssertLegality25[] = {"immu6 != 0", "rfha + immu6 <= 64"};
 +inline constexpr const char *kAssertRules25[] = {"mreg_zero", "mreg_range_overflow"};
 +inline constexpr const char *kAssertLegality26[] = {"immu6 != 0", "rfha + immu6 <= 64"};
@@ -57,12 +57,12 @@ index 0000000..7227907
 +inline constexpr const char *kAssertRules28[] = {"mreg_zero", "mreg_range_overflow", "excp_malign"};
 +inline constexpr const char *kAssertLegality29[] = {"immu6 != 0", "rdha + immu6 <= 64", "aligned(4)"};
 +inline constexpr const char *kAssertRules29[] = {"mreg_zero", "mreg_range_overflow", "excp_malign"};
-+inline constexpr const char *kAssertLegality30[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(8)"};
-+inline constexpr const char *kAssertRules30[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign"};
++inline constexpr const char *kAssertLegality30[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(8)", "rdhc < rdha || rdhc >= rdha + immu6"};
++inline constexpr const char *kAssertRules30[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign", "mreg_range_addr_overlap"};
 +inline constexpr const char *kAssertLegality31[] = {"immu6 != 0", "rdha + immu6 <= 64", "aligned(8)"};
 +inline constexpr const char *kAssertRules31[] = {"mreg_zero", "mreg_range_overflow", "excp_malign"};
-+inline constexpr const char *kAssertLegality32[] = {"rbha != rb0", "immu6 != 0", "rbha + immu6 <= 64", "aligned(8)"};
-+inline constexpr const char *kAssertRules32[] = {"dst_rb0", "mreg_zero", "mreg_range_overflow", "excp_malign"};
++inline constexpr const char *kAssertLegality32[] = {"rbha != rb0", "immu6 != 0", "rbha + immu6 <= 64", "aligned(8)", "rbhb < rbha || rbhb >= rbha + immu6"};
++inline constexpr const char *kAssertRules32[] = {"dst_rb0", "mreg_zero", "mreg_range_overflow", "excp_malign", "mreg_range_addr_overlap"};
 +inline constexpr const char *kAssertLegality33[] = {"immu6 != 0", "rbha + immu6 <= 64", "aligned(8)"};
 +inline constexpr const char *kAssertRules33[] = {"mreg_zero", "mreg_range_overflow", "excp_malign"};
 +inline constexpr const char *kAssertLegality34[] = {"immu6 != 0", "raha + immu6 <= 64", "aligned(8)"};
@@ -513,20 +513,20 @@ index 0000000..7227907
 +    {"st.o_rrii_ra", "st.o", "rrii", "m1", "contract-isa §3.3.1", kAssertLegality16, 1, kAssertRules16, 1, 0xff000000u, 0x25000000u, 0x25ab5040u, 0x25, -1, 1, 3, {{"raha", 23, 18, "src", "ra", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"imms12", 11, 0, "imm", "imm", true, 0x40ull, 64}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}}},
 +    {"ld.o_rrii_rf", "ld.o", "rrii", "fp", "contract-fp §11", nullptr, 0, nullptr, 0, 0xff000000u, 0x26000000u, 0x26ab5040u, 0x26, -1, 1, 3, {{"rfha", 23, 18, "dst", "rf", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"imms12", 11, 0, "imm", "imm", true, 0x40ull, 64}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}}},
 +    {"st.o_rrii_rf", "st.o", "rrii", "fp", "contract-fp §11", nullptr, 0, nullptr, 0, 0xff000000u, 0x27000000u, 0x27ab5040u, 0x27, -1, 1, 3, {{"rfha", 23, 18, "src", "rf", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"imms12", 11, 0, "imm", "imm", true, 0x40ull, 64}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}}},
-+    {"ldm.ub_rrri_rd", "ldm.ub", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality19, 3, kAssertRules19, 3, 0xff000000u, 0x28000000u, 0x28ab504bu, 0x28, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
-+    {"ldm.uw_rrri_rd", "ldm.uw", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality20, 4, kAssertRules20, 4, 0xff000000u, 0x29000000u, 0x29ab504bu, 0x29, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
-+    {"ldm.ut_rrri_rd", "ldm.ut", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality21, 4, kAssertRules21, 4, 0xff000000u, 0x2a000000u, 0x2aab504bu, 0x2a, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
-+    {"ldm.sb_rrri_rd", "ldm.sb", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality22, 3, kAssertRules22, 3, 0xff000000u, 0x2b000000u, 0x2bab504bu, 0x2b, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
-+    {"ldm.sw_rrri_rd", "ldm.sw", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality23, 4, kAssertRules23, 4, 0xff000000u, 0x2c000000u, 0x2cab504bu, 0x2c, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
-+    {"ldm.st_rrri_rd", "ldm.st", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality24, 4, kAssertRules24, 4, 0xff000000u, 0x2d000000u, 0x2dab504bu, 0x2d, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
++    {"ldm.ub_rrri_rd", "ldm.ub", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality19, 4, kAssertRules19, 4, 0xff000000u, 0x28000000u, 0x28ab504bu, 0x28, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
++    {"ldm.uw_rrri_rd", "ldm.uw", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality20, 5, kAssertRules20, 5, 0xff000000u, 0x29000000u, 0x29ab504bu, 0x29, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
++    {"ldm.ut_rrri_rd", "ldm.ut", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality21, 5, kAssertRules21, 5, 0xff000000u, 0x2a000000u, 0x2aab504bu, 0x2a, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
++    {"ldm.sb_rrri_rd", "ldm.sb", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality22, 4, kAssertRules22, 4, 0xff000000u, 0x2b000000u, 0x2bab504bu, 0x2b, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
++    {"ldm.sw_rrri_rd", "ldm.sw", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality23, 5, kAssertRules23, 5, 0xff000000u, 0x2c000000u, 0x2cab504bu, 0x2c, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
++    {"ldm.st_rrri_rd", "ldm.st", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality24, 5, kAssertRules24, 5, 0xff000000u, 0x2d000000u, 0x2dab504bu, 0x2d, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
 +    {"ldm.t_rrri_rf", "ldm.t", "rrri", "fp", "contract-fp §11", kAssertLegality25, 2, kAssertRules25, 2, 0xff000000u, 0x2e000000u, 0x2eab504bu, 0x2e, -1, 1, 4, {{"rfha", 23, 18, "dst", "rf", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
 +    {"stm.t_rrri_rf", "stm.t", "rrri", "fp", "contract-fp §11", kAssertLegality26, 2, kAssertRules26, 2, 0xff000000u, 0x2f000000u, 0x2fab504bu, 0x2f, -1, 1, 4, {{"rfha", 23, 18, "src", "rf", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
 +    {"stm.b_rrri_rd", "stm.b", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality27, 2, kAssertRules27, 2, 0xff000000u, 0x30000000u, 0x30ab504bu, 0x30, -1, 1, 4, {{"rdha", 23, 18, "src", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
 +    {"stm.w_rrri_rd", "stm.w", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality28, 3, kAssertRules28, 3, 0xff000000u, 0x31000000u, 0x31ab504bu, 0x31, -1, 1, 4, {{"rdha", 23, 18, "src", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
 +    {"stm.t_rrri_rd", "stm.t", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality29, 3, kAssertRules29, 3, 0xff000000u, 0x32000000u, 0x32ab504bu, 0x32, -1, 1, 4, {{"rdha", 23, 18, "src", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
-+    {"ldm.o_rrri_rd", "ldm.o", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality30, 4, kAssertRules30, 4, 0xff000000u, 0x38000000u, 0x38ab504bu, 0x38, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
++    {"ldm.o_rrri_rd", "ldm.o", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality30, 5, kAssertRules30, 5, 0xff000000u, 0x38000000u, 0x38ab504bu, 0x38, -1, 1, 4, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
 +    {"stm.o_rrri_rd", "stm.o", "rrri", "m1", "contract-isa §3.1.2", kAssertLegality31, 3, kAssertRules31, 3, 0xff000000u, 0x39000000u, 0x39ab504bu, 0x39, -1, 1, 4, {{"rdha", 23, 18, "src", "rd", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
-+    {"ldm.o_rrri_rb", "ldm.o", "rrri", "m1", "contract-isa §3.2", kAssertLegality32, 4, kAssertRules32, 4, 0xff000000u, 0x3a000000u, 0x3aab504bu, 0x3a, -1, 1, 4, {{"rbha", 23, 18, "dst", "rb", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
++    {"ldm.o_rrri_rb", "ldm.o", "rrri", "m1", "contract-isa §3.2", kAssertLegality32, 5, kAssertRules32, 5, 0xff000000u, 0x3a000000u, 0x3aab504bu, 0x3a, -1, 1, 4, {{"rbha", 23, 18, "dst", "rb", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
 +    {"stm.o_rrri_rb", "stm.o", "rrri", "m1", "contract-isa §3.2", kAssertLegality33, 3, kAssertRules33, 3, 0xff000000u, 0x3b000000u, 0x3bab504bu, 0x3b, -1, 1, 4, {{"rbha", 23, 18, "src", "rb", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
 +    {"ldm.o_rrri_ra", "ldm.o", "rrri", "m1", "contract-isa §3.3.2", kAssertLegality34, 3, kAssertRules34, 3, 0xff000000u, 0x3c000000u, 0x3cab504bu, 0x3c, -1, 1, 4, {{"raha", 23, 18, "dst", "ra", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},
 +    {"stm.o_rrri_ra", "stm.o", "rrri", "m1", "contract-isa §3.3.2", kAssertLegality35, 3, kAssertRules35, 3, 0xff000000u, 0x3d000000u, 0x3dab504bu, 0x3d, -1, 1, 4, {{"raha", 23, 18, "src", "ra", false, 0x2aull, 42}, {"rbhb", 17, 12, "src", "rb", false, 0x35ull, 53}, {"rdhc", 11, 6, "src", "rd", false, 0x1ull, 1}, {"immu6", 5, 0, "imm", "imm", false, 0xbull, 11}}},

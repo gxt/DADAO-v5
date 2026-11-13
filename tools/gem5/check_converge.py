@@ -38,8 +38,9 @@ OPCODES = ROOT / "contracts/opcodes.yaml"
 
 # Frozen per-batch [PASS] baselines (GEM5-006t..GEM5-012t, re-measured
 # 2026-11-02 before this task).  A drop here is a regression, never a change of
-# expectation.
-PASS_BASELINE = {1: 2102, 2: 1160, 3: 4248, 4: 3696, 5: 1215, 6: 1362,
+# expectation.  b1 re-frozen 2026-11-13 (m13-gem5-008 adds the ldm
+# address-register-overlap assertions).
+PASS_BASELINE = {1: 2156, 2: 1160, 3: 4248, 4: 3696, 5: 1215, 6: 1362,
                  7: 2979}
 DECODE_BASELINE = {"positive": 264, "negative": 388, "legality": 28,
                    "legacy": 2}

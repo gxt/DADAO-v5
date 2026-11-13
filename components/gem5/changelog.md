@@ -161,3 +161,7 @@
 - **2026-11-12 m13-gem5-007**
   - 摘要：**`fo2ft` 溢出按舍入方向取 `±Inf` / `±ft_max`（SimRISC-07 §1.4、IEEE 754-2019 §7.4）**。`exec/b7.cc` 的 `runConvertFF` 删去「溢出结果一律改写为 ±Inf」的后处理，直接采用 `fp::convert`（单次 `roundPack` → `overflowBits`）按方向给出的形态与 `OF|NX`：RNE/RNA 双向 `±Inf`、RTZ 双向 `±ft_max`、RUP 正 `+Inf`/负 `−ft_max`、RDN 正 `+ft_max`/负 `−Inf`、动态 `0x20` 取 `rf0[33:32]`（`00` RNE / `01` RTZ / `10` RDN / `11` RUP），`ft_max = 0x7F7F_FFFF`、恒不置 `UF`；`b7_test.cc` 增 18 格（六档 × 正负、动态四档各正负一格）断言，逐格打印值与 `rf0[4:0]`。参考模型 `tools/gem5/b7_ref.py` 同步取 spec 表并补 18 格显式向量，另修三处既有缺陷：`op_convert_ff` 的「恒 ±Inf」覆盖、`_overflow_bits` 返回 tuple 且经 `encode` 自递归（RNA/动态溢出原无向量故未暴露）、`conv_mode` 不认动态码 `0x20`。补丁 2 份改（`b7.cc`/`b7_test.cc`），`make_patch.py` 重导出。
   - 执行者：engineer
+
+- **2026-11-13 m13-gem5-008**
+  - 摘要：**`ldm` 的地址寄存器落入传送范围 ⇒ ILLI（SimRISC-01 §1/§2，用户裁定「重叠不再按原始值计算」）**。`exec/b1.cc` 在 `immu6 == 0` / `起始+immu6 <= 64` 同一静态检查段加规则：`ldm`（`Access::Load && Shape::Multi`）同组地址寄存器落在 `[dst, dst+immu6)` ⇒ ILLI，先于任何元素处理（不发访存、不写寄存器）——RD 形式查索引 `rdhc`、RB 形式查基址 `rbhb`；`stm` 不加检查（只读传送范围、地址由指令开始时的操作数给出），RA/RF 形式结构性不适用。`b1_test.cc` 的 `knownRules`/`knownLegality` 收录 `mreg_range_addr_overlap` 与两条新 legality 并按规则逐 id 消费（范围内 ILLI、范围外一位正常），块传送用例改成三组验收（`ldm` RD 内/外、`ldm` RB 内/外、`stm` RD/RB 重叠正常执行、RA/RF 不适用），`1+63` 边界例同时保持地址寄存器在块外。解码表按已合入的 `contracts/opcodes.yaml` 重生成（8 条 `ldm` 增该 rule/legality）；`tools/gem5/check_converge.py` 的 b1 PASS 基线 2102 → 2156。补丁 4 份改，`make_patch.py` 重导出。
+  - 执行者：engineer

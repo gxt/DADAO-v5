@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b1_test.cc b/src/arch/dadao/exec/b1_test.cc
 new file mode 100644
-index 0000000..47ec807
+index 0000000..5ef9d04
 --- /dev/null
 +++ b/src/arch/dadao/exec/b1_test.cc
-@@ -0,0 +1,1320 @@
+@@ -0,0 +1,1459 @@
 +/*
 + * DADAO gem5 B1 execution assertions (GEM5-006t).
 + *
@@ -17,8 +17,10 @@ index 0000000..47ec807
 + *     from mnemonics) and must equal the live decode-table B1 set;
 + *   * one positive case per id: RD/RB/RA/RF x single/multi, big-endian
 + *     byte-level expectations, zero/sign extension, 32-bit RF half writes;
-+ *   * ILLI: load into rd0/rb0, immu6 == 0, start+immu6 > 64; stores into
-+ *     rd0/rb0, ra0 and rf0 stay legal;
++ *   * ILLI: load into rd0/rb0, immu6 == 0, start+immu6 > 64, and (ldm only)
++ *     an address register inside the destination block; stores into rd0/rb0,
++ *     ra0 and rf0 stay legal, and stm keeps overlapping address registers
++ *     legal (SimRISC-01 §1/§2);
 + *   * MALIGN for width 2/4/8 (single and multi), byte accesses on odd
 + *     addresses stay legal, alignment is checked before any memory access;
 + *   * block addressing uses the *original* rdhc, i increasing, read before
@@ -612,11 +614,13 @@ index 0000000..47ec807
 +{
 +    static const char *const knownRules[] = {
 +        "dst_rd0", "dst_rb0", "mreg_zero", "mreg_range_overflow",
-+        "excp_malign",
++        "mreg_range_addr_overlap", "excp_malign",
 +    };
 +    static const char *const knownLegality[] = {
 +        "rdha != rd0", "rbha != rb0", "immu6 != 0", "rdha + immu6 <= 64",
 +        "rbha + immu6 <= 64", "raha + immu6 <= 64", "rfha + immu6 <= 64",
++        "rdhc < rdha || rdhc >= rdha + immu6",
++        "rbhb < rbha || rbhb >= rbha + immu6",
 +        "aligned(2)", "aligned(4)", "aligned(8)",
 +    };
 +
@@ -670,6 +674,32 @@ index 0000000..47ec807
 +                check(good != exec::Fault::Illegal,
 +                      "%s rule %s: 62+2 is legal (got %s)", entry.id, rule,
 +                      faultName(good));
++            } else if (strEq(rule, "mreg_range_addr_overlap")) {
++                // SimRISC-01 §1/§2: the address register of an `ldm` must not
++                // lie in the destination block; one past the end is legal.
++                const bool rdForm = o->bank == TB_RD;
++                const exec::Fault bad = runWord(
++                    ctx, entry.id,
++                    rdForm ? makeWord(entry.id, 5, 3, 0, 6, 2)
++                           : makeWord(entry.id, 5, 6, 0, 20, 2));
++                check(bad == exec::Fault::Illegal,
++                      "%s rule %s: address register inside the block -> "
++                      "Illegal (got %s)", entry.id, rule, faultName(bad));
++                MockContext ok;
++                initContext(ok, 0x1000);
++                // One past the block: RD form -> rdhc == 7, RB form ->
++                // rbhb == 7; both land on EA 0x1040 and read normally.
++                if (rdForm)
++                    ok.rd[7] = 0x40;
++                else
++                    ok.rb[7] = 0x1000;
++                const exec::Fault good = runWord(
++                    ok, entry.id,
++                    rdForm ? makeWord(entry.id, 5, 3, 0, 7, 2)
++                           : makeWord(entry.id, 5, 7, 0, 20, 2));
++                check(good == exec::Fault::None,
++                      "%s rule %s: one past the block is legal (got %s)",
++                      entry.id, rule, faultName(good));
 +            } else if (strEq(rule, "excp_malign")) {
 +                const unsigned imm = o->multi ? 0 : 1;
 +                const unsigned off = o->multi ? 21 : 20;
@@ -860,51 +890,160 @@ index 0000000..47ec807
 +void
 +checkBlocks()
 +{
-+    // rdhc snapshot: dst block [19..21] contains the rdhc register (rd20).
++    // ---- SimRISC-01 §1/§2: multi-register loads must not take an address
++    // register from their own destination block.  The check is static, before
++    // any element: no memory access, no register write.  `stm` keeps the
++    // overlap legal (it never writes a register), and the RA/RF forms cannot
++    // overlap structurally (address registers in RB/RD).
++
++    // Group 1a: ldm RD, index rdhc inside the block -> ILLI.
 +    {
 +        MockContext ctx;
 +        initContext(ctx, 0x1000);
-+        ctx.rd[20] = 0x40;
 +        fillPattern(ctx, 0x1040, 24);
++        const uint64_t before[3] = {ctx.rd[19], ctx.rd[20], ctx.rd[21]};
 +        const exec::Fault fault = runWord(
 +            ctx, "ldm.o_rrri_rd", makeWord("ldm.o_rrri_rd", 19, 3, 0, 20, 3));
-+        check(fault == exec::Fault::None, "ldm rdhc snapshot: fault %s",
++        check(fault == exec::Fault::Illegal,
++              "ldm RD rdhc in block [19..21]: Illegal (got %s)",
 +              faultName(fault));
-+        for (unsigned i = 0; i < 3; ++i) {
-+            check(ctx.rd[19 + i] == patternRaw(8, i),
-+                  "ldm rdhc snapshot: rd%u = 0x%llx", 19 + i,
-+                  static_cast<unsigned long long>(ctx.rd[19 + i]));
-+        }
++        check(ctx.readAddrs.empty(), "ldm RD rdhc in block: no memory read");
++        bool unchanged = true;
++        for (unsigned i = 0; i < 3; ++i)
++            unchanged = unchanged && ctx.rd[19 + i] == before[i];
++        check(unchanged, "ldm RD rdhc in block: no register written");
 +    }
 +
-+    // rdhc is also the first destination register: still the original value.
++    // Group 1b: ldm RD, rdhc == dst + immu6 (one past the block) -> legal.
 +    {
 +        MockContext ctx;
 +        initContext(ctx, 0x1000);
-+        ctx.rd[5] = 0x80;
-+        fillPattern(ctx, 0x1080, 16);
++        ctx.rd[22] = 0x40;
++        fillPattern(ctx, 0x1040, 24);
 +        const exec::Fault fault = runWord(
-+            ctx, "ldm.o_rrri_rd", makeWord("ldm.o_rrri_rd", 5, 3, 0, 5, 2));
-+        check(fault == exec::Fault::None, "ldm overlapping rdhc: fault %s",
++            ctx, "ldm.o_rrri_rd", makeWord("ldm.o_rrri_rd", 19, 3, 0, 22, 3));
++        check(fault == exec::Fault::None,
++              "ldm RD rdhc == 22 (dst+immu6): None (got %s)",
 +              faultName(fault));
-+        check(ctx.rd[5] == patternRaw(8, 0),
-+              "ldm overlapping rdhc: rd5 loaded from original offset");
-+        check(ctx.rd[6] == patternRaw(8, 1),
-+              "ldm overlapping rdhc: rd6 = 0x%llx",
-+              static_cast<unsigned long long>(ctx.rd[6]));
++        for (unsigned i = 0; i < 3; ++i)
++            check(ctx.rd[19 + i] == patternRaw(8, i),
++                  "ldm RD rdhc == 22: rd%u = 0x%llx", 19 + i,
++                  static_cast<unsigned long long>(ctx.rd[19 + i]));
++    }
++
++    // Group 2a: ldm RB, base rbhb inside the block -> ILLI.
++    {
++        MockContext ctx;
++        initContext(ctx, 0x1000);
++        fillPattern(ctx, 0x1040, 24);
++        const exec::Fault fault = runWord(
++            ctx, "ldm.o_rrri_rb", makeWord("ldm.o_rrri_rb", 19, 20, 0, 20, 3));
++        check(fault == exec::Fault::Illegal,
++              "ldm RB rbhb in block [19..21]: Illegal (got %s)",
++              faultName(fault));
++        check(ctx.readAddrs.empty(), "ldm RB rbhb in block: no memory read");
++        check(ctx.rb[19] == 0xBEEF000000000013ULL &&
++                  ctx.rb[20] == 0xBEEF000000000014ULL &&
++                  ctx.rb[21] == 0xBEEF000000000015ULL,
++              "ldm RB rbhb in block: no register written");
++    }
++
++    // Group 2b: ldm RB, rbhb == dst + immu6 -> legal.
++    {
++        MockContext ctx;
++        initContext(ctx, 0x1000);
++        ctx.rb[22] = 0x1000;
++        fillPattern(ctx, 0x1040, 24);
++        const exec::Fault fault = runWord(
++            ctx, "ldm.o_rrri_rb", makeWord("ldm.o_rrri_rb", 19, 22, 0, 20, 3));
++        check(fault == exec::Fault::None,
++              "ldm RB rbhb == 22 (dst+immu6): None (got %s)", faultName(fault));
++        for (unsigned i = 0; i < 3; ++i)
++            check(ctx.rb[19 + i] == patternRaw(8, i),
++                  "ldm RB rbhb == 22: rb%u = 0x%llx", 19 + i,
++                  static_cast<unsigned long long>(ctx.rb[19 + i]));
++    }
++
++    // Group 3a: stm RD with rdhc inside the block -> executes normally, every
++    // element uses the address offset read before the first store.
++    {
++        MockContext ctx;
++        initContext(ctx, 0x1000);
++        ctx.rd[19] = 0xAA00000000000001ULL;
++        ctx.rd[20] = 0x40; // in-block element 1 and the address offset
++        ctx.rd[21] = 0xAA00000000000003ULL;
++        const uint64_t before[3] = {ctx.rd[19], ctx.rd[20], ctx.rd[21]};
++        const exec::Fault fault = runWord(
++            ctx, "stm.o_rrri_rd", makeWord("stm.o_rrri_rd", 19, 3, 0, 20, 3));
++        check(fault == exec::Fault::None,
++              "stm RD rdhc in block: None (got %s)", faultName(fault));
++        for (unsigned i = 0; i < 3; ++i) {
++            check(ctx.byteAt(0x1040 + i * 8) ==
++                      static_cast<uint8_t>(before[i] >> 56),
++                  "stm RD rdhc in block: element %u stored big-endian", i);
++            check(ctx.rd[19 + i] == before[i],
++                  "stm RD rdhc in block: rd%u unchanged", 19 + i);
++        }
++        check(ctx.writeAddrs.size() == 3 && ctx.writeAddrs[0] == 0x1040 &&
++                  ctx.writeAddrs[1] == 0x1048 && ctx.writeAddrs[2] == 0x1050,
++              "stm RD rdhc in block: all addresses from the original rdhc");
++    }
++
++    // Group 3b: stm RB with rbhb inside the block -> also executes normally.
++    {
++        MockContext ctx;
++        initContext(ctx, 0x1000);
++        ctx.rb[19] = 0xBB00000000000001ULL;
++        ctx.rb[20] = 0x1000; // in-block element 1 and the base address
++        ctx.rb[21] = 0xBB00000000000003ULL;
++        ctx.rd[22] = 0;
++        const exec::Fault fault = runWord(
++            ctx, "stm.o_rrri_rb", makeWord("stm.o_rrri_rb", 19, 20, 0, 22, 3));
++        check(fault == exec::Fault::None,
++              "stm RB rbhb in block: None (got %s)", faultName(fault));
++        check(ctx.byteAt(0x1000) == 0xBB && ctx.byteAt(0x1007) == 0x01 &&
++                  ctx.byteAt(0x100E) == 0x10 && ctx.byteAt(0x100F) == 0x00 &&
++                  ctx.byteAt(0x1010) == 0xBB && ctx.byteAt(0x1017) == 0x03,
++              "stm RB rbhb in block: elements stored from the original block");
++    }
++
++    // Group 4: RA/RF forms -- the address registers are in RB/RD, so an rdhc
++    // whose number falls in the block cannot overlap it (no such restriction).
++    {
++        MockContext ctx;
++        initContext(ctx, 0x1000);
++        fillPattern(ctx, 0x1040, 24);
++        const exec::Fault raFault = runWord(
++            ctx, "ldm.o_rrri_ra", makeWord("ldm.o_rrri_ra", 19, 3, 0, 20, 3));
++        check(raFault == exec::Fault::None,
++              "ldm RA rdhc in block: None (got %s)", faultName(raFault));
++        const exec::Fault rfFault = runWord(
++            ctx, "ldm.o_rrri_rf", makeWord("ldm.o_rrri_rf", 19, 3, 0, 20, 3));
++        check(rfFault == exec::Fault::None,
++              "ldm RF rdhc in block: None (got %s)", faultName(rfFault));
++        for (unsigned i = 0; i < 3; ++i)
++            check(ctx.ra[19 + i] == patternRaw(8, i) &&
++                      ctx.rf[19 + i] == patternRaw(8, i),
++                  "ldm RA/RF: element %u loaded", i);
 +    }
 +
 +    // start + immu6 == 64 is legal, == 65 is illegal (all 19 multi ids).
++    // The address register is kept outside the block (block [1..62] with
++    // rdhc == 63; block [62..63] with rdhc == 20).
 +    for (size_t i = 0; i < kOracleCount; ++i) {
 +        const Oracle &o = kOracle[i];
 +        if (!o.multi)
 +            continue;
 +        MockContext ok;
 +        initContext(ok, 0x1000);
++        // Block [1..62]: keep both candidate address registers (rdhc == 63,
++        // rbhb == 63) outside it, and point them at the same EA.
++        ok.rd[63] = 0x40;
++        ok.rb[63] = 0x1000;
 +        const exec::Fault good = runWord(
-+            ok, o.id, makeWord(o.id, 1, 3, 0, 20, 63));
-+        check(good != exec::Fault::Illegal,
-+              "%s: 1+63 == 64 is legal (got %s)", o.id, faultName(good));
++            ok, o.id, makeWord(o.id, 1, 63, 0, 63, 62));
++        check(good == exec::Fault::None,
++              "%s: 1+62 == 63 is legal (got %s)", o.id, faultName(good));
 +        MockContext edge;
 +        initContext(edge, 0x1000);
 +        const exec::Fault edge_fault = runWord(

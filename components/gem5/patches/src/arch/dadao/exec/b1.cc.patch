@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b1.cc b/src/arch/dadao/exec/b1.cc
 new file mode 100644
-index 0000000..3e62bec
+index 0000000..7135788
 --- /dev/null
 +++ b/src/arch/dadao/exec/b1.cc
-@@ -0,0 +1,314 @@
+@@ -0,0 +1,333 @@
 +// DADAO gem5 B1 execution core -- implementation.
 +//
 +// The 38 B1 ids are dispatched through the table below (no mnemonic guessing:
@@ -260,14 +260,33 @@ index 0000000..3e62bec
 +        // No wrap and no truncation: the destination block must fit.
 +        if (dst + count > 64)
 +            return Fault::Illegal;
++        // SimRISC-01 §1/§2: a multi-register *load* must not have its address
++        // register inside the destination block.  Elements are written in
++        // increasing order, so an earlier element could change the address of
++        // later ones and an interrupt in between would make the result depend
++        // on the interruption point (the same group only: RD form -> the
++        // index rdhc, RB form -> the base rbhb).  `stm` never writes a
++        // register and the RA/RF forms keep both address registers in RB/RD,
++        // so neither carries the restriction.
++        if (spec->access == Access::Load) {
++            if (spec->target == Target::Rd) {
++                const unsigned index = static_cast<unsigned>(offValue);
++                if (index >= dst && index < dst + count)
++                    return Fault::Illegal;
++            } else if (spec->target == Target::Rb) {
++                if (base >= dst && base < dst + count)
++                    return Fault::Illegal;
++            }
++        }
 +    }
 +
 +    // ---- effective address (48-bit virtual, mod 2^48) --------------------
 +    uint64_t ea;
 +    if (multi) {
-+        // The address offset register is read once, *before* the block write:
-+        // "when the range includes rdHC the address still uses the original
-+        // rdHC" (SimRISC-01 §1/§2).
++        // The address offset register is read once, *before* the block write.
++        // An `stm` whose offset register lies inside the block therefore still
++        // uses the original value (SimRISC-01 §1/§2); the overlapping `ldm`
++        // forms were rejected above, before any element was processed.
 +        const uint64_t offset =
 +            ctx.readInt(Bank::Rd, static_cast<unsigned>(offValue));
 +        ea = (ctx.readInt(Bank::Rb, base) + offset) & kVaMask;

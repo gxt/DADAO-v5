@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/decode/decode_table.inc b/src/arch/dadao/decode/decode_table.inc
 new file mode 100644
-index 0000000..142477b
+index 0000000..6e670cb
 --- /dev/null
 +++ b/src/arch/dadao/decode/decode_table.inc
 @@ -0,0 +1,1619 @@
@@ -849,18 +849,18 @@ index 0000000..142477b
 +inline constexpr const char *kLegality15[] = {"aligned(8)"};
 +inline constexpr const char *kRules16[] = {"excp_malign"};
 +inline constexpr const char *kLegality16[] = {"aligned(8)"};
-+inline constexpr const char *kRules19[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality19[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64"};
-+inline constexpr const char *kRules20[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign"};
-+inline constexpr const char *kLegality20[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(2)"};
-+inline constexpr const char *kRules21[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign"};
-+inline constexpr const char *kLegality21[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(4)"};
-+inline constexpr const char *kRules22[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow"};
-+inline constexpr const char *kLegality22[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64"};
-+inline constexpr const char *kRules23[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign"};
-+inline constexpr const char *kLegality23[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(2)"};
-+inline constexpr const char *kRules24[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign"};
-+inline constexpr const char *kLegality24[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(4)"};
++inline constexpr const char *kRules19[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "mreg_range_addr_overlap"};
++inline constexpr const char *kLegality19[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "rdhc < rdha || rdhc >= rdha + immu6"};
++inline constexpr const char *kRules20[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign", "mreg_range_addr_overlap"};
++inline constexpr const char *kLegality20[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(2)", "rdhc < rdha || rdhc >= rdha + immu6"};
++inline constexpr const char *kRules21[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign", "mreg_range_addr_overlap"};
++inline constexpr const char *kLegality21[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(4)", "rdhc < rdha || rdhc >= rdha + immu6"};
++inline constexpr const char *kRules22[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "mreg_range_addr_overlap"};
++inline constexpr const char *kLegality22[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "rdhc < rdha || rdhc >= rdha + immu6"};
++inline constexpr const char *kRules23[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign", "mreg_range_addr_overlap"};
++inline constexpr const char *kLegality23[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(2)", "rdhc < rdha || rdhc >= rdha + immu6"};
++inline constexpr const char *kRules24[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign", "mreg_range_addr_overlap"};
++inline constexpr const char *kLegality24[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(4)", "rdhc < rdha || rdhc >= rdha + immu6"};
 +inline constexpr const char *kRules25[] = {"mreg_zero", "mreg_range_overflow"};
 +inline constexpr const char *kLegality25[] = {"immu6 != 0", "rfha + immu6 <= 64"};
 +inline constexpr const char *kRules26[] = {"mreg_zero", "mreg_range_overflow"};
@@ -871,12 +871,12 @@ index 0000000..142477b
 +inline constexpr const char *kLegality28[] = {"immu6 != 0", "rdha + immu6 <= 64", "aligned(2)"};
 +inline constexpr const char *kRules29[] = {"mreg_zero", "mreg_range_overflow", "excp_malign"};
 +inline constexpr const char *kLegality29[] = {"immu6 != 0", "rdha + immu6 <= 64", "aligned(4)"};
-+inline constexpr const char *kRules30[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign"};
-+inline constexpr const char *kLegality30[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(8)"};
++inline constexpr const char *kRules30[] = {"dst_rd0", "mreg_zero", "mreg_range_overflow", "excp_malign", "mreg_range_addr_overlap"};
++inline constexpr const char *kLegality30[] = {"rdha != rd0", "immu6 != 0", "rdha + immu6 <= 64", "aligned(8)", "rdhc < rdha || rdhc >= rdha + immu6"};
 +inline constexpr const char *kRules31[] = {"mreg_zero", "mreg_range_overflow", "excp_malign"};
 +inline constexpr const char *kLegality31[] = {"immu6 != 0", "rdha + immu6 <= 64", "aligned(8)"};
-+inline constexpr const char *kRules32[] = {"dst_rb0", "mreg_zero", "mreg_range_overflow", "excp_malign"};
-+inline constexpr const char *kLegality32[] = {"rbha != rb0", "immu6 != 0", "rbha + immu6 <= 64", "aligned(8)"};
++inline constexpr const char *kRules32[] = {"dst_rb0", "mreg_zero", "mreg_range_overflow", "excp_malign", "mreg_range_addr_overlap"};
++inline constexpr const char *kLegality32[] = {"rbha != rb0", "immu6 != 0", "rbha + immu6 <= 64", "aligned(8)", "rbhb < rbha || rbhb >= rbha + immu6"};
 +inline constexpr const char *kRules33[] = {"mreg_zero", "mreg_range_overflow", "excp_malign"};
 +inline constexpr const char *kLegality33[] = {"immu6 != 0", "rbha + immu6 <= 64", "aligned(8)"};
 +inline constexpr const char *kRules34[] = {"mreg_zero", "mreg_range_overflow", "excp_malign"};
@@ -1328,20 +1328,20 @@ index 0000000..142477b
 +    {"st.o_rrii_ra", "st.o", "rrii", "m1", "contract-isa §3.3.1", "SimRISC-01: st.o", 0xff000000u, 0x25000000u, 0x25, -1, 48, 3, 1, kRules16, 1, kLegality16, 1},
 +    {"ld.o_rrii_rf", "ld.o", "rrii", "fp", "contract-fp §11", "SimRISC-01: ld.o", 0xff000000u, 0x26000000u, 0x26, -1, 51, 3, 1, nullptr, 0, nullptr, 0},
 +    {"st.o_rrii_rf", "st.o", "rrii", "fp", "contract-fp §11", "SimRISC-01: st.o", 0xff000000u, 0x27000000u, 0x27, -1, 54, 3, 1, nullptr, 0, nullptr, 0},
-+    {"ldm.ub_rrri_rd", "ldm.ub", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.ub", 0xff000000u, 0x28000000u, 0x28, -1, 57, 4, 1, kRules19, 3, kLegality19, 3},
-+    {"ldm.uw_rrri_rd", "ldm.uw", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.uw", 0xff000000u, 0x29000000u, 0x29, -1, 61, 4, 1, kRules20, 4, kLegality20, 4},
-+    {"ldm.ut_rrri_rd", "ldm.ut", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.ut", 0xff000000u, 0x2a000000u, 0x2a, -1, 65, 4, 1, kRules21, 4, kLegality21, 4},
-+    {"ldm.sb_rrri_rd", "ldm.sb", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.sb", 0xff000000u, 0x2b000000u, 0x2b, -1, 69, 4, 1, kRules22, 3, kLegality22, 3},
-+    {"ldm.sw_rrri_rd", "ldm.sw", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.sw", 0xff000000u, 0x2c000000u, 0x2c, -1, 73, 4, 1, kRules23, 4, kLegality23, 4},
-+    {"ldm.st_rrri_rd", "ldm.st", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.st", 0xff000000u, 0x2d000000u, 0x2d, -1, 77, 4, 1, kRules24, 4, kLegality24, 4},
++    {"ldm.ub_rrri_rd", "ldm.ub", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.ub", 0xff000000u, 0x28000000u, 0x28, -1, 57, 4, 1, kRules19, 4, kLegality19, 4},
++    {"ldm.uw_rrri_rd", "ldm.uw", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.uw", 0xff000000u, 0x29000000u, 0x29, -1, 61, 4, 1, kRules20, 5, kLegality20, 5},
++    {"ldm.ut_rrri_rd", "ldm.ut", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.ut", 0xff000000u, 0x2a000000u, 0x2a, -1, 65, 4, 1, kRules21, 5, kLegality21, 5},
++    {"ldm.sb_rrri_rd", "ldm.sb", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.sb", 0xff000000u, 0x2b000000u, 0x2b, -1, 69, 4, 1, kRules22, 4, kLegality22, 4},
++    {"ldm.sw_rrri_rd", "ldm.sw", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.sw", 0xff000000u, 0x2c000000u, 0x2c, -1, 73, 4, 1, kRules23, 5, kLegality23, 5},
++    {"ldm.st_rrri_rd", "ldm.st", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.st", 0xff000000u, 0x2d000000u, 0x2d, -1, 77, 4, 1, kRules24, 5, kLegality24, 5},
 +    {"ldm.t_rrri_rf", "ldm.t", "rrri", "fp", "contract-fp §11", "SimRISC-01: ldm.t", 0xff000000u, 0x2e000000u, 0x2e, -1, 81, 4, 1, kRules25, 2, kLegality25, 2},
 +    {"stm.t_rrri_rf", "stm.t", "rrri", "fp", "contract-fp §11", "SimRISC-01: stm.t", 0xff000000u, 0x2f000000u, 0x2f, -1, 85, 4, 1, kRules26, 2, kLegality26, 2},
 +    {"stm.b_rrri_rd", "stm.b", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: stm.b", 0xff000000u, 0x30000000u, 0x30, -1, 89, 4, 1, kRules27, 2, kLegality27, 2},
 +    {"stm.w_rrri_rd", "stm.w", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: stm.w", 0xff000000u, 0x31000000u, 0x31, -1, 93, 4, 1, kRules28, 3, kLegality28, 3},
 +    {"stm.t_rrri_rd", "stm.t", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: stm.t", 0xff000000u, 0x32000000u, 0x32, -1, 97, 4, 1, kRules29, 3, kLegality29, 3},
-+    {"ldm.o_rrri_rd", "ldm.o", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.o", 0xff000000u, 0x38000000u, 0x38, -1, 101, 4, 1, kRules30, 4, kLegality30, 4},
++    {"ldm.o_rrri_rd", "ldm.o", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: ldm.o", 0xff000000u, 0x38000000u, 0x38, -1, 101, 4, 1, kRules30, 5, kLegality30, 5},
 +    {"stm.o_rrri_rd", "stm.o", "rrri", "m1", "contract-isa §3.1.2", "SimRISC-01: stm.o", 0xff000000u, 0x39000000u, 0x39, -1, 105, 4, 1, kRules31, 3, kLegality31, 3},
-+    {"ldm.o_rrri_rb", "ldm.o", "rrri", "m1", "contract-isa §3.2", "SimRISC-01: ldm.o", 0xff000000u, 0x3a000000u, 0x3a, -1, 109, 4, 1, kRules32, 4, kLegality32, 4},
++    {"ldm.o_rrri_rb", "ldm.o", "rrri", "m1", "contract-isa §3.2", "SimRISC-01: ldm.o", 0xff000000u, 0x3a000000u, 0x3a, -1, 109, 4, 1, kRules32, 5, kLegality32, 5},
 +    {"stm.o_rrri_rb", "stm.o", "rrri", "m1", "contract-isa §3.2", "SimRISC-01: stm.o", 0xff000000u, 0x3b000000u, 0x3b, -1, 113, 4, 1, kRules33, 3, kLegality33, 3},
 +    {"ldm.o_rrri_ra", "ldm.o", "rrri", "m1", "contract-isa §3.3.2", "SimRISC-01: ldm.o", 0xff000000u, 0x3c000000u, 0x3c, -1, 117, 4, 1, kRules34, 3, kLegality34, 3},
 +    {"stm.o_rrri_ra", "stm.o", "rrri", "m1", "contract-isa §3.3.2", "SimRISC-01: stm.o", 0xff000000u, 0x3d000000u, 0x3d, -1, 121, 4, 1, kRules35, 3, kLegality35, 3},
