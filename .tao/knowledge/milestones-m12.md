@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m12-chipyard-028 | 2–3 h | 用新 builder 重生成 chipyard `bootrom.tiny.hex`（ISS-410） |
 | m12-chipyard-016 | 3–4 h | T0 冒烟（inst 全量非 cfx + embench + tset 子集，三平台） |
 | m12-chipyard-017 | 4–6 h | T1 适配集 + M12 验收 |
 
@@ -32,6 +31,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m12-chipyard-028 | 2026-11-14 01:30 | 2–3 h | 用新 builder 重生成 chipyard `bootrom.tiny.hex`（ISS-410） |
 | m12-chipyard-029 | 2026-11-13 23:30 | 2–3 h | 融合乘加溢出按 IEEE 舍入模式（RTL + 模型） |
 
 ## 已验证
