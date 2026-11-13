@@ -553,3 +553,11 @@
   closed_in: null
   resolved_by: null
   title: "【P2】节点组件树（`.work/source/<name>`）的 `dadao: <name> patch series` 提交会随主控机补丁集演进而**无法重放**：`apply_series --component <name>` 报 `HEAD is neither base nor base+1 matching the patch set; refusing`（实测 server207 的 qemu `cd44d5f`，主控机 `e916acb`）。`sync_node_repo.sh` 只同步仓库、不重置 `.work/source`。可复现处置：节点 `git -C .work/source/<name> fetch origin && git checkout -f <base>`，再 `apply_series --component <name>` 重放。建议在 `sync_node_repo.sh` 加一个 `--reset-components` 选项（按 `components.lock.toml` 的 base 重置，需重建），或至少在文档里固化该处置。"
+- id: ISS-428
+  scope:
+  - qemu
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】节点（server207）上 `tools/qemu/k0_boot_probe.py` 复跑失败（`main` 段 guest exit 1、`-d cpu` dump 0 字节、`rd*` 全 -1），主控机同源同探针 101/101 全绿。节点二进制含 K1 新串（`strings | grep -c ELF-VA-TO-PA` = 1），说明补丁在；差异点在运行期（疑 `bootrom-image`+`-kernel` 路径在节点触发 loader 拒绝后 exit 1，或 semihosting 退出未被接管）。影响：M14 K1 的节点侧验证与后续节点三平台对比暂不可信。需在节点侧抓 stderr 与 QEMU 退出路径定位（探针正例目前丢弃 stderr）。"
