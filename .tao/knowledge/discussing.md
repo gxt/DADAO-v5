@@ -274,6 +274,17 @@ M15 exit：264 条记录 **100%** 有 operation 块且 id 一对一；抽取结�
 
 M17 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个向量走到；`make check-idl` 进 L2；分歧归因落 spec 裁定（**不是「IDL 一定对」**）。
 
+### M16 待确认（周期模型文档口径，2026-11-14）
+
+`m16-gem5-002` 现场解析 `docs/core-wuming-cycle-model.md` 生成 264 行表时遇到 6 处文档本身不闭合（已按类级口径自决，**需用户口头确认一次**）：
+
+1. **16 条 FT 侧 FP 族**（`ftadd/ftsub/ftmul/ftfma/ftmax/ftmin/ftqcmp/ftsclb/ftscmp/ftrnd`、`fosub/fosclb/foscmp/fosgnj/fosgnn/fornd`）§3 无专行，只有 §2 B4「1–2」类级口径 ⇒ 表内落 B4 + `dynamic: fp-op`、值留空给 003/004。建议把文档词法改 `ftsgn*`→`f*sgn*`、行 70 的 `fo*`→`f*` 即可逐条定死。
+2. `ext` = 2 拍属**推断**（无实测），已标来源与「待 003 复核」。
+3. §3 行 75/76/77 的「全套」把 A 档写 `1`，与 §2 的 A 两档、§5 `shl.o`=2 冲突 ⇒ 表按 §2 两档解析（`shl.t`=2、`rem.st`=17）。建议文档改列消歧。
+4. `clmul.o` 唯一 override（行 61 的 B1/3 是估计，行 87 + 行 117 实测 A/2）⇒ 记入表 `overrides`。
+5. `jump/call/ret` 的 8/26/15 是**预取失效期上界**（`m13-gem5-015` 复测后需重跑生成器，门控会因文档 sha256 变化而红——设计意图）。
+6. `B2`（1 可配）按「可配」处理，`value` 留空。
+
 ### 参考材料分工（`.cache/refs/`，只读参考、不复制实现）
 
 - **`riscv-unified-db`**（`manifests/references.lock.toml` 已登记）：机器可读 ISA 数据的**形态**——`operation()` 挂在编码旁、`resolved spec` 展开、生成器矩阵（文档/ISS/头文件/解码包）；**不复制其 RISC-V 专属结构**（扩展体系、CSR、`X[]`）。
