@@ -24,13 +24,13 @@ QEMU 侧现状（K1 缺口）：
 
 > **内核 VA 窗口（用户 2026-11-13 修订，覆盖本册此前所有低地址）**：内核空间 = `[2 TiB, 3 TiB)`；四段地址整体 +2 TiB：
 > 页表页 `0x0000_0200_0000_0000`、boot info `0x0000_0200_0001_0000`、内核区 `[0x0000_0200_0010_0000, 0x0000_0200_0400_0000)`、initramfs `[0x0000_0200_0400_0000, 0x0000_0200_0600_0000)`；
-> 映射 = `VA[K, K+64MiB) → PA[0, 64MiB)`（偏置 2 TiB），**不再是全域身份映射**；用户空间 = `[0, 2 TiB)`。下文出现的旧低地址一律按此替换。
+> 映射 = `VA[0x200_0000_0000, +512MiB) → PA[0, 512MiB)`（偏置 2 TiB），**不再是全域身份映射**；用户空间 = `[0, 2 TiB)`。下文出现的旧低地址一律按此替换。
 
 ## 目标
 
 1. **QEMU 装载规则（§6.3.2）**：`dadao-vast` 的 `bootrom-image + -kernel` 路径按 §6.3 校验内核镜像（ELF 7 条 / raw 4 条），任一不符 ⇒ **非零退出并具名报错**（禁降级/截断/改址）。
 2. **宿主 loader 写 boot info（§6.3.3）**：装载校验通过后在 **VA `0x0000_0200_0001_0000`**（内核窗口偏置 2 TiB ⇒ 物理地址 = VA − 2 TiB）写入 15 字段、**大端**、`size = 0x60`，页内其余字节保持 0；`kernel_size` 按路径现场计算；K1 无 initramfs（`initramfs_size = 0`）。
-3. **最小 smon 固件（cfx2 / `supv`）**：从 `trap cfx_smon, 0x30001` 进入；只读校验 boot info；经 `cfx_pmem` DMA 把 **64 KiB 身份映射页表**（4 个 512 MiB 超页 PTE，其余全 0）写入 **PA 0**；失效 TLB、写 `PTBR = 0`、置 `ptw_enable = 1` 并回读确认。
+3. **最小 smon 固件（cfx2 / `supv`）**：从 `trap cfx_smon, 0x30001` 进入；只读校验 boot info；经 `cfx_pmem` DMA 把 **64 KiB 页表**（**1 个 512 MiB 超页 PTE**：`VA[0x200_0000_0000,+512MiB) → PA[0,512MiB)`，其余全 0）写入 **PA 0**；失效 TLB、写 `PTBR = 0`、置 `ptw_enable = 1` 并回读确认。
 4. **内核交接**：smon 以 `escape cfx_smon, [excp_cause_ip, 0]` 进入内核 **VA 入口** `0x0000_0200_0010_0000`；进入时 `rb16 = kernel_base`、`rb17 = 0x0000_0200_0001_0000`、`rb3 = 0`、`supv`、异步全屏蔽、`hart 0`。
 5. **boot hmon 变体**：只负责「装 smon + 配置 cfx_smon + 委派 `cfx_pmem`/`cfx_ptw` 给 `supv` + `trap cfx_smon`」，**不得**再自建页表、**不得**写 PA 0。
 6. **失败语义**：loader 侧任何前置错误 ⇒ 进程非零退出；smon/hmon 侧任何前置错误 ⇒ semihosting `SYS_EXIT` + **固定失败码**，**不进入内核**；全程无静默降级。
@@ -56,7 +56,7 @@ ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`�
 
 - **power**（复用 `tests/shared/bootrom/step5/power.S` 与其 `.lds`，**不改**）：校验 BootROM image index table → 把 type 1（hmon ELF）装入 hmon SRAM → 写 `cfx_hmon.hypv_excp_vector`/`switch_run_mode = hypv` → `trap cfx_hmon, 0x30001`。
 - **boot hmon**（新增 K1 变体）：校验 `CFXTRAP` + magic → 用 ROM 内共享例程查表 type 2 并以 `elf_loader` 把 **smon ELF 装入 smon SRAM**（`0x0bff_0000_0000`）→ 写 `cfx_smon.hypv_excp_vector = smon e_entry`、`cfx_smon.hypv_switch_run_mode = supv` → 把 `cfx_smon` 需要的 `supv` 权限打开（`cfx_pmem` / `cfx_ptw` / `cfx_smon` 的 `supv_cfxreg` 与 `supv_cg_reg_deleg` 位 2 清零，`cfx_pmem.supv_cfxmem` 位 2 清零，供 smon 用 `st`/`cfx2rc`）→ `trap cfx_smon, 0x30001`。**禁止**建页表、**禁止**写 PA `0`、**禁止**改 boot info。
-- **smon**（新增最小固件）：校验 trap cause/magic → 只读校验 boot info → 建表写 PA 0 → TLB 失效 → `PTBR = 0`、`ptw_enable = 1` → 回读确认 → 从 boot info 取 `kernel_base` → 置移交寄存器（`rb16 = kernel_base`、`rb17 = 0x0000_0200_0001_0000`、`rb3 = 0`）→ 写本 cfx 异常帧 `excp_prev_run_mode = supv`、`excp_cause_ip = 入口 VA` → `escape cfx_smon, [excp_cause_ip, 0]`（不写 `excp_prev_run_mode` 会按 `trap` 保存的 `hypv` 返回，**必须显式改**）。**禁止**改写 boot info、**禁止**写 `[0x0000_0200_0001_0000, 0x2_0000)`。
+- **smon**（新增最小固件）：校验 trap cause/magic → 只读校验 boot info → 建表写 PA 0 → TLB 失效 → `PTBR = 0`、`ptw_enable = 1` → 回读确认 → 从 boot info 取 `kernel_base` → 置移交寄存器（`rb16 = kernel_base`、`rb17 = 0x0000_0200_0001_0000`、`rb3 = 0`）→ 写本 cfx 异常帧 `excp_prev_run_mode = supv`、`excp_cause_ip = 入口 VA` → `escape cfx_smon, [excp_cause_ip, 0]`（不写 `excp_prev_run_mode` 会按 `trap` 保存的 `hypv` 返回，**必须显式改**）。**禁止**改写 boot info、**禁止**写 `[0x0000_0200_0001_0000, 0x0000_0200_0002_0000)`。
 - **内核入口**：见 §5。QEMU **不得**在 bootrom 路径按 `e_entry` 直接设 PC（唯一一次入口跳转由 smon 完成）。
 
 ### 3 首张页表期望值（页表页内容逐项核）
@@ -74,11 +74,11 @@ ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`�
 | `0x00` | 4 | `magic` | `0x4442_494E`（`DBIN`） |
 | `0x04` | 2 | `version` | `1` |
 | `0x06` | 2 | `size` | `0x0060` |
-| `0x08` | 8 | `ram_base` | `0` |
+| `0x08` | 8 | `ram_base` | `0x0000_0200_0000_0000` |
 | `0x10` | 8 | `ram_size` | `0x8000_0000`（2 GiB） |
 | `0x18` | 8 | `kernel_base` | `0x0000_0200_0010_0000`（= 入口 VA） |
 | `0x20` | 8 | `kernel_size` | ELF：`max(p_vaddr + p_memsz) - 0x0000_0200_0010_0000`；raw：镜像文件字节数 |
-| `0x28` | 8 | `initramfs_base` | `0x40_0000` |
+| `0x28` | 8 | `initramfs_base` | `0x0000_0200_0400_0000` |
 | `0x30` | 8 | `initramfs_size` | `0`（K1 不装 initramfs） |
 | `0x38` | 8 | `cmdline_base` | `0` |
 | `0x40` | 8 | `cmdline_size` | `0` |
@@ -88,7 +88,7 @@ ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`�
 | `0x58` | 8 | `flags` | `0x1`（bit0 = semihosting 控制台可用） |
 
 - **写入方**：**宿主 loader（QEMU machine 模型）** 在移交前写；`power`/`hmon`/`smon` 只读。派单要点中「按 §6.3 写 boot info」按此执行（口径见「待裁定 1」）。
-- **smon 只读校验（本任务自决口径，不改契约）**：`magic == 0x4442_494E`；`version == 1`；`size >= 0x60`（`size` 为 16 位 ⇒ 不可能越过 64 KiB 页）；`kernel_base == 0x0000_0200_0010_0000` 且 64 KiB 对齐；`ram_base == 0` 且 `ram_size == 0x8000_0000`；`page_size_log2 == 16`；`hart_id == 0`；`initramfs_size == 0`（K1）。任一不符 ⇒ 固定失败码退出，**不进入内核**。
+- **smon 只读校验（本任务自决口径，不改契约）**：`magic == 0x4442_494E`；`version == 1`；`size >= 0x60`（`size` 为 16 位 ⇒ 不可能越过 64 KiB 页）；`kernel_base == 0x0000_0200_0010_0000` 且 64 KiB 对齐；`ram_base == 0x0000_0200_0000_0000`（内核窗口起点 VA）且 `ram_size == 0x8000_0000`；`page_size_log2 == 16`；`hart_id == 0`；`initramfs_size == 0`（K1）。任一不符 ⇒ 固定失败码退出，**不进入内核**。
 
 ### 5 进入内核时状态（内核第一条指令处）
 
@@ -108,7 +108,7 @@ ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`�
 ### 6 宿主 loader（QEMU）装载规则（仅 `bootrom-image + -kernel` 路径生效）
 
 - **ELF 路径 7 条**（任一不符 ⇒ `error_report` + `exit(1)`，消息点名规则与偏离值）：
-  `ELF-FORMAT`（ELF64、大端、`e_machine = 0x0DA0`、`ET_EXEC`、`e_flags` 版本字段 = 1）、`ELF-PT-LOAD`（只装 `PT_LOAD`）、`ELF-VA-TO-PA`（装载地址语义取 `p_vaddr`；K0 身份映射下 `p_vaddr == p_paddr` 数值相等，二者不等即按本条拒绝——上游 `load_elf` 按 `p_paddr` 放置在此前提下数值等价）、`ELF-ALIGN`（`p_vaddr % 0x0000_0200_0001_0000 == 0` 且 `p_align >= 0x0000_0200_0001_0000`）、`ELF-RANGE`（每段 `[p_vaddr, p_vaddr + p_memsz)` ⊆ `[0x0000_0200_0010_0000, 0x40_0000)`）、`ELF-NO-OVERLAP`（不得与 `[0, 0x2_0000)`、BootROM、hmon/smon SRAM 重叠）、`ELF-ENTRY`（`e_entry == 0x0000_0200_0010_0000`）。
+  `ELF-FORMAT`（ELF64、大端、`e_machine = 0x0DA0`、`ET_EXEC`、`e_flags` 版本字段 = 1）、`ELF-PT-LOAD`（只装 `PT_LOAD`）、`ELF-VA-TO-PA`（装载地址语义取 `p_vaddr`；K0 内核窗口下 `p_vaddr = p_paddr + 2 TiB`（固定偏置），二者不等即按本条拒绝——上游 `load_elf` 按 `p_paddr` 放置在此前提下数值等价）、`ELF-ALIGN`（`p_vaddr % 0x10000 == 0` 且 `p_align >= 0x10000`）、`ELF-RANGE`（每段 `[p_vaddr, p_vaddr + p_memsz)` ⊆ `[0x0000_0200_0010_0000, 0x0000_0200_0400_0000)`）、`ELF-NO-OVERLAP`（不得与 `[0x0000_0200_0000_0000, 0x0000_0200_0002_0000)`、BootROM、hmon/smon SRAM 重叠）、`ELF-ENTRY`（`e_entry == 0x0000_0200_0010_0000`）。
 - **raw 路径 4 条**：`RAW-BASE`（整体装入 `0x0000_0200_0010_0000`）、`RAW-ENTRY`（首字节即入口，不解析 ELF 头）、`RAW-LENGTH`（≤ 63 MiB）、`RAW-BSS`（不含 `.bss`，由内核自清；loader 只校验不解释）。
 - **boot info 写入**：在装载校验**通过之后**写 15 字段（表见 §4），16 位/32 位/64 位字段一律大端；`0x60` 之后不写（RAM 复位为 0）。写入失败 ⇒ `exit(1)`。
 - **复位行为**：`PC` 保持复位向量（`0xffff_ffff_0000`），**不**按 `e_entry` 改写。
@@ -163,7 +163,7 @@ ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`�
    e. `rd25 == 0x0000_0200_0010_0000`、`rd26 == 0x0000_0200_0001_0000`、`rd27 == 0`；
    f. 执行块窗口顺序 `power → hmon → smon → kernel` 各 ≥1 且不回退；`CFX02` 的 `TRAPN ≥ 1` 且 `ESCN == 1`（smon 真执行、真 `escape` 一次）。
 2. **vmlinux 集成**（可选）：`--kernel <m14-linux-002 的 vmlinux>` 时，出现内核窗口执行块且该时刻 `MODE=2`/`PTBR=0`/`PTW_ENABLE=1`；若 `m14-linux-002` 未合入或 vmlinux 尚不能运行 ⇒ 完成区登记 **BLOCKED（原因 + 已有替代证据）**，不计入 PASS 必要条件（派单要点允许「最小 raw 镜像」）。
-3. **loader 反例 ≥3 路，均可达 FAIL**（用运行期临时目录构造坏镜像，不改仓库）：① ELF `e_entry = 0x10_0004`；② ELF 段落在 `[0x0000_0200_0001_0000, 0x2_0000)`（会覆盖 boot info）；③ ELF 段越出 `[0x0000_0200_0010_0000, 0x40_0000)`（或 raw > 63 MiB）。每条断言 QEMU **rc≠0**、stderr 点名对应规则、无内核窗口执行块。
+3. **loader 反例 ≥3 路，均可达 FAIL**（用运行期临时目录构造坏镜像，不改仓库）：① ELF `e_entry = 0x10_0004`；② ELF 段落在 `[0x0000_0200_0001_0000, 0x0000_0200_0002_0000)`（会覆盖 boot info）；③ ELF 段越出 `[0x0000_0200_0010_0000, 0x0000_0200_0400_0000)`（或 raw > 63 MiB）。每条断言 QEMU **rc≠0**、stderr 点名对应规则、无内核窗口执行块。
 4. **smon 反例 ≥2 路，均可达 FAIL**（测试专用 hmon 变体 `--defsym` 用 `cfx_pmem` DMA 改写 boot info，仅注入变体，**生产 smon/hmon 源不含该路径**）：① `size = 0x20`；② `kernel_base = 0x10_0001`（未对齐）。断言 guest 退出码 = §7 对应失败码、stderr/dump 无内核执行块。
 5. **源码注入 ≥2 路（注入→FAIL→`cp`+md5 还原→重建回绿）**：① `dadao-machine.c` 把 `kernel_base` 字段偏移 `0x18` 改为 `0x20` ⇒ 验收 1c FAIL；② `k0/smon.S` 把 `PTE2` 的 PPN 改错 ⇒ 验收 1d FAIL。两路均贴注入前/后 md5 与重建后的回绿输出；**禁** `git checkout/restore/stash` 还原。
 6. **零回归**：`make check-inst`（Vast 计数与基线一致，贴现场数字）、`make check-arch`、`make check-arch-smoke`、`make check-qemu-forms`、`make check-patch-tree`（qemu problem=0）、`make check-source-state`（qemu clean + base+1）、L1/L2（红项逐条归属非本任务）。既有 step5 BootROM 镜像与产物 **md5 不变**。
