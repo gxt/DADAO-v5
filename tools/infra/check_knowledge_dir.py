@@ -42,6 +42,7 @@ _ALLOWED_FILES = frozenset({
     "milestones-m13.md",              # M13 分册台账（用户 2026-11-09）
     "milestones-m14.md",              # M14 分册台账（Linux bring-up）
     "milestones-m15.md",              # M15 分册台账（ISA 语义结构化）
+    "milestones-m17.md",              # M17 分册台账（gem5 时序 wuming）
     "MEMORY.md",                     # 入口指针 + 上游↔v5 偏离台账
     "issues.yaml",                   # issue 台账
     "milestones.md",                 # 任务流水 / 进度
