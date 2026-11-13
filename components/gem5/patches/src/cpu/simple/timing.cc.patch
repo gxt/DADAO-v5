@@ -1,0 +1,18 @@
+diff --git a/src/cpu/simple/timing.cc b/src/cpu/simple/timing.cc
+index dcc88e7..6d620ec 100644
+--- a/src/cpu/simple/timing.cc
++++ b/src/cpu/simple/timing.cc
+@@ -812,7 +812,12 @@ TimingSimpleCPU::advanceInst(const Fault &fault)
+         // kick off fetch of next instruction... callback from icache
+         // response will cause that instruction to be executed,
+         // keeping the CPU running.
+-        fetch();
++        // Per-instruction execution latency (ISA hook, default 0 cycles).
++        if (Cycles extra = t_info.thread->getIsaPtr()->extraExecLatency(
++                curStaticInst.get()); extra > Cycles(0))
++            reschedule(fetchEvent, clockEdge(extra), true);
++        else
++            fetch();
+     }
+ }
+ 

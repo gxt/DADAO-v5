@@ -1,0 +1,38 @@
+diff --git a/src/arch/generic/isa.hh b/src/arch/generic/isa.hh
+index 4bdc697..ba6c26a 100644
+--- a/src/arch/generic/isa.hh
++++ b/src/arch/generic/isa.hh
+@@ -44,7 +44,9 @@
+ 
+ #include "arch/generic/pcstate.hh"
+ #include "base/logging.hh"
++#include "base/types.hh"
+ #include "cpu/reg_class.hh"
++#include "cpu/static_inst_fwd.hh"
+ #include "mem/packet.hh"
+ #include "mem/request.hh"
+ #include "sim/sim_object.hh"
+@@ -88,6 +90,23 @@ class BaseISA : public SimObject
+     virtual bool inUserMode() const = 0;
+     virtual void copyRegsFrom(ThreadContext *src) = 0;
+ 
++    /**
++     * Extra execution latency, in cycles, that a timing CPU adds after
++     * completing an instruction, before it starts fetching the next one
++     * (TimingSimpleCPU::advanceInst).  The default is zero: an ISA that does
++     * not model per-instruction execution latency keeps the upstream
++     * behaviour bit for bit.
++     *
++     * @param inst the instruction that just completed (may be nullptr).
++     *             Instructions whose latency is already modelled by the memory
++     *             system (loads/stores) should return zero.
++     */
++    virtual Cycles
++    extraExecLatency(const StaticInst *inst) const
++    {
++        return Cycles(0);
++    }
++
+     virtual void resetThread() { panic("Thread reset not implemented."); }
+ 
+     const RegClasses &regClasses() const { return _regClasses; }
