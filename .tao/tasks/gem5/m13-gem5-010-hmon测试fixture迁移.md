@@ -53,7 +53,7 @@
 | `LOAD_ADDR` 不能取段内标签（forward label 汇编期报错） | ✅已修 | 新增 `LOAD_ABS`（R_DADAO_ABS48），landing/`record_cause` 改用它 | 汇编+链接 OK；205 checks PASS |
 | 旧 fixture 的 in-handler cg3 探针（check 37）在最小 handler 下无载体 | ✅已修（删除并记录理由） | 应用去掉 PROBE 写入/读取；`expected.yaml` 删 check 37；两 README 注明该钩子随 dispatch fixture 删除 | 记录数 43（由 oracle 现场统计）；36/42/38–40 语义不变 |
 | chipyard hex 身份检查与「输出无 `[PENDING]`」验收冲突 | ✅已修（移出 gem5 门控） | 删 `chipyard_image()`/`CHIPYARD_HEX`/PENDING 分支；chipyard 跟随仍由 `pending_followups` + m12-chipyard-028 跟踪 | checker PENDING 行数 0；证据脚本静态断言 |
-| 旧「hmon SRAM tail is zero」在新布局下必假（数据槽运行时被写） | ✅已修 | 改为 code==固件 / 48B padding / 0xD8 前空隙为 0 / 数据槽==最后一次异常 / 0x100 以上为 0 | 5 项逐项 PASS（`.work/log/gem5/check-tiny-hmon.log`） |
+| 旧「hmon SRAM tail is zero」在新布局下必假（数据槽运行时被写） | ✅已修 | 改为 code==固件 / 48B padding / 0xD8 前空隙为 0 / 数据槽==最后一次异常 / 0x100 以上为 0 | 5 项逐项 PASS（该任务运行期日志（`check-tiny-hmon`）） |
 | 单元素 `for ... in ((...),)` 循环非惯用 | ✅已修 | 去循环，直接单镜像检查 | checker 仍 205 PASS |
 | 数据槽 0xE0/0xE8/0xF0/0xF8 硬编码 | ✅已修 | 改用 `bld.HMON_SLOT_*` 常量 | 同上 |
 
