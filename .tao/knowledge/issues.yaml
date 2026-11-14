@@ -666,3 +666,11 @@
   closed_in: M13
   resolved_by: m13-testcases-040（mem_sweep 退役，helper 迁 inst_sweep；新旧树 emit 逐文件 md5 全等）
   title: "【P2】`m13-testcases-030` 删掉 `base/mem-{rd,ra,rb}.yaml` 后，`tools/chipyard/mem_sweep.py` 的 `SOURCES` 仍指向这三册 ⇒ 该工具**已无输入**（跑起来会空集或报错），属**悬挂引用**：既不在门控里、也不会被日常跑批发现。处置：改从 `.S` 载体派生（复用 `run_asm_suite.scan_source`）或整体退役；退役前须确认没有任务/脚本依赖它的输出。"
+- id: ISS-442
+  scope:
+  - testcases
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`inst_sweep`/`bit_sweep`/`ctrl_sweep`/`fp_sweep` 退役后，`sweep_expect.bin` 的 md5 `2d4d94651346ef673c5a855e024c1489`（273 例）**不再是任何门控的判据**，但 10+ 个历史任务书的证据里仍以它作回归钉。处置：历史任务书不改写（历史事实），但**新任务不得再引用该 md5**；若将来需要等价覆盖，用 `check-inst-asm`（265 id/900 镜像）与三平台差分。"
