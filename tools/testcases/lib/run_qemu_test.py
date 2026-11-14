@@ -855,7 +855,9 @@ def main():
     parser.add_argument("--qemu", default=None,
                         help="Path to qemu-system-dadao binary")
     parser.add_argument("--trampoline", default=None,
-                        help="Path to trampoline.bin")
+                        help="Boot firmware image passed to QEMU as `-bios` "
+                             "(Tiny: the fixed 64 KiB firmware; Vast: the "
+                             "exit-policy BootROM)")
     parser.add_argument("--jobs", type=int, default=None,
                         help="Parallel worker count for batch mode "
                              "(default: $JOBS or 1)")

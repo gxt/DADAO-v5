@@ -397,7 +397,10 @@ def main() -> int:
     ap.add_argument("--qemu", default=harness.DEFAULT_QEMU)
     ap.add_argument("--trampoline",
                     default=os.path.join(_REPO_ROOT, "tools", "testcases", "lib",
-                                         "trampoline.bin"))
+                                         "trampoline.bin"),
+                    help="启动固件镜像（Tiny = 固定 64 KiB 固件；Vast = "
+                         "exit-policy BootROM）；作为 QEMU 的 `-bios`/"
+                         "`bootrom-image` 传入")
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--check-only", action="store_true",
                     help="只跑结构断言/派生（不执行用例；供证据脚本注入用）")

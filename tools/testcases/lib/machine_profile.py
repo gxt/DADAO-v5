@@ -59,6 +59,10 @@ REQUIRED_FIELDS = (
     "qemu_ram_base", "qemu_ram_size", "qemu_bootrom_base",
     "qemu_bootrom_size", "qemu_reset_pc",
 )
+# `spec/DADAO-13 §1`：cfx3 hmon 的 SRAM 基址（Tiny/Vast 同址，异常向量初值）。
+# 无 monitor 的 profile 不使用该常量；执行资产（bootrom/harness）共用此值。
+HMON_BASE = 0x0FFF_0000_0000
+
 # M12（`spec/Machine-v5 §1`）：profile 名 -> QEMU 机器名。两台机器分开后
 # 不再用「单机型 + `profile=`」双入口；驱动一律按本表选机器名。
 PROFILE_MACHINE = {"tiny": "dadao-tiny", "vast": "dadao-vast"}

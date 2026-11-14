@@ -46,7 +46,7 @@ def render(prof):
     if prof.fault_record is not None:
         lines.append(".equ FAULT_RECORD, %#x" % prof.fault_record)
     lines += [
-        ".equ HMON_BASE, 0x0fff00000000",
+        ".equ HMON_BASE, 0x%012x" % machine_profile.HMON_BASE,
         ".equ SMON_BASE, 0x0bff00000000",
         ".equ PMEM_BASE, 0x83ff00000000",
         "",

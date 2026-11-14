@@ -162,6 +162,21 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
 
 ## 6. 已完成
 
+### `m13-testcases-034`：Tiny `expected_fault` oracle 迁到 hmon 分派口径
+
+- 用例/期望值不变：Tiny 子集 44 例（43 例 `expected_fault`）仍逐条断言同一异常
+  （CFXMEM `0xF1`、UNDI `0xF9` …）；变的只是「谁产生退出码」。
+- 旧口径：legacy `-bios` 短 trampoline 把 hmon 向量指到不可达地址 ⇒ QEMU 以
+  「机器 fault」兜底退出码结束，测试镜像不参与。
+- 新口径（`spec/Machine-v5 §4.4`/`§7.1`）：镜像在触发前把落点写进固件 hmon 的
+  返回槽（hmon SRAM +0xF8，`§6.2`「框架可覆盖」）；异常进入 cfx3 hmon，固件把
+  `cause_id` 存到 +0xE0 后 `escape` 回落点；落点核对 one-hot 后
+  `SYS_EXIT(0xF0|异常位索引)`。与 `tests/inst/macros/inst_test.inc` 的
+  `.faultpad` 同一口径。
+- 载体：`tools/testcases/lib/build_test_binary.py`（落点生成）；
+  `make check-inst` 的 Tiny 段改用固定 64 KiB 固件（`$(TINY_BOOTROM)`）作 `-bios`。
+
+
 ### `m13-testcases-032`：`rootn(±0,2)=+0`、结果 NaN canonical、quiet compare sNaN 的 `NV`（YAML 向量）
 
 - 只改**已登记**的 fp 册用例（无新载体文件、无新 `.S`）：`tests/inst/fp/{divrem,arith,scaleb,convert}.yaml`；

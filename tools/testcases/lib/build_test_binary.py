@@ -21,8 +21,11 @@ Exit channel (ADR-0020 D8: semihosting SYS_EXIT replaces the legacy MMIO halt de
   `rd16 = 0x18 (SYS_EXIT); rb16 = block; trap` -- the reported status is the
   low byte of `code` (contract-semihosting.md §3/§5).  The harness must run
   QEMU with `-semihosting-config enable=on,target=native` (ADR-0020 D7).
-  Machine faults still surface as QEMU's own exit code (0xC0|(mode<<4)|cause_index), not
-  through SYS_EXIT.
+  Fault cases (spec/Machine-v5 §4.4/§7.1) are observed as the monitor-segment
+  code `0xF0|exception_bit`: Vast's hmon writes the RAM fault record and exits
+  with that code itself (TESTCASES-092t §3); Tiny's minimal hmon only saves
+  `cause_id` and escapes to the return slot +0xF8, so the test image installs
+  its own landing pad, which issues SYS_EXIT with the same code.
 
 Instruction encodings from contracts/opcodes.yaml (SimRISC 0.5.3):
   Wyde positions: wp0=bits[15:0], wp1=bits[31:16], wp2=bits[47:32], wp3=bits[63:48]
@@ -71,6 +74,23 @@ EXIT_RD     = 62                      # rd62: exit code / temp
 DUMP_RD     = 63                      # rd63: temp for dump
 MEM_RB      = 61                      # rb61: temp for memory address
 DUMP_RB     = 62                      # rb62: dump pointer
+HMON_RB     = 60                      # rb60: hmon SRAM base (fault landing pad)
+
+# cfx3 hmon fixed data slots (tests/shared/bootrom/tiny/hmon.S header):
+#   +0xE0 cause_id (one-hot, spec/DADAO-12 §5.2), +0xF8 return address.
+# `spec/Machine-v5 §6.2`: power writes the default (`trap+4`), the framework
+# (the application image) may overwrite it -- that is how the Tiny fault
+# oracle is dispatched through hmon (spec/Machine-v5 §4.4).
+HMON_SLOT_CAUSE_ID = 0xE0
+HMON_SLOT_RETURN = 0xF8
+
+# spec/Machine-v5 §7.1 monitor-segment exception bit indexes (DADAO cause bits).
+# CFXTRAP/CFXESC are encoded in the *other-cfx* segment (0x80-0xBF) and are
+# therefore deliberately absent: the landing pad would encode them wrongly.
+FAULT_CAUSE_BIT = {
+    "CFXMEM": 1, "CFXREG": 2, "CFXPERM": 7, "ILLI": 8, "UNDI": 9,
+    "RASOF": 10, "RASUF": 11, "MALIGN": 12, "IALIGN": 13,
+}
 
 # Window the harness treats as "code of the test image".  Vectors are written
 # with the tested instruction at the profile RAM entry, so a value inside this
@@ -200,6 +220,67 @@ def encode_trap(cfxha, immu18):
     Fields: cfxha[23:18], immu18[17:0].  immu18[17:8]==0x3FF (0x3FF00-0x3FFFF) selects the
     semihosting short-circuit (contract-semihosting.md §1; ADR-0020 D1)."""
     return (0x7F << 24) | (cfxha << 18) | (immu18 & 0x3FFFF)
+
+
+def emit_load_imm64_rd_fixed(rd, value):
+    """Fixed-width (4-word) variant of :func:`emit_load_imm64_rd`.
+
+    Layout math must know the instruction count before the value is known
+    (the fault landing pad's own address); always emitting the three `or.w`
+    merge words keeps the length independent of the value.
+    """
+    return [encode_set_zw_rd(rd, 0, value & 0xFFFF),
+            encode_or_w_rd(rd, 1, (value >> 16) & 0xFFFF),
+            encode_or_w_rd(rd, 2, (value >> 32) & 0xFFFF),
+            encode_or_w_rd(rd, 3, (value >> 48) & 0xFFFF)]
+
+
+def uses_hmon_landing_pad(vector_case):
+    """Tiny 故障例是否必须自带 hmon 落点。
+
+    Tiny 的固定固件 hmon 是「最小保存-跳转」（m13-integ-007 用户裁定）：只把
+    `cause_id` 存进 hmon SRAM +0xE0 并 `escape` 到返回槽 +0xF8 指向的地址，
+    自身不产生退出码。故障口径因此由被测镜像安装落点、读 cause 后产生
+    （`spec/Machine-v5 §4.4`）。Vast 的 hmon 写 RAM `fault_record` 并按固件
+    策略直接退出（TESTCASES-092t §3）⇒ 不需要落点。
+    """
+    return (bool(vector_case.get("expected_fault"))
+            and bool(_PROFILE.get("hmon"))
+            and _PROFILE.fault_record is None)
+
+
+def build_hmon_landing_pad(expected_fault):
+    """故障落点：核对固件 hmon 记录的 one-hot cause，再按 monitor 段退出码退出。
+
+    命中期望 ⇒ `SYS_EXIT(0xF0 | 异常位索引)`（Tiny 恒 hypv ⇒ monitor 段
+    `0xF0`–`0xFF`，`spec/Machine-v5 §7.1`）；未命中 ⇒ guest FAIL(1)，与
+    `expected_fault` 的安全网同义。与 `tests/inst/macros/inst_test.inc` 的
+    `.faultpad` 同一口径。
+    """
+    if expected_fault not in FAULT_CAUSE_BIT:
+        raise ValueError("unknown expected_fault %r" % (expected_fault,))
+    bit = FAULT_CAUSE_BIT[expected_fault]
+    words = []
+    # rd60 = hmon SRAM + 0xE0 (cause_id written by the firmware handler)
+    words.extend(emit_load_imm64_rb(HMON_RB,
+                                    machine_profile.HMON_BASE
+                                    + HMON_SLOT_CAUSE_ID))
+    words.append(encode_ld_o(TEMP_RD, HMON_RB, 0))
+    words.extend(emit_load_imm64_rd(ACCUM_RD, 1 << bit))
+    words.append(encode_xor_o(TEMP_RD, TEMP_RD, ACCUM_RD))
+    br_index = len(words)
+    words.append(0)                       # br.nz -> fail (cause mismatch)
+    words.extend(emit_load_imm64_rd(EXIT_RD, 0xF0 | bit))
+    jump_index = len(words)
+    words.append(0)                       # jump -> exit
+    fail_index = len(words)
+    words.extend(emit_load_imm64_rd(EXIT_RD, EXIT_GUEST_FAIL))
+    exit_index = len(words)
+    words.extend(emit_sys_exit(EXIT_RD))
+    # Both branch bases are the instruction's own PC (ISS-309): word deltas.
+    words[br_index] = encode_br_nz_rd(TEMP_RD, fail_index - br_index)
+    words[jump_index] = encode_jump_iiii(exit_index - jump_index)
+    return words
 
 
 def _pack_words(words):
@@ -859,6 +940,14 @@ def build_test_binary(vector_case, trusted_instrs=None, dump_mode=False):
     # - ret: landing pad placed at the vector's own expected_pc (build_ret_binary)
     # - call: unconditional jump → TAKEN layout (via build_branch_test_binary)
     # - others (branch/jump): existing taken/not-taken layout
+    if vector_case.get("expected_pc") is not None and \
+            uses_hmon_landing_pad(vector_case):
+        # Not implemented (no such vector today): the control-flow layouts
+        # below do not install the hmon landing pad, so the case would time out
+        # under the fixed firmware.  Fail loudly instead of a silent stub.
+        raise ValueError(
+            f"{case_label(vector_case)}: expected_fault together with "
+            f"expected_pc is not supported for the minimal-hmon profile")
     if vector_case.get("expected_pc") is not None:
         mnemonic = vector_case.get("mnemonic", "")
         if mnemonic == "ret":
@@ -873,18 +962,44 @@ def build_test_binary(vector_case, trusted_instrs=None, dump_mode=False):
     words.extend(loader_words_list)
 
     # Section 2: test instruction
-    words.extend(build_test_section(vector_case))
+    test_words = build_test_section(vector_case)
 
     # Section 3: dumper (for diagnostics) — ADR-0010 D1 修法 a:
     # only emit dumper in dump mode. Normal mode doesn't need it
     # (pass/fail determined by guest comparison in exit section).
     # Dumper uses st.o-rb + rb2rd which cause TCG code-size timeout
     # when emitted unconditionally (130+ instructions).
-    if dump_mode:
-        words.extend(build_dumper_section())
+    dumper_words = build_dumper_section() if dump_mode else []
 
     # Section 4: exit (compare + write exit code)
-    words.extend(build_exit_section(vector_case, dump_mode, loader_words=loader_words))
+    exit_words = build_exit_section(vector_case, dump_mode,
+                                    loader_words=loader_words)
+
+    if not uses_hmon_landing_pad(vector_case):
+        words.extend(test_words)
+        words.extend(dumper_words)
+        words.extend(exit_words)
+        return _pack_words(words)
+
+    # Tiny fault case (spec/Machine-v5 §4.4): before the instruction under
+    # test, install the harness landing pad in the firmware hmon's return slot
+    # (+0xF8, "framework may overwrite" per §6.2).  The pad is the last block.
+    hmon_base_words = emit_load_imm64_rb(HMON_RB, machine_profile.HMON_BASE)
+    # Fixed-width placeholder; the real address is patched in below so the pad
+    # offset is known before its own address is emitted.
+    pad_addr_words = emit_load_imm64_rd_fixed(TEMP_RD, 0)
+    prologue_len = len(hmon_base_words) + len(pad_addr_words) + 1
+    pad_addr = (BINARY_BASE
+                + 4 * (len(loader_words_list) + prologue_len
+                       + len(test_words) + len(dumper_words)
+                       + len(exit_words)))
+    words.extend(hmon_base_words)
+    words.extend(emit_load_imm64_rd_fixed(TEMP_RD, pad_addr))
+    words.append(encode_st_o_rd(TEMP_RD, HMON_RB, HMON_SLOT_RETURN))
+    words.extend(test_words)
+    words.extend(dumper_words)
+    words.extend(exit_words)
+    words.extend(build_hmon_landing_pad(vector_case["expected_fault"]))
 
     return _pack_words(words)
 

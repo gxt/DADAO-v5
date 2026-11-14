@@ -1974,16 +1974,17 @@ INST_DIR = $(CURDIR)/tests/inst
 INST_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
 INST_SEM_LOG = .work/log/qemu/check-inst.log
 INST_TINY_LOG = .work/log/qemu/check-inst-tiny.log
-INST_TRAMPOLINE = tools/testcases/lib/trampoline.bin
 # TESTCASES-092t §6: two segments, each with its own rc; any non-zero ⇒ red.
 #   [1/2] Vast 全量：dadao-vast + the exit-policy BootROM (observed fault codes)
-#   [2/2] Tiny 子集：profile=tiny + the flat 64 KiB trampoline + only the cases
-#         that explicitly name the tiny profile (44)
+#   [2/2] Tiny 子集：profile=tiny + 固定 64 KiB 固件 + only the cases that
+#         explicitly name the tiny profile (44).  m13-testcases-034：Tiny 故障
+#         例的 oracle 经固件 hmon 分派（cause_id → 镜像落点 → SYS_EXIT），
+#         不再依赖 legacy `-bios` 短 trampoline 的「向量不可达 ⇒ 机器 fault」。
 _locked-check-inst: build-bootrom
 	@mkdir -p .work/log/qemu || { echo "check-inst: ERROR: cannot create .work/log/qemu"; exit 1; }
 	@test -f $(VAST_BOOTROM) || { echo "check-inst: ERROR: $(VAST_BOOTROM) not found"; exit 1; }
 	@test -f $(VAST_BOOTROM_INST) || { echo "check-inst: ERROR: $(VAST_BOOTROM_INST) not found"; exit 1; }
-	@test -f $(INST_TRAMPOLINE) || { echo "check-inst: ERROR: $(INST_TRAMPOLINE) not found"; exit 1; }
+	@test -f $(TINY_BOOTROM) || { echo "check-inst: ERROR: $(TINY_BOOTROM) not found"; exit 1; }
 	@echo "check-inst: [1/2] Vast full set (dadao-vast)"
 	@DADAO_TEST_PROFILE=vast $(PYTHON) tools/qemu/semantics_gate.py \
 	    --vectors $(INST_DIR) --gate-dir $(INST_SEM_DIR) \
@@ -1999,7 +2000,7 @@ _locked-check-inst: build-bootrom
 	@echo "check-inst: [2/2] Tiny subset (profile=tiny, --only-profile-cases)"
 	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/qemu/semantics_gate.py \
 	    --vectors $(INST_DIR) --gate-dir $(TEST_ARTIFACTS_DIR)/harness/gate-tiny \
-	    --qemu $(QEMU_BIN) --trampoline $(INST_TRAMPOLINE) \
+	    --qemu $(QEMU_BIN) --trampoline $(TINY_BOOTROM) \
 	    --only-profile-cases --jobs $(JOBS) > $(INST_TINY_LOG) 2>&1; \
 	  rc=$$?; \
 	  grep -E "Results:|skipped_profile" $(INST_TINY_LOG) | tail -2; \

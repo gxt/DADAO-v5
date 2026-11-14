@@ -17,10 +17,15 @@
 # 在 RAM 内、位于 exit_block 之下）。布局（fault 记录 = 16 字节）：
 #   +0  cause（spec cause id，one-hot，DADAO-12 §4）
 #   +8  excp_cause_ip（cfx_hmon cg5 rc3）
-# 只有 Vast 的 hmon 写它；Tiny 无 cfx、无 monitor ⇒ null。
+# 只有 Vast 的 hmon 写它；Tiny 的 cfx3 hmon 是最小「保存-跳转」处理器
+# （spec/Machine-v5 §1.1/§3；m13-integ-007），cause 存在 hmon SRAM +0xE0、
+# 返回槽 +0xF8，不写 RAM fault_record ⇒ null。
 #
 # 用户裁定（2026-11-02，第二轮）：
 #   Tiny：地址高 6 位恒 0x3F，**无任何 cfx（含 cfx_power）**、不能 user 模式；
+#         〔M12 更新：Tiny 已实现 cfx_power + cfx3 hmon（spec/Machine-v5
+#          §1.1/§3，启动链 power→hmon），本段 cfx 描述为 M12 前口径；
+#          现行取值见下方 profile 的 `hmon: true`〕
 #         semihosting 允许（trap 不算 cfx 类）。只跑非 cfx 的 inst、embench、
 #         picolibc；不跑 arch。raw -kernel 基址 0xffff_ff01_0000，前 0x100
 #         字节零保留，应用入口 0xffff_ff01_0100；BootROM 为固定固件
@@ -45,7 +50,7 @@ profiles:
     kernel_base: 0xFFFF_FF01_0000
     kernel_reserved: 0x100
     ptw: false
-    hmon: false
+    hmon: true                    # cfx3 hmon（spec/Machine-v5 §1.1/§3；启动链 power→hmon）
     smon: false
     cfx: false
     semihosting: true
