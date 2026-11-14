@@ -17,6 +17,8 @@
   （只读已入库 JSON，见「三平台矩阵（m13-integ-001）」）。
 - `fp_diff.py`：FP `scope: fp` 三平台逐例差分报告生成器
   （见「FP 三平台差分（m13-integ-002）」）。
+- `int_diff.py`：非 cfx、非 FP 的 `.S` 载体三平台逐例差分报告生成器
+  （见「整数与访存三平台差分（m13-integ-003）」）。
 
 ## 用法
 
@@ -166,6 +168,35 @@ python3 tools/testcases/parity/fp_diff.py --self-test    # 8 类反例逐条判�
   FP 语义差异计数；单通道 semihosting 字节流比较不经过该路径。
 - 复用：载体点数/点号 = `run_asm_suite.scan_source`；owner 词表 =
   `se_tset_matrix.OWNERS`；平台状态词表 = `run_parity.STATUSES`。
+
+## 整数与访存三平台差分（`m13-integ-003`）
+
+`int_diff.py` 与 `fp_diff.py` 同形：**不跑 guest**，输入是 `run_asm_suite.py` 的
+三平台逐镜像 JSON + 每镜像 `.out` 结果流；范围 = `tests/inst/**/*.S` 中**非 cfx**
+（册 `11-cfx`）且**非 FP**（`scope: fp`）的载体（现场枚举，计数不写死）。
+输出 `.tao/knowledge/refs/m13-003-int-diff.{json,md}`。
+
+```sh
+python3 tools/testcases/parity/int_diff.py \
+    --run int-book=<run.json> --work int-book=<work-dir> \
+    --engine qemu=<md5> --engine gem5=<md5> --engine chipyard=<md5> \
+    --json-out <运行期>/m13-003-int-diff.json --markdown-out <运行期>/m13-003-int-diff.md
+python3 tools/testcases/parity/int_diff.py --check <已入库 .md 或 .json>
+python3 tools/testcases/parity/int_diff.py --self-test   # 10 类反例逐条判出
+```
+
+- **分母**：`.S` 载体总数 → 排除 `scope: fp` 与册 `11-cfx` → 本报告载体数/镜像数
+  （链例 + 故障例），三平台完成数按记录现场统计；未跑项按 id 归集并给原因。
+- **语义出处**：逐 id 的 `spec_cite`（`contracts/opcodes.yaml`）解析到
+  `spec/SimRISC-NN-*` 章节，并在章内核对助记符（表格首列优先、行内代码次之）；
+  解析不到 ⇒ 记 **spec 歧义** 并逐条列出（不臆造期望）。非 id 载体
+  （`00-isa-design/undi_reserved`）取自身文件头的 spec 出处。
+- **判据**：缺平台 / 未知 id / 重复记录 / `ok` 与平台记录矛盾 / 点号不连续 /
+  未归因差异 ⇒ 非零退出。归因表可代码内（`ATTRIBUTIONS`）或 `--attribution`
+  外部 JSON 逐条申报；每条 owner 必须 ∈ `OWNERS`、`spec_cite` 必须解析到现存
+  章节，**未列出的差异仍 rc=1**（表只许逐条申报，不是放行开关）。
+- 复用：逐镜像装载/判定 = `fp_diff.py`（`load_run`/`merge_runs`/`classify`）；
+  载体统计 = `run_asm_suite.scan_source`。
 
 ## M11 收口口径（TESTCASES-098t）
 
