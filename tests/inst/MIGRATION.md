@@ -194,7 +194,8 @@ reserved：`inst_sweep` 输入与 `generate_isa_vectors` 渲染目标）。
 18 册目录彼此独立，可**并行**派到不同节点。为免共享清单互相覆盖，**每个分片任务只写自己的片段**，由主会话串行合并：
 
 - 分片任务的产物：`tests/inst/<册>/*.S`（本册目录，独占）+ 两个片段文件
-  - `tests/inst/.fragments/<任务号>.inst.yaml` —— 本任务要加入 `tests/inst.yaml` 的条目（**只写自己的条目，YAML 列表**，格式同根清单）；
+  - `tests/inst/.fragments/<任务号>.inst.fragment` —— 本任务要加入 `tests/inst.yaml` 的条目（**只写自己的条目，内容为 YAML 列表文本**，格式同根清单）。
+    **扩展名不用 `.yaml`**：`check-tests-index` 规则 11（`m13-testcases-043`）禁止 `tests/inst/` 下出现任何 `*.yaml`（载体模型只有 `.S`），片段只是待合并的索引文本、不是载体，故用 `.fragment` 后缀避免与门控冲突（`m13-testcases-037` 现场发现，2026-11-15）。
   - `tests/inst/.fragments/<任务号>.migration.md` —— 本任务要追加到 §1/§6 的行（**只写自己的行**）。
   - 用**任务号**而非册名：同一册可能同时有两个任务在改不同文件，按册名会撞车。
 - 分片任务**不改** `tests/inst.yaml`、`tests/inst/MIGRATION.md`、`tests/inst/README.md`、`macros/inst_test.inc`、`run_asm_suite.py`；若确需改后三者，在任务书「待裁定」写清并停下。
