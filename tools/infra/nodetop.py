@@ -45,11 +45,11 @@ if [ -d "$repo" ]; then
   df -Pk "$repo" 2>/dev/null | awk 'NR==2{print "disk_used_kb=" $3; print "disk_total_kb=" $2}'
 fi
 echo "tests=$(pgrep -c -f 'harness-WumingTinyConfig|qemu-system-dadao|gem5\.opt' 2>/dev/null || echo 0)"
-ps -eo pcpu=,args= --sort=-pcpu 2>/dev/null | grep -vE '[p]s -eo|[p]grep -c|[d]f -Pk|[s]h -s --|[a]wk /|grep -oE' | head -"$n" | while read -r cpu args; do
+ps -eo pcpu=,etime=,args= --sort=-pcpu 2>/dev/null | grep -vE '[p]s -eo|[p]grep -c|[d]f -Pk|[s]h -s --|[a]wk /|grep -oE' | head -"$n" | while read -r cpu etime args; do
   name=$(printf '%s' "$args" | awk '{print $1}' | sed 's#.*/##')
   detail=$(printf '%s' "$args" | grep -oE '\+loadmem=[^ ]+' | sed 's#.*/##' | head -1)
   [ -z "$detail" ] && detail=$(printf '%s' "$args" | grep -oE '/tmp/opencode/[a-z0-9-]+|\.dadao/tests/[a-z0-9-]+' | head -1 | sed 's#.*/##')
-  printf 'p=%s\t%s\t%s\n' "$cpu" "$name" "$detail"
+  printf 'p=%s\t%s\t%s\t%s\n' "$cpu" "$etime" "$name" "$detail"
 done
 """
 
@@ -71,7 +71,7 @@ class Sample:
         self.du = 0
         self.dt = 0
         self.tests = 0
-        self.procs: list[tuple[float, str, str]] = []
+        self.procs: list[tuple[float, str, str, str]] = []
         self.stamp = 0.0
         self.latency = 0.0
         self.err = ""
@@ -89,9 +89,10 @@ def probe(host: str, repo: str, nprocs: int, timeout: float) -> Sample:
         for line in cp.stdout.splitlines():
             if line.startswith("p="):
                 parts = line[2:].split("\t")
-                if len(parts) >= 2:
+                if len(parts) >= 3:
                     try:
-                        s.procs.append((float(parts[0]), parts[1], parts[2] if len(parts) > 2 else ""))
+                        s.procs.append((float(parts[0]), parts[1], parts[2],
+                                        parts[3] if len(parts) > 3 else ""))
                     except ValueError:
                         pass
                 continue
@@ -132,9 +133,40 @@ def fit(text: str, width: int) -> str:
     return text if len(text) <= width else text[: max(0, width - 1)] + "…"
 
 
-def proc_line(cpu: float, name: str, detail: str, width: int) -> str:
-    """Full binary name (no abbreviation); append the hint only if it still fits."""
-    head = f"{cpu:>4.0f}% {name}"
+def compact_etime(raw: str) -> str:
+    """ps etime (`[[dd-]hh:]mm:ss`) -> fixed 5 chars: mm:ss / hh:mm / Nd HH."""
+    raw = raw.strip()
+    days = 0
+    if "-" in raw:
+        d, raw = raw.split("-", 1)
+        try:
+            days = int(d)
+        except ValueError:
+            return raw[:5]
+    parts = raw.split(":")
+    try:
+        nums = [int(x) for x in parts]
+    except ValueError:
+        return raw[:5]
+    if days:
+        return f"{days}d{nums[0] if nums else 0:02d}"
+    if len(nums) == 3:
+        return f"{nums[0]:02d}:{nums[1]:02d}"
+    if len(nums) == 2:
+        return f"{nums[0]:02d}:{nums[1]:02d}"
+    return raw[:5]
+
+
+def proc_line(cpu: float, etime: str, name: str, detail: str, width: int) -> str:
+    """CPU% | elapsed | full binary name (no abbreviation); hint only if it fits.
+
+    When the name is wider than the pane keeps the *tail* (that is what tells
+    the binaries apart, e.g. ``...WumingTinyConfig``), never an invented alias.
+    """
+    prefix = f"{cpu:>4.0f}% {compact_etime(etime):>5} "
+    room = width - len(prefix)
+    shown = name if len(name) <= room else "…" + name[-(room - 1):] if room > 1 else name[:room]
+    head = prefix + shown
     if detail:
         room = width - len(head) - 2
         if room >= len(detail) + 1:
@@ -162,8 +194,8 @@ def pane(s: Sample | None, host: str, w: int, nlines: int, now: float) -> list[s
             f"M{fmt_kb(s.mem_avail)} D{diskpct:.0f}% T{s.tests} "
             f"ssh{s.latency:.2f}s{state}")
     lines = [fit(head, w)]
-    for cpu, name, detail in s.procs[:nlines]:
-        lines.append(proc_line(cpu, name, detail, w))
+    for cpu, etime, name, detail in s.procs[:nlines]:
+        lines.append(proc_line(cpu, etime, name, detail, w))
     while len(lines) < 1 + nlines:
         lines.append("")
     return lines[: 1 + nlines]
@@ -189,7 +221,7 @@ def render_grid(hosts, state, w, h, nlines, color, tick, interval) -> str:
     title = (f"nodetop {time.strftime('%H:%M:%S')}  tick={tick}  {interval:g}s  "
              f"procs={nlines}/pane   q=quit p=pause +/-=refresh")
     legend = ("字段：L=1 分钟负载(占核数%)  M=可用内存  D=磁盘使用率  T=测试进程数  "
-              "ssh=采样往返延迟（越大说明隧道越慢）")
+              "ssh=采样往返延迟｜进程行：CPU% ｜ 已运行时间 ｜ 进程名")
     out = [fit(title, w), fit(legend, w), "-" * w]
     for r in range(rows):
         chunk = panes[r * cols:(r + 1) * cols]
@@ -233,8 +265,8 @@ def render_list(hosts, state, w, nprocs, now) -> str:
         out.append(f"{h:<10} {s.cores:>3}c  L{s.load1:5.1f} ({loadpct:3.0f}%)  "
                    f"M{fmt_kb(s.mem_avail):>8}  D{diskpct:3.0f}%  T{s.tests:>3}  "
                    f"ssh {s.latency * 1000:4.0f}ms{flag}")
-        for cpu, name, detail in s.procs[:nprocs]:
-            out.append(f"           {proc_line(cpu, name, detail, w - 11)}")
+        for cpu, etime, name, detail in s.procs[:nprocs]:
+            out.append(f"           {proc_line(cpu, etime, name, detail, w - 11)}")
     return "\n".join(out)
 
 
