@@ -616,3 +616,11 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`sc` 保留（reservation）粒度三平台不一致：`spec/SimRISC-12 §1`/`ADR-0034 D6` 是**精确地址+宽度**（同字异址写入不应清标记），实测 **QEMU 按 8 B 整字判成功**（与 spec 相反）；**chipyard 按整字值比较**（同 hart 改同字另一字节即清标记，spec 未列该清除事件）；gem5 与 spec 一致（3 点全过）。`m13-testcases-028` 的 `probe_gran.S` 同 ELF 实测 `chipyard=2 / qemu=1 / gem5=0`。需裁定：改实现对齐 spec，或改 spec 允许字粒度/字值失效。"
+- id: ISS-436
+  scope:
+  - spec
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P1】`check-spec-readonly` 在 master 红：**11/21 册 sha256 与锁不符**（`SimRISC-01/02/07/08/09/10`、`DADAO-11/12/22`、`Toolchain-01`、`Machine-v5`）。成因：这些册的正文在后续任务里被改（浮点写宽/饱和口径、`Toolchain-01` 改中性表述、`DADAO-11/12/22` 修订等），**未在同一变更内重算锁哈希**（`Process-06 §5` 要求同笔更新）。锁的校验因此长期失效：既无法证明只读，也无法发现越权修改。需逐册核对改动是否有用户授权原话，再重算锁并追加注记（属 spec 面收口任务，不可批量刷哈希掩盖无授权改动）。"
