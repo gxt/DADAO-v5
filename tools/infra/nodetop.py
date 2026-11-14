@@ -216,11 +216,12 @@ def pane(s: Sample | None, host: str, w: int, nlines: int, now: float) -> list[s
 def pane_lines(h: int, cap: int = 0, rows: int = 2) -> int:
     """Process rows per pane that keep the whole frame inside `h` lines.
 
-    Frame budget: title + legend + top rule (=3) + (header + N) * rows
-    + (rows - 1) inter-row rules + bottom rule + footer (=rows + 3)
-    => fixed = 2*rows + 4, and N = (h - fixed) // rows.
+    Frame budget: top line (title+legend merged) + top rule (=2)
+    + (header + N) * rows + (rows - 1) inter-row rules
+    + bottom rule + footer (=rows + 2)
+    => fixed = 2*rows + 3, and N = (h - fixed) // rows.
     """
-    n = max(3, (h - (2 * rows + 4)) // rows)
+    n = max(3, (h - (2 * rows + 3)) // rows)
     return min(n, cap) if cap > 0 else n
 
 
@@ -233,11 +234,10 @@ def render_grid(hosts, state, w, h, nlines, color, tick, interval) -> str:
     for i, host in enumerate(hosts):
         panes.append(pane(state.get(host), host, pane_w, nlines, now))
 
-    title = (f"nodetop {time.strftime('%H:%M:%S')}  tick={tick}  {interval:g}s  "
-             f"procs={nlines}/pane   q=quit p=pause +/-=refresh")
-    legend = ("字段：L=1 分钟负载(占核数%)  M=可用内存  D=磁盘使用率  T=测试进程数  "
-              "ssh=采样往返延迟｜进程行：CPU% ｜ 虚存 ｜ 已运行 ｜ 进程名")
-    out = [fit(title, w), fit(legend, w), "-" * w]
+    title = (f"nodetop {time.strftime('%H:%M:%S')} {interval:g}s {nlines}/pane "
+             f"q=quit p=pause +/-  |  L=负载(占核%) M=可用内存 D=磁盘% T=测试进程 "
+             f"ssh=延迟")
+    out = [fit(title, w), "-" * w]
     for r in range(rows):
         chunk = panes[r * cols:(r + 1) * cols]
         for line_i in range(1 + nlines):
@@ -247,8 +247,8 @@ def render_grid(hosts, state, w, h, nlines, color, tick, interval) -> str:
         if r < rows - 1:
             out.append("┼" * w)
     out.append("-" * w)
-    out.append(fit("阈值：LOAD% ≥100% 红｜节点可多任务共占（并行度之和 ≤ 核数−2）｜"
-                   f"DISK% ≥90% 先清｜q 退出", w))
+    out.append(fit("进程行：CPU% ｜ 虚存 ｜ 已运行 ｜ 进程名   "
+                   "阈值：LOAD% ≥100% 红｜DISK% ≥90% 先清｜节点可多任务共占", w))
     out = out[:h]          # hard cap: never scroll the top rows off the screen
     text = "\n".join(out)
     if not color:
@@ -257,7 +257,7 @@ def render_grid(hosts, state, w, h, nlines, color, tick, interval) -> str:
     painted = []
     for ln in text.splitlines():
         if ln.startswith("nodetop") or ln.startswith("-") or ln.startswith("┼") \
-                or ln.startswith("阈值"):
+                or ln.startswith("进程行"):
             painted.append(DIM + ln + OFF)
         elif "满载" in ln or "磁盘!" in ln:
             painted.append(RED + ln + OFF)
@@ -355,7 +355,7 @@ def main() -> int:
                 body = render_grid(hosts, state, w, h, nlines, color, tick, args.interval)
             else:
                 body = render_list(hosts, state, w, nlines, time.time())
-            sys.stdout.write("\033[H\033[J" + body + "\n")
+            sys.stdout.write("\033[H\033[J" + body)
             sys.stdout.flush()
             waited = 0.0
             while waited < max(0.2, args.interval):
