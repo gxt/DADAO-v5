@@ -857,6 +857,132 @@
   - system
   level: full
   requires: []
+- id: inst-09-arith-logic-wyde-001
+  file: inst/09-arith-logic-wyde/add.sw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-002
+  file: inst/09-arith-logic-wyde/add.uw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-003
+  file: inst/09-arith-logic-wyde/cmp.sw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-004
+  file: inst/09-arith-logic-wyde/cmp.uw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-005
+  file: inst/09-arith-logic-wyde/div.sw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-006
+  file: inst/09-arith-logic-wyde/div.uw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-007
+  file: inst/09-arith-logic-wyde/mul.sw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-008
+  file: inst/09-arith-logic-wyde/mul.uw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-009
+  file: inst/09-arith-logic-wyde/rem.sw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-010
+  file: inst/09-arith-logic-wyde/rem.uw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-011
+  file: inst/09-arith-logic-wyde/rev.w_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-012
+  file: inst/09-arith-logic-wyde/rol.w_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-013
+  file: inst/09-arith-logic-wyde/rol.w_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-014
+  file: inst/09-arith-logic-wyde/shl.w_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-015
+  file: inst/09-arith-logic-wyde/shl.w_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-016
+  file: inst/09-arith-logic-wyde/shr.sw_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-017
+  file: inst/09-arith-logic-wyde/shr.sw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-018
+  file: inst/09-arith-logic-wyde/shr.uw_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-019
+  file: inst/09-arith-logic-wyde/shr.uw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-020
+  file: inst/09-arith-logic-wyde/sub.sw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-09-arith-logic-wyde-021
+  file: inst/09-arith-logic-wyde/sub.uw_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-atomics-001
   file: inst/atomics/aba_treiber.c
   platforms:
