@@ -42,7 +42,7 @@
 
 - 指令：`ft2it`/`ft2io`/`ft2ut`/`ft2uo`/`fo2it`/`fo2io`/`fo2ut`/`fo2uo`（orri：`rdHB` 目的、`rfHC` 源、`immu6` = **舍入方向**）。[SimRISC-07 §格式转换指令]
 - `immu6` 为 6 位 one-hot 六档：`0x01` RNE / `0x02` RNA / `0x04` RTZ / `0x08` RUP / `0x10` RDN / `0x20` 动态（读 `rf0[33:32]`）；其他取值（含 `0x00`）⇒ ILLI。5 个静态档不受 `rf0[33:32]` 影响。[SimRISC-07 §格式转换指令][SimRISC-07 §取整（roundToIntegral）]
-- 浮点→整数转换按 IEEE 754-2019：有限值结果 inexact（不能精确表示）⇒ 置 NX；NaN/Inf/超出目标整型范围 ⇒ 返回整型饱和值（最大/最小）并置 NV，**不置 NX**。[SimRISC-07 §格式转换指令]
+- 浮点→整数转换按 IEEE 754-2019：有限值结果 inexact（不能精确表示）⇒ 置 NX；NaN/Inf/超出目标整型范围 ⇒ 置 NV、**不置 NX**，饱和取值：有符号目的 `NaN`/`+Inf`/正溢出 ⇒ 最大正值、`−Inf`/负溢出 ⇒ 最小负值；无符号目的 `NaN`/`+Inf`/正溢出 ⇒ 最大无符号值、`−Inf`/负溢出 ⇒ `0`；**`NaN` 一律按「正」处理、与符号位无关**。[SimRISC-07 §格式转换指令]
 - `immu6` 不是寄存器个数、指令只访问单寄存器 ⇒ 无 `mreg_zero`/`mreg_range_overflow`/`mreg_range_overlap` 约束。[SimRISC-07 §格式转换指令]
 - 目的为 rd 组（非 rf），不受 rf0 目的约束；但受 `dst_rd0` 约束（目的 `rdHB` 为 `rd0` → ILLI）。[SimRISC-00 §浮点寄存器][SimRISC-00 §数据寄存器]
 
