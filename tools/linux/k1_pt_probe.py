@@ -26,7 +26,7 @@ Expectation sources (never restated here):
     kernel-window VA -> PA check).
 
 Checks (``--selfcheck`` proves each one has a reachable FAIL by mutating the
-captured output; ``--inject`` proves three of them end-to-end by rebuilding the
+captured output; ``--inject`` proves four of them end-to-end by rebuilding the
 kernel with the corruption in place):
 
   P1  guest rc == 0 (SYS_EXIT subcode)
@@ -65,7 +65,7 @@ Usage::
 
   python3 tools/linux/k1_pt_probe.py                # positive run
   python3 tools/linux/k1_pt_probe.py --selfcheck    # per-check reachable FAIL
-  python3 tools/linux/k1_pt_probe.py --inject       # three real injections
+  python3 tools/linux/k1_pt_probe.py --inject       # four real injections
   python3 tools/linux/k1_pt_probe.py --list
   python3 tools/linux/k1_pt_probe.py --kernel <vmlinux> --qemu <binary>
 
@@ -426,7 +426,7 @@ def run_selfcheck(kernel: Path, ctx: Ctx) -> int:
 
 
 # ---------------------------------------------------------------------------
-# --inject: three real corruptions, rebuilt and restored
+# --inject: four real corruptions, rebuilt and restored
 # ---------------------------------------------------------------------------
 
 PT_C = "arch/dadao/mm/k1_pt.c"

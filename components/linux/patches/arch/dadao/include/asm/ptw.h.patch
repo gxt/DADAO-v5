@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/ptw.h b/arch/dadao/include/asm/ptw.h
 new file mode 100644
-index 000000000..a99e1a36e
+index 000000000..04b3422cb
 --- /dev/null
 +++ b/arch/dadao/include/asm/ptw.h
-@@ -0,0 +1,96 @@
+@@ -0,0 +1,103 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO page table walker interface (spec/DADAO-12 §2.2, §4.5).
@@ -74,13 +74,20 @@ index 000000000..a99e1a36e
 +}
 +
 +/*
-+ * TLB maintenance (§4.5): `invalid` over range `all` — drop every entry
-+ * without writing A/D back.  Writing PTBR does *not* invalidate the TLB
-+ * (§2.2.5), so the switch has to do it explicitly.
++ * TLB maintenance (§4.5): `invalid` over range `all` with `ASID_ANY` — drop
++ * every entry, including the global ones, without writing A/D back.
++ *
++ * The write value is `[1:0] = 10` (invalid) | `[3:2] = 00` (all) | `bit4 =
++ * ASID_ANY` (§4.5): `ASID_ANY = 0` only handles `G = 0` entries whose ASID
++ * matches and leaves `G = 1` entries alone, while `ASID_ANY = 1` includes
++ * them.  Every kernel mapping carries `G = 1` (`_PAGE_KERNEL` in
++ * `asm/pgtable.h`), so `0x2` would leave exactly the mappings this switch
++ * replaces.  Writing PTBR does *not* invalidate the TLB (§2.2.5), hence the
++ * explicit command.
 + */
 +static inline void dadao_tlb_invalidate_all(void)
 +{
-+	DADAO_CFX_WRITE(cfx_ptw, PTW_CG_TLB, PTW_RC_TLB_CONTROL, 0x2);
++	DADAO_CFX_WRITE(cfx_ptw, PTW_CG_TLB, PTW_RC_TLB_CONTROL, 0x12);
 +}
 +
 +/* Build + verify + install the kernel's own table (K1). */
