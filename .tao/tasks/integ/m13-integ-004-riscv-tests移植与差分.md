@@ -96,3 +96,5 @@
 - 注入：翻 `add.yaml` expected ⇒ 同一脚本 4 项 FAIL（qemu rc=68=`0x40|4`）⇒ 还原回绿。
 - **L2 BLOCKED 已核实根因**：任务 worktree 缺 `.work/build` ⇒ `install-host → build-mc` 从零配置 LLVM（3573 目标）；本任务未触碰 L2 载体。替代验证：合并后在主工作树跑 `make check-modules`（判 up-to-date）。
 - 非阻断（转 `ISS-376`）：fresh-clone 下 14+SKIP（依赖上游检出）；「BootROM 设 SP」措辞与 §6（crt 设）不符；`dadao_test.inc` 注释 6 个 `--defsym` 实只 2 个；`auipc` 理由措辞；4 个 log 落 worktree 根未入运行期目录；2 个 `/tmp/opencode/m13-integ-004-*.json` 越界（收尾已删）。
+
+> **补遗（2026-11-15，用户裁定）**：`m13-testcases-045` 已按「迁移精选值后退役、**不归档不溯源**」删除了 `tests/riscv-tests/`、`tools/testcases/riscv_tests/`、`docs/TestReports/M13-riscv-tests移植与差分.md`，并同时删除本任务的两份 refs（内容含上游 commit 与已删语料指针，与「不溯源」冲突）；本条只作指针说明，不改本任务的既有结论。
