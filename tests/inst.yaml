@@ -1457,6 +1457,30 @@
   - system
   level: full
   requires: []
+- id: inst-12-misc-025
+  file: inst/12-misc/ctlz_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-026
+  file: inst/12-misc/ctpop_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-027
+  file: inst/12-misc/cttz_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-028
+  file: inst/12-misc/swym_oiii_imm.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-atomics-001
   file: inst/atomics/aba_treiber.c
   platforms:

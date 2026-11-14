@@ -38,7 +38,6 @@
 | --- | --- | --- | --- |
 | m13-spec-008 | 2026-11-14 16:10 | 1–2 h | `ext.*` orrr 的 `hd = rdHD[5:0]`（删「否则 ILLI」；spec+契约+锁同笔） |
 | m13-testcases-032 | 2026-11-14 15:20 | 4–6 h | rootn ±0 / NaN canonical / quiet-sNaN 向量与三平台期望 |
-| m13-testcases-029 | 2026-11-14 15:20 | 1–2 h | `12-misc` 其余 4 个 id（`swym`/`ct*`）改汇编+宏 |
 | m13-gem5-012 | 2026-11-14 15:20 | 3–4 h | gem5 `ext.*` orrr 的 `hd` 改 `reg & 0x3F`（B3 表同步） |
 | m13-testcases-034 | 2026-11-14 15:20 | 2–3 h | Tiny `expected_fault` oracle 迁到 hmon 分派口径 |
 | m13-qemu-011 | 2026-11-14 15:20 | 2–3 h | `-bios` 收紧为固定固件，删 legacy trampoline 窗口 |
@@ -48,6 +47,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m13-testcases-029 | 2026-11-14 15:55 | `12-misc` 其余 4 id（`swym`/`ctlz`/`cttz`/`ctpop`）改汇编+宏；67 链点三平台逐字节 |
 | m13-testcases-027 | 2026-11-14 14:40 | `11-cfx` 5 id（40/40 三平台；GAP 4 项实测钉住） |
 | m13-testcases-024 | 2026-11-14 14:20 | `08-arith-logic-tetra` 21 id（55/55 三平台；362 点；YAML 114/114 并入） |
 | m13-testcases-028 | 2026-11-14 14:10 | `12-misc` 原子 24 id（66/66 三平台；408 点；粒度分歧登记 ISS-435） |

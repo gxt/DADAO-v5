@@ -93,7 +93,7 @@ def merge_migration(text: str, frag_text: str, frag_name: str) -> str:
     # §1 表行替换
     s1 = section(frag_text, "§1 表行")
     for line in re.findall(r"^\|.*\|\s*$", s1, re.M):
-        cells = [c.strip() for c in line.strip("|").split("|")]
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) != 3:
             raise SystemExit(f"{frag_name}: §1 行应为 3 格：{line}")
         name = cells[0]
@@ -108,7 +108,7 @@ def merge_migration(text: str, frag_text: str, frag_name: str) -> str:
         i = text.find(anchor)
         if i < 0:
             raise SystemExit("MIGRATION.md: 找不到 `## 6. 已完成`")
-        text = text[:i] + anchor + s6 + "\n\n" + text[i + len(anchor):]
+        text = text[:i] + anchor + "\n" + s6 + "\n\n" + text[i + len(anchor):]
     return text
 
 
@@ -139,9 +139,17 @@ def main() -> int:
             added += 1
     merged = sorted(by_id.values(), key=lambda r: r["id"])
 
+    missing = [
+        f.name[: -len(".inst.yaml")]
+        for f in frags
+        if not (FRAG / (f.name[: -len(".inst.yaml")] + ".migration.md")).exists()
+    ]
+    if missing:
+        raise SystemExit(f"merge_fragments: 片段缺少同名 .migration.md（§5.3 要求成对）：{missing}")
+
     mig = MIGRATION.read_text(encoding="utf-8")
     for f in frags:
-        mf = f.with_suffix(".migration.md")
+        mf = f.with_name(f.name[: -len(".inst.yaml")] + ".migration.md")
         if mf.exists():
             mig = merge_migration(mig, mf.read_text(encoding="utf-8"), mf.name)
 

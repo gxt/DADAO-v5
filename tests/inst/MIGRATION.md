@@ -18,7 +18,7 @@
 | `09-arith-logic-wyde/` | 09 16 位数据运算 | 16 |
 | `10-arith-logic-byte/` | 10 8 位数据运算 | 16 |
 | `11-cfx/` | 11 核芯功能扩展 | 29 |
-| `12-misc/` | 12 其它指令 | 1（待校准） |
+| `12-misc/` | 12 其它指令 | 28（`lr`/`sc` 24 + `swym`/`ct*` 4；全部已迁） |
 
 > id 总数应恰为 **264**（`contracts/opcodes.yaml`）。校准任务：建「id → 册」映射表并机械校验（每个 id 恰好属一册、12 册合计 264）。
 
@@ -161,6 +161,31 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
 - 节点侧：各分片用**独立** `~/eval/<任务>/` staging 与**独占** work-dir；`--jobs` 用脚本默认（核数/2）。
 
 ## 6. 已完成
+
+### `m13-testcases-029`：`12-misc` 其余（`swym` + `ctlz`/`cttz`/`ctpop`，4 个 id）
+
+- `tests/inst/12-misc/{ctlz,ctpop,cttz}_orri_rd.S` 与 `swym_oiii_imm.S`（4 个）；链接布局复用
+  `01-load-store/inst-tiny.lds`；**无宏层改动**（三目 orri 用既有 `TEST_AR_ORRI`，故障例用既有
+  `TEST_FAULT_ALU_ORRI`；`swym` 无操作数，用例体在 `.S` 内直接书写既有宏 `__CHECK_RD`/`__VERIFY_*`）。
+- 语义要点（`spec/SimRISC-12 §3`）：`ctlz`/`cttz`/`ctpop` **无位宽后缀**，有效位宽由立即数
+  `hd`（`immu6` = 有效位上界，0..63）运行时给出——参与运算的是 `rdHC[hd:0]`，`[63:hd+1]`
+  **不参与**；结果 ∈ 0..64 **写满 64 位**（值语义）。定值：`rdHC[hd:0]` 全 0 ⇒ `ctlz` = `cttz` =
+  `hd+1`（规范消除 UB，不是未定义值），`ctpop(0)` = 0。合法性只有 `dst_rd0`（`rdhb=rd0` ⇒ ILLI），
+  **`hd` 无非法值**；`rdhc` 可为 `rd0`（读出 0）、`rdhb == rdhc`（原地）允许。
+- `swym N`（`spec/SimRISC-12 §2`，oiii）：除 IP 自增（+4）外**无架构副作用**；`N` 只是硬件时延
+  提示。用例以 `aip.si rb,0` 差值观测 IP（两次 `aip.si` 之间只放被测 `swym` ⇒ 差值 = 8），并核
+  寄存器/内存/rb 银行哨兵不变；`swym` 无合法性规则 ⇒ **无故障例**；`overlap` 类对该 id **不适用**
+  （oiii 无寄存器操作数），以「插入访存序列中间」与「rb 银行哨兵」等价观测替代。
+- 用例：`ct*` 每 id 18 链点 + 1 故障例（encoding 2 / semantic 6 / boundary 7 / legality 2 /
+  overlap 1），`swym` 13 链点（encoding 3 / semantic 5 / boundary 5）。目的初值一律全 1 ⇒
+  只写低位/不清高位的实现必红（fail-closed）。合计 67 链点 + 3 故障例。
+- 三方逐字节：`run_asm_suite.py`（同一份 ELF：chipyard / QEMU / gem5）7 个镜像全一致；
+  结果缓冲逐点与独立复算（位循环模型）相等。
+- **YAML**：`bitcnt/bitcnt.yaml`（`ctl*`/`ct*` 各 138 例）与 `base/misc.yaml`（`swym` 2 例）
+  的用例已另有 `.S` 载体；两文件**未删** —— `base/misc.yaml` 里 `escape_ciii_cfx` 4 例属
+  `11-cfx`，且删除受 §5.1（`inventory.md` 载体登记 + 数据覆盖门控 + 台账重生成）与根清单
+  `file:` 条目阻塞，与 §5.1/§5.2 同批处理。
+- GAP（不写用例、不伪造）：`swym N` 的**时延倍数/上限**属性能语义，功能层无观测点。
 
 ### `m13-testcases-012`：`01-load-store` 单元素（`ld.*` + `st.*`，19 个 id）
 
