@@ -4,12 +4,12 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
-- **2026-11-13（夜）**：M12 已验证 35 / 待开始 4；M13 已验证 46 / 进行中 1 / 待开始 21；M14 已验证 2 / 待开始 6。
-- 最近合入：FP 口径三连（`spec-007`/`qemu-009`/`chipyard-030`/`gem5-011`：`rootn(±0,2)=+0`、结果 NaN canonical、quiet compare sNaN 置 NV）；`testcases-014`（58/58）；M14 K0 立册（`milestones-m14.md` + 7 件）+ `linux-001`（Linux 补丁组件化）+ `spec-001` 启动 ABI 契约 & `ADR-0051 Accepted`（VA 术语 / M1 / smon 建身份页表）。
-- 下一件：`m13-testcases-015`（`03-wyde-imm`，返工复核中；合入后按链派 `016`…`029`）；`m12-chipyard-028`（重生成 `bootrom.tiny.hex`）与 `029`（FMA RTL）组件互斥、串行；M14 `m14-qemu-001`（最小 smon）与 `m14-spec-002`/`infra-001`/`infra-002` 待派。
-- 未决 issue：`ISS-410`（hmon 自装 workaround，待 028 后撤）、`ISS-416`（生成器漂移）、`ISS-417`（DDLD 残留扫描面）、`ISS-420`（FMA 常驻门控，载体 `testcases-021/022`）、`ISS-421`（chipyard README/changelog）。
-- 节点：6 台同构（2×64 + 4×40 vCPU）。**六台环境已建齐**（gem5 / musl / chipyard conda env + Verilator 仿真器；`+loadmem` 冒烟一致、207 上 02-reg-copy 三平台 58/58）⇒ 可承接评测任务；四台无国际网，依赖靠主控机离线搬运（`nodes.md §11.6`）。
-- 裁定：节点只作评测、测试时长 15m/6h/24h 分档；`ldm` 禁重叠 / `stm` 允 / RA·RF 不适用；启动 ABI = VA + M1 + smon 建页表（ADR-0051）；`lessons.md` 已退役（规则→AGENTS、经验→DDLN、待裁定→discussing）。
+- **2026-11-14（夜）**：M12 已验证 37 / 进行中 1（`m12-chipyard-016`）/ 待开始 1；M13 已验证 77 / 进行中 0–1 / 待开始 7；M14 全部收口；M16 已验证 5。
+- 今日合入：`qemu-011`（`-bios` 只收 64 KiB）+ `testcases-034`（Tiny oracle 迁 hmon）同批 ⇒ `check-inst` **44/44 + vast full PASS**；`032`（NaN canonical/rootn ±0，`divrem.yaml[23]` 退役）；`spec-008` + `gem5-012` + `testcases-033`（`ext` 的 `hd=rdHD[5:0]`，`ISS-422` 已闭）；`029`（`12-misc` 4 id）；`infra-003`（写者护栏 + `check-writer-guards` 27/27）；`qemu-014`（`sc` 保留粒度=精确地址+宽度）。
+- **待办（有共享影响）**：安装根 qemu 仍是 `b34ed7f9…`，落后构建树 `49174499…`（`qemu-014`）⇒ **等 `m12-chipyard-016` 收尾、无并发写者时补跑一次 `install-host`**（禁边构建边测试）；`ISS-437`（musl 未随新 clang 重建）同窗口处理。
+- 队列：`chipyard-002`（`sc` RTL 去整字比较，等 016 让出写者）、`testcases-037`（`sc` 粒度正式向量）、`testcases-036`（lit/codegen 用 64 KiB 固件，复核中）、`gem5-013`、`testcases-030`、`integ-002/003/005`（后三件用户标注暂不进行）。
+- 未决 issue（P1/P2）：`ISS-433`（chipyard `trap cfx_power` 报 ILLI）、`ISS-435`（余 chipyard RTL + 向量）、`ISS-437`（musl）、`ISS-440`（多 hart 保留清除无实现，上多 hart 前必补，建议立 ADR）。
+- 规则新增（2026-11-14）：**构建 32 核 / 测试「全量核 − 2」**（主控机·`server20x`=62、`ics*`=38）；**禁边构建边测试**；发测试前查内存/磁盘；`make check-modules` 会装共享安装根 ⇒ 并行窗口禁跑。
 
 ## 入口指针
 
