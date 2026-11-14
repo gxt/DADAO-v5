@@ -1,0 +1,48 @@
+diff --git a/arch/dadao/include/asm/cfx.h b/arch/dadao/include/asm/cfx.h
+new file mode 100644
+index 000000000..60a1120b3
+--- /dev/null
++++ b/arch/dadao/include/asm/cfx.h
+@@ -0,0 +1,42 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * DADAO cfx register access (spec/DADAO-12 §3, §4): `cfx2rd` / `cfx2rc`.
++ *
++ * The (cfxha, cg, rc) triple is encoded in the instruction, so the cfx name
++ * must be a compile-time token the assembler can resolve against the runtime
++ * alias table (contracts/cfx-aliases.txt, Toolchain-01 §13), and cg/rc must be
++ * constants — they are stringified into the mnemonic operands.  The value
++ * register is a fixed `rd` operand, named explicitly so the result cannot be
++ * silently re-assigned by the compiler.
++ *
++ * Permission: the kernel runs in cfx_smon/supv (the SEE handover of
++ * contract-linux-boot §5), so a target cfx is reachable when its
++ * `supv_cfxreg` source mask allows cfxha 2 and its `hypv_cg_reg_deleg` bit for
++ * the accessed cg is 0 (DADAO-13 §1).  The boot SEE opens exactly cfx_pmem /
++ * cfx_ptw / cfx_smon (tests/shared/bootrom/k0/hmon.S).
++ */
++#ifndef __ASM_CFX_H
++#define __ASM_CFX_H
++
++/* Two-level stringification: expand the constant, then quote it. */
++#define _DADAO_STRINGIFY(x)	#x
++#define DADAO_STRINGIFY(x)	_DADAO_STRINGIFY(x)
++
++#define DADAO_CFX_READ(cfxname, cg, rc)					\
++({									\
++	register unsigned long _cfx_v __asm__("rd8");			\
++	__asm__ __volatile__("cfx2rd " #cfxname ", cg" DADAO_STRINGIFY(cg) \
++			     ", rc" DADAO_STRINGIFY(rc) ", %0"		\
++			     : "=r"(_cfx_v));				\
++	_cfx_v;								\
++})
++
++#define DADAO_CFX_WRITE(cfxname, cg, rc, value)				\
++do {									\
++	register unsigned long _cfx_v __asm__("rd16") = (value);	\
++	__asm__ __volatile__("cfx2rc " #cfxname ", cg" DADAO_STRINGIFY(cg) \
++			     ", rc" DADAO_STRINGIFY(rc) ", %0"		\
++			     : : "r"(_cfx_v));				\
++} while (0)
++
++#endif /* __ASM_CFX_H */

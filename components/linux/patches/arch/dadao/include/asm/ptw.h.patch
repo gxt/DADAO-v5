@@ -1,0 +1,102 @@
+diff --git a/arch/dadao/include/asm/ptw.h b/arch/dadao/include/asm/ptw.h
+new file mode 100644
+index 000000000..a99e1a36e
+--- /dev/null
++++ b/arch/dadao/include/asm/ptw.h
+@@ -0,0 +1,96 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * DADAO page table walker interface (spec/DADAO-12 §2.2, §4.5).
++ *
++ * One PTBR, 64 KiB pages, 512 MiB superpages; `ptw_enable` decides whether the
++ * memory window is translated at all.  The kernel owns its table from K1 on:
++ * `dadao_k1_pt_init()` fills `swapper_pg_dir`, verifies it and installs it in
++ * `cfx_ptw_ptbr`.
++ */
++#ifndef __ASM_PTW_H
++#define __ASM_PTW_H
++
++#include <linux/const.h>
++#include <linux/types.h>
++
++#include <asm/cfx.h>
++#include <asm/page.h>
++#include <asm/pgtable.h>
++
++/*
++ * Superpage geometry (spec/DADAO-12 §2.2.1): VA[41:29] selects the L1 entry,
++ * VA[28:00] is the offset inside a 512 MiB superpage.
++ */
++#define SUPERPAGE_SHIFT		29
++#define SUPERPAGE_SIZE		(_AC(1, UL) << SUPERPAGE_SHIFT)
++#define SUPERPAGE_MASK		(~(SUPERPAGE_SIZE - 1))
++/* PA[55:29] of a superpage entry: PPN[28:16] does not exist (the hardware
++ * forces it to 0, §2.2.3), so the PTE carries PA[55:29] | VA[28:0]. */
++#define SUPERPAGE_PA_MASK	_AC(0x00ffffffe0000000, UL)
++
++#ifdef __KERNEL__
++
++/* cfx_ptw register coordinates (spec/DADAO-12 §4.5). */
++#define PTW_CG_ENABLE		8
++#define PTW_RC_ENABLE		8
++#define PTW_CG_PTBR		9
++#define PTW_RC_PTBR		0
++#define PTW_CG_TLB		12
++#define PTW_RC_TLB_CONTROL	0
++
++/* cfx_* identity register (cg4 rc0, read-only): cfx_id == cfxha (§3.5). */
++#define CFX_CG_ID		4
++#define CFX_RC_ID		0
++
++/* cfx_smon mode/frame registers the supv fault path reads (§3.3, §3.6). */
++#define SMON_CG_SUPV		2
++#define SMON_RC_SUPV_EXCP_VECTOR	10
++#define SMON_CG_FRAME		5
++#define SMON_RC_FRAME_CAUSE_ID	2
++#define SMON_RC_FRAME_CAUSE_IP	3
++#define SMON_RC_FRAME_CAUSE_INFO	4
++
++/* PTBR stores PPN[55:16] only: [15:0] is forced to 0 (64 KiB alignment) and
++ * [63:56] is reserved, so the write value is the table's physical address. */
++static inline unsigned long dadao_ptbr_read(void)
++{
++	return DADAO_CFX_READ(cfx_ptw, PTW_CG_PTBR, PTW_RC_PTBR);
++}
++
++static inline void dadao_ptbr_write(unsigned long pa)
++{
++	DADAO_CFX_WRITE(cfx_ptw, PTW_CG_PTBR, PTW_RC_PTBR, pa);
++}
++
++static inline unsigned long dadao_ptw_enabled(void)
++{
++	return DADAO_CFX_READ(cfx_ptw, PTW_CG_ENABLE, PTW_RC_ENABLE);
++}
++
++/*
++ * TLB maintenance (§4.5): `invalid` over range `all` — drop every entry
++ * without writing A/D back.  Writing PTBR does *not* invalidate the TLB
++ * (§2.2.5), so the switch has to do it explicitly.
++ */
++static inline void dadao_tlb_invalidate_all(void)
++{
++	DADAO_CFX_WRITE(cfx_ptw, PTW_CG_TLB, PTW_RC_TLB_CONTROL, 0x2);
++}
++
++/* Build + verify + install the kernel's own table (K1). */
++void dadao_k1_pt_init(void);
++
++/*
++ * Expected-fault window of the K1 switch: a synchronous exception whose
++ * `cause_info` equals `dadao_k1_fault_expect` is a *deliberate* probe (does
++ * this VA resolve yet?), so the supv fault handler records
++ * `dadao_k1_fault_taken` and resumes after the faulting instruction (§5.3:
++ * `escape cfx_smon, [excp_cause_ip, 4]`).  Any other exception is fatal and
++ * named.  0 means "no probe in flight" — address 0 is never a valid probe.
++ */
++extern volatile unsigned long dadao_k1_fault_expect;
++extern volatile unsigned long dadao_k1_fault_taken;
++
++#endif /* __KERNEL__ */
++
++#endif /* __ASM_PTW_H */

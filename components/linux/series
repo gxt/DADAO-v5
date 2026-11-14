@@ -8,6 +8,7 @@ arch/dadao/include/asm/atomic.h.patch
 arch/dadao/include/asm/bitops.h.patch
 arch/dadao/include/asm/cache.h.patch
 arch/dadao/include/asm/cacheflush.h.patch
+arch/dadao/include/asm/cfx.h.patch
 arch/dadao/include/asm/current.h.patch
 arch/dadao/include/asm/elf.h.patch
 arch/dadao/include/asm/fixmap.h.patch
@@ -21,6 +22,7 @@ arch/dadao/include/asm/pgalloc.h.patch
 arch/dadao/include/asm/pgtable.h.patch
 arch/dadao/include/asm/processor.h.patch
 arch/dadao/include/asm/ptrace.h.patch
+arch/dadao/include/asm/ptw.h.patch
 arch/dadao/include/asm/sections.h.patch
 arch/dadao/include/asm/setup.h.patch
 arch/dadao/include/asm/smp.h.patch
@@ -45,6 +47,7 @@ arch/dadao/kernel/Makefile.patch
 arch/dadao/kernel/asm-offsets.c.patch
 arch/dadao/kernel/early_console.c.patch
 arch/dadao/kernel/head.S.patch
+arch/dadao/kernel/k1_trap.S.patch
 arch/dadao/kernel/setup.c.patch
 arch/dadao/kernel/syscall_table.c.patch
 arch/dadao/kernel/syscalls.c.patch
@@ -54,4 +57,5 @@ arch/dadao/lib/Makefile.patch
 arch/dadao/lib/delay.c.patch
 arch/dadao/mm/Makefile.patch
 arch/dadao/mm/init.c.patch
+arch/dadao/mm/k1_pt.c.patch
 init/main.c.patch

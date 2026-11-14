@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..1603e3f99
+index 000000000..cd403426b
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,275 @@
+@@ -0,0 +1,285 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -38,6 +38,7 @@ index 000000000..1603e3f99
 +#include <asm/setup.h>
 +#include <asm/page.h>
 +#include <asm/pgtable.h>
++#include <asm/ptw.h>
 +#include <asm/processor.h>
 +#include <asm/ptrace.h>
 +#include <asm/switch_to.h>
@@ -147,6 +148,15 @@ index 000000000..1603e3f99
 +	dadao_early_printf("K1 stack sp=%#lx early_stack=%#lx..%#lx entry_va=%#lx\n",
 +			   sp, (unsigned long)early_stack,
 +			   (unsigned long)early_stack_top, dadao_entry_va);
++
++	/*
++	 * K1 page-table ownership: install the supv exception vector first (a
++	 * fault during the switch must be reportable), then build and install
++	 * the kernel's own L1 table.  From here on both the instruction stream
++	 * and every data access go through it.
++	 */
++	dadao_supv_vector_install();
++	dadao_k1_pt_init();
 +
 +	start_kernel();
 +}

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/early_console.c b/arch/dadao/kernel/early_console.c
 new file mode 100644
-index 000000000..1a12f91ee
+index 000000000..97485baa3
 --- /dev/null
 +++ b/arch/dadao/kernel/early_console.c
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,152 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO semihosting console — K1 early console (contract-semihosting §1-§4).
@@ -75,6 +75,19 @@ index 000000000..1a12f91ee
 +{
 +	while (*s)
 +		semihost_call(SEMIHOST_SYS_WRITEC, DADAO_SEMIHOST_PA(s++));
++}
++
++/*
++ * One byte from an explicit physical address: the responder reads the byte at
++ * @pa through QEMU's debug identity translation, so this prints what is at that
++ * PA whether or not any mapping points there.  That is the PA side of the K1
++ * VA -> PA check (mm/k1_pt.c): the kernel writes through a VA, then prints back
++ * by PA, and the two must agree.
++ */
++void dadao_early_write_pa(unsigned long pa)
++{
++	semihost_call(SEMIHOST_SYS_WRITEC,
++		      (const void *)(pa & 0x0000ffffffffffffUL));
 +}
 +
 +void dadao_early_printf(const char *fmt, ...)

@@ -1,11 +1,11 @@
 diff --git a/arch/dadao/kernel/Makefile b/arch/dadao/kernel/Makefile
 new file mode 100644
-index 000000000..6d54512d6
+index 000000000..fc682ae73
 --- /dev/null
 +++ b/arch/dadao/kernel/Makefile
 @@ -0,0 +1,5 @@
 +# SPDX-License-Identifier: GPL-2.0
-+obj-y += head.o setup.o early_console.o syscall_table.o traps.o syscalls.o
++obj-y += head.o setup.o early_console.o syscall_table.o traps.o syscalls.o k1_trap.o
 +
 +# The final link needs arch/dadao/kernel/vmlinux.lds (preprocessed from .S).
 +always-$(KBUILD_BUILTIN) += vmlinux.lds

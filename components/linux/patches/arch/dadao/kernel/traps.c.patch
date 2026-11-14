@@ -1,12 +1,12 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..603811808
+index 000000000..8b2179bfb
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,107 @@
+@@ -0,0 +1,194 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
-+ * DADAO traps, register dumps and machine stop (K0: no trap entry yet).
++ * DADAO traps, register dumps, machine stop and the K1 supv exception vector.
 + */
 +#include <linux/kernel.h>
 +#include <linux/init.h>
@@ -20,9 +20,12 @@ index 000000000..603811808
 +
 +#include <linux/elfcore.h>
 +
++#include <asm/cfx.h>
 +#include <asm/elf.h>
 +#include <asm/page.h>
 +#include <asm/ptrace.h>
++#include <asm/ptw.h>
++#include <asm/setup.h>
 +
 +/* Semihosting SYS_EXIT: contract-semihosting §1/§2/§5 (rd16 = service,
 + * rb16 = argument block, and the block pointer is a PA: the responder reads
@@ -58,6 +61,90 @@ index 000000000..603811808
 +void machine_power_off(void)
 +{
 +	semihost_exit(ADP_STOPPED_APP_EXIT, 0);
++}
++
++/*
++ * K1 supv synchronous-exception vector (kernel/k1_trap.S captures the frame and
++ * calls this).  spec/DADAO-12 §5.2: a synchronous exception in supv mode enters
++ * cfx_smon as its first handler, which may handle it or hand it on.
++ *
++ * A fault whose cause_info equals the armed probe VA is the kernel asking "is
++ * this VA mapped yet?" (mm/k1_pt.c): record it and return, so the asm stub
++ * resumes after the faulting instruction.  Every other fault is real, and K1
++ * has no way to recover from one — report it by name and stop, instead of
++ * letting the CPU recurse into an unmapped vector (§5.2 step 7).
++ */
++#define FAIL_FAULT_CFXMEM	0xe9
++#define FAIL_FAULT_CFXPERM	0xea
++#define FAIL_FAULT_OTHER	0xeb
++
++#define CAUSE_CFXMEM		(1UL << 1)
++#define CAUSE_CFXPERM		(1UL << 7)
++#define CAUSE_ILLI		(1UL << 8)
++#define CAUSE_UNDI		(1UL << 9)
++#define CAUSE_RASOF		(1UL << 10)
++#define CAUSE_RASUF		(1UL << 11)
++#define CAUSE_MALIGN		(1UL << 12)
++#define CAUSE_IALIGN		(1UL << 13)
++
++static const char *dadao_cause_name(unsigned long id)
++{
++	if (id == CAUSE_CFXMEM)
++		return "CFXMEM";
++	if (id == CAUSE_CFXPERM)
++		return "CFXPERM";
++	if (id == CAUSE_ILLI)
++		return "ILLI";
++	if (id == CAUSE_UNDI)
++		return "UNDI";
++	if (id == CAUSE_RASOF)
++		return "RASOF";
++	if (id == CAUSE_RASUF)
++		return "RASUF";
++	if (id == CAUSE_MALIGN)
++		return "MALIGN";
++	if (id == CAUSE_IALIGN)
++		return "IALIGN";
++	return "UNKNOWN";
++}
++
++void dadao_k1_excp_handle(unsigned long cause_id, unsigned long cause_ip,
++			  unsigned long cause_info)
++{
++	unsigned int code = FAIL_FAULT_OTHER;
++
++	if (cause_id == CAUSE_CFXMEM && cause_info == dadao_k1_fault_expect) {
++		dadao_k1_fault_taken = 1;
++		dadao_early_printf("K1 ptw fault probed cause=CFXMEM va=%#lx ip=%#lx (resumed)\n",
++				   cause_info, cause_ip);
++		return;
++	}
++
++	dadao_early_printf("K1 ptw fault: cause=%s(%#lx) ip=%#lx info=%#lx ptbr=%#lx\n",
++			   dadao_cause_name(cause_id), cause_id, cause_ip,
++			   cause_info, dadao_ptbr_read());
++	if (cause_id == CAUSE_CFXMEM)
++		code = FAIL_FAULT_CFXMEM;
++	else if (cause_id == CAUSE_CFXPERM)
++		code = FAIL_FAULT_CFXPERM;
++	dadao_early_printf("K1 ptw fault: no recovery before K3, code=%#x\n", code);
++	dadao_early_exit(code);
++}
++
++/*
++ * Install the vector.  The kernel runs as cfx_smon/supv (the SEE handover sets
++ * the run mode; the cfx stays smon), so this is a write to its own cfx: the cfx
++ * axis is bypassed for self access and the cg2 row is delegated to supv by the
++ * boot SEE's hypv_cg_reg_deleg (DADAO-13 §1).
++ */
++void __init dadao_supv_vector_install(void)
++{
++	unsigned long vec = (unsigned long)dadao_supv_excp;
++
++	DADAO_CFX_WRITE(cfx_smon, SMON_CG_SUPV, SMON_RC_SUPV_EXCP_VECTOR, vec);
++	dadao_early_printf("K1 ptw vec  supv_excp_vector=%#lx handler=%#lx\n",
++			   DADAO_CFX_READ(cfx_smon, SMON_CG_SUPV,
++					  SMON_RC_SUPV_EXCP_VECTOR), vec);
 +}
 +
 +void show_regs(struct pt_regs *regs)

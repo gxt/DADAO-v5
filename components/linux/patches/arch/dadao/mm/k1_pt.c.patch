@@ -1,0 +1,308 @@
+diff --git a/arch/dadao/mm/k1_pt.c b/arch/dadao/mm/k1_pt.c
+new file mode 100644
+index 000000000..a328cf030
+--- /dev/null
++++ b/arch/dadao/mm/k1_pt.c
+@@ -0,0 +1,302 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DADAO K1: build the first-level page table and install it in cfx_ptw_ptbr
++ * (user ruling 2026-11-14: "内核自建表并写 PTBR"; index by spec).
++ *
++ * Entered from dadao_start_kernel() before start_kernel().  Until this point
++ * the kernel runs on the table the boot SEE prebuilt — PTBR = 0, i.e. the
++ * table occupies PA 0 — which maps exactly one 512 MiB superpage at L1 index
++ * `PGDIR_SHIFT` of the kernel window base (contract-linux-boot §2).  From here
++ * on it runs on a table it builds itself, in `swapper_pg_dir`.
++ *
++ * Mapping (spec/DADAO-12 §2.2.1): one 512 MiB superpage entry per 512 MiB of
++ * RAM, starting at the L1 index of the kernel window base VA — the index is
++ * derived from the VA (`pgd_index(PAGE_OFFSET)`), never assumed to be 0.  With
++ * `VA = PA + PAGE_OFFSET` (contract-linux-boot §2) entry i maps
++ * `[PAGE_OFFSET + i*512 MiB, +512 MiB)` to PA `i*512 MiB`, so the whole RAM
++ * extent — the kernel image, its .bss, the boot info page and the table page
++ * itself — is covered.  No second level is built: RAM is 512 MiB aligned and
++ * every byte of it is mapped by a superpage (§2.2.3), so an L2 table would
++ * have no user.
++ *
++ * Order — each step is what makes the next one sound:
++ *   1. report the incoming PTBR / ptw_enable and the cfx identities (the
++ *      permission chain that let us get here);
++ *   2. probe one VA the prebuilt table leaves unmapped and that the new table
++ *      will map: after step 5 the same access must succeed.  This is what
++ *      proves the PTBR write took effect instead of being a no-op;
++ *   3. fill the table and report the L1 index plus the entry's spec fields;
++ *   4. verify the table *as the walker will read it at the base about to be
++ *      installed*.  A table the kernel cannot fetch through is fatal, and the
++ *      hardware offers no recovery for an unmapped vector page (§5.2 step 7),
++ *      so a bad table must be refused here by name instead of bricking the
++ *      boot;
++ *   5. write PTBR (with a deliberately unaligned low half: [15:0] is forced to
++ *      0, §2.2) and invalidate the TLB — writing PTBR does not invalidate it
++ *      (§2.2.5 step 2);
++ *   6. prove the switch: re-read the probe VA (now mapped), write/read a word
++ *      through the new table, and check two addresses VA -> PA by handing the
++ *      PTE-derived PA to the semihosting responder, which reads guest memory
++ *      by PA and therefore never consults the page table.
++ */
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/mm.h>
++#include <linux/pgtable.h>
++#include <linux/types.h>
++
++#include <asm/cfx.h>
++#include <asm/page.h>
++#include <asm/pgtable.h>
++#include <asm/ptw.h>
++#include <asm/setup.h>
++
++extern char _start[];
++extern pgd_t swapper_pg_dir[];
++
++#define K1_PT_TABLE_BYTES	(PTRS_PER_PGD * sizeof(pgd_t))
++
++/*
++ * K1 page-table failure codes.  They stay in 1..255 for the same reason the
++ * boot-info codes do: the semihosting SYS_EXIT subcode IS the host process
++ * exit status, so 0x100 would wrap to 0 and read as success.
++ */
++#define FAIL_PT_BASE	0xec	/* PTBR base unusable (alignment / not RAM) */
++#define FAIL_PT_ENTRY	0xed	/* the entry the kernel needs is not usable */
++#define FAIL_PTW_OFF	0xee	/* ptw_enable is 0: nothing is mapped at all */
++
++/*
++ * The probe VA: one superpage above the kernel window base, i.e. inside RAM
++ * (so the new table maps it) but outside the prebuilt table's single superpage
++ * (so the old one faults on it).
++ */
++#define K1_PT_PROBE_VA	(PAGE_OFFSET + SUPERPAGE_SIZE)
++
++/* Written through the new table, then printed back *by PA*: "K1PT-KW". */
++#define K1_PT_MARKER	0x4b3150542d4b5700UL
++
++volatile unsigned long dadao_k1_fault_expect;
++volatile unsigned long dadao_k1_fault_taken;
++
++static unsigned long k1_pt_marker;
++
++static void __noreturn k1_pt_reject(unsigned int code, const char *what,
++				    unsigned long value)
++{
++	dadao_early_printf("K1 ptw table rejected: %s=%#lx code=%#x\n",
++			   what, value, code);
++	dadao_early_exit(code);
++}
++
++/*
++ * One L1 superpage entry (spec/DADAO-12 §2.2.3): PA[55:29] from @pa, HSJU
++ * with S set (the kernel runs in supv; H is deliberately 0 — hypv has no
++ * business reading kernel pages, §2.2.5), R/W/X all on, G/A/D on, SPF = all
++ * eight 64 MiB fragments resident, SP = 1, P = 1.
++ */
++static unsigned long k1_pte_super(unsigned long pa)
++{
++	return (pa & SUPERPAGE_PA_MASK) | _PAGE_KERNEL | _PAGE_SUPER;
++}
++
++static void __init k1_pt_fill(void)
++{
++	unsigned long first = pgd_index(PAGE_OFFSET);
++	unsigned long pages = DIV_ROUND_UP(dadao_ram_size, SUPERPAGE_SIZE);
++	unsigned long i;
++
++	if (dadao_ram_base & ~SUPERPAGE_MASK)
++		k1_pt_reject(FAIL_PT_BASE, "ram_base", dadao_ram_base);
++	if (pages > PTRS_PER_PGD - first)
++		k1_pt_reject(FAIL_PT_ENTRY, "ram_superpages", pages);
++
++	for (i = 0; i < pages; i++)
++		swapper_pg_dir[first + i] =
++			__pgd(k1_pte_super(dadao_ram_base + i * SUPERPAGE_SIZE));
++
++	dadao_early_printf("K1 ptw map  ram_pa=%#lx ram_size=%#lx superpages=%lu l1_index=%lu..%lu\n",
++			   dadao_ram_base, dadao_ram_size, pages, first,
++			   first + pages - 1);
++}
++
++/* VA -> PA through the new table, exactly as §2.2.1 step 3/4 describes it. */
++static unsigned long k1_pt_walk(unsigned long va)
++{
++	unsigned long pte = pgd_val(swapper_pg_dir[pgd_index(va)]);
++	unsigned long frag = 1UL << (_PAGE_FRAG_SHIFT + ((va >> 26) & 0x7));
++
++	if (!(pte & _PAGE_PRESENT) || !(pte & _PAGE_SUPER) || !(pte & frag))
++		return ~0UL;
++	return (pte & SUPERPAGE_PA_MASK) | (va & ~SUPERPAGE_MASK);
++}
++
++/* The entry + every field the spec defines, for a VA the caller cares about. */
++static void __init k1_pt_report(unsigned long va)
++{
++	unsigned long index = pgd_index(va);
++	unsigned long pte = pgd_val(swapper_pg_dir[index]);
++	unsigned long frag = (va >> 26) & 0x7;
++
++	dadao_early_printf("K1 ptw pte  va=%#lx l1_index=%lu va41_29=%#lx pte=%#lx P=%d SP=%d SPF=%#lx spf_bit=%d\n",
++			   va, index, (va >> SUPERPAGE_SHIFT) & 0x1fff, pte,
++			   !!(pte & _PAGE_PRESENT), !!(pte & _PAGE_SUPER),
++			   (pte >> _PAGE_FRAG_SHIFT) & 0xff,
++			   !!(pte & (1UL << (_PAGE_FRAG_SHIFT + frag))));
++	dadao_early_printf("K1 ptw pte2 va=%#lx H=%d S=%d J=%d U=%d R=%d W=%d X=%d G=%d A=%d D=%d ppn=%#lx va2pa=%#lx\n",
++			   va, !!(pte & _PAGE_H), !!(pte & _PAGE_S),
++			   !!(pte & _PAGE_J), !!(pte & _PAGE_U),
++			   !!(pte & _PAGE_READ), !!(pte & _PAGE_WRITE),
++			   !!(pte & _PAGE_EXEC), !!(pte & _PAGE_GLOBAL),
++			   !!(pte & _PAGE_ACCESSED), !!(pte & _PAGE_DIRTY),
++			   (pte & _PAGE_PFN_MASK) >> _PAGE_PFN_SHIFT,
++			   k1_pt_walk(va));
++}
++
++/*
++ * Read *@word from @va with the expectation armed: if the access faults, the
++ * supv vector records it and resumes after the load, so this returns false and
++ * *word keeps its previous value.
++ */
++static bool __init k1_pt_peek(unsigned long va, unsigned long *word)
++{
++	dadao_k1_fault_taken = 0;
++	dadao_k1_fault_expect = va;
++	barrier();
++	*word = *(volatile unsigned long *)va;
++	barrier();
++	dadao_k1_fault_expect = 0;
++	return !dadao_k1_fault_taken;
++}
++
++/*
++ * Verify the table the walker will see at @base before installing it.  The
++ * entry read here is the one the hardware would read for the kernel's own IP
++ * (through the prebuilt table's VA mapping, which still covers this range).
++ */
++static void __init k1_pt_check(unsigned long base)
++{
++	unsigned long ip = (unsigned long)_start;
++	unsigned long frag = 1UL << (_PAGE_FRAG_SHIFT + ((ip >> 26) & 0x7));
++	unsigned long pte;
++
++	if (base & (PAGE_SIZE - 1))
++		k1_pt_reject(FAIL_PT_BASE, "ptbr_align", base);
++	if (base < dadao_ram_base ||
++	    base + K1_PT_TABLE_BYTES > dadao_ram_base + dadao_ram_size)
++		k1_pt_reject(FAIL_PT_BASE, "ptbr_outside_ram", base);
++	/*
++	 * The prebuilt table maps one superpage, so only a base inside it can
++	 * be verified from here; installing blind is exactly the failure this
++	 * check exists to prevent (§5.2 step 7 offers no recovery).
++	 */
++	if (base + K1_PT_TABLE_BYTES > dadao_ram_base + SUPERPAGE_SIZE)
++		k1_pt_reject(FAIL_PT_BASE, "ptbr_unverifiable", base);
++
++	pte = *(volatile unsigned long *)
++		__va(base + pgd_index(ip) * sizeof(unsigned long));
++	if (!(pte & _PAGE_PRESENT) || !(pte & _PAGE_SUPER) || !(pte & frag) ||
++	    !(pte & _PAGE_S) || !(pte & _PAGE_EXEC))
++		k1_pt_reject(FAIL_PT_ENTRY, "kernel_window_pte", pte);
++}
++
++/* Print @len bytes located at the physical address @pa (semihosting reads PA). */
++static void __init k1_pt_print_pa(unsigned long pa, unsigned int len)
++{
++	while (len--)
++		dadao_early_write_pa(pa++);
++}
++
++/*
++ * The report the acceptance reads: two addresses VA -> PA, checked two ways —
++ * the PTE-derived PA must equal VA - PAGE_OFFSET, and the bytes at that PA must
++ * be the bytes the kernel wrote/parsed through the VA.
++ */
++static void __init k1_pt_verify_va_pa(void)
++{
++	unsigned long va_kernel = (unsigned long)_start;
++	unsigned long va_bootinfo = (unsigned long)dadao_bootinfo_va;
++	unsigned long pa_kernel = k1_pt_walk(va_kernel);
++	unsigned long pa_bootinfo = k1_pt_walk(va_bootinfo);
++	unsigned long va_marker = (unsigned long)&k1_pt_marker;
++	unsigned long pa_marker = k1_pt_walk(va_marker);
++	unsigned long word;
++
++	/*
++	 * (a) kernel window: the words at the entry.  The probe compares them
++	 * with the image file at the offset this VA maps to, so the check does
++	 * not depend on the kernel knowing its own file layout.
++	 */
++	word = *(volatile unsigned long *)va_kernel;
++	dadao_early_printf("K1 ptw va2pa text va=%#lx pa=%#lx word=%#lx\n",
++			   va_kernel, pa_kernel, word);
++
++	/* (b) boot info: magic read through the VA, then the same 4 bytes by PA. */
++	word = *(volatile u32 *)va_bootinfo;
++	dadao_early_printf("K1 ptw va2pa boot va=%#lx pa=%#lx magic=%#lx magic_ok=%d bytes=",
++			   va_bootinfo, pa_bootinfo, word,
++			   word == DADAO_BOOT_MAGIC);
++	k1_pt_print_pa(pa_bootinfo, 4);
++	dadao_early_printf("\n");
++
++	/*
++	 * (c) write through the new table, read it back, then print the same
++	 * bytes *by PA*: the write went through the mapping, the print does not.
++	 */
++	k1_pt_marker = K1_PT_MARKER;
++	barrier();
++	word = *(volatile unsigned long *)va_marker;
++	dadao_early_printf("K1 ptw va2pa mark va=%#lx pa=%#lx word=%#lx roundtrip=%d bytes=",
++			   va_marker, pa_marker, word, word == K1_PT_MARKER);
++	k1_pt_print_pa(pa_marker, 7);
++	dadao_early_printf("\n");
++}
++
++void __init dadao_k1_pt_init(void)
++{
++	unsigned long base = (unsigned long)__pa(swapper_pg_dir);
++	unsigned long pre = dadao_ptbr_read();
++	unsigned long enable = dadao_ptw_enabled();
++	unsigned long probe_va = K1_PT_PROBE_VA;
++	unsigned long word = 0;
++	bool mapped;
++
++	dadao_early_printf("K1 ptw ids  cfx_smon=%lu cfx_ptw=%lu\n",
++			   DADAO_CFX_READ(cfx_smon, CFX_CG_ID, CFX_RC_ID),
++			   DADAO_CFX_READ(cfx_ptw, CFX_CG_ID, CFX_RC_ID));
++	dadao_early_printf("K1 ptw pre  ptbr=%#lx ptw_enable=%#lx\n", pre, enable);
++	if (!enable)
++		k1_pt_reject(FAIL_PTW_OFF, "ptw_enable", enable);
++
++	/* (2) what the prebuilt table leaves unmapped. */
++	mapped = k1_pt_peek(probe_va, &word);
++	dadao_early_printf("K1 ptw old  va=%#lx mapped=%d word=%#lx\n", probe_va,
++			   mapped, mapped ? word : 0UL);
++	if (mapped)
++		k1_pt_reject(FAIL_PT_ENTRY, "prebuilt_maps_probe_va", probe_va);
++
++	/* (3) build it and report what a walker is going to see. */
++	k1_pt_fill();
++	k1_pt_report((unsigned long)_start);
++	k1_pt_report(probe_va);
++
++	/* (4) refuse a table the kernel could not execute through. */
++	k1_pt_check(base);
++
++	/* (5) install: PTBR (low half deliberately set, [15:0] is forced to 0)
++	 * and the explicit TLB invalidation the spec requires. */
++	dadao_ptbr_write(base | 0xffffUL);
++	dadao_tlb_invalidate_all();
++	dadao_early_printf("K1 ptw post ptbr=%#lx wrote=%#lx low16=%#lx ptw_enable=%#lx\n",
++			   dadao_ptbr_read(), base | 0xffffUL,
++			   dadao_ptbr_read() & 0xffffUL, dadao_ptw_enabled());
++
++	/* (6) the switch took effect: the VA that faulted in (2) resolves now. */
++	mapped = k1_pt_peek(probe_va, &word);
++	dadao_early_printf("K1 ptw new  va=%#lx mapped=%d word=%#lx\n", probe_va,
++			   mapped, mapped ? word : 0UL);
++	if (!mapped)
++		k1_pt_reject(FAIL_PT_ENTRY, "probe_va_unmapped", probe_va);
++
++	k1_pt_verify_va_pa();
++	dadao_early_printf("K1 ptw done: running on the kernel-built table\n");
++}
