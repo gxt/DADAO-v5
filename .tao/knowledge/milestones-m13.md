@@ -30,16 +30,16 @@
 | m13-integ-002 | 5–7 h | FP 语义三平台差分（47 条，含舍入/标志） （**暂不进行**，用户 2026-11-11） |
 | m13-integ-003 | 4–6 h | 整数与访存三平台差分（inst 全量非 cfx） （**暂不进行**，用户 2026-11-11） |
 | m13-integ-005 | 3–4 h | M13 收口（差异归因 + 矩阵冻结） （**暂不进行**，用户 2026-11-11） |
+| m13-chipyard-002 | 2–3 h | RTL `sc` 去掉 `resvWord` 整字比较（严格按 spec；`ISS-435`） |
+| m13-testcases-037 | 2–3 h | `sc` 保留粒度正式向量（同字异址/不同宽度/同址同宽/另一 lr/自消费/异常；`ISS-435`） |
+| m13-testcases-036 | 1–2 h | lit E2E（5 例）+ codegen E2E 改用 64 KiB 固定固件（去 legacy trampoline） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m13-qemu-014 | 2026-11-14 17:05 | 2–3 h | `sc` 保留粒度改为精确地址+访问宽度（去整字值 CAS；`ISS-435`） |
-| m13-chipyard-002 | 2026-11-14 16:55 | 2–3 h | RTL `sc` 去掉 `resvWord` 整字比较（严格按 spec；`ISS-435`） |
-| m13-testcases-037 | 2026-11-14 16:55 | 2–3 h | `sc` 保留粒度正式向量（同字异址/不同宽度/同址同宽/另一 lr/自消费/异常；`ISS-435`） |
 | m13-testcases-033 | 2026-11-14 16:45 | 2–3 h | 补 `ext.*` `rdHD=64/67/63/2^64−1` 跨平台用例（截低 6 位） |
-| m13-testcases-036 | 2026-11-14 16:35 | 1–2 h | lit E2E（5 例）+ codegen E2E 改用 64 KiB 固定固件（去 legacy trampoline） |
 | m13-testcases-032 | 2026-11-14 15:20 | 4–6 h | rootn ±0 / NaN canonical / quiet-sNaN 向量与三平台期望 |
 | m13-testcases-034 | 2026-11-14 15:20 | 2–3 h | Tiny `expected_fault` oracle 迁到 hmon 分派口径 |
 | m13-qemu-011 | 2026-11-14 15:20 | 2–3 h | `-bios` 收紧为固定固件，删 legacy trampoline 窗口 |
