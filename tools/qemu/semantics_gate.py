@@ -38,8 +38,15 @@
 Usage:
     python3 tools/qemu/semantics_gate.py --gate-dir DIR [--vectors DIR]
         [--qemu BIN] [--bootrom BIN] [--jobs N]
-"""
 
+**历史状态（`m13-testcases-043`，用户 2026-11-14 裁定）**：本脚本的 YAML 向量派生与
+执行模式（原 L3 `make check-inst` / L2 `make check-inst-smoke`）**已退役** —— 载体
+`tests/inst/**/*.yaml` 全部删除，`check-inst`/`check-inst-smoke` 两个 Makefile 目标同步
+删除，Vast 的 ISA 级执行覆盖**明确放弃**（Vast 的 ISA 语义由 `spec/` + M13 三平台差分
+矩阵承担；inst 执行覆盖 = L2 `check-inst-asm` 的 `.S` 载体）。
+**现行用途只有一个**：`--form-check`（QEMU 形态断言，ISS-225；L1 `check-qemu-forms`）。
+不带 `--form-check` 调用会**显式失败**（不静默成功、不重建已退役语料）。
+"""
 from __future__ import annotations
 
 import argparse
@@ -313,13 +320,8 @@ def check_inventory_coverage(vectors: str, carriers: list, errs: list) -> str:
         if "/" in name and name not in live_paths:
             _fail(errs, f"门控覆盖表 L3 路径与现场不符: {name}")
 
-    # L2：登记 == run_qemu_smoke 的代表集载体（basename）
-    import run_qemu_smoke  # noqa: E402  (只取 GATE_VECTORS，不触发运行)
-    l2_live = set(run_qemu_smoke.GATE_VECTORS)
-    if l2_declared != l2_live:
-        _fail(errs, "门控覆盖表 L2 列 != run_qemu_smoke.GATE_VECTORS: "
-                    f"表多 {sorted(l2_declared - l2_live)} / "
-                    f"表少 {sorted(l2_live - l2_declared)}")
+    # L2：代表集载体随 `check-inst-smoke` 退役（m13-testcases-043）⇒ 本列只登记历史
+    # 口径、不再与现场比对（`.S` 载体由 L2 `check-inst-asm` 全量执行）。
     ok = len(errs) == n_errs0
     return (f"OK（L2 {len(l2_declared)} 册 / L3 {len(live_paths)} 册）"
             if ok else "FAIL")
@@ -432,10 +434,12 @@ def main() -> int:
         print("check-qemu-forms: " + ("PASS" if not form_errs else "FAIL (rc=1)"))
         return 0 if not form_errs else 1
     errs.extend(form_errs)
-    if args.gate_dir is None:
-        print("semantics_gate: ERROR: --gate-dir 必填（除 --form-check 外）",
-              file=sys.stderr)
-        return 1
+    print("semantics_gate: ERROR: YAML 向量执行模式已退役（m13-testcases-043）——"
+          "载体 `tests/inst/**/*.yaml` 已删除，`check-inst`/`check-inst-smoke` 目标已删；"
+          "inst 执行覆盖改由 L2 `make check-inst-asm`（`.S` 载体）承担。"
+          "本脚本只保留 `--form-check`（L1 `check-qemu-forms`）。",
+          file=sys.stderr)
+    return 2
 
     if not os.path.isfile(args.qemu):
         print(f"semantics_gate: ERROR: qemu binary not found: {args.qemu} "

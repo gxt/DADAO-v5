@@ -34,6 +34,9 @@
 | `unit` | 各模块自身：LLVM/lld/QEMU/picolibc/仓库工具 | `host`、`toolchain` | `tests/unit/` |
 | `tset` | 外部套件在成品系统上跑：libc-test/llvm-ts/Embench | `user`（`hw` 预留） | `tests/tset/` |
 
+- **`platforms` 语义**：`system` = **qemu-system 运行模式**（相对 `user` 用户态），**不**代表 Vast
+  机型；Vast 已明确**不做 ISA 级执行覆盖**（`m13-testcases-043`，用户 2026-11-14 裁定）。`.S` 载体的
+  索引条目一律 `platforms: [system]`。
 - 共享**非用例**资产（bootrom/lds/crt0/宏）→ `tests/shared/`；`boot`（整系统启动）下一里程碑再建。
 - 根级清单 `tests/{inst,arch,unit,tset}.yaml`：每条目**恰好**五项 `id` / `file` / `platforms` / `level`（`smoke|full`）/ `requires`；**空列表 `[]` 合法**。
 - `id` = `<scope>-<name>[-<name>...]-<nnn>`，四份索引内**全局唯一**；`file` 必须位于对应 `tests/<scope>/` 且存在。
@@ -46,9 +49,9 @@
 
 | 路径 | 层 | 是什么 | 自动入口 |
 |---|---|---|---|
-| `inst/base/*.yaml` | I | M1 指令向量（16 册 / 708 例；原 `vectors/isa/`） | `make check-inst`（L3）、`make check-inst-smoke`（L2 代表集） |
-| `inst/{rol,atomics,clmul,rev,bitcnt}/*.yaml` | I | 非 M1 向量（`rev`/`bitcnt` 未入门控） | 同上（仅 `rol`/`atomics`/`clmul`） |
-| `inst/{inventory.md,schema.md,README.md}` | — | 覆盖矩阵（M1 156 行）、向量字段规范、inst scope 说明 | `make validate-vectors`（L1） |
+| `inst/<册>/*.S` | I | 指令执行向量（**唯一**载体模型；一行一用例、期望内联；原 YAML 载体已全退役） | `make check-inst-asm`（**L2**，`.S` 全量、单平台 QEMU） |
+| `inst/00-isa-design/undi_reserved.S` | I | 保留编码（QFC 空白格）⇒ UNDI；**非 id 载体**（逐文件登记） | 同上（`check-inst-asm` 执行；`validate-vectors`/`check-tests-index` 显式登记） |
+| `inst/{inventory.md,schema.md,README.md}` | — | 覆盖矩阵（M1 156 行）、inst scope 说明、迁移台账（`schema.md` 的 YAML 字段规范为**历史**） | `make validate-vectors`（L1） |
 | `inst/{atomics,clmul,fma,minmax,roundint}/*.[ch]|*.ll` | I | 指令语义探针源（C/IR；原 `tests/<ext>/`） | `make check-{rnd,minmax,fma,clmul}-probe`（**L3**；atomics 手工） |
 | `unit/llvm/lit/MC/{DADAO,DADAO-gen}/` | U | 汇编器编码 lit 用例（77 + 12；原 `llvm/lit/MC/`，旧路径为符号链接） | `make check-lit` / `make check-lit-full`；`check-unit` |
 | `unit/llvm/lit/CodeGen/DADAO/` | U | IR→汇编/MIR **结构**断言（63） | `make check-lit`；`check-unit` |
@@ -114,17 +117,18 @@ make test-repro  SCOPE=unit               # 两次生产 + 构建产物逐字节
 ### 2.2 单个向量文件 / 单个用例（手工）
 
 ```sh
-# 整册
-python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/reg-arith.yaml
+# 单个 `.S` 载体（= 一个 id；链例比结果字节流、故障例比 monitor 退出码）
+python3 tools/testcases/inst/run_asm_suite.py --id add.si_riii_rd --platforms qemu
 
-# 旧向量路径仍可传（兼容层机械平移到 tests/inst/；用例本体只在 tests/inst/）
-python3 tools/testcases/lib/run_qemu_test.py tests/vectors/isa/reg-arith.yaml
+# 一册（目录）
+python3 tools/testcases/inst/run_asm_suite.py --vectors tests/inst/04-arith-logic-octa \
+    --platforms qemu
 
-# 单个 case（0-based）
-python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/reg-arith.yaml --case 1
+# 全部册（= L2 `check-inst-asm` 的同一命令）
+python3 tools/testcases/inst/run_asm_suite.py --books-root tests/inst --platforms qemu
 
-# 整目录批跑
-python3 tools/testcases/lib/run_qemu_test.py tests/inst/base/ --batch --jobs 8
+# 只做现场统计（不建镜像、不跑）：点数 / 点号连续性 / ≤127
+python3 tools/testcases/inst/run_asm_suite.py --books-root tests/inst --scan-only
 ```
 
 前置：`make install-host`（`qemu-system-dadao` 取自安装根，见 `tools/testcases/lib/README.md`）。
@@ -189,8 +193,8 @@ make check-picolibc-tests-full     # 全量（235，最近 1 fail / 3 blocked）
 - **清理**：`make clean-work` **只删 `.work/`**；`.dadao/tests/` 走 `make clean-tests SCOPE=...`
   （`DRY_RUN=1` 先看清单；未知 scope / 未归属目录 ⇒ 非零退出）。逐目录来源与可重生成性见 `INVENTORY §4`。
 - **重生成确定性**：`make test-repro SCOPE=...` = 清 → 跑 → 快照 → 清 → 再跑 → 构建产物逐字节比
-  （运行记录排除；产物数 0 ⇒ FAIL）。`case-ledger.tsv` 已实测 byte-identical；`rev.yaml` 历史漂移已由
-  `check-rev-vectors`（L1）守护。
+  （运行记录排除；产物数 0 ⇒ FAIL）。`case-ledger.tsv` 已实测 byte-identical；其
+  `asm` 行 = `.S` 载体逐用例身份（删任一用例行 ⇒ `check-case-ledger` 红）。
 
 > **已定（B 形状）**：生成物保留在 `.dadao/tests/`（`ADR-0016 D6`），由 `make clean-tests` 管理；
 > 统一改名到 `{inst,arch,unit,tset}/` 留到 `boot` 立项时一次性做（`Process-09 §4`）。

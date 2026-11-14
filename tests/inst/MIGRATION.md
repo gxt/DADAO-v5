@@ -201,6 +201,55 @@ reserved：`inst_sweep` 输入与 `generate_isa_vectors` 渲染目标）。
 - 主会话合并时：读所有片段 → 按册序并入根清单 → **重跑** `check-tests-index`/`check-case-ledger`/`validate_vectors` → 删除 `.fragments/`。
 - 节点侧：各分片用**独立** `~/eval/<任务>/` staging 与**独占** work-dir；`--jobs` 用脚本默认（核数/2）。
 
+## 5.5 YAML 全退役（`m13-testcases-043`，用户 2026-11-14 裁定）
+
+**判据先行**：先用覆盖等价审计（204 个 YAML id × 四类断言：encoding / semantic+boundary /
+legality / overlap）确认 `.S` 有对应类，再删。**返工后审计结论 = 204 个 id 全绿**
+（`REVIEW` 0）。唯一曾判 REVIEW 的 `ret_riii_ra` 是**第 1 轮判读错误**：YAML 该例的
+MemRAS 条目是 `0x0001BBBB00000000`（**计数 = 1**、返回地址 `0xBBBB00000000`，不是「计数 0」）
+⇒ 按 `SimRISC-00 §2.4.2` D4b 消费条目并跳到该地址，`Machine-v5 §1.2`（Tiny 只映射
+cfxha 63 / 3，cfxha 46 ⇒ 其它 cfxha 段取指）⇒ **`CFXMEM`（0xF1）期望正确**。
+**已补**：`ret_riii_ra.S` 增点 23 `TEST_FAULT_RAS 23, CFXMEM, ret rd0, 0`
+（`TEST_FAULT_RAS` 宏增 `CFXMEM` 分支），QEMU 实跑 `0xF8/0xF8/0xFB/0xFB/0xF1` 全通过。
+`clmul.o`/`ctlz`/`cttz`/`ctpop` 的「点数 < YAML 例数」（4 个 id）是抽样口径差异
+（`.S` 一条宏/一个点覆盖多条 YAML 例），头部类计数比的 7 个 id 逐个核在审计记录里，
+类覆盖全在位。
+
+**删除**：27 个 YAML（1,315 例 / 204 id + 3 条无 id 保留编码；入库 768 KB）；
+`tests/inst/{base,fp,rev,rol,bitcnt}/` 目录随空删除（`atomics`/`clmul` 保留 C/LL 探针；
+`fma`/`minmax`/`roundint` 三个目录**不是**空目录 —— 各含 3–4 个 `.c/.h` 探针，保留并
+留给 `m13-testcases-044`）。`tests/inst.yaml` 305 → 283 条（删 23 条 YAML 载体条目，
+加 1 条非 id 载体条目）。
+
+**保留编码迁入 `00-isa-design/undi_reserved.S`**：3 条无 id 保留编码（word
+`0x08040001` / `0x1B040001` / `0x58040001`）断言 **UNDI**（monitor 码 `0xF9`），
+QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_index.NON_ID_CARRIERS`
+与 `validate_vectors.NON_ID_CARRIERS` **逐文件**登记（同目录出现未登记 `.S` ⇒ 红），
+并由 `tests/inst.yaml` 的 `inst-00-isa-design-001` 索引（载体↔索引双向断言不放宽）。
+
+**5 条 `cs.*` 别名 overlap**（C-27）：`cs.{n,z,p,eq,ne}_rrrr_rd` 各补 1 条「条件寄存器与
+源寄存器同名」链例（`rdHA==rdHC` / `rdHA==rdHD`），按 `spec/SimRISC-02 §2`「先判断、再赋值」
+⇒ 读后写序确定、不涉及 C-27 快照问题；`dest↔条件` 同名仍 deferred。QEMU 实跑 5/5 通过
+（每 id 链例 14→15 点，镜像 +5）。
+
+**门控与工具退役**（逐项）：
+
+| 依赖点 | 处置 |
+|---|---|
+| `check-inst`（L3，Vast 全量 + Tiny 子集） | **删除**。Vast 的 ISA 级执行覆盖**明确放弃**（用户裁定）；Vast 的 ISA 语义由 `spec/` + M13 三平台差分矩阵承担 |
+| `check-inst-smoke`（L2，YAML 代表集） | **删除**（与 `check-inst` 同语料；`.S` 全量已由 L2 `check-inst-asm` 覆盖） |
+| `tools/qemu/semantics_gate.py` | YAML 执行模式**退役**（不带 `--form-check` 调用 ⇒ rc=2 显式失败）；只保留 `--form-check`（L1 `check-qemu-forms`） |
+| `validate_vectors` | 只留 `.S` 分支（载体结构 + inventory 同步 + 覆盖率声明）；YAML 逐 case 校验删除 |
+| **两条 br 守卫** | **直接退役**（用户裁定）：`expected_pc` 必须存在、`br.*` 必须 taken+not-taken 双路径。**改由执行证据承担**：`.S` 的 `__LAND_IP` 查目标 IP（现场 **71** 处 / 16 个载体 ≫ 原 YAML **34** 条 non-null `expected_pc`）+ 三平台跑批 |
+| 6 个 YAML 生成器 | **删除**（唯一产物已删）⇒ `check-generator-sync`（L2）与 `check-rev-vectors`（L1）两个目标同步退役 |
+| `check-case-ledger` | vector 侧由 YAML 改派生 **`.S` 用例行**（`asm` 行 = 路径 + 用例行文本 + 同内容序号，复用 `run_asm_suite` 同一组正则）⇒ `.S` 逐条删除哨兵到位（闭合 `ISS-441` 的「`.S` 无删除哨兵」缺口） |
+| `run_parity.py` 的 `inst` scope | **退役**（显式 setup error）：它是 YAML 唯一残余消费者；inst 三平台逐字节改用 `run_asm_suite.py --platforms chipyard,qemu,gem5`（Tiny） |
+
+**chipyard sweep 工具退役**（阶段四）：`bit_sweep` / `ctrl_sweep` / `fp_sweep` /
+`inst_case_run` 删；`inst_sweep.py` **降为库**（只留编码器 / ELF 布局 / `dump_reg` /
+`dump_mem`，供 `fetch_probe/gen_probe.py`）；`fp_ref.py` 保留为**生成期工具，不作判据**
+（FP 判据 = `.S` 内联期望 + `fp_unit` 的 hardfloat 对照）。
+
 ## 6. 已完成
 
 ### `m13-testcases-030`：`.S` 入 L2 门控 + mem 三册 YAML 退役（`ISS-413`）

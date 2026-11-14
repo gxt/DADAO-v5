@@ -1,5 +1,12 @@
 # `tests/` 测试资产盘点（现场派生）
 
+> **⚠ YAML 载体已全退役（`m13-testcases-043`，2026-11-14）**：本文中一切 `vectors/`、
+> `*.yaml` 载体、`check-qemu-smoke`/`check-qemu-semantics`（= `check-inst-smoke`/
+> `check-inst`）的行都是**迁移期历史快照**，不再代表现场。现行口径（以现场为准）：
+> 载体 = `tests/inst/<册>/<id>.S`；执行门控 = L2 `check-inst-asm`（`.S` 全量、单平台
+> QEMU）；逐条身份清单 = `tests/case-ledger.tsv` 的 `asm`/`lit` 行（条数现场派生）。
+> 目录地图见 `tests/README.md`，覆盖矩阵见 `tests/inst/inventory.md`。
+>
 > **生成**：`TESTCASES-067t`（2026-10-26）｜**只读盘点**：本册未移动/改写任何测试、工具、Makefile。
 > **迁移后状态（2026-10-27，`TESTCASES-072t`）**：inst 向量/探针/harness 已搬家 ——
 > `tests/vectors/*` → `tests/inst/<ext>/`（`isa` → `base`）、`tests/{atomics,clmul,fma,minmax,roundint}/`
@@ -175,11 +182,10 @@
 
 | 目标 | 层 | 跑的用例 | 产物落点 | 日志 |
 |---|---|---|---|---|
-| `validate-vectors` | L1 | `tests/inst` schema/inventory/覆盖（156 身份） | 无 | stdout |
-| `check-case-ledger` | L1 | 清单 1,956 行 vs 现场 | 无 | stdout |
+| `validate-vectors` | L1 | `tests/inst` 载体结构 + inventory 覆盖声明（156 M1 身份） | 无 | stdout |
+| `check-case-ledger` | L1 | 清单 vs 现场（`asm` 用例行 + `lit` pattern；条数现场派生） | 无 | stdout |
 | `check-isa-coverage` | L1 | 264 身份 × 后端矩阵漂移 | 无 | stdout |
-| `check-qemu-smoke` | L2 | 代表集 3 册（`aip-si`/`reg-compare`/`reg-shift-extend`） | `.dadao/tests/harness/smoke` | `.work/log/qemu/check-qemu-smoke.log` |
-| `check-qemu-semantics` | L3 | 20 册全量（最近 975/980，5 deferred） | `.dadao/tests/harness/gate` | `.work/log/qemu/check-qemu-semantics.log` |
+| `check-inst-asm` | L2 | `tests/inst/**/*.S` 全量（链例字节流 + 故障例退出码；单平台 QEMU） | `.dadao/tests/harness/inst-asm` | `.work/log/qemu/check-inst-asm.log` |
 | `check-lit` | L2 | 76 MC + 63 CodeGen + 14 E2E = 153 个 lit 用例 | `.dadao/tests/lit-output/{DADAO-MC,DADAO-CodeGen,DADAO-E2E}` | stdout（逐例） |
 | `check-lit-full` | L3 | `check_lit_gen.py` + 12 生成 MC 用例 | `.dadao/tests/lit-output/DADAO-MC-gen` | stdout |
 | `test-codegen` | L2 | M3 15 程序 | `.dadao/tests/codegen-e2e` | `.work/log/integ/test-codegen.log` |
@@ -273,6 +279,8 @@ irlli_exclude=72
 ### P6 现场复核（2026-10-27，`TESTCASES-076t`；上面锚点块保留 067t 口径）
 
 现场命令与结果（逐条可重跑）：
+
+> **以下现场命令是 2026-10 的历史记录**（行数/条数随 YAML 退役已变；勿据此判现状）。
 
 ```sh
 find tests -type f | wc -l                     # 343（含 3 个 .pyc）

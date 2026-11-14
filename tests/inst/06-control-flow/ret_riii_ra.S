@@ -11,7 +11,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：riii = opc | rdha[23:18] | imms18[17:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（MEMRAS = TEST_DATA + 0x1700：D4b 的 MemRAS 条目）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（ENTRY 由 `machine-tiny.inc` 固定）
-@@ 用例：encoding 2 / semantic 8 / overlap 1 / boundary 7（链例 18 + 故障例 4）
+@@ 用例：encoding 2 / semantic 8 / overlap 1 / boundary 7（链例 18 + 故障例 5）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：RA 状态用 `rd2ra` 全 64 位写建立（`ra0[53:48]` = RACNT、`[47:0]` = MRPTR，
@@ -181,5 +181,10 @@ __ckD4b1:
 
 	@@ D4b：RACNT = 0、MRPTR = MEMRAS，条目递归计数 = 0 ⇒ RASUF
 	TEST_FAULT_RASUF_MEM 22, ret rd0, 0
+
+	@@ D4b + 其它 cfxha 段：MemRAS 条目 = {计数 1, 返回地址 0xBBBB00000000}（cfxha 46）
+	@@   ⇒ 消费该条目、PC = 0xBBBB00000000；Tiny 只在 cfxha 63 / 3 有映射，其它 cfxha 段
+	@@   取指 ⇒ CFXMEM（`spec/Machine-v5 §1.2`；退出码编码 `§7.1` = 0xF1）
+	TEST_FAULT_RAS     23, CFXMEM, ret rd0, 0
 
 	__TEST_SECTIONS

@@ -16,32 +16,32 @@
 
 	__TEST_BEGIN
 
-	@@ [1] （YAML `tests/inst/base/reg-arith.yaml` 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
+	@@ [1] （原 YAML 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
 	__LI	rd1, 0x0000000000000001
 	.dd.t32	0x42E81001
 	__CHECK_RD   1, rd1, 0x0000000000000000
 
-	@@ [2] （YAML `tests/inst/base/reg-arith.yaml` 并入）rem.uw: rd2=0x64, rd3=0x7, bits=16
+	@@ [2] （原 YAML 并入）rem.uw: rd2=0x64, rd3=0x7, bits=16
 	__LI	rd2, 0x0000000000000064
 	__LI	rd3, 0x0000000000000007
 	__LI	rd1, 0x0000000000000000
 	.dd.t32	0x42E81083
 	__CHECK_RD   2, rd1, 0x0000000000000002
 
-	@@ [3] （YAML `tests/inst/base/reg-arith.yaml` 并入）boundary rem.uw: rd2=0x64, rd3=0x7
+	@@ [3] （原 YAML 并入）boundary rem.uw: rd2=0x64, rd3=0x7
 	__LI	rd2, 0x0000000000000064
 	__LI	rd3, 0x0000000000000007
 	__LI	rd1, 0x0000000000000000
 	.dd.t32	0x42E81083
 	__CHECK_RD   3, rd1, 0x0000000000000002
 
-	@@ [4] （YAML `tests/inst/base/reg-arith.yaml` 并入）encoding rem.uw: rdhd=rd0 (divisor=0) is legal, no ILLI
+	@@ [4] （原 YAML 并入）encoding rem.uw: rdhd=rd0 (divisor=0) is legal, no ILLI
 	__LI	rd2, 0x0000000000000064
 	__LI	rd1, 0x0000000000000001
 	.dd.t32	0x42E81080
 	__CHECK_RD   4, rd1, 0x0000000000000064
 
-	@@ [5] （YAML `tests/inst/base/reg-arith.yaml` 并入）rem.uw rem-by-zero: rd2=0x64, rd0(divisor)=0 -> rd1=0x0000000000000064 (unsigned rem by zero defined value)
+	@@ [5] （原 YAML 并入）rem.uw rem-by-zero: rd2=0x64, rd0(divisor)=0 -> rd1=0x0000000000000064 (unsigned rem by zero defined value)
 	__LI	rd2, 0x0000000000000064
 	__LI	rd1, 0x0000000000000000
 	.dd.t32	0x42E81080
@@ -87,7 +87,7 @@
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
-	@@ [17] （YAML `tests/inst/base/reg-arith.yaml` 并入）legality rem.uw: dest=rd0/rb0 → ILLI (dst_rd0)
+	@@ [17] （原 YAML 并入）legality rem.uw: dest=rd0/rb0 → ILLI (dst_rd0)
 	TEST_FAULT_ALU3     17, rem.uw, ILLI, rd0, rd0, rd1
 
 	@@ [18] dst_rd0：目的 rd0 ⇒ ILLI（`dst_rd0`）

@@ -33,40 +33,18 @@ bash .work/evidence/TESTCASES-056t/run.sh --inject
 | `tests/inst/atomics/aba_treiber.c` | 版本号打包的 Treiber 栈（`{ver:16,ptr:48}`），不变量 + 确定性 ABA 重放 |
 | `tests/inst/atomics/barrier_probe.c` | `a_barrier()` 结构断言（`fence` 计数 == 源码站点数，立即数 0xFFF） |
 
-## ctrl 向量生成器（jump / call / ret / br）
+## YAML 向量生成器：**全部退役**（`m13-testcases-043`）
 
-```sh
-python3 tools/testcases/generate_ctrl_jump_call_ret.py          # 写 tests/inst/base/ctrl-{jump,call,ret}.yaml
-python3 tools/testcases/generate_ctrl_br.py                     # 写 tests/inst/base/ctrl-br.yaml
-python3 tools/testcases/generate_ctrl_jump_call_ret.py --check  # 只读校验（byte-identical ⇒ rc=0）
-python3 tools/testcases/generate_ctrl_br.py --check
-```
+六个生成器（`generate_isa_vectors` / `generate_ctrl_br` /
+`generate_ctrl_jump_call_ret` / `generate_misc` / `generate_bitcnt_vectors` /
+`generate_rev_vectors`）与两个门控（`check-generator-sync`、`check-rev-vectors`）
+已删除：它们的唯一产物 `tests/inst/**/*.yaml` 随 YAML 全退役删除（用户 2026-11-14
+裁定）。现行向量载体 = `tests/inst/<册>/<id>.S`（期望值内联、由 L2 `check-inst-asm`
+逐镜像执行），不再有「生成器 + 逐字节比对」这一层。
 
-`--check` 用与写盘**同一个渲染函数**重渲染后与磁盘逐字节比较：全部一致 → `PASS（N 册 byte-identical）`
-rc=0；缺失/不一致 → 逐册 `FAIL` rc=1；未知参数 → rc=2。`--check` **不写盘、不建目录**。
-落点受守卫约束：`OUT_DIR` 必须在 `tests/inst/` 之下，否则 `ERROR` + 非零退出
-（防静默写回旧 `tests/vectors/isa`）。
-
-## isa / misc 向量生成器（TESTCASES-088t；mem 生成器已于 `m13-testcases-030` 退役）
-
-```sh
-python3 tools/testcases/generate_isa_vectors.py           # 写 tests/inst/base/reg-*.yaml（六册）
-python3 tools/testcases/generate_isa_vectors.py reg-arith.yaml   # 只重生成指定册（位置参数）
-python3 tools/testcases/generate_misc.py                  # 写 tests/inst/base/misc.yaml
-python3 tools/testcases/generate_isa_vectors.py --check   # 只读校验 6 册（可与位置参数组合）
-python3 tools/testcases/generate_misc.py --check          # 只读校验 1 册
-```
-
-- 落点：两者的产物一律在 `tests/inst/base/`（`OUT_DIR` 守卫：不在 `tests/inst/` 之下即
-  `ERROR: OUT_DIR 必须位于 tests/inst 之下` + 非零退出）。
-- `mem-{rd,rb,ra}.yaml` 与 `generate_mem_vectors.py` 已退役：访存 id 的载体是
-  `tests/inst/01-load-store/<id>.S`，回归门控 = L2 `make check-inst-asm`。
-- `--check`：与写盘**共用同一渲染函数**重渲染后与磁盘**逐字节**比较；全一致 → `PASS（N 册 byte-identical）`
-  rc=0；缺失/不一致 → `FAIL tests/inst/base/<册>: missing|mismatch` rc=1。**不写盘、不建目录、
-  不创建 `tests/vectors`**；`import` 亦无副作用。
-- 退出码：`0` = 成功/一致；`1` = 不一致或册缺失；`2` = 参数错误（未知选项、未知册名）。
-- 默认模式的 stdout 形如 `Wrote reg-arith.yaml: N cases for M identities`（isa）、
-  `Written to: <path>`（misc），便于日志比对。
+若需**新增**用例：直接写 `.S`（模板见 `tests/inst/01-load-store/*.S` 与
+`tests/inst/macros/inst_test.inc`），再跑
+`python3 tools/testcases/inst/run_asm_suite.py --id <id> --platforms qemu`。
 
 ## 已知缺陷（XFAIL 机制保留，登记已清空）
 

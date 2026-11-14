@@ -8,7 +8,7 @@
 @@ 编码：ciii = opc[31:24] | cfxha[23:18] | immu18[17:0]；合法 immu18 ⇒ `hb = 0` ⇒ ≤ 0x0FFF
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
 @@ 用例：encoding 2 / semantic 12（链例 14 + 故障例 7；boundary = immu18 上界与 reserved 集）
-@@   链例 13/14 并入 `atomics/atomics-fence.yaml` 的 cfx63 与混合位用例（同一 id 的 YAML 载体）
+@@   链例 13/14 并入原 YAML 的 cfx63 与混合位用例（同一 id 的旧载体）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：合法的 fence 不得改架构状态 ⇒ 每例预置 rd5 并核其不变；屏障的**排序/可见性**在

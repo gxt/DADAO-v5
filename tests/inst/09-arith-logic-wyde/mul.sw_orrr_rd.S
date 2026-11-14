@@ -16,18 +16,18 @@
 
 	__TEST_BEGIN
 
-	@@ [1] （YAML `tests/inst/base/reg-arith.yaml` 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
+	@@ [1] （原 YAML 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
 	.dd.t32	0x42C41000
 	__CHECK_RD   1, rd1, 0x0000000000000000
 
-	@@ [2] （YAML `tests/inst/base/reg-arith.yaml` 并入）mul.sw: rd2=0x32, rd3=0x1e, bits=16
+	@@ [2] （原 YAML 并入）mul.sw: rd2=0x32, rd3=0x1e, bits=16
 	__LI	rd2, 0x0000000000000032
 	__LI	rd3, 0x000000000000001E
 	__LI	rd1, 0x0000000000000000
 	.dd.t32	0x42C41083
 	__CHECK_RD   2, rd1, 0x00000000000005DC
 
-	@@ [3] （YAML `tests/inst/base/reg-arith.yaml` 并入）boundary mul.sw: rd2=0x40, rd3=0x40
+	@@ [3] （原 YAML 并入）boundary mul.sw: rd2=0x40, rd3=0x40
 	__LI	rd2, 0x0000000000000040
 	__LI	rd3, 0x0000000000000040
 	__LI	rd1, 0x0000000000000000
@@ -80,7 +80,7 @@
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
-	@@ [17] （YAML `tests/inst/base/reg-arith.yaml` 并入）legality mul.sw: dest=rd0/rb0 → ILLI (dst_rd0)
+	@@ [17] （原 YAML 并入）legality mul.sw: dest=rd0/rb0 → ILLI (dst_rd0)
 	TEST_FAULT_ALU3     17, mul.sw, ILLI, rd0, rd0, rd0
 
 	@@ [18] dst_rd0：目的 rd0 ⇒ ILLI（`dst_rd0`）

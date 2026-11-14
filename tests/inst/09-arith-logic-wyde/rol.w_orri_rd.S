@@ -16,36 +16,36 @@
 
 	__TEST_BEGIN
 
-	@@ [1] （YAML `tests/inst/rol/rol.yaml` 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
+	@@ [1] （原 YAML 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
 	__LI	rd2, 0x0000000000000000
 	.dd.t32	0x42641080
 	__CHECK_RD   1, rd1, 0x0000000000000000
 
-	@@ [2] （YAML `tests/inst/rol/rol.yaml` 并入）rol.w orri: rd2(src)=0xFFFFFFFFFFFFBEEF immu6=0, W=16
+	@@ [2] （原 YAML 并入）rol.w orri: rd2(src)=0xFFFFFFFFFFFFBEEF immu6=0, W=16
 	__LI	rd2, 0xFFFFFFFFFFFFBEEF
 	__LI	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42641080
 	__CHECK_RD   2, rd1, 0x000000000000BEEF
 
-	@@ [3] （YAML `tests/inst/rol/rol.yaml` 并入）rol.w orri: rd2(src)=0xFFFFFFFFFFFFBEEF immu6=1, W=16
+	@@ [3] （原 YAML 并入）rol.w orri: rd2(src)=0xFFFFFFFFFFFFBEEF immu6=1, W=16
 	__LI	rd2, 0xFFFFFFFFFFFFBEEF
 	__LI	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42641081
 	__CHECK_RD   3, rd1, 0x0000000000007DDF
 
-	@@ [4] （YAML `tests/inst/rol/rol.yaml` 并入）rol.w orri: rd2(src)=0xFFFFFFFFFFFFBEEF immu6=14, W=16
+	@@ [4] （原 YAML 并入）rol.w orri: rd2(src)=0xFFFFFFFFFFFFBEEF immu6=14, W=16
 	__LI	rd2, 0xFFFFFFFFFFFFBEEF
 	__LI	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x4264108E
 	__CHECK_RD   4, rd1, 0x000000000000EFBB
 
-	@@ [5] （YAML `tests/inst/rol/rol.yaml` 并入）rol.w orri: rd2(src)=0xFFFFFFFFFFFFBEEF immu6=15, W=16
+	@@ [5] （原 YAML 并入）rol.w orri: rd2(src)=0xFFFFFFFFFFFFBEEF immu6=15, W=16
 	__LI	rd2, 0xFFFFFFFFFFFFBEEF
 	__LI	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x4264108F
 	__CHECK_RD   5, rd1, 0x000000000000DF77
 
-	@@ [6] （YAML `tests/inst/rol/rol.yaml` 并入）boundary rol.w orri: immu6=15=W-1, W=16
+	@@ [6] （原 YAML 并入）boundary rol.w orri: immu6=15=W-1, W=16
 	__LI	rd2, 0xFFFFFFFFFFFFBEEF
 	__LI	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x4264108F
@@ -87,10 +87,10 @@
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
-	@@ [17] （YAML `tests/inst/rol/rol.yaml` 并入）legality rol.w orri: immu6=16 > W-1=15 -> ILLI (encode_sbz)
+	@@ [17] （原 YAML 并入）legality rol.w orri: immu6=16 > W-1=15 -> ILLI (encode_sbz)
 	TEST_FAULT_ALU_ORRI 17, rol.w, ILLI, rd1, rd2, 16
 
-	@@ [18] （YAML `tests/inst/rol/rol.yaml` 并入）legality rol.w: dest rdHB=rd0 -> ILLI (dst_rd0)
+	@@ [18] （原 YAML 并入）legality rol.w: dest rdHB=rd0 -> ILLI (dst_rd0)
 	TEST_FAULT_ALU_ORRI 18, rol.w, ILLI, rd0, rd2, 0
 
 	@@ [19] immu6 = 16 > 15 ⇒ ILLI（`encode_sbz`）

@@ -1274,6 +1274,15 @@ __fault_case:
 	.ifc	\fault, RASUF
 	rd2ra	{ra0}, {rd0}
 	.endif
+	.ifc	\fault, CFXMEM
+	@@ D4b：MemRAS 条目 = {计数 1, 返回地址 0xBBBB00000000（cfxha 46，其它 cfxha 段）}
+	@@   ⇒ 消费条目、PC = 该地址；Tiny 只在 cfxha 63/3 映射 ⇒ 取指 CFXMEM（Machine-v5 §1.2）
+	__LI	rd5, 0x0001BBBB00000000
+	LOAD_ADDR rb5, MEMRAS
+	st.o	rd5, [rb5, 0]
+	__LI	rd5, MEMRAS
+	rd2ra	{ra0}, {rd5}
+	.endif
 	\inst
 	__EXIT	\pt
 	.endif

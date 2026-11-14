@@ -1,49 +1,34 @@
 #!/usr/bin/env python3
-"""validate_vectors.py — 校验 tests/inst 的向量 schema、覆盖率与 inventory 同步（`TESTCASES-072t` 迁自 tests/vectors）。
+"""validate_vectors.py — `tests/inst` 的载体结构、inventory 同步与覆盖率声明门控。
 
-Spec-first：所有判定依据 `contracts/opcodes.yaml`、`contracts/legality_rules.yaml`
-与 `tests/inst/schema.md`；**不**读取 LLVM/QEMU 产物，不从实现反推。
+Spec-first：判定依据 `contracts/opcodes.yaml` 与 `tests/inst/inventory.md`；**不**读取
+LLVM/QEMU 产物，不从实现反推。
 
-检查项（对应 `TESTCASES-002t` 的校验内容 1–14）：
-   1. 必填字段存在（`mnemonic`/`id`/`format`/`class`/`encoding`/`input_state`/`spec_cite`）
-   2. `class` ∈ {encoding, legality, semantic, boundary, overlap}
-   3. `status` ∈ {active, deferred}
-   4. deferred 一致性（`expected_state`/`expected_pc` 为 null，`deferred_reason` 非空）
-   5. `expected_fault` ∈ {null, ILLI, UNDI, MALIGN, IALIGN, RASOF, RASUF, CFXMEM}
-   6. `encoding.word` 合法 hex 且 ≤ 0xFFFFFFFF
-   7. `id` 存在于 `opcodes.yaml` 的 M1 身份集
-   8. `encoding.word` 与对应 opcode 的 `(word & mask) == value` 一致
-   9. 覆盖率门控（R2：inventory 的 M1 行集 == opcodes M1 身份集，且每行声明覆盖）
-  10. active semantic/boundary 必须有 `expected_state`；`rd`/`rb` 不得出现 `rd0`/`rb0`
-  11. `memory.address` 为 48-bit 有效地址；`semantic` 类地址须落在 ADR-0004 RAM 区
-  12. inventory 同步（R2）
-  13. `expected_pc`（R4）：出现时的类型/48-bit/class 一致性
-  14. F9②③④：legality `expected_state == null`；`spec_cite` 非空字符串；
-      semantic memory 地址越界阻断
-
-载体模型（`ISS-413` / `m13-testcases-030`）：一个 id 的用例可放在两种载体里 ——
-  * **YAML**（`tests/inst/{base,fp,rol,atomics,clmul}/*.yaml`）：本脚本逐 case 校验 schema
-    （1–14），并做 **类级**覆盖门控（inventory 声明 ✓ 的 `(id, class)` 至少 1 条 active 用例）；
-  * **`.S`**（`tests/inst/<册>/<id>.S`）：**执行型**载体，类级覆盖由 L2 `make check-inst-asm`
-    逐镜像执行承担（链例比结果字节流、故障例比 monitor 段退出码）；本脚本只断言载体
-    **结构完好**——`<id>.S` 的 stem 是 `contracts/opcodes.yaml` 的身份、含 ≥1 用例行、
-    检查点号 1..N 连续（复用 `run_asm_suite.scan_source`，与执行门控同一真源）。
-    因此有 `.S` 载体的 id 不再要求 YAML 类级用例（否则会让「YAML 退役」必须留着重复载体）。
+载体模型（`ISS-413` / `m13-testcases-030`；YAML 载体已于 `m13-testcases-043` 全退役）：
+  * **`.S`**（`tests/inst/<册>/<id>.S`）是**唯一**执行型载体：类级/逐例覆盖由 L2
+    `make check-inst-asm` 逐镜像执行承担（链例比结果字节流、故障例比 monitor 段退出码）。
+    本脚本只断言载体**结构完好**：
+      - stem 是 `contracts/opcodes.yaml` 的**任一** scope 身份（拼错/孤儿 ⇒ 报错）；
+      - 同一 stem 只能有一个 `.S`（`run_asm_suite` 按 stem 去重会让第二份静默失效）；
+      - 含 ≥1 用例行（链例或故障例），检查点号 1..N 连续（复用
+        `run_asm_suite.scan_source`，与执行门控同一真源）；
+      - **非 id 载体**（文件 stem 不是 opcode 身份，如保留编码）必须在
+        `NON_ID_CARRIERS` **显式登记**并由 `tests/inst.yaml` 索引（不做目录级豁免）。
   * inventory 的 `file` 列必须指向现场存在的载体（basename 在 `tests/inst/<册>/` 下唯一命中）。
+  * inventory 的 M1 行集 == `contracts/opcodes.yaml` 的 `scope == "m1"` 身份集（无缺/无多/无重复）；
+    每行至少声明一类覆盖（不得静默缺席）。
 
-退出码：有错误 `exit(1)` 并列出文件 + case 序号；无错误 `exit(0)`。
+YAML 逐 case 校验（schema/类级覆盖）与两条 `br.*` 守卫（PC 期望必须存在、
+taken+not-taken 双路径）已随 YAML 退役删除（原守卫判据见 `tests/inst/MIGRATION.md §5.5`）：
+br 双路径覆盖改由**执行证据**承担
+（`.S` 的 `__LAND_IP` 查目标 IP + 三平台跑批，见 `tests/inst/MIGRATION.md`）。
 
-注：
-  - 覆盖率在 `TESTCASES-002t` 由 **inventory 覆盖矩阵**承载（本任务不含向量数据，
-    数据归 `003t`~`007t`）；见 `inventory.md` 顶部说明。
-  - F9①（active semantic/boundary 的 src 字段寄存器必被预置 + `orrr` shamt 守卫）
-    由 `TESTCASES-003t` 追加（与 F1 数据修复同任务）。
-  - `expected_pc` 的**存在性**规则由 `005t`/`006t` 追加。
+退出码：有错误 `exit(1)` 并列出载体/行；无错误 `exit(0)`。
 """
+from __future__ import annotations
 
 import glob
 import os
-import re
 import sys
 from pathlib import Path
 
@@ -52,64 +37,29 @@ try:
 except ImportError:  # pragma: no cover
     sys.exit("ERROR: PyYAML 未安装。运行: pip install pyyaml")
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
-import machine_profile  # noqa: E402
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "inst"))
 # `.S` 载体的结构扫描与 L2 执行门控（`check-inst-asm`）**同一真源**：点号/用例行
 # 的解析只在这里写一次，避免「门控和 validator 各认一套语法」。
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "inst"))
 import run_asm_suite  # noqa: E402
 
+# 非 opcode 身份的载体（**显式登记**，逐文件；不得放宽成「某目录下任意 `.S` 豁免」）。
+# 键 = 相对仓库根的 posix 路径，值 = 理由。登记项必须：现场存在、含用例行、
+# 由 `tests/inst.yaml` 索引（`check-tests-index` 的载体↔索引双向断言）。
+NON_ID_CARRIERS = {
+    "tests/inst/00-isa-design/undi_reserved.S":
+        "保留编码（QFC 空白格）⇒ UNDI；无 opcode 身份，索引 id = inst-00-isa-design-001",
+}
 
-ALLOWED_CLASSES = {"encoding", "legality", "semantic", "boundary", "overlap"}
-ALLOWED_STATUS = {"active", "deferred"}
-ALLOWED_FAULTS = {None, "ILLI", "UNDI", "MALIGN", "IALIGN",
-                  "RASOF", "RASUF", "CFXMEM"}
-REQUIRED_FIELDS = ["mnemonic", "id", "format", "class", "encoding",
-                   "input_state", "spec_cite"]
-
-# ADR-0004 R3 + 用户 2026-11-02 裁定：RAM 几何按 profile（Tiny 8 MiB cfxha63 /
-# Vast 2 GiB 内存窗口）。**不在本文件写死**，从 tests/shared/machine-profiles.yaml
-# 读取；token 解析与 harness 共用 machine_profile.resolve()。
-ADDR48_MAX = 0xFFFF_FFFF_FFFF
-
-PROFILE = None          # set in main() from --profile / DADAO_TEST_PROFILE / tiny
-RB0_PC = None           # profile RAM entry (instruction address convention)
-BR_NOT_TAKEN_PC = None  # rb0 + 4
-
-HEX_RE = re.compile(r"^0x[0-9a-fA-F]+$")
-REG_RE = re.compile(r"^(rd|rb|ra)\d+$")
-SEP_RE = re.compile(r":?-{2,}:?")
 DECL_NA = {"", "—", "-", "n/a", "na", "none"}
-
-
-def _to_int(val):
-    if isinstance(val, int):
-        return val
-    if isinstance(val, str):
-        s = val.strip()
-        if s.startswith(("0x", "0X")):
-            return int(s, 16)
-        return int(s)
-    raise ValueError("not an integer: %r" % (val,))
+CLASSES = ("encoding", "legality", "semantic", "boundary", "overlap")
 
 
 def _unquote(cell):
     return cell.strip().strip("`").strip()
 
 
-def _field_val(word_int, fld):
-    """从编码字中取命名字段的值（按 opcodes.yaml 的 bits=[hi:lo]）。"""
-    m = re.match(r"\[(\d+):(\d+)\]", fld.get("bits", ""))
-    if not m:
-        return None
-    hi, lo = int(m.group(1)), int(m.group(2))
-    return (word_int >> lo) & ((1 << (hi - lo + 1)) - 1)
-
-
 def load_opcodes(path):
-    """返回 (m1_records, by_id, duplicate_ids, all_records)。
-    M1 判据 scope == "m1"；all_records 含全部 228 条（含 scope fp/excluded/m3）。
-    """
+    """返回 (m1_records, by_id, duplicate_ids, all_records)。"""
     with open(path) as fh:
         records = _yaml.safe_load(fh)
     if not isinstance(records, list):
@@ -142,664 +92,31 @@ def parse_inventory(path):
                 continue
             if header is None:
                 continue
-            if cells and all(SEP_RE.fullmatch(c) for c in cells):
+            if cells and all(set(c) <= set("-: ") and "-" in c for c in cells):
                 continue
             row = {header[i]: cells[i] for i in range(min(len(header), len(cells)))}
             rows.append(row)
     return rows
 
 
-def _check_memory(state, tag, label, ram_required, errors, resolve_geometry=True):
-    """校验 state.memory：元素结构、token 可解析、48-bit 地址、（可选）RAM 窗口。"""
-    if not isinstance(state, dict):
-        return
-    mem = state.get("memory")
-    if mem is None:
-        return
-    if not isinstance(mem, list):
-        errors.append("%s: %s.memory must be a list" % (tag, label))
-        return
-    for j, ent in enumerate(mem):
-        if not isinstance(ent, dict):
-            errors.append("%s: %s.memory[%d] must be a mapping" % (tag, label, j))
-            continue
-        addr = ent.get("address")
-        if not isinstance(addr, str):
-            errors.append("%s: %s.memory[%d].address must be a string "
-                          "(hex or @TOKEN): %r" % (tag, label, j, addr))
-            continue
-        if not resolve_geometry:
-            continue
-        try:
-            aval = machine_profile.resolve(addr, PROFILE)
-        except machine_profile.ProfileError as exc:
-            errors.append("%s: %s.memory[%d].address %r: %s"
-                          % (tag, label, j, addr, exc))
-            continue
-        if aval > ADDR48_MAX:
-            errors.append("%s: %s.memory[%d].address is not a 48-bit valid "
-                          "address (> 0x%x): %s"
-                          % (tag, label, j, ADDR48_MAX, addr))
-        if ram_required and not (PROFILE.ram_base <= aval <= PROFILE.ram_end):
-            errors.append("%s: semantic %s.memory[%d].address %s resolves to "
-                          "0x%x outside profile %r RAM window [0x%x, 0x%x]"
-                          % (tag, label, j, addr, aval, PROFILE.name,
-                             PROFILE.ram_base, PROFILE.ram_end))
-
-
-def _check_state_banks(state, tag, label, errors):
-    """校验 rd/rb/ra bank：键名合法，rd/rb 不得出现 rd0/rb0。"""
-    if not isinstance(state, dict):
-        return
-    for bank in ("rd", "rb", "ra"):
-        b = state.get(bank)
-        if b is None:
-            continue
-        if not isinstance(b, dict):
-            errors.append("%s: %s.%s must be a mapping" % (tag, label, bank))
-            continue
-        for key in b:
-            if not REG_RE.match(str(key)):
-                errors.append("%s: %s.%s has invalid register key %r"
-                              % (tag, label, bank, key))
-            elif key in ("rd0", "rb0"):
-                errors.append("%s: %s.%s must not preset %s (rd0 恒零 / rb0 为 PC)"
-                              % (tag, label, bank, key))
-
-
-# 复合 token ``<count>:@TOKEN`` 只对 RA/RAS 值有语义（TESTCASES-092t §2 / R7）：
-# ra0 的 RACNT、ra1..ra63 的递归计数、以及 call/ret 的 MemRAS 条目值。
-_RAS_MNEMONICS = ("call", "ret")
-
-
-def _count_token_placement_errors(case, tag):
-    """报出把 ``<count>:@TOKEN`` 误用到非 RA/RAS 字段的用法（可达 FAIL）。
-
-    误用会把 16 位计数推到目的值的 bit63:48（普通寄存器会读成别的高位），
-    因此必须拒绝，不能静默解析。
-    """
-    out = []
-
-    def walk(state_name, bank, reg, value):
-        if machine_profile.is_count_token(value) and bank != "ra":
-            out.append("%s: %s.%s.%s uses the <count>:@TOKEN form but it is "
-                       "only meaningful for RA/RAS values"
-                       % (tag, state_name, bank, reg))
-
-    for state_name in ("input_state", "expected_state"):
-        state = case.get(state_name)
-        if not isinstance(state, dict):
-            continue
-        for bank in ("rd", "rb", "ra"):
-            regs = state.get(bank)
-            if isinstance(regs, dict):
-                for reg, value in regs.items():
-                    walk(state_name, bank, reg, value)
-        mem = state.get("memory")
-        if isinstance(mem, list):
-            mnemonic = (case.get("mnemonic") or "").split(".")[0]
-            for i, entry in enumerate(mem):
-                if not isinstance(entry, dict):
-                    continue
-                if machine_profile.is_count_token(entry.get("address")):
-                    out.append("%s: %s.memory[%d].address uses the "
-                               "<count>:@TOKEN form (addresses are plain "
-                               "tokens)" % (tag, state_name, i))
-                if machine_profile.is_count_token(entry.get("value")) and \
-                        mnemonic not in _RAS_MNEMONICS:
-                    out.append("%s: %s.memory[%d].value uses the "
-                               "<count>:@TOKEN form but %r carries no RAS "
-                               "entry" % (tag, state_name, i, mnemonic))
-    if machine_profile.is_count_token(case.get("expected_pc")):
-        out.append("%s: expected_pc uses the <count>:@TOKEN form (only "
-                   "RA/RAS values carry a count)" % tag)
-    return out
-
-
-def validate_file(filepath, by_key, m1_keys, all_records, errors):
-    try:
-        with open(filepath) as fh:
-            cases = _yaml.safe_load(fh)
-    except _yaml.YAMLError as exc:
-        errors.append("%s: YAML parse error: %s" % (filepath, exc))
-        return 0
-    if cases is None:
-        return 0
-    if not isinstance(cases, list):
-        errors.append("%s: top-level must be a list" % filepath)
-        return 0
-
-    for i, case in enumerate(cases):
-        tag = "%s case[%d]" % (filepath, i)
-        if not isinstance(case, dict):
-            errors.append("%s: case is not a mapping" % tag)
-            continue
-
-        # 0. 几何 token：任何以 '@' 开头的字符串都必须能按所选 profile 解析；
-        #    harness/validator 共用同一解析函数（任务书 §3）。仅在 case 适用于
-        #    当前 profile 时解析（profiles 字段限定的 case 允许另一 profile 不可解析）。
-        profiles = case.get("profiles")
-        if profiles is None:
-            applies = True
-        elif not isinstance(profiles, list) or not profiles or \
-                any(p not in machine_profile.all_profiles() for p in profiles):
-            errors.append("%s: profiles must be a non-empty list drawn from %s"
-                          % (tag, sorted(machine_profile.all_profiles())))
-            applies = False
-        else:
-            applies = PROFILE.name in profiles
-        if applies:
-            try:
-                machine_profile.resolve_case(case, PROFILE)
-            except machine_profile.ProfileError as exc:
-                errors.append("%s: machine token: %s" % (tag, exc))
-        errors.extend(_count_token_placement_errors(case, tag))
-
-        # 1/2/3/4/5. 必填字段、class、status、fault（保留编码仍须有这些字段，值为 null）
-        for field in REQUIRED_FIELDS:
-            if field not in case:
-                errors.append("%s: missing required field '%s'" % (tag, field))
-
-        mnem = case.get("mnemonic")
-        case_id = case.get("id")
-        fmt = case.get("format")
-        cls = case.get("class")
-        status = case.get("status", "active")
-        fault = case.get("expected_fault")
-        encoding = case.get("encoding")
-        input_state = case.get("input_state")
-        expected_state = case.get("expected_state")
-        expected_pc = case.get("expected_pc")
-        spec_cite = case.get("spec_cite")
-
-        # 2. class / 3. status / 5. fault
-        if cls not in ALLOWED_CLASSES:
-            errors.append("%s: invalid class %r" % (tag, cls))
-        if status not in ALLOWED_STATUS:
-            errors.append("%s: invalid status %r" % (tag, status))
-        if fault not in ALLOWED_FAULTS:
-            errors.append("%s: invalid expected_fault %r" % (tag, fault))
-
-        # 14(F9③). spec_cite 非空字符串
-        if "spec_cite" in case and (not isinstance(spec_cite, str)
-                                    or not spec_cite.strip()):
-            errors.append("%s: spec_cite must be a non-empty string" % tag)
-
-        # 保留编码标志（提前检测，供后续分支使用）
-        is_reserved = isinstance(encoding, dict) and \
-            encoding.get("reserved") is True
-
-        # 7. id 必须存在于 M1 身份集（保留编码已豁免）
-        key = None
-        if not is_reserved and isinstance(case_id, str):
-            key = case_id
-            if key not in m1_keys:
-                errors.append("%s: id = '%s' is not an M1 identity in "
-                              "opcodes.yaml" % (tag, case_id))
-
-        # 6/8. encoding.word 合法 hex、范围、mask/value 一致
-        word = None
-        if encoding is not None and not isinstance(encoding, dict):
-            errors.append("%s: encoding must be a mapping" % tag)
-        elif isinstance(encoding, dict):
-            if "word" not in encoding:
-                errors.append("%s: encoding.word is required" % tag)
-            word = encoding.get("word")
-        if word is not None:
-            if not isinstance(word, str) or not HEX_RE.match(word.strip()):
-                errors.append("%s: encoding.word not valid hex: %r" % (tag, word))
-            else:
-                wval = int(word, 16)
-                if wval > 0xFFFFFFFF:
-                    errors.append("%s: encoding.word > 0xFFFFFFFF: %s"
-                                  % (tag, word))
-                elif key is not None and key in by_key:
-                    rec = by_key[key]
-                    try:
-                        mask = _to_int(rec["mask"])
-                        value = _to_int(rec["value"])
-                    except (KeyError, ValueError) as exc:
-                        errors.append("%s: opcodes.yaml record for %s has bad "
-                                      "mask/value: %s" % (tag, key, exc))
-                    else:
-                        if (wval & mask) != value:
-                            errors.append(
-                                "%s: encoding.word %s does not match %s "
-                                "mask/value (expected (word & 0x%08X) == 0x%08X)"
-                                % (tag, word, key, mask, value))
-
-        # ── 保留编码分支（TESTCASES-008t 方案 A）──────────────────
-        # encoding.reserved: true → QFC/子表空白单元格，无 id 身份
-        if is_reserved:
-            # R1: class 必须为 legality
-            if cls != "legality":
-                errors.append("%s: reserved encoding must have class='legality', "
-                              "got %r" % (tag, cls))
-            # R2: expected_fault 必须为 UNDI
-            if fault != "UNDI":
-                errors.append("%s: reserved encoding must have "
-                              "expected_fault='UNDI', got %r" % (tag, fault))
-            # R3: status 必须为 active
-            if status != "active":
-                errors.append("%s: reserved encoding must have status='active', "
-                              "got %r" % (tag, status))
-            # R3.5: word 必须存在（保留编码须指定具体 word）
-            if word is None:
-                errors.append("%s: reserved encoding must have encoding.word "
-                              "(non-null)" % tag)
-            # R4: word 不得为 0x00000000（全零字 = 保留编码，op=0x00 → UNDI，§2.9）
-            # R8: word 不得匹配 opcodes.yaml 中任何已定义记录（含 scope fp/excluded）
-            if word is not None:
-                try:
-                    wval_r = int(word, 16) if isinstance(word, str) else word
-                except (ValueError, TypeError):
-                    wval_r = None  # hex 格式错误由后续检查捕获
-                if wval_r is not None:
-                    if wval_r == 0:
-                        errors.append("%s: reserved encoding word must not be "
-                                      "0x00000000 (全零字 = 保留编码，op=0x00 → UNDI, §2.9)"
-                                      % tag)
-                    # R8: 遍历 opcodes.yaml 全部记录（含 scope fp/excluded），
-                    # 若 (word & mask) == value 命中则说明该 word 是已定义编码，
-                    # 不得标 reserved
-                    for rec in all_records:
-                        try:
-                            mask = _to_int(rec["mask"])
-                            value = _to_int(rec["value"])
-                        except (KeyError, ValueError):
-                            continue
-                        if (wval_r & mask) == value:
-                            errors.append(
-                                "%s: reserved encoding word %s matches defined "
-                                "encoding in opcodes.yaml (id=%s, format=%s, "
-                                "scope=%s); reserved only for QFC/子表 "
-                                "blank cells"
-                                % (tag, word, rec.get("id"),
-                                   rec.get("format"),
-                                   rec.get("scope", "?")))
-                            break
-            # R5: notes 必须非空（须给出 reserved 依据）
-            notes_val = case.get("notes")
-            if not isinstance(notes_val, str) or not notes_val.strip():
-                errors.append("%s: reserved encoding must have non-empty 'notes' "
-                              "with QFC/子表 position evidence" % tag)
-            # R6: spec_cite 必须非空（已由通用检查覆盖，此处冗余确认）
-            if not isinstance(spec_cite, str) or not spec_cite.strip():
-                errors.append("%s: reserved encoding must have non-empty "
-                              "'spec_cite'" % tag)
-            # R7: 不得伪造 id 身份
-            if isinstance(case_id, str) and case_id.strip():
-                errors.append("%s: reserved encoding must not have id identity "
-                              "(got %r); use null" % (tag, case_id))
-
-        # input_state 必须为 mapping
-        if input_state is not None and not isinstance(input_state, dict):
-            errors.append("%s: input_state must be a mapping" % tag)
-
-        # 10/11. state banks 与 memory
-        ram_required = (cls == "semantic") and applies
-        for label, state in (("input_state", input_state),
-                             ("expected_state", expected_state)):
-            _check_state_banks(state, tag, label, errors)
-            _check_memory(state, tag, label, ram_required, errors,
-                          resolve_geometry=applies)
-
-        # 4. deferred 一致性
-        if status == "deferred":
-            if expected_state is not None:
-                errors.append("%s: status=deferred but expected_state is not null"
-                              % tag)
-            if expected_pc is not None:
-                errors.append("%s: status=deferred but expected_pc is not null"
-                              % tag)
-            reason = case.get("deferred_reason")
-            if not isinstance(reason, str) or not reason.strip():
-                errors.append("%s: status=deferred but deferred_reason is "
-                              "empty/missing" % tag)
-
-        # 10. active semantic/boundary 必须有 expected_state
-        if status == "active" and cls in ("semantic", "boundary"):
-            if expected_state is None:
-                errors.append("%s: active %s case must have expected_state"
-                              % (tag, cls))
-
-        # 14(F9②). legality 类 expected_state 必须为 null
-        if cls == "legality" and expected_state is not None:
-            errors.append("%s: legality case must have expected_state == null"
-                          % tag)
-
-        # 13. expected_pc（R4）：类型 / 48-bit / class 一致性
-        if expected_pc is not None:
-            if cls in ("legality", "encoding"):
-                errors.append("%s: %s case must not carry non-null expected_pc"
-                              % (tag, cls))
-            if not isinstance(expected_pc, str):
-                errors.append("%s: expected_pc not a hex string/token: %r"
-                              % (tag, expected_pc))
-            elif applies:
-                try:
-                    pval = machine_profile.resolve(expected_pc, PROFILE)
-                except machine_profile.ProfileError as exc:
-                    errors.append("%s: expected_pc %r: %s"
-                                  % (tag, expected_pc, exc))
-                else:
-                    if pval > ADDR48_MAX:
-                        errors.append("%s: expected_pc is not a 48-bit valid "
-                                      "address (> 0x%x): %s"
-                                      % (tag, ADDR48_MAX, expected_pc))
-
-        # ── F7: expected_pc existence for PC-affecting instructions (TESTCASES-005t/006t) ──
-        # Active semantic cases for PC-affecting instructions MUST have expected_pc.
-        # Scope: ctrl-br (br.*), ctrl-jump (jump-*), ctrl-call (call-*), ctrl-ret (ret-*).
-        if status == "active" and cls == "semantic" and isinstance(case_id, str):
-            if case_id.startswith("br."):
-                if expected_pc is None:
-                    errors.append(
-                        "%s: active semantic br.* case must have expected_pc "
-                        "(PC-affecting instruction; taken=rb0+(imm<<2), "
-                        "not-taken=rb0+4)" % tag)
-            elif case_id.startswith("jump"):
-                if expected_pc is None:
-                    errors.append(
-                        "%s: active semantic jump case must have expected_pc "
-                        "(PC-affecting instruction; Addr=rb0+(imms24<<2) or "
-                        "rbha+rdhb+(imms12<<2))" % tag)
-            elif case_id.startswith("call"):
-                if expected_pc is None:
-                    errors.append(
-                        "%s: active semantic call case must have expected_pc "
-                        "(PC-affecting instruction; Addr=rb0+(imms24<<2) or "
-                        "rbha+rdhb+(imms12<<2), plus RA push)" % tag)
-            elif case_id.startswith("ret"):
-                if expected_pc is None:
-                    errors.append(
-                        "%s: active semantic ret case must have expected_pc "
-                        "(PC-affecting instruction; PC=ra63 low 48 bits)" % tag)
-
-        # ── F9 guards (TESTCASES-003t) ──────────────────────────────
-        # F9③: class↔fault/state 一致性
-        if cls == "encoding":
-            if expected_state is not None:
-                errors.append("%s: encoding case must have expected_state == null"
-                              % tag)
-            if fault is not None:
-                errors.append("%s: encoding case must have expected_fault == null"
-                              % tag)
-        if cls == "legality":
-            # 保留编码已由 reserved 分支强制 fault == "UNDI"
-            if not is_reserved and fault is None:
-                errors.append("%s: legality case must have non-null "
-                              "expected_fault" % tag)
-        if cls == "semantic":
-            if fault is not None:
-                errors.append("%s: semantic case must have expected_fault == null"
-                              % tag)
-        if cls in ("boundary", "overlap"):
-            if cls == "boundary":
-                # TESTCASES-092t §3: Tiny routing gives CFXMEM (below the SRAM
-                # in the cfxha-63 segment) or UNDI (in-SRAM all-zero fetch
-                # word), so those two are legitimate boundary expectations; the
-                # UNMAPPED is no longer a legal expectation: spec/Machine-v5
-                # §7.1 folds all unmapped accesses into monitor CFXMEM.
-                if fault is not None and fault not in ("ILLI", "CFXMEM", "UNDI"):
-                    errors.append("%s: %s case expected_fault must be null, "
-                                  "ILLI, CFXMEM, or UNDI, got %r"
-                                  % (tag, cls, fault))
-            else:  # overlap
-                if fault is not None and fault != "ILLI":
-                    errors.append("%s: %s case expected_fault must be null or "
-                                  "ILLI, got %r" % (tag, cls, fault))
-
-        # ── ISS-097: overlap 同组块赋值的语义门控（mreg_range_overlap）──
-        # 依据 contract-isa.md §寄存器组之间块赋值 / legality_rules.yaml::mreg_range_overlap：
-        # 同寄存器组块赋值（rd2rd/rb2rb，及 scope fp 的 convert_ff 四条）源范围与目的
-        # 范围有任何交集（含完全重合）→ ILLI。此处按 word 的 dst/src 字段 + immu6
-        # 机械重算 [start..start+immu6-1] 区间交集；有交集而 expected_fault != ILLI ⇒ 报错。
-        # 跨组块赋值（ra2rd/rd2ra/rd2rb/rb2rd 等）源与目的分属不同 bank，结构性不可能
-        # 重叠，不适用本规则（由 bank 相等判据自动排除）。
-        if cls == "overlap" and key is not None and key in by_key \
-                and isinstance(word, str) and HEX_RE.match(word.strip()):
-            rec = by_key[key]
-            flds = rec.get("fields", [])
-            dst_f = next((f for f in flds if f.get("role") == "dst"), None)
-            src_f = next((f for f in flds if f.get("role") == "src"), None)
-            imm_f = next((f for f in flds if f.get("name") == "immu6"), None)
-            if dst_f is not None and src_f is not None and imm_f is not None \
-                    and dst_f.get("bank") == src_f.get("bank") \
-                    and dst_f.get("bank") in ("rd", "rb", "rf"):
-                wval_o = int(word, 16)
-                dst_i = _field_val(wval_o, dst_f)
-                src_i = _field_val(wval_o, src_f)
-                cnt = _field_val(wval_o, imm_f)
-                if dst_i is not None and src_i is not None \
-                        and cnt is not None and cnt > 0:
-                    dst_lo, dst_hi = dst_i, dst_i + cnt - 1
-                    src_lo, src_hi = src_i, src_i + cnt - 1
-                    if not (dst_hi < src_lo or src_hi < dst_lo):
-                        if fault != "ILLI":
-                            errors.append(
-                                "%s: overlap %s same-bank ranges "
-                                "[%d..%d] ∩ [%d..%d] ≠ ∅ but expected_fault=%r "
-                                "(must be ILLI per mreg_range_overlap)"
-                                % (tag, key, dst_lo, dst_hi, src_lo, src_hi,
-                                   fault))
-
-        # F9①: active semantic/boundary src field register pre-set guard
-        if status == "active" and cls in ("semantic", "boundary") and \
-                isinstance(input_state, dict) and \
-                isinstance(encoding, dict) and "word" in encoding and \
-                isinstance(case_id, str) and isinstance(fmt, str):
-            key = case_id
-            wval = int(encoding["word"], 16) if isinstance(
-                encoding["word"], str) else encoding["word"]
-            if key in by_key:
-                rec = by_key[key]
-                fields = rec.get("fields", [])
-                # Collect pre-set registers
-                rd_preset = set()
-                rb_preset = set()
-                ra_preset = set()
-                inp_rd = input_state.get("rd", {})
-                inp_rb = input_state.get("rb", {})
-                inp_ra = input_state.get("ra", {})
-                if isinstance(inp_rd, dict):
-                    rd_preset = set(inp_rd.keys())
-                if isinstance(inp_rb, dict):
-                    rb_preset = set(inp_rb.keys())
-                if isinstance(inp_ra, dict):
-                    ra_preset = set(inp_ra.keys())
-
-                # Check each src field (bank ∈ {rd, rb, ra}, role = src)
-                for fld in fields:
-                    if fld.get("role") != "src":
-                        continue
-                    bank = fld.get("bank")
-                    if bank not in ("rd", "rb", "ra"):
-                        continue
-                    # Extract field value from word
-                    bits_str = fld.get("bits", "")
-                    m = re.match(r"\[(\d+):(\d+)\]", bits_str)
-                    if not m:
-                        continue
-                    hi, lo = int(m.group(1)), int(m.group(2))
-                    field_val = (wval >> lo) & ((1 << (hi - lo + 1)) - 1)
-                    reg_name = "%s%d" % (bank, field_val)
-                    # rd0/rb0 are hardwired, don't need preset
-                    if reg_name in ("rd0", "rb0"):
-                        continue
-                    preset = rd_preset if bank == "rd" else (
-                        rb_preset if bank == "rb" else ra_preset)
-                    if reg_name not in preset:
-                        errors.append(
-                            "%s: active %s src field %s = %s not preset "
-                            "in input_state.%s" % (tag, cls, fld["name"],
-                                                   reg_name, bank))
-
-                # F9①定向守卫: orrr shl/shr/ext shamt register
-                mnemonic = case.get("mnemonic", "")
-                if fmt == "orrr" and isinstance(mnemonic, str) and \
-                        any(mnemonic.startswith(p)
-                            for p in ("shl.", "shr.", "ext.")):
-                    # shamt register = word[5:0]
-                    shamt_reg = wval & 0x3F
-                    shamt_name = "rd%d" % shamt_reg
-                    if shamt_name == "rd0":
-                        # rd0 = 0 is valid shamt for any N
-                        shamt_val = 0
-                    elif shamt_name in rd_preset:
-                        shamt_val = int(str(inp_rd[shamt_name]), 0)
-                    else:
-                        errors.append(
-                            "%s: orrr %s shamt register %s not preset "
-                            "in input_state.rd" % (tag, mnemonic, shamt_name))
-                        shamt_val = None
-                    if shamt_val is not None:
-                        # Determine N from mnemonic suffix
-                        if ".ub" in mnemonic or ".sb" in mnemonic:
-                            N = 7
-                        elif ".uw" in mnemonic or ".sw" in mnemonic:
-                            N = 15
-                        elif ".ut" in mnemonic or ".st" in mnemonic:
-                            N = 31
-                        else:
-                            N = 63
-                        if shamt_val > N:
-                            errors.append(
-                                "%s: orrr %s shamt %d > N=%d (from %s)"
-                                % (tag, mnemonic, shamt_val, N, shamt_name))
-
-        # ── F10 guards (TESTCASES-004t) ─────────────────────────────
-        # Encoding class: memory instructions must satisfy F10 constraints.
-        # Applies to id prefix ld./st./ldm./stm. (访存 encoding).
-        if cls == "encoding" and isinstance(case_id, str) and \
-                isinstance(fmt, str) and isinstance(encoding, dict) and \
-                "word" in encoding and isinstance(input_state, dict) and \
-                any(case_id.startswith(p) for p in ("ld.", "st.", "ldm.", "stm.")):
-            key = case_id
-            if key in by_key:
-                wval = int(encoding["word"], 16) if isinstance(
-                    encoding["word"], str) else encoding["word"]
-                rec = by_key[key]
-                fields = rec.get("fields", [])
-
-                # Collect pre-set registers from input_state
-                inp_rb = input_state.get("rb", {})
-                rb_preset = {}
-                if isinstance(inp_rb, dict):
-                    rb_preset = inp_rb
-
-                # Extract field values
-                def _extract_field(fname):
-                    """Return integer value of named field from word, or None."""
-                    for fld in fields:
-                        if fld["name"] == fname:
-                            bits_str = fld.get("bits", "")
-                            m2 = re.match(r"\[(\d+):(\d+)\]", bits_str)
-                            if m2:
-                                hi, lo = int(m2.group(1)), int(m2.group(2))
-                                return (wval >> lo) & ((1 << (hi - lo + 1)) - 1)
-                    return None
-
-                # F10①: base field (rbhb) != rb1, rb2
-                # rb0 allowed as base for ld.*/st.* (PC-relative, ADR-0015 D4)
-                hb_val = _extract_field("rbhb")
-                if hb_val is not None:
-                    if hb_val == 0:
-                        # rb0 as base is valid for ld/st (PC-relative addressing)
-                        # Per ADR-0015 D4: ld/st may use rb0 as base register
-                        pass  # rb0 allowed; no error
-                    elif hb_val in (1, 2):
-                        errors.append(
-                            "%s: F10: encoding base field hb=%d (rb%d occupied "
-                            "by D6.5 entry state), must use unused rb register"
-                            % (tag, hb_val, hb_val))
-
-                    # F10②: base register must be preset in input_state.rb
-                    # with value in RAM window
-                    # Skip for rb0 (hardwired to PC, ADR-0015 D1)
-                    base_name = "rb%d" % hb_val
-                    if hb_val == 0:
-                        pass  # rb0 is hardwired; no preset needed
-                    elif base_name not in rb_preset:
-                        errors.append(
-                            "%s: F10: encoding base register %s not preset "
-                            "in input_state.rb" % (tag, base_name))
-                    elif not applies:
-                        pass  # profile-limited case: geometry not checked here
-                    else:
-                        try:
-                            base_val = machine_profile.resolve(
-                                rb_preset[base_name], PROFILE)
-                            if not (PROFILE.ram_base <= base_val
-                                    <= PROFILE.ram_end):
-                                errors.append(
-                                    "%s: F10: encoding base %s value 0x%x "
-                                    "outside profile %r RAM window [0x%x, 0x%x]"
-                                    % (tag, base_name, base_val, PROFILE.name,
-                                       PROFILE.ram_base, PROFILE.ram_end))
-                        except (ValueError, TypeError,
-                                machine_profile.ProfileError):
-                            errors.append(
-                                "%s: F10: encoding base %s value not parseable: "
-                                "%r" % (tag, base_name, rb_preset[base_name]))
-
-                # F10③: rrri (multi) immu6 >= 1
-                if fmt == "rrri":
-                    immu6_val = _extract_field("immu6")
-                    if immu6_val is not None and immu6_val < 1:
-                        errors.append(
-                            "%s: F10: rrri encoding immu6=%d, must be >= 1"
-                            % (tag, immu6_val))
-
-                # F10④: dest ha != rd0/ra0 (role=dst only; src allowed)
-                # Per ADR-0015 D2/D3: rd0 as source reads 0 (LEGAL for st.*/stm.*)
-                # Check rdha field: only flag if role=dst and value=0
-                for fld in fields:
-                    if fld["name"] == "rdha" and fld.get("role") == "dst":
-                        ha_val = _extract_field("rdha")
-                        if ha_val is not None and ha_val == 0:
-                            errors.append(
-                                "%s: F10: encoding dest rdha=0 (rd0), "
-                                "must use non-zero register for destination"
-                                % tag)
-                        break
-
-                # F10④b: RB variant — rbha as dest must not be rb0
-                # Only for ld.o-rb (rbha=dst) and ldm.o-rb (rbha=dst)
-                # st.o-rb/stm.o-rb have rbha=src, which is LEGAL (ADR-0015 D3)
-                for fld in fields:
-                    if fld["name"] == "rbha" and fld.get("role") == "dst":
-                        rbha_val = _extract_field("rbha")
-                        if rbha_val is not None and rbha_val == 0:
-                            errors.append(
-                                "%s: F10: encoding dest rbha=0 (rb0=PC), "
-                                "must use non-zero register for destination"
-                                % tag)
-                        break
-
-    return len(cases)
-
-
 def scan_asm_carriers(repo_dir, known_ids, errors):
-    """现场扫描 `.S` 载体：返回 {id: 相对路径}。
-
-    结构断言（fail-closed，全部从文件现场派生）：
-      * stem 必须是 `contracts/opcodes.yaml` 的**身份**（拼错/孤儿载体 ⇒ 报错）；
-      * 同一 stem 只能有一个 `.S`（`run_asm_suite` 按 stem 去重会让第二份静默失效）；
-      * 必须含 ≥1 用例行（链例或故障例），且**检查点号 1..N 连续**（失败点号 = 用例序号）。
-    """
+    """现场扫描 `.S` 载体：返回 {id: 相对路径}（结构与孤儿断言，fail-closed）。"""
     out = {}
     for path in sorted(glob.glob(os.path.join(repo_dir, "tests", "inst", "*", "*.S"))):
         stem = os.path.basename(path)[:-2]
-        rel = os.path.relpath(path, repo_dir)
+        rel = os.path.relpath(path, repo_dir).replace(os.sep, "/")
+        registered = rel in NON_ID_CARRIERS
         if stem in out:
             errors.append("ASM CARRIER DUPLICATE: id '%s' 有多个 .S 载体（%s / %s）"
                           % (stem, out[stem], rel))
             continue
         if stem not in known_ids:
-            errors.append("ASM CARRIER ORPHAN: %s 的 stem '%s' 不是 opcodes.yaml 的身份"
-                          % (rel, stem))
-            continue
+            if not registered:
+                errors.append(
+                    "ASM CARRIER ORPHAN: %s 的 stem '%s' 不是 opcodes.yaml 的身份"
+                    "（若非 id 载体，须在 validate_vectors.NON_ID_CARRIERS 显式登记）"
+                    % (rel, stem))
+                continue
         info = run_asm_suite.scan_source(Path(path))
         if not info["checks"] and not info["faults"]:
             errors.append("ASM CARRIER EMPTY: %s 没有用例行（链例/故障例均 0）" % rel)
@@ -808,26 +125,25 @@ def scan_asm_carriers(repo_dir, known_ids, errors):
             errors.append("ASM CARRIER POINTS: %s 检查点号不是 1..N 连续"
                           "（失败点号 ≠ 用例序号）" % rel)
         out[stem] = rel
+    # 登记项必须现场存在（改名/删除登记载体 ⇒ 红，而不是静默失效）
+    for rel in sorted(NON_ID_CARRIERS):
+        if not os.path.isfile(os.path.join(repo_dir, rel)):
+            errors.append("NON-ID CARRIER MISSING: 登记的非 id 载体不存在: %s" % rel)
+    # 登记的目录不得有「未登记的 `.S`」——逐文件登记，不做目录级豁免
+    for rel in sorted(NON_ID_CARRIERS):
+        parent = os.path.dirname(os.path.join(repo_dir, rel))
+        for path in sorted(glob.glob(os.path.join(parent, "*.S"))):
+            other = os.path.relpath(path, repo_dir).replace(os.sep, "/")
+            if other not in NON_ID_CARRIERS:
+                errors.append(
+                    "NON-ID CARRIER UNSET: %s 所在的非 id 载体目录里存在未登记的 .S: %s"
+                    % (rel, other))
     return out
 
 
 def main():
-    global PROFILE, RB0_PC, BR_NOT_TAKEN_PC
-    import argparse
-    ap = argparse.ArgumentParser(description=__doc__)
-    machine_profile.add_profile_argument(ap)
-    args = ap.parse_args()
-    try:
-        PROFILE = machine_profile.load(args.profile)
-    except machine_profile.ProfileError as exc:
-        print("ERROR: %s" % exc, file=sys.stderr)
-        sys.exit(1)
-    RB0_PC = PROFILE.entry
-    BR_NOT_TAKEN_PC = RB0_PC + 4
-
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    repo_dir = os.path.abspath(os.path.join(script_dir, "..", ".."))
-
+    repo_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                            "..", ".."))
     opcodes_path = os.path.join(repo_dir, "contracts", "opcodes.yaml")
     if not os.path.exists(opcodes_path):
         print("ERROR: contracts/opcodes.yaml not found", file=sys.stderr)
@@ -836,8 +152,7 @@ def main():
     try:
         _m1, by_id, dups, all_records = load_opcodes(opcodes_path)
     except (ValueError, KeyError) as exc:
-        print("ERROR: cannot load contracts/opcodes.yaml: %s" % exc,
-              file=sys.stderr)
+        print("ERROR: cannot load contracts/opcodes.yaml: %s" % exc, file=sys.stderr)
         sys.exit(1)
 
     errors = []
@@ -853,9 +168,7 @@ def main():
     inv_rows = parse_inventory(inventory_path)
     inv_keys = set()
     declared = {}
-    # Data-level coverage: per id, track which classes are ✓
-    declared_classes = {}  # id -> set of class names with ✓
-    inv_files = {}         # id -> file 列（载体 basename）
+    inv_files = {}
     for row in inv_rows:
         rid = _unquote(row.get("id", ""))
         if not rid:
@@ -864,22 +177,11 @@ def main():
             errors.append("inventory.md: duplicate row id '%s'" % rid)
             continue
         inv_keys.add(rid)
-        class_names = ("encoding", "legality", "semantic", "boundary", "overlap")
-        cells = [_unquote(row.get(c, "")) for c in class_names]
+        cells = [_unquote(row.get(c, "")) for c in CLASSES]
         declared[rid] = any(c.lower() not in DECL_NA for c in cells)
-        # Track per-class ✓ marks
-        cls_set = set()
-        for ci, cn in enumerate(class_names):
-            cell_low = cells[ci].lower()
-            if cell_low.startswith("deferred"):
-                continue  # deferred 声明不计缺口
-            if cell_low not in DECL_NA:
-                cls_set.add(cn)
-        declared_classes[rid] = cls_set
         inv_files[rid] = _unquote(row.get("file", ""))
 
-    # ── 载体：`.S` 现场索引（ISS-413）──────────────────────────────────
-    # stem 必须是 opcodes.yaml 的**任一** scope 身份（`rev.o`/`ctlz` 是 m8，非法外）。
+    # ── 载体：`.S` 现场索引 ──────────────────────────────────────────
     known_ids = {rec["id"] for rec in all_records if rec.get("id")}
     asm_carriers = scan_asm_carriers(repo_dir, known_ids, errors)
 
@@ -895,15 +197,14 @@ def main():
             errors.append("INVENTORY DANGLING CARRIER: '%s' 的 file 列 '%s' "
                           "在 tests/inst/<册>/ 下不存在" % (rid, f))
 
-    # 12. inventory 同步（R2）：M1 行集 == opcodes M1 身份集
+    # inventory 同步（R2）：M1 行集 == opcodes M1 身份集
     for rid in sorted(m1_keys - inv_keys):
-        errors.append("INVENTORY MISSING: M1 id '%s' has no inventory.md row"
-                      % rid)
+        errors.append("INVENTORY MISSING: M1 id '%s' has no inventory.md row" % rid)
     for rid in sorted(inv_keys - m1_keys):
         errors.append("INVENTORY EXTRA: inventory.md row '%s' is not an M1 "
                       "identity" % rid)
 
-    # 9. 覆盖率门控：每个 M1 身份须在 inventory 中声明至少一类覆盖
+    # 覆盖率声明：每个 M1 身份须在 inventory 中声明至少一类覆盖
     covered = 0
     for rid in m1_keys:
         if rid in inv_keys and declared.get(rid):
@@ -912,118 +213,15 @@ def main():
             errors.append("COVERAGE MISSING: '%s' has no coverage "
                           "declaration in inventory.md" % rid)
 
-    # 1/2/3/4/5/6/7/8/10/11/13/14. 向量数据逐 case 校验
-    isa_dir = os.path.join(repo_dir, "tests", "inst", "base")
-    yaml_files = (sorted(glob.glob(os.path.join(isa_dir, "*.yaml")))
-                  if os.path.isdir(isa_dir) else [])
-    total_cases = 0
-    # Data-level coverage map: (id, class) -> count of active cases
-    data_coverage = {}
-    # ISS-025: br.* 双路径覆盖图 — id -> set{taken, not-taken}
-    # 分类依据 expected_pc（结构字段，不读 notes/文本）：
-    #   not-taken ⇔ expected_pc == BR_NOT_TAKEN_PC（rb0+4）；否则视为 taken。
-    br_paths = {}
-    for fpath in yaml_files:
-        total_cases += validate_file(fpath, by_id, m1_keys, all_records, errors)
-        # Build data-level coverage from this file
-        try:
-            with open(fpath) as fh:
-                cases = _yaml.safe_load(fh)
-        except Exception:
-            continue
-        if not cases or not isinstance(cases, list):
-            continue
-        for c in cases:
-            if not isinstance(c, dict):
-                continue
-            # Skip reserved encoding cases (no identity)
-            enc = c.get("encoding")
-            if isinstance(enc, dict) and enc.get("reserved"):
-                continue
-            c_id = c.get("id")
-            c_cls = c.get("class")
-            c_status = c.get("status", "active")
-            if not c_id or not c_cls:
-                continue
-            if c_status != "active":
-                continue
-            cov_key = (c_id, c_cls)
-            data_coverage[cov_key] = data_coverage.get(cov_key, 0) + 1
-
-            # ISS-025: 收集 br.* 的 taken / not-taken 语义覆盖
-            if isinstance(c_id, str) and c_id.startswith("br.") \
-                    and c_cls == "semantic":
-                profiles = c.get("profiles")
-                if isinstance(profiles, list) and PROFILE.name not in profiles:
-                    continue
-                epc = c.get("expected_pc")
-                not_taken = False
-                if isinstance(epc, str):
-                    try:
-                        not_taken = machine_profile.resolve(epc, PROFILE) \
-                            == BR_NOT_TAKEN_PC
-                    except machine_profile.ProfileError:
-                        not_taken = False
-                path = "not-taken" if not_taken else "taken"
-                br_paths.setdefault(c_id, set()).add(path)
-
-    # ── ISS-025: br.* 双路径（taken + not-taken）结构性守卫 ────────────
-    # 每个 M1 br.* 指令须同时存在 taken 与非 taken 的 active semantic 用例；
-    # 删任一条 ⇒ 报错。分类仅依赖 expected_pc（结构字段），不依赖注释/文本。
-    for rid in sorted(m1_keys):
-        if not rid.startswith("br."):
-            continue
-        paths = br_paths.get(rid, set())
-        missing = [p for p in ("taken", "not-taken") if p not in paths]
-        if missing:
-            errors.append(
-                "BR DUAL-PATH GAP: id='%s' missing %s active semantic "
-                "case(s) (need both taken=rb0+(imm<<2) and "
-                "not-taken=rb0+4; ADR-0004 D2.2)"
-                % (rid, ", ".join(missing)))
-
-    # ── Data-level coverage gate (TESTCASES-009t 验收标准 7) ──────────
-    # For each id in inventory with ✓ for some class,
-    # verify at least 1 active case of that class exists in isa/*.yaml.
-    # reserved.yaml cases (encoding.reserved: true) have no id
-    # identity and are excluded from this check.
-    # `.S` 载体（执行型）：类级覆盖由 L2 `check-inst-asm` 逐镜像执行承担，这里只看
-    # 载体结构（`scan_asm_carriers` 已断言），不再要求 YAML 里另留一份同类用例。
-    data_coverage_gaps = []
-    for rid in sorted(inv_keys):
-        if rid not in declared_classes:
-            continue
-        if rid in asm_carriers:
-            continue
-        for cls_name in declared_classes[rid]:
-            cov_key = (rid, cls_name)
-            if cov_key not in data_coverage:
-                data_coverage_gaps.append(
-                    "DATA COVERAGE GAP: id='%s' declares '%s' in "
-                    "inventory.md but no active %s case found in "
-                    "tests/inst/**/*.yaml and no `.S` carrier exists"
-                    % (rid, cls_name, cls_name))
-    # Report gaps and block validation (TESTCASES-011t: gate tightening)
-    if data_coverage_gaps:
-        for gap in data_coverage_gaps:
-            print(gap, file=sys.stderr)
-        print("DATA COVERAGE: %d gap(s) found (inventory declares ✓ but "
-              "no active data case); see above for details"
-              % len(data_coverage_gaps), file=sys.stderr)
-        sys.exit(1)
-
     if errors:
         for err in errors:
             print(err, file=sys.stderr)
-        print("validate_vectors: FAILED (%d error(s))" % len(errors),
-              file=sys.stderr)
+        print("validate_vectors: FAILED (%d error(s))" % len(errors), file=sys.stderr)
         sys.exit(1)
 
     print("validate_vectors: %d/%d M1 identities covered OK "
-          "(inventory sync OK; %d data files, %d cases; "
-          "%d .S carriers; data coverage gaps: %d)"
-          % (covered, len(m1_keys), len(yaml_files), total_cases,
-             len(asm_carriers), len(data_coverage_gaps)))
+          "(inventory sync OK; %d .S carriers, %d non-id carriers)"
+          % (covered, len(m1_keys), len(asm_carriers), len(NON_ID_CARRIERS)))
     sys.exit(0)
 
 

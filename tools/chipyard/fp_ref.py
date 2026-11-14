@@ -18,6 +18,12 @@
 # exponent re-basing are the ones documented in WumingFP.scala (and verified
 # against the hardfloat RTL by the unit bench, see `fp_unit`).
 #
+# **生成期工具，不作判据**（用户 2026-11-14 裁定；`m13-testcases-043`）：本模型生成
+# `tests/inst/fp/*.yaml` 的 case 级期望值 —— 那些 YAML 已随 YAML 全退役删除；现行
+# FP 判据是 `tests/inst/07-floating-point/*.S` 的**内联期望**（独立派生、直接执行，
+# 由 `check-inst-asm` 与三平台跑批逐字节比对），以及 `fp_unit` 单元台的
+# hardfloat 对照。`fp_ref` 保留用于**生成/交叉核对**向量与单元台对照，本身不作判据。
+#
 # Usage:
 #   python3 tools/chipyard/fp_ref.py selfcheck     # bits model == exact model
 #   python3 tools/chipyard/fp_ref.py vectors DIR   # write unit-bench vectors

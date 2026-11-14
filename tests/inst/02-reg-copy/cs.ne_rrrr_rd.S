@@ -5,10 +5,12 @@
 @@ 合法性：目的 rdHC 为 rd0 ⇒ ILLI（`dst_rd0`）；比较操作数可为 rd0 合法（读出 0）
 @@ 数据块：本文件只用立即数准备寄存器；`tests/inst/macros/inst_test.inc` 的 RDATA 供 rf 变体用
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
-@@ 用例：encoding 2 / semantic 3 / boundary 8 / overlap 1（链例 14 + 故障例 1）
+@@ 用例：encoding 2 / semantic 3 / boundary 8 / overlap 2（链例 15 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 注：比较操作数与目的**同名**的别名语义按 C-27 仍 deferred（`inventory.md`）⇒ 用例一律不同名
+@@ 注：**比较操作数与目的同名**的快照语义按 C-27 仍 deferred（`inventory.md`）⇒ 目的不与
+@@   比较操作数同名；**比较操作数彼此同名且与赋值源同名**由 overlap 点覆盖（spec §2
+@@   「先比较、再赋值」⇒ 读后写序确定，不涉及 C-27 快照问题）
 
 	.include "tests/inst/macros/inst_test.inc"
 
@@ -66,11 +68,18 @@
 	cs.ne	{rd1, rd2}?, rd3, rd5
 	__VERIFY_RD        14, rd5, 0x000000000000BBBB
 	__CHECK_RD         14, rd3, 0x000000000000BBBB
+	@@ 条件 rdHB = 赋值源 rdHD 别名且不等（spec §2 先比较再赋值）：不等 ⇒ 目的 = 同一源，源不被改写
+	__LI	rd1, 0x2A
+	__LI	rd3, 0x2B
+	__LI	rd2, 0x1111222233334444
+	cs.ne	{rd1, rd3}?, rd2, rd3
+	__VERIFY_RD        15, rd3, 0x2B
+	__CHECK_RD         15, rd2, 0x2B
 
 	__TEST_END
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 	@@ 目的 rdHC = rd0 ⇒ ILLI（dst_rd0；汇编器对 cs.* 放行该编码）
-	TEST_FAULT_CS2        15, cs.ne, rd0, ILLI, rd1, rd2, rd4
+	TEST_FAULT_CS2        16, cs.ne, rd0, ILLI, rd1, rd2, rd4
 
 	__TEST_SECTIONS

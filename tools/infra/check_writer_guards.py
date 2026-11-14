@@ -62,7 +62,6 @@ ENV_STATE = "DADAO_WRITER_STATE_DIR"
 # the start/finish guard calls -- that is S1, so a silent regression goes red.
 READER_ENTRIES = [
     "tools/testcases/inst/run_asm_suite.py",
-    "tools/testcases/inst/run_qemu_smoke.py",
     "tools/testcases/arch/run_m5_e2e.py",
     "tools/testcases/run_rnd_probe.py",
     "tools/testcases/run_minmax_probe.py",
@@ -236,7 +235,7 @@ def static_checks(rep: Report) -> None:
                 "\t@echo '$(call writer-wrapped,%s)'\n"
                 "probe-plain:\n"
                 "\t@echo '$(call writer-wrapped,%s)'\n" % (MAKEFILE, target,
-                                                           "check-inst"),
+                                                           "check-inst-asm"),
                 encoding="utf-8")
             out = _run(["make", "-f", str(mk), "--no-print-directory",
                         "probe-writer"], dict(os.environ))
@@ -252,7 +251,7 @@ def static_checks(rep: Report) -> None:
         line = out.stdout.strip()
         rep.check("S3b unguarded-target-not-wrapped",
                   out.returncode == 0 and "writer_guard.py run" not in line
-                  and "_locked-check-inst" in line,
+                  and "_locked-check-inst-asm" in line,
                   f"rc={out.returncode}, wrapped={'writer_guard.py run' in line}")
     finally:
         shutil.rmtree(probe, ignore_errors=True)
@@ -280,13 +279,18 @@ def check_w1(rep: Report, tmp: Path, env: dict) -> None:
     bootrom.write_bytes(b"\x00\x01")
 
     def entry(*extra: str) -> subprocess.CompletedProcess:
-        return _run([sys.executable, "tools/testcases/inst/run_qemu_smoke.py",
+        # `.S` 批量入口（`m13-testcases-043`：YAML 代表集入口 `run_qemu_smoke.py` 已退役）。
+        # 只跑 1 个载体（3 个故障镜像）⇒ stub qemu 下秒级。
+        return _run([sys.executable, "tools/testcases/inst/run_asm_suite.py",
                      "--qemu", str(stub), "--bootrom", str(bootrom),
-                     "--work-dir", str(tmp / "smoke")] + list(extra), env)
+                     "--platforms", "qemu", "--vectors", "tests/inst/00-isa-design",
+                     "--id", "undi_reserved",
+                     "--work-dir", str(tmp / "asm"),
+                     "--log-dir", str(tmp / "asm-log")] + list(extra), env)
 
     # injection: a live writer for qemu => the real entry must refuse, and must
     # not have started a single binary.
-    holder = _spawn_writer(env, "qemu", 6.0)
+    holder = _spawn_writer(env, "llvm", 6.0)
     try:
         marker.unlink(missing_ok=True)
         p = entry()
@@ -302,7 +306,7 @@ def check_w1(rep: Report, tmp: Path, env: dict) -> None:
         overrides = state / "overrides.log"
         allowed = (p2.returncode != 75 and "REFUSED" not in p2.stderr
                    and marker.exists() and overrides.is_file()
-                   and "run_qemu_smoke.py" in overrides.read_text())
+                   and "run_asm_suite.py" in overrides.read_text())
         rep.check("W1b allow-concurrent-passes-and-logs", allowed,
                   f"rc={p2.returncode} (want != 75), "
                   f"binary-executed={marker.exists()}, "
@@ -416,9 +420,12 @@ def check_w5(rep: Report, tmp: Path, env: dict) -> None:
     _stub_binary(stub, tmp / "sdd-marker")
     bootrom = tmp / "bootrom2.bin"
     bootrom.write_bytes(b"\x00")
-    q = _run([sys.executable, "tools/testcases/inst/run_qemu_smoke.py",
+    q = _run([sys.executable, "tools/testcases/inst/run_asm_suite.py",
               "--qemu", str(stub), "--bootrom", str(bootrom),
-              "--work-dir", str(tmp / "smoke2")], entry_env)
+              "--platforms", "qemu", "--vectors", "tests/inst/00-isa-design",
+              "--id", "undi_reserved",
+              "--work-dir", str(tmp / "asm2"),
+              "--log-dir", str(tmp / "asm2-log")], entry_env)
     rep.check("W5b real-entry-warns",
               "WARNING: writer-state-dir overridden" in q.stderr,
               f"rc={q.returncode}, "

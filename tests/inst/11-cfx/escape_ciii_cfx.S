@@ -309,7 +309,7 @@ __finish:
 	TEST_FAULT_ENC  18, ILLI, 0x7EF40000, rb12, TEST_DATA, rd11, 0
 
 	@@ 故障例：SBZ 检查先于 CFXESC —— cfx63 非保留但非当前 cfx（3），SBZ 非零仍报 ILLI
-	@@   （并入 `base/misc.yaml` 的同 id 用例；若先判 cfx 匹配则会是 CFXESC `1<<3`）
+	@@   （并入原 YAML 的同 id 用例；若先判 cfx 匹配则会是 CFXESC `1<<3`）
 	TEST_FAULT_ENC  19, ILLI, 0x7EFC0002, rb12, TEST_DATA, rd11, 0
 	TEST_FAULT_ENC  20, ILLI, 0x7EFC0003, rb12, TEST_DATA, rd11, 0
 

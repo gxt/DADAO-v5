@@ -1,15 +1,29 @@
 # tests/inst.yaml — inst scope 根级用例清单（Process-09 §5）
 #
 # 字段（每条目恰好五项）：
-#   id         inst-<ext>-nnn（如 inst-base-001；四份索引内全局唯一）
+#   id         inst-<ext>-nnn（如 inst-01-load-store-001；四份索引内全局唯一）
 #   file       tests/inst/ 下的相对路径（必须存在）
-#   platforms  非空列表；inst: system（user/hw 预留）
-#   level      smoke | full（smoke = 由 L2 覆盖：`check-inst-smoke` 代表集或
-#              `check-{rnd,minmax,fma,clmul}-probe`；full = **不在 L2 代表集**——
-#              含 L3 `check-inst` 载体册、未入门控的册（rev/bitcnt）与手工探针）
+#   platforms  非空列表；inst: system（= **qemu-system 运行模式**，不是 Vast 机型；
+#              user/hw 预留）
+#   level      smoke | full（smoke = 由 L2 覆盖：`check-inst-asm` 的 `.S` 全量执行或
+#              `check-{rnd,minmax,fma,clmul}-probe` 的 C/LL 探针；full = 手工探针，
+#              不在自动门控里逐例跑）
 #   requires   依赖项列表（可为空）
 #
-# 门控：make check-tests-index（L1，静态）；`TESTCASES-072t` 首次填入实际 case。
+# 载体：`tests/inst/<册>/<id>.S`（执行型，L2 `check-inst-asm` 逐镜像执行）与
+#   `<册>/*.c|*.ll`（手工探针，由 `check-{rnd,minmax,fma,clmul}-probe` 跑）。
+#   `inst/00-isa-design/undi_reserved.S` 是**非 opcode 身份**载体（保留编码 ⇒ UNDI），
+#   文件名不是 id；在 `check_tests_index.NON_ID_CARRIERS` 与
+#   `validate_vectors.NON_ID_CARRIERS` 显式登记（不做目录级豁免）。
+#
+# 门控：make check-tests-index（L1，静态）与 validate-vectors（L1）。
+
+- id: inst-00-isa-design-001
+  file: inst/00-isa-design/undi_reserved.S
+  platforms:
+  - system
+  level: full
+  requires: []
 
 - id: inst-01-load-store-001
   file: inst/01-load-store/ld.o_rrii_ra.S
@@ -1607,18 +1621,6 @@
   - system
   level: full
   requires: []
-- id: inst-atomics-003
-  file: inst/atomics/atomics-fence.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-atomics-004
-  file: inst/atomics/atomics-lrsc.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
 - id: inst-atomics-005
   file: inst/atomics/barrier_probe.c
   platforms:
@@ -1633,102 +1635,6 @@
   requires: []
 - id: inst-atomics-007
   file: inst/atomics/counter.c
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-atomics-008
-  file: inst/atomics/sc-rd0.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-base-001
-  file: inst/base/aip-si.yaml
-  platforms:
-  - system
-  level: smoke
-  requires: []
-- id: inst-base-002
-  file: inst/base/ctrl-br.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-base-003
-  file: inst/base/ctrl-call.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-base-004
-  file: inst/base/ctrl-jump.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-base-005
-  file: inst/base/ctrl-ret.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-base-009
-  file: inst/base/misc.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-base-010
-  file: inst/base/reg-arith.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-base-011
-  file: inst/base/reg-compare.yaml
-  platforms:
-  - system
-  level: smoke
-  requires: []
-- id: inst-base-012
-  file: inst/base/reg-cond-assign.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-base-013
-  file: inst/base/reg-imm-block.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-base-014
-  file: inst/base/reg-logic.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-base-015
-  file: inst/base/reg-shift-extend.yaml
-  platforms:
-  - system
-  level: smoke
-  requires: []
-- id: inst-base-016
-  file: inst/base/reserved.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-bitcnt-001
-  file: inst/bitcnt/bitcnt.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-clmul-001
-  file: inst/clmul/clmul.yaml
   platforms:
   - system
   level: full
@@ -1775,24 +1681,6 @@
   - system
   level: smoke
   requires: []
-- id: inst-fp-001
-  file: inst/fp/scaleb.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-fp-002
-  file: inst/fp/convert.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-fp-003
-  file: inst/fp/cond-assign.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
 - id: inst-minmax-001
   file: inst/minmax/minmax_c23.c
   platforms:
@@ -1810,18 +1698,6 @@
   platforms:
   - system
   level: smoke
-  requires: []
-- id: inst-rev-001
-  file: inst/rev/rev.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-rol-001
-  file: inst/rol/rol.yaml
-  platforms:
-  - system
-  level: full
   requires: []
 - id: inst-roundint-001
   file: inst/roundint/rnd_flags.c

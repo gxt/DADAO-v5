@@ -77,7 +77,7 @@ RUN_RECORD_NAMES = {"run.json", "meta.json", "run.log", ".lit_test_times.txt"}
 
 # scope → producer（`repro` 用；argv 列表，cwd = 仓库根）
 PRODUCERS: dict[str, list[list[str]]] = {
-    "inst": [["make", "check-inst-smoke"]],
+    "inst": [["make", "check-inst-asm"]],
     "arch": [["make", "check-arch-smoke"]],
     "unit": [["make", "test-codegen"], ["make", "test-elf"]],
     "tset": [["make", "check-tset-embench-smoke"]],

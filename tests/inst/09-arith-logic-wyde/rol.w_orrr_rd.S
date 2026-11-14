@@ -16,47 +16,47 @@
 
 	__TEST_BEGIN
 
-	@@ [1] （YAML `tests/inst/rol/rol.yaml` 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
+	@@ [1] （原 YAML 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
 	__LI	rd2, 0x0000000000000000
 	.dd.t32	0x42441080
 	__CHECK_RD   1, rd1, 0x0000000000000000
 
-	@@ [2] （YAML `tests/inst/rol/rol.yaml` 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=0 -> amount mod 16 = 0, W=16
+	@@ [2] （原 YAML 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=0 -> amount mod 16 = 0, W=16
 	__LI	rd2, 0xFFFFFFFFFFFFBEEF
 	__LI	rd3, 0x0000000000000000
 	__LI	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42441083
 	__CHECK_RD   2, rd1, 0x000000000000BEEF
 
-	@@ [3] （YAML `tests/inst/rol/rol.yaml` 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=1 -> amount mod 16 = 1, W=16
+	@@ [3] （原 YAML 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=1 -> amount mod 16 = 1, W=16
 	__LI	rd2, 0xFFFFFFFFFFFFBEEF
 	__LI	rd3, 0x0000000000000001
 	__LI	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42441083
 	__CHECK_RD   3, rd1, 0x0000000000007DDF
 
-	@@ [4] （YAML `tests/inst/rol/rol.yaml` 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=7 -> amount mod 16 = 7, W=16
+	@@ [4] （原 YAML 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=7 -> amount mod 16 = 7, W=16
 	__LI	rd2, 0xFFFFFFFFFFFFBEEF
 	__LI	rd3, 0x0000000000000007
 	__LI	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42441083
 	__CHECK_RD   4, rd1, 0x00000000000077DF
 
-	@@ [5] （YAML `tests/inst/rol/rol.yaml` 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=15 -> amount mod 16 = 15, W=16
+	@@ [5] （原 YAML 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=15 -> amount mod 16 = 15, W=16
 	__LI	rd2, 0xFFFFFFFFFFFFBEEF
 	__LI	rd3, 0x000000000000000F
 	__LI	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42441083
 	__CHECK_RD   5, rd1, 0x000000000000DF77
 
-	@@ [6] （YAML `tests/inst/rol/rol.yaml` 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=19 -> amount mod 16 = 3, W=16
+	@@ [6] （原 YAML 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=19 -> amount mod 16 = 3, W=16
 	__LI	rd2, 0xFFFFFFFFFFFFBEEF
 	__LI	rd3, 0x0000000000000013
 	__LI	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42441083
 	__CHECK_RD   6, rd1, 0x000000000000F77D
 
-	@@ [7] （YAML `tests/inst/rol/rol.yaml` 并入）boundary rol.w orrr: rd3=15=W-1, W=16
+	@@ [7] （原 YAML 并入）boundary rol.w orrr: rd3=15=W-1, W=16
 	__LI	rd2, 0xFFFFFFFFFFFFBEEF
 	__LI	rd3, 0x000000000000000F
 	__LI	rd1, 0xFFFFFFFFFFFFFFFF
@@ -100,7 +100,7 @@
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
-	@@ [18] （YAML `tests/inst/rol/rol.yaml` 并入）legality rol.w: dest rdHB=rd0 -> ILLI (dst_rd0)
+	@@ [18] （原 YAML 并入）legality rol.w: dest rdHB=rd0 -> ILLI (dst_rd0)
 	TEST_FAULT_ALU3     18, rol.w, ILLI, rd0, rd2, rd0
 
 	@@ [19] dst_rd0：目的 rd0 ⇒ ILLI（`dst_rd0`）

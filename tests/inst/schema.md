@@ -1,4 +1,12 @@
-# Test Vector Schema
+# Test Vector Schema（**历史**：YAML 载体已全退役）
+
+> **历史状态（`m13-testcases-043`，2026-11-14）**：`tests/inst/**/*.yaml` 已全部删除，
+> 现行载体是 `tests/inst/<册>/<id>.S`（一行一用例、期望内联；命中判据见
+> `tests/inst/MIGRATION.md §5.5` 与 `tests/README.md`）。本册**保留**两个用途：
+> ① 记录当时的字段/类别词表（`class` ∈ encoding/legality/semantic/boundary/overlap、
+> `expected_fault` 取值集），这些词表仍被 `check-interface` 与 `inventory.md` 引用；
+> ② 保留期望值**独立派生**的规则（不从 LLVM/QEMU 反推）—— 该规则同样适用于 `.S`
+> 的内联期望。**不得**据此重建 YAML 载体。
 
 `tests/inst/base/*.yaml` 的向量 schema。所有字段与语义期望值**独立派生自**锁定的
 规范与合约（`spec/`、`.tao/contracts/contract-isa.md`、`contracts/opcodes.yaml`、

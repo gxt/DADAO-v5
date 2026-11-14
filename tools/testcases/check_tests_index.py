@@ -24,12 +24,15 @@
      指向非载体/幽灵条目。两侧都逐条报出。
  10. **每 id 用例数 ≤ 127**（M13-TESTCASES-042；用户 2026-11-14 裁定「每条指令的
      测试用例不要超过 127 个，换言之一个汇编文件」）：按 id 汇总**全部载体**的用例数
-     （`tests/inst/**/*.yaml` 条目 + `tests/inst/**/*.S` 检查点，后者复用 L2
-     `run_asm_suite.scan_source` 同一真源）。超限报 `id / 实际 / 上限` 并 FAIL；
-     计数现场统计、不写死。放在本门控（而非 `check-case-ledger`）的理由：
-     `check-case-ledger` 的实现位于 `tools/infra/`，而本任务的可改范围是
-     `tools/testcases/**`；本门控本就是「`tests/` 组织的机械断言」入口，且已
-     YAML-aware（`_YAML_LOADER`）并有「基线 + 注入可达 FAIL」自检骨架。
+     （`tests/inst/**/*.S` 检查点，复用 L2 `run_asm_suite.scan_source` 同一真源；
+     YAML 载体已随 `m13-testcases-043` 全退役）。超限报 `id / 实际 / 上限` 并 FAIL；
+     计数现场统计、不写死。
+ 11. **`.yaml` 载体不得残留**（`m13-testcases-043`：YAML 全退役）：`tests/inst/` 下出现
+     任何 `*.yaml` ⇒ FAIL（载体模型只有 `.S` + 手工 C/LL 探针）。
+ 12. **非 id 载体显式登记**（`m13-testcases-043`）：`tests/inst/00-isa-design/undi_reserved.S`
+     这类「文件 stem 不是 opcode id」的载体必须在 `NON_ID_CARRIERS` **逐文件**登记，
+     且必须被 `tests/inst.yaml` 索引；同一目录里出现未登记的 `.S` ⇒ FAIL
+     （不做「某目录任意放行」的目录级豁免）。
 
 用法：
   python3 tools/testcases/check_tests_index.py               # 门控（默认）
@@ -319,6 +322,14 @@ def check_profile_lds(root: Path):
 #     其覆盖由各自门控承担，不在此处按后缀断言。
 CARRIER_SUFFIXES = {"inst": (".S",)}
 
+# 非 opcode 身份的载体（`m13-testcases-043`）：文件名不是 id，不能当 id 载体断言，
+# 但仍是索引必须覆盖的现场载体。**逐文件登记**（键 = `tests/` 下相对路径），
+# 不做「某目录下任意 `.S` 豁免」。
+NON_ID_CARRIERS = {
+    "inst/00-isa-design/undi_reserved.S":
+        "保留编码（QFC 空白格）⇒ UNDI；无 opcode 身份，索引 id = inst-00-isa-design-001",
+}
+
 
 # ---------------------------------------------------------------------------
 # 每 id 用例数上限（M13-TESTCASES-042；用户 2026-11-14 裁定）
@@ -329,29 +340,6 @@ CARRIER_SUFFIXES = {"inst": (".S",)}
 # 和 `validate_vectors` 同一真源），不另写一套语法。
 # 上限 127 是**规则**本身（不是基线计数），故为常量；其余计数一律现场派生。
 CASE_LIMIT = 127
-
-
-def _yaml_case_counts(root: Path) -> dict[str, dict[str, int]]:
-    """`tests/inst/**/*.yaml` 里每个 id 的用例条数（按文件现场统计）。"""
-    per_id: dict[str, dict[str, int]] = {}
-    for path in sorted((root / TESTS_REL / "inst").rglob("*.yaml")):
-        if not path.is_file():
-            continue
-        try:
-            data = yaml.load(path.read_text(encoding="utf-8"), Loader=_YAML_LOADER)
-        except (OSError, yaml.YAMLError):
-            continue  # 损坏/非用例文件由 validate-vectors / case-ledger 报
-        if not isinstance(data, list):
-            continue
-        rel = path.relative_to(root).as_posix()
-        for case in data:
-            if not isinstance(case, dict):
-                continue
-            cid = case.get("id")
-            if isinstance(cid, str) and cid:
-                per_id.setdefault(cid, {})
-                per_id[cid][rel] = per_id[cid].get(rel, 0) + 1
-    return per_id
 
 
 def _asm_case_counts(root: Path) -> dict[str, dict[str, int]]:
@@ -372,7 +360,7 @@ def _asm_case_counts(root: Path) -> dict[str, dict[str, int]]:
 def check_case_limit(root: Path) -> list[str]:
     """每 id 用例数 ≤ `CASE_LIMIT`；超限逐条报 `id / 实际 / 上限`。"""
     errors: list[str] = []
-    per_id = _yaml_case_counts(root)
+    per_id: dict[str, dict[str, int]] = {}
     for cid, srcs in _asm_case_counts(root).items():
         bucket = per_id.setdefault(cid, {})
         for rel, n in srcs.items():
@@ -430,6 +418,54 @@ def check_carrier_bijection(
                 f"tests/{scope}.yaml: 索引指向非载体（多）: {rel}")
         print(f"  载体↔索引（{scope} {''.join(suffixes)}）: 载体 {len(carriers)} 个 / "
               f"索引 {len(idx_list)} 条 / 缺 {len(missing)} / 多 {len(ghost)}")
+    return errors
+
+
+def check_no_yaml_carriers(root: Path) -> list[str]:
+    """`tests/inst/` 下不得再有 YAML 载体（`m13-testcases-043`：YAML 全退役）。
+
+    载体模型收敛为 `.S`（+ 手工 C/LL 探针）；残留的 `*.yaml` 会让「载体集」被两套
+    语法解释（有的门控认、有的不认）⇒ 直接判红，由人决定是删还是登记。
+    """
+    inst = root / TESTS_REL / "inst"
+    if not inst.is_dir():
+        return []
+    stray = sorted(p.relative_to(root).as_posix() for p in inst.rglob("*.yaml")
+                   if p.is_file())
+    return [f"YAML CARRIER RESIDUE: {rel}（tests/inst 下只允许 .S 载体；"
+            f"YAML 载体已于 m13-testcases-043 全退役）" for rel in stray]
+
+
+def check_non_id_carriers(
+    root: Path,
+    registry: dict[str, str],
+    indexed_files: dict[str, list[str]],
+) -> list[str]:
+    """非 id 载体：**逐文件**登记 + 必须在索引里；同目录不含未登记 `.S`。
+
+    不做目录级豁免：登记目录里出现未登记的 `.S` ⇒ FAIL；登记项缺失/未入索引 ⇒ FAIL。
+    """
+    errors: list[str] = []
+    for rel, why in sorted(registry.items()):
+        path = root / TESTS_REL / rel
+        if not rel.startswith("inst/"):
+            errors.append(f"NON-ID CARRIER: `{rel}` 必须位于 `inst/` 下（登记理由: {why}）")
+            continue
+        if not path.is_file():
+            errors.append(f"NON-ID CARRIER MISSING: 登记的非 id 载体不存在: tests/{rel}"
+                          f"（理由: {why}）")
+            continue
+        if rel not in set(indexed_files.get("inst", [])):
+            errors.append(f"tests/inst.yaml: 非 id 载体未入索引（缺）: {rel}")
+        parent = path.parent
+        for other in sorted(parent.glob("*.S")):
+            other_rel = other.relative_to(root / TESTS_REL).as_posix()
+            if other_rel not in registry:
+                errors.append(
+                    f"NON-ID CARRIER UNSET: {rel} 所在目录存在未登记的 .S: {other_rel}"
+                    "（非 id 载体须逐文件登记，不做目录级豁免）")
+    if registry:
+        print(f"  非 id 载体（显式登记）: {len(registry)} 个")
     return errors
 
 
@@ -534,7 +570,7 @@ def _check_entry(
     return cid
 
 
-def audit(root: Path) -> int:
+def audit(root: Path, registry: dict[str, str] | None = None) -> int:
     print("=" * 72)
     print("check-tests-index — tests/ 根级索引（L1）")
     print("=" * 72)
@@ -601,6 +637,9 @@ def audit(root: Path) -> int:
         f"{s}={counts.get(s, 0)}" for s in SCOPES) + f" / total={total}")
 
     errors.extend(check_carrier_bijection(root, indexed_files))
+    errors.extend(check_non_id_carriers(
+        root, NON_ID_CARRIERS if registry is None else registry, indexed_files))
+    errors.extend(check_no_yaml_carriers(root))
     errors.extend(check_case_limit(root))
 
     geo_errors = check_profile_lds(root)
@@ -685,7 +724,7 @@ def _empty_indexes() -> dict[str, str]:
 
 VALID_ENTRY = """\
 - id: inst-base-001
-  file: inst/base/add.yaml
+  file: inst/base/add.c
   platforms: [system]
   level: smoke
   requires: []
@@ -700,10 +739,11 @@ VALID_ASM_ENTRY = """\
 """
 
 
-def _run(root: Path) -> tuple[int, str]:
+def _run(root: Path, registry: dict[str, str] | None = None) -> tuple[int, str]:
+    """跑一次 audit。合成树默认**空登记表**（仓库自带的非 id 载体不在临时树里）。"""
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
-        rc = audit(root)
+        rc = audit(root, {} if registry is None else registry)
     return rc, buf.getvalue()
 
 
@@ -744,7 +784,7 @@ def self_test() -> int:
         good = _empty_indexes()
         good["inst"] = VALID_ENTRY
         case("干净基线·一条合法条目", good, None,
-             extra_files={"inst/base/add.yaml": "# demo\n"}, expect_rc=0)
+             extra_files={"inst/base/add.c": "/* demo */\n"}, expect_rc=0)
 
         # 干净基线③：载体与索引成对（.S 唯一时双向断言不得误报）
         paired = _empty_indexes()
@@ -774,48 +814,48 @@ def self_test() -> int:
         dup = dict(good)
         dup["inst"] = VALID_ENTRY + VALID_ENTRY
         case("注入① ID 重复", dup, "重复",
-             extra_files={"inst/base/add.yaml": "# demo\n"})
+             extra_files={"inst/base/add.c": "/* demo */\n"})
 
         # 注入②：file 不存在
         bad = dict(_empty_indexes())
-        bad["inst"] = VALID_ENTRY.replace("inst/base/add.yaml", "inst/base/nope.yaml")
+        bad["inst"] = VALID_ENTRY.replace("inst/base/add.c", "inst/base/nope.c")
         case("注入② file 不存在", bad, "不存在")
 
         # 注入③：platforms 非法
         bad = dict(good)
         bad["inst"] = VALID_ENTRY.replace("[system]", "[windows]")
         case("注入③ platforms 非法", bad, "platforms",
-             extra_files={"inst/base/add.yaml": "# demo\n"})
+             extra_files={"inst/base/add.c": "/* demo */\n"})
 
         # 注入④：level 非法
         bad = dict(good)
         bad["inst"] = VALID_ENTRY.replace("level: smoke", "level: quick")
         case("注入④ level 非法", bad, "level",
-             extra_files={"inst/base/add.yaml": "# demo\n"})
+             extra_files={"inst/base/add.c": "/* demo */\n"})
 
         # 注入⑤：ID 前缀与索引 scope 不一致
         bad = dict(good)
         bad["inst"] = VALID_ENTRY.replace("id: inst-base-001", "id: arch-base-001")
         case("注入⑤ ID 前缀错配", bad, "前缀",
-             extra_files={"inst/base/add.yaml": "# demo\n"})
+             extra_files={"inst/base/add.c": "/* demo */\n"})
 
         # 注入⑥：缺字段
         bad = dict(good)
         bad["inst"] = VALID_ENTRY.replace("  requires: []\n", "")
         case("注入⑥ 缺字段", bad, "缺字段",
-             extra_files={"inst/base/add.yaml": "# demo\n"})
+             extra_files={"inst/base/add.c": "/* demo */\n"})
 
         # 注入⑦：未知字段
         bad = dict(good)
         bad["inst"] = VALID_ENTRY + "  owner: nobody\n"
         case("注入⑦ 未知字段", bad, "未知字段",
-             extra_files={"inst/base/add.yaml": "# demo\n"})
+             extra_files={"inst/base/add.c": "/* demo */\n"})
 
         # 注入⑧：file 不在本 scope 目录
         bad = dict(good)
-        bad["inst"] = VALID_ENTRY.replace("inst/base/add.yaml", "arch/base/add.yaml")
+        bad["inst"] = VALID_ENTRY.replace("inst/base/add.c", "arch/base/add.c")
         case("注入⑧ file 越 scope", bad, "不在 scope 目录",
-             extra_files={"arch/base/add.yaml": "# demo\n"})
+             extra_files={"arch/base/add.c": "/* demo */\n"})
 
         # 注入⑨：tests/ 根下出现非法 scope 索引
         bad = dict(_empty_indexes())
@@ -834,9 +874,9 @@ def self_test() -> int:
 
         # 注入⑫：file 指向目录（不是文件）
         bad = dict(good)
-        bad["inst"] = VALID_ENTRY.replace("inst/base/add.yaml", "inst/base")
+        bad["inst"] = VALID_ENTRY.replace("inst/base/add.c", "inst/base")
         case("注入⑫ file 指向目录", bad, "不是文件",
-             extra_files={"inst/base/add.yaml": "# demo\n"})
+             extra_files={"inst/base/add.c": "/* demo */\n"})
 
         # 注入⑬：scope 目录缺失
         bad = dict(_empty_indexes())
@@ -889,20 +929,13 @@ def self_test() -> int:
               f"注入⑯ asm header 篡改: rc={rc} marker={'ASM HEADER DRIFT' in out}")
 
         # 每 id 用例上限（M13-TESTCASES-042）：127 PASS / 128 FAIL，两条都跑
-        def limit_tree(work: Path, yaml_n: int, asm_n: int = 0) -> None:
+        def limit_tree(work: Path, asm_n: int = 0) -> None:
             indexes = dict(_empty_indexes())
             if asm_n:
                 indexes["inst"] = VALID_ASM_ENTRY.replace(
                     "inst/01-load-store/add.S",
                     "inst/01-load-store/zz_asmlimit.S")
             _write_tree(work, indexes)
-            if yaml_n:
-                body = "".join("- id: ctpop_orri_rd\n  class: semantic\n  n: %d\n" % i
-                               for i in range(yaml_n))
-                (work / TESTS_REL / "inst" / "bitcnt").mkdir(parents=True,
-                                                             exist_ok=True)
-                (work / TESTS_REL / "inst" / "bitcnt" / "bitcnt.yaml").write_text(
-                    body, encoding="utf-8")
             if asm_n:
                 pts = "".join("\t__CHECK_RD\t%d, 1\n" % (i + 1)
                               for i in range(asm_n))
@@ -918,25 +951,82 @@ def self_test() -> int:
         ok127 = rc == 0 and "每 id 用例上限" in out
         ok = ok and ok127
         print(f"  [{'PASS' if ok127 else 'FAIL'}] self-test case{case_no} "
-              f"用例上限 127（YAML）: rc={rc}")
+              f"用例上限 127（.S 检查点）: rc={rc}")
 
         case_no += 1
         work = tmpdir / f"case{case_no}"
         limit_tree(work, 128)
         rc, out = _run(work)
-        ok128 = rc == 1 and "CASE LIMIT: id=ctpop_orri_rd 用例 128 > 上限 127" in out
-        ok = ok and ok128
-        print(f"  [{'PASS' if ok128 else 'FAIL'}] self-test case{case_no} "
-              f"注入⑰ 用例上限 128（YAML）: rc={rc} marker={ok128}")
-
-        case_no += 1
-        work = tmpdir / f"case{case_no}"
-        limit_tree(work, 0, 128)
-        rc, out = _run(work)
         ok_asm = rc == 1 and "CASE LIMIT: id=zz_asmlimit 用例 128 > 上限 127" in out
         ok = ok and ok_asm
         print(f"  [{'PASS' if ok_asm else 'FAIL'}] self-test case{case_no} "
               f"注入⑱ 用例上限 128（.S 检查点）: rc={rc} marker={ok_asm}")
+
+        # YAML 载体残留（M13-TESTCASES-043）：tests/inst 下出现 *.yaml ⇒ FAIL
+        case_no += 1
+        work = tmpdir / f"case{case_no}"
+        _write_tree(work, _empty_indexes(),
+                    extra_files={"inst/base/add.yaml": "- id: inst-base-001\n"})
+        rc, out = _run(work)
+        good_yaml = rc == 1 and "YAML CARRIER RESIDUE" in out
+        ok = ok and good_yaml
+        print(f"  [{'PASS' if good_yaml else 'FAIL'}] self-test case{case_no} "
+              f"注入 YAML 载体残留: rc={rc} "
+              f"marker={'YAML CARRIER RESIDUE' in out}")
+
+        # 非 id 载体显式登记（M13-TESTCASES-043）：四条，各自可达 FAIL
+        reg = {"inst/00-isa-design/undi_reserved.S": "self-test 登记项"}
+        ent = VALID_ASM_ENTRY.replace("inst/01-load-store/add.S",
+                                      "inst/00-isa-design/undi_reserved.S").replace(
+            "inst-01-load-store-001", "inst-00-isa-design-001")
+
+        case_no += 1
+        work = tmpdir / f"case{case_no}"
+        _write_tree(work, _empty_indexes())
+        rc, out = _run(work, reg)
+        good_missing = rc == 1 and "NON-ID CARRIER MISSING" in out
+        ok = ok and good_missing
+        print(f"  [{'PASS' if good_missing else 'FAIL'}] self-test case{case_no} "
+              f"注入⑲ 登记的非 id 载体不存在: rc={rc} "
+              f"marker={'NON-ID CARRIER MISSING' in out}")
+
+        case_no += 1
+        work = tmpdir / f"case{case_no}"
+        idx = dict(_empty_indexes())
+        idx["inst"] = ent
+        _write_tree(work, idx,
+                    extra_files={"inst/00-isa-design/undi_reserved.S": "nop\n"})
+        rc, out = _run(work, reg)
+        good_reg = rc == 0
+        ok = ok and good_reg
+        print(f"  [{'PASS' if good_reg else 'FAIL'}] self-test case{case_no} "
+              f"干净基线·非 id 载体已登记且入索引: rc={rc}")
+
+        case_no += 1
+        work = tmpdir / f"case{case_no}"
+        _write_tree(work, _empty_indexes(),
+                    extra_files={"inst/00-isa-design/undi_reserved.S": "nop\n"})
+        rc, out = _run(work, reg)
+        good_unidx = rc == 1 and "非 id 载体未入索引" in out
+        ok = ok and good_unidx
+        print(f"  [{'PASS' if good_unidx else 'FAIL'}] self-test case{case_no} "
+              f"注入⑳ 非 id 载体未入索引: rc={rc} "
+              f"marker={'非 id 载体未入索引' in out}")
+
+        case_no += 1
+        work = tmpdir / f"case{case_no}"
+        idx = dict(_empty_indexes())
+        idx["inst"] = ent + VALID_ASM_ENTRY.replace(
+            "inst/01-load-store/add.S", "inst/00-isa-design/extra.S")
+        _write_tree(work, idx,
+                    extra_files={"inst/00-isa-design/undi_reserved.S": "nop\n",
+                                 "inst/00-isa-design/extra.S": "nop\n"})
+        rc, out = _run(work, reg)
+        good_unset = rc == 1 and "NON-ID CARRIER UNSET" in out
+        ok = ok and good_unset
+        print(f"  [{'PASS' if good_unset else 'FAIL'}] self-test case{case_no} "
+              f"注入㉑ 同目录未登记 .S: rc={rc} "
+              f"marker={'NON-ID CARRIER UNSET' in out}")
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 

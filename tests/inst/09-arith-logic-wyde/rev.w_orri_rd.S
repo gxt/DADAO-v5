@@ -16,57 +16,57 @@
 
 	__TEST_BEGIN
 
-	@@ [1] （YAML `tests/inst/rev/rev.yaml` 并入）encoding: word 与 opcodes.yaml mask/value 一致；rdhb=rd1（非 rd0）、rdhc=rd2、immu6=8（合法 one-hot 档）
+	@@ [1] （原 YAML 并入）encoding: word 与 opcodes.yaml mask/value 一致；rdhb=rd1（非 rd0）、rdhc=rd2、immu6=8（合法 one-hot 档）
 	__LI	rd2, 0x0000000000000000
 	.dd.t32	0x42301088
 	__CHECK_RD   1, rd1, 0x0000000000000000
 
-	@@ [2] （YAML `tests/inst/rev/rev.yaml` 并入）rev.w: S=16, k=1, rd2=0x0123456789ABCDEF → rd1=0xC480E6A2D591F7B3（oracle 大整数独立派生）
+	@@ [2] （原 YAML 并入）rev.w: S=16, k=1, rd2=0x0123456789ABCDEF → rd1=0xC480E6A2D591F7B3（oracle 大整数独立派生）
 	__LI	rd2, 0x0123456789ABCDEF
 	.dd.t32	0x42301081
 	__CHECK_RD   2, rd1, 0xC480E6A2D591F7B3
 
-	@@ [3] （YAML `tests/inst/rev/rev.yaml` 并入）rev.w: S=16, k=2, rd2=0x0123456789ABCDEF → rd1=0xC840D951EA62FB73（oracle 大整数独立派生）
+	@@ [3] （原 YAML 并入）rev.w: S=16, k=2, rd2=0x0123456789ABCDEF → rd1=0xC840D951EA62FB73（oracle 大整数独立派生）
 	__LI	rd2, 0x0123456789ABCDEF
 	.dd.t32	0x42301082
 	__CHECK_RD   3, rd1, 0xC840D951EA62FB73
 
-	@@ [4] （YAML `tests/inst/rev/rev.yaml` 并入）rev.w: S=16, k=4, rd2=0x0123456789ABCDEF → rd1=0x32107654BA98FEDC（oracle 大整数独立派生）
+	@@ [4] （原 YAML 并入）rev.w: S=16, k=4, rd2=0x0123456789ABCDEF → rd1=0x32107654BA98FEDC（oracle 大整数独立派生）
 	__LI	rd2, 0x0123456789ABCDEF
 	.dd.t32	0x42301084
 	__CHECK_RD   4, rd1, 0x32107654BA98FEDC
 
-	@@ [5] （YAML `tests/inst/rev/rev.yaml` 并入）rev.w: S=16, k=8, rd2=0x0123456789ABCDEF → rd1=0x23016745AB89EFCD（oracle 大整数独立派生）
+	@@ [5] （原 YAML 并入）rev.w: S=16, k=8, rd2=0x0123456789ABCDEF → rd1=0x23016745AB89EFCD（oracle 大整数独立派生）
 	__LI	rd2, 0x0123456789ABCDEF
 	.dd.t32	0x42301088
 	__CHECK_RD   5, rd1, 0x23016745AB89EFCD
 
-	@@ [6] （YAML `tests/inst/rev/rev.yaml` 并入）端序敏感（大端 k=8）：rd2 的大端字节序 01 02 03 04 05 06 07 08 → 每个 16 位块内反转字节序 → rd1=0x0201040306050807
+	@@ [6] （原 YAML 并入）端序敏感（大端 k=8）：rd2 的大端字节序 01 02 03 04 05 06 07 08 → 每个 16 位块内反转字节序 → rd1=0x0201040306050807
 	__LI	rd2, 0x0102030405060708
 	.dd.t32	0x42301088
 	__CHECK_RD   6, rd1, 0x0201040306050807
 
-	@@ [7] （YAML `tests/inst/rev/rev.yaml` 并入）boundary rev.w k=8: 源高 48 位为 0 ⇒ 结果高 48 位亦为 0（bswap 前提）
+	@@ [7] （原 YAML 并入）boundary rev.w k=8: 源高 48 位为 0 ⇒ 结果高 48 位亦为 0（bswap 前提）
 	__LI	rd2, 0x0000000001020304
 	.dd.t32	0x42301088
 	__CHECK_RD   7, rd1, 0x0000000002010403
 
-	@@ [8] （YAML `tests/inst/rev/rev.yaml` 并入）boundary rev.w k=1: rdHC=0 ⇒ rdHB=0
+	@@ [8] （原 YAML 并入）boundary rev.w k=1: rdHC=0 ⇒ rdHB=0
 	__LI	rd2, 0x0000000000000000
 	.dd.t32	0x42301081
 	__CHECK_RD   8, rd1, 0x0000000000000000
 
-	@@ [9] （YAML `tests/inst/rev/rev.yaml` 并入）boundary rev.w k=1: rdHC 全 1 ⇒ rdHB 全 1（全 1 图案逐块逆序不变）
+	@@ [9] （原 YAML 并入）boundary rev.w k=1: rdHC 全 1 ⇒ rdHB 全 1（全 1 图案逐块逆序不变）
 	__LI	rd2, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42301081
 	__CHECK_RD   9, rd1, 0xFFFFFFFFFFFFFFFF
 
-	@@ [10] （YAML `tests/inst/rev/rev.yaml` 并入）boundary rev.w k=1: rdHB == rdHC == rd3（原地反转，允许）
+	@@ [10] （原 YAML 并入）boundary rev.w k=1: rdHB == rdHC == rd3（原地反转，允许）
 	__LI	rd3, 0x0123456789ABCDEF
 	.dd.t32	0x423030C1
 	__CHECK_RD   10, rd3, 0xC480E6A2D591F7B3
 
-	@@ [11] （YAML `tests/inst/rev/rev.yaml` 并入）boundary rev.w k=1: rdHC=rd0（源读出 0，合法）⇒ rdHB=0
+	@@ [11] （原 YAML 并入）boundary rev.w k=1: rdHC=rd0（源读出 0，合法）⇒ rdHB=0
 	.dd.t32	0x42301001
 	__CHECK_RD   11, rd1, 0x0000000000000000
 
@@ -106,19 +106,19 @@
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
-	@@ [22] （YAML `tests/inst/rev/rev.yaml` 并入）legality rev.w: k=0 非 one-hot ⇒ ILLI（encode_onehot）
+	@@ [22] （原 YAML 并入）legality rev.w: k=0 非 one-hot ⇒ ILLI（encode_onehot）
 	TEST_FAULT_ALU_ORRI 22, rev.w, ILLI, rd1, rd2, 0
 
-	@@ [23] （YAML `tests/inst/rev/rev.yaml` 并入）legality rev.w: k=3 非 one-hot ⇒ ILLI（encode_onehot）
+	@@ [23] （原 YAML 并入）legality rev.w: k=3 非 one-hot ⇒ ILLI（encode_onehot）
 	TEST_FAULT_ALU_ORRI 23, rev.w, ILLI, rd1, rd2, 3
 
-	@@ [24] （YAML `tests/inst/rev/rev.yaml` 并入）legality rev.w: k=5 非 one-hot ⇒ ILLI（encode_onehot）
+	@@ [24] （原 YAML 并入）legality rev.w: k=5 非 one-hot ⇒ ILLI（encode_onehot）
 	TEST_FAULT_ALU_ORRI 24, rev.w, ILLI, rd1, rd2, 5
 
-	@@ [25] （YAML `tests/inst/rev/rev.yaml` 并入）legality rev.w: k=16 == S（恒等档） ⇒ ILLI（encode_onehot）
+	@@ [25] （原 YAML 并入）legality rev.w: k=16 == S（恒等档） ⇒ ILLI（encode_onehot）
 	TEST_FAULT_ALU_ORRI 25, rev.w, ILLI, rd1, rd2, 16
 
-	@@ [26] （YAML `tests/inst/rev/rev.yaml` 并入）legality rev.w: rdhb=rd0（目的）⇒ ILLI（dst_rd0）
+	@@ [26] （原 YAML 并入）legality rev.w: rdhb=rd0（目的）⇒ ILLI（dst_rd0）
 	TEST_FAULT_ALU_ORRI 26, rev.w, ILLI, rd0, rd2, 8
 
 	@@ [27] k=0 非 one-hot ⇒ ILLI（`encode_onehot`）

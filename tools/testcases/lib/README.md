@@ -3,6 +3,13 @@
 > `TESTCASES-072t`（2026-10-27）：本 harness 由薄 wrapper 区迁入 `tools/testcases/lib/`。
 > `TESTCASES-076t`（P6）：旧薄 wrapper 已删除 —— 现行入口只有本目录。
 
+> **YAML 载体已全退役（`m13-testcases-043`，2026-11-14）**：`tests/inst/**/*.yaml` 已删除
+> ⇒ 本 harness 的「YAML 向量 → QEMU」入口**现场已无用例语料**。现行 inst 执行覆盖 =
+> `tools/testcases/inst/run_asm_suite.py`（`.S` 载体，链例比结果字节流、故障例比 monitor
+> 退出码；L2 `check-inst-asm`）。本目录保留为 harness 实现与**自检**（dump 通道校验、
+> 退出码路径自检、`build_binary` 仍被 parity 驱动复用）——下文 Quick Start 的 YAML 示例
+> 是**历史用法**，不要据此重建 YAML。
+
 ## Overview
 
 This directory contains the QEMU-based ISA semantic test harness for `dadao-tiny`. The harness builds test binaries from vector YAML files, runs them in QEMU, and reports PASS/FAIL based on exit codes.

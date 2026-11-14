@@ -67,7 +67,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-minmax-probe check-fma-probe check-clmul-probe \
         check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-knowledge-refs \
-        check-inst check-inst-smoke check-inst-asm check-tests-index check-arch check-arch-smoke \
+        check-inst-asm check-tests-index check-arch check-arch-smoke \
         check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
         check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
         clean-tests test-repro night-run check-night-report check-l3-report \
@@ -87,7 +87,6 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-tasks check-archive check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive \
         check-contracts-dir check-knowledge-dir \
-        check-rev-vectors check-generator-sync \
         check-spec-archive-verify check-milestone check-sync-nonmaskable \
         check-component-changelog check-syscall-abi check-spec-purity check-spec-cite-targets \
         check-width-sizes check-code-range check-runner-reap
@@ -167,7 +166,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       check-linux-k0 \
                       test-codegen test-elf test-m6 test-picolibc-smoke \
                       check-lit check-lit-full \
-                      check-inst check-inst-smoke check-inst-asm check-arch check-arch-smoke \
+                      check-inst-asm check-arch check-arch-smoke \
                       check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
                       check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
                       clean-tests test-repro \
@@ -274,16 +273,14 @@ help:
 	@echo "  make validate-vectors  Validate tests/inst vectors schema/inventory/coverage (L1)"
 	@echo "  make check           Run repository-level structural checks (L1: static + component smoke)"
 	@echo "  make check-modules   Run L2 = the four scopes' smoke sets (inst/arch/unit + tset x3; no FP probes)"
-	@echo "  make check-full      Run L3 = check-inst + check-arch + check-unit-full + 4 FP probes + test-m6; writes .dadao/tests/l3/<UTC>/ (tset smoke is L2-only; tset full is night-only; TESTCASES-082t/083t)"
+	@echo "  make check-full      Run L3 = check-arch + check-unit-full + 4 FP probes + test-m6; writes .dadao/tests/l3/<UTC>/ (inst is L2 check-inst-asm only; tset smoke is L2-only; tset full is night-only; TESTCASES-082t/083t)"
 	@echo "  make night-run       Run the regression set (tset full x3 + long arch: QEMU system cfx + gem5 FS inst/arch; gem5 SE static x3) into .dadao/tests/night/<date>/ under its own lock; observation only, does not block gates (setsid nohup; TESTCASES-076t/INFRA-127t/TESTCASES-105t)"
 	@echo "  make check-night-report  Observe: regression report exists + structurally complete (QEMU tset/arch + gem5 SE/FS members) + green (on-demand diagnostics, NOT a milestone gate; TESTCASES-076t/TESTCASES-105t)"
 	@echo "  make check-l3-report  Gate: the latest L3 report exists, covers four scopes, and is fully green (milestone closure; TESTCASES-083t)"
 	@echo "  make clean-tests     Remove one scope's generated artifacts (SCOPE=inst|arch|unit|tset|night|l3|all; DRY_RUN=1 to list; TESTCASES-076t)"
 	@echo "  make test-repro      Prove build products regenerate byte-identically (SCOPE=...; TESTCASES-076t)"
 	@echo "  make check-components  Component availability smoke (llc/clang --print-targets/qemu; L1)"
-	@echo "  make check-inst-smoke  inst semantic smoke (representative subset; L2; TESTCASES-072t)"
-	@echo "  make check-inst-asm    inst .S carriers (all migrated ids, QEMU only; L2; m13-testcases-030)"
-	@echo "  make check-inst      inst semantic full set (tests/inst; L3; TESTCASES-072t)"
+	@echo "  make check-inst-asm    inst .S carriers (all ids, QEMU only; L2; m13-testcases-030)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
 	@echo "  make check-test-reports  docs/TestReports/ naming/layout + no runtime paths + snapshot marker + header four items gate (L1; m13-testcases-004)"
@@ -307,8 +304,6 @@ help:
 	@echo "  make check-spec-drift  Audit contract provenance against README versions"
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (L1; INFRA-011t/058t)"
 	@echo "  make check-isa-coverage  ISA<->backend coverage matrix drift gate (L1; LLVM-081t/INFRA-069t)"
-	@echo "  make check-rev-vectors  rev vector re-derivation + spec_cite/oracle drift gate (L1; ISS-335)"
-	@echo "  make check-generator-sync  Five vector generators' --check byte-identical to on-disk vectors (L2; INFRA-115t)"
 	@echo "  make check-spec-numbering  Check 21-volume heading numbering structure (L1; SPEC-133t/INFRA-069t)"
 	@echo "  make check-spec-changelog  Check 21-volume appendix changelog structure (L1; SPEC-134t/INFRA-069t)"
 	@echo "  make check-spec-archive  Check SimRISC per-version archives exist (milestone closure; SPEC-154t/INFRA-109t)"
@@ -794,8 +789,8 @@ TINY_BOOTROM = $(TINY_BOOTROM_DIR)/bootrom_tiny.bin
 #   bootrom_step5.bin      HMON_FAULT_POLICY=0 (resume: arch / check-arch*)
 #   bootrom_step5_inst.bin HMON_FAULT_POLICY=1 (exit: inst harness observes
 #                          the machine-fault exit code instead of 0xB7)
-VAST_BOOTROM = $(STEP5_BOOTROM_DIR)/bootrom_step5.bin
-VAST_BOOTROM_INST = $(STEP5_BOOTROM_DIR)/bootrom_step5_inst.bin
+# Vast 的两份 BootROM 仍由 `build-bootrom` 产出（其他工具/手册引用），但 **check-inst
+# 退役后 Makefile 不再直接消费**（原 `VAST_BOOTROM`/`VAST_BOOTROM_INST` 变量随之删除）。
 _locked-build-bootrom:
 	@test -x $(LLVM_MC_BIN) || { echo "build-bootrom: ERROR: $(LLVM_MC_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLD_BIN) || { echo "build-bootrom: ERROR: $(LLD_BIN) not found — run 'make install-host' first"; exit 1; }
@@ -1220,8 +1215,9 @@ _locked-clean-work:
 # ── 门控分层 (INFRA-058t；用户 2026-10-09 裁定，落 milestones「规划中」) ─────────
 # L1 `make check`（默认，秒~几十秒）   = 仓库完整性（静态检查）+ 组件可用性冒烟
 # L2 `make check-modules`（几十~几百秒）= **四 scope 代表集**（inst/arch/unit + tset×3）
-# L3 `make check-full`（几百~几千秒）   = **全量**（check-inst/check-arch/check-unit-full
+# L3 `make check-full`（几百~几千秒）   = **全量**（check-arch/check-unit-full
 #                                        + 4 个 FP 探针）+ test-m6（全量 lit + ir-lli + Embench E2E）
+# inst 全量执行**不在 L3**：`.S` 载体由 L2 `check-inst-asm` 全量跑（m13-testcases-043）。
 # 回归运行 `make night-run`（小时级）     = tset full×3 + 长 arch + gem5 SE×3 + gem5 FS；报告 `.dadao/tests/night/<date>/`
 # tset（TESTCASES-082t）：smoke 只在 L2（`check-modules`），full 只在回归运行（`night-run`）；
 # L3 不直接列 tset smoke ⇒ 「一个检查只在一层」（docs/Process-07 §4）。
@@ -1230,32 +1226,36 @@ _locked-clean-work:
 # 覆盖无向量的 `fp` 身份，属 **inst scope 的 FP 语义代表集**，只在 L3。
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # 旧名 `check-qemu-semantics`/`check-qemu-smoke`/`test-semihost`/`check-{libc-test,llvm-ts,embench}-smoke`
-# 已于 TESTCASES-076t 删除（P6 收口）；现行名 = check-inst / check-inst-smoke / check-arch-smoke /
-# check-tset-{libc,llvm,embench}-smoke。
+# 已于 TESTCASES-076t 删除（P6 收口）；现行名 = check-inst-asm / check-arch-smoke /
+# check-tset-{libc,llvm,embench}-smoke。`check-inst`/`check-inst-smoke` 随 YAML 退役删除
+# （`m13-testcases-043`）。
 # Linux（m14-infra-003）：`check-linux-toolchain`（工具链矩阵声明==实测）与
 # `check-linux-boot-contract`（§6.3 ↔ 契约 ↔ 投影三方一致）只读静态/探针、不跑被测语义
 # ⇒ 归 L1（docs/Process-07 §1.1 登记）；K0 收口 `check-linux-k0` 归 L2（见下）。
 # 两条排在 `check-temp-dirs` **之前**：它们在 `$DADAO_TMP`（`check_toolchain.py`
 # 默认建任务临时目录）下跑探针，先跑可让该目录 mtime 保持新鲜，避免陈旧临时
 # 目录误报；`check_k0.py`（L2）另行把 DADAO_TMP 指到自己的 scratch。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-writer-guards check-temp-dirs
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-writer-guards check-temp-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
 
 # L2 = 四 scope 的 **smoke** 集（TESTCASES-076t 收口；2026-10-27 用户裁定「L2 只保留四 scope
 # smoke」⇒ 4 个 FP 探针**移出** L2，只在 L3）
-#   inst : check-inst-smoke（YAML 代表集） + check-inst-asm（`.S` 载体全量 264 id，单平台 QEMU）
+#   inst : check-inst-asm（`.S` 载体全量 265 id，单平台 QEMU；YAML 载体已全退役）
 #   arch : check-arch-smoke
 #   unit : check-unit（= check-lit + test-codegen + test-elf + ir-lli + picolibc fast）
 #   tset : check-tset-{libc,llvm,embench}-smoke
 #   linux: check-linux-k0（K0 收口：vmlinux + initramfs + 矩阵 + 启动契约 + 补丁集幂等；
 #         m14-infra-003。只读产物 + 增量构建（秒级），不跑被测语义的全量套件）
-_locked-check-modules: check-inst-smoke check-inst-asm check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-generator-sync check-linux-k0
+_locked-check-modules: check-inst-asm check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-linux-k0
 	@echo "module checks (L2): PASS"
 
 # L3 = 全量（TESTCASES-076t；2026-10-27 用户裁定「一个检查只在一层」严格化；TESTCASES-082t 去 tset smoke）。
-#   inst 全量 : check-inst；arch 全量 : check-arch
+#   inst       : **不在 L3 列**（L2 `check-inst-asm` 已是唯一 inst 执行门控；`check-inst`
+#               随 YAML 退役删除 ⇒ Process-07 §4「一个检查只在一层」）。Vast 的 ISA 执行
+#               覆盖明确放弃（用户 2026-11-14），由 spec + 三平台差分矩阵承担。
+#   arch 全量 : check-arch
 #   unit 全量 : check-unit-full（= check-unit + check-lit-full）；`check-unit` 只在 L2 **直接**列出，
 #               此处经**前置依赖**间接跑到 ⇒ 符合 Process-07 §4「被上层前置依赖不算重复」
 #   tset      : **不直接列出**（L2 已有 smoke；tset full 只在回归运行 night-run）；
@@ -1917,27 +1917,6 @@ check-case-ledger:
 check-tests-index:
 	@$(PYTHON) tools/testcases/check_tests_index.py
 
-# rev 向量重派生门控 (ISS-335, L1): 由真源（contracts/opcodes.yaml + 独立 oracle）
-# 重新派生 `tests/inst/rev/rev.yaml` 并逐字节比对；spec_cite/期望值/合法集任一漂移
-# ⇒ FAIL。与 check-case-ledger 同层（L1），不重复进 L2/L3。
-check-rev-vectors:
-	@$(PYTHON) tools/testcases/generate_rev_vectors.py --check
-
-# 生成器—落盘向量同步门控 (INFRA-115t, L2): 余下 5 个向量生成器以 `--check` 从真源
-# 重新渲染并逐字节比对（ctrl-jump/call/ret、ctrl-br、isa、misc、bitcnt）。
-# `rev` 不在此列出：已由 L1 `check-rev-vectors` 守护（Process-07 §4「一个检查只在
-# 一层」）。任一生成器与落盘向量漂移 ⇒ FAIL。
-# **mem 生成器已退役**（m13-testcases-030 / ISS-413）：`base/mem-{rd,rb,ra}.yaml` 已
-# `git rm`，三册访存 id 的载体改为 `tests/inst/01-load-store/<id>.S`，回归由 L2
-# `check-inst-asm`（逐镜像执行）承担 —— 「生成器 + 逐字节比对」不再有输入，留一个
-# 会重建已退役 YAML 的脚本反而是陷阱。
-check-generator-sync:
-	@$(PYTHON) tools/testcases/generate_ctrl_jump_call_ret.py --check
-	@$(PYTHON) tools/testcases/generate_ctrl_br.py --check
-	@$(PYTHON) tools/testcases/generate_isa_vectors.py --check
-	@$(PYTHON) tools/testcases/generate_misc.py --check
-	@$(PYTHON) tools/testcases/generate_bitcnt_vectors.py --check
-
 # decodetree 可复现性 (ISS-058, L1): build-qemu recipe 必须固定 PYTHONHASHSEED=0；
 # .work/source/qemu 在盘时实跑 decodetree 两种 seed，确认「敏感 ⇒ 已固定」。
 check-decodetree-repro:
@@ -1965,77 +1944,12 @@ check-rule-refs: contracts/opcodes.yaml
 check-fp-contract:
 	@$(PYTHON) tools/spec/check_fp_contract.py
 
-# inst semantic execution gate (L3; SPEC-069t/INFRA-097t; TESTCASES-072t 更名+搬家)
-# `make check-inst` = `tests/inst` 全量载体跑 QEMU；旧名 `check-qemu-semantics`
-# 保留为**别名**（指向本目标）。QEMU 二进制取自安装根（ADR-0016 D9）。
-# 载体集**现场派生**（册名/册数不写死）：`base/*.yaml` 全量 + 非 base 载体
-# `rol/*.yaml`（QEMU-064t：rol.* scope m9）+ `atomics/*.yaml`（QEMU-067t）
-# + `clmul/*.yaml`（QEMU-068t）。`rev/`、`bitcnt/` 不在本门控（M8 scope；见
-# `tests/inst/inventory.md`「门控覆盖」）。ISS-235 = 载体集曾只覆盖 3/16 册。
-# 结构断言（缺册/basename 重复/断链/0 册/运行 total ≠ 派生总数）+ 自证日志
-# （ISS-236）在 `tools/qemu/semantics_gate.py`；`--check-only` 只跑派生+结构断言。
-# 并发走 --jobs $(JOBS)（默认 nproc/2）；退出码直传（无管道）。
-# D6：gate 目录在 TEST_ARTIFACTS_DIR 下，日志在 .work/log/qemu/。
-INST_DIR = $(CURDIR)/tests/inst
-INST_SEM_DIR = $(TEST_ARTIFACTS_DIR)/harness/gate
-INST_SEM_LOG = .work/log/qemu/check-inst.log
-INST_TINY_LOG = .work/log/qemu/check-inst-tiny.log
-# TESTCASES-092t §6: two segments, each with its own rc; any non-zero ⇒ red.
-#   [1/2] Vast 全量：dadao-vast + the exit-policy BootROM (observed fault codes)
-#   [2/2] Tiny 子集：profile=tiny + 固定 64 KiB 固件 + only the cases that
-#         explicitly name the tiny profile（条数现场统计，不写死；`m13-testcases-030`
-#         起访存族的 Tiny 用例载体是 `.S`，由 L2 `check-inst-asm` 执行）。
-#         m13-testcases-034：Tiny 故障例的 oracle 经固件 hmon 分派
-#         （cause_id → 镜像落点 → SYS_EXIT），不再依赖 legacy 短 `-bios` 桩的
-#         「向量不可达 ⇒ 机器 fault」。
-_locked-check-inst: build-bootrom
-	@mkdir -p .work/log/qemu || { echo "check-inst: ERROR: cannot create .work/log/qemu"; exit 1; }
-	@test -f $(VAST_BOOTROM) || { echo "check-inst: ERROR: $(VAST_BOOTROM) not found"; exit 1; }
-	@test -f $(VAST_BOOTROM_INST) || { echo "check-inst: ERROR: $(VAST_BOOTROM_INST) not found"; exit 1; }
-	@test -f $(TINY_BOOTROM) || { echo "check-inst: ERROR: $(TINY_BOOTROM) not found"; exit 1; }
-	@echo "check-inst: [1/2] Vast full set (dadao-vast)"
-	@DADAO_TEST_PROFILE=vast $(PYTHON) tools/qemu/semantics_gate.py \
-	    --vectors $(INST_DIR) --gate-dir $(INST_SEM_DIR) \
-	    --qemu $(QEMU_BIN) --bootrom $(VAST_BOOTROM_INST) \
-	    --jobs $(JOBS) > $(INST_SEM_LOG) 2>&1; \
-	  rc=$$?; \
-	  grep -E "Results:|skipped_profile" $(INST_SEM_LOG) | tail -2; \
-	  tail -20 $(INST_SEM_LOG); \
-	  if [ $$rc -ne 0 ]; then \
-	    echo "check-inst: FAIL (vast segment rc=$$rc)"; \
-	    exit $$rc; \
-	  fi
-	@echo "check-inst: [2/2] Tiny subset (profile=tiny, --only-profile-cases)"
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/qemu/semantics_gate.py \
-	    --vectors $(INST_DIR) --gate-dir $(TEST_ARTIFACTS_DIR)/harness/gate-tiny \
-	    --qemu $(QEMU_BIN) --bootrom $(TINY_BOOTROM) \
-	    --only-profile-cases --jobs $(JOBS) > $(INST_TINY_LOG) 2>&1; \
-	  rc=$$?; \
-	  grep -E "Results:|skipped_profile" $(INST_TINY_LOG) | tail -2; \
-	  tail -20 $(INST_TINY_LOG); \
-	  if [ $$rc -ne 0 ]; then \
-	    echo "check-inst: FAIL (tiny segment rc=$$rc)"; \
-	    exit $$rc; \
-	  fi
-	@echo "check-inst: PASS (vast full + tiny subset)"
-
-# inst 语义**冒烟**门控 (INFRA-058t, L2; TESTCASES-072t 更名+搬家):
-# `check-inst` 的代表子集。代表集按 (class, mnemonic) **机械派生**（每组取第一条，
-# 禁手工挑），计数现场统计；全量留在 L3（`check-full` → `check-inst`）。
-# 旧名 `check-qemu-smoke` 保留为**别名**（指向本目标）。
-INST_SMOKE_WORK = $(TEST_ARTIFACTS_DIR)/harness/smoke
-INST_SMOKE_LOG = .work/log/qemu/check-inst-smoke.log
-_locked-check-inst-smoke: build-bootrom
-	@mkdir -p .work/log/qemu
-	@test -x $(QEMU_BIN) || { echo "check-inst-smoke: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
-	@test -f $(VAST_BOOTROM_INST) || { echo "check-inst-smoke: ERROR: $(VAST_BOOTROM_INST) not found"; exit 1; }
-	@DADAO_TEST_PROFILE=vast $(PYTHON) tools/testcases/inst/run_qemu_smoke.py --qemu $(QEMU_BIN) \
-	    --bootrom $(VAST_BOOTROM_INST) --vector-dir tests/inst/base \
-	    --work-dir $(INST_SMOKE_WORK) --jobs $(JOBS) > $(INST_SMOKE_LOG) 2>&1; \
-	  rc=$$?; \
-	  tail -10 $(INST_SMOKE_LOG); \
-	  if [ $$rc -ne 0 ]; then echo "check-inst-smoke: FAIL (rc=$$rc)"; exit $$rc; fi; \
-	  echo "check-inst-smoke: PASS"
+# inst 语义执行：**只**由 L2 `check-inst-asm`（`.S` 载体全量、单平台 QEMU）承担。
+# `check-inst`（L3，Vast 全量 + Tiny 子集）与 `check-inst-smoke`（L2 代表集）曾以
+# `tests/inst/**/*.yaml` 为载体；YAML 于 `m13-testcases-043` 全退役（用户 2026-11-14
+# 裁定「Vast 明确放弃 ISA 级执行覆盖」）⇒ 两个目标删除，`tools/qemu/semantics_gate.py`
+# 的向量执行模式标历史（仅保留 `--form-check`，由 L1 `check-qemu-forms` 使用）。
+# Vast 的 ISA 语义由 `spec/` + M13 三平台差分矩阵承担（docs/Process-07 §1）。
 
 # `.S` 载体门控 (m13-testcases-030 / ISS-413, L2)：`tests/inst/<册>/*.S` 的**全部**
 # 迁移 id（12 册）逐镜像执行 —— 同一份 ELF 交给 QEMU `dadao-tiny`：链例比结果

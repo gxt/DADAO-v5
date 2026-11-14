@@ -36,13 +36,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m13-testcases-043 | 2026-11-14 22:00 | 6–10 h | YAML 退役收口（审计等价→补 5 条 overlap→迁保留编码→删 28 册→退生成器/删 sweep、退役 check-inst） |
 | m13-chipyard-002 | 2026-11-14 21:00 | 2–3 h | RTL `sc` 去掉 `resvWord` 整字比较（严格按 spec；`ISS-435`） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m13-testcases-043 | 2026-11-15 00:20 | YAML 全退役（27 册/1315 例删除）+ `00-isa-design` + 5 条 cs overlap + 6 生成器/4 sweep/`check-inst` 退役（265 id/901 镜像） |
 | m13-testcases-042 | 2026-11-14 21:55 | 字段域收敛（`bitcnt` 414→219；`ctpop/ctlz/cttz` 144→92）+ 每 id ≤127 门控 |
 | m13-testcases-041 | 2026-11-14 21:30 | 补 15 条载体索引（490→505）+ `check-tests-index` 加「载体↔索引」双向断言（缺/多/重复三类） |
 | m13-testcases-040 | 2026-11-14 21:10 | 4 条 `.S` 入索引（486→490）+ `mem_sweep` 退役（helper 迁 `inst_sweep`）+ trampoline 文档收口 |

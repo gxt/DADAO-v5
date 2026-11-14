@@ -16,17 +16,17 @@
 
 	__TEST_BEGIN
 
-	@@ [1] （YAML `tests/inst/base/reg-shift-extend.yaml` 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
+	@@ [1] （原 YAML 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
 	.dd.t32	0x42681001
 	__CHECK_RD   1, rd1, 0x0000000000000000
 
-	@@ [2] （YAML `tests/inst/base/reg-shift-extend.yaml` 并入）shr.uw orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=15
+	@@ [2] （原 YAML 并入）shr.uw orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=2, N=15
 	__LI	rd2, 0x0F0F0F0F0F0F0F0F
 	__LI	rd1, 0x0000000000000000
 	.dd.t32	0x42681082
 	__CHECK_RD   2, rd1, 0x00000000000003C3
 
-	@@ [3] （YAML `tests/inst/base/reg-shift-extend.yaml` 并入）boundary shr.uw orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=15=N, N=15
+	@@ [3] （原 YAML 并入）boundary shr.uw orri: rd2(src)=0xf0f0f0f0f0f0f0f, immu6=15=N, N=15
 	__LI	rd2, 0x0F0F0F0F0F0F0F0F
 	__LI	rd1, 0x0000000000000000
 	.dd.t32	0x4268108F
@@ -71,7 +71,7 @@
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
-	@@ [15] （YAML `tests/inst/base/reg-shift-extend.yaml` 并入）legality shr.uw: dest=rd0/rb0 → ILLI (dst_rd0)
+	@@ [15] （原 YAML 并入）legality shr.uw: dest=rd0/rb0 → ILLI (dst_rd0)
 	TEST_FAULT_ALU_ORRI 15, shr.uw, ILLI, rd0, rd0, 0
 
 	@@ [16] immu6 = 16 > 15 ⇒ ILLI（`encode_sbz`）

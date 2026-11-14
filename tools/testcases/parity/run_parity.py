@@ -18,8 +18,9 @@ Scope (ADR-0048 D1/D2/D5; task book §0/§1/§4):
 
 The driver reuses the existing engines instead of re-implementing them:
 
-  inst      tools/qemu/semantics_gate.py --json-out   (QEMU and, via the shim,
-            gem5 FS)
+  inst      **已退役**（`m13-testcases-043`）：YAML 载体全删；inst 的三平台逐字节
+            改由 `tools/testcases/inst/run_asm_suite.py --platforms chipyard,qemu,gem5`
+            （`.S` 载体，Tiny）承担，不再从本驱动派生
   arch      tools/testcases/arch/run_m5_e2e.py --json-out  (10 smoke) plus the
             13 ``ARCH_CFX_PROBES`` + ``min_rom_probe_046t`` run per check
   embench   tools/testcases/tset/embench/run_embench_e2e.py --json-out
@@ -29,7 +30,7 @@ The driver reuses the existing engines instead of re-implementing them:
 Usage:
 
   python3 tools/testcases/parity/run_parity.py --profiles tiny,vast \\
-      --scopes inst,arch,embench,picolibc \\
+      --scopes arch,embench,picolibc \\
       --qemu .dadao/cross-toolchain/bin/qemu-system-dadao \\
       --gem5 .work/source/gem5/build/DADAO/gem5.opt \\
       --gem5-config .work/source/gem5/configs/dadao/fs.py \\
@@ -253,148 +254,12 @@ def engine_identity(args):
 # live case enumeration (coverage truth, never hardcoded)
 # ---------------------------------------------------------------------------
 
-def _inst_carriers():
-    import semantics_gate
-    vectors = os.path.join(_REPO_ROOT, "tests", "inst")
-    carriers = []
-    for d in semantics_gate.CARRIER_DIRS:
-        full = os.path.join(vectors, d)
-        if not os.path.isdir(full):
-            raise SetupError(f"inst carrier dir missing: {full}")
-        names = [n for n in sorted(os.listdir(full)) if n.endswith(".yaml")]
-        if not names:
-            raise SetupError(f"inst carrier dir empty: {full}")
-        carriers.extend(os.path.join(d, n) for n in names)
-    return carriers
-
-
 def enumerate_inst(profile):
-    """Return ordered case templates: case_id/status (pre-run)."""
-    vectors = os.path.join(_REPO_ROOT, "tests", "inst")
-    rows = []
-    seen = set()
-    for rel in _inst_carriers():
-        cases = harness._load_cases(os.path.join(vectors, rel))
-        for idx, case in enumerate(cases):
-            cid = "inst/%s#%d:%s" % (rel, idx + 1, case.get("id"))
-            if cid in seen:
-                raise SetupError(f"duplicate inst case_id {cid}")
-            seen.add(cid)
-            if not harness.case_applies(case, profile):
-                status = "SKIP_PROFILE"
-            elif case.get("status", "active") == "deferred":
-                status = "DEFERRED"
-            else:
-                status = "RUN"
-            rows.append({"case_id": cid, "profile": profile, "scope": "inst",
-                         "expected": status,
-                         "vector": rel, "index": idx,
-                         "id": case.get("id")})
-    if not rows:
-        raise SetupError("inst: zero live cases")
-    return rows
-
-
-def _parse_probe_list(path, profile="vast"):
-    env = dict(os.environ)
-    env["DADAO_TEST_PROFILE"] = profile
-    proc = subprocess.run([sys.executable, path, "--list"], capture_output=True,
-                          text=True, env=env)
-    if proc.returncode != 0:
-        raise SetupError(f"probe --list failed rc={proc.returncode}: {path}")
-    checks = []
-    for line in proc.stdout.splitlines():
-        line = line.strip()
-        if not line or line.startswith("distinct service ids") \
-                or line.startswith("required service ids"):
-            continue
-        name = line.split()[0]
-        checks.append({"name": name, "desc": line[len(name):].strip(" -")})
-    if not checks:
-        raise SetupError(f"probe --list returned zero checks: {path}")
-    return checks
-
-
-def _arch_probe_ids():
-    makefile = os.path.join(_REPO_ROOT, "Makefile")
-    with open(makefile, "r", encoding="utf-8") as fh:
-        text = fh.read()
-    m = re.search(r"^ARCH_CFX_PROBES\s*=\s*(.+)$", text, re.MULTILINE)
-    if not m:
-        raise SetupError("Makefile: ARCH_CFX_PROBES not found")
-    ids = m.group(1).split()
-    if not ids:
-        raise SetupError("Makefile: ARCH_CFX_PROBES is empty")
-    out = []
-    for pid in ids:
-        script = os.path.join(ARCH_DIR, "min_rom_probe_%s.py" % pid)
-        if not os.path.isfile(script):
-            raise SetupError(f"probe script missing: {script}")
-        out.append({"id": pid, "script": script})
-    script046 = os.path.join(ARCH_DIR, "min_rom_probe_046t.py")
-    if not os.path.isfile(script046):
-        raise SetupError(f"probe script missing: {script046}")
-    out.append({"id": "min_rom_probe_046t", "script": script046})
-    return out
-
-
-def enumerate_arch(profile):
-    if not machine_profile.load("vast").get("arch", False):
-        raise SetupError("machine-profiles.yaml: vast.arch is false")
-    expected = os.path.join(_REPO_ROOT, "tests", "arch", "umon", "expected.yaml")
-    with open(expected, "r", encoding="utf-8") as fh:
-        import yaml
-        doc = yaml.safe_load(fh)
-    programs = [p["name"] for p in doc.get("programs", [])]
-    if not programs:
-        raise SetupError(f"{expected}: zero arch smoke programs")
-    rows = [{"case_id": "arch/umon/" + name, "profile": profile,
-             "scope": "arch", "kind": "smoke", "name": name} for name in programs]
-    for probe in _arch_probe_ids():
-        for check in _parse_probe_list(probe["script"]):
-            rows.append({"case_id": "arch/probe/%s/%s" % (probe["id"],
-                                                          check["name"]),
-                         "profile": profile, "scope": "arch", "kind": "probe",
-                         "probe": probe["id"], "script": probe["script"],
-                         "check": check["name"]})
-    return rows
-
-
-def _embench_src(args):
-    return _abspath(args.embench_src)
-
-
-def discover_benchmarks(args):
-    src = os.path.join(_embench_src(args), "src")
-    if not os.path.isdir(src):
-        raise SetupError(f"embench source root missing: {src}")
-    import glob
-    found = [d for d in sorted(os.listdir(src))
-             if os.path.isdir(os.path.join(src, d))
-             and glob.glob(os.path.join(src, d, "*.c"))]
-    if not found:
-        raise SetupError(f"embench: zero benchmarks under {src}")
-    return found
-
-
-def enumerate_embench(args, profile):
-    rows = []
-    for bench in discover_benchmarks(args):
-        for opt in ("0", "2"):
-            rows.append({"case_id": "embench/%s-O%s" % (bench, opt),
-                         "profile": profile, "scope": "embench",
-                         "bench": bench, "opt": "O" + opt})
-    return rows
-
-
-def _picolibc_inventory():
-    import picolibc_tests
-    inv, _targets = picolibc_tests.load_inventory()
-    reps = set(picolibc_tests.representative_names(inv))
-    names = [e["name"] for e in inv if e["name"] in reps]
-    if not names:
-        raise SetupError("picolibc: zero representative cases")
-    return names, picolibc_tests
+    """inst scope **已退役**（`m13-testcases-043`）：显式失败，不静默给空集。"""
+    raise SetupError(
+        "inst scope retired (m13-testcases-043): tests/inst/**/*.yaml 已全删；"
+        "inst 三平台逐字节改用 tools/testcases/inst/run_asm_suite.py "
+        "--platforms chipyard,qemu,gem5（.S 载体）")
 
 
 def enumerate_picolibc():
@@ -1610,7 +1475,8 @@ def parse_args(argv):
     ap = argparse.ArgumentParser(
         description="QEMU system <-> gem5 FS same-mode parity")
     ap.add_argument("--profiles", default="tiny,vast")
-    ap.add_argument("--scopes", default="inst,arch,embench,picolibc")
+    ap.add_argument("--scopes", default="arch,embench,picolibc",
+                    help="scope 列表（inst 已退役；传 inst ⇒ setup error）")
     ap.add_argument("--qemu", default=".dadao/cross-toolchain/bin/"
                                      "qemu-system-dadao")
     ap.add_argument("--gem5", default=".work/source/gem5/build/DADAO/gem5.opt")

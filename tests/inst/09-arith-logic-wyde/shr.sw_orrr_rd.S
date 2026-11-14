@@ -16,18 +16,18 @@
 
 	__TEST_BEGIN
 
-	@@ [1] （YAML `tests/inst/base/reg-shift-extend.yaml` 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
+	@@ [1] （原 YAML 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
 	.dd.t32	0x424C1000
 	__CHECK_RD   1, rd1, 0x0000000000000000
 
-	@@ [2] （YAML `tests/inst/base/reg-shift-extend.yaml` 并入）shr.sw: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=15
+	@@ [2] （原 YAML 并入）shr.sw: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=2, N=15
 	__LI	rd2, 0x0F0F0F0F0F0F0F0F
 	__LI	rd3, 0x0000000000000002
 	__LI	rd1, 0x0000000000000000
 	.dd.t32	0x424C1083
 	__CHECK_RD   2, rd1, 0x00000000000003C3
 
-	@@ [3] （YAML `tests/inst/base/reg-shift-extend.yaml` 并入）boundary shr.sw: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=15=N, N=15
+	@@ [3] （原 YAML 并入）boundary shr.sw: rd2(src)=0xf0f0f0f0f0f0f0f, rd3(shamt)=15=N, N=15
 	__LI	rd2, 0x0F0F0F0F0F0F0F0F
 	__LI	rd3, 0x000000000000000F
 	__LI	rd1, 0x0000000000000000
@@ -80,7 +80,7 @@
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
-	@@ [17] （YAML `tests/inst/base/reg-shift-extend.yaml` 并入）legality shr.sw: dest=rd0/rb0 → ILLI (dst_rd0)
+	@@ [17] （原 YAML 并入）legality shr.sw: dest=rd0/rb0 → ILLI (dst_rd0)
 	TEST_FAULT_ALU3     17, shr.sw, ILLI, rd0, rd0, rd0
 
 	@@ [18] dst_rd0：目的 rd0 ⇒ ILLI（`dst_rd0`）

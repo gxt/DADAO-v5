@@ -16,11 +16,11 @@
 
 	__TEST_BEGIN
 
-	@@ [1] （YAML `tests/inst/base/reg-compare.yaml` 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
+	@@ [1] （原 YAML 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
 	.dd.t32	0x42A81000
 	__CHECK_RD   1, rd1, 0x0000000000000000
 
-	@@ [2] （YAML `tests/inst/base/reg-compare.yaml` 并入）cmp.uw: rd2=0xa, rd3=0x14, bits=16, signed=False
+	@@ [2] （原 YAML 并入）cmp.uw: rd2=0xa, rd3=0x14, bits=16, signed=False
 	__LI	rd2, 0x000000000000000A
 	__LI	rd3, 0x0000000000000014
 	.dd.t32	0x42A81083
@@ -72,7 +72,7 @@
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
-	@@ [16] （YAML `tests/inst/base/reg-compare.yaml` 并入）legality cmp.uw: dest=rd0/rb0 → ILLI (dst_rd0)
+	@@ [16] （原 YAML 并入）legality cmp.uw: dest=rd0/rb0 → ILLI (dst_rd0)
 	TEST_FAULT_ALU3     16, cmp.uw, ILLI, rd0, rd0, rd0
 
 	@@ [17] dst_rd0：目的 rd0 ⇒ ILLI（`dst_rd0`）

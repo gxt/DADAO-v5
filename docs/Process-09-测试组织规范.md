@@ -67,7 +67,7 @@
 
 - `tests/`：341 文件 / 13 个顶层项；`llvm`(216)、`e2e`(45)、`scripts`(30)、`vectors`(25)、`atomics/clmul/fma/minmax/roundint`、`qemu`(1)。
 - `.dadao/tests/`：**19,967 文件 / 1.13 GB**，18 个子目录；含任务专属目录（如 `llvm-ts-user-050t`）、无 `clean` 目标、约 210 MB 不可重生成。
-- 向量：1,456 例 / 193 个 opcode 身份 / 22 个 YAML；ledger 1,956 条；lit 154。
+- 向量（**历史快照**，2026-10-26 盘点）：1,456 例 / 193 个 opcode 身份 / 22 个 YAML。**YAML 载体已于 `m13-testcases-043` 全退役**：现行载体 = `tests/inst/<册>/<id>.S`（逐条用例身份见 `tests/case-ledger.tsv` 的 `asm` 行；条数现场派生、不写死）。
 - 现行门控（2026-10-27，`TESTCASES-076t`）：`check`（L1）、`check-modules`（L2）、`check-full`（L3）、`night-run`（回归运行，独立锁）、`check-milestone`；tset full 只在回归运行。
 - 工具分散（迁移前快照，P6 后已删除）：`tests/scripts/`（inst harness）、`tools/testcases/`（生成器/oracle/套件驱动）、`tools/integ/`（集成驱动），有重复（embench runtime、两套 runner）。
 - 平台：宿主 Linux x86-64；guest `qemu-system-dadao` / `qemu-dadao`；**无硬件在环**。
@@ -157,12 +157,16 @@ tests/
 
 ```yaml
 # tests/inst.yaml
-- id: inst-base-001
-  file: inst/base/add.yaml
-  platforms: [system, user]      # inst 必填
-  level: smoke                   # smoke | full
+- id: inst-01-load-store-001
+  file: inst/01-load-store/ld.o_rrii_ra.S   # 载体 = 执行型 .S（唯一载体模型）
+  platforms: [system]            # inst 必填；system = qemu-system 运行模式，不是机型
+  level: full                    # smoke | full
   requires: []                   # 如 [user-mode]
 ```
+
+> **非 id 载体**（`m13-testcases-043`）：`inst/00-isa-design/undi_reserved.S` 的文件名不是
+> opcode id（保留编码 ⇒ UNDI），须在 `check_tests_index.NON_ID_CARRIERS` 与
+> `validate_vectors.NON_ID_CARRIERS` **逐文件**登记并由本索引覆盖 —— 不做目录级豁免。
 
 - **ID**：`inst-<ext>-nnn` / `arch-<cfx>-nnn` / `unit-<module>-nnn` / `tset-<suite>-nnn`。
 - **独立 oracle**：期望值来自 spec/契约/参考模型，不从 QEMU 输出反推（承接 `Process-05 §4`）。
@@ -227,10 +231,10 @@ tools/testcases/
 
 ## 8. 门控分层（一个检查只在一层）
 
-- **任务级（Task）**：任务书 `## 验证` 必须写 `scope`、`level`（targeted/smoke）、`cmd`；reviewer 重跑同一命令。**≤2 min**，如 `make check-inst-smoke CASE=...`、`make check-arch-smoke CFX=...`、`make check-unit`、`make check-tset-libc-smoke`。
-- **L1（静态）**：`tests/*.yaml` 索引、ID/文件/字段、`case-ledger`、生成器 `--check`、链接/引用、**跨模块接口一致性**（`check-interface`）、**代码跨度自检**（`check-code-range`）；**不跑 guest**。
-- **L2（四 scope smoke）**：`check-inst-smoke`、`check-arch-smoke`、`check-unit`、`check-tset-{libc,llvm,embench}-smoke` ⇒ `make check-modules`。**不含 FP 探针**（2026-10-27 用户裁定「L2 只保留四 scope smoke」）。
-- **L3（全量）**：`check-inst`（全 ISA）、`check-arch`（全 cfx）、**`check-unit-full`**（= `check-unit` + `check-lit-full`）、**4 个 FP 探针**（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖，只在 L3 跑）、`test-m6`（全量 lit + ir-lli + Embench E2E）⇒ `make check-full`；运行时逐成员落 `.dadao/tests/l3/<UTC>/` 报告（`l3_run.py`），由里程碑层 `check-l3-report` 消费。
+- **任务级（Task）**：任务书 `## 验证` 必须写 `scope`、`level`（targeted/smoke）、`cmd`；reviewer 重跑同一命令。**≤2 min**，如 `python3 tools/testcases/inst/run_asm_suite.py --id <id> --platforms qemu`、`make check-arch-smoke CFX=...`、`make check-unit`、`make check-tset-libc-smoke`。
+- **L1（静态）**：`tests/*.yaml` 索引、ID/文件/字段、`case-ledger`（`.S` 用例行 + lit pattern）、链接/引用、**跨模块接口一致性**（`check-interface`）、**代码跨度自检**（`check-code-range`）；**不跑 guest**。
+- **L2（四 scope smoke）**：`check-inst-asm`（`.S` 载体全量；原 `check-inst-smoke` 的 YAML 代表集已随 YAML 退役删除，`m13-testcases-043`）、`check-arch-smoke`、`check-unit`、`check-tset-{libc,llvm,embench}-smoke` ⇒ `make check-modules`。**不含 FP 探针**（2026-10-27 用户裁定「L2 只保留四 scope smoke」）。
+- **L3（全量）**：`check-arch`（全 cfx）、**`check-unit-full`**（= `check-unit` + `check-lit-full`）、**4 个 FP 探针**（`fp` 身份无向量 ⇒ 探针是其唯一语义覆盖，只在 L3 跑）、`test-m6`（全量 lit + ir-lli + Embench E2E）⇒ `make check-full`；**inst 不在 L3 列**（`.S` 执行门控 = L2 `check-inst-asm`；原 `check-inst` 随 YAML 退役删除，Vast 的 ISA 执行覆盖明确放弃，`m13-testcases-043`）；运行时逐成员落 `.dadao/tests/l3/<UTC>/` 报告（`l3_run.py`），由里程碑层 `check-l3-report` 消费。
   - **一层一列**：`check-unit` 只在 L2 直接列出；L3 用 `check-unit-full`，它在 L3 只是
     **前置依赖**（`Process-07 §4` 明文允许「被上层前置依赖而间接跑到不算重复」）。
     **不设例外**（2026-10-27 用户裁定严格化）。
@@ -246,9 +250,9 @@ tools/testcases/
 任务书固定段（示例）：
 
 ```yaml
-scope: inst/base
+scope: inst/04-arith-logic-octa
 level: smoke
-cmd: make check-inst-smoke CASE=base/add
+cmd: python3 tools/testcases/inst/run_asm_suite.py --id add.si_riii_rd --platforms qemu
 ```
 
 - 任务只跑**自己 scope 的 smoke/targeted**；全量/回归运行不进任务。
@@ -272,7 +276,7 @@ cmd: make check-inst-smoke CASE=base/add
 
 - **P0 分解**：本册 §12 的映射表 + 缺口清单（不移动文件）。
 - **P1 骨架**：建 `inst/arch/unit/tset/shared`、根级 `*.yaml`；旧目录不动。
-- **P2 inst**（**已完成：`TESTCASES-072t`**）：`vectors/isa` + 探针 → `inst/`；harness → `tools/testcases/lib+inst`；smoke 绿后进 L2（`check-inst-smoke` / `check-inst`）。
+- **P2 inst**（**已完成：`TESTCASES-072t`**）：`vectors/isa` + 探针 → `inst/`；harness → `tools/testcases/lib+inst`；smoke 绿后进 L2（当时的 `check-inst-smoke` / `check-inst`；两者已于 `m13-testcases-043` 随 YAML 退役删除，现由 `check-inst-asm` 承担）。
 - **P3 arch**（**已完成：`TESTCASES-073t`**）：`llvm/codegen/m5` + `min_rom_probe_*` + bootrom
   → `arch/`；smoke 绿后进 L2（`check-arch-smoke` / `check-arch`）。
 - **P4 unit**（**已完成：`TESTCASES-074t`**）：`lit/MC|CodeGen`、`codegen`（M3/m4/m6）、`ir-lli`、`picolibc` → `unit/`；smoke 绿后进 L2（`check-unit`）。

@@ -17,9 +17,10 @@
 
 | 文件 | 说明 |
 |------|------|
-| `schema.md` | 向量 YAML 字段规范（含 `expected_pc`、class 定义、encoding 豁免、deferred 规则） |
+| `schema.md` | **历史**：向量 YAML 字段规范（含 `expected_pc`、class 定义、encoding 豁免、deferred 规则）；YAML 已全退役（`m13-testcases-043`），保留作类别/故障词表与独立派生规则 |
 | `inventory.md` | M1 覆盖矩阵（以 `id` 为行，含 `format`/`file` 列与 deferred reason） |
-| `base/*.yaml` | 向量数据（由 `TESTCASES-003t`~`007t` 生成） |
+| `00-isa-design/undi_reserved.S` | **非 id 载体**（保留编码 ⇒ UNDI，3 条；逐文件登记，见 `check_tests_index.NON_ID_CARRIERS`） |
+| `base/`（已删） | 原 YAML 向量目录（`TESTCASES-003t`~`007t` 生成；**YAML 已全退役**，`m13-testcases-043`） |
 | `MIGRATION.md` | YAML → 汇编+宏 的迁移台账（大类/小类/用例模板/任务拆分/删除规则） |
 | `macros/inst_test.inc` | 汇编宏层（`TEST_LD*`/`TEST_ST*`/`TEST_MOV1`/`TEST_CS*`/`TEST_WI*`/`TEST_FAULT*`/`__CHECK_*`，期望值内联） |
 | `01-load-store/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（单元素 `ld.*`/`st.*`，19 个；含 `st.o rb0`（IP 作源/作基址）与 `ld.o ra0`（RAS 窗口读写）补测） |
