@@ -67,20 +67,12 @@
 - **再重新生成 `tests/inst` 的测试程序**，重点是各种边界。
 - 之后才做三平台差分（`m13-integ-002`/`003`）。
 
-- **`ext.*` 的 `hd` 口径（用户 2026-11-13）**：取 `rdHD[5:0]`、越界位忽略、**不抛 ILLI**（chipyard 已合规；QEMU/gem5 为缺陷，见 `ISS-422`）；该口径**不单独立 ADR**，以 `spec/SimRISC-04` 措辞 + `ISS-422` 为载体（用户裁定「不立 ADR」）。
-
-- **ADR-0050 D5 的范围（用户 2026-11-13）**：D5 只管**浮点→整数**（饱和 + `NV`）；`fo2ft` 这类**格式间转换**溢出按 IEEE 754-2019 §5.4.2 + §7.4（±Inf 或最大有限值 + `OF|NX`）。ADR 不改。
-- **`-bios` legacy trampoline（用户 2026-11-13）**：选 ①——已立 `m13-qemu-011`（收紧）+ `m13-testcases-034`（44 例 oracle 迁移），同批合入。
 
 - **`07-floating-point` 两处 spec 未明/冲突（待裁定，2026-11-14，`m13-testcases-022` 实测）**：
   1. **NaN→整数的饱和方向**：`SimRISC-07` 未明写「NaN 转整数」的取值；三平台实测一致取 **max**（正为 max、负为 min 还是都为 max 需你确认），用例注释已标「按三方一致取值」。
-  2. **`ft` 目的高 32 位**：`§1`（目的写语义）与 `§1.3`（「复制类 64 位二进制不变」）措辞冲突；实现/三平台按 §1 取值。需裁定哪条为准并收窄另一条。
 - **`SimRISC-07 §2.1` 余数表注「符号随 rfHC」对非零结果不成立**（`m13-testcases-021` 实测 `5.5 rem 2 = −0.5` 反例；三平台一致）⇒ 属 spec 措辞错，待与上条一并修订。
 
-- **单精写入宽度（已裁定，2026-11-14）**：`SimRISC-00 §2.3.1` 的 FCSR 写语义正确，其余按其修订。`ld.t`/`ldm.t` **只写低 32 位、高 32 位保持原值**（不符号扩展、不零填）；写入 `rf0` 时低 32 位里只有 `[4:0]` 可写 ⇒ `[33:32]`/`[31:22]`/`[21:5]` 全部保持原值。**同一原则推广到凡产生 ft 结果的指令**（算术/取余/开方/取整/缩放/最小最大/转换到 ft）；复制类（`ft2ft`/`fo2fo`/`rd2rf`/`rf2rd`）按 64 位二进制搬移，不受限。已写入 `spec/SimRISC-01` + `spec/SimRISC-07` + `contract-fp §1`；三实现对齐任务见 M13 台账。
-
 - **页表 L1 索引措辞冲突（待裁定，2026-11-14）**：`contract-linux-boot` §2 写「smon 在 **L1 index `0`** 写 1 个 512 MiB 超页 PTE，映射 `VA [0x0200_0000_0000, +512MiB) → PA [0, +512MiB)`」。但按 `VA[41:29]` 索引规则，`0x200_0000_0000 >> 29 = 4096`，**index 0 只能映射 `VA[0, 512MiB)`**（用户空间），映射不到内核窗口。`m14-qemu-001` 按算术实现为 **index 4096**（1 个超页、页表页非零字 1 个），与合约的「映射区间」一致、与「index 0」矛盾。**需裁定**：把合约改为「L1 index = `VA[41:29]`（本窗口为 4096）」，或另有意图（那样映射区间描述要改）。同批须核对 `m14-qemu-001` 任务书 §3/§5/验收 1d 的「4 个 PTE、`rd28==4`」是 +2TiB 修订前口径。
-
 
 ## M13 未决
 
@@ -96,22 +88,6 @@
 
 > 2026-11-01 用户裁定：Linux 开发延至 M12 或后续；**现定为 M14**（三线分开进行）。此前方向沿用。
 
-## 已确认方向（2026-11-01，用户逐条确认）
-
-- **模块归属**：新建 `linux` 模块，任务前缀 `LINUX-`；目录 `.tao/tasks/linux/`。
-- **内核基线**：Linux **7.2.10**，commit `7b20d05f…`；不采用 5.4。
-- **平台**：恢复时只做 QEMU system 模式，单核；**不纳入 gem5**。
-- **MVP**：内核日志 → built-in initramfs 的静态 `/init` → 至少一次 Linux 系统调用往返；不要求 login/shell。
-- **控制台**：**semihosting** 负责控制台输出与测试退出闭环；**不引入 UART**，不新增 cfx。
-- **initramfs**：先放静态 musl 自定义 init（write/getpid/brk + 错误路径），**busybox 到 K4 之后再决定**。
-- **TLB**：当前**没有规范定义**（DDLN 只是讲义，不是规范）；K3 先定义 fill/invalidate/ASID/fault 语义，再实现；K0 不定义。
-- **cache/LLC**：该阶段不引入，留到后续。
-- **0628**：只参考阶段划分、踩坑和测试思路；不复制 `arch/dadao`、补丁或实现代码。
-
-## 补丁策略（已由 `m14-linux-001` 承载）
-
-- 口径不变：复用同一 7.2.10 commit 转受补丁组件（`patch_dir`/`patch_series`）、按 `docs/Process-01` 一文件一补丁、不直接改源树作真源、不复制 0628 补丁集。落地细节见任务书。
-
 ## 阶段与任务量（K0 后校准）
 
 - K0 基线与契约：5–7 个任务（补丁组件、工具链缺口、启动 ABI、syscall/errno/TLS、initramfs/semihosting、门控）。
@@ -122,48 +98,11 @@
 - K5 用户态闭环：5–7 个。
 - 合计约 30–42 个任务；收口只到 K5，busybox/UART/cache/LLC/gem5 等不阻塞。
 
-## K0 兼容性缺口（已由 `m14-infra-001` 承载）
-
-- 缺口清单与逐项判据进工具链矩阵任务（`llvm-ar/ranlib/strip`、`asm goto`、栈保护、`.quad/.long/.short/.byte`、inline asm、`-mcmodel=kernel`）；入口判据 = 缺口全部有规避法 + `arch/dadao` 骨架能出 vmlinux。
-
-## 待办（K0 已立册）
-
-- K0 七件已落 `.tao/tasks/{linux,spec,infra}/m14-*`（`milestones-m14.md` 台账）；`m14-linux-001`、`m14-spec-001` 已派。
-- **启动 ABI 值已冻结（用户 2026-11-13；内核窗口改 `[2TiB,3TiB)` 后）**：内核 `0x0000_0200_0010_0000`、boot info `0x0000_0200_0001_0000`、initramfs `0x0000_0200_0400_0000`、`rb17` 承载 boot info VA、入口 `supv`；`VA = PA + 2 TiB`；页表由 `smon` 预建。
-- **`m14-spec-002` 三条（用户 2026-11-13）**：① 固件只**放行源位/deleg**、入口寄存器由**内核自配**；② `excp_cause_info` 与 `immu18` 的关系**只在合约推导**、不补上游；③ `clone` 双返回 / `execve` 清 `rbtp` **留 contract-syscall §10**，由 musl 移植任务实现并校准。
-- **spec/Process 授权（2026-11-13）**：`m14-spec-001` 可改 `spec/Machine-v5`+锁、`m14-linux-001` 可改 `docs/Process-01`、`m14-infra-003` 可改 `docs/Process-07`；其余仍需逐次授权。
-- **initramfs 的 syscall 范围（用户 2026-11-13）**：**不做特殊限制，别滥用就行**——不要求「ELF syscall 全集 ⊆ 4」；验收以「init 自有 syscall = write/getpid/brk/exit_group」+ 运行期 trace 说明为准。
-- **LLVM/汇编器缺口裁定（用户 2026-11-13）**：
-  - **数据伪指令 `.quad/.long/.short/.byte` 与 `.align` 不做支持**；内核与汇编统一用 DADAO 支持的 `.dd.o64/.dd.t32/.dd.w16/.dd.b08` 与 `.p2align/.balign`。
-  - **代码模型只有两个**：`default`（= `CodeModel::Small`，可写 `-mcmodel=small`）与 `large`；`kernel/medium/tiny` 按 ADR-0036 设计上拒绝，**不算缺口**。
-  - **CFI 崩溃**（`llvm-mc` 断言 `RAReg <= 255`）：与"64 位 DWARF"无关，是 DADAO 缺 DWARF 寄存器编号、return-address 寄存器编号 >255；先立任务（正面支持编号表，或至少改报错不 abort）。
-  - **`llvm-link`/`llvm-config`/`llvm-profdata`/`llvm-size`/`llvm-cov`**：并入 `m14-llvm-001` 同批补齐。
-  - **`-fpatchable-function-entry`**：立 `m14-llvm-003` 现在补。
-- **栈保护 SSP（用户 2026-11-13）**：**现在补后端**（DADAO 后端 stackguard lowering），不再长期用 `-fno-stack-protector` 规避；K0 内核按 KSPP 默认开 `-fstack-protector-strong`。
-- **工具链缺口（用户 2026-11-13）**：`llvm-ar`/`llvm-ranlib`/`llvm-strip` **先补进工具链**，不长期用 GNU ar / `llvm-objcopy` 规避。
-- **内核地址空间（用户 2026-11-13 修订，取代原"从低地址身份映射"）**：内核 VA 窗口 = **`[2 TiB, 3 TiB)`**（= `[0x0000_0200_0000_0000, 0x0000_0300_0000_0000)`），用户空间 = `[0, 2 TiB)`。**已冻结的四个地址整体 +2 TiB**：
-  - 首张页表页 `0x0000_0200_0000_0000`（`PTBR` 仍指 PA 0）
-  - boot info `0x0000_0200_0001_0000`
-  - 内核镜像区 `[0x0000_0200_0010_0000, 0x0000_0200_0400_0000)`（`kernel_base = 0x0000_0200_0010_0000`）
-  - initramfs 区 `[0x0000_0200_0400_0000, 0x0000_0200_0600_0000)`
-  - 映射形如 `VA[K, K+64MiB) → PA[0, 64MiB)`（偏置 2 TiB），不再是全域身份映射；smon 只建内核窗口 + 低端必要页。
-- **启动 ABI 口径（用户 2026-11-13，已落 spec/ADR）**：
-  - ABI 地址一律 **VA**（`addr[41:0]`）；PA 只出现在页表项、`PTBR`、loader 写内存。
-  - 启动模型 **M1**：进入内核前已有 64 KiB 页身份映射 `VA[0,2GiB)→PA[0,2GiB)`、`PTBR` 指向、`ptw_enable=1`；VA 入口。依据：`ptw_enable=0` 时内存窗口取指/访存 ⇒ `CFXMEM`，不存在 MMU 关运行。
-  - **身份页表由 smon 固件预建**；宿主 loader 只装镜像（ELF/raw）到对应 PA，不代写页表页。
-  - ADR：`adr-0051-linux-boot-abi.md`（`Accepted`，D1–D8 已逐条确认）。
-
-## 待裁定 ADR：Linux bring-up charter（未落文件）
-
-- **状态**：方向已确认；ADR decision 文本待逐条确认（尚未落 ADR 文件）。
-- 已确认方向见上（7.2.10、单核 QEMU MVP、semihosting、不引入 UART/cache/LLC、TLB 在 K3、busybox 后置、0628 只参考）。
-- **下一步**：把上述方向写成 D1–D7，逐条确认后再落正式 ADR。
-
 ---
 
 # M15：ISA 语义结构化（每条指令一段可解析 operation）
 
-> **定位（用户 2026-11-12/13）**：M15 只做「**结构化**」——把 `spec/` 升级为「每条指令一段**可解析的 operation**」，**不执行**（执行归 M16）。M13 不加 IDL 任务；M14 已分配给内核。
+> **定位（用户 2026-11-12/13）**：M15 只做「**结构化**」——把 `spec/` 升级为「每条指令一段**可解析的 operation**」，**不执行**（执行归 M17）。M13 不加 IDL 任务；M14 已分配给内核。
 
 ## 目标与出口
 
