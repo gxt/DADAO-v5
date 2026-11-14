@@ -139,6 +139,7 @@ class Row:
     tokens: list[Token] = field(default_factory=list)
     kinds: tuple[str, ...] = ()
     wide: bool = False
+    provenance: str = ""
     segments: list[Segment] = field(default_factory=list)
 
 
@@ -304,9 +305,13 @@ def parse_rows(lines: list[str], mnemonics: set[str], formats: set[str]) -> list
         if not ln.startswith("|"):
             continue
         cells = split_row_cells(ln)
-        if len(cells) != 4 or set(cells[0]) <= {"-"} or cells[0] == "册":
+        if len(cells) not in (4, 5) or set(cells[0]) <= {"-"} or cells[0] == "册":
             continue
+        if len(cells) == 4:
+            raise SystemExit(
+                "gen_wuming_cycles: §3 行缺「来源」列（行 %d）：%s" % (i + 1, ln[:60]))
         row = Row(cells[0].split()[0], cells[1], cells[2], cells[3], i + 1)
+        row.provenance = cells[4].strip()
         row.wide = bool(re.match(r"^(tetra|wyde|byte)\s*全套", row.family))
         prose = strip_code(row.family)
         row.kinds = tuple(w for w in KIND_STEMS if w in prose)
@@ -423,6 +428,8 @@ def classify_value(text: str, raw: str):
         return None, None, "elements"
     if "变长" in text:
         return None, None, "host-latency"
+    if "待实测" in text:
+        return None, None, "unmeasured"
     if "可配" in raw:
         return None, None, "mul-config"
     if re.fullmatch(r"\d+", text):
@@ -476,18 +483,45 @@ def wide_class(row: Row, inst: Inst):
     return "A", mapping.get("A")
 
 
-def variant(klass: str, cycles: str, value, rng, dynamic, when, line: int,
+def variant(klass: str, cycles: str, value, rng, dynamic, when, line: int, prov: str,
             origin: str = "§3"):
     return {"klass": klass, "cycles": cycles, "value": value, "range": rng,
-            "dynamic": dynamic, "when": when, "doc": line, "origin": origin}
+            "dynamic": dynamic, "when": when, "doc": line, "origin": origin,
+            "provenance": prov}
 
 
-def compose_variant(klass: str, cycles: str, raw: str, when, line: int,
+PROV_TAGS = ("实测", "可配", "设计值", "推断", "未测", "待实测")
+PROV_ALLOWED = ("实测", "可配", "设计值")
+
+
+def prov_for(cell: str, klass: str) -> str:
+    """从「来源」单元取该类的标签；形如 `A 实测 / B2 可配 / B3 设计值`。"""
+    cell = (cell or "").strip()
+    if not cell:
+        return ""
+    for part in cell.split("/"):
+        part = part.strip()
+        if part.startswith(klass):
+            return part
+    return cell
+
+
+def compose_variant(klass: str, cycles: str, raw: str, when, line: int, prov: str,
                     origin: str = "§3"):
     value, rng, dyn = classify_value(cycles, raw)
     if klass in CONFIGURABLE_CLASSES and dyn in (None, "expr"):
         dyn, value = "mul-config", None
-    return variant(klass, cycles, value, rng, dyn, when, line, origin)
+    return variant(klass, cycles, value, rng, dyn, when, line, prov, origin)
+
+
+def override_doc_line() -> int:
+    """§5 里那条 clmul 实测行的当前行号（文档增删行后自动跟随）。"""
+    lines = doc_lines()
+    start, end = section_bounds(lines, "## 5.", "## 6.")
+    for i in range(start, end):
+        if "clmul" in lines[i] and "ctpop" in lines[i]:
+            return i + 1
+    raise SystemExit("gen_wuming_cycles: §5 找不到 clmul 实测行")
 
 
 def compose(inst: Inst, resolved, classes) -> dict | None:
@@ -496,8 +530,9 @@ def compose(inst: Inst, resolved, classes) -> dict | None:
     if inst.mnemonic in OVERRIDES:
         o = OVERRIDES[inst.mnemonic]
         entry.update(klass=[o["klass"]], cycles=o["cycles"], value=int(o["cycles"]),
-                     range=None, dynamic=None, doc=int(o["doc_line"]),
-                     source="override", variants=None)
+                     range=None, dynamic=None, doc=override_doc_line(),
+                     source="override", variants=None,
+                     provenance="实测（override：§5）")
         return entry
     if inst.id not in resolved:
         return None
@@ -509,12 +544,14 @@ def compose(inst: Inst, resolved, classes) -> dict | None:
             value = a_tier_value(inst)
             entry.update(klass=["A"], cycles=str(value), value=value, range=None,
                          dynamic=None, doc=classes["A"].line,
-                         source=f"§2 A（§3 {row.section} 全套）", variants=None)
+                         source=f"§2 A（§3 {row.section} 全套）", variants=None,
+                         provenance=prov_for(row.provenance, "A"))
         else:
-            v = compose_variant(klass, cycles, row.cycle_cell, None, row.line)
+            v = compose_variant(klass, cycles, row.cycle_cell, None, row.line, prov_for(row.provenance, klass))
             entry.update(klass=[klass], cycles=v["cycles"], value=v["value"],
                          range=v["range"], dynamic=v["dynamic"], doc=row.line,
-                         source=f"§3 {row.section} 全套", variants=None)
+                         source=f"§3 {row.section} 全套", variants=None,
+                         provenance=v["provenance"])
         return entry
 
     variants = []
@@ -529,23 +566,24 @@ def compose(inst: Inst, resolved, classes) -> dict | None:
             index = row.segments.index(seg)
             klass = klass_list[index] if len(klass_list) == len(row.segments) else klass_list[0]
             variants.append(compose_variant(klass, seg.value, seg.raw,
-                                            when or row_when, row.line))
+                                            when or row_when, row.line, prov_for(row.provenance, klass)))
             continue
         if klass_list == ["A"] and "算术" in row.cycle_cell:
             value = a_tier_value(inst)
-            variants.append(variant("A", str(value), value, None, None, None, row.line))
+            variants.append(variant("A", str(value), value, None, None, None, row.line, prov_for(row.provenance, "A")))
             continue
         if len(row.segments) > 1 and all(not s.tokens for s in row.segments):
             for index, seg in enumerate(row.segments):
                 klass = klass_list[index] if len(klass_list) == len(row.segments) else klass_list[0]
                 label = "|".join(seg.words) or None
-                variants.append(compose_variant(klass, seg.value, seg.raw, label, row.line))
+                variants.append(compose_variant(klass, seg.value, seg.raw, label, row.line, prov_for(row.provenance, klass)))
             continue
         # 该行没有为这条指令给出取值 -> 回落到 §2 类定义（仍是文档原文）
         for klass in klass_list:
             info = classes[klass]
             variants.append(compose_variant(klass, strip_code(info.cycles), info.cycles,
-                                            row_when, info.line, origin="§2"))
+                                            row_when, info.line, prov_for(row.provenance, klass),
+                                            origin="§2"))
     if not variants:
         return None
     klass_list = []
@@ -562,11 +600,13 @@ def compose(inst: Inst, resolved, classes) -> dict | None:
         source = f"§3 {row.section}"
     else:
         source = f"§3 {row.section}+§2 " + "/".join(klass_list)
+    provs = [v.get("provenance") or "" for v in variants]
     entry.update(klass=klass_list, source=source,
                  doc=variants[0]["doc"],
                  variants=variants if len(variants) > 1 else None,
                  cycles=variants[0]["cycles"], value=variants[0]["value"],
-                 range=variants[0]["range"], dynamic=variants[0]["dynamic"])
+                 range=variants[0]["range"], dynamic=variants[0]["dynamic"],
+                 provenance=" / ".join(dict.fromkeys(p for p in provs if p)))
     if len(variants) > 1:
         labels = {v["dynamic"] for v in variants}
         klasses = {v["klass"] for v in variants}
@@ -592,7 +632,9 @@ def fp_default(inst: Inst, classes) -> dict:
     return {"id": inst.id, "mnemonic": inst.mnemonic, "bank": inst.bank,
             "section": inst.section, "klass": ["B4"], "cycles": cycles,
             "value": value, "range": rng, "dynamic": "fp-op", "doc": info.line,
-            "source": "§2 B4", "variants": None}
+            "source": "§2 B4", "variants": None,
+            # §3 没有这些指令的专行（只有 §2 的 B4「1–2」类级口径）⇒ 推断
+            "provenance": "推断（§2 B4 类级，§3 无专行）"}
 
 
 def build_table(insts, rows, classes):
@@ -678,12 +720,14 @@ def emit_yaml(table, classes, doc_sha, rows) -> str:
             f"cycles: {q(entry['cycles'])}", f"value: {q(entry['value'])}",
             f"range: {q(entry['range'])}", f"dynamic: {q(entry['dynamic'])}",
             f"doc: {entry['doc']}", f"source: {q(entry['source'])}",
+            f"provenance: {q(entry.get('provenance'))}",
         ]
         if entry.get("variants"):
             fields.append("variants: [" + ", ".join(
                 f"{{klass: {q(v['klass'])}, cycles: {q(v['cycles'])}, "
                 f"value: {q(v['value'])}, dynamic: {q(v['dynamic'])}, "
-                f"when: {q(v['when'])}, doc: {v['doc']}}}"
+                f"when: {q(v['when'])}, doc: {v['doc']}, "
+                f"provenance: {q(v.get('provenance'))}}}"
                 for v in entry["variants"]) + "]")
         out.append("- {" + ", ".join(fields) + "}")
     return "\n".join(out) + "\n"
@@ -765,6 +809,12 @@ struct CycleRow
     uint32_t semihostValue;
     const char *dynamic;
     uint16_t docLine;
+    /**
+     * Where the figure comes from: ``实测`` / ``可配`` / ``设计值`` 可用；
+     * 含 ``推断`` / ``未测`` / ``待实测`` 的行是 provisional，**不得**进入
+     * 时序模型（policy 层须返回 0）。
+     */
+    const char *provenance;
 }};
 
 /** The {len(order)}-class enum size and the {count} rows, sorted by id. */
@@ -858,7 +908,8 @@ def emit_cc(table, order) -> str:
                      f'{pol["host_cycles"]}, {pol["range_lo"]}, '
                      f'{pol["range_hi"]}, {pol["dyn_base"]}, {pol["dyn_add"]}, '
                      f'{pol["semihost_mask"]}u, {pol["semihost_value"]}u, '
-                     f'"{dynamic}", {entry["doc"]}}},')
+                     f'"{dynamic}", {entry["doc"]}, '
+                     f'"{entry.get("provenance") or ""}"}},')
     names = "\n".join(f'    "{name}",' for name in order)
     seen: dict[int, str] = {}
     for entry in table:
@@ -1017,6 +1068,11 @@ def check_ondisk_yaml(path: Path, insts, classes) -> list[str]:
                 problems.append(f"{row.get('id')}: 类 {klass!r} 不在 §2")
         if (row.get("dynamic") is None) != isinstance(row.get("value"), int):
             problems.append(f"{row.get('id')}: 动态标记与静态值不一致")
+        prov = row.get("provenance") or ""
+        if not prov:
+            problems.append(f"{row.get('id')}: 缺 provenance（§3 的「来源」列）")
+        elif not any(tag in prov for tag in PROV_TAGS):
+            problems.append(f"{row.get('id')}: provenance {prov!r} 不在 {PROV_TAGS}")
     return problems
 
 

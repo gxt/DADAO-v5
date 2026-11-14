@@ -4,6 +4,7 @@
 > **真源关系**：指令的**语义**以 `spec/SimRISC-0x` 为准；本册只回答「这条指令在 wuming 上**几拍**」。
 > **口径**：周期 = 从该指令进入 `EXEC` 到写回完成（**不含**取指；取指由 8-beat 缓冲摊销），访存类含一次总线往返（典型值，上界由总线决定）。
 > **状态**：**§3 的「周期」列已按 `008`–`014` 的实测值回填**（未实测者保留估计并标注）；逐族证据、测量条件与来源见 §5。
+> **数值来源（唯一权威口径）**：本册的周期数取自 **chipyard wuming RTL 仿真实测**（trace 里相邻指令进入 `EXEC` 的拍差，`cycle=` 差值）；**权威版本 = M13 收尾后在 chipyard wuming 上复测的那一组**。M13 收尾前，凡测量条件已发生变化（如预取修复）或尚未实测的行，一律标「暂定 / 推断 / 未测」，**不得**当作权威值使用；只有「实测」「可配」两类允许进入 gem5 时序模型，其余必须单列并标记。
 
 ## 1. 决策依据（用户 2026-11-10）
 
@@ -43,48 +44,49 @@
 
 ## 3. 逐册 / 逐族（非 cfx，按 `spec/SimRISC-0x`）
 
-| 册 | 指令族 | 类 | 周期 |
-|---|---|---|---|
-| 00 §2.1 | `rd0` 读 0 / 写丢弃；`rrrr` 双目的 | A | 1 |
-| 00 §2.2 | `rb0` = 当前 IP（只读） | A | 1 |
-| 00 §2.4 | RAS C1–C3b（硬件栈） | A3 | 1 |
-| 00 §2.4 | RAS D1–D4b（MemRAS，需访存） | A4 | 4–7 |
-| 01 | `ld.sb/ub/sw/uw/st/ut/o/t`；`st.b/w/t/o` | C | `ld.o` 7–16；`st.o` 10–21（含背压） |
-| 01 | `ldm.*` / `stm.*` | D | `ldm.ub` N=8: 16；`ldm.o` N=8: 72；`stm.o` N=8: 72 |
-| 02 | `rd2rd/rb2rb/rb2rd/rd2rb/rf2rd/rd2rf` | D′ | 1+N（`rd2rd` N=8 ⇒ 9） |
-| 02 | `ra2rd` / `rd2ra` | D′ | N |
-| 02 | `cs.n/z/p`、`cs.eq/ne` | A | 1 |
-| 03 | `set.zw/ow`、`or.w`、`andn.w`、`set.w` | A | 1 |
-| 04 | 逻辑/移位/轮转/扩展/比较/`rev.o`（`orrr`/`orri`） | A | 算术 1；移位/位域 2 |
-| 04 | `add.o`/`sub.o`（`bbd`/`dbb`） | A | 1 |
-| 04 | `add.uo/so`、`sub.uo/so`（`rrrr` 128 位） | A | 1（2 写端口同拍） |
-| 04 | `mul.uo/so`、`clmul.o` | B1 | 3（可配） |
-| 04 | `div.uo/so`、`rem.uo/so`（64 位） | B3 | 33 |
-| 05 | `add.si`（rd/rb）、`aip.si`、`cmp.ui/si` | A | 1 |
-| 06 | `br.eq/ne`、`br.n/nn/z/nz/p/np` | A2 | 1 |
-| 06 | `jump`（`iiii`/`rrii`） | A2 | 8（预取失效期实测；`022` 后应更低，见 §5） |
-| 06 | `call`（`iiii`/`rrii`） | A3/A4 | RegRAS 8 / MemRAS 26（预取失效期） |
-| 06 | `ret rdHA, imms18` | A3/A4 | RegRAS 8 / MemRAS 15（预取失效期） |
-| 07 | FP 转换（`ft2fo`/`it2fo`/`fo2ft`/…） | B4 | 1 |
-| 07 | `ft2ft`/`fo2fo`（块复制） | D′ | 1+N（N=2 ⇒ 3；N=3 ⇒ 4） |
-| 07 | `foadd/fomul/fofma`、`foqcmp`、`fomin/fomax` | B4 | 1（FMA 单次舍入，无 FP 等待态） |
-| 07 | `ftdiv`/`fodiv`、`ftroot`/`foroot` | B5 | ft 27 / fo 56（**不随操作数变化**） |
-| 07 | `ftrem`/`forem` | B5 | `53+d+1`（d=指数差；d=1/10/100/1000 ⇒ 55/64/154/1054） |
-| 07 | `ftcls`/`focls` | B4 | 1+元素数（1 元素 2 拍、3 元素 4 拍） |
-| 07 | `ftsgn*`/`set.w rf`/`cs.* rf`/`rd2rf`/`rf2rd`/`ld.o rf` | B4 | 符号/set/cs 1；`rd2rf`/`rf2rd` 1+N；`ld.o rf` 13 |
-| 08 | tetra 全套（`add.ut`…`rem.st`、`shl.t`、`rev.t`） | A/B2/B3 | 1 / 1 / 17 |
-| 09 | wyde 全套 | A/B2/B3 | 1 / 1 / 9 |
-| 10 | byte 全套 | A/B2/B3 | 1 / 1 / 5 |
-| 11 | `trap`（semihosting，`immu18[17:8]==0x3FF`） | F | 1 + 变长 |
-| 11 | `trap cfx3`（其它 `immu18`） | G2 | 4–5 |
-| 11 | `trap` 到保留/未实现 cfx ⇒ ILLI 进 hmon | G1 | 4–5 |
-| 11 | `escape cfx3, [cause_ip, 0\|4]` | G3 | 3–4 |
-| 11 | `cfx2rd`/`cfx2rc` | G4 | 1 |
-| 11 | `fence`（`hb≠0` ⇒ ILLI） | A | 1 |
-| 12 | `lr.*`（含 `.an`/`.ar`） | E | 9 |
-| 12 | `sc.*`（含 `.nr`/`.ar`） | E | 命中 17（重读 8 + 写 8）；未命中 1 |
-| 12 | `swym immu18` | A | 1 |
-| 12 | `ctlz`/`cttz`/`ctpop`、`rev.*`/`rol.*`/`clmul.o` | A | 2 |
+| 册 | 指令族 | 类 | 周期 | 来源 |
+|---|---|---|---|---|
+| 00 §2.1 | `rd0` 读 0 / 写丢弃；`rrrr` 双目的 | A | 1 | 实测 |
+| 00 §2.2 | `rb0` = 当前 IP（只读） | A | 1 | 实测 |
+| 00 §2.4 | RAS C1–C3b（硬件栈） | A3 | 1 | 实测（暂定） |
+| 00 §2.4 | RAS D1–D4b（MemRAS，需访存） | A4 | 4–7 | 实测（暂定） |
+| 01 | `ld.sb/ub/sw/uw/st/ut/o/t`；`st.b/w/t/o` | C | `ld.o` 7–16；`st.o` 10–21（含背压） | 实测（`.o` 宽度；其余宽度外推） |
+| 01 | `ldm.*` / `stm.*` | D | `ldm.ub` N=8: 16；`ldm.o` N=8: 72；`stm.o` N=8: 72 | 实测（N=8；其它 N 外推） |
+| 02 | `rd2rd/rb2rb/rb2rd/rd2rb/rf2rd/rd2rf` | D′ | 1+N（`rd2rd` N=8 ⇒ 9） | 实测（N=8） |
+| 02 | `ra2rd` / `rd2ra` | D′ | N | 未测 |
+| 02 | `cs.n/z/p`、`cs.eq/ne` | A | 1 | 实测 |
+| 03 | `set.zw/ow`、`or.w`、`andn.w`、`set.w` | A | 1 | 实测 |
+| 04 | 逻辑/移位/轮转/比较/`rev.o`（`orrr`/`orri`） | A | 算术 1；移位/位域 2 | 实测 |
+| 04 | 扩展 `ext.uo`/`ext.so` | A | 待实测 | 推断 |
+| 04 | `add.o`/`sub.o`（`bbd`/`dbb`） | A | 1 | 实测 |
+| 04 | `add.uo/so`、`sub.uo/so`（`rrrr` 128 位） | A | 1（2 写端口同拍） | 实测 |
+| 04 | `mul.uo/so`、`clmul.o` | B1 | 3（可配） | 可配 |
+| 04 | `div.uo/so`、`rem.uo/so`（64 位） | B3 | 33 | 设计值（radix-4，待实测确认） |
+| 05 | `add.si`（rd/rb）、`aip.si`、`cmp.ui/si` | A | 1 | 实测 |
+| 06 | `br.eq/ne`、`br.n/nn/z/nz/p/np` | A2 | 1 | 实测 |
+| 06 | `jump`（`iiii`/`rrii`） | A2 | 8（预取失效期实测；`022` 后应更低，见 §5） | 实测（暂定：预取失效期上界） |
+| 06 | `call`（`iiii`/`rrii`） | A3/A4 | RegRAS 8 / MemRAS 26（预取失效期） | 实测（暂定：预取失效期上界） |
+| 06 | `ret rdHA, imms18` | A3/A4 | RegRAS 8 / MemRAS 15（预取失效期） | 实测（暂定：预取失效期上界） |
+| 07 | FP 转换（`ft2fo`/`it2fo`/`fo2ft`/…） | B4 | 1 | 实测 |
+| 07 | `ft2ft`/`fo2fo`（块复制） | D′ | 1+N（N=2 ⇒ 3；N=3 ⇒ 4） | 实测 |
+| 07 | `foadd/fomul/fofma`、`foqcmp`、`fomin/fomax` | B4 | 1（FMA 单次舍入，无 FP 等待态） | 实测（fo 侧；ft 侧推断） |
+| 07 | `ftdiv`/`fodiv`、`ftroot`/`foroot` | B5 | ft 27 / fo 56（**不随操作数变化**） | 实测 |
+| 07 | `ftrem`/`forem` | B5 | `53+d+1`（d=指数差；d=1/10/100/1000 ⇒ 55/64/154/1054） | 实测 |
+| 07 | `ftcls`/`focls` | B4 | 1+元素数（1 元素 2 拍、3 元素 4 拍） | 实测 |
+| 07 | `ftsgn*`/`set.w rf`/`cs.* rf`/`rd2rf`/`rf2rd`/`ld.o rf` | B4 | 符号/set/cs 1；`rd2rf`/`rf2rd` 1+N；`ld.o rf` 13 | 实测 |
+| 08 | tetra 全套（`add.ut`…`rem.st`、`shl.t`、`rev.t`） | A/B2/B3 | 1 / 1 / 17 | A 实测 / B2 可配 / B3 设计值 |
+| 09 | wyde 全套 | A/B2/B3 | 1 / 1 / 9 | A 实测 / B2 可配 / B3 设计值 |
+| 10 | byte 全套 | A/B2/B3 | 1 / 1 / 5 | A 实测 / B2 可配 / B3 设计值 |
+| 11 | `trap`（semihosting，`immu18[17:8]==0x3FF`） | F | 1 + 变长 | 未测（需 SEE 执行模型） |
+| 11 | `trap cfx3`（其它 `immu18`） | G2 | 4–5 | 未测（需 SEE 执行模型） |
+| 11 | `trap` 到保留/未实现 cfx ⇒ ILLI 进 hmon | G1 | 4–5 | 未测（需 SEE 执行模型） |
+| 11 | `escape cfx3, [cause_ip, 0\|4]` | G3 | 3–4 | 未测（需 SEE 执行模型） |
+| 11 | `cfx2rd`/`cfx2rc` | G4 | 1 | 未测（需 SEE 执行模型） |
+| 11 | `fence`（`hb≠0` ⇒ ILLI） | A | 1 | 实测 |
+| 12 | `lr.*`（含 `.an`/`.ar`） | E | 9 | 实测 |
+| 12 | `sc.*`（含 `.nr`/`.ar`） | E | 命中 17（重读 8 + 写 8）；未命中 1 | 实测 |
+| 12 | `swym immu18` | A | 1 | 实测 |
+| 12 | `ctlz`/`cttz`/`ctpop`、`rev.*`/`rol.*`/`clmul.o` | A | 2 | 实测 |
 
 > 伪指令（`set.rd/set.rb/set.ft/set.fo`）由汇编器展开，**不是硬件指令**，无周期。
 
