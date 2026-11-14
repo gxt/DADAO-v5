@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-linux-003 | 2–3 h | K1 内核早期启动到 `start_kernel`（Vast；自建栈、boot info 解析、semihosting 早控制台、开时钟前退出） |
 | m14-linux-004 | 3–4 h | K1 内核自建页表并写 PTBR（索引按 spec：4096 + 1 超页；订正旧口径文本） |
 | m14-linux-005 | 2–3 h | K1 收口门控 `check-linux-k1`（Vast 端到端 + 4 路注入 + 入 L2） |
 
@@ -32,6 +31,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-linux-003 | 2026-11-14 22:20 | 2–3 h | K1 内核早期启动到 `start_kernel`（Vast；自建栈、boot info 解析、semihosting 早控制台、开时钟前退出） |
 
 ## 已验证
 
