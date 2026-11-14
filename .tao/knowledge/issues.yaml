@@ -345,16 +345,16 @@
 - id: ISS-400
   scope:
   - testcases
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M13
+  resolved_by: ISS-400 随 YAML 全退役失效（`m13-testcases-043`：`tests/inst/**/*.yaml` 已清零，该文件不存在）
   title: 【P3】`tests/inst/fp/divrem.yaml` 第 4 例的注释写「两路同时置」，事实成立但表达式易读反（易被误读成「同时置两个标志位」）；engineer 自述不修、reviewer 认作 finding。建议随 `m13-testcases-011` 一并改措辞。
 - id: ISS-401
   scope:
   - testcases
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M13
+  resolved_by: ISS-401 随 YAML 全退役失效（`m13-testcases-043`：`tests/inst/**/*.yaml` 已清零，该文件不存在）
   title: 【P3】`tests/inst/fp/convert.yaml` 头注释仍写「`fo2ft` 溢出（`+Inf` + `OF|NX`）」，但 `m13-qemu-005` 已把其中 RTZ 例改成 `+ft_max` ⇒ 注释与内容不符。随 `m13-testcases-011` 补全四档矩阵时一并改注释。
 - id: ISS-402
   scope:
@@ -426,7 +426,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P2】`tests/inst` 重构（汇编+宏）的三项遗留：① 新 `.S` **未入 `check-inst` 门控**（载体派生仍只吃 YAML，新套件靠 `run_asm_suite.py` 单跑）⇒ 需扩载体并同步 `inventory.md`；② `st.o rb0`（源 = 当前指令地址）未覆盖（宏层拿不到被测指令自身地址）；③ `ld.o ra0`（RACNT/MRPTR 特殊写语义）未覆盖 ⇒ 跨平台写语义需先裁定。
+  title: 【P3】`tests/inst` 汇编重构**仅剩 1 项遗留**：`st.o rb0`（源 = 被测指令自身地址）未覆盖 —— 宏层拿不到该地址，`tests/inst/MIGRATION.md §6` 记「期望值随链接布局变化」故不造例（属**已知限制**，非缺口待补）。①「新 `.S` 未入门控」已由 `m13-testcases-043` 解决（`check-inst` 退役、`check-inst-asm` 265 id/901 镜像直接派生 `.S`）；③「`ld.o ra0`」已由 `tests/inst/01-load-store/ld.o_rrii_ra.S` 覆盖。
 - id: ISS-412
   scope:
   - testcases
@@ -439,9 +439,9 @@
   scope:
   - testcases
   - infra
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M13
+  resolved_by: m13-testcases-043：载体切到 `.S`（`check-inst` 退役、`check-inst-asm` 265 id/901 镜像直接派生 `.S`；`validate_vectors`/`check-case-ledger` 改吃 `.S`；6 生成器/4 sweep 退役），27 册 YAML 已 `git rm`
   title: '【P1】**YAML 退役被门控挡住**（`m13-testcases-013` 实测）：`base/mem-rd/mem-ra/mem-rb` 三册里 `ld`/`st`/`ldm`/`stm` 的 id 已全部有 `.S`，但删 YAML 会让三个门控立刻红——① `validate_vectors` 报 `DATA COVERAGE: 116 gap(s)`（`inventory.md` 的类登记仍以 YAML 为真源）；② `check_case_ledger` 多 167 行；③ `check-generator-sync` 的 `generate_mem_vectors --check` 无输入。**结论**：`.S` 套件目前**不在任何门控里**，YAML 一删就失去回归。行动（需立册）：把载体从 YAML 切到 `.S`——`inventory.md` 的类登记改由 `.S` 的注释/宏派生、`run_asm_suite.py` 进 L2、`generate_*_vectors` 与 `check-generator-sync` 随之退役，然后才能批量 `git rm` YAML。'
 - id: ISS-414
   scope:
@@ -602,9 +602,9 @@
 - id: ISS-434
   scope:
   - testcases
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M13
+  resolved_by: 随生成器退役失效（`m13-testcases-043` 删 6 生成器与 `check_yaml_merged.py`；教训已落 `docs/DDLN/Y-研发流程/DD-Y003`「声明类结论须机械核对」）
   title: "【P2】测试生成器里同一 id 的 `extra` 键被写两遍 ⇒ Python 字典**静默覆盖**，导致 8 条 YAML 用例从未生成、而完成区声明「已并入」。`m13-testcases-024` 返工时发现并修复（合并重复键 + 新增 `check_yaml_merged.py` 机械核对「YAML 向量是否真在 `.S` 里」）。教训：**声明类结论（\"已并入/已覆盖\"）必须机械核对**，不能靠人写注释。"
 - id: ISS-435
   scope:
