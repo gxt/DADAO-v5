@@ -60,14 +60,18 @@
 	TEST_FPCVT_F2I	23, fo2uo, rd6, rf6, 0x4004000000000000, 0x01, 0, 0x0000000000000002, 0x10
 	@@ 窗口顶端同号（rd63 ← rf63）
 	TEST_FPCVT_F2I	24, fo2uo, rd63, rf63, 0xBFFC000000000000, 0x04, 0, 0x0000000000000000, 0x01
+	@@ 负向溢出：负有限值量级超目标最大值（|−1e300| > 2^64）⇒ 0 + NV（`SimRISC-07 §1.4` 无符号目的）
+	TEST_FPCVT_F2I	25, fo2uo, rd5, rf6, 0xFE37E43C8800759C, 0x01, 0, 0x0000000000000000, 0x01
+	@@ −0.0 ⇒ 0（零是无符号整数的精确表示 ⇒ 无 NV 也无 NX；按符号位判「负 ⇒ NV」的实现必红）
+	TEST_FPCVT_F2I	26, fo2uo, rd5, rf6, 0x8000000000000000, 0x01, 0, 0x0000000000000000, 0x00
 	@@ legality：目的 rd0 ⇒ ILLI（dst_rd0）
-	TEST_FAULT_FP	25, ILLI, 0x44EC0181
+	TEST_FAULT_FP	27, ILLI, 0x44EC0181
 	@@ legality：immu6=0 非六档 ⇒ ILLI（encode_onehot）
-	TEST_FAULT_FP	26, ILLI, 0x44EC5180
+	TEST_FAULT_FP	28, ILLI, 0x44EC5180
 	@@ legality：immu6=0x03 非 one-hot ⇒ ILLI（encode_onehot）
-	TEST_FAULT_FP	27, ILLI, 0x44EC5183
+	TEST_FAULT_FP	29, ILLI, 0x44EC5183
 	@@ legality：immu6=0x30 多位同置（非 one-hot）⇒ ILLI（encode_onehot）
-	TEST_FAULT_FP	28, ILLI, 0x44EC51B0
+	TEST_FAULT_FP	30, ILLI, 0x44EC51B0
 
 	__TEST_END
 
