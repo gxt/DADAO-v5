@@ -53,6 +53,7 @@ for _sub in (("tools", "infra"), ("tools", "testcases", "lib")):
         sys.path.insert(0, _p)
 
 import paths as _paths  # noqa: E402
+import writer_guard  # noqa: E402
 import yaml  # noqa: E402
 
 CONTRACT = os.path.join(_REPO, "contracts", "linux-boot.yaml")
@@ -697,6 +698,7 @@ def main():
     ap.add_argument("--jobs", type=int, default=32)
     ap.add_argument("--only", action="append", default=[])
     ap.add_argument("--list", action="store_true")
+    writer_guard.add_arguments(ap)
     args = ap.parse_args()
 
     checks = ["main", "raw", "loader-negatives", "smon-negatives"]
@@ -725,6 +727,11 @@ def main():
     if not os.access(args.qemu, os.X_OK):
         raise SystemExit("qemu binary not found: %s (run make install-host)"
                          % args.qemu)
+
+    # ISS-373: refuse on an active writer, then hash what we read at both ends.
+    guard = writer_guard.start_guard(
+        args, [args.qemu, os.path.join(TOOLCHAIN, "llvm-mc"),
+               os.path.join(TOOLCHAIN, "llvm-objcopy")], label="k0_boot_probe")
 
     def rerun(tag):
         """Re-run the positive ELF probe; return True when it is all green.
@@ -805,7 +812,8 @@ def main():
     print("\nresult: %d passed, %d failed" % (STATS["passes"], len(fails)))
     for msg in fails:
         print("  FAILED: %s" % msg)
-    return 0 if not fails else 1
+    guard_ok = writer_guard.finish_guard(guard)
+    return 0 if (not fails and guard_ok) else 1
 
 
 if __name__ == "__main__":

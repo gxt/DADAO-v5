@@ -43,6 +43,8 @@ from pathlib import Path
 import report_io
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "tools" / "infra"))
+import writer_guard  # noqa: E402
 STAMP_RE = re.compile(r"^\d{8}T\d{6}Z$")
 
 # 成员 = L3 的直接清单（真源；``docs/Process-07 §1``）。
@@ -244,6 +246,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--keep", action="store_true")
     ap.add_argument("--tmp-root", default=None)
+    writer_guard.add_arguments(ap)
     args = ap.parse_args(argv)
 
     if args.self_test:
@@ -261,8 +264,14 @@ def main(argv: list[str] | None = None) -> int:
         for scope, suite, cmd in members:
             print(f"  {scope}:{suite}  $ {cmd}")
         return 0
-    return run_l3(Path(args.root), stamp, members, Path(args.log_dir),
-                  args.allow_overwrite)
+    # ISS-373: the members read the toolchain/QEMU/gem5 binaries in turn; a
+    # rebuild landing mid-run would make the report describe two different
+    # binaries.  Refuse on an active writer, then compare md5 at both ends.
+    guard = writer_guard.start_guard(args, writer_guard.default_reader_paths(),
+                                     label="l3_run")
+    rc = run_l3(Path(args.root), stamp, members, Path(args.log_dir),
+                args.allow_overwrite)
+    return rc if writer_guard.finish_guard(guard) else (rc or 1)
 
 
 if __name__ == "__main__":

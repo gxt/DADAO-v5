@@ -73,6 +73,7 @@ REPO_ROOT = os.path.normpath(
 # instead of hardcoding .work/build.
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 import paths as _dadao_paths  # noqa: E402
+import writer_guard  # noqa: E402
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
 import machine_profile  # noqa: E402
 
@@ -434,6 +435,7 @@ def main():
     ap.add_argument("--inject", action="store_true",
                     help="counter-example self-test: flip one passing case's host "
                          "value and require the comparison to FAIL")
+    writer_guard.add_arguments(ap)
     args = ap.parse_args()
 
     corpus_root = _abspath(args.corpus_root, REPO_ROOT) if args.corpus_root else REPO_ROOT
@@ -462,6 +464,11 @@ def main():
     if not os.path.isfile(manifest_path):
         sys.stderr.write(f"ERROR: manifest not found: {manifest_path}\n")
         sys.exit(2)
+
+    # ISS-373: refuse on an active writer, then hash what we read at both ends.
+    guard = writer_guard.start_guard(
+        args, [tools["lli"], tools["llc"], tools["llvm_mc"],
+               tools["llvm_objcopy"], tools["qemu"]], label="diff_ir_lli")
 
     roots, inc, exc = load_manifest(manifest_path)
     os.makedirs(work_dir, exist_ok=True)
@@ -527,10 +534,13 @@ def main():
             return 1
         sys.stdout.write("INJECT: PASS -- comparison correctly reported FAIL on a "
                          "wrong value\n")
-        return 0
+        return 0 if writer_guard.finish_guard(guard) else 1
 
+    guard_ok = writer_guard.finish_guard(guard)
     if hits != len(records) or matched != len(records):
         sys.stdout.write("diff_ir_lli: FAIL\n")
+        return 1
+    if not guard_ok:
         return 1
     sys.stdout.write("diff_ir_lli: PASS\n")
     return 0

@@ -47,6 +47,7 @@ _HERE = Path(__file__).resolve()
 _REPO = _HERE.parents[3]
 sys.path.insert(0, str(_REPO / "tools" / "infra"))
 import paths  # noqa: E402
+import writer_guard  # noqa: E402
 
 FAULT_CODE = {"CFXMEM": 0xF1, "CFXREG": 0xF2, "ILLI": 0xF8,
               "MALIGN": 0xFC, "IALIGN": 0xFD,
@@ -347,6 +348,7 @@ def main() -> int:
     ap.add_argument("--json-out", default=None)
     ap.add_argument("--scan-only", action="store_true",
                     help="只做现场统计与点号/上限断言（不建镜像、不跑）")
+    writer_guard.add_arguments(ap)
     args = ap.parse_args()
 
     toolbody = paths.host_toolchain_dir() / "bin"
@@ -371,6 +373,13 @@ def main() -> int:
             print("run_asm_suite: ERROR: %s 不存在: %s" % (what, path),
                   file=sys.stderr)
             return 2
+
+    # ISS-373: refusing on an active writer and the start/finish md5 of every
+    # binary used must happen before the first image is built/run.
+    guard = writer_guard.start_guard(
+        args, [str(qemu), str(Path(args.gem5)), str(chipyard),
+               str(toolbody / "llvm-mc"), str(toolbody / "ld.lld"),
+               str(bootrom)], label="run_asm_suite")
 
     srcs = sorted(Path(p) for p in glob.glob(str(Path(args.vectors) / "*.S")))
     if args.id:
@@ -460,7 +469,8 @@ def main() -> int:
     if args.json_out:
         Path(args.json_out).write_text(json.dumps(
             {"schema": "inst-asm-suite/1", "records": records}, indent=1) + "\n")
-    return 0 if npass == len(records) else 1
+    guard_ok = writer_guard.finish_guard(guard)
+    return 0 if (npass == len(records) and guard_ok) else 1
 
 
 if __name__ == "__main__":

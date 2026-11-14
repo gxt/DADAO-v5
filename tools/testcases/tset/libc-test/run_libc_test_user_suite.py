@@ -162,6 +162,7 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
 import paths as _paths  # noqa: E402
+import writer_guard  # noqa: E402
 import run_artifacts as _run_artifacts  # noqa: E402
 import proc_reap  # noqa: E402  (TESTCASES-085t: reap qemu on external signals)
 import gem5_se_engine  # noqa: E402  (GEM5-021t: second engine, driver layer)
@@ -1360,6 +1361,7 @@ def main() -> int:
     ap.add_argument("--report-out", default=None,
                     help="human-readable report (default: same path as "
                          "--json-out with a .log extension)")
+    writer_guard.add_arguments(ap)
     args = ap.parse_args()
     # TESTCASES-085t: reap children when an external signal kills the runner
     # (must precede any spawn).
@@ -1464,6 +1466,12 @@ def main() -> int:
                 f"failed: rc={b_rc} {(b_err or '').strip()[:300]}")
         require_file(builtins, "compiler-rt builtins archive")
         cfg["builtins"] = builtins
+
+        # ISS-373: refuse on an active writer, then hash what we read at both ends.
+        guard = writer_guard.start_guard(
+            args, [cfg["clang"], cfg["ldlld"],
+                   cfg["qemu"] if cfg["engine"] == "qemu" else cfg["gem5"],
+                   cfg["libc"]], label="run_libc_test_user_suite")
 
         os.makedirs(work_dir, exist_ok=True)
         cfg["libtest"], common_objs = build_common_lib(cfg, work_dir)
@@ -1737,6 +1745,8 @@ def main() -> int:
 
     ok = (counts["fail"] == 0 and counts["blocked"] == 0 and closure_ok
           and census_ok and classification_ok)
+    guard_ok = writer_guard.finish_guard(guard)
+    ok = ok and guard_ok
     emit("run_libc_test_user_suite: " + ("PASS" if ok else "FAIL"))
     return 0 if ok else 1
 

@@ -65,6 +65,7 @@ REPO_ROOT = os.path.normpath(
 # source of truth (D7, tools/infra/paths.py) instead of hardcoding .work/build.
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 import paths as _dadao_paths  # noqa: E402
+import writer_guard  # noqa: E402
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
 import machine_profile  # noqa: E402
 
@@ -395,6 +396,7 @@ def main():
     ap.add_argument("--inject", action="store_true",
                     help="counter-example self-test: flip a baseline-PASSing "
                          "expected value and require the gate to FAIL")
+    writer_guard.add_arguments(ap)
     args = ap.parse_args()
 
     tools = {
@@ -424,6 +426,11 @@ def main():
     if not os.path.isfile(expected_path):
         sys.stderr.write(f"ERROR: expected.yaml not found: {expected_path}\n")
         sys.exit(2)
+
+    # ISS-373: refuse on an active writer, then hash what we read at both ends.
+    guard = writer_guard.start_guard(
+        args, [tools["llc"], tools["llvm_mc"], tools["llvm_objcopy"],
+               tools["qemu"]], label="run_codegen_e2e")
 
     os.makedirs(work_dir, exist_ok=True)
 
@@ -470,10 +477,13 @@ def main():
         sys.stdout.write("INJECT: PASS -- gate correctly reported FAIL on the "
                          "wrong expected value\n")
         # In inject mode the verdict is the self-test itself, not the baseline.
-        return 0
+        return 0 if writer_guard.finish_guard(guard) else 1
 
+    guard_ok = writer_guard.finish_guard(guard)
     if failed:
         sys.stdout.write("run_codegen_e2e: FAIL\n")
+        return 1
+    if not guard_ok:
         return 1
     sys.stdout.write("run_codegen_e2e: PASS\n")
     return 0

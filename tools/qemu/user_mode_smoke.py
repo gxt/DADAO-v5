@@ -55,6 +55,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MUSL = ROOT / ".work" / "source" / "musl"
 QEMU_BUILD = ROOT / ".work" / "build" / "qemu"
+sys.path.insert(0, str(ROOT / "tools" / "infra"))
+import writer_guard  # noqa: E402
 DEFAULT_WORK = Path("/tmp/opencode/QEMU-062t/smoke")
 
 TARGET = "dadao-unknown-elf"
@@ -833,6 +835,7 @@ def main() -> int:
     ap.add_argument("--work", default=str(DEFAULT_WORK))
     ap.add_argument("--keep", action="store_true")
     ap.add_argument("--skip-dynamic", action="store_true")
+    writer_guard.add_arguments(ap)
     args = ap.parse_args()
 
     qemu = Path(args.qemu)
@@ -847,6 +850,10 @@ def main() -> int:
     c.add("qemu-dadao binary", "present", "present" if qemu.is_file() else "absent")
     if not qemu.is_file():
         return c.report()
+    # ISS-373: refuse on an active writer, then hash what we read at both ends.
+    guard = writer_guard.start_guard(
+        args, [str(qemu), str(MUSL / "lib" / "libc.so"),
+               str(MUSL / "lib" / "libc.a")], label="user_mode_smoke")
     for p in ("lib/crt1.o", "lib/libc.a", "lib/libc.so"):
         c.add(f"musl product {p}", "present",
               "present" if (MUSL / p).is_file() else "absent")
@@ -963,7 +970,9 @@ def main() -> int:
         c.add("relocs: libc.so RELATIVE (8)", "present",
               "present" if R_DADAO_RELATIVE in libc_types else "absent")
 
-    return c.report()
+    guard_ok = writer_guard.finish_guard(guard)
+    rc = c.report()
+    return rc if guard_ok else (rc or 1)
 
 
 if __name__ == "__main__":

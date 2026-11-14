@@ -50,6 +50,8 @@ from pathlib import Path
 import report_io
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "tools" / "infra"))
+import writer_guard  # noqa: E402
 
 # 默认成员：scope:suite=命令（tset full + 长 arch + gem5 SE/FS）
 GEM5_SE_DIR = ".work/tests/night-gem5-se"
@@ -361,6 +363,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--self-test", action="store_true")
     ap.add_argument("--keep", action="store_true")
     ap.add_argument("--tmp-root", default=None)
+    writer_guard.add_arguments(ap)
     args = ap.parse_args(argv)
 
     if args.self_test:
@@ -373,9 +376,14 @@ def main(argv: list[str] | None = None) -> int:
         for scope, suite, cmd in members:
             print(f"  {scope}:{suite}  $ {cmd}")
         return 0
-    return run_night(Path(args.root), date, members, args.allow_overwrite,
-                     Path(args.log_dir) if args.log_dir else None, args.machine,
-                     MEMBER_TIMEOUTS)
+    # ISS-373: members read the toolchain/QEMU/gem5 binaries; refuse on an
+    # active writer and compare md5 at both ends.
+    guard = writer_guard.start_guard(args, writer_guard.default_reader_paths(),
+                                     label="night_run")
+    rc = run_night(Path(args.root), date, members, args.allow_overwrite,
+                   Path(args.log_dir) if args.log_dir else None, args.machine,
+                   MEMBER_TIMEOUTS)
+    return rc if writer_guard.finish_guard(guard) else (rc or 1)
 
 
 if __name__ == "__main__":

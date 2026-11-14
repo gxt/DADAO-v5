@@ -44,6 +44,7 @@ PASS_EXIT = 0x21
 
 sys.path.insert(0, str(ROOT / "tools" / "infra"))
 import paths  # noqa: E402
+import writer_guard  # noqa: E402
 
 FAILS = 0
 CHECKS = 0
@@ -237,6 +238,7 @@ def main() -> int:
     ap.add_argument("--work-dir", default=None)
     ap.add_argument("--max-ticks", type=int, default=200_000_000)
     ap.add_argument("--toolchain-bin", default=str(paths.host_toolchain_bin()))
+    writer_guard.add_arguments(ap)
     args = ap.parse_args()
 
     gem5 = Path(args.gem5)
@@ -254,6 +256,12 @@ def main() -> int:
     need_tool(tc, "ld.lld")
     need_tool(tc, "llvm-nm")
     need_tool(tc, "llvm-objcopy")
+
+    # ISS-373: refuse on an active writer, then hash what we read at both ends.
+    guard = writer_guard.start_guard(
+        args, [str(gem5), str(config), str(tc / "llvm-mc"),
+               str(tc / "ld.lld"), str(tc / "llvm-nm"),
+               str(tc / "llvm-objcopy")], label="check_tiny_hmon")
 
     work = (Path(args.work_dir) if args.work_dir
             else ROOT / ".dadao" / "tests" / "tiny-hmon").resolve()
@@ -472,8 +480,11 @@ def main() -> int:
         report(needle in combined, f"negative: {name} message", needle,
                "found" if needle in combined else "missing")
 
+    guard_ok = writer_guard.finish_guard(guard)
     if FAILS:
         print(f"\ncheck_tiny_hmon: FAIL ({FAILS}/{CHECKS})")
+        return 1
+    if not guard_ok:
         return 1
     print(f"\ncheck_tiny_hmon: PASS ({CHECKS} checks, "
           f"{len(expected)} records)")

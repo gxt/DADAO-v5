@@ -66,6 +66,7 @@ REPO_ROOT = os.path.normpath(
 # (tools/infra/paths.py) instead of hardcoding .dadao/.
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 import paths as _dadao_paths  # noqa: E402
+import writer_guard  # noqa: E402
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
 import machine_profile  # noqa: E402
 
@@ -349,6 +350,7 @@ def main():
     ap.add_argument("--inject", action="store_true",
                     help="counter-example self-test: re-judge one PASSing case "
                          "against a wrong expected value and require FAIL")
+    writer_guard.add_arguments(ap)
     args = ap.parse_args()
     prof = machine_profile.load(args.profile)
     if not prof.get("embench", False):
@@ -389,6 +391,11 @@ def main():
         if not os.path.exists(tools[key]):
             sys.stderr.write(f"ERROR: {key} not found: {tools[key]}\n")
             sys.exit(2)
+
+    # ISS-373: refuse on an active writer, then hash what we read at both ends.
+    guard = writer_guard.start_guard(
+        args, [tools["clang"], tools["llc"], tools["llvm_mc"], tools["ldlld"],
+               tools["qemu"], tools["bootrom"]], label="run_embench_e2e")
 
     src_root = os.path.join(tools["embench_src"], "src")
     if not os.path.isdir(src_root):
@@ -459,10 +466,13 @@ def main():
         sys.stdout.write(
             "INJECT: PASS -- judgement correctly reported FAIL on a wrong value\n"
         )
-        return 0
+        return 0 if writer_guard.finish_guard(guard) else 1
 
+    guard_ok = writer_guard.finish_guard(guard)
     if passed != len(results) or hits != len(results):
         sys.stdout.write("run_embench_e2e: FAIL\n")
+        return 1
+    if not guard_ok:
         return 1
     sys.stdout.write("run_embench_e2e: PASS\n")
     return 0

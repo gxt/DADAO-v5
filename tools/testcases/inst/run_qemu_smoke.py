@@ -34,6 +34,8 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(_SCRIPT_DIR)))
 # harness 主体在 `tools/testcases/lib/`（TESTCASES-072t）；本驱动只在 inst/。
 sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "testcases", "lib"))
+sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "infra"))
+import writer_guard  # noqa: E402
 
 # 复用现有 harness（构建 + 运行 + 批量聚合），不另造轮子。
 import run_qemu_test as harness  # noqa: E402
@@ -65,6 +67,7 @@ def main() -> int:
     ap.add_argument("--work-dir", default=None,
                     help="subset write dir (default: <test-artifacts>/harness/smoke)")
     ap.add_argument("--jobs", type=int, default=1)
+    writer_guard.add_arguments(ap)
     args = ap.parse_args()
 
     if not os.path.isfile(args.qemu):
@@ -73,6 +76,8 @@ def main() -> int:
     if not os.path.isfile(args.trampoline):
         print(f"run_qemu_smoke: ERROR: trampoline not found: {args.trampoline}", file=sys.stderr)
         return 1
+
+    guard = writer_guard.start_guard(args, [args.qemu], label="run_qemu_smoke")
 
     vector_dir = harness.resolve_legacy_vector_path(args.vector_dir)
     if vector_dir != args.vector_dir:
@@ -164,10 +169,13 @@ def main() -> int:
             errs.append(f"非全绿: failed={failed} errors={errors} deferred={deferred}")
 
     print("-" * 72)
+    guard_ok = writer_guard.finish_guard(guard)
     if errs:
         for e in errs:
             print(f"  FAIL: {e}")
         print("结果: FAIL")
+        return 1
+    if not guard_ok:
         return 1
     print("结果: PASS (代表集全绿 + 结构断言通过)")
     return 0

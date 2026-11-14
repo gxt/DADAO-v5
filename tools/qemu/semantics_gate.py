@@ -56,6 +56,8 @@ _REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
 # harness / 冒烟驱动在 `tools/testcases/{lib,inst}`（TESTCASES-072t）。
 sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "testcases", "lib"))
 sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "testcases", "inst"))
+sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "infra"))
+import writer_guard  # noqa: E402
 
 # 复用现有 harness（构建 + 运行 + 批量聚合），不另造轮子。
 import run_qemu_test as harness  # noqa: E402
@@ -410,6 +412,7 @@ def main() -> int:
                          "GEM5-017t 供 parity 显式选择）")
     ap.add_argument("--json-out", default=None,
                     help="可选：把逐用例记录写到该 JSON 文件（GEM5-017t parity）")
+    writer_guard.add_arguments(ap)
     args = ap.parse_args()
 
     if args.profile:
@@ -441,6 +444,9 @@ def main() -> int:
         print(f"semantics_gate: ERROR: trampoline not found: {args.trampoline}",
               file=sys.stderr)
         return 1
+
+    # ISS-373: refuse on an active writer, then hash what we read at both ends.
+    guard = writer_guard.start_guard(args, [args.qemu], label="check-inst")
 
     # ── 1. 现场派生 + 结构断言 ────────────────────────────────────────
     carriers = derive_carriers(args.vectors, errs)
@@ -556,10 +562,13 @@ def main() -> int:
     shutil.rmtree(args.gate_dir, ignore_errors=True)
 
     print("-" * 72)
+    guard_ok = writer_guard.finish_guard(guard)
     if errs:
         for e in errs:
             print(f"  FAIL: {e}")
         print("check-inst: FAIL (rc=1)")
+        return 1
+    if not guard_ok:
         return 1
     print(f"check-inst: PASS（{passed}/{total}，载体 {len(carriers)} 册）")
     return 0

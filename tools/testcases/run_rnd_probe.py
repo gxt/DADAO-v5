@@ -54,7 +54,9 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), "infra"))
 import oracle_rnd as oracle  # noqa: E402
+import writer_guard  # noqa: E402
 
 TOOLCHAIN_BIN = os.path.join(".dadao", "cross-toolchain", "bin")
 DEFAULT_CLANG = os.path.join(TOOLCHAIN_BIN, "clang")
@@ -529,7 +531,15 @@ def main(argv=None):
     ap.add_argument("--timeout", type=int, default=120)
     ap.add_argument("--inject", action="store_true",
                     help="reachable-FAIL self test (two real injections)")
+    writer_guard.add_arguments(ap)
     args = ap.parse_args(argv)
+
+    # ISS-373: refuse if the toolchain/QEMU this run reads is being rebuilt,
+    # then hash them at start and at finish (a mid-run replacement is a FAIL).
+    guard = writer_guard.start_guard(
+        args, [args.clang, args.ldlld, args.qemu, args.objdump,
+               os.path.join(args.musl, "lib", "libc.a")],
+        label="run_rnd_probe")
 
     ctx = Ctx(args)
     rc, out, _ = run([args.clang, "--target=dadao-unknown-elf",
@@ -585,7 +595,8 @@ def main(argv=None):
     print("%s (-%s%s): total=%d pass=%d fail=%d"
           % (result, args.opt, " inject" if args.inject else "",
              len(ctx.checks), doc["summary"]["pass"], len(fails)))
-    return 0 if result == "PASS" else 1
+    guard_ok = writer_guard.finish_guard(guard)
+    return 0 if (result == "PASS" and guard_ok) else 1
 
 
 if __name__ == "__main__":

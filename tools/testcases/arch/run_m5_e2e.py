@@ -64,6 +64,7 @@ REPO_ROOT = os.path.normpath(
 # (tools/infra/paths.py, ADR-0016 D7) instead of hardcoding .work/build.
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 import paths as _dadao_paths  # noqa: E402
+import writer_guard  # noqa: E402
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
 import machine_profile  # noqa: E402
 
@@ -463,6 +464,7 @@ def main():
                     help="counter-example self-test: flip a baseline-PASSing "
                          "expected exit code and require the gate to FAIL, then "
                          "restore and re-run the whole suite for green")
+    writer_guard.add_arguments(ap)
     args = ap.parse_args()
 
     try:
@@ -502,6 +504,11 @@ def main():
     if not os.path.isfile(expected_path):
         sys.stderr.write(f"ERROR: expected.yaml not found: {expected_path}\n")
         sys.exit(2)
+
+    # ISS-373: refuse on an active writer, then hash what we read at both ends.
+    guard = writer_guard.start_guard(
+        args, [tools["llvm_mc"], tools["llvm_objcopy"], tools["qemu"],
+               tools["bootrom"]], label="run_m5_e2e")
 
     os.makedirs(work_dir, exist_ok=True)
 
@@ -564,10 +571,13 @@ def main():
             return 1
         sys.stdout.write("INJECT: PASS -- gate reported FAIL on the wrong expected "
                          "value and went green again after restore\n")
-        return 0
+        return 0 if writer_guard.finish_guard(guard) else 1
 
+    guard_ok = writer_guard.finish_guard(guard)
     if failed:
         sys.stdout.write("run_m5_e2e: FAIL\n")
+        return 1
+    if not guard_ok:
         return 1
     sys.stdout.write("run_m5_e2e: PASS\n")
     return 0

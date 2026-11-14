@@ -369,6 +369,7 @@ sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases", "lib"))
 import paths as _paths  # noqa: E402
+import writer_guard  # noqa: E402
 import run_artifacts as _run_artifacts  # noqa: E402
 import proc_reap  # noqa: E402  (TESTCASES-085t: reap qemu on external signals)
 import gem5_se_engine  # noqa: E402  (GEM5-021t: second engine, driver layer)
@@ -3420,6 +3421,14 @@ def main() -> int:
                 + b_err.decode("utf-8", "replace").strip()[:300])
         require_file(builtins, "compiler-rt builtins archive")
         cfg["builtins"] = builtins
+
+        # ISS-373: refuse on an active writer, then hash what we read at both ends.
+        guard = writer_guard.start_guard(
+            args, [cfg["clang"], cfg["ldlld"],
+                   cfg["qemu"] if cfg["engine"] == "qemu" else cfg["gem5"],
+                   os.path.join(musl, "lib", "libc.a"),
+                   os.path.join(musl, "lib", "libc.so")],
+            label="run_llvm_ts_user")
         if not os.path.isdir(suite_root):
             raise SetupError(f"llvm-test-suite source not found: {suite_root} "
                              "(run 'make fetch' first)")
@@ -3585,6 +3594,7 @@ def main() -> int:
         rounds.append(dict(mode=mode, counts=counts, ok=ok,
                            json=json_out, report=report_out, run=run_dir))
 
+    guard_ok = writer_guard.finish_guard(guard)
     if len(rounds) > 1:
         print("\nllvm-ts-user: both rounds finished (static first):")
         for item in rounds:
@@ -3593,7 +3603,7 @@ def main() -> int:
                   f"fail={c['fail']} known-fail={c['known-fail']} "
                   f"blocked={c['blocked']} excluded={c['excluded']} "
                   f"rc={'0' if item['ok'] else '1'}")
-    return 0 if overall_ok else 1
+    return 0 if (overall_ok and guard_ok) else 1
 
 
 if __name__ == "__main__":

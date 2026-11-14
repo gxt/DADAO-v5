@@ -43,12 +43,12 @@
 | m13-testcases-032 | 2026-11-14 15:20 | 4–6 h | rootn ±0 / NaN canonical / quiet-sNaN 向量与三平台期望 |
 | m13-testcases-034 | 2026-11-14 15:20 | 2–3 h | Tiny `expected_fault` oracle 迁到 hmon 分派口径 |
 | m13-qemu-011 | 2026-11-14 15:20 | 2–3 h | `-bios` 收紧为固定固件，删 legacy trampoline 窗口 |
-| m13-infra-003 | 2026-11-14 15:00 | 5–7 h | 共享构建树/安装根写者护栏（`ISS-373`：写者登记 + 读方 fail-closed） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m13-infra-003 | 2026-11-14 17:25 | 写者护栏：写者登记 + 读方 fail-closed（md5 前后比）+ `check-writer-guards` 27/27（`ISS-373`） |
 | m13-gem5-012 | 2026-11-14 16:20 | gem5 `ext.*` orrr 的 `hd = rdHD[5:0]`（去 ILLI；B3 测试 +70 断言） |
 | m13-spec-008 | 2026-11-14 16:05 | `ext.*` orrr 的 `hd = rdHD[5:0]`（spec/契约/讲义/锁同笔；删「否则 ILLI」） |
 | m13-testcases-029 | 2026-11-14 15:55 | `12-misc` 其余 4 id（`swym`/`ctlz`/`cttz`/`ctpop`）改汇编+宏；67 链点三平台逐字节 |

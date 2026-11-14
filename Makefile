@@ -80,6 +80,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-run-artifacts \
         check-test-reports \
         check-temp-dirs \
+        check-writer-guards \
         test-codegen test-elf test-m6 \
         check-patch-tree check-index-blobs check-source-state check-asm-list-drift size-report \
         check-musl-freshness check-builtins-freshness check-install-tools check-milestones-fresh \
@@ -90,6 +91,49 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-spec-archive-verify check-milestone check-sync-nonmaskable \
         check-component-changelog check-syscall-abi check-spec-purity check-spec-cite-targets \
         check-width-sizes check-code-range check-runner-reap
+
+# ── 共享构建树/安装根写者护栏 (ISS-373) ────────────────────────────────────────
+# 任务 worktree 把 `.work`/`.dadao` 软链到主工作树 ⇒ 一个会话重建 gem5.opt /
+# qemu / 安装根时，另一个会话的**跑批读到半截或已被替换的二进制**（假红），反之
+# 亦会**假绿**（通过的不能证明当前源码正确）。`gate.lock`（下一节）只串行化同一
+# make 树内的门控目标，且对直接调用的跑批入口（reviewer 直接跑
+# `python3 tools/testcases/...`）一无所知。
+#
+# 写者侧：`WRITER_TARGET_COMPONENTS`（**单一真源**：目标 → 组件）里的每个目标由
+# `tools/infra/writer_guard.py run` 包一层 —— 在**持锁开始写之后**落状态文件
+# `$(WRITER_STATE_DIR)/<component>.json`（target/pid/host/start/duration/git_head），
+# 结束（finally + SIGTERM/INT/HUP）删除。同一 make 树内的嵌套写者（记录持有者
+# pid 是本进程祖先）直接放行、不重复登记、不覆盖外层记录。异常退出（SIGKILL /
+# 重启）留下的记录由下次启动按「pid 不在 / pid 被复用 / 过期」机械判 stale 并清理。
+# 读方侧：跑批/证据入口调 `writer_guard.start_guard/finish_guard` —— 启动时该组件
+# 有活跃写者 ⇒ **默认拒绝**（rc=75），显式 `--allow-concurrent`
+# （`DADAO_ALLOW_CONCURRENT=1`）才继续并把覆盖写进 `overrides.log`；启动/结束各记
+# 一次所读二进制的 md5，**结束 ≠ 启动 ⇒ FAIL**。规范见 docs/Process-07 §2.1。
+WRITER_STATE_DIR    ?= $(SDK_DIR)/writers
+WRITER_DURATION     ?= 14400
+WRITER_GUARD_TOOL    = $(PYTHON) tools/infra/writer_guard.py
+comma               := ,
+# 目标 → 写者组件（`<target>:<component>[,<component>...]`）。组件集合 =
+# tools/infra/writer_guard.py 的 COMPONENTS；`install-host` 同时写安装根的 LLVM
+# 工具与 QEMU 二进制 ⇒ 两个组件。`check-writer-guards` 机械断言「所有写共享树的
+# 门控目标（build-*/install-*）都在本表里」「本表里的目标都在
+# $(GATE_LOCKED_TARGETS) 里」「组件名都真实存在」。
+WRITER_TARGET_COMPONENTS = install-host:llvm,qemu install-cfx-aliases:llvm \
+                           build-mc:llvm build-mc-lite:llvm build-mc-reconfig:llvm \
+                           build-lld:llvm build-builtins:llvm \
+                           build-qemu:qemu build-qemu-reconfig:qemu build-gem5:gem5 \
+                           build-bootrom:bootrom \
+                           build-picolibc:sysroot build-musl:sysroot build-musl-shared:sysroot \
+                           linux-defconfig:linux linux-vmlinux:linux linux-initramfs:linux
+# 读方（Python 脚本）用同一个状态目录：显式导出，`WRITER_STATE_DIR` 覆盖也生效。
+export DADAO_WRITER_STATE_DIR := $(WRITER_STATE_DIR)
+
+# $(call writer-entry,<target>)      -> `<target>:<components>` 或空
+# $(call writer-components,<target>) -> `llvm,qemu` / 空（逗号分隔）
+# $(call writer-wrapped,<target>)    -> 实际写命令（写者目标先登记再重入 make）
+writer-entry      = $(filter $(1):%,$(WRITER_TARGET_COMPONENTS))
+writer-components = $(patsubst $(1):%,%,$(call writer-entry,$(1)))
+writer-wrapped    = $(if $(call writer-entry,$(1)),$(WRITER_GUARD_TOOL) run $(addprefix --component ,$(subst $(comma), ,$(call writer-components,$(1)))) --target $(1) --duration $(WRITER_DURATION) --state-dir "$(WRITER_STATE_DIR)" -- ,)$(MAKE) -f $(firstword $(MAKEFILE_LIST)) --no-print-directory _locked-$(1)
 
 # ── 工作树互斥锁 (INFRA-099t / ISS-229) ─────────────────────────────────────────
 # 同一工作树内会写共享状态的目标 —— 构建树 `.work/build/**`、安装根 $(SDK_DIR)、
@@ -137,7 +181,9 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
 # 才是写者，而前置在 recipe 之前执行。`-f $(firstword $(MAKEFILE_LIST))` 让重入
 # 读同一个 makefile（`make -f`/探针 makefile 亦然）。一行（不用 `\` 续行，避免
 # recipe 被拆行）。
-gate-locked = $(GATE_LOCK_TOOL) run --lock "$(GATE_LOCK)" --wait $(GATE_LOCK_WAIT) --failfast $(GATE_LOCK_FAILFAST) --target $(1) -- $(MAKE) -f $(firstword $(MAKEFILE_LIST)) --no-print-directory _locked-$(1)
+# 共享树的写者目标还经 `$(call writer-wrapped,...)` 包一层写者登记（ISS-373）：
+# 登记发生在**拿到锁之后**（排队等锁期间不算"正在写"），见上一节。
+gate-locked = $(GATE_LOCK_TOOL) run --lock "$(GATE_LOCK)" --wait $(GATE_LOCK_WAIT) --failfast $(GATE_LOCK_FAILFAST) --target $(1) -- $(call writer-wrapped,$(1))
 
 # 每个被锁目标 = 一条只做「进锁 + 重入」的门控规则；`_locked-<name>` 是原规则。
 # `+` = make 的「recursive invocation」标记：把 jobserver 交给重入的 make，否则
@@ -241,6 +287,7 @@ help:
 	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
 	@echo "  make check-test-reports  docs/TestReports/ naming/layout + no runtime paths + snapshot marker + header four items gate (L1; m13-testcases-004)"
 	@echo "  make check-temp-dirs  Stale task temp dirs (non-active worktree, in-use task exempt, mtime > 2 h) + stale large files (> 100 MiB) + /tmp usage > 70% gate; report only, never delete (L1; INFRA-145t/146t)"
+	@echo "  make check-writer-guards  Shared build-tree/install-root writer guard self-test: active writer refuses batch entries, replacement mid-batch FAILs, stale records cleaned, normal path unharmed + wiring assertions (L1; ISS-373)"
 	@echo "  make check-width-sizes  64-bit width + ELF64/rela/got + DWARF64 addr_size probe (L1; LLVM-130t)"
 	@echo "  make check-code-range  DADAO code-span gate: REL26 edge ≤ 32 MiB + exec_span < 30 MiB (L1; ADR-0036/INFRA-106t)"
 	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
@@ -1190,7 +1237,7 @@ _locked-clean-work:
 # 两条排在 `check-temp-dirs` **之前**：它们在 `$DADAO_TMP`（`check_toolchain.py`
 # 默认建任务临时目录）下跑探针，先跑可让该目录 mtime 保持新鲜，避免陈旧临时
 # 目录误报；`check_k0.py`（L2）另行把 DADAO_TMP 指到自己的 scratch。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-temp-dirs
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-rev-vectors check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-writer-guards check-temp-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1323,6 +1370,16 @@ check-test-reports:
 # 只列前 5 大 / 只报告不删除。
 check-temp-dirs:
 	@$(PYTHON) tools/infra/check_temp_dirs.py
+
+# 共享构建树/安装根写者护栏自测 (ISS-373, L1): 临时树里跑四类（写者活跃 ⇒ 真实
+# 跑批入口拒绝且不执行二进制 / 跑批中替换二进制 ⇒ FAIL / stale 可清理且不拦读方 /
+# 正常路径不误伤），每类都带可控绿对照；外加接线断言（读入口仍调 guard、Makefile
+# 写者表覆盖所有 build-*/install- 门控目标、make 真把写者目标展开成 writer_guard
+# 命令、本目标在 L1 里）。**不写仓库跟踪状态、不碰真实 registry、不跑构建**（stub
+# 二进制 + 临时状态目录；唯一副作用 = 真实入口允许放行时在 gitignored 产物根的
+# `harness/` 下留临时子集文件）。规范见 docs/Process-07 §2.1。
+check-writer-guards:
+	@$(PYTHON) tools/infra/check_writer_guards.py
 
 # 磁盘水位（用户 2026-11-10）：主控机与节点在**安排评测类任务前**先查磁盘，
 # **> 90% 报警**（`check-disk` 对主控机；节点用 `tools/infra/remote.py status`

@@ -43,6 +43,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
 
 from tools.infra import paths as infra_paths  # noqa: E402
+from tools.infra import writer_guard  # noqa: E402
 
 BOOTROM_REL = Path("bootrom")
 
@@ -195,6 +196,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="semihosting console/exit-code smoke")
     parser.add_argument("--timeout", type=int, default=QEMU_TIMEOUT_S,
                        help=f"per-run timeout in seconds (default {QEMU_TIMEOUT_S})")
+    writer_guard.add_arguments(parser)
     args = parser.parse_args()
 
     try:
@@ -202,6 +204,11 @@ def main() -> int:
         smoke = _prereq("semihost_smoke.elf")
         fail = _prereq("semihost_fail.elf")
         oracle = derive_oracle()
+
+        # ISS-373: refuse on an active writer, then hash the QEMU binary (and
+        # the bootrom) at start and at finish.
+        guard = writer_guard.start_guard(
+            args, [str(_qemu()), str(bootrom)], label="run_semihosting_smoke")
 
         print(f"[INFO] oracle: {len(oracle)} bytes from "
               f"{_MSG_INC.name} + semihost_smoke.S:EXCL")
@@ -219,7 +226,8 @@ def main() -> int:
 
     print(f"run_semihosting_smoke: {'PASS' if failures == 0 else 'FAIL'} "
           f"(failed checks: {failures})")
-    return 0 if failures == 0 else 1
+    guard_ok = writer_guard.finish_guard(guard)
+    return 0 if (failures == 0 and guard_ok) else 1
 
 
 if __name__ == "__main__":

@@ -78,6 +78,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "infra"))
 import paths  # noqa: E402
+import writer_guard  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 import machine_profile  # noqa: E402
 
@@ -431,6 +432,7 @@ def main() -> int:
     ap.add_argument("--inject", action="store_true",
                     help="corrupt one expectation to make the FAIL path reachable")
     ap.add_argument("--inject-test", default="basename")
+    writer_guard.add_arguments(ap)
     args = ap.parse_args()
     prof = machine_profile.load(args.profile)
     if not prof.get("picolibc", False):
@@ -451,6 +453,12 @@ def main() -> int:
         print(f"picolibc-tests: ERROR: {SYSROOT / 'lib' / 'libc.a'} missing — run 'make build-picolibc'",
               file=sys.stderr)
         return 2
+
+    # ISS-373: refuse on an active writer, then hash what we read at both ends.
+    guard = writer_guard.start_guard(
+        args, [str(CLANG), str(CLANGXX), str(LLVM_MC), str(LLVM_OBJCOPY),
+               str(LLD), str(QEMU), str(TINY_BOOTROM),
+               str(SYSROOT / "lib" / "libc.a")], label="picolibc_tests")
 
     env = dict(os.environ)
     env["PATH"] = str(TOOLCHAIN_BIN) + os.pathsep + env.get("PATH", "")
@@ -504,6 +512,7 @@ def main() -> int:
     if sum(counts.values()) != len(results) or len(results) == 0:
         print("picolibc-tests: FAIL (bucket sum != total or empty inventory)", file=sys.stderr)
         return 2
+    guard_ok = writer_guard.finish_guard(guard)
     if counts["fail"] > 0:
         print(f"picolibc-tests: FAIL ({counts['fail']} test(s) failed)", file=sys.stderr)
         return 1
@@ -514,6 +523,8 @@ def main() -> int:
     if counts["blocked"] > 0:
         print(f"picolibc-tests: FAIL ({counts['blocked']} test(s) blocked -- "
               "build/run gap; coverage is incomplete)", file=sys.stderr)
+        return 1
+    if not guard_ok:
         return 1
     print("picolibc-tests: PASS (fail=0, blocked=0)")
     return 0
