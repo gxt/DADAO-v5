@@ -153,8 +153,9 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
 18 册目录彼此独立，可**并行**派到不同节点。为免共享清单互相覆盖，**每个分片任务只写自己的片段**，由主会话串行合并：
 
 - 分片任务的产物：`tests/inst/<册>/*.S`（本册目录，独占）+ 两个片段文件
-  - `tests/inst/.fragments/<册>.inst.yaml` —— 本册要加入 `tests/inst.yaml` 的条目（**只写自己的条目，YAML 列表**，格式同根清单）；
-  - `tests/inst/.fragments/<册>.migration.md` —— 本册要追加到 §1/§6 的行（**只写自己的行**）。
+  - `tests/inst/.fragments/<任务号>.inst.yaml` —— 本任务要加入 `tests/inst.yaml` 的条目（**只写自己的条目，YAML 列表**，格式同根清单）；
+  - `tests/inst/.fragments/<任务号>.migration.md` —— 本任务要追加到 §1/§6 的行（**只写自己的行**）。
+  - 用**任务号**而非册名：同一册可能同时有两个任务在改不同文件，按册名会撞车。
 - 分片任务**不改** `tests/inst.yaml`、`tests/inst/MIGRATION.md`、`tests/inst/README.md`、`macros/inst_test.inc`、`run_asm_suite.py`；若确需改后三者，在任务书「待裁定」写清并停下。
 - 主会话合并时：读所有片段 → 按册序并入根清单 → **重跑** `check-tests-index`/`check-case-ledger`/`validate_vectors` → 删除 `.fragments/`。
 - 节点侧：各分片用**独立** `~/eval/<任务>/` staging 与**独占** work-dir；`--jobs` 用脚本默认（核数/2）。
