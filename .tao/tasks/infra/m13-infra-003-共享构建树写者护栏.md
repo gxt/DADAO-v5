@@ -27,21 +27,25 @@
 
 1. 上面 4 类自测全绿（每类都有真实"注入 → FAIL → 还原 → 回绿"）。
 2. 在**两个并发会话**下实测：会话 A 跑 `build-gem5`，会话 B 启动跑批 ⇒ B 被拒（或明确告警并记录）；A 结束后 B 正常启动。
-3. 不改变现有 `gate.lock` 语义（嵌套放行仍成立）；`make check`/`check-modules` 全绿。
+3. 不改变现有 `gate.lock` 语义（嵌套放行仍成立）；`make check`（L1）逐条给 rc：**绿项必须绿**，红项逐条归因并证明与本任务无关（已知既有红：`check-patch-tree`（组件源树被他任务在途改动）、`check-musl-freshness`（`ISS-437`））。**禁跑 `make check-modules`**（前置含 `install-host`，会写共享安装根；见 `AGENTS.md` 门控一节）。
 4. 文档：`docs/Process-07` 增一节「共享构建树/安装根的写者护栏」，写清状态文件位置、stale 判定、`--allow-concurrent` 的使用边界。
 5. 完成区 ≤30 行、无运行期路径；「修改文件」与 `git status -uall` 对账。
 
 ## 硬约束（子代理必读）
 
 1. 独立 `git worktree`（分支 = 任务号）；动手前自证 toplevel；禁改主工作树。
-2. 不提交 git；**不要跑 `install-host`**（本任务只加护栏，不需要装）；`build-*` 仅在自测临时树里用最小目标。
+2. 不提交 git；**禁跑 `install-host`、`check-modules`、真 `build-gem5`/`build-qemu`/`build-chipyard`**（共享构建树与安装根有并发写者；本任务只加护栏，不需要构建）。自测如需写者窗口，用 `writer_guard.py` 的 `--component/--target` 包装一个无害命令（如 `sleep`），或用临时状态目录。
 3. 禁 `git checkout/restore/stash`；注入还原用 `cp`+md5。
-4. 只改 `tools/infra/**`、`tools/testcases/inst/run_asm_suite.py`、`docs/Process-07`、`Makefile`（仅新增门控目标与该目标进 L1 的接线）；**不改** `spec/`、`contracts/`、组件源码。
+4. 只改 `tools/infra/**`、`tools/testcases/**`（各跑批/证据入口的护栏接线）、`tools/gem5/**`、`tools/qemu/**`、`tools/linux/**`、`docs/Process-07`、`Makefile`（新增门控目标 + 该目标进 L1 的接线）；**不改** `spec/`、`contracts/`、`tests/**`、组件源码。
 5. 大文件落 `/tmp/opencode/m13-infra-003/` 并测完即删。
 
-## 待裁定
+## 主会话裁定（2026-11-14，收尾返工口径）
 
-（实现中写）
+- **安装根副作用（reviewer 的 A/B）**：取 **A** —— 接受新 qemu（`-bios` 只收 64 KiB 是用户 2026-11-13 裁定，`m13-qemu-011` 将合入）；**lit 4 例 + codegen 19 例改用 64 KiB 固定固件** 归 **`m13-testcases-036`**，不在本任务范围。本任务不得为「凑绿」回退安装根。
+- **待裁定 ④（覆盖边界）**：接受「22 个跑批/证据入口已接线；一次性探针与 lit RUN 行未接线，边界写入 `docs/Process-07 §2.1`」；若后续要全覆盖，单独立任务。
+- **待裁定 ⑤（`DADAO_WRITER_STATE_DIR` 可绕过）**：保留测试钩子，但**当该环境变量或 `--state-dir` 生效时，读入口与写者都要在 stderr 打一行醒目告警**并写入日志（防「指向空目录」静默绕过）。
+- **任务书自身矛盾已修**（本次）：验收 3 的 `check-modules` 与硬约束 2 的 `禁 install-host` 冲突 ⇒ 改为「L1 逐条 rc + 禁 `check-modules`」；硬约束 4 的文件面从 `run_asm_suite.py` 单文件扩为 22 入口所在目录。
+
 
 ## 审阅记录
 
