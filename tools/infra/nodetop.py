@@ -132,15 +132,16 @@ def fit(text: str, width: int) -> str:
     return text if len(text) <= width else text[: max(0, width - 1)] + "…"
 
 
-ALIASES = (("simulator-chipyard", "cy-sim"), ("qemu-system", "qemu"),
-           ("gem5.opt", "gem5"), ("verilator_bin", "verilator"))
-
-
-def short_name(name: str) -> str:
-    for prefix, alias in ALIASES:
-        if name.startswith(prefix):
-            return alias
-    return name if len(name) <= 12 else name[:11] + "."
+def proc_line(cpu: float, name: str, detail: str, width: int) -> str:
+    """Full binary name (no abbreviation); append the hint only if it still fits."""
+    head = f"{cpu:>4.0f}% {name}"
+    if detail:
+        room = width - len(head) - 2
+        if room >= len(detail) + 1:
+            head += " " + detail
+        elif room >= 8:                      # keep the hint's tail (the ELF name)
+            head += " " + detail[-(room - 1):]
+    return fit(head, width)
 
 
 def pane(s: Sample | None, host: str, w: int, nlines: int, now: float) -> list[str]:
@@ -162,20 +163,25 @@ def pane(s: Sample | None, host: str, w: int, nlines: int, now: float) -> list[s
             f"ssh{s.latency:.2f}s{state}")
     lines = [fit(head, w)]
     for cpu, name, detail in s.procs[:nlines]:
-        lines.append(fit(f"{cpu:>5.0f}% {short_name(name)}{(' ' + detail) if detail else ''}", w))
+        lines.append(proc_line(cpu, name, detail, w))
     while len(lines) < 1 + nlines:
         lines.append("")
     return lines[: 1 + nlines]
 
 
-def render_grid(hosts, state, w, h, nprocs, color, tick, interval) -> str:
+def pane_lines(h: int, cap: int = 0, rows: int = 2) -> int:
+    """How many process rows fit in one pane at this terminal height."""
+    chrome = 4  # title + legend + 2 separator lines
+    pane_h = max(4, (h - chrome) // rows)
+    n = max(3, pane_h - 1)
+    return min(n, cap) if cap > 0 else n
+
+
+def render_grid(hosts, state, w, h, nlines, color, tick, interval) -> str:
     now = time.time()
     cols, rows = 3, 2
     gutter = 1
     pane_w = max(24, (w - (cols - 1) * gutter) // cols)
-    chrome = 4  # title + legend + 2 separator lines
-    pane_h = max(4, (h - chrome) // rows)
-    nlines = max(3, min(nprocs, pane_h - 1))
     panes = []
     for i, host in enumerate(hosts):
         panes.append(pane(state.get(host), host, pane_w, nlines, now))
@@ -228,7 +234,7 @@ def render_list(hosts, state, w, nprocs, now) -> str:
                    f"M{fmt_kb(s.mem_avail):>8}  D{diskpct:3.0f}%  T{s.tests:>3}  "
                    f"ssh {s.latency * 1000:4.0f}ms{flag}")
         for cpu, name, detail in s.procs[:nprocs]:
-            out.append(f"           {cpu:>5.0f}%  {short_name(name)} {detail}")
+            out.append(f"           {proc_line(cpu, name, detail, w - 11)}")
     return "\n".join(out)
 
 
@@ -248,7 +254,8 @@ def main() -> int:
     ap.add_argument("--hosts", default=os.environ.get("DADAO_NODES", ""),
                     help="comma/space separated; default $DADAO_NODES or the six known nodes")
     ap.add_argument("--repo", default=os.environ.get("DADAO_NODE_REPO", "/home/ubuntu/DADAO-v5"))
-    ap.add_argument("--procs", type=int, default=10, help="processes per node (default 10)")
+    ap.add_argument("--procs", type=int, default=0,
+                    help="max processes per node; 0 (default) = fill the pane height")
     ap.add_argument("--interval", type=float, default=5.0)
     ap.add_argument("--timeout", type=float, default=6.0)
     ap.add_argument("--layout", choices=("grid", "list"), default="grid")
@@ -260,9 +267,9 @@ def main() -> int:
     color = sys.stdout.isatty() and not args.no_color
     state: dict[str, Sample] = {}
 
-    def snapshot() -> None:
+    def snapshot(nprocs: int) -> None:
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(hosts)) as ex:
-            futures = {ex.submit(probe, h, args.repo, args.procs, args.timeout): h
+            futures = {ex.submit(probe, h, args.repo, max(1, nprocs), args.timeout): h
                        for h in hosts}
             for fut in concurrent.futures.as_completed(futures):
                 h = futures[fut]
@@ -273,9 +280,10 @@ def main() -> int:
                     state[h] = new
 
     if args.once:
-        snapshot()
-        w = shutil.get_terminal_size((150, 40)).columns
-        print(render_list(hosts, state, w, args.procs, time.time()))
+        w, h = shutil.get_terminal_size((150, 40))
+        nlines = args.procs or 20
+        snapshot(nlines)
+        print(render_list(hosts, state, w, nlines, time.time()))
         return 0 if any(not s.err for s in state.values()) else 1
 
     pause = False
@@ -290,14 +298,15 @@ def main() -> int:
         if color:
             sys.stdout.write("\033[?25l")
         while True:
+            w, h = shutil.get_terminal_size((150, 44))
+            nlines = pane_lines(h, args.procs)
             if not pause:
                 tick += 1
-                snapshot()
-            w, h = shutil.get_terminal_size((150, 44))
+                snapshot(nlines)
             if args.layout == "grid":
-                body = render_grid(hosts, state, w, h, args.procs, color, tick, args.interval)
+                body = render_grid(hosts, state, w, h, nlines, color, tick, args.interval)
             else:
-                body = render_list(hosts, state, w, args.procs, time.time())
+                body = render_list(hosts, state, w, nlines, time.time())
             sys.stdout.write("\033[H\033[J" + body + "\n")
             sys.stdout.flush()
             waited = 0.0
