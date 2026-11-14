@@ -162,6 +162,26 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
 
 ## 6. 已完成
 
+### `m13-testcases-032`：`rootn(±0,2)=+0`、结果 NaN canonical、quiet compare sNaN 的 `NV`（YAML 向量）
+
+- 只改**已登记**的 fp 册用例（无新载体文件、无新 `.S`）：`tests/inst/fp/{divrem,arith,scaleb,convert}.yaml`；
+  `tests/case-ledger.tsv` 由 `check_case_ledger.py --write` 重生成。
+- **`rootn(±0,2)=+0`**（`divrem.yaml` 新增 4 例）：`foroot`/`ftroot` 的 `−0` 与 `+0`（对照组）；
+  fo 例先把目的 `rf4` 经 `ld.o` 预置 `0xDEADBEEF_DEADBEEF` ⇒ `rd5=0` 证明写满 64 位；
+  ft 例把目的高 32 位预置 `0xAAAAAAAA`/`0x55555555` ⇒ `rd5` 高 32 位保持、低 32 位清 0（§1.3 单精写入宽度）。
+- **结果 NaN canonical**（`divrem.yaml[26]/[27]` 的 `forem` sNaN/qNaN、`arith.yaml` 的 `ftadd`/`foadd`
+  负号带 payload qNaN、`scaleb.yaml` 的 `ftsclb`/`fosclb`、`convert.yaml` 的 `fo2ft`/`ft2fo`）：
+  期望一律 `0x7FF8_0000_0000_0000`/`0x7FC0_0000`（符号 0、payload 0）。**旧口径退役**：
+  `forem qNaN rem 2.0` 的「payload 传播」期望（即 `divrem.yaml[23]`，`check-inst` 的既有唯一红 pin）
+  按 `spec/SimRISC-07 §1.4` 改为 canonical ⇒ `make check-inst` 红集由 `{divrem.yaml[23]}` 变空。
+- **quiet compare 遇 sNaN 置 `NV`**（`arith.yaml` 新增 4 例 sNaN 左/右 + 2 例 qNaN 对照）：
+  两操作数经**各自** `ld.o` 装入**不同**寄存器（`rf7`/`rf9`，非重叠写序），并把两侧实际值
+  `rf2rd` 到 `rd13`/`rd14` 一并断言 —— 直接防 `ISS-407` 的「左右两例机器状态相同」。
+- 三平台：QEMU（`run_qemu_test.py` 全册 + `make check-inst`）、chipyard（`inst_case_run.py` 同镜像）、
+  gem5（B7 探针 `--vectors`）逐例同 16 B（目的寄存器 + FCSR）字节流一致。
+- 本任务不新增 `tests/inst.yaml` 条目；§1 表行不变（07 浮点册 id 数不变）。
+
+
 ### `m13-testcases-029`：`12-misc` 其余（`swym` + `ctlz`/`cttz`/`ctpop`，4 个 id）
 
 - `tests/inst/12-misc/{ctlz,ctpop,cttz}_orri_rd.S` 与 `swym_oiii_imm.S`（4 个）；链接布局复用

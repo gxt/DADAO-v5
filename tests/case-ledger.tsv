@@ -1888,6 +1888,7 @@ vector	tests/inst/fp/arith.yaml	foadd_orrr_rf	semantic	0x44604042	None	active	2
 vector	tests/inst/fp/arith.yaml	foadd_orrr_rf	semantic	0x44604042	None	active	3
 vector	tests/inst/fp/arith.yaml	foadd_orrr_rf	semantic	0x44604042	None	active	4
 vector	tests/inst/fp/arith.yaml	foadd_orrr_rf	semantic	0x44604042	None	active	5
+vector	tests/inst/fp/arith.yaml	foadd_orrr_rf	semantic	0x44604042	None	active	6
 vector	tests/inst/fp/arith.yaml	fofma_rrrr_rf	legality	0x5f001083	ILLI	active	1
 vector	tests/inst/fp/arith.yaml	fofma_rrrr_rf	semantic	0x5f101083	None	active	1
 vector	tests/inst/fp/arith.yaml	fofma_rrrr_rf	semantic	0x5f101083	None	active	2
@@ -1909,8 +1910,12 @@ vector	tests/inst/fp/arith.yaml	foqcmp_orrr_rf	semantic	0x44a05042	None	active	3
 vector	tests/inst/fp/arith.yaml	foqcmp_orrr_rf	semantic	0x44a05042	None	active	4
 vector	tests/inst/fp/arith.yaml	foqcmp_orrr_rf	semantic	0x44a05042	None	active	5
 vector	tests/inst/fp/arith.yaml	foqcmp_orrr_rf	semantic	0x44a05042	None	active	6
+vector	tests/inst/fp/arith.yaml	foqcmp_orrr_rf	semantic	0x44a051c9	None	active	1
+vector	tests/inst/fp/arith.yaml	foqcmp_orrr_rf	semantic	0x44a051c9	None	active	2
+vector	tests/inst/fp/arith.yaml	foqcmp_orrr_rf	semantic	0x44a051c9	None	active	3
 vector	tests/inst/fp/arith.yaml	foscmp_orrr_rf	semantic	0x44a45042	None	active	1
 vector	tests/inst/fp/arith.yaml	foscmp_orrr_rf	semantic	0x44a45042	None	active	2
+vector	tests/inst/fp/arith.yaml	ftadd_orrr_rf	semantic	0x44404042	None	active	1
 vector	tests/inst/fp/arith.yaml	ftfma_rrrr_rf	semantic	0x5e101083	None	active	1
 vector	tests/inst/fp/arith.yaml	ftmin_orrr_rf	semantic	0x44984042	None	active	1
 vector	tests/inst/fp/arith.yaml	ftmul_orrr_rf	semantic	0x44484042	None	active	1
@@ -1918,6 +1923,9 @@ vector	tests/inst/fp/arith.yaml	ftqcmp_orrr_rf	semantic	0x44805042	None	active	1
 vector	tests/inst/fp/arith.yaml	ftqcmp_orrr_rf	semantic	0x44805042	None	active	2
 vector	tests/inst/fp/arith.yaml	ftqcmp_orrr_rf	semantic	0x44805042	None	active	3
 vector	tests/inst/fp/arith.yaml	ftqcmp_orrr_rf	semantic	0x44805042	None	active	4
+vector	tests/inst/fp/arith.yaml	ftqcmp_orrr_rf	semantic	0x448051c9	None	active	1
+vector	tests/inst/fp/arith.yaml	ftqcmp_orrr_rf	semantic	0x448051c9	None	active	2
+vector	tests/inst/fp/arith.yaml	ftqcmp_orrr_rf	semantic	0x448051c9	None	active	3
 vector	tests/inst/fp/arith.yaml	ftscmp_orrr_rf	semantic	0x44845042	None	active	1
 vector	tests/inst/fp/arith.yaml	ftscmp_orrr_rf	semantic	0x44845042	None	active	2
 vector	tests/inst/fp/cond-assign.yaml	cs.n_rrrr_rf	semantic	0x610420c4	None	active	1
@@ -1928,7 +1936,9 @@ vector	tests/inst/fp/cond-assign.yaml	cs.z_rrrr_rf	semantic	0x630420c4	None	acti
 vector	tests/inst/fp/cond-assign.yaml	cs.z_rrrr_rf	semantic	0x630420c4	None	active	2
 vector	tests/inst/fp/convert.yaml	fo2ft_orri_rf	boundary	0x44244041	None	active	1
 vector	tests/inst/fp/convert.yaml	fo2ft_orri_rf	boundary	0x44244044	None	active	1
+vector	tests/inst/fp/convert.yaml	fo2ft_orri_rf	semantic	0x44244041	None	active	1
 vector	tests/inst/fp/convert.yaml	fo2io_orri_rf	semantic	0x44e45041	None	active	1
+vector	tests/inst/fp/convert.yaml	ft2fo_orri_rf	semantic	0x44044040	None	active	1
 vector	tests/inst/fp/convert.yaml	ft2it_orri_rf	boundary	0x44c05044	None	active	1
 vector	tests/inst/fp/convert.yaml	ft2it_orri_rf	legality	0x44c05043	ILLI	active	1
 vector	tests/inst/fp/convert.yaml	ft2it_orri_rf	semantic	0x44c05041	None	active	1
@@ -1965,6 +1975,8 @@ vector	tests/inst/fp/divrem.yaml	foroot_orri_rf	legality	0x44384043	ILLI	active	
 vector	tests/inst/fp/divrem.yaml	foroot_orri_rf	semantic	0x44384042	None	active	1
 vector	tests/inst/fp/divrem.yaml	foroot_orri_rf	semantic	0x44384042	None	active	2
 vector	tests/inst/fp/divrem.yaml	foroot_orri_rf	semantic	0x44384042	None	active	3
+vector	tests/inst/fp/divrem.yaml	foroot_orri_rf	semantic	0x44384042	None	active	4
+vector	tests/inst/fp/divrem.yaml	foroot_orri_rf	semantic	0x44384042	None	active	5
 vector	tests/inst/fp/divrem.yaml	ftdiv_orrr_rf	semantic	0x444c4042	None	active	1
 vector	tests/inst/fp/divrem.yaml	ftdiv_orrr_rf	semantic	0x444c4042	None	active	2
 vector	tests/inst/fp/divrem.yaml	ftdiv_orrr_rf	semantic	0x444c4042	None	active	3
@@ -1973,6 +1985,8 @@ vector	tests/inst/fp/divrem.yaml	ftrem_orrr_rf	semantic	0x44504042	None	active	2
 vector	tests/inst/fp/divrem.yaml	ftroot_orri_rf	legality	0x44184040	ILLI	active	1
 vector	tests/inst/fp/divrem.yaml	ftroot_orri_rf	semantic	0x44184042	None	active	1
 vector	tests/inst/fp/divrem.yaml	ftroot_orri_rf	semantic	0x44184042	None	active	2
+vector	tests/inst/fp/divrem.yaml	ftroot_orri_rf	semantic	0x44184042	None	active	3
+vector	tests/inst/fp/divrem.yaml	ftroot_orri_rf	semantic	0x44184042	None	active	4
 vector	tests/inst/fp/roundint.yaml	fornd_orri_rf	boundary	0x442c4041	None	active	1
 vector	tests/inst/fp/roundint.yaml	fornd_orri_rf	boundary	0x442c4041	None	active	2
 vector	tests/inst/fp/roundint.yaml	fornd_orri_rf	boundary	0x442c4041	None	active	3
@@ -2025,6 +2039,7 @@ vector	tests/inst/fp/scaleb.yaml	fosclb_orrr_rf	boundary	0x44744043	None	active	
 vector	tests/inst/fp/scaleb.yaml	fosclb_orrr_rf	boundary	0x44744043	None	active	3
 vector	tests/inst/fp/scaleb.yaml	fosclb_orrr_rf	encoding	0x44744043	None	active	1
 vector	tests/inst/fp/scaleb.yaml	fosclb_orrr_rf	semantic	0x44744043	None	active	1
+vector	tests/inst/fp/scaleb.yaml	fosclb_orrr_rf	semantic	0x44744043	None	active	2
 vector	tests/inst/fp/scaleb.yaml	ftsclb_orrr_rf	boundary	0x44544040	None	active	1
 vector	tests/inst/fp/scaleb.yaml	ftsclb_orrr_rf	boundary	0x44544043	None	active	1
 vector	tests/inst/fp/scaleb.yaml	ftsclb_orrr_rf	boundary	0x44544043	None	active	2
@@ -2032,6 +2047,7 @@ vector	tests/inst/fp/scaleb.yaml	ftsclb_orrr_rf	boundary	0x44544043	None	active	
 vector	tests/inst/fp/scaleb.yaml	ftsclb_orrr_rf	encoding	0x44544043	None	active	1
 vector	tests/inst/fp/scaleb.yaml	ftsclb_orrr_rf	overlap	0x44541043	None	active	1
 vector	tests/inst/fp/scaleb.yaml	ftsclb_orrr_rf	semantic	0x44544043	None	active	1
+vector	tests/inst/fp/scaleb.yaml	ftsclb_orrr_rf	semantic	0x44544043	None	active	2
 vector	tests/inst/fp/sign.yaml	fosgnj_orrr_rf	encoding	0x447c4041	None	active	1
 vector	tests/inst/fp/sign.yaml	fosgnj_orrr_rf	semantic	0x447c4040	None	active	1
 vector	tests/inst/fp/sign.yaml	fosgnj_orrr_rf	semantic	0x447c4040	None	active	2

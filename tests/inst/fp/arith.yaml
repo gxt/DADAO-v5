@@ -1105,3 +1105,253 @@
   - '0x26081008'
   - '0x260C1010'
   - '0x5F001083'
+- mnemonic: foadd
+  id: foadd_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44604042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xFFF8000000000123'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF8000000000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foadd'
+  notes: 'foadd rf4, rf1, rf2：rf1 = 负号 qNaN 带 payload 0xFFF8_0000_0000_0123、rf2 = 1.0 ⇒ canonical qNaN 0x7FF8_0000_0000_0000（符号清 0、payload 清 0）、无标志；SimRISC-07 §1.4 + IEEE 754-2019 §6.2.3（payload 传播仅 should）/§6.3（符号不规定）；手写推导（canonical 常量），不经任何实现'
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44604042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: ftadd
+  id: ftadd_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44404042'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x00000000FFC12345'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000003F800000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x000000007FC00000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: ftadd'
+  notes: 'ftadd rf4, rf1, rf2：rf1 低 32 位 = 负号 qNaN 带 payload 0xFFC1_2345、rf2 低 32 位 = 1.0f ⇒ 结果低 32 位 canonical qNaN 0x7FC0_0000（高 32 位保持 rf4 复位值 0）、无标志；SimRISC-07 §1.4 + §1.3「单精结果只写低 32 位」+ IEEE 754-2019 §6.2.3/§6.3；手写推导（canonical 常量），不经任何实现'
+  sequence:
+  - '0x26041000'
+  - '0x26081008'
+  - '0x44404042'
+  - '0x40F85101'
+  - '0x40F86001'
+- mnemonic: ftqcmp
+  id: ftqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x448051C9'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000007F800001'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000003F800000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x000000007FC00000'
+      rd13: '0x000000007F800001'
+      rd14: '0x000000003F800000'
+      rd6: '0x7FF800007FC00001'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: ftqcmp'
+  notes: 'ftqcmp rd5, rf7, rf9：rf7 = sNaN 0x7F80_0001（左）、rf9 = 1.0f 0x3F80_0000（右），两源经各自 ld.o 装入不同 rf 寄存器（rf7/rf9，非重叠写序，ISS-407 反例构造）⇒ 无序 canonical qNaN 0x7FC0_0000 + NV=1；rd13/rd14 = rf7/rf9 回读，证明两侧机器状态确实不同；SimRISC-07 §4 + IEEE 754-2019 §5.11；手写推导'
+  sequence:
+  - '0x261C1000'
+  - '0x26241008'
+  - '0x448051C9'
+  - '0x40F8D1C1'
+  - '0x40F8E241'
+  - '0x40F86001'
+- mnemonic: ftqcmp
+  id: ftqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x448051C9'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000003F800000'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000007F800001'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x000000007FC00000'
+      rd13: '0x000000003F800000'
+      rd14: '0x000000007F800001'
+      rd6: '0x7FF800007FC00001'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: ftqcmp'
+  notes: 'ftqcmp rd5, rf7, rf9：rf7 = 1.0f 0x3F80_0000（左）、rf9 = sNaN 0x7F80_0001（右），两源装入不同 rf 寄存器（rf7/rf9，非重叠写序）⇒ 无序 canonical qNaN 0x7FC0_0000 + NV=1；rd13/rd14 回读证明「sNaN 真在右」；SimRISC-07 §4 + IEEE 754-2019 §5.11；手写推导'
+  sequence:
+  - '0x261C1000'
+  - '0x26241008'
+  - '0x448051C9'
+  - '0x40F8D1C1'
+  - '0x40F8E241'
+  - '0x40F86001'
+- mnemonic: foqcmp
+  id: foqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44A051C9'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x7FF0000000000001'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF8000000000000'
+      rd13: '0x7FF0000000000001'
+      rd14: '0x3FF0000000000000'
+      rd6: '0x7FF800007FC00001'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foqcmp'
+  notes: 'foqcmp rd5, rf7, rf9：rf7 = sNaN 0x7FF0_0000_0000_0001（左）、rf9 = 1.0 0x3FF0_0000_0000_0000（右），不同 rf 寄存器、非重叠写序 ⇒ 无序 canonical qNaN 0x7FF8_0000_0000_0000 + NV=1；rd13/rd14 回读两侧实际值；SimRISC-07 §4 + IEEE 754-2019 §5.11；手写推导'
+  sequence:
+  - '0x261C1000'
+  - '0x26241008'
+  - '0x44A051C9'
+  - '0x40F8D1C1'
+  - '0x40F8E241'
+  - '0x40F86001'
+- mnemonic: foqcmp
+  id: foqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44A051C9'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x3FF0000000000000'
+    - address: '@ENTRY+0x100008'
+      value: '0xFFF0000000000001'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF8000000000000'
+      rd13: '0x3FF0000000000000'
+      rd14: '0xFFF0000000000001'
+      rd6: '0x7FF800007FC00001'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foqcmp'
+  notes: 'foqcmp rd5, rf7, rf9：rf7 = 1.0（左）、rf9 = 负号 sNaN 0xFFF0_0000_0000_0001（右），不同 rf 寄存器、非重叠写序 ⇒ 无序 canonical qNaN（符号位清 0）+ NV=1；rd13/rd14 回读证明「负 sNaN 真在右」；SimRISC-07 §4 + IEEE 754-2019 §5.11；手写推导'
+  sequence:
+  - '0x261C1000'
+  - '0x26241008'
+  - '0x44A051C9'
+  - '0x40F8D1C1'
+  - '0x40F8E241'
+  - '0x40F86001'
+- mnemonic: ftqcmp
+  id: ftqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x448051C9'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000003F800000'
+    - address: '@ENTRY+0x100008'
+      value: '0x000000007FE00001'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x000000007FC00000'
+      rd13: '0x000000003F800000'
+      rd14: '0x000000007FE00001'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: ftqcmp'
+  notes: 'ftqcmp rd5, rf7, rf9：rf7 = 1.0f（左）、rf9 = 带 payload qNaN 0x7FE0_0001（右）⇒ 无序 canonical qNaN、NV=0（qNaN 输入不置标志，对照组）；rd13/rd14 回读两侧实际值；SimRISC-07 §4 + IEEE 754-2019 §5.11；手写推导'
+  sequence:
+  - '0x261C1000'
+  - '0x26241008'
+  - '0x448051C9'
+  - '0x40F8D1C1'
+  - '0x40F8E241'
+  - '0x40F86001'
+- mnemonic: foqcmp
+  id: foqcmp_orrr_rf
+  format: orrr
+  class: semantic
+  encoding:
+    word: '0x44A051C9'
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xFFF8000000000123'
+    - address: '@ENTRY+0x100008'
+      value: '0x3FF0000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  expected_state:
+    rd:
+      rd5: '0x7FF8000000000000'
+      rd13: '0xFFF8000000000123'
+      rd14: '0x3FF0000000000000'
+      rd6: '0x7FF800007FC00000'
+  expected_pc: null
+  expected_fault: null
+  status: active
+  spec_cite: 'SimRISC-07: foqcmp'
+  notes: 'foqcmp rd5, rf7, rf9：rf7 = 负号带 payload qNaN 0xFFF8_0000_0000_0123（左）、rf9 = 1.0（右）⇒ 无序 canonical qNaN、NV=0（qNaN 不置标志，对照组）；SimRISC-07 §1.4 + §4 + IEEE 754-2019 §5.11；手写推导'
+  sequence:
+  - '0x261C1000'
+  - '0x26241008'
+  - '0x44A051C9'
+  - '0x40F8D1C1'
+  - '0x40F8E241'
+  - '0x40F86001'

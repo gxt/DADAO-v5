@@ -7,12 +7,15 @@
 # `rf2rd rd5, rf4` / `rf2rd rd6, rf0` 读回（rd6 = FCSR 复位值 + 舍入方向 + 标志）。
 # 覆盖：除法的精确/不精确商（RNE 与 RTZ 两档）、`DZ` 端到端（±0 除数的三种符号）、
 # 0/0 与 Inf/Inf 的 NV、开方的精确根 / 无理根 / 负数（sqrt(−1) 形状）、
-# 取余的三边界（±Inf 被除数、±0 除数、sNaN）与就近取偶的平局、qNaN 传播、
-# 以及合法性（n ≠ 2 的 root、dst_rf0）。
-# sNaN 的 qNaN payload：§2.1 只规定「返回 qNaN」，未定 payload —— QEMU/softfloat 保留
-# quieted payload、本核取 canonical（与 hardfloat/gem5 一致）⇒ YAML（`check-inst` 以
-# QEMU 为比对对象）只钉 spec 规定的 `NV`，canonical 值由 model-only 的
-# `divrem_snan_*` sweep 组断言。
+# `rootn(±0,2)=+0`（+0/−0 两源 × ft/fo；ft 例同时钉「只写低 32 位」）、
+# 取余的三边界（±Inf 被除数、±0 除数、sNaN）与就近取偶的平局、
+# qNaN/sNaN 结果的 canonical quiet NaN、以及合法性（n ≠ 2 的 root、dst_rf0）。
+# 结果 NaN 的取值（含 sNaN 输入的 quiet 化）：spec/SimRISC-07 §1.4 规定「凡结果应为
+# quiet NaN 的情形一律 canonical」（符号 0、payload 全零；fo 0x7FF8_0000_0000_0000、
+# ft 0x7FC0_0000）——IEEE 754-2019 §6.2.3 的 payload 传播只是 *should*、§6.3 不规定
+# 符号，canonical 是允许的实现选择。故本册（`check-inst` 以 QEMU 为比对对象）直接钉
+# canonical 值，不再 pin「payload 传播」的旧口径（该旧 pin 即 m13-testcases-021 定位的
+# 既有唯一红 `divrem.yaml[23]`，本任务按 spec 改期望收口）。
 
 - class: semantic
   encoding:
@@ -437,6 +440,66 @@
 
 - class: semantic
   encoding:
+    word: '0x44384042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: foroot_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x8000000000000000'
+    - address: '@ENTRY+0x100010'
+      value: '0xDEADBEEFDEADBEEF'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: foroot
+  notes: foroot rf4, rf1, 2：源 −0（rf1=0x8000_0000_0000_0000）⇒ +0；目的 rf4 先经 ld.o 预置 0xDEADBEEF_DEADBEEF ⇒ rd5=0 证明 fo 结果写满 64 位；SimRISC-07 §2.2 + IEEE 754-2019 §9.2.1（rootn(±0,2)=+0，NOTE 区别于 squareRoot(−0)=−0）；手写推导（零结果符号强制清 0），不经任何实现
+  sequence:
+  - '0x26041000'
+  - '0x26101010'
+  - '0x44384042'
+  - '0x40F85101'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: S1D1'
+  status: active
+
+- class: semantic
+  encoding:
+    word: '0x44384042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x0000000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: foroot_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x0000000000000000'
+    - address: '@ENTRY+0x100010'
+      value: '0xDEADBEEFDEADBEEF'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: foroot
+  notes: foroot rf4, rf1, 2：源 +0（rf1=0）⇒ +0、无标志（对照组）；目的 rf4 预置 0xDEADBEEF_DEADBEEF，rd5=0；SimRISC-07 §2.2 + IEEE 754-2019 §9.2.1；手写推导（+0 的根按定义即 +0）
+  sequence:
+  - '0x26041000'
+  - '0x26101010'
+  - '0x44384042'
+  - '0x40F85101'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: S1D1'
+  status: active
+
+- class: semantic
+  encoding:
     word: '0x44184042'
   expected_fault: null
   expected_pc: null
@@ -489,6 +552,66 @@
   sequence:
   - '0x26041000'
   - '0x26081008'
+  - '0x44184042'
+  - '0x40F85101'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: S1D1'
+  status: active
+
+- class: semantic
+  encoding:
+    word: '0x44184042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0xAAAAAAAA00000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftroot_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xAAAAAAAA80000000'
+    - address: '@ENTRY+0x100010'
+      value: '0xAAAAAAAA7FC00000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftroot
+  notes: ftroot rf4, rf1, 2：源低 32 位 0x80000000（−0，ft 只读低 32 位，高 32 位为装载填充 0xAAAAAAAA）⇒ +0；目的 rf4 先经 ld.o 预置高 32 位 0xAAAAAAAA ⇒ rd5 高 32 位保持、低 32 位清 0（SimRISC-07 §1.3 单精结果只写低 32 位 + §2.2 rootn(±0,2)=+0 + IEEE 754-2019 §9.2.1）；手写推导，不经任何实现
+  sequence:
+  - '0x26041000'
+  - '0x26101010'
+  - '0x44184042'
+  - '0x40F85101'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: S1D1'
+  status: active
+
+- class: semantic
+  encoding:
+    word: '0x44184042'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x5555555500000000'
+      rd6: '0x7FF800007FC00000'
+  format: orri
+  id: ftroot_orri_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x5555555500000000'
+    - address: '@ENTRY+0x100010'
+      value: '0x555555557FC00000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+  mnemonic: ftroot
+  notes: ftroot rf4, rf1, 2：源低 32 位 0x00000000（+0）⇒ +0、无标志（对照组）；目的 rf4 预置高 32 位 0x55555555 ⇒ rd5 高 32 位保持；SimRISC-07 §1.3 单精写入宽度 + §2.2 + IEEE 754-2019 §9.2.1；手写推导
+  sequence:
+  - '0x26041000'
+  - '0x26101010'
   - '0x44184042'
   - '0x40F85101'
   - '0x40F86001'
@@ -682,6 +805,7 @@
   expected_pc: null
   expected_state:
     rd:
+      rd5: '0x7FF8000000000000'
       rd6: '0x7FF800007FC00001'
   format: orrr
   id: forem_orrr_rf
@@ -694,7 +818,7 @@
     rb:
       rb1: '@ENTRY+0x100000'
   mnemonic: forem
-  notes: forem sNaN rem 2.0 ⇒ qNaN + NV（任一源为 sNaN）；§2.1 未定 payload ⇒ 只钉 NV（rd6），canonical 值由 sweep 的 `divrem_snan_*` 组承担（该组只与本核/模型比对，不对 QEMU）
+  notes: forem sNaN rem 2.0 ⇒ canonical qNaN 0x7FF8_0000_0000_0000 + NV（任一源为 sNaN）；SimRISC-07 §1.4（结果 NaN 一律 canonical）+ §2.1 表「sNaN ⇒ 置 NV、qNaN」+ IEEE 754-2019 §7.2 a)；手写推导（canonical 常量，非取自实现）
   sequence:
   - '0x26041000'
   - '0x26081008'
@@ -711,7 +835,7 @@
   expected_pc: null
   expected_state:
     rd:
-      rd5: '0x7FF8000000000123'
+      rd5: '0x7FF8000000000000'
       rd6: '0x7FF800007FC00000'
   format: orrr
   id: forem_orrr_rf
@@ -724,7 +848,7 @@
     rb:
       rb1: '@ENTRY+0x100000'
   mnemonic: forem
-  notes: forem qNaN rem 2.0 ⇒ qNaN（payload 传播，无标志）
+  notes: forem qNaN（带 payload 0x123）rem 2.0 ⇒ canonical qNaN 0x7FF8_0000_0000_0000、无标志（不传播 payload）；SimRISC-07 §1.4「凡结果应为 quiet NaN … 一律返回 canonical quiet NaN」+ IEEE 754-2019 §6.2.3（payload 传播仅 *should*）/§6.3（符号不规定）；手写推导（canonical 常量），旧口径「payload 传播」已退役
   sequence:
   - '0x26041000'
   - '0x26081008'

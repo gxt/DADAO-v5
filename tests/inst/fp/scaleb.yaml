@@ -379,3 +379,69 @@
   - '0x40F86001'
   spec_cite: 'SimRISC-07: fosclb'
   status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44544043'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x000000007FC00000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: ftsclb_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0x000000007FC12345'
+    - address: '@ENTRY+0x100008'
+      value: '0x0000000041200000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+    rd:
+      rd3: '0x0000000000000003'
+  mnemonic: ftsclb
+  notes: 'ftsclb rf4, rf1, rd3：rf1 低 32 位 = 带 payload qNaN 0x7FC1_2345、指数 3 ⇒ 结果低 32 位 canonical qNaN 0x7FC0_0000（高 32 位保持 rf4 复位值 0）、无标志；rf3=10.0f 诱饵；SimRISC-07 §1.4（scaleB 结果 NaN ⇒ canonical）+ IEEE 754-2019 §6.2.3/§6.3；手写推导（canonical 常量），不经任何实现'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44544043'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: ftsclb'
+  status: active
+- class: semantic
+  deferred_reason: null
+  encoding:
+    word: '0x44744043'
+  expected_fault: null
+  expected_pc: null
+  expected_state:
+    rd:
+      rd5: '0x7FF8000000000000'
+      rd6: '0x7FF800007FC00000'
+  format: orrr
+  id: fosclb_orrr_rf
+  input_state:
+    memory:
+    - address: '@ENTRY+0x100000'
+      value: '0xFFF8000000000123'
+    - address: '@ENTRY+0x100008'
+      value: '0x4024000000000000'
+    rb:
+      rb1: '@ENTRY+0x100000'
+    rd:
+      rd3: '0x0000000000000003'
+  mnemonic: fosclb
+  notes: 'fosclb rf4, rf1, rd3：rf1 = 负号带 payload qNaN 0xFFF8_0000_0000_0123、指数 3 ⇒ canonical qNaN 0x7FF8_0000_0000_0000（符号位清 0、payload 清 0）、无标志；rf3=10.0 诱饵；SimRISC-07 §1.4 + IEEE 754-2019 §6.2.3/§6.3；手写推导（canonical 常量），不经任何实现'
+  sequence:
+  - '0x26041000'
+  - '0x260C1008'
+  - '0x44744043'
+  - '0x27101010'
+  - '0x20141010'
+  - '0x40F86001'
+  spec_cite: 'SimRISC-07: fosclb'
+  status: active
