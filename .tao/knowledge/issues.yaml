@@ -585,3 +585,17 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`run_asm_suite.py` 默认共享 work-dir（`harness/inst-asm`）在**两批 suite 并发**时会互相覆盖产物，产生**假红**（`m13-testcases-021` 首轮 20 个故障例读回 rc=点号，同参空闲重跑 38/38 全绿、独立 work-dir 三轮全绿；sim/bootrom md5 未变 ⇒ 非 `ISS-429`）。建议：按 `<task-id>`/pid 派生 work-dir，或加文件锁；至少在启动时检测 work-dir 已被占用则报错退出。"
+- id: ISS-432
+  scope:
+  - qemu
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`fence` 的保留 cfx 集三平台不一致：`spec/SimRISC-11` 定义保留集 `6–14, 16–31, 35–61`（`hb≠0` ⇒ ILLI），实测 **QEMU 的保留集是 `6–14, 19–61`** ⇒ cfx16/17/18 QEMU 放行、cfx32/33/34 QEMU 报异常（chipyard/gem5 与 spec 一致）。由 `m13-testcases-027` 的 `probe_gap.py` 钉住。"
+- id: ISS-433
+  scope:
+  - chipyard
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`trap cfx_power` 三平台不一致：QEMU/gem5 进 power 向量、**chipyard 报 ILLI**。`m13-testcases-027` 实测；属 chipyard RTL 与 spec/另两平台的语义分歧，需定位是 RTL 缺实现还是 spec 未明。"
