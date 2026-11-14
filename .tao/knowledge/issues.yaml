@@ -509,9 +509,9 @@
   - gem5
   - spec
   - testcases
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M13
+  resolved_by: m13-spec-008（spec 措辞）+ m13-qemu-010 + m13-gem5-012 + m13-testcases-033（跨平台用例）
   title: 【P2】`ext.uo/ext.so` 的 orrr 形式：**`rdHD` 值应截低 6 位作为起始位 `hd` 后继续执行**（用户 2026-11-13 裁定）；chipyard 已如此实现（rc=2 正常执行），**QEMU/gem5 反而判 ILLI（rc=248）⇒ 二者为缺陷**。同时 `spec/SimRISC-04` 现写「hd 须 ≤ N（octa=63），否则 ILLI」与该裁定冲突，需改措辞。`m13-testcases-017` 因此未收录该故障例（不能再按 ILLI 收）。修完后补「rdHD=64 ⇒ 等价 hd=0」的跨平台用例。
 - id: ISS-423
   scope:
