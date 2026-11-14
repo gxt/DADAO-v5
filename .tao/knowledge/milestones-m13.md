@@ -25,6 +25,8 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m13-chipyard-001 | 3–5 h | 单精写入宽度：`ld.t`/`ldm.t` 不扩展 + ft 结果只写低 32 位（RTL） |
+| m13-qemu-013 | 2–3 h | 单精写入宽度：`ld.t`/`ldm.t` 不扩展 + ft 结果只写低 32 位（QEMU） |
 | m13-gem5-013 | 2–3 h | gem5 `ld.t rf0` 经 FCSR 写掩码（只读位不覆盖） |
 | m13-qemu-011 | 2–3 h | `-bios` 收紧为固定固件，删 legacy trampoline 窗口 |
 | m13-testcases-034 | 2–3 h | Tiny `expected_fault` oracle 迁到 hmon 分派口径 |
