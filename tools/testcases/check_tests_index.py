@@ -22,6 +22,14 @@
      该 scope 索引里同后缀的 `file:` 集合**完全相等**（`CARRIER_SUFFIXES`，目前
      `inst` 的 `.S`）。缺 = 载体未入索引（门控看不见、删索引无哨兵）；多 = 索引
      指向非载体/幽灵条目。两侧都逐条报出。
+ 10. **每 id 用例数 ≤ 127**（M13-TESTCASES-042；用户 2026-11-14 裁定「每条指令的
+     测试用例不要超过 127 个，换言之一个汇编文件」）：按 id 汇总**全部载体**的用例数
+     （`tests/inst/**/*.yaml` 条目 + `tests/inst/**/*.S` 检查点，后者复用 L2
+     `run_asm_suite.scan_source` 同一真源）。超限报 `id / 实际 / 上限` 并 FAIL；
+     计数现场统计、不写死。放在本门控（而非 `check-case-ledger`）的理由：
+     `check-case-ledger` 的实现位于 `tools/infra/`，而本任务的可改范围是
+     `tools/testcases/**`；本门控本就是「`tests/` 组织的机械断言」入口，且已
+     YAML-aware（`_YAML_LOADER`）并有「基线 + 注入可达 FAIL」自检骨架。
 
 用法：
   python3 tools/testcases/check_tests_index.py               # 门控（默认）
@@ -62,6 +70,11 @@ ID_RE = re.compile(r"^(?P<scope>[a-z]+)-(?P<name>[a-z0-9]+(?:-[a-z0-9]+)*)-(?P<n
 # ---------------------------------------------------------------------------
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
 import machine_profile  # noqa: E402
+
+# `.S` 载体检查点计数复用 L2 `check-inst-asm` / `validate_vectors` 的同一真源
+# （`scan_source`），避免门控与执行侧各认一套语法（M13-TESTCASES-042）。
+sys.path.insert(0, str(Path(__file__).resolve().parent / "inst"))
+import run_asm_suite  # noqa: E402
 
 SCAN_ROOTS = ("tests", "tools/testcases")
 TEXT_SUFFIXES = (
@@ -307,6 +320,77 @@ def check_profile_lds(root: Path):
 CARRIER_SUFFIXES = {"inst": (".S",)}
 
 
+# ---------------------------------------------------------------------------
+# 每 id 用例数上限（M13-TESTCASES-042；用户 2026-11-14 裁定）
+# ---------------------------------------------------------------------------
+# 规则原文：「无特殊情况下，每条指令的测试用例不要超过127个，换言之，一个汇编文件」。
+# 计数 = 该 id 在**全部载体**上的用例数：YAML 用例条目 + `.S` 载体检查点（链例 +
+# 故障例）。`.S` 一侧复用 `inst/run_asm_suite.scan_source`（与 L2 `check-inst-asm`
+# 和 `validate_vectors` 同一真源），不另写一套语法。
+# 上限 127 是**规则**本身（不是基线计数），故为常量；其余计数一律现场派生。
+CASE_LIMIT = 127
+
+
+def _yaml_case_counts(root: Path) -> dict[str, dict[str, int]]:
+    """`tests/inst/**/*.yaml` 里每个 id 的用例条数（按文件现场统计）。"""
+    per_id: dict[str, dict[str, int]] = {}
+    for path in sorted((root / TESTS_REL / "inst").rglob("*.yaml")):
+        if not path.is_file():
+            continue
+        try:
+            data = yaml.load(path.read_text(encoding="utf-8"), Loader=_YAML_LOADER)
+        except (OSError, yaml.YAMLError):
+            continue  # 损坏/非用例文件由 validate-vectors / case-ledger 报
+        if not isinstance(data, list):
+            continue
+        rel = path.relative_to(root).as_posix()
+        for case in data:
+            if not isinstance(case, dict):
+                continue
+            cid = case.get("id")
+            if isinstance(cid, str) and cid:
+                per_id.setdefault(cid, {})
+                per_id[cid][rel] = per_id[cid].get(rel, 0) + 1
+    return per_id
+
+
+def _asm_case_counts(root: Path) -> dict[str, dict[str, int]]:
+    """`inst` `.S` 载体的检查点数（链例 `checks` + 故障例），按 id（= 文件 stem）。"""
+    per_id: dict[str, dict[str, int]] = {}
+    for rel in sorted(_carrier_files(root, "inst")):
+        path = root / TESTS_REL / rel
+        try:
+            info = run_asm_suite.scan_source(path)
+        except (OSError, UnicodeDecodeError):
+            continue
+        n = info["checks"] + len(info["faults"])
+        if n:
+            per_id.setdefault(path.stem, {})[rel] = n
+    return per_id
+
+
+def check_case_limit(root: Path) -> list[str]:
+    """每 id 用例数 ≤ `CASE_LIMIT`；超限逐条报 `id / 实际 / 上限`。"""
+    errors: list[str] = []
+    per_id = _yaml_case_counts(root)
+    for cid, srcs in _asm_case_counts(root).items():
+        bucket = per_id.setdefault(cid, {})
+        for rel, n in srcs.items():
+            bucket[rel] = bucket.get(rel, 0) + n
+    if not per_id:
+        return errors
+    worst = max(per_id.items(), key=lambda kv: sum(kv[1].values()))
+    for cid in sorted(per_id):
+        total = sum(per_id[cid].values())
+        if total > CASE_LIMIT:
+            detail = ", ".join("%s=%d" % kv for kv in sorted(per_id[cid].items()))
+            errors.append("CASE LIMIT: id=%s 用例 %d > 上限 %d（%s）"
+                          % (cid, total, CASE_LIMIT, detail))
+    print(f"  每 id 用例上限（≤{CASE_LIMIT}）: {len(per_id)} 个 id，最大 "
+          f"{worst[0]}={sum(worst[1].values())}（现场统计）")
+    return errors
+
+
 def _carrier_files(root: Path, scope: str) -> set[str]:
     """现场派生 `<scope>` 下的载体文件（相对 `tests/` 的 posix 路径）。"""
     tests_root = root / TESTS_REL
@@ -517,6 +601,7 @@ def audit(root: Path) -> int:
         f"{s}={counts.get(s, 0)}" for s in SCOPES) + f" / total={total}")
 
     errors.extend(check_carrier_bijection(root, indexed_files))
+    errors.extend(check_case_limit(root))
 
     geo_errors = check_profile_lds(root)
     errors.extend(geo_errors)
@@ -802,6 +887,56 @@ def self_test() -> int:
         ok = ok and good_inc
         print(f"  [{'PASS' if good_inc else 'FAIL'}] self-test case{case_no} "
               f"注入⑯ asm header 篡改: rc={rc} marker={'ASM HEADER DRIFT' in out}")
+
+        # 每 id 用例上限（M13-TESTCASES-042）：127 PASS / 128 FAIL，两条都跑
+        def limit_tree(work: Path, yaml_n: int, asm_n: int = 0) -> None:
+            indexes = dict(_empty_indexes())
+            if asm_n:
+                indexes["inst"] = VALID_ASM_ENTRY.replace(
+                    "inst/01-load-store/add.S",
+                    "inst/01-load-store/zz_asmlimit.S")
+            _write_tree(work, indexes)
+            if yaml_n:
+                body = "".join("- id: ctpop_orri_rd\n  class: semantic\n  n: %d\n" % i
+                               for i in range(yaml_n))
+                (work / TESTS_REL / "inst" / "bitcnt").mkdir(parents=True,
+                                                             exist_ok=True)
+                (work / TESTS_REL / "inst" / "bitcnt" / "bitcnt.yaml").write_text(
+                    body, encoding="utf-8")
+            if asm_n:
+                pts = "".join("\t__CHECK_RD\t%d, 1\n" % (i + 1)
+                              for i in range(asm_n))
+                (work / TESTS_REL / "inst" / "01-load-store").mkdir(
+                    parents=True, exist_ok=True)
+                (work / TESTS_REL / "inst" / "01-load-store" / "zz_asmlimit.S"
+                 ).write_text(pts, encoding="utf-8")
+
+        case_no += 1
+        work = tmpdir / f"case{case_no}"
+        limit_tree(work, 127)
+        rc, out = _run(work)
+        ok127 = rc == 0 and "每 id 用例上限" in out
+        ok = ok and ok127
+        print(f"  [{'PASS' if ok127 else 'FAIL'}] self-test case{case_no} "
+              f"用例上限 127（YAML）: rc={rc}")
+
+        case_no += 1
+        work = tmpdir / f"case{case_no}"
+        limit_tree(work, 128)
+        rc, out = _run(work)
+        ok128 = rc == 1 and "CASE LIMIT: id=ctpop_orri_rd 用例 128 > 上限 127" in out
+        ok = ok and ok128
+        print(f"  [{'PASS' if ok128 else 'FAIL'}] self-test case{case_no} "
+              f"注入⑰ 用例上限 128（YAML）: rc={rc} marker={ok128}")
+
+        case_no += 1
+        work = tmpdir / f"case{case_no}"
+        limit_tree(work, 0, 128)
+        rc, out = _run(work)
+        ok_asm = rc == 1 and "CASE LIMIT: id=zz_asmlimit 用例 128 > 上限 127" in out
+        ok = ok and ok_asm
+        print(f"  [{'PASS' if ok_asm else 'FAIL'}] self-test case{case_no} "
+              f"注入⑱ 用例上限 128（.S 检查点）: rc={rc} marker={ok_asm}")
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 

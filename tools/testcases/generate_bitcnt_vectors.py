@@ -46,16 +46,30 @@ LLVM / QEMU 或读取其产物，方向为「契约/规范 → 期望」。
   1. 已入库 `tests/inst/bitcnt/bitcnt.yaml` 与真源重派生结果**逐字节一致**；
   2. 每条 case 的 `encoding.word` 满足真源 `(word & mask) == value`（`contracts/opcodes.yaml`）；
   3. 每个 `semantic`/`boundary` case 的 `expected_state` 由 oracle **全量重算**后一致（非抽样）；
-  4. **`hd ∈ 0..63` 全部合法**：每个 `hd` 取值都至少有一个 `expected_fault is None` 的
-     semantic/boundary case（无任何 `hd` 触发 ILLI）；
+  4. **`hd` 取值合法**：所有 semantic/boundary case 的 `hd` ∈ `0..63` 且
+     `expected_fault is None`（无任何 `hd` 触发 ILLI）；用到的 `hd` 集合恰好等于
+     抽样集 `HD_SAMPLE`（特定值 + 随机非特殊值，见下）；
   5. `legality` case 的 ILLI 依据只能是 `rdhb == rd0`（`dst_rd0`）——`rdhc`/`hd` 均不产生 ILLI；
   6. **大端**：每个 case 的编码字按大端字节序可往返，且 `op` 字节在最前；
-  7. 覆盖 **全量**：3 条 × `hd` ∈ `0..63`（不抽样）；计数**现场统计**（不写死）。
+  7. 覆盖 = **字段域抽样**（用户 2026-11-14 裁定）：3 条 × `HD_SAMPLE` 的 semantic；
+     计数**现场统计**（不写死）。
+
+字段域口径（用户 2026-11-14 裁定）
+------------------------------------
+指令测试**不是全量测试**：「只选择 8/16/32/64 等特定字段，然后随机选 3–5 个非特定字段；
+每条指令的测试用例不要超过 127 个，换言之一个汇编文件；而且应该先保证边界和异常情况」。
+
+故 `hd` 取值集 = 特定值 `HD_SPECIAL`（`0/1/7/8/15/16/31/32/63`：8/16/32/64 位边界及
+其相邻值 + 全 0/全 1）+ **5 个随机非特殊值**（`random.Random(HD_RANDOM_SEED)`，
+种子固定 `20261114`）。每个抽样 `hd` 配四类极值（全 0 / 全 1 / 单 bit 最高 /
+单 bit 最低；`hd=0` 时后三者同值 ⇒ 只留一条，不制造重复用例）。上限 127 由 L1 门控
+`check-tests-index`（`tools/testcases/check_tests_index.py`）机械断言。
 """
 
 from __future__ import annotations
 
 import argparse
+import random
 import sys
 from pathlib import Path
 
@@ -78,7 +92,25 @@ LEGALITY_CITE = ("SimRISC-12: 位扫描与位计数; "
 # 语义输入：低 63 位全 1、bit63 = 0 —— 使「hd 以上的位不参与」可观测
 SRC_PATTERN = 0x7FFFFFFFFFFFFFFF
 
-HD_ALL = tuple(range(64))
+# ── 字段域抽样（用户 2026-11-14 裁定；不是全量扫描）────────────────────────────
+# 特定值：8/16/32/64 位宽边界 `hd = 7/15/31/63`、其相邻值 `8/16/32`，以及 `0/1`。
+HD_SPECIAL = (0, 1, 7, 8, 15, 16, 31, 32, 63)
+# 随机非特殊值：固定种子（可复现；命令即本函数），取 5 个（规则上限 5）。
+HD_RANDOM_SEED = 20261114
+HD_RANDOM_COUNT = 5
+# `hd` 的合法全域（仅用于 oracle 自检/合法性断言，**不**用来生成用例）。
+HD_DOMAIN = tuple(range(64))
+
+
+def hd_random_sample() -> tuple[int, ...]:
+    """`HD_DOMAIN` 去掉 `HD_SPECIAL` 后按固定种子抽 `HD_RANDOM_COUNT` 个（升序）。"""
+    candidates = [h for h in HD_DOMAIN if h not in HD_SPECIAL]
+    return tuple(sorted(random.Random(HD_RANDOM_SEED).sample(
+        candidates, HD_RANDOM_COUNT)))
+
+
+HD_RANDOM_SAMPLE = hd_random_sample()
+HD_SAMPLE = tuple(sorted(set(HD_SPECIAL) | set(HD_RANDOM_SAMPLE)))
 
 
 # ────────────────────────────── 独立 oracle（路径 1：逐位） ──────────────────────────────
@@ -202,8 +234,28 @@ def _state(rdhb: int, value: int) -> dict:
     return {"rd": {"rd%d" % rdhb: _hex64(value)}, "rb": {}, "ra": {}, "memory": []}
 
 
+def _hd_tag() -> str:
+    """每条抽样用例的 notes 后缀：写明种子与抽中的 5 个值（规则要求可复现）。"""
+    return ("（hd 字段域抽样：特定值 %s + 随机非特殊值 %s，seed=%d）"
+            % ("/".join(str(h) for h in HD_SPECIAL),
+               "/".join(str(h) for h in HD_RANDOM_SAMPLE),
+               HD_RANDOM_SEED))
+
+
+# 边界极值源：`label` 进 notes，`pattern(hd)` 给出 64 位输入（有效位内）。
+BOUNDARY_PATTERNS = (
+    ("定值/全 0（有效位全 0 ⇒ ctlz/cttz=hd+1、ctpop=0）", lambda hd: 0),
+    ("全 1（有效位全 1 ⇒ ctlz=cttz=0、ctpop=hd+1）",
+     lambda hd: (1 << (hd + 1)) - 1),
+    ("单 bit 最高位（仅 bit hd=1 ⇒ ctlz=0、cttz=hd、ctpop=1）",
+     lambda hd: 1 << hd),
+    ("单 bit 最低位（仅 bit0=1 ⇒ ctlz=hd、cttz=0、ctpop=1）", lambda hd: 1),
+)
+
+
 def build_cases(by_id: dict[str, dict]) -> list[dict]:
     cases: list[dict] = []
+    tag = _hd_tag()
 
     for rid in BITCNT_INSNS:
         rec = by_id[rid]
@@ -216,60 +268,41 @@ def build_cases(by_id: dict[str, dict]) -> list[dict]:
             "encoding: word 与 opcodes.yaml mask/value 一致；rdhb=rd1（非 rd0）、"
             "rdhc=rd2、hd=63（合法：hd ∈ 0..63 全部合法）"))
 
-        # ── semantic：每条指令 × 每个 hd ∈ 0..63（全量，不抽样）──
-        for hd in HD_ALL:
+        # ── semantic：每条指令 × 抽样 hd（特定值 + 随机值，**非**全量）──
+        for hd in HD_SAMPLE:
             exp = oracle(SRC_PATTERN, hd, op)
             cases.append(_case(
                 rec, "semantic", word(rec, 1, 2, hd),
                 {"rd": {"rd2": _hex64(SRC_PATTERN)}},
                 _state(1, exp), None,
-                "%s: hd=%d（有效位 [%d:0]，宽 %d），rd2=%s → rd1=%d"
-                % (mnem, hd, hd, hd + 1, _hex64(SRC_PATTERN), exp)))
+                "%s: hd=%d（有效位 [%d:0]，宽 %d），rd2=%s（hd 以上的位不参与）"
+                "→ rd1=%d%s"
+                % (mnem, hd, hd, hd + 1, _hex64(SRC_PATTERN), exp, tag)))
 
-        # ── boundary：定值（有效位全 0）—— hd 全量，含 hd=63 ⇒ 64 ──
-        for hd in HD_ALL:
-            exp = oracle(0, hd, op)
-            cases.append(_case(
-                rec, "boundary", word(rec, 1, 2, hd),
-                {"rd": {"rd2": "0x0000000000000000"}},
-                _state(1, exp), None,
-                "定值 %s hd=%d：rdHC[%d:0] 全 0 ⇒ 结果 %d（ctlz/cttz = hd+1，ctpop = 0）"
-                % (mnem, hd, hd, exp)))
+        # ── boundary：每个抽样 hd 的极值（全 0 / 全 1 / 单 bit 最高 / 单 bit 最低）──
+        # `hd=0` 时后三者的输入同为 1 ⇒ 用 (hd, 源值) 去重，不制造重复用例。
+        seen: set[tuple[int, int]] = set()
+        for label, pattern in BOUNDARY_PATTERNS:
+            for hd in HD_SAMPLE:
+                src = pattern(hd)
+                if (hd, src) in seen:
+                    continue
+                seen.add((hd, src))
+                cases.append(_case(
+                    rec, "boundary", word(rec, 1, 2, hd),
+                    {"rd": {"rd2": _hex64(src)}},
+                    _state(1, oracle(src, hd, op)), None,
+                    "边界 %s %s hd=%d（宽 %d），rd2=%s ⇒ 结果 %d%s"
+                    % (mnem, label, hd, hd + 1, _hex64(src),
+                       oracle(src, hd, op), tag)))
 
         # ── boundary：hd 以上的位不参与（掩码可观测）──
         cases.append(_case(
             rec, "boundary", word(rec, 1, 2, 7),
             {"rd": {"rd2": _hex64(0xFFFFFFFFFFFFFFFF)}},
             _state(1, oracle(0xFF, 7, op)), None,
-            "掩码 %s hd=7：源 bit63..8 全 1 但有效位 rdHC[7:0]=0xFF ⇒ 与 hd 以上无关"))
-
-        # ── boundary：hd=0（有效宽度 1）两个取值 ──
-        for bit0 in (0, 1):
-            cases.append(_case(
-                rec, "boundary", word(rec, 1, 2, 0),
-                {"rd": {"rd2": _hex64(bit0)}},
-                _state(1, oracle(bit0, 0, op)), None,
-                "边界 %s hd=0（宽 1）：rdHC[0]=%d ⇒ 结果 %d"
-                % (mnem, bit0, oracle(bit0, 0, op))))
-
-        # ── boundary：hd=63 全 1 ──
-        cases.append(_case(
-            rec, "boundary", word(rec, 1, 2, 63),
-            {"rd": {"rd2": _hex64(MASK64)}},
-            _state(1, oracle(MASK64, 63, op)), None,
-            "边界 %s hd=63：源全 1 ⇒ ctlz=cttz=0、ctpop=64"))
-
-        # ── boundary：单 bit 位置（位编号约定；大端下 bit0 = LSB）──
-        cases.append(_case(
-            rec, "boundary", word(rec, 1, 2, 63),
-            {"rd": {"rd2": "0x0000000000000001"}},
-            _state(1, oracle(1, 63, op)), None,
-            "位编号 %s hd=63：仅 bit0=1 ⇒ ctlz 数到 63、cttz=0、ctpop=1"))
-        cases.append(_case(
-            rec, "boundary", word(rec, 1, 2, 63),
-            {"rd": {"rd2": "0x8000000000000000"}},
-            _state(1, oracle(1 << 63, 63, op)), None,
-            "位编号 %s hd=63：仅 bit63=1 ⇒ ctlz=0、cttz=63、ctpop=1"))
+            "掩码 %s hd=7：源 bit63..8 全 1 但有效位 rdHC[7:0]=0xFF ⇒ 与 hd 以上无关"
+            % mnem))
 
         # ── boundary：rdHC = rd0（源读出 0，合法；不得触发 ILLI）──
         cases.append(_case(
@@ -301,12 +334,21 @@ def load_opcodes() -> dict[str, dict]:
     return {r["id"]: r for r in recs}
 
 
+_HD_SPECIAL_TXT = "/".join(str(h) for h in HD_SPECIAL)
+_HD_RANDOM_TXT = "/".join(str(h) for h in HD_RANDOM_SAMPLE)
+
 HEADER = (
     "# Generated by tools/testcases/generate_bitcnt_vectors.py — DO NOT EDIT\n"
     "# scope: m8（非 M1）——ctlz/cttz/ctpop（位扫描/位计数）向量\n"
     "# 独立 oracle：Python 大整数独立派生（三条独立路径）；不从 LLVM/QEMU 反推\n"
     "# 端序：大端（op 字节在最前）\n"
     "# 真源：contracts/opcodes.yaml + .tao/contracts/contract-isa.md §6.4.4\n"
+    f"# 字段域抽样（用户 2026-11-14 裁定，非全量扫描）：hd = 特定值 {_HD_SPECIAL_TXT}"
+    "（8/16/32/64 位边界及其相邻值、全 0/全 1）+ 5 个随机非特殊值 "
+    f"{_HD_RANDOM_TXT}\n"
+    f"# 随机抽取：random.Random(seed={HD_RANDOM_SEED}).sample(0..63 去掉特定值, 5)，"
+    "固定种子可复现\n"
+    "# 每 id 用例数 ≤ 127（一个汇编文件）；门控：make check-tests-index\n"
     "# 重跑校验：python3 tools/testcases/generate_bitcnt_vectors.py --check\n\n"
 )
 
@@ -345,12 +387,14 @@ def verify_semantics(cases: list[dict], errors: list[str]) -> int:
     return n
 
 
-def verify_all_hd_legal(cases: list[dict], errors: list[str]) -> tuple[int, int]:
-    """`hd ∈ 0..63` 全部合法：每个 hd 都须有 fault=None 的 semantic/boundary case。
+def verify_hd_sample(cases: list[dict], errors: list[str]) -> tuple[int, int]:
+    """`hd` 合法 + 抽样集正确（**不是**全量覆盖）。
 
-    返回 (已覆盖的 hd 数, 期望数 64)。**无任何 hd 触发 ILLI**。
+    * 所有 semantic/boundary case 的 `hd` ∈ `0..63` 且 `expected_fault is None`；
+    * 用到的 `hd` 集合**恰好**等于 `HD_SAMPLE`（少 = 抽样集漂移，多 = 又回到全量）；
+    * 每条指令的 `hd` 集合相同（三条指令同一字段域）。
     """
-    seen = set()
+    seen: dict[str, set[int]] = {rid: set() for rid in BITCNT_INSNS}
     for c in cases:
         if c["class"] not in ("semantic", "boundary"):
             continue
@@ -359,11 +403,23 @@ def verify_all_hd_legal(cases: list[dict], errors: list[str]) -> tuple[int, int]
                           % (c["id"], c["expected_fault"]))
             continue
         _rdhb, _rdhc, hd = _fields_of(c)
-        seen.add(hd)
-    missing = [h for h in HD_ALL if h not in seen]
-    if missing:
-        errors.append("hd 全量覆盖缺口（非全合法）：缺 hd=%s" % missing[:10])
-    return len(seen), len(HD_ALL)
+        if hd not in HD_DOMAIN:
+            errors.append("case id=%s: hd=%d 越界（须 0..63）" % (c["id"], hd))
+            continue
+        seen.setdefault(c["id"], set()).add(hd)
+    want = set(HD_SAMPLE)
+    for rid in BITCNT_INSNS:
+        extra = sorted(seen.get(rid, set()) - want)
+        miss = sorted(want - seen.get(rid, set()))
+        if extra:
+            errors.append("%s: hd 集合多出抽样集外的值 %s（回到全量扫描?）"
+                          % (rid, extra))
+        if miss:
+            errors.append("%s: hd 抽样集缺口 %s" % (rid, miss))
+    used: set[int] = set()
+    for hds in seen.values():
+        used |= hds
+    return len(used), len(want)
 
 
 def verify_legality(cases: list[dict], errors: list[str]) -> int:
@@ -410,7 +466,7 @@ def verify_words(cases: list[dict], by_id: dict[str, dict], errors: list[str]) -
 
 
 def verify_coverage(cases: list[dict], errors: list[str]) -> tuple[int, int]:
-    """每条指令 × 每个 hd ∈ 0..63 至少一个 semantic case（计数现场统计）。"""
+    """每条指令 × 每个**抽样** hd 至少一个 semantic case（计数现场统计）。"""
     got: dict[tuple[str, int], int] = {}
     for c in cases:
         if c["class"] == "semantic":
@@ -418,7 +474,7 @@ def verify_coverage(cases: list[dict], errors: list[str]) -> tuple[int, int]:
             got[(c["id"], hd)] = got.get((c["id"], hd), 0) + 1
     want = 0
     for rid in BITCNT_INSNS:
-        for hd in HD_ALL:
+        for hd in HD_SAMPLE:
             want += 1
             if (rid, hd) not in got:
                 errors.append("覆盖缺口: %s 缺 hd=%d 的 semantic case" % (rid, hd))
@@ -449,7 +505,7 @@ def main() -> int:
         n = 0
         for rid in BITCNT_INSNS:
             op = by_id[rid]["mnemonic"]
-            for hd in HD_ALL:
+            for hd in HD_DOMAIN:
                 for src in (0, 1, 0xFF, 1 << 63, SRC_PATTERN, MASK64,
                             0x0123456789ABCDEF):
                     v = oracle(src, hd, op)          # 三条路径一致（内部断言）
@@ -473,7 +529,7 @@ def main() -> int:
     n_sem = verify_semantics(cases, errors)
     n_legal = verify_legality(cases, errors)
     n_enc = verify_words(cases, by_id, errors)
-    n_hd, want_hd = verify_all_hd_legal(cases, errors)
+    n_hd, want_hd = verify_hd_sample(cases, errors)
     n_cov, want_cov = verify_coverage(cases, errors)
     content = render(cases)
 
@@ -491,11 +547,14 @@ def main() -> int:
         print(f"generate_bitcnt_vectors: {len(cases)} cases"
               f"（semantic/boundary {n_sem}, legality {n_legal}）-> {out}")
 
+    per_id = {rid: sum(1 for c in cases if c["id"] == rid) for rid in BITCNT_INSNS}
     print("bitcnt 向量统计（现场统计）：cases=%d，encoding/other=%d，"
-          "semantic/boundary 重算=%d，legality 复核=%d，合法 hd 覆盖 %d/%d，"
-          "合法 (id,hd) 覆盖 %d/%d"
+          "semantic/boundary 重算=%d，legality 复核=%d，hd 抽样集 %d/%d，"
+          "抽样 (id,hd) 覆盖 %d/%d，每 id 用例数 %s（hd 抽样 seed=%d，随机 %s）"
           % (len(cases), n_enc - n_sem - n_legal, n_sem, n_legal,
-             n_hd, want_hd, n_cov, want_cov))
+             n_hd, want_hd, n_cov, want_cov,
+             "/".join("%s=%d" % (r, per_id[r]) for r in BITCNT_INSNS),
+             HD_RANDOM_SEED, "/".join(str(h) for h in HD_RANDOM_SAMPLE)))
     if errors:
         for e in errors:
             print(f"  FAIL: {e}", file=sys.stderr)
@@ -503,7 +562,7 @@ def main() -> int:
         return 1
     if args.check:
         print("generate_bitcnt_vectors --check: PASS（逐字节一致 + 全量 oracle 重算 + "
-              "hd 全合法 + 大端）")
+              "hd 抽样集 + 大端）")
     return 0
 
 
