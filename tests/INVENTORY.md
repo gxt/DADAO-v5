@@ -220,7 +220,7 @@
 
 - **指令身份覆盖**：`contracts/opcodes.yaml` 共 **264** 身份；向量覆盖 **193**（`m1` 152/156、`m9` 34/34、`m8` 7/7）。未覆盖：`fp` 66、`m1` cfx 4（`cfx2rc`/`cfx2rd`/`escape`/`trap`，`deferred TESTCASES-033t`）、`m3` 1（`sub.o_orrr_dbb`，由 CodeGen lit 覆盖）。`excluded` 现 0 条（`cfxld`/`cfxst` 已删除）。
 - **cfx**：`inventory.md:172-175` 明示 4 个 cfx 身份 deferred；`misc.yaml` 仅 2 例。
-- **fp**：66 个 `fp` 身份**无向量**，语义由 lit CodeGen + `check-{fma,minmax,rnd,clmul}-probe`（L3）承担 ⇒ 覆盖信息分散在 3 处（`inventory.md`、`llvm-isa-backend-matrix.tsv`、各 probe 日志），**无单一覆盖矩阵**（用户痛点的直接原因）。
+- **fp**：`fp` 身份已有 `.S` 向量（`tests/inst/07-floating-point/`，`check-inst-asm` 执行）；`fma/minmax/roundint` 三探针已于 `m13-testcases-044` 退役（缺口 34 点已补进 `.S`，`clmul` 探针保留）。覆盖信息仍分散在 `inventory.md`、`llvm-isa-backend-matrix.tsv`、`.S` 载体三处。
 - **lit pattern 覆盖**：`case-ledger.tsv` 守护 500 条 `@@ OBJ:` pattern。
 - **门控载体**：`check-qemu-semantics` 20 册（`isa` 16 + `rol` + `atomics` ×2 + `clmul`），`rev`/`bitcnt` 未纳入。
 

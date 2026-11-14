@@ -52,7 +52,7 @@
 | `inst/<册>/*.S` | I | 指令执行向量（**唯一**载体模型；一行一用例、期望内联；原 YAML 载体已全退役） | `make check-inst-asm`（**L2**，`.S` 全量、单平台 QEMU） |
 | `inst/00-isa-design/undi_reserved.S` | I | 保留编码（QFC 空白格）⇒ UNDI；**非 id 载体**（逐文件登记） | 同上（`check-inst-asm` 执行；`validate-vectors`/`check-tests-index` 显式登记） |
 | `inst/{inventory.md,schema.md,README.md}` | — | 覆盖矩阵（M1 156 行）、inst scope 说明、迁移台账（`schema.md` 的 YAML 字段规范为**历史**） | `make validate-vectors`（L1） |
-| `inst/{atomics,clmul,fma,minmax,roundint}/*.[ch]|*.ll` | I | 指令语义探针源（C/IR；原 `tests/<ext>/`） | `make check-{rnd,minmax,fma,clmul}-probe`（**L3**；atomics 手工） |
+| `inst/{atomics,clmul}/*.[ch]|*.ll` | I | 指令语义探针源（C/IR；原 `tests/<ext>/`）。`fma/minmax/roundint` 三探针已于 `m13-testcases-044` 退役（能力由 lit/e2e + picolibc 承担，缺口已补进 `.S`） | `make check-clmul-probe`（**L3**；atomics 手工） |
 | `unit/llvm/lit/MC/{DADAO,DADAO-gen}/` | U | 汇编器编码 lit 用例（77 + 12；原 `llvm/lit/MC/`，旧路径为符号链接） | `make check-lit` / `make check-lit-full`；`check-unit` |
 | `unit/llvm/lit/CodeGen/DADAO/` | U | IR→汇编/MIR **结构**断言（63） | `make check-lit`；`check-unit` |
 | `unit/llvm/codegen/`（M3） | U | IR→运行（15 程序） | `make test-codegen`；`check-unit` |
