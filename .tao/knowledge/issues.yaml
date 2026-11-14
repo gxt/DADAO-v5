@@ -615,4 +615,4 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2】`sc` 保留（reservation）粒度三平台不一致：`spec/SimRISC-12 §1`/`ADR-0034 D6` 是**精确地址+宽度**（同字异址写入不应清标记），实测 **QEMU 按 8 B 整字判成功**（与 spec 相反）；**chipyard 按整字值比较**（同 hart 改同字另一字节即清标记，spec 未列该清除事件）；gem5 与 spec 一致（3 点全过）。`m13-testcases-028` 的 `probe_gran.S` 同 ELF 实测 `chipyard=2 / qemu=1 / gem5=0`。需裁定：改实现对齐 spec，或改 spec 允许字粒度/字值失效。"  - note: 2026-11-14 —— 三实现均已修：chipyard 本就合规、QEMU `m13-qemu-010`、gem5 `m13-gem5-012`；余 `m13-spec-008`（`SimRISC-04` 措辞）与 `m13-testcases-033`（跨平台用例）未完成，故本 issue 暂不关闭。
+  title: "【P2】`sc` 保留（reservation）粒度三平台不一致：`spec/SimRISC-12 §1`/`ADR-0034 D6` 是**精确地址+宽度**（同字异址写入不应清标记），实测 **QEMU 按 8 B 整字判成功**（与 spec 相反）；**chipyard 按整字值比较**（同 hart 改同字另一字节即清标记，spec 未列该清除事件）；gem5 与 spec 一致（3 点全过）。`m13-testcases-028` 的 `probe_gran.S` 同 ELF 实测 `chipyard=2 / qemu=1 / gem5=0`。需裁定：改实现对齐 spec，或改 spec 允许字粒度/字值失效。"
