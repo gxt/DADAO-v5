@@ -31,7 +31,7 @@ import subprocess
 import sys
 import time
 
-DEFAULT_HOSTS = ["ics150", "ics160", "ics170", "ics180", "server207", "server208"]
+DEFAULT_HOSTS = ["ics150", "ics160", "server207", "ics170", "ics180", "server208"]
 SSH = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4",
        "-o", "ServerAliveInterval=2", "-o", "ServerAliveCountMax=1"]
 
@@ -45,7 +45,7 @@ if [ -d "$repo" ]; then
   df -Pk "$repo" 2>/dev/null | awk 'NR==2{print "disk_used_kb=" $3; print "disk_total_kb=" $2}'
 fi
 echo "tests=$(pgrep -c -f 'harness-WumingTinyConfig|qemu-system-dadao|gem5\.opt' 2>/dev/null || echo 0)"
-ps -eo pcpu=,args= --sort=-pcpu 2>/dev/null | grep -v '[p]s -eo' | head -"$n" | while read -r cpu args; do
+ps -eo pcpu=,args= --sort=-pcpu 2>/dev/null | grep -vE '[p]s -eo|[p]grep -c|[d]f -Pk|[s]h -s --|[a]wk /|grep -oE' | head -"$n" | while read -r cpu args; do
   name=$(printf '%s' "$args" | awk '{print $1}' | sed 's#.*/##')
   detail=$(printf '%s' "$args" | grep -oE '\+loadmem=[^ ]+' | sed 's#.*/##' | head -1)
   [ -z "$detail" ] && detail=$(printf '%s' "$args" | grep -oE '/tmp/opencode/[a-z0-9-]+|\.dadao/tests/[a-z0-9-]+' | head -1 | sed 's#.*/##')
@@ -123,7 +123,7 @@ def fmt_kb(kb: float) -> str:
         return "-"
     for unit in ("K", "M", "G", "T"):
         if kb < 1024 or unit == "T":
-            return f"{kb:.0f}{unit}" if unit == "K" else f"{kb:.1f}{unit}"
+            return f"{kb:.0f}{unit}"
         kb /= 1024
     return f"{kb:.0f}T"
 
@@ -144,28 +144,28 @@ def short_name(name: str) -> str:
 
 
 def pane(s: Sample | None, host: str, w: int, nlines: int, now: float) -> list[str]:
-    """Header (2 lines) + nlines process lines, each padded to width w."""
+    """One header line (all gauges + ssh latency) then nlines process lines."""
     if s is None:
-        out = [fit(f"{host}  等待采样…", w)]
-        return out + [""] * (2 + nlines - len(out))
+        lines = [fit(f"{host}  等待采样…", w)]
+        return lines + [""] * nlines
     loadpct = (s.load1 / s.cores * 100) if s.cores else 0.0
     diskpct = (s.du / s.dt * 100) if s.dt else 0.0
     state = ""
     if s.err:
-        state = f"  ERR {s.err}({max(0, now - s.stamp):.0f}s前)"
+        state = f" ERR {s.err}({max(0, now - s.stamp):.0f}s前)"
     elif loadpct >= 100:
-        state = "  满载"
+        state = " 满载"
     elif diskpct >= 90:
-        state = "  磁盘!"
+        state = " 磁盘!"
     head = (f"{host} {s.cores}c L{s.load1:.1f}({loadpct:.0f}%) "
-            f"M{fmt_kb(s.mem_avail)} D{diskpct:.0f}% T{s.tests}{state}")
-    sub = f"  ssh {s.latency * 1000:.0f}ms"
-    lines = [fit(head, w), fit(sub, w)]
+            f"M{fmt_kb(s.mem_avail)} D{diskpct:.0f}% T{s.tests} "
+            f"ssh{s.latency:.2f}s{state}")
+    lines = [fit(head, w)]
     for cpu, name, detail in s.procs[:nlines]:
         lines.append(fit(f"{cpu:>5.0f}% {short_name(name)}{(' ' + detail) if detail else ''}", w))
-    while len(lines) < 2 + nlines:
+    while len(lines) < 1 + nlines:
         lines.append("")
-    return lines[: 2 + nlines]
+    return lines[: 1 + nlines]
 
 
 def render_grid(hosts, state, w, h, nprocs, color, tick, interval) -> str:
@@ -173,19 +173,21 @@ def render_grid(hosts, state, w, h, nprocs, color, tick, interval) -> str:
     cols, rows = 3, 2
     gutter = 1
     pane_w = max(24, (w - (cols - 1) * gutter) // cols)
-    chrome = 3  # title + 2 separator lines
+    chrome = 4  # title + legend + 2 separator lines
     pane_h = max(4, (h - chrome) // rows)
-    nlines = max(3, min(nprocs, pane_h - 2))
+    nlines = max(3, min(nprocs, pane_h - 1))
     panes = []
     for i, host in enumerate(hosts):
         panes.append(pane(state.get(host), host, pane_w, nlines, now))
 
     title = (f"nodetop {time.strftime('%H:%M:%S')}  tick={tick}  {interval:g}s  "
              f"procs={nlines}/pane   q=quit p=pause +/-=refresh")
-    out = [fit(title, w), "-" * w]
+    legend = ("字段：L=1 分钟负载(占核数%)  M=可用内存  D=磁盘使用率  T=测试进程数  "
+              "ssh=采样往返延迟（越大说明隧道越慢）")
+    out = [fit(title, w), fit(legend, w), "-" * w]
     for r in range(rows):
         chunk = panes[r * cols:(r + 1) * cols]
-        for line_i in range(2 + nlines):
+        for line_i in range(1 + nlines):
             cells = [c[line_i] if line_i < len(c) else "" for c in chunk]
             row = ("│" * gutter).join(cell.ljust(pane_w) for cell in cells)
             out.append(fit(row, w))
@@ -247,7 +249,7 @@ def main() -> int:
                     help="comma/space separated; default $DADAO_NODES or the six known nodes")
     ap.add_argument("--repo", default=os.environ.get("DADAO_NODE_REPO", "/home/ubuntu/DADAO-v5"))
     ap.add_argument("--procs", type=int, default=10, help="processes per node (default 10)")
-    ap.add_argument("--interval", type=float, default=2.0)
+    ap.add_argument("--interval", type=float, default=5.0)
     ap.add_argument("--timeout", type=float, default=6.0)
     ap.add_argument("--layout", choices=("grid", "list"), default="grid")
     ap.add_argument("--once", action="store_true", help="one plain list snapshot, then exit")
