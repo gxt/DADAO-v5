@@ -44,7 +44,7 @@
 
 1. **三平台逐字节**：`run_asm_suite.py`（chipyard/qemu/gem5）同 ELF，全点一致；给出每点三平台实测值。
 2. **改前对照**：用**改前**二进制（`m13-qemu-014`/`m13-chipyard-002` 改动前的构建，若已不可得则用其证据目录备份）跑同一 ELF，点 1/2 应红——证明向量真的守护了裁定（贴在完成区）。
-3. `check-inst` 红集**不扩大**（现场枚举；Tiny 44 例属 `m13-qemu-011`+`034` 同批，不算本任务）；`check-inst-smoke` rc=0；273 例 md5 `2d4d94651346ef673c5a855e024c1489` 不变。
+3. **门控改用 `.S` 面**（`043` 已退役 `check-inst`/`check-inst-smoke`/273 例 md5 钉）：`check-inst-asm` 264/897 不变（本任务只加检查点，不加 id）、`check-tests-index`（每 id ≤127）、`validate-vectors`、`check-case-ledger` 现场值。
 4. ≥2 路可达 FAIL 注入（`cp`+md5 还原）：① 把点 1 期望改成失败 ⇒ 三平台同点红；② 把点 4 期望改成成功 ⇒ 三平台同点红。
 5. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`；不改台账/`discussing.md`。
 
