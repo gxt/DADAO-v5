@@ -76,8 +76,8 @@ shr.ut_orrr_rd sub.st_orrr_rd sub.ut_orrr_rd
 
 **重跑记录（我自己的命令 / 真实输出 / 退出码；开工快照 `git status -uall` 空，HEAD=7cbdf7e6）**
 
-1. `.work/evidence/m13-testcases-024/run.sh`（A 段）→ `summary: FAIL=0`、`RESULT: PASS`、`EXIT=0`：A1 21 id/21 载体、A2 339 链例+33 故障+54 镜像（点号 ≤127 连续）、A3 372 例 0 不符×2 实现+反例命中点 4、A4 片段 21 条且根清单 0 条、A5 三门控 rc=0 与 273 md5 `2d4d94651346ef673c5a855e024c1489`（covered=273）。
-2. `run.sh --full` 第 1 次 → `FAIL=10` `EXIT=1`，根因 `[FAIL] gem5 可执行：期望=yes 实际=no`（共享 `.work/source/gem5/build/DADAO/gem5.opt` 正被 `m16-gem5-008` 重建、mode 644）＝**环境性**；第 2 次钉住完成版（gem5 `a6c53a0d…`／qemu `5d04d3e8…`／chipyard `45748f3f…`）→ `FAIL=0` `EXIT=0`：**54/54、故障 33/33 全 `0xF8`、链例三方字节一致、其注入 2 路三平台同点号 4/20 并回绿**（日志 `.work/log/testcases/m13-testcases-024-review-full{,2}.log`）。
+1. `<运行期证据目录>`（A 段）→ `summary: FAIL=0`、`RESULT: PASS`、`EXIT=0`：A1 21 id/21 载体、A2 339 链例+33 故障+54 镜像（点号 ≤127 连续）、A3 372 例 0 不符×2 实现+反例命中点 4、A4 片段 21 条且根清单 0 条、A5 三门控 rc=0 与 273 md5 `2d4d94651346ef673c5a855e024c1489`（covered=273）。
+2. `run.sh --full` 第 1 次 → `FAIL=10` `EXIT=1`，根因 `[FAIL] gem5 可执行：期望=yes 实际=no`（共享 `.work/source/gem5/build/DADAO/gem5.opt` 正被 `m16-gem5-008` 重建、mode 644）＝**环境性**；第 2 次钉住完成版（gem5 `a6c53a0d…`／qemu `5d04d3e8…`／chipyard `45748f3f…`）→ `FAIL=0` `EXIT=0`：**54/54、故障 33/33 全 `0xF8`、链例三方字节一致、其注入 2 路三平台同点号 4/20 并回绿**（日志 `<运行期日志目录>`）。
 3. 门控直跑：`check_tests_index.py` `EXIT=0`（385 条）；`check_case_ledger.py` `EXIT=0`（2184 条）；`validate_vectors.py` `EXIT=0`（156/156、gaps 0）；`make check-inst` `EXIT=2`、红集**恰** `{divrem.yaml[23]}`、`1141/1135/1/5` ＝既有基线红（多任务书记载），本任务无新增红。
 4. 独立复算（自写 `recheck.py`：按 `SimRISC-08`+`SimRISC-04` 定值表、还原宏装载与同名跳过规则）→ **372 例（链 339 含编码 42 + 故障 33）不符 0**，点号 1..N 连续、编码字重编码一致、故障 ILLI 依据逐条核。
 5. 独立注入 1 路（`div.st` 点 9 `INT32_MIN÷−1` 期望 `…80000000→…80000001`，`cp` 备份）：`check_indep` 报「点 9」`EXIT=1`；`run.sh` → `FAIL=4` `EXIT=1`；三平台直跑（`--jobs` 用默认 32）→ `chipyard=9,qemu=9,gem5=9` `EXIT=1`；`cp` 还原 md5 `af95f8a9cadf40ac9b5594dabdf6b74f` 前后一致 → `run.sh` `EXIT=0`、复算 0 不符、`git status -uall` 干净。

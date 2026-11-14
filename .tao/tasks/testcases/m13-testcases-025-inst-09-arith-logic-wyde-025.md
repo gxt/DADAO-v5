@@ -81,7 +81,7 @@ shr.uw_orrr_rd sub.sw_orrr_rd sub.uw_orrr_rd
 
 **重跑记录**（reviewer 亲跑；HEAD `5786b6a2`；`git status -uall` 验收前/后均空，仅本审阅记录为新改动）
 
-- `./.work/evidence/m13-testcases-025/run.sh`（三平台 ics150，日志 `.work/log/testcases/m13-testcases-025-reviewer-run1.log`）⇒
+- `./<运行期证据目录>`（三平台 ics150，日志 `<运行期日志目录>`）⇒
   `合计 17 项检查，失败 0 项` / `RUN_EXIT=0`；现场派生 `链例 21 个镜像（335 点）+ 故障例 56 = 77`、`77/77`、`模型字节流 vs 三方（63 文件）0 偏差`、`sweep covered=273 md5=2d4d94651346ef673c5a855e024c1489`、注入自检 2 路均 FAIL→还原回绿。
 - 三方产物独立复核：node JSON 77 条（21 chain 三平台 rc 全 0、bytes=8×点且和 335；56 fault 三平台 rc 全 `248=0xF8`）；reviewer 对 63 份链例输出自跑 `cmp`（chipyard↔qemu↔gem5）⇒ **差异 0**。
 - reviewer 自写复算 `reviewer_oracle.py`（按 `SimRISC-09/04` 独立实现，不读 engineer 脚本）⇒ `ids=21 复算点=335 偏差=0` `EXIT=0`：核 `shl.w` 高 16 位清零、`shr.sw` 先符号扩展再移位（`0x8000>>15⇒−1`）、`rol.w` 循环、`rev.w` 块内单元倒序、`mul.uw` 16×16 取低 16、`div/rem` 定值表与向零截断、`cmp.sw/uw` 16 位比较（−1/0/1 写满 64 位），并核编码字 mask/value+位域、故障判据、点号 1..N 连续。

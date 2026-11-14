@@ -42,7 +42,7 @@ chipyard 现状（`m13-qemu-007` 实测）：`ld.t` 的写数据是**符号扩�
 1. 独立 `git worktree`（分支 = 任务号）；动手前 `git rev-parse --show-toplevel` 自证；禁改主工作树。
 2. 不提交 git；补丁 `make_patch.py chipyard` 导出。
 3. **chipyard 构建后必须删 `.classpath_cache/chipyard.jar` 与 `generated-src/<cfg>` 再 `make verilog`**，否则静默沿用旧固件/RTL（`m12-chipyard-028` 踩过）；判「新 RTL 真进模拟器」要独立解析产物（如 `TLROM.sv`/`Wuming*` 生成物）而非只看 `make` rc。
-4. 完成区与真实输出逐条对齐；计数现场统计；日志 `.work/log/chipyard/<任务ID>-<用途>.log`。
+4. 完成区与真实输出逐条对齐；计数现场统计；日志 `<运行期日志目录>`。
 5. 禁 `git checkout/restore/stash`/`git show <commit>:<path>`；注入还原用 `cp`+md5。
 6. 三平台对比在节点（`server207`/`server208`）；节点 chipyard sim 需与主控机一致（`ISS-429`），无 JDK 不能自建 ⇒ 同步主控机构建产物。
 7. 大文件落 `/tmp/opencode/m13-chipyard-001/` 并测完即删。
@@ -68,13 +68,13 @@ chipyard 现状（`m13-qemu-007` 实测）：`ld.t` 的写数据是**符号扩�
 
 ### 第 1 轮 reviewer 验收（2026-11-14）
 
-**判决：Accepted**（4 条 findings 均非阻断；跨组件红点按归属登记）。逐条原始输出：`.work/log/chipyard/{rev-runsh,rev-selfinject,rev-l2}.log`、`.work/log/chipyard/m13-chipyard-001-unit-run.log`、运行期临时目录的 `{sweep-run,inject-run}.log` 与 `revft*.check`。
+**判决：Accepted**（4 条 findings 均非阻断；跨组件红点按归属登记）。逐条原始输出：`<运行期日志目录>`、`<运行期日志目录>`、运行期临时目录的 `{sweep-run,inject-run}.log` 与 `revft*.check`。
 
 **重跑记录（reviewer 亲自执行 → 命令 / 真实输出 / 退出码）**
 
 1. **独立强制重建**（先删 `.classpath_cache/chipyard.jar` 与 `generated-src/<cfg>`）：`make verilog CONFIG=WumingTinyConfig -j32 && make CONFIG=WumingTinyConfig -j32` ⇒ `ELAB_EXIT=0 / SIM_EXIT=0`（11:22:15→11:23:56），sim md5 `45748f3f0f9269f9bb99eac47fec48fa`。**生成物现场解析（非只看 rc）**：`WumingRegFile.sv:422 _GEN_80 = io_w0Ft ? {_GEN_1[io_w0Idx][63:32], io_w0Data[31:0]} : io_w0Data`、`:3330 .io_writeFlagsOnly (w0Fcsr & io_w0Ft)`；`WumingFcsr.sv:65 if (io_writeEn & ~io_writeFlagsOnly)`；`WumingCore.sv:2203 .io_w0Ft(_dec_io_dec_w0Ft)`；`WumingDecoder.sv:426 assign io_dec_w0Ft = _GEN_…`（68 条源行引用）。
 2. **独立探针**（自写 `rev-probe.py`，35 例，期望逐条按 spec 现场推导）：sim rc=0、`cases=35 mismatch=0`——`ld.t rf0←0xFFFFFFFF ⇒ 0x7ff800037fc0001f`（mode=3 保持、flags=0x1f）、`ld.t rf5 ⇒ 0x123456780000001f / 0xfedcba9880000000 / 0x7654321000000000`、`ldm.t {rf0:rf1} ⇒ 0x7ff800037fc00004 + 0xaaaabbbb55667788`、ftadd/sub/mul/div/rem/fma/root/rnd/sclb/min/max/it2ft/ut2ft/io2ft/fo2ft/ftsgnj/ftsgnn 高半保持、`ft2ft` 单例+三元素块只搬低 32、反向 `fo2fo/rd2rf/rf2rd/ld.o/ldm.o/ft2fo/fosgnj/fosgnn` 整 64、`ftsgnj 取 bit31` 与 `fosgnj 取 bit63` 判别例。
-3. **证据脚本重跑** `bash .work/evidence/m13-chipyard-001/run.sh` ⇒ `summary: PASS=57 FAIL=3`、`RUNSH_EXIT=1`；3 红均为 `PermissionError …/.work/source/gem5/build/DADAO/gem5.opt`（并行 `m16-gem5-008` 正在 scons 重建，现场 `ls -l` 当时无 x 位）⇒ 环境干扰，**重试 1/3**：`01 235/235 RC=0`、`06 34/34 RC=0`、`07 38/38 RC=0`（07 用 `inst-tiny-fp.lds`），`05 12/12` 首轮即绿 ⇒ 四册三平台全绿。
+3. **证据脚本重跑** `bash <运行期证据目录>` ⇒ `summary: PASS=57 FAIL=3`、`RUNSH_EXIT=1`；3 红均为 `PermissionError …/.work/source/gem5/build/DADAO/gem5.opt`（并行 `m16-gem5-008` 正在 scons 重建，现场 `ls -l` 当时无 x 位）⇒ 环境干扰，**重试 1/3**：`01 235/235 RC=0`、`06 34/34 RC=0`、`07 38/38 RC=0`（07 用 `inst-tiny-fp.lds`），`05 12/12` 首轮即绿 ⇒ 四册三平台全绿。
 4. **`run.sh --self-test-inject`** ⇒ `injection summary: PASS=19 FAIL=0`、`SELF_INJECT_PIPE_RC=0`（inj1 23 例红 / inj2 4 例红且算术族仍绿 / inj3 恰 `ft2ft` 2 例红；三次 `restore md5 matched` + `source tree clean=0` + 还原 byte-exact）。
 5. **独立注入（自设计，非其 3 路）**：仅把 `WumingFcsr` 的 `when(!io.writeFlagsOnly) { modeReg := … }` 改为 `when(true.B)`（`cp` 备份 md5 `4b5d3e18…`→`ff137870…`），删 jar + generated-src 重建 `0/0`、生成物中 `~io_writeFlagsOnly` 计数 0 ⇒ 探针 `check_rc=1`、**恰 2 例红**：`rev_ldt_rf0_mode_kept got=7ff800007fc0001f want=7ff800037fc0001f`、`rev_ldmt_rf0_rf1 got=…0004 want=…37fc00004`，其余 33 例绿；`cp` 还原 md5 相等、重建 `0/0`、`cases=35 mismatch=0` 回绿，组件树 `git status` 0 行。
 6. **全量回归**（自跑）：`semantic groups: pass=51 fail=0 total=51`、`fault images: pass=58 fail=0 total=58`、`SWEEP_EXIT=0`（2243 语义例逐字节 + 58 个 cause）；`fp_ref` 三自检 `0 mismatches`（RC=0）；RTL 单元台 `TOTAL failed=0`、`spec points (m12-030) vectors=20 failed=0`、45 个 op 组全 `failed=0`。

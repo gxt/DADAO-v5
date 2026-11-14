@@ -80,7 +80,7 @@ shr.ub_orrr_rd sub.sb_orrr_rd sub.ub_orrr_rd
 
 **重跑记录（命令 ⇒ 实测）**
 1. `ls tests/inst/10-arith-logic-byte/*.S | wc -l` ⇒ **21**；我自写点号扫描：21 文件点号 `1..N` 连续、最大 17（≤127）；链例 **293** + 故障例 **31** = 镜像 **52**；21 个 id 与 §范围 逐一对应、无多余载体。
-2. `.work/evidence/m13-testcases-026/run.sh`（worktree 内 A 段）⇒ `EXIT=0`、`summary: FAIL=0 / RESULT: PASS`：头部↔`contracts/opcodes.yaml` 0 不符、scan rc=0、`check_indep` a/b 各 **324 例 / 不符 0**、片段 21 条 / 非法 0、根清单未含 10 册。
+2. `<运行期证据目录>`（worktree 内 A 段）⇒ `EXIT=0`、`summary: FAIL=0 / RESULT: PASS`：头部↔`contracts/opcodes.yaml` 0 不符、scan rc=0、`check_indep` a/b 各 **324 例 / 不符 0**、片段 21 条 / 非法 0、根清单未含 10 册。
 3. **三平台**（节点 `ics160`，独占 staging work-dir，未传 `--jobs` ⇒ 脚本默认 20）：`run.sh --tree … --full` ⇒ **`RUN_EXIT=0`、`FAIL=0`、48 PASS**；二进制 md5 qemu `5d04d3e8…` / gem5 `bc1b1b5f…` / chipyard `45748f3f…`（与完成区一致）；**52/52 通过**、故障例 **31 全 `0xF8`**、字节流 **63/63**（21 id × 3 平台）逐字节相等；21 个 `.S` 节点侧 md5 与 worktree 逐一相同。
 4. L1 我本机逐条：`check_tests_index.py` **rc=0（385）**、`check_case_ledger.py` **rc=0（2184）**、`validate_vectors.py` **rc=0（156/156，gaps 0）**、sweep **md5 `2d4d94651346ef673c5a855e024c1489` / covered=273**。
 5. `make check-inst`（节点）⇒ **rc=2**，`1141 total / 1135 passed / 1 failed / 5 deferred`，红集**恰** `divrem.yaml[23]`；`make check-inst-smoke` ⇒ **rc=0（90/90）**。

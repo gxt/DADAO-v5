@@ -76,12 +76,12 @@ cfx2rc_crrr_cfx cfx2rd_crrr_cfx escape_ciii_cfx fence_ciii_cfx trap_ciii_cfx
 
 **判决**：8 条 finding 全部处置（6 修 / 2 不修附证据）⇒ 状态置 `待验收`。
 
-### 第 1 轮 reviewer 验收（2026-11-14；三平台在节点 `ics180`，长输出 `.work/log/testcases/m13-testcases-027-review/`）
+### 第 1 轮 reviewer 验收（2026-11-14；三平台在节点 `ics180`，长输出 `<运行期日志目录>`）
 
 **重跑（全部本机/节点自跑，不采信完成区转述；HEAD `55512d72`）**
 - 本地：`--scan-only` rc=0（5 载体；点号 `1..24/29/20/21/15` 连续、最大 29）；`indep_check.py` rc=0（**109 点 / 137 断言 / 不符 0**，保留 cfx 现场解析 `6–14,16–31,35–61`）；`merge_fragments --check` rc=0（新增 5、清单 232）；`check-tests-index` rc=0（427）；`check-case-ledger` rc=0（2184）；`validate-vectors` rc=0（156/156、gaps 0）；`inst_sweep emit` rc=0、md5 `2d4d9465…` 与 273 例基线相同。
 - `make check-inst` rc=2、红集 `divrem.yaml[23]`（1141/1135/1/5）＝**基线既有**：11-13 17:14/20:04 历史日志同红同数，本分支 8 个改动文件不含 `tests/inst/fp/` ⇒ 非本任务引入（验收 4 字面 `rc=0` 见 finding②）。
-- **节点三平台**（独立 clone + `.work`/`.dadao` 软链；`--jobs` 默认 = 20；独占，loadavg 0.13→8.14）：`bash .work/evidence/m13-testcases-027/run.sh` ⇒ **rc=0、失败项 0**；C4 `40/40 镜像通过（链例 5 + 故障例 35）`，逐行核 **三平台 rc 分歧 = 0**，故障码 `0xF8×26 / 0xF2×9`。节点 md5 qemu `5d04d3e8…`、chipyard `45748f3f…`、llvm-mc `c111b5b5…`、bootrom `51430087…` 与主控机**逐个相同**；gem5 节点 `bc1b1b5f…` ≠ 主控机 `1c521d07…`（与完成区声明一致）。首跑 rc=1 系**我**漏建 `.dadao` 软链（C4/C6/C9 环境失败，staging 缺口、非交付物缺陷），补链后全绿。
+- **节点三平台**（独立 clone + `.work`/`.dadao` 软链；`--jobs` 默认 = 20；独占，loadavg 0.13→8.14）：`bash <运行期证据目录>` ⇒ **rc=0、失败项 0**；C4 `40/40 镜像通过（链例 5 + 故障例 35）`，逐行核 **三平台 rc 分歧 = 0**，故障码 `0xF8×26 / 0xF2×9`。节点 md5 qemu `5d04d3e8…`、chipyard `45748f3f…`、llvm-mc `c111b5b5…`、bootrom `51430087…` 与主控机**逐个相同**；gem5 节点 `bc1b1b5f…` ≠ 主控机 `1c521d07…`（与完成区声明一致）。首跑 rc=1 系**我**漏建 `.dadao` 软链（C4/C6/C9 环境失败，staging 缺口、非交付物缺陷），补链后全绿。
 - **独立注入（自设计，不复用 engineer 三路）**：`fence` 故障例 21 编码 `0x79F40000`(cfx61 保留) → `0x79F80000`(cfx62 已分配)、期望仍 ILLI ⇒ `indep_check` rc=1（`spec 判定 期望 'ILLI' 实际 None`）、三方 `suite_rc=1`（`[FAIL] fence … 期望 0xF8 / rc {chipyard:21, qemu:21, gem5:21}`）⇒ `cp` 还原，md5 `aa3cedc8…` 前后相同 ⇒ 两路回绿（rc=0 / 8/8）。另证 C5 FAIL 路径：片段 `file` 改 `NOPE.S` ⇒ `merge_fragments --check` rc=1，还原回 rc=0。
 - **GAP 4 项钉住（我自跑 `probe_gap.py` rc=0、7 条全 PASS、`不符 0 条`）**：① `fence cfx16/17/18` chipyard/gem5 `0xF8`、QEMU 放行(rc=1/2/3)；`cfx15/62/63/32/33/34` 链例 chipyard/gem5 48 B、QEMU 0 B；② `cg4` 读 chipyard `0xF2`、QEMU/gem5 rc=1，写三方 `0xF2`；③ `trap cfx_power` chipyard `0xF8`、QEMU/gem5 rc=7（确进 power 向量落点）；④ 屏障排序 Tiny 不可观测（`fence_S:14-15`，链例只覆盖编码/合法性/无副作用、逐例预置 rd5）。①②③ 有探针实测输出，④ 属不可观测并写明理由。
 - **ISS-432/433 核**：433 与探针逐值一致 ✓；432 实测方向与数值 ✓，但归因「`spec/SimRISC-11` 定义保留集」不准（SimRISC-11 交 SEE 分配，`Machine-v5 §1.2` 以 `DADAO-12 §1` 编号表为唯一真源＝我现场解析值），且 `19–61` 正是 `DADAO-12` 0.7.3-rc 变更记录 / `Machine-v5` 附录 0.4.0 残留（已登记 §9#10、discussing #10）＝QEMU 疑似根因；探针只采样 16/17/18 与 32/33/34，下界 19 属推断。

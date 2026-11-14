@@ -100,7 +100,7 @@ ftsgnj_orrr_rf ftsgnn_orrr_rf
 ### 第 1 轮 reviewer 验收（2026-11-14，独立重跑）
 
 **重跑（命令 → 真实输出/退出码）**
-1. 主控 worktree `./.work/evidence/m13-testcases-023/run.sh` ⇒ `summary: FAIL=3 / RESULT: FAIL / RC=1`；FAIL 全在 A5（`FileNotFoundError … .fragments/07-floating-point.inst.yaml`），A1/A2/A3/A4/A6 全 PASS（8 id、166 点、复算不符 0、273 md5 `2d4d9465…`）。
+1. 主控 worktree `./<运行期证据目录>` ⇒ `summary: FAIL=3 / RESULT: FAIL / RC=1`；FAIL 全在 A5（`FileNotFoundError … .fragments/07-floating-point.inst.yaml`），A1/A2/A3/A4/A6 全 PASS（8 id、166 点、复算不符 0、273 md5 `2d4d9465…`）。
 2. 节点 server208 独立同步树（rsync 交付树、自建 `.work`、`--tree` 指定、默认 jobs、独占 work-dir）`run.sh --tree … --full` ⇒ `EXIT=1, FAIL=3`（同 A5）；**B1 三平台 22/22**（链例字节=8×检查点、故障例三方 `0xF8`）、B0 md5 qemu `5d04d3e8…`/gem5 `0542906b…`/chipyard `45748f3f…`、B2 注入 `12/12/12`、`10/10/10`+回绿、B3 cp+md5 还原、A6 273 md5 均 PASS。
 3. 同树 07 册全量 ⇒ `170/170（52 id；链例52/故障例118）EXIT=0`。
 4. `make check-tests-index RC=0（385）`、`make check-case-ledger RC=0（2184）`、`make validate-vectors RC=0（156/156，gaps 0）`。
@@ -120,10 +120,10 @@ ftsgnj_orrr_rf ftsgnn_orrr_rf
 
 ### 第 2 轮 reviewer 复核（2026-11-14）
 
-**返工面核对**：仅 `.work/evidence/m13-testcases-023/run.sh`（A5 两处路径）+ 本任务书完成区第66行；8 个 `.S` 与 2 个片段 md5 与第 1 轮逐条相同（片段 `9a631e7e…`/`f33b0347…`）⇒ 未越界改交付物；`git status -uall` 仅 `M` 本任务书（第1轮记录 + 完成区行）。
+**返工面核对**：仅 `<运行期证据目录>`（A5 两处路径）+ 本任务书完成区第66行；8 个 `.S` 与 2 个片段 md5 与第 1 轮逐条相同（片段 `9a631e7e…`/`f33b0347…`）⇒ 未越界改交付物；`git status -uall` 仅 `M` 本任务书（第1轮记录 + 完成区行）。
 
 **重跑（真实 rc/计数）**
-1. 主控 worktree `./.work/evidence/m13-testcases-023/run.sh` ⇒ **`RC=0`、`summary: FAIL=0`、`RESULT: PASS`、`[PASS]=18 / [FAIL]=0`**（A1 2 + A2 5 + A3 3 + A4 3 + A5 4 + A6 1）；A2 `152 链+14 故障=166`、`22 镜像`，A3 `166 例/不符 0`，A6 `273 md5=2d4d94651346ef673c5a855e024c1489`。
+1. 主控 worktree `./<运行期证据目录>` ⇒ **`RC=0`、`summary: FAIL=0`、`RESULT: PASS`、`[PASS]=18 / [FAIL]=0`**（A1 2 + A2 5 + A3 3 + A4 3 + A5 4 + A6 1）；A2 `152 链+14 故障=166`、`22 镜像`，A3 `166 例/不符 0`，A6 `273 md5=2d4d94651346ef673c5a855e024c1489`。
 2. 节点 rsync 交付树（自建 `.work`、`--tree` 指定、默认 jobs、独占 work-dir）`run.sh --tree … --full` ⇒ **`EXIT=0`、`[PASS]=35 / [FAIL]=0`、`RESULT: PASS`**；B0 md5 qemu `5d04d3e8…`/gem5 `0542906b…`/chipyard `45748f3f…`、B1 **22/22**（链例字节=8×检查点、故障例三方 `0xF8`）、B2 注入 `12/12/12`、`10/10/10` + 回绿、B3 `cp`+md5 还原、A6 273 md5 全 PASS。
 3. **A5 四项全绿**：`片段 YAML 解析 0/0`（`片段条目数=8 / id=…045…052`）、`片段声明条目数 8/8`、`migration 片段存在 yes/yes`、`根清单 44 条 07 条目 44/44`。
 
