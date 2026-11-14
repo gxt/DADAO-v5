@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b1_test.cc b/src/arch/dadao/exec/b1_test.cc
 new file mode 100644
-index 0000000..5ef9d04
+index 0000000..032b0f7
 --- /dev/null
 +++ b/src/arch/dadao/exec/b1_test.cc
-@@ -0,0 +1,1459 @@
+@@ -0,0 +1,1474 @@
 +/*
 + * DADAO gem5 B1 execution assertions (GEM5-006t).
 + *
@@ -226,6 +226,14 @@ index 0000000..5ef9d04
 +    void
 +    writeFloatLow32(unsigned idx, uint32_t val) override
 +    {
++        // Mirrors Gem5B1Context::writeFloatLow32: [63:32] kept, and for rf0
++        // only the FCSR's [4:0] flags are writable (the rounding mode [33:32]
++        // is outside the written width) -- spec/SimRISC-00 §2.3.1,
++        // spec/SimRISC-01 §ld.t note.
++        if (idx == 0) {
++            rf[0] = (rf[0] & ~uint64_t(0x1F)) | (uint64_t(val) & 0x1F);
++            return;
++        }
 +        rf[idx] = (rf[idx] & 0xFFFFFFFF00000000ULL) | val;
 +    }
 +
@@ -1237,6 +1245,11 @@ index 0000000..5ef9d04
 +    {
 +        MockContext ctx;
 +        initContext(ctx, 0x1000);
++        // Low-32 seed with the read-only [31:22] qNaN pattern and non-zero
++        // [21:5] SBZ bits, plus rounding mode 3 in [33:32]: a [31:0] write
++        // must only reach [4:0] (spec/SimRISC-00 §2.3.1,
++        // spec/SimRISC-01 §ld.t note).
++        ctx.rf[0] = 0xF0F0F0F3FFF00003ULL;
 +        ctx.mem[0x1020] = 0x12;
 +        ctx.mem[0x1021] = 0x34;
 +        ctx.mem[0x1022] = 0x56;
@@ -1245,8 +1258,8 @@ index 0000000..5ef9d04
 +            ctx, "ld.t_rrii_rf", makeWord("ld.t_rrii_rf", 0, 3, 0x20, 0, 1));
 +        check(fault == exec::Fault::None, "ld.t rf0: fault %s",
 +              faultName(fault));
-+        check(ctx.rf[0] == 0xF0F0F0F012345678ULL,
-+              "ld.t rf0 keeps [63:32] (0x%llx)",
++        check(ctx.rf[0] == 0xF0F0F0F3FFF00018ULL,
++              "ld.t rf0 keeps [63:5] and writes only [4:0] (0x%llx)",
 +              static_cast<unsigned long long>(ctx.rf[0]));
 +    }
 +    // ldm.o rf0: mask for element 0, full 64 for element 1.
@@ -1269,6 +1282,7 @@ index 0000000..5ef9d04
 +    {
 +        MockContext ctx;
 +        initContext(ctx, 0x1000);
++        ctx.rf[0] = 0xF0F0F0F3FFF00003ULL;
 +        ctx.mem[0x1040] = 0x12;
 +        ctx.mem[0x1041] = 0x34;
 +        ctx.mem[0x1042] = 0x56;
@@ -1278,8 +1292,9 @@ index 0000000..5ef9d04
 +            makeWord("ldm.t_rrri_rf", 0, 3, 0, 20, 1));
 +        check(fault == exec::Fault::None, "ldm.t rf0: fault %s",
 +              faultName(fault));
-+        check(ctx.rf[0] == 0xF0F0F0F012345678ULL,
-+              "ldm.t rf0 keeps [63:32]");
++        check(ctx.rf[0] == 0xF0F0F0F3FFF00018ULL,
++              "ldm.t rf0 keeps [63:5] and writes only [4:0] "
++              "(0x%llx)", static_cast<unsigned long long>(ctx.rf[0]));
 +    }
 +    // st.o rf0 reads the full 64-bit FCSR word.
 +    {
