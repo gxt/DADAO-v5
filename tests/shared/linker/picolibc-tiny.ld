@@ -434,10 +434,19 @@ SECTIONS
 
 	PROVIDE ( __stack_bottom = ORIGIN(ram) + LENGTH(ram) - (DEFINED(__stack_size) ? __stack_size : 0x00001000) );
 
-	/* Define a stack region to make sure it fits in memory */
+	/* Define a stack region to make sure it fits in memory.
+	 *
+	 * m12-chipyard-016: `:NONE` keeps .stack (and the [.heap, .stack) gap) out
+	 * of the single PT_LOAD.  With `:ram` the one loadable segment spanned the
+	 * whole 8 MiB RAM window (filesz ~1 KiB, memsz 0x7dfe00), so a loader that
+	 * streams the image word by word -- the chipyard `+loadmem=` responder --
+	 * had to push a million all-zero words through TileLink for every test.
+	 * The stack is written before it is read and RAM starts zeroed, so no
+	 * loader has to carry it; QEMU and the chipyard harness now load the same
+	 * ~2.7 KiB application image. */
 	.stack __stack_bottom (NOLOAD) : {
 		. += (DEFINED(__stack_size) ? __stack_size : 0x00001000);
-	} >ram :ram
+	} >ram :NONE
 
 	/* Throw away C++ exception handling information */
 

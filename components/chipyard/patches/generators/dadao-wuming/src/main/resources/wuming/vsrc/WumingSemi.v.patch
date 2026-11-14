@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingSemi.v b/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingSemi.v
 new file mode 100644
-index 0000000..af6bc34
+index 0000000..aa3a47a
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingSemi.v
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,130 @@
 +// WumingSemi.v — DPI bridge for the harness-side semihosting responder
 +// (m12-chipyard-004).
 +//
@@ -29,10 +29,13 @@ index 0000000..af6bc34
 +    input      [63:0] req_arg,
 +    input      [5:0]  req_ret,
 +    input      [63:0] req_pc,
++    input      [63:0] req_cycle,
 +    output reg        resp_valid,
 +    output reg [63:0] resp_value,
 +    output reg        mem_valid,
 +    output reg [63:0] mem_addr,
++    output reg        mem_write,
++    output reg [63:0] mem_wdata,
 +    input             mem_taken,
 +    input             mem_fire,
 +    input      [63:0] mem_rdata
@@ -45,9 +48,12 @@ index 0000000..af6bc34
 +    import "DPI-C" function int wuming_semi_begin(
 +        input int op,
 +        input longint arg,
-+        input longint pc
++        input longint pc,
++        input longint cycle
 +    );
 +    import "DPI-C" function longint wuming_semi_word_addr();
++    import "DPI-C" function int wuming_semi_mem_write();
++    import "DPI-C" function longint wuming_semi_mem_wdata();
 +    import "DPI-C" function int wuming_semi_word(input longint data);
 +    import "DPI-C" function longint wuming_semi_result();
 +
@@ -69,6 +75,8 @@ index 0000000..af6bc34
 +            resp_value <= 64'd0;
 +            mem_valid  <= 1'b0;
 +            mem_addr   <= 64'd0;
++            mem_write  <= 1'b0;
++            mem_wdata  <= 64'd0;
 +        end else if (!started) begin
 +            wuming_semi_init(MEM_BASE, MEM_SIZE);
 +            started <= 1'b1;
@@ -83,13 +91,15 @@ index 0000000..af6bc34
 +                S_IDLE: begin
 +                    if (req_valid && !busy && !resp_valid) begin
 +                        busy <= 1'b1;
-+                        status = wuming_semi_begin(req_op, req_arg, req_pc);
++                        status = wuming_semi_begin(req_op, req_arg, req_pc, req_cycle);
 +                        if (status == 0) begin
 +                            resp_value <= wuming_semi_result();
 +                            resp_valid <= 1'b1;
 +                            busy       <= 1'b0;
 +                        end else begin
 +                            mem_addr  <= wuming_semi_word_addr();
++                            mem_write <= (wuming_semi_mem_write() != 0);
++                            mem_wdata <= wuming_semi_mem_wdata();
 +                            mem_valid <= 1'b1;
 +                            st        <= S_REQ;
 +                        end
@@ -111,6 +121,8 @@ index 0000000..af6bc34
 +                            st         <= S_IDLE;
 +                        end else begin
 +                            mem_addr  <= wuming_semi_word_addr();
++                            mem_write <= (wuming_semi_mem_write() != 0);
++                            mem_wdata <= wuming_semi_mem_wdata();
 +                            mem_valid <= 1'b1;
 +                            st        <= S_REQ;
 +                        end

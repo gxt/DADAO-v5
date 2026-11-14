@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingSemi.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingSemi.scala
 new file mode 100644
-index 0000000..2f9017b
+index 0000000..dc08075
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingSemi.scala
-@@ -0,0 +1,143 @@
+@@ -0,0 +1,153 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" harness-side semihosting responder (m12-chipyard-004).
@@ -45,6 +45,7 @@ index 0000000..2f9017b
 +  val arg = UInt(64.W)    // char pointer (WRITEC/WRITE0) or block pointer (rb16)
 +  val ret = UInt(6.W)     // return register number (rd8 in this machine)
 +  val pc = UInt(64.W)     // trapping IP (diagnostics only)
++  val cycle = UInt(64.W)  // simulation cycle counter at the trap (evidence)
 +}
 +
 +/** Scalar answer: written by the core to `ret`. */
@@ -72,10 +73,13 @@ index 0000000..2f9017b
 +    val req_arg = Input(UInt(64.W))
 +    val req_ret = Input(UInt(6.W))
 +    val req_pc = Input(UInt(64.W))
++    val req_cycle = Input(UInt(64.W))
 +    val resp_valid = Output(Bool())
 +    val resp_value = Output(UInt(64.W))
 +    val mem_valid = Output(Bool())
 +    val mem_addr = Output(UInt(64.W))
++    val mem_write = Output(Bool())
++    val mem_wdata = Output(UInt(64.W))
 +    val mem_taken = Input(Bool())
 +    val mem_fire = Input(Bool())
 +    val mem_rdata = Input(UInt(64.W))
@@ -111,25 +115,31 @@ index 0000000..2f9017b
 +  bb.io.req_arg := semiReq.arg
 +  bb.io.req_ret := semiReq.ret
 +  bb.io.req_pc := semiReq.pc
++  bb.io.req_cycle := semiReq.cycle
 +  semiResp.valid := bb.io.resp_valid
 +  semiResp.value := bb.io.resp_value
 +
-+  // The host model only ever asks for an 8-byte aligned word.
++  // The host model only ever asks for an 8-byte aligned word; a request is
++  // either a Get (guest-memory read) or a full-word Put (guest-memory write).
 +  val sIdle :: sReq :: sWait :: Nil = Enum(3)
 +  val state = RegInit(sIdle)
-+  // Latch the address when the request is taken: the model may raise the next
-+  // request as soon as `mem_taken` is seen, while `tl.a.bits` must stay stable
-+  // until the A-channel handshake completes.
-+  val reqAddr = RegEnable(bb.io.mem_addr, state === sIdle && bb.io.mem_valid)
++  // Latch address + direction + payload when the request is taken: the model
++  // may raise the next request as soon as `mem_taken` is seen, while
++  // `tl.a.bits` must stay stable until the A-channel handshake completes.
++  val take = (state === sIdle) && bb.io.mem_valid
++  val reqAddr = RegEnable(bb.io.mem_addr, take)
++  val reqWrite = RegEnable(bb.io.mem_write, take)
++  val reqWdata = RegEnable(bb.io.mem_wdata, take)
 +  val addr = reqAddr(edge.bundle.addressBits - 1, 0)
 +  val (getLegal, getBits) = edge.Get(0.U, addr, lgSize)
++  val (putLegal, putBits) = edge.Put(0.U, addr, lgSize, reqWdata)
 +
 +  // A-channel requests and D-channel responses are separate states so the
 +  // same source ID is never re-used while a response is outstanding.
 +  tl.a.valid := state === sReq
-+  tl.a.bits := getBits
++  tl.a.bits := Mux(reqWrite, putBits, getBits)
 +  tl.d.ready := state === sWait
-+  bb.io.mem_taken := (state === sIdle) && bb.io.mem_valid
++  bb.io.mem_taken := take
 +  bb.io.mem_fire := (state === sWait) && tl.d.fire
 +  // TileLink puts byte k of a beat in bits [8k+7, 8k]; hand the model one
 +  // address-order (big-endian) 64-bit word, like the core's fetch path.
@@ -141,9 +151,9 @@ index 0000000..2f9017b
 +    is(sWait) { when(tl.d.fire) { state := sIdle } }
 +  }
 +
-+  assert(!(tl.d.valid && tl.d.bits.denied), "WumingSemi: TileLink denied a guest-memory read")
-+  assert(!(state === sReq) || getLegal,
-+    "WumingSemi: guest-memory read address is not backed by a capable manager")
++  assert(!(tl.d.valid && tl.d.bits.denied), "WumingSemi: TileLink denied a guest-memory access")
++  assert(!(state === sReq) || Mux(reqWrite, putLegal, getLegal),
++    "WumingSemi: guest-memory access address is not backed by a capable manager")
 +  assert(!(state === sReq) || addr(2, 0) === 0.U,
 +    "WumingSemi: the responder requested an unaligned word")
 +}

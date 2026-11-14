@@ -1,42 +1,65 @@
 diff --git a/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingSemi.cc b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingSemi.cc
 new file mode 100644
-index 0000000..b31da55
+index 0000000..baa3329
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingSemi.cc
-@@ -0,0 +1,399 @@
+@@ -0,0 +1,907 @@
 +// WumingSemi.cc — harness-side semihosting responder for Machine-v5-Tiny
-+// (m12-chipyard-004).
++// (m12-chipyard-004; the service set was completed in m12-chipyard-016).
 +//
-+// The core lifts a semihosting `trap` (op in immu18[7:0], argument/parameter-
-+// block pointer in rb16, scalar return in rd8) to this host model; see
-+// WumingSemi.scala for why the channel is a DPI port rather than MMIO.  This
-+// file owns every host effect and is table-driven:
++// The core lifts a semihosting `trap` (service number in rd16, parameter-block
++// pointer in rb16, scalar return in rd8; contract-semihosting §2 /
++// Machine-v5 §5.2) to this host model; see WumingSemi.scala for why the channel
++// is a DPI port rather than MMIO.  This file owns every host effect:
 +//
-+//   SYS_WRITEC (0x03)  one byte at the pointer          -> stdout, no return
-+//   SYS_WRITE0 (0x04)  NUL-terminated string at pointer -> stdout, no return
-+//   SYS_WRITE  (0x05)  block{handle, buffer, length}    -> stdout/stderr, rd8=0
-+//   SYS_CLOCK  (0x10)  centiseconds since start, monotonic (never decreasing)
-+//   SYS_EXIT   (0x18)  block{reason, subcode}           -> process exit status
++//   SYS_OPEN    0x01  block{name ptr, mode, name len}     -> handle / -1
++//   SYS_CLOSE   0x02  block{handle}                        -> 0 / -1
++//   SYS_WRITEC  0x03  char pointer                         -> console, no return
++//   SYS_WRITE0  0x04  NUL-terminated string pointer        -> console, no return
++//   SYS_WRITE   0x05  block{handle, buffer, length}        -> bytes not written
++//   SYS_READ    0x06  block{handle, buffer, length}        -> bytes not filled
++//   SYS_READC   0x07  no parameter                         -> byte / -1
++//   SYS_ISERROR 0x08  block{status}                        -> 0 / non-0
++//   SYS_ISTTY   0x09  block{handle}                        -> 1 / 0
++//   SYS_SEEK    0x0a  block{handle, position}              -> 0 / -1
++//   SYS_FLEN    0x0c  block{handle}                        -> length / -1
++//   SYS_TMPNAM  0x0d  block{buffer, id, buffer len}        -> 0 / -1
++//   SYS_REMOVE  0x0e  block{path ptr, path len}            -> 0 / -1
++//   SYS_RENAME  0x0f  block{old ptr, old len, new ptr, new len} -> 0 / -1
++//   SYS_CLOCK   0x10  no parameter                         -> centiseconds
++//   SYS_TIME    0x11  no parameter                         -> seconds since epoch
++//   SYS_SYSTEM  0x12  block{command ptr, command len}      -> host system() status
++//   SYS_ERRNO   0x13  no parameter                         -> errno of the last call
++//   SYS_GET_CMDLINE 0x15 block{buffer, buffer len}         -> 0 / -1
++//   SYS_EXIT    0x18  block{reason, subcode}               -> process exit status
++//   SYS_SYNCCACHE 0x19 no parameter                        -> 0 (no caches in Tiny)
++//   SYS_EXIT_EXTENDED 0x20 block{reason, exit code}        -> process exit status
++//   SYS_ELAPSED 0x30  block{64-bit ticks}                  -> 0 / -1
++//   SYS_TICKFREQ 0x31 no parameter                         -> ticks per second
 +//
-+// Semantics follow spec/Machine-v5 §5.3 and the engines QEMU/gem5 use for the
-+// same services: SYS_EXIT with ADP_Stopped_ApplicationExit (0x20026) returns
-+// the subcode as the host status (0x00-0x3F = PASS, 0x40-0x7F = guest FAIL,
-+// §7.1), any other reason returns 1; SYS_CLOCK is host CPU time in hundredths
-+// of a second, like QEMU's `clock() / (CLOCKS_PER_SEC / 100)`.
++// The host semantics mirror QEMU's `semihosting/arm-compat-semi.c` (the engine
++// these same picolibc / embench images already run under), so a guest observes
++// the same service results on both platforms: handles 0/1/2 are the standard
++// streams, ":tt" maps to them, open modes are the Arm mode table, SYS_EXIT with
++// ADP_Stopped_ApplicationExit returns the subcode as the process status, and
++// SYS_ERRNO reports what the previous service left in errno.
 +//
-+// Minimal service set: SYS_OPEN is deliberately not implemented, so SYS_WRITE
-+// accepts the harness's console handles 1 (stdout) and 2 (stderr) — this is a
-+// harness convention for the 5-service stage, not a spec assertion.  Any other
-+// service number (or handle) fails loudly with the number; nothing is silently
-+// treated as success or as 0.
++// Guest memory is read and written one 8-byte word at a time by the RTL bridge
++// through a TileLink client port; addresses are big-endian and must lie inside
++// [MEM_BASE, MEM_BASE+MEM_SIZE).  A write of a partial word is a
++// read-modify-write so the untouched bytes survive.
 +//
-+// Guest memory is read one 8-byte word at a time by the RTL bridge through a
-+// TileLink client port (also used by the core); addresses are big-endian and
-+// must lie inside [MEM_BASE, MEM_BASE+MEM_SIZE).
++// SYS_HEAPINFO (0x16) stays *unimplemented*: Tiny's heap/stack come from the
++// linker script (`__heap_start`/`__stack_top`), no image in this project asks
++// for it, and inventing values would be worse than failing loudly.  Any other
++// service number, or a handle that was never opened, fails loudly with the
++// number; nothing is silently treated as success or as 0.
 +
 +#include <vpi_user.h>
 +
++#include <cerrno>
 +#include <cinttypes>
++#include <climits>
 +#include <cstdint>
 +#include <cstdio>
 +#include <cstdlib>
@@ -44,6 +67,8 @@ index 0000000..b31da55
 +#include <ctime>
 +#include <string>
 +#include <vector>
++
++#include <unistd.h>
 +
 +namespace {
 +
@@ -55,19 +80,16 @@ index 0000000..b31da55
 +uint64_t mem_size = 0;
 +bool initialised = false;
 +uint64_t last_clock = 0;
-+FILE* console = nullptr;  // guest console: stdout unless +semiout=<path>
++FILE* console = nullptr;    // guest console: stdout unless +semiout=<path>
++std::string guest_cmdline;  // +semicmdline=<text> (QEMU joins its args by spaces)
++int swi_errno = 0;          // errno of the last host service (SYS_ERRNO)
 +
 +[[noreturn]] void fail(const std::string& msg) {
 +  std::fprintf(stderr, "%s ERROR: %s\n", kTag, msg.c_str());
 +  std::fflush(stderr);
 +  std::fflush(stdout);
++  if (console != nullptr) std::fflush(console);
 +  std::exit(1);
-+}
-+
-+uint64_t be64(const uint8_t* p) {
-+  uint64_t v = 0;
-+  for (int i = 0; i < 8; i++) v = (v << 8) | p[i];
-+  return v;
 +}
 +
 +std::string hex(uint64_t v) {
@@ -76,239 +98,711 @@ index 0000000..b31da55
 +  return buf;
 +}
 +
-+enum class Phase {
-+  None,
-+  WriteC,
-+  Write0,
-+  WriteBlock,
-+  WriteData,
-+  ExitBlock,
-+  Clock,
-+};
-+
-+struct State {
-+  Phase phase = Phase::None;
-+  uint8_t op = 0;
-+  uint64_t arg = 0;
-+  uint64_t pc = 0;
-+
-+  // Byte cursor and the one-word cache fed by the RTL bridge.
-+  uint64_t need_addr = 0;
-+  uint64_t need_end = 0;
-+  uint64_t cur_word_addr = 0;
-+  uint64_t cur_word = 0;
-+  bool have_word = false;
-+
-+  std::vector<uint8_t> block;
-+  uint64_t handle = 0;
-+  uint64_t buf = 0;
-+  uint64_t len = 0;
-+  FILE* out = nullptr;
-+  uint64_t written = 0;
-+  uint64_t result = 0;
-+  bool done = false;
-+};
-+
-+State S;
-+
-+// ---- guest memory -------------------------------------------------------
-+
-+bool word_cached() {
-+  return S.have_word && S.cur_word_addr == (S.need_addr & ~uint64_t(7));
++uint64_t be64(const uint8_t* p) {
++  uint64_t v = 0;
++  for (int i = 0; i < 8; i++) v = (v << 8) | p[i];
++  return v;
 +}
 +
-+int request_word() {
-+  const uint64_t a = S.need_addr & ~uint64_t(7);
++void put_be64(uint8_t* p, uint64_t v) {
++  for (int i = 0; i < 8; i++) {
++    p[i] = static_cast<uint8_t>((v >> (8 * (7 - i))) & 0xFF);
++  }
++}
++
++// ---------------------------------------------------------------------------
++// guest memory: one 8-byte word in flight at a time
++// ---------------------------------------------------------------------------
++enum class MemKind { Read, Write };
++
++struct WordCache {
++  uint64_t addr = 0;
++  uint64_t data = 0;
++  bool valid = false;
++};
++
++WordCache cache;
++bool pend = false;
++MemKind pend_kind = MemKind::Read;
++uint64_t pend_addr = 0;
++uint64_t pend_wdata = 0;
++
++void range_check(uint64_t a, const char* what) {
 +  if (mem_base == 0 || mem_size < 8) {
 +    fail("guest-memory window is not configured (MEM_BASE/MEM_SIZE are zero)");
 +  }
 +  if (a < mem_base || a - mem_base > mem_size - 8) {
-+    fail("guest-memory read at " + hex(a) + " is outside the window " +
-+         hex(mem_base) + "+" + hex(mem_size));
++    fail(std::string("guest-memory ") + what + " at " + hex(a) +
++         " is outside the window " + hex(mem_base) + "+" + hex(mem_size));
 +  }
-+  S.cur_word_addr = a;
-+  S.have_word = false;
++}
++
++// Ask the bridge for one aligned word (always returns 1 so a service step can
++// do `ask_read(a); return 0;`).
++int ask_read(uint64_t addr) {
++  const uint64_t a = addr & ~uint64_t(7);
++  range_check(a, "read");
++  pend = true;
++  pend_kind = MemKind::Read;
++  pend_addr = a;
 +  return 1;
 +}
 +
-+uint8_t take_byte() {
-+  const unsigned k = static_cast<unsigned>(S.need_addr & 7);
-+  const uint8_t b = static_cast<uint8_t>((S.cur_word >> (8 * (7 - k))) & 0xFF);
-+  S.need_addr++;
-+  if ((S.need_addr & ~uint64_t(7)) != S.cur_word_addr) S.have_word = false;
-+  return b;
++int ask_write(uint64_t addr, uint64_t data) {
++  const uint64_t a = addr & ~uint64_t(7);
++  range_check(a, "write");
++  pend = true;
++  pend_kind = MemKind::Write;
++  pend_addr = a;
++  // `data` is in address order (byte 0 in bits [63:56]); TileLink carries byte
++  // k of a beat in bits [8k+7, 8k], so hand the RTL the lane order -- the same
++  // conversion the read path undoes (`Cat(tl.d.data(8i+7,8i))` in WumingSemi).
++  uint64_t lane = 0;
++  for (int k = 0; k < 8; k++) {
++    lane |= ((data >> (8 * k)) & 0xFF) << (8 * (7 - k));
++  }
++  pend_wdata = lane;
++  return 1;
 +}
 +
-+// ---- services -----------------------------------------------------------
++bool word_cached(uint64_t addr) {
++  return cache.valid && cache.addr == (addr & ~uint64_t(7));
++}
 +
-+int do_writec() {
-+  if (!word_cached()) return request_word();
-+  std::fputc(take_byte(), S.out);
-+  std::fflush(S.out);
-+  S.written = 1;
-+  S.result = kNoReturnMark;
-+  S.done = true;
++uint8_t byte_at(uint64_t addr) {
++  const unsigned k = static_cast<unsigned>(addr & 7);
++  return static_cast<uint8_t>((cache.data >> (8 * (7 - k))) & 0xFF);
++}
++
++// ---------------------------------------------------------------------------
++// guest <-> host byte transfers (resumable: cursors survive a word request)
++// ---------------------------------------------------------------------------
++struct CopyIn {
++  uint64_t addr = 0;
++  size_t len = 0;
++  size_t pos = 0;
++  std::vector<uint8_t>* dst = nullptr;
++};
++
++struct CopyOut {
++  uint64_t addr = 0;
++  size_t pos = 0;
++  std::vector<uint8_t>* src = nullptr;
++};
++
++CopyIn cin;
++CopyOut cout;
++
++// 1 = a word request was issued (caller returns 0), 0 = the copy finished.
++int step_copy_in() {
++  while (cin.pos < cin.len) {
++    const uint64_t a = cin.addr + cin.pos;
++    if (!word_cached(a)) {
++      ask_read(a);
++      return 1;
++    }
++    const size_t off = static_cast<size_t>(a & 7);
++    const size_t left = cin.len - cin.pos;
++    const size_t n = (8 - off < left) ? 8 - off : left;
++    for (size_t i = 0; i < n; i++) {
++      (*cin.dst)[cin.pos + i] = byte_at(a + i);
++    }
++    cin.pos += n;
++  }
 +  return 0;
 +}
 +
-+int do_write0() {
-+  for (;;) {
-+    if (!word_cached()) return request_word();
-+    const uint8_t b = take_byte();
-+    if (b == 0) {
-+      std::fflush(S.out);
-+      S.result = kNoReturnMark;
-+      S.done = true;
-+      return 0;
++int step_copy_out() {
++  std::vector<uint8_t>& src = *cout.src;
++  while (cout.pos < src.size()) {
++    const uint64_t a = cout.addr + cout.pos;
++    const size_t off = static_cast<size_t>(a & 7);
++    const size_t left = src.size() - cout.pos;
++    const size_t n = (8 - off < left) ? 8 - off : left;
++    uint8_t bytes[8];
++    if (off == 0 && n == 8) {
++      for (size_t i = 0; i < 8; i++) bytes[i] = src[cout.pos + i];
++    } else {
++      // Read-modify-write: a partial word must keep the untouched bytes.
++      if (!word_cached(a)) {
++        ask_read(a);
++        return 1;
++      }
++      for (unsigned i = 0; i < 8; i++) {
++        bytes[i] = byte_at((a & ~uint64_t(7)) + i);
++      }
++      for (size_t i = 0; i < n; i++) bytes[off + i] = src[cout.pos + i];
 +    }
-+    std::fputc(b, S.out);
-+    S.written++;
-+    if ((S.written & 0xFFF) == 0) std::fflush(S.out);
++    cout.pos += n;
++    ask_write(a, be64(bytes));
++    return 1;
 +  }
++  return 0;
 +}
 +
-+int do_write_block() {
-+  for (;;) {
-+    if (!word_cached()) return request_word();
-+    S.block.push_back(take_byte());
-+    if (S.block.size() != 24) continue;
++// ---------------------------------------------------------------------------
++// host file table (handles are indices; 0/1/2 are the standard streams)
++// ---------------------------------------------------------------------------
++struct GuestFile {
++  FILE* f = nullptr;
++  bool owned = false;  // fclose() on SYS_CLOSE only for files we opened
++};
 +
-+    S.handle = be64(&S.block[0]);
-+    S.buf = be64(&S.block[8]);
-+    S.len = be64(&S.block[16]);
-+    if (S.handle == 1) {
-+      S.out = console;
-+    } else if (S.handle == 2) {
-+      S.out = stderr;
-+    } else {
-+      std::fprintf(stderr,
-+                   "%s WARNING: SYS_WRITE handle=%" PRIu64
-+                   " is neither 1 (stdout) nor 2 (stderr); returning -1\n",
-+                   kTag, S.handle);
-+      S.result = ~uint64_t(0);
-+      S.done = true;
-+      return 0;
++std::vector<GuestFile> gfiles;
++
++void init_gfiles() {
++  gfiles.clear();
++  gfiles.resize(3);
++  gfiles[0].f = stdin;
++  gfiles[1].f = console;  // stdout (or the +semiout sink)
++  gfiles[2].f = stderr;
++}
++
++bool console_handle(uint64_t h) { return h == 1 || h == 2; }
++
++int alloc_handle(FILE* f, bool owned) {
++  for (size_t i = 3; i < gfiles.size(); i++) {
++    if (gfiles[i].f == nullptr) {
++      gfiles[i].f = f;
++      gfiles[i].owned = owned;
++      return static_cast<int>(i);
 +    }
-+    S.need_addr = S.buf;
-+    S.need_end = S.buf + S.len;
-+    S.phase = Phase::WriteData;
++  }
++  gfiles.push_back({f, owned});
++  return static_cast<int>(gfiles.size() - 1);
++}
++
++FILE* file_of(uint64_t handle, const char* who) {
++  if (handle < gfiles.size() && gfiles[handle].f != nullptr) {
++    return gfiles[handle].f;
++  }
++  fail(std::string(who) + ": handle " + std::to_string(handle) +
++       " was never opened");
++}
++
++const char* const kOpenModes[12] = {
++    "r", "rb", "r+", "r+b", "w", "wb", "w+", "w+b", "a", "ab", "a+", "a+b"};
++
++// ---------------------------------------------------------------------------
++// per-service context (one service is in flight at a time)
++// ---------------------------------------------------------------------------
++enum class Step { None, Open, Close, WriteC, Write0, Write, Read, ReadC,
++                  IsError, IsTty, Seek, Flen, Tmpnam, Remove, Rename, Clock,
++                  Time, System, Errno, GetCmdline, ExitBlock, SyncCache,
++                  Elapsed, TickFreq };
++
++struct Ctx {
++  Step step = Step::None;
++  uint8_t op = 0;
++  uint64_t arg = 0;  // rb16 (parameter block pointer / scalar argument)
++  uint64_t pc = 0;
++  uint32_t sub = 0;
++  std::vector<uint8_t> blk;   // parameter block
++  bool blk_started = false;
++  bool blk_ready = false;
++  std::vector<uint8_t> buf;   // payload
++  bool buf_started = false;
++  bool buf_ready = false;
++  std::vector<uint8_t> hold;  // parked payload (two-name services)
++  uint64_t cursor = 0;
++  uint64_t result = 0;
++  uint64_t cycle = 0;   // simulation cycle stamp of the trapping instruction
++};
++
++Ctx S;
++
++// Read the parameter block (``len`` bytes at S.arg) once; 1 = pending.
++int block_rd(size_t len) {
++  if (S.blk_ready) return 0;
++  if (!S.blk_started) {
++    S.blk.assign(len, 0);
++    cin = CopyIn{S.arg, len, 0, &S.blk};
++    S.blk_started = true;
++  }
++  if (step_copy_in()) return 1;
++  S.blk_ready = true;
++  return 0;
++}
++
++// Read ``len`` guest bytes at ``addr`` into S.buf; 1 = pending.
++int buf_rd(uint64_t addr, size_t len) {
++  if (S.buf_ready) return 0;
++  if (!S.buf_started) {
++    S.buf.assign(len, 0);
++    cin = CopyIn{addr, len, 0, &S.buf};
++    S.buf_started = true;
++  }
++  if (step_copy_in()) return 1;
++  S.buf_ready = true;
++  return 0;
++}
++
++// Write S.buf to guest memory at ``addr``; 1 = pending.
++int buf_wr(uint64_t addr) {
++  if (!S.buf_started) {
++    cout = CopyOut{addr, 0, &S.buf};
++    S.buf_started = true;
++  }
++  if (step_copy_out()) return 1;
++  return 0;
++}
++
++void reset_buf() {
++  S.buf_started = false;
++  S.buf_ready = false;
++}
++
++uint64_t blk64(size_t off) { return be64(&S.blk[off]); }
++
++void errno_from_host() { swi_errno = errno; }
++
++// ---------------------------------------------------------------------------
++// services — each returns 1 when the result is final, 0 when a word is needed
++// ---------------------------------------------------------------------------
++int step_open() {
++  // block{name ptr, mode, name len}
++  if (block_rd(24)) return 0;
++  if (S.sub == 0) {
++    const uint64_t mode = blk64(8);
++    if (mode >= 12) {
++      swi_errno = EINVAL;
++      S.result = static_cast<uint64_t>(-1);
++      return 1;
++    }
++    if (buf_rd(blk64(0), static_cast<size_t>(blk64(16)) + 1)) return 0;
++    S.sub = 1;
++  }
++  const std::string name(reinterpret_cast<const char*>(S.buf.data()));
++  const uint64_t mode = blk64(8);
++  if (name == ":tt") {
++    // SH_EXT_STDOUT_STDERR: read -> stdin, write -> stdout, append -> stderr.
++    const int std = (mode < 4) ? 0 : (mode < 8) ? 1 : 2;
++    S.result = static_cast<uint64_t>(alloc_handle(gfiles[std].f, false));
++    swi_errno = 0;
++    return 1;
++  }
++  if (name == ":semihosting-features") {
++    if (mode != 0 && mode != 1) {
++      swi_errno = EACCES;
++      S.result = static_cast<uint64_t>(-1);
++      return 1;
++    }
++    FILE* f = std::tmpfile();
++    if (f == nullptr) {
++      errno_from_host();
++      S.result = static_cast<uint64_t>(-1);
++      return 1;
++    }
++    static const uint8_t features[5] = {'S', 'H', 'F', 'B', 0x03};
++    std::fwrite(features, 1, sizeof(features), f);
++    std::rewind(f);
++    S.result = static_cast<uint64_t>(alloc_handle(f, true));
++    swi_errno = 0;
++    return 1;
++  }
++  errno = 0;
++  FILE* f = std::fopen(name.c_str(), kOpenModes[mode]);
++  errno_from_host();
++  S.result = (f == nullptr) ? static_cast<uint64_t>(-1)
++                            : static_cast<uint64_t>(alloc_handle(f, true));
++  return 1;
++}
++
++int step_close() {
++  if (block_rd(8)) return 0;
++  const uint64_t h = blk64(0);
++  if (console_handle(h)) {
++    // Closing a standard stream is a no-op (QEMU keeps the console open).
++    S.result = 0;
++    swi_errno = 0;
++    return 1;
++  }
++  FILE* f = file_of(h, "SYS_CLOSE");
++  errno = 0;
++  int rc = 0;
++  if (gfiles[h].owned) rc = std::fclose(f);
++  errno_from_host();
++  S.result = (rc == 0) ? 0 : static_cast<uint64_t>(-1);
++  gfiles[h].f = nullptr;
++  gfiles[h].owned = false;
++  return 1;
++}
++
++int step_writec() {
++  if (!word_cached(S.arg)) {
++    ask_read(S.arg);
 +    return 0;
 +  }
++  std::fputc(byte_at(S.arg), console);
++  std::fflush(console);
++  S.result = kNoReturnMark;
++  return 1;
 +}
 +
-+int do_write_data() {
++int step_write0() {
 +  for (;;) {
-+    if (S.need_addr >= S.need_end) {
-+      std::fflush(S.out);
-+      S.result = 0;  // bytes not written: none
-+      S.done = true;
++    const uint64_t a = S.arg + S.cursor;
++    if (!word_cached(a)) {
++      ask_read(a);
 +      return 0;
 +    }
-+    if (!word_cached()) return request_word();
-+    std::fputc(take_byte(), S.out);
-+    S.written++;
-+    if ((S.written & 0xFFF) == 0) std::fflush(S.out);
++    const uint8_t b = byte_at(a);
++    if (b == 0) break;
++    S.buf.push_back(b);
++    S.cursor++;
++    if ((S.buf.size() & 0xFFF) == 0) std::fflush(console);
 +  }
++  if (!S.buf.empty()) std::fwrite(S.buf.data(), 1, S.buf.size(), console);
++  std::fflush(console);
++  S.result = kNoReturnMark;
++  return 1;
 +}
 +
-+int do_exit_block() {
-+  for (;;) {
-+    if (!word_cached()) return request_word();
-+    S.block.push_back(take_byte());
-+    if (S.block.size() != 16) continue;
-+
-+    const uint64_t reason = be64(&S.block[0]);
-+    const uint64_t code = be64(&S.block[8]);
-+    const int status = (reason == kAdpStoppedApplicationExit)
-+                           ? static_cast<int>(code & 0xFF)
-+                           : 1;
-+    std::fprintf(stderr,
-+                 "%s SYS_EXIT reason=0x%" PRIx64 " code=0x%" PRIx64
-+                 " -> host exit status %d\n",
-+                 kTag, reason, code, status);
-+    std::fflush(stderr);
-+    std::fflush(stdout);
-+    if (console != nullptr && console != stdout) std::fflush(console);
-+    std::exit(status);  // bounded stop: no TestDriver timeout involved
++int step_write() {
++  // block{handle, buffer, length}
++  if (block_rd(24)) return 0;
++  if (S.sub == 0) {
++    if (buf_rd(blk64(8), static_cast<size_t>(blk64(16)))) return 0;
++    S.sub = 1;
 +  }
++  FILE* f = file_of(blk64(0), "SYS_WRITE");
++  errno = 0;
++  const size_t n = std::fwrite(S.buf.data(), 1, S.buf.size(), f);
++  errno_from_host();
++  std::fflush(f);
++  S.result = static_cast<uint64_t>(S.buf.size() - n);
++  return 1;
 +}
 +
-+int do_clock() {
++int step_read() {
++  // block{handle, buffer, length}
++  if (block_rd(24)) return 0;
++  if (S.sub == 0) {
++    FILE* f = file_of(blk64(0), "SYS_READ");
++    S.buf.assign(static_cast<size_t>(blk64(16)), 0);
++    errno = 0;
++    const size_t n = std::fread(S.buf.data(), 1, S.buf.size(), f);
++    errno_from_host();
++    S.buf.resize(n);
++    S.cursor = blk64(16) - n;  // bytes not filled
++    reset_buf();
++    S.sub = 1;
++  }
++  if (S.sub == 1) {
++    if (buf_wr(blk64(8))) return 0;
++    S.sub = 2;
++  }
++  S.result = S.cursor;
++  return 1;
++}
++
++int step_readc() {
++  errno = 0;
++  const int c = std::fgetc(stdin);
++  errno_from_host();
++  S.result = (c == EOF) ? static_cast<uint64_t>(-1) : static_cast<uint64_t>(c);
++  return 1;
++}
++
++int step_iserror() {
++  if (block_rd(8)) return 0;
++  S.result = (static_cast<int64_t>(blk64(0)) < 0) ? 1 : 0;
++  return 1;
++}
++
++int step_istty() {
++  if (block_rd(8)) return 0;
++  FILE* f = file_of(blk64(0), "SYS_ISTTY");
++  S.result = (::isatty(::fileno(f)) == 1) ? 1 : 0;
++  return 1;
++}
++
++int step_seek() {
++  if (block_rd(16)) return 0;
++  FILE* f = file_of(blk64(0), "SYS_SEEK");
++  errno = 0;
++  const int rc = std::fseek(f, static_cast<long>(blk64(8)), SEEK_SET);
++  errno_from_host();
++  S.result = (rc == 0) ? 0 : static_cast<uint64_t>(-1);
++  return 1;
++}
++
++int step_flen() {
++  if (block_rd(8)) return 0;
++  FILE* f = file_of(blk64(0), "SYS_FLEN");
++  errno = 0;
++  // QEMU answers SYS_FLEN from fstat and leaves the file position alone; a plain
++  // seek-to-end would strand the cursor at EOF and the caller's next SYS_READ
++  // would read 0 bytes (that is how picolibc's `:semihosting-features` probe
++  // lost its 4-byte magic and skipped SYS_EXIT_EXTENDED).
++  const long pos = std::ftell(f);
++  if (pos < 0 || std::fseek(f, 0, SEEK_END) != 0) {
++    errno_from_host();
++    S.result = static_cast<uint64_t>(-1);
++    return 1;
++  }
++  const long n = std::ftell(f);
++  (void)std::fseek(f, pos, SEEK_SET);
++  errno_from_host();
++  S.result = (n < 0) ? static_cast<uint64_t>(-1) : static_cast<uint64_t>(n);
++  return 1;
++}
++
++int step_tmpnam() {
++  // block{buffer ptr, identifier, buffer length}
++  if (block_rd(24)) return 0;
++  if (S.sub == 0) {
++    const char* dir = std::getenv("TMPDIR");
++    if (dir == nullptr || *dir == '\0') dir = "/tmp";
++    char name[PATH_MAX];
++    std::snprintf(name, sizeof(name), "%s/dadao-semi-%ld-%02x", dir,
++                  static_cast<long>(::getpid()),
++                  static_cast<unsigned>(blk64(8) & 0xFF));
++    if (std::strlen(name) + 1 > blk64(16)) {
++      swi_errno = ENAMETOOLONG;
++      S.result = static_cast<uint64_t>(-1);
++      return 1;
++    }
++    S.buf.assign(name, name + std::strlen(name) + 1);
++    reset_buf();
++    S.sub = 1;
++  }
++  if (S.sub == 1) {
++    if (buf_wr(blk64(0))) return 0;
++    S.sub = 2;
++  }
++  S.result = 0;
++  swi_errno = 0;
++  return 1;
++}
++
++int step_remove() {
++  if (block_rd(16)) return 0;
++  if (S.sub == 0) {
++    if (buf_rd(blk64(0), static_cast<size_t>(blk64(8)) + 1)) return 0;
++    S.sub = 1;
++  }
++  errno = 0;
++  const int rc = ::unlink(reinterpret_cast<const char*>(S.buf.data()));
++  errno_from_host();
++  S.result = (rc == 0) ? 0 : static_cast<uint64_t>(-1);
++  return 1;
++}
++
++int step_rename() {
++  if (block_rd(32)) return 0;
++  if (S.sub == 0) {
++    if (buf_rd(blk64(0), static_cast<size_t>(blk64(8)) + 1)) return 0;
++    S.hold = S.buf;  // park the old name
++    reset_buf();
++    S.sub = 1;
++  }
++  if (S.sub == 1) {
++    if (buf_rd(blk64(16), static_cast<size_t>(blk64(24)) + 1)) return 0;
++    S.sub = 2;
++  }
++  errno = 0;
++  const int rc = ::rename(reinterpret_cast<const char*>(S.hold.data()),
++                          reinterpret_cast<const char*>(S.buf.data()));
++  errno_from_host();
++  S.result = (rc == 0) ? 0 : static_cast<uint64_t>(-1);
++  return 1;
++}
++
++int step_clock() {
 +  const std::clock_t raw = std::clock();
-+  uint64_t centis = 0;
-+  if (raw != static_cast<std::clock_t>(-1)) {
-+    centis = static_cast<uint64_t>(raw) / (CLOCKS_PER_SEC / 100);
-+  } else {
-+    centis = ~uint64_t(0);
-+  }
-+  // Never report a smaller value than an earlier call (monotonic clock).
++  uint64_t centis = (raw == static_cast<std::clock_t>(-1))
++                        ? ~uint64_t(0)
++                        : static_cast<uint64_t>(raw) / (CLOCKS_PER_SEC / 100);
 +  if (centis != ~uint64_t(0) && centis < last_clock) centis = last_clock;
 +  last_clock = centis;
-+  std::fprintf(stderr,
-+               "%s SYS_CLOCK -> %" PRIu64
-+               " centisecond(s) (host clock=%" PRIu64 ", CLOCKS_PER_SEC=%ld)\n",
-+               kTag, centis, static_cast<uint64_t>(raw),
-+               static_cast<long>(CLOCKS_PER_SEC));
 +  S.result = centis;
-+  S.done = true;
-+  return 0;
++  return 1;
 +}
 +
-+// Table-driven dispatch: every implemented number maps to a name + body.
-+struct Call {
++int step_time() {
++  const std::time_t t = std::time(nullptr);
++  S.result = (t == static_cast<std::time_t>(-1)) ? static_cast<uint64_t>(-1)
++                                                : static_cast<uint64_t>(t);
++  return 1;
++}
++
++int step_system() {
++  if (block_rd(16)) return 0;
++  if (S.sub == 0) {
++    if (buf_rd(blk64(0), static_cast<size_t>(blk64(8)) + 1)) return 0;
++    S.sub = 1;
++  }
++  errno = 0;
++  const int rc = std::system(reinterpret_cast<const char*>(S.buf.data()));
++  errno_from_host();
++  S.result = static_cast<uint64_t>(rc);
++  return 1;
++}
++
++int step_errno() {
++  S.result = static_cast<uint64_t>(swi_errno);
++  return 1;
++}
++
++int step_get_cmdline() {
++  // block{buffer ptr, buffer length}
++  if (block_rd(16)) return 0;
++  if (S.sub == 0) {
++    const size_t need = guest_cmdline.size() + 1;  // include the NUL
++    if (need > blk64(8)) {
++      swi_errno = E2BIG;
++      S.result = static_cast<uint64_t>(-1);
++      return 1;
++    }
++    S.buf.assign(guest_cmdline.begin(), guest_cmdline.end());
++    S.buf.push_back(0);
++    S.cursor = need - 1;  // string length without the NUL
++    reset_buf();
++    S.sub = 1;
++  }
++  if (S.sub == 1) {
++    if (buf_wr(blk64(0))) return 0;
++    S.sub = 2;
++  }
++  if (S.sub == 2) {
++    // Write the string length back into block[1] (QEMU does the same).
++    uint8_t lenw[8];
++    put_be64(lenw, S.cursor);
++    S.buf.assign(lenw, lenw + 8);
++    reset_buf();
++    S.sub = 3;
++  }
++  if (S.sub == 3) {
++    if (buf_wr(S.arg + 8)) return 0;
++    S.sub = 4;
++  }
++  S.result = 0;
++  swi_errno = 0;
++  return 1;
++}
++
++int step_exit_block() {
++  // block{reason, code}
++  if (block_rd(16)) return 0;
++  const uint64_t reason = blk64(0);
++  const uint64_t code = blk64(8);
++  const int status = (reason == kAdpStoppedApplicationExit)
++                         ? static_cast<int>(code & 0xFF)
++                         : 1;
++  std::fprintf(stderr,
++               "%s SYS_EXIT(0x%02x) reason=0x%" PRIx64 " code=0x%" PRIx64
++               " cycle=%" PRIu64 " -> host exit status %d\n",
++               kTag, S.op, reason, code, S.cycle, status);
++  std::fflush(stderr);
++  std::fflush(stdout);
++  if (console != nullptr && console != stdout) std::fflush(console);
++  std::exit(status);  // bounded stop: no TestDriver timeout involved
++}
++
++int step_sync_cache() {
++  S.result = 0;  // Tiny has no data/instruction caches
++  return 1;
++}
++
++int step_elapsed() {
++  // The parameter block *is* the output: one 64-bit tick field at rb16.
++  if (S.sub == 0) {
++    const uint64_t ns =
++        static_cast<uint64_t>(std::clock()) * 1000000000ULL / CLOCKS_PER_SEC;
++    uint8_t w[8];
++    put_be64(w, ns);
++    S.buf.assign(w, w + 8);
++    reset_buf();
++    S.sub = 1;
++  }
++  if (S.sub == 1) {
++    if (buf_wr(S.arg)) return 0;
++    S.sub = 2;
++  }
++  S.result = 0;
++  return 1;
++}
++
++int step_tick_freq() {
++  S.result = 1000000000ULL;  // nanoseconds, same as QEMU's arm-compat responder
++  return 1;
++}
++
++int pump() {
++  switch (S.step) {
++    case Step::Open:      return step_open();
++    case Step::Close:     return step_close();
++    case Step::WriteC:    return step_writec();
++    case Step::Write0:    return step_write0();
++    case Step::Write:     return step_write();
++    case Step::Read:      return step_read();
++    case Step::ReadC:     return step_readc();
++    case Step::IsError:   return step_iserror();
++    case Step::IsTty:     return step_istty();
++    case Step::Seek:      return step_seek();
++    case Step::Flen:      return step_flen();
++    case Step::Tmpnam:    return step_tmpnam();
++    case Step::Remove:    return step_remove();
++    case Step::Rename:    return step_rename();
++    case Step::Clock:     return step_clock();
++    case Step::Time:      return step_time();
++    case Step::System:    return step_system();
++    case Step::Errno:     return step_errno();
++    case Step::GetCmdline: return step_get_cmdline();
++    case Step::ExitBlock: return step_exit_block();
++    case Step::SyncCache: return step_sync_cache();
++    case Step::Elapsed:   return step_elapsed();
++    case Step::TickFreq:  return step_tick_freq();
++    case Step::None:
++    default:              S.result = kNoReturnMark; return 1;
++  }
++}
++
++struct Service {
 +  uint8_t op;
 +  const char* name;
-+  int (*fn)();
++  Step step;
 +};
 +
-+const Call kCalls[] = {
-+    {0x03, "SYS_WRITEC", &do_writec},
-+    {0x04, "SYS_WRITE0", &do_write0},
-+    {0x05, "SYS_WRITE", &do_write_block},
-+    {0x10, "SYS_CLOCK", &do_clock},
-+    {0x18, "SYS_EXIT", &do_exit_block},
++const Service kServices[] = {
++    {0x01, "SYS_OPEN", Step::Open},
++    {0x02, "SYS_CLOSE", Step::Close},
++    {0x03, "SYS_WRITEC", Step::WriteC},
++    {0x04, "SYS_WRITE0", Step::Write0},
++    {0x05, "SYS_WRITE", Step::Write},
++    {0x06, "SYS_READ", Step::Read},
++    {0x07, "SYS_READC", Step::ReadC},
++    {0x08, "SYS_ISERROR", Step::IsError},
++    {0x09, "SYS_ISTTY", Step::IsTty},
++    {0x0a, "SYS_SEEK", Step::Seek},
++    {0x0c, "SYS_FLEN", Step::Flen},
++    {0x0d, "SYS_TMPNAM", Step::Tmpnam},
++    {0x0e, "SYS_REMOVE", Step::Remove},
++    {0x0f, "SYS_RENAME", Step::Rename},
++    {0x10, "SYS_CLOCK", Step::Clock},
++    {0x11, "SYS_TIME", Step::Time},
++    {0x12, "SYS_SYSTEM", Step::System},
++    {0x13, "SYS_ERRNO", Step::Errno},
++    {0x15, "SYS_GET_CMDLINE", Step::GetCmdline},
++    {0x18, "SYS_EXIT", Step::ExitBlock},
++    {0x19, "SYS_SYNCCACHE", Step::SyncCache},
++    {0x20, "SYS_EXIT_EXTENDED", Step::ExitBlock},
++    {0x30, "SYS_ELAPSED", Step::Elapsed},
++    {0x31, "SYS_TICKFREQ", Step::TickFreq},
 +};
 +
-+const Call* lookup(uint8_t op) {
-+  for (const Call& c : kCalls) {
-+    if (c.op == op) return &c;
++const Service* lookup(uint8_t op) {
++  for (const Service& s : kServices) {
++    if (s.op == op) return &s;
 +  }
 +  return nullptr;
 +}
 +
-+int pump() {
-+  for (;;) {
-+    switch (S.phase) {
-+      case Phase::WriteC:
-+        if (do_writec() != 0) return 1;
-+        break;
-+      case Phase::Write0:
-+        if (do_write0() != 0) return 1;
-+        break;
-+      case Phase::WriteBlock:
-+        if (do_write_block() != 0) return 1;
-+        break;
-+      case Phase::WriteData:
-+        if (do_write_data() != 0) return 1;
-+        break;
-+      case Phase::ExitBlock:
-+        if (do_exit_block() != 0) return 1;
-+        break;
-+      case Phase::Clock:
-+        do_clock();
-+        break;
-+      case Phase::None:
-+        S.done = true;
-+        break;
-+    }
-+    if (S.done) {
-+      std::fprintf(stderr,
-+                   "%s %s -> 0x%" PRIx64 " (%" PRIu64 " byte(s) written)\n",
-+                   kTag, lookup(S.op)->name, S.result, S.written);
-+      std::fflush(stderr);
-+      return 0;
-+    }
-+  }
++// The per-service trace goes to stderr, so `+semiout` stays byte-exact.
++void report(const Service& svc) {
++  std::fprintf(stderr, "%s %s -> 0x%" PRIx64 "\n", kTag, svc.name, S.result);
++  std::fflush(stderr);
 +}
 +
 +}  // namespace
@@ -319,85 +813,99 @@ index 0000000..b31da55
 +  mem_base = static_cast<uint64_t>(base);
 +  mem_size = static_cast<uint64_t>(size);
 +  // Guest console sink.  `+semiout=<file>` isolates guest bytes from the
-+  // simulator's own stdout so the three-platform comparison is byte-exact;
-+  // without it the console is the process stdout (QEMU/gem5 default shape).
++  // simulator's own stdout so a run's console output is byte-exact.
 +  console = stdout;
 +  s_vpi_vlog_info info;
 +  if (vpi_get_vlog_info(&info)) {
 +    for (int i = 1; i < info.argc; i++) {
 +      const char* arg = info.argv[i];
-+      if (std::strncmp(arg, "+semiout=", 9) != 0) continue;
-+      const char* path = arg + 9;
-+      FILE* f = std::fopen(path, "wb");
-+      if (f == nullptr) fail(std::string("cannot open +semiout file: ") + path);
-+      console = f;
++      if (std::strncmp(arg, "+semiout=", 9) == 0) {
++        const char* path = arg + 9;
++        FILE* f = std::fopen(path, "wb");
++        if (f == nullptr) {
++          fail(std::string("cannot open +semiout file: ") + path);
++        }
++        console = f;
++      } else if (std::strncmp(arg, "+semicmdline=", 13) == 0) {
++        // Same shape as QEMU's `-semihosting-config arg=a,arg=b` (joined by
++        // single spaces); consumed by SYS_GET_CMDLINE.
++        guest_cmdline = arg + 13;
++      }
 +    }
 +  }
++  init_gfiles();
 +  std::fprintf(stderr,
 +               "%s init: guest-memory window [0x%" PRIx64 ", 0x%" PRIx64
-+               "); console=%s; services "
-+               "SYS_WRITEC/SYS_WRITE0/SYS_WRITE/SYS_CLOCK/SYS_EXIT\n",
++               "); console=%s; cmdline=\"%s\"; %zu services\n",
 +               kTag, mem_base, mem_base + mem_size,
-+               console == stdout ? "stdout" : "+semiout file");
++               console == stdout ? "stdout" : "+semiout file",
++               guest_cmdline.c_str(),
++               sizeof(kServices) / sizeof(kServices[0]));
 +  std::fflush(stderr);
 +}
 +
-+extern "C" int wuming_semi_begin(int op, long long arg, long long pc) {
-+  S = State();
++extern "C" int wuming_semi_begin(int op, long long arg, long long pc,
++                                 long long cycle) {
++  S = Ctx();
++  cache.valid = false;
++  pend = false;
 +  S.op = static_cast<uint8_t>(op);
 +  S.arg = static_cast<uint64_t>(arg);
 +  S.pc = static_cast<uint64_t>(pc);
++  S.cycle = static_cast<uint64_t>(cycle);
 +
-+  const Call* call = lookup(S.op);
-+  if (call == nullptr) {
++  const Service* svc = lookup(S.op);
++  if (svc == nullptr) {
 +    std::fprintf(stderr,
 +                 "%s ERROR: semihosting op 0x%02x is not implemented "
-+                 "(pc=0x%" PRIx64 "); minimal service set is "
-+                 "0x03/0x04/0x05/0x10/0x18\n",
++                 "(pc=0x%" PRIx64 "); implemented services are "
++                 "0x01/0x02/0x03/0x04/0x05/0x06/0x07/0x08/0x09/0x0a/0x0c/0x0d/"
++                 "0x0e/0x0f/0x10/0x11/0x12/0x13/0x15/0x18/0x19/0x20/0x30/0x31\n",
 +                 kTag, S.op, S.pc);
 +    std::fflush(stderr);
 +    std::fflush(stdout);
 +    std::exit(1);
 +  }
 +  std::fprintf(stderr, "%s %s op=0x%02x arg=0x%" PRIx64 " pc=0x%" PRIx64 "\n",
-+               kTag, call->name, S.op, S.arg, S.pc);
++               kTag, svc->name, S.op, S.arg, S.pc);
++  std::fflush(stderr);
 +
-+  switch (S.op) {
-+    case 0x03:
-+      S.out = console;
-+      S.need_addr = S.arg;
-+      S.phase = Phase::WriteC;
-+      break;
-+    case 0x04:
-+      S.out = console;
-+      S.need_addr = S.arg;
-+      S.phase = Phase::Write0;
-+      break;
-+    case 0x05:
-+      S.need_addr = S.arg;
-+      S.phase = Phase::WriteBlock;
-+      break;
-+    case 0x18:
-+      S.need_addr = S.arg;
-+      S.phase = Phase::ExitBlock;
-+      break;
-+    case 0x10:
-+      S.phase = Phase::Clock;
-+      break;
-+    default:
-+      fail("service table/dispatch mismatch");
++  S.step = svc->step;
++  if (pump() != 0) {
++    report(*svc);
++    return 0;  // service complete; S.result holds the answer
 +  }
-+  return pump();
++  return 1;  // a guest-memory word is needed
++}
++
++extern "C" int wuming_semi_mem_write() {
++  return (pend && pend_kind == MemKind::Write) ? 1 : 0;
++}
++
++extern "C" long long wuming_semi_mem_wdata() {
++  return static_cast<long long>(pend_wdata);
 +}
 +
 +extern "C" long long wuming_semi_word_addr() {
-+  return static_cast<long long>(S.cur_word_addr);
++  return static_cast<long long>(pend_addr);
 +}
 +
 +extern "C" int wuming_semi_word(long long data) {
-+  S.cur_word = static_cast<uint64_t>(data);
-+  S.have_word = true;
-+  return pump();
++  if (pend && pend_kind == MemKind::Read) {
++    cache.addr = pend_addr;
++    cache.data = static_cast<uint64_t>(data);
++    cache.valid = true;
++  } else {
++    // A completed write invalidates the merge copy of that word.
++    cache.valid = false;
++  }
++  pend = false;
++  if (pump() != 0) {
++    const Service* svc = lookup(S.op);
++    if (svc != nullptr) report(*svc);
++    return 0;
++  }
++  return 1;  // the next guest-memory word is needed
 +}
 +
 +extern "C" long long wuming_semi_result() {

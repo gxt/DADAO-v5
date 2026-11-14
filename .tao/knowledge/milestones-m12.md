@@ -30,12 +30,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m12-chipyard-016 | 2026-11-14 15:05 | 6–8 h | embench（38）+ picolibc-full 在 chipyard Tiny 上全通（加 chipyard 引擎） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-016 | 2026-11-15 01:10 | embench（38）+ picolibc-full 在 chipyard Tiny 达 engine parity（`SYS_FLEN` 修复；单二进制证据） |
 | m12-chipyard-028 | 2026-11-14 07:00 | 重生成 `bootrom.tiny.hex`（514300…/c499803a…）+ 撤 hmon 自装 workaround（235/235） |
 | m12-chipyard-029 | 2026-11-14 02:20 | 融合乘加溢出按 IEEE（RTL 本就合规；96 格实测 + 防回退用例，74/74 证据） |
 | m12-chipyard-030 | 2026-11-13 19:02 | `rootn(±0,2)⇒+0`、结果 NaN ⇒ canonical（RTL + 模型；50 组 2118 例逐字节） |

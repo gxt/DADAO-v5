@@ -24,7 +24,8 @@ Design
   ``should_fail`` set, iff it exits non-zero) — i.e. the verdict comes from the
   test's own assertions, never from any DADAO-side expectation.
 
-* **Run path.**  QEMU boots the fixed 64 KiB Machine-v5-Tiny BootROM firmware
+* **Run path.**  Two engines run the same built ELF (``--engine``):
+  ``qemu`` (default) boots the fixed 64 KiB Machine-v5-Tiny BootROM firmware
   (``-machine dadao-tiny,bootrom-image=...``) and loads the test ELF into SRAM
   (spec/Machine-v5 §6: power -> hmon -> fixed entry 0xffff_ff01_0100).
   picolibc's own
@@ -34,7 +35,15 @@ Design
   image uses ``tests/shared/linker/picolibc-tiny.ld`` (a wrapper over the
   installed ``picolibc_noflash.ld`` with Tiny __flash/__ram/__stack values and
   crt + program together in SRAM; ISS-191 heap PROVIDEs still apply), so
-  ``malloc``/``sbrk`` link.  picolibc is
+  ``malloc``/``sbrk`` link.  ``--engine chipyard`` runs the identical image on
+  the Verilator Tiny harness (``+loadmem=`` / ``+semiout=`` / ``+max-cycles=``,
+  see ``tools/testcases/lib/chipyard_engine.py``); the guest's semihosting
+  calls are answered by the harness responder, and the command line the
+  ``argv`` tests expect is passed with ``+semicmdline=`` (QEMU's
+  ``-semihosting-config arg=`` equivalent).  Per-engine fail-closed guards
+  live in that module: an exhausted ``+max-cycles`` budget or a simulator
+  binary replaced mid-run is a ``fail``, and a service the harness does not
+  implement is ``blocked`` with the service number.  picolibc is
   Tiny-only: selecting a non-picolibc profile is an explicit error.  The test's own link arguments (``--defsym`` for the
   printf/scanf float/int/long variants) and semihosting command line
   (``COMMAND_LINE`` for the argv tests) are honoured.
@@ -80,6 +89,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "infra"))
 import paths  # noqa: E402
 import writer_guard  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import chipyard_engine  # noqa: E402
 import machine_profile  # noqa: E402
 
 REPO_ROOT = paths.repo_root()
@@ -102,6 +112,13 @@ TINY_BOOTROM = paths.test_artifacts_dir() / "bootrom" / "tiny" / "bootrom_tiny.b
 
 DEFAULT_TIMEOUT = 60
 DEFAULT_JOBS = int(os.environ.get("JOBS") or max(1, (os.cpu_count() or 1) - 2))
+DEFAULT_ENGINE = "qemu"
+# Chipyard Tiny (m12-chipyard-016): the Verilator harness runs the same ELF.
+CHIPYARD_SIM = chipyard_engine.default_sim(REPO_ROOT)
+DEFAULT_MAX_CYCLES = 2_000_000_000
+# The Verilator harness runs ~10-50x slower than qemu TCG: scale the per-test
+# budget instead of raising every individual number.
+DEFAULT_TIMEOUT_SCALE = 4.0
 
 # Machine-fault exit codes (spec/Machine-v5 §7.1): monitor 0xC0-0xFF (run
 # mode + cause index) and other cfx 0x80-0xBF (cfxHA); see
@@ -321,6 +338,116 @@ def run_qemu(elf, argv=None, timeout=DEFAULT_TIMEOUT):
     return res.returncode, res.stdout
 
 
+def _case_dir(out_dir, name):
+    return Path(out_dir) / "run" / name
+
+
+def claim_case(out_dir, name, sim_md5):
+    """Atomically take a case, so several runner processes can share a queue.
+
+    * ``.done`` written by whoever judged the case (with the simulator md5 it
+      ran against) ⇒ **reuse** the stored verdict instead of re-running;
+    * otherwise ``os.open(..., O_CREAT|O_EXCL)`` on ``.claim`` ⇒ **ok** (we own
+      it); a second pool hitting the same case gets ``FileExistsError`` and
+      reports ``skipped`` -- so two pools never write the same ``+semiout``.
+    """
+    d = _case_dir(out_dir, name)
+    d.mkdir(parents=True, exist_ok=True)
+    done = d / ".done"
+    if done.is_file():
+        try:
+            info = json.loads(done.read_text())
+        except (OSError, ValueError):
+            info = {}
+        if (info.get("sim_md5") == sim_md5
+                and info.get("status") in ("pass", "fail", "blocked",
+                                           "excluded")):
+            return "reused", info
+    # A pool started before the claim protocol existed holds no `.claim`: the
+    # simulator process itself is the evidence that the case is in flight.
+    if _elf_running(Path(out_dir) / (name + ".elf")):
+        return "claimed", None
+    # ... and a finished `sim.log` (SYS_EXIT seen) means the other pool already
+    # judged it: its verdict is in that pool's JSON / progress log, so this
+    # process reports `skipped` and the report unions the two pools.
+    log = d / "sim.log"
+    if log.is_file():
+        try:
+            if "SYS_EXIT(" in log.read_text(errors="replace"):
+                return "finished", None
+        except OSError:
+            pass
+    claim = d / ".claim"
+    try:
+        fd = os.open(str(claim), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return "claimed", None
+    os.write(fd, str(os.getpid()).encode())
+    os.close(fd)
+    return "ok", None
+
+
+def _elf_running(elf):
+    """True when some process is already running the simulator on this ELF."""
+    needle = ("+loadmem=" + str(elf)).encode()
+    proc = "/proc"
+    try:
+        pids = [d for d in os.listdir(proc) if d.isdigit()]
+    except OSError:
+        return False
+    for pid in pids:
+        try:
+            with open(os.path.join(proc, pid, "cmdline"), "rb") as fh:
+                if needle in fh.read():
+                    return True
+        except OSError:
+            continue
+    return False
+
+
+def finish_case(out_dir, name, row, sim_md5):
+    """Publish the verdict (``.done``) and drop the claim."""
+    d = _case_dir(out_dir, name)
+    info = {"status": row.get("status"), "rc": row.get("rc"),
+            "cycles": row.get("cycles"), "sim_md5": sim_md5,
+            "reason": (row.get("reason") or "")[:200]}
+    tmp = d / ".done.tmp"
+    try:
+        tmp.write_text(json.dumps(info))
+        os.replace(str(tmp), str(d / ".done"))
+    except OSError:
+        pass
+    try:
+        (d / ".claim").unlink()
+    except OSError:
+        pass
+
+
+def release_claim(out_dir, name):
+    try:
+        (_case_dir(out_dir, name) / ".claim").unlink()
+    except OSError:
+        pass
+
+
+def run_chipyard(elf, case_dir, argv, timeout, sim, max_cycles, env):
+    """Run one ELF on the chipyard Tiny harness; return ``(rc, out, obs)``.
+
+    ``rc`` is the guest exit status the harness reported on its ``SYS_EXIT``
+    line (``None`` when the platform stopped the case first); ``obs`` carries
+    the guard verdict, the executed cycles, the wall clock and the simulator
+    md5 for the report.
+    """
+    os.makedirs(case_dir, exist_ok=True)
+    obs = chipyard_engine.evaluate(
+        str(elf), case_dir, sim=str(sim), timeout=timeout,
+        max_cycles=max_cycles,
+        cmdline=(" ".join(argv) if argv else None),
+        env_extra=env, cwd=case_dir)
+    out = obs["semiout"].decode("utf-8", "replace")
+    return obs["exit"], out, obs
+
+
 def _match(text):
     for pat, why in _BLOCK_SIGS:
         m = pat.search(text)
@@ -331,8 +458,10 @@ def _match(text):
     return None
 
 
-def classify_test(entry, targets, out_dir, preludes, env, inject_name):
+def classify_test(entry, targets, out_dir, preludes, env, inject_name,
+                  engine_cfg=None, sim_md5=None):
     name = entry["name"]
+    engine_cfg = engine_cfg or {"engine": "qemu", "scale": 1.0}
     should_fail = name in SHOULD_FAIL
     expected_rc = None
     if name == inject_name:
@@ -361,7 +490,22 @@ def classify_test(entry, targets, out_dir, preludes, env, inject_name):
         return "fail", f"exit {actual_rc}"
 
     if name in EXCLUDED:
-        return {"name": name, "suite": entry["suite"], "status": "excluded", "reason": EXCLUDED[name]}
+        return {"name": name, "suite": entry["suite"], "status": "excluded",
+                "reason": EXCLUDED[name]}
+
+    claimed_state, done_info = claim_case(out_dir, name, sim_md5)
+    if claimed_state in ("claimed", "finished"):
+        return {"name": name, "suite": entry["suite"], "status": "skipped",
+                "reason": ("in flight in another runner pool"
+                           if claimed_state == "claimed"
+                           else "already finished by another runner pool")}
+    if claimed_state == "reused":
+        return {"name": name, "suite": entry["suite"],
+                "status": done_info.get("status", "pass"),
+                "reason": "reused (same sim md5): "
+                          + (done_info.get("reason") or "")[:80],
+                "rc": done_info.get("rc"),
+                "cycles": done_info.get("cycles")}
 
     target = targets.get(name)
     if target is None:
@@ -384,10 +528,37 @@ def classify_test(entry, targets, out_dir, preludes, env, inject_name):
                 "reason": why, "log": err[-600:]}
 
     argv = SEMIHOST_ARGV if name in SEMIHOST_ARGS_TESTS else None
-    rc, out = run_qemu(elf, argv, SLOW_TESTS.get(name, DEFAULT_TIMEOUT))
+    budget = SLOW_TESTS.get(name, DEFAULT_TIMEOUT) * engine_cfg["scale"]
+    obs = None
+    if engine_cfg["engine"] == "chipyard":
+        case_dir = out_dir / "run" / name
+        rc, out, obs = run_chipyard(elf, case_dir, argv, budget,
+                                    engine_cfg["sim"], engine_cfg["max_cycles"],
+                                    env)
+        if obs["status"] == "FAIL":
+            return {"name": name, "suite": entry["suite"], "status": "fail",
+                    "reason": "guard: " + obs["reason"], "log": out[-300:],
+                    "cycles": obs["cycles"], "seconds": obs["seconds"],
+                    "sim_md5": obs["md5"]}
+        if obs["status"] == "BLOCKED":
+            # The platform stopped the case before its own verdict: a gap, not
+            # the test's failure (the harness names the missing service).
+            return {"name": name, "suite": entry["suite"], "status": "blocked",
+                    "reason": "platform: " + obs["reason"], "log": out[-300:],
+                    "cycles": obs["cycles"], "seconds": obs["seconds"],
+                    "sim_md5": obs["md5"]}
+    else:
+        rc, out = run_qemu(elf, argv, budget)
     status, why = verdict(rc, out)
-    return {"name": name, "suite": entry["suite"], "status": status, "reason": why,
-            "log": out[-300:]}
+    row = {"name": name, "suite": entry["suite"], "status": status,
+           "reason": why, "log": out[-300:], "rc": rc}
+    if obs is not None:
+        row.update(cycles=obs["cycles"], seconds=obs["seconds"],
+                   sim_md5=obs["md5"],
+                   semi_out=os.path.join(str(case_dir), "semi.out"),
+                   sim_log=os.path.join(str(case_dir), "sim.log"))
+    finish_case(out_dir, name, row, sim_md5)
+    return row
 
 
 def representative_names(inv):
@@ -425,9 +596,25 @@ def main() -> int:
                     default=os.environ.get("DADAO_TEST_PROFILE") or "tiny",
                     choices=sorted(machine_profile.all_profiles()),
                     help="machine profile (picolibc is Tiny-only)")
+    ap.add_argument("--engine", default=os.environ.get("DADAO_TEST_ENGINE")
+                    or DEFAULT_ENGINE, choices=("qemu", "chipyard"),
+                    help="run engine: qemu (dadao-tiny) or chipyard (Verilator "
+                         "Tiny harness; m12-chipyard-016)")
+    ap.add_argument("--chipyard", default=None,
+                    help="simulator-chipyard harness binary (engine chipyard)")
+    ap.add_argument("--max-cycles", dest="max_cycles", type=int,
+                    default=int(os.environ.get("DADAO_CHIPYARD_MAX_CYCLES")
+                                or DEFAULT_MAX_CYCLES),
+                    help="+max-cycles budget; tripping it is a FAIL")
+    ap.add_argument("--timeout-scale", dest="timeout_scale", type=float,
+                    default=None,
+                    help="multiply every per-test time budget (default: 1 for "
+                         "qemu, %g for chipyard)" % DEFAULT_TIMEOUT_SCALE)
     ap.add_argument("--jobs", type=int, default=DEFAULT_JOBS)
     ap.add_argument("--work-dir", default=str(REPO_ROOT / ".work" / "build" / "picolibc-tests-run"))
     ap.add_argument("--only", default=None, help="comma-separated test names")
+    ap.add_argument("--skip", default=None,
+                    help="comma-separated test names to leave out of this run")
     ap.add_argument("--json", default=None, help="write full per-test report JSON here")
     ap.add_argument("--inject", action="store_true",
                     help="corrupt one expectation to make the FAIL path reachable")
@@ -441,7 +628,13 @@ def main() -> int:
               file=sys.stderr)
         return 2
 
-    for tool in (CLANG, CLANGXX, LLVM_MC, LLVM_OBJCOPY, LLD, QEMU):
+    sim = Path(args.chipyard) if args.chipyard else Path(CHIPYARD_SIM)
+    need = [CLANG, CLANGXX, LLVM_MC, LLVM_OBJCOPY, LLD]
+    if args.engine == "qemu":
+        need.append(QEMU)
+    else:
+        need.append(sim)
+    for tool in need:
         if not tool.exists():
             print(f"picolibc-tests: ERROR: {tool} not found — run 'make install-host'",
                   file=sys.stderr)
@@ -472,6 +665,9 @@ def main() -> int:
         "minimal": build_prelude(out_dir, "minimal", env),
     }
 
+    if args.skip:
+        dropped = set(args.skip.split(","))
+        inv = [e for e in inv if e["name"] not in dropped]
     if args.only:
         wanted = set(args.only.split(","))
         inv = [e for e in inv if e["name"] in wanted]
@@ -479,18 +675,46 @@ def main() -> int:
         reps = set(representative_names(inv))
         inv = [e for e in inv if e["name"] in reps]
 
+    sim_md5 = chipyard_engine.md5_of(sim) if args.engine == "chipyard" else None
+    if args.engine == "chipyard" and sim_md5 is None:
+        print(f"picolibc-tests: ERROR: cannot read the chipyard simulator: {sim}",
+              file=sys.stderr)
+        return 2
+    scale = args.timeout_scale
+    if scale is None:
+        scale = DEFAULT_TIMEOUT_SCALE if args.engine == "chipyard" else 1.0
+    engine_cfg = {"engine": args.engine, "sim": sim, "md5": sim_md5,
+                  "max_cycles": args.max_cycles, "scale": scale}
+    print(f"picolibc-tests: engine={args.engine} jobs={args.jobs} "
+          f"timeout-scale={scale:g}"
+          + (f" sim={sim} md5={sim_md5} max-cycles={args.max_cycles}"
+             if args.engine == "chipyard" else ""))
+
     inject_name = args.inject_test if args.inject else None
     results = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=args.jobs) as ex:
-        futs = {ex.submit(classify_test, e, targets, out_dir, preludes, env, inject_name): e
+        futs = {ex.submit(classify_test, e, targets, out_dir, preludes, env,
+                          inject_name, engine_cfg, sim_md5): e
                 for e in inv}
+        done = 0
         for fut in concurrent.futures.as_completed(futs):
-            results.append(fut.result())
+            row = fut.result()
+            results.append(row)
+            done += 1
+            # One line per completed case on stderr: a long batch must be
+            # observable while it runs (the table on stdout is the report).
+            sys.stderr.write("  [%d/%d] %-24s %-8s cyc=%-9s rc=%-3s %s\n"
+                             % (done, len(inv), row["name"], row["status"],
+                                row.get("cycles") if row.get("cycles") is not None
+                                else "-",
+                                row.get("rc") if row.get("rc") is not None else "-",
+                                (row.get("reason") or "")[:70]))
+            sys.stderr.flush()
 
     order = {e["name"]: i for i, e in enumerate(inv)}
     results.sort(key=lambda r: order.get(r["name"], 1 << 30))
 
-    counts = {"pass": 0, "fail": 0, "excluded": 0, "blocked": 0}
+    counts = {"pass": 0, "fail": 0, "excluded": 0, "blocked": 0, "skipped": 0}
     for r in results:
         counts[r["status"]] += 1
 
@@ -499,16 +723,28 @@ def main() -> int:
         print(f"  {r['name']:<{width}}  {r['suite']:<16}  {r['status']:<8}  {r['reason'][:110]}")
 
     print()
-    print(f"picolibc-tests: stage={args.stage} total={len(results)} "
-          f"pass={counts['pass']} fail={counts['fail']} "
-          f"excluded={counts['excluded']} blocked={counts['blocked']}")
+    print(f"picolibc-tests: stage={args.stage} engine={args.engine} "
+          f"total={len(results)} pass={counts['pass']} fail={counts['fail']} "
+          f"excluded={counts['excluded']} blocked={counts['blocked']} "
+          f"skipped={counts['skipped']}")
+    if args.engine == "chipyard":
+        cyc = [r["cycles"] for r in results if r.get("cycles") is not None]
+        secs = sum(r.get("seconds") or 0.0 for r in results)
+        if cyc:
+            print(f"picolibc-tests: chipyard cycles min={min(cyc)} "
+                  f"max={max(cyc)} sum={sum(cyc)}; summed wall {secs:.1f}s; "
+                  f"sim md5={sim_md5}")
     if args.json:
         Path(args.json).write_text(json.dumps(
-            {"stage": args.stage, "counts": counts, "total": len(results),
-             "inject": bool(args.inject), "results": results}, indent=1))
+            {"stage": args.stage, "engine": args.engine, "counts": counts,
+             "total": len(results), "inject": bool(args.inject),
+             "sim_md5": sim_md5, "max_cycles": args.max_cycles,
+             "results": results}, indent=1))
 
     # Structural self-assertions (fail-closed, AGENTS.md Validation-script rules): every test
     # lands in exactly one bucket and the buckets sum to the live total.
+    # `skipped` cases belong to the other pool of the same shared queue: they
+    # are neither a pass nor a failure of this process.
     if sum(counts.values()) != len(results) or len(results) == 0:
         print("picolibc-tests: FAIL (bucket sum != total or empty inventory)", file=sys.stderr)
         return 2
@@ -526,6 +762,14 @@ def main() -> int:
         return 1
     if not guard_ok:
         return 1
+    # Anti-false-green (m12-chipyard-016): the whole batch must have run against
+    # one simulator binary.
+    if args.engine == "chipyard":
+        md5_end = chipyard_engine.md5_of(sim)
+        if md5_end != sim_md5:
+            print(f"picolibc-tests: FAIL (simulator binary changed during the "
+                  f"run: md5 {sim_md5} -> {md5_end})", file=sys.stderr)
+            return 1
     print("picolibc-tests: PASS (fail=0, blocked=0)")
     return 0
 
