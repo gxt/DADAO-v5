@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..8dcc2cc
+index 0000000..b31b64d
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2984 @@
+@@ -0,0 +1,2994 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -1111,10 +1111,20 @@ index 0000000..8dcc2cc
 +    return 1 + r;
 +}
 +
++/* ra0 = {SBZ[63:54], RACNT[53:48], MRPTR[47:0]}: the SBZ field is not
++ * writable (it reads back as 0), so the RA write port drops it.  Only ra0 is
++ * masked -- entries ra1..ra63 use [63:48] as the 16-bit recursive count.
++ * spec/SimRISC-00 §2.4 (ra0 写口：SBZ 写无效). */
++#define RA0_WRITE_MASK 0x003FFFFFFFFFFFFFULL   /* RACNT[53:48] + MRPTR[47:0] */
++
 +/* Store val into ra[logical_n] (ring-buffer view). */
 +void helper_ra_store(CPUDADAOState *env, uint64_t logical_idx, uint64_t val)
 +{
 +    int phys = ra_phys(env, (int)logical_idx);
++
++    if (logical_idx == 0) {
++        val &= RA0_WRITE_MASK;
++    }
 +    env->ra[phys] = val;
 +}
 +

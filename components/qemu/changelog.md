@@ -346,6 +346,10 @@
   - 摘要：**`ext.uo`/`ext.so` orrr 的 `hd` 取 `rdHD[5:0]`，删运行时 ILLI 路径**（用户裁定 2026-11-13，`ISS-422`：`rdHD` 高位忽略、不抛 ILLI）。`target/dadao/insn_trans/trans_extend.c.inc`：`trans_ext_{uo,so}_orrr_rd` 删除 `gen_runtime_illi_check(ctx, rdhd, 63)` 及其注释，保留既有 `tcg_gen_andi_i64(pos, rdhd, 0x3F)`，头注释改述 `hd = rdHD[5:0]`（chipyard `WumingDecoder.orrrShift` 即把该值送 6 位 `shamt` 端口）。`target/dadao/translate.c`：`gen_runtime_illi_check()` 随之无调用者、删除；其唯一被调用者 `gen_raise_exception_illi()` 亦无调用者，同步删除（避免新增 `-Wunused-function`）。orri 分支的 `a->hd > 63` 检查保留（`immu6` 为 6 位字段 ⇒ 不可达，留作防御、最小改动）。语义：`rdHD=64 ≡ 0`、`67 ≡ 3`、`2^64−1 ≡ 63`、`63 ≡ 63`；`ext.so` 仍按 `rdhc[hd]` 符号扩展。补丁 2 份改。
   - 执行者：engineer
 
+- **2026-11-14 `m13-qemu-012`**
+  - 摘要：**`ra0` 写口丢弃 SBZ `[63:54]`（`ISS-426` 的 QEMU 侧）**。`target/dadao/helper.c` 的 `helper_ra_store()`：逻辑寄存器 0（`ra0`，物理 0）的写入按 `RA0_WRITE_MASK = 0x003FFFFFFFFFFFFF` 掩码，只落 `RACNT[53:48]`/`MRPTR[47:0]`，`[63:54]` 写无效、读回恒 0（`spec/SimRISC-00 §2.4`）；`ra1`–`ra63` 的 `[63:48]` 是 16 位递归计数，不掩码。`helper_ras_push`/`helper_ras_pop` 的 RACNT/MRPTR 头更新路径未改动（逐字节不变）。补丁 1 份改。
+  - 执行者：engineer
+
 ## M14
 
 - **2026-11-14 `m14-qemu-001`**
