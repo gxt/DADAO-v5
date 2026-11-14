@@ -86,7 +86,7 @@
 ### 第 1 轮 reviewer 验收（2026-11-14）
 
 **重跑（本人执行；`rc=$?` 现取，workdir=任务 worktree）**
-- 一键证据 `./.work/evidence/m13-gem5-012/run.sh`：**rc=0、30 PASS/0 FAIL**（41–52 s）；注入后同脚本 rc=1（6 FAIL）；还原后回绿 rc=0、30 PASS。
+- 一键证据 `<运行期证据目录>/run.sh`：**rc=0、30 PASS/0 FAIL**（41–52 s）；注入后同脚本 rc=1（6 FAIL）；还原后回绿 rc=0、30 PASS。
 - 独立探针：自建 ELF `81852ba1…`，期望**由我手算**得 md5 `7c5058f40f7b769587a1b80f16a0efcf`（80 B）；gem5/QEMU/chipyard 三侧 `cmp` 对我手算值及相互全 `rc=0`，`xxd` 十槽 = `1,f,~0,80…0,~0,…f8,80…0,7,~0,…f8`。
 - 改前正证：`old-gem5.opt.pre-hd` md5 `b6440f19c19e02ab6408ffcf4b7acf75` 同 ELF ⇒ **rc=248（`GEM5_EXIT_CODE=248`）、0 B**。
 - 快门控：`check_b3 rc=0 PASS=4318 FAIL=0`、`check-gem5-decode rc=0 PASS=694`、`check-wuming-cycles rc=0 PASS=11`、`check_b7 rc=0`、`check-component-changelog rc=0 PASS(9 文件×4=36)`、`--source-state` ⇒ `gem5: OK … clean=True`；施工前基线二进制 `dadao-b3-test-baseline` ⇒ **PASS=4248 FAIL=0**（+70 与 `12×3+5×5×2−16` 算式一致）。
