@@ -246,9 +246,9 @@
 - id: ISS-387
   scope:
   - testcases
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M12
+  resolved_by: "`tests/inst/base/reg-cond-assign.yaml` 现含 3 条显式 not-taken 用例（`cs.n`/`cs.z`/`cs.p` 各一：条件不成立 ⇒ 写 rdHD、rdHC 不得被写）⇒ 正例单支缺口已补"
   title: 【P2】**测试向量系统性缺口：只覆盖正例分支**。`m12-chipyard-011` 发现 `cs.n/.z/.p` 的 `else` 分支（不成立时写另一源）从未被执行 —— `tests/inst/base/reg-cond-assign.yaml` 5 条语义例全在 taken 支，故 `m12-chipyard-010` 的 605 例自写 oracle 与该任务 reviewer 均漏检。010 已由 011 顺手修好（`csTaken = !isCs || csCond <= 2 || csCondTrue`，spec 依据 `SimRISC-02 §2`）。行动：立 `m13-testcases-010` 补 rd 形式 not-taken 覆盖；并在 `Process-09` 增加「每条条件语义须有 taken/not-taken 双支」的判据，防止同类漏测。
 - id: ISS-388
   scope:
@@ -295,9 +295,9 @@
 - id: ISS-394
   scope:
   - chipyard
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M12
+  resolved_by: "已修：`WumingMulAddRecFN` 的 `prodInf` 已加 `&& !mulNan`（RTL），`tools/chipyard/fp_ref.py` 的 `prod_inf` 同步加 `not (ra.is_nan or rb.is_nan)` ⇒ `qNaN × ±Inf + ∓Inf` 不再抬 NV"
   title: 【P1】**FMA `qNaN × ±Inf + ∓Inf` 错误抬 `NV`，且模型与 RTL 同错**（`m12-chipyard-013` reviewer 发现）：例 `qNaN × +Inf + (−Inf)` ⇒ core/hardfloat `1/0`；`fp_ref.fma_exact` 的 `prod_inf` 未排除 NaN 乘数 ⇒ 台架与核上对照互相印证「错误答案」，两边都绿。依据 `contract-fp §20` / `SimRISC-07 §2.5`（Inf 条前提为「±Inf × 有限非零数」，NaN 条只对 sNaN 置 NV）。修法：`WumingMulAddRecFN` 的 `infDiff`/`prodInf` 先排除 NaN 乘数，模型同步，并补「NaN×Inf」与「Inf+Inf 异号」两组区分例。**教训**：模型与被测实现共享同一前提缺失时，差分不产生信号——须有独立 oracle（reviewer 自写 IEEE oracle 14356 例才覆盖到）。
 - id: ISS-395
   scope:
@@ -378,9 +378,9 @@
   scope:
   - chipyard
   - testcases
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M12
+  resolved_by: "`tools/chipyard/fp_sweep.py` 的 `QEMU_GROUPS` 注释已更新（不再称「QEMU 恒 ±Inf、未落地」）；完成区的过时归因属历史记录，保留不改"
   title: 【P3】`m12-chipyard-025` 遗留的**过时表述**：① 完成区与 `tools/chipyard/fp_sweep.py` 的 `QEMU_GROUPS` 注释仍称「QEMU 仍恒 ±Inf、未落地」，但 `m13-qemu-005` 已于 12:03 合入且 `cvt_ff_ovf` 38/38 与核一致；② 完成区把 `check-patch-tree` 的 6 项红归因为「并发在途」，真实原因是**任务分支基线过旧**（`3e4f218a` 早于 qemu/gem5 两次合入）。随 `m13-testcases-011` 补矩阵时一并改注释。
 - id: ISS-405
   scope:
