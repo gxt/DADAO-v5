@@ -4,13 +4,14 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
-- **2026-11-14（深夜）**：M12 已验证 37 / 进行中 1（`m12-chipyard-016`）/ 待开始 1（`m12-integ-002`）；M13 已验证 **87** / 进行中 2（`043`、`chipyard-002` 待合）/ 待开始 6；M14 **K1 已启动**（已验证 16，K1 三件：`003` 进行中、`004`/`005` 待开始）；M16 已验证 5。
-- 今日 M13 合入 20+ 件：`022`–`029`、`031`–`036`、`qemu-014/015`、`spec-008/009`、`gem5-012/013`、`chipyard-001/002`(待合)、`testcases-030/032/033/039/040/041/042`。
-- **重要口径变更（2026-11-14）**：`sc` 保留粒度=精确地址+宽度（qemu 已合、chipyard `002` Accepted 待合）；semihosting 服务号=`rd16`（spec 已改）；**Vast 放弃 ISA 执行覆盖**、`check-inst` 退役；**YAML 全退役**（`043` 待复核）；单指令用例 ≤127 + 字段抽样；picolibc 判据=engine parity；embench `-O0` 开 12h 夜跑。
-- **待办（有共享影响）**：`016` 合入前须**单二进制证据**（`SYS_FLEN` 修复使 sim `ac35dffb→079ae015`）；合入后先合 016 再合 `chipyard-002`；随后一次 `install-host` + musl 重建（`ISS-437`）；再派 `m12-integ-002`。
-- 队列：M13 `043`→`044`(三探针)→`045`(riscv-tests)；`037`/`integ-003` 等 `002` 合入；`spec-010` 等 M12 收尾。
-- 未决 issue（P1/P2）：`ISS-433`（chipyard `trap cfx_power`）、`ISS-435`（余 `037`）、`ISS-437`（musl）、`ISS-440`（多 hart 保留清除，建议 ADR）。
-- 规则新增：构建 32 核 / 测试「核数−2」；**有空位就发**（不切配额）；禁边构建边测试；`check-modules` 会装共享安装根 ⇒ 并行窗口禁跑；**节点侧未提交文件禁靠 sync/reset 清理**。
+- **2026-11-15（凌晨）**：M12 已验证 38 / 进行中 1（`017` 报告生成器入仓）/ 待开始 1（`integ-002`，等 `-O0` 夜跑 08:46 数据 + 一次 `integ-002` 核验）；M13 已验证 **92** / 进行中 2（`037`、`integ-003`）/ 待开始 2（`integ-005`、`spec-010`）；M14 **K1 四件已合**（已验证 18，`005` 收口门控在复核）；M16 已验证 5 / 进行中 1（`gem5-005`）/ 待开始 3。
+- **今晚合入**：`chipyard-016`（embench 38 + picolibc engine parity，`SYS_FLEN` 修复）、`chipyard-002`（`sc` 去整字比较；冲突取 016 侧）、`testcases-043`（YAML 全退役）/`044`（三探针退役 +34 点）/`045`（riscv-tests 精选 32 点后退役）/`046`（spec 原语迁 `lib/`、`check_b7` 断言改吃 `.S`）、`linux-003`/`004`（K1 到 `start_kernel` + 自建页表/PTBR）。
+- **口径落定（2026-11-14/15）**：`sc` 保留粒度=精确地址+宽度（三实现已改，向量 `sc.b.nn_orrr_rd.S` 点 17–21）；semihosting 服务号=`rd16`；**Vast 放弃 ISA 执行覆盖**；**YAML 全退役**（`.S` 唯一载体，`check-inst-asm` 265 id/901 镜像）；单指令 ≤127；picolibc 判据=engine parity；**生成器/证据随产物入仓**（`m12-chipyard-017`、`m13-testcases-046`）。
+- **L1 状态**：`check-musl-freshness`、`check-run-artifacts`、`check-temp-dirs` 今晚由红转绿；仅 `check-patch-tree` 红（在途组件任务）。
+- **安装根已刷新**：`install-host` + `build-musl-shared` 已跑（qemu `725c5da7…` 与构建树一致、`ISS-437` 关闭）⇒ 后续测试不必再用构建树二进制绕。
+- 队列：M13 `037`/`integ-003` 复核 → `integ-005` 收口；M12 `017` 复核 → 08:46 后数据补齐 → `integ-002`；M14 `005` 复核 → **K2 待用户授权立册**；M16 `005` → `006` → `007`。
+- 未决 issue（P1/P2）：`ISS-433`（chipyard `trap cfx_power`）、`ISS-440`（多 hart 保留清除，建议 ADR）、`ISS-425`（CodeGen RA 寄存器）、`ISS-426`（`ld.o ra0` SBZ 位）；已关：`ISS-437`。
+- **待用户裁定**：① semihosting 参数指针 PA/VA；② `contract-linux-boot §1` 页表由谁建；③ `ISS-440` 是否立 ADR；④ K2 立册范围；⑤ 机器/版本命名（约 147 文件）；⑥ 运行平台×机型×用例 6 问；⑦ `spec-010` 已获「等 M12 收尾」裁定（`016` 已合、`integ-002` 未完成 ⇒ 仍挂起）。
 
 ## 入口指针
 
