@@ -99,6 +99,37 @@
 
 ---
 
+## 待定：运行平台 / 机型 / 用例适用范围 的对应关系（用户 2026-11-14）
+
+**要求**：重新梳理并确定「运行平台、机器型号、测试用例」三者的对应关系（M13 内解决）。
+
+**现状：四套正交概念在字段与工具里混用，无单一真源**
+
+| 概念 | 现在写在哪 | 现取值 | 问题 |
+|---|---|---|---|
+| 执行模式 | `tests/inst.yaml` 的 `platforms:` | `[system]`（264 个 `.S` 全是）/ `[system,user]` | `system` 字面像"机型"，实际是"qemu-system 模式"；`.S` 实际只跑 Tiny |
+| 机型 profile | `tests/shared/machine-profiles.yaml` | `tiny` / `vast`（含 `arch/embench/picolibc` 开关、`qemu_*` 回填） | 与 `platforms` 语义重叠；`vast` 的执行覆盖已被裁定放弃 |
+| 引擎 | runner 参数（`--platforms qemu,gem5,chipyard`） | qemu / gem5 / chipyard | gem5 还有 SE/FS 两种，无处标注 |
+| 用例适用范围 | 部分 `.S` 的 `profiles: [tiny]` | tiny | 与 `platforms` 双轨；全局/逐例两级混用 |
+
+**已知的硬事实（证据）**
+
+- `run_asm_suite.py` 只支持 `-M dadao-tiny`（L213/225），`platforms:[system]` 的 264 个 `.S` 全在 Tiny 上跑；
+- chipyard 只有 `WumingTinyConfig`（无 Vast 实现）；gem5 有 SE/FS；
+- `semantics_gate --profile vast` 的 1015 例是 Vast 唯一执行证据，`testcases-043` 已按裁定**放弃 Vast 执行覆盖**；
+- `machine-profiles.tiny` 注释里「无任何 cfx」是 M12 前口径（现 `hmon: true`），`default_run_mode: machine` 是旧称。
+
+**待用户裁定（逐条）**
+
+1. 是否把术语定为三层：**引擎（engine）× 机型（machine profile）× 用例适用范围（case scope）**，并各给唯一字段？
+2. `platforms:`（`system`/`user`）是保留（改名 `engine`/`mode`）还是**废弃**，用例适用范围统一用 per-case `profiles:`？
+3. `user` 模式（qemu-user / llvm-ts）在新模型里算"平台"还是"引擎的一种 mode"？
+4. Vast 放弃执行覆盖后，`machine-profiles.vast` 保留（文档/未来）还是删除？
+5. gem5 SE / FS 如何标注（引擎的子模式字段）？
+6. chipyard 只有 Tiny ⇒ 「三平台一致」的判据范围怎么表述（哪类用例要求三平台、哪类只要求两平台）？
+
+**影响面**：`tests/inst.yaml`（264+ 条 `platforms`）、`machine-profiles.yaml`、`run_asm_suite`/`semantics_gate`/各 runner、`tests/README.md`/`inventory.md`、`Process-07` 与验收口径；`043`/`044`/`045` 正在改这些面，**须在其收口后一次性统一**，避免三处反复改。
+
 # 待定：机器/版本命名（用户 2026-11-14）
 
 - **现状**：仓库里混用 `Machine-v5-*`（册名/机型前缀）与 `DADAO-v5`（我临时改的），QEMU 机器名是 `dadao-tiny`/`dadao-vast`。
