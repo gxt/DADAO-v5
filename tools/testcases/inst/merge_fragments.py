@@ -2,12 +2,12 @@
 """merge_fragments.py — 把分片任务的片段并入 `tests/inst.yaml` 与 `MIGRATION.md`。
 
 背景（`tests/inst/MIGRATION.md §5.3`）：多个 `tests/inst` 任务并行时，各自只写
-`tests/inst/.fragments/<任务号>.{inst.yaml,migration.md}`；本脚本由主会话在合并后
+`tests/inst/.fragments/<任务号>.{inst.fragment,migration.md}`；本脚本由主会话在合并后
 统一并入根清单与迁移台账，然后删除片段目录。
 
 片段格式（约定，只认这三类，其它内容原样忽略）：
 
-- `*.inst.yaml`：YAML 列表，每项字段与 `tests/inst.yaml` 相同（id/file/platforms/level/requires）。
+- `*.inst.fragment`：YAML 列表（**扩展名不用 `.yaml`**：`check-tests-index` 规则 11 禁止 `tests/inst/` 下任何 `*.yaml`），每项字段与 `tests/inst.yaml` 相同（id/file/platforms/level/requires）。
 - `*.migration.md`：含
   - `## §1 表行` —— 代码块里一行 `| <册目录>/ | <描述> | <个数> |`，按第一格替换 §1 对应行；
   - `## §6 新增小节` —— 其后文本整体追加到 `MIGRATION.md` 的 §6 末尾。
@@ -121,7 +121,7 @@ def main() -> int:
     if not FRAG.is_dir():
         print("merge_fragments: 无片段目录，无事可做")
         return 0
-    frags = sorted(FRAG.glob("*.inst.yaml"))
+    frags = sorted(FRAG.glob("*.inst.fragment"))
     if not frags:
         print("merge_fragments: 无片段，无事可做")
         return 0
@@ -140,16 +140,16 @@ def main() -> int:
     merged = sorted(by_id.values(), key=lambda r: r["id"])
 
     missing = [
-        f.name[: -len(".inst.yaml")]
+        f.name[: -len(".inst.fragment")]
         for f in frags
-        if not (FRAG / (f.name[: -len(".inst.yaml")] + ".migration.md")).exists()
+        if not (FRAG / (f.name[: -len(".inst.fragment")] + ".migration.md")).exists()
     ]
     if missing:
         raise SystemExit(f"merge_fragments: 片段缺少同名 .migration.md（§5.3 要求成对）：{missing}")
 
     mig = MIGRATION.read_text(encoding="utf-8")
     for f in frags:
-        mf = f.with_name(f.name[: -len(".inst.yaml")] + ".migration.md")
+        mf = f.with_name(f.name[: -len(".inst.fragment")] + ".migration.md")
         if mf.exists():
             mig = merge_migration(mig, mf.read_text(encoding="utf-8"), mf.name)
 
