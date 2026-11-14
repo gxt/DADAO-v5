@@ -192,7 +192,7 @@ def proc_line(cpu: float, vsz: int, etime: str, name: str, detail: str, width: i
     hint = detail if len(detail) <= dw else "…" + detail[-(dw - 1):]
     name_room = max(6, avail - dw - 1)
     shown = name if len(name) <= name_room else "…" + name[-(name_room - 1):]
-    return fit(prefix + shown.ljust(name_room) + " " + hint, width)
+    return fit(prefix + shown + " " + hint, width)
 
 
 def pane(s: Sample | None, host: str, w: int, nlines: int, now: float) -> list[str]:
