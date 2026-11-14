@@ -1283,6 +1283,36 @@
   - system
   level: full
   requires: []
+- id: inst-11-cfx-001
+  file: inst/11-cfx/cfx2rc_crrr_cfx.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-11-cfx-002
+  file: inst/11-cfx/cfx2rd_crrr_cfx.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-11-cfx-003
+  file: inst/11-cfx/escape_ciii_cfx.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-11-cfx-004
+  file: inst/11-cfx/fence_ciii_cfx.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-11-cfx-005
+  file: inst/11-cfx/trap_ciii_cfx.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-12-misc-001
   file: inst/12-misc/lr.b.an_orrr_rd.S
   platforms:
