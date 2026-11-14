@@ -640,3 +640,11 @@
   closed_in: M13
   resolved_by: ISS-436 补账（11 册 sha256 补算 + 逐册授权注记，正文未改）
   title: "【P1】`tools/testcases/inst/merge_fragments.py` 两处缺陷导致**迁移片段被静默丢弃**（首个用户 `m13-testcases-029` 实测）：① `f.with_suffix('.migration.md')` 对 `<任务>.inst.yaml` 生成 `<任务>.inst.migration.md`（不存在）⇒ `if mf.exists()` 恒假 ⇒ §1 表行与 §6 小节**都没并入** `MIGRATION.md`，而脚本仍打印成功、rc=0；② §1 行解析用 `line.strip('|')`，行尾带空格时 3 格被误判 4 格（报错，不致静默）。已修：改用 `with_name(<任务>+'.migration.md')`、行解析先 `strip()` 再 `strip('|')`、§6 追加补空行，并新增自检「每个 `.inst.yaml` 必须有同名 `.migration.md`」。教训：**分片合并的成功判据必须是 `MIGRATION.md`/根清单的真实 `git diff`**，不能只看脚本 rc 与打印。"
+- id: ISS-439
+  scope:
+  - testcases
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】跑批脚本的默认并行度与规范不符：`tools/testcases/picolibc_tests.py` 的 `DEFAULT_JOBS = int(os.environ.get('JOBS', '8'))` **写死 8**，而 `AGENTS.md` 规定 `--jobs` = 核数/2（主控机 64 核 ⇒ 32、节点 40 核 ⇒ 20）。后果：不显式传 `--jobs` 时只跑满 1/8 核（`m12-chipyard-016` 实测：64 核机上 load 21/64、每个 chipyard sim 仅 25 MB RSS / 单核 100% ⇒ 无资源理由）。同类风险：其它 runner 若也有写死默认值须一并核。修法：默认改为 `max(1, os.cpu_count()//2)` 并保留 `JOBS` 覆盖；**不**在未核清的场景下改成 `nproc`（全核）。"
