@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..17b78a0
+index 0000000..8ffffed
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,1300 @@
+@@ -0,0 +1,1321 @@
 +/*
 + * DADAO Machine-v5 bare-metal test machines for QEMU
 + *
@@ -60,11 +60,12 @@ index 0000000..17b78a0
 + *                   upstream loader (hw/core/loader.c: load_elf(), the standard
 + *                   API).  No external -bios ROM is used on this path.
 + *
-+ *   path B (raw):   qemu-system-dadao -machine dadao-tiny -bios trampoline.bin -kernel test.bin
-+ *                   legacy flat ROM window + flat test binary (pre-contract
-+ *                   harness; the ROM trampoline sets SP and jumps to
-+ *                   kernel_base + kernel_reserved = 0xffff_ff01_0100).  The
-+ *                   contract boot path is path C with the fixed firmware.
++ *   path B (raw):   qemu-system-dadao -machine dadao-vast -bios rom.bin -kernel test.bin
++ *                   legacy 64 KiB reset window (Vast only) + flat test binary
++ *                   whose entry is kernel_base + kernel_reserved.  Tiny has no
++ *                   free-form `-bios` window (spec/Machine-v5 §6): its `-bios`
++ *                   is the fixed BootROM firmware of path C, exactly 64 KiB,
++ *                   and the legacy <= 4096-byte trampoline window is removed.
 + *
 + *   path C (BootROM image, ADR-0043 D1/D2):
 + *                   qemu-system-dadao -machine dadao-vast,bootrom-image=bootrom.bin
@@ -75,6 +76,7 @@ index 0000000..17b78a0
 + *                   overriding the reset PC); -bios must not be given.
 + *                   On Tiny this is the fixed-firmware + application contract
 + *                   path (power copies hmon and jumps to the fixed entry).
++ *                   Tiny's `-bios` accepts the same fixed image and only it.
 + *
 + * Load-stage errors (malformed/oversize images) are reported and cause a
 + * non-zero process exit; they are a different layer from guest faults
@@ -1010,6 +1012,35 @@ index 0000000..17b78a0
 +    }
 +}
 +
++/*
++ * Machine-v5-Tiny `-bios` size rule (spec/Machine-v5 §6): the option carries
++ * the fixed BootROM firmware -- the same image as `bootrom-image` -- and
++ * nothing else.  The image must be exactly rom_size (64 KiB); the legacy
++ * <= 4096-byte flat trampoline window is removed and no intermediate size is
++ * accepted, so a truncated firmware can never be mistaken for a trampoline.
++ *
++ * Returns 0 when the rule holds or the file is unreadable (the loader reports
++ * the real open error), -1 after reporting a violation by name.
++ */
++static int dadao_check_bios_firmware_size(const char *filename,
++                                          const DadaoProfile *prof)
++{
++    int64_t size = get_image_size(filename, NULL);
++
++    if (size < 0) {
++        return 0;
++    }
++    if (prof->bootrom_required && size != (int64_t)prof->rom_size) {
++        error_report("dadao: -bios image '%s' is %" PRId64 " bytes; the "
++                     "Machine-v5-Tiny -bios path accepts only the fixed "
++                     "%" PRIu64 "-byte BootROM firmware (the same image as "
++                     "bootrom-image, spec/Machine-v5 §6)",
++                     filename, size, prof->rom_size);
++        return -1;
++    }
++    return 0;
++}
++
 +static void dadao_load_bios(const char *filename, const DadaoProfile *prof)
 +{
 +    Error *err = NULL;
@@ -1019,25 +1050,15 @@ index 0000000..17b78a0
 +        dadao_check_image_limit(filename, "ROM", prof->bios_window_size) < 0) {
 +        exit(1);
 +    }
++    if (dadao_check_bios_firmware_size(filename, prof) < 0) {
++        exit(1);
++    }
 +    bios_size = load_image_targphys_as(filename, prof->bios_load_base,
 +                                       prof->bios_window_size,
 +                                       &address_space_memory, &err);
 +    if (bios_size < 0) {
 +        error_report("dadao: could not load ROM image '%s': %s",
 +                     filename, err ? error_get_pretty(err) : "unknown error");
-+        exit(1);
-+    }
-+    /* Machine-v5-Tiny: `-bios` is either the fixed 64 KiB firmware (the same
-+     * image as `bootrom-image`) or the legacy flat trampoline window used by
-+     * the pre-contract raw harness.  Anything in between is neither: reject it
-+     * by name so a truncated firmware cannot look like a trampoline. */
-+    if (prof->bootrom_required && bios_size != (ssize_t)prof->rom_size &&
-+        bios_size > 0x1000) {
-+        error_report("dadao: -bios image '%s' is %" PRId64 " bytes; the "
-+                     "Machine-v5-Tiny fixed BootROM firmware must be exactly %"
-+                     PRIu64 " bytes (or use bootrom-image=...); -bios also "
-+                     "accepts the legacy <=4096-byte trampoline window",
-+                     filename, (int64_t)bios_size, prof->rom_size);
 +        exit(1);
 +    }
 +}
@@ -1141,17 +1162,17 @@ index 0000000..17b78a0
 +    }
 +
 +    /* Machine-v5-Tiny load contract (spec/Machine-v5 §6/§6.2).  The contract
-+     * path is the fixed 64 KiB BootROM firmware supplied through the
-+     * `bootrom-image` machine property plus the application: the firmware is
-+     * loaded verbatim (exactly 64 KiB), only the application's SRAM segments
-+     * are loaded (never a PT_LOAD in the BootROM or hmon SRAM), the ELF entry
-+     * must be the fixed 0xffff_ff01_0100, and QEMU executes the real power ->
-+     * hmon -> escape -> entry chain.
++     * path is the fixed 64 KiB BootROM firmware plus the application: the
++     * firmware is loaded verbatim (exactly 64 KiB) from `bootrom-image` or
++     * from `-bios` (both accept the same image), only the application's SRAM
++     * segments are loaded (never a PT_LOAD in the BootROM or hmon SRAM), the
++     * ELF entry must be the fixed 0xffff_ff01_0100, and QEMU executes the real
++     * power -> hmon -> escape -> entry chain.
 +     *
-+     * The legacy `-bios` flat ROM window is kept for the pre-contract test
-+     * harness (raw trampoline + raw -kernel, no ELF PT_LOAD involved); it is
-+     * not the fixed firmware path and does not install hmon.  An ELF
-+     * application requires `bootrom-image`. */
++     * There is no free-form `-bios` window on Tiny any more: the legacy
++     * <= 4096-byte flat trampoline window and its raw-kernel harness path are
++     * removed (spec/Machine-v5 §6).  `-bios` must be the fixed firmware,
++     * exactly 64 KiB; any other size is a load-stage error naming the rule. */
 +    if (prof->bootrom_required) {
 +        if (bootrom) {
 +            if (!kernel) {
@@ -1167,16 +1188,15 @@ index 0000000..17b78a0
 +            }
 +            return;
 +        }
-+        /* The legacy `-bios` window may also carry the fixed 64 KiB firmware
-+         * (spec/Machine-v5 §6); only the small flat trampoline is raw-only. */
-+        if (machine->firmware &&
-+            get_image_size(machine->firmware, NULL) == (int64_t)prof->rom_size) {
++        if (machine->firmware) {
++            /* The size rule comes first: a short/truncated image is rejected
++             * by name before anything is written into the BootROM window. */
++            dadao_load_bios(machine->firmware, prof);
 +            if (!kernel) {
 +                error_report("dadao: Machine-v5-Tiny requires an application "
 +                             "-kernel image (fixed firmware + application)");
 +                exit(1);
 +            }
-+            dadao_load_bios(machine->firmware, prof);
 +            if (dadao_kernel_is_elf(kernel)) {
 +                (void)dadao_load_elf_kernel(kernel, prof);
 +            } else {
@@ -1184,11 +1204,11 @@ index 0000000..17b78a0
 +            }
 +            return;
 +        }
-+        if (kernel && dadao_kernel_is_elf(kernel)) {
-+            error_report("dadao: Machine-v5-Tiny ELF application '%s' requires "
-+                         "the fixed BootROM firmware (bootrom-image=... or a "
-+                         "64 KiB -bios); the legacy -bios path is "
-+                         "raw-trampoline only", kernel);
++        if (kernel) {
++            error_report("dadao: Machine-v5-Tiny application '%s' requires the "
++                         "fixed BootROM firmware (bootrom-image=... or the same "
++                         "64 KiB image through -bios); the legacy flat "
++                         "trampoline -bios window was removed", kernel);
 +            exit(1);
 +        }
 +    }
@@ -1231,9 +1251,10 @@ index 0000000..17b78a0
 +    }
 +
 +    /*
-+     * Path B: raw-bin dual image.  Both a ROM trampoline (-bios) and the flat
-+     * test binary (-kernel) are required; the raw entry is fixed by the
-+     * profile (Tiny: kernel_base + 0x100) and reached by the trampoline.
++     * Path B: raw-bin dual image (Vast only).  The legacy 64 KiB `-bios`
++     * reset window plus the flat test binary; the raw entry is fixed by the
++     * profile.  Tiny returned above, so this window no longer carries the
++     * deleted <= 4096-byte flat trampoline.
 +     */
 +    if (!machine->firmware) {
 +        error_report("dadao: kernel image '%s' is not an ELF (bad magic); "

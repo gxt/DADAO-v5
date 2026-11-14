@@ -354,6 +354,10 @@
   - 摘要：**单精写入宽度：`ld.t`/`ldm.t` 不扩展 + 以 ft 寄存器为目的的指令只写低 32 位**（用户 2026-11-14 裁定；`spec/SimRISC-01 §4` 注、`SimRISC-07 §1.3`、`contract-fp §1`）。`target/dadao/translate.c` 新增 `store_rf_tetra()`（低 32 位合并、高 32 位保持；rf0 仍经 `RF0_WRITE_MASK`，只有 `[4:0]` 生效）；`target/dadao/insn_trans/trans_fp.c.inc`：`ld.t`/`ldm.t` 改 `MO_BEUL` 无符号 32 位装载 + tetra 写；ft 算术（`ftadd/ftsub/ftmul/ftdiv/ftrem/ftsclb`）、`ftroot`、`ftrnd`、`ftmin`/`ftmax`、`ftfma`、`fo2ft`、`it2ft/io2ft/ut2ft/uo2ft`、`ft2ft`（含连续搬移）、`ftsgnj`/`ftsgnn`（ft 窄写，追加裁定 `9cff1daa`）全部改 `store_rf_tetra()`；`fo2fo`、跨组复制 `rd2rf`/`rf2rd`、`ld.o`/`ldm.o`、`st.*`、`cs.*-rf` 与 `fosgnj`/`fosgnn`（fo，整 64 位）仍 64 位。`ld.t rf0 ← 0xFFFF_FFFF` ⇒ `0x7FF8_0000_7FC0_001F`（原 `0x7FF8_0003_7FC0_001F`）；`ft2ft` 目的高半保持写前值。补丁 2 份改。
   - 执行者：engineer
 
+- **2026-11-14 `m13-qemu-011`**
+  - 摘要：**Tiny 的 `-bios` 收紧为固定固件，删除 ≤4096 B 的 raw trampoline 窗口**（`spec/Machine-v5 §6`；用户裁定 2026-11-13「绑 `m12-chipyard-019` 收紧」）。`hw/dadao/dadao-machine.c`：新增 `dadao_check_bios_firmware_size()`——`bootrom_required`（Tiny）profile 下 `-bios` 镜像必须**恰好** `rom_size`（64 KiB，与 `bootrom-image` 同一固定固件），任意其它尺寸（含空文件、4 KiB/8 KiB 与中间尺寸）在写入 BootROM 窗口**之前**按名拒绝并 `exit(1)`，报出实际字节数、64 KiB 规则与 `spec/Machine-v5 §6` 出处，不做截断/降级；`dadao_machine_init()` 的 Tiny 分支删掉「`-bios` 小文件 ⇒ flat trampoline + raw `-kernel`」旁路，`-bios` 一律走「固定固件 + 应用（ELF 或 raw）」契约路径，无固件的应用 ⇒ 具名报错；Path B（flat `-bios` + raw `-kernel`）只剩 Vast 的 64 KiB reset window。文件头与函数注释同步改述。补丁 1 份改。
+  - 执行者：engineer
+
 ## M14
 
 - **2026-11-14 `m14-qemu-001`**
