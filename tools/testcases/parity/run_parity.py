@@ -445,13 +445,13 @@ def _gem5_cmd(args):
 
 def _semantics_run(args, profile, engine, out_json, log_path):
     env = _engine_env(args, profile, gem5=(engine == "gem5"))
-    trampoline = (args.bootrom_vast_inst if profile == "vast"
-                  else args.bootrom_tiny)
+    bootrom = (args.bootrom_vast_inst if profile == "vast"
+               else args.bootrom_tiny)
     cmd = [sys.executable, SEMANTICS_GATE, "--profile", profile,
            "--gate-dir", os.path.join(args.work_dir,
                                       "gate-%s-%s" % (profile, engine)),
            "--qemu", _gem5_cmd(args) if engine == "gem5" else _qemu_cmd(args),
-           "--trampoline", trampoline,
+           "--bootrom", bootrom,
            "--jobs", str(args.jobs), "--json-out", out_json]
     rc = _run_logged(cmd, log_path, env=env, timeout=args.scope_timeout)
     if not os.path.isfile(out_json):
@@ -1616,8 +1616,8 @@ def parse_args(argv):
     ap.add_argument("--gem5", default=".work/source/gem5/build/DADAO/gem5.opt")
     ap.add_argument("--gem5-config",
                     default=".work/source/gem5/configs/dadao/fs.py")
-    ap.add_argument("--bootrom-tiny", default="tools/testcases/lib/"
-                                              "trampoline.bin")
+    ap.add_argument("--bootrom-tiny",
+                    default=".dadao/tests/bootrom/tiny/bootrom_tiny.bin")
     ap.add_argument("--bootrom-vast",
                     default=".dadao/tests/bootrom/step5/"
                             "bootrom_step5.bin")

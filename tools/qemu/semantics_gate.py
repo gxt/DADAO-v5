@@ -37,7 +37,7 @@
 
 Usage:
     python3 tools/qemu/semantics_gate.py --gate-dir DIR [--vectors DIR]
-        [--qemu BIN] [--trampoline BIN] [--jobs N]
+        [--qemu BIN] [--bootrom BIN] [--jobs N]
 """
 
 from __future__ import annotations
@@ -395,12 +395,10 @@ def main() -> int:
     ap.add_argument("--gate-dir", default=None,
                     help="gate 目录（--form-check 时可省）")
     ap.add_argument("--qemu", default=harness.DEFAULT_QEMU)
-    ap.add_argument("--trampoline",
-                    default=os.path.join(_REPO_ROOT, "tools", "testcases", "lib",
-                                         "trampoline.bin"),
+    ap.add_argument("--bootrom", default=None,
                     help="启动固件镜像（Tiny = 固定 64 KiB 固件；Vast = "
                          "exit-policy BootROM）；作为 QEMU 的 `-bios`/"
-                         "`bootrom-image` 传入")
+                         "`bootrom-image` 传入。默认取 `make build-bootrom` 的产物")
     ap.add_argument("--jobs", type=int, default=1)
     ap.add_argument("--check-only", action="store_true",
                     help="只跑结构断言/派生（不执行用例；供证据脚本注入用）")
@@ -443,9 +441,10 @@ def main() -> int:
         print(f"semantics_gate: ERROR: qemu binary not found: {args.qemu} "
               f"— run 'make install-host' first", file=sys.stderr)
         return 1
-    if not os.path.isfile(args.trampoline):
-        print(f"semantics_gate: ERROR: trampoline not found: {args.trampoline}",
-              file=sys.stderr)
+    args.bootrom = args.bootrom or harness.default_bootrom()
+    if not os.path.isfile(args.bootrom):
+        print(f"semantics_gate: ERROR: BootROM firmware not found: {args.bootrom} "
+              f"— run 'make build-bootrom' first", file=sys.stderr)
         return 1
 
     # ISS-373: refuse on an active writer, then hash what we read at both ends.
@@ -523,7 +522,7 @@ def main() -> int:
     try:
         records = []
         total, passed, failed, deferred, errors, fail_details, skipped = harness.run_batch(
-            args.qemu, args.trampoline, args.gate_dir, jobs=args.jobs,
+            args.qemu, args.bootrom, args.gate_dir, jobs=args.jobs,
             only_profile_cases=args.only_profile_cases, records=records,
         )
     except Exception as exc:  # harness 异常也要清 gate 目录并显式失败

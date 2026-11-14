@@ -13,8 +13,6 @@ This directory contains the QEMU-based ISA semantic test harness for `dadao-tiny
 
 | File | Purpose |
 |------|---------|
-| `gen_trampoline.py` | Generates ROM trampoline blob (`trampoline.bin`) |
-| `trampoline.bin` | ROM trampoline (profile-derived size/instructions) |
 | `build_test_binary.py` | Builds test binary from vector YAML |
 | `run_qemu_test.py` | Main test runner |
 | `verify_harness_dump.py` | Harness dump channel verification (QMP protocol, byte layout, 10a `-device loader` channel) |
@@ -22,13 +20,12 @@ This directory contains the QEMU-based ISA semantic test harness for `dadao-tiny
 
 ## Quick Start
 
-### Generate trampoline
+### BootROM firmware（`-bios` / `bootrom-image`）
 
-```bash
-python3 tools/testcases/lib/gen_trampoline.py
-```
-
-This generates `tools/testcases/lib/trampoline.bin` from the tiny profile (size derived).
+启动固件不再由本目录生成：Tiny 用**固定 64 KiB 固件**、Vast 用 step5 BootROM，
+两者都由 `make build-bootrom` 产出到测试产物根（`bootrom/{tiny,step5}/`）。
+`run_qemu_test.py` 的默认值经 `paths.py` 解析，也可显式 `--bootrom <bin>`
+（`m13-testcases-030` 起 `gen_trampoline.py`/`trampoline.bin` 已退役）。
 
 ### Run a single test
 
@@ -203,7 +200,7 @@ Monitor cause indices: `CFXTRAP`=0, `CFXMEM`=1 (`UNMAPPED` also maps here),
 ```bash
 # The harness does this automatically. For manual testing:
 # Start QEMU with QMP Unix socket and frozen CPU
-qemu-system-dadao -machine dadao-tiny -nographic -bios trampoline.bin -kernel test.bin \
+qemu-system-dadao -machine dadao-tiny -nographic -bios bootrom_tiny.bin -kernel test.bin \
   -qmp unix:/tmp/qemu-qmp.sock,server=on,wait=off -S
 
 # Connect to QMP, resume guest, dump memory

@@ -53,8 +53,8 @@ GEM5 = os.path.join(REPO_ROOT, ".work", "source", "gem5", "build", "DADAO",
                     "gem5.opt")
 SHIM = os.path.join(REPO_ROOT, "tools", "testcases", "parity",
                     "qemu_gem5_shim.py")
-TRAMPOLINE = os.path.join(REPO_ROOT, "tools", "testcases", "lib",
-                          "trampoline.bin")
+# 固定 64 KiB Tiny 固件（`make build-bootrom` 产物；产物根经 paths.py 解析，ADR-0016 D7）
+BOOTROM = str(_paths.test_artifacts_dir() / "bootrom" / "tiny" / "bootrom_tiny.bin")
 TINY_BOOTROM = str(_paths.test_artifacts_dir() / "bootrom" / "bootrom.bin")
 
 ENTRY = 0xFFFFFF010100
@@ -190,7 +190,7 @@ def ensure_bootrom(work: str) -> str:
 def engine_runs(image: str, bootrom: str, work: str, name: str):
     qemu_console = os.path.join(work, name + ".qemu.console")
     gem5_console = os.path.join(work, name + ".gem5.console")
-    qemu_cmd = [QEMU, "-M", "dadao-tiny", "-bios", TRAMPOLINE,
+    qemu_cmd = [QEMU, "-M", "dadao-tiny", "-bios", BOOTROM,
                 "-kernel", image, "-nographic",
                 "-semihosting-config",
                 "enable=on,target=native,chardev=semi",
@@ -225,8 +225,9 @@ def main(argv=None):
             sys.stderr.write(f"run: ERROR: {what} missing: {exe}\n")
             sys.stderr.write("     run 'make install-host' / 'make build-gem5'\n")
             return 2
-    if not os.path.isfile(TRAMPOLINE):
-        sys.stderr.write(f"run: ERROR: trampoline missing: {TRAMPOLINE}\n")
+    if not os.path.isfile(BOOTROM):
+        sys.stderr.write(f"run: ERROR: BootROM firmware missing: {BOOTROM}\n"
+                         "            run 'make build-bootrom' first\n")
         return 2
 
     work = args.work_dir

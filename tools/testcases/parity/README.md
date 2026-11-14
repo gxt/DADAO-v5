@@ -24,7 +24,7 @@ python3 tools/testcases/parity/run_parity.py \
   --qemu .dadao/cross-toolchain/bin/qemu-system-dadao \
   --gem5 .work/source/gem5/build/DADAO/gem5.opt \
   --gem5-config .work/source/gem5/configs/dadao/fs.py \
-  --bootrom-tiny tools/testcases/lib/trampoline.bin \
+  --bootrom-tiny .dadao/tests/bootrom/tiny/bootrom_tiny.bin \
   --bootrom-vast .dadao/tests/bootrom/step5/bootrom_step5.bin \
   --bootrom-vast-inst .dadao/tests/bootrom/step5/bootrom_step5_inst.bin \
   --jobs 8 --timeout 600 \

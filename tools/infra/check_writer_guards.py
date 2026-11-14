@@ -276,12 +276,12 @@ def check_w1(rep: Report, tmp: Path, env: dict) -> None:
     stub = tmp / "qemu-system-dadao"
     marker = tmp / "stub-ran"
     _stub_binary(stub, marker)
-    trampoline = tmp / "trampoline.bin"
-    trampoline.write_bytes(b"\x00\x01")
+    bootrom = tmp / "bootrom.bin"
+    bootrom.write_bytes(b"\x00\x01")
 
     def entry(*extra: str) -> subprocess.CompletedProcess:
         return _run([sys.executable, "tools/testcases/inst/run_qemu_smoke.py",
-                     "--qemu", str(stub), "--trampoline", str(trampoline),
+                     "--qemu", str(stub), "--bootrom", str(bootrom),
                      "--work-dir", str(tmp / "smoke")] + list(extra), env)
 
     # injection: a live writer for qemu => the real entry must refuse, and must
@@ -414,10 +414,10 @@ def check_w5(rep: Report, tmp: Path, env: dict) -> None:
     entry_env["DADAO_WRITER_STATE_DIR"] = str(state)
     stub = tmp / "qemu-sdd"
     _stub_binary(stub, tmp / "sdd-marker")
-    trampoline = tmp / "trampoline2.bin"
-    trampoline.write_bytes(b"\x00")
+    bootrom = tmp / "bootrom2.bin"
+    bootrom.write_bytes(b"\x00")
     q = _run([sys.executable, "tools/testcases/inst/run_qemu_smoke.py",
-              "--qemu", str(stub), "--trampoline", str(trampoline),
+              "--qemu", str(stub), "--bootrom", str(bootrom),
               "--work-dir", str(tmp / "smoke2")], entry_env)
     rep.check("W5b real-entry-warns",
               "WARNING: writer-state-dir overridden" in q.stderr,

@@ -21,6 +21,16 @@ Spec-first：所有判定依据 `contracts/opcodes.yaml`、`contracts/legality_r
   14. F9②③④：legality `expected_state == null`；`spec_cite` 非空字符串；
       semantic memory 地址越界阻断
 
+载体模型（`ISS-413` / `m13-testcases-030`）：一个 id 的用例可放在两种载体里 ——
+  * **YAML**（`tests/inst/{base,fp,rol,atomics,clmul}/*.yaml`）：本脚本逐 case 校验 schema
+    （1–14），并做 **类级**覆盖门控（inventory 声明 ✓ 的 `(id, class)` 至少 1 条 active 用例）；
+  * **`.S`**（`tests/inst/<册>/<id>.S`）：**执行型**载体，类级覆盖由 L2 `make check-inst-asm`
+    逐镜像执行承担（链例比结果字节流、故障例比 monitor 段退出码）；本脚本只断言载体
+    **结构完好**——`<id>.S` 的 stem 是 `contracts/opcodes.yaml` 的身份、含 ≥1 用例行、
+    检查点号 1..N 连续（复用 `run_asm_suite.scan_source`，与执行门控同一真源）。
+    因此有 `.S` 载体的 id 不再要求 YAML 类级用例（否则会让「YAML 退役」必须留着重复载体）。
+  * inventory 的 `file` 列必须指向现场存在的载体（basename 在 `tests/inst/<册>/` 下唯一命中）。
+
 退出码：有错误 `exit(1)` 并列出文件 + case 序号；无错误 `exit(0)`。
 
 注：
@@ -35,6 +45,7 @@ import glob
 import os
 import re
 import sys
+from pathlib import Path
 
 try:
     import yaml as _yaml
@@ -43,6 +54,10 @@ except ImportError:  # pragma: no cover
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
 import machine_profile  # noqa: E402
+# `.S` 载体的结构扫描与 L2 执行门控（`check-inst-asm`）**同一真源**：点号/用例行
+# 的解析只在这里写一次，避免「门控和 validator 各认一套语法」。
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "inst"))
+import run_asm_suite  # noqa: E402
 
 
 ALLOWED_CLASSES = {"encoding", "legality", "semantic", "boundary", "overlap"}
@@ -765,6 +780,37 @@ def validate_file(filepath, by_key, m1_keys, all_records, errors):
     return len(cases)
 
 
+def scan_asm_carriers(repo_dir, known_ids, errors):
+    """现场扫描 `.S` 载体：返回 {id: 相对路径}。
+
+    结构断言（fail-closed，全部从文件现场派生）：
+      * stem 必须是 `contracts/opcodes.yaml` 的**身份**（拼错/孤儿载体 ⇒ 报错）；
+      * 同一 stem 只能有一个 `.S`（`run_asm_suite` 按 stem 去重会让第二份静默失效）；
+      * 必须含 ≥1 用例行（链例或故障例），且**检查点号 1..N 连续**（失败点号 = 用例序号）。
+    """
+    out = {}
+    for path in sorted(glob.glob(os.path.join(repo_dir, "tests", "inst", "*", "*.S"))):
+        stem = os.path.basename(path)[:-2]
+        rel = os.path.relpath(path, repo_dir)
+        if stem in out:
+            errors.append("ASM CARRIER DUPLICATE: id '%s' 有多个 .S 载体（%s / %s）"
+                          % (stem, out[stem], rel))
+            continue
+        if stem not in known_ids:
+            errors.append("ASM CARRIER ORPHAN: %s 的 stem '%s' 不是 opcodes.yaml 的身份"
+                          % (rel, stem))
+            continue
+        info = run_asm_suite.scan_source(Path(path))
+        if not info["checks"] and not info["faults"]:
+            errors.append("ASM CARRIER EMPTY: %s 没有用例行（链例/故障例均 0）" % rel)
+            continue
+        if not info["pts_ok"]:
+            errors.append("ASM CARRIER POINTS: %s 检查点号不是 1..N 连续"
+                          "（失败点号 ≠ 用例序号）" % rel)
+        out[stem] = rel
+    return out
+
+
 def main():
     global PROFILE, RB0_PC, BR_NOT_TAKEN_PC
     import argparse
@@ -809,6 +855,7 @@ def main():
     declared = {}
     # Data-level coverage: per id, track which classes are ✓
     declared_classes = {}  # id -> set of class names with ✓
+    inv_files = {}         # id -> file 列（载体 basename）
     for row in inv_rows:
         rid = _unquote(row.get("id", ""))
         if not rid:
@@ -829,6 +876,24 @@ def main():
             if cell_low not in DECL_NA:
                 cls_set.add(cn)
         declared_classes[rid] = cls_set
+        inv_files[rid] = _unquote(row.get("file", ""))
+
+    # ── 载体：`.S` 现场索引（ISS-413）──────────────────────────────────
+    # stem 必须是 opcodes.yaml 的**任一** scope 身份（`rev.o`/`ctlz` 是 m8，非法外）。
+    known_ids = {rec["id"] for rec in all_records if rec.get("id")}
+    asm_carriers = scan_asm_carriers(repo_dir, known_ids, errors)
+
+    # ── inventory `file` 列无悬空引用（载体 basename 必须现场存在）──────
+    live_basenames = {os.path.basename(p)
+                      for p in glob.glob(os.path.join(repo_dir, "tests", "inst",
+                                                      "*", "*"))}
+    for rid in sorted(inv_files):
+        f = inv_files[rid]
+        if not f or f.lower() in DECL_NA or f.lower().startswith("deferred"):
+            continue
+        if os.path.basename(f) not in live_basenames:
+            errors.append("INVENTORY DANGLING CARRIER: '%s' 的 file 列 '%s' "
+                          "在 tests/inst/<册>/ 下不存在" % (rid, f))
 
     # 12. inventory 同步（R2）：M1 行集 == opcodes M1 身份集
     for rid in sorted(m1_keys - inv_keys):
@@ -922,9 +987,13 @@ def main():
     # verify at least 1 active case of that class exists in isa/*.yaml.
     # reserved.yaml cases (encoding.reserved: true) have no id
     # identity and are excluded from this check.
+    # `.S` 载体（执行型）：类级覆盖由 L2 `check-inst-asm` 逐镜像执行承担，这里只看
+    # 载体结构（`scan_asm_carriers` 已断言），不再要求 YAML 里另留一份同类用例。
     data_coverage_gaps = []
     for rid in sorted(inv_keys):
         if rid not in declared_classes:
+            continue
+        if rid in asm_carriers:
             continue
         for cls_name in declared_classes[rid]:
             cov_key = (rid, cls_name)
@@ -932,7 +1001,7 @@ def main():
                 data_coverage_gaps.append(
                     "DATA COVERAGE GAP: id='%s' declares '%s' in "
                     "inventory.md but no active %s case found in "
-                    "tests/inst/base/*.yaml"
+                    "tests/inst/**/*.yaml and no `.S` carrier exists"
                     % (rid, cls_name, cls_name))
     # Report gaps and block validation (TESTCASES-011t: gate tightening)
     if data_coverage_gaps:
@@ -952,9 +1021,9 @@ def main():
 
     print("validate_vectors: %d/%d M1 identities covered OK "
           "(inventory sync OK; %d data files, %d cases; "
-          "data coverage gaps: %d)"
+          "%d .S carriers; data coverage gaps: %d)"
           % (covered, len(m1_keys), len(yaml_files), total_cases,
-             len(data_coverage_gaps)))
+             len(asm_carriers), len(data_coverage_gaps)))
     sys.exit(0)
 
 

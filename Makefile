@@ -67,7 +67,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-minmax-probe check-fma-probe check-clmul-probe \
         check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-knowledge-refs \
-        check-inst check-inst-smoke check-tests-index check-arch check-arch-smoke \
+        check-inst check-inst-smoke check-inst-asm check-tests-index check-arch check-arch-smoke \
         check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
         check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
         clean-tests test-repro night-run check-night-report check-l3-report \
@@ -167,7 +167,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       check-linux-k0 \
                       test-codegen test-elf test-m6 test-picolibc-smoke \
                       check-lit check-lit-full \
-                      check-inst check-inst-smoke check-arch check-arch-smoke \
+                      check-inst check-inst-smoke check-inst-asm check-arch check-arch-smoke \
                       check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
                       check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
                       clean-tests test-repro \
@@ -282,6 +282,7 @@ help:
 	@echo "  make test-repro      Prove build products regenerate byte-identically (SCOPE=...; TESTCASES-076t)"
 	@echo "  make check-components  Component availability smoke (llc/clang --print-targets/qemu; L1)"
 	@echo "  make check-inst-smoke  inst semantic smoke (representative subset; L2; TESTCASES-072t)"
+	@echo "  make check-inst-asm    inst .S carriers (all migrated ids, QEMU only; L2; m13-testcases-030)"
 	@echo "  make check-inst      inst semantic full set (tests/inst; L3; TESTCASES-072t)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
@@ -307,7 +308,7 @@ help:
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (L1; INFRA-011t/058t)"
 	@echo "  make check-isa-coverage  ISA<->backend coverage matrix drift gate (L1; LLVM-081t/INFRA-069t)"
 	@echo "  make check-rev-vectors  rev vector re-derivation + spec_cite/oracle drift gate (L1; ISS-335)"
-	@echo "  make check-generator-sync  Six vector generators' --check byte-identical to on-disk vectors (L2; INFRA-115t)"
+	@echo "  make check-generator-sync  Five vector generators' --check byte-identical to on-disk vectors (L2; INFRA-115t)"
 	@echo "  make check-spec-numbering  Check 21-volume heading numbering structure (L1; SPEC-133t/INFRA-069t)"
 	@echo "  make check-spec-changelog  Check 21-volume appendix changelog structure (L1; SPEC-134t/INFRA-069t)"
 	@echo "  make check-spec-archive  Check SimRISC per-version archives exist (milestone closure; SPEC-154t/INFRA-109t)"
@@ -1244,13 +1245,13 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 
 # L2 = 四 scope 的 **smoke** 集（TESTCASES-076t 收口；2026-10-27 用户裁定「L2 只保留四 scope
 # smoke」⇒ 4 个 FP 探针**移出** L2，只在 L3）
-#   inst : check-inst-smoke
+#   inst : check-inst-smoke（YAML 代表集） + check-inst-asm（`.S` 载体全量 264 id，单平台 QEMU）
 #   arch : check-arch-smoke
 #   unit : check-unit（= check-lit + test-codegen + test-elf + ir-lli + picolibc fast）
 #   tset : check-tset-{libc,llvm,embench}-smoke
 #   linux: check-linux-k0（K0 收口：vmlinux + initramfs + 矩阵 + 启动契约 + 补丁集幂等；
 #         m14-infra-003。只读产物 + 增量构建（秒级），不跑被测语义的全量套件）
-_locked-check-modules: check-inst-smoke check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-generator-sync check-linux-k0
+_locked-check-modules: check-inst-smoke check-inst-asm check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-generator-sync check-linux-k0
 	@echo "module checks (L2): PASS"
 
 # L3 = 全量（TESTCASES-076t；2026-10-27 用户裁定「一个检查只在一层」严格化；TESTCASES-082t 去 tset smoke）。
@@ -1622,8 +1623,8 @@ check-spec-codeblocks:
 
 # lit gate (INFRA-021t): run llvm-lit on MC (M1/M4) + CodeGen (L2) + E2E.
 # MC needs llvm-mc/llvm-objdump/FileCheck; CodeGen needs llc + FileCheck; E2E
-# needs llvm-objcopy + qemu-system-dadao + trampoline (all installed by
-# `make install-host`).
+# needs llvm-objcopy + qemu-system-dadao + the fixed BootROM firmware (all built
+# by `make install-host` + `make build-bootrom`).
 # llvm-lit missing => explicit error (never silent skip).
 # INFRA-047t (ADR-0016 D9): tools are taken from the install root, not .work/build.
 # INFRA-058t: L2 成员（功能代表集，受控子集）——已从 L1 `make check` 移出。
@@ -1650,7 +1651,7 @@ _locked-check-lit-full:
 #   llc -march=dadao <prog.ll> -> .s; cat minimal_crt0.s prog.s -> .s;
 #   llvm-mc --triple=dadao -filetype=obj -> .o;
 #   llvm-objcopy -O binary --only-section=.text -> .bin;
-#   qemu-system-dadao -M dadao-tiny -bios trampoline.bin -kernel .bin ...
+#   qemu-system-dadao -M dadao-tiny -bios <64 KiB firmware> -kernel .bin ...
 # The guest process exit code is compared against tests/unit/llvm/codegen/expected.yaml.
 # Fail-closed: any mismatch / timeout / machine fault => non-zero exit.
 LLC_BIN = $(HOST_TOOLCHAIN_BIN)/llc
@@ -1671,7 +1672,7 @@ _locked-test-codegen: install-host
 	  mkdir -p .work/log/integ; \
 	  DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/unit/run_codegen_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
-	    --qemu $(QEMU_BIN) --trampoline tools/testcases/lib/trampoline.bin \
+	    --qemu $(QEMU_BIN) \
 	    --crt0 tests/shared/crt0/minimal_crt0.s \
 	    --vectors-dir tests/unit/llvm/codegen \
 	    --expected tests/unit/llvm/codegen/expected.yaml \
@@ -1692,7 +1693,7 @@ _locked-test-codegen: install-host
 # The guest process exit code is compared against the independent M4 manifest
 # tests/unit/llvm/codegen/m4/expected.yaml (TESTCASES-030t/032t).
 # Fail-closed: any mismatch / timeout / build-step non-zero => non-zero exit.
-# Coexists with test-codegen (raw-bin / trampoline: kept as-is).
+# Coexists with test-codegen (raw-bin path: kept as-is).
 LLD_BIN = $(HOST_TOOLCHAIN_BIN)/ld.lld
 # Work dir under the SDK test-artifacts root (ADR-0016 D6), resolved via
 # paths.py (D7); coexists with test-codegen's dir.
@@ -1920,14 +1921,17 @@ check-tests-index:
 check-rev-vectors:
 	@$(PYTHON) tools/testcases/generate_rev_vectors.py --check
 
-# 生成器—落盘向量同步门控 (INFRA-115t, L2): 6 个向量生成器以 `--check` 从真源
-# 重新渲染并逐字节比对（ctrl-jump/call/ret、ctrl-br、mem、isa、misc、bitcnt）。
+# 生成器—落盘向量同步门控 (INFRA-115t, L2): 余下 5 个向量生成器以 `--check` 从真源
+# 重新渲染并逐字节比对（ctrl-jump/call/ret、ctrl-br、isa、misc、bitcnt）。
 # `rev` 不在此列出：已由 L1 `check-rev-vectors` 守护（Process-07 §4「一个检查只在
 # 一层」）。任一生成器与落盘向量漂移 ⇒ FAIL。
+# **mem 生成器已退役**（m13-testcases-030 / ISS-413）：`base/mem-{rd,rb,ra}.yaml` 已
+# `git rm`，三册访存 id 的载体改为 `tests/inst/01-load-store/<id>.S`，回归由 L2
+# `check-inst-asm`（逐镜像执行）承担 —— 「生成器 + 逐字节比对」不再有输入，留一个
+# 会重建已退役 YAML 的脚本反而是陷阱。
 check-generator-sync:
 	@$(PYTHON) tools/testcases/generate_ctrl_jump_call_ret.py --check
 	@$(PYTHON) tools/testcases/generate_ctrl_br.py --check
-	@$(PYTHON) tools/testcases/generate_mem_vectors.py --check
 	@$(PYTHON) tools/testcases/generate_isa_vectors.py --check
 	@$(PYTHON) tools/testcases/generate_misc.py --check
 	@$(PYTHON) tools/testcases/generate_bitcnt_vectors.py --check
@@ -1977,9 +1981,11 @@ INST_TINY_LOG = .work/log/qemu/check-inst-tiny.log
 # TESTCASES-092t §6: two segments, each with its own rc; any non-zero ⇒ red.
 #   [1/2] Vast 全量：dadao-vast + the exit-policy BootROM (observed fault codes)
 #   [2/2] Tiny 子集：profile=tiny + 固定 64 KiB 固件 + only the cases that
-#         explicitly name the tiny profile (44).  m13-testcases-034：Tiny 故障
-#         例的 oracle 经固件 hmon 分派（cause_id → 镜像落点 → SYS_EXIT），
-#         不再依赖 legacy `-bios` 短 trampoline 的「向量不可达 ⇒ 机器 fault」。
+#         explicitly name the tiny profile（条数现场统计，不写死；`m13-testcases-030`
+#         起访存族的 Tiny 用例载体是 `.S`，由 L2 `check-inst-asm` 执行）。
+#         m13-testcases-034：Tiny 故障例的 oracle 经固件 hmon 分派
+#         （cause_id → 镜像落点 → SYS_EXIT），不再依赖 legacy 短 `-bios` 桩的
+#         「向量不可达 ⇒ 机器 fault」。
 _locked-check-inst: build-bootrom
 	@mkdir -p .work/log/qemu || { echo "check-inst: ERROR: cannot create .work/log/qemu"; exit 1; }
 	@test -f $(VAST_BOOTROM) || { echo "check-inst: ERROR: $(VAST_BOOTROM) not found"; exit 1; }
@@ -1988,7 +1994,7 @@ _locked-check-inst: build-bootrom
 	@echo "check-inst: [1/2] Vast full set (dadao-vast)"
 	@DADAO_TEST_PROFILE=vast $(PYTHON) tools/qemu/semantics_gate.py \
 	    --vectors $(INST_DIR) --gate-dir $(INST_SEM_DIR) \
-	    --qemu $(QEMU_BIN) --trampoline $(VAST_BOOTROM_INST) \
+	    --qemu $(QEMU_BIN) --bootrom $(VAST_BOOTROM_INST) \
 	    --jobs $(JOBS) > $(INST_SEM_LOG) 2>&1; \
 	  rc=$$?; \
 	  grep -E "Results:|skipped_profile" $(INST_SEM_LOG) | tail -2; \
@@ -2000,7 +2006,7 @@ _locked-check-inst: build-bootrom
 	@echo "check-inst: [2/2] Tiny subset (profile=tiny, --only-profile-cases)"
 	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/qemu/semantics_gate.py \
 	    --vectors $(INST_DIR) --gate-dir $(TEST_ARTIFACTS_DIR)/harness/gate-tiny \
-	    --qemu $(QEMU_BIN) --trampoline $(TINY_BOOTROM) \
+	    --qemu $(QEMU_BIN) --bootrom $(TINY_BOOTROM) \
 	    --only-profile-cases --jobs $(JOBS) > $(INST_TINY_LOG) 2>&1; \
 	  rc=$$?; \
 	  grep -E "Results:|skipped_profile" $(INST_TINY_LOG) | tail -2; \
@@ -2022,12 +2028,35 @@ _locked-check-inst-smoke: build-bootrom
 	@test -x $(QEMU_BIN) || { echo "check-inst-smoke: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -f $(VAST_BOOTROM_INST) || { echo "check-inst-smoke: ERROR: $(VAST_BOOTROM_INST) not found"; exit 1; }
 	@DADAO_TEST_PROFILE=vast $(PYTHON) tools/testcases/inst/run_qemu_smoke.py --qemu $(QEMU_BIN) \
-	    --trampoline $(VAST_BOOTROM_INST) --vector-dir tests/inst/base \
+	    --bootrom $(VAST_BOOTROM_INST) --vector-dir tests/inst/base \
 	    --work-dir $(INST_SMOKE_WORK) --jobs $(JOBS) > $(INST_SMOKE_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -10 $(INST_SMOKE_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "check-inst-smoke: FAIL (rc=$$rc)"; exit $$rc; fi; \
 	  echo "check-inst-smoke: PASS"
+
+# `.S` 载体门控 (m13-testcases-030 / ISS-413, L2)：`tests/inst/<册>/*.S` 的**全部**
+# 迁移 id（12 册）逐镜像执行 —— 同一份 ELF 交给 QEMU `dadao-tiny`：链例比结果
+# 字节流（`8 × 检查点数`，逐字节）、故障例比 monitor 段退出码（`0xF0|异常位`）。
+# 载体数 / 镜像数 / 检查点数一律**现场统计**（`run_asm_suite.py` 解析 `.S`），本
+# 目标与脚本都不写死。**单平台**：chipyard/gem5 的三方逐字节是各册任务的验收口径
+# （分钟级~小时级），不进 L2；L2 要的是「YAML 退役后每条已迁 id 仍有可执行回归」。
+# 前置只要求**已存在**的固定 64 KiB 固件与 QEMU：不挂 `build-bootrom` 前置 ⇒ L2
+# 门控不在并行窗口里重建共享产物（`AGENTS.md`「禁边构建边测试」；分层见
+# `docs/Process-07`）。
+INST_ASM_LOG = .work/log/qemu/check-inst-asm.log
+_locked-check-inst-asm:
+	@mkdir -p .work/log/qemu
+	@test -x $(QEMU_BIN) || { echo "check-inst-asm: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
+	@test -f $(TINY_BOOTROM) || { echo "check-inst-asm: ERROR: $(TINY_BOOTROM) not found — run 'make build-bootrom' first"; exit 1; }
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/inst/run_asm_suite.py \
+	    --books-root tests/inst --platforms qemu --jobs $(TEST_JOBS) \
+	    > $(INST_ASM_LOG) 2>&1; \
+	  rc=$$?; \
+	  grep -E "^run_asm_suite:" $(INST_ASM_LOG); \
+	  tail -5 $(INST_ASM_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "check-inst-asm: FAIL (rc=$$rc)"; exit $$rc; fi; \
+	  echo "check-inst-asm: PASS"
 
 # ── 生成物管理 + 回归运行（TESTCASES-076t，P6）─────────────────────────────────────
 # 生成物根 = `test_artifacts_dir`（`manifests/install-dirs.lock.toml`，禁硬编码）。

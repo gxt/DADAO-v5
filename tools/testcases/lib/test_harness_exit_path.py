@@ -33,7 +33,7 @@ import build_test_binary as btb          # noqa: E402
 import run_qemu_test as rqt              # noqa: E402
 
 VECTOR = os.path.join(REPO, "tests", "inst", "base", "reg-arith.yaml")
-TRAMPOLINE = os.path.join(HERE, "trampoline.bin")
+BOOTROM = rqt.default_bootrom("tiny")
 WORK = os.path.join("/tmp", "opencode", "TESTCASES-061t", "harness-exit")
 
 
@@ -67,7 +67,7 @@ def _run(blob, name, timeout=9):
     if not qemu:
         raise SystemExit("qemu-system-dadao not found")
     path = _write_bin(blob, name)
-    return rqt.run_qemu(qemu, TRAMPOLINE, path, timeout=timeout)
+    return rqt.run_qemu(qemu, BOOTROM, path, timeout=timeout)
 
 
 def main(argv=None):
@@ -126,8 +126,12 @@ def main(argv=None):
           "%s / %s" % (status, desc),
           status == "INCONCLUSIVE" and desc.startswith("Timeout"))
 
-    # spin at the current PC forever (jump rb0, rd0, 0) -> real timeout
-    spin = struct.pack(">I", 0x71000000)
+    # spin at the current PC forever (jump rb0, rd0, 0) -> real timeout.
+    # `m13-testcases-030`: the raw `-kernel` path under the fixed 64 KiB firmware
+    # skips a reserved 256-byte prefix (ENTRY - KERNEL_BASE); a bare 4-byte blob
+    # is rejected as "smaller than the reserved prefix".  Keep the spin word at
+    # ENTRY and pad the prefix so the guest really spins instead of exiting.
+    spin = b"\x00" * 0x100 + struct.pack(">I", 0x71000000)
     rc, _err, timed_out, _d = _run(spin, "spin.bin", timeout=1)
     status, desc = rqt.interpret_exit_code(rc)
     check("real timeout case", "timed_out=True, INCONCLUSIVE/Timeout",

@@ -22,11 +22,17 @@
 派生，三方比较用 `cmp` 语义（全字节）。
 
 用法：
-    python3 tools/testcases/inst/run_asm_suite.py                    # 全部 19 个 id
+    python3 tools/testcases/inst/run_asm_suite.py                    # 01 册全部 id
     python3 tools/testcases/inst/run_asm_suite.py --id ld.o_rrii_rd  # 单个
+    python3 tools/testcases/inst/run_asm_suite.py --books-root tests/inst \
+        --platforms qemu                                             # 全部 12 册（L2 门控）
     python3 tools/testcases/inst/run_asm_suite.py --platforms qemu   # 快速自查
     python3 tools/testcases/inst/run_asm_suite.py --chain-only       # 只跑链例
     python3 tools/testcases/inst/run_asm_suite.py --json-out <f>     # 逐例记录
+
+`--books-root`（`make check-inst-asm` 用）：扫描该根的**全部子目录**，凡含 `.S` 的册
+即为载体目录；每册的链接布局取**该册目录内的 `.lds`**（唯一一个），无则退回默认布局。
+`--vectors` 可重复（单/多目录），与 `--books-root` 可叠加。
 
 退出码：0 = 全部一致；1 = 有失败；2 = setup 错（缺工具/缺 BootROM/0 载体）。
 """
@@ -251,7 +257,7 @@ def _run(cmd, log: Path, timeout: int, out: Path, env_extra=None):
 # ---------------------------------------------------------------------------
 def check_variant(task, cfg) -> dict:
     """跑一个镜像；返回记录（含三方 rc 与字节流比较）。"""
-    src, case_n, expected = task
+    src, lds, case_n, expected = task
     stem = "%s%s" % (src.stem, "" if case_n == 0 else "_fault%03d" % case_n)
     outdir = cfg["work"] / src.stem
     outdir.mkdir(parents=True, exist_ok=True)
@@ -259,7 +265,7 @@ def check_variant(task, cfg) -> dict:
            "chain" if case_n == 0 else "fault", "expected": expected,
            "platforms": {}, "ok": False, "notes": []}
     try:
-        elf = build(cfg["toolbin"], src, cfg["lds"], case_n, outdir, stem)
+        elf = build(cfg["toolbin"], src, lds, case_n, outdir, stem)
     except (subprocess.CalledProcessError, OSError) as exc:
         rec["notes"].append("build: %s" % exc)
         return rec
@@ -327,8 +333,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--vectors", default=str(_REPO / DEFAULT_VECTORS))
-    ap.add_argument("--lds", default=str(_REPO / DEFAULT_LDS))
+    ap.add_argument("--vectors", action="append", default=None,
+                    help="载体目录（可重复；默认 tests/inst/01-load-store）")
+    ap.add_argument("--books-root", default=None,
+                    help="扫描该根下所有含 .S 的子目录作为册载体"
+                         "（如 tests/inst ⇒ 全部 12 册）")
+    ap.add_argument("--lds", default=None,
+                    help="统一链接布局（默认：每册目录内的 .lds，无则用 "
+                         "tests/inst/01-load-store/inst-tiny.lds）")
     ap.add_argument("--id", action="append", default=None,
                     help="只跑这些 id（可重复；默认全部）")
     ap.add_argument("--platforms", default="chipyard,qemu,gem5")
@@ -360,7 +372,7 @@ def main() -> int:
                else paths.test_artifacts_dir() / "bootrom" / "tiny" /
                "bootrom_tiny.bin")
     plats = [p for p in args.platforms.split(",") if p]
-    need = [("lds", Path(args.lds))]
+    need = []
     if not args.scan_only:
         need += [("qemu", qemu), ("llvm-mc", toolbody / "llvm-mc"),
                  ("ld.lld", toolbody / "ld.lld"), ("bootrom", bootrom)]
@@ -375,19 +387,68 @@ def main() -> int:
             return 2
 
     # ISS-373: refusing on an active writer and the start/finish md5 of every
-    # binary used must happen before the first image is built/run.
-    guard = writer_guard.start_guard(
-        args, [str(qemu), str(Path(args.gem5)), str(chipyard),
-               str(toolbody / "llvm-mc"), str(toolbody / "ld.lld"),
-               str(bootrom)], label="run_asm_suite")
+    # binary used must happen before the first image is built/run.  **只登记
+    # 本平台集合真的会用的二进制**：`--platforms qemu` 的 L2 门控不该被并行
+    # 的 gem5/chipyard 构建挡住（未参与比较的二进制不构成假红来源）。
+    used = [str(qemu), str(toolbody / "llvm-mc"), str(toolbody / "ld.lld"),
+            str(bootrom)]
+    if "gem5" in plats:
+        used.append(str(Path(args.gem5)))
+    if "chipyard" in plats:
+        used.append(str(chipyard))
+    if args.scan_only:
+        # 只读源码统计，不消费任何二进制 ⇒ 不做 read guard（空清单会被
+        # 解释成「全组件」，那会把只读统计误挡在并行构建外面）。
+        guard = None
+    else:
+        guard = writer_guard.start_guard(args, used, label="run_asm_suite")
 
-    srcs = sorted(Path(p) for p in glob.glob(str(Path(args.vectors) / "*.S")))
+    # 载体目录（册）：`--vectors` 可重复；`--books-root` 扫描其下所有含 `.S` 的子目录。
+    dirs = []
+    if args.vectors:
+        dirs += [Path(d) for d in args.vectors]
+    elif not args.books_root:
+        dirs.append(Path(_REPO / DEFAULT_VECTORS))
+    if args.books_root:
+        root = Path(args.books_root)
+        if not root.is_dir():
+            print("run_asm_suite: ERROR: --books-root 不是目录: %s" % root,
+                  file=sys.stderr)
+            return 2
+        dirs += sorted(p for p in root.iterdir()
+                       if p.is_dir() and any(p.glob("*.S")))
+    # 去重（`--vectors` 与 `--books-root` 可能指到同一册；否则镜像会被跑两遍）
+    seen = set()
+    dirs = [d for d in dirs if not (d in seen or seen.add(d))]
+    # 每册布局：显式 `--lds` 优先；否则该册目录内唯一的 `.lds`；再否则默认布局。
+    lds_by_dir = {}
+    for d in dirs:
+        if args.lds:
+            lds_by_dir[d] = Path(args.lds)
+            continue
+        cand = sorted(d.glob("*.lds"))
+        if len(cand) > 1:
+            print("run_asm_suite: ERROR: %s 内有 %d 个 .lds（无法机械选定）"
+                  % (d, len(cand)), file=sys.stderr)
+            return 2
+        lds_by_dir[d] = cand[0] if cand else Path(_REPO / DEFAULT_LDS)
+    for d in dirs:
+        if not lds_by_dir[d].exists():
+            print("run_asm_suite: ERROR: lds 不存在: %s" % lds_by_dir[d],
+                  file=sys.stderr)
+            return 2
+
+    pairs = []
+    for d in dirs:
+        pairs += [(Path(p), lds_by_dir[d]) for p in glob.glob(str(d / "*.S"))]
     if args.id:
-        srcs = [s for s in srcs if s.stem in set(args.id)]
+        pairs = [p for p in pairs if p[0].stem in set(args.id)]
+    srcs = [p[0] for p in sorted(pairs)]
     if not srcs:
-        print("run_asm_suite: ERROR: 0 个载体（%s）" % args.vectors,
-              file=sys.stderr)
+        print("run_asm_suite: ERROR: 0 个载体（%s）"
+              % ", ".join(str(d) for d in dirs), file=sys.stderr)
         return 2
+    lds_of = {src: lds for src, lds in pairs}
 
     # 生成物落在 `harness/`（`manage_tests.SCOPE_MAP` 已登记的 inst 产物目录）：
     # 新开顶层目录会被 `manage_tests` 的「未归属目录」判据打红。
@@ -396,7 +457,7 @@ def main() -> int:
     logdir = Path(args.log_dir) if args.log_dir else work / "log"
     work.mkdir(parents=True, exist_ok=True)
     logdir.mkdir(parents=True, exist_ok=True)
-    cfg = {"toolbin": toolbody, "lds": Path(args.lds), "qemu": qemu,
+    cfg = {"toolbin": toolbody, "qemu": qemu,
            "gem5": Path(args.gem5), "gem5_config": Path(args.gem5_config),
            "chipyard": chipyard, "bootrom": bootrom, "work": work,
            "logdir": logdir, "platforms": plats,
@@ -427,10 +488,10 @@ def main() -> int:
                   % src.name, file=sys.stderr)
             return 2
         if info["checks"]:
-            tasks.append((src, 0, info["checks"]))
+            tasks.append((src, lds_of[src], 0, info["checks"]))
         if not args.chain_only:
             for f in info["faults"]:
-                tasks.append((src, f["pt"], f["fault"]))
+                tasks.append((src, lds_of[src], f["pt"], f["fault"]))
 
     print("run_asm_suite: %d 个 id / %d 个镜像 / 平台 %s / jobs=%d"
           % (len(srcs), len(tasks), ",".join(plats), args.jobs))

@@ -23,7 +23,7 @@ independently-derived expected value (it does NOT rely on lit exit codes):
 The `-bios` image is the fixed Machine-v5-Tiny BootROM firmware built by
 ``make build-bootrom`` -- the only image the Tiny `-bios` option accepts
 (spec/Machine-v5 §6; m13-testcases-036 removed the legacy 56-byte flat
-trampoline).  The raw `-kernel` application path is unchanged.
+BootROM firmware).  The raw `-kernel` application path is unchanged.
 
 The startup stub calls ``@main`` and reports the returned value (rd8) through
 the semihosting ``SYS_EXIT`` service; the guest exit code is the low byte
@@ -108,7 +108,7 @@ DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
 # `bootrom-image` takes, spec/Machine-v5 §6).  Resolved through the single
 # source of truth for test artifacts (ADR-0016 D6/D7, tools/infra/paths.py), the
 # same way tests/unit/llvm/e2e/lit/lit.cfg.py's `%bootrom` is.  m13-testcases-036:
-# the legacy 56-byte `-bios` trampoline is no longer used by this gate.
+# the legacy 56-byte `-bios` blob is no longer used by this gate.
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir() / "bootrom" / "tiny"
                       / "bootrom_tiny.bin")
 DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
@@ -401,13 +401,9 @@ def main():
                          "-bios (default: the test-artifacts "
                          "bootrom/tiny/bootrom_tiny.bin built by "
                          "'make build-bootrom')")
-    # Deprecated: the Tiny `-bios` option no longer accepts the legacy flat
-    # trampoline (spec/Machine-v5 §6), so this switch is accepted only so
-    # existing command lines (e.g. the Makefile recipe) keep working; it is
-    # ignored and the fixed firmware is used instead (m13-testcases-036).
-    ap.add_argument("--trampoline", default=None,
-                    help="DEPRECATED and ignored: the 56-byte flat trampoline is "
-                         "no longer a valid Tiny -bios image; use --bootrom")
+    # `m13-testcases-030`: the legacy 56-byte flat `-bios` blob was retired
+    # (its generator + artifact are gone), so the deprecated switch that fed
+    # it is gone too — only `--bootrom` (fixed 64 KiB firmware) remains.
     ap.add_argument("--crt0", default=DEFAULT_CRT0)
     ap.add_argument("--vectors-dir", default=DEFAULT_VECTORS_DIR)
     ap.add_argument("--expected", default=DEFAULT_EXPECTED)
@@ -445,11 +441,6 @@ def main():
                 f"ERROR: fixed BootROM firmware not found: {tools['bootrom']}\n"
                 "       run 'make build-bootrom' first\n")
             sys.exit(2)
-    if args.trampoline:
-        sys.stderr.write(
-            "NOTE: --trampoline is deprecated and ignored: the Tiny -bios option "
-            f"takes only the fixed 64 KiB BootROM firmware ({tools['bootrom']}; "
-            "spec/Machine-v5 §6)\n")
     if not os.path.isfile(tools["crt0"]):
         sys.stderr.write(f"ERROR: crt0 stub not found: {tools['crt0']}\n")
         sys.exit(2)

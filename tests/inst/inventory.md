@@ -7,46 +7,51 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 
 > **本表是 `TESTCASES-002t` 冻结的「覆盖要求矩阵」**：`✓` = 该身份须有该类
 > active case；`—` = 该类不适用；`deferred <reason>` = 该类暂缓（须记原因）。
-> 向量数据（`tests/inst/base/*.yaml`）由 `TESTCASES-003t`~`007t` 生成；
-> `file` 列为目标文件名，下游重组任务负责更新为最终文件名。
+> `file` 列 = **载体**：`<册>/<id>.S`（汇编套件，本表 30 个访存 id 及后续迁移的 id）
+> 或 `<名>.yaml`（数据型向量，仍留在 `tests/inst/{base,fp,...}/`）。两种载体的覆盖
+> 判据不同：`.S` 载体由 L2 `check-inst-asm` **逐镜像执行**（`tools/testcases/inst/
+> run_asm_suite.py`，链例比结果字节流、故障例比 monitor 段退出码），`validate_vectors.py`
+> 只断言载体存在且结构完好（`<id>.S` 是 `contracts/opcodes.yaml` 的身份、含用例行、
+> 检查点号 1..N 连续）；YAML 载体仍按类（`(id, class)` 至少 1 条 active 用例）校验。
 >
 > `validate_vectors.py` 机械校验本表的 M1 行集与 `contracts/opcodes.yaml`
-> 中 `scope == "m1"` 的身份集一致（无缺、无多、无重复），且每行至少声明一类覆盖（不得静默缺席）。
+> 中 `scope == "m1"` 的身份集一致（无缺、无多、无重复），且每行至少声明一类覆盖（不得静默缺席）；
+> 另校验 `file` 列的 basename 在 `tests/inst/<册>/` 现场存在（无悬空引用）。
 
 ## M1 覆盖矩阵（156 条）
 
 | id | format | file | encoding | legality | semantic | boundary | overlap | notes |
 |---|---|---|---|---|---|---|---|---|
-| `ld.ub_rrii_rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ld.uw_rrii_rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ld.ut_rrii_rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ld.sb_rrii_rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ld.sw_rrii_rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ld.st_rrii_rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `st.b_rrii_rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `st.w_rrii_rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `st.t_rrii_rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ld.o_rrii_rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `st.o_rrii_rd` | `rrii` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ld.o_rrii_rb` | `rrii` | `mem-rb.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `st.o_rrii_rb` | `rrii` | `mem-rb.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ld.o_rrii_ra` | `rrii` | `mem-ra.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `st.o_rrii_ra` | `rrii` | `mem-ra.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ldm.ub_rrri_rd` | `rrri` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ldm.uw_rrri_rd` | `rrri` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ldm.ut_rrri_rd` | `rrri` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ldm.sb_rrri_rd` | `rrri` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ldm.sw_rrri_rd` | `rrri` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ldm.st_rrri_rd` | `rrri` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `stm.b_rrri_rd` | `rrri` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `stm.w_rrri_rd` | `rrri` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `stm.t_rrri_rd` | `rrri` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ldm.o_rrri_rd` | `rrri` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `stm.o_rrri_rd` | `rrri` | `mem-rd.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ldm.o_rrri_rb` | `rrri` | `mem-rb.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `stm.o_rrri_rb` | `rrri` | `mem-rb.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `ldm.o_rrri_ra` | `rrri` | `mem-ra.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
-| `stm.o_rrri_ra` | `rrri` | `mem-ra.yaml` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ld.ub_rrii_rd` | `rrii` | `01-load-store/ld.ub_rrii_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ld.uw_rrii_rd` | `rrii` | `01-load-store/ld.uw_rrii_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ld.ut_rrii_rd` | `rrii` | `01-load-store/ld.ut_rrii_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ld.sb_rrii_rd` | `rrii` | `01-load-store/ld.sb_rrii_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ld.sw_rrii_rd` | `rrii` | `01-load-store/ld.sw_rrii_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ld.st_rrii_rd` | `rrii` | `01-load-store/ld.st_rrii_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `st.b_rrii_rd` | `rrii` | `01-load-store/st.b_rrii_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `st.w_rrii_rd` | `rrii` | `01-load-store/st.w_rrii_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `st.t_rrii_rd` | `rrii` | `01-load-store/st.t_rrii_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ld.o_rrii_rd` | `rrii` | `01-load-store/ld.o_rrii_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `st.o_rrii_rd` | `rrii` | `01-load-store/st.o_rrii_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ld.o_rrii_rb` | `rrii` | `01-load-store/ld.o_rrii_rb.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `st.o_rrii_rb` | `rrii` | `01-load-store/st.o_rrii_rb.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ld.o_rrii_ra` | `rrii` | `01-load-store/ld.o_rrii_ra.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `st.o_rrii_ra` | `rrii` | `01-load-store/st.o_rrii_ra.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ldm.ub_rrri_rd` | `rrri` | `01-load-store/ldm.ub_rrri_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ldm.uw_rrri_rd` | `rrri` | `01-load-store/ldm.uw_rrri_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ldm.ut_rrri_rd` | `rrri` | `01-load-store/ldm.ut_rrri_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ldm.sb_rrri_rd` | `rrri` | `01-load-store/ldm.sb_rrri_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ldm.sw_rrri_rd` | `rrri` | `01-load-store/ldm.sw_rrri_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ldm.st_rrri_rd` | `rrri` | `01-load-store/ldm.st_rrri_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `stm.b_rrri_rd` | `rrri` | `01-load-store/stm.b_rrri_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `stm.w_rrri_rd` | `rrri` | `01-load-store/stm.w_rrri_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `stm.t_rrri_rd` | `rrri` | `01-load-store/stm.t_rrri_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ldm.o_rrri_rd` | `rrri` | `01-load-store/ldm.o_rrri_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `stm.o_rrri_rd` | `rrri` | `01-load-store/stm.o_rrri_rd.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ldm.o_rrri_rb` | `rrri` | `01-load-store/ldm.o_rrri_rb.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `stm.o_rrri_rb` | `rrri` | `01-load-store/stm.o_rrri_rb.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `ldm.o_rrri_ra` | `rrri` | `01-load-store/ldm.o_rrri_ra.S` | ✓ | ✓ | ✓ | ✓ | — |  |
+| `stm.o_rrri_ra` | `rrri` | `01-load-store/stm.o_rrri_ra.S` | ✓ | ✓ | ✓ | ✓ | — |  |
 | `or.w_rwii_rd` | `rwii` | `reg-imm-block.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `andn.w_rwii_rd` | `rwii` | `reg-imm-block.yaml` | ✓ | ✓ | ✓ | — | — |  |
 | `or.w_rwii_rb` | `rwii` | `reg-imm-block.yaml` | ✓ | ✓ | ✓ | — | — |  |
@@ -213,6 +218,44 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > MSB-first 位串）逐例互证（见生成器 `--self-check`）。
 
 
+## `.S` 载体覆盖（L2 `check-inst-asm`）
+
+`tests/inst/<册>/*.S` 是**执行型**载体：每个 `<id>.S` 一个 ELF，`run_asm_suite.py` 对链例
+（`CASE_N=0`）比**结果字节流**（`8 × 检查点数`，逐字节）、对故障例（`-defsym CASE_N=<点号>`）
+比 monitor 段退出码 `0xF0|异常位索引`。`make check-inst-asm`（L2，单平台 QEMU
+`dadao-tiny`）跑本表全部册；chipyard / gem5 的三方逐字节是各册任务的验收口径（不在 L2）。
+
+本表是**读者面登记**，`make check-inst-asm` 的载体集 = `tests/inst/` 下**含 `.S` 的子
+目录**（现场派生，`run_asm_suite.py --books-root tests/inst`），册名/册数不写死。
+
+### 覆盖边界（如实）
+
+- **拦得住**：现存每个 `<id>.S` 的结构 —— stem 必须是 `contracts/opcodes.yaml` 的身份、
+  含 ≥1 用例行、检查点号 1..N 连续（`validate_vectors.py` 的 `ASM CARRIER *` 断言），
+  且 L2 `check-inst-asm` 会把**现存**载体逐镜像真跑（链例字节流 + 故障例退出码）。
+  删单个 `.S` 但保留 `tests/inst.yaml` 条目 ⇒ `check-tests-index` 红（`file` 不存在）。
+- **拦不住（现状，已知缺口）**：**整册删除**。删 `03-wyde-imm/` 并同步删其 `tests/inst.yaml`
+  条目后，`validate-vectors` rc=0（载体 264→256）、`check-tests-index` rc=0、`check-case-ledger`
+  也无行可少（ledger 只收 YAML 用例与 lit pattern）⇒ 该册 8 个 id 静默失去全部执行覆盖。
+  `.S` 载体**没有**逐条删除哨兵（同口径问题见 `ISS-441` 的 `mem_sweep` 处置）。
+- **待补**：「载体册集 == 注册册集」「载体 id 集 == `opcodes.yaml` 身份集」的双向断言
+  （与 `ISS-441` 同批或另立任务）。**在补上之前，本表不声称已双向校验。**
+
+| 册 | 载体 | 门控 | 判据 |
+|---|---|---|---|
+| `01-load-store/` | `ld.*`/`st.*`/`ldm.*`/`stm.*` | `check-inst-asm` | 链例字节流 + 故障例退出码 |
+| `02-reg-copy/` | 块复制 + `cs.*` | `check-inst-asm` | 链例字节流 + 故障例退出码 |
+| `03-wyde-imm/` | 16 位立即数操作 | `check-inst-asm` | 链例字节流 + 故障例退出码 |
+| `04-arith-logic-octa/` | 64 位数据运算 | `check-inst-asm` | 链例字节流 + 故障例退出码 |
+| `05-arith-addr/` | 64 位地址运算 | `check-inst-asm` | 链例字节流 + 故障例退出码 |
+| `06-control-flow/` | 控制流 | `check-inst-asm` | 链例字节流 + 故障例退出码 |
+| `07-floating-point/` | 浮点运算 | `check-inst-asm` | 链例字节流 + 故障例退出码 |
+| `08-arith-logic-tetra/` | 32 位数据运算 | `check-inst-asm` | 链例字节流 + 故障例退出码 |
+| `09-arith-logic-wyde/` | 16 位数据运算 | `check-inst-asm` | 链例字节流 + 故障例退出码 |
+| `10-arith-logic-byte/` | 8 位数据运算 | `check-inst-asm` | 链例字节流 + 故障例退出码 |
+| `11-cfx/` | 核芯功能扩展 | `check-inst-asm` | 链例字节流 + 故障例退出码 |
+| `12-misc/` | `swym`/`ct*`/`lr`/`sc` | `check-inst-asm` | 链例字节流 + 故障例退出码 |
+
 ## 门控覆盖（L2/L3）
 
 > **机械可核**：本表是覆盖**登记**，`tools/qemu/semantics_gate.py`（`make check-inst`；旧名 `check-qemu-semantics` = 别名）
@@ -233,9 +276,6 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 | `base/ctrl-call.yaml` | — | ✓ |
 | `base/ctrl-jump.yaml` | — | ✓ |
 | `base/ctrl-ret.yaml` | — | ✓ |
-| `base/mem-ra.yaml` | — | ✓ |
-| `base/mem-rb.yaml` | — | ✓ |
-| `base/mem-rd.yaml` | — | ✓ |
 | `base/misc.yaml` | — | ✓ |
 | `base/reg-arith.yaml` | — | ✓ |
 | `base/reg-compare.yaml` | ✓ | ✓ |

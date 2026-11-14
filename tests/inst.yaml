@@ -1559,24 +1559,6 @@
   - system
   level: full
   requires: []
-- id: inst-base-006
-  file: inst/base/mem-ra.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-base-007
-  file: inst/base/mem-rb.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-base-008
-  file: inst/base/mem-rd.yaml
-  platforms:
-  - system
-  level: full
-  requires: []
 - id: inst-base-009
   file: inst/base/misc.yaml
   platforms:

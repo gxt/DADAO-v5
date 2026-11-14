@@ -34,6 +34,10 @@ import time
 _script_dir = os.path.dirname(os.path.abspath(__file__))
 if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
+# 产物根（固定 BootROM 固件位置）经 paths.py 解析，不写死安装路径（ADR-0016 D7）。
+sys.path.insert(0, os.path.join(
+    os.path.dirname(os.path.dirname(_script_dir)), "infra"))
+import paths as _paths  # noqa: E402
 
 from build_test_binary import DUMP_BASE, DUMP_SIZE, RD_DUMP_OFF, RB_DUMP_OFF, PC_DUMP_OFF
 
@@ -41,7 +45,8 @@ from build_test_binary import DUMP_BASE, DUMP_SIZE, RD_DUMP_OFF, RB_DUMP_OFF, PC
 EXIT_FAULT_MIN = 0x80
 
 QEMU = ".work/build/qemu/qemu-system-dadao"
-BIOS = os.path.join(_script_dir, "trampoline.bin")
+BIOS = os.path.join(_paths.test_artifacts_dir(), "bootrom", "tiny",
+                    "bootrom_tiny.bin")
 
 
 def qmp_session(sock_path, timeout=10):

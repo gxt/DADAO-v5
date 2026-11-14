@@ -226,20 +226,28 @@
   `format` 保留为普通字段，不入覆盖率主键。
 - 每个 M1 身份 `id` 至少 1 条对应 class 的 case；算术/移位类还需
   `boundary`；条件赋值 `overlap` 按 C-27 deferred。
+- 载体为 `<册>/<id>.S` 时，上述类级要求由**执行**覆盖（L2 `make check-inst-asm` 逐镜像
+  比字节流/退出码）；`validate_vectors.py` 对该类身份只断言载体结构（见下文「文件组织」）。
 - 覆盖率与 `inventory.md` 机械同步：`inventory.md` 的 M1 行集必须与
   `opcodes.yaml` 的 M1 身份集一致（无缺、无多、无重复）——由
   `tools/testcases/validate_vectors.py` 校验。
 
-## 文件组织（方案 A：按运算族分，bank 混在文件内）
+## 文件组织（载体二选一：`.S` 执行型 / YAML 数据型）
 
 ```
-tests/inst/base/
+tests/inst/<册>/
+  ld.o_rrii_ra.S          ...                     <id>.S（执行型载体；册 = SimRISC 册）
+tests/inst/base/（及其它 YAML 载体目录）
   reg-arith.yaml          reg-logic.yaml          reg-shift-extend.yaml
   reg-compare.yaml        reg-cond-assign.yaml    reg-imm-block.yaml
-  mem-rd.yaml             mem-rb.yaml             mem-ra.yaml
   ctrl-br.yaml            ctrl-jump.yaml          ctrl-call.yaml
   ctrl-ret.yaml           misc.yaml
 ```
+
+`.S` 载体的一个文件 = 一个 ELF（链例 + 一例一镜像的故障例），期望值内联在用例行里，
+判据见 `tests/inst/macros/inst_test.inc` 与 `tools/testcases/inst/run_asm_suite.py`
+（L2 `make check-inst-asm`）。`base/mem-{rd,rb,ra}.yaml` 已于 `m13-testcases-030` 退役
+（访存 id 全部由 `01-load-store/<id>.S` 承载），YAML 文件级 schema 不再适用于它们。
 
 ## 校验
 

@@ -7,7 +7,7 @@
 
 | 目录 | SimRISC 册 | id 数（初估，待按各册附录 A 校准） |
 |---|---|---|
-| `01-load-store/` | 01 取数存数 | 38（单元素 19 已迁；`ldm`/`stm` 19 待 `01-b`） |
+| `01-load-store/` | 01 取数存数 | 38（单元素 19 + `ldm`/`stm` 19，均已在盘） |
 | `02-reg-copy/` | 02 寄存器复制 | 16 |
 | `03-wyde-imm/` | 03 16 位立即数操作 | 8 |
 | `04-arith-logic-octa/` | 04 64 位数据运算 | 60 |
@@ -80,7 +80,7 @@
 | 16 | `m13-testcases-027` | `11-cfx`（5 条 cfx/system） | 5 |
 | 17 | `m13-testcases-028` | `12-misc` 原子（`lr`/`sc`） | 24 |
 | 18 | `m13-testcases-029` | `12-misc` 其余（`swym`/`ct*`） | 4 |
-| — | `m13-testcases-030` | `.S` 接入门控 + YAML 退役（`ISS-413`） | — |
+| — | `m13-testcases-030` | `.S` 接入门控 + YAML 退役（`ISS-413`） | 3 册 / 30 id（见 §5.4） |
 
 合计 **264** 个 id（与 `contracts/opcodes.yaml` 一致；各册实测：01 38 / 02 16 / 03 8 / 04 33 / 05 6 / 06 15 / 07 52 / 08 21 / 09 21 / 10 21 / 11 5 / 12 28）。
 
@@ -107,9 +107,9 @@
 | `base/ctrl-jump.yaml` | 6 | 2 | **id 全部已迁**（`jump` 2 个 id，见 §6/020）；文件未删（见 §5.2） |
 | `base/ctrl-call.yaml` | 11 | 2 | **id 全部已迁**（`call` 2 个 id，见 §6/020）；文件未删（见 §5.2） |
 | `base/ctrl-ret.yaml` | 10 | 1 | **id 全部已迁**（`ret` 1 个 id，见 §6/020）；文件未删（见 §5.2） |
-| `base/mem-rd.yaml` | 122 | 22 | **id 全部已迁**（`ld.*`/`st.*` 单元素 11 + `ldm.*`/`stm.*` 11，见 §6）；**文件未删** —— 删除依赖 inventory 载体登记改造（见 §5.1） |
-| `base/mem-ra.yaml` | 22 | 4 | **id 全部已迁**（`ld.o`/`st.o` ra + `ldm.o`/`stm.o` ra）；文件未删（同 §5.1） |
-| `base/mem-rb.yaml` | 23 | 4 | **id 全部已迁**（同上，rb 形式）；文件未删（同 §5.1） |
+| `base/mem-rd.yaml` | 122 | 22 | **已删**（`m13-testcases-030`，`git rm`；载体 = `01-load-store/<id>.S`，见 §5.4） |
+| `base/mem-ra.yaml` | 22 | 4 | **已删**（`m13-testcases-030`；同上） |
+| `base/mem-rb.yaml` | 23 | 4 | **已删**（`m13-testcases-030`；同上） |
 | `base/misc.yaml` | — | — | 待迁 |
 | `base/reserved.yaml` | 9 | 4+3 | 部分迁移（`ld.`/`st.` 的 6 条 reserved-cfx `CFXMEM` 已迁；3 条 reserved-opcode `UNDI` 无 id，待 `12-misc`） |
 | `fp/*.yaml`（`arith`/`convert`/`divrem`/`cond-assign`） | — | — | **id 全部已迁**：`cond-assign.yaml` 的 3 个 `cs.*_rrrr_rf`（§6/014）、`arith.yaml` 的 8 个算术最小最大（§6/021）+ 4 个比较（§6/022）、`divrem.yaml` 的 6 个（§6/021）、`convert.yaml` 涉及的 5 个 id（§6/022，另 13 个转换 id 原本无 YAML 载体）；文件**未删** —— `divrem.yaml` 是 `check-inst` 的 L3 载体、其余受 §5.1 前置阻塞 |
@@ -130,7 +130,7 @@ YAML 载体真源，`validate_vectors.py` 按它做数据覆盖门控、`check-g
 
 ⇒ 删除须与「`inventory.md` 载体/类登记改为 `.S` 载体 + 数据覆盖门控认得 `.S` +
 mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` 已把结论与实测
-输出写进任务书「待裁定」）。在此之前三册保留在盘，`git status` 干净。
+输出写进任务书「待裁定」）。**已由 `m13-testcases-030` 同批完成，见 §5.4。**
 
 ### 5.2 删除规则的前置（`m13-testcases-020` 现场结论：4 个 ctrl YAML）
 
@@ -147,6 +147,46 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
 
 ⇒ 与 §5.1 同批处理（`m13-testcases-030`）：inventory 载体登记改 `.S` + 数据覆盖门控
 认得 `.S` + 生成器退役 + 台账重生成，四条一起做才可 `git rm`。
+**`m13-testcases-030` 只做 §5.1 的三册**：执行覆盖已经具备（L2 `check-inst-asm` 覆盖
+`tests/inst/` 下**全部含 `.S` 的册**，含 ctrl 4 册），但这 4 册的 YAML **同时是** L3
+`check-inst`（`semantics_gate`）的载体，且 `validate_vectors` 的 `br.*` 双路径守卫
+（`taken` + `not-taken`，按 `expected_pc` 分类）只在 YAML case 上有结构字段 ⇒ 删这 4 册
+会缩小 L3 用例集并把双路径守卫变成空判。故 `030` 不删它们，须另立任务（双路径守卫改由
+`.S` 派生的同一批里做）。`base/reg-{arith,compare,shift-extend,logic,cond-assign,imm-block}.yaml`、
+`base/aip-si.yaml`、`rol/rol.yaml`、`base/reserved.yaml` 同理**不删**：它们是 chipyard
+`inst_sweep` 的输入（273 例 sweep 的 md5 是既有验收基线）或 `generate_isa_vectors`
+的渲染目标（六册一次 `--check`）。
+
+## 5.4 YAML 退役（`m13-testcases-030`，`ISS-413` 收口）
+
+**删除**：`base/mem-rd.yaml`、`base/mem-ra.yaml`、`base/mem-rb.yaml`（`git rm`；167 条用例、
+30 个 id）。`tests/inst.yaml` 同步去掉 3 条 `file:` 条目（489 → 486），`tests/case-ledger.tsv`
+由 `check_case_ledger.py --write` 重生成（现场身份 2200 → 2033，只减 167 行）。
+
+**载体切换的四处改动**（缺一条就会红，见 §5.1 的四条阻塞）：
+
+1. `inventory.md`：30 个访存 id 的 `file` 列改 `<册>/<id>.S`；新增「`.S` 载体覆盖」节
+   （12 册 → `check-inst-asm`）；「门控覆盖（L2/L3）」表删 3 行 mem 册（该表只登记 YAML 载体）。
+2. `validate_vectors.py`：YAML 载体仍按 `(id, class)` 做类级覆盖；**`.S` 载体改为执行型** ——
+   只断言结构（stem 是 `opcodes.yaml` 身份、含用例行、检查点号 1..N 连续，复用
+   `run_asm_suite.scan_source`），类级覆盖交给执行门控。另加 `inventory` `file` 列表无悬空引用。
+3. 新门控 L2 `make check-inst-asm`：`run_asm_suite.py --books-root tests/inst --platforms qemu`
+   ——264 个 id / 897 个镜像（链例 264 + 故障例 633）全部跑 QEMU `dadao-tiny`，链例比结果
+   字节流、故障例比 monitor 段退出码。**单平台**：三方逐字节仍是各册任务的验收口径。
+4. `generate_mem_vectors.py` 退役（`git rm`）：它的唯一产物就是这三册；`check-generator-sync`
+   从 6 个生成器改 5 个（ctrl×2 + isa + misc + bitcnt 仍在）。
+
+**判据变化**（不是放宽，是换载体）：L3 `check-inst` 由 1141 例降到 1020 例（0 failed、
+5 deferred），Tiny 段 44 → 14 例 —— 差额正是这三册的 Tiny 画像用例，现由 L2
+`check-inst-asm` 的 897 个镜像在**同一平台**上执行（更强：真跑而非 schema）。
+273 例 chipyard sweep（`inst_sweep`）的输入不含 mem 三册 ⇒ md5 不变。
+
+**未删的册与原因**见 §5.2 末段（ctrl 4 册：L3 载体 + `br.*` 双路径守卫；reg/aip-si/rol/
+reserved：`inst_sweep` 输入与 `generate_isa_vectors` 渲染目标）。
+
+**遗留**：`tools/chipyard/mem_sweep.py` 的 `SOURCES` 仍指这三册（该 sweep 是 chipyard RTL
+的现场工具，不在任何门控里，本任务范围不含 `tools/chipyard/**`）⇒ 现已无输入，须另立
+任务改为从 `.S` 派生或退役。
 
 ## 5.3 并行分片协议（用户 2026-11-14）
 
@@ -161,6 +201,22 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
 - 节点侧：各分片用**独立** `~/eval/<任务>/` staging 与**独占** work-dir；`--jobs` 用脚本默认（核数/2）。
 
 ## 6. 已完成
+
+### `m13-testcases-030`：`.S` 入 L2 门控 + mem 三册 YAML 退役（`ISS-413`）
+
+- **新门控**：`make check-inst-asm`（L2，`_locked-check-modules` 成员；`GATE_LOCKED_TARGETS`
+  同表）。目标体 = `run_asm_suite.py --books-root tests/inst --platforms qemu --jobs $(TEST_JOBS)`；
+  载体集/镜像数/检查点数全部现场派生，不挂 `build-bootrom` 前置（L2 不重建共享产物）。
+- **`run_asm_suite.py`**：新增 `--books-root`（扫全部含 `.S` 的子目录）、每册目录内 `.lds`
+  自动选定、`--vectors` 可重复；read guard 只登记**本平台集合真的会用**的二进制
+  （`--platforms qemu` 不再被并行的 gem5/chipyard 构建挡住）；`--scan-only` 不登记二进制。
+- **`validate_vectors.py`**：载体二选一 —— YAML（类级覆盖不变）/ `.S`（执行型：只断言
+  stem 是 `opcodes.yaml` 身份、含用例行、点号 1..N 连续）；`inventory` `file` 列无悬空引用。
+- **`inventory.md`**：30 个访存 id 的载体列 → `01-load-store/<id>.S`；新增「`.S` 载体覆盖」节。
+- **删除**：`base/mem-{rd,ra,rb}.yaml`（167 例 / 30 id）、`generate_mem_vectors.py`；
+  `tests/inst.yaml` 489 → 486 条；`case-ledger.tsv` 2200 → 2033（只减 167 行）。
+- **判据**：`check-inst-asm` 264 id / 897 镜像全绿（QEMU `dadao-tiny`）；`check-inst`
+  1020 例 0 failed（Tiny 段 14 例）；273 例 chipyard sweep md5 不变。详见 §5.4。
 
 ### `m13-testcases-033`：`ext.uo`/`ext.so` orrr 的 `rdHD` 越界值（64 / 67 / 2^64−1）三平台用例
 

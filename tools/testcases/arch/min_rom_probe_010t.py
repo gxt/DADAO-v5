@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Min ROM probe for QEMU-010t ldm.o-rb and stm.o-rb (RB multi-register load/store).
 
-Covers 12 vectors from tests/inst/base/mem-rb.yaml for ldm.o-rb + stm.o-rb:
+Covers 12 vectors (originally from the retired mem-* vector YAML; now carried
+by tests/inst/01-load-store/<id>.S) for ldm.o-rb + stm.o-rb:
 
 ldm.o-rb (6 vectors):
   1. encoding: ldm.o-rb rb1,rb3,rd2,1 with rb3=RAM base → no crash
@@ -237,7 +238,7 @@ MALIGN_EXIT = 252  # 0xFC
 
 TESTS = [
     # T1: encoding — ldm.o-rb rb1, rb3, rd2, 1 with rb3=RAM, rd2=0 → no crash → PASS
-    # Covers: mem-rb.yaml encoding vector 0x3A043081
+    # Covers: mem-rb encoding vector 0x3A043081
     ("T1 encoding: ldm.o-rb rb1,rb3,rd2,1 no crash",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = 0x0000_FFFF_0000_0000 (RAM base)
       set_zw_rd(2, 0),            # rd2 = 0 (offset)
@@ -248,7 +249,7 @@ TESTS = [
      "ldm.o-rb encoding crashed"),
 
     # T2: ILLI — rbha=rb0 → 0xF8
-    # Covers: mem-rb.yaml legality ILLI vector 0x3A003081
+    # Covers: mem-rb legality ILLI vector 0x3A003081
     ("T2 ILLI: ldm.o-rb rb0 dest",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       set_zw_rd(2, 0),            # rd2 = 0
@@ -273,7 +274,7 @@ TESTS = [
      "ldm.o-rb rb60+8 not ILLI"),
 
     # T5: MALIGN — EA=RAM+7, unaligned (needs 8B align) → 0xFC
-    # Covers: mem-rb.yaml legality MALIGN vector (rd2=7)
+    # Covers: mem-rb legality MALIGN vector (rd2=7)
     ("T5 MALIGN: ldm.o-rb EA=RAM+7",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = 0x0000_FFFF_0000_0000
       set_zw_rd(2, 7),            # rd2 = 7 (offset)
@@ -282,7 +283,7 @@ TESTS = [
      "ldm.o-rb unaligned not MALIGN"),
 
     # T6: UNMAPPED — rb3=0, rd2=0, EA=0 → unmapped → 0xF1
-    # Covers: mem-rb.yaml legality UNMAPPED vector
+    # Covers: mem-rb legality UNMAPPED vector
     # NOTE (ISS-165 step2): with RAM, EA=0 is now MAPPED, so the UNMAPPED case
     # uses an address clearly outside RAM (RAM = 0x0..0xFF_FFFF).
     ("T6 UNMAPPED: ldm.o-rb EA outside RAM",
@@ -293,7 +294,7 @@ TESTS = [
      "ldm.o-rb unmapped EA not UNMAPPED"),
 
     # T7: semantic — rb1 <- mem[RAM+0x100] = 0x42 → rb1=0x42
-    # Covers: mem-rb.yaml semantic vector (rb1=0x42)
+    # Covers: mem-rb semantic vector (rb1=0x42)
     ("T7 semantic: ldm.o-rb rb1=0x42",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       # Store 0x42 to RAM+0x100
@@ -316,7 +317,7 @@ TESTS = [
      "ldm.o-rb semantic: rb1 != 0x42"),
 
     # T8: boundary — rb1 <- mem[RAM+0] = 0xDEADBEEF → rb1=0xDEADBEEF
-    # Covers: mem-rb.yaml boundary vector
+    # Covers: mem-rb boundary vector
     ("T8 boundary: ldm.o-rb rb1=0xDEADBEEF",
      [set_zw_rb(3, 2, RAM_W2),   # rb3 = RAM base
       # Store 0xDEADBEEF to RAM+0

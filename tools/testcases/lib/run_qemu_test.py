@@ -49,7 +49,7 @@ DEFAULT_QEMU = str(_paths.host_toolchain_bin() / "qemu-system-dadao")
 # Machine profile selection (TESTCASES-091t / QEMU-080t).  build_test_binary
 # already derives BINARY_BASE/SP from the same table; here we only decide how
 # the ROM/启动链 is supplied:
-#   tiny: a flat `-bios` trampoline (64 KiB reset window)
+#   tiny: the fixed 64 KiB `-bios` BootROM firmware (reset window)
 #   vast: the 4 MiB step5 BootROM via the `bootrom-image` property; its
 #         power -> hmon -> hypv chain enables the PTW identity map that makes
 #         the Vast PA-RAM test body reachable.
@@ -59,6 +59,20 @@ import machine_profile  # noqa: E402
 
 def _selected_profile():
     return os.environ.get("DADAO_TEST_PROFILE") or "tiny"
+
+
+def default_bootrom(profile_name=None):
+    """固定 BootROM 固件默认路径（经 paths.py 解析产物根，不写死绝对路径）。
+
+    Tiny = 64 KiB 固定固件（`spec/Machine-v5 §6`，hmon/power 链）；
+    Vast = step5 BootROM 的 `-bios`/`bootrom-image` 镜像。两者都由
+    `make build-bootrom` 产出，位置见 `manifests/install-dirs.lock.toml`。
+    """
+    prof = profile_name or _selected_profile()
+    root = _paths.test_artifacts_dir() / "bootrom"
+    if prof == "vast":
+        return str(root / "step5" / "bootrom_step5_inst.bin")
+    return str(root / "tiny" / "bootrom_tiny.bin")
 
 
 def case_profiles(case):
@@ -383,7 +397,7 @@ def build_binary(vector_file, case_idx, dump_mode=False):
     return bin_path, case
 
 
-def run_qemu(qemu_bin, trampoline_path, test_bin_path, timeout=DEFAULT_TIMEOUT, dump_mode=False):
+def run_qemu(qemu_bin, bootrom_path, test_bin_path, timeout=DEFAULT_TIMEOUT, dump_mode=False):
     """Run QEMU with the test binary.
 
     Returns (exit_code, stderr_output, timed_out, dump_file).
@@ -394,7 +408,7 @@ def run_qemu(qemu_bin, trampoline_path, test_bin_path, timeout=DEFAULT_TIMEOUT, 
     """
     cmd = [
         qemu_bin,
-        *_machine_args(_selected_profile(), trampoline_path),
+        *_machine_args(_selected_profile(), bootrom_path),
         "-nographic",
         "-kernel", test_bin_path,
         # SYS_EXIT status reaches the host $? only when semihosting is enabled
@@ -597,7 +611,7 @@ def _emit(record_sink, **record):
             pass
 
 
-def run_single_test(qemu_bin, trampoline_path, vector_file, case_idx=None,
+def run_single_test(qemu_bin, bootrom_path, vector_file, case_idx=None,
                     timeout=DEFAULT_TIMEOUT, dump_mode=False, verbose=False,
                     record_sink=None):
     """Run a single test case.
@@ -643,7 +657,7 @@ def run_single_test(qemu_bin, trampoline_path, vector_file, case_idx=None,
     try:
         # Run QEMU
         exit_code, stderr, timed_out, dump_file = run_qemu(
-            qemu_bin, trampoline_path, bin_path, timeout, dump_mode
+            qemu_bin, bootrom_path, bin_path, timeout, dump_mode
         )
 
         # Interpret result
@@ -680,7 +694,7 @@ def run_single_test(qemu_bin, trampoline_path, vector_file, case_idx=None,
             pass
 
 
-def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
+def run_batch(qemu_bin, bootrom_path, vector_dir, timeout=DEFAULT_TIMEOUT,
               dump_mode=False, verbose=False, jobs=1, profile=None,
               only_profile_cases=False, records=None):
     """Run all vector files in a directory.
@@ -768,7 +782,7 @@ def run_batch(qemu_bin, trampoline_path, vector_dir, timeout=DEFAULT_TIMEOUT,
             for idx, (_, vf, _fname, i, _case) in enumerate(run_items):
                 futures.append(executor.submit(
                     run_single_test,
-                    qemu_bin, trampoline_path, vf, i, timeout, dump_mode, False,
+                    qemu_bin, bootrom_path, vf, i, timeout, dump_mode, False,
                     (lambda rec, slot=idx: run_records.__setitem__(slot, rec)),
                 ))
             for idx, future in enumerate(futures):
@@ -854,10 +868,11 @@ def main():
                         help=f"QEMU timeout in seconds (default: {DEFAULT_TIMEOUT})")
     parser.add_argument("--qemu", default=None,
                         help="Path to qemu-system-dadao binary")
-    parser.add_argument("--trampoline", default=None,
-                        help="Boot firmware image passed to QEMU as `-bios` "
-                             "(Tiny: the fixed 64 KiB firmware; Vast: the "
-                             "exit-policy BootROM)")
+    parser.add_argument("--bootrom", default=None,
+                        help="Boot firmware image passed to QEMU as `-bios`/"
+                             "`bootrom-image` (Tiny: the fixed 64 KiB firmware; "
+                             "Vast: the exit-policy BootROM). Default: the "
+                             "artifact built by `make build-bootrom`")
     parser.add_argument("--jobs", type=int, default=None,
                         help="Parallel worker count for batch mode "
                              "(default: $JOBS or 1)")
@@ -891,16 +906,11 @@ def main():
         print("Error: qemu-system-dadao not found. Set QEMU_SYSTEM_DADAO or --qemu", file=sys.stderr)
         sys.exit(1)
 
-    # Find trampoline
-    if args.trampoline:
-        trampoline_path = args.trampoline
-    else:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        trampoline_path = os.path.join(script_dir, "trampoline.bin")
-
-    if not os.path.isfile(trampoline_path):
-        print(f"Error: trampoline.bin not found at {trampoline_path}", file=sys.stderr)
-        print("Run: python3 tools/testcases/lib/gen_trampoline.py", file=sys.stderr)
+    # 固定 BootROM 固件（Tiny 64 KiB / Vast step5；默认取 `make build-bootrom` 的产物）
+    bootrom_path = args.bootrom or default_bootrom()
+    if not os.path.isfile(bootrom_path):
+        print(f"Error: BootROM firmware not found at {bootrom_path}", file=sys.stderr)
+        print("Run: make build-bootrom  (or pass --bootrom <bin>)", file=sys.stderr)
         sys.exit(1)
 
     # 旧向量路径兼容层（TESTCASES-072t）：仅在实际发生平移时提示一次。
@@ -917,7 +927,7 @@ def main():
 
         print(f"Running batch tests from {vector_dir}...")
         total, passed, failed, deferred, errors, fail_details, skipped = run_batch(
-            qemu_bin, trampoline_path, vector_dir, args.timeout, args.dump,
+            qemu_bin, bootrom_path, vector_dir, args.timeout, args.dump,
             args.verbose, jobs, only_profile_cases=args.only_profile_cases
         )
 
@@ -947,7 +957,7 @@ def main():
             sys.exit(1)
 
         status, desc, case, dump_file = run_single_test(
-            qemu_bin, trampoline_path, vector_file, args.case,
+            qemu_bin, bootrom_path, vector_file, args.case,
             args.timeout, args.dump, args.verbose or True
         )
 

@@ -15,7 +15,7 @@ legality），`mnemonic` = 指令语义类别——每组取文件序**第一条
   - 运行结果 `total == 代表数`、`failed == errors == deferred == 0`。
 
 Usage:
-    python3 tools/testcases/inst/run_qemu_smoke.py [--qemu BIN] [--trampoline BIN]
+    python3 tools/testcases/inst/run_qemu_smoke.py [--qemu BIN] [--bootrom BIN]
         [--vector-dir DIR] [--work-dir DIR] [--jobs N]
 
 旧 `--vector-dir tests/vectors/isa` 仍可传，由 harness 兼容层机械平移。
@@ -61,8 +61,9 @@ def select_representatives(cases: list[dict]) -> "OrderedDict[tuple, dict]":
 def main() -> int:
     ap = argparse.ArgumentParser(description="QEMU semantic smoke gate (L2)")
     ap.add_argument("--qemu", default=harness.DEFAULT_QEMU)
-    ap.add_argument("--trampoline", default=os.path.join(
-        _REPO_ROOT, "tools", "testcases", "lib", "trampoline.bin"))
+    ap.add_argument("--bootrom", default=None,
+                    help="Boot firmware image passed as `-bios` (default: the "
+                         "fixed firmware built by 'make build-bootrom')")
     ap.add_argument("--vector-dir", default=os.path.join(_REPO_ROOT, "tests", "inst", "base"))
     ap.add_argument("--work-dir", default=None,
                     help="subset write dir (default: <test-artifacts>/harness/smoke)")
@@ -73,8 +74,10 @@ def main() -> int:
     if not os.path.isfile(args.qemu):
         print(f"run_qemu_smoke: ERROR: qemu binary not found: {args.qemu}", file=sys.stderr)
         return 1
-    if not os.path.isfile(args.trampoline):
-        print(f"run_qemu_smoke: ERROR: trampoline not found: {args.trampoline}", file=sys.stderr)
+    args.bootrom = args.bootrom or harness.default_bootrom()
+    if not os.path.isfile(args.bootrom):
+        print(f"run_qemu_smoke: ERROR: BootROM firmware not found: {args.bootrom} "
+              f"— run 'make build-bootrom' first", file=sys.stderr)
         return 1
 
     guard = writer_guard.start_guard(args, [args.qemu], label="run_qemu_smoke")
@@ -154,7 +157,7 @@ def main() -> int:
                 yaml.safe_dump(reps, fh, sort_keys=True)
 
         total, passed, failed, deferred, errors, fail_details, skipped = harness.run_batch(
-            args.qemu, args.trampoline, work_dir, jobs=args.jobs,
+            args.qemu, args.bootrom, work_dir, jobs=args.jobs,
         )
         print(f"  profile={profile}  (代表集派生时已排除 {excluded} 条不适用用例)")
         print(f"  QEMU: total={total} passed={passed} failed={failed} "

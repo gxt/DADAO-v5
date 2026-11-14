@@ -11,7 +11,7 @@ them:
                                 llvm-mc --triple=dadao -filetype=obj -> <prog>.o
                                 llvm-objcopy -O binary --only-section=.text -> payload
                                 prepend profile.kernel_reserved zeros -> <prog>.bin
-                                qemu-system-dadao -bios trampoline.bin \
+                                qemu-system-dadao -bios bootrom_tiny.bin \
                                     -kernel <prog>.bin -semihosting-config \
                                     enable=on,target=native -> process exit code
 
@@ -98,14 +98,16 @@ DEFAULT_LLVM_MC = os.path.join(TARGET_TOOLS_BIN, "llvm-mc")
 DEFAULT_LLVM_OBJCOPY = os.path.join(TARGET_TOOLS_BIN, "llvm-objcopy")
 DEFAULT_QEMU = os.path.join(TARGET_TOOLS_BIN, "qemu-system-dadao")
 DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
-DEFAULT_TRAMPOLINE = "tools/testcases/lib/trampoline.bin"
+# 固定 64 KiB Tiny 固件（`make build-bootrom` 产物；产物根经 paths.py 解析，ADR-0016 D7）
+DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir() / "bootrom" / "tiny" /
+                      "bootrom_tiny.bin")
 DEFAULT_MANIFEST = "tests/unit/llvm/ir-lli/manifest.yaml"
 DEFAULT_WORK_DIR = str(_dadao_paths.test_artifacts_dir() / "ir-lli-diff")
 DEFAULT_TIMEOUT = 30
 
 # Raw `-kernel` geometry (TESTCASES-095t): the image loads at the profile's
 # kernel_base and the first kernel_reserved bytes must be zero (spec/Machine-v5
-# §6); the trampoline enters at kernel_base+kernel_reserved.
+# §6); the firmware enters at kernel_base+kernel_reserved.
 _PROFILE = machine_profile.load()
 RAW_PREFIX = _PROFILE.entry - _PROFILE["kernel_base"]
 # Runtime symbols of minimal_crt0: the raw pipeline has no linker, so they are
@@ -355,7 +357,7 @@ def target_value(tools, ir_abs, work_dir, stem, timeout, verbose=False):
     # 5. run under QEMU -> guest exit code
     cmd = [
         tools["qemu"], "-M", "dadao-tiny",
-        "-bios", tools["trampoline"], "-kernel", binp,
+        "-bios", tools["bootrom"], "-kernel", binp,
         "-semihosting-config", "enable=on,target=native",
         "-display", "none", "-nographic",
     ]
@@ -429,7 +431,9 @@ def main():
                     default=os.environ.get("LLVM_OBJCOPY", DEFAULT_LLVM_OBJCOPY))
     ap.add_argument("--qemu", default=os.environ.get("QEMU_SYSTEM_DADAO", DEFAULT_QEMU))
     ap.add_argument("--crt0", default=DEFAULT_CRT0)
-    ap.add_argument("--trampoline", default=DEFAULT_TRAMPOLINE)
+    ap.add_argument("--bootrom", default=DEFAULT_BOOTROM,
+                    help="fixed 64 KiB BootROM firmware (built by 'make "
+                         "build-bootrom')")
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     ap.add_argument("--verbose", "-v", action="store_true")
     ap.add_argument("--inject", action="store_true",
@@ -449,7 +453,7 @@ def main():
         "llvm_objcopy": _abspath(args.llvm_objcopy, corpus_root),
         "qemu": _abspath(args.qemu, corpus_root),
         "crt0": _abspath(args.crt0, corpus_root),
-        "trampoline": _abspath(args.trampoline, corpus_root),
+        "bootrom": _abspath(args.bootrom, corpus_root),
     }
 
     _require_exec(tools["lli"], "lli")
@@ -457,7 +461,7 @@ def main():
     _require_exec(tools["llvm_mc"], "llvm-mc")
     _require_exec(tools["llvm_objcopy"], "llvm-objcopy")
     _require_exec(tools["qemu"], "qemu-system-dadao")
-    for key in ("crt0", "trampoline"):
+    for key in ("crt0", "bootrom"):
         if not os.path.isfile(tools[key]):
             sys.stderr.write(f"ERROR: {key} not found: {tools[key]}\n")
             sys.exit(2)

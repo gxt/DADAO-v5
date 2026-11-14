@@ -262,18 +262,17 @@ def find_qemu():
             return p
     return None
 
-def find_trampoline():
-    """Find trampoline.bin."""
+def find_bootrom():
+    """Find the fixed 64 KiB Tiny BootROM firmware (`make build-bootrom`)."""
     search = [
-        'tools/testcases/lib/trampoline.bin',
-        'tests/machine/trampoline.bin',
+        '.dadao/tests/bootrom/tiny/bootrom_tiny.bin',
     ]
     for p in search:
         if os.path.exists(p):
             return os.path.abspath(p)
     return None
 
-def run_probe(binary_data, label, qemu_bin, trampoline_path, timeout=10):
+def run_probe(binary_data, label, qemu_bin, bootrom_path, timeout=10):
     """Run a probe binary with QEMU and return exit code."""
     bin_path = os.path.join(_probe_artifact_dir(), f'dadao-probe-{uuid.uuid4().hex[:8]}.bin')
     with open(bin_path, 'wb') as f:
@@ -283,7 +282,7 @@ def run_probe(binary_data, label, qemu_bin, trampoline_path, timeout=10):
             qemu_bin,
             '-machine', 'dadao-tiny',
             '-nographic',
-            '-bios', trampoline_path,
+            '-bios', bootrom_path,
             '-kernel', bin_path,
             '-semihosting-config', 'enable=on,target=native',
         ]
@@ -307,13 +306,13 @@ def run_probe(binary_data, label, qemu_bin, trampoline_path, timeout=10):
 
 def main():
     qemu_bin = find_qemu()
-    trampoline = find_trampoline()
-    if not qemu_bin or not trampoline:
-        print(f"ERROR: qemu={qemu_bin}, trampoline={trampoline}")
+    bootrom = find_bootrom()
+    if not qemu_bin or not bootrom:
+        print(f"ERROR: qemu={qemu_bin}, bootrom={bootrom}")
         sys.exit(1)
 
     print(f"QEMU: {qemu_bin}")
-    print(f"Trampoline: {trampoline}")
+    print(f"BootROM: {bootrom}")
     print()
 
     # ── Probe 1: jump taken ──
@@ -325,7 +324,7 @@ def main():
     print(f"jump at [{jump_idx}], rb2rd at [{rb2rd_idx}]")
     print(f"Expected rb0 = 0x{expected:016X}")
 
-    exit_code, stderr = run_probe(blob, "jump-taken", qemu_bin, trampoline)
+    exit_code, stderr = run_probe(blob, "jump-taken", qemu_bin, bootrom)
     print(f"Exit code: 0x{exit_code:02X} {'PASS' if exit_code == 0 else 'FAIL'}")
     if exit_code != 0 and stderr:
         print(f"Stderr: {stderr[:300]}")
@@ -340,7 +339,7 @@ def main():
     print(f"br.nz at [{br_idx}], rb2rd at [{rb2rd_idx}]")
     print(f"Expected rb0 = 0x{expected:016X}")
 
-    exit_code, stderr = run_probe(blob, "not-taken", qemu_bin, trampoline)
+    exit_code, stderr = run_probe(blob, "not-taken", qemu_bin, bootrom)
     print(f"Exit code: 0x{exit_code:02X} {'PASS' if exit_code == 0 else 'FAIL'}")
     if exit_code != 0 and stderr:
         print(f"Stderr: {stderr[:300]}")
