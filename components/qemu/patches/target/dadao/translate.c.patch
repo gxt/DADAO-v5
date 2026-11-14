@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..d55762d
+index 0000000..93bec9f
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,681 @@
+@@ -0,0 +1,696 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -394,6 +394,12 @@ index 0000000..d55762d
 + * See SimRISC-00 §浮点状态寄存器 and .tao/contracts/contract-fp.md §1. */
 +#define RF0_WRITE_MASK  0x000000030000001FULL   /* [33:32] + [4:0] */
 +
++/* Reachable part of RF0_WRITE_MASK for a *tetra-width* write: such a write
++ * covers [31:0] only, so [33:32] lies outside the write width and keeps its
++ * value (user ruling 2026-11-14; SimRISC-01 §4 note, contract-fp §1) ⇒ only
++ * [4:0] can change. */
++#define RF0_WRITE_MASK_TETRA  0x000000000000001FULL   /* [4:0] */
++
 +/* Load rf[n] into a TCG temp. rf0 reads as the full 64-bit FCSR value. */
 +static TCGv_i64 load_rf(int n)
 +{
@@ -402,19 +408,27 @@ index 0000000..d55762d
 +    return t;
 +}
 +
++/* Store val into rf[n] under mask: bits outside mask keep their value
++ * (new = (old & ~mask) | (val & mask)). */
++static void store_rf_masked(int n, TCGv_i64 val, uint64_t mask)
++{
++    TCGv_i64 old = tcg_temp_new_i64();
++    TCGv_i64 masked = tcg_temp_new_i64();
++
++    tcg_gen_ld_i64(old, tcg_env, offsetof(CPUDADAOState, rf[n]));
++    tcg_gen_andi_i64(old, old, ~mask);
++    tcg_gen_andi_i64(masked, val, mask);
++    tcg_gen_or_i64(old, old, masked);
++    tcg_gen_st_i64(old, tcg_env, offsetof(CPUDADAOState, rf[n]));
++}
++
 +/* Store val into rf[n]. For rf0 the FCSR write mask is applied
 + * (new = (old & ~RF0_WRITE_MASK) | (val & RF0_WRITE_MASK)); other rf
 + * registers are written in full. */
 +static void store_rf(int n, TCGv_i64 val)
 +{
 +    if (n == 0) {
-+        TCGv_i64 old = tcg_temp_new_i64();
-+        TCGv_i64 masked = tcg_temp_new_i64();
-+        tcg_gen_ld_i64(old, tcg_env, offsetof(CPUDADAOState, rf[0]));
-+        tcg_gen_andi_i64(old, old, ~RF0_WRITE_MASK);
-+        tcg_gen_andi_i64(masked, val, RF0_WRITE_MASK);
-+        tcg_gen_or_i64(old, old, masked);
-+        tcg_gen_st_i64(old, tcg_env, offsetof(CPUDADAOState, rf[0]));
++        store_rf_masked(0, val, RF0_WRITE_MASK);
 +    } else {
 +        tcg_gen_st_i64(val, tcg_env, offsetof(CPUDADAOState, rf[n]));
 +    }
@@ -426,14 +440,15 @@ index 0000000..d55762d
 + * contract-fp §1).  The fo copy (fo2fo) and the cross-group copies
 + * (rd2rf/rf2rd) stay 64-bit and keep using store_rf().
 + * For rf0 the low half still goes through the FCSR write mask, so only [4:0]
-+ * can change ([33:32] is outside the 32-bit write width and keeps its value). */
++ * can change ([33:32] is outside the 32-bit write width and keeps its value,
++ * RF0_WRITE_MASK_TETRA). */
 +static void store_rf_tetra(int n, TCGv_i64 val)
 +{
 +    TCGv_i64 low = tcg_temp_new_i64();
 +
 +    tcg_gen_andi_i64(low, val, 0xFFFFFFFFULL);
 +    if (n == 0) {
-+        store_rf(0, low);
++        store_rf_masked(0, low, RF0_WRITE_MASK_TETRA);
 +    } else {
 +        TCGv_i64 old = tcg_temp_new_i64();
 +        tcg_gen_ld_i64(old, tcg_env, offsetof(CPUDADAOState, rf[n]));

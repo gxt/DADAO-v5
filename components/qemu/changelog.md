@@ -362,6 +362,10 @@
   - 摘要：**Tiny 的 `-bios` 收紧为固定固件，删除 ≤4096 B 的 raw trampoline 窗口**（`spec/Machine-v5 §6`；用户裁定 2026-11-13「绑 `m12-chipyard-019` 收紧」）。`hw/dadao/dadao-machine.c`：新增 `dadao_check_bios_firmware_size()`——`bootrom_required`（Tiny）profile 下 `-bios` 镜像必须**恰好** `rom_size`（64 KiB，与 `bootrom-image` 同一固定固件），任意其它尺寸（含空文件、4 KiB/8 KiB 与中间尺寸）在写入 BootROM 窗口**之前**按名拒绝并 `exit(1)`，报出实际字节数、64 KiB 规则与 `spec/Machine-v5 §6` 出处，不做截断/降级；`dadao_machine_init()` 的 Tiny 分支删掉「`-bios` 小文件 ⇒ flat trampoline + raw `-kernel`」旁路，`-bios` 一律走「固定固件 + 应用（ELF 或 raw）」契约路径，无固件的应用 ⇒ 具名报错；Path B（flat `-bios` + raw `-kernel`）只剩 Vast 的 64 KiB reset window。文件头与函数注释同步改述。补丁 1 份改。
   - 执行者：engineer
 
+- **2026-11-14 `m13-qemu-015`**
+  - 摘要：**tetra 写入 `rf0` 保持 `[33:32]`（零扩展后再整掩码的缺陷）**。`target/dadao/translate.c`：新增 `RF0_WRITE_MASK_TETRA = 0x1F`（32 位写入宽度内只有 `[4:0]` 可达）与 `store_rf_masked(n, val, mask)`（`store_rf()` 的 rf0 分支改为调用它，行为不变）；`store_rf_tetra()` 的 rf0 分支由「零扩展低 32 位交给 `RF0_WRITE_MASK`」改为 `store_rf_masked(0, low, RF0_WRITE_MASK_TETRA)`——原实现把 `[33:32]` 一并清零（用户 2026-11-14 裁定：`ld.t`/`ldm.t` 只写低 32 位，`[33:32]` 在写入宽度之外 ⇒ 保持；`spec/SimRISC-01 §4` 注、`contract-fp §1`）。`ld.t rf0 ← 0xFFFF_FFFF` 由 `0x7FF8_0000_7FC0_0000` 改为 `0x7FF8_0000_7FC0_001F`；`ld.o`/`ldm.o`（octa，`[33:32]` 由值给出）、`set.w`、`rd2rf`、`ld.t rf5` 高半与其它 ft 结果族（本来就是低 32 位值）逐字节不变。`trans_fp.c.inc` 头注释同步改述（tetra 只 `[4:0]`；octa `[33:32]`+`[4:0]`）。补丁 2 份改。
+  - 执行者：engineer
+
 ## M14
 
 - **2026-11-14 `m14-qemu-001`**
