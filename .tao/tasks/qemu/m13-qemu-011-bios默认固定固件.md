@@ -61,7 +61,7 @@
 ### 第 1 轮 reviewer 验收（2026-11-14，独立重跑）
 
 - **反例（构建树二进制 md5 `b34ed7f9`，现场取）**：0 / 4096 / 65535 B ⇒ rc=1，报错含**实际字节数** + `only the fixed 65536-byte … spec/Machine-v5 §6`；131072 B ⇒ rc=1（ROM 超窗具名错）；`tools/testcases/lib/trampoline.bin`（56 B）⇒ rc=1 同规则。
-- **正例**：64 KiB `bootrom_tiny.bin` + ELF ⇒ rc=42（应用正常退出）；证据脚本正例 5/5；`.work/evidence/m13-qemu-011/run.sh` 整体 `PASS (6/6)` rc=0。
+- **正例**：64 KiB `bootrom_tiny.bin` + ELF ⇒ rc=42（应用正常退出）；证据脚本正例 5/5；`<运行期证据目录>/run.sh` 整体 `PASS (6/6)` rc=0。
 - **拒绝先于写**：`dadao_check_bios_firmware_size()` 判尺寸 → `exit(1)` → 才到 `load_image_targphys_as()`（init 路径上无更早写者）；`-d exec` 拒绝路径 0 条取指、正例 34 条。
 - **四册 × 三平台**（评测节点、`--jobs` 默认、独占 work/log 目录、`--qemu` 指 md5 核过的构建树二进制）：`01 235/235`、`05 12/12`、`06 34/34`、`07 170/170`，四册 rc=0、`[FAIL]` 0 条。
 - **门控**：`check_qemu_trans 264/264` rc=0；`check-patch-tree` qemu 段 66 份 **0 问题**（整体 rc=2，18 项全属 gem5/chipyard 的并发写者）；`--source-state` `qemu OK count=1 clean=True`（整体 rc=2，chipyard dirty 同因）；`check-component-changelog` PASS；`make_patch.py qemu` rc=0「0 written, 66 unchanged」、补丁 md5 不变。
