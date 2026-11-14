@@ -44,11 +44,27 @@
 6. ≥2 路可达 FAIL 注入（`cp`+md5 还原）。
 7. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`；不改台账/`discussing.md`。
 
-## 待裁定（开工前需用户确认）
+## 已裁定（用户 2026-11-14）
 
-1. **`ft2ft`/`fo2fo` 的两个 `opx` 槽位如何处置**：保持空置（⇒ reserved 编码，执行 `UNDI`）？还是留给后续指令？
-2. **`rf2rf` 语义确认**：rf→rf 块复制、源可为 `rf0`、目的含 `rf0` ⇒ ILLI、`immu6` 1..63、禁源/目的重叠——是否如上？
-3. **实现与测试是否同批**：本次是否只落 spec/契约（实现与测试另立任务、随后跟进），还是要求一次性全绿（4 个实现 + 测试都要改，工期显著变长）。
+1. **旧编码槽位**：`ft2ft`/`fo2fo` 的两个 `opx` **空置为 reserved**（执行 ⇒ `UNDI`），并在 `opcodes.yaml`/`legality_rules.yaml` 显式登记。
+2. **落地范围**：**spec 与实现/测试同批**（不允许「spec 已改、实现还认旧指令」的中间态）。
+3. **`rf2rf` 语义**：按本册「目标 2」所写（rf→rf 块复制；源可为 `rf0`；目的区间含 `rf0` ⇒ ILLI；`immu6` 1..63；源/目的任何重叠 ⇒ ILLI；不置标志、不做数值换算）。
+
+### 同批任务（本册为批次总纲；各子任务书在派单时创建，合并时作为一批）
+
+| 序号 | 模块 | 内容 | 预估 |
+|---|---|---|---|
+| 1 | spec（**本册**） | spec/契约/讲义/锁：删 2 加 1、reserved 登记、单精写宽归位 | 3–5 h |
+| 2 | `m13-llvm-001` | `.td`/MC：删两条助记符与编码、加 `rf2rf`（`OPC-octa`/`0x3C`），`llvm-mc` 往返 | 2–3 h |
+| 3 | `m13-qemu-016` | `insn.decode` 重生成 + `trans_*`：删 2 加 1（含 `dst_rf0` ILLI、`immu6`/重叠/越界判定） | 3–4 h |
+| 4 | `m13-gem5-014` | 解码表 + exec：删 2 加 1（同判据） | 3–4 h |
+| 5 | `m13-chipyard-003` | RTL 译码/执行：删 2 加 1（同判据；component 单写者，须与其它 chipyard 任务串行） | 4–6 h |
+| 6 | `m13-testcases-038` | `.S` 载体：删 `ft2ft_orri_rf.S`/`fo2fo_orri_rf.S`，新增 `rf2rf_orri_rf.S`（含 `rf0` 目的 ILLI 故障例、重叠/越界/`immu6=0` 故障例）；`inst.yaml`/`ledger`/`inventory` 同步 | 3–4 h |
+| 7 | 批末 | 三平台逐字节 + `check-inst-asm` 263 id + 全部静态门控；矩阵/报告刷新 | 2–3 h（并入 testcases 或单列） |
+
+- **批次合并规则**：7 件全部 `Accepted` 后**一次性**合入 master（或至少 spec + llvm + 三引擎 + 测试同一次合并窗口），中途不得只合 spec。
+- **串行约束**：四个实现各自单写者；chipyard 与 `chipyard-002`/其它 chipyard 任务串行；`tests/inst` 与其它 testcases 任务串行。
+- **门控联动**：`check-isa-coverage` 计数、`check-asm-list`、`check-inst-asm`（264→263 id）、`check-tests-index`/`case-ledger` 会同时变化，必须同笔对齐。
 
 ## 硬约束（子代理必读）
 
