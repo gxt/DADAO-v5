@@ -13,7 +13,7 @@
 # 用法:
 #   tools/infra/sync_node_artifacts.sh                       # 用 $DADAO_NODES
 #   tools/infra/sync_node_artifacts.sh ics150,ics160,...
-#   REPO=~/DADAO-v5 TOOLCHAIN=0 tools/infra/sync_node_artifacts.sh ...
+#   REPO=/home/ubuntu/DADAO-v5 TOOLCHAIN=0 tools/infra/sync_node_artifacts.sh ...
 #   DRY_RUN=1 ...                                            # 只打印计划
 #
 # 退出码: 0 = 全部节点逐件 md5 与主控机相同；非零 = 任一失败。
@@ -23,7 +23,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 HOSTS="${1:-${DADAO_NODES:-}}"
-REMOTE_REPO="${REPO:-~/DADAO-v5}"
+REMOTE_REPO="${REPO:-/home/ubuntu/DADAO-v5}"  # 绝对路径：远端 md5sum/mkdir 不走 shell 的 ~ 展开
 DRY="${DRY_RUN:-0}"
 TOOLCHAIN="${TOOLCHAIN:-1}"
 
