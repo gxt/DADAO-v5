@@ -216,10 +216,11 @@ def pane(s: Sample | None, host: str, w: int, nlines: int, now: float) -> list[s
 def pane_lines(h: int, cap: int = 0, rows: int = 2) -> int:
     """Process rows per pane that keep the whole frame inside `h` lines.
 
-    Frame budget: title + legend + top rule + (header + N) * rows
-    + (rows - 1) inter-row rules + bottom rule + footer = 2*rows + 2*rows*N + 4.
+    Frame budget: title + legend + top rule (=3) + (header + N) * rows
+    + (rows - 1) inter-row rules + bottom rule + footer (=rows + 3)
+    => fixed = 2*rows + 4, and N = (h - fixed) // rows.
     """
-    n = max(3, (h - (2 * rows + 4)) // (2 * rows))
+    n = max(3, (h - (2 * rows + 4)) // rows)
     return min(n, cap) if cap > 0 else n
 
 
