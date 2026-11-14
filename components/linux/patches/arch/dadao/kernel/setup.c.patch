@@ -1,15 +1,26 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..94b0139f5
+index 000000000..1603e3f99
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,154 @@
+@@ -0,0 +1,275 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
-+ * DADAO kernel setup (K0: compiles and links; the boot path runs in K1).
++ * DADAO kernel setup — K1: parse the fixed boot info block and enter
++ * start_kernel().
 + *
-+ * The boot ABI is the fixed boot info block of contract-linux-boot §4 and
-+ * the M1 entry state of §5.
++ * The boot ABI is the fixed 15-field boot info block of contract-linux-boot
++ * §4 and the M1 entry state of §5.  head.S has already validated magic,
++ * version and size; this file reads the whole block (the 15 fields are
++ * reported below), checks the values K1 depends on, prints the handoff and
++ * calls start_kernel().
++ *
++ * K1 stops *inside* start_kernel(), before any subsystem, clock, timer or
++ * interrupt is initialised: init/main.c calls dadao_k1_early_stop() as the
++ * first statement of start_kernel() (CONFIG_DADAO_K1_EARLY_STOP), which
++ * reports the marker and exits through semihosting SYS_EXIT(0).  That is the
++ * K1 boundary (user ruling 2026-11-14); K2 turns the option off and
++ * setup_arch() below takes over.
 + */
 +#include <linux/init.h>
 +#include <linux/kernel.h>
@@ -18,9 +29,11 @@ index 000000000..94b0139f5
 +#include <linux/sched.h>
 +#include <linux/sched/task.h>
 +#include <linux/sched/task_stack.h>
++#include <linux/start_kernel.h>
 +#include <linux/string.h>
 +#include <linux/console.h>
 +#include <linux/seq_file.h>
++#include <linux/types.h>
 +
 +#include <asm/setup.h>
 +#include <asm/page.h>
@@ -28,6 +41,37 @@ index 000000000..94b0139f5
 +#include <asm/processor.h>
 +#include <asm/ptrace.h>
 +#include <asm/switch_to.h>
++#include <asm/thread_info.h>
++
++/*
++ * K1 failure codes.  head.S carries 0xE1/0xE2/0xE3 for magic/version/size;
++ * the codes below cover the fields only this file can judge.  They stay in
++ * 1..255 because the semihosting SYS_EXIT subcode is the host process exit
++ * status: 0x100 would wrap to 0 and read as success.
++ */
++#define FAIL_HART_ID		0xe4	/* hart_id != 0 (K1 is single-hart) */
++#define FAIL_PAGE_SHIFT		0xe5	/* page_size_log2 != PAGE_SHIFT */
++#define FAIL_KERNEL_BASE	0xe6	/* kernel_base != the linked entry */
++#define FAIL_IMAGE_RANGE	0xe7	/* [kernel_base, +kernel_size) outside RAM */
++#define FAIL_NOT_START_KERNEL	0xe8	/* the marker is not inside start_kernel() */
++
++/* Linker-provided: the entry point head.S is linked at (contract §3.1). */
++extern char _start[];
++
++/*
++ * Return address of the current function.  DADAO keeps it on the RAS, not in
++ * a link register (SimRISC-06 §3: `call` pushes the return address onto
++ * ra63), and clang's __builtin_return_address() is not implemented for this
++ * target -- it folds to 0.  Read the RAS top before this function makes any
++ * call of its own.
++ */
++static inline unsigned long dadao_return_address(void)
++{
++	unsigned long ra;
++
++	__asm__ __volatile__("ra2rd {%0}, {ra63}" : "=r"(ra));
++	return ra & 0x0000ffffffffffffUL;	/* [47:0]; [63:48] is the RAS depth */
++}
 +
 +static struct dadao_boot_info boot_info;
 +static unsigned long boot_info_va;
@@ -36,42 +80,119 @@ index 000000000..94b0139f5
 +unsigned long dadao_ram_base;
 +unsigned long dadao_ram_size;
 +
-+void __init dadao_start_kernel(void *info)
++/*
++ * The boot info parse itself: copy the 15 fields out of the block (a VA) and
++ * reject the values K1 relies on when they disagree with the build.  It has no
++ * output of its own so setup_arch() can call it again after K2 resumes.
++ */
++static void __init dadao_parse_boot_info(void)
 +{
-+	boot_info_va = (unsigned long)info;
-+
-+	/*
-+	 * K0 entry: report reachability and stop.  This is deliberately not
-+	 * start_kernel(): no subsystem is claimed to work before K1.
-+	 */
-+	pr_info("dadao: K0 entry reached, boot info at %#lx\n", boot_info_va);
-+
-+	for (;;)
-+		;
-+}
-+
-+static void __init parse_boot_info(void)
-+{
-+	struct dadao_boot_info *bi = (struct dadao_boot_info *)boot_info_va;
++	const struct dadao_boot_info *bi =
++		(const struct dadao_boot_info *)boot_info_va;
 +
 +	memcpy(&boot_info, bi, sizeof(boot_info));
++
++	if (boot_info.hart_id != 0)
++		dadao_bootinfo_reject(FAIL_HART_ID, "hart_id");
++	if (boot_info.page_size_log2 != PAGE_SHIFT)
++		dadao_bootinfo_reject(FAIL_PAGE_SHIFT, "page_size_log2");
++	if (boot_info.kernel_base != (unsigned long)_start)
++		dadao_bootinfo_reject(FAIL_KERNEL_BASE, "kernel_base");
++	if (boot_info.kernel_size > boot_info.ram_size ||
++	    boot_info.kernel_base < boot_info.ram_base ||
++	    boot_info.kernel_base + boot_info.kernel_size >
++		    boot_info.ram_base + boot_info.ram_size)
++		dadao_bootinfo_reject(FAIL_IMAGE_RANGE, "kernel_size");
++
 +	dadao_ram_base = (unsigned long)__pa(boot_info.ram_base);
 +	dadao_ram_size = boot_info.ram_size;
 +}
 +
++/* The 15 fields, as the kernel read them (independently of the host's view). */
++static void __init dadao_report_boot_info(void)
++{
++	dadao_early_printf("K1 bootinfo magic=%#x version=%#x size=%#x hart=%lu\n",
++			   boot_info.magic, boot_info.version,
++			   boot_info.size, (unsigned long)boot_info.hart_id);
++	dadao_early_printf("K1 bootinfo kernel_base=%#lx kernel_size=%#lx ram_base=%#lx ram_size=%#lx\n",
++			   (unsigned long)boot_info.kernel_base,
++			   (unsigned long)boot_info.kernel_size,
++			   (unsigned long)boot_info.ram_base,
++			   (unsigned long)boot_info.ram_size);
++	dadao_early_printf("K1 bootinfo initramfs=%#lx+%#lx cmdline=%#lx+%#lx ptbr=%#lx page_size_log2=%#x flags=%#lx\n",
++			   (unsigned long)boot_info.initramfs_base,
++			   (unsigned long)boot_info.initramfs_size,
++			   (unsigned long)boot_info.cmdline_base,
++			   (unsigned long)boot_info.cmdline_size,
++			   (unsigned long)boot_info.ptbr,
++			   boot_info.page_size_log2,
++			   (unsigned long)boot_info.flags);
++}
++
++/* C entry from head.S (rb16/rb17 saved in dadao_entry_va/dadao_bootinfo_va). */
++void __init __noreturn dadao_start_kernel(void)
++{
++	unsigned long sp = dadao_stack_pointer();
++
++	boot_info_va = dadao_bootinfo_va;
++
++	dadao_parse_boot_info();
++	dadao_report_boot_info();
++
++	/*
++	 * Stack evidence: rb1 (SP) was undefined on entry; it now points into
++	 * the early stack head.S built in .bss, and the §5 entry VA (rb16) is
++	 * still readable.
++	 */
++	dadao_early_printf("K1 stack sp=%#lx early_stack=%#lx..%#lx entry_va=%#lx\n",
++			   sp, (unsigned long)early_stack,
++			   (unsigned long)early_stack_top, dadao_entry_va);
++
++	start_kernel();
++}
++
++/*
++ * K1 boundary (CONFIG_DADAO_K1_EARLY_STOP): the first statement of
++ * start_kernel().  Being here *is* the proof that the kernel reached
++ * start_kernel(); the return address is the call site inside it, so it is
++ * reported and checked against the start_kernel() symbol.  Nothing has been
++ * initialised at this point: no clock, no timer, no interrupt.
++ */
++void __init __noreturn dadao_k1_early_stop(void)
++{
++	unsigned long ra = dadao_return_address();
++	unsigned long base = (unsigned long)start_kernel;
++	unsigned long sp = dadao_stack_pointer();
++	/*
++	 * 4 KiB slack: start_kernel() is far smaller than that; the evidence
++	 * harness independently bounds @ra by the next System.map symbol.
++	 */
++	bool inside = ra >= base && ra < base + 0x1000;
++
++	dadao_early_printf("start_kernel\n");
++	dadao_early_printf("K1 start_kernel ra=%#lx base=%#lx off=%#lx sp=%#lx inside=%s\n",
++			   ra, base, ra - base, sp, inside ? "yes" : "no");
++	if (!inside)
++		dadao_bootinfo_reject(FAIL_NOT_START_KERNEL, "start_kernel");
++
++	dadao_early_printf("K1 done: semihosting SYS_EXIT(0) before any clock/interrupt init\n");
++	dadao_early_exit(0);
++}
++
 +void __init setup_arch(char **cmdline_p)
 +{
-+	parse_boot_info();
++	/* start_kernel() calls this after K1's stop; the parse is idempotent. */
++	dadao_parse_boot_info();
 +
 +	memblock_add(dadao_ram_base, dadao_ram_size);
 +
-+	/* No DTB, no command line in K0 (contract-linux-boot §4). */
++	/* No DTB, no command line (contract-linux-boot §4). */
 +	*cmdline_p = boot_command_line;
 +
 +	paging_init();
 +}
 +
-+/* /proc/cpuinfo: one line describing the hart (K0: hart 0 only). */
++/* /proc/cpuinfo: one line describing the hart (K1: hart 0 only). */
 +static void *cpuinfo_start(struct seq_file *m, loff_t *pos)
 +{
 +	return *pos ? NULL : SEQ_START_TOKEN;
@@ -104,17 +225,17 @@ index 000000000..94b0139f5
 +
 +void __init trap_init(void)
 +{
-+	/* Trap/exception entry lands in K1 (contract-see §2). */
++	/* Trap/exception entry lands with the vector table (contract-see §2). */
 +}
 +
 +void __init init_IRQ(void)
 +{
-+	/* No interrupt controller in K0: semihosting is a synchronous trap. */
++	/* No interrupt controller yet: semihosting is a synchronous trap. */
 +}
 +
 +void __init time_init(void)
 +{
-+	/* No timer in K0. */
++	/* No timer yet (K1 stops before any clock is started). */
 +}
 +
 +void start_thread(struct pt_regs *regs, unsigned long pc, unsigned long sp)
@@ -144,9 +265,9 @@ index 000000000..94b0139f5
 +					  struct task_struct *next)
 +{
 +	/*
-+	 * K0 links this C placeholder; the register-save/restore helper is
-+	 * part of the K1 context-switch work.  switch_to() expects the task
-+	 * that was running, i.e. @prev.
++	 * Still a C placeholder: the register-save/restore helper lands with
++	 * the context-switch milestone (K1 stops before any task runs).
++	 * switch_to() expects the task that was running, i.e. @prev.
 +	 */
 +	return prev;
 +}

@@ -1,0 +1,16 @@
+diff --git a/init/main.c b/init/main.c
+index dd7b2a659..0a814d1c1 100644
+--- a/init/main.c
++++ b/init/main.c
+@@ -979,6 +979,11 @@ void start_kernel(void)
+ 	char *command_line;
+ 	char *after_dashes;
+ 
++#ifdef CONFIG_DADAO_K1_EARLY_STOP
++	/* DADAO K1 boundary: report the handoff and stop before anything runs. */
++	dadao_k1_early_stop();
++#endif
++
+ 	set_task_stack_end_magic(&init_task);
+ 	smp_setup_processor_id();
+ 	debug_objects_early_init();

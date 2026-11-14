@@ -54,3 +54,4 @@ arch/dadao/lib/Makefile.patch
 arch/dadao/lib/delay.c.patch
 arch/dadao/mm/Makefile.patch
 arch/dadao/mm/init.c.patch
+init/main.c.patch

@@ -1,82 +1,135 @@
 diff --git a/arch/dadao/kernel/head.S b/arch/dadao/kernel/head.S
 new file mode 100644
-index 000000000..03a170e31
+index 000000000..5fa31766f
 --- /dev/null
 +++ b/arch/dadao/kernel/head.S
-@@ -0,0 +1,76 @@
+@@ -0,0 +1,129 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
-+ * DADAO kernel entry (K0: links; K1 runs).
++ * DADAO kernel entry — K1: own stack, boot info validation, start_kernel().
 + *
-+ * Entered with: PTW on and a prebuilt page table (M1), rb16 = entry VA,
-+ * rb17 = boot info VA, SP undefined, every other register undefined
-+ * (contract-linux-boot §5).  This stub builds its own stack, clears
-+ * .bss, validates the boot info block and hands over to C.  A validation
-+ * failure stops through semihosting SYS_EXIT with a fixed code
-+ * (contract-linux-boot §3.3 FAIL-KERNEL).
++ * Entered with (contract-linux-boot §5): supv, PTW on with the single-superpage
++ * table smon built, rb16 = entry VA, rb17 = boot info VA, rb1 (SP) undefined,
++ * asynchronous interrupts masked, every other register undefined.
++ *
++ * Steps:
++ *   1. set rb1 (SP) to the top of `early_stack` *before the first push*;
++ *   2. keep rb16/rb17 in dadao_entry_va/dadao_bootinfo_va so the C entry can
++ *      report the §5 handoff values it actually received;
++ *   3. clear __bss_start..__bss_stop (a raw image carries no .bss, §3.1
++ *      RAW-BSS);
++ *   4. validate the fixed 15-field boot info block of §4 (magic, version,
++ *      size) and hand a wrong block to dadao_bootinfo_reject(), which names
++ *      the field and stops through semihosting SYS_EXIT with a fixed code
++ *      (§3.3 FAIL-KERNEL);
++ *   5. jump to the C entry dadao_start_kernel(), which prints the parsed
++ *      fields and calls start_kernel().
++ *
++ * Failure codes are kept in 1..255 because the semihosting SYS_EXIT subcode IS
++ * the host process exit status: a code such as 0x100 would wrap to 0 and read
++ * as success.
++ *
++ * Semihosting convention (contract-semihosting §1/§2): the trap's immu18 only
++ * carries the fixed tag 0x3FF00; the service number goes in rd16 and the
++ * argument-block pointer in rb16.  The pointer is a *PA* because the responder
++ * reads guest memory through QEMU's identity debug translation on Vast (the
++ * same rule tests/shared/bootrom/k0/probe_kernel.S records for its exit block).
 + */
 +
-+#define FAIL_MAGIC	0x100
-+#define FAIL_VERSION	0x101
-+#define FAIL_SIZE	0x102
++#define FAIL_MAGIC	0xe1
++#define FAIL_VERSION	0xe2
++#define FAIL_SIZE	0xe3
 +
 +	.section .head.text,"ax"
 +	.globl _start
 +	.p2align 4
 +_start:
-+	/* Early stack: rb1 (SP) is undefined on entry. */
-+	set.rb rb1, init_stack_top
++	/* 1. Early stack: rb1 (SP) is undefined on entry. */
++	set.rb rb1, early_stack_top
 +
-+	/* Raw images carry no .bss: clear __bss_start..__bss_stop. */
++	/* 2. Keep the entry-state registers the ABI promises (§5). */
++	set.rb rb4, dadao_entry_va
++	st.o rb16, [rb4, 0]
++	set.rb rb4, dadao_bootinfo_va
++	st.o rb17, [rb4, 0]
++
++	/*
++	 * 3. Clear .bss.  br.eq compares two *rd* registers (SimRISC-06 §1),
++	 * so mirror the cursor and the bound into rd2/rd3 and advance both.
++	 */
 +	set.rb rb2, __bss_start
 +	set.rb rb3, __bss_stop
++	set.rd rd2, rb2
++	set.rd rd3, rb3
 +.Lbss_loop:
-+	br.eq {rb2, rb3}?, [rb0, .Lbss_done]
++	br.eq {rd2, rd3}?, [rb0, .Lbss_done]
 +	st.o rd0, [rb2, 0]
 +	add.si rb2, 8
++	add.si rd2, 8
 +	jump [rb0, .Lbss_loop]
 +.Lbss_done:
 +
-+	/* magic == 0x4442_494e */
++	/* 4a. magic == 0x4442_494e (offset 0x00, 4 B). */
 +	ld.ut rd4, [rb17, 0]
 +	set.zw rd5, wp1, 0x4442
 +	or.w rd5, wp0, 0x494e
-+	set.rd rd9, FAIL_MAGIC
-+	br.ne {rd4, rd5}?, [rb0, .Lfail]
++	br.ne {rd4, rd5}?, [rb0, .Lfail_magic]
 +
-+	/* version == 1 */
++	/* 4b. version == 1 (offset 0x04, 2 B). */
 +	ld.uw rd6, [rb17, 4]
 +	set.rd rd5, 1
-+	set.rd rd9, FAIL_VERSION
-+	br.ne {rd6, rd5}?, [rb0, .Lfail]
++	br.ne {rd6, rd5}?, [rb0, .Lfail_version]
 +
-+	/* size >= 0x60 */
++	/* 4c. size >= 0x60 (offset 0x06, 2 B): larger blocks are allowed. */
 +	ld.uw rd7, [rb17, 6]
 +	add.si rd7, -0x60		/* rd7 = size - 0x60 */
-+	set.rd rd9, FAIL_SIZE
-+	br.n {rd7}?, [rb0, .Lfail]
++	br.n {rd7}?, [rb0, .Lfail_size]
 +
-+	/* Hand over to C with the boot info VA in rb16. */
-+	set.rb rb16, dadao_start_kernel
-+	jump [rb16, rd0, 0]
-+
-+	/* Fixed-code failure: semihosting SYS_EXIT (contract-semihosting §5). */
-+.Lfail:
-+	set.rb rb16, .Lexit_block
-+	st.o rd9, [rb16, 8]
-+	trap cfx0, 0x3ff18
-+.Lhang:
-+	jump [rb0, .Lhang]
++	/* 5. Enter C: first data argument rd16 / first address argument rb16. */
++	set.rb rb5, dadao_start_kernel
++	jump [rb5, rd0, 0]
 +	.size _start, .-_start
++
++	/* 4x. Named rejections: code -> rd16, field name -> rb16 (§3.3). */
++.Lfail_magic:
++	set.rd rd16, FAIL_MAGIC
++	set.rb rb16, .Lstr_magic
++	set.rb rb5, dadao_bootinfo_reject
++	jump [rb5, rd0, 0]
++
++.Lfail_version:
++	set.rd rd16, FAIL_VERSION
++	set.rb rb16, .Lstr_version
++	set.rb rb5, dadao_bootinfo_reject
++	jump [rb5, rd0, 0]
++
++.Lfail_size:
++	set.rd rd16, FAIL_SIZE
++	set.rb rb16, .Lstr_size
++	set.rb rb5, dadao_bootinfo_reject
++	jump [rb5, rd0, 0]
++
++	.section .rodata,"a"
++.Lstr_magic:
++	.asciz	"magic"
++.Lstr_version:
++	.asciz	"version"
++.Lstr_size:
++	.asciz	"size"
 +
 +	.section .data,"aw"
 +	.p2align 3
-+.Lexit_block:
-+	.dd.o64 0x20026		/* ADP_Stopped_ApplicationExit */
-+	.dd.o64 0		/* subcode, overwritten above */
++	.globl dadao_entry_va
++dadao_entry_va:
++	.dd.o64 0		/* §5 rb16: entry VA */
++	.globl dadao_bootinfo_va
++dadao_bootinfo_va:
++	.dd.o64 0		/* §5 rb17: boot info VA */
 +
 +	.section .bss,"aw",%nobits
 +	.p2align 4
-+init_stack:
++	.globl early_stack
++early_stack:
 +	.zero 16384
-+init_stack_top:
++	.globl early_stack_top
++early_stack_top:

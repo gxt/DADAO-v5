@@ -223,8 +223,16 @@ def elf_kernel_size(buf):
 
 
 # ── firmware / kernel build ────────────────────────────────────────────────
-def build_firmware(out_dir, neg_case=0):
-    """Assemble power (step5, unchanged) + k0 hmon/smon and pack the BootROM."""
+def build_firmware(out_dir, neg_case=0, *, hmon_src=None, hmon_defs=(),
+                   smon_defs=(), name=None):
+    """Assemble power (step5, unchanged) + k0 hmon/smon and pack the BootROM.
+
+    The keyword arguments are the K1 hook of this tool (``m14-linux-003``): a
+    caller may assemble a *variant* hmon/smon with extra ``--defsym`` values
+    (e.g. ``BOOTINFO_MAGIC``/``BOOTINFO_SIZE``) so a deliberately corrupted
+    boot info can be pushed past smon's own validation and left for the
+    kernel to reject.  The committed sources are never modified.
+    """
     os.makedirs(out_dir, exist_ok=True)
     mc, lld, objcopy, nm = (tool("llvm-mc"), tool("ld.lld"),
                             tool("llvm-objcopy"), tool("llvm-nm"))
@@ -244,13 +252,15 @@ def build_firmware(out_dir, neg_case=0):
              os.path.join(STEP5_DIR, "power.lds"))
     run([objcopy, "-O", "binary", os.path.join(out_dir, "power.elf"),
          os.path.join(out_dir, "power.bin")])
-    assemble(os.path.join(K0_DIR, "hmon.S"),
+    assemble(hmon_src or os.path.join(K0_DIR, "hmon.S"),
              os.path.join(out_dir, "hmon.o"),
-             os.path.join(K0_DIR, "hmon.lds"), defs)
+             os.path.join(K0_DIR, "hmon.lds"), list(defs) + list(hmon_defs))
     assemble(os.path.join(K0_DIR, "smon.S"),
              os.path.join(out_dir, "smon.o"),
-             os.path.join(K0_DIR, "smon.lds"), defs)
-    name = "bootrom_k0_neg%d.bin" % neg_case if neg_case else "bootrom_k0.bin"
+             os.path.join(K0_DIR, "smon.lds"), list(defs) + list(smon_defs))
+    if name is None:
+        name = ("bootrom_k0_neg%d.bin" % neg_case if neg_case
+                else "bootrom_k0.bin")
     run([sys.executable, BUILD_STEP5,
          "--out-dir", out_dir,
          "--power-elf", os.path.join(out_dir, "power.elf"),

@@ -1,48 +1,130 @@
 diff --git a/arch/dadao/kernel/early_console.c b/arch/dadao/kernel/early_console.c
 new file mode 100644
-index 000000000..dc9bb8a74
+index 000000000..1a12f91ee
 --- /dev/null
 +++ b/arch/dadao/kernel/early_console.c
-@@ -0,0 +1,57 @@
+@@ -0,0 +1,139 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
-+ * Semihosting console stub (K0: compiles and links, output is claimed
-+ * only once the K1 boot path runs).
++ * DADAO semihosting console — K1 early console (contract-semihosting §1-§4).
 + *
-+ * The call convention is contract-semihosting §1/§2: `trap <cfx>, 0x3FF00+op`
-+ * with the service number in immu18[7:0] and the address parameter in rb16.
++ * `trap cfx0, 0x3FF00` is the fixed semihosting tag: immu18 only carries
++ * 0x3FF00, the **service number goes in rd16** and the argument-block pointer
++ * in **rb16** (§2); the scalar result comes back in rd8 and the IP is stepped
++ * past the trap by the responder (§4).
++ *
++ * The pointer handed to the responder must be a **PA**: on Vast the responder
++ * reads guest memory through QEMU's debug/identity translation, which does not
++ * consult the page table (`tests/shared/bootrom/k0/probe_kernel.S` records the
++ * same rule for its exit block).  The kernel itself runs on VAs, so every
++ * pointer below is converted with __pa().
++ *
++ * Output uses SYS_WRITEC (0x03), one byte per call; see dadao_early_write()
++ * for why SYS_WRITE0/SYS_WRITE cannot be used here.
 + */
 +#include <linux/console.h>
 +#include <linux/init.h>
 +#include <linux/kernel.h>
++#include <linux/sprintf.h>
 +#include <linux/string.h>
++#include <linux/types.h>
 +
-+#define SEMIHOST_SYS_WRITE0	0x04
++#include <asm/page.h>
++#include <asm/setup.h>
++
 +#define SEMIHOST_TAG		0x3ff00
++#define SEMIHOST_SYS_WRITEC	0x03
++#define SEMIHOST_SYS_EXIT	0x18
++#define ADP_STOPPED_APP_EXIT	0x20026
 +
-+static void semihost_write0(const char *str)
++/*: One semihosting call; @nr -> rd16, @arg -> rb16, result <- rd8. */
++static unsigned long semihost_call(unsigned long nr, const void *arg)
 +{
-+	register const char *addr __asm__("rb16") = str;
++	register unsigned long n __asm__("rd16") = nr;
++	register const void *p __asm__("rb16") = arg;
++	register unsigned long ret __asm__("rd8");
 +
-+	__asm__ __volatile__("trap cfx0, %0" : : "i"(SEMIHOST_TAG |
-+			     SEMIHOST_SYS_WRITE0), "r"(addr) : "memory");
++	__asm__ __volatile__("trap cfx0, %1"
++			     : "=r"(ret)
++			     : "i"(SEMIHOST_TAG), "r"(n), "r"(p)
++			     : "memory");
++	return ret;
 +}
 +
++/*
++ * Physical address of a kernel pointer, as the semihosting responder sees it.
++ * __pa() is a 64-bit subtraction; the ABI address is 48 bits wide
++ * (contract-abi §1.7), so the carry-out has to be dropped *before* the value
++ * is handed over: the responder reads the register raw, it does not truncate
++ * the way an instruction operand is truncated.
++ */
++#define DADAO_SEMIHOST_PA(x)	\
++	((const void *)((unsigned long)__pa(x) & 0x0000ffffffffffffUL))
++
++/*
++ * Early console = semihosting SYS_WRITEC (0x03), one byte per call.
++ *
++ * SYS_WRITE0 (0x04) cannot be used on Vast with the PTW on: its length probe
++ * (uaccess_strlen_user -> probe_access_flags) translates a *VA* through the
++ * page table while the following copy (lock_user -> cpu_memory_rw_debug) goes
++ * through QEMU's debug/identity translation, so no single address satisfies
++ * both.  SYS_WRITEC only takes the copy path, which is the PA path.  SYS_WRITE
++ * (0x05) would first need a SYS_OPEN'd guest fd.
++ */
++void dadao_early_write(const char *s)
++{
++	while (*s)
++		semihost_call(SEMIHOST_SYS_WRITEC, DADAO_SEMIHOST_PA(s++));
++}
++
++void dadao_early_printf(const char *fmt, ...)
++{
++	char buf[256];
++	va_list args;
++
++	va_start(args, fmt);
++	vsnprintf(buf, sizeof(buf), fmt, args);
++	va_end(args);
++	dadao_early_write(buf);
++}
++
++/*
++ * Stop the machine.  SYS_EXIT takes the 64-bit block {reason, subcode}; the
++ * subcode becomes the host process exit status (§5), so K1 uses it to carry
++ * the kernel's own result.
++ */
++void __noreturn dadao_early_exit(unsigned long code)
++{
++	unsigned long block[2] = { ADP_STOPPED_APP_EXIT, code };
++
++	semihost_call(SEMIHOST_SYS_EXIT, DADAO_SEMIHOST_PA(block));
++	for (;;)
++		;
++}
++
++void __init __noreturn dadao_bootinfo_reject(unsigned int code,
++					     const char *what)
++{
++	dadao_early_printf("K1 bootinfo invalid: %s code=%#x\n", what, code);
++	dadao_early_exit(code);
++}
++
++/*
++ * printk console (used once console_init() runs in a later milestone).  It
++ * shares the semihosting primitives above; CON_PRINTBUFFER replays messages
++ * queued before registration.
++ */
 +static void dadao_console_write(struct console *con, const char *s,
 +				unsigned int count)
 +{
 +	char buf[128];
 +	unsigned int chunk;
 +
-+	/*
-+	 * SYS_WRITE0 wants a NUL-terminated string; hand it out in bounded
-+	 * chunks so printk()'s counted buffer can be used as-is.
-+	 */
 +	while (count) {
 +		chunk = count < sizeof(buf) - 1 ? count : sizeof(buf) - 1;
 +		memcpy(buf, s, chunk);
 +		buf[chunk] = '\0';
-+		semihost_write0(buf);
++		dadao_early_write(buf);
 +		s += chunk;
 +		count -= chunk;
 +	}

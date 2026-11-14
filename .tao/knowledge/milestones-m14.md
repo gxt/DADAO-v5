@@ -31,12 +31,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-linux-003 | 2026-11-14 22:20 | 2–3 h | K1 内核早期启动到 `start_kernel`（Vast；自建栈、boot info 解析、semihosting 早控制台、开时钟前退出） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-003 | 2026-11-15 00:30 | K1 早期启动到 `start_kernel`（Vast；自建栈、boot info 校验、semihosting 早控制台、开时钟前退出） |
 | m14-llvm-006 | 2026-11-14 09:10 | 符号差判据统一（移到 `evaluateFixup`）+ 放行 `.set` 绝对值符号（lit 176/176） |
 | m14-llvm-005 | 2026-11-14 08:10 | 标签差立即数报错 + ABS48 wyde 写回（`ISS-424` 关闭；lit 174/174） |
 | m14-llvm-002 | 2026-11-14 06:20 | DADAO SSP 后端（`STACK_CHECK_GUARD`/`CHECK_FAIL`；guard 模式 fail-closed；9/9 + E2E 66） |
