@@ -1157,6 +1157,150 @@
   - system
   level: full
   requires: []
+- id: inst-12-misc-001
+  file: inst/12-misc/lr.b.an_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-002
+  file: inst/12-misc/lr.b.ar_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-003
+  file: inst/12-misc/lr.b.nn_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-004
+  file: inst/12-misc/lr.o.an_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-005
+  file: inst/12-misc/lr.o.ar_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-006
+  file: inst/12-misc/lr.o.nn_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-007
+  file: inst/12-misc/lr.t.an_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-008
+  file: inst/12-misc/lr.t.ar_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-009
+  file: inst/12-misc/lr.t.nn_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-010
+  file: inst/12-misc/lr.w.an_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-011
+  file: inst/12-misc/lr.w.ar_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-012
+  file: inst/12-misc/lr.w.nn_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-013
+  file: inst/12-misc/sc.b.ar_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-014
+  file: inst/12-misc/sc.b.nn_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-015
+  file: inst/12-misc/sc.b.nr_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-016
+  file: inst/12-misc/sc.o.ar_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-017
+  file: inst/12-misc/sc.o.nn_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-018
+  file: inst/12-misc/sc.o.nr_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-019
+  file: inst/12-misc/sc.t.ar_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-020
+  file: inst/12-misc/sc.t.nn_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-021
+  file: inst/12-misc/sc.t.nr_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-022
+  file: inst/12-misc/sc.w.ar_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-023
+  file: inst/12-misc/sc.w.nn_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-12-misc-024
+  file: inst/12-misc/sc.w.nr_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-atomics-001
   file: inst/atomics/aba_treiber.c
   platforms:
