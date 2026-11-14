@@ -49,6 +49,7 @@ ps -eo pcpu=,vsz=,etime=,args= --sort=-pcpu 2>/dev/null | grep -vE '[p]s -eo|[p]
   name=$(printf '%s' "$args" | awk '{print $1}' | sed 's#.*/##')
   detail=$(printf '%s' "$args" | grep -oE '\+loadmem=[^ ]+' | sed 's#.*/##' | head -1)
   [ -z "$detail" ] && detail=$(printf '%s' "$args" | grep -oE '/tmp/opencode/[a-z0-9-]+|\.dadao/tests/[a-z0-9-]+' | head -1 | sed 's#.*/##')
+  case "$name" in simulator-chipyard*|qemu-system*|gem5.opt) [ -z "$detail" ] && detail="?" ;; esac
   printf 'p=%s\t%s\t%s\t%s\t%s\n' "$cpu" "$vsz" "$etime" "$name" "$detail"
 done
 """
@@ -170,6 +171,7 @@ def compact_etime(raw: str) -> str:
 
 
 DETAIL_W = 14   # test-program name column
+NO_TEST = "(no +loadmem)"
 
 
 def proc_line(cpu: float, vsz: int, etime: str, name: str, detail: str, width: int) -> str:
@@ -183,6 +185,8 @@ def proc_line(cpu: float, vsz: int, etime: str, name: str, detail: str, width: i
     avail = width - len(prefix)
     if avail <= 0:
         return fit(prefix, width)
+    if detail == "?":
+        detail = NO_TEST          # a test binary invoked without +loadmem/-kernel
     if not detail:
         shown = name if len(name) <= avail else ("…" + name[-(avail - 1):] if avail > 1 else name[:avail])
         return fit(prefix + shown, width)
