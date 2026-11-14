@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/exec/b3.cc b/src/arch/dadao/exec/b3.cc
 new file mode 100644
-index 0000000..e62d454
+index 0000000..d6df748
 --- /dev/null
 +++ b/src/arch/dadao/exec/b3.cc
 @@ -0,0 +1,623 @@
@@ -132,8 +132,9 @@ index 0000000..e62d454
 +    internalError("shift op is neither orrr nor orri");
 +}
 +
-+/** Extend start bit: orrr = the full 64-bit rdhd *register value*, so >63 is
-+ * checkable; orri = immu6 (always 0..63).  contract-isa §6.4.2. */
++/** Extend start bit: orrr = rdHD[5:0], the low 6 bits of the rdhd *register
++ * value* (bits above 5 are ignored, never ILLI); orri = immu6 (always 0..63).
++ * spec §2.2 / ISS-422 (user ruling 2026-11-13). */
 +uint64_t
 +extendStartBit(const decode::DecodedInst &inst, RegAccess &ctx)
 +{
@@ -481,7 +482,7 @@ index 0000000..e62d454
 +      }
 +
 +      // -----------------------------------------------------------------
-+      // Sign / zero extend (orrr hd = rdhd full value, orri hd = immu6).
++      // Sign / zero extend (orrr hd = rdHD[5:0], orri hd = immu6).
 +      // -----------------------------------------------------------------
 +      case B3Op::ExtUo:
 +      case B3Op::ExtSo: {
@@ -489,12 +490,11 @@ index 0000000..e62d454
 +        const unsigned src = static_cast<unsigned>(field(inst, "rdhc"));
 +        if (dst == 0)
 +            return Fault::Illegal;
-+        const uint64_t start = extendStartBit(inst, ctx);
-+        // orri cannot express hd > 63; orrr takes the whole register value,
-+        // so 64..2^64-1 is ILLI (contract-isa §6.4.2).
-+        if (start > 63)
-+            return Fault::Illegal;
-+        const unsigned hd = static_cast<unsigned>(start);
++        // orrr reads a 64-bit register: hd = rdHD[5:0]; bits above 5 are
++        // ignored and never raise ILLI (spec §2.2 / ISS-422, user ruling
++        // 2026-11-13).  orri's immu6 field is already 6 bits wide.
++        const unsigned hd =
++            static_cast<unsigned>(extendStartBit(inst, ctx) & 0x3F);
 +        const uint64_t mask = lowMask(hd + 1);
 +        const uint64_t value = ctx.readInt(Bank::Rd, src);
 +        uint64_t result = value & mask;

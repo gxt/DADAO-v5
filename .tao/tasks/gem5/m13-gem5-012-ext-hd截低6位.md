@@ -4,7 +4,7 @@
 **项目里程碑**：M13
 **依赖**：`m13-spec-008`（口径真源与契约先行；本任务依据其 §2.2 措辞与「用户裁定」段）
 **可并行分片**：否（gem5 单组件单写者；可与 `m13-qemu-010` 并行，与其它 gem5 任务串行）
-**状态**：待开始
+**状态**：已验证
 
 **预估**：2–3 h（含 gem5 增量重建 10–25 min，开工前申报实际耗时）
 
@@ -71,4 +71,53 @@
 
 ## 审阅记录
 
-（待填）
+### 第 1 轮 engineer 自审
+
+逐行审查改动（`b3.cc.patch` 的 ext 分支与 `extendStartBit`、`b3_test.cc.patch` 的 oracle/宽 rdHD 用例、证据脚本）后的意见与处置：
+
+- **F1** 掩码放在调用点（`extendStartBit(...) & 0x3F`）而 helper 仍返回 64 位原值：若将来新增调用者会静默拿到未截值。核实 `extendStartBit` 仅 ext 分支一处调用（`grep` 全树），且 orri 分支 `immu6` 本为 6 位、掩码幂等；保留调用点掩码以贴合「起始位在此处定义」的注释。处置：❌不修（附调用点唯一性证据）。
+- **F2** 证据脚本把 harness PASS 计数写死为 4318：任何合法新增断言都会转红，且属「覆盖类计数写死」。处置：✅已修——改为 `>= 4318`（施工前 4248 + 70，差值来源写进脚本注释），删除断言仍会跌下界。
+- **F3** 证据脚本对 `check-patch-tree` 的 gem5 问题用 `.*problem` 匹配，而真实问题行格式是 `gem5: assertion ⑨: …` ⇒ 该断言恒真、无 FAIL 路径。处置：✅已修——改匹配 `^check-patch-tree: gem5: assertion`，并新增「checker 确实检查了 gem5（106 patches 行存在）」；把注入一行多余文本进 `b3.cc.patch` 实测出现 `gem5: assertion ⑨`（rc=1），`cp` 还原后 md5 一致、gem5 段回 0。
+- **F4** 旧 gem5 在链例中遇意外 ILLI 不会返回 248（hmon 返回槽未武装 ⇒ 重复执行故障指令挂死）。处置：✅已修——探针链例开头写 hmon+0xF8=pad 与 `TEST_FAULTV={ILLI one-hot,248,248}`；旧二进制稳定 rc=248、无输出，改后二进制不受影响，三平台仍共用同一 ELF。
+- **F5** 任务 worktree 基线落后 master，共享组件源码树含 master 新补丁 ⇒ `make_patch.py` 顺带改写了 4 份无关补丁。处置：✅已修——FF 到 master 后用 `git archive HEAD <4 文件>` 还原（未用 checkout/restore），`git status` 仅余 2 份目标补丁；并记录为「新发现/坑」。
+- **F6** 全树 `check-patch-tree` rc=1（chipyard 8 条，`m12-chipyard-016` 在飞）：非本任务文件，按 gem5 子集判据（0 问题）通过。处置：⏸延后（归并行任务），不计本任务遗留。
+- **F7** 复核验收映射：`ext.so` 用 bit0=1 源值（`0x1`/`0x8`）区分 uo/so；12 行 oracle 期望由 spec 手算，三平台实测逐字节相同（md5 `7c5058f4…`）反证手算正确；`dst==rd0 ⇒ ILLI`、orri 两例回归均保留。无新问题。
+
+### 第 1 轮 reviewer 验收（2026-11-14）
+
+**重跑（本人执行；`rc=$?` 现取，workdir=任务 worktree）**
+- 一键证据 `./.work/evidence/m13-gem5-012/run.sh`：**rc=0、30 PASS/0 FAIL**（41–52 s）；注入后同脚本 rc=1（6 FAIL）；还原后回绿 rc=0、30 PASS。
+- 独立探针：自建 ELF `81852ba1…`，期望**由我手算**得 md5 `7c5058f40f7b769587a1b80f16a0efcf`（80 B）；gem5/QEMU/chipyard 三侧 `cmp` 对我手算值及相互全 `rc=0`，`xxd` 十槽 = `1,f,~0,80…0,~0,…f8,80…0,7,~0,…f8`。
+- 改前正证：`old-gem5.opt.pre-hd` md5 `b6440f19c19e02ab6408ffcf4b7acf75` 同 ELF ⇒ **rc=248（`GEM5_EXIT_CODE=248`）、0 B**。
+- 快门控：`check_b3 rc=0 PASS=4318 FAIL=0`、`check-gem5-decode rc=0 PASS=694`、`check-wuming-cycles rc=0 PASS=11`、`check_b7 rc=0`、`check-component-changelog rc=0 PASS(9 文件×4=36)`、`--source-state` ⇒ `gem5: OK … clean=True`；施工前基线二进制 `dadao-b3-test-baseline` ⇒ **PASS=4248 FAIL=0**（+70 与 `12×3+5×5×2−16` 算式一致）。
+- `check-patch-tree`（任务 worktree）：rc=1，`gem5: 106 patch(es)`、`gem5: assertion` **0 条**；全树 8 条 = chipyard 6 + qemu 2（`dadao-machine.c`）。
+- **独立注入（自设计第 3 路，非其两路）** `& 0x3F`→`& 0x1F`：`check_b3 rc=1 FAIL=19`（`rdHD=63` oracle 行与 `rdHD=0xFFFF…` 宽用例转红，orri hd=32/62/63 亦红 ⇒ 反证 `&0x3F` 对 orri 恒等）；同一 `run.sh` ⇒ rc=1、6 项 FAIL；`cp` 还原 md5 `b721c73c…` 与备份一致、源树 `git status` 空；重跑回绿 rc=0。
+- 披露①：`48e6c614` 父 = `c4002ae8`，`git diff` 仅 4 文件（2 目标补丁 + changelog + 任务书），`components/**` 补丁仅 2 份，`tests/ spec/ contracts/` 0 文件。
+- 披露②：探针删去 hmon 武装 ⇒ 旧二进制 **rc=124 挂死**（60 s 超时、无 EXIT_CODE），新二进制 rc=0、80 B ⇒ 解释成立。
+- 解码表：4 条 `ext.*` 行 `kRules128..131={"dst_rd0"}`、`kLegality={"rdhb != rd0"}`，无 hd 范围约束 ⇒ 无需改。
+
+**约束核验**：范围 4 文件✓；不改 spec/契约/qemu/chipyard/tests✓；`dst==rd0⇒ILLI` 保留✓、orri `immu6` 不变✓；完成区 17 行≤30✓；任务工作树/源树/主工作树 `status -uall` 全空、4 文件 md5 与开工快照逐个相等（本记录写入后仅任务书 1 文件为 `M`，其余 3 交付物 md5 未变）✓；未跑 `install-host`/`check-modules`✓。
+
+**Findings（文档级，不阻断，交 architect 收尾改）**：① 完成区「8 条问题全部来自 chipyard」与现场不符（实为 chipyard 6 + qemu 2，`hw/dadao/dadao-machine.c` ⑨/⑥；gem5 子集 0 不变）；② 任务书「每个新用例附 `spec_cite`」实为块注释引用（逐行仅 `why` 给低 6 位依据）；③ **依赖状态在审查期间变化**：开审时 `m13-spec-008` 为「待开始」、四处仍写 `hd>63⇒ILLI`，收尾时已「已验证」，我在主工作树现场 grep 确认 `spec/SimRISC-04 §2.2`、`contract-isa §6.4.2`、`legality_rules.yaml`、`DD-A008` 均已改为 `hd=rdHD[5:0]` 口径 ⇒ 实现与真源现已一致，无需返工；④ F5 用 `git archive HEAD <4 文件>` 还原（近 `git show|>` 禁例），作用域限本任务独占 worktree、终态已对账。
+
+**环境观察（非本任务）**：主工作树在验收窗口内被并行会话写入（`m13-spec-008` 落地，`UU manifests/spec-readonly.lock.toml` 合并未完）；本任务三份交付物 md5 与开工快照逐个相等、任务工作树与 gem5 源树 `status -uall` 空，核验未受影响。
+
+**判决：Accepted** —— 验收命令块在我本人重跑下全过、注入→FAIL→还原→回绿实证、硬约束无违反。
+
+## 完成区
+
+**测试结果**：一键证据脚本 rc=0（30 项全 PASS）；`check_b3.py` PASS 4248→4318（+70，FAIL=0）；`check-gem5-decode` 694 行 PASS；`check-wuming-cycles` 11/11；`check_b7` OK；`check-component-changelog` PASS；`check-patch-tree` gem5 段 0 问题；`--source-state` gem5 OK（`base+1`、`clean=True`）。全树 `check-patch-tree` rc=1，8 条问题全部来自并行任务在飞的 chipyard（`WumingSemi.*`/`WumingCore.scala`/`WumingDecoder.scala`，非本任务文件）。
+
+**修改文件**：`components/gem5/patches/src/arch/dadao/exec/b3.cc.patch`（orrr `hd = extendStartBit(...) & 0x3F`，删 `>63 ⇒ Illegal`，注释改述 spec §2.2/ISS-422）；`components/gem5/patches/src/arch/dadao/exec/b3_test.cc.patch`（旧「64/65/2^64−1/1<<40 ⇒ Illegal 且无写」→ 12 行手算 oracle + 5 个宽 rdHD 等价用例，头注释去 ext hd>63）；`components/gem5/changelog.md`（M13 一条）；本任务书（状态/完成区）。组件源码树与 `git status -uall` 对账一致，补丁经 `make_patch.py gem5` 重导出（106 份、2 written），源码树 `base+1` 且 clean。
+
+**验收结果**：
+- 探针（同一 ELF，10 检查点 × 8 B = 80 B）：QEMU / gem5 / chipyard 三平台逐字节相同且等于手算 oracle（md5 `7c5058f4…`）。
+- 四组：rdHD=64≡0（uo `0x1`；so 取 bit0=1 源值 ⇒ `0xFF…FF`，用以区分 uo/so）、67≡3（uo `0xF`；so `0xFF…F8`）、2^64−1≡63、63≡63；另 2 例 orri 回归。
+- 改前二进制（md5 `b6440f19…`，改动前构建，备份于证据目录）跑同一 ELF ⇒ rc=248（ILLI）、0 字节；改后 ⇒ rc=0、80 字节。
+- 注入 2 路（`cp` 备份 + md5 对账还原，每次还原后回绿）：① 去 `& 0x3F` ⇒ `check_b3` rc=1、FAIL=16；② 恢复 `>63 ⇒ Illegal` ⇒ rc=1、FAIL=40；两次还原 md5 均 `b721c73c…`、回绿 rc=0。
+- B3 解码表：4 条 `ext.*` 行规则仅 `dst_rd0`、无 `hd` 范围约束 ⇒ 无需改动（`check-gem5-decode` 694 行不变）。
+
+**新发现/坑**：任务 worktree 基线落后 master，共享组件源码树含 master 新补丁 ⇒ `make_patch.py` 会顺带改写无关补丁（已 FF 到 master，只保留 2 份目标补丁）。旧 gem5 对链例中意外 ILLI 会因 hmon 返回槽未武装而挂死（非 248）；探针在链例开头写 hmon+0xF8=pad 与 TEST_FAULTV={ILLI one-hot, 248, 248} 后，旧二进制稳定 rc=248，且三平台共用同一 ELF。
+
+**遗留问题**：无。
+

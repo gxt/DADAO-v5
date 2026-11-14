@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b3_test.cc b/src/arch/dadao/exec/b3_test.cc
 new file mode 100644
-index 0000000..c57d4c1
+index 0000000..3ea79d7
 --- /dev/null
 +++ b/src/arch/dadao/exec/b3_test.cc
-@@ -0,0 +1,1977 @@
+@@ -0,0 +1,2071 @@
 +/*
 + * DADAO gem5 B3 execution assertions (GEM5-008t).
 + *
@@ -19,12 +19,12 @@ index 0000000..c57d4c1
 + *     have orrr and orri ids) and must equal the live decode-table B3 set;
 + *   * expected values are computed by an independent oracle table, including
 + *     the 128-bit high/low split, carry/borrow, sign extension, rotation,
-+ *     bit scan with an effective upper bit, block reverse and the constant
-+ *     divide/remainder results;
++ *     bit scan with an effective upper bit, block reverse, the ext start bit
++ *     (orrr: rdHD[5:0]) and the constant divide/remainder results;
 + *   * every case checks the destination register value, the write count and
 + *     that no illegal path writes a register;
 + *   * statically illegal instructions (rd0/rb0 destinations, dual-destination
-+ *     aliasing, non-one-hot rev.o, ext hd > 63) raise ILLI before any write.
++ *     aliasing, non-one-hot rev.o) raise ILLI before any write.
 + */
 +#include <cinttypes>
 +#include <climits>
@@ -1416,26 +1416,120 @@ index 0000000..c57d4c1
 +        }
 +    }
 +
-+    // orrr hd comes from the whole rdhd register value: 64 and 2^64-1 are
-+    // illegal, and nothing is written.
-+    const uint64_t badHds[] = {64, 65, 0xFFFFFFFFFFFFFFFFULL,
-+                               uint64_t(1) << 40};
++    // Independent hand-computed oracle table for the orrr start bit:
++    // hd = rdHD[5:0], mask = lowMask(hd + 1) (the low hd+1 bits), the result
++    // is value & mask, and ext.so additionally replicates value[hd] over the
++    // cleared upper bits.  Derived from SimRISC-04: ext.uo / ext.so plus the
++    // "low 6 bits" ruling (spec §2.2 / ISS-422), never from the core below.
++    struct ExtOracle
++    {
++        const char *id;
++        uint64_t rdHD;
++        uint64_t src;
++        uint64_t expected;
++        const char *why;
++    };
++    const ExtOracle extOracle[] = {
++        // ext.uo: copy bits[hd:0] to the low end, zero the rest.
++        {"ext.uo_orrr_rd", 0, ~uint64_t(0), 0x1ULL,
++         "hd=0: mask=0x1, keep bit0"},
++        {"ext.uo_orrr_rd", 0, 0x1ULL, 0x1ULL,
++         "hd=0: mask=0x1, bit0=1"},
++        {"ext.uo_orrr_rd", 3, ~uint64_t(0), 0xFULL,
++         "hd=3: mask=0xF, keep bits[3:0]"},
++        {"ext.uo_orrr_rd", 3, 0x8ULL, 0x8ULL,
++         "hd=3: mask=0xF, only bit3 set"},
++        {"ext.uo_orrr_rd", 63, ~uint64_t(0), ~uint64_t(0),
++         "hd=63: mask is all ones, keep the whole word"},
++        {"ext.uo_orrr_rd", 63, uint64_t(1) << 63, uint64_t(1) << 63,
++         "hd=63: mask is all ones, only bit63 set"},
++        // ext.so: same slice, then value[hd] fills bits[63:hd+1].
++        {"ext.so_orrr_rd", 0, ~uint64_t(0), ~uint64_t(0),
++         "hd=0: slice=1, bit0=1 fills bits[63:1]"},
++        {"ext.so_orrr_rd", 0, 0x1ULL, ~uint64_t(0),
++         "hd=0: slice=1, bit0=1 fills bits[63:1]"},
++        {"ext.so_orrr_rd", 3, ~uint64_t(0), ~uint64_t(0),
++         "hd=3: slice=0xF, bit3=1 fills bits[63:4]"},
++        {"ext.so_orrr_rd", 3, 0x8ULL, 0xFFFFFFFFFFFFFFF8ULL,
++         "hd=3: slice=0x8, bit3=1 fills bits[63:4]"},
++        {"ext.so_orrr_rd", 63, ~uint64_t(0), ~uint64_t(0),
++         "hd=63: mask is all ones, sign fill is empty"},
++        {"ext.so_orrr_rd", 63, uint64_t(1) << 63, uint64_t(1) << 63,
++         "hd=63: mask is all ones, sign fill is empty"},
++    };
++    for (const ExtOracle &c : extOracle) {
++        MockRegAccess ctx;
++        initContext(ctx);
++        ctx.rd[6] = c.src;
++        ctx.rd[8] = c.rdHD;
++        WordSpec w;
++        w.rdhb = 5;
++        w.rdhc = 6;
++        w.rdhd = 8;
++        const exec::Fault fault = runWord(ctx, c.id, makeWord(c.id, w));
++        check(fault == exec::Fault::None,
++              "%s rdHD=%" PRIu64 ": fault %s", c.id, c.rdHD,
++              faultName(fault));
++        check(ctx.rd[5] == c.expected,
++              "%s rdHD=%" PRIu64 " src=0x%016" PRIx64 ": 0x%016" PRIx64
++              " (expected 0x%016" PRIx64 ", %s)", c.id, c.rdHD, c.src,
++              ctx.rd[5], c.expected, c.why);
++        check(ctx.writes.size() == 1, "%s rdHD=%" PRIu64 ": one write",
++              c.id, c.rdHD);
++    }
++
++    // ext.* orrr: hd = rdHD[5:0]; the higher bits are ignored, so 64 and
++    // 2^64-1 execute normally (no ILLI, exactly one write) -- spec §2.2 /
++    // ISS-422 (user ruling 2026-11-13).  Each case must also match the
++    // literal low-6-bit hd byte for byte.
++    struct WideHdCase
++    {
++        uint64_t rdHD;
++        unsigned hd;
++    };
++    const WideHdCase wideHds[] = {
++        {64, 0}, {65, 1}, {67, 3}, {~uint64_t(0), 63}, {uint64_t(1) << 40, 0},
++    };
++    const uint64_t wideSrc = 0xDEADBEEFCAFEBABEULL;
 +    for (const char *id : orrrIds) {
-+        for (uint64_t hd : badHds) {
++        const bool sign = strEq(id, "ext.so_orrr_rd");
++        for (const WideHdCase &c : wideHds) {
 +            MockRegAccess ctx;
 +            initContext(ctx);
-+            ctx.rd[6] = ~uint64_t(0);
-+            ctx.rd[8] = hd;
++            ctx.rd[6] = wideSrc;
++            ctx.rd[8] = c.rdHD;
 +            WordSpec w;
 +            w.rdhb = 5;
 +            w.rdhc = 6;
 +            w.rdhd = 8;
 +            const exec::Fault fault = runWord(ctx, id, makeWord(id, w));
-+            check(fault == exec::Fault::Illegal,
-+                  "%s hd=0x%" PRIx64 " -> Illegal (got %s)", id, hd,
-+                  faultName(fault));
-+            check(ctx.writes.empty(), "%s hd=0x%" PRIx64
-+                  ": no register write", id, hd);
++            check(fault == exec::Fault::None,
++                  "%s rdHD=0x%" PRIx64 " (=hd %u): fault %s", id, c.rdHD,
++                  c.hd, faultName(fault));
++            const uint64_t mask = lowMask(c.hd + 1);
++            uint64_t expected = wideSrc & mask;
++            if (sign && ((wideSrc >> c.hd) & 1) != 0)
++                expected |= ~mask;
++            check(ctx.rd[5] == expected,
++                  "%s rdHD=0x%" PRIx64 " (=hd %u): 0x%016" PRIx64
++                  " (expected 0x%016" PRIx64 ")", id, c.rdHD, c.hd,
++                  ctx.rd[5], expected);
++            check(ctx.writes.size() == 1,
++                  "%s rdHD=0x%" PRIx64 " (=hd %u): one write", id, c.rdHD,
++                  c.hd);
++            MockRegAccess literal;
++            initContext(literal);
++            literal.rd[6] = wideSrc;
++            literal.rd[8] = c.hd;
++            const exec::Fault literalFault =
++                runWord(literal, id, makeWord(id, w));
++            check(literalFault == exec::Fault::None,
++                  "%s hd=%u literal: fault %s", id, c.hd,
++                  faultName(literalFault));
++            check(literal.rd[5] == ctx.rd[5],
++                  "%s rdHD=0x%" PRIx64 " == hd %u: 0x%016" PRIx64
++                  " vs 0x%016" PRIx64, id, c.rdHD, c.hd, ctx.rd[5],
++                  literal.rd[5]);
 +        }
 +        // dst rd0 -> ILLI.
 +        MockRegAccess ctx;

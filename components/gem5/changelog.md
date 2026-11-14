@@ -177,3 +177,7 @@
 - **2026-11-14 m13-gem5-014**
   - 摘要：**`ra0[63:54]` SBZ 写无效（`ISS-426` gem5 侧）**。`arch/dadao/inst.cc` 的 `Gem5B1Context::writeInt` 在 RA 写口对 `ra0`（`Bank::Ra` 且 `idx == 0`）掩掉 `[63:54]`（`& 0x003F_FFFF_FFFF_FFFF`），`RACNT[53:48]`/`MRPTR[47:0]` 生效、SBZ 位读回恒 0（contract-isa §1.3.4、spec/SimRISC-00 §2.4）；`ra1`–`ra63` 的 16 位计数在 `[63:48]`，不加掩码。RAS 头更新路径（`exec/b5.cc` 的 `writeRasHeader`/`kRasSbzMask`）逐字节未改，它经同一写口时 `[63:54]` 已恒为 0。`ld.o ra0` 写入 `0xFFFF000000000000` 的读回由 `0xFFFF000000000000` 改为 `0x003F000000000000`（`ld.o_rrii_ra` 点 20）；节点三平台 `01-load-store` 234/235（唯一红 = QEMU 侧同一点，归 `m13-qemu-012`；chipyard/gem5 均绿），`05-arith-addr`/`06-control-flow` 全绿。补丁 1 份改，`make_patch.py` 重导出。
   - 执行者：engineer
+
+- **2026-11-14 m13-gem5-012**
+  - 摘要：**`ext.uo`/`ext.so` orrr 的起始位取 `rdHD[5:0]`，删运行时 ILLI 路径（`ISS-422`）**。`exec/b3.cc` 的 `ExtUo`/`ExtSo` 分支删除「orrr 取整 64 位寄存器值、>63 ⇒ `Fault::Illegal`」及其理由注释，`hd = extendStartBit(inst, ctx) & 0x3F`（orri 的 `immu6` 本为 6 位，行为不变），`extendStartBit()` 注释改述「orrr = `rdHD[5:0]`，高位忽略、不抛 ILLI（spec §2.2 / `ISS-422`，用户裁定 2026-11-13）」；`dst == rd0 ⇒ ILLI` 保留。`exec/b3_test.cc` 把旧「64/65/2^64−1/1<<40 ⇒ Illegal 且无写」一组替换为 12 行手算 oracle（ext.uo/ext.so × hd∈{0,3,63} × 源值「全 1」「bit_hd=1 的最小数」，逐行写位段复制 + 符号/零扩展）+ 5 个宽 rdHD 用例（64≡0、65≡1、67≡3、2^64−1≡63、1<<40≡0：正常执行、恰一次写、与字面 hd 结果逐字节相同）。B3 解码表无 `hd` 范围约束（4 条 `ext.*` 行规则仅 `dst_rd0`），无需改动。harness PASS 4248→4318（+70）、`FAIL=0`；`check-gem5-decode` 694 行与 `check_b7` 零退化；同一 ELF 三平台（chipyard/QEMU/gem5）80 字节逐字节一致，改前二进制 rc=248（ILLI）。补丁 2 份改，`make_patch.py` 重导出。
+  - 执行者：engineer
