@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..2aa2b64
+index 0000000..d55762d
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,699 @@
+@@ -0,0 +1,681 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -443,20 +443,23 @@ index 0000000..2aa2b64
 +    }
 +}
 +
-+/* ── LR/SC reservation helpers (QEMU-067t; SimRISC-11 §4.2, ADR-0034 D6) ──
++/* ── LR/SC reservation helpers (QEMU-067t; SimRISC-12 §1「保留机制」,
++ *    contract-isa §14.2, ADR-0034 D6; ISS-435 user ruling 2026-11-14) ──
 + *
-+ * The reservation is per guest thread and its granularity is the exact
-+ * naturally aligned 8-byte word that contains the `lr` address (ADR-0034 D6
-+ * leaves the granularity to the platform; this is the strictest one and it is
-+ * what makes the guest-visible "another hart wrote the word => sc fails"
-+ * rule exact).  `sc` re-checks the whole word with one host CAS, so a
-+ * concurrent write by another hart either lands before the CAS (value differs
-+ * => sc fails) or after it (reservation already consumed => the other hart's
-+ * later sc fails).  No torn or lost update is possible.
++ * The reservation is per guest thread ("hart") and its key is the **exact
++ * address observed by `lr` plus the access width** (`.b`/`.w`/`.t`/`.o`).
++ * `sc` succeeds iff the reservation is still held and both keys match.
++ * The memory value is deliberately not part of the key: per spec a store by
++ * another hart only clears the reservation when it targets the same exact
++ * address *and* the same access width, and no same-hart store clears it at
++ * all -- so overwriting another byte of the same 8-byte word, or writing the
++ * same address with a different width, must not make `sc` fail.
++ * Cleared by: another `lr` (same hart), every `sc` (success or failure), and
++ * exception/interrupt entry (see dadao_cpu_do_interrupt).
 + */
 +
 +/* Runtime MALIGN check for lr/sc: raise MALIGN unless `addr` is naturally
-+ * aligned for `width` bytes (SimRISC-11 §4.2 + user ruling 2026-10-21 「甲」:
++ * aligned for `width` bytes (SimRISC-12 §1 + user ruling 2026-10-21 「甲」:
 + * .b=1 / .w=2 / .t=4 / .o=8).  The aligned path continues in the same TB. */
 +static void gen_check_align_malign(DisasContext *ctx, TCGv_i64 addr, int width)
 +{
@@ -474,30 +477,29 @@ index 0000000..2aa2b64
 +    gen_set_label(label_ok);
 +}
 +
-+/* Big-endian shift of the addressed bytes inside the 8-byte word:
-+ * shift = (8 - k - width) * 8 with k = addr & 7 (ADR-0034 D6; k is runtime --
-+ * .t may legally live at addr & 7 == 4, .w/.b at any even/any offset). */
-+static TCGv_i64 gen_be_shift(TCGv_i64 addr, int width)
++/* Size + natural-alignment MemOp for an `lr`/`sc` access of `width` bytes.
++ * `lr` zero-extends the loaded value; the same op serves `sc`'s store (a
++ * store ignores the unsignedness bits). */
++static MemOp lrsc_memop(int width)
 +{
-+    TCGv_i64 k = tcg_temp_new_i64();
-+    TCGv_i64 shift = tcg_temp_new_i64();
-+
-+    tcg_gen_andi_i64(k, addr, 7);
-+    tcg_gen_shli_i64(k, k, 3);                  /* k * 8 */
-+    tcg_gen_subfi_i64(shift, (8 - width) * 8, k);
-+    return shift;
++    switch (width) {
++    case 1:
++        return MO_UB;
++    case 2:
++        return MO_BEUW | MO_ALIGN_2;
++    case 4:
++        return MO_BEUL | MO_ALIGN_4;
++    default:
++        return MO_BEUQ | MO_ALIGN_8;
++    }
 +}
 +
-+static uint64_t be_width_mask(int width)
-+{
-+    return width >= 8 ? ~0ULL : (1ULL << (width * 8)) - 1;
-+}
-+
-+/* lr.<width>: read + set the reservation.  hb (rdHB) must be rd0 => ILLI.
-+ * The loaded value is zero-extended to 64 bits (LLVM-121t's lr semantics). */
++/* lr.<width>: read + set the reservation for (exact addr, width).  hb
++ * (rdHB) must be rd0 => ILLI.  The loaded value is zero-extended to 64 bits
++ * (LLVM-121t's lr semantics). */
 +static bool gen_lr(DisasContext *ctx, arg_misc *a, int width)
 +{
-+    TCGv_i64 addr, word_addr, word, val, shift;
++    TCGv_i64 addr, val;
 +
 +    if (a->hb != 0) {
 +        gen_exception_illegal(ctx);
@@ -508,35 +510,28 @@ index 0000000..2aa2b64
 +    tcg_gen_andi_i64(addr, addr, 0x0000FFFFFFFFFFFFULL);
 +    gen_check_align_malign(ctx, addr, width);
 +
-+    word_addr = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(word_addr, addr, ~(uint64_t)7);
-+    word = tcg_temp_new_i64();
-+    tcg_gen_qemu_ld_i64(word, word_addr, ctx->memidx, MO_BEUQ | MO_ALIGN_8);
-+
 +    val = tcg_temp_new_i64();
-+    shift = gen_be_shift(addr, width);
-+    tcg_gen_shr_i64(val, word, shift);
-+    if (width < 8) {
-+        tcg_gen_andi_i64(val, val, be_width_mask(width));
-+    }
++    tcg_gen_qemu_ld_i64(val, addr, ctx->memidx, lrsc_memop(width));
 +    store_rd(a->hc, val);
 +
-+    tcg_gen_st_i64(word_addr, tcg_env, offsetof(CPUDADAOState, lock_addr));
-+    tcg_gen_st_i64(word, tcg_env, offsetof(CPUDADAOState, lock_val));
++    tcg_gen_st_i64(addr, tcg_env, offsetof(CPUDADAOState, lock_addr));
++    tcg_gen_st_i32(tcg_constant_i32(width), tcg_env,
++                   offsetof(CPUDADAOState, lock_width));
 +    tcg_gen_st_i32(tcg_constant_i32(1), tcg_env,
 +                   offsetof(CPUDADAOState, lock_valid));
 +    return true;
 +}
 +
 +/* sc.<width>: conditional store.  Succeeds iff the reservation is held for
-+ * this word and its value is unchanged; the whole word is replaced with
-+ * merge(word, val, width, k) by a single 8-byte host CAS.  rdHB = 0 on
-+ * success, 1 on failure; the reservation is cleared on BOTH paths. */
++ * this exact (addr, width) key -- the memory value is not compared.  On
++ * success the `width`-byte value is stored at `addr`; on failure memory is
++ * untouched.  rdHB = 0 on success, 1 on failure; the reservation is cleared
++ * on BOTH paths. */
 +static bool gen_sc(DisasContext *ctx, arg_misc *a, int width)
 +{
 +    TCGLabel *label_fail, *label_done;
-+    TCGv_i32 valid;
-+    TCGv_i64 addr, word_addr, shift, mask, expected, val, new, ret, flag;
++    TCGv_i32 valid, lock_width;
++    TCGv_i64 addr, val, flag;
 +    TCGv_i64 lock_addr;
 +
 +    /* rdHB is the success/failure result; discarding it is illegal
@@ -550,42 +545,29 @@ index 0000000..2aa2b64
 +    addr = load_rb(ctx, a->hd);
 +    tcg_gen_andi_i64(addr, addr, 0x0000FFFFFFFFFFFFULL);
 +    /* Alignment is checked before anything else: a misaligned sc faults with
-+     * MALIGN whether or not a reservation is held (SimRISC-11 §4.2). */
++     * MALIGN whether or not a reservation is held (SimRISC-12 §1). */
 +    gen_check_align_malign(ctx, addr, width);
-+
-+    word_addr = tcg_temp_new_i64();
-+    tcg_gen_andi_i64(word_addr, addr, ~(uint64_t)7);
-+    shift = gen_be_shift(addr, width);
 +
 +    label_fail = gen_new_label();
 +    label_done = gen_new_label();
 +    flag = tcg_temp_new_i64();
 +
-+    /* Reservation must be held for this very word. */
++    /* Reservation must be held for this exact address and access width. */
 +    valid = tcg_temp_new_i32();
 +    tcg_gen_ld_i32(valid, tcg_env, offsetof(CPUDADAOState, lock_valid));
 +    tcg_gen_brcondi_i32(TCG_COND_EQ, valid, 0, label_fail);
 +    lock_addr = tcg_temp_new_i64();
 +    tcg_gen_ld_i64(lock_addr, tcg_env,
 +                   offsetof(CPUDADAOState, lock_addr));
-+    tcg_gen_brcond_i64(TCG_COND_NE, lock_addr, word_addr, label_fail);
++    tcg_gen_brcond_i64(TCG_COND_NE, lock_addr, addr, label_fail);
++    lock_width = tcg_temp_new_i32();
++    tcg_gen_ld_i32(lock_width, tcg_env,
++                   offsetof(CPUDADAOState, lock_width));
++    tcg_gen_brcondi_i32(TCG_COND_NE, lock_width, width, label_fail);
 +
-+    /* new = (old & ~(mask << shift)) | ((val & mask) << shift) */
 +    val = load_rd(a->hc);
-+    tcg_gen_and_i64(val, val, tcg_constant_i64(be_width_mask(width)));
-+    tcg_gen_shl_i64(val, val, shift);
-+    mask = tcg_temp_new_i64();
-+    tcg_gen_shl_i64(mask, tcg_constant_i64(be_width_mask(width)), shift);
-+    expected = tcg_temp_new_i64();
-+    tcg_gen_ld_i64(expected, tcg_env, offsetof(CPUDADAOState, lock_val));
-+    new = tcg_temp_new_i64();
-+    tcg_gen_andc_i64(new, expected, mask);
-+    tcg_gen_or_i64(new, new, val);
-+
-+    ret = tcg_temp_new_i64();
-+    tcg_gen_atomic_cmpxchg_i64(ret, word_addr, expected, new,
-+                               ctx->memidx, MO_BEUQ | MO_ALIGN_8);
-+    tcg_gen_setcond_i64(TCG_COND_NE, flag, ret, expected);
++    tcg_gen_qemu_st_i64(val, addr, ctx->memidx, lrsc_memop(width));
++    tcg_gen_movi_i64(flag, 0);
 +    tcg_gen_br(label_done);
 +
 +    gen_set_label(label_fail);

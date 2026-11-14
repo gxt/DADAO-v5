@@ -648,3 +648,13 @@
   closed_in: M13
   resolved_by: 默认并行度改「全量核 − 2」（picolibc_tests.py / run_asm_suite.py；Makefile 分 JOBS=32 构建 / TEST_JOBS=nproc-2 测试）
   title: "【P3】跑批脚本的默认并行度与规范不符：`tools/testcases/picolibc_tests.py` 的 `DEFAULT_JOBS = int(os.environ.get('JOBS', '8'))` **写死 8**，而 `AGENTS.md` 规定 `--jobs` = 核数/2（主控机 64 核 ⇒ 32、节点 40 核 ⇒ 20）。后果：不显式传 `--jobs` 时只跑满 1/8 核（`m12-chipyard-016` 实测：64 核机上 load 21/64、每个 chipyard sim 仅 25 MB RSS / 单核 100% ⇒ 无资源理由）。同类风险：其它 runner 若也有写死默认值须一并核。修法：默认改为 `max(1, os.cpu_count()//2)` 并保留 `JOBS` 覆盖；**不**在未核清的场景下改成 `nproc`（全核）。"
+- id: ISS-440
+  scope:
+  - qemu
+  - chipyard
+  - gem5
+  - spec
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`lr`/`sc` 的「另一 hart 对同一精确地址+相同宽度 store ⇒ 清保留」**三平台均无实现路径**：`m13-qemu-014` 删掉整字值 CAS 后，QEMU 只剩「记录键 + 另一条 lr/异常/sc 自身」三种清除；旧实现靠整字值变化间接覆盖了「同址写」这一半（但并不精确）；chipyard 同样只按 `resvValid/resvAddr/resvWidth` 判、无 store 侧失效钩子。单 hart（`WumingTinyConfig`）无观测载体，故不阻断当前里程碑；**上多 hart 之前必须补**：store 提交路径按 `(PA, 宽度)` 失效匹配的保留标记（或引入一致性事件），并补多 hart 用例。评审时请连带判断是否需要 ADR（跨三平台 + 语义固化）。"
