@@ -10,9 +10,9 @@
 
 ## 1. 范围与术语
 
-- **适用范围**：DADAO M1 的汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。
+- **适用范围**：DADAO-v5 的汇编语言——词法、记号、指令书写、指导符、选项、诊断、往返。
 - **指令集权威**：本规范**只规定书写形式**。
-- **格式类（format）**：M1 格式类——`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii` `crrr` `ciii`。其中 `crrr`（`cfx2rd`/`cfx2rc`）与 `ciii`（`trap`/`escape`/`fence`）属特权 cfx。
+- **格式类（format）**：`rrrr` `rrri` `rrii` `riii` `iiii` `rwii` `orrr` `orri` `oiii` `crrr` `ciii`。其中 `crrr`（`cfx2rd`/`cfx2rc`）与 `ciii`（`trap`/`escape`/`fence`）属特权 cfx。
 - **术语**：**地址表达式**、**寄存器组**、**条件寄存器**、**地址立即数（字节）**——见 §3/§4/§2.4。
 
 ---
@@ -291,7 +291,7 @@ sub.so  {rd0, rd3}, rd0, rd4    @@ 旧 `neg.o`（64 位取负，双目的写回 
 
 ## 13. cfx 别名约定
 
-> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）。**别名表**为机械生成的**投影**，**不属于**本规范正文。cfx 中 `cfx2rd`/`cfx2rc`（`crrr`）与 `trap`/`escape`（`ciii`）为 `scope: m1`。本节约定随 M2 落地。
+> 本节承载 cfx 系列别名的**书写约定**（规范正文："怎么写"）。**别名表**为机械生成的**投影**，**不属于**本规范正文。cfx 中 `cfx2rd`/`cfx2rc`（`crrr`）与 `trap`/`escape`（`ciii`）属特权 cfx 格式。本节约定随实现落地。
 
 ### 13.1 归属与形态（D1/D2）
 - cfx 别名属**汇编规范**：由汇编器内置**符号表**解析，**不引入** cpp 头文件/宏。
@@ -403,7 +403,7 @@ escape cfx_smon, [excp_cause_ip, 4]          @@ cfxha 写作标量别名
 
 ### 0.2.1（2026-09-29）
 
-- cfx 系列记法约定；`swym` 旧编码残留修复；`fence` 移出 M1；文档陈旧引用小修。
+- cfx 系列记法约定；`swym` 旧编码残留修复；`fence` 已移出本机指令集；文档陈旧引用小修。
 
 ### 0.2.0（2026-09-28）
 

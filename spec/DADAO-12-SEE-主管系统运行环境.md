@@ -512,7 +512,7 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 
 - `cfx_ptw_tlb_control` 的三个维度互相独立：操作（`[1:0]`）、地址范围（`[3:2]`）、ASID（`bit4` = `ASID_ANY`，`1` = 所有 ASID，`0` = 匹配 `cfx_ptw_tlb_asid`）。
 - **判序**：先判操作（`[1:0]`），再判地址范围与操作数。
-  - `00 = none`：**无条件 no-op**——不报异常，且不检查地址范围编码与 `size`（`scope = 11` 或 `range` 且 `size = 0` 在该操作下同样不报异常）；`ASID_ANY`/start/size 均被忽略。
+  - `00 = none`：**无条件 no-op**——不报异常，且不检查地址范围编码与 `size`（`地址范围 = 11` 或 `range` 且 `size = 0` 在该操作下同样不报异常）；`ASID_ANY`/start/size 均被忽略。
   - `01 = clean`：回写 A/D，保留条目。`10 = invalid`：只删除条目，不回写。`11 = flush`：回写 A/D 后删除条目；回写失败时**不删除该条目**，按当前运行模式 monitor 的 `CFXMEM` 处理（`cause_info` = PTE 物理地址）。这三种操作才校验地址范围编码。
 - 地址范围（仅 `clean`/`invalid`/`flush` 生效）：`00 = all` 忽略 start/size；`01 = VA` 只匹配包含 `tlb_addr_start` 的条目（忽略 size）；`10 = range` 匹配与 `[start, start+size)` 相交的条目；`11 = reserved` 或 `range` 且 `size = 0` ⇒ `CFXREG`（非法操作数）。
 - ASID 维度与 `G`：`ASID_ANY = 1` 时包含 `G = 1` 的条目；`ASID_ANY = 0` 时只处理 `G = 0` 且 ASID 匹配的条目，**不碰 `G` 条目**。
@@ -958,7 +958,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - 两级页表：L1/L2 均 64 KiB、8192 项；`VA[41:29]`/`VA[28:16]` 选索引、`VA[15:0]` 为页内偏移；超页 512 MiB、普通页 64 KiB，PA 56 位。
 - 页访问权限：HSJU 掩码 + R/W/X 正交检查；异常优先级为「页缺失 → 小页缺失 → HSJU → R/W/X」；页表步进与 TLB 命中异常都进入 `cfx_ptw`。
 - PTE `bit4` 由保留改为 **Global（`G`）**：叶子 `G=1` 为全局页、TLB 中跨 ASID 复用；非叶子 `G` 忽略。
-- TLB 并入 `cfx_ptw`：删除独立 `cfx_tlb`（`cfxha 5` 未分配）与 `tlb_exist`/`tlb_enable`；16 位 ASID（`cfx_ptw_tlb_asid`）；`cfx_ptw_tlb_control`（`op/scope/ASID_ANY` 正交）+ start/size 失效接口；写 PTBR/ASID/使能均不隐含失效。
+- TLB 并入 `cfx_ptw`：删除独立 `cfx_tlb`（`cfxha 5` 未分配）与 `tlb_exist`/`tlb_enable`；16 位 ASID（`cfx_ptw_tlb_asid`）；`cfx_ptw_tlb_control`（`op/地址范围/ASID_ANY` 正交）+ start/size 失效接口；写 PTBR/ASID/使能均不隐含失效。
 - A/D 由硬件在 TLB 条目中维护：填充不产生回写，读/取指置 `A`、写置 `A`/`D`，`CLEAN`/`FLUSH`/替换时原子 OR 回写，`INVALID` 不写回；回写失败报 `cfx_ptw` 的 `PTWERR`（`1 << 7`，`cause_info` = PTE 物理地址）。
 - DMA 与 cfx 访问权限不在本版本变更范围内。
 - 正文术语统一：地址空间分区一律写作 `addr[47:42]`（地址高 6 位），不再使用讨论期简写。

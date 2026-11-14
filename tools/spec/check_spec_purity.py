@@ -36,7 +36,7 @@ SPEC = ROOT / "spec"
 
 # 通用规则：所有 spec 分册都适用。
 BANNED: list[tuple[str, re.Pattern[str]]] = [
-    ("范围标注 scope", re.compile(r"\bscope\b(?!\s*[=/])")),
+    ("scope（项目范围标注 / 非 ISA 用语）", re.compile(r"\bscope\b")),
     ("ADR 指针", re.compile(r"\bADR-\d{4}\b")),
     ("ISS 号", re.compile(r"\bISS-\d+\b")),
     ("任务号", re.compile(
@@ -54,7 +54,7 @@ BANNED: list[tuple[str, re.Pattern[str]]] = [
 # 仅 `SimRISC-*` 适用的规则：其它分册里 `scope` 是 ISA 字段名（`scope=all` / `scope: fp`），
 # `machine-v5` 是册名、`M1`/`M2` 是启动模型编号——它们不是项目痕迹，不该被误杀。
 SIMRISC_ONLY: list[tuple[str, re.Pattern[str]]] = [
-    ("范围标注 scope", re.compile(r"\bscope\b(?!\s*[=/])")),
+    ("scope（项目范围标注 / 非 ISA 用语）", re.compile(r"\bscope\b")),
     ("项目代号 v5", re.compile(r"\bv5\b")),
     ("里程碑号", re.compile(r"(?<![A-Za-z0-9])M[0-9]{1,2}(?![0-9])")),
 ]

@@ -61,7 +61,7 @@ br.nz {rd2}?, [rb0, overflow_handler] @@ 不相等 → 32-bit 溢出
 @@ 进程切换示例：先按旧 ASID 失效其全部非全局条目（写 ASID 不隐含失效）
 set.rd   rd2, old_asid
 cfx2rc  cfx_ptw_tlb_asid, rd2
-set.rd   rd4, 0x02                 @@ op=invalid(10)、scope=all(00)、ASID_ANY=0（不碰全局页）
+set.rd   rd4, 0x02                 @@ op=invalid(10)、地址范围=all(00)、ASID_ANY=0（不碰全局页）
 cfx2rc  cfx_ptw_tlb_control, rd4
 @@ 再切到新 ASID（全局页跨 ASID 保留）
 set.rd   rd2, new_asid
@@ -99,7 +99,7 @@ Dadao中的octa是64位，即8字节，而gas中的.octa定义的数据是16字�
 
 ### 0.9.4-rc（未发布）
 
-- §3 地址空间布局按单 PTBR + 16 位 ASID 收口：删除「32 个 PTBR / 按 PTBR 划分 TLB 集合」表述，进程切换示例改用 `cfx_ptw_tlb_asid` 与 `cfx_ptw_tlb_control`（op/scope/`ASID_ANY`）；全局页（PTE `G = 1`）跨 ASID 保留。
+- §3 地址空间布局按单 PTBR + 16 位 ASID 收口：删除「32 个 PTBR / 按 PTBR 划分 TLB 集合」表述，进程切换示例改用 `cfx_ptw_tlb_asid` 与 `cfx_ptw_tlb_control`（`op`/地址范围/`ASID_ANY`）；全局页（PTE `G = 1`）跨 ASID 保留。
 
 ### 0.9.3（2026-10-26）
 

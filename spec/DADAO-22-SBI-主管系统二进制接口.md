@@ -217,7 +217,7 @@ TLB 并入 `cfx_ptw`（DADAO-12 §4.5），没有独立的 TLB 核芯功能扩�
 | 12 | 2 | cfx_ptw_tlb_addr_start | 失效操作的起始虚拟地址 |
 | 12 | 3 | cfx_ptw_tlb_addr_size | 失效操作的地址范围大小（字节） |
 
-- 三个维度正交，匹配条件 = `(ASID 匹配) AND (地址匹配)`：`all` 忽略 start/size；`VA` 只匹配包含 start 的条目；`range` 匹配与 `[start, start+size)` 相交的条目；`scope = 11`，或 `range` 且 `size = 0` ⇒ `CFXREG`（**仅** `clean`/`invalid`/`flush`；`op = none` 优先按 no-op，不报异常）。
+- 三个维度正交，匹配条件 = `(ASID 匹配) AND (地址匹配)`：`all` 忽略 start/size；`VA` 只匹配包含 start 的条目；`range` 匹配与 `[start, start+size)` 相交的条目；`地址范围 = 11`，或 `range` 且 `size = 0` ⇒ `CFXREG`（**仅** `clean`/`invalid`/`flush`；`op = none` 优先按 no-op，不报异常）。
 - ASID 维度：`ASID_ANY = 1` 包含 `G = 1` 的条目；`ASID_ANY = 0` 只处理 `G = 0` 且 ASID 等于 `cfx_ptw_tlb_asid` 的条目（不碰 `G` 条目）。
 - 操作：`clean` 回写 A/D 并保留条目；`invalid` 只删除、不回写；`flush` 回写后删除（回写失败保留条目，按当前运行模式 monitor 的 `CFXMEM` 处理）；`none` 为无操作。
 - 写 PTBR、写 ASID、写 `cfx_ptw_enable` 都不隐含 TLB 失效，软件须显式失效。
@@ -229,11 +229,11 @@ TLB 并入 `cfx_ptw`（DADAO-12 §4.5），没有独立的 TLB 核芯功能扩�
 set.rd   rd2, 7
 cfx2rc  cfx_ptw_tlb_asid, rd2
 
-@@ 失效当前 ASID 的全部非全局条目（op=invalid, scope=all, ASID_ANY=0）
+@@ 失效当前 ASID 的全部非全局条目（op=invalid, 地址范围=all, ASID_ANY=0）
 set.rd   rd2, 0x02
 cfx2rc  cfx_ptw_tlb_control, rd2
 
-@@ 失效 [addr, addr+64K)（op=invalid, scope=range）
+@@ 失效 [addr, addr+64K)（op=invalid, 地址范围=range）
 set.rd   rd2, addr
 cfx2rc  cfx_ptw_tlb_addr_start, rd2
 set.rd   rd2, 65536
@@ -241,7 +241,7 @@ cfx2rc  cfx_ptw_tlb_addr_size, rd2
 set.rd   rd2, 0x0A
 cfx2rc  cfx_ptw_tlb_control, rd2
 
-@@ 回写全部条目（含全局页）的 A/D 并保留条目（op=clean, scope=all, ASID_ANY=1）
+@@ 回写全部条目（含全局页）的 A/D 并保留条目（op=clean, 地址范围=all, ASID_ANY=1）
 set.rd   rd2, 0x11
 cfx2rc  cfx_ptw_tlb_control, rd2
 ```
@@ -747,7 +747,7 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 - 删除保留 `immu18` 值 `0x3FFFF`（最大）的约定：该值落在 semihosting 区 `0x3FF00–0x3FFFF`，作保留值会在译码层被 semihosting 短路。新增 cfx 时新增章节 / 功能码表的要求不变。
 - `cfx_ptw` 改为单 PTBR：`SBI_PTW_SET_PTBR` / `SBI_PTW_GET_PTBR` 去掉 index 入参；删除 `SBI_PTW_SET_PTBR_PERM` / `SBI_PTW_ENABLE_PTBR` / `SBI_PTW_SET_PTHI` / `SBI_PTW_SET_PAHI`，新增 `SBI_PTW_SET_PTW_ENABLE`；功能码按新表重排。
 - `SBI_PTW_SET_PTE` 去掉 `ptbr_code` 入参（页表项格式在后续步骤定义）；PTBR 写/使能不隐含 TLB 失效。
-- TLB 并入 `cfx_ptw`：删除 `cfx_tlb` 章节与 `SBI_TLB_INVALIDATE` 服务，TLB 维护改为直接写 `cfx_ptw` 的 cg12 寄存器（`cfx_ptw_tlb_control`/`_asid`/`_addr_start`/`_addr_size`，op/scope/`ASID_ANY` 正交）；页表异常（含 TLB 命中）统一由 `cfx_ptw` 处理，新增 `PTWERR`（`1 << 7`）的 A/D 回写失败语义。
+- TLB 并入 `cfx_ptw`：删除 `cfx_tlb` 章节与 `SBI_TLB_INVALIDATE` 服务，TLB 维护改为直接写 `cfx_ptw` 的 cg12 寄存器（`cfx_ptw_tlb_control`/`_asid`/`_addr_start`/`_addr_size`，op/地址范围/`ASID_ANY` 正交）；页表异常（含 TLB 命中）统一由 `cfx_ptw` 处理，新增 `PTWERR`（`1 << 7`）的 A/D 回写失败语义。
 - 正文术语统一：地址空间分区一律写作 `addr[47:42]`（地址高 6 位），不再使用讨论期简写。
 - `cfx_pmem` 增加 DMA 的 SBI 封装（启动、状态查询，等待为预留并返回不支持）；SBI 错误码增加「忙，可重试」；不提供 SRAM 查询。
 - `SBI_HART_SET_TIMER` 的 `timeout` 与 `SBI_TIME_GET` 的返回值明确为 64 位绝对时间（单位同 `cfx_time_value`），语义不变。
