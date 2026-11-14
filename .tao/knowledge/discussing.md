@@ -130,6 +130,23 @@
 
 ---
 
+# M14 未决（2026-11-15，待用户裁定）
+
+1. **semihosting 参数块指针传 PA 还是 VA**（`m14-linux-003` 复核独立判定）
+   - 事实①：`contract-semihosting §1–§5` 与 `spec/Machine-v5 §5.1–§5.6` 只写「参数块指针 → `rb16`」，**全无 PA/VA 表述**；
+   - 事实②：QEMU 两条路径**不一致** —— `SYS_WRITEC` 走 `translate_for_debug`（identity，仅 `[0,2GiB)`∪ROM∪SRAM），`SYS_WRITE0` 先 `target_strlen` → `probe_access_flags`（**走页表**）；`SYS_EXIT` 的取参同 identity。开 PTW 后页表窗口与 identity 窗口**不相交**，无一种指针能同时满足两条路径；
+   - 事实③：`translate_for_debug` 注释仍写「DADAO has no MMU」（Vast+PTW 下已过时）；
+   - 现状：K1 自决「传 PA + 只用 `SYS_WRITEC`」，与 `tests/shared/bootrom/k0/probe_kernel.S` 既有口径一致；**`contract-linux-boot §7`「ABI 地址一律 VA」与之有张力**。
+   - **选项**：① spec/契约明写「semihosting 参数指针 = PA」并在 `contract-semihosting` 固定；② 修 QEMU 使 debug/uaccess 统一按 PTW 翻译（并改掉过时注释），spec 保持「VA」。**影响**：卡 K2 之前的语义；两种做法都要同步 picolibc/musl 侧调用约定。
+
+2. **`contract-linux-boot §1`「页表只由 smon 建立」是否扩写**
+   - 事实：K1 已是「smon 建首张表并开 PTW → 内核接管后自建页表并写 PTBR」（`m14-linux-004` 实测 `ptbr 0x0 → 0x570000`）。
+   - **选项**：① 改为「启动期由 smon 建首张表；内核接管后自建页表并写 PTBR」（语义扩写，不推翻原决策）；② 保持原文，把内核自建表视为 K3 范围、K1 只在 `spec` 另记。**建议①**。
+
+3. **`ISS-440`（`lr`/`sc` 的「另一 hart 对同一精确地址+同宽 store ⇒ 清保留」三平台均无实现路径）是否立 ADR**
+   - 现状：`m13-qemu-014` 删整字值 CAS 后，QEMU 只剩「记录键 + 另一条 lr」；chipyard `WumingTinyConfig` 单 hart 无观测载体；gem5 未实现。spec 有语义、实现无路径。
+   - **选项**：① 立 ADR 记「单 hart 机型下该清除事件不可观测、暂不实现，等多 hart 机型」；② 只留在 `issues.yaml` 不立 ADR。**建议①**（属「结论固化 + 跨三实现」，符合 ADR 判据）。
+
 # 待定：机器/版本命名（用户 2026-11-14）
 
 - **现状**：仓库里混用 `Machine-v5-*`（册名/机型前缀）与 `DADAO-v5`（我临时改的），QEMU 机器名是 `dadao-tiny`/`dadao-vast`。
