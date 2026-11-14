@@ -857,6 +857,54 @@
   - system
   level: full
   requires: []
+- id: inst-07-floating-point-045
+  file: inst/07-floating-point/fornd_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-046
+  file: inst/07-floating-point/fosclb_orrr_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-047
+  file: inst/07-floating-point/fosgnj_orrr_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-048
+  file: inst/07-floating-point/fosgnn_orrr_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-049
+  file: inst/07-floating-point/ftrnd_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-050
+  file: inst/07-floating-point/ftsclb_orrr_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-051
+  file: inst/07-floating-point/ftsgnj_orrr_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-052
+  file: inst/07-floating-point/ftsgnn_orrr_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-09-arith-logic-wyde-001
   file: inst/09-arith-logic-wyde/add.sw_orrr_rd.S
   platforms:
