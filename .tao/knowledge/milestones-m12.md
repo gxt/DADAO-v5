@@ -24,13 +24,13 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m12-chipyard-016 | 6–8 h | embench（38）+ picolibc-full 在 chipyard Tiny 上全通（加 chipyard 引擎） |
 | m12-integ-002 | 3–5 h | M12 里程碑核验与归档（逐条核验 + 归档 + 遗留清单） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m12-chipyard-016 | 2026-11-14 15:05 | 6–8 h | embench（38）+ picolibc-full 在 chipyard Tiny 上全通（加 chipyard 引擎） |
 
 ## 已验证
 
