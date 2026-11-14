@@ -4594,7 +4594,7 @@ asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 6, rd5, 0x0000000000000001	1
 asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 7, rd5, 0x0000000000000001	1
 asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 8, rd5, 0x0000000000000001	1
 asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 9, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x474C0083	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	TEST_FAULT_CF1 22, rb3, A0, ILLI, 0x474C0083	1
 asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 1, rd5, 0x0000000000000000	1
 asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 10, rd5, 0x0000000000000000	1
 asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 11, rd5, 0x0000000000000000	1
@@ -4603,7 +4603,12 @@ asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 13, rd5, 0x0000000000000000	
 asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 14, rd5, 0x0000000000000000	1
 asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 15, rd5, 0x0000000000000001	1
 asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 16, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 17, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 18, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 19, rd5, 0x0000000000000000	1
 asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 2, rd5, 0x0000000000000001	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 20, rd5, 0x0000000000000001	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 21, rd5, 0x0000000000000001	1
 asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 3, rd5, 0x0000000000000000	1
 asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 4, rd5, 0x0000000000000000	1
 asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 5, rd5, 0x0000000000000001	1
