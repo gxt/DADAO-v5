@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
 new file mode 100644
-index 0000000..8c3728c
+index 0000000..9281577
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
-@@ -0,0 +1,726 @@
+@@ -0,0 +1,729 @@
 +// See LICENSE for license details.
 +//
 +// Unit bench for the FP infrastructure (m12-chipyard-011).
@@ -718,6 +718,9 @@ index 0000000..8c3728c
 +  val fcsr = Module(new WumingFcsr)
 +  fcsr.io.writeEn := io.fcsrWrEn
 +  fcsr.io.writeData := io.fcsrWrData
++  // The bench exercises whole-register FCSR writes; the 32-bit window used by
++  // `ld.t`/`ldm.t` is covered on the core (m13-chipyard-001).
++  fcsr.io.writeFlagsOnly := false.B
 +  fcsr.io.fflags := io.fcsrFflags
 +  io.fcsrRead := fcsr.io.read
 +}

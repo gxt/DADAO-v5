@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
 new file mode 100644
-index 0000000..bf72238
+index 0000000..c1ae7de
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
-@@ -0,0 +1,2050 @@
+@@ -0,0 +1,2056 @@
 +// See LICENSE for license details.
 +//
 +// DADAO floating-point infrastructure (m12-chipyard-011).
@@ -2024,11 +2024,17 @@ index 0000000..bf72238
 +  * (everything else keeps its value), and a software write sets the flag field
 +  * outright, which is how the software clears it; the flags raised by FP
 +  * operations accumulate (sticky) until then.
++  *
++  * `writeFlagsOnly` = a single-precision write (`ld.t`/`ldm.t`, which only
++  * touch `[31:0]`, spec/SimRISC-01 §4 + SimRISC-07 §1.3): of the writable
++  * bits only `[4:0]` lies inside the 32-bit window, so the rounding mode
++  * `[33:32]` keeps its value.
 +  */
 +class WumingFcsr extends Module {
 +  val io = IO(new Bundle {
 +    val writeEn = Input(Bool())
 +    val writeData = Input(UInt(64.W))
++    val writeFlagsOnly = Input(Bool())
 +    val fflags = Input(UInt(5.W)) // flags raised by this cycle's FP operation
 +    val read = Output(UInt(64.W))
 +    val mode = Output(UInt(2.W))
@@ -2040,7 +2046,7 @@ index 0000000..bf72238
 +  val flagsReg = RegInit(resetValue(4, 0))
 +
 +  when(io.writeEn) {
-+    modeReg := io.writeData(33, 32)
++    when(!io.writeFlagsOnly) { modeReg := io.writeData(33, 32) }
 +    flagsReg := io.writeData(4, 0)
 +  }.otherwise {
 +    flagsReg := flagsReg | io.fflags

@@ -24,6 +24,13 @@ Groups (one image each, so a failure is localised):
     ``set.w rf`` (only the addressed wyde moves), ``set.w rf0`` (wp2 = rounding
     mode, wp0 = flags, wp1/wp3 write-invalid), ``rd2rf``/``rf2rd`` (with ``rf0``
     on either side) and the ``cs.*`` rf forms.
+``ftwidth``
+    the single-precision write width (m13-chipyard-001): every ft-producing
+    family (``ld.t``/``ldm.t``, arithmetic/FMA, divide/remainder/root, round,
+    scaleB, min/max, int-to-ft conversions, ``fo2ft``, sign injection and the
+    ``ft2ft`` copy) keeps the destination's high 32 bits, while the 64-bit
+    paths (``ld.o``/``ldm.o``, ``fo2fo``, ``rd2rf``/``rf2rd``) stay
+    whole-register.
 ``faults``
     the legality rules the vectors cannot express through results: ``ftcls``
     ``dst_rd0``/``mreg_zero``/range overflow, ``dst_rf0`` for the sign forms and
@@ -49,7 +56,13 @@ ENTRY = sweep.ENTRY
 CODE = ENTRY + 0x1000
 BUF = ENTRY + 0x40000
 EXITBLOCK = ENTRY + 0x50000
-DATA = ENTRY + 0x2000          # scratch data for the rf memory forms
+# Scratch data for the rf memory forms.  It must sit **outside** the program
+# image: the cases store into it at run time, and a store into the tail of the
+# program (the unrolled `SYS_WRITEC` loop) corrupts the print/exit path.  With
+# the old ENTRY+0x2000 offset a group whose code grew past 4 KiB (the ftwidth
+# group did, m13-chipyard-001) silently overwrote its own exit sequence and
+# looped; `build_group` now refuses an image that reaches DATA.
+DATA = ENTRY + 0x30000
 IMAGE_LIMIT = BUF - ENTRY
 
 WR_PTR = sweep.WR_PTR          # rb30
@@ -282,7 +295,9 @@ def cases_sign():
             hd = base[(i + 3) % len(base)]
             out.append({
                 "name": f"sign_ft_{'nn' if invert else 'nj'}_{i}",
-                "setup": load_rf(1, hc) + load_rf(2, hd),
+                # zero the destination's high half: the ft write keeps it, and
+                # the previous fo case wrote all 64 bits (m13-chipyard-001)
+                "setup": load_rf(1, hc) + load_rf(2, hd) + load_rf(3, 0),
                 "exec": [enc_sgn(3, 1, 2, fo=False, invert=invert)],
                 "dumps": [("rf", 3)],
                 "expect": [F.sign_inject(hc, hd, 31, invert)],
@@ -291,7 +306,7 @@ def cases_sign():
             hd = fo_base[(i + 2) % len(fo_base)]
             out.append({
                 "name": f"sign_fo_{'nn' if invert else 'nj'}_{i}",
-                "setup": load_rf(1, hc) + load_rf(2, hd),
+                "setup": load_rf(1, hc) + load_rf(2, hd) + load_rf(3, 0),
                 "exec": [enc_sgn(3, 1, 2, fo=True, invert=invert)],
                 "dumps": [("rf", 3)],
                 "expect": [F.sign_inject(hc, hd, 63, invert)],
@@ -301,7 +316,7 @@ def cases_sign():
     for invert in (False, True):
         out.append({
             "name": f"sign_ft_abs_{'neg' if invert else 'pos'}",
-            "setup": load_rf(1, 0xBF812345),
+            "setup": load_rf(1, 0xBF812345) + load_rf(3, 0),
             "exec": [enc_sgn(3, 1, 0, fo=False, invert=invert)],
             "dumps": [("rf", 3)],
             "expect": [F.sign_inject(0xBF812345, fcsr, 31, invert)],
@@ -334,16 +349,17 @@ def cases_rfmem():
             "dumps": [("mem", DATA), ("rf", 3)],
             "expect": [pattern, pattern],
         })
-    # st.t rf writes four bytes (big-endian at the address) and ld.t rf
-    # sign-extends the tetra into the 64-bit register
+    # st.t rf writes four bytes (big-endian at the address); ld.t rf only
+    # writes the destination's low 32 bits and keeps `[63:32]` (m13-chipyard-001:
+    # no sign/zero extension), so rf3's high half below must survive.
     out.append({
         "name": "rfmem_st_t_ld_t",
         "setup": store_word(DATA, 0) + load_rf(2, 0x1122334480000001) +
-                 sweep.load_rb(4, DATA),
+                 load_rf(3, 0xDEADBEEF00000000) + sweep.load_rb(4, DATA),
         "exec": [enc_mem_rf(False, 4, 2, 4, 0),
                  enc_mem_rf(True, 4, 3, 4, 0)],
         "dumps": [("mem", DATA), ("rf", 3)],
-        "expect": [0x8000000100000000, 0xFFFFFFFF80000001],
+        "expect": [0x8000000100000000, 0xDEADBEEF80000001],
     })
     # ldm.o / stm.o over three registers
     vals = [0x7FF0000000000001, 0xFFF0000000000001, 0x0000000000000001]
@@ -357,20 +373,25 @@ def cases_rfmem():
                   ("rf", 5), ("rf", 6), ("rf", 7)],
         "expect": vals + vals,
     })
-    # ldm.t/stm.t: four bytes per element at base + 4*i
+    # ldm.t/stm.t: four bytes per element at base + 4*i.  Each ldm.t element
+    # only writes its destination's low 32 bits (m13-chipyard-001), so the
+    # high halves seeded below must survive.
     tvals = [0x3F800000, 0xBF800000, 0x7FC00000]
     out.append({
         "name": "rfmem_stm_ldm_t",
         "setup": store_word(DATA + 8, 0) +
                  sum((load_rf(1 + i, v) for i, v in enumerate(tvals)), []) +
+                 load_rf(5, 0xAAAA000000000000) +
+                 load_rf(6, 0xBBBB000000000000) +
+                 load_rf(7, 0xCCCC000000000000) +
                  sweep.load_rb(4, DATA),
         "exec": [enc_mem_rf_multi(False, 4, 1, 4, 0, 3),
                  enc_mem_rf_multi(True, 4, 5, 4, 0, 3)],
         "dumps": [("mem", DATA), ("mem", DATA + 8), ("rf", 5), ("rf", 6),
                   ("rf", 7)],
         "expect": [0x3F800000BF800000, 0x7FC0000000000000,
-                   0x000000003F800000, 0xFFFFFFFFBF800000,
-                   0x000000007FC00000],
+                   0xAAAA00003F800000, 0xBBBB0000BF800000,
+                   0xCCCC00007FC00000],
     })
     # rf0 as a load destination: the FCSR write mask keeps the quiet-NaN bits
     # and the SBZ columns, and takes [33:32] + [4:0] from the loaded word.
@@ -385,21 +406,166 @@ def cases_rfmem():
 
 
 def cases_rf0ldt():
-    """`ld.t rf0`: the tetra carries the mode/flags, `[63:32]` stays and the
-    read-only qNaN(ft) field is preserved (spec/SimRISC-00 §2.3.1).
+    """`ld.t rf0`: only `[4:0]` (accrued flags) changes.  The write is a
+    32-bit ft write, so `[33:32]` (rounding mode) and `[63:32]` keep their
+    values, and inside the window the read-only qNaN(ft) field `[31:22]` and
+    the SBZ `[21:5]` stay too (spec/SimRISC-01 §4 note + SimRISC-00 §2.3.1;
+    m13-chipyard-001).
 
-    QEMU writes the low 32 bits of `rf0` wholesale here (see its
-    `store_rf_tetra_dst`, which documents that it "intentionally overrides the
-    read-only qNaN(ft) field"), so this group is checked against the model but
-    kept out of the QEMU cross-check.
+    QEMU wrote the loaded tetra into `[33:32]`/`[4:0]` wholesale before
+    m13-qemu-013 (see its `store_rf_tetra_dst`), so this group is checked
+    against the model and kept out of the QEMU cross-check until that task
+    lands.
     """
     return [{
         "name": "rf0ldt_ld_t_rf0_mask",
         "setup": store_word(DATA, 0xFFFFFFFFFFFFFFFF) + sweep.load_rb(4, DATA),
         "exec": [enc_mem_rf(True, 4, 0, 4, 0)],
         "dumps": [("rf", 0)],
-        "expect": [0x7FF800037FC0001F],
+        "expect": [0x7FF800007FC0001F],
     }]
+
+
+def cases_ftwidth():
+    """m13-chipyard-001: `ft` results only write the low 32 bits of an rf
+    register; `[63:32]` keeps its value (spec/SimRISC-07 §1.3, and
+    `ld.t`/`ldm.t` per SimRISC-01 §4).  `ft2ft` copies the low 32 bits only;
+    the 64-bit paths (`ld.o`/`ldm.o`, `fo2fo`, `rd2rf`/`rf2rd`) stay
+    whole-register.
+
+    Every case seeds the destination's **high half with a non-zero pattern**
+    first, so the expected word distinguishes "kept" from "zero-filled" and the
+    case does not depend on what an earlier case left in the register.  The
+    `ld.t rf0` case starts from the FCSR reset value: `[33:32]` (rounding mode)
+    is outside the 32-bit window and must stay 0.
+    """
+    HI = 0xDEADBEEF
+    out = []
+
+    def hi(idx, val=HI):
+        """Seed rf[idx] = {val, 0} through rd -> rf (no FP instruction).
+
+        rd15 is the dump scratch, so using it here cannot clobber an operand of
+        the case itself."""
+        return sweep.load_rd(15, (val & 0xFFFFFFFF) << 32) + \
+            [enc_rd2rf(idx, 15, 1)]
+
+    def mem(addr, word):
+        return store_word(addr, word) + sweep.load_rb(4, addr)
+
+    # ---- ld.t / ldm.t ---------------------------------------------------
+    out.append(_cvt_case(
+        "ftwidth_ldt_rf0_ffffffff",
+        fcsr_clear() + mem(DATA, 0xFFFFFFFFFFFFFFFF),
+        [enc_mem_rf(True, 4, 0, 4, 0)], [("rf", 0)],
+        [0x7FF800007FC0001F]))
+    for tag, word, want in (
+            ("ffffffff", 0xFFFFFFFF00000000, 0xDEADBEEFFFFFFFFF),
+            ("7fffffff", 0x7FFFFFFF00000000, 0xDEADBEEF7FFFFFFF),
+            ("zero", 0x0000000000000000, 0xDEADBEEF00000000)):
+        out.append(_cvt_case(
+            f"ftwidth_ldt_rf5_{tag}",
+            hi(5) + mem(DATA, word),
+            [enc_mem_rf(True, 4, 5, 4, 0)], [("rf", 5)], [want]))
+    out.append(_cvt_case(
+        "ftwidth_ldmt_rf0_rf1",
+        fcsr_clear() + hi(1, 0xCAFEBABE) + mem(DATA, 0xFFFFFFFF00000000) +
+        sweep.load_rd(5, 0),
+        [enc_mem_rf_multi(True, 4, 0, 4, 5, 2)],
+        [("rf", 0), ("rf", 1)],
+        [0x7FF800007FC0001F, 0xCAFEBABE00000000]))
+
+    # ---- every ft-producing arithmetic family ---------------------------
+    def ftcase(name, setup, exec_words, dst, value):
+        out.append(_cvt_case(
+            name, arith_mode_setup(0) + setup + hi(dst),
+            exec_words, [("rf", dst)], [((HI << 32) | value) & (2**64 - 1)]))
+
+    ftcase("ftwidth_ftadd", load_rf(1, 0x3F800000) + load_rf(2, 0x40000000),
+           [enc_arith("ftadd", 3, 1, 2)], 3, 0x40400000)
+    ftcase("ftwidth_ftsub", load_rf(1, 0x40000000) + load_rf(2, 0x3F800000),
+           [enc_arith("ftsub", 3, 1, 2)], 3, 0x3F800000)
+    ftcase("ftwidth_ftmul", load_rf(1, 0x3F800000) + load_rf(2, 0x40000000),
+           [enc_arith("ftmul", 3, 1, 2)], 3, 0x40000000)
+    ftcase("ftwidth_ftfma",
+           load_rf(1, 0x3F800000) + load_rf(2, 0x40000000) +
+           load_rf(3, 0x40400000),
+           [enc_fma("ftfma", 4, 1, 2, 3)], 4, 0x40A00000)
+    ftcase("ftwidth_ftdiv", load_rf(1, 0x3F800000) + load_rf(2, 0x40000000),
+           [enc_arith("ftdiv", 3, 1, 2)], 3, 0x3F000000)
+    ftcase("ftwidth_ftrem", load_rf(1, 0x40A00000) + load_rf(2, 0x40000000),
+           [enc_arith("ftrem", 3, 1, 2)], 3, 0x3F800000)
+    ftcase("ftwidth_ftroot", load_rf(1, 0x40800000),
+           [enc_root("ftroot", 3, 1, 2)], 3, 0x40000000)
+    ftcase("ftwidth_ftrnd", load_rf(1, 0x40200000),
+           [enc_rnd("ftrnd", 3, 1, 0x04)], 3, 0x40000000)
+    ftcase("ftwidth_ftsclb", load_rf(1, 0x3FC00000) + sweep.load_rd(3, 1),
+           [enc_sclb("ftsclb", 4, 1, 3)], 4, 0x40400000)
+    ftcase("ftwidth_ftmin", load_rf(1, 0x3F800000) + load_rf(2, 0x40000000),
+           [enc_arith("ftmin", 3, 1, 2)], 3, 0x3F800000)
+    ftcase("ftwidth_ftmax", load_rf(1, 0x3F800000) + load_rf(2, 0x40000000),
+           [enc_arith("ftmax", 3, 1, 2)], 3, 0x40000000)
+    ftcase("ftwidth_it2ft", sweep.load_rd(2, 0x1000001),
+           [enc_cvt("it2ft", 4, 2, 0x01)], 4, 0x4B800000)
+    ftcase("ftwidth_ut2ft", sweep.load_rd(2, 0x1000001),
+           [enc_cvt("ut2ft", 4, 2, 0x01)], 4, 0x4B800000)
+    ftcase("ftwidth_io2ft", sweep.load_rd(2, 0x1000001),
+           [enc_cvt("io2ft", 4, 2, 0x01)], 4, 0x4B800000)
+    ftcase("ftwidth_fo2ft", load_rf(1, 0x3FF0000000000001),
+           [enc_cvt("fo2ft", 4, 1, 0x01)], 4, 0x3F800000)
+    ftcase("ftwidth_ftsgnj",
+           load_rf(1, 0xBF812345) + load_rf(2, 0x3F800000),
+           [enc_sgn(3, 1, 2)], 3, 0x3F812345)
+    ftcase("ftwidth_ftsgnn",
+           load_rf(1, 0xBF812345) + load_rf(2, 0x3F800000),
+           [enc_sgn(3, 1, 2, invert=True)], 3, 0xBF812345)
+
+    # ---- copy forms ------------------------------------------------------
+    # `ft2ft` moves the low 32 bits only: every destination keeps the pattern
+    # seeded above (three-element window, so the block loop is covered too).
+    out.append(_cvt_case(
+        "ftwidth_ft2ft_block",
+        hi(8, 0x11111111) + hi(9, 0x22222222) + hi(10, 0x33333333) +
+        load_rf(1, 0x7FF800007FC00000) + load_rf(2, 0x8000000000000001) +
+        load_rf(3, 0x3F800000DEADBEEF),
+        [enc_cvt_ff("ft2ft", 8, 1, 3)],
+        [("rf", 8), ("rf", 9), ("rf", 10)],
+        [0x111111117FC00000, 0x2222222200000001, 0x33333333DEADBEEF]))
+    out.append(_cvt_case(
+        "ftwidth_ft2ft_single",
+        hi(8, 0x11111111) + load_rf(1, 0x7FF800007FC00000),
+        [enc_cvt_ff("ft2ft", 8, 1, 1)], [("rf", 8)], [0x111111117FC00000]))
+
+    # ---- the 64-bit paths are whole-register (the reverse control) --------
+    out.append(_cvt_case(
+        "ftwidth_ldo_full",
+        hi(5, 0x11111111) + mem(DATA, 0x0123456789ABCDEF),
+        [enc_mem_rf(True, 8, 5, 4, 0)], [("rf", 5)],
+        [0x0123456789ABCDEF]))
+    out.append(_cvt_case(
+        "ftwidth_ldmo_full",
+        hi(5, 0x11111111) + hi(6, 0x22222222) +
+        store_word(DATA, 0x7FF0000000000001) +
+        store_word(DATA + 8, 0x8000000000000001) +
+        sweep.load_rd(7, 0) + sweep.load_rb(4, DATA),
+        [enc_mem_rf_multi(True, 8, 5, 4, 7, 2)],
+        [("rf", 5), ("rf", 6)],
+        [0x7FF0000000000001, 0x8000000000000001]))
+    out.append(_cvt_case(
+        "ftwidth_fo2fo_full",
+        hi(9, 0x11111111) + load_rf(1, 0xDEADBEEFCAFEBABE),
+        [enc_cvt_ff("fo2fo", 9, 1, 1)], [("rf", 9)],
+        [0xDEADBEEFCAFEBABE]))
+    out.append(_cvt_case(
+        "ftwidth_rd2rf_full",
+        hi(5, 0x11111111) + sweep.load_rd(2, 0x0123456789ABCDEF),
+        [enc_rd2rf(5, 2, 1)], [("rf", 5)], [0x0123456789ABCDEF]))
+    out.append(_cvt_case(
+        "ftwidth_rf2rd_full",
+        sweep.load_rd(2, 0xDEADBEEFCAFEBABE),
+        [enc_rd2rf(5, 2, 1), enc_rf2rd(6, 5, 1)], [("rd", 6)],
+        [0xDEADBEEFCAFEBABE]))
+    return out
 
 
 def fcsr_clear():
@@ -644,17 +810,31 @@ def cases_cvt_ff():
                 [("rf", 4), ("rf", 0)],
                 [F.fn_from_recfn(F.FT[0], F.FT[1], rec), fcsr_after(imm6, flags)]))
     vals = [0x7FF800007FC00000, 0x8000000000000001, 0x3F800000DEADBEEF]
-    for mn in ("ft2ft", "fo2fo"):
-        out.append(_cvt_case(
-            f"{mn}_block", fcsr_clear() +
-            sum((load_rf(1 + i, v) for i, v in enumerate(vals)), []),
-            [enc_cvt_ff(mn, 8, 1, 3)],
-            [("rf", 8), ("rf", 9), ("rf", 10), ("rf", 0)],
-            vals + [FCSR_BASE]))
+    # `ft2ft` moves the low 32 bits only (m13-chipyard-001): the destinations
+    # below are seeded with distinct high halves that must survive, while
+    # `fo2fo` stays a whole-register copy.
     out.append(_cvt_case(
-        "ft2ft_single", fcsr_clear() + load_rf(1, 0x12345678),
+        "ft2ft_block", fcsr_clear() +
+        sum((load_rf(1 + i, v) for i, v in enumerate(vals)), []) +
+        load_rf(8, 0x1111111100000000) + load_rf(9, 0x2222222200000000) +
+        load_rf(10, 0x3333333300000000),
+        [enc_cvt_ff("ft2ft", 8, 1, 3)],
+        [("rf", 8), ("rf", 9), ("rf", 10), ("rf", 0)],
+        [0x111111117FC00000, 0x2222222200000001, 0x33333333DEADBEEF,
+         FCSR_BASE]))
+    out.append(_cvt_case(
+        "fo2fo_block", fcsr_clear() +
+        sum((load_rf(1 + i, v) for i, v in enumerate(vals)), []) +
+        load_rf(8, 0x1111111100000000) + load_rf(9, 0x2222222200000000) +
+        load_rf(10, 0x3333333300000000),
+        [enc_cvt_ff("fo2fo", 8, 1, 3)],
+        [("rf", 8), ("rf", 9), ("rf", 10), ("rf", 0)],
+        vals + [FCSR_BASE]))
+    out.append(_cvt_case(
+        "ft2ft_single", fcsr_clear() + load_rf(1, 0x12345678) +
+        load_rf(2, 0xDEADBEEF00000000),
         [enc_cvt_ff("ft2ft", 2, 1, 1)],
-        [("rf", 2), ("rf", 0)], [0x12345678, FCSR_BASE]))
+        [("rf", 2), ("rf", 0)], [0xDEADBEEF12345678, FCSR_BASE]))
     return out
 
 
@@ -1483,7 +1663,11 @@ def cases_divrem_nan():
         else:
             value, flags = F.rem_exact(ew, sw, a, b)
             word = enc_arith(mn, 3, 1, 2)
-        setup = arith_mode_setup(0) + load_rf(1, a) + load_rf(2, b)
+        # The ft and fo cases share destination rf3; zero the high half so an
+        # ft case's "high half kept" rule does not see the previous fo case's
+        # value (m13-chipyard-001).
+        setup = arith_mode_setup(0) + load_rf(1, a) + load_rf(2, b) + \
+            load_rf(3, 0)
         out.append(_cvt_case(f"divrem_snan_{mn}_{kind}", setup, [word],
                              [("rf", 3), ("rf", 0)],
                              [value, arith_fcsr(0, flags)]))
@@ -1500,7 +1684,7 @@ def cases_divrem_nan():
                 value, flags = F.sqrt_exact(ew, sw, a, mode)
                 out.append(_cvt_case(
                     f"divrem_nan_{mn}_{tag}_{direction}",
-                    arith_mode_setup(mode) + load_rf(1, a),
+                    arith_mode_setup(mode) + load_rf(1, a) + load_rf(3, 0),
                     [enc_root(mn, 3, 1, 2)],
                     [("rf", 3), ("rf", 0)],
                     [value, arith_fcsr(mode, flags)]))
@@ -1540,9 +1724,12 @@ def cases_divrem_special():
         for fo, a, b in ((True, da, db), (False, fa, fb)):
             value, flags = F.div_exact(11 if fo else 8, 53 if fo else 24,
                                        a, b, F.RNE)
+            # ft and fo share rf3: zero the high half so the ft case's "kept"
+            # rule does not inherit the fo case's value.
             out.append(_cvt_case(
                 f"special_{name}_{'fo' if fo else 'ft'}",
-                arith_mode_setup(0) + load_rf(1, a) + load_rf(2, b),
+                arith_mode_setup(0) + load_rf(1, a) + load_rf(2, b) +
+                load_rf(3, 0),
                 [enc_arith("fodiv" if fo else "ftdiv", 3, 1, 2)],
                 [("rf", 3), ("rf", 0)],
                 [value, arith_fcsr(0, flags)]))
@@ -1552,7 +1739,7 @@ def cases_divrem_special():
                                         a, F.RNE)
             out.append(_cvt_case(
                 f"special_{name}_{'fo' if fo else 'ft'}",
-                arith_mode_setup(0) + load_rf(1, a),
+                arith_mode_setup(0) + load_rf(1, a) + load_rf(3, 0),
                 [enc_root("foroot" if fo else "ftroot", 3, 1, 2)],
                 [("rf", 3), ("rf", 0)],
                 [value, arith_fcsr(0, flags)]))
@@ -2062,6 +2249,11 @@ def _rnd_case(mn, is_fo, name, bits, code, rmode=0):
     if exact:
         setup = setup + [enc_set_w_rf(0, 2, rmode)]
     setup = setup + load_rf(1, bits)
+    # `rnd_dyn` interleaves ftrnd and fornd on rf3; zero the high half so the
+    # ft case's "high half kept" rule does not inherit the fo result
+    # (m13-chipyard-001).  rnd_ft/rnd_fo are homogeneous, so this is a no-op
+    # there but keeps every case independent of its predecessor.
+    setup = setup + load_rf(3, 0)
     return {"name": f"rnd_{name}_{code:02x}_rm{rmode}", "setup": setup,
             "exec": [enc_rnd(mn, 3, 1, code)],
             "dumps": [("rf", 3), ("rf", 0)],
@@ -2201,8 +2393,10 @@ def cases_sign_flags():
                  0x7FF0000000000001 if is_fo else 0x7F800001),
             ]
             for i, (pname, hc, hd) in enumerate(pairs):
+                # zero the destination: the ft write keeps its high half, and
+                # the preceding fo case wrote all 64 bits (m13-chipyard-001)
                 setup = fcsr_clear() + load_rf(1, hc & ((1 << 64) - 1)) \
-                    + load_rf(2, hd & ((1 << 64) - 1))
+                    + load_rf(2, hd & ((1 << 64) - 1)) + load_rf(3, 0)
                 want = F.sign_inject(hc, hd, pos, invert)
                 out.append({
                     "name": f"signflag_{mn}_{pname}_{i}",
@@ -2220,6 +2414,8 @@ GROUPS = {
     "rfmem": cases_rfmem,
     "fcsr": cases_fcsr,
     "rf0ldt": cases_rf0ldt,
+    # m13-chipyard-001: ft results only write rf[31:0]
+    "ftwidth": cases_ftwidth,
     "cvt_f2i_ft": cases_cvt_f2i_ft,
     "cvt_f2i_fo": cases_cvt_f2i_fo,
     "cvt_i2f_ft": cases_cvt_i2f_ft,
@@ -2271,11 +2467,18 @@ GROUPS = {
 }
 
 # Groups whose bytes are also compared against QEMU.  `rf0ldt` is excluded: the
-# ld.t-rf0 case asserts the read-only qNaN field, which QEMU deliberately
-# overrides (documented divergence, see `cases_rf0ldt`).  `cmp_nan` is listed
-# because the signalling rule agrees three ways and the quiet rule is the
-# target of m13-qemu-004; until that QEMU-side change lands, the four
-# quiet+sNaN cases differ in bit0 of rf0 only (value bytes still agree).
+# ld.t-rf0 case asserts that the rounding mode survives a 32-bit ft write; the
+# QEMU side of the write width lands with `m13-qemu-013`, so both groups are kept
+# out of the cross-check while that task is in flight.
+# `ftwidth` is the m13-chipyard-001 statement of the single-precision write
+# width: every one of its ft destinations asserts `[63:32]` survives.  Measured
+# on the installed QEMU (2026-11-14): all cases agree except the two ft
+# sign-injection cells (`ftwidth_ftsgnj`/`ftsgnn`), where QEMU's `gen_fp_sign`
+# still calls `store_rf` (a whole 64-bit write) instead of `store_rf_tetra`;
+# that gap is reported to `m13-qemu-013`.
+# `cmp_nan` is listed because the signalling rule agrees three ways and the
+# quiet rule is the target of m13-qemu-004; until that QEMU-side change lands,
+# the four quiet+sNaN cases differ in bit0 of rf0 only (value bytes still agree).
 #
 # NaN-result payload/sign (m12-chipyard-030): this core now returns the
 # canonical quiet NaN for every NaN result (sign 0, payload 0), while QEMU's
@@ -2327,10 +2530,17 @@ def build_group(cases):
                          "dumps": [f"{k}{n}" if k != "mem" else f"mem:0x{n:x}"
                                    for k, n in case["dumps"]]})
     nbytes = len(expected)
-    if len(words) * 4 > IMAGE_LIMIT:
-        raise SystemExit(f"fp_sweep: image too large ({len(words) * 4} B)")
-    words += asm_print_buffer(nbytes)
-    words += asm_sys_exit(0)
+    tail = asm_print_buffer(nbytes) + asm_sys_exit(0)
+    total = (len(words) + len(tail)) * 4
+    if total > IMAGE_LIMIT:
+        raise SystemExit(f"fp_sweep: image too large ({total} B)")
+    # The cases memory-seed DATA at run time; an image that reaches DATA would
+    # overwrite its own print/exit tail (see the DATA comment above).
+    if total > DATA - ENTRY:
+        raise SystemExit(
+            f"fp_sweep: program image ({total} B) would overlap the "
+            f"scratch DATA area at +0x{DATA - ENTRY:x}")
+    words += tail
     return words, bytes(expected), manifest, nbytes
 
 

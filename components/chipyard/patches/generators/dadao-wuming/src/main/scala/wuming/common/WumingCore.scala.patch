@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..5652d15
+index 0000000..c27bbbc
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,1526 @@
+@@ -0,0 +1,1532 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -757,6 +757,12 @@ index 0000000..5652d15
 +                      Mux(d.isFpRnd || d.isFpSclb, fpMisc.io.out,
 +                        Mux(fpSlowW0, fpSlow.io.out,
 +                          Mux(d.isCs, csData, w0LoopData)))))))))))))
++
++  // m13-chipyard-001: an ft result only writes the destination's low 32 bits
++  // (spec/SimRISC-07 §1.3, `ld.t`/`ldm.t` per SimRISC-01 §4).  The decoder
++  // marks every such write (`w0Ft`); the register file keeps `[63:32]` and,
++  // on rf0, leaves the rounding mode alone.
++  rf.io.w0Ft := d.w0Ft
 +
 +  // rrrr: w0 = high half (w0Sel = 1), w1 = low half (m12-005 shape).
 +  rf.io.w1En := (state === sExec && !execFault && !cfxFault && !aluIsSlow && d.w1En) ||

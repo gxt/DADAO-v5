@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 new file mode 100644
-index 0000000..36ff550
+index 0000000..91a268f
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
-@@ -0,0 +1,1187 @@
+@@ -0,0 +1,1220 @@
 +// See LICENSE for license details.
 +//
 +// DADAO decoder for the M12 integer core.
@@ -126,6 +126,11 @@ index 0000000..36ff550
 +  val w0Idx  = UInt(6.W)
 +  val w0Bank = UInt(2.W)
 +  val w0Sel  = UInt(1.W) // 0 = ALU lo, 1 = ALU hi
++  // m13-chipyard-001: the w0 value is a single-precision (`ft`) result.  An
++  // rf destination then only takes the low 32 bits and keeps `[63:32]`
++  // (spec/SimRISC-07 §1.3; `ld.t`/`ldm.t` per SimRISC-01 §4).  The copy forms
++  // (`ft2ft`/`fo2fo`/`rd2rf`/`rf2rd`) and the fo/integer results stay off.
++  val w0Ft   = Bool()
 +  val w1En   = Bool()
 +  val w1Idx  = UInt(6.W)
 +  val w1Bank = UInt(2.W)
@@ -262,6 +267,7 @@ index 0000000..36ff550
 +  d.imm := 0.U
 +  d.wp := inst(17, 16)
 +  d.w0En := false.B; d.w0Idx := 0.U; d.w0Bank := WumingBank.RD; d.w0Sel := 0.U
++  d.w0Ft := false.B
 +  d.w1En := false.B; d.w1Idx := 0.U; d.w1Bank := WumingBank.RD; d.w1Sel := 0.U
 +  d.isJump := false.B; d.jumpOff := 0.U
 +  d.isCall := false.B; d.isRet := false.B
@@ -482,6 +488,7 @@ index 0000000..36ff550
 +  def signInject(op: UInt, isFo: Boolean): Unit = {
 +    d.aluOp := op
 +    d.opWidth := (if (isFo) 3 else 2).U
++    d.w0Ft := !isFo.B   // ftsgnj/ftsgnn produce an ft result
 +    d.srcAIdx := hc; d.srcABank := WumingBank.RF
 +    d.srcBIdx := hd; d.srcBBank := WumingBank.RF
 +    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
@@ -548,6 +555,9 @@ index 0000000..36ff550
 +    d.cvtExact := exact.B
 +    d.srcAIdx := hc; d.srcABank := WumingBank.RD
 +    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
++    // it2ft/io2ft/ut2ft/uo2ft produce an ft result (m13-chipyard-001).
++    when(kind === WumingCvtKind.I2F_T_FT ||
++      kind === WumingCvtKind.I2F_O_FT) { d.w0Ft := true.B }
 +    when(hb === 0.U) { d.ill := true.B }                   // dst_rf0
 +    if (exact) { when(hd =/= 0.U) { d.ill := true.B } }    // encode_sbz
 +    else { cvtDirection() }                                // encode_onehot
@@ -559,6 +569,9 @@ index 0000000..36ff550
 +    d.cvtKind := kind
 +    d.srcAIdx := hc; d.srcABank := WumingBank.RF
 +    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
++    // `fo2ft` produces an ft result; `ft2fo` stays a 64-bit fo result
++    // (m13-chipyard-001).  `ft2ft`/`fo2fo` are the copy form (`fpCopy`).
++    when(kind === WumingCvtKind.FO2FT) { d.w0Ft := true.B }
 +    when(hb === 0.U) { d.ill := true.B }                   // dst_rf0
 +    if (exact) { when(hd =/= 0.U) { d.ill := true.B } }    // encode_sbz
 +    else { cvtDirection() }                                // encode_onehot
@@ -567,10 +580,14 @@ index 0000000..36ff550
 +  // `ft2ft`/`fo2fo` (spec/SimRISC-07 §1.3): the same register-window copy as
 +  // `rd2rd`, in the rf bank, with the copy legality set plus `dst_rf0`
 +  // (unlike `rd2rf`, the block conversions of §1.3 may not target rf0).
-+  def fpCopy(): Unit = {
++  // `isFo` also selects the copy width: `ft2ft` only moves the low 32 bits and
++  // keeps each destination's `[63:32]` (m13-chipyard-001), while `fo2fo` stays
++  // a whole-register move.
++  def fpCopy(isFo: Boolean): Unit = {
 +    d.isCopy := true.B
 +    d.copyDstBank := WumingBank.RF
 +    d.copySrcBank := WumingBank.RF
++    d.w0Ft := !isFo.B
 +    d.srcAIdx := hc; d.srcABank := WumingBank.RF
 +    d.useImmB := true.B; d.imm := zext(hd)
 +    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
@@ -594,6 +611,7 @@ index 0000000..36ff550
 +    d.isFpArith := true.B
 +    d.fpKind := kind
 +    d.fpFo := isFo.B
++    d.w0Ft := !isFo.B   // ftadd/ftsub/ftmul/ftmin/ftmax produce an ft result
 +    d.srcAIdx := hc; d.srcABank := WumingBank.RF
 +    d.srcBIdx := hd; d.srcBBank := WumingBank.RF
 +    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
@@ -617,6 +635,7 @@ index 0000000..36ff550
 +    d.isFpArith := true.B
 +    d.fpKind := WumingFPArithOp.FMA
 +    d.fpFo := isFo.B
++    d.w0Ft := !isFo.B   // ftfma produces an ft result
 +    d.srcAIdx := hb; d.srcABank := WumingBank.RF
 +    d.srcBIdx := hc; d.srcBBank := WumingBank.RF
 +    d.srcCIdx := hd; d.srcCBank := WumingBank.RF
@@ -635,6 +654,7 @@ index 0000000..36ff550
 +    d.isFpSlow := true.B
 +    d.fpSlowKind := kind
 +    d.fpFo := isFo.B
++    d.w0Ft := !isFo.B   // ftdiv/ftrem/ftroot produce an ft result
 +    d.srcAIdx := hc; d.srcABank := WumingBank.RF
 +    d.srcBIdx := hd; d.srcBBank := WumingBank.RF
 +    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
@@ -655,6 +675,7 @@ index 0000000..36ff550
 +  def fpRoundInt(isFo: Boolean): Unit = {
 +    d.isFpRnd := true.B
 +    d.fpFo := isFo.B
++    d.w0Ft := !isFo.B   // ftrnd produces an ft result
 +    d.fpRndCode := hd
 +    d.srcAIdx := hc; d.srcABank := WumingBank.RF
 +    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
@@ -669,6 +690,7 @@ index 0000000..36ff550
 +  def fpScaleB(isFo: Boolean): Unit = {
 +    d.isFpSclb := true.B
 +    d.fpFo := isFo.B
++    d.w0Ft := !isFo.B   // ftsclb produces an ft result
 +    d.srcAIdx := hc; d.srcABank := WumingBank.RF
 +    d.srcBIdx := hd; d.srcBBank := WumingBank.RD
 +    d.w0En := true.B; d.w0Idx := hb; d.w0Bank := WumingBank.RF; d.w0Sel := 0.U
@@ -690,6 +712,11 @@ index 0000000..36ff550
 +    d.ldDst := ha
 +    d.ldBank := bank
 +    d.stBank := bank
++    // `ld.t` (the only tetra load into the rf bank) writes the low 32 bits
++    // only (spec/SimRISC-01 §4, m13-chipyard-001): no sign/zero extension.
++    when(isLoad && bank === WumingBank.RF && width === widthTetra) {
++      d.w0Ft := true.B
++    }
 +    // dst_rd0 / dst_rb0: the load destination may not be the bank's zero
 +    // register.  The RA bank's ra0 and the RF bank's rf0 (FCSR) are writable
 +    // (spec/SimRISC-01 §3/§4).
@@ -708,6 +735,11 @@ index 0000000..36ff550
 +    d.mregStart := ha
 +    d.mregBank := bank
 +    d.mregCount := hd
++    // `ldm.t` (the only tetra multi-load into the rf bank) writes each
++    // destination's low 32 bits only (spec/SimRISC-01 §4, m13-chipyard-001).
++    when(isLoad && bank === WumingBank.RF && width === widthTetra) {
++      d.w0Ft := true.B
++    }
 +    // mreg_zero / mreg_range_overflow (spec/SimRISC-01 §1, legality_rules).
 +    when(hd === 0.U) { d.ill := true.B }
 +    when(ha +& hd > 64.U) { d.ill := true.B }
@@ -747,11 +779,11 @@ index 0000000..36ff550
 +      .elsewhen(opc === 0x13.U) { singleMem(true.B, widthByte, true.B, WumingBank.RD) }
 +      .elsewhen(opc === 0x14.U) { singleMem(true.B, widthWyde, true.B, WumingBank.RD) }
 +      .elsewhen(opc === 0x15.U) { singleMem(true.B, widthTetra, true.B, WumingBank.RD) }
-+      // 0x16/0x17: `ld.t`/`st.t` in the rf bank (SimRISC-01 §4).  A tetra load
-+      // into an rf register sign-extends into the 64-bit register: spec says
-+      // bits [63:32] are unspecified for that case and sign extension is what
-+      // QEMU does (`MO_BESL`), so the two engines agree bit for bit.
-+      .elsewhen(opc === 0x16.U) { singleMem(true.B, widthTetra, true.B, WumingBank.RF) }
++      // 0x16/0x17: `ld.t`/`st.t` in the rf bank (SimRISC-01 §4).  The tetra
++      // load only writes the destination's low 32 bits and keeps `[63:32]`
++      // (m13-chipyard-001; `w0Ft` above): no sign/zero extension takes place,
++      // so the `signed` flag is false (`ld.st`/`ld.ut` in the rd bank keep it).
++      .elsewhen(opc === 0x16.U) { singleMem(true.B, widthTetra, false.B, WumingBank.RF) }
 +      .otherwise { singleMem(false.B, widthTetra, false.B, WumingBank.RF) }
 +  }.elsewhen(opc >= 0x18.U && opc <= 0x1A.U) {
 +    // st.{b,w,t} rd (SimRISC-01 §1).  rd0 as the source is legal (reads 0).
@@ -780,8 +812,9 @@ index 0000000..36ff550
 +      .elsewhen(opc === 0x2B.U) { multiMem(true.B, widthByte, true.B, WumingBank.RD) }
 +      .elsewhen(opc === 0x2C.U) { multiMem(true.B, widthWyde, true.B, WumingBank.RD) }
 +      .elsewhen(opc === 0x2D.U) { multiMem(true.B, widthTetra, true.B, WumingBank.RD) }
-+      // 0x2E/0x2F: `ldm.t`/`stm.t` in the rf bank (SimRISC-01 §4).
-+      .elsewhen(opc === 0x2E.U) { multiMem(true.B, widthTetra, true.B, WumingBank.RF) }
++      // 0x2E/0x2F: `ldm.t`/`stm.t` in the rf bank (SimRISC-01 §4).  Each
++      // element only writes its destination's low 32 bits (m13-chipyard-001).
++      .elsewhen(opc === 0x2E.U) { multiMem(true.B, widthTetra, false.B, WumingBank.RF) }
 +      .otherwise { multiMem(false.B, widthTetra, false.B, WumingBank.RF) }
 +  }.elsewhen(opc >= 0x30.U && opc <= 0x32.U) {
 +    // stm.{b,w,t} rd (SimRISC-01 §1).  rd0 as the start register is legal.
@@ -937,9 +970,9 @@ index 0000000..36ff550
 +        // convert_ff (spec/SimRISC-07 §1.3): ft2fo (SBZ, exact), ft2ft
 +        // (count), fo2ft (six directions), fo2fo (count).
 +        is(0x01.U) { subHandled := true.B; cvtF2F(WumingCvtKind.FT2FO, exact = true) }
-+        is(0x02.U) { subHandled := true.B; fpCopy() }
++        is(0x02.U) { subHandled := true.B; fpCopy(false) }  // ft2ft: low 32 bits
 +        is(0x09.U) { subHandled := true.B; cvtF2F(WumingCvtKind.FO2FT, exact = false) }
-+        is(0x0A.U) { subHandled := true.B; fpCopy() }
++        is(0x0A.U) { subHandled := true.B; fpCopy(true) }   // fo2fo: 64 bits
 +        // convert_f2i (spec/SimRISC-07 §1.5): rdHB destination, rfHC source.
 +        is(0x30.U) { subHandled := true.B; cvtF2I(WumingCvtKind.F2I_FT_T, signed = true) }
 +        is(0x31.U) { subHandled := true.B; cvtF2I(WumingCvtKind.F2I_FT_O, signed = true) }
