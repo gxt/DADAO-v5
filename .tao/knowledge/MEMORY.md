@@ -8,7 +8,7 @@
 - 今日合入：`qemu-011`（`-bios` 只收 64 KiB）+ `testcases-034`（Tiny oracle 迁 hmon）同批 ⇒ `check-inst` **44/44 + vast full PASS**；`032`（NaN canonical/rootn ±0，`divrem.yaml[23]` 退役）；`spec-008` + `gem5-012` + `testcases-033`（`ext` 的 `hd=rdHD[5:0]`，`ISS-422` 已闭）；`029`（`12-misc` 4 id）；`infra-003`（写者护栏 + `check-writer-guards` 27/27）；`qemu-014`（`sc` 保留粒度=精确地址+宽度）。
 - **待办（有共享影响）**：安装根 qemu 仍是 `b34ed7f9…`，落后构建树 `49174499…`（`qemu-014`）⇒ **等 `m12-chipyard-016` 收尾、无并发写者时补跑一次 `install-host`**（禁边构建边测试）；`ISS-437`（musl 未随新 clang 重建）同窗口处理。
 - 队列：`chipyard-002`（`sc` RTL 去整字比较，等 016 让出写者）、`testcases-037`（`sc` 粒度正式向量）、`testcases-036`（lit/codegen 用 64 KiB 固件，复核中）、`gem5-013`、`testcases-030`、`integ-002/003/005`（后三件用户标注暂不进行）。
-- 未决 issue（P1/P2）：`ISS-433`（chipyard `trap cfx_power` 报 ILLI）、`ISS-435`（余 chipyard RTL + 向量）、`ISS-437`（musl）、`ISS-440`（多 hart 保留清除无实现，上多 hart 前必补，建议立 ADR）。
+- 未决 issue（P1/P2）：`ISS-433`（chipyard `trap cfx_power` 报 ILLI）、`ISS-435`（余 chipyard RTL + 向量）、`ISS-437`（musl）、`ISS-440`（多 hart 保留清除无实现，上多 hart 前必补，建议立 ADR）、`ISS-441`（`mem_sweep.py` 悬挂引用）、`ISS-426`（QEMU 侧已由 `qemu-012` 修、`030` 实测不再复现，待核 gem5 侧后关闭）。
 - 规则新增（2026-11-14）：**构建 32 核 / 测试「全量核 − 2」**（主控机·`server20x`=62、`ics*`=38）；**禁边构建边测试**；发测试前查内存/磁盘；`make check-modules` 会装共享安装根 ⇒ 并行窗口禁跑。
 
 ## 入口指针

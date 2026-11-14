@@ -658,3 +658,11 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`lr`/`sc` 的「另一 hart 对同一精确地址+相同宽度 store ⇒ 清保留」**三平台均无实现路径**：`m13-qemu-014` 删掉整字值 CAS 后，QEMU 只剩「记录键 + 另一条 lr/异常/sc 自身」三种清除；旧实现靠整字值变化间接覆盖了「同址写」这一半（但并不精确）；chipyard 同样只按 `resvValid/resvAddr/resvWidth` 判、无 store 侧失效钩子。单 hart（`WumingTinyConfig`）无观测载体，故不阻断当前里程碑；**上多 hart 之前必须补**：store 提交路径按 `(PA, 宽度)` 失效匹配的保留标记（或引入一致性事件），并补多 hart 用例。评审时请连带判断是否需要 ADR（跨三平台 + 语义固化）。"
+- id: ISS-441
+  scope:
+  - testcases
+  - chipyard
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`m13-testcases-030` 删掉 `base/mem-{rd,ra,rb}.yaml` 后，`tools/chipyard/mem_sweep.py` 的 `SOURCES` 仍指向这三册 ⇒ 该工具**已无输入**（跑起来会空集或报错），属**悬挂引用**：既不在门控里、也不会被日常跑批发现。处置：改从 `.S` 载体派生（复用 `run_asm_suite.scan_source`）或整体退役；退役前须确认没有任务/脚本依赖它的输出。"
