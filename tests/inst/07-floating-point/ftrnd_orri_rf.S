@@ -112,15 +112,25 @@ __fpchk_\@:
 	@@ 源 = rf0（FCSR 低 32 位是 ft canonical qNaN）→ qNaN、不置 NV
 	TEST_FPRND	24, ftrnd, rf9, rf0, 0x000000007FC00000, 0x01, 0, 0xDEADBEEF7FC00000, 0x00
 
+	@@ ---- 收窄补点（m13-testcases-044；原 C 探针覆盖、本载体缺的负平局/动态方向）----
+	@@ −2.5 RNA（平局远离 0）⇒ −3.0；静态档不置 NX（`spec/SimRISC-07 §2.3`）
+	TEST_FPRND	25, ftrnd, rf5, rf6, 0x00000000C0200000, 0x02, 0, 0xDEADBEEFC0400000, 0x00
+	@@ −2.5 RNE（平局取偶）⇒ −2.0；静态档不置 NX
+	TEST_FPRND	26, ftrnd, rf5, rf6, 0x00000000C0200000, 0x01, 0, 0xDEADBEEFC0000000, 0x00
+	@@ +2.5 动态 0x20 读 rf0=RDN（10）⇒ +2.0 + NX
+	TEST_FPRND	27, ftrnd, rf5, rf6, 0x0000000040200000, 0x20, 2, 0xDEADBEEF40000000, 0x10
+	@@ −2.5 动态 0x20 读 rf0=RUP（11）⇒ −2.0 + NX
+	TEST_FPRND	28, ftrnd, rf5, rf6, 0x00000000C0200000, 0x20, 3, 0xDEADBEEFC0000000, 0x10
+
 	@@ ---- legality ----
 	@@ 目的 rf0 ⇒ ILLI（dst_rf0）
-	TEST_FAULT_FP	25, ILLI, 0x440C0181
+	TEST_FAULT_FP	29, ILLI, 0x440C0181
 	@@ immu6=0x00 非 one-hot ⇒ ILLI（encode_onehot）
-	TEST_FAULT_FP	26, ILLI, 0x440C5180
+	TEST_FAULT_FP	30, ILLI, 0x440C5180
 	@@ immu6=0x03 非 one-hot ⇒ ILLI
-	TEST_FAULT_FP	27, ILLI, 0x440C5183
+	TEST_FAULT_FP	31, ILLI, 0x440C5183
 	@@ immu6=0x30 多位同置 ⇒ ILLI
-	TEST_FAULT_FP	28, ILLI, 0x440C51B0
+	TEST_FAULT_FP	32, ILLI, 0x440C51B0
 
 	__TEST_END
 

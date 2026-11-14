@@ -266,7 +266,8 @@ def cmd_selftest(args: argparse.Namespace) -> int:
 
     r5 = base / "e"
     _write_report(r5 / "l3" / "20261027T000000Z",
-                  [(s, u, (1 if u == "fp-fma" else 0)) for s, u, _ in GREEN_ROWS],
+                  [(s, u, (1 if (s, u) == GREEN_ROWS[0][:2] else 0))
+                   for s, u, _ in GREEN_ROWS],
                   r5 / "logs")
     expect("non-zero rc row => FAIL", r5, False)
 

@@ -2134,7 +2134,7 @@ asm	tests/inst/07-floating-point/fodiv_orrr_rf.S	TEST_FP3	8, fo, fodiv, rf5, rf6
 asm	tests/inst/07-floating-point/fodiv_orrr_rf.S	TEST_FP3	9, fo, fodiv, rf5, rf6, 0x0000000000000000, rf7, 0x0000000000000000, 0, 0x7FF8000000000000, 0x01	1
 asm	tests/inst/07-floating-point/fodiv_orrr_rf.S	TEST_FPENC	1, fo, 0x446C5187, rf5, rf6, 0x3FF8000000000000, rf7, 0x4002000000000000, 0x3FE5555555555555, 0x10	1
 asm	tests/inst/07-floating-point/fodiv_orrr_rf.S	TEST_FPENC	2, fo, 0x446FFFBD, rf63, rf62, 0x3FF0000000000000, rf61, 0x3FF0000000000000, 0x3FF0000000000000, 0x00	1
-asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FAULT_FP	20, ILLI, 0x5F0020C4	1
+asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FAULT_FP	25, ILLI, 0x5F0020C4	1
 asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	10, fo, fofma, rf5, rf6, 0x7FF8000000000000, rf7, 0x3FF0000000000000, rf8, 0x3FF0000000000000, 0, 0x7FF8000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	11, fo, fofma, rf5, rf6, 0x7FF0000000000001, rf7, 0x3FF0000000000000, rf8, 0x3FF0000000000000, 0, 0x7FF8000000000000, 0x01	1
 asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	12, fo, fofma, rf5, rf6, 0x3FF0000000000000, rf7, 0x3FF0000000000000, rf8, 0xBFF0000000000000, 0, 0x0000000000000000, 0x00	1
@@ -2145,6 +2145,11 @@ asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	16, fo, fofma, rf5, rf
 asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	17, fo, fofma, rf9, rf9, 0x4000000000000000, rf7, 0x4000000000000000, rf8, 0x4010000000000000, 0, 0x4020000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	18, fo, fofma, rf9, rf6, 0x4000000000000000, rf9, 0x4000000000000000, rf8, 0x4010000000000000, 0, 0x4020000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	19, fo, fofma, rf9, rf6, 0x4000000000000000, rf7, 0x4008000000000000, rf9, 0x4010000000000000, 0, 0x4024000000000000, 0x00	1
+asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	20, fo, fofma, rf5, rf6, 0x7FEFFFFFFFFFFFFF, rf7, 0x3FF0000000000000, rf8, 0x7C80000000000000, 0, 0x7FEFFFFFFFFFFFFF, 0x10	1
+asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	21, fo, fofma, rf5, rf6, 0x7FEFFFFFFFFFFFFF, rf7, 0x3FF0000000000000, rf8, 0x7C80000000000000, 3, 0x7FF0000000000000, 0x14	1
+asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	22, fo, fofma, rf5, rf6, 0x0000000000000001, rf7, 0x3FF4000000000000, rf8, 0x0000000000000000, 0, 0x0000000000000001, 0x18	1
+asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	23, fo, fofma, rf5, rf6, 0x0000000000000001, rf7, 0x3FF4000000000000, rf8, 0x0000000000000000, 3, 0x0000000000000002, 0x18	1
+asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	24, fo, fofma, rf5, rf6, 0x3FF0000000000000, rf7, 0x4000000000000000, rf8, 0xFFF0000000000000, 0, 0xFFF0000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	3, fo, fofma, rf5, rf6, 0x4000000000000000, rf7, 0x4008000000000000, rf8, 0x4010000000000000, 0, 0x4024000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	4, fo, fofma, rf5, rf6, 0x3FF0000000000001, rf7, 0x3FEFFFFFFFFFFFFF, rf8, 0xBFF0000000000000, 0, 0x3C9FFFFFFFFFFFFE, 0x00	1
 asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	5, fo, fofma, rf5, rf6, 0xC000000000000000, rf7, 0x4008000000000000, rf8, 0x3FF0000000000000, 0, 0xC014000000000000, 0x00	1
@@ -2154,7 +2159,7 @@ asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	8, fo, fofma, rf5, rf6
 asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FP4	9, fo, fofma, rf5, rf6, 0x7FF0000000000000, rf7, 0x4000000000000000, rf8, 0x3FF0000000000000, 0, 0x7FF0000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FPENC4	1, fo, 0x5F1461C8, rf5, rf6, 0x4000000000000000, rf7, 0x4008000000000000, rf8, 0x4010000000000000, 0x4024000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fofma_rrrr_rf.S	TEST_FPENC4	2, fo, 0x5FFFEF7C, rf63, rf62, 0x3FF0000000000000, rf61, 0x3FF0000000000000, rf60, 0xBFF0000000000000, 0x0000000000000000, 0x00	1
-asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FAULT_FP	17, ILLI, 0x44BC0083	1
+asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FAULT_FP	21, ILLI, 0x44BC0083	1
 asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	10, fo, fomax, rf5, rf6, 0x3FF0000000000000, rf7, 0x7FF8000000000000, 0, 0x3FF0000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	11, fo, fomax, rf5, rf6, 0x7FF0000000000001, rf7, 0x3FF0000000000000, 0, 0x3FF0000000000000, 0x01	1
 asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	12, fo, fomax, rf5, rf6, 0x7FF8000000000001, rf7, 0x7FF8000000000000, 0, 0x7FF8000000000000, 0x00	1
@@ -2162,6 +2167,10 @@ asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	13, fo, fomax, rf5, rf
 asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	14, fo, fomax, rf5, rf6, 0xFFF0000000000000, rf7, 0x7FEFFFFFFFFFFFFF, 0, 0x7FEFFFFFFFFFFFFF, 0x00	1
 asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	15, fo, fomax, rf9, rf9, 0x3FF8000000000000, rf7, 0x4004000000000000, 0, 0x4004000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	16, fo, fomax, rf9, rf6, 0x4004000000000000, rf9, 0x3FF8000000000000, 0, 0x4004000000000000, 0x00	1
+asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	17, fo, fomax, rf5, rf6, 0xFFF8000000000000, rf7, 0x3FF0000000000000, 0, 0x3FF0000000000000, 0x00	1
+asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	18, fo, fomax, rf5, rf6, 0x0000000000000001, rf7, 0x000FFFFFFFFFFFFF, 0, 0x000FFFFFFFFFFFFF, 0x00	1
+asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	19, fo, fomax, rf5, rf6, 0x0000000000000001, rf7, 0x0000000000000000, 0, 0x0000000000000001, 0x00	1
+asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	20, fo, fomax, rf5, rf6, 0x7FF0000000000000, rf7, 0xFFF0000000000000, 0, 0x7FF0000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	3, fo, fomax, rf5, rf6, 0x3FF8000000000000, rf7, 0x4004000000000000, 0, 0x4004000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	4, fo, fomax, rf5, rf6, 0xBFF8000000000000, rf7, 0xC004000000000000, 0, 0xBFF8000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	5, fo, fomax, rf5, rf6, 0x3FF8000000000000, rf7, 0x3FF8000000000000, 0, 0x3FF8000000000000, 0x00	1
@@ -2171,7 +2180,7 @@ asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	8, fo, fomax, rf5, rf6
 asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FP3	9, fo, fomax, rf5, rf6, 0x7FF8000000000000, rf7, 0x3FF0000000000000, 0, 0x3FF0000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FPENC	1, fo, 0x44BC5187, rf5, rf6, 0x3FF8000000000000, rf7, 0x4004000000000000, 0x4004000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fomax_orrr_rf.S	TEST_FPENC	2, fo, 0x44BFFFBD, rf63, rf62, 0xFFEFFFFFFFFFFFFF, rf61, 0x7FEFFFFFFFFFFFFF, 0x7FEFFFFFFFFFFFFF, 0x00	1
-asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FAULT_FP	17, ILLI, 0x44B80083	1
+asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FAULT_FP	21, ILLI, 0x44B80083	1
 asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	10, fo, fomin, rf5, rf6, 0x3FF0000000000000, rf7, 0x7FF8000000000000, 0, 0x3FF0000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	11, fo, fomin, rf5, rf6, 0x7FF0000000000001, rf7, 0x3FF0000000000000, 0, 0x3FF0000000000000, 0x01	1
 asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	12, fo, fomin, rf5, rf6, 0x7FF8000000000000, rf7, 0x7FF8000000000001, 0, 0x7FF8000000000000, 0x00	1
@@ -2179,6 +2188,10 @@ asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	13, fo, fomin, rf5, rf
 asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	14, fo, fomin, rf5, rf6, 0x7FF0000000000000, rf7, 0x7FEFFFFFFFFFFFFF, 0, 0x7FEFFFFFFFFFFFFF, 0x00	1
 asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	15, fo, fomin, rf9, rf9, 0x3FF8000000000000, rf7, 0x4004000000000000, 0, 0x3FF8000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	16, fo, fomin, rf9, rf6, 0x4004000000000000, rf9, 0x3FF8000000000000, 0, 0x3FF8000000000000, 0x00	1
+asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	17, fo, fomin, rf5, rf6, 0xFFF8000000000000, rf7, 0x3FF0000000000000, 0, 0x3FF0000000000000, 0x00	1
+asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	18, fo, fomin, rf5, rf6, 0x0000000000000001, rf7, 0x000FFFFFFFFFFFFF, 0, 0x0000000000000001, 0x00	1
+asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	19, fo, fomin, rf5, rf6, 0x0000000000000001, rf7, 0x0000000000000000, 0, 0x0000000000000000, 0x00	1
+asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	20, fo, fomin, rf5, rf6, 0x7FF0000000000000, rf7, 0xFFF0000000000000, 0, 0xFFF0000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	3, fo, fomin, rf5, rf6, 0x3FF8000000000000, rf7, 0x4004000000000000, 0, 0x3FF8000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	4, fo, fomin, rf5, rf6, 0xBFF8000000000000, rf7, 0xC004000000000000, 0, 0xC004000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fomin_orrr_rf.S	TEST_FP3	5, fo, fomin, rf5, rf6, 0x3FF8000000000000, rf7, 0x3FF8000000000000, 0, 0x3FF8000000000000, 0x00	1
@@ -2244,10 +2257,10 @@ asm	tests/inst/07-floating-point/forem_orrr_rf.S	TEST_FP3	8, fo, forem, rf5, rf6
 asm	tests/inst/07-floating-point/forem_orrr_rf.S	TEST_FP3	9, fo, forem, rf5, rf6, 0x7FF8000000000000, rf7, 0x0000000000000000, 0, 0x7FF8000000000000, 0x00	1
 asm	tests/inst/07-floating-point/forem_orrr_rf.S	TEST_FPENC	1, fo, 0x44705187, rf5, rf6, 0x4014000000000000, rf7, 0x4000000000000000, 0x3FF0000000000000, 0x00	1
 asm	tests/inst/07-floating-point/forem_orrr_rf.S	TEST_FPENC	2, fo, 0x4473FFBD, rf63, rf62, 0x401C000000000000, rf61, 0x4000000000000000, 0xBFF0000000000000, 0x00	1
-asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FAULT_FP	25, ILLI, 0x442C0181	1
-asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FAULT_FP	26, ILLI, 0x442C5180	1
-asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FAULT_FP	27, ILLI, 0x442C5183	1
-asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FAULT_FP	28, ILLI, 0x442C51B0	1
+asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FAULT_FP	29, ILLI, 0x442C0181	1
+asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FAULT_FP	30, ILLI, 0x442C5180	1
+asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FAULT_FP	31, ILLI, 0x442C5183	1
+asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FAULT_FP	32, ILLI, 0x442C51B0	1
 asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	10, fornd, rf5, rf6, 0x4008000000000000, 0x20, 0, 0x4008000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	11, fornd, rf5, rf6, 0x4320000000000001, 0x01, 3, 0x4320000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	12, fornd, rf7, rf8, 0xBFE0000000000000, 0x04, 0, 0x8000000000000000, 0x00	1
@@ -2263,6 +2276,10 @@ asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	21, fornd, rf7, rf8,
 asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	22, fornd, rf7, rf8, 0x7FF0000000000001, 0x08, 0, 0x7FF8000000000000, 0x01	1
 asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	23, fornd, rf9, rf9, 0xC00C000000000000, 0x01, 0, 0xC010000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	24, fornd, rf9, rf0, 0x7FF8000000000000, 0x01, 0, 0x7FF8000000000000, 0x00	1
+asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	25, fornd, rf5, rf6, 0xC004000000000000, 0x02, 0, 0xC008000000000000, 0x00	1
+asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	26, fornd, rf5, rf6, 0xC004000000000000, 0x01, 0, 0xC000000000000000, 0x00	1
+asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	27, fornd, rf5, rf6, 0x4004000000000000, 0x20, 2, 0x4000000000000000, 0x10	1
+asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	28, fornd, rf5, rf6, 0xC004000000000000, 0x20, 3, 0xC000000000000000, 0x10	1
 asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	3, fornd, rf5, rf6, 0x4320000000000001, 0x01, 0, 0x4320000000000000, 0x00	1
 asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	4, fornd, rf5, rf6, 0x4320000000000001, 0x02, 0, 0x4320000000000002, 0x00	1
 asm	tests/inst/07-floating-point/fornd_orri_rf.S	TEST_FPRND	5, fornd, rf5, rf6, 0xC00599999999999A, 0x04, 0, 0xC000000000000000, 0x00	1
@@ -2604,7 +2621,7 @@ asm	tests/inst/07-floating-point/ftdiv_orrr_rf.S	TEST_FP3	8, ft, ftdiv, rf5, rf6
 asm	tests/inst/07-floating-point/ftdiv_orrr_rf.S	TEST_FP3	9, ft, ftdiv, rf5, rf6, 0x0000000000000000, rf7, 0x0000000000000000, 0, 0x000000007FC00000, 0x01	1
 asm	tests/inst/07-floating-point/ftdiv_orrr_rf.S	TEST_FPENC	1, ft, 0x444C5187, rf5, rf6, 0x000000003FC00000, rf7, 0x0000000040100000, 0x000000003F2AAAAB, 0x10	1
 asm	tests/inst/07-floating-point/ftdiv_orrr_rf.S	TEST_FPENC	2, ft, 0x444FFFBD, rf63, rf62, 0x000000003F800000, rf61, 0x000000003F800000, 0x000000003F800000, 0x00	1
-asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FAULT_FP	20, ILLI, 0x5E0020C4	1
+asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FAULT_FP	25, ILLI, 0x5E0020C4	1
 asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	10, ft, ftfma, rf5, rf6, 0x000000007FC00000, rf7, 0x000000003F800000, rf8, 0x000000003F800000, 0, 0x000000007FC00000, 0x00	1
 asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	11, ft, ftfma, rf5, rf6, 0x000000007F800001, rf7, 0x000000003F800000, rf8, 0x000000003F800000, 0, 0x000000007FC00000, 0x01	1
 asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	12, ft, ftfma, rf5, rf6, 0x000000003F800000, rf7, 0x000000003F800000, rf8, 0x00000000BF800000, 0, 0x0000000000000000, 0x00	1
@@ -2615,6 +2632,11 @@ asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	16, ft, ftfma, rf5, rf
 asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	17, ft, ftfma, rf9, rf9, 0x0000000040000000, rf7, 0x0000000040000000, rf8, 0x0000000040800000, 0, 0x0000000041000000, 0x00	1
 asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	18, ft, ftfma, rf9, rf6, 0x0000000040000000, rf9, 0x0000000040000000, rf8, 0x0000000040800000, 0, 0x0000000041000000, 0x00	1
 asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	19, ft, ftfma, rf9, rf6, 0x0000000040000000, rf7, 0x0000000040400000, rf9, 0x0000000040800000, 0, 0x0000000041200000, 0x00	1
+asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	20, ft, ftfma, rf5, rf6, 0x000000007F7FFFFF, rf7, 0x000000003F800000, rf8, 0x0000000072800000, 0, 0x000000007F7FFFFF, 0x10	1
+asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	21, ft, ftfma, rf5, rf6, 0x000000007F7FFFFF, rf7, 0x000000003F800000, rf8, 0x0000000072800000, 3, 0x000000007F800000, 0x14	1
+asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	22, ft, ftfma, rf5, rf6, 0x0000000000000001, rf7, 0x000000003FA00000, rf8, 0x0000000000000000, 0, 0x0000000000000001, 0x18	1
+asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	23, ft, ftfma, rf5, rf6, 0x0000000000000001, rf7, 0x000000003FA00000, rf8, 0x0000000000000000, 3, 0x0000000000000002, 0x18	1
+asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	24, ft, ftfma, rf5, rf6, 0x000000003F800000, rf7, 0x0000000040000000, rf8, 0x00000000FF800000, 0, 0x00000000FF800000, 0x00	1
 asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	3, ft, ftfma, rf5, rf6, 0x0000000040000000, rf7, 0x0000000040400000, rf8, 0x0000000040800000, 0, 0x0000000041200000, 0x00	1
 asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	4, ft, ftfma, rf5, rf6, 0x000000003F800001, rf7, 0x000000003F7FFFFE, rf8, 0x00000000BF800000, 0, 0x00000000A8800000, 0x00	1
 asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	5, ft, ftfma, rf5, rf6, 0x00000000C0000000, rf7, 0x0000000040400000, rf8, 0x000000003F800000, 0, 0x00000000C0A00000, 0x00	1
@@ -2624,7 +2646,7 @@ asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	8, ft, ftfma, rf5, rf6
 asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FP4	9, ft, ftfma, rf5, rf6, 0x000000007F800000, rf7, 0x0000000040000000, rf8, 0x000000003F800000, 0, 0x000000007F800000, 0x00	1
 asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FPENC4	1, ft, 0x5E1461C8, rf5, rf6, 0x0000000040000000, rf7, 0x0000000040400000, rf8, 0x0000000040800000, 0x0000000041200000, 0x00	1
 asm	tests/inst/07-floating-point/ftfma_rrrr_rf.S	TEST_FPENC4	2, ft, 0x5EFFEF7C, rf63, rf62, 0x000000003F800000, rf61, 0x000000003F800000, rf60, 0x00000000BF800000, 0x0000000000000000, 0x00	1
-asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FAULT_FP	17, ILLI, 0x449C0083	1
+asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FAULT_FP	21, ILLI, 0x449C0083	1
 asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	10, ft, ftmax, rf5, rf6, 0x000000003F800000, rf7, 0x000000007FC00000, 0, 0x000000003F800000, 0x00	1
 asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	11, ft, ftmax, rf5, rf6, 0x000000007F800001, rf7, 0x000000003F800000, 0, 0x000000003F800000, 0x01	1
 asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	12, ft, ftmax, rf5, rf6, 0x000000007FC00001, rf7, 0x000000007FC00000, 0, 0x000000007FC00000, 0x00	1
@@ -2632,6 +2654,10 @@ asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	13, ft, ftmax, rf5, rf
 asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	14, ft, ftmax, rf5, rf6, 0x00000000FF800000, rf7, 0x000000007F7FFFFF, 0, 0x000000007F7FFFFF, 0x00	1
 asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	15, ft, ftmax, rf9, rf9, 0x000000003FC00000, rf7, 0x0000000040200000, 0, 0x0000000040200000, 0x00	1
 asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	16, ft, ftmax, rf9, rf6, 0x0000000040200000, rf9, 0x000000003FC00000, 0, 0x0000000040200000, 0x00	1
+asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	17, ft, ftmax, rf5, rf6, 0x00000000FFC00000, rf7, 0x000000003F800000, 0, 0x000000003F800000, 0x00	1
+asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	18, ft, ftmax, rf5, rf6, 0x0000000000000001, rf7, 0x00000000007FFFFF, 0, 0x00000000007FFFFF, 0x00	1
+asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	19, ft, ftmax, rf5, rf6, 0x0000000000000001, rf7, 0x0000000000000000, 0, 0x0000000000000001, 0x00	1
+asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	20, ft, ftmax, rf5, rf6, 0x000000007F800000, rf7, 0x00000000FF800000, 0, 0x000000007F800000, 0x00	1
 asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	3, ft, ftmax, rf5, rf6, 0x000000003FC00000, rf7, 0x0000000040200000, 0, 0x0000000040200000, 0x00	1
 asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	4, ft, ftmax, rf5, rf6, 0x00000000BFC00000, rf7, 0x00000000C0200000, 0, 0x00000000BFC00000, 0x00	1
 asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	5, ft, ftmax, rf5, rf6, 0x000000003FC00000, rf7, 0x000000003FC00000, 0, 0x000000003FC00000, 0x00	1
@@ -2641,7 +2667,7 @@ asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	8, ft, ftmax, rf5, rf6
 asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FP3	9, ft, ftmax, rf5, rf6, 0x000000007FC00000, rf7, 0x000000003F800000, 0, 0x000000003F800000, 0x00	1
 asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FPENC	1, ft, 0x449C5187, rf5, rf6, 0x000000003FC00000, rf7, 0x0000000040200000, 0x0000000040200000, 0x00	1
 asm	tests/inst/07-floating-point/ftmax_orrr_rf.S	TEST_FPENC	2, ft, 0x449FFFBD, rf63, rf62, 0x00000000FF7FFFFF, rf61, 0x000000007F7FFFFF, 0x000000007F7FFFFF, 0x00	1
-asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FAULT_FP	17, ILLI, 0x44980083	1
+asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FAULT_FP	21, ILLI, 0x44980083	1
 asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	10, ft, ftmin, rf5, rf6, 0x000000003F800000, rf7, 0x000000007FC00000, 0, 0x000000003F800000, 0x00	1
 asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	11, ft, ftmin, rf5, rf6, 0x000000007F800001, rf7, 0x000000003F800000, 0, 0x000000003F800000, 0x01	1
 asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	12, ft, ftmin, rf5, rf6, 0x000000007FC00000, rf7, 0x000000007FC00001, 0, 0x000000007FC00000, 0x00	1
@@ -2649,6 +2675,10 @@ asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	13, ft, ftmin, rf5, rf
 asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	14, ft, ftmin, rf5, rf6, 0x000000007F800000, rf7, 0x000000007F7FFFFF, 0, 0x000000007F7FFFFF, 0x00	1
 asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	15, ft, ftmin, rf9, rf9, 0x000000003FC00000, rf7, 0x0000000040200000, 0, 0x000000003FC00000, 0x00	1
 asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	16, ft, ftmin, rf9, rf6, 0x0000000040200000, rf9, 0x000000003FC00000, 0, 0x000000003FC00000, 0x00	1
+asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	17, ft, ftmin, rf5, rf6, 0x00000000FFC00000, rf7, 0x000000003F800000, 0, 0x000000003F800000, 0x00	1
+asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	18, ft, ftmin, rf5, rf6, 0x0000000000000001, rf7, 0x00000000007FFFFF, 0, 0x0000000000000001, 0x00	1
+asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	19, ft, ftmin, rf5, rf6, 0x0000000000000001, rf7, 0x0000000000000000, 0, 0x0000000000000000, 0x00	1
+asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	20, ft, ftmin, rf5, rf6, 0x000000007F800000, rf7, 0x00000000FF800000, 0, 0x00000000FF800000, 0x00	1
 asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	3, ft, ftmin, rf5, rf6, 0x000000003FC00000, rf7, 0x0000000040200000, 0, 0x000000003FC00000, 0x00	1
 asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	4, ft, ftmin, rf5, rf6, 0x00000000BFC00000, rf7, 0x00000000C0200000, 0, 0x00000000C0200000, 0x00	1
 asm	tests/inst/07-floating-point/ftmin_orrr_rf.S	TEST_FP3	5, ft, ftmin, rf5, rf6, 0x000000003FC00000, rf7, 0x000000003FC00000, 0, 0x000000003FC00000, 0x00	1
@@ -2714,10 +2744,10 @@ asm	tests/inst/07-floating-point/ftrem_orrr_rf.S	TEST_FP3	8, ft, ftrem, rf5, rf6
 asm	tests/inst/07-floating-point/ftrem_orrr_rf.S	TEST_FP3	9, ft, ftrem, rf5, rf6, 0x0000000040A00000, rf7, 0x0000000000000000, 0, 0x000000007FC00000, 0x01	1
 asm	tests/inst/07-floating-point/ftrem_orrr_rf.S	TEST_FPENC	1, ft, 0x44505187, rf5, rf6, 0x0000000040A00000, rf7, 0x0000000040000000, 0x000000003F800000, 0x00	1
 asm	tests/inst/07-floating-point/ftrem_orrr_rf.S	TEST_FPENC	2, ft, 0x4453FFBD, rf63, rf62, 0x0000000040E00000, rf61, 0x0000000040000000, 0x00000000BF800000, 0x00	1
-asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FAULT_FP	25, ILLI, 0x440C0181	1
-asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FAULT_FP	26, ILLI, 0x440C5180	1
-asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FAULT_FP	27, ILLI, 0x440C5183	1
-asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FAULT_FP	28, ILLI, 0x440C51B0	1
+asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FAULT_FP	29, ILLI, 0x440C0181	1
+asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FAULT_FP	30, ILLI, 0x440C5180	1
+asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FAULT_FP	31, ILLI, 0x440C5183	1
+asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FAULT_FP	32, ILLI, 0x440C51B0	1
 asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	10, ftrnd, rf5, rf6, 0x0000000040400000, 0x20, 0, 0xDEADBEEF40400000, 0x00	1
 asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	11, ftrnd, rf5, rf6, 0x0000000040200000, 0x01, 3, 0xDEADBEEF40000000, 0x00	1
 asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	12, ftrnd, rf7, rf8, 0x00000000BF000000, 0x04, 0, 0xDEADBEEF80000000, 0x00	1
@@ -2733,6 +2763,10 @@ asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	21, ftrnd, rf7, rf8,
 asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	22, ftrnd, rf7, rf8, 0x000000007F800001, 0x08, 0, 0xDEADBEEF7FC00000, 0x01	1
 asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	23, ftrnd, rf9, rf9, 0xDEADBEEFC0600000, 0x01, 0, 0xDEADBEEFC0800000, 0x00	1
 asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	24, ftrnd, rf9, rf0, 0x000000007FC00000, 0x01, 0, 0xDEADBEEF7FC00000, 0x00	1
+asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	25, ftrnd, rf5, rf6, 0x00000000C0200000, 0x02, 0, 0xDEADBEEFC0400000, 0x00	1
+asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	26, ftrnd, rf5, rf6, 0x00000000C0200000, 0x01, 0, 0xDEADBEEFC0000000, 0x00	1
+asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	27, ftrnd, rf5, rf6, 0x0000000040200000, 0x20, 2, 0xDEADBEEF40000000, 0x10	1
+asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	28, ftrnd, rf5, rf6, 0x00000000C0200000, 0x20, 3, 0xDEADBEEFC0000000, 0x10	1
 asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	3, ftrnd, rf5, rf6, 0x0000000040200000, 0x01, 0, 0xDEADBEEF40000000, 0x00	1
 asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	4, ftrnd, rf5, rf6, 0x0000000040200000, 0x02, 0, 0xDEADBEEF40400000, 0x00	1
 asm	tests/inst/07-floating-point/ftrnd_orri_rf.S	TEST_FPRND	5, ftrnd, rf5, rf6, 0x00000000C02CCCCD, 0x04, 0, 0xDEADBEEFC0000000, 0x00	1

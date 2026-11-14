@@ -58,9 +58,22 @@
 	@@ 目的 = 加数（rf9 = 2 × 3 + rf9）
 	TEST_FP4	19, fo, fofma, rf9, rf6, 0x4000000000000000, rf7, 0x4008000000000000, rf9, 0x4010000000000000, 0, 0x4024000000000000, 0x00
 
+	@@ ---- 收窄补点（m13-testcases-044；原 C 探针覆盖、本载体缺的边界，依据 `spec/SimRISC-07 §2.5`）----
+	@@ 轻微溢出（`§2.5`「溢出」末段）：精确和 = fo_max + 2^969（1/4 ulp，ulp = 2^971）> max，
+	@@   但 RNE 的无限指数舍入结果仍为 fo_max ⇒ 不构成溢出 ⇒ 结果 fo_max、只置 NX
+	TEST_FP4	20, fo, fofma, rf5, rf6, 0x7FEFFFFFFFFFFFFF, rf7, 0x3FF0000000000000, rf8, 0x7C80000000000000, 0, 0x7FEFFFFFFFFFFFFF, 0x10
+	@@ 同一输入在 RUP 下舍到 2^1024 > max ⇒ 溢出 ⇒ +Inf + OF|NX
+	TEST_FP4	21, fo, fofma, rf5, rf6, 0x7FEFFFFFFFFFFFFF, rf7, 0x3FF0000000000000, rf8, 0x7C80000000000000, 3, 0x7FF0000000000000, 0x14
+	@@ 次正规结果且 inexact：精确和 = 2^-1074 × 1.25 = 1.25 单位 ⇒ RNE 舍到 1 单位（2^-1074），UF|NX
+	TEST_FP4	22, fo, fofma, rf5, rf6, 0x0000000000000001, rf7, 0x3FF4000000000000, rf8, 0x0000000000000000, 0, 0x0000000000000001, 0x18
+	@@ 同一输入在 RUP 下舍到 2 单位（2^-1073），UF|NX
+	TEST_FP4	23, fo, fofma, rf5, rf6, 0x0000000000000001, rf7, 0x3FF4000000000000, rf8, 0x0000000000000000, 3, 0x0000000000000002, 0x18
+	@@ Inf 作加数：1 × 2 + (−Inf) ⇒ −Inf，不置标志（`§2.5`「特例」第 3 条）
+	TEST_FP4	24, fo, fofma, rf5, rf6, 0x3FF0000000000000, rf7, 0x4000000000000000, rf8, 0xFFF0000000000000, 0, 0xFFF0000000000000, 0x00
+
 	@@ ---- legality ----
 	@@ 目的 rf0 ⇒ ILLI（dst_rf0）
-	TEST_FAULT_FP	20, ILLI, 0x5F0020C4
+	TEST_FAULT_FP	25, ILLI, 0x5F0020C4
 
 	__TEST_END
 

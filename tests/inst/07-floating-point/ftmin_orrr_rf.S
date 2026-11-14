@@ -52,9 +52,19 @@
 	@@ 目的 = 源D（rf9 = min(2.5, rf9)）
 	TEST_FP3	16, ft, ftmin, rf9, rf6, 0x0000000040200000, rf9, 0x000000003FC00000, 0, 0x000000003FC00000, 0x00
 
+	@@ ---- 收窄补点（m13-testcases-044；原 C 探针覆盖、本载体缺的边界，依据 `spec/SimRISC-07 §2.4`）----
+	@@ 单 NaN 的第 4 条对「带符号位的 qNaN」同样成立：min(−qNaN, 1.0) = 1.0，qNaN 不置标志
+	TEST_FP3	17, ft, ftmin, rf5, rf6, 0x00000000FFC00000, rf7, 0x000000003F800000, 0, 0x000000003F800000, 0x00
+	@@ 第 1 条按数值序含次正规：min(minsub, maxsub) = minsub（ft；高 32 位不比较）
+	TEST_FP3	18, ft, ftmin, rf5, rf6, 0x0000000000000001, rf7, 0x00000000007FFFFF, 0, 0x0000000000000001, 0x00
+	@@ min(minsub, +0) = +0
+	TEST_FP3	19, ft, ftmin, rf5, rf6, 0x0000000000000001, rf7, 0x0000000000000000, 0, 0x0000000000000000, 0x00
+	@@ min(+Inf, −Inf) = −Inf（第 6 条）
+	TEST_FP3	20, ft, ftmin, rf5, rf6, 0x000000007F800000, rf7, 0x00000000FF800000, 0, 0x00000000FF800000, 0x00
+
 	@@ ---- legality ----
 	@@ 目的 rf0 ⇒ ILLI（dst_rf0）
-	TEST_FAULT_FP	17, ILLI, 0x44980083
+	TEST_FAULT_FP	21, ILLI, 0x44980083
 
 	__TEST_END
 

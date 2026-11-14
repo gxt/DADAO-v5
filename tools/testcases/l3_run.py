@@ -52,9 +52,8 @@ STAMP_RE = re.compile(r"^\d{8}T\d{6}Z$")
 # 成员 = L3 的直接清单（真源；``docs/Process-07 §1``）。
 DEFAULT_MEMBERS: list[tuple[str, str, str]] = [
     # inst 执行 = L2 `check-inst-asm`（`.S` 全量）；L3 只列 `fp` 身份无向量的探针。
-    ("inst", "fp-rnd", "make check-rnd-probe"),
-    ("inst", "fp-minmax", "make check-minmax-probe"),
-    ("inst", "fp-fma", "make check-fma-probe"),
+    # `fp-rnd`/`fp-minmax`/`fp-fma` 三探针已由 `m13-testcases-044` 退役（语义由
+    # `07-floating-point` 的 `.S` 载体 + lit/e2e/picolibc 承担）⇒ L3 只剩 clmul。
     ("inst", "fp-clmul", "make check-clmul-probe"),
     ("arch", "cfx", "make check-arch"),
     ("unit", "full", "make check-unit-full"),
@@ -188,7 +187,9 @@ def cmd_selftest(args: argparse.Namespace) -> int:
 
     # 成员日志须非空（报告门控要求），故用 `echo` 而非裸 `true`。
     green = [(s, u, "echo ok") for s, u, _ in DEFAULT_MEMBERS]
-    red = [(s, u, "echo red; false" if u == "fp-fma" else "echo ok")
+    # 红例成员取清单首项（现场派生，不写死某个 suite 名：成员会随退役变化）。
+    red_member = DEFAULT_MEMBERS[0][1]
+    red = [(s, u, "echo red; false" if u == red_member else "echo ok")
            for s, u, _ in DEFAULT_MEMBERS]
 
     rc = run_l3(tests_root, "20261027T000000Z", green, log_dir, allow_overwrite=False)
@@ -216,7 +217,7 @@ def cmd_selftest(args: argparse.Namespace) -> int:
                    "errors=" + ("; ".join(rep.errors)[:120] if rep.errors else "-")))
     red_rows = [ln for ln in (tests_root / "l3" / "20261027T000001Z" /
                               "manifest.tsv").read_text().splitlines()
-                if "\tfp-fma\t" in ln]
+                if "\t" + red_member + "\t" in ln]
     checks.append(("manifest records rc=1 for red member",
                    bool(red_rows) and red_rows[0].split("\t")[2] == "1",
                    str(red_rows)))

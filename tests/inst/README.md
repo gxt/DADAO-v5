@@ -1,10 +1,12 @@
 # inst scope — 指令级测试用例（`tests/inst/`）
 
 本目录是 **inst scope**（`docs/Process-09` §3）：单指令/短序列执行语义的**源码用例**，
-另含 `atomics/clmul/fma/minmax/roundint` 探针源。向量是 LLVM/QEMU/gem5 的**独立 oracle**。
+另含 `atomics/clmul` 探针源（`fma/minmax/roundint` 三个 C 探针已由 `m13-testcases-044` 退役，
+其边界点已抽进 `07-floating-point` 的 `.S` 载体）。向量是 LLVM/QEMU/gem5 的**独立 oracle**。
 
 > `TESTCASES-072t`（2026-10-27）从 `tests/vectors/` 与 `tests/{atomics,clmul,fma,minmax,roundint}/`
-> 迁入；执行 harness 在 `tools/testcases/{lib,inst}/`。
+> 迁入；执行 harness 在 `tools/testcases/{lib,inst}/`。`fma/minmax/roundint` 探针于
+> `m13-testcases-044` 退役（覆盖核对见该任务书；抽点进 `.S` 后删目录与 oracle/runner）。
 
 - 向量**独立派生自锁定的规范与合约**（`spec/`、`.tao/contracts/contract-isa.md`、
   `contracts/opcodes.yaml`、`contracts/legality_rules.yaml`、

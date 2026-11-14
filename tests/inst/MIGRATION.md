@@ -218,7 +218,8 @@ cfxha 63 / 3，cfxha 46 ⇒ 其它 cfxha 段取指）⇒ **`CFXMEM`（0xF1）期
 **删除**：27 个 YAML（1,315 例 / 204 id + 3 条无 id 保留编码；入库 768 KB）；
 `tests/inst/{base,fp,rev,rol,bitcnt}/` 目录随空删除（`atomics`/`clmul` 保留 C/LL 探针；
 `fma`/`minmax`/`roundint` 三个目录**不是**空目录 —— 各含 3–4 个 `.c/.h` 探针，保留并
-留给 `m13-testcases-044`）。`tests/inst.yaml` 305 → 283 条（删 23 条 YAML 载体条目，
+留给 `m13-testcases-044`；该任务已核对 lit/e2e/picolibc 覆盖、把缺的边界点抽进
+`07-floating-point` 的 `.S` 载体后**删除**这三个目录（探针退役）。`tests/inst.yaml` 305 → 283 条（删 23 条 YAML 载体条目，
 加 1 条非 id 载体条目）。
 
 **保留编码迁入 `00-isa-design/undi_reserved.S`**：3 条无 id 保留编码（word
