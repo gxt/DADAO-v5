@@ -237,7 +237,7 @@ semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 
 
 - semihosting **`SYS_EXIT`（`0x18`）/`SYS_EXIT_EXTENDED`（`0x20`）取代 exit port** 作为停机协议。
 - 常规应用退出使用原因码 `ADP_Stopped_ApplicationExit`（`0x20026`）；`SYS_EXIT_EXTENDED` 的第二个字段为退出状态码。退出码须忠实传播到 host `$?`，沿用确定性 halt 机制（写入后即锁定退出码）。
-- **迁移范围 = 全部**：M1–M4 所有依赖 exit port 的向量/harness 已迁 `SYS_EXIT`；exit-port MMIO 设备已于 C1 step2 删除——机器模型不再保留 exit port。
+- **迁移范围 = 全部**：所有依赖 exit port 的向量/harness 已迁 `SYS_EXIT`；exit-port MMIO 设备已于 C1 step2 删除——机器模型不再保留 exit port。
 
 ### 5.6 已知风险（`SYS_SYSTEM`）
 
@@ -254,7 +254,7 @@ M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配�
 - **装载语义 — `Machine-v5-Vast`**：4 MiB BootROM 经 bootrom 镜像装载路径（机器属性 `bootrom-image`）装入；`power` 从 BootROM 把 hmon 装入 hmon SRAM，`power → hmon → smon` 交接后由 smon 建立**首张页表**并开启 PTW（`PTBR` = 页表页 PA、`ptw_enable = 1`）：该表覆盖内核窗口基址起的前 512 MiB（`VA [0x0200_0000_0000, 0x0200_2000_0000) → PA [0, 0x2000_0000)`，`VA = PA + 2 TiB`，含 `§6.3` 所需的前 96 MiB），窗口内其余区间不映射、由内核按需扩展。页表格式与地址转换按 `DADAO-12 §2.2`。本册只规定该首张页表，不规定**测试镜像**的段布局、起始执行位置或 SP；**内核镜像**的装载路径（VA）、内存窗口分区、boot info 与进入时状态见 `§6.3`。
 - **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载；Tiny 下它与 `bootrom-image` 装载的是**同一固定固件镜像**（应用走 `-kernel` 的 SRAM 段），不再携带应用专用 ROM trampoline。
 - **模式移交**：`Machine-v5-Tiny` 运行模式始终为 `hypv`，但存在 `power → hmon → 测试本体` 的 cfx/启动移交（同 `§2`）；`Machine-v5-Vast` 为 power → hmon → 测试本体（hypv），`power → hmon → smon` 路径保留（同 `§2`）。
-- **并存关系**：`-bios`/`bootrom-image` 固件启动路径与 M4 的 ELF 单镜像路径**并存、非替代**——两条启动路径各自可自动化（Tiny 的 ELF 路径同样需要固件镜像，见上）。
+- **并存关系**：`-bios`/`bootrom-image` 固件启动路径与 ELF 单镜像路径**并存、非替代**——两条启动路径各自可自动化（Tiny 的 ELF 路径同样需要固件镜像，见上）。
 
 ### 6.1 image index table（两 profile 共用格式）
 
@@ -325,7 +325,7 @@ BootROM 镜像的段表两 profile **同格式、大端**（DADAO 为大端）�
 
 **内核窗口偏置（本节硬约定）**：内核 VA 窗口内 `VA = PA + 2 TiB`（固定偏置）——内核空间**不从 0 开始**，用户空间独占低端 `[0, 2 TiB)`；`PTBR` 与页表项仍按 PA 记。[spec-decision]（用户 2026-11-13 裁定：内核空间 `[2 TiB, 3 TiB)`、四项冻结地址整体 +2 TiB）
 
-**启动模型（M1 = 预建页表 + VA 入口）**：进入内核**之前**页表已**预建**——smon 预建首张页表并开启 PTW（`PTBR` 指向该表、`ptw_enable = 1`），映射 `VA [0x0200_0000_0000, 0x0200_2000_0000) → PA [0, 0x2000_0000)`（覆盖内核窗口基址起的前 512 MiB，含本节所需的全部固定分区）；随后以 `rb16` 的 VA 入口进入内核。页表格式与地址转换按 `DADAO-12 §2.2`。页表**只由启动固件 `smon` 建立**（`§6`：`power → hmon → smon` 交接中建立首张页表并开启 PTW）；**宿主 loader 只把镜像装到对应 PA，不代写页表页**。M1 **不存在**「先关 MMU 跑一段再开」的中间态。[spec-decision]（用户 2026-11-13 裁定：M1 预建页表 + VA 入口）
+**启动模型（预建页表 + VA 入口）**：进入内核**之前**页表已**预建**——smon 预建首张页表并开启 PTW（`PTBR` 指向该表、`ptw_enable = 1`），映射 `VA [0x0200_0000_0000, 0x0200_2000_0000) → PA [0, 0x2000_0000)`（覆盖内核窗口基址起的前 512 MiB，含本节所需的全部固定分区）；随后以 `rb16` 的 VA 入口进入内核。页表格式与地址转换按 `DADAO-12 §2.2`。页表**只由启动固件 `smon` 建立**（`§6`：`power → hmon → smon` 交接中建立首张页表并开启 PTW）；**宿主 loader 只把镜像装到对应 PA，不代写页表页**。M1 **不存在**「先关 MMU 跑一段再开」的中间态。[spec-decision]（用户 2026-11-13 裁定：M1 预建页表 + VA 入口）
 
 **硬约束（为何必须 PTW 已开）**：DADAO 在 `ptw_enable = 0` 时对内存窗口（`addr[47:42] = 0`）的取指/访存**直接报 `CFXMEM`**（`§1.2`）——内核不可能在 MMU 关的状态下从 RAM 取指或访存。因此进入内核时 `ptw_enable` 必须为 `1`。[spec-decision]
 
@@ -483,11 +483,11 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 
 ### 0.4.7-rc（未发布）
 
-- **内核 VA 窗口改为 `[2 TiB, 3 TiB)`**（用户 2026-11-13 裁定：内核空间不从 0 开始；用户空间 `[0, 2 TiB)`；渠道 = 主会话问答）：`§6.3` 的四段固定分区整体迁入内核窗口，窗口内 `VA = PA + 2 TiB`——首张页表页 VA `0x0200_0000_0000`（`PTBR` 仍为页表页 PA 0）、boot info VA `0x0200_0001_0000`（PA 侧不变）、内核镜像区 VA `[0x0200_0010_0000, 0x0200_0400_0000)`（`kernel_base` / `e_entry` / `raw` 基址同步）、initramfs 区 VA `[0x0200_0400_0000, 0x0200_0600_0000)`；boot info 的 `ram_base` 改记内核窗口起点（VA `0x0200_0000_0000`）。`§6` 的 Vast 首张页表由「全域 4 个 512 MiB 超页」改为「内核窗口基址段 1 个 512 MiB 超页」（`VA [0x0200_0000_0000, 0x0200_2000_0000) → PA [0, 0x2000_0000)`）；物理侧（PA RAM 2 GiB、内核镜像 PA 起点 0、boot info PA `0x1_0000`、页表页 PA 0）不变。`§6.3` 的 M1 改为「预建带偏置页表 + VA 入口」，不再是身份映射。
+- **内核 VA 窗口改为 `[2 TiB, 3 TiB)`**（用户 2026-11-13 裁定：内核空间不从 0 开始；用户空间 `[0, 2 TiB)`；渠道 = 主会话问答）：`§6.3` 的四段固定分区整体迁入内核窗口，窗口内 `VA = PA + 2 TiB`——首张页表页 VA `0x0200_0000_0000`（`PTBR` 仍为页表页 PA 0）、boot info VA `0x0200_0001_0000`（PA 侧不变）、内核镜像区 VA `[0x0200_0010_0000, 0x0200_0400_0000)`（`kernel_base` / `e_entry` / `raw` 基址同步）、initramfs 区 VA `[0x0200_0400_0000, 0x0200_0600_0000)`；boot info 的 `ram_base` 改记内核窗口起点（VA `0x0200_0000_0000`）。`§6` 的 Vast 首张页表由「全域 4 个 512 MiB 超页」改为「内核窗口基址段 1 个 512 MiB 超页」（`VA [0x0200_0000_0000, 0x0200_2000_0000) → PA [0, 0x2000_0000)`）；物理侧（PA RAM 2 GiB、内核镜像 PA 起点 0、boot info PA `0x1_0000`、页表页 PA 0）不变。`§6.3` 的启动模型改为「预建带偏置页表 + VA 入口」，不再是身份映射。
 
 ### 0.4.6（未发布，被 0.4.7-rc 取代；本段所列地址为旧值，已作废）
 
-- **新增「`Machine-v5-Vast` 内核装载与启动 ABI」（`§6.3`）**：冻结内核镜像的 ELF / raw 两条装载路径与校验规则（ELF 7 条、raw 4 条、initramfs 3 条、失败语义 2 条）、内存窗口四段固定 VA 分区（页表页 / boot info 页 / 内核镜像区 / initramfs 区）、固定 boot info 结构（VA `0x0001_0000`、`size = 0x60`、大端、15 个字段）、进入内核时的状态（`supv`、PTW 开启、`rb17` = boot info VA、`rb16` = 入口 VA、SP 未定义、其它 hart 状态未定义）。**地址术语**：ABI 地址一律 VA（`addr[41:0]`），PA 只用于页表项、`PTBR` 与 loader 写内存的那一刻；`p_vaddr` 是 VA、由 loader 按映射写入对应 PA（K0 身份映射下数值相等）。**启动模型 M1 = 预建页表 + VA 入口**：进入内核前身份映射页表已预建且 `ptw_enable = 1`（`ptw_enable = 0` 时访存/取指直接 `CFXMEM`，不存在 MMU 关运行）。明确本机**不引入设备树**：`rb17` 与 HBI 移交约定的「设备树地址」同位，但承载 boot info，内核不得按 DTB 解析。装载的执行（宿主写内存与 boot info、装 initramfs、交给 smon）不在本版规定。
+- **新增「`Machine-v5-Vast` 内核装载与启动 ABI」（`§6.3`）**：冻结内核镜像的 ELF / raw 两条装载路径与校验规则（ELF 7 条、raw 4 条、initramfs 3 条、失败语义 2 条）、内存窗口四段固定 VA 分区（页表页 / boot info 页 / 内核镜像区 / initramfs 区）、固定 boot info 结构（VA `0x0001_0000`、`size = 0x60`、大端、15 个字段）、进入内核时的状态（`supv`、PTW 开启、`rb17` = boot info VA、`rb16` = 入口 VA、SP 未定义、其它 hart 状态未定义）。**地址术语**：ABI 地址一律 VA（`addr[41:0]`），PA 只用于页表项、`PTBR` 与 loader 写内存的那一刻；`p_vaddr` 是 VA、由 loader 按映射写入对应 PA（K0 身份映射下数值相等）。**启动模型 = 预建页表 + VA 入口**：进入内核前身份映射页表已预建且 `ptw_enable = 1`（`ptw_enable = 0` 时访存/取指直接 `CFXMEM`，不存在 MMU 关运行）。明确本机**不引入设备树**：`rb17` 与 HBI 移交约定的「设备树地址」同位，但承载 boot info，内核不得按 DTB 解析。装载的执行（宿主写内存与 boot info、装 initramfs、交给 smon）不在本版规定。
 
 ### 0.4.5（未发布，被 0.4.6-rc 取代）
 

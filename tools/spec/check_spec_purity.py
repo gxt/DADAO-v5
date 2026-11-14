@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""spec 纯净度门控（SPEC-165t）：`spec/*.md`（除 `README.md`）只允许规范内容。
+"""spec 纯净度门控（SPEC-165t）：`spec/*.md`（含索引 README.md）只允许规范内容。
 
 为什么
 ------
@@ -16,7 +16,7 @@ TESTCASES-/INTEG-/GOLDEN-/GEM5-/SAIL-）/ ``contract-*.md`` / ``.tao/`` /
 
 用法
 ----
-* ``python3 tools/spec/check_spec_purity.py``              # 扫仓库 spec/*.md（除 README.md）
+* ``python3 tools/spec/check_spec_purity.py``              # 扫仓库 spec/*.md（含 README.md）
 * ``python3 tools/spec/check_spec_purity.py --root DIR``   # 扫 DIR/*.md（fixture）
 * ``python3 tools/spec/check_spec_purity.py --self-test``  # ≥3 类注入自检（临时树）
 
@@ -36,7 +36,7 @@ SPEC = ROOT / "spec"
 
 # 通用规则：所有 spec 分册都适用。
 BANNED: list[tuple[str, re.Pattern[str]]] = [
-    ("范围标注 scope", re.compile(r"\bscope\b")),
+    ("范围标注 scope", re.compile(r"\bscope\b(?!\s*[=/])")),
     ("ADR 指针", re.compile(r"\bADR-\d{4}\b")),
     ("ISS 号", re.compile(r"\bISS-\d+\b")),
     ("任务号", re.compile(
@@ -48,12 +48,13 @@ BANNED: list[tuple[str, re.Pattern[str]]] = [
     ("里程碑号", re.compile(r"(?<![A-Za-z0-9])M[0-9]{1,2}(?![0-9])")),
     ("决策记录用语「用户裁定」", re.compile(r"用户裁定")),
     ("里程碑用语", re.compile(r"里程碑")),
+    ("启动模型编号", re.compile(r"启动模型\s*[（(]?\s*M\d")),
 ]
 
 # 仅 `SimRISC-*` 适用的规则：其它分册里 `scope` 是 ISA 字段名（`scope=all` / `scope: fp`），
 # `machine-v5` 是册名、`M1`/`M2` 是启动模型编号——它们不是项目痕迹，不该被误杀。
 SIMRISC_ONLY: list[tuple[str, re.Pattern[str]]] = [
-    ("范围标注 scope", re.compile(r"\bscope\b")),
+    ("范围标注 scope", re.compile(r"\bscope\b(?!\s*[=/])")),
     ("项目代号 v5", re.compile(r"\bv5\b")),
     ("里程碑号", re.compile(r"(?<![A-Za-z0-9])M[0-9]{1,2}(?![0-9])")),
 ]
@@ -61,8 +62,8 @@ BANNED = [b for b in BANNED if b[0] not in {n for n, _ in SIMRISC_ONLY}]
 
 
 def files(root: Path | None = None) -> list[Path]:
-    """全部 spec 分册（`README.md` 是索引、不是规范正文，排除）。"""
-    return sorted(p for p in (root or SPEC).glob("*.md") if p.name != "README.md")
+    """全部 spec 分册（含索引 `README.md`）。"""
+    return sorted((root or SPEC).glob("*.md"))
 
 
 def rules_for(path: Path) -> list[tuple[str, re.Pattern[str]]]:
