@@ -53,6 +53,13 @@
 - **`m13-integ-002` 的 4×6 矩阵数据源就是 `.S`**（报告 §3 明写「空白格 = 现有 `.S` 向量没有该组合」并给出 `rf0-sensitive` 点数）⇒ **删 fp YAML 不损失矩阵覆盖**；
 - 11 个空白格是 `.S` 自身的资产缺口（与 YAML 无关）；将来若要补，按 ≤127 + 抽样规则**只补「边界/异常优先」的组合**，不做全量补格。
 
+## 阶段一 B：补 5 条 `cs.*_rrrr_rd` 别名重叠用例（用户 2026-11-14 裁定）
+
+- 5 条 deferred（`C-27`）用例：`cs.{n,z,p,eq,ne}_rrrr_rd` 的「条件寄存器与源寄存器别名重叠」场景；
+- 这 5 个 id 已有 `.S` 载体，但**未覆盖别名重叠**；按裁定**各补 1 条 `overlap` 类用例**（放在对应 `.S` 内，点数 +1，远低于 127 上限）；
+- 判据：补完后 `.S` 执行覆盖含该场景；`check-inst-asm` 的 id 数不变（264），链/故障镜像数按现场 +5 说明；
+- 若实现上发现该场景在 `.S` 里构造不出来（需要特定写序），停下写「待裁定」，**不得**用 YAML 回填。
+
 ## 阶段二：保留编码迁 `00-isa-design`
 
 - 新建 `tests/inst/00-isa-design/undi_reserved.S`，承载 `reserved.yaml` 中 **3 条无 id** 的保留编码（word `0x08040001` / `0x1B040001` / `0x58040001`），断言 `UNDI`；
@@ -73,7 +80,8 @@
   | `generate_ctrl_br.py` / `generate_ctrl_jump_call_ret.py` / `generate_misc.py` / `generate_bitcnt_vectors.py` / `generate_rev_vectors.py` | 同上 | 删除 |
   | `validate_vectors` | 校验 YAML 类/覆盖 + **两条 br 守卫**（L495「active semantic `br.*` 必须有 `expected_pc`」、L922「每 id 必须 taken+not-taken 双路径」） | 只保留 `.S` 分支；**两条 br 守卫按用户 2026-11-14 裁定直接退役**；在 `MIGRATION.md` 记明「br 双路径覆盖改由执行证据承担（`.S` 的 `__LAND_IP` + 三平台跑批；现场 63 处 `__LAND_IP` ≫ YAML 34 条 `expected_pc`）」 |
   | `check-case-ledger` | 派生 vector 行（来自 YAML）+ lit 行 | 改为只派生 `.S` 侧；行数现场值 |
-  | `check-inst` | 跑 YAML 期望（Vast/Tiny） | 若其语料全来自已删 YAML ⇒ **随 `testcases-030` 后的 `.S` 门控退役**；保留的 `00-isa-design` 用例另计 |
+  | `check-inst` | 跑 YAML 期望（Vast full + Tiny subset） | **按用户 2026-11-14 裁定退役**（语料全来自已删 YAML）；`semantics_gate.py` 同步退役或标注「仅历史」；`Makefile` 目标移除、`docs/Process-07` 组合表同步 |
+  | **Vast（system）ISA 覆盖** | 现由 `check-inst --profile vast`（1015 例）提供 | **明确放弃**：Vast 不再做 ISA 级执行覆盖；在 `docs/Process-07` 与验收口径写明「Vast 的 ISA 语义由 `spec/` + M13 三平台差分矩阵承担」，不得再以 `check-inst` 作为 Vast 执行证据 |
 - 273 例 `sweep_expect.bin` md5 等历史钉：**历史任务书不改写**，但需在 `issues.yaml` 或 `MEMORY` 记「该钉随工具退役失效」。
 
 ## 阶段四：sweep 工具退役
@@ -92,7 +100,9 @@
 2. `git grep -c "\.yaml" tests/inst/` 只剩 `00-isa-design` 相关（预期 0，若 `undi_reserved.S` 是 `.S` 则 YAML 全 0）。
 3. 门控全绿：`check-tests-index`、`validate-vectors`、`check-case-ledger`、`check-generator-sync`、`check-inst-asm`（264 id/897 镜像）、`check-inst`（Vast+Tiny）、`check-no-residue`、`check-knowledge-refs`、`check-run-artifacts`（若红，核是否全属在途任务）。
 4. `grep -rn "inst_sweep\|bit_sweep\|ctrl_sweep\|fp_sweep\|inst_case_run"` 在 `Makefile`/`tools/` 只余「库/说明」；**无断链 import**（`python3 -c "import tools.chipyard.fetch_probe.gen_probe"` 或等价冒烟）。
-5. **br 守卫退役证据**：`validate_vectors.py` 里不再有「必须 `expected_pc`」与「双路径覆盖图」两段（`grep -n "expected_pc" tools/testcases/validate_vectors.py` 只余类型/48-bit 校验或 0 命中）；`MIGRATION.md` 有「由执行证据承担」的记录；`.S` 的 `__LAND_IP` 计数现场抄（应 ≥63）。
+5. **`cs.*` 别名重叠**：5 个 id 的 `.S` 里各有 1 条 overlap 用例（现场 `grep` 点名），`check-inst-asm` 仍 264 id、镜像数按现场说明。
+6. **Vast/`check-inst` 退役证据**：`make check-inst` 不再存在或明确标记历史；`semantics_gate.py` 无 YAML 分支被调用；`docs/Process-07` 写明「Vast 不做 ISA 执行覆盖，由 spec + M13 差分矩阵承担」；`.S` 索引的 `platforms` 语义（`system` = qemu-system 模式，不代表 Vast 机型）在 `tests/README.md` 或 `inventory.md` 澄清。
+7. **br 守卫退役证据**：`validate_vectors.py` 里不再有「必须 `expected_pc`」与「双路径覆盖图」两段（`grep -n "expected_pc" tools/testcases/validate_vectors.py` 只余类型/48-bit 校验或 0 命中）；`MIGRATION.md` 有「由执行证据承担」的记录；`.S` 的 `__LAND_IP` 计数现场抄（应 ≥63）。
 6. **生成器退役证据**：`grep -rn "generate_isa_vectors\|generate_ctrl_br\|generate_ctrl_jump_call_ret\|generate_misc\|generate_bitcnt_vectors\|generate_rev_vectors"` 在 `Makefile`/`tools/` = 0（或仅历史归档）；`make check-generator-sync` / `make check-rev-vectors` 或在目标删除后 `make -n` 不再引用它们；`docs/Process-07` 组成表已改。
 5. 可达 FAIL 注入 ≥3 路（删 `undi_reserved.S` ⇒ 索引/审计红；把某 id 的 `.S` 改名 ⇒ 双向断言红；注入一个 YAML 依赖残留 ⇒ 门控红），`cp`+md5 还原。
 6. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`；不改台账/`discussing.md`。
