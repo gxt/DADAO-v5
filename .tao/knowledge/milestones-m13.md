@@ -26,13 +26,8 @@
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
 | m13-gem5-013 | 2–3 h | gem5 `ld.t rf0` 经 FCSR 写掩码（只读位不覆盖） |
-| m13-qemu-011 | 2–3 h | `-bios` 收紧为固定固件，删 legacy trampoline 窗口 |
-| m13-testcases-034 | 2–3 h | Tiny `expected_fault` oracle 迁到 hmon 分派口径 |
 | m13-spec-008 | 1–2 h | `ext.*` 的 `hd` 取 `rdHD` 低 6 位（仅 orrr）；删「否则 ILLI」措辞 |
-| m13-gem5-012 | 3–4 h | gem5 `ext.*` orrr 的 `hd` 改 `reg & 0x3F`（B3 表同步） |
 | m13-testcases-033 | 2–3 h | 补 `ext.*` `rdHD=64/67/63` 跨平台用例（截低 6 位） |
-| m13-testcases-032 | 4–6 h | rootn ±0 / NaN canonical / quiet-sNaN 向量与三平台期望 |
-| m13-testcases-029 | 1–2 h | `12-misc` 其余 4 个 id 改汇编+宏（`swym`/`ct*`） |
 | m13-testcases-030 | 4–6 h | `.S` 接入门控 + YAML 退役（ISS-413） |
 | m13-integ-002 | 5–7 h | FP 语义三平台差分（47 条，含舍入/标志） （**暂不进行**，用户 2026-11-11） |
 | m13-integ-003 | 4–6 h | 整数与访存三平台差分（inst 全量非 cfx） （**暂不进行**，用户 2026-11-11） |
@@ -42,6 +37,11 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m13-testcases-032 | 2026-11-14 15:20 | 4–6 h | rootn ±0 / NaN canonical / quiet-sNaN 向量与三平台期望 |
+| m13-testcases-029 | 2026-11-14 15:20 | 1–2 h | `12-misc` 其余 4 个 id（`swym`/`ct*`）改汇编+宏 |
+| m13-gem5-012 | 2026-11-14 15:20 | 3–4 h | gem5 `ext.*` orrr 的 `hd` 改 `reg & 0x3F`（B3 表同步） |
+| m13-testcases-034 | 2026-11-14 15:20 | 2–3 h | Tiny `expected_fault` oracle 迁到 hmon 分派口径 |
+| m13-qemu-011 | 2026-11-14 15:20 | 2–3 h | `-bios` 收紧为固定固件，删 legacy trampoline 窗口 |
 | m13-infra-003 | 2026-11-14 15:00 | 5–7 h | 共享构建树/安装根写者护栏（`ISS-373`：写者登记 + 读方 fail-closed） |
 
 ## 已验证
