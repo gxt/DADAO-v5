@@ -739,6 +739,8 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 第二类根据 `rdha` 与 `rdhb` 是否相等判断，条件成立时将 `rdhd` 赋给 `rdhc`：[SimRISC-02 §条件赋值：Conditional Assignment]
 
+**搬移宽度**：本族的 `rd` 与 `rf` 形式**都按整 64 位搬移**（源读 64、目的写 64）；`rf` 形式不是 ft 窄写——`ft2ft` 的窄写来自其 `ft` 格式声明，不适用于本族。[SimRISC-02 §条件赋值：Conditional Assignment]
+
 | 指令 | 语义 | 来源 |
 |------|------|------|
 | `cs.eq rdha, rdhb, rdhc, rdhd` | `if (rdha == rdhb) rdhc = rdhd` | [SimRISC-02 §条件赋值：Conditional Assignment] |
