@@ -70,7 +70,7 @@
 - 防恒真（`--root` 合成树，两侧各推空一侧）：载体空/索引 264 → rc=1、`多 264`；索引空/载体 264 → rc=1、`缺 264`；两侧皆空 → 双向行 `0/0/0/0` 但整体仍 rc=1（其它检查红）⇒ 任一侧都能独立驱动红，正例不恒真。
 - 门控：`validate-vectors` rc=0（`264 .S carriers`、`gaps: 0`）；`check-case-ledger` rc=0（`现场身份 2033 条（vector 1510 / lit 523）`）；`inst_sweep emit` md5 `2d4d94651346ef673c5a855e024c1489`；`check-knowledge-refs` rc=0（悬空 0）、`check-no-residue` rc=0；`check-run-artifacts` make **rc=2**、471 条非法名**全部**含 `m12-chipyard-016`（其它 0 条）。
 - `check-inst-asm` **reviewer 本机复跑**（qemu/bootrom 已存在，未重建、未动节点）：`jobs=62`、`264 个 id / 897 个镜像 / 897/897 通过 / 0 FAIL`，make **rc=0**（21:17:31→21:17:43）；节点日志 `jobs=31`、`897/897`、`EXIT=0` 与之一致。
-- 证据脚本：逐条审毕原样重跑 `bash .work/evidence/m13-testcases-041/run.sh` → `EVIDENCE: PASS` **rc=0**；**独立注入**（删 `stm.w_rrri_rd.S` 索引）后重跑**同一脚本** → `EVIDENCE: FAIL（10 项不符）` **rc=1**；`cp`+md5 还原 → `EVIDENCE: PASS` **rc=0**。
+- 证据脚本：逐条审毕原样重跑 `bash <运行期证据目录>/run.sh` → `EVIDENCE: PASS` **rc=0**；**独立注入**（删 `stm.w_rrri_rd.S` 索引）后重跑**同一脚本** → `EVIDENCE: FAIL（10 项不符）` **rc=1**；`cp`+md5 还原 → `EVIDENCE: PASS` **rc=0**。
 
 **约束核验**
 - 改动面 = `tests/inst.yaml` / `tools/testcases/check_tests_index.py` / `Makefile` / 本任务书，共 4 文件；禁区（`spec/`、`contracts/`、`components/`、`tests/inst/*.S`）**0 命中**；`Makefile` 仅 4 行注释改动（recipe `@$(PYTHON) …` 为上下文未动），`make check-tests-index` rc=0。
@@ -85,7 +85,7 @@
 
 ## 完成区
 
-**测试结果**：全绿（rc 均为现场取值）：`check-tests-index` rc=0（四册合计 490→**505**，inst 290→**305**；`载体↔索引（inst .S）: 载体 264 / 索引 264 / 缺 0 / 多 0`）；`--self-test` rc=0（22 用例全 PASS、0 FAIL）；`validate-vectors` rc=0（264 `.S` 载体、gaps 0）；`check-case-ledger` rc=0（2033 条，无需 `--write`）；`check-inst-asm` 节点 rc=0（**264 id / 897 镜像** = 链例 264 + 故障例 633，逐条 PASS）；273 例 `sweep_expect.bin` md5 `2d4d94651346ef673c5a855e024c1489` 不变；`check-knowledge-refs`/`check-no-residue` rc=0；`check-run-artifacts` rc=1：471 条非法名**全部**落在在途 `m12-chipyard-016` 日志子树，本任务 0 条。
+**测试结果**：全绿（rc 均为现场取值）：`check-tests-index` rc=0（四册合计 490→**505**，inst 290→**305**；`载体↔索引（inst .S）: 载体 264 / 索引 264 / 缺 0 / 多 0`）；`--self-test` rc=0（22 用例全 PASS、0 FAIL）；`validate-vectors` rc=0（264 `.S` 载体、gaps 0）；`check-case-ledger` rc=0（2033 条，无需 `--write`）；`check-inst-asm` 节点 rc=0（**264 id / 897 镜像** = 链例 264 + 故障例 633，逐条 PASS）；273 例 `sweep_expect.bin` md5 `2d4d94651346ef673c5a855e024c1489` 不变；`check-knowledge-refs`/`check-no-residue` rc=0；`check-run-artifacts` rc=2（make 层；python 层 1）：471 条非法名**全部**落在在途 `m12-chipyard-016` 日志子树，本任务 0 条。
 
 **修改文件**：`tests/inst.yaml`（+15 条 `inst-01-load-store-024..038`）、`tools/testcases/check_tests_index.py`（`CARRIER_SUFFIXES`/`_carrier_files`/`check_carrier_bijection` + 3 条 self-test 用例 + docstring 第 9 项）、`Makefile`（门控注释改按现场派生、去掉写死的「13 类注入」）、本任务书。`tests/case-ledger.tsv` 无改动（rc=0 已证零 diff 需求不存在）。
 
