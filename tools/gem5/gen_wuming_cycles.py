@@ -528,7 +528,14 @@ def block_model(rows) -> dict:
             raise SystemExit(
                 f"{DOC.name}:{s['line']}: {s['mnemonic']} N={s['n']} 实测 "
                 f"{s['figure']} 与解出的模型 {a}*N+{b}*beats={want} 不符")
-    return {"per_element": a, "per_beat": b, "samples": samples}
+    # One bus beat carries `n*width/beats` bytes; the doc's own N=8 figures say
+    # 8 (64 B in 8 beats, and ldm.ub's 8 B in 1 beat), and the memory-system
+    # width is that beat.  Every sample must agree.
+    beat_sizes = {s["n"] * s["width"] // s["beats"] for s in samples}
+    if len(beat_sizes) != 1:
+        raise SystemExit(f"{DOC.name}: D 类实测图的每 beat 字节数不一致 {beat_sizes}")
+    return {"per_element": a, "per_beat": b, "samples": samples,
+            "beat_bytes": beat_sizes.pop()}
 
 
 def pick_segment(row: Row, inst: Inst):
@@ -769,7 +776,73 @@ def row_counts(table, rows) -> dict[int, int]:
     return counts
 
 
-def emit_yaml(table, classes, doc_sha, rows, block) -> str:
+SRAM_RT_RE = re.compile(r"SRAM 往返 ≈\s*(\d+)\s*拍")
+FETCH_BEATS_RE = re.compile(r"取指缓冲 \*\*(\d+) beat\*\*")
+
+
+def memory_model(lines: list[str], classes: dict[str, ClassInfo]) -> dict:
+    """Memory-system parameters of the DADAO timing configuration (m16-gem5-006).
+
+    The configuration must not carry a hand-copied latency, so every number is
+    parsed out of the doc here and only the *derived* two are computed.  The
+    derivation, with the doc lines it reads:
+
+      bus_round_trip   §2 C 类「单次访存 `ld`/`st` 各宽度 | 4–7」 under the
+                       §intro rule 「访存类含一次总线往返」: the whole round
+                       trip of one access, backpressure included
+      sram_round_trip  §5 `ldm.o` N=8 一行「8 beat，SRAM 往返 ≈7 拍主导」
+      fetch_beats      §1 R5「取指缓冲 **8 beat**」
+      mem_latency      = sram_round_trip: SimpleMemory stands for the SRAM the
+                       chipyard core talks to
+      xbar_latency     = max(0, bus_lo - sram_round_trip): the document counts
+                       the round trip as SRAM time and does not break out an
+                       interconnect term, so the crossbar is modelled as
+                       transparent rather than invented
+    """
+    buses = []
+    for i, ln in enumerate(lines):
+        if not ln.startswith("|"):
+            continue
+        cells = split_row_cells(ln)
+        if len(cells) == 3 and cells[0] == "C":
+            m = RANGE_RE.match(cells[2].strip())
+            if m:
+                buses.append([int(m.group(1)), int(m.group(2))])
+    if not buses:
+        raise SystemExit(f"{DOC.name}: §2 C 类未解析到「4–7」范围")
+    bus = buses[0]
+
+    sram = None
+    fetch = None
+    for i, ln in enumerate(lines):
+        if sram is None:
+            m = SRAM_RT_RE.search(ln)
+            if m:
+                sram = (int(m.group(1)), i + 1)
+        if fetch is None:
+            m = FETCH_BEATS_RE.search(ln)
+            if m:
+                fetch = (int(m.group(1)), i + 1)
+    if sram is None:
+        raise SystemExit(f"{DOC.name}: 未解析到「SRAM 往返 ≈N 拍」")
+    if fetch is None:
+        raise SystemExit(f"{DOC.name}: 未解析到「取指缓冲 N beat」")
+    if not bus[0] <= sram[0] <= bus[1]:
+        raise SystemExit(
+            f"{DOC.name}:{sram[1]}: SRAM 往返 {sram[0]} 拍不在 C 类往返 "
+            f"{bus[0]}–{bus[1]} 之内，内存系统参数无法由文档定解")
+
+    return {
+        "bus_round_trip": bus,
+        "sram_round_trip": sram[0],
+        "fetch_beats": fetch[0],
+        "mem_latency": sram[0],
+        "xbar_latency": max(0, bus[0] - sram[0]),
+        "lines": {"bus": classes["C"].line, "sram": sram[1], "fetch": fetch[1]},
+    }
+
+
+def emit_yaml(table, classes, doc_sha, rows, block, mem) -> str:
     by_class: dict[str, int] = {}
     for entry in table:
         for klass in entry["klass"]:
@@ -799,6 +872,21 @@ def emit_yaml(table, classes, doc_sha, rows, block) -> str:
         out.append(f"  - {{line: {s['line']}, mnemonic: {q(s['mnemonic'])}, "
                    f"n: {s['n']}, width: {s['width']}, beats: {s['beats']}, "
                    f"figure: {s['figure']}}}")
+    out += [
+        "# memory_system: DADAO timing 配置的访存参数（m16-gem5-006）。",
+        "# bus_round_trip = §2 C 类往返范围；sram_round_trip = §5「SRAM 往返 ≈N 拍」；",
+        "# fetch_beats = §1 R5。mem_latency = sram_round_trip；",
+        "# xbar_latency = max(0, bus_lo - sram)：文档未单列互连项 ⇒ 交叉开关透明。",
+        "memory_system:",
+        f"  bus_round_trip: [{mem['bus_round_trip'][0]}, {mem['bus_round_trip'][1]}]",
+        f"  sram_round_trip: {mem['sram_round_trip']}",
+        f"  fetch_beats: {mem['fetch_beats']}",
+        f"  beat_bytes: {block['beat_bytes']}",
+        f"  mem_latency: {mem['mem_latency']}",
+        f"  xbar_latency: {mem['xbar_latency']}",
+        f"  doc_lines: {{bus_class: {mem['lines']['bus']}, "
+        f"sram: {mem['lines']['sram']}, fetch: {mem['lines']['fetch']}}}",
+    ]
     out += ["# overrides: §5 实测与 §3 估计冲突时的收敛口径（值仍出自文档）",
             "overrides:"]
     for mnemonic, o in OVERRIDES.items():
@@ -1009,8 +1097,25 @@ def policy_fields(entry, block: "dict | None" = None) -> dict:
         if not m:
             raise SystemExit(f"{DOC.name}: {entry['id']}: exponent-diff 公式无法解析")
         out["dyn_base"], out["dyn_add"] = int(m.group(1)), int(m.group(2))
-    elif dyn == "range" and entry["mnemonic"] == "escape":
+    elif dyn == "range":
+        # A documented range: `escape` (3–4) and the C class (`ld`/`st` widths,
+        # 4–7 / 7–16 / 10–21).  Both endpoints travel with the row.
+        if not entry.get("range"):
+            raise SystemExit(f"{DOC.name}: {entry['id']}: range 行缺上下界")
         out["range_lo"], out["range_hi"] = entry["range"]
+        if entry["klass"] == ["C"]:
+            # C (one `ld`/`st`) takes the same element+beat model evaluated at
+            # one element: the document's C range has an explicitly
+            # extrapolated narrow end («其余宽度外推») and a «含背压» top end,
+            # while its measured D rows solve to per_element=1 / per_beat=8, so
+            # one access of at most one beat costs 1 + 8.  m16-gem5-006
+            # measured 9 (ld) / 10 (st) on WumingTiny for every width; see
+            # wuming_latency.hh |dynamicCycles| and the task's disclosure.
+            if block is None:
+                raise SystemExit(f"{DOC.name}: {entry['id']}: 缺块传送模型")
+            out["per_element"] = block["per_element"]
+            out["per_beat"] = block["per_beat"]
+            out["elem_width"] = block_width(entry["mnemonic"])
     else:
         # Block transfers are keyed on the class, not on the parameter label:
         # the doc's D rows carry either an N=… figure or the class-level
@@ -1250,6 +1355,7 @@ def main() -> int:
 
     table, missing = build_table(insts, rows, classes)
     block = block_model(rows)
+    mem = memory_model(lines, classes)
 
     report("ids-covered", not missing and len(table) == len(insts),
            f"{len(table)}/{len(insts)} 条 id 有类" +
@@ -1295,8 +1401,14 @@ def main() -> int:
            f"D 类 per_element={block['per_element']} per_beat={block['per_beat']}"
            f"（{len(block['samples'])} 条 N=… 实测图逐条回代）" +
            (f"；不符 {samples_bad[:2]}" if samples_bad else ""))
+    report("memory-model", mem["bus_round_trip"][0] <= mem["mem_latency"]
+           <= mem["bus_round_trip"][1],
+           f"访存 sram={mem['sram_round_trip']} xbar={mem['xbar_latency']} "
+           f"取指={mem['fetch_beats']}beat"
+           f"（C 类 {mem['bus_round_trip'][0]}–{mem['bus_round_trip'][1]} 拍、"
+           f"§5 行 {mem['lines']['sram']}）")
 
-    yaml_text = emit_yaml(table, classes, doc_sha, rows, block)
+    yaml_text = emit_yaml(table, classes, doc_sha, rows, block, mem)
     hh_text = emit_hh(order, len(table))
     cc_text = emit_cc(table, order, block)
     source = Path(args.source)

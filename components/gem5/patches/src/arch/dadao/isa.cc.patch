@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..bc7eaca
+index 0000000..65c4394
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,440 @@
+@@ -0,0 +1,448 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
@@ -65,7 +65,10 @@ index 0000000..bc7eaca
 +    if (dyn == "range") {
 +        if (mnemonic == "escape")
 +            return inst.fieldValue("imms18", state.imms18);
-+        return false;
++        // C class (one `ld`/`st`): the model evaluates the document's solved
++        // element+beat model at one element, which needs no runtime input
++        // (m16-gem5-006; see wuming_latency.hh |dynamicCycles|).
++        return wuming::memoryRow(row);
 +    }
 +    if (dyn == "exponent-diff") {
 +        if (tc == nullptr)
@@ -100,7 +103,12 @@ index 0000000..bc7eaca
 +} // anonymous namespace
 +
 +ISA::ISA(const Params &p)
-+    : BaseISA(p, "dadao"), wumingCycles(p.enable_wuming_cycles),
++    : BaseISA(p, "dadao"),
++      ADD_STAT(dataMemReads,
++               "guest data-memory reads retired by the exec cores"),
++      ADD_STAT(dataMemWrites,
++               "guest data-memory writes retired by the exec cores"),
++      wumingCycles(p.enable_wuming_cycles),
 +      wumingMulExpr(p.wuming_mul_expr)
 +{
 +    _regClasses = {&intRegClass, &floatRegClass, &vecRegClass,

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
 new file mode 100644
-index 0000000..c5d410a
+index 0000000..d0dab78
 --- /dev/null
 +++ b/src/arch/dadao/isa.hh
-@@ -0,0 +1,142 @@
+@@ -0,0 +1,160 @@
 +// DADAO ISA object (B0 skeleton + B6 LR/SC reservation state).
 +#ifndef __ARCH_DADAO_ISA_HH__
 +#define __ARCH_DADAO_ISA_HH__
@@ -17,6 +17,7 @@ index 0000000..c5d410a
 +#include "arch/dadao/pcstate.hh"
 +#include "arch/dadao/regs/misc.hh"
 +#include "arch/generic/isa.hh"
++#include "base/statistics.hh"
 +
 +namespace gem5
 +{
@@ -107,7 +108,24 @@ index 0000000..c5d410a
 +    bool hasPendingSignal() const { return pendingSignal; }
 +    void setPendingSignal(bool pending) { pendingSignal = pending; }
 +
++    /** Guest data-memory accesses retired by the exec cores (m16-gem5-006).
++     *
++     *  Counted on every CPU model, so an Atomic-vs-Timing run of the same
++     *  corpus must report the same numbers: the two models differ in the
++     *  timing of a load/store, not in whether it happened. */
++    void noteDataAccess(bool write)
++    {
++        if (write)
++            dataMemWrites++;
++        else
++            dataMemReads++;
++    }
++
 +  private:
++    /** Guest data-memory accesses retired by the exec cores (m16-gem5-006). */
++    statistics::Scalar dataMemReads;
++    statistics::Scalar dataMemWrites;
++
 +    bool reservationValid = false;
 +    Addr reservationAddr = 0;
 +    unsigned reservationWidth = 0;

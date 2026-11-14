@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/wuming_latency.hh b/src/arch/dadao/wuming_latency.hh
 new file mode 100644
-index 0000000..94dec4c
+index 0000000..64d0f6b
 --- /dev/null
 +++ b/src/arch/dadao/wuming_latency.hh
-@@ -0,0 +1,272 @@
+@@ -0,0 +1,296 @@
 +// Wuming per-instruction latency policy (M16).
 +//
 +// The table itself (``wuming_cycles.hh``) is generated from
@@ -19,7 +19,8 @@ index 0000000..94dec4c
 +//                 the exponent-difference remainder), ``swym N``, the RAS kind
 +//                 of call/ret, and the trap/escape ranges
 +//   m16-gem5-005  block transfer (D / D')
-+//   m16-gem5-006  memory (C / E and the remaining ranges)
++//   m16-gem5-006  single-access memory (C: `ld`/`st`); the E class
++//                 (lr/sc, m16-gem5-012 rows) keeps its one-cycle placeholder
 +//   m16-gem5-008  provenance gate: provisional rows (推断 / 未测 / 待实测)
 +//                 never drive the model -- every leaf returns 0 for them
 +//
@@ -54,11 +55,17 @@ index 0000000..94dec4c
 +    (1u << static_cast<unsigned>(CycleClass::G3)) |
 +    (1u << static_cast<unsigned>(CycleClass::G4));
 +
-+/** Rows whose latency is carried by the memory system keep it there: the
-+ *  extraExecLatency contract in arch/generic/isa.hh says loads/stores return
-+ *  zero, and m16-gem5-006 is the one that models ld/st timing.  Only one row
-+ *  in the static class set is affected (``ld.o rf``, classified B4 by the
-+ *  document's FP/register-data row). */
++/** Rows of the single-access memory class (C: ``ld.*`` / ``st.*``).
++ *
++ *  m16-gem5-006 measured what the TimingSimpleCPU can actually do with a
++ *  load/store: the DADAO exec cores read memory in the middle of
++ *  ``execute()`` (one-shot, synchronous), while a timed access can only
++ *  complete asynchronously through ``initiateAcc``/``completeAcc``.  The data
++ *  path therefore stays functional (see ``inst.cc`` |functionalMem|), i.e. the
++ *  memory system carries the *contents* but not the *cycles*; the C-class round
++ *  trip is charged here, like every other class.  ``memoryRow`` is what tells
++ *  them apart, so a documented *range* of this class is never mistaken for the
++ *  bus-conditioned ranges of `escape`/`trap`. */
 +inline bool
 +memoryRow(const CycleRow &row)
 +{
@@ -152,7 +159,7 @@ index 0000000..94dec4c
 +}
 +
 +/** Total EXEC cycles of a fixed-figure row, or 0 when this policy does not
-+ *  model it (dynamic row, class not mapped yet, memory row, one-cycle value). */
++ *  model it (dynamic row, class not mapped yet, one-cycle value). */
 +inline unsigned
 +staticCycles(const CycleRow &row)
 +{
@@ -161,8 +168,6 @@ index 0000000..94dec4c
 +    if (row.dynamic[0] != '\0')
 +        return 0;
 +    if ((row.classMask & kStaticClassMask) == 0)
-+        return 0;
-+    if (memoryRow(row))
 +        return 0;
 +    return row.cycles > 1 ? static_cast<unsigned>(row.cycles) : 0;
 +}
@@ -226,7 +231,26 @@ index 0000000..94dec4c
 +                cycles = static_cast<unsigned>(row.rangeHi);
 +            return row.rangeLo > 0 ? cycles : 0;
 +        }
-+        return 0; // memory ranges belong to m16-gem5-006
++        // C class (m16-gem5-006): one `ld`/`st`.  The document's C row is a
++        // *range* whose top end is a bus condition («含背压», §3 01) and whose
++        // narrow-width end is explicitly «其余宽度外推», so it cannot pin a
++        // per-instruction figure.  What the document does measure is the block
++        // transfer: its N=8 rows solve to one cycle per element plus one 8-byte
++        // bus beat (§5 `ldm.o`), i.e. a single access of at most one beat costs
++        // `per_element + per_beat`.  The policy therefore evaluates the same
++        // solved model at one element -- no figure is written here, and both
++        // coefficients still come from the document.
++        //
++        // Measured on WumingTiny (this task, min of adjacent ip/ip+4 deltas):
++        // every width of `ld.*` is 9 and every width of `st.*` is 10, i.e.
++        // width-independent; the doc's extrapolated 4–7 does not hold, and the
++        // stores' extra cycle is the same zero-variance +1 that m16-gem5-005
++        // reported for `stm`.  The deviation from the doc's C range is
++        // disclosed per row (see the task's 待裁定), never hidden: the model is
++        // the doc's measured structure, not a fit to the trace.
++        if (memoryRow(row))
++            return multiElementCycles(row, 1);
++        return 0;
 +    }
 +    if (dyn == "exponent-diff")
 +        return row.dynBase > 0

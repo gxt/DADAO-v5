@@ -1,6 +1,7 @@
 build_opts/DADAO.patch
 configs/dadao/fs.py.patch
 configs/dadao/se.py.patch
+configs/dadao/se_timing.py.patch
 src/arch/Kconfig.patch
 src/arch/SConscript.patch
 src/arch/dadao/DadaoCPU.py.patch

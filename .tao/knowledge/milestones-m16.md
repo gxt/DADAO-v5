@@ -25,12 +25,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-gem5-006 | 2026-11-15 05:50 | 3–4 h | 访存时序（`NoncoherentXBar`+`SimpleMemory`）+ Atomic/Timing 墙钟比 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-gem5-006 | 2026-11-15 07:05 | 访存时序（XBar+SimpleMemory；Timing 数据侧 functional 已披露；C 类 13/13 ≤1 拍；D 类 BLOCKED 转绿） |
 | m16-gem5-005 | 2026-11-15 05:40 | 块传送计拍（多元素 `1×N + 8×⌈N·w/8⌉`、`rd2rd` 类 `1+N`；N=2/4/9 与 chipyard 逐条相等；D 类端到端待 006） |
 | m16-gem5-008 | 2026-11-14 15:30 | 周期表 provenance 落地（provisional 48 行不进时序模型；B3 全占位） |
 | m16-gem5-004 | 2026-11-14 07:40 | 动态类接入（B1/B2/B3/B5/`swym`/ras-kind/trap-target/range；逐类差异 0） |

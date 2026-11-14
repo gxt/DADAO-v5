@@ -19,6 +19,18 @@ block_model:
   - {line: 54, mnemonic: 'ldm.ub', n: 8, width: 1, beats: 1, figure: 16}
   - {line: 54, mnemonic: 'ldm.o', n: 8, width: 8, beats: 8, figure: 72}
   - {line: 54, mnemonic: 'stm.o', n: 8, width: 8, beats: 8, figure: 72}
+# memory_system: DADAO timing 配置的访存参数（m16-gem5-006）。
+# bus_round_trip = §2 C 类往返范围；sram_round_trip = §5「SRAM 往返 ≈N 拍」；
+# fetch_beats = §1 R5。mem_latency = sram_round_trip；
+# xbar_latency = max(0, bus_lo - sram)：文档未单列互连项 ⇒ 交叉开关透明。
+memory_system:
+  bus_round_trip: [4, 7]
+  sram_round_trip: 7
+  fetch_beats: 8
+  beat_bytes: 8
+  mem_latency: 7
+  xbar_latency: 0
+  doc_lines: {bus_class: 36, sram: 114, fetch: 17}
 # overrides: §5 实测与 §3 估计冲突时的收敛口径（值仍出自文档）
 overrides:
 - {mnemonic: 'clmul.o', klass: 'A', cycles: '2', doc: '§5 行 117（位操作 ctpop/ctlz/cttz/rev/rol/clmul 实测 2）+ §3 行 87（A/2）', why: '§3 行 61 把 clmul.o 归 B1「3（可配）」，是实测前的估计；010 实测 2 拍。'}
@@ -66,25 +78,25 @@ doc_rows:
 - {line: 88, section: '12', ids: 1, classes: 'A'}
 - {line: 89, section: '12', ids: 11, classes: 'A'}
 instructions:
-- {id: 'ld.ub_rrii_rd', mnemonic: 'ld.ub', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'ld.uw_rrii_rd', mnemonic: 'ld.uw', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'ld.ut_rrii_rd', mnemonic: 'ld.ut', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'ld.sb_rrii_rd', mnemonic: 'ld.sb', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'ld.sw_rrii_rd', mnemonic: 'ld.sw', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'ld.st_rrii_rd', mnemonic: 'ld.st', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'ld.t_rrii_rf', mnemonic: 'ld.t', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'st.t_rrii_rf', mnemonic: 'st.t', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'st.b_rrii_rd', mnemonic: 'st.b', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'st.w_rrii_rd', mnemonic: 'st.w', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'st.t_rrii_rd', mnemonic: 'st.t', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'ld.o_rrii_rd', mnemonic: 'ld.o', section: '01', klass: ['C'], cycles: '7–16', value: null, range: [7, 16], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'st.o_rrii_rd', mnemonic: 'st.o', section: '01', klass: ['C'], cycles: '10–21', value: null, range: [10, 21], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'ld.o_rrii_rb', mnemonic: 'ld.o', section: '01', klass: ['C'], cycles: '7–16', value: null, range: [7, 16], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'st.o_rrii_rb', mnemonic: 'st.o', section: '01', klass: ['C'], cycles: '10–21', value: null, range: [10, 21], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'ld.o_rrii_ra', mnemonic: 'ld.o', section: '01', klass: ['C'], cycles: '7–16', value: null, range: [7, 16], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）'}
-- {id: 'st.o_rrii_ra', mnemonic: 'st.o', section: '01', klass: ['C'], cycles: '10–21', value: null, range: [10, 21], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）'}
+- {id: 'ld.ub_rrii_rd', mnemonic: 'ld.ub', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 1}
+- {id: 'ld.uw_rrii_rd', mnemonic: 'ld.uw', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 2}
+- {id: 'ld.ut_rrii_rd', mnemonic: 'ld.ut', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 4}
+- {id: 'ld.sb_rrii_rd', mnemonic: 'ld.sb', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 1}
+- {id: 'ld.sw_rrii_rd', mnemonic: 'ld.sw', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 2}
+- {id: 'ld.st_rrii_rd', mnemonic: 'ld.st', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 4}
+- {id: 'ld.t_rrii_rf', mnemonic: 'ld.t', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 4}
+- {id: 'st.t_rrii_rf', mnemonic: 'st.t', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 4}
+- {id: 'st.b_rrii_rd', mnemonic: 'st.b', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 1}
+- {id: 'st.w_rrii_rd', mnemonic: 'st.w', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 2}
+- {id: 'st.t_rrii_rd', mnemonic: 'st.t', section: '01', klass: ['C'], cycles: '4–7', value: null, range: [4, 7], dynamic: 'range', doc: 36, source: '§2 C', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 4}
+- {id: 'ld.o_rrii_rd', mnemonic: 'ld.o', section: '01', klass: ['C'], cycles: '7–16', value: null, range: [7, 16], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 8}
+- {id: 'st.o_rrii_rd', mnemonic: 'st.o', section: '01', klass: ['C'], cycles: '10–21', value: null, range: [10, 21], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 8}
+- {id: 'ld.o_rrii_rb', mnemonic: 'ld.o', section: '01', klass: ['C'], cycles: '7–16', value: null, range: [7, 16], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 8}
+- {id: 'st.o_rrii_rb', mnemonic: 'st.o', section: '01', klass: ['C'], cycles: '10–21', value: null, range: [10, 21], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 8}
+- {id: 'ld.o_rrii_ra', mnemonic: 'ld.o', section: '01', klass: ['C'], cycles: '7–16', value: null, range: [7, 16], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 8}
+- {id: 'st.o_rrii_ra', mnemonic: 'st.o', section: '01', klass: ['C'], cycles: '10–21', value: null, range: [10, 21], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 8}
 - {id: 'ld.o_rrii_rf', mnemonic: 'ld.o', section: '01', klass: ['B4'], cycles: '13', value: 13, range: null, dynamic: null, doc: 76, source: '§3 07', provenance: '实测'}
-- {id: 'st.o_rrii_rf', mnemonic: 'st.o', section: '01', klass: ['C'], cycles: '10–21', value: null, range: [10, 21], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）'}
+- {id: 'st.o_rrii_rf', mnemonic: 'st.o', section: '01', klass: ['C'], cycles: '10–21', value: null, range: [10, 21], dynamic: 'range', doc: 53, source: '§3 01', provenance: '实测（`.o` 宽度；其余宽度外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 8}
 - {id: 'ldm.ub_rrri_rd', mnemonic: 'ldm.ub', section: '01', klass: ['D'], cycles: '16', value: null, range: null, dynamic: 'N', doc: 54, source: '§3 01', provenance: '实测（N=8；其它 N 外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 1}
 - {id: 'ldm.uw_rrri_rd', mnemonic: 'ldm.uw', section: '01', klass: ['D'], cycles: 'beats × 3–4', value: null, range: null, dynamic: 'beats', doc: 37, source: '§2 D', provenance: '实测（N=8；其它 N 外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 2}
 - {id: 'ldm.ut_rrri_rd', mnemonic: 'ldm.ut', section: '01', klass: ['D'], cycles: 'beats × 3–4', value: null, range: null, dynamic: 'beats', doc: 37, source: '§2 D', provenance: '实测（N=8；其它 N 外推）', per_element: 1, per_beat: 8, n_base: -1, n_step: -1, elem_width: 4}

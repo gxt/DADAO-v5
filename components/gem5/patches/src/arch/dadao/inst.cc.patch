@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..e6e6978
+index 0000000..ac8b617
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,768 @@
+@@ -0,0 +1,800 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -27,6 +27,7 @@ index 0000000..e6e6978
 +#include "cpu/exec_context.hh"
 +#include "cpu/thread_context.hh"
 +#include "mem/request.hh"
++#include "mem/se_translating_port_proxy.hh"
 +#include "sim/system.hh"
 +#include "sim/faults.hh"
 +
@@ -255,29 +256,70 @@ index 0000000..e6e6978
 +        xc->pcState(target);
 +    }
 +
++    /** True when the data access cannot use the CPU's synchronous interface.
++     *
++     *  An AtomicSimpleCPU completes `ExecContext::readMem/writeMem` inline, but
++     *  a TimingSimpleCPU has no synchronous data path at all: the base class
++     *  panics (`src/cpu/simple/base.hh`, "readMem() is not implemented")
++     *  because a *timed* access can only complete later, through
++     *  `initiateAcc`/`completeAcc`, which needs a two-phase instruction.
++     *
++     *  The DADAO exec cores (exec/b1..b7) are one-shot functions that read
++     *  memory in the middle of `execute()`, so this side must keep the
++     *  synchronous contract.  In timing mode it therefore reaches the same
++     *  backing store through a **functional** access -- exactly the mechanism
++     *  the SE syscall layer and the ELF loader already use
++     *  (SETranslatingPortProxy).  Semantics are unchanged (same page table,
++     *  same memory); the access is simply not *timed*: the ld/st round trip is
++     *  accounted for by the wuming cycle model (wuming_latency.hh) instead of
++     *  by the memory system.  m16-gem5-006 records that split. */
 +    bool
-+    readMem(uint64_t addr, unsigned bytes, uint8_t *out) override
++    functionalMem() const
 +    {
-+        const Fault fault = xc->readMem(addr, out, bytes, Request::Flags(0),
-+                                        allBytes(bytes));
++        return tc != nullptr &&
++               tc->getSystemPtr()->getMemoryMode() == enums::timing;
++    }
++
++    bool
++    accessMem(uint64_t addr, uint8_t *buf, unsigned bytes, bool write,
++              Request::Flags flags)
++    {
++        if (functionalMem()) {
++            SETranslatingPortProxy proxy(tc);
++            const bool ok = write ? proxy.tryWriteBlob(addr, buf, bytes)
++                                  : proxy.tryReadBlob(addr, buf, bytes);
++            if (!ok)
++                panic("DADAO timing data %s of %u B at %#x did not translate; "
++                      "the exec cores read memory synchronously (inst.cc "
++                      "|functionalMem|)", write ? "write" : "read", bytes,
++                      addr);
++            if (DadaoISA::ISA *isa = dadaoIsa(); isa != nullptr)
++                isa->noteDataAccess(write);
++            return true;
++        }
++        const Fault fault = write
++            ? xc->writeMem(buf, bytes, addr, flags, nullptr, allBytes(bytes))
++            : xc->readMem(addr, buf, bytes, flags, allBytes(bytes));
 +        if (fault != NoFault) {
 +            memFault = fault;
 +            return false;
 +        }
++        if (DadaoISA::ISA *isa = dadaoIsa(); isa != nullptr)
++            isa->noteDataAccess(write);
 +        return true;
++    }
++
++    bool
++    readMem(uint64_t addr, unsigned bytes, uint8_t *out) override
++    {
++        return accessMem(addr, out, bytes, false, Request::Flags(0));
 +    }
 +
 +    bool
 +    writeMem(uint64_t addr, const uint8_t *in, unsigned bytes) override
 +    {
-+        const Fault fault = xc->writeMem(const_cast<uint8_t *>(in), bytes, addr,
-+                                         Request::Flags(0), nullptr,
-+                                         allBytes(bytes));
-+        if (fault != NoFault) {
-+            memFault = fault;
-+            return false;
-+        }
-+        return true;
++        return accessMem(addr, const_cast<uint8_t *>(in), bytes, true,
++                         Request::Flags(0));
 +    }
 +
 +    void
@@ -416,13 +458,7 @@ index 0000000..e6e6978
 +            flags.set(Request::ACQUIRE);
 +        if (order & 0x2)
 +            flags.set(Request::RELEASE);
-+        const Fault fault = xc->readMem(addr, out, bytes, flags,
-+                                        allBytes(bytes));
-+        if (fault != NoFault) {
-+            memFault = fault;
-+            return false;
-+        }
-+        return true;
++        return accessMem(addr, out, bytes, false, flags);
 +    }
 +
 +    bool
@@ -434,12 +470,8 @@ index 0000000..e6e6978
 +            flags.set(Request::ACQUIRE);
 +        if (order & 0x2)
 +            flags.set(Request::RELEASE);
-+        const Fault fault = xc->writeMem(const_cast<uint8_t *>(in), bytes, addr,
-+                                         flags, nullptr, allBytes(bytes));
-+        if (fault != NoFault) {
-+            memFault = fault;
++        if (!accessMem(addr, const_cast<uint8_t *>(in), bytes, true, flags))
 +            return false;
-+        }
 +        invalidatePeerReservations(tc, addr, bytes);
 +        return true;
 +    }
