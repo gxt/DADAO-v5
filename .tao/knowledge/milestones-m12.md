@@ -24,8 +24,8 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m12-chipyard-016 | 3–4 h | T0 冒烟（inst 全量非 cfx + embench + tset 子集，三平台） |
-| m12-chipyard-017 | 4–6 h | T1 适配集 + M12 验收 |
+| m12-chipyard-016 | 6–8 h | embench（38）+ picolibc-full 在 chipyard Tiny 上全通（加 chipyard 引擎） |
+| m12-integ-002 | 3–5 h | M12 里程碑核验与归档（逐条核验 + 归档 + 遗留清单） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 

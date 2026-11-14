@@ -17,7 +17,7 @@
 
 # M12：chipyard 上跑 `Machine-v5-Tiny`（收口中）
 
-> 已完成 34 项；剩 `m12-chipyard-028`（重生成 bootrom hex）、`029`（FMA RTL）、`016`（T0 冒烟）、`017`（T1 + 验收）。方案细节见任务书与 `components/chipyard/README.md`。
+> 已完成 37 项；剩 `m12-chipyard-016`（embench + picolibc-full 在 chipyard Tiny 上全通）与 `m12-integ-002`（里程碑核验与归档）。M12 **不依赖 M13**、不做三平台差分（归 M13）。
 
 ## M12 未决
 
