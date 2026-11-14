@@ -905,6 +905,132 @@
   - system
   level: full
   requires: []
+- id: inst-08-arith-logic-tetra-001
+  file: inst/08-arith-logic-tetra/add.st_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-002
+  file: inst/08-arith-logic-tetra/add.ut_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-003
+  file: inst/08-arith-logic-tetra/cmp.st_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-004
+  file: inst/08-arith-logic-tetra/cmp.ut_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-005
+  file: inst/08-arith-logic-tetra/div.st_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-006
+  file: inst/08-arith-logic-tetra/div.ut_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-007
+  file: inst/08-arith-logic-tetra/mul.st_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-008
+  file: inst/08-arith-logic-tetra/mul.ut_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-009
+  file: inst/08-arith-logic-tetra/rem.st_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-010
+  file: inst/08-arith-logic-tetra/rem.ut_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-011
+  file: inst/08-arith-logic-tetra/rev.t_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-012
+  file: inst/08-arith-logic-tetra/rol.t_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-013
+  file: inst/08-arith-logic-tetra/rol.t_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-014
+  file: inst/08-arith-logic-tetra/shl.t_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-015
+  file: inst/08-arith-logic-tetra/shl.t_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-016
+  file: inst/08-arith-logic-tetra/shr.st_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-017
+  file: inst/08-arith-logic-tetra/shr.st_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-018
+  file: inst/08-arith-logic-tetra/shr.ut_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-019
+  file: inst/08-arith-logic-tetra/shr.ut_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-020
+  file: inst/08-arith-logic-tetra/sub.st_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-08-arith-logic-tetra-021
+  file: inst/08-arith-logic-tetra/sub.ut_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-09-arith-logic-wyde-001
   file: inst/09-arith-logic-wyde/add.sw_orrr_rd.S
   platforms:
