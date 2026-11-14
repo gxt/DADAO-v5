@@ -333,7 +333,10 @@ group = "simrisc-00..12"
 #   统一 canonical（含不适用清单）；浮点比较族异常标志）；sha256 同笔重算（其余只读册不变）。
 # 2026-11-14（m13-spec-008，授权见文件头条目）：0.5.7-rc 段追加 1 条（`ext.uo`/`ext.so` 起始位取
 #   `rdHD[5:0]`，更高位忽略、不触发异常）；sha256 同笔重算（其余只读册不变）。
-sha256 = "427eab65a1d1af40a4039c2ca0a12bac1e7b22a07c7c7b85aec5fbf3b1cbabb7"
+# 2026-11-14（m13-spec-009，授权原话「确认 rd16，修 §1 措辞（推荐）」）：0.5.7-rc 段追加 1 条
+#   （semihosting 的服务号通道：`immu18[17:8] == 0x3FF` 为固定标记、`immu18[7:0]` 不携带服务号，
+#   服务号由 `rd16` 给出）；sha256 同笔重算（本册与 `Machine-v5`；其余 19 册不变）。
+sha256 = "dee1c73d757650a0a6e9b1378ce7430707a38c0659be1e94f48d1fc772e960c8"
 # 2026-10-22（SPEC-164t，授权原话见 `.tao/tasks/spec/SPEC-164t-OPC-MISC迁移与解excluded.md` §立项来源：「还有一个编码改动过：OPC-MISC的编码改为：0100-0111」「修改编码：ctpop_orri_rd ctlz_orri_rd cttz_orri_rd 从 OPC-octa 改为 OPC-MISC，opx：100-101/100-110/100-111」）：§4 QFC 主表 `OPC-MISC` 由 `0111-0111` 迁 `0100-0111`（原格置空）；§4.1 `100-101/110/111` 填 `ctpop`/`ctlz`/`cttz`；§4.2 删同三格与「借用 OPC-octa 格位」例外说明；附录 0.5.5 两条同步；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -836,4 +839,7 @@ group = "machine-v5"
 #   作废）；sha256 同笔重算（仅本册；其余 20 册不变）。
 # 2026-11-14（ISS-436 补账；授权依据 = 用户 2026-11-14 对 `ISS-436` 的决定「4现在就做」，即确认「本册改动均有授权、只补锁哈希」；
 #   现场审计见 `.tao/knowledge/discussing.md` §ISS-436）：本册正文由 c539eba3、78fcec3c、07a5c66e 修改（spec 纯净化（去 ADR 引用/元话术/阶段代号））时未同笔重算，本次补算 sha256（**正文未改**）。
-sha256 = "e6671d04b9ba59422f93bede15422da7fc618d828ac01efa30db5c143d6968c5"
+# 2026-11-14（m13-spec-009，授权原话「确认 rd16，修 §1 措辞（推荐）」）：§5.1 的调用形如明确
+#   `immu18[17:8] == 0x3FF` 为 semihosting 固定标记、`immu18[7:0]` 不携带服务号，服务号由 `rd16`
+#   给出（参数块 `rb16`、返回 `rd8`）；sha256 同笔重算（本册与 `SimRISC-00`；其余 19 册不变）。
+sha256 = "534a9e7e989093a31ba67cb5464e00f04b45c91dae749febc126c98314e2acfb"

@@ -172,7 +172,7 @@ semihosting 是 v5 测试机提供的「guest 经 `trap` 请求宿主 I/O」机�
 ### 5.1 判定（入口 tag）
 
 - **判定**：`trap cfxHA, immu18` 中 **`immu18[17:8] == 0x3FF`**（即 `0x3FF00–0x3FFFF`）⇒ 该 `trap` 为 **semihosting 调用**（**与 `cfxha` 无关**）。
-- **调用形如 `trap cfx_hmon, 0x3FF00`**（两 profile 统一写法）：semihosting 服务号仍占 `immu18` 低 8 位（`0x3FF00 + op`）；判定只依赖 `immu18[17:8]`，与 `cfxha` 无关——任意 `cfxha` 等效（如 Tiny 的 `trap cfx63, 0x3FF00` 同样按 semihosting 处理）。
+- **调用形如 `trap cfx_hmon, 0x3FF00`**（两 profile 统一写法）：`immu18[17:8] == 0x3FF` 是 **semihosting 的固定标记**，`immu18[7:0]` **不**携带服务号；**服务号由 `rd16` 给出**（`§5.2`）、参数块指针在 `rb16`、返回值在 `rd8`；判定只依赖 `immu18[17:8]`，与 `cfxha` 无关——任意 `cfxha` 等效（如 Tiny 的 `trap cfx63, 0x3FF00` 同样按 semihosting 处理）。
 - **语义/理由说明（架构自定义）**：该 tag 判定**无上游 spec 依据、属 v5 架构自定义**——`spec/DADAO-22` 只规定 `cfxha` 为服务提供者、`immu18` 为功能编号；`spec/SimRISC-11` 只规定 `immu18` 为功能编号；二者**均无 semihosting 语义**。故本机制在 v5 中由测试机定义，guest/实现共同遵守此 tag。[DADAO-22 §1. 调用约定][SimRISC-11]
 - **两条路**：`immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`）走 semihosting 短路（本节）；`immu18 < 0x3FF00` 走一般 trap 进入向量（见 `§4.1`）——`Machine-v5-Tiny` 的启动移交目标为 `cfx_hmon`（`cfxha=3`），`cfxha` 为未实现 cfx ⇒ `ILLI`（见 `§3`/`§4.4`）。
 

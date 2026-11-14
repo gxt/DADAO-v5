@@ -408,6 +408,7 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 - **结果 NaN 统一为 canonical**：凡结果应为 quiet NaN 的情形（算术、缩放、开方、取余、融合乘加、取整、最小最大、格式转换，以及比较的 quiet 无序结果与一切无效操作产生的 qNaN）一律返回 **canonical quiet NaN**（符号位 0、payload 全零 ⇒ ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）；复制类（`ft2ft`/`fo2fo`）、signaling compare 的无序结果、最小最大的单 NaN 情形不适用；IEEE 754-2019 §6.2.3 对 payload 传播仅为 *should*、§6.3 不规定结果符号位 ⇒ 取 canonical 属允许的实现选择、**不是**有意偏离。
 - **浮点比较族的异常标志**：signaling compare 只要无序（sNaN 或 qNaN 操作数）即置 `NV`；quiet compare 仅在含 sNaN 时置 `NV`，只含 qNaN 为安静无序、不置标志；有序比较不置标志。四条比较指令只可能置 `NV`，不置 `DZ`/`OF`/`UF`/`NX`，标志 sticky 写入 `rf0[4:0]`。
 - **`ext.uo`/`ext.so` 的扩展起始位取低 6 位**：`orrr` 形式的起始位 `hd = rdHD[5:0]`——`rdHD` 的更高位一律忽略、**不触发异常**、不置任何标志；`orri` 形式的 `immu6` 天然为 6 位。原「`hd` 大于 `N` ⇒ ILLI」作废。
+- **semihosting 的服务号通道**：`immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`）只作 semihosting 的**固定标记**，`immu18[7:0]` **不**携带服务号；服务号由 `rd16` 给出、参数块指针在 `rb16`、返回值在 `rd8`。
 
 ### 0.5.6（2026-11-09）
 
