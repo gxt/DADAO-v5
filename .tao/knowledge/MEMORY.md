@@ -4,17 +4,13 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
-- **2026-11-14（夜）**：M12 已验证 37 / 进行中 1（`m12-chipyard-016`）/ 待开始 1；M13 **已验证 81** / 进行中 1（`spec-009`）/ 待开始 5；M14 全部收口；M16 已验证 5。
-- 今日合入（续）：`030`（`.S` 入门控 `check-inst-asm` 264 id/897 镜像 + 三册 YAML 退役 + trampoline 退役）、`gem5-013`/`qemu-015`（`ld.t rf0` 的两侧修复）、`036`（lit/codegen 用 64 KiB 固件）。
-- 今日合入：`qemu-011`（`-bios` 只收 64 KiB）+ `testcases-034`（Tiny oracle 迁 hmon）同批 ⇒ `check-inst` **44/44 + vast full PASS**；`032`（NaN canonical/rootn ±0，`divrem.yaml[23]` 退役）；`spec-008` + `gem5-012` + `testcases-033`（`ext` 的 `hd=rdHD[5:0]`，`ISS-422` 已闭）；`029`（`12-misc` 4 id）；`infra-003`（写者护栏 + `check-writer-guards` 27/27）；`qemu-014`（`sc` 保留粒度=精确地址+宽度）。
-- 裁定（2026-11-14）：**semihosting 服务号 = `rd16`**（`immu18[17:8]==0x3FF` 只是固定标记；ARM/RISC-V 同惯例）⇒ `m13-spec-009` 修三处旧句；**picolibc 判据 = engine parity**（qemu 自身有 1 fail/22 excluded/4 blocked，全绿不可达）；**`sc` 保留粒度 = 精确地址+宽度**（已落 qemu/chipyard/向量三件）。
-- 裁定（2026-11-14）：**embench `-O0` 开 12h 夜跑窗口**（模型 1.76 k 周期/秒，4h 预算不够；M12 判据保持 38/38）；**picolibc = engine parity + budget 单列**（qemu 自身 1 fail/22 excluded/4 blocked）。
-- `m12-chipyard-016` 进度（2026-11-14 20:50）：**embench `-O2` 19/19 全 PASS**；`-O0` 18 例夜跑中（`server208` jobs 18 / 12 h，`xgboost` 排队）、`ics160` 另有 12 个 6 h 预算的 `-O0`；**picolibc** 三池 union（`ics150` 20+18、`ics170` 19+memmem、`server207` 62）预计 21:30 收齐，当前 92 pass / 22 excluded / 55 blocked（多为 40 min 预算超时，重跑中）/ 0 fail。
-- **chipyard 写者今晚被 016 占用**：`chipyard-002`（`sc` 粒度 RTL）必须等 016 的 sim 不再启动新批次后才能重编，否则会改 `sim md5` 使在途批次体判 FAIL（`xgboost -O0` 仍在排队）。同理 `spec-010`（等 M12 收尾）、`integ-003`（等 `chipyard-002`）今晚都不具备条件。
-- **待办（有共享影响）**：安装根 qemu 仍是 `b34ed7f9…`，落后构建树 `49174499…`（`qemu-014`）⇒ **等 `m12-chipyard-016` 收尾、无并发写者时补跑一次 `install-host`**（禁边构建边测试）；`ISS-437`（musl 未随新 clang 重建）同窗口处理。
-- 队列：`chipyard-002`（`sc` RTL 去整字比较，等 016 让出写者）、`testcases-037`（`sc` 粒度正式向量）、`testcases-036`（lit/codegen 用 64 KiB 固件，复核中）、`gem5-013`、`testcases-030`、`integ-002/003/005`（后三件用户标注暂不进行）。
-- 未决 issue（P1/P2）：`ISS-433`（chipyard `trap cfx_power` 报 ILLI）、`ISS-435`（余 chipyard RTL + 向量）、`ISS-437`（musl）、`ISS-440`（多 hart 保留清除无实现，上多 hart 前必补，建议立 ADR）、`ISS-441`（`mem_sweep.py` 悬挂引用）、`ISS-426`（QEMU 侧已由 `qemu-012` 修、`030` 实测不再复现，待核 gem5 侧后关闭）。
-- 规则新增（2026-11-14）：**构建 32 核 / 测试「全量核 − 2」**（主控机·`server20x`=62、`ics*`=38）；**禁边构建边测试**；发测试前查内存/磁盘；`make check-modules` 会装共享安装根 ⇒ 并行窗口禁跑。
+- **2026-11-14（深夜）**：M12 已验证 37 / 进行中 1（`m12-chipyard-016`）/ 待开始 1（`m12-integ-002`）；M13 已验证 **87** / 进行中 2（`043`、`chipyard-002` 待合）/ 待开始 6；M14 **K1 已启动**（已验证 16，K1 三件：`003` 进行中、`004`/`005` 待开始）；M16 已验证 5。
+- 今日 M13 合入 20+ 件：`022`–`029`、`031`–`036`、`qemu-014/015`、`spec-008/009`、`gem5-012/013`、`chipyard-001/002`(待合)、`testcases-030/032/033/039/040/041/042`。
+- **重要口径变更（2026-11-14）**：`sc` 保留粒度=精确地址+宽度（qemu 已合、chipyard `002` Accepted 待合）；semihosting 服务号=`rd16`（spec 已改）；**Vast 放弃 ISA 执行覆盖**、`check-inst` 退役；**YAML 全退役**（`043` 待复核）；单指令用例 ≤127 + 字段抽样；picolibc 判据=engine parity；embench `-O0` 开 12h 夜跑。
+- **待办（有共享影响）**：`016` 合入前须**单二进制证据**（`SYS_FLEN` 修复使 sim `ac35dffb→079ae015`）；合入后先合 016 再合 `chipyard-002`；随后一次 `install-host` + musl 重建（`ISS-437`）；再派 `m12-integ-002`。
+- 队列：M13 `043`→`044`(三探针)→`045`(riscv-tests)；`037`/`integ-003` 等 `002` 合入；`spec-010` 等 M12 收尾。
+- 未决 issue（P1/P2）：`ISS-433`（chipyard `trap cfx_power`）、`ISS-435`（余 `037`）、`ISS-437`（musl）、`ISS-440`（多 hart 保留清除，建议 ADR）。
+- 规则新增：构建 32 核 / 测试「核数−2」；**有空位就发**（不切配额）；禁边构建边测试；`check-modules` 会装共享安装根 ⇒ 并行窗口禁跑；**节点侧未提交文件禁靠 sync/reset 清理**。
 
 ## 入口指针
 
