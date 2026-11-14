@@ -75,7 +75,7 @@
 | F8 删 `scCheckFail` 后 `1.U` 注释残留 "word changed" | ✅已修 | 注释改为 `// reservation miss` | `grep -E 'resvWord\|spurious\|granularity'` 空 |
 | F9 旧口径注释（QEMU word-granularity / legal spurious failure / ADR-0034 D6） | ✅已修 | 三处注释改述为「键=精确地址+宽度；多 hart 依赖一致性事件（GAP）」 | 同上 grep 空 |
 
-### 第 1 轮 reviewer 验收（2026-11-14，独立重跑；命令均在任务 worktree，脚本 `.work/evidence/m13-chipyard-002/run.sh`）
+### 第 1 轮 reviewer 验收（2026-11-14，独立重跑；命令均在任务 worktree，脚本 `<运行期证据目录>/run.sh`）
 
 **重跑记录（reviewer 自己的真实输出 / 退出码）**
 - `run.sh pre` → **EXIT=0**；pre sim md5 `ac35dffbc90cef736e5e0788cecb51d2`；P1/P2/P3 actual=1（spec 0），P4–P9=1,0,1,1,1 与 spec 同。

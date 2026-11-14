@@ -9,7 +9,7 @@
 
 ## 背景（AGENTS 硬规则缺口）
 
-`m12-chipyard-016` 把**报告产物**入库（`.tao/knowledge/refs/m12-016-embench-picolibc.{json,md}`），但**生成器没入库**：`make_report.py` / `pending.py` / `collect.sh` / `run.sh` 只存在于运行期证据目录（`.work/evidence/m12-chipyard-016/`）。
+`m12-chipyard-016` 把**报告产物**入库（`.tao/knowledge/refs/m12-016-embench-picolibc.{json,md}`），但**生成器没入库**：`make_report.py` / `pending.py` / `collect.sh` / `run.sh` 只存在于该任务的运行期证据目录。
 
 违反 AGENTS「生成器/脚本随产物保留：凡产出**被提交（入 git）**的生成器/脚本，必须随产物留**非易失位置**（优先 `tools/<module>/`）」⇒ 现在 fresh clone 上**无法复现**已提交的报告，`m12-integ-002` 的「证据可复跑」判据也就落不了地。
 
@@ -20,7 +20,7 @@
    - `pending.py` → `tools/testcases/parity/engine_parity_pending.py`
    - `collect.sh` → `tools/testcases/parity/engine_parity_collect.sh`
    - `run.sh` → `tools/testcases/parity/engine_parity_run.sh`
-2. **接口去运行期耦合**：默认输入目录从「脚本自身所在的 `../..`」改为 `--repo <根>`（默认 = 该脚本相对仓库根）+ `--log-dir`（默认 `<repo>/.work/log/chipyard`）；节点名保留但可 `--node-map` 覆盖（保持原有默认值，行为不变）。
+2. **接口去运行期耦合**：默认输入目录从「脚本自身所在的 `../..`」改为 `--repo <根>`（默认 = 该脚本相对仓库根）+ `--log-dir`（默认 = 仓库根的运行期日志目录）；节点名保留但可 `--node-map` 覆盖（保持原有默认值，行为不变）。
 3. **可复现校核**：`python3 tools/testcases/parity/engine_parity_report.py --check` 在**当前**数据上重生成，与已提交的 `.tao/knowledge/refs/m12-016-embench-picolibc.{json,md}` **逐字节一致**（打印 sha256 对账）；不一致就说明有未入库的输入，必须查清再报。
 4. **不重复造轮子**：报告口径（`CRITERION`/`QEMU_BASELINE_GAPS`/union 规则/budget 单列/`cases_seen`）一律**照搬 016**，不得改写判据；只允许改路径解析与入口形态。
 
