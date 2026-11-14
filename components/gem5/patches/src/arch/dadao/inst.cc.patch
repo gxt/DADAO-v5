@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..6c12d78
+index 0000000..1d78599
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,745 @@
+@@ -0,0 +1,754 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -178,6 +178,15 @@ index 0000000..6c12d78
 +            panic("DADAO exec: illegal write to read-only %s0",
 +                  bank == exec::Bank::Rd ? "rd" : "rb");
 +        }
++        // ra0[63:54] is SBZ and write-ignored (contract-isa §1.3.4,
++        // spec/SimRISC-00 §2.4): the RA write port drops those ten bits, so
++        // a write only takes effect on RACNT[53:48] and MRPTR[47:0] and the
++        // SBZ bits read back as 0.  ra1-ra63 are untouched -- they carry a
++        // 16-bit recursion count in [63:48] and stay fully writable.  The
++        // RAS header updates keep their own SBZ handling (exec/b5.cc
++        // writeRasHeader) and reach this port with [63:54] already zero.
++        if (bank == exec::Bank::Ra && idx == 0)
++            val &= 0x003FFFFFFFFFFFFFULL;
 +        tc->setReg(intReg(bank, idx), val);
 +    }
 +
