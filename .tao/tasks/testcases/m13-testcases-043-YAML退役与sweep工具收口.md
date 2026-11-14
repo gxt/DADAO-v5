@@ -64,7 +64,7 @@
   | `check-rev-vectors` | `generate_rev_vectors.py --check` | 随生成器退役一起摘除 |
   | `generate_isa_vectors.py` | `base/reg-*` + `fp/cond-assign` 的产物 | 删除（若需保留部分能力，改指向 `.S` 的**不属本任务**） |
   | `generate_ctrl_br.py` / `generate_ctrl_jump_call_ret.py` / `generate_misc.py` / `generate_bitcnt_vectors.py` / `generate_rev_vectors.py` | 同上 | 删除 |
-  | `validate_vectors` | 校验 YAML 类/覆盖 | 只保留 `.S` 分支；YAML 分支随数据删除而退役（写明） |
+  | `validate_vectors` | 校验 YAML 类/覆盖 + **两条 br 守卫**（L495「active semantic `br.*` 必须有 `expected_pc`」、L922「每 id 必须 taken+not-taken 双路径」） | 只保留 `.S` 分支；**两条 br 守卫按用户 2026-11-14 裁定直接退役**；在 `MIGRATION.md` 记明「br 双路径覆盖改由执行证据承担（`.S` 的 `__LAND_IP` + 三平台跑批；现场 63 处 `__LAND_IP` ≫ YAML 34 条 `expected_pc`）」 |
   | `check-case-ledger` | 派生 vector 行（来自 YAML）+ lit 行 | 改为只派生 `.S` 侧；行数现场值 |
   | `check-inst` | 跑 YAML 期望（Vast/Tiny） | 若其语料全来自已删 YAML ⇒ **随 `testcases-030` 后的 `.S` 门控退役**；保留的 `00-isa-design` 用例另计 |
 - 273 例 `sweep_expect.bin` md5 等历史钉：**历史任务书不改写**，但需在 `issues.yaml` 或 `MEMORY` 记「该钉随工具退役失效」。
@@ -85,7 +85,8 @@
 2. `git grep -c "\.yaml" tests/inst/` 只剩 `00-isa-design` 相关（预期 0，若 `undi_reserved.S` 是 `.S` 则 YAML 全 0）。
 3. 门控全绿：`check-tests-index`、`validate-vectors`、`check-case-ledger`、`check-generator-sync`、`check-inst-asm`（264 id/897 镜像）、`check-inst`（Vast+Tiny）、`check-no-residue`、`check-knowledge-refs`、`check-run-artifacts`（若红，核是否全属在途任务）。
 4. `grep -rn "inst_sweep\|bit_sweep\|ctrl_sweep\|fp_sweep\|inst_case_run"` 在 `Makefile`/`tools/` 只余「库/说明」；**无断链 import**（`python3 -c "import tools.chipyard.fetch_probe.gen_probe"` 或等价冒烟）。
-5. **生成器退役证据**：`grep -rn "generate_isa_vectors\|generate_ctrl_br\|generate_ctrl_jump_call_ret\|generate_misc\|generate_bitcnt_vectors\|generate_rev_vectors"` 在 `Makefile`/`tools/` = 0（或仅历史归档）；`make check-generator-sync` / `make check-rev-vectors` 或在目标删除后 `make -n` 不再引用它们；`docs/Process-07` 组成表已改。
+5. **br 守卫退役证据**：`validate_vectors.py` 里不再有「必须 `expected_pc`」与「双路径覆盖图」两段（`grep -n "expected_pc" tools/testcases/validate_vectors.py` 只余类型/48-bit 校验或 0 命中）；`MIGRATION.md` 有「由执行证据承担」的记录；`.S` 的 `__LAND_IP` 计数现场抄（应 ≥63）。
+6. **生成器退役证据**：`grep -rn "generate_isa_vectors\|generate_ctrl_br\|generate_ctrl_jump_call_ret\|generate_misc\|generate_bitcnt_vectors\|generate_rev_vectors"` 在 `Makefile`/`tools/` = 0（或仅历史归档）；`make check-generator-sync` / `make check-rev-vectors` 或在目标删除后 `make -n` 不再引用它们；`docs/Process-07` 组成表已改。
 5. 可达 FAIL 注入 ≥3 路（删 `undi_reserved.S` ⇒ 索引/审计红；把某 id 的 `.S` 改名 ⇒ 双向断言红；注入一个 YAML 依赖残留 ⇒ 门控红），`cp`+md5 还原。
 6. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`；不改台账/`discussing.md`。
 
