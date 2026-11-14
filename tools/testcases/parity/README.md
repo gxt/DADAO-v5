@@ -19,6 +19,8 @@
   （见「FP 三平台差分（m13-integ-002）」）。
 - `int_diff.py`：非 cfx、非 FP 的 `.S` 载体三平台逐例差分报告生成器
   （见「整数与访存三平台差分（m13-integ-003）」）。
+- `engine_parity_*.{py,sh}`：M12 engine-parity 报告生成器/核对器/收集器/证据脚本
+  （见「engine parity 报告（`m12-chipyard-016`，生成器入仓 `m12-chipyard-017`）」）。
 
 ## 用法
 
@@ -197,6 +199,36 @@ python3 tools/testcases/parity/int_diff.py --self-test   # 10 类反例逐条判
   章节，**未列出的差异仍 rc=1**（表只许逐条申报，不是放行开关）。
 - 复用：逐镜像装载/判定 = `fp_diff.py`（`load_run`/`merge_runs`/`classify`）；
   载体统计 = `run_asm_suite.scan_source`。
+## engine parity 报告（`m12-chipyard-016`，生成器入仓 `m12-chipyard-017`）
+
+M12 判据 = **engine parity**（chipyard 与 qemu 同代码同 ELF、只换引擎，picolibc
+逐例状态必须一致；qemu 侧既有缺口登记在册、不计到 chipyard）。报告对
+（`.tao/knowledge/refs/m12-016-embench-picolibc.{json,md}`）是**运行期批次输入的
+确定性函数**，本目录的四个脚本即其生成器（此前只在 016 证据树里，fresh clone
+复现不了）：
+
+- `engine_parity_report.py`：合并两套批次输入 ⇒ 报告对；`--check` 与入库报告
+  **逐字节**比对（打印两处 sha256，不符 rc=1 并指出首个差异行）。
+- `engine_parity_pending.py`：列出 picolibc 侧仍缺终态判决的用例（budget
+  `blocked (host timeout)` 不算终态；embench 侧 pending = `38 - cases_seen`）。
+- `engine_parity_collect.sh`：从节点拉回报告引用的逐例 `semi.out`/`sim.log`
+  （供抽查，不重跑批次）。落点 = `.work/evidence/<TASK>/cases/<node>/<suite>/<case>/`
+  （`--dest` 可覆盖）：逐例嵌套结构属证据树，不放 `.work/log/` —— 那里受 L1
+  `check-run-artifacts` 的平铺命名约束（`check-<name>.log` 或
+  `<TASK-ID>-<purpose>.(log|json|txt)`）。
+- `engine_parity_run.sh`：016 的端到端证据脚本（接线/契约探针/报告一致性/可选
+  `--full` qemu 回归与 `--inject` 注入）。
+
+```sh
+python3 tools/testcases/parity/engine_parity_report.py --check   # 复现校核（rc=0 即逐字节一致）
+python3 tools/testcases/parity/engine_parity_pending.py          # 现场 pending
+bash tools/testcases/parity/engine_parity_run.sh                 # A–F
+```
+
+接口：`--repo`（默认脚本上溯三层）；报告生成器/`pending` 另有 `--log-dir`
+（默认仓库内 chipyard 运行期日志目录），collect 用 `--dest`；`--node-map
+<日志名>=<节点>` 覆盖分片节点（默认见脚本内 `SHARD_NODE`）。输入全部运行期、
+永不入库；`--check` 需要与生成报告时相同的批次输入，否则 rc≠0。
 
 ## M11 收口口径（TESTCASES-098t）
 
