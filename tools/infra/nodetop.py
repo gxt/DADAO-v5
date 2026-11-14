@@ -214,10 +214,12 @@ def pane(s: Sample | None, host: str, w: int, nlines: int, now: float) -> list[s
 
 
 def pane_lines(h: int, cap: int = 0, rows: int = 2) -> int:
-    """How many process rows fit in one pane at this terminal height."""
-    chrome = 4  # title + legend + 2 separator lines
-    pane_h = max(4, (h - chrome) // rows)
-    n = max(3, pane_h - 1)
+    """Process rows per pane that keep the whole frame inside `h` lines.
+
+    Frame budget: title + legend + top rule + (header + N) * rows
+    + (rows - 1) inter-row rules + bottom rule + footer = 2*rows + 2*rows*N + 4.
+    """
+    n = max(3, (h - (2 * rows + 4)) // (2 * rows))
     return min(n, cap) if cap > 0 else n
 
 
@@ -246,6 +248,7 @@ def render_grid(hosts, state, w, h, nlines, color, tick, interval) -> str:
     out.append("-" * w)
     out.append(fit("阈值：LOAD% ≥100% 红｜节点可多任务共占（并行度之和 ≤ 核数−2）｜"
                    f"DISK% ≥90% 先清｜q 退出", w))
+    out = out[:h]          # hard cap: never scroll the top rows off the screen
     text = "\n".join(out)
     if not color:
         return text
