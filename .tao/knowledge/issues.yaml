@@ -599,3 +599,10 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`trap cfx_power` 三平台不一致：QEMU/gem5 进 power 向量、**chipyard 报 ILLI**。`m13-testcases-027` 实测；属 chipyard RTL 与 spec/另两平台的语义分歧，需定位是 RTL 缺实现还是 spec 未明。"
+- id: ISS-434
+  scope:
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】测试生成器里同一 id 的 `extra` 键被写两遍 ⇒ Python 字典**静默覆盖**，导致 8 条 YAML 用例从未生成、而完成区声明「已并入」。`m13-testcases-024` 返工时发现并修复（合并重复键 + 新增 `check_yaml_merged.py` 机械核对「YAML 向量是否真在 `.S` 里」）。教训：**声明类结论（\"已并入/已覆盖\"）必须机械核对**，不能靠人写注释。"
