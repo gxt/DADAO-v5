@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..05faf1e
+index 0000000..137e218
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,420 @@
+@@ -0,0 +1,426 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
@@ -232,7 +232,13 @@ index 0000000..05faf1e
 +    unsigned total = 0;
 +    const std::string_view dyn(row->dynamic);
 +    const std::string_view mnemonic(row->mnemonic);
-+    if (dyn == "mul-config" && wumingMulExpr != nullptr) {
++    if (wuming::provisional(*row)) {
++        // Provisional rows (推断 / 未测 / 待实测, user ruling 2026-11-14) never
++        // drive the timing model: gem5 keeps its one-cycle execute()
++        // placeholder.  The RAS bookkeeping below still runs so that a later
++        // call/ret sees the same MRPTR sequence it saw before this gate.
++        total = 0;
++    } else if (dyn == "mul-config" && wumingMulExpr != nullptr) {
 +        // B1/B2 latency is a hardware configuration (R2): evaluate the gem5
 +        // TimingExpr the platform attached (m16-gem5-004 uses a literal 1/2/3).
 +        StaticInstPtr self(const_cast<StaticInst *>(inst));
