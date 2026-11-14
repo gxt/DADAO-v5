@@ -25,6 +25,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m13-testcases-035 | 1–2 h | 07 浮点补边界：余数零符号（±0）+ 无符号 f2i 负向（⇒0） |
 | m13-gem5-013 | 2–3 h | gem5 `ld.t rf0` 经 FCSR 写掩码（只读位不覆盖） |
 | m13-qemu-011 | 2–3 h | `-bios` 收紧为固定固件，删 legacy trampoline 窗口 |
 | m13-testcases-034 | 2–3 h | Tiny `expected_fault` oracle 迁到 hmon 分派口径 |
