@@ -293,6 +293,16 @@ M15 exit：264 条记录 **100%** 有 operation 块且 id 一对一；抽取结�
 
 M17 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个向量走到；`make check-idl` 进 L2；分歧归因落 spec 裁定（**不是「IDL 一定对」**）。
 
+## M16 未决（2026-11-15，待用户裁定）
+
+**Timing 下数据访问只能 functional（不计时），要不要二期做真时序？**（`m16-gem5-006` 现场结论）
+
+- 事实①：gem5 v25.1 **无 ISA 级 `readMem`**（`src/arch/{generic,dummy,x86}` 均无）；`ExecContext::readMem` 直调 `BaseSimpleCPU::readMem` ⇒ `panic`。x86/riscv 的 load 用 `initiateAcc/completeAcc` **两阶段**。
+- 事实②：`006` 的落点是 `src/arch/dadao/inst.cc` 的 `Gem5B1Context` —— Timing 模式下数据访问走 `SETranslatingPortProxy` **功能访问**（与 SE 系统调用、ELF 装载同路径），**未触 `src/cpu/simple/**`**。
+- 事实③（后果）：Timing 下数据访问**功能正确但不计时**；`NoncoherentXBar`+`SimpleMemory` 的真实时序**只作用于取指**；实测 `system.mem` 的 Timing 数据侧 **0 包**；`simCycles` 比 9.19× 主要由取指与墙钟启动开销构成。ld/st 的 9/10 拍来自**周期模型**（`docs/core-wuming-cycle-model.md` 现场解析），不是这次 Timing 跑出来的。
+- **选项**：① 接受现状（M16 的时序=取指真实时序 + 数据按周期模型记账），把"数据侧真时序"列入 M17/后续；② 做二期：把执行核改成 `initiateAcc/completeAcc` 两阶段（需重构 bundle 执行，跨 `src/cpu/simple/**` 与 `src/arch/dadao/**`，属"高代价 + 跨模块"，按 ADR 判据应先出 ADR）；③ 折中：只对 `ld/st` 单元素类做两阶段、块传送仍按模型。
+- **影响**：M16 的"真时序"表述边界（报告/门控措辞）、`m16-chipyard-001` 的周期模型回填口径、`M17`（可执行参考模型）是否接手。
+
 ### M16 待确认（周期模型文档口径，2026-11-14）
 
 `m16-gem5-002` 现场解析 `docs/core-wuming-cycle-model.md` 生成 264 行表时遇到 6 处文档本身不闭合（已按类级口径自决，**需用户口头确认一次**）：
