@@ -701,6 +701,162 @@
   - system
   level: full
   requires: []
+- id: inst-07-floating-point-019
+  file: inst/07-floating-point/fo2fo_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-020
+  file: inst/07-floating-point/fo2ft_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-021
+  file: inst/07-floating-point/fo2io_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-022
+  file: inst/07-floating-point/fo2it_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-023
+  file: inst/07-floating-point/fo2uo_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-024
+  file: inst/07-floating-point/fo2ut_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-025
+  file: inst/07-floating-point/focls_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-026
+  file: inst/07-floating-point/foqcmp_orrr_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-027
+  file: inst/07-floating-point/foscmp_orrr_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-028
+  file: inst/07-floating-point/ft2fo_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-029
+  file: inst/07-floating-point/ft2ft_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-030
+  file: inst/07-floating-point/ft2io_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-031
+  file: inst/07-floating-point/ft2it_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-032
+  file: inst/07-floating-point/ft2uo_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-033
+  file: inst/07-floating-point/ft2ut_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-034
+  file: inst/07-floating-point/ftcls_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-035
+  file: inst/07-floating-point/ftqcmp_orrr_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-036
+  file: inst/07-floating-point/ftscmp_orrr_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-037
+  file: inst/07-floating-point/io2fo_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-038
+  file: inst/07-floating-point/io2ft_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-039
+  file: inst/07-floating-point/it2fo_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-040
+  file: inst/07-floating-point/it2ft_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-041
+  file: inst/07-floating-point/uo2fo_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-042
+  file: inst/07-floating-point/uo2ft_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-043
+  file: inst/07-floating-point/ut2fo_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-07-floating-point-044
+  file: inst/07-floating-point/ut2ft_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-atomics-001
   file: inst/atomics/aba_treiber.c
   platforms:

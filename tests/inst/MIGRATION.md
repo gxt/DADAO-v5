@@ -112,7 +112,7 @@
 | `base/mem-rb.yaml` | 23 | 4 | **id 全部已迁**（同上，rb 形式）；文件未删（同 §5.1） |
 | `base/misc.yaml` | — | — | 待迁 |
 | `base/reserved.yaml` | 9 | 4+3 | 部分迁移（`ld.`/`st.` 的 6 条 reserved-cfx `CFXMEM` 已迁；3 条 reserved-opcode `UNDI` 无 id，待 `12-misc`） |
-| `fp/*.yaml`（`arith`/`convert`/`divrem`/`cond-assign`） | — | — | 部分迁移：`cond-assign.yaml` 的 3 个 `cs.*_rrrr_rf` id 已迁（见 §6，文件未删 §5.1）；`arith.yaml` 的 8 个 id（`foadd`/`fomul`/`fofma`/`fomin`/`fomax`/`ftmul`/`ftfma`/`ftmin`）与 `divrem.yaml` **全部 6 个 id** 已迁（见 §6/021，文件未删：前者仍含 4 个比较 id 待 022，后者是 `check-inst` L3 载体 + §5.1 前置）；其余待迁 |
+| `fp/*.yaml`（`arith`/`convert`/`divrem`/`cond-assign`） | — | — | **id 全部已迁**：`cond-assign.yaml` 的 3 个 `cs.*_rrrr_rf`（§6/014）、`arith.yaml` 的 8 个算术最小最大（§6/021）+ 4 个比较（§6/022）、`divrem.yaml` 的 6 个（§6/021）、`convert.yaml` 涉及的 5 个 id（§6/022，另 13 个转换 id 原本无 YAML 载体）；文件**未删** —— `divrem.yaml` 是 `check-inst` 的 L3 载体、其余受 §5.1 前置阻塞 |
 | `bitcnt/`、`clmul/`、`fma/`、`minmax/`、`rev/`、`rol/`、`roundint/` 各自 | 414/81/… | — | 部分迁移（`clmul.o`/`rev.o`/`rol.o` 的 64 位形式见 §6/018；其余宽度与 `bitcnt` 待迁） |
 
 > 精确「文件 → id」清单由 `tools/testcases/` 现场导出（不写死在本表，避免漂移）。
@@ -448,3 +448,50 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
 - **YAML**：`fp/divrem.yaml` 的 6 个 id 全部有 `.S` 载体，但文件**未删**（它是 `check-inst`
   的 L3 载体，且 §5.1 前置未解）；`fp/arith.yaml` 的 8 个 id 已并入（余 4 个比较 id 待 022）；
   `fosub`/`ftadd`/`ftsub`/`ftmax` 原本无 YAML 载体。
+
+### `m13-testcases-022`：`07-floating-point` 转换/比较/分类（26 个 id）
+
+- `tests/inst/07-floating-point/{<id>.S}`（26 个）：转换 18（`ft2it`/`ft2io`/`ft2ut`/`ft2uo`、
+  `fo2it`/`fo2io`/`fo2ut`/`fo2uo`、`it2ft`/`io2ft`/`ut2ft`/`uo2ft`、`io2fo`/`uo2fo`、
+  `it2fo`/`ut2fo`、`fo2ft`、`ft2fo`）+ 块复制 2（`ft2ft`/`fo2fo`）+ 分类 2（`ftcls`/`focls`）
+  + 比较 4（`ftqcmp`/`ftscmp`/`foqcmp`/`foscmp`）；链接布局复用 `inst-tiny-fp.lds`。
+- 宏层新增（`tests/inst/macros/inst_test.inc`）：`TEST_FPCVT_{F2I,I2F,F2F}`（源在 rf/rd、
+  目的在 rd/rf 三种几何）、`TEST_FPCVT_ENC_{RD,RF,F2F}`（原始编码字）、
+  `TEST_FPCMP`/`TEST_FPCMP_ENC`/`TEST_FPCMP_S`（signaling 无序结果按 §8 只做**结构断言**：
+  符号 0 / 指数全 1 / qNaN 位 0 / 尾数非 0 —— payload 不限，不钉实现细节）、
+  `TEST_FPCLS1..4`/`_ENC1`/`_RF0`/`_IDX`/`_TOP4`、`TEST_FPCOPY1..4`/`_ENC2`/`_TOP4`/`_TOP1`/
+  `_31`/`_ADJ`/`_RF0`、`__FP_CHECK_RD`、`__CHECK/_VERIFY_FP_RF`、`__CHECK/_VERIFY_FP_RF_MEM`。
+  三个转换宏把「`immu6` 六档方向」与「`rf0[33:32]`」拆成两个参数 ⇒ 可直接断言
+  「静态档不受 `rf0` 影响」（§1.1）。
+- 语义要点（`spec/SimRISC-07 §1/§4/§5`）：`immu6` 三套语义互斥（六档 one-hot / SBZ=0 /
+  复制个数）；浮点→整数「有限且取整在范围内 ⇒ inexact 置 NX」，NaN/Inf/越界 ⇒ 饱和 + NV
+  且**不置** NX；整数→浮点本任务值域不产生 OF/UF（`2^64 < ft_max`、整数 ≥ 1）；
+  `fo2ft` 溢出结果形态只由方向决定（RNE/RNA ⇒ ±Inf，RTZ ⇒ ±max，RUP 正/RDN 负 ⇒ ±Inf），
+  轻微溢出（无界指数舍入仍回到 max）**只置 NX**；下溢按 tiny∧inexact 置 UF|NX；
+  NaN 结果一律 canonical qNaN（`fo2ft`/`ft2fo`/quiet compare）；复制类不改位、不置标志；
+  分类结果只占 `[9:0]`，`ftcls` 只看源**低 32 位**。
+- 用例：链例 **493** + 故障例 84（每 id 12–30 链例 + 1–5 故障；encoding 2 / semantic 3–9 /
+  boundary 4–20 / overlap 1–2 为骨架）。覆盖：六档方向（RNE/RNA/RTZ/RUP/RDN + 动态档，
+  含「`2.7` 非平局四方向」「`2.5` 平局」「静态档忽略 `rf0`」）、`±0`/`±Inf`/`qNaN`/`sNaN`
+  （含**负号 NaN**：转换饱和取 max、比较取 canonical qNaN）、ties（`2.5`、`2^24+1`、`2^53+1`）、
+  目标整型四宽度的最值/越界、`ft` 次正规与最小正规、`fo2ft` 四方向溢出 + 轻微溢出 + `f64` 最大有限
+  RTZ、`±ft_max`、**下溢三类**（`2^-150 RNE → +0`、`-2^-150 RTZ → -0`、`1.5×2^-149 → 2^-149`
+  非零次正规 + UF|NX，以及 `2^-149`/`2^-126` 的 tiny 但精确 ⇒ 不置 UF/NX）、复制 1/2/3/4
+  与 31 个元素（`{rf1:rf31} ← {rf32:rf62}`，逐元素核「目的 == 源内存」）、寄存器窗口顶端
+  （起始 60 + 4 = 64）、`rf0` 作源（复制/分类）、分类十类位掩码与 `[63:10]` 清零。
+- 故障例（84）覆盖 `dst_rd0`/`dst_rf0`/`mreg_zero`/`mreg_range_overflow`/`mreg_range_overlap`/
+  `encode_onehot`/`encode_sbz`，全部经原始编码字（汇编器会拒绝的编码）⇒ 期望 `0xF8` ILLI。
+- **`ft` 目的写入的高 32 位**：受控探针（7 检查点，目的寄存器先写满 64 位已知值）在**当前
+  master 构建**上三方**逐字节一致**（md5 `e33e7b65c2f2b6b6ff9bd9d6bcca427c`）：`ft2ft`/`fo2ft`
+  **只写低 32 位、高 32 位保留**，`ft2fo` 写满 64 位。同一探针在早先的旧构建（QEMU/RTL）上是
+  **整 64 位搬移**（gem5 仍为低 32 写）⇒ 该行为属 `contract-fp §1` 的「高 32 位不作规定」，
+  且在构建间变过 ⇒ `ft` 目的用例只比低 32 位、**不计红**；`contract-fp §1` 与 §1.3「复制类
+  64 位二进制不变」措辞冲突，建议 spec 收窄（见任务书「新发现/坑」）。
+- **YAML 逐条并入**（`fp/convert.yaml` 15 例 + `fp/arith.yaml` 15 例，共 30 条操作数全部有
+  对应 `.S` 用例）：`convert.yaml` ⇒ `ft2it` 的 `2.7f` 四方向（RTZ/RNE/RUP/RDN）+ 负号 `-2.7 RTZ`
+  + 动态档 RTZ + `2^31 越界 ⇒ INT32_MAX+NV` + `RNA 2.5` + `immu6=3 ⇒ ILLI`；`fo2io` 的
+  `2.7 RNE`；`io2ft` 的 `2^24+1` 在 RUP 与动态 RTZ 下两例；`ut2fo` 的 `UINT32_MAX` 精确；
+  `fo2ft` 的 `f64 最大有限 RTZ ⇒ +ft_max+OF|NX` 与 `2^-150 RNE ⇒ 0+UF|NX`。
+  `arith.yaml` ⇒ 四个比较 id 的 `1.0<2.0 ⇒ -1`、`+0 == -0 ⇒ 0`、qNaN/sNaN 左右与**负号 NaN**
+  的 quiet/signaling 无序结果与 NV 口径、`foqcmp` 目的 `rd0 ⇒ ILLI`。
+  两文件**未删**（`convert.yaml` 仍含其它 id 的旧措辞、`arith.yaml` 与本册同属 §5.1 前置）。

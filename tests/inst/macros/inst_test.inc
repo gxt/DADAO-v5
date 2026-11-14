@@ -1414,6 +1414,415 @@ __fault_case:
 .endm
 
 @@ ---------------------------------------------------------------------------
+@@ 格式转换 / 比较 / 分类（07-floating-point，`spec/SimRISC-07 §1/§4/§5`）
+@@
+@@ 一、转换（orri，单源单目的，`immu6` 语义分三套，见 §1.1/§1.2/§1.3）：
+@@   TEST_FPCVT_F2I(pt, 助记符, 目的rd, 源rf, 源值, immu6, rf0[33:32], 期望, 期望标志)
+@@   TEST_FPCVT_I2F(pt, 宽度, 助记符, 目的rf, 源rd, 源值, immu6, rf0[33:32], 期望, 期望标志)
+@@   TEST_FPCVT_F2F(pt, 宽度, 助记符, 目的rf, 源rf, 源值, immu6, rf0[33:32], 期望, 期望标志)
+@@     （`ft2fo` 的 immu6 = SBZ 写 0；`fo2ft` 写六档之一）
+@@   TEST_FPCVT_ENC_RD / _RF / _F2F(pt, [宽度,] 编码字, 目的, 源, 源值, 期望, 期望标志)
+@@   目的在 rd（f2i）⇒ 结果写满 64 位比较；目的在 rf ⇒ ft 只比低 32 位、fo 全比。
+@@   标志与结果共用一个点号（先断言标志，再比结果）。
+@@ 二、比较（orrr，目的 rd）：结果 −1/0/1 或 NaN 位型（写满 64 位）
+@@   TEST_FPCMP / TEST_FPCMP_ENC(pt, [编码字,] 助记符, 目的, 源C, C值, 源D, D值, 期望, 期望标志)
+@@   TEST_FPCMP_S(pt, 宽度, 助记符, 目的, 源C, C值, 源D, D值, 期望标志)
+@@     —— signaling compare 的无序结果是 sNaN，`contract-fp §8` 只规定「sNaN、符号位 0、
+@@        payload 不限」⇒ 用**结构断言**（指数全 1 / qNaN 位 0 / 尾数非 0 / 符号 0），不钉 payload。
+@@ 三、分类（orri 块，目的 rd 窗口 ← 源 rf 窗口；结果 [9:0] 掩码，其余位清零）
+@@   TEST_FPCLS1/2/3/4(pt, 助记符, 源值0, 期望0, [源值1, 期望1, ...])
+@@   TEST_FPCLS_ENC1(pt, 助记符, 编码字, 目的, 源值, 期望) / TEST_FPCLS_RF0(pt, 助记符, 期望)
+@@   TEST_FPCLS1_IDX（目的 rd40 / 源 rf40 同号）/ TEST_FPCLS_TOP4（{rd60:rd63} ← {rf60:rf63}）
+@@ 四、块复制（orri 块，目的 rf ← 源 rf）：
+@@   TEST_FPCOPY1/2/3/4(pt, 宽度, 助记符, 值0, 期望0, [值1, 期望1, ...])
+@@   TEST_FPCOPY_ENC2(pt, 宽度, 助记符, 编码字, 源0, 源1, 目的0, 目的1, 值0, 期望0, 值1, 期望1)
+@@   TEST_FPCOPY_TOP4 / _TOP1（寄存器窗口顶端）、_31（最大可行个数 31，逐元素核
+@@   「目的 == 源内存」）、_ADJ（相邻不相交窗口）、_RF0（rf0 作源）
+@@   源固定 rf40..rf43 → 目的 rf20..rf23；`_31` 走 {rf1:rf31} ← {rf32:rf62}（MSTORE）。
+@@   期望一律内联；`ft` 只比低 32 位（高 32 位不作规定，contract-fp §1）。
+@@ 五、块级合法性（`mreg_zero`/`mreg_range_overflow`/`mreg_range_overlap`/`dst_*0`/
+@@   `encode_sbz`/`encode_onehot`）用 `TEST_FAULT_FP`（原始编码字）覆盖。
+@@ ---------------------------------------------------------------------------
+
+@@ 目的在 rd 的结果（浮点→整数/比较/分类）：先断言标志，再比 64 位结果
+.macro __FP_CHECK_RD pt, dst, exp, flags
+	rf2rd	{rd22:rd22}, {rf0:rf0}
+	ext.uo	rd22, rd22, 4
+	__VERIFY_RD \pt, rd22, \flags
+	__CHECK_RD \pt, \dst, \exp
+.endm
+
+@@ 浮点→整数：源值经 `__LI_RF`（不经浮点指令），immu6 = 六档方向，rf0 档只对 0x20 生效
+.macro TEST_FPCVT_F2I pt, mnem, dst, src, sval, cvt, rfm, exp, flags
+	__FP_ENV \rfm
+	__LI_RF	\src, \sval
+	\mnem	\dst, \src, \cvt
+	__FP_CHECK_RD \pt, \dst, \exp, \flags
+.endm
+
+@@ 整数→浮点：源值经 `__LI` 装 rd（不经浮点指令）
+.macro TEST_FPCVT_I2F pt, w, mnem, dst, src, sval, cvt, rfm, exp, flags
+	__FP_ENV \rfm
+	__LI	\src, \sval
+	\mnem	\dst, \src, \cvt
+	__FP_CHECK \pt, \w, \dst, \exp, \flags
+.endm
+
+@@ encoding 例（目的 rd）：给规范编码字，钉 opc/mask/value 与字段位置
+.macro TEST_FPCVT_ENC_RD pt, enc, dst, src, sval, exp, flags
+	__FP_ENV 0
+	__LI_RF	\src, \sval
+	.dd.t32	\enc
+	__FP_CHECK_RD \pt, \dst, \exp, \flags
+.endm
+
+@@ encoding 例（目的 rf）
+.macro TEST_FPCVT_ENC_RF pt, w, enc, dst, src, sval, exp, flags
+	__FP_ENV 0
+	__LI	\src, \sval
+	.dd.t32	\enc
+	__FP_CHECK \pt, \w, \dst, \exp, \flags
+.endm
+
+@@ 浮点→浮点（ft2fo 精确 / fo2ft 六档）：源是 rf
+.macro TEST_FPCVT_F2F pt, w, mnem, dst, src, sval, cvt, rfm, exp, flags
+	__FP_ENV \rfm
+	__LI_RF	\src, \sval
+	\mnem	\dst, \src, \cvt
+	__FP_CHECK \pt, \w, \dst, \exp, \flags
+.endm
+
+@@ 浮点→浮点 encoding 例（源 rf）
+.macro TEST_FPCVT_ENC_F2F pt, w, enc, dst, src, sval, exp, flags
+	__FP_ENV 0
+	__LI_RF	\src, \sval
+	.dd.t32	\enc
+	__FP_CHECK \pt, \w, \dst, \exp, \flags
+.endm
+
+@@ 比较（有序/quiet 无序）：结果 −1/0/1 或 canonical qNaN，全 64 位比较
+.macro TEST_FPCMP pt, mnem, dst, a, aval, b, bval, exp, flags
+	__FP_ENV 0
+	__LI_RF	\a, \aval
+	.ifnc	\b, \a
+	__LI_RF	\b, \bval
+	.endif
+	\mnem	\dst, \a, \b
+	__FP_CHECK_RD \pt, \dst, \exp, \flags
+.endm
+
+@@ 比较 encoding 例（原始编码字）
+.macro TEST_FPCMP_ENC pt, enc, dst, a, aval, b, bval, exp, flags
+	__FP_ENV 0
+	__LI_RF	\a, \aval
+	.ifnc	\b, \a
+	__LI_RF	\b, \bval
+	.endif
+	.dd.t32	\enc
+	__FP_CHECK_RD \pt, \dst, \exp, \flags
+.endm
+
+@@ signaling compare 的无序结果：sNaN 位型、符号 0、payload 不限 ⇒ 结构断言
+.macro TEST_FPCMP_S pt, w, mnem, dst, a, aval, b, bval, flags
+	__FP_ENV 0
+	__LI_RF	\a, \aval
+	.ifnc	\b, \a
+	__LI_RF	\b, \bval
+	.endif
+	\mnem	\dst, \a, \b
+	rf2rd	{rd22:rd22}, {rf0:rf0}
+	ext.uo	rd22, rd22, 4
+	__VERIFY_RD \pt, rd22, \flags
+	shr.uo	rd21, \dst, 63		@@ 符号位必须 0
+	__VERIFY_RD \pt, rd21, 0
+	.ifc	\w, ft
+	ext.uo	rd21, \dst, 31
+	shr.uo	rd21, rd21, 22		@@ [9:0] = 指数 << 1 | qNaN 位（ft：8 位指数）
+	__VERIFY_RD \pt, rd21, 0x1FE
+	ext.uo	rd21, \dst, 21		@@ 尾数非 0
+	.else
+	shr.uo	rd21, \dst, 51		@@ [12:0] = 符号 << 12 | 指数 << 1 | qNaN 位
+	ext.uo	rd21, rd21, 11		@@ 取低 12 位（符号位已单测）
+	__VERIFY_RD \pt, rd21, 0xFFE
+	ext.uo	rd21, \dst, 51		@@ 尾数非 0
+	.endif
+	__REC	\dst
+	br.nz	{rd21}?, [rb0, __fps_\@]
+	__EXIT	\pt
+__fps_\@:
+.endm
+
+@@ 分类（源 rf40..，目的 rd8..；[63:10] 必须清零 ⇒ 期望按全 64 位比较）
+.macro TEST_FPCLS1 pt, mnem, v0, e0
+	__FP_ENV 0
+	__LI_RF	rf40, \v0
+	\mnem	{rd8:rd8}, {rf40:rf40}
+	__CHECK_RD \pt, rd8, \e0
+.endm
+
+.macro TEST_FPCLS2 pt, mnem, v0, e0, v1, e1
+	__FP_ENV 0
+	__LI_RF	rf40, \v0
+	__LI_RF	rf41, \v1
+	\mnem	{rd8:rd9}, {rf40:rf41}
+	__VERIFY_RD \pt, rd9, \e1
+	__CHECK_RD \pt, rd8, \e0
+.endm
+
+.macro TEST_FPCLS3 pt, mnem, v0, e0, v1, e1, v2, e2
+	__FP_ENV 0
+	__LI_RF	rf40, \v0
+	__LI_RF	rf41, \v1
+	__LI_RF	rf42, \v2
+	\mnem	{rd8:rd10}, {rf40:rf42}
+	__VERIFY_RD \pt, rd9, \e1
+	__VERIFY_RD \pt, rd10, \e2
+	__CHECK_RD \pt, rd8, \e0
+.endm
+
+.macro TEST_FPCLS4 pt, mnem, v0, e0, v1, e1, v2, e2, v3, e3
+	__FP_ENV 0
+	__LI_RF	rf40, \v0
+	__LI_RF	rf41, \v1
+	__LI_RF	rf42, \v2
+	__LI_RF	rf43, \v3
+	\mnem	{rd8:rd11}, {rf40:rf43}
+	__VERIFY_RD \pt, rd9, \e1
+	__VERIFY_RD \pt, rd10, \e2
+	__VERIFY_RD \pt, rd11, \e3
+	__CHECK_RD \pt, rd8, \e0
+.endm
+
+@@ 分类 encoding 例（原始编码字；count = 1；目的寄存器由调用者给出）
+.macro TEST_FPCLS_ENC1 pt, mnem, enc, dst, v0, e0
+	__FP_ENV 0
+	__LI_RF	rf40, \v0
+	.dd.t32	\enc
+	__CHECK_RD \pt, \dst, \e0
+.endm
+
+@@ 分类源为 rf0：读出 FCSR 位型（低 32 位是 ft 的 canonical qNaN）
+.macro TEST_FPCLS_RF0 pt, mnem, e0
+	__FP_ENV 0
+	\mnem	{rd8:rd8}, {rf0:rf0}
+	__CHECK_RD \pt, rd8, \e0
+.endm
+
+@@ 分类的同号用例（目的 rd40 / 源 rf40，同号不同组）与范围上界（rd60.. ← rf60..）
+.macro TEST_FPCLS1_IDX pt, mnem, v0, e0
+	__FP_ENV 0
+	__LI_RF	rf40, \v0
+	\mnem	{rd40:rd40}, {rf40:rf40}
+	__CHECK_RD \pt, rd40, \e0
+.endm
+
+.macro TEST_FPCLS_TOP4 pt, mnem, v0, e0, v1, e1, v2, e2, v3, e3
+	__FP_ENV 0
+	__LI_RF	rf60, \v0
+	__LI_RF	rf61, \v1
+	__LI_RF	rf62, \v2
+	__LI_RF	rf63, \v3
+	\mnem	{rd60:rd63}, {rf60:rf63}
+	__VERIFY_RD \pt, rd61, \e1
+	__VERIFY_RD \pt, rd62, \e2
+	__VERIFY_RD \pt, rd63, \e3
+	__CHECK_RD \pt, rd60, \e0
+.endm
+
+@@ 块复制的单元素期望比较（ft 只比低 32 位）
+.macro __CHECK_FP_RF pt, w, reg, exp
+	rf2rd	{rd21:rd21}, {\reg:\reg}
+	.ifc	\w, ft
+	ext.uo	rd21, rd21, 31
+	.endif
+	__LI	rd20, \exp
+	__REC	rd21
+	br.eq	{rd20, rd21}?, [rb0, __cfr_\@]
+	__EXIT	\pt
+__cfr_\@:
+.endm
+
+.macro __VERIFY_FP_RF pt, w, reg, exp
+	rf2rd	{rd21:rd21}, {\reg:\reg}
+	.ifc	\w, ft
+	ext.uo	rd21, rd21, 31
+	.endif
+	__LI	rd20, \exp
+	br.eq	{rd20, rd21}?, [rb0, __vfr_\@]
+	__EXIT	\pt
+__vfr_\@:
+.endm
+
+@@ 块复制：源 rf40..、目的 rf20..（互不相交）
+.macro TEST_FPCOPY1 pt, w, mnem, v0, e0
+	__FP_ENV 0
+	__LI_RF	rf40, \v0
+	\mnem	{rf20:rf20}, {rf40:rf40}
+	__CHECK_FP_RF \pt, \w, rf20, \e0
+.endm
+
+.macro TEST_FPCOPY2 pt, w, mnem, v0, e0, v1, e1
+	__FP_ENV 0
+	__LI_RF	rf40, \v0
+	__LI_RF	rf41, \v1
+	\mnem	{rf20:rf21}, {rf40:rf41}
+	__VERIFY_FP_RF \pt, \w, rf21, \e1
+	__CHECK_FP_RF \pt, \w, rf20, \e0
+.endm
+
+.macro TEST_FPCOPY3 pt, w, mnem, v0, e0, v1, e1, v2, e2
+	__FP_ENV 0
+	__LI_RF	rf40, \v0
+	__LI_RF	rf41, \v1
+	__LI_RF	rf42, \v2
+	\mnem	{rf20:rf22}, {rf40:rf42}
+	__VERIFY_FP_RF \pt, \w, rf21, \e1
+	__VERIFY_FP_RF \pt, \w, rf22, \e2
+	__CHECK_FP_RF \pt, \w, rf20, \e0
+.endm
+
+.macro TEST_FPCOPY4 pt, w, mnem, v0, e0, v1, e1, v2, e2, v3, e3
+	__FP_ENV 0
+	__LI_RF	rf40, \v0
+	__LI_RF	rf41, \v1
+	__LI_RF	rf42, \v2
+	__LI_RF	rf43, \v3
+	\mnem	{rf20:rf23}, {rf40:rf43}
+	__VERIFY_FP_RF \pt, \w, rf21, \e1
+	__VERIFY_FP_RF \pt, \w, rf22, \e2
+	__VERIFY_FP_RF \pt, \w, rf23, \e3
+	__CHECK_FP_RF \pt, \w, rf20, \e0
+.endm
+
+@@ 块复制 encoding 例（原始编码字；源/目的寄存器都由调用者给出）
+.macro TEST_FPCOPY_ENC2 pt, w, mnem, enc, s0, s1, d0, d1, v0, e0, v1, e1
+	__FP_ENV 0
+	__LI_RF	\s0, \v0
+	.ifnc	\s1, \s0
+	__LI_RF	\s1, \v1
+	.endif
+	.dd.t32	\enc
+	.ifnc	\d1, \d0
+	__VERIFY_FP_RF \pt, \w, \d1, \e1
+	.endif
+	__CHECK_FP_RF \pt, \w, \d0, \e0
+.endm
+
+@@ 寄存器窗口顶端：{rf60:rf63} ← {rf40:rf43}（起始 60 + 4 = 64）
+.macro TEST_FPCOPY_TOP4 pt, w, mnem, v0, e0, v1, e1, v2, e2, v3, e3
+	__FP_ENV 0
+	__LI_RF	rf40, \v0
+	__LI_RF	rf41, \v1
+	__LI_RF	rf42, \v2
+	__LI_RF	rf43, \v3
+	\mnem	{rf60:rf63}, {rf40:rf43}
+	__VERIFY_FP_RF \pt, \w, rf62, \e2
+	__VERIFY_FP_RF \pt, \w, rf63, \e3
+	__CHECK_FP_RF \pt, \w, rf61, \e1
+.endm
+
+@@ 单寄存器落在最高号：rf63 ← rf40
+.macro TEST_FPCOPY_TOP1 pt, w, mnem, v0, e0
+	__FP_ENV 0
+	__LI_RF	rf40, \v0
+	\mnem	{rf63:rf63}, {rf40:rf40}
+	__CHECK_FP_RF \pt, \w, rf63, \e0
+.endm
+
+@@ 最大可行个数 31：{rf1:rf31} ← {rf32:rf62}，源从 MSTORE 装入
+@@   判据 = 目的寄存器 == 源内存（同一份 MSTORE 拍；不引入额外期望常量），
+@@   逐条核 31 个元素 ⇒ 个数/顺序/边界一次钉死。ft 只比低 32 位（contract-fp §1）。
+.macro __VERIFY_FP_RF_MEM pt, w, reg, base, off
+	rf2rd	{rd21:rd21}, {\reg:\reg}
+	ld.o	rd20, [\base, \off]
+	.ifc	\w, ft
+	ext.uo	rd21, rd21, 31
+	ext.uo	rd20, rd20, 31
+	.endif
+	br.eq	{rd20, rd21}?, [rb0, __vfm_\@]
+	__EXIT	\pt
+__vfm_\@:
+.endm
+
+.macro __CHECK_FP_RF_MEM pt, w, reg, base, off
+	rf2rd	{rd21:rd21}, {\reg:\reg}
+	ld.o	rd20, [\base, \off]
+	.ifc	\w, ft
+	ext.uo	rd21, rd21, 31
+	ext.uo	rd20, rd20, 31
+	.endif
+	__REC	rd21
+	br.eq	{rd20, rd21}?, [rb0, __cfm_\@]
+	__EXIT	\pt
+__cfm_\@:
+.endm
+
+.macro TEST_FPCOPY_31 pt, w, mnem
+	__FP_ENV 0
+	LOAD_ADDR rb12, MSTORE
+	ldm.o	{rf32:rf62}, [rb12, rd0]
+	\mnem	{rf1:rf31}, {rf32:rf62}
+	__VERIFY_FP_RF_MEM \pt, \w, rf2, rb12, 8
+	__VERIFY_FP_RF_MEM \pt, \w, rf3, rb12, 16
+	__VERIFY_FP_RF_MEM \pt, \w, rf4, rb12, 24
+	__VERIFY_FP_RF_MEM \pt, \w, rf5, rb12, 32
+	__VERIFY_FP_RF_MEM \pt, \w, rf6, rb12, 40
+	__VERIFY_FP_RF_MEM \pt, \w, rf7, rb12, 48
+	__VERIFY_FP_RF_MEM \pt, \w, rf8, rb12, 56
+	__VERIFY_FP_RF_MEM \pt, \w, rf9, rb12, 64
+	__VERIFY_FP_RF_MEM \pt, \w, rf10, rb12, 72
+	__VERIFY_FP_RF_MEM \pt, \w, rf11, rb12, 80
+	__VERIFY_FP_RF_MEM \pt, \w, rf12, rb12, 88
+	__VERIFY_FP_RF_MEM \pt, \w, rf13, rb12, 96
+	__VERIFY_FP_RF_MEM \pt, \w, rf14, rb12, 104
+	__VERIFY_FP_RF_MEM \pt, \w, rf15, rb12, 112
+	__VERIFY_FP_RF_MEM \pt, \w, rf16, rb12, 120
+	__VERIFY_FP_RF_MEM \pt, \w, rf17, rb12, 128
+	__VERIFY_FP_RF_MEM \pt, \w, rf18, rb12, 136
+	__VERIFY_FP_RF_MEM \pt, \w, rf19, rb12, 144
+	__VERIFY_FP_RF_MEM \pt, \w, rf20, rb12, 152
+	__VERIFY_FP_RF_MEM \pt, \w, rf21, rb12, 160
+	__VERIFY_FP_RF_MEM \pt, \w, rf22, rb12, 168
+	__VERIFY_FP_RF_MEM \pt, \w, rf23, rb12, 176
+	__VERIFY_FP_RF_MEM \pt, \w, rf24, rb12, 184
+	__VERIFY_FP_RF_MEM \pt, \w, rf25, rb12, 192
+	__VERIFY_FP_RF_MEM \pt, \w, rf26, rb12, 200
+	__VERIFY_FP_RF_MEM \pt, \w, rf27, rb12, 208
+	__VERIFY_FP_RF_MEM \pt, \w, rf28, rb12, 216
+	__VERIFY_FP_RF_MEM \pt, \w, rf29, rb12, 224
+	__VERIFY_FP_RF_MEM \pt, \w, rf30, rb12, 232
+	__VERIFY_FP_RF_MEM \pt, \w, rf31, rb12, 240
+	__CHECK_FP_RF_MEM \pt, \w, rf1, rb12, 0
+.endm
+
+@@ 相邻不相交窗口：{rf40:rf41} ← {rf42:rf43}
+.macro TEST_FPCOPY_ADJ pt, w, mnem, v0, e0, v1, e1
+	__FP_ENV 0
+	__LI_RF	rf42, \v0
+	__LI_RF	rf43, \v1
+	\mnem	{rf40:rf41}, {rf42:rf43}
+	__VERIFY_FP_RF \pt, \w, rf41, \e1
+	__CHECK_FP_RF \pt, \w, rf40, \e0
+.endm
+
+@@ rf0 作源：目的必须与「此刻 rf0 的位型」相同（FCSR 的 qNaN 字段由硬件定义，
+@@ 不钉具体 payload ⇒ 运行期取自 rf0 自身；ft 只比低 32 位，见 contract-fp §1）
+.macro TEST_FPCOPY_RF0 pt, w, mnem
+	__FP_ENV 0
+	\mnem	{rf20:rf20}, {rf0:rf0}
+	rf2rd	{rd21:rd21}, {rf0:rf0}
+	rf2rd	{rd22:rd22}, {rf20:rf20}
+	.ifc	\w, ft
+	ext.uo	rd21, rd21, 31
+	ext.uo	rd22, rd22, 31
+	.endif
+	__REC	rd22
+	br.eq	{rd21, rd22}?, [rb0, __fc0_\@]
+	__EXIT	\pt
+__fc0_\@:
+.endm
+
+@@ ---------------------------------------------------------------------------
 @@ 镜像骨架
 @@ ---------------------------------------------------------------------------
 
