@@ -18,6 +18,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-001 | 2–3 天 | 周期模型收口复测（M13 收尾后全量重测并更新文档；权威版本） |
 | m16-gem5-005 | 3–4 h | 块传送计拍（`ldm/stm` 微操作展开、`rd2rd` 类 ⌈N/2⌉/N） |
 | m16-gem5-006 | 3–4 h | 访存时序（`NoncoherentXBar`+`SimpleMemory`）+ Atomic/Timing 墙钟比 |
 | m16-gem5-007 | 3–4 h | 对标脚手架 + embench 子集 + 报告 |
