@@ -902,12 +902,12 @@ _locked-test-picolibc-smoke: build-picolibc
 # representative reports a genuine test failure (fail=0); backend/library gaps
 # are reported separately as `blocked`, never as silent skips.
 _locked-check-picolibc-tests: build-picolibc build-bootrom
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/picolibc_tests.py --stage fast --jobs $(JOBS)
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/picolibc_tests.py --stage fast --jobs $(TEST_JOBS)
 
 # check-picolibc-tests-full (TESTCASES-042t): the full picolibc self-test set
 # (opt-in; L3-like — hundreds of compile/link/QEMU runs, several minutes).
 _locked-check-picolibc-tests-full: build-picolibc build-bootrom
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/picolibc_tests.py --stage full --jobs $(JOBS)
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/picolibc_tests.py --stage full --jobs $(TEST_JOBS)
 
 # check-rnd-probe (TESTCASES-060t): ftrnd/fornd roundToIntegral integration --
 # 6-mode x value matrix (bit patterns), rf0[33:32] mode sensitivity, flag rules
@@ -1068,7 +1068,7 @@ _locked-check-tset-llvm-smoke:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-llvm-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
 	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-llvm-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
 	@test -d .work/source/llvm-test-suite || { echo "check-tset-llvm-smoke: ERROR: .work/source/llvm-test-suite not found — run 'make fetch'"; exit 1; }
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/tset/llvm-ts/run_smoke.py --link-mode static --jobs $(JOBS) \
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/tset/llvm-ts/run_smoke.py --link-mode static --jobs $(TEST_JOBS) \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-llvm-smoke.json \
 	    > .work/log/testcases/check-tset-llvm-smoke.log 2>&1; \
 	  rc=$$?; \
@@ -1119,7 +1119,7 @@ _locked-check-tset-llvm-full:
 	@test -d .work/source/llvm-test-suite || { echo "check-tset-llvm-full: ERROR: .work/source/llvm-test-suite not found — run 'make fetch'"; exit 1; }
 	@fail=0; for m in $(TSET_FULL_MODES); do \
 	  echo "check-tset-llvm-full: [$$m] full suite"; \
-	  $(PYTHON) tools/testcases/tset/llvm-ts/run_llvm_ts_user.py --link-mode $$m --jobs $(JOBS) \
+	  $(PYTHON) tools/testcases/tset/llvm-ts/run_llvm_ts_user.py --link-mode $$m --jobs $(TEST_JOBS) \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-llvm-full-$$m.json \
 	    > .work/log/testcases/check-tset-llvm-full-$$m.log 2>&1; \
 	  rc=$$?; tail -3 .work/log/testcases/check-tset-llvm-full-$$m.log; \
@@ -2070,6 +2070,7 @@ check-night-report:
 check-l3-report:
 	@$(PYTHON) tools/testcases/check_l3_report.py --root "$(TESTS_ROOT)" $(if $(L3_STAMP),--stamp $(L3_STAMP),)
 
-# 构建并行度（用户 2026-11-13 修订：默认 = nproc/2；主控机 64 核 ⇒ 32，节点 40 核 ⇒ 20）
+# 并行度（用户 2026-11-14 修订）：构建固定 32；测试用「全量核 − 2」（不得手写 8/16 之类的经验值）
 NPROC := $(shell nproc 2>/dev/null || echo 4)
-JOBS ?= $(shell expr $(NPROC) / 2)
+JOBS ?= 32
+TEST_JOBS ?= $(shell expr $(NPROC) - 2)

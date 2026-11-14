@@ -101,7 +101,7 @@ QEMU = TOOLCHAIN_BIN / "qemu-system-dadao"
 TINY_BOOTROM = paths.test_artifacts_dir() / "bootrom" / "tiny" / "bootrom_tiny.bin"
 
 DEFAULT_TIMEOUT = 60
-DEFAULT_JOBS = int(os.environ.get("JOBS", "8"))
+DEFAULT_JOBS = int(os.environ.get("JOBS") or max(1, (os.cpu_count() or 1) - 2))
 
 # Machine-fault exit codes (spec/Machine-v5 §7.1): monitor 0xC0-0xFF (run
 # mode + cause index) and other cfx 0x80-0xBF (cfxHA); see

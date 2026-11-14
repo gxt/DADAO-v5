@@ -340,8 +340,8 @@ def main() -> int:
     ap.add_argument("--bootrom", default=None)
     ap.add_argument("--work-dir", default=None)
     ap.add_argument("--log-dir", default=None)
-    ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 1) // 2),
-                    help="并发镜像数（默认 = 核数/2；节点 40 核 -> 20、64 核 -> 32）")
+    ap.add_argument("--jobs", type=int, default=max(1, (os.cpu_count() or 1) - 2),
+                    help="并发镜像数（默认 = 全量核 − 2；节点 40 核 -> 38、主控机 64 核 -> 62）")
     ap.add_argument("--timeout-qemu", type=int, default=120)
     ap.add_argument("--timeout-gem5", type=int, default=300)
     ap.add_argument("--timeout-chipyard", type=int, default=900)

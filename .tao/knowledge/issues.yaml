@@ -644,7 +644,7 @@
   scope:
   - testcases
   - infra
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M13
+  resolved_by: 默认并行度改「全量核 − 2」（picolibc_tests.py / run_asm_suite.py；Makefile 分 JOBS=32 构建 / TEST_JOBS=nproc-2 测试）
   title: "【P3】跑批脚本的默认并行度与规范不符：`tools/testcases/picolibc_tests.py` 的 `DEFAULT_JOBS = int(os.environ.get('JOBS', '8'))` **写死 8**，而 `AGENTS.md` 规定 `--jobs` = 核数/2（主控机 64 核 ⇒ 32、节点 40 核 ⇒ 20）。后果：不显式传 `--jobs` 时只跑满 1/8 核（`m12-chipyard-016` 实测：64 核机上 load 21/64、每个 chipyard sim 仅 25 MB RSS / 单核 100% ⇒ 无资源理由）。同类风险：其它 runner 若也有写死默认值须一并核。修法：默认改为 `max(1, os.cpu_count()//2)` 并保留 `JOBS` 覆盖；**不**在未核清的场景下改成 `nproc`（全核）。"
