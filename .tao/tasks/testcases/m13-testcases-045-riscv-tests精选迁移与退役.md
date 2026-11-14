@@ -1,4 +1,4 @@
-# m13-testcases-045: riscv-tests 语料精选迁移 + 退役（保留借鉴清单）
+# m13-testcases-045: riscv-tests 语料精选迁移 + 退役（**不归档、不溯源**）
 
 **模块**：testcases
 **项目里程碑**：M13
@@ -9,7 +9,9 @@
 
 ## 用户裁定（2026-11-14，原话）
 
-> 「tests/riscv-tests/ 还有必要存在吗？有没有需要借鉴的测试用例？」→ 选「**迁移精选值后退役**」：把有语义价值、且现有 `.S` 未覆盖的常量并入对应 `.S`；`inventory.yaml` 转成借鉴清单存档；然后删语料与脚本。
+> 「tests/riscv-tests/ 还有必要存在吗？有没有需要借鉴的测试用例？」→ 选「**迁移精选值后退役**」；随后追加裁定：「**不需要归档和溯源**」
+
+⇒ 只做两件事：① 把有语义价值、且现有 `.S` 未覆盖的常量并入对应 `.S`；② 直接删除 `tests/riscv-tests/` 与 `tools/testcases/riscv_tests/`（**不建 refs 存档、不保留 upstream commit/sha256、不写借鉴清单**）。
 
 ## 现状（`m13-integ-004` 已验证，2026-11-11）
 
@@ -30,19 +32,18 @@
 - 每个 id 追加 ≤10 条，且该 id 总用例数仍 **≤127**（`check-tests-index` 会机械核）。
 - `ft`/`fo`、`cmp`、`mul` 这类涉及标志/高半的，期望要写清依据（如 `mul.so` 高半的符号规则见 `contracts/opcodes.yaml`/spec）。
 
-## 阶段 C：存档与退役
+## 阶段 C：退役（**不归档、不溯源**）
 
-1. 把 `inventory.yaml` 的 **114 条分类 + 57 条 `rewrite` 理由**转成 `.tao/knowledge/refs/riscv-tests-borrowing.md`（保留 `upstream_commit` 与 sha256 溯源；标注「内容溯源，非执行必需」）；
-2. `git rm -r tests/riscv-tests/ tools/testcases/riscv_tests/`；
-3. 更新 `docs/TestReports/M13-riscv-tests移植与差分.md`（若存在）：加一句「语料已于 M13 精选迁移后退役，借鉴清单见 refs」；
-4. `grep -rn "riscv-tests\|riscv_tests"` 在 `Makefile`/`tools/`/`tests/` 只余历史归档与 refs 说明。
+1. `git rm -r tests/riscv-tests/`（含 `inventory.yaml`、`upstream-index.yaml`、`cases/`、`framework/`）与 `tools/testcases/riscv_tests/`（`extract.py`/`verify_cases.py`/`run_riscv_tests.py`）；
+2. `docs/TestReports/M13-riscv-tests移植与差分.md`：**删除该报告**（其语料已不存在；`m13-integ-004` 的历史结论留在任务书/台账，不另建存档）；
+3. `grep -rn "riscv-tests\|riscv_tests"` 在 `Makefile`/`tools/`/`tests/`/`docs/` = 0（`.tao/archive/**` 与历史任务书不改写）。
 
 ## 验收（逐条贴真实 rc / 现场值）
 
 1. `port-values-selected.tsv` 完整；每 id 入选 ≤10 条、边界/特殊值优先；平凡值（0/1/2/3）不入选（`.S` 已有）。
 2. **期望独立推导**：抽查 5 条新检查点，核其期望值与 spec 一致、且与 `cases/*.yaml` 的 `expected` **不同源**（若恰好相同，需说明是巧合或有手算依据）。
 3. `check-inst-asm` 264 id 不变、镜像数按现场 +N；`check-tests-index`（每 id ≤127 门控）rc=0；`validate-vectors` rc=0；`check-case-ledger` 现场值。
-4. 阶段 C 后 `git grep -c "riscv-tests"` 只剩 refs/归档；`tools/testcases/riscv_tests/` 不存在。
+4. 阶段 C 后：`tests/riscv-tests/`、`tools/testcases/riscv_tests/`、`docs/TestReports/M13-riscv-tests移植与差分.md` 均不存在；`git grep -c "riscv-tests"` 在 `Makefile`/`tools/`/`tests/`/`docs/` = 0（仅 `.tao/archive/**` 与历史任务书可留）。
 5. 可达 FAIL 注入 ≥2 路（改一条新检查点期望 ⇒ `check-inst-asm` 红；把某 id 补到 128 ⇒ 上限门控红），`cp`+md5 还原。
 6. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`；不改台账/`discussing.md`。
 
@@ -51,7 +52,7 @@
 1. 独立 `git worktree`（分支 = 任务号）；动手前自证 toplevel；禁改主工作树。
 2. 不提交 git；**禁跑 `install-host`/`check-modules`/`build-*`**；**不要 sync/reset 节点仓库**。
 3. 禁 `git checkout/restore/stash`；注入还原用 `cp`+md5。
-4. 只改 `tests/inst/**`（`.S`）、`tests/riscv-tests/`（删）、`tools/testcases/riscv_tests/`（删）、`.tao/knowledge/refs/riscv-tests-borrowing.md`（新）、`docs/TestReports/M13-riscv-tests*`（若存在）、任务书；**不改** `spec/`、`contracts/`、`components/**`。
+4. 只改 `tests/inst/**`（`.S`）、`tests/riscv-tests/`（删）、`tools/testcases/riscv_tests/`（删）、`docs/TestReports/M13-riscv-tests移植与差分.md`（删）、任务书；**不改** `spec/`、`contracts/`、`components/**`；**不新建**任何 refs/归档文件。
 5. 测试派节点、有空位就发；`--jobs` = 核数−2 减占用。
 
 ## 待裁定
