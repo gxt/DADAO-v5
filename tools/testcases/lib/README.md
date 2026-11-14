@@ -10,6 +10,13 @@
 > 退出码路径自检、`build_binary` 仍被 parity 驱动复用）——下文 Quick Start 的 YAML 示例
 > 是**历史用法**，不要据此重建 YAML。
 
+> **`fp_spec_*.py` 的定位（`m13-testcases-046`，2026-11-15）**：三探针退役（044）后，
+> 原 `tools/testcases/oracle_{fma,minmax,rnd}.py` 迁入本目录并改名 —— 它们已不是
+> 「测试 oracle」，而是 **spec 精确算术原语**（`spec/SimRISC-07`），**不是测试判据**；
+> 测试判据一律是 `.S` 内联期望。消费者 = `tools/gem5/b7_ref.py`（B7 差分参考模型，
+> 用 `fp_spec_arith` 的 `classify`/`encode`/`floor_log2`，并与三个原语模块互证；L1
+> `check-dirs` 对其路径做存在性 + 可 import + 符号断言）。
+
 ## Overview
 
 This directory contains the QEMU-based ISA semantic test harness for `dadao-tiny`. The harness builds test binaries from vector YAML files, runs them in QEMU, and reports PASS/FAIL based on exit codes.
@@ -23,6 +30,7 @@ This directory contains the QEMU-based ISA semantic test harness for `dadao-tiny
 | `build_test_binary.py` | Builds test binary from vector YAML |
 | `run_qemu_test.py` | Main test runner |
 | `verify_harness_dump.py` | Harness dump channel verification (QMP protocol, byte layout, 10a `-device loader` channel) |
+| `fp_spec_arith.py` / `fp_spec_minmax.py` / `fp_spec_rnd.py` | **spec 精确算术原语**（`spec/SimRISC-07`；fma / min·max / roundToIntegral），**不是测试判据**——判据是 `.S` 内联期望；被 `tools/gem5/b7_ref.py` 复用并作三实现互证 |
 | `README.md` | This file |
 
 ## Quick Start

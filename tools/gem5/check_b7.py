@@ -20,10 +20,18 @@ What this gate verifies (GEM5-012t acceptance):
 6. bit-exact differential against tools/gem5/b7_ref.py: >= 2000 vectors (per
    family >= the task's minimum), comparing the destination register values and
    the new FCSR word bit for bit;
-7. independent oracle cross-checks for fma / minmax / roundint against
-   tests/inst oracles (oracle_fma / oracle_minmax / oracle_rnd), used read-only;
-8. read-only consistency with the tests/inst FP assets (fma/, minmax/,
-   roundint/, fp/scaleb.yaml) -- the scaleB C1 decoy is re-derived.
+7. model-vs-spec-primitive cross-checks for fma / minmax / roundint against the
+   shared spec-exact modules (tools/testcases/lib/fp_spec_{arith,minmax,rnd}.py),
+   used read-only -- independent of the implementation above;
+8. re-derivation of the read-only `tests/inst/07-floating-point/*.S` carriers.
+   **The former assets `tests/inst/{fma,minmax,roundint}/` and
+   `tests/inst/fp/scaleb.yaml` were retired (m13-testcases-043/044); their
+   criteria moved to the `.S` carriers.**  Each carrier must exist, its case
+   numbers must be 1..N with no gap, and every semantic expectation is
+   recomputed by the model -- deleting or editing a carrier turns this gate
+   red.  The old scaleB C1 decoy (rd-group exponent operand, not an rf value)
+   is now bound to `ftsclb_orrr_rf.S` / `fosclb_orrr_rf.S`, which document the
+   `rdHD` operand.
 
 Provenance note (f2i NX): ``convert_f2i`` signals NX for a finite inexact
 conversion per ``contract-fp §3`` (SPEC-181t F5.3).  The ``g1_note`` of the
@@ -43,6 +51,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 MATRIX = ROOT / ".tao/knowledge/refs/GEM5-002t-semantic-matrix.tsv"
+INST_FP = ROOT / "tests/inst/07-floating-point"
 HARNESS_ID = re.compile(r"^\[PASS\] b7-id (\S+)$", re.MULTILINE)
 
 # ── built-in per-id expectation table (55 rows) ──────────────────────────
@@ -314,32 +323,114 @@ def check_matrix(entries) -> list[str]:
     return errors
 
 
+def _carrier_points(text: str) -> list[int]:
+    """Point numbers of every `TEST_*` case line (any macro), in file order."""
+    points = []
+    for line in text.splitlines():
+        match = re.match(r"\tTEST_[A-Z0-9_]+\t(\d+)", line)
+        if match:
+            points.append(int(match.group(1)))
+    return points
+
+
+def _carrier_args(line: str, macro: str) -> list[str]:
+    return [arg.strip() for arg in line.split(macro, 1)[1].split(",")]
+
+
+# (file, semantic macro, format, model).  The former YAML/dir assets are gone
+# (m13-testcases-043/044); the `.S` carries both the case points and the
+# inline expectation, so a deleted/edited carrier is a reachable failure.
+CARRIERS = (
+    ("ftfma_rrrr_rf.S", "TEST_FP4", "ft", "fma"),
+    ("fofma_rrrr_rf.S", "TEST_FP4", "fo", "fma"),
+    ("ftmin_orrr_rf.S", "TEST_FP3", "ft", "min"),
+    ("ftmax_orrr_rf.S", "TEST_FP3", "ft", "max"),
+    ("fomin_orrr_rf.S", "TEST_FP3", "fo", "min"),
+    ("fomax_orrr_rf.S", "TEST_FP3", "fo", "max"),
+    ("ftrnd_orri_rf.S", "TEST_FPRND", "ft", "rnd"),
+    ("fornd_orri_rf.S", "TEST_FPRND", "fo", "rnd"),
+    ("ftsclb_orrr_rf.S", "TEST_FPSCLB", "ft", "sclb"),
+    ("fosclb_orrr_rf.S", "TEST_FPSCLB", "fo", "sclb"),
+)
+
+_CARRIER_MASK = {"ft": 0xFFFFFFFF, "fo": (1 << 64) - 1}
+_CARRIER_MACRO = re.compile(r"\t(TEST_[A-Z0-9_]+)\t(\d+),")
+
+
+def _carrier_expect(ref, kind, fmt, args):
+    """Recompute one `.S` semantic case; returns (bits, flags)."""
+    if kind == "fma":
+        _, _, _, _, _, a, _, b, _, c, rfm, _exp, _flags = args[:13]
+        return ref.op_fma(fmt, int(rfm), int(a, 16) & _CARRIER_MASK[fmt],
+                          int(b, 16) & _CARRIER_MASK[fmt],
+                          int(c, 16) & _CARRIER_MASK[fmt])
+    if kind in ("min", "max"):
+        _, _, _, _, _, a, _, b, _rfm, _exp, _flags = args[:11]
+        return ref.op_minmax(fmt, int(a, 16) & _CARRIER_MASK[fmt],
+                             int(b, 16) & _CARRIER_MASK[fmt], kind == "max")
+    if kind == "rnd":
+        _, _, _, _, value, onehot, rfm, _exp, _flags = args[:9]
+        return ref.op_round_int(fmt, int(value, 16) & _CARRIER_MASK[fmt],
+                                int(onehot, 0), int(rfm))
+    # sclb: third operand is a signed rd-group exponent (rd0 == 0)
+    _, _, _, _, value, _ereg, exponent, rfm, _exp, _flags = args[:10]
+    exp = int(exponent, 16)
+    if exp >= (1 << 63):
+        exp -= 1 << 64
+    return ref.op_sclb(fmt, int(rfm), int(value, 16) & _CARRIER_MASK[fmt], exp)
+
+
 def asset_check(ref) -> list[str]:
-    """Read-only consistency with the tests/inst FP assets."""
+    """Re-derive the `.S` carriers of the retired tests/inst FP assets."""
     errors: list[str] = []
-    for path in (ROOT / "tests/inst/fma", ROOT / "tests/inst/minmax",
-                 ROOT / "tests/inst/roundint",
-                 ROOT / "tests/inst/fp/scaleb.yaml"):
-        if not path.exists():
-            errors.append(f"missing read-only asset {path}")
-    scaleb = ROOT / "tests/inst/fp/scaleb.yaml"
-    if scaleb.exists():
-        text = scaleb.read_text(encoding="utf-8")
-        if "rdHD" not in text:
-            errors.append("tests/inst/fp/scaleb.yaml no longer documents rdHD")
-        # ftsclb rf4, rf1, rd3 with rf1 = 1.5f and rd3 = 2 => 6.0f, while the
-        # retired rfHD reading (rf3 = 10.0f) would give 1536.0f.
-        got, flags = ref.op_sclb("ft", 0, 0x3FC00000, 2)
-        decoy, _ = ref.op_sclb("ft", 0, 0x3FC00000, 10)
-        if got != 0x40C00000 or flags != 0:
-            errors.append(f"scaleB C1: model gives 0x{got:08x} (expected "
-                          "0x40c00000 = 6.0f)")
-        if decoy == got:
-            errors.append("scaleB C1: the rfHD decoy no longer differs")
-    for name in ("fma", "minmax", "roundint"):
-        directory = ROOT / "tests/inst" / name
-        if directory.exists() and not any(directory.iterdir()):
-            errors.append(f"tests/inst/{name} is empty")
+    corpus = 0
+    for name, macro, fmt, kind in CARRIERS:
+        path = INST_FP / name
+        if not path.is_file():
+            errors.append(f"missing .S carrier {path}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        if not text.strip():
+            errors.append(f"{name}: empty .S carrier")
+            continue
+        points = _carrier_points(text)
+        if points != list(range(1, len(points) + 1)):
+            errors.append(f"{name}: case points are not 1..{len(points)} "
+                          f"(got {points[:8]}...)")
+        found = 0
+        for line in text.splitlines():
+            match = _CARRIER_MACRO.match(line)
+            if not match or match.group(1) != macro:
+                continue
+            args = _carrier_args(line, macro)
+            want = (int(args[-2], 16) & _CARRIER_MASK[fmt],
+                    int(args[-1], 0))
+            got = _carrier_expect(ref, kind, fmt, args)
+            found += 1
+            if got != want:
+                errors.append(
+                    f"{name}: case {args[0]} model 0x{got[0]:x}/0x{got[1]:02x} "
+                    f"!= inline 0x{want[0]:x}/0x{want[1]:02x}")
+        if found == 0:
+            errors.append(f"{name}: no {macro} semantic case found")
+        corpus += found
+    if corpus == 0:
+        errors.append("no `.S` semantic case was re-derived (vacuous pass)")
+    for name in ("ftsclb_orrr_rf.S", "fosclb_orrr_rf.S"):
+        doc = INST_FP / name
+        if doc.is_file() and "rdHD" not in doc.read_text(encoding="utf-8"):
+            errors.append(f"{name} no longer documents the rdHD operand")
+    # scaleB C1 decoy, bound to the `.S` (rf9 = rf9, exponent 2 => 6.0f): the
+    # retired rfHD reading (rf value 10.0f) would give 1536.0f.
+    got, flags = ref.op_sclb("ft", 0, 0x3FC00000, 2)
+    decoy, _ = ref.op_sclb("ft", 0, 0x3FC00000, 10)
+    if got != 0x40C00000 or flags != 0:
+        errors.append(f"scaleB C1: model gives 0x{got:08x} (expected "
+                      "0x40c00000 = 6.0f)")
+    if decoy == got:
+        errors.append("scaleB C1: the rf-value decoy no longer differs")
+    print(f"check-gem5-b7: .S carriers {len(CARRIERS)}, re-derived cases "
+          f"{corpus}")
     return errors
 
 
@@ -353,7 +444,17 @@ def main() -> int:
     parser.add_argument("--cxx", default="g++")
     parser.add_argument("--keep", action="store_true",
                         help="keep the generated vectors in the temp dir")
+    parser.add_argument("--assets-only", action="store_true",
+                        help="only re-derive the `.S` carriers (no compile)")
     args = parser.parse_args()
+
+    if args.assets_only:
+        ref = load_module("b7_ref", ROOT / "tools/gem5/b7_ref.py")
+        asset_errors = asset_check(ref)
+        for error in asset_errors:
+            print(f"check-gem5-b7: asset {error}", file=sys.stderr)
+        print(f"check-gem5-b7: assets-only failures={len(asset_errors)}")
+        return 0 if not asset_errors else 1
 
     source = args.source if args.source.is_absolute() else ROOT / args.source
     needed = [

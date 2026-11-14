@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Independent oracle for TESTCASES-058t: ``ftfma``/``fofma`` (fusedMultiplyAdd).
+"""Spec-exact arithmetic primitives for the B7 FP family (fma + bit packing).
+
+本模块是 **spec 精确算术**（`spec/SimRISC-07`），**不是测试判据**。测试判据一律是
+`.S` 内联期望（`tests/inst/07-floating-point/*.S`）。这里只提供「按 spec 精确算一个
+结果」的原语，供 `tools/gem5/b7_ref.py` 复用 bit 级编解码，并作为 B7 三实现互证
+（`b7_ref` 自身实现 / 本模块 / 本模块 `--selftest` 的 host-float 复算）中的一路。
+
+（溯源：原为 `TESTCASES-058t` 的独立探针 oracle；该探针已由 `m13-testcases-044` 退役，
+本文件迁至 `tools/testcases/lib/` 后仅作共享原语，`parse()` / `judge_*()` 等探针判定
+辅助只留作自查，不判任何在用用例。）
 
 Spec sources (expectations are derived from these, NEVER from QEMU/LLVM and
 never from softfloat or a host ``fma``):
@@ -42,8 +51,8 @@ Self proof (``--selftest``)
 
 Usage
 -----
-  oracle_fma.py --selftest
-  oracle_fma.py --dump          # expected table for hand review
+  fp_spec_arith.py --selftest
+  fp_spec_arith.py --dump          # expected table for hand review
 """
 from __future__ import annotations
 

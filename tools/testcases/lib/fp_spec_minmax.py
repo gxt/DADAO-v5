@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Independent oracle for TESTCASES-059t: min/max (minimumNumber / maximumNumber).
+"""Spec-exact min/max primitives (minimumNumber / maximumNumber) for B7.
+
+本模块是 **spec 精确算术**（`spec/SimRISC-07 §2.4`），**不是测试判据**。测试判据一律
+是 `.S` 内联期望（`tests/inst/07-floating-point/ft{min,max}_orrr_rf.S`、
+`fo{min,max}_orrr_rf.S`）。本模块只按 spec 精确算一个结果，并在 `--selftest` 里用
+host float 独立复算；`tools/gem5/b7_ref.py` 拿它做三实现互证中的一路。
+
+（溯源：原为 `TESTCASES-059t` 的独立探针 oracle；该探针已由 `m13-testcases-044`
+退役，本文件迁至 `tools/testcases/lib/` 后仅作共享原语。）
 
 Spec sources (expectations are derived from these, NEVER from QEMU/LLVM):
   * ``spec/SimRISC-07 §2.4 最小最大值`` -- the six boundary rules of IEEE
@@ -45,8 +53,8 @@ Self proof (``--selftest``)
 
 Usage
 -----
-  oracle_minmax.py --selftest
-  oracle_minmax.py --dump          # expected table for eyeballing / hand review
+  fp_spec_minmax.py --selftest
+  fp_spec_minmax.py --dump          # expected table for eyeballing / hand review
 """
 from __future__ import annotations
 
@@ -628,7 +636,7 @@ def selftest():
         add("integer clamp %d" % x, want, got, got == want and flags == 0)
 
     bad = [c for c in checks if not c["ok"]]
-    print("oracle_minmax selftest: %d checks, %d fail" % (len(checks), len(bad)))
+    print("fp_spec_minmax selftest: %d checks, %d fail" % (len(checks), len(bad)))
     for c in bad:
         print("  FAIL  %s | expected=%s | actual=%s | %s"
               % (c["name"], c["expected"], c["actual"], c["detail"]))

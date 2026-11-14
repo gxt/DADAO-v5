@@ -13,12 +13,15 @@ every rounding is an explicit integer decision derived from
 
 and never from LLVM, QEMU, the gem5 core or a host `float`/`double` operation.
 
-Reuse policy (task "6) 断言 harness"): the bit-level primitives of
-`tools/testcases/oracle_fma.py` (`classify` / `encode` / `exact_value`) are
-imported read-only to avoid a third encoder.  The fma / minmax / roundint
-families are nevertheless implemented here from scratch and cross-checked
-against `oracle_fma.py` / `oracle_minmax.py` / `oracle_rnd.py` (a third
-implementation): any disagreement is a hard failure.
+Reuse policy (task "6) 断言 harness"): the bit-level primitives of the shared
+spec-exact module `tools/testcases/lib/fp_spec_arith.py` (`classify` / `encode` /
+`exact_value`) are imported read-only to avoid a third encoder.  The fma /
+minmax / roundint families are nevertheless implemented here from scratch and
+cross-checked against `fp_spec_arith` / `fp_spec_minmax` / `fp_spec_rnd` (a
+second implementation): any disagreement is a hard failure.  Those modules are
+**spec-exact arithmetic primitives, not test criteria** -- the test criteria are
+the inline expectations of the `.S` carriers
+(`tests/inst/07-floating-point/*.S`).
 
 CLI:
   --emit <vectors.txt>    write the differential vector set
@@ -65,9 +68,11 @@ def _load(name: str, path: Path):
     return module
 
 
-ofma = _load("oracle_fma", ROOT / "tools/testcases/oracle_fma.py")
-ommx = _load("oracle_minmax", ROOT / "tools/testcases/oracle_minmax.py")
-ornd = _load("oracle_rnd", ROOT / "tools/testcases/oracle_rnd.py")
+fsa = _load("fp_spec_arith",
+            ROOT / "tools/testcases/lib/fp_spec_arith.py")
+fsm = _load("fp_spec_minmax",
+            ROOT / "tools/testcases/lib/fp_spec_minmax.py")
+fsr = _load("fp_spec_rnd", ROOT / "tools/testcases/lib/fp_spec_rnd.py")
 gdt = _load("gen_decode_table", ROOT / "tools/gem5/gen_decode_table.py")
 
 ENTRIES = {e.id: e for e in gdt.load_entries() if e.batch == "B7"}
@@ -108,7 +113,7 @@ def snan_bits(fmt):
 
 def classify(fmt, bits):
     """{kind, sign, value, quiet} -- read-only oracle primitive."""
-    return ofma.classify(mask_bits(fmt, bits), fmt)
+    return fsa.classify(mask_bits(fmt, bits), fmt)
 
 
 def _round_quantum_rna(a, sign):
@@ -133,7 +138,7 @@ def _encode_rna(value, fmt):
     a = -value if value < 0 else value
     if a == 0:
         return sign << f["signpos"], 0
-    e = ofma.floor_log2(a)
+    e = fsa.floor_log2(a)
     if e > f["emax"]:
         return _overflow_bits(fmt, sign, 0), F_OF | F_NX
     if e >= f["emin"]:
@@ -168,7 +173,7 @@ def encode(value, fmt, mode, zero_sign=0):
         return zero_bits(fmt, zero_sign), 0
     if mode == 4:
         return _encode_rna(value, fmt)
-    return ofma.encode(value, fmt, mode)
+    return fsa.encode(value, fmt, mode)
 
 
 def value_of(fmt, bits):
@@ -355,7 +360,7 @@ def op_sqrt(fmt, mode, x):
     if k["kind"] == "inf":
         return inf_bits(fmt), 0
     value = k["value"]
-    ex = ofma.floor_log2(value)
+    ex = fsa.floor_log2(value)
     e = ex // 2
     qexp = max(e - (f["p"] - 1), f["emin"] - f["fracbits"])
     scaled = value / Fraction(2) ** (2 * qexp)
@@ -490,7 +495,7 @@ def op_convert_ff(dst_fmt, mode, src_fmt, bits):
 
 
 def op_round_int(fmt, bits, onehot, rf_mode):
-    """roundToIntegral: implemented here, cross-checked against oracle_rnd."""
+    """roundToIntegral: implemented here, cross-checked against fp_spec_rnd."""
     f = FMT[fmt]
     k = classify(fmt, bits)
     if k["kind"] == "nan":
@@ -1096,11 +1101,16 @@ def describe_mismatch(vec, expect, got):
     return "\n".join(detail)
 
 
-# ── oracle-vs-oracle cross checks (third implementation) ──────────────────
-def cross_check(seed=7717):
-    """Return a list of disagreements between this model and the testcase
-    oracles for fma / minmax / roundint (plus the sqrt packer vs encode)."""
+# ── model-vs-spec-primitives cross checks (second implementation) ─────────
+def cross_check(seed=7717, stats=None):
+    """Return a list of disagreements between this model and the shared
+    spec-exact primitives for fma / minmax / roundint (plus the sqrt packer vs
+    ``encode``).  The two sides are written independently (this module vs
+    ``tools/testcases/lib/fp_spec_*.py``), so a shared bug has to be made twice
+    to stay green.  ``stats`` (optional dict) receives the per-family number of
+    comparisons actually performed."""
     errors = []
+    counts = stats if stats is not None else {}
     rng = Lcg(seed)
     for fmt in ("ft", "fo"):
         pool = edge_bits(fmt)
@@ -1110,7 +1120,8 @@ def cross_check(seed=7717):
             c = rand_bits(rng, fmt, pool)
             mode = rng.below(4)
             mine = op_fma(fmt, mode, a, b, c)
-            theirs = ofma.fma_expect(a, b, c, fmt, mode)
+            theirs = fsa.fma_expect(a, b, c, fmt, mode)
+            counts["fma"] = counts.get("fma", 0) + 1
             if mine != (theirs["out"], theirs["flags"]):
                 errors.append(("fma", fmt, (a, b, c, mode), mine,
                                (theirs["out"], theirs["flags"])))
@@ -1119,7 +1130,8 @@ def cross_check(seed=7717):
             b = rand_bits(rng, fmt, pool)
             is_max = rng.below(2) == 1
             mine = op_minmax(fmt, a, b, is_max)
-            theirs = ommx.expect(a, b, fmt, "max" if is_max else "min")
+            theirs = fsm.expect(a, b, fmt, "max" if is_max else "min")
+            counts["minmax"] = counts.get("minmax", 0) + 1
             if mine != (theirs[0], theirs[1]):
                 errors.append(("minmax", fmt, (a, b, is_max), mine, theirs))
         for _ in range(400):
@@ -1127,7 +1139,8 @@ def cross_check(seed=7717):
             onehot = (0x01, 0x02, 0x04, 0x08, 0x10, 0x20)[rng.below(6)]
             rf_mode = rng.below(4)
             mine = op_round_int(fmt, a, onehot, rf_mode)
-            theirs = ornd.expect(a, fmt, onehot, rf_mode)
+            theirs = fsr.expect(a, fmt, onehot, rf_mode)
+            counts["rnd"] = counts.get("rnd", 0) + 1
             if mine != (theirs["out"], theirs["flags"]):
                 errors.append(("rnd", fmt, (a, onehot, rf_mode), mine,
                                (theirs["out"], theirs["flags"])))
@@ -1140,6 +1153,7 @@ def cross_check(seed=7717):
             sq = k["value"] * k["value"]
             mine = encode(sq, fmt, 0)
             root = op_sqrt(fmt, 0, bits)
+            counts["sqrt"] = counts.get("sqrt", 0) + 1
             if mine != root[0:2] and root[1] == 0:
                 # exact square root of a square must be exact
                 errors.append(("sqrt-roundtrip", fmt, bits, root, mine))
@@ -1172,9 +1186,13 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.selftest:
-        errors = cross_check()
+        stats = {}
+        errors = cross_check(stats=stats)
         for error in errors[:20]:
             print(f"[FAIL] cross-check {error}")
+        print("cross-check comparisons " +
+              " ".join(f"{name}={stats.get(name, 0)}"
+                       for name in ("fma", "minmax", "rnd", "sqrt")))
         print(f"cross-check disagreements={len(errors)}")
         return 0 if not errors else 1
 

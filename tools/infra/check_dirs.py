@@ -7,7 +7,12 @@ Checks (all fail-closed):
      all values are relative paths, and child dirs are under ``sdk_dir``.
   2. Scans version-controlled scripts/build files for the symlink prefix
      ``/home/ubuntu/tao`` (must use real path or relative path instead).
-  3. Residue gate (``--residue``): detect unexpected untracked temp files
+  3. ``tools/gem5/b7_ref.py`` loads its spec-exact primitives by **file path**
+     (``tools/testcases/lib/fp_spec_*.py``); a stale path or a deleted module
+     only blows up at run time, and ``check_b7.py`` is not in any make gate.
+     Static assertion: every declared ``_load()`` target exists, imports, and
+     exports the symbols ``b7_ref`` uses.
+  4. Residue gate (``--residue``): detect unexpected untracked temp files
      matching ``*_tmp*``/``*_gate*``/``*.orig``/``*.rej`` patterns.
 
 Exit code: non-zero on any violation.
@@ -15,6 +20,8 @@ Exit code: non-zero on any violation.
 from __future__ import annotations
 
 import argparse
+import importlib.util
+import re
 import subprocess
 import sys
 import tomllib
@@ -130,6 +137,49 @@ def check_symlink_prefix(errors: list[str]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Static import targets of tools/gem5/b7_ref.py (m13-testcases-046)
+# ---------------------------------------------------------------------------
+B7_REF = ROOT / "tools/gem5/b7_ref.py"
+B7_REF_MODULES = {
+    "fp_spec_arith": ("classify", "encode", "floor_log2", "fma_expect"),
+    "fp_spec_minmax": ("expect",),
+    "fp_spec_rnd": ("expect",),
+}
+_B7_LOAD = re.compile(r'_load\("([\w.]+)",\s*ROOT\s*/\s*"([^"]+)"\)')
+
+
+def check_b7_ref_imports(errors: list[str]) -> None:
+    """Every module ``b7_ref`` declares must exist and export its symbols."""
+    if not B7_REF.is_file():
+        errors.append(f"b7_ref: missing {B7_REF.relative_to(ROOT)}")
+        return
+    declared = dict(_B7_LOAD.findall(B7_REF.read_text(encoding="utf-8")))
+    for name, symbols in B7_REF_MODULES.items():
+        rel = declared.get(name)
+        if rel is None:
+            errors.append(f"b7_ref: no _load() declaration for {name}")
+            continue
+        path = ROOT / rel
+        if not path.is_file():
+            errors.append(f"b7_ref: {name} path does not exist: {rel}")
+            continue
+        spec = importlib.util.spec_from_file_location(name, path)
+        if spec is None or spec.loader is None:
+            errors.append(f"b7_ref: cannot import {rel}")
+            continue
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[name] = module
+        try:
+            spec.loader.exec_module(module)
+        except Exception as exc:  # noqa: BLE001 -- report, do not crash the gate
+            errors.append(f"b7_ref: import of {rel} failed: {exc!r}")
+            continue
+        missing = [sym for sym in symbols if not hasattr(module, sym)]
+        if missing:
+            errors.append(f"b7_ref: {rel} is missing {missing}")
+
+
+# ---------------------------------------------------------------------------
 # Residue gate
 # ---------------------------------------------------------------------------
 
@@ -212,6 +262,7 @@ def main() -> int:
         check_manifest(errors)
         check_ref_paths(errors)
         check_symlink_prefix(errors)
+        check_b7_ref_imports(errors)
 
     if errors:
         for error in errors:

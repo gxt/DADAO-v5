@@ -909,7 +909,8 @@ def check(args):
     # `rnd` (47/48): `inHi[5:0]` = the one-hot `immu6` code, `mode` =
     # `rf0[33:32]`.  berkeley-hardfloat has no `roundToIntegral`, so the
     # reference is the exact oracle (`fp_ref.rnd_exact`, cross-checked against
-    # the independent `tools/testcases/oracle_rnd.py` in the evidence script).
+    # the shared spec-exact primitive `tools/testcases/lib/fp_spec_rnd.py` in the
+    # evidence script).
     # The five static codes are driven under every `rf0[33:32]` setting too:
     # their results must not move (IEEE 754-2019 §5.9 / spec §2.3).
     # `sclb` (49/50): the hardfloat reference is a multiply by `2^n` whenever

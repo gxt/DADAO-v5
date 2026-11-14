@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""Independent oracle for TESTCASES-060t: ``ftrnd``/``fornd`` (roundToIntegral).
+"""Spec-exact roundToIntegral primitives for B7 (``ftrnd``/``fornd``).
+
+本模块是 **spec 精确算术**（`spec/SimRISC-07: 取整（roundToIntegral）`），
+**不是测试判据**。测试判据一律是 `.S` 内联期望
+（`tests/inst/07-floating-point/ftrnd_orri_rf.S` / `fornd_orri_rf.S`）。本模块只按
+spec 精确算一个结果，并在 `--selftest` 里用 host 二进制浮点独立复算；`tools/gem5/
+b7_ref.py` 拿它做三实现互证中的一路。
+
+（溯源：原为 `TESTCASES-060t` 的独立探针 oracle；该探针已由 `m13-testcases-044`
+退役，本文件迁至 `tools/testcases/lib/` 后仅作共享原语。）
 
 Spec sources (expectations are derived from these, NEVER from QEMU/LLVM):
   * ``spec/SimRISC-07: 取整（roundToIntegral）`` -- six one-hot ``immu6`` modes, common rules
@@ -32,8 +41,8 @@ Self proof (``--selftest``)
 
 Usage
 -----
-  oracle_rnd.py --selftest
-  oracle_rnd.py --dump          # expected table for eyeballing / hand review
+  fp_spec_rnd.py --selftest
+  fp_spec_rnd.py --dump          # expected table for eyeballing / hand review
 """
 from __future__ import annotations
 
@@ -648,7 +657,7 @@ def selftest():
             print("  FAIL %s | expected=%s | actual=%s%s"
                   % (c["name"], c["expected"], c["actual"],
                      (" | " + c["detail"]) if c["detail"] else ""))
-    print("oracle_rnd selftest: %d checks, %d fail" % (len(checks), len(fails)))
+    print("fp_spec_rnd selftest: %d checks, %d fail" % (len(checks), len(fails)))
     return 0 if not fails else 1
 
 
@@ -669,7 +678,7 @@ def dump():
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="TESTCASES-060t roundint oracle")
+    ap = argparse.ArgumentParser(description="B7 roundint spec primitives")
     ap.add_argument("--selftest", action="store_true")
     ap.add_argument("--dump", action="store_true")
     args = ap.parse_args(argv)
