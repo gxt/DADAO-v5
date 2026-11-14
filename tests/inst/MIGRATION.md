@@ -148,6 +148,17 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
 ⇒ 与 §5.1 同批处理（`m13-testcases-030`）：inventory 载体登记改 `.S` + 数据覆盖门控
 认得 `.S` + 生成器退役 + 台账重生成，四条一起做才可 `git rm`。
 
+## 5.3 并行分片协议（用户 2026-11-14）
+
+18 册目录彼此独立，可**并行**派到不同节点。为免共享清单互相覆盖，**每个分片任务只写自己的片段**，由主会话串行合并：
+
+- 分片任务的产物：`tests/inst/<册>/*.S`（本册目录，独占）+ 两个片段文件
+  - `tests/inst/.fragments/<册>.inst.yaml` —— 本册要加入 `tests/inst.yaml` 的条目（**只写自己的条目，YAML 列表**，格式同根清单）；
+  - `tests/inst/.fragments/<册>.migration.md` —— 本册要追加到 §1/§6 的行（**只写自己的行**）。
+- 分片任务**不改** `tests/inst.yaml`、`tests/inst/MIGRATION.md`、`tests/inst/README.md`、`macros/inst_test.inc`、`run_asm_suite.py`；若确需改后三者，在任务书「待裁定」写清并停下。
+- 主会话合并时：读所有片段 → 按册序并入根清单 → **重跑** `check-tests-index`/`check-case-ledger`/`validate_vectors` → 删除 `.fragments/`。
+- 节点侧：各分片用**独立** `~/eval/<任务>/` staging 与**独占** work-dir；`--jobs` 用脚本默认（核数/2）。
+
 ## 6. 已完成
 
 ### `m13-testcases-012`：`01-load-store` 单元素（`ld.*` + `st.*`，19 个 id）
