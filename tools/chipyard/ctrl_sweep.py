@@ -7,7 +7,7 @@ carries its own expected next PC, register/RA state or fault.  This tool turns
 each case into DADAO assembly, links it into a ``+loadmem=`` ELF for the
 chipyard ``WumingTinyConfig`` harness plus the flat ``-kernel`` image for QEMU
 ``dadao-tiny``, and writes the expected result bytes.  "Same as QEMU" therefore
-means "both match the shared expectation", exactly as in ``mem_sweep.py``.
+means "both match the shared expectation", exactly as in ``inst_sweep.py``.
 
 Subcommands
 -----------
@@ -56,7 +56,6 @@ import yaml  # noqa: E402
 
 import inst_sweep as sweep  # noqa: E402
 import machine_profile  # noqa: E402
-import mem_sweep as memsw  # noqa: E402
 
 PROFILE = machine_profile.load("tiny")
 ENTRY = sweep.ENTRY
@@ -300,10 +299,10 @@ def build_sweep(cases):
         regs = expected_regs(case)
         st = case.get("expected_state") or {}
         for bank, num in regs:
-            words += memsw.dump_reg(bank, num)
+            words += sweep.dump_reg(bank, num)
             expected += relocate(as_int(st[bank][f"{bank}{num}"]), delta).to_bytes(8, "big")
         for m in (st.get("memory") or []):
-            words += memsw.dump_mem(as_int(m["address"]), 8)
+            words += sweep.dump_mem(as_int(m["address"]), 8)
             expected += relocate(as_int(m["value"]), delta).to_bytes(8, "big")
         manifest.append({
             "file": entry["file"], "index": entry["index"], "id": case["id"],
@@ -513,7 +512,7 @@ def build_underflow():
     words += load_ra(63, 0x0000123400000000)       # {count 0, addr 0x1234}
     words.append(enc_ret(3, 0x2C))
     for bank, num in (("ra", 0), ("ra", 63), ("rd", 1), ("rd", 2), ("rd", 3)):
-        words += memsw.dump_reg(bank, num)
+        words += sweep.dump_reg(bank, num)
     words += sweep.asm_print_buffer(40)
     words += sweep.asm_sys_exit(0)
     expected = bytearray()
@@ -547,7 +546,7 @@ def build_spill():
     words.append(sweep.enc_add_si_rb(WR_PTR, 8))
     words.append(enc_st_o("ra", 63, WR_PTR, 0))
     words.append(sweep.enc_add_si_rb(WR_PTR, 8))
-    words += memsw.dump_mem(slot - 8, 8)
+    words += sweep.dump_mem(slot - 8, 8)
     words += sweep.asm_print_buffer(24)
     words += sweep.asm_sys_exit(0)
     callee = len(words)

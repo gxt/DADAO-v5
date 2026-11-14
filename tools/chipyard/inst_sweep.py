@@ -36,9 +36,9 @@ both the QEMU semihosting console and the chipyard ``+semiout=`` sink write
 verbatim, so the comparison is byte-exact.
 
 Only the m12-chipyard-005 integer families are covered here; see
-``COVERED_IDS``.  Memory vectors (`tests/inst/base/mem-*.yaml`) are driven by
-``tools/chipyard/mem_sweep.py``; control flow, FP and bit manipulation belong
-to later milestones.
+``COVERED_IDS``.  Memory vectors are `.S` carriers under `tests/inst/`
+(`run_asm_suite.py`); control flow, FP and bit manipulation belong to later
+milestones.
 """
 from __future__ import annotations
 
@@ -162,6 +162,18 @@ def enc_st_o_rd(rd, rb, off):
     return (0x21 << 24) | (rd << 18) | (rb << 12) | (off & 0xFFF)
 
 
+def enc_mem(opc, reg, rb, off):
+    """Memory-family form: opc | reg(bank high 6) | rb | imms12."""
+    return (opc << 24) | (reg << 18) | (rb << 12) | (off & 0xFFF)
+
+
+# contracts/opcodes.yaml opcodes for the load/store families used by the
+# register/memory dump helpers below.
+ST_OPC = {"b": 0x18, "w": 0x19, "t": 0x1A,
+          "o_rd": 0x21, "o_rb": 0x23, "o_ra": 0x25}
+LD_U_OPC = {1: 0x10, 2: 0x11, 4: 0x12, 8: 0x20}   # unsigned load by byte width
+
+
 def enc_trap(cfxha, imm18):
     return (0x7F << 24) | (cfxha << 18) | (imm18 & 0x3FFFF)
 
@@ -223,6 +235,28 @@ def load_rb(dst, value):
 
 def word_bytes(words):
     return b"".join(struct.pack(">I", w) for w in words)
+
+
+def dump_reg(bank, num):
+    """Append the register value to the result buffer (WR_PTR advances)."""
+    if bank == "rd":
+        words = [enc_mem(ST_OPC["o_rd"], num, WR_PTR, 0)]
+    elif bank == "rb":
+        # sub.o dbb copies an rb register into rd without a store/load round
+        # trip (m12-005 path, independent of the memory unit).
+        words = [enc_sub_o_dbb(TMP_RD, num, ZERO_RB),
+                 enc_mem(ST_OPC["o_rd"], TMP_RD, WR_PTR, 0)]
+    else:  # ra
+        words = [enc_mem(ST_OPC["o_ra"], num, WR_PTR, 0)]
+    return words + [enc_add_si_rb(WR_PTR, 8)]
+
+
+def dump_mem(addr, nbytes):
+    """Read `nbytes` at `addr` with the matching unsigned load and buffer it."""
+    words = load_rb(TMP_RB, addr)
+    words.append(enc_mem(LD_U_OPC[nbytes], TMP_RD, TMP_RB, 0))
+    words.append(enc_mem(ST_OPC["o_rd"], TMP_RD, WR_PTR, 0))
+    return words + [enc_add_si_rb(WR_PTR, 8)]
 
 
 # ---------------------------------------------------------------------------

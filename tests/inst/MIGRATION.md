@@ -184,9 +184,10 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
 **未删的册与原因**见 §5.2 末段（ctrl 4 册：L3 载体 + `br.*` 双路径守卫；reg/aip-si/rol/
 reserved：`inst_sweep` 输入与 `generate_isa_vectors` 渲染目标）。
 
-**遗留**：`tools/chipyard/mem_sweep.py` 的 `SOURCES` 仍指这三册（该 sweep 是 chipyard RTL
-的现场工具，不在任何门控里，本任务范围不含 `tools/chipyard/**`）⇒ 现已无输入，须另立
-任务改为从 `.S` 派生或退役。
+**已处置**（`m13-testcases-040`）：`tools/chipyard/mem_sweep.py` 已**退役**（`git rm`）——它的
+输入（YAML oracle 的期望寄存器/内存值）随这三册一起消失；`.S` 载体自带内联期望，由
+`run_asm_suite.py` 在 chipyard/qemu/gem5 上执行。其 `dump_reg`/`dump_mem` 两个共用 helper
+移入 `inst_sweep.py`（`ctrl_sweep.py` 的消费点同步改指）。
 
 ## 5.3 并行分片协议（用户 2026-11-14）
 

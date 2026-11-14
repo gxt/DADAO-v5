@@ -125,6 +125,30 @@
   - system
   level: full
   requires: []
+- id: inst-01-load-store-020
+  file: inst/01-load-store/ldm.o_rrri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-021
+  file: inst/01-load-store/ldm.t_rrri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-022
+  file: inst/01-load-store/stm.o_rrri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-023
+  file: inst/01-load-store/stm.t_rrri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-02-reg-copy-001
   file: inst/02-reg-copy/cs.eq_rrrr_rd.S
   platforms:

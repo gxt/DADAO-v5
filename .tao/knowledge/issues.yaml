@@ -662,7 +662,7 @@
   scope:
   - testcases
   - chipyard
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M13
+  resolved_by: m13-testcases-040（mem_sweep 退役，helper 迁 inst_sweep；新旧树 emit 逐文件 md5 全等）
   title: "【P2】`m13-testcases-030` 删掉 `base/mem-{rd,ra,rb}.yaml` 后，`tools/chipyard/mem_sweep.py` 的 `SOURCES` 仍指向这三册 ⇒ 该工具**已无输入**（跑起来会空集或报错），属**悬挂引用**：既不在门控里、也不会被日常跑批发现。处置：改从 `.S` 载体派生（复用 `run_asm_suite.scan_source`）或整体退役；退役前须确认没有任务/脚本依赖它的输出。"
