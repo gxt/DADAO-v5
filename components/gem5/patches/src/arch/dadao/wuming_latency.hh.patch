@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/wuming_latency.hh b/src/arch/dadao/wuming_latency.hh
 new file mode 100644
-index 0000000..b59269b
+index 0000000..94dec4c
 --- /dev/null
 +++ b/src/arch/dadao/wuming_latency.hh
-@@ -0,0 +1,213 @@
+@@ -0,0 +1,272 @@
 +// Wuming per-instruction latency policy (M16).
 +//
 +// The table itself (``wuming_cycles.hh``) is generated from
@@ -99,7 +99,57 @@ index 0000000..b59269b
 +    uint64_t cfxha = 0;
 +    bool rasMem = false;
 +    unsigned expDiff = 0;
++    /** Element count of a block transfer (D / D′): the decoded `immu6`. */
++    unsigned elements = 0;
 +};
++
++/** Class masks of the two block-transfer classes (see §2 D / D′). */
++constexpr uint32_t kDClassMask = 1u << static_cast<unsigned>(CycleClass::D);
++constexpr uint32_t kDpClassMask = 1u << static_cast<unsigned>(CycleClass::Dp);
++
++/** Multi-element *register copy* (D′): ``nBase + nStep*N`` cycles.
++ *
++ *  The doc's §3 figure is "1+N" for the rd/rb/rf/ra bank pairs and "N" for
++ *  ``ra2rd``/``rd2ra``; the generator parses base and step out of that text
++ *  into ``nBase``/``nStep``.  The contract makes each element a full
++ *  instruction-side read/write pair, one per cycle, so this is also what an
++ *  N-micro-op expansion of the copy would cost. */
++inline unsigned
++blockCopyCycles(const CycleRow &row, unsigned elements)
++{
++    if (row.nBase < 0 || row.nStep < 0)
++        return 0;
++    return static_cast<unsigned>(row.nBase) +
++           static_cast<unsigned>(row.nStep) * elements;
++}
++
++/** Multi-element *memory* transfer (D): one micro-op per element plus one
++ *  8-byte bus beat per (partial) element group.
++ *
++ *  ``perElement``/``perBeat`` are solved by tools/gem5/gen_wuming_cycles.py
++ *  from the document's own N=8 figures (``ldm.ub`` 16 = 1 beat, ``ldm.o`` /
++ *  ``stm.o`` 72 = 8 beats); this header carries no cycle count.  An element
++ *  group of N elements of width w needs ``ceil(N*w/8)`` beats, so a partial
++ *  group still pays a whole beat -- that is what the chipyard core does for
++ *  e.g. ``ldm.ub`` N=9 (2 beats).
++ *
++ *  As with the register copy, this is the timing an N-micro-op expansion would
++ *  produce; m16-gem5-005 does not create real gem5 micro-ops (that would need
++ *  the fetch/decode path and would change nothing but the accounting).
++ *
++ *  Scope split with m16-gem5-006: that task models the single-element `ld`/`st`
++ *  round trip in the memory system, i.e. the C class.  The element/beat cost of
++ *  the multi-element forms stays here, so the two do not double count. */
++inline unsigned
++multiElementCycles(const CycleRow &row, unsigned elements)
++{
++    if (row.perElement < 0 || row.perBeat < 0 || row.elemWidth == 0)
++        return 0;
++    const unsigned bytes = elements * static_cast<unsigned>(row.elemWidth);
++    const unsigned beats = (bytes + 7u) / 8u;
++    return static_cast<unsigned>(row.perElement) * elements +
++           static_cast<unsigned>(row.perBeat) * beats;
++}
 +
 +/** Total EXEC cycles of a fixed-figure row, or 0 when this policy does not
 + *  model it (dynamic row, class not mapped yet, memory row, one-cycle value). */
@@ -144,6 +194,15 @@ index 0000000..b59269b
 +{
 +    if (provisional(row))
 +        return 0;
++    // Block transfers (m16-gem5-005) are keyed on the class, because the doc
++    // labels the D rows either by element count (`ldm.ub`/`ldm.o`) or by the
++    // class-level «beats × 3–4» roll-up; both take the same solved model.  The
++    // test is a bit test, so a row that ever gains a second class keeps the
++    // element cost.
++    if ((row.classMask & kDClassMask) != 0)
++        return multiElementCycles(row, state.elements);
++    if ((row.classMask & kDpClassMask) != 0)
++        return blockCopyCycles(row, state.elements);
 +    const std::string_view dyn(row.dynamic);
 +    if (dyn == "mul-config")
 +        return row.defaultCycles > 0 ? static_cast<unsigned>(row.defaultCycles)

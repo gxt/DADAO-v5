@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/DadaoISA.py b/src/arch/dadao/DadaoISA.py
 new file mode 100644
-index 0000000..1cad1f2
+index 0000000..3a2c2d7
 --- /dev/null
 +++ b/src/arch/dadao/DadaoISA.py
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,34 @@
 +from m5.objects.BaseISA import BaseISA
 +from m5.params import *
 +
@@ -17,7 +17,17 @@ index 0000000..1cad1f2
 +    # parsed into arch/dadao/wuming_cycles.{hh,cc}).  Off by default: the DADAO
 +    # ISA then keeps gem5's upstream one-cycle execution model bit for bit, so
 +    # every pre-M16 run stays byte-identical.  m16-gem5-003 drives the static
-+    # classes, m16-gem5-004 the width/mode classes.
++    # classes, m16-gem5-004 the width/mode classes, m16-gem5-005 the block
++    # transfers (D `ldm`/`stm`: one micro-op per element plus one bus beat per
++    # 8-byte element group; D' register copies: 1+N).
++    #
++    # Instruction counting: the per-element cost lives entirely in the *cycle*
++    # model.  execute() still retires one StaticInst per contract instruction,
++    # so `simInsts` counts an `ldm`/`stm`/`rd2rd` once (a literal N-micro-op
++    # expansion would not change `simInsts` either -- gem5 counts the
++    # macro-instruction).  Chipyard has no instruction counter to align with:
++    # the two engines are compared cycle per instruction, not instruction per
++    # instruction.
 +    enable_wuming_cycles = Param.Bool(
 +        False, "Drive ISA::extraExecLatency from the wuming cycle table (M16)")
 +

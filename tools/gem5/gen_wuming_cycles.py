@@ -73,6 +73,15 @@ KIND_STEMS: dict[str, tuple[str, ...]] = {
     "符号": ("ftsgn", "fosgn"),
 }
 
+# 多元素访存（D 类 `ldm`/`stm`）的元素宽度：后缀即宽度（`spec/SimRISC-01 §1`
+# 的 sb/ub/sw/uw/st/ut/o 形式）。这里只有「宽度」，不含任何拍数。
+BLOCK_WIDTH: dict[str, int] = {
+    "b": 1, "ub": 1, "sb": 1,
+    "w": 2, "uw": 2, "sw": 2,
+    "t": 4, "ut": 4, "st": 4,
+    "o": 8,
+}
+
 # §2 A 档拆两档的依据（文档行 12「移位/位操作 2 拍、简单算术 1 拍」；§5 行 117
 # 「位操作 ctpop/ctlz/cttz/rev/rol/clmul 实测 2」）：这两种 kind 走 2 拍，其余
 # （算术/逻辑/比较/符号）走 1 拍。
@@ -442,6 +451,86 @@ def classify_value(text: str, raw: str):
     return None, None, "expr"
 
 
+# ── block transfer: D (multi-element memory) and D′ (register copy) ────────
+# The document gives one measured figure per multi-element memory family at a
+# fixed element count ("`ldm.ub` N=8: 16；`ldm.o` N=8: 72；…").  Both classes are
+# modelled from those figures, never from a number written here:
+#
+#   D   per_element*N + per_beat*ceil(N*width/8)      (§2 D «beats × 3–4» is
+#       the pre-measurement estimate; the §3/§5 figures are 实测 and rule)
+#   D′  base + step*N                                 (§3 "1+N" / "N")
+#
+# `n_beat` below is the number of 8-byte bus beats the element group needs.
+N8_RE = re.compile(r"N\s*=\s*(\d+)\s*[:：]\s*(\d+)")
+DPLUS_RE = re.compile(r"^(\d+)\s*\+\s*N$")
+
+
+def block_width(mnemonic: str) -> int:
+    """Element width of an `ldm`/`stm` form, from its suffix (SimRISC-01 §1)."""
+    suffix = mnemonic.rsplit(".", 1)[-1]
+    if suffix not in BLOCK_WIDTH:
+        raise SystemExit(f"{DOC.name}: {mnemonic}: 未知的多元素访存宽度后缀")
+    return BLOCK_WIDTH[suffix]
+
+
+def block_copy_fields(cycles: str):
+    """(base, step) of a D′ figure: "1+N" -> (1, 1), "N" -> (0, 1)."""
+    text = (cycles or "").strip()
+    m = DPLUS_RE.match(text)
+    if m:
+        return int(m.group(1)), 1
+    if text == "N":
+        return 0, 1
+    return None
+
+
+def block_model(rows) -> dict:
+    """Solve the two D coefficients from the doc's own N=… measured figures.
+
+    Exact integer arithmetic: a non-integral or inconsistent fit aborts the
+    generator, so a doc edit that breaks the model is reported instead of
+    silently rounding.  `samples` is kept for the YAML (audit trail).
+    """
+    samples = []
+    for row in rows:
+        if not any(c.strip() == "D" for c in row.klass_cell.split("/")):
+            continue
+        for seg in row.segments:
+            m = N8_RE.search(strip_code(seg.raw))
+            if not m or not seg.tokens:
+                continue
+            mnemonic = seg.tokens[0]
+            if ".*" in mnemonic or "*" in mnemonic:
+                continue
+            n, figure = int(m.group(1)), int(m.group(2))
+            width = block_width(mnemonic)
+            beats = (n * width + 7) // 8
+            samples.append({"line": row.line, "mnemonic": mnemonic, "n": n,
+                            "width": width, "beats": beats, "figure": figure})
+    if len(samples) < 2:
+        raise SystemExit(f"{DOC.name}: D 类实测图不足两条，无法解出块传送模型")
+    (n1, b1, f1), (n2, b2, f2) = [(s["n"], s["beats"], s["figure"])
+                                  for s in samples[:2]]
+    det = n1 * b2 - n2 * b1
+    if det == 0:
+        raise SystemExit(f"{DOC.name}: D 类实测图两点的 beats 相同，无法解出模型")
+    num_a = f1 * b2 - f2 * b1
+    num_b = n1 * f2 - n2 * f1
+    if num_a % det or num_b % det:
+        raise SystemExit(f"{DOC.name}: D 类实测图解出的系数不是整数"
+                         f"（a={num_a}/{det}, b={num_b}/{det}）")
+    a, b = num_a // det, num_b // det
+    if a < 0 or b < 0:
+        raise SystemExit(f"{DOC.name}: D 类解出负系数 a={a}, b={b}")
+    for s in samples:
+        want = a * s["n"] + b * s["beats"]
+        if want != s["figure"]:
+            raise SystemExit(
+                f"{DOC.name}:{s['line']}: {s['mnemonic']} N={s['n']} 实测 "
+                f"{s['figure']} 与解出的模型 {a}*N+{b}*beats={want} 不符")
+    return {"per_element": a, "per_beat": b, "samples": samples}
+
+
 def pick_segment(row: Row, inst: Inst):
     """The sub-cell that pins *inst*; returns (segment|None, variant label)."""
     for seg in row.segments:
@@ -680,7 +769,7 @@ def row_counts(table, rows) -> dict[int, int]:
     return counts
 
 
-def emit_yaml(table, classes, doc_sha, rows) -> str:
+def emit_yaml(table, classes, doc_sha, rows, block) -> str:
     by_class: dict[str, int] = {}
     for entry in table:
         for klass in entry["klass"]:
@@ -700,9 +789,18 @@ def emit_yaml(table, classes, doc_sha, rows) -> str:
         f"dynamic_rows: {sum(1 for e in table if e['dynamic'] is not None)}",
         "class_set: [" + ", ".join(q(c) for c in classes) + "]",
         "by_class: {" + ", ".join(f"{q(k)}: {v}" for k, v in sorted(by_class.items())) + "}",
-        "# overrides: §5 实测与 §3 估计冲突时的收敛口径（值仍出自文档）",
-        "overrides:",
+        "# block_model: 多元素传送的模型系数，由 §3 的 N=… 实测图解出（不是手抄）",
+        "block_model:",
+        f"  per_element: {block['per_element']}",
+        f"  per_beat: {block['per_beat']}",
+        "  samples:",
     ]
+    for s in block["samples"]:
+        out.append(f"  - {{line: {s['line']}, mnemonic: {q(s['mnemonic'])}, "
+                   f"n: {s['n']}, width: {s['width']}, beats: {s['beats']}, "
+                   f"figure: {s['figure']}}}")
+    out += ["# overrides: §5 实测与 §3 估计冲突时的收敛口径（值仍出自文档）",
+            "overrides:"]
     for mnemonic, o in OVERRIDES.items():
         out.append(f"- {{mnemonic: {q(mnemonic)}, klass: {q(o['klass'])}, "
                    f"cycles: {q(o['cycles'])}, doc: {q(o['doc'])}, why: {q(o['why'])}}}")
@@ -722,6 +820,12 @@ def emit_yaml(table, classes, doc_sha, rows) -> str:
             f"doc: {entry['doc']}", f"source: {q(entry['source'])}",
             f"provenance: {q(entry.get('provenance'))}",
         ]
+        pol = policy_fields(entry, block)
+        if pol["per_element"] >= 0 or pol["n_base"] >= 0:
+            fields += [f"per_element: {pol['per_element']}",
+                       f"per_beat: {pol['per_beat']}",
+                       f"n_base: {pol['n_base']}", f"n_step: {pol['n_step']}",
+                       f"elem_width: {pol['elem_width']}"]
         if entry.get("variants"):
             fields.append("variants: [" + ", ".join(
                 f"{{klass: {q(v['klass'])}, cycles: {q(v['cycles'])}, "
@@ -791,6 +895,13 @@ constexpr unsigned kNumInstructionRows = {count};
  *   dynBase/dynAdd exponent-diff formula "base + d + add" (53+d+1)
  *   semihostMask   trap semihosting test: (immu18 & mask) == value
  *   semihostValue  (0/0 when the row has no semihosting variant)
+ *   perElement     D 类每个元素的拍数（= 每个元素一条微操作）
+ *   perBeat        D 类每条 8 B 总线 beat 的拍数
+ *   nBase/nStep    D′ 类块复制的 "base + step*N"（`1+N` / `N`）
+ *   elemWidth      D 类的元素宽度（字节；0 = 非多元素访存）
+ *
+ * ``perElement``/``perBeat`` 由生成器从文档自己的 N=… 实测图解出（两条不同
+ * beats 的图两点定解，其余图逐条回代校验），本文件不含手抄拍数。
  */
 struct CycleRow
 {{
@@ -807,6 +918,11 @@ struct CycleRow
     int16_t dynAdd;
     uint32_t semihostMask;
     uint32_t semihostValue;
+    int16_t perElement;
+    int16_t perBeat;
+    int16_t nBase;
+    int16_t nStep;
+    uint8_t elemWidth;
     const char *dynamic;
     uint16_t docLine;
     /**
@@ -835,7 +951,7 @@ const char *rowClasses(const CycleRow &row);
 """
 
 
-def policy_fields(entry) -> dict:
+def policy_fields(entry, block: "dict | None" = None) -> dict:
     """Document figures for the dynamic classes, parsed from the same tables.
 
     Every value is either a verbatim doc number or an endpoint of a doc range;
@@ -846,6 +962,8 @@ def policy_fields(entry) -> dict:
         "default_cycles": -1, "mem_cycles": -1, "host_cycles": -1,
         "range_lo": -1, "range_hi": -1, "dyn_base": -1, "dyn_add": -1,
         "semihost_mask": 0, "semihost_value": 0,
+        "per_element": -1, "per_beat": -1, "n_base": -1, "n_step": -1,
+        "elem_width": 0,
     }
     dyn = entry["dynamic"]
     variants = entry.get("variants") or []
@@ -893,21 +1011,41 @@ def policy_fields(entry) -> dict:
         out["dyn_base"], out["dyn_add"] = int(m.group(1)), int(m.group(2))
     elif dyn == "range" and entry["mnemonic"] == "escape":
         out["range_lo"], out["range_hi"] = entry["range"]
+    else:
+        # Block transfers are keyed on the class, not on the parameter label:
+        # the doc's D rows carry either an N=… figure or the class-level
+        # «beats × 3–4», and both take the same solved model.
+        klasses = [c.strip() for c in entry["klass"]]
+        if "D" in klasses:
+            if block is None:
+                raise SystemExit(f"{DOC.name}: {entry['id']}: D 类缺块传送模型")
+            out["per_element"] = block["per_element"]
+            out["per_beat"] = block["per_beat"]
+            out["elem_width"] = block_width(entry["mnemonic"])
+        elif "D′" in klasses:
+            parsed = block_copy_fields(entry["cycles"])
+            if parsed is None:
+                raise SystemExit(f"{DOC.name}: {entry['id']}: "
+                                 f"块复制周期 {entry['cycles']!r} 不是 base+N 形式")
+            out["n_base"], out["n_step"] = parsed
     return out
 
 
-def emit_cc(table, order) -> str:
+def emit_cc(table, order, block) -> str:
     lines = []
     for entry in sorted(table, key=lambda e: e["id"]):
         cycles = entry["value"] if entry["value"] is not None else -1
         dynamic = entry["dynamic"] or ""
-        pol = policy_fields(entry)
+        pol = policy_fields(entry, block)
         lines.append(f'    {{"{entry["id"]}", "{entry["mnemonic"]}", '
                      f'{class_mask(entry["klass"], order)}u, {cycles}, '
                      f'{pol["default_cycles"]}, {pol["mem_cycles"]}, '
                      f'{pol["host_cycles"]}, {pol["range_lo"]}, '
                      f'{pol["range_hi"]}, {pol["dyn_base"]}, {pol["dyn_add"]}, '
                      f'{pol["semihost_mask"]}u, {pol["semihost_value"]}u, '
+                     f'{pol["per_element"]}, {pol["per_beat"]}, '
+                     f'{pol["n_base"]}, {pol["n_step"]}, '
+                     f'{pol["elem_width"]}, '
                      f'"{dynamic}", {entry["doc"]}, '
                      f'"{entry.get("provenance") or ""}"}},')
     names = "\n".join(f'    "{name}",' for name in order)
@@ -1111,6 +1249,7 @@ def main() -> int:
         return 1
 
     table, missing = build_table(insts, rows, classes)
+    block = block_model(rows)
 
     report("ids-covered", not missing and len(table) == len(insts),
            f"{len(table)}/{len(insts)} 条 id 有类" +
@@ -1149,9 +1288,17 @@ def main() -> int:
                "盘上 YAML 的 id/类/动态标记与契约、§2 一致" +
                (f"；问题 {problems[:3]}" if problems else ""))
 
-    yaml_text = emit_yaml(table, classes, doc_sha, rows)
+    samples_bad = [s for s in block["samples"]
+                   if block["per_element"] * s["n"]
+                   + block["per_beat"] * s["beats"] != s["figure"]]
+    report("block-model", not samples_bad,
+           f"D 类 per_element={block['per_element']} per_beat={block['per_beat']}"
+           f"（{len(block['samples'])} 条 N=… 实测图逐条回代）" +
+           (f"；不符 {samples_bad[:2]}" if samples_bad else ""))
+
+    yaml_text = emit_yaml(table, classes, doc_sha, rows, block)
     hh_text = emit_hh(order, len(table))
-    cc_text = emit_cc(table, order)
+    cc_text = emit_cc(table, order, block)
     source = Path(args.source)
     artifacts = [
         (Path("tools/gem5/wuming_cycles.yaml"), yaml_text),
