@@ -332,8 +332,10 @@ fosgnn  rfHB, rfHC, rfHD
 ```
 
 其中，rfHB为目的操作数，rfHC和rfHD为源操作数。
-ftsgnj和fosgnj指令实现`copySign(rfHC, rfHD)`运算，即读取rfHC的除符号位之外的所有位数，和rfHD的符号位组合获得结果，写入rfHB。
-ftsgnn和fosgnn指令是读取rfHC的除符号位之外的所有位数，和rfHD的符号位取反，组合获得结果，写入rfHB。
+ftsgnj和fosgnj指令实现`copySign(rfHC, rfHD)`运算：取 rfHC 除符号位之外的位，与 rfHD 的符号位组合，写入 rfHB。
+ftsgnn和fosgnn指令取 rfHC 除符号位之外的位，与 rfHD 的符号位取反后组合，写入 rfHB。
+
+**写宽**：`fo` 形式（`fosgnj`/`fosgnn`）以 rfHD 的 bit 63 为符号位、按整 64 位写入；`ft` 形式（`ftsgnj`/`ftsgnn`）以 rfHD 的 bit 31 为符号位、**只写目的寄存器低 32 位，高 32 位保持原值**（与其他以 ft 寄存器为目的的指令一致，见 §1.3）。
 
 硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 

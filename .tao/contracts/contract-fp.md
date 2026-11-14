@@ -75,7 +75,7 @@
 ## §7 `sign`（符号位注入）<a id="sign"></a>
 
 - 指令：`ftsgnj`/`ftsgnn`/`fosgnj`/`fosgnn`（orrr：`rfHB` 目的、`rfHC`/`rfHD` 源）。[SimRISC-07 §浮点符号位操作指令]
-- `sgnj` 实现 `copySign(rfHC, rfHD)`：取 rfHC 除符号位外的全部位，与 rfHD 的符号位组合写入 rfHB。[SimRISC-07 §浮点符号位操作指令]
+- `sgnj` 实现 `copySign(rfHC, rfHD)`：取 rfHC 除符号位外的位，与 rfHD 的符号位组合写入 rfHB；`fo` 形式按整 64 位写、符号位取 rfHD bit 63，`ft` 形式只写低 32 位、高 32 位保持原值、符号位取 rfHD bit 31。[SimRISC-07 §浮点符号位操作指令]
 - `sgnn` 取 rfHC 除符号位外的全部位，与 rfHD 符号位**取反**后组合写入 rfHB。[SimRISC-07 §浮点符号位操作指令]
 - 特例：`rfHD = rf0` ⇒ `sgnj` = `abs(rfHC)`、`sgnn` = `−abs(rfHC)`；`rfHC == rfHD` ⇒ `sgnj` = `copy(rfHC)`、`sgnn` = `negate(rfHC)`。[SimRISC-07 §浮点符号位操作指令]
 - 硬件先读全部源操作数再写结果，行为确定。[SimRISC-07 §浮点符号位操作指令]
