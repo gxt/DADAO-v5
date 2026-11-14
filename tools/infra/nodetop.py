@@ -289,7 +289,7 @@ def render_list(hosts, state, w, nprocs, now) -> str:
                    f"M{fmt_kb(s.mem_avail):>8}  D{diskpct:3.0f}%  T{s.tests:>3}  "
                    f"ssh {s.latency * 1000:4.0f}ms{flag}")
         for cpu, vsz, etime, name, detail in s.procs[:nprocs]:
-            out.append(f"           {proc_line(cpu, vsz, etime, name, detail, w - 11)}")
+            out.append(("           " + proc_line(cpu, vsz, etime, name, detail, w - 11)).rstrip())
     return "\n".join(out)
 
 
