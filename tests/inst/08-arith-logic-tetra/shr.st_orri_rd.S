@@ -7,7 +7,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orri = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | immu6[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
-@@ 用例：encoding 2 / semantic+boundary+overlap 13（链例 15 + 故障例 3）
+@@ 用例：encoding 2 / semantic+boundary+overlap 13 + 迁移 3（m13-testcases-045）（链例 18 + 故障例 3）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
@@ -67,17 +67,29 @@
 	@@ [15] （YAML semantic 并入）0x0F0F0F0F… >> 2 = 0x03C3C3C3（正数 ⇒ 高位补 0）
 	TEST_AR_ORRI       15, shr.st, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, 2, 0x0000000003C3C3C3
 
+	@@ [16] 迁移（m13-testcases-045）：0x92345678 >> immu6=0 —— 符号来自低字 bit31
+	@@   手算：低字原样 0x92345678；[63:32] = sign(bit31=1) = 0xFFFFFFFF ⇒ 0xFFFFFFFF92345678
+	TEST_AR_ORRI       16, shr.st, rd5, 0x0000000000000000, rd6, 0x0000000092345678, 0, 0xFFFFFFFF92345678
+
+	@@ [17] 迁移：0xF0000000 >> immu6=4（bit31=1 ⇒ 32 位内补 1 到 0xFF000000，高半全 1）
+	@@   手算：0xF0000000>>4 = 0xFF000000；[63:32] = sign(bit31) ⇒ 0xFFFFFFFFFF000000
+	TEST_AR_ORRI       17, shr.st, rd5, 0x0000000000000000, rd6, 0x00000000F0000000, 4, 0xFFFFFFFFFF000000
+
+	@@ [18] 迁移：源 bit61-63 置位但低 32 位为 0 >> immu6=28（窄宽度只看低字 ⇒ 结果为 0）
+	@@   手算：低字 0x00000000 >> 28 = 0；[63:32] = sign(bit31=0) = 0 ⇒ 0x0000000000000000
+	TEST_AR_ORRI       18, shr.st, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x00E0000000000000, 28, 0x0000000000000000
+
 	__TEST_END
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
-	@@ [16] immu6 = 32 ⇒ ILLI（`encode_sbz`）
-	TEST_FAULT_ALU_ORRI 16, shr.st, ILLI, rd5, rd6, 32
+	@@ [19] immu6 = 32 ⇒ ILLI（`encode_sbz`）
+	TEST_FAULT_ALU_ORRI 19, shr.st, ILLI, rd5, rd6, 32
 
-	@@ [17] immu6 = 63 ⇒ ILLI（`encode_sbz`）
-	TEST_FAULT_ALU_ORRI 17, shr.st, ILLI, rd5, rd6, 63
+	@@ [20] immu6 = 63 ⇒ ILLI（`encode_sbz`）
+	TEST_FAULT_ALU_ORRI 20, shr.st, ILLI, rd5, rd6, 63
 
-	@@ [18] dst_rd0：目的 rd0 ⇒ ILLI
-	TEST_FAULT_ALU_ORRI 18, shr.st, ILLI, rd0, rd6, 1
+	@@ [21] dst_rd0：目的 rd0 ⇒ ILLI
+	TEST_FAULT_ALU_ORRI 21, shr.st, ILLI, rd0, rd6, 1
 
 	__TEST_SECTIONS

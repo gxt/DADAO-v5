@@ -7,7 +7,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orri = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | immu6[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
-@@ 用例：encoding 2 / semantic+boundary+overlap 12（链例 14 + 故障例 3）
+@@ 用例：encoding 2 / semantic+boundary+overlap 12 + 迁移 2（m13-testcases-045）（链例 16 + 故障例 3）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
@@ -64,17 +64,25 @@
 	@@ [14] （YAML semantic 并入）0x0F0F0F0F… >> 2 = 0x03C3C3C3
 	TEST_AR_ORRI       14, shr.ut, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, 2, 0x0000000003C3C3C3
 
+	@@ [15] 迁移（m13-testcases-045）：分散位型 0x21212121 >> immu6=7（32 位逻辑右移）
+	@@   手算：0x21212121>>7 = 0x00424242 ⇒ 0x0000000000424242（与 shr.st 同位型 19 的符号扩展结果对照）
+	TEST_AR_ORRI       15, shr.ut, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000021212121, 7, 0x0000000000424242
+
+	@@ [16] 迁移：源高 32 位全 1、低字 bit31=0 >> immu6=4（高半只看低字 ⇒ 全 0）
+	@@   手算：0x12345678>>4 = 0x01234567 ⇒ 0x0000000001234567
+	TEST_AR_ORRI       16, shr.ut, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xFFFFFFFF12345678, 4, 0x0000000001234567
+
 	__TEST_END
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
-	@@ [15] immu6 = 32 ⇒ ILLI（`encode_sbz`）
-	TEST_FAULT_ALU_ORRI 15, shr.ut, ILLI, rd5, rd6, 32
+	@@ [17] immu6 = 32 ⇒ ILLI（`encode_sbz`）
+	TEST_FAULT_ALU_ORRI 17, shr.ut, ILLI, rd5, rd6, 32
 
-	@@ [16] immu6 = 63 ⇒ ILLI（`encode_sbz`）
-	TEST_FAULT_ALU_ORRI 16, shr.ut, ILLI, rd5, rd6, 63
+	@@ [18] immu6 = 63 ⇒ ILLI（`encode_sbz`）
+	TEST_FAULT_ALU_ORRI 18, shr.ut, ILLI, rd5, rd6, 63
 
-	@@ [17] dst_rd0：目的 rd0 ⇒ ILLI
-	TEST_FAULT_ALU_ORRI 17, shr.ut, ILLI, rd0, rd6, 1
+	@@ [19] dst_rd0：目的 rd0 ⇒ ILLI
+	TEST_FAULT_ALU_ORRI 19, shr.ut, ILLI, rd0, rd6, 1
 
 	__TEST_SECTIONS

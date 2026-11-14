@@ -6,7 +6,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | rdhd[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
-@@ 用例：encoding 2 / semantic 5 / boundary 4 / overlap 3（链例 14 + 故障例 1）
+@@ 用例：encoding 2 / semantic 5 / boundary 4 / overlap 3 + 迁移 3（m13-testcases-045）（链例 17 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
@@ -68,11 +68,23 @@
 	@@ 两源同名：0x108 >> 8 = 1
 	TEST_AR_ORRR        14, shr.uo, rd9, 0xFFFFFFFFFFFFFFFF, rd11, 0x0000000000000108, rd11, 0x0000000000000108, 0x0000000000000001
 
+	@@ [15] 迁移（m13-testcases-045）：分散位型 0x21212121 >> 1（逻辑右移、高位补 0）
+	@@   手算：全局位 0/5·8/13·16/21·24/29 右移 1 ⇒ 4/7·12/15·20/23·28 ⇒ 0x10909090（与 shr.so 同位型对照）
+	TEST_AR_ORRR        15, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000021212121, rd7, 0x0000000000000001, 0x0000000010909090
+
+	@@ [16] 迁移：同位型 >> 7（低位被移出，bit0/5 丢失）
+	@@   手算：0x21212121 >> 7 = 0x00424242（位 1/6·9/14·17/22，低位 0/5 被移出）
+	TEST_AR_ORRR        16, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000021212121, rd7, 0x0000000000000007, 0x0000000000424242
+
+	@@ [17] 迁移：符号位 + 低位 1 的混合值 >> 31（逻辑右移 ⇒ 高半由 bit63 补零、不是全 1）
+	@@   手算：0xFFFFFFFF80000001 >> 31 = 0x00000001FFFFFFFF（对比 shr.so 同位型 >> 31 = 全 1）
+	TEST_AR_ORRR        17, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xFFFFFFFF80000001, rd7, 0x000000000000001F, 0x00000001FFFFFFFF
+
 	__TEST_END
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
 	@@ dst_rd0：目的 rd0 ⇒ ILLI
-	TEST_FAULT_ALU3     15, shr.uo, ILLI, rd0, rd6, rd7
+	TEST_FAULT_ALU3     18, shr.uo, ILLI, rd0, rd6, rd7
 
 	__TEST_SECTIONS

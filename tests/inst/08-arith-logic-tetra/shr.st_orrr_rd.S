@@ -7,7 +7,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | rdhd[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
-@@ 用例：encoding 2 / semantic+boundary+overlap 15（链例 17 + 故障例 1）
+@@ 用例：encoding 2 / semantic+boundary+overlap 15 + 迁移 4（m13-testcases-045）（链例 21 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
@@ -75,11 +75,28 @@
 	@@ [17] （YAML semantic 并入）0x0F0F0F0F… >> 2 = 0x03C3C3C3（正数 ⇒ 高位补 0）
 	TEST_AR_ORRR       17, shr.st, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, rd7, 0x0000000000000002, 0x0000000003C3C3C3
 
+	@@ [18] 迁移（m13-testcases-045）：每字节 0x81（全局位 0/7·8/15·16/23·24/31）+ bit31=1 的算术右移 1
+	@@   手算：0x81818181 >>1 ⇒ 位 6/7·14/15·22/23/30/31 ⇒ 0xC0C0C0C0；[63:32] = sign(bit31) = 全 1
+	@@   ⇒ 0xFFFFFFFFC0C0C0C0（与 shr.ut 同位型 15 的零扩展结果对照）
+	TEST_AR_ORRR       18, shr.st, rd5, 0x0000000000000000, rd6, 0xFFFFFFFF81818181, rd7, 0x0000000000000001, 0xFFFFFFFFC0C0C0C0
+
+	@@ [19] 迁移：同位型 >> 7（补 1 段跨 nibble 边界）
+	@@   手算：0x81818181>>7 = 0x01030303，高 7 位补 1 ⇒ 0xFF030303；[63:32] 全 1 ⇒ 0xFFFFFFFFFF030303
+	TEST_AR_ORRR       19, shr.st, rd5, 0x0000000000000000, rd6, 0xFFFFFFFF81818181, rd7, 0x0000000000000007, 0xFFFFFFFFFF030303
+
+	@@ [20] 迁移：0x92345678 >> 0 —— 符号来自**低字 bit31**（源高 32 位为 0 也要全 1 扩展）
+	@@   手算：shamt=0 ⇒ 低字原样 0x92345678；[63:32] = sign(bit31=1) = 0xFFFFFFFF ⇒ 0xFFFFFFFF92345678
+	TEST_AR_ORRR       20, shr.st, rd5, 0x0000000000000000, rd6, 0x0000000092345678, rd7, 0x0000000000000000, 0xFFFFFFFF92345678
+
+	@@ [21] 迁移：源高 32 位全 1、低字 bit31=0 >> 4 —— 高半**只看低字 bit31**（不得跟着源高位全 1）
+	@@   手算：0x12345678>>4 = 0x01234567，bit31=0 ⇒ [63:32] = 0 ⇒ 0x0000000001234567
+	TEST_AR_ORRR       21, shr.st, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xFFFFFFFF12345678, rd7, 0x0000000000000004, 0x0000000001234567
+
 	__TEST_END
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
 	@@ [18] dst_rd0：目的 rd0 ⇒ ILLI
-	TEST_FAULT_ALU3       18, shr.st, ILLI, rd0, rd6, rd7
+	TEST_FAULT_ALU3       22, shr.st, ILLI, rd0, rd6, rd7
 
 	__TEST_SECTIONS

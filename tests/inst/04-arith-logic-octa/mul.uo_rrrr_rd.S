@@ -7,7 +7,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：rrrr = opc | ha[23:18] | hb[17:12] | hc[11:6] | hd[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
-@@ 用例：encoding 2 / semantic 5 / boundary 4 / overlap 3（链例 14 + 故障例 2）
+@@ 用例：encoding 2 / semantic 5 / boundary 4 / overlap 3 + 迁移 2（m13-testcases-045）（链例 16 + 故障例 2）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联；
@@ -71,14 +71,25 @@
 	@@ 两源同名：x * x
 	TEST_AR_DUAL        14, mul.uo, rd10, rd11, 0x0000000000000000, 0x0000000000000000, rd13, 0x0123456789ABCDEF, rd13, 0x0123456789ABCDEF, 0x00014B66DC33F6AC, 0xDCA5E20890F2A521
 
+	@@ [15] 迁移（m13-testcases-045）：与 mul.so [15] **同一对操作数**的无符号对照
+	@@   手算：0xAAAAAAAAAAAAAAAB = 2^64 − (2^64−1)/3，0x2FE7D = 3 × 0xFF7F
+	@@   ⇒ 积 = 0xFF7F × (3·2^64 − (2^64−1)) = 0xFF7F × (2·2^64 + 1) = 0x1FEFE·2^64 + 0xFF7F
+	@@   高半 0x000000000001FEFE、低半 0x000000000000FF7F（对比 mul.so 同操作数高半 0xFFFF..0081 ⇒ 判别 .u/.s）
+	TEST_AR_DUAL        15, mul.uo, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0xAAAAAAAAAAAAAAAB, rd8, 0x000000000002FE7D, 0x000000000001FEFE, 0x000000000000FF7F
+
+	@@ [16] 迁移：两个 bit63 均置位的满宽度无符号积（高半自身也是满位型）
+	@@   手算：12297829382473034411 × 7905747460161236407 = 97223533405982418136784826902817001277
+	@@   = 0x4924924924924924_CF3CF3CF3CF3CF3D（period-4 交替位型 ⇒ 部分积/进位链全链翻转）
+	TEST_AR_DUAL        16, mul.uo, rd5, rd6, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, rd7, 0xAAAAAAAAAAAAAAAB, rd8, 0x6DB6DB6DB6DB6DB7, 0x4924924924924924, 0xCF3CF3CF3CF3CF3D
+
 	__TEST_END
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
 	@@ dst_dual_same：两个目的同为 rd0
-	TEST_FAULT_DUAL     15, mul.uo, ILLI, rd0, rd0, rd7, rd8
+	TEST_FAULT_DUAL     17, mul.uo, ILLI, rd0, rd0, rd7, rd8
 
 	@@ dst_dual_same：两个目的为同一非 rd0 寄存器
-	TEST_FAULT_DUAL     16, mul.uo, ILLI, rd5, rd5, rd7, rd8
+	TEST_FAULT_DUAL     18, mul.uo, ILLI, rd5, rd5, rd7, rd8
 
 	__TEST_SECTIONS

@@ -6,7 +6,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | rdhd[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
-@@ 用例：encoding 2 / semantic 5 / boundary 4 / overlap 3（链例 14 + 故障例 1）
+@@ 用例：encoding 2 / semantic 5 / boundary 4 / overlap 3 + 迁移 4（m13-testcases-045）（链例 18 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
@@ -68,11 +68,27 @@
 	@@ 两源同名：7 << 7 = 0x380
 	TEST_AR_ORRR        14, shl.o, rd9, 0xFFFFFFFFFFFFFFFF, rd11, 0x0000000000000007, rd11, 0x0000000000000007, 0x0000000000000380
 
+	@@ [15] 迁移（m13-testcases-045）：分散位型 0x21212121（每字节 0x21 ⇒ 全局位 0/5·8/13·16/21·24/29）<< 1
+	@@   手算：位 i → i+1 ⇒ 1/6·9/14·17/22·25/30 ⇒ 每字节 0x42 ⇒ 0x42424242（与 nibble 位型不同的分档）
+	TEST_AR_ORRR        15, shl.o, rd5, 0x0000000000000000, rd6, 0x0000000021212121, rd7, 0x0000000000000001, 0x0000000042424242
+
+	@@ [16] 迁移：同位型 << 7（跨 nibble 边界）
+	@@   手算：0x21212121 << 7 = 0x1090909080（位 7/12·15/20·23/28·31/36；bit36 进高半）
+	TEST_AR_ORRR        16, shl.o, rd5, 0x0000000000000000, rd6, 0x0000000021212121, rd7, 0x0000000000000007, 0x0000001090909080
+
+	@@ [17] 迁移：同位型 << 31（位 0+31=31 … 29+31=60，跨 32 位边界）
+	@@   手算：0x21212121 << 31 = 0x1090909080000000
+	TEST_AR_ORRR        17, shl.o, rd5, 0x0000000000000000, rd6, 0x0000000021212121, rd7, 0x000000000000001F, 0x1090909080000000
+
+	@@ [18] 迁移：移位量取 rdHD[5:0]（DADAO 掩码语义，非 ILLI）——0xFFFF..FFC7 的低 6 位 = 7
+	@@   手算：0xFFFFFFFFFFFFFFC7 & 0x3F = 0x07 ⇒ 结果同 [16]（SimRISC-04 §2.2「shamt 位域 hd[5:0]」）
+	TEST_AR_ORRR        18, shl.o, rd5, 0x0000000000000000, rd6, 0x0000000021212121, rd7, 0xFFFFFFFFFFFFFFC7, 0x0000001090909080
+
 	__TEST_END
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
 	@@ dst_rd0：目的 rd0 ⇒ ILLI
-	TEST_FAULT_ALU3     15, shl.o, ILLI, rd0, rd6, rd7
+	TEST_FAULT_ALU3     19, shl.o, ILLI, rd0, rd6, rd7
 
 	__TEST_SECTIONS

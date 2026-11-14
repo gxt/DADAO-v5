@@ -1364,8 +1364,11 @@ asm	tests/inst/04-arith-logic-octa/mul.so_rrrr_rd.S	TEST_AR_DUAL        11, mul.
 asm	tests/inst/04-arith-logic-octa/mul.so_rrrr_rd.S	TEST_AR_DUAL        12, mul.so, rd10, rd11, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, rd10, 0xFFFFFFFFFFFFFFFF, rd12, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0x0000000000000001	1
 asm	tests/inst/04-arith-logic-octa/mul.so_rrrr_rd.S	TEST_AR_DUAL        13, mul.so, rd10, rd11, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF, rd12, 0x0000000000000003, rd11, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFD	1
 asm	tests/inst/04-arith-logic-octa/mul.so_rrrr_rd.S	TEST_AR_DUAL        14, mul.so, rd10, rd11, 0x0000000000000000, 0x0000000000000000, rd13, 0xFFFFFFFFFFFFFFFF, rd13, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0x0000000000000001	1
-asm	tests/inst/04-arith-logic-octa/mul.so_rrrr_rd.S	TEST_FAULT_DUAL     15, mul.so, ILLI, rd0, rd0, rd7, rd8	1
-asm	tests/inst/04-arith-logic-octa/mul.so_rrrr_rd.S	TEST_FAULT_DUAL     16, mul.so, ILLI, rd5, rd5, rd7, rd8	1
+asm	tests/inst/04-arith-logic-octa/mul.so_rrrr_rd.S	TEST_AR_DUAL        15, mul.so, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0xAAAAAAAAAAAAAAAB, rd8, 0x000000000002FE7D, 0xFFFFFFFFFFFF0081, 0x000000000000FF7F	1
+asm	tests/inst/04-arith-logic-octa/mul.so_rrrr_rd.S	TEST_AR_DUAL        16, mul.so, rd5, rd6, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, rd7, 0x0000000000007E00, rd8, 0x6DB6DB6DB6DB6DB7, 0x0000000000003600, 0x0000000000001200	1
+asm	tests/inst/04-arith-logic-octa/mul.so_rrrr_rd.S	TEST_AR_DUAL        17, mul.so, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0x0000000000007FC0, rd8, 0x6DB6DB6DB6DB6DB7, 0x00000000000036C0, 0x0000000000001240	1
+asm	tests/inst/04-arith-logic-octa/mul.so_rrrr_rd.S	TEST_FAULT_DUAL     18, mul.so, ILLI, rd0, rd0, rd7, rd8	1
+asm	tests/inst/04-arith-logic-octa/mul.so_rrrr_rd.S	TEST_FAULT_DUAL     19, mul.so, ILLI, rd5, rd5, rd7, rd8	1
 asm	tests/inst/04-arith-logic-octa/mul.so_rrrr_rd.S	__CHECK_RD   1, rd6, 0x0000000000000BB8	1
 asm	tests/inst/04-arith-logic-octa/mul.so_rrrr_rd.S	__CHECK_RD   2, rd1, 0x0000000000000000	1
 asm	tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S	TEST_AR_DUAL         3, mul.uo, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0x0000000000000064, rd8, 0x000000000000001E, 0x0000000000000000, 0x0000000000000BB8	1
@@ -1380,8 +1383,10 @@ asm	tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S	TEST_AR_DUAL        11, mul.
 asm	tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S	TEST_AR_DUAL        12, mul.uo, rd10, rd11, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, rd10, 0xFFFFFFFFFFFFFFFF, rd12, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFE, 0x0000000000000001	1
 asm	tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S	TEST_AR_DUAL        13, mul.uo, rd10, rd11, 0x0000000000000000, 0x0000000000000003, rd12, 0x0000000000000005, rd11, 0x0000000000000003, 0x0000000000000000, 0x000000000000000F	1
 asm	tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S	TEST_AR_DUAL        14, mul.uo, rd10, rd11, 0x0000000000000000, 0x0000000000000000, rd13, 0x0123456789ABCDEF, rd13, 0x0123456789ABCDEF, 0x00014B66DC33F6AC, 0xDCA5E20890F2A521	1
-asm	tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S	TEST_FAULT_DUAL     15, mul.uo, ILLI, rd0, rd0, rd7, rd8	1
-asm	tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S	TEST_FAULT_DUAL     16, mul.uo, ILLI, rd5, rd5, rd7, rd8	1
+asm	tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S	TEST_AR_DUAL        15, mul.uo, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0xAAAAAAAAAAAAAAAB, rd8, 0x000000000002FE7D, 0x000000000001FEFE, 0x000000000000FF7F	1
+asm	tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S	TEST_AR_DUAL        16, mul.uo, rd5, rd6, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, rd7, 0xAAAAAAAAAAAAAAAB, rd8, 0x6DB6DB6DB6DB6DB7, 0x4924924924924924, 0xCF3CF3CF3CF3CF3D	1
+asm	tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S	TEST_FAULT_DUAL     17, mul.uo, ILLI, rd0, rd0, rd7, rd8	1
+asm	tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S	TEST_FAULT_DUAL     18, mul.uo, ILLI, rd5, rd5, rd7, rd8	1
 asm	tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S	__CHECK_RD   1, rd6, 0x0000000000000BB8	1
 asm	tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S	__CHECK_RD   2, rd1, 0x0000000000000000	1
 asm	tests/inst/04-arith-logic-octa/or.o_orrr_rd.S	TEST_AR_ORRR         3, or.o, rd5, 0x0000000000000000, rd6, 0xAAAAAAAAAAAAAAAA, rd7, 0x5555555555555555, 0xFFFFFFFFFFFFFFFF	1
@@ -1500,7 +1505,11 @@ asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_AR_ORRR        11, shl.o
 asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_AR_ORRR        12, shl.o, rd9, 0x0123456789ABCDEF, rd9, 0x0123456789ABCDEF, rd10, 0x0000000000000008, 0x23456789ABCDEF00	1
 asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_AR_ORRR        13, shl.o, rd9, 0x0000000000000003, rd10, 0x0000000000000001, rd9, 0x0000000000000003, 0x0000000000000008	1
 asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_AR_ORRR        14, shl.o, rd9, 0xFFFFFFFFFFFFFFFF, rd11, 0x0000000000000007, rd11, 0x0000000000000007, 0x0000000000000380	1
-asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_FAULT_ALU3     15, shl.o, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_AR_ORRR        15, shl.o, rd5, 0x0000000000000000, rd6, 0x0000000021212121, rd7, 0x0000000000000001, 0x0000000042424242	1
+asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_AR_ORRR        16, shl.o, rd5, 0x0000000000000000, rd6, 0x0000000021212121, rd7, 0x0000000000000007, 0x0000001090909080	1
+asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_AR_ORRR        17, shl.o, rd5, 0x0000000000000000, rd6, 0x0000000021212121, rd7, 0x000000000000001F, 0x1090909080000000	1
+asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_AR_ORRR        18, shl.o, rd5, 0x0000000000000000, rd6, 0x0000000021212121, rd7, 0xFFFFFFFFFFFFFFC7, 0x0000001090909080	1
+asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	TEST_FAULT_ALU3     19, shl.o, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	__CHECK_RD   1, rd5, 0x3C3C3C3C3C3C3C3C	1
 asm	tests/inst/04-arith-logic-octa/shl.o_orrr_rd.S	__CHECK_RD   2, rd63, 0x0000000000000002	1
 asm	tests/inst/04-arith-logic-octa/shr.so_orri_rd.S	TEST_AR_ORRI         3, shr.so, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0F0F0F0F0F0F0F0F, 2, 0x03C3C3C3C3C3C3C3	1
@@ -1528,7 +1537,10 @@ asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_AR_ORRR        11, shr.
 asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_AR_ORRR        12, shr.so, rd9, 0x0123456789ABCDEF, rd9, 0x0123456789ABCDEF, rd10, 0x0000000000000008, 0x000123456789ABCD	1
 asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_AR_ORRR        13, shr.so, rd9, 0x0000000000000004, rd10, 0xFFFFFFFFFFFFFFFF, rd9, 0x0000000000000004, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_AR_ORRR        14, shr.so, rd9, 0x0000000000000000, rd11, 0xFFFFFFFFFFFFFF08, rd11, 0xFFFFFFFFFFFFFF08, 0xFFFFFFFFFFFFFFFF	1
-asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_FAULT_ALU3     15, shr.so, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_AR_ORRR        15, shr.so, rd5, 0x0000000000000000, rd6, 0xFFFFFFFF81818181, rd7, 0x0000000000000001, 0xFFFFFFFFC0C0C0C0	1
+asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_AR_ORRR        16, shr.so, rd5, 0x0000000000000000, rd6, 0xFFFFFFFF81818181, rd7, 0x0000000000000007, 0xFFFFFFFFFF030303	1
+asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_AR_ORRR        17, shr.so, rd5, 0x0000000000000000, rd6, 0xFFFFFFFF81818181, rd7, 0x000000000000001F, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	TEST_FAULT_ALU3     18, shr.so, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	__CHECK_RD   1, rd5, 0x03C3C3C3C3C3C3C3	1
 asm	tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S	__CHECK_RD   2, rd63, 0xE000000000000000	1
 asm	tests/inst/04-arith-logic-octa/shr.uo_orri_rd.S	TEST_AR_ORRI         3, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0F0F0F0F0F0F0F0F, 2, 0x03C3C3C3C3C3C3C3	1
@@ -1556,7 +1568,10 @@ asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_AR_ORRR        11, shr.
 asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_AR_ORRR        12, shr.uo, rd9, 0x0123456789ABCDEF, rd9, 0x0123456789ABCDEF, rd10, 0x0000000000000008, 0x000123456789ABCD	1
 asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_AR_ORRR        13, shr.uo, rd9, 0x0000000000000004, rd10, 0xFFFFFFFFFFFFFFFF, rd9, 0x0000000000000004, 0x0FFFFFFFFFFFFFFF	1
 asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_AR_ORRR        14, shr.uo, rd9, 0xFFFFFFFFFFFFFFFF, rd11, 0x0000000000000108, rd11, 0x0000000000000108, 0x0000000000000001	1
-asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_FAULT_ALU3     15, shr.uo, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_AR_ORRR        15, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000021212121, rd7, 0x0000000000000001, 0x0000000010909090	1
+asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_AR_ORRR        16, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000021212121, rd7, 0x0000000000000007, 0x0000000000424242	1
+asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_AR_ORRR        17, shr.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xFFFFFFFF80000001, rd7, 0x000000000000001F, 0x00000001FFFFFFFF	1
+asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	TEST_FAULT_ALU3     18, shr.uo, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	__CHECK_RD   1, rd5, 0x03C3C3C3C3C3C3C3	1
 asm	tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S	__CHECK_RD   2, rd63, 0x0000000000000001	1
 asm	tests/inst/04-arith-logic-octa/sub.so_rrrr_rd.S	TEST_AR_DUAL         3, sub.so, rd5, rd6, 0x0000000000000000, 0x0000000000000000, rd7, 0x0000000000000064, rd8, 0x000000000000001E, 0x0000000000000000, 0x0000000000000046	1
@@ -3300,9 +3315,11 @@ asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	TEST_AR_ORRI       12, shl.t
 asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	TEST_AR_ORRI       13, shl.t, rd5, 0x0000000000000000, rd6, 0x00000000FFFFFFFF, 31, 0x0000000080000000	1
 asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	TEST_AR_ORRI       14, shl.t, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, 2, 0x000000003C3C3C3C	1
 asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	TEST_AR_ORRI       15, shl.t, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, 31, 0x0000000080000000	1
-asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	TEST_FAULT_ALU_ORRI 16, shl.t, ILLI, rd5, rd6, 32	1
-asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	TEST_FAULT_ALU_ORRI 17, shl.t, ILLI, rd5, rd6, 63	1
-asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	TEST_FAULT_ALU_ORRI 18, shl.t, ILLI, rd0, rd6, 1	1
+asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	TEST_AR_ORRI       16, shl.t, rd5, 0x0000000000000000, rd6, 0x0000000021212121, 14, 0x0000000048484000	1
+asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	TEST_AR_ORRI       17, shl.t, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000099345678, 4, 0x0000000093456780	1
+asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	TEST_FAULT_ALU_ORRI 18, shl.t, ILLI, rd5, rd6, 32	1
+asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	TEST_FAULT_ALU_ORRI 19, shl.t, ILLI, rd5, rd6, 63	1
+asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	TEST_FAULT_ALU_ORRI 20, shl.t, ILLI, rd0, rd6, 1	1
 asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	__CHECK_RD   1, rd5, 0x000000003C3C3C3C	1
 asm	tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S	__CHECK_RD   2, rd63, 0x0000000080000000	1
 asm	tests/inst/08-arith-logic-tetra/shl.t_orrr_rd.S	TEST_AR_ORRR        3, shl.t, rd5, 0x0000000000000000, rd6, 0x000000000F0F0F0F, rd7, 0x0000000000000002, 0x000000003C3C3C3C	1
@@ -3320,7 +3337,10 @@ asm	tests/inst/08-arith-logic-tetra/shl.t_orrr_rd.S	TEST_AR_ORRR       14, shl.t
 asm	tests/inst/08-arith-logic-tetra/shl.t_orrr_rd.S	TEST_AR_ORRR       15, shl.t, rd12, 0x0000000000000000, rd11, 0x0000000000000007, rd11, 0x0000000000000007, 0x0000000000000380	1
 asm	tests/inst/08-arith-logic-tetra/shl.t_orrr_rd.S	TEST_AR_ORRR       16, shl.t, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, rd7, 0x0000000000000002, 0x000000003C3C3C3C	1
 asm	tests/inst/08-arith-logic-tetra/shl.t_orrr_rd.S	TEST_AR_ORRR       17, shl.t, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, rd7, 0x000000000000001F, 0x0000000080000000	1
-asm	tests/inst/08-arith-logic-tetra/shl.t_orrr_rd.S	TEST_FAULT_ALU3       18, shl.t, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/08-arith-logic-tetra/shl.t_orrr_rd.S	TEST_AR_ORRR       18, shl.t, rd5, 0x0000000000000000, rd6, 0x0000000021212121, rd7, 0x0000000000000007, 0x0000000090909080	1
+asm	tests/inst/08-arith-logic-tetra/shl.t_orrr_rd.S	TEST_AR_ORRR       19, shl.t, rd5, 0x0000000000000000, rd6, 0xFFFFFFFF12345678, rd7, 0x0000000000000004, 0x0000000023456780	1
+asm	tests/inst/08-arith-logic-tetra/shl.t_orrr_rd.S	TEST_AR_ORRR       20, shl.t, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000099345678, rd7, 0x0000000000000004, 0x0000000093456780	1
+asm	tests/inst/08-arith-logic-tetra/shl.t_orrr_rd.S	TEST_FAULT_ALU3       21, shl.t, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/08-arith-logic-tetra/shl.t_orrr_rd.S	__CHECK_RD   1, rd5, 0x000000003C3C3C3C	1
 asm	tests/inst/08-arith-logic-tetra/shl.t_orrr_rd.S	__CHECK_RD   2, rd63, 0x0000000000000002	1
 asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_AR_ORRI        3, shr.st, rd5, 0x0000000000000000, rd6, 0x0000000080000000, 1, 0xFFFFFFFFC0000000	1
@@ -3336,9 +3356,12 @@ asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_AR_ORRI       12, shr.
 asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_AR_ORRI       13, shr.st, rd5, 0x0000000000000000, rd6, 0x000000008000FFFF, 16, 0xFFFFFFFFFFFF8000	1
 asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_AR_ORRI       14, shr.st, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, 31, 0x0000000000000000	1
 asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_AR_ORRI       15, shr.st, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, 2, 0x0000000003C3C3C3	1
-asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_FAULT_ALU_ORRI 16, shr.st, ILLI, rd5, rd6, 32	1
-asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_FAULT_ALU_ORRI 17, shr.st, ILLI, rd5, rd6, 63	1
-asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_FAULT_ALU_ORRI 18, shr.st, ILLI, rd0, rd6, 1	1
+asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_AR_ORRI       16, shr.st, rd5, 0x0000000000000000, rd6, 0x0000000092345678, 0, 0xFFFFFFFF92345678	1
+asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_AR_ORRI       17, shr.st, rd5, 0x0000000000000000, rd6, 0x00000000F0000000, 4, 0xFFFFFFFFFF000000	1
+asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_AR_ORRI       18, shr.st, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x00E0000000000000, 28, 0x0000000000000000	1
+asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_FAULT_ALU_ORRI 19, shr.st, ILLI, rd5, rd6, 32	1
+asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_FAULT_ALU_ORRI 20, shr.st, ILLI, rd5, rd6, 63	1
+asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	TEST_FAULT_ALU_ORRI 21, shr.st, ILLI, rd0, rd6, 1	1
 asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	__CHECK_RD   1, rd5, 0xFFFFFFFFC0000000	1
 asm	tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S	__CHECK_RD   2, rd63, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S	TEST_AR_ORRR        3, shr.st, rd5, 0x0000000000000000, rd6, 0x0000000080000000, rd7, 0x0000000000000001, 0xFFFFFFFFC0000000	1
@@ -3356,7 +3379,11 @@ asm	tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S	TEST_AR_ORRR       14, shr.
 asm	tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S	TEST_AR_ORRR       15, shr.st, rd12, 0x0000000000000000, rd11, 0x00000000FFFFFFFF, rd11, 0x00000000FFFFFFFF, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S	TEST_AR_ORRR       16, shr.st, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, rd7, 0x000000000000001F, 0x0000000000000000	1
 asm	tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S	TEST_AR_ORRR       17, shr.st, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, rd7, 0x0000000000000002, 0x0000000003C3C3C3	1
-asm	tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S	TEST_FAULT_ALU3       18, shr.st, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S	TEST_AR_ORRR       18, shr.st, rd5, 0x0000000000000000, rd6, 0xFFFFFFFF81818181, rd7, 0x0000000000000001, 0xFFFFFFFFC0C0C0C0	1
+asm	tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S	TEST_AR_ORRR       19, shr.st, rd5, 0x0000000000000000, rd6, 0xFFFFFFFF81818181, rd7, 0x0000000000000007, 0xFFFFFFFFFF030303	1
+asm	tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S	TEST_AR_ORRR       20, shr.st, rd5, 0x0000000000000000, rd6, 0x0000000092345678, rd7, 0x0000000000000000, 0xFFFFFFFF92345678	1
+asm	tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S	TEST_AR_ORRR       21, shr.st, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xFFFFFFFF12345678, rd7, 0x0000000000000004, 0x0000000001234567	1
+asm	tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S	TEST_FAULT_ALU3       22, shr.st, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S	__CHECK_RD   1, rd5, 0xFFFFFFFFC0000000	1
 asm	tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S	__CHECK_RD   2, rd63, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	TEST_AR_ORRI        3, shr.ut, rd5, 0x0000000000000000, rd6, 0x0000000080000000, 1, 0x0000000040000000	1
@@ -3371,9 +3398,11 @@ asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	TEST_AR_ORRI       11, shr.
 asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	TEST_AR_ORRI       12, shr.ut, rd5, 0x0000000000000000, rd6, 0x000000007FFFFFFF, 1, 0x000000003FFFFFFF	1
 asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	TEST_AR_ORRI       13, shr.ut, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, 31, 0x0000000000000000	1
 asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	TEST_AR_ORRI       14, shr.ut, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, 2, 0x0000000003C3C3C3	1
-asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	TEST_FAULT_ALU_ORRI 15, shr.ut, ILLI, rd5, rd6, 32	1
-asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	TEST_FAULT_ALU_ORRI 16, shr.ut, ILLI, rd5, rd6, 63	1
-asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	TEST_FAULT_ALU_ORRI 17, shr.ut, ILLI, rd0, rd6, 1	1
+asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	TEST_AR_ORRI       15, shr.ut, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000021212121, 7, 0x0000000000424242	1
+asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	TEST_AR_ORRI       16, shr.ut, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xFFFFFFFF12345678, 4, 0x0000000001234567	1
+asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	TEST_FAULT_ALU_ORRI 17, shr.ut, ILLI, rd5, rd6, 32	1
+asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	TEST_FAULT_ALU_ORRI 18, shr.ut, ILLI, rd5, rd6, 63	1
+asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	TEST_FAULT_ALU_ORRI 19, shr.ut, ILLI, rd0, rd6, 1	1
 asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	__CHECK_RD   1, rd5, 0x0000000040000000	1
 asm	tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S	__CHECK_RD   2, rd63, 0x0000000000000001	1
 asm	tests/inst/08-arith-logic-tetra/shr.ut_orrr_rd.S	TEST_AR_ORRR        3, shr.ut, rd5, 0x0000000000000000, rd6, 0x0000000080000000, rd7, 0x0000000000000001, 0x0000000040000000	1
@@ -3390,7 +3419,10 @@ asm	tests/inst/08-arith-logic-tetra/shr.ut_orrr_rd.S	TEST_AR_ORRR       13, shr.
 asm	tests/inst/08-arith-logic-tetra/shr.ut_orrr_rd.S	TEST_AR_ORRR       14, shr.ut, rd12, 0x0000000000000000, rd11, 0x0000000080000000, rd11, 0x0000000080000000, 0x0000000080000000	1
 asm	tests/inst/08-arith-logic-tetra/shr.ut_orrr_rd.S	TEST_AR_ORRR       15, shr.ut, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, rd7, 0x000000000000001F, 0x0000000000000000	1
 asm	tests/inst/08-arith-logic-tetra/shr.ut_orrr_rd.S	TEST_AR_ORRR       16, shr.ut, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, rd7, 0x0000000000000002, 0x0000000003C3C3C3	1
-asm	tests/inst/08-arith-logic-tetra/shr.ut_orrr_rd.S	TEST_FAULT_ALU3       17, shr.ut, ILLI, rd0, rd6, rd7	1
+asm	tests/inst/08-arith-logic-tetra/shr.ut_orrr_rd.S	TEST_AR_ORRR       17, shr.ut, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000021212121, rd7, 0x0000000000000007, 0x0000000000424242	1
+asm	tests/inst/08-arith-logic-tetra/shr.ut_orrr_rd.S	TEST_AR_ORRR       18, shr.ut, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xFFFFFFFF80000001, rd7, 0x000000000000001F, 0x0000000000000001	1
+asm	tests/inst/08-arith-logic-tetra/shr.ut_orrr_rd.S	TEST_AR_ORRR       19, shr.ut, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xFFFFFFFF12345678, rd7, 0x0000000000000004, 0x0000000001234567	1
+asm	tests/inst/08-arith-logic-tetra/shr.ut_orrr_rd.S	TEST_FAULT_ALU3       20, shr.ut, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/08-arith-logic-tetra/shr.ut_orrr_rd.S	__CHECK_RD   1, rd5, 0x0000000040000000	1
 asm	tests/inst/08-arith-logic-tetra/shr.ut_orrr_rd.S	__CHECK_RD   2, rd63, 0x0000000000000000	1
 asm	tests/inst/08-arith-logic-tetra/sub.st_orrr_rd.S	TEST_AR_ORRR        3, sub.st, rd5, 0x0000000000000000, rd6, 0x0000000000000001, rd7, 0x0000000000000003, 0xFFFFFFFFFFFFFFFE	1

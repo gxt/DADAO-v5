@@ -7,7 +7,7 @@
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | rdhd[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
-@@ 用例：encoding 2 / semantic+boundary+overlap 15（链例 17 + 故障例 1）
+@@ 用例：encoding 2 / semantic+boundary+overlap 15 + 迁移 3（m13-testcases-045）（链例 20 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
@@ -75,11 +75,24 @@
 	@@ [17] （YAML boundary 并入）0x0F0F0F0F0F0F0F0F << 31 = 0x80000000
 	TEST_AR_ORRR       17, shl.t, rd5, 0x0000000000000000, rd6, 0x0F0F0F0F0F0F0F0F, rd7, 0x000000000000001F, 0x0000000080000000
 
+	@@ [18] 迁移（m13-testcases-045）：分散位型 0x21212121（每字节 0x21）<< 7 —— **DADAO 与 RISC-V 的分歧点**
+	@@   手算：低 32 位 0x21212121 << 7 = 0x90909080；spec/SimRISC-08 §「shl.t」明定 [63:32] = 0
+	@@   ⇒ 0x0000000090909080（RISC-V sllw 为符号扩展 0xFFFFFFFF90909080；本行**不取**该值）
+	TEST_AR_ORRR       18, shl.t, rd5, 0x0000000000000000, rd6, 0x0000000021212121, rd7, 0x0000000000000007, 0x0000000090909080
+
+	@@ [19] 迁移：源高 32 位为全 1、低字 bit31=0 ⇒ 高半不参与且结果零扩展
+	@@   手算：0x12345678 << 4 = 0x23456780（bit28-31 移出 32 位窗口）⇒ 0x0000000023456780
+	TEST_AR_ORRR       19, shl.t, rd5, 0x0000000000000000, rd6, 0xFFFFFFFF12345678, rd7, 0x0000000000000004, 0x0000000023456780
+
+	@@ [20] 迁移：0x99345678 << 4 —— 低字 bit31=1，零扩展后**不得**出现高半 1
+	@@   手算：0x99345678 << 4 = 0x93456780 + 移出位丢弃 ⇒ 0x0000000093456780（RISC-V sllw 给 0xFFFFFFFF93456780）
+	TEST_AR_ORRR       20, shl.t, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0000000099345678, rd7, 0x0000000000000004, 0x0000000093456780
+
 	__TEST_END
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
 	@@ [18] dst_rd0：目的 rd0 ⇒ ILLI
-	TEST_FAULT_ALU3       18, shl.t, ILLI, rd0, rd6, rd7
+	TEST_FAULT_ALU3       21, shl.t, ILLI, rd0, rd6, rd7
 
 	__TEST_SECTIONS

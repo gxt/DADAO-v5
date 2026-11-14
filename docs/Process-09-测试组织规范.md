@@ -263,7 +263,7 @@ cmd: python3 tools/testcases/inst/run_asm_suite.py --id add.si_riii_rd --platfor
 
 ## 10. 参考体系
 
-- **inst**：RISC-V `riscv-tests`（按扩展、自检 asm）+ `riscv-arch-test`（签名/合规）。
+- **inst**：RISC-V `riscv-arch-test`（签名/合规）；上游 RV64 自检语料已于 `m13-testcases-045` 退役（精选值并入 `tests/inst/**/*.S`）。
 - **arch**：`kvm-unit-tests`（特权/系统）+ QEMU `tests/qtest`（系统/设备）。
 - **unit**：LLVM `lit`/FileCheck（`llvm/test`、`clang/test`）+ QEMU `tests/unit`。
 - **tset**：libc-test、llvm-test-suite、Embench、picolibc 各自上游套件。
