@@ -62,7 +62,7 @@
 
 **重跑（任务 worktree 根，现场 rc）**：`make check-tests-index` rc=0（`inst=290 / total=490`）；`make validate-vectors` rc=0（`264 .S carriers / gaps: 0`）；`make check-case-ledger` rc=0（`2033 = vector 1510 + lit 523`；`derive_rows` 只吃 vector+lit、**不收根索引** ⇒ 2033 不变属实）；`make check-knowledge-refs` rc=0、`make check-no-residue` rc=0；`make check-run-artifacts` rc=2（`471 illegal`，`grep -v m12-chipyard-016` = 0）；`grep -rn "gen_trampoline\|--trampoline" docs/ tests/ tools/` rc=1（0 命中），残留句在 `Process-09:210`（§6；§7 自 218 行起无 trampoline）⇒ 按真实位置改正确。
 
-**证据脚本**：审读 `run.sh` 逐条可达 FAIL（计数现场派生、注入含 assert 与还原 md5、I4 明标 GAP 不作断言），重跑 `bash .work/evidence/m13-testcases-040/run.sh` → rc=0 `EVIDENCE: PASS`（I1 rc=2、I2 hits=1、I3 rc=1、I4 `289` 条仍绿，四路还原 md5 全等并回绿）。
+**证据脚本**：审读 `run.sh` 逐条可达 FAIL（计数现场派生、注入含 assert 与还原 md5、I4 明标 GAP 不作断言），重跑 `bash <运行期证据目录>/run.sh` → rc=0 `EVIDENCE: PASS`（I1 rc=2、I2 hits=1、I3 rc=1、I4 `289` 条仍绿，四路还原 md5 全等并回绿）。
 
 **mem_sweep 退役等价性（独立旧树，非采信其对账）**：`git archive 9b299e00^` 到临时树（仅软链 `.dadao`），新旧各跑 `emit` 并逐文件 md5：`ctrl` 165 项 **0 差异**、`inst` 430 项 **0 差异**；`sweep_expect=2d4d94651346ef673c5a855e024c1489`、`ctrl_expect=ab4ec3fe05ecd8d16bb7fba16156d005` 两侧相同；`inst_sweep list covered=273`、`ctrl_sweep list covered=67`；旧 `mem_sweep.py list` rc=1 `FileNotFoundError`、`SOURCES` 仍指三册、`scan_source` 只回点号/故障（退役理由成立）。`grep -rn mem_sweep tools/ Makefile` 文本 0 命中（`git grep` rc=1）。必要性实证：临时树删 `mem_sweep.py` 后旧 `ctrl_sweep list` rc=1 `ModuleNotFoundError` ⇒ 两个 helper 迁移非顺手改。
 
@@ -70,7 +70,7 @@
 
 **节点副作用（只读核，未再 sync/reset）**：`remote.py status` 20:23 `dirty_files=4`；`sync_node_repo.sh` 确为 `reset --hard + clean -fd`（先打印丢弃清单）⇒ **确实会丢**；server208 现存 4 项 mtime 均 `20:28:09`（同步后被复原），md5 与 016 任务 worktree 原件一致（`run_embench_e2e.py` 节点侧为旧变体，属 016 自身同步口径）⇒ **主控机侧原件未丢**；`nproc=64`、20:23 `loadavg=6.13`、`running=none` ⇒ `TEST_JOBS=56 = 62−6` 合规；016 批进程仍活（`run_embench_e2e.py --jobs 32` + 4 个 verilator sim），节点 embench 日志 20:43 仍在推进（PASS 行）⇒ **批次未受影响**。
 
-**约束核验**：`git diff --name-only 9b299e00^ 9b299e00` = 9 文件（任务书 + 已披露越界 4 项），`spec/`、`contracts/`、`components/`、`tests/inst/*.S` **0 改动**；未改主工作树、未 commit、未跑 `install-host`/`check-modules`/`build-*`；`git status -uall` 空、完成区 16 行、状态 `待验收`、未动台账/`discussing.md`。**采信未重跑**：`check-inst-asm`（禁再同步节点）→ 采信 `.work/log/infra/INFRA-130t/remote/INFRA-130t-run-server208.log`：`rc: 0 / jobs=56 / 897/897（链例 264 + 故障例 633）/ check-inst-asm: PASS`。
+**约束核验**：`git diff --name-only 9b299e00^ 9b299e00` = 9 文件（任务书 + 已披露越界 4 项），`spec/`、`contracts/`、`components/`、`tests/inst/*.S` **0 改动**；未改主工作树、未 commit、未跑 `install-host`/`check-modules`/`build-*`；`git status -uall` 空、完成区 16 行、状态 `待验收`、未动台账/`discussing.md`。**采信未重跑**：`check-inst-asm`（禁再同步节点）→ 采信 运行期日志 `INFRA-130t-run-server208.log`：`rc: 0 / jobs=56 / 897/897（链例 264 + 故障例 633）/ check-inst-asm: PASS`。
 
 **非阻断 finding**：① `tools/chipyard/__pycache__/mem_sweep.cpython-312.pyc` 为被删模块的陈旧字节码（gitignored，门控不计）建议顺手删，完成区「grep=0」宜限定为跟踪源；② 节点 check-inst-asm 证据落在默认 `--log-prefix INFRA-130t` 目录、完成区未引路径，后续应传本任务号；③ `expected_ctrl_expect.md5` 系自记基线（单看可自洽），已由本轮新旧树逐文件比对补强；④ 016 embench 池 `--jobs 32` 与本测 56 同机，派单按实测 load 扣减合规，但峰值叠加仍可能超 62 核预算。
 
