@@ -169,23 +169,30 @@ def compact_etime(raw: str) -> str:
     return raw[:5]
 
 
-def proc_line(cpu: float, vsz: int, etime: str, name: str, detail: str, width: int) -> str:
-    """CPU% | elapsed | full binary name (no abbreviation); hint only if it fits.
+DETAIL_W = 14   # test-program name column
 
-    When the name is wider than the pane keeps the *tail* (that is what tells
-    the binaries apart, e.g. ``...WumingTinyConfig``), never an invented alias.
+
+def proc_line(cpu: float, vsz: int, etime: str, name: str, detail: str, width: int) -> str:
+    """CPU% | VSZ | elapsed | binary | test-program hint.
+
+    The hint (the ELF actually under test) wins the space: a long binary name is
+    tail-truncated (``...WumingTinyConfig``) so the test name stays visible; no
+    invented aliases are ever used.
     """
     prefix = f"{cpu:>4.0f}% {fmt_vsz(vsz):>5} {compact_etime(etime):>5} "
-    room = width - len(prefix)
-    shown = name if len(name) <= room else "…" + name[-(room - 1):] if room > 1 else name[:room]
-    head = prefix + shown
-    if detail:
-        room = width - len(head) - 2
-        if room >= len(detail) + 1:
-            head += " " + detail
-        elif room >= 8:                      # keep the hint's tail (the ELF name)
-            head += " " + detail[-(room - 1):]
-    return fit(head, width)
+    avail = width - len(prefix)
+    if avail <= 0:
+        return fit(prefix, width)
+    if not detail:
+        shown = name if len(name) <= avail else ("…" + name[-(avail - 1):] if avail > 1 else name[:avail])
+        return fit(prefix + shown, width)
+    # Fixed-width hint column keeps the table aligned: binary name takes the
+    # rest and is tail-truncated, the test program name is never dropped.
+    dw = min(DETAIL_W, max(6, avail - 12))
+    hint = detail if len(detail) <= dw else "…" + detail[-(dw - 1):]
+    name_room = max(6, avail - dw - 1)
+    shown = name if len(name) <= name_room else "…" + name[-(name_room - 1):]
+    return fit(prefix + shown.ljust(name_room) + " " + hint, width)
 
 
 def pane(s: Sample | None, host: str, w: int, nlines: int, now: float) -> list[str]:
