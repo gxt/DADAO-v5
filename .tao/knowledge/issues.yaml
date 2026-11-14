@@ -606,3 +606,13 @@
   closed_in: null
   resolved_by: null
   title: "【P2】测试生成器里同一 id 的 `extra` 键被写两遍 ⇒ Python 字典**静默覆盖**，导致 8 条 YAML 用例从未生成、而完成区声明「已并入」。`m13-testcases-024` 返工时发现并修复（合并重复键 + 新增 `check_yaml_merged.py` 机械核对「YAML 向量是否真在 `.S` 里」）。教训：**声明类结论（\"已并入/已覆盖\"）必须机械核对**，不能靠人写注释。"
+- id: ISS-435
+  scope:
+  - qemu
+  - chipyard
+  - gem5
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`sc` 保留（reservation）粒度三平台不一致：`spec/SimRISC-12 §1`/`ADR-0034 D6` 是**精确地址+宽度**（同字异址写入不应清标记），实测 **QEMU 按 8 B 整字判成功**（与 spec 相反）；**chipyard 按整字值比较**（同 hart 改同字另一字节即清标记，spec 未列该清除事件）；gem5 与 spec 一致（3 点全过）。`m13-testcases-028` 的 `probe_gran.S` 同 ELF 实测 `chipyard=2 / qemu=1 / gem5=0`。需裁定：改实现对齐 spec，或改 spec 允许字粒度/字值失效。"
