@@ -65,7 +65,7 @@
 > 旧 `min_rom_probe_*` 薄 wrapper 已删除，`tools/llvm` 默认路径、`spec/README`
 > 与 README/INVENTORY 已同步。下文提及这两条旧路径处为迁移前快照。
 
-- `tests/`：341 文件 / 13 个顶层项；`llvm`(216)、`e2e`(45)、`scripts`(30)、`vectors`(25)、`atomics/clmul/fma/minmax/roundint`、`qemu`(1)。
+- `tests/`：341 文件 / 13 个顶层项；`llvm`(216)、`e2e`(45)、`scripts`(30)、`vectors`(25)、`atomics/clmul`、`qemu`(1)。（`fma/minmax/roundint` 探针已于 `m13-testcases-044` 退役）
 - `.dadao/tests/`：**19,967 文件 / 1.13 GB**，18 个子目录；含任务专属目录（如 `llvm-ts-user-050t`）、无 `clean` 目标、约 210 MB 不可重生成。
 - 向量（**历史快照**，2026-10-26 盘点）：1,456 例 / 193 个 opcode 身份 / 22 个 YAML。**YAML 载体已于 `m13-testcases-043` 全退役**：现行载体 = `tests/inst/<册>/<id>.S`（逐条用例身份见 `tests/case-ledger.tsv` 的 `asm` 行；条数现场派生、不写死）。
 - 现行门控（2026-10-27，`TESTCASES-076t`）：`check`（L1）、`check-modules`（L2）、`check-full`（L3）、`night-run`（回归运行，独立锁）、`check-milestone`；tset full 只在回归运行。
@@ -79,7 +79,7 @@
 ```text
 tests/
   inst/                     # 指令用例（无 isa 子层）
-    base/ atomics/ clmul/ fma/ minmax/ roundint/ rev/ bitcnt/ ...
+    base/ atomics/ clmul/ rev/ bitcnt/ ...   # fma/minmax/roundint 已于 testcases-044 退役
   arch/                     # cfx/权限
     umon/ jmon/ smon/ hmon/ ptw/ tlb/ cache/ hart/ llc/ pmem/ time/ uart/ power/
   unit/                     # 模块自身
@@ -288,7 +288,7 @@ cmd: python3 tools/testcases/inst/run_asm_suite.py --id add.si_riii_rd --platfor
 
 ### §12 资产 → scope 映射（P0）
 
-- `tests/vectors/isa/*` + `atomics/clmul/fma/minmax/roundint` 探针 → **inst**
+- `tests/vectors/isa/*` + `atomics/clmul` 探针 → **inst**（`fma/minmax/roundint` 探针已于 `testcases-044` 退役）
 - 旧 `llvm/` 的 `lit/MC`、`lit/CodeGen`、`codegen/m3/m4/m6`、`ir-lli` → **unit/llvm**
 - 旧 `llvm/` 的 `codegen/m5`（semihosting/CFX 权限）+ min-ROM 探针 → **arch**
 - 工具链 E2E（原顶层 `e2e/lit`，现 `tests/unit/llvm/e2e/`）→ **unit/llvm**（`TESTCASES-084t` 落定）

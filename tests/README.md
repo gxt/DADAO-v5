@@ -153,10 +153,9 @@ make check-lit-full                 # 生成档全量（L3）
 
 ### 2.4 探针
 
+> `check-{fma,minmax,rnd}-probe` 已于 `m13-testcases-044` 退役（其能力由 `tests/unit/llvm` 的 lit/e2e + picolibc 承担，缺口已按抽样规则补进对应 `.S`）。
+
 ```sh
-make check-rnd-probe       # ftrnd/fornd   785 例 × O0/O2
-make check-minmax-probe    # ftmin/ftmax   3,102 例 × O0/O2
-make check-fma-probe       # ftfma/fofma   626 例 × O0/O2
 make check-clmul-probe     # clmul/GHASH/CRC-32C  627 例 × O0/O2
 # atomics（无 make 目标，手工）：
 python3 tools/testcases/run_atomics_probe.py --link-mode static --json-out /tmp/opencode/atomics-static.json

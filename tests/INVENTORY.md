@@ -66,9 +66,6 @@
 | `scripts/` | 30（24） | 共享 harness：向量→二进制构建、QEMU 单例/批量运行、冒烟驱动、bootrom/lds/crt0、dump 校验 | U（+I/S 载体） | 被 `check-qemu-*`、`test-codegen/elf/semihost`、`semantics_gate.py` 调用 | 自动（含手工 CLI） | harness 自身正确性、测试机约定 |
 | `atomics/` | 5（5） | C11/`__atomic`/LR-SC 并发探针源（5 个 C） | I | **无 make 目标**（§5.3） | 手工 | 原子内建、互斥、ABA、`a_barrier` |
 | `clmul/` | 4（4） | clmul 边界/GHASH/CRC-32C 探针 + IR | I | `check-clmul-probe`(L3) | 自动 | `clmul.o`、GHASH、CRC-32C |
-| `fma/` | 4（4） | FMA 单次舍入/点积/GEMM/Horner 探针 + 公共头 | I | `check-fma-probe`(L3) | 自动 | `ftfma`/`fofma` |
-| `minmax/` | 4（4） | min/max NaN/±0/rounding 矩阵探针 | I | `check-minmax-probe`(L3) | 自动 | `ftmin/ftmax/fomin/fomax` |
-| `roundint/` | 4（4） | `ftrnd/fornd` 六模式/标志/`rf0` 探针 | I | `check-rnd-probe`(L3) | 自动 | roundToIntegral |
 | `qemu/` | 1（1） | 占位 README（QEMU 组件测试落点，暂无内容） | — | 无 | — | — |
 | `case-ledger.tsv` | 1（1） | 逐条身份清单（生成物，`--write` 重生成） | — | `check-case-ledger`(L1) | 自动 | 删用例/pattern 的哨兵 |
 
@@ -194,9 +191,6 @@
 | `check-arch` | L3 | `check-arch-smoke` + cfx min-ROM 探针 044/045/049 | 同上 | `.work/log/arch/check-arch*.log` |
 | `test-semihost` | 别名 | → `check-arch-smoke`（旧前置 `test-elf`/`test-codegen`/`check` 保留） | 同上 | 同上 |
 | `test-m6` | L3 | lit-full + ir-lli 19 + Embench 38 | `ir-lli-diff`、`m6-embench` | `.work/log/integ/test-m6-*.log` |
-| `check-rnd-probe` | L3 | 785 例 × O0/O2 | `/tmp`+`--json-out` | `.work/log/testcases/TESTCASES-060t-*.{log,json}` |
-| `check-minmax-probe` | L3 | 3,102 例 × O0/O2 | 同上 | `TESTCASES-059t-*` |
-| `check-fma-probe` | L3 | 626 例 × O0/O2 | 同上 | `TESTCASES-058t-*` |
 | `check-clmul-probe` | L3 | 627 例 × O0/O2 | 同上 | `TESTCASES-057t-*` |
 | `check-picolibc-tests` | L2 | fast 档 20（18 pass / 2 excluded） | `.work/build/picolibc*` | stdout |
 | `check-picolibc-tests-full` | opt | full 档 235（209 pass / 1 fail / 22 excluded / 3 blocked，最近日志） | 同上 | stdout |
