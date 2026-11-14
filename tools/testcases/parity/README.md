@@ -15,6 +15,8 @@
   `gem5.opt --outdir … configs/dadao/fs.py`。
 - `three_platform_matrix.py`：三平台（qemu / gem5 / chipyard）逐例矩阵汇总入口
   （只读已入库 JSON，见「三平台矩阵（m13-integ-001）」）。
+- `fp_diff.py`：FP `scope: fp` 三平台逐例差分报告生成器
+  （见「FP 三平台差分（m13-integ-002）」）。
 
 ## 用法
 
@@ -133,6 +135,37 @@ python3 tools/testcases/parity/three_platform_matrix.py --self-test
   `N/A` 行必须带 `owner` + `basis`。
 - **可重建**：册内容只来自已入库 JSON（不写重建时刻、不写运行期路径），故
   `--check` 在 fresh clone 上也能逐字节复现；写入仓库须显式 `--allow-repo-write`。
+
+## FP 三平台差分（`m13-integ-002`）
+
+`fp_diff.py` **不跑 guest**：输入是 `run_asm_suite.py` 的三平台逐镜像 JSON
+（同 ELF、status/exit/结果字节流）+ 每镜像 `.out` 结果流（按 8 字节检查点切分），
+加上 `contracts/opcodes.yaml`、`spec/SimRISC-07` 附录 A、`tests/inst.yaml` 三个
+静态真源，输出 `.tao/knowledge/refs/m13-002-fp-diff.{json,md}`。
+
+```sh
+python3 tools/testcases/parity/fp_diff.py \
+  --run fp-book=<run.json> --work fp-book=<work-dir> \
+  --run fp-extras=<run2.json> --work fp-extras=<work-dir2> \
+  --engine qemu=<md5> --engine gem5=<md5> --engine chipyard=<md5> \
+  --json-out <运行期>/m13-002-fp-diff.json \
+  --markdown-out <运行期>/m13-002-fp-diff.md
+python3 tools/testcases/parity/fp_diff.py --check <已入库 .md 或 .json>
+python3 tools/testcases/parity/fp_diff.py --self-test    # 8 类反例逐条判出
+```
+
+- **计数口径**：`scope: fp` = 66（机器可读全集）；附录 A = 52（`SimRISC-07` 的
+  运算/转换/比较族）；历史别名「47 条」在任何机器可读源都复现不出（`issues.yaml`
+  已登记，退役）。历史口径只写进报告，不作判据。
+- **判据**：三平台缺一 / 未知 id / 重复镜像 / 点号与载体不符 / `ok` 与平台记录
+  矛盾 / 未归因的平台差异 ⇒ 非零退出；覆盖缺口逐条列出（`not_indexed` 不阻断，
+  载体存在且由 L2 `check-inst-asm` 执行）。
+- **矩阵**：4 档 `rf0[33:32]` × {NONE,NV,DZ,OF,UF,NX} 的链例点计数与三平台一致数；
+  只统计 `AGREE_PASS` 链例镜像的点，空白格给出「现有向量无此组合」的逐格原因。
+- **已知项单列**：`ISS-357`（SE 双 fd 输出顺序）与 picolibc `math_test` 不参与
+  FP 语义差异计数；单通道 semihosting 字节流比较不经过该路径。
+- 复用：载体点数/点号 = `run_asm_suite.scan_source`；owner 词表 =
+  `se_tset_matrix.OWNERS`；平台状态词表 = `run_parity.STATUSES`。
 
 ## M11 收口口径（TESTCASES-098t）
 
