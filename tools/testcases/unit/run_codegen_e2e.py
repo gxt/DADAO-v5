@@ -14,10 +14,16 @@ independently-derived expected value (it does NOT rely on lit exit codes):
     llvm-objcopy -O binary --only-section=.text.start --only-section=.text
                                                -> <prog>.bin
     prepend profile.kernel_reserved zero bytes (Tiny raw entry = base + 0x100)
-    timeout N qemu-system-dadao -M dadao-tiny -bios trampoline.bin \
-            -kernel <prog>.bin -semihosting-config enable=on,target=native \
+    timeout N qemu-system-dadao -M dadao-tiny \
+            -bios <fixed 64 KiB BootROM firmware> -kernel <prog>.bin \
+            -semihosting-config enable=on,target=native \
             -display none -nographic
                                                -> process exit code == guest exit code
+
+The `-bios` image is the fixed Machine-v5-Tiny BootROM firmware built by
+``make build-bootrom`` -- the only image the Tiny `-bios` option accepts
+(spec/Machine-v5 §6; m13-testcases-036 removed the legacy 56-byte flat
+trampoline).  The raw `-kernel` application path is unchanged.
 
 The startup stub calls ``@main`` and reports the returned value (rd8) through
 the semihosting ``SYS_EXIT`` service; the guest exit code is the low byte
@@ -98,7 +104,13 @@ DEFAULT_LLC = os.path.join(_TOOLCHAIN_BIN, "llc")
 DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
 DEFAULT_LLVM_OBJCOPY = os.path.join(_TOOLCHAIN_BIN, "llvm-objcopy")
 DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
-DEFAULT_TRAMPOLINE = "tools/testcases/lib/trampoline.bin"
+# Fixed Machine-v5-Tiny BootROM firmware (`make build-bootrom`; the same image
+# `bootrom-image` takes, spec/Machine-v5 §6).  Resolved through the single
+# source of truth for test artifacts (ADR-0016 D6/D7, tools/infra/paths.py), the
+# same way tests/unit/llvm/e2e/lit/lit.cfg.py's `%bootrom` is.  m13-testcases-036:
+# the legacy 56-byte `-bios` trampoline is no longer used by this gate.
+DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir() / "bootrom" / "tiny"
+                      / "bootrom_tiny.bin")
 DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
 DEFAULT_VECTORS_DIR = "tests/unit/llvm/codegen"
 DEFAULT_EXPECTED = "tests/unit/llvm/codegen/expected.yaml"
@@ -327,7 +339,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
         [
             tools["qemu"],
             "-M", "dadao-tiny",
-            "-bios", tools["trampoline"],
+            "-bios", tools["bootrom"],
             "-kernel", bin_path,
             "-semihosting-config", "enable=on,target=native",
             "-display", "none",
@@ -384,7 +396,18 @@ def main():
     ap.add_argument("--llvm-objcopy", dest="llvm_objcopy",
                     default=os.environ.get("LLVM_OBJCOPY", DEFAULT_LLVM_OBJCOPY))
     ap.add_argument("--qemu", default=os.environ.get("QEMU_SYSTEM_DADAO", DEFAULT_QEMU))
-    ap.add_argument("--trampoline", default=DEFAULT_TRAMPOLINE)
+    ap.add_argument("--bootrom", default=DEFAULT_BOOTROM,
+                    help="fixed 64 KiB Machine-v5-Tiny BootROM firmware passed as "
+                         "-bios (default: the test-artifacts "
+                         "bootrom/tiny/bootrom_tiny.bin built by "
+                         "'make build-bootrom')")
+    # Deprecated: the Tiny `-bios` option no longer accepts the legacy flat
+    # trampoline (spec/Machine-v5 §6), so this switch is accepted only so
+    # existing command lines (e.g. the Makefile recipe) keep working; it is
+    # ignored and the fixed firmware is used instead (m13-testcases-036).
+    ap.add_argument("--trampoline", default=None,
+                    help="DEPRECATED and ignored: the 56-byte flat trampoline is "
+                         "no longer a valid Tiny -bios image; use --bootrom")
     ap.add_argument("--crt0", default=DEFAULT_CRT0)
     ap.add_argument("--vectors-dir", default=DEFAULT_VECTORS_DIR)
     ap.add_argument("--expected", default=DEFAULT_EXPECTED)
@@ -404,7 +427,7 @@ def main():
         "llvm_mc": _abspath(args.llvm_mc),
         "llvm_objcopy": _abspath(args.llvm_objcopy),
         "qemu": _abspath(args.qemu),
-        "trampoline": _abspath(args.trampoline),
+        "bootrom": _abspath(args.bootrom),
         "crt0": _abspath(args.crt0),
         "vectors_dir": _abspath(args.vectors_dir),
         "build_only": args.build_only,
@@ -417,9 +440,16 @@ def main():
     _require_exec(tools["llvm_objcopy"], "llvm-objcopy")
     if not args.build_only:
         _require_exec(tools["qemu"], "qemu-system-dadao")
-    if not os.path.isfile(tools["trampoline"]):
-        sys.stderr.write(f"ERROR: trampoline not found: {tools['trampoline']}\n")
-        sys.exit(2)
+        if not os.path.isfile(tools["bootrom"]):
+            sys.stderr.write(
+                f"ERROR: fixed BootROM firmware not found: {tools['bootrom']}\n"
+                "       run 'make build-bootrom' first\n")
+            sys.exit(2)
+    if args.trampoline:
+        sys.stderr.write(
+            "NOTE: --trampoline is deprecated and ignored: the Tiny -bios option "
+            f"takes only the fixed 64 KiB BootROM firmware ({tools['bootrom']}; "
+            "spec/Machine-v5 §6)\n")
     if not os.path.isfile(tools["crt0"]):
         sys.stderr.write(f"ERROR: crt0 stub not found: {tools['crt0']}\n")
         sys.exit(2)
@@ -428,9 +458,11 @@ def main():
         sys.exit(2)
 
     # ISS-373: refuse on an active writer, then hash what we read at both ends.
+    # The fixed firmware is read by every case and is written by
+    # `make build-bootrom` (writer component `bootrom`), so it is guarded too.
     guard = writer_guard.start_guard(
         args, [tools["llc"], tools["llvm_mc"], tools["llvm_objcopy"],
-               tools["qemu"]], label="run_codegen_e2e")
+               tools["qemu"], tools["bootrom"]], label="run_codegen_e2e")
 
     os.makedirs(work_dir, exist_ok=True)
 

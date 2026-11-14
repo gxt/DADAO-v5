@@ -17,7 +17,7 @@
 # RUN: %llvm_objdump --version > /dev/null
 # RUN: %qemu --version > /dev/null
 # RUN: %ld --version > /dev/null
-# RUN: ls %trampoline > /dev/null
+# RUN: ls %bootrom > /dev/null
 # RUN: ls %crt0 > /dev/null
 # RUN: ls %linker_script > /dev/null
 # RUN: ls -d %e2e_dir > /dev/null

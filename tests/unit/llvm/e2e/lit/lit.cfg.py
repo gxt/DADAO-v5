@@ -3,7 +3,7 @@
 # lit configuration for DADAO E2E tests.
 #
 # This config locates llvm-mc/llvm-objcopy/qemu-system-dadao (the install-root
-# host toolchain bin by default) and the ROM trampoline binary.
+# host toolchain bin by default) and the fixed 64 KiB BootROM firmware.
 # When run via `llvm-lit`, config.llvm_tools_dir is set by the site config.
 # When run standalone, set LLVM_TOOLS_DIR environment variable.
 
@@ -87,15 +87,11 @@ shared_dir = os.path.join(root, 'tests', 'shared')
 config.substitutions.append(("%ld", os.path.abspath(os.path.join(tools_dir, "ld.lld"))
                              + " -L " + os.path.join(shared_dir, "linker")))
 
-# Locate trampoline.bin: <repo>/tools/testcases/lib/trampoline.bin
-# (TESTCASES-076t: 旧薄 wrapper 区已删除，共享夹具落在 tests/shared/ 与
-#  tools/testcases/lib/)
-trampoline = os.path.join(root, 'tools', 'testcases', 'lib', 'trampoline.bin')
-config.substitutions.append(("%trampoline", trampoline))
-
 # Locate the fixed 64 KiB Machine-v5-Tiny BootROM firmware produced by
 # `make build-bootrom` (m13-qemu-002): the contract ELF tests boot through the
-# real power -> hmon -> entry chain.
+# real power -> hmon -> entry chain.  It is also the only image the Tiny `-bios`
+# option accepts (spec/Machine-v5 §6; the legacy flat trampoline window is gone,
+# m13-testcases-036).
 bootrom = str(dadao_paths.test_artifacts_dir() / "bootrom" / "tiny"
               / "bootrom_tiny.bin")
 config.substitutions.append(("%bootrom", bootrom))
