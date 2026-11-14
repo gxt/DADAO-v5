@@ -624,3 +624,11 @@
   closed_in: null
   resolved_by: null
   title: "【P1】`check-spec-readonly` 在 master 红：**11/21 册 sha256 与锁不符**（`SimRISC-01/02/07/08/09/10`、`DADAO-11/12/22`、`Toolchain-01`、`Machine-v5`）。成因：这些册的正文在后续任务里被改（浮点写宽/饱和口径、`Toolchain-01` 改中性表述、`DADAO-11/12/22` 修订等），**未在同一变更内重算锁哈希**（`Process-06 §5` 要求同笔更新）。锁的校验因此长期失效：既无法证明只读，也无法发现越权修改。需逐册核对改动是否有用户授权原话，再重算锁并追加注记（属 spec 面收口任务，不可批量刷哈希掩盖无授权改动）。"
+- id: ISS-437
+  scope:
+  - infra
+  - llvm
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`check-musl-freshness` 在 master 红：`toolchain stamp != current clang/ld.lld`、`builtins stamp != current compiler-rt archive`（musl 仍是用旧编译器/旧 builtins 产物构建的）。成因：`m14-llvm-005/006` 重建并安装了新 clang/ld.lld，但未在同一变更内重建 musl。影响：安装根里的 `libc.so` 与当前工具链不自洽，跑批可能掩盖「新编译器编不过 musl」类问题。处置：在无并发写者的窗口重建 musl（`build-musl` + 相应安装）并核对 stamp；本 issue 不属任何单个任务，按构建窗口单独安排。"
