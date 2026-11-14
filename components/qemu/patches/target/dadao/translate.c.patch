@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..4e1070f
+index 0000000..2aa2b64
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,676 @@
+@@ -0,0 +1,699 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -417,6 +417,29 @@ index 0000000..4e1070f
 +        tcg_gen_st_i64(old, tcg_env, offsetof(CPUDADAOState, rf[0]));
 +    } else {
 +        tcg_gen_st_i64(val, tcg_env, offsetof(CPUDADAOState, rf[n]));
++    }
++}
++
++/* Store the low 32 bits of val into rf[n] and keep the high 32 bits unchanged.
++ * tetra-width destinations use this: ld.t/ldm.t and every instruction whose
++ * destination is an ft register (SimRISC-01 §4 note, SimRISC-07 §1.3 复制,
++ * contract-fp §1).  The fo copy (fo2fo) and the cross-group copies
++ * (rd2rf/rf2rd) stay 64-bit and keep using store_rf().
++ * For rf0 the low half still goes through the FCSR write mask, so only [4:0]
++ * can change ([33:32] is outside the 32-bit write width and keeps its value). */
++static void store_rf_tetra(int n, TCGv_i64 val)
++{
++    TCGv_i64 low = tcg_temp_new_i64();
++
++    tcg_gen_andi_i64(low, val, 0xFFFFFFFFULL);
++    if (n == 0) {
++        store_rf(0, low);
++    } else {
++        TCGv_i64 old = tcg_temp_new_i64();
++        tcg_gen_ld_i64(old, tcg_env, offsetof(CPUDADAOState, rf[n]));
++        tcg_gen_andi_i64(old, old, ~0xFFFFFFFFULL);
++        tcg_gen_or_i64(old, old, low);
++        tcg_gen_st_i64(old, tcg_env, offsetof(CPUDADAOState, rf[n]));
 +    }
 +}
 +

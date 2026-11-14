@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..d87902c
+index 0000000..b764637
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,1173 @@
+@@ -0,0 +1,1236 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
@@ -32,9 +32,21 @@ index 0000000..d87902c
 + *       fma     (2): ftfma/fofma (softfloat muladd, single rounding)
 + *
 + * rf0 is the FCSR: reads expose the full 64 bits; every write (octa or tetra
-+ * destination) goes through store_rf(), which applies RF0_WRITE_MASK, so only
-+ * [33:32] and [4:0] can change and the read-only qNaN/SBZ fields keep their
-+ * value.
++ * destination) goes through store_rf()/store_rf_tetra(), which applies
++ * RF0_WRITE_MASK, so only [33:32] and [4:0] can change and the read-only
++ * qNaN/SBZ fields keep their value.
++ *
++ * Writing width (user ruling 2026-11-14; SimRISC-01 §4 note, SimRISC-07 §1.3
++ * 复制, contract-fp §1):
++ *   - ld.t/ldm.t write only rf[idx][31:0] (no sign extension, no zero fill);
++ *   - every instruction whose destination is an ft register writes only the
++ *     low 32 bits; the high half keeps its value (store_rf_tetra()).  This
++ *     includes the ft2ft copy;
++ *   - fo2fo (fo copy) and the cross-group copies rd2rf/rf2rd keep a 64-bit
++ *     binary move (store_rf()); cs.*-rf selects one of two rf registers and
++ *     stays 64-bit as well;
++ *   - ftsgnj/ftsgnn are ft-destination narrow writes (low 32 bits); the fo
++ *     forms fosgnj/fosgnn write all 64 bits.
 + */
 +
 +/* ── FP legality helpers (translate-time ILLI, ADR-0004 0x88) ─────────── */
@@ -112,9 +124,12 @@ index 0000000..d87902c
 + * .tao/contracts/contract-fp.md §7/§8/§9.
 + *
 + * ft is a 32-bit format held in the low half of the 64-bit rf register.
-+ * Per the QEMU-034t/035t agreed convention, sign injection operates on the
-+ * full 64-bit rf register (only the format sign bit is replaced, all other
-+ * bits are preserved), and rd results are written as full 64-bit integers.
++ * Sign injection takes every bit of rfHC except the format sign bit (ft: bit
++ * 31, fo: bit 63) and combines rfHD's sign bit of the same format.  The ft
++ * forms (ftsgnj/ftsgnn) are ft-destination narrow writes: low 32 bits only,
++ * high half keeps its value; the fo forms (fosgnj/fosgnn) write all 64 bits
++ * (SimRISC-07 §3, user ruling 2026-11-14; contract-fp §1).
++ * rd results (classify/compare) are full 64-bit integers.
 + */
 +
 +/* Exactly-0/1 boolean helpers (TCG values are 0 or 1). */
@@ -155,7 +170,7 @@ index 0000000..d87902c
 + *   result = (rfHC & ~signmask) | ((rfHD & signmask) ^ (invert ? signmask : 0))
 + * rfHD == rf0 ⇒ sign 0 ⇒ abs(); rfHC == rfHD ⇒ copy/negate.  No special
 + * cases are needed, matching SimRISC-07 §浮点符号位操作指令. */
-+static void gen_fp_sign(arg_misc *a, int signpos, bool invert)
++static void gen_fp_sign(arg_misc *a, int signpos, bool invert, bool narrow)
 +{
 +    const uint64_t signmask = 1ULL << signpos;
 +    TCGv_i64 hc = load_rf(a->hc);
@@ -169,7 +184,14 @@ index 0000000..d87902c
 +        tcg_gen_xori_i64(si, si, signmask);
 +    }
 +    tcg_gen_or_i64(res, res, si);
-+    store_rf(a->hb, res);
++    /* ft (ftsgnj/ftsgnn) is an ft-destination narrow write: low 32 bits only,
++     * the destination high half keeps its value.  fo (fosgnj/fosgnn) stays a
++     * full 64-bit write (SimRISC-07 §3 + user ruling 2026-11-14). */
++    if (narrow) {
++        store_rf_tetra(a->hb, res);
++    } else {
++        store_rf(a->hb, res);
++    }
 +}
 +
 +/* True (1) iff v is a NaN (exp all ones and mantissa non-zero). */
@@ -354,11 +376,12 @@ index 0000000..d87902c
 +{
 +    TCGv_i64 ea = gen_ea_rrii(ctx, a->hb, a->hc, a->hd);
 +    TCGv_i64 val = tcg_temp_new_i64();
-+    tcg_gen_qemu_ld_i64(val, ea, ctx->memidx, MO_BESL | MO_ALIGN_4);
-+    /* tetra is sign-extended to 64 bits (MO_BESL, as in chipyard), and rf0 is
-+     * written through the FCSR mask: [63:51]/[31:22] stay read-only, only
-+     * [33:32]/[4:0] take the written value (SimRISC-00 §2.3.1). */
-+    store_rf(a->ha, val);
++    /* Unsigned 32-bit load: only rf[31:0] is written, the high half keeps its
++     * value (no sign extension, no zero fill; SimRISC-01 §4 note,
++     * contract-fp §1).  For rf0 the FCSR write mask still limits the result to
++     * [4:0] (SimRISC-00 §2.3.1). */
++    tcg_gen_qemu_ld_i64(val, ea, ctx->memidx, MO_BEUL | MO_ALIGN_4);
++    store_rf_tetra(a->ha, val);
 +    return true;
 +}
 +
@@ -400,8 +423,9 @@ index 0000000..d87902c
 +        tcg_gen_addi_i64(ea, base, i * 4);
 +        tcg_gen_andi_i64(ea, ea, 0x0000FFFFFFFFFFFFULL);
 +        TCGv_i64 val = tcg_temp_new_i64();
-+        tcg_gen_qemu_ld_i64(val, ea, ctx->memidx, MO_BESL | MO_ALIGN_4);
-+        store_rf(a->ha + i, val);
++        /* Unsigned 32-bit element: low half only, high half keeps its value. */
++        tcg_gen_qemu_ld_i64(val, ea, ctx->memidx, MO_BEUL | MO_ALIGN_4);
++        store_rf_tetra(a->ha + i, val);
 +    }
 +    return true;
 +}
@@ -659,11 +683,13 @@ index 0000000..d87902c
 +}
 +
 +/* convert_ff: destination rf (a->hb), source rf (a->hc). `move` selects the
-+ * same-format pure copy (ft2ft/fo2fo), which keeps the 1..63 element count
-+ * (ADR-0050 D4).  The two real conversions are single-register forms:
-+ * `ft2fo` is exact (SBZ) and `fo2ft` carries a one-hot direction. */
++ * same-format copy: ft2ft (move_ft) copies only the low 32 bits (the high half
++ * of the destination keeps its value), fo2fo is a 64-bit binary move.  Both
++ * keep the 1..63 element count (ADR-0050 D4).  The two real conversions are
++ * single-register forms: `ft2fo` is exact (SBZ) and `fo2ft` carries a one-hot
++ * direction. */
 +static bool gen_convert_ff(DisasContext *ctx, arg_misc *a,
-+                           uint32_t kind, bool move)
++                           uint32_t kind, bool move, bool move_ft)
 +{
 +    if (!fp_check_dst_rf0(ctx, a->hb)) {
 +        return true;
@@ -680,7 +706,11 @@ index 0000000..d87902c
 +        }
 +        for (int i = 0; i < a->hd; i++) {
 +            TCGv_i64 src = load_rf(a->hc + i);
-+            store_rf(a->hb + i, src);
++            if (move_ft) {
++                store_rf_tetra(a->hb + i, src);
++            } else {
++                store_rf(a->hb + i, src);
++            }
 +        }
 +        return true;
 +    }
@@ -695,7 +725,13 @@ index 0000000..d87902c
 +    TCGv_i64 res = tcg_temp_new_i64();
 +    gen_helper_fp_cvt_ff(res, tcg_env, src,
 +                         tcg_constant_i32(conv_packed(kind, a->hd)));
-+    store_rf(a->hb, res);
++    /* ft2fo produces an fo result (full 64 bits); fo2ft produces an ft result
++     * (low 32 bits only). */
++    if (kind == FP_FF_FT2FO) {
++        store_rf(a->hb, res);
++    } else {
++        store_rf_tetra(a->hb, res);
++    }
 +    return true;
 +}
 +
@@ -736,28 +772,34 @@ index 0000000..d87902c
 +    TCGv_i64 res = tcg_temp_new_i64();
 +    gen_helper_fp_cvt_i2f(res, tcg_env, src,
 +                          tcg_constant_i32(conv_packed(kind, a->hd)));
-+    store_rf(a->hb, res);
++    /* The four *2ft conversions produce an ft result (low 32 bits only); the
++     * four *2fo conversions produce fo (full 64 bits). */
++    if (kind < FP_I2F_IT2FO) {
++        store_rf_tetra(a->hb, res);
++    } else {
++        store_rf(a->hb, res);
++    }
 +    return true;
 +}
 +
 +static bool trans_ft2ft_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    return gen_convert_ff(ctx, a, 0, true);
++    return gen_convert_ff(ctx, a, 0, true, true);
 +}
 +
 +static bool trans_ft2fo_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    return gen_convert_ff(ctx, a, FP_FF_FT2FO, false);
++    return gen_convert_ff(ctx, a, FP_FF_FT2FO, false, false);
 +}
 +
 +static bool trans_fo2ft_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    return gen_convert_ff(ctx, a, FP_FF_FO2FT, false);
++    return gen_convert_ff(ctx, a, FP_FF_FO2FT, false, false);
 +}
 +
 +static bool trans_fo2fo_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    return gen_convert_ff(ctx, a, 0, true);
++    return gen_convert_ff(ctx, a, 0, true, false);
 +}
 +
 +/* ── QEMU-037t: arithmetic (S2D1) + root (S1D1) families ─────────────── */
@@ -791,7 +833,12 @@ index 0000000..d87902c
 +    TCGv_i64 src2 = is_sclb ? load_rd(a->hd) : load_rf(a->hd);
 +    TCGv_i64 res = tcg_temp_new_i64();
 +    gen_helper_fp_arith(res, tcg_env, src1, src2, tcg_constant_i32(kind));
-+    store_rf(a->hb, res);
++    /* ft results write the low 32 bits only (SimRISC-07 §1.3 复制). */
++    if (kind < FP_AR_FOADD) {
++        store_rf_tetra(a->hb, res);
++    } else {
++        store_rf(a->hb, res);
++    }
 +    return true;
 +}
 +
@@ -810,7 +857,11 @@ index 0000000..d87902c
 +    TCGv_i64 src = load_rf(a->hc);
 +    TCGv_i64 res = tcg_temp_new_i64();
 +    gen_helper_fp_root(res, tcg_env, src, tcg_constant_i32(isdbl ? 1 : 0));
-+    store_rf(a->hb, res);
++    if (isdbl) {
++        store_rf(a->hb, res);
++    } else {
++        store_rf_tetra(a->hb, res);
++    }
 +    return true;
 +}
 +
@@ -974,7 +1025,7 @@ index 0000000..d87902c
 +    if (!fp_check_dst_rf0(ctx, a->hb)) {
 +        return true;
 +    }
-+    gen_fp_sign(a, 31, false);
++    gen_fp_sign(a, 31, false, true);
 +    return true;
 +}
 +
@@ -983,7 +1034,7 @@ index 0000000..d87902c
 +    if (!fp_check_dst_rf0(ctx, a->hb)) {
 +        return true;
 +    }
-+    gen_fp_sign(a, 31, true);
++    gen_fp_sign(a, 31, true, true);
 +    return true;
 +}
 +
@@ -992,7 +1043,7 @@ index 0000000..d87902c
 +    if (!fp_check_dst_rf0(ctx, a->hb)) {
 +        return true;
 +    }
-+    gen_fp_sign(a, 63, false);
++    gen_fp_sign(a, 63, false, false);
 +    return true;
 +}
 +
@@ -1001,7 +1052,7 @@ index 0000000..d87902c
 +    if (!fp_check_dst_rf0(ctx, a->hb)) {
 +        return true;
 +    }
-+    gen_fp_sign(a, 63, true);
++    gen_fp_sign(a, 63, true, false);
 +    return true;
 +}
 +
@@ -1077,7 +1128,11 @@ index 0000000..d87902c
 +    TCGv_i64 res = tcg_temp_new_i64();
 +    gen_helper_fp_round_to_int(res, tcg_env, src, tcg_constant_i32(code),
 +                               tcg_constant_i32(isdbl));
-+    store_rf(a->hb, res);
++    if (isdbl) {
++        store_rf(a->hb, res);
++    } else {
++        store_rf_tetra(a->hb, res);
++    }
 +    return true;
 +}
 +
@@ -1120,7 +1175,11 @@ index 0000000..d87902c
 +    TCGv_i64 res = tcg_temp_new_i64();
 +    gen_helper_fp_minmax(res, tcg_env, src1, src2,
 +                         tcg_constant_i32(isdbl), tcg_constant_i32(ismax));
-+    store_rf(a->hb, res);
++    if (isdbl) {
++        store_rf(a->hb, res);
++    } else {
++        store_rf_tetra(a->hb, res);
++    }
 +    return true;
 +}
 +
@@ -1164,7 +1223,11 @@ index 0000000..d87902c
 +
 +    gen_helper_fp_muladd(res, tcg_env, src1, src2, src3,
 +                         tcg_constant_i32(isdbl));
-+    store_rf(a->ha, res);
++    if (isdbl) {
++        store_rf(a->ha, res);
++    } else {
++        store_rf_tetra(a->ha, res);
++    }
 +    return true;
 +}
 +

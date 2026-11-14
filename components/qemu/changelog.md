@@ -350,6 +350,10 @@
   - 摘要：**`ra0` 写口丢弃 SBZ `[63:54]`（`ISS-426` 的 QEMU 侧）**。`target/dadao/helper.c` 的 `helper_ra_store()`：逻辑寄存器 0（`ra0`，物理 0）的写入按 `RA0_WRITE_MASK = 0x003FFFFFFFFFFFFF` 掩码，只落 `RACNT[53:48]`/`MRPTR[47:0]`，`[63:54]` 写无效、读回恒 0（`spec/SimRISC-00 §2.4`）；`ra1`–`ra63` 的 `[63:48]` 是 16 位递归计数，不掩码。`helper_ras_push`/`helper_ras_pop` 的 RACNT/MRPTR 头更新路径未改动（逐字节不变）。补丁 1 份改。
   - 执行者：engineer
 
+- **2026-11-14 `m13-qemu-013`**
+  - 摘要：**单精写入宽度：`ld.t`/`ldm.t` 不扩展 + 以 ft 寄存器为目的的指令只写低 32 位**（用户 2026-11-14 裁定；`spec/SimRISC-01 §4` 注、`SimRISC-07 §1.3`、`contract-fp §1`）。`target/dadao/translate.c` 新增 `store_rf_tetra()`（低 32 位合并、高 32 位保持；rf0 仍经 `RF0_WRITE_MASK`，只有 `[4:0]` 生效）；`target/dadao/insn_trans/trans_fp.c.inc`：`ld.t`/`ldm.t` 改 `MO_BEUL` 无符号 32 位装载 + tetra 写；ft 算术（`ftadd/ftsub/ftmul/ftdiv/ftrem/ftsclb`）、`ftroot`、`ftrnd`、`ftmin`/`ftmax`、`ftfma`、`fo2ft`、`it2ft/io2ft/ut2ft/uo2ft`、`ft2ft`（含连续搬移）、`ftsgnj`/`ftsgnn`（ft 窄写，追加裁定 `9cff1daa`）全部改 `store_rf_tetra()`；`fo2fo`、跨组复制 `rd2rf`/`rf2rd`、`ld.o`/`ldm.o`、`st.*`、`cs.*-rf` 与 `fosgnj`/`fosgnn`（fo，整 64 位）仍 64 位。`ld.t rf0 ← 0xFFFF_FFFF` ⇒ `0x7FF8_0000_7FC0_001F`（原 `0x7FF8_0003_7FC0_001F`）；`ft2ft` 目的高半保持写前值。补丁 2 份改。
+  - 执行者：engineer
+
 ## M14
 
 - **2026-11-14 `m14-qemu-001`**
