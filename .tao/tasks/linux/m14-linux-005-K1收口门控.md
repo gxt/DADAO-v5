@@ -46,6 +46,22 @@ K0 已有 `make check-linux-k0`（119 项、10 路注入、入 L2，`m14-infra-0
 4. 只改 `tools/linux/**`、`Makefile`（目标 + L2 接线）、`docs/Process-07`、任务书；**不改** `spec/`、`contracts/`、`components/**`。
 5. 只在 `qemu-system vast` 上验收；Vast 固件/镜像用共享产物，不重建 QEMU。
 
+## 追加范围（`m14-linux-004` 复核 finding，2026-11-15）
+
+复核 Accepted，但留了两条**必须在本任务内闭合**的 finding（不阻断 004 合入，但属于 K1 收口的一部分）：
+
+1. **F1（真缺陷，需改代码）**：`components/linux/.../arch/dadao/include/asm/ptw.h` 的 `dadao_tlb_invalidate_all()` 写 `0x2`，注释称「drop every entry」，但按 `spec/DADAO-12 §4.5`：
+   - `[1:0]=10` invalid、`[3:2]=00` all、`bit4=ASID_ANY`；
+   - **`ASID_ANY=0` 只处理 `G=0` 且 ASID 匹配的条目、不碰 `G` 条目**；`ASID_ANY=1` 才包含 `G=1`。
+   - 内核 `_PAGE_KERNEL` 含 `G=1` ⇒ 写 `0x2` **不会失效内核映射**，与注释矛盾。K1 实测无害（切换前只可能缓存 index 4096 且新旧同映射），但接口语义是错的。
+   - **处置（二选一，必须给 spec 依据）**：① 写值改 `0x12`（invalid + all + ASID_ANY），注释保持「drop every entry」；② 保留 `0x2` 但把注释/函数名收窄为「drop non-global entries of the current ASID」。
+   - 无论选哪个，都要用 `m14-linux-004` 的探针复跑证明**切换后仍能执行**（`post ptbr` / `done` / `start_kernel` 俱在），并在完成区贴 spec 原文依据。
+2. **F2（文档数字）**：`components/linux/changelog.md` 的 004 条目、探针 `run.sh` 注释、probe docstring 三处写「三路注入」，实为 **4 路**（完成区 `4/4` 是对的）⇒ 改为 4 路。
+
+**范围扩展**：本任务因此允许改 `components/linux/**`（仅上述 ptw.h 一处 + changelog 一条）与 `tools/linux/k1_pt_probe.py` 的注释/docstring；改后须 `make_patch.py linux` 重导出、`check-patch-tree` **linux 段 0 问题**、`--source-state` linux OK、`check-component-changelog` rc=0。
+
+**附加验收**：`m14-linux-004` 的一键证据脚本在改后仍 **58/58 PASS rc=0**（含 `--selfcheck` 15/15、`--inject` 4 路），否则说明 F1 的改动破坏了 K1。
+
 ## 待裁定
 
 （实现中写）
