@@ -78,7 +78,7 @@ OPC-wyde 子表中的 `shl.w`/`rol.w`/`shr.uw`/`shr.sw` 提供 16 位移位/循�
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
-| `shl.w`/`rol.w`/`shr.sw`/`shr.uw` | 15 | 0-15 | hd[3:0]，hd[5:4] 应为零 |
+| `shl.w`/`rol.w`/`shr.sw`/`shr.uw` | 15 | 0-15 | `orrr`：`rdHD[3:0]`（高位忽略）；`orri`：`immu6[3:0]` |
 
 运算公式：
 ```
@@ -88,7 +88,7 @@ shr.uw:  rdHB[15:0]  = (rdHC[15:0] >> shamt),  rdHB[63:16] = 0
 shr.sw:  rdHB[15:0]  = (rdHC[15:0] >> shamt) with sign(15),  rdHB[63:16] = sign_extend(rdHC[15])
 ```
 
-`shamt > N` 触发 ILLI。
+**立即数形式** `immu6 > N` 触发 ILLI；**寄存器形式**取 `rdHD[N:0]` 的低位（高位忽略，不抛 ILLI）。
 
 **注**：`ext.uw`/`ext.sw`（16位符号/零扩展）已从指令集中删除。64位扩展见 SimRISC-04。
 

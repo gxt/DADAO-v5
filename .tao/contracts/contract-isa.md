@@ -628,7 +628,7 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 
 #### §6.4.1 64 位移位（orrr / orri 格式）— 值语义
 
-`shl` 为左移，`shr` 为右移，`rol` 为逻辑循环左移；`shr` 的后缀 `u` 表示逻辑移位（零扩展），`s` 表示算术移位（符号扩展）；`shl`/`rol` **符号无关**，不带 `u`/`s` 后缀（`ADR-0032 D3`）。移位量（shamt）取 `rdhd` 的低位（orrr）或 `immu6` 的低位（orri）。[SimRISC-04 §Bit manipulating：位操作指令]
+`shl` 为左移，`shr` 为右移，`rol` 为逻辑循环左移；`shr` 的后缀 `u` 表示逻辑移位（零扩展），`s` 表示算术移位（符号扩展）；`shl`/`rol` **符号无关**，不带 `u`/`s` 后缀（`ADR-0032 D3`）。移位量（shamt）取 `rdhd` 的低位（`orrr`，高位忽略、不抛 ILLI）或 `immu6` 的低位（`orri`，`immu6 > N` ⇒ ILLI）。[SimRISC-04 §Bit manipulating：位操作指令]
 
 ```
 shl.o: rdhb[N:0]   = (rdhc[N:0] << shamt)                // 左移，低位补零
@@ -645,7 +645,7 @@ rol.o: rdhb[N:0]   = rol(rdhc[N:0], shamt)               // 逻辑循环左移�
 | `shl.o`/`rol.o`/`shr.uo`/`shr.so` | 63 | 0–63 | `hd[5:0]` 全有效 |
 [SimRISC-04 §Bit manipulating：位操作指令]
 
-异常条件：`shamt > N` → **ILLI**。[SimRISC-04 §Bit manipulating：位操作指令]
+异常条件：**`orri` 形式** `immu6 > N` → **ILLI**（`orrr` 形式取低位掩码、不抛 ILLI）。[SimRISC-04 §Bit manipulating：位操作指令]
 
 - 32/16/8 位移位分别见 §10.4.1、§11.4.1、§12.4.1。
 
@@ -988,7 +988,7 @@ shr.st:  rdhb[31:0]  = (rdhc[31:0] >> shamt) with sign(31) // 算术右移，高
          rdhb[63:32] = sign_extend(rdhc[31])                 // 高位符号扩展
 ```
 
-异常条件：`shamt > N` → **ILLI**。[SimRISC-08 §Bit manipulating：位操作指令 — 值语义]
+异常条件：**`orri` 形式** `immu6 > N` → **ILLI**（`orrr` 形式取低位掩码、不抛 ILLI）。[SimRISC-08 §Bit manipulating：位操作指令 — 值语义]
 
 #### §10.4.2 32 位符号/零扩展 — 已删除
 
@@ -1065,7 +1065,7 @@ shr.sw:  rdhb[15:0]  = (rdhc[15:0] >> shamt) with sign(15)
          rdhb[63:16] = sign_extend(rdhc[15])                 // 高位符号扩展
 ```
 
-异常条件：`shamt > N` → **ILLI**。[SimRISC-09 §Bit manipulating：位操作指令 — 值语义]
+异常条件：**`orri` 形式** `immu6 > N` → **ILLI**（`orrr` 形式取低位掩码、不抛 ILLI）。[SimRISC-09 §Bit manipulating：位操作指令 — 值语义]
 
 #### §11.4.2 16 位符号/零扩展 — 已删除
 
@@ -1265,7 +1265,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 - `ld.o`/`ldm.o`（RB）`rbha` 为 `rb0`、`immu6 = 0`、或 `rbha + immu6 > 64`。`st.o`/`stm.o`（RB）`rbha` 为 `rb0` 允许（见 ADR-0015 D1/D3）。[SimRISC-01 §存取RB寄存器]
 - `ldm.o`/`stm.o`（RA）`immu6 = 0`、或 `raha + immu6 > 64`（超出 ra63）。[SimRISC-01 §存取RA寄存器]
 - 块赋值（`ra2rd`/`rd2ra`）`immu6 = 0`、任一起始寄存器 + immu6 > 64、或 `ra2rd` 目的 `rdhb` 为 `rd0`。[SimRISC-02 §寄存器组之间块赋值][SimRISC-00 §数据寄存器]
-- 移位量 `shamt > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
+- 移位量：`orri` 形式 `immu6 > N`；`orrr` 形式只取低位（不抛 ILLI）。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - `rol.{t,w,b}` 的立即数旋转量 `immu6 ≥ W`（orri 形态）；`rol.o` 的 `immu6` 为 6 位，无越界值。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - 扩展起始位 `hd > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 中 `rdha` 与 `rdhb` 同时为 `rd0`，或为同一非 `rd0` 寄存器。[SimRISC-04 §加减操作][SimRISC-04 §乘除操作]

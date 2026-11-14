@@ -78,7 +78,7 @@ OPC-byte 子表中的 `shl.b`/`rol.b`/`shr.ub`/`shr.sb` 提供 8 位移位/循�
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
-| `shl.b`/`rol.b`/`shr.sb`/`shr.ub` | 7 | 0-7 | hd[2:0]，hd[5:3] 应为零 |
+| `shl.b`/`rol.b`/`shr.sb`/`shr.ub` | 7 | 0-7 | `orrr`：`rdHD[2:0]`（高位忽略）；`orri`：`immu6[2:0]` |
 
 运算公式：
 ```
@@ -88,7 +88,7 @@ shr.ub:  rdHB[7:0]   = (rdHC[7:0] >> shamt),   rdHB[63:8]  = 0
 shr.sb:  rdHB[7:0]   = (rdHC[7:0] >> shamt) with sign(7),  rdHB[63:8] = sign_extend(rdHC[7])
 ```
 
-`shamt > N` 触发 ILLI。
+**立即数形式** `immu6 > N` 触发 ILLI；**寄存器形式**取 `rdHD[N:0]` 的低位（高位忽略，不抛 ILLI）。
 
 **注**：`ext.ub`/`ext.sb`（8位符号/零扩展）已从指令集中删除。64位扩展见 SimRISC-04。
 

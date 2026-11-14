@@ -78,7 +78,7 @@ OPC-tetra 子表中的 `shl.t`/`rol.t`/`shr.ut`/`shr.st` 提供 32 位移位/循
 
 | 指令 | N | 有效 shamt 范围 | shamt 位域 |
 |------|---|----------------|-----------|
-| `shl.t`/`rol.t`/`shr.st`/`shr.ut` | 31 | 0-31 | hd[4:0]，hd[5] 应为零 |
+| `shl.t`/`rol.t`/`shr.st`/`shr.ut` | 31 | 0-31 | `orrr`：`rdHD[4:0]`（高位忽略）；`orri`：`immu6[4:0]` |
 
 运算公式：
 ```
@@ -88,7 +88,7 @@ shr.ut:  rdHB[31:0]  = (rdHC[31:0] >> shamt),  rdHB[63:32] = 0
 shr.st:  rdHB[31:0]  = (rdHC[31:0] >> shamt) with sign(31),  rdHB[63:32] = sign_extend(rdHC[31])
 ```
 
-`shamt > N` 触发 ILLI。
+**立即数形式** `immu6 > N` 触发 ILLI；**寄存器形式**取 `rdHD[N:0]` 的低位（高位忽略，不抛 ILLI）。
 
 **注**：`ext.ut`/`ext.st`（32位符号/零扩展）已从指令集中删除。64位扩展见 SimRISC-04。
 
