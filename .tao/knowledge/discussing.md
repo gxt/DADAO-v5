@@ -81,24 +81,6 @@
 - **3600s 长尾结论（2026-11-10，`m13-testcases-002` 全量 dynamic）**：93 例中 gem5 **78 blocked / 14 pass / 1 fail**，比值 `n=12`（min 172、median 289、max 1942）；
   qemu 93/93 pass。⇒ dynamic 有一小部分可测、static 全不可测。`neural` 为 gem5 侧 oracle mismatch（`ISS-362`）。
 
----
-
-# M14：Linux bring-up
-
-> 2026-11-01 用户裁定：Linux 开发延至 M12 或后续；**现定为 M14**（三线分开进行）。此前方向沿用。
-
-## 阶段与任务量（K0 后校准）
-
-- K0 基线与契约：5–7 个任务（补丁组件、工具链缺口、启动 ABI、syscall/errno/TLS、initramfs/semihosting、门控）。
-- K1 启动与控制台：4–6 个。
-- K2 异常与时间：5–7 个。
-- K3 内存与 TLB：6–8 个（含 TLB 规范定义）。
-- K4 进程与上下文：5–7 个。
-- K5 用户态闭环：5–7 个。
-- 合计约 30–42 个任务；收口只到 K5，busybox/UART/cache/LLC/gem5 等不阻塞。
-
----
-
 ## 待定：运行平台 / 机型 / 用例适用范围 的对应关系（用户 2026-11-14）
 
 **要求**：重新梳理并确定「运行平台、机器型号、测试用例」三者的对应关系（M13 内解决）。
@@ -129,6 +111,24 @@
 6. chipyard 只有 Tiny ⇒ 「三平台一致」的判据范围怎么表述（哪类用例要求三平台、哪类只要求两平台）？
 
 **影响面**：`tests/inst.yaml`（264+ 条 `platforms`）、`machine-profiles.yaml`、`run_asm_suite`/`semantics_gate`/各 runner、`tests/README.md`/`inventory.md`、`Process-07` 与验收口径；`043`/`044`/`045` 正在改这些面，**须在其收口后一次性统一**，避免三处反复改。
+
+---
+
+# M14：Linux bring-up
+
+> 2026-11-01 用户裁定：Linux 开发延至 M12 或后续；**现定为 M14**（三线分开进行）。此前方向沿用。
+
+## 阶段与任务量（K0 后校准）
+
+- K0 基线与契约：5–7 个任务（补丁组件、工具链缺口、启动 ABI、syscall/errno/TLS、initramfs/semihosting、门控）。
+- K1 启动与控制台：4–6 个。
+- K2 异常与时间：5–7 个。
+- K3 内存与 TLB：6–8 个（含 TLB 规范定义）。
+- K4 进程与上下文：5–7 个。
+- K5 用户态闭环：5–7 个。
+- 合计约 30–42 个任务；收口只到 K5，busybox/UART/cache/LLC/gem5 等不阻塞。
+
+---
 
 # 待定：机器/版本命名（用户 2026-11-14）
 
