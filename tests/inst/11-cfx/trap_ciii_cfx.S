@@ -20,8 +20,8 @@
 @@   ② `trap cfx_power`（cfx63，`immu18 < 0x3FF00`）——spec 判「进 power 的异常向量」，
 @@   实测 QEMU/gem5 进入（把 power 的 `hypv_excp_vector` 改到落点即可观测），但
 @@   chipyard 报 ILLI（与 spec 不符）；且不改向量时该向量 = BootROM 复位入口 ⇒ 表现为重启。
-@@   三方不一致 ⇒ 不构造该维度的用例；③ semihosting 服务号按规范取 rd16、编码层同时在
-@@   `immu18` 低 8 位携带（`0x3FF00 + op`），本文件令两者相同，不构造二者不一致的用例
+@@   三方不一致 ⇒ 不构造该维度的用例；③ semihosting 服务号取 `rd16`（`immu18[17:8] == 0x3FF` 只是
+@@   标记、`immu18[7:0]` 被忽略）；本文件在 immediate 里保留 `0x10` 只为沿用既有编码字节，**不**表示低 8 位承载服务号
 
 	.include "tests/inst/macros/inst_test.inc"
 
@@ -46,7 +46,7 @@ __tci_\@:
 __case1:
 	LOAD_ADDR rb21, (ENTRY + 0x11B0)        @@ 误入向量 ⇒ 落这里（判红）
 	st.o	rb21, [rb20, 0xF8]
-	set.zw	rd16, wp0, 0x10               @@ 服务号 = SYS_CLOCK（rd16 与 immu18 低 8 位一致）
+	set.zw	rd16, wp0, 0x10               @@ 服务号 = SYS_CLOCK（`rd16`；immu18 低 8 位被忽略）
 	trap	cfx_hmon, 0x3FF10
 	__LI	rd5, 0x5A5A5A5A5A5A5A5A
 	__CHECK_RD   1, rd5, 0x5A5A5A5A5A5A5A5A   @@ 到达这里 = semihosting 未进向量
