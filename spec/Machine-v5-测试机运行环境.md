@@ -1,6 +1,6 @@
 # Machine-v5：测试机运行环境（v5 自定）
 
-> **状态**：当前（0.4.7-rc，未发布；0.4.0 发布 2026-11-08，0.3.1 生效于 2026-10-16〔用户裁定：正文术语 `PC` → `IP`〕；完整版本记录见文末「附录：版本与变更记录」）
+> **状态**：当前（0.4.7-rc，未发布；0.4.0 发布 2026-11-08，0.3.1 生效于 2026-10-16：正文术语 `PC` → `IP`；完整版本记录见文末「附录：版本与变更记录」）
 >
 > **版本与变更记录细则**：版本号 `x.y.z`——**`x=0` 表示尚未正式发布；正式发布后 `x≥1`**；**大改动 `y+1`、有影响的小改 `z+1`**；当前版本见上行「状态」。
 >
@@ -63,7 +63,7 @@ v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位�
   - **reserved cfx 集（全册唯一定义）**：以 `DADAO-12 §1` 的 cfxha 编号表为**唯一真源**——**表中 `cfxname = reserved` 的编号即保留 cfx**（含 `per-task` 段中尚未分配的编号）；已分配编号及其 `cfxname` 同样以该表为准。本册**不重复列举编号**，以免与上游漂移。[DADAO-12 §1. 运行模式与核芯功能扩展][DADAO-12 §2.1 核内地址空间]
   - 其余未映射地址（Vast 的 `power` 段 BootROM 之外）⇒ 当前运行模式 monitor 的 `CFXMEM`。
 - **取指路径同等对待**：越界**取指**与越界**数据访问**同属非法核内地址访问，**均须报异常**，不得只覆盖数据访问路径；不得静默继续或静默丢弃。
-- 两 profile 的几何与上述路由由 `QEMU-079t`（Tiny）/`QEMU-080t`（Vast）落地，并以 `check-interface` 断言固化；旧「唯一 RAM 段 + PA 别名 + 固定容量」口径随本版 profile 划分作废。
+- 两 profile 的几何与上述路由以机器接口断言固化；旧「唯一 RAM 段 + PA 别名 + 固定容量」口径随本版 profile 划分作废。
 
 ---
 
@@ -237,7 +237,7 @@ semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 
 
 - semihosting **`SYS_EXIT`（`0x18`）/`SYS_EXIT_EXTENDED`（`0x20`）取代 exit port** 作为停机协议。
 - 常规应用退出使用原因码 `ADP_Stopped_ApplicationExit`（`0x20026`）；`SYS_EXIT_EXTENDED` 的第二个字段为退出状态码。退出码须忠实传播到 host `$?`，沿用确定性 halt 机制（写入后即锁定退出码）。
-- **迁移范围 = 全部**：M1–M4 所有依赖 exit port 的向量/harness 已迁 `SYS_EXIT`（`TESTCASES-034t`）；exit-port MMIO 设备已于 C1 step2（`QEMU-053t`）删除——机器模型不再保留 exit port。
+- **迁移范围 = 全部**：M1–M4 所有依赖 exit port 的向量/harness 已迁 `SYS_EXIT`；exit-port MMIO 设备已于 C1 step2 删除——机器模型不再保留 exit port。
 
 ### 5.6 已知风险（`SYS_SYSTEM`）
 
@@ -431,14 +431,14 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 
 #### 6.3.5 不定义范围
 
-本节**不定义**：TLB 填充/失效/ASID、cache/LLC、设备树（DTB）、UART、多核启动与 SMP 停核协议、MMU 关运行（`ptw_enable = 0` 时内核无法从 RAM 取指/访存，见本节开头）、用户 VA 空间 `[0, 2 TiB)` 的布局与用户态映射、`[3 TiB, 4 TiB)` 的用途、内核窗口内固定分区之外（`+512 MiB` 以上）的映射扩展；这些属后续里程碑，本节不引入。[spec-decision]
+本节**不定义**：TLB 填充/失效/ASID、cache/LLC、设备树（DTB）、UART、多核启动与 SMP 停核协议、MMU 关运行（`ptw_enable = 0` 时内核无法从 RAM 取指/访存，见本节开头）、用户 VA 空间 `[0, 2 TiB)` 的布局与用户态映射、`[3 TiB, 4 TiB)` 的用途、内核窗口内固定分区之外（`+512 MiB` 以上）的映射扩展；这些本节不引入。[spec-decision]
 
 ---
 
 ## 7. 退出
 
 - v5 测试机的程序停机协议为 semihosting **`SYS_EXIT`/`SYS_EXIT_EXTENDED`**（见 `§5.5`），**取代** exit port。
-- exit-port MMIO 设备已在 C1 step2（`QEMU-053t`）**随旧 RAM 段一并删除**。
+- exit-port MMIO 设备已在 C1 step2 **随旧 RAM 段一并删除**。
 
 ### 7.1 退出码（测试机约定）
 
@@ -506,7 +506,7 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 
 ### 0.4.3（未发布，被 0.4.4-rc 取代）
 
-- Tiny `switch_run_mode` 口径澄清（2026-11-10 用户裁定）：写入被忽略、**寄存器保存值保持 `3`**，读回为保存值（不是「读回恒 3」的常量语义）。
+- Tiny `switch_run_mode` 口径澄清（2026-11-10）：写入被忽略、**寄存器保存值保持 `3`**，读回为保存值（不是「读回恒 3」的常量语义）。
 
 - **reserved cfx 集**：改为引用上游——保留 cfx 即 `DADAO-12 §1` 编号表中 `cfxname = reserved` 的编号（含 `per-task` 段中尚未分配的编号）；本册**不再列举编号**，以免与上游漂移。
 - **`excp_cause_info` 覆盖面**：本册只规定 `CFXMEM`/`ILLI`/`UNDI`/`MALIGN`/`IALIGN` 五类的 `info`；其余原因按 `DADAO-13 §2`，未规定者为 0。

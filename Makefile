@@ -265,7 +265,7 @@ help:
 	@echo "  make check-spec-changelog  Check 21-volume appendix changelog structure (L1; SPEC-134t/INFRA-069t)"
 	@echo "  make check-spec-archive  Check SimRISC per-version archives exist (milestone closure; SPEC-154t/INFRA-109t)"
 	@echo "  make check-spec-archive-verify  Verify archive content sha256 against snapshot provenance (milestone closure; SPEC-154t/INFRA-109t)"
-	@echo "  make check-spec-purity  spec/SimRISC-* must not carry scope/task-id/ADR/ISS/contract refs (L1; SPEC-165t)"
+	@echo "  make check-spec-purity  spec/*.md must not carry task-id/ADR/ISS/.tao/contract refs (SimRISC-* also scope/milestone/v5) (L1; SPEC-165t)"
 	@echo "  make check-spec-cite-targets  Every spec_cite book+section must exist in spec/ (L1; SPEC-165t)"
 	@echo "  make check-asm-list  Check spec embedded assembly table consistency"
 	@echo "  make check-asm-prose  Check prose assembly format gate (strict mode)"
