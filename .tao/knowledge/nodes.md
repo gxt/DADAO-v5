@@ -15,7 +15,7 @@
 | `ics170` | 40 | 125 G | 38 | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
 | `ics180` | 40 | 125 G | 38 | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
 
-- **看板**：`python3 tools/infra/nodetop.py`（单终端 top 式视图：核数/LOAD/MEM/DISK/TEST 进程数/占用任务/TOP；`--once` 出单帧，`--hosts`/`--interval` 可调；纯 `ssh` 传输，行不通就当 `ERR` 报错并保留上次数据）。
+- **看板**：`python3 tools/infra/nodetop.py`（**2×3 分屏**，每节点一栏：核数/LOAD/MEM/DISK/TEST 数/ssh 延迟 + **前 10 个最热进程**；`q` 退出、`p` 暂停、`+/-` 调刷新；`--once` 出单列快照，`--procs`/`--hosts`/`--layout list` 可调；纯 `ssh` 传输，失败标 `ERR` 并保留上次数据）。
 - **并行度（用户 2026-11-14）**：构建一律 **32**；测试 = **全量核 − 2**（本表「测试 `--jobs`」列）。工具默认已按此实现（`Makefile` 的 `JOBS`/`TEST_JOBS`、`run_asm_suite.py`、`picolibc_tests.py`），**不要手写** 8/16/20/32 之类经验值。
 - 核数/内存为 2026-11-14 现场实测（`nproc` + `/proc/meminfo`）；新增或重装节点须重新核并更新本表。
 

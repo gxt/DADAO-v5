@@ -1,33 +1,31 @@
 #!/usr/bin/env python3
-"""nodetop — one-terminal, top-like view of the build/test nodes.
+"""nodetop — tmux-like 2×3 pane view of the six build/test nodes.
 
-Per node it shows: cores, 1-minute load (as a bar and percent), memory
-available, disk use, how many test processes are running, which task owns
-them, and the hottest process.  Refreshes in place; ``q`` / Ctrl-C quits.
+Each pane is one node: a header line (cores, 1-min load, memory, disk, how many
+test processes are running, ssh latency) followed by the **hottest processes**
+(default 10).  A node that times out shows ``ERR`` and keeps its last good
+numbers, so one dead node never blanks the grid.
 
 Usage
 -----
-    python3 tools/infra/nodetop.py                 # live, 2 s refresh
-    python3 tools/infra/nodetop.py --interval 5
-    python3 tools/infra/nodetop.py --once          # one snapshot (pipe-friendly)
+    python3 tools/infra/nodetop.py                  # live grid, 2 s refresh, q 退出
+    python3 tools/infra/nodetop.py --procs 12 --interval 3
+    python3 tools/infra/nodetop.py --once           # one plain table (pipe-friendly)
     python3 tools/infra/nodetop.py --hosts ics150,server207
-    python3 tools/infra/nodetop.py --repo /home/ubuntu/DADAO-v5
+    python3 tools/infra/nodetop.py --layout list    # live, one block per node
 
-Transport is plain ``ssh -o BatchMode=yes <host>`` (hosts come from
-``~/.ssh/config``; same assumption as ``tools/infra/remote.py``).  The remote
-side is a short POSIX shell script fed on stdin, so there are no quoting
-games.  A node that is unreachable or slow is reported as ``ERR`` and keeps
-showing its last good numbers plus the error, so one dead node never blanks
-the view.
-
-Exit status: 0 on clean quit (and on ``--once`` when at least one node
-answered), 1 when ``--once`` found no reachable node.
+Keys: ``q`` / ``Q`` / Esc quit, ``p`` pause/resume, ``+``/``-`` change refresh.
+Transport is plain ``ssh -o BatchMode=yes <host>`` (hosts from
+``~/.ssh/config``, same assumption as ``tools/infra/remote.py``); the remote
+side is a short POSIX shell script fed on stdin, so there is no quoting.
 """
 from __future__ import annotations
 
 import argparse
 import concurrent.futures
 import os
+import re
+import select
 import shutil
 import subprocess
 import sys
@@ -37,9 +35,9 @@ DEFAULT_HOSTS = ["ics150", "ics160", "ics170", "ics180", "server207", "server208
 SSH = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=4",
        "-o", "ServerAliveInterval=2", "-o", "ServerAliveCountMax=1"]
 
-# Remote probe: one key=value line each, so values may contain spaces.
+# Remote probe: one key=value per line; process lines are "p=<cpu>\t<name>\t<detail>".
 PROBE = r"""
-repo="$1"
+repo="$1"; n="$2"
 echo "cores=$(nproc 2>/dev/null || echo 0)"
 awk '{print "load1=" $1; print "load5=" $2}' /proc/loadavg 2>/dev/null
 awk '/^MemTotal:/{t=$2} /^MemAvailable:/{a=$2} END{print "mem_total_kb=" t+0; print "mem_avail_kb=" a+0}' /proc/meminfo
@@ -47,8 +45,12 @@ if [ -d "$repo" ]; then
   df -Pk "$repo" 2>/dev/null | awk 'NR==2{print "disk_used_kb=" $3; print "disk_total_kb=" $2}'
 fi
 echo "tests=$(pgrep -c -f 'harness-WumingTinyConfig|qemu-system-dadao|gem5\.opt' 2>/dev/null || echo 0)"
-echo "top=$(ps -eo pcpu=,args= --sort=-pcpu 2>/dev/null | grep -v '[p]s -eo' | head -1 | cut -c1-100)"
-echo "task=$(ps -eo args= 2>/dev/null | grep -v 'grep -' | grep -oE '/(tmp/opencode|eval)/[a-z0-9-]+|\.dadao/tests/[a-z0-9-]+' | sed 's#^\.dadao/tests/##' | sort | uniq -c | sort -rn | head -1 | awk '{print $1 "x " $2}')"
+ps -eo pcpu=,args= --sort=-pcpu 2>/dev/null | grep -v '[p]s -eo' | head -"$n" | while read -r cpu args; do
+  name=$(printf '%s' "$args" | awk '{print $1}' | sed 's#.*/##')
+  detail=$(printf '%s' "$args" | grep -oE '\+loadmem=[^ ]+' | sed 's#.*/##' | head -1)
+  [ -z "$detail" ] && detail=$(printf '%s' "$args" | grep -oE '/tmp/opencode/[a-z0-9-]+|\.dadao/tests/[a-z0-9-]+' | head -1 | sed 's#.*/##')
+  printf 'p=%s\t%s\t%s\n' "$cpu" "$name" "$detail"
+done
 """
 
 INT_FIELDS = {"cores": "cores", "tests": "tests", "mem_total_kb": "mem_total",
@@ -58,7 +60,7 @@ FLOAT_FIELDS = {"load1": "load1", "load5": "load5"}
 
 class Sample:
     __slots__ = ("cores", "load1", "load5", "mem_total", "mem_avail", "du", "dt",
-                 "tests", "top", "task", "stamp", "latency", "err")
+                 "tests", "procs", "stamp", "latency", "err")
 
     def __init__(self) -> None:
         self.cores = 0
@@ -69,23 +71,30 @@ class Sample:
         self.du = 0
         self.dt = 0
         self.tests = 0
-        self.top = ""
-        self.task = ""
-        self.stamp = 0.0     # wall clock when the sample arrived
-        self.latency = 0.0   # ssh round trip
+        self.procs: list[tuple[float, str, str]] = []
+        self.stamp = 0.0
+        self.latency = 0.0
         self.err = ""
 
 
-def probe(host: str, repo: str, timeout: float) -> Sample:
+def probe(host: str, repo: str, nprocs: int, timeout: float) -> Sample:
     s = Sample()
     t0 = time.time()
     try:
-        cp = subprocess.run(SSH + [host, "sh -s -- " + repo], input=PROBE,
+        cp = subprocess.run(SSH + [host, f"sh -s -- {repo} {nprocs}"], input=PROBE,
                             text=True, capture_output=True, timeout=timeout)
         if cp.returncode != 0:
             msg = (cp.stderr or "").strip().splitlines()
-            s.err = msg[-1][:48] if msg else f"ssh rc={cp.returncode}"
+            s.err = msg[-1][:40] if msg else f"ssh rc={cp.returncode}"
         for line in cp.stdout.splitlines():
+            if line.startswith("p="):
+                parts = line[2:].split("\t")
+                if len(parts) >= 2:
+                    try:
+                        s.procs.append((float(parts[0]), parts[1], parts[2] if len(parts) > 2 else ""))
+                    except ValueError:
+                        pass
+                continue
             if "=" not in line:
                 continue
             k, v = line.split("=", 1)
@@ -100,10 +109,6 @@ def probe(host: str, repo: str, timeout: float) -> Sample:
                     setattr(s, FLOAT_FIELDS[k], float(v))
                 except ValueError:
                     pass
-            elif k == "top":
-                s.top = v
-            elif k == "task":
-                s.task = v
     except subprocess.TimeoutExpired:
         s.err = "timeout"
     except Exception as exc:  # noqa: BLE001 - one host must never kill the view
@@ -123,108 +128,198 @@ def fmt_kb(kb: float) -> str:
     return f"{kb:.0f}T"
 
 
-def bar(frac: float, width: int) -> str:
-    frac = max(0.0, min(1.0, frac))
-    n = int(round(frac * width))
-    return "#" * n + "." * (width - n)
+def fit(text: str, width: int) -> str:
+    return text if len(text) <= width else text[: max(0, width - 1)] + "…"
 
 
-def render(hosts, state, width, color, tick, interval) -> str:
+ALIASES = (("simulator-chipyard", "cy-sim"), ("qemu-system", "qemu"),
+           ("gem5.opt", "gem5"), ("verilator_bin", "verilator"))
+
+
+def short_name(name: str) -> str:
+    for prefix, alias in ALIASES:
+        if name.startswith(prefix):
+            return alias
+    return name if len(name) <= 12 else name[:11] + "."
+
+
+def pane(s: Sample | None, host: str, w: int, nlines: int, now: float) -> list[str]:
+    """Header (2 lines) + nlines process lines, each padded to width w."""
+    if s is None:
+        out = [fit(f"{host}  等待采样…", w)]
+        return out + [""] * (2 + nlines - len(out))
+    loadpct = (s.load1 / s.cores * 100) if s.cores else 0.0
+    diskpct = (s.du / s.dt * 100) if s.dt else 0.0
+    state = ""
+    if s.err:
+        state = f"  ERR {s.err}({max(0, now - s.stamp):.0f}s前)"
+    elif loadpct >= 100:
+        state = "  满载"
+    elif diskpct >= 90:
+        state = "  磁盘!"
+    head = (f"{host} {s.cores}c L{s.load1:.1f}({loadpct:.0f}%) "
+            f"M{fmt_kb(s.mem_avail)} D{diskpct:.0f}% T{s.tests}{state}")
+    sub = f"  ssh {s.latency * 1000:.0f}ms"
+    lines = [fit(head, w), fit(sub, w)]
+    for cpu, name, detail in s.procs[:nlines]:
+        lines.append(fit(f"{cpu:>5.0f}% {short_name(name)}{(' ' + detail) if detail else ''}", w))
+    while len(lines) < 2 + nlines:
+        lines.append("")
+    return lines[: 2 + nlines]
+
+
+def render_grid(hosts, state, w, h, nprocs, color, tick, interval) -> str:
     now = time.time()
-    out = [f"nodetop  {time.strftime('%H:%M:%S')}  tick={tick}  refresh={interval:g}s  (q 退出)",
-           "-" * width,
-           f"{'HOST':<10} {'CORE':>4} {'LOAD1':>6} {'LOAD%':>5} {'LOAD':<9} "
-           f"{'MEM-AVAIL':>10} {'DISK%':>5} {'TEST':>4}  TOP / TASK"]
-    for h in hosts:
-        s = state.get(h)
-        if s is None:
-            out.append(f"{h:<10}  (等待首个采样…)")
-            continue
-        loadpct = (s.load1 / s.cores) if s.cores else 0.0
-        diskpct = (s.du / s.dt) if s.dt else 0.0
-        tag = ""
-        if s.err:
-            age = max(0.0, now - s.stamp)
-            tag = f"  [ERR {s.err}｜上次成功 {age:.0f}s 前]"
-        elif loadpct >= 1.0:
-            tag = "  [满载]"
-        elif diskpct >= 0.9:
-            tag = "  [磁盘告警]"
-        out.append(f"{h:<10} {s.cores:>4} {s.load1:>6.2f} {loadpct * 100:>4.0f}% "
-                   f"{bar(loadpct, 9)} {fmt_kb(s.mem_avail):>10} {diskpct * 100:>4.0f}% "
-                   f"{s.tests:>4}  {(s.top or '-')[:74]}{tag}")
-        out.append(f"{'':<10} {'':>4} {'':>6} {'':>5} {'':<9} {'':>10} {'':>5} {'':>4}  "
-                   f"task: {s.task or '-'}｜latency {s.latency * 1000:.0f}ms")
-    out.append("-" * width)
-    out.append("阈值：LOAD% ≥100% 红（满载）｜节点可多任务共占，合计并行度 ≤ 核数-2｜DISK% ≥90% 先清")
+    cols, rows = 3, 2
+    gutter = 1
+    pane_w = max(24, (w - (cols - 1) * gutter) // cols)
+    chrome = 3  # title + 2 separator lines
+    pane_h = max(4, (h - chrome) // rows)
+    nlines = max(3, min(nprocs, pane_h - 2))
+    panes = []
+    for i, host in enumerate(hosts):
+        panes.append(pane(state.get(host), host, pane_w, nlines, now))
+
+    title = (f"nodetop {time.strftime('%H:%M:%S')}  tick={tick}  {interval:g}s  "
+             f"procs={nlines}/pane   q=quit p=pause +/-=refresh")
+    out = [fit(title, w), "-" * w]
+    for r in range(rows):
+        chunk = panes[r * cols:(r + 1) * cols]
+        for line_i in range(2 + nlines):
+            cells = [c[line_i] if line_i < len(c) else "" for c in chunk]
+            row = ("│" * gutter).join(cell.ljust(pane_w) for cell in cells)
+            out.append(fit(row, w))
+        if r < rows - 1:
+            out.append("┼" * w)
+    out.append("-" * w)
+    out.append(fit("阈值：LOAD% ≥100% 红｜节点可多任务共占（并行度之和 ≤ 核数−2）｜"
+                   f"DISK% ≥90% 先清｜q 退出", w))
     text = "\n".join(out)
     if not color:
         return text
     RED, YEL, DIM, OFF = "\033[31m", "\033[33m", "\033[2m", "\033[0m"
     painted = []
     for ln in text.splitlines():
-        if ln.startswith("nodetop"):
+        if ln.startswith("nodetop") or ln.startswith("-") or ln.startswith("┼") \
+                or ln.startswith("阈值"):
             painted.append(DIM + ln + OFF)
-        elif "[满载]" in ln or "[磁盘告警]" in ln:
+        elif "满载" in ln or "磁盘!" in ln:
             painted.append(RED + ln + OFF)
-        elif "[ERR" in ln:
+        elif "ERR" in ln:
             painted.append(YEL + ln + OFF)
-        elif ln.startswith("-") or ln.startswith("阈值") or ln.startswith("HOST"):
-            painted.append(DIM + ln + OFF)
         else:
             painted.append(ln)
     return "\n".join(painted)
 
 
+def render_list(hosts, state, w, nprocs, now) -> str:
+    out = [f"nodetop {time.strftime('%H:%M:%S')}  (list)", "-" * min(w, 150)]
+    for h in hosts:
+        s = state.get(h)
+        if s is None:
+            out.append(f"{h}: 等待采样…")
+            continue
+        loadpct = (s.load1 / s.cores * 100) if s.cores else 0.0
+        diskpct = (s.du / s.dt * 100) if s.dt else 0.0
+        flag = f"  ERR {s.err}" if s.err else ""
+        out.append(f"{h:<10} {s.cores:>3}c  L{s.load1:5.1f} ({loadpct:3.0f}%)  "
+                   f"M{fmt_kb(s.mem_avail):>8}  D{diskpct:3.0f}%  T{s.tests:>3}  "
+                   f"ssh {s.latency * 1000:4.0f}ms{flag}")
+        for cpu, name, detail in s.procs[:nprocs]:
+            out.append(f"           {cpu:>5.0f}%  {short_name(name)} {detail}")
+    return "\n".join(out)
+
+
+def read_key(timeout: float) -> str:
+    """Return one key press ('' when none) without blocking."""
+    if not sys.stdin.isatty():
+        time.sleep(timeout)
+        return ""
+    r, _, _ = select.select([sys.stdin], [], [], timeout)
+    if not r:
+        return ""
+    return sys.stdin.read(1)
+
+
 def main() -> int:
-    ap = argparse.ArgumentParser(description="top-like view of the build nodes")
+    ap = argparse.ArgumentParser(description="tmux-like 2x3 pane view of the build nodes")
     ap.add_argument("--hosts", default=os.environ.get("DADAO_NODES", ""),
                     help="comma/space separated; default $DADAO_NODES or the six known nodes")
-    ap.add_argument("--repo", default=os.environ.get("DADAO_NODE_REPO", "/home/ubuntu/DADAO-v5"),
-                    help="remote repository root, used for disk usage")
+    ap.add_argument("--repo", default=os.environ.get("DADAO_NODE_REPO", "/home/ubuntu/DADAO-v5"))
+    ap.add_argument("--procs", type=int, default=10, help="processes per node (default 10)")
     ap.add_argument("--interval", type=float, default=2.0)
     ap.add_argument("--timeout", type=float, default=6.0)
-    ap.add_argument("--once", action="store_true", help="print one snapshot and exit")
+    ap.add_argument("--layout", choices=("grid", "list"), default="grid")
+    ap.add_argument("--once", action="store_true", help="one plain list snapshot, then exit")
     ap.add_argument("--no-color", action="store_true")
     args = ap.parse_args()
 
     hosts = args.hosts.replace(",", " ").split() or DEFAULT_HOSTS
-    width = min(shutil.get_terminal_size((140, 30)).columns, 150)
     color = sys.stdout.isatty() and not args.no_color
     state: dict[str, Sample] = {}
 
     def snapshot() -> None:
         with concurrent.futures.ThreadPoolExecutor(max_workers=len(hosts)) as ex:
-            futures = {ex.submit(probe, h, args.repo, args.timeout): h for h in hosts}
+            futures = {ex.submit(probe, h, args.repo, args.procs, args.timeout): h
+                       for h in hosts}
             for fut in concurrent.futures.as_completed(futures):
                 h = futures[fut]
                 new = fut.result()
                 if new.err and h in state:
-                    state[h].err = new.err       # keep last good numbers
+                    state[h].err = new.err
                 else:
                     state[h] = new
 
     if args.once:
         snapshot()
-        print(render(hosts, state, width, color, 0, args.interval))
+        w = shutil.get_terminal_size((150, 40)).columns
+        print(render_list(hosts, state, w, args.procs, time.time()))
         return 0 if any(not s.err for s in state.values()) else 1
 
+    pause = False
     tick = 0
+    old_term = None
+    if sys.stdin.isatty():
+        import termios
+        import tty
+        old_term = termios.tcgetattr(sys.stdin.fileno())
+        tty.setcbreak(sys.stdin.fileno())
     try:
         if color:
-            sys.stdout.write("\033[?25l")        # hide cursor
+            sys.stdout.write("\033[?25l")
         while True:
-            tick += 1
-            snapshot()
-            sys.stdout.write("\033[H\033[J" + render(hosts, state, width, color,
-                                                     tick, args.interval) + "\n")
+            if not pause:
+                tick += 1
+                snapshot()
+            w, h = shutil.get_terminal_size((150, 44))
+            if args.layout == "grid":
+                body = render_grid(hosts, state, w, h, args.procs, color, tick, args.interval)
+            else:
+                body = render_list(hosts, state, w, args.procs, time.time())
+            sys.stdout.write("\033[H\033[J" + body + "\n")
             sys.stdout.flush()
-            time.sleep(max(0.2, args.interval))
+            waited = 0.0
+            while waited < max(0.2, args.interval):
+                key = read_key(0.1)
+                waited += 0.1
+                if key in ("q", "Q", "\x1b"):
+                    raise KeyboardInterrupt
+                if key in ("p", "P"):
+                    pause = not pause
+                if key in ("+", "="):
+                    args.interval = max(0.5, args.interval - 0.5)
+                if key in ("-", "_"):
+                    args.interval = min(60.0, args.interval + 0.5)
+                if key:
+                    break
     except KeyboardInterrupt:
         pass
     finally:
+        if old_term is not None:
+            import termios
+            termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old_term)
         if color:
-            sys.stdout.write("\033[?25h\n")      # restore cursor
+            sys.stdout.write("\033[?25h\n")
     return 0
 
 
