@@ -61,7 +61,7 @@
 | 04 | `add.o`/`sub.o`（`bbd`/`dbb`） | A | 1 | 实测 |
 | 04 | `add.uo/so`、`sub.uo/so`（`rrrr` 128 位） | A | 1（2 写端口同拍） | 实测 |
 | 04 | `mul.uo/so`、`clmul.o` | B1 | 3（可配） | 可配 |
-| 04 | `div.uo/so`、`rem.uo/so`（64 位） | B3 | 33 | 设计值（radix-4，待实测确认） |
+| 04 | `div.uo/so`、`rem.uo/so`（64 位） | B3 | 33 | 待实测（设计值 radix-4） |
 | 05 | `add.si`（rd/rb）、`aip.si`、`cmp.ui/si` | A | 1 | 实测 |
 | 06 | `br.eq/ne`、`br.n/nn/z/nz/p/np` | A2 | 1 | 实测 |
 | 06 | `jump`（`iiii`/`rrii`） | A2 | 8（预取失效期实测；`022` 后应更低，见 §5） | 实测（暂定：预取失效期上界） |
@@ -74,9 +74,9 @@
 | 07 | `ftrem`/`forem` | B5 | `53+d+1`（d=指数差；d=1/10/100/1000 ⇒ 55/64/154/1054） | 实测 |
 | 07 | `ftcls`/`focls` | B4 | 1+元素数（1 元素 2 拍、3 元素 4 拍） | 实测 |
 | 07 | `ftsgn*`/`set.w rf`/`cs.* rf`/`rd2rf`/`rf2rd`/`ld.o rf` | B4 | 符号/set/cs 1；`rd2rf`/`rf2rd` 1+N；`ld.o rf` 13 | 实测 |
-| 08 | tetra 全套（`add.ut`…`rem.st`、`shl.t`、`rev.t`） | A/B2/B3 | 1 / 1 / 17 | A 实测 / B2 可配 / B3 设计值 |
-| 09 | wyde 全套 | A/B2/B3 | 1 / 1 / 9 | A 实测 / B2 可配 / B3 设计值 |
-| 10 | byte 全套 | A/B2/B3 | 1 / 1 / 5 | A 实测 / B2 可配 / B3 设计值 |
+| 08 | tetra 全套（`add.ut`…`rem.st`、`shl.t`、`rev.t`） | A/B2/B3 | 1 / 1 / 17 | A 实测 / B2 可配 / B3 待实测（设计值） |
+| 09 | wyde 全套 | A/B2/B3 | 1 / 1 / 9 | A 实测 / B2 可配 / B3 待实测（设计值） |
+| 10 | byte 全套 | A/B2/B3 | 1 / 1 / 5 | A 实测 / B2 可配 / B3 待实测（设计值） |
 | 11 | `trap`（semihosting，`immu18[17:8]==0x3FF`） | F | 1 + 变长 | 未测（需 SEE 执行模型） |
 | 11 | `trap cfx3`（其它 `immu18`） | G2 | 4–5 | 未测（需 SEE 执行模型） |
 | 11 | `trap` 到保留/未实现 cfx ⇒ ILLI 进 hmon | G1 | 4–5 | 未测（需 SEE 执行模型） |

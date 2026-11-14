@@ -5,7 +5,7 @@
 schema: 1
 generated_by: tools/gem5/gen_wuming_cycles.py
 source_doc: docs/core-wuming-cycle-model.md
-source_doc_sha256: '7229ab28efd519c826d2a63a51551392fc8efae2525428214e877e1acc0bca4b'
+source_doc_sha256: '7e9fe837d6cc4f549afa5cf6faa6e9ce0da8f6d5f1c814266807421b5471ff15'
 instruction_count: 264
 static_rows: 168
 dynamic_rows: 96
@@ -202,10 +202,10 @@ instructions:
 - {id: 'rb2rb_orri_rb', mnemonic: 'rb2rb', section: '02', klass: ['D′'], cycles: '1+N', value: null, range: null, dynamic: 'N', doc: 55, source: '§3 02', provenance: '实测（N=8）'}
 - {id: 'rd2rb_orri_rb', mnemonic: 'rd2rb', section: '02', klass: ['D′'], cycles: '1+N', value: null, range: null, dynamic: 'N', doc: 55, source: '§3 02', provenance: '实测（N=8）'}
 - {id: 'rb2rd_orri_rb', mnemonic: 'rb2rd', section: '02', klass: ['D′'], cycles: '1+N', value: null, range: null, dynamic: 'N', doc: 55, source: '§3 02', provenance: '实测（N=8）'}
-- {id: 'div.uo_orrr_rd', mnemonic: 'div.uo', section: '04', klass: ['B3'], cycles: '33', value: 33, range: null, dynamic: null, doc: 64, source: '§3 04', provenance: '设计值（radix-4，待实测确认）'}
-- {id: 'div.so_orrr_rd', mnemonic: 'div.so', section: '04', klass: ['B3'], cycles: '33', value: 33, range: null, dynamic: null, doc: 64, source: '§3 04', provenance: '设计值（radix-4，待实测确认）'}
-- {id: 'rem.uo_orrr_rd', mnemonic: 'rem.uo', section: '04', klass: ['B3'], cycles: '33', value: 33, range: null, dynamic: null, doc: 64, source: '§3 04', provenance: '设计值（radix-4，待实测确认）'}
-- {id: 'rem.so_orrr_rd', mnemonic: 'rem.so', section: '04', klass: ['B3'], cycles: '33', value: 33, range: null, dynamic: null, doc: 64, source: '§3 04', provenance: '设计值（radix-4，待实测确认）'}
+- {id: 'div.uo_orrr_rd', mnemonic: 'div.uo', section: '04', klass: ['B3'], cycles: '33', value: 33, range: null, dynamic: null, doc: 64, source: '§3 04', provenance: '待实测（设计值 radix-4）'}
+- {id: 'div.so_orrr_rd', mnemonic: 'div.so', section: '04', klass: ['B3'], cycles: '33', value: 33, range: null, dynamic: null, doc: 64, source: '§3 04', provenance: '待实测（设计值 radix-4）'}
+- {id: 'rem.uo_orrr_rd', mnemonic: 'rem.uo', section: '04', klass: ['B3'], cycles: '33', value: 33, range: null, dynamic: null, doc: 64, source: '§3 04', provenance: '待实测（设计值 radix-4）'}
+- {id: 'rem.so_orrr_rd', mnemonic: 'rem.so', section: '04', klass: ['B3'], cycles: '33', value: 33, range: null, dynamic: null, doc: 64, source: '§3 04', provenance: '待实测（设计值 radix-4）'}
 - {id: 'rd2rf_orri_rf', mnemonic: 'rd2rf', section: '02', klass: ['D′'], cycles: '1+N', value: null, range: null, dynamic: 'N', doc: 55, source: '§3 02', provenance: '实测（N=8）'}
 - {id: 'rf2rd_orri_rf', mnemonic: 'rf2rd', section: '02', klass: ['D′'], cycles: '1+N', value: null, range: null, dynamic: 'N', doc: 55, source: '§3 02', provenance: '实测（N=8）'}
 - {id: 'rev.o_orri_rd', mnemonic: 'rev.o', section: '04', klass: ['A'], cycles: '2', value: 2, range: null, dynamic: null, doc: 59, source: '§3 04', provenance: '实测'}
@@ -225,10 +225,10 @@ instructions:
 - {id: 'cmp.st_orrr_rd', mnemonic: 'cmp.st', section: '08', klass: ['A'], cycles: '1', value: 1, range: null, dynamic: null, doc: 27, source: '§2 A（§3 08 全套）', provenance: 'A 实测'}
 - {id: 'mul.ut_orrr_rd', mnemonic: 'mul.ut', section: '08', klass: ['B2'], cycles: '1', value: null, range: null, dynamic: 'mul-config', doc: 77, source: '§3 08 全套', provenance: 'B2 可配'}
 - {id: 'mul.st_orrr_rd', mnemonic: 'mul.st', section: '08', klass: ['B2'], cycles: '1', value: null, range: null, dynamic: 'mul-config', doc: 77, source: '§3 08 全套', provenance: 'B2 可配'}
-- {id: 'div.ut_orrr_rd', mnemonic: 'div.ut', section: '08', klass: ['B3'], cycles: '17', value: 17, range: null, dynamic: null, doc: 77, source: '§3 08 全套', provenance: 'B3 设计值'}
-- {id: 'div.st_orrr_rd', mnemonic: 'div.st', section: '08', klass: ['B3'], cycles: '17', value: 17, range: null, dynamic: null, doc: 77, source: '§3 08 全套', provenance: 'B3 设计值'}
-- {id: 'rem.ut_orrr_rd', mnemonic: 'rem.ut', section: '08', klass: ['B3'], cycles: '17', value: 17, range: null, dynamic: null, doc: 77, source: '§3 08 全套', provenance: 'B3 设计值'}
-- {id: 'rem.st_orrr_rd', mnemonic: 'rem.st', section: '08', klass: ['B3'], cycles: '17', value: 17, range: null, dynamic: null, doc: 77, source: '§3 08 全套', provenance: 'B3 设计值'}
+- {id: 'div.ut_orrr_rd', mnemonic: 'div.ut', section: '08', klass: ['B3'], cycles: '17', value: 17, range: null, dynamic: null, doc: 77, source: '§3 08 全套', provenance: 'B3 待实测（设计值）'}
+- {id: 'div.st_orrr_rd', mnemonic: 'div.st', section: '08', klass: ['B3'], cycles: '17', value: 17, range: null, dynamic: null, doc: 77, source: '§3 08 全套', provenance: 'B3 待实测（设计值）'}
+- {id: 'rem.ut_orrr_rd', mnemonic: 'rem.ut', section: '08', klass: ['B3'], cycles: '17', value: 17, range: null, dynamic: null, doc: 77, source: '§3 08 全套', provenance: 'B3 待实测（设计值）'}
+- {id: 'rem.st_orrr_rd', mnemonic: 'rem.st', section: '08', klass: ['B3'], cycles: '17', value: 17, range: null, dynamic: null, doc: 77, source: '§3 08 全套', provenance: 'B3 待实测（设计值）'}
 - {id: 'rev.t_orri_rd', mnemonic: 'rev.t', section: '08', klass: ['A'], cycles: '2', value: 2, range: null, dynamic: null, doc: 27, source: '§2 A（§3 08 全套）', provenance: 'A 实测'}
 - {id: 'shl.w_orrr_rd', mnemonic: 'shl.w', section: '09', klass: ['A'], cycles: '2', value: 2, range: null, dynamic: null, doc: 27, source: '§2 A（§3 09 全套）', provenance: 'A 实测'}
 - {id: 'rol.w_orrr_rd', mnemonic: 'rol.w', section: '09', klass: ['A'], cycles: '2', value: 2, range: null, dynamic: null, doc: 89, source: '§3 12', provenance: '实测'}
@@ -246,10 +246,10 @@ instructions:
 - {id: 'cmp.sw_orrr_rd', mnemonic: 'cmp.sw', section: '09', klass: ['A'], cycles: '1', value: 1, range: null, dynamic: null, doc: 27, source: '§2 A（§3 09 全套）', provenance: 'A 实测'}
 - {id: 'mul.uw_orrr_rd', mnemonic: 'mul.uw', section: '09', klass: ['B2'], cycles: '1', value: null, range: null, dynamic: 'mul-config', doc: 78, source: '§3 09 全套', provenance: 'B2 可配'}
 - {id: 'mul.sw_orrr_rd', mnemonic: 'mul.sw', section: '09', klass: ['B2'], cycles: '1', value: null, range: null, dynamic: 'mul-config', doc: 78, source: '§3 09 全套', provenance: 'B2 可配'}
-- {id: 'div.uw_orrr_rd', mnemonic: 'div.uw', section: '09', klass: ['B3'], cycles: '9', value: 9, range: null, dynamic: null, doc: 78, source: '§3 09 全套', provenance: 'B3 设计值'}
-- {id: 'div.sw_orrr_rd', mnemonic: 'div.sw', section: '09', klass: ['B3'], cycles: '9', value: 9, range: null, dynamic: null, doc: 78, source: '§3 09 全套', provenance: 'B3 设计值'}
-- {id: 'rem.uw_orrr_rd', mnemonic: 'rem.uw', section: '09', klass: ['B3'], cycles: '9', value: 9, range: null, dynamic: null, doc: 78, source: '§3 09 全套', provenance: 'B3 设计值'}
-- {id: 'rem.sw_orrr_rd', mnemonic: 'rem.sw', section: '09', klass: ['B3'], cycles: '9', value: 9, range: null, dynamic: null, doc: 78, source: '§3 09 全套', provenance: 'B3 设计值'}
+- {id: 'div.uw_orrr_rd', mnemonic: 'div.uw', section: '09', klass: ['B3'], cycles: '9', value: 9, range: null, dynamic: null, doc: 78, source: '§3 09 全套', provenance: 'B3 待实测（设计值）'}
+- {id: 'div.sw_orrr_rd', mnemonic: 'div.sw', section: '09', klass: ['B3'], cycles: '9', value: 9, range: null, dynamic: null, doc: 78, source: '§3 09 全套', provenance: 'B3 待实测（设计值）'}
+- {id: 'rem.uw_orrr_rd', mnemonic: 'rem.uw', section: '09', klass: ['B3'], cycles: '9', value: 9, range: null, dynamic: null, doc: 78, source: '§3 09 全套', provenance: 'B3 待实测（设计值）'}
+- {id: 'rem.sw_orrr_rd', mnemonic: 'rem.sw', section: '09', klass: ['B3'], cycles: '9', value: 9, range: null, dynamic: null, doc: 78, source: '§3 09 全套', provenance: 'B3 待实测（设计值）'}
 - {id: 'rev.w_orri_rd', mnemonic: 'rev.w', section: '09', klass: ['A'], cycles: '2', value: 2, range: null, dynamic: null, doc: 89, source: '§3 12', provenance: '实测'}
 - {id: 'shl.b_orrr_rd', mnemonic: 'shl.b', section: '10', klass: ['A'], cycles: '2', value: 2, range: null, dynamic: null, doc: 27, source: '§2 A（§3 10 全套）', provenance: 'A 实测'}
 - {id: 'rol.b_orrr_rd', mnemonic: 'rol.b', section: '10', klass: ['A'], cycles: '2', value: 2, range: null, dynamic: null, doc: 89, source: '§3 12', provenance: '实测'}
@@ -267,10 +267,10 @@ instructions:
 - {id: 'cmp.sb_orrr_rd', mnemonic: 'cmp.sb', section: '10', klass: ['A'], cycles: '1', value: 1, range: null, dynamic: null, doc: 27, source: '§2 A（§3 10 全套）', provenance: 'A 实测'}
 - {id: 'mul.ub_orrr_rd', mnemonic: 'mul.ub', section: '10', klass: ['B2'], cycles: '1', value: null, range: null, dynamic: 'mul-config', doc: 79, source: '§3 10 全套', provenance: 'B2 可配'}
 - {id: 'mul.sb_orrr_rd', mnemonic: 'mul.sb', section: '10', klass: ['B2'], cycles: '1', value: null, range: null, dynamic: 'mul-config', doc: 79, source: '§3 10 全套', provenance: 'B2 可配'}
-- {id: 'div.ub_orrr_rd', mnemonic: 'div.ub', section: '10', klass: ['B3'], cycles: '5', value: 5, range: null, dynamic: null, doc: 79, source: '§3 10 全套', provenance: 'B3 设计值'}
-- {id: 'div.sb_orrr_rd', mnemonic: 'div.sb', section: '10', klass: ['B3'], cycles: '5', value: 5, range: null, dynamic: null, doc: 79, source: '§3 10 全套', provenance: 'B3 设计值'}
-- {id: 'rem.ub_orrr_rd', mnemonic: 'rem.ub', section: '10', klass: ['B3'], cycles: '5', value: 5, range: null, dynamic: null, doc: 79, source: '§3 10 全套', provenance: 'B3 设计值'}
-- {id: 'rem.sb_orrr_rd', mnemonic: 'rem.sb', section: '10', klass: ['B3'], cycles: '5', value: 5, range: null, dynamic: null, doc: 79, source: '§3 10 全套', provenance: 'B3 设计值'}
+- {id: 'div.ub_orrr_rd', mnemonic: 'div.ub', section: '10', klass: ['B3'], cycles: '5', value: 5, range: null, dynamic: null, doc: 79, source: '§3 10 全套', provenance: 'B3 待实测（设计值）'}
+- {id: 'div.sb_orrr_rd', mnemonic: 'div.sb', section: '10', klass: ['B3'], cycles: '5', value: 5, range: null, dynamic: null, doc: 79, source: '§3 10 全套', provenance: 'B3 待实测（设计值）'}
+- {id: 'rem.ub_orrr_rd', mnemonic: 'rem.ub', section: '10', klass: ['B3'], cycles: '5', value: 5, range: null, dynamic: null, doc: 79, source: '§3 10 全套', provenance: 'B3 待实测（设计值）'}
+- {id: 'rem.sb_orrr_rd', mnemonic: 'rem.sb', section: '10', klass: ['B3'], cycles: '5', value: 5, range: null, dynamic: null, doc: 79, source: '§3 10 全套', provenance: 'B3 待实测（设计值）'}
 - {id: 'rev.b_orri_rd', mnemonic: 'rev.b', section: '10', klass: ['A'], cycles: '2', value: 2, range: null, dynamic: null, doc: 89, source: '§3 12', provenance: '实测'}
 - {id: 'ftcls_orri_rf', mnemonic: 'ftcls', section: '07', klass: ['B4'], cycles: '1+元素数', value: null, range: null, dynamic: 'elements', doc: 75, source: '§3 07', provenance: '实测'}
 - {id: 'ft2fo_orri_rf', mnemonic: 'ft2fo', section: '07', klass: ['B4'], cycles: '1', value: 1, range: null, dynamic: null, doc: 70, source: '§3 07', provenance: '实测'}
