@@ -3,17 +3,17 @@
 @@ id：ext.uo_orrr_rd　形式：orrr　opc：0x40／ha 0x20　mask：0xFFFC0000　value：0x40800000　目的银行：RD
 @@ 语义：rdHB[hd:0] ← rdHC[hd:0]；rdHB[63:hd+1] ← 0（零扩展）；hd = rdHD[5:0]
 @@ 合法性：目的 rdhb 为 rd0 ⇒ ILLI（`dst_rd0`）；源可为 rd0（读出 0）；
-@@   hd 取 rdHD 低 6 位，**越界位忽略、不抛 ILLI**（用户裁定 2026-11-13；chipyard 即此口径，
-@@   QEMU/gem5 判 ILLI 为缺陷 `ISS-422`；`spec/SimRISC-04 §2.2` 措辞待 spec 任务修正）
+@@   hd 取 rdHD 低 6 位，**越界位忽略、不抛 ILLI**（用户裁定 2026-11-13；`spec/SimRISC-04 §2.2`
+@@   已定稿 `hd = rdHD[5:0]`；QEMU/gem5 已按此修（`m13-qemu-010`/`m13-gem5-012`））
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | rdhd[5:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
-@@ 用例：encoding 2 / semantic 6 / boundary 5 / overlap 3（链例 16 + 故障例 1）
+@@ 用例：encoding 2 / semantic 6 / boundary 11 / overlap 3（链例 22 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
 @@ 起始位边界：0（只留 bit0）/ 31 / 63（等于 N ⇒ 整字复制）；**越界位忽略、不抛 ILLI**
-@@   （用户裁定 2026-11-13：`hd = rdHD[5:0]`；chipyard 即此口径，QEMU/gem5 判 ILLI 为 `ISS-422` 缺陷）
+@@   （用户裁定 2026-11-13：`hd = rdHD[5:0]`；rdHD=64 ⇒ hd=0、67 ⇒ 3、2^64−1 ⇒ 63）
 
 	.include "tests/inst/macros/inst_test.inc"
 
@@ -77,15 +77,44 @@
 	@@ 两源同名：0x7 在起始位 7 ⇒ 低 8 位原样
 	TEST_AR_ORRR        16, ext.uo, rd9, 0xFFFFFFFFFFFFFFFF, rd11, 0x0000000000000007, rd11, 0x0000000000000007, 0x0000000000000007
 
+	@@ ---- 起始位越界（`rdHD > 63`）：`hd = rdHD[5:0]`、越界位忽略、**不抛 ILLI** ----
+	@@ 依据 `spec/SimRISC-04 §2.2`：「`orrr` 形式的 `hd` 取 `rdHD` 的低 6 位（`hd = rdHD[5:0]`），
+	@@   `rdHD` 的更高位被忽略、不触发异常」（`m13-spec-008` 定稿）。
+	@@ 用户裁定（2026-11-13，`ISS-422`）：「`ext.*` 的 orrr 形式，`rdHD` 取低 6 位作起始位 `hd`
+	@@   后继续执行，不抛 ILLI」⇒ 以下 6 例期望按手算给（抄任一平台输出当期望 = 禁止）。
+
+	@@ 点 17 = 跨用例不变量基线（rdHD=0）：hd=0 ⇒ 只留 bit0
+	@@   手算：src=0x0123456789ABCDEF，bit0 = (0xEF & 1) = 1 ⇒ [0:0]=1、[63:1]=0 ⇒ 0x1
+	TEST_AR_ORRR        17, ext.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0123456789ABCDEF, rd7, 0x0000000000000000, 0x0000000000000001
+
+	@@ rdHD=64（0x40）：64 & 0x3F = 0 ⇒ 与点 17 同值（bit6 越界、忽略）
+	@@   手算：hd=0；src 同上 bit0=1 ⇒ 0x1（与点 17 逐字节相同 = 不变量 A）
+	TEST_AR_ORRR        18, ext.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0123456789ABCDEF, rd7, 0x0000000000000040, 0x0000000000000001
+
+	@@ rdHD=64 且 bit0 = 0：hd=0 ⇒ 结果 0；与点 4（rdHD=0、同源值 0x…FE）配对 = 不变量 B
+	@@   手算：src=0x00000000000000FE，bit0 = 0 ⇒ [0:0]=0、[63:1]=0 ⇒ 0x0
+	TEST_AR_ORRR        19, ext.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x00000000000000FE, rd7, 0x0000000000000040, 0x0000000000000000
+
+	@@ rdHD=67（0x43）：67 & 0x3F = 3 ⇒ 只留 [3:0]
+	@@   手算：src=0x0123456789ABCDE9，低 4 位 = 0x9 ⇒ [3:0]=0x9、[63:4]=0 ⇒ 0x9
+	TEST_AR_ORRR        20, ext.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0123456789ABCDE9, rd7, 0x0000000000000043, 0x0000000000000009
+
+	@@ rdHD=63：hd=63 = N ⇒ 整字复制（合法边界，非越界）
+	@@   手算：保留 [63:0] 全字、无扩展位 ⇒ 0x0123456789ABCDE9
+	TEST_AR_ORRR        21, ext.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0x0123456789ABCDE9, rd7, 0x000000000000003F, 0x0123456789ABCDE9
+
+	@@ rdHD=0xFFFF_FFFF_FFFF_FFFF：全 1 & 0x3F = 63 ⇒ 整字复制（高 58 位全部忽略）
+	@@   手算：hd=63；src=0xFEDCBA9876543210 ⇒ 原样 0xFEDCBA9876543210
+	TEST_AR_ORRR        22, ext.uo, rd5, 0xFFFFFFFFFFFFFFFF, rd6, 0xFEDCBA9876543210, rd7, 0xFFFFFFFFFFFFFFFF, 0xFEDCBA9876543210
+
 	__TEST_END
 
 	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
 
 	@@ dst_rd0：目的 rd0 ⇒ ILLI
-	TEST_FAULT_ALU3     17, ext.uo, ILLI, rd0, rd6, rd7
+	TEST_FAULT_ALU3     23, ext.uo, ILLI, rd0, rd6, rd7
 
-	@@ 起始位越界（`rdHD > 63`）**未收录**：用户裁定（2026-11-13，`ISS-422`）口径为
-	@@   `hd = rdHD[5:0]`（越界位忽略、不抛 ILLI）⇒ chipyard 行为正确；
-	@@   QEMU/gem5 判 ILLI（`0xF8`）是缺陷、待修，故暂不写成故障例（见 `MIGRATION §6/017`）。
+	@@ 起始位越界（`rdHD > 63`）**不构成故障**：上述链例 17–22 已按 `hd = rdHD[5:0]` 收录，
+	@@   故本文件无「越界 ⇒ ILLI」故障例（用户裁定 2026-11-13；语义由 `m13-spec-008` 定稿）。
 
 	__TEST_SECTIONS

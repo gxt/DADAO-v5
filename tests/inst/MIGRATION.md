@@ -162,6 +162,25 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
 
 ## 6. 已完成
 
+### `m13-testcases-033`：`ext.uo`/`ext.so` orrr 的 `rdHD` 越界值（64 / 67 / 2^64−1）三平台用例
+
+- 改动（**只追加、不改既有点号**）：`tests/inst/04-arith-logic-octa/ext.uo_orrr_rd.S` 与
+  `ext.so_orrr_rd.S` 各 +6 链例（点号 17–22）；原故障例 `dst_rd0` 点号 17 → 23（点号仍
+  连续 1..23 = 链例 22 + 故障例 1）。文件头的分类计数同步为 encoding 2 / semantic 6 /
+  boundary 11 / overlap 3，并把「越界未收录」注释改为「已收录」。**无宏层/驱动器改动**。
+- 语义（`spec/SimRISC-04 §2.2`，`m13-spec-008` 定稿）：`orrr` 的 `hd = rdHD[5:0]`，更高位
+  被忽略、**不触发异常**（用户裁定 2026-11-13）。覆盖 `rdHD=0` 基线、`64 ⇒ hd=0`、
+  `67 ⇒ hd=3`、`63 ⇒ hd=63`、`2^64−1 ⇒ hd=63`；`ext.so` 取 bit0=1 / bit3=1 的源值暴露
+  符号扩展（`rdHD=64` 用例结果为全 1 而非零扩展的 `0x1`）。
+- 跨用例不变量：同源值的 `rdHD=64` 组与 `rdHD=0` 组实测 8 字节**逐字节相同**（每 id 两对，
+  配对由 `.S` 源现场派生；三方各自成立）。
+- 三方逐字节：`run_asm_suite.py --vectors tests/inst/04-arith-logic-octa
+  --id ext.uo_orrr_rd --id ext.so_orrr_rd --platforms chipyard,qemu,gem5` rc=0
+  （4 镜像 = 链例 2 + 故障例 2；链例各 176 B = 22 检查点 × 8）。
+- **YAML**：这两个 id 在 `base/reg-shift-extend.yaml` 的旧用例（`shamt=2`/`63`）已由
+  `017` 并入；本任务无新增 YAML 条目 ⇒ 无删除动作（§5.1 前置未解）。
+
+
 ### `m13-testcases-034`：Tiny `expected_fault` oracle 迁到 hmon 分派口径
 
 - 用例/期望值不变：Tiny 子集 44 例（43 例 `expected_fault`）仍逐条断言同一异常
