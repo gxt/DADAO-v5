@@ -149,6 +149,96 @@
   - system
   level: full
   requires: []
+- id: inst-01-load-store-024
+  file: inst/01-load-store/ldm.o_rrri_ra.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-025
+  file: inst/01-load-store/ldm.o_rrri_rb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-026
+  file: inst/01-load-store/ldm.o_rrri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-027
+  file: inst/01-load-store/ldm.sb_rrri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-028
+  file: inst/01-load-store/ldm.st_rrri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-029
+  file: inst/01-load-store/ldm.sw_rrri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-030
+  file: inst/01-load-store/ldm.ub_rrri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-031
+  file: inst/01-load-store/ldm.ut_rrri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-032
+  file: inst/01-load-store/ldm.uw_rrri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-033
+  file: inst/01-load-store/stm.b_rrri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-034
+  file: inst/01-load-store/stm.o_rrri_ra.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-035
+  file: inst/01-load-store/stm.o_rrri_rb.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-036
+  file: inst/01-load-store/stm.o_rrri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-037
+  file: inst/01-load-store/stm.t_rrri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-01-load-store-038
+  file: inst/01-load-store/stm.w_rrri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-02-reg-copy-001
   file: inst/02-reg-copy/cs.eq_rrrr_rd.S
   platforms:

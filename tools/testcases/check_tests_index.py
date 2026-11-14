@@ -18,6 +18,10 @@
      unit = host/toolchain；tset = user（hw 预留）。
   7. `level ∈ {smoke, full}`；`requires` = 无重复的非空字符串列表。
   8. `id` 在四份索引内**全局唯一**。
+  9. **载体↔索引双向断言**：`tests/<scope>/**/*<后缀>` 现场派生的载体集合必须与
+     该 scope 索引里同后缀的 `file:` 集合**完全相等**（`CARRIER_SUFFIXES`，目前
+     `inst` 的 `.S`）。缺 = 载体未入索引（门控看不见、删索引无哨兵）；多 = 索引
+     指向非载体/幽灵条目。两侧都逐条报出。
 
 用法：
   python3 tools/testcases/check_tests_index.py               # 门控（默认）
@@ -291,6 +295,60 @@ def check_profile_lds(root: Path):
     return errors
 
 
+# ---------------------------------------------------------------------------
+# 载体↔索引双向断言（M13-TESTCASES-041）
+# ---------------------------------------------------------------------------
+# 040 实测：删掉一条索引后本门控仍 PASS ⇒ 缺「删除哨兵」，索引可无提示缩水。
+# 判据是**集合相等**（不是计数）：载体由文件系统现场派生，索引由 YAML 现场派生，
+# 两侧差集都逐条报出。只纳入「一载体一索引」的 scope：
+#   * inst 的执行型载体 = `tests/inst/<册>/<id>.S`（与 validate-vectors 同一现场扫描）；
+#   * arch/unit 的载体模型不同（unit 的 `.s` 多为 `.ll` 派生、arch 有辅助 `.S` 头），
+#     其覆盖由各自门控承担，不在此处按后缀断言。
+CARRIER_SUFFIXES = {"inst": (".S",)}
+
+
+def _carrier_files(root: Path, scope: str) -> set[str]:
+    """现场派生 `<scope>` 下的载体文件（相对 `tests/` 的 posix 路径）。"""
+    tests_root = root / TESTS_REL
+    scope_dir = tests_root / scope
+    if not scope_dir.is_dir():
+        return set()
+    out: set[str] = set()
+    for suffix in CARRIER_SUFFIXES.get(scope, ()):
+        for path in scope_dir.rglob(f"*{suffix}"):
+            if path.is_file():
+                out.add(path.relative_to(tests_root).as_posix())
+    return out
+
+
+def check_carrier_bijection(
+    root: Path,
+    indexed_files: dict[str, list[str]],
+) -> list[str]:
+    """载体集合 == 索引集合；不等则逐条报「缺 / 多」。计数一律现场派生。"""
+    errors: list[str] = []
+    for scope, suffixes in CARRIER_SUFFIXES.items():
+        carriers = _carrier_files(root, scope)
+        idx_list = [f for f in indexed_files.get(scope, [])
+                    if PurePosixPath(f).suffix in suffixes]
+        in_index = set(idx_list)
+        dup = sorted({f for f in idx_list if idx_list.count(f) > 1})
+        missing = sorted(carriers - in_index)
+        ghost = sorted(in_index - carriers)
+        for rel in dup:
+            errors.append(
+                f"tests/{scope}.yaml: 同一载体被多条索引重复引用（多）: {rel}")
+        for rel in missing:
+            errors.append(
+                f"tests/{scope}.yaml: 载体未入索引（缺）: {rel}")
+        for rel in ghost:
+            errors.append(
+                f"tests/{scope}.yaml: 索引指向非载体（多）: {rel}")
+        print(f"  载体↔索引（{scope} {''.join(suffixes)}）: 载体 {len(carriers)} 个 / "
+              f"索引 {len(idx_list)} 条 / 缺 {len(missing)} / 多 {len(ghost)}")
+    return errors
+
+
 def _load_index(path: Path) -> tuple[object, str | None]:
     try:
         text = path.read_text(encoding="utf-8")
@@ -414,6 +472,7 @@ def audit(root: Path) -> int:
 
     counts: dict[str, int] = {}
     seen_ids: dict[str, str] = {}
+    indexed_files: dict[str, list[str]] = {s: [] for s in SCOPES}
     for scope in SCOPES:
         index_path = tests_root / f"{scope}.yaml"
         scope_dir = tests_root / scope
@@ -437,6 +496,10 @@ def audit(root: Path) -> int:
 
         counts[scope] = len(data)
         for idx, entry in enumerate(data, 1):
+            if isinstance(entry, dict):
+                rel = entry.get("file")
+                if isinstance(rel, str) and rel:
+                    indexed_files[scope].append(rel)
             cid = _check_entry(entry, scope, idx, tests_root, errors)
             if cid is None:
                 continue
@@ -452,6 +515,8 @@ def audit(root: Path) -> int:
           f"合法 scope 索引 {len(counts)}/{len(SCOPES)}")
     print("  条目计数（现场派生）: " + " / ".join(
         f"{s}={counts.get(s, 0)}" for s in SCOPES) + f" / total={total}")
+
+    errors.extend(check_carrier_bijection(root, indexed_files))
 
     geo_errors = check_profile_lds(root)
     errors.extend(geo_errors)
@@ -541,6 +606,14 @@ VALID_ENTRY = """\
   requires: []
 """
 
+VALID_ASM_ENTRY = """\
+- id: inst-01-load-store-001
+  file: inst/01-load-store/add.S
+  platforms: [system]
+  level: full
+  requires: []
+"""
+
 
 def _run(root: Path) -> tuple[int, str]:
     buf = io.StringIO()
@@ -587,6 +660,30 @@ def self_test() -> int:
         good["inst"] = VALID_ENTRY
         case("干净基线·一条合法条目", good, None,
              extra_files={"inst/base/add.yaml": "# demo\n"}, expect_rc=0)
+
+        # 干净基线③：载体与索引成对（.S 唯一时双向断言不得误报）
+        paired = _empty_indexes()
+        paired["inst"] = VALID_ASM_ENTRY
+        case("干净基线·载体↔索引成对", paired, None,
+             extra_files={"inst/01-load-store/add.S": "nop\n"}, expect_rc=0)
+
+        # 注入·载体未入索引：磁盘有 .S、索引没有 ⇒ 缺（040 的删除缺口）
+        bad = dict(_empty_indexes())
+        case("注入·载体未入索引", bad, "载体未入索引（缺）: inst/01-load-store/only.S",
+             extra_files={"inst/01-load-store/only.S": "nop\n"})
+
+        # 注入·索引指向非载体：索引有 .S 条目、磁盘无该文件 ⇒ 多（幽灵条目）
+        bad = dict(_empty_indexes())
+        bad["inst"] = VALID_ASM_ENTRY
+        case("注入·索引指向非载体", bad, "索引指向非载体（多）: inst/01-load-store/add.S")
+
+        # 注入·同一载体被两条索引引用：集合相等而条数不等 ⇒ 必须红（不得只看集合）
+        bad = dict(_empty_indexes())
+        bad["inst"] = VALID_ASM_ENTRY + VALID_ASM_ENTRY.replace(
+            "inst-01-load-store-001", "inst-01-load-store-002")
+        case("注入·同一载体重复引用", bad,
+             "重复引用（多）: inst/01-load-store/add.S",
+             extra_files={"inst/01-load-store/add.S": "nop\n"})
 
         # 注入①：ID 重复
         dup = dict(good)

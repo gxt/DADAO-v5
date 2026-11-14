@@ -1910,8 +1910,10 @@ check-case-ledger:
 
 # 测试根级索引门控 (TESTCASES-071t, L1): tests/{inst,arch,unit,tset}.yaml
 # 只做静态校验（不跑 guest）：ID 全局唯一、file 存在于本 scope 目录、字段/
-# platforms/level 合法、根级 *.yaml 的 scope 合法；计数现场派生、不写死。
-# `--self-test` = 干净基线 + 13 类注入（各自可达 FAIL，含缺失 scope 目录）。
+# platforms/level 合法、根级 *.yaml 的 scope 合法、载体集 == 索引集（双向，
+# M13-TESTCASES-041）；计数现场派生、不写死。
+# `--self-test` = 干净基线 + 各类注入（各自可达 FAIL，含缺失 scope 目录、
+# 载体未入索引 / 索引指向非载体）。
 check-tests-index:
 	@$(PYTHON) tools/testcases/check_tests_index.py
 
