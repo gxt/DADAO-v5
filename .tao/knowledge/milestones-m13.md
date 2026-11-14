@@ -31,6 +31,7 @@
 | m13-spec-010 | 3–5 h | 删 `ft2ft`/`fo2fo`、加 `rf2rf`（OPC-octa/opx `111-100`）；单精写宽归位 `SimRISC-00 §2.3`+`07` 开头 （**等 M12 收尾**） |
 | m13-testcases-043 | 6–10 h | YAML 退役收口（审计等价→迁保留编码→删 28 册→sweep 工具退役） （**等 042 合入**） |
 | m13-testcases-044 | 3–5 h | FMA/minmax/roundint 三探针收窄（先核 llvm/picolibc 覆盖→抽点进 `.S`→退役） （**等 043**） |
+| m13-testcases-045 | 3–4 h | riscv-tests 精选值迁移进 `.S` + 退役（`inventory` 转借鉴清单） （**等 044**） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
