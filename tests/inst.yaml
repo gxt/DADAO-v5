@@ -983,6 +983,132 @@
   - system
   level: full
   requires: []
+- id: inst-10-arith-logic-byte-001
+  file: inst/10-arith-logic-byte/add.sb_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-002
+  file: inst/10-arith-logic-byte/add.ub_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-003
+  file: inst/10-arith-logic-byte/cmp.sb_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-004
+  file: inst/10-arith-logic-byte/cmp.ub_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-005
+  file: inst/10-arith-logic-byte/div.sb_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-006
+  file: inst/10-arith-logic-byte/div.ub_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-007
+  file: inst/10-arith-logic-byte/mul.sb_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-008
+  file: inst/10-arith-logic-byte/mul.ub_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-009
+  file: inst/10-arith-logic-byte/rem.sb_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-010
+  file: inst/10-arith-logic-byte/rem.ub_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-011
+  file: inst/10-arith-logic-byte/rev.b_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-012
+  file: inst/10-arith-logic-byte/rol.b_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-013
+  file: inst/10-arith-logic-byte/rol.b_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-014
+  file: inst/10-arith-logic-byte/shl.b_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-015
+  file: inst/10-arith-logic-byte/shl.b_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-016
+  file: inst/10-arith-logic-byte/shr.sb_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-017
+  file: inst/10-arith-logic-byte/shr.sb_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-018
+  file: inst/10-arith-logic-byte/shr.ub_orri_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-019
+  file: inst/10-arith-logic-byte/shr.ub_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-020
+  file: inst/10-arith-logic-byte/sub.sb_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-10-arith-logic-byte-021
+  file: inst/10-arith-logic-byte/sub.ub_orrr_rd.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-atomics-001
   file: inst/atomics/aba_treiber.c
   platforms:
