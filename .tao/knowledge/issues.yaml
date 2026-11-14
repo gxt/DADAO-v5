@@ -202,16 +202,16 @@
 - id: ISS-381
   scope:
   - chipyard
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M12
+  resolved_by: "周期模型 §5 与 §3 已按 reviewer 实测订正为 **72 拍**（完成区曾写 80），并注明「以 reviewer 实测为准」"
   title: 【P3】`m12-chipyard-008` 文档与覆盖遗留：F-a `stm.o N=8` 实测 72 拍（完成区写 80，超 ±2）、单元素周期描述不可复现；F-b 回归向量 87 个 `ldm`/`stm` 全 count=1 ⇒ 多元素/跨 beat 路径零覆盖（reviewer 用自建探针补证，建议补 count>1 向量）；F-c 「中途 denied ⇒ CFXMEM」只有代码证据（预检已拦掉可构造的 deny）；F-d CFXMEM 30 例全为 addr0 同形态（数量达标、形态单一）。
 - id: ISS-382
   scope:
   - chipyard
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M12
+  resolved_by: "`m12-chipyard-022` 修复（`pfAddrLegal` 判待发 beat）：prefetch 0→338、跨 beat p50 8→1；周期模型 §5 已回填修复后实测"
   title: 【P1】**预取自 `m12-chipyard-008` 起全部失效（回归）**：008 把 `specBacked(pfReqAddr)` 加进 `pfAddrLegal`，而 `pfReqAddr` 取自复位值 0 的 `pfReqBeat` ⇒ 地址 0 不在 Tiny 三段窗口 ⇒ `pfWanted` 恒假。`m12-chipyard-009` reviewer 用 400 条直线 `or.o` 实测 `prefetch=0 / demand_fetch=313 / exec=618`，跨 beat 全付 6 拍，与「用例短/跳转打散」无关。`020` 的 p50=1 测于 008 合入之前，故未暴露；现有门控无「预取是否真的发过」的断言。修复：`pfAddrLegal` 改查待发的 `pfBeat`；并补一条「直线流 prefetch > 0」的门控断言。
 - id: ISS-383
   scope:
@@ -416,9 +416,9 @@
   scope:
   - testcases
   - chipyard
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M12
+  resolved_by: "`m12-chipyard-028` 重生成 `bootrom.tiny.hex`（解码镜像 `514300…`、hex 文本 `c499803a…`），hmon 段 44 B 且读 `0xF8` 返回槽；节点 `01-load-store` 235/235（三平台同码），hmon 自装 workaround 已撤（`tests/` 内 `__INSTALL_HMON`/`hmon_stub` 0 命中）"
   title: 【P1】**chipyard BootROM hex 的 hmon 仍走 `escape +4`，与 QEMU/gem5 的 `bootrom_tiny.bin`（槽 `0xF8`）不一致**：`m13-testcases-012` 只能靠「运行期把自建 hmon 处理器拷到 hmon SRAM 基址再触发异常」来对齐三方。这是 `m13-integ-007`/`ISS-380` 的未跟进项（hex 未用新 builder 重生成）。行动：用 `tools/testcases/arch/build_tiny_bootrom.py` 重生成 chipyard 签入 hex（目标共享镜像 md5 `514300876ea66ec108396334f3ef2b0f`），改源树 hex → `tools/infra/make_patch.py` 重导出 → `check-patch-tree`；之后删除测试里的 workaround。
 - id: ISS-411
   scope:
