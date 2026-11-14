@@ -211,8 +211,6 @@ rules:
       escape 的 imms18[17:1]（escape 合法偏移 0/+4，imms18 ∈ {0, 1}）；
       移位量超过位宽限制（shl.b/rol.b/shr.sb/shr.ub: shamt > 7；shl.w/rol.w/shr.sw/shr.uw: shamt > 15；
       shl.t/rol.t/shr.st/shr.ut: shamt > 31）；
-      扩展起始位超过位宽限制（ext.uo/ext.so: hd > 63；SPEC-069t: ext.ub/ext.sb、
-      ext.uw/ext.sw、ext.ut/ext.st 已删除）；
       lr 指令的 hb（rdhb）是 SBZ 固定零字段（数据目的为 rdhc），
       手工编码 hb ≠ 0 触发 ILLI 异常（静态）；12 条 lr.* 由 rule_refs 覆盖。
       精确格式转换的低 6 位（`ft2fo`/`it2fo`/`ut2fo`，`scope: fp`，共 3 条）：

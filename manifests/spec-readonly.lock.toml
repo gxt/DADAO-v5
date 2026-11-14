@@ -8,6 +8,13 @@ policy = "readonly-requires-authorization"
 #   根因：`Process-06 §5` 要求「改正文与重算哈希同笔」，但这一批改动分布在多个任务的提交里、漏了哈希 ⇒
 #   锁长期失配（无法证明只读，也发现不了越权改）。审计方法：逐册取「锁最后一次更新之后」触及该册的提交，
 #   核对提交主题与落纸的裁定原话；结论与清单见 `.tao/knowledge/discussing.md` §ISS-436 授权审计。
+# 2026-11-14（m13-spec-008，授权依据 = 用户 2026-11-13 裁定原话（落纸于该任务书 §用户裁定）：
+#   「`ext.*` 的 orrr 形式，`rdHD` 取**低 6 位**作起始位 `hd` 后继续执行，**不抛 ILLI**。」）：
+#   `SimRISC-04 §2.2` 的 `ext.uo`/`ext.so` 起始位改为 `hd = rdHD[5:0]`（orrr；`rdHD` 更高位忽略、
+#   不触发异常），`orri` 的 `immu6` 天然 6 位；删「`hd` 超过位宽 ⇒ ILLI」措辞及表格约束列的位宽上限
+#   （移位族 `shl.o`/`rol.o`/`shr.*` 的 `shamt > N` ⇒ ILLI 不变）；`contract-isa` §6.4.2/§15.1、
+#   `legality_rules.yaml` 的 `encode_sbz` 描述、`DDLN A-指令系统 位操作` 同步；`SimRISC-00` 附录
+#   `0.5.7-rc` 段追加 1 条（版本不变：`0.5.7-rc` 未发布）。上述 2 册 sha256 于同一变更内重算（其余 19 册不变）。
 # 2026-11-13（m13-spec-007，授权依据 = 用户 2026-11-13 裁定原话（落纸于该任务书 §用户裁定）：
 #   「已裁定：`rootn(±0, 2)` 收严为 `+0`；NaN 结果统一 canonical（2026-11-13）」）：
 #   `SimRISC-07 §S1D1` 收严 `rootn(±0, 2) = +0`（IEEE 754-2019 §9.2.1，源为 ±0 一律 `+0`、不置任何标志）；
@@ -324,7 +331,9 @@ group = "simrisc-00..12"
 #   sha256 同笔重算（其余只读册不变）。
 # 2026-11-13（m13-spec-007，授权见文件头条目）：0.5.7-rc 段追加 3 条（`rootn(±0, 2)` 收严为 `+0`；结果 qNaN
 #   统一 canonical（含不适用清单）；浮点比较族异常标志）；sha256 同笔重算（其余只读册不变）。
-sha256 = "5abb9fc6e345a51a64c5f1daf1126e8aba32b197254660e13ba7ae73e47152e1"
+# 2026-11-14（m13-spec-008，授权见文件头条目）：0.5.7-rc 段追加 1 条（`ext.uo`/`ext.so` 起始位取
+#   `rdHD[5:0]`，更高位忽略、不触发异常）；sha256 同笔重算（其余只读册不变）。
+sha256 = "427eab65a1d1af40a4039c2ca0a12bac1e7b22a07c7c7b85aec5fbf3b1cbabb7"
 # 2026-10-22（SPEC-164t，授权原话见 `.tao/tasks/spec/SPEC-164t-OPC-MISC迁移与解excluded.md` §立项来源：「还有一个编码改动过：OPC-MISC的编码改为：0100-0111」「修改编码：ctpop_orri_rd ctlz_orri_rd cttz_orri_rd 从 OPC-octa 改为 OPC-MISC，opx：100-101/100-110/100-111」）：§4 QFC 主表 `OPC-MISC` 由 `0111-0111` 迁 `0100-0111`（原格置空）；§4.1 `100-101/110/111` 填 `ctpop`/`ctlz`/`cttz`；§4.2 删同三格与「借用 OPC-octa 格位」例外说明；附录 0.5.5 两条同步；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
@@ -362,7 +371,10 @@ group = "simrisc-00..12"
 # 2026-10-22（SPEC-155t，授权原话见文件头注释）：§2 合法性清单生成区由 `gen_legality_list --apply` 重生成（`clmul.o` 移出 `scope: excluded` 区块，`dst_dual_same` 清单仍列明）；sha256 同笔重算。
 # 2026-10-22（SPEC-166t，授权原话见文件头注释）：删 not/neg 伪指令小节；去 rol/ctlz 具体编码值（保留格式代号）；断跨册引用；sha256 同笔重算。
 # 2026-10-24（SPEC-167t，同授权）：`ctlz`/`cttz`/`ctpop` 小节迁至 `SimRISC-12`（留跨册指引），`2.2.3` 重编为 `2.2.2`；生成区同步；sha256 同笔重算。
-sha256 = "b1ecfe3a9cc8df692f115eff3207bb7220d541d3304a8135fd3784e6a610c57a"
+# 2026-11-14（m13-spec-008，授权见文件头条目）：§2.2 `ext.uo`/`ext.so` 起始位改为 `hd = rdHD[5:0]`（orrr；
+#   更高位忽略、不触发异常），删「`hd` 超过位宽 ⇒ ILLI」与表格约束列的位宽上限；移位族 `shamt > N` ⇒ ILLI
+#   不变；sha256 同笔重算（其余只读册不变）。
+sha256 = "186b375d4f586936b53aac03a1b6d9111630dc942754410deae9c2d7ce136cdc"
 # 2026-10-22（SPEC-164t，同授权）：「格式」句由「借用 `OPC-octa` 格位（例外）」改为「位于 `OPC-MISC` 的 `100-101/100-110/100-111`」；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-05-64位地址运算.md"

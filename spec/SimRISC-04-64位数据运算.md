@@ -174,11 +174,11 @@ rdHB[63:hd+1] = sign/zero_extend(rdHC[hd])               // 符号/零扩展（N
 
 > **注**：64位 ext（N=63）自然写满64位。
 
-其中 N 由位宽决定（octa→63），hd 为扩展起始位，须满足 `hd ≤ N`，否则 ILLI。
+其中 N 由位宽决定（octa→63）。`hd` 为扩展起始位：`orri` 形式的 `immu6` 天然为 6 位；`orrr` 形式的 `hd` 取 `rdHD` 的**低 6 位**（`hd = rdHD[5:0]`），`rdHD` 的更高位被忽略、不触发异常。
 
 | 指令 | N | 汇编语法 | 约束 |
 |------|---|---------|------|
-| `ext.uo`/`ext.so` | 63 | `ext.uo rdHB, rdHC, rdHD` 或 `ext.uo rdHB, rdHC, immu6` | hd ≤ 63 |
+| `ext.uo`/`ext.so` | 63 | `ext.uo rdHB, rdHC, rdHD` 或 `ext.uo rdHB, rdHC, immu6` | `hd = rdHD[5:0]`（orrr）/ immu6（orri） |
 
 64 位移位/扩展指令如下：
 

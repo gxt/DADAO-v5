@@ -407,6 +407,7 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 - **`rootn(±0, 2)` 收严为 `+0`**：`ftroot`/`foroot` 与平方根运算相同，唯一例外是零的符号——按 IEEE 754-2019 §9.2.1，`rootn(±0, 2) = +0`（该节 NOTE 明确其与 `squareRoot(−0) = −0` 不同），源为 `+0` 或 `−0` 时结果一律为 `+0`、不置任何标志；原「结果未予规定」的口径作废。
 - **结果 NaN 统一为 canonical**：凡结果应为 quiet NaN 的情形（算术、缩放、开方、取余、融合乘加、取整、最小最大、格式转换，以及比较的 quiet 无序结果与一切无效操作产生的 qNaN）一律返回 **canonical quiet NaN**（符号位 0、payload 全零 ⇒ ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）；复制类（`ft2ft`/`fo2fo`）、signaling compare 的无序结果、最小最大的单 NaN 情形不适用；IEEE 754-2019 §6.2.3 对 payload 传播仅为 *should*、§6.3 不规定结果符号位 ⇒ 取 canonical 属允许的实现选择、**不是**有意偏离。
 - **浮点比较族的异常标志**：signaling compare 只要无序（sNaN 或 qNaN 操作数）即置 `NV`；quiet compare 仅在含 sNaN 时置 `NV`，只含 qNaN 为安静无序、不置标志；有序比较不置标志。四条比较指令只可能置 `NV`，不置 `DZ`/`OF`/`UF`/`NX`，标志 sticky 写入 `rf0[4:0]`。
+- **`ext.uo`/`ext.so` 的扩展起始位取低 6 位**：`orrr` 形式的起始位 `hd = rdHD[5:0]`——`rdHD` 的更高位一律忽略、**不触发异常**、不置任何标志；`orri` 形式的 `immu6` 天然为 6 位。原「`hd` 大于 `N` ⇒ ILLI」作废。
 
 ### 0.5.6（2026-11-09）
 

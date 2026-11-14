@@ -651,7 +651,7 @@ rol.o: rdhb[N:0]   = rol(rdhc[N:0], shamt)               // 逻辑循环左移�
 
 #### §6.4.2 64 位符号/零扩展（orrr / orri 格式）
 
-`ext.s` 为符号扩展，`ext.u` 为零扩展；`hd`（orrr）或 `immu6`（orri）为扩展起始位。[SimRISC-04 §Bit manipulating：位操作指令]
+`ext.s` 为符号扩展，`ext.u` 为零扩展；`hd`（orrr）或 `immu6`（orri）为扩展起始位——`orrr` 形式取 `rdHD` 的**低 6 位**（`hd = rdHD[5:0]`，更高位忽略、不触发异常），`orri` 形式的 `immu6` 天然为 6 位。[SimRISC-04 §Bit manipulating：位操作指令]
 
 ```
 rdhb[hd:0]   = rdhc[hd:0]                               // 复制源低位
@@ -663,10 +663,8 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 | 指令 | N | 汇编语法 | 约束 |
 |------|---|---------|------|
-| `ext.uo`/`ext.so` | 63 | `ext.uo rdhb, rdhc, rdhd` 或 `ext.uo rdhb, rdhc, immu6` | hd ≤ 63 |
+| `ext.uo`/`ext.so` | 63 | `ext.uo rdhb, rdhc, rdhd` 或 `ext.uo rdhb, rdhc, immu6` | `hd = rdHD[5:0]`（orrr）/ immu6（orri） |
 [SimRISC-04 §Bit manipulating：位操作指令]
-
-异常条件：`hd > N` → **ILLI**。[SimRISC-04 §Bit manipulating：位操作指令]
 
 - 32/16/8 位扩展分别见 §10.4.2、§11.4.2、§12.4.2。
 
@@ -1269,7 +1267,6 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 - 块赋值（`ra2rd`/`rd2ra`）`immu6 = 0`、任一起始寄存器 + immu6 > 64、或 `ra2rd` 目的 `rdhb` 为 `rd0`。[SimRISC-02 §寄存器组之间块赋值][SimRISC-00 §数据寄存器]
 - 移位量：`orri` 形式 `immu6 > N`；`orrr` 形式只取低位（不抛 ILLI）。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - `rol.{t,w,b}` 的立即数旋转量 `immu6 ≥ W`（orri 形态）；`rol.o` 的 `immu6` 为 6 位，无越界值。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
-- 扩展起始位 `hd > N`。[SimRISC-04/08/09/10 §Bit manipulating：位操作指令]
 - `add.uo`/`add.so`/`sub.uo`/`sub.so`/`mul.uo`/`mul.so` 中 `rdha` 与 `rdhb` 同时为 `rd0`，或为同一非 `rd0` 寄存器。[SimRISC-04 §加减操作][SimRISC-04 §乘除操作]
 - 固定位宽算术/比较/乘除余指令 `rdhb` 为 `rd0`。[SimRISC-04/08/09/10 §加减操作][SimRISC-04/08/09/10 §比较操作][SimRISC-04/08/09/10 §乘除操作]
 - 核芯功能扩展指令（`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence`）的 `cfxha` 为保留编号（6–14、16–31、35–61）。[SimRISC-11 §指令域与执行条件]
