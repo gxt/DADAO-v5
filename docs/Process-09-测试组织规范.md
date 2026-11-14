@@ -167,6 +167,7 @@ tests/
 - **ID**：`inst-<ext>-nnn` / `arch-<cfx>-nnn` / `unit-<module>-nnn` / `tset-<suite>-nnn`。
 - **独立 oracle**：期望值来自 spec/契约/参考模型，不从 QEMU 输出反推（承接 `Process-05 §4`）。
 - `check-*-index`（L1）：ID 唯一、文件存在、字段合法、scope/平台合法、计数现场派生。
+- **载体现行集 == 索引集**（L1，`tests/inst/**/*.S` 与 `tests/inst.yaml` 的 `file:` 双向断言）：缺载体、幽灵索引（指向不存在的载体）、同一载体重复引用，三类分别报出并 rc≠0——只查「索引里的文件存在」会漏掉「载体没进索引」。
 
 ---
 
