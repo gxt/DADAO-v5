@@ -36,6 +36,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m13-testcases-036 | 2026-11-14 16:35 | 1–2 h | lit E2E（5 例）+ codegen E2E 改用 64 KiB 固定固件（去 legacy trampoline） |
 | m13-testcases-032 | 2026-11-14 15:20 | 4–6 h | rootn ±0 / NaN canonical / quiet-sNaN 向量与三平台期望 |
 | m13-testcases-034 | 2026-11-14 15:20 | 2–3 h | Tiny `expected_fault` oracle 迁到 hmon 分派口径 |
 | m13-qemu-011 | 2026-11-14 15:20 | 2–3 h | `-bios` 收紧为固定固件，删 legacy trampoline 窗口 |
