@@ -674,3 +674,20 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`inst_sweep`/`bit_sweep`/`ctrl_sweep`/`fp_sweep` 退役后，`sweep_expect.bin` 的 md5 `2d4d94651346ef673c5a855e024c1489`（273 例）**不再是任何门控的判据**，但 10+ 个历史任务书的证据里仍以它作回归钉。处置：历史任务书不改写（历史事实），但**新任务不得再引用该 md5**；若将来需要等价覆盖，用 `check-inst-asm`（265 id/900 镜像）与三平台差分。"
+- id: ISS-443
+  scope:
+  - qemu
+  - gem5
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P1】`sc` 的「异常/中断进入 ⇒ 清保留」**三平台均不实现**（`spec/SimRISC-12 §1` 明列为清除事件）：`m13-testcases-037` 四条路径实测 —— `MALIGN`/`CFXMEM`/`ILLI` 进入后 `sc` = chipyard `1` / qemu `1` / **gem5 `0`**；`CFXTRAP` = `1` / **`0`** / **`0`**（spec 全为 1 = 清除）。后果：该清除事件**无法写成正式向量**（写 1 ⇒ gem5+qemu 恒红挡 L2；写 0 或写平台值 = 以实现反推，任务书明禁）⇒ 037 只能记 GAP。处置：① gem5 与 qemu 补「异常/中断进入清保留」（qemu 至少补 `CFXTRAP` 路径）；② 修完后在 `sc.b.nn_orrr_rd.S` 补故障/链例 1 点；③ 与 `ISS-440`（多 hart 清除无路径）同源，建议同批处理。"
+- id: ISS-444
+  scope:
+  - linux
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】K1 门控的「阶段顺序」证据是**间接**的：共享 BootROM 固件的 power/hmon/smon **不打印任何东西**，而 K1 任务禁 `-d` 逐指令日志，故 `check-linux-k1` 只能用「镜像索引表（hmon<smon 各 1 条）+ 各阶段唯一产物」（boot info 15 字段 = hmon；`ptw_enable`/传入 PTBR/预建表 1 超页/`rb16+rb17` = smon）证明**三阶段都跑过**，**不能直接观测三阶段的相对顺序**（`m14-linux-005` 复核 §4 判定：够用但非直接观测、不阻断）。处置：给共享固件三阶段各加 1 行 semihosting 标记（改 `tests/shared/bootrom/**`，同时影响 `check-linux-k0` 与 `k0_boot_probe`），另立任务；补强后门控改为直接断言顺序。"
