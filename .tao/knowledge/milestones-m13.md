@@ -32,8 +32,6 @@
 | m13-gem5-012 | 3–4 h | gem5 `ext.*` orrr 的 `hd` 改 `reg & 0x3F`（B3 表同步） |
 | m13-testcases-033 | 2–3 h | 补 `ext.*` `rdHD=64/67/63` 跨平台用例（截低 6 位） |
 | m13-testcases-032 | 4–6 h | rootn ±0 / NaN canonical / quiet-sNaN 向量与三平台期望 |
-| m13-testcases-027 | 2–3 h | `11-cfx` 5 个 id 改汇编+宏（cfx/system） |
-| m13-testcases-028 | 5–7 h | `12-misc` 原子 24 个 id 改汇编+宏（`lr`/`sc`） |
 | m13-testcases-029 | 1–2 h | `12-misc` 其余 4 个 id 改汇编+宏（`swym`/`ct*`） |
 | m13-testcases-030 | 4–6 h | `.S` 接入门控 + YAML 退役（ISS-413） |
 | m13-integ-002 | 5–7 h | FP 语义三平台差分（47 条，含舍入/标志） （**暂不进行**，用户 2026-11-11） |
@@ -44,6 +42,8 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m13-testcases-028 | 2026-11-14 13:00 | 5–7 h | `12-misc` 原子 24 个 id 改汇编+宏（`lr`/`sc`） |
+| m13-testcases-027 | 2026-11-14 13:00 | 2–3 h | `11-cfx` 5 个 id 改汇编+宏（cfx/system） |
 | m13-testcases-024 | 2026-11-14 11:40 | 4–5 h | `08-arith-logic-tetra` 21 个 id 改汇编+宏 |
 | m13-testcases-023 | 2026-11-14 11:40 | 2–3 h | `07-floating-point` 取整/缩放/符号 8 个 id 改汇编+宏 |
 | m13-chipyard-001 | 2026-11-14 09:40 | 3–5 h | 单精写入宽度：`ld.t`/`ldm.t` 不扩展 + ft 结果只写低 32 位（RTL） |
