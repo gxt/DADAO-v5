@@ -4,6 +4,10 @@
 
 ## M12
 
+- **2026-11-14 文档补齐（`ISS-421`）**
+  - 摘要：`m12-chipyard-027` 新增的合法性规则 `mreg_range_addr_overlap`（`ldm`/`stm` 的**地址寄存器**落入传送范围 ⇒ ILLI；`stm` 允许、RA/RF 不适用）此前只在 RTL 与补丁里落地，本 README 的合法性清单漏列，现补入；规则真源见 `contracts/legality_rules.yaml` 的 `mreg_range_addr_overlap` 与 `spec/SimRISC-01`。
+  - 执行者：architect（文档补齐）
+
 - **2026-11-14 `m12-chipyard-028`**
   - 摘要：**签入 BootROM hex 由新 builder 重生成，hmon 与 QEMU/gem5 同版**（`ISS-410`）。旧 hex 仍是 `escape +4` 的 120 B hmon，与共享 `bootrom_tiny.bin`（槽 `0xF8`、48 B）不同 ⇒ `tests/inst` 只能靠运行期自装处理器对齐三方，现已撤除该 workaround。新 hex：解码镜像 md5 `514300876ea66ec108396334f3ef2b0f`（65536 B）、文本 md5 `c499803ae452d21f372acdb5cad12f4e`、hmon 代码 44 B/表项 `size=48`、`flags=0x3`、`off=0x2000`。补丁集只重导出该 1 份补丁（20 unchanged）。**坑**：`sims/verilator` 的 jar 只依赖 Scala/Verilog 源，资源（hex）变更不会使 `.classpath_cache/chipyard.jar` 失效 ⇒ 必须先删该 jar 再 `make verilog`，否则 elaboration 静默沿用旧固件。
   - 执行者：engineer

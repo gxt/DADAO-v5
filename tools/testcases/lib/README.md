@@ -152,7 +152,7 @@ For **semantic/boundary** cases with `expected_state`:
 4. For RA: `ra2rd` copies actual RA into scratch RD, then XOR with expected
 5. OR all differences into accumulator
 6. If accumulator == 0 → report `0x00` (PASS) via semihosting `SYS_EXIT`
-7. If accumulator != 0 → report `0x40` (guest FAIL) via semihosting `SYS_EXIT`
+7. If accumulator != 0 → report the **failing check-point index** (`0x01`–`0x7F`) via semihosting `SYS_EXIT`
 
 For **encoding** cases (no expected_state, no expected_fault):
 - Report `0x00` (PASS) via `SYS_EXIT` after the test instruction
