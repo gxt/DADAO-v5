@@ -24,6 +24,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-chipyard-002 | 2026-11-15 22:14 | 3–5 h | cfx 独立为 `dadao-gewu` generator（ADR-0053 D1–D7；`GewuFileIO` + 重定向归 core + 参数化） |
 
 ## 已验证
 

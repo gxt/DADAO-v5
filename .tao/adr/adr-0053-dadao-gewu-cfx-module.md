@@ -1,6 +1,6 @@
 # ADR-0053: chipyard 侧 cfx 独立为 `dadao-gewu` generator
 
-**状态**：Candidate
+**状态**：Accepted
 **日期**：2026-11-15
 **关联**：ADR-0045（cfx 权限）、ADR-0046（cfx 寄存器 profile）、`m16-chipyard-001`（周期模型收口复测）、`spec/Machine-v5`、`spec/DADAO-12/13`
 
@@ -44,4 +44,4 @@ chipyard 惯例支持该形态：`generators/` 31 个目录中除核以外还有
 
 ## 状态说明
 
-2026-11-15 由主会话起草为 `Candidate`；**D1–D7 须逐条与用户确认**，确认后置 `Accepted` 并立实施任务（不得先动 RTL）。
+2026-11-15 由主会话起草为 `Candidate`；同日用户逐条确认 **D1–D7**（原话：「同意，立任务，M16」）⇒ 置 `Accepted`，并立实施任务 `m16-chipyard-002`（M16）。用户同时裁定**删除 D8（与 `m16-chipyard-001` 的先后）、D9、D10 与「被否方案」节**，本 ADR 不再保留这些条目；拆分与其它任务的先后不作规定，只要不冲突。
