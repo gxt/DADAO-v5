@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/exec/b4_test.cc b/src/arch/dadao/exec/b4_test.cc
 new file mode 100644
-index 0000000..9cf0090
+index 0000000..0206e25
 --- /dev/null
 +++ b/src/arch/dadao/exec/b4_test.cc
 @@ -0,0 +1,1486 @@
@@ -679,7 +679,7 @@ index 0000000..9cf0090
 +                     entry.batch);
 +        }
 +    }
-+    check(notB4 == 264 - 63, "non-B4 ids return NotB4 (%zu/201)", notB4);
++    check(notB4 == 263 - 63, "non-B4 ids return NotB4 (%zu/200)", notB4);
 +    std::printf("non-B4 ids return NotB4 (%zu/201)\n", notB4);
 +}
 +

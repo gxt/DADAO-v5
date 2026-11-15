@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/fp_soft.cc b/src/arch/dadao/exec/fp_soft.cc
 new file mode 100644
-index 0000000..0b21c0d
+index 0000000..85ca934
 --- /dev/null
 +++ b/src/arch/dadao/exec/fp_soft.cc
-@@ -0,0 +1,1032 @@
+@@ -0,0 +1,1033 @@
 +// DADAO gem5 B7 execution core -- pure-integer IEEE 754-2019 arithmetic.
 +//
 +// Every operation is a bit-exact integer algorithm; no host float/double takes
@@ -906,7 +906,8 @@ index 0000000..0b21c0d
 +    if (u.kind == Kind::NaN) {
 +        // A NaN result is the canonical quiet NaN (sign 0, payload 0) for
 +        // every conversion (contract-fp §1, spec/SimRISC-07 §1.4); an sNaN
-+        // input still accrues NV.  Only the copy forms ft2ft/fo2fo keep bits.
++        // input still accrues NV.  Only a bit copy (the rf-group block copy
++        // rf2rf, which never reaches this library) keeps the bits.
 +        return {qnanBits(dst), u.quiet ? uint8_t(0) : uint8_t(NV)};
 +    }
 +    if (u.kind == Kind::Inf)

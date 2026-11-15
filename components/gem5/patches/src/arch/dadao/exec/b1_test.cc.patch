@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/exec/b1_test.cc b/src/arch/dadao/exec/b1_test.cc
 new file mode 100644
-index 0000000..032b0f7
+index 0000000..3ab7de7
 --- /dev/null
 +++ b/src/arch/dadao/exec/b1_test.cc
 @@ -0,0 +1,1474 @@
@@ -508,7 +508,7 @@ index 0000000..032b0f7
 +    check(exec::specCount() == 38, "executeB1 spec count == 38 (actual %zu)",
 +          exec::specCount());
 +
-+    // B2-B7 (the other 264-38 = 226 entries) must stay NotB1.
++    // B2-B7 (the other 263-38 = 225 entries) must stay NotB1.
 +    size_t notB1 = 0;
 +    for (size_t i = 0; i < decode::entryCount(); ++i) {
 +        const decode::DecodeEntry &entry = decode::entries()[i];
@@ -532,7 +532,7 @@ index 0000000..032b0f7
 +            }
 +        }
 +    }
-+    check(notB1 == 264 - 38, "non-B1 ids return NotB1 (%zu/226)", notB1);
++    check(notB1 == 263 - 38, "non-B1 ids return NotB1 (%zu/225)", notB1);
 +}
 +
 +// ---------------------------------------------------------------------------

@@ -5,12 +5,12 @@
 schema: 1
 generated_by: tools/gem5/gen_wuming_cycles.py
 source_doc: docs/core-wuming-cycle-model.md
-source_doc_sha256: '7e9fe837d6cc4f549afa5cf6faa6e9ce0da8f6d5f1c814266807421b5471ff15'
-instruction_count: 264
+source_doc_sha256: 'e1de61884207125ab4e37ee05eb883d4574010e3385c2f66c53e4aed37fa492e'
+instruction_count: 263
 static_rows: 168
-dynamic_rows: 96
+dynamic_rows: 95
 class_set: ['A', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4', 'B5', 'C', 'D', 'D′', 'E', 'F', 'G1', 'G2', 'G3', 'G4']
-by_class: {'A': 95, 'A2': 12, 'A3': 3, 'A4': 3, 'B1': 2, 'B2': 6, 'B3': 16, 'B4': 49, 'B5': 6, 'C': 18, 'D': 19, 'D′': 10, 'E': 24, 'F': 1, 'G1': 1, 'G2': 1, 'G3': 1, 'G4': 2}
+by_class: {'A': 95, 'A2': 12, 'A3': 3, 'A4': 3, 'B1': 2, 'B2': 6, 'B3': 16, 'B4': 49, 'B5': 6, 'C': 18, 'D': 19, 'D′': 9, 'E': 24, 'F': 1, 'G1': 1, 'G2': 1, 'G3': 1, 'G4': 2}
 # block_model: 多元素传送的模型系数，由 §3 的 N=… 实测图解出（不是手抄）
 block_model:
   per_element: 1
@@ -58,7 +58,7 @@ doc_rows:
 - {line: 68, section: '06', ids: 2, classes: 'A3/A4'}
 - {line: 69, section: '06', ids: 1, classes: 'A3/A4'}
 - {line: 70, section: '07', ids: 18, classes: 'B4'}
-- {line: 71, section: '07', ids: 2, classes: 'D′'}
+- {line: 71, section: '07', ids: 1, classes: 'D′'}
 - {line: 72, section: '07', ids: 6, classes: 'B4'}
 - {line: 73, section: '07', ids: 4, classes: 'B5'}
 - {line: 74, section: '07', ids: 2, classes: 'B5'}
@@ -228,6 +228,7 @@ instructions:
 - {id: 'rem.so_orrr_rd', mnemonic: 'rem.so', section: '04', klass: ['B3'], cycles: '33', value: 33, range: null, dynamic: null, doc: 64, source: '§3 04', provenance: '待实测（设计值 radix-4）'}
 - {id: 'rd2rf_orri_rf', mnemonic: 'rd2rf', section: '02', klass: ['D′'], cycles: '1+N', value: null, range: null, dynamic: 'N', doc: 55, source: '§3 02', provenance: '实测（N=8）', per_element: -1, per_beat: -1, n_base: 1, n_step: 1, elem_width: 0}
 - {id: 'rf2rd_orri_rf', mnemonic: 'rf2rd', section: '02', klass: ['D′'], cycles: '1+N', value: null, range: null, dynamic: 'N', doc: 55, source: '§3 02', provenance: '实测（N=8）', per_element: -1, per_beat: -1, n_base: 1, n_step: 1, elem_width: 0}
+- {id: 'rf2rf_orri_rf', mnemonic: 'rf2rf', section: '02', klass: ['D′'], cycles: '1+N', value: null, range: null, dynamic: 'N', doc: 71, source: '§3 07', provenance: '实测', per_element: -1, per_beat: -1, n_base: 1, n_step: 1, elem_width: 0}
 - {id: 'rev.o_orri_rd', mnemonic: 'rev.o', section: '04', klass: ['A'], cycles: '2', value: 2, range: null, dynamic: null, doc: 59, source: '§3 04', provenance: '实测'}
 - {id: 'shl.t_orrr_rd', mnemonic: 'shl.t', section: '08', klass: ['A'], cycles: '2', value: 2, range: null, dynamic: null, doc: 27, source: '§2 A（§3 08 全套）', provenance: 'A 实测'}
 - {id: 'rol.t_orrr_rd', mnemonic: 'rol.t', section: '08', klass: ['A'], cycles: '2', value: 2, range: null, dynamic: null, doc: 89, source: '§3 12', provenance: '实测'}
@@ -294,11 +295,9 @@ instructions:
 - {id: 'rev.b_orri_rd', mnemonic: 'rev.b', section: '10', klass: ['A'], cycles: '2', value: 2, range: null, dynamic: null, doc: 89, source: '§3 12', provenance: '实测'}
 - {id: 'ftcls_orri_rf', mnemonic: 'ftcls', section: '07', klass: ['B4'], cycles: '1+元素数', value: null, range: null, dynamic: 'elements', doc: 75, source: '§3 07', provenance: '实测'}
 - {id: 'ft2fo_orri_rf', mnemonic: 'ft2fo', section: '07', klass: ['B4'], cycles: '1', value: 1, range: null, dynamic: null, doc: 70, source: '§3 07', provenance: '实测'}
-- {id: 'ft2ft_orri_rf', mnemonic: 'ft2ft', section: '07', klass: ['D′'], cycles: '1+N', value: null, range: null, dynamic: 'N', doc: 71, source: '§3 07', provenance: '实测', per_element: -1, per_beat: -1, n_base: 1, n_step: 1, elem_width: 0}
 - {id: 'ftroot_orri_rf', mnemonic: 'ftroot', section: '07', klass: ['B5'], cycles: '27', value: 27, range: null, dynamic: null, doc: 73, source: '§3 07', provenance: '实测'}
 - {id: 'focls_orri_rf', mnemonic: 'focls', section: '07', klass: ['B4'], cycles: '1+元素数', value: null, range: null, dynamic: 'elements', doc: 75, source: '§3 07', provenance: '实测'}
 - {id: 'fo2ft_orri_rf', mnemonic: 'fo2ft', section: '07', klass: ['B4'], cycles: '1', value: 1, range: null, dynamic: null, doc: 70, source: '§3 07', provenance: '实测'}
-- {id: 'fo2fo_orri_rf', mnemonic: 'fo2fo', section: '07', klass: ['D′'], cycles: '1+N', value: null, range: null, dynamic: 'N', doc: 71, source: '§3 07', provenance: '实测', per_element: -1, per_beat: -1, n_base: 1, n_step: 1, elem_width: 0}
 - {id: 'foroot_orri_rf', mnemonic: 'foroot', section: '07', klass: ['B5'], cycles: '56', value: 56, range: null, dynamic: null, doc: 73, source: '§3 07', provenance: '实测'}
 - {id: 'ft2it_orri_rf', mnemonic: 'ft2it', section: '07', klass: ['B4'], cycles: '1', value: 1, range: null, dynamic: null, doc: 70, source: '§3 07', provenance: '实测'}
 - {id: 'ft2io_orri_rf', mnemonic: 'ft2io', section: '07', klass: ['B4'], cycles: '1', value: 1, range: null, dynamic: null, doc: 70, source: '§3 07', provenance: '实测'}

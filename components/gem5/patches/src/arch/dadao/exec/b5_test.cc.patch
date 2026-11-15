@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b5_test.cc b/src/arch/dadao/exec/b5_test.cc
 new file mode 100644
-index 0000000..bc472f2
+index 0000000..1cd0059
 --- /dev/null
 +++ b/src/arch/dadao/exec/b5_test.cc
-@@ -0,0 +1,2051 @@
+@@ -0,0 +1,2139 @@
 +/*
 + * DADAO gem5 B5 execution assertions (GEM5-010t).
 + *
@@ -15,7 +15,7 @@ index 0000000..bc472f2
 + * spec/SimRISC-06 (control flow), spec/SimRISC-00 §2.4 (RAS),
 + * contract-isa §3.3.3/§4/§6.5/§8 and contract-fp §12 -- never from another
 + * implementation:
-+ *   * the 28 B5 ids are listed one by one and must equal the live decode-table
++ *   * the 29 B5 ids are listed one by one and must equal the live decode-table
 + *     B5 set (batch membership is never guessed from a mnemonic);
 + *   * the oracle tables are independent of exec/b5.cc (groups, condition
 + *     codes, immediate widths and RAS flows are written out here);
@@ -100,6 +100,8 @@ index 0000000..bc472f2
 +enum TestOp
 +{
 +    T_COPY,
++    /** Block copy whose destination range may not contain rf0 (rf2rf). */
++    T_COPY_NO_RF0,
 +    T_CS,
 +    T_BR,
 +    T_JUMP,
@@ -169,6 +171,8 @@ index 0000000..bc472f2
 +    {"rd2rf_orri_rf", T_COPY, "orri", G_RF, G_RD, "rfhb", "rdhc",
 +     CS_N, BR_N, false},
 +    {"rf2rd_orri_rf", T_COPY, "orri", G_RD, G_RF, "rdhb", "rfhc",
++     CS_N, BR_N, false},
++    {"rf2rf_orri_rf", T_COPY_NO_RF0, "orri", G_RF, G_RF, "rfhb", "rfhc",
 +     CS_N, BR_N, false},
 +    // conditional assignment (contract-isa §6.5)
 +    {"cs.n_rrrr_rd", T_CS, "rrrr", G_RD, G_RD, "rdhb", "rdhc",
@@ -573,7 +577,7 @@ index 0000000..bc472f2
 +}
 +
 +// ---------------------------------------------------------------------------
-+// 1. Coverage: one positive case for each of the 28 ids.
++// 1. Coverage: one positive case for each of the 29 ids.
 +// ---------------------------------------------------------------------------
 +
 +void
@@ -786,7 +790,8 @@ index 0000000..bc472f2
 +        const Oracle &o = kOracle[i];
 +        const int before = failures;
 +        switch (o.op) {
-+          case T_COPY: positiveCopy(o); break;
++          case T_COPY:
++          case T_COPY_NO_RF0: positiveCopy(o); break;
 +          case T_CS: positiveCondAssign(o); break;
 +          case T_BR: positiveBranch(o); break;
 +          case T_JUMP: positiveJump(o); break;
@@ -796,7 +801,7 @@ index 0000000..bc472f2
 +        if (failures == before)
 +            std::printf("[PASS] b5-id %s\n", o.id);
 +    }
-+    check(kOracleCount == 28, "oracle rows == 28 (actual %zu)",
++    check(kOracleCount == 29, "oracle rows == 29 (actual %zu)",
 +          kOracleCount);
 +}
 +
@@ -809,6 +814,7 @@ index 0000000..bc472f2
 +{
 +    switch (op) {
 +      case T_COPY: return exec::B5Op::Copy;
++      case T_COPY_NO_RF0: return exec::B5Op::CopyNoRf0;
 +      case T_CS: return exec::B5Op::CondAssign;
 +      case T_BR: return exec::B5Op::Branch;
 +      case T_JUMP: return exec::B5Op::Jump;
@@ -840,8 +846,8 @@ index 0000000..bc472f2
 +        }
 +        ++live;
 +    }
-+    check(live == 28, "B5 coverage %zu/28", live);
-+    std::printf("B5 coverage %zu/28\n", live);
++    check(live == 29, "B5 coverage %zu/29", live);
++    std::printf("B5 coverage %zu/29\n", live);
 +
 +    size_t batch5 = 0;
 +    for (size_t i = 0; i < decode::entryCount(); ++i) {
@@ -854,10 +860,10 @@ index 0000000..bc472f2
 +        check(exec::b5SpecForId(entry.id) != nullptr,
 +              "executeB5 covers batch-5 id %s", entry.id);
 +    }
-+    check(batch5 == 28, "live batch-5 entry count == 28 (actual %zu)",
++    check(batch5 == 29, "live batch-5 entry count == 29 (actual %zu)",
 +          batch5);
-+    check(exec::b5SpecCount() == 28,
-+          "executeB5 spec count == 28 (actual %zu)", exec::b5SpecCount());
++    check(exec::b5SpecCount() == 29,
++          "executeB5 spec count == 29 (actual %zu)", exec::b5SpecCount());
 +
 +    for (size_t i = 0; i < exec::b5SpecCount(); ++i) {
 +        const exec::B5Spec &spec = exec::b5Specs()[i];
@@ -899,8 +905,8 @@ index 0000000..bc472f2
 +                     entry.batch);
 +        }
 +    }
-+    check(notB5 == 264 - 28, "non-B5 ids return NotB5 (%zu/236)", notB5);
-+    std::printf("non-B5 ids return NotB5 (%zu/236)\n", notB5);
++    check(notB5 == 263 - 29, "non-B5 ids return NotB5 (%zu/234)", notB5);
++    std::printf("non-B5 ids return NotB5 (%zu/234)\n", notB5);
 +}
 +
 +// ---------------------------------------------------------------------------
@@ -1049,12 +1055,16 @@ index 0000000..bc472f2
 +        w.immu6 = 4;
 +        if (strEq(dstField, "rdhb"))
 +            w.rdhb = c.dst;
-+        else
++        else if (strEq(dstField, "rbhb"))
 +            w.rbhb = c.dst;
++        else
++            w.rfhb = c.dst;
 +        if (strEq(srcField, "rdhc"))
 +            w.rdhc = c.src;
-+        else
++        else if (strEq(srcField, "rbhc"))
 +            w.rbhc = c.src;
++        else
++            w.rfhc = c.src;
 +        const exec::Fault fault = runWord(ctx, id, w);
 +        if (c.illegal) {
 +            check(fault == exec::Fault::Illegal, "%s %s -> Illegal (%s)", id,
@@ -1072,7 +1082,7 @@ index 0000000..bc472f2
 +checkBlockCopy()
 +{
 +    for (size_t i = 0; i < kOracleCount; ++i) {
-+        if (kOracle[i].op != T_COPY)
++        if (kOracle[i].op != T_COPY && kOracle[i].op != T_COPY_NO_RF0)
 +            continue;
 +        const Oracle &o = kOracle[i];
 +        checkCopyLegality(o);
@@ -1109,6 +1119,9 @@ index 0000000..bc472f2
 +    }
 +    checkCopyOverlap("rd2rd_orri_rd", "rdhb", "rdhc", G_RD);
 +    checkCopyOverlap("rb2rb_orri_rb", "rbhb", "rbhc", G_RB);
++    // m13-spec-010: the rf-group block copy forbids *any* overlap, complete
++    // coincidence included (contract-fp §12).
++    checkCopyOverlap("rf2rf_orri_rf", "rfhb", "rfhc", G_RF);
 +
 +    // Cross-group same index is legal and must not be treated as overlap.
 +    {
@@ -1166,6 +1179,81 @@ index 0000000..bc472f2
 +              faultName(fault));
 +        check(ctx.rd[3] == 0x123456789ABCDEF0ULL,
 +              "rf2rd rf0 reads the full 64-bit FCSR word");
++    }
++
++    // rf2rf (m13-spec-010): rf-group block copy, full 64 bits per element,
++    // no conversion, no rounding, no flag update (contract-fp §12).
++    {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rf[20] = 0xFFFFFFFFFFFFFFFFULL;
++        ctx.rf[21] = 0x8000000000000001ULL;   // sNaN-shaped ft pattern
++        ctx.rf[22] = 0x0000000000000000ULL;
++        const uint64_t srcBefore[3] = {ctx.rf[20], ctx.rf[21], ctx.rf[22]};
++        ctx.rf[0] = kSbz | (uint64_t(3) << 32) | 0x1DULL;
++        const uint64_t fcsrBefore = ctx.rf[0];
++        resetCounters(ctx);
++        WordSpec w;
++        w.immu6 = 3;
++        w.rfhb = 10;
++        w.rfhc = 20;
++        const exec::Fault fault = runWord(ctx, "rf2rf_orri_rf", w);
++        check(fault == exec::Fault::None, "rf2rf immu6=3 legal (%s)",
++              faultName(fault));
++        check(ctx.rf[10] == srcBefore[0] && ctx.rf[11] == srcBefore[1] &&
++                  ctx.rf[12] == srcBefore[2],
++              "rf2rf immu6=3 copies three elements bit for bit");
++        check(ctx.rf[20] == srcBefore[0] && ctx.rf[21] == srcBefore[1] &&
++                  ctx.rf[22] == srcBefore[2],
++              "rf2rf leaves the source registers unchanged");
++        check(ctx.rf[0] == fcsrBefore,
++              "rf2rf does not touch FCSR (no flags, no rounding mode)");
++        check(ctx.writes.size() == 3 && ctx.badFloats == 0,
++              "rf2rf emits exactly three 64-bit writes (%zu)",
++              ctx.writes.size());
++        for (const Write &write : ctx.writes)
++            check(write.bank == WBank::Rf && write.idx >= 10 &&
++                      write.idx <= 12,
++                  "rf2rf write target rf%u", write.idx);
++    }
++
++    // rf2rf: the destination range may not contain rf0 -- start 0 is illegal
++    // for every immu6, judged before any register access (dst_rf0).
++    for (unsigned n = 1; n <= 3; ++n) {
++        MockContext ctx;
++        initContext(ctx);
++        ctx.rf[20] = 1;
++        resetCounters(ctx);
++        WordSpec w;
++        w.immu6 = n;
++        w.rfhb = 0;
++        w.rfhc = 20;
++        const exec::Fault fault = runWord(ctx, "rf2rf_orri_rf", w);
++        check(fault == exec::Fault::Illegal,
++              "rf2rf dst range containing rf0 (immu6=%u) -> Illegal (%s)", n,
++              faultName(fault));
++        check(ctx.reads == 0 && ctx.writes.empty() && ctx.badFloats == 0,
++              "rf2rf rf0 destination: zero reads/writes (immu6=%u)", n);
++    }
++
++    // rf2rf: source rf0 is legal and reads the full 64-bit FCSR word.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        const uint64_t fcsr = kSbz | (uint64_t(1) << 32) | 0x07ULL;
++        ctx.rf[0] = fcsr;
++        ctx.rf[1] = 0xA5A5A5A5A5A5A5A5ULL;
++        resetCounters(ctx);
++        WordSpec w;
++        w.immu6 = 2;
++        w.rfhb = 10;
++        w.rfhc = 0;
++        const exec::Fault fault = runWord(ctx, "rf2rf_orri_rf", w);
++        check(fault == exec::Fault::None, "rf2rf rf0 source legal (%s)",
++              faultName(fault));
++        check(ctx.rf[10] == fcsr && ctx.rf[11] == 0xA5A5A5A5A5A5A5A5ULL,
++              "rf2rf rf0 source copies the full 64 bits, next element is rf1");
++        check(ctx.rf[0] == fcsr, "rf2rf rf0 source leaves FCSR unchanged");
 +    }
 +
 +    // RA slots are opaque 64-bit values: rd2ra/ra2rd keep ra0 bits.
@@ -2051,7 +2139,7 @@ index 0000000..bc472f2
 +    checkRets();
 +    checkDispatch();
 +
-+    std::printf("\nsummary: B5 coverage 28/28, oracle rows %zu, "
++    std::printf("\nsummary: B5 coverage 29/29, oracle rows %zu, "
 +                "failures %d\n", kOracleCount, failures);
 +    return failures == 0 ? 0 : 1;
 +}

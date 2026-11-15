@@ -219,9 +219,9 @@ def main() -> int:
         print("check-gem5-b4: FAIL -- missing 'B4 coverage 63/63' marker",
               file=sys.stderr)
         ok = False
-    if "non-B4 ids return NotB4 (201/201)" not in run.stdout:
+    if "non-B4 ids return NotB4 (200/200)" not in run.stdout:
         print("check-gem5-b4: FAIL -- missing 'non-B4 ids return NotB4 "
-              "(201/201)' marker", file=sys.stderr)
+              "(200/200)' marker", file=sys.stderr)
         ok = False
     if len(reported) != 63:
         print(f"check-gem5-b4: FAIL -- harness listed {len(reported)} B4 ids, "

@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/exec/b2_test.cc b/src/arch/dadao/exec/b2_test.cc
 new file mode 100644
-index 0000000..4168e5f
+index 0000000..519815d
 --- /dev/null
 +++ b/src/arch/dadao/exec/b2_test.cc
 @@ -0,0 +1,723 @@
@@ -460,7 +460,7 @@ index 0000000..4168e5f
 +    check(decode::entryById("set.ow_rwii_rb") == nullptr,
 +          "set.ow has no RB variant");
 +
-+    // B1/B3-B7 (the other 264-8 = 256 entries) must stay NotB2 and must not
++    // B1/B3-B7 (the other 263-8 = 255 entries) must stay NotB2 and must not
 +    // touch a register.
 +    size_t notB2 = 0;
 +    for (size_t i = 0; i < decode::entryCount(); ++i) {
@@ -489,7 +489,7 @@ index 0000000..4168e5f
 +            }
 +        }
 +    }
-+    check(notB2 == 264 - 8, "non-B2 ids return NotB2 (%zu/256)", notB2);
++    check(notB2 == 263 - 8, "non-B2 ids return NotB2 (%zu/255)", notB2);
 +    std::printf("non-B2 ids return NotB2 (%zu/256)\n", notB2);
 +}
 +

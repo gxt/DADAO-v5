@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b7_test.cc b/src/arch/dadao/exec/b7_test.cc
 new file mode 100644
-index 0000000..26bcecc
+index 0000000..3ac7153
 --- /dev/null
 +++ b/src/arch/dadao/exec/b7_test.cc
-@@ -0,0 +1,2274 @@
+@@ -0,0 +1,2253 @@
 +/*
 + * DADAO gem5 B7 execution assertions (GEM5-012t).
 + *
@@ -15,7 +15,7 @@ index 0000000..26bcecc
 + * B), spec/SimRISC-00 §2.3/§2.3.1 (rf / FCSR), spec/SimRISC-02 §3 (cs.*-rf),
 + * contract-fp §1-§10/§15/§16/§18-§20 and IEEE 754-2019 -- never from another
 + * implementation:
-+ *   * the 55 B7 ids are listed one by one and must equal the live decode-table
++ *   * the 53 B7 ids are listed one by one and must equal the live decode-table
 + *     B7 set (batch membership is never guessed from a mnemonic);
 + *   * every row is cross-checked against the decode entry (field names, banks,
 + *     format, legality bits versus rule_refs);
@@ -397,14 +397,14 @@ index 0000000..26bcecc
 +}
 +
 +// ---------------------------------------------------------------------------
-+// 1. Coverage: the 55 ids and the table <-> decode-entry cross-check.
++// 1. Coverage: the 53 ids and the table <-> decode-entry cross-check.
 +// ---------------------------------------------------------------------------
 +
 +const char *const kIds[] = {
 +    "ftfma_rrrr_rf", "fofma_rrrr_rf",
 +    "cs.n_rrrr_rf", "cs.z_rrrr_rf", "cs.p_rrrr_rf",
 +    "ftcls_orri_rf", "focls_orri_rf",
-+    "ft2fo_orri_rf", "ft2ft_orri_rf", "fo2ft_orri_rf", "fo2fo_orri_rf",
++    "ft2fo_orri_rf", "fo2ft_orri_rf",
 +    "ftroot_orri_rf", "foroot_orri_rf",
 +    "ft2it_orri_rf", "ft2io_orri_rf", "ft2ut_orri_rf", "ft2uo_orri_rf",
 +    "fo2it_orri_rf", "fo2io_orri_rf", "fo2ut_orri_rf", "fo2uo_orri_rf",
@@ -441,9 +441,7 @@ index 0000000..26bcecc
 +    {"ftcls_orri_rf", "rdhb", "rfhc", nullptr, "immu6"},
 +    {"focls_orri_rf", "rdhb", "rfhc", nullptr, "immu6"},
 +    {"ft2fo_orri_rf", "rfhb", "rfhc", nullptr, "immu6"},
-+    {"ft2ft_orri_rf", "rfhb", "rfhc", nullptr, "immu6"},
 +    {"fo2ft_orri_rf", "rfhb", "rfhc", nullptr, "immu6"},
-+    {"fo2fo_orri_rf", "rfhb", "rfhc", nullptr, "immu6"},
 +    {"ftroot_orri_rf", "rfhb", "rfhc", nullptr, nullptr},
 +    {"foroot_orri_rf", "rfhb", "rfhc", nullptr, nullptr},
 +    {"ft2it_orri_rf", "rdhb", "rfhc", nullptr, "immu6"},
@@ -548,10 +546,10 @@ index 0000000..26bcecc
 +void
 +checkTableShape()
 +{
-+    check(kIdCount == 55, "B7 id list has 55 entries (actual %zu)", kIdCount);
-+    check(exec::b7SpecCount() == 55, "b7SpecCount() == 55 (actual %zu)",
++    check(kIdCount == 53, "B7 id list has 53 entries (actual %zu)", kIdCount);
++    check(exec::b7SpecCount() == 53, "b7SpecCount() == 53 (actual %zu)",
 +          exec::b7SpecCount());
-+    check(kShapeCount == 55, "shape table has 55 entries (actual %zu)",
++    check(kShapeCount == 53, "shape table has 53 entries (actual %zu)",
 +          kShapeCount);
 +
 +    size_t batch7 = 0;
@@ -563,7 +561,7 @@ index 0000000..26bcecc
 +        check(exec::b7SpecForId(entry.id) != nullptr,
 +              "executeB7 covers batch-7 id %s", entry.id);
 +    }
-+    check(batch7 == 55, "live batch-7 entry count == 55 (actual %zu)", batch7);
++    check(batch7 == 53, "live batch-7 entry count == 53 (actual %zu)", batch7);
 +
 +    for (size_t i = 0; i < kIdCount; ++i) {
 +        const decode::DecodeEntry *entry = decode::entryById(kIds[i]);
@@ -747,8 +745,8 @@ index 0000000..26bcecc
 +        if (!ctx.writes.empty() || ctx.badWrites != 0 || ctx.reads != 0)
 +            fail("%s: NotB7 path touched a register", entry.id);
 +    }
-+    check(notB7 == 264 - 55, "non-B7 ids return NotB7 (%zu/209)", notB7);
-+    std::printf("non-B7 ids return NotB7 (%zu/209)\n", notB7);
++    check(notB7 == 263 - 53, "non-B7 ids return NotB7 (%zu/210)", notB7);
++    std::printf("non-B7 ids return NotB7 (%zu/210)\n", notB7);
 +}
 +
 +// ---------------------------------------------------------------------------
@@ -803,8 +801,9 @@ index 0000000..26bcecc
 +            checkIlli(spec.id, w, "dst rd0");
 +        }
 +        if (spec.legal & exec::LegalCount) {
-+            // The block shapes are: classify (rd dst, rf src) and the pure
-+            // copies ft2ft/fo2fo (rf dst, rf src).
++            // The only remaining block shape is classify (rd dst, rf src);
++            // the pure rf copies moved to the rf2rf block copy in B5
++            // (m13-spec-010).
 +            const bool dstIsRf = spec.dst == exec::Target::Rf;
 +            const bool srcIsRf = spec.src == exec::Target::Rf;
 +            WordSpec w = base;
@@ -1283,23 +1282,9 @@ index 0000000..26bcecc
 +    check(ctx.rf[2] == kFoQNaN && flagsOf(ctx) == kFlagNV,
 +          "ft2fo sNaN => canonical fo qNaN + NV (actual 0x%016" PRIx64
 +          " flags 0x%" PRIx64 ")", ctx.rf[2], flagsOf(ctx));
-+    // ft2ft/fo2fo are pure bit copies: a NaN keeps its sign, payload and
-+    // quiet bit, and no flag is set (spec §1.4 "不适用" list).
-+    initContext(ctx);
-+    ctx.rf[3] = 0xABCD00007FC12345ull;
-+    w.rfhb = 2;
-+    w.rfhc = 3;
-+    w.immu6 = 1;
-+    (void)runWord(ctx, "ft2ft_orri_rf", w);
-+    check(ft(ctx, 2) == 0x7FC12345ull && flagsOf(ctx) == 0,
-+          "ft2ft qNaN is bit identical");
-+    check((ctx.rf[2] >> 32) == 0xF00D0000ull,
-+          "ft2ft writes only the low 32 bits (model choice)");
-+    initContext(ctx);
-+    ctx.rf[3] = kFtSNaN;
-+    (void)runWord(ctx, "ft2ft_orri_rf", w);
-+    check(ft(ctx, 2) == kFtSNaN && flagsOf(ctx) == 0,
-+          "ft2ft sNaN is a bit copy: no quieting, no NV");
++    // m13-spec-010: the same-format copies ft2ft/fo2fo were retired; the
++    // rf-group block copy that replaces them is `rf2rf` (B5), covered by
++    // exec/b5_test.cc.  Nothing here may decode them any more.
 +    // fo2ft: a NaN result is canonical (sign 0, payload 0); a signed qNaN
 +    // payload is dropped, an sNaN still accrues NV.
 +    initContext(ctx);
@@ -1407,12 +1392,6 @@ index 0000000..26bcecc
 +    check(ft(ctx, 2) == 0x3F800001ull && flagsOf(ctx) == kFlagNX,
 +          "fo2ft RNA => tie away + NX (actual 0x%08" PRIx64 ")",
 +          ft(ctx, 2));
-+    // fo2fo: bit identical for a normal number.
-+    initContext(ctx);
-+    w.immu6 = 1;
-+    ctx.rf[3] = 0x123456789ABCDEF0ull;
-+    (void)runWord(ctx, "fo2fo_orri_rf", w);
-+    check(ctx.rf[2] == 0x123456789ABCDEF0ull, "fo2fo copies the 64 bits");
 +}
 +
 +void
@@ -2275,6 +2254,6 @@ index 0000000..26bcecc
 +    checkBlock();
 +    checkDispatchIds();
 +
-+    std::printf("\nsummary: B7 coverage 55/55, failures %d\n", failures);
++    std::printf("\nsummary: B7 coverage 53/53, failures %d\n", failures);
 +    return failures == 0 ? 0 : 1;
 +}

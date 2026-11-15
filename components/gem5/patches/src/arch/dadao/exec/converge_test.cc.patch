@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/exec/converge_test.cc b/src/arch/dadao/exec/converge_test.cc
 new file mode 100644
-index 0000000..0207ebc
+index 0000000..2ee0c83
 --- /dev/null
 +++ b/src/arch/dadao/exec/converge_test.cc
 @@ -0,0 +1,379 @@
@@ -11,7 +11,7 @@ index 0000000..0207ebc
 +// exec/dispatch.cc + this file.
 +//
 +// It exercises the *same* exec::dispatchBatch() that gem5's DadaoInst::execute()
-+// calls, over the 264 legal words generated from contracts/opcodes.yaml by
++// calls, over the legal words generated from contracts/opcodes.yaml by
 +// tools/gem5/gen_converge_words.py (converge_words.inc):
 +//
 +//   1. decode: word -> the expected id, and entry->batch == owner batch;
@@ -380,6 +380,6 @@ index 0000000..0207ebc
 +
 +    std::printf("summary: ids %u/%u, boundary %u/%u, failures %d\n", idsOk,
 +                ids, boundaryOk, boundary, failures);
-+    return failures == 0 && idsOk == ids && ids == 264 &&
-+           boundaryOk == boundary && boundary == 1848 ? 0 : 1;
++    return failures == 0 && idsOk == ids && ids == 263 &&
++           boundaryOk == boundary && boundary == 263 * 7 ? 0 : 1;
 +}

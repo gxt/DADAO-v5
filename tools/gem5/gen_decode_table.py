@@ -1,13 +1,20 @@
 #!/usr/bin/env python3
-"""Generate the DADAO gem5 decode table and its 264-row assertion corpus.
+"""Generate the DADAO gem5 decode table and its 263-row assertion corpus.
 
 Spec-first: the decode table is derived from ``contracts/opcodes.yaml`` (the
 machine-readable projection of ``.tao/contracts/contract-isa.md`` /
 ``contract-fp.md``); the assertions are derived from
-``.tao/knowledge/refs/GEM5-002t-semantic-matrix.tsv`` (GEM5-002t, 264 rows).
+``.tao/knowledge/refs/GEM5-002t-semantic-matrix.tsv`` (GEM5-002t snapshot).
 The two inputs are cross-checked row by row, so a drift in either side fails
 the generator instead of silently producing a table that disagrees with the
 matrix.
+
+The matrix is a 2026-11-01 snapshot, so ids added after it (and ids it still
+carries that the contracts have retired) are named explicitly in
+``MATRIX_ABSENT_CONTRACT_REF`` / ``MATRIX_RETIRED_IDS`` below: an id of either
+kind that is *not* listed fails the generator, and a listed id that does not
+appear in the expected side fails too.  Every other column of an added id is
+still validated against ``contracts/opcodes.yaml``.
 
 Outputs (all generated, never hand-edited):
 
@@ -46,8 +53,22 @@ ASSERT_TSV = ROOT / "components/gem5/decode-assertions.tsv"
 NEGATIVE_TSV = ROOT / "components/gem5/decode-negative.tsv"
 
 BATCH_COUNTS = {"B1": 38, "B2": 8, "B3": 42, "B4": 63,
-                "B5": 28, "B6": 30, "B7": 55}
+                "B5": 29, "B6": 30, "B7": 53}
 BATCH_NAMES = ["B1", "B2", "B3", "B4", "B5", "B6", "B7"]
+
+# m13-spec-010: `ft2ft`/`fo2fo` retired, `rf2rf` added (263 ids).  The
+# GEM5-002t matrix was frozen before that change, so:
+#   * MATRIX_RETIRED_IDS are still in the matrix and must NOT be in the
+#     contracts any more (a resurrection fails here);
+#   * MATRIX_ABSENT_CONTRACT_REF names the ids the matrix does not know yet,
+#     with the contract reference the decoder stores for them.  The value is
+#     the contract's own section heading (`contract-fp §12` `rf_move`, which
+#     lists rd2rf/rf2rd/rf2rf); it is written out, never derived from a
+#     mnemonic pattern.
+MATRIX_RETIRED_IDS = ("ft2ft_orri_rf", "fo2fo_orri_rf")
+MATRIX_ABSENT_CONTRACT_REF = {
+    "rf2rf_orri_rf": "contract-fp §12",
+}
 
 # SPEC-181t regression nets (user ruling 2026-11-01, SPEC-181t 已确认口径
 # F5.2/F8.2):
@@ -67,6 +88,11 @@ SC_RD0_IDS = (
 )
 SC_RD0_DST = "rdhb"
 SC_RD0_SRC = "rdhc"
+
+# m13-spec-010: the rf-group block copy `rf2rf` may not write into rf0 (the
+# destination *range* contains rf0 iff the start is rf0), while reading rf0 as
+# a source stays legal.  Curated so a contract regression fails the generator.
+RF2RF_ID = "rf2rf_orri_rf"
 
 # Top opcode bytes that own a 6-bit [23:18] sub-table instead of a whole
 # instruction.  Derived from the contracts; asserted below (not hardcoded in
@@ -181,7 +207,9 @@ def batch_of(row: dict, entry_id: str) -> str:
     """Map a matrix row to the B1-B7 implementation batch.
 
     The grouping is the one that reproduces the report's exact boundary
-    counts: B1 38 / B2 8 / B3 42 / B4 63 / B5 28 / B6 30 / B7 55.
+    counts: B1 38 / B2 8 / B3 42 / B4 63 / B5 29 / B6 30 / B7 53 (m13-spec-010
+    moved `rf2rf` into B5 and retired two B7 ids; any other mapping changes the
+    counts and fails the generator).
     """
     ref = row["contract_ref"]
     if ref.startswith("contract-fp §11"):
@@ -223,50 +251,66 @@ def load_entries() -> list[Entry]:
     opcodes = load_yaml(OPCODES)
     if not isinstance(opcodes, list):
         fail("contracts/opcodes.yaml is not a list")
-    if len(opcodes) != 264:
-        fail(f"contracts/opcodes.yaml has {len(opcodes)} entries, expected 264")
+    contract_ids = [raw["id"] for raw in opcodes]
+    if len(set(contract_ids)) != len(contract_ids):
+        fail("contracts/opcodes.yaml has duplicate ids")
 
     with MATRIX.open(newline="", encoding="utf-8") as stream:
         matrix_rows = list(csv.DictReader(stream, delimiter="\t"))
-    if len(matrix_rows) != 264:
-        fail(f"matrix has {len(matrix_rows)} rows, expected 264")
     matrix = {row["id"]: row for row in matrix_rows}
-    if len(matrix) != 264:
+    if len(matrix) != len(matrix_rows):
         fail("matrix has duplicate ids")
+
+    # The matrix is a snapshot: it may still carry retired ids, and it may lack
+    # ids added after it.  Both sides are explicit sets, so an unlisted id on
+    # either side fails instead of silently producing a stale table.
+    unknown = sorted(set(matrix) - set(contract_ids) - set(MATRIX_RETIRED_IDS))
+    if unknown:
+        fail(f"matrix rows {unknown} are neither in contracts/opcodes.yaml nor "
+             "in MATRIX_RETIRED_IDS")
+    revived = sorted(set(MATRIX_RETIRED_IDS) & set(contract_ids))
+    if revived:
+        fail(f"retired ids {revived} are back in contracts/opcodes.yaml")
+    missing = sorted(set(contract_ids) - set(matrix))
+    if missing != sorted(MATRIX_ABSENT_CONTRACT_REF):
+        fail(f"ids missing from the matrix {missing} != "
+             f"MATRIX_ABSENT_CONTRACT_REF {sorted(MATRIX_ABSENT_CONTRACT_REF)}")
 
     entries: list[Entry] = []
     for raw in opcodes:
         entry_id = raw["id"]
+        ha = raw.get("ha")
         row = matrix.get(entry_id)
         if row is None:
-            fail(f"{entry_id}: present in opcodes.yaml but absent from matrix")
+            # Added after the matrix snapshot: only the contract is available.
+            contract_ref = MATRIX_ABSENT_CONTRACT_REF[entry_id]
+        else:
+            contract_ref = row["contract_ref"]
+            # Cross-check every matrix column that the decoder is built from.
+            checks = {
+                "mnemonic": raw["mnemonic"],
+                "format": raw["format"],
+                "scope": raw["scope"],
+                "opc": raw["opc"],
+            }
+            for key, value in checks.items():
+                if row[key] != value:
+                    fail(f"{entry_id}: matrix {key}={row[key]!r} != "
+                         f"opcodes {key}={value!r}")
+            for key in ("mask", "value"):
+                if row[key].lower() != raw[key].lower():
+                    fail(f"{entry_id}: matrix {key}={row[key]!r} != "
+                         f"opcodes {key}={raw[key]!r}")
 
-        # Cross-check every matrix column that the decoder is built from.
-        checks = {
-            "mnemonic": raw["mnemonic"],
-            "format": raw["format"],
-            "scope": raw["scope"],
-            "opc": raw["opc"],
-        }
-        for key, value in checks.items():
-            if row[key] != value:
-                fail(f"{entry_id}: matrix {key}={row[key]!r} != "
-                     f"opcodes {key}={value!r}")
-        for key in ("mask", "value"):
-            if row[key].lower() != raw[key].lower():
-                fail(f"{entry_id}: matrix {key}={row[key]!r} != "
-                     f"opcodes {key}={raw[key]!r}")
-
-        ha = raw.get("ha")
-        if ha is not None:
-            opx = row["opx"]
-            if opx == "—":
-                fail(f"{entry_id}: opcodes has ha but matrix opx is empty")
-            opx_ha = parse_hex(opx.split("=", 1)[1], f"{entry_id} opx")
-            if opx_ha != parse_hex(ha, f"{entry_id} ha"):
-                fail(f"{entry_id}: matrix opx {opx} != opcodes ha {ha}")
-        elif row["opx"] != "—":
-            fail(f"{entry_id}: matrix opx {row['opx']} but opcodes has no ha")
+            if ha is not None:
+                opx = row["opx"]
+                if opx == "—":
+                    fail(f"{entry_id}: opcodes has ha but matrix opx is empty")
+                opx_ha = parse_hex(opx.split("=", 1)[1], f"{entry_id} opx")
+                if opx_ha != parse_hex(ha, f"{entry_id} ha"):
+                    fail(f"{entry_id}: matrix opx {opx} != opcodes ha {ha}")
+            elif row["opx"] != "—":
+                fail(f"{entry_id}: matrix opx {row['opx']} but opcodes has no ha")
 
         mask = parse_hex(raw["mask"], f"{entry_id} mask")
         value = parse_hex(raw["value"], f"{entry_id} value")
@@ -307,13 +351,14 @@ def load_entries() -> list[Entry]:
         legality = tuple(raw.get("legality") or ())
         entries.append(Entry(
             id=entry_id, mnemonic=raw["mnemonic"], fmt=raw["format"],
-            scope=raw["scope"], contract_ref=row["contract_ref"],
+            scope=raw["scope"], contract_ref=contract_ref,
             spec_cite=raw["spec_cite"], mask=mask, value=value, opc=opc,
             ha=ha_value, fields=tuple(fields), rules=rules,
-            legality=legality, batch=batch_of(row, entry_id)))
+            legality=legality, batch=batch_of({"contract_ref": contract_ref},
+                                              entry_id)))
 
-    if len(entries) != 264 or {e.id for e in entries} != set(matrix):
-        fail("entry id set mismatch between opcodes.yaml and matrix")
+    if len(entries) != len(contract_ids) or {e.id for e in entries} != set(contract_ids):
+        fail("entry id set mismatch between opcodes.yaml and the parsed entries")
     return entries
 
 
@@ -406,12 +451,46 @@ def validate_spec181t(entries: list[Entry]) -> None:
                  "as a source must stay legal")
 
 
+def validate_rf2rf(entries: list[Entry]) -> None:
+    """Curated m13-spec-010 guard: the rf-group block copy must stay in place.
+
+    ``rf2rf`` replaced the retired ``ft2ft``/``fo2fo``: orri/``rf`` with
+    ``immu6`` as the element count, ``dst_rf0`` + ``mreg_*`` rule references and
+    the five legality expressions of contract-fp §12.  ``rf2rf`` itself is
+    enforced by B5 (exec/b5.cc); this guard keeps the *data* from regressing.
+    """
+    by_id = {entry.id: entry for entry in entries}
+    entry = by_id.get(RF2RF_ID)
+    if entry is None:
+        fail(f"{RF2RF_ID}: missing from contracts/opcodes.yaml "
+             "(m13-spec-010 rf-group block copy)")
+    if (entry.fmt, entry.ha) != ("orri", 0x3C):
+        fail(f"{RF2RF_ID}: format/ha {entry.fmt}/0x{entry.ha:02x}, "
+             "expected orri/0x3c (OPC-octa opx 111-100)")
+    for name in ("dst_rf0", "mreg_zero", "mreg_range_overflow",
+                 "mreg_range_overlap"):
+        if name not in entry.rules:
+            fail(f"{RF2RF_ID}: rule reference {name} missing")
+    for expr in ("rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64",
+                 "rfhc + immu6 <= 64", "no_overlap(rfhb, rfhc, immu6)"):
+        if expr not in entry.legality:
+            fail(f"{RF2RF_ID}: legality {expr!r} missing "
+                 f"(got {list(entry.legality)})")
+    if any(expr == "rfhc != rf0" or expr.startswith("rfhc !=")
+           for expr in entry.legality):
+        fail(f"{RF2RF_ID}: legality bans an rfhc value ({list(entry.legality)}); "
+             "reading rf0 as a source must stay legal (SimRISC-02 §1)")
+
+
 def legality_cases(entries: list[Entry]) -> list[tuple[str, int, bool, str]]:
     """(id, inst, expect_illegal, reason) cases for the static legality data.
 
     GEM5-005t scope: the 12 ``sc.*`` destination-rd0 rule plus the scaleB
     exponent operand.  B0 still does not raise ILLI (B1-B6 execute), so these
-    cases assert the legality metadata that those batches will enforce.
+    cases assert the legality metadata that those batches enforce.  ``rf2rf``
+    is not listed here: its five legality expressions are asserted verbatim by
+    its row assertion (``kAssertLegality``) and its ILLI behaviour by B5, while
+    this evaluator only understands the ``<field> != <bank>0`` shape.
     """
     by_id = {entry.id: entry for entry in entries}
     cases: list[tuple[str, int, bool, str]] = []
@@ -449,7 +528,8 @@ def gen_decode_table(entries: list[Entry], coarse: dict[int, int],
                      subtable: list[list[int]]) -> str:
     lines = [
         "// Generated by tools/gem5/gen_decode_table.py -- do not edit.",
-        "// Source: contracts/opcodes.yaml (264 entries) + GEM5-002t matrix.",
+        f"// Source: contracts/opcodes.yaml ({len(entries)} entries) "
+        "+ GEM5-002t matrix.",
         "// Included inside namespace gem5::DadaoISA::decode.",
         "namespace table {",
         "",
@@ -522,7 +602,8 @@ def field_sign_extend(value: int, width: int) -> int:
 def gen_assertions(entries: list[Entry]) -> str:
     lines = [
         "// Generated by tools/gem5/gen_decode_table.py -- do not edit.",
-        "// 264 rows: one decode assertion per contracts/opcodes.yaml entry.",
+        f"// {len(entries)} rows: one decode assertion per "
+        "contracts/opcodes.yaml entry.",
         "",
     ]
     for idx, entry in enumerate(entries):
@@ -647,6 +728,10 @@ def gen_negative(entries: list[Entry], coarse: dict[int, int],
         ("0x56000000", "clmul.o_rrrr_rd", "clmul.o is new in M9"),
         ("0x440c0000", "ftrnd_orri_rf", "ftrnd is new (roundint family)"),
         ("0x442c0000", "fornd_orri_rf", "fornd is new (roundint family)"),
+        ("0x44080000", None,
+         "ft2ft was deleted by m13-spec-010; 0x44/0x02 is a reserved slot"),
+        ("0x44280000", None,
+         "fo2fo was deleted by m13-spec-010; 0x44/0x0A is a reserved slot"),
     ]
     for inst, expected, reason in curate:
         if expected is not None:
@@ -716,13 +801,15 @@ def tsv_assertions(entries: list[Entry]) -> str:
 def outputs(source: Path) -> dict[Path, str]:
     entries = load_entries()
     validate_spec181t(entries)
+    validate_rf2rf(entries)
     counts: dict[str, int] = {name: 0 for name in BATCH_NAMES}
     for entry in entries:
         counts[entry.batch] += 1
     if counts != BATCH_COUNTS:
-        fail(f"batch counts {counts} != {BATCH_COUNTS} (GEM5-002t §5)")
-    if sum(counts.values()) != 264:
-        fail("batch counts do not sum to 264")
+        fail(f"batch counts {counts} != {BATCH_COUNTS} (GEM5-002t §5, "
+             "remapped by m13-spec-010)")
+    if sum(counts.values()) != len(entries):
+        fail(f"batch counts do not sum to {len(entries)}")
 
     coarse, sub_slot, subtable = build_maps(entries)
     table = gen_decode_table(entries, coarse, sub_slot, subtable)
@@ -750,6 +837,7 @@ def main() -> int:
     source = args.source if args.source.is_absolute() else ROOT / args.source
 
     generated = outputs(source)
+    row_count = len(load_entries())
     if args.check:
         bad = []
         for path, text in generated.items():
@@ -763,7 +851,8 @@ def main() -> int:
             for line in bad:
                 print("  " + line)
             return 1
-        print(f"gen_decode_table: OK (264 rows, batches {BATCH_COUNTS})")
+        print(f"gen_decode_table: OK ({row_count} rows, "
+              f"batches {BATCH_COUNTS})")
         return 0
 
     for path, text in generated.items():
@@ -774,7 +863,7 @@ def main() -> int:
         except ValueError:
             shown = path
         print(f"wrote {shown}")
-    print(f"gen_decode_table: 264 rows; batches {BATCH_COUNTS}")
+    print(f"gen_decode_table: {row_count} rows; batches {BATCH_COUNTS}")
     return 0
 
 

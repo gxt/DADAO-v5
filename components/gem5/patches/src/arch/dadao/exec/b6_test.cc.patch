@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/exec/b6_test.cc b/src/arch/dadao/exec/b6_test.cc
 new file mode 100644
-index 0000000..bfad090
+index 0000000..e96becc
 --- /dev/null
 +++ b/src/arch/dadao/exec/b6_test.cc
 @@ -0,0 +1,1805 @@
@@ -996,7 +996,7 @@ index 0000000..bfad090
 +                     entry.batch);
 +        }
 +    }
-+    check(notB6 == 264 - 30, "non-B6 ids return NotB6 (%zu/234)", notB6);
++    check(notB6 == 263 - 30, "non-B6 ids return NotB6 (%zu/233)", notB6);
 +    std::printf("non-B6 ids return NotB6 (%zu/234)\n", notB6);
 +}
 +

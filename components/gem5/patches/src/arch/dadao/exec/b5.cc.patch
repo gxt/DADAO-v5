@@ -1,12 +1,12 @@
 diff --git a/src/arch/dadao/exec/b5.cc b/src/arch/dadao/exec/b5.cc
 new file mode 100644
-index 0000000..f817ae5
+index 0000000..5d10321
 --- /dev/null
 +++ b/src/arch/dadao/exec/b5.cc
-@@ -0,0 +1,540 @@
+@@ -0,0 +1,550 @@
 +// DADAO gem5 B5 execution core -- implementation.
 +//
-+// The 28 B5 ids are dispatched through the table below, by `entry->id` (never
++// The 29 B5 ids are dispatched through the table below, by `entry->id` (never
 +// by mnemonic): br.z/br.nz exist in both the rd and the rb form, jump/call in
 +// both the iiii and the rrii form, and cs.eq/cs.ne write rdhc while cs.n/z/p
 +// write rdhb.  The id set must equal the batch_of() B5 set of the GEM5-002t
@@ -44,7 +44,7 @@ index 0000000..f817ae5
 +// contract-isa §3.3.3/§4/§6.5/§8 + contract-fp §12, one row per
 +// contracts/opcodes.yaml B5 id.
 +const B5Spec kSpecs[] = {
-+    // ---- register block copies (8) -------------------------------------
++    // ---- register block copies (9) -------------------------------------
 +    {"rd2rd_orri_rd", B5Op::Copy, Target::Rd, Target::Rd,
 +     "rdhb", "rdhc", "immu6", nullptr, nullptr, nullptr},
 +    {"rd2ra_orri_ra", B5Op::Copy, Target::Ra, Target::Rd,
@@ -61,6 +61,10 @@ index 0000000..f817ae5
 +     "rfhb", "rdhc", "immu6", nullptr, nullptr, nullptr},
 +    {"rf2rd_orri_rf", B5Op::Copy, Target::Rd, Target::Rf,
 +     "rdhb", "rfhc", "immu6", nullptr, nullptr, nullptr},
++    // m13-spec-010: rf-group block copy, full 64-bit bit copy; the destination
++    // range must not contain rf0 (dst_rf0), the source may be rf0.
++    {"rf2rf_orri_rf", B5Op::CopyNoRf0, Target::Rf, Target::Rf,
++     "rfhb", "rfhc", "immu6", nullptr, nullptr, nullptr},
 +    // ---- conditional assignment (5) ------------------------------------
 +    {"cs.n_rrrr_rd", B5Op::CondAssign, Target::Rd, Target::Rd,
 +     "rdhb", "rdhc", nullptr, "rdha", nullptr, "lt"},
@@ -108,7 +112,7 @@ index 0000000..f817ae5
 +};
 +
 +constexpr size_t kNumSpecs = sizeof(kSpecs) / sizeof(kSpecs[0]);
-+static_assert(kNumSpecs == 28, "B5 must cover exactly the 28 contract ids");
++static_assert(kNumSpecs == 29, "B5 must cover exactly the 29 contract ids");
 +
 +/** A batch-5 instruction this table cannot execute is a contract or
 + * implementation mismatch.  Trap instead of silently succeeding. */
@@ -345,7 +349,8 @@ index 0000000..f817ae5
 +        internalError("uncovered batch-5 id");
 +
 +    switch (spec->op) {
-+      case B5Op::Copy: {
++      case B5Op::Copy:
++      case B5Op::CopyNoRf0: {
 +        // ---- register block copy (contract-isa §3.3.3/§4, fp §12) ----
 +        const uint64_t count = field(inst, spec->countField);
 +        const uint64_t dst = field(inst, spec->dstField);
@@ -358,6 +363,11 @@ index 0000000..f817ae5
 +        if (spec->dst == Target::Rd && dst == 0)
 +            return Fault::Illegal;
 +        if (spec->dst == Target::Rb && dst == 0)
++            return Fault::Illegal;
++        // rf2rf only: the destination range [dst, dst+count) contains rf0 iff
++        // the start is rf0 (contract-fp §12, SimRISC-02 §1).  `rd2rf` writes
++        // rf0 legally, so the rule is bound to this op, not to the bank.
++        if (spec->op == B5Op::CopyNoRf0 && dst == 0)
 +            return Fault::Illegal;
 +        // Same-group overlap is illegal, including full coincidence
 +        // (mreg_range_overlap).  Cross-group ranges cannot overlap.

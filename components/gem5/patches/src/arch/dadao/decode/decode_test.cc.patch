@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/decode/decode_test.cc b/src/arch/dadao/decode/decode_test.cc
 new file mode 100644
-index 0000000..36736dd
+index 0000000..cb94209
 --- /dev/null
 +++ b/src/arch/dadao/decode/decode_test.cc
 @@ -0,0 +1,426 @@
@@ -343,8 +343,8 @@ index 0000000..36736dd
 +void
 +checkTableIntegrity()
 +{
-+    check(decode::entryCount() == 264,
-+          "table entry count == 264 (actual %zu)", decode::entryCount());
++    check(decode::entryCount() == 263,
++          "table entry count == 263 (actual %zu)", decode::entryCount());
 +
 +    std::map<std::string, int> ids;
 +    std::map<uint64_t, std::string> encodings;
@@ -359,12 +359,12 @@ index 0000000..36736dd
 +    bool unique_ids = true;
 +    for (const auto &pair : ids)
 +        unique_ids = unique_ids && pair.second == 1;
-+    check(unique_ids, "all 264 ids are unique (%zu distinct)", ids.size());
-+    check(encodings.size() == 264,
-+          "all 264 (mask,value) pairs are unique (%zu distinct)",
++    check(unique_ids, "all 263 ids are unique (%zu distinct)", ids.size());
++    check(encodings.size() == 263,
++          "all 263 (mask,value) pairs are unique (%zu distinct)",
 +          encodings.size());
 +
-+    const int want[8] = {0, 38, 8, 42, 63, 28, 30, 55};
++    const int want[8] = {0, 38, 8, 42, 63, 29, 30, 53};
 +    for (int batch = 1; batch <= 7; ++batch) {
 +        check(batch_counts[batch] == want[batch],
 +              "batch %s boundary count == %d (actual %d)",

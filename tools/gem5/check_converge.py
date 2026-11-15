@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Single convergence gate: all 264 DADAO ids, all 7 batches (GEM5-013t).
+"""Single convergence gate: every DADAO id, all 7 batches (GEM5-013t).
 
 Run it directly (``python3 tools/gem5/check_converge.py``); it is not hooked to
 a Makefile target yet (see the task book, open point 1).
@@ -7,14 +7,14 @@ a Makefile target yet (see the task book, open point 1).
 Checks, in order (any failure -> rc=1, each step prints its real rc/counts):
 
 1. ``gen_decode_table.py --check`` -- the B0 table is not stale;
-2. ``make check-gem5-decode`` -- B0 264/264 + 388/388 + 28/28 + 2/2, 0 fail;
+2. ``make check-gem5-decode`` -- B0 263/263 + 391/391 + 28/28 + 2/2, 0 fail;
 3. contract / decode table / semantic matrix id sets are equal (two-way) and
    the live ``batch_of()`` counts are the 7 published batch counts;
-4. ``converge_words.inc`` + ``converge_test.cc`` -- 264/264 ids decode to their
+4. ``converge_words.inc`` + ``converge_test.cc`` -- 263/263 ids decode to their
    own id, the owner batch neither returns NotB* nor Illegal, the other six
-   batches return exactly their NotB* with zero side effects (1848/1848);
+   batches return exactly their NotB* with zero side effects (1841/1841);
 5. ``check_b1..b7`` -- per-batch [PASS] counts equal the frozen baselines, no
-   [FAIL], and the bN-id lines cover the 264 ids once each;
+   [FAIL], and the bN-id lines cover the 263 ids once each;
 6. structural: ``inst.cc`` has exactly one UnimplementedInstruction (inside the
    batch guard) and one dispatchBatch call; ``dispatch.cc`` has exactly seven
    cases, each calling its own executeBk; no other file calls another batch's
@@ -40,9 +40,13 @@ OPCODES = ROOT / "contracts/opcodes.yaml"
 # 2026-11-02 before this task).  A drop here is a regression, never a change of
 # expectation.  b1 re-frozen 2026-11-13 (m13-gem5-008 adds the ldm
 # address-register-overlap assertions).
-PASS_BASELINE = {1: 2156, 2: 1160, 3: 4248, 4: 3696, 5: 1215, 6: 1362,
-                 7: 2979}
-DECODE_BASELINE = {"positive": 264, "negative": 388, "legality": 28,
+# b5/b7 re-frozen 2026-11-15 (m13-gem5-015: rf2rf joins B5, ft2ft/fo2fo leave
+# B7).  b3/b6 were already stale before that change (the baselines were never
+# re-frozen after m13-gem5-012 added B3 assertions and INTEG-053t renumbered
+# B6's cfxha cases); they are re-measured here instead of being left red.
+PASS_BASELINE = {1: 2156, 2: 1160, 3: 4318, 4: 3696, 5: 1292, 6: 1384,
+                 7: 2955}
+DECODE_BASELINE = {"positive": 263, "negative": 391, "legality": 28,
                    "legacy": 2}
 
 CONVERGE_ID = re.compile(r"^\[PASS\] converge-id (\S+)$", re.MULTILINE)
@@ -111,7 +115,7 @@ def checks_decode(source: Path, gate: Gate) -> tuple[list, dict[str, int]]:
                 "--source", str(source)])
     counts = {name: int(value) for name, value in
               re.findall(r"'(B\d)': (\d+)", proc.stdout)}
-    gate.check(proc.returncode == 0 and "264 rows" in proc.stdout,
+    gate.check(proc.returncode == 0 and "263 rows" in proc.stdout,
                "gen_decode_table --check",
                f"rc={proc.returncode}, batches {counts}")
 
@@ -138,19 +142,26 @@ def checks_decode(source: Path, gate: Gate) -> tuple[list, dict[str, int]]:
     entries = gdt.load_entries()
     decode_ids = {entry.id for entry in entries}
     with MATRIX.open(newline="", encoding="utf-8") as stream:
-        matrix_ids = {row["id"] for row in csv.DictReader(stream, delimiter="\t")}
+        matrix_rows = list(csv.DictReader(stream, delimiter="\t"))
+    matrix_ids = {row["id"] for row in matrix_rows}
 
-    gate.check(len(contract_ids) == 264 and len(decode_ids) == 264 and
-               len(matrix_ids) == 264, "id set sizes",
+    # The matrix is a GEM5-002t snapshot: it still carries the retired ids and
+    # lacks the ones added after it, so the comparison uses the generator's
+    # explicit reconcile sets instead of the raw matrix id set.
+    expected_matrix = (contract_ids | set(gdt.MATRIX_RETIRED_IDS)) - \
+        set(gdt.MATRIX_ABSENT_CONTRACT_REF)
+    gate.check(len(contract_ids) == 263 and len(decode_ids) == 263 and
+               len(matrix_ids) == len(matrix_rows), "id set sizes",
                f"contract {len(contract_ids)}, decode {len(decode_ids)}, "
                f"matrix {len(matrix_ids)}")
     two_way_diff("contract == decode table", contract_ids, decode_ids, gate)
-    two_way_diff("contract == semantic matrix", contract_ids, matrix_ids, gate)
+    two_way_diff("contract == semantic matrix (snapshot reconciled)",
+                 expected_matrix, matrix_ids, gate)
 
     live = {name: 0 for name in gdt.BATCH_COUNTS}
     for entry in entries:
         live[entry.batch] = live.get(entry.batch, 0) + 1
-    gate.check(live == gdt.BATCH_COUNTS and sum(live.values()) == 264,
+    gate.check(live == gdt.BATCH_COUNTS and sum(live.values()) == 263,
                "batch_of() counts", f"{live}, sum {sum(live.values())}")
     gate.check("B0" not in live and "B8" not in live,
                "no batch 0 / batch 8 ids", f"{sorted(live)}")
@@ -158,7 +169,7 @@ def checks_decode(source: Path, gate: Gate) -> tuple[list, dict[str, int]]:
 
 
 # ---------------------------------------------------------------------------
-# 4: converge harness (dispatch + 1848 boundaries)
+# 4: converge harness (dispatch + 1841 boundaries)
 # ---------------------------------------------------------------------------
 def check_converge_harness(source: Path, entries, cxx: str,
                            gate: Gate) -> None:
@@ -196,8 +207,8 @@ def check_converge_harness(source: Path, entries, cxx: str,
     if match is not None:
         ids_ok, ids_total, bound_ok, bound_total, failures = (
             int(x) for x in match.groups())
-        ok = ok and ids_ok == 264 and ids_total == 264 and \
-            bound_ok == 1848 and bound_total == 1848 and failures == 0
+        ok = ok and ids_ok == 263 and ids_total == 263 and \
+            bound_ok == 1841 and bound_total == 1841 and failures == 0
         detail += (f", ids {ids_ok}/{ids_total}, boundary "
                    f"{bound_ok}/{bound_total}, failures {failures}")
     else:
@@ -205,13 +216,13 @@ def check_converge_harness(source: Path, entries, cxx: str,
     for line in proc.stdout.splitlines():
         if line.startswith("[FAIL]"):
             print(f"  harness: {line}", file=sys.stderr)
-    gate.check(ok, "converge harness (dispatch + 1848 boundaries)", detail)
+    gate.check(ok, "converge harness (dispatch + 1841 boundaries)", detail)
 
     live_ids = {entry.id for entry in entries}
     two_way_diff("converge ids == contract ids", set(harness_ids), live_ids,
                  gate)
-    gate.check(len(harness_ids) == 264, "converge id line count",
-               f"{len(harness_ids)}/264")
+    gate.check(len(harness_ids) == 263, "converge id line count",
+               f"{len(harness_ids)}/263")
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +246,7 @@ def check_batches(gate: Gate) -> None:
                 gate.fail("batch partition",
                           f"{entry_id} listed by B{seen[entry_id]} and B{n}")
             seen[entry_id] = n
-    gate.check(len(seen) == 264, "bN-id union", f"{len(seen)}/264")
+    gate.check(len(seen) == 263, "bN-id union", f"{len(seen)}/263")
 
 
 # ---------------------------------------------------------------------------
@@ -368,7 +379,7 @@ def main() -> int:
     if gate.failures:
         print(f"check-gem5-converge: FAIL ({gate.failures} failed check(s))")
         return 1
-    print("check-gem5-converge: PASS (ids 264/264, boundary 1848/1848, "
+    print("check-gem5-converge: PASS (ids 263/263, boundary 1841/1841, "
           "batches " + " ".join(f"B{n}={live[f'B{n}']}" for n in range(1, 8)) +
           ", matrix 44 notes / 12 sc exceptions / 2 sclb fields)")
     return 0

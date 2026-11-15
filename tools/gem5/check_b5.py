@@ -9,8 +9,9 @@ The B5 id set printed by the harness (an explicit list, one id per line) is
 cross-checked here against the *live* `batch_of()` set derived from
 `contracts/opcodes.yaml` + the GEM5-002t matrix, so a batch boundary change can
 never silently pass.  The per-id rule_refs and the contract-wide rule counts
-(dst_rd0 9, dst_rb0 2, dst_rd0_nonzero 1, mreg_zero 8, mreg_range_overflow 8,
-mreg_range_overlap 2) are validated against the contract.
+(dst_rd0 9, dst_rf0 1, dst_rb0 2, dst_rd0_nonzero 1, mreg_zero 9,
+mreg_range_overflow 9, mreg_range_overlap 3) are validated against the
+contract.
 """
 from __future__ import annotations
 
@@ -45,6 +46,9 @@ EXPECTED_RULES = {
     "rb2rd_orri_rb": _RD0 + _MZ,
     "rd2rf_orri_rf": _MZ,
     "rf2rd_orri_rf": _RD0 + _MZ,
+    # m13-spec-010: rf-group block copy.  Destination range may not contain
+    # rf0 (dst_rf0) while the source may be rf0, and any overlap is illegal.
+    "rf2rf_orri_rf": ("dst_rf0",) + _MZ + ("mreg_range_overlap",),
     # conditional assignment
     "cs.n_rrrr_rd": _RD0,
     "cs.z_rrrr_rd": _RD0,
@@ -79,6 +83,7 @@ EXPECTED_FORMATS = {
     "rb2rd_orri_rb": "orri",
     "rd2rf_orri_rf": "orri",
     "rf2rd_orri_rf": "orri",
+    "rf2rf_orri_rf": "orri",
     "cs.n_rrrr_rd": "rrrr",
     "cs.z_rrrr_rd": "rrrr",
     "cs.p_rrrr_rd": "rrrr",
@@ -101,14 +106,16 @@ EXPECTED_FORMATS = {
     "ret_riii_ra": "riii",
 }
 
-# Contract-wide rule_refs counts over the 28 B5 rows.
+# Contract-wide rule_refs counts over the 29 B5 rows (m13-spec-010 adds
+# rf2rf: dst_rf0 + mreg_zero + mreg_range_overflow + mreg_range_overlap).
 EXPECTED_RULE_COUNTS = {
     "dst_rd0": 9,
+    "dst_rf0": 1,
     "dst_rb0": 2,
     "dst_rd0_nonzero": 1,
-    "mreg_zero": 8,
-    "mreg_range_overflow": 8,
-    "mreg_range_overlap": 2,
+    "mreg_zero": 9,
+    "mreg_range_overflow": 9,
+    "mreg_range_overlap": 3,
 }
 
 
@@ -128,8 +135,8 @@ def contract_rule_errors(entries) -> list[str]:
     """Cross-check live rule_refs/spec_cite against the contract mapping."""
     errors: list[str] = []
     by_id = {entry.id: entry for entry in entries}
-    if len(by_id) != 28:
-        errors.append(f"live B5 set has {len(by_id)} id(s), expected 28")
+    if len(by_id) != 29:
+        errors.append(f"live B5 set has {len(by_id)} id(s), expected 29")
     for entry_id, rules in EXPECTED_RULES.items():
         entry = by_id.get(entry_id)
         if entry is None:
@@ -217,17 +224,17 @@ def main() -> int:
     rule_errors = contract_rule_errors(entries)
 
     ok = True
-    if "B5 coverage 28/28" not in run.stdout:
-        print("check-gem5-b5: FAIL -- missing 'B5 coverage 28/28' marker",
+    if "B5 coverage 29/29" not in run.stdout:
+        print("check-gem5-b5: FAIL -- missing 'B5 coverage 29/29' marker",
               file=sys.stderr)
         ok = False
-    if "non-B5 ids return NotB5 (236/236)" not in run.stdout:
+    if "non-B5 ids return NotB5 (234/234)" not in run.stdout:
         print("check-gem5-b5: FAIL -- missing 'non-B5 ids return NotB5 "
-              "(236/236)' marker", file=sys.stderr)
+              "(234/234)' marker", file=sys.stderr)
         ok = False
-    if len(reported) != 28:
+    if len(reported) != 29:
         print(f"check-gem5-b5: FAIL -- harness listed {len(reported)} B5 ids, "
-              "expected 28", file=sys.stderr)
+              "expected 29", file=sys.stderr)
         ok = False
     if reported != live:
         extra = sorted(set(reported) - set(live))
@@ -254,7 +261,7 @@ def main() -> int:
               file=sys.stderr)
         ok = False
 
-    print(f"check-gem5-b5: b5 ids {len(reported)}/28, live {len(live)}, "
+    print(f"check-gem5-b5: b5 ids {len(reported)}/29, live {len(live)}, "
           f"failures {failures}, rc={run.returncode}")
     live_counts = {
         rule: sum(rule in entry.rules for entry in entries)

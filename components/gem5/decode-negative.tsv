@@ -188,7 +188,6 @@ reserved-subtable	0x40980000	—	Illegal	opcode 0x40 sub-table 0x26 is reserved
 reserved-subtable	0x409c0000	—	Illegal	opcode 0x40 sub-table 0x27 is reserved
 reserved-subtable	0x40bc0000	—	Illegal	opcode 0x40 sub-table 0x2f is reserved
 reserved-subtable	0x40dc0000	—	Illegal	opcode 0x40 sub-table 0x37 is reserved
-reserved-subtable	0x40f00000	—	Illegal	opcode 0x40 sub-table 0x3c is reserved
 reserved-subtable	0x40fc0000	—	Illegal	opcode 0x40 sub-table 0x3f is reserved
 reserved-subtable	0x41000000	—	Illegal	opcode 0x41 sub-table 0x00 is reserved
 reserved-subtable	0x41040000	—	Illegal	opcode 0x41 sub-table 0x01 is reserved
@@ -319,9 +318,11 @@ reserved-subtable	0x43f00000	—	Illegal	opcode 0x43 sub-table 0x3c is reserved
 reserved-subtable	0x43f40000	—	Illegal	opcode 0x43 sub-table 0x3d is reserved
 reserved-subtable	0x43f80000	—	Illegal	opcode 0x43 sub-table 0x3e is reserved
 reserved-subtable	0x43fc0000	—	Illegal	opcode 0x43 sub-table 0x3f is reserved
+reserved-subtable	0x44080000	—	Illegal	opcode 0x44 sub-table 0x02 is reserved
 reserved-subtable	0x44100000	—	Illegal	opcode 0x44 sub-table 0x04 is reserved
 reserved-subtable	0x44140000	—	Illegal	opcode 0x44 sub-table 0x05 is reserved
 reserved-subtable	0x441c0000	—	Illegal	opcode 0x44 sub-table 0x07 is reserved
+reserved-subtable	0x44280000	—	Illegal	opcode 0x44 sub-table 0x0a is reserved
 reserved-subtable	0x44300000	—	Illegal	opcode 0x44 sub-table 0x0c is reserved
 reserved-subtable	0x44340000	—	Illegal	opcode 0x44 sub-table 0x0d is reserved
 reserved-subtable	0x443c0000	—	Illegal	opcode 0x44 sub-table 0x0f is reserved
@@ -387,3 +388,5 @@ identity-regression	0x47880000	swym_oiii_imm	Decoded	swym moved from 0x77 to 0x4
 identity-regression	0x56000000	clmul.o_rrrr_rd	Decoded	clmul.o is new in M9
 identity-regression	0x440c0000	ftrnd_orri_rf	Decoded	ftrnd is new (roundint family)
 identity-regression	0x442c0000	fornd_orri_rf	Decoded	fornd is new (roundint family)
+identity-regression	0x44080000	—	Illegal	ft2ft was deleted by m13-spec-010; 0x44/0x02 is a reserved slot
+identity-regression	0x44280000	—	Illegal	fo2fo was deleted by m13-spec-010; 0x44/0x0A is a reserved slot

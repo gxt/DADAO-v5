@@ -186,9 +186,9 @@ def main() -> int:
         print("check-gem5-b3: FAIL -- missing 'B3 coverage 42/42' marker",
               file=sys.stderr)
         ok = False
-    if "non-B3 ids return NotB3 (222/222)" not in run.stdout:
+    if "non-B3 ids return NotB3 (221/221)" not in run.stdout:
         print("check-gem5-b3: FAIL -- missing 'non-B3 ids return NotB3 "
-              "(222/222)' marker", file=sys.stderr)
+              "(221/221)' marker", file=sys.stderr)
         ok = False
     if len(reported) != 42:
         print(f"check-gem5-b3: FAIL -- harness listed {len(reported)} B3 ids, "

@@ -1,11 +1,11 @@
 diff --git a/src/arch/dadao/exec/b5.hh b/src/arch/dadao/exec/b5.hh
 new file mode 100644
-index 0000000..0d5e9c3
+index 0000000..dec03c4
 --- /dev/null
 +++ b/src/arch/dadao/exec/b5.hh
-@@ -0,0 +1,98 @@
+@@ -0,0 +1,101 @@
 +// DADAO gem5 B5 execution core: register block copies, conditional
-+// assignment, control flow and the RegRAS/MemRAS state machine (28 ids).
++// assignment, control flow and the RegRAS/MemRAS state machine (29 ids).
 +//
 +// Plain C++ (no gem5 headers), like the B0 decode core, so the *same* code is
 +// driven by the component assertion harness (exec/b5_test.cc) and by the gem5
@@ -14,7 +14,7 @@ index 0000000..0d5e9c3
 +// Source of truth: the B5 ids in contracts/opcodes.yaml, the same-id rows of
 +// the GEM5-002t semantic matrix, spec/SimRISC-02 (block assignment),
 +// spec/SimRISC-06 (control flow), spec/SimRISC-00 §2.4 (RAS),
-+// contract-isa §3.3.3/§4/§6.5/§8 and contract-fp §12.  Only the 28 B5 ids are
++// contract-isa §3.3.3/§4/§6.5/§8 and contract-fp §12.  Only the 29 B5 ids are
 +// implemented; every other decoded instruction reports NotB5.
 +//
 +// The PC/rb0 model is the full 64-bit one (ADR-0012 D8.3/D8.7): the target is
@@ -41,6 +41,9 @@ index 0000000..0d5e9c3
 +enum class B5Op
 +{
 +    Copy,
++    /** Same 64-bit block copy, but the destination *range* may not contain
++     * rf0 (`rf2rf`, dst_rf0; contract-fp §12).  `rd2rf` keeps plain Copy. */
++    CopyNoRf0,
 +    CondAssign,
 +    Branch,
 +    Jump,

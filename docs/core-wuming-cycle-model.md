@@ -68,7 +68,7 @@
 | 06 | `call`（`iiii`/`rrii`） | A3/A4 | RegRAS 8 / MemRAS 26（预取失效期） | 实测（暂定：预取失效期上界） |
 | 06 | `ret rdHA, imms18` | A3/A4 | RegRAS 8 / MemRAS 15（预取失效期） | 实测（暂定：预取失效期上界） |
 | 07 | FP 转换（`ft2fo`/`it2fo`/`fo2ft`/…） | B4 | 1 | 实测 |
-| 07 | `ft2ft`/`fo2fo`（块复制） | D′ | 1+N（N=2 ⇒ 3；N=3 ⇒ 4） | 实测 |
+| 07 | `rf2rf`（块复制） | D′ | 1+N（N=2 ⇒ 3；N=3 ⇒ 4） | 实测 |
 | 07 | `foadd/fomul/fofma`、`foqcmp`、`fomin/fomax` | B4 | 1（FMA 单次舍入，无 FP 等待态） | 实测（fo 侧；ft 侧推断） |
 | 07 | `ftdiv`/`fodiv`、`ftroot`/`foroot` | B5 | ft 27 / fo 56（**不随操作数变化**） | 实测 |
 | 07 | `ftrem`/`forem` | B5 | `53+d+1`（d=指数差；d=1/10/100/1000 ⇒ 55/64/154/1054） | 实测 |

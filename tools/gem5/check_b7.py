@@ -12,10 +12,10 @@ What this gate verifies (GEM5-012t acceptance):
    *equal* to the live `batch_of()` set derived from contracts/opcodes.yaml +
    the GEM5-002t matrix (two-way difference, never a one-way subset);
 3. per id: contract_ref, spec_cite, format, rule_refs and legality strings
-   against a built-in expectation table (55 rows -- no weak assertions);
-4. contract-wide rule counts (dst_rf0 41 / mreg_zero 22 /
-   mreg_range_overflow 22 / dst_rd0 14 / mreg_range_overlap 4 /
-   encode_fp_root_n 2 / encode_onehot 2) and "no B7 row has empty legality";
+   against a built-in expectation table (53 rows -- no weak assertions);
+4. contract-wide rule counts (dst_rf0 39 / mreg_zero 2 /
+   mreg_range_overflow 2 / dst_rd0 14 / encode_fp_root_n 2 /
+   encode_onehot 17 / encode_sbz 3) and "no B7 row has empty legality";
 5. the same-id rows of the GEM5-002t matrix agree on contract_ref/spec_cite;
 6. bit-exact differential against tools/gem5/b7_ref.py: >= 2000 vectors (per
    family >= the task's minimum), comparing the destination register values and
@@ -54,7 +54,7 @@ MATRIX = ROOT / ".tao/knowledge/refs/GEM5-002t-semantic-matrix.tsv"
 INST_FP = ROOT / "tests/inst/07-floating-point"
 HARNESS_ID = re.compile(r"^\[PASS\] b7-id (\S+)$", re.MULTILINE)
 
-# ── built-in per-id expectation table (55 rows) ──────────────────────────
+# ── built-in per-id expectation table (53 rows) ──────────────────────────
 # id -> (contract_ref, spec_cite, rule_refs, legality)
 EXPECTED = {
     "ftfma_rrrr_rf": ("contract-fp §20", "SimRISC-07: ftfma", ("dst_rf0",),
@@ -78,21 +78,9 @@ EXPECTED = {
     "ft2fo_orri_rf": ("contract-fp §2", "SimRISC-07: ft2fo",
                       ("dst_rf0", "encode_sbz"),
                       ("rfhb != rf0", "immu6 == 0")),
-    "ft2ft_orri_rf": ("contract-fp §2", "SimRISC-07: ft2ft",
-                      ("dst_rf0", "mreg_zero", "mreg_range_overflow",
-                       "mreg_range_overlap"),
-                      ("rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64",
-                       "rfhc + immu6 <= 64",
-                       "no_overlap(rfhb, rfhc, immu6)")),
     "fo2ft_orri_rf": ("contract-fp §2", "SimRISC-07: fo2ft",
                       ("dst_rf0", "encode_onehot"),
                       ("rfhb != rf0", "immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 == 32")),
-    "fo2fo_orri_rf": ("contract-fp §2", "SimRISC-07: fo2fo",
-                      ("dst_rf0", "mreg_zero", "mreg_range_overflow",
-                       "mreg_range_overlap"),
-                      ("rfhb != rf0", "immu6 != 0", "rfhb + immu6 <= 64",
-                       "rfhc + immu6 <= 64",
-                       "no_overlap(rfhb, rfhc, immu6)")),
     "ftroot_orri_rf": ("contract-fp §6", "SimRISC-07: ftroot",
                        ("dst_rf0", "encode_fp_root_n"),
                        ("rfhb != rf0", "immu6 == 2")),
@@ -207,13 +195,14 @@ EXPECTED = {
                       ("rfhb != rf0",)),
 }
 
-# Contract-wide rule_refs counts over the 55 B7 rows.
+# Contract-wide rule_refs counts over the 53 B7 rows.  m13-spec-010 retired the
+# same-format bit copies ft2ft/fo2fo, so the B7 batch has no mreg_range_overlap
+# row any more (dst_rf0 41->39, mreg_zero 4->2, mreg_range_overflow 4->2).
 EXPECTED_RULE_COUNTS = {
-    "dst_rf0": 41,
-    "mreg_zero": 4,
-    "mreg_range_overflow": 4,
+    "dst_rf0": 39,
+    "mreg_zero": 2,
+    "mreg_range_overflow": 2,
     "dst_rd0": 14,
-    "mreg_range_overlap": 2,
     "encode_fp_root_n": 2,
     "encode_onehot": 17,
     "encode_sbz": 3,
@@ -222,7 +211,7 @@ EXPECTED_RULE_COUNTS = {
 # Per-family differential minimums (task 必测用例: "每族不少于下列数量").
 FAMILY_MINIMUMS = {
     "arith": 12 * 64,
-    "cvt_ff": 4 * 32,
+    "cvt_ff": 2 * 32,
     "f2i": 8 * 32,
     "i2f": 8 * 32,
     "fma": 2 * 48,
@@ -262,8 +251,8 @@ def matrix_rows():
 def check_contract(entries) -> list[str]:
     errors: list[str] = []
     by_id = {entry.id: entry for entry in entries}
-    if len(by_id) != 55:
-        errors.append(f"live B7 set has {len(by_id)} ids, expected 55")
+    if len(by_id) != 53:
+        errors.append(f"live B7 set has {len(by_id)} ids, expected 53")
     for entry_id, (ref, cite, rules, legality) in EXPECTED.items():
         entry = by_id.get(entry_id)
         if entry is None:
@@ -299,8 +288,8 @@ def check_contract(entries) -> list[str]:
     if empty:
         errors.append(f"{len(empty)} B7 row(s) have empty legality: {empty}")
     cites = [entry.spec_cite for entry in entries]
-    if len(set(cites)) != 55:
-        errors.append(f"spec_cite values are not unique ({len(set(cites))}/55)")
+    if len(set(cites)) != 53:
+        errors.append(f"spec_cite values are not unique ({len(set(cites))}/53)")
     return errors
 
 
@@ -507,17 +496,17 @@ def main() -> int:
     contract_errors = check_contract(entries) + check_matrix(entries)
 
     ok = True
-    if "B7 coverage 55/55" not in run.stdout:
-        print("check-gem5-b7: FAIL -- missing 'B7 coverage 55/55' marker",
+    if "B7 coverage 53/53" not in run.stdout:
+        print("check-gem5-b7: FAIL -- missing 'B7 coverage 53/53' marker",
               file=sys.stderr)
         ok = False
-    if "non-B7 ids return NotB7 (209/209)" not in run.stdout:
+    if "non-B7 ids return NotB7 (210/210)" not in run.stdout:
         print("check-gem5-b7: FAIL -- missing 'non-B7 ids return NotB7 "
-              "(209/209)' marker", file=sys.stderr)
+              "(210/210)' marker", file=sys.stderr)
         ok = False
-    if len(harness_ids) != 55:
+    if len(harness_ids) != 53:
         print(f"check-gem5-b7: FAIL -- harness listed {len(harness_ids)} B7 "
-              "ids, expected 55", file=sys.stderr)
+              "ids, expected 53", file=sys.stderr)
         ok = False
     if harness_ids != live:
         extra = sorted(set(harness_ids) - set(live))
@@ -606,14 +595,14 @@ def main() -> int:
     if asset_errors:
         ok = False
 
-    print(f"check-gem5-b7: b7 ids {len(harness_ids)}/55, live {len(live)}, "
+    print(f"check-gem5-b7: b7 ids {len(harness_ids)}/53, live {len(live)}, "
           f"failures {failures}, rc={run.returncode}")
     live_counts = {rule: sum(rule in entry.rules for entry in entries)
                    for rule in EXPECTED_RULE_COUNTS}
     print("check-gem5-b7: rule_refs " +
           " ".join(f"{rule}={live_counts[rule]}"
                    for rule in EXPECTED_RULE_COUNTS))
-    print("check-gem5-b7: legality empty = 0 (55/55 rows carry a rule)")
+    print("check-gem5-b7: legality empty = 0 (53/53 rows carry a rule)")
     print("check-gem5-b7: oracle families " +
           " ".join(f"{family}={family_counts.get(family, 0)}"
                    for family in FAMILY_MINIMUMS))

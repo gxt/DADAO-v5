@@ -32,10 +32,10 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `orrr` 移位量取 `rdhd` 低位（天然 mod W），`orri` 的 `immu6 ≥ W`
   ⇒ ILLI；`rev.t/w/b` 每块内按 one-hot `k` 反转单元顺序（`k ≥ S` ⇒ ILLI）。
   按 `entry->id` 分派，静态 ILLI 先于任何寄存器读；无访存路径。
-- **B5 执行语义**（`exec/b5.{hh,cc}`，28 条块搬移/条件赋值/控制流/RAS）：
-  8 条寄存器块搬移（RD/RB/RA/RF 组间与组内，64 位二进制不变；`immu6=0`/
+- **B5 执行语义**（`exec/b5.{hh,cc}`，29 条块搬移/条件赋值/控制流/RAS）：
+  9 条寄存器块搬移（RD/RB/RA/RF 组间与组内，64 位二进制不变；`immu6=0`/
   越界/目的 0/同组重叠 ⇒ ILLI，`rf0` 目的按 FCSR 写掩码、`ra0` 按不透明
-  64 位传输）；5 条条件赋值（`cs.n/z/p` 写 `rdhb`、`cs.eq/ne` 写 `rdhc`，
+  64 位传输；`rf2rf` 目的区间含 `rf0` ⇒ ILLI、源 `rf0` 合法，整 64 位逐位复制）；5 条条件赋值（`cs.n/z/p` 写 `rdhb`、`cs.eq/ne` 写 `rdhc`，
   先读全部源再写、条件不成立写回原值）；10 条条件跳转 + 2 条 `jump` +
   2 条 `call` + `ret`，地址按 64 位全宽计算（`rb0 + (sext(imm)<<2)`，
   `rrii` 为 `rbha + rdhb + (sext(imms12)<<2)`），48 位截断交地址空间；
@@ -54,8 +54,8 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `rdHB = rd0` ⇒ ILLI；非 `.b` 未对齐 ⇒ MALIGN；MALIGN/访存 fault 精确、
   不消费保留）。保留标记由每线程 `ISA` 单槽持有（精确地址 + 宽度，F8.1），
   `clear()` 复位、不做检查点序列化。
-- **B7 执行语义**（`exec/b7.{hh,cc}` + `exec/fp_soft.{hh,cc}`，55 条浮点）：
-  12 族 = fma 2 / cs_rf 3 / classify 2 / convert_ff 4 / root 2 / convert_f2i 8 /
+- **B7 执行语义**（`exec/b7.{hh,cc}` + `exec/fp_soft.{hh,cc}`，53 条浮点）：
+  12 族 = fma 2 / cs_rf 3 / classify 2 / convert_ff 2 / root 2 / convert_f2i 8 /
   convert_i2f 8 / roundint 2 / arith 12（add/sub/mul/div/rem/sclb）/ sign 4 /
   compare 4 / minmax 4，按 `entry->id` 分派（`ft*`/`fo*`、`2it`/`2ut`、
   `qcmp`/`scmp`、`sgnn`/`sgnj` 只差表项）。值语义在 `exec/fp_soft.cc`：
@@ -79,34 +79,35 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   一致）；④ signaling compare 的 unordered 置 NV（用户 2026-11-02 裁定 3）。
   （`rootn(±0,2) = +0` 原为此列第 2 项，`m13-spec-007` 后已由 spec 明文规定，
   不再是模型选择。）
-- **B0–B7 全覆盖**：264 条全部有执行核；`inst.cc` 的 `batch<1 || batch>7`
+- **B0–B7 全覆盖**：263 条全部有执行核；`inst.cc` 的 `batch<1 || batch>7`
   仅作防御分支（返回 `UnimplementedInstruction`），未匹配/保留编码仍返回
   `IllegalInstruction`（ILLI）。不做跨批混写。
-- **断言**：264 行逐条解码断言（`decode-assertions.tsv`）+ 388 条非法/保留/
+- **断言**：263 行逐条解码断言（`decode-assertions.tsv`）+ 391 条非法/保留/
   身份回归用例（`decode-negative.tsv`），由 `make check-gem5-decode` 运行；
   B1 执行断言 `exec/b1_test.cc`（38/38）由 `tools/gem5/check_b1.py`、
   B2 执行断言 `exec/b2_test.cc`（8/8、逐 wyde/立即数分片/FCSR 掩码/ILLI）
   由 `tools/gem5/check_b2.py`、B3 执行断言 `exec/b3_test.cc`（42/42、128 位
   高低半/立即数边界/one-hot/循环移位/有符号无符号比较/除余定值/64 位写满）
   由 `tools/gem5/check_b3.py`、B4 执行断言 `exec/b4_test.cc`（63/63、non-B4
-  201/201、窄位宽截断/扩展/舍入/比较/移位/rev/ILLI）由 `tools/gem5/check_b4.py`、
-  B5 执行断言 `exec/b5_test.cc`（28/28、non-B5 236/236、块搬移范围/重叠/
+  200/200、窄位宽截断/扩展/舍入/比较/移位/rev/ILLI）由 `tools/gem5/check_b4.py`、
+  B5 执行断言 `exec/b5_test.cc`（29/29、non-B5 234/234、块搬移范围/重叠/
   `rf0`/`ra0`、条件边界、64 位地址、RAS C1–C3b/D1–D4b、精确异常）由
   `tools/gem5/check_b5.py`、B6 执行断言 `exec/b6_test.cc`（30/30、non-B6
-  234/234、`rule_refs` 5/14/12、swym/fence 掩码 4096×2/`lr` 零扩展+MALIGN+
+  233/233、`rule_refs` 5/14/12、swym/fence 掩码 4096×2/`lr` 零扩展+MALIGN+
   hb、`sc` 成功失败+宽度截断+精确 fault、CFXREG/CFXESC、保留单槽覆盖与消费）
   由 `tools/gem5/check_b6.py` 编译运行；B7 执行断言 `exec/b7_test.cc`
-  （55/55、non-B7 209/209、静态 ILLI 零读写、各族边界/标志/舍入/NaN/Inf/±0/rem/
+  （53/53、non-B7 210/210、静态 ILLI 零读写、各族边界/标志/舍入/NaN/Inf/±0/rem/
   sclb/f2i/fma/minmax/compare、FCSR sticky、ft 高 32 位、`rdHD` 字段陷阱）由
   `tools/gem5/check_b7.py` 编译运行，并由 `tools/gem5/b7_ref.py`（独立
-  `Fraction` 精确模型）做 **4098 条**位级差分（目标寄存器 + 新 FCSR 逐位相等，
+  `Fraction` 精确模型）做 **3946 条**位级差分（目标寄存器 + 新 FCSR 逐位相等，
   `oracle mismatch=0`；fma/minmax/roundint 另与 `tests/inst` 的 oracle 三方交叉）
   （均不进 gem5 二进制，不改 `tests/**`）。
 - **GEM5-005t 增量**：`ftsclb`/`fosclb` 第三操作数 `rfhd/rf` → `rdhd/rd`
   （同 `orrr` 编码，SPEC-181t F5.2 C1；旧 rf 写法为负例守护）；12 条 `sc.*`
   的 `rdhb != rd0`（`dst_rd0`）合法性数据 + 28 条合法性断言（sc 目的 rd0
   ⇒ ILLI、`rdhc=rd0` 仍合法、scaleB 指数 `rdhd=0` 合法）。
-- **B1–B7 边界**（GEM5-002t-REPORT §5）：38 / 8 / 42 / 63 / 28 / 30 / 55。
+- **B1–B7 边界**（GEM5-002t-REPORT §5，m13-spec-010 后重算）：38 / 8 / 42 / 63 /
+  29 / 30 / 53。
 
 ## SE 平台（GEM5-014t）
 
@@ -526,14 +527,14 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 
 ```
 make build-gem5          # SCons；SCons 缺失时 rc=2（BLOCKED，不假 PASS）
-make check-gem5-decode   # 264 行解码断言 + 388 条非法/回归用例
+make check-gem5-decode   # 263 行解码断言 + 391 条非法/回归用例
 python3 tools/gem5/check_b1.py --source .work/source/gem5   # B1 执行断言（38/38）
 python3 tools/gem5/check_b2.py --source .work/source/gem5   # B2 执行断言（8/8）
 python3 tools/gem5/check_b3.py --source .work/source/gem5   # B3 执行断言（42/42）
 python3 tools/gem5/check_b4.py --source .work/source/gem5   # B4 执行断言（63/63）
-python3 tools/gem5/check_b5.py --source .work/source/gem5   # B5 执行断言（28/28）
+python3 tools/gem5/check_b5.py --source .work/source/gem5   # B5 执行断言（29/29）
 python3 tools/gem5/check_b6.py --source .work/source/gem5   # B6 执行断言（30/30）
-python3 tools/gem5/check_b7.py --source .work/source/gem5   # B7 执行断言 + 4098 条 oracle 差分
+python3 tools/gem5/check_b7.py --source .work/source/gem5   # B7 执行断言 + 3946 条 oracle 差分
 make check-patch-tree
 ```
 

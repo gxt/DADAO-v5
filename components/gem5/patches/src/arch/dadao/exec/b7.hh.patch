@@ -1,16 +1,16 @@
 diff --git a/src/arch/dadao/exec/b7.hh b/src/arch/dadao/exec/b7.hh
 new file mode 100644
-index 0000000..74c8a69
+index 0000000..1bd19bb
 --- /dev/null
 +++ b/src/arch/dadao/exec/b7.hh
-@@ -0,0 +1,154 @@
-+// DADAO gem5 B7 execution core: the 55 floating-point ids (dispatch + state).
+@@ -0,0 +1,157 @@
++// DADAO gem5 B7 execution core: the 53 floating-point ids (dispatch + state).
 +//
 +// Plain C++ (no gem5 headers), like the B0 decode core, so the *same* code is
 +// driven by the component assertion harness (exec/b7_test.cc) and by the gem5
 +// adapter (inst.cc).
 +//
-+// Source of truth: the 55 B7 ids of contracts/opcodes.yaml, the same-id rows of
++// Source of truth: the 53 B7 ids of contracts/opcodes.yaml, the same-id rows of
 +// the GEM5-002t semantic matrix, spec/SimRISC-07 (all sections + appendix B),
 +// spec/SimRISC-00 §2.3/§2.3.1 (rf/FCSR), spec/SimRISC-02 §3 (cs.*-rf) and
 +// contract-fp §1-§10/§15/§16/§18-§20.  Every other decoded instruction reports
@@ -69,13 +69,16 @@ index 0000000..74c8a69
 +    LegalDstRf0 = 1u << 0,   // dst_rf0: floating destination rf0 => ILLI
 +    LegalDstRd0 = 1u << 1,   // dst_rd0: integer destination rd0 => ILLI
 +    LegalCount = 1u << 2,    // mreg_zero + mreg_range_overflow (block forms)
-+    LegalOverlap = 1u << 3,  // mreg_range_overlap (convert_ff only)
++    /** mreg_range_overlap.  No B7 row carries it after m13-spec-010 (the rf
++     * block copy that did is `rf2rf` in B5); the bit stays so a contract row
++     * that regains the rule still gets the check. */
++    LegalOverlap = 1u << 3,
 +    LegalOnehot = 1u << 4,   // encode_onehot (roundint + 15 conversions)
 +    LegalRootN = 1u << 5,    // encode_fp_root_n (root: n == 2)
 +    LegalSbz = 1u << 6,      // encode_sbz (3 exact conversions: field == 0)
 +};
 +
-+/** One decoded B7 id.  This is also the dispatch table (55 rows).
++/** One decoded B7 id.  This is also the dispatch table (53 rows).
 + *
 + * One row per id, never per mnemonic: `ft*`/`fo*`, `ft2it`/`ft2ut`,
 + * `qcmp`/`scmp`, `sgnn`/`sgnj` and the four arithmetic operations differ only
@@ -111,7 +114,7 @@ index 0000000..74c8a69
 +    uint8_t csCond = 0;          // 0 lt, 1 eq, 2 gt
 +};
 +
-+size_t b7SpecCount();  // always 55
++size_t b7SpecCount();  // always 53
 +const B7Spec *b7Specs();
 +const B7Spec *b7SpecForId(std::string_view id);
 +

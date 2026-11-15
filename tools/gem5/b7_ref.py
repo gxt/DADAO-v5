@@ -608,9 +608,7 @@ OPS = {
     "ftcls_orri_rf": ("classify", "ft"),
     "focls_orri_rf": ("classify", "fo"),
     "ft2fo_orri_rf": ("cvt_ff", "ft", "fo"),
-    "ft2ft_orri_rf": ("cvt_ff", "ft", "ft"),
     "fo2ft_orri_rf": ("cvt_ff", "fo", "ft"),
-    "fo2fo_orri_rf": ("cvt_ff", "fo", "fo"),
     "ftroot_orri_rf": ("root", "ft"),
     "foroot_orri_rf": ("root", "fo"),
     "ft2it_orri_rf": ("f2i", "ft", 32, True),
@@ -760,20 +758,16 @@ def model(vec):
         src_fmt, dst_fmt = op[1], op[2]
         dst0 = fields[dst_field.name]
         src0 = fields[src_fields[0].name]
-        if src_fmt == dst_fmt:
-            # Pure copy (ft2ft/fo2fo): 1..63 pairs, no rounding, no flags.
-            for i in range(fields[imm_field.name]):
-                rf[dst0 + i] = _write_float(dst_fmt, rf[dst0 + i],
-                                            mask_bits(src_fmt, rf[src0 + i]))
-                writes.append(("rf", dst0 + i, rf[dst0 + i]))
-        else:
-            code = fields[imm_field.name]
-            m = 0 if code == 0 else conv_mode(code, mode)
-            value = mask_bits(src_fmt, rf[src0])
-            out, f = op_convert_ff(dst_fmt, m, src_fmt, value)
-            flags |= f
-            rf[dst0] = _write_float(dst_fmt, rf[dst0], out)
-            writes.append(("rf", dst0, rf[dst0]))
+        # Both remaining convert_ff ids change format (ft<->fo); the
+        # same-format bit copies (ft2ft/fo2fo) were retired by m13-spec-010 --
+        # the rf-group block copy is `rf2rf` in B5.
+        code = fields[imm_field.name]
+        m = 0 if code == 0 else conv_mode(code, mode)
+        value = mask_bits(src_fmt, rf[src0])
+        out, f = op_convert_ff(dst_fmt, m, src_fmt, value)
+        flags |= f
+        rf[dst0] = _write_float(dst_fmt, rf[dst0], out)
+        writes.append(("rf", dst0, rf[dst0]))
     elif kind == "root":
         fmt = op[1]
         _, value = read_float(fmt, src_fields[0].name)
@@ -963,13 +957,11 @@ def gen_family(family, seed, per_id):
                 fields[imm_field.name] = count
                 srcs = [(8 + k % 2, "rf")]
             elif kind == "cvt_ff":
-                if op[1] == op[2]:  # pure copy: 1..63 pairs
-                    fields[imm_field.name] = 1 + (k % 3)
-                else:  # single register: one-hot code (ft2fo uses SBZ 0)
-                    codes = (0x01, 0x02, 0x04, 0x08, 0x10, 0x20)
-                    fields[imm_field.name] = (
-                        0 if inst_id == "ft2fo_orri_rf"
-                        else codes[(k + mode) % 6])
+                # Single register: one-hot code (ft2fo uses SBZ 0).
+                codes = (0x01, 0x02, 0x04, 0x08, 0x10, 0x20)
+                fields[imm_field.name] = (
+                    0 if inst_id == "ft2fo_orri_rf"
+                    else codes[(k + mode) % 6])
                 srcs = [(8 + k % 2, "rf")]
             elif kind == "f2i":
                 # Single register: low 6 bits are the one-hot direction.
@@ -1454,7 +1446,9 @@ def edge_vectors():
             rf = {3: value, 2: 0xAAAA000000000000}
             add(inst_id, f"{pos}", {"rfhb": 2, "rfhc": 3, "immu6": 2}, rf)
     # ---- convert_ff: payload, overflow, underflow ------------------------
-    for src, dst in (("ft", "fo"), ("ft", "ft"), ("fo", "ft"), ("fo", "fo")):
+    # m13-spec-010: only the format-changing pairs remain (the same-format
+    # copies ft2ft/fo2fo are gone; the rf block copy is `rf2rf` in B5).
+    for src, dst in (("ft", "fo"), ("fo", "ft")):
         inst_id = f"{src}2{dst}_orri_rf"
         pool = edge_bits(src)
         values = pool + ([0x7FC12345, 0xFFC12345, 0xFF800001] if src == "ft"
@@ -1466,9 +1460,7 @@ def edge_vectors():
                     continue
                 rf = {0: (RF0_RESET & ~RF0_WRITABLE) | (mode << 32),
                       8: value, 2: 0xAAAA000000000000}
-                if src == dst:      # pure copy: element count
-                    code = 1
-                elif inst_id == "ft2fo_orri_rf":  # exact widening: SBZ
+                if inst_id == "ft2fo_orri_rf":  # exact widening: SBZ
                     code = 0
                 else:               # fo2ft: one-hot direction
                     code = (0x01, 0x04, 0x08, 0x10)[mode]
