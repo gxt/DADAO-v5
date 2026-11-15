@@ -1,0 +1,411 @@
+diff --git a/arch/dadao/kernel/time.c b/arch/dadao/kernel/time.c
+new file mode 100644
+index 000000000..f8047032e
+--- /dev/null
++++ b/arch/dadao/kernel/time.c
+@@ -0,0 +1,405 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DADAO time base and single-hart timer (K2).
++ *
++ * Register semantics are frozen by contract-see §3 (from spec/DADAO-12 §4.7 and
++ * §4.10); §6.5 only adds the kernel-side gaps:
++ *
++ *   - the kernel may touch `cfx_time` and `cfx_hart` because the boot SEE
++ *     opened them (tests/shared/bootrom/k0/hmon.S) — without that the first
++ *     `cfx2rd` is CFXPERM, which is exactly why the K2 gate runs a firmware
++ *     variant that does not open them;
++ *   - after a delivery the hardware re-kicks pending events itself (mask
++ *     write / escape / new event), so the kernel keeps no software bitmap.
++ *
++ * The framework is deliberately the *minimal* one (task m14-linux-007 ruling
++ * 1): the read / program / confirm surface lives in the five functions declared
++ * by asm/time.h and one tick point, `dadao_timer_interrupt()`.  K4 replaces
++ * their bodies with clocksource/clockevent; the entry and the call sites do not
++ * change.
++ *
++ * Why jiffies and nothing else: the K2 exit criterion is "clock interrupt ->
++ * jiffies advances".  Updating the wall clock needs a registered clocksource
++ * (the `update_wall_time()` half of do_timer() in this kernel), which is the
++ * K4 work; the jiffies half is what the tick owes the kernel today, so this
++ * file performs exactly that half.
++ */
++#include <linux/bitops.h>
++#include <linux/init.h>
++#include <linux/jiffies.h>
++#include <linux/kernel.h>
++#include <linux/types.h>
++
++#include <asm/cfx.h>
++#include <asm/ptrace.h>
++#include <asm/setup.h>
++#include <asm/time.h>
++#include <asm/trap.h>
++
++/*
++ * Named boot verdicts.  Guest FAIL segment of spec/Machine-v5 §7.1 (0x01-0x7f,
++ * value = check point index); head.S owns 0x01-0x03, setup.c 0x04-0x08,
++ * mm/k1_pt.c 0x09-0x0c, trap.S 0x0d, traps.c 0x0e/0x0f, so this task starts at
++ * 0x10.  They stay <= 0x7f because the semihosting SYS_EXIT subcode IS the host
++ * exit status (0x100 would wrap to 0 and read as PASS).
++ */
++#define K2_FAIL_TIME_GEOMETRY	0x10	/* freq == 0 or freq / HZ == 0 */
++#define K2_FAIL_NO_TICK		0x13	/* the expected ticks did not arrive */
++
++#define K2_TIME_SLOTS		8	/* samples kept for the report; >= ticks */
++
++/* cfx_hart's cg5 frame: only the entry mode is read here (§3.6). */
++#define CFX_HART_CG_FRAME		5
++#define CFX_HART_RC_FRAME_PREV_MODE	0
++
++/*
++ * The period and the tick bookkeeping.  `period` is derived once in
++ * time_init() from the *live* frequency and the configured HZ — never from a
++ * hardcoded count — and the handler re-arms with it.
++ */
++static unsigned long dadao_period;
++
++/* Delivered ticks since reset (volatile: the waiting context polls it). */
++static volatile unsigned int dadao_ticks;
++
++/* Per-tick samples, printed after the series (printing inside the handler
++ * would push the next deadline and distort the very intervals it reports). */
++static int dadao_sample_on;
++static unsigned int dadao_sample_n;
++static unsigned long dadao_sample_time[K2_TIME_SLOTS];
++static unsigned long dadao_sample_jiffies[K2_TIME_SLOTS];
++
++void __noreturn dadao_k2_fail(unsigned int checkpoint, const char *what)
++{
++	dadao_early_printf("K2 fail: %s code=%#x\n", what, checkpoint);
++	dadao_early_exit(checkpoint);
++}
++
++/*
++ * A delivered source this kernel has no handler for (IPI is not implemented at
++ * K2, contract-see §3).  It is an *abnormal termination*, not a self-check
++ * verdict, so it takes the §7.1 monitor segment with the frame's entry mode and
++ * the cause's bit index — the same encoding dadao_die() uses for synchronous
++ * causes.
++ */
++void __noreturn dadao_async_die(unsigned long cause, unsigned long info)
++{
++	unsigned long mode = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_FRAME,
++					    CFX_HART_RC_FRAME_PREV_MODE) & 0x3;
++	/* spec/Machine-v5 §7.1: 0xc0 | mode << 4 | bit index of the cause id.
++	 * A zero cause id has no bit index; it is not an event this entry can
++	 * classify, so it keeps 0 instead of calling __ffs(0). */
++	unsigned long index = cause ? ((unsigned long)__ffs(cause) & 0xf) : 0UL;
++	unsigned long code = 0xc0UL | (mode << 4) | index;
++
++	dadao_early_printf("dadao: unexpected async cause=%#lx info=%#lx mode=%lu "
++			   "code=%#lx\n", cause, info, mode, code);
++	dadao_early_exit(code);
++}
++
++/* -------------------------------------------------------------------------
++ * Read (cfx_time, cfxha 34)
++ * ------------------------------------------------------------------------- */
++
++unsigned long dadao_time_freq(void)
++{
++	return DADAO_CFX_READ(cfx_time, CFX_TIME_CG_FREQ, CFX_TIME_RC_FREQ);
++}
++
++/*
++ * The whole 64-bit `cfx_time_value` comes back in one `cfx2rd` (the register is
++ * 64-bit wide, spec/DADAO-12 §4.10), so there is no high/low pair to be torn by
++ * an interrupt — the invariant this port relies on when it samples the time
++ * from inside the asynchronous handler.
++ */
++unsigned long dadao_read_time(void)
++{
++	return DADAO_CFX_READ(cfx_time, CFX_TIME_CG_FREQ, CFX_TIME_RC_VALUE);
++}
++
++/* -------------------------------------------------------------------------
++ * Program / confirm (cfx_hart cg8, cfxha 15)
++ * ------------------------------------------------------------------------- */
++
++void dadao_timer_arm(unsigned long delta_counts)
++{
++	unsigned long deadline = dadao_read_time() + delta_counts;
++
++	/*
++	 * Order matters: writing `cmp` cancels the old deadline and clears
++	 * ISTATUS and the TIMER pending bit (contract-see §3), then opening
++	 * ENABLE with IMASK = 0 makes the new deadline deliverable.  A pending
++	 * event from a previous deadline is gone at that point, so this is a
++	 * clean re-arm and not an accidental second tick.
++	 */
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
++			deadline);
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
++			DADAO_TIMER_ENABLE);
++}
++
++void dadao_timer_stop(void)
++{
++	/*
++	 * Clear ENABLE first (ISTATUS is gated by ENABLE, §4.7) and then write
++	 * the "off" compare value: all-ones cancels the old deadline and clears
++	 * whatever pending bit the last expiry left.
++	 */
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL, 0);
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
++			~0UL);
++}
++
++unsigned long dadao_timer_status(void)
++{
++	/* `ctrl[1:0] | ISTATUS << 2`, other bits read as 0 (§4.7). */
++	return DADAO_CFX_READ(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL);
++}
++
++/* -------------------------------------------------------------------------
++ * The tick
++ * ------------------------------------------------------------------------- */
++
++/*
++ * One delivered TIMER.  `cause_info` is 0 for this source (§4.7), checked by
++ * the caller.
++ */
++void dadao_timer_interrupt(void)
++{
++	unsigned long now = dadao_read_time();
++	unsigned int slot = dadao_ticks;
++
++	dadao_ticks = slot + 1;
++
++	/*
++	 * The jiffies half of do_timer(1) (kernel/time/timekeeping.c): the
++	 * 64-bit counter is the kernel's tick count on this 64-bit port, so one
++	 * delivered tick is one jiffy.  The load-average half needs the
++	 * scheduler's per-CPU run queues, which K2 does not have yet.
++	 */
++	jiffies_64 += 1;
++
++	if (dadao_sample_on && slot < K2_TIME_SLOTS) {
++		dadao_sample_time[slot] = now;
++		dadao_sample_jiffies[slot] = jiffies_64;
++		dadao_sample_n = slot + 1;
++	}
++
++	/* Re-arm from *this* sample, so the next deadline is one period away from
++	 * the tick that was just accounted (not from the end of this handler). */
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
++			now + dadao_period);
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
++			DADAO_TIMER_ENABLE);
++}
++
++/*
++ * The C half of the asynchronous entry (kernel/async_trap.S).  Runs with
++ * `inner_cfx_code` = cfx_hart, so every register below is the cfx the frame
++ * belongs to; cfx_hart cg8 and cg5 are *self* accesses there (§3, self bypasses
++ * the cfx axis and the cg is delegated to supv by the boot SEE).
++ */
++void dadao_async_handler(struct pt_regs *regs, unsigned long cause,
++			 unsigned long info)
++{
++	(void)regs;
++
++	if (cause != DADAO_CAUSE_TIMER)
++		dadao_async_die(cause, info);
++	if (info != 0) {
++		/* The TIMER source carries no information (§4.7); a non-zero
++		 * word means the delivery is not the event this kernel expects. */
++		dadao_async_die(cause, info);
++	}
++
++	dadao_timer_interrupt();
++}
++
++/* -------------------------------------------------------------------------
++ * The K2 boundary
++ * ------------------------------------------------------------------------- */
++
++void __init time_init(void)
++{
++	unsigned long freq = dadao_time_freq();
++	unsigned long first = dadao_read_time();
++
++	if (!freq)
++		dadao_k2_fail(K2_FAIL_TIME_GEOMETRY, "cfx_time frequency");
++
++	dadao_period = freq / HZ;
++	if (!dadao_period)
++		dadao_k2_fail(K2_FAIL_TIME_GEOMETRY, "period = freq / HZ");
++
++	dadao_early_printf("K2 time_init: freq=%lu hz=%u period=%lu n_ticks=%u "
++			   "first=%lu\n", freq, (unsigned int)HZ, dadao_period,
++			   (unsigned int)DADAO_K2_TIME_TICKS, first);
++}
++
++/* Wait until @want ticks have been delivered or @window counts have passed. */
++static int __init dadao_wait_ticks(unsigned int want, unsigned long window)
++{
++	unsigned long start = dadao_read_time();
++
++	while (dadao_ticks < want) {
++		if (dadao_read_time() - start > window)
++			return -1;
++	}
++	return 0;
++}
++
++/* Burn @counts of the time base without delivering a tick. */
++static void __init dadao_wait_counts(unsigned long counts)
++{
++	unsigned long start = dadao_read_time();
++
++	while (dadao_read_time() - start <= counts)
++		;
++}
++
++/*
++ * Case 1: IMASK = 1 must only park the event in the target cfx's pending bit
++ * (`cfx_hart cg5 rc5` bit 10) — no delivery — and releasing IMASK must deliver
++ * that same event exactly once (contract-see §3, §6.5 gap 2).
++ */
++static void __init __maybe_unused dadao_time_case_imask(void)
++{
++	unsigned long window = 2 * dadao_period;
++	unsigned long ticks_before = dadao_ticks;
++	unsigned long status;
++
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
++			dadao_read_time() + dadao_period);
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
++			DADAO_TIMER_ENABLE | DADAO_TIMER_IMASK);
++
++	dadao_wait_counts(window);
++	status = dadao_timer_status();
++	dadao_early_printf("K2 imask: ctrl=%#lx ticks=%lu\n", status,
++			   (unsigned long)(dadao_ticks - ticks_before));
++
++	/*
++	 * Release: ENABLE stays, IMASK clears => the parked event is delivered.
++	 * The window is half a period, so "exactly one" is a real assertion: the
++	 * event that was parked arrives at once, and the deadline the handler
++	 * re-arms from it is still half a period in the future.
++	 */
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
++			DADAO_TIMER_ENABLE);
++	dadao_wait_counts(dadao_period / 2);
++	dadao_early_printf("K2 imask: released ctrl=%#lx ticks=%lu\n",
++			   dadao_timer_status(),
++			   (unsigned long)(dadao_ticks - ticks_before));
++
++	dadao_timer_stop();
++}
++
++/*
++ * The normal path: N consecutive ticks, then the stopped-timer control.
++ *
++ * The wait window is (N + 4) periods — a multiple of the period, never a
++ * wall-clock constant — so host scheduling jitter cannot fail a healthy run,
++ * while a timer that never fires still ends the boot through K2_FAIL_NO_TICK.
++ */
++static void __init __noreturn __maybe_unused dadao_time_run(void)
++{
++	unsigned long jiffies_start = jiffies_64;
++	unsigned long stop_ticks;
++	unsigned long window = (DADAO_K2_TIME_TICKS + 4) * dadao_period;
++	unsigned int i;
++	int no_tick;
++
++	/*
++	 * Count this series from zero: a probe image may have run the IMASK case
++	 * first, and its ticks must not satisfy this wait.  The timer is stopped
++	 * here, so no delivery is in flight while the counters are reset.
++	 */
++	dadao_timer_stop();
++	dadao_ticks = 0;
++	dadao_sample_n = 0;
++
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
++			dadao_read_time() + dadao_period);
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
++			DADAO_TIMER_ENABLE);
++	dadao_early_printf("K2 time: arm period=%lu cmp=%#lx ctrl=%#lx\n",
++			   dadao_period,
++			   DADAO_CFX_READ(cfx_hart, CFX_HART_CG_TIMER,
++					  CFX_HART_RC_TIMER_CMP),
++			   dadao_timer_status());
++
++	dadao_sample_on = 1;
++	dadao_sample_n = 0;
++	no_tick = dadao_wait_ticks(DADAO_K2_TIME_TICKS, window);
++	dadao_sample_on = 0;
++	/*
++	 * Freeze the series before reporting it: the timer is stopped here so no
++	 * tick can arrive between the report and the exit (task §5), and so the
++	 * printed count is exactly the series that was waited for.
++	 */
++	dadao_timer_stop();
++	if (no_tick)
++		dadao_k2_fail(K2_FAIL_NO_TICK, "timer delivered no tick");
++
++	for (i = 0; i < dadao_sample_n; i++)
++		dadao_early_printf("K2 tick %u: time=%lu jiffies=%lu\n", i + 1,
++				   dadao_sample_time[i], dadao_sample_jiffies[i]);
++	dadao_early_printf("K2 time: ticks=%u jiffies_delta=%lu\n", dadao_ticks,
++			   (unsigned long)jiffies_64 - jiffies_start);
++
++	/*
++	 * Stopped-timer control: a cancelled deadline must deliver nothing, so
++	 * waiting out two more periods leaves the tick count untouched.
++	 */
++	stop_ticks = dadao_ticks;
++	dadao_wait_counts(2 * dadao_period);
++	dadao_early_printf("K2 time: after stop ticks=%lu window=%lu\n",
++			   (unsigned long)(dadao_ticks - stop_ticks),
++			   2 * dadao_period);
++
++	dadao_early_printf("K2 time: done ticks=%u\n", dadao_ticks);
++	dadao_early_exit(0);
++}
++
++/*
++ * Cases 2/3: with exactly one of the two mask axes closed, no tick may be
++ * delivered — the axes are independent and both are required (contract-see
++ * §3/§6.4).  init_IRQ() left the named axis closed.
++ */
++static void __init __noreturn __maybe_unused dadao_time_case_axis(const char *axis)
++{
++	unsigned long window = (DADAO_K2_TIME_TICKS + 2) * dadao_period;
++
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
++			dadao_read_time() + dadao_period);
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
++			DADAO_TIMER_ENABLE);
++	dadao_wait_counts(window);
++	dadao_timer_stop();
++	dadao_early_printf("K2 axistest: axis=%s ticks=%u window=%lu\n", axis,
++			   dadao_ticks, window);
++	dadao_early_exit(0);
++}
++
++/*
++ * The K2 boundary (CONFIG_DADAO_K2_TIME_STOP), from the end of setup_arch():
++ * time base, then the asynchronous vector, then the two mask axes, then the
++ * ticks.  The order is the one spec/DADAO-12 §5.2 step 7 requires — a delivered
++ * interrupt must never land on an uninstalled vector.
++ */
++void __init __noreturn dadao_k2_time_boundary(void)
++{
++	time_init();
++	init_IRQ();
++
++#if CONFIG_DADAO_K2_TIME_CASE == 1
++	dadao_time_case_imask();
++	dadao_time_run();
++#elif CONFIG_DADAO_K2_TIME_CASE == 2
++	dadao_time_case_axis("source");
++#elif CONFIG_DADAO_K2_TIME_CASE == 3
++	dadao_time_case_axis("global");
++#else
++	dadao_time_run();
++#endif
++}

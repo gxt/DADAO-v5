@@ -1,0 +1,111 @@
+diff --git a/arch/dadao/include/asm/entry.h b/arch/dadao/include/asm/entry.h
+new file mode 100644
+index 000000000..c1a9dcd9c
+--- /dev/null
++++ b/arch/dadao/include/asm/entry.h
+@@ -0,0 +1,105 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * DADAO exception-entry register-file save/restore (assembly only).
++ *
++ * spec/DADAO-12 §3.6: the hardware saves **only** the cg5 frame fields — not a
++ * single general register — so every entry stub has to capture `rd1-rd63` and
++ * `rb1-rb63` itself (`rd0` is hardwired zero, `rb0` is the read-only IP; §3.6,
++ * contract-syscall §8).  Both stubs of the K2 channel (kernel/trap.S for supv
++ * synchronous exceptions, kernel/async_trap.S for the cfx_hart asynchronous
++ * vector) do exactly the same thing, so the sequence lives here once.
++ *
++ * Bootstrap order — why this shape:
++ *
++ *   Storing needs an RB base register, so exactly one RB register is borrowed
++ *   before the frame exists (`rb3` = rbtp, reserved by contract-abi §4.5/§8, so
++ *   the compiler never allocates it), and every register has to be captured
++ *   before it is used as scratch.  `rd2`/`rd3` (reserved debug registers) are
++ *   the staging set; their own pre-exception values are parked in the *target
++ *   cfx's* cg6 scratch registers (§3.7, `scratch_regs_num >= 2`) — the place
++ *   the architecture provides for exactly this.  The parameter `cfx` is the cfx
++ *   whose vector was entered: `cfx_smon` for the synchronous stub,
++ *   `cfx_hart` for the asynchronous one.
++ *
++ * The frame lives in `.bss`, not on the faulting stack: a synchronous exception
++ * can be raised by a broken SP, and §5.2 step 7 gives the guest no recovery for
++ * an unmapped vector page.  One static frame per entry kind is sound while one
++ * hart takes one exception at a time and the handler never sleeps; K4
++ * (preemption / re-entrancy) moves it to the kernel stack of the task it saves.
++ *
++ * Saving/restoring in blocks (spec/SimRISC-01 §1/§2):
++ *
++ *   `stm.o`/`ldm.o` move 1-63 consecutive registers at an 8-byte aligned
++ *   address.  Three blocks cover the file: {rd1:rd63} at PT_RD_BASE (index
++ *   rd0 = 0), {rb1:rb2} and {rb4:rb63} at their slots, and `rb3` — the base
++ *   register — last, with a single `ld.o rb3, [rb3, <slot>]` (the address is
++ *   formed before the destination is written, so this is the one load that can
++ *   keep using the base it destroys).  `ldm` must not have its base register
++ *   inside the transfer range (§1/§2), which is why {rb1:rb63} is split around
++ *   rb3.  The index register of the RB blocks is `rd2`, restored afterwards by
++ *   the RD block — order: RB blocks, then RD block, then rb3.
++ *
++ * `rb0` is never used as a temporary: it is the read-only IP register
++ * (spec/SimRISC-00), and the stubs only ever *read* it through the branch and
++ * jump encodings.
++ */
++#ifndef __ASM_DADAO_ENTRY_H
++#define __ASM_DADAO_ENTRY_H
++
++#ifndef __ASSEMBLY__
++#error "asm/entry.h is assembly-only"
++#endif
++
++#include <asm/asm-offsets.h>
++
++/*
++ * Capture the complete register file into @frame (a `struct pt_regs` in
++ * .bss, 8-byte aligned) and leave `rb3` pointing at it with `rd2` free.
++ * @cfx is the cfx whose exception vector is running.
++ */
++	.macro	DADAO_GPR_SAVE cfx, frame
++	cfx2rc	\cfx, cg6, rc0, rd2		/* scratch[0] = rd2 */
++	cfx2rc	\cfx, cg6, rc1, rd3		/* scratch[1] = rd3 */
++	set.rd	rd2, rb3			/* rd2 = rbtp */
++	set.rb	rb3, \frame			/* base: static .bss frame */
++
++	/* The two slots with no hardware register behind them, and rbtp. */
++	st.o	rd2, [rb3, PT_RB_BASE + 3 * 8]	/* frame.rb[3] = rbtp */
++	st.o	rd0, [rb3, PT_RD_BASE]		/* frame.rd[0] = 0 (rd0 reads 0) */
++	st.o	rd0, [rb3, PT_RB_BASE]		/* frame.rb[0] = 0 (rb0 is the IP) */
++
++	/* The staging registers and rd1, then the {rd4:rd63} block. */
++	cfx2rd	\cfx, cg6, rc0, rd2		/* the faulting context's rd2 */
++	st.o	rd2, [rb3, PT_RD_BASE + 2 * 8]
++	cfx2rd	\cfx, cg6, rc1, rd3		/* ... and rd3 */
++	st.o	rd3, [rb3, PT_RD_BASE + 3 * 8]
++	st.o	rd1, [rb3, PT_RD_BASE + 1 * 8]
++	set.rd	rd2, PT_RD_BASE + 4 * 8		/* &frame.rd[4] */
++	stm.o	{rd4:rd63}, [rb3, rd2]		/* frame.rd[4..63] */
++
++	set.rd	rd2, PT_RB_BASE + 1 * 8		/* &frame.rb[1] */
++	stm.o	{rb1:rb2}, [rb3, rd2]		/* SP, FP */
++	set.rd	rd2, PT_RB_BASE + 4 * 8		/* &frame.rb[4] */
++	stm.o	{rb4:rb63}, [rb3, rd2]		/* rest of the RB file */
++	.endm
++
++/*
++ * Restore the whole register file from @frame.  The base is re-derived (the C
++ * half may use every reserved register); the base register itself is restored
++ * last, from itself.  The caller emits its `escape` next.
++ */
++	.macro	DADAO_GPR_RESTORE frame
++	set.rb	rb3, \frame
++	set.rd	rd2, PT_RB_BASE + 1 * 8
++	ldm.o	{rb1:rb2}, [rb3, rd2]
++	set.rd	rd2, PT_RB_BASE + 4 * 8
++	ldm.o	{rb4:rb63}, [rb3, rd2]
++	ld.o	rd1, [rb3, PT_RD_BASE + 1 * 8]
++	set.rd	rd2, PT_RD_BASE + 4 * 8
++	ldm.o	{rd4:rd63}, [rb3, rd2]
++	ld.o	rd2, [rb3, PT_RD_BASE + 2 * 8]
++	ld.o	rd3, [rb3, PT_RD_BASE + 3 * 8]
++	ld.o	rb3, [rb3, PT_RB_BASE + 3 * 8]
++	.endm
++
++#endif /* __ASM_DADAO_ENTRY_H */

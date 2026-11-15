@@ -26,7 +26,11 @@ Normative sources (nothing here restates them):
   `elf_loader` into smon SRAM → `cfx_smon.hypv_excp_vector = e_entry`,
   `hypv_switch_run_mode = supv` → open the supv permissions smon needs →
   `trap cfx_smon, 0x30001`. It **never** builds a page table, never writes PA
-  `0` and never touches the boot info page.
+  `0` and never touches the boot info page. Since K2 the same open list also
+  covers `cfx_hart` and `cfx_time` (the kernel's timer and time registers), for
+  source cfx 2 (kernel as `cfx_smon`) **and** 15 (kernel after its first
+  `cfx_hart` interrupt delivery, `spec/DADAO-12 §5.3`); `--defsym
+  K2_TIME_PERM=0` builds the K2 gate's negative variant with them left closed.
 - `smon.S` / `smon.lds` — K1 smon at `0x0bff_0000_0000` (cfx2/supv):
   boot info read-only validation → 64 KiB page table with **one** 512 MiB
   superpage PTE → DMA to PA `0` → TLB invalidate, `PTBR = 0`,

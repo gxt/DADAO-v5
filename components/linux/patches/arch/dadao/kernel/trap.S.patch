@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/trap.S b/arch/dadao/kernel/trap.S
 new file mode 100644
-index 000000000..797d04ca8
+index 000000000..e2131f6a1
 --- /dev/null
 +++ b/arch/dadao/kernel/trap.S
-@@ -0,0 +1,184 @@
+@@ -0,0 +1,103 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception vector (K2).
@@ -28,65 +28,24 @@ index 000000000..797d04ca8
 + * rd1-rd63 and rb1-rb63.  rd0 is hardwired zero and rb0 is the read-only IP,
 + * so neither is part of the frame.
 + *
-+ * Where the registers go — and why it cannot be the stack:
-+ *
-+ *   A synchronous exception can be raised by a broken stack pointer, and
-+ *   spec/DADAO-12 §5.2 step 7 gives the guest no recovery for an unmapped
-+ *   vector page, so the frame cannot be built on the faulting SP: the entry
-+ *   writes into a static .bss frame first (m14-linux-004 review).  That frame
-+ *   is sound while one hart takes one exception at a time and the handler never
-+ *   sleeps; K4 (preemption / re-entrancy) moves it to the kernel stack of the
-+ *   task it saves.
-+ *
-+ * The bootstrap problem — and cg6:
-+ *
-+ *   Storing needs an RB base register, so exactly one RB register has to be
-+ *   borrowed before the frame exists, and every register has to be captured
-+ *   before it is used as scratch.  `rb3` (rbtp) is reserved (contract-abi
-+ *   §4.5/§8: the compiler never allocates it) and `rd2`/`rd3` are the reserved
-+ *   debug registers, so those three are the staging set.  To capture their own
-+ *   pre-exception values before overwriting them, this stub uses the cfx_smon
-+ *   scratch registers (cg6, `scratch_regs_num >= 2`, spec/DADAO-12 §3.7) — the
-+ *   place the architecture provides for exactly this: two scratch registers are
-+ *   enough (rd2, rd3), the borrowed rbtp is spilled into its own frame slot as
-+ *   soon as the base exists.
-+ *
-+ * Saving/restoring in blocks (spec/SimRISC-01 §1/§2):
-+ *
-+ *   `stm.o`/`ldm.o` move 1-63 consecutive registers at an 8-byte aligned
-+ *   address.  Three blocks cover the file: {rd1:rd63} at PT_RD_BASE (index
-+ *   rd0 = 0), {rb1:rb2} and {rb4:rb63} at their slots, and `rb3` — the base
-+ *   register — last, with a single `ld.o rb3, [rb3, <slot>]` (the address is
-+ *   formed before the destination is written, so this is the one load that can
-+ *   keep using the base it destroys).  `ldm` must not have its base register
-+ *   inside the transfer range (§1/§2), which is why {rb1:rb63} is split around
-+ *   rb3.  The index register of the RB blocks is `rd2`, restored afterwards by
-+ *   the RD block — order: RB blocks, then RD block, then rb3.
-+ *
-+ * `rb0` is never used as a temporary: it is the read-only IP register
-+ * (spec/SimRISC-00), and the stub only ever *reads* it through the branch and
-+ * jump encodings.
++ * The capture/restore sequence itself — where the frame lives and why it cannot
++ * be the faulting stack, the `rb3`/`rd2`/`rd3` bootstrap through the cfx_smon
++ * cg6 scratch registers (§3.7) and the `stm.o`/`ldm.o` block layout
++ * (spec/SimRISC-01 §1/§2) — is `DADAO_GPR_SAVE`/`DADAO_GPR_RESTORE` in
++ * asm/entry.h, shared with the cfx_hart asynchronous stub (kernel/async_trap.S)
++ * which needs exactly the same sequence.
 + */
 +#include <asm/asm-offsets.h>
++#include <asm/entry.h>
 +#include <asm/trap.h>
 +
 +/*
 + * Restore the whole register file from the static frame and escape by @offset.
-+ * The base is re-derived (the C half may use every reserved register); the base
-+ * register itself is restored last, from itself.
++ * The save/restore sequence itself is asm/entry.h's (shared with the
++ * asynchronous stub of kernel/async_trap.S).
 + */
 +	.macro	DADAO_TRAP_RESTORE_AND_ESCAPE offset
-+	set.rb	rb3, dadao_excp_save
-+	set.rd	rd2, PT_RB_BASE + 1 * 8
-+	ldm.o	{rb1:rb2}, [rb3, rd2]
-+	set.rd	rd2, PT_RB_BASE + 4 * 8
-+	ldm.o	{rb4:rb63}, [rb3, rd2]
-+	ld.o	rd1, [rb3, PT_RD_BASE + 1 * 8]
-+	set.rd	rd2, PT_RD_BASE + 4 * 8
-+	ldm.o	{rd4:rd63}, [rb3, rd2]
-+	ld.o	rd2, [rb3, PT_RD_BASE + 2 * 8]
-+	ld.o	rd3, [rb3, PT_RD_BASE + 3 * 8]
-+	ld.o	rb3, [rb3, PT_RB_BASE + 3 * 8]
++	DADAO_GPR_RESTORE dadao_excp_save
 +	escape	cfx_smon, [excp_cause_ip, \offset]
 +	.endm
 +
@@ -94,48 +53,8 @@ index 000000000..797d04ca8
 +	.globl	dadao_supv_excp
 +	.p2align 2
 +dadao_supv_excp:
-+	/*
-+	 * 1. Stage the three registers this stub borrows before it has a base:
-+	 *    rd2/rd3 into the cfx_smon cg6 scratch registers (§3.7), rbtp into
-+	 *    rd2 (it is spilled to frame.rb[3] as soon as the base exists).
-+	 */
-+	cfx2rc	cfx_smon, cg6, rc0, rd2		/* scratch[0] = rd2 */
-+	cfx2rc	cfx_smon, cg6, rc1, rd3		/* scratch[1] = rd3 */
-+	set.rd	rd2, rb3			/* rd2 = rbtp */
-+	set.rb	rb3, dadao_excp_save		/* base: static .bss frame */
-+
-+	/*
-+	 * 2. The two slots that have no hardware register behind them, and the
-+	 *    borrowed rbtp: rd0 reads as zero (st.o with rd0 stores 0), rb0 is
-+	 *    the IP and stays 0 in the frame.
-+	 */
-+	st.o	rd2, [rb3, PT_RB_BASE + 3 * 8]	/* frame.rb[3] = rbtp */
-+	st.o	rd0, [rb3, PT_RD_BASE]		/* frame.rd[0] = 0 */
-+	st.o	rd0, [rb3, PT_RB_BASE]		/* frame.rb[0] = 0 */
-+
-+	/*
-+	 * 3. Capture the register file.
-+	 *
-+	 *    `stm.o {rdA:rdB}` writes rdA at [base + index] and then one slot per
-+	 *    register, so a block can only start at slot 0 (rd0, which is not a
-+	 *    frame slot) or with a non-zero index.  The three registers this stub
-+	 *    uses as index carriers (rd2, rd3) and the one it cannot block-move
-+	 *    past (rd1, because {rd1:rd63} would land one slot low) are therefore
-+	 *    stored individually; {rd4:rd63} and the RB blocks use rd2 = slot
-+	 *    offset.
-+	 */
-+	cfx2rd	cfx_smon, cg6, rc0, rd2		/* the faulting context's rd2 */
-+	st.o	rd2, [rb3, PT_RD_BASE + 2 * 8]
-+	cfx2rd	cfx_smon, cg6, rc1, rd3		/* ... and rd3 */
-+	st.o	rd3, [rb3, PT_RD_BASE + 3 * 8]
-+	st.o	rd1, [rb3, PT_RD_BASE + 1 * 8]
-+	set.rd	rd2, PT_RD_BASE + 4 * 8		/* &frame.rd[4] */
-+	stm.o	{rd4:rd63}, [rb3, rd2]		/* frame.rd[4..63] */
-+
-+	set.rd	rd2, PT_RB_BASE + 1 * 8		/* &frame.rb[1] */
-+	stm.o	{rb1:rb2}, [rb3, rd2]		/* SP, FP */
-+	set.rd	rd2, PT_RB_BASE + 4 * 8		/* &frame.rb[4] */
-+	stm.o	{rb4:rb63}, [rb3, rd2]		/* rest of the RB file */
++	/* 1.-3. Capture the register file (asm/entry.h, cfx_smon's scratch). */
++	DADAO_GPR_SAVE cfx_smon, dadao_excp_save
 +
 +	/*
 +	 * 4. The frame fields the cg5 holds, then the C half.  The argument

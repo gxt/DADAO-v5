@@ -11,6 +11,7 @@ arch/dadao/include/asm/cacheflush.h.patch
 arch/dadao/include/asm/cfx.h.patch
 arch/dadao/include/asm/current.h.patch
 arch/dadao/include/asm/elf.h.patch
+arch/dadao/include/asm/entry.h.patch
 arch/dadao/include/asm/fixmap.h.patch
 arch/dadao/include/asm/io.h.patch
 arch/dadao/include/asm/irq.h.patch
@@ -31,6 +32,7 @@ arch/dadao/include/asm/switch_to.h.patch
 arch/dadao/include/asm/syscall.h.patch
 arch/dadao/include/asm/syscall_table.h.patch
 arch/dadao/include/asm/thread_info.h.patch
+arch/dadao/include/asm/time.h.patch
 arch/dadao/include/asm/timex.h.patch
 arch/dadao/include/asm/tlb.h.patch
 arch/dadao/include/asm/tlbflush.h.patch
@@ -46,12 +48,15 @@ arch/dadao/include/uapi/asm/sigcontext.h.patch
 arch/dadao/include/uapi/asm/unistd.h.patch
 arch/dadao/kernel/Makefile.patch
 arch/dadao/kernel/asm-offsets.c.patch
+arch/dadao/kernel/async_trap.S.patch
 arch/dadao/kernel/early_console.c.patch
 arch/dadao/kernel/head.S.patch
+arch/dadao/kernel/irq.c.patch
 arch/dadao/kernel/k2_selftest.c.patch
 arch/dadao/kernel/setup.c.patch
 arch/dadao/kernel/syscall_table.c.patch
 arch/dadao/kernel/syscalls.c.patch
+arch/dadao/kernel/time.c.patch
 arch/dadao/kernel/trap.S.patch
 arch/dadao/kernel/traps.c.patch
 arch/dadao/kernel/vmlinux.lds.S.patch

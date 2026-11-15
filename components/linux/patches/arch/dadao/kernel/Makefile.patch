@@ -1,11 +1,13 @@
 diff --git a/arch/dadao/kernel/Makefile b/arch/dadao/kernel/Makefile
 new file mode 100644
-index 000000000..59d67dfc0
+index 000000000..5c7919a63
 --- /dev/null
 +++ b/arch/dadao/kernel/Makefile
-@@ -0,0 +1,7 @@
+@@ -0,0 +1,9 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-y += head.o setup.o early_console.o syscall_table.o traps.o syscalls.o trap.o
++# K2 time base, the cfx_hart asynchronous vector and its installation.
++obj-y += time.o async_trap.o irq.o
 +# K2 self-test scaffolding: compiled only into a probe image.
 +obj-$(CONFIG_DADAO_K2_TRAP_SELFTEST) += k2_selftest.o
 +

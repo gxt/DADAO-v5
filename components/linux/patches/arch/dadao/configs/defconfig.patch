@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/configs/defconfig b/arch/dadao/configs/defconfig
 new file mode 100644
-index 000000000..4556077aa
+index 000000000..25f884b67
 --- /dev/null
 +++ b/arch/dadao/configs/defconfig
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,45 @@
 +# K0 minimal defconfig: single hart, big endian, 64 KiB pages, no SMP,
 +# no device tree, no UART/PCI, semihosting console stub.
 +CONFIG_DADAO=y
@@ -14,9 +14,18 @@ index 000000000..4556077aa
 +CONFIG_NR_CPUS=1
 +CONFIG_SMP=n
 +CONFIG_ARCH_SEMIHOSTING_CONSOLE=y
-+# K2 image: the supv exception channel is real and setup_arch() runs;
-+# the milestone stop is the K2 boundary (m14-linux-006).
-+CONFIG_DADAO_K2_EARLY_STOP=y
++# 100 Hz: the K2 tick period is 10 ms, which leaves the K2 gate's
++# half-period interval margin enough room for host scheduling jitter
++# (m14-linux-007; the kernel derives the period from freq/HZ at run time,
++# so this is a configuration choice, not a hardcoded count).
++CONFIG_HZ_100=y
++# K2 image: the supv exception channel and the timer are real and setup_arch()
++# runs; the milestone stop is the K2 time boundary (m14-linux-007), which
++# reports time_init / the asynchronous vector / the two mask axes, delivers the
++# configured number of TIMER ticks and exits.  The earlier K2 boundary
++# (m14-linux-006, CONFIG_DADAO_K2_EARLY_STOP) is off in this image and the K2
++# exception gate pins it on for its own images.
++CONFIG_DADAO_K2_TIME_STOP=y
 +CONFIG_BINFMT_ELF=y
 +CONFIG_PRINTK=y
 +CONFIG_TTY=y

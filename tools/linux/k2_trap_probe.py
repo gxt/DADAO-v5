@@ -110,6 +110,7 @@ def _image(selftest: bool = False, terminal: str | None = None,
     slice_ = {
         "CONFIG_DADAO_K1_EARLY_STOP": "n",
         "CONFIG_DADAO_K2_EARLY_STOP": "y",
+        "CONFIG_DADAO_K2_TIME_STOP": "n",
         "CONFIG_DADAO_K2_TRAP_SELFTEST": "y" if selftest else "n",
         "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "y" if unknown else "n",
     }

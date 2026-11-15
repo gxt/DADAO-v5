@@ -88,9 +88,16 @@ _start:
 	@@   supv_cfxmem bit2 = 0  (cfx_pmem only: st to the pmem SRAM)
 	@@   hypv_cg_reg_deleg  = 0x8 (every cg except the hypv row cg3)
 	@@ hmon runs in hypv, so its own writes use the hypv rows (bit3 = 0).
+	@@
+	@@ The cleared source bits are {2, 15}: the kernel starts as cfx_smon (2),
+	@@ and from the first cfx_hart interrupt delivery on its inner_cfx_code is
+	@@ cfx_hart (15) -- `escape` restores only the run mode (DADAO-12 §5.3, no
+	@@ previous cfx in the frame), so the target cfx stays.  Both are the same
+	@@ kernel asking (tools/testcases/arch/min_rom_probe_integ051t.py records
+	@@ the same convention), so both source bits are opened.
 	.macro	OPEN_SUPV_REGS cfx
 	cfx2rd	\cfx, cg2, rc2, rd6
-	LD64	rd7, 0xfffb, 0xffff, 0xffff, 0xffff	@@ ~(1 << 2)
+	LD64	rd7, 0x7ffb, 0xffff, 0xffff, 0xffff	@@ ~((1 << 2) | (1 << 15))
 	and.o	rd6, rd6, rd7
 	cfx2rc	\cfx, cg2, rc2, rd6
 	LD64	rd6, 0x0008, 0x0000, 0x0000, 0x0000
@@ -104,6 +111,21 @@ _start:
 	LD64	rd7, 0xfffb, 0xffff, 0xffff, 0xffff
 	and.o	rd6, rd6, rd7
 	cfx2rc	cfx_pmem, cg2, rc1, rd6
+
+	@@ K2 (m14-linux-007): the kernel reads cfx_time (freq/value) and programs
+	@@ the cfx_hart timer (cmp/ctrl), so those two targets need the same two
+	@@ axes -- supv_cfxreg source bits {2, 15} cleared and hypv_cg_reg_deleg =
+	@@ 0x8 (cfx_hart needs cg8, cfx_time cg10; 0x8 opens every cg but cg3).
+	@@ K2_TIME_PERM=0 assembles the negative variant the K2 gate uses to prove
+	@@ these permissions really come from the firmware: with it the kernel's
+	@@ first cfx_time read is CFXPERM.  The committed image keeps them open.
+	.ifndef	K2_TIME_PERM
+	.equ	K2_TIME_PERM, 1
+	.endif
+	.if K2_TIME_PERM
+	OPEN_SUPV_REGS cfx_hart
+	OPEN_SUPV_REGS cfx_time
+	.endif
 
 	@@ --- 6. test-only boot info patch (SMON_NEG_CASE 1|2) ---
 	.if SMON_NEG_CASE != 0

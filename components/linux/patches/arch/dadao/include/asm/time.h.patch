@@ -1,0 +1,76 @@
+diff --git a/arch/dadao/include/asm/time.h b/arch/dadao/include/asm/time.h
+new file mode 100644
+index 000000000..7e4b7a2d0
+--- /dev/null
++++ b/arch/dadao/include/asm/time.h
+@@ -0,0 +1,70 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * DADAO time base and single-hart timer — the K2 interface.
++ *
++ * contract-see §3 freezes the register semantics (1 GHz, 1 count = 1 ns;
++ * `cfx_hart` one-shot absolute compare); §6.5 only adds the *kernel-side*
++ * gaps.  This header is the kernel's three-way split of that surface:
++ *
++ *   read     `dadao_time_freq()` / `dadao_read_time()`        (`cfx_time`)
++ *   program  `dadao_timer_arm()` / `dadao_timer_stop()`       (`cfx_hart` cg8)
++ *   confirm  `dadao_timer_status()`                           (`cfx_hart` cg8)
++ *
++ * K4 (processes / context) replaces the *implementation* behind these five
++ * functions with a `clocksource`/`clockevent` pair; the call sites — and the
++ * asynchronous entry that calls `dadao_timer_interrupt()` — stay.
++ */
++#ifndef __ASM_DADAO_TIME_H
++#define __ASM_DADAO_TIME_H
++
++#ifndef __ASSEMBLY__
++
++/* cfx_time (cfxha 34) — spec/DADAO-12 §4.10, contract-see §3. */
++#define CFX_TIME_CG_FREQ		10
++#define CFX_TIME_RC_FREQ		0
++#define CFX_TIME_RC_VALUE		1
++
++/* cfx_hart (cfxha 15) — spec/DADAO-12 §4.7, contract-see §3. */
++#define CFX_HART_CG_TIMER		8
++#define CFX_HART_RC_TIMER_CMP		4
++#define CFX_HART_RC_TIMER_CTRL		5
++
++/* timer_ctrl: bit0 ENABLE, bit1 IMASK, bit2 ISTATUS (read-only). */
++#define DADAO_TIMER_ENABLE		(1UL << 0)
++#define DADAO_TIMER_IMASK		(1UL << 1)
++#define DADAO_TIMER_ISTATUS		(1UL << 2)
++
++/* The asynchronous cause cfx_hart raises when the compare matches (§4.7). */
++#define DADAO_CAUSE_TIMER		(1UL << 10)
++
++/* `cfx_time`: frequency in Hz and the free-running 64-bit count. */
++unsigned long dadao_time_freq(void);
++unsigned long dadao_read_time(void);
++
++/* Program the one-shot deadline @delta_counts from now, IMASK open. */
++void dadao_timer_arm(unsigned long delta_counts);
++/* Cancel the deadline; no further ISTATUS/pending by construction. */
++void dadao_timer_stop(void);
++/* `ctrl[1:0] | ISTATUS << 2` as the hardware reads it back. */
++unsigned long dadao_timer_status(void);
++
++/*
++ * One delivered `TIMER`: account the tick (jiffies) and re-arm.  Single point
++ * by design — K4 swaps what is inside, not who calls it.
++ */
++void dadao_timer_interrupt(void);
++
++/* The K2 tick target: printed by time_init(), parsed by tools/linux/k2_time_probe.py. */
++#define DADAO_K2_TIME_TICKS		3
++
++/* Named boot verdicts (guest segment, spec/Machine-v5 §7.1). */
++void __noreturn dadao_k2_fail(unsigned int checkpoint, const char *what);
++
++/*
++ * The K2 time boundary (CONFIG_DADAO_K2_TIME_STOP), called from the end of
++ * setup_arch(): time base -> asynchronous vector -> two mask axes -> ticks.
++ */
++void __noreturn dadao_k2_time_boundary(void);
++
++#endif /* !__ASSEMBLY__ */
++#endif /* __ASM_DADAO_TIME_H */

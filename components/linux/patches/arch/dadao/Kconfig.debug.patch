@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..35e7e138b
+index 000000000..1a9ea497d
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,123 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -39,7 +39,42 @@ index 000000000..35e7e138b
 +	  any clock, timer or interrupt controller exists.
 +
 +	  m14-linux-007 (timer) and m14-linux-008 (interrupt mask) move the
-+	  boundary further.
++	  boundary further: the default K2 image now stops at
++	  DADAO_K2_TIME_STOP below instead.
++
++config DADAO_K2_TIME_STOP
++	bool "Attach the timer and stop after the ticks (K2 time boundary)"
++	default n
++	help
++	  m14-linux-007 attaches the clock: at the end of setup_arch() the
++	  kernel reads cfx_time, installs the cfx_hart supv vector, opens the two
++	  interrupt mask axes, arms the single-hart timer, waits for the
++	  configured number of TIMER ticks (jiffies advances on each) and stops
++	  the machine through semihosting SYS_EXIT(0).  This is the K2 boundary
++	  the default image carries; the exception gate pins the earlier
++	  DADAO_K2_EARLY_STOP for its own images.
++
++config DADAO_K2_TIME_CASE
++	int "K2 time self-test case (0 = production, 1 = IMASK, 2/3 = one axis)"
++	default 0
++	range 0 3
++	depends on DADAO_K2_TIME_STOP
++	help
++	  Selects what the K2 time boundary exercises, so each probe image pins
++	  its own case instead of inheriting it:
++
++	    0  production: both mask axes open, the ticks, then the stopped-timer
++	       control (this is the image the later milestones boot);
++	    1  + the IMASK case first: a masked expiry only sets the pending bit
++	       and releasing IMASK delivers that event exactly once;
++	    2  the source axis (the kernel's IE row) stays closed — no tick may
++	       be delivered even though the global axis is open;
++	    3  the global axis stays closed — no tick may be delivered even
++	       though the source axis is open.
++
++	  Cases 2/3 exist to show that the two axes are independently required
++	  (contract-see §3/§6.4); they are test scaffolding and never part of a
++	  milestone image.
 +
 +config DADAO_K2_TRAP_SELFTEST
 +	bool "Run the K2 supv-exception self-test at the K2 boundary"

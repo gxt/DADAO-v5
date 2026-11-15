@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..33cacc798
+index 000000000..82172fabb
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,327 @@
+@@ -0,0 +1,322 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -43,6 +43,7 @@ index 000000000..33cacc798
 +#include <asm/ptrace.h>
 +#include <asm/switch_to.h>
 +#include <asm/thread_info.h>
++#include <asm/time.h>
 +
 +/*
 + * Self-check codes for the fields only this file can judge: the guest FAIL
@@ -219,6 +220,9 @@ index 000000000..33cacc798
 +#ifdef CONFIG_DADAO_K2_EARLY_STOP
 +	dadao_k2_boundary();
 +#endif
++#ifdef CONFIG_DADAO_K2_TIME_STOP
++	dadao_k2_time_boundary();
++#endif
 +}
 +
 +/*
@@ -227,7 +231,8 @@ index 000000000..33cacc798
 + * and the supv synchronous-exception channel is installed and (optionally)
 + * exercised.  Nothing that needs a clock, a timer or an interrupt controller
 + * has run yet, which is exactly the K2 boundary: m14-linux-007 attaches the
-+ * timer, m14-linux-008 the interrupt enable/mask path.
++ * timer (kernel/time.c + kernel/irq.c, reached through CONFIG_DADAO_K2_TIME_STOP
++ * below), m14-linux-008 the interrupt enable/mask path.
 + */
 +void __init __noreturn dadao_k2_boundary(void)
 +{
@@ -278,16 +283,6 @@ index 000000000..33cacc798
 +	 * switches to its own page table (a fault during the switch has to be
 +	 * reportable).  Nothing to do here until K4 installs per-mode entries.
 +	 */
-+}
-+
-+void __init init_IRQ(void)
-+{
-+	/* No interrupt controller yet: semihosting is a synchronous trap. */
-+}
-+
-+void __init time_init(void)
-+{
-+	/* No timer yet (K1 stops before any clock is started). */
 +}
 +
 +void start_thread(struct pt_regs *regs, unsigned long pc, unsigned long sp)

@@ -1,0 +1,78 @@
+diff --git a/arch/dadao/kernel/async_trap.S b/arch/dadao/kernel/async_trap.S
+new file mode 100644
+index 000000000..b0103947f
+--- /dev/null
++++ b/arch/dadao/kernel/async_trap.S
+@@ -0,0 +1,72 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * DADAO cfx_hart supv asynchronous-interrupt vector (K2).
++ *
++ * contract-see §6.3: an asynchronous source is delivered straight to its target
++ * cfx (no monitor hop), so `TIMER` (1 << 10, target `cfx_hart` = cfxha 15) in
++ * supv mode enters `cfx_hart`'s **own** `supv_excp_vector` — `cg2 rc10`, reset
++ * 0, which is why irq.c writes it before any mask is opened — with the entry
++ * mode taken from `cfx_hart_supv_switch_run_mode` (`cg2 rc8`, reset 2 = supv)
++ * and the frame dropped in `cfx_hart`'s `cg5`.  This is a different vector and
++ * a different frame from the synchronous one (kernel/trap.S, cfx_smon).
++ *
++ * The register file: the hardware saves no general register (§3.6), so the
++ * capture is asm/entry.h's `DADAO_GPR_SAVE` with the *cfx_hart* cg6 scratch
++ * registers — the stub runs with `inner_cfx_code` = cfx_hart, and cfx_smon's
++ * scratch registers are not reachable from there without a permission the
++ * kernel does not need.
++ *
++ * The escape offset is **0**, not +4: for an asynchronous frame
++ * `excp_cause_ip` is already the *next* instruction (§5.2), so `+4` would skip
++ * one instruction of the interrupted context (contract-see §6.3).
++ *
++ * `escape` restores the `global_cfx_intr_mask` the delivery saved (§6.3) and
++ * the hardware re-kicks anything that accumulated while the frame was live —
++ * the kernel neither has nor needs a software pending bitmap (§6.5 gap 2).
++ */
++#include <asm/asm-offsets.h>
++#include <asm/entry.h>
++#include <asm/trap.h>
++
++	.section .text,"ax"
++	.globl	dadao_async_excp
++	.p2align 2
++dadao_async_excp:
++	/* 1. Capture the register file (static .bss frame, cfx_hart scratch). */
++	DADAO_GPR_SAVE cfx_hart, dadao_async_save
++
++	/*
++	 * 2. The cg5 fields and the C half.  Arguments are the ABI's:
++	 *    rb16 = &frame (first address argument), rd16 = cause, rd17 = info
++	 *    (contract-abi §4.1: data arguments count from rd16 in declaration
++	 *    order).
++	 */
++	cfx2rd	cfx_hart, cg5, rc2, rd16	/* excp_cause_id */
++	cfx2rd	cfx_hart, cg5, rc3, rd17	/* excp_cause_ip */
++	st.o	rd17, [rb3, PT_IP]		/* frame.ip = next instruction */
++	st.o	rd0, [rb3, PT_STATUS]		/* frame.status = 0 */
++	cfx2rd	cfx_hart, cg5, rc4, rd17	/* excp_cause_info -> 2nd argument */
++	set.rb	rb16, dadao_async_save
++	set.rb	rb5, dadao_async_handler
++	call	[rb5, rd0, 0]			/* returns only on a handled tick */
++
++	/*
++	 * 3. Resume the interrupted context where it was: `, 0` (see the header).
++	 */
++	DADAO_GPR_RESTORE dadao_async_save
++	escape	cfx_hart, [excp_cause_ip, 0]
++
++.Lstuck:
++	jump	[rb0, .Lstuck]			/* unreachable: escape never returns */
++
++	/*
++	 * The frame: one `struct pt_regs`, 8-byte aligned for the block
++	 * transfers.   Separate from the synchronous frame: the two entries belong
++	 * to different cfx and their frames may both be live in a nested
++	 * sequence (a supv fault taken while an async frame is being handled).
++	 */
++	.section .bss,"aw",%nobits
++	.p2align 3
++	.globl	dadao_async_save
++dadao_async_save:
++	.zero	PT_REGS_SIZE

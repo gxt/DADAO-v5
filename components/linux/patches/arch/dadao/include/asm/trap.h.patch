@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/trap.h b/arch/dadao/include/asm/trap.h
 new file mode 100644
-index 000000000..6785b7d69
+index 000000000..be52014fe
 --- /dev/null
 +++ b/arch/dadao/include/asm/trap.h
-@@ -0,0 +1,78 @@
+@@ -0,0 +1,92 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception entry: the contract between the assembly
@@ -71,6 +71,20 @@ index 000000000..6785b7d69
 +
 +/* Name of a cause id from the 11-item table (spec/DADAO-13 §2); NULL if none. */
 +const char *dadao_cause_name(unsigned long cause);
++
++/*
++ * The asynchronous channel (contract-see §6.3): the cfx_hart supv vector
++ * (kernel/async_trap.S) and its C half.  A separate vector and a separate
++ * frame from the synchronous one above — the delivery targets cfx_hart, not
++ * cfx_smon.
++ */
++extern char dadao_async_excp[];		/* the entry (installed by init_IRQ) */
++extern char dadao_async_save[];		/* its static frame */
++/* Handles one delivered source; returns to the interrupted instruction. */
++void dadao_async_handler(struct pt_regs *regs, unsigned long cause,
++			 unsigned long info);
++/* A cause/source this kernel has no handler for: name it and stop. */
++void __noreturn dadao_async_die(unsigned long cause, unsigned long info);
 +
 +/*
 + * The exit code a fatal synchronous exception produces (spec/Machine-v5 §7.1):

@@ -7,7 +7,7 @@
 **并行组**：与 `m14-linux-006`/`008`/`009` **必须串行**（同组件单写者；本任务还独占 `tests/shared/bootrom/k0/hmon.S`，K0/K1 门控读该文件 ⇒ 不得与任何改固件的任务并行）；`m14-spec-005` 必须先完成
 **预估**：4–6 h
 **档位**：大改（组件改 + 共享固件改 + 探针；复核须独立重跑 + ≥4 路注入）
-**状态**：待开始
+**状态**：待验收
 
 ## 背景
 
@@ -80,4 +80,55 @@ K1 结束时内核刻意**没有任何时钟与中断**（`check-linux-k1` 的 K
 
 ## 审阅记录
 
-（待填）
+### 第 1 轮 engineer 自审
+
+审查范围：本任务全部改动（固件 `hmon.S`/`README.md`；`arch/dadao` 5 个新文件 + 6 个改动；`tools/linux/k2_time_probe.py`；三个门控的配置切片；`changelog.md`/组件 `README.md`）。逐行审查 + 全门控实跑后的处置：
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 源轴只写 `cfx_smon` 一行时只收到 1 个 tick（`escape` 只恢复运行模式，首次投递后 `inner_cfx_code` = 15） | ✅已修 | `irq.c` 同一位写 `cfx_smon` 与 `cfx_hart` 两行；固件源位 `{2}` → `{2,15}` | 注入 `only-smon-row` ⇒ rc=0x13、无 `K2 tick 2`；回绿 149/149 |
+| F2 若用内核自打印的 `period` 当标尺，编程值改错时判据会自洽为绿 | ✅已修 | 探针用 `freq // hz` **派生** period 判间隔；另设 C2 断言「打印值 == 派生值」 | 注入 `period-doubled` ⇒ C4 红、还原后回绿 |
+| F3 `HZ=250`（4 ms）下宿主抖动使「4× 实测偏差 ≤ period/2」不成立（实测首个 tick 偏差 0.69 ms） | ✅已修 | `defconfig` 加 `CONFIG_HZ_100`（10 ms：余量 5 ms、4× 上限 1.25 ms） | 交付实测偏差 62–85 µs，4×max = 341,376 ≤ 5,000,000 |
+| F4 首读值判据写成 `first < period` 是错的（`time` 自复位起算，已走过一段启动） | ✅已修 | 改为 `0 < first < freq`（1 秒，现场派生） | C2 两镜像全绿 |
+| F5 报告前未停表，理论上第 N+1 个 tick 会落进报告窗口 | ✅已修 | 等待结束即 `dadao_timer_stop()`，再打印/判定 | 149/149；停表控制（C5）仍绿 |
+| F6 `cause = 0` 时 `__ffs(0)` 未定义 | ✅已修 | `dadao_async_die()` 显式 `cause ? __ffs(cause) : 0` | 编译 + 全门控绿 |
+| F7 超时（hang）时 `subprocess.run` 丢掉已打印输出，注入现场为空 | ✅已修 | 探针改 `Popen` + `communicate(timeout)`，超时 kill 并保留输出 | 注入 `vector-to-smon` 现场含 `K2 time: arm`、rc=124 |
+| F8 按任务书写「② 写成 `cfx_smon` 同名寄存器」会与同步向量冲突 → CFXESC 自锁（rc=124） | ❌不修（诚实观测，保留为注入 ②）＋新增注入 ⑥ | ② 断言 rc=124 + 无 tick；⑥ 用「同 cfx、错 mode 行」给出干净 `CFXMEM` 0xE1 | ② rc=124；⑥ rc=0xE1 + 具名行 |
+
+判决：全部 finding 已处置，无未修项；状态置 `待验收`。
+
+### 第 1 轮 reviewer 验收
+
+**重跑（全部本人执行，`JOBS=32`，worktree 内相对路径）**：
+- `bash .work/evidence/m14-linux-007/run.sh` ⇒ **rc=0，30/30 项全 PASS**：`k2_time_probe 149/149`、`--selfcheck 14/14`、`--inject 6/6`（6 路逐条「注入 md5 变 → 红 → 还原 md5 同 → 回绿」，含 `period-doubled ⇒ C4 红`、`hz-hardcoded ⇒ C2 printed hz 期望=100 实际=200`）、`check-linux-k0 **119/119**`、`check-linux-k1 **108/108**`、`k2_trap_probe 85/85`、apply-series already applied、make_patch 0 written、source-state count=1 clean、补丁树 0 problem、changelog PASS；控制台 3 条 tick、jiffies 逐次 +1、`after stop ticks=0`、`done` 各 1 次。
+- **自设计注入 5 路**（`cp`+md5+重建，非其 6 路）：① `wait_ticks(N-1)` ⇒ rc=0、C3 红 4 项（3 vs 2）；② `K2_AXIS_GLOBAL_OPEN=0` ⇒ rc=19(0x13)、C1/C7 红 11 项；③ 删 `jiffies_64 += 1` ⇒ C3 jiffies 红 2 项；④ `dadao_read_time()` 返回常量 ⇒ rc=124 超时、C1 红 12 项；⑤ tick 采样写常量 ⇒ C3 单调 + C4 两断言（偏差、4×余量）全红；**5 路均还原 md5 相等、回绿 0 失败**。
+- **固件 diff**：`hmon.S` 仅 2 hunk（源位 `~(1<<2)` → `~((1<<2)|(1<<15))` + `K2_TIME_PERM` 门控的 `OPEN_SUPV_REGS cfx_hart/cfx_time`）+ `README.md` 一句，三阶段未动；负例 ROM 落独立 `bootrom_noperm`，K0/K1 各自 `build_firmware` 无 defsym、切片均含 `DADAO_K2_TIME_STOP=n` ⇒ 拿到的固件与改前等价（119/119、108/108 实测）。
+- **HZ/period**：内核用 `HZ`（`asm-generic/param.h` → `CONFIG_HZ`）、`period = freq / HZ` 现场派生；探针读 `.config CONFIG_HZ=100` 与打印值**断言**比对，写死注入真红（见上）。**异步入口**：`irq.c` 写 `cfx_hart` `cg2 rc10` 并回读、`async_trap.S` 读 `cfx_hart` `cg5` 帧、`escape cfx_hart,[excp_cause_ip,0]`；两轴（源轴 `cfx_smon`+`cfx_hart` 两行、全局轴 `cfx_smon` `cg8 rc1`）均开。**C4 两条均为断言**（selfcheck「+3 ms」位移单独翻「4×余量」条）。
+- **未决 1 独立判断：成立** —— `spec/DADAO-12 §5.2` 步骤 5 只存 `prev_run_mode`、步骤 6 置 `inner_cfx_code`=目标，`§5.3` escape 只恢复 global mask/运行模式/IP（帧无 prev cfx）；QEMU `helper.c` 的 `cfx_enter` 置 `inner_cfx_code=target`、`do_escape` 不改，且源轴过滤读**当前 cfx** 的行 ⇒ 首投后当前 cfx=15，只开 `cfx_smon` 一行实测仅 1 tick。两行写法是必要且在「spec 字面（mode monitor 行）」读法下也无害的合理做法；替代（入口内 `trap` 切回 / 固件开 `cfx_intr_mask`）分别更险、且违 contract-syscall §8。
+- **越界**：21 文件仅 `components/linux/**`+`tests/shared/bootrom/k0/**`+`tools/linux/**`+本任务书；`spec/`、`contracts/`、`.tao/contracts/`、`tests/inst/**`、`Makefile`、`components/qemu/**` 0 改动。**快照对账**：worktree `git status -uall` 干净、5 个目标文件 md5 与审查前一致、`.work/source/linux` 干净、主工作树 `master` 0 改动。
+- **设计层提示（非阻断，供架构师）**：`spec/DADAO-12 §5.2` 步骤 3（源轴查 mode monitor 行）与 `ADR-0045 D3`/`contract-see §6.4`/QEMU（查当前 cfx 行）不一致；本实现两种读法下都成立，但 `m14-linux-008` 的 `local_irq_*` 口径取决于该裁定，建议另立 spec/contract 修订。
+- **判决：Accepted**（验收命令块本人重跑全绿、硬约束无违反）。
+
+## 完成区
+
+**测试结果**：通过 30/30（运行期证据脚本，`run.sh` + `log/`）；门控真数：`check-linux-k0` 119/119、`check-linux-k1` 108/108、`k2_trap_probe` 85/85、`k2_time_probe` 149/149、`k2_time_probe --selfcheck` 14/14（9 组翻转 + 5 对照）、`--inject` 6/6、`check-patch-tree` 0 problem、`--source-state` linux count=1 clean、`check-component-changelog` PASS。失败项：无。
+
+**修改文件**：`tests/shared/bootrom/k0/hmon.S`（`OPEN_SUPV_REGS` 源位 `{2}`→`{2,15}`、新增 `cfx_hart`/`cfx_time` 两个目标 + `K2_TIME_PERM` 负例开关）、`tests/shared/bootrom/k0/README.md`（1 句）；组件 `arch/dadao/`：新增 `kernel/time.c`、`kernel/irq.c`、`kernel/async_trap.S`、`include/asm/entry.h`、`include/asm/time.h`，改 `kernel/{setup.c,trap.S,Makefile}`、`include/asm/trap.h`、`Kconfig.debug`、`configs/defconfig`（+5 新补丁 = 68 份，`series` 同步）；`components/linux/{changelog.md,README.md}`；`tools/linux/k2_time_probe.py`（新增）、`tools/linux/{check_k0.py,check_k1.py,k2_trap_probe.py}`（配置切片各 +1 行 `DADAO_K2_TIME_STOP=n`）；本任务书。运行期证据：任务证据目录 `run.sh` + `log/`（不随仓库提交）。
+
+**验收结果**：
+1. 构建：`make_vmlinux.py`（`JOBS=32`）rc=0，`vmlinux` 5,347,408 B，`llvm-nm -u` 为空、代码跨度护栏绿（K0 门控内跑）；Vast 端到端 guest rc=0，控制台：`K2 time_init: freq=1000000000 hz=100 period=10000000 n_ticks=3 first=17344683` → `K2 irq: vec cfx_hart_supv_excp_vector=0x…415ec want=0x…415ec mode=2` → `K2 irq: mask cfx_smon_supv_cfx_intr_mask=0xffffffffffff7fff cfx_hart_supv_cfx_intr_mask=0xffffffffffff7fff cfx_smon_global_cfx_intr_mask=0xffffffffffff7fff cfxha=15 bit=0x8000` → `K2 time: arm period=10000000` → `K2 tick 1..3`（jiffies 逐次 +1）→ `K2 time: ticks=3 jiffies_delta=3` → `K2 time: after stop ticks=0` → `K2 time: done ticks=3`（各阶段 1 次、顺序由阶段表断言）。
+2. 时钟口径：`freq` = 契约 `cfx_time_freq` = 1,000,000,000（契约 §3 现场解析）；`HZ` = `.config` 的 `CONFIG_HZ=100`（内核 `HZ` 宏即它，探针比对打印值）；`period = freq/HZ` = 10,000,000 counts（10 ms）现场派生；`N = 3` 写在内核 `DADAO_K2_TIME_TICKS` 并由 `time_init` 打印，探针以「输出声明值 + 下限 3」双读（不写死在门控）。余量 = `period/2` = 5,000,000 counts（半个周期，来自 period 本身），且判据要求 `4×实测最大偏差 ≤ 余量`；交付实测偏差分布：time 镜像 `[62,491, 74,754]`（mean 68,622 ns）、imask 镜像 `[69,063, 85,344]`（mean 77,203 ns），`4×max = 341,376` ≪ 5,000,000（14.6× 余裕）。
+3. 探针检查 C0–C8 全 PASS（149/149，计数现场打印）：P1（freq/单调）、P2（tick 数/间隔/余量）、P3（`ctrl` 位语义 + `IMASK=1` 只挂起、释放恰好投递 1 次）、P4（关源轴、关全局轴**各一次独立运行**，各自 0 tick 且另一轴已放开）、P5（停表后 2 个周期内 0 tick）、P6（固件 `K2_TIME_PERM=0` 变体 ⇒ 首个 `cfx_time` 读即 `CFXPERM`，rc=0xE7=§7.1 supv+CFXPERM，ip == `time_init`）。
+4. 可达 FAIL 注入 6 路（`cp` + md5 + 重建，逐条「红 → 还原 → 回绿」）：① `hz-hardcoded`（打印 hz 写成配置外常数 ⇒ C2 红，rc=0）；② `vector-to-smon`（异步向量写进 `cfx_smon` 同名寄存器 ⇒ 与同步向量冲突、首次投递 CFXESC 自锁，rc=124、无 tick，C1/C3 红）；③ `vector-user-row`（同 cfx 错 mode 行 ⇒ `cfx_hart` supv 向量仍 0 ⇒ 首次 tick 在 VA 0 取指 ⇒ 具名 `CFXMEM` 终止 rc=0xE1，C1/C3 红）；④ `no-mask-open`（两轴都不开 ⇒ rc=0x13、无 tick，C1/C3 红）；⑤ `period-doubled`（重挂周期 ×2 ⇒ tick 数仍 3 但间隔断言红，C4）；⑥ `only-smon-row`（只开 `cfx_smon` 一行 ⇒ 只 1 个 tick 后超时 rc=0x13，C1/C3 红）。映射任务书 ①–⑤：①→②/③，②→⑤，③→④/⑥，④→P4（case 2/3 独立运行），⑤→P6（固件变体）。
+5. 固件回归：`check-linux-k0` 119/119、`check-linux-k1` 108/108（同一份 `hmon.S`，三阶段行为未改）；`k2_trap_probe` 85/85（GPR 引用宏重构后同步入口行为不变）。
+6. 补丁纪律：`apply-series --component linux` 「already applied（base+1）」；`make_patch.py linux` 重导出 `0 written`（无 diff）；`check-patch-tree --source-state` linux count=1 clean；`check-patch-tree` 10 组 413 补丁 0 problem；`check-component-changelog` PASS。
+
+**新发现/坑**：
+1. **`escape` 不恢复 `inner_cfx_code`**（`spec/DADAO-12 §5.3`，帧内无 prev_cfx；QEMU 一致，`tools/testcases/arch/min_rom_probe_integ051t.py` 亦记该约定）：异步投递到 `cfx_hart` 后内核的「当前 cfx」就是 15。三处后果必须记住：① 源轴 mask 要写 `cfx_smon` **与** `cfx_hart` 两行（只一行只收 1 个 tick）；② 固件 `supv_cfxreg` 源位须同时放行 `{2,15}`，否则首投后读 `cfx_time` 即 `CFXPERM`；③ **`contract-see §6.4` 的实例表述「当前 cfx = cfx_smon」在首次异步投递后不成立** —— `m14-linux-008` 的 `local_irq_save/restore` 必须读写「当前 cfx」的 supv `rc4`（两行都写或按实际 cfx 选行），建议 spec 侧同笔修订该句。
+2. **7.2.10 无 `xtime_update()`**：`do_timer()` 只在 `kernel/time/timekeeping.h`（内核内部头），其 jiffies 半边就是 `jiffies_64 += ticks`（负载均值半边要每 CPU 运行队列）⇒ K2 直接 `jiffies_64 += 1`；墙钟/`ktime_get` 仍依赖 clocksource（K4）。
+3. **`HZ` 取值影响判据可达性**：`HZ=250`（4 ms）时本机首个 tick 偏差可达 0.69 ms，使「4× 实测 ≤ period/2」必红；改 `HZ=100`（10 ms）后余裕 14.6×。⇒ 余量口径必须与 HZ 一起选，别只调容差。
+4. **异步向量误写到 `cfx_smon` 会与同步向量同名冲突**（同一 `cg2 rc10`）⇒ 首次投递 CFXESC 自锁、现场只剩 arm 行；想得到干净具名终止要用「同 cfx、错 mode 行」的变体（`cfx_hart cg0 rc10` ⇒ VA 0 取指 ⇒ `CFXMEM`）。
+5. `k0.run_qemu` 固定带 `-d cpu`（配空 `-dfilter`）且超时会丢输出；验收要求命令行无 `-d` ⇒ 新探针自起 QEMU 并用 `Popen` 保超时现场。
+
+**遗留问题**：① IPI 未实现（按 `contract-see §3` 只留 `dadao_async_die()` 的具名终止位置与注释）；② K4 升级点 = `time.c` 内五个函数体换 clocksource/clockevent + 补墙钟/`ktime_get` 基准，入口与 `dadao_timer_interrupt()` 调用点不动；③ `m14-linux-008` 需按 F1 的双行 IE 旋钮实现（本任务已完成两行 mask 的放行与首开）；④ `ISS-445` 未顺带（按待裁定 4，三阶段行为未改，另立任务）；⑤ 门控 `check-linux-k2`（`m14-linux-009`）尚未立册，本任务的 `k2_time_probe.py` 可直接作为其中 T 组；⑥ 余量判据在宿主负载极高时（>1.25 ms 抖动）会红，属真实告警，未放宽。
+
