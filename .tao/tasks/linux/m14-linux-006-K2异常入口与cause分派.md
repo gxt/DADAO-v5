@@ -2,7 +2,7 @@
 
 **模块**：linux
 **项目里程碑**：M14
-**依赖**：`m14-linux-005`（K1 收口：`cfx_smon.supv_excp_vector` 已由内核安装、`check-linux-k1` 已入 L2）
+**依赖**：`m14-linux-005`（K1 收口：`cfx_smon.supv_excp_vector` 已由内核安装、`check-linux-k1` 已入 L2）；**另需 `m14-qemu-002` 先合入**（两者都改 `tools/linux/check_k1.py`：本任务改期望码/配置切片，qemu-002 加 semihosting-PA 断言 ⇒ 同文件串行，避免冲突）
 **可并行分片**：否（`components/linux` 单写者；本任务是 K2 串行链的第一环）
 **并行组**：**可与 `m14-spec-005` 同时跑**（不同文件域）；与 `m14-linux-007`/`008`/`009` **必须串行**（同一组件 `components/linux` 单写者；且 007 要改的 `arch/dadao` 文件与 006 的入口/traps 相交）
 **预估**：4–6 h
@@ -39,10 +39,14 @@ K1 的 trap 入口是**一次性探针**，不是异常通道：`arch/dadao/kern
    - 可恢复路径：K1 的「预先声明的 `CFXMEM` 探针」保持语义（命中即记录并跳过），接口收窄为一个显式注册函数（供 `mm/k1_pt.c`/后续 K3 用），**不得**把「`cause_info` 等于某个魔数」当默认放行条件；
    - 不可恢复路径：`dadao_die()` 打印 cause 名、`ip`、`info`、`PTBR`、SP 与寄存器 dump（`show_regs()` 已有）后经 semihosting `SYS_EXIT(非零)` 终止；**不得**让同一个不可恢复异常重复进入（无限递归）；
    - 与 `contract-syscall §8` 的分工保持一致：`supv` 期同步异常入口 = `cfx_smon_supv_excp_vector`；`CFXTRAP` 从 `cfx_umon` 进来的用户 syscall 入口属 K4/K5，**本任务不实现**（但名字表与分派骨架要能容纳 `CFXTRAP`，且不得把它当未知 cause）。
-4. **退出码分段合规（`spec/Machine-v5 §7.1`）**
-   - 内核自报失败码**全部落在 guest 段 `0x01–0x7F`**（值 = 失败点序号）；现有 `0xE1–0xED`（`head.S`/`setup.c`/`traps.c`/`k1_pt.c`）落在 **`0xC0–0xFF`（monitor 段）**，按 `§7.1` 会被读成「`supv` 期 monitor 的某同步异常」，属语义误标 ⇒ 本次一并迁移；
-   - 完成区给**旧 → 新**对照表；同一变更内同步 `tools/linux/k1_boot_probe.py`、`tools/linux/check_k1.py`、`tools/linux/k1_pt_probe.py` 的期望码（它们是 K1 门控/探针，改动须在完成区披露）；
-   - 新增码不得与 `0x00`（PASS）冲突、不得越过 `0x7F`。
+4. **退出码分段合规（`spec/Machine-v5 §7.1`；用户 2026-11-15 裁定「同意A'」）**
+   - **按事件性质分段**，不是"全部迁到 guest 段"：
+     - **自检失败**（内核自己发现状态不对：`head.S` 的 boot info magic/version/size 校验、`setup.c`、`k1_pt.c` 的页表安装前拒绝等）⇒ **guest 段 `0x01–0x7F`**，值 = 检查点序号；
+     - **异常终止**（`dadao_die()`：未知 cause、未注册/不可恢复的同步异常）⇒ **monitor 段** `0xC0 | (mode<<4) | bit索引`；supv 期即 `0xD0 | bit`（如 `CFXMEM` ⇒ `0xD1`、`ILLI` ⇒ `0xD8`、`MALIGN` ⇒ `0xDC`），位索引表取 `§7.1` 的 11 项；
+     - PASS 恒 `0x00`。
+   - 现状 `0xE1–0xED`（`head.S`/`setup.c`/`traps.c`/`k1_pt.c`）落在 **`0xC0–0xFF`（monitor 段）却用于自检失败** ⇒ 按 `§7.1` 会被读成「`supv` 期某同步异常」，属语义误标 ⇒ 本次一并迁移；
+   - 完成区给**旧 → 新**对照表（标明每条属"自检"还是"异常终止"）；同一变更内同步 `tools/linux/k1_boot_probe.py`、`tools/linux/check_k1.py`、`tools/linux/k1_pt_probe.py` 的期望码（K1 任务书历史记录**不改**，只在完成区披露）；
+   - 新增码不得与 `0x00` 冲突、不得越过 `0x7F`（guest 段）/ 不得落在 `0x80–0xCF`（其它 cfx 段留给 cfx 路由）。
 5. **探针**（`tools/linux/k2_trap_probe.py`，可复用 K1 探针的 boot/镜像工具）
    - P1 可恢复：注册一次 `CFXMEM` 探针 → 入口分类正确（打印 cause 名 + `ip`/`info`）→ 跳过 → 后续标记仍在；
    - P2 重试语义：同一次 fault 用 `, 0` 重试仍会再次进入（证明偏移生效，不靠假设）；
@@ -55,8 +59,8 @@ K1 的 trap 入口是**一次性探针**，不是异常通道：`arch/dadao/kern
 
 1. `python3 tools/linux/make_defconfig.py`（或 `make linux-defconfig`）+ `make build-linux JOBS=32` rc=0；生成的 `.config` 中 `CONFIG_DADAO_K1_EARLY_STOP` **未设置**；
 2. Vast 端到端：`bootrom-image` + `-kernel` 启动，guest 走到 K2 边界并 `SYS_EXIT(0)`（本任务的边界 = 入口/分派/退出码链路可用；时钟由 `m14-linux-007` 接上，**本任务不得**提前引入定时器）；
-3. 探针 P1–P5 全 PASS，计数现场打印；P3 的退出码 **∈ `0x01–0x7F`**（逐条比对 `§7.1` 分段表）；
-4. **可达 FAIL 注入 ≥4 路**（`cp` + md5 还原 + 重建）：① 入口少保存一个 bank（如不保存 `rd32–rd63`）⇒ P5 红；② 把可恢复判定改成「任何 `CFXMEM` 都放行」⇒ P3 红（不再终止）；③ 把 `escape` 偏移由 `4` 改 `0` ⇒ P1 红（死循环/重复进入）；④ 把某失败码改回 `0xE1` ⇒ 分段断言红；⑤（可选）删掉 `unknown cause` 分支 ⇒ P4 红；
+3. 探针 P1–P5 全 PASS，计数现场打印；P3（未注册的 `CFXMEM` 终止）退出码 **∈ `0xD0–0xDF` 且等于 `0xD0|1`**（supv 的 `CFXMEM`），自检类失败码 **∈ `0x01–0x7F`** —— 两类逐条比对 `§7.1` 分段表；
+4. **可达 FAIL 注入 ≥4 路**（`cp` + md5 还原 + 重建）：① 入口少保存一个 bank（如不保存 `rd32–rd63`）⇒ P5 红；② 把可恢复判定改成「任何 `CFXMEM` 都放行」⇒ P3 红（不再终止）；③ 把 `escape` 偏移由 `4` 改 `0` ⇒ P1 红（死循环/重复进入）；④ 把某**自检**失败码改回 `0xE1`（或把 `dadao_die()` 的码写成 guest 段 `0x01`）⇒ 分段断言红；⑤（可选）删掉 `unknown cause` 分支 ⇒ P4 红；
 5. `make check-linux-k0` rc=0、`make check-linux-k1` rc=0（**K1 不回归**，含其 4 路注入自身可跑）；
 6. 补丁纪律：`make apply-series` 幂等、`python3 tools/infra/make_patch.py linux` 重导出后**再跑无 diff**、`check-patch-tree` **linux 段 0 问题**、`check-patch-tree --source-state` linux **OK**、`check-component-changelog` rc=0；
 7. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`；不改台账/`discussing.md`/`spec/`/`contracts/`。
@@ -72,7 +76,7 @@ K1 的 trap 入口是**一次性探针**，不是异常通道：`arch/dadao/kern
 
 ## 待裁定
 
-1. **退出码迁移是否在本任务做**：本任务按 `§7.1` 把内核自报码从 `0xE1–0xED` 迁到 `0x01–0x7F`（`§7.1` 的 guest 段本就是「失败点序号 1–127」），代价是同步改 K1 探针/门控的期望码。若用户认为 K1 编码属既成事实须保留，则改由 `m14-linux-009` 只对新码做分段断言，本任务第 4 条退化为「新码合规、旧码不动」——**默认按迁移执行**。
+1. ~~**退出码迁移是否在本任务做**~~ **已裁定（用户 2026-11-15 原话「同意A'」）**：按**事件性质**分段——自检失败 ⇒ guest 段 `0x01–0x7F`；异常终止 ⇒ monitor 段 `0xD0|bit`。本任务落地，"目标 4" 已按此改写。
 2. **`unknown cause` 的注入手法**：`cg5 rc2` 是硬件只读（`spec/DADAO-12 §3.6` HW），要演示未知位需要实现侧测试钩子（编译期 `#ifdef` 探针）或由 QEMU 侧注入（超范围）。建议用一个**仅在探针构建里存在**的 `#ifdef` 钩子（不入默认 defconfig）；若不允许任何测试钩子，则 P4 改为「静态断言：名字表覆盖 11 项 + 默认分支打印 `unknown`」。
 3. **`pt_regs` 是否含 `status`**：现有 `struct pt_regs` 有 `status` 字段，但本机无状态寄存器（`contract-abi`），建议保留字段、写 0，并在注释里写明「无硬件来源」——若 K4 需要真值，届时另定。
 
