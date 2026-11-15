@@ -4,7 +4,9 @@
 >
 > **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.7.3-rc）、`spec/DADAO-13-HEE-超管系统运行环境.md`（0.1.4-rc）、`spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.3-rc）、`spec/DADAO-23-HBI-超管系统二进制接口.md`（0.1.4-rc）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/SimRISC-11-其它.md`（0.5.4）；测试机运行环境正文 `spec/Machine-v5-测试机运行环境.md`（v5 自定）；决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted）与 `.tao/adr/adr-0004-test-machine.md`（`ADR-0004`，Accepted，rev. 2026-10-07 `R1`/`R3`）。
 >
-> **范围**：M5 SEE/HEE 运行环境——运行模式、核内地址空间与复位、cfx 与权限、`trap`/`escape` 与异常进入/退出、SBI 调用约定。semihosting 的服务表/调用约定见 `contract-semihosting.md`。
+> **范围**：M5 SEE/HEE 运行环境——运行模式、核内地址空间与复位、cfx 与权限、`trap`/`escape` 与异常进入/退出、SBI 调用约定；**M14 K2 起**增内核侧异常/中断口径（§6）。semihosting 的服务表/调用约定见 `contract-semihosting.md`。
+>
+> **v5 扩展（M14）**：§6（`excp_cause_info` 覆盖范围、`escape` 返回 cfx、异步中断的内核入口、内核侧 IE 单旋钮、时间口径缺口）**不在 SEE/HEE 正文内**，按 `DADAO-12`/`DADAO-13`/`Machine-v5` 与 `ADR-0045` 归一化；**版本号不随之变动**（`check-spec-drift` 不变量：spec-sourced 合约版本 == 上游册版本），变更记录见 §7。
 >
 > **来源标注**：每条规范性断言句末以 `[DADAO-NN §章节名]`/`[SimRISC-XX §章节名]` 标注 spec/ 来源；测试机约定标 `[ADR-0020 DN]`/`[ADR-0004 DN]`/`[Machine-01 §N]`；不写行号。
 >
@@ -75,6 +77,67 @@
 - 系统调用号存于 `rd15`，与 `immu18` 为两个独立层次。[DADAO-21 §系统调用规范]
 - 错误码：`0 = SBI_SUCCESS`、`−1 = SBI_ERR_FAILED`、`−2 = SBI_ERR_NOT_SUPPORTED`、`−3 = SBI_ERR_INVALID_PARAM`、`−4 = SBI_ERR_NO_DEVICE`、`−5 = SBI_ERR_BUSY`（资源忙，可重试）。[DADAO-22 §1. 调用约定]
 
+## §6 内核侧异常与中断（v5 扩展，M14 K2）
+
+- **定位**：本节归一化 v5 内核（K2）消费的四类事实——异常现场 `info` 语义、`escape` 的返回目标、异步中断的内核入口、内核侧中断使能旋钮，外加时间口径的**两处缺口**；上游语义不重定义，与 `spec/` 冲突时以 `spec/` 为准并阻断实现。[spec-decision]
+- **与 §3 的分工**：§3 已冻结的寄存器级口径（两级 mask、pending 归属、统一异步中断仲裁、`cfx_time`/`cfx_hart` 寄存器语义）本节**只写指针**、不重抄，避免两处漂移。[contract-see §3]
+
+### §6.1 `excp_cause_info` 的覆盖范围（11 项；未规定者为 0）
+
+- **本表 = monitor 视角的同步原因表**：`cfx_umon`/`cfx_jmon`/`cfx_smon`/`cfx_hmon` 同构；`excp_cause_id` 在各 cfx **独立编址**（`1 << 8` 在 `cfx_pmem` 为 `PMEM_DMA`、在 `cfx_hart` 为 `IPI`），故查 `info` 语义前须先按**目标 cfx** 选表，不得跨 cfx 套用同名 cause。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3.6 cg5 - 异常现场寄存器][DADAO-13 §2. cfx_hmon - hypervisor monitor]
+- **可解析形态**：下表一 cause 一行、列序固定（`excp_cause_id` / 名称 / `info` 语义 / 取值与单位 / 来源），`info` 语义列**逐字**取上游表述，供静态比对脚本现场解析。[spec-decision][DADAO-13 §2. cfx_hmon - hypervisor monitor]
+
+| `excp_cause_id` | 名称 | `info` 语义 | 取值与单位 | 来源 |
+|-----------------|------|------------|------------|------|
+| `1 << 0` | `CFXTRAP` | 指令编码 | 32 位指令字（触发 `trap` 的指令本身） | `[DADAO-13 §2. cfx_hmon - hypervisor monitor]` |
+| `1 << 1` | `CFXMEM` | 访存地址 | 48 位 CPU 地址（A/D 回写失败时为 PTE 物理地址） | `[DADAO-13 §2. cfx_hmon - hypervisor monitor]` `[DADAO-12 §5.2 异常进入流程]` |
+| `1 << 2` | `CFXREG` | 指令编码 | 32 位指令字（非法寄存器访问指令） | `[DADAO-13 §2. cfx_hmon - hypervisor monitor]` |
+| `1 << 3` | `CFXESC` | 指令编码 | 32 位指令字（`escape` 指令本身） | `[DADAO-13 §2. cfx_hmon - hypervisor monitor]` |
+| `1 << 7` | `CFXPERM` | 访存地址或指令编码 | 48 位 CPU 地址（页表/访存权限）或 32 位指令字（来源 mask 拒绝） | `[DADAO-13 §2. cfx_hmon - hypervisor monitor]` |
+| `1 << 8` | `ILLI` | 指令编码 | 32 位指令字 | `[DADAO-13 §2. cfx_hmon - hypervisor monitor]` |
+| `1 << 9` | `UNDI` | 指令编码 | 32 位指令字 | `[DADAO-13 §2. cfx_hmon - hypervisor monitor]` |
+| `1 << 10` | `RASOF` | 准备压栈的返回地址 | 被压栈保护的返回地址（压栈前的 `IP`） | `[DADAO-13 §2. cfx_hmon - hypervisor monitor]` |
+| `1 << 11` | `RASUF` | 全零（无效） | `0`（不携带信息） | `[DADAO-13 §2. cfx_hmon - hypervisor monitor]` |
+| `1 << 12` | `MALIGN` | 访存地址 | 48 位 CPU 地址 | `[DADAO-13 §2. cfx_hmon - hypervisor monitor]` |
+| `1 << 13` | `IALIGN` | IP 值 | 非法 `IP`（`IP[1:0] ≠ 00`，异常时 IP 停留于该地址） | `[DADAO-13 §2. cfx_hmon - hypervisor monitor]` |
+
+- **未规定者为 0**：上表之外的 cause（含保留位）`info` 为 0；`Machine-v5 §4.4` 另列的 5 项（`CFXMEM`/`ILLI`/`UNDI`/`MALIGN`/`IALIGN`）与本表逐项同义，**不是**第二套口径。[Machine-01 §4.4 同步异常进入 hmon][DADAO-13 §2. cfx_hmon - hypervisor monitor]
+- **异步源的 `info` 不走本表**：`cfx_hart` 的 `TIMER`（`1 << 10`，异步可屏蔽）`info = 0`（上游表述「全零」）；`cfx_pmem` 的 `PMEM_DMA`（`1 << 8`）`info = dma_status`，见 §3。[DADAO-12 §4.7 cfx_hart - hart management][contract-see §3]
+- **内核侧消费口径**：`CFXTRAP` 的 `info` 为触发指令字，`immu18 = info & 0x3FFFF`（该等式属合约内推导，见 `contract-syscall §8`）；诊断打印须先按目标 cfx 与 cause 选列，再解释 `info` 的单位。[contract-syscall §8][DADAO-12 §3.6 cg5 - 异常现场寄存器]
+
+### §6.2 `escape` 的返回 cfx 恒为当前 cfx（跨 cfx 返回不存在）
+
+- **帧内没有 `prev_cfx`**：`cg5` 只有 `excp_prev_run_mode`/`excp_cause_id`/`excp_cause_ip`/`excp_cause_info`/`excp_pending` 五个字段（旧的前序 cfx / cfx 屏蔽字段已删、对应 `rc` 作 `reserved`），异常帧**不保存**「异常前在哪个 cfx」。[DADAO-12 §3.6 cg5 - 异常现场寄存器]
+- **返回目标 = 当前 cfx**：`escape` 的 `cfxha` 必须是 `inner_cfx_code`，返回的 cfx / 运行模式 / `IP` **全部**取自当前 cfx 的异常帧 ⇒ **跨 cfx 返回不存在**，内核的 trap 入口只允许 `escape <当前 cfx>`（不得指望「从 `smon` 帧返回 `umon`」）。[DADAO-12 §5.1 指令行为说明][DADAO-12 §5.3 异常退出流程][ADR-0045 D8]
+- **失败即 `CFXESC`**：`cfxha != inner_cfx_code`（目标错误）或 `excp_cause_id = 0`（帧错误）⇒ **切换任何状态之前**触发当前 cfx 的 `CFXESC`（`1 << 3`），cfx / 运行模式不变；`imms18[17:1]` 非零（SBZ）或 `cfxha` 为 reserved ⇒ `ILLI`。[DADAO-12 §5.1 指令行为说明][DADAO-12 §5.3 异常退出流程]
+- **返回 IP 可软件改写**：`cg5 rc3`（`excp_cause_ip`）为 RW「软件可写」，故内核可在 `escape` 前把任意返回 IP 写进帧；`escape` 的 `imms18 ∈ {0, 1}` 只提供 `+0`/`+4` 两种**相对**偏移。「先改写帧 IP、再按固定偏移返回」是本合约由两处独立规定组合出的效果，上游未明文写出。[DADAO-12 §3.6 cg5 - 异常现场寄存器][DADAO-12 §5.1 指令行为说明][spec-decision]
+
+### §6.3 异步中断的内核入口（`TIMER` → `cfx_hart` 的 `supv` 行）
+
+- **入口寄存器**：`TIMER`（`1 << 10`，目标 `cfx_hart` = cfxha 15）在 `supv` 期投递时，向量取 `cfx_hart` 的 `cfx_hart_supv_excp_vector`（`cg2 rc10`，复位 `0` ⇒ **内核必须自写**，否则首帧跳向地址 `0`——不是内核代码地址）、目标模式取 `cfx_hart_supv_switch_run_mode`（`cg2 rc8`，复位 `2 = supv`）、现场落 `cfx_hart` 的 `cg5` ⇒ **不进 `cfx_smon`**，与同步异常入口是两个向量、两个帧。**前提说明**：`DADAO-12 §5.2（四）` 只说「异步先进**当前运行模式** monitor」，「本测试机单层直投、不串 `cfx_smon`」这一层由 `contract-see §3` 固定（测试机单 cfx 直投口径），该 bullet 的 `§5.2` 引用只支撑进入流程的步骤 6/7。[DADAO-12 §3.3 cg2 - supv mode 寄存器][DADAO-12 §5.2 异常进入流程][contract-see §3]
+- **向量写入按 4 字节对齐落盘**：`supv_excp_vector` 与 `hypv_excp_vector`（`cg3 rc10`）同构——写入忽略低 2 位（`value[1:0] ← 0`）、不产生异常；上游只对 hypv 行明文规定，supv 行按同构推导（未对齐的向量落盘会使 `IP[1:0] ≠ 00` ⇒ `IALIGN`）。[DADAO-13 §1. cg3 - hypv mode 寄存器][spec-decision]
+- **返回**：`escape cfx_hart, [excp_cause_ip, 0]` 原地续跑——异步 `excp_cause_ip` = **下一条指令地址**（同步为触发指令地址）；`[..., 4]` 会再跳过一条指令，异步帧不得使用。[DADAO-12 §5.2 异常进入流程][DADAO-12 §5.1 指令行为说明]
+- **异步帧借走 `global_cfx_intr_mask`**：`trap` 帧建立时硬件保存当前 mode monitor 的 `global_cfx_intr_mask`（`cfx0`–`cfx3` 的 `cg8 rc1`）并置全 1、`escape` 恢复；v5 把同一保护扩到**异步帧**（否则帧活动期内同 cfx 再投递会覆盖 `cg5` 现场），`escape` 恢复后重踢 pending ⇒ 该寄存器**不得**当软件 IE 旋钮。[ADR-0045 D9][DADAO-12 §5.3 异常退出流程][contract-see §3][spec-decision]
+
+### §6.4 内核侧 IE（中断使能）单旋钮
+
+- **硬件没有 IE 状态位**：只有两级来源 mask（当前 cfx 的 `<mode>_cfx_intr_mask` = `cg0`–`cg3` 的 `rc4`；`cfx0`–`cfx3` 的 `global_cfx_intr_mask` = `cg8 rc1`），无 PS.IE 类架构状态位。[DADAO-12 §3.1 cg0 - user mode 寄存器][DADAO-12 §3.3 cg2 - supv mode 寄存器][ADR-0045 D3]
+- **单旋钮 = 当前 cfx 的 `<mode>_cfx_intr_mask`**：内核（`supv`，当前 cfx = `cfx_smon`）以 `cfx_smon_supv_cfx_intr_mask`（`cg2 rc4`）为唯一软件 IE 旋钮——`local_irq_disable`/`enable` = 置位/清位内核关心的源位，`local_irq_save` = 读回该寄存器整字作 `flags`，`restore` = 写回保存值。[DADAO-12 §3.3 cg2 - supv mode 寄存器][ADR-0045 D3]
+- **两处编号不得混用**：mask 的位索引 = **目标 cfxha**（`cfx_hart` ⇒ bit 15），**不是** `excp_cause_id` 的位索引（`TIMER` ⇒ 10）；`0 = 允许`、`1 = 屏蔽`。[DADAO-12 §3.3 cg2 - supv mode 寄存器][ADR-0045 D3][contract-see §3]
+- **`global_cfx_intr_mask` 只作一次性模式级放行**：投递要求两轴都允许（§3），故对目标 cfxha 位的清 0 属初始化动作，**不得**在 `local_irq_*` 路径里读写它——它在帧建立时被硬件置全 1、`escape` 恢复（§6.3），软件当旋钮会与帧的保存/恢复互相覆盖。[ADR-0045 D3][ADR-0045 D9][spec-decision]
+- **屏蔽只阻止投递**：屏蔽期事件仍置**目标 cfx** 的 `cg5 rc5` pending，mask 写 / `escape` / 新源事件之后由硬件重踢补投；内核**不自建**软件 pending 位图。[contract-see §3][DADAO-12 §4.7 cfx_hart - hart management]
+- **决策层**：本口径是 `ADR-0045 D3`（两级 mask 语义）在**内核侧的软件映射**，不新立决策；改口径须回到 `ADR-0045 D3` 并逐条确认。[ADR-0045 D3]
+
+### §6.5 内核时间口径（只补缺口，寄存器语义见 §3）
+
+- **指针（不重抄）**：`cfx_time`（`cg10 rc0 = freq`、`rc1 = value`，1 GHz、1 count = 1 ns）与 `cfx_hart` 定时器（`cg8 rc4 = timer_cmp` 绝对时间、写 `cmp` 取消旧 deadline 并清 `TIMER` pending；`cg8 rc5` 的 `ENABLE`/`IMASK`/`ISTATUS`）已由 §3 冻结。[contract-see §3][DADAO-12 §4.7 cfx_hart - hart management][DADAO-12 §4.10 cfx_time - 全局时间计数器]
+- **缺口一 = 读写的放行前提**：内核可直接 `cfx2rd`/`cfx2rc` 这两个 cfx 的上述寄存器，前提是固件已按两轴放行——目标 cfx 的 `supv_cfxreg`（`cg2 rc2`）的「源 cfx = 内核」位清 0，且 `hypv_cg_reg_deleg`（`cg3 rc12`）放开对应 cg（`cfx_hart` 需 cg8、`cfx_time` 需 cg10）；未放行 ⇒ `CFXPERM`。[DADAO-13 §1. cg3 - hypv mode 寄存器][DADAO-12 §3.3 cg2 - supv mode 寄存器][contract-see §3]
+- **缺口二 = `escape` 后的补投**：mask 写、`escape`、新源事件之后的 pending 重踢与补投由**硬件**完成，内核无需（也不得）软件代投；`IMASK = 1` 只置 pending、不投递。[contract-see §3][DADAO-12 §4.7 cfx_hart - hart management]
+
+### §6.6 职责边界
+
+- 本节只归一化 v5 内核侧口径，不重定义上游语义；`spec/` 正文**不改**（`check-spec-readonly` 的 sha256 锁不动），上游需要补文时另立 spec 面任务并同笔重算锁文件。[spec-decision]
+
 ---
 
 ## 附录 A：来源对照
@@ -86,3 +149,12 @@
 | §3 | cfx 共有寄存器 / mask / PERM 层次 / 未实现 cfx / cfx_time / cfx_hart 定时器与计数 / 异步边界 | `DADAO-12 §3. 共有寄存器设计规范`、`§3.8 cg7 - 内部空间描述寄存器`、`§4.7 cfx_hart - hart management`、`§4.9 cfx_pmem - physical memory management`、`§4.10 cfx_time - 全局时间计数器`、`§5. 异常进入与异常退出`、`§2.2.1 超页的地址转换`、`§2.2.2 普通页的地址转换`；`DADAO-22 §3. 系统信息（smon）`、`§7. Hart管理（cfx_hart）`、`§10. 全局时间（cfx_time）`；`ADR-0020 D9`、`ADR-0046 D2` |
 | §4 | trap/escape 路由、异常进入/退出 | `DADAO-12 §5. 异常进入与异常退出`、`§异常退出流程`；`DADAO-22 §1. 调用约定`；`SimRISC-11 §退出指令`；`ADR-0020 D10` |
 | §5 | SBI 调用约定、参数/返回寄存器、错误码 | `DADAO-22 §1. 调用约定`；`DADAO-21 §参数寄存器：Parameter registers`、`§标量类型返回值：Scalar type return`、`§系统调用规范` |
+| §6 | 内核侧异常/中断：`excp_cause_info` 11 项 + 未规定者为 0、`escape` 返回 cfx 恒为当前 cfx、`TIMER` 的 `cfx_hart` supv 入口（`cg2 rc10`/`rc8`）、内核 IE 单旋钮（`cfx_smon` `cg2 rc4`）、时间口径指针与两处缺口 | `DADAO-13 §2. cfx_hmon - hypervisor monitor`、`§1. cg3 - hypv mode 寄存器`；`DADAO-12 §3.1`/`§3.3`/`§3.6`/`§4.7`/`§4.10`/`§5`/`§5.1`/`§5.2`/`§5.3`；`Machine-v5 §4.4`；`ADR-0045 D3`/`D8`/`D9`；`contract-syscall §8` |
+
+---
+
+## §7 变更记录（v5 扩展；不改版本号）
+
+- **0.7.3-rc + M14 K2 扩展（2026-11-15）**：新增 §6「内核侧异常与中断」——① `excp_cause_info` 的 11 项语义表 + 「本表之外为 0」+ `TIMER` 的 `info = 0`；② `escape` 的返回 cfx 恒为当前 cfx（帧内无 `prev_cfx`，跨 cfx 返回不存在）；③ 异步中断的内核入口 = `cfx_hart` 的 `supv` 行（`cg2 rc10`/`rc8`）、异步帧借走 `global_cfx_intr_mask`；④ 内核 IE 单旋钮 = `cfx_smon_supv_cfx_intr_mask`（`cg2 rc4`），`global_cfx_intr_mask` 只作一次性模式级放行；⑤ 时间口径指针与两处缺口（放行前提、`escape` 后补投）。附录 A 增 §6 一行。版本号仍随 SEE 册 `DADAO-12` 为 **0.7.3-rc**（`check-spec-drift` 不变量：spec-sourced 合约版本 == 上游册版本）。[DADAO-12 §5. 异常进入与异常退出][m14-spec-005]
+- **§6 内的推导登记**：`cg2 rc10` 写入忽略低 2 位（按 `cg3 rc10` 同构）、异步帧的 `global_cfx_intr_mask` 保存/置全 1（把 `ADR-0045 D9` 的 trap 保护扩到异步帧）、`cg5 rc3` 可写 + 固定偏移的组合效果，三处上游未明文，均标 `[spec-decision]` 并在条文内写清推导链。[spec-decision][ADR-0045 D9][m14-spec-005]
+- **追加方式**：此后按「日期 + 改动摘要 + 落点（§）/ 关联 ADR / ISS」追加；上游 spec 正文变更仍走 `docs/Process-02` 的同步流程，本记录只记 v5 扩展口径。[contract-syscall §12]
