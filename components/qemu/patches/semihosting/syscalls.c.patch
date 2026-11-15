@@ -1,0 +1,31 @@
+diff --git a/semihosting/syscalls.c b/semihosting/syscalls.c
+index 20f155f..f75981f 100644
+--- a/semihosting/syscalls.c
++++ b/semihosting/syscalls.c
+@@ -9,6 +9,7 @@
+ #include "qemu/osdep.h"
+ #include "qemu/log.h"
+ #include "gdbstub/syscalls.h"
++#include "semihosting/common-semi.h"
+ #include "semihosting/guestfd.h"
+ #include "semihosting/syscalls.h"
+ #include "semihosting/console.h"
+@@ -28,7 +29,18 @@ static int validate_strlen(CPUState *cs, vaddr str, uint64_t tlen)
+     char c;
+ 
+     if (tlen == 0) {
++        /*
++         * A length of 0 means "measure it".  System mode goes through the
++         * target's semihosting string hook: DADAO's pointers are physical
++         * addresses (spec/Machine-v5 §5.2) and must not be walked through the
++         * page table, while every other target keeps the default (which is
++         * the same MMU walk as before).
++         */
++#ifdef CONFIG_USER_ONLY
+         ssize_t slen = target_strlen(str);
++#else
++        ssize_t slen = common_semi_strlen(cs, str);
++#endif
+ 
+         if (slen < 0) {
+             return -EFAULT;

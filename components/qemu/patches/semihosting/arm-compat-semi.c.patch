@@ -1,0 +1,73 @@
+diff --git a/semihosting/arm-compat-semi.c b/semihosting/arm-compat-semi.c
+index 5e5f181..ca9b3fe 100644
+--- a/semihosting/arm-compat-semi.c
++++ b/semihosting/arm-compat-semi.c
+@@ -216,6 +216,30 @@ static LayoutInfo common_semi_find_bases(CPUState *cs)
+ static uint64_t syscall_err;
+ 
+ #include "semihosting/uaccess.h"
++
++/*
++ * String argument measurement (SYS_WRITE0 and the length-less path forms).
++ *
++ * The default walks the address through the current MMU context, which is what
++ * a target whose semihosting pointers are VAs needs.  DADAO is the opposite:
++ * spec/Machine-v5 §5.2 / contract-semihosting §2 make every semihosting
++ * pointer a **physical address**, so `target/dadao/common-semi-target.c`
++ * provides a strong definition of this hook that reads physical memory.  The
++ * weak default keeps every other target on its existing path, byte for byte.
++ */
++ssize_t __attribute__((weak)) common_semi_strlen(CPUState *cs, vaddr addr)
++{
++    CPUArchState *env G_GNUC_UNUSED = cpu_env(cs);
++
++    return target_strlen(addr);
++}
++#else
++ssize_t __attribute__((weak)) common_semi_strlen(CPUState *cs, vaddr addr)
++{
++    (void)cs;
++
++    return target_strlen(addr);
++}
+ #endif
+ 
+ static inline uint32_t get_swi_errno(CPUState *cs)
+@@ -404,7 +428,23 @@ void do_common_semihosting(CPUState *cs)
+         GET_ARG(0);
+         GET_ARG(1);
+         GET_ARG(2);
+-        s = lock_user_string(arg0);
++        /*
++         * Lock the file name.  Its length comes from the target's semihosting
++         * string hook instead of lock_user_string(): the latter would measure
++         * the pointer through the page table (uaccess_strlen_user ->
++         * probe_access_flags), which is wrong for a target whose semihosting
++         * pointers are physical addresses (spec/Machine-v5 §5.2,
++         * contract-semihosting §2) — the file name would fault with EFAULT
++         * before the lock even happened.  This is the system-mode twin of
++         * lock_user_string() (target_strlen + lock_user), and the hook's weak
++         * default is exactly target_strlen(), so every other target keeps its
++         * previous behaviour byte for byte.
++         */
++        ssize_t name_len = common_semi_strlen(cs, arg0);
++        if (name_len < 0) {
++            goto do_fault;
++        }
++        s = lock_user(VERIFY_READ, arg0, name_len + 1, 1);
+         if (!s) {
+             goto do_fault;
+         }
+@@ -467,7 +507,11 @@ void do_common_semihosting(CPUState *cs)
+ 
+     case TARGET_SYS_WRITE0:
+         {
+-            ssize_t len = target_strlen(args);
++            /* The pointer is an address in the target's semihosting pointer
++             * space; measure it through the target hook so a target that hands
++             * over physical addresses (spec/Machine-v5 §5.2) is not forced
++             * through the page table by the length probe. */
++            ssize_t len = common_semi_strlen(cs, args);
+             if (len < 0) {
+                 common_semi_dead_cb(cs, -1, EFAULT);
+             } else {

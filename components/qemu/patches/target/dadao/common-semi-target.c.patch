@@ -1,9 +1,9 @@
 diff --git a/target/dadao/common-semi-target.c b/target/dadao/common-semi-target.c
 new file mode 100644
-index 0000000..25a708e
+index 0000000..b5bcd4f
 --- /dev/null
 +++ b/target/dadao/common-semi-target.c
-@@ -0,0 +1,86 @@
+@@ -0,0 +1,152 @@
 +/*
 + * Target-specific parts of semihosting/arm-compat-semi.c for the DADAO
 + * test machine (QEMU-046t).
@@ -32,6 +32,12 @@ index 0000000..25a708e
 + * The shared responder (do_common_semihosting in semihosting/arm-compat-semi.c)
 + * is reused unmodified (ADR-0020 D5).
 + *
++ * Semihosting pointer arguments are **physical addresses** (spec/Machine-v5
++ * §5.2 / contract-semihosting §2, user ruling 2026-11-15), so this file also
++ * overrides the shared string hook `common_semi_strlen()` with a PA walk; the
++ * rest of the shared layer already reads pointers through the PA path
++ * (`semihosting/uaccess.h` -> `cpu_memory_rw_debug()`).
++ *
 + * SPDX-License-Identifier: GPL-2.0-or-later
 + */
 +
@@ -44,6 +50,66 @@ index 0000000..25a708e
 +#define DADAO_SEMI_ARG_REG  16   /* rb16: argument-block pointer (address) */
 +#define DADAO_SEMI_RET_REG   8   /* rd8: scalar return value */
 +#define DADAO_SEMI_SP_REG    1   /* rb1 == rbsp (contract-abi.md §2.1) */
++
++#ifndef CONFIG_USER_ONLY
++/*
++ * Semihosting string arguments are **physical addresses**
++ * (spec/Machine-v5 §5.2, contract-semihosting §2: "参数块指针与 SYS_WRITEC /
++ * SYS_WRITE0 的指针都是物理地址，不经页表翻译"; user ruling 2026-11-15).
++ *
++ * The shared layer's default hook measures a string by walking it through the
++ * current MMU context (`uaccess_strlen_user` -> `probe_access_flags`), which is
++ * wrong here twice over: on dadao-vast `ptw_enable` is 1 once the SEE enables
++ * the PTW (spec/Machine-v5 §6.3), and the guest's VAs are biased by 2 TiB, so
++ * a PA is simply not a mapped VA.  A PA handed to SYS_WRITE0 therefore faulted
++ * (ISS-450).  This strong definition replaces the weak default at link time
++ * and reads physical memory instead — `cpu_memory_rw_debug()` here goes
++ * through `dadao_cpu_translate_for_debug()`, whose dadao implementation maps
++ * address == PA (RAM / BootROM / monitor SRAM) and never consults the page
++ * table.  That is the same path every other semihosting pointer already takes
++ * (`lock_user`/`unlock_user`, `get_user_u64`/`put_user_u64` in
++ * semihosting/uaccess.h), so after this hook the whole semihosting surface
++ * treats pointers as PAs.
++ */
++ssize_t common_semi_strlen(CPUState *cs, vaddr addr)
++{
++    char buf[256];
++    ssize_t len = 0;
++
++    for (;;) {
++        char *nul;
++
++        if (cpu_memory_rw_debug(cs, addr + len, buf, sizeof(buf), false)) {
++            /*
++             * The whole block is not readable (the string may end at the end
++             * of a memory region), so finish byte by byte: a short walk still
++             * measures correctly and a real fault is still reported.
++             */
++            for (;;) {
++                uint8_t c;
++
++                if (cpu_memory_rw_debug(cs, addr + len, &c, 1, false)) {
++                    return -1;
++                }
++                if (c == 0) {
++                    return len;
++                }
++                if (++len > INT32_MAX) {
++                    return -1;
++                }
++            }
++        }
++        nul = memchr(buf, 0, sizeof(buf));
++        if (nul) {
++            return len + (nul - buf);
++        }
++        len += sizeof(buf);
++        if (len > INT32_MAX) {
++            return -1;
++        }
++    }
++}
++#endif /* !CONFIG_USER_ONLY */
 +
 +uint64_t common_semi_arg(CPUState *cs, int argno)
 +{

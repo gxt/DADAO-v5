@@ -1,0 +1,42 @@
+diff --git a/include/semihosting/common-semi.h b/include/semihosting/common-semi.h
+index aa511a4..1966747 100644
+--- a/include/semihosting/common-semi.h
++++ b/include/semihosting/common-semi.h
+@@ -34,6 +34,8 @@
+ #ifndef COMMON_SEMI_H
+ #define COMMON_SEMI_H
+ 
++#include "exec/vaddr.h"
++
+ void do_common_semihosting(CPUState *cs);
+ uint64_t common_semi_arg(CPUState *cs, int argno);
+ void common_semi_set_ret(CPUState *cs, uint64_t ret);
+@@ -42,4 +44,28 @@ bool common_semi_sys_exit_is_extended(CPUState *cs);
+ uint64_t common_semi_stack_bottom(CPUState *cs);
+ bool common_semi_has_synccache(CPUArchState *env);
+ 
++/**
++ * common_semi_strlen:
++ * @cs: CPU state
++ * @addr: guest address of a NUL-terminated string, in the address space the
++ *        target's semihosting convention uses for pointer arguments
++ *
++ * Measures a semihosting string argument whose length the guest did not state
++ * (the length field is 0 / absent):
++ *   - SYS_WRITE0's NUL-terminated string (0x04);
++ *   - SYS_OPEN's file name (0x01), which the responder locks through this hook
++ *     instead of `lock_user_string()`.
++ *
++ * The default walks @addr through the current MMU context, which is right for
++ * targets whose semihosting pointers are virtual addresses.  A target whose
++ * pointers are *physical* addresses overrides this hook (a strong definition
++ * in ``target/<t>/common-semi-target.c`` replaces the weak default at link
++ * time); see ``target/dadao`` for DADAO, whose rule is fixed by
++ * spec/Machine-v5 §5.2 and contract-semihosting §2.
++ *
++ * Returns: the length in bytes (terminator excluded), or -1 when the string
++ *          cannot be read.
++ */
++ssize_t common_semi_strlen(CPUState *cs, vaddr addr);
++
+ #endif /* COMMON_SEMI_H */

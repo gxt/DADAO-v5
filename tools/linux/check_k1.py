@@ -63,6 +63,14 @@ restoring it: ``cp`` + md5):
       named machine fault, no kernel-table rejection, no boot-info rejection;
       the only ``CFXMEM`` is the single declared (and resumed) probe; nothing
       from a post-K1 subsystem appears (init / syscall / IRQ / timer / tick)
+  K14 semihosting pointers are PAs (`ISS-450`): a second run on the same Vast
+      firmware (PTW already on) executes ``tools/linux/semihost_pa_probe.S``,
+      which hands `SYS_WRITE0` (string), `SYS_WRITEC` (character) and `SYS_OPEN`
+      (file name, length field 0) the **PA** of data whose PA, read as a VA, is
+      *unmapped*.  All three must come back byte-exact; a responder that walks
+      the page table faults on those pointers.  The probe self-checks the
+      "unmapped as a VA" premise against the live page table before it prints
+      anything.
 
 Exit status: 0 = every check passed; 1 = at least one FAIL; 2 = an input could
 not be derived (contract / image / profile / symbols missing).
@@ -90,6 +98,7 @@ from tools.linux import k1_boot_probe as k1boot    # noqa: E402  (ELF/symbols)
 from tools.linux import k1_pt_probe as k1pt       # noqa: E402  (ptw parsers)
 from tools.linux import make_vmlinux as vmlinux   # noqa: E402  (build driver)
 from tools.linux import paths as linux_paths      # noqa: E402
+from tools.linux import run_semihosting_smoke     # noqa: E402  (`.ascii` oracle)
 from tools.qemu import k0_boot_probe as k0         # noqa: E402  (contract, firmware)
 
 sys.path.insert(0, str(_REPO / "tools" / "testcases" / "lib"))
@@ -263,6 +272,177 @@ def run_kernel(ctx: Ctx, tag: str) -> tuple[int, str, list[str]]:
         rc, text = 124, ""
     log.write_text(text, encoding="utf-8")
     return rc, text, cmd
+
+
+# ---------------------------------------------------------------------------
+# K14: semihosting pointer arguments are PAs (ISS-450)
+# ---------------------------------------------------------------------------
+
+#: The probe and the fixed offsets of its data blocks inside the image.  Every
+#: datum sits at ``ENTRY_VA + <offset>``: its VA is mapped, its PA — read as a
+#: VA — is not (all of them are below one 512 MiB superpage).
+SEMI_PROBE_S = _REPO / "tools" / "linux" / "semihost_pa_probe.S"
+SEMI_PROBE_LDS = _REPO / "tools" / "linux" / "semihost_pa_probe.lds"
+SEMI_DATA_OFF = {
+    "sp_payload": 0x800,        # SYS_WRITE0 string + NUL
+    "sp_chars": 0x810,          # SYS_WRITEC characters ("XYZ")
+    "sp_mark_ok": 0x820,        # SYS_OPEN succeeded
+    "sp_mark_bad": 0x828,       # SYS_OPEN faulted
+    "sp_exit_block": 0x900,     # SYS_EXIT {reason, code}
+    "sp_open_block": 0x940,     # SYS_OPEN {name pointer, mode, length}
+    "sp_path": 0x980,           # the SYS_OPEN file name
+}
+SEMI_EXIT_BLOCK_OFF = SEMI_DATA_OFF["sp_exit_block"]
+#: The Arm semihosting console name the responder special-cases (the probe's
+#: own `sp_path` literal is asserted against this).
+SEMI_CONSOLE_NAME = b":tt"
+
+
+def semi_console_oracle() -> tuple[bytes, bytes, bytes, bytes, bytes]:
+    """Console expectation from the probe source, in file order.
+
+    ``(SYS_WRITE0 string, SYS_WRITEC characters, SYS_OPEN ok marker,
+    SYS_OPEN bad marker, SYS_OPEN file name)``.
+
+    Same oracle discipline as `run_semihosting_smoke`: the expectation is the
+    `.ascii` text of the probe, decoded here, never QEMU's own output.
+    """
+    payloads = [part for line in SEMI_PROBE_S.read_text(encoding="utf-8").splitlines()
+                for part in run_semihosting_smoke._ascii_payloads(line)]
+    if len(payloads) != 5:
+        raise SystemExit(
+            f"check_k1: {SEMI_PROBE_S.name}: expected 5 .ascii payloads "
+            f"(string, characters, open-ok, open-bad, file name), "
+            f"found {len(payloads)}")
+    payload, chars, mark_ok, mark_bad, path = payloads
+    if path != SEMI_CONSOLE_NAME:
+        raise SystemExit(f"check_k1: {SEMI_PROBE_S.name}: SYS_OPEN name is "
+                         f"{path!r}, expected {SEMI_CONSOLE_NAME!r}")
+    # The markers must be distinguishable from the printed text, otherwise a
+    # dropped SYS_OPEN result could hide inside the payload.
+    for mark in (mark_ok, mark_bad):
+        if mark in payload or mark in chars or len(mark) != 1:
+            raise SystemExit(f"check_k1: {SEMI_PROBE_S.name}: marker {mark!r} "
+                             f"is not a single byte outside the payload")
+    if mark_ok == mark_bad:
+        raise SystemExit(f"check_k1: {SEMI_PROBE_S.name}: open markers equal")
+    return payload, chars, mark_ok, mark_bad, path
+
+
+def build_semihost_probe(ctx: Ctx) -> tuple[Path, tuple[bytes, ...]]:
+    """Assemble+link the PA probe; returns (elf, console oracle parts)."""
+    oracle = semi_console_oracle()
+    payload, _chars, _ok, _bad, _path = oracle
+
+    def va_of(symbol: str) -> int:
+        return ctx.entry_va + SEMI_DATA_OFF[symbol]
+
+    def pa_of(symbol: str) -> int:
+        return ctx.pa(va_of(symbol))
+
+    values = {
+        "ENTRY_VA": ctx.entry_va,
+        "PAYLOAD_VA": va_of("sp_payload"),
+        "PAYLOAD_PA": pa_of("sp_payload"),
+        "CHARSET_PA": pa_of("sp_chars"),
+        "MARK_OK_PA": pa_of("sp_mark_ok"),
+        "MARK_BAD_PA": pa_of("sp_mark_bad"),
+        "PATH_PA": pa_of("sp_path"),
+        "OPEN_BLOCK_VA": va_of("sp_open_block"),
+        "OPEN_BLOCK_PA": pa_of("sp_open_block"),
+        "EXIT_BLOCK_VA": va_of("sp_exit_block"),
+        "EXIT_BLOCK_PA": pa_of("sp_exit_block"),
+        "PT_VA": k0.LAYOUT["page_table"][0],
+        "PA_PTE_INDEX": pa_of("sp_payload") >> 29,
+        "ENTRY_PTE_INDEX": ctx.entry_va >> 29,
+    }
+    defs: list[str] = []
+    for key, value in values.items():
+        value &= 0xFFFFFFFFFFFFFFFF
+        if value >= 1 << 63:              # llvm-mc --defsym takes a signed i64
+            value -= 1 << 64
+        defs += ["--defsym", f"{key}={value}"]
+
+    out = SCRATCH / "semihost_pa"
+    out.mkdir(parents=True, exist_ok=True)
+    obj, elf = out / "semihost_pa_probe.o", out / "semihost_pa_probe.elf"
+    k0.run([k0.tool("llvm-mc"), "--triple=dadao-unknown-elf", "-filetype=obj",
+            *defs, str(SEMI_PROBE_S), "-o", str(obj)])
+    k0.run([k0.tool("ld.lld"), "-z", "max-page-size=0x10000", "-T",
+            str(SEMI_PROBE_LDS), str(obj), "-o", str(elf)])
+
+    # K1 ELF-VA-TO-PA: the loader uses p_paddr, so rewrite it to p_vaddr - BIAS.
+    buf = k0.elf_read(elf)
+    for (off, vaddr, _paddr, _filesz, _memsz, _align) in k0.elf_loads(buf):
+        if vaddr < ctx.bias:
+            raise SystemExit("check_k1: PA probe segment below the kernel window")
+        k0.put64(buf, off + 24, vaddr - ctx.bias)
+    elf.write_bytes(buf)
+
+    # The probe's immediates come from --defsym, so the linked symbols must land
+    # where the probe assumes them (a drift here would silently test nothing).
+    symbols = k1boot.symbols(elf)
+    for name, expected in [("_start", ctx.entry_va)] + [
+            (symbol, va_of(symbol)) for symbol in SEMI_DATA_OFF]:
+        if symbols.get(name) != expected:
+            raise SystemExit(f"check_k1: PA probe symbol {name}="
+                             f"{symbols.get(name)!r}, expected {hex(expected)}")
+
+    # The name the guest hands SYS_OPEN must be the bytes actually in the image.
+    raw_path = elf.read_bytes()
+    offset = _elf_file_offset(elf, symbols["sp_path"])
+    if raw_path[offset:offset + len(SEMI_CONSOLE_NAME) + 1] != \
+            SEMI_CONSOLE_NAME + b"\0":
+        raise SystemExit("check_k1: PA probe sp_path bytes != "
+                         f"{SEMI_CONSOLE_NAME!r}")
+    return elf, oracle
+
+
+def _elf_file_offset(elf: Path, addr: int) -> int:
+    """File offset holding virtual address @addr (ELF64 big-endian, PT_LOAD)."""
+    buf = k0.elf_read(elf)
+    for (off, vaddr, _paddr, filesz, _memsz, _align) in k0.elf_loads(buf):
+        p_offset = k0.be64(buf, off + 8)
+        if vaddr <= addr < vaddr + filesz:
+            return p_offset + (addr - vaddr)
+    raise SystemExit(f"check_k1: {hex(addr)} is in no PT_LOAD file range")
+
+
+def run_semihost_probe(ctx: Ctx, elf: Path) -> tuple[int, bytes]:
+    """Run the PA probe on Vast (PTW already on) and return (rc, console)."""
+    log = SCRATCH / "semihost_pa.log"
+    cmd = [ctx.qemu,
+           "-machine", f"dadao-vast,bootrom-image={ctx.bootrom}",
+           "-nographic",
+           "-semihosting-config", "enable=on,target=native",
+           "-kernel", str(elf)]
+    try:
+        proc = subprocess.run(cmd, cwd=str(_REPO), capture_output=True,
+                              timeout=TIMEOUT_QEMU)
+        rc, console = proc.returncode & 0xFF, proc.stderr
+    except subprocess.TimeoutExpired:
+        rc, console = 124, b""
+    log.write_bytes(console)
+    return rc, console
+
+
+def check_semihost_pa(rep: Report, rc: int, console: bytes) -> None:
+    """Console services + SYS_OPEN must read their pointers by PA (PTW on)."""
+    payload, chars, mark_ok, mark_bad, _path = semi_console_oracle()
+    rep.check("K14", "QEMU 未自行报错（探针不是启动失败）", False,
+              b"qemu-system-dadao:" in console)
+    rep.check("K14", "SYS_WRITE0：字符串经 PA 取出（该 PA 作为 VA 未映射）",
+              True, payload in console)
+    rep.check("K14", "SYS_WRITEC：字符经 PA 取出（该 PA 作为 VA 未映射）", True,
+              chars in console)
+    # SYS_OPEN 的无长度文件名经 `common_semi_strlen` 钩子 + `lock_user`（identity = PA）
+    # 取出；名指针是 PA 而其 VA 未映射，若改回 `lock_user_string` 就会走页表而 EFAULT。
+    rep.check("K14", "SYS_OPEN：无长度文件名的指针经 PA 取出"
+                     "（该 PA 作为 VA 未映射）", True,
+              mark_ok in console and mark_bad not in console)
+    rep.check("K14", "控制台字节 == 探针源文件推导的 oracle",
+              payload + chars + mark_ok, console)
+    rep.check("K14", "SYS_EXIT：参数块经 PA 读取（guest rc）", 0, rc)
 
 
 # ---------------------------------------------------------------------------
@@ -565,6 +745,17 @@ def gate(kernel: Path, qemu: str, bootrom: Path, rep: Report) -> tuple[int, str]
         print(text.strip())
         print("----------------------")
     check_all(ctx, rc, text, cmd, rep)
+
+    # ── K14: semihosting reads its pointer arguments by PA (ISS-450) ────
+    # A second, independent run: the PA probe needs the same Vast firmware (so
+    # PTW is on) but its own payload, and its evidence is the raw console.
+    elf, _oracle = build_semihost_probe(ctx)
+    probe_rc, probe_console = run_semihost_probe(ctx, elf)
+    if not rep.quiet:
+        print(f"---- PA probe output (rc={probe_rc}) ----")
+        print(probe_console.decode("utf-8", "backslashreplace").strip())
+        print("----------------------")
+    check_semihost_pa(rep, probe_rc, probe_console)
     return rc, text
 
 
@@ -619,6 +810,25 @@ def run_selfcheck(qemu: str, bootrom: Path) -> int:
         if not flipped(cid, ctx, rc, mutated):
             bad += 1
 
+    # K14 reads the *second* run's console bytes (the PA probe), so it is
+    # flipped on a captured console: dropping either service must redden it.
+    # 4 flips read the run itself / an image copy (K5, K2, K3, K4), 2 are K14's.
+    groups = len(TEXT_MUTATIONS) + 4 + 3
+    payload, chars, mark_ok, mark_bad, _path = semi_console_oracle()
+    green = payload + chars + mark_ok
+    for label, console in (
+            ("WRITE0 缺串", chars + mark_ok),
+            ("WRITEC 缺字", payload + mark_ok),
+            ("SYS_OPEN 失败标记", payload + chars + mark_bad)):
+        rep = Report(quiet=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            check_semihost_pa(rep, 0, console)
+        hit = [msg for msg in rep.fails if msg.startswith("K14")]
+        print(f"  [{'PASS' if hit else 'FAIL'}] selfcheck K14 {label} | "
+              f"期望=K14 FAIL 实际={hit[0] if hit else '未翻转'}", flush=True)
+        if not hit:
+            bad += 1
+
     # K2/K3/K4 read the image / BootROM, so they are flipped on faithful copies.
     copy = SCRATCH / "selfcheck-vmlinux"
     copy.parent.mkdir(parents=True, exist_ok=True)
@@ -649,7 +859,7 @@ def run_selfcheck(qemu: str, bootrom: Path) -> int:
         bad += 1
 
     print(f"check-k1 selfcheck: {'PASS' if not bad else 'FAIL'} "
-          f"({len(TEXT_MUTATIONS) + 4 - bad}/{len(TEXT_MUTATIONS) + 4} 组可翻转)")
+          f"({groups - bad}/{groups} 组可翻转)")
     return 0 if not bad else 1
 
 
