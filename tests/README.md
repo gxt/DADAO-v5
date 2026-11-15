@@ -52,7 +52,7 @@
 | `inst/<册>/*.S` | I | 指令执行向量（**唯一**载体模型；一行一用例、期望内联；原 YAML 载体已全退役） | `make check-inst-asm`（**L2**，`.S` 全量、单平台 QEMU） |
 | `inst/00-isa-design/undi_reserved.S` | I | 保留编码（QFC 空白格）⇒ UNDI；**非 id 载体**（逐文件登记） | 同上（`check-inst-asm` 执行；`validate-vectors`/`check-tests-index` 显式登记） |
 | `inst/{inventory.md,schema.md,README.md}` | — | 覆盖矩阵（M1 156 行）、inst scope 说明、迁移台账（`schema.md` 的 YAML 字段规范为**历史**） | `make validate-vectors`（L1） |
-| `inst/{atomics,clmul}/*.[ch]|*.ll` | I | 指令语义探针源（C/IR；原 `tests/<ext>/`）。`fma/minmax/roundint` 三探针已于 `m13-testcases-044` 退役（能力由 lit/e2e + picolibc 承担，缺口已补进 `.S`） | `make check-clmul-probe`（**L3**；atomics 手工） |
+| `inst/clmul/*.[ch]|*.ll` | I | 指令语义探针源（C/IR；原 `tests/<ext>/`）。`fma/minmax/roundint` 三探针已于 `m13-testcases-044` 退役、`atomics` 五探针于 `m13-testcases-050` 退役（能力改由 `.S` + `tests/unit/llvm/e2e/atomics_e2e.c` 承担） | `make check-clmul-probe`（**L3**） |
 | `unit/llvm/lit/MC/{DADAO,DADAO-gen}/` | U | 汇编器编码 lit 用例（77 + 12；原 `llvm/lit/MC/`，旧路径为符号链接） | `make check-lit` / `make check-lit-full`；`check-unit` |
 | `unit/llvm/lit/CodeGen/DADAO/` | U | IR→汇编/MIR **结构**断言（63） | `make check-lit`；`check-unit` |
 | `unit/llvm/codegen/`（M3） | U | IR→运行（15 程序） | `make test-codegen`；`check-unit` |
@@ -156,9 +156,10 @@ make check-lit-full                 # 生成档全量（L3）
 
 ```sh
 make check-clmul-probe     # clmul/GHASH/CRC-32C  627 例 × O0/O2
-# atomics（无 make 目标，手工）：
-python3 tools/testcases/run_atomics_probe.py --link-mode static --json-out /tmp/opencode/atomics-static.json
 ```
+
+> `atomics` 五探针于 `m13-testcases-050` 退役（用户裁定 A）：编译器语义层改由
+> `tests/unit/llvm/e2e/atomics_e2e.c`（`make check-lit`，QEMU 真跑）承担；争用/内存序记 GAP。
 
 ### 2.5 上游套件（opt-in，慢）
 

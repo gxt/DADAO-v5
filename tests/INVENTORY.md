@@ -64,7 +64,7 @@
 | `llvm/` | 216（214） | LLVM 三档：lit MC 汇编、lit CodeGen 结构、CodeGen 执行程序 + ir-lli 差分清单 | I + E | `check-lit`(L2)、`check-lit-full`(L3)、`test-codegen`/`test-elf`(L2) | 自动（m6 除外，见 §7.3） | 汇编器编码、isel/帧/段结构、IR→运行 |
 | `unit/llvm/e2e/` | 45（44） | 14 个 lit E2E（`.test`）+ 29 个 C/asm 源（含 9 个无 runner 引用，§7.4）；084t 由顶层 `e2e/` 归入 | U | `check-lit`（跑 `lit/`） | 自动（9 个源已死，§7.4） | 编译→链接→运行整体链路 |
 | `scripts/` | 30（24） | 共享 harness：向量→二进制构建、QEMU 单例/批量运行、冒烟驱动、bootrom/lds/crt0、dump 校验 | U（+I/S 载体） | 被 `check-qemu-*`、`test-codegen/elf/semihost`、`semantics_gate.py` 调用 | 自动（含手工 CLI） | harness 自身正确性、测试机约定 |
-| `atomics/` | 5（5） | C11/`__atomic`/LR-SC 并发探针源（5 个 C） | I | **无 make 目标**（§5.3） | 手工 | 原子内建、互斥、ABA、`a_barrier` |
+| `atomics/` | 0（退役） | 5 个 C 探针已于 `m13-testcases-050` 退役（裁定 A）；编译器语义层 → `tests/unit/llvm/e2e/atomics_e2e.c`，争用/内存序 → `tests/inst/MIGRATION.md` GAP 节 | I | `check-lit`（e2e 真跑） | 自动 | 原子内建/子字宽 RMW/`ISS-312`/`ISS-313` |
 | `clmul/` | 4（4） | clmul 边界/GHASH/CRC-32C 探针 + IR | I | `check-clmul-probe`(L3) | 自动 | `clmul.o`、GHASH、CRC-32C |
 | `qemu/` | 1（1） | 占位 README（QEMU 组件测试落点，暂无内容） | — | 无 | — | — |
 | `case-ledger.tsv` | 1（1） | 逐条身份清单（生成物，`--write` 重生成） | — | `check-case-ledger`(L1) | 自动 | 删用例/pattern 的哨兵 |
@@ -205,7 +205,7 @@
 
 | 资产 | 现状 |
 |---|---|
-| `tests/atomics/*.c` + `run_atomics_probe.py` | 无 make 目标；手工跑最近 711/711（两档） |
+| ~~atomics 探针 + 驱动~~ | **已退役**（`m13-testcases-050`）：编译器语义层改由 `tests/unit/llvm/e2e/atomics_e2e.c`（`check-lit`，QEMU 真跑）覆盖 |
 | `tests/unit/llvm/codegen/m6/*`（8 程序） | 无 make 目标，仅 README 手工命令 |
 | `tests/inst/{rev,bitcnt}`（476 例） | 不在 L2/L3 载体集（`inventory.md` 明示） |
 | `tests/unit/llvm/lit/tools/DADAO/` | 占位，无测试 |

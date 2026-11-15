@@ -5395,11 +5395,11 @@ lit	tests/unit/llvm/lit/MC/DADAO/rrrr.s	5120928b	add.so	1
 lit	tests/unit/llvm/lit/MC/DADAO/rwii.s	4c201234	set.zw	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f01081	rf2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f021c1	rf2rf	1
+lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f41001	rd2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f41141	rd2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f44001	rd2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	4f050000	set.w	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	4f053f80	set.w	1
-lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	4f073ff0	set.w	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-rb.s	40d021c1	rb2rb	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-rb.s	40d411c1	rd2rb	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-rb.s	4e040000	set.zw	1

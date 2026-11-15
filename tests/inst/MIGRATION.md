@@ -252,6 +252,37 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 `dump_mem`，供 `fetch_probe/gen_probe.py`）；`fp_ref.py` 保留为**生成期工具，不作判据**
 （FP 判据 = `.S` 内联期望 + `fp_unit` 的 hardfloat 对照）。
 
+## 5.6 多 hart / 内存序 GAP（`m13-testcases-050`；挂 `ISS-440`/`ISS-443`）
+
+**背景**：`tests/inst/atomics/` 的 5 个 C 探针（`aba_treiber`/`atomic_builtins`/
+`barrier_probe`/`c11_alltypes`/`counter`）连同其驱动脚本与 oracle 脚本已按用户 2026-11-15
+裁定 A **退役**：它们从未进任何门控（无 make 目标、不在 `l3_run.py`），且其判据（多线程争用）
+在单 hart 的 Tiny 上不可观测。退役后的三层分工：
+
+| 层 | 载体 | 判据 |
+|---|---|---|
+| 指令层：`lr`/`sc` 的 RMW 合成序（含 `sc` 失败重试） | `tests/inst/00-isa-design/atomic_rmw.S`（`m13-testcases-049`） | L2 `check-inst-asm` 逐镜像执行 |
+| 编译器层：`__atomic_*` builtin 与 C11 `<stdatomic.h>` 的**值语义** | `tests/unit/llvm/e2e/atomics_e2e.c` + `lit/atomics_e2e.test` | `check-lit`：QEMU `dadao-tiny` 真跑，guest 退出码 = 判据（0 = 20 例全过，N = 第 N 例失败） |
+| 争用 / 内存序**强度** | **无载体（本 GAP）** | 待多 hart 机型 |
+
+**GAP 清单**（单 hart 不可判定，未经实验验证前不得声称覆盖）：
+
+- **ABA**：Treiber 栈「`{ver:16,ptr:48}` 打包 + 计数器回绕」的不变量只在真并发下才有意义；
+  单 hart 的 `lr/sc` 循环首次即成功，观察不到 ABA。
+- **互斥计数丢更新**：N 线程 × M 次 `fetch_add` 的总和守恒需要真并行（或至少抢占式调度）；
+  Tiny 单 hart 的顺序执行恒满足。
+- **`a_barrier()` 观测量**：探针原用「`fence` 计数 == 源码站点数、立即数 0xFFF」的结构断言；
+  这只是**代码形状**，不证明屏障语义。形状部分现已由 e2e 的 `ASM: fence cfx_umon, 4095`
+  承担，**语义**仍缺。
+- **`fence` 顺序强度**：`__ATOMIC_RELAXED` 与 `__ATOMIC_SEQ_CST` 在单 hart 上产生**可观察差异
+  为零**的同一结果，无法区分「正确实现」与「一律发全屏障」或「完全不发屏障」。e2e 只钉
+  「seq_cst 处出现 `fence cfx_umon, 4095`」这一**形状**，强度（acquire/release/relaxed 的
+  实际约束）未验证；`spec/SimRISC-12` 的 `fence` 语义强度须另立验证（多 hart 机型 + 竞争
+  重放），见 `ISS-440`（多 hart 机型/测试面）与 `ISS-443`（内存序强度口径）。
+
+**恢复覆盖的入口**：多 hart 机型落地后，新载体应是**执行型**（`.S` 或 e2e）而非回到
+「C 探针 + 手工 oracle」——争用类用例须自带失败点号（退出码即判据），并进 L2/L3 门控。
+
 ## 6. 已完成
 
 ### `m13-testcases-030`：`.S` 入 L2 门控 + mem 三册 YAML 退役（`ISS-413`）

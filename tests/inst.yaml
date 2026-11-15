@@ -1660,36 +1660,6 @@
   - system
   level: full
   requires: []
-- id: inst-atomics-001
-  file: inst/atomics/aba_treiber.c
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-atomics-002
-  file: inst/atomics/atomic_builtins.c
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-atomics-005
-  file: inst/atomics/barrier_probe.c
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-atomics-006
-  file: inst/atomics/c11_alltypes.c
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-atomics-007
-  file: inst/atomics/counter.c
-  platforms:
-  - system
-  level: full
-  requires: []
 - id: inst-clmul-002
   file: inst/clmul/clmul_crc32c.c
   platforms:
