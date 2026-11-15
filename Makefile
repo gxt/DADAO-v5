@@ -290,7 +290,7 @@ help:
 	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
 	@echo "  make check-contract-relocs  contract-elf §2.2 vs contract-dynlink §4.3 relocation type-table agreement (L1; 2026-10-17)"
-	@echo "  make check-milestones-fresh  milestone ledgers three-table gate: class/coverage/length/order/format + per-milestone ledger routing (milestones.md / milestones-m14.md / milestones-m15.md / milestones-m16.md 存在则校验；M12/M13 已归档删除) (L1; INFRA-091t/INFRA-141t/m12-infra-001)"
+	@echo "  make check-milestones-fresh  milestone ledgers three-table gate: class/coverage/length/order/format + per-milestone ledger routing (milestones-m14/15/16.md 存在则校验；M1–M13 台账已归档删除) (L1; INFRA-091t/INFRA-141t/m12-infra-001)"
 	@echo "  make check-archive   .tao/archive/M<i>/ structure + task-book fields + README five sections + issues snapshot (L1; INFRA-116t)"
 	@echo "  make check-milestone  Milestone closure: SIMRISC archive + sha + sync-nonmaskable + ledger-listed task ids exist (m-book mechanism removed 2026-11-10) + L3 report + check-tasks --strict (not L1; night run is observation only)"
 	@echo "  make check-sync-nonmaskable  Sync exception causes must not be maskable (only IPI/TIMER/UART*/… may; SPEC-175t; not L1)"
@@ -1326,7 +1326,7 @@ check-disk:
 # 里程碑收尾门控 (2026-10-17, A2; 归 **L2 层 / 里程碑收尾专项**，**不入** `check-modules`):
 # ⓪ SimRISC 归档：结构（`check-spec-archive`）+ 内容 sha256（`check-spec-archive-verify`）
 #    ——归档只在发布/里程碑边界变化，故不入 L1（INFRA-109t；用户 2026-10-25 裁定）；
-# ① 里程碑台账（自动发现 `.tao/knowledge/milestones*.md`：M11 `milestones.md` + M12 起
+# ① 里程碑台账（自动发现 `.tao/knowledge/milestones*.md`：M14 起
 #    `milestones-m14.md`/`milestones-m15.md`/`milestones-m16.md`；亦可 `--file` 指定）逐本须有
 #    `项目里程碑 = M<n>` 断言（否则 vacuous FAIL）；
 # ② 台账列出的全部任务号须在 `.tao/tasks/**`（或 `.tao/archive/**`，已完成并归档）
@@ -1423,15 +1423,15 @@ check-install-tools:
 # 三表各 3 格且无状态列 / 预估时间格式 / 完成时间不带 `（登记）`；规则见 docs/Process-07 §1.1。
 # R1 台账一致性 (INFRA-145t)：`git worktree list` 检出的任务分支或**未合并**本地任务分支
 # ⇒ 该任务号不得在「待开始」，须在「进行中」（册已 `已验证` 则须在「已验证」表），逐条指名。
-# 双台账 (m12-infra-001)：M11 台账 `milestones.md` **必有**；其余分册**存在则校验**
-# （M12/M13 分册已于 2026-11-15 合并进归档并删除）；`--file` 选台账，任一红即红。
-MILESTONES_M11 := .tao/knowledge/milestones.md
+# 台账分册（m12-infra-001 / 2026-11-15 收口后）：M1–M13 的台账均已合并进 `.tao/archive/<M>/` 并删除，
+# 现只剩 M14 起的分册；**存在则校验**（一本都没有 ⇒ 本目标 vacuous，由 `check_archive` 承担归档校验）；
+# `--file` 选台账，任一红即红。
 MILESTONES_M14 := .tao/knowledge/milestones-m14.md
 MILESTONES_M15 := .tao/knowledge/milestones-m15.md
 MILESTONES_M16 := .tao/knowledge/milestones-m16.md
 
 check-milestones-fresh:
-	@for f in "$(MILESTONES_M11)" "$(MILESTONES_M14)" "$(MILESTONES_M15)" "$(MILESTONES_M16)"; do \
+	@for f in "$(MILESTONES_M14)" "$(MILESTONES_M15)" "$(MILESTONES_M16)"; do \
 	  if [ -f "$$f" ]; then \
 	    $(PYTHON) tools/infra/check_milestones_fresh.py --file "$$f"; rc=$$?; \
 	    [ $$rc -eq 0 ] || exit $$rc; \
