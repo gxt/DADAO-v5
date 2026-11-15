@@ -7,7 +7,7 @@
 - **2026-11-15（晚）**：**M13 已收口并归档**（107 件全已验证、台账已删）；**M15 `m15-testcases-001` 已收口**（`tests/inst` 10 宏下沉共享层、镜像 904/904 与 md5 22/22 均不变）；M12 已收口且已归档；M14 K1 收口（19）、**K2 待授权立册**；M16 已验证 9 / 待开始 1（`chipyard-001`，等 M13 收口→现已解锁）；M15 `m15-spec-001` 待返工（WIP `0584a64b`，用户要求先摊开文件 + 逐条语句分析）。
 - **M13 收口事实**：矩阵冻结 `docs/TestReports/M13-三平台差分-矩阵.md`（整数 637 + FP 227 = **864 镜像三平台逐例一致、差异 0、未归因 0**）；报告记 `input commit`；新增链例字节级断言；`refs/m13-005-acceptance.*` 是 **refs/ 最后一批产物**。
 - **rf2rf 批（全部合入）**：`spec-010`（264→263 id）+ llvm/qemu/gem5/chipyard 四实现 + 向量 `02-reg-copy/rf2rf_orri_rf.S`；伪指令体系迁入 `SimRISC-00 §5`、`SimRISC-03` 按 rd/rb/rf 拆三章；7 个伪指令载体（`pseudo_set.*`，113 点）；RMW 合成序 `atomic_rmw.S`；`atomics` 5 探针退役改执行型 `atomics_e2e`；`set.fo` 最小指令数展开。
-- **sim md5 已变**：chipyard `4e072a711afdca8a36788f9a9958e896`（旧 `079ae015…` 作废）；安装根已刷新（`llvm-mc` 含 `rf2rf` 与 `set.fo` 最小展开）；musl 已重建。
+- **sim md5 / qemu md5**：chipyard **`bd5e75b3a64044b4cb69d20c298f080d`**（`m16-chipyard-002`：cfx 独立为 `dadao-gewu`；旧 `4e072a71…` 作废）；qemu `9750c139f24a7bcebca37909c287b67c`（`m14-qemu-002`：semihosting 指针按 PA）；**两者都只在同一构建环境/时段内可比**（`ISS-451`/`ISS-453`）。
 - **L1 全绿**（`check-inst-asm` 904/904、`check-lit` 177/177、`check-interface` 89/89、`check-musl-freshness` PASS）。
 - **规则新增（2026-11-15）**：派单顺序（先提交任务书再建 worktree，R2 机械校验）、台账时间戳取 `date`/`git log`、复核分档（小改 1 路注入 ≤15 min）、脚本入仓判据=会不会再跑。
 - 队列：M13 收口完成 → **`refs/` 清空**（用户已定，方式待选）+ **M13 归档**；M16 `chipyard-001` 已解锁；M14 K2 待授权。
