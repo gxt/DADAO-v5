@@ -715,3 +715,11 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`check-spec-refs` 对**标题型引用**不校验章号：`m13-spec-011` 复核时把 `contract-isa` 里的 `[SimRISC-00 §5.1 …]` 改成 `[SimRISC-00 §9.9 …]`，门控仍 rc=0（实现只剥前导章号后比标题文本、章号本身不比）。后果：迁章/重排后可能出现'标题对、章号错'的悬空引用而全绿。处置：改成解析『§<章号> <标题>』两段并分别校验（章号存在性 + 标题匹配），或补一条独立断言；属门控加严，非放宽。"
+- id: ISS-448
+  scope:
+  - chipyard
+  - spec
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`WumingDecoder` 的 `rfRows[2]`/`rfRows[3]` 为 `0x7F`，而 `contracts/opcodes.yaml` 同两行为 `0xFF`（`ftsgnj`/`fosgnj` 格）：`m13-chipyard-003` 复核发现，命中的两格在 `WumingDecoder` 里有独立 switch 分支 ⇒ **行为无差异**，属位图与契约的表述不一致。处置：以契约为准核对该两格是否真已定义、统一位图（或反向修正 contracts），并加一条 RTL 位图 ↔ `opcodes.yaml` 的机械对账（`check-gem5-decode` 只对 gem5 侧做过同类对账）。"
