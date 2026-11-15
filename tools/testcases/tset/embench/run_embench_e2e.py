@@ -38,10 +38,24 @@ Pipeline per (benchmark, optimisation level):
 
 Judgement (fail-closed):
   * every (benchmark, level) must build and exit 0  -> PASS
-  * build-step non-zero / non-zero or faulted exit / timeout -> FAIL
+  * build-step non-zero / non-zero or faulted exit -> FAIL
+  * the ``--timeout`` budget running out with no guest verdict -> ``TIMEOUT``,
+    shown as ``timeout(<budget>)`` (e.g. ``timeout(12h)``): the case gave **no
+    verdict**, so it is neither a pass nor a chipyard-only failure
+  * a platform/environment gap (unimplemented semihosting service, loader or
+    simulator stop before the guest's own verdict) -> ``BLOCKED``
   * chipyard: +max-cycles exhausted, or the sim binary's md5 changing during
     the run -> FAIL; board markers missing -> FAIL
   * source tree missing / zero benchmarks / missing tool -> setup error (2)
+
+Status vocabulary (user ruling 2026-11-15: "blocked 容易让人误解"):
+
+  PASS / FAIL / TIMEOUT / BLOCKED / GUARD / ERROR.  ``blocked`` means a
+  **build/environment gap** only (ISS-193 long-double, a missing CFX6 carrier,
+  an unimplemented harness service); a **budget** outcome is ``timeout(<预算>)``
+  and its machine value in ``--json-out`` is ``TIMEOUT``.  The budget label is
+  derived live from ``--timeout`` (``43200 -> 12h``, ``3600 -> 1h``,
+  ``5400 -> 90m``), never hardcoded.
 
 Structural closure (AGENTS.md「验证脚本反例门控」): the benchmark corpus IS ``<embench-src>/src/``
 (a manifest-locked component, so it cannot silently change).  The driver
@@ -52,7 +66,7 @@ so a driver bug cannot silently skip a benchmark.  Counts are reported live
 
 Exit status:
   0  every case PASS
-  1  at least one case FAIL
+  1  at least one case FAIL (a TIMEOUT is not a pass either)
   2  setup error (missing tool / source / zero benchmarks)
 
 ``--inject`` is a built-in counter-example self-test: after a green baseline it
@@ -170,12 +184,39 @@ def discover_benchmarks(src_root: str):
     return found
 
 
+def format_budget(seconds):
+    """Display form of a ``--timeout`` budget, derived live (never hardcoded).
+
+    Rules: a whole number of hours -> ``<n>h`` (43200 -> ``12h``, 3600 ->
+    ``1h``); else a whole number of minutes -> ``<n>m`` (5400 -> ``90m``);
+    else ``<n>s``.  ``parse_budget`` is the exact inverse -- the report
+    generator round-trips the label through it, so a wrong conversion is
+    caught instead of printed.
+    """
+    s = int(seconds)
+    if s % 3600 == 0:
+        return "%dh" % (s // 3600)
+    if s % 60 == 0:
+        return "%dm" % (s // 60)
+    return "%ds" % s
+
+
+def parse_budget(label):
+    """``12h``/``90m``/``45s`` -> seconds (inverse of :func:`format_budget`)."""
+    unit = label[-1:]
+    scale = {"h": 3600, "m": 60, "s": 1}.get(unit)
+    if scale is None or not label[:-1].isdigit():
+        raise ValueError("bad budget label %r" % (label,))
+    return int(label[:-1]) * scale
+
+
 class CaseResult:
     __slots__ = ("bench", "opt", "expected", "actual", "passed", "reason",
                  "profile", "case_id", "engine", "cycles", "seconds",
-                 "sim_md5", "markers", "semi_out", "sim_log")
+                 "sim_md5", "markers", "semi_out", "sim_log",
+                 "budget_seconds", "timeout", "gap")
 
-    def __init__(self, bench, opt, expected, profile="tiny"):
+    def __init__(self, bench, opt, expected, profile="tiny", budget_seconds=None):
         self.bench = bench
         self.opt = opt
         self.expected = expected
@@ -191,6 +232,11 @@ class CaseResult:
         self.markers = []
         self.semi_out = None
         self.sim_log = None
+        # The batch's --timeout, carried per case so the JSON states the budget
+        # each case ran under (the JSONL sink may be the only survivor).
+        self.budget_seconds = budget_seconds
+        self.timeout = False   # host budget exhausted, no guest verdict
+        self.gap = False       # build/environment gap (BLOCKED)
 
 
 def verdict(rc, expected):
@@ -208,7 +254,7 @@ def verdict(rc, expected):
 
 def build_and_run(bench, opt, tools, work_dir, timeout, verbose=False):
     """Build one (benchmark, opt) through the fixed pipeline; run under QEMU."""
-    res = CaseResult(bench, opt, 0)
+    res = CaseResult(bench, opt, 0, budget_seconds=timeout)
     res.profile = tools.get("profile", "tiny")
     outdir = os.path.join(work_dir, opt, bench)
     shutil.rmtree(outdir, ignore_errors=True)
@@ -291,7 +337,8 @@ def build_and_run(bench, opt, tools, work_dir, timeout, verbose=False):
         timeout=timeout,
     )
     if timed:
-        res.reason = f"qemu timeout after {timeout}s"
+        res.timeout = True
+        res.reason = (f"host timeout after {timeout}s (no guest verdict; qemu)")
         return res
     if rc is None:
         res.reason = "qemu did not return an exit code"
@@ -330,11 +377,17 @@ def _run_chipyard(res, elf, outdir, tools, timeout, verbose=False):
         res.reason = "guard: " + obs["reason"]
         return res
     if obs["status"] == "BLOCKED":
-        # A host timeout is a *budget* outcome, not the case's verdict: it is
-        # reported `blocked (budget: ...)` and never counts as a chipyard-only
-        # failure in the engine-parity judgement.
-        res.reason = (("budget: " if "timeout" in obs["reason"] else "platform: ")
-                      + obs["reason"])
+        if "timeout" in obs["reason"]:
+            # The --timeout budget ran out with no guest verdict: the case gave
+            # *no judgement* (user 2026-11-15).  Shown `timeout(<budget>)`,
+            # machine value TIMEOUT, never counted as a chipyard-only failure.
+            res.timeout = True
+            res.reason = obs["reason"]
+        else:
+            # A build/environment gap (unimplemented semihosting service, a
+            # loader/simulator stop): `blocked`, not a budget outcome.
+            res.gap = True
+            res.reason = obs["reason"]
         return res
     missing = [m for m in MARKERS if m not in res.markers]
     if missing:
@@ -351,13 +404,18 @@ def _run_chipyard(res, elf, outdir, tools, timeout, verbose=False):
 
 
 def case_status(res):
+    """Machine status -- single source of truth for JSON *and* the log line.
+
+    ``TIMEOUT`` = the ``--timeout`` budget ran out and the guest gave no
+    verdict (user ruling 2026-11-15); ``BLOCKED`` = a build/environment gap
+    only (ISS-193 long-double, a missing carrier, an unimplemented harness
+    service).  A budget outcome is never ``BLOCKED``.
+    """
     if res.passed:
         return "PASS"
-    if res.reason.startswith("qemu timeout"):
+    if res.timeout:
         return "TIMEOUT"
-    if res.reason.startswith("budget:"):
-        return "BLOCKED"      # budget outcome; see the note in _run_chipyard
-    if res.reason.startswith("platform:"):
+    if res.gap:
         return "BLOCKED"
     if res.reason.startswith("guard:"):
         return "GUARD"
@@ -366,21 +424,51 @@ def case_status(res):
     return "FAIL"
 
 
+def display_status(res):
+    """Human form of :func:`case_status`: ``TIMEOUT`` -> ``timeout(12h)``.
+
+    The budget comes from the case's own ``--timeout`` (现场派生), so the label
+    states the window the case actually ran under.
+    """
+    status = case_status(res)
+    if status == "TIMEOUT":
+        return "timeout(%s)" % format_budget(res.budget_seconds)
+    return status
+
+
+def status_counts(results):
+    """``{display status: count}`` for the batch trailer (live, no hardcoding).
+
+    Keyed by the *display* form so a budget outcome shows up as
+    ``timeout(12h)`` rather than being lumped into "failed".
+    """
+    counts = {}
+    for res in results:
+        label = display_status(res)
+        counts[label] = counts.get(label, 0) + 1
+    return counts
+
+
 def case_row(res):
     """One JSON-report row for a finished case (single source of truth).
 
     ``--json-out`` writes the whole list at the end; ``--jsonl-out`` appends
     exactly these rows as cases finish, so a reader can union the two forms.
+    ``budget_seconds`` is the batch's ``--timeout`` and ``timeout`` flags a
+    case that exhausted it (no guest verdict) -- both live, never hardcoded.
     """
+    status = case_status(res)
     return {
         "case_id": res.case_id,
         "profile": res.profile,
         "scope": "embench",
         "engine": res.engine,
-        "status": case_status(res),
+        "status": status,
         "exit": res.actual,
         "cycles": res.cycles,
         "seconds": res.seconds,
+        "budget_seconds": res.budget_seconds,
+        "timeout": status == "TIMEOUT",
         "sim_md5": res.sim_md5,
         "markers": res.markers,
         "semi_out": res.semi_out,
@@ -432,7 +520,7 @@ class JsonlSink:
 
 def _report(res, opt):
     actual = "?" if res.actual is None else str(res.actual)
-    status = case_status(res)
+    status = display_status(res)
     extra = ""
     if res.engine == "chipyard":
         extra = f" cycles={res.cycles} {res.seconds}s"
@@ -687,11 +775,14 @@ def main():
 
     hits = sum(1 for r in results if r.actual is not None)
     passed = sum(1 for r in results if r.passed)
+    by_status = status_counts(results)
     sys.stdout.write(
         f"\nResults: {passed}/{len(results)} passed, "
-        f"{len(results) - passed} failed; live hits {hits}/{len(results)} "
+        f"{len(results) - passed} not passed; live hits {hits}/{len(results)} "
         f"(逐项命中; 现场统计)\n"
     )
+    sys.stdout.write("  verdicts: %s\n" % ", ".join(
+        "%s %d" % (k, v) for k, v in sorted(by_status.items())))
     if tools["engine"] == "chipyard":
         cyc = [r.cycles for r in results if r.cycles is not None]
         secs = sum(r.seconds or 0.0 for r in results)

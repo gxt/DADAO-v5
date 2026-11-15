@@ -59,7 +59,7 @@ RE_EMB_HDR = re.compile(
     r"\[(.*?)\].*?engine=(\w+)", re.M)
 RE_EMB_BENCHES = re.compile(r"^  benchmarks: (.*)$", re.M)
 RE_EMB_CASE = re.compile(
-    r"^\s+(PASS|FAIL|TIMEOUT|BLOCKED|GUARD|ERROR)\s+(\S+)\s+\(-(\w+)\)\s+"
+    r"^\s+(PASS|FAIL|TIMEOUT|BLOCKED|GUARD|ERROR|timeout\(\w+\))\s+(\S+)\s+\(-(\w+)\)\s+"
     r"expected=(\S+)\s+actual=(\S+)\s+exit=(\S+)"
     r"(?:\s+cycles=(\S+)\s+([\d.]+)s)?\s+\((.*)\)\s*$", re.M)
 RE_EMB_DONE = re.compile(r"^run_embench_e2e: (PASS|FAIL)\s*$", re.M)

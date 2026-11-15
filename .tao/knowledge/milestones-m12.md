@@ -30,12 +30,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m12-chipyard-031 | 2026-11-15 10:02 | 30–45 min | 超时口径改 `timeout(12h)`（`blocked` 只留构建/环境缺口）+ 重生成 parity 报告 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m12-chipyard-031 | 2026-11-15 11:20 | 超时口径改 `timeout(12h)`（`blocked` 只留构建/环境缺口）+ 报告重生成（`PASS 36 / timeout(12h) 2`） |
 | m12-chipyard-017 | 2026-11-15 09:55 | 引擎 parity 报告生成器入仓（`--check` 逐字节复现；两个 `.sh` 按新规则待迁出） |
 | m12-chipyard-016 | 2026-11-15 01:10 | embench（38）+ picolibc-full 在 chipyard Tiny 达 engine parity（`SYS_FLEN` 修复；单二进制证据） |
 | m12-chipyard-028 | 2026-11-14 07:00 | 重生成 `bootrom.tiny.hex`（514300…/c499803a…）+ 撤 hmon 自装 workaround（235/235） |

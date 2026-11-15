@@ -211,7 +211,15 @@ M12 判据 = **engine parity**（chipyard 与 qemu 同代码同 ELF、只换引�
 - `engine_parity_report.py`：合并两套批次输入 ⇒ 报告对；`--check` 与入库报告
   **逐字节**比对（打印两处 sha256，不符 rc=1 并指出首个差异行）。
 - `engine_parity_pending.py`：列出 picolibc 侧仍缺终态判决的用例（budget
-  `blocked (host timeout)` 不算终态；embench 侧 pending = `38 - cases_seen`）。
+  `blocked (host timeout)` 不算终态；embench 侧 pending = 语料
+  `benchmark × opt` − `cases_seen`，语料规模由用例名现场派生）。
+- **超时口径**（`m12-chipyard-031`，用户 2026-11-15 裁定「blocked 容易让人误解，
+  timeout（12h）如何？」）：预算耗尽的用例记 `timeout(<预算>)`（显示形
+  `timeout(12h)`，机读值 `TIMEOUT`；预算由 `--timeout` 现场换算，`3600→1h`、
+  `5400→90m`），**`blocked` 只留给构建/环境缺口**（ISS-193 long-double、CFX6 缺
+  载体、harness 服务未实现）。`timeout` 属**无判决**：不参与逐例状态一致比较、
+  不计入 chipyard 独有失败 —— 报告 §0/§2 逐条写明；生成器把标签经
+  `parse_budget` 回读校验，换算写错即 rc=1（不打印悄悄错的标签）。
 - `engine_parity_collect.sh`：从节点拉回报告引用的逐例 `semi.out`/`sim.log`
   （供抽查，不重跑批次）。落点 = `.work/evidence/<TASK>/cases/<node>/<suite>/<case>/`
   （`--dest` 可覆盖）：逐例嵌套结构属证据树，不放 `.work/log/` —— 那里受 L1

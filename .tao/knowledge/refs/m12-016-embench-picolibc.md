@@ -5,6 +5,7 @@
 ## 0. M12 判据
 
 - **判据 = engine parity（picolibc 逐例状态与 qemu 一致；不要求全绿）**（用户 2026-11-14 裁定）。
+- **状态词表**（用户 2026-11-15 裁定）：`timeout(<预算>)` 属**无判决**（`--timeout` 预算耗尽、guest 未给 verdict）：不参与「逐例状态一致」比较，**不计入 chipyard 独有失败**；`blocked` 只表示**构建/环境缺口**（如 ISS-193 long-double、CFX6 缺载体、harness 服务未实现），不再表示预算类。
 - qemu 侧既有缺口（登记在册，不计到 chipyard）：
   - `test-abort-failure`：blocked (machine fault CFX6)
   - `test-ceil`：blocked (ISS-193 long-double libcall)
@@ -27,54 +28,64 @@
 
 ## 2. embench（19 benchmark × -O0/-O2）
 
-- **pending 6 例**（`-O0` 夜跑窗口内，等终态后重算本报告）
-- 例数：32；PASS 32；三 marker 齐全 0
-- 周期：min 6959558 / max 55177010 / sum 1005978900（`+max-cycles` 预算 2000000000，无一触顶）
-- **`-O0` 12 h 夜跑窗口**（用户 2026-11-14 裁定）：`server208`、jobs=18、`--timeout 43200`；窗口内的 `-O0` 例在本报告里记 **pending**，12 h 仍不够的才记 `blocked(budget: 12h)` 并单列。
-- 墙钟合计：362944.5s（为各例墙钟之和，非批量墙钟）
+- **汇总：PASS 36 / timeout(12h) 2 / fail 0**（现场统计）
+- **timeout 2 例**（`timeout(<预算>)` = 预算耗尽、guest 无判决 ⇒ **不参与逐例状态一致比较、不计入 chipyard 独有失败**）：
+  - `embench/depthconv-O0`：`timeout(12h)`，预算 43200s，墙钟 43200.01s，分片 `m12-chipyard-016-embench-o0night.log`
+  - `embench/matmult-int-O0`：`timeout(12h)`，预算 43200s，墙钟 43200.01s，分片 `m12-chipyard-016-embench-o0night.log`
+- 例数：38；三 marker 齐全 1
+- 周期：min 6959558 / max 117335858 / sum 1318013194（`+max-cycles` 预算 2000000000，无一触顶）
+- **`-O0` 12 h 夜跑窗口**（用户 2026-11-14 裁定）：`server208`、jobs=18、`--timeout 43200`；窗口已结束，仍未给判决的 `-O0` 例记 `timeout(12h)`（不是 `blocked`）。
+- 墙钟合计：597360.6s（为各例墙钟之和，非批量墙钟）
 - sim md5：ac35dffbc90cef736e5e0788cecb51d2
 
-每例（`status` / `rc`=guest 退出码 / `cycle` / markers / 该批 sim md5 / `+semiout` 路径 / 分片）：
+每例（`status` / `rc`=guest 退出码 / `cycle` / 预算 / markers / 该批 sim md5 / `+semiout` 路径 / 分片）：
 
-| case | status | rc | cycle | markers | sim md5 | semiout | shard |
-|---|---|---|---|---|---|---|---|
-| embench/aha-mont64-O0 | PASS | 0 | 38161877 | ? | ac35dffb | ics180:<work-dir>/O0/aha-mont64/semi.out | ics180 |
-| embench/crc32-O0 | PASS | 0 | 37548594 | ? | ac35dffb | ics160:<work-dir>/O0/crc32/semi.out | ics160 |
-| embench/huffbench-O0 | PASS | 0 | 55177010 | ? | ac35dffb | ics180:<work-dir>/O0/huffbench/semi.out | ics180 |
-| embench/md5sum-O0 | PASS | 0 | 51041444 | ? | ac35dffb | ics180:<work-dir>/O0/md5sum/semi.out | ics180 |
-| embench/nettle-aes-O0 | PASS | 0 | 33738552 | ? | ac35dffb | ics180:<work-dir>/O0/nettle-aes/semi.out | ics180 |
-| embench/nettle-sha256-O0 | PASS | 0 | 40512863 | ? | ac35dffb | ics180:<work-dir>/O0/nettle-sha256/semi.out | ics180 |
-| embench/nsichneu-O0 | PASS | 0 | 27218167 | ? | ac35dffb | ics180:<work-dir>/O0/nsichneu/semi.out | ics180 |
-| embench/qrduino-O0 | PASS | 0 | 46428203 | ? | ac35dffb | ics160:<work-dir>/O0/qrduino/semi.out | ics160 |
-| embench/slre-O0 | PASS | 0 | 49893756 | ? | ac35dffb | ics160:<work-dir>/O0/slre/semi.out | ics160 |
-| embench/statemate-O0 | PASS | 0 | 51203020 | ? | ac35dffb | ics160:<work-dir>/O0/statemate/semi.out | ics160 |
-| embench/tarfind-O0 | PASS | 0 | 47917887 | ? | ac35dffb | ics160:<work-dir>/O0/tarfind/semi.out | ics160 |
-| embench/ud-O0 | PASS | 0 | 51329075 | ? | ac35dffb | ics160:<work-dir>/O0/ud/semi.out | ics160 |
-| embench/wikisort-O0 | PASS | 0 | 46669403 | ? | ac35dffb | ics160:<work-dir>/O0/wikisort/semi.out | ics160 |
-| embench/aha-mont64-O2 | PASS | 0 | 6959558 | ? | ac35dffb | ics180:<work-dir>/O2/aha-mont64/semi.out | ics180 |
-| embench/crc32-O2 | PASS | 0 | 21917277 | ? | ac35dffb | ics160:<work-dir>/O2/crc32/semi.out | ics160 |
-| embench/depthconv-O2 | PASS | 0 | 10088819 | ? | ac35dffb | ics180:<work-dir>/O2/depthconv/semi.out | ics180 |
-| embench/edn-O2 | PASS | 0 | 18651289 | ? | ac35dffb | ics160:<work-dir>/O2/edn/semi.out | ics160 |
-| embench/huffbench-O2 | PASS | 0 | 29170826 | ? | ac35dffb | ics180:<work-dir>/O2/huffbench/semi.out | ics180 |
-| embench/matmult-int-O2 | PASS | 0 | 31715347 | ? | ac35dffb | ics180:<work-dir>/O2/matmult-int/semi.out | ics180 |
-| embench/md5sum-O2 | PASS | 0 | 24599962 | ? | ac35dffb | ics180:<work-dir>/O2/md5sum/semi.out | ics180 |
-| embench/nettle-aes-O2 | PASS | 0 | 16380276 | ? | ac35dffb | ics180:<work-dir>/O2/nettle-aes/semi.out | ics180 |
-| embench/nettle-sha256-O2 | PASS | 0 | 25168424 | ? | ac35dffb | ics180:<work-dir>/O2/nettle-sha256/semi.out | ics180 |
-| embench/nsichneu-O2 | PASS | 0 | 19716419 | ? | ac35dffb | ics180:<work-dir>/O2/nsichneu/semi.out | ics180 |
-| embench/picojpeg-O2 | PASS | 0 | 18606728 | ? | ac35dffb | ics180:<work-dir>/O2/picojpeg/semi.out | ics180 |
-| embench/qrduino-O2 | PASS | 0 | 17466419 | ? | ac35dffb | ics160:<work-dir>/O2/qrduino/semi.out | ics160 |
-| embench/sglib-combined-O2 | PASS | 0 | 19082862 | ? | ac35dffb | ics160:<work-dir>/O2/sglib-combined/semi.out | ics160 |
-| embench/slre-O2 | PASS | 0 | 19603813 | ? | ac35dffb | ics160:<work-dir>/O2/slre/semi.out | ics160 |
-| embench/statemate-O2 | PASS | 0 | 39515797 | ? | ac35dffb | ics160:<work-dir>/O2/statemate/semi.out | ics160 |
-| embench/tarfind-O2 | PASS | 0 | 42526546 | ? | ac35dffb | ics160:<work-dir>/O2/tarfind/semi.out | ics160 |
-| embench/ud-O2 | PASS | 0 | 11495574 | ? | ac35dffb | ics160:<work-dir>/O2/ud/semi.out | ics160 |
-| embench/wikisort-O2 | PASS | 0 | 22572905 | ? | ac35dffb | ics160:<work-dir>/O2/wikisort/semi.out | ics160 |
-| embench/xgboost-O2 | PASS | 0 | 33900208 | ? | ac35dffb | ics160:<work-dir>/O2/xgboost/semi.out | ics160 |
+| case | status | rc | cycle | budget | markers | sim md5 | semiout | shard |
+|---|---|---|---|---|---|---|---|---|
+| embench/aha-mont64-O0 | PASS | 0 | 38161877 | - | ? | ac35dffb | ics180:<work-dir>/O0/aha-mont64/semi.out | ics180 |
+| embench/crc32-O0 | PASS | 0 | 37548594 | - | ? | ac35dffb | ics160:<work-dir>/O0/crc32/semi.out | ics160 |
+| embench/depthconv-O0 | timeout(12h) | ? | ? | 43200s | ? | ac35dffb | server208:<work-dir>/O0/depthconv/semi.out | server208 |
+| embench/edn-O0 | PASS | 0 | 74052687 | - | ? | ac35dffb | server208:<work-dir>/O0/edn/semi.out | server208 |
+| embench/huffbench-O0 | PASS | 0 | 55177010 | - | ? | ac35dffb | ics180:<work-dir>/O0/huffbench/semi.out | ics180 |
+| embench/matmult-int-O0 | timeout(12h) | ? | ? | 43200s | ? | ac35dffb | server208:<work-dir>/O0/matmult-int/semi.out | server208 |
+| embench/md5sum-O0 | PASS | 0 | 51041444 | - | ? | ac35dffb | ics180:<work-dir>/O0/md5sum/semi.out | ics180 |
+| embench/nettle-aes-O0 | PASS | 0 | 33738552 | - | ? | ac35dffb | ics180:<work-dir>/O0/nettle-aes/semi.out | ics180 |
+| embench/nettle-sha256-O0 | PASS | 0 | 40512863 | - | ? | ac35dffb | ics180:<work-dir>/O0/nettle-sha256/semi.out | ics180 |
+| embench/nsichneu-O0 | PASS | 0 | 27218167 | - | ? | ac35dffb | ics180:<work-dir>/O0/nsichneu/semi.out | ics180 |
+| embench/picojpeg-O0 | PASS | 0 | 61348138 | - | ? | ac35dffb | server208:<work-dir>/O0/picojpeg/semi.out | server208 |
+| embench/qrduino-O0 | PASS | 0 | 46428203 | - | ? | ac35dffb | ics160:<work-dir>/O0/qrduino/semi.out | ics160 |
+| embench/sglib-combined-O0 | PASS | 0 | 59297611 | - | ? | ac35dffb | server208:<work-dir>/O0/sglib-combined/semi.out | server208 |
+| embench/slre-O0 | PASS | 0 | 49893756 | - | ? | ac35dffb | ics160:<work-dir>/O0/slre/semi.out | ics160 |
+| embench/statemate-O0 | PASS | 0 | 51203020 | - | ? | ac35dffb | ics160:<work-dir>/O0/statemate/semi.out | ics160 |
+| embench/tarfind-O0 | PASS | 0 | 47917887 | - | ? | ac35dffb | ics160:<work-dir>/O0/tarfind/semi.out | ics160 |
+| embench/ud-O0 | PASS | 0 | 51329075 | - | ? | ac35dffb | ics160:<work-dir>/O0/ud/semi.out | ics160 |
+| embench/wikisort-O0 | PASS | 0 | 46669403 | - | ? | ac35dffb | ics160:<work-dir>/O0/wikisort/semi.out | ics160 |
+| embench/xgboost-O0 | PASS | 0 | 117335858 | - | 3 | ac35dffb | ics170:<work-dir>/O0/xgboost/semi.out | ics170 |
+| embench/aha-mont64-O2 | PASS | 0 | 6959558 | - | ? | ac35dffb | ics180:<work-dir>/O2/aha-mont64/semi.out | ics180 |
+| embench/crc32-O2 | PASS | 0 | 21917277 | - | ? | ac35dffb | ics160:<work-dir>/O2/crc32/semi.out | ics160 |
+| embench/depthconv-O2 | PASS | 0 | 10088819 | - | ? | ac35dffb | ics180:<work-dir>/O2/depthconv/semi.out | ics180 |
+| embench/edn-O2 | PASS | 0 | 18651289 | - | ? | ac35dffb | ics160:<work-dir>/O2/edn/semi.out | ics160 |
+| embench/huffbench-O2 | PASS | 0 | 29170826 | - | ? | ac35dffb | ics180:<work-dir>/O2/huffbench/semi.out | ics180 |
+| embench/matmult-int-O2 | PASS | 0 | 31715347 | - | ? | ac35dffb | ics180:<work-dir>/O2/matmult-int/semi.out | ics180 |
+| embench/md5sum-O2 | PASS | 0 | 24599962 | - | ? | ac35dffb | ics180:<work-dir>/O2/md5sum/semi.out | ics180 |
+| embench/nettle-aes-O2 | PASS | 0 | 16380276 | - | ? | ac35dffb | ics180:<work-dir>/O2/nettle-aes/semi.out | ics180 |
+| embench/nettle-sha256-O2 | PASS | 0 | 25168424 | - | ? | ac35dffb | ics180:<work-dir>/O2/nettle-sha256/semi.out | ics180 |
+| embench/nsichneu-O2 | PASS | 0 | 19716419 | - | ? | ac35dffb | ics180:<work-dir>/O2/nsichneu/semi.out | ics180 |
+| embench/picojpeg-O2 | PASS | 0 | 18606728 | - | ? | ac35dffb | ics180:<work-dir>/O2/picojpeg/semi.out | ics180 |
+| embench/qrduino-O2 | PASS | 0 | 17466419 | - | ? | ac35dffb | ics160:<work-dir>/O2/qrduino/semi.out | ics160 |
+| embench/sglib-combined-O2 | PASS | 0 | 19082862 | - | ? | ac35dffb | ics160:<work-dir>/O2/sglib-combined/semi.out | ics160 |
+| embench/slre-O2 | PASS | 0 | 19603813 | - | ? | ac35dffb | ics160:<work-dir>/O2/slre/semi.out | ics160 |
+| embench/statemate-O2 | PASS | 0 | 39515797 | - | ? | ac35dffb | ics160:<work-dir>/O2/statemate/semi.out | ics160 |
+| embench/tarfind-O2 | PASS | 0 | 42526546 | - | ? | ac35dffb | ics160:<work-dir>/O2/tarfind/semi.out | ics160 |
+| embench/ud-O2 | PASS | 0 | 11495574 | - | ? | ac35dffb | ics160:<work-dir>/O2/ud/semi.out | ics160 |
+| embench/wikisort-O2 | PASS | 0 | 22572905 | - | ? | ac35dffb | ics160:<work-dir>/O2/wikisort/semi.out | ics160 |
+| embench/xgboost-O2 | PASS | 0 | 33900208 | - | ? | ac35dffb | ics160:<work-dir>/O2/xgboost/semi.out | ics160 |
 
 ## 3. picolibc full（chipyard）
 
 - 总例数 235：pass 128 / fail 1 / blocked 84 / excluded 22
 - 逐例明细在 JSON 的 `cases[]`（字段 `status` / `rc` / `cycles` / `semi_out` / `sim_log` / `sim_md5`）；下面只列非 pass。
+- 本段 `blocked` 是 picolibc 驱动的**历史原值**（含 host timeout 的 budget 类，已在 §4 单列 `budget_blocked`），不改写；embench 段已按新词表记 `timeout(<预算>)`、`blocked` 只留构建/环境缺口。
 - 周期合计 80383541；墙钟合计 83799.0s；sim md5 None
 
 ## 4. 与 qemu 基线逐例一致（同代码同 ELF，只换引擎）

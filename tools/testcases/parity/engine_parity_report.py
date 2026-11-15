@@ -30,6 +30,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -53,6 +54,12 @@ SHARD_NODE = {
     "m12-chipyard-016-embench.log": "server208",
     "m12-chipyard-016-embench-a.log": "ics180",
     "m12-chipyard-016-embench-b.log": "ics160",
+    # `-O0` 12 h night window (m12-chipyard-031): the shard that finished it and
+    # the separate rerun of the one case that was still running at the window
+    # end (its trailer states NODE=ics170).
+    "m12-chipyard-016-embench-o0night.log": "server208",
+    "m12-chipyard-016-embench-o0xg.log": "ics170",
+    "m12-chipyard-016-embench-o0xg.json": "ics170",
     "m12-chipyard-016-picolibc-chipyard": "ics150",
 }
 NODE_MAP = dict(SHARD_NODE)
@@ -76,6 +83,15 @@ FLEN_AFFECTED = {
 }
 
 CRITERION = "engine parity（picolibc 逐例状态与 qemu 一致；不要求全绿）"
+
+# 用户 2026-11-15 裁定（原话「blocked 容易让人误解，timeout（12h）如何？」）：
+# 预算耗尽 ⇒ `timeout(<预算>)`（机器值 TIMEOUT），`blocked` 收窄为构建/环境缺口。
+TIMEOUT_NOTE = (
+    "`timeout(<预算>)` 属**无判决**（`--timeout` 预算耗尽、guest 未给 verdict）："
+    "不参与「逐例状态一致」比较，**不计入 chipyard 独有失败**；"
+    "`blocked` 只表示**构建/环境缺口**（如 ISS-193 long-double、CFX6 缺载体、"
+    "harness 服务未实现），不再表示预算类。")
+
 QEMU_BASELINE_GAPS = {
     "test-ceil": "blocked (ISS-193 long-double libcall)",
     "test-long-double": "blocked (ISS-193 long-double libcall)",
@@ -91,32 +107,136 @@ def _is_budget(status, reason):
     return ("timeout" in reason) or ("budget" in reason)
 
 
+# The budget label rule (`format_budget`/`parse_budget`) lives next to
+# `case_status()` in the embench runner -- the one place that decides a case's
+# status.  This generator prints the *same* label, so it imports it rather than
+# re-deriving the rule here (a second copy would drift).
+_BUDGET = None
+_BUDGET_PATH = os.path.join("tools", "testcases", "tset", "embench",
+                            "run_embench_e2e.py")
+
+
+class BudgetError(RuntimeError):
+    """A `timeout(<预算>)` label does not agree with the seconds behind it."""
+
+
+def _budget_tools():
+    global _BUDGET
+    if _BUDGET is None:
+        import importlib.util
+        path = os.path.join(REPO, _BUDGET_PATH)
+        spec = importlib.util.spec_from_file_location("_embench_runner", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _BUDGET = (mod.format_budget, mod.parse_budget)
+    return _BUDGET
+
+
+def budget_label(seconds):
+    """`timeout(<label>)` body for a budget in seconds; round-trip checked.
+
+    The check is the point: if the conversion is wrong (43200 -> `11h`), the
+    label and the seconds disagree and the report fails instead of printing a
+    quiet lie (AGENTS「验证脚本反例门控」: 可达 FAIL).
+    """
+    if seconds is None:
+        raise BudgetError("TIMEOUT row without budget_seconds")
+    format_budget, parse_budget = _budget_tools()
+    label = format_budget(seconds)
+    if parse_budget(label) != int(seconds):
+        raise BudgetError(
+            "budget conversion is not a round trip: %ss -> %r -> %ss"
+            % (seconds, label, parse_budget(label)))
+    return label
+
+
+# One per-case progress line.  The status token is either a machine word or
+# the display form `timeout(<预算>)` (m12-chipyard-031); the old runner printed
+# a binary `FAIL` plus "(platform: host timeout after 43200s ...)".
+_CASE_LINE_RE = re.compile(
+    r"^\s+(PASS|FAIL|TIMEOUT|BLOCKED|GUARD|ERROR|timeout\((\w+)\))\s+"
+    r"(\S+)\s+\(-(\w+)\)\s+"
+    r"expected=(\S+)\s+actual=(\S+)\s+exit=(\S+)"
+    r"(?:\s+cycles=(\S+)\s+([\d.]+)s)?\s+\((.*)\)$",
+    re.MULTILINE)
+# The budget a case ran under, as the harness states it.
+_TIMEOUT_RE = re.compile(r"host timeout after (\d+)s")
+
+
+def _reason_budget(reason):
+    m = _TIMEOUT_RE.search(reason or "")
+    return int(m.group(1)) if m else None
+
+
+def _classify(token, label, reason, case_id):
+    """(status, budget_seconds) for one parsed line.
+
+    `timeout(<label>)` -> TIMEOUT with the stated budget (the label must agree
+    with the "host timeout after Ns" evidence).  Legacy binary lines (old
+    runner: `FAIL` + host-timeout reason) are the *same* no-verdict outcome, so
+    they are read as TIMEOUT too -- dropping them silently was the bug this
+    task fixes.  A TIMEOUT without a budget is a hard error: no guessed value.
+    """
+    budget = _reason_budget(reason)
+    if label is not None:
+        try:
+            stated = _budget_tools()[1](label)
+        except ValueError as exc:
+            raise BudgetError("%s: %s" % (case_id, exc))
+        if budget is not None and stated != budget:
+            raise BudgetError(
+                "%s: label timeout(%s) = %ss but the log says %ss (attempted "
+                "conversion does not match the runtime budget)"
+                % (case_id, label, stated, budget))
+        budget = stated
+    status = token
+    if token.startswith("timeout("):
+        status = "TIMEOUT"
+    elif status in ("FAIL", "BLOCKED", "TIMEOUT") and budget is not None:
+        status = "TIMEOUT"
+    if status == "TIMEOUT" and budget is None:
+        raise BudgetError("%s: TIMEOUT without a budget in the log line" % case_id)
+    return status, budget
+
+
+def _case_paths(case_id, leaf):
+    """`<work-dir>/<opt>/<bench>/<leaf>` for a case id.
+
+    The report is a *knowledge* artifact: it must not carry a runtime absolute
+    path (a fresh clone cannot reproduce it), so per-case file locations are
+    stated in this relative form.
+    """
+    bench, opt = case_id.split("/", 1)[1].rsplit("-", 1)
+    return os.path.join("<work-dir>", opt, bench, leaf)
+
+
 def _parse_log(path, extra_events=None, shard=None, semiout_of=None):
     """Parse one embench shard *log* into runner-JSON-shaped cases.
 
     A shard that is still running has no `--json-out` file yet; its per-case
-    lines (`PASS/FAIL <bench> (-<opt>) ... exit=<n> cycles=<n> <s>s`) and its
-    batch trailer (`START/END/EXIT/WALL/JOBS`) are, so the report can state a
-    partial batch without inventing numbers.
+    lines (`PASS/FAIL/timeout(<预算>) <bench> (-<opt>) ... exit=<n> cycles=<n>
+    <s>s`) and its batch trailer (`START/END/EXIT/WALL/JOBS`) are, so the
+    report can state a partial batch without inventing numbers.
     """
-    import re
     cases = []
     with open(path, encoding="utf-8", errors="replace") as fh:
         text = fh.read()
-    for m in re.finditer(r"^\s+(PASS|FAIL)\s+(\S+)\s+\(-(\w+)\)\s+"
-                         r"expected=(\S+)\s+actual=(\S+)\s+exit=(\S+)"
-                         r"(?:\s+cycles=(\S+)\s+([\d.]+)s)?\s+\((.*)\)$",
-                         text, re.MULTILINE):
-        status, bench, opt, _exp, _act, exitv, cycles, secs, reason = m.groups()
+    for m in _CASE_LINE_RE.finditer(text):
+        (token, label, bench, opt, _exp, _act, exitv,
+         cycles, secs, reason) = m.groups()
+        case_id = "embench/%s-%s" % (bench, opt)
+        status, budget = _classify(token, label, reason, case_id)
         cases.append({
-            "case_id": "embench/%s-%s" % (bench, opt),
+            "case_id": case_id,
             "status": status,
             "exit": None if exitv == "?" else int(exitv),
             "cycles": None if cycles in (None, "None") else int(cycles),
             "seconds": float(secs) if secs else None,
+            "budget_seconds": budget,
             "sim_md5": (extra_events or {}).get("sim_md5"),
             "markers": None,  # a log line does not carry the marker list
             "shard": NODE_MAP.get(shard, shard),
+            "shard_log": shard,
             "semi_out": ((NODE_MAP.get(shard, "?") + ":"
                           + semiout_of(bench, opt)) if semiout_of else None),
             "sim_log": None,
@@ -216,22 +336,44 @@ def load_embench():
     """Union the embench batches (the suite is sharded across nodes).
 
     Every shard writes its own ``m12-chipyard-016-embench*.json``; a case that
-    ran on more than one node is kept once (a completed case wins over a
-    pending/aborted one).  The union is what the report states; the shard files
-    stay in the runtime log directory.
+    ran on more than one node is kept once.  A shard file stays in the runtime
+    log directory; the model is:
+
+    * a case that reached a **verdict** (``exit`` known) wins over one that
+      gave none;
+    * between two no-verdict records the one with the **larger budget** wins
+      (the 12 h night window supersedes the earlier 4 h one) -- and the record
+      is kept, never dropped: a `timeout(<预算>)` case is a stated outcome.
     """
     import glob
-    import re
     cases = {}
+
+    def rank(c):
+        return (c["exit"] is not None, c.get("budget_seconds") or 0)
+
+    def put(c):
+        prev = cases.get(c["case_id"])
+        if prev is None or rank(c) > rank(prev):
+            cases[c["case_id"]] = c
+
     shards = sorted(glob.glob(os.path.join(LOG, "m12-chipyard-016-embench*.json")))
     logs = sorted(glob.glob(os.path.join(LOG, "m12-chipyard-016-embench*.log")))
     for path in shards:
         with open(path, encoding="utf-8") as fh:
             doc = json.load(fh)
+        shard = os.path.basename(path)
         for c in doc["cases"]:
-            prev = cases.get(c["case_id"])
-            if prev is None or (prev["exit"] is None and c["exit"] is not None):
-                cases[c["case_id"]] = c
+            c = dict(c)
+            # New runner rows state the budget; old ones only carry the reason.
+            if c.get("budget_seconds") is None:
+                c["budget_seconds"] = _reason_budget(c.get("note", ""))
+            if c.get("status") in ("FAIL", "BLOCKED") and c["budget_seconds"]:
+                # A legacy JSON row from the binary-PASS/FAIL runner: same
+                # no-verdict outcome, now stated as TIMEOUT.
+                c["status"] = "TIMEOUT"
+            c["shard"] = NODE_MAP.get(shard, shard)
+            c["shard_log"] = shard
+            put(c)
     for path in logs:
         with open(path, encoding="utf-8", errors="replace") as fh:
             head = fh.read()
@@ -240,18 +382,12 @@ def load_embench():
         for c in _parse_log(path, ev, os.path.basename(path),
                             lambda b, o: os.path.join(
                                 "<work-dir>", o, b, "semi.out")):
-            prev = cases.get(c["case_id"])
-            if prev is None or (prev["exit"] is None and c["exit"] is not None):
-                cases[c["case_id"]] = c
+            put(c)
     if not cases:
         raise SystemExit("no embench shard json/log under %s" % LOG)
-    # 用户 2026-11-14：`-O0` 改由 12 h 夜跑窗口覆盖 ⇒ 4 h 预算的 `blocked(budget)`
-    # 记录在夜跑期间视为 **pending**（等夜跑给终态），不留进最终报告。
+    # 用户 2026-11-14：`-O0` 改由 12 h 夜跑窗口覆盖。窗口**已结束**（2026-11-15
+    # 08:48），因此不再把 `-O0` 无判决例删成 pending：它们记 `timeout(12h)`。
     night = any("o0night" in p for p in shards + logs)
-    if night:
-        for cid in [c for c, r in cases.items()
-                    if c.endswith("-O0") and r["exit"] is None]:
-            del cases[cid]
     cases = list(cases.values())
     cases.sort(key=lambda c: (c["case_id"].split("-")[-1], c["case_id"]))
     return {"cases": cases, "shards": [os.path.basename(p) for p in shards],
@@ -270,20 +406,55 @@ def build():
         "exit": c["exit"],
         "cycles": c["cycles"],
         "seconds": c["seconds"],
+        "budget_seconds": c.get("budget_seconds"),
+        "timeout": c["status"] == "TIMEOUT",
+        # The display label is produced here, round-trip checked (可达 FAIL:
+        # a wrong conversion such as 43200 -> "11h" raises BudgetError).
+        "budget_label": (budget_label(c["budget_seconds"])
+                         if c["status"] == "TIMEOUT" else None),
         "sim_md5": c["sim_md5"],
         "markers": c["markers"] if "markers" in c else None,
-        "semi_out": c.get("semi_out"),
-        "sim_log": c.get("sim_log"),
+        # 运行期绝对路径一律改写成 `<work-dir>/…`（报告不入运行期路径）。
+        "semi_out": "%s:%s" % (c.get("shard") or "-",
+                               _case_paths(c["case_id"], "semi.out")),
+        "sim_log": _case_paths(c["case_id"], "sim.log"),
         "shard": c.get("shard"),
+        "shard_log": c.get("shard_log"),
         "reason": c.get("note", c.get("reason", "")),
     } for c in emb["cases"]]
     emb_cycles = [c["cycles"] for c in emb_cases if c["cycles"]]
+    timeouts = [c for c in emb_cases if c["status"] == "TIMEOUT"]
+    # 语料规模现场派生（用例名里的 benchmark × opt 网格），不写死 38。
+    benches = sorted({c["case_id"].rsplit("-", 1)[0] for c in emb_cases})
+    opts = sorted({c["case_id"].rsplit("-", 1)[1] for c in emb_cases})
+    expected = len(benches) * len(opts)
+    timeout_groups = {}
+    for c in timeouts:
+        timeout_groups[c["budget_label"]] = timeout_groups.get(
+            c["budget_label"], 0) + 1
     emb_stats = {
+        "criterion": "guest exit 0 + 三个 board marker（chipyard）",
         "total": len(emb_cases),
+        "expected": expected,
+        "corpus": {"benchmarks": len(benches), "opts": opts},
+        "cases_seen": len(emb_cases),
+        "pending": max(0, expected - len(emb_cases)),
         "pass": sum(1 for c in emb_cases if c["status"] == "PASS"),
+        "timeout": len(timeouts),
+        "timeout_cases": [{"case_id": c["case_id"],
+                           "status": c["status"],
+                           "budget_seconds": c["budget_seconds"],
+                           "budget_label": c["budget_label"],
+                           "wall_seconds": c["seconds"],
+                           "shard": c["shard"],
+                           "shard_log": c["shard_log"],
+                           "reason": c["reason"]} for c in timeouts],
+        "timeout_groups": timeout_groups,
+        "fail": sum(1 for c in emb_cases if c["status"] in ("FAIL", "GUARD")),
+        "blocked": sum(1 for c in emb_cases if c["status"] == "BLOCKED"),
+        "error": sum(1 for c in emb_cases if c["status"] == "ERROR"),
         "with_markers": sum(1 for c in emb_cases
                             if c["markers"] is not None and len(c["markers"]) == 3),
-        "max_cycles_budget": max((c["cycles"] or 0) for c in emb_cases) and None,
         "cycles_min": min(emb_cycles) if emb_cycles else None,
         "cycles_max": max(emb_cycles) if emb_cycles else None,
         "cycles_sum": sum(emb_cycles) if emb_cycles else None,
@@ -291,19 +462,7 @@ def build():
         "sim_md5": sorted({c["sim_md5"] for c in emb_cases if c["sim_md5"]}),
         "shards": emb.get("shards", []),
         "o0_night_window": emb.get("o0_night_window", False),
-        "cases_seen": len(emb_cases),
-        "max_cycles_exhausted": sum(1 for c in emb_cases
-                                    if c["status"] in ("GUARD", "TIMEOUT")),
-        "budget_blocked": sorted(
-            c["case_id"] for c in emb_cases
-            if _is_budget(c["status"], c["reason"])),
-        "fail": sum(1 for c in emb_cases
-                    if c["status"] in ("FAIL", "GUARD")
-                    and not _is_budget(c["status"], c["reason"])),
-        "blocked": sum(1 for c in emb_cases
-                       if c["status"] == "BLOCKED"
-                       and not _is_budget(c["status"], c["reason"])),
-        "criterion": "guest exit 0 + 三个 board marker（chipyard）",
+        "timeout_policy": TIMEOUT_NOTE,
     }
 
     def pic(doc):
@@ -312,7 +471,12 @@ def build():
             "reason": r["reason"], "cycles": r.get("cycles"),
             "seconds": r.get("seconds"), "rc": r.get("rc"),
             "pool": r.get("_pool"),
-            "semi_out": r.get("semi_out"), "sim_log": r.get("sim_log"),
+            # 运行期绝对路径一律改写成 `<work-dir>/…`（报告不入运行期路径；
+            # 各例来自哪个池仍由 `pool` 字段标明）。
+            "semi_out": ("<work-dir>/run/%s/semi.out" % r["name"]
+                         if r.get("semi_out") else None),
+            "sim_log": ("<work-dir>/run/%s/sim.log" % r["name"]
+                        if r.get("sim_log") else None),
             "sim_md5": r.get("sim_md5"),
         } for r in doc["results"]]
         return {"total": doc.get("total", len(rows)), "finished": len(rows),
@@ -400,6 +564,7 @@ def build():
     md.append("## 0. M12 判据")
     md.append("")
     md.append("- **判据 = %s**（用户 2026-11-14 裁定）。" % CRITERION)
+    md.append("- **状态词表**（用户 2026-11-15 裁定）：%s" % TIMEOUT_NOTE)
     md.append("- qemu 侧既有缺口（登记在册，不计到 chipyard）：")
     for name in sorted(QEMU_BASELINE_GAPS):
         md.append("  - `%s`：%s" % (name, QEMU_BASELINE_GAPS[name]))
@@ -428,29 +593,55 @@ def build():
     md.append("- 防假绿：`+max-cycles` 触顶 ⇒ FAIL；跑批前后 sim 二进制 md5 必须相同 ⇒ 否则 FAIL；"
               "embench 另要求三个板级 marker 齐全")
     md.append("")
-    md.append("## 2. embench（19 benchmark × -O0/-O2）")
+    md.append("## 2. embench（%d benchmark × %s）"
+              % (emb_stats["corpus"]["benchmarks"],
+                 "/".join("-" + o for o in emb_stats["corpus"]["opts"])))
     md.append("")
-    _pending = 38 - emb_stats["cases_seen"]
-    if _pending:
-        md.append("- **pending %d 例**（`-O0` 夜跑窗口内，等终态后重算本报告）"
-                  % _pending)
-    md.append("- 例数：%d；PASS %d；三 marker 齐全 %d"
-              % (emb_stats["total"], emb_stats["pass"], emb_stats["with_markers"]))
+    _summary = ["PASS %d" % emb_stats["pass"]]
+    for label in sorted(emb_stats["timeout_groups"]):
+        _summary.append("%s %d" % (("timeout(%s)" % label),
+                                   emb_stats["timeout_groups"][label]))
+    _summary.append("fail %d" % emb_stats["fail"])
+    if emb_stats["blocked"]:
+        _summary.append("blocked %d" % emb_stats["blocked"])
+    if emb_stats["error"]:
+        _summary.append("ERROR %d" % emb_stats["error"])
+    md.append("- **汇总：%s**（现场统计）" % " / ".join(_summary))
+    if emb_stats["pending"]:
+        md.append("- **pending %d 例**（语料 %d = %d benchmark × %d opt，已见 %d）"
+                  % (emb_stats["pending"], emb_stats["expected"],
+                     emb_stats["corpus"]["benchmarks"],
+                     len(emb_stats["corpus"]["opts"]), emb_stats["cases_seen"]))
+    if timeouts:
+        md.append("- **timeout %d 例**（`timeout(<预算>)` = 预算耗尽、guest 无判决 ⇒ "
+                  "**不参与逐例状态一致比较、不计入 chipyard 独有失败**）："
+                  % len(timeouts))
+        for c in timeouts:
+            md.append("  - `%s`：`timeout(%s)`，预算 %ss，墙钟 %ss，分片 `%s`"
+                      % (c["case_id"], c["budget_label"], c["budget_seconds"],
+                         c["seconds"], c["shard_log"] or c["shard"] or "-"))
+    md.append("- 例数：%d；三 marker 齐全 %d"
+              % (emb_stats["total"], emb_stats["with_markers"]))
     md.append("- 周期：min %s / max %s / sum %s（`+max-cycles` 预算 %s，无一触顶）"
               % (emb_stats["cycles_min"], emb_stats["cycles_max"],
                  emb_stats["cycles_sum"], "2000000000"))
     if emb_stats.get("o0_night_window"):
         md.append("- **`-O0` 12 h 夜跑窗口**（用户 2026-11-14 裁定）：`server208`、jobs=18、"
-                  "`--timeout 43200`；窗口内的 `-O0` 例在本报告里记 **pending**，"
-                  "12 h 仍不够的才记 `blocked(budget: 12h)` 并单列。")
+                  "`--timeout 43200`；窗口已结束，仍未给判决的 `-O0` 例记 "
+                  "`timeout(12h)`（不是 `blocked`）。")
     md.append("- 墙钟合计：%ss（为各例墙钟之和，非批量墙钟）"
               % emb_stats["wall_seconds_sum"])
     md.append("- sim md5：%s" % ", ".join(emb_stats["sim_md5"]))
     md.append("")
-    md += table("每例（`status` / `rc`=guest 退出码 / `cycle` / markers / "
+    md += table("每例（`status` / `rc`=guest 退出码 / `cycle` / 预算 / markers / "
                 "该批 sim md5 / `+semiout` 路径 / 分片）：", emb_cases, [
-        ("case", lambda r: r["case_id"]), ("status", lambda r: r["status"]),
-        ("rc", lambda r: r["exit"]), ("cycle", lambda r: r["cycles"]),
+        ("case", lambda r: r["case_id"]),
+        ("status", lambda r: (("timeout(%s)" % r["budget_label"])
+                              if r["status"] == "TIMEOUT" else r["status"])),
+        ("rc", lambda r: ("?" if r["exit"] is None else r["exit"])),
+        ("cycle", lambda r: ("?" if r["cycles"] is None else r["cycles"])),
+        ("budget", lambda r: (("%ss" % r["budget_seconds"])
+                              if r["budget_seconds"] else "-")),
         ("markers", lambda r: (len(r["markers"])
                                if r["markers"] is not None else "?")),
         ("sim md5", lambda r: (r["sim_md5"] or "")[:8]),
@@ -470,6 +661,9 @@ def build():
                  cy["counts"]["blocked"], cy["counts"]["excluded"]))
     md.append("- 逐例明细在 JSON 的 `cases[]`（字段 `status` / `rc` / "
               "`cycles` / `semi_out` / `sim_log` / `sim_md5`）；下面只列非 pass。")
+    md.append("- 本段 `blocked` 是 picolibc 驱动的**历史原值**（含 host timeout 的 budget 类，"
+              "已在 §4 单列 `budget_blocked`），不改写；embench 段已按新词表记 "
+              "`timeout(<预算>)`、`blocked` 只留构建/环境缺口。")
     md.append("- 周期合计 %s；墙钟合计 %ss；sim md5 %s"
               % (cy.get("cycles_sum"), cy.get("wall_seconds_sum"),
                  cy.get("sim_md5")))
@@ -571,6 +765,9 @@ def main(argv=None) -> int:
     except SystemExit as exc:  # no embench shard
         print("engine_parity_report: SETUP: %s" % exc, file=sys.stderr)
         return 2
+    except BudgetError as exc:  # label/seconds disagree: the report would lie
+        print("engine_parity_report: FAIL: %s" % exc, file=sys.stderr)
+        return 1
     except FileNotFoundError as exc:
         print("engine_parity_report: SETUP: missing input %s" % exc,
               file=sys.stderr)

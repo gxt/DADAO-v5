@@ -5,7 +5,7 @@
 **依赖**：`m12-chipyard-016`（已合 `3924a248`）、`m12-chipyard-017`（已合 `f37c6721`）
 **可并行分片**：否
 **预估**：30–45 min（词表/换算/重生成/2 路注入；不含重跑用例）
-**状态**：待开始
+**状态**：已验证
 
 > 编号说明：`m12-chipyard-018` 已被「核心结构改造：双 TL 端口 + 8-beat 取指 + FSM 骨架」（已验证）占用，本任务取 **031**。
 
@@ -51,8 +51,58 @@
 
 ## 待裁定
 
-（实现中写）
+1. **picolibc 段的逐例 `semi_out`/`sim_log` 改为模板形**。验收 3 要求「报告内无运行期路径」，
+   而 picolibc 侧 84+ 条记录原本带节点绝对路径。已自决：统一写成
+   `<work-dir>/run/<case>/<leaf>`（各例来自哪个池仍由 `pool` 字段标明，计数不变）。
+   选项：A 保留模板（现选）／B 还原绝对路径（违反验收 3）／C 只保留相对仓库根形式。
+   **请用户确认 A**；若选 B/C 由后续任务改一行即可。
+2. **picolibc 段的 `blocked` 未改判为 `timeout(<预算>)`**。验收 5 要求 picolibc `blocked`
+   计数改动前后一致，故历史数据保持原样（其中含 host timeout 的 budget 类，已在 §4
+   单列）。只在此段加了一句口径说明。
+3. **两处超出文件清单的连带改动**：`progress.py`（进度看板正则）与
+   `engine_parity_pending.py`（docstring 一句）。理由：新显示形 `timeout(<预算>)` 会让
+   看板漏掉这些例、让文档公式失真；改动各 1 行、无行为扩展。
 
 ## 审阅记录
 
-（待填）
+### 第 1 轮 engineer 自审
+
+**范围**：两个脚本的 diff 逐行 + 报告对 diff + 证据脚本；重点看未测输入（新式日志行、
+非法标签、无 timeout 的批次）与旁路消费者（看板/collect/pending）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| `embench.cases[]` 行只加 `budget_seconds`，漏了任务要求的 `timeout: true` | ✅已修 | `emb_cases` 增加 `timeout` 布尔 | 证据 R4 两例 `(TIMEOUT, True, 43200)` |
+| 注入脚本把 runner 文件模式改成 755（多余的 mode change） | ✅已修 | `chmod 644` + 还原改 `cp -p` | 证据 "runner mode unchanged (644)"；`git diff --summary` 空 |
+| 证据里 `format_budget(60)` 期望写成 `1h` | ✅已修 | 期望改 `("12h","1m")` | 证据 V7 rc=0 |
+| 进度看板 `RE_EMB_CASE` 不认 `timeout(<预算>)` ⇒ 这些例在看板「消失」 | ✅已修 | 正则加 `timeout\(\w+\)` 分支 | 实测两条样本（新式+旧式）均 match |
+| 引 JSON 分片把节点绝对路径带进报告 | ✅已修 | `_case_paths` 统一 `<work-dir>/…`；picolibc 段同 | 证据 R6：两文件 0 处 `/home|/mnt|/tmp` |
+| INJ1 只断言 diff 里出现用例名（弱） | ✅已修 | 加「重生成变 `PASS 37 / timeout(12h) 1`」语义断言 | 证据 INJ1 patched summary PASS |
+| `case_row` 里 `case_status` 调两次 | ✅已修 | 提局部变量 | `py_compile` + 证据 V5 |
+| `timeout(1d)` 这类非法标签会抛裸 `ValueError` | ✅已修 | 转 `BudgetError`（rc=1 带消息） | INJ4b 走同一异常路径，rc=1 |
+| TIMEOUT 行若缺 `budget_seconds`（如未来 JSON 分片）会 `TypeError` | ✅已修 | `budget_label()` 前置守卫 ⇒ `BudgetError` | 证据 R3 两例读到 `43200`；异常路径与 INJ2 同 |
+| 批次汇总的 `by_status` 内联在 `main()`，无法单测 | ✅已修 | 提为 `status_counts()` | 证据 V8（4 类各 1 例） |
+
+**判决**：10 条 finding 全部 ✅已修，无延期项 ⇒ 状态置 `待验收`。
+
+## 完成区
+
+**测试结果**：证据脚本 56 项检查全 PASS（rc=0），`--inject` 模式亦 rc=0；未重跑任何 embench/picolibc 用例（数据已定）。
+
+**修改文件**：`tools/testcases/tset/embench/run_embench_e2e.py`（词表拆分 `res.timeout`/`res.gap`、`format_budget`/`parse_budget`、`display_status`、`_report` 走显示形、`case_row` 加 `budget_seconds`+`timeout`、汇总行）、`tools/testcases/parity/engine_parity_report.py`（新/旧行同解析、标签回读校验、timeout 单列与汇总、路径模板化）、`tools/testcases/tset/embench/progress.py`、`tools/testcases/parity/engine_parity_pending.py`、`tools/testcases/parity/README.md`、报告对 `m12-016-embench-picolibc.{json,md}`（重生成）；证据 `run.sh`+`check_vocab.py`+`check_report.py`（运行期证据目录，未入库）。
+
+**验收结果**：
+1. 词表：`format_budget`/`parse_budget` 在 runner（预算由 `--timeout` 现场派生，`43200→12h`、`3600→1h`、`5400→90m` 非整小时实测）；`grep` 证据：`case_status` 内 `return "TIMEOUT"` 1 处、`_report` 用 `display_status` 1 处、不再直接用 `case_status` 0 处。
+2. 报告：`**汇总：PASS 36 / timeout(12h) 2 / fail 0**`；两例 `embench/matmult-int-O0`、`embench/depthconv-O0` 各带 `timeout(12h)`+预算 43200s+墙钟 43200.01s；JSON `timeout_cases` 两项同值，`cases_seen=expected=38`、`pending=0`。
+3. `--check` rc=0；md sha256 `ccb1b69bafd12c30726659740a087819ba9b17fd35e5be0db079351204968fb0`(18090 B)、json `56ccdc8d42bc2c3b66c4007edde99bc0a7c9f274f4c1f2110d6587ca434e4636`(169711 B)；两次重生成逐字节一致；两文件 0 处 `/home|/mnt|/tmp`、0 处生成时刻。
+4. 可达 FAIL 4 路（`cp`+md5 还原，前后 md5 相同）：INJ1 日志把 matmult-int 改回 PASS ⇒ `--check` rc=1（重生成变 `PASS 37 / timeout(12h) 1`）→还原 rc=0；INJ2 换算写死 11h ⇒ rc=1「not a round trip」→还原 rc=0；INJ4b 新式行标签 11h ⇒ rc=1「label timeout(11h) = 39600s but the log says 43200s」；INJ3 复现旧「静默丢」⇒ 汇总断言变红。
+5. picolibc `blocked` 84→84（chipyard）、4→4（qemu 基线），counts 全等。
+6. 门控 `check-knowledge-refs`/`check-no-residue`/`check-dirs`/`check-tests-index`/`py_compile`/`bash -n` 全 rc=0。
+
+**新发现/坑**：
+- 旧 runner 打的是二元 `FAIL` + `(platform: host timeout after 43200s …)`：生成器必须从 reason 反读预算，否则只能丢弃 —— 这就是「静默丢」的根因。
+- 显示形一旦带预算，所有旁路解析（进度看板）都要同步改正则，否则这些例会从看板上消失。
+- 只比 `--check` 抓不到换算写错（生成器与报告同错）；必须有「标签→秒数」回读校验才是可达 FAIL。
+- 引 JSON 分片会把节点绝对路径带进报告（`semi_out`/`sim_log`），须统一改写 `<work-dir>/…`。
+
+**遗留问题**：无（`server208` 上重复的 `xgboost-O0` 未动，不重跑任何用例）。

@@ -22,7 +22,7 @@
     python3 tools/testcases/parity/engine_parity_pending.py [--repo <根>] [--log-dir <目录>]
 
 输出三行：pending 数 / 逗号分隔用例名 / `known=… terminal=… pending=… inventory=…`。
-（embench 侧 pending = `38 - cases_seen`，见报告 JSON 的 `embench` 段。）
+（embench 侧 pending 见报告 JSON 的 `embench.pending` = 语料规模 − `cases_seen`。）
 """
 import argparse
 import glob
