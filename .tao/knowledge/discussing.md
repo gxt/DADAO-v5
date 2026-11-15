@@ -148,6 +148,39 @@
    - **选项**：① 立 ADR 记「单 hart 机型下该清除事件不可观测、暂不实现，等多 hart 机型」；② 只留在 `issues.yaml` 不立 ADR。**建议①**（属「结论固化 + 跨三实现」，符合 ADR 判据）。
 4. **K2（异常与时间，5–7 件）尚无任务书**：K1 收口（`m14-linux-005`）后下一步即 K2 规划；按 `AGENTS.md`「批次外新任务须用户确认」，立册前需用户给范围/验收口径（是否沿用 K0/K1 的「门控 + ≤30 行完成区 + 4 路注入」规格）。
 
+# 待设计：长仿真如何"证明它还在跑"（gem5 / chipyard，2026-11-15 用户提出）
+
+> 用户原话：「gem5/chipyard 如何在长时间的模拟仿真过程中，让我知道它还在运行，而不是死等运行完成」。
+
+**问题实质**：现在能看到的只有"进程还在（`ps`）"和"打印了完成行"，**单例内部零信息**：既没有"已跑多少周期"，也没有"距预算是近了还是挂了"。因此无法区分「慢」与「挂死」。
+
+**事实（已核）**
+
+- **chipyard / Verilator**：`TestDriver.v` 每拍 `trace_count = trace_count + 1`，但**只在结束** `$fdisplay`（`*** PASSED *** after N cycles` / `*** FAILED ***`）；`+cycle-count` 同样是退出时打印；`+verbose` 是**逐周期 Chisel printf**，代价过高不能当心跳。RTL 里**没有**周期性输出。
+- **gem5**：stats 在结束时写 `m5out/stats.txt`；中途无周期性进度（`--debug-flags` 是逐事件日志，量级不可接受）。
+- **实际受害案例**：`ics170` 上 6 个 picolibc sim 跑到 **11 h 25 m** 仍无任何进度可观测（`test-iconv`/`test-sin`/`test-sincos-*`/`test-atan2`/`test-memmem`）；`ISS-361` 的「72/72 在 3600 s 全超时」本质上也是缺这个能力才只能靠超时判定。
+- **已有基础**：`m16-testcases-001 跑批进度看板 + 增量 JSONL（可见性）` 已覆盖「逐例完成即落盘 + 节点日志/`ps` 汇总表」；但它给不出**单例内部**的周期进度与 ETA。
+
+**可选手段（按侵入性递增，可组合）**
+
+- **A（零改动，先做）**：外层 runner 每 60 s 把「在跑例 + 已跑时长 + `/proc/<pid>/stat` 的 utime + `semi.out` 最后修改时间」写一行 JSONL 心跳。判据：能看出"还在推进"（utime 增长、semi.out 有动静），但**给不出周期数**。
+- **B（chipyard，改 RTL 包装）**：`TestDriver.v` 加 `+heartbeat=N`（`trace_count % N == 0` 时 `$fdisplay(stderr, "H %0d", trace_count)`）。收益=**精确周期进度 + 可按吞吐算 ETA**；代价=改 RTL ⇒ **sim md5 变化、单二进制基线要重做**，且 `$fdisplay` 会略微降速（需实测 <1%）。
+- **C（gem5，配置层零 C++）**：`configs/dadao/se_timing.py` 用**分块 `m5.simulate(chunk)`** 循环，每块打印 `curTick()` 与已跑 tick ⇒ 零 C++ 改动、零功能影响，天然满足"心跳不改结果"。
+- **D（统一呈现）**：A/B/C 的心跳都写同一格式（`ts / task / case / cycles_or_utime / eta`），由看板汇总 ⇒ 一条命令看全部节点与全部套件。
+
+**判据与权衡（设计时必须满足）**
+
+1. **心跳不得改变仿真结果**：chipyard 侧只允许写 stderr（不得进 `semi.out`）；gem5 侧走配置层分块，stats 口径不变；
+2. **降速 < 1%**（实测对比心跳开/关的 cycles/s 与总墙钟）；
+3. **必须能区分「慢」与「挂死」**：给出"最近 N 分钟周期增量 = 0"这类判据，而不是只有超时；
+4. **与单二进制纪律兼容**：若选 B，须在批次开始时把 sim md5 一起登记（`m12-chipyard-016` 的判据已要求如此）。
+
+**待裁定**
+
+1. 是否允许为心跳**改 chipyard RTL 包装**（`TestDriver.v`）？—— 会影响 sim md5 与既有"冻结 sim `079ae015…`"的基线（选项 B）。
+2. 若不允许，是否接受"只有宿主侧心跳（A）+ gem5 配置层心跳（C）"的折中（周期进度只能靠 A 的 utime 趋势推断）？
+3. 心跳频率与落盘位置口径（默认 60 s / 写节点运行期日志 / 由看板汇总）是否按建议执行。
+
 # 待定：机器/版本命名（用户 2026-11-14）
 
 - **现状**：仓库里混用 `Machine-v5-*`（册名/机型前缀）与 `DADAO-v5`（我临时改的），QEMU 机器名是 `dadao-tiny`/`dadao-vast`。
