@@ -22,6 +22,7 @@
 | `schema.md` | **历史**：向量 YAML 字段规范（含 `expected_pc`、class 定义、encoding 豁免、deferred 规则）；YAML 已全退役（`m13-testcases-043`），保留作类别/故障词表与独立派生规则 |
 | `inventory.md` | M1 覆盖矩阵（以 `id` 为行，含 `format`/`file` 列与 deferred reason） |
 | `00-isa-design/undi_reserved.S` | **非 id 载体**（保留编码 ⇒ UNDI，3 条；逐文件登记，见 `check_tests_index.NON_ID_CARRIERS`） |
+| `00-isa-design/pseudo_set.*.S` | **非 id 载体**：7 个伪指令展开形态（`set.rd`/`set.rb` 的 imm/reg 四条 + `set.ft rf, imm32` + `set.fo rf, imm64` + `set.ft/set.fo rf, rf`；逐文件登记，索引 id `inst-00-isa-design-002`…`-008`）；**写宽对照**见下节 |
 | `base/`（已删） | 原 YAML 向量目录（`TESTCASES-003t`~`007t` 生成；**YAML 已全退役**，`m13-testcases-043`） |
 | `MIGRATION.md` | YAML → 汇编+宏 的迁移台账（大类/小类/用例模板/任务拆分/删除规则） |
 | `macros/inst_test.inc` | 汇编宏层（`TEST_LD*`/`TEST_ST*`/`TEST_MOV1`/`TEST_CS*`/`TEST_WI*`/`TEST_FAULT*`/`__CHECK_*`，期望值内联） |
@@ -62,10 +63,35 @@ python3 tools/testcases/inst/run_asm_suite.py \
     --vectors tests/inst/07-floating-point \
     --lds tests/inst/07-floating-point/inst-tiny-fp.lds           # 07 全册 42 个 id
                                                                   # （算术/最小最大 18 + 转换/比较/分类 24）
+python3 tools/testcases/inst/run_asm_suite.py \
+    --vectors tests/inst/00-isa-design \
+    --lds tests/inst/01-load-store/inst-tiny.lds                  # 00 册（UNDI 3 例 + 7 个伪指令载体）
 ```
 
 判据 = **同一份 ELF** 在 chipyard `WumingTinyConfig` / QEMU `dadao-tiny` / gem5 FS
 `tiny` 上，链例的结果字节流逐字节一致、故障例的退出码一致。
+
+### 伪指令载体（`00-isa-design/pseudo_set.*`，`m13-testcases-048`）
+
+伪指令**不是硬件指令**（`spec/SimRISC-00 §5`）：汇编器前端展开为一条或多条真实指令，
+反汇编器只输出真实指令 ⇒ 载体名字不是 opcode id，按**非 id 载体**逐文件登记
+（两处 `NON_ID_CARRIERS` + `tests/inst.yaml` 索引）。7 个载体按**展开形态**分（失败归因
+可定位到具体形态），期望的**可观察结果只有一个**：目的寄存器的最终位型（由 spec 的立即数
+/ 源寄存器位型派生），**不从 qemu/llvm 输出反推**。
+
+| 载体 | 形态 | 可观察判据 |
+|---|---|---|
+| `pseudo_set.rd_imm.S` | `set.rd rd, imm64`（1–4 条） | 目的 rd = 立即数完整 64 位；全 0 / 全 1 / 稀疏位 / 各 wyde 极性 |
+| `pseudo_set.rd_reg.S` | `set.rd rd, rs`（`rb2rd`/`rf2rd`/`ra2rd`/`rd2rd`） | 四种源各覆盖，**整 64 位**搬运 |
+| `pseudo_set.rb_imm.S` | `set.rb rb, imm64`（`set.zw`+`or.w`） | 目的 rb = 完整 64 位；rb **无 `set.ow`** ⇒ 负值/全 1 形态与 rd 不同（结果相同） |
+| `pseudo_set.rb_reg.S` | `set.rb rb, rs`（`rd2rb`/`rb2rb`） | 两种源，**整 64 位** |
+| `pseudo_set.ft_imm32.S` | `set.ft rf, imm32`（2× `set.w`） | **写宽对照第一行：高 32 位保持写前值**（结果 = `(旧值 & 0xFFFFFFFF00000000) \| imm32`） |
+| `pseudo_set.fo_imm64.S` | `set.fo rf, imm64` | **整 64 位**；`imm = 0` 走 `rd2rf rd0`（旧值整 64 位清零） |
+| `pseudo_set.fx_reg.S` | `set.ft`/`set.fo rf, rf` ⇒ `rf2rf` | **写宽对照第二行：高 32 位被覆盖**（整 64 位逐位复制；`fx` = `ft`/`fo` 两族） |
+
+展开**形状**（「只能一条 `set.zw`/`set.ow`」「全 0/全 1 ≤1 条」「rb 无 `set.ow`」「`set.fo
+imm=0` 只有 `rd2rf`」）guest 观察不到 ⇒ 由 `m13-testcases-048` 的证据脚本对 `llvm-mc` +
+`llvm-objdump` 逐形态静态断言，不写进检查点。
 
 ### 特殊寄存器取值的期望怎么给（补测）
 

@@ -12,14 +12,64 @@
 #
 # 载体：`tests/inst/<册>/<id>.S`（执行型，L2 `check-inst-asm` 逐镜像执行）与
 #   `<册>/*.c|*.ll`（手工探针，由 `check-{rnd,minmax,fma,clmul}-probe` 跑）。
-#   `inst/00-isa-design/undi_reserved.S` 是**非 opcode 身份**载体（保留编码 ⇒ UNDI），
-#   文件名不是 id；在 `check_tests_index.NON_ID_CARRIERS` 与
-#   `validate_vectors.NON_ID_CARRIERS` 显式登记（不做目录级豁免）。
+#   `inst/00-isa-design/*.S` 里的**非 opcode 身份**载体（文件名不是 id）都在
+#   `check_tests_index.NON_ID_CARRIERS` 与 `validate_vectors.NON_ID_CARRIERS`
+#   显式登记（不做目录级豁免）：`undi_reserved.S`（保留编码 ⇒ UNDI）与 7 个伪指令
+#   展开载体（`pseudo_set.*`；伪指令不是硬件指令，`spec/SimRISC-00 §5`）。
 #
 # 门控：make check-tests-index（L1，静态）与 validate-vectors（L1）。
 
 - id: inst-00-isa-design-001
   file: inst/00-isa-design/undi_reserved.S
+  platforms:
+  - system
+  level: full
+  requires: []
+
+- id: inst-00-isa-design-002
+  file: inst/00-isa-design/pseudo_set.rd_imm.S
+  platforms:
+  - system
+  level: full
+  requires: []
+
+- id: inst-00-isa-design-003
+  file: inst/00-isa-design/pseudo_set.rd_reg.S
+  platforms:
+  - system
+  level: full
+  requires: []
+
+- id: inst-00-isa-design-004
+  file: inst/00-isa-design/pseudo_set.rb_imm.S
+  platforms:
+  - system
+  level: full
+  requires: []
+
+- id: inst-00-isa-design-005
+  file: inst/00-isa-design/pseudo_set.rb_reg.S
+  platforms:
+  - system
+  level: full
+  requires: []
+
+- id: inst-00-isa-design-006
+  file: inst/00-isa-design/pseudo_set.ft_imm32.S
+  platforms:
+  - system
+  level: full
+  requires: []
+
+- id: inst-00-isa-design-007
+  file: inst/00-isa-design/pseudo_set.fo_imm64.S
+  platforms:
+  - system
+  level: full
+  requires: []
+
+- id: inst-00-isa-design-008
+  file: inst/00-isa-design/pseudo_set.fx_reg.S
   platforms:
   - system
   level: full

@@ -747,3 +747,32 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 - **执行侧依赖**：`rf2rf` 的助记符/译码由 `m13-llvm-001` + `m13-qemu-016` 承担；两者合入并
   `install-host` 前，`check-inst-asm` 对本载体报「unrecognized instruction mnemonic」——与
   其它 263 个载体无关（本任务用语义等价的旧编码做**同构复核**：7/7 镜像绿，见完成区）。
+
+### `m13-testcases-048`：伪指令的 7 个展开形态载体（`00-isa-design/pseudo_set.*`）
+
+- **为什么按展开形态分 7 个**（用户 2026-11-15 裁定口径 a）：失败归因可定位到具体形态；
+  `set.ft rf, imm32`（窄写）与 `set.ft rf, rf`（`rf2rf` 整 64 位）**语义相反**，合并会互相掩盖。
+  文件名保留助记符点号（`pseudo_set.rd_imm.S` 等，与 `ld.o_*`/`sc.b.nn_*` 同风格）；第 7 个
+  用 `fx`（= `ft`/`fo` 两族，两者从 rf 源展开都是 `rf2rf`）。
+- **载体不是 opcode id**：伪指令不是硬件指令（`spec/SimRISC-00 §5`），反汇编器只输出真实指令 ⇒
+  7 个文件在**两处** `NON_ID_CARRIERS`（`validate_vectors.py` / `check_tests_index.py`）逐文件
+  登记，并在 `tests/inst.yaml` 以 `inst-00-isa-design-002`…`-008` 索引（载体↔索引双向断言）。
+- **期望怎么给**：伪指令展开是**前端行为**，guest 能观察的只有目的寄存器最终位型 ⇒ 期望一律
+  内联自 spec（`Toolchain-01 §6.1` 展开规则 + `SimRISC-03 §1–§4` 的 wyde 语义 + `SimRISC-02 §1`
+  块复制「保持 64 位二进制不变」），**不从 qemu/llvm 输出反推**。检查点行复用现有宏
+  （`__CHECK_RD`/`__CHECK_MEM`，rf/rb 目的先 `rf2rd`/`st.o` 落到 `SCRATCH`），未新增宏。
+  113 个检查点的内联期望另有**独立重算**核对（证据脚本的 `recompute.py`：按上述 spec 规则
+  重算目的寄存器终值，不经 LLVM/QEMU；期望被改坏 ⇒ 重算非 0）。
+- **写宽对照（本任务核心回归）**：`pseudo_set.ft_imm32.S` 断言「高 32 位 = 写前值」；
+  `pseudo_set.fx_reg.S` 断言「高 32 位 = 源高半」。两文件互为反例 ⇒ 任一实现把两者之一
+  做成另一种语义，**必有一侧红**（两路注入各红一次，见完成区）。
+- **形状类断言放在证据脚本**：「只能一条 `set.zw`/`set.ow`」「全 0/全 1 ≤1 条」「rb 无
+  `set.ow`」「`set.fo imm=0` 只有一条 `rd2rf`」「`set.ft imm32` 恰好 2 条 `set.w`」——
+  guest 观察不到，由 `llvm-objdump` 反汇编静态断言（期望逐条取自 `SimRISC-03 §2/§3/§4` 的
+  文档示例）；形状与文档不符 ⇒ 证据脚本红，不改载体期望。
+- **用例规模**：7 文件共 113 个检查点（20/10/20/20/15/15/13），点号 1..N 连续；链例镜像 7 个
+  （无故障例——伪指令的非法操作数由**汇编器**拒绝，不是运行期异常，故不做 `CASE_N` 故障镜像）。
+- **门控**：`check-tests-index`（271 个 `.S` 载体 / 280 条 inst 索引 / 8 个非 id 载体）/
+  `validate-vectors`（271 载体，8 非 id）/ `check-case-ledger`（+113 行）/ `check-inst-asm`
+  全绿，见完成区。
+

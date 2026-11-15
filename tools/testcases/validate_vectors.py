@@ -48,6 +48,27 @@ import run_asm_suite  # noqa: E402
 NON_ID_CARRIERS = {
     "tests/inst/00-isa-design/undi_reserved.S":
         "保留编码（QFC 空白格）⇒ UNDI；无 opcode 身份，索引 id = inst-00-isa-design-001",
+    "tests/inst/00-isa-design/pseudo_set.rd_imm.S":
+        "伪指令 set.rd rd, imm64 的展开；伪指令不是硬件指令（SimRISC-00 §5），"
+        "索引 id = inst-00-isa-design-002",
+    "tests/inst/00-isa-design/pseudo_set.rd_reg.S":
+        "伪指令 set.rd rd, rs 的展开（rb2rd/rf2rd/ra2rd/rd2rd），"
+        "索引 id = inst-00-isa-design-003",
+    "tests/inst/00-isa-design/pseudo_set.rb_imm.S":
+        "伪指令 set.rb rb, imm64 的展开（rb 无 set.ow），"
+        "索引 id = inst-00-isa-design-004",
+    "tests/inst/00-isa-design/pseudo_set.rb_reg.S":
+        "伪指令 set.rb rb, rs 的展开（rd2rb/rb2rb），"
+        "索引 id = inst-00-isa-design-005",
+    "tests/inst/00-isa-design/pseudo_set.ft_imm32.S":
+        "伪指令 set.ft rf, imm32 的展开（2× set.w，窄写：高 32 保持），"
+        "索引 id = inst-00-isa-design-006",
+    "tests/inst/00-isa-design/pseudo_set.fo_imm64.S":
+        "伪指令 set.fo rf, imm64 的展开（整 64 位；imm=0 ⇒ rd2rf rd0），"
+        "索引 id = inst-00-isa-design-007",
+    "tests/inst/00-isa-design/pseudo_set.fx_reg.S":
+        "伪指令 set.ft/set.fo rf, rf 的展开（rf2rf，整 64 位：高 32 被覆盖），"
+        "索引 id = inst-00-isa-design-008",
 }
 
 DECL_NA = {"", "—", "-", "n/a", "na", "none"}
