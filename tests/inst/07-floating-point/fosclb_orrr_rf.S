@@ -13,49 +13,6 @@
 	.equ	__FP_LAYOUT, 1
 	.include "tests/inst/macros/inst_test.inc"
 
-@@ ---- 本文件局部宏（不改共享宏层）----
-@@ 期望按整 64 位比较（ft 只写低 32、高 32 必须保持）；判据同 `__CHECK_RD`
-.macro __FP_CHK64 pt, dst, exp, flags
-	rf2rd	{rd21:rd21}, {rf0:rf0}
-	ext.uo	rd21, rd21, 4
-	__VERIFY_RD \pt, rd21, \flags
-	rf2rd	{rd21:rd21}, {\dst:\dst}
-	__LI	rd20, \exp
-	__REC	rd21
-	br.eq	{rd20, rd21}?, [rb0, __fpchk_\@]
-	__EXIT	\pt
-__fpchk_\@:
-.endm
-
-@@ 源初值（rf）与指数（rd，rd0 不装载）经整数通路装配；目的预置 0xDEADBEEFCAFEF00D
-.macro __FP_RD2 dst, src, sval, ereg, eval
-	.ifnc	\src, rf0
-	__LI_RF	\src, \sval
-	.endif
-	.ifnc	\ereg, rd0
-	__LI	\ereg, \eval
-	.endif
-	.ifnc	\dst, \src
-	__LI_RF	\dst, 0xDEADBEEFCAFEF00D
-	.endif
-.endm
-
-@@ TEST_FPSCLB(pt, 助记符, 目的, 源, 源值, 指数源rd, 指数值, rf0[33:32], 期望, 期望标志)
-.macro TEST_FPSCLB pt, mnem, dst, src, sval, ereg, eval, rfm, exp, flags
-	__FP_ENV \rfm
-	__FP_RD2 \dst, \src, \sval, \ereg, \eval
-	\mnem	\dst, \src, \ereg
-	__FP_CHK64 \pt, \dst, \exp, \flags
-.endm
-
-@@ TEST_FPSCLB_ENC(pt, 编码字, 目的, 源, 源值, 指数源rd, 指数值, rf0[33:32], 期望, 期望标志)
-.macro TEST_FPSCLB_ENC pt, enc, dst, src, sval, ereg, eval, rfm, exp, flags
-	__FP_ENV \rfm
-	__FP_RD2 \dst, \src, \sval, \ereg, \eval
-	.dd.t32	\enc
-	__FP_CHK64 \pt, \dst, \exp, \flags
-.endm
-
 	__TEST_BEGIN
 
 	@@ ---- encoding ----

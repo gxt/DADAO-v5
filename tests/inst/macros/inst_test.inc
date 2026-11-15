@@ -1385,6 +1385,112 @@ __fault_case:
 	__CHECK_RD \pt, rd21, \exp
 .endm
 
+@@ 07-floating-point 的三个三操作数族（rnd / sclb / sgn）的共享宏。
+@@ 原先在 8 个册文件（fornd/ftrnd、fosclb/ftsclb、fosgnj/fosgnn/ftsgnj/ftsgnn）里
+@@ 各自逐字重复定义（32 处纯重复、宏体完全相同）⇒ 统一在共享层定义一次；
+@@ 册文件只留用例行。定义顺序无关（宏在使用点才展开）。
+
+@@ 标志断言 + 整 64 位结果比较（ft 只写低 32、高 32 必须保持）；判据同 `__CHECK_RD`
+.macro __FP_CHK64 pt, dst, exp, flags
+	rf2rd	{rd21:rd21}, {rf0:rf0}
+	ext.uo	rd21, rd21, 4
+	__VERIFY_RD \pt, rd21, \flags
+	rf2rd	{rd21:rd21}, {\dst:\dst}
+	__LI	rd20, \exp
+	__REC	rd21
+	br.eq	{rd20, rd21}?, [rb0, __fpchk_\@]
+	__EXIT	\pt
+__fpchk_\@:
+.endm
+
+@@ 源初值经 `__LI_RF`（不经浮点指令）；目的预置 0xDEADBEEFCAFEF00D（ft 只写低 32）
+.macro __FP_RD1 dst, src, sval
+	.ifnc	\src, rf0
+	__LI_RF	\src, \sval
+	.endif
+	.ifnc	\dst, \src
+	__LI_RF	\dst, 0xDEADBEEFCAFEF00D
+	.endif
+.endm
+
+@@ 源初值（rf）与指数（rd，rd0 不装载）经整数通路装配；目的预置 0xDEADBEEFCAFEF00D
+.macro __FP_RD2 dst, src, sval, ereg, eval
+	.ifnc	\src, rf0
+	__LI_RF	\src, \sval
+	.endif
+	.ifnc	\ereg, rd0
+	__LI	\ereg, \eval
+	.endif
+	.ifnc	\dst, \src
+	__LI_RF	\dst, 0xDEADBEEFCAFEF00D
+	.endif
+.endm
+
+@@ 两个 rf 源 + 目的预置（rf0 作符号源时经 `__FP_ENV` 建立，不装载）
+.macro __FP_RD3 dst, src, sval, d, dval
+	.ifnc	\src, rf0
+	__LI_RF	\src, \sval
+	.endif
+	.ifnc	\d, rf0
+	.ifnc	\d, \src
+	__LI_RF	\d, \dval
+	.endif
+	.endif
+	.ifnc	\dst, \src
+	.ifnc	\dst, \d
+	__LI_RF	\dst, 0xDEADBEEFCAFEF00D
+	.endif
+	.endif
+.endm
+
+@@ TEST_FPRND(pt, 助记符, 目的, 源, 源值, immu6, rf0[33:32], 期望, 期望标志)
+.macro TEST_FPRND pt, mnem, dst, src, sval, cvt, rfm, exp, flags
+	__FP_ENV \rfm
+	__FP_RD1 \dst, \src, \sval
+	\mnem	\dst, \src, \cvt
+	__FP_CHK64 \pt, \dst, \exp, \flags
+.endm
+
+@@ TEST_FPRND_ENC(pt, 编码字, 目的, 源, 源值, rf0[33:32], 期望, 期望标志)
+.macro TEST_FPRND_ENC pt, enc, dst, src, sval, rfm, exp, flags
+	__FP_ENV \rfm
+	__FP_RD1 \dst, \src, \sval
+	.dd.t32	\enc
+	__FP_CHK64 \pt, \dst, \exp, \flags
+.endm
+
+@@ TEST_FPSCLB(pt, 助记符, 目的, 源, 源值, 指数源rd, 指数值, rf0[33:32], 期望, 期望标志)
+.macro TEST_FPSCLB pt, mnem, dst, src, sval, ereg, eval, rfm, exp, flags
+	__FP_ENV \rfm
+	__FP_RD2 \dst, \src, \sval, \ereg, \eval
+	\mnem	\dst, \src, \ereg
+	__FP_CHK64 \pt, \dst, \exp, \flags
+.endm
+
+@@ TEST_FPSCLB_ENC(pt, 编码字, 目的, 源, 源值, 指数源rd, 指数值, rf0[33:32], 期望, 期望标志)
+.macro TEST_FPSCLB_ENC pt, enc, dst, src, sval, ereg, eval, rfm, exp, flags
+	__FP_ENV \rfm
+	__FP_RD2 \dst, \src, \sval, \ereg, \eval
+	.dd.t32	\enc
+	__FP_CHK64 \pt, \dst, \exp, \flags
+.endm
+
+@@ TEST_FPSGN(pt, 助记符, 目的, 源, 源值, 符号源, 符号源值, 期望, 期望标志)
+.macro TEST_FPSGN pt, mnem, dst, src, sval, d, dval, exp, flags
+	__FP_ENV 0
+	__FP_RD3 \dst, \src, \sval, \d, \dval
+	\mnem	\dst, \src, \d
+	__FP_CHK64 \pt, \dst, \exp, \flags
+.endm
+
+@@ TEST_FPSGN_ENC(pt, 编码字, 目的, 源, 源值, 符号源, 符号源值, 期望, 期望标志)
+.macro TEST_FPSGN_ENC pt, enc, dst, src, sval, d, dval, exp, flags
+	__FP_ENV 0
+	__FP_RD3 \dst, \src, \sval, \d, \dval
+	.dd.t32	\enc
+	__FP_CHK64 \pt, \dst, \exp, \flags
+.endm
+
 .macro TEST_FP3 pt, w, mnem, dst, a, aval, b, bval, rm, exp, flags
 	__FP_ENV \rm
 	__LI_RF	\a, \aval

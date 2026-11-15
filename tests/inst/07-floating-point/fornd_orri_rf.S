@@ -13,47 +13,6 @@
 	.equ	__FP_LAYOUT, 1
 	.include "tests/inst/macros/inst_test.inc"
 
-@@ ---- 本文件局部宏（不改共享宏层）----
-@@ 目的 rf、源 rf、第三域 = immu6 取整档；期望按整 64 位比较（ft 高 32 必须保持）
-@@ （判据同 `__CHECK_RD`：先断言标志、再比 64 位结果；点号与结果缓冲一致）
-.macro __FP_CHK64 pt, dst, exp, flags
-	rf2rd	{rd21:rd21}, {rf0:rf0}
-	ext.uo	rd21, rd21, 4
-	__VERIFY_RD \pt, rd21, \flags
-	rf2rd	{rd21:rd21}, {\dst:\dst}
-	__LI	rd20, \exp
-	__REC	rd21
-	br.eq	{rd20, rd21}?, [rb0, __fpchk_\@]
-	__EXIT	\pt
-__fpchk_\@:
-.endm
-
-@@ 源初值经 `__LI_RF`（不经浮点指令）；目的预置 0xDEADBEEFCAFEF00D（ft 只写低 32）
-.macro __FP_RD1 dst, src, sval
-	.ifnc	\src, rf0
-	__LI_RF	\src, \sval
-	.endif
-	.ifnc	\dst, \src
-	__LI_RF	\dst, 0xDEADBEEFCAFEF00D
-	.endif
-.endm
-
-@@ TEST_FPRND(pt, 助记符, 目的, 源, 源值, immu6, rf0[33:32], 期望, 期望标志)
-.macro TEST_FPRND pt, mnem, dst, src, sval, cvt, rfm, exp, flags
-	__FP_ENV \rfm
-	__FP_RD1 \dst, \src, \sval
-	\mnem	\dst, \src, \cvt
-	__FP_CHK64 \pt, \dst, \exp, \flags
-.endm
-
-@@ TEST_FPRND_ENC(pt, 编码字, 目的, 源, 源值, rf0[33:32], 期望, 期望标志)
-.macro TEST_FPRND_ENC pt, enc, dst, src, sval, rfm, exp, flags
-	__FP_ENV \rfm
-	__FP_RD1 \dst, \src, \sval
-	.dd.t32	\enc
-	__FP_CHK64 \pt, \dst, \exp, \flags
-.endm
-
 	__TEST_BEGIN
 
 	@@ ---- encoding ----
