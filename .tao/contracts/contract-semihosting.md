@@ -1,6 +1,6 @@
 # semihosting 合约（M5）
 
-> **版本：0.7.2** [DADAO-22 §1. 调用约定][DADAO-12 §1. 运行模式与核芯功能扩展]
+> **版本：0.7.1** [DADAO-22 §1. 调用约定][DADAO-12 §1. 运行模式与核芯功能扩展]
 >
 > **来源**：决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted，`D1`–`D8`/`D14`）；规范正文 `spec/Machine-v5-测试机运行环境.md §5`（v5 自定）；调用约定引用 `spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.1）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）；服务号值语义取自 Arm Semihosting（`Semihosting for AArch32 and AArch64`）。
 >
@@ -92,3 +92,9 @@
 | §4 | 无 `escape`、IP 步进返回 | `ADR-0020 D4`；`Machine-01 §5.4` |
 | §5 | `SYS_EXIT` 取代 exit port | `ADR-0020 D8`；`ADR-0004 R2`；`Machine-01 §5.5` |
 | §6 | `SYS_SYSTEM` 已知风险 | `ADR-0020 D3`/`D7`；`Machine-01 §5.6` |
+
+---
+
+## 附录 B：变更记录（v5 扩展）
+
+- **2026-11-15**：§2 补「指针一律为物理地址（PA）、不经页表翻译」（参数块指针与 `SYS_WRITEC`/`SYS_WRITE0` 的指针），并写明它与内核启动 ABI 的「ABI 地址一律 VA」分属两条接口；附录 A 的 §2 行同步。**授权**：用户 2026-11-15 裁定「1：选1，PA」（渠道 = 经主会话问答）。**版本不变**（`0.7.1`）：`docs/Process-02` 规定合约版本号跟随 `spec/` 已发布版本，本次属 v5 扩展注记，不改上游 spec 版本；正文本体同步在 `spec/Machine-v5 §5.2`（v5 自定册）。
