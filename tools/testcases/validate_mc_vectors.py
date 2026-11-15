@@ -518,13 +518,20 @@ def expand_pseudo(insn_text):
             if rs[0] == "rf":
                 return ["rf2rf {%s}, {%s%d}" % (dst, "rf", rs[1])]
             raise AssignError("set.fo bad src")
+        # Toolchain-01 §6.1（`rd2rf` 清零 + 只改非零 wyde，取最小指令数）：
+        # (a) `rd2rf rf, rd0` 清零整 octa + 每个**非零** wyde 一条 `set.w`
+        #     ⇒ 1 + k 条（k = 非零 wyde 数，k == 0 只剩 rd2rf）；
+        # (b) 四个 wyde 各一条 `set.w` ⇒ 4 条。
+        # k ≤ 3 取 (a)（k == 3 与 (b) 并列，统一取 (a)）；k == 4 取 (b)，
+        # (a) 会退化到 5 条。
         val = eval_expr(src) & ((1 << 64) - 1)
-        if val == 0:
-            raise AssignError("set.fo imm 0 的 rd2rf 特例不在 spec §6.1（本任务不覆盖）")
-        return ["set.w %s, wp3, 0x%x" % (dst, (val >> 48) & 0xFFFF),
-                "set.w %s, wp2, 0x%x" % (dst, (val >> 32) & 0xFFFF),
-                "set.w %s, wp1, 0x%x" % (dst, (val >> 16) & 0xFFFF),
-                "set.w %s, wp0, 0x%x" % (dst, val & 0xFFFF)]
+        wydes = [(val >> (16 * i)) & 0xFFFF for i in range(4)]
+        diff = [i for i in range(3, -1, -1) if wydes[i] != 0]
+        if len(diff) <= 3:
+            return (["rd2rf {%s}, {rd0}" % dst] +
+                    ["set.w %s, wp%d, 0x%x" % (dst, i, wydes[i]) for i in diff])
+        return ["set.w %s, wp%d, 0x%x" % (dst, i, wydes[i])
+                for i in range(3, -1, -1)]
 
     raise AssignError("unhandled pseudo %r" % mnemonic)
 

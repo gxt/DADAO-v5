@@ -185,7 +185,7 @@
 ## §6 伪指令
 
 - **权威源 = `spec/Toolchain-01-汇编语言.md §6`**（决策 `ADR-0013 D11`）。伪指令**不是**硬件指令，由汇编器在前端展开为真实硬件指令；**反汇编只输出真实硬件指令**。[Toolchain-01 §6][ADR-0013 D11]
-- **保留 8 条合成型**：`set.rd rd, imm64`（常量 → 最少指令数 `set.zw`/`set.ow` + `or.w`/`andn.w`；符号/可重定位 → 固定 3 片 + `R_DADAO_ABS48`）、`set.rd rd, rs`（`rb2rd`/`rf2rd`/`ra2rd`/`rd2rd`）、`set.rb rb, imm64`（`set.zw-rb` + `or.w-rb`）、`set.rb rb, rs`（`rd2rb`/`rb2rb`）、`set.ft rf, imm32`（2 条 `set.w`）/ `set.ft rf, rs`（`rd2rf`/`rf2rf`）、`set.fo rf, imm64`（4 条 `set.w`）/ `set.fo rf, rs`（`rd2rf`/`rf2rf`）。[Toolchain-01 §6][ADR-0013 D11]
+- **保留 8 条合成型**：`set.rd rd, imm64`（常量 → 最少指令数 `set.zw`/`set.ow` + `or.w`/`andn.w`；符号/可重定位 → 固定 3 片 + `R_DADAO_ABS48`）、`set.rd rd, rs`（`rb2rd`/`rf2rd`/`ra2rd`/`rd2rd`）、`set.rb rb, imm64`（`set.zw-rb` + `or.w-rb`）、`set.rb rb, rs`（`rd2rb`/`rb2rb`）、`set.ft rf, imm32`（2 条 `set.w`）/ `set.ft rf, rs`（`rd2rf`/`rf2rf`）、`set.fo rf, imm64`（`rd2rf rf, rd0` 清零 + 仅**非零** wyde 的 `set.w`，取**最小指令数**；`set.fo rf, 0` ⇒ 1 条；4 个 wyde 全非零时退回 4 条 `set.w`；`set.ft rf, imm32` 是窄写，**不**适用此展开）/ `set.fo rf, rs`（`rd2rf`/`rf2rf`）。[Toolchain-01 §6][Toolchain-01 §6.1][ADR-0013 D11]
 - **`set.rb` 细节**：允许 `wp0–wp3`；其为地址时 MUST ≤48 位；不补 `set.ow-rb`（rb 无 `set.ow` 变体）。[Toolchain-01 §6][ADR-0013 D11]
 - **`ret` 语法**：保持 `ret rdha, imms18` 显式两操作数；不加无参形态。[Toolchain-01 §6][ADR-0013 D11]
 - **删除（不实现，10 条）**：`nop`（用 `swym 0`）、`return`（用 `ret rd0, 0`）、`not.{b,w,t,o}`（用 `xnor.o rd, rs, rd0`；窄位宽 `not.b/w/t` 无等宽替代）、`neg.{b,w,t,o}`（用 `sub.sX`）。[Toolchain-01 §6][ADR-0013 D11]

@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..d9e958556
+index 000000000..c3012d185
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2718 @@
+@@ -0,0 +1,2737 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1605,7 +1605,8 @@ index 000000000..d9e958556
 +//   set.rb rb, rs    : rd2rb / rb2rb
 +//   set.ft rf, imm32 : 2x set.w (never touches the high 32 bits)
 +//   set.ft rf, rs    : rd2rf / rf2rf (an RF source is a full 64-bit copy)
-+//   set.fo rf, imm64 : imm==0 -> rd2rf from rd0; else 4x set.w
++//   set.fo rf, imm64 : rd2rf from rd0 + set.w per NON-ZERO wyde (1 + k insns)
++//                      when k <= 3; 4x set.w when k == 4 (rd0 would need 5)
 +//   set.fo rf, rs    : rd2rf / rf2rf (an RF source is a full 64-bit copy)
 +//===----------------------------------------------------------------------===//
 +
@@ -1733,14 +1734,32 @@ index 000000000..d9e958556
 +    return emitWii("set.w", 0, V32 & 0xFFFF);
 +  }
 +
-+  // set.fo: zero is materialized from rd0 (constant zero) with one rd2rf;
-+  // otherwise four set.w cover the full octa.
++  // set.fo: pick the cheaper of the two schemes over the 16-bit wydes.
++  //   (a) rd2rf from rd0 (one instruction zeroing the whole octa) + one set.w
++  //       per NON-ZERO wyde => 1 + k instructions;
++  //   (b) four set.w covering every wyde => 4 instructions.
++  // (a) wins for k <= 3 (k == 3 ties at 4; prefer (a) for a uniform shape), and
++  // k == 0 degenerates to the single rd2rf.  k == 4 must use (b): (a) would
++  // cost 5 and turn the optimisation into a regression.
 +  if (Mnem == "set.fo") {
 +    uint64_t V = static_cast<uint64_t>(Imm);
-+    if (V == 0)
-+      return emitRegInst("rd2rf", DstReg, DADAO::rd0);
++    uint16_t W[4];
++    for (int I = 0; I < 4; ++I)
++      W[I] = (V >> (16 * I)) & 0xFFFF;
++    int Nz = 0;
++    for (int I = 0; I < 4; ++I)
++      if (W[I] != 0)
++        ++Nz;
++    if (Nz <= 3) {
++      if (emitRegInst("rd2rf", DstReg, DADAO::rd0))
++        return true;
++      for (int I = 3; I >= 0; --I)
++        if (W[I] != 0 && emitWii("set.w", I, W[I]))
++          return true;
++      return false;
++    }
 +    for (int I = 3; I >= 0; --I)
-+      if (emitWii("set.w", I, (V >> (16 * I)) & 0xFFFF))
++      if (emitWii("set.w", I, W[I]))
 +        return true;
 +    return false;
 +  }

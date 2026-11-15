@@ -7,8 +7,10 @@
 @@ (ADR-0013 D11; spec/SimRISC-03 §set.ft/set.fo).
 @@   set.ft imm32 -> 2x set.w (low tetra); it must NOT touch the high 32 bits,
 @@                   so even imm 0 uses 2x set.w (no rd2rf).
-@@   set.fo imm64 -> imm 0 is materialized from rd0 (always 0) with one rd2rf;
-@@                   otherwise 4x set.w cover the full octa.
+@@   set.fo imm64 -> rd2rf rf, rd0 (rd0 is constant zero) zeroes the whole octa,
+@@                   then one set.w per NON-ZERO wyde (k of them, high-to-low):
+@@                   k <= 3 -> 1 + k instructions (k == 0 -> just the rd2rf);
+@@                   k == 4 -> 4x set.w instead (the rd0 scheme would need 5).
 @@   set.ft/f.o rf, rs -> rd2rf (rs in rd) / rf2rf (rs in rf).
 @@                          An RF source is a full 64-bit bit copy.
 @@
@@ -28,18 +30,50 @@
 @@ ASM: set.w rf1, wp0, 0x0
 set.ft rf1, 0x3F800000
 
-@@ set.fo rf1, 0x3FF0000000000000 -> 4x set.w (wp3/wp2/wp1/wp0)
-@@ set.w wp3: 0x4F<<24|1<<18|3<<16|0x3ff0 = 0x4F073FF0
-@@ set.w wp2: 0x4F060000 ; set.w wp1: 0x4F050000 ; set.w wp0: 0x4F040000
-@@ OBJ: {{[0-9a-f]+:}} 4f 07 3f f0{{.*}}set.w{{.*}}rf1, wp3, 0x3ff0
-@@ OBJ-NEXT: {{[0-9a-f]+:}} 4f 06 00 00{{.*}}set.w{{.*}}rf1, wp2, 0x0
-@@ OBJ-NEXT: {{[0-9a-f]+:}} 4f 05 00 00{{.*}}set.w{{.*}}rf1, wp1, 0x0
-@@ OBJ-NEXT: {{[0-9a-f]+:}} 4f 04 00 00{{.*}}set.w{{.*}}rf1, wp0, 0x0
-@@ ASM: set.w rf1, wp3, 0x3ff0
-@@ ASM: set.w rf1, wp2, 0x0
-@@ ASM: set.w rf1, wp1, 0x0
-@@ ASM: set.w rf1, wp0, 0x0
-set.fo rf1, 0x3FF0000000000000
+@@ set.fo rf1, 0 -> rd2rf {rf1}, {rd0}（k=0：1 条）
+@@ word = 0x40<<24|0x3D<<18|1<<12|0<<6|1 = 0x40F41001
+@@ OBJ: {{[0-9a-f]+:}} 40 f4 10 01{{.*}}rd2rf{{.*}}{rf1}, {rd0}
+@@ ASM: rd2rf {rf1}, {rd0}
+set.fo rf1, 0
+
+@@ set.fo rf2, 0x3FF0000000000000 -> rd2rf + set.w wp3 only（k=1，高半非零；2 条）
+@@ rd2rf: 0x40F42001 ; set.w wp3 (ha=2): 0x4F0B3FF0
+@@ OBJ-NEXT: {{[0-9a-f]+:}} 40 f4 20 01{{.*}}rd2rf{{.*}}{rf2}, {rd0}
+@@ OBJ-NEXT: {{[0-9a-f]+:}} 4f 0b 3f f0{{.*}}set.w{{.*}}rf2, wp3, 0x3ff0
+@@ ASM: rd2rf {rf2}, {rd0}
+@@ ASM-NEXT: set.w rf2, wp3, 0x3ff0
+set.fo rf2, 0x3FF0000000000000
+
+@@ set.fo rf3, 0x12345678 -> rd2rf + wp1/wp0（k=2；3 条，零 wyde 不写）
+@@ OBJ-NEXT: {{[0-9a-f]+:}} 40 f4 30 01{{.*}}rd2rf{{.*}}{rf3}, {rd0}
+@@ OBJ-NEXT: {{[0-9a-f]+:}} 4f 0d 12 34{{.*}}set.w{{.*}}rf3, wp1, 0x1234
+@@ OBJ-NEXT: {{[0-9a-f]+:}} 4f 0c 56 78{{.*}}set.w{{.*}}rf3, wp0, 0x5678
+@@ ASM: rd2rf {rf3}, {rd0}
+@@ ASM-NEXT: set.w rf3, wp1, 0x1234
+@@ ASM-NEXT: set.w rf3, wp0, 0x5678
+set.fo rf3, 0x12345678
+
+@@ set.fo rf4, 0x123456789ABC -> rd2rf + wp2/wp1/wp0（k=3，与 4×set.w 并列；4 条）
+@@ OBJ-NEXT: {{[0-9a-f]+:}} 40 f4 40 01{{.*}}rd2rf{{.*}}{rf4}, {rd0}
+@@ OBJ-NEXT: {{[0-9a-f]+:}} 4f 12 12 34{{.*}}set.w{{.*}}rf4, wp2, 0x1234
+@@ OBJ-NEXT: {{[0-9a-f]+:}} 4f 11 56 78{{.*}}set.w{{.*}}rf4, wp1, 0x5678
+@@ OBJ-NEXT: {{[0-9a-f]+:}} 4f 10 9a bc{{.*}}set.w{{.*}}rf4, wp0, 0x9abc
+@@ ASM: rd2rf {rf4}, {rd0}
+@@ ASM-NEXT: set.w rf4, wp2, 0x1234
+@@ ASM-NEXT: set.w rf4, wp1, 0x5678
+@@ ASM-NEXT: set.w rf4, wp0, 0x9abc
+set.fo rf4, 0x123456789ABC
+
+@@ set.fo rf5, 0x123456789ABCDEF0 -> 4x set.w（k=4；4 条，不出现 rd2rf）
+@@ OBJ-NEXT: {{[0-9a-f]+:}} 4f 17 12 34{{.*}}set.w{{.*}}rf5, wp3, 0x1234
+@@ OBJ-NEXT: {{[0-9a-f]+:}} 4f 16 56 78{{.*}}set.w{{.*}}rf5, wp2, 0x5678
+@@ OBJ-NEXT: {{[0-9a-f]+:}} 4f 15 9a bc{{.*}}set.w{{.*}}rf5, wp1, 0x9abc
+@@ OBJ-NEXT: {{[0-9a-f]+:}} 4f 14 de f0{{.*}}set.w{{.*}}rf5, wp0, 0xdef0
+@@ ASM: set.w rf5, wp3, 0x1234
+@@ ASM-NEXT: set.w rf5, wp2, 0x5678
+@@ ASM-NEXT: set.w rf5, wp1, 0x9abc
+@@ ASM-NEXT: set.w rf5, wp0, 0xdef0
+set.fo rf5, 0x123456789ABCDEF0
 
 @@ set.ft rf1, 0 -> 2x set.w (high 32 bits untouched)
 @@ OBJ: {{[0-9a-f]+:}} 4f 05 00 00{{.*}}set.w{{.*}}rf1, wp1, 0x0

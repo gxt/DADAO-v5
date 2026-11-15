@@ -553,6 +553,10 @@
   - 摘要：**删 `ft2ft`/`fo2fo`、加 `rf2rf`（对齐 SimRISC-02 同组块复制）**：`DADAOInstrInfoFP.td` 删两条 def、加 `rf2rf_orri_rf`（`op=0x40`、`ha=0x3C`、orri+rf 组、`@earlyclobber` 保证目的/源范围不重叠）；`AsmParser` 的块复制助记符集合、`mreg_range_overlap`/`mreg_range_overflow`/`-multiple-to-single` 与 `dst_rf0` 规则改指 `rf2rf`（目的范围含 `rf0` ⇒ 汇编期硬报错，源 `rf0` 合法），`set.ft`/`set.fo` 的 RF 源展开改 `rf2rf`（整 64 位复制）；`MCInstPrinter` 对 `{start:end}` 打印同步；`DADAOInstrInfo::copyPhysReg` 的 RF→RF 改 `rf2rf`。lit 改指 `fp-encoding.s`/`fp-legality.s`/`set-ft-fo.s`/`m4-pseudo-set.s`/`m4-option-mts.s`/`multiple-to-single-orri.s`/`fp-codegen.ll`/`fp-canonicalize.ll`，`DADAO-gen` 与 `gen-fast.s` 由生成器重生成。真值：`rf2rf {rf10:rf12}, {rf14:rf16}` ⇒ `40 f0 a3 83`（与 `contracts/opcodes.yaml` 一致）；`ft2ft`/`fo2fo` ⇒ `unrecognized instruction mnemonic`（rc=1）。补丁 4 份改，`series` 99 不变。
   - 执行者：engineer
 
+- **2026-11-15 m13-llvm-002**
+  - 摘要：**`set.fo rf, imm64` 改最小指令数展开（`rd2rf rd0` 清零 + 只改非零 wyde）**：`DADAOAsmParser::expandPseudoInstruction` 由「`imm==0` ⇒ `rd2rf`；否则 4 条 `set.w`」改为按非零 wyde 数 `k` 取较小者——`k ≤ 3` ⇒ `rd2rf rf, rd0` + k 条 `set.w`（`k == 0` 退化为 1 条 `rd2rf`；`k == 3` 与 4 条并列，统一取 rd0 形态），`k == 4` ⇒ 仍 4 条 `set.w`（rd0 方案要 5 条，属反向优化）；`set.ft rf, imm32` 窄写语义不变（仍 2 条 `set.w`，高 32 位不动）。lit `m4-pseudo-set.s`（五种形态 k=0..4 + 高半非零，`CHECK-NEXT` 跨例串联钉条数）与 `set-ft-fo.s`（同五形态的字节级 `OBJ` 串）同步，`.tao/contracts/contract-asm.md §6` 的 `set.fo` 展开口径改指 `Toolchain-01 §6.1`（spec 侧已是优化口径，本任务只补实现/契约/lit）。补丁 1 份改，`series` 99 不变。
+  - 执行者：engineer
+
 ## M14
 
 - **2026-11-14 m14-llvm-003**

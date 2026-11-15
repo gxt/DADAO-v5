@@ -98,16 +98,54 @@ set.ft rf1, rf2                  @@ @exp rf2rf {rf1}, {rf2}
 @@ CHECK: rf2rf {rf1}, {rf2}
 @@ ASM: rf2rf {rf1}, {rf2}
 
-@@ --- set.fo rf, imm64：4 条 set.w ---
-set.fo rf1, 0x3FF0000000000000   @@ @exp set.w rf1, wp3, 0x3ff0 ; set.w rf1, wp2, 0x0 ; set.w rf1, wp1, 0x0 ; set.w rf1, wp0, 0x0
-@@ CHECK: set.w rf1, wp3, 0x3ff0
-@@ CHECK: set.w rf1, wp2, 0x0
-@@ CHECK: set.w rf1, wp1, 0x0
-@@ CHECK: set.w rf1, wp0, 0x0
-@@ ASM: set.w rf1, wp3, 0x3ff0
-@@ ASM: set.w rf1, wp2, 0x0
-@@ ASM: set.w rf1, wp1, 0x0
-@@ ASM: set.w rf1, wp0, 0x0
+@@ --- set.fo rf, imm64：`rd2rf rd0` 清零 + 只改非零 wyde（最小指令数）---
+@@ k = 非零 16 位 wyde 数（0–4）：k ≤ 3 ⇒ `rd2rf` + k 条 `set.w`（1 + k 条）；
+@@ k == 4 ⇒ 退回 4 条 `set.w`（rd0 方案要 5 条，属反向优化）。Toolchain-01 §6.1。
+@@ 本段的 `CHECK`/`CHECK-NEXT` 从 k=0 一直串到高半非零例的末条（objdump 输出无空行），
+@@ 因此每例的**条数**被钉死：k=4 若多出一条 `rd2rf`，下一句 `CHECK-NEXT` 即失败。
+set.fo rf1, 0                    @@ @exp rd2rf {rf1}, {rd0}
+@@ CHECK: rd2rf {rf1}, {rd0}
+@@ ASM: rd2rf {rf1}, {rd0}
+@@ k=1
+set.fo rf2, 0x1234               @@ @exp rd2rf {rf2}, {rd0} ; set.w rf2, wp0, 0x1234
+@@ CHECK-NEXT: rd2rf {rf2}, {rd0}
+@@ CHECK-NEXT: set.w rf2, wp0, 0x1234
+@@ ASM: rd2rf {rf2}, {rd0}
+@@ ASM-NEXT: set.w rf2, wp0, 0x1234
+@@ k=2
+set.fo rf3, 0x12345678           @@ @exp rd2rf {rf3}, {rd0} ; set.w rf3, wp1, 0x1234 ; set.w rf3, wp0, 0x5678
+@@ CHECK-NEXT: rd2rf {rf3}, {rd0}
+@@ CHECK-NEXT: set.w rf3, wp1, 0x1234
+@@ CHECK-NEXT: set.w rf3, wp0, 0x5678
+@@ ASM: rd2rf {rf3}, {rd0}
+@@ ASM-NEXT: set.w rf3, wp1, 0x1234
+@@ ASM-NEXT: set.w rf3, wp0, 0x5678
+@@ k=3（4 条，与 4×set.w 并列；统一取 rd0 形态）
+set.fo rf4, 0x123456789ABC       @@ @exp rd2rf {rf4}, {rd0} ; set.w rf4, wp2, 0x1234 ; set.w rf4, wp1, 0x5678 ; set.w rf4, wp0, 0x9abc
+@@ CHECK-NEXT: rd2rf {rf4}, {rd0}
+@@ CHECK-NEXT: set.w rf4, wp2, 0x1234
+@@ CHECK-NEXT: set.w rf4, wp1, 0x5678
+@@ CHECK-NEXT: set.w rf4, wp0, 0x9abc
+@@ ASM: rd2rf {rf4}, {rd0}
+@@ ASM-NEXT: set.w rf4, wp2, 0x1234
+@@ ASM-NEXT: set.w rf4, wp1, 0x5678
+@@ ASM-NEXT: set.w rf4, wp0, 0x9abc
+@@ k=4：4 个 wyde 全非零 ⇒ 4 条 set.w（不得走 rd0 变成 5 条）
+set.fo rf5, 0x123456789ABCDEF0   @@ @exp set.w rf5, wp3, 0x1234 ; set.w rf5, wp2, 0x5678 ; set.w rf5, wp1, 0x9abc ; set.w rf5, wp0, 0xdef0
+@@ CHECK-NEXT: set.w rf5, wp3, 0x1234
+@@ CHECK-NEXT: set.w rf5, wp2, 0x5678
+@@ CHECK-NEXT: set.w rf5, wp1, 0x9abc
+@@ CHECK-NEXT: set.w rf5, wp0, 0xdef0
+@@ ASM: set.w rf5, wp3, 0x1234
+@@ ASM-NEXT: set.w rf5, wp2, 0x5678
+@@ ASM-NEXT: set.w rf5, wp1, 0x9abc
+@@ ASM-NEXT: set.w rf5, wp0, 0xdef0
+@@ k=1 且高半非零（浮点 1.0 的位型）
+set.fo rf6, 0x3FF0000000000000   @@ @exp rd2rf {rf6}, {rd0} ; set.w rf6, wp3, 0x3ff0
+@@ CHECK-NEXT: rd2rf {rf6}, {rd0}
+@@ CHECK-NEXT: set.w rf6, wp3, 0x3ff0
+@@ ASM: rd2rf {rf6}, {rd0}
+@@ ASM-NEXT: set.w rf6, wp3, 0x3ff0
 set.fo rf2, rf7                  @@ @exp rf2rf {rf2}, {rf7}
 @@ CHECK: rf2rf {rf2}, {rf7}
 @@ ASM: rf2rf {rf2}, {rf7}
