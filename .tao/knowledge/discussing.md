@@ -326,14 +326,14 @@ M15 exit：264 条记录 **100%** 有 operation 块且 id 一对一；抽取结�
 
 M17 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个向量走到；`make check-idl` 进 L2；分歧归因落 spec 裁定（**不是「IDL 一定对」**）。
 
-# 待处理：清空 `.tao/knowledge/refs/`（用户 2026-11-15 已定，**下一步**执行）
+# 待处理：清空 `.tao/knowledge/refs/`（用户 2026-11-15 已定；**执行时间点：M13 收口前后 或 M15**）
 
 - 用户原话：「`.tao/knowledge/refs/` 目录下一步也要清空」。
 - 影响：refs 内现有报告（`m12-016-embench-picolibc.{json,md}`、`m13-003-int-diff.{json,md}`、`m13-044-probe-coverage.tsv` 等）**不再作为结论载体**；结论改落根 `README.md`、`docs/DDLN/`、`.tao/archive/M*/README.md` 与台账。
 - 清空前须确认：① 还有谁在引用（任务书/台账/门控）→ 先改成「结论已迁至 X」；② 删除 or 归档到 `.tao/archive/M*/refs/`；③ 是否同步改 `docs/Process-0x` 关于 refs 落点的规定。
 - **在此之前：新任务不得再往 `refs/` 写文件**（`m12-integ-002` 已按此收窄）。
 
-# 待处理：`tools/` 脚本台账与孤儿清理（2026-11-15，用户裁定**延后**）
+# 待处理：`tools/` 脚本台账与孤儿清理（2026-11-15；用户裁定**延后到 M13 收口前后 或 M15**）
 
 - 现状（现场统计）：`tools/**` 下 **260** 个 py/sh；仅 `tools/testcases/README.md` 一份索引且只登记 **3** 个（该目录 120 个 ⇒ 117 无索引）；其余 7 个模块无 README，也无 `tools/README.md`；**53 个零外部引用**（如 `tests/inst` 侧的 `min_rom_probe_*` 整族、`tools/qemu/generate_{atomics,clmul,rol}_vectors.py`、`tools/gem5/check_b{1,2,4,6}.py`）。
 - 待用户选口径：**A 归档到 `.tao/archive/tools/`（不删除，建议）/ B 直接删除 / C 只报告不动**。
