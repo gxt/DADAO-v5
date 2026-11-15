@@ -31,6 +31,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m13-llvm-002 | 2026-11-15 18:40 | 1.5–2 h | `set.fo rf, imm64` 最小指令数展开（`rd2rf rd0` + 非零 wyde；`k=4` 退回 4 条） |
 | m13-testcases-049 | 2026-11-15 18:15 | 3–4 h | 原子 RMW 合成序载体（`tests/inst/00-isa-design/atomic_rmw.S`；5 类函数 + 失败重试 + 旧值语义） |
 | m13-testcases-048 | 2026-11-15 17:25 | 2–3 h | 伪指令专用汇编载体 7 个（`tests/inst/00-isa-design/`；含 `set.ft` 窄写 vs `rf2rf` 整 64 位对照） |
 | m13-chipyard-003 | 2026-11-15 16:15 | 2–3 h | chipyard 侧删 `ft2ft`/`fo2fo`、加 `rf2rf`（译码/执行 + sim 重建 + 三平台复核） |
