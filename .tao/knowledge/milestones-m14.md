@@ -24,19 +24,19 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-linux-008 | 2–3 h | K2 中断使能与屏蔽（`local_irq_*` → `cfx_smon cg2 rc4`，屏蔽窗冻结 + 补投 1） |
 | m14-linux-009 | 3–4 h | K2 收口门控 `check-linux-k2`（B/E/C/T/M/X/R 七组，入 L2） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-linux-007 | 2026-11-16 05:28 | 4–6 h | K2 时钟与定时器（固件放行 `cfx_hart`/`cfx_time` + TIMER → jiffies；IPI 不实现） |
+| m14-linux-008 | 2026-11-16 06:35 | 2–3 h | K2 中断使能与屏蔽（`local_irq_*` 按当前 cfx 选行、两行都开；屏蔽窗冻结 + 补投 1） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-007 | 2026-11-16 06:35 | K2 时钟与定时器（`hmon` 放行 `cfx_hart`/`cfx_time` + `time.c`/`irq.c`/`async_trap.S`；HZ 现场派生、margin=period/2；time 探针 149/149） |
 | m14-linux-006 | 2026-11-16 05:27 | K2 异常入口与 cause 分派（`trap.S` 全 GPR 保存 + 11 项表 + A′ 退出码分段；K0 119/119、K1 108/108、K2 85/85） |
 | m14-qemu-002 | 2026-11-16 02:38 | semihosting 指针改按 PA（`SYS_WRITE0` 取串 + `SYS_OPEN` 无长度名经 target 钩子；K1 门控 +K14 6 条，108/108） |
 | m14-spec-005 | 2026-11-15 23:55 | K2 内核侧异常/中断契约口径（`contract-see §6`：cause_info 11 项、帧无 prev_cfx、异步入口 `cfx_hart cg2 rc10`、IE 单旋钮 `cg2 rc4`） |

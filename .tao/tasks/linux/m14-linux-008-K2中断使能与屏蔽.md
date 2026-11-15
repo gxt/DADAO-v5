@@ -21,7 +21,7 @@ K1 交付的 `arch/dadao/include/asm/irqflags.h` 是**恒 disabled 桩**（`arch
 ## 范围
 
 1. **`arch/dadao/include/asm/irqflags.h` 真实现**（替换恒 disabled 桩）
-   - 软件旋钮 = `cfx_smon` `cg2 rc4`（内核 = `inner_cfx_code 2` 的 `supv` 行）；`arch_local_irq_save()` = 读回当前值（作 `flags` 返回）后**置位**所有「内核关心的源位」；`arch_local_irq_restore(flags)` = 写回；
+   - 软件旋钮 = **按「当前 cfx」选行**的 `supv` 行 `cfx_intr_mask`（`cg2 rc4`）：正常运行期当前 cfx = `cfx_smon`（2）；**一旦有 cfx 投递过异常，当前 cfx 变成该 cfx**（`escape` 不恢复 `inner_cfx_code`，见 `ISS-454`；`m14-linux-007` 已按「两行都开」实现） ⇒ `save`/`restore` 必须同时覆盖 `cfx_smon` 与**投递过的 cfx**（如 `cfx_hart`）两行；`arch_local_irq_save()` = 读回当前值（作 `flags` 返回）后**置位**所有「内核关心的源位」；`arch_local_irq_restore(flags)` = 写回；**注意**：`ISS-455` 记录了一处未定口径（`spec/DADAO-12 §5.2` 步骤 3 写「源轴查 mode monitor 的行」，与 `ADR-0045 D3`/`contract-see §6.4`/QEMU「查当前 cfx 的行」不一致）。本任务按**两行都开**实现（对两读法皆成立、无副作用），并在完成区显式披露该未定项；
    - `arch_local_irq_disable()` = `save()` 丢弃返回值；`arch_local_irq_enable()` = 清掉「内核关心的源位」；
    - `arch_local_save_flags()` = 读回；`arch_irqs_disabled_flags(flags)` = 「`flags` 是否把内核关心的源位挡住」；`arch_irqs_disabled()` 同上；
    - 「内核关心的源位」= 运行期由 `m14-linux-007` 使能的源集合（当前只有 `TIMER` = `1 << 15`，位索引 = 目标 cfxha `15`）。**不得**把 `1 << 15` 硬编码散落在多处：集中为一个 `#define`/常量并注明来源（`spec/DADAO-12 §4.7` 的 `cfxha` + `contract-see §3` 的「位索引 = 目标 cfxha」）；
