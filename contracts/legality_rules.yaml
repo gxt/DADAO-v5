@@ -86,22 +86,23 @@ rules:
       浮点运算指令的**目的**操作数为 rf0 时触发 ILLI 异常
       （rf0 为控制和状态寄存器 FCSR，不可作为浮点运算的目的操作数）；
       rf0 作**源**操作数合法（读出完整 64 位，含 ftsgnj/fosgnj + rfHD=rf0 的 abs() 特例）。
-      **适用（目的 rf0 → ILLI，共 41 条）**：
-      convert_ff 4（ft2ft/ft2fo/fo2ft/fo2fo）、
+      **适用（目的 rf0 → ILLI，共 40 条）**：
+      convert_ff 2（ft2fo/fo2ft）、
       convert_i2f 8（it2ft/io2ft/ut2ft/uo2ft/it2fo/io2fo/ut2fo/uo2fo）、
       arith 12（ftadd/ftsub/ftmul/ftdiv/ftrem/ftsclb/foadd/fosub/fomul/fodiv/forem/fosclb）、
       root 2（ftroot/foroot）、sign 4（ftsgnj/ftsgnn/fosgnj/fosgnn）、
       cs_rf 3（cs.n/z/p 的目的 rfHB 或 rfHC；`cs.eq/ne` 的 rf 变体已由 `SPEC-163t` 删除）、
       roundint 2（ftrnd/fornd 的目的 rfHB，`SPEC-162t` 翻转）、
       minmax 4（ftmin/ftmax/fomin/fomax 的目的 rfHB，`SPEC-160t` 翻转）、
-      fma 2（ftfma/fofma 的目的 rfHA，`SPEC-158t` 翻转）。
+      fma 2（ftfma/fofma 的目的 rfHA，`SPEC-158t` 翻转）、
+      rf 组内块复制 1（rf2rf 的目的 rfhb，`M13` 起；与 rd2rf 允许 rf0 作目的不同）。
       **不适用（该指令无 rf 目的字段，rf 仅作源）**：rf2rd、st.t/st.o、stm.t/stm.o（-rf）；
       只读类 14 条（convert_f2i 8、classify 2、compare 4，目的均为 rd）亦无 rf 目的字段，不涉及。
       **例外（rf0 作目的合法）**：rd2rf（含 {rf0:rf0+immu6-1}，immu6≥2 允许）、
       ld.t/ld.o/ldm.t/ldm.o（按 FCSR 写掩码）、set.w。
       **源 rf0 合法（不触发本规则）**：上述各指令及 cs.*-rf 的 rf0-源角色（读出完整 64 位）。
       本规则 active（FP 已实现，LLVM-029t/030t、QEMU-034t–037t）；由 scope: fp 记录的
-      rule_refs 覆盖（41 条）。
+      rule_refs 覆盖（40 条）。
 
   # ── 多寄存器范围规则 ─────────────────────────────────────────────────────────
   - id: mreg_zero
@@ -113,7 +114,7 @@ rules:
       多寄存器与块赋值指令 immu6=0 时触发 ILLI 异常。覆盖寄存器组：
       RD/RB：ldm.*/stm.*（RD、RB）、rd2rd/rb2rd/rd2rb/rb2rb；
       RA：ldm.o-ra/stm.o-ra、ra2rd/rd2ra；
-      RF（scope: fp，共 10 条）：convert_ff 的复制两条（ft2ft/fo2fo）、
+      RF（scope: fp，共 9 条）：rf 组内块复制（rf2rf）、
       classify（ftcls/focls）、RF 多寄存器存取（ldm.t/stm.t/ldm.o/stm.o）、
       RF↔RD 块赋值（rd2rf/rf2rd）。
       格式转换的其余 18 条**不适用**——其低 6 位不是个数：结果依赖舍入的 15 条取
@@ -132,8 +133,8 @@ rules:
       **源与目的起始寄存器均检查**。覆盖寄存器组：
       RD/RB：ldm.*/stm.*；块赋值目的 rdhb/rbhb 与源 rdhc/rbhc；
       RA：ldm.o-ra/stm.o-ra 目的/源、ra2rd、rd2ra；
-      RF（scope: fp，共 10 条，清单同 mreg_zero）：目的起始（ft2ft/fo2fo 的 rfhb、
-      classify 的 rdhb）与源起始（ft2ft/fo2fo/classify 的 rfhc）**都检查**；
+      RF（scope: fp，共 9 条，清单同 mreg_zero）：目的起始（rf2rf 的 rfhb、
+      classify 的 rdhb）与源起始（rf2rf/classify 的 rfhc）**都检查**；
       ldm.*/stm.* 的 rfha、rd2rf 的 rfhb 与 rdhc、
       rf2rd 的 rdhb 与 rfhc 同样检查。
       格式转换的其余 18 条不适用（低 6 位不是个数，见 mreg_zero）。
@@ -147,10 +148,10 @@ rules:
     description: >
       同寄存器组块赋值指令中，源范围与目的范围有任何交集（**含完全重合**）时触发 ILLI 异常。
       覆盖：rd2rd（rdhb↔rdhc）、rb2rb（rbhb↔rbhc）；
-      以及 scope: fp 的复制类 ft2ft/fo2fo（rfhb↔rfhc）。共 4 条。
+      以及 scope: fp 的 rf 组内块复制 rf2rf（rfhb↔rfhc）。共 3 条。
       跨组指令（ra2rd/rd2ra/rd2rb/rb2rd、rd2rf/rf2rd、convert_f2i、convert_i2f、classify）
       不适用——源与目的分属不同寄存器组，结构性不可能重叠。
-      格式转换中除 ft2ft/fo2fo 外的 18 条亦不适用——其低 6 位是舍入方向档或 SBZ，
+      格式转换的 18 条亦不适用——其低 6 位是舍入方向档或 SBZ，
       不是寄存器窗口（无可重叠的范围）。
 
   - id: mreg_range_addr_overlap
@@ -258,6 +259,8 @@ rules:
     description: >
       执行保留编码触发 UNDI 异常：QFC 主表与各 MISC 子表的空白单元格
       （未分配编码），以及保留的 opx。
+      显式登记的两格：`OPC-RF` 子表 `000-xxx`/`xxx-010` 与 `001-xxx`/`xxx-010`
+      空置 ⇒ 执行 UNDI；rf 组内块复制由 `rf2rf`（`OPC-octa` `111-100`）承担。
       注意：32 位全零指令字（0x00000000）为保留编码，触发 UNDI 而非 ILLI（见 contract-isa.md §2.9；原专门非法指令已于 0.5.4 删除）。
 
   - id: encode_fp_root_n

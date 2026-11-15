@@ -2,10 +2,10 @@
 
 > **版本：0.5.6** [SimRISC-00 §浮点寄存器][SimRISC-07 §版本]
 
-本合约归一化 `scope: fp` **66 条**指令的语义（IEEE754 浮点运算、FCSR 环境、合法性），供后续 golden oracle / LLVM / QEMU / testcases 消费。§18 的取整（`ftrnd`/`fornd`）在实现落地后已由 `excluded` 转入 `fp`（`SPEC-162t`），§19 的最小/最大值（`ftmin`/`ftmax`/`fomin`/`fomax`）同样在实现落地后转入 `fp`（`SPEC-160t`），§20 的融合乘加（`ftfma`/`fofma`）亦在实现落地后转入 `fp`（`SPEC-158t`），均计入 66 条。[SimRISC-07 §取整（roundToIntegral）][SimRISC-07 §最小最大值][SimRISC-07 §融合乘加（fusedMultiplyAdd）]
+本合约归一化 `scope: fp` **65 条**指令的语义（IEEE754 浮点运算、FCSR 环境、合法性），供后续 golden oracle / LLVM / QEMU / testcases 消费。§18 的取整（`ftrnd`/`fornd`）在实现落地后已由 `excluded` 转入 `fp`（`SPEC-162t`），§19 的最小/最大值（`ftmin`/`ftmax`/`fomin`/`fomax`）同样在实现落地后转入 `fp`（`SPEC-160t`），§20 的融合乘加（`ftfma`/`fofma`）亦在实现落地后转入 `fp`（`SPEC-158t`），均计入 65 条。[SimRISC-07 §取整（roundToIntegral）][SimRISC-07 §最小最大值][SimRISC-07 §融合乘加（fusedMultiplyAdd）]
 
 - **编码唯一真源**为 `contracts/opcodes.yaml`（本合约不复制编码）。
-- **机器可读投影**为 `contracts/fp_semantics.yaml`（66 条 `id→family→spec_cite→semantics_ref→legality_refs`）。
+- **机器可读投影**为 `contracts/fp_semantics.yaml`（65 条 `id→family→spec_cite→semantics_ref→legality_refs`）。
 - **合法性规则**见 `contracts/legality_rules.yaml`。
 - 本合约**不含任何期望值**；oracle 方案见 `docs/fp-oracle-design.md`。
 - 所有语义断言均标注 spec/ 依据（Spec-first，不从 LLVM/QEMU 反推）。
@@ -16,25 +16,25 @@
 
 ## §1 全局环境（FCSR 与寄存器模型）<a id="fp-env"></a>
 
-- rf 寄存器字长 64 位；存放单精（ft，32 位）时只使用低 32 位。**写入宽度**：`ld.t`/`ldm.t` 只写低 32 位、高 32 位保持原值（不符号扩展、不零填）；凡以 ft 寄存器为目的的指令同理（含 `ft2ft`）；不适用：`fo2fo` 与跨组复制 `rd2rf`/`rf2rd`（整 64 位逐位复制）。[SimRISC-01 §4. 存取RF寄存器][SimRISC-07 §1.3 复制][SimRISC-00 §浮点状态寄存器]
+- rf 寄存器字长 64 位；存放单精（ft，32 位）时只使用低 32 位。**写入宽度**：`ld.t`/`ldm.t` 只写低 32 位、高 32 位保持原值（不符号扩展、不零填）；凡以 ft 寄存器为目的的指令同理；**不适用（整 64 位逐位复制）**：跨组复制 `rd2rf`/`rf2rd`、rf 组块复制 `rf2rf`、浮点条件赋值的 rf 形式。[SimRISC-01 §4. 存取RF寄存器][SimRISC-00 §浮点寄存器][SimRISC-02 §寄存器组之间块赋值]
 - `rf0` 为 FCSR，同时是 ft/fo 格式的 qNaN：**可作浮点运算的源**、**不可作浮点运算的目的**（作目的 → ILLI）。[SimRISC-00 §浮点寄存器]
 - FCSR 位布局：`[63:51]` 只读 qNaN(fo)、`[50:34]` SBZ、`[33:32]` 舍入模式、`[31:22]` 只读 qNaN(ft)、`[21:5]` SBZ、`[4:0]` 异常状态。[SimRISC-00 §浮点状态寄存器]
 - 写 `rf0` 只更新 `[33:32]` 与 `[4:0]`；其余位（只读 qNaN 位、SBZ）写无效、保持原值。[SimRISC-00 §浮点状态寄存器]
 - 舍入模式 `rf0[33:32]`：`00` RNE（就近取偶）、`01` RTZ（向零）、`10` RDN（向下）、`11` RUP（向上）。[SimRISC-00 §浮点状态寄存器]
 - 异常标志 `rf0[4:0]` 按 IEEE754 累积（accrued、**sticky**：置位后保持到软件清零）：bit0 NV、bit1 DZ、bit2 OF、bit3 UF、bit4 NX；`UF` 仅在结果 **tiny 且 inexact** 时置位（**tininess 检测点 = 舍入后**），`UF ⇒ NX`，反之不成立。[SimRISC-00 §浮点状态寄存器][SimRISC-07 §格式转换指令]
 - 浮点格式符合 IEEE754；浮点指令**不触发异常**，始终按 IEEE754 返回结果（NaN/Inf 等）。[SimRISC-00 §浮点状态寄存器]
-- **结果 NaN 一律 canonical quiet NaN**：凡结果应为 quiet NaN 的情形（算术、缩放、开方、取余、融合乘加、取整、最小最大、格式转换、比较的 quiet 无序结果，以及一切无效操作产生的 qNaN）一律取符号位 0、payload 全零（ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）；IEEE 754-2019 §6.2.3 对 payload 传播只是 *should*、§6.3 不规定 NaN 结果的符号位 ⇒ 取 canonical 属 IEEE 允许的实现选择，**不是**有意偏离。**不适用**：`ft2ft`/`fo2fo` 复制类（纯位搬移、不改位、不置标志）；signaling compare（`ftscmp`/`foscmp`）的无序结果（保持 signaling NaN 位型、符号位 0）；`ftmin`/`ftmax`/`fomin`/`fomax` 的单 NaN 情形（返回那个数）。sNaN 作输入仍按各节规则置 `NV`，结果同样取 canonical quiet NaN。[SimRISC-07 §异常与标志]
-- `immu6` 多重语义：作**连续个数**（1–63）用于复制类转换（`ft2ft`/`fo2fo`）/ 分类 / RF 多寄存器；作**舍入方向六档**用于 15 条结果依赖舍入的格式转换；作 **SBZ**（必须为 0）用于 3 条精确格式转换；作 **n** 用于 `root`（仅 2）。[SimRISC-07 §格式转换指令][SimRISC-07 §取整（roundToIntegral）][SimRISC-07 §S1D1]
+- **结果 NaN 一律 canonical quiet NaN**：凡结果应为 quiet NaN 的情形（算术、缩放、开方、取余、融合乘加、取整、最小最大、格式转换、比较的 quiet 无序结果，以及一切无效操作产生的 qNaN）一律取符号位 0、payload 全零（ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）；IEEE 754-2019 §6.2.3 对 payload 传播只是 *should*、§6.3 不规定 NaN 结果的符号位 ⇒ 取 canonical 属 IEEE 允许的实现选择，**不是**有意偏离。**不适用**：rf 组块复制 `rf2rf` 等纯位搬移（不改位、不置标志）；signaling compare（`ftscmp`/`foscmp`）的无序结果（保持 signaling NaN 位型、符号位 0）；`ftmin`/`ftmax`/`fomin`/`fomax` 的单 NaN 情形（返回那个数）。sNaN 作输入仍按各节规则置 `NV`，结果同样取 canonical quiet NaN。[SimRISC-07 §异常与标志]
+- `immu6` 多重语义：作**连续个数**（1–63）用于块复制（`rf2rf`/`rd2rf`/`rf2rd`）/ 分类 / RF 多寄存器；作**舍入方向六档**用于 15 条结果依赖舍入的格式转换；作 **SBZ**（必须为 0）用于 3 条精确格式转换；作 **n** 用于 `root`（仅 2）。[SimRISC-07 §格式转换指令][SimRISC-07 §取整（roundToIntegral）][SimRISC-07 §S1D1]
 - 浮点寄存器只能用于浮点类指令（RF 组）。[SimRISC-00 §浮点寄存器]
 
 ---
 
 ## §2 `convert_ff`（同/异浮点格式转换）<a id="convert_ff"></a>
 
-- 指令：`ft2ft`/`ft2fo`/`fo2ft`/`fo2fo`（orri：`rfHB` 目的、`rfHC` 源）。低 6 位按指令分三种语义：`ft2ft`/`fo2fo` 为**连续个数 1–63**（复制类）、`fo2ft` 为**舍入方向六档**、`ft2fo` 为 **SBZ**（必须为 0）。[SimRISC-07 §格式转换指令]
+- 指令：`ft2fo`/`fo2ft`（orri：`rfHB` 目的、`rfHC` 源）。低 6 位按指令分两种语义：`fo2ft` 为**舍入方向六档**、`ft2fo` 为 **SBZ**（必须为 0）。[SimRISC-07 §格式转换指令]
 - `fo2ft` 的 `immu6` = 舍入方向 one-hot 六档：`0x01` RNE / `0x02` RNA / `0x04` RTZ / `0x08` RUP / `0x10` RDN / `0x20` 动态（读 `rf0[33:32]`）；其他取值（含 `0x00`）⇒ ILLI，5 个静态档不受 `rf0[33:32]` 影响。[SimRISC-07 §格式转换指令][SimRISC-07 §取整（roundToIntegral）]
 - `ft2fo`（f32→f64）结果恒可精确表示 ⇒ 不涉舍入、不置 NX；`immu6` 为 SBZ（必须为 0，非 0 ⇒ ILLI）。[SimRISC-07 §格式转换指令]
-- 复制类 `ft2ft`/`fo2fo`：源范围与目的范围不可有任何交集（含完全重合），否则 → ILLI（见 `mreg_range_overlap`）；`immu6 = 0` 或任一起始寄存器 + `immu6 > 64` → ILLI（见 `mreg_zero`/`mreg_range_overflow`）；无交集时按序号递增逐对进行，**先读后写**。[SimRISC-07 §格式转换指令]
+- rf 组内的连续寄存器复制不属本族：见 §12 `rf_move`（`rf2rf`）。[SimRISC-02 §寄存器组之间块赋值]
 - `fo2ft` **溢出**按 IEEE 754-2019 §7.4 由**舍入方向**决定并置 **OF** + **NX**：RNE/RNA ⇒ `±Inf`；RTZ ⇒ `±最大有限值`；RUP ⇒ 正溢出 `+Inf`、负溢出 `−最大有限值`；RDN ⇒ 正溢出 `+最大有限值`、负溢出 `−Inf`（动态档 `0x20` 按 `rf0[33:32]` 取对应方向；`ft` 最大有限值 = `0x7F7F_FFFF`）。下溢（结果 tiny 且 inexact）按舍入方向处理并置 UF（并置 NX）；NaN 结果取 canonical quiet NaN；sNaN 作为算术输入置 NV 并返回 canonical qNaN。[SimRISC-07 §格式转换指令][SimRISC-07 §异常与标志]
 - 目的 `rfHB` 为 `rf0` → ILLI。[SimRISC-00 §浮点寄存器]
 
@@ -113,14 +113,14 @@
 - `rf0` 作**目的**合法（`ld.t`/`ldm.t` 的 `[63:32]` 不变；`ld.o`/`ldm.o` 按 FCSR 写掩码）；作**源**读出完整 64 位。[SimRISC-01 §存取RF寄存器]
 - 多寄存器形式 `immu6 = 0` 或任一起始寄存器 + `immu6 > 64` → ILLI。[SimRISC-01 §存取RF寄存器]
 
-## §12 `rf_move`（RF↔RD 块赋值）<a id="rf_move"></a>
+## §12 `rf_move`（RF↔RD 与 RF 组内块赋值）<a id="rf_move"></a>
 
-- 指令：`rd2rf`（orri：`rfHB` 目的、`rdHC` 源、`immu6` 1–63）与 `rf2rd`（orri：`rdHB` 目的、`rfHC` 源、`immu6` 1–63）。[SimRISC-02 §寄存器组之间块赋值]
-- 块传输不进行数据类型转换，保持 64 位二进制不变；`rd2rf`/`rf2rd` 的源与目的分属 RD/RF 不同寄存器组、结构性不可能重叠，按序先读后写。[SimRISC-02 §寄存器组之间块赋值]
-- `rd2rf` 目的 `rf0` **合法**（含 `{rf0:rf0+immu6-1}`，immu6≥2 允许）；`rf2rd` 源 `rf0` 合法（读出完整 64 位）。[SimRISC-02 §寄存器组之间块赋值]
+- 指令：`rd2rf`（orri：`rfHB` 目的、`rdHC` 源、`immu6` 1–63）、`rf2rd`（orri：`rdHB` 目的、`rfHC` 源、`immu6` 1–63）与 `rf2rf`（orri：`rfHB` 目的、`rfHC` 源、`immu6` 1–63）。[SimRISC-02 §寄存器组之间块赋值]
+- 块传输不进行数据类型转换，保持 64 位二进制不变；`rd2rf`/`rf2rd` 的源与目的分属 RD/RF 不同寄存器组、结构性不可能重叠；`rf2rf` 同组，源/目的范围**任何重叠**（含完全重合）→ ILLI（`mreg_range_overlap`）。三者均按序号递增逐对进行，**先读后写**。[SimRISC-02 §寄存器组之间块赋值]
+- `rd2rf` 目的 `rf0` **合法**（含 `{rf0:rf0+immu6-1}`，immu6≥2 允许）；`rf2rd` 源 `rf0` 合法（读出完整 64 位）；`rf2rf` 源 `rf0` 合法（读出完整 64 位），目的范围含 `rf0` → ILLI（`dst_rf0`）。[SimRISC-02 §寄存器组之间块赋值][SimRISC-00 §浮点寄存器]
 - `rf2rd` 目的 `rdHB` 为 `rd0` → ILLI（`dst_rd0`，目的不可为 `rd0`）；`rd2rf` 目的为 rf 组（`rf0` 合法）——「源 `rf0` 合法」与「目的 `rd0` 非法」是两条不同约束。[SimRISC-02 §寄存器组之间块赋值][SimRISC-00 §数据寄存器]
-- `immu6 = 0` 或任一起始寄存器 + `immu6 > 64` → ILLI。[SimRISC-02 §寄存器组之间块赋值]
-- 本族与 `fo2fo` 同属**复制类**（`rd2rf`/`rf2rd`/`fo2fo` 整 64 位逐位复制；`ft2ft` 只搬低 32 位、目的高 32 位保持原值）：保留 `immu6` = 连续个数（1–63）与块形式语义，不涉舍入、不置标志。[SimRISC-02 §寄存器组之间块赋值][SimRISC-07 §格式转换指令]
+- 三者 `immu6 = 0` 或任一起始寄存器 + `immu6 > 64` → ILLI。[SimRISC-02 §寄存器组之间块赋值]
+- 本族三条同属**复制类**，按**整 64 位逐位复制**（不涉舍入、不置标志、不做窄写）：保留 `immu6` = 连续个数（1–63）与块形式语义。[SimRISC-02 §寄存器组之间块赋值][SimRISC-00 §浮点寄存器]
 
 ## §13 `set_w_rf`（RF 立即数）<a id="set_w_rf"></a>
 
@@ -128,22 +128,22 @@
 - 只设置 `wpN` 指定的 16 位，其余 48 位不变。[SimRISC-03 §立即数常数赋值：Immediate constant]
 - `set.w rf0` **合法**：`wp2` 命中舍入模式、`wp0` 命中异常状态、`wp1`/`wp3` 完全写无效（遵 FCSR 写掩码）。[SimRISC-03 §立即数常数赋值：Immediate constant]
 
-## §14 伪指令（非 66 条 id，仅说明）<a id="pseudo"></a>
+## §14 伪指令（非 65 条 id，仅说明）<a id="pseudo"></a>
 
-- `set.ft`/`set.fo` 不是硬件指令，由汇编器展开为 `set.w` 组合：全零 → `rd2rf {rf}, {rd0}`；寄存器传值 → `rd2rf`/`ft2ft`/`fo2fo`。[SimRISC-03 §set.ft / set.fo 伪指令]
-- 伪指令属汇编器展开，**不进** `contracts/opcodes.yaml` 的 66 条。[SimRISC-03 §set.ft / set.fo 伪指令]
+- `set.ft`/`set.fo` 不是硬件指令，由汇编器展开为 `set.w` 组合：全零 → `rd2rf {rf}, {rd0}`；寄存器传值 → `rd2rf`（rd 源）或 `rf2rf`（rf 源，整 64 位复制）。[SimRISC-03 §set.ft / set.fo 伪指令]
+- 伪指令属汇编器展开，**不进** `contracts/opcodes.yaml` 的 65 条。[SimRISC-03 §set.ft / set.fo 伪指令]
 
 ## §15 合法性规则映射
 
-- `dst_rf0`（FP 专属）：浮点运算指令**目的**为 `rf0` → ILLI（41 条：convert_ff 4 + convert_i2f 8 + arith 12 + root 2 + sign 4 + cs_rf 3 + roundint 2 + minmax 4 + fma 2）；`rf0` 作源合法。`rf2rd`/`st.*`/`stm.*`（rf 仅作源、无 rf 目的字段）不适用本规则。[SimRISC-00 §浮点寄存器][SimRISC-01 §存取RF寄存器][SimRISC-02 §浮点条件赋值]
+- `dst_rf0`（FP 专属）：浮点运算与 rf 组块复制指令**目的**含 `rf0` → ILLI（40 条：convert_ff 2 + convert_i2f 8 + arith 12 + root 2 + sign 4 + cs_rf 3 + roundint 2 + minmax 4 + fma 2 + rf_move 的 `rf2rf` 1）；`rf0` 作源合法（含 `rf2rf` 的源窗口）。`rf2rd`/`st.*`/`stm.*`（rf 仅作源、无 rf 目的字段）不适用本规则；`rd2rf` 是 `rf0` 作目的**合法**的例外。[SimRISC-00 §浮点寄存器][SimRISC-01 §存取RF寄存器][SimRISC-02 §浮点条件赋值]
 - `encode_fp_root_n`（FP 专属）：`ftroot`/`foroot` 仅 n=2，其他 n → ILLI（2 条）。[SimRISC-07 §S1D1]
 - `encode_onehot`（与 `rev.*` 共享）：`roundint` 两条与 15 条结果依赖舍入的格式转换（`convert_f2i` 8 + `convert_i2f` 6 + `fo2ft`）的 `immu6` 非 one-hot（含 `0x00`）→ ILLI（17 条）；六档 one-hot 与 754-2019 六种 `roundToIntegral` 按位序一一对应，复用既有规则、不新增规则。[SimRISC-07 §格式转换指令][SimRISC-07 §取整（roundToIntegral）]
 - `encode_sbz`（全局共享）：3 条精确格式转换（`ft2fo`/`it2fo`/`ut2fo`）的低 6 位为 SBZ，必须为 0，非 0 → ILLI（3 条）；这些转换结果恒精确，不置 NX。[SimRISC-07 §格式转换指令]
-- `mreg_zero`（与 M1 共享，同时服务 RD/RB/RA 多寄存器）：FP `immu6` 连续个数形式 `immu6 = 0` → ILLI（10 条：`ft2ft`/`fo2fo`、`classify` 2、RF 多寄存器 4、`rd2rf`/`rf2rd`）；18 条非复制类格式转换的 `immu6` 不是个数，不适用本规则。[SimRISC-07 §格式转换指令][SimRISC-01 §存取RF寄存器][SimRISC-02 §寄存器组之间块赋值]
-- `mreg_range_overflow`（与 M1 共享）：FP `immu6` 连续个数形式起始 + `immu6 > 64` → ILLI，不环绕、不截断（10 条，清单同 `mreg_zero`）；**源与目的起始寄存器均检查**；18 条非复制类格式转换不适用。[SimRISC-07 §格式转换指令][SimRISC-01 §存取RF寄存器][SimRISC-02 §寄存器组之间块赋值]
-- `mreg_range_overlap`（与 M1 共享，M1 侧为 rd2rd/rb2rb）：FP 仅 `ft2ft`/`fo2fo` 两条源范围与目的范围有任何交集（含完全重合）→ ILLI（2 条）；其余 18 条格式转换的低 6 位是舍入档或 SBZ、不是寄存器窗口，不存在范围重叠。[SimRISC-07 §格式转换指令][SimRISC-02 §寄存器组之间块赋值]
+- `mreg_zero`（与 M1 共享，同时服务 RD/RB/RA 多寄存器）：FP `immu6` 连续个数形式 `immu6 = 0` → ILLI（9 条：`rf2rf`、`classify` 2、RF 多寄存器 4、`rd2rf`/`rf2rd`）；18 条格式转换的 `immu6` 不是个数，不适用本规则。[SimRISC-07 §格式转换指令][SimRISC-01 §存取RF寄存器][SimRISC-02 §寄存器组之间块赋值]
+- `mreg_range_overflow`（与 M1 共享）：FP `immu6` 连续个数形式起始 + `immu6 > 64` → ILLI，不环绕、不截断（9 条，清单同 `mreg_zero`）；**源与目的起始寄存器均检查**；18 条格式转换不适用。[SimRISC-07 §格式转换指令][SimRISC-01 §存取RF寄存器][SimRISC-02 §寄存器组之间块赋值]
+- `mreg_range_overlap`（与 M1 共享，M1 侧为 rd2rd/rb2rb）：FP 仅 `rf2rf` 一条源范围与目的范围有任何交集（含完全重合）→ ILLI（1 条）；其余 18 条格式转换的低 6 位是舍入档或 SBZ、不是寄存器窗口，不存在范围重叠。[SimRISC-07 §格式转换指令][SimRISC-02 §寄存器组之间块赋值]
 - `dst_rd0`（与 M1 共享）：FP 中目的为 rd 组的 15 条——orri 目的字段 `rdhb`（`convert_f2i` 8 + `classify` 2 + `rf2rd` 1）与 orrr 单目的 `rdhb`（`compare` 4）为 `rd0` → ILLI；目的为 rf 组的 FP 指令（`rd2rf` 等）不适用本规则。[SimRISC-00 §数据寄存器][SimRISC-02 §寄存器组之间块赋值]
-- `rf0` 作目的**例外（合法）**：`rd2rf`、`rf2rd`（源）、`ld.t`/`ldm.t`/`ld.o`/`ldm.o`、`st.*`/`stm.*`（源）、`set.w`。[SimRISC-02 §寄存器组之间块赋值][SimRISC-01 §存取RF寄存器][SimRISC-03 §立即数常数赋值：Immediate constant]
+- `rf0` 作目的**例外（合法）**：`rd2rf`、`rf2rd`（源）、`rf2rf`（源）、`ld.t`/`ldm.t`/`ld.o`/`ldm.o`、`st.*`/`stm.*`（源）、`set.w`。[SimRISC-02 §寄存器组之间块赋值][SimRISC-01 §存取RF寄存器][SimRISC-03 §立即数常数赋值：Immediate constant]
 - `dst_rf0`/`encode_fp_root_n` 为 FP 专属，FP 已实现（`LLVM-029t/030t`、`QEMU-034t`–`037t`）后均为 `active`；`mreg_zero`/`mreg_range_overflow`/`mreg_range_overlap`/`dst_rd0` 为 `active` 且与 M1 共享。FP 记录的 `rule_refs` 由 `opcodes.yaml` 依 `legality` 回填，须与 `fp_semantics.yaml` 的 `legality_refs` **逐 id 一致**（`check-fp-contract` Check 8 机械门控）。[SimRISC-07 §版本]
 
 ## §16 开放点（spec 未明，如实记录、不臆造）<a id="open-points"></a>
@@ -158,7 +158,7 @@
 
 ## §18 `roundint`（取整：roundToIntegral 六档）<a id="roundint"></a>
 
-> **范围**：本节 2 条为 `scope: fp`（`QEMU-072t`/`LLVM-125t` 落地后由 `SPEC-162t` 解除 `excluded`、撤销 `decode: ILLI`），计入 `scope: fp` 66 条并投影为 `contracts/fp_semantics.yaml` 的 `family: roundint`；语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。[SimRISC-07 §取整（roundToIntegral）]
+> **范围**：本节 2 条为 `scope: fp`（`QEMU-072t`/`LLVM-125t` 落地后由 `SPEC-162t` 解除 `excluded`、撤销 `decode: ILLI`），计入 `scope: fp` 65 条并投影为 `contracts/fp_semantics.yaml` 的 `family: roundint`；语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。[SimRISC-07 §取整（roundToIntegral）]
 
 - 指令：`ftrnd`/`fornd`（orri：`rfHB` 目的、`rfHC` 源、`immu6` = 取整模式）。`ftrnd` 作用于 ft（32 位，p = 24）、`fornd` 作用于 fo（64 位，p = 53）。[SimRISC-07 §取整（roundToIntegral）]
 - `immu6` 为 **one-hot 六档**（恰一位为 1），与 IEEE 754-2019 §5.3.1 的 `roundToIntegral` 六种操作**按位序一一对应**。[SimRISC-07 §取整（roundToIntegral）]
@@ -174,7 +174,7 @@
 
 ## §19 `minmax`（最小/最大值：`minimumNumber` / `maximumNumber`）<a id="minmax"></a>
 
-> **范围**：本节 4 条为 `scope: fp`（`QEMU-071t`/`LLVM-124t` 落地后由 `SPEC-160t` 解除 `excluded`、撤销 `decode: ILLI`），计入 `scope: fp` 66 条并投影为 `contracts/fp_semantics.yaml` 的 `family: minmax`；语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。[SimRISC-07 §最小最大值]
+> **范围**：本节 4 条为 `scope: fp`（`QEMU-071t`/`LLVM-124t` 落地后由 `SPEC-160t` 解除 `excluded`、撤销 `decode: ILLI`），计入 `scope: fp` 65 条并投影为 `contracts/fp_semantics.yaml` 的 `family: minmax`；语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。[SimRISC-07 §最小最大值]
 
 - 指令：`ftmin`/`ftmax`/`fomin`/`fomax`（orrr：`rfHB` 目的、`rfHC`/`rfHD` 源）；`ft*` 作用于 ft（32 位）、`fo*` 作用于 fo（64 位）。硬件先读全部源再写结果，源与目的允许重叠。[SimRISC-07 §最小最大值]
 - 语义 = IEEE 754-2019 §9.6 `minimumNumber`/`maximumNumber`（**严格版**，与 RISC-V `FMIN.S`/`FMAX.S` 逐条一致）：`x < y` ⇒ `min` 取 x、`max` 取 y；`y < x` ⇒ 反之。[SimRISC-07 §最小最大值]
@@ -188,7 +188,7 @@
 
 ## §20 `fma`（融合乘加：`fusedMultiplyAdd`）<a id="fma"></a>
 
-> **范围**：本节 2 条（`ftfma`/`fofma`）为 `scope: fp`（`QEMU-070t`/`LLVM-123t` 落地后由 `SPEC-158t` 解除 `excluded`、撤销 `decode: ILLI`），计入 `scope: fp` 66 条并投影为 `contracts/fp_semantics.yaml` 的 `family: fma`。语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。`spec_cite`：`SimRISC-07: ftfma`、`SimRISC-07: fofma`。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
+> **范围**：本节 2 条（`ftfma`/`fofma`）为 `scope: fp`（`QEMU-070t`/`LLVM-123t` 落地后由 `SPEC-158t` 解除 `excluded`、撤销 `decode: ILLI`），计入 `scope: fp` 65 条并投影为 `contracts/fp_semantics.yaml` 的 `family: fma`。语义在此冻结，供 oracle / LLVM / QEMU / testcases 消费。编码唯一真源仍为 `contracts/opcodes.yaml`（本节不复制编码）。`spec_cite`：`SimRISC-07: ftfma`、`SimRISC-07: fofma`。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
 
 - 指令：`ftfma`/`fofma`（`rrrr`：`rfHA` 目的、`rfHB`/`rfHC`/`rfHD` 源）；`ftfma` 作用于 ft（32 位，p = 24）、`fofma` 作用于 fo（64 位，p = 53）。语义 = IEEE 754-2019 `fusedMultiplyAdd(rfHB, rfHC, rfHD)`，即 `rfHA ← rfHB × rfHC + rfHD`。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]
 - **单次舍入**：精确积 `rfHB × rfHC`（不先舍入）与 `rfHD` 相加，精确和**只舍入一次**（舍入模式 `rf0[33:32]`）；**不等价于** `ftmul`/`fomul` + `ftadd`/`foadd`（后者在积处多舍入一次）。[SimRISC-07 §融合乘加（fusedMultiplyAdd）]

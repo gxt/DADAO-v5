@@ -116,7 +116,7 @@ FULL_DIR = os.path.join(REPO, "tests", "unit", "llvm", "lit", "MC", "DADAO-gen")
 # immu6 = 连续寄存器个数（ADR-0050 D4）。其余 orri 为「立即数」形态。
 ORRI_BLOCK = {
     "rd2rd", "rd2ra", "ra2rd", "rb2rb", "rd2rb", "rb2rd", "rd2rf", "rf2rd",
-    "ft2ft", "fo2fo", "ftcls", "focls",
+    "rf2rf", "ftcls", "focls",
 }
 # 结果依赖舍入的 15 条格式转换（ADR-0050 D2）：单寄存器 + 六档 one-hot；
 # 正例统一取 RTZ 0x04。

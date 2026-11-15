@@ -75,6 +75,10 @@ SimRISC中目前接收如下数据类型：
 - rf寄存器字长64位，当存放单精32位数据时，只使用低32位，高32位不做特殊规定
 - `rf0`为浮点状态寄存器（FCSR）。它同时是单精、双精格式的qNaN，**可作浮点运算的源操作数**；又因其同时是状态寄存器，浮点运算执行后会更新其状态位（异常位），故 **`rf0`不可作浮点运算的目的操作数**
 
+**单精（ft）结果的写入宽度**：凡以 ft 寄存器为目的的指令（算术、取余、开方、取整、缩放、最小最大、转换到 ft 等），**只写目的寄存器低 32 位，高 32 位保持原值**（不符号扩展、不零填）。取数指令 `ld.t`/`ldm.t` 的 rf 形式同理。
+
+**例外（整 64 位逐位复制，不做窄写、不保留目的高半）**：跨组复制 `rd2rf`/`rf2rd`、rf 组块复制 `rf2rf`、浮点条件赋值 `cs.n`/`cs.z`/`cs.p` 的 rf 形式——这些不是「ft 结果」写入，而是**宽度透明的寄存器搬移**（源读 64 位、目的写 64 位）。浮点册的写宽总则见 SimRISC-07。
+
 #### 2.3.1 浮点状态寄存器
 
 `rf0`为浮点状态寄存器，具体定义如下：
@@ -301,7 +305,7 @@ octa 位宽（64 位）指令。指令名后缀 `.o` 表示 octa 位宽。
 | 100-xxx | ext.uo_orrr_rd | ext.so_orrr_rd |                 |                |               |               |               |         |
 | 101-xxx | ext.uo_orri_rd | ext.so_orri_rd | cmp.uo_orrr_rd  | cmp.so_orrr_rd | rd2rd_orri_rd | rd2ra_orri_ra | ra2rd_orri_ra |         |
 | 110-xxx | add.o_orrr_bbd | sub.o_orrr_bbd | cmp.uo_orrr_dbb | sub.o_orrr_dbb | rb2rb_orri_rb | rd2rb_orri_rb | rb2rd_orri_rb |         |
-| 111-xxx | div.uo_orrr_rd | div.so_orrr_rd | rem.uo_orrr_rd  | rem.so_orrr_rd |               | rd2rf_orri_rf | rf2rd_orri_rf |         |
+| 111-xxx | div.uo_orrr_rd | div.so_orrr_rd | rem.uo_orrr_rd  | rem.so_orrr_rd | rf2rf_orri_rf | rd2rf_orri_rf | rf2rd_orri_rf |         |
 
 ### 4.3 OPC-tetra指令编码
 
@@ -365,8 +369,8 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 |         | xxx-000        | xxx-001        | xxx-010       | xxx-011       | xxx-100       | xxx-101        | xxx-110        | xxx-111        |
 | ---     | ---            | ---            | ---           | ---           | ---           | ---            | ---            | ---            |
-| 000-xxx | ftcls_orri_rf  | ft2fo_orri_rf  | ft2ft_orri_rf | ftrnd_orri_rf |               |                | ftroot_orri_rf |                |
-| 001-xxx | focls_orri_rf  | fo2ft_orri_rf  | fo2fo_orri_rf | fornd_orri_rf |               |                | foroot_orri_rf |                |
+| 000-xxx | ftcls_orri_rf  | ft2fo_orri_rf  |               | ftrnd_orri_rf |               |                | ftroot_orri_rf |                |
+| 001-xxx | focls_orri_rf  | fo2ft_orri_rf  |               | fornd_orri_rf |               |                | foroot_orri_rf |                |
 | 010-xxx | ftadd_orrr_rf  | ftsub_orrr_rf  | ftmul_orrr_rf | ftdiv_orrr_rf | ftrem_orrr_rf | ftsclb_orrr_rf | ftsgnn_orrr_rf | ftsgnj_orrr_rf |
 | 011-xxx | foadd_orrr_rf  | fosub_orrr_rf  | fomul_orrr_rf | fodiv_orrr_rf | forem_orrr_rf | fosclb_orrr_rf | fosgnn_orrr_rf | fosgnj_orrr_rf |
 | 100-xxx | ftqcmp_orrr_rf | ftscmp_orrr_rf |               |               |               |                | ftmin_orrr_rf  | ftmax_orrr_rf  |
@@ -402,13 +406,15 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 - **融合乘加溢出按舍入方向**：`ftfma`/`fofma` 的溢出判据与浮点→浮点转换同构（IEEE 754-2019 §7.4）——以无限指数范围按 `rf0[33:32]` 舍入后的精确和，其绝对值大于该格式最大有限值（ft `0x7F7F_FFFF`、fo `0x7FEF_FFFF_FFFF_FFFF`）即构成溢出：RNE ⇒ `±Inf`；RTZ ⇒ `±` 最大有限值；RUP 正溢出 `+Inf`、负溢出为最负的有限值；RDN 正溢出为最大有限值、负溢出 `−Inf`；无论结果为 `±Inf` 还是最大有限值，均置 `OF` 并置 `NX`。精确和仅轻微超出最大有限值、而无限指数范围的舍入结果仍回到该值时**不构成溢出** ⇒ 结果为最大有限值、**只置 `NX`**、不置 `OF`。原「融合乘加溢出恒返回 `±Inf`」作废。
 - **`ftrem`/`forem` 的 NaN 优先级**：remainder 的无效操作条件按 IEEE 754-2019 §7.2 f) 补全「且两个操作数都不是 NaN」的限定——除数为 ±0 或被除数为 ±Inf 时，仅当两者均非 NaN 才置 `NV`；任一操作数为 quiet NaN ⇒ 返回 qNaN 且不置标志（NaN 输入优先于该无效条件），signaling NaN 仍按 §7.2 a) 置 `NV`；除数为 ±0 属无效操作而**不是**除零（`DZ`）。另逐条写明「qNaN × ±0 / sNaN × ±0 / 有限 × ±0 / Inf × 有限 / Inf × Inf / 有限 × Inf / 有限 × 有限」七种组合的结果与标志。
 - **浮点规范性引用**：浮点数据格式、运算结果与异常语义以 **IEEE 754-2019** 为准；本册与之冲突时以 IEEE 754-2019 为准（显式标注为有意偏离的条目除外）；有意偏离须在对应小节标注并给出理由。
-- **多元素内存指令的精确性例外**：`ldm.*`/`stm.*`（含 rf 形式，SimRISC-01）**不要求**无副作用——处理多个元素的过程中触发同步异常时，此前已处理的元素允许已经生效，目的寄存器/内存可能已被部分更新；异常原因码仍须与触发元素一致、IP 仍指向该指令。寄存器类多元素指令（`rd2rd`/`rb2rb`/`rb2rd`/`rd2rb`/`ra2rd`/`rd2ra`、`rd2rf`/`rf2rd`、`ft2ft`/`fo2fo`、`ftcls`/`focls`）**不适用**该例外、仍为精确异常（非法条件在处理任何元素之前判定）；整段预检是**允许的更强行为**、软件不得依赖；单元素 `ld`/`st` 仍须精确。
+- **多元素内存指令的精确性例外**：`ldm.*`/`stm.*`（含 rf 形式，SimRISC-01）**不要求**无副作用——处理多个元素的过程中触发同步异常时，此前已处理的元素允许已经生效，目的寄存器/内存可能已被部分更新；异常原因码仍须与触发元素一致、IP 仍指向该指令。寄存器类多元素指令（`rd2rd`/`rb2rb`/`rb2rd`/`rd2rb`/`ra2rd`/`rd2ra`、`rd2rf`/`rf2rd`/`rf2rf`、`ftcls`/`focls`）**不适用**该例外、仍为精确异常（非法条件在处理任何元素之前判定）；整段预检是**允许的更强行为**、软件不得依赖；单元素 `ld`/`st` 仍须精确。
 - **`ldm` 的地址寄存器不得落入传送范围**：RD 形式的索引寄存器 `rdHC`、RB 形式的基址寄存器 `rbHB` 落在 `[起始, 起始+immu6)` 内 ⇒ `ILLI`（静态）；`stm` **允许**该重叠（只读传送范围、不写寄存器，行为确定）；RA/RF 形式的地址寄存器与传送范围分属不同寄存器组，结构性不可能重叠。原「允许重叠、地址按原始 `rdHC` 计算」口径作废——多元素内存指令的部分生效例外改以「地址寄存器不被传送过程改写」为前提。
 - **`rootn(±0, 2)` 收严为 `+0`**：`ftroot`/`foroot` 与平方根运算相同，唯一例外是零的符号——按 IEEE 754-2019 §9.2.1，`rootn(±0, 2) = +0`（该节 NOTE 明确其与 `squareRoot(−0) = −0` 不同），源为 `+0` 或 `−0` 时结果一律为 `+0`、不置任何标志；原「结果未予规定」的口径作废。
-- **结果 NaN 统一为 canonical**：凡结果应为 quiet NaN 的情形（算术、缩放、开方、取余、融合乘加、取整、最小最大、格式转换，以及比较的 quiet 无序结果与一切无效操作产生的 qNaN）一律返回 **canonical quiet NaN**（符号位 0、payload 全零 ⇒ ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）；复制类（`ft2ft`/`fo2fo`）、signaling compare 的无序结果、最小最大的单 NaN 情形不适用；IEEE 754-2019 §6.2.3 对 payload 传播仅为 *should*、§6.3 不规定结果符号位 ⇒ 取 canonical 属允许的实现选择、**不是**有意偏离。
+- **结果 NaN 统一为 canonical**：凡结果应为 quiet NaN 的情形（算术、缩放、开方、取余、融合乘加、取整、最小最大、格式转换，以及比较的 quiet 无序结果与一切无效操作产生的 qNaN）一律返回 **canonical quiet NaN**（符号位 0、payload 全零 ⇒ ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）；复制类（`rf2rf` 等纯位搬移）、signaling compare 的无序结果、最小最大的单 NaN 情形不适用；IEEE 754-2019 §6.2.3 对 payload 传播仅为 *should*、§6.3 不规定结果符号位 ⇒ 取 canonical 属允许的实现选择、**不是**有意偏离。
 - **浮点比较族的异常标志**：signaling compare 只要无序（sNaN 或 qNaN 操作数）即置 `NV`；quiet compare 仅在含 sNaN 时置 `NV`，只含 qNaN 为安静无序、不置标志；有序比较不置标志。四条比较指令只可能置 `NV`，不置 `DZ`/`OF`/`UF`/`NX`，标志 sticky 写入 `rf0[4:0]`。
 - **`ext.uo`/`ext.so` 的扩展起始位取低 6 位**：`orrr` 形式的起始位 `hd = rdHD[5:0]`——`rdHD` 的更高位一律忽略、**不触发异常**、不置任何标志；`orri` 形式的 `immu6` 天然为 6 位。原「`hd` 大于 `N` ⇒ ILLI」作废。
 - **semihosting 的服务号通道**：`immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`）只作 semihosting 的**固定标记**，`immu18[7:0]` **不**携带服务号；服务号由 `rd16` 给出、参数块指针在 `rb16`、返回值在 `rd8`。
+- **删除同格式纯复制、新增 rf 组块复制（编码不兼容）**：原两条同格式纯复制指令（单精窄写搬移与双精整宽搬移）连同其编码删除——`OPC-RF` 子表的 000 行与 001 行各腾出一格（`xxx-010`）转为保留编码（执行 ⇒ UNDI）。rf 组内连续寄存器复制改由 `rf2rf` 承担（`OPC-octa` `111-100`、`orri`、`immu6` 1–63），按整 64 位逐位复制；限制沿用块复制族（`immu6` = 0、任一起始 + `immu6` > 64、源/目的范围任何重叠 ⇒ ILLI），并新增**目的范围含 `rf0` ⇒ ILLI**（源 `rf0` 合法、读出完整 64 位）。浮点册的格式转换低 6 位分类由三类改为两类（15 条舍入六档 + 3 条精确 SBZ），复制族整体迁出该册。
+- **单精（ft）结果的写入宽度归位**：总则移入 §2.3（浮点寄存器），浮点册册首保留一份同等效力说明；判据不变——以 ft 寄存器为目的的指令只写目的寄存器低 32 位、高 32 位保持原值（不符号扩展、不零填），例外为宽度透明的整 64 位搬移（跨组复制 `rd2rf`/`rf2rd`、rf 组块复制 `rf2rf`、浮点条件赋值的 rf 形式）。
 
 ### 0.5.6（2026-11-09）
 
@@ -416,7 +422,7 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 
 - **核芯功能扩展指令集重定稿（编码不兼容）**：`fence` 改为 `ciii`（`opc = 0x79`，从 `OPC-MISC` 子表迁入主表 `0111-1001`）——`ha = cfxha`（0 = all cfx）、`hb = 0`（SBZ）、`hc = pred`、`hd = succ`，删除 `fm`/TSO；`pred`/`succ` 为 `cr`/`cw`/`ci`/`co`/`mr`/`mw` 六位掩码，零掩码为合法 no-op。删除 `cfxld`/`cfxst` 两条指令与 `crii` 操作数格式，主表 `0111-1100`/`0111-1101` 两格转为保留（UNDI）；核芯功能扩展册只余 `trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence` 五条。保留编号的具体分配由 SEE（DADAO-12）定义；五条的 `cfxha` 指向保留编号时触发 ILLI。
 - **`escape` 偏移合法集收窄**：汇编层只允许 0 或 4 字节；编码层 `imms18 ∈ {0,1}`（`imms18[0]` = 字节偏移 bit2），`imms18[17:1]` 为 SBZ、非零 ⇒ ILLI。
-- **格式转换指令重定稿（编码不兼容）**：15 条有舍入的转换（`ft2it`/`ft2io`/`ft2ut`/`ft2uo`/`fo2it`/`fo2io`/`fo2ut`/`fo2uo`、`fo2ft`、`io2fo`/`uo2fo`/`it2ft`/`ut2ft`/`io2ft`/`uo2ft`）的低 6 位由「连续寄存器个数」改为**六档舍入方向 one-hot**（`0x01` RNE、`0x02` RNA、`0x04` RTZ、`0x08` RUP、`0x10` RDN、`0x20` dynamic = 读 `rf0[33:32]`）；3 条精确转换（`ft2fo`/`it2fo`/`ut2fo`）改为 **SBZ**（非 0 ⇒ ILLI）；`ft2ft`/`fo2fo`/`rd2rf`/`rf2rd` 保留 1–63 计数。汇编层前 18 条改为单寄存器、无花括号、第三操作数显式（SBZ 写 0，六档写六值之一），复制类保留 `{a:b}` 范围形式。浮点→整数转换结果：有限值 inexact ⇒ NX；NaN/Inf/超出目标整型范围 ⇒ 饱和（最大/最小）+ NV。
+- **格式转换指令重定稿（编码不兼容）**：15 条有舍入的转换（`ft2it`/`ft2io`/`ft2ut`/`ft2uo`/`fo2it`/`fo2io`/`fo2ut`/`fo2uo`、`fo2ft`、`io2fo`/`uo2fo`/`it2ft`/`ut2ft`/`io2ft`/`uo2ft`）的低 6 位由「连续寄存器个数」改为**六档舍入方向 one-hot**（`0x01` RNE、`0x02` RNA、`0x04` RTZ、`0x08` RUP、`0x10` RDN、`0x20` dynamic = 读 `rf0[33:32]`）；3 条精确转换（`ft2fo`/`it2fo`/`ut2fo`）改为 **SBZ**（非 0 ⇒ ILLI）；同组纯复制与 `rd2rf`/`rf2rd` 保留 1–63 计数（同组纯复制现由 `rf2rf` 承担）。汇编层前 18 条改为单寄存器、无花括号、第三操作数显式（SBZ 写 0，六档写六值之一），复制类保留 `{a:b}` 范围形式。浮点→整数转换结果：有限值 inexact ⇒ NX；NaN/Inf/超出目标整型范围 ⇒ 饱和（最大/最小）+ NV。
 - **浮点运算语义修订**：`ftrem`/`forem` 明确为 IEEE 754 remainder（`rfHC` 为 ±Inf、`rfHD` 为 ±0、任一源为 sNaN ⇒ NV + qNaN；`rfHD` 为 ±Inf 且 `rfHC` 有限 ⇒ 返回 `rfHC`；不置 NX/OF/UF）。`ftsclb`/`fosclb` 第三操作数由 `rfHD` 改为 `rdHD`（`rd` 组的**有符号 64 位整数指数**，`rdHD = rd0` 表示指数 0），沿用原 `orrr` 编码、不新增 opcode；旧 `rf` 第三操作数写法失效。
 - **窄位宽比较高位订正**：`cmp.{ut,uw,ub}` 的 −1 结果由原文「零扩展」改为 **64 位扩展**写满目的寄存器（−1 ⇒ 64 位全 1、0 ⇒ 0、+1 ⇒ 1），与 `.st`/`.sw`/`.sb` 同值；源操作数仍按位宽截断后比较。
 - **`call` 返回地址澄清**：返回地址为**当前指令地址 + 4**（相对地址与绝对地址两种形式一致）。

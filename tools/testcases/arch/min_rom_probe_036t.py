@@ -8,8 +8,9 @@ Spec sources (expectations derived by hand from these, never from QEMU):
 Encodings: contracts/opcodes.yaml.  Exit codes: ADR-0004 D5.8 (PASS=0x00,
 ILLI=0xF8).
 
-Instructions under test (20):
-  convert_ff  (4): ft2ft/fo2fo 复制 (immu6 1..63)；ft2fo SBZ 0；fo2ft 六档
+Instructions under test (18 + rf2rf):
+  convert_ff  (2): ft2fo SBZ 0；fo2ft 六档
+  rf2rf       同组块复制（OPC-octa 111-100；immu6 1..63；原同组纯复制已删）
   convert_f2i (8): ft2it ft2io ft2ut ft2uo fo2it fo2io fo2ut fo2uo（六档）
   convert_i2f (8): it2ft io2ft ut2ft uo2ft io2fo uo2fo（六档）；it2fo/ut2fo（SBZ）
 
@@ -25,9 +26,9 @@ Expected-value provenance (task §6.1, see /tmp derivation in completion notes):
   * NaN payload conversion follows IEEE754 (float32 mantissa << 29 for
     widening; narrowing keeps the top mantissa bits).  sNaN input raises NV
     and returns a quiet NaN (spec §格式转换指令).
-  * ft results are zero-extended to 64 bits except the same-format register
-    moves ft2ft/fo2fo, which preserve all 64 bits (spec calls them
-    "浮点寄存器间搬移"; cf. contract-fp §14 set.ft value transfer).
+  * ft results are zero-extended to 64 bits except the rf-group block copy
+    rf2rf, which copies all 64 bits (spec 归位到 SimRISC-00 §2.3 的写宽总则
+    把 rf2rf 列为整 64 位例外；cf. contract-fp §14 set.ft value transfer).
 
 Verification channels (same as min_rom_probe_034t/035t):
   * value cases -> QEMU `-d cpu` dump, parsing the *last* RF[]/RD[] dump.
@@ -180,16 +181,12 @@ def ft2fo(hb, hc, hd):
     return encode_orri(0x44, 0x01, hb, hc, hd)
 
 
-def ft2ft(hb, hc, hd):
-    return encode_orri(0x44, 0x02, hb, hc, hd)
+def rf2rf(hb, hc, hd):
+    return encode_orri(0x40, 0x3C, hb, hc, hd)
 
 
 def fo2ft(hb, hc, hd):
     return encode_orri(0x44, 0x09, hb, hc, hd)
-
-
-def fo2fo(hb, hc, hd):
-    return encode_orri(0x44, 0x0A, hb, hc, hd)
 
 
 def ft2it(hb, hc, hd):
@@ -707,26 +704,26 @@ CASES.append(value_case(
     expect_rf={4: 0x7FF8000020000000, 0: rf0_with(0, NV)}))
 
 CASES.append(value_case(
-    "FF16 ft2ft moves all 64 bits unchanged",
-    set_rf(8, 0x12345678DEADBEEF) + [ft2ft(4, 8, 1)],
+    "FF16 rf2rf moves all 64 bits unchanged",
+    set_rf(8, 0x12345678DEADBEEF) + [rf2rf(4, 8, 1)],
     expect_rf={4: 0x12345678DEADBEEF, 0: rf0_with()}))
 
 CASES.append(value_case(
-    "FF17 fo2fo moves all 64 bits unchanged",
-    set_rf(8, 0x0123456789ABCDEF) + [fo2fo(4, 8, 1)],
+    "FF17 rf2rf moves all 64 bits unchanged (second pattern)",
+    set_rf(8, 0x0123456789ABCDEF) + [rf2rf(4, 8, 1)],
     expect_rf={4: 0x0123456789ABCDEF}))
 
 CASES.append(value_case(
-    "FF18 ft2ft block of 3 {rf4:rf6},{rf8:rf10}",
+    "FF18 rf2rf block of 3 {rf4:rf6},{rf8:rf10}",
     set_rf(8, 0x1111111111111111) + set_rf(9, 0x2222222222222222) +
-    set_rf(10, 0x3333333333333333) + [ft2ft(4, 8, 3)],
+    set_rf(10, 0x3333333333333333) + [rf2rf(4, 8, 3)],
     expect_rf={4: 0x1111111111111111, 5: 0x2222222222222222,
                6: 0x3333333333333333}))
 
 CASES.append(value_case(
-    "FF19 fo2fo block of 3 {rf4:rf6},{rf8:rf10}",
+    "FF19 rf2rf block of 3 (second pattern)",
     set_rf(8, FO_1) + set_rf(9, FO_1_5) + set_rf(10, FO_N2_5) +
-    [fo2fo(4, 8, 3)],
+    [rf2rf(4, 8, 3)],
     expect_rf={4: FO_1, 5: FO_1_5, 6: FO_N2_5}))
 
 CASES.append(value_case(
@@ -774,20 +771,20 @@ CASES.append(Case("FL01 ft2fo non-zero SBZ -> ILLI",
                   [ft2fo(4, 8, 1)], expect_exit=ILLI_EXIT))
 CASES.append(Case("FL02 ft2fo dynamic code is not SBZ -> ILLI",
                   [ft2fo(4, 8, 0x20)], expect_exit=ILLI_EXIT))
-CASES.append(Case("FL03 ft2ft complete coincidence -> ILLI",
-                  [ft2ft(4, 4, 3)], expect_exit=ILLI_EXIT))
+CASES.append(Case("FL03 rf2rf complete coincidence -> ILLI",
+                  [rf2rf(4, 4, 3)], expect_exit=ILLI_EXIT))
 CASES.append(Case("FL04 fo2ft non-one-hot code 3 -> ILLI",
                   [fo2ft(4, 8, 3)], expect_exit=ILLI_EXIT))
-CASES.append(Case("FL05 fo2fo overlap (dest inside src) -> ILLI",
-                  [fo2fo(5, 4, 3)], expect_exit=ILLI_EXIT))
+CASES.append(Case("FL05 rf2rf overlap (dest inside src) -> ILLI",
+                  [rf2rf(5, 4, 3)], expect_exit=ILLI_EXIT))
 CASES.append(Case("FL06 ft2fo dst rf0 -> ILLI",
                   [ft2fo(0, 8, C_SBZ)], expect_exit=ILLI_EXIT))
-CASES.append(Case("FL07 ft2ft dst rf0 -> ILLI",
-                  [ft2ft(0, 8, 1)], expect_exit=ILLI_EXIT))
+CASES.append(Case("FL07 rf2rf dst rf0 -> ILLI",
+                  [rf2rf(0, 8, 1)], expect_exit=ILLI_EXIT))
 CASES.append(Case("FL08 fo2ft dst rf0 -> ILLI",
                   [fo2ft(0, 8, C_RNE)], expect_exit=ILLI_EXIT))
-CASES.append(Case("FL09 fo2fo dst rf0 -> ILLI",
-                  [fo2fo(0, 8, 1)], expect_exit=ILLI_EXIT))
+CASES.append(Case("FL09 rf2rf dst rf0 (block) -> ILLI",
+                  [rf2rf(0, 8, 3)], expect_exit=ILLI_EXIT))
 CASES.append(Case("FL10 fo2ft one-hot code 0 -> ILLI",
                   [fo2ft(4, 8, 0)], expect_exit=ILLI_EXIT))
 CASES.append(Case("FL11 fo2ft one-hot code 0x40 -> ILLI",

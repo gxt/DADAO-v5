@@ -20,12 +20,12 @@
 
 > **为什么在本表**：`spec/SimRISC-*` 只承载规范内容（指令定义 / 编码 / 格式 / 语义 / 异常 / revision）。
 > **范围分桶、实现状态、决策与合约指针**属项目侧记账，统一归本表（`SPEC-165t`，用户裁定「方案 A 彻底清理」）。
-> **计数口径**：全部由 `contracts/opcodes.yaml` 现场派生（2026-10-30 实测 **264** 条），下表不写死来源之外的数。
+> **计数口径**：全部由 `contracts/opcodes.yaml` 现场派生（2026-11-15 实测 **263** 条），下表不写死来源之外的数。
 
 | 范围 | 条数 | 含义 | 指针 |
 |---|---|---|---|
 | `scope: m1` | 156 | 已实现（含 `trap`/`escape`/`cfx2rd`/`cfx2rc`） | §13.6 |
-| `scope: fp` | 66 | 浮点已实现，不触发 decode ILLI（含融合乘加 `ftfma`/`fofma` 2 条）。分布：`SimRISC-07` 50（`OPC-RF` 子表）+ `SimRISC-01` 8（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ `SimRISC-02` 5（`cs.n`/`cs.z`/`cs.p` 的 `-rf`、`rd2rf`/`rf2rd`）+ `SimRISC-03` 1（`set.w-rf`） | `contract-fp.md`；`ADR-0012 §D3.1` |
+| `scope: fp` | 65 | 浮点已实现，不触发 decode ILLI（含融合乘加 `ftfma`/`fofma` 2 条）。分布：`SimRISC-07` 50（`OPC-RF` 子表）+ `SimRISC-01` 8（`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o` 的 `-rf`）+ `SimRISC-02` 6（`cs.n`/`cs.z`/`cs.p` 的 `-rf`、`rd2rf`/`rf2rd`/`rf2rf`）+ `SimRISC-03` 1（`set.w-rf`） | `contract-fp.md`；`ADR-0012 §D3.1` |
 | `scope: excluded` | 0 | 现无记录（`cfxld`/`cfxst` 已删除、`crii` 格式撤销）；词表保留："编码已定义、未实现 ⇒ decode ILLI" | `contracts/opcodes.yaml::decode` |
 | `scope: m3` | 1 | `sub.o_orrr_dbb`（RB 算术，非 M1 身份） | `ADR-0012 §D9.1` |
 | `scope: m8` | 7 | `rev.*` 4 + `ctlz`/`cttz`/`ctpop` 3（**无位宽后缀**，位于 `OPC-MISC`，`opc 0x47`／`ha 0x25–0x27`） | `ADR-0012 §D10/D11` |
@@ -48,7 +48,7 @@ SimRISC 提供 4 组用户可见寄存器，每组 64 个，每个寄存器 64 �
 |------|------|------|---------|
 | 数据寄存器 (RD) | rd0–rd63 | 通用运算 | 是 |
 | 基址寄存器 (RB) | rb0–rb63 | 地址计算 | 是 |
-| 浮点寄存器 (RF) | rf0–rf63 | 浮点运算 | RF 存取与运算 `scope: fp`——语义见 `contract-fp.md`（已归一化，共 66 条，执行层已实现）；本 M1 合约仅保留 rf0（FCSR）寄存器模型/复位值（供 SPEC-006t，指令语义见 `contract-fp.md`） |
+| 浮点寄存器 (RF) | rf0–rf63 | 浮点运算 | RF 存取与运算 `scope: fp`——语义见 `contract-fp.md`（已归一化，共 65 条，执行层已实现）；本 M1 合约仅保留 rf0（FCSR）寄存器模型/复位值（供 SPEC-006t，指令语义见 `contract-fp.md`） |
 | 返回地址栈 (RA) | ra0–ra63 | 函数调用/返回 | 是（RegRAS/MemRAS 模型 + RA 存取/块赋值） |
 
 ### §1.2 寄存器编号编码
@@ -396,7 +396,7 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 | `rd2ra rahb, rdhc, immu6` | 将 `rdhc` 开始的 immu6 个 RD 复制到 `rahb` 开始的 immu6 个 RA | [SimRISC-02 §寄存器组之间块赋值] |
 
 - `immu6` 存在 `hd` 位域，有效范围 1–63。[SimRISC-02 §寄存器组之间块赋值]
-- 根据语义，rb/rf/ra 之间不能进行直接赋值，ra 与 ra 之间不能相互赋值（故仅有 `ra2rd`/`rd2ra`，无 `ra2ra`）。[SimRISC-02 §寄存器组之间块赋值]
+- 根据语义，rb/rf/ra 之间不能进行直接赋值，ra 与 ra 之间不能相互赋值（故仅有 `ra2rd`/`rd2ra`，无 `ra2ra`；同组块复制只有 `rd2rd`/`rb2rb`/`rf2rf`）。[SimRISC-02 §寄存器组之间块赋值]
 - 异常条件：[SimRISC-02 §寄存器组之间块赋值]
   - `immu6 = 0` → **ILLI**
   - 任一起始寄存器 + immu6 > 64 → **ILLI**
@@ -434,7 +434,7 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 | `rb2rb rbhb, rbhc, immu6` | RB→RB 块复制 | [SimRISC-02 §寄存器组之间块赋值] |
 
 - `immu6` 存在 `hd` 位域，有效范围 1–63。[SimRISC-02 §寄存器组之间块赋值]
-- 根据语义，rb/rf/ra 之间不能进行直接赋值，ra 与 ra 之间不能相互赋值。[SimRISC-02 §寄存器组之间块赋值]
+- 根据语义，rb/rf/ra 之间不能进行直接赋值，ra 与 ra 之间不能相互赋值（同组块复制只有 `rd2rd`/`rb2rb`/`rf2rf`）。[SimRISC-02 §寄存器组之间块赋值]
 - 异常条件：[SimRISC-02 §寄存器组之间块赋值]
   - `immu6 = 0` → **ILLI**
   - `rbhb` 为 `rb0` → **ILLI**（目的不可为 rb0）
@@ -737,7 +737,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 第二类根据 `rdha` 与 `rdhb` 是否相等判断，条件成立时将 `rdhd` 赋给 `rdhc`：[SimRISC-02 §条件赋值：Conditional Assignment]
 
-**搬移宽度**：本族的 `rd` 与 `rf` 形式**都按整 64 位搬移**（源读 64、目的写 64）；`rf` 形式不是 ft 窄写——`ft2ft` 的窄写来自其 `ft` 格式声明，不适用于本族。[SimRISC-02 §条件赋值：Conditional Assignment]
+**搬移宽度**：本族的 `rd` 与 `rf` 形式**都按整 64 位搬移**（源读 64、目的写 64），不是 ft 窄写（窄写只适用于「以 ft 寄存器为目的」的运算/转换类指令，见 SimRISC-00 §2.3）。[SimRISC-02 §条件赋值：Conditional Assignment]
 
 | 指令 | 语义 | 来源 |
 |------|------|------|
@@ -912,11 +912,11 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 ---
 
-## §9 浮点运算指令 — scope: fp（语义见 contract-fp.md；执行层 60/60 已实现）[SimRISC-07 §版本]
+## §9 浮点运算指令 — scope: fp（语义见 contract-fp.md；执行层全部已实现）[SimRISC-07 §版本]
 
-浮点类指令（SimRISC-07 + 散见 SimRISC-01/02/03 的 RF 形态，共 60 条）整体为 **`scope: fp`**——**语义已归一化于 `contract-fp.md`，执行层 60/60 已实现**（`QEMU-034t`~`038t`），不触发 decode ILLI；其规范内容已提取至独立叙述合约 `.tao/contracts/contract-fp.md`（机器可读投影 `contracts/fp_semantics.yaml`，合法性规则见 `contracts/legality_rules.yaml`）。[SimRISC-07 §版本]
+浮点类指令（SimRISC-07 + 散见 SimRISC-01/02/03 的 RF 形态，共 65 条）整体为 **`scope: fp`**——**语义已归一化于 `contract-fp.md`，执行层已实现**（`QEMU-034t`~`038t`），不触发 decode ILLI；其规范内容已提取至独立叙述合约 `.tao/contracts/contract-fp.md`（机器可读投影 `contracts/fp_semantics.yaml`，合法性规则见 `contracts/legality_rules.yaml`）。[SimRISC-07 §版本]
 
-- 范围：`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o`（RF 存取）、`rf2rd`/`rd2rf`、`set.w`、格式转换、浮点算术/符号位/比较/条件赋值/分类指令、`set.ft`/`set.fo` 伪指令。
+- 范围：`ld.t`/`st.t`/`ld.o`/`st.o`/`ldm.t`/`stm.t`/`ldm.o`/`stm.o`（RF 存取）、`rf2rd`/`rd2rf`/`rf2rf`、`set.w`、格式转换、浮点算术/符号位/比较/条件赋值/分类指令、`set.ft`/`set.fo` 伪指令。
 - 唯一例外：`rf0`（FCSR）的寄存器模型/位布局属 §1.3.3，M1 测试机复位值需要，已在 §1.3.3 提取。[SimRISC-00 §浮点状态寄存器]
 - 浮点指令的 rf0 操作数约定（**目的**为 rf0 → ILLI；作**源**合法）等属浮点内容，M1 不提取。[SimRISC-00 §浮点寄存器]
 - 完整浮点规范与编码留后续阶段（见 `.tao/knowledge/issues.yaml`）。
@@ -1501,7 +1501,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 
 ### A.7 `scope: fp` 编码清单
 
-> `scope: fp`（共 60 条）：RF 存取（8）、`set.w-rf`（1）、`cs.*-rf`（5）、`rd2rf`/`rf2rd`（2）、OPC-RF 子表（44）。
+> `scope: fp`（共 65 条）：RF 存取（8）、`set.w-rf`（1）、`cs.n`/`cs.z`/`cs.p`-rf（3）、RF 块赋值（3：`rd2rf`/`rf2rd`/`rf2rf`）、OPC-RF 子表（50）。
 > `scope: excluded` 现为 0 条（`cfxld`/`cfxst` 已删除、`crii` 格式撤销；`fence` 与 24 条 LR-SC 已由 `SPEC-164t` 转入 `scope: m9`）。
 
 | op (hex) / 位置 | insn | 助记符 | 类别 | 来源 |
@@ -1519,6 +1519,7 @@ M1 范围内的异常：[SimRISC-00 §指令设计][SimRISC-00 §压栈流程（
 | 0x61 | cs.n-rf | `cs.n` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
 | 0x63 | cs.z-rf | `cs.z` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
 | 0x65 | cs.p-rf | `cs.p` | 浮点条件赋值 | [SimRISC-00 §SimRISC QFC] |
+| OPC-octa 111-100 | rf2rf | `rf2rf` | RF 块赋值（rf 组内） | [SimRISC-00 §OPC-octa指令编码] |
 | OPC-octa 111-101 | rd2rf | `rd2rf` | RF 块赋值 | [SimRISC-00 §OPC-octa指令编码] |
 | OPC-octa 111-110 | rf2rd | `rf2rd` | RF 块赋值 | [SimRISC-00 §OPC-octa指令编码] |
 

@@ -7,8 +7,9 @@
 # scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份
 # scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份
 # scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b + ADR-0035 GF(2) 无进位乘 clmul.o + fence/lr/sc 原子），非 M1 身份
-# 共 264 条：M1 156 条 + scope fp 66 条 + scope excluded 0 条 + scope m3 1 条 + scope m8 7 条 + scope m9 34 条
-# 有 rule_refs 的指令：243 条
+# 保留槽位（显式登记）：OPC-RF 子表 000-xxx/xxx-010 与 001-xxx/xxx-010 空置 ⇒ 执行 UNDI；同组块复制为 rf2rf（OPC-octa 111-100）
+# 共 263 条：M1 156 条 + scope fp 65 条 + scope excluded 0 条 + scope m3 1 条 + scope m8 7 条 + scope m9 34 条
+# 有 rule_refs 的指令：242 条
 
 - id: ld.ub_rrii_rd
   mnemonic: ld.ub
@@ -4080,6 +4081,40 @@
   - dst_rd0
   - mreg_zero
   - mreg_range_overflow
+- id: rf2rf_orri_rf
+  mnemonic: rf2rf
+  format: orri
+  opc: '0x40'
+  ha: '0x3C'
+  mask: '0xFFFC0000'
+  value: '0x40F00000'
+  fields:
+  - name: rfhb
+    bits: '[17:12]'
+    role: dst
+    bank: rf
+  - name: rfhc
+    bits: '[11:6]'
+    role: src
+    bank: rf
+  - name: immu6
+    bits: '[5:0]'
+    role: imm
+    bank: imm
+    signed: false
+  legality:
+  - rfhb != rf0
+  - immu6 != 0
+  - rfhb + immu6 <= 64
+  - rfhc + immu6 <= 64
+  - no_overlap(rfhb, rfhc, immu6)
+  spec_cite: 'SimRISC-02: rf2rf'
+  scope: fp
+  rule_refs:
+  - dst_rf0
+  - mreg_zero
+  - mreg_range_overflow
+  - mreg_range_overlap
 - id: rev.o_orri_rd
   mnemonic: rev.o
   format: orri
@@ -5814,7 +5849,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: &id003
+  legality: &id002
   - rdhb != rd0
   - immu6 != 0
   - rdhb + immu6 <= 64
@@ -5846,7 +5881,7 @@
     role: imm
     bank: imm
     signed: false
-  legality:
+  legality: &id006
   - rfhb != rf0
   - immu6 == 0
   spec_cite: 'SimRISC-07: ft2fo'
@@ -5854,40 +5889,6 @@
   rule_refs:
   - dst_rf0
   - encode_sbz
-- id: ft2ft_orri_rf
-  mnemonic: ft2ft
-  format: orri
-  opc: '0x44'
-  ha: '0x02'
-  mask: '0xFFFC0000'
-  value: '0x44080000'
-  fields:
-  - name: rfhb
-    bits: '[17:12]'
-    role: dst
-    bank: rf
-  - name: rfhc
-    bits: '[11:6]'
-    role: src
-    bank: rf
-  - name: immu6
-    bits: '[5:0]'
-    role: imm
-    bank: imm
-    signed: false
-  legality: &id002
-  - rfhb != rf0
-  - immu6 != 0
-  - rfhb + immu6 <= 64
-  - rfhc + immu6 <= 64
-  - no_overlap(rfhb, rfhc, immu6)
-  spec_cite: 'SimRISC-07: ft2ft'
-  scope: fp
-  rule_refs:
-  - dst_rf0
-  - mreg_zero
-  - mreg_range_overflow
-  - mreg_range_overlap
 - id: ftroot_orri_rf
   mnemonic: ftroot
   format: orri
@@ -5909,7 +5910,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: &id004
+  legality: &id003
   - rfhb != rf0
   - immu6 == 2
   spec_cite: 'SimRISC-07: ftroot'
@@ -5938,7 +5939,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id003
+  legality: *id002
   spec_cite: 'SimRISC-07: focls'
   scope: fp
   rule_refs:
@@ -5966,7 +5967,7 @@
     role: imm
     bank: imm
     signed: false
-  legality:
+  legality: &id005
   - rfhb != rf0
   - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 ==
     32
@@ -5975,35 +5976,6 @@
   rule_refs:
   - dst_rf0
   - encode_onehot
-- id: fo2fo_orri_rf
-  mnemonic: fo2fo
-  format: orri
-  opc: '0x44'
-  ha: '0x0A'
-  mask: '0xFFFC0000'
-  value: '0x44280000'
-  fields:
-  - name: rfhb
-    bits: '[17:12]'
-    role: dst
-    bank: rf
-  - name: rfhc
-    bits: '[11:6]'
-    role: src
-    bank: rf
-  - name: immu6
-    bits: '[5:0]'
-    role: imm
-    bank: imm
-    signed: false
-  legality: *id002
-  spec_cite: 'SimRISC-07: fo2fo'
-  scope: fp
-  rule_refs:
-  - dst_rf0
-  - mreg_zero
-  - mreg_range_overflow
-  - mreg_range_overlap
 - id: foroot_orri_rf
   mnemonic: foroot
   format: orri
@@ -6025,7 +5997,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id004
+  legality: *id003
   spec_cite: 'SimRISC-07: foroot'
   scope: fp
   rule_refs:
@@ -6052,7 +6024,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: &id005
+  legality: &id004
   - rdhb != rd0
   - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 ==
     32
@@ -6082,7 +6054,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id005
+  legality: *id004
   spec_cite: 'SimRISC-07: ft2io'
   scope: fp
   rule_refs:
@@ -6109,7 +6081,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id005
+  legality: *id004
   spec_cite: 'SimRISC-07: ft2ut'
   scope: fp
   rule_refs:
@@ -6136,7 +6108,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id005
+  legality: *id004
   spec_cite: 'SimRISC-07: ft2uo'
   scope: fp
   rule_refs:
@@ -6163,10 +6135,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: &id006
-  - rfhb != rf0
-  - immu6 == 1 || immu6 == 2 || immu6 == 4 || immu6 == 8 || immu6 == 16 || immu6 ==
-    32
+  legality: *id005
   spec_cite: 'SimRISC-07: it2ft'
   scope: fp
   rule_refs:
@@ -6193,7 +6162,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id006
+  legality: *id005
   spec_cite: 'SimRISC-07: io2ft'
   scope: fp
   rule_refs:
@@ -6220,7 +6189,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id006
+  legality: *id005
   spec_cite: 'SimRISC-07: ut2ft'
   scope: fp
   rule_refs:
@@ -6247,7 +6216,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id006
+  legality: *id005
   spec_cite: 'SimRISC-07: uo2ft'
   scope: fp
   rule_refs:
@@ -6274,7 +6243,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id005
+  legality: *id004
   spec_cite: 'SimRISC-07: fo2it'
   scope: fp
   rule_refs:
@@ -6301,7 +6270,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id005
+  legality: *id004
   spec_cite: 'SimRISC-07: fo2io'
   scope: fp
   rule_refs:
@@ -6328,7 +6297,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id005
+  legality: *id004
   spec_cite: 'SimRISC-07: fo2ut'
   scope: fp
   rule_refs:
@@ -6355,7 +6324,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id005
+  legality: *id004
   spec_cite: 'SimRISC-07: fo2uo'
   scope: fp
   rule_refs:
@@ -6382,9 +6351,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: &id007
-  - rfhb != rf0
-  - immu6 == 0
+  legality: *id006
   spec_cite: 'SimRISC-07: it2fo'
   scope: fp
   rule_refs:
@@ -6411,7 +6378,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id006
+  legality: *id005
   spec_cite: 'SimRISC-07: io2fo'
   scope: fp
   rule_refs:
@@ -6438,7 +6405,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id007
+  legality: *id006
   spec_cite: 'SimRISC-07: ut2fo'
   scope: fp
   rule_refs:
@@ -6465,7 +6432,7 @@
     role: imm
     bank: imm
     signed: false
-  legality: *id006
+  legality: *id005
   spec_cite: 'SimRISC-07: uo2fo'
   scope: fp
   rule_refs:

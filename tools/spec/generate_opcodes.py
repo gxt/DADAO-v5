@@ -3,7 +3,7 @@
 
 每条记录带 `scope` 字段（互斥、穷尽，用户裁定 2026-10-03）：
   - `scope: m1`（156 条）——M1 身份（标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统 + 特权 cfx `trap`/`escape`/`cfx2rd`/`cfx2rc`）；
-  - `scope: fp`（66 条）——原生浮点范围（RF 存取/搬移/条件赋值 + OPC-RF 运算/转换/比较
+  - `scope: fp`（65 条）——原生浮点范围（RF 存取/搬移/条件赋值 + OPC-RF 运算/转换/比较
     + 取整 `ftrnd`/`fornd` + 最小最大值 `ftmin`/`ftmax`/`fomin`/`fomax`
     + 融合乘加 `ftfma`/`fofma`），独立于 M1，
     **已实现**（LLVM-029t/030t、QEMU-034t–037t；取整见 `QEMU-072t`/`LLVM-125t`；
@@ -152,8 +152,8 @@ _SPECIAL_IDS = {
     # 控制流
     "call": "ra", "jump": "rb", "ret": "ra",
     # 浮点运算/比较（fo*/ft* 前缀 → rf）
-    "ftcls": "rf", "ft2fo": "rf", "ft2ft": "rf", "ftroot": "rf",
-    "focls": "rf", "fo2ft": "rf", "fo2fo": "rf", "foroot": "rf",
+    "ftcls": "rf", "ft2fo": "rf", "ftroot": "rf",
+    "focls": "rf", "fo2ft": "rf", "foroot": "rf",
     "ft2it": "rf", "ft2io": "rf", "ft2ut": "rf", "ft2uo": "rf",
     "it2ft": "rf", "io2ft": "rf", "ut2ft": "rf", "uo2ft": "rf",
     "fo2it": "rf", "fo2io": "rf", "fo2ut": "rf", "fo2uo": "rf",
@@ -712,6 +712,12 @@ def build_misc_octa(records):
                        ["rdhb != rd0", LEG_IMMU6, "rdhb + immu6 <= 64",
                         "rfhc + immu6 <= 64"],
                        S00_MISCRF, ha=0x3E, scope="fp"))
+    # rf 组内块复制（M13）：目的 rf0 ⇒ ILLI（与 rd2rf 允许 rf0 作目的不同）；
+    # 同组块复制故须禁源/目的范围重叠（mreg_range_overlap）。
+    records.append(rec("rf2rf", "rf2rf", "orri", op, f_orri("rfhb", "rfhc", "immu6"),
+                       ["rfhb != rf0", LEG_IMMU6, "rfhb + immu6 <= 64",
+                        "rfhc + immu6 <= 64", "no_overlap(rfhb, rfhc, immu6)"],
+                       S02_BLK, ha=0x3C, scope="fp"))
     # ADR-0012 D10：新增 rev.o（逐块反转；orri，ha=0x0C → opx `001-100`）
     # scope: m8（新增 ISA 指令，与里程碑无绑定；非 M1 身份，不要求 M1 向量覆盖）
     records.append(rec("rev.o", "rev.o", "orri", op, f_orri("rdhb", "rdhc", "immu6"),
@@ -778,42 +784,39 @@ def build_misc_fixed_width(records, op, suffix, nbits, sdoc):
 
 def build_misc_rf(records):
     op = 0x44
-    # 各族 legality（来源：contract-fp.md §15 + fp_semantics.yaml；SPEC-089t 回填）
-    leg_convert_ff = ["rfhb != rf0", LEG_IMMU6, "rfhb + immu6 <= 64",
-                      "rfhc + immu6 <= 64", "no_overlap(rfhb, rfhc, immu6)"]
-    leg_convert_f2i = ["rdhb != rd0", LEG_IMMU6, "rdhb + immu6 <= 64",
-                       "rfhc + immu6 <= 64"]
-    leg_convert_i2f = ["rfhb != rf0", LEG_IMMU6, "rfhb + immu6 <= 64",
-                       "rdhc + immu6 <= 64"]
+    # 各族 legality（来源：contract-fp.md §15 + fp_semantics.yaml；SPEC-089t 回填，
+    # SPEC-194t 按「结果是否依赖舍入」三分：15 条六档 one-hot / 3 条精确 SBZ /
+    # 复制类（rf 组块复制与 classify）保留 immu6 = 连续个数）。
+    leg_convert_onehot = ["rfhb != rf0", onehot_expr(64)]
+    leg_convert_onehot_f2i = ["rdhb != rd0", onehot_expr(64)]
+    leg_convert_sbz = ["rfhb != rf0", "immu6 == 0"]
     leg_root = ["rfhb != rf0", "immu6 == 2"]
     leg_classify = ["rdhb != rd0", LEG_IMMU6, "rdhb + immu6 <= 64",
                     "rfhc + immu6 <= 64"]
     # orri 单目/格式转换类（rf -> rd 或 rd -> rf）
     orri_entries = [
         (0x00, "ftcls", "rdhb", "rfhc", leg_classify),
-        (0x01, "ft2fo", "rfhb", "rfhc", leg_convert_ff),
-        (0x02, "ft2ft", "rfhb", "rfhc", leg_convert_ff),
+        (0x01, "ft2fo", "rfhb", "rfhc", leg_convert_sbz),
         (0x06, "ftroot", "rfhb", "rfhc", leg_root),
         (0x08, "focls", "rdhb", "rfhc", leg_classify),
-        (0x09, "fo2ft", "rfhb", "rfhc", leg_convert_ff),
-        (0x0A, "fo2fo", "rfhb", "rfhc", leg_convert_ff),
+        (0x09, "fo2ft", "rfhb", "rfhc", leg_convert_onehot),
         (0x0E, "foroot", "rfhb", "rfhc", leg_root),
-        (0x30, "ft2it", "rdhb", "rfhc", leg_convert_f2i),
-        (0x31, "ft2io", "rdhb", "rfhc", leg_convert_f2i),
-        (0x32, "ft2ut", "rdhb", "rfhc", leg_convert_f2i),
-        (0x33, "ft2uo", "rdhb", "rfhc", leg_convert_f2i),
-        (0x34, "it2ft", "rfhb", "rdhc", leg_convert_i2f),
-        (0x35, "io2ft", "rfhb", "rdhc", leg_convert_i2f),
-        (0x36, "ut2ft", "rfhb", "rdhc", leg_convert_i2f),
-        (0x37, "uo2ft", "rfhb", "rdhc", leg_convert_i2f),
-        (0x38, "fo2it", "rdhb", "rfhc", leg_convert_f2i),
-        (0x39, "fo2io", "rdhb", "rfhc", leg_convert_f2i),
-        (0x3A, "fo2ut", "rdhb", "rfhc", leg_convert_f2i),
-        (0x3B, "fo2uo", "rdhb", "rfhc", leg_convert_f2i),
-        (0x3C, "it2fo", "rfhb", "rdhc", leg_convert_i2f),
-        (0x3D, "io2fo", "rfhb", "rdhc", leg_convert_i2f),
-        (0x3E, "ut2fo", "rfhb", "rdhc", leg_convert_i2f),
-        (0x3F, "uo2fo", "rfhb", "rdhc", leg_convert_i2f),
+        (0x30, "ft2it", "rdhb", "rfhc", leg_convert_onehot_f2i),
+        (0x31, "ft2io", "rdhb", "rfhc", leg_convert_onehot_f2i),
+        (0x32, "ft2ut", "rdhb", "rfhc", leg_convert_onehot_f2i),
+        (0x33, "ft2uo", "rdhb", "rfhc", leg_convert_onehot_f2i),
+        (0x34, "it2ft", "rfhb", "rdhc", leg_convert_onehot),
+        (0x35, "io2ft", "rfhb", "rdhc", leg_convert_onehot),
+        (0x36, "ut2ft", "rfhb", "rdhc", leg_convert_onehot),
+        (0x37, "uo2ft", "rfhb", "rdhc", leg_convert_onehot),
+        (0x38, "fo2it", "rdhb", "rfhc", leg_convert_onehot_f2i),
+        (0x39, "fo2io", "rdhb", "rfhc", leg_convert_onehot_f2i),
+        (0x3A, "fo2ut", "rdhb", "rfhc", leg_convert_onehot_f2i),
+        (0x3B, "fo2uo", "rdhb", "rfhc", leg_convert_onehot_f2i),
+        (0x3C, "it2fo", "rfhb", "rdhc", leg_convert_sbz),
+        (0x3D, "io2fo", "rfhb", "rdhc", leg_convert_onehot),
+        (0x3E, "ut2fo", "rfhb", "rdhc", leg_convert_sbz),
+        (0x3F, "uo2fo", "rfhb", "rdhc", leg_convert_onehot),
     ]
     for ha, mnem, dst, src, leg in orri_entries:
         records.append(rec(mnem, mnem, "orri", op, f_orri(dst, src, "immu6"),
@@ -917,6 +920,7 @@ EXPR_TO_RULE = OrderedDict([
     ("aligned(8)",                                "excp_malign"),
     # ── SBZ / 位域 ──
     ("rdhb == rd0",                               "encode_sbz"),
+    ("immu6 == 0",                                "encode_sbz"),
     ("immu18[17:12] == 0",                        "encode_sbz"),
     ("imms18[17:1] == 0",                         "encode_sbz"),
     (CFX_RESERVED_EXPR,                           "encode_cfx_reserved"),
@@ -998,6 +1002,8 @@ def main():
                 "D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份\n")
         f.write("# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b"
                 " + ADR-0035 GF(2) 无进位乘 clmul.o + fence/lr/sc 原子），非 M1 身份\n")
+        f.write("# 保留槽位（显式登记）：OPC-RF 子表 000-xxx/xxx-010 与 001-xxx/xxx-010 空置"
+                " ⇒ 执行 UNDI；同组块复制为 rf2rf（OPC-octa 111-100）\n")
         f.write(f"# 共 {len(records)} 条：M1 {n_m1} 条 + scope fp {n_fp} 条"
                 f" + scope excluded {n_ex} 条 + scope m3 {n_m3} 条 + scope m8 {n_m8} 条"
                 f" + scope m9 {n_m9} 条\n")

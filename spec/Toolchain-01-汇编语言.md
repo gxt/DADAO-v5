@@ -107,7 +107,7 @@
   - 例：`ldm.ub {rd8:rd10}, [rb0, rd1]` ≡ 旧写法 `ldm.ub rd8, rb0, rd1, 3`。
   - **MUST** 校验：`{}` 不得为空；起点+个数**MUST NOT**越出 `rd63`；个数为 0 **MUST** 报错。
   - `ldm` 的组是**目的**（内存→寄存器），`stm` 的组是**源**（寄存器→内存）。
-- **多寄存器组记法扩展**：组记法用于指令的寄存器操作数（源或目的），当 `immu6` 表示连续寄存器个数时。仅适用于**复制类**：寄存器复制指令（`ra2rd`/`rb2rb`/`rb2rd`/`rd2ra`/`rd2rb`/`rd2rd`/`rd2rf`/`rf2rd`，`orri` 格式）与浮点纯复制（`ft2ft`/`fo2fo`）。源和目的**都用** `{start:end}` 范围记法。示例：`ra2rd {rd8:rd10}, {ra1:ra3}`、`ft2ft {rf4:rf6}, {rf8:rf10}`。
+- **多寄存器组记法扩展**：组记法用于指令的寄存器操作数（源或目的），当 `immu6` 表示连续寄存器个数时。仅适用于**复制类**：寄存器复制指令（`ra2rd`/`rb2rb`/`rb2rd`/`rd2ra`/`rd2rb`/`rd2rd`/`rd2rf`/`rf2rd`/`rf2rf`，`orri` 格式）。源和目的**都用** `{start:end}` 范围记法。示例：`ra2rd {rd8:rd10}, {ra1:ra3}`、`rf2rf {rf4:rf6}, {rf8:rf10}`。
 - **格式转换（18 条）**：`convert_ff` 的 `ft2fo`/`fo2ft`、`convert_f2i` 8 条、`convert_i2f` 8 条采用**单寄存器 + 显式低 6 位第三操作数**，**MUST NOT** 使用 `{}`：15 条结果依赖舍入的转换写六档 one-hot（`0x01` RNE / `0x02` RNA / `0x04` RTZ / `0x08` RUP / `0x10` RDN / `0x20` dynamic），3 条精确转换（`ft2fo`/`it2fo`/`ut2fo`）写 `0`（SBZ）。示例：`fo2io rd8, rf1, 0x04`、`ft2fo rf4, rf8, 0`。
 
 ### 4.3 示例
@@ -195,9 +195,9 @@ ftfma   rf8, rf9, rf10, rf11
 | `set.rb` | `set.rb rb, imm64` | `set.zw-rb` + `or.w-rb` 组合；符号/可重定位（**地址**）→ **固定 3 片** + `R_DADAO_ABS48` |
 | `set.rb` | `set.rb rb, rs` | `rd2rb`/`rb2rb` |
 | `set.ft` | `set.ft rf, imm32` | 2 条 `set.w` |
-| `set.ft` | `set.ft rf, rs` | `rd2rf`/`ft2ft` |
+| `set.ft` | `set.ft rf, rs` | `rd2rf`/`rf2rf`（rf 源为整 64 位复制） |
 | `set.fo` | `set.fo rf, imm64` | `rd2rf rf, rd0`（以 `rd0` 恒 0 清零目的 `rf`）+ 仅对**非零** wyde 的 `set.w rf, wpN, <wyde>`；`set.fo rf, 0` ⇒ 1 条 |
-| `set.fo` | `set.fo rf, rs` | `rd2rf`/`fo2fo` |
+| `set.fo` | `set.fo rf, rs` | `rd2rf`/`rf2rf`（rf 源为整 64 位复制） |
 
 **展开规则**（`MUST`）：
 

@@ -499,7 +499,9 @@ def expand_pseudo(insn_text):
             if rs[0] == "rd":
                 return ["rd2rf {%s}, {%s%d}" % (dst, "rd", rs[1])]
             if rs[0] == "rf":
-                return ["ft2ft {%s}, {%s%d}" % (dst, "rf", rs[1])]
+                # rf→rf 源：唯一可用的同组搬移是 rf2rf（整 64 位逐位复制；
+                # ft 窄写语义不再保留，见 SimRISC-00 §2.3）。
+                return ["rf2rf {%s}, {%s%d}" % (dst, "rf", rs[1])]
             raise AssignError("set.ft bad src")
         val = eval_expr(src) & 0xFFFFFFFF
         return ["set.w %s, wp1, 0x%x" % (dst, (val >> 16) & 0xFFFF),
@@ -514,7 +516,7 @@ def expand_pseudo(insn_text):
             if rs[0] == "rd":
                 return ["rd2rf {%s}, {%s%d}" % (dst, "rd", rs[1])]
             if rs[0] == "rf":
-                return ["fo2fo {%s}, {%s%d}" % (dst, "rf", rs[1])]
+                return ["rf2rf {%s}, {%s%d}" % (dst, "rf", rs[1])]
             raise AssignError("set.fo bad src")
         val = eval_expr(src) & ((1 << 64) - 1)
         if val == 0:

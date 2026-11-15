@@ -30,7 +30,7 @@ R6  Operand shape from opcodes.yaml — for each mnemonic, ``opcodes.yaml`` list
     The ``rrrr`` brace requirement follows the **actual shape** (``fields[].role``):
     2 ``dst`` fields (dual-dst) ⇒ ``{…}`` required; 1 ``dst`` field (``ftfma``/``fofma``
     = 1 dst + 3 src) ⇒ ``{…}`` forbidden; ``cs.*`` braces are conditions (R2b).
-    Block-copy/pure-copy (``ra2rd``, ``ft2ft``, ``fo2fo``, etc.) additionally
+    Block-copy/pure-copy (``ra2rd``, ``rf2rf``, etc.) additionally
     require ``{…}``.
 R6c Conversion form (ADR-0050) — the 18 non-copy format conversions MUST be
     ``dst, src, code`` with single registers, no braces anywhere; the 15
@@ -681,7 +681,7 @@ def _check_line(
                             "R6(rrrr缺{})", stripped
                         ))
 
-    # R6b: Block-copy (ra2rd, rb2rb, ... and the FP pure copies ft2ft/fo2fo).
+    # R6b: Block-copy (ra2rd, rb2rb, ... and the rf-group copy rf2rf).
     # These are orri format with immu6 = count (ADR-0050 D4); the other 18
     # format conversions are single-register forms with an explicit low-6-bit
     # rounding code / SBZ, so they are NOT block copies.
@@ -689,8 +689,7 @@ def _check_line(
     # New: ra2rd {rd8:rd10}, {ra1:ra3}
     _BLOCK_COPY_RE = re.compile(
         r"^\s*"
-        r"(ra2rd|rb2rb|rb2rd|rd2ra|rd2rb|rd2rd|rd2rf|rf2rd"
-        r"|ft2ft|fo2fo)"
+        r"(ra2rd|rb2rb|rb2rd|rd2ra|rd2rb|rd2rd|rd2rf|rf2rd|rf2rf)"
         r"\s"
     )
     if _BLOCK_COPY_RE.match(code_part):

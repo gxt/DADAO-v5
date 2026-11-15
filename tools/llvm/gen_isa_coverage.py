@@ -659,9 +659,11 @@ def render_md(rows: list[dict], st: dict) -> str:
       f"{(' / 异常 ' + str(st['l1_other'])) if st['l1_other'] else ''}；"
       f"编码复核不符 **{st['enc_bad']}**。")
     if st["l1_reject_mnemonics"]:
-        a(f"- `scope: excluded` 且后端未实现者（{'/'.join('`' + m + '`' for m in st['l1_reject_mnemonics'])}，"
-          "现场派生）由汇编器**显式拒绝**（`reject`）；其余 `scope: excluded` 记录（MC 层已受理、"
-          "执行侧仍 ILLI）与 `tests/unit/llvm/lit/MC/DADAO-gen/gen-excluded.s` 的反例同口径。")
+        rej = [r for r in rows if r["L1_assembler"] == "reject"]
+        a(f"- 汇编器**显式拒绝**（`reject`）的 {len(rej)} 条（现场派生："
+          + "、".join(f"`{r['id']}`（scope: {r['scope']}）" for r in rej)
+          + "）——真源编码已定义，但 MC/后端尚未受理；其反例档与 "
+          "`tests/unit/llvm/lit/MC/DADAO-gen/gen-excluded.s` 同口径。")
     else:
         a("- 无 `reject` 记录（现场派生：`scope: excluded` 现为 0 条——`cfxld`/`cfxst` 已从 ISA "
           "删除，`crii` 格式一并撤销），故无 `gen-excluded.s` 反例档。")

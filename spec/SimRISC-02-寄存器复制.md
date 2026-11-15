@@ -1,7 +1,7 @@
 # SimRISC寄存器复制指令
 
 > **版本：0.5.7-rc**（与 SimRISC-00 一致）
-> **分类：寄存器复制** — cs.*/ra2rd/rb2rb/rb2rd/rd2ra/rd2rb/rd2rd/rd2rf/rf2rd
+> **分类：寄存器复制** — cs.*/ra2rd/rb2rb/rb2rd/rd2ra/rd2rb/rd2rd/rd2rf/rf2rd/rf2rf
 
 立即数常数赋值（rwii 格式：set.zw/set.ow/set.w/or.w/andn.w 的 rd/rb/rf 形式，以及 set.rd/set.rb/set.ft/set.fo 伪指令）详见 SimRISC-03（16位立即数操作）。
 
@@ -22,6 +22,7 @@ rd2ra   {raHB:raHB+immu6-1}, {rdHC:rdHC+immu6-1}
 
 rf2rd   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 rd2rf   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
+rf2rf   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
 ```
 
 以 `rb2rd` 为例，指令语义为，将rbHC开始的immu6个寄存器复制到rdHB开始的immu6个寄存器中。
@@ -29,17 +30,17 @@ immu6为立即数，存在hd位域中，用来指定寄存器的个数，有效�
 
 限制如下：
 
-- 根据语义，rb/rf/ra之间不能进行直接赋值，ra与ra之间不能进行相互赋值
+- 根据语义，rb/rf/ra之间不能进行直接赋值，ra与ra之间不能进行相互赋值（同组块复制只有 `rd2rd`/`rb2rb`/`rf2rf` 三种）
 - `immu6` = 0 时触发 ILLI 异常
-- 目的寄存器**不可为 `rd0`/`rb0`**时触发 ILLI 异常；`ra0`（`RACNT` + `MRPTR`，见 D7）与 `rf0`（FCSR，见 D6）作目的**合法**（见 SimRISC-01、SimRISC-00）。
+- 目的寄存器**不可为 `rd0`/`rb0`**时触发 ILLI 异常；`ra0`（`RACNT` + `MRPTR`，见 D7）与 `rf0`（FCSR，见 D6）作目的**合法**（见 SimRISC-01、SimRISC-00）。**例外**：同组块复制 `rf2rf` 的目的范围含 `rf0` ⇒ ILLI（`rf0` 是控制/状态寄存器，不可作该复制族的目的；与 `rd2rf` 允许 `rf0` 作目的不同）。
 - 任一起始寄存器 + immu6 > 64 时触发 ILLI 异常
 - 源范围与目的范围有交集时触发 ILLI 异常（即不允许源和目的寄存器范围有任何重叠）
 
-> **精确性（不适用部分生效例外）**：上述块复制指令在处理多个寄存器时**保持精确**——非法条件（`immu6` = 0、起始 + `immu6` 超界、源/目的范围重叠）在**处理任何元素之前**判定，异常进入时目的寄存器**未被修改**、IP 指向该指令、异常原因码正确。多元素**内存**指令（`ldm`/`stm`）允许部分生效的例外见 DADAO-12 §5，本类**不适用**。
+> **精确性（不适用部分生效例外）**：上述块复制指令在处理多个寄存器时**保持精确**——非法条件（`immu6` = 0、起始 + `immu6` 超界、源/目的范围重叠、`rf2rf` 目的范围含 `rf0`）在**处理任何元素之前**判定，异常进入时目的寄存器**未被修改**、IP 指向该指令、异常原因码正确。多元素**内存**指令（`ldm`/`stm`）允许部分生效的例外见 DADAO-12 §5，本类**不适用**。
 >
 > **禁止重叠的理由**：源范围与目的范围重叠时，后续元素会读到已被前面元素改写的寄存器（中间态即源），结果依赖元素处理顺序；禁止任何重叠（见上条限制）使每个元素的结果只取决于进入该指令时的寄存器内容。
 
-> **注**：`rd2rf` 中 `rf0` 可作目的（含 `{rf0:rf0+immu6-1}`，immu6≥2 允许），写入按 SimRISC-00 写语义（只更新舍入模式与异常状态，其余位写无效）；`rf2rd` 中 `rf0` 可作源，读出完整 64 位。
+> **注**：`rd2rf` 中 `rf0` 可作目的（含 `{rf0:rf0+immu6-1}`，immu6≥2 允许），写入按 SimRISC-00 写语义（只更新舍入模式与异常状态，其余位写无效）；`rf2rd` 中 `rf0` 可作源，读出完整 64 位。同组块复制 `rf2rf` 按**整 64 位逐位复制**（不做数值换算、不舍入、不置标志），源 `rf0` 读出完整 64 位，目的范围含 `rf0` ⇒ ILLI。
 
 ## 2. 条件赋值：Conditional Assignment
 
@@ -77,7 +78,7 @@ cs.p    {rdHA}?, rfHB, rfHC, rfHD
 
 > **注**：`cs.n`/`cs.z`/`cs.p` 的 rf 变体中，**目的**（`rfHB`）为 `rf0` → ILLI；**源**（`rfHC`/`rfHD`）为 `rf0` 合法（`rf0` 作源读出完整 64 位）。
 >
-> **搬移宽度**：条件赋值是**宽度透明的寄存器搬移**——`rd` 形式与 `rf` 形式都按**整 64 位**搬移（源读 64 位、目的写 64 位），不做窄写、不保留目的高半（与 §1.3 的 `ft2ft` 不同：后者名字声明了 `ft` 格式）。
+> **搬移宽度**：条件赋值是**宽度透明的寄存器搬移**——`rd` 形式与 `rf` 形式都按**整 64 位**搬移（源读 64 位、目的写 64 位），不做窄写、不保留目的高半（与 rf 组块复制 `rf2rf` 一致：整 64 位逐位复制）。
 
 <!-- ASSEMBLY_LIST_START -->
 ## 附录 A：汇编指令速查
@@ -100,6 +101,7 @@ cs.p    {rdHA}?, rfHB, rfHC, rfHD
 | `rd2rd` | `orri` | `rd` | `rd2rd {rdHB:rdHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2rd_orri_rd` |
 | `rd2rf` | `orri` | `rf` | `rd2rf {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2rf_orri_rf` |
 | `rf2rd` | `orri` | `rf` | `rf2rd {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `rf2rd_orri_rf` |
+| `rf2rf` | `orri` | `rf` | `rf2rf {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `rf2rf_orri_rf` |
 
 <!-- ASSEMBLY_LIST_END -->
 
@@ -108,8 +110,8 @@ cs.p    {rdHA}?, rfHB, rfHC, rfHD
 
 * `dst_rd0`：目的 rd0 → ILLI — `cs.eq_rrrr_rd`, `cs.n_rrrr_rd`, `cs.ne_rrrr_rd`, `cs.p_rrrr_rd`, `cs.z_rrrr_rd`, `ra2rd_orri_ra`, `rb2rd_orri_rb`, `rd2rd_orri_rd`, `rf2rd_orri_rf`（9 条）
 * `dst_rb0`：目的 rb0 → ILLI — `rb2rb_orri_rb`, `rd2rb_orri_rb`（2 条）
-* `dst_rf0`：浮点目的 rf0 → ILLI — `cs.n_rrrr_rf`, `cs.p_rrrr_rf`, `cs.z_rrrr_rf`（3 条）
-* `mreg_zero`：immu6=0 → ILLI — `ra2rd_orri_ra`, `rb2rb_orri_rb`, `rb2rd_orri_rb`, `rd2ra_orri_ra`, `rd2rb_orri_rb`, `rd2rd_orri_rd`, `rd2rf_orri_rf`, `rf2rd_orri_rf`（8 条）
-* `mreg_range_overflow`：起始+immu6>64 → ILLI — `ra2rd_orri_ra`, `rb2rb_orri_rb`, `rb2rd_orri_rb`, `rd2ra_orri_ra`, `rd2rb_orri_rb`, `rd2rd_orri_rd`, `rd2rf_orri_rf`, `rf2rd_orri_rf`（8 条）
-* `mreg_range_overlap`：源/目的范围交集 → ILLI — `rb2rb_orri_rb`, `rd2rd_orri_rd`（2 条）
+* `dst_rf0`：浮点目的 rf0 → ILLI — `cs.n_rrrr_rf`, `cs.p_rrrr_rf`, `cs.z_rrrr_rf`, `rf2rf_orri_rf`（4 条）
+* `mreg_zero`：immu6=0 → ILLI — `ra2rd_orri_ra`, `rb2rb_orri_rb`, `rb2rd_orri_rb`, `rd2ra_orri_ra`, `rd2rb_orri_rb`, `rd2rd_orri_rd`, `rd2rf_orri_rf`, `rf2rd_orri_rf`, `rf2rf_orri_rf`（9 条）
+* `mreg_range_overflow`：起始+immu6>64 → ILLI — `ra2rd_orri_ra`, `rb2rb_orri_rb`, `rb2rd_orri_rb`, `rd2ra_orri_ra`, `rd2rb_orri_rb`, `rd2rd_orri_rd`, `rd2rf_orri_rf`, `rf2rd_orri_rf`, `rf2rf_orri_rf`（9 条）
+* `mreg_range_overlap`：源/目的范围交集 → ILLI — `rb2rb_orri_rb`, `rd2rd_orri_rd`, `rf2rf_orri_rf`（3 条）
 <!-- LEGALITY_END -->

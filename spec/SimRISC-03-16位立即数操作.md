@@ -146,13 +146,15 @@ set.ft   rf1, 0                       @@ 展开为 rd2rf {rf1}, {rd0}
 set.fo   rf1, 0                       @@ 展开为 rd2rf {rf1}, {rd0}
 ```
 
-**寄存器传值**：`set.ft`/`set.fo` 也可用于从 rd 或 rf 寄存器传值至 rf，汇编器展开为 `rd2rf` 或 `ft2ft`/`fo2fo`：
+**寄存器传值**：`set.ft`/`set.fo` 也可用于从 rd 或 rf 寄存器传值至 rf，汇编器展开为 `rd2rf` 或 `rf2rf`：
 
 ```simrisc
 set.ft   rf1, rd5       @@ 展开为 rd2rf {rf1}, {rd5}
-set.ft   rf1, rf2       @@ 展开为 ft2ft {rf1}, {rf2}
-set.fo   rf2, rf7       @@ 展开为 fo2fo {rf2}, {rf7}
+set.ft   rf1, rf2       @@ 展开为 rf2rf {rf1}, {rf2}
+set.fo   rf2, rf7       @@ 展开为 rf2rf {rf2}, {rf7}
 ```
+
+> **注**：rf 作源时展开为 rf 组块复制 `rf2rf`，按**整 64 位**逐位复制（源读 64 位、目的写 64 位）；该形式不接受「只写低 32 位」的窄写语义（写宽总则见 SimRISC-00 §2.3）。
 
 **注**：加载全零时汇编器自动使用 `rd2rf` 从 `rd0` 拷贝。
 

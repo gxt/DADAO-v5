@@ -1,7 +1,7 @@
 # ISA↔后端覆盖矩阵（生成式，两层分列）
 
 > **生成器**：`tools/llvm/gen_isa_coverage.py`（生成物，勿手工编辑；改生成器或真源后重跑）
-> **真源**：`contracts/opcodes.yaml`（**264** 条 = `m1` 156 + `fp` 66 + `excluded` 0 + `m3` 1 + `m8` 7 + `m9` 34；计数由脚本现场统计，不写死）
+> **真源**：`contracts/opcodes.yaml`（**263** 条 = `m1` 156 + `fp` 65 + `excluded` 0 + `m3` 1 + `m8` 7 + `m9` 34；计数由脚本现场统计，不写死）
 > **重跑**：`python3 tools/llvm/gen_isa_coverage.py`　**门控（反例可失败）**：`python3 tools/llvm/gen_isa_coverage.py --check`
 > **机器可读**：`tools/llvm/llvm-isa-backend-matrix.tsv`（同源同批生成）
 
@@ -13,8 +13,8 @@
 
 - 形态来源：`tools/testcases/generate_lit_vectors.py` 的 `build_case()`（与现有 lit 全量档 `tests/unit/llvm/lit/MC/DADAO-gen/gen-*.s` **同一口径、同一行文本**；本工具不另立操作数拼装逻辑）。
 - 受理后**另做编码复核**：由对象 `.text` 取 4 字节大端字，要求「按真源 `(word & mask) == value` 唯一命中本记录」且等于真源派生编码（`L1_encoding = ok / mismatch`）。这一列把第①层钉在真源上，而非只看 `llvm-mc` 自洽。
-- 现场统计：`accept` **264** / `reject` **0**；编码复核不符 **0**。
-- 无 `reject` 记录（现场派生：`scope: excluded` 现为 0 条——`cfxld`/`cfxst` 已从 ISA 删除，`crii` 格式一并撤销），故无 `gen-excluded.s` 反例档。
+- 现场统计：`accept` **262** / `reject` **1**；编码复核不符 **0**。
+- 汇编器**显式拒绝**（`reject`）的 1 条（现场派生：`rf2rf_orri_rf`（scope: fp））——真源编码已定义，但 MC/后端尚未受理；其反例档与 `tests/unit/llvm/lit/MC/DADAO-gen/gen-excluded.s` 同口径。
 
 ### 第②层「ISel 用得上」（机械提取，非人工判读）
 
@@ -41,7 +41,7 @@
 - **`.td` def 无真源记录者不入选**：CodeGen-only 伪指令（`*_PSEUDO`/`GLOBAL_ADDR`/`JT_ADDR`/`tailjmp_*`）不是 ISA 记录；其证据经 `pseudo`/`synonym` 解析到实际指令；`tailjmp_*` 与 `jump` 同编码，归入 `jump` 记录的证据。
 - **MC-only 指令**：`fence` 汇编可得但无 ISel 模式 ⇒ 第②层 `no`（属正常，非缺陷）。
 
-## 2. 矩阵（全量 264 条，按 id 排序）
+## 2. 矩阵（全量 263 条，按 id 排序）
 
 列：`id` ｜ `mnemonic` ｜ `format` ｜ `scope` ｜ **①汇编器** ｜ **②ISel** ｜ 证据
 （证据格式 `kind:文件:补丁物理行号:def名[:伪指令名]`，可直接 `sed -n '<行号>p' <文件>` 复核；完整形态行见 TSV 的 `L1_asm` 列）
@@ -114,7 +114,6 @@
 | `ext.uo_orri_rd` | `ext.uo` | `orri` | `m1` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:335:ext_uo_orri;pat:DADAOCodeGen.td.patch:673:ext_uo_orri;pat:DADAOCodeGen.td.patch:674:ext_uo_orri;pat:DADAOCodeGen.td.patch:675:ext_uo_orri;pat:DADAOCodeGen.td.patch:676:ext_uo_orri;pat:DADAOCodeGen.td.patch:677:ext_uo_orri;pat:DADAOCodeGen.td.patch:678:ext_uo_orri;pat:DADAOCodeGen.td.patch:680:ext_uo_orri;pat:DADAOCodeGen.td.patch:681:ext_uo_orri;pat:DADAOCodeGen.td.patch:682:ext_uo_orri;pat:DADAOCodeGen.td.patch:683:ext_uo_orri;pat:DADAOCodeGen.td.patch:684:ext_uo_orri;pat:DADAOCodeGen.td.patch:685:ext_uo_orri;pat:DADAOCodeGen.td.patch:696:ext_uo_orri;pat:DADAOCodeGen.td.patch:697:ext_uo_orri;pat:DADAOCodeGen.td.patch:698:ext_uo_orri;pat:DADAOCodeGen.td.patch:699:ext_uo_orri;pat:DADAOCodeGen.td.patch:700:ext_uo_orri;pat:DADAOCodeGen.td.patch:701:ext_uo_orri;pat:DADAOCodeGen.td.patch:707:ext_uo_orri;pat:DADAOCodeGen.td.patch:709:ext_uo_orri;pat:DADAOCodeGen.td.patch:711:ext_uo_orri |
 | `ext.uo_orrr_rd` | `ext.uo` | `orrr` | `m1` | accept | no | — |
 | `fence_ciii_cfx` | `fence` | `ciii` | `m9` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:804:fence |
-| `fo2fo_orri_rf` | `fo2fo` | `orri` | `fp` | accept | no | — |
 | `fo2ft_orri_rf` | `fo2ft` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:1188:fo2ft_orri_rf |
 | `fo2io_orri_rf` | `fo2io` | `orri` | `fp` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:894:fo2io_orri_rf;pat:DADAOCodeGen.td.patch:1196:fo2io_orri_rf |
 | `fo2it_orri_rf` | `fo2it` | `orri` | `fp` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:894:fo2it_orri_rf |
@@ -137,7 +136,6 @@
 | `fosgnn_orrr_rf` | `fosgnn` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:999:fosgnn_orrr_rf |
 | `fosub_orrr_rf` | `fosub` | `orrr` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:982:fosub_orrr_rf |
 | `ft2fo_orri_rf` | `ft2fo` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:1187:ft2fo_orri_rf |
-| `ft2ft_orri_rf` | `ft2ft` | `orri` | `fp` | accept | no | — |
 | `ft2io_orri_rf` | `ft2io` | `orri` | `fp` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:895:ft2io_orri_rf;pat:DADAOCodeGen.td.patch:1197:ft2io_orri_rf |
 | `ft2it_orri_rf` | `ft2it` | `orri` | `fp` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:896:ft2it_orri_rf |
 | `ft2uo_orri_rf` | `ft2uo` | `orri` | `fp` | accept | yes | isel-cpp:DADAOISelDAGToDAG.cpp.patch:895:ft2uo_orri_rf;pat:DADAOCodeGen.td.patch:1199:ft2uo_orri_rf |
@@ -230,6 +228,7 @@
 | `rev.t_orri_rd` | `rev.t` | `orri` | `m8` | accept | yes | pat:DADAOCodeGen.td.patch:655:rev_t_orri_rd |
 | `rev.w_orri_rd` | `rev.w` | `orri` | `m8` | accept | yes | pat:DADAOCodeGen.td.patch:656:rev_w_orri_rd |
 | `rf2rd_orri_rf` | `rf2rd` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:717:rf2rd_orri_rf;pat:DADAOCodeGen.td.patch:1215:rf2rd_orri_rf |
+| `rf2rf_orri_rf` | `rf2rf` | `orri` | `fp` | reject | no | — |
 | `rol.b_orri_rd` | `rol.b` | `orri` | `m9` | accept | no | — |
 | `rol.b_orrr_rd` | `rol.b` | `orrr` | `m9` | accept | no | — |
 | `rol.o_orri_rd` | `rol.o` | `orri` | `m9` | accept | yes | pat:DADAOCodeGen.td.patch:493:rol_o_orri |
@@ -313,13 +312,13 @@
 | `xnor.o_orrr_rd` | `xnor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:465:xnor_o |
 | `xor.o_orrr_rd` | `xor.o` | `orrr` | `m1` | accept | yes | pat:DADAOCodeGen.td.patch:456:xor_o |
 
-## 3. 缺口汇总（未被 ISel 使用，62 条）
+## 3. 缺口汇总（未被 ISel 使用，61 条）
 
 候选优化面（供后续里程碑参考）。按性质分四类（现场统计）：
 
 1. **真缺口·候补优化面**（`scope != excluded`，且后端 ISel/post-ISel 均未引用，且非汇编层/特权族）：**55** 条 —— ISA 有、后端一次都没发射，最有价值。
 2. **真缺口·汇编层/特权族**（同上但 `format ∈ {crrr, ciii}` 或助记符 ∈ {fence, swym}，机械判据）：**5** 条 —— 经 cfx 访问/内联汇编/占位语义使用，不经 ISel 选入属预期。
-3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**2** 条。
+3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**1** 条。
 
 ### 3.1 真缺口·候补优化面（55 条）
 
@@ -332,7 +331,6 @@
 | `ext.so_orrr_rd` | `ext.so` | `orrr` | `m1` |
 | `ext.uo_orrr_rd` | `ext.uo` | `orrr` | `m1` |
 | `foscmp_orrr_rf` | `foscmp` | `orrr` | `fp` |
-| `ft2ft_orri_rf` | `ft2ft` | `orri` | `fp` |
 | `ftscmp_orrr_rf` | `ftscmp` | `orrr` | `fp` |
 | `it2fo_orri_rf` | `it2fo` | `orri` | `fp` |
 | `it2ft_orri_rf` | `it2ft` | `orri` | `fp` |
@@ -357,6 +355,7 @@
 | `ra2rd_orri_ra` | `ra2rd` | `orri` | `m1` |
 | `rd2ra_orri_ra` | `rd2ra` | `orri` | `m1` |
 | `rev.b_orri_rd` | `rev.b` | `orri` | `m8` |
+| `rf2rf_orri_rf` | `rf2rf` | `orri` | `fp` |
 | `rol.b_orri_rd` | `rol.b` | `orri` | `m9` |
 | `rol.b_orrr_rd` | `rol.b` | `orrr` | `m9` |
 | `rol.t_orri_rd` | `rol.t` | `orri` | `m9` |
@@ -391,11 +390,10 @@
 | `swym_oiii_imm` | `swym` | `oiii` | `m1` |
 | `trap_ciii_cfx` | `trap` | `ciii` | `m1` |
 
-### 3.3 仅 post-ISel 引用（2 条）
+### 3.3 仅 post-ISel 引用（1 条）
 
 | id | mnemonic | format | scope |
 |---|---|---|---|
-| `fo2fo_orri_rf` | `fo2fo` | `orri` | `fp` |
 | `rd2rb_orri_rb` | `rd2rb` | `orri` | `m1` |
 
 ### 3.4 scope: excluded（未实现）（0 条）

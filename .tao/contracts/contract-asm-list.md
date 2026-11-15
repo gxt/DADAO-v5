@@ -1,11 +1,11 @@
 # DADAO 汇编指令表（新语法）
 
 > **生成器**：`tools/llvm/gen_asm_list.py`（生成物，勿手工编辑；改生成器后重跑）
-> **源**：`contracts/opcodes.yaml`（264 条 = M1 156 + `scope: fp` 66 + `scope: excluded` 0 + `scope: m3` 1 + `scope: m8` 7 + `scope: m9` 34）
+> **源**：`contracts/opcodes.yaml`（263 条 = M1 156 + `scope: fp` 65 + `scope: excluded` 0 + `scope: m3` 1 + `scope: m8` 7 + `scope: m9` 34）
 > **语法**：`spec/Toolchain-01-汇编语言.md`（**v1 生效，待实现**）
 > **分章**：取数存数 / **寄存器复制**（`cs.*` 与寄存器组→寄存器组） / **16位立即数操作**（rwii 格式） / **64位数据运算** / **64位地址运算** / 控制流 / 浮点运算 / **32位数据运算** / **16位数据运算** / **8位数据运算** / 核芯功能扩展（`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence`） / 其它指令（原子 / 空转 / 位扫描与位计数）
-> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围）：**浮点运算**（52 条）：`scope: fp` 52 条（已实现）；`scope: m1` 156 条为当前有效书写形式；`scope: excluded` 现 0 条（无该分区记录：`cfxld`/`cfxst` 已删）
-> **注（`scope: fp` 范围总账 = 66 条）**：浮点运算章 52 条（OPC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 5 条（`cs.n/z/p-rf` 与 `rd2rf`/`rf2rd`）+ 16位立即数操作 1 条（`set.w-rf`）
+> **范围与状态**（用户裁定 2026-10-03：`scope` 表范围）：**浮点运算**（50 条）：`scope: fp` 50 条（已实现）；`scope: m1` 156 条为当前有效书写形式；`scope: excluded` 现 0 条（无该分区记录：`cfxld`/`cfxst` 已删）
+> **注（`scope: fp` 范围总账 = 65 条）**：浮点运算章 50 条（OPC-RF 子表）+ 取数存数 8 条（`ld.*`/`st.*`/`ldm.*`/`stm.*` 的 `rf` 形式）+ 寄存器复制 6 条（`cs.n/z/p-rf`、`rd2rf`/`rf2rd`、`rf2rf`）+ 16位立即数操作 1 条（`set.w-rf`）
 > **注（`ldm.*`/`stm.*` 的组记法）**：汇编形式列的 `{rdHA:rdHA+immu6-1}` 表示「以 `rdHA` 为起点、个数由 `immu6` 字段决定的连续寄存器组」（字面语法见 `spec/Toolchain-01-汇编语言.md` §4.2）
 > **列**：助记符 ｜ format ｜ feature ｜ 汇编形式（字段名，如 `rdHA`） ｜ id（= 助记符_format_feature）
 
@@ -70,7 +70,7 @@
 | `stm.t` | `rrri` | `rf` | `stm.t {rfHA:rfHA+immu6-1}, [rbHB, rdHC]` | `stm.t_rrri_rf` |
 | `stm.w` | `rrri` | `rd` | `stm.w {rdHA:rdHA+immu6-1}, [rbHB, rdHC]` | `stm.w_rrri_rd` |
 
-### 寄存器复制（16 条）
+### 寄存器复制（17 条）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
@@ -90,6 +90,7 @@
 | `rd2rd` | `orri` | `rd` | `rd2rd {rdHB:rdHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2rd_orri_rd` |
 | `rd2rf` | `orri` | `rf` | `rd2rf {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2rf_orri_rf` |
 | `rf2rd` | `orri` | `rf` | `rf2rd {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `rf2rd_orri_rf` |
+| `rf2rf` | `orri` | `rf` | `rf2rf {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `rf2rf_orri_rf` |
 
 ### 16位立即数操作（8 条）
 
@@ -173,11 +174,10 @@
 | `jump` | `rrii` | `rb` | `jump [rbHA, rdHB, imms14]` | `jump_rrii_rb` |
 | `ret` | `riii` | `ra` | `ret rdHA, imms18` | `ret_riii_ra` |
 
-### 浮点运算（52 条）｜ `scope: fp`（52 条，已实现）
+### 浮点运算（50 条）｜ `scope: fp`（50 条，已实现）
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
-| `fo2fo` | `orri` | `rf` | `fo2fo {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `fo2fo_orri_rf` |
 | `fo2ft` | `orri` | `rf` | `fo2ft rfHB, rfHC, immu6` | `fo2ft_orri_rf` |
 | `fo2io` | `orri` | `rf` | `fo2io rdHB, rfHC, immu6` | `fo2io_orri_rf` |
 | `fo2it` | `orri` | `rf` | `fo2it rdHB, rfHC, immu6` | `fo2it_orri_rf` |
@@ -200,7 +200,6 @@
 | `fosgnn` | `orrr` | `rf` | `fosgnn rfHB, rfHC, rfHD` | `fosgnn_orrr_rf` |
 | `fosub` | `orrr` | `rf` | `fosub rfHB, rfHC, rfHD` | `fosub_orrr_rf` |
 | `ft2fo` | `orri` | `rf` | `ft2fo rfHB, rfHC, immu6` | `ft2fo_orri_rf` |
-| `ft2ft` | `orri` | `rf` | `ft2ft {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ft2ft_orri_rf` |
 | `ft2io` | `orri` | `rf` | `ft2io rdHB, rfHC, immu6` | `ft2io_orri_rf` |
 | `ft2it` | `orri` | `rf` | `ft2it rdHB, rfHC, immu6` | `ft2it_orri_rf` |
 | `ft2uo` | `orri` | `rf` | `ft2uo rdHB, rfHC, immu6` | `ft2uo_orri_rf` |

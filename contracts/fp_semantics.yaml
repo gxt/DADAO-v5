@@ -1,4 +1,4 @@
-# contracts/fp_semantics.yaml — DADAO SimRISC 0.5.4 FP 语义投影（scope: fp，66 条）
+# contracts/fp_semantics.yaml — DADAO SimRISC 0.5.4 FP 语义投影（scope: fp，65 条）
 #
 # 来源（Spec-first，不从 LLVM/QEMU 反推）：
 #   spec/SimRISC-00 §浮点寄存器 / §浮点状态寄存器
@@ -19,7 +19,7 @@
 
 version: "0.5.4"
 scope: fp
-count: 66
+count: 65
 
 # ── FCSR（rf0）环境 ─────────────────────────────────────────────────────────
 fcsr:
@@ -122,29 +122,19 @@ families:
     semantics_ref: "contract-fp.md#fma"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
 
-# ── 66 条指令（id 集合须与 opcodes.yaml 中 scope=="fp" 双向一致）──────────────
+# ── 65 条指令（id 集合须与 opcodes.yaml 中 scope=="fp" 双向一致）──────────────
 instructions:
-  # convert_ff（4）
+  # convert_ff（2）
   - id: ft2fo_orri_rf
     family: convert_ff
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_ff"
     legality_refs: [dst_rf0, encode_sbz]
-  - id: ft2ft_orri_rf
-    family: convert_ff
-    spec_cite: "SimRISC-07: 格式转换指令"
-    semantics_ref: "contract-fp.md#convert_ff"
-    legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow, mreg_range_overlap]
   - id: fo2ft_orri_rf
     family: convert_ff
     spec_cite: "SimRISC-07: 格式转换指令"
     semantics_ref: "contract-fp.md#convert_ff"
     legality_refs: [dst_rf0, encode_onehot]
-  - id: fo2fo_orri_rf
-    family: convert_ff
-    spec_cite: "SimRISC-07: 格式转换指令"
-    semantics_ref: "contract-fp.md#convert_ff"
-    legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow, mreg_range_overlap]
 
   # convert_f2i（8）
   - id: ft2it_orri_rf
@@ -419,7 +409,7 @@ instructions:
     semantics_ref: "contract-fp.md#rf_mem"
     legality_refs: [mreg_zero, mreg_range_overflow]
 
-  # rf_move（2）
+  # rf_move（3）
   - id: rd2rf_orri_rf
     family: rf_move
     spec_cite: "SimRISC-02: 寄存器组之间块赋值"
@@ -430,6 +420,11 @@ instructions:
     spec_cite: "SimRISC-02: 寄存器组之间块赋值"
     semantics_ref: "contract-fp.md#rf_move"
     legality_refs: [dst_rd0, mreg_zero, mreg_range_overflow]
+  - id: rf2rf_orri_rf
+    family: rf_move
+    spec_cite: "SimRISC-02: 寄存器组之间块赋值"
+    semantics_ref: "contract-fp.md#rf_move"
+    legality_refs: [dst_rf0, mreg_zero, mreg_range_overflow, mreg_range_overlap]
 
   # set_w_rf（1）
   - id: set.w_rwii_rf

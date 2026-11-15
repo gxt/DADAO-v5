@@ -5,21 +5,24 @@
 
 **规范性引用**：本册的浮点数据格式、运算结果与异常语义以 **IEEE 754-2019** 为准——本册未写明的行为按 IEEE 754-2019 执行；本册与之冲突时，**以 IEEE 754-2019 为准**，唯一例外是本册**显式标注为有意偏离**并给出理由的条目。
 
+**单精（ft）结果的写入宽度**：凡以 ft 寄存器为目的的指令（算术、取余、开方、取整、缩放、最小最大、转换到 ft 等），**只写目的寄存器低 32 位，高 32 位保持原值**（不符号扩展、不零填）；取数指令 `ld.t`/`ldm.t` 的 rf 形式同理。**例外（宽度透明的整 64 位搬移：源读 64 位、目的写 64 位，不做窄写、不保留目的高半）**：跨组复制 `rd2rf`/`rf2rd`、rf 组块复制 `rf2rf`、浮点条件赋值 `cs.n`/`cs.z`/`cs.p` 的 rf 形式。判据总则见 SimRISC-00 §2.3。
+
 舍入模式由 rf0[33:32] 控制，异常标志在 rf0[4:0]。浮点指令执行后，异常状态位（NV/DZ/OF/UF/NX）由硬件设置，软件可通过读取 rf0 检查异常状态。
 
 ## 1. 格式转换指令
 
 格式转换指令在整型与浮点格式之间、以及同格式之间转换数据，操作数类型为 `orri`，每条指令一个目的、一个源。其中 it 表示32位有符号整数，io表示64位有符号整数，ut表示32位无符号整数，uo表示64位无符号整数，ft表示32位单精浮点数，fo表示64位双精浮点数。
 
-低 6 位 `immu6` 的语义按「结果是否依赖舍入」分为三类，三者互斥：
+低 6 位 `immu6` 的语义按「结果是否依赖舍入」分为两类，两者互斥：
 
 | 类别 | 条数 | 指令 | `immu6` 语义 |
 |---|---|---|---|
 | 舍入方向六档 | 15 | `ft2it`/`ft2io`/`ft2ut`/`ft2uo`、`fo2it`/`fo2io`/`fo2ut`/`fo2uo`、`fo2ft`、`it2ft`/`io2ft`/`ut2ft`/`uo2ft`、`io2fo`/`uo2fo` | 舍入方向（§1.1） |
 | 精确转换 | 3 | `ft2fo`、`it2fo`、`ut2fo` | SBZ，必须为 0（§1.2） |
-| 复制 | 4 | `ft2ft`、`fo2fo`（`rd2rf`/`rf2rd` 同属此类，见 SimRISC-02） | 连续寄存器个数 1–63（§1.3） |
 
-**读写顺序**：每条指令只访问一个目的与一个源（复制类为一段源窗口与一段目的窗口），硬件先读全部源再写目的，源与目的可为同一寄存器，行为确定。
+**读写顺序**：每条指令只访问一个目的与一个源，硬件先读全部源再写目的，源与目的可为同一寄存器，行为确定。
+
+> rf 组内连续寄存器的块复制（`rf2rf`）与跨组复制 `rd2rf`/`rf2rd` 不属本册的格式转换族，见 SimRISC-02。
 
 ### 1.1 舍入方向六档
 
@@ -52,20 +55,7 @@
 
 `ft2fo`（f32→f64）、`it2fo`（int32→f64）、`ut2fo`（uint32→f64）的结果总能被目标格式精确表示，因此**不涉舍入**：低 6 位为 SBZ，必须为 0，非 0 ⇒ ILLI；不读 `rf0[33:32]`，不置 NX/OF/UF。字段为 `rfHB`（目的）与源（`ft2fo` 为 `rfHC`，`it2fo`/`ut2fo` 为 `rdHC`）。
 
-### 1.3 复制
-
-- **单精（ft）结果的写入宽度**：凡以 ft 寄存器为目的的指令（算术、取余、开方、取整、缩放、最小最大、转换到 ft、`ft2ft` 复制等），**只写目的寄存器低 32 位，高 32 位保持原值**。不适用：`fo2fo`（双精，整 64 位逐位复制）与跨组复制 `rd2rf`/`rf2rd`（整 64 位逐位复制）。[SimRISC-00 §浮点寄存器]
-
-`ft2ft` 在 ft 寄存器之间搬移数据，**只搬低 32 位、目的高 32 位保持原值**；`fo2fo` 在 fo 寄存器之间搬移，按整 64 位**逐位复制**（不做数值换算、不舍入、不置标志）。`immu6` 指定连续搬移的寄存器个数（1–63）：
-
-```simrisc
-ft2ft   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
-fo2fo   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
-```
-
-例如 `ft2ft {rf4:rf6}, {rf8:rf10}` 将 rf8→rf4、rf9→rf5、rf10→rf6。源范围与目的范围不可有任何交集（含完全重合），否则触发 ILLI 异常；无交集时按序号递增逐对进行，先读后写。本类不涉舍入，不置任何标志。限制：`immu6` = 0 ⇒ ILLI；任一起始寄存器 + `immu6` > 64 ⇒ ILLI。
-
-### 1.4 异常与标志
+### 1.3 异常与标志
 
 转换族只实现「inexact 即报告」的形态：**结果 inexact 一律置 NX**，不提供「舍入但不置标志」的变体。
 
@@ -92,16 +82,15 @@ fo2fo   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
 
 **异常标志口径（IEEE 754-2019 §7.5）**：`UF` 仅在结果 **tiny 且 inexact** 时置位——结果 tiny 但可精确表示时**不置** `UF`（也不置 `NX`）；`NX` 与 `UF` **相互独立**（inexact 但非 tiny ⇒ 只置 `NX`）。**tininess 检测点 = 舍入后**（after rounding：按目标格式舍入后再判结果是否小于最小正规数）。标志为 **sticky**（置位后保持到软件清零，见 `SimRISC-00 §浮点状态寄存器`）。
 
-**NaN 结果的取值（全册适用）**：凡结果应为 quiet NaN 的情形——算术（加/减/乘/除）、缩放（scaleB）、开方（root）、取余（remainder）、融合乘加、取整、最小最大（双 NaN）、格式转换（`fo2ft`/`ft2fo`）、比较的 **quiet** 无序结果，以及任何无效操作产生的 qNaN——一律返回 **canonical quiet NaN**：符号位 0、payload 全零，即 ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`；signaling NaN 作输入仍按各节规则置 `NV`，结果同样取 canonical quiet NaN。**不适用**（须按各自规则处理）：`ft2ft`/`fo2fo` 复制类（纯位搬移、不改位、不置标志）；signaling compare（`ftscmp`/`foscmp`）的无序结果（保持 signaling NaN 位型、符号位 0）；`ftmin`/`ftmax`/`fomin`/`fomax` 的**单 NaN** 情形（返回那个数）。IEEE 754-2019 §6.2.3 对 NaN payload 的传播只是 *should*、§6.3 不规定 NaN 结果的符号位，取 canonical 属 IEEE 允许的实现选择，**不是**有意偏离。
+**NaN 结果的取值（全册适用）**：凡结果应为 quiet NaN 的情形——算术（加/减/乘/除）、缩放（scaleB）、开方（root）、取余（remainder）、融合乘加、取整、最小最大（双 NaN）、格式转换（`fo2ft`/`ft2fo`）、比较的 **quiet** 无序结果，以及任何无效操作产生的 qNaN——一律返回 **canonical quiet NaN**：符号位 0、payload 全零，即 ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`；signaling NaN 作输入仍按各节规则置 `NV`，结果同样取 canonical quiet NaN。**不适用**（须按各自规则处理）：rf 组块复制 `rf2rf`（纯位搬移、不改位、不置标志）；signaling compare（`ftscmp`/`foscmp`）的无序结果（保持 signaling NaN 位型、符号位 0）；`ftmin`/`ftmax`/`fomin`/`fomax` 的**单 NaN** 情形（返回那个数）。IEEE 754-2019 §6.2.3 对 NaN payload 的传播只是 *should*、§6.3 不规定 NaN 结果的符号位，取 canonical 属 IEEE 允许的实现选择，**不是**有意偏离。
 
-### 1.5 合法性
+### 1.4 合法性
 
 - 目的为 `rd` 组的 8 条浮点→整数：`rdHB` = `rd0` ⇒ ILLI（目的不可为 `rd0`）。
-- 目的为 `rf` 组的 12 条（`fo2ft`/`ft2fo`/`ft2ft`/`fo2fo`、8 条整数→浮点）：`rfHB` = `rf0` ⇒ ILLI；`rf0` 作**源**合法（`fo2ft`/`ft2ft`/`fo2fo` 读出 FCSR 中的 qNaN 位型）。
-- 18 条非复制类转换（15 条六档 + 3 条精确）**不是**块转换：`immu6` 不是个数 ⇒ 不存在 `immu6` = 0、起始 + `immu6` > 64、源/目的范围重叠三项限制；其 `immu6` 的合法取值分别见 §1.1（六档 one-hot，非 one-hot ⇒ ILLI）与 §1.2（SBZ，非 0 ⇒ ILLI）。
-- 复制类（`ft2ft`/`fo2fo`）保留块转换的全部限制，见 §1.3。
+- 目的为 `rf` 组的 10 条（`fo2ft`/`ft2fo`、8 条整数→浮点）：`rfHB` = `rf0` ⇒ ILLI；`rf0` 作**源**合法（`fo2ft`/`ft2fo` 读出 FCSR 中的 qNaN 位型）。
+- 18 条转换（15 条六档 + 3 条精确）**不是**块转换：`immu6` 不是个数 ⇒ 不存在 `immu6` = 0、起始 + `immu6` > 64、源/目的范围重叠三项限制；其 `immu6` 的合法取值分别见 §1.1（六档 one-hot，非 one-hot ⇒ ILLI）与 §1.2（SBZ，非 0 ⇒ ILLI）。
 
-> `附录 A` 的「汇编形式」列按编码几何机械派生，沿用了寄存器窗口记法；18 条非复制类转换的第三个域实为 `immu6` 的语义值（§1.1 舍入档 / §1.2 SBZ），不作窗口使用。
+> `附录 A` 的「汇编形式」列按编码几何机械派生，沿用了寄存器窗口记法；18 条转换的第三个域实为 `immu6` 的语义值（§1.1 舍入档 / §1.2 SBZ），不作窗口使用。
 
 ## 2. 浮点运算指令
 
@@ -337,7 +326,7 @@ fosgnn  rfHB, rfHC, rfHD
 ftsgnj和fosgnj指令实现`copySign(rfHC, rfHD)`运算：取 rfHC 除符号位之外的位，与 rfHD 的符号位组合，写入 rfHB。
 ftsgnn和fosgnn指令取 rfHC 除符号位之外的位，与 rfHD 的符号位取反后组合，写入 rfHB。
 
-**写宽**：`fo` 形式（`fosgnj`/`fosgnn`）以 rfHD 的 bit 63 为符号位、按整 64 位写入；`ft` 形式（`ftsgnj`/`ftsgnn`）以 rfHD 的 bit 31 为符号位、**只写目的寄存器低 32 位，高 32 位保持原值**（与其他以 ft 寄存器为目的的指令一致，见 §1.3）。
+**写宽**：`fo` 形式（`fosgnj`/`fosgnn`）以 rfHD 的 bit 63 为符号位、按整 64 位写入；`ft` 形式（`ftsgnj`/`ftsgnn`）以 rfHD 的 bit 31 为符号位、**只写目的寄存器低 32 位，高 32 位保持原值**（与其他以 ft 寄存器为目的的指令一致，见册首「单精（ft）结果的写入宽度」）。
 
 硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
 
@@ -409,7 +398,6 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 
 | 助记符 | format | feature | 汇编形式 | id |
 |---|---|---|---|---|
-| `fo2fo` | `orri` | `rf` | `fo2fo {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `fo2fo_orri_rf` |
 | `fo2ft` | `orri` | `rf` | `fo2ft rfHB, rfHC, immu6` | `fo2ft_orri_rf` |
 | `fo2io` | `orri` | `rf` | `fo2io rdHB, rfHC, immu6` | `fo2io_orri_rf` |
 | `fo2it` | `orri` | `rf` | `fo2it rdHB, rfHC, immu6` | `fo2it_orri_rf` |
@@ -432,7 +420,6 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 | `fosgnn` | `orrr` | `rf` | `fosgnn rfHB, rfHC, rfHD` | `fosgnn_orrr_rf` |
 | `fosub` | `orrr` | `rf` | `fosub rfHB, rfHC, rfHD` | `fosub_orrr_rf` |
 | `ft2fo` | `orri` | `rf` | `ft2fo rfHB, rfHC, immu6` | `ft2fo_orri_rf` |
-| `ft2ft` | `orri` | `rf` | `ft2ft {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ft2ft_orri_rf` |
 | `ft2io` | `orri` | `rf` | `ft2io rdHB, rfHC, immu6` | `ft2io_orri_rf` |
 | `ft2it` | `orri` | `rf` | `ft2it rdHB, rfHC, immu6` | `ft2it_orri_rf` |
 | `ft2uo` | `orri` | `rf` | `ft2uo rdHB, rfHC, immu6` | `ft2uo_orri_rf` |
@@ -468,10 +455,9 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 ## 附录 B：合法性检查
 
 * `dst_rd0`：目的 rd0 → ILLI — `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `focls_orri_rf`, `foqcmp_orrr_rf`, `foscmp_orrr_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftcls_orri_rf`, `ftqcmp_orrr_rf`, `ftscmp_orrr_rf`（14 条）
-* `dst_rf0`：浮点目的 rf0 → ILLI — `fo2fo_orri_rf`, `fo2ft_orri_rf`, `foadd_orrr_rf`, `fodiv_orrr_rf`, `fofma_rrrr_rf`, `fomax_orrr_rf`, `fomin_orrr_rf`, `fomul_orrr_rf`, `forem_orrr_rf`, `fornd_orri_rf`, `foroot_orri_rf`, `fosclb_orrr_rf`, `fosgnj_orrr_rf`, `fosgnn_orrr_rf`, `fosub_orrr_rf`, `ft2fo_orri_rf`, `ft2ft_orri_rf`, `ftadd_orrr_rf`, `ftdiv_orrr_rf`, `ftfma_rrrr_rf`, `ftmax_orrr_rf`, `ftmin_orrr_rf`, `ftmul_orrr_rf`, `ftrem_orrr_rf`, `ftrnd_orri_rf`, `ftroot_orri_rf`, `ftsclb_orrr_rf`, `ftsgnj_orrr_rf`, `ftsgnn_orrr_rf`, `ftsub_orrr_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（38 条）
-* `mreg_zero`：immu6=0 → ILLI — `fo2fo_orri_rf`, `focls_orri_rf`, `ft2ft_orri_rf`, `ftcls_orri_rf`（4 条）
-* `mreg_range_overflow`：起始+immu6>64 → ILLI — `fo2fo_orri_rf`, `focls_orri_rf`, `ft2ft_orri_rf`, `ftcls_orri_rf`（4 条）
-* `mreg_range_overlap`：源/目的范围交集 → ILLI — `fo2fo_orri_rf`, `ft2ft_orri_rf`（2 条）
+* `dst_rf0`：浮点目的 rf0 → ILLI — `fo2ft_orri_rf`, `foadd_orrr_rf`, `fodiv_orrr_rf`, `fofma_rrrr_rf`, `fomax_orrr_rf`, `fomin_orrr_rf`, `fomul_orrr_rf`, `forem_orrr_rf`, `fornd_orri_rf`, `foroot_orri_rf`, `fosclb_orrr_rf`, `fosgnj_orrr_rf`, `fosgnn_orrr_rf`, `fosub_orrr_rf`, `ft2fo_orri_rf`, `ftadd_orrr_rf`, `ftdiv_orrr_rf`, `ftfma_rrrr_rf`, `ftmax_orrr_rf`, `ftmin_orrr_rf`, `ftmul_orrr_rf`, `ftrem_orrr_rf`, `ftrnd_orri_rf`, `ftroot_orri_rf`, `ftsclb_orrr_rf`, `ftsgnj_orrr_rf`, `ftsgnn_orrr_rf`, `ftsub_orrr_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（36 条）
+* `mreg_zero`：immu6=0 → ILLI — `focls_orri_rf`, `ftcls_orri_rf`（2 条）
+* `mreg_range_overflow`：起始+immu6>64 → ILLI — `focls_orri_rf`, `ftcls_orri_rf`（2 条）
 * `encode_sbz`：SBZ 非零 → ILLI — `ft2fo_orri_rf`, `it2fo_orri_rf`, `ut2fo_orri_rf`（3 条）
 * `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `fo2ft_orri_rf`, `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `fornd_orri_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftrnd_orri_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2ft_orri_rf`（17 条）
 * `encode_fp_root_n`：ftroot/foroot n≠2 → ILLI — `foroot_orri_rf`, `ftroot_orri_rf`（2 条）
