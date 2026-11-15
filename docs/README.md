@@ -38,6 +38,7 @@
 | `docs/TestReports/M13-三平台差分-qemu-gem5.md` | M13 阶段性结论：Tiny hmon 一致性、长尾计时、差异清单 |
 | `docs/TestReports/M13-三平台差分矩阵.md` | M13 三平台（qemu/gem5/chipyard）逐例差分矩阵快照；chipyard 列未就绪记 `N/A`，由已入库 JSON 重建 |
 | `docs/TestReports/M13-FP-IEEE对齐审计.md` | `scope: fp` 全量 66 条逐条对齐 IEEE 754-2019：条文/三实现/结论/动作；52 行按附录 A 排版，偏离 4 行（gem5 quiet 比较 `NV`、`rootn(±0,2)`） |
+| `docs/TestReports/M13-三平台差分-矩阵.md` | M13 收口冻结矩阵（`m13-integ-005`）：整数 637 + FP 227 = 864 镜像三平台逐例一致、差异 0；含引擎 md5 与 `input commit` |
 | `docs/TestReports/M14-K0-toolchain-gaps.md` | M14 K0 工具链缺口矩阵快照：8 行（归档/剥符号工具、`asm goto`、栈保护、数据伪指令、inline asm 约束、code model）逐行「声明 == 实测」+ 可消费规避法；`make check-linux-toolchain` 现场重跑 |
 
 ## 历史与设计理念素材（`DDLN/`）
