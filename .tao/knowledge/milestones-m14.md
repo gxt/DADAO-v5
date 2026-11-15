@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-linux-007 | 4–6 h | K2 时钟与定时器（`cfx_hart` TIMER → jiffies；固件放行 `cfx_hart`/`cfx_time`） |
 | m14-linux-008 | 2–3 h | K2 中断使能与屏蔽（`local_irq_*` → `cfx_smon cg2 rc4`，屏蔽窗冻结 + 补投 1） |
 | m14-linux-009 | 3–4 h | K2 收口门控 `check-linux-k2`（B/E/C/T/M/X/R 七组，入 L2） |
 
@@ -32,6 +31,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-linux-007 | 2026-11-16 05:28 | 4–6 h | K2 时钟与定时器（固件放行 `cfx_hart`/`cfx_time` + TIMER → jiffies；IPI 不实现） |
 
 ## 已验证
 
