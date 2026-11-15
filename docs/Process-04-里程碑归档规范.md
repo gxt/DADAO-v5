@@ -69,11 +69,11 @@
 ├── README.md               # 归档说明 + 五节摘录（见 §6；必须）
 ├── m<i>-retrospective.md   # 里程碑回顾（必须）
 ├── issues-closed.md        # 台账快照：里程碑阶段 closed 项（必须）
-└── <模块>/                 # 只允许 gem5/infra/integ/llvm/qemu/spec/testcases；任务书（含 m）均放此
+└── <模块>/                 # 只允许 chipyard/gem5/infra/integ/linux/llvm/qemu/spec/testcases；任务书（含 m）均放此
 ```
 
 - **根级允许项封闭**：仅三件套（`README.md` / `m<i>-retrospective.md` / `issues-closed.md`）；**其它根文件一律不允许**。
-- **子目录封闭**：只允许 `gem5` / `infra` / `integ` / `llvm` / `qemu` / `spec` / `testcases`；子目录内为**已验收任务书**（`*.md`）。`m` 核验册机制已废弃（M11 起不建；用户 2026-11-10 裁定删除核验册机制，见 `m13-infra-001`），历史册仅作归档留存、不再校验。
+- **子目录封闭**：只允许 `chipyard` / `gem5` / `infra` / `integ` / `linux` / `llvm` / `qemu` / `spec` / `testcases`（`chipyard` 自 M12、`linux` 自 M14 起新增；用户 2026-11-15 裁定扩白名单）；子目录内为**已验收任务书**（`*.md`）。`m` 核验册机制已废弃（M11 起不建；用户 2026-11-10 裁定删除核验册机制，见 `m13-infra-001`），历史册仅作归档留存、不再校验。
 - **禁止** `notes/`、根级补充记录、其它杂项目录/文件（用户 2026-11-01 裁定）：补充记录**只能并入 `m<i>-retrospective.md` 附录**，否则拒绝入库。
 - 任务书**必须**用 `git mv` 移动（保留 rename 历史，`git status` 显示 `R` 而非 `A`+`D`）。
 - 目录名 `<M<i>>` 与 `.tao/knowledge/milestones.md` 的项目里程碑编号一致。

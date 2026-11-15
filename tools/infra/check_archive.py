@@ -48,7 +48,7 @@ ROOT = Path(__file__).resolve().parents[2]
 ARCHIVE_REL = Path(".tao") / "archive"
 
 # 模块子目录封闭集合（docs/Process-04 §5）。
-MODULES = ("gem5", "infra", "integ", "llvm", "qemu", "spec", "testcases")
+MODULES = ("chipyard", "gem5", "infra", "integ", "linux", "llvm", "qemu", "spec", "testcases")
 # 归档册终态（docs/Process-04 §4.1）：`已验证` / `里程碑`，精确值、不带括注
 # （不做 t/k/m 后缀映射：历史 `INTEG-037m` 记为 `已验证`）。
 TERMINAL_STATUS = ("已验证", "里程碑")
