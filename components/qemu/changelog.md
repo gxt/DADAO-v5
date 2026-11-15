@@ -366,6 +366,10 @@
   - 摘要：**tetra 写入 `rf0` 保持 `[33:32]`（零扩展后再整掩码的缺陷）**。`target/dadao/translate.c`：新增 `RF0_WRITE_MASK_TETRA = 0x1F`（32 位写入宽度内只有 `[4:0]` 可达）与 `store_rf_masked(n, val, mask)`（`store_rf()` 的 rf0 分支改为调用它，行为不变）；`store_rf_tetra()` 的 rf0 分支由「零扩展低 32 位交给 `RF0_WRITE_MASK`」改为 `store_rf_masked(0, low, RF0_WRITE_MASK_TETRA)`——原实现把 `[33:32]` 一并清零（用户 2026-11-14 裁定：`ld.t`/`ldm.t` 只写低 32 位，`[33:32]` 在写入宽度之外 ⇒ 保持；`spec/SimRISC-01 §4` 注、`contract-fp §1`）。`ld.t rf0 ← 0xFFFF_FFFF` 由 `0x7FF8_0000_7FC0_0000` 改为 `0x7FF8_0000_7FC0_001F`；`ld.o`/`ldm.o`（octa，`[33:32]` 由值给出）、`set.w`、`rd2rf`、`ld.t rf5` 高半与其它 ft 结果族（本来就是低 32 位值）逐字节不变。`trans_fp.c.inc` 头注释同步改述（tetra 只 `[4:0]`；octa `[33:32]`+`[4:0]`）。补丁 2 份改。
   - 执行者：engineer
 
+- **2026-11-15 `m13-qemu-016`**
+  - 摘要：**rf 组块复制改为 `rf2rf`、删 `ft2ft`/`fo2fo`（编码不兼容，`m13-spec-010`）**。`target/dadao/insn.decode` 由 `contracts/opcodes.yaml` 重生成（263 条）：删 `ft2ft_orri_rf`（`01000100000010`）与 `fo2fo_orri_rf`（`01000100001010`）⇒ 两者成为保留编码（执行 ⇒ UNDI），新增 `rf2rf_orri_rf`（`OPC-octa` `111-100`、`mask 0xFFFC0000`/`value 0x40F00000`）。`target/dadao/insn_trans/trans_fp.c.inc`：删 `trans_ft2ft_orri_rf`/`trans_fo2fo_orri_rf` 与 `gen_convert_ff()` 的同格式复制分支（`move`/`move_ft` 参数随之删除，`convert_ff` 只剩 `ft2fo`/`fo2ft`）；新增 `trans_rf2rf_orri_rf`——`fp_check_dst_rf0`（目的范围含 `rf0` ⇒ ILLI，`hb == 0` 即覆盖任意 `immu6`）、`fp_check_mreg` 两侧起止（`immu6` = 0 / 起始 + `immu6` > 64 ⇒ ILLI）、`fp_check_mreg_overlap`（任意重叠含完全重合 ⇒ ILLI，全部在处理任何元素之前判定），逐元素 `load_rf` → `store_rf` 整 64 位逐位搬移（源 `rf0` 合法、读完整 64 位；不换算、不舍入、不置标志）。`translate.c` 仅改 `store_rf_tetra()` 注释（无功能改动：`trans_fp.c.inc` 已是整文件 include）。运行期实测（`dadao-tiny`，`run_asm_suite`）：链例 7 检查点全过（`immu6=3` 三元素 64 位、窗口顶端 60+4、最高号 rf63、最大可行个数 31、相邻窗口、源 `rf0` 读出 `0x7FF8_0000_7FC0_0000`），7 条 ILLI 全中（`immu6=0`/目的越界/源越界/完全重合/部分重合/目的含 `rf0`（`{rf0}` 与 `{rf0:rf1}`）），旧 `ft2ft`/`fo2fo` 编码实测 UNDI（0xF9）。补丁 3 份改。
+  - 执行者：engineer
+
 ## M14
 
 - **2026-11-14 `m14-qemu-001`**

@@ -32,12 +32,12 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m13-testcases-047 | 2026-11-15 14:10 | 1.5–2 h | `.S` 向量对齐 `rf2rf`（删 2 加 1）+ 补「`.S` id 必须在 opcodes 里」门控 |
-| m13-qemu-016 | 2026-11-15 14:10 | 2–3 h | QEMU 侧删 `ft2ft`/`fo2fo`、加 `rf2rf`（`insn.decode`/`trans_fp`） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m13-qemu-016 | 2026-11-15 15:05 | QEMU 侧删 `ft2ft`/`fo2fo`、加 `rf2rf`（decode 重生成 263、trans 整 64 位 + 六类非法 ILLI） |
 | m13-llvm-001 | 2026-11-15 14:45 | LLVM 侧删 `ft2ft`/`fo2fo`、加 `rf2rf`（.td/AsmParser/Printer/copyPhysReg + lit 167/167 + 矩阵 accept 263/0） |
 | m13-spec-010 | 2026-11-15 13:50 | 删 `ft2ft`/`fo2fo`、加 `rf2rf`（OPC-octa/opx `111-100`）；单精写宽归位；id 264→263 |
 | m13-integ-003 | 2026-11-15 04:45 | 整数/访存三平台差分（194 载体/629 镜像，差异 0；`int_diff.py` 生成器入仓） |

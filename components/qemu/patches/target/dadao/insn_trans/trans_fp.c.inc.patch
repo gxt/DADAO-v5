@@ -1,25 +1,27 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..1c71576
+index 0000000..58ff557
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,1237 @@
+@@ -0,0 +1,1242 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
 + *
-+ * Introduced by QEMU-034t: this single file owns all 60 scope:fp trans.
++ * Introduced by QEMU-034t: this single file owns all 59 scope:fp trans.
 + *   - QEMU-034t implements the RF data-movement family (16):
 + *       rf_mem  (8): ld.t/st.t/ld.o/st.o/ldm.t/stm.t/ldm.o/stm.o (-rf)
-+ *       rf_move (2): rd2rf/rf2rd
++ *       rf_move (3): rd2rf/rf2rd/rf2rf
 + *       set_w   (1): set.w (-rf)
 + *       cs_rf   (5): cs.n/z/p/eq/ne (-rf)
 + *   - QEMU-035t implements the bit-level semantics (10):
 + *       sign    (4): ftsgnj/ftsgnn/fosgnj/fosgnn
 + *       classify(2): ftcls/focls
 + *       compare (4): ftqcmp/ftscmp/foqcmp/foscmp
-+ *   - QEMU-036t implements the conversion family (20, first softfloat use):
-+ *       convert_ff (4): ft2ft/ft2fo/fo2ft/fo2fo
++ *   - QEMU-036t implements the conversion family (18, first softfloat use):
++ *       convert_ff (2): ft2fo/fo2ft
++ *         (the same-format copies ft2ft/fo2fo were removed by m13-spec-010;
++ *          rf-group block copy is rf2rf in the rf_move family)
 + *       convert_f2i(8): ft2it/ft2io/ft2ut/ft2uo/fo2it/fo2io/fo2ut/fo2uo
 + *       convert_i2f(8): it2ft/io2ft/ut2ft/uo2ft/it2fo/io2fo/ut2fo/uo2fo
 + *   - QEMU-037t implements the remaining 14 trans (softfloat):
@@ -41,11 +43,10 @@ index 0000000..1c71576
 + * 复制, contract-fp §1):
 + *   - ld.t/ldm.t write only rf[idx][31:0] (no sign extension, no zero fill);
 + *   - every instruction whose destination is an ft register writes only the
-+ *     low 32 bits; the high half keeps its value (store_rf_tetra()).  This
-+ *     includes the ft2ft copy;
-+ *   - fo2fo (fo copy) and the cross-group copies rd2rf/rf2rd keep a 64-bit
-+ *     binary move (store_rf()); cs.*-rf selects one of two rf registers and
-+ *     stays 64-bit as well;
++ *     low 32 bits; the high half keeps its value (store_rf_tetra());
++ *   - the rf-group block copy rf2rf and the cross-group copies rd2rf/rf2rd
++ *     keep a 64-bit binary move (store_rf()); cs.*-rf selects one of two rf
++ *     registers and stays 64-bit as well;
 + *   - ftsgnj/ftsgnn are ft-destination narrow writes (low 32 bits); the fo
 + *     forms fosgnj/fosgnn write all 64 bits.
 + */
@@ -54,7 +55,9 @@ index 0000000..1c71576
 +
 +/* dst_rf0: a floating-point *compute* destination of rf0 ⇒ ILLI (rf0 is the
 + * FCSR, not a compute destination). Not used for ld/ldm (rf0 is a legal
-+ * destination), nor for st/stm/rf2rd (rf is only a source there). */
++ * destination), nor for st/stm/rf2rd (rf is only a source there). Also used by
++ * rf2rf, where the destination *range* [hb, hb+immu6) contains rf0 iff the
++ * start is rf0 (SimRISC-02 §1: the whole range is barred, not just rf0 alone). */
 +static bool fp_check_dst_rf0(DisasContext *ctx, int rfidx)
 +{
 +    if (rfidx == 0) {
@@ -92,9 +95,9 @@ index 0000000..1c71576
 +
 +/* mreg_range_overlap (shared with the RD family): the two half-open ranges
 + * [dst_start, dst_start+count) and [src_start, src_start+count) must be
-+ * disjoint (complete coincidence included) ⇒ ILLI. Not used by QEMU-034t
-+ * (the RF data-movement family is structurally non-overlapping); provided
-+ * here for the FP convert_ff family implemented by QEMU-036t. */
++ * disjoint (complete coincidence included) ⇒ ILLI. Not used by the RF memory
++ * family (structurally non-overlapping); the rf2rf block copy and the FP
++ * convert_ff family call it. */
 +static inline bool fp_check_mreg_overlap(DisasContext *ctx,
 +                                         int dst_start, int src_start, int count)
 +{
@@ -518,6 +521,43 @@ index 0000000..1c71576
 +    return true;
 +}
 +
++/* rf2rf {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1} (orri, OPC-octa 111-100;
++ * SimRISC-02 §1, m13-spec-010): rf-group block copy of immu6 elements,
++ * **full 64 bits per element** -- a bitwise move (no conversion, no rounding,
++ * no flag update), unlike the ft-destination narrow writes.
++ *
++ * ILLI, all judged before any element is written (SimRISC-02 §1 精确性):
++ *   - immu6 == 0                             (mreg_zero);
++ *   - dest or src start + immu6 > 64         (mreg_range_overflow);
++ *   - source and destination ranges intersect, complete coincidence included
++ *                                            (mreg_range_overlap);
++ *   - the destination range contains rf0     (dst_rf0).
++ * rf0 as a *source* is legal and reads the full 64 bits (SimRISC-02 §1 注). */
++static bool trans_rf2rf_orri_rf(DisasContext *ctx, arg_misc *a)
++{
++    /* dst_rf0: destination range contains rf0 ⇒ ILLI (start >= 0, so the
++     * range [hb, hb+immu6) contains rf0 iff hb == 0; any immu6). */
++    if (!fp_check_dst_rf0(ctx, a->hb)) {
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rfHB */
++        return true;
++    }
++    if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
++        return true;
++    }
++    if (!fp_check_mreg_overlap(ctx, a->hb, a->hc, a->hd)) {
++        return true;
++    }
++    /* store_rf() writes full 64 bits; the rf0 FCSR write mask is unreachable
++     * here because rf0 as a destination already raised ILLI above. */
++    for (int i = 0; i < a->hd; i++) {
++        TCGv_i64 tmp = load_rf(a->hc + i);
++        store_rf(a->hb + i, tmp);
++    }
++    return true;
++}
++
 +/* ── set.w-rf (rwii) ─────────────────────────────────────────────────── */
 +
 +static bool trans_set_w_rwii_rf(DisasContext *ctx, arg_main *a)
@@ -683,36 +723,11 @@ index 0000000..1c71576
 +    return kind | (code << 8);
 +}
 +
-+/* convert_ff: destination rf (a->hb), source rf (a->hc). `move` selects the
-+ * same-format copy: ft2ft (move_ft) copies only the low 32 bits (the high half
-+ * of the destination keeps its value), fo2fo is a 64-bit binary move.  Both
-+ * keep the 1..63 element count (ADR-0050 D4).  The two real conversions are
-+ * single-register forms: `ft2fo` is exact (SBZ) and `fo2ft` carries a one-hot
-+ * direction. */
-+static bool gen_convert_ff(DisasContext *ctx, arg_misc *a,
-+                           uint32_t kind, bool move, bool move_ft)
++/* convert_ff: destination rf (a->hb), source rf (a->hc); single-register
++ * form: `ft2fo` is exact (SBZ) and `fo2ft` carries a one-hot direction. */
++static bool gen_convert_ff(DisasContext *ctx, arg_misc *a, uint32_t kind)
 +{
 +    if (!fp_check_dst_rf0(ctx, a->hb)) {
-+        return true;
-+    }
-+    if (move) {
-+        if (!fp_check_mreg(ctx, a->hb, a->hd)) {   /* dest rfHB */
-+            return true;
-+        }
-+        if (!fp_check_mreg(ctx, a->hc, a->hd)) {   /* src  rfHC */
-+            return true;
-+        }
-+        if (!fp_check_mreg_overlap(ctx, a->hb, a->hc, a->hd)) {
-+            return true;
-+        }
-+        for (int i = 0; i < a->hd; i++) {
-+            TCGv_i64 src = load_rf(a->hc + i);
-+            if (move_ft) {
-+                store_rf_tetra(a->hb + i, src);
-+            } else {
-+                store_rf(a->hb + i, src);
-+            }
-+        }
 +        return true;
 +    }
 +    if (kind == FP_FF_FT2FO) {
@@ -783,24 +798,14 @@ index 0000000..1c71576
 +    return true;
 +}
 +
-+static bool trans_ft2ft_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    return gen_convert_ff(ctx, a, 0, true, true);
-+}
-+
 +static bool trans_ft2fo_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    return gen_convert_ff(ctx, a, FP_FF_FT2FO, false, false);
++    return gen_convert_ff(ctx, a, FP_FF_FT2FO);
 +}
 +
 +static bool trans_fo2ft_orri_rf(DisasContext *ctx, arg_misc *a)
 +{
-+    return gen_convert_ff(ctx, a, FP_FF_FO2FT, false, false);
-+}
-+
-+static bool trans_fo2fo_orri_rf(DisasContext *ctx, arg_misc *a)
-+{
-+    return gen_convert_ff(ctx, a, 0, true, false);
++    return gen_convert_ff(ctx, a, FP_FF_FO2FT);
 +}
 +
 +/* ── QEMU-037t: arithmetic (S2D1) + root (S1D1) families ─────────────── */
