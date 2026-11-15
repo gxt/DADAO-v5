@@ -5,7 +5,7 @@
 **依赖**：`m12-chipyard-016`（已合 `3924a248`）
 **可并行分片**：否
 **预估**：1–1.5 h
-**状态**：待验收
+**状态**：已验证
 
 ## 背景（AGENTS 硬规则缺口）
 
@@ -123,6 +123,16 @@
 | P3（返工中发现的移植回归）`MODE` 未初始化 ⇒ `--inject`/`--full` 进参数解析即 `unbound variable`（016 原脚本无此变量） | ✅已修 | 初始化 `MODE=` | `bash -n` rc=0；`--inject` 实跑到 H8（H1–H7 全绿），默认态不受影响 |
 
 判决：阻断项与两条顺手项已处置，P2 按指示延后；本分支已重置到 master，工作树仅剩两处产物改动 + 本任务书 ⇒ 状态 `待验收`。
+
+### 第 2 轮 reviewer 验收（2026-11-15，只核返工面；HEAD `958ad77b`）
+
+**重跑（reviewer 自己的真实输出 / 退出码）**
+1. **R5c 可红**：临时 worktree `rv2`@`958ad77b`（`.work` 软链主树）连跑同一证据脚本三态 —— 基线 **42/45、rc=1**（红仅 R3/R6c/R6e，系 08:48 输入刷新致 `--check` rc=1，属 031；R5c `[PASS] 32/32`）；注入（`cp`+md5 `83de056a…`，删 1 条 `embench.cases` 明细、`cases_seen` 仍 32）⇒ **`[FAIL] R5c expected=31 actual=32`**、38/45（新增红 R3b/R9b/R9c = 「入库报告被改」的完整性/范围断言正确报警，非误报）；`cp` 还原 md5 复等、`git status` 干净 ⇒ 回 **42/45 且 FAIL 集合与基线逐条相同**。
+2. **`MODE=`**：命中 `engine_parity_run.sh:28`；`bash -n` rc=0、`py_compile` 2/2 rc=0；实跑 `--inject --work-dir <临时>` **无 `unbound variable`**、进 `== H.` 段，**H1–H7 全 PASS**、H8 FAIL（继承缺陷，归 `m12-integ-002`）；其余红 = C1/C2/D6（数据态）+ E4（`--check` rc=1，031 范围）。
+3. **合入干净**：`git show 958ad77b --stat` = 本任务书(+18) + `README.md`(+1 空行，`201→203` 交界已有空行) + `engine_parity_run.sh`(+1 `MODE=`)，无夹带、无台账改动；逐文件 diff 即此 3 处；`make check-knowledge-refs` **rc=0**。
+4. 主工作树 `git status -uall` 0 行、未提交、未动节点/sim；`rv2` 已 `git worktree remove`（目录已删）。
+
+**判决：Accepted** —— 3 处返工全部核实可达；`--check` rc=1（`m12-chipyard-031` 范围）与 `run.sh`/`collect.sh` 按 2026-11-15 新规则迁出（`discussing.md` 待办）按指示不在本轮范围。
 
 ## 完成区
 
