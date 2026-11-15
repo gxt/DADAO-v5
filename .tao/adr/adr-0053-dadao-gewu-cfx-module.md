@@ -25,9 +25,6 @@ chipyard 惯例支持该形态：`generators/` 31 个目录中除核以外还有
 - **D5 参数化**：hart 数、帧数、实现的 cfx 集与位宽走 `Parameters`（现状硬编码 `Seq.fill(2)` 等），新增 `GewuParams` 由调用核注入；`gewu` 源码内不得出现具体核的常量。
 - **D6 术语单一**：模块/文件名 `Gewu`，**寄存器名保持 `cfx_*`**（与 `spec/Machine-v5`、`ADR-0046` 一致）；`GewuFile.scala` 文件头写明「Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）」。**spec 不改名**——规范描述的是 cfx 寄存器，不是 Gewu。
 - **D7 搬迁范围**：只搬 cfx 的**状态与判权/分发**（含 trap/escape/power/hmon 相关）；**decoder 的 cfx 指令类解码留在 `wuming`**（`WumingDecoder.scala` 现有 37 处），作为 `Gewu` 的输入信号，不搬。
-- **D8 顺序**：本拆分**必须在 `m16-chipyard-001 周期模型收口复测` 之前完成**（先拆后测），避免同一次全量复测做两遍；拆分后 sim md5 变化，由 `m16-chipyard-001` 建立新单二进制基线。
-- **D9 另两平台不动**：模块化是**实现的自由**，不是 spec 要求；gem5 已有 `tiny_cfx`/`node_cfx`，QEMU 保持 `helper.c` 内联（若日后拆 `cfx.c`/`cfx.h` 属独立任务，不并入本 ADR）。
-- **D10 未来提升为独立库的判据**：出现 ① 非核 generator（加速器/L2/总线）需复用 cfx，或 ② 需要独立发布/版本化时才把 `dadao-gewu` 提升为独立库；现阶段**不做**，避免提前设计。
 
 ## Rationale（理由）
 
@@ -36,21 +33,15 @@ chipyard 惯例支持该形态：`generators/` 31 个目录中除核以外还有
 - **为什么重定向归 core**：异常入口与 `escape` 会同时改动 cfx 帧与 PC；若 `Gewu` 自驱 PC，会与 core 的 flush/重定向产生组合环或双驱动。
 - **为什么 decoder 不搬**：cfx 指令类解码属指令集解码职责（每个核的解码器不同），搬进 `Gewu` 会把共享设施绑到某一种解码器上。
 
-### 被否方案
-
-1. **cfx 继续内联在 `WumingCore`**（现状）：无法复用、无显式边界，第二个核只能复制代码。
-2. **cfx 留在 `dadao-wuming` 内做独立 Module**（BOOM 复用 `rocket.CSRFile` 的模式）：可行，但会让 `dadao-wuming` 兼作"库"，语义错位；且 chipyard 已有库型 generator 先例（`hardfloat`/`testchipip`），没有理由退而求其次。
-3. **`dadao-common` 聚合 generator**：chipyard 无"common"聚合 generator 的先例，凭空造一个反而偏离惯例；且聚合体一旦出现，后续每个共享件都要辩论"进 common 还是单开"。
-
 ## Consequences（影响）
 
 - `build.sbt` 三处接线（补丁内）：`lazy val gewu = freshProject("gewu", file("generators/dadao-gewu")).dependsOn(rocketchip)`、`baseProjects` 加入 `gewu`、`wuming` 改为 `.dependsOn(rocketchip, gewu)`；
 - 新增补丁树 `components/chipyard/patches/generators/dadao-gewu/**`，须过 `check-patch-tree`；
-- **sim md5 变化** ⇒ 单二进制基线重做（现 `4e072a711afdca8a36788f9a9958e896` 作废），cfx 相关周期行（trap/escape/power）需在 `m16-chipyard-001` 一并复测；
+- **sim md5 变化** ⇒ 单二进制基线需重做（现 `4e072a711afdca8a36788f9a9958e896` 作废），cfx 相关周期行（trap/escape/power）需重新实测；与他任务的先后不作规定，只要不冲突；
 - `WumingTile`/`WumingCore` 的参数透传多一层（hart 数、profile），用 `Parameters` 隐式传递避免样板代码；
 - `docs/core-wuming-cycle-model.md` 的寄存器命名**不变**（仍 `cfx_*`），文档无需改名；
 - 后续核复用 cfx 的成本从"复制 152 行 + 隐式耦合"降为"`dependsOn(gewu)` + 接端口"。
 
 ## 状态说明
 
-2026-11-15 由主会话起草为 `Candidate`；**D1–D10 须逐条与用户确认**，确认后置 `Accepted` 并按 D8 的顺序立实施任务（不得先动 RTL）。
+2026-11-15 由主会话起草为 `Candidate`；**D1–D7 须逐条与用户确认**，确认后置 `Accepted` 并立实施任务（不得先动 RTL）。
