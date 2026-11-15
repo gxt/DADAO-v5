@@ -4,15 +4,14 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
-- **2026-11-15（正午）**：**M12 已收口**（41 件：40 已验证 + `m12-integ-002` 收口任务）；M13 已验证 94 / 进行中 0 / 待开始 2（`integ-005` 等 `spec-010`；`spec-010` 等 M12 收尾→现已解锁）；M14 K1 全收口（19 已验证，**K2 待授权立册**）；M16 已验证 8 / 待开始 1（`chipyard-001`）。
-- **M12 收口做了什么**（用户 2026-11-15 重定范围：不跑测试、不注入、不做逐条表）：台账标「M12 已收口」、根 `README.md` 加 M12 成就与遗留要点、`docs/DDLN/` 沉淀 4 条判据（engine parity / 单二进制 / `timeout` 口径 / 脚本入仓）、任务书置已验证。
-- **M12 关键事实**：全部非 cfx 指令在 chipyard Tiny 实现；启动链 + semihosting 闭环；`embench` **36 PASS + 2 `timeout(12h)`**（`depthconv-O0`/`matmult-int-O0` 打满 12 h 无判决）、`picolibc-full` 达 **engine parity**（qemu 自身 5 例缺口登记在册）。
-- **rf2rf 批（2026-11-15）**：`m13-spec-010`（spec）+ `m13-llvm-001`/`m13-qemu-016`/`m13-testcases-047`/`m13-gem5-015` 已合入、`m13-chipyard-003` 复核中；id 264→263；载体 265→264、镜像 901→896；**chipyard sim md5 已变 `4e072a711afdca8a36788f9a9958e896`（旧 `079ae015…` 作废）**；安装根已刷新（`llvm-mc` 认 `rf2rf`）。`set.ft rf, rf` 语义按 A 定：`rf2rf` 整 64 位（`set.ft rf, imm32` 仍只写低 32）。
-- **口径已定（2026-11-15）**：预算耗尽标 **`timeout(<预算>)`**（`blocked` 只留构建/环境缺口）；**复核分档**（小改 1 路注入 ≤15 min / 中改 ≥2 路 / 大改加独立重算）；**脚本入仓判据 = 会不会再跑**；`refs/` 目录**下一步清空**（此后新任务禁写）。
-- **L1 状态**：全绿（`check-archive`/`check-run-artifacts`/`check-musl-freshness`/`check-patch-tree` 401 补丁 0 问题）。
-- 队列：M13 `spec-010`（`rf2rf` 批，已解锁）→ `integ-005`；M14 等 K2 授权；M16 `gem5-007` 复核中 → `chipyard-001`；`m15-spec-001` 等 IDL 审阅口径。
-- 未决 issue（P1/P2）：`ISS-433`、`ISS-440`、`ISS-443`、`ISS-444`、`ISS-425`、`ISS-426`；已关：`ISS-436/437/438/439/441/442`。
-- **待用户裁定**：① semihosting 指针 PA/VA；② `contract-linux-boot §1` 页表归属；③ `ISS-440`/`ISS-443` 是否合批做 ADR；④ K2 立册范围；⑤ 机器/版本命名（约 147 文件）；⑥ 运行平台×机型×用例 6 问；⑦ `atomics` 探针 A/B/C；⑧ gem5 SE `--semihost` 开关；⑨ `.tao/knowledge/refs/` 清空方式与时机。
+- **2026-11-15（晚）**：**M13 已收口**（106 件全部已验证）；M12 已收口且已归档；M14 K1 收口（19）、**K2 待授权立册**；M16 已验证 9 / 待开始 1（`chipyard-001`，等 M13 收口→现已解锁）；M15 `m15-spec-001` 待返工（WIP `0584a64b`，用户要求先摊开文件 + 逐条语句分析）。
+- **M13 收口事实**：矩阵冻结 `docs/TestReports/M13-三平台差分-矩阵.md`（整数 637 + FP 227 = **864 镜像三平台逐例一致、差异 0、未归因 0**）；报告记 `input commit`；新增链例字节级断言；`refs/m13-005-acceptance.*` 是 **refs/ 最后一批产物**。
+- **rf2rf 批（全部合入）**：`spec-010`（264→263 id）+ llvm/qemu/gem5/chipyard 四实现 + 向量 `02-reg-copy/rf2rf_orri_rf.S`；伪指令体系迁入 `SimRISC-00 §5`、`SimRISC-03` 按 rd/rb/rf 拆三章；7 个伪指令载体（`pseudo_set.*`，113 点）；RMW 合成序 `atomic_rmw.S`；`atomics` 5 探针退役改执行型 `atomics_e2e`；`set.fo` 最小指令数展开。
+- **sim md5 已变**：chipyard `4e072a711afdca8a36788f9a9958e896`（旧 `079ae015…` 作废）；安装根已刷新（`llvm-mc` 含 `rf2rf` 与 `set.fo` 最小展开）；musl 已重建。
+- **L1 全绿**（`check-inst-asm` 904/904、`check-lit` 177/177、`check-interface` 89/89、`check-musl-freshness` PASS）。
+- **规则新增（2026-11-15）**：派单顺序（先提交任务书再建 worktree，R2 机械校验）、台账时间戳取 `date`/`git log`、复核分档（小改 1 路注入 ≤15 min）、脚本入仓判据=会不会再跑。
+- 队列：M13 收口完成 → **`refs/` 清空**（用户已定，方式待选）+ **M13 归档**；M16 `chipyard-001` 已解锁；M14 K2 待授权。
+- **待用户裁定**：① `refs/` 清空方式（直接删 / 归档到 `archive/<M>/refs/`）；② 机器/版本命名（约 147 文件）；③ 平台×机型×用例 6 问；④ gem5 SE `--semihost` 开关；⑤ `ISS-440`/`ISS-443`/`ISS-433` 是否合批做 ADR；⑥ K2 立册范围；⑦ `m15-spec-001` 的推进方式（先摊开文件 + 逐条语句分析）。
 
 ## 入口指针
 
