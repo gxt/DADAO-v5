@@ -1,6 +1,6 @@
 # DADAO for SimRISC 0.5.6
 
-基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Machine-v5`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m12.md`（M12）与 `milestones-m13.md`（M13）**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
+基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Machine-v5`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M12）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m13.md`（M13）**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
 
 ## 当前版本号
 
@@ -17,7 +17,7 @@
 
 ## 项目里程碑
 
-> 已完成里程碑（M1–M11）；**进行中**：M12（chipyard 上跑 Machine-v5-Tiny，见 `milestones-m12.md`）、M13（三平台差分对齐，见 `milestones-m13.md`）。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
+> 已完成里程碑（M1–M12）；**进行中**：M13（三平台差分对齐，见 `milestones-m13.md`）。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
 
 | 里程碑 | 达成日 | 主题 |
 | --- | --- | --- |
@@ -32,6 +32,7 @@
 | M9 | 2026-10-24 | FP 完备性 + 线程支持 + ISA 收口（发布 SimRISC 0.5.5） |
 | M10 | 2026-11-01 | CFX 五步（地址空间/PTE/TLB/DMA/启动链）+ 权限/时间/中断 + 工具链与测试收口 |
 | M11 | 2026-11-09 | gem5 SE/FS 收口：完整 tset 双向一致 + SimRISC 0.5.6 发布 |
+| M12 | 2026-11-15 | Chipyard 上跑通 `Machine-v5-Tiny`：非 cfx 指令全实现 + 启动链/semihosting 闭环 + embench/picolibc engine parity |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -117,3 +118,12 @@
 - **规范发布**：SimRISC **0.5.6** 发布（13 册去 `-rc`，变更记录按主题归并，含编码不兼容变更）；`Machine-v5` 机器命名定为 `dadao-tiny` / `dadao-vast`（profile `Tiny`/`Vast`）。
 - **归档**：`.tao/archive/M11/`（**114 册**，含 6 个「M10 后」维护任务；回顾 `m11-retrospective.md`；关闭 issue 14 条）。
 
+### M12（2026-11-15）Chipyard 上跑通 `Machine-v5-Tiny`
+
+- **指令**：全部非 cfx 指令在 `WumingTinyConfig` 上实现（解码 + 整数 ALU + 访存/块传送 + 控制流/RAS + 位操作/原子 + FP 全套 + `cfx` 寄存器组），逐组留 RTL 与三方一致的向量证据；三平台差分复核归 M13。
+- **启动链**：Tiny BootROM 固定固件 → `power` 搬运 → 最小 hmon handler；`cfx_power`/`cfx3` 寄存器组与同步异常按 `escape` 0/+4 进 hmon。
+- **semihosting**：harness 侧应答者（`SYS_EXIT`/`SYS_WRITE` 闭环、参数块回写、命令行选参），ELF 直载 SRAM。
+- **engine parity**：`embench` 与 `picolibc-full` 在 chipyard Tiny 上与 qemu **逐例状态一致**（chipyard 独有失败 0；qemu 自身缺口登记在册、不计入）。embench 38 例中 36 PASS + 2 例预算耗尽（`timeout(12h)`，无判决）。
+- **基线**：`bootrom.tiny.hex` 与 RTL 组件基线 `base+1`，补丁可重放（`check-patch-tree` chipyard 段 0 问题）。
+- **遗留（要点）**：① embench `2 × timeout(12h)`（`depthconv-O0`/`matmult-int-O0` 打满 12 h、无判决，不计入独有失败）；② qemu 自身 5 例缺口（`ISS-193` long-double ×4 + CFX6 ×1）；③ `picolibc` 5 例多线程/TEE 类 `EXCLUDED` + `test-memmem` 未跑；④ 平台分歧归 M13（`ISS-432`/`ISS-433`/`ISS-435`/`ISS-425`/`ISS-426`）；⑤ 多 hart 清除类归后续（`ISS-440`/`ISS-443`，建议 ADR）；`ISS-444` 归 M14。
+- **归档**：M12 的 41 册任务书仍留在 `.tao/tasks/`（活索引）；完整归档（册迁入 + 模块计数 + 流水 + MEMORY 摘录）**待 `check-archive` 支持 `mNN-<module>-<NNN>` 编号与部分归档后再补**（见 `discussing.md`）。

@@ -4,14 +4,14 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
-- **2026-11-15（凌晨）**：M12 已验证 38 / 进行中 1（`017` 报告生成器入仓）/ 待开始 1（`integ-002`，等 `-O0` 夜跑 08:46 数据 + 一次 `integ-002` 核验）；M13 已验证 **92** / 进行中 2（`037`、`integ-003`）/ 待开始 2（`integ-005`、`spec-010`）；M14 **K1 四件已合**（已验证 18，`005` 收口门控在复核）；M16 已验证 5 / 进行中 1（`gem5-005`）/ 待开始 3。
-- **今晚合入**：`chipyard-016`（embench 38 + picolibc engine parity，`SYS_FLEN` 修复）、`chipyard-002`（`sc` 去整字比较；冲突取 016 侧）、`testcases-043`（YAML 全退役）/`044`（三探针退役 +34 点）/`045`（riscv-tests 精选 32 点后退役）/`046`（spec 原语迁 `lib/`、`check_b7` 断言改吃 `.S`）、`linux-003`/`004`（K1 到 `start_kernel` + 自建页表/PTBR）。
-- **口径落定（2026-11-14/15）**：`sc` 保留粒度=精确地址+宽度（三实现已改，向量 `sc.b.nn_orrr_rd.S` 点 17–21）；semihosting 服务号=`rd16`；**Vast 放弃 ISA 执行覆盖**；**YAML 全退役**（`.S` 唯一载体，`check-inst-asm` 265 id/901 镜像）；单指令 ≤127；picolibc 判据=engine parity；**生成器/证据随产物入仓**（`m12-chipyard-017`、`m13-testcases-046`）。
-- **L1 状态**：`check-musl-freshness`、`check-run-artifacts`、`check-temp-dirs` 今晚由红转绿；仅 `check-patch-tree` 红（在途组件任务）。
-- **安装根已刷新**：`install-host` + `build-musl-shared` 已跑（qemu `725c5da7…` 与构建树一致、`ISS-437` 关闭）⇒ 后续测试不必再用构建树二进制绕。
-- 队列：M13 `037`/`integ-003` 复核 → `integ-005` 收口；M12 `017` 复核 → 08:46 后数据补齐 → `integ-002`；M14 `005` 复核 → **K2 待用户授权立册**；M16 `005` → `006` → `007`。
-- 未决 issue（P1/P2）：`ISS-433`（chipyard `trap cfx_power`）、`ISS-440`（多 hart 保留清除，建议 ADR）、`ISS-425`（CodeGen RA 寄存器）、`ISS-426`（`ld.o ra0` SBZ 位）；已关：`ISS-437`。
-- **待用户裁定**：① semihosting 参数指针 PA/VA；② `contract-linux-boot §1` 页表由谁建；③ `ISS-440` 是否立 ADR；④ K2 立册范围；⑤ 机器/版本命名（约 147 文件）；⑥ 运行平台×机型×用例 6 问；⑦ `spec-010` 已获「等 M12 收尾」裁定（`016` 已合、`integ-002` 未完成 ⇒ 仍挂起）。
+- **2026-11-15（正午）**：**M12 已收口**（41 件：40 已验证 + `m12-integ-002` 收口任务）；M13 已验证 94 / 进行中 0 / 待开始 2（`integ-005` 等 `spec-010`；`spec-010` 等 M12 收尾→现已解锁）；M14 K1 全收口（19 已验证，**K2 待授权立册**）；M16 已验证 8 / 待开始 1（`chipyard-001`）。
+- **M12 收口做了什么**（用户 2026-11-15 重定范围：不跑测试、不注入、不做逐条表）：台账标「M12 已收口」、根 `README.md` 加 M12 成就与遗留要点、`docs/DDLN/` 沉淀 4 条判据（engine parity / 单二进制 / `timeout` 口径 / 脚本入仓）、任务书置已验证。
+- **M12 关键事实**：全部非 cfx 指令在 chipyard Tiny 实现；启动链 + semihosting 闭环；`embench` **36 PASS + 2 `timeout(12h)`**（`depthconv-O0`/`matmult-int-O0` 打满 12 h 无判决）、`picolibc-full` 达 **engine parity**（qemu 自身 5 例缺口登记在册）。
+- **口径已定（2026-11-15）**：预算耗尽标 **`timeout(<预算>)`**（`blocked` 只留构建/环境缺口）；**复核分档**（小改 1 路注入 ≤15 min / 中改 ≥2 路 / 大改加独立重算）；**脚本入仓判据 = 会不会再跑**；`refs/` 目录**下一步清空**（此后新任务禁写）。
+- **L1 状态**：全绿（`check-archive`/`check-run-artifacts`/`check-musl-freshness`/`check-patch-tree` 401 补丁 0 问题）。
+- 队列：M13 `spec-010`（`rf2rf` 批，已解锁）→ `integ-005`；M14 等 K2 授权；M16 `gem5-007` 复核中 → `chipyard-001`；`m15-spec-001` 等 IDL 审阅口径。
+- 未决 issue（P1/P2）：`ISS-433`、`ISS-440`、`ISS-443`、`ISS-444`、`ISS-425`、`ISS-426`；已关：`ISS-436/437/438/439/441/442`。
+- **待用户裁定**：① semihosting 指针 PA/VA；② `contract-linux-boot §1` 页表归属；③ `ISS-440`/`ISS-443` 是否合批做 ADR；④ K2 立册范围；⑤ 机器/版本命名（约 147 文件）；⑥ 运行平台×机型×用例 6 问；⑦ `atomics` 探针 A/B/C；⑧ gem5 SE `--semihost` 开关；⑨ `.tao/knowledge/refs/` 清空方式与时机。
 
 ## 入口指针
 
