@@ -185,3 +185,9 @@
 - **2026-11-14 m13-gem5-013**
   - 摘要：**ft 写入落到 `rf0`（FCSR）时经写掩码：`ld.t`/`ldm.t` 不再覆盖只读 qNaN `[31:22]` 与 SBZ `[21:5]`**。`arch/dadao/inst.cc` 的 `Gem5B1Context::writeFloatLow32`（`ld.t`/`ldm.t` 与全部 ft 结果共用的窄写口）对 `idx == 0` 只放行 `[4:0]`：`rf0 = (old & ~0x1F) | (val & 0x1F)`；`[63:32]` 与 `[31:5]` 保持原值 —— `[33:32]` 不在 32 位写入宽度内故保持（`spec/SimRISC-00 §2.3.1`、`spec/SimRISC-01 §ld.t` 注、`contract-fp §1`、用户 2026-11-14 裁定）。非 `rf0` 目的不变。`exec/b1_test.cc` 的 MockContext 同步该掩码；`ld.t rf0`/`ldm.t rf0` 两例改为「写前塞 `[31:22]` qNaN 图样 + SBZ 位 + 模式 3」，两例均断言 `0xF0F0F0F3FFF00018`（只有 `[4:0]` 变、`[31:5]` 与高半保持）。探针（同一 ELF）：`ld.t rf0 ← 0xFFFF_FFFF` 由改前 `0x7FF8_0000_FFFF_FFFF`（内存转储实证）转为 `0x7FF8_0000_7FC0_001F`，与 chipyard/QEMU 逐字节一致（`ld.t` 13 点、ft 目的族 29 点）；`ft` 算术/取余/开方/取整/缩放/最小最大/转换/`ft2ft` 本就经该窄写口 ⇒ 只写低 32 位，无改动。新探针 9 点：chipyard==gem5 逐字节；QEMU 在「模式非零后的 `ld.t`/`ldm.t` rf0 写」两点清 `[33:32]`（与本条 spec 注冲突，跨模块记录）。补丁 2 份改，`make_patch.py` 重导出。
   - 执行者：engineer
+
+## M16
+
+- **2026-11-15 m16-gem5-007**
+  - 摘要：**SE 模式补 semihosting（同 ELF 双跑 chipyard 的前提）+ 对标脚手架**。`DadaoSEWorkload.py` 新增 `semihosting` 参数（默认 `NULL`，SE 路径逐字节不变、`trap` 仍落到执行核 panic）；`se_workload.hh` 存参数并 `getSemihosting()` 覆写（`SimObject*`，与 FS workload 同口）；`inst.cc` 的 `trap <cfx>,0x3FFxx` 短路从「只 FS」放宽为「工作负载带 semihosting 者皆可」，SE 无 responder 时行为不变（FS `--semihost=off` 仍 ILLI）。`configs/dadao/se_timing.py` 新增 `--mem-base`（Tiny SRAM 窗口；`AddrRange` 由 base+size 现场构造）、`--semihost on`（带 `--semihost-argv`/`--console-out`）与 `semi:` 退出因（`SYS_EXIT` 的 guest code 作 `getCode()`）。新增 `tools/gem5/compare_chipyard.py`：同 ELF 双跑的 build/run/report 三段——chipyard `+verbose` 逐指令 `exec` 轨迹给逐族实测拍数、gem5 hooks on/off 给实测模型/取指分量、周期表逐行求和与 `on−off` 对账（C4）、`exec` 计数与 `simInsts` 对账（C2）、`ip/inst` 与反汇编 join（C5），并把 Δ 归因到 §2 的类（比值 >1.5 的例给主导项）。报告落 `docs/TestReports/M17-wuming-timing.md`（全数字现场生成）。补丁 4 份改，`make_patch.py` 重导出。
+  - 执行者：engineer

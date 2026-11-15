@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/se_workload.hh b/src/arch/dadao/se_workload.hh
 new file mode 100644
-index 0000000..be9c58b
+index 0000000..306d40f
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.hh
-@@ -0,0 +1,52 @@
+@@ -0,0 +1,66 @@
 +// DADAO syscall-emulation workload: the SE "OS" object.
 +//
 +// It owns the loader hook (an ET_EXEC DADAO object becomes a DADAO Process)
@@ -13,6 +13,7 @@ index 0000000..be9c58b
 +#define __ARCH_DADAO_SE_WORKLOAD_HH__
 +
 +#include "arch/dadao/page_size.hh"
++#include "arch/dadao/semihosting.hh"
 +#include "base/loader/object_file.hh"
 +#include "enums/ByteOrder.hh"
 +#include "params/DadaoSEWorkload.hh"
@@ -29,11 +30,21 @@ index 0000000..be9c58b
 +  public:
 +    using Params = DadaoSEWorkloadParams;
 +
-+    explicit SEWorkload(const Params &p) : gem5::SEWorkload(p, PageShift) {}
++    explicit SEWorkload(const Params &p) :
++        gem5::SEWorkload(p, PageShift), semihosting(p.semihosting)
++    {}
 +
 +    loader::Arch getArch() const override { return loader::Dadao; }
 +
 +    ByteOrder byteOrder() const override { return ByteOrder::big; }
++
++    /** Semihosting responder for a bare-metal Tiny/Machine-v5 image loaded by
++     *  SE (m16-gem5-007).  `NULL` -- the default -- keeps every existing SE
++     *  run byte-identical: a `trap` with the semihosting tag then reaches the
++     *  execution core and panics there, exactly as before.  Machine-v5-Tiny
++     *  applications reach the host only through semihosting (spec/Machine-v5
++     *  §5), so a same-ELF comparison against the chipyard harness needs it. */
++    SimObject *getSemihosting() const override { return semihosting; }
 +
 +    /** Entry point of `trap cfx0, 0` (umon, SBI_UMON_SYSCALL). */
 +    void syscall(ThreadContext *tc) override;
@@ -50,6 +61,9 @@ index 0000000..be9c58b
 +     *  of writing a made-up result -- blocking the host thread would deadlock
 +     *  the simulation, because the peer is another guest process. */
 +    bool syscallRetry = false;
++
++  private:
++    SimObject *semihosting = nullptr;
 +};
 +
 +} // namespace DadaoISA

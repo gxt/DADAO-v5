@@ -914,6 +914,22 @@ def emit_yaml(table, classes, doc_sha, rows, block, mem) -> str:
                        f"per_beat: {pol['per_beat']}",
                        f"n_base: {pol['n_base']}", f"n_step: {pol['n_step']}",
                        f"elem_width: {pol['elem_width']}"]
+        # m16-gem5-007: the parameterised classes' figures travel with the row
+        # too, exactly as the generated C++ table carries them, so an
+        # independent reader (tools/gem5/compare_chipyard.py) can replay the
+        # policy instead of re-deriving it from the document.
+        if pol["default_cycles"] >= 0:
+            fields.append(f"default_cycles: {pol['default_cycles']}")
+        if pol["mem_cycles"] >= 0:
+            fields.append(f"mem_cycles: {pol['mem_cycles']}")
+        if pol["host_cycles"] >= 0:
+            fields.append(f"host_cycles: {pol['host_cycles']}")
+        if pol["dyn_base"] >= 0:
+            fields += [f"dyn_base: {pol['dyn_base']}",
+                       f"dyn_add: {pol['dyn_add']}"]
+        if pol["semihost_mask"]:
+            fields += [f"semihost_mask: {pol['semihost_mask']}",
+                       f"semihost_value: {pol['semihost_value']}"]
         if entry.get("variants"):
             fields.append("variants: [" + ", ".join(
                 f"{{klass: {q(v['klass'])}, cycles: {q(v['cycles'])}, "

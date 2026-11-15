@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..ac8b617
+index 0000000..45f72e7
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,800 @@
+@@ -0,0 +1,809 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -17,7 +17,6 @@ index 0000000..ac8b617
 +#include "arch/dadao/exec/dispatch.hh"
 +#include "arch/dadao/faults.hh"
 +#include "arch/dadao/fs_machine.hh"
-+#include "arch/dadao/fs_workload.hh"
 +#include "arch/dadao/isa.hh"
 +#include "arch/dadao/regs/float.hh"
 +#include "arch/dadao/regs/int.hh"
@@ -669,26 +668,36 @@ index 0000000..ac8b617
 +        return std::make_shared<DadaoISA::IllegalInstruction>(word);
 +    }
 +
-+    // FS semihosting entry (contract-semihosting §1/§2): `trap <any cfxha>,
++    // Semihosting entry (contract-semihosting §1/§2): `trap <any cfxha>,
 +    // 0x3FFxx` is short-circuited before any cfx/vector handling.  The service
 +    // number is rd16; the tag itself only selects the semihosting path.
-+    if (fs && std::string_view(decoded.entry->id) == "trap_ciii_cfx") {
++    //
++    // m16-gem5-007: the responder is resolved through the workload, so an SE
++    // run can carry one as well (DadaoSEWorkload.semihosting; NULL by
++    // default).  With no responder the SE path falls through unchanged and the
++    // trap reaches the execution core, which panics as before.
++    if (std::string_view(decoded.entry->id) == "trap_ciii_cfx") {
 +        uint64_t immu18 = 0;
 +        if (exec::fieldValue(decoded, "immu18", immu18) &&
 +            (immu18 & 0x3FF00) == 0x3FF00) {
-+            auto *fsWorkload = DadaoISA::asFsWorkload(tc);
-+            auto *semi = dynamic_cast<DadaoISA::Semihosting *>(
-+                    fsWorkload->getSemihosting());
++            Workload *workload = tc->getSystemPtr()->workload;
++            auto *semi = workload != nullptr
++                ? dynamic_cast<DadaoISA::Semihosting *>(
++                        workload->getSemihosting())
++                : nullptr;
 +            if (semi == nullptr) {
-+                // --semihost=off: the trap has no service to enter.
-+                return DadaoISA::machineFault(DadaoISA::FaultILLI);
++                if (fs) {
++                    // --semihost=off: the trap has no service to enter.
++                    return DadaoISA::machineFault(DadaoISA::FaultILLI);
++                }
++            } else {
++                const RegVal op = tc->getReg(RegId(DadaoISA::intRegClass,
++                        DadaoISA::int_reg::RdBase + 16));
++                semi->call(tc, op);
++                // No `escape`: the PC advances past the trap by the normal
++                // sequential step (IP += 4, contract-semihosting §4).
++                return NoFault;
 +            }
-+            const RegVal op = tc->getReg(RegId(DadaoISA::intRegClass,
-+                    DadaoISA::int_reg::RdBase + 16));
-+            semi->call(tc, op);
-+            // No `escape`: the PC advances past the trap by the normal
-+            // sequential step (IP += 4, contract-semihosting §4).
-+            return NoFault;
 +        }
 +    }
 +

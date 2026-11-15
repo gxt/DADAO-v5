@@ -1,9 +1,9 @@
 diff --git a/configs/dadao/se_timing.py b/configs/dadao/se_timing.py
 new file mode 100644
-index 0000000..9210911
+index 0000000..8a30780
 --- /dev/null
 +++ b/configs/dadao/se_timing.py
-@@ -0,0 +1,229 @@
+@@ -0,0 +1,262 @@
 +#!/usr/bin/env python3
 +# DADAO syscall-emulation configuration, timing memory system (m16-gem5-006).
 +#
@@ -124,6 +124,21 @@ index 0000000..9210911
 +    parser.add_argument("--wuming-cycles", action="store_true",
 +                        help="enable the wuming cycle table (DadaoISA "
 +                             "enable_wuming_cycles); off = upstream 1-cycle")
++    parser.add_argument("--mem-base", default="0",
++                        help="physical base of the flat memory (default 0). A "
++                             "Machine-v5-Tiny image is linked at the Tiny SRAM "
++                             "base, so a same-ELF comparison against the "
++                             "chipyard harness passes that base here")
++    parser.add_argument("--semihost", choices=("off", "on"), default="off",
++                        help="serve the Machine-v5-Tiny semihosting trap "
++                             "(`trap cfx<any>, 0x3FFxx`) in SE mode; off keeps "
++                             "the SE trap path exactly as it was")
++    parser.add_argument("--semihost-argv",
++                        default="",
++                        help="SYS_GET_CMDLINE answer, split like a shell would")
++    parser.add_argument("--console-out", default="",
++                        help="file for the semihosting console; empty = the "
++                             "simulator's stdout")
 +    parser.add_argument("--redirect", action="append", default=[],
 +                        type=parse_redirect, metavar="APP=HOST",
 +                        help="serve guest path prefix APP from host directory "
@@ -156,7 +171,15 @@ index 0000000..9210911
 +
 +    system = System()
 +    system.mem_mode = "timing"
-+    system.mem_ranges = [AddrRange(args.mem_size)]
++    mem_base = int(str(args.mem_base), 0)
++    if mem_base == 0:
++        mem_range = AddrRange(args.mem_size)
++    else:
++        # An explicit base: the flat memory has to cover the image's link
++        # window, which for a Machine-v5-Tiny ELF is the Tiny SRAM base.
++        size = AddrRange(args.mem_size).size()
++        mem_range = AddrRange(mem_base, mem_base + size)
++    system.mem_ranges = [mem_range]
 +    system.cache_line_size = 64
 +    system.multi_thread = args.num_threads > 1
 +
@@ -168,7 +191,7 @@ index 0000000..9210911
 +                                    forward_latency=xbar_cycles,
 +                                    response_latency=xbar_cycles,
 +                                    width=beat_bytes)
-+    system.mem = SimpleMemory(range=AddrRange(args.mem_size),
++    system.mem = SimpleMemory(range=mem_range,
 +                              latency=latency(mem_cycles))
 +    system.mem.port = system.membus.mem_side_ports
 +    # The system port is what carries functional accesses (ELF load, argv/
@@ -176,7 +199,15 @@ index 0000000..9210911
 +    # path) into this memory system.
 +    system.system_port = system.membus.cpu_side_ports
 +
-+    system.workload = DadaoSEWorkload()
++    if args.semihost == "on":
++        system.workload = DadaoSEWorkload(
++            semihosting=DadaoSemihosting(
++                cmd_line=args.semihost_argv,
++                console_out=args.console_out,
++                semihost_system_native=False,
++            ))
++    else:
++        system.workload = DadaoSEWorkload()
 +
 +    if args.interp_dir:
 +        from m5.core import setInterpDir
@@ -223,7 +254,9 @@ index 0000000..9210911
 +    exit_event = m5.simulate()
 +    cause = exit_event.getCause()
 +    print(f"GEM5_EXIT_CAUSE={cause}", file=sys.stderr)
-+    if cause != EXIT_CAUSE:
++    # A semihosting SYS_EXIT ends the simulation with `semi:<ADP code>`; the
++    # guest's own exit code is the event's code (m16-gem5-007).
++    if cause != EXIT_CAUSE and not cause.startswith("semi:"):
 +        print(f"gem5 SE timing: simulation ended without a guest exit: {cause}",
 +              file=sys.stderr)
 +        sys.exit(125)
