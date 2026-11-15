@@ -5,7 +5,7 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 ## 补丁集
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），清单见 `series`；规范见 `docs/Process-01-组件补丁组织与构建编排.md`。
-- 内容（M12 起）：`generators/dadao-wuming/**` 新增文件（DADAO「wuming」Tile 外壳 + 最小启动执行器 + 参数/配置片段 + Tiny bootrom 的 hex 资源与解码 + `+loadmem=` 加载器）、两处上游文件修改（根 `build.sbt` 的 `wuming` 项目接线、`generators/chipyard/.../config/fragments/PeripheralFragments.scala` 的 BootROM 资源名参数）。
+- 内容（M12 起）：`generators/dadao-wuming/**` 新增文件（DADAO「wuming」Tile 外壳 + 最小启动执行器 + 参数/配置片段 + Tiny bootrom 的 hex 资源与解码 + `+loadmem=` 加载器）、两处上游文件修改（根 `build.sbt` 的 `wuming` 项目接线、`generators/chipyard/.../config/fragments/PeripheralFragments.scala` 的 BootROM 资源名参数）。M16 起另有 `generators/dadao-gewu/**`（cfx 寄存器堆 generator，`m16-chipyard-002`），根 `build.sbt` 的三个项目接线在同一份 `build.sbt.patch` 里。
 - **子模块补丁集**（`m12-infra-003` 起）：子模块自身的源码改动不在本目录，而在 `submodules/<子模块 path>/{series,patches/}`，由 `manifests/components.lock.toml` 的 `[[component.submodule_patch]]` 声明（base = 子模块 lock 的 pin）；`make apply-series` 在子模块内生成自己的 `base+1` commit，本组件 commit 记录该 gitlink。规范见 `docs/Process-01 §14`。当前只有一条：`generators/testchipip`（`SimDRAM.cc` / `SimDRAM.v`，见下）。
 - 构建与调试在主控机执行（用户 2026-11-10 裁定；`.tao/knowledge/nodes.md §10.1`）；长仿真仍归节点。
 
@@ -171,6 +171,16 @@ make check-patch-tree
 - **条款**（`spec/SimRISC-01 §4` 注、`spec/SimRISC-07 §1.3`「单精（ft）结果的写入宽度」、`contract-fp §1`；用户 2026-11-14 裁定）：**凡以 ft 寄存器为目的的指令只写低 32 位、`[63:32]` 保持原值**（不符号扩展、不零填）——`ld.t`/`ldm.t`、算术/取余/开方/取整/缩放/最小最大/转换到 ft、符号注入以及 **`ft2ft`** 复制；**不适用**：`fo2fo`、跨组复制 `rd2rf`/`rf2rd`、`ld.o`/`ldm.o`（64 位二进制搬移）。写 `rf0` 时低 32 位里只有 `[4:0]` 在可写域 ⇒ `[33:32]`（舍入模式）、`[31:22]`（只读 qNaN）与 `[21:5]`（SBZ）全部保持原值。
 - **实现**：`WumingRegFile` 的 w0 写口新增 `w0Ft`：`sf(idx) := Cat(sf(idx)(63,32), data(31,0))`；`rf0` 侧 `WumingFcsr` 新 `writeFlagsOnly` 只更新 `[4:0]`（舍入模式不动）。`WumingDecoder` 逐族置 `w0Ft`：`ld.t`/`ldm.t`（RF 银行的 tetra 装载，且 `memSigned` 改 false ⇒ 不再符号扩展）、`fpArith`/`fpFma`/`fpSlow`/`fpRoundInt`/`fpScaleB`/`signInject`/`cvtI2F` 的 ft 变体、`cvtF2F` 的 `fo2ft`、`fpCopy(false)`（`ft2ft`）；`fo2fo` 走 `fpCopy(true)` 保持 64 位。`ft2fo`（fo 结果）、`rd2rf`/`rf2rd`、`ld.o`/`ldm.o` 不置该位。
 - **验证**（`fp_sweep.py` 新增 `ftwidth` 组 29 例，期望值按条款手写、每例先把目的高半填非零图案）：`ld.t rf0 ← 0xFFFF_FFFF ⇒ 0x7FF8_0000_7FC0_001F`；`ld.t rf5 ← 0xFFFF_FFFF/0x7FFF_FFFF/0` 高半保持；`ldm.t {rf0:rf1}`；`ftadd/ftsub/ftmul/ftfma/ftdiv/ftrem/ftroot/ftrnd/ftsclb/ftmin/ftmax/it2ft/ut2ft/io2ft/fo2ft/ftsgnj/ftsgnn` 各一例；`ft2ft` 单例与三元素块复制；反向对照 `ld.o`/`ldm.o`/`fo2fo`/`rd2rf`/`rf2rd` 仍 64 位。旧实现的同一镜像 24/29 例红（5 个反向对照绿），新实现 29/29 逐字节；四册 `tests/inst` 与 `fp_unit` 全绿。
+
+## cfx 独立为 `dadao-gewu` generator（`m16-chipyard-002`）
+
+- **形态**（`ADR-0053 D1/D2`）：cfx（机器级控制面：寄存器堆 + 判权 + 异常帧 + 向量 + `escape`/`power`/`hmon`）不再内联在 `WumingCore.scala`（原 152 行 cfx 相关代码、9 组寄存器），改为 in-tree generator `generators/dadao-gewu/`（sbt 项目名 `gewu`、包 `gewu`、`src/main/scala/gewu/GewuFile.scala` 含 `GewuFileIO` + `GewuFile extends Module`），根 `build.sbt` 三处接线：`lazy val gewu = freshProject("gewu", …).dependsOn(rocketchip)`、`baseProjects` 加入 `gewu`、`wuming` 改为 `.dependsOn(rocketchip, gewu)`。**依赖单向**：`generators/dadao-gewu/` 内 `wuming` 出现 0 次（静态 grep），后续核只需 `dependsOn(gewu)` 并接端口。
+- **IO 契约**（`D3`，`GewuFileIO` 19 个字段）：cfx 读/写（`cfxha`/`cg`/`rc` 地址、`wdata`/`wEn`、`rdata`、`readOk`/`writeOk`）、异常入口（`excp.cause`/`causeIp`/`info`）、`escape`（`ha`/`off` → `escapeOk`）、重定向请求（`redirect.valid`/`target`/`cause`/`causeIp`/`info`/`isEscape`）、以及核侧要用的状态输出（`monitorHa`/`vector`/`frameValid`/`causeId`/`causeIp`/`causeInfo`/`prevMode`/`runMode`/`intrMask`）。输入**只接架构级事件**（「这条 cfx 写提交」「进入这条异常」「这条 `escape` 返回」），不接流水内部信号。
+- **重定向归核**（`D4`）：`Gewu` 只出 `redirectReq`/`redirectTarget`，`ip`/flush 仍由 `WumingCore` 驱动；异常入口的落点是 `Gewu` 的 `vector` 寄存器输出（`enterHmon` 用 `ip := gewu.io.vector`），`escape` 提交走 `finish(gewu.io.redirect.target)`。两者不共用同一个 mux 选择信号：若入口落点也走「按 `escapeOk` 选目标」的 `redirect.target`，`escape` 目标 IALIGN 失败时同一拍会跳错地址并让 `finish` 的取值与 `excp` 事件形成组合环。
+- **参数化**（`D5`）：新增 `GewuParams`（cfx 描述序列、帧归属 `monitor`、`dataBits`/`modeBits`/`sourceMaskBits`、`runModeReset`/`hypvMode`/`switchModeValue`），由 `WumingGewuParams` 从地址图注入；`gewu` 源码内**无**机器常量（无 `Seq.fill(`、无 mask 字面量、无 `cfx_hmon`/`cfx_power`/地址基址）。实现集与帧数即 `cfx` 序列长度。
+- **术语**（`D6`）：模块/文件 `Gewu`，**寄存器名保持 `cfx_*`**（`spec/Machine-v5 §3`、`ADR-0046`）；`GewuFile.scala` 文件头写明「Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）」；`spec/` 不改名。**范围**（`D7`）：`WumingDecoder.scala` 的 cfx 指令类解码（35 行 / 42 处 `cfx`）留在核内，作为 `Gewu` 的输入信号。
+- **sim**：新 md5 `bd5e75b3a64044b4cb69d20c298f080d`（`make verilog CONFIG=WumingTinyConfig -j32` + `make CONFIG=WumingTinyConfig -j32`，`JOBS=32`，两次独立重建字节相同；旧基线 `4e072a71…` 作废）。
+- **验证**：改前/改后两版二进制跑同一批 **37** 个镜像（首轮 5 个 id / 29 镜像，补入 `cfx2rd_crrr_cfx` 后为 6 个 id / 37 镜像：`trap_ciii_cfx`/`escape_ciii_cfx`/`cfx2rc_crrr_cfx`/`cfx2rd_crrr_cfx`/`fodiv_orrr_rf`/`add.so_rrrr_rd`，链例 + 故障例）⇒ `semi.out` 逐字节、退出码、每一条 `cycle=` 值 **全部相同**；注入 5 路（`cfxVector` 写回 +4、`escape` 去掉当前-cfx 判据、`GewuParams` 帧归属/运行模式复位值、`redirectTarget` 接 0）均为真实重编后观测到的红，`cp`+md5 还原并重建后逐字节回绿；`escape` 的「帧有效」判据在本 profile 不可观测（帧无清零路径，`tests/inst/11-cfx/escape_ciii_cfx.S` 自记 GAP ③）。
 
 ## 寄存器复制 `rf2rf` 取代 `ft2ft`/`fo2fo`（`m13-chipyard-003`）
 

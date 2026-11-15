@@ -1,0 +1,18 @@
+diff --git a/generators/dadao-gewu/build.sbt b/generators/dadao-gewu/build.sbt
+new file mode 100644
+index 0000000..b5f0699
+--- /dev/null
++++ b/generators/dadao-gewu/build.sbt
+@@ -0,0 +1,12 @@
++// DADAO "gewu" generator (ADR-0053 D1).
++//
++// The sbt project is declared in the chipyard root `build.sbt` (`lazy val
++// gewu`), because it has to be wired into the consuming core's dependency set
++// there.  This file is deliberately inert: chipyard only reads `build.sbt` at
++// the repository root, so keeping it here documents the generator without
++// creating a second build definition.
++
++organization := "dadao"
++version := "0.1"
++name := "gewu"
++scalaVersion := "2.13.16"

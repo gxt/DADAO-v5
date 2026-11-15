@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..738445b
+index 0000000..7dfa895
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,1531 @@
+@@ -0,0 +1,1479 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -99,6 +99,7 @@ index 0000000..738445b
 +import chisel3._
 +import chisel3.util._
 +import freechips.rocketchip.tilelink.{TLBundle, TLEdgeOut}
++import gewu.GewuFile
 +
 +class WumingCore(
 +  fetchEdge: TLEdgeOut,
@@ -154,7 +155,13 @@ index 0000000..738445b
 +  // ---- architectural state ----------------------------------------------
 +  val ip = RegInit(0.U(64.W)) // address of the instruction being executed
 +
-+  // ---- cfx register groups: cfx_hmon (cfx3) and cfx_power (cfx63) ----------
++  // ---- cfx register file: `gewu` (ADR-0053) -------------------------------
++  //
++  // cfx is the machine-level control plane — register file + authority checks
++  // + exception frame + `escape`/`power`/`hmon` — not a pipeline unit, so it
++  // lives in the `gewu` generator and this core only drives architectural
++  // events into it (one `cfx2` access, one exception entry, one `escape`) and
++  // consumes its redirect request (D4: PC/flush stay here).
 +  //
 +  //   cg3 rc0-rc3  cfxtrap / cfxmem / cfxreg / cfxexe source masks   (RW)
 +  //   cg3 rc4      cfx_intr_mask                                     (RW)
@@ -166,48 +173,21 @@ index 0000000..738445b
 +  //   cg5 rc3      excp_cause_ip (RW)
 +  //   cg7 rc0-63   internal space descriptors (read-only; writes are CFXREG)
 +  //
-+  // Every other (cg, rc) of these two cfx is not implemented on this profile
-+  // and reads/writes as CFXREG — never as a silent zero.
-+  private val C_HMON = 3.U(6.W)
-+  private val C_POWER = 63.U(6.W)
++  // The cfx profile (which cfx exist, which one owns the frame, every per-cfx
++  // constant) is injected from the machine address map (D5).
++  private val gewuParams = WumingGewuParams(params)
++  val gewu = Module(new GewuFile(gewuParams))
 +
-+  private def requiredValue[A](opt: Option[A], what: String): A = opt.getOrElse(
-+    throw new IllegalArgumentException(
-+      s"WumingCore: $what must be configured from the machine address map"))
-+  private val hmonBaseValue = requiredValue(params.hmonBase, "hmonBase")
-+  private val hmonSizeValue = requiredValue(params.hmonSize, "hmonSize")
-+  private val bootromBaseValue = requiredValue(params.bootromBase, "bootromBase")
-+  private val bootromSizeValue = requiredValue(params.bootromSize, "bootromSize")
-+  // cg7 space block 0 start = base - (cfxha << 42) (DADAO-12 §3.8/§2.1).
-+  private val hmonSpaceStart = hmonBaseValue - (BigInt(3) << 42)
-+  private val powerSpaceStart = bootromBaseValue - (BigInt(63) << 42)
-+
-+  // DADAO-12 §3.1 / ADR-0045 D4: the four synchronous source masks reset to
-+  // "only cfx_power and itself allowed" (bit3 self is ignored by hardware);
-+  // `cfx_intr_mask` resets to all ones (Tiny has no asynchronous sources).
-+  private val maskInitHmon = BigInt("7ffffffffffffff7", 16)
-+  private val maskInitPower = BigInt("fffffffffffffff7", 16)
-+  private val allOnes = BigInt("ffffffffffffffff", 16)
-+  private def sourceMask = RegInit(VecInit(Seq(
-+    maskInitHmon.U(64.W), maskInitPower.U(64.W))))
-+
-+  val cfxTrapMask = sourceMask // cg3 rc0
-+  val cfxMemMask  = sourceMask // cg3 rc1
-+  val cfxRegMask  = sourceMask // cg3 rc2
-+  val cfxExeMask  = sourceMask // cg3 rc3
-+  val cfxIntrMask = RegInit(VecInit(Seq.fill(2)(allOnes.U(64.W)))) // cg3 rc4
-+  // cg3 rc10: the internal SRAM base of each cfx (DADAO-13 §1): the hmon SRAM
-+  // for cfx_hmon, the BootROM for cfx_power (DADAO-12 §2.1).
-+  val cfxVector = RegInit(VecInit(Seq(
-+    hmonBaseValue.U(64.W), bootromBaseValue.U(64.W))))
-+  // cg5 rc0 / rc2 / rc3 / rc4 exception frame.
-+  val cfxPrevMode  = RegInit(VecInit(Seq.fill(2)(0.U(2.W))))
-+  val cfxCauseId   = RegInit(VecInit(Seq.fill(2)(0.U(64.W))))
-+  val cfxCauseIp   = RegInit(VecInit(Seq.fill(2)(0.U(64.W))))
-+  val cfxCauseInfo = RegInit(VecInit(Seq.fill(2)(0.U(64.W))))
-+
-+  // `inner_run_mode` (DADAO-12 §5.2 step 6).  Tiny starts and stays in hypv.
-+  val runMode = RegInit(3.U(2.W))
++  // Exception entry: the cause triple is driven by `enterHmon` below, which is
++  // called from every faulting branch (and from the `trap` handoff).
++  private val excpValid = WireDefault(false.B)
++  private val excpCause = WireDefault(0.U(64.W))
++  private val excpCauseIp = WireDefault(0.U(64.W))
++  private val excpInfo = WireDefault(0.U(64.W))
++  gewu.io.excp.valid := excpValid
++  gewu.io.excp.cause := excpCause
++  gewu.io.excp.causeIp := excpCauseIp
++  gewu.io.excp.info := excpInfo
 +
 +  val CFXTRAP_BIT = 0
 +  val CFXMEM_BIT  = 1
@@ -219,9 +199,6 @@ index 0000000..738445b
 +  val RASUF_BIT   = 11
 +  val MALIGN_BIT  = 12
 +  val IALIGN_BIT  = 13
-+  // `excp_cause_id` is a one-hot 64-bit value (DADAO-12 §5.2(二)); 0 means "no
-+  // valid frame" and is what `escape` checks before switching back.
-+  val cfxHasFrame = cfxCauseId(0) =/= 0.U
 +
 +  val sIdle :: sFreq :: sFwait :: sExec :: sTrap :: sSemi :: sExc :: sMreq :: sMwait :: sSlow :: sCopy :: sCls :: sFpSlow :: sFault :: sHalt :: Nil = Enum(15)
 +  val state = RegInit(sIdle)
@@ -281,52 +258,22 @@ index 0000000..738445b
 +  dec.io.inst := inst
 +  val d = dec.io.dec
 +
-+  // ---- cfx register file access (m12-019) ---------------------------------
-+  val cfxIsHmon = d.cfxHa === C_HMON
-+  val cfxIsPower = d.cfxHa === C_POWER
-+  val cfxImplemented = cfxIsHmon || cfxIsPower
-+  private val monIdx = Mux(cfxIsHmon, 0.U(1.W), 1.U(1.W))
-+  private val isCg3 = d.cfxCg === 3.U
-+  // DADAO-13 §1: the whole cg3 row is hypv-only.
-+  private val cg3Allowed = !isCg3 || runMode === 3.U
-+  private val isMask = isCg3 && d.cfxRc <= 4.U
-+  private val isSwitchMode = isCg3 && d.cfxRc === 8.U
-+  private val isVector = isCg3 && d.cfxRc === 10.U
-+  private val isPrevMode = d.cfxCg === 5.U && d.cfxRc === 0.U
-+  private val isCauseId = d.cfxCg === 5.U && d.cfxRc === 2.U
-+  private val isCauseIp = d.cfxCg === 5.U && d.cfxRc === 3.U
-+  private val isCauseInfo = d.cfxCg === 5.U && d.cfxRc === 4.U
-+  private val isSpace = d.cfxCg === 7.U
-+  private val cfxReadOk = cfxImplemented && cg3Allowed &&
-+    (isMask || isSwitchMode || isVector || isPrevMode || isCauseId ||
-+      isCauseIp || isCauseInfo || isSpace)
-+  // cg3 rc8 accepts the write and ignores it (Tiny keeps hypv); cg5 rc2/rc4
-+  // are hardware-written and cg7 is read-only, so writing them is CFXREG.
-+  private val cfxWriteOk = cfxImplemented && cg3Allowed &&
-+    (isMask || isSwitchMode || isVector || isPrevMode || isCauseIp)
-+  val cfxRegOk = Mux(d.cfxWrite, cfxWriteOk, cfxReadOk)
++  // ---- cfx register file access (m12-019, ADR-0053) -----------------------
++  // The address decode, the authority check and the read data live in `gewu`;
++  // the core supplies the decoded address and the write data/commit strobe.
++  gewu.io.addr.ha := d.cfxHa
++  gewu.io.addr.cg := d.cfxCg
++  gewu.io.addr.rc := d.cfxRc
++  // `escape` is an architectural event: the core states the instruction's
++  // (cfxha, byte offset) and `gewu` decides whether it is legal.
++  gewu.io.escape.ha := d.cfxHa
++  gewu.io.escape.off := d.escOff
++  gewu.io.escape.valid := false.B
++  val cfxRegOk = Mux(d.cfxWrite, gewu.io.writeOk, gewu.io.readOk)
 +  // A rejected cfx2 access is a precise CFXREG: the destination register must
 +  // not be modified (DADAO-12 §5 "目标寄存器/内存/RA 未更新").
 +  val cfxFault = d.isCfx2 && !cfxRegOk
-+  private val cg3MaskData = MuxLookup(d.cfxRc, 0.U(64.W))(Seq(
-+    0.U -> cfxTrapMask(monIdx), 1.U -> cfxMemMask(monIdx),
-+    2.U -> cfxRegMask(monIdx), 3.U -> cfxExeMask(monIdx),
-+    4.U -> cfxIntrMask(monIdx)))
-+  // cg7: 16 blocks of 4 words (desc/start/size/attr); only block 0 exists.
-+  private val cg7Block0 = d.cfxRc(5, 2) === 0.U
-+  private val cg7Data = MuxLookup(d.cfxRc(1, 0), 0.U(64.W))(Seq(
-+    0.U -> Mux(cfxIsHmon, 0x3.U(64.W), 0x5.U(64.W)), // exists|SRAM / exists|ROM
-+    1.U -> Mux(cfxIsHmon, hmonSpaceStart.U(64.W), powerSpaceStart.U(64.W)),
-+    2.U -> Mux(cfxIsHmon, hmonSizeValue.U(64.W), bootromSizeValue.U(64.W)),
-+    3.U -> Mux(cfxIsHmon, 0x7.U(64.W), 0x5.U(64.W)))) // R|W|X / R|X
-+  private val cg7Rdata = Mux(cg7Block0, cg7Data, 0.U(64.W))
-+  val cfxRdata = Mux(isMask, cg3MaskData,
-+    Mux(isSwitchMode, 3.U(64.W), // Tiny: the saved value stays 3
-+      Mux(isVector, cfxVector(monIdx),
-+        Mux(isPrevMode, cfxPrevMode(monIdx).pad(64),
-+          Mux(isCauseId, cfxCauseId(monIdx),
-+            Mux(isCauseIp, cfxCauseIp(monIdx),
-+              Mux(isCauseInfo, cfxCauseInfo(monIdx), cg7Rdata)))))))
++  val cfxRdata = gewu.io.rdata
 +
 +  // ---- lr/sc reservation + block copy state (m12-chipyard-010) ------------
 +  //
@@ -448,8 +395,15 @@ index 0000000..738445b
 +  // peripherals that the DADAO address map does not have, so trusting the
 +  // negotiated map would silently turn an unmapped access into a bus access
 +  // instead of CFXMEM.  The manager capability check is kept on top of it.
++  private def requiredValue[A](opt: Option[A], what: String): A = opt.getOrElse(
++    throw new IllegalArgumentException(
++      s"WumingCore: $what must be configured from the machine address map"))
 +  private val sramBaseValue = requiredValue(params.loadMemBase, "loadMemBase")
 +  private val sramSizeValue = requiredValue(params.loadMemSize, "loadMemSize")
++  private val hmonBaseValue = requiredValue(params.hmonBase, "hmonBase")
++  private val hmonSizeValue = requiredValue(params.hmonSize, "hmonSize")
++  private val bootromBaseValue = requiredValue(params.bootromBase, "bootromBase")
++  private val bootromSizeValue = requiredValue(params.bootromSize, "bootromSize")
 +  private def inWindow(x: UInt, base: BigInt, size: BigInt): Bool = {
 +    val lower = base.U(64.W)
 +    val upper = (base + size).U(64.W)
@@ -924,23 +878,31 @@ index 0000000..738445b
 +  }
 +
 +  /**
-+    * Synchronous exception entry into the `cfx_hmon` vector (DADAO-12 §5.2):
++    * Synchronous exception entry into the current cfx vector (DADAO-12 §5.2):
 +    * save the frame, force `hypv` and jump to `excp_vector`.  The vector is
 +    * 4-byte aligned (rc10 drops the low two bits), so no further IALIGN is
-+    * possible from here.
++    * possible from here.  The frame and the run mode are `gewu` state; this
++    * method only declares the architectural event and drives the PC/flush it
++    * asks for (ADR-0053 D4).
++    *
++    * The entry target is `gewu`'s `vector` register output, not
++    * `redirect.target`: this method can be reached from `finish` *while* an
++    * `escape` is committing (the escape target failed its IALIGN check), and
++    * routing the entry through the escape-selected `redirect.target` would
++    * both jump to the wrong address and close a combinational loop through
++    * `finish`'s alignment test.
 +    */
 +  def enterHmon(causeIpValue: UInt, causeOneHot: UInt, info: UInt): Unit = {
-+    printf(p"WumingCore: excp cause=0x${Hexadecimal(causeOneHot)} cause_ip=0x${Hexadecimal(causeIpValue(47, 0))} info=0x${Hexadecimal(info)} vector=0x${Hexadecimal(cfxVector(0)(47, 0))} cycle=${cycles}\n")
-+    cfxCauseId(0) := causeOneHot
-+    cfxCauseIp(0) := causeIpValue
-+    cfxCauseInfo(0) := info
-+    cfxPrevMode(0) := runMode
-+    runMode := 3.U
++    printf(p"WumingCore: excp cause=0x${Hexadecimal(causeOneHot)} cause_ip=0x${Hexadecimal(causeIpValue(47, 0))} info=0x${Hexadecimal(info)} vector=0x${Hexadecimal(gewu.io.vector(47, 0))} cycle=${cycles}\n")
++    excpValid := true.B
++    excpCause := causeOneHot
++    excpCauseIp := causeIpValue
++    excpInfo := info
 +    // Any exception entry clears the reservation (spec/SimRISC-12 §1.1): an
 +    // `sc` after an exception handler must fail.
 +    resvValid := false.B
-+    ip := cfxVector(0)
-+    continueAt(cfxVector(0))
++    ip := gewu.io.vector
++    continueAt(gewu.io.vector)
 +  }
 +
 +  def finish(nextIp: UInt): Unit = {
@@ -1141,16 +1103,16 @@ index 0000000..738445b
 +      }.elsewhen(d.isEscape) {
 +        // DADAO-12 §5.3: cfxha must be the current cfx (hmon after the
 +        // handoff) and the frame must be valid; otherwise CFXESC enters the
-+        // current cfx without switching anything.
-+        when(d.cfxHa =/= C_HMON || !cfxHasFrame) {
++        // current cfx without switching anything.  Both checks live in `gewu`.
++        gewu.io.escape.valid := true.B
++        when(!gewu.io.escapeOk) {
 +          enterHmon(ip, (1.U << CFXESC_BIT).pad(64), inst.pad(64))
 +        }.otherwise {
-+          runMode := cfxPrevMode(0)
-+          finish((cfxCauseIp(0) + d.escOff)(63, 0))
++          finish(gewu.io.redirect.target)
 +        }
 +      }.elsewhen(d.isCfx2) {
 +        // cfx2rd writes rd through the normal write-back path (the decoder
-+        // sets w0En); cfx2rc is committed by `cfxWriteEn` below.
++        // sets w0En); cfx2rc is committed by the write strobe below.
 +        finish(ip + 4.U)
 +      }.elsewhen(d.isLr || d.isSc) {
 +        when(lrscAlignFail) {
@@ -1250,7 +1212,7 @@ index 0000000..738445b
 +      // outside it is the CFXTRAP handoff into the hmon vector (m12-007).
 +      when(semiIsHost) {
 +        state := sSemi
-+      }.elsewhen(d.cfxHa === C_HMON) {
++      }.elsewhen(d.cfxHa === gewu.io.monitorHa) {
 +        enterHmon(ip, (1.U << CFXTRAP_BIT).pad(64), inst.pad(64))
 +      }.otherwise {
 +        // `trap` to a cfx other than hmon: Tiny routes non-semihosting traps to
@@ -1421,25 +1383,11 @@ index 0000000..738445b
 +    Mux(memStore, dataPutLegal(memBeat), dataGetLegal(memBeat)),
 +    "WumingCore: load/store beat is not backed by a capable manager")
 +
-+  // ---- cfx register writes (m12-019) --------------------------------------
-+  val cfxWriteEn = state === sExec && d.isCfx2 && d.cfxWrite && cfxRegOk
-+  when(cfxWriteEn) {
-+    when(isMask) {
-+      switch(d.cfxRc) {
-+        is(0.U) { cfxTrapMask(monIdx) := srcA }
-+        is(1.U) { cfxMemMask(monIdx) := srcA }
-+        is(2.U) { cfxRegMask(monIdx) := srcA }
-+        is(3.U) { cfxExeMask(monIdx) := srcA }
-+        is(4.U) { cfxIntrMask(monIdx) := srcA }
-+      }
-+    }.elsewhen(isVector) {
-+      cfxVector(monIdx) := Cat(srcA(63, 2), 0.U(2.W))
-+    }.elsewhen(isPrevMode) {
-+      cfxPrevMode(monIdx) := srcA(1, 0)
-+    }.elsewhen(isCauseIp) {
-+      cfxCauseIp(monIdx) := srcA
-+    }
-+  }
++  // ---- cfx register write commit (m12-019, ADR-0053) ----------------------
++  // "This cycle commits a cfx register write": `gewu` applies it only when the
++  // addressed register is writable, so a rejected write stays a precise CFXREG.
++  gewu.io.wdata := srcA
++  gewu.io.wEn := state === sExec && d.isCfx2 && d.cfxWrite
 +
 +  // ---- observability ------------------------------------------------------
 +  when(state === sIdle && io.bootEnable) {
@@ -1519,13 +1467,13 @@ index 0000000..738445b
 +    printf(p"WumingCore: ctrl ip=0x${Hexadecimal(ip(47, 0))} call=${d.isCall} ret=${d.isRet} target=0x${Hexadecimal(jumpTarget(47, 0))} racnt=${racnt} topcnt=${topCount} mrptr=0x${Hexadecimal(mrptr)} cycle=${cycles}\n")
 +  }
 +  when(state === sTrap && !semiIsHost) {
-+    printf(p"WumingCore: cfxtrap ip=0x${Hexadecimal(ip(47, 0))} magic=0x${Hexadecimal(inst(17, 0))} vector=0x${Hexadecimal(cfxVector(0)(47, 0))} cycle=${cycles}\n")
++    printf(p"WumingCore: cfxtrap ip=0x${Hexadecimal(ip(47, 0))} magic=0x${Hexadecimal(inst(17, 0))} vector=0x${Hexadecimal(gewu.io.vector(47, 0))} cycle=${cycles}\n")
 +  }
 +  when(state === sExec && d.isEscape && !execFault) {
-+    printf(p"WumingCore: escape ip=0x${Hexadecimal(ip(47, 0))} frame=0x${Hexadecimal(cfxCauseId(0))} cause_ip=0x${Hexadecimal(cfxCauseIp(0)(47, 0))} target=0x${Hexadecimal((cfxCauseIp(0) + d.escOff)(47, 0))} mode=${runMode} cycle=${cycles}\n")
++    printf(p"WumingCore: escape ip=0x${Hexadecimal(ip(47, 0))} frame=0x${Hexadecimal(gewu.io.causeId)} cause_ip=0x${Hexadecimal(gewu.io.causeIp(47, 0))} target=0x${Hexadecimal((gewu.io.causeIp + d.escOff)(47, 0))} mode=${gewu.io.runMode} cycle=${cycles}\n")
 +  }
 +  when(state === sExec && d.isCfx2 && !execFault) {
-+    printf(p"WumingCore: cfx2 ip=0x${Hexadecimal(ip(47, 0))} ha=${d.cfxHa} cg=${d.cfxCg} rc=${d.cfxRc} write=${d.cfxWrite} ok=${cfxRegOk} mode=${runMode} data=0x${Hexadecimal(cfxRdata)} wdata=0x${Hexadecimal(srcA)} cycle=${cycles}\n")
++    printf(p"WumingCore: cfx2 ip=0x${Hexadecimal(ip(47, 0))} ha=${d.cfxHa} cg=${d.cfxCg} rc=${d.cfxRc} write=${d.cfxWrite} ok=${cfxRegOk} mode=${gewu.io.runMode} data=0x${Hexadecimal(cfxRdata)} wdata=0x${Hexadecimal(srcA)} cycle=${cycles}\n")
 +  }
 +  val faultPrinted = RegInit(false.B)
 +  when(state === sFault && !faultPrinted) {

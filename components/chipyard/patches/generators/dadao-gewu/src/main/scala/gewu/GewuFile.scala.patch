@@ -1,0 +1,347 @@
+diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
+new file mode 100644
+index 0000000..83e6a02
+--- /dev/null
++++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
+@@ -0,0 +1,341 @@
++// See LICENSE for license details.
++//
++// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
++//
++// cfx is the machine-level control plane of the DADAO machine (spec/
++// `DADAO-12`, `DADAO-13`, `Machine-v5`): a register file plus the authority
++// checks, the exception frame, `escape`/`power`/`hmon`.  It is *not* a
++// pipeline unit, so it is shipped as its own chipyard generator (`gewu`) and
++// any core that wants cfx just instantiates `GewuFile` and puts it on its
++// dependency list (ADR-0053 D1/D2).  The module is deliberately a library:
++// it depends on nothing but `rocketchip` types, and it knows no core.
++//
++// Boundaries (ADR-0053):
++//
++//   * D3 — the IO is the cfx contract: register read/write (`cfxha`/`cg`/`rc`
++//     address, write data/commit, read data, read/write permission), the
++//     exception entry (cause id/ip/info), the frame, the run mode, the IP, the
++//     interrupt mask, `escape`, `power`/`hmon` (as cfx instances) and the
++//     redirect request.  Inputs are **architectural events only** — "commit
++//     this cfx write", "enter this exception", "return with this `escape`" —
++//     never an internal pipeline signal, so any core can drive them.
++//   * D4 — `Gewu` only *requests* a redirect (`redirect.valid/target`); the
++//     program counter and the flush stay in the core.  Driving PC here would
++//     double-drive it against the core's own redirect/flush path.
++//   * D5 — every machine-specific number (how many cfx exist, which one owns
++//     the frame, the vector/space descriptors, the mask reset values, the run
++//     modes, the register widths) comes from `GewuParams`; this file contains
++//     no core constant.
++//   * D6 — the module/file is `Gewu`, the *registers* keep their `cfx_*` names
++//     (`spec/Machine-v5` §3, `ADR-0046`): the spec describes the cfx register
++//     file, not `Gewu`.
++//   * D7 — instruction decoding of the cfx instructions (`trap`/`escape`/
++//     `cfx2rd`/`cfx2rc`) is *not* here: each core's decoder owns that and hands
++//     the decoded (cfxha, cg, rc, write) to this module.
++//
++// Register groups implemented on this profile (`DADAO-12` §3, `DADAO-13` §1):
++//
++//   cg3 rc0-rc3  cfxtrap / cfxmem / cfxreg / cfxexe source masks   (RW)
++//   cg3 rc4      cfx_intr_mask                                     (RW)
++//   cg3 rc8      switch_run_mode — write accepted, ignored; reads the
++//                configured value (a core that keeps one run mode)
++//   cg3 rc10     excp_vector — reset = the cfx's own base; writes drop the low
++//                two bits
++//   cg5 rc0      excp_prev_run_mode (RW; `escape` restores it)
++//   cg5 rc2/rc4  excp_cause_id / excp_cause_info (hardware-written)
++//   cg5 rc3      excp_cause_ip (RW)
++//   cg7 rc0-63   internal space descriptors (read-only; writes are CFXREG)
++//
++// Every other (cg, rc) of an implemented cfx is not on this profile and
++// reads/writes as CFXREG — never as a silent zero.  A `cfxha` that names no
++// implemented cfx is CFXREG as well.
++
++package gewu
++
++import chisel3._
++import chisel3.util._
++
++/**
++  * One implemented cfx (`cfxha` value + its per-cfx constants).
++  *
++  * `id` is the `cfxha` field value (`DADAO-12` §3.8).  `vectorBase` is both the
++  * reset value of `cg3 rc10` (the cfx's own SRAM/ROM base, `DADAO-13` §1) and
++  * the anchor of the cg7 block-0 start address (`DADAO-12` §2.1/§3.8:
++  * `start = base - (cfxha << 42)`).  `spaceDesc`/`spaceSize`/`spaceAttr` are the
++  * cg7 block-0 descriptor/size/attribute words; `sourceMaskReset` is the reset
++  * value of the four synchronous source masks (`cg3 rc0-rc3`).
++  */
++case class GewuCfxParams(
++  id: Int,
++  vectorBase: BigInt,
++  spaceDesc: BigInt,
++  spaceSize: BigInt,
++  spaceAttr: BigInt,
++  sourceMaskReset: BigInt
++)
++
++/**
++  * `Gewu` parameters (ADR-0053 D5).
++  *
++  * The calling core injects the implemented cfx set and every machine-specific
++  * number, so this generator never hard-codes "two cfx", a mask literal or an
++  * address-map value.
++  *
++  *   - `cfx`             — one entry per implemented cfx (order fixes the frame
++  *                         index, so a caller can name them positionally);
++  *   - `monitor`         — index into `cfx` of the instance that owns the
++  *                         exception frame and receives exception entries; it
++  *                         is the "current cfx" `escape` checks against
++  *                         (`DADAO-12` §5.3);
++  *   - `dataBits`        — width of one cfx register / of the cause fields /
++  *                         of the IP (all 64-bit on this spec);
++  *   - `modeBits`        — width of `excp_prev_run_mode` / `inner_run_mode`;
++  *   - `sourceMaskBits`  — width of the source/interrupt masks;
++  *   - `runModeReset`    — `inner_run_mode` reset value;
++  *   - `hypvMode`        — the mode exception entry forces (`DADAO-12` §5.2);
++  *   - `switchModeValue` — value `cg3 rc8` reads (a core may accept the write
++  *                         and keep one mode, or supply a real mode register).
++  */
++case class GewuParams(
++  cfx: Seq[GewuCfxParams],
++  monitor: Int,
++  dataBits: Int,
++  modeBits: Int,
++  sourceMaskBits: Int,
++  runModeReset: Int,
++  hypvMode: Int,
++  switchModeValue: Int
++) {
++  require(cfx.nonEmpty, "Gewu: at least one cfx must be implemented")
++  require(cfx.map(_.id).distinct.length == cfx.length,
++    "Gewu: the implemented cfx ids must be unique")
++  require(monitor >= 0 && monitor < cfx.length,
++    "Gewu: `monitor` must index an implemented cfx")
++  require(dataBits >= 4, "Gewu: `excp_vector` drops the low two bits")
++  require(modeBits >= 1 && modeBits <= dataBits,
++    "Gewu: the run mode must fit a cfx register")
++  require(sourceMaskBits == dataBits,
++    "Gewu: the source masks are cfx data registers and share their width")
++  require(runModeReset >= 0 && BigInt(runModeReset) < (BigInt(1) << modeBits),
++    "Gewu: `runModeReset` must fit the run mode field")
++  require(hypvMode >= 0 && BigInt(hypvMode) < (BigInt(1) << modeBits),
++    "Gewu: `hypvMode` must fit the run mode field")
++  require(switchModeValue >= 0 && BigInt(switchModeValue) < (BigInt(1) << dataBits),
++    "Gewu: `switchModeValue` must fit a cfx register")
++}
++
++/**
++  * The cfx IO contract (ADR-0053 D3).
++  *
++  * Inputs are architectural events only; outputs are the combinational read
++  * data / permission of the addressed register, the frame and mode state a core
++  * needs for its own traces, and the redirect request of D4.
++  */
++class GewuFileIO(val gp: GewuParams) extends Bundle {
++  // ---- cfx register access: one cfx2 read or write per cycle --------------
++  val addr = new Bundle {
++    val ha = Input(UInt(6.W)) // cfxha (`DADAO-12` §5.1)
++    val cg = Input(UInt(6.W)) // cg
++    val rc = Input(UInt(6.W)) // rc
++  }
++  /** "This cycle commits a cfx register write" (architectural event). */
++  val wEn = Input(Bool())
++  val wdata = Input(UInt(gp.dataBits.W))
++  val rdata = Output(UInt(gp.dataBits.W))
++  /** Register is implemented and the access is legal for its group. */
++  val readOk = Output(Bool())
++  /** The write of `wdata` is legal; a rejected write is a CFXREG. */
++  val writeOk = Output(Bool())
++
++  // ---- architectural events ---------------------------------------------
++  /** Exception entry into `monitor`: latch the cause frame and force hypv. */
++  val excp = new Bundle {
++    val valid = Input(Bool())
++    val cause = Input(UInt(gp.dataBits.W)) // one-hot excp_cause_id
++    val causeIp = Input(UInt(gp.dataBits.W)) // excp_cause_ip
++    val info = Input(UInt(gp.dataBits.W)) // excp_cause_info
++  }
++  /** `escape cfxHA, [excp_cause_ip, off]` (`DADAO-12` §5.3). */
++  val escape = new Bundle {
++    val valid = Input(Bool())
++    val ha = Input(UInt(6.W))
++    val off = Input(UInt(gp.dataBits.W))
++  }
++  /** The `escape` is legal: `ha` is the current cfx and its frame is valid. */
++  val escapeOk = Output(Bool())
++
++  // ---- redirect request (D4: PC and flush stay in the core) --------------
++  val redirect = new Bundle {
++    val valid = Output(Bool())
++    val target = Output(UInt(gp.dataBits.W))
++    /** Cause information of the redirect: `excp` carries the new frame, an
++      * `escape` return carries the frame being returned from. */
++    val cause = Output(UInt(gp.dataBits.W))
++    val causeIp = Output(UInt(gp.dataBits.W))
++    val info = Output(UInt(gp.dataBits.W))
++    val isEscape = Output(Bool())
++  }
++
++  // ---- state a core needs for its own control and traces ------------------
++  /** `cfxha` of the instance owning the frame (the `trap` handoff target). */
++  val monitorHa = Output(UInt(6.W))
++  /** `excp_vector` of the monitor (cg3 rc10). */
++  val vector = Output(UInt(gp.dataBits.W))
++  /** `excp_cause_id != 0`: a frame exists (`escape` may return from it). */
++  val frameValid = Output(Bool())
++  val causeId = Output(UInt(gp.dataBits.W))
++  val causeIp = Output(UInt(gp.dataBits.W))
++  val causeInfo = Output(UInt(gp.dataBits.W))
++  val prevMode = Output(UInt(gp.modeBits.W))
++  /** `inner_run_mode`. */
++  val runMode = Output(UInt(gp.modeBits.W))
++  /** `cfx_intr_mask` of the monitor (cg3 rc4). */
++  val intrMask = Output(UInt(gp.sourceMaskBits.W))
++}
++
++/**
++  * The cfx register file (`DADAO-12` §3, `DADAO-13` §1).
++  *
++  * One instance holds every cfx of the machine.  Nothing here is pipeline
++  * aware: a read/write is a combinational decode of the register address, and
++  * the three architectural events (register write, exception entry, `escape`
++  * return) update state in the cycle they are asserted.
++  */
++class GewuFile(val gp: GewuParams) extends Module {
++  val io = IO(new GewuFileIO(gp))
++
++  private val monitor = gp.monitor
++  private val allOnes = Fill(gp.sourceMaskBits, 1.U(1.W))
++
++  // cfxha decode.  The ids are unique (see `GewuParams`), so at most one
++  // instance is addressed; an unimplemented cfxha is CFXREG.
++  private val hit = VecInit(gp.cfx.map(c => io.addr.ha === c.id.U(6.W)))
++  private val implemented = hit.asUInt.orR
++  private val sel = PriorityEncoder(hit)
++
++  // ---- architectural state ------------------------------------------------
++  // cg3 rc0-rc3 share one mask vector (four names for one register file row).
++  val sourceMask = RegInit(VecInit(
++    gp.cfx.map(c => c.sourceMaskReset.U(gp.sourceMaskBits.W))))
++  // cg3 rc4: no asynchronous source on this profile -> all ones.
++  val intrMask = RegInit(VecInit(gp.cfx.map(_ => allOnes)))
++  // cg3 rc10: the cfx's own base (`DADAO-13` §1).
++  val vector = RegInit(VecInit(gp.cfx.map(c => c.vectorBase.U(gp.dataBits.W))))
++  // cg5 rc0 / rc2 / rc3 / rc4 exception frame.
++  val prevMode = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.modeBits.W))))
++  val causeId = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
++  val causeIp = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
++  val causeInfo = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
++  val runMode = RegInit(gp.runModeReset.U(gp.modeBits.W))
++
++  // ---- register access ----------------------------------------------------
++  private val isCg3 = io.addr.cg === 3.U
++  // `DADAO-13` §1: the whole cg3 row is hypv-only.
++  private val cg3Allowed = !isCg3 || runMode === gp.hypvMode.U
++  private val isMask = isCg3 && io.addr.rc <= 4.U
++  private val isSwitchMode = isCg3 && io.addr.rc === 8.U
++  private val isVector = isCg3 && io.addr.rc === 10.U
++  private val isPrevMode = io.addr.cg === 5.U && io.addr.rc === 0.U
++  private val isCauseId = io.addr.cg === 5.U && io.addr.rc === 2.U
++  private val isCauseIp = io.addr.cg === 5.U && io.addr.rc === 3.U
++  private val isCauseInfo = io.addr.cg === 5.U && io.addr.rc === 4.U
++  private val isSpace = io.addr.cg === 7.U
++
++  io.readOk := implemented && cg3Allowed &&
++    (isMask || isSwitchMode || isVector || isPrevMode || isCauseId ||
++      isCauseIp || isCauseInfo || isSpace)
++  // cg3 rc8 accepts the write and ignores it when the core keeps one mode;
++  // cg5 rc2/rc4 are hardware-written and cg7 is read-only, so writing them is
++  // CFXREG (`DADAO-12` §5.2).
++  io.writeOk := implemented && cg3Allowed &&
++    (isMask || isSwitchMode || isVector || isPrevMode || isCauseIp)
++
++  /** Per-cfx constant, selected by the addressed instance. */
++  private def perCfx(f: GewuCfxParams => BigInt): UInt =
++    Mux1H(hit, gp.cfx.map(c => f(c).U(gp.dataBits.W)))
++
++  // cg7 space block 0 start = base - (cfxha << 42) (`DADAO-12` §2.1/§3.8).
++  private def spaceStart(c: GewuCfxParams): BigInt =
++    c.vectorBase - (BigInt(c.id) << 42)
++
++  private val cg7Data = MuxLookup(io.addr.rc(1, 0), 0.U(gp.dataBits.W))(Seq(
++    0.U -> perCfx(_.spaceDesc),
++    1.U -> perCfx(spaceStart),
++    2.U -> perCfx(_.spaceSize),
++    3.U -> perCfx(_.spaceAttr)))
++  // cg7 is 16 blocks of 4 words (desc/start/size/attr); only block 0 exists.
++  private val cg7Rdata =
++    Mux(io.addr.rc(5, 2) === 0.U, cg7Data, 0.U(gp.dataBits.W))
++
++  // The read data is defined for every address (the permission outputs say
++  // whether it may be used): a rejected access must not leak a stale value.
++  private val maskData = Mux(io.addr.rc === 4.U, intrMask(sel), sourceMask(sel))
++  io.rdata := Mux(isMask, maskData,
++    Mux(isSwitchMode, gp.switchModeValue.U(gp.dataBits.W),
++      Mux(isVector, vector(sel),
++        Mux(isPrevMode, prevMode(sel).pad(gp.dataBits),
++          Mux(isCauseId, causeId(sel),
++            Mux(isCauseIp, causeIp(sel),
++              Mux(isCauseInfo, causeInfo(sel), cg7Rdata)))))))
++
++  when(io.wEn && io.writeOk) {
++    when(isMask) {
++      when(io.addr.rc === 4.U) { intrMask(sel) := io.wdata }
++        .otherwise { sourceMask(sel) := io.wdata }
++    }.elsewhen(isVector) {
++      // `DADAO-13` §1: the vector is 4-byte aligned, writes drop the low bits.
++      vector(sel) := Cat(io.wdata(gp.dataBits - 1, 2), 0.U(2.W))
++    }.elsewhen(isPrevMode) {
++      prevMode(sel) := io.wdata(gp.modeBits - 1, 0)
++    }.elsewhen(isCauseIp) {
++      causeIp(sel) := io.wdata
++    }
++    // cg3 rc8 is accepted and ignored: no run-mode register to write.
++  }
++
++  // ---- observable state ---------------------------------------------------
++  private val hasFrame = causeId(monitor) =/= 0.U
++  io.monitorHa := gp.cfx(monitor).id.U(6.W)
++  io.vector := vector(monitor)
++  io.frameValid := hasFrame
++  io.causeId := causeId(monitor)
++  io.causeIp := causeIp(monitor)
++  io.causeInfo := causeInfo(monitor)
++  io.prevMode := prevMode(monitor)
++  io.runMode := runMode
++  io.intrMask := intrMask(monitor)
++
++  // ---- events and redirect request (D4) -----------------------------------
++  // `escape` (`DADAO-12` §5.3): cfxha must be the current (monitor) cfx and the
++  // frame must be valid; otherwise the caller enters the monitor with CFXESC
++  // and nothing switches.
++  private val escapeOk =
++    io.escape.valid && io.escape.ha === io.monitorHa && hasFrame
++  io.escapeOk := escapeOk
++  private val escapeTarget = (causeIp(monitor) + io.escape.off)(gp.dataBits - 1, 0)
++
++  io.redirect.valid := io.excp.valid || escapeOk
++  // The target must not depend on `excp.valid`: the core feeds it back into its
++  // own `enterHmon` decision (`finish` checks the low bits for IALIGN), which
++  // would close a combinational loop.  Exception entry and a legal `escape`
++  // never happen in the same cycle, so keying on `escapeOk` alone is exact.
++  io.redirect.target := Mux(escapeOk, escapeTarget, vector(monitor))
++  io.redirect.cause := Mux(io.excp.valid, io.excp.cause,
++    Mux(escapeOk, causeId(monitor), 0.U(gp.dataBits.W)))
++  io.redirect.causeIp := Mux(io.excp.valid, io.excp.causeIp, causeIp(monitor))
++  io.redirect.info := Mux(io.excp.valid, io.excp.info, 0.U(gp.dataBits.W))
++  io.redirect.isEscape := !io.excp.valid && escapeOk
++
++  // Exception entry wins over an `escape` return in the same cycle: a core
++  // either enters an exception or returns from one, never both, and making the
++  // precedence explicit keeps the state update deterministic.
++  when(io.excp.valid) {
++    causeId(monitor) := io.excp.cause
++    causeIp(monitor) := io.excp.causeIp
++    causeInfo(monitor) := io.excp.info
++    prevMode(monitor) := runMode
++    runMode := gp.hypvMode.U(gp.modeBits.W)
++  }.elsewhen(escapeOk) {
++    runMode := prevMode(monitor)
++  }
++}

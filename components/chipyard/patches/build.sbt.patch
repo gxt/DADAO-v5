@@ -1,17 +1,29 @@
 diff --git a/build.sbt b/build.sbt
-index f56621c..eb8ae27 100644
+index f56621c..6ad3c36 100644
 --- a/build.sbt
 +++ b/build.sbt
-@@ -163,6 +163,54 @@ lazy val rocketchip = freshProject("rocketchip", rocketChipDir)
+@@ -163,6 +163,66 @@ lazy val rocketchip = freshProject("rocketchip", rocketChipDir)
    )
  lazy val rocketLibDeps = (rocketchip / Keys.libraryDependencies)
  
++// -- DADAO "gewu" cfx register file (m16-chipyard-002) --
++// ADR-0053 D1/D2: cfx is a machine-level control plane, not a pipeline unit,
++// so it is its own generator and depends on `rocketchip` only -- never on a
++// core.  Every DADAO core (this one and later designs) reuses it by adding it
++// to its own dependency list.
++lazy val gewu = freshProject("gewu", file("generators/dadao-gewu"))
++  .dependsOn(rocketchip)
++  .settings(chiselSettings)
++  .settings(libraryDependencies ++= rocketLibDeps.value)
++  .settings(commonSettings)
++
 +// -- DADAO "wuming" core (m12-chipyard-001) --
 +// Kept in its own project under generators/dadao-wuming; `chipyard` depends
 +// on it below so `WumingTile` / `WumingTinyConfig` end up on the generator
-+// classpath used by the Verilator flow.
++// classpath used by the Verilator flow.  m16-chipyard-002: the core's cfx
++// register file lives in `gewu`, so the dependency goes `wuming -> gewu`.
 +lazy val wuming = freshProject("wuming", file("generators/dadao-wuming"))
-+  .dependsOn(rocketchip)
++  .dependsOn(rocketchip, gewu)
 +  .settings(libraryDependencies ++= rocketLibDeps.value)
 +  .settings(commonSettings)
 +  .settings(
@@ -57,11 +69,11 @@ index f56621c..eb8ae27 100644
  
  // -- Chipyard-managed External Projects --
  
-@@ -180,6 +228,7 @@ lazy val chipyard = {
+@@ -180,6 +240,7 @@ lazy val chipyard = {
        testchipip, rocketchip, boom, rocketchip_blocks, rocketchip_inclusive_cache,
        icenet, tracegen,
        constellation, barf, shuttle, rerocc,
-+      wuming,
++      wuming, gewu,
      ).map(sbt.Project.projectToRef) ++
      (if (useChisel7) Seq() else Seq(sbt.Project.projectToRef(firrtl2_bridge))) ++
      (if (useChisel7) Seq() else Seq(sbt.Project.projectToRef(dsptools), sbt.Project.projectToRef(rocket_dsp_utils)))

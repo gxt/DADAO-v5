@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..164175e
+index 0000000..ea1abed
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,148 @@
+@@ -0,0 +1,207 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -27,6 +27,7 @@ index 0000000..164175e
 +import freechips.rocketchip.tile._
 +import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, MulDivParams}
 +import freechips.rocketchip.prci.ClockSinkParameters
++import gewu.{GewuCfxParams, GewuParams}
 +
 +/** DADAO core parameters: no RISC-V semantics. */
 +case class WumingCoreParams(
@@ -61,6 +62,64 @@ index 0000000..164175e
 +  bootromBase: Option[BigInt] = None,
 +  bootromSize: Option[BigInt] = None
 +)
++
++/** `cfxha` values of the two cfx this machine implements (`DADAO-12` §3.8). */
++object WumingCfxHa {
++  val hmon: Int = 3
++  val power: Int = 63
++}
++
++/**
++  * The `gewu` (cfx register file) parameters of this core (ADR-0053 D5).
++  *
++  * `gewu` itself carries no machine constant, so the whole cfx profile is
++  * injected here: which cfx exist, which one owns the exception frame, and the
++  * per-cfx vector base / cg7 space descriptor / source-mask reset value.  The
++  * address-map values come from `WumingCoreParams` and have no default, so a
++  * missing base is an elaboration error instead of a silently wrong handoff.
++  *
++  * The machine implements two cfx (`DADAO-12` §3.8/§2.1):
++  *   * cfx_hmon (cfx3) — the monitor: hmon SRAM base, `exists|SRAM`, `R|W|X`;
++  *     the four synchronous source masks reset to "cfx_power and itself only";
++  *   * cfx_power (cfx63) — the BootROM, `exists|ROM`, `R|X`; its masks reset
++  *     to "cfx_power and itself only" as well.
++  * `cfx_intr_mask` resets to all ones on both (no asynchronous source).
++  */
++object WumingGewuParams {
++  private def required[A](opt: Option[A], what: String): A = opt.getOrElse(
++    throw new IllegalArgumentException(
++      s"WumingGewuParams: $what must be configured from the machine address map"))
++
++  // DADAO-12 §3.1 / ADR-0045 D4: four source masks reset to "only cfx_power and
++  // itself allowed" (the self bit is ignored by hardware).
++  private val maskInitHmon = BigInt("7ffffffffffffff7", 16)
++  private val maskInitPower = BigInt("fffffffffffffff7", 16)
++
++  def apply(p: WumingCoreParams): GewuParams = GewuParams(
++    cfx = Seq(
++      GewuCfxParams(
++        id = WumingCfxHa.hmon,
++        vectorBase = required(p.hmonBase, "hmonBase"),
++        spaceDesc = 0x3,
++        spaceSize = required(p.hmonSize, "hmonSize"),
++        spaceAttr = 0x7,
++        sourceMaskReset = maskInitHmon),
++      GewuCfxParams(
++        id = WumingCfxHa.power,
++        vectorBase = required(p.bootromBase, "bootromBase"),
++        spaceDesc = 0x5,
++        spaceSize = required(p.bootromSize, "bootromSize"),
++        spaceAttr = 0x5,
++        sourceMaskReset = maskInitPower)),
++    monitor = 0, // cfx_hmon owns the exception frame (spec/Machine-v5 §4.1)
++    dataBits = 64,
++    modeBits = 2,
++    sourceMaskBits = 64,
++    // `inner_run_mode` (DADAO-12 §5.2 step 6): Tiny starts and stays in hypv.
++    runModeReset = 3,
++    hypvMode = 3,
++    switchModeValue = 3)
++}
 +
 +/** Wiring-only adapter: `TileParams.core` is typed `CoreParams`. */
 +private[common] case class WumingCompatCoreParams(w: WumingCoreParams) extends CoreParams {
