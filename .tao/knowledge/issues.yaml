@@ -707,3 +707,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】picolibc 的 long-double 阻塞仍引用**已关闭**的 `ISS-193`：`ISS-193` 已于 M9 归档（`.tao/archive/M9/issues-closed.md`，处置为「重枚举并清零过滤表」），但 M12 的 parity 报告、`QEMU_BASELINE_GAPS`、根 `README.md` 的 M12 小节仍把 `test-ceil`/`test-long-double`/`test-math-funcs`/`test-math-errhandling` 记作 `ISS-193 long-double libcall`。现状是**当前仍阻塞**（4 例 blocked）而引用的是历史已闭号 ⇒ 要么复现并重新立号，要么把这 4 例的 blocked 归因改指向真实现状（并说明 `ISS-193` 已闭）。影响：报告可审计性（引用已闭号会让人误判为『历史遗留、不再跟踪』）。"
+- id: ISS-447
+  scope:
+  - spec
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`check-spec-refs` 对**标题型引用**不校验章号：`m13-spec-011` 复核时把 `contract-isa` 里的 `[SimRISC-00 §5.1 …]` 改成 `[SimRISC-00 §9.9 …]`，门控仍 rc=0（实现只剥前导章号后比标题文本、章号本身不比）。后果：迁章/重排后可能出现'标题对、章号错'的悬空引用而全绿。处置：改成解析『§<章号> <标题>』两段并分别校验（章号存在性 + 标题匹配），或补一条独立断言；属门控加严，非放宽。"
