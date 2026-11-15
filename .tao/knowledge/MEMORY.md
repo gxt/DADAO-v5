@@ -7,6 +7,7 @@
 - **2026-11-15（正午）**：**M12 已收口**（41 件：40 已验证 + `m12-integ-002` 收口任务）；M13 已验证 94 / 进行中 0 / 待开始 2（`integ-005` 等 `spec-010`；`spec-010` 等 M12 收尾→现已解锁）；M14 K1 全收口（19 已验证，**K2 待授权立册**）；M16 已验证 8 / 待开始 1（`chipyard-001`）。
 - **M12 收口做了什么**（用户 2026-11-15 重定范围：不跑测试、不注入、不做逐条表）：台账标「M12 已收口」、根 `README.md` 加 M12 成就与遗留要点、`docs/DDLN/` 沉淀 4 条判据（engine parity / 单二进制 / `timeout` 口径 / 脚本入仓）、任务书置已验证。
 - **M12 关键事实**：全部非 cfx 指令在 chipyard Tiny 实现；启动链 + semihosting 闭环；`embench` **36 PASS + 2 `timeout(12h)`**（`depthconv-O0`/`matmult-int-O0` 打满 12 h 无判决）、`picolibc-full` 达 **engine parity**（qemu 自身 5 例缺口登记在册）。
+- **rf2rf 批（2026-11-15）**：`m13-spec-010`（spec）+ `m13-llvm-001`/`m13-qemu-016`/`m13-testcases-047`/`m13-gem5-015` 已合入、`m13-chipyard-003` 复核中；id 264→263；载体 265→264、镜像 901→896；**chipyard sim md5 已变 `4e072a711afdca8a36788f9a9958e896`（旧 `079ae015…` 作废）**；安装根已刷新（`llvm-mc` 认 `rf2rf`）。`set.ft rf, rf` 语义按 A 定：`rf2rf` 整 64 位（`set.ft rf, imm32` 仍只写低 32）。
 - **口径已定（2026-11-15）**：预算耗尽标 **`timeout(<预算>)`**（`blocked` 只留构建/环境缺口）；**复核分档**（小改 1 路注入 ≤15 min / 中改 ≥2 路 / 大改加独立重算）；**脚本入仓判据 = 会不会再跑**；`refs/` 目录**下一步清空**（此后新任务禁写）。
 - **L1 状态**：全绿（`check-archive`/`check-run-artifacts`/`check-musl-freshness`/`check-patch-tree` 401 补丁 0 问题）。
 - 队列：M13 `spec-010`（`rf2rf` 批，已解锁）→ `integ-005`；M14 等 K2 授权；M16 `gem5-007` 复核中 → `chipyard-001`；`m15-spec-001` 等 IDL 审阅口径。
