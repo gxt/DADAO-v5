@@ -49,8 +49,8 @@ f:
 }
 
 ; CHECK-LABEL: mkpair:
-; CHECK-DAG:     fo2fo {rf8},
-; CHECK-DAG:     fo2fo {rf9},
+; CHECK-DAG:     rf2rf {rf8},
+; CHECK-DAG:     rf2rf {rf9},
 define { double, double } @mkpair(double %a, double %b) {
   %1 = insertvalue { double, double } undef, double %a, 0
   %2 = insertvalue { double, double } %1, double %b, 1

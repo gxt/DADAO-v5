@@ -94,9 +94,9 @@ set.ft rf1, 0                    @@ @exp set.w rf1, wp1, 0x0 ; set.w rf1, wp0, 0
 set.ft rf1, rd5                  @@ @exp rd2rf {rf1}, {rd5}
 @@ CHECK: rd2rf {rf1}, {rd5}
 @@ ASM: rd2rf {rf1}, {rd5}
-set.ft rf1, rf2                  @@ @exp ft2ft {rf1}, {rf2}
-@@ CHECK: ft2ft {rf1}, {rf2}
-@@ ASM: ft2ft {rf1}, {rf2}
+set.ft rf1, rf2                  @@ @exp rf2rf {rf1}, {rf2}
+@@ CHECK: rf2rf {rf1}, {rf2}
+@@ ASM: rf2rf {rf1}, {rf2}
 
 @@ --- set.fo rf, imm64：4 条 set.w ---
 set.fo rf1, 0x3FF0000000000000   @@ @exp set.w rf1, wp3, 0x3ff0 ; set.w rf1, wp2, 0x0 ; set.w rf1, wp1, 0x0 ; set.w rf1, wp0, 0x0
@@ -108,9 +108,9 @@ set.fo rf1, 0x3FF0000000000000   @@ @exp set.w rf1, wp3, 0x3ff0 ; set.w rf1, wp2
 @@ ASM: set.w rf1, wp2, 0x0
 @@ ASM: set.w rf1, wp1, 0x0
 @@ ASM: set.w rf1, wp0, 0x0
-set.fo rf2, rf7                  @@ @exp fo2fo {rf2}, {rf7}
-@@ CHECK: fo2fo {rf2}, {rf7}
-@@ ASM: fo2fo {rf2}, {rf7}
+set.fo rf2, rf7                  @@ @exp rf2rf {rf2}, {rf7}
+@@ CHECK: rf2rf {rf2}, {rf7}
+@@ ASM: rf2rf {rf2}, {rf7}
 set.fo rf3, rd9                  @@ @exp rd2rf {rf3}, {rd9}
 @@ CHECK: rd2rf {rf3}, {rd9}
 @@ ASM: rd2rf {rf3}, {rd9}

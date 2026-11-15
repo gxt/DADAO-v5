@@ -36,11 +36,6 @@ ext.so rd8, rd9, 1
 @@ ASM: ext.uo rd8, rd9, 1
 ext.uo rd8, rd9, 1
 
-@@ @src fo2fo_orri_rf 44288241 | SimRISC-07: fo2fo
-@@ OBJ: {{[0-9a-f]+:}} 44 28 82 41{{.*}}fo2fo
-@@ ASM: fo2fo {rf8}, {rf9}
-fo2fo {rf8}, {rf9}
-
 @@ @src fo2ft_orri_rf 44248244 | SimRISC-07: fo2ft
 @@ OBJ: {{[0-9a-f]+:}} 44 24 82 44{{.*}}fo2ft
 @@ ASM: fo2ft rf8, rf9, 4
@@ -85,11 +80,6 @@ foroot rf8, rf9, 2
 @@ OBJ: {{[0-9a-f]+:}} 44 04 82 40{{.*}}ft2fo
 @@ ASM: ft2fo rf8, rf9, 0
 ft2fo rf8, rf9, 0
-
-@@ @src ft2ft_orri_rf 44088241 | SimRISC-07: ft2ft
-@@ OBJ: {{[0-9a-f]+:}} 44 08 82 41{{.*}}ft2ft
-@@ ASM: ft2ft {rf8}, {rf9}
-ft2ft {rf8}, {rf9}
 
 @@ @src ft2io_orri_rf 44c48244 | SimRISC-07: ft2io
 @@ OBJ: {{[0-9a-f]+:}} 44 c4 82 44{{.*}}ft2io
@@ -205,6 +195,11 @@ rev.w rd8, rd9, 1
 @@ OBJ: {{[0-9a-f]+:}} 40 f8 82 41{{.*}}rf2rd
 @@ ASM: rf2rd {rd8}, {rf9}
 rf2rd {rd8}, {rf9}
+
+@@ @src rf2rf_orri_rf 40f08241 | SimRISC-02: rf2rf
+@@ OBJ: {{[0-9a-f]+:}} 40 f0 82 41{{.*}}rf2rf
+@@ ASM: rf2rf {rf8}, {rf9}
+rf2rf {rf8}, {rf9}
 
 @@ @src rol.b_orri_rd 43648241 | SimRISC-10: rol.b
 @@ OBJ: {{[0-9a-f]+:}} 43 64 82 41{{.*}}rol.b

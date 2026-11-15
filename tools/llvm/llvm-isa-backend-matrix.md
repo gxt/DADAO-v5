@@ -13,8 +13,8 @@
 
 - 形态来源：`tools/testcases/generate_lit_vectors.py` 的 `build_case()`（与现有 lit 全量档 `tests/unit/llvm/lit/MC/DADAO-gen/gen-*.s` **同一口径、同一行文本**；本工具不另立操作数拼装逻辑）。
 - 受理后**另做编码复核**：由对象 `.text` 取 4 字节大端字，要求「按真源 `(word & mask) == value` 唯一命中本记录」且等于真源派生编码（`L1_encoding = ok / mismatch`）。这一列把第①层钉在真源上，而非只看 `llvm-mc` 自洽。
-- 现场统计：`accept` **262** / `reject` **1**；编码复核不符 **0**。
-- 汇编器**显式拒绝**（`reject`）的 1 条（现场派生：`rf2rf_orri_rf`（scope: fp））——真源编码已定义，但 MC/后端尚未受理；其反例档与 `tests/unit/llvm/lit/MC/DADAO-gen/gen-excluded.s` 同口径。
+- 现场统计：`accept` **263** / `reject` **0**；编码复核不符 **0**。
+- 无 `reject` 记录（现场派生：`scope: excluded` 现为 0 条——`cfxld`/`cfxst` 已从 ISA 删除，`crii` 格式一并撤销），故无 `gen-excluded.s` 反例档。
 
 ### 第②层「ISel 用得上」（机械提取，非人工判读）
 
@@ -228,7 +228,7 @@
 | `rev.t_orri_rd` | `rev.t` | `orri` | `m8` | accept | yes | pat:DADAOCodeGen.td.patch:655:rev_t_orri_rd |
 | `rev.w_orri_rd` | `rev.w` | `orri` | `m8` | accept | yes | pat:DADAOCodeGen.td.patch:656:rev_w_orri_rd |
 | `rf2rd_orri_rf` | `rf2rd` | `orri` | `fp` | accept | yes | pat:DADAOCodeGen.td.patch:717:rf2rd_orri_rf;pat:DADAOCodeGen.td.patch:1215:rf2rd_orri_rf |
-| `rf2rf_orri_rf` | `rf2rf` | `orri` | `fp` | reject | no | — |
+| `rf2rf_orri_rf` | `rf2rf` | `orri` | `fp` | accept | no | — |
 | `rol.b_orri_rd` | `rol.b` | `orri` | `m9` | accept | no | — |
 | `rol.b_orrr_rd` | `rol.b` | `orrr` | `m9` | accept | no | — |
 | `rol.o_orri_rd` | `rol.o` | `orri` | `m9` | accept | yes | pat:DADAOCodeGen.td.patch:493:rol_o_orri |
@@ -316,11 +316,11 @@
 
 候选优化面（供后续里程碑参考）。按性质分四类（现场统计）：
 
-1. **真缺口·候补优化面**（`scope != excluded`，且后端 ISel/post-ISel 均未引用，且非汇编层/特权族）：**55** 条 —— ISA 有、后端一次都没发射，最有价值。
+1. **真缺口·候补优化面**（`scope != excluded`，且后端 ISel/post-ISel 均未引用，且非汇编层/特权族）：**54** 条 —— ISA 有、后端一次都没发射，最有价值。
 2. **真缺口·汇编层/特权族**（同上但 `format ∈ {crrr, ciii}` 或助记符 ∈ {fence, swym}，机械判据）：**5** 条 —— 经 cfx 访问/内联汇编/占位语义使用，不经 ISel 选入属预期。
-3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**1** 条。
+3. **仅 post-ISel 引用**（伪指令展开/帧/寄存器分配会发射，非 ISel 选入）：**2** 条。
 
-### 3.1 真缺口·候补优化面（55 条）
+### 3.1 真缺口·候补优化面（54 条）
 
 | id | mnemonic | format | scope |
 |---|---|---|---|
@@ -355,7 +355,6 @@
 | `ra2rd_orri_ra` | `ra2rd` | `orri` | `m1` |
 | `rd2ra_orri_ra` | `rd2ra` | `orri` | `m1` |
 | `rev.b_orri_rd` | `rev.b` | `orri` | `m8` |
-| `rf2rf_orri_rf` | `rf2rf` | `orri` | `fp` |
 | `rol.b_orri_rd` | `rol.b` | `orri` | `m9` |
 | `rol.b_orrr_rd` | `rol.b` | `orrr` | `m9` |
 | `rol.t_orri_rd` | `rol.t` | `orri` | `m9` |
@@ -390,11 +389,12 @@
 | `swym_oiii_imm` | `swym` | `oiii` | `m1` |
 | `trap_ciii_cfx` | `trap` | `ciii` | `m1` |
 
-### 3.3 仅 post-ISel 引用（1 条）
+### 3.3 仅 post-ISel 引用（2 条）
 
 | id | mnemonic | format | scope |
 |---|---|---|---|
 | `rd2rb_orri_rb` | `rd2rb` | `orri` | `m1` |
+| `rf2rf_orri_rf` | `rf2rf` | `orri` | `fp` |
 
 ### 3.4 scope: excluded（未实现）（0 条）
 

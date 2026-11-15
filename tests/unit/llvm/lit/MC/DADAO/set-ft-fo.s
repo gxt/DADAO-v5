@@ -9,11 +9,12 @@
 @@                   so even imm 0 uses 2x set.w (no rd2rf).
 @@   set.fo imm64 -> imm 0 is materialized from rd0 (always 0) with one rd2rf;
 @@                   otherwise 4x set.w cover the full octa.
-@@   set.ft/f.o rf, rs -> rd2rf (rs in rd) / ft2ft, fo2fo (rs in rf).
+@@   set.ft/f.o rf, rs -> rd2rf (rs in rd) / rf2rf (rs in rf).
+@@                          An RF source is a full 64-bit bit copy.
 @@
 @@ rwii encoding: word = (op<<24)|(ha<<18)|((wp&3)<<16)|(immu16) ; set.w op=0x4F
 @@ orri block-move encoding: word = (op<<24)|(ha<<18)|(dst<<12)|(src<<6)|count
-@@   rd2rf: op=0x40 ha=0x3D ; ft2ft: op=0x44 ha=0x02 ; fo2fo: op=0x44 ha=0x0A
+@@   rd2rf: op=0x40 ha=0x3D ; rf2rf: op=0x40 ha=0x3C
 @@
 @@ NOPSEUDO-NOT: set.ft
 @@ NOPSEUDO-NOT: set.fo
@@ -59,14 +60,14 @@ set.fo rf4, 0
 @@ ASM: rd2rf {rf1}, {rd5}
 set.ft rf1, rd5
 
-@@ set.ft rf1, rf2 -> ft2ft {rf1}, {rf2}
-@@ word = 0x44<<24|0x02<<18|1<<12|2<<6|1 = 0x44081081
-@@ OBJ: {{[0-9a-f]+:}} 44 08 10 81{{.*}}ft2ft{{.*}}{rf1}, {rf2}
-@@ ASM: ft2ft {rf1}, {rf2}
+@@ set.ft rf1, rf2 -> rf2rf {rf1}, {rf2}
+@@ word = 0x40<<24|0x3C<<18|1<<12|2<<6|1 = 0x40F01081
+@@ OBJ: {{[0-9a-f]+:}} 40 f0 10 81{{.*}}rf2rf{{.*}}{rf1}, {rf2}
+@@ ASM: rf2rf {rf1}, {rf2}
 set.ft rf1, rf2
 
-@@ set.fo rf2, rf7 -> fo2fo {rf2}, {rf7}
-@@ word = 0x44<<24|0x0A<<18|2<<12|7<<6|1 = 0x442821C1
-@@ OBJ: {{[0-9a-f]+:}} 44 28 21 c1{{.*}}fo2fo{{.*}}{rf2}, {rf7}
-@@ ASM: fo2fo {rf2}, {rf7}
+@@ set.fo rf2, rf7 -> rf2rf {rf2}, {rf7}
+@@ word = 0x40<<24|0x3C<<18|2<<12|7<<6|1 = 0x40F021C1
+@@ OBJ: {{[0-9a-f]+:}} 40 f0 21 c1{{.*}}rf2rf{{.*}}{rf2}, {rf7}
+@@ ASM: rf2rf {rf2}, {rf7}
 set.fo rf2, rf7

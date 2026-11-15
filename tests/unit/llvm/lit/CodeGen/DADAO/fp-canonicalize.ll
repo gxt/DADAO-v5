@@ -7,7 +7,7 @@
 ; value.  The generic expansion is `x * 1.0` (constant materialisation +
 ; `fomul`), which is both larger and *less* faithful: it quietens an sNaN and
 ; can raise NV/NX for no semantic reason.  The lowering returns the operand
-; unchanged, so no `fo2fo`/`fomul` and no libcall are emitted.
+; unchanged, so no `rf2rf`/`fomul` and no libcall are emitted.
 
 declare double @llvm.canonicalize.f64(double)
 declare float @llvm.canonicalize.f32(float)
@@ -16,7 +16,7 @@ define double @canonicalize_f64(double %a, double %b) {
 ; CHECK-LABEL: canonicalize_f64:
 ; CHECK-COUNT-1: foadd
 ; CHECK-NOT:     fomul
-; CHECK-NOT:     fo2fo
+; CHECK-NOT:     rf2rf
 ; CHECK-NOT:     call
   %c = call double @llvm.canonicalize.f64(double %a)
   %r = fadd double %c, %b
@@ -27,7 +27,7 @@ define float @canonicalize_f32(float %a, float %b) {
 ; CHECK-LABEL: canonicalize_f32:
 ; CHECK-COUNT-1: ftadd
 ; CHECK-NOT:     ftmul
-; CHECK-NOT:     ft2ft
+; CHECK-NOT:     rf2rf
 ; CHECK-NOT:     call
   %c = call float @llvm.canonicalize.f32(float %a)
   %r = fadd float %c, %b

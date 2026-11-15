@@ -179,7 +179,7 @@ rev.o_orri_rd	rev.o	orri	m8	rev_o_orri_rd	accept	ok	rev.o rd8, rd9, 1	yes	pat:DA
 rev.t_orri_rd	rev.t	orri	m8	rev_t_orri_rd	accept	ok	rev.t rd8, rd9, 1	yes	pat:DADAOCodeGen.td.patch:655:rev_t_orri_rd	
 rev.w_orri_rd	rev.w	orri	m8	rev_w_orri_rd	accept	ok	rev.w rd8, rd9, 1	yes	pat:DADAOCodeGen.td.patch:656:rev_w_orri_rd	
 rf2rd_orri_rf	rf2rd	orri	fp	rf2rd_orri_rf	accept	ok	rf2rd {rd8}, {rf9}	yes	pat:DADAOCodeGen.td.patch:717:rf2rd_orri_rf;pat:DADAOCodeGen.td.patch:1215:rf2rd_orri_rf	DADAOInstrInfo.cpp.patch:96
-rf2rf_orri_rf	rf2rf	orri	fp		reject	—	rf2rf {rf8}, {rf9}	no		
+rf2rf_orri_rf	rf2rf	orri	fp	rf2rf_orri_rf	accept	ok	rf2rf {rf8}, {rf9}	no		DADAOInstrInfo.cpp.patch:92
 rol.b_orri_rd	rol.b	orri	m9	rol_b_orri	accept	ok	rol.b rd8, rd9, 1	no		
 rol.b_orrr_rd	rol.b	orrr	m9	rol_b_orrr	accept	ok	rol.b rd8, rd9, rd10	no		
 rol.o_orri_rd	rol.o	orri	m9	rol_o_orri	accept	ok	rol.o rd8, rd9, 1	yes	pat:DADAOCodeGen.td.patch:493:rol_o_orri	

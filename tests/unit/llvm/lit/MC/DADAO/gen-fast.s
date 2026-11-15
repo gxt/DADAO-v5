@@ -46,15 +46,15 @@ swym 8
 @@ ASM: ctlz rd8, rd9, 1
 ctlz rd8, rd9, 1
 
-@@ @src fo2fo_orri_rf 44288241 | SimRISC-07: fo2fo
-@@ OBJ: {{[0-9a-f]+:}} 44 28 82 41{{.*}}fo2fo
-@@ ASM: fo2fo {rf8}, {rf9}
-fo2fo {rf8}, {rf9}
-
 @@ @src fo2ft_orri_rf 44248244 | SimRISC-07: fo2ft
 @@ OBJ: {{[0-9a-f]+:}} 44 24 82 44{{.*}}fo2ft
 @@ ASM: fo2ft rf8, rf9, 4
 fo2ft rf8, rf9, 4
+
+@@ @src focls_orri_rf 44208241 | SimRISC-07: focls
+@@ OBJ: {{[0-9a-f]+:}} 44 20 82 41{{.*}}focls
+@@ ASM: focls {rd8}, {rf9}
+focls {rd8}, {rf9}
 
 @@ @src foroot_orri_rf 44388242 | SimRISC-07: foroot
 @@ OBJ: {{[0-9a-f]+:}} 44 38 82 42{{.*}}foroot

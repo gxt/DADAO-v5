@@ -4,7 +4,7 @@
 @@ RUN: echo 'ftsclb rf4, rf6, rf8' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=OLD-RF
 @@ RUN: echo 'fosclb rf4, rf6, rf8' | %not %llvm_mc --triple=dadao-unknown-elf -filetype=obj -o /dev/null 2>&1 | %FileCheck %s --check-prefix=OLD-RF
 
-@@ FP (scope: fp) encoding round-trip: all 58 instructions.
+@@ FP (scope: fp) encoding round-trip: all 57 instructions.
 @@ Bytes are hand-computed from contracts/opcodes.yaml:
 @@   32-bit big-endian word = (op<<24)|(ha<<18)|(hb<<12)|(hc<<6)|hd
 @@   rrii : ha=ra, hb=rb, [11:0]=imm12
@@ -13,7 +13,7 @@
 @@   rrrr : ha=ra, hb=rb, hc=rc, hd=rd
 @@   orrr : ha=opx, hb=rb, hc=rc, hd=rd
 @@   orri : ha=opx, hb=rb, hc=rc, hd=immu6
-@@ Copy forms (ft2ft/fo2fo/rd2rf/rf2rd): {start:end} count = end-start+1,
+@@ Copy forms (rf2rf/rd2rf/rf2rd): {start:end} count = end-start+1,
 @@ encoded into the shared imm6 (ADR-0050 D4).
 @@ The 18 non-copy conversions are single-register forms whose low six bits are
 @@ an explicit third operand (ADR-0050 D2/D3): the 15 result-dependent ones take
@@ -225,11 +225,11 @@ ftcls {rd4:rd6}, {rf8:rf10}
 @@ ASM: ft2fo rf4, rf8, 0
 ft2fo rf4, rf8, 0
 
-@@ ft2ft {rf10:rf12}, {rf14:rf16}
-@@ op=0x44 ha=0x02(opx)  word = 0x4408A383  bytes = 44 08 a3 83
-@@ OBJ: {{[0-9a-f]+:}} 44 08 a3 83{{.*}}ft2ft{{.*}}{rf10:rf12}, {rf14:rf16}
-@@ ASM: ft2ft {rf10:rf12}, {rf14:rf16}
-ft2ft {rf10:rf12}, {rf14:rf16}
+@@ rf2rf {rf10:rf12}, {rf14:rf16}
+@@ op=0x40 ha=0x3C(opx)  word = 0x40F0A383  bytes = 40 f0 a3 83
+@@ OBJ: {{[0-9a-f]+:}} 40 f0 a3 83{{.*}}rf2rf{{.*}}{rf10:rf12}, {rf14:rf16}
+@@ ASM: rf2rf {rf10:rf12}, {rf14:rf16}
+rf2rf {rf10:rf12}, {rf14:rf16}
 
 @@ ftroot rf4, rf6, 2
 @@ op=0x44 ha=0x06(opx)  word = 0x44184182  bytes = 44 18 41 82
@@ -249,11 +249,6 @@ focls {rd8:rd10}, {rf12:rf14}
 @@ ASM: fo2ft rf4, rf8, 4
 fo2ft rf4, rf8, 4
 
-@@ fo2fo {rf10:rf12}, {rf14:rf16}
-@@ op=0x44 ha=0x0A(opx)  word = 0x4428A383  bytes = 44 28 a3 83
-@@ OBJ: {{[0-9a-f]+:}} 44 28 a3 83{{.*}}fo2fo{{.*}}{rf10:rf12}, {rf14:rf16}
-@@ ASM: fo2fo {rf10:rf12}, {rf14:rf16}
-fo2fo {rf10:rf12}, {rf14:rf16}
 
 @@ foroot rf4, rf6, 2
 @@ op=0x44 ha=0x0E(opx)  word = 0x44384182  bytes = 44 38 41 82

@@ -10,16 +10,16 @@
 
 @@ Default: block move / conversion kept as one multi-register instruction.
 @@ DEF: ra2rd {rd8:rd10}, {ra1:ra3}
-@@ DEF: ft2ft {rf4:rf6}, {rf8:rf10}
+@@ DEF: rf2rf {rf4:rf6}, {rf8:rf10}
 
 @@ With -multiple-to-single: one instruction per element (count = 1).
 @@ OPT: ra2rd {rd8}, {ra1}
 @@ OPT-NEXT: ra2rd {rd9}, {ra2}
 @@ OPT-NEXT: ra2rd {rd10}, {ra3}
-@@ OPT: ft2ft {rf4}, {rf8}
-@@ OPT-NEXT: ft2ft {rf5}, {rf9}
-@@ OPT-NEXT: ft2ft {rf6}, {rf10}
+@@ OPT: rf2rf {rf4}, {rf8}
+@@ OPT-NEXT: rf2rf {rf5}, {rf9}
+@@ OPT-NEXT: rf2rf {rf6}, {rf10}
 
 	.text
 	ra2rd {rd8:rd10}, {ra1:ra3}
-	ft2ft {rf4:rf6}, {rf8:rf10}
+	rf2rf {rf4:rf6}, {rf8:rf10}

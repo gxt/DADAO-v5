@@ -547,6 +547,12 @@
   - 摘要：**转换指令舍入编码三分（ADR-0050 / SPEC-194t）落地**：18 条格式转换改**单寄存器 + 显式低 6 位**——15 条（8 `f2i` + `fo2ft` + 6 条不精确 `i2f`）为六档 one-hot，3 条（`ft2fo`/`it2fo`/`ut2fo`）为 SBZ 0；4 条复制（`ft2ft`/`fo2fo`/`rd2rf`/`rf2rd`）保留 `{a:b}` 1–63 计数。`DADAOAsmParser` 把 18 条移出块复制集合（旧 `{}` 形式由匹配器拒绝）、新增 `encode_onehot`/`encode_sbz` 汇编期硬报错；`DADAOMCInstPrinter` 同步只对复制类打印范围；CodeGen：`FP_TO_SINT/UINT`（含 saturating）发 `0x04`（C cast 恒截断），f32/f64 `FP_ROUND`/`FP_EXTEND` 与整→浮发 `0x20`（`ft2fo` 发 0），`CVT_SAT` 选择同步 0x04；`gen_asm_list.py`/`check_asm_prose.py`/`generate_lit_vectors.py`/`test_encoding_oracle.py` 按新形态生成/校验，spec 附录 A 与 `contract-asm-list.md` 重生成。补丁 5 份改（AsmParser/InstPrinter/InstrInfoFP/CodeGen/ISelDAGToDAG），`make_patch.py` 重导出。
   - 执行者：engineer
 
+## M13
+
+- **2026-11-15 m13-llvm-001**
+  - 摘要：**删 `ft2ft`/`fo2fo`、加 `rf2rf`（对齐 SimRISC-02 同组块复制）**：`DADAOInstrInfoFP.td` 删两条 def、加 `rf2rf_orri_rf`（`op=0x40`、`ha=0x3C`、orri+rf 组、`@earlyclobber` 保证目的/源范围不重叠）；`AsmParser` 的块复制助记符集合、`mreg_range_overlap`/`mreg_range_overflow`/`-multiple-to-single` 与 `dst_rf0` 规则改指 `rf2rf`（目的范围含 `rf0` ⇒ 汇编期硬报错，源 `rf0` 合法），`set.ft`/`set.fo` 的 RF 源展开改 `rf2rf`（整 64 位复制）；`MCInstPrinter` 对 `{start:end}` 打印同步；`DADAOInstrInfo::copyPhysReg` 的 RF→RF 改 `rf2rf`。lit 改指 `fp-encoding.s`/`fp-legality.s`/`set-ft-fo.s`/`m4-pseudo-set.s`/`m4-option-mts.s`/`multiple-to-single-orri.s`/`fp-codegen.ll`/`fp-canonicalize.ll`，`DADAO-gen` 与 `gen-fast.s` 由生成器重生成。真值：`rf2rf {rf10:rf12}, {rf14:rf16}` ⇒ `40 f0 a3 83`（与 `contracts/opcodes.yaml` 一致）；`ft2ft`/`fo2fo` ⇒ `unrecognized instruction mnemonic`（rc=1）。补丁 4 份改，`series` 99 不变。
+  - 执行者：engineer
+
 ## M14
 
 - **2026-11-14 m14-llvm-003**
