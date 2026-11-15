@@ -778,3 +778,11 @@
   closed_in: null
   resolved_by: null
   title: "【P2】中断源轴 mask 查**哪一行**三处口径不一致：`spec/DADAO-12 §5.2` 步骤 3 写「源轴查 *mode monitor* 的 `cfx_intr_mask`」（即按运行模式选行），而 `ADR-0045 D3` / `contract-see §6.4` 与 QEMU 实现是**查当前 cfx 的行**。`m14-linux-007` 复核实测：首投后当前 cfx=15（`escape` 不恢复 `inner_cfx_code`，见 `ISS-454`），只开 `cfx_smon` 一行时仅 1 个 tick ⇒ 两读法在首投后**行为不同**（非同义）。现实现「两行都开」对两读法皆成立、无副作用，但不解决口径。处置：定 one 读法（建议按 spec 字面 = 按运行模式选行，再核对 QEMU 是否需要改），同步 `ADR-0045 D3`/`contract-see §6.4` 与 `m14-linux-008` 的 `local_irq_*` 口径。"
+- id: ISS-456
+  scope:
+  - infra
+  - linux
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】证据脚本按**脚本自身路径**推仓库根，在任务 worktree 里会经 `.work` 软链解析到**主工作树**，从而把产物误写进 `master`：`m14-linux-008` 的 `run.sh` 初版实测误写 6 个文件（已按 HEAD blob 逐文件复原、`git status` 干净、md5 与 HEAD 一致）。与 `ISS-389`（worktree `.work` 未软链导致从零编）是同一软链机制的两个反向踩坑。处置：证据脚本一律**按 cwd 推仓库根**（`git rev-parse --show-toplevel`）并在解析结果等于 `master` 工作树时**拒绝运行**；或把该约束写进 engineer/reviewer 的「一键证据脚本」规范并加一条自检。"
