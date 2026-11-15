@@ -1,6 +1,6 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
 new file mode 100644
-index 0000000..c1ae7de
+index 0000000..4a94642
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
 @@ -0,0 +1,2056 @@
@@ -37,9 +37,9 @@ index 0000000..c1ae7de
 +// Every quiet NaN *result* is the canonical quiet NaN -- sign 0, payload all
 +// zero (spec/SimRISC-07 §1.4 "NaN 结果的取值") -- which is what hardfloat and
 +// gem5 also produce (m12-chipyard-030); the non-canonical shapes the spec keeps
-+// are the copy family (`ft2ft`/`fo2fo`), the signalling compare's sNaN result
-+// and min/max's single-NaN pass-through, and those never reach this file's
-+// rounding primitive.
++// are the rf block copy (`rf2rf`, a bit-for-bit move that never canonicalises),
++// the signalling compare's sNaN result and min/max's single-NaN pass-through,
++// and none of those reach this file's rounding primitive.
 +//
 +// The recoded format (hardfloat's "recFN") is the format all FP data takes
 +// inside the core: `sign ## exp(expWidth+1) ## sig(sigWidth-1)`, i.e. one
