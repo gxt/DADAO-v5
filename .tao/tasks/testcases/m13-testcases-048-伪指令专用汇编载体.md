@@ -19,13 +19,13 @@
 
 | # | 载体 | 覆盖的展开形态 | 关键点 |
 |---|---|---|---|
-| 1 | `pseudo_set_rd_imm.S` | `set.rd rd, imm64` → 1–4 条 `set.zw/set.ow` + `or.w/andn.w` | 零/全 1/±小值/稀疏位型；**只能一条 `set.zw`/`set.ow`**；指令数最少化 |
-| 2 | `pseudo_set_rd_reg.S` | `set.rd rd, rs` → `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` | 四种源银行各 1 点；整 64 位 |
-| 3 | `pseudo_set_rb_imm.S` | `set.rb rb, imm64` → `set.zw-rb` + `or.w-rb` | **rb 无 `set.ow`** ⇒ 负值形态与 rd 不同；只能一条 `set.zw` |
-| 4 | `pseudo_set_rb_reg.S` | `set.rb rb, rs` → `rd2rb`/`rb2rb` | 两种源；整 64 位 |
-| 5 | `pseudo_set_ft_imm.S` | `set.ft rf, imm32` → 2× `set.w` | **只写低 32、高 32 不动**（写宽对照表第一行）；边界 imm=0 / 0xFFFFFFFF |
-| 6 | `pseudo_set_fo_imm.S` | `set.fo rf, imm64` → 4× `set.w`（imm=0 ⇒ `rd2rf` from `rd0`） | 整 64 位；`imm=0` 走 `rd2rf` 特例 |
-| 7 | `pseudo_set_fr_reg.S` | `set.ft/set.fo rf, rf` → **`rf2rf`** | **整 64 位**（写宽对照表第二行，`m13-spec-010` 后可观察变化）；高半必须被覆盖 |
+| 1 | `pseudo_set.rd_imm.S` | `set.rd rd, imm64` → 1–4 条 `set.zw/set.ow` + `or.w/andn.w` | 零/全 1/±小值/稀疏位型；**只能一条 `set.zw`/`set.ow`**；指令数最少化 |
+| 2 | `pseudo_set.rd_reg.S` | `set.rd rd, rs` → `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` | 四种源银行各 1 点；整 64 位 |
+| 3 | `pseudo_set.rb_imm.S` | `set.rb rb, imm64` → `set.zw-rb` + `or.w-rb` | **rb 无 `set.ow`** ⇒ 负值形态与 rd 不同；只能一条 `set.zw` |
+| 4 | `pseudo_set.rb_reg.S` | `set.rb rb, rs` → `rd2rb`/`rb2rb` | 两种源；整 64 位 |
+| 5 | `pseudo_set.ft_imm32.S` | `set.ft rf, imm32` → 2× `set.w` | **只写低 32、高 32 不动**（写宽对照表第一行）；边界 imm=0 / 0xFFFFFFFF |
+| 6 | `pseudo_set.fo_imm64.S` | `set.fo rf, imm64` → 4× `set.w`（imm=0 ⇒ `rd2rf` from `rd0`） | 整 64 位；`imm=0` 走 `rd2rf` 特例 |
+| 7 | `pseudo_set.fx_reg.S` | `set.ft/set.fo rf, rf` → **`rf2rf`** | **整 64 位**（写宽对照表第二行，`m13-spec-010` 后可观察变化）；高半必须被覆盖 |
 
 ## 任务
 
@@ -41,6 +41,11 @@
 3. **注入 ≥2 路**（`cp`+md5 还原）：① 把载体 5 的期望改成"高 32 被覆盖" ⇒ 应红（证明它守的是窄写）；② 把载体 7 的期望改成"高 32 保持" ⇒ 应红；
 4. `check-inst-asm` 现场计数（id 数不变 264；镜像数 +新增）；`check-no-residue`、`check-knowledge-refs` rc=0；
 5. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`。
+
+## 命名裁定（用户 2026-11-15）
+
+- 采用**方案 A**（保留助记符点号）：`pseudo_set.rd_imm.S`、`pseudo_set.rd_reg.S`、`pseudo_set.rb_imm.S`、`pseudo_set.rb_reg.S`、`pseudo_set.ft_imm32.S`、`pseudo_set.fo_imm64.S`、**`pseudo_set.fx_reg.S`**（`fx` = `ft`/`fo` 两族寄存器源，二者都展开 `rf2rf`）；
+- 索引 id 顺延：`inst-00-isa-design-002` … `-008`（`-001` 归 `undi_reserved.S`）。
 
 ## 硬约束
 
