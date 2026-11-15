@@ -3,7 +3,7 @@
 > **版本：0.5.7-rc**（与 SimRISC-00 一致）
 > **分类：寄存器复制** — cs.*/ra2rd/rb2rb/rb2rd/rd2ra/rd2rb/rd2rd/rd2rf/rf2rd/rf2rf
 
-立即数常数赋值（rwii 格式：set.zw/set.ow/set.w/or.w/andn.w 的 rd/rb/rf 形式，以及 set.rd/set.rb/set.ft/set.fo 伪指令）详见 SimRISC-03（16位立即数操作）。
+立即数常数赋值（rwii 格式：set.zw/set.ow/set.w/or.w/andn.w 的 rd/rb/rf 形式）详见 SimRISC-03（16位立即数操作）；`set.rd`/`set.rb`/`set.ft`/`set.fo` 伪指令见 SimRISC-00 §5。
 
 ## 1. 寄存器组之间块赋值
 

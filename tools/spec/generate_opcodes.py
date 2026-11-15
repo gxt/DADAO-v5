@@ -246,8 +246,8 @@ S01_RA_LD = "SimRISC-01: 存取RA寄存器"
 S02_BLK = "SimRISC-02: 寄存器组之间块赋值"
 S02_CS = "SimRISC-02: 条件赋值：Conditional Assignment"
 
-# 16位立即数操作（SimRISC-03）
-S03_IMM = "SimRISC-03: 立即数常数赋值：Immediate constant"
+# 16位立即数操作（SimRISC-03；正文按寄存器组分为 §1 RD 组 / §2 RB 组 / §3 RF 组，本节名取三章公共前缀）
+S03_IMM = "SimRISC-03: 立即数常数赋值"
 
 # 64位数据运算（SimRISC-04）
 S04_ADD = "SimRISC-04: 加减操作"

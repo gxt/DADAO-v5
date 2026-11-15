@@ -124,14 +124,14 @@
 
 ## §13 `set_w_rf`（RF 立即数）<a id="set_w_rf"></a>
 
-- 指令：`set.w`（rwii：`rfHA` 目的、`wpN`、`immu16`）。[SimRISC-03 §立即数常数赋值：Immediate constant]
-- 只设置 `wpN` 指定的 16 位，其余 48 位不变。[SimRISC-03 §立即数常数赋值：Immediate constant]
-- `set.w rf0` **合法**：`wp2` 命中舍入模式、`wp0` 命中异常状态、`wp1`/`wp3` 完全写无效（遵 FCSR 写掩码）。[SimRISC-03 §立即数常数赋值：Immediate constant]
+- 指令：`set.w`（rwii：`rfHA` 目的、`wpN`、`immu16`）。[SimRISC-03 §立即数常数赋值：RF 组]
+- 只设置 `wpN` 指定的 16 位，其余 48 位不变。[SimRISC-03 §立即数常数赋值：RF 组]
+- `set.w rf0` **合法**：`wp2` 命中舍入模式、`wp0` 命中异常状态、`wp1`/`wp3` 完全写无效（遵 FCSR 写掩码）。[SimRISC-03 §立即数常数赋值：RF 组]
 
 ## §14 伪指令（非 65 条 id，仅说明）<a id="pseudo"></a>
 
-- `set.ft`/`set.fo` 不是硬件指令，由汇编器展开为 `set.w` 组合：全零 → `rd2rf {rf}, {rd0}`；寄存器传值 → `rd2rf`（rd 源）或 `rf2rf`（rf 源，整 64 位复制）。[SimRISC-03 §set.ft / set.fo 伪指令]
-- 伪指令属汇编器展开，**不进** `contracts/opcodes.yaml` 的 65 条。[SimRISC-03 §set.ft / set.fo 伪指令]
+- `set.ft`/`set.fo` 不是硬件指令，由汇编器展开为 `set.w` 组合：全零 → `rd2rf {rf}, {rd0}`；寄存器传值 → `rd2rf`（rd 源）或 `rf2rf`（rf 源，整 64 位复制）。[SimRISC-00 §5.3 set.ft / set.fo 伪指令]
+- 伪指令属汇编器展开，**不进** `contracts/opcodes.yaml` 的 65 条。[SimRISC-00 §5.3 set.ft / set.fo 伪指令]
 
 ## §15 合法性规则映射
 
@@ -143,7 +143,7 @@
 - `mreg_range_overflow`（与 M1 共享）：FP `immu6` 连续个数形式起始 + `immu6 > 64` → ILLI，不环绕、不截断（9 条，清单同 `mreg_zero`）；**源与目的起始寄存器均检查**；18 条格式转换不适用。[SimRISC-07 §格式转换指令][SimRISC-01 §存取RF寄存器][SimRISC-02 §寄存器组之间块赋值]
 - `mreg_range_overlap`（与 M1 共享，M1 侧为 rd2rd/rb2rb）：FP 仅 `rf2rf` 一条源范围与目的范围有任何交集（含完全重合）→ ILLI（1 条）；其余 18 条格式转换的低 6 位是舍入档或 SBZ、不是寄存器窗口，不存在范围重叠。[SimRISC-07 §格式转换指令][SimRISC-02 §寄存器组之间块赋值]
 - `dst_rd0`（与 M1 共享）：FP 中目的为 rd 组的 15 条——orri 目的字段 `rdhb`（`convert_f2i` 8 + `classify` 2 + `rf2rd` 1）与 orrr 单目的 `rdhb`（`compare` 4）为 `rd0` → ILLI；目的为 rf 组的 FP 指令（`rd2rf` 等）不适用本规则。[SimRISC-00 §数据寄存器][SimRISC-02 §寄存器组之间块赋值]
-- `rf0` 作目的**例外（合法）**：`rd2rf`、`rf2rd`（源）、`rf2rf`（源）、`ld.t`/`ldm.t`/`ld.o`/`ldm.o`、`st.*`/`stm.*`（源）、`set.w`。[SimRISC-02 §寄存器组之间块赋值][SimRISC-01 §存取RF寄存器][SimRISC-03 §立即数常数赋值：Immediate constant]
+- `rf0` 作目的**例外（合法）**：`rd2rf`、`rf2rd`（源）、`rf2rf`（源）、`ld.t`/`ldm.t`/`ld.o`/`ldm.o`、`st.*`/`stm.*`（源）、`set.w`。[SimRISC-02 §寄存器组之间块赋值][SimRISC-01 §存取RF寄存器][SimRISC-03 §立即数常数赋值：RF 组]
 - `dst_rf0`/`encode_fp_root_n` 为 FP 专属，FP 已实现（`LLVM-029t/030t`、`QEMU-034t`–`037t`）后均为 `active`；`mreg_zero`/`mreg_range_overflow`/`mreg_range_overlap`/`dst_rd0` 为 `active` 且与 M1 共享。FP 记录的 `rule_refs` 由 `opcodes.yaml` 依 `legality` 回填，须与 `fp_semantics.yaml` 的 `legality_refs` **逐 id 一致**（`check-fp-contract` Check 8 机械门控）。[SimRISC-07 §版本]
 
 ## §16 开放点（spec 未明，如实记录、不臆造）<a id="open-points"></a>

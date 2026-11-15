@@ -80,7 +80,7 @@ rules:
   - id: dst_rf0
     fault: ILLI
     kind: static
-    spec_cite: "SimRISC-00: 浮点寄存器; SimRISC-01: 存取RF寄存器; SimRISC-02: 寄存器组之间块赋值; SimRISC-02: 浮点条件赋值; SimRISC-03: 立即数常数赋值：Immediate constant"
+    spec_cite: "SimRISC-00: 浮点寄存器; SimRISC-01: 存取RF寄存器; SimRISC-02: 寄存器组之间块赋值; SimRISC-02: 浮点条件赋值; SimRISC-03: 立即数常数赋值：RF 组"
     status: active
     description: >
       浮点运算指令的**目的**操作数为 rf0 时触发 ILLI 异常

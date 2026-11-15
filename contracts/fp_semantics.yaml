@@ -8,7 +8,7 @@
 #                   §融合乘加（fusedMultiplyAdd）
 #   spec/SimRISC-01 §存取RF寄存器
 #   spec/SimRISC-02 §寄存器组之间块赋值 / §浮点条件赋值
-#   spec/SimRISC-03 §立即数常数赋值：Immediate constant
+#   spec/SimRISC-03 §立即数常数赋值：RF 组
 #
 # 说明：
 #   * 本文件**不含编码**（编码唯一真源 = contracts/opcodes.yaml）。
@@ -106,7 +106,7 @@ families:
     semantics_ref: "contract-fp.md#rf_move"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   set_w_rf:
-    spec_cite: "SimRISC-03: 立即数常数赋值：Immediate constant"
+    spec_cite: "SimRISC-03: 立即数常数赋值：RF 组"
     semantics_ref: "contract-fp.md#set_w_rf"
     required_keys: [family, spec_cite, semantics_ref, legality_refs]
   roundint:
@@ -429,7 +429,7 @@ instructions:
   # set_w_rf（1）
   - id: set.w_rwii_rf
     family: set_w_rf
-    spec_cite: "SimRISC-03: 立即数常数赋值：Immediate constant"
+    spec_cite: "SimRISC-03: 立即数常数赋值：RF 组"
     semantics_ref: "contract-fp.md#set_w_rf"
     legality_refs: []
 
