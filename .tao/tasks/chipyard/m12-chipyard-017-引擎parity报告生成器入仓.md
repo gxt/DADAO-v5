@@ -90,6 +90,29 @@
 
 判决：F10 属继承缺陷（超出本任务验收面，建议转 `m12-integ-002`）；F11 是收尾路径问题（归架构师）。本轮未改代码 ⇒ 不改变第 1 轮判决与 `**状态**`。
 
+### 第 1 轮 reviewer 验收（2026-11-15，以 master `f37c6721` 为准；命令均在仓库根独立重跑）
+
+**重跑记录（reviewer 自己的真实输出 / 退出码）**
+- `python3 tools/testcases/parity/engine_parity_report.py --check` ×3（根目录 ×2、cwd=`tools/`）⇒ **rc=0**、三次输出 `cmp`=0；json `ada3c375…`、md `31af0c75…`，与 `sha256sum` 入库值相等；报告内**无生成时刻**（仅静态 code-freeze 日期）。
+- 确定性：`--out-dir` 连跑 2 次、并与 016 原 `make_report.py`（`TASK_WT`=临时树）产物 `cmp` **全等**（md5 `83de056a…` / `915cbce9…`）。
+- `pending`：与 016 原 `pending.py` 输出 `diff` **rc=0**；现场 `79`、`known=234 terminal=155 pending=79 inventory=235`；报告 `embench.cases_seen=32` ⇒ pending 6。
+- `run.sh` 检查项 ID 集合 diff = 原集合 **+ `E4`（唯一新增）**；逐行 diff 只剩路径插桩 / `W`→`W2` / 注释，判据与 expected 值未动。
+- `engine_parity_run.sh --work-dir <临时>` 实跑 ⇒ **20 PASS / 3 FAIL、rc=1**（C1 38→32、C2 38→32、D6 0→80，E4 rc=0）＝完成区口径。
+- 注入（副本路）：`parity.differing` 加 1 条 ⇒ `--check <副本>` **rc=1**、`first differing line 532`；真文件 md5 `83de056a…` 未变、随后 rc=0。
+- 证据脚本重跑 <运行期证据目录>/run.sh ⇒ **45 passed / 0 failed、rc=0**（含 R6 注入 rc=1 → `cp`+md5 还原 → 回绿）。
+- 门控：`make check-knowledge-refs` **rc=0**、`check-no-residue` **rc=0**、`check-dirs` **rc=0**、`check-run-artifacts` **rc=2**（7 命中全为运行期日志目录里并发会话的 `review-*.log` 残留，本任务 **0 命中**）、`py_compile` 2/2、`bash -n` 2/2 全 rc=0。
+- `collect` 落点 = 证据目录下的 `cases/`（非运行期日志目录），日志目录下无 `*-cases`。
+- 对账：`f37c6721` = 4 新脚本 + README + 本任务书；4 脚本 md5 分支 `8e88f3f0`↔master 全等；README 差异仅 master 侧 `int_diff` 内容（017 内容无丢失）；`m12-integ-002` 承接 3 条与现场一致（`engine_parity_run.sh:240` 两处 `work/probe`，016 原 `:215` 同形）。
+- 快照：验收前后 `git status -uall` 均 0 行、8 个目标文件 md5 未变；未跑 `install-host`/`check-modules`/`build-*`，未动节点、未重跑 embench/picolibc。
+
+**约束核验**：验收 1–7 逐条过（sha、行 532、79/32/6/budget 80 与现场一致）；「不做」面未触碰。报告 json 内宿主绝对路径属「待裁定 1」（`check-knowledge-refs` 只扫 `.md` 故不红），已移交 `m12-integ-002`。
+
+**判决：Needs Revision**（仅 1 条阻断，返工面 = 1 条断言 + 计数回填）
+- **R5c 恒真**：`.work/evidence/m12-chipyard-017/run.sh:107` `chk "R5c …" "$PPEND" "$((38 - SEEN))"`，而 `:105` `PPEND=$((38 - SEEN))` —— 两支同一表达式，**指不出任何"改哪里会让它红"的注入点**（DD-Y003 §7「指不出来的断言一律重写」/ 禁恒真），使 45/45 多计 1 条装饰断言。**改法**：改成可红断言（如报告内 `cases_seen` 对 `len(embench.cases)` 交叉，注入点=临时副本增删一例）或直接删除并把完成区计数改 44，随后重跑证据脚本回填。
+- **规则层待裁定（阻断面交架构师，不由 reviewer 单判）**：AGENTS「临时目录」段在本轮验收期间被用户改为「**脚本入仓判据 = 会不会再跑**」——共享工具入 `tools/` 且 README 登记一行；**批次一次性编排（`run.sh`/`collect.sh`/注入脚本）⇒ 不入仓**，留运行期证据目录；一次性专用变换代码就近放 `.tao/knowledge/refs/<task>/`。本任务按**旧口径**把 4 个脚本全入了 `tools/testcases/parity/`（README 已登记一行）。须裁定：① `engine_parity_run.sh`/`engine_parity_collect.sh` 是否按新口径迁回运行期证据目录；② `engine_parity_report.py`（`m12-integ-002` 要调用重算）算共享工具还是批次编排；③ README 登记行是否补齐「路径/用途/入口/调用者」四要素。
+- 非阻断 finding（记档，收尾顺手改）：① 完成区第 2 条「连跑 3 次（含 …`--node-map` 覆盖那份）逐字节相同」措辞易误读（`--node-map` 那份按设计不同，R4g 正断言其不同）；② `tools/testcases/parity/README.md` `int_diff` 节与 `## engine parity` 节之间缺一空行。
+- 其余（可复现、行为差异 0、落点、门控、注入、移交、对账）全部达标。`**状态**` 由主会话置 `待返工`。
+
 ## 完成区
 
 **测试结果**：一键证据 `run.sh` **45/45 PASS、rc=0**；移植后的 `engine_parity_run.sh` A/B/E 全绿，C1/C2/D6 因数据未收完（`cases_seen` 32/38、budget 80）按 016 原判据报 FAIL（数据态，非回归）。
