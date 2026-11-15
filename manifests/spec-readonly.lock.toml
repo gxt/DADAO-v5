@@ -2,6 +2,9 @@ format = 1
 # 只读册（上游 20 册 + v5 自定 1 册）：sha256 锁。修改须用户事先明确允许（授权原话落盘），并在
 # 同一变更内更新此处哈希。见 docs/Process-06-spec目录保护规范.md。
 policy = "readonly-requires-authorization"
+# 2026-11-15（`set.ft rf, 0` 展开订正）：该行原写「展开为 `rd2rf {rf1}, {rd0}`」，与 `SimRISC-00 §2.3` 的窄写语义
+#   （`set.ft` 只写低 32、高 32 保持）及 `Toolchain-01 §6.1`（2 条 `set.w`）矛盾；改为 2 条 `set.w`，并补附录变更记录。
+#   依据：用户 2026-11-15 裁定「同意A」（`set.ft rf, imm32` 保持窄写、`set.ft rf, rf` 走 `rf2rf` 整 64 位）。仅 `SimRISC-00` 一册重算。
 # 2026-11-14（ISS-436 补账；授权依据 = 用户 2026-11-14 对 `ISS-436` 的决定「4现在就做」，即
 #   确认「这 11 册的正文改动均有授权来源，缺的只是同笔重算锁哈希」）。补算 11 册 sha256（**正文一字节未改**）：
 #   `SimRISC-01/02/07/08/09/10`、`DADAO-11/12/22`、`Toolchain-01`、`Machine-v5`；逐册授权出处见各册条目注记。
@@ -351,7 +354,7 @@ group = "simrisc-00..12"
 #   sha256 同笔重算（本册与 02/03/07/Toolchain-01/DADAO-12；其余 15 册不变）。
 # 2026-11-15（m13-spec-011，授权依据 = 用户裁定原话：「同意A，两个补充也可以。SimRISC-03 中的伪指令应该移动到 SimRISC-00的第5章，SimRISC-03的第一章，按rd/rb/rf分开三章；此外，在tests/inst/00 目录下，新增这7种伪指令的专门的汇编测试」（本任务只做 spec 侧））：§5 改为伪指令正文（迁入 `set.rd`/`set.rb`/`set.ft`/`set.fo` 四类，分节 §5.1/§5.2/§5.3）；
 #   §5.3 新增 `set.ft` 写宽对照表；附录 `0.5.7-rc` 追加 1 条；sha256 同笔重算。
-sha256 = "5f4c805ff3937197c2f86f16dd3406219f18aafac46bdcb83b635e80db42fb55"
+sha256 = "1197e3608b3ca0cfeb9a0f9a466bbdcdb7b00cfa18b8b9d0d32764fa20f3ac88"
 # 2026-10-22（SPEC-164t，授权原话见 `.tao/tasks/spec/SPEC-164t-OPC-MISC迁移与解excluded.md` §立项来源：「还有一个编码改动过：OPC-MISC的编码改为：0100-0111」「修改编码：ctpop_orri_rd ctlz_orri_rd cttz_orri_rd 从 OPC-octa 改为 OPC-MISC，opx：100-101/100-110/100-111」）：§4 QFC 主表 `OPC-MISC` 由 `0111-0111` 迁 `0100-0111`（原格置空）；§4.1 `100-101/110/111` 填 `ctpop`/`ctlz`/`cttz`；§4.2 删同三格与「借用 OPC-octa 格位」例外说明；附录 0.5.5 两条同步；sha256 同笔重算。
 [[spec]]
 path = "spec/SimRISC-01-取数存数.md"
