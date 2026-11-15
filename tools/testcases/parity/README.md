@@ -19,6 +19,8 @@
   （见「FP 三平台差分（m13-integ-002）」）。
 - `int_diff.py`：非 cfx、非 FP 的 `.S` 载体三平台逐例差分报告生成器
   （见「整数与访存三平台差分（m13-integ-003）」）。
+- `acceptance_report.py`：M13 收口入口（复用 `int_diff`/`fp_diff` 的 `build()`，
+  出矩阵册 + 收口报告，见「M13 收口与矩阵冻结（`m13-integ-005`）」）。
 - `engine_parity_*.{py,sh}`：M12 engine-parity 报告生成器/核对器/收集器/证据脚本
   （见「engine parity 报告（`m12-chipyard-016`，生成器入仓 `m12-chipyard-017`）」）。
 
@@ -199,6 +201,39 @@ python3 tools/testcases/parity/int_diff.py --self-test   # 10 类反例逐条判
   章节，**未列出的差异仍 rc=1**（表只许逐条申报，不是放行开关）。
 - 复用：逐镜像装载/判定 = `fp_diff.py`（`load_run`/`merge_runs`/`classify`）；
   载体统计 = `run_asm_suite.scan_source`。
+
+## M13 收口与矩阵冻结（`m13-integ-005`）
+
+`acceptance_report.py` 是**收口入口**：不跑 guest、**不新增第二套口径**，输入与
+`int_diff.py`/`fp_diff.py` 相同（同一批 `run_asm_suite.py` 三平台逐镜像 JSON +
+每镜像 `.out` 结果流），并**复用**这两个生成器的 `build()`：
+
+```sh
+python3 tools/testcases/parity/acceptance_report.py \
+    --run book=<run.json> --work book=<work-dir> \
+    --engine qemu=<md5> --engine gem5=<md5> --engine chipyard=<md5> \
+    --tool llvm-mc=<md5> --tool bootrom=<md5> \
+    --json-out <运行期>/m13-005-acceptance.json \
+    --markdown-out <运行期>/m13-005-acceptance.md \
+    --matrix-out <运行期>/M13-三平台差分-矩阵.md
+python3 tools/testcases/parity/acceptance_report.py --check <任一产物>
+python3 tools/testcases/parity/acceptance_report.py --self-test   # 9 类反例
+```
+
+- **输入切分**：`run_asm_suite --books-root tests/inst` 的一批输入含 int / fp / cfx
+  三段；两个生成器都只接受自己的 scope（fail-closed），故本脚本按段切分后再分别
+  `build()`。落不进三段的记录、重复记录、段内记录数 ≠ 现场枚举镜像数 ⇒ rc=1。
+- **向量面对账**：逐册统计载体 / 链例点 / 故障例 / 镜像，并断言
+  「int + fp + cfx = `tests/inst` 全量」与「两份报告的 `coverage`/`results` 分母
+  逐项相符」——对不上即 rc=1，不静默。
+- **差异归因合并**：002/003 的差异由**同一批输入重算**（不读旧 `refs`），按
+  `spec` / `implementation` / `test asset` 分类；未知 owner 或未知缺口 kind ⇒ rc=1。
+  004（riscv-tests）语料已退役，只保留任务书结论作指针。
+- **冻结产物**：矩阵册 `docs/TestReports/M13-三平台差分-矩阵.md` + 收口报告
+  （`.tao/knowledge/refs/m13-005-acceptance.{json,md}`）。三者都是输入的确定性
+  函数：不写墙钟、不写运行期路径，**记输入 commit**（`--input-commit`，缺省
+  `git rev-parse HEAD`）；换 commit 复算须显式传同一 sha，否则 `--check` 会如实报
+  不一致（陈旧可见）。
 
 ## engine parity 报告（`m12-chipyard-016`，生成器入仓 `m12-chipyard-017`）
 

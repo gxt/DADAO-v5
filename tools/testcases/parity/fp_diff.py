@@ -16,8 +16,9 @@
 
   * 载体用例行/故障例解析 = `tools/testcases/inst/run_asm_suite.py::scan_source`
     （检查点数、故障点数、点号连续性）；
-  * owner 词表 = `tools/testcases/parity/se_tset_matrix.py::OWNERS`；
-  * 平台状态词表 = `tools/testcases/parity/run_parity.py::STATUSES`。
+  * owner 词表 = `tools/testcases/parity/se_tset_matrix.py::OWNERS`。
+    **平台状态词表不另立**：状态由 `rc` 现场派生（`0` ⇒ `PASS`，非 `0` ⇒ `FAIL`），
+    三平台判定 = 本脚本 `classify`（不 import `run_parity`，其 `STATUSES` 是 SE 侧词表）。
 
 判定（fail-closed）：
 
@@ -38,7 +39,12 @@
         --markdown-out <运行期>/m13-002-fp-diff.md
 
     --check <md|json>   与落盘报告逐字节比对（不符 rc=1；缺文件 rc=2）
+    --input-commit <sha> 报告记录/比较的输入 commit（缺省 `git rev-parse HEAD`）
     --self-test         合成输入 + 全类反例，逐条要求被判出；全判出才 rc=0
+
+报告记 **输入 commit**（`--input-commit`，缺省 `git rev-parse HEAD`）：没有这个锚，
+后人只能靠 `--check` 发现报告陈旧（`m13-integ-003` 复核 F3）。`--check` 因此要求
+在同一 commit 上复算（或显式传同一 sha）。
 
 退出码：0 不变式全成立；1 不变式失败（差异未归因 / 缺平台 / 计数不符 /
 `--check` 不一致 / 自检有注入未判出）；2 setup 错（缺文件、坏 JSON、坏参数）。
@@ -51,6 +57,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -61,7 +68,6 @@ for _p in (str(_HERE), str(_REPO / "tools" / "infra"),
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-import run_parity as parity          # noqa: E402  (状态词表)
 import se_tset_matrix as se          # noqa: E402  (owner 词表)
 import run_asm_suite as asm          # noqa: E402  (载体现场统计)
 
@@ -381,6 +387,49 @@ def _md5(data: bytes) -> str:
     return hashlib.md5(data).hexdigest()
 
 
+def chain_byte_errors(records) -> list[str]:
+    """`AGREE_PASS` 链例镜像：三平台 `.out` 必须**逐字节相等**（F2）。
+
+    `load_run` 只能核 runner 声明的 `rc`/`bytes`（计数），内容相等过去只由 runner
+    的 `ok` 布尔承担 —— 一份陈旧/被篡改的 `ok=True` 即使三方字节流不同也能蒙混。
+    这里直接读三份结果流比较（`rec["_work"]` 必须已由 `build` 设好），并核对
+    长度 = `8 × 检查点数`（点数取自载体现场统计，不读 runner）。
+    """
+    errs = []
+    for rec in records:
+        if rec.get("kind") != "chain" or not rec.get("ok"):
+            continue
+        stem = Path(rec["file"]).stem
+        blobs = {p: _read_out(rec["_work"], stem, p, rec["case_n"])
+                 for p in PLATFORMS}
+        if len(set(blobs.values())) != 1:
+            errs.append(f"{stem}#{rec['case_n']}: AGREE_PASS but the three "
+                        f"platform byte streams differ")
+            continue
+        want = 8 * int(rec.get("expected") or 0)
+        if len(blobs[PLATFORMS[0]]) != want:
+            errs.append(f"{stem}#{rec['case_n']}: AGREE_PASS but the result "
+                        f"stream is {len(blobs[PLATFORMS[0]])} B, expected "
+                        f"8 x {rec.get('expected')} = {want} B")
+    return errs
+
+
+def resolve_input_commit(explicit: str | None) -> str:
+    """报告必须记生成时的输入 commit（`m13-integ-003` 复核 F3：否则无法判陈旧）。"""
+    if explicit:
+        return explicit.strip()
+    try:
+        done = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(_REPO),
+                              capture_output=True, text=True, check=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise SetupError("--input-commit not given and `git rev-parse HEAD` "
+                         f"failed: {exc}")
+    sha = done.stdout.strip()
+    if not re.fullmatch(r"[0-9a-f]{7,40}", sha):
+        raise SetupError(f"git rev-parse HEAD returned {sha!r}")
+    return sha
+
+
 def point_analysis(rec, points, work_root: Path) -> list[dict]:
     blobs = {p: _read_out(work_root, Path(rec["file"]).stem, p, rec["case_n"])
              for p in PLATFORMS}
@@ -545,10 +594,11 @@ def flags_matrix(scope_rows, confirmed_points, excluded_images):
 # 报告
 # ---------------------------------------------------------------------------
 def build_report(coverage, images, diffs, agree_fail, matrix,
-                 engines, sources, errors, notes):
+                 engines, sources, errors, notes, input_commit=None):
     report = dict(
         schema=SCHEMA,
         task=TASK,
+        input_commit=input_commit,
         scope="scope:fp instruction semantics, qemu system vs gem5 FS vs "
               "chipyard; same ELF per image, per-point 8-byte result records "
               "and rf0[4:0] flag assertions",
@@ -590,7 +640,7 @@ def render_markdown(report) -> str:
         "（机器可读口径，本报告的覆盖全集）")
     add(f"- `spec/SimRISC-07` 附录 A：**{cc['appendix_a']}** 行"
         "（人读排版口径；与 scope:fp 的差集 = 8 条 rf 访存 + 3 条 `cs.*` + "
-        "`set.w rf` + `rd2rf`/`rf2rd`）")
+        "`set.w rf` + `rd2rf`/`rf2rd`/`rf2rf`）")
     add(f"- 历史别名「47 条」：**{cc['historical_alias']}** —— 在任何机器可读"
         "源里都复现不出（`issues.yaml` 已登记；47 退役，不再作判据）")
     add("")
@@ -687,6 +737,8 @@ def render_markdown(report) -> str:
     add("")
     add("## 5. 输入与可重算")
     add("")
+    add(f"- 输入 commit（生成时 HEAD）：`{report.get('input_commit')}`"
+        " —— 载体面与报告身份的时间锚；载体面变化后本报告陈旧")
     for key in ("opcodes", "spec_appendix_a", "inst_index"):
         src = report["sources"][key]
         add(f"- `{src['path']}` sha256 `{src['sha256'][:16]}`")
@@ -791,6 +843,30 @@ def self_test() -> int:
     else:
         checks.append(("unattributed DIFF rejected", True, "no entry"))
 
+    # F2：链例 `AGREE_PASS` 不能只信 runner 的 `bytes` 计数 —— 三平台结果流必须
+    # 逐字节相等且长度 = 8×点数；下面三支分别验证「相等放行 / 内容不符判出 /
+    # 长度不符判出」，保证断言有可达 FAIL 路径（不是恒真）。
+    with tempfile.TemporaryDirectory() as tmp:
+        work = Path(tmp)
+        (work / "ftadd_orrr_rf").mkdir()
+        blob = b"\x00" * 8
+        for plat in PLATFORMS:
+            (work / "ftadd_orrr_rf" / f"ftadd_orrr_rf.{plat}.out").write_bytes(blob)
+        rec = dict(file="ftadd_orrr_rf.S", case_n=0, kind="chain", expected=1,
+                   ok=True, _work=work,
+                   platforms={p: dict(rc=0, bytes=8) for p in PLATFORMS})
+        checks.append(("chain bytes equal accepted",
+                       not chain_byte_errors([rec]), "no error"))
+        (work / "ftadd_orrr_rf" / "ftadd_orrr_rf.gem5.out").write_bytes(
+            b"\x00" * 7 + b"\x01")
+        errs = chain_byte_errors([rec])
+        checks.append(("chain byte mismatch rejected", bool(errs), errs[:1]))
+        short = b"\x00" * 7
+        for plat in PLATFORMS:
+            (work / "ftadd_orrr_rf" / f"ftadd_orrr_rf.{plat}.out").write_bytes(short)
+        errs = chain_byte_errors([rec])
+        checks.append(("chain byte length rejected", bool(errs), errs[:1]))
+
     bad = [c for c in checks if not c[1]]
     for name, ok, detail in checks:
         print(f"  [{'PASS' if ok else 'FAIL'}] {name}: {detail}")
@@ -855,7 +931,8 @@ def build(args) -> tuple[dict, str]:
                by_id=by_id,
                known_items=dict(
                    **{"ISS-357": dict(
-                       status="open", applicability="not applicable: this "
+                       status="closed (M13: m13-testcases-006)",
+                       applicability="not applicable: this "
                        "differential uses a single semihosting output channel "
                        "and compares bytes only",
                        note="SE dual-fd output capture loses fd1/fd2 order")},
@@ -869,6 +946,7 @@ def build(args) -> tuple[dict, str]:
     for row in coverage["rows"]:
         if row["id"] not in run_ids:
             errors.append(f"{row['id']}: no three-platform run record")
+    errors += chain_byte_errors(records)
     # 矩阵的「三平台一致」只取三方逐例一致通过的链例镜像；
     # 失败镜像的点不进矩阵，由 §2 的 AGREE_FAIL / DIFF 单列。
     verdict_of = {(i["id"], i["case_n"]): i["verdict"] for i in images}
@@ -897,7 +975,8 @@ def build(args) -> tuple[dict, str]:
             sha256=_sha256(Path(runs[label]))) for label in sorted(runs)])
     engines = _parse_kv(args.engine, "engine")
     report = build_report(coverage, images, diffs, agree_fail, matrix,
-                          engines, sources, errors, ctx)
+                          engines, sources, errors, ctx,
+                          input_commit=resolve_input_commit(args.input_commit))
     return report, render_markdown(report)
 
 
@@ -926,6 +1005,8 @@ def main(argv=None) -> int:
     ap.add_argument("--markdown-out", default=None)
     ap.add_argument("--check", default=None,
                     help="与落盘报告逐字节比对（.md 或 .json）")
+    ap.add_argument("--input-commit", default=None,
+                    help="报告记录/比较的输入 commit（缺省 `git rev-parse HEAD`）")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args(argv)
 

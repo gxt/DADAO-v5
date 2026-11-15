@@ -11,8 +11,10 @@
   * `tests/inst.yaml`（载体是否入索引）。
 
 输出 `.tao/knowledge/refs/m13-003-int-diff.{json,md}`，内容是上述输入的
-**确定性函数**：不写生成时刻、不写运行期路径，`--check` 在 fresh clone 上可逐字节
-复现。
+**确定性函数**：不写生成时刻、不写运行期路径。报告另记 **输入 commit**
+（`--input-commit`，缺省取 `git rev-parse HEAD`）：没有这个锚，后人只能靠
+`--check` 发现报告陈旧（`m13-integ-003` 复核 F3）。`--check` 因此要求在同一
+commit 上复算（或显式传同一 sha）。
 
 范围（现场枚举，不写死计数）：`tests/inst/**/*.S` 中**非 cfx**（册 `11-cfx`）且
 **非 FP**（`contracts/opcodes.yaml` 的 `scope: fp`，含散落在 01/02/03 册的 14 条）
@@ -22,9 +24,12 @@
 复用（不复制另一套口径）：
 
   * 逐镜像记录装载 / 三平台判定 / 结果字节流读取 = `fp_diff.py`
-    （`load_run` / `merge_runs` / `classify` / `_read_out`；`m13-integ-002` 已验收）；
+    （`load_run` / `merge_runs` / `classify` / `_read_out` / `chain_byte_errors`；
+    `m13-integ-002` 已验收）；
   * 载体用例行 / 故障例解析 = `tools/testcases/inst/run_asm_suite.py::scan_source`；
-  * 平台状态词表 = `run_parity.STATUSES`；owner 词表 = `se_tset_matrix.OWNERS`。
+  * owner 词表 = `se_tset_matrix.OWNERS`（经 `fp_diff` 转出）；**平台状态词表不另立**：
+    状态由 `rc` 现场派生（`0` ⇒ `PASS`，非 `0` ⇒ `FAIL`），三平台判定复用
+    `fp_diff.classify`（本脚本不 import `run_parity`，其 `STATUSES` 是 SE 侧词表）。
 
 判定（fail-closed）：
 
@@ -33,7 +38,10 @@
   * 每个非 `AGREE_PASS` 镜像必须命中显式归因表（`spec` / `implementation` /
     `test asset` / `environment` / `budget`），未归因即 rc=1；
   * `spec_cite` 解析不到章节或章内找不到助记符 ⇒ 记为 **spec 歧义**并逐条列出
-    （不是平台差异，但必须显式留痕，不得静默放过）。
+    （不是平台差异，但必须显式留痕，不得静默放过）；
+  * `AGREE_PASS` 链例镜像必须三平台 `.out` **逐字节相等**（不只看 runner 的
+    `bytes` 计数），且长度 = `8 × 检查点数`；不符即 rc=1
+    （`m13-integ-003` 复核 F2：`fp_diff.chain_byte_errors`）。
 
 用法::
 
@@ -44,6 +52,7 @@
         --markdown-out <运行期>/m13-003-int-diff.md
 
     --check <md|json>   与落盘报告逐字节比对（不符 rc=1；缺文件 rc=2）
+    --input-commit <sha> 报告记录/比较的输入 commit（缺省 `git rev-parse HEAD`）
     --self-test         合成输入 + 每类反例一条，逐条要求被判出；全判出才 rc=0
 
 退出码：0 不变式全成立；1 不变式失败（差异未归因 / 缺平台 / 计数不符 /
@@ -90,7 +99,7 @@ EXTERNAL_ATTRIBUTIONS: dict[tuple[str, int], dict] = {}
 #: 已知项：单列，不混入平台差异计数（每条都要有可核查的适用性说明）。
 KNOWN_ITEMS = {
     "ISS-357": dict(
-        status="open",
+        status="closed (M13: m13-testcases-006)",
         applicability="not applicable: this differential uses a single "
                      "semihosting output channel and compares bytes only",
         note="SE dual-fd output capture loses fd1/fd2 order"),
@@ -103,12 +112,15 @@ KNOWN_ITEMS = {
              "installed-root qemu is still the pre-fix build); a differential "
              "must pin the executed binary instead of assuming they agree"),
     "m13-testcases-037": dict(
-        status="tracked",
-        applicability="vector surface: this report covers the .S carriers "
-                     "present in the input commit; sc reservation-granularity "
-                     "vectors land afterwards and require regeneration",
+        status="landed",
+        applicability="vector surface: the sc reservation-granularity vectors "
+                     "are part of the input commit (m13-testcases-037 verified); "
+                     "reservation paths that the carrier framework cannot "
+                     "observe stay GAP and are tracked in issues.yaml "
+                     "(ISS-440 / ISS-443)",
         note="sc/sys reservation granularity (exact address + width) formal "
-             "vectors are a separate task; do not mix them into this count"),
+             "vectors; the unobservable reservation paths are not written as "
+             "expectations anywhere"),
 }
 
 
@@ -453,8 +465,12 @@ def platform_completion(coverage, records):
 # ---------------------------------------------------------------------------
 # 报告
 # ---------------------------------------------------------------------------
+#: 输入 commit 解析 = `fp_diff.resolve_input_commit`（同一守卫，不复制一份）。
+resolve_input_commit = fp.resolve_input_commit
+
+
 def build_report(coverage, images, diffs, agree_fail, completion, engines,
-                 sources, errors):
+                 sources, errors, input_commit=None):
     results = dict(
         images=len(images),
         agree_pass=sum(1 for i in images if i["verdict"] == "AGREE_PASS"),
@@ -473,6 +489,7 @@ def build_report(coverage, images, diffs, agree_fail, completion, engines,
         per_image=images)
     return dict(
         schema=SCHEMA, task=TASK,
+        input_commit=input_commit,
         scope="non-cfx, non-fp tests/inst .S carriers (integer / memory / "
               "control flow / bit ops / atomics / misc); same ELF per image on "
               "chipyard Tiny, qemu system and gem5 FS; per-checkpoint 8-byte "
@@ -631,6 +648,8 @@ def render_markdown(report) -> str:
     add.append("")
     add.append("## 5. 输入与可重算")
     add.append("")
+    add.append(f"- 输入 commit（生成时 HEAD）：`{report.get('input_commit')}`"
+               " —— 载体面与报告身份的时间锚；载体面变化后本报告陈旧")
     for key in ("opcodes", "inst_index", "contract_isa"):
         src = report["sources"][key]
         add.append(f"- `{src['path']}` sha256 `{src['sha256'][:16]}`")
@@ -805,7 +824,7 @@ def build(args) -> tuple[dict, str]:
         if row["id"] not in run_ids:
             errors.append(f"{row['id']}: no three-platform run record")
     images, diffs, agree_fail, survey_errors = analyse(coverage, records)
-    errors = survey_errors + errors
+    errors = survey_errors + errors + fp.chain_byte_errors(records)
     completion = platform_completion(coverage, records)
 
     used = {fam["chapter"] for fam in coverage["families"]}
@@ -825,7 +844,8 @@ def build(args) -> tuple[dict, str]:
               for label in sorted(runs)])
     engines = fp._parse_kv(args.engine, "engine")
     report = build_report(coverage, images, diffs, agree_fail, completion,
-                          engines, sources, errors)
+                          engines, sources, errors,
+                          input_commit=resolve_input_commit(args.input_commit))
     return report, render_markdown(report)
 
 
@@ -851,6 +871,8 @@ def main(argv=None) -> int:
                          "spec_cite）。不提供 ⇒ 任何平台差异都 rc=1")
     ap.add_argument("--check", default=None,
                     help="与落盘报告逐字节比对（.md 或 .json）")
+    ap.add_argument("--input-commit", default=None,
+                    help="报告记录/比较的输入 commit（缺省 `git rev-parse HEAD`）")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args(argv)
 
