@@ -137,7 +137,8 @@
 3. **semihosting 指针 = PA**（用户裁定「1：选1，PA」）：已落 `spec/Machine-v5 §5.2` + `contract-semihosting §2`（0.7.2）；由此产生的 QEMU 侧缺口登记 `ISS-450`（`SYS_WRITE0` 仍走页表）。
 4. **`contract-linux-boot §1` 已扩写**（用户裁定「2、1」）：补「内核接管后自建页表并写 `PTBR`」，契约 0.2.1；并澄清 semihosting 指针不属该契约的 ABI 地址。
 5. **`ISS-440` 已立 ADR**（用户裁定「3、1」）：`ADR-0054`（单 hart 机型下该清除事件不可观测、暂不实现），decision 待逐条确认。
-6. **`contract-see §6.4` 需一处口径修订（待你确认）**：`m14-linux-007` 实测 `escape` 只恢复 mask/mode/IP、**不恢复 `inner_cfx_code`**（`spec/DADAO-12 §5.3`）；故某 cfx 投递过异常后「当前 cfx」变成该 cfx（如 `cfx_hart`），§6.4 写的「当前 cfx = `cfx_smon`」在**首投后不成立**。拟改为「IE 旋钮按**当前 cfx** 选行；正常运行期 = `cfx_smon`，首投后 = 该投递 cfx」，并让 `m14-linux-008` 按此实现（登记 `ISS-454`）。
+6. **中断 mask 口径两处待你确认（`ISS-454`/`ISS-455`）**：`m14-linux-007` 实测 `escape` 只恢复 mask/mode/IP、**不恢复 `inner_cfx_code`**（`spec/DADAO-12 §5.3`）；故某 cfx 投递过异常后「当前 cfx」变成该 cfx（如 `cfx_hart`），§6.4 写的「当前 cfx = `cfx_smon`」在**首投后不成立**。拟改为「IE 旋钮按**当前 cfx** 选行；正常运行期 = `cfx_smon`，首投后 = 该投递 cfx」，并让 `m14-linux-008` 按此实现（登记 `ISS-454`）。
+   **另**：`spec/DADAO-12 §5.2` 步骤 3 写「源轴查 *mode monitor* 的行」，与 `ADR-0045 D3`/`§6.4`/QEMU「查当前 cfx 的行」**不一致**；`m14-linux-007` 实测两者首投后行为不同（只开一行仅 1 tick）。现实现**两行都开**、对两读法皆成立，但口径仍需定一条（`ISS-455`）——**`m14-linux-008` 会受影响**。
 
 # 待设计：长仿真如何"证明它还在跑"（gem5 / chipyard，2026-11-15 用户提出）
 

@@ -769,3 +769,12 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`contract-see §6.4` 的实例表述「当前 cfx = `cfx_smon`」在**首投之后不成立**：`spec/DADAO-12 §5.3` 的 `escape` 只恢复 `global_cfx_intr_mask`/`excp_prev_run_mode`/IP，**不恢复 `inner_cfx_code`**（QEMU 与 `min_rom_probe_integ051t` 同口径，`m14-linux-007` 实测）⇒ 某 cfx 投递过异常后，内核的「当前 cfx」= 该 cfx（如 `cfx_hart`），此后 `cfx_smon cg2 rc4` 的 mask 不再单点有效，源轴 mask 必须**同时写 `cfx_smon` 与当前 cfx 两行**（固件源位也须放行两者）。处置：契约 §6.4 改为「IE 旋钮 = 按**当前 cfx** 选行；正常运行期 = `cfx_smon`，首投后 = 该投递 cfx」，并让 `m14-linux-008` 按此实现；`m14-spec-005` 的该句需同笔修订（属口径纠正，需用户确认）。"
+- id: ISS-455
+  scope:
+  - spec
+  - qemu
+  - linux
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】中断源轴 mask 查**哪一行**三处口径不一致：`spec/DADAO-12 §5.2` 步骤 3 写「源轴查 *mode monitor* 的 `cfx_intr_mask`」（即按运行模式选行），而 `ADR-0045 D3` / `contract-see §6.4` 与 QEMU 实现是**查当前 cfx 的行**。`m14-linux-007` 复核实测：首投后当前 cfx=15（`escape` 不恢复 `inner_cfx_code`，见 `ISS-454`），只开 `cfx_smon` 一行时仅 1 个 tick ⇒ 两读法在首投后**行为不同**（非同义）。现实现「两行都开」对两读法皆成立、无副作用，但不解决口径。处置：定 one 读法（建议按 spec 字面 = 按运行模式选行，再核对 QEMU 是否需要改），同步 `ADR-0045 D3`/`contract-see §6.4` 与 `m14-linux-008` 的 `local_irq_*` 口径。"
