@@ -63,6 +63,7 @@ judgement to FAIL -- proving the comparison is live.
 from __future__ import annotations
 
 import argparse
+import datetime
 import glob
 import json
 import os
@@ -365,8 +366,13 @@ def case_status(res):
     return "FAIL"
 
 
-def write_json(path, results, engine="qemu"):
-    rows = [{
+def case_row(res):
+    """One JSON-report row for a finished case (single source of truth).
+
+    ``--json-out`` writes the whole list at the end; ``--jsonl-out`` appends
+    exactly these rows as cases finish, so a reader can union the two forms.
+    """
+    return {
         "case_id": res.case_id,
         "profile": res.profile,
         "scope": "embench",
@@ -383,13 +389,45 @@ def write_json(path, results, engine="qemu"):
                          "expected_exit": res.expected,
                          "reason": res.reason},
         "note": res.reason,
-    } for res in results]
+    }
+
+
+def write_json(path, results, engine="qemu"):
+    rows = [case_row(res) for res in results]
     with open(path, "w", encoding="utf-8") as fh:
         json.dump({"scope": "embench", "engine": engine,
                    "profile": results[0].profile if results else None,
                    "cases": rows},
                   fh, indent=1, sort_keys=True)
         fh.write("\n")
+
+
+def iso_utc():
+    return datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%SZ")
+
+
+class JsonlSink:
+    """Append-on-completion JSONL (``--jsonl-out``), flushed per case.
+
+    A long batch must be observable while it runs (``docs/Process-08 §1.9``);
+    the final ``--json-out`` stays the authoritative record.  A write failure
+    raises ``OSError`` -- it is never swallowed into a silent partial file.
+    """
+
+    def __init__(self, path):
+        self.fh = open(path, "w", encoding="utf-8")
+
+    def write(self, res):
+        row = case_row(res)
+        row["ts"] = iso_utc()
+        line = json.dumps(row, sort_keys=True) + "\n"
+        self.fh.write(line)
+        self.fh.flush()
+        os.fsync(self.fh.fileno())
+
+    def close(self):
+        self.fh.close()
 
 
 def _report(res, opt):
@@ -406,11 +444,13 @@ def _report(res, opt):
 
 
 def run_suite(benchmarks, opts, tools, work_dir, timeout, verbose=False,
-              jobs=1):
+              jobs=1, on_case=None):
     """Run every (bench, opt) case; ``jobs`` > 1 fans out to a thread pool.
 
     The chipyard engine needs it: one Verilator run takes minutes, and the cases
-    are independent (each has its own build + run directory).
+    are independent (each has its own build + run directory).  ``on_case`` is
+    called once per completed case, under the report lock, before the next
+    case's output (used by ``--jsonl-out`` for incremental visibility).
     """
     tasks = [(opt, bench) for opt in opts for bench in benchmarks]
     results = []
@@ -418,6 +458,8 @@ def run_suite(benchmarks, opts, tools, work_dir, timeout, verbose=False,
         for opt, bench in tasks:
             res = build_and_run(bench, opt, tools, work_dir, timeout, verbose)
             _report(res, opt)
+            if on_case:
+                on_case(res)
             results.append(res)
         return results
 
@@ -431,6 +473,8 @@ def run_suite(benchmarks, opts, tools, work_dir, timeout, verbose=False,
         res = build_and_run(bench, opt, tools, work_dir, timeout, verbose)
         with lock:
             _report(res, opt)
+            if on_case:
+                on_case(res)
         return res
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
@@ -484,6 +528,10 @@ def main():
     ap.add_argument("--json-out", default=None,
                     help="optional: write one JSON record per (bench, opt) "
                          "(GEM5-017t)")
+    ap.add_argument("--jsonl-out", dest="jsonl_out", default=None,
+                    help="optional: append one JSON line per completed case, "
+                         "flushed immediately (fields = --json-out cases[] + "
+                         "ts; m16-testcases-001)")
     ap.add_argument("--inject", action="store_true",
                     help="counter-example self-test: re-judge one PASSing case "
                          "against a wrong expected value and require FAIL")
@@ -582,9 +630,34 @@ def main():
             f"  chipyard sim: {tools['chipyard']} md5={tools['sim_md5']} "
             f"max-cycles={tools['max_cycles']}\n")
     sys.stdout.write(f"  benchmarks: {', '.join(benchmarks)}\n")
+    # Flush the batch identity before the first (possibly hours-long) case so
+    # a progress board can read done/total while the batch is still starting.
+    sys.stdout.flush()
 
-    results = run_suite(benchmarks, opts, tools, work_dir, args.timeout,
-                        args.verbose, max(1, args.jobs))
+    # Incremental visibility (m16-testcases-001): open the sink *before* the
+    # first case so an unwritable path fails now, not after hours of work.
+    sink = None
+    if args.jsonl_out:
+        try:
+            sink = JsonlSink(args.jsonl_out)
+        except OSError as exc:
+            sys.stderr.write(f"ERROR: cannot open --jsonl-out "
+                             f"{args.jsonl_out}: {exc}\n")
+            return 2
+
+    try:
+        results = run_suite(benchmarks, opts, tools, work_dir, args.timeout,
+                            args.verbose, max(1, args.jobs),
+                            on_case=sink.write if sink else None)
+    except OSError as exc:
+        if sink is None:
+            raise
+        sink.close()
+        sys.stderr.write(f"ERROR: cannot append --jsonl-out "
+                         f"{args.jsonl_out}: {exc}\n")
+        return 2
+    if sink is not None:
+        sink.close()
 
     # Anti-false-green: the batch must have run against one simulator binary.
     if tools["engine"] == "chipyard":

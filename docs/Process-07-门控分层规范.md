@@ -89,6 +89,11 @@
 - **覆盖边界**：读方护栏覆盖已接线的跑批/证据入口（`tools/testcases/**` 的 suite/probe 驱动与 `picolibc_tests.py`、`tools/gem5/check_tiny_hmon`、`tools/qemu/{semantics_gate,k0_boot_probe,user_mode_smoke}`、`tools/linux/run_semihosting_smoke`、`l3_run`/`night_run`）；**逐任务一次性探针**（`tools/testcases/arch/min_rom_probe_*.py`）与 **lit 本身**（`check-lit`/`check-lit-full` 的 RUN 行直接调 `llvm-mc`/`qemu-system-dadao`）**未接线** —— 前者靠任务书 md5 断言，后者是门控目标、由 `gate.lock` 串行化（直接手工跑 lit 时不在保护范围内）。新增跑批入口须接线并登记进 `READER_ENTRIES`（`S1` 会红）。
 - **门控（L1）**：`make check-writer-guards`（`tools/infra/check_writer_guards.py`）在临时树里用 stub 二进制跑四类真实验（写者活跃 ⇒ **真实**跑批入口拒绝且不执行二进制；跑批中替换 ⇒ FAIL；stale 可清理且不拦读方；正常路径/嵌套不误伤），外加接线断言（读入口仍调 guard；`WRITER_TARGET_COMPONENTS` 覆盖所有 `build-*`/`install-*` 门控目标且组件名真实存在；`make` 真把写者目标展开成 `writer_guard.py run`；本目标在 L1 里）。归 **L1**（不跑被测语义、只读静态 + stub 自测，秒级；§3 判据 1）。
 
+### 2.2 跑批进度可见性（用户 2026-11-15）
+
+- **逐例完成行必须即产即 flush**：embench 用 `--jsonl-out` 追加（`docs/Process-08 §1.9`），驱动日志每例 `flush`；报进度前**必须从节点取回**这些行与 `ps -eo etime,args` —— 主控机副本长期 0 字节，**不得**作依据。
+- **禁止**引用入库报告 / 上一次 `--json-out` 的旧值报进度；看板 `tools/testcases/tset/embench/progress.py` 只读节点日志 + `ps`，ETA 无数据标 `n/a`（不猜）。
+
 ## 3. 「新检查进哪一层」的归属规则（MUST）
 
 新增检查（门控 / 目标）时，按下列**机械判据**定层（不手工权衡）：

@@ -46,6 +46,13 @@ bash .work/evidence/TESTCASES-056t/run.sh --inject
 `tests/inst/macros/inst_test.inc`），再跑
 `python3 tools/testcases/inst/run_asm_suite.py --id <id> --platforms qemu`。
 
+## 共享工具登记（路径 / 用途 / 入口 / 调用者）
+
+- **路径**：`tools/testcases/tset/embench/progress.py`
+  **用途**：跑批进度看板（只读节点日志的逐例完成行 + `ps` 的 `+loadmem=`，给 done / 在跑 + ETA / 未开始，末尾 `done/total` 与 `cycles/s`）
+  **入口**：`python3 tools/testcases/tset/embench/progress.py --hosts <csv> [--expect-done N]`
+  **调用者**：主会话 / 跑批值守（人工）；数据互补于 `run_embench_e2e.py --jsonl-out` 的增量行
+
 ## 已知缺陷（XFAIL 机制保留，登记已清空）
 
 驱动把登记为 `xfail` 的单元按**精确缺陷签名**判 `XFAIL`；一旦恢复语义值即报 `XPASS`
