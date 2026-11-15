@@ -55,7 +55,9 @@ TERMINAL_STATUS = ("已验证", "里程碑")
 # 任务流水节的同义标题（M1–M8 历史归档用 changelog / 台账快照）。
 FLOW_ALIASES = ("任务流水", "changelog", "台账快照")
 # 任务册 ID（`-t` / `-k` / `-m` 后缀）。
-_TASK_ID_RE = re.compile(r"^([A-Z][A-Z0-9]*-\d+[a-z])")
+_TASK_ID_RE = re.compile(
+    r"^(?:(?P<legacy>[A-Z][A-Z0-9]*-\d+[a-z])"
+    r"|(?P<current>m\d{2}-[a-z][a-z0-9]*-\d{3,4}))")
 
 @dataclass(frozen=True)
 class Violation:
@@ -293,7 +295,9 @@ def _check_readme(mdir: Path, mnum: int, t_ids: set[str],
                 add(Violation((mdir.name, "flow", "§2"), f"流水行格数不足: {row}"))
                 continue
             fid = row[id_i].strip("` *")
-            if not re.fullmatch(r"[A-Z][A-Z0-9]*-\d+[a-z]", fid):
+            if not re.fullmatch(
+                    r"(?:[A-Z][A-Z0-9]*-\d+[a-z]|m\d{2}-[a-z][a-z0-9]*-\d{3,4})",
+                    fid):
                 add(Violation((mdir.name, "flow", "§2"), f"流水编号列格式非法: {fid!r}"))
                 continue
             if fid in seen:
@@ -399,7 +403,7 @@ def audit(root: Path) -> AuditResult:
                     res.stats["bad_status"] = res.stats.get("bad_status", 0) + 1
                 tid_match = _TASK_ID_RE.match(p.name)
                 if tid_match:
-                    tid = tid_match.group(1)
+                    tid = tid_match.group(0)
                     task_ids.add(tid)
                     if tid.endswith("m"):
                         m_ids.add(tid)
