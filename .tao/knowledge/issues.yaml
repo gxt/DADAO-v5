@@ -745,11 +745,11 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2】QEMU 链接**非位可复现**：同一源码重编 `qemu-system-dadao` 的 md5 也会变（`m14-qemu-002` 实测：改前 `10291d6b…`、改后 `72bc2b04…`；还原源码后重编亦不复原旧值）。后果：① 任何以 md5 作 basline 的判定（含「还原后 md5 == 基线」这类注入还原证据）在 qemu 上**不成立**，必须改用行为断言；② 「单二进制基线」纪律对 qemu 侧无意义。处置：查清不可复现的根因（链接期时间戳/build-id/路径/随机化），或显式在规范里把 qemu 排除出「位可复现」要求并改为行为判据；同时排查 `tools/infra/` 里是否有依赖 qemu md5 的门控。"
+  title: "【P3】qemu 二进制 md5 依赖**源树 git 状态**：`scripts/qemu-version.sh` 用 `git describe --dirty`，源树脏时版本串带 `-dirty` ⇒ 同一源码重编得到不同 md5（实测：干净树三次全等 `72bc2b04…`；加一行注释变脏后两次均 `4091db00…`）。原先被误报为「链接非位可复现」，已订正。后果：以 md5 作基线/还原证据时必须确认源树干净，否则会出现假差异；处置：基线登记处注明「必须在干净树上取 md5」，或让安装根 md5 不参与判据（只用行为断言）。"
 - id: ISS-452
   scope:
   - qemu
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P3】`SYS_READC` 的取字缓冲用 `common_semi_stack_bottom(cs) - 1`：该值在 Vast 下是**内核 SP（VA）**，而 semihosting 现已定为 PA 口径（`spec/Machine-v5 §5.2`）⇒ 应改为该栈底槽位的 **PA**（`__pa` 化），或改用不落在内核栈的专用 PA 缓冲。`m14-qemu-002` 复核时发现；K1 未用 `SYS_READC`，故当前无观测差异。处置：与 semihosting PA 口径一致性一起修（semi 取字缓冲改 PA），并补一条 Vast+PTW 下的 `SYS_READC` 断言。"
+  title: "【P3】`SYS_READC` 的取字缓冲用 `common_semi_stack_bottom(cs) - 1`：该值在 Vast 下是**内核 SP（VA）**，而 semihosting 现已定为 PA 口径（`spec/Machine-v5 §5.2`）⇒ 应改为该栈底槽位的 **PA**（`__pa` 化），或改用不落在内核栈的专用 PA 缓冲。同族还有 `SYS_FLEN` 的内部缓冲（`SP-64`，同为 VA）；`m14-qemu-002` 复核时发现，K1 未用这两条服务，故当前无观测差异。处置：与 semihosting PA 口径一致性一起修（取字/取缓冲改 PA），并补 Vast+PTW 下的 `SYS_READC`/`SYS_FLEN` 断言。"
