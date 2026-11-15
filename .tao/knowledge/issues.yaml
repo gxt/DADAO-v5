@@ -730,3 +730,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】L1 门控自己在 `/tmp/opencode/<门控ID>/` 建空 scratch 目录却不清，命名又与任务 ID 同形：`check-code-range`(INFRA-106t)、`check-width-sizes`(LLVM-130t)、`check_qemu_trans`/`check_decodetree_repro`(INFRA-102t)、`check_runner_reap`(TESTCASES-085t)、`check_toolchain`(m14-infra-001) 跑完各留一个 0 B 空目录；2 h 后 `check-temp-dirs` 把它们判成「非活动临时目录」变红（2026-11-15 晚 `make check` 两次因此红、需手工删，曾误以为是历史残留）。处置：门控收尾 `rmdir` 自己的 scratch（或 `check-temp-dirs` 白名单登记门控自有目录），并在命名上区分「门控 scratch」与「任务临时目录」。"
+- id: ISS-450
+  scope:
+  - qemu
+  - spec
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】semihosting 指针定为 PA 后，QEMU 的 `SYS_WRITE0`/字符串类路径仍经页表翻译，与规范不符：用户 2026-11-15 裁定「semihosting 参数指针 = PA」（已写进 `spec/Machine-v5 §5.2` 与 `contract-semihosting §2`，要求「不经页表翻译」），但 QEMU 侧 `SYS_WRITEC`/`SYS_EXIT` 走 `translate_for_debug`（identity，仅 `[0,2GiB)`∪ROM∪SRAM），`SYS_WRITE0` 先 `target_strlen` 再 `probe_access_flags`（**走页表**）⇒ 开 PTW 后两窗口不相交，`SYS_WRITE0` 无法按 PA 正确取串。另 `translate_for_debug` 注释仍写「DADAO has no MMU」（Vast+PTW 下已过时）。处置：让 semihosting 取参统一走 identity/PA 路径（或明确 VA 与 PA 双支持），同步改注释，并加一条门控（Vast+PTW 下 `SYS_WRITE0` 取串成功）。"

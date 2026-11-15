@@ -1,6 +1,6 @@
 # 启动 ABI 合约（Vast 内核装载 + 固定 boot info）
 
-> **契约版本**：`0.2.0`（本契约自有版本线，不随 spec 册版本走；`0.2.0` = 内核 VA 窗口改 `[2 TiB, 3 TiB)`、`VA = PA + 2 TiB`）
+> **契约版本**：`0.2.1`（本契约自有版本线，不随 spec 册版本走；`0.2.0` = 内核 VA 窗口改 `[2 TiB, 3 TiB)`、`VA = PA + 2 TiB`；`0.2.1` = 补「内核接管后自建页表并写 PTBR」与 semihosting 指针不属本契约 ABI 地址两条）
 >
 > **来源**：规范正文 `spec/Machine-v5-测试机运行环境.md` `§6.3`（v5 自定册，0.4.7-rc）；装载模型继承 `.tao/adr/adr-0004-test-machine.md`（ADR-0004，Accepted，`§D2.2`/`§D2.3`：ELF + raw-bin 双路径）；冻结值经用户 **2026-11-13** 裁定「按提案冻结」、地址术语与启动模型经用户 **2026-11-13** 裁定「VA 为 ABI 地址」「M1 预建页表 + VA 入口」（渠道 = 经主会话问答，授权原话落纸于本任务书 §用户裁定）；内核窗口 `[2 TiB, 3 TiB)` 与 `VA = PA + 2 TiB` 偏置经用户 **2026-11-13** 更正裁定（渠道 = 经主会话问答；取代先前的低地址冻结值）。
 >
@@ -22,6 +22,7 @@
 - 因此入口地址、`rb16`/`rb17`、boot info 的地址字段、`kernel_base`、内核镜像区、initramfs 区与栈指针都按 **VA** 记；实现不得把这些值当 PA 使用。[Machine-01 §6.3][用户裁定 2026-11-13]
 - **内核窗口偏置**：内核 VA 窗口内 `VA = PA + 2 TiB`（固定偏置）——内核空间不从 0 开始，用户空间独占低端 `[0, 2 TiB)`；`PTBR` 与页表项仍按 PA 记。[Machine-01 §6.3][用户裁定 2026-11-13]
 - **启动模型 = M1（预建页表 + VA 入口）**：进入内核**之前**页表已预建——smon 建立首张页表并开启 PTW（`PTBR` 指向该表、`ptw_enable = 1`），映射 `VA [0x0200_0000_0000, 0x0200_2000_0000) → PA [0, 0x2000_0000)`（覆盖内核窗口基址起的前 512 MiB，含本合约的全部固定分区）；随后以 `rb16` 的 VA 入口进入内核。页表格式与地址转换按 `DADAO-12 §2.2`。[Machine-01 §6.3][用户裁定 2026-11-13]
+- **进入后页表由内核接管**：smon 只负责「建首张表 + 开 PTW + 移交」；内核接管后**自建页表并写 `PTBR`**（实现实测 `PTBR 0x0 → 0x570000`）。本契约只规定**进入时**的预建状态，不限制也不替代内核后续重建页表。[spec-decision]（用户 2026-11-15 裁定）
 - 页表**只由启动固件 `smon` 建立**（`Machine-v5 §6` 的首张页表：`smon` 交接时建立并开启 PTW）；宿主 loader **只把镜像装到对应 PA，不代写页表页**。M1 **不存在**「先关 MMU 再开」的中间态。[Machine-01 §6][用户裁定 2026-11-13]
 - **硬约束**：DADAO 在 `ptw_enable = 0` 时对内存窗口的取指/访存**直接报 `CFXMEM`** ⇒ 内核不可能在 MMU 关状态下从 RAM 取指/访存，故进入时 `ptw_enable` 必须为 `1`。[Machine-01 §1.2][Machine-01 §6.3]
 
@@ -145,4 +146,5 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 - boot info VA `0x0200_0001_0000`、`size = 0x60`、`magic = 0x4442_494E`（`DBIN`）、`version = 1`。[spec-decision]
 - initramfs 区基准 VA `0x0200_0400_0000`，上限 32 MiB（末端 `0x0200_0600_0000`）。[spec-decision]
 - 进入模式 `supv`；`rb17` 承载 boot info VA、`rb16` 承载入口 VA、SP 与其它通用寄存器未定义、其它 hart 状态未定义。[spec-decision]
+- `semihosting` 的参数块指针**不属**本契约的 ABI 地址：按 `contract-semihosting §2` 为 **PA**（不经页表翻译）。[spec-decision]（用户 2026-11-15 裁定）
 - `flags` `bit0` = semihosting 控制台可用；`page_size_log2 = 16`；`hart_id = 0`；`cmdline_base`/`cmdline_size` 为保留字段（`0`）。[spec-decision]

@@ -1,6 +1,6 @@
 # semihosting 合约（M5）
 
-> **版本：0.7.1** [DADAO-22 §1. 调用约定][DADAO-12 §1. 运行模式与核芯功能扩展]
+> **版本：0.7.2** [DADAO-22 §1. 调用约定][DADAO-12 §1. 运行模式与核芯功能扩展]
 >
 > **来源**：决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted，`D1`–`D8`/`D14`）；规范正文 `spec/Machine-v5-测试机运行环境.md §5`（v5 自定）；调用约定引用 `spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.1）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）；服务号值语义取自 Arm Semihosting（`Semihosting for AArch32 and AArch64`）。
 >
@@ -24,6 +24,7 @@
 - 寄存器映射：操作号（标量）→ `rd16`（= `rda0`）；参数块指针（地址）→ `rb16`（= `rba0`）；返回值 → `rd8`。[ADR-0020 D2][ADR-0020 D14][Machine-01 §5.2]
 - **不另设 `rd15`**：`rd15` 是 `umon`/`jmon` 系统调用号，semihosting 不使用。[ADR-0020 D2][DADAO-21 §系统调用规范]
 - 传参复用 ABI 约定（数据参数 `rd16–rd31`、地址参数 `rb16–rb31`，三组独立计数）。[DADAO-22 §1. 调用约定][DADAO-21 §参数寄存器：Parameter registers]
+- **指针一律为物理地址（PA）**：参数块指针（`rb16`）与 `SYS_WRITEC`（字符指针）/`SYS_WRITE0`（字符串指针）**均为 PA**，实现**不得**经页表翻译；`§3` 服务表中其它「指针」字段同此口径。本口径与内核启动 ABI 的「ABI 地址一律 VA」**分属两条接口**，不互相套用。[Machine-01 §5.2][用户裁定 2026-11-15]
 - 恒 **64 位**、**大端**（同 `ADR-0003 D1`）；参数块字段为 **64 位**。[ADR-0020 D6]
 - 共享层取参位序映射：`n=0 → rd16`、`n=1 → rb16`；返回写 `rd8`。[ADR-0020 D14][Machine-01 §5.2]
 
@@ -86,7 +87,7 @@
 | 本合约 § | 内容 | 来源 |
 |----------|------|------|
 | §1 | 入口 tag 判定（任意 `cfxha`）/ 架构自定义说明 / 两条路 | `ADR-0020 D1`/`D10`；`Machine-01 §5.1`/`§4`；`DADAO-22 §1. 调用约定`；`SimRISC-11 §陷入指令` |
-| §2 | 传参/返回寄存器（rd16/rb16/rd8）、64 位大端 | `ADR-0020 D2`/`D6`/`D14`；`Machine-01 §5.2`；`DADAO-21 §参数寄存器：Parameter registers`；`DADAO-22 §1. 调用约定` |
+| §2 | 传参/返回寄存器（rd16/rb16/rd8）、64 位大端、**指针 = PA（不经页表）** | `ADR-0020 D2`/`D6`/`D14`；`Machine-01 §5.2`；`DADAO-21 §参数寄存器：Parameter registers`；`DADAO-22 §1. 调用约定`；用户裁定 2026-11-15 |
 | §3 | 完整 25 服务表（号值 = Arm 号值） | `ADR-0020 D3`；`Machine-01 §5.3`；Arm Semihosting（Release 2.0） |
 | §4 | 无 `escape`、IP 步进返回 | `ADR-0020 D4`；`Machine-01 §5.4` |
 | §5 | `SYS_EXIT` 取代 exit port | `ADR-0020 D8`；`ADR-0004 R2`；`Machine-01 §5.5` |

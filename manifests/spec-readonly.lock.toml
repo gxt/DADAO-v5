@@ -874,4 +874,5 @@ group = "machine-v5"
 # 2026-11-14（m13-spec-009，授权原话「确认 rd16，修 §1 措辞（推荐）」）：§5.1 的调用形如明确
 #   `immu18[17:8] == 0x3FF` 为 semihosting 固定标记、`immu18[7:0]` 不携带服务号，服务号由 `rd16`
 #   给出（参数块 `rb16`、返回 `rd8`）；sha256 同笔重算（本册与 `SimRISC-00`；其余 19 册不变）。
-sha256 = "534a9e7e989093a31ba67cb5464e00f04b45c91dae749febc126c98314e2acfb"
+# 2026-11-15（semihosting 指针语义 = PA；授权依据 = 用户裁定原话「1：选1，PA」，渠道 = 经主会话问答，落纸于 `.tao/knowledge/discussing.md` §M14 未决 #1 的处置）：§5.2 新增「参数块指针与 `SYS_WRITEC`/`SYS_WRITE0` 指针一律为 PA、不经页表翻译」；附录 0.4.7-rc 补一条；版本不变（0.4.7-rc）；sha256 同笔重算（其余 20 册不变）。
+sha256 = "284db85e1c626e77dd1cbaceb6d7f32e182b2900d6266fd78a83f20667ed1056"
