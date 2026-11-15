@@ -20,7 +20,7 @@
 | `11-cfx/` | 11 核芯功能扩展 | 29 |
 | `12-misc/` | 12 其它指令 | 28（`lr`/`sc` 24 + `swym`/`ct*` 4；全部已迁） |
 
-> id 总数应恰为 **264**（`contracts/opcodes.yaml`）。校准任务：建「id → 册」映射表并机械校验（每个 id 恰好属一册、12 册合计 264）。
+> id 总数应恰为 **263**（`contracts/opcodes.yaml`；`m13-spec-010` 删 `ft2ft`/`fo2fo`、加 `rf2rf` 后）。校准任务：建「id → 册」映射表并机械校验（每个 id 恰好属一册、01–12 册合计 263；非 id 载体在 `00-isa-design`，不计入）。
 
 ## 2. 小类（= 一个 opcode id）
 
@@ -171,7 +171,7 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
    只断言结构（stem 是 `opcodes.yaml` 身份、含用例行、检查点号 1..N 连续，复用
    `run_asm_suite.scan_source`），类级覆盖交给执行门控。另加 `inventory` `file` 列表无悬空引用。
 3. 新门控 L2 `make check-inst-asm`：`run_asm_suite.py --books-root tests/inst --platforms qemu`
-   ——264 个 id / 897 个镜像（链例 264 + 故障例 633）全部跑 QEMU `dadao-tiny`，链例比结果
+   ——263 个 id + 非 id 载体（`00-isa-design`）/ 现场镜像数（`check-inst-asm` 现 903）全部跑 QEMU `dadao-tiny`，链例比结果
    字节流、故障例比 monitor 段退出码。**单平台**：三方逐字节仍是各册任务的验收口径。
 4. `generate_mem_vectors.py` 退役（`git rm`）：它的唯一产物就是这三册；`check-generator-sync`
    从 6 个生成器改 5 个（ctrl×2 + isa + misc + bitcnt 仍在）。
