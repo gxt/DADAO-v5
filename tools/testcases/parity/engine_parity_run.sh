@@ -25,6 +25,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../../.." && pwd)
 LOG="$REPO/.work/log/chipyard"
 WORK=
+MODE=
 
 while [ $# -gt 0 ]; do
   case "$1" in

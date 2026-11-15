@@ -199,6 +199,7 @@ python3 tools/testcases/parity/int_diff.py --self-test   # 10 类反例逐条判
   章节，**未列出的差异仍 rc=1**（表只许逐条申报，不是放行开关）。
 - 复用：逐镜像装载/判定 = `fp_diff.py`（`load_run`/`merge_runs`/`classify`）；
   载体统计 = `run_asm_suite.scan_source`。
+
 ## engine parity 报告（`m12-chipyard-016`，生成器入仓 `m12-chipyard-017`）
 
 M12 判据 = **engine parity**（chipyard 与 qemu 同代码同 ELF、只换引擎，picolibc

@@ -113,6 +113,17 @@
 - 非阻断 finding（记档，收尾顺手改）：① 完成区第 2 条「连跑 3 次（含 …`--node-map` 覆盖那份）逐字节相同」措辞易误读（`--node-map` 那份按设计不同，R4g 正断言其不同）；② `tools/testcases/parity/README.md` `int_diff` 节与 `## engine parity` 节之间缺一空行。
 - 其余（可复现、行为差异 0、落点、门控、注入、移交、对账）全部达标。`**状态**` 由主会话置 `待返工`。
 
+### 第 3 轮 engineer 自审（返工第 1 轮）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| R1（reviewer 阻断）R5c 两支同一表达式 ⇒ 恒真、无可达 FAIL | ✅已修 | 换成「`cases_seen` vs `len(cases)`」交叉校验（声明字段与明细数组两路独立取值）；`38 - cases_seen` 仅留作显示 | 注入删 1 条明细 ⇒ `[FAIL] R5c expected=31 actual=32`、整体 rc=1；`cp` 还原 md5 `83de056a…` ⇒ `[PASS]`、rc=0、`45 passed, 0 failed` |
+| P1（排版）`int_diff` 节与 `## engine parity` 节之间缺空行 | ✅已修 | 补 1 个空行 | `git diff` 仅 +1 行 |
+| P2（新规则）`engine_parity_run.sh`/`collect.sh` 属批次一次性编排、不该入仓 | ⏸延后 | 按指示本轮不动；完成区「返工（第 1 轮）」第 4 条标注「按 2026-11-15 新规则待迁出」 | `discussing.md` 已有 tools 清理待办（不改，仅引用） |
+| P3（返工中发现的移植回归）`MODE` 未初始化 ⇒ `--inject`/`--full` 进参数解析即 `unbound variable`（016 原脚本无此变量） | ✅已修 | 初始化 `MODE=` | `bash -n` rc=0；`--inject` 实跑到 H8（H1–H7 全绿），默认态不受影响 |
+
+判决：阻断项与两条顺手项已处置，P2 按指示延后；本分支已重置到 master，工作树仅剩两处产物改动 + 本任务书 ⇒ 状态 `待验收`。
+
 ## 完成区
 
 **测试结果**：一键证据 `run.sh` **45/45 PASS、rc=0**；移植后的 `engine_parity_run.sh` A/B/E 全绿，C1/C2/D6 因数据未收完（`cases_seen` 32/38、budget 80）按 016 原判据报 FAIL（数据态，非回归）。
@@ -126,4 +137,11 @@
 6. **与 016 行为差异 = 0**：报告两份 sha256 与 016 产物相等（对账法 = 逐字节 `--check`）；`pending` 与原脚本输出 `diff` 为空；`collect`/`run` 与原脚本逐行 `diff` 只剩路径插桩（`--repo`/`--dest`/`--work-dir`/`--node-map`），检查项名字与判据未动。
 **新发现/坑**：L1 `check-run-artifacts` A3 的平铺命名会把任何 `<log-dir>/<TASK>-cases/<node>/…` 判红 ⇒ 逐例证据树一律落 `.work/evidence/<TASK>/cases/`；脚本入仓时路径推导只走 `--repo`，别用环境变量或 `git rev-parse` 当主路径（否则 fresh clone 上飘）。
 **遗留问题**：① 报告 JSON 的 `sim_log`/`semi_out` 仍是 runner 写入的宿主绝对路径（「待裁定 1」，留 `m12-integ-002` 决定是否改相对路径后重生成）；② 两条 L1 门控的基线红命中归他任务/并发会话（「待裁定 2」），本任务未代改、未凑绿。
+
+**返工（第 1 轮）**：
+1. **阻断项（R5c 恒真）已换真断言**：期望 = 报告 `embench.cases` 明细条数、实际 = 报告 `embench.cases_seen`（两路独立取值，不再用 `38 - cases_seen` 定义式）。注入（`cp`+md5）：删 1 条 cases 明细而 `cases_seen` 仍 32 ⇒ `[FAIL] R5c expected=31 actual=32`、整体 **rc=1**；`cp` 还原（md5 `83de056a…`）⇒ `[PASS] expected=32 actual=32`、**rc=0**、`45 passed, 0 failed`。
+2. **真实 rc**：证据脚本 `run.sh` **rc=0（45/45）**；`engine_parity_run.sh` 默认态 **rc=1**（仅 C1=32/38、C2=32、D6=budget 80 三处数据未收完而红，A/B/D1–D5/E 全绿、E4 `--check` 通过）；`--inject` **rc=1**（H1–H7 全绿，H8 因继承缺陷 F10 红）。`--check` 两处 sha256 不变（json `ada3c375…`、md `31af0c75…`），两次输出逐字节相同。
+3. **移植回归（一行，随返工修）**：`engine_parity_run.sh` 的 `MODE` 未初始化 ⇒ `--inject`/`--full` 进参数解析即 `unbound variable` 退出（016 原脚本用 `$1` 直判、无此变量）；补 `MODE=` 后 `--inject` 可跑。
+4. **顺手项①（新规则待迁出）**：`engine_parity_run.sh`/`engine_parity_collect.sh` 属**批次一次性编排**，按 `AGENTS.md`（2026-11-15）新判据**不再入仓、待迁回运行期证据目录**；本轮不动，避免误读为定稿。`engine_parity_report.py`/`engine_parity_pending.py` 属共享工具，留 `tools/testcases/parity/` 并在该目录 README 登记。
+5. **顺手项② + 门控**：README 的 int_diff 节与 `## engine parity` 节之间补空行；`check-knowledge-refs`/`check-no-residue`/`check-dirs`/`check-run-artifacts` 全 **rc=0**、`py_compile` 2/2、`bash -n` 2/2。本分支已重置到 master（原两个提交内容已随 squash 合入），工作树仅剩本任务两处改动、无残留。
 
