@@ -753,3 +753,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`SYS_READC` 的取字缓冲用 `common_semi_stack_bottom(cs) - 1`：该值在 Vast 下是**内核 SP（VA）**，而 semihosting 现已定为 PA 口径（`spec/Machine-v5 §5.2`）⇒ 应改为该栈底槽位的 **PA**（`__pa` 化），或改用不落在内核栈的专用 PA 缓冲。同族还有 `SYS_FLEN` 的内部缓冲（`SP-64`，同为 VA）；`m14-qemu-002` 复核时发现，K1 未用这两条服务，故当前无观测差异。处置：与 semihosting PA 口径一致性一起修（取字/取缓冲改 PA），并补 Vast+PTW 下的 `SYS_READC`/`SYS_FLEN` 断言。"
+- id: ISS-453
+  scope:
+  - chipyard
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】chipyard sim 二进制的 md5 只在**同一时段/同一环境**内可复现：`m16-chipyard-002` 复核从同一改前源码（`983612df` 补丁态）独立重建得 `3efebd252c04888b175bfc7cac5ff77b`，而工程师当晚登记的是 `4e072a71…`（更早任务登记值）——行为（37 镜像 output/cycle）全等，仅字节不同。后果：`sim md5` 作「单二进制基线」时须同时记录**构建时段/环境**，跨时段比较 md5 会得到假差异（与 `ISS-451` 的 qemu `git describe --dirty` 同类但成因待查）。处置：查清字节差异来源（Verilator 生成的绝对路径/时间戳/随机种子/`printf` 次序），或在基线登记处注明「md5 仅在同一构建环境内可比」。"
