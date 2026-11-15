@@ -1,0 +1,493 @@
+diff --git a/arch/dadao/kernel/k2_selftest.c b/arch/dadao/kernel/k2_selftest.c
+new file mode 100644
+index 000000000..d5bfeb607
+--- /dev/null
++++ b/arch/dadao/kernel/k2_selftest.c
+@@ -0,0 +1,487 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * K2 supv-exception self-test (CONFIG_DADAO_K2_TRAP_SELFTEST).
++ *
++ * The K2 gate needs evidence that the exception channel *works*, not only that
++ * it exists, and the four properties it has to show cannot be observed from
++ * outside the kernel: they need deliberate faults from kernel code, with the
++ * register file under control.  This file is that code; it is compiled only
++ * into a probe image (the Kconfig symbol is off in defconfig) and is called
++ * from the K2 boundary, i.e. it never runs in a milestone image.
++ *
++ * Cases, in order (each prints one line; the gate parses them):
++ *
++ *   P1  a registered CFXMEM probe is classified (cause name + ip/info), resumed
++ *       with `escape …, 4` (skip) and execution continues after the faulting
++ *       load;
++ *   P2  the same probe with one retry resumes the faulting instruction itself
++ *       (`escape …, 0`), so the *same instruction* faults twice — the offset is
++ *       proven by the second hit, not assumed;
++ *   P5  two consecutive loads of the same unmapped VA: the entry saves and
++ *       restores the whole register file between them, so the two captured
++ *       frames must be identical in every GPR except `ip` (the second load is
++ *       the next instruction).  This is the frame-integrity check: a register
++ *       the save/restore got wrong shows up as a mismatch.
++ *   P3  an *unregistered* fault must terminate: the dispatcher has no default
++ *       for a CFXMEM, names it, and stops with the monitor exit code of
++ *       spec/Machine-v5 §7.1.  P3 is the last case because it ends the boot.
++ *
++ * The unknown-cause case (P4) is a different probe image: `cg5 rc2` is
++ * hardware-read-only (spec/DADAO-12 §3.6), so the dispatcher's input has to be
++ * corrupted in the probe build (traps.c, CONFIG_DADAO_K2_SELFTEST_UNKNOWN).
++ */
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/string.h>
++#include <linux/types.h>
++
++#include <asm/page.h>
++#include <asm/ptrace.h>
++#include <asm/ptw.h>
++#include <asm/setup.h>
++#include <asm/trap.h>
++
++/*: One VA per superpage above the mapped RAM — outside the kernel's table. */
++static unsigned long k2_probe_va;
++
++/*: The last two captured frames and their fault IPs. */
++static struct pt_regs k2_snap[2];
++static unsigned long k2_fault_ip[2];
++static unsigned int k2_snap_n;
++
++/*
++ * Registers the P5 fault site marks with a known value before it faults.
++ *
++ * The entry has to save *all* of them, so the handler can compare the frame
++ * against the constants — that is what a missing save bank shows up in.  The
++ * set is chosen for what it proves, not for size:
++ *
++ *   rd2/rd3/rb3  the registers the entry borrows before it has a base (it
++ *                stages them in the cfx_smon cg6 scratch registers)
++ *   rd2/rb2      reserved (contract-abi §4.5): a port bug here would otherwise
++ *                stay invisible, because no compiler-generated code uses them
++ *   rd4/rb5      caller-saved
++ *   rd31/rb31    the last registers of the caller-saved block
++ *   rd32/rd63/rb32/rb63  callee-saved, i.e. part of the *second* save block;
++ *                the fault site saves/restores the caller's values itself
++ */
++static const struct k2_mark {
++	unsigned int bank;		/* 0 = rd, 1 = rb */
++	unsigned int index;
++	unsigned long value;
++} k2_marks[] = {
++	{ 0, 2, 0x2a2a }, { 0, 3, 0x3a3a }, { 0, 4, 0x4a4a },
++	{ 0, 31, 0x31a1 }, { 0, 32, 0x32a2 }, { 0, 63, 0x63a3 },
++	{ 1, 2, 0x2b2b }, { 1, 3, 0x3b3b }, { 1, 5, 0x5b5b },
++	{ 1, 31, 0x31b1 }, { 1, 32, 0x32b2 }, { 1, 63, 0x63b3 },
++};
++
++#define K2_MARK_COUNT	ARRAY_SIZE(k2_marks)
++
++/*: P5 only: how many marked slots the captured frame disagreed with. */
++static unsigned int k2_mark_mismatch;
++static unsigned int k2_mark_check;
++static unsigned int k2_first_mark;
++
++static void k2_mark_frame(struct pt_regs *regs)
++{
++	unsigned int i;
++
++	for (i = 0; i < K2_MARK_COUNT; i++) {
++		unsigned long have = k2_marks[i].bank ? regs->rb[k2_marks[i].index]
++						      : regs->rd[k2_marks[i].index];
++
++		if (have != k2_marks[i].value) {
++			if (!k2_mark_mismatch)
++				k2_first_mark = i;
++			k2_mark_mismatch++;
++		}
++	}
++}
++
++static void k2_probe_report(struct dadao_fault_probe *probe,
++			    struct pt_regs *regs, unsigned long info)
++{
++	unsigned int slot = k2_snap_n < 2 ? k2_snap_n : 1;
++
++	if (k2_snap_n < 2) {
++		k2_snap[slot] = *regs;
++		k2_fault_ip[slot] = regs->ip;
++	}
++	k2_snap_n++;
++	if (k2_mark_check)
++		k2_mark_frame(regs);
++	dadao_early_printf("K2 probe: cause=%s va=%#lx ip=%#lx info=%#lx hit=%lu\n",
++			   dadao_cause_name(probe->cause), info, regs->ip, info,
++			   probe->hits);
++}
++
++static struct dadao_fault_probe k2_probe = {
++	.cause = 1UL << 1,		/* CFXMEM (spec/DADAO-13 §2) */
++	.max_hits = 8,			/* a runaway retry reports itself */
++	.report = k2_probe_report,
++};
++
++/* The first VA past the superpages the kernel maps (mm/k1_pt.c, §2.2.1). */
++static unsigned long __init k2_unmapped_va(void)
++{
++	unsigned long mapped = DIV_ROUND_UP(dadao_ram_size, SUPERPAGE_SIZE);
++
++	return PAGE_OFFSET + mapped * SUPERPAGE_SIZE;
++}
++
++static void __init k2_probe_start(unsigned long retry)
++{
++	k2_snap_n = 0;
++	k2_probe.hits = 0;
++	k2_probe.retry = retry;
++	k2_probe.info = k2_probe_va;
++	if (dadao_trap_probe_register(&k2_probe))
++		return;			/* reported by the caller's line */
++	barrier();
++}
++
++static void __init k2_probe_stop(void)
++{
++	dadao_trap_probe_unregister(&k2_probe);
++}
++
++/*
++ * A load performed *from inside the handler* (P9): the second exception must hit
++ * the re-entrancy guard, not the dispatcher.
++ */
++static noinline unsigned long k2_nested_fault(volatile unsigned long *p)
++{
++	return *p;
++}
++
++static void k2_nested_report(struct dadao_fault_probe *probe,
++			     struct pt_regs *regs, unsigned long info)
++{
++	/* The fault of P9 happens here: inside the handler, channel busy. */
++	(void)k2_nested_fault((volatile unsigned long *)probe->info);
++}
++
++/* A single load of the unmapped VA: faults, the handler resumes past it. */
++static unsigned long __init k2_one_load(unsigned long va)
++{
++	return *(volatile unsigned long *)va;
++}
++
++/*
++ * The P5 fault site: mark the registers of interest with known values, then
++ * fault twice on the same unmapped VA with nothing in between.  The second
++ * frame is the register file *after* a full save/restore round trip.
++ *
++ * The caller-saved and reserved marks are the fault site's to clobber; the
++ * callee-saved ones are saved/restored on the stack here, so the C caller keeps
++ * its values no matter how the exception path behaves.
++ */
++static noinline void k2_marked_two_loads(unsigned long va)
++{
++	register unsigned long base __asm__("rb18") = va;
++
++	__asm__ __volatile__(
++		"add.si\trb1, -32\n\t"
++		"st.o\trd32, [rb1, 0]\n\t"
++		"st.o\trd63, [rb1, 8]\n\t"
++		"st.o\trb32, [rb1, 16]\n\t"
++		"st.o\trb63, [rb1, 24]\n\t"
++		"set.zw\trd2, wp0, 0x2a2a\n\t"
++		"set.zw\trd3, wp0, 0x3a3a\n\t"
++		"set.zw\trd4, wp0, 0x4a4a\n\t"
++		"set.zw\trd31, wp0, 0x31a1\n\t"
++		"set.zw\trd32, wp0, 0x32a2\n\t"
++		"set.zw\trd63, wp0, 0x63a3\n\t"
++		"set.zw\trb2, wp0, 0x2b2b\n\t"
++		"set.zw\trb3, wp0, 0x3b3b\n\t"
++		"set.zw\trb5, wp0, 0x5b5b\n\t"
++		"set.zw\trb31, wp0, 0x31b1\n\t"
++		"set.zw\trb32, wp0, 0x32b2\n\t"
++		"set.zw\trb63, wp0, 0x63b3\n\t"
++		"ld.o\trd16, [rb18, 0]\n\t"
++		"ld.o\trd16, [rb18, 0]\n\t"
++		"ld.o\trd32, [rb1, 0]\n\t"
++		"ld.o\trd63, [rb1, 8]\n\t"
++		"ld.o\trb32, [rb1, 16]\n\t"
++		"ld.o\trb63, [rb1, 24]\n\t"
++		"add.si\trb1, 32"
++		: : "r"(base)
++		: "rd2", "rd3", "rd4", "rd16", "rd31", "rd32", "rd63",
++		  "rb2", "rb3", "rb5", "rb31", "rb32", "rb63", "memory");
++}
++
++/* P1: classified, skipped, and the code after the fault still runs. */
++static void __init k2_case_p1(void)
++{
++	unsigned long marker = 0;
++
++	k2_probe_start(0);
++	if (!dadao_trap_probe_active(&k2_probe)) {
++		dadao_early_printf("K2 probe P1: FAIL register\n");
++		return;
++	}
++	(void)k2_one_load(k2_probe_va);
++	marker = 0x5031;		/* only reached when the handler resumed */
++	k2_probe_stop();
++	dadao_early_printf("K2 probe P1: hits=%lu resumed=%s marker=%#lx\n",
++			   k2_probe.hits, k2_probe.hits == 1 ? "yes" : "no",
++			   marker);
++}
++
++/* P2: one retry (`escape …, 0`) then skip (`…, 4`): the same insn twice. */
++static void __init k2_case_p2(void)
++{
++	k2_probe_start(1);
++	if (!dadao_trap_probe_active(&k2_probe)) {
++		dadao_early_printf("K2 probe P2: FAIL register\n");
++		return;
++	}
++	(void)k2_one_load(k2_probe_va);
++	k2_probe_stop();
++	dadao_early_printf("K2 probe P2: hits=%lu ip1=%#lx ip2=%#lx same_ip=%s "
++			   "policy=retry+skip\n",
++			   k2_probe.hits, k2_fault_ip[0], k2_fault_ip[1],
++			   (k2_snap_n >= 2 && k2_fault_ip[0] == k2_fault_ip[1])
++				   ? "yes" : "no");
++}
++
++/* P5: the frame must match the marked registers, and the two frames agree. */
++static void __init k2_case_p5(void)
++{
++	unsigned int i, mismatches = 0;
++	unsigned long first = 0;
++	const char *bank = "-";
++
++	k2_mark_mismatch = 0;
++	k2_mark_check = 1;
++	k2_probe_start(0);
++	if (!dadao_trap_probe_active(&k2_probe)) {
++		k2_mark_check = 0;
++		dadao_early_printf("K2 probe P5: FAIL register\n");
++		return;
++	}
++	k2_marked_two_loads(k2_probe_va);
++	k2_probe_stop();
++	k2_mark_check = 0;
++	mismatches = k2_mark_mismatch;
++
++	if (k2_snap_n < 2) {
++		dadao_early_printf("K2 probe P5: FAIL frames=%u\n", k2_snap_n);
++		return;
++	}
++	for (i = 1; i < 64; i++) {
++		if (k2_snap[0].rd[i] != k2_snap[1].rd[i]) {
++			if (!mismatches++) {
++				first = k2_snap[0].rd[i];
++				bank = "rd";
++			}
++		}
++		if (k2_snap[0].rb[i] != k2_snap[1].rb[i]) {
++			if (!mismatches++) {
++				first = k2_snap[0].rb[i];
++				bank = "rb";
++			}
++		}
++	}
++	dadao_early_printf("K2 probe P5: frames=%u gpr_cmp=%d marked=%d mismatches=%u "
++			   "first=%s:%#lx ip1=%#lx ip2=%#lx delta=%lu\n",
++			   k2_snap_n, 2 * 63, K2_MARK_COUNT, mismatches,
++			   mismatches ? "mark" : bank, first,
++			   k2_fault_ip[0], k2_fault_ip[1],
++			   k2_fault_ip[1] - k2_fault_ip[0]);
++}
++
++
++/*
++ * P6: CFXTRAP is in the table and dispatchable (a supv `trap cfx_smon, n` is
++ * the cfx-to-cfx control transfer of contract-syscall §8).  The probe covers
++ * it, so the entry reports it by name and resumes — the service "returns".
++ */
++static void __init k2_case_p6(void)
++{
++	unsigned long marker;
++
++	k2_snap_n = 0;
++	k2_probe.cause = 1UL << 0;		/* CFXTRAP */
++	k2_probe.info = 0;			/* instruction word: any */
++	k2_probe.retry = 0;
++	k2_probe.hits = 0;
++	k2_probe.max_hits = 4;
++	if (dadao_trap_probe_register(&k2_probe)) {
++		dadao_early_printf("K2 probe P6: FAIL register\n");
++		return;
++	}
++	/*
++	 * The trap has no service behind it: the handler resumes at ip+4, which
++	 * is exactly "the call returned" — so the instruction below runs.
++	 */
++	__asm__ __volatile__("trap cfx_smon, 0x2b06" : : : "memory");
++	marker = 0x5036;
++	dadao_early_printf("K2 probe P6: cause=CFXTRAP hits=%lu resumed=%s marker=%#lx "
++			   "info=%#lx\n", k2_probe.hits,
++			   k2_probe.hits == 1 ? "yes" : "no", marker,
++			   k2_snap_n ? k2_fault_ip[0] : 0UL);
++	k2_probe_stop();
++}
++
++/*
++ * P7: the two exit-code branches of a fatal exception, asserted without dying.
++ *
++ * §7.1 puts CFXTRAP/CFXESC in the "other cfx" segment (0x80 | cfxHA) and every
++ * other cause in the monitor segment (0xc0 | mode << 4 | bit index); the numbers
++ * are what `dadao_die()` hands to SYS_EXIT, so asserting the function here is
++ * asserting the die path.
++ */
++static void __init k2_case_p7(void)
++{
++	dadao_early_printf("K2 probe P7: exit-code trap=%#lx esc=%#lx "
++			   "cfxmem=%#lx illi=%#lx\n",
++			   dadao_exit_code(1UL << 0), dadao_exit_code(1UL << 3),
++			   dadao_exit_code(1UL << 1), dadao_exit_code(1UL << 8));
++}
++
++/*
++ * P8: the handler rewrites `cg5 rc3` (= frame IP) and returns RETRY, so
++ * `escape …, 0` must land on the *new* IP rather than on the instruction after
++ * the faulting load.
++ *
++ * The target is a function, not a label: `&&label` (the only C-level way to
++ * take a code address inside a function) is not implemented on this target —
++ * the same port limitation that makes `__builtin_return_address()` fold to 0
++ * (arch/dadao/kernel/setup.c).  The landing function never returns: it reports
++ * the hit and then runs the self-test's final case, exactly like the driver
++ * would have.
++ */
++static void __init __noreturn k2_selftest_final(void);
++
++static void __init __noreturn k2_redirect_landing(void)
++{
++	/*
++	 * Leaving the case this way skips its epilogue, so the probe and the
++	 * redirect have to be cleared here: the next case must not inherit them.
++	 */
++	dadao_trap_probe_unregister(&k2_probe);
++	k2_probe.redirect = 0;
++	dadao_early_printf("K2 probe P8: landed=%s marker=%#lx\n", "yes", 0x600dUL);
++	k2_selftest_final();
++}
++
++static void __init k2_case_p8(void)
++{
++	k2_snap_n = 0;
++	k2_probe.cause = 1UL << 1;		/* CFXMEM */
++	k2_probe.info = k2_probe_va;
++	k2_probe.retry = 0;
++	k2_probe.hits = 0;
++	k2_probe.max_hits = 4;
++	/* Non-zero: the dispatcher writes it into cg5 rc3 and returns RETRY. */
++	k2_probe.redirect = (unsigned long)k2_redirect_landing;
++	k2_probe.report = k2_probe_report;
++	if (dadao_trap_probe_register(&k2_probe)) {
++		dadao_early_printf("K2 probe P8: FAIL register\n");
++		return;
++	}
++	/*
++	 * If the redirect happens, this load is never resumed at ip+4: the handler
++	 * sends execution to k2_redirect_landing() instead, so the report below is
++	 * only reached when the cg5 rc3 write did not take effect.
++	 */
++	(void)k2_one_load(k2_probe_va);
++	k2_probe_stop();
++	k2_probe.redirect = 0;
++	dadao_early_printf("K2 probe P8: landed=%s marker=%#lx target=%#lx\n", "no",
++			   0x0badUL, (unsigned long)k2_redirect_landing);
++}
++
++/*
++ * P9: a fault *inside* the handler.  The re-entrancy guard must notice that the
++ * channel cannot nest instead of dispatching the second exception normally.
++ * Ends the boot (a nested synchronous exception is a kernel self-check
++ * failure: the channel is single-frame by construction).
++ */
++static void __init __noreturn k2_case_p9(void)
++{
++	k2_snap_n = 0;
++	k2_probe.cause = 1UL << 1;
++	k2_probe.info = k2_probe_va;
++	k2_probe.retry = 0;
++	k2_probe.hits = 0;
++	k2_probe.max_hits = 4;
++	k2_probe.redirect = 0;
++	/* The *report* faults: that is the exception inside the handler. */
++	k2_probe.report = k2_nested_report;
++	if (dadao_trap_probe_register(&k2_probe))
++		dadao_early_printf("K2 probe P9: FAIL register\n");
++	dadao_early_printf("K2 probe P9: first fault at va=%#lx, handler faults\n",
++			   k2_probe_va);
++	barrier();
++	(void)k2_one_load(k2_probe_va);
++	dadao_early_printf("K2 probe P9: FAIL the nested fault was resumed\n");
++	dadao_early_exit(0x7f);
++}
++
++/* P10: a real, unregistered CFXTRAP dies in the "other cfx" segment. */
++static void __init __noreturn k2_case_p10(void)
++{
++	dadao_early_printf("K2 probe P10: unregistered CFXTRAP (trap cfx_smon)\n");
++	barrier();
++	__asm__ __volatile__("trap cfx_smon, 0x2b10" : : : "memory");
++	dadao_early_printf("K2 probe P10: FAIL the CFXTRAP was resumed\n");
++	dadao_early_exit(0x7f);
++}
++
++/* P11: a real CFXESC dies in the "other cfx" segment (§5.1: target error). */
++static void __init __noreturn k2_case_p11(void)
++{
++	dadao_early_printf("K2 probe P11: escape to cfx_umon (target error)\n");
++	barrier();
++	__asm__ __volatile__("escape cfx_umon, [excp_cause_ip, 4]" : : : "memory");
++	dadao_early_printf("K2 probe P11: FAIL the CFXESC was resumed\n");
++	dadao_early_exit(0x7f);
++}
++
++/* P3: no probe registered => the CFXMEM is fatal and named.  Ends the boot. */
++static void __init __noreturn k2_case_p3(void)
++{
++	unsigned long va = k2_probe_va;
++
++	dadao_early_printf("K2 probe P3: unregistered CFXMEM at va=%#lx\n", va);
++	barrier();
++	(void)k2_one_load(va);
++	/* The dispatcher must not resume an unregistered fault. */
++	dadao_early_printf("K2 probe P3: FAIL resumed an unregistered fault\n");
++	dadao_early_exit(0x7f);
++}
++
++/* The last case of an image: it ends the boot with the event under test. */
++static void __init __noreturn k2_selftest_final(void)
++{
++#if defined(CONFIG_DADAO_K2_SELFTEST_REENTRY)
++	k2_case_p9();
++#elif defined(CONFIG_DADAO_K2_SELFTEST_CFXTRAP)
++	k2_case_p10();
++#elif defined(CONFIG_DADAO_K2_SELFTEST_CFXESC)
++	k2_case_p11();
++#else
++	k2_case_p3();
++#endif
++}
++
++void __init dadao_k2_selftest(void)
++{
++	k2_probe_va = k2_unmapped_va();
++	dadao_early_printf("K2 selftest: probe_va=%#lx (first superpage past RAM)\n",
++			   k2_probe_va);
++	k2_case_p1();
++	k2_case_p2();
++	k2_case_p5();
++	k2_case_p6();
++	k2_case_p7();
++	k2_case_p8();
++	/*
++	 * Reached when P8 resumed at the faulting ip+4 (no redirect).  When the
++	 * redirect did happen, k2_redirect_landing() already ran this.
++	 */
++	k2_selftest_final();
++}

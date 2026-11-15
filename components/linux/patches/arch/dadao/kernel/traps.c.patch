@@ -1,15 +1,33 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..8b2179bfb
+index 000000000..2842e62df
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,194 @@
+@@ -0,0 +1,483 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
-+ * DADAO traps, register dumps, machine stop and the K1 supv exception vector.
++ * DADAO traps — the supv synchronous-exception channel (K2).
++ *
++ * kernel/trap.S captures the frame and calls dadao_trap_handler(); everything
++ * that decides *what* an exception means lives here:
++ *
++ *   - the cause table (11 items, spec/DADAO-13 §2, contract-see §6.1);
++ *   - the dispatch: a registered probe may resume, anything else is fatal;
++ *   - dadao_die(): name the cause, dump the frame, stop through semihosting
++ *     SYS_EXIT with the code the exit-code segmentation requires;
++ *   - the exit-code segmentation (spec/Machine-v5 §7.1, user ruling
++ *     2026-11-15 "A'"): the kernel's own self-check failures use the guest
++ *     segment 0x01-0x7f (value = check point), unrecoverable exceptions use
++ *     the monitor segment 0xc0 | (mode << 4) | bit index.
++ *
++ * There is no "assume it is the probe" default: a fault resumes only when a
++ * probe was registered for exactly that cause and faulting address by
++ * dadao_trap_probe_register().  That is what makes K1's page-table probe an
++ * ordinary client of the channel instead of a special case in the dispatcher.
 + */
 +#include <linux/kernel.h>
 +#include <linux/init.h>
++#include <linux/bitops.h>
 +#include <linux/ptrace.h>
 +#include <linux/interrupt.h>
 +#include <linux/reboot.h>
@@ -26,6 +44,7 @@ index 000000000..8b2179bfb
 +#include <asm/ptrace.h>
 +#include <asm/ptw.h>
 +#include <asm/setup.h>
++#include <asm/trap.h>
 +
 +/* Semihosting SYS_EXIT: contract-semihosting §1/§2/§5 (rd16 = service,
 + * rb16 = argument block, and the block pointer is a PA: the responder reads
@@ -63,72 +82,320 @@ index 000000000..8b2179bfb
 +	semihost_exit(ADP_STOPPED_APP_EXIT, 0);
 +}
 +
++/* -------------------------------------------------------------------------
++ * Exit codes (spec/Machine-v5 §7.1, user ruling 2026-11-15 "A'")
++ * ------------------------------------------------------------------------- */
++
 +/*
-+ * K1 supv synchronous-exception vector (kernel/k1_trap.S captures the frame and
-+ * calls this).  spec/DADAO-12 §5.2: a synchronous exception in supv mode enters
-+ * cfx_smon as its first handler, which may handle it or hand it on.
++ * Guest segment: the kernel's own self-check failed.  The value is the check
++ * point number, so the host sees *which* verdict the kernel rejected without
++ * parsing the console.  The numbering is per source file, in boot order:
 + *
-+ * A fault whose cause_info equals the armed probe VA is the kernel asking "is
-+ * this VA mapped yet?" (mm/k1_pt.c): record it and return, so the asm stub
-+ * resumes after the faulting instruction.  Every other fault is real, and K1
-+ * has no way to recover from one — report it by name and stop, instead of
-+ * letting the CPU recurse into an unmapped vector (§5.2 step 7).
++ *   head.S    0x01 magic   0x02 version   0x03 size
++ *   setup.c   0x04 hart_id 0x05 page_size_log2 0x06 kernel_base
++ *             0x07 image_range 0x08 start_kernel return address
++ *   k1_pt.c   0x09 PT base 0x0a PT entry   0x0b ptw disabled
++ *             0x0c probe registration refused
++ *   trap.S    0x0d undefined resume policy
++ *   traps.c   0x0e re-entered handler  0x0f probe matched too often
++ *
++ * They stay <= 0x7f: the guest FAIL segment (and the semihosting SYS_EXIT
++ * subcode is the host exit status, so 0x100 would wrap to 0 and read as PASS).
 + */
-+#define FAIL_FAULT_CFXMEM	0xe9
-+#define FAIL_FAULT_CFXPERM	0xea
-+#define FAIL_FAULT_OTHER	0xeb
++#define DADAO_EXIT_SELFCHECK(code)	((unsigned long)(code))
 +
-+#define CAUSE_CFXMEM		(1UL << 1)
-+#define CAUSE_CFXPERM		(1UL << 7)
-+#define CAUSE_ILLI		(1UL << 8)
-+#define CAUSE_UNDI		(1UL << 9)
-+#define CAUSE_RASOF		(1UL << 10)
-+#define CAUSE_RASUF		(1UL << 11)
-+#define CAUSE_MALIGN		(1UL << 12)
-+#define CAUSE_IALIGN		(1UL << 13)
++/* The check points traps.c itself owns. */
++#define K2_FAIL_RECURSIVE	0x0e	/* a second exception inside the handler */
++#define K2_FAIL_HIT_BUDGET	0x0f	/* a probe matched more often than allowed */
 +
-+static const char *dadao_cause_name(unsigned long id)
++/*
++ * Monitor segment: an exception the kernel cannot recover from.  `bit5:4` is
++ * the run mode of the frame (user 00 / jail 01 / supv 10 / hypv 11) and
++ * `bit3:0` the DADAO exception bit index, i.e. the exponent of the one-hot
++ * cause id (CFXMEM = 1 << 1 => 1, ILLI = 1 << 8 => 8).
++ *
++ * The mode is *read from the frame* (`cfx_smon.excp_prev_run_mode`, §3.6)
++ * rather than assumed: the kernel runs in supv today, and the same expression
++ * keeps working when K4/K5 take the code from another mode.
++ */
++#define DADAO_EXIT_MONITOR(mode, index) \
++	(0xc0UL | (((mode) & 0x3) << 4) | ((index) & 0xf))
++
++/*
++ * "Other cfx" segment: §7.1 encodes CFXTRAP and CFXESC as `0x80 | cfxHA`, not
++ * as monitor bit indices (the two causes are cfx-to-cfx control transfers, so
++ * what identifies them is the cfx that received them, not the frame's mode).
++ *
++ * The kernel's supv vector runs inside the cfx that took the exception —
++ * cfx_smon (cfxHA 2) for supv synchronous exceptions — so the value is read
++ * from that cfx's identity register (cg4 rc0, §3.5) instead of being hardcoded.
++ * K4 (user-mode cfx: umon/jmon) must take the cfxHA from the exception path and
++ * keep the same expression.
++ */
++#define DADAO_EXIT_OTHER_CFX(cfxha)	(0x80UL | ((cfxha) & 0x3fUL))
++
++/* The 11 causes of spec/DADAO-13 §2 (contract-see §6.1), in bit order. */
++#define DADAO_CAUSE_CFXTRAP	(1UL << 0)
++#define DADAO_CAUSE_CFXMEM	(1UL << 1)
++#define DADAO_CAUSE_CFXREG	(1UL << 2)
++#define DADAO_CAUSE_CFXESC	(1UL << 3)
++#define DADAO_CAUSE_CFXPERM	(1UL << 7)
++#define DADAO_CAUSE_ILLI	(1UL << 8)
++#define DADAO_CAUSE_UNDI	(1UL << 9)
++#define DADAO_CAUSE_RASOF	(1UL << 10)
++#define DADAO_CAUSE_RASUF	(1UL << 11)
++#define DADAO_CAUSE_MALIGN	(1UL << 12)
++#define DADAO_CAUSE_IALIGN	(1UL << 13)
++
++static const struct {
++	unsigned long id;
++	const char *name;
++} dadao_cause_table[] = {
++	{ DADAO_CAUSE_CFXTRAP,	"CFXTRAP" },
++	{ DADAO_CAUSE_CFXMEM,	"CFXMEM" },
++	{ DADAO_CAUSE_CFXREG,	"CFXREG" },
++	{ DADAO_CAUSE_CFXESC,	"CFXESC" },
++	{ DADAO_CAUSE_CFXPERM,	"CFXPERM" },
++	{ DADAO_CAUSE_ILLI,	"ILLI" },
++	{ DADAO_CAUSE_UNDI,	"UNDI" },
++	{ DADAO_CAUSE_RASOF,	"RASOF" },
++	{ DADAO_CAUSE_RASUF,	"RASUF" },
++	{ DADAO_CAUSE_MALIGN,	"MALIGN" },
++	{ DADAO_CAUSE_IALIGN,	"IALIGN" },
++};
++
++#define DADAO_CAUSE_COUNT	ARRAY_SIZE(dadao_cause_table)
++
++/* The table entry for @cause, or NULL when @cause is not one of the 11. */
++const char *dadao_cause_name(unsigned long cause)
 +{
-+	if (id == CAUSE_CFXMEM)
-+		return "CFXMEM";
-+	if (id == CAUSE_CFXPERM)
-+		return "CFXPERM";
-+	if (id == CAUSE_ILLI)
-+		return "ILLI";
-+	if (id == CAUSE_UNDI)
-+		return "UNDI";
-+	if (id == CAUSE_RASOF)
-+		return "RASOF";
-+	if (id == CAUSE_RASUF)
-+		return "RASUF";
-+	if (id == CAUSE_MALIGN)
-+		return "MALIGN";
-+	if (id == CAUSE_IALIGN)
-+		return "IALIGN";
-+	return "UNKNOWN";
++	unsigned int i;
++
++	for (i = 0; i < DADAO_CAUSE_COUNT; i++)
++		if (dadao_cause_table[i].id == cause)
++			return dadao_cause_table[i].name;
++	return NULL;
 +}
 +
-+void dadao_k1_excp_handle(unsigned long cause_id, unsigned long cause_ip,
-+			  unsigned long cause_info)
++/*
++ * Bit index of a one-hot cause id (spec/Machine-v5 §7.1 takes the DADAO
++ * exception bit index).  Only called for causes that are in the table, so the
++ * result is one of 0/1/2/3/7/8/9/10/11/12/13.
++ */
++static unsigned int dadao_cause_index(unsigned long cause)
 +{
-+	unsigned int code = FAIL_FAULT_OTHER;
++	/*
++	 * __ffs() is already the 0-based index (CFXMEM = 1 << 1 => 1); the
++	 * 4-bit mask is the field width of §7.1 (`bit3:0`).  A cause outside
++	 * the 11-item table therefore still lands on a real bit index instead
++	 * of needing a new convention.
++	 */
++	return (unsigned int)__ffs(cause) & 0xf;
++}
 +
-+	if (cause_id == CAUSE_CFXMEM && cause_info == dadao_k1_fault_expect) {
-+		dadao_k1_fault_taken = 1;
-+		dadao_early_printf("K1 ptw fault probed cause=CFXMEM va=%#lx ip=%#lx (resumed)\n",
-+				   cause_info, cause_ip);
-+		return;
++/* -------------------------------------------------------------------------
++ * Registered fault probes
++ * ------------------------------------------------------------------------- */
++
++static struct dadao_fault_probe *dadao_probe;
++
++int dadao_trap_probe_register(struct dadao_fault_probe *probe)
++{
++	if (!probe || probe->cause == 0)
++		return -EINVAL;
++	if (dadao_probe && dadao_probe != probe)
++		return -EBUSY;
++	dadao_probe = probe;
++	return 0;
++}
++
++void dadao_trap_probe_unregister(struct dadao_fault_probe *probe)
++{
++	if (dadao_probe == probe)
++		dadao_probe = NULL;
++}
++
++bool dadao_trap_probe_active(const struct dadao_fault_probe *probe)
++{
++	return probe && dadao_probe == probe;
++}
++
++static struct dadao_fault_probe *dadao_probe_match(unsigned long cause,
++						   unsigned long info)
++{
++	if (!dadao_probe || dadao_probe->cause != cause)
++		return NULL;
++	if (dadao_probe->info && dadao_probe->info != info)
++		return NULL;
++	return dadao_probe;
++}
++
++/* -------------------------------------------------------------------------
++ * Fatal path
++ * ------------------------------------------------------------------------- */
++
++/* Re-entrancy guard: a second exception inside the handler is not supported. */
++static volatile int dadao_trap_busy;
++
++/*
++ * The frame, printed through the *early* console.  `show_regs()` below is the
++ * printk twin: its output sits in the ring buffer until console_init() runs,
++ * which is after the K2 boundary, so a fatal exception in K2 must not depend
++ * on it.
++ */
++static void __noreturn dadao_dump_and_exit(const char *why, struct pt_regs *regs,
++					   unsigned long cause, unsigned long info,
++					   unsigned long code)
++{
++	const char *name = dadao_cause_name(cause);
++	unsigned long mode = DADAO_CFX_READ(cfx_smon, SMON_CG_FRAME,
++					    SMON_RC_FRAME_PREV_MODE) & 0x3;
++	int i;
++
++	dadao_early_printf("dadao: %s cause=%s(%#lx) ip=%#lx info=%#lx ptbr=%#lx sp=%#lx\n",
++			   why, name ? name : "unknown", cause, regs->ip, info,
++			   dadao_ptbr_read(), regs->rb[1]);
++	if (!name)
++		dadao_early_printf("dadao: unknown cause=%#lx (not in the 11-item table)\n",
++				   cause);
++
++	for (i = 0; i < 64; i += 4)
++		dadao_early_printf("dadao: rd%02d: %016lx %016lx %016lx %016lx\n", i,
++				   regs->rd[i], regs->rd[i + 1], regs->rd[i + 2],
++				   regs->rd[i + 3]);
++	for (i = 0; i < 64; i += 4)
++		dadao_early_printf("dadao: rb%02d: %016lx %016lx %016lx %016lx\n", i,
++				   regs->rb[i], regs->rb[i + 1], regs->rb[i + 2],
++				   regs->rb[i + 3]);
++
++	dadao_early_printf("dadao: die mode=%lu code=%#lx\n", mode, code);
++	dadao_early_exit(code);
++}
++
++/*
++ * The exit code of a fatal synchronous exception (spec/Machine-v5 §7.1):
++ *
++ *   CFXTRAP / CFXESC  "other cfx" segment, 0x80 | cfxHA            (0x82 here)
++ *   everything else   monitor segment, 0xc0 | (mode << 4) | index
++ *
++ * `index` is derived mechanically from the one-hot cause id (`__ffs`), so a
++ * cause outside the 11-item table still gets a code without a new convention
++ * (the console keeps printing the raw id).  `mode` is read from the frame
++ * (`cfx_smon.excp_prev_run_mode`, §3.6) rather than assumed.
++ */
++unsigned long dadao_exit_code(unsigned long cause)
++{
++	if (cause == DADAO_CAUSE_CFXTRAP || cause == DADAO_CAUSE_CFXESC)
++		return DADAO_EXIT_OTHER_CFX(
++			DADAO_CFX_READ(cfx_smon, CFX_CG_ID, CFX_RC_ID));
++
++	return DADAO_EXIT_MONITOR(
++		DADAO_CFX_READ(cfx_smon, SMON_CG_FRAME, SMON_RC_FRAME_PREV_MODE),
++		dadao_cause_index(cause));
++}
++
++/* An unrecoverable synchronous exception: name it, dump the frame, stop. */
++static void __noreturn dadao_die(struct pt_regs *regs, unsigned long cause,
++				 unsigned long info)
++{
++	dadao_dump_and_exit("unrecoverable supv exception", regs, cause, info,
++			    dadao_exit_code(cause));
++}
++
++/* The kernel's own verdict failed (guest segment, §7.1). */
++static void __noreturn dadao_selfcheck(unsigned int checkpoint, const char *why,
++				       struct pt_regs *regs, unsigned long cause,
++				       unsigned long info)
++{
++	dadao_dump_and_exit(why, regs, cause, info,
++			    DADAO_EXIT_SELFCHECK(checkpoint));
++}
++
++void __noreturn dadao_trap_bad_policy(void)
++{
++	dadao_early_printf("dadao: trap entry got an undefined resume policy, code=%#x\n",
++			   DADAO_TRAP_BAD_POLICY);
++	dadao_early_exit(DADAO_EXIT_SELFCHECK(DADAO_TRAP_BAD_POLICY));
++}
++
++/* -------------------------------------------------------------------------
++ * The C half of the entry
++ * ------------------------------------------------------------------------- */
++
++/*
++ * Called from kernel/trap.S with the captured frame, `excp_cause_id` and
++ * `excp_cause_info`.  Returns one of DADAO_TRAP_RESUME_{RETRY,SKIP} — the only
++ * two offsets `escape` accepts (spec/DADAO-12 §5.3) — or never returns.
++ *
++ * `regs->rb[0]` is filled here: rb0 is the read-only IP register, so it has no
++ * frame slot of its own, and its value at the fault *is* `regs->ip`.
++ */
++unsigned long dadao_trap_handler(struct pt_regs *regs, unsigned long cause,
++				 unsigned long info)
++{
++	struct dadao_fault_probe *probe;
++
++	regs->rb[0] = regs->ip;
++
++#ifdef CONFIG_DADAO_K2_SELFTEST_UNKNOWN
++	/*
++	 * Probe-build hook (K2 gate case P4): `cfx_smon.excp_cause_id` is
++	 * hardware-read-only (spec/DADAO-12 §3.6, "HW"), so the only way to
++	 * show the unknown-cause path is to corrupt the value the dispatcher
++	 * receives.  Bit 5 is one of the reserved bits (§3.6: 1<<4..1<<6), so
++	 * the result is not in the 11-item table (and the dispatcher derives its
++	 * monitor bit index mechanically: __ffs(1 << 5) & 0xf == 5).  Only a probe
++	 * image sets this symbol; the K2 image never does.
++	 */
++	cause = 1UL << 5;
++#endif
++
++	if (dadao_trap_busy)
++		dadao_selfcheck(K2_FAIL_RECURSIVE, "recursive supv exception",
++				regs, cause, info);
++	dadao_trap_busy = 1;
++
++	/*
++	 * A cause outside the 11-item table is still an *abnormal termination*,
++	 * not a self-check verdict: it must not be encoded as a guest FAIL check
++	 * point (the two would be indistinguishable in `$?`).  dadao_die() derives
++	 * the monitor bit index mechanically and keeps printing the raw id.
++	 */
++	if (!dadao_cause_name(cause))
++		dadao_die(regs, cause, info);
++
++	probe = dadao_probe_match(cause, info);
++	if (probe) {
++		unsigned long policy = DADAO_TRAP_RESUME_SKIP;
++
++		probe->hits++;
++		if (probe->max_hits && probe->hits > probe->max_hits)
++			dadao_selfcheck(K2_FAIL_HIT_BUDGET,
++					"fault probe hit too often", regs, cause,
++					info);
++		if (probe->retry) {
++			probe->retry--;
++			policy = DADAO_TRAP_RESUME_RETRY;
++		}
++		if (probe->redirect) {
++			/*
++			 * `escape` returns to the *hardware* `excp_cause_ip`, so a
++			 * handler that wants to resume somewhere else writes the
++			 * frame's `cg5 rc3` first and then returns RETRY
++			 * (contract-see §6.2: the offset only offers +0/+4).
++			 */
++			DADAO_CFX_WRITE(cfx_smon, SMON_CG_FRAME,
++					SMON_RC_FRAME_CAUSE_IP, probe->redirect);
++			regs->ip = probe->redirect;
++			policy = DADAO_TRAP_RESUME_RETRY;
++		}
++		if (probe->report)
++			probe->report(probe, regs, info);
++		dadao_trap_busy = 0;
++		return policy;
 +	}
 +
-+	dadao_early_printf("K1 ptw fault: cause=%s(%#lx) ip=%#lx info=%#lx ptbr=%#lx\n",
-+			   dadao_cause_name(cause_id), cause_id, cause_ip,
-+			   cause_info, dadao_ptbr_read());
-+	if (cause_id == CAUSE_CFXMEM)
-+		code = FAIL_FAULT_CFXMEM;
-+	else if (cause_id == CAUSE_CFXPERM)
-+		code = FAIL_FAULT_CFXPERM;
-+	dadao_early_printf("K1 ptw fault: no recovery before K3, code=%#x\n", code);
-+	dadao_early_exit(code);
++	dadao_die(regs, cause, info);
 +}
 +
 +/*
@@ -147,16 +414,38 @@ index 000000000..8b2179bfb
 +					  SMON_RC_SUPV_EXCP_VECTOR), vec);
 +}
 +
++/*
++ * The dispatch table, as the kernel will use it.  The K2 gate derives the
++ * expected table from spec/DADAO-13 §2 and compares it with this line, so the
++ * printed names/ids are the ones the dispatcher really matches on.
++ */
++void __init dadao_cause_report(void)
++{
++	unsigned int i;
++
++	dadao_early_printf("K2 trap causes: n=%u", (unsigned int)DADAO_CAUSE_COUNT);
++	for (i = 0; i < DADAO_CAUSE_COUNT; i++)
++		dadao_early_printf(" %s=%#lx", dadao_cause_table[i].name,
++				   dadao_cause_table[i].id);
++	dadao_early_printf("\nK2 trap: entry=dadao_supv_excp frame=%#lx gpr=rd1-rd63,rb1-rb63 "
++			   "escape={0,4} segments={self 0x01-0x7f,monitor 0xc0|mode<<4|bit}\n",
++			   (unsigned long)dadao_excp_save);
++}
++
++/* -------------------------------------------------------------------------
++ * Generic kernel helpers the port links against
++ * ------------------------------------------------------------------------- */
++
 +void show_regs(struct pt_regs *regs)
 +{
 +	int i;
 +
 +	pr_info("IP: %016lx STATUS: %016lx\n", regs->ip, regs->status);
-+	for (i = 0; i < 32; i += 4)
++	for (i = 0; i < 64; i += 4)
 +		pr_info("rd%02d: %016lx %016lx %016lx %016lx\n", i,
 +			regs->rd[i], regs->rd[i + 1], regs->rd[i + 2],
 +			regs->rd[i + 3]);
-+	for (i = 0; i < 32; i += 4)
++	for (i = 0; i < 64; i += 4)
 +		pr_info("rb%02d: %016lx %016lx %016lx %016lx\n", i,
 +			regs->rb[i], regs->rb[i + 1], regs->rb[i + 2],
 +			regs->rb[i + 3]);

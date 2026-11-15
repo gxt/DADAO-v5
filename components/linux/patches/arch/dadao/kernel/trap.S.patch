@@ -1,0 +1,190 @@
+diff --git a/arch/dadao/kernel/trap.S b/arch/dadao/kernel/trap.S
+new file mode 100644
+index 000000000..797d04ca8
+--- /dev/null
++++ b/arch/dadao/kernel/trap.S
+@@ -0,0 +1,184 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * DADAO supv synchronous-exception vector (K2).
++ *
++ * Every synchronous exception taken in supv mode enters cfx_smon — the supv
++ * monitor — as its first handler (spec/DADAO-12 §5.2) and is dispatched to
++ * `cfx_smon.supv_excp_vector` (§5.2 step 7).  This stub is that vector's first
++ * half: it captures the complete faulting context, hands it to
++ * dadao_trap_handler() and turns the handler's resume policy back into the
++ * `escape` that leaves the frame.
++ *
++ * Frame (arch/dadao/include/asm/ptrace.h, `struct pt_regs`):
++ *
++ *   PT_RD_BASE                 frame.rd[0..63]   rd0 unused (reads as zero)
++ *   PT_RB_BASE                 frame.rb[0..63]   rb0 unused (read-only IP)
++ *   PT_IP                      excp_cause_ip
++ *   PT_STATUS                  0 (no status register on this machine)
++ *
++ * The hardware saves **only** the cg5 frame fields — no general register at
++ * all (§3.6, contract-syscall §8) — so every GPR the faulting context may be
++ * using has to be captured here, *before* this stub touches anything:
++ * rd1-rd63 and rb1-rb63.  rd0 is hardwired zero and rb0 is the read-only IP,
++ * so neither is part of the frame.
++ *
++ * Where the registers go — and why it cannot be the stack:
++ *
++ *   A synchronous exception can be raised by a broken stack pointer, and
++ *   spec/DADAO-12 §5.2 step 7 gives the guest no recovery for an unmapped
++ *   vector page, so the frame cannot be built on the faulting SP: the entry
++ *   writes into a static .bss frame first (m14-linux-004 review).  That frame
++ *   is sound while one hart takes one exception at a time and the handler never
++ *   sleeps; K4 (preemption / re-entrancy) moves it to the kernel stack of the
++ *   task it saves.
++ *
++ * The bootstrap problem — and cg6:
++ *
++ *   Storing needs an RB base register, so exactly one RB register has to be
++ *   borrowed before the frame exists, and every register has to be captured
++ *   before it is used as scratch.  `rb3` (rbtp) is reserved (contract-abi
++ *   §4.5/§8: the compiler never allocates it) and `rd2`/`rd3` are the reserved
++ *   debug registers, so those three are the staging set.  To capture their own
++ *   pre-exception values before overwriting them, this stub uses the cfx_smon
++ *   scratch registers (cg6, `scratch_regs_num >= 2`, spec/DADAO-12 §3.7) — the
++ *   place the architecture provides for exactly this: two scratch registers are
++ *   enough (rd2, rd3), the borrowed rbtp is spilled into its own frame slot as
++ *   soon as the base exists.
++ *
++ * Saving/restoring in blocks (spec/SimRISC-01 §1/§2):
++ *
++ *   `stm.o`/`ldm.o` move 1-63 consecutive registers at an 8-byte aligned
++ *   address.  Three blocks cover the file: {rd1:rd63} at PT_RD_BASE (index
++ *   rd0 = 0), {rb1:rb2} and {rb4:rb63} at their slots, and `rb3` — the base
++ *   register — last, with a single `ld.o rb3, [rb3, <slot>]` (the address is
++ *   formed before the destination is written, so this is the one load that can
++ *   keep using the base it destroys).  `ldm` must not have its base register
++ *   inside the transfer range (§1/§2), which is why {rb1:rb63} is split around
++ *   rb3.  The index register of the RB blocks is `rd2`, restored afterwards by
++ *   the RD block — order: RB blocks, then RD block, then rb3.
++ *
++ * `rb0` is never used as a temporary: it is the read-only IP register
++ * (spec/SimRISC-00), and the stub only ever *reads* it through the branch and
++ * jump encodings.
++ */
++#include <asm/asm-offsets.h>
++#include <asm/trap.h>
++
++/*
++ * Restore the whole register file from the static frame and escape by @offset.
++ * The base is re-derived (the C half may use every reserved register); the base
++ * register itself is restored last, from itself.
++ */
++	.macro	DADAO_TRAP_RESTORE_AND_ESCAPE offset
++	set.rb	rb3, dadao_excp_save
++	set.rd	rd2, PT_RB_BASE + 1 * 8
++	ldm.o	{rb1:rb2}, [rb3, rd2]
++	set.rd	rd2, PT_RB_BASE + 4 * 8
++	ldm.o	{rb4:rb63}, [rb3, rd2]
++	ld.o	rd1, [rb3, PT_RD_BASE + 1 * 8]
++	set.rd	rd2, PT_RD_BASE + 4 * 8
++	ldm.o	{rd4:rd63}, [rb3, rd2]
++	ld.o	rd2, [rb3, PT_RD_BASE + 2 * 8]
++	ld.o	rd3, [rb3, PT_RD_BASE + 3 * 8]
++	ld.o	rb3, [rb3, PT_RB_BASE + 3 * 8]
++	escape	cfx_smon, [excp_cause_ip, \offset]
++	.endm
++
++	.section .text,"ax"
++	.globl	dadao_supv_excp
++	.p2align 2
++dadao_supv_excp:
++	/*
++	 * 1. Stage the three registers this stub borrows before it has a base:
++	 *    rd2/rd3 into the cfx_smon cg6 scratch registers (§3.7), rbtp into
++	 *    rd2 (it is spilled to frame.rb[3] as soon as the base exists).
++	 */
++	cfx2rc	cfx_smon, cg6, rc0, rd2		/* scratch[0] = rd2 */
++	cfx2rc	cfx_smon, cg6, rc1, rd3		/* scratch[1] = rd3 */
++	set.rd	rd2, rb3			/* rd2 = rbtp */
++	set.rb	rb3, dadao_excp_save		/* base: static .bss frame */
++
++	/*
++	 * 2. The two slots that have no hardware register behind them, and the
++	 *    borrowed rbtp: rd0 reads as zero (st.o with rd0 stores 0), rb0 is
++	 *    the IP and stays 0 in the frame.
++	 */
++	st.o	rd2, [rb3, PT_RB_BASE + 3 * 8]	/* frame.rb[3] = rbtp */
++	st.o	rd0, [rb3, PT_RD_BASE]		/* frame.rd[0] = 0 */
++	st.o	rd0, [rb3, PT_RB_BASE]		/* frame.rb[0] = 0 */
++
++	/*
++	 * 3. Capture the register file.
++	 *
++	 *    `stm.o {rdA:rdB}` writes rdA at [base + index] and then one slot per
++	 *    register, so a block can only start at slot 0 (rd0, which is not a
++	 *    frame slot) or with a non-zero index.  The three registers this stub
++	 *    uses as index carriers (rd2, rd3) and the one it cannot block-move
++	 *    past (rd1, because {rd1:rd63} would land one slot low) are therefore
++	 *    stored individually; {rd4:rd63} and the RB blocks use rd2 = slot
++	 *    offset.
++	 */
++	cfx2rd	cfx_smon, cg6, rc0, rd2		/* the faulting context's rd2 */
++	st.o	rd2, [rb3, PT_RD_BASE + 2 * 8]
++	cfx2rd	cfx_smon, cg6, rc1, rd3		/* ... and rd3 */
++	st.o	rd3, [rb3, PT_RD_BASE + 3 * 8]
++	st.o	rd1, [rb3, PT_RD_BASE + 1 * 8]
++	set.rd	rd2, PT_RD_BASE + 4 * 8		/* &frame.rd[4] */
++	stm.o	{rd4:rd63}, [rb3, rd2]		/* frame.rd[4..63] */
++
++	set.rd	rd2, PT_RB_BASE + 1 * 8		/* &frame.rb[1] */
++	stm.o	{rb1:rb2}, [rb3, rd2]		/* SP, FP */
++	set.rd	rd2, PT_RB_BASE + 4 * 8		/* &frame.rb[4] */
++	stm.o	{rb4:rb63}, [rb3, rd2]		/* rest of the RB file */
++
++	/*
++	 * 4. The frame fields the cg5 holds, then the C half.  The argument
++	 *    registers are the ABI's: rb16 = &frame (first address argument),
++	 *    rd16 = cause, rd17 = info (contract-abi §4.1: data arguments count
++	 *    from rd16 in declaration order).
++	 */
++	cfx2rd	cfx_smon, cg5, rc2, rd16	/* excp_cause_id */
++	cfx2rd	cfx_smon, cg5, rc3, rd17	/* excp_cause_ip */
++	st.o	rd17, [rb3, PT_IP]		/* frame.ip = cause_ip */
++	st.o	rd0, [rb3, PT_STATUS]		/* frame.status = 0 */
++	cfx2rd	cfx_smon, cg5, rc4, rd17	/* excp_cause_info -> 2nd argument */
++	set.rb	rb16, dadao_excp_save
++	set.rb	rb5, dadao_trap_handler
++	call	[rb5, rd0, 0]			/* policy -> rd8 */
++
++	/*
++	 * 5. Resume policy (rd8): 0 = retry the faulting instruction, 1 = skip
++	 *    it.  Anything else is a kernel bug: name it instead of picking an
++	 *    offset.
++	 */
++	br.z	{rd8}?, [rb0, .Lresume_retry]
++	set.rd	rd3, DADAO_TRAP_RESUME_SKIP
++	br.eq	{rd8, rd3}?, [rb0, .Lresume_skip]
++	set.rd	rd16, DADAO_TRAP_BAD_POLICY
++	set.rb	rb5, dadao_trap_bad_policy
++	jump	[rb5, rd0, 0]			/* never returns */
++
++	/*
++	 * 6. Restore and leave the frame.  The two offsets are the only ones
++	 *    `escape` accepts (§5.3): +0 re-executes the faulting instruction
++	 *    (§3.6 `excp_cause_ip` unchanged), +4 continues after it.
++	 */
++.Lresume_retry:
++	DADAO_TRAP_RESTORE_AND_ESCAPE 0
++.Lresume_skip:
++	DADAO_TRAP_RESTORE_AND_ESCAPE 4
++
++.Lstuck:
++	jump	[rb0, .Lstuck]			/* unreachable: escape never returns */
++
++	/*
++	 * The frame: one `struct pt_regs`, 8-byte aligned for the block
++	 * transfers.  Static because the faulting SP may be unusable (above); a
++	 * single hart takes one exception at a time, so one frame is enough
++	 * until K4 needs re-entrancy.
++	 */
++	.section .bss,"aw",%nobits
++	.p2align 3
++	.globl	dadao_excp_save
++dadao_excp_save:
++	.zero	PT_REGS_SIZE

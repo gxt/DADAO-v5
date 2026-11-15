@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/k1_pt.c b/arch/dadao/mm/k1_pt.c
 new file mode 100644
-index 000000000..a328cf030
+index 000000000..a193172fb
 --- /dev/null
 +++ b/arch/dadao/mm/k1_pt.c
-@@ -0,0 +1,302 @@
+@@ -0,0 +1,331 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO K1: build the first-level page table and install it in cfx_ptw_ptbr
@@ -54,8 +54,10 @@ index 000000000..a328cf030
 +#include <asm/cfx.h>
 +#include <asm/page.h>
 +#include <asm/pgtable.h>
++#include <asm/ptrace.h>
 +#include <asm/ptw.h>
 +#include <asm/setup.h>
++#include <asm/trap.h>
 +
 +extern char _start[];
 +extern pgd_t swapper_pg_dir[];
@@ -63,13 +65,16 @@ index 000000000..a328cf030
 +#define K1_PT_TABLE_BYTES	(PTRS_PER_PGD * sizeof(pgd_t))
 +
 +/*
-+ * K1 page-table failure codes.  They stay in 1..255 for the same reason the
-+ * boot-info codes do: the semihosting SYS_EXIT subcode IS the host process
-+ * exit status, so 0x100 would wrap to 0 and read as success.
++ * Page-table self-check codes: the guest FAIL segment of spec/Machine-v5 §7.1
++ * (0x01-0x7f, value = check point index).  setup.c carries 0x04-0x08, so this
++ * file continues at 0x09.  They stay <= 0x7f for the same reason the boot-info
++ * codes do: the semihosting SYS_EXIT subcode IS the host process exit status,
++ * so 0x100 would wrap to 0 and read as success.
 + */
-+#define FAIL_PT_BASE	0xec	/* PTBR base unusable (alignment / not RAM) */
-+#define FAIL_PT_ENTRY	0xed	/* the entry the kernel needs is not usable */
-+#define FAIL_PTW_OFF	0xee	/* ptw_enable is 0: nothing is mapped at all */
++#define FAIL_PT_BASE	0x09	/* PTBR base unusable (alignment / not RAM) */
++#define FAIL_PT_ENTRY	0x0a	/* the entry the kernel needs is not usable */
++#define FAIL_PTW_OFF	0x0b	/* ptw_enable is 0: nothing is mapped at all */
++#define FAIL_PT_PROBE	0x0c	/* the deliberate fault could not be registered */
 +
 +/*
 + * The probe VA: one superpage above the kernel window base, i.e. inside RAM
@@ -81,10 +86,31 @@ index 000000000..a328cf030
 +/* Written through the new table, then printed back *by PA*: "K1PT-KW". */
 +#define K1_PT_MARKER	0x4b3150542d4b5700UL
 +
-+volatile unsigned long dadao_k1_fault_expect;
-+volatile unsigned long dadao_k1_fault_taken;
-+
 +static unsigned long k1_pt_marker;
++
++static void k1_pt_probe_report(struct dadao_fault_probe *probe,
++			       struct pt_regs *regs, unsigned long info);
++
++/*
++ * The deliberate fault this file takes — "is this VA mapped yet?" — registered
++ * through the K2 channel (dadao_trap_probe_register).  Registration is what
++ * makes the fault resumable; the dispatcher has no default for a CFXMEM, so an
++ * unregistered fault at the same address is fatal.
++ */
++static struct dadao_fault_probe k1_pt_probe = {
++	.cause = 1UL << 1,		/* CFXMEM (spec/DADAO-13 §2) */
++	/* Two peeks, one expected fault: a third entry means the resume path
++	 * did not skip the faulting load and the channel is looping. */
++	.max_hits = 2,
++	.report = k1_pt_probe_report,
++};
++
++static void k1_pt_probe_report(struct dadao_fault_probe *probe,
++			       struct pt_regs *regs, unsigned long info)
++{
++	dadao_early_printf("K1 ptw fault probed cause=CFXMEM va=%#lx ip=%#lx (resumed)\n",
++			   info, regs->ip);
++}
 +
 +static void __noreturn k1_pt_reject(unsigned int code, const char *what,
 +				    unsigned long value)
@@ -159,19 +185,22 @@ index 000000000..a328cf030
 +}
 +
 +/*
-+ * Read *@word from @va with the expectation armed: if the access faults, the
-+ * supv vector records it and resumes after the load, so this returns false and
-+ * *word keeps its previous value.
++ * Read *@word from @va with the probe registered: if the access faults, the
++ * supv vector records it and resumes after the load (escape +4), so this
++ * returns false and *word keeps its previous value.
 + */
 +static bool __init k1_pt_peek(unsigned long va, unsigned long *word)
 +{
-+	dadao_k1_fault_taken = 0;
-+	dadao_k1_fault_expect = va;
++	unsigned long hits = k1_pt_probe.hits;
++
++	k1_pt_probe.info = va;
++	if (dadao_trap_probe_register(&k1_pt_probe))
++		k1_pt_reject(FAIL_PT_PROBE, "probe_register", va);
 +	barrier();
 +	*word = *(volatile unsigned long *)va;
 +	barrier();
-+	dadao_k1_fault_expect = 0;
-+	return !dadao_k1_fault_taken;
++	dadao_trap_probe_unregister(&k1_pt_probe);
++	return k1_pt_probe.hits == hits;
 +}
 +
 +/*

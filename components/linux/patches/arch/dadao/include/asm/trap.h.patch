@@ -1,0 +1,84 @@
+diff --git a/arch/dadao/include/asm/trap.h b/arch/dadao/include/asm/trap.h
+new file mode 100644
+index 000000000..6785b7d69
+--- /dev/null
++++ b/arch/dadao/include/asm/trap.h
+@@ -0,0 +1,78 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * DADAO supv synchronous-exception entry: the contract between the assembly
++ * stub (kernel/trap.S) and its C half (kernel/traps.c).
++ *
++ * Included from both sides, so it may only carry preprocessor constants —
++ * no structs, no inline functions.
++ */
++#ifndef __ASM_DADAO_TRAP_H
++#define __ASM_DADAO_TRAP_H
++
++/*
++ * Resume policy returned by dadao_trap_handler().  `escape` accepts exactly
++ * two offsets (spec/DADAO-12 §5.3), so the policy is a two-value enum and the
++ * stub fails by name on anything else instead of guessing an offset.
++ */
++#define DADAO_TRAP_RESUME_RETRY	0	/* escape +0: re-execute the faulting insn */
++#define DADAO_TRAP_RESUME_SKIP	1	/* escape +4: continue after it */
++
++/*
++ * Kernel self-check point the stub reports when the handler returns a policy
++ * that is neither of the two above (guest segment 0x01-0x7f, value = the check
++ * point; the numbering lives in kernel/traps.c).
++ */
++#define DADAO_TRAP_BAD_POLICY	0x0d
++
++#ifndef __ASSEMBLY__
++
++struct pt_regs;
++
++/*
++ * A registered, deliberate fault.
++ *
++ * Registering is the only way to make a synchronous exception resumable: the
++ * handler matches `cause` (and `info`, when non-zero) against the registered
++ * probe and resumes only then.  A fault that merely looks like a probe — the
++ * same address, the same magic — is fatal unless a probe is registered.
++ *
++ *   hits       times the handler matched this probe
++ *   retry      resume with `, 0` this many times before skipping: proves the
++ *              offset really re-executes the faulting instruction
++ *   max_hits   0 = unlimited; exceeding it is a kernel self-check failure
++ *   redirect   non-zero: resume at this address instead of at the fault.  The
++ *              handler writes it into `cfx_smon.excp_cause_ip` (cg5 rc3) and
++ *              returns RETRY, because `escape` only offers +0/+4 relative to
++ *              the hardware frame IP (contract-see §6.2).
++ *   report     optional; the probe owns its own diagnostic line
++ */
++struct dadao_fault_probe {
++	unsigned long cause;
++	unsigned long info;
++	unsigned long hits;
++	unsigned long retry;
++	unsigned long max_hits;
++	unsigned long redirect;
++	void (*report)(struct dadao_fault_probe *probe, struct pt_regs *regs,
++		       unsigned long info);
++};
++
++/* One probe at a time in K2: -EBUSY when another is registered. */
++int dadao_trap_probe_register(struct dadao_fault_probe *probe);
++void dadao_trap_probe_unregister(struct dadao_fault_probe *probe);
++/* Is @probe the registered one?  (Registration failures must be visible.) */
++bool dadao_trap_probe_active(const struct dadao_fault_probe *probe);
++
++/* Name of a cause id from the 11-item table (spec/DADAO-13 §2); NULL if none. */
++const char *dadao_cause_name(unsigned long cause);
++
++/*
++ * The exit code a fatal synchronous exception produces (spec/Machine-v5 §7.1):
++ * "other cfx" for CFXTRAP/CFXESC, the monitor segment for everything else.
++ * Exposed so the K2 self-test can assert both branches without dying.
++ */
++unsigned long dadao_exit_code(unsigned long cause);
++
++#endif /* !__ASSEMBLY__ */
++
++#endif /* __ASM_DADAO_TRAP_H */

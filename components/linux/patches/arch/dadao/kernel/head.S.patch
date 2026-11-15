@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/head.S b/arch/dadao/kernel/head.S
 new file mode 100644
-index 000000000..5fa31766f
+index 000000000..5d9e1d998
 --- /dev/null
 +++ b/arch/dadao/kernel/head.S
-@@ -0,0 +1,129 @@
+@@ -0,0 +1,147 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO kernel entry — K1: own stack, boot info validation, start_kernel().
@@ -25,9 +25,11 @@ index 000000000..5fa31766f
 + *   5. jump to the C entry dadao_start_kernel(), which prints the parsed
 + *      fields and calls start_kernel().
 + *
-+ * Failure codes are kept in 1..255 because the semihosting SYS_EXIT subcode IS
-+ * the host process exit status: a code such as 0x100 would wrap to 0 and read
-+ * as success.
++ * Failure codes are the guest FAIL segment of spec/Machine-v5 §7.1: 0x01-0x7f,
++ * value = check point index (0x01 magic, 0x02 version, 0x03 size; setup.c
++ * continues at 0x04).  They are <= 0x7f because the semihosting SYS_EXIT
++ * subcode IS the host process exit status: 0x100 would wrap to 0 and read as
++ * success.
 + *
 + * Semihosting convention (contract-semihosting §1/§2): the trap's immu18 only
 + * carries the fixed tag 0x3FF00; the service number goes in rd16 and the
@@ -36,9 +38,9 @@ index 000000000..5fa31766f
 + * same rule tests/shared/bootrom/k0/probe_kernel.S records for its exit block).
 + */
 +
-+#define FAIL_MAGIC	0xe1
-+#define FAIL_VERSION	0xe2
-+#define FAIL_SIZE	0xe3
++#define FAIL_MAGIC	0x01
++#define FAIL_VERSION	0x02
++#define FAIL_SIZE	0x03
 +
 +	.section .head.text,"ax"
 +	.globl _start
@@ -108,6 +110,22 @@ index 000000000..5fa31766f
 +	set.rb rb16, .Lstr_size
 +	set.rb rb5, dadao_bootinfo_reject
 +	jump [rb5, rd0, 0]
++
++	/*
++	 * void __noreturn dadao_jump_on_stack(void *sp, void (*fn)(void))
++	 *
++	 * Switch to @sp and enter @fn.  The kernel boots on the static
++	 * early_stack above, which carries no thread_info, while `current` is
++	 * derived from SP (asm/current.h: the thread_info sits at the base of
++	 * the stack region, arch/dadao/include/asm/thread_info.h).  Function
++	 * arguments are the ABI's: rb16 = first address argument (SP),
++	 * rb17 = second (entry).
++	 */
++	.globl	dadao_jump_on_stack
++	.p2align 2
++dadao_jump_on_stack:
++	set.rb	rb1, rb16
++	jump	[rb17, rd0, 0]
 +
 +	.section .rodata,"a"
 +.Lstr_magic:

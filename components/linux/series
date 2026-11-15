@@ -34,6 +34,7 @@ arch/dadao/include/asm/thread_info.h.patch
 arch/dadao/include/asm/timex.h.patch
 arch/dadao/include/asm/tlb.h.patch
 arch/dadao/include/asm/tlbflush.h.patch
+arch/dadao/include/asm/trap.h.patch
 arch/dadao/include/asm/uaccess.h.patch
 arch/dadao/include/asm/unaligned.h.patch
 arch/dadao/include/asm/vmalloc.h.patch
@@ -47,10 +48,11 @@ arch/dadao/kernel/Makefile.patch
 arch/dadao/kernel/asm-offsets.c.patch
 arch/dadao/kernel/early_console.c.patch
 arch/dadao/kernel/head.S.patch
-arch/dadao/kernel/k1_trap.S.patch
+arch/dadao/kernel/k2_selftest.c.patch
 arch/dadao/kernel/setup.c.patch
 arch/dadao/kernel/syscall_table.c.patch
 arch/dadao/kernel/syscalls.c.patch
+arch/dadao/kernel/trap.S.patch
 arch/dadao/kernel/traps.c.patch
 arch/dadao/kernel/vmlinux.lds.S.patch
 arch/dadao/lib/Makefile.patch

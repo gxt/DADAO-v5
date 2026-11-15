@@ -33,11 +33,13 @@ kernel to prove it):
       value derived from the image's own program headers
   P4  ``initramfs/ptbr/page_size_log2/flags`` == the contract (K1 installs no
       initramfs, so its size is 0)
-  P5  the stack line: SP inside ``[early_stack, early_stack_top)`` and the two
-      symbols are exactly the ``.zero`` size apart
-  P6  the ``start_kernel`` marker: ``base`` is the ``start_kernel`` symbol and
+  P5  the stack line: SP inside ``[early_stack, early_stack_top)`` while the
+      kernel is still on the entry stack, and the two symbols are exactly the
+      ``.zero`` size apart
+  P6  the ``start_kernel`` marker: ``base`` is the ``start_kernel`` symbol,
       ``ra`` is inside ``[start_kernel, next symbol)`` — the hook is the first
-      statement of ``start_kernel()``
+      statement of ``start_kernel()`` — and SP is inside the init task's stack
+      (K2 switches off the entry stack before calling it)
   P7  the completion line is present and no rejection/FAIL line is
 
   N1  ``--neg magic|size``: the kernel rejects the corrupted boot info with its
@@ -295,8 +297,13 @@ def check_positive(kernel: Path, rep: Report) -> None:
     rep.check("P6", "marker 在 start_kernel 头部（off < 0x100，先于首个子系统调用）",
               True, 0 <= num(get("marker.3")) < 0x100)
     rep.check("P6", "inside 标记", "yes", get("marker.5"))
-    rep.check("P6", "start_kernel 时 SP 仍在 early stack 内", True,
-              low <= num(get("marker.4")) < high)
+    # K2 (m14-linux-006) leaves the static early stack for the init task's
+    # stack before start_kernel(): `current` is derived from SP, and the early
+    # stack carries no thread_info.  The bound is the linker's init stack.
+    rep.check("P6", "start_kernel 时 SP 在 init task 栈内（init_stack 符号）",
+              True,
+              syms["__start_init_stack"] <= num(get("marker.4"))
+              < syms["__end_init_stack"])
     rep.check("P7", "完成行（SYS_EXIT(0) 之前未开时钟/中断）", True,
               "K1 done: semihosting SYS_EXIT(0) before any clock/interrupt init"
               in text)
@@ -322,8 +329,8 @@ HNEG_MAGIC = (
 )
 NEG = {
     # name: (hmon field value written, smon --defsym that accepts it, kernel code)
-    "magic": ("0x4442494f", "BOOTINFO_MAGIC=0x4442494F", "magic", 0xE1),
-    "size": ("0x20", "BOOTINFO_SIZE=0x20", "size", 0xE3),
+    "magic": ("0x4442494f", "BOOTINFO_MAGIC=0x4442494F", "magic", 0x01),
+    "size": ("0x20", "BOOTINFO_SIZE=0x20", "size", 0x03),
 }
 
 
@@ -384,6 +391,15 @@ def main() -> int:
         return 0
 
     QEMU = args.qemu
+    # This probe's checks belong to the K1 image (it stops at start_kernel());
+    # the default build tree now carries the K2 image, so refuse rather than
+    # report K1 failures against the wrong boot boundary.
+    config = _paths.linux_build_dir() / ".config"
+    if not config.is_file() or \
+            "CONFIG_DADAO_K1_EARLY_STOP=y" not in config.read_text(encoding="utf-8"):
+        sys.exit("k1_boot_probe: the build tree is not configured for the K1 "
+                 "image; run `make check-linux-k1` (it applies the K1 config "
+                 "slice) or set CONFIG_DADAO_K1_EARLY_STOP=y")
     k0.load_contract()
     if not k0.ABI:
         raise SystemExit("k1_boot_probe: contract projection is empty")

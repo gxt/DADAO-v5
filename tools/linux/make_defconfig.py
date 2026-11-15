@@ -16,8 +16,20 @@ that appends `--target=dadao-unknown-elf` is written into the *build* tree
 passed on the make command line for the same reason (`scripts/Makefile.clang`
 only knows the upstream architecture list, which we do not patch).
 
+Configuration slices (`--extra-config`, m14-linux-006): the default
+configuration is `arch/dadao/configs/defconfig` — the *K2* image (no
+`CONFIG_DADAO_K1_EARLY_STOP`).  An image that needs a symbol the default does
+not set states it explicitly, e.g. the K1 gate rebuilds with
+
+  --extra-config CONFIG_DADAO_K1_EARLY_STOP=y
+
+`apply_config_lines()` is the same entry point for scripts: it lands the lines
+in the build tree's `.config` and re-runs `olddefconfig` so dependencies
+converge.  Every gate therefore sets up the configuration its image needs
+instead of inheriting whatever the previous command left behind.
+
 Usage:
-  python3 tools/linux/make_defconfig.py [--jobs N]
+  python3 tools/linux/make_defconfig.py [--jobs N] [--extra-config SYM=VAL ...]
 
 Exit status: 0 = configured; 1 = make failed; 2 = setup error (missing tree,
 tool or applied patch series).
@@ -178,10 +190,97 @@ def next_step_hint() -> None:
     )
 
 
+def config_path() -> Path:
+    """The build tree's `.config` (runtime artefact, never in the component)."""
+    return linux_paths.linux_build_dir() / ".config"
+
+
+def _parse_entry(entry: str) -> tuple[str, str]:
+    """Split `CONFIG_X=value`; reject anything Kconfig would not accept."""
+    symbol, sep, value = entry.partition("=")
+    symbol, value = symbol.strip(), value.strip()
+    if not sep or not symbol.startswith("CONFIG_") or not value:
+        raise SetupError(f"--extra-config expects CONFIG_SYM=VALUE, got {entry!r}")
+    return symbol, value
+
+
+def _config_line(symbol: str, value: str) -> str:
+    """The line Kconfig writes for @symbol = @value (`n` is a comment)."""
+    return f"# {symbol} is not set" if value == "n" else f"{symbol}={value}"
+
+
+def apply_config_lines(entries: list[str]) -> int:
+    """Land explicit config values in the build tree's `.config`, then converge.
+
+    @entries may be empty (the existing `.config` stands).  The requested values
+    are asserted *after* `olddefconfig`: a symbol the dependency graph drops
+    silently would otherwise produce a different image than the caller asked
+    for.
+
+    Exit status: 0 = `.config` carries every requested value; 1 =
+    `olddefconfig` failed or a value did not survive; 2 = setup error.
+    """
+    if not entries:
+        return 0
+    try:
+        requested = [_parse_entry(entry) for entry in entries]
+    except SetupError as exc:
+        print(f"make_defconfig: SETUP ERROR: {exc}", file=sys.stderr)
+        return 2
+
+    config = config_path()
+    if not config.is_file():
+        print(f"make_defconfig: SETUP ERROR: {config} is missing; "
+              f"run `make linux-defconfig` first", file=sys.stderr)
+        return 2
+
+    lines = config.read_text(encoding="utf-8").splitlines()
+    for symbol, value in requested:
+        lines = [line for line in lines
+                 if not line.startswith(f"{symbol}=")
+                 and line != f"# {symbol} is not set"]
+        lines.append(_config_line(symbol, value))
+    config.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    try:
+        cmd, _variables = kernel_make_base()
+    except SetupError as exc:
+        print(f"make_defconfig: SETUP ERROR: {exc}", file=sys.stderr)
+        return 2
+    rc = subprocess.call(cmd + ["olddefconfig"])
+    if rc != 0:
+        print(f"make_defconfig: FAIL: `make olddefconfig` exited {rc}",
+              file=sys.stderr)
+        return 1
+
+    text = config.read_text(encoding="utf-8").splitlines()
+    for symbol, value in requested:
+        if value == "n":
+            # Kconfig writes `# CONFIG_X is not set`, or omits the symbol
+            # entirely when its dependencies are unmet; both mean "not set".
+            survivors = [line for line in text if line.startswith(f"{symbol}=")]
+            if survivors:
+                print(f"make_defconfig: FAIL: {symbol} should be unset but "
+                      f"reads {survivors[0]!r}", file=sys.stderr)
+                return 1
+        elif _config_line(symbol, value) not in text:
+            print(f"make_defconfig: FAIL: {symbol}={value} did not survive "
+                  f"`olddefconfig`", file=sys.stderr)
+            return 1
+    print("make_defconfig: config slice applied: "
+          + " ".join(_config_line(s, v) for s, v in requested))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--jobs", type=int, default=default_jobs(),
                         help="parallel make jobs (default: JOBS or nproc/2)")
+    parser.add_argument("--extra-config", action="append", default=[],
+                        metavar="CONFIG_SYM=VALUE",
+                        help="config slice applied after `make defconfig` "
+                             "(repeatable); `=n` writes Kconfig's "
+                             "`# CONFIG_SYM is not set`")
     args = parser.parse_args()
 
     try:
@@ -204,11 +303,19 @@ def main() -> int:
         next_step_hint()
         return 1
 
-    config = linux_paths.linux_build_dir() / ".config"
+    config = config_path()
     if not config.is_file():
         print(f"make_defconfig: FAIL: {config.name} was not written",
               file=sys.stderr)
         return 1
+
+    if args.extra_config:
+        rc = apply_config_lines(args.extra_config)
+        if rc != 0:
+            print("make_defconfig: FAIL: the config slice did not apply",
+                  file=sys.stderr)
+            return rc
+
     print("make_defconfig: PASS")
     return 0
 

@@ -95,6 +95,7 @@ if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
 from tools.linux import k1_boot_probe as k1boot    # noqa: E402  (ELF/symbols)
+from tools.linux import make_defconfig as defconfig  # noqa: E402  (config slice)
 from tools.linux import k1_pt_probe as k1pt       # noqa: E402  (ptw parsers)
 from tools.linux import make_vmlinux as vmlinux   # noqa: E402  (build driver)
 from tools.linux import paths as linux_paths      # noqa: E402
@@ -112,6 +113,15 @@ STAGE_TYPES = {1: "hmon", 2: "smon"}
 #: Monitor SRAM windows (spec/Machine-v5 §1.1): the image index table names the
 #: ELF each stage is loaded from; power copies them here before the handover.
 SPEC_SRAM = {"hmon": 0x0FFF_0000_0000, "smon": 0x0BFF_0000_0000}
+
+#: The image this gate boots: the K1 stop is on and the K2 symbols are
+#: explicitly off, so the result never depends on which gate configured the
+#: shared build tree last (m14-linux-006 config slices).
+K1_CONFIG = [
+    "CONFIG_DADAO_K1_EARLY_STOP=y",
+    "CONFIG_DADAO_K2_EARLY_STOP=n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
+]
 
 TIMEOUT_QEMU = int(os.environ.get("K1_QEMU_TIMEOUT", "120"))
 TIMEOUT_BUILD = int(os.environ.get("K1_BUILD_TIMEOUT", "3600"))
@@ -717,6 +727,19 @@ def check_all(ctx: Ctx, rc: int, text: str, cmd: list[str], rep: Report) -> None
 # ---------------------------------------------------------------------------
 
 def build() -> int:
+    """
+    Configure this gate's image, then build it incrementally.
+
+    The kernel build tree is shared, so the gate must not inherit whatever
+    configuration the previous command left behind: it states the symbols its
+    image needs (K1 stops at the first line of start_kernel(); the K2 boundary
+    and the K2 self-test are off) through the explicit config-slice entry point
+    of tools/linux/make_defconfig.py.
+    """
+    rc = defconfig.apply_config_lines(K1_CONFIG)
+    if rc != 0:
+        print(f"check-linux-k1: FAIL: config slice rc={rc}", file=sys.stderr)
+        return rc
     cmd = [sys.executable, str(_REPO / "tools" / "linux" / "make_vmlinux.py"),
            f"--jobs={JOBS}"]
     print(f"[INFO] incremental build (JOBS={JOBS})", flush=True)
@@ -878,8 +901,8 @@ INJECTIONS = {
         HEAD_S,
         "\tset.zw rd5, wp1, 0x4442\n\tor.w rd5, wp0, 0x494e\n",
         "\tset.zw rd5, wp1, 0x4442\n\tor.w rd5, wp0, 0x494f\n",
-        0xE1,
-        r"^K1 bootinfo invalid: magic code=0xe1$",
+        0x01,
+        r"^K1 bootinfo invalid: magic code=0x1$",
         r"^(K1 bootinfo magic=|start_kernel$)",
         ("K5", "K11", "K13"),
     ),
@@ -893,9 +916,15 @@ INJECTIONS = {
         r"^(K1 ptw post |K1 ptw done|start_kernel$)",
         ("K9", "K11"),
     ),
+    # The exit call is part of the K1 boundary's last line, so the injection
+    # names that line too (the K2 boundary carries the same call).
     "exit-code": (
         SETUP_C,
+        "\tdadao_early_printf(\"K1 done: semihosting SYS_EXIT(0) before any "
+        "clock/interrupt init\\n\");\n"
         "\tdadao_early_exit(0);",
+        "\tdadao_early_printf(\"K1 done: semihosting SYS_EXIT(0) before any "
+        "clock/interrupt init\\n\");\n"
         "\tdadao_early_exit(1);",
         1,
         r"^K1 done: semihosting SYS_EXIT\(0\)",

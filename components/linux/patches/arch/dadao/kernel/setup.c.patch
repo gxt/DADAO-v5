@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..cd403426b
+index 000000000..33cacc798
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,285 @@
+@@ -0,0 +1,327 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -45,16 +45,18 @@ index 000000000..cd403426b
 +#include <asm/thread_info.h>
 +
 +/*
-+ * K1 failure codes.  head.S carries 0xE1/0xE2/0xE3 for magic/version/size;
-+ * the codes below cover the fields only this file can judge.  They stay in
-+ * 1..255 because the semihosting SYS_EXIT subcode is the host process exit
-+ * status: 0x100 would wrap to 0 and read as success.
++ * Self-check codes for the fields only this file can judge: the guest FAIL
++ * segment of spec/Machine-v5 §7.1 (0x01-0x7f, value = check point index).
++ * head.S carries 0x01/0x02/0x03 for magic/version/size, so this file starts
++ * at 0x04.  The values also stay <= 0x7f because the semihosting SYS_EXIT
++ * subcode is the host process exit status (0x100 would wrap to 0 and read as
++ * PASS).
 + */
-+#define FAIL_HART_ID		0xe4	/* hart_id != 0 (K1 is single-hart) */
-+#define FAIL_PAGE_SHIFT		0xe5	/* page_size_log2 != PAGE_SHIFT */
-+#define FAIL_KERNEL_BASE	0xe6	/* kernel_base != the linked entry */
-+#define FAIL_IMAGE_RANGE	0xe7	/* [kernel_base, +kernel_size) outside RAM */
-+#define FAIL_NOT_START_KERNEL	0xe8	/* the marker is not inside start_kernel() */
++#define FAIL_HART_ID		0x04	/* hart_id != 0 (single hart) */
++#define FAIL_PAGE_SHIFT		0x05	/* page_size_log2 != PAGE_SHIFT */
++#define FAIL_KERNEL_BASE	0x06	/* kernel_base != the linked entry */
++#define FAIL_IMAGE_RANGE	0x07	/* [kernel_base, +kernel_size) outside RAM */
++#define FAIL_NOT_START_KERNEL	0x08	/* the marker is not inside start_kernel() */
 +
 +/* Linker-provided: the entry point head.S is linked at (contract §3.1). */
 +extern char _start[];
@@ -158,7 +160,16 @@ index 000000000..cd403426b
 +	dadao_supv_vector_install();
 +	dadao_k1_pt_init();
 +
-+	start_kernel();
++	/*
++	 * Leave the static early stack for the init task's stack.  `current` is
++	 * derived from SP (asm/current.h: thread_info at the base of the stack
++	 * region), so anything that reads `current` — printk's caller id, the
++	 * scheduler — needs SP inside a task stack.  The init stack's base
++	 * carries `init_thread_info` (include/asm-generic/vmlinux.lds.h
++	 * INIT_TASK_DATA), i.e. exactly the thread_info this port expects.
++	 */
++	dadao_jump_on_stack(init_stack + THREAD_SIZE / sizeof(unsigned long),
++			    start_kernel);
 +}
 +
 +/*
@@ -200,6 +211,33 @@ index 000000000..cd403426b
 +	*cmdline_p = boot_command_line;
 +
 +	paging_init();
++
++	dadao_early_printf("K2 setup_arch: memblock_add ram=%#lx size=%#lx cmdline=%#lx\n",
++			   dadao_ram_base, dadao_ram_size,
++			   (unsigned long)*cmdline_p);
++
++#ifdef CONFIG_DADAO_K2_EARLY_STOP
++	dadao_k2_boundary();
++#endif
++}
++
++/*
++ * The K2 boundary (CONFIG_DADAO_K2_EARLY_STOP): the kernel has run setup_arch()
++ * — the boot info was parsed, RAM handed to memblock, the page table adopted —
++ * and the supv synchronous-exception channel is installed and (optionally)
++ * exercised.  Nothing that needs a clock, a timer or an interrupt controller
++ * has run yet, which is exactly the K2 boundary: m14-linux-007 attaches the
++ * timer, m14-linux-008 the interrupt enable/mask path.
++ */
++void __init __noreturn dadao_k2_boundary(void)
++{
++	dadao_cause_report();
++#ifdef CONFIG_DADAO_K2_TRAP_SELFTEST
++	dadao_k2_selftest();
++#endif
++	dadao_early_printf("K2 done: semihosting SYS_EXIT(0) at the K2 boundary "
++			   "(no clock/timer/IRQ)\n");
++	dadao_early_exit(0);
 +}
 +
 +/* /proc/cpuinfo: one line describing the hart (K1: hart 0 only). */
@@ -235,7 +273,11 @@ index 000000000..cd403426b
 +
 +void __init trap_init(void)
 +{
-+	/* Trap/exception entry lands with the vector table (contract-see §2). */
++	/*
++	 * The vector is installed in dadao_start_kernel(), before the kernel
++	 * switches to its own page table (a fault during the switch has to be
++	 * reportable).  Nothing to do here until K4 installs per-mode entries.
++	 */
 +}
 +
 +void __init init_IRQ(void)

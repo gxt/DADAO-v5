@@ -55,11 +55,12 @@ kernel with the corruption in place):
 ``--inject`` cases (source patch -> rebuild -> run -> restore, ``cp`` + md5):
 
   pte-sp     the entry is built without ``SP`` -> the kernel refuses to install
-             a table whose kernel-window entry is not a superpage (0xED)
+             a table whose kernel-window entry is not a superpage (0x0a)
   ptbr-ppn   the PTBR value gets PPN bit 33 flipped -> the base leaves RAM and
-             is refused (0xEC)
+             is refused (0x09)
   no-expect  the deliberate unmapped access is not announced as a probe -> the
-             live CFXMEM is reported by name and is fatal (0xE9)
+             live CFXMEM is reported by name and is fatal (supv+CFXMEM monitor
+             code, spec/Machine-v5 §7.1)
 
 Usage::
 
@@ -90,11 +91,20 @@ if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
 from tools.linux import k1_boot_probe as k1     # noqa: E402
+from tools.linux import make_defconfig as defconfig  # noqa: E402  (config slice)
 from tools.linux import make_vmlinux as vmlinux  # noqa: E402
 from tools.linux import paths as _paths          # noqa: E402
 from tools.qemu import k0_boot_probe as k0        # noqa: E402
 
 import yaml                                        # noqa: E402
+
+#: This probe boots the *K1* image: K1's stop is on and the K2 symbols are off
+#: (m14-linux-006 config slices — the default image is the K2 one).
+K1_CONFIG = [
+    "CONFIG_DADAO_K1_EARLY_STOP=y",
+    "CONFIG_DADAO_K2_EARLY_STOP=n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
+]
 
 TIMEOUT = int(os.environ.get("K1_PT_TIMEOUT", "120"))
 
@@ -438,16 +448,16 @@ INJECTIONS = {
         PT_C,
         "\treturn (pa & SUPERPAGE_PA_MASK) | _PAGE_KERNEL | _PAGE_SUPER;",
         "\treturn (pa & SUPERPAGE_PA_MASK) | _PAGE_KERNEL;",
-        0xed,
-        r"^K1 ptw table rejected: kernel_window_pte=0x[0-9a-f]+ code=0xed$",
+        0x0a,
+        r"^K1 ptw table rejected: kernel_window_pte=0x[0-9a-f]+ code=0xa$",
         r"^K1 ptw post ",
     ),
     "ptbr-ppn": (
         PT_C,
         "\tunsigned long base = (unsigned long)__pa(swapper_pg_dir);",
         "\tunsigned long base = (unsigned long)__pa(swapper_pg_dir) ^ (1UL << 33);",
-        0xec,
-        r"^K1 ptw table rejected: ptbr_outside_ram=0x[0-9a-f]+ code=0xec$",
+        0x09,
+        r"^K1 ptw table rejected: ptbr_outside_ram=0x[0-9a-f]+ code=0x9$",
         r"^K1 ptw post ",
     ),
     # The live counterpart of the negative case: the *check* still looks at the
@@ -468,17 +478,32 @@ INJECTIONS = {
     ),
     "no-expect": (
         PT_C,
-        "\tdadao_k1_fault_expect = va;",
-        "\tdadao_k1_fault_expect = 0;",
-        0xe9,
-        r"^K1 ptw fault: cause=CFXMEM\(0x2\) ip=0x[0-9a-f]+ "
-        r"info={probe_va:#x} ptbr=0x0$",
+        "\tif (dadao_trap_probe_register(&k1_pt_probe))",
+        "\tif (0)",
+        0xe1,                 # supv + CFXMEM, spec/Machine-v5 §7.1
+        r"^dadao: unrecoverable supv exception cause=CFXMEM\(0x2\) "
+        r"ip=0x[0-9a-f]+ info={probe_va:#x} ptbr=0x0 sp=0x[0-9a-f]+$",
         r"^K1 ptw done",
     ),
 }
 
 
+def require_k1_image() -> None:
+    """Refuse to interpret a non-K1 image (the default build is the K2 one)."""
+    config = _paths.linux_build_dir() / ".config"
+    if config.is_file():
+        text = config.read_text(encoding="utf-8")
+        if "CONFIG_DADAO_K1_EARLY_STOP=y" in text:
+            return
+    sys.exit("k1_pt_probe: the build tree is not configured for the K1 image; "
+             "run `make check-linux-k1` (it applies the K1 config slice) or set "
+             "CONFIG_DADAO_K1_EARLY_STOP=y")
+
+
 def rebuild() -> int:
+    rc = defconfig.apply_config_lines(K1_CONFIG)
+    if rc != 0:
+        return rc
     src = _paths.linux_source_dir()
     cmd, _tools = vmlinux.defconfig.kernel_make_base()
     jobs = os.environ.get("JOBS", "32")
@@ -569,6 +594,7 @@ def main() -> int:
         return 0
 
     QEMU = args.qemu
+    require_k1_image()
     kernel = Path(args.kernel) if args.kernel else \
         Path(_paths.linux_build_dir()) / "vmlinux"
     if not kernel.is_file():

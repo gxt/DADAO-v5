@@ -1,20 +1,94 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..03576dc61
+index 000000000..35e7e138b
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,14 @@
+@@ -0,0 +1,88 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
++#
++# These are boot-progress boundaries, not features: each one stops the kernel at
++# the point the corresponding milestone proves, so a later milestone turns it
++# off.  They default to n — an image that needs one states it (the K1 gate
++# configures its own image with `CONFIG_DADAO_K1_EARLY_STOP=y`), which is what
++# keeps "which boundary am I booting" an explicit property of the image instead
++# of an inherited .config.
 +
 +config DADAO_K1_EARLY_STOP
 +	bool "Stop at the first line of start_kernel() (K1 boundary)"
-+	default y
++	default n
 +	help
-+	  K1 (m14-linux-003) only proves that the kernel *reaches*
++	  K1 (m14-linux-003/005) only proves that the kernel *reaches*
 +	  start_kernel(): the first statement of start_kernel() reports the
 +	  boot info handoff and exits through semihosting SYS_EXIT(0) before
 +	  any subsystem, clock, timer or interrupt is initialised.
 +
-+	  This is a boot-progress boundary, not a feature: turn it off once
-+	  start_kernel() is allowed to run for real (K2+).
++	  K2 turns this off and lets setup_arch() run (see
++	  DADAO_K2_EARLY_STOP).  The K1 gate keeps its own image: it sets the
++	  symbol with the explicit config-slice entry point.
++
++config DADAO_K2_EARLY_STOP
++	bool "Stop at the end of setup_arch() (K2 boundary)"
++	default n
++	help
++	  K2 (m14-linux-006) makes the supv synchronous-exception channel real:
++	  the entry captures the whole register file, the C half dispatches by
++	  cause and unrecoverable exceptions stop with the spec/Machine-v5 §7.1
++	  monitor exit code.  This boundary reports the channel and exits
++	  through semihosting SYS_EXIT(0) once setup_arch() has run — before
++	  any clock, timer or interrupt controller exists.
++
++	  m14-linux-007 (timer) and m14-linux-008 (interrupt mask) move the
++	  boundary further.
++
++config DADAO_K2_TRAP_SELFTEST
++	bool "Run the K2 supv-exception self-test at the K2 boundary"
++	default n
++	depends on DADAO_K2_EARLY_STOP
++	help
++	  Exercise the exception channel from inside the kernel (see
++	  kernel/k2_selftest.c): a registered CFXMEM probe that is resumed with
++	  both escape offsets, the frame's register-file integrity, and the
++	  named termination of an unregistered fault.
++
++	  This is test scaffolding (the K2 gate builds a probe image with it);
++	  it is not part of the K2 image the later milestones boot.
++
++config DADAO_K2_SELFTEST_REENTRY
++	bool "K2 self-test ends with a fault inside the handler"
++	default n
++	depends on DADAO_K2_TRAP_SELFTEST
++	help
++	  The self-test's last case faults *inside* the handler, so the entry
++	  re-enters with the channel busy: the re-entrancy guard must report it
++	  as a kernel self-check failure instead of dispatching it.  The boot
++	  ends there, hence it is selected per image.
++
++config DADAO_K2_SELFTEST_CFXTRAP
++	bool "K2 self-test ends with an unregistered CFXTRAP"
++	default n
++	depends on DADAO_K2_TRAP_SELFTEST
++	help
++	  The last case executes `trap cfx_smon` with no probe registered, so the
++	  exception is fatal: spec/Machine-v5 §7.1 puts CFXTRAP in the "other
++	  cfx" segment (0x80 | cfxHA), which the image then exits with.
++
++config DADAO_K2_SELFTEST_CFXESC
++	bool "K2 self-test ends with a CFXESC"
++	default n
++	depends on DADAO_K2_TRAP_SELFTEST
++	help
++	  The last case escapes to a cfx that is not the current one, i.e. the
++	  frame/target error of spec/DADAO-12 §5.1 (§7.1: same "other cfx"
++	  segment as CFXTRAP).
++
++config DADAO_K2_SELFTEST_UNKNOWN
++	bool "Corrupt the dispatched cause id (K2 unknown-cause probe)"
++	default n
++	depends on DADAO_K2_TRAP_SELFTEST
++	help
++	  `cfx_smon.excp_cause_id` is hardware-read-only, so the only way to
++	  exercise the dispatcher's "not in the 11-item table" path is to alter
++	  the value the C half receives.  This symbol adds that hook to
++	  kernel/traps.c; it exists only for the K2 gate's P4 probe image and
++	  must never be set in an image that boots anything.

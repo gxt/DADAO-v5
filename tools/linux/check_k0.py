@@ -114,6 +114,15 @@ CPIO_MAGIC = b"070701"
 CPIO_TRAILER = "TRAILER!!!"
 
 #: Wall-clock guards.  `timeout` => rc 124, which is a FAIL (AGENTS.md「长任务」).
+#: The image this gate inspects: the K1 stop is on, the K2 symbols are
+#: explicitly off (m14-linux-006 config slices keep the shared build tree
+#: deterministic no matter which gate ran last).
+K0_CONFIG = [
+    "CONFIG_DADAO_K1_EARLY_STOP=y",
+    "CONFIG_DADAO_K2_EARLY_STOP=n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
+]
+
 TIMEOUT_VMLINUX = int(os.environ.get("K0_VMLINUX_TIMEOUT", "3600"))
 TIMEOUT_INITRAMFS = int(os.environ.get("K0_INITRAMFS_TIMEOUT", "600"))
 TIMEOUT_TOOLCHAIN = int(os.environ.get("K0_TOOLCHAIN_TIMEOUT", "600"))
@@ -565,6 +574,14 @@ def phase_vmlinux(env: Env, rep: Report) -> int:
         if not (linux_paths.linux_build_dir() / ".config").is_file():
             rep.bad("K1", "vmlinux 可构建（.config）", "存在", "缺失")
             rep.info("下一步: `make linux-defconfig && make linux-vmlinux`")
+            return len(rep.fails) - before
+        # The build tree is shared: state the image this gate builds instead of
+        # inheriting whatever the previous command left in .config
+        # (m14-linux-006 config slices).
+        slice_rc = defconfig.apply_config_lines(K0_CONFIG)
+        if slice_rc != 0:
+            rep.bad("K1", "配置切片（K1 停止边界开、K2 边界/自检关）", 0, slice_rc)
+            rep.info("下一步: `make linux-defconfig`")
             return len(rep.fails) - before
         jobs = defconfig.default_jobs()
         try:

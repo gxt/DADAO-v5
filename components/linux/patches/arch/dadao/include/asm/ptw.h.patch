@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/ptw.h b/arch/dadao/include/asm/ptw.h
 new file mode 100644
-index 000000000..04b3422cb
+index 000000000..7fc6d2cd9
 --- /dev/null
 +++ b/arch/dadao/include/asm/ptw.h
-@@ -0,0 +1,103 @@
+@@ -0,0 +1,104 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO page table walker interface (spec/DADAO-12 §2.2, §4.5).
@@ -52,6 +52,7 @@ index 000000000..04b3422cb
 +#define SMON_CG_SUPV		2
 +#define SMON_RC_SUPV_EXCP_VECTOR	10
 +#define SMON_CG_FRAME		5
++#define SMON_RC_FRAME_PREV_MODE	0
 +#define SMON_RC_FRAME_CAUSE_ID	2
 +#define SMON_RC_FRAME_CAUSE_IP	3
 +#define SMON_RC_FRAME_CAUSE_INFO	4

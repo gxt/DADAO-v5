@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..1487fbd8d
+index 000000000..8842d63e9
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,102 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -46,6 +46,8 @@ index 000000000..1487fbd8d
 +
 +/* Kernel entry: head.S jumps here after validating magic/version/size. */
 +void __noreturn dadao_start_kernel(void);
++/* Switch to @sp and enter @fn (head.S): leaves the static early stack. */
++void __noreturn dadao_jump_on_stack(void *sp, void (*fn)(void));
 +
 +/* Named boot-info rejection: prints and stops with a fixed semihosting code. */
 +void __noreturn dadao_bootinfo_reject(unsigned int code, const char *what);
@@ -57,6 +59,15 @@ index 000000000..1487fbd8d
 + */
 +void dadao_k1_early_stop(void);
 +
++/*
++ * K2 boundary, called from the end of setup_arch() (CONFIG_DADAO_K2_EARLY_STOP):
++ * report the supv exception channel, run the optional K2 self-test and exit
++ * before anything that would need a clock.
++ */
++void dadao_k2_boundary(void);
++/* K2 self-test scaffolding (kernel/k2_selftest.c, probe images only). */
++void dadao_k2_selftest(void);
++
 +/* Early console: semihosting SYS_WRITE0 / SYS_EXIT (contract-semihosting). */
 +void dadao_early_write(const char *s);
 +/* One byte at an explicit PA (the responder reads guest memory by PA). */
@@ -65,15 +76,21 @@ index 000000000..1487fbd8d
 +void __noreturn dadao_early_exit(unsigned long code);
 +
 +/*
-+ * K1 supv exception vector: the C half of kernel/k1_trap.S.  The kernel owns
-+ * the vector from the moment it owns the page table (spec/DADAO-12 §5.2 step 7
-+ * gives no recovery for an unmapped vector page).
++ * K2 supv exception entry (kernel/trap.S): the kernel owns the vector from the
++ * moment it owns the page table (spec/DADAO-12 §5.2 step 7 gives no recovery
++ * for an unmapped vector page).
 + */
 +void dadao_supv_vector_install(void);
-+/* The vector entry itself (kernel/k1_trap.S entry point). */
++/* The vector entry point and the static frame it captures (kernel/trap.S). */
 +extern char dadao_supv_excp[];
-+void dadao_k1_excp_handle(unsigned long cause_id, unsigned long cause_ip,
-+			  unsigned long cause_info);
++extern char dadao_excp_save[];
++/* The C half of the entry: returns DADAO_TRAP_RESUME_{RETRY,SKIP}. */
++unsigned long dadao_trap_handler(struct pt_regs *regs, unsigned long cause,
++				 unsigned long info);
++/* Undefined resume policy: the stub names it instead of picking an offset. */
++void __noreturn dadao_trap_bad_policy(void);
++/* Print the dispatch table the handler really matches on (K2 gate reads it). */
++void dadao_cause_report(void);
 +
 +/* §5 entry state saved by head.S before it is used or overwritten. */
 +extern unsigned long dadao_entry_va;		/* rb16: entry VA */
