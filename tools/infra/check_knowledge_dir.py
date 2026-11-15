@@ -13,7 +13,7 @@
 > ⇒ 原 ``contract-*.md`` 顶层通配**作废**（``.tao/knowledge/`` 顶层再出现 ``contract-*.md``
 > 即白名单外 ⇒ FAIL）。新落点白名单见 ``check_contracts_dir.py``。
 > **按里程碑分册台账（m12-infra-001，用户 2026-11-08）**：``milestones-*.md``（如
-> ``milestones-m12.md``）为允许的台账分册，**显式列于** ``_ALLOWED_FILES``；新的分册须人工登记（不做通配，保持「新增台账必须显式放行」的绊线）。
+> ``milestones-m13.md``）为允许的台账分册，**显式列于** ``_ALLOWED_FILES``；新的分册须人工登记（不做通配，保持「新增台账必须显式放行」的绊线）。
 
 设计要点：
   - **计数现场统计、不写死**；
@@ -38,7 +38,6 @@ KNOWLEDGE_REL = Path(".tao") / "knowledge"
 
 # ── 顶层允许的**文件**（显式名单；子目录不受限）────────────────────────────────
 _ALLOWED_FILES = frozenset({
-    "milestones-m12.md",              # M12 分册台账（用户 2026-11-08）
     "milestones-m13.md",              # M13 分册台账（用户 2026-11-09）
     "milestones-m14.md",              # M14 分册台账（Linux bring-up）
     "milestones-m15.md",              # M15 分册台账（ISA 语义结构化）
@@ -52,8 +51,8 @@ _ALLOWED_FILES = frozenset({
     "nodes.md",                      # 构建/测试节点台账（机型/组网/软件包/就绪判据）
 })
 
-# 顶层不设 glob（M12 分册台账以显式名单放行，防通配放行任意 `milestones-*.md`）
-# 「milestones.md 也改为 milestones-m12.md」⇒ `milestones-m12.md`、将来的 `milestones-m13.md`…）。
+# 顶层不设 glob（各分册台账以显式名单放行，防通配放行任意 `milestones-*.md`；M12 分册 2026-11-15 已归档删除）
+# 各里程碑分册（`milestones-m13.md`…）逐一显式登记；M12 分册已归档删除）。
 # `contract-*.md` 已由 INFRA-071t 迁入 `.tao/contracts/` ⇒ 该通配作废（再出现即 FAIL）。
 _ALLOWED_GLOBS: tuple[str, ...] = ()
 

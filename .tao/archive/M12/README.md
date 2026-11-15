@@ -21,7 +21,7 @@
 
 ## 2 任务流水（冻结）
 
-> **冻结日期**：2026-11-15。M12 期 41 册流水按 `milestones-m12.md`「已验证」表现值搬入（状态按任务书规范化 `已验证`；次序 = 完成时间倒序）。活台账行**保留未删**（本归档任务范围不改台账，见 `m12-retrospective.md` 附录 A）。
+> **冻结日期**：2026-11-15。M12 期 41 册流水按原 M12 台账「已验证」表现值搬入（状态按任务书规范化 `已验证`；次序 = 完成时间倒序）。原台账已于 2026-11-15 **合并至本归档并删除**（见 `m12-retrospective.md` 附录 C）。
 
 | 编号 | 状态 | 完成时间 | 一句改动 |
 | --- | --- | --- | --- |
@@ -90,7 +90,7 @@
 
 ## 5 指针
 
-- 里程碑定义/达成：`.tao/knowledge/milestones-m12.md`（活台账，本任务未删行）
+- 里程碑定义/达成：**本目录** `README.md §1/§2`（原 `milestones-m12.md` 已合并入此并于 2026-11-15 删除，git 历史可回溯）
 - 里程碑回顾：本目录 `m12-retrospective.md`
 - 关闭 issue 快照：本目录 `issues-closed.md`（27 条；`tools/infra/archive_issues.py --milestone M12 --check` 可复核）
 - 遗留台账：`.tao/knowledge/issues.yaml`、`.tao/knowledge/discussing.md`、`.tao/knowledge/lessons.md`
