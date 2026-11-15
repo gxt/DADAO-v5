@@ -349,6 +349,12 @@
   - system
   level: full
   requires: []
+- id: inst-02-reg-copy-017
+  file: inst/02-reg-copy/rf2rf_orri_rf.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-03-wyde-imm-001
   file: inst/03-wyde-imm/andn.w_rwii_rb.S
   platforms:
@@ -829,12 +835,6 @@
   - system
   level: full
   requires: []
-- id: inst-07-floating-point-019
-  file: inst/07-floating-point/fo2fo_orri_rf.S
-  platforms:
-  - system
-  level: full
-  requires: []
 - id: inst-07-floating-point-020
   file: inst/07-floating-point/fo2ft_orri_rf.S
   platforms:
@@ -885,12 +885,6 @@
   requires: []
 - id: inst-07-floating-point-028
   file: inst/07-floating-point/ft2fo_orri_rf.S
-  platforms:
-  - system
-  level: full
-  requires: []
-- id: inst-07-floating-point-029
-  file: inst/07-floating-point/ft2ft_orri_rf.S
   platforms:
   - system
   level: full

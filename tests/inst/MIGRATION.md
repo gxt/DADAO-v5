@@ -637,11 +637,12 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
   的 L3 载体，且 §5.1 前置未解）；`fp/arith.yaml` 的 8 个 id 已并入（余 4 个比较 id 待 022）；
   `fosub`/`ftadd`/`ftsub`/`ftmax` 原本无 YAML 载体。
 
-### `m13-testcases-022`：`07-floating-point` 转换/比较/分类（26 个 id）
+### `m13-testcases-022`：`07-floating-point` 转换/比较/分类（26 个 id；现存 24）
 
 - `tests/inst/07-floating-point/{<id>.S}`（26 个）：转换 18（`ft2it`/`ft2io`/`ft2ut`/`ft2uo`、
   `fo2it`/`fo2io`/`fo2ut`/`fo2uo`、`it2ft`/`io2ft`/`ut2ft`/`uo2ft`、`io2fo`/`uo2fo`、
-  `it2fo`/`ut2fo`、`fo2ft`、`ft2fo`）+ 块复制 2（`ft2ft`/`fo2fo`）+ 分类 2（`ftcls`/`focls`）
+  `it2fo`/`ut2fo`、`fo2ft`、`ft2fo`）+ 块复制 2（FT 与 FO 各自的同组复制；`m13-testcases-047`
+  起并入 `02-reg-copy/rf2rf_orri_rf.S`，本册不再有同组复制载体）+ 分类 2（`ftcls`/`focls`）
   + 比较 4（`ftqcmp`/`ftscmp`/`foqcmp`/`foscmp`）；链接布局复用 `inst-tiny-fp.lds`。
 - 宏层新增（`tests/inst/macros/inst_test.inc`）：`TEST_FPCVT_{F2I,I2F,F2F}`（源在 rf/rd、
   目的在 rd/rf 三种几何）、`TEST_FPCVT_ENC_{RD,RF,F2F}`（原始编码字）、
@@ -670,11 +671,13 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 - 故障例（84）覆盖 `dst_rd0`/`dst_rf0`/`mreg_zero`/`mreg_range_overflow`/`mreg_range_overlap`/
   `encode_onehot`/`encode_sbz`，全部经原始编码字（汇编器会拒绝的编码）⇒ 期望 `0xF8` ILLI。
 - **`ft` 目的写入的高 32 位**：受控探针（7 检查点，目的寄存器先写满 64 位已知值）在**当前
-  master 构建**上三方**逐字节一致**（md5 `e33e7b65c2f2b6b6ff9bd9d6bcca427c`）：`ft2ft`/`fo2ft`
-  **只写低 32 位、高 32 位保留**，`ft2fo` 写满 64 位。同一探针在早先的旧构建（QEMU/RTL）上是
-  **整 64 位搬移**（gem5 仍为低 32 写）⇒ 该行为属 `contract-fp §1` 的「高 32 位不作规定」，
-  且在构建间变过 ⇒ `ft` 目的用例只比低 32 位、**不计红**；`contract-fp §1` 与 §1.3「复制类
-  64 位二进制不变」措辞冲突，建议 spec 收窄（见任务书「新发现/坑」）。
+  master 构建**上三方**逐字节一致**（md5 `e33e7b65c2f2b6b6ff9bd9d6bcca427c`）：当时的 FT
+  同组复制载体与 `fo2ft` **只写低 32 位、高 32 位保留**（FT 同组复制已被
+  `m13-testcases-047` 的 `rf2rf` 取代：后者是**整 64 位**位型复制），`ft2fo` 写满 64 位。
+  同一探针在早先的旧构建（QEMU/RTL）上是**整 64 位搬移**（gem5 仍为低 32 写）⇒ 该行为属
+  `contract-fp §1` 的「高 32 位不作规定」，且在构建间变过 ⇒ `ft` 目的用例只比低 32 位、
+  **不计红**；`contract-fp §1` 与「复制类 64 位二进制不变」措辞冲突，建议 spec 收窄
+  （见任务书「新发现/坑」；`rf2rf` 已按 `SimRISC-02 §1` 明确为整 64 位复制）。
 - **YAML 逐条并入**（`fp/convert.yaml` 15 例 + `fp/arith.yaml` 15 例，共 30 条操作数全部有
   对应 `.S` 用例）：`convert.yaml` ⇒ `ft2it` 的 `2.7f` 四方向（RTZ/RNE/RUP/RDN）+ 负号 `-2.7 RTZ`
   + 动态档 RTZ + `2^31 越界 ⇒ INT32_MAX+NV` + `RNA 2.5` + `immu6=3 ⇒ ILLI`；`fo2io` 的
@@ -716,3 +719,31 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
   MALIGN/CFXMEM/ILLI 三路径 `chipyard 1 / qemu 1 / gem5 0`、CFXTRAP 路径 `1 / 0 / 0`
   （spec 均为 1）⇒ **不进正式向量**（不把任一平台行为写成期望），登记为待修实现缺口；
   ③ 存储序强度；④ `sc` 偶发失败。
+
+### `m13-testcases-047`：`.S` 向量对齐 `rf2rf`（删 2 加 1）+ `.S` id ∈ opcodes 门控复核
+
+- **组件面与 spec 对齐**：`contracts/opcodes.yaml` 已由 `m13-spec-010` 删去 FT/FO 各自的同组块复制、
+  新增 `rf2rf_orri_rf`（`SimRISC-02 §1`，opc `0x40`/ha `0x3C`，目的含 `rf0` ⇒ ILLI）；本任务删
+  `07-floating-point` 的两个旧同组复制载体（各 16 点 / 6 镜像），新增
+  `02-reg-copy/rf2rf_orri_rf.S`（17 点 = 链例 11 + 故障例 6，7 镜像）。
+- **册归属**：`rf2rf` 的类别是 SimRISC-02「寄存器复制」（同组块复制的唯一 `rf` 形式），故落在
+  `02-reg-copy`（与 `rd2rd`/`rb2rb` 同册）；位型搬移与浮点宽度无关 ⇒ `07-floating-point` 不再有
+  同组复制载体（README 计数 44 → 42，`02-reg-copy` 16 → 17）。
+- **用例**（期望一律内联、由 `SimRISC-02 §1`「保持 64 位二进制不变」直接派生）：encoding 2（规范
+  编码字 + 字段边界 `dst=rf63/src=rf62`）、semantic 4（1/2/3/4 元素；NaN payload 逐位保留、负号
+  qNaN、±0、次正规；`个数 3` 额外断言**FCSR 位型复制前后不变** ⇒「不置标志」）、boundary 3
+  （窗口顶端 `{rf60:rf63}`、`rf63 ← rf40`、最大个数 31 = `{rf1:rf31} ← {rf32:rf62}` 逐元素核
+  「目的 == 源内存」）、overlap/rf0 2（相邻不相交窗口合法；`rf0` 作**源**合法且读完整 64 位）、
+  故障 6（`dst_rf0`/`mreg_zero`/`mreg_range_overflow` 目的侧与源侧/`mreg_range_overlap` 完全重合与部分交错）。
+- **宏层新增**（`tests/inst/macros/inst_test.inc`）：`__VERIFY_MEM_RF`/`__CHECK_MEM_RF`（rf 目的 vs
+  内存 beat，探针 = `rf2rd` 跨组读回 + `ld.o`；命名/参数与 `__CHECK_MEM_RB` 同形）、
+  `TEST_MOV_RF0`（源 `rf0` 的单寄存器例：期望运行期取自 `rf0` 自身，不钉位型）、`TEST_MOV1` 增
+  `rf2rf` 分支。
+- **门控**：`check-tests-index`/`validate-vectors`/`check-case-ledger`/`check-no-residue`/
+  `check-knowledge-refs` rc=0；载体 265 → 264（`rf2rf` 落地）、索引 274 → 273 条、镜像 901 → 896。
+  「`.S` 载体 stem 必须能在 `contracts/opcodes.yaml` 找到 id」这条断言**已存在**于
+  `tools/testcases/validate_vectors.py`（`scan_asm_carriers`，自 `m13-testcases-030`），本任务注入
+  复核其**可达 FAIL**（本任务改前正是它报 2 条 `ASM CARRIER ORPHAN` 红）。
+- **执行侧依赖**：`rf2rf` 的助记符/译码由 `m13-llvm-001` + `m13-qemu-016` 承担；两者合入并
+  `install-host` 前，`check-inst-asm` 对本载体报「unrecognized instruction mnemonic」——与
+  其它 263 个载体无关（本任务用语义等价的旧编码做**同构复核**：7/7 镜像绿，见完成区）。

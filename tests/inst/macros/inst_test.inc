@@ -484,12 +484,47 @@ __smdone_\@:
 @@   （不占点号）+ 末尾一条 `__CHECK_*`（点号在这里）；失败点号仍 = 用例序号。
 @@   目的银行由助记符决定：目的在 rd ⇒ `__CHECK_RD`；在 rb/ra/rf ⇒ 同组 `st.o` 落到
 @@   SCRATCH 再 `__CHECK_MEM`（探针不经过任何复制指令）。
+@@   同组复制 `rf2rf` 的 31 元边界例另用 `__VERIFY_MEM_RF`/`__CHECK_MEM_RF`（rf 目的 vs 内存 beat；
+@@   探针 = `rf2rd` 跨组读回 + `ld.o`），见该宏处说明。
 @@ ---------------------------------------------------------------------------
 
 @@ 从 RDATA 装载 8 字节到任意银行（ra/rf 初值的独立通路：内存 → 组）
 .macro __SET_MEM reg, off
 	LOAD_ADDR rb3, RDATA + \off
 	ld.o	\reg, [rb3, 0]
+.endm
+
+@@ 内存 beat vs **运行期** rf 期望（`rf2rf` 的 31 元边界例用「目的 == 源内存」判据）：
+@@   探针 = `rf2rd` 跨组读回 + `ld.o`（两者都不是被测的块复制指令），不引入期望常量。
+@@   命名/参数与 `__CHECK_MEM_RB` 对齐（baseval/off 在前、组内寄存器在后）。
+@@   `__VERIFY_*` 不占点号，`__CHECK_*` 是最后一条、点号在这里（失败点号 = 用例序号）。
+.macro __VERIFY_MEM_RF pt, baseval, off, rfsrc
+	rf2rd	{rd21:rd21}, {\rfsrc:\rfsrc}
+	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
+	ld.o	rd20, [rb21, 0]
+	br.eq	{rd20, rd21}?, [rb0, __vmrf_\@]
+	__EXIT	\pt
+__vmrf_\@:
+.endm
+
+.macro __CHECK_MEM_RF pt, baseval, off, rfsrc
+	rf2rd	{rd21:rd21}, {\rfsrc:\rfsrc}
+	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
+	ld.o	rd20, [rb21, 0]
+	__REC	rd21
+	br.eq	{rd20, rd21}?, [rb0, __cmrf_\@]
+	__EXIT	\pt
+__cmrf_\@:
+.endm
+
+@@ 源为 rf0 的单寄存器用例（rf0 = FCSR，位型由硬件定义 ⇒ 期望运行期取自 rf0 自身，
+@@   不钉字面量；`rf2rd` 读回同样是跨组复制，与被测的 `rf2rf` 不是同一 id）
+.macro TEST_MOV_RF0 pt, mnem, dst
+	rf2rd	{rd22:rd22}, {rf0:rf0}
+	\mnem	{\dst:\dst}, {rf0:rf0}
+	rf2rd	{rd23:rd23}, {\dst:\dst}
+	__VERIFY_EQ_RD	\pt, rd22, rd23
+	__REC	rd23
 .endm
 
 .macro TEST_MOV1 pt, mnem, dst, src, exp
@@ -519,6 +554,10 @@ __smdone_\@:
 	__CHECK_MEM \pt, SCRATCH, 0, \exp
 	.endif
 	.ifc	\mnem, rd2rf
+	st.o	\dst, [rb29, 0]
+	__CHECK_MEM \pt, SCRATCH, 0, \exp
+	.endif
+	.ifc	\mnem, rf2rf
 	st.o	\dst, [rb29, 0]
 	__CHECK_MEM \pt, SCRATCH, 0, \exp
 	.endif

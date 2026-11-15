@@ -984,6 +984,23 @@ asm	tests/inst/02-reg-copy/rf2rd_orri_rf.S	__CHECK_RD          7, rd6, 0x0123456
 asm	tests/inst/02-reg-copy/rf2rd_orri_rf.S	__CHECK_RD          8, rd61, 0xAAAAAAAAAAAAAAAA	1
 asm	tests/inst/02-reg-copy/rf2rd_orri_rf.S	__CHECK_RD          9, rd63, 0xAAAAAAAAAAAAAAAA	1
 asm	tests/inst/02-reg-copy/rf2rd_orri_rf.S	__CHECK_RD         11, rd63, 0x0123456789ABCDEF	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	TEST_FAULT_ENC	12, ILLI, 0x40F00A01, rb3, TEST_DATA, rd19, 0x000	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	TEST_FAULT_ENC	13, ILLI, 0x40F14A00, rb3, TEST_DATA, rd19, 0x000	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	TEST_FAULT_ENC	14, ILLI, 0x40F3CA08, rb3, TEST_DATA, rd19, 0x000	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	TEST_FAULT_ENC	15, ILLI, 0x40F14502, rb3, TEST_DATA, rd19, 0x000	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	TEST_FAULT_ENC	16, ILLI, 0x40F15504, rb3, TEST_DATA, rd19, 0x000	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	TEST_FAULT_ENC	17, ILLI, 0x40F01F08, rb3, TEST_DATA, rd19, 0x000	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	TEST_MOV1	3, rf2rf, rf20, rf40, 0x7FF8000000123456	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	TEST_MOV1	8, rf2rf, rf63, rf40, 0xC002000000000000	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	TEST_MOV_RF0	11, rf2rf, rf20	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	__CHECK_MEM	1, SCRATCH, 0, 0x3FF0000000000000	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	__CHECK_MEM	10, SCRATCH, 0, 0x7FF8000000000000	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	__CHECK_MEM	2, SCRATCH, 0, 0x7FF8000000000000	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	__CHECK_MEM	4, SCRATCH, 0, 0x3FF0000000000000	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	__CHECK_MEM	5, SCRATCH, 0, 0x0000000000000000	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	__CHECK_MEM	6, SCRATCH, 0, 0x0123456789ABCDEF	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	__CHECK_MEM	7, SCRATCH, 0, 0x8000000000000000	1
+asm	tests/inst/02-reg-copy/rf2rf_orri_rf.S	__CHECK_MEM_RF	9, MSTORE, 0, rf1	1
 asm	tests/inst/03-wyde-imm/andn.w_rwii_rb.S	TEST_FAULT_WI       15, andn.w, rb0, ILLI, wp0, 0x0001	1
 asm	tests/inst/03-wyde-imm/andn.w_rwii_rb.S	TEST_WI_RB           3, andn.w, rb10, wp0, 0x00FF, 0x0123456789ABCDEF, 0x0123456789ABCD00	1
 asm	tests/inst/03-wyde-imm/andn.w_rwii_rb.S	TEST_WI_RB           4, andn.w, rb11, wp1, 0x0F0F, 0x0123456789ABCDEF, 0x0123456780A0CDEF	1
@@ -1921,22 +1938,6 @@ asm	tests/inst/06-control-flow/ret_riii_ra.S	__CHECK_RD         15, rd25, (0x000
 asm	tests/inst/06-control-flow/ret_riii_ra.S	__CHECK_RD         16, rd26, (0x0001000000000000 + MEMRAS + 8)       @@ RACNT=1、MRPTR += 8	1
 asm	tests/inst/06-control-flow/ret_riii_ra.S	__CHECK_RD         17, rd24, (ENTRY + 0x1400)	1
 asm	tests/inst/06-control-flow/ret_riii_ra.S	__CHECK_RD         18, rd26, (MEMRAS + 8)                            @@ MRPTR += 8、RACNT 仍 0	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FAULT_FP	12, ILLI, 0x44280A01	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FAULT_FP	13, ILLI, 0x44294A00	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FAULT_FP	14, ILLI, 0x442BCA08	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FAULT_FP	15, ILLI, 0x44294502	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FAULT_FP	16, ILLI, 0x44294544	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FPCOPY1	3, fo, fo2fo, 0x3FF0000000000000, 0x3FF0000000000000	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FPCOPY2	4, fo, fo2fo, 0x3FF0000000000000, 0x3FF0000000000000, 0xC002000000000000, 0xC002000000000000	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FPCOPY3	5, fo, fo2fo, 0x3FF0000000000000, 0x3FF0000000000000, 0xC002000000000000, 0xC002000000000000, 0x7FF8000000000000, 0x7FF8000000000000	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FPCOPY4	6, fo, fo2fo, 0x3FF0000000000000, 0x3FF0000000000000, 0xC002000000000000, 0xC002000000000000, 0x7FF8000000000000, 0x7FF8000000000000, 0x0000000000000001, 0x0000000000000001	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FPCOPY_31	9, fo, fo2fo	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FPCOPY_ADJ	10, fo, fo2fo, 0x7FF8000000000000, 0x7FF8000000000000, 0x0000000000000001, 0x0000000000000001	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FPCOPY_ENC2	1, fo, fo2fo, 0x44294A02, rf40, rf41, rf20, rf21, 0x3FF0000000000000, 0x3FF0000000000000, 0xC002000000000000, 0xC002000000000000	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FPCOPY_ENC2	2, fo, fo2fo, 0x442BFF81, rf62, rf62, rf63, rf63, 0x7FF8000000000000, 0x7FF8000000000000, 0x7FF8000000000000, 0x7FF8000000000000	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FPCOPY_RF0	11, fo, fo2fo	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FPCOPY_TOP1	8, fo, fo2fo, 0xC002000000000000, 0xC002000000000000	1
-asm	tests/inst/07-floating-point/fo2fo_orri_rf.S	TEST_FPCOPY_TOP4	7, fo, fo2fo, 0x3FF0000000000000, 0x3FF0000000000000, 0xC002000000000000, 0xC002000000000000, 0x7FF8000000000000, 0x7FF8000000000000, 0x0000000000000001, 0x0000000000000001	1
 asm	tests/inst/07-floating-point/fo2ft_orri_rf.S	TEST_FAULT_FP	31, ILLI, 0x44240181	1
 asm	tests/inst/07-floating-point/fo2ft_orri_rf.S	TEST_FAULT_FP	32, ILLI, 0x44245180	1
 asm	tests/inst/07-floating-point/fo2ft_orri_rf.S	TEST_FAULT_FP	33, ILLI, 0x44245183	1
@@ -2434,22 +2435,6 @@ asm	tests/inst/07-floating-point/ft2fo_orri_rf.S	TEST_FPCVT_F2F	6, fo, ft2fo, rf
 asm	tests/inst/07-floating-point/ft2fo_orri_rf.S	TEST_FPCVT_F2F	7, fo, ft2fo, rf5, rf6, 0x0000000080000000, 0x0, 0, 0x8000000000000000, 0x00	1
 asm	tests/inst/07-floating-point/ft2fo_orri_rf.S	TEST_FPCVT_F2F	8, fo, ft2fo, rf5, rf6, 0x000000007F800000, 0x0, 0, 0x7FF0000000000000, 0x00	1
 asm	tests/inst/07-floating-point/ft2fo_orri_rf.S	TEST_FPCVT_F2F	9, fo, ft2fo, rf5, rf6, 0x00000000FF800000, 0x0, 0, 0xFFF0000000000000, 0x00	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FAULT_FP	12, ILLI, 0x44080A01	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FAULT_FP	13, ILLI, 0x44094A00	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FAULT_FP	14, ILLI, 0x440BCA08	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FAULT_FP	15, ILLI, 0x44094502	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FAULT_FP	16, ILLI, 0x44094544	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FPCOPY1	3, ft, ft2ft, 0x000000003F800000, 0x000000003F800000	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FPCOPY2	4, ft, ft2ft, 0x000000003F800000, 0x000000003F800000, 0x00000000C0200000, 0x00000000C0200000	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FPCOPY3	5, ft, ft2ft, 0x000000003F800000, 0x000000003F800000, 0x00000000C0200000, 0x00000000C0200000, 0x000000007FC00000, 0x000000007FC00000	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FPCOPY4	6, ft, ft2ft, 0x000000003F800000, 0x000000003F800000, 0x00000000C0200000, 0x00000000C0200000, 0x000000007FC00000, 0x000000007FC00000, 0x0000000000000001, 0x0000000000000001	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FPCOPY_31	9, ft, ft2ft	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FPCOPY_ADJ	10, ft, ft2ft, 0x000000007FC00000, 0x000000007FC00000, 0x0000000000000001, 0x0000000000000001	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FPCOPY_ENC2	1, ft, ft2ft, 0x44094A02, rf40, rf41, rf20, rf21, 0x000000003F800000, 0x000000003F800000, 0x00000000C0200000, 0x00000000C0200000	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FPCOPY_ENC2	2, ft, ft2ft, 0x440BFF81, rf62, rf62, rf63, rf63, 0x000000007FC00000, 0x000000007FC00000, 0x000000007FC00000, 0x000000007FC00000	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FPCOPY_RF0	11, ft, ft2ft	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FPCOPY_TOP1	8, ft, ft2ft, 0x00000000C0200000, 0x00000000C0200000	1
-asm	tests/inst/07-floating-point/ft2ft_orri_rf.S	TEST_FPCOPY_TOP4	7, ft, ft2ft, 0x000000003F800000, 0x000000003F800000, 0x00000000C0200000, 0x00000000C0200000, 0x000000007FC00000, 0x000000007FC00000, 0x0000000000000001, 0x0000000000000001	1
 asm	tests/inst/07-floating-point/ft2io_orri_rf.S	TEST_FAULT_FP	25, ILLI, 0x44C40181	1
 asm	tests/inst/07-floating-point/ft2io_orri_rf.S	TEST_FAULT_FP	26, ILLI, 0x44C45180	1
 asm	tests/inst/07-floating-point/ft2io_orri_rf.S	TEST_FAULT_FP	27, ILLI, 0x44C45183	1
@@ -4829,6 +4814,7 @@ lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	40b88241	ra2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	40d08241	rb2rb	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	40d48241	rd2rb	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	40d88241	rb2rd	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	40f08241	rf2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	40f48241	rd2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	40f88241	rf2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	41308241	rev.t	1
@@ -4848,12 +4834,10 @@ lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	43688241	shr.ub	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	436c8241	shr.sb	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44008241	ftcls	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44048240	ft2fo	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44088241	ft2ft	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	440c8241	ftrnd	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44188242	ftroot	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44208241	focls	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44248244	fo2ft	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44288241	fo2fo	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	442c8241	fornd	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44388242	foroot	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-orri.s	44c08244	ft2it	1
@@ -5132,15 +5116,14 @@ lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	2e1020c3	ldm.t	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	2f204143	stm.t	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	3e3061c3	ldm.o	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	3f408243	stm.o	1
+lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	40f0a383	rf2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	40f4a383	rd2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	40f8e483	rf2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44004203	ftcls	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44044200	ft2fo	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	4408a383	ft2ft	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44184182	ftroot	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44208303	focls	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44244204	fo2ft	1
-lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	4428a383	fo2fo	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44384182	foroot	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44404188	ftadd	1
 lit	tests/unit/llvm/lit/MC/DADAO/fp-encoding.s	44444188	ftsub	1
@@ -5198,8 +5181,8 @@ lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	24209008	ld.o	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	3c200241	ldm.o	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	40c0824a	add.o	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	44048240	ft2fo	1
+lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	44208241	focls	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	44248244	fo2ft	1
-lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	44288241	fo2fo	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	44388242	foroot	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	471c0241	lr.b.an	1
 lit	tests/unit/llvm/lit/MC/DADAO/gen-fast.s	476c8241	sc.b.ar	1
@@ -5284,10 +5267,10 @@ lit	tests/unit/llvm/lit/MC/DADAO/rrri.s	28200042	ldm.ub	1
 lit	tests/unit/llvm/lit/MC/DADAO/rrrr.s	5020928b	add.uo	1
 lit	tests/unit/llvm/lit/MC/DADAO/rrrr.s	5120928b	add.so	1
 lit	tests/unit/llvm/lit/MC/DADAO/rwii.s	4c201234	set.zw	1
+lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f01081	rf2rf	1
+lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f021c1	rf2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f41141	rd2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f44001	rd2rf	1
-lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	44081081	ft2ft	1
-lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	442821c1	fo2fo	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	4f050000	set.w	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	4f053f80	set.w	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	4f073ff0	set.w	1

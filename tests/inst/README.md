@@ -27,13 +27,13 @@
 | `macros/inst_test.inc` | 汇编宏层（`TEST_LD*`/`TEST_ST*`/`TEST_MOV1`/`TEST_CS*`/`TEST_WI*`/`TEST_FAULT*`/`__CHECK_*`，期望值内联） |
 | `01-load-store/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（单元素 `ld.*`/`st.*`，19 个；含 `st.o rb0`（IP 作源/作基址）与 `ld.o ra0`（RAS 窗口读写）补测） |
 | `01-load-store/inst-tiny.lds` | 上面这册的链接布局（固定段地址 + ASSERT 钉住）；`02-reg-copy`/`03-wyde-imm` 复用同一布局 |
-| `02-reg-copy/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（块复制 8 + `cs.*` 8，共 16 个） |
+| `02-reg-copy/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（块复制 9 + `cs.*` 8，共 17 个） |
 | `03-wyde-imm/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（`set.zw`/`set.ow`/`or.w`/`andn.w`/`set.w`，8 个） |
 | `04-arith-logic-octa/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（算术族 `add.*`/`sub.*`/`mul.*`/`div.*`/`rem.*`/`cmp.*` 15 个；逻辑/移位/扩展 14 个；位操作 `rev.o`/`rol.o`/`clmul.o` 4 个） |
 | `04-arith-logic-octa/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（算术族 `add.*`/`sub.*`/`mul.*`/`div.*`/`rem.*`/`cmp.*`，15 个；逻辑/移位/位操作见后续任务） |
 | `05-arith-addr/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（64 位地址运算 `add.o`/`sub.o` 的 bbd·dbb、`cmp.uo`、`add.si`、`aip.si`，6 个） |
 | `06-control-flow/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（控制流 `br.*` 10 个、`jump` 2、`call` 2、`ret` 1，共 15 个；含 RAS 溢出/下溢与跳转距离边界） |
-| `07-floating-point/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（`foadd/fosub/fomul/fodiv/forem`、`ftadd/ftsub/ftmul/ftdiv/ftrem`、`fofma/ftfma`、`fomin/fomax/ftmin/ftmax`、`foroot/ftroot` 18 个；转换 `f2f/f2i/i2f` 双向 18 个；块复制 `ft2ft/fo2fo` 2 个；分类 `ftcls/focls` 2 个；比较 `ftqcmp/ftscmp/foqcmp/foscmp` 4 个 —— 共 44 个；含 FCSR 五类标志、六档舍入方向、NaN/±0/次正规/溢出/下溢边界） |
+| `07-floating-point/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（`foadd/fosub/fomul/fodiv/forem`、`ftadd/ftsub/ftmul/ftdiv/ftrem`、`fofma/ftfma`、`fomin/fomax/ftmin/ftmax`、`foroot/ftroot` 18 个；转换 `f2f/f2i/i2f` 双向 18 个；分类 `ftcls/focls` 2 个；比较 `ftqcmp/ftscmp/foqcmp/foscmp` 4 个、取整/缩放/符号 `fornd/ftrnd/fosclb/ftsclb/fosgnj/fosgnn/ftsgnj/ftsgnn` 8 个 —— 共 50 个；含 FCSR 五类标志、六档舍入方向、NaN/±0/次正规/溢出/下溢边界。同组块复制不分浮点宽度 ⇒ 唯一载体 `rf2rf_orri_rf.S` 归 `02-reg-copy`） |
 | `07-floating-point/inst-tiny-fp.lds` | 浮点册专用链接布局（`.text` 上限 0x4000；`.testdata` 0x5000–0x7000；结果缓冲 0x7000） |
 
 ## 汇编载体（M13 起）
@@ -60,8 +60,8 @@ python3 tools/testcases/inst/run_asm_suite.py \
     --lds tests/inst/01-load-store/inst-tiny.lds                  # 06 全册（br.*/jump/call/ret）
 python3 tools/testcases/inst/run_asm_suite.py \
     --vectors tests/inst/07-floating-point \
-    --lds tests/inst/07-floating-point/inst-tiny-fp.lds           # 07 全册 44 个 id
-                                                                  # （算术/最小最大 18 + 转换/比较/分类 26）
+    --lds tests/inst/07-floating-point/inst-tiny-fp.lds           # 07 全册 42 个 id
+                                                                  # （算术/最小最大 18 + 转换/比较/分类 24）
 ```
 
 判据 = **同一份 ELF** 在 chipyard `WumingTinyConfig` / QEMU `dadao-tiny` / gem5 FS
@@ -87,3 +87,8 @@ python3 tools/testcases/validate_vectors.py   # 或 make check（L1）
 
 校验 schema 字段、class/fault 取值、编码 mask/value、`expected_pc`、`inventory`
 同步与覆盖率；有错误时 `exit(1)` 并列出文件 + case 序号。
+
+`.S` 载体侧另有一条**身份断言**（`validate_vectors.scan_asm_carriers`）：每个
+`tests/inst/<册>/<stem>.S` 的 `stem` 必须是 `contracts/opcodes.yaml` 里的 id（非 id 载体
+须在 `NON_ID_CARRIERS` 逐文件登记）—— opcodes 删除/改名而载体未跟 ⇒ `ASM CARRIER ORPHAN`
+红（M13 起，计数与 id 集合现场派生，不写死）。
