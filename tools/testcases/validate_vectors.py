@@ -69,6 +69,9 @@ NON_ID_CARRIERS = {
     "tests/inst/00-isa-design/pseudo_set.fx_reg.S":
         "伪指令 set.ft/set.fo rf, rf 的展开（rf2rf，整 64 位：高 32 被覆盖），"
         "索引 id = inst-00-isa-design-008",
+    "tests/inst/00-isa-design/atomic_rmw.S":
+        "原子 RMW 的合成序（lr→计算→sc→失败重试），跨 24 条 lr/sc 身份而非单个 id"
+        "⇒ 无 opcode 身份，索引 id = inst-00-isa-design-009",
 }
 
 DECL_NA = {"", "—", "-", "n/a", "na", "none"}

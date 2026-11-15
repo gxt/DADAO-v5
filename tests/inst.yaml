@@ -75,6 +75,13 @@
   level: full
   requires: []
 
+- id: inst-00-isa-design-009
+  file: inst/00-isa-design/atomic_rmw.S
+  platforms:
+  - system
+  level: full
+  requires: []
+
 - id: inst-01-load-store-001
   file: inst/01-load-store/ld.o_rrii_ra.S
   platforms:

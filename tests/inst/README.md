@@ -23,6 +23,7 @@
 | `inventory.md` | M1 覆盖矩阵（以 `id` 为行，含 `format`/`file` 列与 deferred reason） |
 | `00-isa-design/undi_reserved.S` | **非 id 载体**（保留编码 ⇒ UNDI，3 条；逐文件登记，见 `check_tests_index.NON_ID_CARRIERS`） |
 | `00-isa-design/pseudo_set.*.S` | **非 id 载体**：7 个伪指令展开形态（`set.rd`/`set.rb` 的 imm/reg 四条 + `set.ft rf, imm32` + `set.fo rf, imm64` + `set.ft/set.fo rf, rf`；逐文件登记，索引 id `inst-00-isa-design-002`…`-008`）；**写宽对照**见下节 |
+| `00-isa-design/atomic_rmw.S` | **非 id 载体**（原子 RMW 的**合成序**：`lr` → 寄存器计算 → `sc` → 失败重读重试，13 条；跨 24 条 `lr`/`sc` 身份而非单个 id，故不入 `01`–`12` 册——那 12 册保持「一个 opcode id 一个文件」；逐文件登记 + `inst-00-isa-design-009` 索引） |
 | `base/`（已删） | 原 YAML 向量目录（`TESTCASES-003t`~`007t` 生成；**YAML 已全退役**，`m13-testcases-043`） |
 | `MIGRATION.md` | YAML → 汇编+宏 的迁移台账（大类/小类/用例模板/任务拆分/删除规则） |
 | `macros/inst_test.inc` | 汇编宏层（`TEST_LD*`/`TEST_ST*`/`TEST_MOV1`/`TEST_CS*`/`TEST_WI*`/`TEST_FAULT*`/`__CHECK_*`，期望值内联） |
@@ -47,6 +48,9 @@
 ```
 python3 tools/testcases/inst/run_asm_suite.py --id ld.o_rrii_rd   # 单个 id
 python3 tools/testcases/inst/run_asm_suite.py                     # 01-load-store 全册
+python3 tools/testcases/inst/run_asm_suite.py \
+    --vectors tests/inst/00-isa-design                            # 00 册（非 id 载体：
+                                                                  # 保留编码 + 原子 RMW 合成序）
 python3 tools/testcases/inst/run_asm_suite.py \
     --vectors tests/inst/02-reg-copy \
     --lds tests/inst/01-load-store/inst-tiny.lds                  # 02-reg-copy 全册

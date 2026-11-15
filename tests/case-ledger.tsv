@@ -2,6 +2,19 @@
 # 逐条身份清单（无计数）：删除任一 .S 用例行 / lit @@ OBJ: pattern 即漂移。
 # 重新生成：python3 tools/infra/check_case_ledger.py --write
 # kind	file	identity...	ordinal
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	1, rd2, 0x0000000000000100	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	10, rd2, 0x0000000000000200	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	11, rd7, 0x0000000000000001	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	12, rd7, 0x0000000000000000	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	13, rd7, 0x0000000000000000	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	2, rd7, 0x0000000000000001	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	3, rd7, 0x0000000000000000	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	4, rd7, 0x0000000000000000	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	5, rd7, 0x0000000000000000	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	6, rd7, 0x0000000000000000	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	7, rd7, 0x0000000000000000	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	8, rd7, 0x0000000000000000	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	9, rd7, 0x0000000000000000	1
 asm	tests/inst/00-isa-design/pseudo_set.fo_imm64.S	__CHECK_RD           1, rd21, 0x0000000000000000	1
 asm	tests/inst/00-isa-design/pseudo_set.fo_imm64.S	__CHECK_RD           2, rd21, 0x3FF0000000000000	1
 asm	tests/inst/00-isa-design/pseudo_set.fo_imm64.S	__CHECK_RD           3, rd21, 0xFFFFFFFFFFFFFFFF	1

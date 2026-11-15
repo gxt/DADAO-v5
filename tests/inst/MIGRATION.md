@@ -775,4 +775,28 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 - **门控**：`check-tests-index`（271 个 `.S` 载体 / 280 条 inst 索引 / 8 个非 id 载体）/
   `validate-vectors`（271 载体，8 非 id）/ `check-case-ledger`（+113 行）/ `check-inst-asm`
   全绿，见完成区。
+### `m13-testcases-049`：原子 RMW **合成序**载体（`00-isa-design/atomic_rmw.S`）
 
+- **为什么需要**：`12-misc` 的 24 个 `lr.*`/`sc.*` 载体只测**单指令语义**（保留置位/清除、成败、
+  失败不写、保留粒度）；现场实测 `br.` 回跳数 = 0、`lr` 与 `sc` 之间**无算术** ⇒ C11 `__atomic_*`
+  编译出来的「`lr` → 计算 → `sc` → 失败重试」这条环**完全没有覆盖**。
+- **册归属（用户 2026-11-15 裁定）**：「我建议放00，因为01-12的文件数量正好可以和指令数对上」
+  ⇒ `01`–`12` 各册保持「**一个 opcode id 一个文件**」，**不再往册内塞非 id 载体**；合成序跨 24 条
+  `lr`/`sc` 身份、不属任何单个 id ⇒ 落 `00-isa-design/atomic_rmw.S`（与 `undi_reserved.S` 同册）。
+  登记：`check_tests_index.NON_ID_CARRIERS` + `validate_vectors.NON_ID_CARRIERS` 逐文件；索引
+  `inst-00-isa-design-009`（`platforms: [system]`、`level: full`）。
+- **载体**：13 点单文件（链例 13 / 故障例 0，1 镜像）。覆盖表 —— 点 1–3 `fetch_add`（首读 old /
+  被抢后 `sc` 失败不写 / 重试成功）、4 `fetch_sub`、5 `fetch_and`、6 `fetch_or`、7 `fetch_xor`、
+  8 `exchange`、9–10 `compare_exchange`（相等 ⇒ 执行 `sc`；不等 ⇒ **不执行 `sc`**，结果寄存器
+  留哨兵、内存不变）、11–12「**重试必须重读**」（11 记录失败点与陈旧候选 `0x108`；12 用普通 `st`
+  改内存后**重新 `lr`** 算 `新值+8`）、13 `fetch_add` 回绕边界（全 1 + 1 ⇒ 0，进位丢弃）。
+- **期望推导**（`spec/SimRISC-12 §1` + `contract-isa §14.2`）：`lr` 读值并置标记、`sc` 命中才写且
+  成败都清标记；单 hart 可构造的「被抢」只用「本 hart 另一条 `lr`」这**一条**清标记事件 ⇒ 不借
+  多 hart / 异常 / 中断（那三条记 GAP）。「同 hart 同址同宽 `st` **不清**标记」是点 11–12 的序列
+  依据（`st` 放在清除之后，故无论该事件成立与否都不改变期望）。
+- **门控**：`check-inst-asm`（opcode id 数不变、镜像 +1）、`validate-vectors`（非 id 载体条数现场
+  派生）、`check-tests-index`、`check-case-ledger`（`--write` 重生成，+13 行）、`check-no-residue`、
+  `check-knowledge-refs` 全 rc=0。
+- **GAP（不构造、不伪造）**：① 多 hart 争用（Tiny 单 hart）；② 内存序强度 `an`/`ar`/`nr` 的重排
+  约束（单 hart 顺序执行不可观测）；③ `sc` 偶发失败（无可控手段）；④ 异常/中断进入清标记（与
+  `m13-testcases-037` 同因：三平台实测分歧，不进正式向量）。均与 `ISS-440`/`ISS-443` 同线。
