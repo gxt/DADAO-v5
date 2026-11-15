@@ -184,7 +184,7 @@ def _module_task_files(mdir: Path, mod: str, add) -> list[Path]:
 def _check_task_fields(path: Path, mdir: Path, mnum: int, add) -> tuple[str | None, str | None]:
     text = _read(path)
     tid_match = _TASK_ID_RE.match(path.name)
-    tid = tid_match.group(1) if tid_match else path.name
+    tid = tid_match.group(0) if tid_match else path.name
     status = _field_value(text, "状态")
     pm = _field_value(text, "项目里程碑")
 

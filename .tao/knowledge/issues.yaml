@@ -699,3 +699,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】子代理异常取消（`Task cancelled`）：`m12-chipyard-017` 第 1 次运行时被取消，落盘状态 = 4 个脚本已在工作树落位（`tools/testcases/parity/engine_parity_{report,pending}.py`、`engine_parity_{collect,run}.sh`）+ README 改动，但任务书仍 `待开始`、无完成区、未做 `--check` 逐字节复现与注入验证。处置：已把该状态提交为 WIP（可审计、不丢进度），按「子代理返回异常处理」重试原任务（第 1/3 次）。"
+- id: ISS-446
+  scope:
+  - testcases
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】picolibc 的 long-double 阻塞仍引用**已关闭**的 `ISS-193`：`ISS-193` 已于 M9 归档（`.tao/archive/M9/issues-closed.md`，处置为「重枚举并清零过滤表」），但 M12 的 parity 报告、`QEMU_BASELINE_GAPS`、根 `README.md` 的 M12 小节仍把 `test-ceil`/`test-long-double`/`test-math-funcs`/`test-math-errhandling` 记作 `ISS-193 long-double libcall`。现状是**当前仍阻塞**（4 例 blocked）而引用的是历史已闭号 ⇒ 要么复现并重新立号，要么把这 4 例的 blocked 归因改指向真实现状（并说明 `ISS-193` 已闭）。影响：报告可审计性（引用已闭号会让人误判为『历史遗留、不再跟踪』）。"

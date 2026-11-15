@@ -125,5 +125,5 @@
 - **semihosting**：harness 侧应答者（`SYS_EXIT`/`SYS_WRITE` 闭环、参数块回写、命令行选参），ELF 直载 SRAM。
 - **engine parity**：`embench` 与 `picolibc-full` 在 chipyard Tiny 上与 qemu **逐例状态一致**（chipyard 独有失败 0；qemu 自身缺口登记在册、不计入）。embench 38 例中 36 PASS + 2 例预算耗尽（`timeout(12h)`，无判决）。
 - **基线**：`bootrom.tiny.hex` 与 RTL 组件基线 `base+1`，补丁可重放（`check-patch-tree` chipyard 段 0 问题）。
-- **遗留（要点）**：① embench `2 × timeout(12h)`（`depthconv-O0`/`matmult-int-O0` 打满 12 h、无判决，不计入独有失败）；② qemu 自身 5 例缺口（`ISS-193` long-double ×4 + CFX6 ×1）；③ `picolibc` 5 例多线程/TEE 类 `EXCLUDED` + `test-memmem` 未跑；④ 平台分歧归 M13（`ISS-432`/`ISS-433`/`ISS-435`/`ISS-425`/`ISS-426`）；⑤ 多 hart 清除类归后续（`ISS-440`/`ISS-443`，建议 ADR）；`ISS-444` 归 M14。
+- **遗留（要点）**：① embench `2 × timeout(12h)`（`depthconv-O0`/`matmult-int-O0` 打满 12 h、无判决，不计入独有失败）；② qemu 自身 5 例缺口（long-double libcall ×4 + CFX6 ×1；long-double 原记 `ISS-193`，该号已于 M9 关闭，现状另见 `ISS-446`）；③ `picolibc` 5 例多线程/TEE 类 `EXCLUDED` + `test-memmem` 未跑；④ 平台分歧归 M13（`ISS-432`/`ISS-433`/`ISS-435`/`ISS-425`/`ISS-426`）；⑤ 多 hart 清除类归后续（`ISS-440`/`ISS-443`，建议 ADR）；`ISS-444` 归 M14。
 - **归档**：M12 的 41 册任务书仍留在 `.tao/tasks/`（活索引）；完整归档（册迁入 + 模块计数 + 流水 + MEMORY 摘录）**待 `check-archive` 支持 `mNN-<module>-<NNN>` 编号与部分归档后再补**（见 `discussing.md`）。
