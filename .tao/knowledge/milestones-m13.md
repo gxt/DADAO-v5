@@ -31,6 +31,9 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m13-testcases-047 | 2026-11-15 14:10 | 1.5–2 h | `.S` 向量对齐 `rf2rf`（删 2 加 1）+ 补「`.S` id 必须在 opcodes 里」门控 |
+| m13-llvm-001 | 2026-11-15 14:10 | 2–3 h | LLVM 侧删 `ft2ft`/`fo2fo`、加 `rf2rf`（.td/MC/AsmParser/Printer + lit） |
+| m13-qemu-016 | 2026-11-15 14:10 | 2–3 h | QEMU 侧删 `ft2ft`/`fo2fo`、加 `rf2rf`（`insn.decode`/`trans_fp`） |
 
 ## 已验证
 
