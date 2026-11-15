@@ -723,3 +723,10 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`WumingDecoder` 的 `rfRows[2]`/`rfRows[3]` 为 `0x7F`，而 `contracts/opcodes.yaml` 同两行为 `0xFF`（`ftsgnj`/`fosgnj` 格）：`m13-chipyard-003` 复核发现，命中的两格在 `WumingDecoder` 里有独立 switch 分支 ⇒ **行为无差异**，属位图与契约的表述不一致。处置：以契约为准核对该两格是否真已定义、统一位图（或反向修正 contracts），并加一条 RTL 位图 ↔ `opcodes.yaml` 的机械对账（`check-gem5-decode` 只对 gem5 侧做过同类对账）。"
+- id: ISS-449
+  scope:
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】L1 门控自己在 `/tmp/opencode/<门控ID>/` 建空 scratch 目录却不清，命名又与任务 ID 同形：`check-code-range`(INFRA-106t)、`check-width-sizes`(LLVM-130t)、`check_qemu_trans`/`check_decodetree_repro`(INFRA-102t)、`check_runner_reap`(TESTCASES-085t)、`check_toolchain`(m14-infra-001) 跑完各留一个 0 B 空目录；2 h 后 `check-temp-dirs` 把它们判成「非活动临时目录」变红（2026-11-15 晚 `make check` 两次因此红、需手工删，曾误以为是历史残留）。处置：门控收尾 `rmdir` 自己的 scratch（或 `check-temp-dirs` 白名单登记门控自有目录），并在命名上区分「门控 scratch」与「任务临时目录」。"
