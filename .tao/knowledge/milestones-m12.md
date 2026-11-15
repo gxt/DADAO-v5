@@ -30,7 +30,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m12-chipyard-031 | 2026-11-15 09:35 | 1–1.5 h | 超时口径改 `timeout(12h)`（`blocked` 只留构建/环境缺口）+ 重生成 parity 报告 |
+| m12-chipyard-031 | 2026-11-15 09:35 | 30–45 min | 超时口径改 `timeout(12h)`（`blocked` 只留构建/环境缺口）+ 重生成 parity 报告 |
 | m12-chipyard-017 | 2026-11-15 00:59 | 1–1.5 h | 引擎 parity 报告生成器入仓（`tools/testcases/parity/`；`--check` 逐字节复现） |
 
 ## 已验证
