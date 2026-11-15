@@ -738,3 +738,18 @@
   closed_in: null
   resolved_by: null
   title: "【P2】semihosting 指针定为 PA 后，QEMU 的 `SYS_WRITE0`/字符串类路径仍经页表翻译，与规范不符：用户 2026-11-15 裁定「semihosting 参数指针 = PA」（已写进 `spec/Machine-v5 §5.2` 与 `contract-semihosting §2`，要求「不经页表翻译」），但 QEMU 侧 `SYS_WRITEC`/`SYS_EXIT` 走 `translate_for_debug`（identity，仅 `[0,2GiB)`∪ROM∪SRAM），`SYS_WRITE0` 先 `target_strlen` 再 `probe_access_flags`（**走页表**）⇒ 开 PTW 后两窗口不相交，`SYS_WRITE0` 无法按 PA 正确取串。另 `translate_for_debug` 注释仍写「DADAO has no MMU」（Vast+PTW 下已过时）。处置：让 semihosting 取参统一走 identity/PA 路径（或明确 VA 与 PA 双支持），同步改注释，并加一条门控（Vast+PTW 下 `SYS_WRITE0` 取串成功）。"
+- id: ISS-451
+  scope:
+  - qemu
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】QEMU 链接**非位可复现**：同一源码重编 `qemu-system-dadao` 的 md5 也会变（`m14-qemu-002` 实测：改前 `10291d6b…`、改后 `72bc2b04…`；还原源码后重编亦不复原旧值）。后果：① 任何以 md5 作 basline 的判定（含「还原后 md5 == 基线」这类注入还原证据）在 qemu 上**不成立**，必须改用行为断言；② 「单二进制基线」纪律对 qemu 侧无意义。处置：查清不可复现的根因（链接期时间戳/build-id/路径/随机化），或显式在规范里把 qemu 排除出「位可复现」要求并改为行为判据；同时排查 `tools/infra/` 里是否有依赖 qemu md5 的门控。"
+- id: ISS-452
+  scope:
+  - qemu
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`SYS_READC` 的取字缓冲用 `common_semi_stack_bottom(cs) - 1`：该值在 Vast 下是**内核 SP（VA）**，而 semihosting 现已定为 PA 口径（`spec/Machine-v5 §5.2`）⇒ 应改为该栈底槽位的 **PA**（`__pa` 化），或改用不落在内核栈的专用 PA 缓冲。`m14-qemu-002` 复核时发现；K1 未用 `SYS_READC`，故当前无观测差异。处置：与 semihosting PA 口径一致性一起修（semi 取字缓冲改 PA），并补一条 Vast+PTW 下的 `SYS_READC` 断言。"
