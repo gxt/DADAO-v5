@@ -24,11 +24,16 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-006 | 4–6 h | K2 异常入口与 cause 分派（K2 启动边界翻转 + 全 GPR 保存 + 11 项原因表 + panic） |
+| m14-linux-007 | 4–6 h | K2 时钟与定时器（`cfx_hart` TIMER → jiffies；固件放行 `cfx_hart`/`cfx_time`） |
+| m14-linux-008 | 2–3 h | K2 中断使能与屏蔽（`local_irq_*` → `cfx_smon cg2 rc4`，屏蔽窗冻结 + 补投 1） |
+| m14-linux-009 | 3–4 h | K2 收口门控 `check-linux-k2`（B/E/C/T/M/X/R 七组，入 L2） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-spec-005 | 2026-11-15 23:25 | 1–1.5 h | K2 内核侧异常/中断契约口径（§6：cause_info 11 项、escape 无 prev_cfx、异步入口、IE 单旋钮） |
 | m14-qemu-002 | 2026-11-15 23:24 | 2–3 h | semihosting 取参/取串改按 PA（`ISS-450`；Vast+PTW 门控先红后绿）
 
 ## 已验证
