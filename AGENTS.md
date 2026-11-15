@@ -164,6 +164,8 @@ DADAO-v5/
 - **验收后自动合入**：任务经 reviewer `Accepted` 且 `/complete` 后，主会话**立即** `merge --squash` 入 `master` 并删任务分支/worktree，**不等待用户逐任务确认**；批次外、新语义/契约变更、跨模块、破坏性操作仍是停止点。`push` 仍按「推送范围/检查」执行，是否随批次自动 push 由该批次授权写明。
 - **分支清理**：任务分支合并/FF 到 `master` 后**立即删除该分支与对应 worktree**；删除前确认它是 `master` 祖先且工作树干净，任务待验收不成为长期留分支的理由。
 - **主工作树固定 `master`**：主会话只检出 `master`；任务实现一律在独立 `git worktree` + 任务 branch 内进行，子代理不改主工作树共享台账；合并后在主工作树删 worktree/branch。
+- **派单顺序（用户 2026-11-15 定，防重犯）**：**先提交任务书 + 台账行 → 再从含它的 commit 建 worktree → 最后派单**；禁「先建 worktree 后提交任务书」（`m13-testcases-050` 因此读不到任务书、空转）。`check-milestones-fresh` 的 **R2** 已机械校验「worktree 内必须有该任务书」。
+- **台账时间戳只许取自工具输出**：派单/完成时间一律取 `date` 或 `git log --format=%ci`，**禁手写估算**（曾把 16:5x 写成 18:5x/19:1x，导致「在跑几件」判断错误）；时间戳是审计依据。
 - **worktree 基线**：从当前 `master` 或已包含任务依赖的分支/commit 建；派单前同步 AGENTS，避免子代理加载旧规则。
 - **收尾检查**（在知识沉淀**之前**，任一不过即停下报告）：① 门控按改动类型全绿；② 仓库无临时残留（`git status --untracked-files=all` 干净，禁 `*_tmp*`/`_gate*`/`*.orig`/`*.rej`）；③ 证据留非易失位置；④ 无未提交的任务结果；⑤ 已按队列派出下一件，或说明为何停（队列续链归主会话，见「命令与任务执行纪律」）；⑥ 已验证后已删任务 worktree `.work/` 与 `/tmp/opencode/<任务ID>/`。步骤见 `.opencode/commands/complete.md`。
 - **限长**：完成区 ≤30 行、审阅记录每轮 ≤40 行（长输出留 `.work/log/<模块>/`）。

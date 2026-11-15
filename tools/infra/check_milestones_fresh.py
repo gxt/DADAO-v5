@@ -232,7 +232,7 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str] | None:
         return None
 
 
-def running_tasks(root: Path) -> tuple[dict[str, str], str]:
+def running_tasks(root: Path) -> tuple[dict[str, tuple[str, str | None]], str]:
     """在跑任务号 → 来源（`worktree` / `branch`）；非 git 树 ⇒ 空集。
 
     「在跑」= `git worktree list` 里检出的任务分支，或**未合并**的本地任务分支
@@ -245,14 +245,17 @@ def running_tasks(root: Path) -> tuple[dict[str, str], str]:
     if probe.returncode != 0:
         return {}, "非 git 仓库（--root 自检树）⇒ R1 跳过"
 
-    found: dict[str, str] = {}
+    found: dict[str, tuple[str, str | None]] = {}
     wt = _git(root, "worktree", "list", "--porcelain")
     if wt is not None and wt.returncode == 0:
+        path: str | None = None
         for line in wt.stdout.splitlines():
-            if line.startswith("branch refs/heads/"):
+            if line.startswith("worktree "):
+                path = line[len("worktree "):]
+            elif line.startswith("branch refs/heads/"):
                 name = line[len("branch refs/heads/"):]
                 if BRANCH_TASK_RE.match(name):
-                    found.setdefault(name, "worktree")
+                    found.setdefault(name, ("worktree", path))
 
     refs = _git(root, "for-each-ref", "--format=%(refname:short)", "refs/heads/")
     all_branches = refs.stdout.split() if refs is not None and refs.returncode == 0 else []
@@ -273,19 +276,29 @@ def running_tasks(root: Path) -> tuple[dict[str, str], str]:
                       f"refs/heads/{b}", f"refs/heads/{base}")
             merged = mb is not None and mb.returncode == 0
         if not merged:
-            found[b] = "branch"
+            found[b] = ("branch", None)
     return found, f"R1 在跑任务号（worktree/未合并分支，现场统计）: {len(found)} 个"
 
 
 def check_running_consistency(
-    running: dict[str, str],
+    running: dict[str, tuple[str, str | None]],
     seen: dict[str, tuple[str, int]],
     index: dict[str, Path],
     errors: list[str],
 ) -> None:
     """R1：在跑任务号 ⇒ 不得在「待开始」；在「进行中」（或已验证表，若册已`已验证`）。"""
     for tid in sorted(running):
-        src = "worktree" if running[tid] == "worktree" else "未合并分支"
+        kind, wt_path = running[tid]
+        src = "worktree" if kind == "worktree" else "未合并分支"
+        # R2（2026-11-15）：worktree 必须**含**该任务书 —— 防「任务书还没提交就建
+        # worktree 再派单」导致子代理读不到任务书（`m13-testcases-050` 实际发生）。
+        if kind == "worktree" and wt_path:
+            wt = Path(wt_path)
+            hits = list((wt / ".tao" / "tasks").rglob(f"{tid}*.md")) if (wt / ".tao" / "tasks").is_dir() else []
+            if not hits:
+                errors.append(f"R2: {tid}: worktree `{wt_path}` 内找不到任务书"
+                              f"（`.tao/tasks/**/{tid}*.md`）⇒ 派单前须先提交任务书，"
+                              f"再从该 commit 建 worktree")
         loc = seen.get(tid)
         heading, lineno = loc if loc else ("", 0)
         if loc and heading == TODO_HEADING:
@@ -572,7 +585,7 @@ def audit(root: Path, ledger_rel: Path = MILESTONES_REL) -> int:
     print("-" * 72)
     print("  R1 台账一致性（在跑任务号不得在「待开始」；须在「进行中」/「已验证」）")
     running_all, note = running_tasks(root)
-    running = {t: s for t, s in running_all.items() if owned(tid_milestone(t, index))}
+    running = {t: v for t, v in running_all.items() if owned(tid_milestone(t, index))}
     print(f"    {note}")
     print(f"    属本台账在跑 {len(running)} 个 / 在跑合计 {len(running_all)} 个（异台账略过）")
     check_running_consistency(running, seen, index, errors)
@@ -796,6 +809,15 @@ def r1_self_test() -> bool:
             _git_run(repo, "worktree", "add", "-q", "-b", tid, str(base / f"wt-{tid}"))
         return setup
 
+    def wt_nobook(tid: str):
+        """worktree 里**没有**该任务书（模拟「先建 worktree 再提交任务书」）。"""
+        def setup(repo: Path, base: Path) -> None:
+            _git_run(repo, "worktree", "add", "-q", "-b", tid, str(base / f"wt-{tid}"))
+            wt = base / f"wt-{tid}" / ".tao" / "tasks"
+            for p in sorted(wt.rglob(f"{tid}*.md")):
+                p.unlink()
+        return setup
+
     def branch(tid: str):
         """仅本地分支、无 worktree，且**未合并**（在 master 之上多一个提交）。"""
         def setup(repo: Path, base: Path) -> None:
@@ -831,12 +853,18 @@ def r1_self_test() -> bool:
     case("R1 基线③ 册已 `已验证` 且在「已验证」表 ⇒ PASS",
          _r1_ms(done="| TESTCASES-901t | 2026-10-03 10:00 | 完成短句 |\n" + spec_done),
          book_done, wt("TESTCASES-901t"), 0, "R1 在跑任务号")
+    case("R2 注入① worktree 内缺该任务书 ⇒ FAIL 指名（先建树后提交任务书）",
+         _r1_ms(wip=wip_row, done=spec_done), book_open, wt_nobook("TESTCASES-901t"),
+         1, "R2: TESTCASES-901t: worktree")
+    case("R2 基线① worktree 内有任务书 ⇒ PASS（无 R2 违规）",
+         _r1_ms(wip=wip_row, done=spec_done), book_open, wt("TESTCASES-901t"),
+         0, "R1 在跑任务号")
     return ok
 
 
 def self_test() -> int:
     print("=" * 72)
-    print("check-milestones-fresh --self-test（十四类注入 + A6 双台账八类 + R1 六类，各自可达 FAIL）")
+    print("check-milestones-fresh --self-test（十四类注入 + A6 双台账八类 + R1 六类 + R2 两例，各自可达 FAIL）")
     print("=" * 72)
     ok = True
 
