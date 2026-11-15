@@ -1,6 +1,6 @@
 # 项目里程碑
 
-> **项目里程碑 = M14**（M14 台账的唯一断言；`check-milestones-fresh` 按本断言把任务号路由到本页；M12 已归档（`.tao/archive/M12/`）、M13 = `milestones-m13.md`）
+> **项目里程碑 = M14**（M14 台账的唯一断言；`check-milestones-fresh` 按本断言把任务号路由到本页；M12/M13 已归档（`.tao/archive/M12/`、`M13/`））
 
 > **本页只维护 M14 任务台账**：M11 及以前已归档（`.tao/archive/M11/`）；历史任务见 `.tao/archive/`；当前讨论/规划见 `.tao/knowledge/discussing.md`。
 
