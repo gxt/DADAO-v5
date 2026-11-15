@@ -31,7 +31,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m13-testcases-050 | 2026-11-15 17:06 | 2–3 h | `atomics` 5 探针退役 + 执行型 `atomics_e2e`（builtin/C11 运行期）+ 多 hart GAP 登记 |
 
 ## 已验证
 
@@ -39,6 +38,7 @@
 | --- | --- | --- |
 | m13-testcases-048 | 2026-11-15 19:15 | 伪指令 7 个展开形态载体（`00-isa-design`，113 点；rb 四 wyde + 64 位校验；三平台一致） |
 | m13-spec-011 | 2026-11-15 18:05 | 伪指令迁入 `SimRISC-00 §5`（§5.1/5.2/5.3）；`SimRISC-03` 按 rd/rb/rf 拆三章；`set.ft` 写宽对照表；锁/引用同步 |
+| m13-testcases-050 | 2026-11-15 17:44 | atomics 5 探针退役 + 执行型 `atomics_e2e`（20 点，真跑 guest）+ 多 hart GAP 节 |
 | m13-llvm-002 | 2026-11-15 17:43 | `set.fo rf, imm64` 最小指令数展开（`rd2rf rd0` + 非零 wyde；`k=4` 退回 4 条），lit 五形态 |
 | m13-testcases-049 | 2026-11-15 17:21 | 原子 RMW 合成序载体（`00-isa-design/atomic_rmw.S`，13 点；fetch_* / exchange / CAS 两路 + 失败不写 + 重试重读） |
 | m13-chipyard-003 | 2026-11-15 17:18 | chipyard 侧删 `ft2ft`/`fo2fo`、加 `rf2rf`（`blockCopy forbidRf0Dst`、六类非法译码期判定；sim `4e072a71…`；三平台 7/7） |
