@@ -41,6 +41,11 @@ QEMU 侧 TLB 的**结构**已在（可核，`components/qemu/patches/target/dada
    - `cause_info` 的取值不变（失败那条 PTE 的物理地址），与 A/B 选型无关。
 4. **逐条对齐契约**（现有实现逐项核对，不一致就改）：fill 只在步进成功且全部检查通过后；缺页/权限失败不填条目、不动 A/D；`invalid` 不回写；`clean` 回写保条目；`flush` 回写后删除；范围三档（`all` 忽略 start/size；`VA` 只看起始地址所在页；`range` 与 `[start,start+size)` 相交；`scope=11` 或 `range && size=0` ⇒ `CFXREG`）；`none` 无条件 no-op（不校验 scope/size）；`ASID_ANY=0` 只处理 `G=0` 且 ASID 匹配者、**不碰** `G=1`；`ASID_ANY=1` 含 `G=1`；写 `PTBR`/`ASID`/`ptw_enable=1` **不**清 TLB。
 
+## 增补要求（`m14-linux-011` 复核 F6，2026-11-16）
+
+- **`tlb_control` 的 A/D 回写失败必须「条目级」不得部分完成**：现状 `dadao_tlb_control_exec` 遇 A/D 回写失败即 `return`，而 `contract-tlb` TLB-37 要求「**失败条目保持原状、其余条目照常处理**」（`flush` 失败不删该条目、`clean` 失败不清挂起位）。须改为：逐条目处理、失败条目跳过并最终报 `CFXMEM`（`cause_info` = 该 PTE 物理地址、子原因 `ADWBFAIL[56]`），其它条目继续。
+- 验收增一条：造两条目场景（一条 A/D 回写必失败、一条正常）⇒ 正常条目仍被 `clean`/`flush` 处理、失败条目原样保留、退出码/帧为 `CFXMEM`+`ADWBFAIL`。
+
 ## 验收（逐条贴真实 rc，期望值现场派生）
 
 1. 重建：`make build-qemu` rc=0、`make install-host` rc=0（贴二进制 md5）；`make_patch` 幂等、`check-patch-tree` rc=0（一文件一补丁、无空 blob）。

@@ -42,6 +42,10 @@ K2 的 `CFXMEM` 处理只有一条路：**预先注册的探针**命中即跳过
    - `P7 无 VMA`：VMA 外地址 ⇒ 具名终止（含 VMA 边界 ±1 页两例）。
 6. **子原因消费的最小断言集**：缺失类 8 位里至少各一条路径可达（`SPF`/`GPF`/`L1 P=0`/`L2 P=0` 四类必测，取指侧与数据侧各一），权限类 7 位里至少 `NRPERM`/`NWPERM`/`NSPERM` 三条可达；其余（`NJPERM`/`NHPERM`/`NXPERM`/`NCFXPERM`）由 `tests/arch` 探针覆盖、内核侧只在分派表里登记（不重复测）。
 
+## 增补要求（`m14-linux-011` 复核 F1，2026-11-16）
+
+- **补一条退出码分段用例**：现有 G9 只测 `CFXMEM|子原因`，而 `__ffs` 取最低位 ⇒ 对 `CFXMEM` 该掩码是 **no-op**，测不出「去掩码」的注入。补 `CFXTRAP | 某子原因位`（`CFXTRAP` = `1<<0`，子原因在 bit≥32）的用例，断言 `dadao_exit_code`/`dadao_cause_name` 仍按 `CFXTRAP` 处理；**注入去掩码 ⇒ 必红**。
+
 ## 验收（逐条贴真实 rc）
 
 1. `python3 tools/linux/k3_page_probe.py` rc=0；每个 case 打印一行（含 cause/sub 符号名），gate 现场解析；期望值来自契约（`contract-see §6.1` 的符号名 → 位号）与 `.config`，**禁写死**。
