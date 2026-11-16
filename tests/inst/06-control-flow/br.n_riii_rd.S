@@ -75,8 +75,7 @@ __o3:
 	jump	[rb0, __d_f1]
 	.org	0xA00
 __d_b1:                                  @@ 0xA00：后向字面量分支的落点
-	__LAND_IP
-	jump	[rb0, __d_ck_b]
+	__PREP_LAND_JUMP	__d_ck_b
 	.org	0xE00
 __d_f1:                                  @@ 0xE00：+0x800 ⇒ 落点 0x1600
 	br.n	{rd5}?, [rb0, 0x800]
@@ -91,8 +90,7 @@ __d_f3:                                  @@ 0xE40：+0xBC0 ⇒ 落点 0x1A00（.
 	add.si	rd24, 1
 	.org	0x1600
 __d_l1:                                  @@ 0x1600：第一例落点
-	__LAND_IP
-	jump	[rb0, __d_ck_f]
+	__PREP_LAND_JUMP	__d_ck_f
 __d_ck_f:
 	__CHECK_RD         11, rd24, (ENTRY + 0x1600)
 	jump	[rb0, __d_b2]
@@ -101,8 +99,7 @@ __d_ck_b:
 	jump	[rb0, __d_f3]
 	.org	0x1A00
 __d_l3:                                  @@ 0x1A00：大距离落点
-	__LAND_IP
-	jump	[rb0, __d_ck_l]
+	__PREP_LAND_JUMP	__d_ck_l
 	.org	0x1A20
 __d_ck_l:
 	__CHECK_RD         13, rd24, (ENTRY + 0x1A00)

@@ -51,8 +51,7 @@ __slot1:                                 @@ 0x800：call ⇒ 压入 0x804、落�
 	call	[rb0, 0x40]
 	.org	0x840
 __l1:                                    @@ 0x840：C1 的落点
-	__LAND_IP
-	jump	[rb0, __ck1]
+	__PREP_LAND_JUMP	__ck1
 	.org	0x880
 __ck1:
 	__CHECK_RD          4, rd24, (ENTRY + 0x840)          @@ 落点地址
@@ -72,8 +71,7 @@ __slot2:                                 @@ 0xA00：call ⇒ 压入 0xA04（= �
 	call	[rb0, 0x40]
 	.org	0xA40
 __l2:                                    @@ 0xA40：C2 的落点
-	__LAND_IP
-	jump	[rb0, __ck2]
+	__PREP_LAND_JUMP	__ck2
 	.org	0xA80
 __ck2:
 	__CHECK_RD          7, rd24, (ENTRY + 0xA40)
@@ -93,8 +91,7 @@ __slot3:                                 @@ 0xC00：call ⇒ 压入 0xC04、落�
 	call	[rb0, 0x40]
 	.org	0xC40
 __l3:                                    @@ 0xC40：C3a 的落点
-	__LAND_IP
-	jump	[rb0, __ck3]
+	__PREP_LAND_JUMP	__ck3
 	.org	0xC80
 __ck3:
 	__CHECK_RD         10, rd24, (ENTRY + 0xC40)
@@ -112,8 +109,7 @@ __slot4:                                 @@ 0x1000：目标 = 返回地址 = 0x1
 	call	[rb0, 4]
 	.org	0x1004
 __l4:                                    @@ 0x1004：落点（= 返回地址）
-	__LAND_IP
-	jump	[rb0, __ck4]
+	__PREP_LAND_JUMP	__ck4
 	.org	0x1020
 __ck4:
 	__CHECK_RD         14, rd24, (ENTRY + 0x1004)
@@ -131,8 +127,7 @@ __slot5:                                 @@ 0x1200：满栈 call ⇒ 最旧条�
 	call	[rb0, 0x40]
 	.org	0x1240
 __l5:                                    @@ 0x1240：C3b 的落点
-	__LAND_IP
-	jump	[rb0, __ck5]
+	__PREP_LAND_JUMP	__ck5
 	.org	0x1280
 __ck5:
 	__CHECK_RD         15, rd24, (ENTRY + 0x1240)

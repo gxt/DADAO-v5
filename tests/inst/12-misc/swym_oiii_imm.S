@@ -40,8 +40,7 @@
 
 	@@ ---- semantic：`swym 0` 无架构副作用（寄存器与内存均不变）----
 	@@! inputs: kind=swym imm=0
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, S0
+	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, S0
 	st.o	rd6, [rb3, 0]
 	swym	0
 	__CHECK_RD	2, rd6, 0x0123456789ABCDEF
@@ -65,8 +64,7 @@
 
 	@@ ---- semantic/overlap 替代：`swym 7` 插在 store 与 load 之间 ⇒ 存储值不变 ----
 	@@! inputs: kind=swym imm=7
-	__LI	rd6, 0xA5A5A5A55A5A5A5A
-	LOAD_ADDR rb3, S1
+	__PREP_LI_ADDR	rd6, 0xA5A5A5A55A5A5A5A, rb3, S1
 	st.o	rd6, [rb3, 0]
 	swym	7
 	ld.o	rd7, [rb3, 0]

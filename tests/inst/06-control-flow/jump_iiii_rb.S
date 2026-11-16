@@ -53,8 +53,7 @@ __s_ck:
 	jump	[rb0, __slot_fwd]
 	.org	0x800
 __l_back:                                @@ 0x800：后向 -0x420 的落点（槽 0xC20）
-	__LAND_IP
-	jump	[rb0, __ck5]
+	__PREP_LAND_JUMP	__ck5
 	.org	0xC00
 __slot_fwd:                              @@ 0xC00：+0x800 ⇒ 落点 0x1400
 	jump	[rb0, 0x800]
@@ -66,12 +65,10 @@ __slot_big:                              @@ 0xC40：+0xC60 ⇒ 落点 0x18A0（.
 	jump	[rb0, 0xC60]
 	.org	0x1400
 __l_fwd:                                 @@ 0x1400：前向落点
-	__LAND_IP
-	jump	[rb0, __ck4]
+	__PREP_LAND_JUMP	__ck4
 	.org	0x18A0
 __l_big:                                 @@ 0x18A0：大距离落点
-	__LAND_IP
-	jump	[rb0, __ck6]
+	__PREP_LAND_JUMP	__ck6
 	.org	0x1A00
 __ck4:
 	__CHECK_RD          4, rd24, (ENTRY + 0x1400)

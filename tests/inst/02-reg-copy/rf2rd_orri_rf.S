@@ -28,25 +28,20 @@
 	@@ ---- semantic ----
 	__SET_MEM	rf5, 0x08
 	TEST_MOV1           3, rf2rd, rd10, rf5, 0x2222222222222222
-	__SET_MEM	rf5, 0x10
-	__SET_MEM	rf6, 0x18
+	__PREP_MEM2	rf5, 0x10, rf6, 0x18
 	rf2rd	{rd10:rd11}, {rf5:rf6}
 	__VERIFY_RD         4, rd10, 0x3333333333333333
 	__CHECK_RD          4, rd11, 0xABCDEF0123456789
-	__SET_MEM	rf5, 0x20
-	__SET_MEM	rf6, 0x28
+	__PREP_MEM2	rf5, 0x20, rf6, 0x28
 	__SET_MEM	rf7, 0x30
 	rf2rd	{rd10:rd12}, {rf5:rf7}
 	__VERIFY_RD         5, rd10, 0x0000000000000000
 	__VERIFY_RD         5, rd11, 0x00000000FFFFFFFF
 	__CHECK_RD          5, rd12, 0x8000000000000000
 	@@ 多元素（7 个连续寄存器）
-	__SET_MEM	rf5, 0x38
-	__SET_MEM	rf6, 0x40
-	__SET_MEM	rf7, 0x48
-	__SET_MEM	rf8, 0x50
-	__SET_MEM	rf9, 0x58
-	__SET_MEM	rf10, 0x60
+	__PREP_MEM2	rf5, 0x38, rf6, 0x40
+	__PREP_MEM2	rf7, 0x48, rf8, 0x50
+	__PREP_MEM2	rf9, 0x58, rf10, 0x60
 	__SET_MEM	rf11, 0x68
 	rf2rd	{rd24:rd30}, {rf5:rf11}
 	__VERIFY_RD         6, rd24, 0x0000000000000001
@@ -59,8 +54,7 @@
 
 	@@ ---- boundary ----
 	@@ 源恰在 RF 组顶端
-	__SET_MEM	rf62, 0x60
-	__SET_MEM	rf63, 0x50
+	__PREP_MEM2	rf62, 0x60, rf63, 0x50
 	rf2rd	{rd60:rd61}, {rf62:rf63}
 	__VERIFY_RD         8, rd60, 0x0F1E2D3C4B5A6978
 	__CHECK_RD          8, rd61, 0xAAAAAAAAAAAAAAAA
@@ -72,8 +66,7 @@
 	__SET_MEM	rf5, 0x70
 	TEST_MOV1          10, rf2rd, rd5, rf5, 0x000A000000001234
 	@@ 最大元素个数 63（跨组）：目的 rd1..rd63 ← 源 rf0..rf62（rd6 ← rf5、rd63 ← rf62）
-	__SET_MEM	rf5, 0x50
-	__SET_MEM	rf62, 0x40
+	__PREP_MEM2	rf5, 0x50, rf62, 0x40
 	rf2rd	{rd1:rd63}, {rf0:rf62}
 	__VERIFY_RD        11, rd6, 0xAAAAAAAAAAAAAAAA
 	__CHECK_RD         11, rd63, 0x0123456789ABCDEF

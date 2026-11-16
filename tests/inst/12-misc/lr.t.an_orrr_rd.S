@@ -27,37 +27,29 @@
 
 	@@ ---- encoding：规范编码字直接执行（opc 0x47 + ha 位域） ----
 	@@! inputs: kind=lr-enc sym=A17 k=0 init=0x0123456789ABCDEF enc=0x47140083
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A17
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A17
+	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, A17
+	__PREP_ST_ADDR	A17
 	.dd.t32 0x47140083
 	__CHECK_RD 1, rd2, 0x0000000001234567
 
 	@@ ---- encoding：lr 装载宽度窗口并零扩展 ----
 	@@! inputs: kind=lr sym=A0 k=0 init=0x0123456789ABCDEF
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A0
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A0
+	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, A0
+	__PREP_ST_ADDR	A0
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 2, rd2, 0x0000000001234567
 
 	@@ ---- encoding：寄存器字段（rdHC 数据目的 / rbHD 基址） ----
 	@@! inputs: kind=lr sym=A1 k=4 init=0xFEDCBA9876543210
-	__LI	rd6, 0xFEDCBA9876543210
-	LOAD_ADDR rb3, A1
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A1 + 4
+	__PREP_LI_ADDR	rd6, 0xFEDCBA9876543210, rb3, A1
+	__PREP_ST_ADDR	A1 + 4
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 3, rd2, 0x0000000076543210
 
 	@@ ---- semantic：lr 设标记 ⇒ sc 同地址同宽度成功（rdHB=0）并合并写入 ----
 	@@! inputs: kind=lr+sc sym=A2 k=0 init=0x0123456789ABCDEF src=0xDEADBEEFCAFEF00D
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A2
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A2
+	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, A2
+	__PREP_ST_ADDR	A2
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 4, rd2, 0x0000000001234567
 	__LI	rd2, 0xDEADBEEFCAFEF00D
@@ -67,10 +59,8 @@
 
 	@@ ---- semantic：sc 写回 lr 读到的值 ⇒ 成功且内存逐字节不变 ----
 	@@! inputs: kind=lr+sc sym=A3 k=0 init=0xFEDCBA9876543210 src=load
-	__LI	rd6, 0xFEDCBA9876543210
-	LOAD_ADDR rb3, A3
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A3
+	__PREP_LI_ADDR	rd6, 0xFEDCBA9876543210, rb3, A3
+	__PREP_ST_ADDR	A3
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 5, rd2, 0x00000000FEDCBA98
 	sc.t.nn	rd5, rd2, [rb3]
@@ -79,17 +69,13 @@
 
 	@@ ---- semantic：保留标记只在精确地址+宽度上命中 ⇒ 异字 sc 失败且不写内存 ----
 	@@! inputs: kind=lr;sc@B sym=A4/B4 k=0 init=0x0123456789ABCDEF/0x0F1E2D3C4B5A6978 src=0xDEADBEEFCAFEF00D
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A4
+	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, A4
 	st.o	rd6, [rb3, 0]
-	__LI	rd6, 0x0F1E2D3C4B5A6978
-	LOAD_ADDR rb3, B4
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A4
+	__PREP_LI_ADDR	rd6, 0x0F1E2D3C4B5A6978, rb3, B4
+	__PREP_ST_ADDR	A4
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 6, rd2, 0x0000000001234567
-	__LI	rd2, 0xDEADBEEFCAFEF00D
-	LOAD_ADDR rb4, B4
+	__PREP_LI_ADDR	rd2, 0xDEADBEEFCAFEF00D, rb4, B4
 	sc.t.nn	rd5, rd2, [rb4]
 	__VERIFY_RD 6, rd5, 0x0000000000000001
 	__VERIFY_MEM 6, A4, 0, 0x0123456789ABCDEF
@@ -97,13 +83,10 @@
 
 	@@ ---- semantic：当前 hart 执行另一条 lr ⇒ 旧标记清除（sc 失败） ----
 	@@! inputs: kind=lr;lr;sc@A sym=A5/B5 k=0 init=0x0123456789ABCDEF src=0xDEADBEEFCAFEF00D
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A5
+	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, A5
 	st.o	rd6, [rb3, 0]
-	__LI	rd6, 0xFEDCBA9876543210
-	LOAD_ADDR rb3, B5
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A5
+	__PREP_LI_ADDR	rd6, 0xFEDCBA9876543210, rb3, B5
+	__PREP_ST_ADDR	A5
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 7, rd2, 0x0000000001234567
 	LOAD_ADDR rb3, B5
@@ -116,10 +99,8 @@
 
 	@@ ---- semantic：sc 成功后标记已消费 ⇒ 紧接着的 sc 失败（内存保留首次写） ----
 	@@! inputs: kind=lr;sc;sc sym=A6 k=0 init=0x0123456789ABCDEF src=0x5A5A5A5A5A5A5A5A,0xDEADBEEFCAFEF00D
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A6
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A6
+	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, A6
+	__PREP_ST_ADDR	A6
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 8, rd2, 0x0000000001234567
 	__LI	rd2, 0x5A5A5A5A5A5A5A5A
@@ -132,55 +113,43 @@
 
 	@@ ---- boundary：宽度窗口全 1 ⇒ 零扩展为 0x00..FF ----
 	@@! inputs: kind=lr sym=A7 k=0 init=all1
-	__LI	rd6, 0xFFFFFFFFFFFFFFFF
-	LOAD_ADDR rb3, A7
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A7
+	__PREP_LI_ADDR	rd6, 0xFFFFFFFFFFFFFFFF, rb3, A7
+	__PREP_ST_ADDR	A7
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 9, rd2, 0x00000000FFFFFFFF
 
 	@@ ---- boundary：全 0 拍 ⇒ 读出 0 ----
 	@@! inputs: kind=lr sym=A8 k=0 init=0
-	__LI	rd6, 0x0000000000000000
-	LOAD_ADDR rb3, A8
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A8
+	__PREP_LI_ADDR	rd6, 0x0000000000000000, rb3, A8
+	__PREP_ST_ADDR	A8
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 10, rd2, 0x0000000000000000
 
 	@@ ---- boundary：窗口最高位为 1 ⇒ 零扩展（不符号扩展） ----
 	@@! inputs: kind=lr sym=A9 k=0 init=msb
-	__LI	rd6, 0x8000000000000000
-	LOAD_ADDR rb3, A9
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A9
+	__PREP_LI_ADDR	rd6, 0x8000000000000000, rb3, A9
+	__PREP_ST_ADDR	A9
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 11, rd2, 0x0000000080000000
 
 	@@ ---- boundary：数据区末拍（地址上界）装载 ----
 	@@! inputs: kind=lr sym=L k=0 init=0x1122334455667788
-	__LI	rd6, 0x1122334455667788
-	LOAD_ADDR rb3, L
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, L
+	__PREP_LI_ADDR	rd6, 0x1122334455667788, rb3, L
+	__PREP_ST_ADDR	L
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 12, rd2, 0x0000000011223344
 
 	@@ ---- boundary：窗口贴 8 B 字尾（k 最大） ----
 	@@! inputs: kind=lr sym=A11 k=4 init=0xFEDCBA9876543210
-	__LI	rd6, 0xFEDCBA9876543210
-	LOAD_ADDR rb3, A11
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A11 + 4
+	__PREP_LI_ADDR	rd6, 0xFEDCBA9876543210, rb3, A11
+	__PREP_ST_ADDR	A11 + 4
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 13, rd2, 0x0000000076543210
 
 	@@ ---- overlap/legality：rdHC=rd0 合法，标记照设 ⇒ 后续 sc 成功 ----
 	@@! inputs: kind=lr(rd0)+sc sym=A12 k=0 init=0x0123456789ABCDEF src=0xDEADBEEFCAFEF00D
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A12
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A12
+	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, A12
+	__PREP_ST_ADDR	A12
 	lr.t.an	rd0, [rb3]
 	@@ lr 的数据目的 rdHC=rd0：丢弃装载值合法（dst_rd0 不适用）
 	__LI	rd2, 0xDEADBEEFCAFEF00D
@@ -190,10 +159,8 @@
 
 	@@ ---- overlap：lr 目的 = sc 结果寄存器（同一 rd） ----
 	@@! inputs: kind=lr(rd5)+sc sym=A13 k=0 init=0x0123456789ABCDEF
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A13
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A13
+	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, A13
+	__PREP_ST_ADDR	A13
 	lr.t.an	rd5, [rb3]
 	__LI	rd2, 0xDEADBEEFCAFEF00D
 	sc.t.nn	rd5, rd2, [rb3]
@@ -202,17 +169,13 @@
 
 	@@ ---- semantic：失败的 sc 也清全部标记 ⇒ 之后 sc 原地址仍失败 ----
 	@@! inputs: kind=lr;sc@B(fail);sc@A sym=A14/B14 k=0 init=0x0123456789ABCDEF
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A14
+	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, A14
 	st.o	rd6, [rb3, 0]
-	__LI	rd6, 0x0F1E2D3C4B5A6978
-	LOAD_ADDR rb3, B14
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A14
+	__PREP_LI_ADDR	rd6, 0x0F1E2D3C4B5A6978, rb3, B14
+	__PREP_ST_ADDR	A14
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 16, rd2, 0x0000000001234567
-	__LI	rd2, 0xDEADBEEFCAFEF00D
-	LOAD_ADDR rb4, B14
+	__PREP_LI_ADDR	rd2, 0xDEADBEEFCAFEF00D, rb4, B14
 	sc.t.nn	rd5, rd2, [rb4]
 	LOAD_ADDR rb3, A14
 	sc.t.nn	rd5, rd2, [rb3]
@@ -221,10 +184,8 @@
 
 	@@ ---- boundary：sc 源 rd0 读出 0 ⇒ 仅宽度窗口清零 ----
 	@@! inputs: kind=lr+sc(rd0) sym=A15 k=4 init=0xFEDCBA9876543210
-	__LI	rd6, 0xFEDCBA9876543210
-	LOAD_ADDR rb3, A15
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A15 + 4
+	__PREP_LI_ADDR	rd6, 0xFEDCBA9876543210, rb3, A15
+	__PREP_ST_ADDR	A15 + 4
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 17, rd2, 0x0000000076543210
 	sc.t.nn	rd5, rd0, [rb3]
@@ -233,10 +194,8 @@
 
 	@@ ---- semantic：窗口贴字尾的 lr→sc 往返 ----
 	@@! inputs: kind=lr+sc sym=A16 k=4 init=0x0123456789ABCDEF
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A16
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A16 + 4
+	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, A16
+	__PREP_ST_ADDR	A16 + 4
 	lr.t.an	rd2, [rb3]
 	__CHECK_RD 18, rd2, 0x0000000089ABCDEF
 	__LI	rd2, 0xDEADBEEFCAFEF00D

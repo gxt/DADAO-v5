@@ -22,8 +22,7 @@
 	TEST_CS1_RF        1, cs.z, rd63, 0, rf62, 0x00, rf61, 0x08, rf60, 0x10, 0x2222222222222222
 	@@ 规范编码字（rdHA=rd5, rfHB=rf6, rfHC=rf7, rfHD=rf8）直接执行：钉住 mask/value
 	__LI	rd5, 0
-	__SET_MEM	rf6, 0x00
-	__SET_MEM	rf7, 0x08
+	__PREP_MEM2	rf6, 0x00, rf7, 0x08
 	__SET_MEM	rf8, 0x10
 	.dd.t32	0x631461C8
 	st.o	rf6, [rb29, 0]
@@ -32,8 +31,7 @@
 	@@ ---- semantic ----
 	@@ 条件为零 ⇒ 取 rfHC；未选中侧 rfHD 不得被写
 	__LI	rd1, 0
-	__SET_MEM	rf10, 0x00
-	__SET_MEM	rf11, 0x30
+	__PREP_MEM2	rf10, 0x00, rf11, 0x30
 	__SET_MEM	rf12, 0x40
 	cs.z	{rd1}?, rf10, rf11, rf12
 	st.o	rf12, [rb29, 0]
@@ -61,8 +59,7 @@
 	TEST_CS1_RF       12, cs.z, rd0, 0, rf10, 0x00, rf11, 0x30, rf12, 0x40, 0x8000000000000000
 	@@ 条件/候选/目的互不同名（C-27 之外的路径），条件不成立 ⇒ 未选中侧 rfHC 不得被改写
 	__LI	rd1, 1
-	__SET_MEM	rf10, 0x00
-	__SET_MEM	rf11, 0x58
+	__PREP_MEM2	rf10, 0x00, rf11, 0x58
 	__SET_MEM	rf12, 0x40
 	cs.z	{rd1}?, rf10, rf11, rf12
 	st.o	rf11, [rb29, 0]
@@ -71,8 +68,7 @@
 	__CHECK_MEM        13, SCRATCH, 0, 0x0123456789ABCDEF
 	@@ 源 rf0 合法（读出 FCSR，值不确定）：只断言目的 == 当前 rf0，且未选中侧不被改写
 	__LI	rd1, 0
-	__SET_MEM	rf5, 0x00
-	__SET_MEM	rf6, 0x10
+	__PREP_MEM2	rf5, 0x00, rf6, 0x10
 	cs.z	{rd1}?, rf5, rf0, rf6
 	rf2rd	{rd24}, {rf5}
 	rf2rd	{rd25}, {rf0}

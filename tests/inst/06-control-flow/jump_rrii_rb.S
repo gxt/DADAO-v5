@@ -52,8 +52,7 @@
 	jump	[rb0, __slot4]
 	.org	0x800
 __l5:                                    @@ 0x800：例 5 的落点
-	__LAND_IP
-	jump	[rb0, __ck5]
+	__PREP_LAND_JUMP	__ck5
 	.org	0xC00
 __slot4:                                 @@ 0xC00：基址 ENTRY+0x1300 + 0x100 + 0 ⇒ 落点 0x1400
 	jump	[rb5, rd6, 0]
@@ -65,12 +64,10 @@ __slot6:                                 @@ 0xC40：基址 ENTRY+0x1800 + 0x60 +
 	jump	[rb5, rd6, 0x40]
 	.org	0x1400
 __l4:                                    @@ 0x1400：例 4 的落点
-	__LAND_IP
-	jump	[rb0, __ck4]
+	__PREP_LAND_JUMP	__ck4
 	.org	0x18A0
 __l6:                                    @@ 0x18A0：例 6 的落点
-	__LAND_IP
-	jump	[rb0, __ck6]
+	__PREP_LAND_JUMP	__ck6
 	.org	0x1A00
 __ck4:
 	__CHECK_RD          4, rd24, (ENTRY + 0x1400)

@@ -69,8 +69,7 @@ __enc_ck:
 	__EXIT	3
 	.org	0x800
 __lD3:                                   @@ 0x800：D3 的落点
-	__LAND_IP
-	jump	[rb0, __ckD3]
+	__PREP_LAND_JUMP	__ckD3
 	.org	0x820
 __ckD3:
 	__CHECK_RD          3, rd24, (ENTRY + 0x800)
@@ -88,8 +87,7 @@ __ckD3:
 	__EXIT	6
 	.org	0xA00
 __lD2:                                   @@ 0xA00：D2 的落点
-	__LAND_IP
-	jump	[rb0, __ckD2]
+	__PREP_LAND_JUMP	__ckD2
 	.org	0xA20
 __ckD2:
 	__CHECK_RD          6, rd24, (ENTRY + 0xA00)
@@ -107,8 +105,7 @@ __ckD2:
 	__EXIT	9
 	.org	0xC00
 __lR42:                                  @@ 0xC00：返回值例的落点
-	__LAND_IP
-	jump	[rb0, __ckR42]
+	__PREP_LAND_JUMP	__ckR42
 	.org	0xC20
 __ckR42:
 	__CHECK_RD          9, rd5, 0x000000000000002A
@@ -123,8 +120,7 @@ __ckR42:
 	__EXIT	11
 	.org	0xE00
 __lRm1:                                  @@ 0xE00：符号扩展例的落点
-	__LAND_IP
-	jump	[rb0, __ckRm1]
+	__PREP_LAND_JUMP	__ckRm1
 	.org	0xE20
 __ckRm1:
 	__CHECK_RD         11, rd5, 0xFFFFFFFFFFFFFFFF
@@ -139,8 +135,7 @@ __ckRm1:
 	__EXIT	13
 	.org	0x1000
 __lR0:                                   @@ 0x1000：rd0 目的例的落点
-	__LAND_IP
-	jump	[rb0, __ckR0]
+	__PREP_LAND_JUMP	__ckR0
 	.org	0x1020
 __ckR0:
 	__CHECK_RD         13, rd24, (ENTRY + 0x1000)
@@ -156,8 +151,7 @@ __ckR0:
 	__EXIT	14
 	.org	0x1200
 __lD4b:                                  @@ 0x1200：D4b（计数 > 1）的落点
-	__LAND_IP
-	jump	[rb0, __ckD4b]
+	__PREP_LAND_JUMP	__ckD4b
 	.org	0x1240
 __ckD4b:
 	__CHECK_RD         14, rd24, (ENTRY + 0x1200)
@@ -176,8 +170,7 @@ __ckD4b:
 	__EXIT	17
 	.org	0x1400
 __lD4b1:                                 @@ 0x1400：D4b（计数 = 1）的落点
-	__LAND_IP
-	jump	[rb0, __ckD4b1]
+	__PREP_LAND_JUMP	__ckD4b1
 	.org	0x1440
 __ckD4b1:
 	__CHECK_RD         17, rd24, (ENTRY + 0x1400)

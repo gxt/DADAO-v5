@@ -62,8 +62,7 @@ __slotA:                                 @@ 0x800：基址 ENTRY+0x900 + 0x40 + 
 	call	[rb5, rd6, 0]
 	.org	0x940
 __lA:                                     @@ 0x940：落点
-	__LAND_IP
-	jump	[rb0, __ckA]
+	__PREP_LAND_JUMP	__ckA
 	.org	0x980
 __ckA:
 	__CHECK_RD          6, rd24, (ENTRY + 0x940)          @@ 落点地址
@@ -81,8 +80,7 @@ __slotB:                                 @@ 0xB00：rb0 + 0x40 + 0x40 ⇒ 落点
 	call	[rb0, rd6, 0x40]
 	.org	0xB80
 __lB:                                     @@ 0xB80：落点
-	__LAND_IP
-	jump	[rb0, __ckB]
+	__PREP_LAND_JUMP	__ckB
 	.org	0xBC0
 __ckB:
 	__CHECK_RD          9, rd24, (ENTRY + 0xB80)
@@ -103,8 +101,7 @@ __slotC:                                 @@ 0xE00：rb0 + 0x40 + 0 ⇒ 落点 0x
 	call	[rb0, rd6, 0]
 	.org	0xE40
 __lC:                                     @@ 0xE40：落点
-	__LAND_IP
-	jump	[rb0, __ckC]
+	__PREP_LAND_JUMP	__ckC
 	.org	0xE80
 __ckC:
 	__CHECK_RD         12, rd24, (ENTRY + 0xE40)

@@ -233,3 +233,19 @@
 	__CHECK_RD	\pt, rd5, 0x0
 	__VERIFY_MEM	\pt, \ea, 0, \exp
 .endm
+
+@@ ---------------------------------------------------------------------------
+@@ 2 行级结构重复宏（m15-testcases-005；判据 = 净收益 k×n−(n+2+k) > 0，
+@@ 宏体只含准备段、0 个检查点 ⇒ 用非用例前缀 `__PREP_*`，`__PT_*` 只留给
+@@ 「一行一条用例」的宏）。
+@@ ---------------------------------------------------------------------------
+
+.macro __PREP_LI_ADDR rd, imm, base, addr
+	__LI	\rd, \imm
+	LOAD_ADDR	\base, \addr
+.endm
+
+.macro __PREP_ST_ADDR addr
+	st.o	rd6, [rb3, 0]
+	LOAD_ADDR	rb3, \addr
+.endm

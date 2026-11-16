@@ -27,25 +27,20 @@
 	@@ ---- semantic ----
 	__SET_MEM	ra5, 0x08
 	TEST_MOV1           3, ra2rd, rd10, ra5, 0x2222222222222222
-	__SET_MEM	ra5, 0x10
-	__SET_MEM	ra6, 0x18
+	__PREP_MEM2	ra5, 0x10, ra6, 0x18
 	ra2rd	{rd10:rd11}, {ra5:ra6}
 	__VERIFY_RD         4, rd10, 0x3333333333333333
 	__CHECK_RD          4, rd11, 0xABCDEF0123456789
-	__SET_MEM	ra5, 0x20
-	__SET_MEM	ra6, 0x28
+	__PREP_MEM2	ra5, 0x20, ra6, 0x28
 	__SET_MEM	ra7, 0x30
 	ra2rd	{rd10:rd12}, {ra5:ra7}
 	__VERIFY_RD         5, rd10, 0x0000000000000000
 	__VERIFY_RD         5, rd11, 0x00000000FFFFFFFF
 	__CHECK_RD          5, rd12, 0x8000000000000000
 	@@ 多元素（7 个连续寄存器）
-	__SET_MEM	ra5, 0x38
-	__SET_MEM	ra6, 0x40
-	__SET_MEM	ra7, 0x48
-	__SET_MEM	ra8, 0x50
-	__SET_MEM	ra9, 0x58
-	__SET_MEM	ra10, 0x60
+	__PREP_MEM2	ra5, 0x38, ra6, 0x40
+	__PREP_MEM2	ra7, 0x48, ra8, 0x50
+	__PREP_MEM2	ra9, 0x58, ra10, 0x60
 	__SET_MEM	ra11, 0x68
 	ra2rd	{rd24:rd30}, {ra5:ra11}
 	__VERIFY_RD         6, rd24, 0x0000000000000001
@@ -57,8 +52,7 @@
 
 	@@ ---- boundary ----
 	@@ 源恰在 RA 组顶端
-	__SET_MEM	ra62, 0x60
-	__SET_MEM	ra63, 0x50
+	__PREP_MEM2	ra62, 0x60, ra63, 0x50
 	ra2rd	{rd60:rd61}, {ra62:ra63}
 	__VERIFY_RD         8, rd60, 0x0F1E2D3C4B5A6978
 	__CHECK_RD          8, rd61, 0xAAAAAAAAAAAAAAAA
