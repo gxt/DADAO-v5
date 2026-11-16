@@ -67,11 +67,8 @@ __wrm_\@:
 @@ 16 位立即数操作故障例（rwii：目的 rd0/rb0 ⇒ ILLI）
 @@   TEST_FAULT_WI(pt, 助记符, 目的, 故障名, wpN, immu16)
 .macro TEST_FAULT_WI pt, mnem, dst, fault, wp, imm
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	\mnem	\dst, \wp, \imm
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm

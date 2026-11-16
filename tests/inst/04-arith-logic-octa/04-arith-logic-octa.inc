@@ -55,23 +55,17 @@
 	__CHECK_RD \pt, \dst, \exp
 .endm
 .macro TEST_FAULT_DUAL pt, mnem, fault, hi, lo, c, d
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	__FAULT_LOAD_SRC \c, 0x0123456789ABCDEF
 	__FAULT_LOAD_SRC \d, 0x0000000000000007
 	\mnem	{\hi, \lo}, \c, \d
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 .macro TEST_FAULT_ALU_CMPI pt, mnem, fault, dst, b, imm
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	__FAULT_LOAD_SRC \b, 0x0123456789ABCDEF
 	\mnem	\dst, \b, \imm
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm

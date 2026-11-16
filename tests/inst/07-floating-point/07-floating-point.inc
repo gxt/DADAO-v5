@@ -174,13 +174,10 @@ __fpchk_\@:
 .endm
 @@ 原始编码故障例（汇编器拒绝的编码：目的 rf0 ⇒ ILLI；root 的 n≠2 ⇒ ILLI）
 .macro TEST_FAULT_FP pt, fault, enc
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	.dd.t32	\enc
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 @@ ---------------------------------------------------------------------------
 @@ 格式转换 / 比较 / 分类（07-floating-point，`spec/SimRISC-07 §1/§4/§5`）

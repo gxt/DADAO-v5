@@ -23,13 +23,10 @@
 .endm
 
 .macro TEST_FAULT_ALU_SI pt, mnem, fault, dst, imm
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	\mnem	\dst, \imm
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 
 	__TEST_BEGIN

@@ -13,21 +13,37 @@
 @@ **期望值内联**。用例失败 ⇒ `SYS_EXIT(检查点号)`：guest FAIL 段 `0x01`–`0x7F`，
 @@ 值 = 失败点序号（`spec/Kaiwu §7.1`）；机器异常例 ⇒ `SYS_EXIT(0xF0|异常位索引)`，
 @@ 即 Tiny（运行模式恒 `hypv`）的 monitor 段编码：CFXMEM `0xF1`、CFXREG `0xF2`、
-@@ ILLI `0xF8`、MALIGN `0xFC`、IALIGN `0xFD`。
+@@ ILLI `0xF8`、MALIGN `0xFC`、IALIGN `0xFD`（`m15-testcases-007` 起故障例链式合并：
+@@ 异常码本身由落点按**期望 one-hot** 核对，成败由「匹配则跳下一例 / 不匹配则
+@@ `SYS_EXIT(点号)`」表达，另有一例一 `__EXIT(点号)` 兜住「异常没发生」）。
 @@
-@@ 一个 `.S` = 两种镜像形态，由汇编符号 `CASE_N` 选择（`llvm-mc -defsym CASE_N=<n>`）：
+@@ **镜像 = 每 `.S` 一个**（`m15-testcases-007`；故障例链式合并在同一镜像内跑）：
+@@ 由汇编符号 `CASE_N` 选择两种入口（`llvm-mc -defsym CASE_N=<n>`）：
 @@
-@@   CASE_N = 0（缺省）= **链例镜像**：encoding / legality（非故障）/ semantic /
-@@     boundary / overlap 逐例顺序执行。每个检查点把**实测的 8 字节**写进结果缓冲，
-@@     末尾用 `SYS_WRITEC` 逐字节打印该缓冲并 `SYS_EXIT(0)`。三方（chipyard / QEMU /
-@@     gem5）比较的就是这串字节 ⇒ **逐字节一致**，而不只是退出码一致。
+@@   CASE_N = 0（缺省）= **全量镜像**（门控口径）：encoding / legality（非故障）/
+@@     semantic / boundary / overlap 逐例顺序执行。每个检查点把**实测的 8 字节**写进
+@@     结果缓冲；链例跑完后 `__TEST_END` **进入故障链**——每个故障例依次执行自己的
+@@     触发指令，同步异常经 hmon 落到 `.faultpad` 的 `__pad`，落点核对 `cause_id`
+@@     低 16 位 one-hot 后**跳下一例**；最后一例落到收尾（`SYS_WRITEC` 逐字节打印
+@@     结果缓冲 + `SYS_EXIT(0)`）。三方（chipyard / QEMU / gem5）比较的就是这串字节
+@@     ⇒ **逐字节一致**，而不只是退出码一致。无故障例的 `.S` 仍「打印 + 退出」
+@@     （`__fault_chain` 就定在收尾代码处 ⇒ `__TEST_END` 的跳转落到收尾）。
 @@
-@@   CASE_N = <检查点> = **故障例镜像**：`_start` 直接跳到该例。该例执行一条会触发
-@@     同步异常的指令，由**BootROM 固件**的 hmon 处理器（最小保存-跳转算法，
-@@     `tests/shared/bootrom/tiny/hmon.S`）把 `cause_id` 存进自己的槽（hmon SRAM
-@@     +0xE0）并 `escape` 回落点，落点读该槽、核对 one-hot 后
-@@     `SYS_EXIT(0xF0|位索引)`。故障例必须一例一镜像——异常不返回到被测指令之后，
-@@     因此同一个镜像无法继续下一例。
+@@   CASE_N = <检查点> = **单例调试镜像**：`_start` 直接跳到该故障例体；之后仍按链
+@@     续跑到收尾（单例模式不打印缓冲）⇒ 退出码与链式模式一致。只用于单例定位，
+@@     不进门控（`check-inst-asm` 只跑 `CASE_N=0`）。
+@@
+@@ 故障例链的机制（本文件 `__FAULT_BODY_BEGIN`/`__FAULT_BODY_END`/`__pad`）：
+@@   一例体 = `__FAULT_BODY_BEGIN <点号>`（唯一标号 `__fc_<点号>`；**第一例兼链起点**
+@@   `__fault_chain`）+ 触发序列 + `__FAULT_BODY_END <点号>`。后者 = 未触发即判红的
+@@   `__EXIT <点号>`（**必须保留**：它就是「异常没有发生」的检出器）+ 一行
+@@   `.faulttab` 表项（= 本例入口 `__fc_<点号>`，**按点号索引**）。
+@@   **下一例地址的取得**：落点按 `点号 + 1` 读表（`.faulttab` 按点号索引、点号连续 ⇒
+@@   槽位相邻），非 0 ⇒ 跳过去；读到 **0**（最后一例之后 = `__TEST_SECTIONS` 追加的
+@@   表尾哨兵）⇒ 跳收尾。⇒ **没有任何「我是最后一例」的声明**，也不依赖 `.S` 里
+@@   `__TEST_END` 与故障例的先后顺序（两种排版都存在）。落点跳转用
+@@   `jump [rb, rd0, 0]`（`rrii` 绝对形式，`Addr = rb + rd0 + 0`）。
+@@   用例寄存器不受影响：落点只用 rb11/rb16/rb20/rb21 与 rd20–rd23（保留寄存器）。
 @@
 @@ hmon 的返回地址：固件 hmon 从 hmon SRAM +0xF8 读返回地址（`spec/Kaiwu
 @@ §6.2`：power 写默认值 `trap+4`，**框架可覆盖**）。故障例在触发前把落点
@@ -44,10 +60,10 @@
 @@
 @@ 固定地址（Tiny；`.lds` 的 ASSERT 与本节 `.equ` 共同钉住）——全部册（00 + 01–12）**同一份**布局
 @@ `tests/inst/linker/inst-tiny.lds`（`m15-testcases-006` 统一，见该文件头）：
-@@   ENTRY+0x0000 .. +0x4000  .text          链例 + 故障例体（16 KiB 窗口）
-@@   ENTRY+0x4000             .faultpad      故障落点（≤128 B）
-@@   ENTRY+0x4080             TEST_FAULTV    故障期望槽：+0 one-hot、+8 退出码、
-@@                                           +16 失败码（=检查点号）
+@@   ENTRY+0x0000 .. +0x4000  .text          链例 + 故障例体 + 收尾代码（16 KiB 窗口）
+@@   ENTRY+0x4000 .. +0x4200  .faultpad      故障落点 `__pad`（≤512 B）
+@@   ENTRY+0x4200             TEST_FAULTV    故障期望槽：+0 one-hot、+8 失败码（=点号）
+@@   ENTRY+0x4300 .. +0x4780  .faulttab      后继表（点号 × 8 B + 表尾哨兵；≤0x480）
 @@   ENTRY+0x5000 .. +0x7000  .testdata     数据块（TEST_DATA = +0x5800，0x800 负偏移
 @@                                           区在前；单元素 24 拍模式；多元素区见下）
 @@   ENTRY+0x7000 .. +0x7800  结果字节缓冲（每检查点 8 字节，≤127 点 ⇒ ≤1016 B）
@@ -56,7 +72,7 @@
 @@ 副作用口径（用户 2026-11-13 裁定，`ldm`/`stm`/`r2r` 等多寄存器/多元素指令）：
 @@   **不要求无副作用** —— 这类指令**允许部分元素已经生效**（「源/目范围不得重叠」正是为此）；
 @@   chipyard **无需整段预检**。故多元素故障例（`TEST_FAULT_M`/`TEST_FAULT_ENC`）
-@@   **只比异常码**（`SYS_EXIT(0xF0|位索引)`），不对目的寄存器/目标内存做哨兵断言；
+@@   **只比异常大类**（落点核 one-hot；不对目的寄存器/目标内存做哨兵断言）；
 @@   `.S` 注释一律写「允许部分生效」，不得写「不写任何元素 / 第一拍之前」之类断言。
 @@   **单元素 `ld`/`st` 仍须精确**（`012` 的 `TEST_FAULT` 路径不变，不动）。
 @@   另：中途总线 `denied` 不可构造（`ISS-381` F-c；`m12-chipyard-008` 已定其语义为 `CFXMEM`）。
@@ -102,7 +118,8 @@
 	.equ TEST_DATA,   ENTRY + 0x5800
 	.equ TEST_BUF,    ENTRY + 0x7000
 	.equ TEST_EXITB,  ENTRY + 0x7800
-	.equ TEST_FAULTV, ENTRY + 0x4080        @@ 故障期望槽（3 × 8 B；见文件头）
+	.equ TEST_FAULTV, ENTRY + 0x4200        @@ 故障期望槽（2 × 8 B；见文件头）
+	.equ FAULTTAB,    ENTRY + 0x4300        @@ 后继表（点号 × 8 B + 哨兵；见文件头）
 
 @@ 多元素数据区（见文件头；偏移相对 TEST_DATA）
 	.equ MDATA_B, TEST_DATA + 0x800
@@ -305,8 +322,9 @@ __ve_\@:
 @@        TEST_FAULT_M(pt, 助记符, 组, 故障名, 基址, 基址值, 偏移寄存器, 偏移值)
 @@        TEST_FAULT_ENC(pt, 故障名, 编码字, 基址, 基址值, 偏移寄存器, 偏移值)
 @@        TEST_FAULT_WI(pt, 助记符, 目的, 故障名, wpN, immu16)
-@@   只有 `-defsym CASE_N=<pt>` 才展开该例代码；链例镜像里它不产码。
-@@   落点核对 cause_id one-hot，随后 `SYS_EXIT(0xF0|位索引)`。
+@@   故障例体在**所有镜像形态**里都展开（`CASE_N=0` 的链例镜像也产码——它就是故障链）；
+@@   `-defsym CASE_N=<pt>` 只改变入口（`_start` 直接跳该例），不改变体。
+@@   落点核对 `cause_id` 低 16 位 one-hot：不等 ⇒ `SYS_EXIT(点号)`；相等 ⇒ 跳下一例。
 @@ ---------------------------------------------------------------------------
 
 @@ 把落点写进固件 hmon 的返回地址槽（hmon SRAM + 0xF8；`spec/Kaiwu §6.2`）
@@ -316,42 +334,34 @@ __ve_\@:
 	st.o	rb21, [rb20, 0xF8]
 .endm
 
-@@ 故障例公共体：写 hmon 返回槽 + 把 one-hot / 退出码 / 失败点号写进 TEST_FAULTV
+@@ 故障例公共体：写 hmon 返回槽 + 把 one-hot / 失败点号写进 TEST_FAULTV
+@@   +8 的失败点号同时是 `.faulttab` 的索引（落点据此查后继例），故落点两条路径都要它。
 .macro __FAULT_GUARD pt, fault
 	__SET_HMON_RETURN
 	.set	__onehot, 0
-	.set	__code, 0
 	.ifc	\fault, CFXMEM
 	.set	__onehot, 0x0002
-	.set	__code, 0xF1
 	.endif
 	.ifc	\fault, CFXREG
 	.set	__onehot, 0x0004
-	.set	__code, 0xF2
 	.endif
 	.ifc	\fault, ILLI
 	.set	__onehot, 0x0100
-	.set	__code, 0xF8
 	.endif
 	.ifc	\fault, MALIGN
 	.set	__onehot, 0x1000
-	.set	__code, 0xFC
 	.endif
 	.ifc	\fault, IALIGN
 	.set	__onehot, 0x2000
-	.set	__code, 0xFD
 	.endif
 	.ifc	\fault, UNDI
 	.set	__onehot, 0x0200
-	.set	__code, 0xF9
 	.endif
 	.ifc	\fault, RASOF
 	.set	__onehot, 0x0400
-	.set	__code, 0xFA
 	.endif
 	.ifc	\fault, RASUF
 	.set	__onehot, 0x0800
-	.set	__code, 0xFB
 	.endif
 	.if	__onehot == 0
 	.error	"unknown fault name"
@@ -359,23 +369,43 @@ __ve_\@:
 	LOAD_ADDR rb11, TEST_FAULTV
 	set.rd	rd20, __onehot
 	st.o	rd20, [rb11, 0]
-	set.rd	rd21, __code
-	st.o	rd21, [rb11, 8]
 	set.rd	rd22, \pt
-	st.o	rd22, [rb11, 16]
+	st.o	rd22, [rb11, 8]
 .endm
 
-@@ 原始编码故障例（汇编器会拒绝的编码，如 immu6 = 0）：同样只比异常码
-.macro TEST_FAULT_ENC pt, fault, enc, base, baseval, offreg, offval
-	.if CASE_N == \pt
+@@ 故障例体入口（一例一个标号；首例兼链起点，`CASE_N=<pt>` 时兼单例入口）
+.macro __FAULT_BODY_BEGIN pt
+	.ifndef	__FAULT_CHAIN_SEEN
+	.set	__FAULT_CHAIN_SEEN, 1
+__fault_chain:
+	.endif
+	.if	CASE_N == \pt
 	.globl	__fault_case
 __fault_case:
+	.endif
+__fc_\pt:
+.endm
+
+@@ 故障例体末尾：未触发即判红（`__EXIT \pt`，漏报检出器）+ `.faulttab` 表项
+@@   表项 = **本例入口** `__fc_<pt>`（按点号索引；表项之间由 `.org` 留出的零槽 = 空槽）。
+@@   落点不看「谁是我的后继」：它按 `点号 + 1` 读下一槽 —— 有下一例就跳过去，
+@@   读到 **0**（最后一例之后 = `__TEST_SECTIONS` 追加的哨兵槽）就跳收尾。
+.macro __FAULT_BODY_END pt
+	__EXIT	\pt
+	.pushsection	.faulttab, "a"
+	.org	(\pt) * 8
+	.dd.o64	__fc_\pt
+	.popsection
+.endm
+
+@@ 原始编码故障例（汇编器会拒绝的编码，如 immu6 = 0）
+.macro TEST_FAULT_ENC pt, fault, enc, base, baseval, offreg, offval
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	LOAD_ADDR \base, \baseval
 	set.rd	\offreg, \offval
 	.dd.t32	\enc
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 
 @@ 64 位数据运算故障例（`spec/SimRISC-04 §1`；汇编器对非法编码同样放行）
@@ -396,26 +426,20 @@ __fault_case:
 .endm
 
 .macro TEST_FAULT_ALU3 pt, mnem, fault, dst, c, d
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	__FAULT_LOAD_SRC \c, 0x0123456789ABCDEF
 	__FAULT_LOAD_SRC \d, 0x0000000000000007
 	\mnem	\dst, \c, \d
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 
 .macro TEST_FAULT_ALU_ORRI pt, mnem, fault, dst, c, imm
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	__FAULT_LOAD_SRC \c, 0x0123456789ABCDEF
 	\mnem	\dst, \c, \imm
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 
 @@ ---------------------------------------------------------------------------
@@ -445,9 +469,7 @@ __fault_case:
 @@   各自绑定一个银行、没有「任意银行」形态 ⇒ 本宏用硬件指令展开装值（与 `LOAD_ADDR` 同型；
 @@   展开与旧装载宏逐字节相同，不引入新语义）。
 .macro TEST_FAULT_CF1 pt, r, rval, fault, enc
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	.ifnc	\r, rd0
 	.ifnc	\r, rb0
@@ -458,8 +480,7 @@ __fault_case:
 	.endif
 	.endif
 	.dd.t32	\enc
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 
 @@ ---------------------------------------------------------------------------
@@ -489,7 +510,8 @@ __fault_case:
 @@ 镜像骨架
 @@ ---------------------------------------------------------------------------
 
-@@ 入口：CASE_N != 0 时跳到被选中的故障例体；否则进入链例
+@@ 入口：CASE_N != 0 时跳到被选中的故障例体（单例调试）；否则进入链例
+@@   `rb30/rb29/rb27` 只在链例镜像里装载（单例模式不记检查点、不打印缓冲）。
 .macro __TEST_BEGIN
 	.text
 	.globl	_start
@@ -502,18 +524,23 @@ _start:
 	LOAD_ADDR rb27, WSCRATCH
 .endm
 
-@@ 链例收尾：打印结果缓冲（8 × 检查点数）并 PASS
+@@ 链例收尾 = **进入故障链**（`m15-testcases-007`）：跳到第一例体；落点按
+@@   `.faulttab` 逐例跳下去，最后一例由「下一槽 = 0」跳到 `__TEST_SECTIONS` 的
+@@   收尾代码（打印链例缓冲 + PASS）。无故障例的 `.S` 里 `__fault_chain` 就定在
+@@   收尾代码处 ⇒ 本跳转直接落到「打印 + 退出」。
 .macro __TEST_END
-	__PRINT	TEST_BUF, (8 * __NCHECK)
-	__EXIT	0
+	jump	[rb0, __fault_chain]
 .endm
 
-@@ 落点段 / 数据块（不含用例；每个文件调用一次）
+@@ 收尾代码 / 落点段 / 数据块（不含用例；每个文件调用一次）
 .macro __TEST_SECTIONS
+	@@ 故障落点：核 `cause_id` 低 16 位 one-hot → 不等 `SYS_EXIT(失败码=点号)`；
+	@@ 相等则按点号查 `.faulttab` 的**下一槽**：非 0 ⇒ 跳下一例，0 ⇒ 跳收尾。
 	.section .faultpad, "ax"
 	.globl	__pad
 __pad:
 	LOAD_ADDR rb11, TEST_FAULTV
+	ld.o	rd23, [rb11, 8]			@@ 失败码 = 点号（兼 `.faulttab` 索引）
 	LOAD_ADDR rb21, HMON_BASE + 0xE0	@@ 固件 hmon 的 cause_id 槽
 	ld.o	rd20, [rb21, 0]
 	ld.o	rd21, [rb11, 0]
@@ -522,11 +549,15 @@ __pad:
 						@@ 子原因是 wyde2/wyde3 里的独立
 						@@ one-hot 字段，不参与本比较
 	br.ne	{rd20, rd21}?, [rb0, __pad_fail]
-	ld.o	rd23, [rb11, 8]
-	jump	[rb0, __pad_exit]
+	LOAD_ADDR rb21, FAULTTAB + 8
+	shl.o	rd23, rd23, 3			@@ 点号 × 8 = 表项字节偏移
+	add.o	rb21, rb21, rd23		@@ &tab[点号 + 1]（bbd 形态：rb + rd）
+	ld.o	rb21, [rb21, 0]			@@ 下一例入口；0 = 本例是最后一例
+	br.z	{rb21}?, [rb0, __pad_done]
+	jump	[rb21, rd0, 0]			@@ rrii 绝对形式：Addr = rb21 + 0
+__pad_done:
+	jump	[rb0, __fault_finish]		@@ 链走完 → 收尾（打印链例缓冲 + PASS）
 __pad_fail:
-	ld.o	rd23, [rb11, 16]
-__pad_exit:
 	LOAD_ADDR rb16, TEST_EXITB
 	set.rd	rd4, ADP_STOPPED_APP_EXIT
 	st.o	rd4, [rb16, 0]
@@ -534,6 +565,29 @@ __pad_exit:
 	set.zw	rd16, wp0, SYS_EXIT
 	trap	cfx0, (SEMIHOST_TAG + SYS_EXIT)
 	.dd.t32	0
+
+	@@ 收尾：链例结果缓冲（8 × 检查点数）+ PASS。位置 = `.text` 末尾（本宏是文件里
+	@@ 最后一条），故障链的最后一例由落点的 0 槽跳到这里；无故障例的 `.S` 里
+	@@ `__fault_chain` 就定义在这里 ⇒ `__TEST_END` 顺落过去（打印 + 退出不变）。
+	@@ 单例调试模式（`CASE_N=<点号>`）只比退出码，不打印缓冲（缓冲此时未被写入）。
+	.text
+	.ifndef	__FAULT_CHAIN_SEEN
+__fault_chain:
+	.endif
+__fault_finish:
+.if CASE_N == 0
+	.if __NCHECK > 0
+	__PRINT	TEST_BUF, (8 * __NCHECK)
+	.endif
+.endif
+	__EXIT	0
+
+	@@ `.faulttab` 表尾哨兵：最后一例读到的「下一槽」= 0 ⇒ 落点走收尾
+	.ifdef	__FAULT_CHAIN_SEEN
+	.pushsection	.faulttab, "a"
+	.space	8, 0
+	.popsection
+	.endif
 
 	@@ 数据块（0x1000 B）：前 0x800 B 负偏移区（零），随后 192 B 模式（TEST_DATA
 	@@ 起 24 个 8 字节 beat），再 0x740 B 零。每个存储例各用一个独立 beat，

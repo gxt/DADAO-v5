@@ -168,26 +168,20 @@ __smdone_\@:
 .endm
 
 .macro TEST_FAULT pt, mnem, reg, fault, base, baseval, off
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	LOAD_ADDR \base, \baseval
 	\mnem	\reg, [\base, \off]
 	@@ 走到这里 = 预期故障没有发生 ⇒ 仍按该例检查点号判 guest FAIL
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 @@ 多元素（rrri）故障例：只比异常码（多元素指令允许部分元素已生效，用户 2026-11-13 裁定）
 @@   TEST_FAULT_M(pt, 助记符, 组, 故障名, 基址, 基址值, 偏移寄存器, 偏移值)
 .macro TEST_FAULT_M pt, mnem, grp, fault, base, baseval, offreg, offval
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	LOAD_ADDR \base, \baseval
 	set.rd	\offreg, \offval
 	\mnem	\grp, [\base, \offreg]
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm

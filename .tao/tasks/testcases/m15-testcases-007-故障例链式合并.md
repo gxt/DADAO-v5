@@ -90,6 +90,66 @@
 - 构建/跑批不得与其它任务并行（`ISS-462`）；
 - 不提交 git；注入还原 `cp`+md5（**禁 `git checkout/restore`**）；基线钉死 commit（`ISS-458`）。
 
+## 完成区
+
+**测试结果**：一键证据脚本 48/48（含 L1；`SKIP_L1=1` 时 45/45；含 4 路注入 + 单例交叉 + 反例自检）；`check-inst-asm` 272/272；L1 除 3 个外部红外全绿（逐项归因见下）
+**修改文件**：`tests/inst/macros/inst_test.inc`、`tests/inst/linker/inst-tiny.lds`、`tests/inst/README.md`、7 个册层 `.inc`（01/02/03/04/05/06/07）与 2 个 `.S`（`add.si_riii_rd.S`、`ret_riii_ra.S`）里的 `TEST_FAULT*` 宏体、`tools/testcases/inst/run_asm_suite.py`
+**验收结果**（真实输出）：
+- 镜像数：**904 → 272**，每 `.S` 恰 1 个；`check-inst-asm: 272/272 镜像通过（272 个 id；链例 + 故障链 633 例）`
+- 行为对账（基线树 `git archive fd4c79f8` ✕ 本树、同一批二进制）：**271/271** 与基线链例镜像 rc + `semi.out` 字节全等；meta（链例数 + 故障点号序列）272/272 相同；`undi_reserved.S`（0 链例）rc=0 / 0 B（基线无镜像）
+- 段大小：`.text` 最大 8000 B（≤0x4000）、`.faultpad` 140 B（≤0x200）、`.faulttab` 最大 288 B（≤0x480），`ASSERT` 全绿
+- 注入（临时树副本；源树 md5 前后一致）：漏报异常 ⇒ rc=23；期望 one-hot 写错 ⇒ rc=23 且后续例(24)未执行；落点 +4 ⇒ rc=124（超时）；**掩码改回全 64 位 ⇒ rc=24**（Tiny 该例实测 `cause_id=0x0200000000000002`，期望 `0x…02`）⇒ 低 16 位掩码是硬要求
+- 单例交叉：`01`/`07`/`12-misc` 共 4 个点，链式 rc=0 = 单例（`CASE_N=<点号>`）rc=0
+- 门控：`check-inst-asm`、`check-case-ledger`、`check-inst-macro-scope`（含 S9）、`check-tests-index`、`check-dirs`、`check-no-residue` 全 PASS
+- L1 `make check`：3 个红逐项归因，均与本任务改动零交集 —— `check-patch-tree`（components/linux 补丁树断言，他任务在飞）、`check-run-artifacts`（别任务 reviewer 的 `review-*.log` 命名）、`check-milestones-fresh`（`m14-qemu-007` worktree 未登记）；本任务无任何 VIOLATION
+**下一例机制**（二选一里的「`.faulttab` + 哨兵」）：表按点号索引存「本例入口 `__fc_<点号>`」；落点读 `点号+1` 槽：非 0 ⇒ 跳下一例，读到 0（`__TEST_SECTIONS` 追加的表尾哨兵）⇒ 跳收尾。⇒ **无「我是最后一例」声明**，且不依赖 `__TEST_END` 与故障例在 `.S` 里的先后（两种排版都存在：50 个文件故障例在 `__TEST_END` 之前）
+**新发现/坑**：
+- `__PRINT` 是 do-while ⇒ `len=0` 死循环（0 链例文件撞出）；收尾处已用 `.if __NCHECK > 0` 兜住（更彻底修法见遗留）
+- Tiny 的 CFXMEM（EA=0）在**链式上下文**里 `cause_id` 高 56 位非零（`0x0200_0000_0000_0002`，单例镜像里是 `0x02`）⇒ 全宽比较必红（ADR-0056 D2 的掩码是必要条件，不是防御性冗余）
+- `.faulttab` 用 `.org 点号×8`，要求点号升序且不重号（扫描器 `pts_ok` 已钉；重号会汇编硬报错）
+- 撞写者 6 次（`install-host` ×4、chipyard 重建 ×2）；处置 = 等写者退出 + 重跑（3 次），未以重试掩盖根因
+**遗留问题**：
+- **chipyard 两侧整批核对 BLOCKED（外部）**：`m16-chipyard-003` 正在反复重建 Verilator。已留现场：批次 A（chipyard md5 `1547c9d`）234/272 两侧字节一致、38 红=该 build 的 `GewuFile: malformed excp_cause_id` 断言；同 build 下**基线**镜像（`ld.o_rrii_ra` `CASE_N=24`）同样 rc=255 + 同一条断言 ⇒ 改前即红；新 build（md5 `e723410`）上该基线例 rc=0xF1、合并镜像 rc=0/176 B ⇒ 已不复现。**待该任务合并后重跑整批**
+- gem5 两侧未跑（本批未纳入）
+- 文档/注释残留（本任务允许文件集外）：248 处 `.S` 注释仍写「一例一镜像」（209 文件）、`tests/inst/MIGRATION.md §2`、`tests/inst/inventory.md`、`docs/Process-07` 仍描述「一例一镜像/两种镜像」⇒ 建议另立清理任务
+- 「故障例结果是否记入结果缓冲」仍为**待裁定**（按「不记」实现）；`__PRINT` 的 `len=0` 预判建议收进宏本身
+
 ## 审阅记录
 
-（待填）
+### 第 1 轮 engineer 自审（自主逐行审查，改动源码 + 证据脚本）
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| 落点首版用「本例体末尾 fall-through 即下一例入口」；实测 50 个文件的故障例排在 `__TEST_END` **之前**，最后一例顺落到 `__TEST_END` 的跳转 ⇒ 回到链首死循环（53 个镜像超时） | ✅已修 | 改为「表按点号索引 + 落点读 `点号+1` 槽 + 表尾哨兵」：`__FAULT_BODY_END` 写 `__fc_<pt>`，`__pad` 查 `FAULTTAB+8+pt*8`，0 ⇒ `jump __fault_finish` | 272/272 rc=0；271/271 字节与基线全等 |
+| `__NCHECK==0`（`undi_reserved.S`）时收尾 `__PRINT len=0` 死循环（do-while） | ✅已修 | 收尾打印加 `.if __NCHECK > 0` | 该文件 rc=0 / 0 B，单例 rc=0 |
+| 编辑 `.equ` 段时误插一行重复 `TEST_DATA` | ✅已修 | 删除重复行 | `awk` 逐项核 `.equ` ↔ lds 布局一致（B8 ×3） |
+| 证据脚本 `cmp_beh`：记录键重复拼 `#0`、失败计数用了两个变量（会「有 FAIL 行仍 PASS」） | ✅已修 | 统一用 `rec["id"]`、单一 `fails` 列表 | H 段篡改一条 sha256 ⇒ rc=1 且定位到文件；还原后回绿 |
+| `run.sh` B8 用 `$NF` 取 `.equ` 值，吃到行尾注释 ⇒ 空值假红 | ✅已修 | 改取第 5 字段（`ENTRY + 0x…`） | B8 ×3 OK |
+| `inj_one.sh` 的 `mask_full` 用 `set.rd rd22, -1`（汇编成 `set.ow` 全 1，可跑但语义隐晦）；另有两组合成「子原因位」注入属多余 | ✅已修 | 改显式 `set.ow rd22, wp0, 0xFFFF`；删合成注入，改用真实场景（链内 CFXMEM 的 `cause_id` 高 56 位非零） | F4 rc=24（红），F0 对照 rc=0 |
+| 证据脚本 E4/E5 原先只归因 `check-patch-tree`，实际 L1 另有 2 个外部红（`check-run-artifacts`、`check-milestones-fresh`） | ✅已修 | 改为「失败目标 ⊆ 外部集 + 逐项归因证据 + 本任务无 VIOLATION」 | 全量 run.sh：E4/E5/E6 全 OK（47/47） |
+
+判决：本轮 finding 全部 ✅已修，无未修项；状态 → `待验收`。
+
+### 第 1 轮 reviewer 验收（独立重跑，非读完成区）
+
+**重跑记录**（本人终端输出）：
+- `make check-inst-asm`：`272/272 镜像通过（272 个 id；链例 + 故障链 633 例）`，EXIT=0（9.4s）
+- 5 门控（check-dirs/no-residue/case-ledger/tests-index/macro-scope）全 PASS；tests-index「472 条」；macro-scope 仅 S9 WARN（净收益≤0，均非本任务新增）仍 PASS
+- 行为对账（独立复现）：`git archive fd4c79f8` 建基线树（272 .S）→ base 904 镜像 + merged 272 镜像（同批二进制），`cmp_beh` PASS：meta（链例数+故障点号）**272/272**、链例镜像 rc+`semi.out` 字节 **271/271** 全等、1 个无链例（`undi_reserved.S`）rc=0/0B
+- 容量：`.text` 最大 8000 ≤0x4000、`.faultpad` 140 ≤0x200、`.faulttab` 288 ≤0x480（`ft2it_orri_rf` 34 点）
+- 4 路自设计注入（临时树 `cp`，源树 md5 `7a175d97…` 前后一致）：① 哨兵误写 0xDEADBEEF ⇒ **rc=24**；② 掩码回全宽 ⇒ **rc=24**（证实 CFXMEM `cause_id` 高 56 位非零，低 16 位掩码必要）；③ `.org (pt)*8→+8`（槽位错）⇒ **rc=124 超时**；④ 删表尾哨兵 ⇒ **rc=0（记录：哨兵冗余**，被 `.testdata` 前零填充间隙掩盖，防御性保留，机制仍正确）
+- 单例交叉：01/07/12-misc 3 点链式 rc=0 = 单例 rc=0
+
+**机制核对**：`.faulttab` 按点号×8 索引 + 表尾哨兵正确（反汇编 `__pad`：`and.o rd20,0xFFFF` 掩码、读 `tab[pt+1]`、0⇒`__fault_finish`）；无故障例 10 文件 `__fault_chain`=`__fault_finish` 同址（`atomic_rmw.S` 实测）走打印+退出；50 文件故障例在 `__TEST_END` 前 / 212 后 / 0 横跨，机制与排版无关。
+
+**越界**：改动仅 `tests/inst/**` + `run_asm_suite.py` + 本任务书，无 `tests/arch`/`components`/`spec`/`contracts`。
+
+**L1 `make check`**：3 红全外部——`check-milestones-fresh`（m14-linux-012、m14-qemu-007）、`check-patch-tree`（qemu/gem5/linux 补丁树断言）、`check-temp-dirs`（m14-linux-005/009 陈旧目录）；本任务**零 VIOLATION**（9 处提及仅路径）。
+
+**findings**：
+1. `tests/inst/README.md` L41 链接布局数字与 lds/`.equ` 不符：写 `.faultpad 0x4000–0x4100`、`TEST_FAULTV 0x4100`、`.faulttab 0x4200–0x4600`、「放大到 0x100」；实际 `.faultpad ≤0x200`、`TEST_FAULTV 0x4200`、`.faulttab 0x4300`。**文档级笔误**，建议收尾改正（不阻断）。
+2. ④ 删哨兵 ⇒ rc=0：哨兵现布局下被零填充掩盖（冗余防御），机制正确、不阻断。
+
+**未决项（供架构师）**：工作树现有一处**未提交**改动——`tests/inst/macros/inst_test.inc` 删了 `__EXIT \pt`（漏报异常检出器，mtime 07:43），**非本 reviewer 所为**（本 reviewer 全程只在 `/tmp` 临时树注入，源树 md5 自证未动）。现场另有第二个 m15 评审进程（run.sh PID 995325 + `review-inj/inst_test.inc.preI1` 备份，md5=`552afffa…` = HEAD）。请 commit 前核 `git status` 干净并恢复该行；同一任务**只允许一个 reviewer**，请处置并发。
+
+**判决：Accepted**（交付物 64ce03e7 达标；工作树脏为并发进程问题，非交付缺陷）。

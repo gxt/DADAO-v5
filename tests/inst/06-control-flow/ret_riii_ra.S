@@ -25,9 +25,7 @@
 @@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
 @@ MemRAS 下溢（D4b）：ra0 = {RACNT = 0, MRPTR = MEMRAS}、MemRAS[MRPTR] 的递归计数 = 0
 .macro TEST_FAULT_RASUF_MEM pt, inst:vararg
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, RASUF
 	set.rd	rd5, 0
 	LOAD_ADDR rb5, MEMRAS
@@ -35,8 +33,7 @@ __fault_case:
 	set.rd	rd5, MEMRAS              @@ MRPTR = MEMRAS、RACNT = 0（高 16 位 = 0）
 	rd2ra	{ra0}, {rd5}
 	\inst
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 
 	__TEST_BEGIN

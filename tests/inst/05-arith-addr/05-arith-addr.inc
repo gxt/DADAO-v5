@@ -40,9 +40,7 @@
 
 @@ 64 位地址运算（`spec/SimRISC-05`）的故障例：源按银行分别装载
 .macro TEST_FAULT_BBD pt, mnem, fault, dst, c, d
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	.ifnc	\c, rb0
 	set.rb	\c, 0x0123456789ABCDEF
@@ -51,13 +49,10 @@ __fault_case:
 	set.rd	\d, 0x0000000000000007
 	.endif
 	\mnem	\dst, \c, \d
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 .macro TEST_FAULT_DBB pt, mnem, fault, dst, c, d
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	.ifnc	\c, rb0
 	set.rb	\c, 0x0123456789ABCDEF
@@ -66,15 +61,11 @@ __fault_case:
 	set.rb	\d, 0x0000000000000007
 	.endif
 	\mnem	\dst, \c, \d
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 .macro TEST_FAULT_RB_SI pt, mnem, fault, dst, imm
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	\mnem	\dst, \imm
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm

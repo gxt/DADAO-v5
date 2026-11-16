@@ -96,35 +96,26 @@
 @@ 块复制故障例（寄存器操作数形式；组文本原样给出，如 `{rd0}` / `{rb0}`）
 @@   TEST_FAULT_MOV(pt, 助记符, 目的组, 故障名, 源组)
 .macro TEST_FAULT_MOV pt, mnem, dstg, fault, srcg
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	\mnem	\dstg, \srcg
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 @@ 条件赋值故障例（第一类 `cs.n/z/p`）
 @@   TEST_FAULT_CS(pt, 助记符, 目的, 故障名, 条件寄存器, 「成立」侧, 「不成立」侧)
 .macro TEST_FAULT_CS pt, mnem, dst, fault, cond, tc, td
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	\mnem	{\cond}?, \dst, \tc, \td
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 @@ 条件赋值故障例（第二类 `cs.eq/ne`：两个比较操作数分开给，组文本里的逗号会断参数）
 @@   TEST_FAULT_CS2(pt, 助记符, 目的, 故障名, a, b, 赋值源)
 .macro TEST_FAULT_CS2 pt, mnem, dst, fault, a, b, d
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	\mnem	{\a, \b}?, \dst, \d
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 
 @@ ---------------------------------------------------------------------------

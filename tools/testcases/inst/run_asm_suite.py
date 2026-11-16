@@ -5,13 +5,17 @@
 **期望值内联**，宏层 `tests/inst/macros/inst_test.inc`（`TEST_LD` / `TEST_ST` /
 `TEST_FAULT` / `__CHECK_RD`；失败 ⇒ `SYS_EXIT(检查点号)`）。
 
-一个 `.S` 产出多种镜像（`llvm-mc -defsym CASE_N=<点号>`）：
-  * `CASE_N=0`：**链例镜像**，全部非故障用例顺序执行，逐检查点把实测 8 字节写进结果
-    缓冲，末尾 `SYS_WRITEC` 打印；判据 = 三方退出码同为 0 **且** 输出字节流逐字节相同，
-    长度 = `8 × 检查点数`；
-  * `CASE_N=<k>`：**故障例镜像**（`TEST_FAULT` 行），判据 = 三方退出码同为该故障的
-    monitor 段编码 `0xF0|异常位索引`（`spec/Kaiwu §7.1`：CFXMEM `0xF1`、
-    CFXREG `0xF2`、ILLI `0xF8`、MALIGN `0xFC`、IALIGN `0xFD`）。
+一个 `.S` 产出**一个镜像**（`m15-testcases-007` 起；`CASE_N=0`）：
+  全部非故障用例顺序执行、逐检查点把实测 8 字节写进结果缓冲，随后**进入故障链**——
+  每个故障例依次执行其触发指令，hmon 落点（`.faultpad` 的 `__pad`）核对 `cause_id`
+  低 16 位 one-hot 后跳下一例，最后一例落到收尾（`SYS_WRITEC` 逐字节打印结果缓冲 +
+  `SYS_EXIT(0)`）。判据 = 三方退出码同为 0 **且** 输出字节流逐字节相同，
+  长度 = `8 × 检查点数`（链例检查点；故障例结果不写入缓冲）。
+
+  故障例的成败由此表达：异常**没有**发生 ⇒ 该例体末尾的 `__EXIT(点号)` ⇒ 该镜像红；
+  `cause_id` 大类不符 ⇒ 落点 `__EXIT(点号)` ⇒ 该镜像红（且后续例不再执行）。
+  单例调试路径仍由 `-defsym CASE_N=<点号>` 提供（`_start` 直接跳该例，之后仍按链
+  续跑；只比退出码，不打印缓冲），不进门控。
 
 三平台 = 同一份 ELF：
   * chipyard `WumingTinyConfig`（Verilator harness，`+loadmem=<elf>`）
@@ -23,11 +27,10 @@
 
 用法：
     python3 tools/testcases/inst/run_asm_suite.py                    # 01 册全部 id
-    python3 tools/testcases/inst/run_asm_suite.py --id ld.o_rrii_rd  # 单个
+    python3 tools/testcases/inst/run_asm_suite.py --id ld.o_rrii_ra  # 单个
     python3 tools/testcases/inst/run_asm_suite.py --books-root tests/inst \
         --platforms qemu                                             # 全部册（L2 门控）
     python3 tools/testcases/inst/run_asm_suite.py --platforms qemu   # 快速自查
-    python3 tools/testcases/inst/run_asm_suite.py --chain-only       # 只跑链例
     python3 tools/testcases/inst/run_asm_suite.py --json-out <f>     # 逐例记录
 
 `--books-root`（`make check-inst-asm` 用）：扫描该根的**全部子目录**，凡含 `.S` 的册
@@ -60,6 +63,9 @@ FAULT_CODE = {"CFXMEM": 0xF1, "CFXREG": 0xF2, "ILLI": 0xF8,
               "MALIGN": 0xFC, "IALIGN": 0xFD,
               # 控制流（06）额外用到：保留编码 UNDI、RAS 上溢/下溢（`spec/Kaiwu §7.1`）
               "UNDI": 0xF9, "RASOF": 0xFA, "RASUF": 0xFB}
+# ⚠ `m15-testcases-007` 起故障例链式合并进同一镜像，本文件**不再**按它判退出码
+# （失败 = 点号，见 `__EXIT \pt`）。保留为**monitor 段编码表**：三方差分工具
+# （`tools/testcases/parity/fp_diff.py` 等）仍按它解读历史/单例记录。
 
 # 链例用例行（检查点计数的口径：每个 TEST_LD*/TEST_ST*/TEST_MOV*/TEST_CS*/TEST_WI*/__CHECK_* 一行
 # = 一个检查点；`TEST_LDM`/`TEST_STM` 每行只记一个检查点，与宏内单次 `__REC` 对齐；
@@ -286,16 +292,15 @@ def _run(cmd, log: Path, timeout: int, out: Path, env_extra=None):
 # 一个镜像 × 三平台
 # ---------------------------------------------------------------------------
 def check_variant(task, cfg) -> dict:
-    """跑一个镜像；返回记录（含三方 rc 与字节流比较）。"""
-    src, lds, case_n, expected = task
-    stem = "%s%s" % (src.stem, "" if case_n == 0 else "_fault%03d" % case_n)
+    """跑一个镜像（每 `.S` 恰好一个：链例 + 故障链）；返回记录（含三方 rc 与字节流比较）。"""
+    src, lds, expected = task
+    stem = src.stem
     outdir = cfg["work"] / src.stem
     outdir.mkdir(parents=True, exist_ok=True)
-    rec = {"file": src.name, "case_n": case_n, "kind":
-           "chain" if case_n == 0 else "fault", "expected": expected,
+    rec = {"file": src.name, "case_n": 0, "kind": "chain", "expected": expected,
            "platforms": {}, "ok": False, "notes": []}
     try:
-        elf = build(cfg["toolbin"], src, lds, case_n, outdir, stem)
+        elf = build(cfg["toolbin"], src, lds, 0, outdir, stem)
     except (subprocess.CalledProcessError, OSError) as exc:
         rec["notes"].append("build: %s" % exc)
         return rec
@@ -323,28 +328,24 @@ def check_variant(task, cfg) -> dict:
                                        cfg["chipyard_env"])
         rec["platforms"][plat] = {"rc": rc, "bytes": len(data)}
 
-    # 判据
+    # 判据：三方退出码同为 0 + 字节流逐字节一致 + 长度 = 8 × 链例检查点数。
+    # 故障例不写结果缓冲 ⇒ 链例字节流不受故障链影响；故障链自身靠 in-guest 断言
+    # （落点核 one-hot、每例末尾 `__EXIT 点号` 兜「异常没发生」）。
     rcs = {p: rec["platforms"][p]["rc"] for p in rec["platforms"]}
-    if case_n == 0:
-        good = all(rc == 0 for rc in rcs.values())
-        blobs = {p: _read_or_empty(outdir / (stem + "." + p + ".out"))
-                 for p in rec["platforms"]}
-        if good and len(set(blobs.values())) != 1:
-            good = False
-            rec["notes"].append("字节流不一致: " +
-                                ", ".join("%s=%s" % (p, _md5(b))
-                                          for p, b in blobs.items()))
-        nbytes = 8 * expected
-        got = {p: len(b) for p, b in blobs.items()}
-        if good and any(v != nbytes for v in got.values()):
-            good = False
-            rec["notes"].append("结果字节数 %s ≠ 8×检查点数 %d" % (got, nbytes))
-        rec["bytes"] = got
-    else:
-        code = FAULT_CODE[expected]
-        good = all(rc == code for rc in rcs.values())
-        if not good:
-            rec["notes"].append("退出码 ≠ 期望 0x%02X" % code)
+    good = all(rc == 0 for rc in rcs.values())
+    blobs = {p: _read_or_empty(outdir / (stem + "." + p + ".out"))
+             for p in rec["platforms"]}
+    if good and len(set(blobs.values())) != 1:
+        good = False
+        rec["notes"].append("字节流不一致: " +
+                            ", ".join("%s=%s" % (p, _md5(b))
+                                      for p, b in blobs.items()))
+    nbytes = 8 * expected
+    got = {p: len(b) for p, b in blobs.items()}
+    if good and any(v != nbytes for v in got.values()):
+        good = False
+        rec["notes"].append("结果字节数 %s ≠ 8×检查点数 %d" % (got, nbytes))
+    rec["bytes"] = got
     rec["ok"] = good
     return rec
 
@@ -374,7 +375,9 @@ def main() -> int:
     ap.add_argument("--id", action="append", default=None,
                     help="只跑这些 id（可重复；默认全部）")
     ap.add_argument("--platforms", default="chipyard,qemu,gem5")
-    ap.add_argument("--chain-only", action="store_true")
+    ap.add_argument("--chain-only", action="store_true",
+                    help="历史开关：`m15-testcases-007` 起每 `.S` 只有一个镜像（链例 + "
+                         "故障链），本开关已无效果，保留仅为 CLI 兼容")
     ap.add_argument("--qemu", default=None)
     ap.add_argument("--gem5", default=str(_REPO / DEFAULT_GEM5))
     ap.add_argument("--gem5-config", default=str(_REPO / DEFAULT_GEM5_CONFIG))
@@ -507,13 +510,10 @@ def main() -> int:
             print("run_asm_suite: ERROR: %s 检查点号不是 1..N 连续（失败点号 ≠ 用例序号）"
                   % src.name, file=sys.stderr)
             return 2
-        if info["checks"]:
-            tasks.append((src, lds_of[src], 0, info["checks"]))
-        if not args.chain_only:
-            for f in info["faults"]:
-                tasks.append((src, lds_of[src], f["pt"], f["fault"]))
+        # 每 `.S` 恰一个镜像（链例 + 故障链；`m15-testcases-007`）
+        tasks.append((src, lds_of[src], info["checks"]))
 
-    print("run_asm_suite: %d 个 id / %d 个镜像 / 平台 %s / jobs=%d"
+    print("run_asm_suite: %d 个 id / %d 个镜像（每 .S 一个）/ 平台 %s / jobs=%d"
           % (len(srcs), len(tasks), ",".join(plats), args.jobs))
     if args.scan_only:
         for src in srcs:
@@ -527,26 +527,20 @@ def main() -> int:
         for rec in pool.map(lambda t: check_variant(t, cfg), tasks):
             records.append(rec)
             tag = "PASS" if rec["ok"] else "FAIL"
-            if rec["kind"] == "chain":
-                detail = "检查点 %d / %s B / rc %s" % (
-                    rec["expected"],
-                    rec.get("bytes", {}),
-                    {p: v["rc"] for p, v in rec["platforms"].items()})
-            else:
-                detail = "期望 0x%02X / rc %s" % (
-                    FAULT_CODE[rec["expected"]],
-                    {p: v["rc"] for p, v in rec["platforms"].items()})
+            detail = "检查点 %d / %s B / rc %s" % (
+                rec["expected"],
+                rec.get("bytes", {}),
+                {p: v["rc"] for p, v in rec["platforms"].items()})
             print("  [%s] %-22s %-11s %s" % (tag, rec["file"], rec["kind"],
                                              detail))
             for n in rec["notes"]:
                 print("         %s" % n)
 
     npass = sum(1 for r in records if r["ok"])
+    nfault = sum(len(meta[r["file"]]["faults"]) for r in records)
     print("-" * 72)
-    print("run_asm_suite: %d/%d 镜像通过（%d 个 id；链例 %d，故障例 %d）"
-          % (npass, len(records), len(srcs),
-             sum(1 for r in records if r["kind"] == "chain"),
-             sum(1 for r in records if r["kind"] == "fault")))
+    print("run_asm_suite: %d/%d 镜像通过（%d 个 id；链例 + 故障链 %d 例）"
+          % (npass, len(records), len(srcs), nfault))
     if args.json_out:
         Path(args.json_out).write_text(json.dumps(
             {"schema": "inst-asm-suite/1", "records": records}, indent=1) + "\n")

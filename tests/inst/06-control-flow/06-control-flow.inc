@@ -55,42 +55,33 @@ __bl_\@:
 @@ 控制流故障例（原始编码；汇编器会拒绝的编码或越界目标）
 @@   TEST_FAULT_CF(pt, 故障名, 编码字)
 .macro TEST_FAULT_CF pt, fault, enc
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	.dd.t32	\enc
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 @@ 控制流「目标不可取指」故障例：条件成立 ⇒ 跳到 `target`（零字区/非代码区）
 @@   TEST_FAULT_BR2(pt, 助记符, A, A值, B, B值, 故障名, 目标)
 @@   目标用标签（分支目标走正常重定位，不是立即数常量）⇒ 可用 `TEST_DATA + 偏移`
 .macro TEST_FAULT_BR2 pt, mnem, a, aval, b, bval, fault, target
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	set.rd	\a, \aval
 	.ifnc	\b, \a
 	set.rd	\b, \bval
 	.endif
 	\mnem	{\a, \b}?, [rb0, \target]
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 @@ jump/call 的 rrii 形式：目标地址 0（`rbHA = 0`、`rdHB = 0`、`imms12 = 0`）⇒ 取指 CFXMEM
 @@   TEST_FAULT_ADDR0(pt, 助记符, 故障名)
 .macro TEST_FAULT_ADDR0 pt, mnem, fault
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	set.rb	rb5, 0
 	set.rd	rd6, 0
 	\mnem	[rb5, rd6, 0]
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 @@ RAS 故障例：按故障名建立最小 RA 前置，再执行 `inst`（call/ret 的完整文本）
 @@   RASOF ⇒ C3b：RACNT = 63、MRPTR = 0、ra63 = [计数 1, 返回地址 0xCCCC00000000]
@@ -98,9 +89,7 @@ __fault_case:
 @@   RASUF ⇒ D4a：RACNT = 0、MRPTR = 0
 @@   `inst` 用 `:vararg` 收整段文本（含 `[..]` 内的逗号），如 `call [rb0, 4]`
 .macro TEST_FAULT_RAS pt, fault, inst:vararg
-	.if CASE_N == \pt
-	.globl	__fault_case
-__fault_case:
+	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
 	.ifc	\fault, RASOF
 	set.rd	rd5, 0x0001CCCC00000000
@@ -121,8 +110,7 @@ __fault_case:
 	rd2ra	{ra0}, {rd5}
 	.endif
 	\inst
-	__EXIT	\pt
-	.endif
+	__FAULT_BODY_END \pt
 .endm
 
 @@ ---------------------------------------------------------------------------

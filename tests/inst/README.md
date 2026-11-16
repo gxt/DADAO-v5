@@ -38,14 +38,21 @@ C/IR 探针已**全部退役**、目录已删：`atomics` 五探针 `m13-testcas
 | `05-arith-addr/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（64 位地址运算 `add.o`/`sub.o` 的 bbd·dbb、`cmp.uo`、`add.si`、`aip.si`，6 个） |
 | `06-control-flow/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（控制流 `br.*` 10 个、`jump` 2、`call` 2、`ret` 1，共 15 个；含 RAS 溢出/下溢与跳转距离边界） |
 | `07-floating-point/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（`foadd/fosub/fomul/fodiv/forem`、`ftadd/ftsub/ftmul/ftdiv/ftrem`、`fofma/ftfma`、`fomin/fomax/ftmin/ftmax`、`foroot/ftroot` 18 个；转换 `f2f/f2i/i2f` 双向 18 个；分类 `ftcls/focls` 2 个；比较 `ftqcmp/ftscmp/foqcmp/foscmp` 4 个、取整/缩放/符号 `fornd/ftrnd/fosclb/ftsclb/fosgnj/fosgnn/ftsgnj/ftsgnn` 8 个 —— 共 50 个；含 FCSR 五类标志、六档舍入方向、NaN/±0/次正规/溢出/下溢边界。同组块复制不分浮点宽度 ⇒ 唯一载体 `rf2rf_orri_rf.S` 归 `02-reg-copy`） |
-| `linker/inst-tiny.lds` | **全部册（00 + 01–12）唯一**的链接布局（`.text` ≤ 0x4000、`.faultpad` 0x4000、`.testdata` 0x5000–0x7000、结果缓冲 0x7000、`SYS_EXIT` 参数块 0x7800；段上限由 ASSERT 钉住）。`m15-testcases-006` 把原 `01-load-store/inst-tiny.lds`(0x1E00 窗口) 与 `07-floating-point/inst-tiny-fp.lds`(0x4000 窗口) 合并为这一份 |
+| `linker/inst-tiny.lds` | **全部册（00 + 01–12）唯一**的链接布局（`.text` ≤ 0x4000、`.faultpad` 0x4000–0x4200（≤0x200）、`TEST_FAULTV` 0x4200、`.faulttab` 0x4300–0x4780（≤0x480）、`.testdata` 0x5000–0x7000、结果缓冲 0x7000、`SYS_EXIT` 参数块 0x7800；段上限由 ASSERT 钉住）。`m15-testcases-006` 把原 `01-load-store/inst-tiny.lds`(0x1E00 窗口) 与 `07-floating-point/inst-tiny-fp.lds`(0x4000 窗口) 合并为这一份；`m15-testcases-007` 加 `.faulttab`（故障例链的后继表，槽 = 点号×8 + 表尾哨兵）并把 `.faultpad` 上限放到 0x200 |
 
 ## 汇编载体（M13 起）
 
 用户 2026-11-12 裁定：YAML 不可读、转汇编易错 ⇒ **汇编 + 宏**，期望值内联。
-一行一个用例，失败即 `SYS_EXIT(检查点号)`（`0x01`–`0x7F`）；机器异常例单独成像，
-退出码 = monitor 段编码（`0xF0|异常位索引`）。格式、宏签名与两种镜像形态见
-`MIGRATION.md §2`；跑法：
+一行一个用例，失败即 `SYS_EXIT(检查点号)`（`0x01`–`0x7F`）。
+
+**镜像 = 每 `.S` 一个**（`m15-testcases-007`，用户 2026-11-16 裁定）：链例（非故障用例）
+顺序跑完后**进入故障链**，故障例在同一镜像内按点号顺序逐个执行 —— 每个故障例触发一次
+同步异常，hmon 落点（`.faultpad` 的 `__pad`）核对 `cause_id` 低 16 位 one-hot 后
+**跳下一例**；最后一例落到收尾（打印链例结果缓冲 + `SYS_EXIT(0)`）。因此
+`272` 个 `.S` = **272 个镜像**（原 904 个：一例一镜像的 633 个故障例镜像已合并）。
+漏报异常仍可检：每例体末尾保留 `__EXIT(点号)`（异常没发生 ⇒ 该镜像红）；
+`-defsym CASE_N=<点号>` 仍可作**单例调试**（`_start` 直接跳该例，之后按链续跑）。
+格式、宏签名与链结构见 `macros/inst_test.inc` 文件头；跑法：
 
 宏的**作用域分三层**（用户 2026-11-15/16 口径，L1 门控 `check-inst-macro-scope` 机械判）：
 跨册（≥2 册）⇒ `macros/inst_test.inc`；册专用 ⇒ `<册>/<册>.inc`；单文件专用 ⇒ 直接写在
@@ -117,7 +124,8 @@ python3 tools/testcases/inst/run_asm_suite.py --books-root tests/inst   # 全部
 册目录内**不再有** `.lds`（`m15-testcases-006` 起单一布局，`check-inst-asm` 亦按此跑）。
 
 判据 = **同一份 ELF** 在 chipyard `WumingTinyConfig` / QEMU `kaiwu-tiny` / gem5 FS
-`tiny` 上，链例的结果字节流逐字节一致、故障例的退出码一致。
+`tiny` 上，退出码同为 0 且链例的结果字节流逐字节一致（故障链的成败由镜像内的
+落点断言与每例 `__EXIT(点号)` 兜底 ⇒ 任何不符都表现为该镜像退出码 ≠ 0）。
 
 ### 伪指令载体（`00-isa-design/pseudo_set.*`，`m13-testcases-048`）
 
