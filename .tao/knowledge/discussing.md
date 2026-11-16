@@ -337,6 +337,17 @@ M15 exit：264 条记录 **100%** 有 operation 块且 id 一对一；抽取结�
 
 M17 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个向量走到；`make check-idl` 进 L2；分歧归因落 spec 裁定（**不是「IDL 一定对」**）。
 
+## 待裁定：chipyard 是否补 TLB（`m16-chipyard-003` Q1，2026-11-17）
+
+- **事实**：chipyard 的 `WumingTinyConfig` **没有 MMU/TLB/PTBR、没有来源掩码判权**（`ptw_enable = 0` 恒成立）⇒ `ADR-0056` 的 18 位子原因中 **17 位结构性不可达**，只有 `[57] NONPTW` 有意义。
+- 已完成（`m16-chipyard-003`）：18 位表 + `wellFormed` 校验器 + 8 处 `CFXMEM` 站点走 `NONPTW`；三方全宽一致（chipyard/QEMU/gem5 `cmp` 逐字节相同，87 项×3 引擎）。
+- **待你定**：是否**另立任务给 chipyard 补 TLB/PTW**（这样 17 位才可达），或**维持现状**（Tiny 无页表，子原因位由 QEMU/gem5 覆盖，chipyard 只覆盖 `NONPTW`）。
+
+## 待裁定：chipyard 的 `cg3 rc0–rc3` 被并成一份 mask（2026-11-17）
+
+- **事实**：`spec/DADAO-12 §3.1` 规定 `cg3` 有 **四个** run-mode 行（`rc0`–`rc3`），但 `GewuFile` 把四个并成**一份** mask；`m16-chipyard-003` 复核时发现（既有缺陷、非本任务引入）。
+- **待你定**：是否立任务修正（会影响三个 profile 的 mask 语义与既有探针）。
+
 # 待处理：清空 `.tao/knowledge/refs/`（用户 2026-11-15 已定；**执行时间点：M13 收口前后 或 M15**）
 
 - 用户原话：「`.tao/knowledge/refs/` 目录下一步也要清空」。
