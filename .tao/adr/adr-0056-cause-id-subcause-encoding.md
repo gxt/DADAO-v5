@@ -32,7 +32,7 @@ M11 期间用户裁定「执行过程中的同步异常和异步中断应该先�
   - 其它 cause 的 `info` 语义**不变**（`CFXTRAP`/`CFXREG`/`CFXESC`/`ILLI`/`UNDI` = 指令编码；`IALIGN` = IP；`MALIGN` = 访存地址；`RASOF`/`RASUF` 原样）。
 - **D5 `§7.1` 退出码不受影响**：monitor 段的 `bit3:0` 仍取低位 cause 索引，子原因位不参与退出码编码。
 - **D6 三实现与契约同步**：QEMU（填 `cause_id` 时置子原因位）、gem5（`node_cfx`）、chipyard（`GewuFile`）三处同步；`contract-see §6.1` 增「子原因」列；`tests/arch` 与 K3 探针按子原因断言。
-- **D7 上游册修订**：`DADAO-12 §3.6`（把「所有异常原因编码为 one-hot（64 位）」改写为「`[15:0]` = cause one-hot；`[39:16]` 保留（未来 cause）；`[47:40]` 权限类 8 位；`[55:48]` 缺失类 8 位；`[63:56]` 其它（`ADWBFAIL`/`NONPTW` + 6 位保留）」）+ `§4.1–§4.6`（各 monitor 表注明子原因字段）+ `§2.2.6`（与"仅触发最高优先级"对齐）；`sha256` 同笔重算，注记引用用户授权原话。`SPEC-189t` 的「不再区分 IGPTRAP…/NUPERM…」口径**由本 ADR 部分取代**（历史任务书不改，只在 `discussing.md`/ADR 记明）。
+- **D7 上游册修订**：`DADAO-12 §3.6`（把「所有异常原因编码为 one-hot（64 位）」改写为「`[15:0]` = cause one-hot；`[31:16]` 保留（未来 cause）；`[39:32]` = `CFXPERM` 的 8 位权限类（wyde2 低字节）；`[55:48]` = `CFXMEM` 的 8 位缺失类（wyde3 低字节）；`[63:56]` 其它（`ADWBFAIL`/`NONPTW` + 6 位保留）」）+ `§4.1–§4.6`（各 monitor 表注明子原因字段）+ `§2.2.6`（与"仅触发最高优先级"对齐）；`sha256` 同笔重算，注记引用用户授权原话。`SPEC-189t` 的「不再区分 IGPTRAP…/NUPERM…」口径**由本 ADR 部分取代**（历史任务书不改，只在 `discussing.md`/ADR 记明）。
 
 ## Rationale（理由）
 
