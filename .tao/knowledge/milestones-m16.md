@@ -20,7 +20,6 @@
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
 | m16-chipyard-003 | 6–8 h | chipyard 侧 `cause_id` 子原因编码（ADR-0056 D6；`GewuFile` 接口 + `WumingCore` 判定点） |
-| m16-gem5-010 | 3–5 h | gem5 侧 `Kaiwu-Vast` 同步异常路由对齐 `§5.2`（删 staged，两 profile 进 monitor） |
 | m16-gem5-009 | 4–6 h | gem5 侧 `cause_id` 子原因编码（ADR-0056 D6；`node_cfx`/`tiny_cfx` raise 点算子原因） |
 | m16-chipyard-001 | 2–3 天 | 周期模型收口复测（M13 收尾后全量重测并更新文档；权威版本） |
 
@@ -28,6 +27,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-gem5-010 | 2026-11-16 22:56 | 3–5 h | gem5 侧 `Kaiwu-Vast` 同步异常路由对齐 `§5.2`（删 staged，两 profile 进 monitor） |
 
 ## 已验证
 
