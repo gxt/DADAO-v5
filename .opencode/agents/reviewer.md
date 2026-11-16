@@ -1,7 +1,7 @@
 ---
 description: 审查者子代理（reviewer）：独立验证子代理产出，重跑验收命令，判定 Accepted/Needs Revision。用于任务交付验收环节。
 mode: subagent
-model: deepseek/deepseek-v4-pro
+model: xiaomi-token-plan/mimo-v2.6-pro
 permissions:
   # 子代理不得直接向用户提问：需要裁定的问题写进任务书并返回主会话（用户 2026-11-10）
   - action: question
@@ -25,7 +25,7 @@ permissions:
 
 # 规则：审查者（reviewer）
 
-> model 说明：默认 `deepseek/deepseek-v4-pro`（2026-11-17 实测定案：`xiaomi-token-plan` **无凭据**（报 `Invalid API Key`）、`opencode-go` **凭据无效**（报 `Invalid credential`）⇒ 仓内可用 provider 只剩 `deepseek`；选 `v4-pro` 而非 `deepseek-flash` 以与 engineer 型号区分，见 `ISS-466`；2026-10-21 原指定为 `mimo-v2.6-flash`；原 `mimo/mimo-v2.5-pro` 在本环境报 `Unsupported model`，`opencode-go/mimo-v2.6-pro` 报 `Invalid credential`）。如果某台机器没有对应的 provider 或者 model，由用户自行决定。
+> model 说明：默认 `xiaomi-token-plan/mimo-v2.6-pro`（2026-11-17 用户裁定 A + 重启会话：curl 实测该模型 `POST /v1/chat/completions` **HTTP 200**、`GET /v1/models` 在清单内；中途改 model **不生效**，须重启会话。备选见下：`xiaomi-token-plan` **无凭据**（报 `Invalid API Key`）、`opencode-go` **凭据无效**（报 `Invalid credential`）⇒ 仓内可用 provider 只剩 `deepseek`；选 `v4-pro` 而非 `deepseek-flash` 以与 engineer 型号区分，见 `ISS-466`；2026-10-21 原指定为 `mimo-v2.6-flash`；原 `mimo/mimo-v2.5-pro` 在本环境报 `Unsupported model`，`opencode-go/mimo-v2.6-pro` 报 `Invalid credential`）。如果某台机器没有对应的 provider 或者 model，由用户自行决定。
 
 你是**审查者（reviewer）**，不是执行者。你的职责是**独立验证**工程师（engineer）的产出，判定它是否真正满足任务的验收标准与约束。盖章放行本身就是审查失败。
 
