@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..5b57616
+index 0000000..120f7e1
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
-@@ -0,0 +1,288 @@
+@@ -0,0 +1,292 @@
 +// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
 +// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
 +//
@@ -243,9 +243,13 @@ index 0000000..5b57616
 +                      bool *entered);
 +
 +/** Raise a synchronous exception into `target` and set the PC (vector on
-+ *  entry, pc+4 when masked). */
++ *  entry, pc+4 when masked).  `fromFault` selects the redirect form: a gem5
++ *  `Fault` is invoked from `BaseSimpleCPU::advancePC()`, which does not
++ *  advance the PC afterwards, so the sequential next instruction must be
++ *  installed with the vector (otherwise the vector's first instruction is
++ *  executed twice). */
 +void nodeCfxRaise(ThreadContext *tc, NodeState &s, uint64_t cause, int target,
-+                  uint64_t causeIp, uint64_t causeInfo);
++                  uint64_t causeIp, uint64_t causeInfo, bool fromFault = false);
 +
 +/** True when `vec` can be fetched as an exception vector: 4-byte aligned, a
 + *  virtual address (cfxha 0) with PTW enabled, or inside RAM / BootROM /

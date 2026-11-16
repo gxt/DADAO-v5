@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_machine.cc b/src/arch/dadao/fs_machine.cc
 new file mode 100644
-index 0000000..eb7d97e
+index 0000000..7c4fc37
 --- /dev/null
 +++ b/src/arch/dadao/fs_machine.cc
-@@ -0,0 +1,153 @@
+@@ -0,0 +1,182 @@
 +// DADAO FS machine fault implementation.
 +#include "arch/dadao/fs_machine.hh"
 +
@@ -14,6 +14,7 @@ index 0000000..eb7d97e
 +#include "arch/dadao/node_cfx.hh"
 +#include "arch/dadao/tiny_cfx.hh"
 +#include "base/cprintf.hh"
++#include "base/logging.hh"
 +#include "cpu/thread_context.hh"
 +#include "sim/sim_exit.hh"
 +#include "sim/system.hh"
@@ -96,6 +97,30 @@ index 0000000..eb7d97e
 +}
 +
 +void
++checkCauseId(uint64_t causeId)
++{
++    const uint64_t cls = causeId & 0xFFFFULL;
++    const uint64_t sub = causeId & (CauseSubWyde2 | CauseSubWyde3);
++    const uint64_t own = (cls == (1ULL << FaultCfxMem)) ? CauseSubWyde3
++                      : (cls == (1ULL << FaultCfxPerm)) ? CauseSubWyde2
++                      : 0;
++    bool ok = (causeId & CauseReserved16) == 0;
++
++    if (own != 0) {
++        // §6.1.1: exactly one sub-cause bit, inside the class's own wyde.
++        ok = ok && sub != 0 && (sub & (sub - 1)) == 0 && (sub & ~own) == 0;
++    } else {
++        // Every other class carries no sub-cause at all (ADR-0056 D2).
++        ok = ok && sub == 0;
++    }
++    if (!ok) {
++        fatal("DADAO: malformed excp_cause_id %#llx (big class in [15:0], "
++              "CFXMEM sub-cause in [63:48], CFXPERM in [47:32]; the other "
++              "wyde and [31:16] must be 0 -- contract-see §6.1.1)", causeId);
++    }
++}
++
++void
 +MachineFault::invoke(ThreadContext *tc, const StaticInstPtr &)
 +{
 +    // Both FS profiles are model-1 machines: a synchronous exception enters
@@ -106,8 +131,9 @@ index 0000000..eb7d97e
 +        auto *isa = dynamic_cast<ISA *>(tc->getIsaPtr());
 +        if (isa != nullptr && isa->tinyState().active) {
 +            const Addr ip = causeIp ? causeIp : tc->pcState().instAddr();
-+            if (tinyCfxRaise(tc, isa->tinyState(), 1ULL << cause,
-+                             targetCfxha, ip, causeInfo))
++            if (tinyCfxRaise(tc, isa->tinyState(),
++                             (1ULL << cause) | causeSub, targetCfxha, ip,
++                             causeInfo, /*fromFault=*/true))
 +                return;
 +        }
 +        if (isa != nullptr && isa->nodeState().active) {
@@ -115,7 +141,8 @@ index 0000000..eb7d97e
 +            const Addr ip = causeIp ? causeIp : tc->pcState().instAddr();
 +            const int target = (targetCfxha >= 0)
 +                ? targetCfxha : int(node.runMode & 0x3);
-+            nodeSyncEnter(tc, node, 1ULL << cause, target, ip, causeInfo);
++            nodeSyncEnter(tc, node, (1ULL << cause) | causeSub, target, ip,
++                          causeInfo);
 +            return;
 +        }
 +    }
@@ -144,9 +171,11 @@ index 0000000..eb7d97e
 +}
 +
 +Fault
-+machineFaultAt(uint8_t cause, Addr causeIp, uint64_t causeInfo)
++machineFaultAt(uint8_t cause, Addr causeIp, uint64_t causeInfo,
++               uint64_t causeSub)
 +{
-+    return std::make_shared<MachineFault>(cause, -1, causeIp, causeInfo);
++    return std::make_shared<MachineFault>(cause, -1, causeIp, causeInfo,
++                                          causeSub);
 +}
 +
 +Fault

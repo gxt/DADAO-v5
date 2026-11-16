@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/tiny_cfx.hh b/src/arch/dadao/tiny_cfx.hh
 new file mode 100644
-index 0000000..d5aa78c
+index 0000000..3bd9e8f
 --- /dev/null
 +++ b/src/arch/dadao/tiny_cfx.hh
-@@ -0,0 +1,152 @@
+@@ -0,0 +1,153 @@
 +// DADAO Tiny machine model: cfx_power (cfx63) + cfx3 hmon.
 +//
 +// Source of truth: spec/Kaiwu §1.1/§2/§3/§4.1/§4.4/§5/§6/§7.1 and
@@ -130,7 +130,8 @@ index 0000000..d5aa78c
 + *  Returns true when a vector was entered (the PC was redirected); false when
 + *  the implementation must stop the machine (unmapped vector/nesting guard). */
 +bool tinyCfxRaise(ThreadContext *tc, TinyState &s, uint64_t cause, int target,
-+                  uint64_t causeIp, uint64_t causeInfo);
++                  uint64_t causeIp, uint64_t causeInfo,
++                  bool fromFault = false);
 +
 +/** trap / escape / cfx2rd / cfx2rc (spec/DADAO-12 §5).
 + *  The cfx accessors return false only when the access faulted (the PC is

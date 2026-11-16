@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..7eb5919
+index 0000000..f394fc6
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1064 @@
+@@ -0,0 +1,1083 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -57,11 +57,16 @@ index 0000000..7eb5919
 +
 +constexpr uint64_t kTimeFreq = 1000000000ULL;
 +
++/** Install a redirect target.  `sequentialNext` = the redirect comes from a
++ *  gem5 `Fault`: `BaseSimpleCPU::advancePC()` invokes the fault and does not
++ *  advance the PC afterwards, so npc must be the instruction *after* the
++ *  vector.  An in-execute redirect (trap / escape / cfx fault) is followed by
++ *  `PCState::advance()` (pc = npc), so there npc must be the vector itself. */
 +void
-+setPc(ThreadContext *tc, Addr pc)
++setPc(ThreadContext *tc, Addr pc, bool sequentialNext = false)
 +{
 +    DadaoISA::PCState target(pc);
-+    target.npc(pc);
++    target.npc(sequentialNext ? pc + 4 : pc);
 +    tc->pcState(target);
 +}
 +
@@ -284,6 +289,12 @@ index 0000000..7eb5919
 +    const int ci = nodeCfxIndex(target);
 +    uint64_t vec;
 +
++    // contract-see §6.1.1 / ADR-0056 D3: the class/wyde pairing and the
++    // one-hot shape are checked before the id reaches the frame, so a wrong
++    // raise site fails by name instead of silently handing the kernel an
++    // ambiguous id.
++    checkCauseId(cause);
++
 +    if (ci < 0) {
 +        *entered = false;
 +        return 0;
@@ -335,12 +346,12 @@ index 0000000..7eb5919
 +
 +void
 +nodeCfxRaise(ThreadContext *tc, NodeState &s, uint64_t cause, int target,
-+             uint64_t causeIp, uint64_t causeInfo)
++             uint64_t causeIp, uint64_t causeInfo, bool fromFault)
 +{
 +    bool entered = false;
 +    const uint64_t vec =
 +        nodeCfxEnter(s, cause, target, causeIp, causeInfo, true, &entered);
-+    setPc(tc, entered ? vec : causeIp + 4);
++    setPc(tc, entered ? vec : causeIp + 4, fromFault);
 +    // A masked exception skips one instruction; keep the trace TB boundary.
 +    s.traceForce = true;
 +}
@@ -388,7 +399,9 @@ index 0000000..7eb5919
 +                         entryMode, (target <= 3) ? -1 : target);
 +        return;
 +    }
-+    nodeCfxRaise(tc, s, cause, target, causeIp, causeInfo);
++    // Fault-invoked redirect: gem5's advancePC() will not advance the PC, so
++    // the vector's first instruction must not be re-executed.
++    nodeCfxRaise(tc, s, cause, target, causeIp, causeInfo, true);
 +}
 +
 +namespace
@@ -867,7 +880,8 @@ index 0000000..7eb5919
 +        return;
 +    }
 +    if (nodePermDenied(s, cfxha, 0)) {
-+        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc, info);
++        nodeCfxRaise(tc, s, CauseCfxPerm | SubNcfxPerm, s.runMode, pc,
++                     info);
 +        return;
 +    }
 +
@@ -934,11 +948,13 @@ index 0000000..7eb5919
 +        return true;
 +    }
 +    if (nodePermDenied(s, cfxha, 2)) {
-+        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc, info);
++        nodeCfxRaise(tc, s, CauseCfxPerm | SubNcfxPerm, s.runMode, pc,
++                     info);
 +        return true;
 +    }
 +    if (delegDenied(s, ci, cg)) {
-+        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc, info);
++        nodeCfxRaise(tc, s, CauseCfxPerm | SubNcfxPerm, s.runMode, pc,
++                     info);
 +        return true;
 +    }
 +
@@ -1000,11 +1016,13 @@ index 0000000..7eb5919
 +        return true;
 +    }
 +    if (nodePermDenied(s, cfxha, 2)) {
-+        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc, info);
++        nodeCfxRaise(tc, s, CauseCfxPerm | SubNcfxPerm, s.runMode, pc,
++                     info);
 +        return true;
 +    }
 +    if (delegDenied(s, ci, cg)) {
-+        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc, info);
++        nodeCfxRaise(tc, s, CauseCfxPerm | SubNcfxPerm, s.runMode, pc,
++                     info);
 +        return true;
 +    }
 +
@@ -1055,7 +1073,8 @@ index 0000000..7eb5919
 +            return true;
 +        }
 +        if (ret == 2) {
-+            nodeCfxRaise(tc, s, CauseCfxMem, s.runMode, pc, errPa);
++            nodeCfxRaise(tc, s, CauseCfxMem | SubAdwbFail, s.runMode, pc,
++                         errPa);
 +            return true;
 +        }
 +    } else if (cg == 3 && rc == 12) {
