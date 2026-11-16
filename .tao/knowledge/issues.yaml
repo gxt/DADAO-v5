@@ -825,3 +825,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`check-inst-macro-scope` 的 S8（「已整例宏化的 `.S` 正文不得再有裸 `__CHECK_*`」）以**行首 `\t`** 为界，而 `llvm-mc` 实测接受**列 0 的宏调用/指令** ⇒ 列 0 的裸断言行不被 S8 抓到（`m15-testcases-004` 复核 F-a）。现存列 0 断言行 = 0，且该边界在基线扫描器同样存在（未被本任务放宽）。处置：S8 与扫描器统一改为「允许缩进或列 0」，并补一条列 0 反例注入。"
+- id: ISS-462
+  scope:
+  - infra
+  - linux
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】「同组件单写者」按**组件**划分不够，实际冲突发生在**共享构建树**：非 linux 组件任务（如 `m14-qemu-006` 跑 `k2_*` 探针）同样会写 `.work/build/linux/.config` 与内核镜像 ⇒ 与 linux 任务并行时互相打红（`make_defconfig …did not survive olddefconfig`、K1 镜像混入他人的 `CONFIG_DADAO_K2_SELFTEST_UNKNOWN=y`）。`m14-linux-011` 复核实测 3 次 `--gates` 有 2 次因此红，只能等安静窗口重跑。处置：把「单写者」的粒度从组件改为**构建树**（linux 构建树 = 独占资源，凡会 `make_defconfig`/`build-linux` 的任务都必须串行或按 build-root 分目录）。"
