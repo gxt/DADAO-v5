@@ -24,8 +24,15 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m14-qemu-005 | 4–6 h | QEMU TLB 对齐（fill/三操作/三档范围/ASID_ANY·G/回写失败不删）+ 页表异常子原因 |
+| m14-testcases-005 | 5–6 h | `tests/arch` TLB 探针 13 条（8 基础 + ⑨a/⑨b/⑩/⑪/⑫）+ `min_rom_probe_tlb` 驱动 |
+| m14-linux-011 | 4–5 h | 内核页表原语与 TLB 维护（`tlb_control` 封装/ASID/`flush_tlb_*`；修 `pmd_populate` VA→PA） |
+| m14-linux-012 | 6–8 h | page fault 与按需分页（子原因解码 + 匿名/零页 + `brk` 扩展） |
+| m14-linux-013 | 4–5 h | COW 复制页（写只读 ⇒ `CFXPERM`+`NWPERM` ⇒ 复制/改 PTE/`invalid`+VA） |
+| m14-linux-014 | 3–4 h | 用户栈增长（`VM_GROWSDOWN` + `RLIMIT_STACK`/guard gap 边界） |
+| m14-linux-015 | 5–6 h | K3 收口门控 `check-linux-k3`（八组 + §4a 退役审计） |
 | m14-spec-007 | 2–3 h | `cause_id` 子原因编码落地（`DADAO-12 §3.6/§4.x/§2.2.6` + `contract-see §6.1` 扩列 + 锁重算） |
-| m14-spec-006 | 3–4 h | K3 的 TLB 规范与契约（撤 `Kaiwu` 不定义句、新建 `contract-tlb`、8 条探针门控设计；只定义不实现） |
+| m14-spec-006 | 3–4 h | K3 的 TLB 规范与契约（撤 `Kaiwu` 不定义句、新建 TLB 契约、12 条探针门控设计；只定义不实现） |
 | m14-qemu-003 | 1.5–2 h | 异步源轴 mask 改按「当前运行模式 monitor」（`ISS-455`；QEMU 侧） |
 | m14-qemu-004 | 1 h | `SYS_READC`/`SYS_FLEN` 取字缓冲改 PA（`ISS-452`，用户裁定「现在修」） |
 | m14-linux-010 | 2–3 h | IE 旋钮收敛为 monitor 单行 + `contract-see §6.4` 口径修订（`ISS-455`/`ISS-454`） |
