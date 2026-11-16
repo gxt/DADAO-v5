@@ -1,6 +1,6 @@
 # ADR-0041: TLB 与 A/D 维护
 
-**状态**：Accepted（rev. 2026-11-05：A/D 回写失败改为归当前运行模式 monitor 的 `CFXMEM`，见 `spec/Kaiwu §7.1`）
+**状态**：Accepted（rev. 2026-11-05：A/D 回写失败改为归当前运行模式 monitor 的 `CFXMEM`，见 `spec/Kaiwu §7.1`；rev. 2026-11-16：D3.2 的失败处理定为**条目级 + 遇错即停**，用户裁定原话「条目级」/「遇错即停」，同步 `contract-tlb` TLB-37 0.7.2）
 **日期**：2026-10-29
 **关联**：ADR-0040（PTE）；`spec/DADAO-12` §2.2.5/§4.6；任务（Step 3，待立）
 
@@ -27,6 +27,7 @@
   - `INVALID`：只删除、不回写；
   - `FLUSH`：回写 A/D 并删除；写回失败时**不删除该条目**并报异常；
   - `00` 为 no-op，不报异常；命令写同步执行，无完成状态寄存器。
+  - **失败处理（rev. 2026-11-16，用户裁定「条目级」+「遇错即停」）**：`clean`/`flush` 的首个 A/D 回写失败条目**保持原状**并**立即停止**，**其后条目一律不处理**（`clean` 不清挂起位、`flush` 不删除）；一条指令最多报一处失败（异常帧只有一个 `cause_info`，= 该 PTE 物理地址 + 子原因 `[56] ADWBFAIL`）⇒ 未处理条目仍是旧翻译，**内核须自行补偿**（重发同一命令逐次收敛，或 `scope=VA` 逐条重试）。
 - **D4 A/D dirty**：TLB 条目记录 `A_local/D_local` 与 `A_dirty/D_dirty`：
   - fill：`A_local=PTE.A`、`D_local=PTE.D`、`A_dirty=D_dirty=0`；fill 本身不产生 dirty；
   - 读/取指命中且权限通过：若 `A_local=0` → `A_local=1, A_dirty=1`；
