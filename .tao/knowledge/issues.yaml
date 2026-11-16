@@ -810,3 +810,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】TLB 的**跨 hart 失效传播（shootdown）**在 v5 侧无任何规定：`cfx_ptw_tlb_control` 只描述「本 hart 的 TLB」操作（`DADAO-12 §4.5`），而多 hart 下改 PTBR/ASID/PTE 后如何通知其它 hart、经什么机制（IPI 尚无发送服务/寄存器，见架构未决项）全部空白。用户 2026-11-16 裁定「目前只考虑单 hart 情况」⇒ M14/K3 按 **per-hart** 声明（写入 `Kaiwu`/`contract-tlb`），本条保留为多 hart 机型的重开点（与 `ISS-440` 同类处置）。"
+- id: ISS-460
+  scope:
+  - qemu
+  - spec
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】QEMU **Vast 未把「非页表类同步异常」送进 monitor 向量**：`target/dadao/cpu.c` 的 `dadao_profile_vast.sync_exc_monitor_entry = false`（注释自称 staged direct-fault mapping，与 `DADAO-12 §5.2`「执行期同步异常先进当前运行模式 monitor」冲突）；后果：`ptw_enable=0` 的 `CFXMEM`、保留 cfx 的 `ld/st` 等直接成 **monitor 段机器 fault 退出码 `0xF1`**，`cfx_hmon` 无帧 ⇒ 探针无法做帧级断言（`m14-testcases-005` 的 ⑨a/⑫ 反例因此 FAIL）。PTW 故障路径与 `CFXPERM` 路径**已**进 monitor（不受影响）。处置二选一：① 改 QEMU 使 Vast 也进 monitor（需同步更新既有 Vast 探针 oracle，它们编码了机器 fault 行为）；② 把「Vast 阶段模型」写成 v5 明确约定（`Kaiwu`）并让探针按该模型断言，同时登记与上游偏差。"
