@@ -794,3 +794,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】K2 两条派单口径缺「可达 FAIL」断言（`m14-linux-008` 复核实测）：① 把 `local_irq_save` 的 `flags` 截成低 32 位 ⇒ `k2_irq_probe` **95/95 全绿**；② 把 `enable` 改成全清 0（而非只清源位）⇒ **同样全绿**。两条都是本任务**明确要求**的性质，却无判据可抓 ⇒ 违反「每条断言须有可达 FAIL 路径」。处置：在 `m14-linux-009`（K2 收口门控）补两条绝对断言——`P1`：`before_smon` == `init_IRQ` 行值（高位参与比较）；`P5`：`enable` 态 == `disable` 态 `& ~DADAO_IRQ_SOURCE_BITS`。另订正 `run.sh --inject` 的「time 6 路」标签（实为 5 路）。"
+- id: ISS-458
+  scope:
+  - infra
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】证据脚本的「改前基线」若取 `git archive HEAD`（或任何指向**当前**提交的引用），**提交后重跑就变成自比假绿**：`m15-testcases-002` 复核发现其 `run.sh` D 项的基线是 `HEAD`，开工时（HEAD 尚未含本任务提交）有效，提交后重跑则新旧两侧同源 ⇒ 必然相等。复核因此改用钉死的 `8da8c985` 独立补证。处置：证据脚本的基线一律**钉死 commit**（或 `git archive <base-commit>`），并在脚本里断言「base != HEAD」；可并入 engineer/reviewer 的「一键证据脚本」规范。"
