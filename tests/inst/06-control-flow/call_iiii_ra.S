@@ -18,6 +18,7 @@
 @@ 布局：槽位（call 本体）与落点/检查块按 **执行顺序** 交替排布，`.org` 钉住地址
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/06-control-flow/06-control-flow.inc"
 
 	__TEST_BEGIN
 

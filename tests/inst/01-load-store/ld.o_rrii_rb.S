@@ -10,6 +10,20 @@
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/01-load-store/01-load-store.inc"
+
+@@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
+@@ rb 目的（实测经 rb2rd 搬到 rd21）
+.macro TEST_LD_RB pt, mnem, dst, base, baseval, off, exp
+	LOAD_ADDR \base, \baseval
+	\mnem	\dst, [\base, \off]
+	rb2rd	{rd21:rd21}, {\dst:\dst}
+	__LI	rd20, \exp
+	__REC	rd21
+	br.eq	{rd20, rd21}?, [rb0, __ck_\@]
+	__EXIT	\pt
+__ck_\@:
+.endm
 
 	__TEST_BEGIN
 

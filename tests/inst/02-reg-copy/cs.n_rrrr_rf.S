@@ -13,6 +13,7 @@
 @@   「不触发 ILLI」；② 条件寄存器与目的/候选同名的别名语义按 C-27 仍 deferred ⇒ 用例不同名
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/02-reg-copy/02-reg-copy.inc"
 
 	__TEST_BEGIN
 

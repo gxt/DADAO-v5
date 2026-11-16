@@ -16,6 +16,7 @@
 @@   （用户裁定 2026-11-13：`hd = rdHD[5:0]`；rdHD=64 ⇒ hd=0、67 ⇒ 3、2^64−1 ⇒ 63）
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/04-arith-logic-octa/04-arith-logic-octa.inc"
 
 	__TEST_BEGIN
 

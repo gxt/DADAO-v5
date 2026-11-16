@@ -13,6 +13,7 @@
 @@ 移位量边界：0（不动）/ 63（最大值）/ 64 与更大值只取低 6 位（⇒ 0 / 63），不触发 ILLI
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/04-arith-logic-octa/04-arith-logic-octa.inc"
 
 	__TEST_BEGIN
 

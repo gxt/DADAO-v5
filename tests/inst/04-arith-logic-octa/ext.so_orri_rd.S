@@ -13,6 +13,7 @@
 @@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/04-arith-logic-octa/04-arith-logic-octa.inc"
 
 	__TEST_BEGIN
 

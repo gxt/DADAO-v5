@@ -10,6 +10,7 @@
 
 	.equ	__FP_LAYOUT, 1
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/07-floating-point/07-floating-point.inc"
 
 	__TEST_BEGIN
 	@@ 规范编码字：dst=rf5 / src=rd6 / immu6=0x00，3 → 3.0（精确）

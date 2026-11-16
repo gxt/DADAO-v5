@@ -10,6 +10,17 @@
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/01-load-store/01-load-store.inc"
+
+@@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
+@@ ra 源（rd → ra 用 orri 复制；基址寄存器不得与源同名）
+.macro TEST_ST_RA pt, mnem, src, base, baseval, off, srcval, beat
+	__LI	rd20, \srcval
+	rd2ra	{\src:\src}, {rd20:rd20}
+	LOAD_ADDR \base, \baseval
+	\mnem	\src, [\base, \off]
+	__CHECK_MEM \pt, \baseval, \off, \beat
+.endm
 
 	__TEST_BEGIN
 

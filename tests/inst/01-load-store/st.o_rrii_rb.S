@@ -15,6 +15,29 @@
 @@   防止「两条 IP 通路同错也自洽」。
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/01-load-store/01-load-store.inc"
+
+@@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
+@@ 内存实测 vs **运行期派生**的期望（RB 银行，如 `aip.si`/`rb2rb` 取出的 IP）：
+@@   期望先 `rb2rd` 搬到 rd22 再比 —— 探针不借被测的 `st` 指令，也不要求链接期常量
+@@   （`st.o rb0` 的期望值随链接布局变化，见 `tests/inst/MIGRATION.md §6`）。
+.macro __CHECK_MEM_RB pt, baseval, off, rbsrc
+	rb2rd	{rd22:rd22}, {\rbsrc:\rbsrc}
+	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
+	ld.o	rd21, [rb21, 0]
+	__REC	rd21
+	br.eq	{rd22, rd21}?, [rb0, __ck_\@]
+	__EXIT	\pt
+__ck_\@:
+.endm
+
+@@ rb 源
+.macro TEST_ST_RB pt, mnem, src, base, baseval, off, srcval, beat
+	__LI_RB	\src, \srcval
+	LOAD_ADDR \base, \baseval
+	\mnem	\src, [\base, \off]
+	__CHECK_MEM \pt, \baseval, \off, \beat
+.endm
 
 	__TEST_BEGIN
 

@@ -90,7 +90,7 @@ def _asm_rows(repo: Path) -> list[str]:
             text = Path(path).read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        for line in text.splitlines():
+        for line in run_asm_suite.iter_code_lines(text):
             if not _is_asm_case_line(line):
                 continue
             ident = line.strip()

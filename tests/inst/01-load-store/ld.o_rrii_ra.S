@@ -16,6 +16,20 @@
 @@     再 `ra2rd` 拷到 RD 校验两字段（期望 = 架构常量，落点地址写 `ENTRY + <偏移>`）。
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/01-load-store/01-load-store.inc"
+
+@@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
+@@ ra 目的
+.macro TEST_LD_RA pt, mnem, dst, base, baseval, off, exp
+	LOAD_ADDR \base, \baseval
+	\mnem	\dst, [\base, \off]
+	ra2rd	{rd21:rd21}, {\dst:\dst}
+	__LI	rd20, \exp
+	__REC	rd21
+	br.eq	{rd20, rd21}?, [rb0, __ck_\@]
+	__EXIT	\pt
+__ck_\@:
+.endm
 
 	__TEST_BEGIN
 

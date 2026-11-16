@@ -16,6 +16,15 @@
 @@   目的在 RB ⇒ 实测经同组 `st.o` 落到 SCRATCH（rb29 指）再 `__CHECK_MEM`
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/05-arith-addr/05-arith-addr.inc"
+
+@@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
+.macro TEST_AR_RB_SI pt, mnem, dst, init, imm, exp
+	__LI_RB	\dst, \init
+	\mnem	\dst, \imm
+	st.o	\dst, [rb29, 0]
+	__CHECK_MEM \pt, SCRATCH, 0, \exp
+.endm
 
 	__TEST_BEGIN
 

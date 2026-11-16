@@ -14,6 +14,7 @@
 @@   双目的用例高半 `__VERIFY_RD` + 低半 `__CHECK_RD`（两条断言共用点号）。
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/04-arith-logic-octa/04-arith-logic-octa.inc"
 
 	__TEST_BEGIN
 

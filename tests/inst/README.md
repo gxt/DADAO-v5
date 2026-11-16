@@ -26,7 +26,8 @@
 | `00-isa-design/atomic_rmw.S` | **非 id 载体**（原子 RMW 的**合成序**：`lr` → 寄存器计算 → `sc` → 失败重读重试，13 条；跨 24 条 `lr`/`sc` 身份而非单个 id，故不入 `01`–`12` 册——那 12 册保持「一个 opcode id 一个文件」；逐文件登记 + `inst-00-isa-design-009` 索引） |
 | `base/`（已删） | 原 YAML 向量目录（`TESTCASES-003t`~`007t` 生成；**YAML 已全退役**，`m13-testcases-043`） |
 | `MIGRATION.md` | YAML → 汇编+宏 的迁移台账（大类/小类/用例模板/任务拆分/删除规则） |
-| `macros/inst_test.inc` | 汇编宏层（`TEST_LD*`/`TEST_ST*`/`TEST_MOV1`/`TEST_CS*`/`TEST_WI*`/`TEST_FAULT*`/`__CHECK_*`，期望值内联） |
+| `macros/inst_test.inc` | **跨册**共享宏层（`__LI`/`__EXIT`/`__CHECK_*`/`__FAULT_GUARD`/`TEST_FAULT_ENC`/`TEST_AR_ORRR` 等，期望值内联）；只放 **≥2 个册**用到的宏（`m15-testcases-002`） |
+| `<册>/<册>.inc` | **册专用**宏层（`01-load-store`…`07-floating-point` 各一份）；只放本册用的宏，由该册各 `.S` 在共享层之后 `.include` |
 | `01-load-store/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（单元素 `ld.*`/`st.*`，19 个；含 `st.o rb0`（IP 作源/作基址）与 `ld.o ra0`（RAS 窗口读写）补测） |
 | `01-load-store/inst-tiny.lds` | 上面这册的链接布局（固定段地址 + ASSERT 钉住）；`02-reg-copy`/`03-wyde-imm` 复用同一布局 |
 | `02-reg-copy/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（块复制 9 + `cs.*` 8，共 17 个） |
@@ -44,6 +45,10 @@
 一行一个用例，失败即 `SYS_EXIT(检查点号)`（`0x01`–`0x7F`）；机器异常例单独成像，
 退出码 = monitor 段编码（`0xF0|异常位索引`）。格式、宏签名与两种镜像形态见
 `MIGRATION.md §2`；跑法：
+
+宏的**作用域分三层**（用户 2026-11-15/16 口径，L1 门控 `check-inst-macro-scope` 机械判）：
+跨册（≥2 册）⇒ `macros/inst_test.inc`；册专用 ⇒ `<册>/<册>.inc`；单文件专用 ⇒ 直接写在
+该 `.S` 内（`.include` 之后、首个用例之前）。死宏必须为 0。
 
 ```
 python3 tools/testcases/inst/run_asm_suite.py --id ld.o_rrii_rd   # 单个 id

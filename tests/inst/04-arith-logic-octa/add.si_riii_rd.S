@@ -13,6 +13,24 @@
 @@   双目的用例高半 `__VERIFY_RD` + 低半 `__CHECK_RD`（两条断言共用点号）。
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/04-arith-logic-octa/04-arith-logic-octa.inc"
+
+@@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
+.macro TEST_AR_SI pt, mnem, dst, init, imm, exp
+	__LI	\dst, \init
+	\mnem	\dst, \imm
+	__CHECK_RD \pt, \dst, \exp
+.endm
+
+.macro TEST_FAULT_ALU_SI pt, mnem, fault, dst, imm
+	.if CASE_N == \pt
+	.globl	__fault_case
+__fault_case:
+	__FAULT_GUARD \pt, \fault
+	\mnem	\dst, \imm
+	__EXIT	\pt
+	.endif
+.endm
 
 	__TEST_BEGIN
 

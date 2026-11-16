@@ -13,6 +13,7 @@
 @@   期望内联；`_MEM` 变体的期望从 WDATA 装载（不经任何 rwii 指令）⇒ 期望不由被测指令自证。
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/03-wyde-imm/03-wyde-imm.inc"
 
 	__TEST_BEGIN
 

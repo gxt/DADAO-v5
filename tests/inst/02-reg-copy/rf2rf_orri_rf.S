@@ -24,6 +24,41 @@
 @@   「目的 == 同一时刻的 rf0」（运行期取，不钉字面量）
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/02-reg-copy/02-reg-copy.inc"
+
+@@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
+@@ 内存 beat vs **运行期** rf 期望（`rf2rf` 的 31 元边界例用「目的 == 源内存」判据）：
+@@   探针 = `rf2rd` 跨组读回 + `ld.o`（两者都不是被测的块复制指令），不引入期望常量。
+@@   命名/参数与 `__CHECK_MEM_RB` 对齐（baseval/off 在前、组内寄存器在后）。
+@@   `__VERIFY_*` 不占点号，`__CHECK_*` 是最后一条、点号在这里（失败点号 = 用例序号）。
+.macro __VERIFY_MEM_RF pt, baseval, off, rfsrc
+	rf2rd	{rd21:rd21}, {\rfsrc:\rfsrc}
+	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
+	ld.o	rd20, [rb21, 0]
+	br.eq	{rd20, rd21}?, [rb0, __vmrf_\@]
+	__EXIT	\pt
+__vmrf_\@:
+.endm
+
+.macro __CHECK_MEM_RF pt, baseval, off, rfsrc
+	rf2rd	{rd21:rd21}, {\rfsrc:\rfsrc}
+	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
+	ld.o	rd20, [rb21, 0]
+	__REC	rd21
+	br.eq	{rd20, rd21}?, [rb0, __cmrf_\@]
+	__EXIT	\pt
+__cmrf_\@:
+.endm
+
+@@ 源为 rf0 的单寄存器用例（rf0 = FCSR，位型由硬件定义 ⇒ 期望运行期取自 rf0 自身，
+@@   不钉字面量；`rf2rd` 读回同样是跨组复制，与被测的 `rf2rf` 不是同一 id）
+.macro TEST_MOV_RF0 pt, mnem, dst
+	rf2rd	{rd22:rd22}, {rf0:rf0}
+	\mnem	{\dst:\dst}, {rf0:rf0}
+	rf2rd	{rd23:rd23}, {\dst:\dst}
+	__VERIFY_EQ_RD	\pt, rd22, rd23
+	__REC	rd23
+.endm
 
 	__TEST_BEGIN
 

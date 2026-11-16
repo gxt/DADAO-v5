@@ -9,6 +9,7 @@
 
 	.equ	__FP_LAYOUT, 1
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/07-floating-point/07-floating-point.inc"
 
 	__TEST_BEGIN
 	@@ 规范编码字：dst=rd8 / src=rf40 / immu6=1，1.0 → 0x100

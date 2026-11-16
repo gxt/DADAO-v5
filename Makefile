@@ -66,7 +66,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-picolibc-tests check-picolibc-tests-full check-clmul-probe \
         check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-knowledge-refs \
-        check-inst-asm check-tests-index check-arch check-arch-smoke \
+        check-inst-asm check-tests-index check-inst-macro-scope check-arch check-arch-smoke \
         check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
         check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
         clean-tests test-repro night-run check-night-report check-l3-report \
@@ -277,6 +277,7 @@ help:
 	@echo "  make test-repro      Prove build products regenerate byte-identically (SCOPE=...; TESTCASES-076t)"
 	@echo "  make check-components  Component availability smoke (llc/clang --print-targets/qemu; L1)"
 	@echo "  make check-inst-asm    inst .S carriers (all ids, QEMU only; L2; m13-testcases-030)"
+	@echo "  make check-inst-macro-scope  Assembly macro scope: shared=跨册 / 册 .inc=本册 / .S 内=本文件 / 死宏 0 (L1; m15-testcases-002)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
 	@echo "  make check-test-reports  docs/TestReports/ naming/layout + no runtime paths + snapshot marker + header four items gate (L1; m13-testcases-004)"
@@ -1167,7 +1168,7 @@ _locked-clean-work:
 # 两条排在 `check-temp-dirs` **之前**：它们在 `$DADAO_TMP`（`check_toolchain.py`
 # 默认建任务临时目录）下跑探针，先跑可让该目录 mtime 保持新鲜，避免陈旧临时
 # 目录误报；`check_k0.py`（L2）另行把 DADAO_TMP 指到自己的 scratch。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-writer-guards check-temp-dirs
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-writer-guards check-temp-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1849,6 +1850,13 @@ check-case-ledger:
 # 载体未入索引 / 索引指向非载体）。
 check-tests-index:
 	@$(PYTHON) tools/testcases/check_tests_index.py
+
+# 汇编宏作用域门控 (m15-testcases-002, L1)：`tests/inst/**` 的宏按**使用者**分三层
+# —— 跨册（≥2 册）留共享层 `macros/inst_test.inc`、单册放 `tests/inst/<册>/<册>.inc`、
+# 单文件直接写在该 `.S` 内；死宏必须为 0；`.S` 的 include 接线（共享层在前、册层在
+# 其后）机械核对。`--selfcheck` = 干净基线 + 5 类注入（各自可达 FAIL）。
+check-inst-macro-scope:
+	@$(PYTHON) tools/testcases/check_inst_macro_scope.py
 
 # decodetree 可复现性 (ISS-058, L1): build-qemu recipe 必须固定 PYTHONHASHSEED=0；
 # .work/source/qemu 在盘时实跑 decodetree 两种 seed，确认「敏感 ⇒ 已固定」。

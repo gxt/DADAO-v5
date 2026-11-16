@@ -19,6 +19,7 @@
 @@   `__LAND_IP`（`aip.si` 取 IP）核，期望写 `ENTRY + <字面偏移>`
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/06-control-flow/06-control-flow.inc"
 
 	__TEST_BEGIN
 

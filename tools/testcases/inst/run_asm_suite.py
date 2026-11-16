@@ -102,6 +102,26 @@ FAULT_AR_RE = re.compile(r"^\tTEST_FAULT_(?:DUAL|ALU3|ALU_ORRI|ALU_SI|ALU_CMPI|B
 FAULT_FP_RE = re.compile(r"^\tTEST_FAULT_FP\s+(\d+),\s*"
                          r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN)\b")
 END_RE = re.compile(r"^\t__TEST_END\b")
+# `.S` 内可以定义**文件专用宏**（m15-testcases-002：宏作用域下沉），宏体里出现的
+# `__CHECK_*`/`TEST_*` 行**不是**用例行 ⇒ 扫描（本文件与 `check_case_ledger`）一律
+# 跳过 `.macro`..`.endm` 之间的行，否则检查点数/用例身份会被宏体污染。
+MACRO_START_RE = re.compile(r"^\s*\.macro\b")
+MACRO_END_RE = re.compile(r"^\s*\.endm\b")
+
+
+def iter_code_lines(text: str):
+    """逐行产出 `.S` 文本，**跳过宏定义体**（`.macro`..`.endm`）。"""
+    in_macro = False
+    for line in text.splitlines():
+        if in_macro:
+            if MACRO_END_RE.match(line):
+                in_macro = False
+            continue
+        if MACRO_START_RE.match(line):
+            in_macro = True
+            continue
+        yield line
+
 
 DEFAULT_LDS = "tests/inst/01-load-store/inst-tiny.lds"
 DEFAULT_VECTORS = "tests/inst/01-load-store"
@@ -126,7 +146,7 @@ def scan_source(path: Path) -> dict:
     faults = []
     pts = []
     in_chain = True
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in iter_code_lines(path.read_text(encoding="utf-8")):
         if END_RE.match(line):
             in_chain = False
             continue

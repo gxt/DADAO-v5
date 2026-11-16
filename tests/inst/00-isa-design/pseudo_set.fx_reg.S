@@ -21,8 +21,8 @@
 @@ 探针：目的在 rf ⇒ `rf2rd` 跨组读回完整 64 位再 `__CHECK_RD`（`rf2rd` 不是被测伪指令）；
 @@   源/目的初值经 `__LI_RF`（`__LI` + `rd2rf`）装配，不经任何 `set.*` 伪指令。
 @@ 覆盖边界：`rf0` 作**源**的 rf2rf 例（期望运行期取自 rf0 自身）在 `02-reg-copy` 的
-@@   `TEST_MOV_RF0`/`07-floating-point` 的 `TEST_FPCOPY_RF0` 里；`rf2rf` 目的含 `rf0` ⇒ ILLI
-@@   属 `02-reg-copy/rf2rf_orri_rf.S` 的故障例，本文件不重复。
+@@   `rf2rf_orri_rf.S`（宏 `TEST_MOV_RF0`）里；`rf2rf` 目的含 `rf0` ⇒ ILLI 属该文件的
+@@   故障例，本文件不重复。
 
 	.include "tests/inst/macros/inst_test.inc"
 

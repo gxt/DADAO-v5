@@ -9,6 +9,7 @@
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/01-load-store/01-load-store.inc"
 
 	__TEST_BEGIN
 

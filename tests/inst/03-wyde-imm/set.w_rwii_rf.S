@@ -14,6 +14,66 @@
 @@   期望内联；`_MEM` 变体的期望从 WDATA 装载（不经任何 rwii 指令）⇒ 期望不由被测指令自证。
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/03-wyde-imm/03-wyde-imm.inc"
+
+@@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
+.macro TEST_WI_RF pt, mnem, dst, wp, imm, init, exp
+	__LI	rd20, \init
+	rd2rf	{\dst:\dst}, {rd20:rd20}
+	\mnem	\dst, \wp, \imm
+	st.o	\dst, [rb29, 0]
+	__CHECK_MEM \pt, SCRATCH, 0, \exp
+.endm
+
+.macro TEST_WI_RF_MEM pt, mnem, dst, wp, imm, init, off
+	__LI	rd20, \init
+	rd2rf	{\dst:\dst}, {rd20:rd20}
+	\mnem	\dst, \wp, \imm
+	st.o	\dst, [rb29, 0]
+	LOAD_ADDR rb21, WDATA + \off
+	ld.o	rd20, [rb21, 0]
+	ld.o	rd21, [rb29, 0]
+	__REC	rd21
+	br.eq	{rd20, rd21}?, [rb0, __wrm_\@]
+	__EXIT	\pt
+__wrm_\@:
+.endm
+
+.macro TEST_WI_RF0_NOOP pt, wp, imm
+	st.o	rf0, [rb27, 0]
+	ld.o	rd25, [rb27, 0]
+	set.w	rf0, \wp, \imm
+	st.o	rf0, [rb27, 0]
+	ld.o	rd20, [rb27, 0]
+	__REC	rd20
+	br.eq	{rd20, rd25}?, [rb0, __r0n_\@]
+	__EXIT	\pt
+__r0n_\@:
+.endm
+
+.macro TEST_WI_RF0_WRITE pt, wp, imm
+	set.w	rf0, \wp, 0x0000
+	st.o	rf0, [rb27, 0]
+	ld.o	rd25, [rb27, 0]
+	set.w	rf0, \wp, \imm
+	st.o	rf0, [rb27, 8]
+	.ifc	\wp, wp2
+	ld.ub	rd26, [rb27, 3]
+	add.si	rd26, ((\imm) & 3)
+	st.b	rd26, [rb27, 3]
+	.endif
+	.ifc	\wp, wp0
+	ld.ub	rd26, [rb27, 7]
+	add.si	rd26, ((\imm) & 0x1F)
+	st.b	rd26, [rb27, 7]
+	.endif
+	ld.o	rd20, [rb27, 0]
+	ld.o	rd21, [rb27, 8]
+	__REC	rd21
+	br.eq	{rd20, rd21}?, [rb0, __r0w_\@]
+	__EXIT	\pt
+__r0w_\@:
+.endm
 
 	__TEST_BEGIN
 

@@ -13,6 +13,7 @@
 @@   「先比较、再赋值」⇒ 读后写序确定，不涉及 C-27 快照问题）
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/02-reg-copy/02-reg-copy.inc"
 
 	__TEST_BEGIN
 

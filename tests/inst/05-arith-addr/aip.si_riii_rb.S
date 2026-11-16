@@ -20,6 +20,7 @@
 @@ 探针：目的在 RB ⇒ 实测经同组 `st.o` 落到 SCRATCH（rb29 指）再 `__CHECK_MEM`
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/05-arith-addr/05-arith-addr.inc"
 
 	__TEST_BEGIN
 

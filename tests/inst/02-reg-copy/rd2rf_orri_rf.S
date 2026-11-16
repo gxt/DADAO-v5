@@ -12,6 +12,7 @@
 @@ 注：rf0 的写内容（FCSR 掩码）不断言——本文件只断言「rf0 作目的不触发 ILLI」与同组后续元素照常赋值
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/02-reg-copy/02-reg-copy.inc"
 
 	__TEST_BEGIN
 

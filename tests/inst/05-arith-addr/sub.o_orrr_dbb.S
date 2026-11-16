@@ -14,6 +14,7 @@
 @@ 探针：初值用 `__LI_RB` 拼常量（被测指令不参与造初值）、期望内联；目的在 rd ⇒ `__CHECK_RD`
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/05-arith-addr/05-arith-addr.inc"
 
 	__TEST_BEGIN
 

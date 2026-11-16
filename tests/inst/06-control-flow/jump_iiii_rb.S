@@ -17,6 +17,7 @@
 @@   期望写 `ENTRY + <字面偏移>`（llvm-mc 只折装绝对常量，标签差不进立即数）
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/06-control-flow/06-control-flow.inc"
 
 	__TEST_BEGIN
 

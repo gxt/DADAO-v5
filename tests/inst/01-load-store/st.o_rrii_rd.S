@@ -13,6 +13,7 @@
 @@   被测指令与零填充槽位，两侧都是链接期常量，落点只写不执行。
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/01-load-store/01-load-store.inc"
 
 	__TEST_BEGIN
 
