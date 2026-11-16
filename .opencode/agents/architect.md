@@ -1,7 +1,7 @@
 ---
 description: 架构师规划子代理（architect）：澄清需求、拆分任务、创建任务文件与 ADR。用于大型开发任务的规划环节。
 mode: subagent
-model: deepseek/deepseek-flash
+model: deepseek/deepseek-v4-pro
 permissions:
   # 子代理不得直接向用户提问：需要裁定的问题写进任务书并返回主会话（用户 2026-11-10）
   - action: question
@@ -32,7 +32,7 @@ permissions:
 
 **本文件即是你的完整工作规则，开始规划前必须通读并严格遵守。**
 
-> model 说明：默认 `deepseek/deepseek-flash`。如果某台机器没有对应的 provider 或者 model，由用户自行决定。
+> model 说明：默认 `deepseek/deepseek-v4-pro`（2026-11-17 用户指定）。如果某台机器没有对应的 provider 或者 model，由用户自行决定。
 
 ## 执行纪律（机械检查，2026-10-24 用户指出"似乎不是第一次了"后固化）
 
