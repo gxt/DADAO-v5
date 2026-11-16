@@ -1,0 +1,244 @@
+# tests/arch/ptw/expected.yaml — `arch-ptw-001`…`arch-ptw-015`（TLB/PTW 探针清单）
+#
+# 载体：`tools/testcases/arch/min_rom_probe_tlb.py`（一个驱动、15 个 case、一 ROM 一检查），
+#   由 `make check-arch` 经 `Makefile` 的 `ARCH_CFX_PROBES` 逐条调用（`--only <case>`）。
+#   本文件不是第二套判据：**位号与 cause 值由驱动现场从合约解析**（见下「来源」列），
+#   本文件只登记「每条 case 期望的大类 + 子原因符号 + info 语义 + 来源 §」，并由
+#   `min_rom_probe_tlb.py --selfcheck` 与驱动双向核对（缺项/多项/名不符即 FAIL）。
+#
+# 判据来源（不写魔数）：
+#   * cause 值与大类归属：`.tao/contracts/contract-see.md` §6.1；
+#   * 子原因位号：`.tao/contracts/contract-see.md` §6.1.1（与 `spec/DADAO-12 §3.6` 逐位核对）；
+#   * TLB 行为：`.tao/contracts/contract-tlb.md`（TLB-nn）与 `spec/DADAO-12 §2.2.x/§4.5/§5.2`。
+#
+# 观测通道：guest 内自检（`cfx2rd` 读 `cfx_hmon` `cg5 rc2/rc4`、PTE 回读、数据标记），
+#   退出码 = semihosting SYS_EXIT：`0x00` 通过，`0x01`–`0x7F` = 「该镜像内第 N 条断言失败」
+#   （每个检查是独立镜像，驱动按所跑检查解码；`ADR-0004 D5.8`）。
+#
+# checks[].cause = 期望大类（`none` = 该检查不得产生任何异常）；
+# checks[].subcause = `contract-see §6.1.1` 的符号名（`null` = 无子原因）；
+# checks[].info = `cause_info` 语义（`address` = 访存地址；`pte_pa` = PTE 物理地址；
+#   `inst` = 触发指令编码；`none` = 无异常）。
+
+schema: 1
+cases:
+- id: arch-ptw-001
+  only: tlb_fill_hit
+  title: 首次访问缺页步进+填充，第二次命中
+  checks:
+  - label: fill_hit
+    cause: none
+    subcause: null
+    info: none
+    source: [contract-tlb §11 ①, TLB-08, TLB-10]
+
+- id: arch-ptw-002
+  only: tlb_hit_no_pte_reread
+  title: 命中不重读 PTE（改 PPN 后仍读旧 PA）
+  checks:
+  - label: hit_no_reread
+    cause: none
+    subcause: null
+    info: none
+    source: [contract-tlb §11 ②, TLB-07]
+
+- id: arch-ptw-003
+  only: tlb_invalid_va
+  title: invalid + scope=VA 只删包含 start 的条目
+  checks:
+  - label: invalid_va
+    cause: none
+    subcause: null
+    info: none
+    source: [contract-tlb §11 ③, TLB-23]
+
+- id: arch-ptw-004
+  only: tlb_invalid_range
+  title: invalid + range 相交者失效；range&&size=0 / scope=11 ⇒ CFXREG；all 忽略 start/size
+  checks:
+  - label: range_hit
+    cause: none
+    subcause: null
+    info: none
+    source: [contract-tlb §11 ④, TLB-23]
+  - label: range_size0_cfxreg
+    cause: CFXREG
+    subcause: null
+    info: inst
+    source: [contract-tlb §11 ④, TLB-24, contract-see §6.1]
+  - label: scope_reserved_cfxreg
+    cause: CFXREG
+    subcause: null
+    info: inst
+    source: [contract-tlb §11 ④, TLB-24, contract-see §6.1]
+  - label: scope_all
+    cause: none
+    subcause: null
+    info: none
+    source: [contract-tlb §11 ④, TLB-23]
+
+- id: arch-ptw-005
+  only: tlb_asid_g
+  title: ASID_ANY=0 不碰 G 条目；ASID_ANY=1 含 G；G 跨 ASID 复用
+  checks:
+  - label: asid_any0_keeps_g
+    cause: none
+    subcause: null
+    info: none
+    source: [contract-tlb §11 ⑤, TLB-26, TLB-05]
+  - label: asid_any1_takes_g
+    cause: none
+    subcause: null
+    info: none
+    source: [contract-tlb §11 ⑤, TLB-25]
+  - label: g_cross_asid
+    cause: none
+    subcause: null
+    info: none
+    source: [contract-tlb §11 ⑤, TLB-05, TLB-27]
+
+- id: arch-ptw-006
+  only: tlb_clean_ad
+  title: clean 原子 OR 回写 A/D 且保留条目；invalid 不回写且删除
+  checks:
+  - label: clean_vs_invalid
+    cause: none
+    subcause: null
+    info: none
+    source: [contract-tlb §11 ⑥, TLB-15, TLB-17, TLB-14]
+
+- id: arch-ptw-007
+  only: tlb_flush_adwb_fail
+  title: flush 回写 A/D 并删除；回写失败 ⇒ CFXMEM[56] + info=PTE PA 且条目不删
+  checks:
+  - label: flush_ok
+    cause: none
+    subcause: null
+    info: none
+    source: [contract-tlb §11 ⑦, TLB-17, TLB-15]
+  - label: flush_adwbfail
+    cause: CFXMEM
+    subcause: ADWBFAIL
+    info: pte_pa
+    source: [contract-tlb §11 ⑦, TLB-16, TLB-37, spec/DADAO-12 §4.5]
+
+- id: arch-ptw-008
+  only: tlb_no_implicit_invalidate
+  title: 写 PTBR（同值/异值）、ASID、ptw_enable=1 均不隐含失效
+  checks:
+  - label: no_implicit_invalidate
+    cause: none
+    subcause: null
+    info: none
+    source: [contract-tlb §11 ⑧, TLB-29]
+
+- id: arch-ptw-009
+  only: ptw_off_direct_cfxmem
+  title: ptw_enable=0 ⇒ CFXMEM[57] + info=访存地址；TLB 旁路、不建条目
+  checks:
+  - label: ptw_off_bypasses_tlb
+    cause: CFXMEM
+    subcause: NONPTW
+    info: address
+    source: [contract-tlb §11 ⑨a, TLB-41, TLB-43]
+  - label: ptw_off_no_entry
+    cause: CFXMEM
+    subcause: NONPTW
+    info: address
+    source: [contract-tlb §11 ⑨a, TLB-41, TLB-11]
+
+- id: arch-ptw-010
+  only: ptw_on_unmapped
+  title: 页表未映射 ⇒ CFXMEM + DGPTRAP（数据）/ IGPTRAP（取指）
+  checks:
+  - label: data_unmapped
+    cause: CFXMEM
+    subcause: DGPTRAP
+    info: address
+    source: [contract-tlb §11 ⑨b, TLB-35, contract-see §6.1.1]
+  - label: fetch_unmapped
+    cause: CFXMEM
+    subcause: IGPTRAP
+    info: address
+    source: [contract-tlb §11 ⑨b, TLB-35, contract-see §6.1.1]
+
+- id: arch-ptw-011
+  only: perm_denied_cfxperm
+  title: W=0/R=0/X=0 ⇒ NWPERM/NRPERM/NXPERM；HSJU 缺 H ⇒ NHPERM（均 CFXPERM，wyde3 为 0）
+  checks:
+  - label: nwperm
+    cause: CFXPERM
+    subcause: NWPERM
+    info: address
+    source: [contract-tlb §11 ⑩, TLB-32, TLB-34, contract-see §6.1.1]
+  - label: nrperm
+    cause: CFXPERM
+    subcause: NRPERM
+    info: address
+    source: [contract-tlb §11 ⑩, TLB-32, TLB-34, contract-see §6.1.1]
+  - label: nxperm
+    cause: CFXPERM
+    subcause: NXPERM
+    info: address
+    source: [contract-tlb §11 ⑩, TLB-32, TLB-34, contract-see §6.1.1]
+  - label: nhperm
+    cause: CFXPERM
+    subcause: NHPERM
+    info: address
+    source: [contract-tlb §11 ⑩, TLB-34, spec/DADAO-12 §3.6]
+
+- id: arch-ptw-012
+  only: pte_change_needs_invalidate
+  title: 改 PTE 不失效仍读旧页；invalid+VA 后才生效
+  checks:
+  - label: edit_then_invalidate
+    cause: none
+    subcause: null
+    info: none
+    source: [contract-tlb §11 ⑪, TLB-07, TLB-18]
+
+- id: arch-ptw-013
+  only: cfx_space_bypasses_ptw
+  title: VA[47:42]≠0 不走 PTW/TLB（cfx_pmem SRAM 全空页表可读写；保留 cfx ⇒ CFXMEM[57]）
+  checks:
+  - label: pmem_bypass
+    cause: none
+    subcause: null
+    info: none
+    source: [contract-tlb §11 ⑫, TLB-40, TLB-41]
+  - label: reserved_cfx_ptw_on
+    cause: CFXMEM
+    subcause: NONPTW
+    info: address
+    source: [contract-tlb §11 ⑫, TLB-40, contract-see §6.1.1]
+  - label: reserved_cfx_ptw_off
+    cause: CFXMEM
+    subcause: NONPTW
+    info: address
+    source: [contract-tlb §11 ⑫, TLB-40, TLB-41]
+
+- id: arch-ptw-014
+  only: tlb_control_stop
+  title: A/D 回写失败「条目级 + 遇错即停」——失败前的条目已处理、失败条目原样保留、其后的条目不处理
+  # TLB-37 固定「停在哪」但不固定遍历顺序；探针按填充顺序（X→Y→Z）构造，故「第 2 条失败」即插入序第 2 条。
+  checks:
+  - label: flush_stop_after
+    cause: CFXMEM
+    subcause: ADWBFAIL
+    info: pte_pa
+    source: [contract-tlb TLB-37, ADR-0041 D3.2, contract-see §6.1, §6.1.1, spec/DADAO-12 §4.5]
+  - label: flush_stop_kept
+    cause: CFXMEM
+    subcause: ADWBFAIL
+    info: pte_pa
+    source: [contract-tlb TLB-37, ADR-0041 D3.2, contract-see §6.1.1, spec/DADAO-12 §4.5]
+
+- id: arch-ptw-015
+  only: illi_insn_word_window
+  title: 异常 IP 落在内存窗口（VA[47:42]=0、ptw_enable=1）的 ILLI ⇒ cause_info = 指令编码（非 0、非访存地址）
+  checks:
+  - label: illi_insn_word_window
+    cause: ILLI
+    subcause: null
+    info: inst
+    source: [ADR-0004 D5.6, contract-see §6.1, spec/DADAO-12 §2.2.2, §4.1, contracts/opcodes.yaml]

@@ -95,7 +95,81 @@
 2. **`CFXMEM` 非页表类子原因**（与 `m14-qemu-005` 待裁定 2 同一问题）：⑨a 与 ⑫ 涉及的 `CFXMEM` 在 `ADR-0056 D3` 无位号。建议 `[63:48]/[47:32]=0` 并在契约里写明「页表类恰一位、非页表类为 0」；若裁定要求一律 one-hot，本任务相应断言改为新位。
 3. **⑩ 的 mode 取位**：探针跑在 hmon/hypv ⇒ HSJU 不匹配应命 `[27] NHPERM`。是否需要在同一个探针里再切一次 run mode 覆盖 `NSPERM`？（建议：只覆盖当前模式，另用 `arch-ptw` 的下一条 case 覆盖 supv；不引入逐 mode 穷举。）
 4. **`level` 取值**：13 条都定 `full`（由 L3 `check-arch` 覆盖）。若希望其中「fill/hit」「invalid VA」进 L2 代表集（`check-arch-smoke`），需改 smoke 的成员定义（会加长 L2）——**默认不进**。
+5. **`tests/arch.yaml` 是否登记 13 条**（`m14-testcases-005` 落地时的自决与偏离）：任务书「接线」段要求 `arch.yaml` 新增 13 条 `file: arch/ptw/<name>.s`，但本任务 13 条**全部**需要自建页表/直写 `cfx_ptw`（含 ⑨a/⑫），载体只能是 min-ROM 驱动（`ARCH_CFX_PROBES` 的既有形态，如 `integ040t`），`tests/arch/` 下无 `.s` 可执行载体。**自决：不建 13 个空壳 `.s`、不写幽灵索引**；改为 `tests/arch/ptw/expected.yaml` 登记 13 个 `arch-ptw-00N`（清单 + 来源 §），并让驱动 `--selfcheck` 与其双向核对；`tests/arch/README.md` 写明 `ptw/` 无 `.s` 载体。若裁定要求必须进 `arch.yaml`，需同时新增 13 个真实 `.s`（即另做一版用户态载体）或放宽 `check-tests-index` 的 `file` 语义。
+6. **`ARCH_CFX_PROBES` 现登记 `tlb` ⇒ L3 `check-arch` 处于红窗口**（11 条断言：7 条子原因 + 4 条 monitor 路由；见完成区）。这与任务书「`check-arch` 全绿」冲突，但与 `m14-qemu-005`「探针先红后绿」的设计一致。**自决：保持登记**（红窗口即它的判据载体）；若主会话要求 L3 在 QEMU 侧补齐前保持绿，只需从 `ARCH_CFX_PROBES` 去掉 `tlb` 一项（驱动与清单不动，`m14-qemu-005` 仍可用 `--only` 取证）。
+   - **红窗口已关闭（2026-11-17 返工轮）**：`m14-qemu-005` 落地后 `tlb` 29/29 全绿，`make check-arch` rc=0。
+7. **`m14-qemu-005` 范围需扩充**：其任务书只列「子原因未填 / 不得部分完成 / 命中路径同表」三缺口，未含「非页表类 `CFXMEM` 未进 monitor」（Vast `sync_exc_monitor_entry=false`）。⑨a 与 ⑫ 反例的判决依赖后者，建议把该缺口并入 `m14-qemu-005`（或单立任务），否则 4 条断言会长期红。
 
 ## 审阅记录
 
-（待填）
+### 第 1 轮 engineer 自审（2026-11-16）
+
+**判决**：实现自审通过；11 条断言红全部落到两处 QEMU 缺口（不是探针缺陷），已在「待裁定 5–7」与完成区登记。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 成功路径断言「`cause_id==0`」恒红：prelude 的 power→hmon 用 `trap cfx_hmon`，帧里已有 `CFXTRAP` | ✅已修 | 改为「取基线帧 → 断言基线 wyde2/wyde3/[31:16] 全 0 → 结尾断言帧未变」 | 13 条成功路径检查全绿 |
+| F2 故障断言失败时可能挂死：失败路径在「PTBR 已换表/ptw 关闭」状态下存 `exit_block` ⇒ 再缺页 ⇒ 进 prelude 向量死循环（实测 TIMEOUT） | ✅已修 | 新增统一失败出口：先恢复 PTBR=prelude 表 + `ptw_enable=1` + invalid-all，再 `SYS_EXIT` | 注入 8 路「绿→红」均返回确定的失败码，无 TIMEOUT |
+| F3 故障探针存在「不故障也通过」的静默通路 | ✅已修 | handler 用 `add.si` 计次（rd14）；resume 类在恢复后断言计次；取指类/终结类补「必须故障」失败出口 | 注入 `relax-pte-to-ram`（PTE 移到可写 RAM ⇒ 无回写失败）⇒ `flush_adwbfail` 以「handler 应跑 2 次」红 |
+| F4 取指故障按 `[ip,+4]` 续跑会再次缺页（`cause_ip` = 被取地址本身） | ✅已修 | ⑨b-取指、⑩-X=0 改由 handler 终结（`resume=False`） | 两条检查在子原因放宽后转绿（隔离注入） |
+| F5 子原因位号若写死会漂移 | ✅已修 | 运行期解析 `contract-see §6.1.1` 并与 `spec/DADAO-12 §3.6` 逐位核对；`expected.yaml` 与驱动双向核对 | `--selfcheck` rc=0（18 子原因 / 11 cause） |
+| F6 驱动里未使用的导入/常量/函数 | ✅已修 | 删 `struct`/未用的 profile 载入/`VA3`/`read_info`；补 `0x80–0xBF` 退出码段解码 | `python3 -c ast.parse` + 全跑无回归 |
+
+**逐条结果（13 case / 26 检查；`--only` 单跑一致）**
+
+| # | case | 检查（大类 + 子原因 + info） | 结果 |
+|---|---|---|---|
+| 1 | arch-ptw-001 | fill_hit：无异常，两次同值 | PASS |
+| 2 | arch-ptw-002 | hit_no_reread：无异常，读旧 PA | PASS |
+| 3 | arch-ptw-003 | invalid_va：无异常，X 重步进 / Y 仍命中 | PASS |
+| 4 | arch-ptw-004 | range_hit/scope_all 无异常；range_size0/scope_reserved：`CFXREG` + info=指令编码 | PASS |
+| 5 | arch-ptw-005 | asid_any0_keeps_g / asid_any1_takes_g / g_cross_asid | PASS |
+| 6 | arch-ptw-006 | clean_vs_invalid：A/D 回写+留条目 vs 不回写+删 | PASS |
+| 7 | arch-ptw-007 | flush_ok：A/D 回写+删除 PASS；flush_adwbfail：`CFXMEM`+`[56] ADWBFAIL`+info=PTE PA | **FAIL（wyde3=0）** |
+| 8 | arch-ptw-008 | no_implicit_invalidate：四次写后仍命中 | PASS |
+| 9 | arch-ptw-009 | ptw_off_bypasses_tlb / ptw_off_no_entry：`CFXMEM` + `[57] NONPTW` | **FAIL（无 monitor 帧，机器 fault `0xF1`）** |
+| 10 | arch-ptw-010 | data_unmapped `[52] DGPTRAP` / fetch_unmapped `[48] IGPTRAP` | **FAIL（wyde3=0）** |
+| 11 | arch-ptw-011 | nwperm `[37]` / nrperm `[36]` / nxperm `[38]` / nhperm `[35]` | **FAIL（wyde2=0）** |
+| 12 | arch-ptw-012 | edit_then_invalidate：旧映射 → 显式失效 → 新映射 | PASS |
+| 13 | arch-ptw-013 | pmem_bypass：全空页表下 cfx_pmem 读写 | PASS |
+| 13 | arch-ptw-013 | reserved_cfx_ptw_on / _off：`CFXMEM` + `[57] NONPTW` | **FAIL（无 monitor 帧，机器 fault `0xF1`）** |
+
+**注入（11/11，`cp`+md5，还原后 md5 与基线逐字一致）**：8 路绿→红→回绿（`case3-invalid-to-none`/`case4-range-outside`/`case5-asid-any-flip`/`case6-clean-to-invalid`/`case7-flush-to-clean`/`case8-drop-invalidate`/`case12-drop-invalidate`/`case13-marker-flip`）；`relax-subcause`（子原因期望归零 ⇒ 7 条子原因检查翻绿、4 条 monitor 路由仍红 ⇒ 隔离出两处缺口）；`relax-pte-to-ram`（放宽后 PTE 移入可写 RAM ⇒ `flush_adwbfail` 再红）；`relax-subcause-neighbour`（放宽后 NWPERM 期望换成 NRPERM ⇒ 该条红、同 case 其余三条绿 ⇒ 子原因断言非恒真）。
+
+### 第 2 轮 engineer 自审（返工，2026-11-17）
+
+**判决**：返工完成 —— `sub_one_hot` 位口径改为绝对位、`m14-qemu-005` 两例入仓；29/29 检查 + 15 探针门控全绿，7 路注入均「注入⇒红⇒还原⇒回绿」。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---|---|---|---|
+| F1 `sub_one_hot()` 返回 **wyde 内相对位**，而断言用绝对 64 位掩码 ⇒ 11/26 恒红 | ✅已修 | 改 `1 << SUB_BIT[name]`（绝对位号，`contract-see §6.1.1`）；`wyde_values()` 改为返回「期望的 `cause_id & WYDE2/WYDE3`」 | 改前 **15/26（11 红）**，逐条落在 `wyde3 == …`/`wyde2 == …` → 改后 **26/26**；回退注入在终版 15 case 上 ⇒ **16/29**，13 红 == 带子原因的检查数（现场派生） |
+| F2 失败码 `(case-1)*9+field` 在 15 个 case 下需 135 个码 ⇒ 撞上机器 fault 退出段 `0x80`–`0xFF` | ✅已修 | 改为「**镜像内**断言序号」（`0x01`–`0x7F`）：每检查一个独立 ROM 镜像，驱动按所跑检查解码；`MAX_FAIL_CODE` 守上限 | 全跑/逐条 `--only` 全绿；注入逐条定位到 `assertion N: <描述>` |
+| F3 两例只在运行期取证、未入仓 | ✅已修 | 收编为 `arch-ptw-014`（`flush_stop_after`/`flush_stop_kept`，TLB-37）与 `arch-ptw-015`（`illi_insn_word_window`）；`Check` 增 `image_at`/`hmon_extra` 传参 | `--only` 各自 rc=0；全跑 29/29；`expected.yaml` ↔ 驱动双向核对（`--selfcheck`）rc=0 |
+| F4 `arch-ptw-015` 的「必须故障」码不可达（stub 尾部写死 `0x7E`） | ✅已修 | stub 尾部 exit 码 = 该检查的「必须故障」失败码 | 注入「store 改可写页」⇒ `assertion 1: the store into the ROM must fault` |
+| F5 TLB-37 不固定遍历顺序，探针按**插入序**命名「第 2 条」 | ⏸延后（已文档化） | `_c014` docstring + `expected.yaml` 注明该假设 | 见「新发现/坑」① |
+| F6 `ARCH_CFX_PROBES` 注释与 `tests/arch/README.md` 的「13 条」过期 | ✅已修 | Makefile 注释行、README 两处改 15 条 | `check-arch` 日志 15 条 `[id]`、`tlb` 29/29 |
+
+**逐条结果（15 case / 29 检查）**：001–013 = 26/26（`sub_one_hot` 修复后全绿）；014 = 2/2（`flush_stop_after`：失败前条目 A/D 已回写、失败后条目 PTE 未动；`flush_stop_kept`：失败条目仍命中旧 PA 且 PTE 未变、第 3 条未处理；帧 = `CFXMEM` + `[56] ADWBFAIL` + `cause_info` = 第 2 条 PTE 物理地址 = `0xffffffd00000`）；015 = 1/1（`ILLI` + `cause_info` = `0x21103000` = 探针自身 `st.o rd4, rb3, 0` 的编码）。
+
+**注入（7 路，`cp`+md5，还原后 md5 与基线逐字一致）**：`sub-relbit`（回退位口径）、`case14-info-va`（`cause_info` 换访存地址）、`case14-stop-after`（假装第 3 条已处理）、`case14-sub-nonptw`（子原因换 `NONPTW`）、`case15-illi-info`（期望换相邻指令字）、`case15-illi-zero`（期望 0 ⇒ 证明「静默 0」判红）、`case15-no-fault`（ROM store 改可写页）。
+
+### 第 3 轮 reviewer 验收（2026-11-17）
+
+**判决**：**Accepted**（中改档 ≥3 路自设计注入 + 门控 + diff 全过）。
+
+- **重跑**（当前安装根 QEMU md5 `0acc25bf…`）：`--list` 15 case/29 检查 rc=0；`--selfcheck` PASS（§6.1.1 ≡ spec §3.6，18 子原因/11 cause）；全量 `29/29 checks passed` rc=0；`--only 014` 2/2、`--only 015` 1/1 rc=0；`check-tests-index` **472 条 PASS**、`check-dirs` PASS、`check-no-residue` PASS；手动跑 `ARCH_CFX_PROBES` **15 成员全绿**（`check-arch: [id]` 行数 15 == 成员数，`tlb` 29/29）。
+- **位口径**：`sub_one_hot = 1 << SUB_BIT[name]`（绝对位号，运行时解析 §6.1.1 + 交叉核对 §3.6，不一致即 abort）；`wyde_values` 返回 `(cause_id & WYDE2/WYDE3)` 绝对掩码；断言**未放宽**（仍 `a_masked` 逐 wyde 比绝对位 + `[31:16]==0`）。与 §6.1.1 逐位一致。
+- **两例期望**：014 用 `VA[41:29]` 选 L1 索引（VX/VY/VZ=0/1<<29/2<<29 → L1[0]/[1]/[2]），Y 的 leaf PTE 放 ROM `image_at`（只读 BootROM）⇒ flush 回写必失败，`info=ROM_L2`=该 PTE PA，符合 TLB-37/ADR-0041 D3.2/§4.5；015 `0x21103000 = st_o(4,3,0) = 0x21<<24|4<<18|3<<12|0`，由 `contracts/opcodes.yaml`（opc 0x21, rdha[23:18], rbhb[17:12], imms12[11:0]）独立推出，ILLI `info=指令字` 依据 ADR-0004 D5.6/contract-see §6.1。
+- **3 路自设计注入**（`cp`+md5，md5 均还原为基线 `7f3549…`）：① `sub_one_hot` 回相对位 ⇒ **13 红/16 绿**（16/29，红点全在 `wydeN == <子原因>`）；② 014「第 3 条不处理」改"已处理" ⇒ **2 红**（assertion 9/10 `entry 3 …was not processed`）；③ 015 `cinfo` 换 `st_o(4,3,4)` ⇒ **1 红**（`cause_info == 0x21103004`）。均「注入⇒红⇒还原⇒回绿」。
+- **`arch.yaml` 未登记偏离**：**可接受 + 记遗留**。15 条 ptw 载体是 min-ROM 驱动（无 `.s`），`check-tests-index` 规则 5 要求 `file` 实际存在（登记必建空壳 `.s`）；与既有 `integ039t` 等同形态（走 `ARCH_CFX_PROBES`、不进 `arch.yaml`）。`expected.yaml`+`--selfcheck` 双向核对已覆盖清单一致性。是否另做用户态 `.s` 载体进 `arch.yaml` 请架构师裁定（遗留①）。
+- **越界**：diff 仅 5 文件（`min_rom_probe_tlb.py`/`expected.yaml`/`Makefile` 注释/`README.md`/任务书），未碰 `spec/`、`contracts/`、`components/**`、`tests/inst/**`、`node_probe_prelude.py`、`run_m5_e2e.py`。
+- **环境干扰**：`check-arch-smoke` 本轮 **REFUSED rc=75**——`m14-qemu-007` 的 `install-host` writer（pid 961077，自 07:39）活跃重建工具链，非交付物缺陷；采信 engineer 05:18 证据日志（`check-arch-smoke: PASS`、`check-arch: PASS` 15 成员、qemu md5 `f8b6c575…`）。
+- **finding（不阻断）**：完成区「QEMU 安装根 md5 `115654a9`」与实际不符（05:18 证据为 `f8b6c575`、当前 `0acc25bf`），系 md5 笔误，建议主会话收尾订正。
+
+## 完成区
+
+**测试结果**：15 case / **29 检查 29/29 PASS**（QEMU 安装根 md5 `115654a9…`）；`--only` 逐条 rc=0；`make check-arch` **rc=0**（15 个 `ARCH_CFX_PROBES` 成员 == 日志 15 条 `check-arch: [id]`，14 条既有探针 + `tlb` 全绿）、`check-arch-smoke` rc=0；`check-tests-index`（472 条）/`check-dirs`/`check-no-residue` rc=0；证据脚本绿路径 31 项、注入 43 项全过。
+**修改文件**：`tools/testcases/arch/min_rom_probe_tlb.py`（`sub_one_hot` 绝对位、失败码改镜像内序号、新增 014/015、`Check` 增 `image_at`/`hmon_extra`）、`tests/arch/ptw/expected.yaml`（新增 014/015 + 来源 § + 顺序假设注）、`Makefile`（`ARCH_CFX_PROBES` 注释行 13→15 条；成员未变）、`tests/arch/README.md`（`ptw/` 行与门控行改 15 条）、本任务书。
+**验收结果**：`sub_one_hot` **改前 15/26（11 红）→ 改后 26/26**；`--selfcheck` rc=0（`contract-see §6.1.1` ≡ `spec/DADAO-12 §3.6`，18 子原因/11 cause；15 case/29 检查 ↔ `expected.yaml` 双向一致）；`--list` 15 case/29 检查；注入 7 路（`cp`+md5 还原，均「注入⇒红⇒还原⇒回绿」，红点逐条定位到 `assertion N`）。
+**新发现/坑**：① `TLB-37` 只固定「停在首个失败条目、其后不处理」，**不固定遍历顺序** ⇒ 014 的「第 1/3 条」判定以插入序为前提（已在 docstring 与 `expected.yaml` 注明）；跨实现（chipyard/gem5）跑该例前需确认遍历顺序口径。② 失败码上限 `0x7F` 与「一镜像一断言集」才是可扩展口径：`(case-1)*9+field` 在 15 case 下溢出到机器 fault 退出段。③ `ILLI` 的 `cause_info` 在内存窗口 IP 上必须靠 guest TLB 页基 + 页内偏移回读（`dadao_insn_word`），探针只需断言「等于该 IP 上的指令编码」即可同时否掉「静默 0」与「访存地址」（后者由 `case15-illi-zero`/`case14-info-va` 两路注入证）。
+**遗留问题**：① `tests/arch.yaml` 仍未登记 `arch-ptw-*`（沿「待裁定 5」自决：无 `.s` 载体、`check-tests-index` 要求 `file` 真实存在，登记清单落 `tests/arch/ptw/expected.yaml` 并由 `--selfcheck` 双向核对）；要进 `arch.yaml` 须另做真实 `.s` 载体或放宽 `file` 语义，请裁定。② `tools/testcases/arch/node_probe_prelude.py`、`tools/testcases/parity/run_parity.py` 的 docstring 仍写「13 `ARCH_CFX_PROBES`」（本任务禁改，建议主会话补一行）。③ 「取不到 ⇒ `error_report + exit(1)`」是 QEMU 侧行为（`m14-qemu-005` 已实现），本任务只由探针断言 `cause_info == 指令编码`（不等即红）覆盖，未在 `components/**` 侧复注入（越界）。

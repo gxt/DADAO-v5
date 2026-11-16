@@ -1698,7 +1698,9 @@ ARCH_PROBE_LOG = .work/log/arch/check-arch-smoke-svc.log
 # `integ050t` = cfx_time 1 GHz/64 位 + 单 hart cfx_hart 的 cycle/insn 64 位与 TIMER/IMASK/pending。
 # `integ051t` = 统一异步中断仲裁（pending 归目标 cfx、低目标 cfxha 优先、单层、mask 保留/补投）。
 # `integ007t` = Tiny hmon「最小保存-跳转」算法（m13-integ-007；QEMU 先行契约）。
-ARCH_CFX_PROBES = 044t 045t 049t integ039t integ040t integ042t integ044t integ046t integ047t integ048t integ049t integ050t integ051t integ007t
+# `tlb` = `tests/arch/ptw` 的 15 条 TLB/PTW 探针（m14-testcases-005；判据 = contract-tlb §11 + TLB-37，
+#        子原因位号现场解析自 contract-see §6.1.1；`--only` 逐 case、`--selfcheck` 校合约面）。
+ARCH_CFX_PROBES = 044t 045t 049t integ039t integ040t integ042t integ044t integ046t integ047t integ048t integ049t integ050t integ051t integ007t tlb
 
 _locked-check-arch-smoke: install-host build-bootrom
 	@test -x $(LLVM_MC_BIN) || { echo "check-arch-smoke: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
