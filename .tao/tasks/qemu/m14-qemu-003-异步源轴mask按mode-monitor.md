@@ -63,7 +63,7 @@
 
 **判决**：**Accepted**（判决基于本人重跑，非采信完成区）。
 
-- **重跑**：`.work/evidence/m14-qemu-003/run.sh full` → `EXIT=0`（19 项含 patch-tree 416 OK/qemu 69、source-state clean、qemu-forms、interface、changelog、k2_time 156/156、k2_irq 97/97、k2_trap 85/85、k0 119/119、k1 108/108、k2 104/104、check-arch 14 探针）；`k2_time_probe --selfcheck` → `16/16` `EXIT=0`；`make check-inst-asm` → `904/904` `EXIT=0`。
+- **重跑**：`运行期证据目录内的 `run.sh` full` → `EXIT=0`（19 项含 patch-tree 416 OK/qemu 69、source-state clean、qemu-forms、interface、changelog、k2_time 156/156、k2_irq 97/97、k2_trap 85/85、k0 119/119、k1 108/108、k2 104/104、check-arch 14 探针）；`k2_time_probe --selfcheck` → `16/16` `EXIT=0`；`make check-inst-asm` → `904/904` `EXIT=0`。
 - **语义**：`mon = entry_mode & 0x3`（`entry_mode = inner_run_mode`），`src_mask = cfx[mon].mode[mon].cfx_intr_mask`、`global_mask = cfx[mon].global_cfx_intr_mask`（与改前 `cfx[entry_mode&3]` 等价，未变），位索引仍 `target`，`if (!sync)` 分支未动，步骤 3 内无 `inner_cfx_code` ⇒ 符合 `ISS-455`。
 - **先红后绿**（重跑 `run.sh --inject`）：红侧 `C10 2/5`（`tick 期望=3 实际=0`、`退出 <missing>`、`rc 期望=0 实际=19`、二进制 `f32698a9`）；绿侧 `C10 5/5`（`rc=0`、`babd01d7`）；两侧还原 md5 均与备份相等。
 - **自设计注入①** `mon` 固定 `2`：`k2_time C10 5/5 仍绿`（探针全在 supv ⇒ `mon≡2` 恒等）但 `integ042t 24/25 红`、`integ051t 2/14 红`（hypv 下 monitor 应为 3）⇒ **判据强度结论：C10 单独判不出「按 mode」，由 check-arch 的 hypv 探针承担；k2+check-arch 组合足够**。

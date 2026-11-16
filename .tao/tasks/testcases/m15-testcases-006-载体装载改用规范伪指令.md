@@ -82,7 +82,7 @@ TEST_EXITB          0x5000                         0x7800
 
 ### 第 1 轮 reviewer 验收（2026-11-16）：**Accepted**
 
-**重跑（全部本人执行，输出/退出码为实测）**：① `bash .work/evidence/m15-testcases-006/run.sh` ⇒ **50/50 PASS、rc=0**；A′↔C **903/904**（唯一差异 `st.o_rrii_rb.S#0`，两侧 rc=0，cp15 −0x120 / cp16 −0x134）、A↔A′ **899/904**（5 镜像 7 检查点全 `+0x3000`、两侧 rc=0）、检查点 272 id/0 不一致、`check-inst-asm` 904/904、门控 6 项 PASS。② 抽查 `ld.o_rrii_ra`/`st.o_rrii_rb`/`foadd_orrr_rf` ⇒ 3/3、3/3、2/2 全 rc=0。③ `make check -k` ⇒ L1 rc=2，**5 项失败逐项归因**（均非本任务，见下）。
+**重跑（全部本人执行，输出/退出码为实测）**：① `bash 运行期证据目录内的 `run.sh`` ⇒ **50/50 PASS、rc=0**；A′↔C **903/904**（唯一差异 `st.o_rrii_rb.S#0`，两侧 rc=0，cp15 −0x120 / cp16 −0x134）、A↔A′ **899/904**（5 镜像 7 检查点全 `+0x3000`、两侧 rc=0）、检查点 272 id/0 不一致、`check-inst-asm` 904/904、门控 6 项 PASS。② 抽查 `ld.o_rrii_ra`/`st.o_rrii_rb`/`foadd_orrr_rf` ⇒ 3/3、3/3、2/2 全 rc=0。③ `make check -k` ⇒ L1 rc=2，**5 项失败逐项归因**（均非本任务，见下）。
 
 **行为等价两处定性（独立复现，非采信）**：① `st.o_rrii_rb` — objdump 两树 ELF：A′ `aip.si@…0990`/`rb2rb@…0a04`、C `aip.si@…0870`/`rb2rb@…08d0`，差 **0x120/0x134 恰等于 cp15/16 的 delta**，且两值各自 = 指令地址+8 ⇒ 差异**纯为指令流变短致 IP 前移**，检查点期望由 `__CHECK_MEM_RB` 运行期从 rb12/rb13 派生、断言两侧各自成立（rc=0），**被测语义未改坏**。**结论：检查点记录 IP 值可接受**——README 判据是「同一份 ELF 三平台比」，同 ELF ⇒ 指令流固定 ⇒ IP 固定 ⇒ 仍可比；改成相对偏移反而弱化本用例「IP 取值正确性」的被测语义，不必改。② A↔A′ 7 个 `+0x3000` — 逐值核：`…4078/4080/4008`=TEST_BUF、`…2988`=TEST_DATA、`…3a00`=MSTORE，+0x3000 恰为布局上移量，期望均为符号派生（两侧 rc=0）⇒ **确为数据区上移、断言仍全过**。
 
@@ -94,7 +94,7 @@ TEST_EXITB          0x5000                         0x7800
 
 **自设计 4 路注入**（`cp`+md5、未用 git checkout；还原 md5 全对账）：① `pseudo_set.rd_reg.S` `set.fo→set.ft` ⇒ **rc=1** 红（检查点10）→ 回绿 rc=0；② `set.rd` 拆固定 4 条 ⇒ **rc=0 不红**（判据靠行为，见上）→ 回绿；③ `ret_riii_ra.S` `ENTRY+0x1000→+0x1001` ⇒ **rc=1** 红（检查点18，qemu −2 跑飞）→ 回绿 rc=0；④ lds `.testdata` 段址 `0x5000→0x5001` ⇒ **rc=1** 红（检查点15）→ 回绿 rc=0。
 
-**门控真数**：`check-inst-asm` 904/904（272 id、链例 271+故障 633）、`check-case-ledger` PASS（5438 条）、`check-inst-macro-scope` PASS（含 S6/S7/S8/S9、死宏 0）、`check-tests-index`/`check-dirs`/`check-no-residue` PASS。**L1 5 项红逐项归因**：① `check-patch-tree` = 共享 qemu 树 `target/dadao/helper.c` 脏（并发 `m14-qemu-003`；本任务 diff 全清单不含 `components/**`）；② `check-knowledge-refs` = `m14-linux-011:88`、`m15-testcases-004:88` 两处 `.work/**`（非本任务书，二者相对基线无改动）；③ `check-milestones-fresh` R1 = `m14-qemu-003` 有 worktree 但台账在「待开始」（主会话台账动作）；④ `check-run-artifacts` 43/43 全在 `.work/log/qemu/m14-qemu-006/`；⑤ `check-temp-dirs` 5 个 = `m15-testcases-005-review`+`m14-linux-005/007/008/009`（**无一属本任务**，006 目录因在跑豁免）。
+**门控真数**：`check-inst-asm` 904/904（272 id、链例 271+故障 633）、`check-case-ledger` PASS（5438 条）、`check-inst-macro-scope` PASS（含 S6/S7/S8/S9、死宏 0）、`check-tests-index`/`check-dirs`/`check-no-residue` PASS。**L1 5 项红逐项归因**：① `check-patch-tree` = 共享 qemu 树 `target/dadao/helper.c` 脏（并发 `m14-qemu-003`；本任务 diff 全清单不含 `components/**`）；② `check-knowledge-refs` = `m14-linux-011:88`、`m15-testcases-004:88` 两处 `.work/**`（非本任务书，二者相对基线无改动）；③ `check-milestones-fresh` R1 = `m14-qemu-003` 有 worktree 但台账在「待开始」（主会话台账动作）；④ `check-run-artifacts` 43/43 全在 ``<运行期日志目录>` 的 qemu 子目录`；⑤ `check-temp-dirs` 5 个 = `m15-testcases-005-review`+`m14-linux-005/007/008/009`（**无一属本任务**，006 目录因在跑豁免）。
 
 **约束核验**：基线钉死 `92fdb9d3`（HEAD 祖先断言过）；改动仅 `tests/inst/**`+`tests/case-ledger.tsv`+`run_asm_suite.py`+本任务书；`case-ledger.tsv` 2 行 = `stm` 两处字面量→`MSTORE` 的生成物连带、`MIGRATION.md` 1 处口径，**均为强制连带**（逐行 diff 已核）；注入全 `cp`+md5；未提交 git；跑批未撞 `guard=FAIL`（run.sh/门控日志 0 处 guard 失败），**安装根 md5 = `babd01d7ddea05cbe81abb7d3dbc380d`**（与并发协调通报一致，重试 0 次）。
 
