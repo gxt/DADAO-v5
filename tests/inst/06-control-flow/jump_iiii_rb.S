@@ -9,7 +9,7 @@
 @@   取指 ⇒ CFXMEM（边界/故障例）
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：iiii = opc | imms24[23:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（本文件不需要数据区）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（ENTRY 由 `machine-tiny.inc` 固定）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 1 / semantic 1 / overlap 1 / boundary 3（链例 6 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -23,33 +23,33 @@
 
 	@@ ---- encoding ----
 	@@ 点 1：规范编码字 0x70000002（imms24 = 2 ⇒ +8）⇒ 跳过紧随的 4 B
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	.dd.t32	0x70000002
 	add.si	rd24, 1
 	__CHECK_RD          1, rd24, 0
 
 	@@ ---- semantic ----
 	@@ 跳到标号：落点置标记 1，再跳回检查点（无条件跳转必生效）
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	jump	[rb0, __s_t]
 	jump	[rb0, __s_never]
 __s_t:
-	__LI	rd24, 1
+	set.rd	rd24, 1
 	jump	[rb0, __s_ck]
 __s_never:
-	__LI	rd24, 0xBAD
+	set.rd	rd24, 0xBAD
 __s_ck:
 	__CHECK_RD          2, rd24, 1
 
 	@@ ---- overlap ----
 	@@ 目标 = 顺序路径的下一条（+4）：跳转目标与「不跳的落点」重合 ⇒ 后续指令恰好执行一次
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	jump	[rb0, 4]
 	add.si	rd24, 1
 	__CHECK_RD          3, rd24, 1
 
 	@@ ---- boundary：跳转距离（`.org` 钉住槽位；零填充只被 jump 跨过）----
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	jump	[rb0, __slot_fwd]
 	.org	0x800
 __l_back:                                @@ 0x800：后向 -0x420 的落点（槽 0xC20）

@@ -18,7 +18,7 @@
 	LOAD_ADDR \base, \baseval
 	\mnem	\dst, [\base, \off]
 	rb2rd	{rd21:rd21}, {\dst:\dst}
-	__LI	rd20, \exp
+	set.rd	rd20, \exp
 	__REC	rd21
 	br.eq	{rd20, rd21}?, [rb0, __ck_\@]
 	__EXIT	\pt

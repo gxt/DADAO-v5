@@ -9,12 +9,12 @@
 @@   目标恒 4 字节对齐（`imms18 << 2`）⇒ 不会触发 IALIGN；imms18 = ±512 KiB ⇒ 可越过
 @@   Tiny（8 MiB）SRAM 边界（边界例：目标在 SRAM 之下 ⇒ CFXMEM）
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：riii = opc | rdha[23:18] | imms18[17:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI`/`__LI_RB` 拼条件寄存器；**不使用数据区**）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（ENTRY 由 `machine-tiny.inc` 固定）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd`/`set.rb` 拼条件寄存器；**不使用数据区**）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / overlap 2 / boundary 3（链例 12 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：条件寄存器用 `__LI`/`__LI_RB` 拼常量（被测分支不参与造初值）、期望内联；跳转/不跳
+@@ 探针：条件寄存器用 `set.rd`/`set.rb` 拼常量（被测分支不参与造初值）、期望内联；跳转/不跳
 @@   由 rd24 的 1/0 标记判（`TEST_BR1`）；跳转**距离与落点地址**用 `.org` 钉住的槽位 +
 @@   `__LAND_IP`（`aip.si` 取 IP）核，期望写 `ENTRY + <字面偏移>`
 
@@ -25,15 +25,15 @@
 
 	@@ ---- encoding ----
 	@@ 点 1：规范编码字 0x6C040002（rdha = 1 + 「成立」侧的值）⇒ 成立 ⇒ 跳过紧随的 4 B
-	__LI	rd1, 0x0000000000000001
-	__LI	rd24, 0
+	set.rd	rd1, 0x0000000000000001
+	set.rd	rd24, 0
 	.dd.t32	0x6C040002
 	add.si	rd24, 1
 	__CHECK_RD          1, rd24, 0
 
 	@@ 点 2：字段边界（rdha = 63，最大寄存器号）+ 同等成立（0x6CFC0002）
-	__LI	rd63, 0x0000000000000001
-	__LI	rd24, 0
+	set.rd	rd63, 0x0000000000000001
+	set.rd	rd24, 0
 	.dd.t32	0x6CFC0002
 	add.si	rd24, 1
 	__CHECK_RD          2, rd24, 0
@@ -52,12 +52,12 @@
 
 	@@ ---- overlap ----
 	@@ 同一寄存器连续两条分支：第一条跳过后寄存器未被改写 ⇒ 第二条仍按同值判（正数）
-	__LI	rd5, 0x0000000000000001
-	__LI	rd24, 0
+	set.rd	rd5, 0x0000000000000001
+	set.rd	rd24, 0
 	br.p	{rd5}?, [rb0, __o1]
 	jump	[rb0, __o2]
 __o1:
-	__LI	rd24, 1
+	set.rd	rd24, 1
 __o2:
 	br.p	{rd5}?, [rb0, __o3]
 	add.si	rd24, 1
@@ -68,8 +68,8 @@ __o3:
 	TEST_BR1       9, br.p, rd0, 0xFFFFFFFFFFFFFFFF, 0
 
 	@@ ---- boundary：跳转距离（`.org` 钉住槽位；零填充只被 jump/分支跨过）----
-	__LI	rd5, 0x0000000000000001
-	__LI	rd24, 0
+	set.rd	rd5, 0x0000000000000001
+	set.rd	rd24, 0
 	jump	[rb0, __d_f1]
 	.org	0xA00
 __d_b1:                                  @@ 0xA00：后向字面量分支的落点

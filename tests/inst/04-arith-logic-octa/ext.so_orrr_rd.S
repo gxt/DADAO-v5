@@ -6,12 +6,12 @@
 @@   hd 取 rdHD 低 6 位，**越界位忽略、不抛 ILLI**（用户裁定 2026-11-13；`spec/SimRISC-04 §2.2`
 @@   已定稿 `hd = rdHD[5:0]`；QEMU/gem5 已按此修（`m13-qemu-010`/`m13-gem5-012`））
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | rdhd[5:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 6 / boundary 11 / overlap 3（链例 22 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
+@@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联
 @@ 起始位边界：0 / 31 / 63（等于 N ⇒ 整字复制）；**越界位忽略、不抛 ILLI**
 @@   （用户裁定 2026-11-13：`hd = rdHD[5:0]`；rdHD=64 ⇒ hd=0、67 ⇒ 3、2^64−1 ⇒ 63）
 
@@ -22,17 +22,17 @@
 
 	@@ rd5 = ext.so(rd6, 2) 的规范编码字直接执行（钉 mask/value）
 	@@ 规范编码字 0x40845187（opc<<24 | ha<<18 | rd5<<12 | rd6<<6 | rd7）
-	__LI	rd5, 0x0000000000000000
-	__LI	rd6, 0x0F0F0F0F0F0F0F0F
-	__LI	rd7, 0x0000000000000002
+	set.rd	rd5, 0x0000000000000000
+	set.rd	rd6, 0x0F0F0F0F0F0F0F0F
+	set.rd	rd7, 0x0000000000000002
 	.dd.t32	0x40845187
 	__CHECK_RD   1, rd5, 0xFFFFFFFFFFFFFFFF
 
 	@@ 最高寄存器作目的（rd63）+ 起始位 63 的编码字（字段边界；整字复制）
 	@@ 规范编码字 0x4087F042（opc<<24 | ha<<18 | rd63<<12 | rd1<<6 | rd2）
-	__LI	rd63, 0xFFFFFFFFFFFFFFFF
-	__LI	rd1, 0x0123456789ABCDEF
-	__LI	rd2, 0x000000000000003F
+	set.rd	rd63, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd1, 0x0123456789ABCDEF
+	set.rd	rd2, 0x000000000000003F
 	.dd.t32	0x4087F042
 	__CHECK_RD   2, rd63, 0x0123456789ABCDEF
 

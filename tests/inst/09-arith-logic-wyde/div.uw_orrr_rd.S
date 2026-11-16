@@ -5,51 +5,51 @@
 @@ 合法性：目的 rdhb 为 rd0 ⇒ ILLI（`dst_rd0`）；rdHD 为 rd0 合法（除数 0 ⇒ 定值）；rdHD==rdHC ⇒ 1
 @@ 边界/覆盖：覆盖除零定值、0xFFFF 上下界、商截断、源高位垃圾、rd0 作源与被除数 0、三种别名
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | rdhd[5:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 3 / legality 4 / semantic 5 / boundary 4 / overlap 3（链例 17 + 故障例 2）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
+@@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联
 
 	.include "tests/inst/macros/inst_test.inc"
 
 	__TEST_BEGIN
 
 	@@ [1] （原 YAML 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
-	__LI	rd1, 0x0000000000000001
+	set.rd	rd1, 0x0000000000000001
 	.dd.t32	0x42E01001
 	__CHECK_RD   1, rd1, 0x0000000000000000
 
 	@@ [2] （原 YAML 并入）div.uw: rd2=0x64, rd3=0x7, bits=16
-	__LI	rd2, 0x0000000000000064
-	__LI	rd3, 0x0000000000000007
-	__LI	rd1, 0x0000000000000000
+	set.rd	rd2, 0x0000000000000064
+	set.rd	rd3, 0x0000000000000007
+	set.rd	rd1, 0x0000000000000000
 	.dd.t32	0x42E01083
 	__CHECK_RD   2, rd1, 0x000000000000000E
 
 	@@ [3] （原 YAML 并入）boundary div.uw: rd2=0x64, rd3=0x7
-	__LI	rd2, 0x0000000000000064
-	__LI	rd3, 0x0000000000000007
-	__LI	rd1, 0x0000000000000000
+	set.rd	rd2, 0x0000000000000064
+	set.rd	rd3, 0x0000000000000007
+	set.rd	rd1, 0x0000000000000000
 	.dd.t32	0x42E01083
 	__CHECK_RD   3, rd1, 0x000000000000000E
 
 	@@ [4] （原 YAML 并入）encoding div.uw: rdhd=rd0 (divisor=0) is legal, no ILLI
-	__LI	rd2, 0x0000000000000064
-	__LI	rd1, 0x0000000000000001
+	set.rd	rd2, 0x0000000000000064
+	set.rd	rd1, 0x0000000000000001
 	.dd.t32	0x42E01080
 	__CHECK_RD   4, rd1, 0x000000000000FFFF
 
 	@@ [5] （原 YAML 并入）div.uw div-by-zero: rd2=0x64, rd0(divisor)=0 -> rd1=0x000000000000FFFF (unsigned div by zero defined value)
-	__LI	rd2, 0x0000000000000064
-	__LI	rd1, 0x0000000000000000
+	set.rd	rd2, 0x0000000000000064
+	set.rd	rd1, 0x0000000000000000
 	.dd.t32	0x42E01080
 	__CHECK_RD   5, rd1, 0x000000000000FFFF
 
 	@@ [6] 最大寄存器字段：rd63 = rd1 ÷ rd2，0xFFFF ÷ 1 = 0xFFFF
-	__LI	rd1, 0x000000000000FFFF
-	__LI	rd2, 0x0000000000000001
+	set.rd	rd1, 0x000000000000FFFF
+	set.rd	rd2, 0x0000000000000001
 	.dd.t32	0x42E3F042
 	__CHECK_RD   6, rd63, 0x000000000000FFFF
 

@@ -34,7 +34,7 @@
 	@@ boundary：SRAM 尾拍（0xffffff7ffff8）可写，读写逐字节相等
 	LOAD_ADDR rb28, MDATA_T + 0x090
 	ldm.ut	{rd5:rd6}, [rb28, rd0]
-	__LI    rd19, 0x000
+	set.rd    rd19, 0x000
 	LOAD_ADDR rb4, 0xFFFFFF7FFFF8
 	stm.t	{rd5:rd6}, [rb4, rd19]
 	LOAD_ADDR rb21, 0xFFFFFF7FFFF8
@@ -44,7 +44,7 @@
 	@@ overlap：索引 rd19 落在源组内（`stm` 允许重叠）⇒ 正常执行，行为确定
 	LOAD_ADDR rb28, MDATA_T + 0x0A0
 	ldm.ut	{rd17:rd21}, [rb28, rd0]
-	__LI    rd19, 0x0A0
+	set.rd    rd19, 0x0A0
 	LOAD_ADDR rb4, MSTORE
 	stm.t	{rd17:rd21}, [rb4, rd19]
 
@@ -61,7 +61,7 @@
 	@@ legality：stm 允许 rd0 作源（读出 0），不触发 ILLI
 	LOAD_ADDR rb28, MDATA_T + 0x078
 	ldm.ut	{rd1:rd2}, [rb28, rd0]
-	__LI    rd19, 0x000
+	set.rd    rd19, 0x000
 	LOAD_ADDR rb4, MSTORE + 0x0C8
 	stm.t	{rd0:rd2}, [rb4, rd19]
 	__CHECK_MEM        14, MSTORE, 0x0C8, 0x000000008000001E

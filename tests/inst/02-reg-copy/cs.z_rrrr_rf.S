@@ -5,7 +5,7 @@
 @@ 合法性：目的 rfHB 为 rf0 ⇒ ILLI（`dst_rf0`）；源 rfHC/rfHD 可为 rf0（读出 FCSR 完整 64 位）；
 @@   条件寄存器 rdHA 为 rd0 合法（读出 0 ⇒ 条件成立）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 RDATA（rf 初值经 `ld.o` 装载）/ SCRATCH（落点，rb29 指）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 3 / legality 2 / boundary 6 / overlap 1（链例 14 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -21,7 +21,7 @@
 	@@ 最高几个寄存器作条件/目的/候选（字段边界）
 	TEST_CS1_RF        1, cs.z, rd63, 0, rf62, 0x00, rf61, 0x08, rf60, 0x10, 0x2222222222222222
 	@@ 规范编码字（rdHA=rd5, rfHB=rf6, rfHC=rf7, rfHD=rf8）直接执行：钉住 mask/value
-	__LI	rd5, 0
+	set.rd	rd5, 0
 	__PREP_MEM2	rf6, 0x00, rf7, 0x08
 	__SET_MEM	rf8, 0x10
 	.dd.t32	0x631461C8
@@ -30,7 +30,7 @@
 
 	@@ ---- semantic ----
 	@@ 条件为零 ⇒ 取 rfHC；未选中侧 rfHD 不得被写
-	__LI	rd1, 0
+	set.rd	rd1, 0
 	__PREP_MEM2	rf10, 0x00, rf11, 0x30
 	__SET_MEM	rf12, 0x40
 	cs.z	{rd1}?, rf10, rf11, rf12
@@ -58,7 +58,7 @@
 	@@ 条件寄存器 rd0（硬连零，读出 0）⇒ 条件成立 ⇒ 取 rfHC
 	TEST_CS1_RF       12, cs.z, rd0, 0, rf10, 0x00, rf11, 0x30, rf12, 0x40, 0x8000000000000000
 	@@ 条件/候选/目的互不同名（C-27 之外的路径），条件不成立 ⇒ 未选中侧 rfHC 不得被改写
-	__LI	rd1, 1
+	set.rd	rd1, 1
 	__PREP_MEM2	rf10, 0x00, rf11, 0x58
 	__SET_MEM	rf12, 0x40
 	cs.z	{rd1}?, rf10, rf11, rf12
@@ -67,7 +67,7 @@
 	st.o	rf10, [rb29, 0]
 	__CHECK_MEM        13, SCRATCH, 0, 0x0123456789ABCDEF
 	@@ 源 rf0 合法（读出 FCSR，值不确定）：只断言目的 == 当前 rf0，且未选中侧不被改写
-	__LI	rd1, 0
+	set.rd	rd1, 0
 	__PREP_MEM2	rf5, 0x00, rf6, 0x10
 	cs.z	{rd1}?, rf5, rf0, rf6
 	rf2rd	{rd24}, {rf5}

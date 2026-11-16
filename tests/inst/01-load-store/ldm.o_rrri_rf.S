@@ -27,7 +27,7 @@
 
 	@@ semantic：宽度/符号扩展逐元素核对（零扩展）
 	LOAD_ADDR rb3, MDATA_O + 0x030
-	__LI    rd19, 0x000
+	set.rd    rd19, 0x000
 	ldm.o	{rf5:rf7}, [rb3, rd19]
 	rf2rd	{rd21:rd21}, {rf5:rf5}
 	__CHECK_RD         5, rd21, 0x010203040506070E
@@ -53,7 +53,7 @@
 
 	@@ boundary：immu6=63（最大合法个数）整组装入 + 回写（MUNI 同值元素）
 	LOAD_ADDR rb3, MUNI
-	__LI    rd19, 0x000
+	set.rd    rd19, 0x000
 	ldm.o	{rf1:rf63}, [rb3, rd19]
 	LOAD_ADDR rb28, MSTORE
 	stm.o	{rf1:rf63}, [rb28, rd0]
@@ -63,7 +63,7 @@
 
 	@@ legality：rf0 作目的合法（FCSR 写掩码），不触发 ILLI
 	LOAD_ADDR rb3, MDATA_O + 0x088
-	__LI    rd19, 0x000
+	set.rd    rd19, 0x000
 	ldm.o	{rf0:rf1}, [rb3, rd19]
 	rf2rd	{rd21:rd21}, {rf1:rf1}
 	__CHECK_RD        15, rd21, 0x010203040506071A

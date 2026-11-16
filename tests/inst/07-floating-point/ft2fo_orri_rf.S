@@ -5,9 +5,8 @@
 @@ 期望值由独立参考模型（精确有理数 + 手写 round-and-pack，见证据脚本）按 `SimRISC-07` 现算，不手写
 @@ 格式间转换（§1.4/§2）：fo2ft 六档 + 溢出按方向取 ±Inf/±ft_max、下溢按 tiny∧inexact 置 UF|NX、轻微溢出只置 NX；
 @@ ft2fo 恒精确（SBZ、不置标志）；两者 NaN 结果一律 canonical qNaN、sNaN 入参置 NV。
-@@ 链接布局：`tests/inst/07-floating-point/inst-tiny-fp.lds`（段址见宏层 `__FP_LAYOUT` 分支）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段址见宏层文件头）
 
-	.equ	__FP_LAYOUT, 1
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/07-floating-point/07-floating-point.inc"
 

@@ -10,7 +10,7 @@
 @@   另：弹栈可能触发 **RASUF**（动态）
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：riii = opc | rdha[23:18] | imms18[17:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（MEMRAS = TEST_DATA + 0x1700：D4b 的 MemRAS 条目）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（ENTRY 由 `machine-tiny.inc` 固定）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 2 / semantic 8 / overlap 1 / boundary 7（链例 18 + 故障例 5）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -29,10 +29,10 @@
 	.globl	__fault_case
 __fault_case:
 	__FAULT_GUARD \pt, RASUF
-	__LI	rd5, 0
+	set.rd	rd5, 0
 	LOAD_ADDR rb5, MEMRAS
 	st.o	rd5, [rb5, 0]           @@ MemRAS[MRPTR] 的递归计数 = 0
-	__LI	rd5, MEMRAS              @@ MRPTR = MEMRAS、RACNT = 0（高 16 位 = 0）
+	set.rd	rd5, MEMRAS              @@ MRPTR = MEMRAS、RACNT = 0（高 16 位 = 0）
 	rd2ra	{ra0}, {rd5}
 	\inst
 	__EXIT	\pt
@@ -45,12 +45,12 @@ __fault_case:
 	@@ 点 1/2：规范编码字 0x76000000（ret rd0, 0）作为被调函数的返回 ⇒ 弹回 call+4、
 	@@   RACNT 归 0；若未弹栈/未跳转，ra0 仍为 1 ⇒ 点 2 判红
 	rd2ra	{ra0}, {rd0}
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	call	[rb0, __enc]
 __enc_ret:
 	jump	[rb0, __enc_ck]
 __enc:
-	__LI	rd24, 1
+	set.rd	rd24, 1
 	.dd.t32	0x76000000
 	__EXIT	1
 __enc_ck:
@@ -59,11 +59,11 @@ __enc_ck:
 	__CHECK_RD          2, rd25, 0
 
 	@@ ---- semantic：D3（计数 = 1 ⇒ 弹出栈顶、RACNT 2→1）----
-	__LI	rd5, 0x0002000000000000
+	set.rd	rd5, 0x0002000000000000
 	rd2ra	{ra0}, {rd5}
-	__LI	rd5, (0x0001000000000000 + ENTRY + 0x800)
+	set.rd	rd5, (0x0001000000000000 + ENTRY + 0x800)
 	rd2ra	{ra63}, {rd5}
-	__LI	rd5, 0x0001AAAA00000000
+	set.rd	rd5, 0x0001AAAA00000000
 	rd2ra	{ra62}, {rd5}
 	ret	rd0, 0
 	__EXIT	3
@@ -79,9 +79,9 @@ __ckD3:
 	__CHECK_RD          5, rd26, 0x0001000000000000
 
 	@@ semantic：D2（计数 > 1 ⇒ 计数减 1、RACNT 不变）
-	__LI	rd5, 0x0001000000000000
+	set.rd	rd5, 0x0001000000000000
 	rd2ra	{ra0}, {rd5}
-	__LI	rd5, (0x0002000000000000 + ENTRY + 0xA00)
+	set.rd	rd5, (0x0002000000000000 + ENTRY + 0xA00)
 	rd2ra	{ra63}, {rd5}
 	ret	rd0, 0
 	__EXIT	6
@@ -97,9 +97,9 @@ __ckD2:
 	__CHECK_RD          8, rd26, 0x0001000000000000
 
 	@@ semantic：返回值写入 rdHA（imms18 = 42，rdHA ≠ rd0 ⇒ 无约束）
-	__LI	rd5, 0x0001000000000000
+	set.rd	rd5, 0x0001000000000000
 	rd2ra	{ra0}, {rd5}
-	__LI	rd5, (0x0001000000000000 + ENTRY + 0xC00)
+	set.rd	rd5, (0x0001000000000000 + ENTRY + 0xC00)
 	rd2ra	{ra63}, {rd5}
 	ret	rd5, 42
 	__EXIT	9
@@ -112,9 +112,9 @@ __ckR42:
 	__CHECK_RD         10, rd24, (ENTRY + 0xC00)
 
 	@@ ---- boundary：返回值按 imms18 符号扩展到 64 位（-1 ⇒ 全 1）----
-	__LI	rd5, 0x0001000000000000
+	set.rd	rd5, 0x0001000000000000
 	rd2ra	{ra0}, {rd5}
-	__LI	rd5, (0x0001000000000000 + ENTRY + 0xE00)
+	set.rd	rd5, (0x0001000000000000 + ENTRY + 0xE00)
 	rd2ra	{ra63}, {rd5}
 	ret	rd5, -1
 	__EXIT	11
@@ -127,9 +127,9 @@ __ckRm1:
 	__CHECK_RD         12, rd24, (ENTRY + 0xE00)
 
 	@@ ---- overlap：目的 = rd0（imms18 必须为 0，`dst_rd0_nonzero`）—— 跳转照常 ----
-	__LI	rd5, 0x0001000000000000
+	set.rd	rd5, 0x0001000000000000
 	rd2ra	{ra0}, {rd5}
-	__LI	rd5, (0x0001000000000000 + ENTRY + 0x1000)
+	set.rd	rd5, (0x0001000000000000 + ENTRY + 0x1000)
 	rd2ra	{ra63}, {rd5}
 	ret	rd0, 0
 	__EXIT	13
@@ -142,10 +142,10 @@ __ckR0:
 
 	@@ ---- boundary：D4b 取 MemRAS 条目（RACNT = 0、MRPTR ≠ 0）----
 	@@ 条目计数 > 1 ⇒ 该条目压入成为栈顶（计数 −1）、MRPTR += 8、RACNT = 1
-	__LI	rd5, (0x0003000000000000 + ENTRY + 0x1200)
+	set.rd	rd5, (0x0003000000000000 + ENTRY + 0x1200)
 	LOAD_ADDR rb5, MEMRAS
 	st.o	rd5, [rb5, 0]           @@ MemRAS[MRPTR] = {计数 3, 返回地址 0x1200}
-	__LI	rd5, MEMRAS              @@ ra0 = {RACNT = 0, MRPTR = MEMRAS}
+	set.rd	rd5, MEMRAS              @@ ra0 = {RACNT = 0, MRPTR = MEMRAS}
 	rd2ra	{ra0}, {rd5}
 	ret	rd0, 0
 	__EXIT	14
@@ -161,10 +161,10 @@ __ckD4b:
 	__CHECK_RD         16, rd26, (0x0001000000000000 + MEMRAS + 8)       @@ RACNT=1、MRPTR += 8
 
 	@@ 条目计数 = 1 ⇒ 消费该条目（MRPTR += 8、RACNT 仍 0、RegRAS 不变）
-	__LI	rd5, (0x0001000000000000 + ENTRY + 0x1400)
+	set.rd	rd5, (0x0001000000000000 + ENTRY + 0x1400)
 	LOAD_ADDR rb5, MEMRAS
 	st.o	rd5, [rb5, 0]
-	__LI	rd5, MEMRAS
+	set.rd	rd5, MEMRAS
 	rd2ra	{ra0}, {rd5}
 	ret	rd0, 0
 	__EXIT	17

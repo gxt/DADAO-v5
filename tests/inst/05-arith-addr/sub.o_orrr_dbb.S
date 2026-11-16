@@ -6,12 +6,12 @@
 @@   单条、无 `.s`/`.u` 变体（64 位单目的结果的位型与符号性无关）；不做地址截断
 @@ 合法性：目的 rdHB 为 rd0 ⇒ ILLI（`dst_rd0`）
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[17:16] | rdhb[17:12] | rbhc[11:6] | rbhd[5:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI_RB` 拼初值；本册复用 04 的数据块）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rb` 拼初值；本册复用 04 的数据块）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 4 / overlap 2（链例 13 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：初值用 `__LI_RB` 拼常量（被测指令不参与造初值）、期望内联；目的在 rd ⇒ `__CHECK_RD`
+@@ 探针：初值用 `set.rb` 拼常量（被测指令不参与造初值）、期望内联；目的在 rd ⇒ `__CHECK_RD`
 
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/05-arith-addr/05-arith-addr.inc"
@@ -20,13 +20,13 @@
 
 	@@ ---- encoding ----
 	@@ 规范编码字 0x40CC5187（opc/ha | rd5 | rb6 | rb7）直接执行：钉住 mask/value
-	__LI_RB	rb6, 0x0000000000000064
-	__LI_RB	rb7, 0x000000000000001E
+	set.rb	rb6, 0x0000000000000064
+	set.rb	rb7, 0x000000000000001E
 	.dd.t32	0x40CC5187
 	__CHECK_RD          1, rd5, 0x0000000000000046
 
 	@@ 字段边界：目的/两源都是最大寄存器（0x40CFFFFF = rd63 | rb63 | rb63）
-	__LI_RB	rb63, 0x0F1E2D3C4B5A6978
+	set.rb	rb63, 0x0F1E2D3C4B5A6978
 	.dd.t32	0x40CFFFFF
 	__CHECK_RD          2, rd63, 0x0000000000000000
 

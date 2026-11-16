@@ -31,7 +31,7 @@
 	@@ boundary：SRAM 尾拍（0xffffff7ffff8）可写，读写逐字节相等
 	LOAD_ADDR rb28, MDATA_O + 0x090
 	ldm.o	{rb5:rb5}, [rb28, rd0]
-	__LI    rd19, 0x000
+	set.rd    rd19, 0x000
 	LOAD_ADDR rb4, 0xFFFFFF7FFFF8
 	stm.o	{rb5:rb5}, [rb4, rd19]
 	LOAD_ADDR rb21, 0xFFFFFF7FFFF8
@@ -41,7 +41,7 @@
 	@@ overlap：基址 rb3 落在源组内（`stm` 允许重叠）⇒ 正常执行，行为确定
 	LOAD_ADDR rb28, MDATA_O + 0x0A8
 	ldm.o	{rb1:rb5}, [rb28, rd0]
-	__LI    rd19, 0x0B8
+	set.rd    rd19, 0x0B8
 	LOAD_ADDR rb3, MSTORE
 	stm.o	{rb1:rb5}, [rb3, rd19]
 
@@ -50,12 +50,12 @@
 	stm.o	{rb1:rb5}, [rb28, rd0]
 	__CHECK_MEM         7, MDUMP, 0x100, 0x010203040506071D
 	__CHECK_MEM         8, MDUMP, 0x108, 0x010203040506071E
-	__CHECK_MEM         9, MDUMP, 0x110, 0x0000FFFFFF013A00
+	__CHECK_MEM         9, MDUMP, 0x110, MSTORE        @@ 期望 = 源组里 rb3 的值（= MSTORE 地址；用符号 ⇒ 与布局无关）
 	__CHECK_MEM        10, MDUMP, 0x118, 0x0102030405060720
 	__CHECK_MEM        11, MDUMP, 0x120, 0x0102030405060721
 	__CHECK_MEM        12, MSTORE, 0x0B8, 0x010203040506071D
 	__CHECK_MEM        13, MSTORE, 0x0C0, 0x010203040506071E
-	__CHECK_MEM        14, MSTORE, 0x0C8, 0x0000FFFFFF013A00
+	__CHECK_MEM        14, MSTORE, 0x0C8, MSTORE        @@ 同上（源组 rb3 原值）
 	__CHECK_MEM        15, MSTORE, 0x0D0, 0x0102030405060720
 	__CHECK_MEM        16, MSTORE, 0x0D8, 0x0102030405060721
 

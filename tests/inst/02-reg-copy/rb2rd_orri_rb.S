@@ -5,7 +5,7 @@
 @@ 合法性：目的起始为 rd0 ⇒ ILLI；immu6=0 ⇒ ILLI；起始+immu6>64 ⇒ ILLI（两侧）；
 @@   跨组复制（RB → RD）结构上不可能相交 ⇒ `mreg_range_overlap` 不适用
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 RDATA（装载源）/ SCRATCH（组实测落点，rb29 指）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 3 / overlap 1（链例 11 + 故障例 4）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -17,51 +17,51 @@
 
 	@@ ---- encoding ----
 	@@ 最高两个寄存器作目的/源（字段边界）
-	__LI_RB	rb62, 0x0123456789ABCDEF
+	set.rb	rb62, 0x0123456789ABCDEF
 	TEST_MOV1           1, rb2rd, rd63, rb62, 0x0123456789ABCDEF
 	@@ 规范编码字（dst=rd5, src=rb6, immu6=1）直接执行：钉住 mask/value
-	__LI_RB	rb6, 0x5555555555555555
+	set.rb	rb6, 0x5555555555555555
 	.dd.t32	0x40D85181
 	__CHECK_RD          2, rd5, 0x5555555555555555
 
 	@@ ---- semantic ----
-	__LI_RB	rb5, 0x1111111111111111
+	set.rb	rb5, 0x1111111111111111
 	TEST_MOV1           3, rb2rd, rd10, rb5, 0x1111111111111111
-	__LI_RB	rb5, 0xFFFFFFFFFFFFFFFF
-	__LI_RB	rb6, 0x8000000000000000
+	set.rb	rb5, 0xFFFFFFFFFFFFFFFF
+	set.rb	rb6, 0x8000000000000000
 	rb2rd	{rd10:rd11}, {rb5:rb6}
 	__VERIFY_RD         4, rd10, 0xFFFFFFFFFFFFFFFF
 	__CHECK_RD          4, rd11, 0x8000000000000000
-	__LI_RB	rb5, 0x0000000000000001
-	__LI_RB	rb6, 0xFEDCBA9876543210
-	__LI_RB	rb7, 0x7FFFFFFFFFFFFFFF
+	set.rb	rb5, 0x0000000000000001
+	set.rb	rb6, 0xFEDCBA9876543210
+	set.rb	rb7, 0x7FFFFFFFFFFFFFFF
 	rb2rd	{rd10:rd12}, {rb5:rb7}
 	__VERIFY_RD         5, rd10, 0x0000000000000001
 	__VERIFY_RD         5, rd11, 0xFEDCBA9876543210
 	__CHECK_RD          5, rd12, 0x7FFFFFFFFFFFFFFF
 	@@ 多元素（7 个连续寄存器，值逐元素可辨）
-	__LI_RB	rb5, 0x0000000000000000
-	__LI_RB	rb6, 0x0000000000000001
-	__LI_RB	rb7, 0x0000000000000002
-	__LI_RB	rb8, 0x0000000000000003
-	__LI_RB	rb9, 0x0000000000000004
-	__LI_RB	rb10, 0x0000000000000005
-	__LI_RB	rb11, 0x0000000000000006
+	set.rb	rb5, 0x0000000000000000
+	set.rb	rb6, 0x0000000000000001
+	set.rb	rb7, 0x0000000000000002
+	set.rb	rb8, 0x0000000000000003
+	set.rb	rb9, 0x0000000000000004
+	set.rb	rb10, 0x0000000000000005
+	set.rb	rb11, 0x0000000000000006
 	rb2rd	{rd24:rd30}, {rb5:rb11}
 	__VERIFY_RD         6, rd24, 0x0000000000000000
 	__VERIFY_RD         6, rd27, 0x0000000000000003
 	__CHECK_RD          6, rd30, 0x0000000000000006
 	@@ 源值为零 ⇒ 目的旧值被覆盖（不是「未写」）
-	__LI	rd17, 0xAAAAAAAAAAAAAAAA
-	__LI_RB	rb7, 0x0000000000000000
+	set.rd	rd17, 0xAAAAAAAAAAAAAAAA
+	set.rb	rb7, 0x0000000000000000
 	rb2rd	{rd17:rd18}, {rb7:rb8}
 	__VERIFY_RD         7, rd17, 0x0000000000000000
 	__CHECK_RD          7, rd18, 0x0000000000000003
 
 	@@ ---- boundary ----
 	@@ 源恰在 RB 组顶端
-	__LI_RB	rb62, 0x0F1E2D3C4B5A6978
-	__LI_RB	rb63, 0xAAAAAAAAAAAAAAAA
+	set.rb	rb62, 0x0F1E2D3C4B5A6978
+	set.rb	rb63, 0xAAAAAAAAAAAAAAAA
 	rb2rd	{rd60:rd61}, {rb62:rb63}
 	__VERIFY_RD         8, rd60, 0x0F1E2D3C4B5A6978
 	__CHECK_RD          8, rd61, 0xAAAAAAAAAAAAAAAA
@@ -70,11 +70,11 @@
 	__VERIFY_RD         9, rd62, 0x0F1E2D3C4B5A6978
 	__CHECK_RD          9, rd63, 0xAAAAAAAAAAAAAAAA
 	@@ overlap（跨组结构性不可能相交）：源/目的同号（rd5 / rb5）照常复制
-	__LI_RB	rb5, 0x0123456789ABCDEF
+	set.rb	rb5, 0x0123456789ABCDEF
 	TEST_MOV1          10, rb2rd, rd5, rb5, 0x0123456789ABCDEF
 	@@ 最大元素个数 63（跨组）：目的 rd1..rd63 ← 源 rb0..rb62（rd6 ← rb5、rd63 ← rb62）
-	__LI_RB	rb5, 0xAAAAAAAAAAAAAAAA
-	__LI_RB	rb62, 0x0123456789ABCDEF
+	set.rb	rb5, 0xAAAAAAAAAAAAAAAA
+	set.rb	rb62, 0x0123456789ABCDEF
 	rb2rd	{rd1:rd63}, {rb0:rb62}
 	__VERIFY_RD        11, rd6, 0xAAAAAAAAAAAAAAAA
 	__CHECK_RD         11, rd63, 0x0123456789ABCDEF

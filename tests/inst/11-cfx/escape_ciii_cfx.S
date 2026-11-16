@@ -7,7 +7,7 @@
 @@   ⇒ CFXESC（`1<<3`，切换任何状态之前）；成功时 `escape_num += 1`
 @@   （`spec/SimRISC-11 §3`、`spec/DADAO-12 §5.3`、`spec/Kaiwu §4.2`）。
 @@ 编码：ciii = opc[31:24] | cfxha[23:18] | imms18[17:0]；`[excp_cause_ip, 4]` ⇒ imms18 = 1
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 6 / boundary 4（链例 12 + 故障例 8）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -24,7 +24,7 @@
 @@ ---- 本文件局部宏（不改共享宏层；宏体不含检查行）----
 @@ 写 excp_cause_ip（cg5 rc3，RW）= escape 的返回基址
 .macro __ESC_SETIP addr
-	__LI	rd5, \addr
+	set.rd	rd5, \addr
 	cfx2rc	cfx_hmon, cg5, rc3, rd5
 .endm
 

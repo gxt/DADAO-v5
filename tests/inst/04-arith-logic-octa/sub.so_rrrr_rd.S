@@ -5,12 +5,12 @@
 @@ 合法性：两个目的（rdHA/rdHB）不得同时为 rd0，也不得为同一非 rd0 寄存器 ⇒ ILLI（`dst_dual_same`）；
 @@   其中一个为 rd0 合法（丢弃对应半结果）
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：rrrr = opc | ha[23:18] | hb[17:12] | hc[11:6] | hd[5:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 4 / overlap 3（链例 14 + 故障例 2）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联；
+@@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联；
 @@   双目的用例高半 `__VERIFY_RD` + 低半 `__CHECK_RD`（两条断言共用点号）。
 
 	.include "tests/inst/macros/inst_test.inc"
@@ -20,18 +20,18 @@
 
 	@@ dst={rd5,rd6}/c=rd7/d=rd8 的规范编码字直接执行（钉 mask/value）
 	@@ 规范编码字 0x531461C8（opc<<24 | rd5<<18 | rd6<<12 | rd7<<6 | rd8）
-	__LI	rd5, 0x0000000000000000
-	__LI	rd6, 0x0000000000000000
-	__LI	rd7, 0x0000000000000064
-	__LI	rd8, 0x000000000000001E
+	set.rd	rd5, 0x0000000000000000
+	set.rd	rd6, 0x0000000000000000
+	set.rd	rd7, 0x0000000000000064
+	set.rd	rd8, 0x000000000000001E
 	.dd.t32	0x531461C8
 	__VERIFY_RD  1, rd5, 0x0000000000000000
 	__CHECK_RD   1, rd6, 0x0000000000000046
 
 	@@ 最高寄存器作高半 + rd0 源（读出 0）的编码字（字段边界）
 	@@ 规范编码字 0x53FC1000（opc<<24 | rd63<<18 | rd1<<12 | rd0<<6 | rd0）
-	__LI	rd63, 0x0000000000000000
-	__LI	rd1, 0x0000000000000000
+	set.rd	rd63, 0x0000000000000000
+	set.rd	rd1, 0x0000000000000000
 	.dd.t32	0x53FC1000
 	__VERIFY_RD  2, rd63, 0x0000000000000000
 	__CHECK_RD   2, rd1, 0x0000000000000000

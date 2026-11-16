@@ -12,7 +12,7 @@
 @@   两条 `aip.si` 之间只放被测 swym（或 `.dd.t32` 原始编码字），差值里再减 4 B（后一条 aip 自身）
 @@   ⇒ 期望一律写成字面量（不依赖链接布局，不用标签算术）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 零区（S0/S1 = TEST_DATA+0x500/0x508，例间不共享）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 5 / legality 0（无规则）/ overlap 1（oiii 无寄存器操作数
 @@   ⇒ 以「插入访存序列中间」与「rb 银行哨兵」两类等价观测替代）（链例 13，无故障例）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）
@@ -48,7 +48,7 @@
 
 	@@ ---- semantic：`swym 1` ⇒ IP 前进 4 且寄存器不变 ----
 	@@! inputs: kind=swym imm=1
-	__LI	rd6, 0xFEDCBA9876543210
+	set.rd	rd6, 0xFEDCBA9876543210
 	aip.si	rb18, 0
 	swym	1
 	aip.si	rb19, 0
@@ -58,7 +58,7 @@
 
 	@@ ---- semantic：`swym 42` 无架构副作用 ----
 	@@! inputs: kind=swym imm=42
-	__LI	rd9, 0x0F1E2D3C4B5A6978
+	set.rd	rd9, 0x0F1E2D3C4B5A6978
 	swym	42
 	__CHECK_RD	4, rd9, 0x0F1E2D3C4B5A6978
 
@@ -81,7 +81,7 @@
 
 	@@ ---- boundary：immu18 上界（0x3FFFF）原始编码字 ⇒ 单条 4 B、寄存器不变 ----
 	@@! inputs: kind=enc word=0x478BFFFF imm=0x3FFFF
-	__LI	rd6, 0x1111222233334444
+	set.rd	rd6, 0x1111222233334444
 	aip.si	rb18, 0
 	.dd.t32	0x478BFFFF
 	aip.si	rb19, 0
@@ -126,7 +126,7 @@
 
 	@@ ---- overlap 替代：rb 银行哨兵（rb23）经 rb2rd 观测 ⇒ swym 不写任何寄存器银行 ----
 	@@! inputs: kind=swym imm=9
-	__LI_RB	rb23, 0x00FF00FF00FF00FF
+	set.rb	rb23, 0x00FF00FF00FF00FF
 	swym	9
 	rb2rd	{rd8:rd8}, {rb23:rb23}
 	__CHECK_RD	12, rd8, 0x00FF00FF00FF00FF

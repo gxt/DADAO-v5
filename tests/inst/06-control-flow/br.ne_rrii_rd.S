@@ -8,12 +8,12 @@
 @@   imms12 = ±8 KiB 上限 ⇒ **够不到** Tiny（8 MiB）的 SRAM 边界，故不可取指的目标
 @@   只能落在 SRAM 内的非代码区（零字 ⇒ UNDI，见故障例）
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：rrii = opc | rdha[23:18] | rdhb[17:12] | imms12[11:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI`/`__LI_RB` 拼条件寄存器；**不使用数据区**）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（ENTRY 由 `machine-tiny.inc` 固定）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd`/`set.rb` 拼条件寄存器；**不使用数据区**）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / overlap 2 / boundary 3（链例 12 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：条件寄存器用 `__LI` 拼常量（被测分支不参与造初值）、期望内联；跳转/不跳由
+@@ 探针：条件寄存器用 `set.rd` 拼常量（被测分支不参与造初值）、期望内联；跳转/不跳由
 @@   rd24 的 1/0 标记判（`TEST_BR2`）；跳转**距离与落点地址**用 `.org` 钉住的槽位 +
 @@   `__LAND_IP`（`aip.si` 取 IP）核，期望写 `ENTRY + <字面偏移>`
 
@@ -24,16 +24,16 @@
 
 	@@ ---- encoding ----
 	@@ 点 1：规范编码字 0x6F042002（rd1 = 0x42 ≠ rd2 = 0x99）⇒ 成立 ⇒ 跳过紧随的 4 B
-	__LI	rd1, 0x42
-	__LI	rd2, 0x99
-	__LI	rd24, 0
+	set.rd	rd1, 0x42
+	set.rd	rd2, 0x99
+	set.rd	rd24, 0
 	.dd.t32	0x6F042002
 	add.si	rd24, 1
 	__CHECK_RD          1, rd24, 0
 
 	@@ 点 2：字段边界（rdha = rdhb = rd63，最大寄存器号）⇒ 同一寄存器 ⇒ **不**成立 ⇒ 执行 4 B
-	__LI	rd63, 0x42
-	__LI	rd24, 0
+	set.rd	rd63, 0x42
+	set.rd	rd24, 0
 	.dd.t32	0x6FFFF002
 	add.si	rd24, 1
 	__CHECK_RD          2, rd24, 1
@@ -62,9 +62,9 @@
 	TEST_BR2            9, br.ne, rd0, 0xFFFFFFFFFFFFFFFF, rd0, 0x0000000000000000, 0
 
 	@@ ---- boundary：跳转距离（`.org` 钉住槽位；零填充只被 jump/分支跨过）----
-	__LI	rd5, 0x42
-	__LI	rd6, 0x99
-	__LI	rd24, 0
+	set.rd	rd5, 0x42
+	set.rd	rd6, 0x99
+	set.rd	rd24, 0
 	jump	[rb0, __d_f1]
 	.org	0x800
 __d_b1:                                  @@ 0x800：后向字面量分支的落点

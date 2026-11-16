@@ -73,7 +73,7 @@
 @@   __PT_LRSC_CLEAR(lr, sc)                      —— 消费本 hart 的保留标记（lr SCR → sc SCR）
 @@ ---------------------------------------------------------------------------
 .macro __PT_ST_INIT ea, val
-	__LI	rd6, \val
+	set.rd	rd6, \val
 	LOAD_ADDR rb3, \ea
 	st.o	rd6, [rb3, 0]
 .endm
@@ -88,7 +88,7 @@
 
 .macro __PT_LRSC_LD lrmnem, srcreg, ea, init, src, k=0
 	__PT_LRSC_PREP	\lrmnem, \ea, \init, 1, \k
-	__LI	\srcreg, \src
+	set.rd	\srcreg, \src
 .endm
 
 .macro __PT_LRSC_LD2 lrmnem, srcreg, a, b, inita, initb, src
@@ -96,7 +96,7 @@
 	__PT_ST_INIT	\b, \initb
 	LOAD_ADDR rb3, \a
 	\lrmnem	rd2, [rb3]
-	__LI	\srcreg, \src
+	set.rd	\srcreg, \src
 .endm
 
 .macro __PT_LRSC_LD2L lrmnem, srcreg, a, b, mbase, inita, initb, src
@@ -107,7 +107,7 @@
 	LOAD_ADDR \mbase, \b
 	\lrmnem	rd2, [\mbase]
 	LOAD_ADDR rb3, \a
-	__LI	\srcreg, \src
+	set.rd	\srcreg, \src
 .endm
 
 .macro __PT_LRSC_CLEAR lrmnem, scmnem
@@ -152,7 +152,7 @@
 	__PT_ST_INIT	\ea, \init
 	__PT_LRSC_CLEAR	\lrmnem, \scmnem
 	LOAD_ADDR rb3, \ea
-	__LI	\srcreg, \src
+	set.rd	\srcreg, \src
 	\scmnem	rd5, \srcreg, [rb3]
 	__CHECK_RD	\pt, rd5, 0x1
 	__VERIFY_MEM	\pt, \ea, 0, \exp
@@ -204,7 +204,7 @@
 	__PT_LRSC_LD	\lrmnem, \srcreg, \ea, \init, \src1
 	\scmnem	rd5, \srcreg, [rb3]
 	__VERIFY_RD	\prev, rd5, 0x0
-	__LI	\srcreg, \src2
+	set.rd	\srcreg, \src2
 	\scmnem	rd5, \srcreg, [rb3]
 	__CHECK_RD	\pt, rd5, 0x1
 	__VERIFY_MEM	\pt, \ea, 0, \exp
@@ -213,10 +213,10 @@
 @@ 同上但保留粒度例：`lr` 之后先有普通 store（`reload=0`：rb3 仍指向该拍）。
 .macro __PT_SC_2SC_SELF pt, scmnem, lrmnem, srcreg, ea, init, src1, src2, exp
 	__PT_LRSC_PREP	\lrmnem, \ea, \init, 0
-	__LI	\srcreg, \src1
+	set.rd	\srcreg, \src1
 	\scmnem	rd5, \srcreg, [rb3]
 	__VERIFY_RD	\pt, rd5, 0x0
-	__LI	\srcreg, \src2
+	set.rd	\srcreg, \src2
 	\scmnem	rd5, \srcreg, [rb3]
 	__CHECK_RD	\pt, rd5, 0x1
 	__VERIFY_MEM	\pt, \ea, 0, \exp
@@ -226,9 +226,9 @@
 @@   `sc` 成功。`reload=0`：`__PT_ST_INIT` 已把 rb3 指向该拍，中间不再重算地址。
 .macro __PT_SC_STORE_PREP pt, scmnem, lrmnem, srcreg, ea, init, stmnem, stval, stoff, src, exp
 	__PT_LRSC_PREP	\lrmnem, \ea, \init, 0
-	__LI	rd6, \stval
+	set.rd	rd6, \stval
 	\stmnem	rd6, [rb3, \stoff]
-	__LI	\srcreg, \src
+	set.rd	\srcreg, \src
 	\scmnem	rd5, \srcreg, [rb3]
 	__CHECK_RD	\pt, rd5, 0x0
 	__VERIFY_MEM	\pt, \ea, 0, \exp
@@ -241,7 +241,7 @@
 @@ ---------------------------------------------------------------------------
 
 .macro __PREP_LI_ADDR rd, imm, base, addr
-	__LI	\rd, \imm
+	set.rd	\rd, \imm
 	LOAD_ADDR	\base, \addr
 .endm
 

@@ -14,25 +14,25 @@
 @@   TEST_WI_{RD,RB,RF}_MEM(pt, 助记符, 目的, wpN, immu16, 初值, WDATA 偏移)
 @@ 判据：目的在 rd ⇒ 直接比；在 rb/rf ⇒ 同组 `st.o` 落到 SCRATCH 再逐字节比
 @@   （探针不借被测的立即数指令）。`_MEM` 变体的**期望从 WDATA 装载**（不经任何 rwii
-@@   指令）—— `__LI` 自身用 set.zw/or.w 拼常量，故该变体防「期望由被测指令自证」。
-@@ 初值装载：rd 用 `__LI`、rb 用 `__LI_RB`、rf 用 `__LI` + `rd2rf`（复制指令，独立于本册）。
+@@   指令）—— `set.rd` 自身用 set.zw/set.ow/or.w/andn.w 拼常量，故该变体防「期望由被测指令自证」。
+@@ 初值装载：rd 用 `set.rd`、rb 用 `set.rb`、rf 用 `set.fo`（复制指令，独立于本册）。
 @@ ---------------------------------------------------------------------------
 
 .macro TEST_WI_RD pt, mnem, dst, wp, imm, init, exp
-	__LI	\dst, \init
+	set.rd	\dst, \init
 	\mnem	\dst, \wp, \imm
 	__CHECK_RD \pt, \dst, \exp
 .endm
 
 .macro TEST_WI_RB pt, mnem, dst, wp, imm, init, exp
-	__LI_RB	\dst, \init
+	set.rb	\dst, \init
 	\mnem	\dst, \wp, \imm
 	st.o	\dst, [rb29, 0]
 	__CHECK_MEM \pt, SCRATCH, 0, \exp
 .endm
 
 .macro TEST_WI_RD_MEM pt, mnem, dst, wp, imm, init, off
-	__LI	\dst, \init
+	set.rd	\dst, \init
 	\mnem	\dst, \wp, \imm
 	LOAD_ADDR rb21, WDATA + \off
 	ld.o	rd20, [rb21, 0]
@@ -43,7 +43,7 @@ __wrm_\@:
 .endm
 
 .macro TEST_WI_RB_MEM pt, mnem, dst, wp, imm, init, off
-	__LI_RB	\dst, \init
+	set.rb	\dst, \init
 	\mnem	\dst, \wp, \imm
 	st.o	\dst, [rb29, 0]
 	LOAD_ADDR rb21, WDATA + \off

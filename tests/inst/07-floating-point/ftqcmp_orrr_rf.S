@@ -5,9 +5,8 @@
 @@ 期望值由独立参考模型（精确有理数 + 手写 round-and-pack，见证据脚本）按 `SimRISC-07` 现算，不手写
 @@ 比较（§4）：结果写满 64 位的 -1/0/1；无序时 quiet compare 取 canonical qNaN、signaling compare 取 sNaN（符号位 0、payload 不限 ⇒ 用结构断言）。
 @@ NV：signaling 只要无序即置；quiet 仅在含 sNaN 时置；有序不置。
-@@ 链接布局：`tests/inst/07-floating-point/inst-tiny-fp.lds`（段址见宏层 `__FP_LAYOUT` 分支）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段址见宏层文件头）
 
-	.equ	__FP_LAYOUT, 1
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/07-floating-point/07-floating-point.inc"
 

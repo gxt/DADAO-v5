@@ -6,7 +6,7 @@
 @@   `pred = succ = 0` 是合法 no-op。异常规则：`hb ≠ 0` ⇒ ILLI；cfxha 为 reserved
 @@   （6–14、16–31、35–61）⇒ ILLI；正常屏障不产生异常（`spec/SimRISC-11 §5`）。
 @@ 编码：ciii = opc[31:24] | cfxha[23:18] | immu18[17:0]；合法 immu18 ⇒ `hb = 0` ⇒ ≤ 0x0FFF
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 12（链例 14 + 故障例 7；boundary = immu18 上界与 reserved 集）
 @@   链例 13/14 并入原 YAML 的 cfx63 与混合位用例（同一 id 的旧载体）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
@@ -27,17 +27,17 @@
 	st.o	rb21, [rb20, 0xF8]              @@ 任何意外异常 ⇒ 故障落点（fail-fast）
 
 	@@ ---- encoding：规范编码字 0x79000000（cfx0 = all cfx，pred = succ = 0 = no-op）----
-	__LI	rd5, 0x0123456789ABCDEF
+	set.rd	rd5, 0x0123456789ABCDEF
 	.dd.t32	0x79000000
 	__CHECK_RD   1, rd5, 0x0123456789ABCDEF
 
 	@@ ---- encoding：0x79FC0FFF（cfx63 = power，immu18 = 0x0FFF 上界，hb = 0）----
-	__LI	rd5, 0x0123456789ABCDEF
+	set.rd	rd5, 0x0123456789ABCDEF
 	.dd.t32	0x79FC0FFF
 	__CHECK_RD   2, rd5, 0x0123456789ABCDEF
 
 	@@ ---- semantic：pred/succ 六类访问掩码的各组合（cfx0 = all cfx）----
-	__LI	rd5, 0x0123456789ABCDEF
+	set.rd	rd5, 0x0123456789ABCDEF
 	fence	cfx0, 0x041                     @@ cr → cr
 	__CHECK_RD   3, rd5, 0x0123456789ABCDEF
 	fence	cfx0, 0x082                     @@ cw → cw
@@ -56,19 +56,19 @@
 	__CHECK_RD  10, rd5, 0x0123456789ABCDEF
 
 	@@ ---- semantic：指定资源域（cfx15 = hart、cfx62 = uart；均为已分配编号）----
-	__LI	rd5, 0x0123456789ABCDEF
+	set.rd	rd5, 0x0123456789ABCDEF
 	fence	cfx_hart, 0x082
 	__CHECK_RD  11, rd5, 0x0123456789ABCDEF
 	fence	cfx_uart, 0x430
 	__CHECK_RD  12, rd5, 0x0123456789ABCDEF
 
 	@@ ---- semantic：cfx63（power）的 cfx memory W→W（同一 immu18 在不同资源域）----
-	__LI	rd5, 0x0123456789ABCDEF
+	set.rd	rd5, 0x0123456789ABCDEF
 	fence	cfx_power, 0x082
 	__CHECK_RD  13, rd5, 0x0123456789ABCDEF
 
 	@@ ---- semantic：cfx + 系统内存混合（cr|mr → cw|mw，pred/succ 同时跨两轴）----
-	__LI	rd5, 0x0123456789ABCDEF
+	set.rd	rd5, 0x0123456789ABCDEF
 	fence	cfx0, 0x462
 	__CHECK_RD  14, rd5, 0x0123456789ABCDEF
 

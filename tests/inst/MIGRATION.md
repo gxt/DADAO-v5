@@ -468,7 +468,7 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
   `TEST_FAULT_WI`（`dst_rd0`/`dst_rb0` ⇒ ILLI）。数据区新增 WDATA（`+0x1500`，
   16 拍）/ WSCRATCH（`+0x1580`，rf0 例的前/后 8 B）。
 - **探针不借被测指令**：目的在 rd 直接比；在 rb/rf 用同组 `st.o` 落到 SCRATCH
-  再逐字节比。初值：rd 用 `__LI`、rb 用 `__LI_RB`、rf 用 `__LI` + `rd2rf`。
+  再逐字节比。初值：rd 用 `set.rd`、rb 用 `set.rb`、rf 用 `set.fo`（整 64 位；`m15-testcases-006` 起装载一律用规范伪指令）。
 - 用例：每 id 14 点（encoding 2 / semantic 5 / boundary 6 / overlap 1），`set.w` 17 点
   （多 3 点 rf0 写语义：wp1/wp3 写无效、wp2/wp0 只管各自可写域）+ 故障例 1；
   `set.w_rwii_rf` 无合法性规则（`spec/SimRISC-03 附录 B`）⇒ **无故障例**。
@@ -650,10 +650,12 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
   另有 `inst-tiny-fp.lds`（**本册专用布局**：`.text` 0x0000–0x4000 / `.faultpad` 0x4000 /
   `.testdata` 0x5000–0x7000（`TEST_DATA` = +0x5800）/ 结果缓冲 0x7000 / 退出块 0x7800；
   01 册的 `.text` 已用到 0x1E00，浮点册每条用例更长，故另起布局）。
-- 宏层（`tests/inst/macros/inst_test.inc`，`__FP_LAYOUT` 分支）：`TEST_FP3`（orrr 双源）/
+- 宏层（`tests/inst/macros/inst_test.inc`；`m15-testcases-006` 起**单一 FP 布局**，
+  原「浮点册走独立布局」的切换分支已删除，段址由 `linker/inst-tiny.lds` 一处钉住）：
+  `TEST_FP3`（orrr 双源）/
   `TEST_FP4`（fma 三源）/`TEST_FPROOT`（orri）/`TEST_FPENC*`（原始编码字）/`TEST_FAULT_FP`；
   `__FP_ENV` 清 `rf0[4:0]` 并按参数设 `rf0[33:32]`，`__FP_CHECK` **先断言标志**再比结果
-  （共用点号；期望标志 NV=1/DZ=2/OF=4/UF=8/NX=16）。初值一律 `__LI`+`rd2rf`，不借浮点指令；
+  （共用点号；期望标志 NV=1/DZ=2/OF=4/UF=8/NX=16）。初值一律 `set.fo`（按需先 `set.rd`+`rd2rf` 的场合仅限被测伪指令自身），不借浮点指令；
   ft 只比低 32 位（高 32 位不作规定）。
 - 用例：链例 318 + 故障例 20（每 id 16–21 链例 + 1–2 故障；encoding 2 / semantic 4 / boundary 6 /
   overlap 2 为骨架）。覆盖：五类标志全部至少一条；RNE/RTZ/RDN/RUP 四档（含 `1.0±2^-25`

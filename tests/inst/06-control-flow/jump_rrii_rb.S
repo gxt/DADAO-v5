@@ -9,8 +9,8 @@
 @@   （`imms12 << 2`）⇒ 不会触发 IALIGN；基址可以是任意 RB（含 0）⇒ 目标地址 0 落在
 @@   未映射段 ⇒ 取指 CFXMEM（合法性/故障例）
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：rrii = opc | rbha[23:18] | rdhb[17:12] | imms12[11:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI_RB`/`__LI` 拼基址与偏移寄存器）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（ENTRY 由 `machine-tiny.inc` 固定）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rb`/`set.rd` 拼基址与偏移寄存器）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 1 / semantic 1 / overlap 1 / boundary 3（链例 6 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -24,15 +24,15 @@
 
 	@@ ---- encoding ----
 	@@ 点 1：规范编码字 0x71000002（rbha = rb0、rdhb = rd0、imms12 = 2 ⇒ +8）⇒ 跳过 4 B
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	.dd.t32	0x71000002
 	add.si	rd24, 1
 	__CHECK_RD          1, rd24, 0
 
 	@@ ---- semantic ----
 	@@ rb0 作基址 + rdHB 寄存器偏移：目标 = IP + 4 + 8 = IP + 12 ⇒ 跳过 2 条（rd24 保持 0）
-	__LI	rd6, 4
-	__LI	rd24, 0
+	set.rd	rd6, 4
+	set.rd	rd24, 0
 	jump	[rb0, rd6, 8]
 	add.si	rd24, 1
 	add.si	rd24, 2
@@ -40,15 +40,15 @@
 
 	@@ ---- overlap ----
 	@@ 基址与偏移都取 0 号寄存器（rb0 在 rrii 里是相对基址、rd0 读出 0）⇒ 退化为相对跳转
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	jump	[rb0, rd0, 8]
 	add.si	rd24, 1
 	__CHECK_RD          3, rd24, 0
 
 	@@ ---- boundary：目标地址（`.org` 钉住槽位；零填充只被 jump 跨过）----
-	__LI_RB	rb5, (ENTRY + 0x1300)
-	__LI	rd6, 0x100
-	__LI	rd24, 0
+	set.rb	rb5, (ENTRY + 0x1300)
+	set.rd	rd6, 0x100
+	set.rd	rd24, 0
 	jump	[rb0, __slot4]
 	.org	0x800
 __l5:                                    @@ 0x800：例 5 的落点
@@ -71,13 +71,13 @@ __l6:                                    @@ 0x18A0：例 6 的落点
 	.org	0x1A00
 __ck4:
 	__CHECK_RD          4, rd24, (ENTRY + 0x1400)
-	__LI_RB	rb5, (ENTRY + 0x900)     @@ 例 5：基址 + 0 偏移 - 0x100
-	__LI	rd6, 0
+	set.rb	rb5, (ENTRY + 0x900)     @@ 例 5：基址 + 0 偏移 - 0x100
+	set.rd	rd6, 0
 	jump	[rb0, __slot5]
 __ck5:
 	__CHECK_RD          5, rd24, (ENTRY + 0x800)
-	__LI_RB	rb5, (ENTRY + 0x1800)    @@ 例 6：基址 + 0x60 + 0x40
-	__LI	rd6, 0x60
+	set.rb	rb5, (ENTRY + 0x1800)    @@ 例 6：基址 + 0x60 + 0x40
+	set.rd	rd6, 0x60
 	jump	[rb0, __slot6]
 __ck6:
 	__CHECK_RD          6, rd24, (ENTRY + 0x18A0)

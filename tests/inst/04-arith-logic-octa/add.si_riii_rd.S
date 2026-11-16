@@ -4,12 +4,12 @@
 @@ 语义：rdHA ← rdHA + 符号扩展(imms18)（全 64 位，溢出回绕；进位丢弃）
 @@ 合法性：目的 rdHA/rdHB 为 rd0 ⇒ ILLI（`dst_rd0`）；源可为 rd0（读出 0）
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：riii = opc | rdha[23:18] | imms18[17:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 6 / overlap 1（链例 14 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联；
+@@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联；
 @@   双目的用例高半 `__VERIFY_RD` + 低半 `__CHECK_RD`（两条断言共用点号）。
 
 	.include "tests/inst/macros/inst_test.inc"
@@ -17,7 +17,7 @@
 
 @@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
 .macro TEST_AR_SI pt, mnem, dst, init, imm, exp
-	__LI	\dst, \init
+	set.rd	\dst, \init
 	\mnem	\dst, \imm
 	__CHECK_RD \pt, \dst, \exp
 .endm
@@ -36,13 +36,13 @@ __fault_case:
 
 	@@ rd5 + (-8) 的规范编码字直接执行（钉 mask/value）
 	@@ 规范编码字 0x5917FFF8（opc<<24 | rd5<<18 | imms18）
-	__LI	rd5, 0x0000000000000100
+	set.rd	rd5, 0x0000000000000100
 	.dd.t32	0x5917FFF8
 	__CHECK_RD   1, rd5, 0x00000000000000F8
 
 	@@ 最高寄存器 rd63 + 最大正立即数（字段边界）
 	@@ 规范编码字 0x59FDFFFF（opc<<24 | rd63<<18 | imms18）
-	__LI	rd63, 0x0000000000000000
+	set.rd	rd63, 0x0000000000000000
 	.dd.t32	0x59FDFFFF
 	__CHECK_RD   2, rd63, 0x000000000001FFFF
 

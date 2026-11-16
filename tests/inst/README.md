@@ -28,10 +28,9 @@ C/IR 探针已**全部退役**、目录已删：`atomics` 五探针 `m13-testcas
 | `00-isa-design/atomic_rmw.S` | **非 id 载体**（原子 RMW 的**合成序**：`lr` → 寄存器计算 → `sc` → 失败重读重试，13 条；跨 24 条 `lr`/`sc` 身份而非单个 id，故不入 `01`–`12` 册——那 12 册保持「一个 opcode id 一个文件」；逐文件登记 + `inst-00-isa-design-009` 索引） |
 | `base/`（已删） | 原 YAML 向量目录（`TESTCASES-003t`~`007t` 生成；**YAML 已全退役**，`m13-testcases-043`） |
 | `MIGRATION.md` | YAML → 汇编+宏 的迁移台账（大类/小类/用例模板/任务拆分/删除规则） |
-| `macros/inst_test.inc` | **跨册**共享宏层（`__LI`/`__EXIT`/`__CHECK_*`/`__FAULT_GUARD`/`TEST_FAULT_ENC`/`TEST_AR_ORRR` 等，期望值内联）；只放 **≥2 个册**用到的宏（`m15-testcases-002`） |
+| `macros/inst_test.inc` | **跨册**共享宏层（`__EXIT`/`__CHECK_*`/`__FAULT_GUARD`/`TEST_FAULT_ENC`/`TEST_AR_ORRR` 等，期望值内联）；只放 **≥2 个册**用到的宏（`m15-testcases-002`） |
 | `<册>/<册>.inc` | **册专用**宏层（`01-load-store`…`07-floating-point`、`12-misc` 各一份）；只放本册用的宏与数据区布局，由该册各 `.S` 在共享层之后 `.include`（`12-misc` 的数据区与 `lr/sc` 准备段见 `m15-testcases-003`） |
 | `01-load-store/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（单元素 `ld.*`/`st.*`，19 个；含 `st.o rb0`（IP 作源/作基址）与 `ld.o ra0`（RAS 窗口读写）补测） |
-| `01-load-store/inst-tiny.lds` | 上面这册的链接布局（固定段地址 + ASSERT 钉住）；`02-reg-copy`/`03-wyde-imm` 复用同一布局 |
 | `02-reg-copy/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（块复制 9 + `cs.*` 8，共 17 个） |
 | `03-wyde-imm/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（`set.zw`/`set.ow`/`or.w`/`andn.w`/`set.w`，8 个） |
 | `04-arith-logic-octa/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（算术族 `add.*`/`sub.*`/`mul.*`/`div.*`/`rem.*`/`cmp.*` 15 个；逻辑/移位/扩展 14 个；位操作 `rev.o`/`rol.o`/`clmul.o` 4 个） |
@@ -39,7 +38,7 @@ C/IR 探针已**全部退役**、目录已删：`atomics` 五探针 `m13-testcas
 | `05-arith-addr/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（64 位地址运算 `add.o`/`sub.o` 的 bbd·dbb、`cmp.uo`、`add.si`、`aip.si`，6 个） |
 | `06-control-flow/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（控制流 `br.*` 10 个、`jump` 2、`call` 2、`ret` 1，共 15 个；含 RAS 溢出/下溢与跳转距离边界） |
 | `07-floating-point/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（`foadd/fosub/fomul/fodiv/forem`、`ftadd/ftsub/ftmul/ftdiv/ftrem`、`fofma/ftfma`、`fomin/fomax/ftmin/ftmax`、`foroot/ftroot` 18 个；转换 `f2f/f2i/i2f` 双向 18 个；分类 `ftcls/focls` 2 个；比较 `ftqcmp/ftscmp/foqcmp/foscmp` 4 个、取整/缩放/符号 `fornd/ftrnd/fosclb/ftsclb/fosgnj/fosgnn/ftsgnj/ftsgnn` 8 个 —— 共 50 个；含 FCSR 五类标志、六档舍入方向、NaN/±0/次正规/溢出/下溢边界。同组块复制不分浮点宽度 ⇒ 唯一载体 `rf2rf_orri_rf.S` 归 `02-reg-copy`） |
-| `07-floating-point/inst-tiny-fp.lds` | 浮点册专用链接布局（`.text` 上限 0x4000；`.testdata` 0x5000–0x7000；结果缓冲 0x7000） |
+| `linker/inst-tiny.lds` | **全部册（00 + 01–12）唯一**的链接布局（`.text` ≤ 0x4000、`.faultpad` 0x4000、`.testdata` 0x5000–0x7000、结果缓冲 0x7000、`SYS_EXIT` 参数块 0x7800；段上限由 ASSERT 钉住）。`m15-testcases-006` 把原 `01-load-store/inst-tiny.lds`(0x1E00 窗口) 与 `07-floating-point/inst-tiny-fp.lds`(0x4000 窗口) 合并为这一份 |
 
 ## 汇编载体（M13 起）
 
@@ -60,7 +59,7 @@ C/IR 探针已**全部退役**、目录已删：`atomics` 五探针 `m13-testcas
   （按公式代入：n=4 时 k=2 的净收益恰为 0，仍不满足 `> 0`）；
   净收益 ≤ 0 的宏化"做了不如不做"——S9 默认**告警**（`[WARN]`），`--strict` 时 rc≠0。
 - **光省行不够，必须表达一个可复用的准备动作**（装地址 / 存到地址 / 取落点跳转 / 置权限…）。
-  反例：「两条 `__LI` 粘一起」这类**双装值段**不携带准备段语义，属"为省行而抽象"⇒ **不做**
+  反例：「两条装立即数粘一起」这类**双装值段**不携带准备段语义，属"为省行而抽象"⇒ **不做**
   （`m15-testcases-005` 曾落地又按用户 2026-11-16 裁定 1 全部回退）。
 - **含用例/断言行的模式不得合并**：模式内出现 `TEST_*` / `__CHECK_*` / `__PT_*` /
   `__VERIFY_*` / `__REC` 一律跳过——合并它们会把两个检查点压成一个（用例身份丢失）。
@@ -81,32 +80,41 @@ C/IR 探针已**全部退役**、目录已删：`atomics` 五探针 `m13-testcas
   `__PREP_LAND_JUMP`（`06`：`__LAND_IP` + `jump` 到落点）；`__PREP_MEM2`（`02`：两次
   `__SET_MEM` 建两块浮点寄存器数据区）；`__PREP_ST_VERIFY`（`02` 文件内：存 + 核对）。
 
+### 装载一律用规范伪指令
+
+**载体准备段（装常量/装地址/装浮点位型）一律用规范伪指令**——`set.rd rd, imm64`（rd）、
+`set.rb rb, imm64`（rb）、`set.fo rf, imm64`（rf，整 64 位）。测试层**不再另造装载宏**
+（`m15-testcases-006` 删除了 `__LI`/`__LI_RB`/`__LI_RF` 三个宏）：**1389 行**装载调用
+（`__LI` 1173 / `__LI_RB` 95 / `__LI_RF` 121，基线现场统计）改后全部落在**规范伪指令**上，
+测试层与规范（`spec/Toolchain-01 §6`）单一真源。
+
+- **`set.ft rf, imm32` 只用于被测指令本身的窄写场景**（写宽对照见
+  `00-isa-design/pseudo_set.ft_imm32.S` / `pseudo_set.rf_reg.S`）。它是**窄写**（只写低
+  32、高 32 保持），与 `set.fo` 的整 64 位语义不同 ⇒ **不得**当装载器：FP 用例依赖
+  「源 = 精确 64 位位型」（`__FP_CHK64` 逐位比整 64 位）。
+- **被测伪指令不得用于自己的准备段**（否则断言退化恒真）：`00-isa-design/pseudo_set.*.S`
+  的「旧值被覆盖 / 高位保持」类用例用**另一条**通路铺初值——`set.rb`+`rb2rd`、
+  `set.rd`+`rd2rb`、`set.rd`+`rd2rf`（即 `set.fo` 的展开式）。
+- 判据只看**行为等价**（`semi.out` 字节 + 退出码）：`set.rd` 是「最少 1–4 条」展开，
+  指令流与定长 4 条的旧宏必然不同，故**不**用镜像字节相等做判据（`m15-testcases-006`）。
+
 ```
 python3 tools/testcases/inst/run_asm_suite.py --id ld.o_rrii_rd   # 单个 id
 python3 tools/testcases/inst/run_asm_suite.py                     # 01-load-store 全册
 python3 tools/testcases/inst/run_asm_suite.py \
     --vectors tests/inst/00-isa-design                            # 00 册（非 id 载体：
                                                                   # 保留编码 + 原子 RMW 合成序）
-python3 tools/testcases/inst/run_asm_suite.py \
-    --vectors tests/inst/02-reg-copy \
-    --lds tests/inst/01-load-store/inst-tiny.lds                  # 02-reg-copy 全册
-python3 tools/testcases/inst/run_asm_suite.py \
-    --vectors tests/inst/03-wyde-imm \
-    --lds tests/inst/01-load-store/inst-tiny.lds                  # 03-wyde-imm 全册
-python3 tools/testcases/inst/run_asm_suite.py \
-    --vectors tests/inst/04-arith-logic-octa \
-    --lds tests/inst/01-load-store/inst-tiny.lds                  # 04 全册（算术 + 逻辑/移位/扩展）
-python3 tools/testcases/inst/run_asm_suite.py \
-    --vectors tests/inst/06-control-flow \
-    --lds tests/inst/01-load-store/inst-tiny.lds                  # 06 全册（br.*/jump/call/ret）
-python3 tools/testcases/inst/run_asm_suite.py \
-    --vectors tests/inst/07-floating-point \
-    --lds tests/inst/07-floating-point/inst-tiny-fp.lds           # 07 全册 42 个 id
-                                                                  # （算术/最小最大 18 + 转换/比较/分类 24）
-python3 tools/testcases/inst/run_asm_suite.py \
-    --vectors tests/inst/00-isa-design \
-    --lds tests/inst/01-load-store/inst-tiny.lds                  # 00 册（UNDI 3 例 + 7 个伪指令载体）
+python3 tools/testcases/inst/run_asm_suite.py --vectors tests/inst/02-reg-copy
+python3 tools/testcases/inst/run_asm_suite.py --vectors tests/inst/03-wyde-imm
+python3 tools/testcases/inst/run_asm_suite.py --vectors tests/inst/04-arith-logic-octa
+python3 tools/testcases/inst/run_asm_suite.py --vectors tests/inst/06-control-flow
+python3 tools/testcases/inst/run_asm_suite.py --vectors tests/inst/07-floating-point
+python3 tools/testcases/inst/run_asm_suite.py --books-root tests/inst   # 全部册全量（L2 门控）
 ```
+
+**链接布局**：无需 `--lds`——全部册（00 + 01–12）默认用 `tests/inst/linker/inst-tiny.lds`
+（`run_asm_suite` 的 `DEFAULT_LDS`）；`--lds <file>` 只用于临时覆盖（实验/探针）。
+册目录内**不再有** `.lds`（`m15-testcases-006` 起单一布局，`check-inst-asm` 亦按此跑）。
 
 判据 = **同一份 ELF** 在 chipyard `WumingTinyConfig` / QEMU `kaiwu-tiny` / gem5 FS
 `tiny` 上，链例的结果字节流逐字节一致、故障例的退出码一致。

@@ -8,42 +8,42 @@
 @@
 .macro TEST_BR2 pt, mnem, a, aval, b, bval, want
 	.ifnc	\a, rd0
-	__LI	\a, \aval
+	set.rd	\a, \aval
 	.endif
 	.ifnc	\b, rd0
 	.ifnc	\b, \a
-	__LI	\b, \bval
+	set.rd	\b, \bval
 	.endif
 	.endif
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	\mnem	{\a, \b}?, [rb0, __bt_\@]
 	jump	[rb0, __bl_\@]
 __bt_\@:
-	__LI	rd24, 1
+	set.rd	rd24, 1
 __bl_\@:
 	__CHECK_RD \pt, rd24, \want
 .endm
 .macro TEST_BR1 pt, mnem, r, rval, want
 	.ifnc	\r, rd0
-	__LI	\r, \rval
+	set.rd	\r, \rval
 	.endif
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	\mnem	{\r}?, [rb0, __bt_\@]
 	jump	[rb0, __bl_\@]
 __bt_\@:
-	__LI	rd24, 1
+	set.rd	rd24, 1
 __bl_\@:
 	__CHECK_RD \pt, rd24, \want
 .endm
 .macro TEST_BR1_RB pt, mnem, r, rval, want
 	.ifnc	\r, rb0
-	__LI_RB	\r, \rval
+	set.rb	\r, \rval
 	.endif
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	\mnem	{\r}?, [rb0, __bt_\@]
 	jump	[rb0, __bl_\@]
 __bt_\@:
-	__LI	rd24, 1
+	set.rd	rd24, 1
 __bl_\@:
 	__CHECK_RD \pt, rd24, \want
 .endm
@@ -71,9 +71,9 @@ __fault_case:
 	.globl	__fault_case
 __fault_case:
 	__FAULT_GUARD \pt, \fault
-	__LI	\a, \aval
+	set.rd	\a, \aval
 	.ifnc	\b, \a
-	__LI	\b, \bval
+	set.rd	\b, \bval
 	.endif
 	\mnem	{\a, \b}?, [rb0, \target]
 	__EXIT	\pt
@@ -86,8 +86,8 @@ __fault_case:
 	.globl	__fault_case
 __fault_case:
 	__FAULT_GUARD \pt, \fault
-	__LI_RB	rb5, 0
-	__LI	rd6, 0
+	set.rb	rb5, 0
+	set.rd	rd6, 0
 	\mnem	[rb5, rd6, 0]
 	__EXIT	\pt
 	.endif
@@ -103,9 +103,9 @@ __fault_case:
 __fault_case:
 	__FAULT_GUARD \pt, \fault
 	.ifc	\fault, RASOF
-	__LI	rd5, 0x0001CCCC00000000
+	set.rd	rd5, 0x0001CCCC00000000
 	rd2ra	{ra63}, {rd5}
-	__LI	rd5, 0x003F000000000000
+	set.rd	rd5, 0x003F000000000000
 	rd2ra	{ra0}, {rd5}
 	.endif
 	.ifc	\fault, RASUF
@@ -114,10 +114,10 @@ __fault_case:
 	.ifc	\fault, CFXMEM
 	@@ D4b：MemRAS 条目 = {计数 1, 返回地址 0xBBBB00000000（cfxha 46，其它 cfxha 段）}
 	@@   ⇒ 消费条目、PC = 该地址；Tiny 只在 cfxha 63/3 映射 ⇒ 取指 CFXMEM（Kaiwu §1.2）
-	__LI	rd5, 0x0001BBBB00000000
+	set.rd	rd5, 0x0001BBBB00000000
 	LOAD_ADDR rb5, MEMRAS
 	st.o	rd5, [rb5, 0]
-	__LI	rd5, MEMRAS
+	set.rd	rd5, MEMRAS
 	rd2ra	{ra0}, {rd5}
 	.endif
 	\inst

@@ -107,11 +107,15 @@
 	__CHECK_MEM         18, SCRATCH, 0, 0x0000000000000001
 
 	@@ ---- overlap：目的旧值不影响结果（伪指令写满 64 位）----
-	__LI_RB	rb13, 0xA5A55A5A0F0FF0F0
+	@@   旧值**不经被测伪指令**铺（`set.rd` + `rd2rb`；否则「少写高位」的坏实现会
+	@@   把旧值也写成同一残缺值，断言退化恒真）
+	set.rd	rd13, 0xA5A55A5A0F0FF0F0
+	rd2rb	{rb13}, {rd13}
 	set.rb	rb13, 0
 	st.o	rb13, [rb29, 0]
 	__CHECK_MEM         19, SCRATCH, 0, 0x0000000000000000
-	__LI_RB	rb13, 0x0000000000000001
+	set.rd	rd13, 0x0000000000000001
+	rd2rb	{rb13}, {rd13}
 	set.rb	rb13, 0xA5A55A5A0F0FF0F0
 	st.o	rb13, [rb29, 0]
 	__CHECK_MEM         20, SCRATCH, 0, 0xA5A55A5A0F0FF0F0

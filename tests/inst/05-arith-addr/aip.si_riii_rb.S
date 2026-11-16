@@ -11,8 +11,8 @@
 @@   连续 4 字节槽（`jump` 跳过对齐填充的零字，零字不执行）；期望一律写成 `ENTRY + <字面偏移>`
 @@   —— llvm-mc 只折装**绝对常量**表达式，标签差（`. - _start`）在指令立即数里会被折成 0
 @@   （现场实测，见 `MIGRATION §6/019`），故本文件不用标签算术
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI_RB` 拼初值；本册复用 04 的数据块）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（ENTRY 由 `machine-tiny.inc` 固定）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rb` 拼初值；本册复用 04 的数据块）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 2 / semantic 4 / boundary 3 / overlap 2（链例 11 + 故障例 1；无「源=目」类
 @@   ——目的只写、基址 rb0 只读）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
@@ -25,7 +25,7 @@
 	__TEST_BEGIN
 
 	@@ 目的旧值（overlap 例：aip.si 只写不读，旧值必须被完整覆盖）
-	__LI_RB	rb14, 0xDEADBEEFCAFEF00D
+	set.rb	rb14, 0xDEADBEEFCAFEF00D
 
 	@@ aip.si 槽位区（ENTRY+0x200 起，每槽 4 B）：jump 跳过 `.org` 填充的零字
 	jump	[rb0, __aip_block]

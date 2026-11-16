@@ -8,7 +8,7 @@
 @@   RACNT == 63 且 MRPTR == 0）；目标恒 4 字节对齐 ⇒ 不会触发 IALIGN
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：iiii = opc | imms24[23:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（本文件只用寄存器）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（ENTRY 由 `machine-tiny.inc` 固定）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 1 / semantic 12 / boundary 5（链例 18 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -24,19 +24,19 @@
 
 	@@ ---- encoding ----
 	@@ 点 1：规范编码字 0x74000002（imms24 = 2 ⇒ +8）⇒ 压入 A+4、跳到 A+8 ⇒ 跳过 4 B
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	.dd.t32	0x74000002
 	add.si	rd24, 1
 	__CHECK_RD          1, rd24, 0
 
 	@@ ---- semantic（自然 call/ret 配对）：压栈→弹栈后 RACNT 归 0 ----
 	rd2ra	{ra0}, {rd0}            @@ RACNT = 0、MRPTR = 0（干净栈）
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	call	[rb0, __fx]
 __fx_ret:
 	jump	[rb0, __fx_ck]
 __fx:
-	__LI	rd24, 1
+	set.rd	rd24, 1
 	ret	rd0, 0
 __fx_ck:
 	__CHECK_RD          2, rd24, 1
@@ -61,9 +61,9 @@ __ck1:
 	__CHECK_RD          6, rd26, 0x0001000000000000       @@ RACNT = 1
 
 	@@ semantic（C2 递归折叠：栈顶返回地址 == 本 call 的返回地址 ⇒ 只加计数）
-	__LI	rd5, (0x0001000000000000 + ENTRY + 0xA04)
+	set.rd	rd5, (0x0001000000000000 + ENTRY + 0xA04)
 	rd2ra	{ra63}, {rd5}
-	__LI	rd5, 0x0001000000000000
+	set.rd	rd5, 0x0001000000000000
 	rd2ra	{ra0}, {rd5}            @@ RACNT = 1
 	jump	[rb0, __slot2]
 	.org	0xA00
@@ -81,9 +81,9 @@ __ck2:
 	__CHECK_RD          9, rd26, 0x0001000000000000       @@ RACNT 不变（仍 1）
 
 	@@ semantic（C3a 压栈：栈顶返回地址 ≠ 本 call 的返回地址 ⇒ 旧顶下移 ra62）
-	__LI	rd5, 0x0001AAAA00000000
+	set.rd	rd5, 0x0001AAAA00000000
 	rd2ra	{ra63}, {rd5}
-	__LI	rd5, 0x0001000000000000
+	set.rd	rd5, 0x0001000000000000
 	rd2ra	{ra0}, {rd5}            @@ RACNT = 1
 	jump	[rb0, __slot3]
 	.org	0xC00
@@ -115,11 +115,11 @@ __ck4:
 	__CHECK_RD         14, rd24, (ENTRY + 0x1004)
 
 	@@ ---- boundary：C3b 溢出到 MemRAS（满栈 + MRPTR ≠ 0 ⇒ 最旧条目落 MemRAS）----
-	__LI	rd5, 0x0005DDDD00000000
+	set.rd	rd5, 0x0005DDDD00000000
 	rd2ra	{ra1}, {rd5}            @@ RACNT = 63 时最旧条目下标 = 64 − RACNT = 1
-	__LI	rd5, 0x0001CCCC00000000
+	set.rd	rd5, 0x0001CCCC00000000
 	rd2ra	{ra63}, {rd5}           @@ 栈顶返回地址 ≠ 本条 call 的返回地址（不走 C2）
-	__LI	rd5, (0x003F000000000000 + MEMRAS + 0x80)   @@ RACNT = 63、MRPTR = MEMRAS+0x80
+	set.rd	rd5, (0x003F000000000000 + MEMRAS + 0x80)   @@ RACNT = 63、MRPTR = MEMRAS+0x80
 	rd2ra	{ra0}, {rd5}
 	jump	[rb0, __slot5]
 	.org	0x1200

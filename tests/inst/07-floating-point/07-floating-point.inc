@@ -28,46 +28,46 @@
 	ext.uo	rd21, rd21, 4
 	__VERIFY_RD \pt, rd21, \flags
 	rf2rd	{rd21:rd21}, {\dst:\dst}
-	__LI	rd20, \exp
+	set.rd	rd20, \exp
 	__REC	rd21
 	br.eq	{rd20, rd21}?, [rb0, __fpchk_\@]
 	__EXIT	\pt
 __fpchk_\@:
 .endm
-@@ 源初值经 `__LI_RF`（不经浮点指令）；目的预置 0xDEADBEEFCAFEF00D（ft 只写低 32）
+@@ 源初值经 `set.fo`（不经浮点运算指令）；目的预置 0xDEADBEEFCAFEF00D（ft 只写低 32）
 .macro __FP_RD1 dst, src, sval
 	.ifnc	\src, rf0
-	__LI_RF	\src, \sval
+	set.fo	\src, \sval
 	.endif
 	.ifnc	\dst, \src
-	__LI_RF	\dst, 0xDEADBEEFCAFEF00D
+	set.fo	\dst, 0xDEADBEEFCAFEF00D
 	.endif
 .endm
 @@ 源初值（rf）与指数（rd，rd0 不装载）经整数通路装配；目的预置 0xDEADBEEFCAFEF00D
 .macro __FP_RD2 dst, src, sval, ereg, eval
 	.ifnc	\src, rf0
-	__LI_RF	\src, \sval
+	set.fo	\src, \sval
 	.endif
 	.ifnc	\ereg, rd0
-	__LI	\ereg, \eval
+	set.rd	\ereg, \eval
 	.endif
 	.ifnc	\dst, \src
-	__LI_RF	\dst, 0xDEADBEEFCAFEF00D
+	set.fo	\dst, 0xDEADBEEFCAFEF00D
 	.endif
 .endm
 @@ 两个 rf 源 + 目的预置（rf0 作符号源时经 `__FP_ENV` 建立，不装载）
 .macro __FP_RD3 dst, src, sval, d, dval
 	.ifnc	\src, rf0
-	__LI_RF	\src, \sval
+	set.fo	\src, \sval
 	.endif
 	.ifnc	\d, rf0
 	.ifnc	\d, \src
-	__LI_RF	\d, \dval
+	set.fo	\d, \dval
 	.endif
 	.endif
 	.ifnc	\dst, \src
 	.ifnc	\dst, \d
-	__LI_RF	\dst, 0xDEADBEEFCAFEF00D
+	set.fo	\dst, 0xDEADBEEFCAFEF00D
 	.endif
 	.endif
 .endm
@@ -115,22 +115,22 @@ __fpchk_\@:
 .endm
 .macro TEST_FP3 pt, w, mnem, dst, a, aval, b, bval, rm, exp, flags
 	__FP_ENV \rm
-	__LI_RF	\a, \aval
+	set.fo	\a, \aval
 	.ifnc	\b, \a
-	__LI_RF	\b, \bval
+	set.fo	\b, \bval
 	.endif
 	\mnem	\dst, \a, \b
 	__FP_CHECK \pt, \w, \dst, \exp, \flags
 .endm
 .macro TEST_FP4 pt, w, mnem, dst, a, aval, b, bval, c, cval, rm, exp, flags
 	__FP_ENV \rm
-	__LI_RF	\a, \aval
+	set.fo	\a, \aval
 	.ifnc	\b, \a
-	__LI_RF	\b, \bval
+	set.fo	\b, \bval
 	.endif
 	.ifnc	\c, \a
 	.ifnc	\c, \b
-	__LI_RF	\c, \cval
+	set.fo	\c, \cval
 	.endif
 	.endif
 	\mnem	\dst, \a, \b, \c
@@ -138,29 +138,29 @@ __fpchk_\@:
 .endm
 .macro TEST_FPROOT pt, w, mnem, dst, src, sval, n, rm, exp, flags
 	__FP_ENV \rm
-	__LI_RF	\src, \sval
+	set.fo	\src, \sval
 	\mnem	\dst, \src, \n
 	__FP_CHECK \pt, \w, \dst, \exp, \flags
 .endm
 @@ encoding 例：直接给**规范编码字**（钉 opc/mask/value 与字段位置），不写助记符
 .macro TEST_FPENC pt, w, enc, dst, a, aval, b, bval, exp, flags
 	__FP_ENV 0
-	__LI_RF	\a, \aval
+	set.fo	\a, \aval
 	.ifnc	\b, \a
-	__LI_RF	\b, \bval
+	set.fo	\b, \bval
 	.endif
 	.dd.t32	\enc
 	__FP_CHECK \pt, \w, \dst, \exp, \flags
 .endm
 .macro TEST_FPENC4 pt, w, enc, dst, a, aval, b, bval, c, cval, exp, flags
 	__FP_ENV 0
-	__LI_RF	\a, \aval
+	set.fo	\a, \aval
 	.ifnc	\b, \a
-	__LI_RF	\b, \bval
+	set.fo	\b, \bval
 	.endif
 	.ifnc	\c, \a
 	.ifnc	\c, \b
-	__LI_RF	\c, \cval
+	set.fo	\c, \cval
 	.endif
 	.endif
 	.dd.t32	\enc
@@ -168,7 +168,7 @@ __fpchk_\@:
 .endm
 .macro TEST_FPENC_ROOT pt, w, enc, dst, src, sval, exp, flags
 	__FP_ENV 0
-	__LI_RF	\src, \sval
+	set.fo	\src, \sval
 	.dd.t32	\enc
 	__FP_CHECK \pt, \w, \dst, \exp, \flags
 .endm
@@ -216,18 +216,18 @@ __fault_case:
 	__CHECK_RD \pt, \dst, \exp
 .endm
 
-@@ 浮点→整数：源值经 `__LI_RF`（不经浮点指令），immu6 = 六档方向，rf0 档只对 0x20 生效
+@@ 浮点→整数：源值经 `set.fo`（不经浮点运算指令），immu6 = 六档方向，rf0 档只对 0x20 生效
 .macro TEST_FPCVT_F2I pt, mnem, dst, src, sval, cvt, rfm, exp, flags
 	__FP_ENV \rfm
-	__LI_RF	\src, \sval
+	set.fo	\src, \sval
 	\mnem	\dst, \src, \cvt
 	__FP_CHECK_RD \pt, \dst, \exp, \flags
 .endm
 
-@@ 整数→浮点：源值经 `__LI` 装 rd（不经浮点指令）
+@@ 整数→浮点：源值经 `set.rd` 装 rd（不经浮点运算指令）
 .macro TEST_FPCVT_I2F pt, w, mnem, dst, src, sval, cvt, rfm, exp, flags
 	__FP_ENV \rfm
-	__LI	\src, \sval
+	set.rd	\src, \sval
 	\mnem	\dst, \src, \cvt
 	__FP_CHECK \pt, \w, \dst, \exp, \flags
 .endm
@@ -235,7 +235,7 @@ __fault_case:
 @@ encoding 例（目的 rd）：给规范编码字，钉 opc/mask/value 与字段位置
 .macro TEST_FPCVT_ENC_RD pt, enc, dst, src, sval, exp, flags
 	__FP_ENV 0
-	__LI_RF	\src, \sval
+	set.fo	\src, \sval
 	.dd.t32	\enc
 	__FP_CHECK_RD \pt, \dst, \exp, \flags
 .endm
@@ -243,7 +243,7 @@ __fault_case:
 @@ encoding 例（目的 rf）
 .macro TEST_FPCVT_ENC_RF pt, w, enc, dst, src, sval, exp, flags
 	__FP_ENV 0
-	__LI	\src, \sval
+	set.rd	\src, \sval
 	.dd.t32	\enc
 	__FP_CHECK \pt, \w, \dst, \exp, \flags
 .endm
@@ -251,7 +251,7 @@ __fault_case:
 @@ 浮点→浮点（ft2fo 精确 / fo2ft 六档）：源是 rf
 .macro TEST_FPCVT_F2F pt, w, mnem, dst, src, sval, cvt, rfm, exp, flags
 	__FP_ENV \rfm
-	__LI_RF	\src, \sval
+	set.fo	\src, \sval
 	\mnem	\dst, \src, \cvt
 	__FP_CHECK \pt, \w, \dst, \exp, \flags
 .endm
@@ -259,7 +259,7 @@ __fault_case:
 @@ 浮点→浮点 encoding 例（源 rf）
 .macro TEST_FPCVT_ENC_F2F pt, w, enc, dst, src, sval, exp, flags
 	__FP_ENV 0
-	__LI_RF	\src, \sval
+	set.fo	\src, \sval
 	.dd.t32	\enc
 	__FP_CHECK \pt, \w, \dst, \exp, \flags
 .endm
@@ -267,9 +267,9 @@ __fault_case:
 @@ 比较（有序/quiet 无序）：结果 −1/0/1 或 canonical qNaN，全 64 位比较
 .macro TEST_FPCMP pt, mnem, dst, a, aval, b, bval, exp, flags
 	__FP_ENV 0
-	__LI_RF	\a, \aval
+	set.fo	\a, \aval
 	.ifnc	\b, \a
-	__LI_RF	\b, \bval
+	set.fo	\b, \bval
 	.endif
 	\mnem	\dst, \a, \b
 	__FP_CHECK_RD \pt, \dst, \exp, \flags
@@ -278,9 +278,9 @@ __fault_case:
 @@ 比较 encoding 例（原始编码字）
 .macro TEST_FPCMP_ENC pt, enc, dst, a, aval, b, bval, exp, flags
 	__FP_ENV 0
-	__LI_RF	\a, \aval
+	set.fo	\a, \aval
 	.ifnc	\b, \a
-	__LI_RF	\b, \bval
+	set.fo	\b, \bval
 	.endif
 	.dd.t32	\enc
 	__FP_CHECK_RD \pt, \dst, \exp, \flags
@@ -289,9 +289,9 @@ __fault_case:
 @@ signaling compare 的无序结果：sNaN 位型、符号 0、payload 不限 ⇒ 结构断言
 .macro TEST_FPCMP_S pt, w, mnem, dst, a, aval, b, bval, flags
 	__FP_ENV 0
-	__LI_RF	\a, \aval
+	set.fo	\a, \aval
 	.ifnc	\b, \a
-	__LI_RF	\b, \bval
+	set.fo	\b, \bval
 	.endif
 	\mnem	\dst, \a, \b
 	rf2rd	{rd22:rd22}, {rf0:rf0}
@@ -319,15 +319,15 @@ __fps_\@:
 @@ 分类（源 rf40..，目的 rd8..；[63:10] 必须清零 ⇒ 期望按全 64 位比较）
 .macro TEST_FPCLS1 pt, mnem, v0, e0
 	__FP_ENV 0
-	__LI_RF	rf40, \v0
+	set.fo	rf40, \v0
 	\mnem	{rd8:rd8}, {rf40:rf40}
 	__CHECK_RD \pt, rd8, \e0
 .endm
 
 .macro TEST_FPCLS2 pt, mnem, v0, e0, v1, e1
 	__FP_ENV 0
-	__LI_RF	rf40, \v0
-	__LI_RF	rf41, \v1
+	set.fo	rf40, \v0
+	set.fo	rf41, \v1
 	\mnem	{rd8:rd9}, {rf40:rf41}
 	__VERIFY_RD \pt, rd9, \e1
 	__CHECK_RD \pt, rd8, \e0
@@ -335,9 +335,9 @@ __fps_\@:
 
 .macro TEST_FPCLS3 pt, mnem, v0, e0, v1, e1, v2, e2
 	__FP_ENV 0
-	__LI_RF	rf40, \v0
-	__LI_RF	rf41, \v1
-	__LI_RF	rf42, \v2
+	set.fo	rf40, \v0
+	set.fo	rf41, \v1
+	set.fo	rf42, \v2
 	\mnem	{rd8:rd10}, {rf40:rf42}
 	__VERIFY_RD \pt, rd9, \e1
 	__VERIFY_RD \pt, rd10, \e2
@@ -346,10 +346,10 @@ __fps_\@:
 
 .macro TEST_FPCLS4 pt, mnem, v0, e0, v1, e1, v2, e2, v3, e3
 	__FP_ENV 0
-	__LI_RF	rf40, \v0
-	__LI_RF	rf41, \v1
-	__LI_RF	rf42, \v2
-	__LI_RF	rf43, \v3
+	set.fo	rf40, \v0
+	set.fo	rf41, \v1
+	set.fo	rf42, \v2
+	set.fo	rf43, \v3
 	\mnem	{rd8:rd11}, {rf40:rf43}
 	__VERIFY_RD \pt, rd9, \e1
 	__VERIFY_RD \pt, rd10, \e2
@@ -360,7 +360,7 @@ __fps_\@:
 @@ 分类 encoding 例（原始编码字；count = 1；目的寄存器由调用者给出）
 .macro TEST_FPCLS_ENC1 pt, mnem, enc, dst, v0, e0
 	__FP_ENV 0
-	__LI_RF	rf40, \v0
+	set.fo	rf40, \v0
 	.dd.t32	\enc
 	__CHECK_RD \pt, \dst, \e0
 .endm
@@ -375,17 +375,17 @@ __fps_\@:
 @@ 分类的同号用例（目的 rd40 / 源 rf40，同号不同组）与范围上界（rd60.. ← rf60..）
 .macro TEST_FPCLS1_IDX pt, mnem, v0, e0
 	__FP_ENV 0
-	__LI_RF	rf40, \v0
+	set.fo	rf40, \v0
 	\mnem	{rd40:rd40}, {rf40:rf40}
 	__CHECK_RD \pt, rd40, \e0
 .endm
 
 .macro TEST_FPCLS_TOP4 pt, mnem, v0, e0, v1, e1, v2, e2, v3, e3
 	__FP_ENV 0
-	__LI_RF	rf60, \v0
-	__LI_RF	rf61, \v1
-	__LI_RF	rf62, \v2
-	__LI_RF	rf63, \v3
+	set.fo	rf60, \v0
+	set.fo	rf61, \v1
+	set.fo	rf62, \v2
+	set.fo	rf63, \v3
 	\mnem	{rd60:rd63}, {rf60:rf63}
 	__VERIFY_RD \pt, rd61, \e1
 	__VERIFY_RD \pt, rd62, \e2

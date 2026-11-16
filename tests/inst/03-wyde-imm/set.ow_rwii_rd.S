@@ -5,7 +5,7 @@
 @@ 合法性：目的 rdHA = rd0 ⇒ ILLI（`dst_rd0`，`spec/SimRISC-03 附录 B`）；无其它规则
 @@ 立即数分片：wp0/wp1/wp2/wp3 = bits[15:0]/[31:16]/[47:32]/[63:48]（LSW..MSW，`spec/SimRISC-03 §1`）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 WDATA（`_MEM` 期望的来源）/ SCRATCH（rb/rf 实测落点）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 6 / overlap 1（链例 14 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -20,12 +20,12 @@
 	@@ ---- encoding ----
 	@@ dst=rd5/wp2/0x1234 的规范编码字
 	@@ 规范编码字 0x4D161234（opc<<24 | rd5<<18 | wp2<<16 | 0x1234）
-	__LI	rd5, 0x0000000000000000
+	set.rd	rd5, 0x0000000000000000
 	.dd.t32	0x4D161234
 	__CHECK_RD           1, rd5, 0xFFFF1234FFFFFFFF
 	@@ 最高寄存器 rd63 + wp3
 	@@ 规范编码字 0x4DFF0001（opc<<24 | rd63<<18 | wp3<<16 | 0x0001）
-	__LI	rd63, 0x0123456789ABCDEF
+	set.rd	rd63, 0x0123456789ABCDEF
 	.dd.t32	0x4DFF0001
 	__CHECK_RD           2, rd63, 0x0001FFFFFFFFFFFF
 

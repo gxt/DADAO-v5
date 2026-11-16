@@ -6,12 +6,12 @@
 @@ 合法性：目的 rdhb 为 rd0 ⇒ ILLI（`dst_rd0`）；源可为 rd0（读出 0）；原地反转允许；
 @@   immu6 = k 须为 one-hot 且 k < 64（合法档 1/2/4/8/16/32）⇒ 0/3/5/…/63 触发 ILLI（`encode_onehot`）
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orri = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | immu6[5:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 6 / boundary 4 / overlap 1（链例 13 + 故障例 4）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
+@@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联
 
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/04-arith-logic-octa/04-arith-logic-octa.inc"
@@ -20,15 +20,15 @@
 
 	@@ rd5 = rev.o(rd6, k=8) 的规范编码字直接执行（钉 mask/value）
 	@@ 规范编码字 0x40305188（opc<<24 | ha<<18 | rd5<<12 | rd6<<6 | immu6）
-	__LI	rd5, 0xFFFFFFFFFFFFFFFF
-	__LI	rd6, 0x0123456789ABCDEF
+	set.rd	rd5, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd6, 0x0123456789ABCDEF
 	.dd.t32	0x40305188
 	__CHECK_RD   1, rd5, 0xEFCDAB8967452301
 
 	@@ 最高寄存器作目的（rd63）+ k=32 的编码字（字段边界）
 	@@ 规范编码字 0x4033F060（opc<<24 | ha<<18 | rd63<<12 | rd1<<6 | immu6）
-	__LI	rd63, 0xFFFFFFFFFFFFFFFF
-	__LI	rd1, 0x0123456789ABCDEF
+	set.rd	rd63, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd1, 0x0123456789ABCDEF
 	.dd.t32	0x4033F060
 	__CHECK_RD   2, rd63, 0x89ABCDEF01234567
 

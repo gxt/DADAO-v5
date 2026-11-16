@@ -34,7 +34,7 @@
 	@@ boundary：SRAM 尾拍（0xffffff7ffff8）可写，读写逐字节相等
 	LOAD_ADDR rb28, MDATA_O + 0x090
 	ldm.o	{ra5:ra5}, [rb28, rd0]
-	__LI    rd19, 0x000
+	set.rd    rd19, 0x000
 	LOAD_ADDR rb4, 0xFFFFFF7FFFF8
 	stm.o	{ra5:ra5}, [rb4, rd19]
 	LOAD_ADDR rb21, 0xFFFFFF7FFFF8

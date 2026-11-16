@@ -4,12 +4,12 @@
 @@ 语义：rdHA ← 比较(有符号 rdHB, 符号扩展 imms12)：< ⇒ -1、== ⇒ 0、> ⇒ 1（写满 64 位）
 @@ 合法性：目的 rdHA/rdHB 为 rd0 ⇒ ILLI（`dst_rd0`）；源可为 rd0（读出 0）
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：rrii = opc | rdha[23:18] | rdhb[17:12] | imm12[11:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 6 / overlap 1（链例 14 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联；
+@@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联；
 @@   双目的用例高半 `__VERIFY_RD` + 低半 `__CHECK_RD`（两条断言共用点号）。
 
 	.include "tests/inst/macros/inst_test.inc"
@@ -19,14 +19,14 @@
 
 	@@ rd5 = cmp(rd6, -2048) 的规范编码字直接执行（钉 mask/value）
 	@@ 规范编码字 0x5D146800（opc<<24 | rd5<<18 | rd6<<12 | imm12）
-	__LI	rd5, 0xFFFFFFFFFFFFFFFF
-	__LI	rd6, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd5, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd6, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x5D146800
 	__CHECK_RD   1, rd5, 0x0000000000000001
 
 	@@ 目的=源（rd63）+ 最大正立即数 2047 的编码字
 	@@ 规范编码字 0x5DFFF7FF（opc<<24 | rd63<<18 | rd63<<12 | imm12）
-	__LI	rd63, 0x00000000000007FF
+	set.rd	rd63, 0x00000000000007FF
 	.dd.t32	0x5DFFF7FF
 	__CHECK_RD   2, rd63, 0x0000000000000000
 

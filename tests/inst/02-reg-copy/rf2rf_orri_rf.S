@@ -13,13 +13,13 @@
 @@   `rf` 组唯一的同组块复制（`SimRISC-07` 侧不再有分宽度的同组复制载体）。
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 SCRATCH（rf 目的实测落点，rb29 指）/
 @@   MSTORE（最大个数例的源；判据「目的 == 源内存」，与宏层既有 31 元口径一致）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 4 / boundary 3 / overlap 1 / rf0 1（链例 11 + 故障例 6）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：rf 目的单元素经 `st.o` 落 SCRATCH 再 `ld.o` 比（`st_*_rrii_rf`，与被测指令无关）；
 @@   多元素用 `__VERIFY_MEM_RF`/`__CHECK_MEM_RF`（`rf2rd` 跨组读回 + `ld.o`，见宏层）
-@@ rf 初值经 `__LI_RF`（`__LI` + `rd2rf`）装配 —— 不经被测指令，也不经浮点运算指令
+@@ rf 初值经 `set.fo`（`rd2rf rf, rd0` + 非零 wyde 的 `set.w`）装配 —— 不经被测指令，也不经浮点运算指令
 @@ 注：`rf0`（FCSR）位型由硬件定义（含只读 qNaN 字段）⇒ 含 `rf0` 的用例只断言
 @@   「目的 == 同一时刻的 rf0」（运行期取，不钉字面量）
 
@@ -73,33 +73,33 @@ __cmrf_\@:
 
 	@@ ---- encoding ----
 	@@ 规范编码字：dst=rf20 / src=rf40 / immu6=2（两个元素）⇒ 0x40F14A02
-	__LI_RF	rf40, 0x3FF0000000000000
-	__LI_RF	rf41, 0xC002000000000000
+	set.fo	rf40, 0x3FF0000000000000
+	set.fo	rf41, 0xC002000000000000
 	.dd.t32	0x40F14A02
 	__PREP_ST_VERIFY	1, rf21, 0xC002000000000000
 	st.o	rf20, [rb29, 0]
 	__CHECK_MEM	1, SCRATCH, 0, 0x3FF0000000000000
 	@@ 字段边界：dst=rf63 / src=rf62 / immu6=1 ⇒ 0x40F3FF81（最高号目的）
-	__LI_RF	rf62, 0x7FF8000000000000
+	set.fo	rf62, 0x7FF8000000000000
 	.dd.t32	0x40F3FF81
 	st.o	rf63, [rb29, 0]
 	__CHECK_MEM	2, SCRATCH, 0, 0x7FF8000000000000
 
 	@@ ---- semantic ----
 	@@ 个数 1：位型原样搬移（NaN payload 逐位保留，不做 canonical 化）
-	__LI_RF	rf40, 0x7FF8000000123456
+	set.fo	rf40, 0x7FF8000000123456
 	TEST_MOV1	3, rf2rf, rf20, rf40, 0x7FF8000000123456
 	@@ 个数 2：两个元素逐对搬移（含负号 qNaN / payload 1）
-	__LI_RF	rf40, 0x3FF0000000000000
-	__LI_RF	rf41, 0xFFF8000000000001
+	set.fo	rf40, 0x3FF0000000000000
+	set.fo	rf41, 0xFFF8000000000001
 	rf2rf	{rf20:rf21}, {rf40:rf41}
 	__PREP_ST_VERIFY	4, rf21, 0xFFF8000000000001
 	st.o	rf20, [rb29, 0]
 	__CHECK_MEM	4, SCRATCH, 0, 0x3FF0000000000000
 	@@ 个数 3：±0 与次正规照搬，且**不置标志**（FCSR 位型复制前后不变）
-	__LI_RF	rf40, 0x0000000000000000
-	__LI_RF	rf41, 0x8000000000000000
-	__LI_RF	rf42, 0x000FFFFFFFFFFFFF
+	set.fo	rf40, 0x0000000000000000
+	set.fo	rf41, 0x8000000000000000
+	set.fo	rf42, 0x000FFFFFFFFFFFFF
 	rf2rd	{rd22:rd22}, {rf0:rf0}
 	rf2rf	{rf20:rf22}, {rf40:rf42}
 	rf2rd	{rd23:rd23}, {rf0:rf0}
@@ -109,10 +109,10 @@ __cmrf_\@:
 	st.o	rf20, [rb29, 0]
 	__CHECK_MEM	5, SCRATCH, 0, 0x0000000000000000
 	@@ 个数 4：四个元素逐对搬移（值互不相同，顺序错位即红）
-	__LI_RF	rf40, 0x0123456789ABCDEF
-	__LI_RF	rf41, 0xFEDCBA9876543210
-	__LI_RF	rf42, 0xAAAAAAAAAAAAAAAA
-	__LI_RF	rf43, 0x5555555555555555
+	set.fo	rf40, 0x0123456789ABCDEF
+	set.fo	rf41, 0xFEDCBA9876543210
+	set.fo	rf42, 0xAAAAAAAAAAAAAAAA
+	set.fo	rf43, 0x5555555555555555
 	rf2rf	{rf20:rf23}, {rf40:rf43}
 	__PREP_ST_VERIFY	6, rf23, 0x5555555555555555
 	__PREP_ST_VERIFY	6, rf22, 0xAAAAAAAAAAAAAAAA
@@ -122,17 +122,17 @@ __cmrf_\@:
 
 	@@ ---- boundary ----
 	@@ 寄存器窗口顶端：{rf60:rf63} ← {rf40:rf43}（起始 60 + 4 = 64，§1 上界）
-	__LI_RF	rf40, 0x0F1E2D3C4B5A6978
-	__LI_RF	rf41, 0x8000000000000000
-	__LI_RF	rf42, 0x0000000000000001
-	__LI_RF	rf43, 0x7FFFFFFFFFFFFFFF
+	set.fo	rf40, 0x0F1E2D3C4B5A6978
+	set.fo	rf41, 0x8000000000000000
+	set.fo	rf42, 0x0000000000000001
+	set.fo	rf43, 0x7FFFFFFFFFFFFFFF
 	rf2rf	{rf60:rf63}, {rf40:rf43}
 	__PREP_ST_VERIFY	7, rf63, 0x7FFFFFFFFFFFFFFF
 	__PREP_ST_VERIFY	7, rf62, 0x0000000000000001
 	st.o	rf61, [rb29, 0]
 	__CHECK_MEM	7, SCRATCH, 0, 0x8000000000000000
 	@@ 最高号单寄存器：rf63 ← rf40
-	__LI_RF	rf40, 0xC002000000000000
+	set.fo	rf40, 0xC002000000000000
 	TEST_MOV1	8, rf2rf, rf63, rf40, 0xC002000000000000
 	@@ 最大可行个数 31（{rf1:rf31} ← {rf32:rf62}；同组不许重叠 ⇒ 2n ≤ 63 ⇒ n ≤ 31），
 	@@   逐元素核「目的 == 源内存」（源从 MSTORE 装入，不引入额外期望常量）
@@ -173,8 +173,8 @@ __cmrf_\@:
 
 	@@ ---- overlap / rf0 ----
 	@@ 相邻不相交窗口：{rf40:rf41} ← {rf42:rf43}（合法，无交集）
-	__LI_RF	rf42, 0x7FF8000000000000
-	__LI_RF	rf43, 0x0000000000000001
+	set.fo	rf42, 0x7FF8000000000000
+	set.fo	rf43, 0x0000000000000001
 	rf2rf	{rf40:rf41}, {rf42:rf43}
 	__PREP_ST_VERIFY	10, rf41, 0x0000000000000001
 	st.o	rf40, [rb29, 0]

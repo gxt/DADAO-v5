@@ -14,15 +14,15 @@
 @@     orrr dbb：`cmp.uo/sub.o rdHB, rbHC, rbHD`（目的 rdHB；两源都在 RB）
 @@   TEST_AR_RB_SI(pt, 助记符, 目的RB, 初值, imms18, 期望)
 @@     riii rb：`add.si rbHA, imms18`（目的兼源）
-@@   这三条的**目的都只写不读**（不装初值）；源按银行用 `__LI_RB`（rb）/`__LI`（rd）装载，
+@@   这三条的**目的都只写不读**（不装初值）；源按银行用 `set.rb`（rb）/`set.rd`（rd）装载，
 @@   rd0 作源跳过装载（读出 0）。目的在 RB ⇒ 实测经同组 `st.o` 落到 SCRATCH 再
 @@   `__CHECK_MEM`（探针不借被测指令）；目的在 rd ⇒ `__CHECK_RD`。
 @@ ---------------------------------------------------------------------------
 
 .macro TEST_AR_BBD pt, mnem, dst, c, cval, d, dval, exp
-	__LI_RB	\c, \cval
+	set.rb	\c, \cval
 	.ifnc	\d, rd0
-	__LI	\d, \dval
+	set.rd	\d, \dval
 	.endif
 	\mnem	\dst, \c, \d
 	st.o	\dst, [rb29, 0]
@@ -30,9 +30,9 @@
 .endm
 
 .macro TEST_AR_DBB pt, mnem, dst, c, cval, d, dval, exp
-	__LI_RB	\c, \cval
+	set.rb	\c, \cval
 	.ifnc	\d, \c
-	__LI_RB	\d, \dval
+	set.rb	\d, \dval
 	.endif
 	\mnem	\dst, \c, \d
 	__CHECK_RD \pt, \dst, \exp
@@ -45,10 +45,10 @@
 __fault_case:
 	__FAULT_GUARD \pt, \fault
 	.ifnc	\c, rb0
-	__LI_RB	\c, 0x0123456789ABCDEF
+	set.rb	\c, 0x0123456789ABCDEF
 	.endif
 	.ifnc	\d, rd0
-	__LI	\d, 0x0000000000000007
+	set.rd	\d, 0x0000000000000007
 	.endif
 	\mnem	\dst, \c, \d
 	__EXIT	\pt
@@ -60,10 +60,10 @@ __fault_case:
 __fault_case:
 	__FAULT_GUARD \pt, \fault
 	.ifnc	\c, rb0
-	__LI_RB	\c, 0x0123456789ABCDEF
+	set.rb	\c, 0x0123456789ABCDEF
 	.endif
 	.ifnc	\d, rb0
-	__LI_RB	\d, 0x0000000000000007
+	set.rb	\d, 0x0000000000000007
 	.endif
 	\mnem	\dst, \c, \d
 	__EXIT	\pt

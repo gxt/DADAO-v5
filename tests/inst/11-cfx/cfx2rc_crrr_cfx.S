@@ -6,7 +6,7 @@
 @@   （rd0 恒读出 0，见 `spec/SimRISC-00 §2`）；Tiny 上 `switch_run_mode` 写入被忽略、
 @@   `excp_vector` 写入忽略低 2 位（`spec/Kaiwu §2`、`spec/DADAO-13 §1`）。
 @@ 编码：crrr = opc[31:24] | cfxha[23:18] | cghb[17:12] | rchc[11:6] | rdhd[5:0]
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 9 / boundary 6 / overlap 2（链例 17 + 故障例 7）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -24,72 +24,72 @@
 
 	@@ ---- encoding（规范编码字直接执行，钉 mask/value 与字段位域）----
 	@@ 0x7B0C50C5 = cfx3 / cg5 rc3（excp_cause_ip，RW）/ rd5
-	__LI	rd5, 0x0123456789ABCDEF
+	set.rd	rd5, 0x0123456789ABCDEF
 	.dd.t32	0x7B0C50C5
 	cfx2rd	cfx_hmon, cg5, rc3, rd6
 	__CHECK_RD   1, rd6, 0x0123456789ABCDEF
 
 	@@ 0x7B0C50FF = cfx3 / cg5 rc3 / rd63（rd 字段最大号）
-	__LI	rd63, 0xDEADBEEFCAFEF00D
+	set.rd	rd63, 0xDEADBEEFCAFEF00D
 	.dd.t32	0x7B0C50FF
 	cfx2rd	cfx_hmon, cg5, rc3, rd6
 	__CHECK_RD   2, rd6, 0xDEADBEEFCAFEF00D
 
 	@@ ---- semantic：可写寄存器的 64 位全宽写入 ----
-	__LI	rd5, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd5, 0xFFFFFFFFFFFFFFFF
 	cfx2rc	cfx_hmon, cg5, rc3, rd5
 	cfx2rd	cfx_hmon, cg5, rc3, rd6
 	__CHECK_RD   3, rd6, 0xFFFFFFFFFFFFFFFF
 
-	__LI	rd5, 0x0000000000000000
+	set.rd	rd5, 0x0000000000000000
 	cfx2rc	cfx_hmon, cg5, rc3, rd5
 	cfx2rd	cfx_hmon, cg5, rc3, rd6
 	__CHECK_RD   4, rd6, 0x0000000000000000
 
 	@@ excp_prev_run_mode（cg5 rc0，RW）：写入 2（supv）后读回 2，随后恢复 3（hypv）
-	__LI	rd5, 0x0000000000000002
+	set.rd	rd5, 0x0000000000000002
 	cfx2rc	cfx_hmon, cg5, rc0, rd5
 	cfx2rd	cfx_hmon, cg5, rc0, rd6
 	__CHECK_RD   5, rd6, 0x0000000000000002
-	__LI	rd5, 0x0000000000000003
+	set.rd	rd5, 0x0000000000000003
 	cfx2rc	cfx_hmon, cg5, rc0, rd5
 	cfx2rd	cfx_hmon, cg5, rc0, rd6
 	__CHECK_RD   6, rd6, 0x0000000000000003
 
 	@@ switch_run_mode（cg3 rc8）：Tiny 忽略写入，读回保存值 3（`spec/Kaiwu §2`）
-	__LI	rd5, 0x0000000000000000
+	set.rd	rd5, 0x0000000000000000
 	cfx2rc	cfx_hmon, cg3, rc8, rd5
 	cfx2rd	cfx_hmon, cg3, rc8, rd6
 	__CHECK_RD   7, rd6, 3
 
 	@@ excp_vector（cg3 rc10）：写入忽略低 2 位（`spec/DADAO-13 §1`），读回对齐值；随后复位
-	__LI	rd5, (HMON_BASE + 7)
+	set.rd	rd5, (HMON_BASE + 7)
 	cfx2rc	cfx_hmon, cg3, rc10, rd5
 	cfx2rd	cfx_hmon, cg3, rc10, rd6
 	__CHECK_RD   8, rd6, (HMON_BASE + 4)
-	__LI	rd5, HMON_BASE
+	set.rd	rd5, HMON_BASE
 	cfx2rc	cfx_hmon, cg3, rc10, rd5
 	cfx2rd	cfx_hmon, cg3, rc10, rd6
 	__CHECK_RD   9, rd6, HMON_BASE
 
 	@@ power 的 excp_vector（BootROM 起始）：写入同值（幂等）
-	__LI	rd5, BOOTROM_BASE
+	set.rd	rd5, BOOTROM_BASE
 	cfx2rc	cfx_power, cg3, rc10, rd5
 	cfx2rd	cfx_power, cg3, rc10, rd6
 	__CHECK_RD  10, rd6, BOOTROM_BASE
 
 	@@ cfx_intr_mask（cg3 rc4，RW）：整 64 位写入/读回
-	__LI	rd5, 0x0123456789ABCDEF
+	set.rd	rd5, 0x0123456789ABCDEF
 	cfx2rc	cfx_hmon, cg3, rc4, rd5
 	cfx2rd	cfx_hmon, cg3, rc4, rd6
 	__CHECK_RD  11, rd6, 0x0123456789ABCDEF
 
 	@@ ---- boundary：intr mask 全 0 与复位值（全 1）----
-	__LI	rd5, 0x0000000000000000
+	set.rd	rd5, 0x0000000000000000
 	cfx2rc	cfx_hmon, cg3, rc4, rd5
 	cfx2rd	cfx_hmon, cg3, rc4, rd6
 	__CHECK_RD  12, rd6, 0x0000000000000000
-	__LI	rd5, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd5, 0xFFFFFFFFFFFFFFFF
 	cfx2rc	cfx_hmon, cg3, rc4, rd5
 	cfx2rd	cfx_hmon, cg3, rc4, rd6
 	__CHECK_RD  13, rd6, 0xFFFFFFFFFFFFFFFF
@@ -99,19 +99,19 @@
 	cfx2rd	cfx_hmon, cg5, rc3, rd6
 	__CHECK_RD  14, rd6, 0x0000000000000000
 	@@ 帧恢复：cause_ip 写回本文件 .text 内的确定性地址
-	__LI	rd5, (ENTRY + 4)
+	set.rd	rd5, (ENTRY + 4)
 	cfx2rc	cfx_hmon, cg5, rc3, rd5
 	cfx2rd	cfx_hmon, cg5, rc3, rd6
 	__CHECK_RD  15, rd6, (ENTRY + 4)
 
 	@@ ---- overlap：同一 cfx 寄存器连续写（后写覆盖前写；再写回旧值）----
-	__LI	rd5, 0x1111111111111111
+	set.rd	rd5, 0x1111111111111111
 	cfx2rc	cfx_hmon, cg5, rc3, rd5
-	__LI	rd5, 0x2222222222222222
+	set.rd	rd5, 0x2222222222222222
 	cfx2rc	cfx_hmon, cg5, rc3, rd5
 	cfx2rd	cfx_hmon, cg5, rc3, rd6
 	__CHECK_RD  16, rd6, 0x2222222222222222
-	__LI	rd5, 0x1111111111111111
+	set.rd	rd5, 0x1111111111111111
 	cfx2rc	cfx_hmon, cg5, rc3, rd5
 	cfx2rd	cfx_hmon, cg5, rc3, rd6
 	__CHECK_RD  17, rd6, 0x1111111111111111

@@ -7,8 +7,8 @@
 @@ 合法性：无静态规则；压栈可能触发 **RASOF**（RACNT == 63 且 MRPTR == 0）；目标恒
 @@   4 字节对齐 ⇒ 不会触发 IALIGN；基址可为 0 ⇒ 目标地址 0 ⇒ 取指 CFXMEM
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：rrii = opc | rbha[23:18] | rdhb[17:12] | imms12[11:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI_RB`/`__LI` 拼基址与偏移寄存器）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（ENTRY 由 `machine-tiny.inc` 固定）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rb`/`set.rd` 拼基址与偏移寄存器）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 1 / semantic 11 / overlap 2（链例 14 + 故障例 2）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -23,19 +23,19 @@
 
 	@@ ---- encoding ----
 	@@ 点 1：规范编码字 0x75000002（rbha = rb0、rdhb = rd0、imms12 = 2 ⇒ +8）⇒ 跳过 4 B
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	.dd.t32	0x75000002
 	add.si	rd24, 1
 	__CHECK_RD          1, rd24, 0
 
 	@@ ---- semantic（自然 call/ret 配对）：压栈→弹栈后 RACNT 归 0 ----
 	rd2ra	{ra0}, {rd0}
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	call	[rb0, __fx]
 __fx_ret:
 	jump	[rb0, __fx_ck]
 __fx:
-	__LI	rd24, 1
+	set.rd	rd24, 1
 	ret	rd0, 0
 __fx_ck:
 	__CHECK_RD          2, rd24, 1
@@ -45,7 +45,7 @@ __fx_ck:
 	@@ ---- overlap ----
 	@@ 基址与偏移都取 0 号寄存器（rb0 在 rrii 里是相对基址、rd0 读出 0）⇒ 退化为相对调用
 	rd2ra	{ra0}, {rd0}
-	__LI	rd24, 0
+	set.rd	rd24, 0
 	call	[rb0, rd0, 8]
 	add.si	rd24, 1
 	__CHECK_RD          4, rd24, 0        @@ +8 ⇒ 跳过后面的 add.si（rd24 保持 0）
@@ -53,8 +53,8 @@ __fx_ck:
 	__CHECK_RD          5, rd26, 0x0001000000000000   @@ 未返回 ⇒ RACNT = 1
 
 	@@ ---- semantic：基址 + 寄存器偏移 + 立即数（`.org` 钉住槽位）----
-	__LI_RB	rb5, (ENTRY + 0x900)
-	__LI	rd6, 0x40
+	set.rb	rb5, (ENTRY + 0x900)
+	set.rd	rd6, 0x40
 	rd2ra	{ra0}, {rd0}            @@ 冷栈
 	jump	[rb0, __slotA]
 	.org	0x800
@@ -73,7 +73,7 @@ __ckA:
 
 	@@ semantic：rb0 作基址的特例（`rdHB + (imms12 << 2)` 是相对跳转）
 	rd2ra	{ra0}, {rd0}            @@ 清栈（上一例压入的条目不复用）
-	__LI	rd6, 0x40
+	set.rd	rd6, 0x40
 	jump	[rb0, __slotB]
 	.org	0xB00
 __slotB:                                 @@ 0xB00：rb0 + 0x40 + 0x40 ⇒ 落点 0xB80
@@ -90,10 +90,10 @@ __ckB:
 	__CHECK_RD         11, rd26, 0x0001000000000000
 
 	@@ semantic（C2 递归折叠：栈顶返回地址 == 本 call 的返回地址 ⇒ 只加计数）
-	__LI	rd6, 0x40
-	__LI	rd5, (0x0001000000000000 + ENTRY + 0xE04)
+	set.rd	rd6, 0x40
+	set.rd	rd5, (0x0001000000000000 + ENTRY + 0xE04)
 	rd2ra	{ra63}, {rd5}
-	__LI	rd5, 0x0001000000000000
+	set.rd	rd5, 0x0001000000000000
 	rd2ra	{ra0}, {rd5}
 	jump	[rb0, __slotC]
 	.org	0xE00

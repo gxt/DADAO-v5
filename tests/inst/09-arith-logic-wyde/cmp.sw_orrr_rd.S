@@ -5,12 +5,12 @@
 @@ 合法性：目的 rdhb 为 rd0 ⇒ ILLI（`dst_rd0`）；源可为 rd0（读出 0）；rdHD==rdHC ⇒ 0
 @@ 边界/覆盖：覆盖 0x8000 判负、0xFFFF(−1) 与 0 定序、源高位不参与、rd0 作源、三种别名
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | rdhd[5:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / legality 4 / semantic 5 / boundary 3 / overlap 3（链例 15 + 故障例 2）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
+@@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联
 
 	.include "tests/inst/macros/inst_test.inc"
 
@@ -21,14 +21,14 @@
 	__CHECK_RD   1, rd1, 0x0000000000000000
 
 	@@ [2] （原 YAML 并入）cmp.sw: rd2=0xa, rd3=0x14, bits=16, signed=True
-	__LI	rd2, 0x000000000000000A
-	__LI	rd3, 0x0000000000000014
+	set.rd	rd2, 0x000000000000000A
+	set.rd	rd3, 0x0000000000000014
 	.dd.t32	0x42AC1083
 	__CHECK_RD   2, rd1, 0xFFFFFFFFFFFFFFFF
 
 	@@ [3] 最大寄存器字段：rd63 = cmp(rd1, rd2)，0x8000(−32768) < 1 ⇒ −1（有符号）
-	__LI	rd1, 0x0000000000008000
-	__LI	rd2, 0x0000000000000001
+	set.rd	rd1, 0x0000000000008000
+	set.rd	rd2, 0x0000000000000001
 	.dd.t32	0x42AFF042
 	__CHECK_RD   3, rd63, 0xFFFFFFFFFFFFFFFF
 

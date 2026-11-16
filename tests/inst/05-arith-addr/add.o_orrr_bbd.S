@@ -7,12 +7,12 @@
 @@   rbHB[63:48] 是地址计算的高 16 位（= 地址溢出指示）⇒ 运算结果不截断，用例直接比 64 位
 @@ 合法性：目的 rbHB 为 rb0 ⇒ ILLI（`dst_rb0`）；源可为 rd0（读出 0）
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[17:16] | rbhb[17:12] | rbhc[11:6] | rdhd[5:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI_RB`/`__LI` 拼初值；本册复用 04 的数据块）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rb`/`set.rd` 拼初值；本册复用 04 的数据块）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 4 / boundary 5 / overlap 2（链例 13 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：初值用 `__LI_RB`（rb）/`__LI`（rd）拼常量（被测指令不参与造初值）、期望内联；
+@@ 探针：初值用 `set.rb`（rb）/`set.rd`（rd）拼常量（被测指令不参与造初值）、期望内联；
 @@   目的在 RB ⇒ 实测经同组 `st.o` 落到 SCRATCH（rb29 指）再 `__CHECK_MEM`
 
 	.include "tests/inst/macros/inst_test.inc"
@@ -22,15 +22,15 @@
 
 	@@ ---- encoding ----
 	@@ 规范编码字 0x40C05187（opc/ha | rb5 | rb6 | rd7）直接执行：钉住 mask/value
-	__LI_RB	rb6, 0x0000000000000064
-	__LI	rd7, 0x000000000000001E
+	set.rb	rb6, 0x0000000000000064
+	set.rd	rd7, 0x000000000000001E
 	.dd.t32	0x40C05187
 	st.o	rb5, [rb29, 0]
 	__CHECK_MEM         1, SCRATCH, 0, 0x0000000000000082
 
 	@@ 字段边界：目的/源都是最大寄存器（0x40C3FFFF = rb63 | rb63 | rd63）
-	__LI_RB	rb63, 0xFFFFFFFFFFFFFFFF
-	__LI	rd63, 0x0000000000000001
+	set.rb	rb63, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd63, 0x0000000000000001
 	.dd.t32	0x40C3FFFF
 	st.o	rb63, [rb29, 0]
 	__CHECK_MEM         2, SCRATCH, 0, 0x0000000000000000

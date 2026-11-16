@@ -6,11 +6,11 @@
 @@ 合法性：目的 rdhb 为 rd0 ⇒ ILLI（`dst_rd0`）；**immu6 > 7 ⇒ ILLI**（`encode_sbz`）；
 @@   immu6 = 0 合法；源可为 rd0（读出 0）
 @@ 编码：orri = opc[31:24] | ha[23:18] | rdhb[17:12] | rdhc[11:6] | immu6[5:0]
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 3 / overlap 2（链例 12 + 故障例 3）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
+@@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联
 
 	.include "tests/inst/macros/inst_test.inc"
 
@@ -18,14 +18,14 @@
 
 	@@ ---- encoding（规范编码字直接执行，钉 mask/value）----
 	@@ 0x436C5181 = value | rd5<<12 | rd6<<6 | immu6=1：0xF0(−16) >> 1 = 0xF8（−8）
-	__LI	rd5, 0x0000000000000000
-	__LI	rd6, 0x00000000000000F0
+	set.rd	rd5, 0x0000000000000000
+	set.rd	rd6, 0x00000000000000F0
 	.dd.t32	0x436C5181
 	__CHECK_RD   1, rd5, 0xFFFFFFFFFFFFFFF8
 
 	@@ 0x436FF047 = value | rd63<<12 | rd1<<6 | immu6=7（字段边界）：0x80 >> 7 = 0xFF ⇒ −1
-	__LI	rd63, 0x0000000000000000
-	__LI	rd1, 0x0000000000000080
+	set.rd	rd63, 0x0000000000000000
+	set.rd	rd1, 0x0000000000000080
 	.dd.t32	0x436FF047
 	__CHECK_RD   2, rd63, 0xFFFFFFFFFFFFFFFF
 

@@ -27,7 +27,7 @@
 
 	@@ semantic：宽度/符号扩展逐元素核对（零扩展）
 	LOAD_ADDR rb3, MDATA_O + 0x030
-	__LI    rd19, 0x000
+	set.rd    rd19, 0x000
 	ldm.o	{rb5:rb7}, [rb3, rd19]
 	rb2rd	{rd21:rd21}, {rb5:rb5}
 	__CHECK_RD         5, rd21, 0x010203040506070E
@@ -48,7 +48,7 @@
 
 	@@ boundary：基址恰在传送范围**外一位**（组首 rb4、基址 rb3）⇒ 正常执行（范围内 ⇒ ILLI，见故障例）
 	LOAD_ADDR rb3, MDATA_O + 0x0C0
-	__LI    rd19, 0x000
+	set.rd    rd19, 0x000
 	ldm.o	{rb4:rb7}, [rb3, rd19]
 	LOAD_ADDR rb28, MDUMP + 0x0B8
 	stm.o	{rb4:rb7}, [rb28, rd0]

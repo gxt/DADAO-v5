@@ -4,7 +4,7 @@
 @@ 语义：rdHA 为正 ⇒ rdHB = rdHC；否则 rdHB = rdHD（rdHC/rdHD 只读，未被选中侧不写）
 @@ 合法性：目的 rdHB 为 rd0 ⇒ ILLI（`dst_rd0`）；条件寄存器 rdHA 为 rd0 合法（读出 0 ⇒ 条件不成立）
 @@ 数据块：本文件只用立即数准备寄存器；`tests/inst/macros/inst_test.inc` 的 RDATA 供 rf 变体用
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / legality 1 / semantic 3 / boundary 7 / overlap 2（链例 15 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -21,19 +21,19 @@
 	@@ 最高几个寄存器作条件/目的/候选（字段边界）
 	TEST_CS1           1, cs.p, rd63, 1, rd62, 0x1111111111111111, rd61, 0x2222222222222222, rd60, 0x3333333333333333, 0x2222222222222222
 	@@ 规范编码字（rdHA=rd5, rdHB=rd6, rdHC=rd7, rdHD=rd8）直接执行：钉住 mask/value
-	__LI	rd5, 1
-	__LI	rd6, 0x1111111111111111
-	__LI	rd7, 0x2222222222222222
-	__LI	rd8, 0x3333333333333333
+	set.rd	rd5, 1
+	set.rd	rd6, 0x1111111111111111
+	set.rd	rd7, 0x2222222222222222
+	set.rd	rd8, 0x3333333333333333
 	.dd.t32	0x641461C8
 	__CHECK_RD          2, rd6, 0x2222222222222222
 
 	@@ ---- semantic ----
 	@@ 条件为正 ⇒ 取 rdHC
-	__LI	rd1, 1
-	__LI	rd2, 0x1111111111111111
-	__LI	rd3, 0xAAAAAAAAAAAAAAAA
-	__LI	rd5, 0xBBBBBBBBBBBBBBBB
+	set.rd	rd1, 1
+	set.rd	rd2, 0x1111111111111111
+	set.rd	rd3, 0xAAAAAAAAAAAAAAAA
+	set.rd	rd5, 0xBBBBBBBBBBBBBBBB
 	cs.p	{rd1}?, rd2, rd3, rd5
 	__VERIFY_RD         3, rd5, 0xBBBBBBBBBBBBBBBB
 	__CHECK_RD          3, rd2, 0xAAAAAAAAAAAAAAAA
@@ -60,17 +60,17 @@
 
 	@@ ---- overlap ----
 	@@ 条件/候选/目的互不同名（C-27 之外的路径）：未选中侧（rdHC）不得被改写
-	__LI	rd1, 0
-	__LI	rd2, 0x1111222233334444
-	__LI	rd3, 0x000000000000AAAA
-	__LI	rd5, 0x000000000000BBBB
+	set.rd	rd1, 0
+	set.rd	rd2, 0x1111222233334444
+	set.rd	rd3, 0x000000000000AAAA
+	set.rd	rd5, 0x000000000000BBBB
 	cs.p	{rd1}?, rd2, rd3, rd5
 	__VERIFY_RD        14, rd3, 0x000000000000AAAA
 	__CHECK_RD         14, rd2, 0x000000000000BBBB
 	@@ 条件寄存器 = 源 rdHC 别名（spec §2 先判断再赋值）：条件为正 ⇒ 目的 = 同一源，源不被改写
-	__LI	rd3, 0x0000000000000007
-	__LI	rd2, 0x1111222233334444
-	__LI	rd5, 0x000000000000BBBB
+	set.rd	rd3, 0x0000000000000007
+	set.rd	rd2, 0x1111222233334444
+	set.rd	rd5, 0x000000000000BBBB
 	cs.p	{rd3}?, rd2, rd3, rd5
 	__VERIFY_RD        15, rd3, 0x0000000000000007
 	__VERIFY_RD        15, rd5, 0x000000000000BBBB

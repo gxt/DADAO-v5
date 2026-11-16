@@ -5,67 +5,67 @@
 @@ 合法性：目的 rdhb 为 rd0 ⇒ ILLI（`dst_rd0`）；源可为 rd0；rdHD 高位（[5:4]）不参与、不触发 ILLI（mod 16）
 @@ 边界/覆盖：覆盖 amount 0..15 与 >15 的取模、位模式保持、rd0 作源、三种别名
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：orrr = opc | ha[23:18] | rdhb[17:12] | rdhc[11:6] | rdhd[5:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI` 拼初值；本册无需内存期望表）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rd` 拼初值；本册无需内存期望表）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / legality 4 / semantic 7 / boundary 3 / overlap 3（链例 17 + 故障例 2）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：初值用 `__LI`（set.zw/or.w 拼常量，被测指令不参与造初值）、期望内联
+@@ 探针：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w 拼常量，被测指令不参与造初值）、期望内联
 
 	.include "tests/inst/macros/inst_test.inc"
 
 	__TEST_BEGIN
 
 	@@ [1] （原 YAML 并入）encoding: word matches opcodes.yaml mask/value, fields legal, no ILLI
-	__LI	rd2, 0x0000000000000000
+	set.rd	rd2, 0x0000000000000000
 	.dd.t32	0x42441080
 	__CHECK_RD   1, rd1, 0x0000000000000000
 
 	@@ [2] （原 YAML 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=0 -> amount mod 16 = 0, W=16
-	__LI	rd2, 0xFFFFFFFFFFFFBEEF
-	__LI	rd3, 0x0000000000000000
-	__LI	rd1, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd2, 0xFFFFFFFFFFFFBEEF
+	set.rd	rd3, 0x0000000000000000
+	set.rd	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42441083
 	__CHECK_RD   2, rd1, 0x000000000000BEEF
 
 	@@ [3] （原 YAML 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=1 -> amount mod 16 = 1, W=16
-	__LI	rd2, 0xFFFFFFFFFFFFBEEF
-	__LI	rd3, 0x0000000000000001
-	__LI	rd1, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd2, 0xFFFFFFFFFFFFBEEF
+	set.rd	rd3, 0x0000000000000001
+	set.rd	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42441083
 	__CHECK_RD   3, rd1, 0x0000000000007DDF
 
 	@@ [4] （原 YAML 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=7 -> amount mod 16 = 7, W=16
-	__LI	rd2, 0xFFFFFFFFFFFFBEEF
-	__LI	rd3, 0x0000000000000007
-	__LI	rd1, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd2, 0xFFFFFFFFFFFFBEEF
+	set.rd	rd3, 0x0000000000000007
+	set.rd	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42441083
 	__CHECK_RD   4, rd1, 0x00000000000077DF
 
 	@@ [5] （原 YAML 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=15 -> amount mod 16 = 15, W=16
-	__LI	rd2, 0xFFFFFFFFFFFFBEEF
-	__LI	rd3, 0x000000000000000F
-	__LI	rd1, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd2, 0xFFFFFFFFFFFFBEEF
+	set.rd	rd3, 0x000000000000000F
+	set.rd	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42441083
 	__CHECK_RD   5, rd1, 0x000000000000DF77
 
 	@@ [6] （原 YAML 并入）rol.w orrr: rd2(src)=0xFFFFFFFFFFFFBEEF rd3(amount)=19 -> amount mod 16 = 3, W=16
-	__LI	rd2, 0xFFFFFFFFFFFFBEEF
-	__LI	rd3, 0x0000000000000013
-	__LI	rd1, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd2, 0xFFFFFFFFFFFFBEEF
+	set.rd	rd3, 0x0000000000000013
+	set.rd	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42441083
 	__CHECK_RD   6, rd1, 0x000000000000F77D
 
 	@@ [7] （原 YAML 并入）boundary rol.w orrr: rd3=15=W-1, W=16
-	__LI	rd2, 0xFFFFFFFFFFFFBEEF
-	__LI	rd3, 0x000000000000000F
-	__LI	rd1, 0xFFFFFFFFFFFFFFFF
+	set.rd	rd2, 0xFFFFFFFFFFFFBEEF
+	set.rd	rd3, 0x000000000000000F
+	set.rd	rd1, 0xFFFFFFFFFFFFFFFF
 	.dd.t32	0x42441083
 	__CHECK_RD   7, rd1, 0x000000000000DF77
 
 	@@ [8] 最大寄存器字段：rd63 = rol.w(rd1, rd2[3:0]=1)，0x0001 ⇒ 0x0002
-	__LI	rd1, 0x0000000000000001
-	__LI	rd2, 0x0000000000000001
+	set.rd	rd1, 0x0000000000000001
+	set.rd	rd2, 0x0000000000000001
 	.dd.t32	0x4247F042
 	__CHECK_RD   8, rd63, 0x0000000000000002
 

@@ -27,7 +27,7 @@
 
 	@@ semantic：宽度/符号扩展逐元素核对（零扩展）
 	LOAD_ADDR rb3, MDATA_T + 0x030
-	__LI    rd19, 0x000
+	set.rd    rd19, 0x000
 	ldm.t	{rf5:rf7}, [rb3, rd19]
 	rf2rd	{rd21:rd21}, {rf5:rf5}
 	ext.uo	rd21, rd21, 31
@@ -55,7 +55,7 @@
 
 	@@ overlap：同一 RF 连装两次，后到者生效（只比低 32 位）
 	LOAD_ADDR rb3, MDATA_T + 0x090
-	__LI    rd19, 0x000
+	set.rd    rd19, 0x000
 	ldm.t	{rf9:rf9}, [rb3, rd19]
 	LOAD_ADDR rb3, MDATA_T + 0x018
 	ldm.t	{rf9:rf9}, [rb3, rd19]

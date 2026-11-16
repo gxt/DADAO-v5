@@ -33,7 +33,7 @@ __ck_\@:
 
 @@ rb 源
 .macro TEST_ST_RB pt, mnem, src, base, baseval, off, srcval, beat
-	__LI_RB	\src, \srcval
+	set.rb	\src, \srcval
 	LOAD_ADDR \base, \baseval
 	\mnem	\src, [\base, \off]
 	__CHECK_MEM \pt, \baseval, \off, \beat

@@ -8,15 +8,15 @@
 @@
 .macro TEST_AR_DUAL pt, mnem, hi, lo, hiinit, loinit, c, cval, d, dval, exphi, explo
 	.ifnc	\hi, rd0
-	__LI	\hi, \hiinit
+	set.rd	\hi, \hiinit
 	.endif
 	.ifnc	\lo, rd0
-	__LI	\lo, \loinit
+	set.rd	\lo, \loinit
 	.endif
 	.ifnc	\c, rd0
 	.ifnc	\c, \hi
 	.ifnc	\c, \lo
-	__LI	\c, \cval
+	set.rd	\c, \cval
 	.endif
 	.endif
 	.endif
@@ -24,7 +24,7 @@
 	.ifnc	\d, \hi
 	.ifnc	\d, \lo
 	.ifnc	\d, \c
-	__LI	\d, \dval
+	set.rd	\d, \dval
 	.endif
 	.endif
 	.endif
@@ -44,11 +44,11 @@
 .endm
 .macro TEST_AR_CMPI pt, mnem, dst, dstinit, b, bval, imm, exp
 	.ifnc	\dst, rd0
-	__LI	\dst, \dstinit
+	set.rd	\dst, \dstinit
 	.endif
 	.ifnc	\b, rd0
 	.ifnc	\b, \dst
-	__LI	\b, \bval
+	set.rd	\b, \bval
 	.endif
 	.endif
 	\mnem	\dst, \b, \imm

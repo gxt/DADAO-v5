@@ -27,7 +27,7 @@
 
 	@@ semantic：宽度/符号扩展逐元素核对（零扩展）
 	LOAD_ADDR rb3, MDATA_O + 0x030
-	__LI    rd19, 0x000
+	set.rd    rd19, 0x000
 	ldm.o	{rd5:rd7}, [rb3, rd19]
 	__CHECK_RD         5, rd5, 0x010203040506070E
 	__CHECK_RD         6, rd7, 0x0102030405060710

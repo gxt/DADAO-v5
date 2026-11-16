@@ -58,11 +58,11 @@
 .macro TEST_CS1 pt, mnem, cond, condval, dst, dstinit, tc, tcval, td, tdval, exp
 	@@ 条件寄存器可为 rd0（硬连零）：写 rd0 会触发 ILLI（dst_rd0），故跳过装载
 	.ifnc	\cond, rd0
-	__LI	\cond, \condval
+	set.rd	\cond, \condval
 	.endif
-	__LI	\dst, \dstinit
-	__LI	\tc, \tcval
-	__LI	\td, \tdval
+	set.rd	\dst, \dstinit
+	set.rd	\tc, \tcval
+	set.rd	\td, \tdval
 	\mnem	{\cond}?, \dst, \tc, \td
 	__CHECK_RD \pt, \dst, \exp
 .endm
@@ -70,20 +70,20 @@
 .macro TEST_CS2 pt, mnem, a, aval, b, bval, dst, dstinit, d, dval, exp
 	@@ 比较操作数可为 rd0（硬连零）：写 rd0 会触发 ILLI（dst_rd0），故跳过装载
 	.ifnc	\a, rd0
-	__LI	\a, \aval
+	set.rd	\a, \aval
 	.endif
 	.ifnc	\b, rd0
-	__LI	\b, \bval
+	set.rd	\b, \bval
 	.endif
-	__LI	\dst, \dstinit
-	__LI	\d, \dval
+	set.rd	\dst, \dstinit
+	set.rd	\d, \dval
 	\mnem	{\a, \b}?, \dst, \d
 	__CHECK_RD \pt, \dst, \exp
 .endm
 
 .macro TEST_CS1_RF pt, mnem, cond, condval, dst, dstoff, tc, tcoff, td, tdoff, exp
 	.ifnc	\cond, rd0
-	__LI	\cond, \condval
+	set.rd	\cond, \condval
 	.endif
 	__SET_MEM \dst, \dstoff
 	__SET_MEM \tc, \tcoff

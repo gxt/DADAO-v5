@@ -30,19 +30,21 @@
 @@   （门控 `check-inst-macro-scope` S6/S7/S8 机械判：宏体恰 1 处断言且点号引用 `\pt`、
 @@   一行用例行恰展开 1 个检查点、正文不得再有裸 `__CHECK_*`）。
 @@ 参数 = 点号, 源寄存器, 目的寄存器, 源值[, 目的旧值]（源与目的不同名 ⇒ 「不同名」口径）。
-@@   `old` 只在「旧值被整体覆盖」例传（先按 `__LI_RB` 铺旧值再覆盖）。
+@@   `old` 只在「旧值被整体覆盖」例传（先按 `set.rd` + `rd2rb` 铺旧值再覆盖——
+@@   旧值**不经被测的 `set.rb`** 铺，否则「少写高位」的坏实现会让断言退化恒真）。
 .macro __PT_SET_RB_RD pt, src, dst, val, old
 	.ifnb	\old
-	__LI_RB	\dst, \old
+	set.rd	rd15, \old
+	rd2rb	{\dst}, {rd15}
 	.endif
-	__LI	\src, \val
+	set.rd	\src, \val
 	set.rb	\dst, \src
 	st.o	\dst, [rb29, 0]
 	__CHECK_MEM	\pt, SCRATCH, 0, \val
 .endm
 
 .macro __PT_SET_RB_RB pt, src, dst, val
-	__LI_RB	\src, \val
+	set.rb	\src, \val
 	set.rb	\dst, \src
 	st.o	\dst, [rb29, 0]
 	__CHECK_MEM	\pt, SCRATCH, 0, \val

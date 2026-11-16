@@ -42,15 +42,16 @@
 @@ rd25/rd26=rf0 写语义例的「写前值 / 期望字节」、
 @@ rd24/rb24=控制流（06）用例的「跳转标记 / 落点 IP」与 RAS 实测临时。
 @@
-@@ 固定地址（Tiny；`.lds` 的 ASSERT 与本节 `.equ` 共同钉住）：
-@@   ENTRY+0x0000 .. +0x1E00  .text          链例 + 故障例体
-@@   ENTRY+0x1F00             .faultpad      故障落点（≤128 B）
-@@   ENTRY+0x1F80             TEST_FAULTV    故障期望槽：+0 one-hot、+8 退出码、
+@@ 固定地址（Tiny；`.lds` 的 ASSERT 与本节 `.equ` 共同钉住）——全部册（00 + 01–12）**同一份**布局
+@@ `tests/inst/linker/inst-tiny.lds`（`m15-testcases-006` 统一，见该文件头）：
+@@   ENTRY+0x0000 .. +0x4000  .text          链例 + 故障例体（16 KiB 窗口）
+@@   ENTRY+0x4000             .faultpad      故障落点（≤128 B）
+@@   ENTRY+0x4080             TEST_FAULTV    故障期望槽：+0 one-hot、+8 退出码、
 @@                                           +16 失败码（=检查点号）
-@@   ENTRY+0x2000 .. +0x4000  .testdata     数据块（TEST_DATA = +0x2800，0x800 负偏移
+@@   ENTRY+0x5000 .. +0x7000  .testdata     数据块（TEST_DATA = +0x5800，0x800 负偏移
 @@                                           区在前；单元素 24 拍模式；多元素区见下）
-@@   ENTRY+0x4000 .. +0x4800  结果字节缓冲（每检查点 8 字节，≤127 点 ⇒ ≤1016 B）
-@@   ENTRY+0x5000             SYS_EXIT 参数块
+@@   ENTRY+0x7000 .. +0x7800  结果字节缓冲（每检查点 8 字节，≤127 点 ⇒ ≤1016 B）
+@@   ENTRY+0x7800             SYS_EXIT 参数块
 @@
 @@ 副作用口径（用户 2026-11-13 裁定，`ldm`/`stm`/`r2r` 等多寄存器/多元素指令）：
 @@   **不要求无副作用** —— 这类指令**允许部分元素已经生效**（「源/目范围不得重叠」正是为此）；
@@ -66,7 +67,7 @@
 @@   否则期望会依赖另一条复制指令。`__VERIFY_*` 判据相同但**不占检查点**：一个用例的
 @@   多条断言共用点号，只有最后一条（`__CHECK_*`）追加结果缓冲，故「失败点号 = 用例序号」。
 @@   ra/rf 的源/目的初值只能经内存给（`set.zw`/`or.w` 无 ra/rf 形式）⇒ `__SET_MEM`
-@@   从 RDATA（TEST_DATA + 0x1300 的 16 拍）装载；rd 用 `__LI`、rb 用 `__LI_RB`。
+@@   从 RDATA（TEST_DATA + 0x1300 的 16 拍）装载；rd 用 `set.rd`、rb 用 `set.rb`。
 @@   `rb29` = 复制类实测落点基址（保留；`__TEST_BEGIN` 装好），用例不得占用。
 @@   条件赋值（`cs.*`）的同名别名语义按 C-27 仍 deferred（`tests/inst/inventory.md`）
 @@   ⇒ 用例只覆盖「条件 / 候选 / 目的互不同名」的路径，不断言别名快照。
@@ -95,22 +96,13 @@
 	.include "tests/shared/asm/machine.inc"
 
 	@@ 机器几何一律取 `machine-tiny.inc`（生成物）里的符号，本节只补本宏层的布局。
-	@@ `__FP_LAYOUT`（07-floating-point 在 `.include` 前 `.equ` 为 1）：浮点册的
-	@@ 用例体较长，`01-load-store/inst-tiny.lds` 的 0x1E00 `.text` 窗口不够 ⇒ 该册
-	@@ 用自己的一份布局（`07-floating-point/inst-tiny-fp.lds`，段址见该文件头）。
-	.ifdef __FP_LAYOUT
+	@@ 布局单一（`m15-testcases-006`）：全部册共用 `tests/inst/linker/inst-tiny.lds`，
+	@@ `.text` 窗口 16 KiB（原 01 册 0x1E00 / 07 册 0x4000 两份布局合并为一份）。
 	.equ TEST_PAD,    ENTRY + 0x4000
 	.equ TEST_DATA,   ENTRY + 0x5800
 	.equ TEST_BUF,    ENTRY + 0x7000
 	.equ TEST_EXITB,  ENTRY + 0x7800
-	.equ TEST_FAULTV, ENTRY + 0x4080
-	.else
-	.equ TEST_PAD,    ENTRY + 0x1F00
-	.equ TEST_DATA,   ENTRY + 0x2800
-	.equ TEST_BUF,    ENTRY + 0x4000
-	.equ TEST_EXITB,  ENTRY + 0x5000
-	.equ TEST_FAULTV, ENTRY + 0x1F80        @@ 故障期望槽（3 × 8 B；见文件头）
-	.endif
+	.equ TEST_FAULTV, ENTRY + 0x4080        @@ 故障期望槽（3 × 8 B；见文件头）
 
 @@ 多元素数据区（见文件头；偏移相对 TEST_DATA）
 	.equ MDATA_B, TEST_DATA + 0x800
@@ -151,28 +143,18 @@
 @@ 基本构件
 @@ ---------------------------------------------------------------------------
 
-@@ 64 位立即数 → rd（定长 4 条：wp0 用 set.zw 清零，wp1..3 用 or.w 拼装）
-.macro __LI rd, val
-	set.zw	\rd, wp0, ((\val) & 0xFFFF)
-	or.w	\rd, wp1, (((\val) >> 16) & 0xFFFF)
-	or.w	\rd, wp2, (((\val) >> 32) & 0xFFFF)
-	or.w	\rd, wp3, (((\val) >> 48) & 0xFFFF)
-.endm
-
-@@ 64 位立即数 → rb
-.macro __LI_RB rb, val
-	set.zw	\rb, wp0, ((\val) & 0xFFFF)
-	or.w	\rb, wp1, (((\val) >> 16) & 0xFFFF)
-	or.w	\rb, wp2, (((\val) >> 32) & 0xFFFF)
-	or.w	\rb, wp3, (((\val) >> 48) & 0xFFFF)
-.endm
+@@ 立即数 → 寄存器**一律用规范伪指令**（`spec/Toolchain-01 §6`）：
+@@   `set.rd rd, imm64`（1–4 条）/ `set.rb rb, imm64`（`set.zw`-rb + `or.w`-rb）/
+@@   `set.fo rf, imm64`（`rd2rf rf, rd0` + 非零 wyde 的 `set.w`，整 64 位）。
+@@   **不另造装载宏**：测试层与规范单一真源（`m15-testcases-006`）。`set.ft rf, imm32`
+@@   是**窄写**（只写低 32、高 32 保持）⇒ **只用于被测指令本身的窄写场景**，不得当装载器。
 
 @@ SYS_EXIT(code)（参数块 {ADP_Stopped_ApplicationExit, code}，`contract-semihosting` §3/§5）
 .macro __EXIT code
 	LOAD_ADDR rb16, TEST_EXITB
-	__LI	rd4, ADP_STOPPED_APP_EXIT
+	set.rd	rd4, ADP_STOPPED_APP_EXIT
 	st.o	rd4, [rb16, 0]
-	__LI	rd4, \code
+	set.rd	rd4, \code
 	st.o	rd4, [rb16, 8]
 	set.zw	rd16, wp0, SYS_EXIT
 	trap	cfx0, (SEMIHOST_TAG + SYS_EXIT)
@@ -204,7 +186,7 @@ __pl_\@:
 
 @@ rd 银行实测（被测指令的目的就是 rd）
 .macro __CHECK_RD pt, dst, exp
-	__LI	rd20, \exp
+	set.rd	rd20, \exp
 	__REC	\dst
 	br.eq	{rd20, \dst}?, [rb0, __ck_\@]
 	__EXIT	\pt
@@ -215,7 +197,7 @@ __ck_\@:
 .macro __CHECK_MEM pt, baseval, off, exp
 	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
 	ld.o	rd21, [rb21, 0]
-	__LI	rd20, \exp
+	set.rd	rd20, \exp
 	__REC	rd21
 	br.eq	{rd20, rd21}?, [rb0, __ck_\@]
 	__EXIT	\pt
@@ -224,7 +206,7 @@ __ck_\@:
 
 @@ 同上判据但**不占检查点**（同一用例的多条断言共用点号；失败同样 `SYS_EXIT(pt)`）
 .macro __VERIFY_RD pt, reg, exp
-	__LI	rd20, \exp
+	set.rd	rd20, \exp
 	br.eq	{rd20, \reg}?, [rb0, __vr_\@]
 	__EXIT	\pt
 __vr_\@:
@@ -233,7 +215,7 @@ __vr_\@:
 .macro __VERIFY_MEM pt, baseval, off, exp
 	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
 	ld.o	rd21, [rb21, 0]
-	__LI	rd20, \exp
+	set.rd	rd20, \exp
 	br.eq	{rd20, rd21}?, [rb0, __vm_\@]
 	__EXIT	\pt
 __vm_\@:
@@ -282,22 +264,22 @@ __ve_\@:
 @@   故别名用例（目的=源）的「源值」必须等于该寄存器已装载的初值 —— 用例须自洽，
 @@   证据脚本的独立重算按同一规则校验（不一致即红）。**rd0 一律不装载**
 @@   （rd0 只读、写它会 ILLI；作源时读出 0），双目的为 rd0 的那一半不做比对、点号落在留下的一半。
-@@ 探针不借被测指令：初值用 `__LI`（set.zw/or.w，见 03 册），期望内联；比较只用 br.eq。
+@@ 探针不借被测指令：初值用 `set.rd`（set.zw/set.ow/or.w/andn.w，见 03 册），期望内联；比较只用 br.eq。
 @@ ---------------------------------------------------------------------------
 
 .macro TEST_AR_ORRR pt, mnem, dst, dstinit, c, cval, d, dval, exp
 	.ifnc	\dst, rd0
-	__LI	\dst, \dstinit
+	set.rd	\dst, \dstinit
 	.endif
 	.ifnc	\c, rd0
 	.ifnc	\c, \dst
-	__LI	\c, \cval
+	set.rd	\c, \cval
 	.endif
 	.endif
 	.ifnc	\d, rd0
 	.ifnc	\d, \dst
 	.ifnc	\d, \c
-	__LI	\d, \dval
+	set.rd	\d, \dval
 	.endif
 	.endif
 	.endif
@@ -307,11 +289,11 @@ __ve_\@:
 
 .macro TEST_AR_ORRI pt, mnem, dst, dstinit, c, cval, imm, exp
 	.ifnc	\dst, rd0
-	__LI	\dst, \dstinit
+	set.rd	\dst, \dstinit
 	.endif
 	.ifnc	\c, rd0
 	.ifnc	\c, \dst
-	__LI	\c, \cval
+	set.rd	\c, \cval
 	.endif
 	.endif
 	\mnem	\dst, \c, \imm
@@ -375,11 +357,11 @@ __ve_\@:
 	.error	"unknown fault name"
 	.endif
 	LOAD_ADDR rb11, TEST_FAULTV
-	__LI	rd20, __onehot
+	set.rd	rd20, __onehot
 	st.o	rd20, [rb11, 0]
-	__LI	rd21, __code
+	set.rd	rd21, __code
 	st.o	rd21, [rb11, 8]
-	__LI	rd22, \pt
+	set.rd	rd22, \pt
 	st.o	rd22, [rb11, 16]
 .endm
 
@@ -390,7 +372,7 @@ __ve_\@:
 __fault_case:
 	__FAULT_GUARD \pt, \fault
 	LOAD_ADDR \base, \baseval
-	__LI	\offreg, \offval
+	set.rd	\offreg, \offval
 	.dd.t32	\enc
 	__EXIT	\pt
 	.endif
@@ -409,7 +391,7 @@ __fault_case:
 @@   源寄存器给固定非零值（rd0/rb0 作源合法，不装载 ⇒ 跳过装载）。
 .macro __FAULT_LOAD_SRC reg, val
 	.ifnc	\reg, rd0
-	__LI	\reg, \val
+	set.rd	\reg, \val
 	.endif
 .endm
 
@@ -457,8 +439,11 @@ __fault_case:
 @@   `TEST_FAULT_RASUF_MEM`（MemRAS 条目计数 0 ⇒ D4b RASUF）。
 @@ ---------------------------------------------------------------------------
 
-@@ 同上，另给条件寄存器初值（riii 条件分支的越界目标例）
+@@ 同上，另给条件寄存器初值（riii 条件分支的越界目标例 / `sc` 的原始编码例）
 @@   TEST_FAULT_CF1(pt, 寄存器, 值, 故障名, 编码字)
+@@   寄存器参数**跨银行**（12-misc 传 `rb3`/`rb6`、06 传 `rd1`）：规范伪指令 `set.rd`/`set.rb`
+@@   各自绑定一个银行、没有「任意银行」形态 ⇒ 本宏用硬件指令展开装值（与 `LOAD_ADDR` 同型；
+@@   展开与旧装载宏逐字节相同，不引入新语义）。
 .macro TEST_FAULT_CF1 pt, r, rval, fault, enc
 	.if CASE_N == \pt
 	.globl	__fault_case
@@ -466,7 +451,10 @@ __fault_case:
 	__FAULT_GUARD \pt, \fault
 	.ifnc	\r, rd0
 	.ifnc	\r, rb0
-	__LI	\r, \rval
+	set.zw	\r, wp0, ((\rval) & 0xFFFF)
+	or.w	\r, wp1, (((\rval) >> 16) & 0xFFFF)
+	or.w	\r, wp2, (((\rval) >> 32) & 0xFFFF)
+	or.w	\r, wp3, (((\rval) >> 48) & 0xFFFF)
 	.endif
 	.endif
 	.dd.t32	\enc
@@ -487,16 +475,10 @@ __fault_case:
 @@   每个用例先清 rf0[4:0] 再设 rf0[33:32]，执行后**先断言标志**再比结果：
 @@   期望标志按 rf0[4:0] 位序 NV=0x01 / DZ=0x02 / OF=0x04 / UF=0x08 / NX=0x10
 @@   （`spec/SimRISC-00 §2.3.1`）；标志与结果共用一个点号，结果缓冲只记结果。
-@@   初值经 `__LI`（set.zw/or.w）+ `rd2rf` 装配 ⇒ 不借任何浮点指令造期望值。
+@@   初值经 `set.fo` 装配（整 64 位） ⇒ 不借任何浮点指令造期望值。
 @@   故障例（汇编器会拒绝的非法编码，如目的 rf0 / root 的 n≠2）：
 @@   TEST_FAULT_FP(pt, 故障名, 编码字) —— 只比异常码（浮点指令不产生陷阱）。
 @@ ---------------------------------------------------------------------------
-
-@@ 64 位位型 → rf 寄存器（不经浮点运算指令）
-.macro __LI_RF rf, val
-	__LI	rd20, \val
-	rd2rf	{\rf:\rf}, {rd20:rd20}
-.endm
 
 @@ 07-floating-point 的三个三操作数族（rnd / sclb / sgn）的共享宏。
 @@ 原先在 8 个册文件（fornd/ftrnd、fosclb/ftsclb、fosgnj/fosgnn/ftsgnj/ftsgnn）里
@@ -542,7 +524,7 @@ __pad_fail:
 	ld.o	rd23, [rb11, 16]
 __pad_exit:
 	LOAD_ADDR rb16, TEST_EXITB
-	__LI	rd4, ADP_STOPPED_APP_EXIT
+	set.rd	rd4, ADP_STOPPED_APP_EXIT
 	st.o	rd4, [rb16, 0]
 	st.o	rd23, [rb16, 8]
 	set.zw	rd16, wp0, SYS_EXIT

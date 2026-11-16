@@ -48,7 +48,7 @@
 	@@ ---- rb0 作基址（rbhb：role = src ⇒ EA = 本条 st.o 的地址 + imms12）----
 	@@ 目标槽是「被 jump 跳过的 .text 零填充」：只被写、不被执行（每例独立 8 B）；
 	@@ delta = 槽地址 − 被测 st.o 地址（本段两例均 −0x40），`.org` 把两侧都钉住。
-	__LI	rd2, 0xDEADBEEFCAFEF00D
+	set.rd	rd2, 0xDEADBEEFCAFEF00D
 	jump	[rb0, __rb0b_a]
 	.org	0x1300
 	@@ 槽 A：ENTRY+0x1300（零填充；写入落点）

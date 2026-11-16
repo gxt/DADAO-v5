@@ -25,13 +25,14 @@
     python3 tools/testcases/inst/run_asm_suite.py                    # 01 册全部 id
     python3 tools/testcases/inst/run_asm_suite.py --id ld.o_rrii_rd  # 单个
     python3 tools/testcases/inst/run_asm_suite.py --books-root tests/inst \
-        --platforms qemu                                             # 全部 12 册（L2 门控）
+        --platforms qemu                                             # 全部册（L2 门控）
     python3 tools/testcases/inst/run_asm_suite.py --platforms qemu   # 快速自查
     python3 tools/testcases/inst/run_asm_suite.py --chain-only       # 只跑链例
     python3 tools/testcases/inst/run_asm_suite.py --json-out <f>     # 逐例记录
 
 `--books-root`（`make check-inst-asm` 用）：扫描该根的**全部子目录**，凡含 `.S` 的册
-即为载体目录；每册的链接布局取**该册目录内的 `.lds`**（唯一一个），无则退回默认布局。
+即为载体目录。**全部册共用同一份布局** `tests/inst/linker/inst-tiny.lds`
+（`m15-testcases-006`；册目录内不再有 `.lds`），`--lds` 只用于覆盖它。
 `--vectors` 可重复（单/多目录），与 `--books-root` 可叠加。
 
 退出码：0 = 全部一致；1 = 有失败；2 = setup 错（缺工具/缺 BootROM/0 载体）。
@@ -132,7 +133,7 @@ def iter_code_lines(text: str):
         yield line
 
 
-DEFAULT_LDS = "tests/inst/01-load-store/inst-tiny.lds"
+DEFAULT_LDS = "tests/inst/linker/inst-tiny.lds"
 DEFAULT_VECTORS = "tests/inst/01-load-store"
 DEFAULT_GEM5 = ".work/source/gem5/build/DADAO/gem5.opt"
 DEFAULT_GEM5_CONFIG = ".work/source/gem5/configs/dadao/fs.py"
@@ -366,10 +367,10 @@ def main() -> int:
                     help="载体目录（可重复；默认 tests/inst/01-load-store）")
     ap.add_argument("--books-root", default=None,
                     help="扫描该根下所有含 .S 的子目录作为册载体"
-                         "（如 tests/inst ⇒ 全部 12 册）")
+                         "（如 tests/inst ⇒ 全部册）")
     ap.add_argument("--lds", default=None,
-                    help="统一链接布局（默认：每册目录内的 .lds，无则用 "
-                         "tests/inst/01-load-store/inst-tiny.lds）")
+                    help="覆盖链接布局（默认 tests/inst/linker/inst-tiny.lds，"
+                         "全部册共用）")
     ap.add_argument("--id", action="append", default=None,
                     help="只跑这些 id（可重复；默认全部）")
     ap.add_argument("--platforms", default="chipyard,qemu,gem5")
@@ -449,23 +450,13 @@ def main() -> int:
     # 去重（`--vectors` 与 `--books-root` 可能指到同一册；否则镜像会被跑两遍）
     seen = set()
     dirs = [d for d in dirs if not (d in seen or seen.add(d))]
-    # 每册布局：显式 `--lds` 优先；否则该册目录内唯一的 `.lds`；再否则默认布局。
-    lds_by_dir = {}
-    for d in dirs:
-        if args.lds:
-            lds_by_dir[d] = Path(args.lds)
-            continue
-        cand = sorted(d.glob("*.lds"))
-        if len(cand) > 1:
-            print("run_asm_suite: ERROR: %s 内有 %d 个 .lds（无法机械选定）"
-                  % (d, len(cand)), file=sys.stderr)
-            return 2
-        lds_by_dir[d] = cand[0] if cand else Path(_REPO / DEFAULT_LDS)
-    for d in dirs:
-        if not lds_by_dir[d].exists():
-            print("run_asm_suite: ERROR: lds 不存在: %s" % lds_by_dir[d],
-                  file=sys.stderr)
-            return 2
+    # 链接布局：**单一默认 + `--lds` 覆盖**（m15-testcases-006；册目录内不再有 `.lds`，
+    # 也**不**再按册自动挑选——布局是全局单点，避免「某册悄悄换布局」）。
+    lds = Path(args.lds) if args.lds else Path(_REPO / DEFAULT_LDS)
+    if not lds.exists():
+        print("run_asm_suite: ERROR: lds 不存在: %s" % lds, file=sys.stderr)
+        return 2
+    lds_by_dir = {d: lds for d in dirs}
 
     pairs = []
     for d in dirs:

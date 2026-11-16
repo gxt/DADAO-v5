@@ -26,7 +26,7 @@
 
 @@ rd 源
 .macro TEST_ST pt, mnem, src, base, baseval, off, srcval, beat
-	__LI	\src, \srcval
+	set.rd	\src, \srcval
 	LOAD_ADDR \base, \baseval
 	\mnem	\src, [\base, \off]
 	__CHECK_MEM \pt, \baseval, \off, \beat
@@ -34,7 +34,7 @@
 
 @@ rf 源（rd → rf 用 orri 复制）
 .macro TEST_ST_RF pt, mnem, src, base, baseval, off, srcval, beat
-	__LI	rd20, \srcval
+	set.rd	rd20, \srcval
 	rd2rf	{\src:\src}, {rd20:rd20}
 	LOAD_ADDR \base, \baseval
 	\mnem	\src, [\base, \off]
@@ -118,7 +118,7 @@
 
 @@ 多元素装入
 .macro TEST_LDM pt, mnem, grp, base, baseval, offreg, offval, dump, nb, beats:vararg
-	__LI	\offreg, \offval
+	set.rd	\offreg, \offval
 	LOAD_ADDR \base, \baseval
 	\mnem	\grp, [\base, \offreg]
 	LOAD_ADDR rb28, \dump
@@ -134,7 +134,7 @@
 	.irp	v, \beats
 	LOAD_ADDR rb21, \dump + (8 * __b)
 	ld.o	rd21, [rb21, 0]
-	__LI	rd20, \v
+	set.rd	rd20, \v
 	br.ne	{rd20, rd21}?, [rb0, __lmbad_\@]
 	.set	__b, __b + 1
 	.endr
@@ -149,14 +149,14 @@ __lmdone_\@:
 .macro TEST_STM pt, mnem, bank, grp, base, baseval, offreg, offval, src, beats:vararg
 	LOAD_ADDR rb28, \src
 	__PRE_LDM \mnem, \bank, \grp, rb28, rd0
-	__LI	\offreg, \offval
+	set.rd	\offreg, \offval
 	LOAD_ADDR \base, \baseval
 	\mnem	\grp, [\base, \offreg]
 	.set	__b, 0
 	.irp	v, \beats
 	LOAD_ADDR rb21, (((\baseval) + (\offval) + 8 * __b) / 8) * 8
 	ld.o	rd21, [rb21, 0]
-	__LI	rd20, \v
+	set.rd	rd20, \v
 	br.ne	{rd20, rd21}?, [rb0, __smbad_\@]
 	.set	__b, __b + 1
 	.endr
@@ -186,7 +186,7 @@ __fault_case:
 __fault_case:
 	__FAULT_GUARD \pt, \fault
 	LOAD_ADDR \base, \baseval
-	__LI	\offreg, \offval
+	set.rd	\offreg, \offval
 	\mnem	\grp, [\base, \offreg]
 	__EXIT	\pt
 	.endif

@@ -753,12 +753,12 @@ asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_STM        17, stm.o, rb, {rb4
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM         4, MSTORE, 0x040, 0xC0DE0000000000A8	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM         7, MDUMP, 0x100, 0x010203040506071D	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM         8, MDUMP, 0x108, 0x010203040506071E	1
-asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM         9, MDUMP, 0x110, 0x0000FFFFFF013A00	1
+asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM         9, MDUMP, 0x110, MSTORE        @@ 期望 = 源组里 rb3 的值（= MSTORE 地址；用符号 ⇒ 与布局无关）	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        10, MDUMP, 0x118, 0x0102030405060720	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        11, MDUMP, 0x120, 0x0102030405060721	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        12, MSTORE, 0x0B8, 0x010203040506071D	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        13, MSTORE, 0x0C0, 0x010203040506071E	1
-asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        14, MSTORE, 0x0C8, 0x0000FFFFFF013A00	1
+asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        14, MSTORE, 0x0C8, MSTORE        @@ 同上（源组 rb3 原值）	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        15, MSTORE, 0x0D0, 0x0102030405060720	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        16, MSTORE, 0x0D8, 0x0102030405060721	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_RD         6, rd21, 0x010203040506071A	1

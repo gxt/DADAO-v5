@@ -24,7 +24,7 @@
 	LOAD_ADDR \base, \baseval
 	\mnem	\dst, [\base, \off]
 	ra2rd	{rd21:rd21}, {\dst:\dst}
-	__LI	rd20, \exp
+	set.rd	rd20, \exp
 	__REC	rd21
 	br.eq	{rd20, rd21}?, [rb0, __ck_\@]
 	__EXIT	\pt
@@ -89,9 +89,9 @@ __r2_ck:
 
 	@@ R3：满栈（RACNT = 63）+ MRPTR ≠ 0 再 call ⇒ C3b 把最旧条目写入 MemRAS、
 	@@   MRPTR −= 8，RACNT 保持 63（ra63 栈顶返回地址 ≠ 本 call 的返回地址 ⇒ 不走 C2）
-	__LI	rd5, 0x0001CCCC00000000
+	set.rd	rd5, 0x0001CCCC00000000
 	rd2ra	{ra63}, {rd5}
-	__LI	rd5, (0x003F000000000000 + MEMRAS + 0x80)
+	set.rd	rd5, (0x003F000000000000 + MEMRAS + 0x80)
 	rd2ra	{ra0}, {rd5}
 	call	[rb0, __r3_f]
 	jump	[rb0, __r3_ck]
@@ -103,10 +103,10 @@ __r3_ck:
 
 	@@ R4：RACNT = 0、MRPTR = MEMRAS + 0x78、条目递归计数 = 1 ⇒ `ret` 走 D4b 消费该条目
 	@@   ⇒ MRPTR += 8、RACNT 仍 0；落点由 `.org 0x1000` 钉住（返回地址写绝对常量）
-	__LI	rd5, (0x0001000000000000 + ENTRY + 0x1000)
+	set.rd	rd5, (0x0001000000000000 + ENTRY + 0x1000)
 	LOAD_ADDR rb5, (MEMRAS + 0x78)
 	st.o	rd5, [rb5, 0]                @@ MemRAS[MRPTR] = {计数 1, 返回地址 = 落点}
-	__LI	rd5, (MEMRAS + 0x78)         @@ ra0 = {RACNT = 0, MRPTR = MEMRAS + 0x78}
+	set.rd	rd5, (MEMRAS + 0x78)         @@ ra0 = {RACNT = 0, MRPTR = MEMRAS + 0x78}
 	rd2ra	{ra0}, {rd5}
 	ret	rd0, 0
 	__EXIT	19                           @@ 未弹出/未跳转 ⇒ 按该点号判红
@@ -122,19 +122,19 @@ __r4_land:
 	@@   （读回保留写入位）⇒ 这三点在 QEMU/gem5 记红并登记 issue（候选号见任务书「遗留问题」）；
 @@   期望**不放宽**。
 	LOAD_ADDR rb5, TEST_DATA
-	__LI	rd5, 0xFFFF000000000000      @@ [63:54] = 0x3FF（SBZ 全置）、RACNT = 63、MRPTR = 0
+	set.rd	rd5, 0xFFFF000000000000      @@ [63:54] = 0x3FF（SBZ 全置）、RACNT = 63、MRPTR = 0
 	st.o	rd5, [rb5, 0x040]
 	ld.o	ra0, [rb5, 0x040]
 	ra2rd	{rd25}, {ra0}
 	__CHECK_RD 20, rd25, 0x003F000000000000      @@ SBZ 位读回 0、RACNT 生效
 
-	__LI	rd5, 0xFFC0000001234568      @@ SBZ 仍全置、RACNT = 0、MRPTR = 0x1234568
+	set.rd	rd5, 0xFFC0000001234568      @@ SBZ 仍全置、RACNT = 0、MRPTR = 0x1234568
 	st.o	rd5, [rb5, 0x048]
 	ld.o	ra0, [rb5, 0x048]
 	ra2rd	{rd25}, {ra0}
 	__CHECK_RD 21, rd25, 0x0000000001234568      @@ MRPTR 生效
 
-	__LI	rd5, 0xFFEAA5A55A5A1230      @@ SBZ 仍全置、RACNT = 42、MRPTR = 0xA5A55A5A1230
+	set.rd	rd5, 0xFFEAA5A55A5A1230      @@ SBZ 仍全置、RACNT = 42、MRPTR = 0xA5A55A5A1230
 	st.o	rd5, [rb5, 0x050]
 	ld.o	ra0, [rb5, 0x050]
 	ra2rd	{rd25}, {ra0}

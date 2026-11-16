@@ -7,12 +7,12 @@
 @@   立即数有符号（imms18 ∈ [-131072, 131071]），故同一指令也隐含减法
 @@ 合法性：目的 rbHA 为 rb0 ⇒ ILLI（`dst_rb0`）；imms18 无「零立即数」禁令（`immu6_zero` 不适用）
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：riii = opc | rbha[23:18] | imms18[17:0]
-@@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI_RB` 拼初值；本册复用 04 的数据块）
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rb` 拼初值；本册复用 04 的数据块）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 3 / boundary 5 / overlap 2（链例 12 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：初值用 `__LI_RB` 拼常量（被测指令不参与造初值）、期望内联；
+@@ 探针：初值用 `set.rb` 拼常量（被测指令不参与造初值）、期望内联；
 @@   目的在 RB ⇒ 实测经同组 `st.o` 落到 SCRATCH（rb29 指）再 `__CHECK_MEM`
 
 	.include "tests/inst/macros/inst_test.inc"
@@ -20,7 +20,7 @@
 
 @@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
 .macro TEST_AR_RB_SI pt, mnem, dst, init, imm, exp
-	__LI_RB	\dst, \init
+	set.rb	\dst, \init
 	\mnem	\dst, \imm
 	st.o	\dst, [rb29, 0]
 	__CHECK_MEM \pt, SCRATCH, 0, \exp
@@ -30,13 +30,13 @@
 
 	@@ ---- encoding ----
 	@@ 规范编码字 0x5B140001（opc | rb5 | imms18=1）直接执行：钉住 mask/value
-	__LI_RB	rb5, 0x0000000000000000
+	set.rb	rb5, 0x0000000000000000
 	.dd.t32	0x5B140001
 	st.o	rb5, [rb29, 0]
 	__CHECK_MEM         1, SCRATCH, 0, 0x0000000000000001
 
 	@@ 字段边界：目的 rb63 + imms18 上界 131071（0x5BFDFFFF = rb63 | 0x1FFFF）
-	__LI_RB	rb63, 0x0000000000000000
+	set.rb	rb63, 0x0000000000000000
 	.dd.t32	0x5BFDFFFF
 	st.o	rb63, [rb29, 0]
 	__CHECK_MEM         2, SCRATCH, 0, 0x000000000001FFFF
@@ -69,14 +69,14 @@
 
 	@@ ---- overlap ----
 	@@ 目的兼源（riii rb 的定义性质）：连加两次 +5 / -5 回到初值
-	__LI_RB	rb7, 0x0000000000000100
+	set.rb	rb7, 0x0000000000000100
 	add.si	rb7, 5
 	add.si	rb7, -5
 	st.o	rb7, [rb29, 0]
 	__CHECK_MEM        11, SCRATCH, 0, 0x0000000000000100
 
 	@@ 连加两次移动地址：目的兼源、结果继续作源
-	__LI_RB	rb8, 0x0000000000000000
+	set.rb	rb8, 0x0000000000000000
 	add.si	rb8, 7
 	add.si	rb8, -3
 	st.o	rb8, [rb29, 0]

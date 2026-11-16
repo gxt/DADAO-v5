@@ -4,7 +4,7 @@
 @@ 语义：rdHA != rdHB ⇒ rdHC = rdHD；否则 rdHC 不变（**目的在第三个操作数** rdHC）
 @@ 合法性：目的 rdHC 为 rd0 ⇒ ILLI（`dst_rd0`）；比较操作数可为 rd0 合法（读出 0）
 @@ 数据块：本文件只用立即数准备寄存器；`tests/inst/macros/inst_test.inc` 的 RDATA 供 rf 变体用
-@@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
+@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 3 / boundary 8 / overlap 2（链例 15 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -21,19 +21,19 @@
 	@@ 最高几个寄存器作比较/目的/赋值源（字段边界）
 	TEST_CS2           1, cs.ne, rd63, 0x0123456789ABCDEF, rd62, 0xFEDCBA9876543210, rd61, 0x1111111111111111, rd60, 0x2222222222222222, 0x2222222222222222
 	@@ 规范编码字（rdHA=rd5, rdHB=rd6, rdHC=rd7, rdHD=rd8）直接执行：钉住 mask/value
-	__LI	rd5, 0x2A
-	__LI	rd6, 0x63
-	__LI	rd7, 0x1111111111111111
-	__LI	rd8, 0x2222222222222222
+	set.rd	rd5, 0x2A
+	set.rd	rd6, 0x63
+	set.rd	rd7, 0x1111111111111111
+	set.rd	rd8, 0x2222222222222222
 	.dd.t32	0x671461C8
 	__CHECK_RD          2, rd7, 0x2222222222222222
 
 	@@ ---- semantic ----
 	@@ 不相等 ⇒ 目的 = rdHD
-	__LI	rd1, 0x2A
-	__LI	rd2, 0x63
-	__LI	rd3, 0x1111111111111111
-	__LI	rd5, 0xBBBBBBBBBBBBBBBB
+	set.rd	rd1, 0x2A
+	set.rd	rd2, 0x63
+	set.rd	rd3, 0x1111111111111111
+	set.rd	rd5, 0xBBBBBBBBBBBBBBBB
 	cs.ne	{rd1, rd2}?, rd3, rd5
 	__VERIFY_RD         3, rd5, 0xBBBBBBBBBBBBBBBB
 	__CHECK_RD          3, rd3, 0xBBBBBBBBBBBBBBBB
@@ -62,17 +62,17 @@
 
 	@@ ---- overlap ----
 	@@ 比较/赋值源/目的互不同名（C-27 之外的路径）：赋值源未被改写
-	__LI	rd1, 0x2A
-	__LI	rd2, 0x63
-	__LI	rd3, 0x1111222233334444
-	__LI	rd5, 0x000000000000BBBB
+	set.rd	rd1, 0x2A
+	set.rd	rd2, 0x63
+	set.rd	rd3, 0x1111222233334444
+	set.rd	rd5, 0x000000000000BBBB
 	cs.ne	{rd1, rd2}?, rd3, rd5
 	__VERIFY_RD        14, rd5, 0x000000000000BBBB
 	__CHECK_RD         14, rd3, 0x000000000000BBBB
 	@@ 条件 rdHB = 赋值源 rdHD 别名且不等（spec §2 先比较再赋值）：不等 ⇒ 目的 = 同一源，源不被改写
-	__LI	rd1, 0x2A
-	__LI	rd3, 0x2B
-	__LI	rd2, 0x1111222233334444
+	set.rd	rd1, 0x2A
+	set.rd	rd3, 0x2B
+	set.rd	rd2, 0x1111222233334444
 	cs.ne	{rd1, rd3}?, rd2, rd3
 	__VERIFY_RD        15, rd3, 0x2B
 	__CHECK_RD         15, rd2, 0x2B
