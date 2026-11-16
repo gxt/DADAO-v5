@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""k1_boot_probe.py — Machine-v5-Vast K1 boot probe (m14-linux-003).
+"""k1_boot_probe.py — Kaiwu-Vast K1 boot probe (m14-linux-003).
 
 Runs the real kernel image as the smon payload on
 
-    qemu-system-dadao -machine dadao-vast,bootrom-image=<k0 BootROM> \\
+    qemu-system-dadao -machine kaiwu-vast,bootrom-image=<k0 BootROM> \\
                       -nographic -semihosting-config enable=on,target=native \\
                       -kernel <vmlinux>
 

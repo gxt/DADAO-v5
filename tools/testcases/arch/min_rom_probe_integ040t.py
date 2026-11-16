@@ -12,7 +12,7 @@ QEMU implementation:
     = PTE PA).
   - .tao/adr/adr-0041-tlb-ad.md D2-D10; .tao/adr/adr-0040-pte-pagewalk-
     permissions.md D11 (G).
-  - spec/Machine-v5-测试机运行环境.md §1.2/§3.
+  - spec/Kaiwu-测试机运行环境.md §1.2/§3.
   - contracts/cfx-aliases.txt (cfx_ptw = cfx4), contracts/opcodes.yaml.
 
 Out of scope here (Step 4+): DMA, boot handoff, cfx access permissions and the
@@ -148,10 +148,10 @@ PTE_R = 1 << 7
 PPN_MASK = 0x00FF_FFFF_FFFF_0000
 SPPN_MASK = 0x00FF_FFFF_E000_0000
 
-# monitor cause ids (DADAO-12 §2.2.6/§5.2 + Machine-v5 §7.1)
+# monitor cause ids (DADAO-12 §2.2.6/§5.2 + Kaiwu §7.1)
 C_CFXREG = 1 << 2
 # Page-table / TLB-hit faults go to the current run-mode monitor
-# (DADAO-12 §2.2.6/§5.2 + Machine-v5 §7.1): missing/fragment/A-D => CFXMEM,
+# (DADAO-12 §2.2.6/§5.2 + Kaiwu §7.1): missing/fragment/A-D => CFXMEM,
 # HSJU/R/W/X => CFXPERM.  There is no PTWERR or page-level one-hot cause.
 C_CFXMEM = 1 << 1
 C_CFXPERM = 1 << 7

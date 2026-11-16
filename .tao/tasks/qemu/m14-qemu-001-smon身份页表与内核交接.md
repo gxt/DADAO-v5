@@ -2,7 +2,7 @@
 
 **模块**：qemu
 **项目里程碑**：M14
-**依赖**：`m14-spec-001`（已合入：`spec/Machine-v5 §6.3`、`.tao/contracts/contract-linux-boot.md`、`contracts/linux-boot.yaml`、ADR-0051 Accepted）；`m14-linux-002`（提供 vmlinux 作**可选**集成输入，未合入前该项登记 BLOCKED，本任务以最小 raw 探针镜像承担主验收）；与其它 **qemu 组件任务串行**（组件单写者，同改 `hw/dadao/dadao-machine.c` 补丁）
+**依赖**：`m14-spec-001`（已合入：`spec/Kaiwu §6.3`、`.tao/contracts/contract-linux-boot.md`、`contracts/linux-boot.yaml`、ADR-0051 Accepted）；`m14-linux-002`（提供 vmlinux 作**可选**集成输入，未合入前该项登记 BLOCKED，本任务以最小 raw 探针镜像承担主验收）；与其它 **qemu 组件任务串行**（组件单写者，同改 `hw/dadao/dadao-machine.c` 补丁）
 **可并行分片**：否（组件单写者；同一条 BootROM/探针链与同一 machine 装载路径）
 **预估**：4–6 h（不含节点 QEMU 重建等待）
 **状态**：已验证
@@ -12,11 +12,11 @@
 
 ## 背景
 
-M14 K0 已冻结启动 ABI（`m14-spec-001`，`spec/Machine-v5 §6.3`；ADR-0051 Accepted）：ABI 地址一律 **VA**；启动模型 **M1** = 进入内核前身份映射页表**已预建**、`PTBR = 0`、`ptw_enable = 1`；**页表只由 `smon` 固件建立**，宿主 loader 只装镜像、不写页表页；进入内核时 `rb16` = 入口 VA、`rb17` = boot info VA、`rb3 = 0`、`supv`、异步全屏蔽。
+M14 K0 已冻结启动 ABI（`m14-spec-001`，`spec/Kaiwu §6.3`；ADR-0051 Accepted）：ABI 地址一律 **VA**；启动模型 **M1** = 进入内核前身份映射页表**已预建**、`PTBR = 0`、`ptw_enable = 1`；**页表只由 `smon` 固件建立**，宿主 loader 只装镜像、不写页表页；进入内核时 `rb16` = 入口 VA、`rb17` = boot info VA、`rb3 = 0`、`supv`、异步全屏蔽。
 
 QEMU 侧现状（K1 缺口）：
 
-- `dadao-vast` 已有 `power → hmon → 测试本体（hypv）` 的 step5 链：**hmon 自己建首张页表**并 `trap cfx_umon` 进测试本体；BootROM 里虽有 smon ELF 条目（type 2），但 smon 从未被装载/进入。
+- `kaiwu-vast` 已有 `power → hmon → 测试本体（hypv）` 的 step5 链：**hmon 自己建首张页表**并 `trap cfx_umon` 进测试本体；BootROM 里虽有 smon ELF 条目（type 2），但 smon 从未被装载/进入。
 - `bootrom-image + -kernel` 路径只做通用「段落在 RAM 内」检查：不校验 §6.3 的内核镜像区/入口/对齐/保留区，**不写 boot info**，也不要求 `e_entry = 0x0000_0200_0010_0000`。
 - 因此「内核以 `supv`、PTW 已开、VA 入口、boot info 就位」这一 K1 最小闭环在 QEMU 上尚不存在。
 
@@ -28,7 +28,7 @@ QEMU 侧现状（K1 缺口）：
 
 ## 目标
 
-1. **QEMU 装载规则（§6.3.2）**：`dadao-vast` 的 `bootrom-image + -kernel` 路径按 §6.3 校验内核镜像（ELF 7 条 / raw 4 条），任一不符 ⇒ **非零退出并具名报错**（禁降级/截断/改址）。
+1. **QEMU 装载规则（§6.3.2）**：`kaiwu-vast` 的 `bootrom-image + -kernel` 路径按 §6.3 校验内核镜像（ELF 7 条 / raw 4 条），任一不符 ⇒ **非零退出并具名报错**（禁降级/截断/改址）。
 2. **宿主 loader 写 boot info（§6.3.3）**：装载校验通过后在 **VA `0x0000_0200_0001_0000`**（内核窗口偏置 2 TiB ⇒ 物理地址 = VA − 2 TiB）写入 15 字段、**大端**、`size = 0x60`，页内其余字节保持 0；`kernel_size` 按路径现场计算；K1 无 initramfs（`initramfs_size = 0`）。
 3. **最小 smon 固件（cfx2 / `supv`）**：从 `trap cfx_smon, 0x30001` 进入；只读校验 boot info；经 `cfx_pmem` DMA 把 **64 KiB 页表**（**1 个 512 MiB 超页 PTE**：`VA[0x200_0000_0000,+512MiB) → PA[0,512MiB)`，其余全 0）写入 **PA 0**；失效 TLB、写 `PTBR = 0`、置 `ptw_enable = 1` 并回读确认。
 4. **内核交接**：smon 以 `escape cfx_smon, [excp_cause_ip, 0]` 进入内核 **VA 入口** `0x0000_0200_0010_0000`；进入时 `rb16 = kernel_base`、`rb17 = 0x0000_0200_0001_0000`、`rb3 = 0`、`supv`、异步全屏蔽、`hart 0`。
@@ -41,7 +41,7 @@ QEMU 侧现状（K1 缺口）：
 
 ## 接口规范
 
-### 1 地址与内存分区（本任务冻结值，来源 `spec/Machine-v5 §6.3.1`）
+### 1 地址与内存分区（本任务冻结值，来源 `spec/Kaiwu §6.3.1`）
 
 ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`；PA 只出现在**页表项**、**`PTBR`**、**loader 写内存的那一刻**。K0 的内核窗口带 **2 TiB 偏置**（`VA = PA + 2 TiB`），VA 与 PA 数值**不相等**，术语与数值都不得混用。
 
@@ -70,7 +70,7 @@ ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`�
 `i = 0..3`：`PTE_i = 0xC000_0000_0000_0000 | (i << 29) | 0x0000_0000_0000_FFEF`
 
 - `bits[63:60] = 0xC`（`H=1`、`S=1`、`U=J=0`），`bits[55:16] = i << 13`（超页 PPN = `i × 512 MiB`），`bits[15:8] = 0xFF`（SPF 全片段存在），`bits[7:0] = 0xEF`（`R=W=X=1`、`G=1`、`A=D=1`、`SP=1`、`P=1`）。
-- 依据：`spec/Machine-v5 §6.3.4`（M1：smon 预建页表，覆盖内核窗口基址起前 512 MiB）、`spec/DADAO-12 §2.2.3`（PTE 位定义）、`ADR-0043`（页表几何 `D10`/`D11`）；索引由 `VA[41:29]` 算出、不写死；`G=1` 未被 `§6` 点名，以 ADR-0043 D10 为据（若评审不接受，须同笔改 ADR 与探针，**不得单方改期望值**）。
+- 依据：`spec/Kaiwu §6.3.4`（M1：smon 预建页表，覆盖内核窗口基址起前 512 MiB）、`spec/DADAO-12 §2.2.3`（PTE 位定义）、`ADR-0043`（页表几何 `D10`/`D11`）；索引由 `VA[41:29]` 算出、不写死；`G=1` 未被 `§6` 点名，以 ADR-0043 D10 为据（若评审不接受，须同笔改 ADR 与探针，**不得单方改期望值**）。
 - 页表页 `L1[4..8191]` 全 0（64 KiB 全零页写 PA 0）；`PTBR = 0`。
 
 ### 4 boot info（15 字段，VA `0x0000_0200_0001_0000`，大端，`size = 0x60`）
@@ -118,7 +118,7 @@ ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`�
 - **raw 路径 4 条**：`RAW-BASE`（整体装入 `0x0000_0200_0010_0000`）、`RAW-ENTRY`（首字节即入口，不解析 ELF 头）、`RAW-LENGTH`（≤ 63 MiB）、`RAW-BSS`（不含 `.bss`，由内核自清；loader 只校验不解释）。
 - **boot info 写入**：在装载校验**通过之后**写 15 字段（表见 §4），16 位/32 位/64 位字段一律大端；`0x60` 之后不写（RAM 复位为 0）。写入失败 ⇒ `exit(1)`。
 - **复位行为**：`PC` 保持复位向量（`0xffff_ffff_0000`），**不**按 `e_entry` 改写。
-- **范围边界（避免回归）**：上述 §6.3 校验与 boot info 写入放在**新的 K1 装载函数**内、只在 `dadao-vast` 的 `bootrom-image + -kernel` 路径执行；改既有的 `load_elf_kernel` / `load_raw_kernel` 语义（含 Tiny 与 Vast legacy `-bios` path B）不在本任务范围。Vast 无固件的 legacy ELF 直跳路径（`-kernel` ELF 且无 `bootrom-image`/`-bios`）保持既有语义不动（避免 M4–M13 既有测试回归），登记为遗留。
+- **范围边界（避免回归）**：上述 §6.3 校验与 boot info 写入放在**新的 K1 装载函数**内、只在 `kaiwu-vast` 的 `bootrom-image + -kernel` 路径执行；改既有的 `load_elf_kernel` / `load_raw_kernel` 语义（含 Tiny 与 Vast legacy `-bios` path B）不在本任务范围。Vast 无固件的 legacy ELF 直跳路径（`-kernel` ELF 且无 `bootrom-image`/`-bios`）保持既有语义不动（避免 M4–M13 既有测试回归），登记为遗留。
 
 ### 7 失败语义与失败码
 
@@ -180,7 +180,7 @@ ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`�
 ## 说明
 
 - **本任务不给内核加能力**：不实现控制台/中断/定时器/SMP/TLB 规范/设备树；内核异常处理行为不在验收范围（K1 后续任务）。
-- **boot info 写入方**：按 `spec/Machine-v5 §6.3.3` 与 `contract-linux-boot §4`「宿主 loader 写、`power`/`hmon`/`smon` 只读」执行；派单要点中的措辞差异见「待裁定 1」。
+- **boot info 写入方**：按 `spec/Kaiwu §6.3.3` 与 `contract-linux-boot §4`「宿主 loader 写、`power`/`hmon`/`smon` 只读」执行；派单要点中的措辞差异见「待裁定 1」。
 - **smon 的只读校验是附加安全**：契约只要求内核 `head.S` 对 `magic`/`version`/`size` 显式失败（`FAIL-KERNEL`）；本任务让 smon 也校验并在失败时退出（为满足「boot info 越界 ⇒ smon 非零退出」反例），**不替代**内核校验义务。
 - **既有 Vast 测试路径**：step5 BootROM + raw 测试本体走同一 `bootrom-image + -kernel` 路径，本任务新增的 boot info 写入会占用 `[0x0000_0200_0001_0000, 0x1_0060)`（既有测试只把它当 scratch RAM，写后即覆盖）；必须由验收 6 证明零回归。若出现不可兼容的既有语义冲突，**登记「待裁定」并保留现场**，不得私自加开关改变既有 argv 语义。
 - **页表写者唯一**：QEMU loader 不写页表页；hmon 不建表；只有 smon 写 PA 0。探针用 `rd28`/`rd29` 与 `CFX02` 计数机械核验这一点。
@@ -190,17 +190,17 @@ ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`�
 
 ## 待裁定
 
-1. ~~**boot info 写入方口径**~~ **已定（主会话，2026-11-13）**：按 `spec/Machine-v5 §6.3.3` 与 `contract-linux-boot §4`——**宿主 loader 写 boot info，`power`/`hmon`/`smon` 只读**；派单要点里「smon 写 boot info」的措辞作废（写错了，以契约/ADR-0051 D3 为准）。
+1. ~~**boot info 写入方口径**~~ **已定（主会话，2026-11-13）**：按 `spec/Kaiwu §6.3.3` 与 `contract-linux-boot §4`——**宿主 loader 写 boot info，`power`/`hmon`/`smon` 只读**；派单要点里「smon 写 boot info」的措辞作废（写错了，以契约/ADR-0051 D3 为准）。
 2. **smon 只读校验**（本任务自决）：契约未强制 smon 校验，本任务加只读校验以支撑反例；不改写 boot info、不替代内核 `head.S` 的校验义务。评审若认为越界可要求删段，但不构成契约变更。
-3. **PTE `G=1`**（本任务自决）：`spec/Machine-v5 §6` 未点名 `G`；按 ADR-0043 D10 断言 `G=1`。若评审要求只核 §6 清单位，探针退化为掩码比较即可（不需用户裁定）。
+3. **PTE `G=1`**（本任务自决）：`spec/Kaiwu §6` 未点名 `G`；按 ADR-0043 D10 断言 `G=1`。若评审要求只核 §6 清单位，探针退化为掩码比较即可（不需用户裁定）。
 4. **节点**：默认 `server207`（`server208` 可替代，不同时占）；若两节点均忙/不可用，验收 7 登记 BLOCKED 并说明，不阻塞其余项。
 
-5. **首张页表的 L1 索引措辞（本任务自决；建议改文档措辞，须用户/主会话裁定）**：`spec/Machine-v5 §6.3`、`.tao/contracts/contract-linux-boot.md §2` 与 `ADR-0051 D6` 均写「smon 在 L1 index `0` 写 1 个 512 MiB 超页 PTE，映射 `VA [0x0200_0000_0000, +512 MiB)`」，但 `spec/DADAO-12 §2.2.1/§2.2.3` 规定 L1 索引 = `VA[41:29]` ⇒ `0x0200_0000_0000 >> 29 = 4096`。按字面写 index 0 会映射 `VA [0, 512 MiB)`（用户空间），内核窗口反而不映射 ⇒ 内核第一条指令即 `CFXMEM`、无法启动。本任务按「映射的 VA 范围」（文义真源）实现：PTE 落在 L1 index `4096`，页内其余 8191 项为 0。
+5. **首张页表的 L1 索引措辞（本任务自决；建议改文档措辞，须用户/主会话裁定）**：`spec/Kaiwu §6.3`、`.tao/contracts/contract-linux-boot.md §2` 与 `ADR-0051 D6` 均写「smon 在 L1 index `0` 写 1 个 512 MiB 超页 PTE，映射 `VA [0x0200_0000_0000, +512 MiB)`」，但 `spec/DADAO-12 §2.2.1/§2.2.3` 规定 L1 索引 = `VA[41:29]` ⇒ `0x0200_0000_0000 >> 29 = 4096`。按字面写 index 0 会映射 `VA [0, 512 MiB)`（用户空间），内核窗口反而不映射 ⇒ 内核第一条指令即 `CFXMEM`、无法启动。本任务按「映射的 VA 范围」（文义真源）实现：PTE 落在 L1 index `4096`，页内其余 8191 项为 0。
    - 选项 A（推荐）：三处文档的「L1 index `0`」改为「L1 index `VA[41:29]`（= 4096）」，硬件语义不变。
    - 选项 B：保留文档、改硬件索引定义（破坏 42 位 VA 的页表索引，不可取）。
    - 临时处置：按 A 的语义实现并记录于 `tests/shared/bootrom/k0/README.md`；文档属 spec/契约正文，改动须用户裁定，本任务不改。
 
-6. **验收 1d / §3 / §5 的旧口径（与 5 同根因，本任务自决）**：任务书 §3「4 个 PTE（`i=0..3`）覆盖 `VA [0, 2 GiB)`」与 §5「`VA [0, 2 GiB) → PA [0, 2 GiB)` 身份映射」是「内核窗口 +2 TiB 修订」之前的文本。本任务按 `spec/Machine-v5 §6.3.4` 与 `contracts/linux-boot.yaml::startup_model`（`superpage_size` + `prebuilt_page_table`）断言 **1 个 512 MiB 超页**：`rd28 == 1`、`PTE[4096] = 0xC000_0000_0000_FFEF`、`PTE[4097..4099] = 0`。若坚持任务书字面（4 个 PTE、`rd28 == 4`），须同笔改 spec/契约/ADR，且与「内核窗口下内核不可达」冲突。
+6. **验收 1d / §3 / §5 的旧口径（与 5 同根因，本任务自决）**：任务书 §3「4 个 PTE（`i=0..3`）覆盖 `VA [0, 2 GiB)`」与 §5「`VA [0, 2 GiB) → PA [0, 2 GiB)` 身份映射」是「内核窗口 +2 TiB 修订」之前的文本。本任务按 `spec/Kaiwu §6.3.4` 与 `contracts/linux-boot.yaml::startup_model`（`superpage_size` + `prebuilt_page_table`）断言 **1 个 512 MiB 超页**：`rd28 == 1`、`PTE[4096] = 0xC000_0000_0000_FFEF`、`PTE[4097..4099] = 0`。若坚持任务书字面（4 个 PTE、`rd28 == 4`），须同笔改 spec/契约/ADR，且与「内核窗口下内核不可达」冲突。
 
 ## 硬约束（子代理必读）
 
@@ -256,7 +256,7 @@ ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`�
 - **F6（已修）** 源码注入 ② 不触发固件重建（`rerun()` 复用启动时构建的 BootROM）⇒ 注入不生效、假绿。处置：`rerun()` 每次从源重建固件。复验：`inject smon-pte-ppn: probe FAILs` PASS。
 - **F7（已修）** `-d cpu` 的 chained-TB 记录会带上一块 PC（power/hmon 块交错），逐块「不回退」断言不可靠。处置：改成「四窗口各 ≥1 + 首次出现严格递增 + 内核进入后无早期阶段 + CFX02 TRAPN=1/ESCN=1」。复验：`main` 1f 三项 PASS。
 - **F8（已修）** smon 反例的注入槽位放在 hmon SRAM（DMA 掩码后落到 pmem 别处）⇒ 注入值实际为 0，`0xC2/0xC3` 属「凑巧正确」。处置：槽位改 pmem SRAM，并新增 `SMON_NEG_CASE=3`（`hart_id = 5`，合法值为 0）——零填充会使 smon 变绿，故该路证明注入字节真的落盘。复验：`smon neg hart_id = 5` 得 `0xC7`。
-- **F9（⏸ 待裁定）** 任务书 §3/§5/验收 1d（4 个 PTE、`rd28==4`）与 `spec/Machine-v5 §6.3.4`（1 个 512 MiB 超页）冲突；且文档「L1 index 0」与 `VA[41:29]` 索引规则冲突。处置：按 spec 实现（PTE 在 L1 index 4096、`rd28==1`），登记「待裁定 5/6」交主会话，未单方改 spec/契约。
+- **F9（⏸ 待裁定）** 任务书 §3/§5/验收 1d（4 个 PTE、`rd28==4`）与 `spec/Kaiwu §6.3.4`（1 个 512 MiB 超页）冲突；且文档「L1 index 0」与 `VA[41:29]` 索引规则冲突。处置：按 spec 实现（PTE 在 L1 index 4096、`rd28==1`），登记「待裁定 5/6」交主会话，未单方改 spec/契约。
 - **F10（❌ 不修，有据）** 内核探针把 semihosting 参数块的 **PA** 传给 `rb16`：QEMU 的 debug 翻译是恒等映射（`target/dadao/cpu.c::dadao_cpu_translate_for_debug`），传 VA 会让 `SYS_EXIT` 读块失败。属观测通道实现细节、不属启动 ABI，已在 `probe_kernel.S` 头注释与 `k0/README.md` 记录。
 
 判决：F1–F8 已修并有复验；F9 为文档口径冲突（需用户/主会话裁定，实现按 spec）；F10 有据不修。无未修的代码缺陷。
@@ -271,6 +271,6 @@ ABI 地址一律 **VA**：`addr[47:42] = 0` 的内存窗口，`VA = addr[41:0]`�
 - **独立注入 1 路（自设计，非其 2 路）**：`dadao-machine.c` boot info `page_size_log2` 写值 `DADAO_K0_PAGE_SHIFT` → `- 4`，md5 `7756efb7→ddaa303c` → 重建（build/install rc=0，二进制 `a4ec042d→0083d0db`）→ 探针 **rc=1（22 FAIL；smon 按 §7 以 `0xC7` 拒绝、无内核执行块）** → `cp`+md5 还原（`7756efb7` 相等、源树 clean）→ 重建回绿 **37 PASS/0 FAIL、二进制回 `a4ec042d`**。全程未用 `git checkout/restore/stash`。
 - 快照对账：审前后 `git status -uall` 均 0 行；4 个目标文件 md5 与注入前快照 `md5sum -c` 全 OK；`git diff c6c61e7e..HEAD` = 13 项（12 工程师 + 1 台账）与完成区声明一致，无越界。完成区 26 行、第 1 轮自审 18 行；任务书无具体运行期路径。
 
-**索引自洽性（第 4 点）**：`spec/DADAO-12 §2.2.1` 定 L1 index=`VA[41:29]` ⇒ `0x0200_0000_0000>>29=4096`；而 `contract-linux-boot §2`/`Machine-v5 §6.3.4` 声明的映射区间是 `VA[0x0200_0000_0000,+512MiB)`。字面 index 0 映射的是 `VA[0,512MiB)` 用户空间，**与合约自述的映射区间直接矛盾**且内核首条指令即不可达。**实现（index 4096、1 超页、其余 8191 项 0）与合约「映射区间」自洽**；三处文档「L1 index 0」为笔误，已由主会话记 `discussing.md` 待用户裁定，本审查不改 spec/契约。
+**索引自洽性（第 4 点）**：`spec/DADAO-12 §2.2.1` 定 L1 index=`VA[41:29]` ⇒ `0x0200_0000_0000>>29=4096`；而 `contract-linux-boot §2`/`Kaiwu §6.3.4` 声明的映射区间是 `VA[0x0200_0000_0000,+512MiB)`。字面 index 0 映射的是 `VA[0,512MiB)` 用户空间，**与合约自述的映射区间直接矛盾**且内核首条指令即不可达。**实现（index 4096、1 超页、其余 8191 项 0）与合约「映射区间」自洽**；三处文档「L1 index 0」为笔误，已由主会话记 `discussing.md` 待用户裁定，本审查不改 spec/契约。
 
 **判决：Accepted**（主会话可置 `已验证`）。阻断项为零；以下为不阻断 findings：F-a `run.sh` 的 source-state 断言按**整树 rc** 判（标签却写 qemu），共享树下会被他组件打红，建议改同脚本 patch-tree 式的 qemu 段归属；F-b 验收 7 节点重建 BLOCKED 待续派；F-c 待裁定 5/6 文档三处 index 措辞待用户裁定。

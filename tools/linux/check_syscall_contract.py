@@ -49,7 +49,7 @@ TAG_TAIL_RE = re.compile(r"\[([^\[\]]+)\]$")
 TAG_SOURCES = (
     "DADAO-",
     "SimRISC-",
-    "Machine-v5",
+    "Kaiwu",
     "contract-",
     "ADR-",
     "spec-decision",

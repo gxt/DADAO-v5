@@ -14,15 +14,15 @@ independently-derived expected value (it does NOT rely on lit exit codes):
     llvm-objcopy -O binary --only-section=.text.start --only-section=.text
                                                -> <prog>.bin
     prepend profile.kernel_reserved zero bytes (Tiny raw entry = base + 0x100)
-    timeout N qemu-system-dadao -M dadao-tiny \
+    timeout N qemu-system-dadao -M kaiwu-tiny \
             -bios <fixed 64 KiB BootROM firmware> -kernel <prog>.bin \
             -semihosting-config enable=on,target=native \
             -display none -nographic
                                                -> process exit code == guest exit code
 
-The `-bios` image is the fixed Machine-v5-Tiny BootROM firmware built by
+The `-bios` image is the fixed Kaiwu-Tiny BootROM firmware built by
 ``make build-bootrom`` -- the only image the Tiny `-bios` option accepts
-(spec/Machine-v5 §6; m13-testcases-036 removed the legacy 56-byte flat
+(spec/Kaiwu §6; m13-testcases-036 removed the legacy 56-byte flat
 BootROM firmware).  The raw `-kernel` application path is unchanged.
 
 The startup stub calls ``@main`` and reports the returned value (rd8) through
@@ -86,7 +86,7 @@ _DEFSYMS = [
 
 _TOOLCHAIN_BIN = str(_dadao_paths.host_toolchain_bin())
 
-# Machine fault exit codes (spec/Machine-v5 §7.1): monitor 0xC0-0xFF
+# Machine fault exit codes (spec/Kaiwu §7.1): monitor 0xC0-0xFF
 # (bit5:4 = run mode, bit3:0 = cause index) and other cfx 0x80-0xBF
 # (bit5:0 = cfxHA).
 _MONITOR_FAULT_NAMES = {
@@ -104,8 +104,8 @@ DEFAULT_LLC = os.path.join(_TOOLCHAIN_BIN, "llc")
 DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
 DEFAULT_LLVM_OBJCOPY = os.path.join(_TOOLCHAIN_BIN, "llvm-objcopy")
 DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
-# Fixed Machine-v5-Tiny BootROM firmware (`make build-bootrom`; the same image
-# `bootrom-image` takes, spec/Machine-v5 §6).  Resolved through the single
+# Fixed Kaiwu-Tiny BootROM firmware (`make build-bootrom`; the same image
+# `bootrom-image` takes, spec/Kaiwu §6).  Resolved through the single
 # source of truth for test artifacts (ADR-0016 D6/D7, tools/infra/paths.py), the
 # same way tests/unit/llvm/e2e/lit/lit.cfg.py's `%bootrom` is.  m13-testcases-036:
 # the legacy 56-byte `-bios` blob is no longer used by this gate.
@@ -338,7 +338,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     rc, _out, err, timed = _run(
         [
             tools["qemu"],
-            "-M", "dadao-tiny",
+            "-M", "kaiwu-tiny",
             "-bios", tools["bootrom"],
             "-kernel", bin_path,
             "-semihosting-config", "enable=on,target=native",
@@ -354,7 +354,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     if rc is None:
         res.reason = "qemu did not return an exit code"
         return res
-    # NOTE on fault detection: a machine fault (spec/Machine-v5 §7.1: 0x80..0xFF
+    # NOTE on fault detection: a machine fault (spec/Kaiwu §7.1: 0x80..0xFF
     # is the other-cfx/monitor segment) is classified *before* the expected-value
     # comparison, so a faulting guest can never be a PASS even if an expected
     # value were wrong (load_programs also rejects such values).  Guest SYS_EXIT
@@ -397,7 +397,7 @@ def main():
                     default=os.environ.get("LLVM_OBJCOPY", DEFAULT_LLVM_OBJCOPY))
     ap.add_argument("--qemu", default=os.environ.get("QEMU_SYSTEM_DADAO", DEFAULT_QEMU))
     ap.add_argument("--bootrom", default=DEFAULT_BOOTROM,
-                    help="fixed 64 KiB Machine-v5-Tiny BootROM firmware passed as "
+                    help="fixed 64 KiB Kaiwu-Tiny BootROM firmware passed as "
                          "-bios (default: the test-artifacts "
                          "bootrom/tiny/bootrom_tiny.bin built by "
                          "'make build-bootrom')")

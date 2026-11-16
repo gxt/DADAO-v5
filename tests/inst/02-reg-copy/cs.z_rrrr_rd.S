@@ -6,7 +6,7 @@
 @@ 数据块：本文件只用立即数准备寄存器；`tests/inst/macros/inst_test.inc` 的 RDATA 供 rf 变体用
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
 @@ 用例：encoding 2 / legality 1 / semantic 3 / boundary 7 / overlap 2（链例 15 + 故障例 1）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 注：**条件寄存器与目的同名**的快照语义按 C-27 仍 deferred（`inventory.md`）⇒ 目的不与
 @@   条件/候选同名；**条件寄存器与源同名**由 overlap 点覆盖（spec §2「先判断、再赋值」

@@ -5,15 +5,15 @@
 @@   0 或 4（编码层 imms18 ∈ {0,1}）；`imms18[17:1]` 为 SBZ，非零 ⇒ ILLI；cfxha 为 reserved
 @@   ⇒ ILLI；cfxha ≠ 当前 cfx（Tiny 恒 cfx3 hmon）或当前 cfx 无有效帧（cause_id = 0）
 @@   ⇒ CFXESC（`1<<3`，切换任何状态之前）；成功时 `escape_num += 1`
-@@   （`spec/SimRISC-11 §3`、`spec/DADAO-12 §5.3`、`spec/Machine-v5 §4.2`）。
+@@   （`spec/SimRISC-11 §3`、`spec/DADAO-12 §5.3`、`spec/Kaiwu §4.2`）。
 @@ 编码：ciii = opc[31:24] | cfxha[23:18] | imms18[17:0]；`[excp_cause_ip, 4]` ⇒ imms18 = 1
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
 @@ 用例：encoding 2 / semantic 6 / boundary 4（链例 12 + 故障例 8）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：落点 IP 用 `aip.si` 取自身地址（只读观测）；异常路由（CFXESC/IALIGN/CFXMEM）经固件
 @@   hmon 的「保存-跳转」把 cause_id/cause_ip/cause_info 落到 hmon SRAM
-@@   （`spec/Machine-v5 §6.2`），用例读 0xE0/0xE8/0xF0 并逐字节核（`spec/DADAO-13 §2`：
+@@   （`spec/Kaiwu §6.2`），用例读 0xE0/0xE8/0xF0 并逐字节核（`spec/DADAO-13 §2`：
 @@   cause_info = 指令编码）。落点/目标块用 `.org` 钉在 ENTRY+0x880 起（期望写绝对常量）
 @@ GAP（不计入链例，见任务书完成区）：① `escape_num` 计数（chipyard RTL 无 cg4）；
 @@   ② 模式恢复与 trap 保存的 global_cfx_intr_mask 不可观测（Tiny 恒 hypv、固件在同一帧内

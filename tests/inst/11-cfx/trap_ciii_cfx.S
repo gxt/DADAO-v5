@@ -5,15 +5,15 @@
 @@   （`trap_num += 1`，保存 `excp_prev_run_mode`/`excp_cause_ip`/`excp_cause_id`（= 1<<0）/
 @@   `excp_cause_info`（= 指令编码），跳到该 cfx 的 `<mode>_excp_vector`）。
 @@   reserved cfxha（6–14、16–31、35–61）⇒ ILLI；已分配但本 profile 未实现的 cfx
-@@   （Tiny：cfx0/1/2/4/5/32…）⇒ ILLI（`spec/Machine-v5 §3`）；`immu18[17:8] == 0x3FF`
-@@   （0x3FF00–0x3FFFF）为 semihosting 短路、**不进向量**（`spec/Machine-v5 §5.1/§5.4`）。
+@@   （Tiny：cfx0/1/2/4/5/32…）⇒ ILLI（`spec/Kaiwu §3`）；`immu18[17:8] == 0x3FF`
+@@   （0x3FF00–0x3FFFF）为 semihosting 短路、**不进向量**（`spec/Kaiwu §5.1/§5.4`）。
 @@ 编码：ciii = opc[31:24] | cfxha[23:18] | immu18[17:0]
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
 @@ 用例：encoding 2 / semantic 5 / boundary 2（链例 9 + 故障例 6）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：一般 trap 经固件 hmon 的「保存-跳转」落到 `.org` 钉住的落点块
-@@   （`spec/Machine-v5 §6.2`），用例读 0xE0/0xE8/0xF0 三个槽逐字节核
+@@   （`spec/Kaiwu §6.2`），用例读 0xE0/0xE8/0xF0 三个槽逐字节核
 @@   （`spec/DADAO-13 §2`：cause_info = 指令编码）；trap 指令地址用 `aip.si` 运行期派生
 @@ GAP（不计入链例，见任务书完成区）：① `trap_num` 计数（chipyard RTL 无 cg4，
 @@   `cfx2rd cfx_hmon, cg4, rc2` 在 chipyard 报 CFXREG、QEMU/gem5 读成功）；

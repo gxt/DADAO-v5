@@ -6,7 +6,7 @@
 @@ 合法性：源 0 号寄存器：rd0 读出 0（合法）；无 dst_0 限制。基址可用 rb0（= 当前指令地址）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节 beat，字面量见该文件）
 @@ 用例：encoding 2 / legality 5 / semantic 5 / boundary 5 / overlap 2 / rb0 1（链例 16 + 故障例 4；故障例一例一镜像，`-defsym CASE_N=<点号>`）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ rb0 段（`spec/SimRISC-00 §2`：rb0 = 当前指令地址）：本 id 的**数据源在 rd 银行**，
 @@   rb0 只能作**基址**（`rbhb`，role = src）⇒ EA = 本条 st.o 地址 + imms12；`.org` 钉住

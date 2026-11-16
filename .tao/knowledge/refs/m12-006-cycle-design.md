@@ -4,7 +4,7 @@
 > **用户裁定（原话，2026-11-09）**：「ldm/stm，要做。多周期的状态机设计，应该提前进行；应该通过分析各条指令的实际运行情况，给出一个推荐方案，我来裁定；内部运算的逻辑，可以1到2个周期完成，ld/st类的，都需要存储接口的交互，这部分原本就应该多周期」
 > **补充澄清（同日）**：「1–2 周期」是**举例**，3、5 周期也都可以——**周期数怎么合适怎么来**，不要被「单周期核」的名字绑住。
 > **同日新增裁定（Tiny 上 hmon）**：Tiny 实现 `cfx_power`（cfx63）+ `cfx3 hmon`；hmon SRAM 复用 `0x0fff_0000_0000`（64 KiB）；**无 PTW/页表**；同步异常**不经 `trap` 指令**、直接进 hmon 向量；semihosting 的 `trap` 三平台统一写 `trap cfx_hmon`（实现只看 `immu18`、不判 `cfxha`）；`trap` 判定 = `immu18 ∈ 0x3FF00–0x3FFFF` ⇒ semihosting，`cfxha=3` + 其它 `immu18` ⇒ hmon。
-> **证据基础**：`spec/SimRISC-00…12`、`spec/Machine-v5 §1.1/§1.2/§2/§3/§5/§7.1`、`spec/DADAO-12 §2.1/§2.2.6/§3/§4.12/§5`、`spec/DADAO-13 §1`（cg3）、`contracts/{opcodes,legality_rules}.yaml`、`.tao/contracts/contract-isa.md`、005 已落地的 `WumingCore/Decoder/RegFile/ALU/Tile`（运行期源码树）；参考实现 `wuming_1stage` 仅作结构溯源（**非执行依赖**）。
+> **证据基础**：`spec/SimRISC-00…12`、`spec/Kaiwu §1.1/§1.2/§2/§3/§5/§7.1`、`spec/DADAO-12 §2.1/§2.2.6/§3/§4.12/§5`、`spec/DADAO-13 §1`（cg3）、`contracts/{opcodes,legality_rules}.yaml`、`.tao/contracts/contract-isa.md`、005 已落地的 `WumingCore/Decoder/RegFile/ALU/Tile`（运行期源码树）；参考实现 `wuming_1stage` 仅作结构溯源（**非执行依赖**）。
 
 ---
 
@@ -74,7 +74,7 @@ sIdle → sFetch → sFetchReq → sFetchWait → sExec → {sMemReq → sMemWai
 
 现状 **6 处**必须在 007 之前改掉：
 
-1. `assert(!(tl.d.valid && tl.d.bits.denied))`：**`denied` 是正常的「未映射」响应，必须变成 `CFXMEM`**（`spec/Machine-v5 §1.2`）；assert 会把合法测试程序打成仿真中断。
+1. `assert(!(tl.d.valid && tl.d.bits.denied))`：**`denied` 是正常的「未映射」响应，必须变成 `CFXMEM`**（`spec/Kaiwu §1.2`）；assert 会把合法测试程序打成仿真中断。
 2. 数据通路只有**整 8 字节 Put**（005 只实现 `ld.o`/`st.o`）；若 007 照该形状扩到 `st.b/.w/.t`，一次写会破坏相邻字节 ⇒ 必须「整 beat Put + byte mask」。
 3. 取指缓冲只有 1 个 beat 且无预取 ⇒ 取指开销约占 1/3（§5.5 预取）。
 4. **没有 IALIGN 检查**：`spec/SimRISC-00 §3` / `DADAO-12 §5.0` 要求取指前检测 `IP[1:0]≠00`；005 直接按 `ip[47:3]` 取 beat，未对齐目标会被静默取指。
@@ -176,7 +176,7 @@ sIdle → sFetch → sFetchReq → sFetchWait → sExec → {sMemReq → sMemWai
 - `.an/.ar/.nn/.nr` 在**顺序单发、无写缓冲**的核上等价：没有可重排窗口，acquire/release 语义天然满足（**必须显式写出这个等价性理由**，否则会被当成静默忽略）。
 - 保留标记粒度 = **精确地址 + 访问宽度** ⇒ 一个寄存器 `{valid, addr[47:0], width[1:0]}`。
 
-### 3.7 类 F：semihosting `trap`（`SimRISC-11` + `Machine-v5 §5`）
+### 3.7 类 F：semihosting `trap`（`SimRISC-11` + `Kaiwu §5`）
 
 - 判定：`immu18[17:8] == 0x3FF` ⇒ semihosting（**与 `cfxha` 无关**；三平台统一写 `trap cfx_hmon`，实现只看 `immu18`）。
 - 核只做「**抬请求 + 等标量应答**」，宿主行为全在 harness（004 边界）；**参数块读取由 responder 用自己的 TL 口完成**，不占核的数据通路 ⇒ 核侧 = `TRAP` 1 拍 + `SEMI` **变长**（无上界）。
@@ -210,7 +210,7 @@ sIdle → sFetch → sFetchReq → sFetchWait → sExec → {sMemReq → sMemWai
 >
 > **trap 进入（CFXTRAP）另需**：保存当前 monitor 的 `global_cfx_intr_mask`（cg8 rc1）到目标 cfx 的帧，并把该 mask 置全 1，供 `escape` 恢复（`DADAO-12 §5.2` 步骤 5）。
 >
-> **semihosting 判定优先于 `cfxha` 合法性**：`Machine-v5 §5` 明写「与 `cfxha` 无关」，因此即使 `cfxha` 是保留值，`immu18[17:8]==0x3FF` 仍走 semihosting 短路（这是三平台统一写 `trap cfx_hmon` 的实现前提：核只看 `immu18`）。
+> **semihosting 判定优先于 `cfxha` 合法性**：`Kaiwu §5` 明写「与 `cfxha` 无关」，因此即使 `cfxha` 是保留值，`immu18[17:8]==0x3FF` 仍走 semihosting 短路（这是三平台统一写 `trap cfx_hmon` 的实现前提：核只看 `immu18`）。
 >
 > 掩码默认值（`DADAO-12 §3.1/§3`、`DADAO-13 §1`）：`hypv_cfxtrap` = `0xFFFF_FFFF_FFFF_FFF7`（hmon 自身为 `0x7FFF_FFFF_FFFF_FFF7`）。bit63=0 ⇒ `power`(63) 可 trap 到 hmon；bit3=0 ⇒ hmon 自身位忽略。这两条正是 Tiny 启动移交（G-e）能工作的前提。
 
@@ -477,7 +477,7 @@ stateDiagram-v2
 | **新增**（010 起）`WumingFPU.scala` | recFN 基础设施 + 迭代 `divSqrt`（`req/busy/done` 对接 `SLOW`） | 010–014 任务书定 |
 | `WumingParams.scala` / `DadaoConfigs.scala` | 加 `bootRomBase/Size`、**`hmonSramBase/Size`**、复位/向量默认值；**地址图新增 hmon SRAM 段（64 KiB TL RAM）**；装载链路（hmon 镜像） | 各 +20~40 行 |
 | `WumingTile.scala` | `sourceId = IdRange(0, 2)` → `IdRange(0, 3)` | +1 行 |
-| 仓库其它（非本核） | BootROM stub 改为「装载/移交 hmon」；**hmon 镜像的生成与装载**（R13/R14）；`Machine-v5` 相应修订（§9） | 另立任务 |
+| 仓库其它（非本核） | BootROM stub 改为「装载/移交 hmon」；**hmon 镜像的生成与装载**（R13/R14）；`Kaiwu` 相应修订（§9） | 另立任务 |
 
 **结论**：**较大改动**——① `WumingCore` 的 FSM 与执行分流重写约 80%；② 新增 `WumingCfx`（cfx 寄存器/帧）与 `WumingMemUnit`/`WumingMulDiv`；③ **SoC 侧新增 hmon SRAM 段与装载链路**（不属于核内，但属本方案前置）；④ tile 外壳结构（`BaseTile` 借用、TL 端口、semihosting 抬边界）**不变**。不再是「局部重写」。
 
@@ -538,7 +538,7 @@ stateDiagram-v2
 | SimRISC-08 | tetra：`add.ut`/`add.st`/`sub.ut`/`sub.st`/`cmp.ut`/`cmp.st`/`mul.ut`/`mul.st`/`div.ut`/`div.st`/`rem.ut`/`rem.st`、`shl.t`/`rol.t`/`shr.ut`/`shr.st`、`rev.t` | A / B2 / B3 | 1 / 1 / 17 | §1/§2 |
 | SimRISC-09 | wyde 全套（`add.uw`…`rem.sw`、`shl.w`、`rev.w`，结构与 08 同） | A / B2 / B3 | 1 / 1 / 9 | §1/§2 |
 | SimRISC-10 | byte 全套（`add.ub`…`rem.sb`、`shl.b`、`rev.b`，结构与 08 同） | A / B2 / B3 | 1 / 1 / 5 | §1/§2 |
-| SimRISC-11 | `trap`（semihosting：`immu18[17:8]==0x3FF`） | F | 1 + 变长 | §2 + `Machine-v5 §5`；与 `cfxha` 无关 |
+| SimRISC-11 | `trap`（semihosting：`immu18[17:8]==0x3FF`） | F | 1 + 变长 | §2 + `Kaiwu §5`；与 `cfxha` 无关 |
 | SimRISC-11 | `trap cfx3`（其它 `immu18`） | G2 | 4–5 | §2 + `DADAO-12 §5.2`（CFXTRAP → hmon 向量） |
 | SimRISC-11 | `trap` 到保留/未实现 cfx | G1 | 4–5 | ⇒ ILLI 进 hmon（`DADAO-12 §5.2`（一）；Tiny 口径待 spec 明确） |
 | SimRISC-11 | `escape cfx3, [excp_cause_ip, 0\|4]` | G3 | 3–4 | §5 + `DADAO-12 §5.3`；帧错/目标错 ⇒ CFXESC |
@@ -564,9 +564,9 @@ stateDiagram-v2
 7. **`rf0` sticky 标志**：每个 FP 运算都要更新 `rf0[4:0]`（OR 语义）+ 读 `rf0[33:32]` 舍入模式 ⇒ `rf` 银行多一个写端口（或与写口 1 复用并加冲突规则）。
 8. **参考实现不能照抄**：`wuming_1stage` 把多寄存器指令当 `inst_multi_reg` ⇒ ILLI（上游**没有** `ldm/stm`），且无 hmon/异常向量。
 9. **`ra2rd`/`rd2ra` 与环缓冲**：架构视图 `ra_i` 与隐藏基准索引要换算；`ra0` 高 16 位（`RACNT`/`MRPTR`）不能当普通数据。
-10. **hmon 向量默认值口径分歧**：`DADAO-13 §1` cg3 rc10 默认 `cfxha<<42 + 0x3ff_ffff_0000`（即段**末** 64 KiB），`Machine-v5 §1.1` 写 hmon SRAM 在 `0x0fff_0000_0000`（段内偏移 `0x3ff_0000_0000`，位于**段末前 4 GiB** 处），两者不等 ⇒ 实现期**以寄存器值为准**，并让 power stub 在 `trap cfx3` **之前**显式写 hmon 向量（§3.8 G-e 第 2 步），同时把口径分歧交 spec 澄清（§9 第 7 条）。
+10. **hmon 向量默认值口径分歧**：`DADAO-13 §1` cg3 rc10 默认 `cfxha<<42 + 0x3ff_ffff_0000`（即段**末** 64 KiB），`Kaiwu §1.1` 写 hmon SRAM 在 `0x0fff_0000_0000`（段内偏移 `0x3ff_0000_0000`，位于**段末前 4 GiB** 处），两者不等 ⇒ 实现期**以寄存器值为准**，并让 power stub 在 `trap cfx3` **之前**显式写 hmon 向量（§3.8 G-e 第 2 步），同时把口径分歧交 spec 澄清（§9 第 7 条）。
 11. **异常可能死循环**：hmon 内再异常会覆盖帧；Tiny 无第二个 monitor ⇒ 必须有嵌套上限（R15），否则表现为仿真挂死而非报错。
-12. **退出码由软件产生**：硬件只保存 `cause_id`/`cause_ip`；退出码由 hmon handler 算并通过 semihosting `SYS_EXIT` 传出。`contract-isa` 的 `0x88` 与 `Machine-v5 §7.1` 的 monitor 段编码（hypv ILLI = `0xF8`）不一致，QEMU 实现走后者 ⇒ 需在 015/016 前统一（§9 第 8 条）。
+12. **退出码由软件产生**：硬件只保存 `cause_id`/`cause_ip`；退出码由 hmon handler 算并通过 semihosting `SYS_EXIT` 传出。`contract-isa` 的 `0x88` 与 `Kaiwu §7.1` 的 monitor 段编码（hypv ILLI = `0xF8`）不一致，QEMU 实现走后者 ⇒ 需在 015/016 前统一（§9 第 8 条）。
 13. **`swym` 时延影响仿真**：若实现 `1+min(N,CAP)` 且程序用 `swym N` 延时，墙钟会涨；建议 CAP=1（R10）。
 14. **`ldm`/`stm` 中途不得被打断**，且 `stm` 的源寄存器必须在使用当拍读（spec「递增逐对处理」）。
 15. **向量/目标对齐只能靠「四处写入点」保证**：完成出口、`IDLE`、`EXC`、`SEMI` 之外的任何 `ip` 写入都会绕过 IALIGN 检查；新增 `ip` 写入点必须同时加对齐检查（§5.3 完成出口首段）。注意不变式是「**进 `EXEC`/`FREQ` 前恒对齐**」——完成出口的 IALIGN 分支与 `IDLE` 未对齐行会**刻意**把 `ip` 留在非法地址。
@@ -630,7 +630,7 @@ A. **扩展 + 较大改动（推荐）**：保留 IO/诊断/停机/`ip` 与 beat
 B. 新写 `WumingCore2` 整体替换：干净但丢已验收细节，回归风险大。
 
 **R13 hmon 镜像的装载方式**
-A. **宿主 loader 直装 hmon SRAM（推荐）**：与 app 装载同机制，power stub 只做 `trap cfx3` 移交；改 `Machine-v5 §2` 装载语义。
+A. **宿主 loader 直装 hmon SRAM（推荐）**：与 app 装载同机制，power stub 只做 `trap cfx3` 移交；改 `Kaiwu §2` 装载语义。
 B. power stub 从 BootROM 拷贝到 hmon SRAM：stub 变复杂（需自拷贝代码 + 长度表），但更接近 Vast 的 power 行为。
 
 **R14 hmon 镜像的来源**
@@ -653,16 +653,16 @@ B. 去掉：全部走 hmon，`halted` 只在 semihosting 退出时产生（由 r
 
 | # | 位置 | 现文要点 | 需改为 |
 | --- | --- | --- | --- |
-| 1 | `Machine-v5 §1.1` Tiny 表/注 | 「不实现任何 cfx（含 `cfx_power`）」、无 hmon/smon 与异常向量 | Tiny 实现 `cfx63`+`cfx3`；表内加 hmon SRAM 行（`0x0fff_0000_0000`，64 KiB，cfxha 3） |
-| 2 | `Machine-v5 §1.2` | 「Tiny 无 hmon/smon 向量，fault 直接映射退出码」 | 越界/未映射 ⇒ hmon 的 `CFXMEM`，**进向量**；退出码改由 handler 产生 |
-| 3 | `Machine-v5 §2`（装载/移交） | Tiny「无模式移交」「stub 以普通跳转移交」 | power→hmon 移交（`trap cfx3`）；hmon 镜像装载方式（R13）与入口/SP 约定 |
-| 4 | `Machine-v5 §3` | Tiny「`trap` 只在 semihosting 区有效」；非 semihosting `trap`/`escape` ⇒ ILLI；`cfx2rd`/`cfx2rc` ⇒ CFXREG | Tiny cfx 范围 = {3,63}；`trap` 两路；`escape`/`cfx2*` 合法；**其它 cfxha ⇒ ILLI/CFXREG 的精确口径** |
-| 5 | `Machine-v5 §5` | semihosting 判定与 `cfxha` 无关（不变） | 补「三平台统一写 `trap cfx_hmon`」的约定文字 |
-| 6 | `Machine-v5 §7.1` | fault 由机器直接映射退出码 | 退出码由 hmon handler 生成（monitor 段编码 `0xC0\|(mode<<4)\|idx`） |
-| 7 | `DADAO-13 §1` cg3 rc10 | 默认 `cfxha<<42 + 0x3ff_ffff_0000` | 与 `Machine-v5` 的 hmon SRAM 基址 `0x3ff_0000_0000` 口径统一（或明确「默认值以平台为准」） |
-| 8 | `.tao/contracts/contract-isa.md` + `contract-see.md` | ILLI 退出码 `0x88`（ADR-0004 rev 2026-09-13 的 `0x80\|位索引`） | 与 `Machine-v5 §7.1` 的 monitor 段（hypv ILLI = `0xF8`）统一；Tiny fault 路径改为经 hmon |
-| 9 | `Machine-v5 §3`（Tiny 段） | 「cfx 寄存器访问与 `cfx2rd`/`cfx2rc` 按未实现 cfx ⇒ `CFXREG`」 | 与 `DADAO-12 §5.1`/`§5.2(一)` 统一：**保留 cfxha ⇒ `ILLI`**（`trap`/`cfx2rd`/`cfx2rc` 同列）；仅**已分配未实现**（如 `cfx5`）⇒ `CFXREG` |
-| 10 | `Machine-v5 §3`/`§4.1`/`§5` vs `§7.1 Step1`；`DADAO-12 §3` cfx 表 vs 其 0.7.3-rc 变更记录 | reserved 集自相矛盾：前者写 `6–14`、`19–61`；后者写 `6–14`、`16–31`、`35–61`（`DADAO-12` 变更记录亦有 `19–61` 残留） | 统一为 **`6–14`、`16–31`、`35–61`**（以 cfx 编号表为准；`16–31` 为 per-task 段），并同步 `DADAO-12` 变更记录口径 |
+| 1 | `Kaiwu §1.1` Tiny 表/注 | 「不实现任何 cfx（含 `cfx_power`）」、无 hmon/smon 与异常向量 | Tiny 实现 `cfx63`+`cfx3`；表内加 hmon SRAM 行（`0x0fff_0000_0000`，64 KiB，cfxha 3） |
+| 2 | `Kaiwu §1.2` | 「Tiny 无 hmon/smon 向量，fault 直接映射退出码」 | 越界/未映射 ⇒ hmon 的 `CFXMEM`，**进向量**；退出码改由 handler 产生 |
+| 3 | `Kaiwu §2`（装载/移交） | Tiny「无模式移交」「stub 以普通跳转移交」 | power→hmon 移交（`trap cfx3`）；hmon 镜像装载方式（R13）与入口/SP 约定 |
+| 4 | `Kaiwu §3` | Tiny「`trap` 只在 semihosting 区有效」；非 semihosting `trap`/`escape` ⇒ ILLI；`cfx2rd`/`cfx2rc` ⇒ CFXREG | Tiny cfx 范围 = {3,63}；`trap` 两路；`escape`/`cfx2*` 合法；**其它 cfxha ⇒ ILLI/CFXREG 的精确口径** |
+| 5 | `Kaiwu §5` | semihosting 判定与 `cfxha` 无关（不变） | 补「三平台统一写 `trap cfx_hmon`」的约定文字 |
+| 6 | `Kaiwu §7.1` | fault 由机器直接映射退出码 | 退出码由 hmon handler 生成（monitor 段编码 `0xC0\|(mode<<4)\|idx`） |
+| 7 | `DADAO-13 §1` cg3 rc10 | 默认 `cfxha<<42 + 0x3ff_ffff_0000` | 与 `Kaiwu` 的 hmon SRAM 基址 `0x3ff_0000_0000` 口径统一（或明确「默认值以平台为准」） |
+| 8 | `.tao/contracts/contract-isa.md` + `contract-see.md` | ILLI 退出码 `0x88`（ADR-0004 rev 2026-09-13 的 `0x80\|位索引`） | 与 `Kaiwu §7.1` 的 monitor 段（hypv ILLI = `0xF8`）统一；Tiny fault 路径改为经 hmon |
+| 9 | `Kaiwu §3`（Tiny 段） | 「cfx 寄存器访问与 `cfx2rd`/`cfx2rc` 按未实现 cfx ⇒ `CFXREG`」 | 与 `DADAO-12 §5.1`/`§5.2(一)` 统一：**保留 cfxha ⇒ `ILLI`**（`trap`/`cfx2rd`/`cfx2rc` 同列）；仅**已分配未实现**（如 `cfx5`）⇒ `CFXREG` |
+| 10 | `Kaiwu §3`/`§4.1`/`§5` vs `§7.1 Step1`；`DADAO-12 §3` cfx 表 vs 其 0.7.3-rc 变更记录 | reserved 集自相矛盾：前者写 `6–14`、`19–61`；后者写 `6–14`、`16–31`、`35–61`（`DADAO-12` 变更记录亦有 `19–61` 残留） | 统一为 **`6–14`、`16–31`、`35–61`**（以 cfx 编号表为准；`16–31` 为 per-task 段），并同步 `DADAO-12` 变更记录口径 |
 
 ---
 
@@ -721,7 +721,7 @@ B. 去掉：全部走 hmon，`halted` 只在 semihosting 退出时产生（由 r
 - **`cg3 rc10`（`hypv_excp_vector`）写入忽略低 2 位**（`value[1:0] ← 0`，即按 4 字节对齐落盘）；不报错。
 - **`DADAO-13 §1 rc10` 必须有初值 = 该 cfx 内部 SRAM 起始地址**（有内部 SRAM 的 cfx；无内部 SRAM 者由平台定义）。该修订并入 `m12-spec-004`。
 
-> **契约更新（2026-11-10，`m12-spec-004` 合入后）**：本报告 §8.1 的 R13-A「宿主 loader 直装 hmon SRAM」**已作废**，改按 `Machine-v5 §6.1/§6.2`：hmon 代码/数据编入 BootROM 固定固件，power 校验段表后复制到 hmon SRAM，宿主只装应用段；应用 crt 随之移入 SRAM、入口固定 `0xffff_ff01_0100`（该条待用户确认）。
+> **契约更新（2026-11-10，`m12-spec-004` 合入后）**：本报告 §8.1 的 R13-A「宿主 loader 直装 hmon SRAM」**已作废**，改按 `Kaiwu §6.1/§6.2`：hmon 代码/数据编入 BootROM 固定固件，power 校验段表后复制到 hmon SRAM，宿主只装应用段；应用 crt 随之移入 SRAM、入口固定 `0xffff_ff01_0100`（该条待用户确认）。
 
 ## 11. hmon handler 的最终算法（用户 2026-11-11 裁定，第二次修正后）
 

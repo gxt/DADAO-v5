@@ -1,15 +1,15 @@
 diff --git a/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingSemi.cc b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingSemi.cc
 new file mode 100644
-index 0000000..baa3329
+index 0000000..ac85a7b
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingSemi.cc
 @@ -0,0 +1,907 @@
-+// WumingSemi.cc — harness-side semihosting responder for Machine-v5-Tiny
++// WumingSemi.cc — harness-side semihosting responder for Kaiwu-Tiny
 +// (m12-chipyard-004; the service set was completed in m12-chipyard-016).
 +//
 +// The core lifts a semihosting `trap` (service number in rd16, parameter-block
 +// pointer in rb16, scalar return in rd8; contract-semihosting §2 /
-+// Machine-v5 §5.2) to this host model; see WumingSemi.scala for why the channel
++// Kaiwu §5.2) to this host model; see WumingSemi.scala for why the channel
 +// is a DPI port rather than MMIO.  This file owns every host effect:
 +//
 +//   SYS_OPEN    0x01  block{name ptr, mode, name len}     -> handle / -1

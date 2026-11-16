@@ -15,7 +15,7 @@
 @@   MSTORE（最大个数例的源；判据「目的 == 源内存」，与宏层既有 31 元口径一致）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
 @@ 用例：encoding 2 / semantic 4 / boundary 3 / overlap 1 / rf0 1（链例 11 + 故障例 6）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：rf 目的单元素经 `st.o` 落 SCRATCH 再 `ld.o` 比（`st_*_rrii_rf`，与被测指令无关）；
 @@   多元素用 `__VERIFY_MEM_RF`/`__CHECK_MEM_RF`（`rf2rd` 跨组读回 + `ld.o`，见宏层）

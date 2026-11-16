@@ -8,7 +8,7 @@ QEMU argv it already emits, and this shim maps that argv onto gem5.
 
 Supported QEMU subset (ADR-0048 D1/D2; task book §2):
 
-  -M / -machine  dadao-tiny | dadao-vast[,bootrom-image=<path>]
+  -M / -machine  kaiwu-tiny | kaiwu-vast[,bootrom-image=<path>]
   -bios <path>                     (Tiny flat BootROM)
   -kernel <path>                   (raw or ET_EXEC DADAO ELF)
   -semihosting-config enable=on,target=native[,chardev=<id>][,arg=<s>...]
@@ -46,7 +46,7 @@ import sys
 import tempfile
 
 USAGE = """usage: qemu_gem5_shim.py [QEMU system argv subset]
-  -M|-machine dadao-tiny | dadao-vast[,bootrom-image=PATH]
+  -M|-machine kaiwu-tiny | kaiwu-vast[,bootrom-image=PATH]
   -bios PATH | -kernel PATH
   -semihosting-config enable=on,target=native[,chardev=ID][,arg=S]...
   -chardev file,id=ID,path=PATH[,input-path=PATH]
@@ -88,24 +88,24 @@ def _split_kv(value: str, what: str) -> list[tuple[str, str]]:
     return items
 
 
-# M12 (`spec/Machine-v5 §1`): the profile is fixed by the machine name; the
+# M12 (`spec/Kaiwu §1`): the profile is fixed by the machine name; the
 # two machines are separate `-M` entries (no `profile=` property).
-FIXED_MACHINES = {"dadao-tiny": "tiny", "dadao-vast": "vast"}
+FIXED_MACHINES = {"kaiwu-tiny": "tiny", "kaiwu-vast": "vast"}
 
 
 def parse_machine(value: str) -> tuple[str | None, str | None, str | None]:
     """Return (profile, bootrom, machine) from `-M/-machine`.
 
     `machine` is returned only for callers that need the identity; the shim
-    accepts `dadao-tiny` and `dadao-vast`.  The profile is implied by the
+    accepts `kaiwu-tiny` and `kaiwu-vast`.  The profile is implied by the
     machine name, so `profile=` is rejected (the machines are separate types).
     """
     parts = _split_kv(value, "-machine")
     machine = parts[0][0]
     if machine not in FIXED_MACHINES:
         raise ShimError(
-            f"-machine: unsupported machine {machine!r} (dadao-tiny or "
-            f"dadao-vast)")
+            f"-machine: unsupported machine {machine!r} (kaiwu-tiny or "
+            f"kaiwu-vast)")
     bootrom = None
     for key, val in parts[1:]:
         if key == "bootrom-image":

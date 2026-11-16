@@ -1,12 +1,12 @@
 diff --git a/src/arch/dadao/tiny_cfx.hh b/src/arch/dadao/tiny_cfx.hh
 new file mode 100644
-index 0000000..cc9eb78
+index 0000000..d5aa78c
 --- /dev/null
 +++ b/src/arch/dadao/tiny_cfx.hh
 @@ -0,0 +1,152 @@
 +// DADAO Tiny machine model: cfx_power (cfx63) + cfx3 hmon.
 +//
-+// Source of truth: spec/Machine-v5 §1.1/§2/§3/§4.1/§4.4/§5/§6/§7.1 and
++// Source of truth: spec/Kaiwu §1.1/§2/§3/§4.1/§4.4/§5/§6/§7.1 and
 +// spec/DADAO-12 §3/§5, spec/DADAO-13 §1.  Tiny has no PTW and no smon: the
 +// only implemented cfx are cfx63 (power, boot handover) and cfx3 (hmon, the
 +// hypv monitor).  Execution is always nominally hypv, so every synchronous
@@ -101,7 +101,7 @@ index 0000000..cc9eb78
 +    Addr hmonBase = 0;
 +    Addr hmonSize = 0;
 +
-+    uint8_t runMode = 3;                // hypv (spec/Machine-v5 §2)
++    uint8_t runMode = 3;                // hypv (spec/Kaiwu §2)
 +    uint8_t cfxCode = TinyCfxhaPower;   // reset: cfx63 / power
 +
 +    /** 0 = power (63), 1 = hmon (3). */
@@ -117,7 +117,7 @@ index 0000000..cc9eb78
 +/** Reserved cfxha codes (DADAO-12 §5.1): 6-14, 16-31, 35-61. */
 +bool tinyCfxReserved(uint64_t cfxha);
 +
-+/** Apply the Tiny reset values (spec/Machine-v5 §1.1/§2; DADAO-13 §1). */
++/** Apply the Tiny reset values (spec/Kaiwu §1.1/§2; DADAO-13 §1). */
 +void tinyResetState(TinyState &s, ThreadContext *tc, Addr romBase,
 +                    Addr romSize, Addr sramBase, Addr sramSize,
 +                    Addr hmonBase, Addr hmonSize);

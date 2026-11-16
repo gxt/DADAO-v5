@@ -1,6 +1,6 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala
 new file mode 100644
-index 0000000..7bd35b7
+index 0000000..412f2b4
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala
 @@ -0,0 +1,139 @@
@@ -8,7 +8,7 @@ index 0000000..7bd35b7
 +//
 +// DADAO "wuming" loadmem boot loader (m12-chipyard-003).
 +//
-+// `+loadmem=<elf>` on the Machine-v5-Tiny harness has to land the application
++// `+loadmem=<elf>` on the Kaiwu-Tiny harness has to land the application
 +// in the on-chip SRAM (0xffff_ff00_0000, 8 MiB) before the core starts.
 +// chipyard's stock `+loadmem=` path cannot do that here:
 +//
@@ -42,7 +42,7 @@ index 0000000..7bd35b7
 +import freechips.rocketchip.tilelink._
 +
 +/**
-+  * The Tiny application-load contract (`spec/Machine-v5 §6`), supplied by the
++  * The Tiny application-load contract (`spec/Kaiwu §6`), supplied by the
 +  * SoC configuration from the machine address map:
 +  *
 +  *   * `base`/`size` — the only window a PT_LOAD may target (main SRAM);

@@ -1,6 +1,6 @@
 diff --git a/generators/chipyard/src/main/scala/iobinders/WumingSuccess.scala b/generators/chipyard/src/main/scala/iobinders/WumingSuccess.scala
 new file mode 100644
-index 0000000..f5761c1
+index 0000000..8906ffd
 --- /dev/null
 +++ b/generators/chipyard/src/main/scala/iobinders/WumingSuccess.scala
 @@ -0,0 +1,29 @@
@@ -10,7 +10,7 @@ index 0000000..f5761c1
 +//
 +// chipyard's TestDriver only stops on `chiptopSuccess`, which the stock
 +// harness drives from HTIF/TSI exit, DTM success or TraceGen success — a plain
-+// tile `reportCease` is NOT connected to it.  The Machine-v5-Tiny smoke program
++// tile `reportCease` is NOT connected to it.  The Kaiwu-Tiny smoke program
 +// ends with an undefined instruction (no semihosting yet, that is m12-004), so
 +// the wuming tile's cease line is the exit condition:
 +//

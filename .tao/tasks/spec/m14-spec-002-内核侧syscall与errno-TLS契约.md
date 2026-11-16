@@ -28,7 +28,7 @@
 - **返回路径的掩码**：`escape cfx_umon` 由内核（`supv`）执行，受 `cfx_umon_supv_*`（源 cfx = 当前 monitor `smon`）约束；内核须配置允许，否则按 `CFXPERM`/`CFXESC` 失败。user→umon 的进入路径则受 `cfx_umon_user_cfxtrap` 约束。
 - **硬件现场只有 cg5 的异常现场字段**（`excp_prev_run_mode` / `excp_cause_id` / `excp_cause_ip` / `excp_cause_info` 等，`DADAO-12 §3.6`）：**不保存通用寄存器**。内核向量必须在使用任何寄存器前自行保存，返回前恢复；不得把 cg5 当 `pt_regs`。
 - **入口可见状态**：`rd15` = nr、参数按 §3（`rd16–rd31`/`rb16–rb31`/`rf16–rf31`）、`excp_cause_ip` = `trap` 指令地址、`excp_cause_id` = `CFXTRAP`（`1<<0`）、`excp_cause_info & 0x3FFFF` = `immu18`；返回时写 `rd8` 再 `escape +4`。
-- **smon（supv 异常）**：内核运行期同步异常（页表/对齐/非法指令/cfx 权限等）进 `cfx_smon_supv_excp_vector`（**内核提供**）；内核按 `excp_cause_id`/`excp_cause_info` 分派；PTW 的异常归因（未映射/权限）沿用 `DADAO-12 §2.2.6` 与 `Machine-v5 §1.2`，本合约不重定义。
+- **smon（supv 异常）**：内核运行期同步异常（页表/对齐/非法指令/cfx 权限等）进 `cfx_smon_supv_excp_vector`（**内核提供**）；内核按 `excp_cause_id`/`excp_cause_info` 分派；PTW 的异常归因（未映射/权限）沿用 `DADAO-12 §2.2.6` 与 `Kaiwu §1.2`，本合约不重定义。
 - **hmon / HBI**：内核→hypv 的服务调用走 `trap cfx_hmon, immu18`，返回 `escape cfx_hmon, …`；**函数号与语义不在此重抄**，指针到 `spec/DADAO-23`（HBI）。hmon 为固件，不是内核的一部分。
 - **掩码配置责任**：内核启动时配置 `cfx_umon_user_cfxtrap`（user→umon 进入）与 `cfx_umon_supv_*`/`cfx_smon_supv_*`（supv 返回/异常）使上述路径可用（位定义见 `DADAO-12 §3` / `DADAO-13 §1`）；不得靠 hmon 的默认值长期放行宽于需要的来源。
 - **嵌套**：不同 cfx 的 cg5 相互独立（A→B 无需保存）；同 cfx 递归（如 `umon` 内再进 `umon`）前必须把 cg5 保存到 `cg6` 暂存、退出恢复（`DADAO-22 §1`）。
@@ -142,7 +142,7 @@
 | 证据脚本「改动文件集」期望串未按 `sort` 序（写成 契约/检查器/任务书） | ✅已修 | 期望串改 契约/任务书/检查器（按路径序） | 一键证据 `改动文件集 == 任务书范围` PASS |
 | 任务书「范围」第 2 项（README 版本行）在文件中无对应内容 | ⏸延后 | 未改 README（派单限定只改契约 + 检查器；且 README 与 `m14-spec-001` 共享） | 已记「新发现/坑」#1 |
 | 检查器把「不定义」类 bullet 也要求来源标注 | ❌不修 | 这是有意的（判据一致、避免以「不定义」逃标注）；§11 该类条已标 `[spec-decision][ADR-0025 D6]` | 检查器 §11 5/5 标注 PASS |
-| 新增条款用了 `[外部权威 …]` / `[Machine-v5 §1.2]`（不在任务书列举的 6 类） | ❌不修 | 沿用 `contract-dynlink` 既有「外部权威」体例；`Machine-v5` 是 v5 自定 spec 册 | 检查器 `TAG_SOURCES` 覆盖这些前缀；`check-contracts-pending` rc=0 |
+| 新增条款用了 `[外部权威 …]` / `[Kaiwu §1.2]`（不在任务书列举的 6 类） | ❌不修 | 沿用 `contract-dynlink` 既有「外部权威」体例；`Kaiwu` 是 v5 自定 spec 册 | 检查器 `TAG_SOURCES` 覆盖这些前缀；`check-contracts-pending` rc=0 |
 
 判决：无未修 finding ⇒ 状态置 **待验收**。
 
@@ -166,7 +166,7 @@
 
 **约束核验**
 - 越界：`git diff 8352b41b -- spec/ contracts/ manifests/` 与 `git diff 174298eb -- spec/ contracts/ manifests/` 均为空（exit=0）；改动集 = 契约 + 任务书 + 检查器 3 件 = 完成区声明；完成区 19 行 ≤30；未重建组件、未改 `spec/`/`Makefile`/`contracts/*.yaml`。
-- §8–§11 逐条抽核可定位：DADAO-12 §3.1/§3.3/§3.6/§3.7/§5.1/§5.2/§5.3（cg0 复位 2、cg5 字段、`escape` 帧错误⇒`CFXESC`）、DADAO-13 §1 `hypv_cg_reg_deleg`、DADAO-22 §1（同 cfx 递归须存 cg6、A→B 免保存）与 §2（`immu18=0`/`rd15`/`rd8`/独立编号）、DADAO-23 §1–§3、SimRISC-00 §3.1（`hb‖hc‖hd` = 指令位 `[17:0]`）、SimRISC-12 §1（spurious failure／异常清保留标记／对齐／序变体）、Machine-v5 §1.2（PTW 未映射⇒CFXMEM、权限⇒CFXPERM）、contract-abi §1.3/§4.5、contract-dynlink §2.4/§7；`immu18 = cause_info & 0x3FFFF` 另有 DADAO-22 §7.2/§12.2 `set.rd rd3, 0x3FFFF @@ 掩码提取 immu18` 佐证。
+- §8–§11 逐条抽核可定位：DADAO-12 §3.1/§3.3/§3.6/§3.7/§5.1/§5.2/§5.3（cg0 复位 2、cg5 字段、`escape` 帧错误⇒`CFXESC`）、DADAO-13 §1 `hypv_cg_reg_deleg`、DADAO-22 §1（同 cfx 递归须存 cg6、A→B 免保存）与 §2（`immu18=0`/`rd15`/`rd8`/独立编号）、DADAO-23 §1–§3、SimRISC-00 §3.1（`hb‖hc‖hd` = 指令位 `[17:0]`）、SimRISC-12 §1（spurious failure／异常清保留标记／对齐／序变体）、Kaiwu §1.2（PTW 未映射⇒CFXMEM、权限⇒CFXPERM）、contract-abi §1.3/§4.5、contract-dynlink §2.4/§7；`immu18 = cause_info & 0x3FFFF` 另有 DADAO-22 §7.2/§12.2 `set.rd rd3, 0x3FFFF @@ 掩码提取 immu18` 佐证。
 - `[spec-decision]` 均落 §7 #5–#8 + 任务书「待裁定」#1–#3；契约内无编造的 `[用户裁定 2026-11-13]`（仅既有 2026-10-14）。
 
 **返工要求（仅此 1 项）**：运行期证据目录的 `run.sh` L140「改动文件集」断言改用**钉常量基线**（分支基线 `8352b41b`：`git diff --name-only 8352b41b`；或 `<base>..HEAD` ∪ `git status`），使提交前后均成立——禁裸 `git status`（提交后恒空 ⇒ 假 FAIL）；改后重跑至 rc=0（PASS=41 FAIL=0）并同步完成区数字。

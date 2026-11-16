@@ -159,7 +159,7 @@ def stack_base():
     """``StackBase`` of the DADAO SE process, read from the component patch.
 
     The SE loader writes argv/env at the top of its stack reservation, so a
-    Machine-v5-Tiny image (whose own stack sits in SRAM) needs a reservation
+    Kaiwu-Tiny image (whose own stack sits in SRAM) needs a reservation
     that reaches that high; the value lives in the patch, never here.
     """
     text = PROCESS_PATCH.read_text(encoding="utf-8")
@@ -223,7 +223,7 @@ def model_total_cycles(entry, ctx):
     observe, so the caller can report it instead of assuming a value.
 
     One input is genuinely unobservable here: the ``trap`` tag (``immu18``).
-    A Machine-v5-Tiny image reaches the host only through semihosting, so a
+    A Kaiwu-Tiny image reaches the host only through semihosting, so a
     ``trap`` is taken as the semihosting branch; if a program ever took the
     cfx/hmon branch instead, this would under-count 3 cycles per trap and the
     C4 check (table-sum vs measured ``on - off``) would go red -- a loud

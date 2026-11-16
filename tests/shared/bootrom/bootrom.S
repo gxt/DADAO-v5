@@ -1,4 +1,4 @@
-@@ bootrom.S — DADAO-v5 Machine-v5-Tiny trampoline/BootROM.
+@@ bootrom.S — DADAO-v5 Kaiwu-Tiny trampoline/BootROM.
 @@
 @@ TESTCASES-091t (user ruling 2026-11-02): Tiny has **no cfx at all**
 @@ (including cfx_power), cannot run in user mode, but semihosting is allowed.

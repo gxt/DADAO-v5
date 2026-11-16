@@ -106,7 +106,7 @@ DEFAULT_WORK_DIR = str(_dadao_paths.test_artifacts_dir() / "ir-lli-diff")
 DEFAULT_TIMEOUT = 30
 
 # Raw `-kernel` geometry (TESTCASES-095t): the image loads at the profile's
-# kernel_base and the first kernel_reserved bytes must be zero (spec/Machine-v5
+# kernel_base and the first kernel_reserved bytes must be zero (spec/Kaiwu
 # §6); the firmware enters at kernel_base+kernel_reserved.
 _PROFILE = machine_profile.load()
 RAW_PREFIX = _PROFILE.entry - _PROFILE["kernel_base"]
@@ -356,7 +356,7 @@ def target_value(tools, ir_abs, work_dir, stem, timeout, verbose=False):
 
     # 5. run under QEMU -> guest exit code
     cmd = [
-        tools["qemu"], "-M", "dadao-tiny",
+        tools["qemu"], "-M", "kaiwu-tiny",
         "-bios", tools["bootrom"], "-kernel", binp,
         "-semihosting-config", "enable=on,target=native",
         "-display", "none", "-nographic",

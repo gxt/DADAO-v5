@@ -1,4 +1,4 @@
-@@ hmon.S — Machine-v5-Vast hmon stage (TESTCASES-091t; fault policy 092t).
+@@ hmon.S — Kaiwu-Vast hmon stage (TESTCASES-091t; fault policy 092t).
 @@
 @@ Linked at HMON_BASE (0x0fff_0000_0000, 64 KiB) and entered by
 @@ `trap cfx_hmon, <boot_magic>` from the Vast power stage.
@@ -27,7 +27,7 @@
 @@       returns to excp_cause_ip + 4 and the vector self-checks;
 @@     * HMON_FAULT_POLICY=1 (exit, bootrom_step5_inst.bin): exit code =
 @@       monitor segment 0xC0 | (run_mode << 4) | cause_bit_index
-@@       (spec/Machine-v5 §7.1) so the inst harness observes the machine fault
+@@       (spec/Kaiwu §7.1) so the inst harness observes the machine fault
 @@       exactly as the vector expects it (no 0xB7 mask).  The policy runs in
 @@       hmon, i.e. hypv (bit5:4 = 11), hence the 0xF0 base.
 @@     * An unmatched cause stays on hmon_exit_b7 (unhandled fault).
@@ -130,7 +130,7 @@ hmon_fault:
 	escape	cfx_hmon, [excp_cause_ip, 4]
 	swym	0
 	.else
-	@@ exit: explicit cause -> spec/Machine-v5 §7.1 monitor code.
+	@@ exit: explicit cause -> spec/Kaiwu §7.1 monitor code.
 	@@ The policy runs in hmon (hypv, bit5:4 = 11): code = 0xF0 | index.
 	.macro	HMON_FAULT_CODE cause, code
 	LD64	rd7, \cause, 0x0000, 0x0000, 0x0000

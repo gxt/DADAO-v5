@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/se_workload.hh b/src/arch/dadao/se_workload.hh
 new file mode 100644
-index 0000000..306d40f
+index 0000000..25d9d43
 --- /dev/null
 +++ b/src/arch/dadao/se_workload.hh
 @@ -0,0 +1,66 @@
@@ -38,11 +38,11 @@ index 0000000..306d40f
 +
 +    ByteOrder byteOrder() const override { return ByteOrder::big; }
 +
-+    /** Semihosting responder for a bare-metal Tiny/Machine-v5 image loaded by
++    /** Semihosting responder for a bare-metal Tiny/Kaiwu image loaded by
 +     *  SE (m16-gem5-007).  `NULL` -- the default -- keeps every existing SE
 +     *  run byte-identical: a `trap` with the semihosting tag then reaches the
-+     *  execution core and panics there, exactly as before.  Machine-v5-Tiny
-+     *  applications reach the host only through semihosting (spec/Machine-v5
++     *  execution core and panics there, exactly as before.  Kaiwu-Tiny
++     *  applications reach the host only through semihosting (spec/Kaiwu
 +     *  §5), so a same-ELF comparison against the chipyard harness needs it. */
 +    SimObject *getSemihosting() const override { return semihosting; }
 +

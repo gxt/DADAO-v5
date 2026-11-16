@@ -40,7 +40,7 @@
 	.section .text.start, "ax"
 	.globl	_start
 _start:
-	LOAD_ADDR rb1, SP			@@ crt：入口设 SP（Machine-v5 §6）
+	LOAD_ADDR rb1, SP			@@ crt：入口设 SP（Kaiwu §6）
 	@@ 顺序落入紧随其后的 .text（同段、4 字节对齐、无填充）
 
 	.text

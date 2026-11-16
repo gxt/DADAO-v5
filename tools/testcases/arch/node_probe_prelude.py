@@ -2,9 +2,9 @@
 """Shared Vast L3 probe prelude (TESTCASES-093t §2) — one implementation for
 the 13 `ARCH_CFX_PROBES` and `min_rom_probe_046t`.
 
-Loading model (task book §0/§2, spec/Machine-v5 §1 + DADAO-12 §4.5/§4.9):
+Loading model (task book §0/§2, spec/Kaiwu §1 + DADAO-12 §4.5/§4.9):
 
-  * one 4 MiB `bootrom-image` (`-machine dadao-vast,bootrom-image=...`), **no
+  * one 4 MiB `bootrom-image` (`-machine kaiwu-vast,bootrom-image=...`), **no
     `-kernel`**; the CPU resets in power (cfx63/hypv) at RESET_PC, which is
     image offset `RESET_PC - BOOTROM_BASE` (Vast: 0x3f_0000, the last 64 KiB);
   * power segment (reset_pc + 0): installs `cfx_hmon.hypv.excp_vector =
@@ -79,7 +79,7 @@ BODY_OFF = 0x1000        # probe body, reset_pc-relative
 ROM_BASE = RESET_PC + BODY_OFF
 RESET_IMAGE_OFF = RESET_PC - BOOTROM_BASE
 PT_PA = 0x7FF0_0000      # 64 KiB aligned, in RAM, below fault_record/exit
-PMEM_BASE = 0x83FF_0000_0000   # spec/Machine-v5 §1 (cfxha 32)
+PMEM_BASE = 0x83FF_0000_0000   # spec/Kaiwu §1 (cfxha 32)
 PMEM_STAGE = PMEM_BASE + 0x1000
 
 DEFAULT_QEMU = str(_paths.host_toolchain_bin() / "qemu-system-dadao")

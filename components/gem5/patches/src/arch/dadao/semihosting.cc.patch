@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/semihosting.cc b/src/arch/dadao/semihosting.cc
 new file mode 100644
-index 0000000..37a417b
+index 0000000..6a2c59b
 --- /dev/null
 +++ b/src/arch/dadao/semihosting.cc
 @@ -0,0 +1,192 @@
@@ -29,7 +29,7 @@ index 0000000..37a417b
 +{
 +
 +// The v5 service set is the 24 generic services plus SYS_SYNCCACHE (0x19),
-+// which the generic table does not list (ADR-0020 D3; spec/Machine-v5 §5.3).
++// which the generic table does not list (ADR-0020 D3; spec/Kaiwu §5.3).
 +const std::map<uint64_t, Semihosting::SemiCall> Semihosting::calls{
 +        {SYS_OPEN, {"SYS_OPEN", &Semihosting::callOpen}},
 +        {SYS_CLOSE, {"SYS_CLOSE", &Semihosting::callClose}},
@@ -82,7 +82,7 @@ index 0000000..37a417b
 +    auto it = calls.find(op);
 +    if (it == calls.end()) {
 +        // Unknown service: loud failure with the number and the trap PC.  No
-+        // silent -ENOSYS / 0 return (spec/Machine-v5 §5, task rule).
++        // silent -ENOSYS / 0 return (spec/Kaiwu §5, task rule).
 +        const Addr pc = tc->pcState().instAddr();
 +        fatal("DADAO FS: semihosting op %#x not implemented (pc=%#x)", op, pc);
 +    }

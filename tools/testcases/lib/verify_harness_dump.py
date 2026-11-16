@@ -164,7 +164,7 @@ def main():
         f.write(blob)
 
     proc = subprocess.Popen(
-        [QEMU, "-machine", "dadao-tiny", "-nographic",
+        [QEMU, "-machine", "kaiwu-tiny", "-nographic",
          "-bios", BIOS, "-kernel", test_bin,
          "-qmp", f"unix:{qmp_sock},server=on,wait=off", "-S"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -224,7 +224,7 @@ def main():
             os.unlink(f)
 
     proc = subprocess.Popen(
-        [QEMU, "-machine", "dadao-tiny", "-nographic",
+        [QEMU, "-machine", "kaiwu-tiny", "-nographic",
          "-bios", BIOS, "-kernel", test_bin,
          "-qmp", f"unix:{qmp_sock_b},server=on,wait=off", "-S"],
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -399,7 +399,7 @@ def main():
             f.write(struct.pack(">I", 0x47880000))  # swym (NOP)
 
     proc_e = subprocess.Popen(
-        [QEMU, "-machine", "dadao-tiny", "-nographic",
+        [QEMU, "-machine", "kaiwu-tiny", "-nographic",
          "-bios", BIOS, "-kernel", kernel_bin,
          "-device", f"loader,file={pattern_file},addr=0xffff00fe0000",
          "-qmp", f"unix:{qmp_sock_e},server=on,wait=off", "-S"],

@@ -1,6 +1,6 @@
 diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
 new file mode 100644
-index 0000000..ff692b0
+index 0000000..133c925
 --- /dev/null
 +++ b/configs/dadao/fs.py
 @@ -0,0 +1,295 @@
@@ -30,7 +30,7 @@ index 0000000..ff692b0
 +NON_GUEST_EXIT = 125
 +
 +PROFILES = {
-+    # Machine-v5-Tiny (spec/Machine-v5 §1.1; machine-profiles.yaml tiny).
++    # Kaiwu-Tiny (spec/Kaiwu §1.1; machine-profiles.yaml tiny).
 +    "tiny": {
 +        "bootrom_base": 0xFFFF_FFFF_0000,
 +        "bootrom_size": 0x1_0000,
@@ -46,7 +46,7 @@ index 0000000..ff692b0
 +        "pmem": None,
 +        "exit_block": 0xFFFF_FF7E_0000,
 +    },
-+    # Machine-v5-Vast (spec/Machine-v5 §1.1; machine-profiles.yaml vast).
++    # Kaiwu-Vast (spec/Kaiwu §1.1; machine-profiles.yaml vast).
 +    "vast": {
 +        "bootrom_base": 0xFFFF_FFC0_0000,
 +        "bootrom_size": 0x40_0000,

@@ -1,13 +1,13 @@
 diff --git a/src/arch/dadao/node_tlb.hh b/src/arch/dadao/node_tlb.hh
 new file mode 100644
-index 0000000..d99e17e
+index 0000000..e130d6e
 --- /dev/null
 +++ b/src/arch/dadao/node_tlb.hh
 @@ -0,0 +1,76 @@
-+// DADAO Node TLB/PTW (Machine-v5-Node): guest-visible TLB plus a two-level
++// DADAO Node TLB/PTW (Kaiwu-Node): guest-visible TLB plus a two-level
 +// page-table walk, address routing and cfx_ptw exception delivery.
 +//
-+// Source of truth: spec/DADAO-12 §2.2.1-§2.2.6/§4.5, spec/Machine-v5 §1.2/§3,
++// Source of truth: spec/DADAO-12 §2.2.1-§2.2.6/§4.5, spec/Kaiwu §1.2/§3,
 +// ADR-0040 (PTE/page walk), ADR-0041 (TLB/A-D), ADR-0039 (address space).
 +// This object is Node-only: the SE TLB (tlb.*) and the Tiny FS TLB (fs_tlb.*)
 +// keep their own translation rules.

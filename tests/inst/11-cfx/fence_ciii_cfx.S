@@ -9,7 +9,7 @@
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
 @@ 用例：encoding 2 / semantic 12（链例 14 + 故障例 7；boundary = immu18 上界与 reserved 集）
 @@   链例 13/14 并入原 YAML 的 cfx63 与混合位用例（同一 id 的旧载体）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：合法的 fence 不得改架构状态 ⇒ 每例预置 rd5 并核其不变；屏障的**排序/可见性**在
 @@   Tiny 上不可观测（单 hart、无 DMA/异步观测点）⇒ 只覆盖编码/合法性/无副作用（GAP）

@@ -19,7 +19,7 @@ K0 有 `make check-linux-k0`（119 项、10 路注入、入 L2，`m14-infra-003`
 2. **同步异常通道可用**：一次**预先声明**的 `CFXMEM` 被正确分类（名字 + `ip` + `info`）后恢复继续；未声明的同类异常 ⇒ 具名终止（不递归）；
 3. **时钟**：`cfx_time` 频率 == 契约值、`time` 单调；tick 间隔 == `freq/HZ`（`HZ` 从内核 `.config` 现场解析），余量按「指令边界投递」推导且有上界；
 4. **屏蔽**：屏蔽窗口内 tick 冻结、解除后补投（计数恰增 1）；**两轴 mask 都必须起作用**（只开一轴 ⇒ 不 tick）；
-5. **退出码合规**（`spec/Machine-v5 §7.1`；用户 2026-11-15 裁定「同意A'」）：**按事件性质分段**——自检失败码 ∈ guest 段 `0x01–0x7F`；异常终止码 ∈ monitor 段 `0xC0–0xFF`（按 `§7.1` 模式位：supv ⇒ `0xE0|bit索引`，如 `CFXMEM`=`0xE1`；`0xD0–0xDF` 属 jail）；PASS 恒 `0x00`；两段互不越界；
+5. **退出码合规**（`spec/Kaiwu §7.1`；用户 2026-11-15 裁定「同意A'」）：**按事件性质分段**——自检失败码 ∈ guest 段 `0x01–0x7F`；异常终止码 ∈ monitor 段 `0xC0–0xFF`（按 `§7.1` 模式位：supv ⇒ `0xE0|bit索引`，如 `CFXMEM`=`0xE1`；`0xD0–0xDF` 属 jail）；PASS 恒 `0x00`；两段互不越界；
 6. **不回归**：`check-linux-k0`、`check-linux-k1` 仍 rc=0。
 
 ## 范围
@@ -30,7 +30,7 @@ K0 有 `make check-linux-k0`（119 项、10 路注入、入 L2，`m14-infra-003`
    - 检查项分组（现场派生，**不写死总项数**；打印 PASS/FAIL 计数）：
      - **B 构建**：K2 配置（`defconfig` 原样，`CONFIG_DADAO_K1_EARLY_STOP` 未设置 —— 从生成的 `.config` 解析）；构建 rc=0；命令行**无** `-d/-D`；
      - **E 端到端**：guest rc=0；阶段锚点各 1 次且严格递增（锚点以内核自打的唯一行/探针记录为准，不用逐指令日志）；
-     - **C 契约一致（静态）**：`contract-see §6` 的 cause 表 ↔ `spec/DADAO-13 §2` + `spec/Machine-v5 §4.4` **现场解析比对**；内核 `arch/dadao/kernel/traps.c` 的 cause 名字表与契约表逐项一致（解析源码，不靠注释）；异步入口寄存器口径（`cfx_hart` `cg2 rc10`/`rc8`）与 §6 第 3 条一致（解析源码里的寄存器写点）；
+     - **C 契约一致（静态）**：`contract-see §6` 的 cause 表 ↔ `spec/DADAO-13 §2` + `spec/Kaiwu §4.4` **现场解析比对**；内核 `arch/dadao/kernel/traps.c` 的 cause 名字表与契约表逐项一致（解析源码，不靠注释）；异步入口寄存器口径（`cfx_hart` `cg2 rc10`/`rc8`）与 §6 第 3 条一致（解析源码里的寄存器写点）；
      - **T 时间**：`freq` == 从契约解析的值；`time` 单调不减；相邻 tick 差 ∈ `[period, period + margin]`，`period = freq/HZ`（`HZ` 从 `.config` 解析）、`margin` 按「指令边界投递」推导（`spec/DADAO-12 §5`）并在完成区写清公式；
      - **M 屏蔽**：正例的屏蔽窗口内 tick 计数不变、解除后恰 +1；**两轴**各一次负例（只开 `cfx_smon supv rc4` / 只开 `cfx_smon global`）⇒ 不 tick；
      - **X 退出码分段**：正例 rc=0；负例 rc ∈ `0x01–0x7F`；扫描输出中的自报码，**不得**落在 `0x80–0xFF`（那是「其它 cfx / monitor」段，`§7.1`）；

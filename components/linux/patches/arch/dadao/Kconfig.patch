@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/Kconfig b/arch/dadao/Kconfig
 new file mode 100644
-index 000000000..9727cc675
+index 000000000..41b5082e6
 --- /dev/null
 +++ b/arch/dadao/Kconfig
 @@ -0,0 +1,95 @@
@@ -10,7 +10,7 @@ index 000000000..9727cc675
 +#
 +# K0 scope: a kernel that links.  No SMP, no device tree, no UART, no PCI;
 +# the console is a semihosting stub and the boot ABI is the fixed boot info
-+# block (spec/Machine-v5 §6.3, contract-linux-boot).
++# block (spec/Kaiwu §6.3, contract-linux-boot).
 +
 +config DADAO
 +	def_bool y

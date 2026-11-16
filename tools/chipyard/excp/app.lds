@@ -1,7 +1,7 @@
 /*
- * app.lds — m12-chipyard-019 RTL case layout (Machine-v5-Tiny).
+ * app.lds — m12-chipyard-019 RTL case layout (Kaiwu-Tiny).
  *
- * The ELF is the *application* only (spec/Machine-v5 §6 装载语义): the single
+ * The ELF is the *application* only (spec/Kaiwu §6 装载语义): the single
  * PT_LOAD segment sits in SRAM, `e_entry` is the fixed entry, and the BootROM /
  * hmon firmware comes from the fixed image.  The program is one object with
  * `_start` at the entry, so every `.equ ENTRY + off` in the source is the real

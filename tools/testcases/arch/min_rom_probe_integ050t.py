@@ -128,7 +128,7 @@ ALL1 = (1 << 64) - 1
 BIT63 = 1 << 63
 
 EXIT_PASS = 0x00
-EXIT_FAIL = 0x61   # guest FAIL segment (spec/Machine-v5 §7.1)
+EXIT_FAIL = 0x61   # guest FAIL segment (spec/Kaiwu §7.1)
 
 # Timing-model-neutral bounds (TESTCASES-102t).  DELTA_NS is the nominal
 # relative deadline; WINDOW_NS is the tolerated delay between the deadline and

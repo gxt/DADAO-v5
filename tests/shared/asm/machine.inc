@@ -1,6 +1,6 @@
 @@ machine.inc — DADAO-v5 assembly helper for profile-selected test geometry.
 @@
-@@ TESTCASES-091t: test/bootrom sources must not embed Machine-v5 addresses.
+@@ TESTCASES-091t: test/bootrom sources must not embed Kaiwu addresses.
 @@ Callers either include a generated machine-<profile>.inc (bootrom sources,
 @@ built directly by the Makefile) or pass the symbols with llvm-mc --defsym
 @@ (arch vectors, driven by run_m5_e2e.py).  Values are plain integers without

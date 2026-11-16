@@ -1,6 +1,6 @@
 # ADR-0004: SimRISC M1 裸机测试机（Test Machine）
 
-**状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型；rev. 2026-10-06: D2.2/D2.3 启动/加载扩展为 ELF + raw-bin 双路径；rev. 2026-10-07: 新 bootrom 加载模型（与 M4 ELF 路径并存）、`SYS_EXIT` 取代 exit-port、RAM 基址改全 0 + C1 双映射两步；rev. 2026-10-11: RAM 基址改 `0xFC00_0000_0000`（cfx63 段）；rev. 2026-11-02: 测试机几何改由 `spec/Machine-v5` 的 Tiny/Node 两 profile 规定；rev. 2026-11-05: D5.7/D5.8 退出码改为三分 + 指针，见 `## 修订`；同轮全册活 decision 的旧码字面统一改指针（`spec/Machine-v5 §7.1`），D3/Consequences 的 guest 分区同步三分；rev. 2026-11-11: guest 分区改为 PASS 仅 `0x00`、FAIL `0x01`–`0x7F`（失败点序号 1–127），见 `## 修订`）
+**状态**：Accepted（rev. 2026-09-13: D1 内存映射改为核内地址空间模型；rev. 2026-10-06: D2.2/D2.3 启动/加载扩展为 ELF + raw-bin 双路径；rev. 2026-10-07: 新 bootrom 加载模型（与 M4 ELF 路径并存）、`SYS_EXIT` 取代 exit-port、RAM 基址改全 0 + C1 双映射两步；rev. 2026-10-11: RAM 基址改 `0xFC00_0000_0000`（cfx63 段）；rev. 2026-11-02: 测试机几何改由 `spec/Kaiwu` 的 Tiny/Node 两 profile 规定；rev. 2026-11-05: D5.7/D5.8 退出码改为三分 + 指针，见 `## 修订`；同轮全册活 decision 的旧码字面统一改指针（`spec/Kaiwu §7.1`），D3/Consequences 的 guest 分区同步三分；rev. 2026-11-11: guest 分区改为 PASS 仅 `0x00`、FAIL `0x01`–`0x7F`（失败点序号 1–127），见 `## 修订`）
 **日期**：2026-09-13
 **关联**：ADR-0001（greenfield 重建）、ADR-0003（object ABI / artifact pipeline，`SPEC-005t`）、任务 `SPEC-006t`、`.tao/contracts/contract-isa.md`（SimRISC 0.5.4）、`.tao/contracts/contract-abi.md`（AEE·ABI 0.9.2）、`contracts/legality_rules.yaml`、`contracts/opcodes.yaml`
 
@@ -25,7 +25,7 @@ M1 测试机（`dadao-m1`）地址图采用 spec 的**核内地址空间模型**
 | RAM | `0xffff_0000_0000` | `0xffff_00ff_ffff` | 16 MiB | 读写、可执行 | 测试程序、栈、数据 |
 | Exit port | `0xffff_8000_0000` | `0xffff_8000_0007` | 8 B | MMIO，只写 | exit 协议（D3） |
 | boot ROM | `0xffff_ffff_0000` | `0xffff_ffff_ffff` | 64 KiB | 只读、可执行 | 复位 trampoline、常量数据；= `cfx_power_hypv_excp_vector` |
-| 其余全部地址 | — | — | — | 未映射 | 访问/取指 → 当前运行模式 monitor 的 `CFXMEM`（退出码见 `spec/Machine-v5 §7.1`；D5） |
+| 其余全部地址 | — | — | — | 未映射 | 访问/取指 → 当前运行模式 monitor 的 `CFXMEM`（退出码见 `spec/Kaiwu §7.1`；D5） |
 
 - 所有区域地址均为 48-bit 核内有效地址：`bits[63:48] = 0`，高 16 位在地址计算时被硬件忽略 [contract-isa §1.5]。三个区域与未映射判定均按有效地址低 48 位进行。
 - **boot ROM 起址 `0xffff_ffff_0000` 即 spec 的 `cfx_power_hypv_excp_vector`**（cfxha 63 / power，64 KiB）[DADAO-12 §2.1][DADAO-23 §3]。M1 **仅借用该复位地址**作为 boot ROM，**不复现** spec 的复位运行模式（`inner_run_mode=hypv`、`inner_cfx_code=cfx_power`、`inner_cfx_mask=全 1`）等 HBI/SEE 语义（M1 无 SEE/HBI/hypv）。
@@ -107,9 +107,9 @@ M1 测试机（`dadao-m1`）地址图采用 spec 的**核内地址空间模型**
   | `0x01`–`0x7F` | FAIL——失败点序号 1–127（guest 自定义） |
   | `0x80`–`0xFF` | 机器 fault——测试程序**不得**写入（该段保留给机器产生的 fault 码，D5） |
 
-  **rev. 2026-11-05**：guest 写入值分区同步 `D5.7`/`spec/Machine-v5 §7.1`；地址/宽度/编码机制不变。
+  **rev. 2026-11-05**：guest 写入值分区同步 `D5.7`/`spec/Kaiwu §7.1`；地址/宽度/编码机制不变。
 
-  **rev. 2026-11-11**：PASS 收窄为 `0x00`、FAIL 扩为 `0x01`–`0x7F`（值 = 失败点序号 1–127），同步 `D5.7`/`spec/Machine-v5 §7.1`；地址/宽度/编码机制不变。
+  **rev. 2026-11-11**：PASS 收窄为 `0x00`、FAIL 扩为 `0x01`–`0x7F`（值 = 失败点序号 1–127），同步 `D5.7`/`spec/Kaiwu §7.1`；地址/宽度/编码机制不变。
 
   高 56 位（`bits[63:8]`）可用于编码测试编号/调试信息，harness **只检查低字节**。
 - **QEMU 行为**（机制级冻结）：
@@ -118,26 +118,26 @@ M1 测试机（`dadao-m1`）地址图采用 spec 的**核内地址空间模型**
   3. 以 clean shutdown 请求退出，并把该退出码传播到 host `$?`。
   4. **写入后立即停止 guest 执行**（`ADR-0011` D4 补充）：exit-port handler 必须在写入退出码后**强制 vCPU 返回主循环**（`cpu_loop_exit()`，即 `longjmp` 回 `cpu_exec` 的 `setjmp` 点），**不再执行任何后续 guest 指令**——保证「**首次写入 exit port 即锁定退出码**」为确定性行为。仅置 `exit_request`/`EXCP_INTERRUPT`（`cpu_exit()`）**不足**：外层 `cpu_exec` 循环不会停止，后续指令（FAIL store / UNDI 终止符）仍会覆盖退出码（实测 40 次中 5 次不一致，见 `ADR-0011` Context）。
   实现使用**带退出码**的 API/设备机制（如 `qemu_system_shutdown_request_with_code(reason, code)` 或等价机制），**不使用**不携带退出码的 `qemu_system_shutdown_request()`。最终 API 以锁定的 QEMU baseline 为准（ADR-0002/组件锁）；Phase 3 bringup 必须增加**进程级验收测试**，对 guest 经 exit port 写入 `0x00`/`0x01`/`0x7F` 及 `0x80`–`0xFF` 段内的若干值，分别验证 host 观察到**完全相同**的 8-bit status。该 bringup 测试直接验证「读 8 B → 取低字节 → 传播到 `$?`」机制对**任意 8 位值**的忠实传播；它与下述「测试程序不得写 `0x80`–`0xFF`」的**约定**不冲突——约定用于保证常规测试的 `$?` 分区无歧义，bringup 测试在已知写入来源的前提下单独验证机制。
-- **非 8B 访问**：对 exit port 的 `st.b`/`st.w`/`st.t`、多寄存器 store（`stm.*`）、以及任何 load（`ld.*`）→ **ILLI**（退出码见 `spec/Machine-v5 §7.1`）。理由：opcode 合法（非保留编码），违反的是 MMIO 区域的访问种类/宽度约束，属**非法操作数/非法访问**（ILLI），而非未识别编码（UNDI 仅用于 ISA 表空白单元格）。
+- **非 8B 访问**：对 exit port 的 `st.b`/`st.w`/`st.t`、多寄存器 store（`stm.*`）、以及任何 load（`ld.*`）→ **ILLI**（退出码见 `spec/Kaiwu §7.1`）。理由：opcode 合法（非保留编码），违反的是 MMIO 区域的访问种类/宽度约束，属**非法操作数/非法访问**（ILLI），而非未识别编码（UNDI 仅用于 ISA 表空白单元格）。
 - **零 host 依赖**：harness 运行 `qemu-system-dadao -machine dadao-m1 -bios rom.bin -kernel test.bin` 并检查 `$?`；`0x00` = pass，`0x01`–`0x7F` = fail，`0x80`–`0xFF` = fault。pass/fail 判定**只依赖 `$?`**，不做日志解析、不读 stderr。harness 另设**墙钟超时兜底**（默认 **9 s**，可经环境变量覆盖）：超时即杀掉 QEMU 并记为 **harness 错误（inconclusive）**，**不**参与 guest pass/fail 判定。该超时仅用于防止死循环/不终止的测试永久挂起 harness，不违反零 host 依赖原则。
 
 ### D4 MALIGN 可观测行为
 
 MALIGN 为精确异常 [contract-isa §15.2][contract-isa §3.1.1]。M1 无 OS 异常向量，本 ADR 选择 **QEMU 直接把 fault 映射为退出码**（不安装 handler，D6）。
 
-- **退出码**：MALIGN 的退出码按 **monitor 段**编码（`bit3:0` = DADAO 异常位索引 12），完整范围/位域见 `spec/Machine-v5-测试机运行环境.md §7.1`。所有 M1 对齐异常（16/32/64 位；byte 天然对齐不触发）统一归 MALIGN：`ld.sw`/`st.w`/`ld.uw`/`ldm.sw`/`ldm.uw`/`stm.w`（2 B）、`ld.st`/`st.t`/`ld.ut`/`ldm.st`/`ldm.ut`/`stm.t`（4 B）、`ld.o`/`st.o`（RD/RB/RA）、`ldm.o`/`stm.o`（8 B）[contract-isa §3.1.1][contract-isa §3.1.2][contract-isa §3.2][contract-isa §3.3]。
+- **退出码**：MALIGN 的退出码按 **monitor 段**编码（`bit3:0` = DADAO 异常位索引 12），完整范围/位域见 `spec/Kaiwu-测试机运行环境.md §7.1`。所有 M1 对齐异常（16/32/64 位；byte 天然对齐不触发）统一归 MALIGN：`ld.sw`/`st.w`/`ld.uw`/`ldm.sw`/`ldm.uw`/`stm.w`（2 B）、`ld.st`/`st.t`/`ld.ut`/`ldm.st`/`ldm.ut`/`stm.t`（4 B）、`ld.o`/`st.o`（RD/RB/RA）、`ldm.o`/`stm.o`（8 B）[contract-isa §3.1.1][contract-isa §3.1.2][contract-isa §3.2][contract-isa §3.3]。
 - **退出时 guest 可见状态**（精确异常承诺）：
   - **faulting PC**：`rb0` = 触发异常的指令地址（PC 未前进到下一指令）。
   - **目标寄存器不提交**：目的寄存器（RD/RB/RA）**不被写入**；源操作数可能已被读取，但无任何架构状态提交。
   - **内存不提交**：store 类指令不产生内存写。
   - 其余 RD/RB/RA/RF 状态与异常前一致。
-- **测试断言方式**：常规断言由 `$?` 命中 MALIGN 退出码判定（码值见 `spec/Machine-v5 §7.1`）；如需验证精确状态（faulting PC / 不提交），使用**机器可读的 guest 寄存器读取路径**：QEMU GDB stub（`-S -gdb tcp::<port>` + GDB batch `info registers`）或 QMP（`human-monitor-command {"command-line":"info registers"}`），由 harness 解析寄存器值。该路径读取的是 guest 寄存器状态，**不是** host 日志/stderr/超时，满足零 host 依赖约束。
+- **测试断言方式**：常规断言由 `$?` 命中 MALIGN 退出码判定（码值见 `spec/Kaiwu §7.1`）；如需验证精确状态（faulting PC / 不提交），使用**机器可读的 guest 寄存器读取路径**：QEMU GDB stub（`-S -gdb tcp::<port>` + GDB batch `info registers`）或 QMP（`human-monitor-command {"command-line":"info registers"}`），由 harness 解析寄存器值。该路径读取的是 guest 寄存器状态，**不是** host 日志/stderr/超时，满足零 host 依赖约束。
 
 ### D5 ILLI / UNDI / SBZ / IALIGN / RASOF / RASUF 可观测行为
 
 与 D4 同构：QEMU 直接把 fault 映射为退出码，无 handler，目的寄存器不提交，`rb0` = faulting PC，无内存提交。
 
-#### D5.1 ILLI（非法指令；退出码见 `spec/Machine-v5 §7.1`）
+#### D5.1 ILLI（非法指令；退出码见 `spec/Kaiwu §7.1`）
 
 触发集合（`spec/` 语义见 [contract-isa §15.1]；机器层附加项标注「架构自定义」）：
 
@@ -153,12 +153,12 @@ MALIGN 为精确异常 [contract-isa §15.2][contract-isa §3.1.1]。M1 无 OS �
 - **M1 排除但 0.5.4 已定义的编码**（架构自定义）：RF 指令（RF 存取/运算、`set.w`、`set.ft`/`set.fo`）、LR-SC 原子指令（`lr_*.o`/`sc_*.o`）、特权 cfx 指令（`cfx2rd`/`cfx2rc`/`cfxld`/`cfxst`/`escape`/`trap`）[contract-isa §9][contract-isa §14.2][contract-isa §14.3]。理由：这些编码在 0.5.4 中**已定义**（非保留单元格），但 M1 机器不实现，执行即非法指令（ILLI）；UNDI 专用于架构显式留空的编码。
 - **机器访问约束违反**（架构自定义）：对 exit port 的非 8 B/多寄存器 store 与任何 load、对 ROM 的 store（只读区域）；完整判定见 D5.6 矩阵。
 
-#### D5.2 UNDI（未定义指令；退出码见 `spec/Machine-v5 §7.1`）
+#### D5.2 UNDI（未定义指令；退出码见 `spec/Kaiwu §7.1`）
 
 - 执行 QFC 主表或 MISC 子表中**空白单元格**（reserved 编码）[contract-isa §2.7][contract-isa §2.9][contract-isa §13.4]。
 - UNDI 与 ILLI 的边界：**编码未定义** → UNDI；**编码已定义但操作数/访问非法** → ILLI [contract-isa §13.5]。
 
-#### D5.3 SBZ 字段非零 → ILLI（退出码见 `spec/Machine-v5 §7.1`）
+#### D5.3 SBZ 字段非零 → ILLI（退出码见 `spec/Kaiwu §7.1`）
 
 **无 spec 依据，架构自定义**（`spec/` 未规定 SBZ 非零的异常类型）。理由：
 
@@ -168,24 +168,24 @@ MALIGN 为精确异常 [contract-isa §15.2][contract-isa §3.1.1]。M1 无 OS �
 
 M1 范围内的 SBZ 字段示例：`fence` 的 `immu18 bits[17:4]` [contract-isa §14.1]、移位指令中 shamt 位域之外的高位（如 `shl.ub` 的 `hd[5:3]`、`shl.uw` 的 `hd[5:4]`）[contract-isa §6.4.1]。
 
-#### D5.4 IALIGN（取指未对齐；退出码见 `spec/Machine-v5 §7.1`）
+#### D5.4 IALIGN（取指未对齐；退出码见 `spec/Kaiwu §7.1`）
 
 - 取指时 `PC[1:0] ≠ 00` → IALIGN [contract-isa §2.1]。
 - 精确异常：不提交任何架构状态，`rb0` = 未对齐的取指地址。
 
-#### D5.5 RASOF / RASUF（退出码见 `spec/Machine-v5 §7.1`）
+#### D5.5 RASOF / RASUF（退出码见 `spec/Kaiwu §7.1`）
 
 （2026-09-30 就地修订：依据 ADR-0012 D7，取消 MemRAS 引用计数并重定义 RASOF/RASUF 判据）
 
 - **RASOF**：压栈**需溢出**（`RACNT == 63`）且 **MemRAS 未启用**（`MRPTR == 0`）。**MemRAS 容量耗尽不由硬件检测**（交 OS）。[contract-isa §8.6.1]
 - **RASUF**：弹栈时栈顶无效（`RACNT > 0` 且栈顶递归计数 = 0）；或 RegRAS 与 MemRAS 均空（`RACNT == 0` 且 `MRPTR == 0`）；或 MemRAS 弹出条目无效（递归计数 = 0）。[contract-isa §8.6.2]
 - 二者均为精确异常：RA 寄存器保持异常前状态（push/pop 未提交），`rb0` = 触发异常的 `call`/`ret` 指令地址 [contract-isa §1.3.4][contract-isa §15.2]。
-- 退出码按 monitor 段编码，RASOF/RASUF 的异常位索引见 `spec/Machine-v5 §7.1`；三分结论见 D5.8。
+- 退出码按 monitor 段编码，RASOF/RASUF 的异常位索引见 `spec/Kaiwu §7.1`；三分结论见 D5.8。
 
 #### D5.6 内存区域 × 访问种类/宽度 矩阵（含 fault 优先级）
 
 **判定优先级**（依次判定，先命中先返回）：
-1. **地址映射**：有效地址不在 ROM/Exit/RAM 任一区域 → **`CFXMEM`**（未映射访问/取指归当前运行模式 monitor，见 `spec/Machine-v5 §7.1`）；取指仅 ROM/RAM 有效，其余（含 exit port）→ `CFXMEM`。
+1. **地址映射**：有效地址不在 ROM/Exit/RAM 任一区域 → **`CFXMEM`**（未映射访问/取指归当前运行模式 monitor，见 `spec/Kaiwu §7.1`）；取指仅 ROM/RAM 有效，其余（含 exit port）→ `CFXMEM`。
 2. **对齐**：映射内且访问宽度未自然对齐 → **MALIGN**。
 3. **访问种类/宽度约束**：映射内、对齐，但违反该区域约束 → **ILLI**。
 4. 否则执行访问。
@@ -206,9 +206,9 @@ M1 范围内的 SBZ 字段示例：`fence` 的 `immu18 bits[17:4]` [contract-isa
 
 #### D5.8 Exit code 汇总
 
-机器 fault 退出码采用**三分**：guest pass（`0x00`）、guest fail（`0x01`–`0x7F`，值 = 失败点序号 1–127）、机器 fault（`0x80`–`0xFF`）。机器 fault 再按来源分段：其它 cfx 段（`0x80`–`0xBF`，`bit5:0` = `cfxHA`）与 monitor 段（`0xC0`–`0xFF`，`bit5:4` = 运行模式、`bit3:0` = DADAO 异常位索引）。完整位域、monitor 的 11 个异常位索引，以及 `CFXTRAP`/`CFXESC` 进入目标/当前 cfx 时的编码见 `spec/Machine-v5-测试机运行环境.md §7.1`。[ADR-0020 D15]
+机器 fault 退出码采用**三分**：guest pass（`0x00`）、guest fail（`0x01`–`0x7F`，值 = 失败点序号 1–127）、机器 fault（`0x80`–`0xFF`）。机器 fault 再按来源分段：其它 cfx 段（`0x80`–`0xBF`，`bit5:0` = `cfxHA`）与 monitor 段（`0xC0`–`0xFF`，`bit5:4` = 运行模式、`bit3:0` = DADAO 异常位索引）。完整位域、monitor 的 11 个异常位索引，以及 `CFXTRAP`/`CFXESC` 进入目标/当前 cfx 时的编码见 `spec/Kaiwu-测试机运行环境.md §7.1`。[ADR-0020 D15]
 
-- 本决策只保留三分与分段结论；**不再维护逐码表，也不再定义从 spec cause 位派生退出码的公式**。具体码值、位域与落点以 `spec/Machine-v5` 为唯一正文。
+- 本决策只保留三分与分段结论；**不再维护逐码表，也不再定义从 spec cause 位派生退出码的公式**。具体码值、位域与落点以 `spec/Kaiwu` 为唯一正文。
 
 ### D6 测试签名规范
 
@@ -260,14 +260,14 @@ or.w    rb16, wp1, 0x8000      ; rb16 = 0xffff_8000_0000
 set.zw  rb17, wp2, 0xffff      ; rb17 = 0xffff_0000_0000
 
 ; 3. 触发 MALIGN：8B load 到 0xffff_0000_0001（非 8B 对齐）
-ld.o rd16, [rb17, 1] ; 有效地址 = 0xffff_0000_0000 + 1 = 0xffff_0000_0001 → MALIGN → host $? = MALIGN 退出码（见 `spec/Machine-v5 §7.1`）
+ld.o rd16, [rb17, 1] ; 有效地址 = 0xffff_0000_0000 + 1 = 0xffff_0000_0001 → MALIGN → host $? = MALIGN 退出码（见 `spec/Kaiwu §7.1`）
 
 ; 4. 若执行到此，说明 fault 未发生 → FAIL
 set.zw  rd16, wp0, 1           ; rd16 = 1
 st.o rd16, [rb16, 0] ; host $? = 0x01
 ```
 
-harness 期望 `$?` 命中 MALIGN 退出码（monitor 段，见 `spec/Machine-v5 §7.1`）；得到 `0x00`–`0x7F` 表示 fault 未发生。若需验证 `rb0` = faulting PC 与目的寄存器未提交，使用 D4 的 GDB/QMP 寄存器读取路径。
+harness 期望 `$?` 命中 MALIGN 退出码（monitor 段，见 `spec/Kaiwu §7.1`）；得到 `0x00`–`0x7F` 表示 fault 未发生。若需验证 `rb0` = faulting PC 与目的寄存器未提交，使用 D4 的 GDB/QMP 寄存器读取路径。
 
 ILLI 测试 pattern（以 `fence` 指令为例——`scope: excluded`，decode ILLI）：
 
@@ -277,14 +277,14 @@ set.zw  rb16, wp2, 0xffff
 or.w    rb16, wp1, 0x8000      ; rb16 = 0xffff_8000_0000
 
 ; 2. 触发 ILLI：fence cfx0, 0x1000（op=0x79；hb=immu18[17:12]=1 非零 ⇒ ILLI）
-fence   cfx0, 0x1000           ; → ILLI → host $? = ILLI 退出码（见 `spec/Machine-v5 §7.1`）
+fence   cfx0, 0x1000           ; → ILLI → host $? = ILLI 退出码（见 `spec/Kaiwu §7.1`）
 
 ; 3. 若执行到此，说明 fault 未发生 → FAIL
 set.zw  rd16, wp0, 1
 st.o rd16, [rb16, 0] ; host $? = 0x01
 ```
 
-harness 期望 `$?` 命中 ILLI 退出码。RASOF/RASUF、UNDI、IALIGN 的测试同构：构造触发条件后断言对应 fault 退出码（码值见 `spec/Machine-v5 §7.1`）。
+harness 期望 `$?` 命中 ILLI 退出码。RASOF/RASUF、UNDI、IALIGN 的测试同构：构造触发条件后断言对应 fault 退出码（码值见 `spec/Kaiwu §7.1`）。
 
 #### D6.4 ROM trampoline
 
@@ -322,14 +322,14 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 - **内存映射采用核内地址空间模型**：M1 无 cfx、无 MMU，测试机整体占用最高段 cfxha 63（power）的核内地址空间，使 boot ROM 正好落在 spec 的硬件复位向量 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`，从而 `rb0` 复位值**直接符合 spec**、无需偏离。RAM/Exit port 作为测试机约定放在同一段内的独立地址（`0xffff_0000_0000` / `0xffff_8000_0000`），三者互不重叠且 8 B 对齐。遗留 `dadao-virt`（ROM `0x0010_0000`/UART `0x1000_0000`/RAM `0x8000_0000`）仅作只读对照，v5 不沿用。
 - **raw-bin 与 ELF 双路径并存（2026-10-06 就地修订：依据本 ADR `## 修订` rev. 2026-10-06）**：M1–M3 的 **raw-bin 双镜像**路径继续保留——D1 要求 ROM 容纳最小 trampoline、D6 需要 ROM trampoline，由 `-bios` 提供外部 ROM blob 使 QEMU 机器保持简单，且不必把 ISA 二进制内建进 QEMU 源码；与 ADR-0003 一致，测试产物是 `.o → objcopy .text → flat`，由 `-kernel` 加载到 RAM 基址、从该基址进入，`e_entry` 不参与；此路径为 M3 `make test-codegen` 所依赖，**不得回归**。M4 引入 DADAO LLD（`ADR-0019`）产出 `ET_EXEC` ELF 后，**新增单 ELF 路径**（D2.2 路径 A / D2.3 路径 A）：QEMU 解析 `Ehdr`/`Phdr`、按 VA=PA 装载 `PT_LOAD` 段、以 `e_entry` 进入——因入口由 `e_entry` 直接给出，该路径默认不提供外部 `-bios` ROM。两条路径并存，使既有 raw-bin 向量与 M4 ELF 向量各有自然启动方式，不为一个目标牺牲另一个。
 - **直接 exit 而非 handler**：无 OS 时 handler 方案需要 handler 地址、fault info 布局与返回机制，依赖 M1 没有的异常 ABI；直接退出更简单、可自动化，且不预设未来异常模型。M1 中 `trap`/`escape` 等特权 cfx 指令**不提供陷入/退出机制**，按 D5.1 归 **ILLI**，同样走直接退出路径。
-- **fault 码与 guest 码分区**：`0x00`–`0x7F` 为 guest（pass/fail），`0x80`–`0xFF` 为机器 fault（再分「其它 cfx」与「monitor」两段）；使 `$?` 单值即可无歧义区分 pass/fail/fault，满足零 host 依赖；分段/位域见 `spec/Machine-v5 §7.1`。
-- **fault 码沿用 spec 的异常原因索引**：`spec/` 定义异常原因 `excp cause id = 1<<n`（ILLI=8、UNDI=9、RASOF=10、RASUF=11、MALIGN=12、IALIGN=13）[DADAO-12 §cfx_umon 异常原因表][DADAO-13 §HEE 异常原因表]；monitor 段的 `bit3:0` 取该异常位索引，使测试机 fault 码**可回溯到 spec**，而非任意编号。未映射访问与 A/D 回写失败统一归 monitor 的 `CFXMEM`；完整位域见 `spec/Machine-v5 §7.1`。
+- **fault 码与 guest 码分区**：`0x00`–`0x7F` 为 guest（pass/fail），`0x80`–`0xFF` 为机器 fault（再分「其它 cfx」与「monitor」两段）；使 `$?` 单值即可无歧义区分 pass/fail/fault，满足零 host 依赖；分段/位域见 `spec/Kaiwu §7.1`。
+- **fault 码沿用 spec 的异常原因索引**：`spec/` 定义异常原因 `excp cause id = 1<<n`（ILLI=8、UNDI=9、RASOF=10、RASUF=11、MALIGN=12、IALIGN=13）[DADAO-12 §cfx_umon 异常原因表][DADAO-13 §HEE 异常原因表]；monitor 段的 `bit3:0` 取该异常位索引，使测试机 fault 码**可回溯到 spec**，而非任意编号。未映射访问与 A/D 回写失败统一归 monitor 的 `CFXMEM`；完整位域见 `spec/Kaiwu §7.1`。
 - **SBZ → ILLI 而非 UNDI**：SBZ 是已识别 opcode 内的字段约束，类比非法操作数；UNDI 专用于架构留空编码。
 - **M1 排除但已定义的编码 → ILLI**：编码在 0.5.4 中已定义（非留空），机器不实现即非法指令；与「UNDI = 空白单元格」的契约定义一致。
 - **非 8B exit port 访问 → ILLI**：opcode 合法，违反 MMIO 宽度/种类约束属非法操作数，不是未识别编码；修正了将 MMIO 宽度违规误归 UNDI 的旧做法。
 - **RF 仅复位不实现**：M1 排除 RF 指令语义；按 spec 位布局确定性复位 `rf0`，避免未初始化浮点状态导致不确定行为，同时不引入 RF 指令实现。
 - **`rf0` 常量独立推导**：从 0.5.4 `SimRISC-00 §浮点状态寄存器` 的位段直接组合（只读 QNaN 位固定、SBZ 与 R/W 位复位为 0），得到 `0x7FF8_0000_7FC0_0000`，不照抄任何旧实现的常量。
-- **保留区显式 fault**：未映射访问给出确定的 `CFXMEM` 退出码（见 `spec/Machine-v5 §7.1`），而非静默 no-op/host abort/超时。
+- **保留区显式 fault**：未映射访问给出确定的 `CFXMEM` 退出码（见 `spec/Kaiwu §7.1`），而非静默 no-op/host abort/超时。
 
 ## Consequences（影响）
 
@@ -386,32 +386,32 @@ jump [rb2, rd0, 0i] ; PC ← 0xffff_0000_0000
 
 **rev. 2026-10-11（用户 2026-10-11 逐条确认；`INTEG-033k`/`QEMU-056t`）**：**RAM 基址由全 0（`0x0000_0000_0000`，`R3` 口径）改为 `0xFC00_0000_0000`**——`bits[47:42] ≡ 63`（cfxha 63 / `power` 段）的核内地址空间；**复位向量/ROM（`0xffff_ffff_0000`，64 KiB）与 RAM 容量（16 MiB）均不变**。**`D1`/`D2.1`/`D3`/`D4`/`D5`/`D6` 决策正文不改**——以下通过本 `## 修订` 条目表达**覆盖关系**（`Process-03`：不直接改写已 `Accepted` 的决策）。
 
-- **覆盖关系（覆盖 `R3` 的 RAM 基址口径）**：本 ADR `R3` 中「**RAM 基址改为全 0（`0x0000_0000_0000`）**」由本条目**覆盖**（新基址 `0xFC00_0000_0000`）；`D1` 内存映射表中「RAM 起始」、`D2.2`/`D2.3`/`D6.4`/`D6.5` 中以旧基址表述 RAM 入口/基址者，**本 rev 不改写其正文**（历史原文保留；**现行口径以本条目 + `spec/Machine-v5` 为准**）。
+- **覆盖关系（覆盖 `R3` 的 RAM 基址口径）**：本 ADR `R3` 中「**RAM 基址改为全 0（`0x0000_0000_0000`）**」由本条目**覆盖**（新基址 `0xFC00_0000_0000`）；`D1` 内存映射表中「RAM 起始」、`D2.2`/`D2.3`/`D6.4`/`D6.5` 中以旧基址表述 RAM 入口/基址者，**本 rev 不改写其正文**（历史原文保留；**现行口径以本条目 + `spec/Kaiwu` 为准**）。
 - **动机（用户原话，2026-10-11）**：「不想在此阶段引入其它 cfx 支持 ⇒ **有效地址空间只能在 `[47:42]` 为全 1 的情况下进行**；RAM 通常从 0 寻址 ⇒ **改为 `0xFC00_0000_0000`**；后续加 cfx 后此配置可不变」。即：不实现 cfx 的当前阶段，核内有效地址须落在 `[47:42]` 全 1（cfxha 63）的段内，故把 RAM 基址从核内全 0 段（cfxha 0）移到 cfxha 63 段内的 `0xFC00_0000_0000`。
 - **RAM 容量不变**：仍 **16 MiB**（用户原话：「**16 MiB 够用 ⇒ 不改大**」）；依据（用户 2026-10-11 提供）：Embench 最大基准静态占用 ≈43 KB、栈 ≤13 KB、堆 ≤8 KB，合计余量 ≥250×；picolibc 自带 test 更小。
-- **不改规范正文**：地址图正文归 `spec/Machine-v5 §1`，其同步（含 `sha256` 锁）归 `QEMU-056t`（`Process-03`：ADR 不承载规范正文）。
+- **不改规范正文**：地址图正文归 `spec/Kaiwu §1`，其同步（含 `sha256` 锁）归 `QEMU-056t`（`Process-03`：ADR 不承载规范正文）。
 - **配套与下游**：`QEMU-056t`（QEMU 机器映射 + `dadao.lds`/`crt0`/异常向量/harness/`check-interface` 断言 + `Machine-01` 与锁同步）；`R3` 中「C1 双映射两步」**已收口**（`QEMU-053t`：RAM@0 为唯一 RAM 段），本次只是**把唯一 RAM 段的基址**从 `0` 移到 `0xFC00_0000_0000`。
 - **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-10-11`）。
 
 **修订（2026-10-24，`INFRA-103t`；仅订正事实性陈述，`D1`–`D6` 决策正文不改）**：本 ADR 中 `0x77000000` 的语义已两次迁移——`ADR-0034 D1/D5` 把 `fence` 迁至 `0x77800000`、并把 `0x77000000` 分给 `lr.o.nn`；`SPEC-164t` 再把 `OPC-MISC` 迁至 `op 0x47`（`fence` = `0x47800000`）。因此 `D1` 的注记、`D5.1` 末句与 `D5.6` 的 ILLI 示例中「`0x77000000` 现为 `fence`（`scope: excluded`）」均属**历史快照**；**现行口径** = `fence`/`lr`/`sc` 均已实现（`scope: m9`，执行非 ILLI），测试侧 ILLI 毒饵改用 `cfxld`（`0x7C000000`，唯一剩余 `scope: excluded` 族）。源 = `ISS-308`；历史正文保留（`Process-03`）。
 
-**rev. 2026-11-02（用户 2026-11-02 逐条确认，`SPEC-183t`）：测试机几何改由 `spec/Machine-v5-测试机运行环境.md` 的 `Machine-v5-Tiny` / `Machine-v5-Node` 两个 profile 规定。** 用户原话（经主会话转达）：「Tiny：地址高 6 位恒 `0x3F`；无任何 cfx（含 cfx_power）；不能进入 user 模式；允许 semihosting」「Node：BootROM 4 MiB `0xffff_ffc0_0000`..、复位 `0xffff_ffff_0000`；PA RAM 2 GiB；hmon 建 L1 4×512 MiB 超页、`SPF=0xFF`、PTW/hypv」「不做双映射；不保留旧 Machine-01 几何」「用户已逐条确认 ADR-0004/0039/0040/0043 四项修订」。
+**rev. 2026-11-02（用户 2026-11-02 逐条确认，`SPEC-183t`）：测试机几何改由 `spec/Kaiwu-测试机运行环境.md` 的 `Kaiwu-Tiny` / `Kaiwu-Node` 两个 profile 规定。** 用户原话（经主会话转达）：「Tiny：地址高 6 位恒 `0x3F`；无任何 cfx（含 cfx_power）；不能进入 user 模式；允许 semihosting」「Node：BootROM 4 MiB `0xffff_ffc0_0000`..、复位 `0xffff_ffff_0000`；PA RAM 2 GiB；hmon 建 L1 4×512 MiB 超页、`SPF=0xFF`、PTW/hypv」「不做双映射；不保留旧 Machine-01 几何」「用户已逐条确认 ADR-0004/0039/0040/0043 四项修订」。
 
-- **覆盖关系（覆盖 `D1` 地址表、`R3` 与 rev. 2026-10-11 的 RAM 基址/容量口径）**：`D1` 表中 RAM / Exit port / boot ROM 行、`D2.2`/`D2.3` 的加载基址（`0xffff_0000_0000`）、`R3` 的全 0 基址、rev. 2026-10-11 的 `0xFC00_0000_0000` 与 16 MiB 容量，**均不再作为现行规范**；现行几何 = `spec/Machine-v5 §1`（Tiny：BootROM 64 KiB `0xffff_ffff_0000` 起、SRAM 8 MiB `0xffff_ff00_0000` 起、无 PTW/无 cfx；Node：BootROM 4 MiB `0xffff_ffc0_0000` 起、PA RAM 2 GiB `[0, 2 GiB)`、hmon/PTW/hypv）。历史正文保留（`Process-03`）。
+- **覆盖关系（覆盖 `D1` 地址表、`R3` 与 rev. 2026-10-11 的 RAM 基址/容量口径）**：`D1` 表中 RAM / Exit port / boot ROM 行、`D2.2`/`D2.3` 的加载基址（`0xffff_0000_0000`）、`R3` 的全 0 基址、rev. 2026-10-11 的 `0xFC00_0000_0000` 与 16 MiB 容量，**均不再作为现行规范**；现行几何 = `spec/Kaiwu §1`（Tiny：BootROM 64 KiB `0xffff_ffff_0000` 起、SRAM 8 MiB `0xffff_ff00_0000` 起、无 PTW/无 cfx；Node：BootROM 4 MiB `0xffff_ffc0_0000` 起、PA RAM 2 GiB `[0, 2 GiB)`、hmon/PTW/hypv）。历史正文保留（`Process-03`）。
 - **不变**：`-bios` 64 KiB 复位窗口语义、`SYS_EXIT` 停机协议（`R2`）、fault 码表 `D5.8`（`0x87`–`0x8D` 冻结不重排）、`D6` 测试 pattern 结构、复位地址 `0xffff_ffff_0000`、raw/ELF 两条启动路径并存。
-- **用户逐条确认（2026-11-02）**：本 ADR 与 `ADR-0039`/`ADR-0040`/`ADR-0043` 四项修订逐条确认；逐条口径与原始记录见 `.tao/tasks/spec/SPEC-183t-Machine-v5-Tiny-Node规范收口.md`。
+- **用户逐条确认（2026-11-02）**：本 ADR 与 `ADR-0039`/`ADR-0040`/`ADR-0043` 四项修订逐条确认；逐条口径与原始记录见 `.tao/tasks/spec/`.tao/archive/M11/spec/SPEC-183t-Machine-v5-Tiny-Node规范收口.md`（归档不改名）`。
 - **流程说明**：本次为经用户逐条确认的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`，不直接改写已 `Accepted` 的决策」，此处为经授权的例外；`**状态**` 行已标 `rev. 2026-11-02`）。
 
 **rev. 2026-11-05（用户已定稿；退出码迁移）：D5.7/D5.8 改为三分 + 指针。** 保留「guest pass / guest fail / 机器 fault」三分决策：guest pass = `0x00`–`0x3F`、guest fail = `0x40`–`0x7F`、机器 fault = `0x80`–`0xFF`；机器 fault 再分其它 cfx 段（`0x80`–`0xBF`）与 monitor 段（`0xC0`–`0xFF`）。
 
-- **D5.8 指针化**：删除逐码表与从 spec cause 位派生退出码的公式；完整位域、monitor 的 11 个异常位索引、`CFXTRAP`/`CFXESC` 进入目标/当前 cfx 的编码，以及未映射/A-D 回写失败/reserved cfx 的落点，均以 `spec/Machine-v5-测试机运行环境.md §7.1` 为唯一正文。
+- **D5.8 指针化**：删除逐码表与从 spec cause 位派生退出码的公式；完整位域、monitor 的 11 个异常位索引、`CFXTRAP`/`CFXESC` 进入目标/当前 cfx 的编码，以及未映射/A-D 回写失败/reserved cfx 的落点，均以 `spec/Kaiwu-测试机运行环境.md §7.1` 为唯一正文。
 - **D5.7 分区同步**：`0x00`–`0x3F` = PASS、`0x40`–`0x7F` = FAIL，`0x80`–`0xFF` = 机器 fault 段；harness 判定按区间，不再按单值 `0x00`。
 - **不变**：D1–D4、D5.1–D5.6、D6 的其余决策正文；历史条目保留（`Process-03`）。
 - **流程说明**：本次为经授权的**就地修订**（`Process-03` 一般规则为「决策变更时新增 ADR 或标注 `Superseded`」的例外；`**状态**` 行已标 `rev. 2026-11-05`）。
 
 **rev. 2026-11-11（用户 2026-11-11 裁定；退出码 guest 分区重划）：PASS 收窄为 `0x00`，FAIL 扩为 `0x01`–`0x7F`（值 = 失败点序号 1–127）。** 用户原话（经主会话转达，落纸于任务书 §用户裁定）：「machine-v5的7.1，PASS需要64个吗？是不是0为PASS，1-7f是fail更合适，这样我们可以在每个测试文件中放127个测试用例，哪个出错报哪个的号即可。而原来的PASS，除了0之外，1-3f应该都没有用」「1、改；2、就地修订ADR-0004；3、1-7f都用做失败点；4、不用动riscv-tests，后续会全部改为新格式，当前这个问题不影响」。
 
-- **新分区**：guest pass = `0x00`（唯一值）、guest fail = `0x01`–`0x7F`（值 = 失败点序号 1–127）、机器 fault = `0x80`–`0xFF`（其它 cfx `0x80`–`0xBF` / monitor `0xC0`–`0xFF`，编码与位域不变）。`D3` 表、`D5.7`、`D5.8`、`Consequences` 的 guest 分区表述同步；逐码表与位域仍以 `spec/Machine-v5 §7.1` 为唯一正文。
+- **新分区**：guest pass = `0x00`（唯一值）、guest fail = `0x01`–`0x7F`（值 = 失败点序号 1–127）、机器 fault = `0x80`–`0xFF`（其它 cfx `0x80`–`0xBF` / monitor `0xC0`–`0xFF`，编码与位域不变）。`D3` 表、`D5.7`、`D5.8`、`Consequences` 的 guest 分区表述同步；逐码表与位域仍以 `spec/Kaiwu §7.1` 为唯一正文。
 - **动机**：PASS 只需一个值，原 `0x01`–`0x3F` 无用途；FAIL 原只有 64 个点，限制了单个测试 ELF 的检查点数。现单个 ELF 最多 127 个检查点，哪个点失败就报它的序号。
 - **不变**：`0x80`–`0xBF`/`0xC0`–`0xFF` 两段编码、位域与 monitor 11 个位索引；D1/D2/D4/D5.1–D5.6/D6 决策正文；历史条目保留（`Process-03`）。
 - **不涉及**：riscv-tests 语料（用户裁定后续整体改为新格式，本笔不动）。

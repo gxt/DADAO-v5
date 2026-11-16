@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/fs_workload.cc b/src/arch/dadao/fs_workload.cc
 new file mode 100644
-index 0000000..99015a0
+index 0000000..b9c199a
 --- /dev/null
 +++ b/src/arch/dadao/fs_workload.cc
 @@ -0,0 +1,353 @@
@@ -115,7 +115,7 @@ index 0000000..99015a0
 +    } else {
 +        fatal("DADAO FS: the Tiny profile requires --bootrom (the fixed 64 KiB "
 +              "BootROM firmware: power stub + hmon segment + image index "
-+              "table, spec/Machine-v5 §6.2)");
++              "table, spec/Kaiwu §6.2)");
 +    }
 +
 +    if (hasKernel && isElf) {
@@ -127,7 +127,7 @@ index 0000000..99015a0
 +        // Both profiles reset at the BootROM vector: for Tiny the fixed
 +        // application entry is reached by the power stub after the hmon
 +        // hand-off, never by the platform rewriting the reset PC to e_entry
-+        // (spec/Machine-v5 §6.2).
++        // (spec/Kaiwu §6.2).
 +        entry = p_reset_pc;
 +    } else if (hasKernel) {
 +        loadRaw(kernelFile);
@@ -165,7 +165,7 @@ index 0000000..99015a0
 +    } else {
 +        fatal_if(romData.size() != p_rom_size,
 +                 "DADAO FS: --bootrom %s is %zu bytes, the Tiny BootROM is "
-+                 "exactly %llu bytes (spec/Machine-v5 §6.2)", path,
++                 "exactly %llu bytes (spec/Kaiwu §6.2)", path,
 +                 romData.size(),
 +                 static_cast<unsigned long long>(p_rom_size));
 +    }
@@ -245,20 +245,20 @@ index 0000000..99015a0
 +                     "DADAO FS: ELF %s segment %u [%#llx, %#llx) targets the "
 +                     "BootROM: the host loader must not install BootROM "
 +                     "firmware; the Tiny BootROM is the fixed --bootrom image "
-+                     "(spec/Machine-v5 §6.2)", kernelPath, i,
++                     "(spec/Kaiwu §6.2)", kernelPath, i,
 +                     static_cast<unsigned long long>(ppaddr),
 +                     static_cast<unsigned long long>(ppaddr + pmemsz));
 +            fatal_if(inRange(p_hmon_base, p_hmon_size, ppaddr, pmemsz),
 +                     "DADAO FS: ELF %s segment %u [%#llx, %#llx) targets the "
 +                     "hmon SRAM: hmon is installed by the BootROM power stub, "
-+                     "not by the host loader (spec/Machine-v5 §6.2)",
++                     "not by the host loader (spec/Kaiwu §6.2)",
 +                     kernelPath, i,
 +                     static_cast<unsigned long long>(ppaddr),
 +                     static_cast<unsigned long long>(ppaddr + pmemsz));
 +            fatal_if(!inRange(p_sram_base, p_sram_size, ppaddr, pmemsz),
 +                     "DADAO FS: ELF %s segment %u [%#llx, %#llx) is outside "
 +                     "the SRAM: the Tiny application is SRAM-only "
-+                     "(spec/Machine-v5 §6.2)", kernelPath, i,
++                     "(spec/Kaiwu §6.2)", kernelPath, i,
 +                     static_cast<unsigned long long>(ppaddr),
 +                     static_cast<unsigned long long>(ppaddr + pmemsz));
 +            entryCovered |= inRange(ppaddr, pmemsz, p_entry, 4);
@@ -277,17 +277,17 @@ index 0000000..99015a0
 +                 "DADAO FS: ELF %s e_entry %#llx is not 4-byte aligned",
 +                 kernelPath, static_cast<unsigned long long>(eentry));
 +    } else {
-+        // The Tiny application entry is fixed by the platform (spec/Machine-v5
++        // The Tiny application entry is fixed by the platform (spec/Kaiwu
 +        // §6.2): the power stub jumps to params.entry after the hmon hand-off.
 +        // A different e_entry is a load error, never silently honoured.
 +        fatal_if(eentry != p_entry,
 +                 "DADAO FS: ELF %s e_entry %#llx, but the Tiny application "
-+                 "entry is fixed at %#llx (spec/Machine-v5 §6.2)", kernelPath,
++                 "entry is fixed at %#llx (spec/Kaiwu §6.2)", kernelPath,
 +                 static_cast<unsigned long long>(eentry),
 +                 static_cast<unsigned long long>(p_entry));
 +        fatal_if(!entryCovered,
 +                 "DADAO FS: ELF %s has no PT_LOAD covering the fixed Tiny "
-+                 "application entry %#llx (spec/Machine-v5 §6.2)", kernelPath,
++                 "application entry %#llx (spec/Kaiwu §6.2)", kernelPath,
 +                 static_cast<unsigned long long>(p_entry));
 +    }
 +}

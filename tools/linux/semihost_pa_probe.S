@@ -1,16 +1,16 @@
 @@ semihost_pa_probe.S — K1 gate probe: semihosting pointers are PAs (ISS-450)
 @@
-@@ Runs on `-M dadao-vast` under the K1 firmware (`tests/shared/bootrom/k0/`, the
+@@ Runs on `-M kaiwu-vast` under the K1 firmware (`tests/shared/bootrom/k0/`, the
 @@ same power -> hmon -> smon chain `check-linux-k1` boots the kernel through),
 @@ so it is entered exactly like the kernel image: PTW is already on and PTBR
 @@ points at the prebuilt table, which maps exactly ONE 512 MiB superpage at the
-@@ kernel-window base with `VA = PA + BIAS` (spec/Machine-v5 §6.3, contract
+@@ kernel-window base with `VA = PA + BIAS` (spec/Kaiwu §6.3, contract
 @@ `contracts/linux-boot.yaml`).
 @@
 @@ Consequence used by this probe: every datum below lives at `PA < 512 MiB`, so
 @@ its PA, *taken as a VA*, is outside the mapped superpage and therefore
 @@ unmapped.  Handing semihosting the PA is exactly the "read from the PA of an
-@@ unmapped VA" case required by spec/Machine-v5 §5.2 and contract-semihosting
+@@ unmapped VA" case required by spec/Kaiwu §5.2 and contract-semihosting
 @@ §2 ("指针一律为 PA，不经页表翻译"):
 @@   * a responder that walks the page table faults on it (bug),
 @@   * a responder that reads physical memory does not.

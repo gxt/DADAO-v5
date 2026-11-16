@@ -3,7 +3,7 @@
 **状态**：Accepted（2026-11-13 用户逐条确认 `D1`–`D8`；同日按裁定 A「地址术语改 VA」、裁定 B「启动模型 M1」与「页表由 smon 固件建」落实）
 **日期**：2026-11-13
 **接受日期**：2026-11-13
-**关联**：ADR-0004（测试机装载双路径，`D2.2`/`D2.3`）、ADR-0043（启动/交接与首张页表，`D10`–`D12`）、ADR-0039（PTBR/PTW）；`spec/Machine-v5` `§6.3`（`§6.3.1`–`§6.3.5`）、`spec/DADAO-12` `§2.2`、`spec/DADAO-23` `§3`、`.tao/contracts/contract-linux-boot.md`（0.2.0）、`contracts/linux-boot.yaml`；任务 `m14-spec-001`、`m14-spec-003`、`m14-linux-001`、`m14-linux-002`、`m14-infra-003`
+**关联**：ADR-0004（测试机装载双路径，`D2.2`/`D2.3`）、ADR-0043（启动/交接与首张页表，`D10`–`D12`）、ADR-0039（PTBR/PTW）；`spec/Kaiwu` `§6.3`（`§6.3.1`–`§6.3.5`）、`spec/DADAO-12` `§2.2`、`spec/DADAO-23` `§3`、`.tao/contracts/contract-linux-boot.md`（0.2.0）、`contracts/linux-boot.yaml`；任务 `m14-spec-001`、`m14-spec-003`、`m14-linux-001`、`m14-linux-002`、`m14-infra-003`
 
 ## Context（背景）
 
@@ -15,13 +15,13 @@ M14 = Linux bring-up（用户 2026-11-13 定位）：基线 Linux `7.2.10`，平
 
 上游约定 `spec/DADAO-23` `§3` 以**设备树**作为 S-mode 内核的启动传参：`rb17` = 设备树地址、`rb16` = S-mode 入口地址。本机沿用其移交流程（`trap cfx_smon, 0x30001` → `escape cfx_smon, [excp_cause_ip, 0]`），但**没有设备枚举需求**：单核、无 UART、无中断控制器树、无外设绑定。此时引入 DTB 只会带来 DTC/解析器/绑定三类依赖，K0 无收益。
 
-同时，`spec/Machine-v5` `§6` 此前只规定 BootROM 装载与 `power → hmon → smon` 移交，**未**规定 Vast 上内核镜像的装载规则、入口状态、内存分区与启动参数结构。缺少该契约时，QEMU/loader、内核 `head.S`、门控检查器会各自猜测并互相漂移。
+同时，`spec/Kaiwu` `§6` 此前只规定 BootROM 装载与 `power → hmon → smon` 移交，**未**规定 Vast 上内核镜像的装载规则、入口状态、内存分区与启动参数结构。缺少该契约时，QEMU/loader、内核 `head.S`、门控检查器会各自猜测并互相漂移。
 
 本决策**高代价**（ABI 冻结，改一次三方同步）、**跨模块**（spec / linux / qemu / testcases / infra）、**属外部契约**（与 `DADAO-23` `§3`、`DADAO-12` `§2.2` 的关系需写明），命中 `docs/Process-03` 判据 1–5，故立 ADR；正文归 `spec/` 与 `contract-*`，本 ADR 只记录决策、理由与被否方案。
 
 ## Decision（决策）
 
-- **D1 启动传参改为固定 boot info 结构，不引入设备树（DTB）**：Vast 的内核启动参数是一段**固定布局、定长字段**的结构，位于固定虚拟地址；内核对它的解析不依赖任何外部二进制（无 DTB、无 DTC）。本决策只适用于 `Machine-v5-Vast`，Tiny 沿用 `§6.2`。
+- **D1 启动传参改为固定 boot info 结构，不引入设备树（DTB）**：Vast 的内核启动参数是一段**固定布局、定长字段**的结构，位于固定虚拟地址；内核对它的解析不依赖任何外部二进制（无 DTB、无 DTC）。本决策只适用于 `Kaiwu-Vast`，Tiny 沿用 `§6.2`。
   - 理由：K0 只缺少量稳定事实（RAM 几何、镜像位置、initramfs、页表根、页大小、hart、能力位），固定结构可直接机械校验、可直接做门控。
   - 被否：完整 DTB（上游做法，需 DTC + 解析器 + 绑定，K0 无枚举对象）；「DTB 头 + 自定义节点」折中（两套真源，解析器仍需实现）。
 - **D2 `rb17` 位置不变、语义改变**：`rb17` 仍承载「启动参数指针」，但语义由「设备树地址」改为「**boot info 的 VA**」；`rb16` 仍为入口地址（VA），移交后不再使用。内核**不得**把 `rb17` 当 DTB 解析；`DADAO-23` `§3` 的「设备树地址」在 v5 Vast 上由本条**收窄**（只改本机口径，不改上游 spec 正文）。
@@ -42,7 +42,7 @@ M14 = Linux bring-up（用户 2026-11-13 定位）：基线 Linux `7.2.10`，平
 - **D7 失败语义显式化，禁止静默降级**：host/loader 侧任一校验失败（格式/端序/机器号/`ET_EXEC`、入口不符、段越界或重叠、`p_vaddr` 与目标 PA 数值不一致、对齐不足、initramfs 超限、boot info 无法写入）⇒ loader **非零退出**，不得截断、改址或降级装载（页表由 smon 建，其失败属固件侧，同样不得带病移交）；guest 侧 `magic`/`version`/`size` 任一不符 ⇒ 内核 `head.S` 用 semihosting `SYS_EXIT` + 固定失败码**显式失败**（码值属实现，本 ADR 与 spec 均不规定）。
   - 理由：静默降级会把契约错误变成难以定位的运行期故障；两侧都必须「响亮地失败」。
   - 被否：容忍不匹配继续启动（错误后移，定位成本高）。
-- **D8 范围边界**：本启动 ABI 只覆盖 `Machine-v5-Vast` 的 K0 内核装载，内核运行在内存窗口 `VA [0, 2 GiB)`（首张页表只覆盖该窗口）；**不定义** TLB 填充/失效/ASID（K3）、cache/LLC、UART、多核启动与 SMP 停核协议、设备枚举。后续若确需设备树或设备枚举，须**新增 ADR**，并通过新增字段（利用 `size` 向前兼容）或另立传参通道实现，不得静默改变既有字段语义。
+- **D8 范围边界**：本启动 ABI 只覆盖 `Kaiwu-Vast` 的 K0 内核装载，内核运行在内存窗口 `VA [0, 2 GiB)`（首张页表只覆盖该窗口）；**不定义** TLB 填充/失效/ASID（K3）、cache/LLC、UART、多核启动与 SMP 停核协议、设备枚举。后续若确需设备树或设备枚举，须**新增 ADR**，并通过新增字段（利用 `size` 向前兼容）或另立传参通道实现，不得静默改变既有字段语义。
   - 理由：把「现在不需要的」显式排除，避免 K0 被未来能力拖入；同时为演进留下机械可判的通道。
   - 被否：启动 ABI 一次覆盖全部后续能力（K0 无法收敛，且未验证的能力会写进冻结契约）。
 
@@ -59,8 +59,8 @@ M14 = Linux bring-up（用户 2026-11-13 定位）：基线 Linux `7.2.10`，平
 - QEMU 侧（K1）：`smon` 启动固件预建 64 KiB 页、带 `+2 TiB` 偏置的页表（内核窗口基址段 1 个 512 MiB 超页）并置 `PTBR`/`ptw_enable = 1`；装载器只做两条路径的全部校验、把镜像装到其 VA 对应的 PA、boot info 经其 VA 写入（含运行期 `kernel_size`/`initramfs_size`）、以 VA 入口跳转与失败非零退出；写 `PTBR`/`ptw_enable` 不隐含 TLB 失效（`DADAO-12 §2.2`），须按规范显式处理。不得省略校验换取「能启动」。
 - 内核侧 `arch/dadao` `head.S` 须：自建 early stack、校验 `magic`/`version`/`size` 并显式失败、raw 路径自清 `.bss`；**不建首张页表**（M1 已预建），K0 只消费进入态。
 - `DADAO-23` `§3` 在 v5 Vast 上的口径被 D2 收窄：引用其 `rb17` 语义时必须同时声明「本机为 boot info VA，不是 DTB」；上游 spec 正文不改。
-- **术语与地址已同笔同步**：`spec/Machine-v5 §6.3`、人读契约与 `contracts/linux-boot.yaml` 现按 VA 叙述并使用 `VA = PA + 2 TiB` 偏置（`m14-spec-001`／`m14-spec-003`）；后续改动须继续「四处同笔」。
-- 契约改动成本为「四处同笔更新」：`spec/Machine-v5 §6.3`、人读契约、`contracts/linux-boot.yaml`、检查器；由 `make check-linux-boot-contract`（L1）兜底，缺一处即红。
+- **术语与地址已同笔同步**：`spec/Kaiwu §6.3`、人读契约与 `contracts/linux-boot.yaml` 现按 VA 叙述并使用 `VA = PA + 2 TiB` 偏置（`m14-spec-001`／`m14-spec-003`）；后续改动须继续「四处同笔」。
+- 契约改动成本为「四处同笔更新」：`spec/Kaiwu §6.3`、人读契约、`contracts/linux-boot.yaml`、检查器；由 `make check-linux-boot-contract`（L1）兜底，缺一处即红。
 - boot info 的 `flags` 等能力位成为后续扩展的入口；新增能力须同时纳入 D8 的演进流程，防止字段语义被就地改写。
 
 ## 状态说明
@@ -69,7 +69,7 @@ M14 = Linux bring-up（用户 2026-11-13 定位）：基线 Linux `7.2.10`，平
   - 用户原话摘要：「**确认剩余并转 Accepted（推荐）**」；身份页表归属「**smon 固件建（推荐）**」。
   - 前序裁定（同日，已并入 `D3`–`D6`）：**裁定 A「地址术语改 VA」**（ABI 地址一律 VA；PA 只出现在页表项、`PTBR = PPN << 16`、宿主 loader 写内存）；**裁定 B「启动模型 M1」**（预建页表 + VA 入口；映射几何见 `D6` 的 `rev.` 修订值；依据 `ptw_enable = 0` ⇒ `CFXMEM`）。
   - 依据：`AGENTS.md`「ADR decision 逐条确认」（每个 decision 逐条与用户确认后方可写为 `Accepted`）；确认渠道 = 主会话问答。
-- 本 ADR 不复制规范正文：字段表、校验规则、进入态表以 `spec/Machine-v5 §6.3` 与人读契约 `contract-linux-boot.md` 为准，本 ADR 只承载决策与理由。
+- 本 ADR 不复制规范正文：字段表、校验规则、进入态表以 `spec/Kaiwu §6.3` 与人读契约 `contract-linux-boot.md` 为准，本 ADR 只承载决策与理由。
 - 决策变更时**新增 ADR 或标注 `Superseded`**；经用户授权的**就地修订**须在「状态说明」记录授权原话摘要与渠道（`AGENTS.md`「ADR decision 逐条确认」）。
 - 修订记录：`rev. 2026-11-13` 按裁定 A（ABI 地址一律 VA）与裁定 B（启动模型 M1：预建页表 + VA 入口）改写 `D3`–`D6`；同日按用户确认把 `D6` 的页表建立方收敛为 **`smon` 固件**（宿主 loader 不代写页表页）。
 - 修订记录（`rev. 2026-11-13`，内核 VA 窗口；渠道 = 主会话问答）：用户裁定「内核空间 `[2 TiB, 3 TiB)`、用户空间 `[0, 2 TiB)`，四项冻结地址整体 +2 TiB（`VA = PA + 2 TiB`）」——经用户授权的**就地修订**，只改 `D3`/`D4`/`D5`/`D6` 的地址与映射（`D1`/`D2`/`D7` 决策语义不变；`D8` 中引用的旧 `VA [0, 2 GiB)` 几何以 `D4`/`D6` 修订值为准，`D7` 的「`p_vaddr` 与目标 PA」校验按 `PA = VA − 2 TiB` 解释）。此前任务书记录的 `[3 TiB, 4 TiB)` / +3 TiB 提案经用户同日**更正**为 +2 TiB，以更正后为准。

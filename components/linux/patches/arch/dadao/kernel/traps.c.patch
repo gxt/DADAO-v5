@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..2842e62df
+index 000000000..56772f27a
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
 @@ -0,0 +1,483 @@
@@ -15,7 +15,7 @@ index 000000000..2842e62df
 + *   - the dispatch: a registered probe may resume, anything else is fatal;
 + *   - dadao_die(): name the cause, dump the frame, stop through semihosting
 + *     SYS_EXIT with the code the exit-code segmentation requires;
-+ *   - the exit-code segmentation (spec/Machine-v5 §7.1, user ruling
++ *   - the exit-code segmentation (spec/Kaiwu §7.1, user ruling
 + *     2026-11-15 "A'"): the kernel's own self-check failures use the guest
 + *     segment 0x01-0x7f (value = check point), unrecoverable exceptions use
 + *     the monitor segment 0xc0 | (mode << 4) | bit index.
@@ -83,7 +83,7 @@ index 000000000..2842e62df
 +}
 +
 +/* -------------------------------------------------------------------------
-+ * Exit codes (spec/Machine-v5 §7.1, user ruling 2026-11-15 "A'")
++ * Exit codes (spec/Kaiwu §7.1, user ruling 2026-11-15 "A'")
 + * ------------------------------------------------------------------------- */
 +
 +/*
@@ -178,7 +178,7 @@ index 000000000..2842e62df
 +}
 +
 +/*
-+ * Bit index of a one-hot cause id (spec/Machine-v5 §7.1 takes the DADAO
++ * Bit index of a one-hot cause id (spec/Kaiwu §7.1 takes the DADAO
 + * exception bit index).  Only called for causes that are in the table, so the
 + * result is one of 0/1/2/3/7/8/9/10/11/12/13.
 + */
@@ -273,7 +273,7 @@ index 000000000..2842e62df
 +}
 +
 +/*
-+ * The exit code of a fatal synchronous exception (spec/Machine-v5 §7.1):
++ * The exit code of a fatal synchronous exception (spec/Kaiwu §7.1):
 + *
 + *   CFXTRAP / CFXESC  "other cfx" segment, 0x80 | cfxHA            (0x82 here)
 + *   everything else   monitor segment, 0xc0 | (mode << 4) | index

@@ -1,10 +1,10 @@
 diff --git a/src/arch/dadao/semihosting.hh b/src/arch/dadao/semihosting.hh
 new file mode 100644
-index 0000000..89d2a8a
+index 0000000..6f30cbf
 --- /dev/null
 +++ b/src/arch/dadao/semihosting.hh
 @@ -0,0 +1,233 @@
-+// DADAO FS semihosting (Machine-v5-Tiny): the DADAO ISA adaptor over gem5's
++// DADAO FS semihosting (Kaiwu-Tiny): the DADAO ISA adaptor over gem5's
 +// generic BaseSemihosting.
 +//
 +// Calling convention (contract-semihosting §2): service number in rd16,

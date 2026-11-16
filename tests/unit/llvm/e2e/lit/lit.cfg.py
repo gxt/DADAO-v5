@@ -82,15 +82,15 @@ config.substitutions.append(("%qemu", os.path.abspath(qemu_bin)))
 shared_dir = os.path.join(root, 'tests', 'shared')
 
 # Locate the target linker (ld.lld) for the linked-ELF E2E pipeline
-# (llvm-mc -> ld.lld -T dadao-tiny.lds -> qemu -kernel <elf>).  It sits in the same
+# (llvm-mc -> ld.lld -T kaiwu-tiny.lds -> qemu -kernel <elf>).  It sits in the same
 # host toolchain bin as llvm-mc (ADR-0016 D9).
 config.substitutions.append(("%ld", os.path.abspath(os.path.join(tools_dir, "ld.lld"))
                              + " -L " + os.path.join(shared_dir, "linker")))
 
-# Locate the fixed 64 KiB Machine-v5-Tiny BootROM firmware produced by
+# Locate the fixed 64 KiB Kaiwu-Tiny BootROM firmware produced by
 # `make build-bootrom` (m13-qemu-002): the contract ELF tests boot through the
 # real power -> hmon -> entry chain.  It is also the only image the Tiny `-bios`
-# option accepts (spec/Machine-v5 §6; the legacy flat trampoline window is gone,
+# option accepts (spec/Kaiwu §6; the legacy flat trampoline window is gone,
 # m13-testcases-036).
 bootrom = str(dadao_paths.test_artifacts_dir() / "bootrom" / "tiny"
               / "bootrom_tiny.bin")
@@ -98,10 +98,10 @@ config.substitutions.append(("%bootrom", bootrom))
 
 # Locate the freestanding crt0 + linker script used by the linked-ELF E2E
 # pipeline.  The Tiny script is the contract layout (crt + program in SRAM,
-# e_entry = 0xffff_ff01_0100, spec/Machine-v5 §6); `dadao-tiny.lds` remains the
+# e_entry = 0xffff_ff01_0100, spec/Kaiwu §6); `kaiwu-tiny.lds` remains the
 # pre-contract crt-in-ROM layout for legacy harnesses.
 config.substitutions.append(("%crt0", os.path.join(shared_dir, "crt0", "minimal_crt0.s")))
-config.substitutions.append(("%linker_script", os.path.join(shared_dir, "linker", "dadao-tiny-app.lds")))
+config.substitutions.append(("%linker_script", os.path.join(shared_dir, "linker", "kaiwu-tiny-app.lds")))
 
 # Locate e2e source directory: <repo>/tests/unit/llvm/e2e/ (this config lives
 # in its lit/ subdirectory, so the source dir is its parent).

@@ -1,5 +1,5 @@
 @@ app.S — m12-chipyard-019 RTL case: cfx register groups + the five synchronous
-@@ fault classes entering the cfx_hmon vector (spec/Machine-v5 §2/§3/§4.4,
+@@ fault classes entering the cfx_hmon vector (spec/Kaiwu §2/§3/§4.4,
 @@ spec/DADAO-13 §1–§2, spec/DADAO-12 §5.2/§5.3).
 @@
 @@ Runs on the chipyard WumingTinyConfig harness: the fixed 64 KiB BootROM

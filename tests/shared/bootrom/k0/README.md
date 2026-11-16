@@ -1,4 +1,4 @@
-# k0 BootROM firmware — Machine-v5-Vast K1 boot chain (m14-qemu-001)
+# k0 BootROM firmware — Kaiwu-Vast K1 boot chain (m14-qemu-001)
 
 The 4 MiB Vast BootROM for the **kernel boot path**: the reused step5 `power`
 stage hands over to this directory's `hmon`, which loads and enters `smon`, and
@@ -7,7 +7,7 @@ in `supv` at the kernel's **VA** entry.
 
 Normative sources (nothing here restates them):
 
-- `spec/Machine-v5 §6.3.1`–`§6.3.4` — the kernel VA window, the two load paths,
+- `spec/Kaiwu §6.3.1`–`§6.3.4` — the kernel VA window, the two load paths,
   the fixed boot info, the entry state and the failure semantics;
 - `.tao/contracts/contract-linux-boot.md` + `contracts/linux-boot.yaml` — the
   same facts as a review contract and a machine-readable projection (the probe
@@ -40,7 +40,7 @@ Normative sources (nothing here restates them):
   (not Linux): reads the boot info and the page table through the prebuilt
   mapping, self-checks the handover and records everything in `rd5`–`rd30`.
 - `tools/qemu/k0_boot_probe.py` — builds these images, runs them on
-  `qemu-system-dadao -machine dadao-vast,bootrom-image=...,-kernel ...` and
+  `qemu-system-dadao -machine kaiwu-vast,bootrom-image=...,-kernel ...` and
   checks the ABI plus the rejection paths.
 
 ## Boot chain
@@ -59,7 +59,7 @@ The host loader (`hw/dadao/dadao-machine.c`, K1 path) loads the kernel at
 
 ## Failure codes (guest side, semihosting `SYS_EXIT`)
 
-`hmon` (unchanged step5 values; `spec/Machine-v5 §6.3.2` + task §7):
+`hmon` (unchanged step5 values; `spec/Kaiwu §6.3.2` + task §7):
 
 - `0xB1`/`0xB2`/`0xB6` — image index table (header, entry, type missing)
 - `0xB3`/`0xB4`/`0xB5` — smon ELF (size, header/structure, segment)

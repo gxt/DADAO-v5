@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""k0_boot_probe.py — Machine-v5-Vast K1 boot probe (m14-qemu-001).
+"""k0_boot_probe.py — Kaiwu-Vast K1 boot probe (m14-qemu-001).
 
 Builds the K1 firmware (`tests/shared/bootrom/k0/`: boot hmon + smon) on top of
 the reused step5 power stage, builds the minimal raw/ELF probe kernel, runs it
-on `qemu-system-dadao -machine dadao-vast,bootrom-image=...,-kernel ...` and
-checks the frozen startup ABI of `spec/Machine-v5 §6.3` field by field.
+on `qemu-system-dadao -machine kaiwu-vast,bootrom-image=...,-kernel ...` and
+checks the frozen startup ABI of `spec/Kaiwu §6.3` field by field.
 
 Expectation sources (never the implementation):
   * `contracts/linux-boot.yaml` — boot info fields/values, VA/PA bias, the
     kernel-window layout, the prebuilt page table (one 512 MiB superpage) and
     the entry-state table;
-  * `spec/Machine-v5 §6.3.2/§6.3.4` — the load rules (ELF 7 / raw 4), the
+  * `spec/Kaiwu §6.3.2/§6.3.4` — the load rules (ELF 7 / raw 4), the
     entry-state values and the failure semantics;
   * `spec/DADAO-12 §2.2.3` — L1 PTE bit layout (HSJU/PPN/SPF/flags);
   * `contracts/linux-boot.yaml::rules[].id` — the rule names a bad image must
@@ -400,7 +400,7 @@ def run_qemu(qemu, bootrom, kernel=None, tag="run", dfilter=None,
     if dfilter is None:
         dfilter = ",".join("0x%x+0x%x" % (base, size)
                            for (_n, base, size) in windows(bootrom))
-    cmd = [qemu, "-machine", "dadao-vast,bootrom-image=" + bootrom,
+    cmd = [qemu, "-machine", "kaiwu-vast,bootrom-image=" + bootrom,
            "-nographic", "-semihosting-config", "enable=on,target=native"]
     if kernel:
         cmd += ["-kernel", kernel]

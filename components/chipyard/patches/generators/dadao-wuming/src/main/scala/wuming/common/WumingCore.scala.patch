@@ -1,6 +1,6 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..7dfa895
+index 0000000..eabe25e
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 @@ -0,0 +1,1479 @@
@@ -48,7 +48,7 @@ index 0000000..7dfa895
 +// with the fixed 0/+4 offsets.
 +//
 +// m12-chipyard-019 completes cfx_hmon and adds cfx_power's register group
-+// (DADAO-13 §1/§2, DADAO-12 §3/§4.12, Machine-v5 §3/§4.4): the four
++// (DADAO-13 §1/§2, DADAO-12 §3/§4.12, Kaiwu §3/§4.4): the four
 +// synchronous source masks, `cfx_intr_mask`, `switch_run_mode` (Tiny keeps
 +// hypv), the cg7 space descriptors, `excp_prev_run_mode` and the five
 +// synchronous fault classes (CFXMEM/ILLI/UNDI/MALIGN/IALIGN) — each one writes
@@ -390,7 +390,7 @@ index 0000000..7dfa895
 +  val memEndNow = memAddrNow + (memCountNow << d.memWidth) - 1.U
 +
 +  // m12-008: the *architectural* backing test is the Tiny three-segment window
-+  // (spec/Machine-v5 §1.1 + the hmon ruling), not `manager.supportsXxx` alone:
++  // (spec/Kaiwu §1.1 + the hmon ruling), not `manager.supportsXxx` alone:
 +  // the chipyard SoC also maps a debug controller at address 0 and other
 +  // peripherals that the DADAO address map does not have, so trusting the
 +  // negotiated map would silently turn an unmapped access into a bus access
@@ -741,7 +741,7 @@ index 0000000..7dfa895
 +  // supported ranges and therefore presumes a legal address; an unbacked
 +  // address can come back "legal" and reach the bus (where the monitor rejects
 +  // it).  The safe variants check every manager, which is what the
-+  // architectural CFXMEM test needs (spec/Machine-v5 §4.4).
++  // architectural CFXMEM test needs (spec/Kaiwu §4.4).
 +  val fetchLegal = specBacked(fetchAddr) &&
 +    fetchEdge.manager.supportsGetSafe(fetchAddr(addrBits - 1, 0), lgSize)
 +
@@ -909,7 +909,7 @@ index 0000000..7dfa895
 +    ip := nextIp
 +    when(nextIp(1, 0) =/= 0.U) {
 +      // IALIGN: precise exception, IP stays at the illegal address and
-+      // `excp_cause_ip`/`excp_cause_info` carry it (spec/Machine-v5 §4.4).
++      // `excp_cause_ip`/`excp_cause_info` carry it (spec/Kaiwu §4.4).
 +      enterHmon(nextIp, (1.U << IALIGN_BIT).pad(64), nextIp)
 +    }.otherwise {
 +      continueAt(nextIp)
@@ -934,7 +934,7 @@ index 0000000..7dfa895
 +      waitBeat := false.B
 +      when(!fetchLegal) {
 +        // No manager backs this address: CFXMEM with the fetch address as
-+        // `cause_info` (spec/Machine-v5 §4.4).
++        // `cause_info` (spec/Kaiwu §4.4).
 +        enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), ip)
 +      }.elsewhen(io.imem.a.fire) {
 +        demandBeat := ip(addrBits - 1, 3)
@@ -1178,7 +1178,7 @@ index 0000000..7dfa895
 +      }.elsewhen(d.isLd || d.isSt || d.isLdm || d.isStm) {
 +        when(memAlignFail) {
 +          // MALIGN: address generated and checked before any bus request;
-+          // `cause_info` is the access address (spec/Machine-v5 §4.4).
++          // `cause_info` is the access address (spec/Kaiwu §4.4).
 +          enterHmon(ip, (1.U << MALIGN_BIT).pad(64), memAddrNow)
 +        }.elsewhen(!memRangeLegalNow) {
 +          // CFXMEM: no manager backs the access (whole `ldm`/`stm` range is
@@ -1216,7 +1216,7 @@ index 0000000..7dfa895
 +        enterHmon(ip, (1.U << CFXTRAP_BIT).pad(64), inst.pad(64))
 +      }.otherwise {
 +        // `trap` to a cfx other than hmon: Tiny routes non-semihosting traps to
-+        // cfx_hmon only (spec/Machine-v5 §4.1); every other target is ILLI.
++        // cfx_hmon only (spec/Kaiwu §4.1); every other target is ILLI.
 +        enterHmon(ip, (1.U << ILLI_BIT).pad(64), inst.pad(64))
 +      }
 +    }

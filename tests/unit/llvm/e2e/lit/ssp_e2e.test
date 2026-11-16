@@ -39,10 +39,10 @@
 # RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
 # RUN: %ld -T %linker_script %t.crt0.o %t.o %t.rt.o -o %t.ctl.elf
 # RUN: %llvm_objdump -t %t.ctl.elf | %FileCheck %s --check-prefix=SYM
-# RUN: bash -c 'timeout 30 %qemu -machine dadao-tiny,bootrom-image=%bootrom -kernel %t.ctl.elf -semihosting-config enable=on,target=native -display none -nographic; test $? -eq 0'
+# RUN: bash -c 'timeout 30 %qemu -machine kaiwu-tiny,bootrom-image=%bootrom -kernel %t.ctl.elf -semihosting-config enable=on,target=native -display none -nographic; test $? -eq 0'
 # RUN: %clang -target dadao-unknown-elf -nostdlib -O2 -fstack-protector-strong -DSSP_TRIGGER -c %e2e_dir/ssp_e2e.c -o %t.trig.o
 # RUN: %ld -T %linker_script %t.crt0.o %t.trig.o %t.rt.o -o %t.trig.elf
-# RUN: bash -c 'timeout 30 %qemu -machine dadao-tiny,bootrom-image=%bootrom -kernel %t.trig.elf -semihosting-config enable=on,target=native -display none -nographic; test $? -eq 66'
+# RUN: bash -c 'timeout 30 %qemu -machine kaiwu-tiny,bootrom-image=%bootrom -kernel %t.trig.elf -semihosting-config enable=on,target=native -display none -nographic; test $? -eq 66'
 
 # OBJ: R_DADAO_ABS48 __stack_chk_guard
 # OBJ: ld.o rd{{[0-9]+}}, [rb{{[0-9]+}}, 0]

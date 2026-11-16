@@ -52,7 +52,7 @@ BANNED: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 # 仅 `SimRISC-*` 适用的规则：其它分册里 `scope` 是 ISA 字段名（`scope=all` / `scope: fp`），
-# `machine-v5` 是册名、`M1`/`M2` 是启动模型编号——它们不是项目痕迹，不该被误杀。
+# `kaiwu` 是册名、`M1`/`M2` 是启动模型编号——它们不是项目痕迹，不该被误杀。
 SIMRISC_ONLY: list[tuple[str, re.Pattern[str]]] = [
     ("scope（项目范围标注 / 非 ISA 用语）", re.compile(r"\bscope\b")),
     ("项目代号 v5", re.compile(r"\bv5\b")),

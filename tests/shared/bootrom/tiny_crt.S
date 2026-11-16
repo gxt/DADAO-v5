@@ -1,6 +1,6 @@
-@@ tiny_crt.S — Machine-v5-Tiny 应用启动代码（crt，m12-chipyard-007）
+@@ tiny_crt.S — Kaiwu-Tiny 应用启动代码（crt，m12-chipyard-007）
 @@
-@@ 规范：spec/Machine-v5 §6「装载语义 — Machine-v5-Tiny」：
+@@ 规范：spec/Kaiwu §6「装载语义 — Kaiwu-Tiny」：
 @@   * `crt`（启动代码）与测试程序一起链接成同一个应用 ELF，整体落在 SRAM；
 @@   * 入口 raw 与 ELF 统一 0xffff_ff01_0100（即 crt 入口）；
 @@   * `SP = 0xffff_ff7e_ff00` 由 crt 在入口设置。

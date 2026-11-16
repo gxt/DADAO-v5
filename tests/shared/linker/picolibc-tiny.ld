@@ -42,7 +42,7 @@ ENTRY(_start)
 
 /* TESTCASES-091t / m13-qemu-002: Tiny specialization of picolibc_noflash.ld.
  * The crt stub (.text.start) and the picolibc application live together in
- * SRAM at 0xffff_ff01_0100 (spec/Machine-v5 §6: crt links with the app, the
+ * SRAM at 0xffff_ff01_0100 (spec/Kaiwu §6: crt links with the app, the
  * fixed BootROM firmware performs power -> hmon -> entry).  The flash region
  * is kept only for address-map compatibility; nothing is placed in it.
  * SP = 0xffff_ff7e_ff00 (profile tiny). */

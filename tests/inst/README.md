@@ -72,7 +72,7 @@ python3 tools/testcases/inst/run_asm_suite.py \
     --lds tests/inst/01-load-store/inst-tiny.lds                  # 00 册（UNDI 3 例 + 7 个伪指令载体）
 ```
 
-判据 = **同一份 ELF** 在 chipyard `WumingTinyConfig` / QEMU `dadao-tiny` / gem5 FS
+判据 = **同一份 ELF** 在 chipyard `WumingTinyConfig` / QEMU `kaiwu-tiny` / gem5 FS
 `tiny` 上，链例的结果字节流逐字节一致、故障例的退出码一致。
 
 ### 伪指令载体（`00-isa-design/pseudo_set.*`，`m13-testcases-048`）

@@ -50,7 +50,7 @@ M14 K0 的 MVP 需要「内核日志 → 内置 initramfs 的静态 `/init` → 
 - 编译：`clang --target=dadao-unknown-elf -static -O2`（或矩阵建议的等价参数），链接 `libc.a` + crt；产物必须 `ET_EXEC`、无 `PT_INTERP`、无 `DT_NEEDED`。
 - 可复现：`SOURCE_DATE_EPOCH` 固定、`-ffile-prefix-map`、`--build-id=none`；`initramfs` 二次生成 sha256 相同。
 - **cpio 布局**（`newc`，大端字段按 ASCII hex）：`.`（`S_IFDIR|0755`，size 0）、`init`（`S_IFREG|0755`，内容 = init ELF）、`TRAILER!!!`。
-- **退出码映射**：guest `SYS_EXIT`（`0x18`，参数块 `{ADP_Stopped_ApplicationExit, code}`）⇒ host `$? = code`（`spec/Machine-v5 §5.5`）；`SYS_EXIT_EXTENDED` 同码规则；不得把 guest 码与 QEMU 自身错误码混淆（QEMU 启动错误另判）。
+- **退出码映射**：guest `SYS_EXIT`（`0x18`，参数块 `{ADP_Stopped_ApplicationExit, code}`）⇒ host `$? = code`（`spec/Kaiwu §5.5`）；`SYS_EXIT_EXTENDED` 同码规则；不得把 guest 码与 QEMU 自身错误码混淆（QEMU 启动错误另判）。
 
 ## 范围（改哪些文件）
 
@@ -171,7 +171,7 @@ M14 K0 的 MVP 需要「内核日志 → 内置 initramfs 的静态 `/init` → 
 **约束核验**：`git show --stat HEAD` = 6 文件（tests/linux/init×3、tools/linux×2、本任务书），未动 Makefile/spec/components/contracts；新文件 `grep -i uart` 无命中；完成区 15 行 ≤30、无绝对运行期路径；审查前后 `git status -uall` 全空、7 个交付文件 md5 逐位一致（快照 diff 仅差 reviewer 漏抄的 branch 两行）；未提交 git、未重建组件。
 
 **非阻断 findings（architect 收尾处理）**
-- ① 验收 5 文本「stdout 与 oracle 逐字节一致」与实测不符：控制台在 **stderr**（`target=native`），stdout 恒空；`spec/Machine-v5 §5` 未规定宿主流路由（grep `stderr` 无命中），§5.5 退出码传播已实测 0/64 ⇒ 改任务书文本即可。
+- ① 验收 5 文本「stdout 与 oracle 逐字节一致」与实测不符：控制台在 **stderr**（`target=native`），stdout 恒空；`spec/Kaiwu §5` 未规定宿主流路由（grep `stderr` 无命中），§5.5 退出码传播已实测 0/64 ⇒ 改任务书文本即可。
 - ② 完成区「check-milestones-fresh 因本任务台账行 FAIL」归因不全：`make` 实际先停在 m13 台账 `m13-testcases-016`（R1）；m14 台账另 4 项（A1 状态「待验收」vs 表「待开始」+ R1×3：m14-spec-002 / m14-infra-001 / 本任务），均属主会话移表，非本任务产物。
 - ③ 完成区「79/79 PASS」仅在提交前成立，须随 ① 的修复重跑刷新为现场值。
 
@@ -180,7 +180,7 @@ M14 K0 的 MVP 需要「内核日志 → 内置 initramfs 的静态 `/init` → 
 | finding | 处置 | 改了什么 | 复验证据 |
 |---------|------|---------|---------|
 | R1 证据脚本在**交付态**（产物已提交）rc=1：`case "$st"` 把 tracked-clean（porcelain 空串）判成 `missing`；`MODIFIED` 空时 `printf '%s\n' ""` 产生空行、`grep -qv` 命中 ⇒ 伪 FAIL | ✅已修 | §8 的 case 改 `"" \| "?? "*) ok "injection target unchanged"`；`MODIFIED` 先 `[ -z ]` 判空，非空才 grep（并附 `\|\| true` 兜住 grep 无命中码） | 交付态重跑：**79/79 PASS，rc=0**（§8 四项全绿：3 个 injection target unchanged + 「only the task book …」，或未改书时「no tracked file modified」） |
-| R2 验收 5 文本「stdout 与 oracle 逐字节」与实测不符（控制台在 stderr，`target=native`；`spec/Machine-v5 §5` 未规定宿主路由） | ✅已修（改条款文本 + 完成区同步） | 验收 5 改为「**stderr** 与控制台 oracle 逐字节一致、stdout 为空」；完成区验收 5 同步 | runner 实测：stderr=1136 B == oracle、stdout=0 B；`make linux-semihosting-smoke` rc=0 |
+| R2 验收 5 文本「stdout 与 oracle 逐字节」与实测不符（控制台在 stderr，`target=native`；`spec/Kaiwu §5` 未规定宿主路由） | ✅已修（改条款文本 + 完成区同步） | 验收 5 改为「**stderr** 与控制台 oracle 逐字节一致、stdout 为空」；完成区验收 5 同步 | runner 实测：stderr=1136 B == oracle、stdout=0 B；`make linux-semihosting-smoke` rc=0 |
 | R3 验收 3 的 syscall 范围（用户 2026-11-13 裁定「不做特殊限制，别滥用就行」） | ✅已修（改条款 + 删不可达要求） | 验收 3 改为「**init 自有** syscall ⊆ 4；`crt1` 启动期 syscall 允许并单列；不得滥用（文件/网络/额外 mmap）」；「全 ELF ⊆ 4」删除；保留静态 imports + 运行期 `-strace` 双证据 | init.o imports = {write,getpid,syscall,_Exit,___errno_location}；strace = set_tid_address + getpid/write×2/brk×3/exit_group |
 
 | R4 第 1 轮 reviewer 记录含 2 处具体 `.work/**` 路径 ⇒ `check-knowledge-refs` 按 ISS-352 判 FAIL | ✅已修（机械归一，不改判决/数据） | 两处改为 `.work/evidence/<任务ID>/run.sh` 占位 | `make check-knowledge-refs` PASS（0 具体引用） |

@@ -1,4 +1,4 @@
-# wuming 核的指令周期模型（`Machine-v5-Tiny` / chipyard）
+# wuming 核的指令周期模型（`Kaiwu-Tiny` / chipyard）
 
 > **定位**：本册记录 **wuming 核（chipyard 侧）每条（族）指令的执行周期**，是**实现口径**，不是 ISA 规范。
 > **真源关系**：指令的**语义**以 `spec/SimRISC-0x` 为准；本册只回答「这条指令在 wuming 上**几拍**」。

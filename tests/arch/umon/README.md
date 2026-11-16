@@ -15,7 +15,7 @@ which have no high-level IR form.
 ```
 llvm-mc --triple=dadao-unknown-elf -filetype=obj <vector>.s -> <vector>.o
 llvm-objcopy -O binary --only-section=.text <vector>.o        -> <vector>.bin
-qemu-system-dadao -machine dadao-vast,bootrom-image=.dadao/tests/bootrom/step5/bootrom_step5.bin \
+qemu-system-dadao -machine kaiwu-vast,bootrom-image=.dadao/tests/bootrom/step5/bootrom_step5.bin \
     -kernel <vector>.bin \
     -semihosting-config enable=on,target=native,chardev=semi \
     -chardev file,id=semi,path=<console> -d cpu -D <cpu log>

@@ -10,7 +10,7 @@
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI_RB`/`__LI` 拼基址与偏移寄存器）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 1 / semantic 11 / overlap 2（链例 14 + 故障例 2）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：call 与 RAS 只读可观测（`ra2rd` 读 ra63/ra0、`aip.si` 取落点 IP）；RA 状态用
 @@   `rd2ra` 建立（`ra0[53:48]` = RACNT、`[47:0]` = MRPTR）；期望值内联

@@ -1,7 +1,7 @@
 # `tests/inst/` 重构台账（YAML → 汇编 + 宏）
 
 > **目标**：让每条**操作码**的测试可读、可审、可三方差分。YAML 退出，改为 `.S` + 宏，期望值内联。
-> **判据**：一个 id 一个文件；一个文件一个 ELF；失败点号 = 用例序号（退出码 `0x01`–`0x7F`，见 `spec/Machine-v5 §7.1`）。
+> **判据**：一个 id 一个文件；一个文件一个 ELF；失败点号 = 用例序号（退出码 `0x01`–`0x7F`，见 `spec/Kaiwu §7.1`）。
 
 ## 1. 大类（= SimRISC 册）
 
@@ -44,7 +44,7 @@
   实测 8 字节写进结果缓冲并打印）；`CASE_N=<检查点>` = 该故障例单独成像（异常不返回
   被测指令之后，故故障例一例一镜像）。检查点数 ≤ 127，失败点号 = 用例序号。
 - 三方比较（同一份 ELF）：`tools/testcases/inst/run_asm_suite.py`（chipyard
-  `WumingTinyConfig` / QEMU `dadao-tiny` / gem5 FS `tiny`）。
+  `WumingTinyConfig` / QEMU `kaiwu-tiny` / gem5 FS `tiny`）。
 
 ## 3. 每个 id 的用例设计模板（5 类）
 
@@ -171,7 +171,7 @@ mem 生成器退役 + 台账重生成」同一批次做（`m13-testcases-013` �
    只断言结构（stem 是 `opcodes.yaml` 身份、含用例行、检查点号 1..N 连续，复用
    `run_asm_suite.scan_source`），类级覆盖交给执行门控。另加 `inventory` `file` 列表无悬空引用。
 3. 新门控 L2 `make check-inst-asm`：`run_asm_suite.py --books-root tests/inst --platforms qemu`
-   ——263 个 id + 非 id 载体（`00-isa-design`）/ 现场镜像数（`check-inst-asm` 现 903）全部跑 QEMU `dadao-tiny`，链例比结果
+   ——263 个 id + 非 id 载体（`00-isa-design`）/ 现场镜像数（`check-inst-asm` 现 903）全部跑 QEMU `kaiwu-tiny`，链例比结果
    字节流、故障例比 monitor 段退出码。**单平台**：三方逐字节仍是各册任务的验收口径。
 4. `generate_mem_vectors.py` 退役（`git rm`）：它的唯一产物就是这三册；`check-generator-sync`
    从 6 个生成器改 5 个（ctrl×2 + isa + misc + bitcnt 仍在）。
@@ -208,7 +208,7 @@ reserved：`inst_sweep` 输入与 `generate_isa_vectors` 渲染目标）。
 legality / overlap）确认 `.S` 有对应类，再删。**返工后审计结论 = 204 个 id 全绿**
 （`REVIEW` 0）。唯一曾判 REVIEW 的 `ret_riii_ra` 是**第 1 轮判读错误**：YAML 该例的
 MemRAS 条目是 `0x0001BBBB00000000`（**计数 = 1**、返回地址 `0xBBBB00000000`，不是「计数 0」）
-⇒ 按 `SimRISC-00 §2.4.2` D4b 消费条目并跳到该地址，`Machine-v5 §1.2`（Tiny 只映射
+⇒ 按 `SimRISC-00 §2.4.2` D4b 消费条目并跳到该地址，`Kaiwu §1.2`（Tiny 只映射
 cfxha 63 / 3，cfxha 46 ⇒ 其它 cfxha 段取指）⇒ **`CFXMEM`（0xF1）期望正确**。
 **已补**：`ret_riii_ra.S` 增点 23 `TEST_FAULT_RAS 23, CFXMEM, ret rd0, 0`
 （`TEST_FAULT_RAS` 宏增 `CFXMEM` 分支），QEMU 实跑 `0xF8/0xF8/0xFB/0xFB/0xF1` 全通过。
@@ -262,7 +262,7 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 | 层 | 载体 | 判据 |
 |---|---|---|
 | 指令层：`lr`/`sc` 的 RMW 合成序（含 `sc` 失败重试） | `tests/inst/00-isa-design/atomic_rmw.S`（`m13-testcases-049`） | L2 `check-inst-asm` 逐镜像执行 |
-| 编译器层：`__atomic_*` builtin 与 C11 `<stdatomic.h>` 的**值语义** | `tests/unit/llvm/e2e/atomics_e2e.c` + `lit/atomics_e2e.test` | `check-lit`：QEMU `dadao-tiny` 真跑，guest 退出码 = 判据（0 = 20 例全过，N = 第 N 例失败） |
+| 编译器层：`__atomic_*` builtin 与 C11 `<stdatomic.h>` 的**值语义** | `tests/unit/llvm/e2e/atomics_e2e.c` + `lit/atomics_e2e.test` | `check-lit`：QEMU `kaiwu-tiny` 真跑，guest 退出码 = 判据（0 = 20 例全过，N = 第 N 例失败） |
 | 争用 / 内存序**强度** | **无载体（本 GAP）** | 待多 hart 机型 |
 
 **GAP 清单**（单 hart 不可判定，未经实验验证前不得声称覆盖）：
@@ -298,7 +298,7 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 - **`inventory.md`**：30 个访存 id 的载体列 → `01-load-store/<id>.S`；新增「`.S` 载体覆盖」节。
 - **删除**：`base/mem-{rd,ra,rb}.yaml`（167 例 / 30 id）、`generate_mem_vectors.py`；
   `tests/inst.yaml` 489 → 486 条；`case-ledger.tsv` 2200 → 2033（只减 167 行）。
-- **判据**：`check-inst-asm` 264 id / 897 镜像全绿（QEMU `dadao-tiny`）；`check-inst`
+- **判据**：`check-inst-asm` 264 id / 897 镜像全绿（QEMU `kaiwu-tiny`）；`check-inst`
   1020 例 0 failed（Tiny 段 14 例）；273 例 chipyard sweep md5 不变。详见 §5.4。
 
 ### `m13-testcases-033`：`ext.uo`/`ext.so` orrr 的 `rdHD` 越界值（64 / 67 / 2^64−1）三平台用例
@@ -326,7 +326,7 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
   （CFXMEM `0xF1`、UNDI `0xF9` …）；变的只是「谁产生退出码」。
 - 旧口径：legacy `-bios` 短 trampoline 把 hmon 向量指到不可达地址 ⇒ QEMU 以
   「机器 fault」兜底退出码结束，测试镜像不参与。
-- 新口径（`spec/Machine-v5 §4.4`/`§7.1`）：镜像在触发前把落点写进固件 hmon 的
+- 新口径（`spec/Kaiwu §4.4`/`§7.1`）：镜像在触发前把落点写进固件 hmon 的
   返回槽（hmon SRAM +0xF8，`§6.2`「框架可覆盖」）；异常进入 cfx3 hmon，固件把
   `cause_id` 存到 +0xE0 后 `escape` 回落点；落点核对 one-hot 后
   `SYS_EXIT(0xF0|异常位索引)`。与 `tests/inst/macros/inst_test.inc` 的

@@ -15,7 +15,7 @@
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
 @@ 用例：encoding 2 / semantic 5 / boundary 5 / legality 0（无规则）/ overlap 1（oiii 无寄存器操作数
 @@   ⇒ 以「插入访存序列中间」与「rb 银行哨兵」两类等价观测替代）（链例 13，无故障例）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 期望来自 spec/SimRISC-12 §2 + contracts/opcodes.yaml（不从实现反推）
 @@ GAP（不可测，如实记录不伪造）：① `swym N` 的**时延倍数**（N+1 倍与上限）属性能语义，

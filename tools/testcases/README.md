@@ -4,7 +4,7 @@
 > `tests/inst/atomics/` 的 5 个 C 探针及其驱动 / oracle 两个脚本已删除。替代分工 = ① 指令层 RMW 合成序 → `tests/inst/00-isa-design/atomic_rmw.S`
 > （`.S` 载体，L2 `check-inst-asm` 执行）；② 编译器语义层（`__atomic_*` builtin 与
 > C11 `<stdatomic.h>` 的值语义、子字宽 RMW 邻域、`ISS-312`/`ISS-313` 回归）→
-> `tests/unit/llvm/e2e/atomics_e2e.c` + `lit/atomics_e2e.test`（QEMU `dadao-tiny`
+> `tests/unit/llvm/e2e/atomics_e2e.c` + `lit/atomics_e2e.test`（QEMU `kaiwu-tiny`
 > 真跑，guest 退出码 = 判据）；③ 争用（ABA / 互斥计数 / `a_barrier`）与 `fence`
 > 顺序强度 → **GAP 登记**（`tests/inst/MIGRATION.md`「多 hart / 内存序 GAP」，
 > 挂 `ISS-440`/`ISS-443`）。

@@ -205,7 +205,7 @@ def run(rom):
         f.write(rom)
     with open(kp, "wb") as f:
         f.write(b"\x00" * 16)
-    cmd = [QEMU, "-M", "dadao-tiny", "-nographic", "-bios", rp, "-kernel", kp,
+    cmd = [QEMU, "-M", "kaiwu-tiny", "-nographic", "-bios", rp, "-kernel", kp,
            "-semihosting-config", "enable=on,target=native",
            "-d", "cpu", "-D", lp]
     try:

@@ -81,7 +81,7 @@ EOF
 "$TC/clang" -target dadao-unknown-elf -O0 -ffreestanding -fno-builtin -std=gnu99 \
     -c "$W/t.c" -o "$W/t.o" 2>/dev/null
 "$TC/llvm-mc" --triple=dadao -filetype=obj "$REPO/tests/shared/crt0/minimal_crt0.s" -o "$W/crt0.o"
-"$TC/ld.lld" -L "$REPO/tests/shared/linker" -T "$REPO/tests/shared/linker/dadao-tiny-app.lds" \
+"$TC/ld.lld" -L "$REPO/tests/shared/linker" -T "$REPO/tests/shared/linker/kaiwu-tiny-app.lds" \
     "$W/t.o" "$W/crt0.o" -o "$W/t.elf"
 "$SIM" +permissive +loadmem="$W/t.elf" +semiout="$W/out" +max-cycles=2000000 \
     +permissive-off none > "$W/sim.log" 2>&1

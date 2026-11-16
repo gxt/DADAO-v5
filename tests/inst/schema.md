@@ -224,7 +224,7 @@
 | `IALIGN` | 取指非对齐 | §9 |
 | `RASOF` | RegRAS 溢出 | §9.2 |
 | `RASUF` | RegRAS 下溢 | §9.2 |
-| `CFXMEM` | 非法核内地址访问；未映射地址也归此项（当前运行模式 monitor） | `spec/Machine-v5 §7.1` |
+| `CFXMEM` | 非法核内地址访问；未映射地址也归此项（当前运行模式 monitor） | `spec/Kaiwu §7.1` |
 
 ## 覆盖率要求
 

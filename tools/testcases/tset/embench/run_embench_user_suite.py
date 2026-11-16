@@ -14,7 +14,7 @@ Pipeline per (benchmark, optimisation level)::
           -DWARMUP_HEAT=1 -DGLOBAL_SCALE_FACTOR=1 \
           -c <support/{main,beebsc}.c> <src>/<b>/*.c <hosted board shim>  -> *.o
 
-    # static line: P1 musl products, lld DEFAULT base (never -T dadao-tiny.lds)
+    # static line: P1 musl products, lld DEFAULT base (never -T kaiwu-tiny.lds)
     ld.lld -o <b>.elf <musl>/lib/crt1.o <objs> <musl>/lib/libc.a
     qemu-dadao <b>.elf
 
@@ -25,7 +25,7 @@ Pipeline per (benchmark, optimisation level)::
     qemu-dadao -L <guest-root> <b>.elf
 
 Base address (ISS-247): the link line carries **no** ``-T``/linker script, so
-lld's default base is used.  ``tests/shared/linker/dadao-tiny.lds`` (``RAM ORIGIN =
+lld's default base is used.  ``tests/shared/linker/kaiwu-tiny.lds`` (``RAM ORIGIN =
 the old high RAM base``) cannot be loaded by ``qemu-user`` on this 47-bit host VA
 (``Unable to find a guest_base ...``).  The driver records the link command and
 the minimum ``PT_LOAD`` virtual address of every produced ELF and refuses an
@@ -141,7 +141,7 @@ ISS246_PATTERNS = (
 )
 ISS246_ID = "ISS-246"
 
-# Machine fault exits (spec/Machine-v5 §7.1): monitor 0xC0-0xFF (run mode +
+# Machine fault exits (spec/Kaiwu §7.1): monitor 0xC0-0xFF (run mode +
 # cause index) and other cfx 0x80-0xBF (cfxHA); a guest exited through a
 # machine fault, the case reached the benchmark and its own verdict failed ->
 # `fail`, not a harness `blocked`.
@@ -156,7 +156,7 @@ FAULT_NAMES = {0xC0 | (mode << 4) | idx: name
 FAULT_NAMES.update({code: "CFX%d" % (code & 0x3F)
                     for code in range(0x80, 0xC0)})
 
-# The scripted base of tests/shared/linker/dadao-tiny.lds (ISS-247) -- an image linked
+# The scripted base of tests/shared/linker/kaiwu-tiny.lds (ISS-247) -- an image linked
 # there cannot be loaded by qemu-user on this host and is rejected here.
 SCRIPTED_BASE = 0xFC0000000000
 
@@ -382,7 +382,7 @@ def build_and_run(bench, opt, cfg, work_dir):
         return res
     if res.min_pt_load == SCRIPTED_BASE:
         res.klass = "blocked"
-        res.reason = (f"ELF min PT_LOAD is the scripted dadao-tiny.lds base "
+        res.reason = (f"ELF min PT_LOAD is the scripted kaiwu-tiny.lds base "
                       f"0x{SCRIPTED_BASE:x} (ISS-247: qemu-user cannot load it)")
         return res
     if cfg["mode"] == "static" and res.interp:

@@ -17,7 +17,7 @@
 @@   * 校验一律 **64 位**：`st.o` 把 rb 落 8 字节到 SCRATCH，`__CHECK_MEM` 按整 beat 比
 @@     （比较宽度 = 64 位，非只比低半）；探针不经任何 `set.*` 指令。
 @@ 用例：encoding 0 / semantic 15 / boundary 3 / overlap 2（链例 20，故障例 0）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；链例逐检查点把实测 8 字节
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；链例逐检查点把实测 8 字节
 @@   写入结果缓冲并逐字节打印 ⇒ 三平台比较的是字节流。
 @@ wyde 覆盖表（点号 → 非零 wyde）：
 @@   2: wp0 | 3: wp1 | 4: wp2 | 5: wp3 | 6: wp2+wp1+wp0 | 7: wp3+wp2+wp1+wp0

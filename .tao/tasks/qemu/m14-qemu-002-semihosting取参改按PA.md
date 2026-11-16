@@ -2,7 +2,7 @@
 
 **模块**：qemu
 **项目里程碑**：M14
-**依赖**：`spec/Machine-v5 §5.2`（2026-11-15 已定「指针一律为 PA、不经页表翻译」）、`contract-semihosting §2`（0.7.2，同口径）；`m14-qemu-001`（Vast 最小 smon，PTW 已开）；`m14-linux-003`（内核 semihosting 早控制台，按 PA 调用）
+**依赖**：`spec/Kaiwu §5.2`（2026-11-15 已定「指针一律为 PA、不经页表翻译」）、`contract-semihosting §2`（0.7.2，同口径）；`m14-qemu-001`（Vast 最小 smon，PTW 已开）；`m14-linux-003`（内核 semihosting 早控制台，按 PA 调用）
 **可并行分片**：否（qemu 组件单写者）
 **预估**：2–3 h（含 QEMU 重建 + 安装根刷新 + 4 路注入）
 **档位**：大改（触及上游共享 semihosting 层 + 需重建 + 门控加严；复核 ≥4 路注入 + 独立重跑）
@@ -10,7 +10,7 @@
 
 ## 背景（`ISS-450`）
 
-用户 2026-11-15 裁定「semihosting 参数指针 = PA」，已写入 `spec/Machine-v5 §5.2` 与 `contract-semihosting §2`：「参数块指针与 `SYS_WRITEC`/`SYS_WRITE0` 的指针**都是物理地址**，**不经页表翻译**」。
+用户 2026-11-15 裁定「semihosting 参数指针 = PA」，已写入 `spec/Kaiwu §5.2` 与 `contract-semihosting §2`：「参数块指针与 `SYS_WRITEC`/`SYS_WRITE0` 的指针**都是物理地址**，**不经页表翻译**」。
 
 但 QEMU 现状与之一致性不足：
 

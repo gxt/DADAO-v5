@@ -47,8 +47,8 @@
 ## 待裁定
 
 1. **契约措辞**：`.tao/contracts/contract-linux-boot.md §1` 写「页表**只由启动固件 `smon` 建立**」。本任务后内核在 `start_kernel` 前自建表并写 PTBR（用户 2026-11-14「内核自建表并写 PTBR」）。该句在「启动 ABI（移交前）」语境下与实现不冲突，故**未改**；若要扩成「启动期 smon 建、内核接管后自建」，属契约语义扩写（且会牵动 `check-linux-boot-contract` 三方比对）⇒ 交裁定。`ADR-0051` 与契约正文均**没有**「L1 index 0」字样（另见 2），故 `ADR-0051`/契约**零改动**。
-2. **`spec/` 残留**：`spec/Machine-v5` 仅「0.4.x 版本变更记录」保留「L1 index `0`–`3`、4 个 512 MiB 超页」的历史描述（正文 §6.3.4 已是 1 个超页且不含 index 措辞）。历史记录不改写；本任务范围也不含 `spec/` ⇒ 未动。
-3. **注入观察口径**：`inject:pte-sp`（`SP` 清零）走**安装前具名拒绝**（`0xED`）而非硬件缺页：该超页一旦不是超页，硬件会去 `PPN<<16` 取二级表并经 `CFXMEM` 进 monitor，而向量页在同一超页内（`§5.2 step 7`「硬件不提供向量缺失的恢复」）⇒ 内核侧无从报告。**live 侧**由 `inject:ptbr-live` 证明：真把 PTBR 写成未映射基址后，机器以 `dadao: page-table access outside physical memory (VA=…, PTBR=…)` 具名终止（`Machine-v5 §7.1` 机器 fault）、rc=1、无 `post`/`done`/`start_kernel` 行；缺页路径本身由正例探针缺页 + `inject:no-expect` 的现场 `CFXMEM` 具名退出（`0xE9`）证明。若要求「`SP` 清零后必须走到硬件缺页」，须只清 index 4097 的 `SP` 并去掉安装前检查 ⇒ 交裁定。
+2. **`spec/` 残留**：`spec/Kaiwu` 仅「0.4.x 版本变更记录」保留「L1 index `0`–`3`、4 个 512 MiB 超页」的历史描述（正文 §6.3.4 已是 1 个超页且不含 index 措辞）。历史记录不改写；本任务范围也不含 `spec/` ⇒ 未动。
+3. **注入观察口径**：`inject:pte-sp`（`SP` 清零）走**安装前具名拒绝**（`0xED`）而非硬件缺页：该超页一旦不是超页，硬件会去 `PPN<<16` 取二级表并经 `CFXMEM` 进 monitor，而向量页在同一超页内（`§5.2 step 7`「硬件不提供向量缺失的恢复」）⇒ 内核侧无从报告。**live 侧**由 `inject:ptbr-live` 证明：真把 PTBR 写成未映射基址后，机器以 `dadao: page-table access outside physical memory (VA=…, PTBR=…)` 具名终止（`Kaiwu §7.1` 机器 fault）、rc=1、无 `post`/`done`/`start_kernel` 行；缺页路径本身由正例探针缺页 + `inject:no-expect` 的现场 `CFXMEM` 具名退出（`0xE9`）证明。若要求「`SP` 清零后必须走到硬件缺页」，须只清 index 4097 的 `SP` 并去掉安装前检查 ⇒ 交裁定。
 
 ## 审阅记录
 
@@ -99,7 +99,7 @@
 
 **修改文件**：`components/linux/patches/arch/dadao/{include/asm/{cfx,ptw,setup}.h,kernel/{k1_trap.S,traps.c,early_console.c,setup.c,Makefile},mm/{k1_pt.c,Makefile}}.patch`（新增 4 份、改 6 份，`series` 61 条）、`components/linux/changelog.md`、`tools/linux/k1_pt_probe.py`（新）、`.tao/tasks/qemu/m14-qemu-001-…md`（§3/§8 口径注记 2 处）、本任务书。
 
-**验收结果**（`qemu-system-dadao -machine dadao-vast`，真机输出摘要）
+**验收结果**（`qemu-system-dadao -machine kaiwu-vast`，真机输出摘要）
 - 1 PTBR 生效：`pre ptbr=0x0 ptw_enable=0x1` → 写 `0x57ffff` → `post ptbr=0x570000 low16=0x0`（== `swapper_pg_dir` 符号 PA）→ 下一行 `new va=… mapped=1`、`done: running on the kernel-built table`、仍到 `start_kernel`（rc=0）。
 - 2 索引：`va41_29=0x1000 l1_index=4096`；`pte=0x400000000000ffff P=1 SP=1 SPF=0xff spf_bit=1`、`H=0 S=1 J=0 U=0 R=1 W=1 X=1 G=1 A=1 D=1`（逐项对 `DADAO-12 §2.2.3`）；表共 `superpages=4 l1_index=4096..4099`。
 - 3 VA→PA 两例：`0x20000100000→0x100000`（入口 8 字节 `0x4e0602004a050056` == 镜像文件同偏移）；`0x20000010000→0x10000`（`magic=0x4442494e`，按 **PA** 打印 `bytes=DBIN`）；另 `0x20000580010→0x580010`（写回读 + 按 PA 打印 `K1PT-KW`）。

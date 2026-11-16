@@ -3,11 +3,11 @@
 **状态**：Accepted（rev. 2026-11-05: cfxha 重编号同步）
 **日期**：2026-11-04
 **接受日期**：2026-11-04
-**关联**：ADR-0004（测试机几何）、ADR-0043（Node 启动/页表）、ADR-0048（QEMU/gem5 一致性）、`spec/Machine-v5-测试机运行环境.md`、`spec/DADAO-12`；任务线索 `QEMU-079t`/`QEMU-080t`、`GEM5-014t`/`GEM5-016t`、`TESTCASES-091t`/`TESTCASES-092t`
+**关联**：ADR-0004（测试机几何）、ADR-0043（Node 启动/页表）、ADR-0048（QEMU/gem5 一致性）、`spec/Kaiwu-测试机运行环境.md`、`spec/DADAO-12`；任务线索 `QEMU-079t`/`QEMU-080t`、`GEM5-014t`/`GEM5-016t`、`TESTCASES-091t`/`TESTCASES-092t`
 
 ## Context（背景）
 
-现有规范已给出 `Machine-v5-Tiny` / `Machine-v5-Node` 两套 FS 几何，也已存在 QEMU user / gem5 SE 路径；但“哪种测试跑在哪个运行环境”长期混用：
+现有规范已给出 `Kaiwu-Tiny` / `Kaiwu-Node` 两套 FS 几何，也已存在 QEMU user / gem5 SE 路径；但“哪种测试跑在哪个运行环境”长期混用：
 
 - Tiny 被误当作可跑 cfx / 需要 system call 的平台；
 - Node 被误当作普通 `inst`/`embench`/`picolibc` 测试平台；
@@ -23,7 +23,7 @@ M11 需要把三类运行环境固定为**互斥的测试归属**，避免同一
   - 不实现任何 cfx，包括 `cfx_power`；不建页表，PTW 关闭。
   - 不跑 `arch`（cfx / 异常 / 页表类）测试。
   - 唯一允许的 cfx 类行为是 `trap` 触发的 semihosting；不进入 user 模式。
-  - 地址几何与装载细节以 `spec/Machine-v5` 的 Tiny profile 为准。
+  - 地址几何与装载细节以 `spec/Kaiwu` 的 Tiny profile 为准。
 
 - **D2 — Node：cfx 测试环境**
   - 专门承担 cfx 测试；启动一律从 `cfx_power` 开始，初始运行模式为 **hypv**。
@@ -65,7 +65,7 @@ M11 需要把三类运行环境固定为**互斥的测试归属**，避免同一
 - **Node**：测试需显式声明目标模式（hypv/supv/user）与启动深度；浅层与深层分别建资产，不得用一个“Node 通用”镜像覆盖全部模式。
 - **SE**：测试默认 user mode、`VA=PA [0, 2 GiB)`；只允许 trap semihosting；不得引用 Node 的页表/PTW 或 Tiny 的 BootROM 启动路径。
 - **QEMU/gem5**：同一环境内做一致性比较；Tiny、Node、SE 的引擎差异分别归因，不把跨环境差异写成 parity 失败。
-- **规范侧**：Tiny/Node 的几何与 Node 页表细节仍归 `spec/Machine-v5` 与 ADR-0043；本 ADR 不替代这些正文。
+- **规范侧**：Tiny/Node 的几何与 Node 页表细节仍归 `spec/Kaiwu` 与 ADR-0043；本 ADR 不替代这些正文。
 - **任务侧**：现有把 Node 当普通测试平台、或把 SE 当 FS 路径的任务，需按本 ADR 重新划范围；不得直接把旧结果写成新环境 PASS。
 
 ## 状态说明

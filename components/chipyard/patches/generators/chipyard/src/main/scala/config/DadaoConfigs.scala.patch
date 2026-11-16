@@ -1,6 +1,6 @@
 diff --git a/generators/chipyard/src/main/scala/config/DadaoConfigs.scala b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
 new file mode 100644
-index 0000000..1757ed0
+index 0000000..e9390e1
 --- /dev/null
 +++ b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
 @@ -0,0 +1,141 @@
@@ -11,8 +11,8 @@ index 0000000..1757ed0
 +// m12-chipyard-001: `WumingTinyConfig` is the first DADAO configuration to
 +// elaborate (one `wuming` tile, stock chipyard address map).
 +//
-+// m12-002: land the `Machine-v5-Tiny` core-internal address map from
-+// `spec/Machine-v5 §1.1`:
++// m12-002: land the `Kaiwu-Tiny` core-internal address map from
++// `spec/Kaiwu §1.1`:
 +//
 +//   BootROM    0xffff_ffff_0000, 64 KiB, reset vector = base (executable)
 +//   SRAM       0xffff_ff00_0000, 8 MiB,  writable main memory  (TL slave port)
@@ -23,7 +23,7 @@ index 0000000..1757ed0
 +// thing that changes versus stock chipyard is *where* the memories sit, so the
 +// TileLink address map negotiates >= 48 address bits.
 +//
-+// m12-007: the hmon SRAM is a second, independent TL slave (`spec/Machine-v5`
++// m12-007: the hmon SRAM is a second, independent TL slave (`spec/Kaiwu`
 +// §1.1/§6.2; user ruling 2026-11-10 "power SRAM 与 hmon SRAM 是两个不同
 +// SRAM"): the power stub copies the hmon segment there at reset, the core
 +// executes it, and the host loader is forbidden from writing it.
@@ -40,7 +40,7 @@ index 0000000..1757ed0
 +import freechips.rocketchip.subsystem.{ExtMem, MBUS}
 +import testchipip.soc.{BankedScratchpadKey, BankedScratchpadParams}
 +
-+/** `spec/Machine-v5 §1.1` — Machine-v5-Tiny core-internal address map. */
++/** `spec/Kaiwu §1.1` — Kaiwu-Tiny core-internal address map. */
 +object WumingTinyAddressMap {
 +  /** BootROM: 0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB), reset vector = base. */
 +  val bootROMBase: BigInt = BigInt("ffffffff0000", 16)
@@ -55,7 +55,7 @@ index 0000000..1757ed0
 +  val hmonSize: BigInt = 0x10000
 +
 +  /**
-+   * Fixed application entry (`spec/Machine-v5 §6`): `.text` starts here, the
++   * Fixed application entry (`spec/Kaiwu §6`): `.text` starts here, the
 +   * ELF `e_entry` must equal it and the power stub jumps here after the
 +   * handoff.
 +   */
@@ -74,7 +74,7 @@ index 0000000..1757ed0
 +}
 +
 +/**
-+  * Machine-v5-Tiny memory map fragment.
++  * Kaiwu-Tiny memory map fragment.
 +  *
 +  * Replaces chipyard's stock devices instead of adding a new `AddressMap`:
 +  * the BootROM geometry comes from `WithBootROM`, the SRAM replaces the
@@ -83,7 +83,7 @@ index 0000000..1757ed0
 +  */
 +class WithDadaoTinyAddressMap extends Config((site, here, up) => {
 +  // Tiny's BootROM is the *fixed firmware image* (power stub + hmon segment +
-+  // reserved + image index table, `spec/Machine-v5 §6.2`), not the stock
++  // reserved + image index table, `spec/Kaiwu §6.2`), not the stock
 +  // chipyard bootrom: no appended chipyard DTB.
 +  case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(appendDTB = false))
 +
@@ -105,7 +105,7 @@ index 0000000..1757ed0
 +      busWhere = MBUS,
 +      banks = 1,
 +      subBanks = 1,
-+      name = "dadao-tiny-sram",
++      name = "kaiwu-tiny-sram",
 +      dtsEnabled = true),
 +    BankedScratchpadParams(
 +      base = WumingTinyAddressMap.hmonBase,
@@ -113,12 +113,12 @@ index 0000000..1757ed0
 +      busWhere = MBUS,
 +      banks = 1,
 +      subBanks = 1,
-+      name = "dadao-tiny-hmon-sram",
++      name = "kaiwu-tiny-hmon-sram",
 +      dtsEnabled = false))
 +})
 +
 +class WumingTinyConfig extends Config(
-+  // BootROM geometry / reset vector / image name (`spec/Machine-v5 §1.1`).
++  // BootROM geometry / reset vector / image name (`spec/Kaiwu §1.1`).
 +  new chipyard.config.WithBootROM(
 +    address = WumingTinyAddressMap.bootROMBase,
 +    size = WumingTinyAddressMap.bootROMSize,
@@ -137,7 +137,7 @@ index 0000000..1757ed0
 +  new wuming.common.WithNWumingTiles(1, wuming.common.WumingCoreParams(
 +    loadMemBase = Some(WumingTinyAddressMap.sramBase),
 +    loadMemSize = Some(WumingTinyAddressMap.sramSize),
-+    // m12-007: application-load contract (`spec/Machine-v5 §6`) and the hmon
++    // m12-007: application-load contract (`spec/Kaiwu §6`) and the hmon
 +    // handoff geometry (`§6.2`, `DADAO-13 §1`) — all from the address map.
 +    loadMemEntry = Some(WumingTinyAddressMap.appEntry),
 +    hmonBase = Some(WumingTinyAddressMap.hmonBase),

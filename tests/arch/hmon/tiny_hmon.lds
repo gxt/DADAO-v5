@@ -1,8 +1,8 @@
 /*
- * tiny_hmon.lds — Machine-v5-Tiny cfx_power + hmon execution case
+ * tiny_hmon.lds — Kaiwu-Tiny cfx_power + hmon execution case
  * (m13-gem5-001).
  *
- * Three PT_LOAD segments (spec/Machine-v5 §1.1):
+ * Three PT_LOAD segments (spec/Kaiwu §1.1):
  *   BootROM 0xffff_ffff_0000, 64 KiB (power stub, R-X)
  *   hmon    0x0fff_0000_0000, 64 KiB (hmon vector, R-W-X)
  *   SRAM    0xffff_ff01_0100  (application body/data, R-W-X)

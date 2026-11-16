@@ -1,8 +1,8 @@
-@@ tiny_hmon.S — Machine-v5-Tiny cfx_power + cfx3 hmon execution case
+@@ tiny_hmon.S — Kaiwu-Tiny cfx_power + cfx3 hmon execution case
 @@ (m13-gem5-001; m13-gem5-005 moves it onto the §6.2 two-piece load contract;
 @@  m13-gem5-010 records the shared minimal handler's SRAM slots.)
 @@
-@@ Load contract (spec/Machine-v5 §6.2): the host loader installs exactly two
+@@ Load contract (spec/Kaiwu §6.2): the host loader installs exactly two
 @@ artefacts — the fixed 64 KiB BootROM firmware (shared power stub + the shared
 @@ minimal hmon of tests/shared/bootrom/tiny/hmon.S, built by
 @@ build_tiny_bootrom.py) and this application ELF, whose only PT_LOAD is in
@@ -384,7 +384,7 @@ land_reg:
 	call	[rb21, rd0, 0]
 
 	@@ ---- Tiny stays in hypv under a guest-written switch mode (36..40) --
-	@@ Machine-v5 §2: Tiny has no mode-switch path; a guest write of
+	@@ Kaiwu §2: Tiny has no mode-switch path; a guest write of
 	@@ switch_run_mode = user(0) must not move the run mode on fault entry.
 	cfx2rd	cfx_hmon, cg3, rc8, rd10	@@ switch_run_mode (cg3 is hypv-only)
 	set.zw	rd11, wp0, 3
@@ -394,7 +394,7 @@ land_reg:
 	set.zw	rd13, wp0, 0			@@ guest asks for user mode
 	cfx2rc	cfx_hmon, cg3, rc8, rd13
 
-	@@ Machine-v5 §2: the write is ignored -- the saved value stays 3 and a
+	@@ Kaiwu §2: the write is ignored -- the saved value stays 3 and a
 	@@ read returns the saved value.  Check it before the fault so the two
 	@@ checks (immediate read-back / read-back after the fault) are distinct.
 	cfx2rd	cfx_hmon, cg3, rc8, rd10

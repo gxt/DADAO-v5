@@ -8,17 +8,17 @@ expected value (it does NOT rely on lit exit codes):
     per TU:  llc -march=dadao -filetype=obj  <tu>.ll     -> <tu>.o
     once:    llvm-mc --triple=dadao -filetype=obj \
                  tests/shared/crt0/minimal_crt0.s        -> crt0.o
-    link:    ld.lld -T tests/shared/linker/dadao-tiny-app.lds \
+    link:    ld.lld -T tests/shared/linker/kaiwu-tiny-app.lds \
                  crt0.o <tu>.o ... -o <prog>.elf          (ET_EXEC, SRAM-only)
     run:     timeout N qemu-system-dadao \
-                 -machine dadao-tiny,bootrom-image=<fixed 64 KiB firmware> \
+                 -machine kaiwu-tiny,bootrom-image=<fixed 64 KiB firmware> \
                  -kernel <prog>.elf \
                  -semihosting-config enable=on,target=native \
                  -display none -nographic
                                                           -> guest exit code
 
-The application ELF follows the Machine-v5-Tiny load contract
-(spec/Machine-v5 §6): crt + program are linked into SRAM and e_entry is the
+The application ELF follows the Kaiwu-Tiny load contract
+(spec/Kaiwu §6): crt + program are linked into SRAM and e_entry is the
 fixed 0xffff_ff01_0100; the fixed BootROM firmware is supplied separately and
 performs the real power -> hmon -> entry handover.
 
@@ -78,7 +78,7 @@ import writer_guard  # noqa: E402
 
 _TOOLCHAIN_BIN = str(_dadao_paths.host_toolchain_bin())
 
-# Machine fault exit codes (spec/Machine-v5 §7.1): monitor 0xC0-0xFF
+# Machine fault exit codes (spec/Kaiwu §7.1): monitor 0xC0-0xFF
 # (bit5:4 = run mode, bit3:0 = cause index) and other cfx 0x80-0xBF
 # (bit5:0 = cfxHA).
 _MONITOR_FAULT_NAMES = {
@@ -97,8 +97,8 @@ DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
 DEFAULT_LDLLD = os.path.join(_TOOLCHAIN_BIN, "ld.lld")
 DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
 DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
-DEFAULT_LDS = "tests/shared/linker/dadao-tiny-app.lds"
-# Fixed Machine-v5-Tiny BootROM firmware (make build-bootrom).
+DEFAULT_LDS = "tests/shared/linker/kaiwu-tiny-app.lds"
+# Fixed Kaiwu-Tiny BootROM firmware (make build-bootrom).
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir()
                       / "bootrom" / "tiny" / "bootrom_tiny.bin")
 DEFAULT_VECTORS_DIR = "tests/unit/llvm/codegen/m4"
@@ -227,7 +227,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
             return res
         objs.append(obj)
 
-    # 2. ld.lld -T dadao-tiny.lds crt0.o <objs> -o <prog>.elf
+    # 2. ld.lld -T kaiwu-tiny.lds crt0.o <objs> -o <prog>.elf
     elf = os.path.join(work_dir, stem + ".elf")
     rc, _out, err, timed = _run(
         [tools["ldlld"], "-L", os.path.dirname(tools["lds"]),
@@ -238,11 +238,11 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
             f": {err.strip()[:200]}" if err.strip() else "")
         return res
 
-    # 3. timeout N qemu-system-dadao -M dadao-tiny -kernel <elf> -> guest exit code
+    # 3. timeout N qemu-system-dadao -M kaiwu-tiny -kernel <elf> -> guest exit code
     rc, _out, err, timed = _run(
         [
             tools["qemu"],
-            "-machine", "dadao-tiny,bootrom-image=" + tools["bootrom"],
+            "-machine", "kaiwu-tiny,bootrom-image=" + tools["bootrom"],
             "-kernel", elf,
             "-semihosting-config", "enable=on,target=native",
             "-display", "none",

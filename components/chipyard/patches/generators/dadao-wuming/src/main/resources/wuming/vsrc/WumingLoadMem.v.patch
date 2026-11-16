@@ -1,10 +1,10 @@
 diff --git a/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingLoadMem.v b/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingLoadMem.v
 new file mode 100644
-index 0000000..3c6b763
+index 0000000..0ee64f6
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/resources/wuming/vsrc/WumingLoadMem.v
 @@ -0,0 +1,109 @@
-+// WumingLoadMem.v — host-side `+loadmem=<elf>` initialiser for Machine-v5-Tiny
++// WumingLoadMem.v — host-side `+loadmem=<elf>` initialiser for Kaiwu-Tiny
 +// (m12-chipyard-003).
 +//
 +// Behaviour: on the first clock after reset the DPI model parses `+loadmem=`
@@ -25,7 +25,7 @@ index 0000000..3c6b763
 +module WumingLoadMemBlackBox #(
 +    parameter [63:0] MEM_BASE = 64'h0,
 +    parameter [63:0] MEM_SIZE = 64'h0,
-+    // m12-007: Tiny application-load contract (spec/Machine-v5 §6).
++    // m12-007: Tiny application-load contract (spec/Kaiwu §6).
 +    parameter [63:0] ENTRY = 64'h0,
 +    parameter [63:0] BOOTROM_BASE = 64'h0,
 +    parameter [63:0] BOOTROM_SIZE = 64'h0,

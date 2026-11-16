@@ -147,7 +147,7 @@ MASK_BOTH = ALL1                         # both masked
 MASK_CROSS = ALL1 & ~((1 << 3) | (1 << 15) | (1 << 32))
 
 EXIT_PASS = 0x00
-EXIT_FAIL = 0x61   # guest FAIL segment (spec/Machine-v5 §7.1)
+EXIT_FAIL = 0x61   # guest FAIL segment (spec/Kaiwu §7.1)
 
 # Timing-model-neutral bounds (TESTCASES-102t).  DELTA_NS = nominal relative
 # deadline; WINDOW_NS = tolerated deadline-to-event delay.  Without an

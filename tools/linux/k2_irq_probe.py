@@ -21,7 +21,7 @@ What is derived live (nothing is restated):
     the two numbering schemes must not be mixed (contract-see §6.4);
   * the period -> the image's `CONFIG_HZ` and the contract's `cfx_time_freq`
     (`freq // HZ`), so a hardcoded count in the kernel goes red;
-  * the exit codes / segments -> `spec/Machine-v5 §7.1` (parsed by the K2
+  * the exit codes / segments -> `spec/Kaiwu §7.1` (parsed by the K2
     exception gate, reused);
   * the self-check code space -> every `*FAIL*` constant the kernel sources
     define (same scan the K2 time gate uses, extended with this task's file).
@@ -234,7 +234,7 @@ def boot(tag: str, rom: str,
     log = SCRATCH / "log" / f"{tag}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     cmd = [k0.DEFAULT_QEMU,
-           "-machine", f"dadao-vast,bootrom-image={rom}",
+           "-machine", f"kaiwu-vast,bootrom-image={rom}",
            "-nographic",
            "-semihosting-config", "enable=on,target=native",
            "-kernel", str(kernel)]

@@ -4,14 +4,14 @@
 @@ 语义：rdHD ← cfx_<cfxHA>_cgHB_rcHC（cfx 寄存器 → rd 寄存器组；`spec/SimRISC-11 §4`）
 @@   目标 cfx 为 reserved（6–14、16–31、35–61）⇒ ILLI；目标为已分配但本 profile 未实现的
 @@   cfx（Tiny：cfx0/1/2/4/5/32/33/34…）或已实现 cfx 的未定义/只写 cg·rc ⇒ CFXREG
-@@   （`spec/Machine-v5 §3`；`contracts/legality_rules.yaml` `encode_cfx_reserved`）。
+@@   （`spec/Kaiwu §3`；`contracts/legality_rules.yaml` `encode_cfx_reserved`）。
 @@ 编码：crrr = opc[31:24] | cfxha[23:18] | cghb[17:12] | rchc[11:6] | rdhd[5:0]
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
 @@ 用例：encoding 2 / semantic 13 / boundary 5 / overlap 2（链例 22 + 故障例 7）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 探针：被读寄存器取 Tiny 已实现的 cfx3(hmon)/cfx63(power) 的 cg3/cg5/cg7（`spec/Machine-v5 §3`）；
-@@   期望值按 `spec/DADAO-12 §3.5/§3.8`、`§4.12` 与 `spec/Machine-v5 §1.1` 的地址图内联
+@@ 探针：被读寄存器取 Tiny 已实现的 cfx3(hmon)/cfx63(power) 的 cg3/cg5/cg7（`spec/Kaiwu §3`）；
+@@   期望值按 `spec/DADAO-12 §3.5/§3.8`、`§4.12` 与 `spec/Kaiwu §1.1` 的地址图内联
 @@ GAP（不计入链例，见任务书完成区）：cfx 共有寄存器 cg0–cg2、cg4（cfx_id/version/计数器/
 @@   scratch_regs_num）、cg5 rc5、cg6（暂存）、cg8 rc1 在 chipyard RTL 上未实现（⇒ CFXREG），
 @@   QEMU/gem5 已实现 ⇒ 三平台不一致，待 chipyard 任务补齐后再加例

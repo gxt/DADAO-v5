@@ -7,7 +7,7 @@ policy = "readonly-requires-authorization"
 #   依据：用户 2026-11-15 裁定「同意A」（`set.ft rf, imm32` 保持窄写、`set.ft rf, rf` 走 `rf2rf` 整 64 位）。仅 `SimRISC-00` 一册重算。
 # 2026-11-14（ISS-436 补账；授权依据 = 用户 2026-11-14 对 `ISS-436` 的决定「4现在就做」，即
 #   确认「这 11 册的正文改动均有授权来源，缺的只是同笔重算锁哈希」）。补算 11 册 sha256（**正文一字节未改**）：
-#   `SimRISC-01/02/07/08/09/10`、`DADAO-11/12/22`、`Toolchain-01`、`Machine-v5`；逐册授权出处见各册条目注记。
+#   `SimRISC-01/02/07/08/09/10`、`DADAO-11/12/22`、`Toolchain-01`、`Kaiwu`；逐册授权出处见各册条目注记。
 #   根因：`Process-06 §5` 要求「改正文与重算哈希同笔」，但这一批改动分布在多个任务的提交里、漏了哈希 ⇒
 #   锁长期失配（无法证明只读，也发现不了越权改）。审计方法：逐册取「锁最后一次更新之后」触及该册的提交，
 #   核对提交主题与落纸的裁定原话；结论与清单见 `.tao/knowledge/discussing.md` §ISS-436 授权审计。
@@ -72,7 +72,7 @@ policy = "readonly-requires-authorization"
 #   cfx0–15 per-hart、cfx16–31 per-task、cfx32–63 per-system」「SimRISC-11/00 删除具体 cfx 编号/范围，
 #   只保留描述性规则」「不改退出码/§5.2 路由/Node/Tiny 几何/E2E 语义」）：cfxha 重编号与作用域统一——
 #   DADAO-12 §1 表/作用域/per-task 定义、§2.1 pmem 行与基址 0x83ff_0000_0000、§4.9、§5 保留集字面；
-#   DADAO-22 cfx_time 示例；Machine-v5 Node 表/cfx 实现范围/保留集；SimRISC-00 保留编号描述化；
+#   DADAO-22 cfx_time 示例；Kaiwu Node 表/cfx 实现范围/保留集；SimRISC-00 保留编号描述化；
 #   SimRISC-11 正文 + 附录 B（生成器不写具体范围）。上述 5 册 sha256 同笔重算（其余 16 册不变）。
 # 2026-10-31（INTEG-050t；授权原话摘要：「把 rc 设计现在收干净，并把 spec 变更并入本任务」）：
 #   仅 `DADAO-12`/`DADAO-22` 两册——`cfx_hart` 的 cycle/insn 收为 64 位单寄存器（`cg8 rc2`/`rc3`）、
@@ -219,7 +219,7 @@ policy = "readonly-requires-authorization"
 #   dadao-2x   DADAO-21/22/23
 #   simrisc    SimRISC-00..12
 #   toolchain  Toolchain-01
-#   machine-v5 Machine-v5（v5 自定；原 Machine-01，2026-11-02 改名）
+#   kaiwu      Kaiwu（v5 自定；原 Machine-01，2026-11-02 改名；2026-11-16 定名 `Kaiwu`）
 # sha256 = 工作树基线（还原后）逐册实测；由 make check-spec-readonly 校验。
 # 注意：spec/Machine-01 已于 2026-10-08 纳入本锁（用户授权）；docs/Process-0x、
 # spec/README.md 为 v5 自定册，不在本锁内——其修订由 Process-06 §2 的授权流程约束。
@@ -348,7 +348,7 @@ group = "simrisc-00..12"
 #   `rdHD[5:0]`，更高位忽略、不触发异常）；sha256 同笔重算（其余只读册不变）。
 # 2026-11-14（m13-spec-009，授权原话「确认 rd16，修 §1 措辞（推荐）」）：0.5.7-rc 段追加 1 条
 #   （semihosting 的服务号通道：`immu18[17:8] == 0x3FF` 为固定标记、`immu18[7:0]` 不携带服务号，
-#   服务号由 `rd16` 给出）；sha256 同笔重算（本册与 `Machine-v5`；其余 19 册不变）。
+#   服务号由 `rd16` 给出）；sha256 同笔重算（本册与 `Kaiwu`；其余 19 册不变）。
 # 2026-11-15（m13-spec-010，授权见任务书 §用户裁定原话）：§2.3 新增「单精（ft）结果的写入宽度」总则（含整 64 位搬移例外清单）；
 #   §4.2 OPC-octa 增 `rf2rf_orri_rf`（`111-100`）、§4.6 OPC-RF 两格转 reserved；附录 0.5.7-rc 补两条；
 #   sha256 同笔重算（本册与 02/03/07/Toolchain-01/DADAO-12；其余 15 册不变）。
@@ -578,7 +578,7 @@ group = "dadao-1x"
 # 2026-11-01（SPEC-180t，授权原话见任务书 §用户已确认的设计）：§5.1 删除「跳过 N 条指令（N 可为负）」
 #   用法行、偏移合法集改为 0/+4；§5.3 步骤 0 与伪代码补 `imms18[17:1] != 0 ⇒ ILLI`（先于状态切换）；
 #   附录 0.7.3-rc 补条目；sha256 同笔重算。
-# 2026-11-02（SPEC-183t，授权原话「DADAO-12 只要求 cfx_power BootROM ≥64 KiB，实际大小由 Machine-v5 规定；
+# 2026-11-02（SPEC-183t，授权原话「DADAO-12 只要求 cfx_power BootROM ≥64 KiB，实际大小由 Kaiwu 规定；
 #   删除 `cfx_power` 不设 SRAM 的绝对句」+ 任务书 §用户授权）：§2.1 表 row63 改「自 2^48 向下、末 64 KiB 起点
 #   `0xffff_ffff_0000`、大小 ≥64 KiB（平台规定）」；说明删「power 不设 SRAM」绝对句、BootROM 段落改「≥64 KiB、
 #   复位向量在末 64 KiB 起点、镜像内偏移 = 大小 − 64 KiB」、cg7 校验示例改 64 KiB/4 MiB 两例；
@@ -606,7 +606,7 @@ group = "dadao-1x"
 # 2026-11-10（m12-spec-003；用户授权原话：「如果你确定是笔误，就应该改；关键是这部分内容是你写的！！！」）：
 #   §2.1 校验示例笔误修正——`size = 64 KiB` ⇒ `start = 0x3ff_ffff_0000`、`size = 4 MiB` ⇒ `start =
 #   0x3ff_ffc0_0000`（原文各少一组 `FF`）；`start = 2^42 − size` 规则与其它正文不变；附录 0.7.3-rc 补一条；
-#   版本不变（仍 `0.7.3-rc`）；sha256 同笔重算（本册与 `Machine-v5`；其余 19 册不变）。
+#   版本不变（仍 `0.7.3-rc`）；sha256 同笔重算（本册与 `Kaiwu`；其余 19 册不变）。
 # 2026-11-13（m13-spec-005，授权见文件头条目）：§5 例外前提由「地址按原始 `rdHC` 计算」改为「地址寄存器不被传送过程改写」；0.7.3-rc 段追加 1 条。
 # 2026-11-14（ISS-436 补账；授权依据 = 用户 2026-11-14 对 `ISS-436` 的决定「4现在就做」，即确认「本册改动均有授权、只补锁哈希」；
 #   现场审计见 `.tao/knowledge/discussing.md` §ISS-436）：本册正文由 14af8b8b 修改（去 `scope`、ISA 字段统一称「地址范围」、机器名）时未同笔重算，本次补算 sha256（**正文未改**）。
@@ -768,8 +768,8 @@ group = "toolchain-01"
 sha256 = "eebb34535a8e7de58db66dc0fe5c2279dff170eb480a64efe9eee57e9fd9bd28"
 
 [[spec]]
-path = "spec/Machine-v5-测试机运行环境.md"
-group = "machine-v5"
+path = "spec/Kaiwu-测试机运行环境.md"
+group = "kaiwu"
 # 2026-10-09（SPEC-126t，用户裁定「统一为 rd8」）：semihosting 返回 rd31 → rd8（§5.2/§5.4；指针返回 rb31 → rb8）。
 # 2026-10-09（QEMU-053t，用户裁定「RAM@0 收口 + 删 exit port」）：§1.1 删旧 RAM 段与 exit-port 行、
 # 「并存/过渡」表述改为「RAM@0 唯一 RAM 段」；§1.2 去「并存」；§5.5/§7 记 exit-port 已删。
@@ -794,9 +794,9 @@ group = "machine-v5"
 # 2026-10-31（SPEC-179t 返工，A 方案；授权原话见任务书 §用户返工裁定原话 / A 方案裁定）：§3 恢复 cg0–cg7 并说明 cg7 为内部空间描述（数组 space_{desc,start,size,attr}[i]、未实现空间 exists=0、只读）；附录 0.3.2-rc 条目同步；sha256 同笔重算。
 # 2026-11-01（SPEC-180t，授权原话见任务书 §用户已确认的设计）：§4.2 同步 escape 偏移合法集
 #   0/+4 与 `imms18[17:1]` SBZ 非零 ⇒ ILLI；附录 0.3.2-rc 补条目；sha256 同笔重算。
-# 2026-11-02（用户裁定「Machine-01 文件改名为 Machine-v5」）：文件改名 `spec/Machine-01-测试机运行环境.md`
-#   → `spec/Machine-v5-测试机运行环境.md`、`group` 同步 `machine-01` → `machine-v5`、标题改
-#   `Machine-v5：测试机运行环境`；正文语义与版本号（0.3.2-rc）不变，附录 0.3.2-rc 补改名条目；sha256 同笔重算。
+# 2026-11-02（用户裁定「Machine-01 文件改名为 Kaiwu」）：文件改名 `spec/Machine-01-测试机运行环境.md`
+#   → `spec/Kaiwu-测试机运行环境.md`、`group` 同步 `machine-01` → `machine-v5`、标题改
+#   `Kaiwu：测试机运行环境`；正文语义与版本号（0.3.2-rc）不变，附录 0.3.2-rc 补改名条目；sha256 同笔重算。
 # 2026-11-02（SPEC-183t，授权原话见任务书 §用户授权 / §用户最终口径）：§1/§1.1
 #   改 Tiny/Node 两 profile 几何（Tiny：BootROM 64 KiB + SRAM 8 MiB、`addr[47:42]` 恒 0x3F、无 cfx/无 PTW/
 #   无 hmon 与异常路径；Node：BootROM 4 MiB + PA RAM 2 GiB、hmon/PTW/hypv、smon 路径保留）；删单一几何、
@@ -815,16 +815,16 @@ group = "machine-v5"
 #   reserved cfx 落当前 monitor；附录 0.3.2-rc 补一条；版本不变（0.3.2-rc）；sha256 同笔重算（其余 20 册不变）。
 # 2026-11-05（SPEC-192t，授权原话见任务书 §已定口径）：退出码表由 §1.2 迁至 §7.1（新增子节），
 #   §1.2 只保留内存/越界异常语义；4 处指针同步 §7.1；§1–§6 编号与退出码语义不变；sha256 同笔重算（其余 20 册不变）。
-# 2026-11-08（SPEC-195t；用户追加裁定：「Machine-v5版本号从0.3.2改为0.4.0，注意：版本与变更记录 认真整理一下，
+# 2026-11-08（SPEC-195t；用户追加裁定：「Kaiwu版本号从0.3.2改为0.4.0，注意：版本与变更记录 认真整理一下，
 #   这是给人看的，而且这部分内容应该按重要程度排一下，比如tiny和node的分类就很重要」）：发布 **0.4.0**
 #   （y+1，环境模型重构：Tiny/Node 两 profile）；附录 0.4.0 段**按重要性重排并归组**（profile → 启动链/内存 →
 #   地址空间与页表 → 权限/异常 → 退出码 → cfx 体系 → semihosting → 其它），事实逐条保留；册头状态行
 #   `0.3.2-rc（未发布）` → `0.3.2（2026-11-08 发布）`、附录标题 `### 0.3.2-rc（未发布）`
 #   → `### 0.3.2（2026-11-08）`；段内条目与正文逐字未改；sha256 同笔重算（其余 20 册不变）。
-# 2026-11-08（m12-spec-001；用户裁定原话：「dadao-vast，B」= 机器名 `dadao-tiny`/`dadao-vast`、范围 B
+# 2026-11-08（m12-spec-001；用户裁定原话：「kaiwu-vast，B」= 机器名 `kaiwu-tiny`/`kaiwu-vast`、范围 B
 #   即 profile 概念同步改名 Tiny/Vast；另「可以，授权」= 改册 + 同笔改锁 + 契约命令行示例）：profile 概念
-#   `Node`→`Vast`（`Machine-v5-Node`→`Machine-v5-Vast`，22 处，含附录；无其它语义）、定位行机器名
-#   `dadao-m1`→`dadao-tiny`/`dadao-vast`；册头状态行与附录新开 `0.4.1-rc（未发布）` 段（1 条，只记命名，
+#   `Node`→`Vast`（`Kaiwu-Node`→`Kaiwu-Vast`，22 处，含附录；无其它语义）、定位行机器名
+#   `dadao-m1`→`kaiwu-tiny`/`kaiwu-vast`；册头状态行与附录新开 `0.4.1-rc（未发布）` 段（1 条，只记命名，
 #   几何/语义/退出码不变）；sha256 同笔重算（其余 20 册不变）。
 # 2026-11-09（m12-spec-002；用户裁定见任务书 §用户裁定：Tiny 实现 `cfx_power`（cfx63）+ `cfx3 hmon`；
 #   hmon SRAM 复用 `0x0fff_0000_0000`（64 KiB）；无 PTW/页表；同步异常直接进 hmon 向量；semihosting
@@ -853,7 +853,7 @@ group = "machine-v5"
 #   册头与附录 → 0.4.5-rc；sha256 同笔重算（仅本册；其余 20 册不变）。
 # 2026-11-13（m14-spec-001；授权依据 = 用户 2026-11-13 裁定「授权这三处（推荐）」（授权原话落纸于
 #   `.tao/tasks/spec/m14-spec-001-启动ABI契约与固定boot-info.md` §用户授权），同日用户确认 boot ABI
-#   「按提案冻结」并裁定「VA 为 ABI 地址」「M1 预建页表 + VA 入口」）：新增 §6.3「`Machine-v5-Vast`
+#   「按提案冻结」并裁定「VA 为 ABI 地址」「M1 预建页表 + VA 入口」）：新增 §6.3「`Kaiwu-Vast`
 #   内核装载与启动 ABI」——ELF/raw 两条装载路径与校验规则、内存窗口四段固定 VA 分区、固定 boot info 结构
 #   （VA `0x0001_0000`、`size = 0x60`、大端、15 字段）、进入时状态（`supv`、PTW 开启、`rb17` = boot info VA、
 #   `rb16` = 入口 VA、其它 hart 状态未定义）；ABI 地址一律 VA（`addr[41:0]`），PA 只用于页表项/`PTBR`/
@@ -862,7 +862,7 @@ group = "machine-v5"
 #   sha256 同笔重算（仅本册；其余 20 册不变）。
 # 2026-11-13（m14-spec-003；授权依据 = 用户 2026-11-13 改定内核空间 `[2 TiB, 3 TiB)`、用户空间 `[0, 2 TiB)`、
 #   四项冻结地址整体 `+2 TiB`（授权与用户裁定落纸于 `.tao/tasks/spec/m14-spec-003-内核VA窗口2TiB.md`）：
-#   §6.3「`Machine-v5-Vast` 内核装载与启动 ABI」的固定 VA 分区整体迁入内核 VA 窗口——首张页表页 VA
+#   §6.3「`Kaiwu-Vast` 内核装载与启动 ABI」的固定 VA 分区整体迁入内核 VA 窗口——首张页表页 VA
 #   `0x0200_0000_0000`（`PTBR` 仍为页表页 PA 0）、boot info VA `0x0200_0001_0000`、内核镜像区
 #   `[0x0200_0010_0000, 0x0200_0400_0000)`、initramfs 区 `[0x0200_0400_0000, 0x0200_0600_0000)`，
 #   窗口内 `VA = PA + 2 TiB`；boot info 的 `ram_base` 改记内核窗口起点（VA）；§6 的 Vast 首张页表由
@@ -875,4 +875,10 @@ group = "machine-v5"
 #   `immu18[17:8] == 0x3FF` 为 semihosting 固定标记、`immu18[7:0]` 不携带服务号，服务号由 `rd16`
 #   给出（参数块 `rb16`、返回 `rd8`）；sha256 同笔重算（本册与 `SimRISC-00`；其余 19 册不变）。
 # 2026-11-15（semihosting 指针语义 = PA；授权依据 = 用户裁定原话「1：选1，PA」，渠道 = 经主会话问答，落纸于 `.tao/knowledge/discussing.md` §M14 未决 #1 的处置）：§5.2 新增「参数块指针与 `SYS_WRITEC`/`SYS_WRITE0` 指针一律为 PA、不经页表翻译」；附录 0.4.7-rc 补一条；版本不变（0.4.7-rc）；sha256 同笔重算（其余 20 册不变）。
-sha256 = "284db85e1c626e77dd1cbaceb6d7f32e182b2900d6266fd78a83f20667ed1056"
+# 2026-11-16（m14-infra-004；授权依据 = 用户 2026-11-16 裁定原话「好的，我决定就是kaiwu了」（机器名 = `Kaiwu`，
+#   ADR-0055 D1–D4），`.tao/archive/**` 不动、`docs/DDLN/**` 要改）：测试机整机名定为 `Kaiwu`，本册改名
+#   `spec/Kaiwu-测试机运行环境.md`（原占位名作废）、锁 `group` 同步 `kaiwu`、正文整机名与两机型名
+#   `Kaiwu-Tiny`/`Kaiwu-Vast` 机械替换、QEMU 机器串 `kaiwu-tiny`/`kaiwu-vast`（无旧名别名）；几何/地址/
+#   语义/退出码逐字不变，版本不变（0.4.7-rc）；附录 0.4.7-rc 补改名条目；sha256 同笔重算（其余 20 册不变）。
+#   注：本锁既有注记中的旧机器名/旧机器串已随全仓机械替换（仅名称，事实与日期未改动）。
+sha256 = "70cbca4c6308d2e70f1036d191fde583fd4f0b1a112ae83ebe88cf4303785a63"

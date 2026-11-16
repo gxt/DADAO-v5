@@ -1,19 +1,19 @@
 diff --git a/src/arch/dadao/fs_workload.hh b/src/arch/dadao/fs_workload.hh
 new file mode 100644
-index 0000000..fcee423
+index 0000000..7612b1f
 --- /dev/null
 +++ b/src/arch/dadao/fs_workload.hh
 @@ -0,0 +1,118 @@
 +// DADAO FS workload: boot image loading and reset for the two FS machines.
 +//
-+// profile="tiny" (Machine-v5-Tiny): the two-piece load contract of
-+// spec/Machine-v5 §6.2 -- a fixed, exactly 64 KiB BootROM firmware image
++// profile="tiny" (Kaiwu-Tiny): the two-piece load contract of
++// spec/Kaiwu §6.2 -- a fixed, exactly 64 KiB BootROM firmware image
 +// (power stub + hmon run segment + image index table) loaded verbatim at
 +// rom_base, plus the application (raw or ELF) in SRAM only.  The host loader
 +// never installs BootROM firmware or hmon from the application image; the
 +// application entry is fixed (params.entry) and the reset PC stays the BootROM
 +// vector.  Raw images carry a 0x100-byte zero prefix.
-+// profile="node" (Machine-v5-Node): 4 MiB BootROM (exact size) + 2 GiB PA RAM,
++// profile="node" (Kaiwu-Node): 4 MiB BootROM (exact size) + 2 GiB PA RAM,
 +// raw images load at kernel_base with no prefix, ELF PT_LOAD segments must be
 +// in PA RAM, and the reset PC is the BootROM reset vector.
 +//

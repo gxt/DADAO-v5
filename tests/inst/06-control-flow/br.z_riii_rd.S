@@ -12,7 +12,7 @@
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`__LI`/`__LI_RB` 拼条件寄存器；**不使用数据区**）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / overlap 2 / boundary 3（链例 12 + 故障例 1）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：条件寄存器用 `__LI`/`__LI_RB` 拼常量（被测分支不参与造初值）、期望内联；跳转/不跳
 @@   由 rd24 的 1/0 标记判（`TEST_BR1`）；跳转**距离与落点地址**用 `.org` 钉住的槽位 +

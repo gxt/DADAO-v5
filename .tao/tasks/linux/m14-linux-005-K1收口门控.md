@@ -76,7 +76,7 @@ K0 已有 `make check-linux-k0`（119 项、10 路注入、入 L2，`m14-infra-0
 | `Ctx` 有 4 个字段（RAM 基址/大小/页大小/boot info VA）派生后未使用 = 孤儿 | ✅已修 | 新增检查：表覆盖的 RAM 基址/大小/超页数/L1 区间、`page_size_log2 == log2(页大小)`、两处 VA→PA | `make check-linux-k1` 由 95 → **102** 项全绿 |
 | `run_kernel` 的 `if "-d" in cmd` 是恒假死代码 | ✅已修 | 删掉死分支；「无 `-d`」由 K5 的两条断言承担（命令行 + 输出无转储标记） | selfcheck 里 K5 由 rc 注入翻转；正常跑 K5 两条 PASS |
 | 初版 power 窗口切片偏移表达式写错（重复减基址） | ✅已修 | 改 `reset_offset = reset_pc − bootrom_base` 后切 64 KiB | K3「power 窗口非空」+「复位向量落点」均 PASS |
-| 误以为 profile 的 `hmon`/`smon` 是地址字典（实为布尔） | ✅已修 | 改用 `spec/Machine-v5 §1.1` 的两个 SRAM 窗口常量（加注释与引文） | K4 四条 PASS；selfcheck K4 用移植 BootROM 副本翻转成功 |
+| 误以为 profile 的 `hmon`/`smon` 是地址字典（实为布尔） | ✅已修 | 改用 `spec/Kaiwu §1.1` 的两个 SRAM 窗口常量（加注释与引文） | K4 四条 PASS；selfcheck K4 用移植 BootROM 副本翻转成功 |
 | 证据脚本用 `grep -P` 负向前瞻（不可移植）+ `.bak` 检查写法绕 | ✅已修 | 删除前瞻行；`.bak` 改为在 scratch 下 `find` 计数 | 脚本 `bash -n` 通过并 9/9 步全 PASS rc=0 |
 | F2 数字修完后仍有第 4 处「三路」（probe 段注释行） | ✅已修 | 三处 + 段注释 + 004 证据脚本注释一并改 4 路 | `grep -n "three\|三路"` 无命中 |
 
@@ -110,5 +110,5 @@ K0 已有 `make check-linux-k0`（119 项、10 路注入、入 L2，`m14-infra-0
 - `check-patch-tree --source-state`：linux **OK**（clean=True，base+1）；`check-component-changelog` rc=0。
 - F1：`dadao_tlb_invalidate_all()` 写值 `0x2` → **`0x12`**，保持「drop every entry」注释并写明依据。spec 原文（`spec/DADAO-12 §4.5`）：「`ASID_ANY = 1` 时包含 `G = 1` 的条目；`ASID_ANY = 0` 时只处理 `G = 0` 且 ASID 匹配的条目，**不碰 `G` 条目**」；`_PAGE_KERNEL` 含 `G=1` ⇒ 旧值不失效内核映射、与注释矛盾。改后 004 探针复跑 **58/58**、`--selfcheck` 15/15、`--inject` 4 路，输出中 `post ptbr` / `done` / `start_kernel` 俱在。
 - F2：004 changelog 条目、probe docstring（2 处）、probe 注入段注释、004 证据脚本注释 —— 全部「三路」→「4 路」；`grep "three\|三路"` 无命中。
-**新发现/坑**：① 共享固件的 power/hmon/smon **不打印**，且本任务禁 `-d` ⇒ 三阶段顺序无法用日志行判定；门控改判「镜像配置 + 移交态」（power=复位向量落点且窗口有代码；hmon=索引表 type1 + boot info 15 字段唯一写者；smon=`ptw_enable`/传入 PTBR/预建表仅 1 超页/`rb16`+`rb17` 移交值）。要更硬的顺序证据需固件打 semihosting 标记（改共享固件，另立任务）。② machine profile 缺 hmon/smon 的 SRAM 窗口（只有布尔）⇒ K4 用 `spec/Machine-v5 §1.1` 常量；建议后续给 profile 加字段。③ 安装根 qemu（`725c5da7`）的 PTW/TLB 语义齐备，Vast K1 无需重建。
+**新发现/坑**：① 共享固件的 power/hmon/smon **不打印**，且本任务禁 `-d` ⇒ 三阶段顺序无法用日志行判定；门控改判「镜像配置 + 移交态」（power=复位向量落点且窗口有代码；hmon=索引表 type1 + boot info 15 字段唯一写者；smon=`ptw_enable`/传入 PTBR/预建表仅 1 超页/`rb16`+`rb17` 移交值）。要更硬的顺序证据需固件打 semihosting 标记（改共享固件，另立任务）。② machine profile 缺 hmon/smon 的 SRAM 窗口（只有布尔）⇒ K4 用 `spec/Kaiwu §1.1` 常量；建议后续给 profile 加字段。③ 安装根 qemu（`725c5da7`）的 PTW/TLB 语义齐备，Vast K1 无需重建。
 **遗留问题**：无。整树 `check-patch-tree` 的 10 项红全在 gem5 段（并行任务在途），不计入本任务。

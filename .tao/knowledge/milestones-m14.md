@@ -30,7 +30,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-infra-004 | 2026-11-16 08:25 | 3–4 h | 测试机改名 `Machine-v5`→`Kaiwu` + QEMU 串 `kaiwu-tiny/vast`（无别名；spec 锁同笔重算） |
+| m14-infra-004 | 2026-11-16 08:25 | 3–4 h | 测试机整机名定为 `Kaiwu`（旧占位名作废）+ QEMU 串 `kaiwu-tiny/vast`（无别名；spec 锁同笔重算） |
 
 ## 已验证
 
@@ -58,5 +58,5 @@
 | m14-infra-002 | 2026-11-13 21:02 | initramfs（确定性 newc）+ musl init + semihosting 退出闭环（证据 79/79） |
 | m14-spec-002 | 2026-11-13 21:00 | 内核侧 syscall/errno/TLS 契约（0.10.0；§1 号表逐字不变） |
 | m14-infra-001 | 2026-11-13 20:40 | 工具链缺口矩阵（8 行，gaps=6 blockers=0）+ `check-linux-toolchain` 门控 |
-| m14-spec-001 | 2026-11-13 19:28 | 启动 ABI 契约（`Machine-v5 §6.3`；ABI 地址=VA、M1 预建页表由 smon 建、boot info 15 字段） |
+| m14-spec-001 | 2026-11-13 19:28 | 启动 ABI 契约（`Kaiwu §6.3`；ABI 地址=VA、M1 预建页表由 smon 建、boot info 15 字段） |
 | m14-linux-001 | 2026-11-13 19:10 | Linux 补丁组件化（空系列首态 + 7 个 make 目标 + 路径解析；证据 69/69） |

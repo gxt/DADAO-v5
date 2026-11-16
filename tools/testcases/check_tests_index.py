@@ -100,15 +100,15 @@ ALLOWED = {
         "0xFFFF_0000_0000": "negative target: legacy RAM removed => UNMAPPED",
         "0xFFFF00000000": "negative target: legacy RAM removed => UNMAPPED",
     },
-    # tset/llvm-ts 属 qemu-user/gem5 SE，非 Machine-v5 FS profile（任务书 §范围）。
+    # tset/llvm-ts 属 qemu-user/gem5 SE，非 Kaiwu FS profile（任务书 §范围）。
     "tools/testcases/tset/llvm-ts/run_llvm_ts_user.py": {
-        "0xFC0000000000": "qemu-user scripted VA base; out of Machine-v5 scope",
+        "0xFC0000000000": "qemu-user scripted VA base; out of Kaiwu scope",
     },
     "tools/testcases/tset/libc-test/run_libc_test_user_suite.py": {
-        "0xFC0000000000": "qemu-user scripted VA base; out of Machine-v5 scope",
+        "0xFC0000000000": "qemu-user scripted VA base; out of Kaiwu scope",
     },
     "tools/testcases/tset/embench/run_embench_user_suite.py": {
-        "0xFC0000000000": "qemu-user scripted VA base; out of Machine-v5 scope",
+        "0xFC0000000000": "qemu-user scripted VA base; out of Kaiwu scope",
     },
 }
 
@@ -138,7 +138,7 @@ def _iter_text_files(root: Path):
 
 
 def _old_geometry_reason(literal: str):
-    """Return a reason when a 0x literal is old Machine-v5 geometry, else None."""
+    """Return a reason when a 0x literal is old Kaiwu geometry, else None."""
     try:
         val = int(literal.replace("_", ""), 16)
     except ValueError:
@@ -208,8 +208,8 @@ def check_profile_lds(root: Path):
     if not hits:
         print(f"  地址扫描: {checked} 个文本文件，旧几何残留 0")
 
-    lds_map = {"tiny": "tests/shared/linker/dadao-tiny.lds",
-               "vast": "tests/shared/linker/dadao-vast.lds"}
+    lds_map = {"tiny": "tests/shared/linker/kaiwu-tiny.lds",
+               "vast": "tests/shared/linker/kaiwu-vast.lds"}
     for name, rel in lds_map.items():
         path = root / rel
         if not path.is_file():
@@ -689,8 +689,8 @@ def audit(root: Path, registry: dict[str, str] | None = None) -> int:
 def _write_profile_lds(root: Path, tamper: str | None = None) -> None:
     """Write minimal, profile-consistent linker scripts for the self-test tree."""
     profs = machine_profile.all_profiles()
-    for name, rel in (("tiny", "shared/linker/dadao-tiny.lds"),
-                      ("vast", "shared/linker/dadao-vast.lds")):
+    for name, rel in (("tiny", "shared/linker/kaiwu-tiny.lds"),
+                      ("vast", "shared/linker/kaiwu-vast.lds")):
         prof = profs[name]
         origin, length = prof.ram_base, prof["ram_size"]
         rom_origin, rom_len = prof.bootrom_base, prof["bootrom_size"]
@@ -930,7 +930,7 @@ def self_test() -> int:
         case_no += 1
         work = tmpdir / f"case{case_no}"
         _write_tree(work, _empty_indexes())
-        _write_profile_lds(work, tamper="shared/linker/dadao-tiny.lds")
+        _write_profile_lds(work, tamper="shared/linker/kaiwu-tiny.lds")
         rc, out = _run(work)
         good_lds = rc == 1 and "RAM ORIGIN" in out
         ok = ok and good_lds

@@ -1,5 +1,5 @@
 /*
- * semihost_smoke.lds — Machine-v5-Tiny semihosting probe (m12-chipyard-004).
+ * semihost_smoke.lds — Kaiwu-Tiny semihosting probe (m12-chipyard-004).
  *
  * Single PT_LOAD image in the Tiny SRAM window.  The layout is *fixed by
  * absolute address* so the program can materialise every pointer with

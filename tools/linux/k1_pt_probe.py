@@ -5,7 +5,7 @@ Boots the real kernel image on the Vast machine and checks the K1 boundary of
 the page-table milestone: the kernel builds its own L1 table, installs it in
 `cfx_ptw_ptbr`, and keeps running on it.
 
-    qemu-system-dadao -machine dadao-vast,bootrom-image=<k0 BootROM> \\
+    qemu-system-dadao -machine kaiwu-vast,bootrom-image=<k0 BootROM> \\
                       -nographic -semihosting-config enable=on,target=native \\
                       -kernel <vmlinux>
 
@@ -60,7 +60,7 @@ kernel with the corruption in place):
              is refused (0x09)
   no-expect  the deliberate unmapped access is not announced as a probe -> the
              live CFXMEM is reported by name and is fatal (supv+CFXMEM monitor
-             code, spec/Machine-v5 §7.1)
+             code, spec/Kaiwu §7.1)
 
 Usage::
 
@@ -463,7 +463,7 @@ INJECTIONS = {
     # The live counterpart of the negative case: the *check* still looks at the
     # good base, but the value actually written is unmapped.  The very next
     # instruction fetch makes the walker read a PTE outside physical memory, so
-    # the machine stops with the model's named machine fault (spec/Machine-v5
+    # the machine stops with the model's named machine fault (spec/Kaiwu
     # §7.1; DADAO-12 §5.2 step 7 gives the guest no recovery for an unmapped
     # vector page).  Expected: named exit, and no "post"/"done"/start_kernel
     # line — it never continues silently.
@@ -480,7 +480,7 @@ INJECTIONS = {
         PT_C,
         "\tif (dadao_trap_probe_register(&k1_pt_probe))",
         "\tif (0)",
-        0xe1,                 # supv + CFXMEM, spec/Machine-v5 §7.1
+        0xe1,                 # supv + CFXMEM, spec/Kaiwu §7.1
         r"^dadao: unrecoverable supv exception cause=CFXMEM\(0x2\) "
         r"ip=0x[0-9a-f]+ info={probe_va:#x} ptbr=0x0 sp=0x[0-9a-f]+$",
         r"^K1 ptw done",

@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/DadaoSEWorkload.py b/src/arch/dadao/DadaoSEWorkload.py
 new file mode 100644
-index 0000000..a6302f3
+index 0000000..56bd894
 --- /dev/null
 +++ b/src/arch/dadao/DadaoSEWorkload.py
 @@ -0,0 +1,17 @@
@@ -13,7 +13,7 @@ index 0000000..a6302f3
 +    cxx_class = "gem5::DadaoISA::SEWorkload"
 +    cxx_header = "arch/dadao/se_workload.hh"
 +
-+    # m16-gem5-007: semihosting responder for bare-metal Machine-v5 images.
++    # m16-gem5-007: semihosting responder for bare-metal Kaiwu images.
 +    # NULL (the default) leaves the SE trap path unchanged.
 +    semihosting = Param.DadaoSemihosting(NULL,
 +        "semihosting responder; NULL = no semihosting in SE mode")

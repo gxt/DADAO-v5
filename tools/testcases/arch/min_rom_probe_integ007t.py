@@ -15,7 +15,7 @@ Oracle for the user ruling of 2026-11-11 (algorithm:
 
 The probe builds the 64 KiB BootROM from the current sources with the shared
 builder, links ``tests/arch/hmon/tiny_hmon_min.S`` as an SRAM-only application
-at the fixed entry, runs QEMU ``dadao-tiny`` and compares the guest-exported
+at the fixed entry, runs QEMU ``kaiwu-tiny`` and compares the guest-exported
 observation table against spec-derived values (one-hot cause ids from
 ``spec/DADAO-12 §5.2``, fault IPs from ELF symbols, and the instruction word
 for ILLI/UNDI).
@@ -47,7 +47,7 @@ import paths  # noqa: E402
 TINY_FW = os.path.join(REPO_ROOT, "tests", "shared", "bootrom", "tiny")
 APP_SRC = os.path.join(REPO_ROOT, "tests", "arch", "hmon", "tiny_hmon_min.S")
 APP_LDS = os.path.join(REPO_ROOT, "tests", "shared", "linker",
-                       "dadao-tiny-app.lds")
+                       "kaiwu-tiny-app.lds")
 SHARED_ASM = os.path.join(REPO_ROOT, "tests", "shared", "asm")
 BUILDER = os.path.join(REPO_ROOT, "tools", "testcases", "arch",
                        "build_tiny_bootrom.py")
@@ -79,7 +79,7 @@ HMON_LAYOUT_WORDS = {
     0x24: 0x20FC00B4,
 }
 PASS_EXIT = 0x21
-# spec/Machine-v5 §1.1 / DADAO-13 §1: hmon SRAM base == initial exception
+# spec/Kaiwu §1.1 / DADAO-13 §1: hmon SRAM base == initial exception
 # vector.  power must not rewrite it (m13-integ-007 second revision).
 HMON_BASE = 0x0FFF_0000_0000
 
@@ -274,7 +274,7 @@ def main() -> int:
 
     print("integ007t: run")
     r = run([qemu, "-machine",
-             "dadao-tiny,bootrom-image=" + os.path.abspath(image_path),
+             "kaiwu-tiny,bootrom-image=" + os.path.abspath(image_path),
              "-kernel", os.path.abspath(app_elf), "-semihosting-config",
              "enable=on,target=native", "-display", "none", "-nographic"],
             cwd=run_dir, timeout=args.timeout)

@@ -19,7 +19,7 @@
 
 ## Overview
 
-This directory contains the QEMU-based ISA semantic test harness for `dadao-tiny`. The harness builds test binaries from vector YAML files, runs them in QEMU, and reports PASS/FAIL based on exit codes.
+This directory contains the QEMU-based ISA semantic test harness for `kaiwu-tiny`. The harness builds test binaries from vector YAML files, runs them in QEMU, and reports PASS/FAIL based on exit codes.
 
 **Key design principle (D1)**: No dependency on `llvm-mc`. All instruction words are generated directly via `struct.pack('>I', encoding_word)` from the vector YAML.
 
@@ -179,7 +179,7 @@ The `SYS_EXIT` epilogue writes the 64-bit argument block
 `trap` (semihosting tag).  The harness runs QEMU with
 `-semihosting-config enable=on,target=native` (ADR-0020 D7/D8).
 
-## Exit Code Protocol (spec/Machine-v5 §7.1; SYS_EXIT per ADR-0020 D8)
+## Exit Code Protocol (spec/Kaiwu §7.1; SYS_EXIT per ADR-0020 D8)
 
 | Range | Source | Meaning |
 |-------|--------|---------|
@@ -215,7 +215,7 @@ Monitor cause indices: `CFXTRAP`=0, `CFXMEM`=1 (`UNMAPPED` also maps here),
 ```bash
 # The harness does this automatically. For manual testing:
 # Start QEMU with QMP Unix socket and frozen CPU
-qemu-system-dadao -machine dadao-tiny -nographic -bios bootrom_tiny.bin -kernel test.bin \
+qemu-system-dadao -machine kaiwu-tiny -nographic -bios bootrom_tiny.bin -kernel test.bin \
   -qmp unix:/tmp/qemu-qmp.sock,server=on,wait=off -S
 
 # Connect to QMP, resume guest, dump memory

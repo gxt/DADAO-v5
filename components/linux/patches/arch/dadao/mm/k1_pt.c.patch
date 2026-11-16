@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/mm/k1_pt.c b/arch/dadao/mm/k1_pt.c
 new file mode 100644
-index 000000000..a193172fb
+index 000000000..72f41494e
 --- /dev/null
 +++ b/arch/dadao/mm/k1_pt.c
 @@ -0,0 +1,331 @@
@@ -65,7 +65,7 @@ index 000000000..a193172fb
 +#define K1_PT_TABLE_BYTES	(PTRS_PER_PGD * sizeof(pgd_t))
 +
 +/*
-+ * Page-table self-check codes: the guest FAIL segment of spec/Machine-v5 §7.1
++ * Page-table self-check codes: the guest FAIL segment of spec/Kaiwu §7.1
 + * (0x01-0x7f, value = check point index).  setup.c carries 0x04-0x08, so this
 + * file continues at 0x09.  They stay <= 0x7f for the same reason the boot-info
 + * codes do: the semihosting SYS_EXIT subcode IS the host process exit status,

@@ -318,7 +318,7 @@ def write_tmp(name, data):
 
 
 def run_qemu(elf_path=None, bios=None, kernel=None):
-    args = [QEMU, "-M", "dadao-tiny", "-nographic",
+    args = [QEMU, "-M", "kaiwu-tiny", "-nographic",
             "-semihosting-config", "enable=on,target=native"]
     if bios:
         args += ["-bios", bios]

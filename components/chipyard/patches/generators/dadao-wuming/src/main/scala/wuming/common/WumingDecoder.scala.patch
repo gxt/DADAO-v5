@@ -1,6 +1,6 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 new file mode 100644
-index 0000000..43bf222
+index 0000000..1f1f21f
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 @@ -0,0 +1,1219 @@
@@ -30,7 +30,7 @@ index 0000000..43bf222
 +//
 +// m12-chipyard-007 adds exactly what the BootROM firmware needs to make the
 +// `power -> hmon -> application` handoff run on this core (fixed firmware,
-+// spec/Machine-v5 §6.1/§6.2):
++// spec/Kaiwu §6.1/§6.2):
 +//
 +//   * `br.n`/`br.nn`/`br.z`/`br.nz`/`br.p`/`br.np` (rd) and `br.z`/`br.nz`
 +//     (rb) — the table-validation/copy loops of the power stub; relative to
@@ -1169,14 +1169,14 @@ index 0000000..43bf222
 +    when(ha === 0.U && imm18 =/= 0.U) { d.ill := true.B }
 +  }.elsewhen(opc === 0x7F.U) {
 +    // trap (spec/SimRISC-11).  The semihosting window is judged on immu18 only
-+    // (Machine-v5 §5.4, user ruling 2026-11-09), independent of cfxha; every
++    // (Kaiwu §5.4, user ruling 2026-11-09), independent of cfxha; every
 +    // other `trap cfx_hmon` is the CFXTRAP handoff of DADAO-12 §5.2.
 +    recognized := true.B
 +    d.isTrap := true.B
 +    d.cfxHa := ha
 +    d.isSemi := imm18(17, 8) === 0x3FF.U
 +    when(d.isSemi) {
-+      // Calling convention (contract-semihosting §2 / Machine-v5 §5.2): the
++      // Calling convention (contract-semihosting §2 / Kaiwu §5.2): the
 +      // service number is a *scalar* in rd16, the parameter-block pointer an
 +      // *address* in rb16.  rd16 rides on the r0 read port (a trap uses no
 +      // source operand), rb16 on the r2 port.  The trap immediate carries only

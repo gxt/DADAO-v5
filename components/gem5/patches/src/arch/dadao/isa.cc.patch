@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..65c4394
+index 0000000..06db751
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
 @@ -0,0 +1,448 @@
@@ -410,7 +410,7 @@ index 0000000..65c4394
 +    panic_if(fs == nullptr,
 +             "DADAO ISA: resetThread() is only valid for the FS machine");
 +
-+    // Reset values frozen by spec/Machine-v5 §1: PC = rb0 = reset vector,
++    // Reset values frozen by spec/Kaiwu §1: PC = rb0 = reset vector,
 +    // every other GPR/RA is zero, rf0 is the FCSR reset constant (GEM5-014t
 +    // §3) and rf1-rf63 are zero.  The platform never pre-sets SP.
 +    for (const auto &id : intRegClass)

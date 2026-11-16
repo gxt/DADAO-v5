@@ -1,6 +1,6 @@
 @@ fosgnj_orrr_rf — fosgnj（orrr, opc 0x44 / ha 0x1F）
 @@ 大类：07-floating-point（`spec/SimRISC-07`）；册目录 `tests/inst/07-floating-point/`
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 符号注入（`spec/SimRISC-07 §3`）：fosgnj rfHB, rfHC, rfHD
 @@ copySign：rfHC 除符号位外的位 + rfHD 的符号位；纯位操作：payload 逐位保留、不置任何标志

@@ -2,7 +2,7 @@
 @@
 @@ 目的（`tests/inst/MIGRATION.md` §3）：一个 opcode id 一个 `.S`，一行一个用例，
 @@ **期望值内联**。用例失败 ⇒ `SYS_EXIT(检查点号)`：guest FAIL 段 `0x01`–`0x7F`，
-@@ 值 = 失败点序号（`spec/Machine-v5 §7.1`）；机器异常例 ⇒ `SYS_EXIT(0xF0|异常位索引)`，
+@@ 值 = 失败点序号（`spec/Kaiwu §7.1`）；机器异常例 ⇒ `SYS_EXIT(0xF0|异常位索引)`，
 @@ 即 Tiny（运行模式恒 `hypv`）的 monitor 段编码：CFXMEM `0xF1`、CFXREG `0xF2`、
 @@ ILLI `0xF8`、MALIGN `0xFC`、IALIGN `0xFD`。
 @@
@@ -20,7 +20,7 @@
 @@     `SYS_EXIT(0xF0|位索引)`。故障例必须一例一镜像——异常不返回到被测指令之后，
 @@     因此同一个镜像无法继续下一例。
 @@
-@@ hmon 的返回地址：固件 hmon 从 hmon SRAM +0xF8 读返回地址（`spec/Machine-v5
+@@ hmon 的返回地址：固件 hmon 从 hmon SRAM +0xF8 读返回地址（`spec/Kaiwu
 @@ §6.2`：power 写默认值 `trap+4`，**框架可覆盖**）。故障例在触发前把落点
 @@ `TEST_PAD` 写进 0xF8，于是三方走同一个硬件入口（向量 → 异常帧 → 固件 hmon →
 @@ `escape`），测试不再自带处理器。`m12-chipyard-028` 起三方 BootROM 固件同版
@@ -890,7 +890,7 @@ __r0w_\@:
 @@   落点核对 cause_id one-hot，随后 `SYS_EXIT(0xF0|位索引)`。
 @@ ---------------------------------------------------------------------------
 
-@@ 把落点写进固件 hmon 的返回地址槽（hmon SRAM + 0xF8；`spec/Machine-v5 §6.2`）
+@@ 把落点写进固件 hmon 的返回地址槽（hmon SRAM + 0xF8；`spec/Kaiwu §6.2`）
 .macro __SET_HMON_RETURN
 	LOAD_ADDR rb20, HMON_BASE
 	LOAD_ADDR rb21, TEST_PAD
@@ -1315,7 +1315,7 @@ __fault_case:
 	.endif
 	.ifc	\fault, CFXMEM
 	@@ D4b：MemRAS 条目 = {计数 1, 返回地址 0xBBBB00000000（cfxha 46，其它 cfxha 段）}
-	@@   ⇒ 消费条目、PC = 该地址；Tiny 只在 cfxha 63/3 映射 ⇒ 取指 CFXMEM（Machine-v5 §1.2）
+	@@   ⇒ 消费条目、PC = 该地址；Tiny 只在 cfxha 63/3 映射 ⇒ 取指 CFXMEM（Kaiwu §1.2）
 	__LI	rd5, 0x0001BBBB00000000
 	LOAD_ADDR rb5, MEMRAS
 	st.o	rd5, [rb5, 0]

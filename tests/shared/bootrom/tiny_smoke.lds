@@ -1,5 +1,5 @@
 /*
- * tiny_smoke.lds — Machine-v5-Tiny loadmem smoke application (m12-chipyard-003).
+ * tiny_smoke.lds — Kaiwu-Tiny loadmem smoke application (m12-chipyard-003).
  *
  * The image is an ELF (not a flat binary) because the harness `+loadmem=`
  * loader consumes PT_LOAD segments; the BootROM trampoline jumps to the

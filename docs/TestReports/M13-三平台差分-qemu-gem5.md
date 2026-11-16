@@ -2,7 +2,7 @@
 # M13 三平台差分：qemu 与 gem5（Tiny profile，2026-11-10）
 
 - **生成时间**：2026-11-10（本地 `Asia/Shanghai`）
-- **覆盖范围**：`Machine-v5-Tiny`（`hypv` 恒态）；**chipyard 列暂缺**（`m12-chipyard-007` 未开始，非 `N/A` 的伪值）
+- **覆盖范围**：`Kaiwu-Tiny`（`hypv` 恒态）；**chipyard 列暂缺**（`m12-chipyard-007` 未开始，非 `N/A` 的伪值）
 - **数据来源**：`m13-qemu-001`（QEMU Tiny hmon）、`m13-gem5-001`（gem5 Tiny hmon）、`m13-gem5-002`（Tiny 恒 `hypv` + `cg3` 限制）、`m13-testcases-001`/`002` 全量长尾（`refs/m13-001-static-3600s-full.*`、`refs/m13-002-dynamic-3600s-full.*`）
 - **机器指纹**：节点 Intel Xeon E7-4820 @2.00 GHz（nproc 64）跑长尾；主控机 AMD EPYC 7773X 跑组件构建。`gem5.opt` md5 `53466b82…`（25.1.0.1）、`qemu-dadao` md5 `3c4660d2…`（11.1.1）、musl HEAD `61bd50e5…`
 

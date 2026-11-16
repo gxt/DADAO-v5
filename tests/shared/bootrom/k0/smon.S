@@ -1,4 +1,4 @@
-@@ smon.S — Machine-v5-Vast K1 smon firmware (spec/Machine-v5 §6.3, ADR-0051 D6)
+@@ smon.S — Kaiwu-Vast K1 smon firmware (spec/Kaiwu §6.3, ADR-0051 D6)
 @@
 @@ Linked at SMON_BASE (0x0bff_0000_0000, 64 KiB) and entered by
 @@ `trap cfx_smon, 0x30001` from the K1 boot hmon, which programs

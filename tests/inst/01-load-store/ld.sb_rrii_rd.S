@@ -6,7 +6,7 @@
 @@ 合法性：目的为 0 号寄存器 ⇒ ILLI
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节 beat，字面量见该文件）
 @@ 用例：encoding 2 / legality 2 / semantic 5 / boundary 6 / overlap 2（链例 15 + 故障例 2；故障例一例一镜像，`-defsym CASE_N=<点号>`）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 
 	.include "tests/inst/macros/inst_test.inc"

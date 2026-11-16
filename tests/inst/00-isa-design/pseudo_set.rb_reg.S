@@ -12,7 +12,7 @@
 @@     「单 wyde 非零」专例；另有「高 32 全 1」与稀疏位型；
 @@   * 校验一律 **64 位**：`st.o` 落 8 字节到 SCRATCH、`__CHECK_MEM` 整 beat 比（非只比低半）。
 @@ 用例：encoding 0 / semantic 16 / boundary 3 / overlap 1（链例 20，故障例 0）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；链例逐检查点把实测 8 字节
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；链例逐检查点把实测 8 字节
 @@   写入结果缓冲并逐字节打印 ⇒ 三平台比较的是字节流。
 @@ wyde 覆盖表（点号 → 源银行 / 非零 wyde）：
 @@   1: rd / wp3+wp2+wp1+wp0 | 2: rd / wp3+wp2+wp1+wp0 | 3: rd / wp3+wp2 | 4: rd / wp1

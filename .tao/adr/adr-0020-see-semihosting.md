@@ -1,6 +1,6 @@
 # ADR-0020: SEE/HEE 运行环境与 semihosting
 
-**状态**：Accepted（rev. 2026-11-05：D15 退出码编码改为指向 `spec/Machine-v5 §7.1`，见 `## 修订`）
+**状态**：Accepted（rev. 2026-11-05：D15 退出码编码改为指向 `spec/Kaiwu §7.1`，见 `## 修订`）
 **日期**：2026-10-07
 **修订注记（2026-10-26，`ADR-0038`）**：`D1`/`D10` 的 semihosting tag 判定（`immu18[17:16] == 2'b11`）已被 **`ADR-0038 D1`** 取代（新判定 `immu18[17:8] == 0x3FF`，范围 `0x3FF00–0x3FFFF`）；本 ADR 原文保留，仅此注记。
 **关联**：ADR-0004（测试机；本 ADR `D8` 取代其 `D3` 作为停机协议，`D15` 修订其核内地址空间划分口径）、ADR-0011（exit-port 可靠 halt）、ADR-0003（object ABI：大端 / ELF 头）、`INTEG-019k`（M5 规划）、`SPEC-113t`（本 ADR）、`SPEC-114t`（规范正文落点）、`QEMU-044t`/`045t`/`046t`/`047t`/`049t`、`LLVM-060t`、`TESTCASES-033t`/`034t`、`INTEG-020t`；`spec/DADAO-12`、`spec/DADAO-22-SBI-主管系统二进制接口.md`、`spec/SimRISC-11-其它.md`、`.tao/contracts/contract-abi.md`
@@ -13,13 +13,13 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
 
 本 ADR 命中 `docs/Process-03-ADR编写规范.md` 的 ADR 判据：**跨组件 / 需一致**（LLVM、QEMU、testcases、integ 多模块）、**有多方案且需记录取舍**（复用 vs 自建 responder；走向量 vs 译码短路）、**外部依赖 / 契约**（复用 QEMU 上游共享层）、**把结论固化为约束**（决策先行）。
 
-**承载位置（`D13`）**：本 ADR **只记决策/理由/被否方案/指向规范章节的引用**；semihosting 服务号值↔入参/出参表、SEE/semihosting 调用约定、`switch_run_mode` 语义、`CFXMEM`/`NUPERM` 等异常语义的正文**入 `spec/`**（归 `SPEC-114t`；新建 `spec/Machine-v5-测试机运行环境.md` 为正文落点）。ADR **不承载规范正文**（`docs/Process-03-ADR编写规范.md`「ADR 不承载规范正文」）。
+**承载位置（`D13`）**：本 ADR **只记决策/理由/被否方案/指向规范章节的引用**；semihosting 服务号值↔入参/出参表、SEE/semihosting 调用约定、`switch_run_mode` 语义、`CFXMEM`/`NUPERM` 等异常语义的正文**入 `spec/`**（归 `SPEC-114t`；新建 `spec/Kaiwu-测试机运行环境.md` 为正文落点）。ADR **不承载规范正文**（`docs/Process-03-ADR编写规范.md`「ADR 不承载规范正文」）。
 
 **上游对照（只读、非执行依赖）**：QEMU 共享层 `semihosting/arm-compat-semi.c` 提供 `do_common_semihosting(cs)`（声明于 `include/semihosting/common-semi.h`）；target 钩子范式 `target/riscv/common-semi-target.c`；接入点 `target/riscv/tcg/insn_trans/trans_privileged.c.inc` 抛 `RISCV_EXCP_SEMIHOST` → `target/riscv/tcg/cpu_helper.c`：`do_common_semihosting(cs); env->pc += 4;`。v5 照搬此范式。
 
 ## Decision（决策）
 
-- **D1**（入口判定）：`trap cfxHA, immu18` 中 **`immu18[17:16] == 2'b11`** ⇒ semihosting（**与 `cfxha` 无关**）。本 tag 属**架构自定义**——`spec/DADAO-22-SBI-主管系统二进制接口.md:7`（`trap cfxha, immu18`：`cfxha` 为服务提供者、`immu18` 为功能编号）与 `spec/SimRISC-11-其它.md:89`（`immu18` 功能编号）**均无 semihosting 语义**；其语义/理由说明落 `spec/Machine-v5-*`（归 `SPEC-114t`），本 ADR 只留决策。
+- **D1**（入口判定）：`trap cfxHA, immu18` 中 **`immu18[17:16] == 2'b11`** ⇒ semihosting（**与 `cfxha` 无关**）。本 tag 属**架构自定义**——`spec/DADAO-22-SBI-主管系统二进制接口.md:7`（`trap cfxha, immu18`：`cfxha` 为服务提供者、`immu18` 为功能编号）与 `spec/SimRISC-11-其它.md:89`（`immu18` 功能编号）**均无 semihosting 语义**；其语义/理由说明落 `spec/Kaiwu-*`（归 `SPEC-114t`），本 ADR 只留决策。
 
 - **D2**（传参/返回寄存器）：号（标量）→ **`rd16`（=`rda0`）**；参数块指针（地址）→ **`rb16`**；返回值 → **`rd31`**（指针返回才用 `rb31`，semihosting 不用）。对齐共享层 `common_semi_arg(cs,0)` = 号、`common_semi_arg(cs,1)` = 参数块指针。**不另设 `rd15`**（`rd15` 是 umon/jmon 系统调用号）。依据 `.tao/contracts/contract-abi.md §4.1`（`rd16–rd31` 数据参数、`rb16–rb31` 地址参数）、`§4.4`（`rd31` 标量返回、`rb31` 指针返回）、`spec/DADAO-22-SBI-主管系统二进制接口.md:13`（参数传递与 ABI 一致）。
 
@@ -58,8 +58,8 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
   | **boot ROM** | `0xffff_ffff_0000` | 64 KiB | 63 / `power` | 复位向量 = `cfx_power_hypv_excp_vector`；`-bios` 加载 |
 
   - **越界访问与越界取指均须报异常（含取指路径）**：访问或取指落入映射之外的核内地址 ⇒ 触发异常；**取指路径与数据访问路径同等对待**（不得只覆盖数据访问）。不得静默继续/静默丢弃。
-  - **异常语义与退出码（spec 层 vs 测试机层）**：spec 层只定义异常原因（见 `DADAO-12` 异常原因表）；测试机退出码的分段、monitor/其它 cfx 编码、`CFXMEM` 落点，以及未映射与 A/D 回写失败的归属，均以 `spec/Machine-v5-测试机运行环境.md §7.1` 为唯一正文。本决策不再维护退出码派生公式或逐码表。
-  - **精确路由与容量**：按 profile 的越界路由、地址划分与 RAM 容量以 `spec/Machine-v5 §1` 为准。
+  - **异常语义与退出码（spec 层 vs 测试机层）**：spec 层只定义异常原因（见 `DADAO-12` 异常原因表）；测试机退出码的分段、monitor/其它 cfx 编码、`CFXMEM` 落点，以及未映射与 A/D 回写失败的归属，均以 `spec/Kaiwu-测试机运行环境.md §7.1` 为唯一正文。本决策不再维护退出码派生公式或逐码表。
+  - **精确路由与容量**：按 profile 的越界路由、地址划分与 RAM 容量以 `spec/Kaiwu §1` 为准。
 
 ## Rationale（理由）
 
@@ -73,7 +73,7 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
 - **bootrom 用自有工具链、`-bios` 加载（D12）**：bootrom 是 LLVM 新指令（`trap`/`escape`/`cfx2*`）的**首个真实用户**，同时验证工具链与机器模型；`-bios` + 复位向量不变可最小化对既有启动模型的影响。
 - **`SYS_EXIT` 取代 exit-port（D8）**：exit-port 是 v5 自定、非 spec 语义；semihosting `SYS_EXIT` 是标准停机协议，且 `ADR-0011` 已保证 halt 确定性——迁移后可回归上游语义。
 - **默认 `gdb`/沙箱（D7）**：CI 无 GDB 时 `auto` 会退化为 `native`，行为不确定且暴露 `SYSTEM` 宿主命令风险；显式默认 `gdb`/沙箱更安全。
-- **D15 越界必须报异常（含取指）**：核内地址空间模型要求非法访问/取指**显式 fault**，而非静默；`CFXMEM` 是 spec 的对应 cause，测试机退出码的分段、编码与落点见 `spec/Machine-v5 §7.1`。
+- **D15 越界必须报异常（含取指）**：核内地址空间模型要求非法访问/取指**显式 fault**，而非静默；`CFXMEM` 是 spec 的对应 cause，测试机退出码的分段、编码与落点见 `spec/Kaiwu §7.1`。
 
 ### 被否方案
 
@@ -96,7 +96,7 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
   - **上游依赖**：复用共享层 API（`do_common_semihosting`、`common-semi-target.c` 钩子、`is_64bit_semihosting` 等）与 QEMU baseline 绑定；升级 QEMU baseline（`ADR-0002`/`ADR-0008`）时须复核其语义。
   - **`SYSTEM` 安全风险**：`SYSTEM`（执行宿主命令）为**已登记已知风险**；默认 `gdb`/沙箱（`D7`）为缓解手段，`native` 须显式开启。
   - **迁移成本**：exit-port → `SYS_EXIT` **范围 = 全部**（M1–M4 全部依赖 exit-port 的向量/harness 须迁移，`D8`），由 `TESTCASES-034t` 承接；`ISS-147`（exit 码与 fault 区重叠）随迁处置。
-  - **`D1` tag 无 spec 依据**：`immu18[17:16]==2'b11` 属架构自定义，须在 `spec/Machine-v5-*` 明示（`SPEC-114t`）。
+  - **`D1` tag 无 spec 依据**：`immu18[17:16]==2'b11` 属架构自定义，须在 `spec/Kaiwu-*` 明示（`SPEC-114t`）。
   - **`D9` 权限语义层次**：PTBR 权限（`NUPERM/NJPERM/NSPERM/NHPERM`，`§2.2`）与 cfx 访问权限（`§5` 的 cfx mask → `ILLI`）为两个层次，须在 `SPEC-114t`/`QEMU-044t` 讲清。
   - **`D15` 双映射过渡**：`QEMU-049t`（step1，M5）= 机器模型同时映射 RAM@0 + 保留旧 RAM 段 + `check-interface` **新增** RAM@0 断言（旧断言保留）⇒ 每任务门控保持全绿；**step2**（旧向量/harness/`crt0`/e2e 迁到 `0` + 删旧 RAM 段 + 收紧断言）= **另立、M5 之外**。
   - **下游约束**：`SPEC-114t`（正文：服务表 / 调用约定 / 权限 / `CFXMEM` 语义）、`LLVM-060t`（`trap`/`escape`/`cfx2rc`/`cfx2rd`）、`QEMU-044t`–`QEMU-047t`/`QEMU-049t`、`TESTCASES-033t`/`034t`、`INTEG-020t`（`make test-semihost`）均以本 ADR 的决策为前提。
@@ -106,10 +106,10 @@ M5 要把 QEMU 从「裸机、无 syscall、exit-port 停机」升级为「**SEE
 **Accepted（2026-10-07）**：`D1`–`D15` 已由用户于 **2026-10-07 逐条判定**（保留 / 修改 / 新增），**无否决未处置**，故由 `Candidate` 置 `Accepted`。
 
 - **判定方式**：用户 2026-10-07 以**总述 + 后续两问回答**给出裁定（原话见 `.tao/tasks/spec/SPEC-113t-ADR决策落地.md` 完成区与 §四「用户逐条裁定结果」）。
-- **本轮被特别指出的条目**：**`D1`**（决策保留；其语义说明移 `spec/Machine-v5-*`，归 `SPEC-114t`）、**`D15`**（新增 decision）、以及 `ADR-0004` 的 `R1`/`R2`/`R3`。
+- **本轮被特别指出的条目**：**`D1`**（决策保留；其语义说明移 `spec/Kaiwu-*`，归 `SPEC-114t`）、**`D15`**（新增 decision）、以及 `ADR-0004` 的 `R1`/`R2`/`R3`。
 - **推定保留 + 用户明确确认**：`D2`–`D14` 未在总述中特别指出，按主会话声明「**未特别指出者视为保留**」推定保留，并**经用户明确确认**；该推定为默认推定，若用户对某条另有意见，按 `docs/Process-03` 处置（新增 ADR / 标 `Superseded` / 经授权就地修订）。
 - **决策变更**：**新增 ADR 或标注 `Superseded`**，不直接改写已 `Accepted` 的决策（`docs/Process-03`）。
 
 ## 修订
 
-**rev. 2026-11-05（退出码迁移）：D15 改为指针。** D15 中测试机退出码的派生公式、逐码表与未映射独立码表述改为指向 `spec/Machine-v5-测试机运行环境.md §7.1`；退出码采用 guest pass（`0x00`–`0x3F`）/ guest fail（`0x40`–`0x7F`）/ 机器 fault（`0x80`–`0xFF`）三分，机器 fault 再分其它 cfx 段与 monitor 段。D15 的「越界访问与越界取指均须报异常（含取指路径）」结论不变；D1–D14 与 D15 的其余语义不改。
+**rev. 2026-11-05（退出码迁移）：D15 改为指针。** D15 中测试机退出码的派生公式、逐码表与未映射独立码表述改为指向 `spec/Kaiwu-测试机运行环境.md §7.1`；退出码采用 guest pass（`0x00`–`0x3F`）/ guest fail（`0x40`–`0x7F`）/ 机器 fault（`0x80`–`0xFF`）三分，机器 fault 再分其它 cfx 段与 monitor 段。D15 的「越界访问与越界取指均须报异常（含取指路径）」结论不变；D1–D14 与 D15 的其余语义不改。

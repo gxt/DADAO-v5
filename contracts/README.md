@@ -10,7 +10,7 @@
 | `abi.yaml` | 参数寄存器编号、callee-saved 列表、DataLayout | `contract-abi.md`（`SPEC-004t`） |
 | `legality_rules.yaml` | 非法编码组合、非对齐访问规则 | `contract-isa.md` 异常条款（`SPEC-008t`） |
 | `fp_semantics.yaml` | FP（`scope: fp`，60 条）语义投影：FCSR 环境、12 族、`id→family→spec_cite→semantics_ref→legality_refs`（不含编码、不含期望值） | `contract-fp.md`（`SPEC-087t`） |
-| `linux-boot.yaml` | 启动 ABI 投影：boot info 15 字段（偏移/宽度/`kind`）、内存分区、进入状态、装载规则；与 `Machine-v5 §6.3` 逐字段一致 | `contract-linux-boot.md`（`m14-spec-001`） |
+| `linux-boot.yaml` | 启动 ABI 投影：boot info 15 字段（偏移/宽度/`kind`）、内存分区、进入状态、装载规则；与 `Kaiwu §6.3` 逐字段一致 | `contract-linux-boot.md`（`m14-spec-001`） |
 
 ## 原则
 

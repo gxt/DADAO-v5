@@ -5,7 +5,7 @@ K2 makes the supv synchronous-exception entry a channel instead of the K1
 one-shot probe: the entry captures the whole register file, the C half
 dispatches by cause, resumable faults come back through the registered probe
 API, everything else stops with a named cause and the exit code
-spec/Machine-v5 §7.1 assigns to it.
+spec/Kaiwu §7.1 assigns to it.
 
 What this gate asserts, and where each expectation comes from (nothing is
 restated here):
@@ -13,7 +13,7 @@ restated here):
   * the cause table (11 names + ids) -> parsed live out of
     ``spec/DADAO-13 §2`` (contract-see §6.1 is the same table);
   * the exit-code segmentation -> parsed live out of
-    ``spec/Machine-v5 §7.1``: the segment ranges, the run-mode encoding
+    ``spec/Kaiwu §7.1``: the segment ranges, the run-mode encoding
     (``supv = 10b``) and the 11 monitor bit indices;
   * the escape offsets -> ``escape cfx_smon, [excp_cause_ip, {0,4}]`` in
     ``.tao/contracts/contract-see.md`` §4;
@@ -131,7 +131,7 @@ IMAGES["cfxesc"] = _image(selftest=True, terminal="CFXESC")
 TERMINAL_IMAGES = ("probe", "reentry", "cftrap", "cfxesc")
 
 SPEC_DADAO13 = _REPO / "spec" / "DADAO-13-HEE-超管系统运行环境.md"
-SPEC_MACHINE = _REPO / "spec" / "Machine-v5-测试机运行环境.md"
+SPEC_MACHINE = _REPO / "spec" / "Kaiwu-测试机运行环境.md"
 CONTRACT_SEE = _REPO / ".tao" / "contracts" / "contract-see.md"
 SOURCE = linux_paths.linux_source_dir()
 
@@ -192,7 +192,7 @@ def spec_exit_segments() -> dict:
     text = SPEC_MACHINE.read_text(encoding="utf-8")
     section = text.split("### 7.1", 1)
     if len(section) != 2:
-        raise SystemExit("k2_trap_probe: spec/Machine-v5 §7.1 not found")
+        raise SystemExit("k2_trap_probe: spec/Kaiwu §7.1 not found")
     body = section[1].split("\n### ", 1)[0]
 
     # Ranges are spelled `0x00` / `0x01`–`0x7F` / ... with the segment name in
@@ -1079,7 +1079,7 @@ def main() -> int:
     plain_code = _monitor_code(specs, "supv", "CFXMEM")
     print(f"k2: qemu={k0.DEFAULT_QEMU} md5={md5(Path(k0.DEFAULT_QEMU))[:8]}")
     print(f"k2: spec/DADAO-13 §2 causes={len(table)} "
-          f"spec/Machine-v5 §7.1 supv={specs['modes']['supv']:02b}b "
+          f"spec/Kaiwu §7.1 supv={specs['modes']['supv']:02b}b "
           f"CFXMEM index={specs['indices']['CFXMEM']} "
           f"=> supv+CFXMEM exit code {hex(plain_code)}")
     # The task book's ruling quotes 0xD0|bit for supv, which §7.1 assigns to

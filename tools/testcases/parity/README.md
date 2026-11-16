@@ -306,7 +306,7 @@ f2i 舍入方向修正（`GEM5-032t` 定位），现双引擎 `Tested 76404 func
 
 ## shim 参数子集与限制
 
-支持：`-M`/`-machine {dadao-tiny,dadao-vast}[,bootrom-image=]`、`-bios`、
+支持：`-M`/`-machine {kaiwu-tiny,kaiwu-vast}[,bootrom-image=]`、`-bios`、
 `-kernel`、`-semihosting-config enable=on,target=native[,chardev=][,arg=…]`、
 `-chardev file,id=…,path=…`、`-nographic`、`-display none`、`-monitor none`、
 `-serial none`、`-d cpu -D <log>`、`-dfilter <base+size,…>`（对 gem5 trace 做
@@ -323,10 +323,10 @@ gem5 进程 stdin，`SYS_READC` 读到与 QEMU 相同的字节（不再记 BLOCK
 
 > **Vast embench 归历史、不计入 M11 Vast 验收**（见上「M11 收口口径」）；M11 起 Vast 不跑 Embench，当前矩阵不再生成 `vast/embench` 行。本节只说明旧快照时期的 wrapper 机制。
 
-`run_embench_e2e.py` 固定发 `-M dadao-tiny`（Tiny 形状）。Vast 矩阵的证据层
-wrapper 把它改写为 `dadao-vast,bootrom-image=…`，其余 argv 原样，
+`run_embench_e2e.py` 固定发 `-M kaiwu-tiny`（Tiny 形状）。Vast 矩阵的证据层
+wrapper 把它改写为 `kaiwu-vast,bootrom-image=…`，其余 argv 原样，
 并把每次改写后的 argv 落 JSON 日志；矩阵 `qemu.machine` 从日志回填，判据检查
-Vast/embench 行必须含 `dadao-vast` 且有 wrapper 记录。
+Vast/embench 行必须含 `kaiwu-vast` 且有 wrapper 记录。
 
 ## 证据与快照
 

@@ -1,10 +1,10 @@
 diff --git a/src/arch/dadao/fs_tlb.cc b/src/arch/dadao/fs_tlb.cc
 new file mode 100644
-index 0000000..e6c75ef
+index 0000000..365448f
 --- /dev/null
 +++ b/src/arch/dadao/fs_tlb.cc
 @@ -0,0 +1,105 @@
-+// DADAO FS TLB -- identity translation with Machine-v5-Tiny segment rules.
++// DADAO FS TLB -- identity translation with Kaiwu-Tiny segment rules.
 +#include "arch/dadao/fs_tlb.hh"
 +
 +#include "arch/dadao/fs_machine.hh"
@@ -34,7 +34,7 @@ index 0000000..e6c75ef
 +        const Addr pc = req->hasPC() ? req->getPC() : MaxAddr;
 +        const Addr ip = (pc != MaxAddr) ? pc : vaddr;
 +        if ((vaddr & 0x3) != 0 || (pc != MaxAddr && (pc & 0x3) != 0)) {
-+            // spec/Machine-v5 §4.4: the illegal IP is both the faulting IP
++            // spec/Kaiwu §4.4: the illegal IP is both the faulting IP
 +            // and the recorded cause_ip/cause_info (no next-IP write-back).
 +            return machineFaultAt(FaultIALIGN, ip, ip);
 +        }
@@ -47,7 +47,7 @@ index 0000000..e6c75ef
 +    if (!rom && !sram && !hmon) {
 +        // Any other address (addr[47:42] == 0, the gap, cfxha 63 outside the
 +        // BootROM/SRAM, or cfxha 3 outside the hmon SRAM) is CFXMEM on both
-+        // the fetch and the data path (spec/Machine-v5 §1.2).
++        // the fetch and the data path (spec/Kaiwu §1.2).
 +        const Addr ip = (mode == BaseMMU::Execute) ? vaddr : instPc;
 +        return machineFaultAt(FaultCFXMEM, ip, vaddr);
 +    }

@@ -72,7 +72,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P2】gem5 `tinyEnter` 直接取 `switch_run_mode` 作为新运行模式：guest 先把该寄存器写成 !=3 再触发同步异常，就会**离开 hypv**；QEMU 对非 user profile 强制 `HYPV`（引 `Machine-v5 §2` 「Tiny 运行模式恒 hypv」）。同时 gem5 未实现 `cg3 仅 hypv 可访问`（`DADAO-13 §1`）。 影响：三平台差分时 Tiny 的越权路径会分叉。建议在 M13 差分（`m13-integ-002`/`003`）前修， 改动量小（`tinyEnter` 强制 HYPV + cg3 访问检查）。 证据：`m13-gem5-001` reviewer 第 1 轮 finding 3。
+  title: 【P2】gem5 `tinyEnter` 直接取 `switch_run_mode` 作为新运行模式：guest 先把该寄存器写成 !=3 再触发同步异常，就会**离开 hypv**；QEMU 对非 user profile 强制 `HYPV`（引 `Kaiwu §2` 「Tiny 运行模式恒 hypv」）。同时 gem5 未实现 `cg3 仅 hypv 可访问`（`DADAO-13 §1`）。 影响：三平台差分时 Tiny 的越权路径会分叉。建议在 M13 差分（`m13-integ-002`/`003`）前修， 改动量小（`tinyEnter` 强制 HYPV + cg3 访问检查）。 证据：`m13-gem5-001` reviewer 第 1 轮 finding 3。
 - id: ISS-364
   scope:
   - testcases
@@ -228,7 +228,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P2】**需用户裁定**：`m13-spec-001` 只授权就地修订 `ADR-0004`，但两处活正文仍写旧 guest 分区——`ADR-0009 D5`（decision 正文，非修订节）与 `components/chipyard/README.md:44`。选项：① 就地修订这两处（需用户逐条确认 ADR-0009 的 decision 变更）；② 改为指针引用 `spec/Machine-v5 §7.1`（ADR 不承载规范正文）。
+  title: 【P2】**需用户裁定**：`m13-spec-001` 只授权就地修订 `ADR-0004`，但两处活正文仍写旧 guest 分区——`ADR-0009 D5`（decision 正文，非修订节）与 `components/chipyard/README.md:44`。选项：① 就地修订这两处（需用户逐条确认 ADR-0009 的 decision 变更）；② 改为指针引用 `spec/Kaiwu §7.1`（ADR 不承载规范正文）。
 - id: ISS-385
   scope:
   - chipyard
@@ -591,7 +591,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2】`fence` 的保留 cfx 集三平台不一致：保留集真源是 `Machine-v5 §1.2` + `DADAO-12 §1` 的编号表 = `6–14, 16–31, 35–61`（`hb≠0` ⇒ ILLI）；`19–61` 是 `DADAO-12` 0.7.3-rc / `Machine-v5` 附录 0.4.0 的**残留口径**（疑 QEMU 根因）。探针只采样 16/17/18 与 32/33/34，下界 19 属**推断**，实测 **QEMU 的保留集是 `6–14, 19–61`** ⇒ cfx16/17/18 QEMU 放行、cfx32/33/34 QEMU 报异常（chipyard/gem5 与 spec 一致）。由 `m13-testcases-027` 的 `probe_gap.py` 钉住。"
+  title: "【P2】`fence` 的保留 cfx 集三平台不一致：保留集真源是 `Kaiwu §1.2` + `DADAO-12 §1` 的编号表 = `6–14, 16–31, 35–61`（`hb≠0` ⇒ ILLI）；`19–61` 是 `DADAO-12` 0.7.3-rc / `Kaiwu` 附录 0.4.0 的**残留口径**（疑 QEMU 根因）。探针只采样 16/17/18 与 32/33/34，下界 19 属**推断**，实测 **QEMU 的保留集是 `6–14, 19–61`** ⇒ cfx16/17/18 QEMU 放行、cfx32/33/34 QEMU 报异常（chipyard/gem5 与 spec 一致）。由 `m13-testcases-027` 的 `probe_gap.py` 钉住。"
 - id: ISS-433
   scope:
   - chipyard
@@ -623,7 +623,7 @@
   status: closed
   closed_in: M13
   resolved_by: ISS-436 补账（11 册 sha256 补算 + 逐册授权注记，正文未改）
-  title: "【P1】`check-spec-readonly` 在 master 红：**11/21 册 sha256 与锁不符**（`SimRISC-01/02/07/08/09/10`、`DADAO-11/12/22`、`Toolchain-01`、`Machine-v5`）。成因：这些册的正文在后续任务里被改（浮点写宽/饱和口径、`Toolchain-01` 改中性表述、`DADAO-11/12/22` 修订等），**未在同一变更内重算锁哈希**（`Process-06 §5` 要求同笔更新）。锁的校验因此长期失效：既无法证明只读，也无法发现越权修改。需逐册核对改动是否有用户授权原话，再重算锁并追加注记（属 spec 面收口任务，不可批量刷哈希掩盖无授权改动）。"
+  title: "【P1】`check-spec-readonly` 在 master 红：**11/21 册 sha256 与锁不符**（`SimRISC-01/02/07/08/09/10`、`DADAO-11/12/22`、`Toolchain-01`、`Kaiwu`）。成因：这些册的正文在后续任务里被改（浮点写宽/饱和口径、`Toolchain-01` 改中性表述、`DADAO-11/12/22` 修订等），**未在同一变更内重算锁哈希**（`Process-06 §5` 要求同笔更新）。锁的校验因此长期失效：既无法证明只读，也无法发现越权修改。需逐册核对改动是否有用户授权原话，再重算锁并追加注记（属 spec 面收口任务，不可批量刷哈希掩盖无授权改动）。"
 - id: ISS-437
   scope:
   - infra
@@ -737,7 +737,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2】semihosting 指针定为 PA 后，QEMU 的 `SYS_WRITE0`/字符串类路径仍经页表翻译，与规范不符：用户 2026-11-15 裁定「semihosting 参数指针 = PA」（已写进 `spec/Machine-v5 §5.2` 与 `contract-semihosting §2`，要求「不经页表翻译」），但 QEMU 侧 `SYS_WRITEC`/`SYS_EXIT` 走 `translate_for_debug`（identity，仅 `[0,2GiB)`∪ROM∪SRAM），`SYS_WRITE0` 先 `target_strlen` 再 `probe_access_flags`（**走页表**）⇒ 开 PTW 后两窗口不相交，`SYS_WRITE0` 无法按 PA 正确取串。另 `translate_for_debug` 注释仍写「DADAO has no MMU」（Vast+PTW 下已过时）。处置：让 semihosting 取参统一走 identity/PA 路径（或明确 VA 与 PA 双支持），同步改注释，并加一条门控（Vast+PTW 下 `SYS_WRITE0` 取串成功）。"
+  title: "【P2】semihosting 指针定为 PA 后，QEMU 的 `SYS_WRITE0`/字符串类路径仍经页表翻译，与规范不符：用户 2026-11-15 裁定「semihosting 参数指针 = PA」（已写进 `spec/Kaiwu §5.2` 与 `contract-semihosting §2`，要求「不经页表翻译」），但 QEMU 侧 `SYS_WRITEC`/`SYS_EXIT` 走 `translate_for_debug`（identity，仅 `[0,2GiB)`∪ROM∪SRAM），`SYS_WRITE0` 先 `target_strlen` 再 `probe_access_flags`（**走页表**）⇒ 开 PTW 后两窗口不相交，`SYS_WRITE0` 无法按 PA 正确取串。另 `translate_for_debug` 注释仍写「DADAO has no MMU」（Vast+PTW 下已过时）。处置：让 semihosting 取参统一走 identity/PA 路径（或明确 VA 与 PA 双支持），同步改注释，并加一条门控（Vast+PTW 下 `SYS_WRITE0` 取串成功）。"
 - id: ISS-451
   scope:
   - qemu
@@ -752,7 +752,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P3】`SYS_READC` 的取字缓冲用 `common_semi_stack_bottom(cs) - 1`：该值在 Vast 下是**内核 SP（VA）**，而 semihosting 现已定为 PA 口径（`spec/Machine-v5 §5.2`）⇒ 应改为该栈底槽位的 **PA**（`__pa` 化），或改用不落在内核栈的专用 PA 缓冲。同族还有 `SYS_FLEN` 的内部缓冲（`SP-64`，同为 VA）；`m14-qemu-002` 复核时发现，K1 未用这两条服务，故当前无观测差异。处置：与 semihosting PA 口径一致性一起修（取字/取缓冲改 PA），并补 Vast+PTW 下的 `SYS_READC`/`SYS_FLEN` 断言。"
+  title: "【P3】`SYS_READC` 的取字缓冲用 `common_semi_stack_bottom(cs) - 1`：该值在 Vast 下是**内核 SP（VA）**，而 semihosting 现已定为 PA 口径（`spec/Kaiwu §5.2`）⇒ 应改为该栈底槽位的 **PA**（`__pa` 化），或改用不落在内核栈的专用 PA 缓冲。同族还有 `SYS_FLEN` 的内部缓冲（`SP-64`，同为 VA）；`m14-qemu-002` 复核时发现，K1 未用这两条服务，故当前无观测差异。处置：与 semihosting PA 口径一致性一起修（取字/取缓冲改 PA），并补 Vast+PTW 下的 `SYS_READC`/`SYS_FLEN` 断言。"
 - id: ISS-453
   scope:
   - chipyard

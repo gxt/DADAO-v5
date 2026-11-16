@@ -2,7 +2,7 @@
 
 **状态**：Accepted
 **日期**：2026-11-15
-**关联**：ADR-0045（cfx 权限）、ADR-0046（cfx 寄存器 profile）、`m16-chipyard-001`（周期模型收口复测）、`spec/Machine-v5`、`spec/DADAO-12/13`
+**关联**：ADR-0045（cfx 权限）、ADR-0046（cfx 寄存器 profile）、`m16-chipyard-001`（周期模型收口复测）、`spec/Kaiwu`、`spec/DADAO-12/13`
 
 ## Context（背景）
 
@@ -23,7 +23,7 @@ chipyard 惯例支持该形态：`generators/` 31 个目录中除核以外还有
 - **D3 IO 契约显式**：`GewuFileIO` 覆盖 cfx 读/写（`cg`/`rc`/`ha`/数据/写使能/匹配）、异常入口（cause id/ip/info、vector、prev run mode）、异常帧存在与清除、运行模式、IP、中断 mask、`escape`、`power`、`hmon` 与重定向请求；**输入只接受架构级事件**（"提交一条 cfx 写"/"进入异常"/"escape 返回"），不得依赖某条流水的内部信号。
 - **D4 重定向责任归 core**：`Gewu` 只输出 `redirectReq`/`redirectTarget`（附 cause 信息），**PC 与 flush 一律由 core 驱动**（现状 `cfxVector(0)` 直驱 `ip :=` / `continueAt(...)`，`WumingCore.scala:936–937`，需改为端口）。
 - **D5 参数化**：hart 数、帧数、实现的 cfx 集与位宽走 `Parameters`（现状硬编码 `Seq.fill(2)` 等），新增 `GewuParams` 由调用核注入；`gewu` 源码内不得出现具体核的常量。
-- **D6 术语单一**：模块/文件名 `Gewu`，**寄存器名保持 `cfx_*`**（与 `spec/Machine-v5`、`ADR-0046` 一致）；`GewuFile.scala` 文件头写明「Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）」。**spec 不改名**——规范描述的是 cfx 寄存器，不是 Gewu。
+- **D6 术语单一**：模块/文件名 `Gewu`，**寄存器名保持 `cfx_*`**（与 `spec/Kaiwu`、`ADR-0046` 一致）；`GewuFile.scala` 文件头写明「Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）」。**spec 不改名**——规范描述的是 cfx 寄存器，不是 Gewu。
 - **D7 搬迁范围**：只搬 cfx 的**状态与判权/分发**（含 trap/escape/power/hmon 相关）；**decoder 的 cfx 指令类解码留在 `wuming`**（`WumingDecoder.scala` 现有 37 处），作为 `Gewu` 的输入信号，不搬。
 
 ## Rationale（理由）

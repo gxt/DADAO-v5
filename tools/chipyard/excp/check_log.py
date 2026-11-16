@@ -4,7 +4,7 @@
 Reads the ``+verbose`` harness log of ``tools/chipyard/excp/app.S`` and checks
 it against values that come from the *outside* of the run:
 
-  * cause ids / `cause_info` semantics from `spec/Machine-v5 §4.4` and
+  * cause ids / `cause_info` semantics from `spec/Kaiwu §4.4` and
     `spec/DADAO-13 §2`;
   * faulting instruction addresses from the ELF symbols (`llvm-nm`);
   * instruction words (the `cause_info` of ILLI/UNDI/CFXREG/CFXTRAP) from the

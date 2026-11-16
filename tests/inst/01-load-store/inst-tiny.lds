@@ -13,7 +13,7 @@
  *   ENTRY + 0x5000  SYS_EXIT 参数块（运行时写，不进镜像）
  *
  * 单 PT_LOAD、RWX：chipyard `+loadmem=`、QEMU `-kernel <ELF>`、gem5 FS
- * `--kernel <ELF>` 三方装载同一份镜像（`spec/Machine-v5 §6`）。
+ * `--kernel <ELF>` 三方装载同一份镜像（`spec/Kaiwu §6`）。
  */
 
 ENTRY(_start)

@@ -1,6 +1,6 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..83e6a02
+index 0000000..e66a2a6
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 @@ -0,0 +1,341 @@
@@ -9,7 +9,7 @@ index 0000000..83e6a02
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
 +//
 +// cfx is the machine-level control plane of the DADAO machine (spec/
-+// `DADAO-12`, `DADAO-13`, `Machine-v5`): a register file plus the authority
++// `DADAO-12`, `DADAO-13`, `Kaiwu`): a register file plus the authority
 +// checks, the exception frame, `escape`/`power`/`hmon`.  It is *not* a
 +// pipeline unit, so it is shipped as its own chipyard generator (`gewu`) and
 +// any core that wants cfx just instantiates `GewuFile` and puts it on its
@@ -33,7 +33,7 @@ index 0000000..83e6a02
 +//     modes, the register widths) comes from `GewuParams`; this file contains
 +//     no core constant.
 +//   * D6 — the module/file is `Gewu`, the *registers* keep their `cfx_*` names
-+//     (`spec/Machine-v5` §3, `ADR-0046`): the spec describes the cfx register
++//     (`spec/Kaiwu` §3, `ADR-0046`): the spec describes the cfx register
 +//     file, not `Gewu`.
 +//   * D7 — instruction decoding of the cfx instructions (`trap`/`escape`/
 +//     `cfx2rd`/`cfx2rc`) is *not* here: each core's decoder owns that and hands

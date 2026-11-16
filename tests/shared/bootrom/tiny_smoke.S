@@ -1,10 +1,10 @@
-@@ tiny_smoke.S — Machine-v5-Tiny loadmem / boot closed-loop smoke program
+@@ tiny_smoke.S — Kaiwu-Tiny loadmem / boot closed-loop smoke program
 @@ (m12-chipyard-003; m12-chipyard-007 adds the crt front end).
 @@
 @@ m12-007: the application is `tiny_crt.o` + this object linked into one ELF;
 @@ crt (``_start``, at the fixed entry ``ENTRY``) sets SP and falls through
 @@ into the code below.  The BootROM fixed firmware (power -> hmon) jumps to
-@@ that entry after the handoff (spec/Machine-v5 §6.2).  The image is loaded
+@@ that entry after the handoff (spec/Kaiwu §6.2).  The image is loaded
 @@ into SRAM by the harness `+loadmem=` loader.
 @@
 @@ It deliberately contains no syscall and no semihosting (both belong to
@@ -46,7 +46,7 @@ tiny_smoke_main:
 	ld.o	rd9, [rb6, 0]
 
 	@@ 5. terminal: SYS_EXIT(0).  m12-chipyard-019 routes synchronous faults
-	@@ into the cfx_hmon vector (spec/Machine-v5 §4.4), so the m12-003
+	@@ into the cfx_hmon vector (spec/Kaiwu §4.4), so the m12-003
 	@@ undefined-instruction terminator would be skipped by the handler
 	@@ (`escape +4`) instead of stopping the core.  The parameter block lives in
 	@@ the SRAM scratch octa above RESULT.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""INTEG-046t probe: step5 BootROM chain, Machine-v5-Vast current layout.
+"""INTEG-046t probe: step5 BootROM chain, Kaiwu-Vast current layout.
 
 Expectations come from the frozen interface sources, not from the firmware
 implementation:

@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/include/asm/page.h b/arch/dadao/include/asm/page.h
 new file mode 100644
-index 000000000..56dff480e
+index 000000000..d402bd99a
 --- /dev/null
 +++ b/arch/dadao/include/asm/page.h
 @@ -0,0 +1,76 @@
@@ -13,7 +13,7 @@ index 000000000..56dff480e
 +
 +/*
 + * Kernel VA window [2 TiB, 3 TiB); inside it VA = PA + 2 TiB
-+ * (spec/Machine-v5 §6.3, contract-linux-boot).
++ * (spec/Kaiwu §6.3, contract-linux-boot).
 + */
 +#define PAGE_OFFSET		CONFIG_PAGE_OFFSET
 +#define __pa(x)			((unsigned long)(x) - PAGE_OFFSET)

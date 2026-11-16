@@ -3,7 +3,7 @@
 **模块**：spec
 **项目里程碑**：M14
 **依赖**：`m14-spec-001`（已合入，§6.3 初版）；`m14-qemu-001`、`m14-linux-002` 按本任务结论实施地址
-**可并行分片**：否（单册单写者；`spec/Machine-v5` + 契约 + 投影 + 检查器 + ADR 同笔）
+**可并行分片**：否（单册单写者；`spec/Kaiwu` + 契约 + 投影 + 检查器 + ADR 同笔）
 **预估**：3–4 h
 **状态**：已验证
 
@@ -14,7 +14,7 @@
 > 2. **更正**：「改一下，应该是 `[2TiB, 3TiB)`」⇒ **本任务按 2 TiB 实施**，首条作废。
 > 理由 = 内核地址不应从 0 开始；用户空间 = `[0, 2 TiB)`。
 
-由此**取代** `m14-spec-001` 冻结的四个低地址；用户同时授权本任务修改 `spec/Machine-v5` 与该册只读锁（`docs/Process-06 §2` 的事先授权）。
+由此**取代** `m14-spec-001` 冻结的四个低地址；用户同时授权本任务修改 `spec/Kaiwu` 与该册只读锁（`docs/Process-06 §2` 的事先授权）。
 
 ## 背景
 
@@ -39,17 +39,17 @@ DADAO 内存窗口 `VA` 只有 42 位（`addr[47:42]=0`，即 `[0, 4 TiB)`），
 
 ## 范围
 
-1. `spec/Machine-v5 §6.3`：替换 `§6.3.1` 分区表、`§6.3.2` 装载规则中的地址与映射表述、`§6.3.3` boot info 的 `kernel_base`/`initramfs_base` 取值、`§6.3.4` 进入态（VA/偏置）、`§6.3.5` 不定义项；版本 `0.4.6-rc` → `0.4.7-rc`，附录记录。
+1. `spec/Kaiwu §6.3`：替换 `§6.3.1` 分区表、`§6.3.2` 装载规则中的地址与映射表述、`§6.3.3` boot info 的 `kernel_base`/`initramfs_base` 取值、`§6.3.4` 进入态（VA/偏置）、`§6.3.5` 不定义项；版本 `0.4.6-rc` → `0.4.7-rc`，附录记录。
 2. `.tao/contracts/contract-linux-boot.md`：同步地址与映射（含 `VA = PA + 2 TiB` 的表述）；版本 `0.1.0` → `0.2.0`。
 3. `contracts/linux-boot.yaml`：地址常量与 `kind` 语义同步；新增/复用 `va_pa_offset` 字段（若无则加，需与契约同步）。
 4. `tools/linux/check_boot_contract.py`：断言同步（三方一致 + 新增「内核窗口起点 2 TiB」「VA=PA+2TiB」两条硬断言；旧值出现即 FAIL）。
-5. `manifests/spec-readonly.lock.toml`：`Machine-v5` sha 同笔重算。
+5. `manifests/spec-readonly.lock.toml`：`Kaiwu` sha 同笔重算。
 6. `.tao/adr/adr-0051-linux-boot-abi.md`：**经用户授权的就地修订**——D3/D4/D5/D6 的地址与映射改为新值，`状态说明` 记 `rev. 2026-11-13`（用户原话摘要 + 渠道），不改其它 decision。
 
 ## 验收
 
 1. `python3 tools/linux/check_boot_contract.py` rc=0；`--self-test` 各类注入仍可达 FAIL（含「旧地址回潮」一类）。
-2. `git grep -n "0x0010_0000\|0x0001_0000\|0x400_0000" -- spec/Machine-v5* .tao/contracts/contract-linux-boot.md contracts/linux-boot.yaml` ⇒ **0 命中**（除「旧值作废」注记段外）。
+2. `git grep -n "0x0010_0000\|0x0001_0000\|0x400_0000" -- spec/Kaiwu* .tao/contracts/contract-linux-boot.md contracts/linux-boot.yaml` ⇒ **0 命中**（除「旧值作废」注记段外）。
 3. spec 系列门控 + `check-contracts-dir`/`check-contracts-pending`/`check-spec-readonly` rc=0；锁 sha 现算 MATCH。
 4. ADR 内 D3/D4/D5/D6 与新值一致，且修订记录含用户原话摘要；`check-knowledge-refs` rc=0。
 5. ≥2 路注入可达 FAIL + `cp`+md5 还原（注入后必须能判红）。
@@ -88,7 +88,7 @@ DADAO 内存窗口 `VA` 只有 42 位（`addr[47:42]=0`，即 `[0, 4 TiB)`），
 - `python3 tools/linux/check_boot_contract.py` ⇒ rc=0；`[FAIL]`=0、`[PASS]`=**231**（连跑 3 次输出 md5 一致；`make check-linux-boot-contract` 同为 231）
 - `--self-test` ⇒ rc=0「8 类注入，失败 0 项」；awk 逐类统计：8 类均含 `[FAIL]` 且「注入后应非零退出 rc=1」
 - 门控 rc=0：`check-linux-boot-contract` / `check-spec-readonly`（21 册 OK）/ `check-spec-numbering` / `check-spec-changelog` / `check-spec-purity` / `check-spec-cite-targets` / `check-spec-codeblocks` / `check-spec-archive` / `check-contracts-dir` / `check-contracts-pending` / `check-dirs` / `check-tasks`
-- 锁现算：`sha256sum spec/Machine-v5-…` = `94772ff4…c184697` == 锁值；21 条 sha 仅 Machine-v5 1 条变（授权注记已加）
+- 锁现算：`sha256sum spec/Kaiwu-…` = `94772ff4…c184697` == 锁值；21 条 sha 仅 Kaiwu 1 条变（授权注记已加）
 - 旧地址 grep：仅 `spec:490`（0.4.6「旧值作废」段）1 行；契约 0、YAML 0
 - 基线归属（`git archive master` → `/tmp/opencode/m14-spec-003/baseline` + 主工作树只读直跑）：`check-spec-drift`、`check-spec-refs`、`check-knowledge-refs`（命中 `m14-infra-001:157`）基线同红（rc=2）⇒ 非本任务
 - `check-milestones-fresh` 本树 rc=2：R1 `m13-testcases-017`（分支基线旧于 master）+ A1/R1 `m14-spec-003`（台账行未随派单移入「进行中」；主工作树同判 rc=0，因任务书仍「待开始」）⇒ 台账归主会话
@@ -113,11 +113,11 @@ DADAO 内存窗口 `VA` 只有 42 位（`addr[47:42]=0`，即 `[0, 4 TiB)`），
 
 **测试结果**：一键证据脚本 35 项全 PASS（`[FAIL]` 计数 0）；`check_boot_contract.py` 233 项 PASS / rc=0，`--self-test` 8 类注入 8/8 可达 FAIL。
 
-**修改文件**：`spec/Machine-v5-测试机运行环境.md`（0.4.6-rc→0.4.7-rc；§6.3.1–§6.3.5；§6 Vast 首张页表 1 行；附录新增 0.4.7-rc 段、0.4.6 段标「旧值作废」）、`.tao/contracts/contract-linux-boot.md`（0.1.0→0.2.0）、`contracts/linux-boot.yaml`（0.2.0；新增 `va_pa_offset`/`va_layout`/`superpage_size`/`pa_start`，`prebuilt_identity_map`→`prebuilt_page_table`）、`tools/linux/check_boot_contract.py`（2c 硬断言、旧地址派生断言、2 类新注入、`fmt_addr` 补零）、`manifests/spec-readonly.lock.toml`（Machine-v5 sha 重算 + 授权注记）、`.tao/adr/adr-0051-linux-boot-abi.md`（D3–D6 地址与映射 + `rev.` 记录）、`.tao/contracts/README.md`（版本索引 1 行）。
+**修改文件**：`spec/Kaiwu-测试机运行环境.md`（0.4.6-rc→0.4.7-rc；§6.3.1–§6.3.5；§6 Vast 首张页表 1 行；附录新增 0.4.7-rc 段、0.4.6 段标「旧值作废」）、`.tao/contracts/contract-linux-boot.md`（0.1.0→0.2.0）、`contracts/linux-boot.yaml`（0.2.0；新增 `va_pa_offset`/`va_layout`/`superpage_size`/`pa_start`，`prebuilt_identity_map`→`prebuilt_page_table`）、`tools/linux/check_boot_contract.py`（2c 硬断言、旧地址派生断言、2 类新注入、`fmt_addr` 补零）、`manifests/spec-readonly.lock.toml`（Kaiwu sha 重算 + 授权注记）、`.tao/adr/adr-0051-linux-boot-abi.md`（D3–D6 地址与映射 + `rev.` 记录）、`.tao/contracts/README.md`（版本索引 1 行）。
 
 **验收结果**：
-- 旧地址自证：`git grep -n "0x0010_0000\|0x0001_0000\|0x400_0000" -- spec/Machine-v5* .tao/contracts/contract-linux-boot.md contracts/linux-boot.yaml` ⇒ 1 命中，落在 `Machine-v5:L490`（已标「本段所列地址为旧值，已作废」的 0.4.6 段）；契约/YAML 各 0。
-- 锁：Machine-v5 sha 现算 == 锁值 `94772ff4…c184697`；`check-spec-readonly` rc=0（21 册 OK）。
+- 旧地址自证：`git grep -n "0x0010_0000\|0x0001_0000\|0x400_0000" -- spec/Kaiwu* .tao/contracts/contract-linux-boot.md contracts/linux-boot.yaml` ⇒ 1 命中，落在 `Kaiwu:L490`（已标「本段所列地址为旧值，已作废」的 0.4.6 段）；契约/YAML 各 0。
+- 锁：Kaiwu sha 现算 == 锁值 `94772ff4…c184697`；`check-spec-readonly` rc=0（21 册 OK）。
 - 门控 rc=0：`check-linux-boot-contract` / `check-spec-readonly` / `check-spec-numbering` / `check-spec-changelog` / `check-spec-purity` / `check-spec-cite-targets` / `check-contracts-dir` / `check-contracts-pending` / `check-dirs` / `check-tasks`。
 - 注入真值（`cp` 备份 + md5 还原）：①正文 `kernel_base`→`0x0010_0000` ⇒ rc=1 且命中「无旧地址（kernel_base 旧值 0x0010_0000）」；②YAML `va_pa_offset`→1 TiB ⇒ rc=1 且命中「偏置 va_pa_offset == 2 TiB」；③正文追加换行不更锁 ⇒ `check-spec-readonly` MISMATCH rc=1；三者还原后 md5 == 备份并复查回绿。
 

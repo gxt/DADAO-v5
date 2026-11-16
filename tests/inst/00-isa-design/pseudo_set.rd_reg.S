@@ -9,7 +9,7 @@
 @@ 源初值通路（不借被测伪指令）：rd/rb 用 `__LI`/`__LI_RB`；ra 只能经内存给（`set.zw`/`or.w`
 @@   无 ra 形式）⇒ `__SET_MEM` 从 RDATA 装载，其值由宏层 `.testdata` 的字面量给出。
 @@ 用例：encoding 0 / semantic 8 / boundary 1 / overlap 1（链例 10，故障例 0）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；链例逐检查点把实测 8 字节
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；链例逐检查点把实测 8 字节
 @@   写入结果缓冲并逐字节打印 ⇒ 三平台比较的是字节流。
 @@ 探针：目的在 rd ⇒ `__CHECK_RD` 直接比（复制指令本体在伪指令之外的银行读回里不使用）。
 

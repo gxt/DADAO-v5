@@ -15,7 +15,7 @@
 @@   本文件把这条环的每一个可观测点写成显式断言（失败不写 / 成功才写 / 返回值 = old /
 @@   重试必须重读）。
 @@ 用例：encoding 0 / legality 0 / semantic 12 / boundary 1（链例 13 + 故障例 0）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；点号 1..13 连续
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；点号 1..13 连续
 @@   （`run_asm_suite.scan_source` 断言）。逐个检查点把实测 8 字节写入结果缓冲并逐字节打印
 @@   ⇒ 三方比较的是字节流（同一 ELF，chipyard/qemu/gem5）。
 @@ 探针：初值一律经普通 `st.o` 给（不用 lr/sc 造初值）；"抢走保留标记"用本 hart 第二条

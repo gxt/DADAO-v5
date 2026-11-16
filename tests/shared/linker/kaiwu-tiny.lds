@@ -1,4 +1,4 @@
-/* dadao-tiny.lds — DADAO-v5 Machine-v5-Tiny ELF link script (TESTCASES-091t).
+/* kaiwu-tiny.lds — DADAO-v5 Kaiwu-Tiny ELF link script (TESTCASES-091t).
  *
  * Geometry comes from tests/shared/machine-profiles.yaml (profile `tiny`):
  *   ROM : 0xffff_ffff_0000 .. 0xffff_ffff_ffff  (64 KiB, rx; crt startup stub)

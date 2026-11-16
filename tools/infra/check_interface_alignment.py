@@ -307,9 +307,9 @@ def check_adr_alignment():
         with open(pf, encoding="utf-8") as f:
             patch_content += f.read()
 
-    # --- Machine names = "dadao-tiny" / "dadao-vast" (M12 split) ---
-    # Source: spec/Machine-v5 §1; the pre-M12 single machine was renamed.
-    for machine in ("dadao-tiny", "dadao-vast"):
+    # --- Machine names = "kaiwu-tiny" / "kaiwu-vast" (M12 split) ---
+    # Source: spec/Kaiwu §1; the pre-M12 single machine was renamed.
+    for machine in ("kaiwu-tiny", "kaiwu-vast"):
         needles = ('MACHINE_TYPE_NAME("%s")' % machine,
                    'DADAO_MACHINE_TYPE_INFO("%s"' % machine)
         hit = next((n for n in needles if n in patch_content), None)
@@ -430,7 +430,7 @@ def check_adr_alignment():
         record(cat, "RAM hw registration (add_subregion)", "FAIL",
                "QEMU patch 未找到 RAM 的 memory_region_add_subregion 注册")
 
-    # --- Exit code segments (spec/Machine-v5 §7.1) ---
+    # --- Exit code segments (spec/Kaiwu §7.1) ---
     # Guest 0x00 PASS / 0x01-0x7F FAIL; other cfx 0x80-0xBF (cfxHA);
     # monitor 0xC0-0xFF (run mode + cause index).  The old single-formula
     # per-cause constants must be gone.
@@ -444,7 +444,7 @@ def check_adr_alignment():
                "QEMU: 0xC0 | ((mode & 3) << 4) | (index & 0xF)")
     else:
         record(cat, "EXIT_MONITOR(mode,index) formula", "FAIL",
-               "QEMU patch 未找到 spec/Machine-v5 §7.1 monitor 段公式")
+               "QEMU patch 未找到 spec/Kaiwu §7.1 monitor 段公式")
 
     cfx_macro = re.search(
         r'#define\s+DADAO_EXIT_CFX\(cfxha\)\s*\(0x80\s*\|\s*'
@@ -454,7 +454,7 @@ def check_adr_alignment():
                "QEMU: 0x80 | (cfxha & 0x3F)")
     else:
         record(cat, "EXIT_CFX(cfxha) formula", "FAIL",
-               "QEMU patch 未找到 spec/Machine-v5 §7.1 其它 cfx 段公式")
+               "QEMU patch 未找到 spec/Kaiwu §7.1 其它 cfx 段公式")
 
     stale = sorted(set(re.findall(
         r'DADAO_EXIT_(?:CFXMEM|CFXREG|CFXPERM|CFXESC|UNMAPPED|ILLI|UNDI|'
@@ -475,7 +475,7 @@ def check_adr_alignment():
                "QEMU patch 未找到 §7.1 公式编译期自检")
 
     # --- CFXMEM routing boundary: umon segment cfxha == 0 ---
-    # Source: spec/Machine-v5 §1.2/§7.1 (cfxha-0 OOB and other unmapped => CFXMEM).
+    # Source: spec/Kaiwu §1.2/§7.1 (cfxha-0 OOB and other unmapped => CFXMEM).
     umon_match = re.search(r'DADAO_CFXHA_UMON\s+(\d+)', patch_content)
     if umon_match:
         actual = int(umon_match.group(1))
@@ -490,7 +490,7 @@ def check_adr_alignment():
                "QEMU patch 未找到 DADAO_CFXHA_UMON")
 
     # --- exit port device removed (C1 step2; ADR-0020 D8) ---
-    # Source: ADR-0020 D8/D15 + spec/Machine-v5 §7.  The legacy exit-port MMIO
+    # Source: ADR-0020 D8/D15 + spec/Kaiwu §7.  The legacy exit-port MMIO
     # device is deleted in step2; the halt protocol is semihosting SYS_EXIT.
     # QEMU-053t therefore asserts the constants/device are GONE (was: the
     # retained QEMU-046t device constant).
@@ -516,7 +516,7 @@ def check_adr_alignment():
         record(cat, "dual_image_bios_kernel", "FAIL",
                "QEMU patch 未找到缺少 -bios/-kernel 时的报错退出逻辑")
 
-    # --- Exit code mapping: per-cause constants are gone (spec/Machine-v5 §7.1) ---
+    # --- Exit code mapping: per-cause constants are gone (spec/Kaiwu §7.1) ---
     # The monitor/other-cfx formulas above are the only mapping; there is no
     # per-cause 0x80|bit code to assert anymore.
 
@@ -536,8 +536,8 @@ def check_adr_alignment():
                "BINARY_BASE/EXIT_BLOCK/DUMP_BASE from machine_profile")
 
     for name, rel, mem_name in (
-            ("tiny", "tests/shared/linker/dadao-tiny.lds", "RAM"),
-            ("vast", "tests/shared/linker/dadao-vast.lds", "RAM")):
+            ("tiny", "tests/shared/linker/kaiwu-tiny.lds", "RAM"),
+            ("vast", "tests/shared/linker/kaiwu-vast.lds", "RAM")):
         text = load_file(rel)
         m = re.search(
             r"RAM\s*\(rwx\)\s*:\s*ORIGIN\s*=\s*(0x[0-9a-fA-F_]+)"
@@ -562,7 +562,7 @@ def check_adr_alignment():
                    f"{prow.ram_base:#x}+{prow['ram_size']:#x}")
 
     # --- Harness fault code mapping (run_qemu_test.py) ---
-    # Source: spec/Machine-v5 §7.1.  The harness decodes the monitor segment
+    # Source: spec/Kaiwu §7.1.  The harness decodes the monitor segment
     # by cause index (bit3:0); there is no per-cause exit constant anymore.
     harness_run_content = load_file("tools/testcases/lib/run_qemu_test.py")
     if harness_run_content:

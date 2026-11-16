@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/include/asm/time.h b/arch/dadao/include/asm/time.h
 new file mode 100644
-index 000000000..7e4b7a2d0
+index 000000000..cd34ade31
 --- /dev/null
 +++ b/arch/dadao/include/asm/time.h
 @@ -0,0 +1,70 @@
@@ -63,7 +63,7 @@ index 000000000..7e4b7a2d0
 +/* The K2 tick target: printed by time_init(), parsed by tools/linux/k2_time_probe.py. */
 +#define DADAO_K2_TIME_TICKS		3
 +
-+/* Named boot verdicts (guest segment, spec/Machine-v5 §7.1). */
++/* Named boot verdicts (guest segment, spec/Kaiwu §7.1). */
 +void __noreturn dadao_k2_fail(unsigned int checkpoint, const char *what);
 +
 +/*

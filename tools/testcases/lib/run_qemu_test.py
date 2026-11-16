@@ -11,7 +11,7 @@ Usage (TESTCASES-072t 迁入本目录；TESTCASES-076t 删除旧薄 wrapper):
 `resolve_legacy_vector_path` 机械平移到 `tests/inst/<ext>/`（isa → base）；用例本体
 只在 `tests/inst/`。
 
-Exit code protocol (spec/Machine-v5 §7.1; guest halt via SYS_EXIT, ADR-0020 D8):
+Exit code protocol (spec/Kaiwu §7.1; guest halt via SYS_EXIT, ADR-0020 D8):
   0x00       = PASS (the only PASS value)
   0x01-0x7F  = FAIL (value = failing check point index 1-127)
   0x80-0xBF  = Machine fault, other cfx  (bit5:0 = cfxHA)
@@ -64,7 +64,7 @@ def _selected_profile():
 def default_bootrom(profile_name=None):
     """固定 BootROM 固件默认路径（经 paths.py 解析产物根，不写死绝对路径）。
 
-    Tiny = 64 KiB 固定固件（`spec/Machine-v5 §6`，hmon/power 链）；
+    Tiny = 64 KiB 固定固件（`spec/Kaiwu §6`，hmon/power 链）；
     Vast = step5 BootROM 的 `-bios`/`bootrom-image` 镜像。两者都由
     `make build-bootrom` 产出，位置见 `manifests/install-dirs.lock.toml`。
     """
@@ -90,7 +90,7 @@ def case_applies(case, profile_name):
 def _machine_args(profile_name, bootrom_path):
     """QEMU machine arguments for the selected profile (M12: split machines)."""
     if profile_name == "vast":
-        return ["-machine", "dadao-vast,bootrom-image=" + bootrom_path]
+        return ["-machine", "kaiwu-vast,bootrom-image=" + bootrom_path]
     return ["-machine", machine_profile.machine_name(profile_name),
             "-bios", bootrom_path]
 
@@ -131,7 +131,7 @@ def resolve_legacy_vector_path(path: str) -> str:
     cand = os.sep.join(parts[:i] + ["inst", LEGACY_VECTOR_DIRS[sub]] + parts[i + 2:])
     return cand if os.path.exists(cand) else path
 
-# Exit code ranges (spec/Machine-v5 §7.1)
+# Exit code ranges (spec/Kaiwu §7.1)
 EXIT_PASS = 0x00
 EXIT_FAIL_MIN = 0x01
 EXIT_FAIL_MAX = 0x7F
@@ -157,7 +157,7 @@ MONITOR_FAULT_NAMES = {
 
 
 def fault_name(code):
-    """DADAO cause name for a machine-fault exit code (spec/Machine-v5 §7.1).
+    """DADAO cause name for a machine-fault exit code (spec/Kaiwu §7.1).
 
     Monitor codes decode by cause index; other-cfx codes only identify the
     target cfxha (the cause itself is not part of that segment).

@@ -243,7 +243,7 @@ def run_test(rom_data, timeout=10):
         kp = f.name
     try:
         r = subprocess.run(
-            [QEMU, '-M', 'dadao-tiny', '-nographic', '-bios', rp, '-kernel', kp, '-semihosting-config', 'enable=on,target=native'],
+            [QEMU, '-M', 'kaiwu-tiny', '-nographic', '-bios', rp, '-kernel', kp, '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return r.returncode, r.stderr
     except subprocess.TimeoutExpired:

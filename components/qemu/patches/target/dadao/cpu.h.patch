@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..422cc4f
+index 0000000..cdbf9f2
 --- /dev/null
 +++ b/target/dadao/cpu.h
 @@ -0,0 +1,612 @@
@@ -82,7 +82,7 @@ index 0000000..422cc4f
 +};
 +
 +/*
-+ * DADAO exit codes (propagated to host $?, spec/Machine-v5 §7.1):
++ * DADAO exit codes (propagated to host $?, spec/Kaiwu §7.1):
 + *
 + *   0x00-0x3F  guest PASS
 + *   0x40-0x7F  guest FAIL (guest-defined code)
@@ -100,14 +100,14 @@ index 0000000..422cc4f
 +#define DADAO_EXIT_MONITOR(mode, index) \
 +    (0xC0 | (((mode) & 0x3) << 4) | ((index) & 0xF))
 +
-+/* spec/Machine-v5 §7.1 formula self-checks (compile-time, never silent). */
++/* spec/Kaiwu §7.1 formula self-checks (compile-time, never silent). */
 +_Static_assert(DADAO_EXIT_CFX(1) == 0x81, "other-cfx segment: cfxHA 1");
 +_Static_assert(DADAO_EXIT_CFX(63) == 0xBF, "other-cfx segment: cfxHA 63");
 +_Static_assert(DADAO_EXIT_MONITOR(0, 13) == 0xCD, "monitor: user IALIGN");
 +_Static_assert(DADAO_EXIT_MONITOR(3, 8) == 0xF8, "monitor: hypv ILLI");
 +_Static_assert(DADAO_EXIT_MONITOR(2, 1) == 0xE1, "monitor: supv CFXMEM");
 +
-+/* Memory map constants (canonical = Machine-v5-Vast; spec/Machine-v5 §1.1,
++/* Memory map constants (canonical = Kaiwu-Vast; spec/Kaiwu §1.1,
 + * ADR-0043 D1/D2; QEMU-080t).  These canonical macros are consumed by
 + * `check-interface` and by the cfx_pmem DMA physical-range check; every other
 + * runtime decision goes through the selected DadaoProfile.
@@ -132,7 +132,7 @@ index 0000000..422cc4f
 + * CFXMEM because the window is never a pmem pass-through; with ptw_enable == 1
 + * the two-level page-table walk runs (DADAO-12 §2.2.1/§2.2.2; ADR-0040
 + * D1-D10).  All of these direct machine faults leave through the current
-+ * run-mode monitor segment (spec/Machine-v5 §7.1).
++ * run-mode monitor segment (spec/Kaiwu §7.1).
 + * Reserved cfx (6-14, 16-31, 35-61) plain ld/st are also CFXMEM (ADR-0039
 + * Step 1-c); unmapped addresses are reported as CFXMEM too. */
 +#define DADAO_CFXHA_SHIFT   42
@@ -143,7 +143,7 @@ index 0000000..422cc4f
 +#define DADAO_ADDR_CFXHA(a) (((uint64_t)(a) >> DADAO_CFXHA_SHIFT) & DADAO_CFXHA_MASK)
 +
 +/* ===================================================================
-+ * Runtime machine profiles (spec/Machine-v5 §1, ADR-0043; QEMU-079t/080t)
++ * Runtime machine profiles (spec/Kaiwu §1, ADR-0043; QEMU-079t/080t)
 + *
 + * The machine type selects its geometry / capability set from a DadaoProfile,
 + * so the Tiny (64 KiB BootROM + 8 MiB SRAM, no cfx) and Vast (4 MiB BootROM +
@@ -153,7 +153,7 @@ index 0000000..422cc4f
 + * (`check-interface`); every runtime decision goes through env->prof, never
 + * through those macros.
 + *
-+ * Selection: `-machine dadao-tiny` / `-machine dadao-vast` (M12) fixes the
++ * Selection: `-machine kaiwu-tiny` / `-machine kaiwu-vast` (M12) fixes the
 + * profile; there is no runtime `profile=` selector or machine-name alias.
 + * =================================================================== */
 +typedef struct DadaoProfile {
@@ -168,12 +168,12 @@ index 0000000..422cc4f
 +    uint64_t kernel_base;       /* raw `-kernel` load base */
 +    uint64_t kernel_entry;      /* raw application entry (base+reserved) */
 +    uint64_t kernel_reserved;   /* leading zero bytes of a raw image */
-+    /* Tiny: the fixed 64 KiB BootROM firmware is mandatory (spec/Machine-v5
++    /* Tiny: the fixed 64 KiB BootROM firmware is mandatory (spec/Kaiwu
 +     * §6 "image = fixed firmware + application"); an ELF e_entry must also be
 +     * the fixed application entry (0xffff_ff01_0100). */
 +    bool bootrom_required;
 +    bool fixed_kernel_entry;
-+    /* Tiny test-machine convention (spec/Machine-v5 §2): switch_run_mode
++    /* Tiny test-machine convention (spec/Kaiwu §2): switch_run_mode
 +     * writes are ignored; the register keeps its saved value (3 = hypv) and
 +     * reads it back. */
 +    bool switch_run_mode_write_ignored;
@@ -182,15 +182,15 @@ index 0000000..422cc4f
 +    bool smon_sram;             /* cfx2 smon 64 KiB SRAM (Vast only) */
 +    bool pmem_sram;             /* cfx_pmem (cfx32) 64 KiB SRAM */
 +    /* cfxha values this profile implements: bit N set => cfxN exists
-+     * (DADAO-12 §5.2(一); spec/Machine-v5 §3 per-profile list).  Every other
++     * (DADAO-12 §5.2(一); spec/Kaiwu §3 per-profile list).  Every other
 +     * cfxha is reserved (ILLI) or allocated-but-unimplemented (CFXREG for a
 +     * register access). */
 +    uint64_t cfx_impl_mask;
 +    /* `trap` to an allocated-but-unimplemented cfx: Tiny maps it to ILLI
-+     * (spec/Machine-v5 §3 Tiny bullet), Vast keeps CFXREG. */
++     * (spec/Kaiwu §3 Tiny bullet), Vast keeps CFXREG. */
 +    bool unimpl_cfx_trap_illi;
 +    /* ELF PT_LOAD may target the hmon SRAM.  No profile allows it under the
-+     * Tiny hmon load contract (spec/Machine-v5 §6.2): the power stub is the
++     * Tiny hmon load contract (spec/Kaiwu §6.2): the power stub is the
 +     * only writer of hmon SRAM.  The field is kept for the loader's region
 +     * table so a future profile can opt in explicitly. */
 +    bool mon_elf_segments;
@@ -198,7 +198,7 @@ index 0000000..422cc4f
 +    bool rom_elf_segments;      /* ELF PT_LOAD may target the BootROM */
 +    bool unmapped_is_cfxmem;    /* every unmapped access => CFXMEM (Tiny) */
 +    /* Every execution-time synchronous exception enters the current run-mode
-+     * monitor (DADAO-12 §5.2(一), Machine-v5 §4.4).  Tiny needs this; Vast
++     * monitor (DADAO-12 §5.2(一), Kaiwu §4.4).  Tiny needs this; Vast
 +     * still uses the staged M1 mapping of those causes to a machine-fault exit
 +     * code (see dadao_cpu_do_interrupt), which its probe oracles encode. */
 +    bool sync_exc_monitor_entry;
@@ -206,7 +206,7 @@ index 0000000..422cc4f
 +    bool semihosting;
 +} DadaoProfile;
 +
-+/* Machine-v5-Tiny geometry (spec/Machine-v5 §1.1/§6).  Address high 6 bits
++/* Kaiwu-Tiny geometry (spec/Kaiwu §1.1/§6).  Address high 6 bits
 + * are always 0x3F; the SRAM is the only writable memory and the BootROM is
 + * exactly the 64 KiB reset window. */
 +#define DADAO_TINY_RAM_BASE        0xFFFFFF000000ULL
@@ -218,7 +218,7 @@ index 0000000..422cc4f
 +#define DADAO_TINY_KERNEL_ENTRY    0xFFFFFF010100ULL
 +#define DADAO_TINY_KERNEL_RESERVED 0x100ULL
 +
-+/* Machine-v5-Vast geometry (spec/Machine-v5 §1.1/§6; user ruling 2026-11-03):
++/* Kaiwu-Vast geometry (spec/Kaiwu §1.1/§6; user ruling 2026-11-03):
 + * 4 MiB BootROM, reset at its last 64 KiB start, 2 GiB PA RAM at PA 0 reached
 + * through the PTW identity map, and the test body entry at RAM + 1 MiB.  The
 + * raw -kernel image has no reserved prefix (kernel_base == entry). */
@@ -263,7 +263,7 @@ index 0000000..422cc4f
 +#define DADAO_CFXHA_MEM     0
 +
 +/* Reset values (per ADR-0004 D2).  The canonical value is the Vast reset
-+ * window: BootROM base + 0x3f_0000 (spec/Machine-v5 §1.1). */
++ * window: BootROM base + 0x3f_0000 (spec/Kaiwu §1.1). */
 +#define DADAO_RESET_PC      0xFFFFFFFF0000ULL
 +#define DADAO_RESET_RF0     0x7FF800007FC00000ULL
 +
@@ -311,7 +311,7 @@ index 0000000..422cc4f
 +#define DADAO_CAUSE_MALIGN    (1ULL << 12)
 +#define DADAO_CAUSE_IALIGN    (1ULL << 13)
 +/* Page-table missing/fragment and A/D write-back failure are reported as
-+ * CFXMEM (DADAO-12 §2.2.6/§5.2 + Machine-v5 §7.1); there is no PTWERR or
++ * CFXMEM (DADAO-12 §2.2.6/§5.2 + Kaiwu §7.1); there is no PTWERR or
 + * page-level one-hot cause any more. */
 +
 +#define DADAO_CFXHA_PTW        4   /* cfx4 / ptw (DADAO-12 §1) */
@@ -488,7 +488,7 @@ index 0000000..422cc4f
 +    uint8_t  inner_cfx_code;             /* current cfxha 0..63 */
 +    DADAOCfxRegs cfx[DADAO_NUM_CFX];     /* implemented cfx {0,1,2,3,4,15,17,18,63} */
 +
-+    /* Runtime machine profile (QEMU-079t; spec/Machine-v5 §1).  Set by the
++    /* Runtime machine profile (QEMU-079t; spec/Kaiwu §1).  Set by the
 +     * machine before qdev_realize() so reset can derive PC/geometry from it;
 +     * NULL means the Vast profile (safe default for the linux-user build and
 +     * for a CPU created without a machine). */
@@ -513,7 +513,7 @@ index 0000000..422cc4f
 +    /* cause_info of a pending generic synchronous exception
 +     * (DADAO_EXCP_{ILLI,UNDI,CFXMEM,MALIGN,IALIGN,RASOF,RASUF}): the
 +     * instruction encoding, the faulting address or the IP value, per
-+     * DADAO-12 §5.2(二) / Machine-v5 §4.4.  Set by raise_exception /
++     * DADAO-12 §5.2(二) / Kaiwu §4.4.  Set by raise_exception /
 +     * tlb_fill / do_unaligned_access before the CPU exits the TB. */
 +    uint64_t sync_fault_info;
 +    /* ── TLB (cfx_ptw cg12; DADAO-12 §4.5, ADR-0041 D2/D3) ──

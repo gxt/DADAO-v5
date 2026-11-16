@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..45f72e7
+index 0000000..ac383fb
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
 @@ -0,0 +1,809 @@
@@ -375,7 +375,7 @@ index 0000000..45f72e7
 +            isa != nullptr && isa->tinyState().active) {
 +            // Tiny: general trap (semihosting was short-circuited earlier)
 +            // enters the target cfx vector; reserved/unimplemented => ILLI
-+            // into hmon (spec/Machine-v5 §3/§4.1/§4.4).
++            // into hmon (spec/Kaiwu §3/§4.1/§4.4).
 +            DadaoISA::tinyTrap(tc, isa->tinyState(), cfxha, immu18);
 +            return;
 +        }

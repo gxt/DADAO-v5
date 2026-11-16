@@ -199,7 +199,7 @@ def run_test(rom_data, timeout=10):
         f.write(kernel_data); kp = f.name
     try:
         r = subprocess.run(
-            [QEMU, '-M', 'dadao-tiny', '-nographic', '-bios', rp, '-kernel', kp,
+            [QEMU, '-M', 'kaiwu-tiny', '-nographic', '-bios', rp, '-kernel', kp,
              '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return r.returncode, r.stderr
@@ -217,7 +217,7 @@ def run_test_dcpu(rom_data, timeout=10):
     lp = rp + '.cpu.log'
     try:
         r = subprocess.run(
-            [QEMU, '-M', 'dadao-tiny', '-nographic', '-bios', rp, '-kernel', kp,
+            [QEMU, '-M', 'kaiwu-tiny', '-nographic', '-bios', rp, '-kernel', kp,
              '-semihosting-config', 'enable=on,target=native',
              '-d', 'cpu', '-D', lp],
             capture_output=True, timeout=timeout, text=True)

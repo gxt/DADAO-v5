@@ -63,9 +63,9 @@ REQUIRED_FIELDS = (
 # 无 monitor 的 profile 不使用该常量；执行资产（bootrom/harness）共用此值。
 HMON_BASE = 0x0FFF_0000_0000
 
-# M12（`spec/Machine-v5 §1`）：profile 名 -> QEMU 机器名。两台机器分开后
+# M12（`spec/Kaiwu §1`）：profile 名 -> QEMU 机器名。两台机器分开后
 # 不再用「单机型 + `profile=`」双入口；驱动一律按本表选机器名。
-PROFILE_MACHINE = {"tiny": "dadao-tiny", "vast": "dadao-vast"}
+PROFILE_MACHINE = {"tiny": "kaiwu-tiny", "vast": "kaiwu-vast"}
 
 _INT_FIELDS = (
     "bootrom_base", "bootrom_size", "reset_pc", "ram_base", "ram_size",

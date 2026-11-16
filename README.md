@@ -1,6 +1,6 @@
 # DADAO for SimRISC 0.5.6
 
-基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Machine-v5`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M13）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m14.md`（M14）**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
+基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Kaiwu`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M13）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m14.md`（M14）**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
 
 ## 当前版本号
 
@@ -32,7 +32,7 @@
 | M9 | 2026-10-24 | FP 完备性 + 线程支持 + ISA 收口（发布 SimRISC 0.5.5） |
 | M10 | 2026-11-01 | CFX 五步（地址空间/PTE/TLB/DMA/启动链）+ 权限/时间/中断 + 工具链与测试收口 |
 | M11 | 2026-11-09 | gem5 SE/FS 收口：完整 tset 双向一致 + SimRISC 0.5.6 发布 |
-| M12 | 2026-11-15 | Chipyard 上跑通 `Machine-v5-Tiny`：非 cfx 指令全实现 + 启动链/semihosting 闭环 + embench/picolibc engine parity |
+| M12 | 2026-11-15 | Chipyard 上跑通 `Kaiwu-Tiny`：非 cfx 指令全实现 + 启动链/semihosting 闭环 + embench/picolibc engine parity |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -115,10 +115,10 @@
 - **FS 与 semihosting**：Tiny/Vast 双 profile；semihosting 25 服务与 `SYS_EXIT` 闭环；`math_test` 的 B7 浮点缺陷经 `INTEG-058t` 修复（f2i 舍入方向），本里程碑定位并注销登记。
 - **一致性矩阵**：`docs/TestReports/M11-三平台一致矩阵.md`（`vast/arch` 269/269、`tiny|vast inst` 各 1029）；SE 段 static/dynamic 双档，逐条归因、无未归因项。
 - **回归运行**：QEMU 4 成员 + gem5 SE 3 成员 + gem5 FS 1 成员（8 成员），各成员独立超时与结果 guard。
-- **规范发布**：SimRISC **0.5.6** 发布（13 册去 `-rc`，变更记录按主题归并，含编码不兼容变更）；`Machine-v5` 机器命名定为 `dadao-tiny` / `dadao-vast`（profile `Tiny`/`Vast`）。
+- **规范发布**：SimRISC **0.5.6** 发布（13 册去 `-rc`，变更记录按主题归并，含编码不兼容变更）；`Kaiwu` 机器命名定为 `kaiwu-tiny` / `kaiwu-vast`（profile `Tiny`/`Vast`）。
 - **归档**：`.tao/archive/M11/`（**114 册**，含 6 个「M10 后」维护任务；回顾 `m11-retrospective.md`；关闭 issue 14 条）。
 
-### M12（2026-11-15）Chipyard 上跑通 `Machine-v5-Tiny`
+### M12（2026-11-15）Chipyard 上跑通 `Kaiwu-Tiny`
 
 - **指令**：全部非 cfx 指令在 `WumingTinyConfig` 上实现（解码 + 整数 ALU + 访存/块传送 + 控制流/RAS + 位操作/原子 + FP 全套 + `cfx` 寄存器组），逐组留 RTL 与三方一致的向量证据；三平台差分复核归 M13。
 - **启动链**：Tiny BootROM 固定固件 → `power` 搬运 → 最小 hmon handler；`cfx_power`/`cfx3` 寄存器组与同步异常按 `escape` 0/+4 进 hmon。

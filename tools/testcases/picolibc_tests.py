@@ -25,9 +25,9 @@ Design
   test's own assertions, never from any DADAO-side expectation.
 
 * **Run path.**  Two engines run the same built ELF (``--engine``):
-  ``qemu`` (default) boots the fixed 64 KiB Machine-v5-Tiny BootROM firmware
-  (``-machine dadao-tiny,bootrom-image=...``) and loads the test ELF into SRAM
-  (spec/Machine-v5 §6: power -> hmon -> fixed entry 0xffff_ff01_0100).
+  ``qemu`` (default) boots the fixed 64 KiB Kaiwu-Tiny BootROM firmware
+  (``-machine kaiwu-tiny,bootrom-image=...``) and loads the test ELF into SRAM
+  (spec/Kaiwu §6: power -> hmon -> fixed entry 0xffff_ff01_0100).
   picolibc's own
   ``crt0-semihost.o`` assumes the architecture start-up code already set the
   stack, so the harness links it with ``--redefine-sym _start=_picolibc_start``
@@ -107,7 +107,7 @@ LLVM_MC = TOOLCHAIN_BIN / "llvm-mc"
 LLVM_OBJCOPY = TOOLCHAIN_BIN / "llvm-objcopy"
 LLD = TOOLCHAIN_BIN / "ld.lld"
 QEMU = TOOLCHAIN_BIN / "qemu-system-dadao"
-# Fixed Machine-v5-Tiny BootROM firmware (make build-bootrom).
+# Fixed Kaiwu-Tiny BootROM firmware (make build-bootrom).
 TINY_BOOTROM = paths.test_artifacts_dir() / "bootrom" / "tiny" / "bootrom_tiny.bin"
 
 DEFAULT_TIMEOUT = 60
@@ -120,7 +120,7 @@ DEFAULT_MAX_CYCLES = 2_000_000_000
 # budget instead of raising every individual number.
 DEFAULT_TIMEOUT_SCALE = 4.0
 
-# Machine-fault exit codes (spec/Machine-v5 §7.1): monitor 0xC0-0xFF (run
+# Machine-fault exit codes (spec/Kaiwu §7.1): monitor 0xC0-0xFF (run
 # mode + cause index) and other cfx 0x80-0xBF (cfxHA); see
 # tools/testcases/lib/run_qemu_test.py fault_name().
 _MONITOR_FAULT_NAMES = {
@@ -328,7 +328,7 @@ def run_qemu(elf, argv=None, timeout=DEFAULT_TIMEOUT):
     if not TINY_BOOTROM.is_file():
         raise SystemExit(f"picolibc-tests: ERROR: Tiny BootROM firmware not found: "
                          f"{TINY_BOOTROM} (run 'make build-bootrom')")
-    cmd = [str(QEMU), "-machine", "dadao-tiny,bootrom-image=" + str(TINY_BOOTROM),
+    cmd = [str(QEMU), "-machine", "kaiwu-tiny,bootrom-image=" + str(TINY_BOOTROM),
            "-kernel", str(elf),
            "-semihosting-config", cfg, "-display", "none", "-nographic", "-monitor", "none"]
     try:
@@ -598,7 +598,7 @@ def main() -> int:
                     help="machine profile (picolibc is Tiny-only)")
     ap.add_argument("--engine", default=os.environ.get("DADAO_TEST_ENGINE")
                     or DEFAULT_ENGINE, choices=("qemu", "chipyard"),
-                    help="run engine: qemu (dadao-tiny) or chipyard (Verilator "
+                    help="run engine: qemu (kaiwu-tiny) or chipyard (Verilator "
                          "Tiny harness; m12-chipyard-016)")
     ap.add_argument("--chipyard", default=None,
                     help="simulator-chipyard harness binary (engine chipyard)")

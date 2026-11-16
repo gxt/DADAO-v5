@@ -64,7 +64,7 @@
   - 执行者：engineer
 
 - **2026-11-09 `m12-chipyard-002`**
-  - 摘要：**落地 `Machine-v5-Tiny` 48 位核内地址图**（`spec/Machine-v5 §1.1`）：新增 `WithDadaoTinyAddressMap` fragment（BootROM `0xffff_ffff_0000`/64 KiB/复位向量=起始、SRAM `0xffff_ff00_0000`/8 MiB 经 `BankedScratchpadKey` 落到 MBUS、`ExtMem`/`ExtTLMem` 关掉、BootROM 不附 DTB），`WumingTinyConfig` 改用该 fragment 并把 BootROM 镜像名指向 `/dadao/bootrom/bootrom.tiny.img`；Tiny bootrom 以文本 hex（`bootrom.tiny.hex`）+ `build.sbt` 的 `resourceGenerators` 解码入库（补丁集不能带二进制）；桩核改为「复位向量取指 + SRAM 写读回」三拍探针，`testAddress` 由 `0x8000_0000` 改为 SRAM 基址。
+  - 摘要：**落地 `Kaiwu-Tiny` 48 位核内地址图**（`spec/Kaiwu §1.1`）：新增 `WithDadaoTinyAddressMap` fragment（BootROM `0xffff_ffff_0000`/64 KiB/复位向量=起始、SRAM `0xffff_ff00_0000`/8 MiB 经 `BankedScratchpadKey` 落到 MBUS、`ExtMem`/`ExtTLMem` 关掉、BootROM 不附 DTB），`WumingTinyConfig` 改用该 fragment 并把 BootROM 镜像名指向 `/dadao/bootrom/bootrom.tiny.img`；Tiny bootrom 以文本 hex（`bootrom.tiny.hex`）+ `build.sbt` 的 `resourceGenerators` 解码入库（补丁集不能带二进制）；桩核改为「复位向量取指 + SRAM 写读回」三拍探针，`testAddress` 由 `0x8000_0000` 改为 SRAM 基址。
   - 执行者：engineer
 
 - **2026-11-09 `m12-chipyard-003`**
@@ -96,7 +96,7 @@
   - 执行者：engineer
 
 - **2026-11-11 `m12-chipyard-008`**
-  - 摘要：**访存族：全宽度 `ld`/`st` + `ldm`/`stm`**。`WumingRegFile` 增加 **`ra` 银行**（第三组 64×64，`ra0` 可读写；RAS 语义归 `009`），读写口改为 2 位 bank 选择（rd/rb/ra）；`WumingDecoder` 覆盖 `SimRISC-01` 全部整数宽度（`ld.{ub,uw,ut,sb,sw,st}`/`st.{b,w,t}` + `ld.o`/`st.o` 的 rd/rb/ra 银行）与 `ldm`/`stm`（`rrri`，`mreg_zero`/`mreg_range_overflow`/`dst_rd0`/`dst_rb0` 合法性）；`WumingCore` 新增统一访存序列：**8 字节 beat 分组**（`stm` 逐元素打包 + byte-mask `Put`，`ldm` 逐元素提取写回）、**整段预检**（对齐 + Tiny 三段窗口，第一拍前）⇒ 精确 `MALIGN`/`CFXMEM`，中途 `denied`/`corrupt` ⇒ `CFXMEM` 进 hmon（可重入）；地址合法性改为 **Tiny 三段窗口**判定（`spec/Machine-v5 §1.1`），不再只看协商 manager 集合（否则地址 0 的 debug-controller 会把未映射访问变合法）。`tools/chipyard/mem_sweep.py` 驱动 `tests/inst/base/mem-*.yaml`（167 例：90 语义/边界 + 77 故障），`inst_sweep.py` 的「已定义未实现」探针改到 RF 银行形式（`ld.t rf`，FP 归 `011`）。
+  - 摘要：**访存族：全宽度 `ld`/`st` + `ldm`/`stm`**。`WumingRegFile` 增加 **`ra` 银行**（第三组 64×64，`ra0` 可读写；RAS 语义归 `009`），读写口改为 2 位 bank 选择（rd/rb/ra）；`WumingDecoder` 覆盖 `SimRISC-01` 全部整数宽度（`ld.{ub,uw,ut,sb,sw,st}`/`st.{b,w,t}` + `ld.o`/`st.o` 的 rd/rb/ra 银行）与 `ldm`/`stm`（`rrri`，`mreg_zero`/`mreg_range_overflow`/`dst_rd0`/`dst_rb0` 合法性）；`WumingCore` 新增统一访存序列：**8 字节 beat 分组**（`stm` 逐元素打包 + byte-mask `Put`，`ldm` 逐元素提取写回）、**整段预检**（对齐 + Tiny 三段窗口，第一拍前）⇒ 精确 `MALIGN`/`CFXMEM`，中途 `denied`/`corrupt` ⇒ `CFXMEM` 进 hmon（可重入）；地址合法性改为 **Tiny 三段窗口**判定（`spec/Kaiwu §1.1`），不再只看协商 manager 集合（否则地址 0 的 debug-controller 会把未映射访问变合法）。`tools/chipyard/mem_sweep.py` 驱动 `tests/inst/base/mem-*.yaml`（167 例：90 语义/边界 + 77 故障），`inst_sweep.py` 的「已定义未实现」探针改到 RF 银行形式（`ld.t rf`，FP 归 `011`）。
   - 执行者：engineer
 
 - **2026-11-09 `m12-infra-003`**
@@ -119,6 +119,12 @@
 
 - **2026-11-14 `m13-chipyard-001`**
   - 摘要：**单精（ft）写入宽度收口：ft 结果只写 `[31:0]`、`[63:32]` 保持**（`spec/SimRISC-01 §4` 注 + `spec/SimRISC-07 §1.3` + `contract-fp §1`，用户 2026-11-14 裁定）。`WumingRegFile` 的 w0 写口新增 `w0Ft`（`sf(idx) := Cat(sf(idx)(63,32), data(31,0))`），`WumingFcsr` 新增 `writeFlagsOnly`（ft 写 `rf0` 只落到 `[4:0]`，舍入模式 `[33:32]` 不动）；`WumingDecoder` 逐族置位：`ld.t`/`ldm.t`（并去掉 tetra 装载的符号扩展）、`ftadd/ftsub/ftmul`、`ftfma`、`ftdiv/ftrem/ftroot`、`ftrnd`、`ftsclb`、`ftmin/ftmax`、`it2ft/io2ft/ut2ft/uo2ft`、`fo2ft`、`ftsgnj/ftsgnn` 与 `ft2ft`（`fpCopy(false)`，只搬低 32 位）；`fo2fo`（`fpCopy(true)`）、`rd2rf`/`rf2rd`、`ld.o`/`ldm.o`、`ft2fo` 保持 64 位。工具：`fp_sweep.py` 新增 `ftwidth` 组 29 例（每例先把目的高半填非零图案，含 `ld.t rf0 ⇒ 0x7FF8_0000_7FC0_001F`、`ft2ft` 单例/三元素块、以及 5 个 64 位反向对照），并修掉一处**镜像自毁**隐患：`DATA` 原在 `ENTRY+0x2000`，当组的代码长大越过 4 KiB（本组的 29 例已越过）时运行期 seed 会写坏程序尾部的 `SYS_WRITEC` 循环 ⇒ 移到 `ENTRY+0x30000` 并在 `build_group` 加「镜像不得触到 DATA」断言；`rfmem`/`sign`/`divrem`/`rnd` 等组的 ft 目的先清零高半，使旧期望在新写入宽度下仍成立。同一镜像旧实现 24/29 红、新实现 29/29 绿。
+  - 执行者：engineer
+
+## M14
+
+- **2026-11-16 `m14-infra-004`**
+  - 摘要：**测试机整机名 `Kaiwu`（`ADR-0055`）随全仓改名**：补丁里 `Machine-v5*` → `Kaiwu*`、QEMU 机器串 `dadao-tiny`/`dadao-vast` → `kaiwu-tiny`/`kaiwu-vast`（无旧名别名）、`spec/Kaiwu §…` 注记同步；**只改名不改语义**（编码/几何/契约值零改动）。
   - 执行者：engineer
 
 ## M16

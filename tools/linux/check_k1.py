@@ -107,10 +107,10 @@ import machine_profile                             # noqa: E402
 
 PROFILE = "vast"
 BOOTROM_MAGIC = 0x44424F54            # tests/shared/bootrom, image index table
-POWER_WINDOW = 0x10000                # spec/Machine-v5 §1: last 64 KiB = reset
+POWER_WINDOW = 0x10000                # spec/Kaiwu §1: last 64 KiB = reset
 #: BootROM index types (`tests/shared/bootrom/k0/README.md`): 1 = hmon, 2 = smon.
 STAGE_TYPES = {1: "hmon", 2: "smon"}
-#: Monitor SRAM windows (spec/Machine-v5 §1.1): the image index table names the
+#: Monitor SRAM windows (spec/Kaiwu §1.1): the image index table names the
 #: ELF each stage is loaded from; power copies them here before the handover.
 SPEC_SRAM = {"hmon": 0x0FFF_0000_0000, "smon": 0x0BFF_0000_0000}
 
@@ -270,7 +270,7 @@ def run_kernel(ctx: Ctx, tag: str) -> tuple[int, str, list[str]]:
     log = SCRATCH / f"{tag}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     cmd = [ctx.qemu,
-           "-machine", f"dadao-vast,bootrom-image={ctx.bootrom}",
+           "-machine", f"kaiwu-vast,bootrom-image={ctx.bootrom}",
            "-nographic",
            "-semihosting-config", "enable=on,target=native",
            "-kernel", str(ctx.kernel)]
@@ -423,7 +423,7 @@ def run_semihost_probe(ctx: Ctx, elf: Path) -> tuple[int, bytes]:
     """Run the PA probe on Vast (PTW already on) and return (rc, console)."""
     log = SCRATCH / "semihost_pa.log"
     cmd = [ctx.qemu,
-           "-machine", f"dadao-vast,bootrom-image={ctx.bootrom}",
+           "-machine", f"kaiwu-vast,bootrom-image={ctx.bootrom}",
            "-nographic",
            "-semihosting-config", "enable=on,target=native",
            "-kernel", str(elf)]
@@ -551,7 +551,7 @@ def check_all(ctx: Ctx, rc: int, text: str, cmd: list[str], rep: Report) -> None
     for entry in table["entries"]:
         stage = STAGE_TYPES[entry["type"]]
         window = SPEC_SRAM[stage]
-        rep.check("K4", f"{stage} 入口落在 {stage} SRAM 内（spec/Machine-v5 §1.1）",
+        rep.check("K4", f"{stage} 入口落在 {stage} SRAM 内（spec/Kaiwu §1.1）",
                   True, window <= entry["entry"] < window + 0x10000)
         rep.check("K4", f"{stage} ELF 在镜像内（offset+size 不越界）", True,
                   entry["offset"] + entry["size"] <= len(table["image"]))

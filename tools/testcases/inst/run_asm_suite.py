@@ -10,12 +10,12 @@
     缓冲，末尾 `SYS_WRITEC` 打印；判据 = 三方退出码同为 0 **且** 输出字节流逐字节相同，
     长度 = `8 × 检查点数`；
   * `CASE_N=<k>`：**故障例镜像**（`TEST_FAULT` 行），判据 = 三方退出码同为该故障的
-    monitor 段编码 `0xF0|异常位索引`（`spec/Machine-v5 §7.1`：CFXMEM `0xF1`、
+    monitor 段编码 `0xF0|异常位索引`（`spec/Kaiwu §7.1`：CFXMEM `0xF1`、
     CFXREG `0xF2`、ILLI `0xF8`、MALIGN `0xFC`、IALIGN `0xFD`）。
 
 三平台 = 同一份 ELF：
   * chipyard `WumingTinyConfig`（Verilator harness，`+loadmem=<elf>`）
-  * QEMU system `dadao-tiny`（`-bios <bootrom> -kernel <elf>`）
+  * QEMU system `kaiwu-tiny`（`-bios <bootrom> -kernel <elf>`）
   * gem5 FS `tiny`（`configs/dadao/fs.py --bootrom <bootrom> --kernel <elf>`）
 
 判据里没有任何「写死的用例数/字节数」：检查点数由 `.S` 现场统计，字节数由检查点数
@@ -57,7 +57,7 @@ import writer_guard  # noqa: E402
 
 FAULT_CODE = {"CFXMEM": 0xF1, "CFXREG": 0xF2, "ILLI": 0xF8,
               "MALIGN": 0xFC, "IALIGN": 0xFD,
-              # 控制流（06）额外用到：保留编码 UNDI、RAS 上溢/下溢（`spec/Machine-v5 §7.1`）
+              # 控制流（06）额外用到：保留编码 UNDI、RAS 上溢/下溢（`spec/Kaiwu §7.1`）
               "UNDI": 0xF9, "RASOF": 0xFA, "RASUF": 0xFB}
 
 # 链例用例行（检查点计数的口径：每个 TEST_LD*/TEST_ST*/TEST_MOV*/TEST_CS*/TEST_WI*/__CHECK_* 一行
@@ -210,7 +210,7 @@ def build(toolbin: Path, src: Path, lds: Path, case_n: int, outdir: Path,
 def run_qemu(qemu: Path, elf: Path, bootrom: Path, out: Path, log: Path,
              timeout: int):
     out.unlink(missing_ok=True)
-    cmd = [str(qemu), "-M", "dadao-tiny", "-bios", str(bootrom),
+    cmd = [str(qemu), "-M", "kaiwu-tiny", "-bios", str(bootrom),
            "-kernel", str(elf),
            "-semihosting-config", "enable=on,target=native,chardev=semi",
            "-chardev", "file,id=semi,path=%s" % out,

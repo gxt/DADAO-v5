@@ -1,4 +1,4 @@
-@@ hmon.S — Machine-v5-Vast K1 boot hmon (spec/Machine-v5 §6.3, ADR-0051 D6)
+@@ hmon.S — Kaiwu-Vast K1 boot hmon (spec/Kaiwu §6.3, ADR-0051 D6)
 @@
 @@ Linked at HMON_BASE (0x0fff_0000_0000, 64 KiB) and entered by
 @@ `trap cfx_hmon, 0x30001` from the reused step5 power stage.
@@ -7,7 +7,7 @@
 @@   * it does NOT build a page table and does NOT write PA 0 — the first page
 @@     table belongs to smon alone (`PTBR = 0` is smon's write);
 @@   * it does NOT touch the boot info page — the host loader writes it and
-@@     power/hmon/smon only read it (spec/Machine-v5 §6.3.3);
+@@     power/hmon/smon only read it (spec/Kaiwu §6.3.3);
 @@   * it loads the smon ELF (image index table type 2) into smon SRAM with the
 @@     shared ROM `elf_loader`, programs cfx_smon's hypv vector/switch mode and
 @@     opens exactly the supv permissions smon needs, then traps into smon.

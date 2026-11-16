@@ -1,6 +1,6 @@
 #!/bin/bash
 # Minimal smoke test for the DADAO Tiny machine.
-# Verifies: qemu-system-dadao exists, -M ? shows dadao-tiny / dadao-vast,
+# Verifies: qemu-system-dadao exists, -M ? shows kaiwu-tiny / kaiwu-vast,
 # and boot triggers UNDI (exit code 0x89) because all-zero ROM
 # is a reserved encoding (op=0x00 is a blank QFC main-table cell; OPC-MISC
 # lives at op=0x47 since SPEC-164t, so 0x00000000 stays reserved → UNDI).
@@ -26,9 +26,9 @@ if [ ! -x "$QEMU_BIN" ]; then
 fi
 echo "PASS: qemu-system-dadao found"
 
-# Check -M ? shows dadao-tiny / dadao-vast
+# Check -M ? shows kaiwu-tiny / kaiwu-vast
 MACHINE_LIST=$("$QEMU_BIN" -M ? 2>&1)
-for machine in dadao-tiny dadao-vast; do
+for machine in kaiwu-tiny kaiwu-vast; do
     if echo "$MACHINE_LIST" | grep -q "$machine"; then
         echo "PASS: $machine found in machine list"
     else
@@ -48,11 +48,11 @@ dd if=/dev/zero of="$TMPDIR/test.bin" bs=1 count=8 2>/dev/null
 
 echo ""
 echo "=== Boot test: expect UNDI exit code (0x89 = 137) ==="
-echo "Command: $QEMU_BIN -machine dadao-tiny -bios $TMPDIR/rom.bin -kernel $TMPDIR/test.bin -display none -nographic"
+echo "Command: $QEMU_BIN -machine kaiwu-tiny -bios $TMPDIR/rom.bin -kernel $TMPDIR/test.bin -display none -nographic"
 
 set +e
 "$QEMU_BIN" \
-    -machine dadao-tiny \
+    -machine kaiwu-tiny \
     -bios "$TMPDIR/rom.bin" \
     -kernel "$TMPDIR/test.bin" \
     -display none \

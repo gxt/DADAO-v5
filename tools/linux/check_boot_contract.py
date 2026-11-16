@@ -2,7 +2,7 @@
 """check_boot_contract.py — 启动 ABI 三方一致性门控（`m14-spec-001`／`m14-spec-003`）。
 
 校验对象（Spec-first；期望值一律**现场派生**，不写死条数）：
-  * `spec/Machine-v5-测试机运行环境.md` **§6.3**（规范正文，唯一真源）
+  * `spec/Kaiwu-测试机运行环境.md` **§6.3**（规范正文，唯一真源）
   * `.tao/contracts/contract-linux-boot.md`（人读契约 0.2.0）
   * `contracts/linux-boot.yaml`（机器可读投影）
 
@@ -52,7 +52,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 
-SPEC_REL = Path("spec/Machine-v5-测试机运行环境.md")
+SPEC_REL = Path("spec/Kaiwu-测试机运行环境.md")
 CONTRACT_REL = Path(".tao/contracts/contract-linux-boot.md")
 YAML_REL = Path("contracts/linux-boot.yaml")
 

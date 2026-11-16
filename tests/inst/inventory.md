@@ -223,7 +223,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 `tests/inst/<册>/*.S` 是**执行型**载体：每个 `<id>.S` 一个 ELF，`run_asm_suite.py` 对链例
 （`CASE_N=0`）比**结果字节流**（`8 × 检查点数`，逐字节）、对故障例（`-defsym CASE_N=<点号>`）
 比 monitor 段退出码 `0xF0|异常位索引`。`make check-inst-asm`（L2，单平台 QEMU
-`dadao-tiny`）跑本表全部册；chipyard / gem5 的三方逐字节是各册任务的验收口径（不在 L2）。
+`kaiwu-tiny`）跑本表全部册；chipyard / gem5 的三方逐字节是各册任务的验收口径（不在 L2）。
 
 本表是**读者面登记**，`make check-inst-asm` 的载体集 = `tests/inst/` 下**含 `.S` 的子
 目录**（现场派生，`run_asm_suite.py --books-root tests/inst`），册名/册数不写死。
@@ -262,7 +262,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > `check-inst`/`check-inst-smoke` 的载体集，两者均已退役。现行口径：
 >
 > - **L2** = `make check-inst-asm`：`tests/inst/` 下**全部含 `.S` 的子目录**（现场派生），
->   单平台 QEMU `dadao-tiny`，链例比结果字节流、故障例比 monitor 段退出码；
+>   单平台 QEMU `kaiwu-tiny`，链例比结果字节流、故障例比 monitor 段退出码；
 > - **L3 不再有 inst 全量执行**：Vast 的 ISA 级执行覆盖**明确放弃**（用户 2026-11-14 裁定），
 >   其 ISA 语义由 `spec/` + M13 三平台差分矩阵承担（inst 行 = `.S` 的
 >   `run_asm_suite.py --platforms chipyard,qemu,gem5`，Tiny）；`check-inst`/`check-inst-smoke`

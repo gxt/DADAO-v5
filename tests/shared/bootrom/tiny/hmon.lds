@@ -1,7 +1,7 @@
 /*
- * hmon.lds — Machine-v5-Tiny 最小 hmon 段（m12-chipyard-007）
+ * hmon.lds — Kaiwu-Tiny 最小 hmon 段（m12-chipyard-007）
  *
- * 规范：spec/Machine-v5 §6.2「镜像布局」。hmon 段链接在 hmon SRAM 起始
+ * 规范：spec/Kaiwu §6.2「镜像布局」。hmon 段链接在 hmon SRAM 起始
  * 0x0fff_0000_0000（镜像偏移 0x2000），段首即 hmon 入口 = 异常向量初值
  * （DADAO-13 §1）；上限 8 KiB（校验阈值，超限即构建失败）。
  */

@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/SConscript b/src/arch/dadao/SConscript
 new file mode 100644
-index 0000000..a04130f
+index 0000000..ed71d30
 --- /dev/null
 +++ b/src/arch/dadao/SConscript
 @@ -0,0 +1,89 @@
@@ -50,14 +50,14 @@ index 0000000..a04130f
 +Source('process.cc', tags=['dadao isa'])
 +Source('se_workload.cc', tags=['dadao isa'])
 +Source('tlb.cc', tags=['dadao isa'])
-+# FS Machine-v5-Tiny platform (GEM5-015t): BootROM/SRAM workload, identity
++# FS Kaiwu-Tiny platform (GEM5-015t): BootROM/SRAM workload, identity
 +# segment-checking TLB/MMU, machine-fault -> exit code and semihosting.  These
 +# are separate objects from the SE files above; SE behaviour is unchanged.
 +Source('fs_machine.cc', tags=['dadao isa'])
 +Source('fs_tlb.cc', tags=['dadao isa'])
 +Source('fs_workload.cc', tags=['dadao isa'])
 +Source('semihosting.cc', tags=['dadao isa'])
-+# FS Machine-v5-Node platform (GEM5-016t): cfx register file/monitor, PTW/TLB
++# FS Kaiwu-Node platform (GEM5-016t): cfx register file/monitor, PTW/TLB
 +# and the address-routing walk.  Separate sources; SE and Tiny stay untouched.
 +Source('node_cfx.cc', tags=['dadao isa'])
 +Source('node_tlb.cc', tags=['dadao isa'])

@@ -1,4 +1,4 @@
-# Machine-v5：测试机运行环境（v5 自定）
+# Kaiwu：测试机运行环境（v5 自定）
 
 > **状态**：当前（0.4.7-rc，未发布；0.4.0 发布 2026-11-08，0.3.1 生效于 2026-10-16：正文术语 `PC` → `IP`；完整版本记录见文末「附录：版本与变更记录」）
 >
@@ -6,7 +6,7 @@
 >
 > **变更记录见文末「附录：版本与变更记录」**（格式 = 「版本（日期）」小标题 + 列表项；**不用表格、不写「依据」**）。
 >
-> **定位**：本册是 v5 自定规范，定义 **DADAO-v5 测试机（`dadao-tiny` / `dadao-vast`）运行环境与 semihosting** 的规范正文——面向 QEMU 机器模型、bootrom 固件、harness 与测试向量。上游 `spec/DADAO-*` 与 `spec/SimRISC-*` 仍为**上游基线**；本册不改其架构语义。
+> **定位**：本册是 v5 自定规范，定义 **DADAO-v5 测试机（`kaiwu-tiny` / `kaiwu-vast`）运行环境与 semihosting** 的规范正文——面向 QEMU 机器模型、bootrom 固件、harness 与测试向量。上游 `spec/DADAO-*` 与 `spec/SimRISC-*` 仍为**上游基线**；本册不改其架构语义。
 >
 > **标注约定**：正文中「**测试机约定**」项**无上游 spec 依据**，属 v5 架构自定义；有上游出处的语义给出 `[DADAO-NN §x]`/`[SimRISC-NN §x]` 引用。`cfx0/1/2/3/63` 等实现范围一律为**测试机约定**，不构成对上游 `DADAO-12`/`DADAO-13` 的架构限制。
 
@@ -16,7 +16,7 @@
 
 CPU 地址固定为 48 位；高 6 位 `addr[47:42]` 为分区键：`0` 为内存窗口（受 `ptw_enable` 控制），`1..63` 为 cfx 1–63 的核内地址空间（`cfx0` 没有内部空间）。[DADAO-12 §2.1 核内地址空间][DADAO-12 §2.2 虚实地址转换]
 
-v5 测试机分 **`Machine-v5-Tiny`**（宿主装载的精简 FS 平台）与 **`Machine-v5-Vast`**（完整系统节点；当前单核，可扩展多核/NUMA）两个 **profile**，由机器属性选择。两 profile 的**复位地址相同**，均为 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`（cfxha 63 / `power`，位于各自 BootROM 的末 64 KiB），该地址可由 CPU 直接取指并执行。[DADAO-12 §2.1 核内地址空间]
+v5 测试机分 **`Kaiwu-Tiny`**（宿主装载的精简 FS 平台）与 **`Kaiwu-Vast`**（完整系统节点；当前单核，可扩展多核/NUMA）两个 **profile**，由机器属性选择。两 profile 的**复位地址相同**，均为 `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`（cfxha 63 / `power`，位于各自 BootROM 的末 64 KiB），该地址可由 CPU 直接取指并执行。[DADAO-12 §2.1 核内地址空间]
 
 - **Tiny**：实现 **`cfx_power`（cfx63，启动移交）** 与 **`cfx3 hmon`（同步异常向量）**；`addr[47:42]` 由两个 cfxha 段构成——`0x3F`（cfxha 63：BootROM/SRAM）与 `0x03`（cfxha 3：hmon SRAM）。不设 PTW/页表、不实现 smon，**不能进入 `user`/`jail`/`supv`**，运行期固定在名义 `hypv`；只承担非 cfx 指令测试、Embench 与 picolibc 测试集。semihosting 的 `trap` 判定只依赖 `immu18`（见 `§5.1`），一般 `trap cfx_hmon` 进入 hmon 向量（见 `§4.4`）。
 - **Vast**：内存窗口 `addr[47:42] = 0` 由 PTW 按页表转换到 56 位 PA；核内空间含 hmon/smon/pmem SRAM；启动链 `power → hmon → 测试本体（hypv）`，`power → hmon → smon` 路径保留给内核/smon 测试。
@@ -25,7 +25,7 @@ v5 测试机分 **`Machine-v5-Tiny`**（宿主装载的精简 FS 平台）与 **
 
 v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位核内有效地址；地址区间为**测试机约定**）。
 
-**`Machine-v5-Tiny`**
+**`Kaiwu-Tiny`**
 
 | 区域 | 起始 | 大小 | cfxha / cfxname | 说明 |
 |------|------|------|-----------------|------|
@@ -36,7 +36,7 @@ v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位�
 - Tiny 实现 `cfx_power`（cfx63）的启动移交与 `cfx3 hmon` 的异常向量/寄存器；`smon`（cfx2）与其它 cfx 不实现。
 - BootROM 与 SRAM 之间的 `0xffff_ff80_0000`–`0xffff_fffe_ffff` 不映射；cfxha 63 段内 BootROM/SRAM 之外、cfxha 3 段内 hmon SRAM 之外、以及其它 cfxha 段 ⇒ `CFXMEM`。
 
-**`Machine-v5-Vast`**
+**`Kaiwu-Vast`**
 
 | 区域 | 起始 | 大小 | cfxha / cfxname | 说明 |
 |------|------|------|-----------------|------|
@@ -77,10 +77,10 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 异常进入后，硬件把运行模式改为 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 的值（异常进入流程步骤 6）。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3. 共有寄存器设计规范]
 
-- **运行模式范围（按 profile）**：`Machine-v5-Tiny` 不提供模式切换路径——复位后即在特权态（名义 `hypv`；复位时 cfxha 63 / `power`，移交后 cfxha 3 / `hmon`）执行，运行模式恒 `hypv`，**不能进入 `user`/`jail`/`supv`**，不实现 smon；`Machine-v5-Vast` 启用 `hypv`、`supv` 与 `user`，`jail` 不启用。
-- **`switch_run_mode`（按 profile）**：`Machine-v5-Vast` 取 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 的值作为异常进入后的运行模式（上段步骤 6）；`Machine-v5-Tiny`（**测试机约定**）该寄存器的**写入被忽略**（寄存器保存值保持 `3`，`hypv`），**读回为寄存器保存值**；异常进入一律强制 `hypv`（`inner_run_mode ← 3`），运行模式不变。[DADAO-12 §5.2 异常进入流程][DADAO-13 §1. cg3 - hypv mode 寄存器]
-- **异常承载（按 profile）**：`Machine-v5-Vast` 由 `hmon`（cfx3）承载 hypv 异常、`smon`（cfx2）承载 supv 异常；`Machine-v5-Tiny` 由 `hmon`（cfx3）承载唯一的 hypv 同步异常（无 smon），异常经 hmon 向量处理（见 `§4.4`）。
-- **启动链（按 profile）**：`Machine-v5-Tiny` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）：BootROM 内的 power stub 把编入同一镜像的 hmon 运行段复制到 hmon SRAM（`§6.2`），以 `trap cfx_hmon` 按 `DADAO-12 §5.2` 的 `CFXTRAP` 移交 hmon；hmon 入口校验 magic、按需配置权限后 `escape cfx_hmon, [excp_cause_ip, 4]` 返回 power stub，power 跳固定应用入口 `0xffff_ff01_0100`（`§6`）。hmon 异常向量初值即 hmon SRAM 起始（`DADAO-13 §1`），入口内显式写入同值属幂等、不是向量可用的前提。全程运行模式为 `hypv`，不做模式切换。`Machine-v5-Vast` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）；`power → hmon → smon`（supv/cfx2）路径保留：power 从 BootROM 装载 hmon 并 `trap` 移交；hmon 配置 smon 的 S-mode 向量/权限后 `trap` 移交；smon 建立第一张页表、开启 PTW 并接管运行期。M11 测试不覆盖 smon。
+- **运行模式范围（按 profile）**：`Kaiwu-Tiny` 不提供模式切换路径——复位后即在特权态（名义 `hypv`；复位时 cfxha 63 / `power`，移交后 cfxha 3 / `hmon`）执行，运行模式恒 `hypv`，**不能进入 `user`/`jail`/`supv`**，不实现 smon；`Kaiwu-Vast` 启用 `hypv`、`supv` 与 `user`，`jail` 不启用。
+- **`switch_run_mode`（按 profile）**：`Kaiwu-Vast` 取 `cfx_⟨cfxname⟩_<mode>_switch_run_mode` 的值作为异常进入后的运行模式（上段步骤 6）；`Kaiwu-Tiny`（**测试机约定**）该寄存器的**写入被忽略**（寄存器保存值保持 `3`，`hypv`），**读回为寄存器保存值**；异常进入一律强制 `hypv`（`inner_run_mode ← 3`），运行模式不变。[DADAO-12 §5.2 异常进入流程][DADAO-13 §1. cg3 - hypv mode 寄存器]
+- **异常承载（按 profile）**：`Kaiwu-Vast` 由 `hmon`（cfx3）承载 hypv 异常、`smon`（cfx2）承载 supv 异常；`Kaiwu-Tiny` 由 `hmon`（cfx3）承载唯一的 hypv 同步异常（无 smon），异常经 hmon 向量处理（见 `§4.4`）。
+- **启动链（按 profile）**：`Kaiwu-Tiny` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）：BootROM 内的 power stub 把编入同一镜像的 hmon 运行段复制到 hmon SRAM（`§6.2`），以 `trap cfx_hmon` 按 `DADAO-12 §5.2` 的 `CFXTRAP` 移交 hmon；hmon 入口校验 magic、按需配置权限后 `escape cfx_hmon, [excp_cause_ip, 4]` 返回 power stub，power 跳固定应用入口 `0xffff_ff01_0100`（`§6`）。hmon 异常向量初值即 hmon SRAM 起始（`DADAO-13 §1`），入口内显式写入同值属幂等、不是向量可用的前提。全程运行模式为 `hypv`，不做模式切换。`Kaiwu-Vast` 为 power（hypv/cfx63）→ hmon（hypv/cfx3）→ 测试本体（hypv）；`power → hmon → smon`（supv/cfx2）路径保留：power 从 BootROM 装载 hmon 并 `trap` 移交；hmon 配置 smon 的 S-mode 向量/权限后 `trap` 移交；smon 建立第一张页表、开启 PTW 并接管运行期。M11 测试不覆盖 smon。
 - **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载，既有探针/e2e 语义不变。
 
 ---
@@ -102,15 +102,15 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 - **两个权限层次**：页表/PTW 层权限（HSJU 或 R/W/X 不符）与 **cfx 访问权限**（`cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` mask 拒绝，见 `§5` 异常进入流程）是**不同层次**，不可混同；两者失败后均归当前运行模式 monitor 的 `CFXPERM`（原因名收敛，权限来源不同）。[DADAO-12 §4. 专有寄存器设计规范]
 
 - **测试机 cfx 实现范围（按 profile）**：
-  - **`Machine-v5-Tiny`**：实现 **`cfx_power`（cfx63，启动移交）** 与 **`cfx3`（`hmon`，同步异常向量）**，提供其 cg0–cg7 共有寄存器与异常向量；`cfx_power`（cfx63）用于启动移交（`power → hmon`）。**不实现 `cfx2`（smon）/`cfx32`（pmem）/`cfx4`（ptw）/`cfx5`（cache）/`cfx33`（llc）/`cfx34`（time）等其它 cfx**。cfx 寄存器访问与 `cfx2rd`/`cfx2rc` 对未实现 cfx ⇒ `CFXREG`；非 semihosting 的 `trap cfx_hmon`（`cfxha=3`，`immu18 < 0x3FF00`）按 `DADAO-12 §5.2` 进入 hmon 向量（`CFXTRAP`）；`trap`/`escape` 到未实现 cfx ⇒ `ILLI`（进入 hmon 向量，见 `§4.4`）。**semihosting 判定只看 `immu18`（`§5.1`），与 `cfxha` 无关**。
-  - **`Machine-v5-Vast`**：实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW/TLB 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`、`cfx_ptw_tlb_*`）、**页表步进**、**TLB 命中/填充/失效**与 **A/D 回写**（`DADAO-12 §2.2`、`§4.5`）；并实现 **`cfx32`（`pmem`）的 64 KiB SRAM 与 `cg15` DMA**（`DADAO-12 §2.1`、`§4.9`）。`cfx5`（`cache`）为已分配未实现，测试机按未实现 cfx 处理（访问其寄存器 ⇒ `CFXREG`）。
+  - **`Kaiwu-Tiny`**：实现 **`cfx_power`（cfx63，启动移交）** 与 **`cfx3`（`hmon`，同步异常向量）**，提供其 cg0–cg7 共有寄存器与异常向量；`cfx_power`（cfx63）用于启动移交（`power → hmon`）。**不实现 `cfx2`（smon）/`cfx32`（pmem）/`cfx4`（ptw）/`cfx5`（cache）/`cfx33`（llc）/`cfx34`（time）等其它 cfx**。cfx 寄存器访问与 `cfx2rd`/`cfx2rc` 对未实现 cfx ⇒ `CFXREG`；非 semihosting 的 `trap cfx_hmon`（`cfxha=3`，`immu18 < 0x3FF00`）按 `DADAO-12 §5.2` 进入 hmon 向量（`CFXTRAP`）；`trap`/`escape` 到未实现 cfx ⇒ `ILLI`（进入 hmon 向量，见 `§4.4`）。**semihosting 判定只看 `immu18`（`§5.1`），与 `cfxha` 无关**。
+  - **`Kaiwu-Vast`**：实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW/TLB 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`、`cfx_ptw_tlb_*`）、**页表步进**、**TLB 命中/填充/失效**与 **A/D 回写**（`DADAO-12 §2.2`、`§4.5`）；并实现 **`cfx32`（`pmem`）的 64 KiB SRAM 与 `cg15` DMA**（`DADAO-12 §2.1`、`§4.9`）。`cfx5`（`cache`）为已分配未实现，测试机按未实现 cfx 处理（访问其寄存器 ⇒ `CFXREG`）。
   - 上述范围为**测试机约定**（控制首版成本），**不构成对上游 `DADAO-12`/`DADAO-13` 架构的 cfx 数量/编号限制**。[DADAO-12 §1. 运行模式与核芯功能扩展]
 - **测试机 `cfx_pmem` DMA 约定（仅 Vast）**：DMA 只在 `cfx_pmem` SRAM 与物理存储器之间搬运，异步完成（软件须轮询 `dma_status.BUSY` 或使能 `IRQ_EN`）；DMA 可读 RAM 与 boot ROM、只可写 RAM，其余 PA 属 `PA_FAULT`；`PMEM_DMA`（`1 << 8`）直接投递本 hart 的 `cfx_pmem` 异常入口（单 hart）。[DADAO-12 §4.9]
 - 对**不存在**的核芯功能扩展（其 cfx 寄存器）的访问触发 **`CFXREG`**；reserved cfxha（集见 `§1.2`）的 `trap`/`escape`/`cfx2rd`/`cfx2rc` 仍按 `§1.2`/`§5` 触发当前运行模式 monitor 的 `ILLI`（口径见本节「两条互斥口径」）。[DADAO-22 §3. 系统信息（smon）][DADAO-12 §5. 异常进入与异常退出]
 
 - **`cfx_power`（cfx63）的 `cg7` 与 `cg8`/`rc1`（测试机约定）**：
-  - **`cg7` 空间块 0 = BootROM**：`desc` = `exists|ROM`（`0x5`）、`start = BootROM 起始地址 − (63 << 42)`、`size` = BootROM 字节数、`attr` = `R|X`（`0x5`）；其余空间块 `exists = 0`（`start`/`size`/`attr` 读 0）。按 profile：`Machine-v5-Tiny` ⇒ `start = 0x3ff_ffff_0000`、`size = 0x1_0000`（64 KiB）；`Machine-v5-Vast` ⇒ `start = 0x3ff_ffc0_0000`、`size = 0x40_0000`（4 MiB）。两者均满足 `start + size = 2^42`。[DADAO-12 §3.8 cg7][DADAO-12 §2.1 核内地址空间]
-  - **`cg8`/`rc1`（`cfx_power_ctrl`，WO；`bit0`=关机、`bit1`=硬复位、`bit2`=软复位）**：`Machine-v5-Tiny` **未实现**该寄存器，访问 ⇒ `CFXREG`（显式失败，不设静默成功的桩）。[DADAO-12 §4.12 cfx_power]
+  - **`cg7` 空间块 0 = BootROM**：`desc` = `exists|ROM`（`0x5`）、`start = BootROM 起始地址 − (63 << 42)`、`size` = BootROM 字节数、`attr` = `R|X`（`0x5`）；其余空间块 `exists = 0`（`start`/`size`/`attr` 读 0）。按 profile：`Kaiwu-Tiny` ⇒ `start = 0x3ff_ffff_0000`、`size = 0x1_0000`（64 KiB）；`Kaiwu-Vast` ⇒ `start = 0x3ff_ffc0_0000`、`size = 0x40_0000`（4 MiB）。两者均满足 `start + size = 2^42`。[DADAO-12 §3.8 cg7][DADAO-12 §2.1 核内地址空间]
+  - **`cg8`/`rc1`（`cfx_power_ctrl`，WO；`bit0`=关机、`bit1`=硬复位、`bit2`=软复位）**：`Kaiwu-Tiny` **未实现**该寄存器，访问 ⇒ `CFXREG`（显式失败，不设静默成功的桩）。[DADAO-12 §4.12 cfx_power]
 
 ---
 
@@ -122,7 +122,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 当 `immu18 < 0x3FF00`（即不在 semihosting 区 `0x3FF00–0x3FFFF`）时，为**一般 trap**：先过权限检查，允许后**走 `DADAO-12 §5` 异常进入流程**（步骤 1–10，含步骤 10「跳转至异常向量」`inner_inst_pointer <= cfx_⟨cfxname⟩_<mode>_excp_vector`）——即**进入该 cfx 的异常向量**。[DADAO-12 §5. 异常进入与异常退出]
 
-`Machine-v5-Tiny` 的一般 trap：`cfxha = 3` 且 `immu18 < 0x3FF00` 时按本节进入 hmon 向量（`CFXTRAP`，见 `§3`/`§4.4`）；`cfxha` 为未实现 cfx ⇒ `ILLI`（同步异常进 hmon 向量，见 `§4.4`）；`cfx_power`（cfx63）按 `DADAO-12 §5.2` 的通用 trap 规则处理。
+`Kaiwu-Tiny` 的一般 trap：`cfxha = 3` 且 `immu18 < 0x3FF00` 时按本节进入 hmon 向量（`CFXTRAP`，见 `§3`/`§4.4`）；`cfxha` 为未实现 cfx ⇒ `ILLI`（同步异常进 hmon 向量，见 `§4.4`）；`cfx_power`（cfx63）按 `DADAO-12 §5.2` 的通用 trap 规则处理。
 
 ### 4.2 `escape` → 异常退出流程
 
@@ -139,11 +139,11 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 | **一般 trap** | `immu18 < 0x3FF00`（不在 `0x3FF00–0x3FFFF`） | 走 `DADAO-12 §5` 异常进入流程，**进入 cfx 向量** | 由被调方 `escape` 返回 |
 | **semihosting** | `0x3FF00 ≤ immu18 ≤ 0x3FFFF`（`immu18[17:8] == 0x3FF`） | 实现层**译码短路**，**不进入向量**（同构 RISC-V `RISCV_EXCP_SEMIHOST`） | 直接 **IP 步进**返回（见 `§5`） |
 
-一般 trap 与 semihosting 分离，**不得把 semihosting 混入向量路径**（否则实现者会误让 semihosting 进入向量）。`Machine-v5-Tiny` 的一般 trap 判定见 `§4.1`；`immu18` 的区间判定与 `cfxha` 无关（`§5.1`）。
+一般 trap 与 semihosting 分离，**不得把 semihosting 混入向量路径**（否则实现者会误让 semihosting 进入向量）。`Kaiwu-Tiny` 的一般 trap 判定见 `§4.1`；`immu18` 的区间判定与 `cfxha` 无关（`§5.1`）。
 
-### 4.4 同步异常进入 hmon（`Machine-v5-Tiny`）
+### 4.4 同步异常进入 hmon（`Kaiwu-Tiny`）
 
-`Machine-v5-Tiny` 运行模式恒为 `hypv`，故 `DADAO-12 §5.2` 的「当前运行模式 monitor」= `cfx3 hmon`：执行期同步异常不经 `trap` 指令、**直接进入 hmon 向量**，处理流程与现场寄存器（`excp_cause_id`/`excp_cause_ip`/`excp_cause_info`/`excp_prev_run_mode`）按 `DADAO-12 §5.2` 的异常进入流程。[DADAO-12 §5.2 异常进入流程]
+`Kaiwu-Tiny` 运行模式恒为 `hypv`，故 `DADAO-12 §5.2` 的「当前运行模式 monitor」= `cfx3 hmon`：执行期同步异常不经 `trap` 指令、**直接进入 hmon 向量**，处理流程与现场寄存器（`excp_cause_id`/`excp_cause_ip`/`excp_cause_info`/`excp_prev_run_mode`）按 `DADAO-12 §5.2` 的异常进入流程。[DADAO-12 §5.2 异常进入流程]
 
 - **五类同步异常与 `excp_cause`**（`excp_cause_id` = one-hot，位索引见 `§7.1`）：
 
@@ -167,14 +167,14 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 semihosting 是 v5 测试机提供的「guest 经 `trap` 请求宿主 I/O」机制；本节为其**规范正文**（服务号值语义取自 Arm Semihosting；v5 特有部分标测试机约定）。
 
 - **两 profile 均提供 semihosting**。semihosting 判定只依赖 `immu18`（`§5.1`），与 `cfxha` 无关：`immu18 ∈ 0x3FF00–0x3FFFF` 时短路到宿主；只有非 semihosting 的 `trap` 才进入 cfx 向量。
-- **`Machine-v5-Tiny`**：semihosting 统一写 `trap cfx_hmon`（`§5.1`；其它 `cfxha` 亦等效）；非 semihosting 的 `trap cfx_hmon` 进入 hmon 向量（`§4.4`），与 semihosting **无冲突**。Tiny 只用 semihosting 完成控制台与退出闭环（控制台/调试输出与 `SYS_EXIT`）；运行期同步异常由 hmon 处理（`§4.4`）。`Machine-v5-Vast` 同样以 semihosting 作宿主 I/O 与停机协议。
+- **`Kaiwu-Tiny`**：semihosting 统一写 `trap cfx_hmon`（`§5.1`；其它 `cfxha` 亦等效）；非 semihosting 的 `trap cfx_hmon` 进入 hmon 向量（`§4.4`），与 semihosting **无冲突**。Tiny 只用 semihosting 完成控制台与退出闭环（控制台/调试输出与 `SYS_EXIT`）；运行期同步异常由 hmon 处理（`§4.4`）。`Kaiwu-Vast` 同样以 semihosting 作宿主 I/O 与停机协议。
 
 ### 5.1 判定（入口 tag）
 
 - **判定**：`trap cfxHA, immu18` 中 **`immu18[17:8] == 0x3FF`**（即 `0x3FF00–0x3FFFF`）⇒ 该 `trap` 为 **semihosting 调用**（**与 `cfxha` 无关**）。
 - **调用形如 `trap cfx_hmon, 0x3FF00`**（两 profile 统一写法）：`immu18[17:8] == 0x3FF` 是 **semihosting 的固定标记**，`immu18[7:0]` **不**携带服务号；**服务号由 `rd16` 给出**（`§5.2`）、参数块指针在 `rb16`、返回值在 `rd8`；判定只依赖 `immu18[17:8]`，与 `cfxha` 无关——任意 `cfxha` 等效（如 Tiny 的 `trap cfx63, 0x3FF00` 同样按 semihosting 处理）。
 - **语义/理由说明（架构自定义）**：该 tag 判定**无上游 spec 依据、属 v5 架构自定义**——`spec/DADAO-22` 只规定 `cfxha` 为服务提供者、`immu18` 为功能编号；`spec/SimRISC-11` 只规定 `immu18` 为功能编号；二者**均无 semihosting 语义**。故本机制在 v5 中由测试机定义，guest/实现共同遵守此 tag。[DADAO-22 §1. 调用约定][SimRISC-11]
-- **两条路**：`immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`）走 semihosting 短路（本节）；`immu18 < 0x3FF00` 走一般 trap 进入向量（见 `§4.1`）——`Machine-v5-Tiny` 的启动移交目标为 `cfx_hmon`（`cfxha=3`），`cfxha` 为未实现 cfx ⇒ `ILLI`（见 `§3`/`§4.4`）。
+- **两条路**：`immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`）走 semihosting 短路（本节）；`immu18 < 0x3FF00` 走一般 trap 进入向量（见 `§4.1`）——`Kaiwu-Tiny` 的启动移交目标为 `cfx_hmon`（`cfxha=3`），`cfxha` 为未实现 cfx ⇒ `ILLI`（见 `§3`/`§4.4`）。
 
 ### 5.2 调用约定（传参/返回寄存器）
 
@@ -250,16 +250,16 @@ semihosting **无 `escape` 指令**：服务完成后由实现层直接**前移 
 
 M5 的 QEMU 提供**新 bootrom**（固件），用于**初始权限/向量配置**；bootrom 用**自有工具链**编译（LLVM 新指令的首个真实用户）。
 
-- **BootROM（按 profile）**：`Machine-v5-Tiny` 为 64 KiB（`0xffff_ffff_0000`–`0xffff_ffff_ffff`），内容是**固定启动固件镜像**——power 启动 stub、hmon 运行段、image index table 三段（布局与容量见 `§6.2`）；**hmon 的代码/数据编入该镜像**，宿主不下发 hmon 段。`Machine-v5-Vast` 为 4 MiB（`0xffff_ffc0_0000`–`0xffff_ffff_ffff`），偏移 0 放 image index table、其后放 ELF 镜像，末 64 KiB（`0xffff_ffff_0000` 起）留给复位/启动代码。复位向量两 profile 均为 `0xffff_ffff_0000`。[DADAO-12 §2.1 核内地址空间]
-- **装载语义 — `Machine-v5-Tiny`**：镜像 = **固定 BootROM 固件 + 应用**两件。固件经 `bootrom-image`（或 legacy `-bios`）原样装入 `0xffff_ffff_0000`，**恰好 64 KiB**；应用（raw 或 ELF）**只装 SRAM**：`.text` 起 `0xffff_ff01_0100`，raw 镜像基址 `0xffff_ff01_0000`（镜像前 `0x100` 字节须全零，保留区），`.bss` 由 picolibc `__start` 在 SRAM 清零。**`crt`（启动代码）与测试程序一起链接成同一个应用 ELF，整体落在 SRAM**（BootROM 内不含 crt）；入口 **raw 与 ELF 统一 `0xffff_ff01_0100`**（即 crt 入口）、`SP = 0xffff_ff7e_ff00`（由 crt 在入口设置）；power stub 在 hmon 移交返回后跳到该固定入口（`§6.2`）。**宿主 loader 不得向 BootROM 或 hmon SRAM 下发 `PT_LOAD`**（前者会覆盖固件、后者会预置 hmon），`e_entry` 不等于固定入口亦属装载错误；两者均须**显式失败**，不得静默忽略。Tiny 无 PTW/页表。
-- **装载语义 — `Machine-v5-Vast`**：4 MiB BootROM 经 bootrom 镜像装载路径（机器属性 `bootrom-image`）装入；`power` 从 BootROM 把 hmon 装入 hmon SRAM，`power → hmon → smon` 交接后由 smon 建立**首张页表**并开启 PTW（`PTBR` = 页表页 PA、`ptw_enable = 1`）：该表覆盖内核窗口基址起的前 512 MiB（`VA [0x0200_0000_0000, 0x0200_2000_0000) → PA [0, 0x2000_0000)`，`VA = PA + 2 TiB`，含 `§6.3` 所需的前 96 MiB），窗口内其余区间不映射、由内核按需扩展。页表格式与地址转换按 `DADAO-12 §2.2`。本册只规定该首张页表，不规定**测试镜像**的段布局、起始执行位置或 SP；**内核镜像**的装载路径（VA）、内存窗口分区、boot info 与进入时状态见 `§6.3`。
+- **BootROM（按 profile）**：`Kaiwu-Tiny` 为 64 KiB（`0xffff_ffff_0000`–`0xffff_ffff_ffff`），内容是**固定启动固件镜像**——power 启动 stub、hmon 运行段、image index table 三段（布局与容量见 `§6.2`）；**hmon 的代码/数据编入该镜像**，宿主不下发 hmon 段。`Kaiwu-Vast` 为 4 MiB（`0xffff_ffc0_0000`–`0xffff_ffff_ffff`），偏移 0 放 image index table、其后放 ELF 镜像，末 64 KiB（`0xffff_ffff_0000` 起）留给复位/启动代码。复位向量两 profile 均为 `0xffff_ffff_0000`。[DADAO-12 §2.1 核内地址空间]
+- **装载语义 — `Kaiwu-Tiny`**：镜像 = **固定 BootROM 固件 + 应用**两件。固件经 `bootrom-image`（或 legacy `-bios`）原样装入 `0xffff_ffff_0000`，**恰好 64 KiB**；应用（raw 或 ELF）**只装 SRAM**：`.text` 起 `0xffff_ff01_0100`，raw 镜像基址 `0xffff_ff01_0000`（镜像前 `0x100` 字节须全零，保留区），`.bss` 由 picolibc `__start` 在 SRAM 清零。**`crt`（启动代码）与测试程序一起链接成同一个应用 ELF，整体落在 SRAM**（BootROM 内不含 crt）；入口 **raw 与 ELF 统一 `0xffff_ff01_0100`**（即 crt 入口）、`SP = 0xffff_ff7e_ff00`（由 crt 在入口设置）；power stub 在 hmon 移交返回后跳到该固定入口（`§6.2`）。**宿主 loader 不得向 BootROM 或 hmon SRAM 下发 `PT_LOAD`**（前者会覆盖固件、后者会预置 hmon），`e_entry` 不等于固定入口亦属装载错误；两者均须**显式失败**，不得静默忽略。Tiny 无 PTW/页表。
+- **装载语义 — `Kaiwu-Vast`**：4 MiB BootROM 经 bootrom 镜像装载路径（机器属性 `bootrom-image`）装入；`power` 从 BootROM 把 hmon 装入 hmon SRAM，`power → hmon → smon` 交接后由 smon 建立**首张页表**并开启 PTW（`PTBR` = 页表页 PA、`ptw_enable = 1`）：该表覆盖内核窗口基址起的前 512 MiB（`VA [0x0200_0000_0000, 0x0200_2000_0000) → PA [0, 0x2000_0000)`，`VA = PA + 2 TiB`，含 `§6.3` 所需的前 96 MiB），窗口内其余区间不映射、由内核按需扩展。页表格式与地址转换按 `DADAO-12 §2.2`。本册只规定该首张页表，不规定**测试镜像**的段布局、起始执行位置或 SP；**内核镜像**的装载路径（VA）、内存窗口分区、boot info 与进入时状态见 `§6.3`。
 - **legacy `-bios` 路径**：仍按 64 KiB 复位窗口（`0xffff_ffff_0000` 起）装载；Tiny 下它与 `bootrom-image` 装载的是**同一固定固件镜像**（应用走 `-kernel` 的 SRAM 段），不再携带应用专用 ROM trampoline。
-- **模式移交**：`Machine-v5-Tiny` 运行模式始终为 `hypv`，但存在 `power → hmon → 测试本体` 的 cfx/启动移交（同 `§2`）；`Machine-v5-Vast` 为 power → hmon → 测试本体（hypv），`power → hmon → smon` 路径保留（同 `§2`）。
+- **模式移交**：`Kaiwu-Tiny` 运行模式始终为 `hypv`，但存在 `power → hmon → 测试本体` 的 cfx/启动移交（同 `§2`）；`Kaiwu-Vast` 为 power → hmon → 测试本体（hypv），`power → hmon → smon` 路径保留（同 `§2`）。
 - **并存关系**：`-bios`/`bootrom-image` 固件启动路径与 ELF 单镜像路径**并存、非替代**——两条启动路径各自可自动化（Tiny 的 ELF 路径同样需要固件镜像，见上）。
 
 ### 6.1 image index table（两 profile 共用格式）
 
-BootROM 镜像的段表两 profile **同格式、大端**（DADAO 为大端）；表在镜像内的固定偏移按 profile 规定（`Machine-v5-Vast` 偏移 0；`Machine-v5-Tiny` 见 `§6.2`）。
+BootROM 镜像的段表两 profile **同格式、大端**（DADAO 为大端）；表在镜像内的固定偏移按 profile 规定（`Kaiwu-Vast` 偏移 0；`Kaiwu-Tiny` 见 `§6.2`）。
 
 **表头（16 字节）**
 
@@ -281,10 +281,10 @@ BootROM 镜像的段表两 profile **同格式、大端**（DADAO 为大端）�
 | 16 | 8 | `size` | payload 字节数，8 字节对齐 |
 | 24 | 8 | `reserved` | `0` |
 
-- **payload 形态与目标地址**：`Machine-v5-Vast` 的表项是 **ELF 镜像**（power 校验 ELF 头并按 `PT_LOAD` 装入、BSS 清零，目标地址由 ELF 给出）；`Machine-v5-Tiny` 的表项是**扁平分段**（无 ELF 头，按 `offset`/`size` 整段复制到固定目标，见 `§6.2`）。
+- **payload 形态与目标地址**：`Kaiwu-Vast` 的表项是 **ELF 镜像**（power 校验 ELF 头并按 `PT_LOAD` 装入、BSS 清零，目标地址由 ELF 给出）；`Kaiwu-Tiny` 的表项是**扁平分段**（无 ELF 头，按 `offset`/`size` 整段复制到固定目标，见 `§6.2`）。
 - **失败语义**：表头/表项校验失败（`magic`/`version`/`count`/`reserved` 不符、`type`/`flags` 非法、`offset`/`size` 越界或未对齐）⇒ power **停在 BootROM 的 park 循环**（不进入 hmon、不静默继续）；构建器对同一条件报错并以**非零**退出。
 
-### 6.2 `Machine-v5-Tiny` 的 hmon 装载契约
+### 6.2 `Kaiwu-Tiny` 的 hmon 装载契约
 
 **镜像布局（64 KiB，偏移 0 即复位向量）**
 
@@ -318,9 +318,9 @@ BootROM 镜像的段表两 profile **同格式、大端**（DADAO 为大端）�
 4. hmon SRAM 复位为 0 且**对 CPU 可写**（power 复制路径可用），宿主不向该段装任何内容；
 5. **不需要**解析段表——表由 BootROM 内的 power 固件解析；QEMU 只负责原样装入固件与上述装载检查。
 
-### 6.3 `Machine-v5-Vast` 内核装载与启动 ABI
+### 6.3 `Kaiwu-Vast` 内核装载与启动 ABI
 
-本节冻结 **K0 内核在 `Machine-v5-Vast` 上如何被装载、进入内核时看到什么**，即该 profile 的**启动 ABI**：地址术语、启动模型、装载路径与校验规则、内存窗口分区、固定 boot info 结构、进入时状态。装载的**执行**（宿主写内存与 boot info、装 initramfs、把 `rb16`/`rb17` 交给 smon）属实现层，不在本节。[spec-decision]（用户 2026-11-13 确认：按提案冻结）
+本节冻结 **K0 内核在 `Kaiwu-Vast` 上如何被装载、进入内核时看到什么**，即该 profile 的**启动 ABI**：地址术语、启动模型、装载路径与校验规则、内存窗口分区、固定 boot info 结构、进入时状态。装载的**执行**（宿主写内存与 boot info、装 initramfs、把 `rb16`/`rb17` 交给 smon）属实现层，不在本节。[spec-decision]（用户 2026-11-13 确认：按提案冻结）
 
 **地址术语（本节硬约定）**：ABI 中的地址**一律是 VA**——48 位核内地址里分区键 `addr[47:42] = 0` 的内存窗口（`§1`），即 **`addr[41:0]`**（42 位有效）。**PA 只出现在三处**：页表项、`PTBR`（= `PPN << 16`，指出首张页表根的 PA）、宿主 loader 把数据写进内存的那一刻（写到该 VA 映射到的 PA）。入口地址、`rb16`/`rb17`、boot info 的地址字段、`kernel_base`、内核镜像区、initramfs 区与栈指针都按 **VA** 记。[spec-decision]（用户 2026-11-13 裁定：VA 为 ABI 地址）
 
@@ -330,7 +330,7 @@ BootROM 镜像的段表两 profile **同格式、大端**（DADAO 为大端）�
 
 **硬约束（为何必须 PTW 已开）**：DADAO 在 `ptw_enable = 0` 时对内存窗口（`addr[47:42] = 0`）的取指/访存**直接报 `CFXMEM`**（`§1.2`）——内核不可能在 MMU 关的状态下从 RAM 取指或访存。因此进入内核时 `ptw_enable` 必须为 `1`。[spec-decision]
 
-`Machine-v5-Tiny` 不适用本节（其装载规则见 `§6.2`）。本节与 `§1.1`/`§2`/`§6` 的既有 profile 几何与启动链条款**并存**（`§6` 的 Vast 首张页表按本节的 `+2 TiB` 偏置同步，不改变「`smon` 建表、`PTBR = 0`」归属），其它语义不变。
+`Kaiwu-Tiny` 不适用本节（其装载规则见 `§6.2`）。本节与 `§1.1`/`§2`/`§6` 的既有 profile 几何与启动链条款**并存**（`§6` 的 Vast 首张页表按本节的 `+2 TiB` 偏置同步，不改变「`smon` 建表、`PTBR = 0`」归属），其它语义不变。
 
 #### 6.3.1 内存窗口分区
 
@@ -473,7 +473,7 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 
 - **`CFXTRAP`/`CFXESC` 的编码选择**：退出码表示 `CFXTRAP`（位索引 0）或 `CFXESC`（位索引 3）时，按「其它 cfx」段编码（`0x80`–`0xBF`，`bit7=1`、`bit6=0`、`bit5:0` = 对应 cfx 的 cfxHA），**不**按 monitor 段编码；monitor 表中的 0/3 仅保留位索引定义。
 - **语义映射**：`bit5:4` 取运行模式编码、`bit3:0` 取 DADAO 异常位索引（见上表），二者组合即该退出码所指的「运行模式 + 异常原因」；异常原因与运行模式的归属由异常路由（`§1.2`/`§4.4`、`DADAO-12 §5.2`）定义，本节只约束编码。
-- **`Machine-v5-Tiny` 的编码范围**：运行模式恒 `hypv` ⇒ monitor 段取 `bit5:4 = 11`（`0xF0`–`0xFF`）。
+- **`Kaiwu-Tiny` 的编码范围**：运行模式恒 `hypv` ⇒ monitor 段取 `bit5:4 = 11`（`0xF0`–`0xFF`）。
 - **编码冻结、不得重排**：退出码分段与 monitor/其它 cfx 位域**自本版起**一经生效**不得重排**；monitor 位索引沿用 DADAO 异常位索引，新增原因不得改变既有索引。[DADAO-12 §5.2 异常进入流程]
 
 ---
@@ -484,13 +484,15 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 
 ### 0.4.7-rc（未发布）
 
+- **测试机整机名定为 `Kaiwu`（开物），本册随之改名**（用户 2026-11-16 裁定）：册名 `Kaiwu-测试机运行环境.md`，正文整机名 `Kaiwu`、两机型 `Kaiwu-Tiny` / `Kaiwu-Vast`，QEMU 机器串 `kaiwu-tiny` / `kaiwu-vast`（不保留旧名别名）；两机型几何、复位地址、cfx 范围、异常/退出码与 semihosting 语义**逐字不变**，版本号不变。
+
 - **内核 VA 窗口改为 `[2 TiB, 3 TiB)`**（用户 2026-11-13 裁定：内核空间不从 0 开始；用户空间 `[0, 2 TiB)`；渠道 = 主会话问答）：`§6.3` 的四段固定分区整体迁入内核窗口，窗口内 `VA = PA + 2 TiB`——首张页表页 VA `0x0200_0000_0000`（`PTBR` 仍为页表页 PA 0）、boot info VA `0x0200_0001_0000`（PA 侧不变）、内核镜像区 VA `[0x0200_0010_0000, 0x0200_0400_0000)`（`kernel_base` / `e_entry` / `raw` 基址同步）、initramfs 区 VA `[0x0200_0400_0000, 0x0200_0600_0000)`；boot info 的 `ram_base` 改记内核窗口起点（VA `0x0200_0000_0000`）。`§6` 的 Vast 首张页表由「全域 4 个 512 MiB 超页」改为「内核窗口基址段 1 个 512 MiB 超页」（`VA [0x0200_0000_0000, 0x0200_2000_0000) → PA [0, 0x2000_0000)`）；物理侧（PA RAM 2 GiB、内核镜像 PA 起点 0、boot info PA `0x1_0000`、页表页 PA 0）不变。`§6.3` 的启动模型改为「预建带偏置页表 + VA 入口」，不再是身份映射。
 
 - **semihosting 指针语义固定为 PA**（用户 2026-11-15 裁定）：`§5.2` 明写参数块指针与 `SYS_WRITEC`/`SYS_WRITE0` 的指针一律为**物理地址、不经页表翻译**，`§5.3` 服务表的其它指针字段同此口径。
 
 ### 0.4.6（未发布，被 0.4.7-rc 取代；本段所列地址为旧值，已作废）
 
-- **新增「`Machine-v5-Vast` 内核装载与启动 ABI」（`§6.3`）**：冻结内核镜像的 ELF / raw 两条装载路径与校验规则（ELF 7 条、raw 4 条、initramfs 3 条、失败语义 2 条）、内存窗口四段固定 VA 分区（页表页 / boot info 页 / 内核镜像区 / initramfs 区）、固定 boot info 结构（VA `0x0001_0000`、`size = 0x60`、大端、15 个字段）、进入内核时的状态（`supv`、PTW 开启、`rb17` = boot info VA、`rb16` = 入口 VA、SP 未定义、其它 hart 状态未定义）。**地址术语**：ABI 地址一律 VA（`addr[41:0]`），PA 只用于页表项、`PTBR` 与 loader 写内存的那一刻；`p_vaddr` 是 VA、由 loader 按映射写入对应 PA（K0 身份映射下数值相等）。**启动模型 = 预建页表 + VA 入口**：进入内核前身份映射页表已预建且 `ptw_enable = 1`（`ptw_enable = 0` 时访存/取指直接 `CFXMEM`，不存在 MMU 关运行）。明确本机**不引入设备树**：`rb17` 与 HBI 移交约定的「设备树地址」同位，但承载 boot info，内核不得按 DTB 解析。装载的执行（宿主写内存与 boot info、装 initramfs、交给 smon）不在本版规定。
+- **新增「`Kaiwu-Vast` 内核装载与启动 ABI」（`§6.3`）**：冻结内核镜像的 ELF / raw 两条装载路径与校验规则（ELF 7 条、raw 4 条、initramfs 3 条、失败语义 2 条）、内存窗口四段固定 VA 分区（页表页 / boot info 页 / 内核镜像区 / initramfs 区）、固定 boot info 结构（VA `0x0001_0000`、`size = 0x60`、大端、15 个字段）、进入内核时的状态（`supv`、PTW 开启、`rb17` = boot info VA、`rb16` = 入口 VA、SP 未定义、其它 hart 状态未定义）。**地址术语**：ABI 地址一律 VA（`addr[41:0]`），PA 只用于页表项、`PTBR` 与 loader 写内存的那一刻；`p_vaddr` 是 VA、由 loader 按映射写入对应 PA（K0 身份映射下数值相等）。**启动模型 = 预建页表 + VA 入口**：进入内核前身份映射页表已预建且 `ptw_enable = 1`（`ptw_enable = 0` 时访存/取指直接 `CFXMEM`，不存在 MMU 关运行）。明确本机**不引入设备树**：`rb17` 与 HBI 移交约定的「设备树地址」同位，但承载 boot info，内核不得按 DTB 解析。装载的执行（宿主写内存与 boot info、装 initramfs、交给 smon）不在本版规定。
 
 ### 0.4.5（未发布，被 0.4.6-rc 取代）
 
@@ -525,13 +527,13 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 
 ### 0.4.1（未发布，被 0.4.2-rc 取代）
 
-- **profile 与机器命名**：profile 概念 `Node` → `Vast`（`Machine-v5-Node` → `Machine-v5-Vast`），机器名 `dadao-m1` → `dadao-tiny` / `dadao-vast`（语义不变）。
+- **profile 与机器命名**：profile 概念 `Node` → `Vast`（`Kaiwu-Node` → `Kaiwu-Vast`），机器名 `dadao-m1` → `kaiwu-tiny` / `kaiwu-vast`（语义不变）。
 
 ### 0.4.0（2026-11-08）
 
 **① 平台 profile：Tiny / Vast**
 
-- **两个 profile**：`Machine-v5-Tiny` = BootROM 64 KiB + SRAM 8 MiB、无 cfx / 无 PTW / 无 hmon 与异常路径、`trap` 只作 semihosting 开关；`Machine-v5-Vast` = BootROM 4 MiB + PA RAM 2 GiB、hmon / PTW / hypv，smon 路径保留。两者复位地址均为 `0xffff_ffff_0000`。
+- **两个 profile**：`Kaiwu-Tiny` = BootROM 64 KiB + SRAM 8 MiB、无 cfx / 无 PTW / 无 hmon 与异常路径、`trap` 只作 semihosting 开关；`Kaiwu-Vast` = BootROM 4 MiB + PA RAM 2 GiB、hmon / PTW / hypv，smon 路径保留。两者复位地址均为 `0xffff_ffff_0000`。
 - **删除旧几何约定**：单一几何、物理地址与核内地址别名、双映射两步过渡全部作废；`power` 不设 SRAM 改为本机约定（不是架构禁令）；`DADAO-12` 只要求 BootROM ≥ 64 KiB，实际尺寸由本册按 profile 规定。
 - **BootROM 尺寸按 profile**：Tiny 64 KiB、Vast 4 MiB；复位向量仍在 BootROM 末 64 KiB 起点。
 - **Tiny 装载约定**：raw 镜像基址 `0xffff_ff01_0000`（镜像前 `0x100` 全零）、应用入口 `0xffff_ff01_0100`、`SP 0xffff_ff7e_ff00`；ELF 的 crt / 启动 stub 落 BootROM、应用段落 SRAM，raw 与 ELF 统一入口与 `SP`。
@@ -576,7 +578,7 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 **⑧ 其它**
 
 - **legacy `-bios`**：仍按 64 KiB 复位窗口装载，与镜像装载路径并存。
-- **册名**：`Machine-01` → `Machine-v5`（标题同步为「`Machine-v5：测试机运行环境`」；正文语义不变）。
+- **册名**：`Machine-01` → `Kaiwu`（标题同步为「`Kaiwu：测试机运行环境`」；正文语义不变）。
 
 ### 0.3.1（2026-10-16）
 

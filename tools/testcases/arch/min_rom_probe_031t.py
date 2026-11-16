@@ -280,7 +280,7 @@ def run_probe(binary_data, label, qemu_bin, bootrom_path, timeout=10):
     try:
         cmd = [
             qemu_bin,
-            '-machine', 'dadao-tiny',
+            '-machine', 'kaiwu-tiny',
             '-nographic',
             '-bios', bootrom_path,
             '-kernel', bin_path,

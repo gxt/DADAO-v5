@@ -1,8 +1,8 @@
-@@ hmon.S — Machine-v5-Tiny cfx3 hmon handler：最小「保存-跳转」算法
+@@ hmon.S — Kaiwu-Tiny cfx3 hmon handler：最小「保存-跳转」算法
 @@ （m13-integ-007；用户 2026-11-11 第二次修正，见
 @@   .tao/knowledge/refs/m12-006-cycle-design.md §11）
 @@
-@@ 规范：spec/Machine-v5 §1.1/§2/§4.4/§6.2；spec/DADAO-12 §5.1–§5.3；
+@@ 规范：spec/Kaiwu §1.1/§2/§4.4/§6.2；spec/DADAO-12 §5.1–§5.3；
 @@       spec/DADAO-13 §1–§2（cfx_hmon cg3/cg5）。
 @@
 @@ 位置：BootROM 镜像偏移 0x2000–0x3FFF；链接在 hmon SRAM 起始

@@ -1,4 +1,4 @@
-@@ tiny_common.inc — Machine-v5-Tiny BootROM 固件（power stub + hmon handler）的
+@@ tiny_common.inc — Kaiwu-Tiny BootROM 固件（power stub + hmon handler）的
 @@ 共用汇编宏（m12-chipyard-007）。
 @@
 @@ LD64：把 64 位常量物化为一个寄存器。立即数字段只有 16 位（wyde），

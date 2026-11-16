@@ -28,9 +28,9 @@ Pipeline per (benchmark, optimisation level):
     clang ... -c tests/tset/embench/embench_runtime.c                    -> *.o
     llc  -march=dadao -O0 -filetype=obj dadao_mem_runtime.ll        -> *.o
     llvm-mc --triple=dadao -filetype=obj minimal_crt0.s             -> crt0.o
-    ld.lld -T dadao-tiny-app.lds *.o                                     -> <b>.elf
+    ld.lld -T kaiwu-tiny-app.lds *.o                                     -> <b>.elf
     timeout N qemu-system-dadao \
-            -machine dadao-tiny,bootrom-image=<fixed 64 KiB firmware> \
+            -machine kaiwu-tiny,bootrom-image=<fixed 64 KiB firmware> \
             -kernel <b>.elf -semihosting-config enable=on,target=native -> guest exit
      # or (--engine chipyard):
      timeout N simulator-chipyard.harness-WumingTinyConfig +permissive \
@@ -111,7 +111,7 @@ DEFAULT_INCLUDE = "tests/tset/embench/embench_include"
 DEFAULT_RUNTIME = "tests/tset/embench/embench_runtime.c"
 DEFAULT_MEM_RUNTIME = "tests/shared/runtime/dadao_mem_runtime.ll"
 DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
-DEFAULT_LDS = "tests/shared/linker/dadao-tiny-app.lds"
+DEFAULT_LDS = "tests/shared/linker/kaiwu-tiny-app.lds"
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir()
                       / "bootrom" / "tiny" / "bootrom_tiny.bin")
 DEFAULT_BOARDSUPPORT = "examples/dadao/boardsupport.c"
@@ -125,7 +125,7 @@ DEFAULT_ENGINE = "qemu"
 # `+loadmem=`; the runner only swaps the run step.
 MARKERS = ("[board:init]", "[board:start]", "[board:stop]")
 
-# Machine fault exit codes (spec/Machine-v5 §7.1): monitor 0xC0-0xFF
+# Machine fault exit codes (spec/Kaiwu §7.1): monitor 0xC0-0xFF
 # (bit5:4 = run mode, bit3:0 = cause index) and other cfx 0x80-0xBF
 # (bit5:0 = cfxHA).
 _MONITOR_FAULT_NAMES = {
@@ -331,7 +331,7 @@ def build_and_run(bench, opt, tools, work_dir, timeout, verbose=False):
 
     rc, _o, err, timed = _run(
         [tools["qemu"], "-machine",
-         "dadao-tiny,bootrom-image=" + tools["bootrom"], "-kernel", elf,
+         "kaiwu-tiny,bootrom-image=" + tools["bootrom"], "-kernel", elf,
          "-semihosting-config", "enable=on,target=native",
          "-display", "none", "-nographic"],
         timeout=timeout,
@@ -599,7 +599,7 @@ def main():
     ap.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
     ap.add_argument("--engine", default=os.environ.get("DADAO_TEST_ENGINE")
                     or DEFAULT_ENGINE, choices=("qemu", "chipyard"),
-                    help="run engine: qemu (dadao-tiny) or chipyard (Verilator "
+                    help="run engine: qemu (kaiwu-tiny) or chipyard (Verilator "
                          "Tiny harness; m12-chipyard-016)")
     ap.add_argument("--chipyard", default=None,
                     help="simulator-chipyard harness binary (engine chipyard)")
@@ -630,7 +630,7 @@ def main():
         sys.stderr.write("ERROR: profile %r does not run embench\n" % prof.name)
         return 2
     if args.lds == DEFAULT_LDS:
-        args.lds = ("tests/shared/linker/dadao-tiny-app.lds"
+        args.lds = ("tests/shared/linker/kaiwu-tiny-app.lds"
                     if prof.name == "tiny"
                     else "tests/shared/linker/dadao-%s.lds" % prof.name)
 

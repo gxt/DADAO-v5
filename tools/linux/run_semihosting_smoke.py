@@ -8,7 +8,7 @@ and the same `SYS_EXIT` service the kernel-side init will use later:
   * `semihost_smoke.elf`  SYS_EXIT {ADP_Stopped_ApplicationExit, 0}   -> `$? = 0`
   * `semihost_fail.elf`   SYS_EXIT {ADP_Stopped_ApplicationExit, 64}  -> `$? = 64`
 
-Two independent properties per run (spec/Machine-v5 §5.3/§5.5):
+Two independent properties per run (spec/Kaiwu §5.3/§5.5):
 
   1. exit code: the QEMU *process* status, read directly from
      `subprocess.returncode` — never through a shell pipe (`| tee`/`| tail`
@@ -153,7 +153,7 @@ def run_case(elf: Path, bootrom: Path, oracle: bytes, expected_rc: int, label: s
     failures = 0
     try:
         proc = subprocess.run(
-            [str(_qemu()), "-M", "dadao-tiny", "-bios", str(bootrom),
+            [str(_qemu()), "-M", "kaiwu-tiny", "-bios", str(bootrom),
              "-kernel", str(elf),
              "-semihosting-config", "enable=on,target=native",
              "-display", "none", "-nographic", "-monitor", "none"],

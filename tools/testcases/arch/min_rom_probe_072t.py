@@ -247,7 +247,7 @@ def run_dcpu(rom_data, timeout=10):
     lp = rp + '.cpu.log'
     try:
         r = subprocess.run(
-            [QEMU, '-M', 'dadao-tiny', '-nographic', '-bios', rp, '-kernel', kp,
+            [QEMU, '-M', 'kaiwu-tiny', '-nographic', '-bios', rp, '-kernel', kp,
              '-semihosting-config', 'enable=on,target=native',
              '-d', 'cpu', '-D', lp],
             capture_output=True, timeout=timeout, text=True)
@@ -273,7 +273,7 @@ def run_plain(rom_data, timeout=10):
         kp = f.name
     try:
         r = subprocess.run(
-            [QEMU, '-M', 'dadao-tiny', '-nographic', '-bios', rp, '-kernel', kp,
+            [QEMU, '-M', 'kaiwu-tiny', '-nographic', '-bios', rp, '-kernel', kp,
              '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return r.returncode, r.stderr

@@ -1,6 +1,6 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..9667316
+index 0000000..3484efc
 --- /dev/null
 +++ b/target/dadao/helper.c
 @@ -0,0 +1,2995 @@
@@ -107,12 +107,12 @@ index 0000000..9667316
 +                      uint64_t pc, uint64_t cause_info);
 +static int cfx_idx(CPUDADAOState *env, int cfxha);
 +
-+/* Map a direct machine fault to its exit code (spec/Machine-v5 §7.1).
++/* Map a direct machine fault to its exit code (spec/Kaiwu §7.1).
 + *
 + * Used only as the *machine-fault* fallback: when a synchronous exception
 + * cannot enter the current run-mode monitor because that monitor's vector is
 + * not a mapped, 4-byte-aligned address (entering it would recurse forever),
-+ * the process halts with the monitor-segment code (spec/Machine-v5 §7.1:
++ * the process halts with the monitor-segment code (spec/Kaiwu §7.1:
 + * "若未被 hmon 处理而作为机器 fault 终止，按 monitor 段的 hypv 编码"):
 + *   0xC0 | (run_mode << 4) | cause_bit_index
 + * `UNMAPPED` is reported as CFXMEM (bit index 1), never as a separate code.
@@ -141,7 +141,7 @@ index 0000000..9667316
 +
 +/*
 + * cause id / cause info of a synchronous exception that is not a `trap`
-+ * (`DADAO-12 §5.2(一)(二)`, `Machine-v5 §4.4`):
++ * (`DADAO-12 §5.2(一)(二)`, `Kaiwu §4.4`):
 + *
 + *   ILLI / UNDI         1<<8 / 1<<9   info = instruction encoding
 + *   CFXMEM / UNMAPPED   1<<1          info = the faulting address
@@ -177,7 +177,7 @@ index 0000000..9667316
 +        break;
 +    case DADAO_EXCP_IALIGN:
 +        /* IP[1:0] != 00: precise exception, IP stays at the illegal address
-+         * (DADAO-12 §5, Machine-v5 §4.4) => cause_ip and cause_info are the
++         * (DADAO-12 §5, Kaiwu §4.4) => cause_ip and cause_info are the
 +         * illegal IP itself. */
 +        *cause = DADAO_CAUSE_IALIGN;
 +        *info = env->pc;
@@ -206,7 +206,7 @@ index 0000000..9667316
 +/*
 + * Is the monitor vector a location code fetch can reach?  Entering an
 + * unreachable vector turns one exception into an endless CFXMEM recursion, so
-+ * such an exception is a machine fault instead (spec/Machine-v5 §7.1 "若未被
++ * such an exception is a machine fault instead (spec/Kaiwu §7.1 "若未被
 + * hmon 处理而作为机器 fault 终止").
 + *
 + * The vector follows the ordinary address rules (DADAO-12 §5.2 step 7): with
@@ -252,7 +252,7 @@ index 0000000..9667316
 +
 +/* Enter the current run-mode monitor for a synchronous exception, or halt as a
 + * machine fault when the monitor vector cannot be reached (which would recurse
-+ * forever).  Machine-v5 §7.1: an unhandled sync exception ends in the monitor
++ * forever).  Kaiwu §7.1: an unhandled sync exception ends in the monitor
 + * segment code of the current run mode. */
 +static void dadao_sync_enter(CPUDADAOState *env, int excp)
 +{
@@ -348,16 +348,16 @@ index 0000000..9667316
 +    }
 +
 +    if (DADAO_PROFILE(env)->sync_exc_monitor_entry) {
-+        /* Machine-v5-Tiny (fixed hypv, monitor = cfx3 hmon): every cause
++        /* Kaiwu-Tiny (fixed hypv, monitor = cfx3 hmon): every cause
 +         * enters the hmon vector instead of being mapped straight to an exit
-+         * code (spec/Machine-v5 §4.4); the shared helper also keeps an
++         * code (spec/Kaiwu §4.4); the shared helper also keeps an
 +         * unreachable vector from recursing. */
 +        dadao_sync_enter(env, cs->exception_index);
 +        return;
 +    }
 +
 +    /*
-+     * Staged model still used by Machine-v5-Vast, which maps these causes to
++     * Staged model still used by Kaiwu-Vast, which maps these causes to
 +     * the monitor-segment machine-fault exit code rather than entering a
 +     * vector (the PTW-fault and CFXPERM paths above do enter the monitor).
 +     * The deviation from DADAO-12 §5.2 is registered in the task's spec-gap
@@ -817,7 +817,7 @@ index 0000000..9667316
 +     * This check precedes address/range legality (CFXMEM/CFXREG).  A cfx the
 +     * profile does not implement has no masks at all (no rows), so it is
 +     * handled by the segment map below (CFXMEM), never by a mask denial
-+     * (spec/Machine-v5 §3). */
++     * (spec/Kaiwu §3). */
 +    if (cfxha != DADAO_CFXHA_MEM &&
 +        dadao_cfx_implemented(prof, cfxha) &&
 +        cfx_perm_denied(env, cfxha,
@@ -839,7 +839,7 @@ index 0000000..9667316
 +        hwaddr leaf_pa = 0;
 +        bool superpage;
 +
-+        /* Tiny has no PTW (spec/Machine-v5 §1.2): the memory window is never
++        /* Tiny has no PTW (spec/Kaiwu §1.2): the memory window is never
 +         * a pmem pass-through, so every high6==0 access/fetch is CFXMEM. */
 +        if (!prof->ptw_supported || !(env->ptw_enable & 1)) {
 +            /* ptw_enable == 0: the window is never a pmem pass-through and
@@ -963,7 +963,7 @@ index 0000000..9667316
 +     * 0x3ff_0000_0000 of the owning cfx (ADR-0043 D4/D5).  The test machine
 +     * backs each with a host RAM region outside the 56-bit PA space.  An
 +     * offset outside the SRAM is an illegal internal-space access => CFXMEM.
-+     * Machine-v5-Tiny implements hmon only (spec/Machine-v5 §1.1). */
++     * Kaiwu-Tiny implements hmon only (spec/Kaiwu §1.1). */
 +    if ((cfxha == DADAO_CFXHA_HMON && prof->hmon_sram) ||
 +        (cfxha == 2 && prof->smon_sram)) {
 +        uint64_t off = addr & DADAO_VA_MASK;
@@ -987,7 +987,7 @@ index 0000000..9667316
 +    }
 +
 +    /* RAM (profile geometry): Node 2 GiB at PA 0, Tiny 8 MiB at
-+     * 0xffff_ff00_0000 (spec/Machine-v5 §1.1). */
++     * 0xffff_ff00_0000 (spec/Kaiwu §1.1). */
 +    if (addr >= prof->ram_base && addr < prof->ram_base + prof->ram_size) {
 +        prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
 +        paddr = addr;
@@ -1021,12 +1021,12 @@ index 0000000..9667316
 +    /*
 +     * Machine-level fault classification:
 +     *  - a profile with no cfx segment map (Tiny) reports every unmapped
-+     *    access/fetch as CFXMEM (spec/Machine-v5 §1.2) -- both the
++     *    access/fetch as CFXMEM (spec/Kaiwu §1.2) -- both the
 +     *    high6==0 window and "cfxha 63 outside BootROM/SRAM";
 +     *  - reserved cfxha (6-14, 16-31, 35-61) plain ld/st => CFXMEM (ADR-0039
 +     *    Step 1-c), routed to that cfxha (DADAO-12 §5.2);
 +     *  - every other unmapped segment (incl. the power segment 63 outside
-+     *    RAM/ROM) is also CFXMEM (spec/Machine-v5 §7.1).
++     *    RAM/ROM) is also CFXMEM (spec/Kaiwu §7.1).
 +     * Data accesses and instruction fetches are treated identically: the
 +     * fetch path reaches this function through get_page_addr_code ->
 +     * cpu_ldl_code_maybe_mmu (MMU_INST_FETCH), so no `access_type` special
@@ -1774,7 +1774,7 @@ index 0000000..9667316
 +const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 4, 15, 32, 34, 63 };
 +
 +/* cfxha -> compact index into env->cfx[], or -1 if the active profile does not
-+ * implement that cfx (spec/Machine-v5 §3 per-profile list).  A profile that
++ * implement that cfx (spec/Kaiwu §3 per-profile list).  A profile that
 + * implements no row has no masks/vector/frame for it, so every caller must
 + * treat -1 as "no such cfx" rather than reaching into env->cfx[]. */
 +static int cfx_idx(CPUDADAOState *env, int cfxha)
@@ -1816,7 +1816,7 @@ index 0000000..9667316
 + * no per-cfx state and is read-only.
 + * Test-machine blocks: smon/hmon/pmem are the §2.1 64 KiB SRAM constants;
 + * the power BootROM interval is derived from the active profile
-+ * (spec/Machine-v5 §1.1: Node 4 MiB at cfx offset 0x3ff_ffc0_0000; Tiny has
++ * (spec/Kaiwu §1.1: Node 4 MiB at cfx offset 0x3ff_ffc0_0000; Tiny has
 + * no cfx at all, so this branch is unreachable there).  Every other block
 + * (space[1..15] and cfx0/1/4/...) reads 0.
 + */
@@ -2013,7 +2013,7 @@ index 0000000..9667316
 +    vec = env->cfx[ci].mode[entry_mode].excp_vector;
 +    env->inner_run_mode = env->cfx[ci].mode[entry_mode].switch_run_mode & 0x3;
 +    if (!DADAO_PROFILE(env)->user_mode) {
-+        /* Machine-v5 §2: Tiny provides no mode-switch path -- the run mode is
++        /* Kaiwu §2: Tiny provides no mode-switch path -- the run mode is
 +         * fixed at hypv, so a software-written switch value cannot leave it. */
 +        env->inner_run_mode = DADAO_MODE_HYPV;
 +    }
@@ -2657,7 +2657,7 @@ index 0000000..9667316
 +    ci = cfx_idx(env, cfxha);
 +    if (ci < 0) {
 +        /* Allocated but not implemented by this profile: Tiny maps a general
-+         * trap there to ILLI (spec/Machine-v5 §3 Tiny bullet), Vast keeps the
++         * trap there to ILLI (spec/Kaiwu §3 Tiny bullet), Vast keeps the
 +         * register-access rule CFXREG.  Either way the target is the current
 +         * run-mode monitor. */
 +        cfx_raise(env, DADAO_PROFILE(env)->unimpl_cfx_trap_illi
@@ -2766,7 +2766,7 @@ index 0000000..9667316
 +    ci = cfx_idx(env, cfxha);
 +    if (ci < 0) {
 +        /* No register file row for a cfx this profile does not implement
-+         * (spec/Machine-v5 §3) => CFXREG in the current run-mode monitor.
++         * (spec/Kaiwu §3) => CFXREG in the current run-mode monitor.
 +         * A reserved cfxha already took the ILLI path above (DADAO-12
 +         * §5.2(一)). */
 +        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
@@ -2865,7 +2865,7 @@ index 0000000..9667316
 +    ci = cfx_idx(env, cfxha);
 +    if (ci < 0) {
 +        /* No register file row for a cfx this profile does not implement
-+         * (spec/Machine-v5 §3) => CFXREG in the current run-mode monitor.
++         * (spec/Kaiwu §3) => CFXREG in the current run-mode monitor.
 +         * A reserved cfxha already took the ILLI path above (DADAO-12
 +         * §5.2(一)). */
 +        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
@@ -2980,7 +2980,7 @@ index 0000000..9667316
 +        *p = ((rd == 0) ? 0 : env->rd[rd]) & ~0x3ULL;
 +        dadao_soft_tlb_flush(env);
 +    } else if (rc == 8 && DADAO_PROFILE(env)->switch_run_mode_write_ignored) {
-+        /* Machine-v5-Tiny §2: the write is ignored; the register keeps its
++        /* Kaiwu-Tiny §2: the write is ignored; the register keeps its
 +         * saved value (3 = hypv) and a read returns that saved value.  The
 +         * exception-entry path forces hypv independently. */
 +    } else {

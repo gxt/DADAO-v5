@@ -1,6 +1,6 @@
-@@ power.S — Machine-v5-Tiny power 启动 stub（m12-chipyard-007）
+@@ power.S — Kaiwu-Tiny power 启动 stub（m12-chipyard-007）
 @@
-@@ 规范：spec/Machine-v5 §6.1（image index table）/ §6.2（Tiny 的 hmon 装载契约）。
+@@ 规范：spec/Kaiwu §6.1（image index table）/ §6.2（Tiny 的 hmon 装载契约）。
 @@ 位置：BootROM 镜像偏移 0x0000–0x1FFF（上限 8 KiB），链接在复位向量
 @@ 0xffff_ffff_0000；偏移 0 即复位指令。
 @@

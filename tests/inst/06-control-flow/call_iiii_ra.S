@@ -10,7 +10,7 @@
 @@ 数据块：`tests/inst/macros/inst_test.inc`（本文件只用寄存器）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 1 / semantic 12 / boundary 5（链例 18 + 故障例 1）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：call 与返回地址栈都是**只读**可观测（`ra2rd` 读 ra63/ra62/ra0、`aip.si` 取落点 IP）；
 @@   RA 状态用 `rd2ra` 全 64 位写 **建立**（RA 组无 rd0 约束、`ra0` 的 [53:48] = RACNT、

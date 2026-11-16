@@ -17,7 +17,7 @@
 ### `dadao-wuming` — 非流水化 / 多周期
 
 - 无流水寄存器，逐拍推进；「单周期」只是历史称呼，**不是每条指令 1 拍**——多寄存器、`ldm`/`stm`、FP 除法/开方都为多周期。
-- 现状：chipyard `WumingTinyConfig`（`Machine-v5-Tiny`，无 cache、无 MMU）。
+- 现状：chipyard `WumingTinyConfig`（`Kaiwu-Tiny`，无 cache、无 MMU）。
 - 下一步：**Vast + MMU**；不在本核上做流水化改造。
 
 ### `dadao-wuqing` — 顺序流水线 / 单发射
@@ -47,4 +47,4 @@
 
 - `spec/`：ISA / ABI / 机器语义的唯一真源；本册不重复。
 - `docs/core-wuming-cycle-model.md`：`wuming` 的逐族周期（实现口径）。
-- `spec/Machine-v5-测试机运行环境.md`：Tiny / Vast 的机器定义。
+- `spec/Kaiwu-测试机运行环境.md`：Tiny / Vast 的机器定义。

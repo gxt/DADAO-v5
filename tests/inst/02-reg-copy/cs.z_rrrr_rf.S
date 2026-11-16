@@ -7,7 +7,7 @@
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 RDATA（rf 初值经 `ld.o` 装载）/ SCRATCH（落点，rb29 指）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
 @@ 用例：encoding 2 / semantic 3 / legality 2 / boundary 6 / overlap 1（链例 14 + 故障例 1）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 注：① rf0 作目的时只写 FCSR 的 [33:32]/[4:0] ⇒ 其写内容不断言，只断言「不触发 ILLI」；
 @@   ② 条件寄存器与目的/候选同名的别名语义按 C-27 仍 deferred ⇒ 用例不同名

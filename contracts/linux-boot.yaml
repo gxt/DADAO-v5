@@ -1,7 +1,7 @@
-# 机器可读投影 —— 启动 ABI（`Machine-v5-Vast` 内核装载 + 固定 boot info）
+# 机器可读投影 —— 启动 ABI（`Kaiwu-Vast` 内核装载 + 固定 boot info）
 #
 # 人读契约：.tao/contracts/contract-linux-boot.md（0.2.0）
-# 规范正文：spec/Machine-v5-测试机运行环境.md §6.3（v5 自定册，0.4.7-rc）
+# 规范正文：spec/Kaiwu-测试机运行环境.md §6.3（v5 自定册，0.4.7-rc）
 # 一致性：tools/linux/check_boot_contract.py 逐字段三方比对（正文表 ↔ 契约表 ↔ 本文件）。
 # 地址模型：ABI 地址一律 VA（addr[41:0]）；PA 只用于页表项 / PTBR / loader 写内存。
 #           内核 VA 窗口 [2 TiB, 3 TiB) 内固定偏置 VA = PA + 2 TiB（用户空间 [0, 2 TiB)）。
@@ -10,7 +10,7 @@
 format: 1
 contract: linux-boot
 version: "0.2.0"
-spec_doc: "spec/Machine-v5-测试机运行环境.md"
+spec_doc: "spec/Kaiwu-测试机运行环境.md"
 spec_section: "6.3"
 
 # 地址术语（用户 2026-11-13 裁定：VA 为 ABI 地址；内核窗口 [2 TiB, 3 TiB)、四项冻结地址 +2 TiB）。

@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/kernel/k2_selftest.c b/arch/dadao/kernel/k2_selftest.c
 new file mode 100644
-index 000000000..d5bfeb607
+index 000000000..c545dc889
 --- /dev/null
 +++ b/arch/dadao/kernel/k2_selftest.c
 @@ -0,0 +1,487 @@
@@ -30,7 +30,7 @@ index 000000000..d5bfeb607
 + *       the save/restore got wrong shows up as a mismatch.
 + *   P3  an *unregistered* fault must terminate: the dispatcher has no default
 + *       for a CFXMEM, names it, and stops with the monitor exit code of
-+ *       spec/Machine-v5 §7.1.  P3 is the last case because it ends the boot.
++ *       spec/Kaiwu §7.1.  P3 is the last case because it ends the boot.
 + *
 + * The unknown-cause case (P4) is a different probe image: `cg5 rc2` is
 + * hardware-read-only (spec/DADAO-12 §3.6), so the dispatcher's input has to be

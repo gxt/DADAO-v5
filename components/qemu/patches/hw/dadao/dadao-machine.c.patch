@@ -1,11 +1,11 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..8ffffed
+index 0000000..e58ecfe
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
 @@ -0,0 +1,1321 @@
 +/*
-+ * DADAO Machine-v5 bare-metal test machines for QEMU
++ * DADAO Kaiwu bare-metal test machines for QEMU
 + *
 + * Copyright (c) 2026 DADAO Contributors
 + *
@@ -21,20 +21,20 @@ index 0000000..8ffffed
 + * You should have received a copy of the GNU General Public License along with
 + * this program.  If not, see <http://www.gnu.org/licenses/>.
 + *
-+ * Machine types (M12; spec/Machine-v5 §1): `dadao-tiny` and `dadao-vast` each
++ * Machine types (M12; spec/Kaiwu §1): `kaiwu-tiny` and `kaiwu-vast` each
 + * fix their profile at the machine type; there is no runtime `profile=`
 + * selector and no compatibility machine-name alias.
-+ * `vast` is Machine-v5-Vast (spec/Machine-v5 §1.1/§6):
++ * `vast` is Kaiwu-Vast (spec/Kaiwu §1.1/§6):
 + *   Boot ROM:   0xffff_ffc0_0000 .. 0xffff_ffff_ffff (4 MiB, RO+X)
 + *   reset vec:  0xffff_ffff_0000 (ROM base + 0x3f_0000; last 64 KiB)
 + *   PA RAM:     0 .. 2 GiB (RWX; reached through the PTW identity map)
 + *   hmon SRAM / smon SRAM / cfx_pmem SRAM + full cfx/PTW register file
 + *   `-bios` keeps the 64 KiB reset window; `bootrom-image` takes exactly 4 MiB.
-+ * `tiny` is Machine-v5-Tiny (spec/Machine-v5 §1.1/§6):
++ * `tiny` is Kaiwu-Tiny (spec/Kaiwu §1.1/§6):
 + *   Boot ROM:   0xffff_ffff_0000 .. 0xffff_ffff_ffff (64 KiB, RO+X)
 + *   SRAM:       0xffff_ff00_0000 .. 0xffff_ff7f_ffff (8 MiB, RWX)
 + *   hmon SRAM:  0x0fff_0000_0000 (64 KiB, cfx3); written only by the power
-+ *               stub inside the fixed BootROM firmware (spec/Machine-v5 §6.2)
++ *               stub inside the fixed BootROM firmware (spec/Kaiwu §6.2)
 + *   reset vec:  0xffff_ffff_0000; raw -kernel at 0xffff_ff01_0000
 + *               (first 0x100 bytes zero, entry 0xffff_ff01_0100);
 + *               ELF PT_LOAD is SRAM-only (e_entry must be 0xffff_ff01_0100).
@@ -44,7 +44,7 @@ index 0000000..8ffffed
 + * contract-elf.md §5/§6 -- two paths coexist, selected by the kernel's ELF
 + * magic (0x7f 'E' 'L' 'F'):
 + *
-+ *   path A (ELF):   qemu-system-dadao -machine dadao-vast -kernel image.elf
++ *   path A (ELF):   qemu-system-dadao -machine kaiwu-vast -kernel image.elf
 + *                   before loading, the caller validates the ELF header rules
 + *                   and the PT_LOAD consistency/range rules the upstream
 + *                   loader does not enforce (e_type == ET_EXEC, e_flags
@@ -60,15 +60,15 @@ index 0000000..8ffffed
 + *                   upstream loader (hw/core/loader.c: load_elf(), the standard
 + *                   API).  No external -bios ROM is used on this path.
 + *
-+ *   path B (raw):   qemu-system-dadao -machine dadao-vast -bios rom.bin -kernel test.bin
++ *   path B (raw):   qemu-system-dadao -machine kaiwu-vast -bios rom.bin -kernel test.bin
 + *                   legacy 64 KiB reset window (Vast only) + flat test binary
 + *                   whose entry is kernel_base + kernel_reserved.  Tiny has no
-+ *                   free-form `-bios` window (spec/Machine-v5 §6): its `-bios`
++ *                   free-form `-bios` window (spec/Kaiwu §6): its `-bios`
 + *                   is the fixed BootROM firmware of path C, exactly 64 KiB,
 + *                   and the legacy <= 4096-byte trampoline window is removed.
 + *
 + *   path C (BootROM image, ADR-0043 D1/D2):
-+ *                   qemu-system-dadao -machine dadao-vast,bootrom-image=bootrom.bin
++ *                   qemu-system-dadao -machine kaiwu-vast,bootrom-image=bootrom.bin
 + *                   the image must be exactly the profile ROM size (Vast
 + *                   4 MiB, Tiny 64 KiB) and is loaded at the profile ROM
 + *                   base; the CPU still resets to the profile reset PC.
@@ -133,8 +133,8 @@ index 0000000..8ffffed
 + * validate a segment interval before the load; the placement itself is still
 + * done by the upstream loader.
 + *
-+ * Machine-v5-Tiny: the host loader loads only the application's SRAM segments
-+ * (spec/Machine-v5 §6/§6.2).  A PT_LOAD in the BootROM or in hmon SRAM is a
++ * Kaiwu-Tiny: the host loader loads only the application's SRAM segments
++ * (spec/Kaiwu §6/§6.2).  A PT_LOAD in the BootROM or in hmon SRAM is a
 + * load-stage error -- the power stub inside the fixed firmware is the only
 + * writer of hmon SRAM and the firmware image itself is supplied separately.
 + */
@@ -418,13 +418,13 @@ index 0000000..8ffffed
 +        }
 +        if (!mapped) {
 +            /* Name the forbidden window when it is the Tiny contract that
-+             * rejected the segment (spec/Machine-v5 §6/§6.2). */
++             * rejected the segment (spec/Kaiwu §6/§6.2). */
 +            if (prof->bootrom_required &&
 +                p_vaddr < prof->rom_base + prof->rom_size &&
 +                end > prof->rom_base) {
 +                error_report("dadao: ELF kernel '%s': PT_LOAD segment %u "
 +                             "interval [%#" PRIx64 ", %#" PRIx64 ") targets "
-+                             "the BootROM; the Machine-v5-Tiny load contract "
++                             "the BootROM; the Kaiwu-Tiny load contract "
 +                             "loads only SRAM (the fixed firmware is supplied "
 +                             "by bootrom-image/-bios)",
 +                             filename, i, p_vaddr, end);
@@ -461,7 +461,7 @@ index 0000000..8ffffed
 +    close(fd);
 +}
 +
-+/* DADAO Machine-v5 machine state.  Both registered types share it. */
++/* DADAO Kaiwu machine state.  Both registered types share it. */
 +typedef struct DadaoMachineState {
 +    MachineState parent_obj;
 +    /* BootROM image path (ADR-0043 D1/D2); NULL => -bios / ELF paths. */
@@ -508,7 +508,7 @@ index 0000000..8ffffed
 +}
 +
 +/*
-+ * Raw -kernel reserved prefix (spec/Machine-v5 §6): Tiny's raw image starts at
++ * Raw -kernel reserved prefix (spec/Kaiwu §6): Tiny's raw image starts at
 + * kernel_base and the first kernel_reserved bytes are reserved and must be
 + * zero; the application entry is base+reserved.  Returns 0 when within the
 + * rule (or the file is unreadable -- the loader reports that), -1 after
@@ -599,8 +599,8 @@ index 0000000..8ffffed
 +                     filename, load_elf_strerror(elf_size));
 +        exit(1);
 +    }
-+    /* Machine-v5-Tiny: the fixed application entry is part of the load
-+     * contract (spec/Machine-v5 §6).  A different e_entry is a load-stage
++    /* Kaiwu-Tiny: the fixed application entry is part of the load
++     * contract (spec/Kaiwu §6).  A different e_entry is a load-stage
 +     * error, never silently overridden. */
 +    if (prof->fixed_kernel_entry && entry != prof->kernel_entry) {
 +        error_report("dadao: ELF kernel '%s': e_entry %#" PRIx64
@@ -633,7 +633,7 @@ index 0000000..8ffffed
 +}
 +
 +/* ---------------------------------------------------------------------------
-+ * Machine-v5-Vast K0 kernel boot ABI (spec/Machine-v5 §6.3)
++ * Kaiwu-Vast K0 kernel boot ABI (spec/Kaiwu §6.3)
 + *
 + * The `bootrom-image` + `-kernel` path is the K1 (kernel boot) path: the host
 + * loader validates the kernel image against §6.3.2 (ELF: 7 rules; raw: 4
@@ -670,8 +670,8 @@ index 0000000..8ffffed
 +#define DADAO_K0_FLAGS            0x1 /* bit0: semihosting console available */
 +
 +/*
-+ * The §6.3 contract is Machine-v5-Vast's: it is the only profile with the
-+ * page-table walker and the smon firmware (spec/Machine-v5 §1.1/§6.3).
++ * The §6.3 contract is Kaiwu-Vast's: it is the only profile with the
++ * page-table walker and the smon firmware (spec/Kaiwu §1.1/§6.3).
 + */
 +static bool dadao_k0_contract(const DadaoProfile *prof)
 +{
@@ -1013,7 +1013,7 @@ index 0000000..8ffffed
 +}
 +
 +/*
-+ * Machine-v5-Tiny `-bios` size rule (spec/Machine-v5 §6): the option carries
++ * Kaiwu-Tiny `-bios` size rule (spec/Kaiwu §6): the option carries
 + * the fixed BootROM firmware -- the same image as `bootrom-image` -- and
 + * nothing else.  The image must be exactly rom_size (64 KiB); the legacy
 + * <= 4096-byte flat trampoline window is removed and no intermediate size is
@@ -1032,9 +1032,9 @@ index 0000000..8ffffed
 +    }
 +    if (prof->bootrom_required && size != (int64_t)prof->rom_size) {
 +        error_report("dadao: -bios image '%s' is %" PRId64 " bytes; the "
-+                     "Machine-v5-Tiny -bios path accepts only the fixed "
++                     "Kaiwu-Tiny -bios path accepts only the fixed "
 +                     "%" PRIu64 "-byte BootROM firmware (the same image as "
-+                     "bootrom-image, spec/Machine-v5 §6)",
++                     "bootrom-image, spec/Kaiwu §6)",
 +                     filename, size, prof->rom_size);
 +        return -1;
 +    }
@@ -1084,7 +1084,7 @@ index 0000000..8ffffed
 +    }
 +
 +    /* Create the CPU and pin its profile before realize: reset derives PC and
-+     * geometry from env->prof (spec/Machine-v5 §1; QEMU-079t). */
++     * geometry from env->prof (spec/Kaiwu §1; QEMU-079t). */
 +    cpu = DADAO_CPU(qdev_new(DADAO_CPU_TYPE_NAME("any")));
 +    cpu->env.prof = prof;
 +    qdev_realize_and_unref(DEVICE(cpu), NULL, &error_fatal);
@@ -1092,7 +1092,7 @@ index 0000000..8ffffed
 +    system_memory = get_system_memory();
 +
 +    /* RAM (profile geometry): Vast 2 GiB at PA 0, Tiny 8 MiB at
-+     * 0xffff_ff00_0000 (spec/Machine-v5 §1.1). */
++     * 0xffff_ff00_0000 (spec/Kaiwu §1.1). */
 +    ram = g_new(MemoryRegion, 1);
 +    memory_region_init_ram(ram, NULL, "dadao-ram", prof->ram_size,
 +                           &error_fatal);
@@ -1110,7 +1110,7 @@ index 0000000..8ffffed
 +    }
 +
 +    /* BootROM: Vast 4 MiB at 0xffff_ffc0_0000, Tiny 64 KiB at
-+     * 0xffff_ffff_0000 (spec/Machine-v5 §1.1/§6). */
++     * 0xffff_ffff_0000 (spec/Kaiwu §1.1/§6). */
 +    rom = g_new(MemoryRegion, 1);
 +    memory_region_init_rom(rom, NULL, "dadao-rom", prof->rom_size,
 +                           &error_fatal);
@@ -1127,7 +1127,7 @@ index 0000000..8ffffed
 +                                    pmem_sram);
 +    }
 +
-+    /* hmon (cfx3) / smon (cfx2) SRAM, 64 KiB each (spec/Machine-v5 §1.1:
++    /* hmon (cfx3) / smon (cfx2) SRAM, 64 KiB each (spec/Kaiwu §1.1:
 +     * Tiny implements hmon only, Vast implements both).  Like the cfx_pmem
 +     * SRAM they are backed at host addresses outside the 56-bit guest PA
 +     * space; the CPU reaches them through tlb_fill and the monitor's own
@@ -1161,7 +1161,7 @@ index 0000000..8ffffed
 +                                    smon_sram);
 +    }
 +
-+    /* Machine-v5-Tiny load contract (spec/Machine-v5 §6/§6.2).  The contract
++    /* Kaiwu-Tiny load contract (spec/Kaiwu §6/§6.2).  The contract
 +     * path is the fixed 64 KiB BootROM firmware plus the application: the
 +     * firmware is loaded verbatim (exactly 64 KiB) from `bootrom-image` or
 +     * from `-bios` (both accept the same image), only the application's SRAM
@@ -1171,12 +1171,12 @@ index 0000000..8ffffed
 +     *
 +     * There is no free-form `-bios` window on Tiny any more: the legacy
 +     * <= 4096-byte flat trampoline window and its raw-kernel harness path are
-+     * removed (spec/Machine-v5 §6).  `-bios` must be the fixed firmware,
++     * removed (spec/Kaiwu §6).  `-bios` must be the fixed firmware,
 +     * exactly 64 KiB; any other size is a load-stage error naming the rule. */
 +    if (prof->bootrom_required) {
 +        if (bootrom) {
 +            if (!kernel) {
-+                error_report("dadao: Machine-v5-Tiny requires an application "
++                error_report("dadao: Kaiwu-Tiny requires an application "
 +                             "-kernel image (fixed firmware + application)");
 +                exit(1);
 +            }
@@ -1193,7 +1193,7 @@ index 0000000..8ffffed
 +             * by name before anything is written into the BootROM window. */
 +            dadao_load_bios(machine->firmware, prof);
 +            if (!kernel) {
-+                error_report("dadao: Machine-v5-Tiny requires an application "
++                error_report("dadao: Kaiwu-Tiny requires an application "
 +                             "-kernel image (fixed firmware + application)");
 +                exit(1);
 +            }
@@ -1205,7 +1205,7 @@ index 0000000..8ffffed
 +            return;
 +        }
 +        if (kernel) {
-+            error_report("dadao: Machine-v5-Tiny application '%s' requires the "
++            error_report("dadao: Kaiwu-Tiny application '%s' requires the "
 +                         "fixed BootROM firmware (bootrom-image=... or the same "
 +                         "64 KiB image through -bios); the legacy flat "
 +                         "trampoline -bios window was removed", kernel);
@@ -1216,7 +1216,7 @@ index 0000000..8ffffed
 +    /* Path C: BootROM image (ADR-0043 D1/D2).  -kernel is optional; a given
 +     * ELF is preloaded but does not override the reset PC.
 +     *
-+     * Machine-v5-Vast with `bootrom-image` is the K1 boot path: the kernel is
++     * Kaiwu-Vast with `bootrom-image` is the K1 boot path: the kernel is
 +     * the payload smon hands over to, so §6.3.2/§6.3.3 apply (validated load
 +     * at the VA's PA + host-written boot info).  Tiny returned above. */
 +    if (bootrom) {
@@ -1285,7 +1285,7 @@ index 0000000..8ffffed
 +
 +    /* BootROM image property (ADR-0043 D1/D2): a machine property rather than
 +     * a new CLI switch so every existing command line stays valid:
-+     * `-machine dadao-vast,bootrom-image=<path>`. */
++     * `-machine kaiwu-vast,bootrom-image=<path>`. */
 +    object_class_property_add_str(oc, "bootrom-image",
 +                                  dadao_machine_get_bootrom_image,
 +                                  dadao_machine_set_bootrom_image);
@@ -1294,17 +1294,17 @@ index 0000000..8ffffed
 +}
 +
 +/*
-+ * Registered machine types (M12; spec/Machine-v5 §1).
++ * Registered machine types (M12; spec/Kaiwu §1).
 + */
 +static const DadaoMachineDesc dadao_tiny_machine = {
-+    .desc = "DADAO Machine-v5-Tiny bare-metal test machine "
++    .desc = "DADAO Kaiwu-Tiny bare-metal test machine "
 +            "(64 KiB BootROM + 8 MiB SRAM + 64 KiB hmon SRAM; "
 +            "cfx_power + cfx3 hmon, no PTW)",
 +    .profile = &dadao_profile_tiny,
 +};
 +
 +static const DadaoMachineDesc dadao_vast_machine = {
-+    .desc = "DADAO Machine-v5-Vast bare-metal test machine "
++    .desc = "DADAO Kaiwu-Vast bare-metal test machine "
 +            "(4 MiB BootROM + 2 GiB PA RAM; full cfx/PTW)",
 +    .profile = &dadao_profile_vast,
 +};
@@ -1320,8 +1320,8 @@ index 0000000..8ffffed
 +    }
 +
 +static const TypeInfo dadao_machine_types[] = {
-+    DADAO_MACHINE_TYPE_INFO("dadao-tiny", dadao_tiny_machine),
-+    DADAO_MACHINE_TYPE_INFO("dadao-vast", dadao_vast_machine),
++    DADAO_MACHINE_TYPE_INFO("kaiwu-tiny", dadao_tiny_machine),
++    DADAO_MACHINE_TYPE_INFO("kaiwu-vast", dadao_vast_machine),
 +};
 +
 +DEFINE_TYPES(dadao_machine_types)

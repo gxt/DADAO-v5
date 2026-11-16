@@ -15,7 +15,7 @@ value.
 
 Spec sources (expectations derived by hand from spec/ + contracts/, never from
 the QEMU implementation):
-  - spec/Machine-v5 §5 (semihosting: entry tag immu18[17:8]==0x3FF
+  - spec/Kaiwu §5 (semihosting: entry tag immu18[17:8]==0x3FF
     (0x3FF00-0x3FFFF), calling convention rd16/rb16/rd8, the authoritative
     25-service table, pc+=4 return, SYS_EXIT replaces the legacy MMIO halt).
   - .tao/adr/adr-0020-see-semihosting.md D1/D2/D3/D4/D5/D6/D8/D10/D14.

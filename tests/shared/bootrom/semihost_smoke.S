@@ -1,10 +1,10 @@
-@@ semihost_smoke.S — Machine-v5-Tiny semihosting responder probe
+@@ semihost_smoke.S — Kaiwu-Tiny semihosting responder probe
 @@ (m12-chipyard-004).
 @@
-@@ Runs unchanged on QEMU `dadao-tiny`, gem5 FS `tiny` and the chipyard
+@@ Runs unchanged on QEMU `kaiwu-tiny`, gem5 FS `tiny` and the chipyard
 @@ `WumingTinyConfig` harness: the same ELF is loaded into the SRAM window and
 @@ starts at the profile entry.  It exercises the five services implemented by
-@@ the harness responder (spec/Machine-v5 §5.3):
+@@ the harness responder (spec/Kaiwu §5.3):
 @@
 @@   SYS_WRITE0 (0x04)  long UTF-8 message -> stdout, byte-exact, no truncation
 @@   SYS_WRITEC (0x03)  one character       -> stdout

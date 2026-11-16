@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the Machine-v5-Vast 4 MiB BootROM image from the three step5 ELFs.
+"""Build the Kaiwu-Vast 4 MiB BootROM image from the three step5 ELFs.
 
 Spec sources (task file is the interface truth for this artifact):
   * .tao/tasks/integ/INTEG-046t-Step5启动链落地.md §接口规范 1 (image index

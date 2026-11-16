@@ -20,14 +20,14 @@
 
 ## 范围
 
-1. `arch/dadao/kernel/head.S`：在任何栈使用前自建 **early stack**；保存 `rb17`（boot info VA）/`rb16`；按 `Machine-v5 §6.3` 解析 boot info 15 字段（校验 magic/version/size，非法即早退）；
+1. `arch/dadao/kernel/head.S`：在任何栈使用前自建 **early stack**；保存 `rb17`（boot info VA）/`rb16`；按 `Kaiwu §6.3` 解析 boot info 15 字段（校验 magic/version/size，非法即早退）；
 2. 跳到 C 的 `start_kernel()`：本任务只要求"到达并打印"，**不做**子系统初始化；
 3. **early console**：`supv` 下 `trap cfx, 0x3FF00` + semihosting `SYS_WRITE`/`SYS_WRITEC` 输出（**不引入 UART、不新增 cfx**）；打印内容至少含 `bootinfo.magic/version/kernel_size/hart_id` 与一行动工标记；
 4. **退出**：在开启任何时钟/中断之前，用 semihosting `SYS_EXIT(0)` 正常退出（K1 的判据边界就到这里）。
 
 ## 验收（逐条贴真实输出）
 
-1. **端到端**：`make build-linux`（或等价目标）产出 vmlinux；在 `dadao-vast` 上以 `bootrom-image + -kernel` 启动，**guest rc=0**；
+1. **端到端**：`make build-linux`（或等价目标）产出 vmlinux；在 `kaiwu-vast` 上以 `bootrom-image + -kernel` 启动，**guest rc=0**；
 2. 输出**逐行可核**：至少一行 `K1 bootinfo magic=… version=… size=… hart=0`，且值与构建参数一致（不写死）；
 3. **进入 `start_kernel` 的证据**：在 `start_kernel` 首行打印标记（如 `start_kernel`），或提供等价的可观测证据；
 4. **栈自建证据**：SP 未定义进入 ⇒ `head.S` 在第一次压栈前设好 SP（代码 + 运行时打印 SP 值）；
@@ -45,7 +45,7 @@
 
 ## 待裁定
 
-1. **semihosting 的参数指针是 PA 还是 VA**（自决：PA）。实测 QEMU 的 `dadao_cpu_translate_for_debug()` 只做 identity（不看页表），而 `SYS_WRITE0` 的长度探测 `uaccess_strlen_user()` 走 `probe_access_flags()`（看页表）⇒ 在 Vast+PTW 下**没有**任何地址能同时满足两条路。本任务改走 `SYS_WRITEC`（只走 identity 的拷贝路）并显式传 PA（与 `tests/shared/bootrom/k0/probe_kernel.S` 的既有口径一致）。建议后续二选一：(a) 修 QEMU，让 semihosting/debug uaccess 按 PTW 翻译（并统一 strlen 与 copy）；(b) 在 `contract-semihosting`/`Machine-v5 §5` 明确「semihosting 指针 = PA」。未决期间不影响 K1 判据。
+1. **semihosting 的参数指针是 PA 还是 VA**（自决：PA）。实测 QEMU 的 `dadao_cpu_translate_for_debug()` 只做 identity（不看页表），而 `SYS_WRITE0` 的长度探测 `uaccess_strlen_user()` 走 `probe_access_flags()`（看页表）⇒ 在 Vast+PTW 下**没有**任何地址能同时满足两条路。本任务改走 `SYS_WRITEC`（只走 identity 的拷贝路）并显式传 PA（与 `tests/shared/bootrom/k0/probe_kernel.S` 的既有口径一致）。建议后续二选一：(a) 修 QEMU，让 semihosting/debug uaccess 按 PTW 翻译（并统一 strlen 与 copy）；(b) 在 `contract-semihosting`/`Kaiwu §5` 明确「semihosting 指针 = PA」。未决期间不影响 K1 判据。
 2. **`start_kernel()` 首句的钩子放在通用 `init/main.c`**（自决）。arch 侧既有钩子（如 `smp_setup_processor_id`）会被同 TU 的 `__weak` 空定义在编译期内联掉（实测调用落到 0x…330 的空 `ret`，arch 的强符号调不到），无法只靠 arch 实现「首句停住」。现用 `#ifdef CONFIG_DADAO_K1_EARLY_STOP`（默认 y）三行钩子，K2 关选项即恢复上游序列；若用户不接受通用文件改动，需另给替代方案。
 
 ## 审阅记录
@@ -76,7 +76,7 @@
 
 **栈 / `br.eq`**：`_start` 首条指令即 `set.rb rb1, early_stack_top`，其前无任何压栈；SP 落 `.zero 16384` 区间内。`contracts/opcodes.yaml::br.eq_rrii_rd` 两源操作数 `bank: rd`（`rdha[23:18]`/`rdhb[17:12]`）⇒ K0 `br.eq {rb2,rb3}` 被编进 rd 字段、比的是未初始化的 rd2/rd3，**真 bug**；修法（镜像 rd2/rd3 并同步递增）正确。
 
-**semihosting 指针口径（reviewer 独立判）**：① `contract-semihosting §1–§5` 与 `spec/Machine-v5 §5.1–§5.6` **只写「参数块指针→rb16」，全无 PA/VA 表述** ⇒ spec 未明。② QEMU 两路确实不一致：`SYS_WRITEC`→`console_write`→`lock_user`→`cpu_memory_rw_debug`→`dadao_cpu_translate_for_debug`（**identity**，仅收 `[0,2GiB)`∪ROM∪SRAM）；`SYS_WRITE0` 先 `target_strlen`→`probe_access_flags`（**走页表**）再拷贝；`SYS_EXIT` 的 `GET_ARG` 同走 identity。Vast 页表只映 `VA [0x0200_0000_0000,0x0200_2000_0000)`，与 identity 窗口**不相交** ⇒「无地址能同时满足两条路」成立；`dadao_cpu_translate_for_debug` 注释仍称「DADAO has no MMU」，在 Vast+PTW 下已过时。③ **判定 = spec 未明 + QEMU 两路不一致叠加**；传 PA 且只用单路 `SYS_WRITEC` 自洽，与 `tests/shared/bootrom/k0/probe_kernel.S` 口径逐字一致。⚠️ `contract-linux-boot §7`「ABI 地址一律 VA」与之**有张力**，engineer 已列「待裁定 1」、未自行终局化 ⇒ **不阻断 K1，须 architect/用户裁定**（补契约口径 或 修 QEMU 统一翻译路径）。
+**semihosting 指针口径（reviewer 独立判）**：① `contract-semihosting §1–§5` 与 `spec/Kaiwu §5.1–§5.6` **只写「参数块指针→rb16」，全无 PA/VA 表述** ⇒ spec 未明。② QEMU 两路确实不一致：`SYS_WRITEC`→`console_write`→`lock_user`→`cpu_memory_rw_debug`→`dadao_cpu_translate_for_debug`（**identity**，仅收 `[0,2GiB)`∪ROM∪SRAM）；`SYS_WRITE0` 先 `target_strlen`→`probe_access_flags`（**走页表**）再拷贝；`SYS_EXIT` 的 `GET_ARG` 同走 identity。Vast 页表只映 `VA [0x0200_0000_0000,0x0200_2000_0000)`，与 identity 窗口**不相交** ⇒「无地址能同时满足两条路」成立；`dadao_cpu_translate_for_debug` 注释仍称「DADAO has no MMU」，在 Vast+PTW 下已过时。③ **判定 = spec 未明 + QEMU 两路不一致叠加**；传 PA 且只用单路 `SYS_WRITEC` 自洽，与 `tests/shared/bootrom/k0/probe_kernel.S` 口径逐字一致。⚠️ `contract-linux-boot §7`「ABI 地址一律 VA」与之**有张力**，engineer 已列「待裁定 1」、未自行终局化 ⇒ **不阻断 K1，须 architect/用户裁定**（补契约口径 或 修 QEMU 统一翻译路径）。
 
 **门控（reviewer 跑）**：`check-linux-k0` **119/119 rc=0**；`check-index-blobs` rc=0；`check-component-changelog` rc=0；`check-source-state` rc=0（`linux: OK count=1 clean=True expected=1`）；`check-patch-tree` rc=1，**10 problems 现场 grep 全部 `chipyard:`**、linux 段仅 `57 patch(es)` 计数行、0 problem（并行任务所致；本任务 14 文件无越界）。
 
@@ -90,7 +90,7 @@
 
 **测试结果**：一键证据脚本（本任务证据目录 `run.sh`）⇒ **28/28 PASS、rc=0**：构建 1 + 正向 P1–P7（30/30）+ 负例 size/magic（各 5/5）+ 注入 I1/I2（各自 注入→红→`cp`+md5 还原→重构建→回绿）+ `check-linux-k0` + 源树状态。
 **修改文件**：`components/linux/{series,README.md,changelog.md}`、`components/linux/patches/arch/dadao/**`（7 份修改）+ 新增 `components/linux/patches/init/main.c.patch`（共 57 份）、`tools/qemu/k0_boot_probe.py`（`build_firmware` 加 K1 变体参数）、新增 `tools/linux/k1_boot_probe.py`、本任务书。
-**验收结果**（`qemu-system dadao-vast`，`bootrom-image + -kernel`，guest rc=0）：
+**验收结果**（`qemu-system kaiwu-vast`，`bootrom-image + -kernel`，guest rc=0）：
 - `K1 bootinfo magic=0x4442494e version=0x1 size=0x60 hart=0`；`kernel_base=0x20000100000 kernel_size=0x4bb5f9 ram_base=0x20000000000 ram_size=0x80000000`；`initramfs=0x20004000000+0x0 cmdline=0x0+0x0 ptbr=0x0 page_size_log2=0x10 flags=0x1`（与契约/ELF 现场派生一致）。
 - `K1 stack sp=0x20000564050 early_stack=0x20000560060..0x20000564060 entry_va=0x20000100000`（16 KiB = head.S `.zero`，SP 在区间内）。
 - `start_kernel` + `K1 start_kernel ra=0x20000110364 base=0x20000110348 off=0x1c inside=yes`（`ra` ∈ `[start_kernel, 下一符号)`）；`K1 done: semihosting SYS_EXIT(0) before any clock/interrupt init`。

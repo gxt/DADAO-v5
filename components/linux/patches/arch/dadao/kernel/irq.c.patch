@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/kernel/irq.c b/arch/dadao/kernel/irq.c
 new file mode 100644
-index 000000000..485b18cfb
+index 000000000..04296e8dc
 --- /dev/null
 +++ b/arch/dadao/kernel/irq.c
 @@ -0,0 +1,149 @@
@@ -60,7 +60,7 @@ index 000000000..485b18cfb
 +
 +#define DADAO_MODE_SUPV			2
 +
-+/* Boot verdicts, guest segment of spec/Machine-v5 §7.1 (time.c continues). */
++/* Boot verdicts, guest segment of spec/Kaiwu §7.1 (time.c continues). */
 +#define K2_FAIL_ASYNC_VECTOR		0x11
 +#define K2_FAIL_ASYNC_MODE		0x12
 +

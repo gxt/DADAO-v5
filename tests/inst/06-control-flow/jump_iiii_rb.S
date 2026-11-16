@@ -11,7 +11,7 @@
 @@ 数据块：`tests/inst/macros/inst_test.inc`（本文件不需要数据区）
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 1 / semantic 1 / overlap 1 / boundary 3（链例 6 + 故障例 1）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：跳转**距离与落点地址**用 `.org` 钉住的槽位 + `__LAND_IP`（`aip.si` 取 IP）核，
 @@   期望写 `ENTRY + <字面偏移>`（llvm-mc 只折装绝对常量，标签差不进立即数）

@@ -25,7 +25,7 @@ Everything expected here is derived live (nothing is restated):
     printed by `time_init`), with a floor of 3 (K2 requires *consecutive* ticks);
   * the interval margin -> half a period, and it must survive with 4x headroom
     over the worst observed deviation (both printed as `[STAT]`);
-  * the expected exit codes -> `spec/Machine-v5 §7.1` (parsed by the K2
+  * the expected exit codes -> `spec/Kaiwu §7.1` (parsed by the K2
     exception gate, reused here) for the permission-negative run.
 
 Images (each pins every symbol it depends on — the build tree is shared):
@@ -283,7 +283,7 @@ def boot(tag: str, rom: str,
     log = SCRATCH / "log" / f"{tag}.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     cmd = [k0.DEFAULT_QEMU,
-           "-machine", f"dadao-vast,bootrom-image={rom}",
+           "-machine", f"kaiwu-vast,bootrom-image={rom}",
            "-nographic",
            "-semihosting-config", "enable=on,target=native",
            "-kernel", str(kernel)]

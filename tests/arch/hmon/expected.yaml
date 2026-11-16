@@ -1,6 +1,6 @@
 # expected.yaml — independent oracle for tests/arch/hmon/tiny_hmon.S.
 #
-# Every expected value is derived from spec/Machine-v5 §1.1/§2/§3/§4.4/§5 and
+# Every expected value is derived from spec/Kaiwu §1.1/§2/§3/§4.4/§5 and
 # spec/DADAO-12 §3/§5, never from a gem5 run:
 #   * cause ids are the DADAO one-hot bit indices (§5.2(二));
 #   * faulting IPs are ELF symbol values (program layout, resolved by the
@@ -21,7 +21,7 @@ profile:
   hmon_size: 0x1_0000
   entry: 0xFFFF_FF01_0100
   reset_pc: 0xFFFF_FFFF_0000
-  # spec/Machine-v5 §6.1: the image index table's boot_magic, patched by the
+  # spec/Kaiwu §6.1: the image index table's boot_magic, patched by the
   # builder into the power stub's `trap cfx_hmon, <boot_magic>`.
   boot_magic: 0x30001
 
@@ -124,13 +124,13 @@ records:
   # 35: unimplemented cfx5 register access => CFXREG (1 << 2).
   - {kind: cause, cause: CFXREG, cause_id: 0x4, ip: f_reg, info: (0x7A << 24) | (5 << 18) | 10, return_slot: land_reg}
 
-  # 36..40: Tiny run mode is fixed at hypv (Machine-v5 §2).  The guest writes
+  # 36..40: Tiny run mode is fixed at hypv (Kaiwu §2).  The guest writes
   # switch_run_mode = user(0), then takes a CFXMEM: entry still lands in hypv,
   # so excp_prev_run_mode records the pre-entry mode (3) and the cg3
   # (hypv-only, DADAO-13 §1) read after the fault still succeeds.  The shared
   # minimal handler has no test hook, so the old in-handler cg3 probe is gone.
   - {kind: check, id: 36, expect: 3}                      # cg3 switch_run_mode read
-  # 42: Machine-v5 §2 -- a write of 0 is ignored; the saved value stays 3 and
+  # 42: Kaiwu §2 -- a write of 0 is ignored; the saved value stays 3 and
   # the immediate read-back returns the saved value (before any fault).
   - {kind: check, id: 42, expect: 3}
   - {kind: cause, cause: CFXMEM, cause_id: 0x2, ip: f_hypv, info: hmon_base + 0x1_0000, return_slot: land_hypv}

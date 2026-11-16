@@ -217,7 +217,7 @@ def run_qemu(rom_data, timeout=10):
     kp = _write_tmp(fence() * 4)
     try:
         r = subprocess.run(
-            [QEMU, '-M', 'dadao-tiny', '-nographic', '-bios', rp, '-kernel', kp,
+            [QEMU, '-M', 'kaiwu-tiny', '-nographic', '-bios', rp, '-kernel', kp,
              '-semihosting-config', 'enable=on,target=native'],
             capture_output=True, timeout=timeout, text=True)
         return r.returncode, r.stderr

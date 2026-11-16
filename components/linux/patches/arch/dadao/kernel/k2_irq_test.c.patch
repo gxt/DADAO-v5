@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/kernel/k2_irq_test.c b/arch/dadao/kernel/k2_irq_test.c
 new file mode 100644
-index 000000000..42c2854d5
+index 000000000..2e9eebe88
 --- /dev/null
 +++ b/arch/dadao/kernel/k2_irq_test.c
 @@ -0,0 +1,315 @@
@@ -55,7 +55,7 @@ index 000000000..42c2854d5
 +void dadao_k2_irq_inframe(void);
 +void __noreturn dadao_k2_irq_test(void);
 +
-+/* Boot verdicts, guest segment of spec/Machine-v5 §7.1 (time.c continues). */
++/* Boot verdicts, guest segment of spec/Kaiwu §7.1 (time.c continues). */
 +#define K2_FAIL_IRQ_NO_TICK	0x14	/* the first tick never arrived */
 +#define K2_FAIL_IRQ_SEQUENCE	0x15	/* the P4 in-frame sequence stalled */
 +

@@ -1,6 +1,6 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
 new file mode 100644
-index 0000000..a3cab6c
+index 0000000..c88ad0f
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
 @@ -0,0 +1,178 @@
@@ -86,7 +86,7 @@ index 0000000..a3cab6c
 +    throw new IllegalArgumentException(
 +      "WumingTile: loadMemSize must be configured from the machine address map"))
 +  // m12-007: the loader also enforces the Tiny application-load contract
-+  // (`spec/Machine-v5 §6`): the fixed entry, and "no PT_LOAD into the BootROM
++  // (`spec/Kaiwu §6`): the fixed entry, and "no PT_LOAD into the BootROM
 +  // or the hmon SRAM" (the former would overwrite the firmware, the latter
 +  // would preset hmon).  Both windows and the entry come from the address map.
 +  private def required[A](opt: Option[A], what: String): A = opt.getOrElse(
@@ -122,9 +122,9 @@ index 0000000..a3cab6c
 +  // tile in this tree): clients -> xbar -> visibilityNode -> identity -> port.
 +  val masterNode: TLOutwardNode = TLIdentityNode() := visibilityNode := portXbar
 +
-+  /** Slave port: the tile exposes no memory of its own.  Machine-v5-Tiny main
++  /** Slave port: the tile exposes no memory of its own.  Kaiwu-Tiny main
 +    * memory (the 8 MiB SRAM) is a system-level TL slave on the memory bus, not
-+    * a tile-local port (m12-002, `spec/Machine-v5 §1.1`). */
++    * a tile-local port (m12-002, `spec/Kaiwu §1.1`). */
 +  val slaveNode: TLInwardNode = TLIdentityNode()
 +
 +  override lazy val module = new WumingTileModuleImp(this)

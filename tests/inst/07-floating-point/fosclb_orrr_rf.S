@@ -1,6 +1,6 @@
 @@ fosclb_orrr_rf — fosclb（orrr, opc 0x44 / ha 0x1D）
 @@ 大类：07-floating-point（`spec/SimRISC-07`）；册目录 `tests/inst/07-floating-point/`
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 缩放（scaleB，`spec/SimRISC-07 §2.1`）：fosclb rfHB, rfHC, rdHD
 @@ 计算 rfHC × 2^rdHD；第三操作数是 rd 组**有符号 64 位整数指数**（rd0 表示 0）

@@ -1,6 +1,6 @@
-/* dadao-tiny-app.lds — Machine-v5-Tiny contract application ELF (m13-qemu-002).
+/* kaiwu-tiny-app.lds — Kaiwu-Tiny contract application ELF (m13-qemu-002).
  *
- * Spec: spec/Machine-v5 §6 "装载语义 — Machine-v5-Tiny" (0.4.4-rc): the crt is
+ * Spec: spec/Kaiwu §6 "装载语义 — Kaiwu-Tiny" (0.4.4-rc): the crt is
  * linked together with the test program, the whole application lives in SRAM,
  * and the entry (raw and ELF) is the fixed 0xffff_ff01_0100.  The fixed 64 KiB
  * BootROM firmware is supplied separately (bootrom-image); the host loader
@@ -9,7 +9,7 @@
  * Geometry comes from tests/shared/machine-profiles.yaml (profile `tiny`):
  *   RAM : 0xffff_ff00_0000 .. 0xffff_ff7f_ffff  (8 MiB, rwx)
  *
- * `dadao-tiny.lds` is kept as the pre-contract (crt-in-ROM) layout for the
+ * `kaiwu-tiny.lds` is kept as the pre-contract (crt-in-ROM) layout for the
  * legacy harness; new ELF applications must use this script.
  */
 

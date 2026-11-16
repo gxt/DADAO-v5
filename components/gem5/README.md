@@ -411,7 +411,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   改为 `TARGET_PAGE_BITS=16`；本任务现场 `pagesz` 在 gem5 与 qemu 两侧均
   `$?==0`（65536）。
 
-## FS 平台（GEM5-015t，Machine-v5-Tiny）
+## FS 平台（GEM5-015t，Kaiwu-Tiny）
 
 - **构成**：`DadaoFsAtomicSimpleCPU`（`DadaoAtomicSimpleCPU` 的 Python
   子类，`mmu = DadaoFsMMU()`）、`DadaoFsTlb`（identity 翻译 + ROM/SRAM 段
@@ -430,7 +430,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `ELFDATA2MSB`/`ET_EXEC`/`e_flags&0xff==1`/无 `PT_INTERP`/
   `p_vaddr==p_paddr`/`p_filesz<=p_memsz`/段与入口均在 ROM∪SRAM；ELF 与
   `--bootrom` 同给 ⇒ fatal。平台不写 SP。
-- **fault → 退出码**（无异常向量，首个 fault 锁定；spec/Machine-v5 §7.1）：
+- **fault → 退出码**（无异常向量，首个 fault 锁定；spec/Kaiwu §7.1）：
   monitor 段 `0xC0 | (运行模式 << 4) | 异常位索引`（`CFXMEM`=1、
   `CFXREG`=2、`CFXPERM`=7、`ILLI`=8、`UNDI`=9、`RASOF`=10、`RASUF`=11、
   `MALIGN`=12、`IALIGN`=13；未映射归 `CFXMEM`）；`CFXTRAP`/`CFXESC` 进
@@ -454,7 +454,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 - **已知限制**：无 cfx/PTW/user/hmon/smon/中断/设备/时序；不支持
   checkpoint/GDB/多核；`SYS_GET_CMDLINE` 来自 `--semihost-argv`。
 
-## FS 平台（GEM5-016t，Machine-v5-Vast）
+## FS 平台（GEM5-016t，Kaiwu-Vast）
 
 - **构成**：`DadaoNodeAtomicSimpleCPU`（`DadaoAtomicSimpleCPU` 的 Python
   子类，`mmu = DadaoNodeMMU()`）、`DadaoNodeTlb`（guest TLB + 两级页表步进 +
@@ -501,13 +501,13 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   块）、`--max-ticks`、
   `--dump-geometry`、semihosting 选项同 Tiny。
 - **profile 命名**：profile 概念 `Node` → `Vast`（用户裁定 2026-11-08；
-  `spec/Machine-v5` 同版改名）。过渡别名（`--profile node`）已在
+  `spec/Kaiwu` 同版改名）。过渡别名（`--profile node`）已在
   `m12-integ-001` 移除：`--profile` 只接受 `tiny`/`vast`，旧名按 argparse
   invalid choice（rc=2）拒绝，不再映射。C++ 侧机器 id
   （`fs_workload.cc` 的 `profile` 取值、`NodeState`/`node_*` 源文件名）
   不在本次改名范围，Python profile 名由 `fs.py` 映射到该内部 id。
 - **已知限制**：无 cache/时序/设备/GDB/checkpoint/多核；smon 不启动也不验收；
-  `spec/Machine-v5 §6` 的 `0x0200_...` 窗口未实现（依用户口径用 identity，
+  `spec/Kaiwu §6` 的 `0x0200_...` 窗口未实现（依用户口径用 identity，
   冲突见 `ISS-340`）；picolibc 不跑（Vast profile）。
 
 ## 补丁集

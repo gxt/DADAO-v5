@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""chipyard_engine.py -- Machine-v5-Tiny Verilator-harness run path (m12-chipyard-016).
+"""chipyard_engine.py -- Kaiwu-Tiny Verilator-harness run path (m12-chipyard-016).
 
 The tset / picolibc drivers own their corpus enumeration, build lines and
 oracles.  This module only swaps the *engine* that runs an already-built ELF:
 
-    qemu     : ``qemu-system-dadao -M dadao-tiny,bootrom-image=... -kernel <elf>``
+    qemu     : ``qemu-system-dadao -M kaiwu-tiny,bootrom-image=... -kernel <elf>``
     chipyard : ``simulator-chipyard.harness-WumingTinyConfig +loadmem=<elf> ...``
 
 Invocation (the pattern ``tests/inst`` has used since m12-chipyard-004)::

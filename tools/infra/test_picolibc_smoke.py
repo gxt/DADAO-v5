@@ -66,7 +66,7 @@ REPO_ROOT = paths.repo_root()
 TOOLCHAIN_BIN = paths.host_toolchain_bin()
 SYSROOT = paths.target_sysroot_dir()
 CRT0 = REPO_ROOT / "tests" / "shared" / "crt0" / "minimal_crt0.s"
-LDS = REPO_ROOT / "tests" / "shared" / "linker" / "dadao-tiny.lds"
+LDS = REPO_ROOT / "tests" / "shared" / "linker" / "kaiwu-tiny.lds"
 
 PROG_C = """\
 #include <stdio.h>
@@ -243,7 +243,7 @@ def main() -> int:
             print(f"test-picolibc-smoke: FAIL ({tag}: link rc={res.returncode})\n{res.stderr}", file=sys.stderr)
             return 1
 
-        qemu = [str(TOOLCHAIN_BIN / "qemu-system-dadao"), "-M", "dadao-tiny", "-kernel", str(elf),
+        qemu = [str(TOOLCHAIN_BIN / "qemu-system-dadao"), "-M", "kaiwu-tiny", "-kernel", str(elf),
                 "-semihosting-config", "enable=on,target=native", "-display", "none", "-nographic", "-monitor", "none"]
         try:
             res = run(qemu, timeout=args.qemu_timeout, merge=True)

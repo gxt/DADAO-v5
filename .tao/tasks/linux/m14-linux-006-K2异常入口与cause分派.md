@@ -18,7 +18,7 @@ K1 的 trap 入口是**一次性探针**，不是异常通道：`arch/dadao/kern
 两处硬事实决定本任务形态（都可机械核对）：
 
 - **上游只给现场寄存器，不给通用寄存器**（`spec/DADAO-12 §5.2` 步骤 5、`spec/DADAO-12 §3.6`）：`cg5` 只有 `excp_prev_run_mode`/`excp_cause_id`/`excp_cause_ip`/`excp_cause_info`/`excp_pending`；入口若要用寄存器，**必须自己在第一条指令前保存**（`contract-syscall §8` 已把这条写成内核责任）。
-- **`escape` 只能回到 `excp_cause_ip + {0, +4}`，且目标 cfx 恒为当前 cfx**（`spec/Machine-v5 §4.2`、`spec/DADAO-12 §5.1`/`§5.3`）；`cg5 rc3`（`excp_cause_ip`）软件可写（`spec/DADAO-12 §3.6`）⇒ 需要「回到别处」时先改 `rc3` 再 `escape …, 0`。
+- **`escape` 只能回到 `excp_cause_ip + {0, +4}`，且目标 cfx 恒为当前 cfx**（`spec/Kaiwu §4.2`、`spec/DADAO-12 §5.1`/`§5.3`）；`cg5 rc3`（`excp_cause_ip`）软件可写（`spec/DADAO-12 §3.6`）⇒ 需要「回到别处」时先改 `rc3` 再 `escape …, 0`。
 
 ## 范围
 
@@ -39,7 +39,7 @@ K1 的 trap 入口是**一次性探针**，不是异常通道：`arch/dadao/kern
    - 可恢复路径：K1 的「预先声明的 `CFXMEM` 探针」保持语义（命中即记录并跳过），接口收窄为一个显式注册函数（供 `mm/k1_pt.c`/后续 K3 用），**不得**把「`cause_info` 等于某个魔数」当默认放行条件；
    - 不可恢复路径：`dadao_die()` 打印 cause 名、`ip`、`info`、`PTBR`、SP 与寄存器 dump（`show_regs()` 已有）后经 semihosting `SYS_EXIT(非零)` 终止；**不得**让同一个不可恢复异常重复进入（无限递归）；
    - 与 `contract-syscall §8` 的分工保持一致：`supv` 期同步异常入口 = `cfx_smon_supv_excp_vector`；`CFXTRAP` 从 `cfx_umon` 进来的用户 syscall 入口属 K4/K5，**本任务不实现**（但名字表与分派骨架要能容纳 `CFXTRAP`，且不得把它当未知 cause）。
-4. **退出码分段合规（`spec/Machine-v5 §7.1`；用户 2026-11-15 裁定「同意A'」）**
+4. **退出码分段合规（`spec/Kaiwu §7.1`；用户 2026-11-15 裁定「同意A'」）**
    - **按事件性质分段**，不是"全部迁到 guest 段"：
      - **自检失败**（内核自己发现状态不对：`head.S` 的 boot info magic/version/size 校验、`setup.c`、`k1_pt.c` 的页表安装前拒绝等）⇒ **guest 段 `0x01–0x7F`**，值 = 检查点序号；
      - **异常终止**（`dadao_die()`：未知 cause、未注册/不可恢复的同步异常）⇒ **monitor 段** `0xC0 | (mode<<4) | bit索引`；supv 期按 `§7.1` 的模式编码（`user=00`/`jail=01`/**`supv=10`**/`hypv=11`）即 **`0xE0 | bit`**（如 `CFXMEM` ⇒ `0xE1`、`ILLI` ⇒ `0xE8`、`MALIGN` ⇒ `0xEC`），位索引表取 `§7.1` 的 11 项；`0xD0–0xDF` 是 **jail** 段，不得用于 supv（**本条示例值于 2026-11-16 订正：`m14-linux-006` 实现时发现任务书原写 `0xD0|bit` 与 §7.1 模式编码冲突，按 spec 修正**）；
@@ -82,7 +82,7 @@ K1 的 trap 入口是**一次性探针**，不是异常通道：`arch/dadao/kern
 1. ~~**退出码迁移是否在本任务做**~~ **已裁定（用户 2026-11-15 原话「同意A'」）**：按**事件性质**分段——自检失败 ⇒ guest 段 `0x01–0x7F`；异常终止 ⇒ monitor 段 `0xC0|(mode<<4)|bit`（supv ⇒ `0xE0|bit`）。本任务落地，"目标 4" 已按此改写（示例值 2026-11-16 按 §7.1 订正）。
 2. **`unknown cause` 的注入手法**：`cg5 rc2` 是硬件只读（`spec/DADAO-12 §3.6` HW），要演示未知位需要实现侧测试钩子（编译期 `#ifdef` 探针）或由 QEMU 侧注入（超范围）。建议用一个**仅在探针构建里存在**的 `#ifdef` 钩子（不入默认 defconfig）；若不允许任何测试钩子，则 P4 改为「静态断言：名字表覆盖 11 项 + 默认分支打印 `unknown`」。
 3. **`pt_regs` 是否含 `status`**：现有 `struct pt_regs` 有 `status` 字段，但本机无状态寄存器（`contract-abi`），建议保留字段、写 0，并在注释里写明「无硬件来源」——若 K4 需要真值，届时另定。**本任务按建议执行**（`ptrace.h` 注释 + `trap.S` 写 0）。
-4. **【需裁定·口径冲突】supv 的 monitor 段编码**：裁定 1 与验收 3 的示例写「supv ⇒ `0xD0|bit`」（`CFXMEM`=`0xD1`），但裁定 1 同段的公式 `0xC0 | mode<<4 | bit` 与 `spec/Machine-v5 §7.1` 的运行模式编码（`user`=00/**`jail`=01**/**`supv`=10**/`hypv`=11）一致给出 **`0xE0|bit`**（`CFXMEM`=`0xE1`）；`0xD0` 在 §7.1 里是 **jail**。本实现按「spec 为唯一真源 + 同一公式」取 `0xE1`，并把模式位从帧 `cfx_smon.excp_prev_run_mode` 现场读出（不写死）；k2 门控的期望值也从 §7.1 现场解析（`spec_exit_segments()`），不写死。**若确认要用 `0xD0`：改 `arch/dadao/kernel/traps.c::DADAO_EXIT_MONITOR` 一处即可（门控会随之按 §7.1 解析出 0xE1 而变红 ⇒ 须同时改 §7.1 或改门控的解析口径）**。倾向：保持 `0xE0|bit`（spec 一致），并把裁定文本的示例订正。
+4. **【需裁定·口径冲突】supv 的 monitor 段编码**：裁定 1 与验收 3 的示例写「supv ⇒ `0xD0|bit`」（`CFXMEM`=`0xD1`），但裁定 1 同段的公式 `0xC0 | mode<<4 | bit` 与 `spec/Kaiwu §7.1` 的运行模式编码（`user`=00/**`jail`=01**/**`supv`=10**/`hypv`=11）一致给出 **`0xE0|bit`**（`CFXMEM`=`0xE1`）；`0xD0` 在 §7.1 里是 **jail**。本实现按「spec 为唯一真源 + 同一公式」取 `0xE1`，并把模式位从帧 `cfx_smon.excp_prev_run_mode` 现场读出（不写死）；k2 门控的期望值也从 §7.1 现场解析（`spec_exit_segments()`），不写死。**若确认要用 `0xD0`：改 `arch/dadao/kernel/traps.c::DADAO_EXIT_MONITOR` 一处即可（门控会随之按 §7.1 解析出 0xE1 而变红 ⇒ 须同时改 §7.1 或改门控的解析口径）**。倾向：保持 `0xE0|bit`（spec 一致），并把裁定文本的示例订正。
 5. **表外 cause 的退出码**：monitor 段 `bit3:0` 只有 11 个合法位索引，表外原因（保留位/多位）无法编成 monitor 码 ⇒ 本实现按「内核自检失败」落 guest 段 `0x0f`（P4 断言即此）。若要求表外原因也归 monitor 段，需要新位索引（§7.1「新增原因不得改变既有索引」，需另立编号）。
 6. **K2 边界位置**：落在 `setup_arch()` 末尾（`CONFIG_DADAO_K2_EARLY_STOP`），不是 `trap_init()`。理由：`trap_init()` 之前要有 `setup_per_cpu_areas()`/`parse_early_param()`/`setup_log_buf()` 等中间件可用，超出 K2（trap 入口 + cause 分派）范围；K3 接时钟时再前移。
 
@@ -116,7 +116,7 @@ K1 的 trap 入口是**一次性探针**，不是异常通道：`arch/dadao/kern
 **越界 0**：diff 仅 `components/linux/**` + `tools/linux/**` + 本任务书；`spec/`、`contracts/`、`.tao/contracts/`、`tests/`、`Makefile`、台账、`discussing.md` 未动；`git status -uall` 干净、md5 快照对账一致（本条记录为 reviewer 本轮唯一新增改动）。
 **判决：Needs Revision**（1 条阻断 + 1 条架构师定夺 + 2 条非阻断发现）
 1. **阻断·目标 4 未满足**：表外 cause 走 `dadao_selfcheck(0x0f,…)` 落 guest 段，实测 P4 `rc=15`，门控 C9 与 `run.sh` 把 `0x0f` 固化为期望 ⇒ 按 A'「异常终止 ⇒ monitor 段」本应分段可辨的事件，在 `$?` 上与自检失败不可区分（guest 段语义 = 失败点序号）。改法二选一、需裁定：(a) 表外 cause 改走 `dadao_die()`，`bit3:0 = __ffs(cause)&0xf`（`1<<5` ⇒ supv `0xE5`），C9 改判 monitor 段；(b) 架构师/用户把「表外 cause 落 guest `0x0f`」补进目标 4 并给新位索引口径，再复核。
-2. **阻断·供架构师定夺（K2 不可达）**：`dadao_die()` 对 `CFXTRAP`/`CFXESC` 仍编 monitor 段，`spec/Machine-v5 §7.1` 明确这两项按「其它 cfx」段 `0x80|cfxHA`；帧内无 prev_cfx ⇒「对应 cfx 的 cfxHA」现场不可推，需口径。
+2. **阻断·供架构师定夺（K2 不可达）**：`dadao_die()` 对 `CFXTRAP`/`CFXESC` 仍编 monitor 段，`spec/Kaiwu §7.1` 明确这两项按「其它 cfx」段 `0x80|cfxHA`；帧内无 prev_cfx ⇒「对应 cfx 的 cfxHA」现场不可推，需口径。
 3. **非阻断**：(i) `regs->ip` 捕获与重入保护无可达 FAIL 断言（注入⑤⑥全绿）；C8「不重复进入」只数 `^dadao: un\w+` 行，重入行 `recursive…` 不匹配（rc 断言仍会因 `0x0e` 兜住）；(ii) `kernel_selfcheck_codes()` 不扫 `traps.c` 的 `0x0e/0x0f/0x10` 字面量，C1 静态分段只覆盖 4 个文件的 `#define`。
 采信项：无——重跑项全部本人执行；完成区 119/108/53/10/4/63 与本人输出逐一相符。
 
@@ -170,4 +170,4 @@ K1 的 trap 入口是**一次性探针**，不是异常通道：`arch/dadao/kern
 - `Kconfig` `bool default y` 与「defconfig 删行」不等价；依赖不满足时 Kconfig 直接不写该符号 ⇒ 配置切片的 `=n` 断言按「无 `SYM=` 行」判。
 - 探针必须带命中上限，否则「偏移/重定向写错」表现为超时而不是可报告的失败。
 
-**遗留问题**：① **supv monitor 段编码仍需裁定**：裁定示例 `0xD0|bit`（=jail）与同段公式 + `spec/Machine-v5 §7.1`（supv=10 ⇒ `0xE0|bit`）冲突；实现按 spec+公式（`0xE1`），模式位从帧现场读，门控期望从 §7.1 现场解析并打印该冲突（待裁定 4）。② K2 边界暂放 `setup_arch()` 末尾（待裁定 6）。③ `pt_regs.status` 无硬件来源写 0（待裁定 3）。④ L1 三项红均属他任务残留（chipyard 日志名/`m14-linux-005` 临时目录），未代删。
+**遗留问题**：① **supv monitor 段编码仍需裁定**：裁定示例 `0xD0|bit`（=jail）与同段公式 + `spec/Kaiwu §7.1`（supv=10 ⇒ `0xE0|bit`）冲突；实现按 spec+公式（`0xE1`），模式位从帧现场读，门控期望从 §7.1 现场解析并打印该冲突（待裁定 4）。② K2 边界暂放 `setup_arch()` 末尾（待裁定 6）。③ `pt_regs.status` 无硬件来源写 0（待裁定 3）。④ L1 三项红均属他任务残留（chipyard 日志名/`m14-linux-005` 临时目录），未代删。

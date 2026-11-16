@@ -4,14 +4,14 @@
 @@ 语义：cfx_<cfxHA>_cgHB_rcHC ← rdHD（rd 寄存器组 → cfx 寄存器；`spec/SimRISC-11 §4`）
 @@   写不存在/只读的 cg·rc ⇒ CFXREG；reserved cfxha ⇒ ILLI；rd0 作源 ⇒ 写入 0
 @@   （rd0 恒读出 0，见 `spec/SimRISC-00 §2`）；Tiny 上 `switch_run_mode` 写入被忽略、
-@@   `excp_vector` 写入忽略低 2 位（`spec/Machine-v5 §2`、`spec/DADAO-13 §1`）。
+@@   `excp_vector` 写入忽略低 2 位（`spec/Kaiwu §2`、`spec/DADAO-13 §1`）。
 @@ 编码：crrr = opc[31:24] | cfxha[23:18] | cghb[17:12] | rchc[11:6] | rdhd[5:0]
 @@ 链接布局：`tests/inst/01-load-store/inst-tiny.lds`（段地址由宏层 `inst_test.inc` 固定；本册复用）
 @@ 用例：encoding 2 / semantic 9 / boundary 6 / overlap 2（链例 17 + 故障例 7）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Machine-v5 §7.1`）；故障例退出码 = `0xF0|异常位索引`
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：写入的读回用 `cfx2rd`（该 id 由同册独立文件单独覆盖，不借被测的写通路自证）；
-@@   期望值按 `spec/DADAO-12 §3.5/§3.8`、`spec/DADAO-13 §1` 与 `spec/Machine-v5 §1.1/§2` 内联
+@@   期望值按 `spec/DADAO-12 §3.5/§3.8`、`spec/DADAO-13 §1` 与 `spec/Kaiwu §1.1/§2` 内联
 @@ GAP（不计入链例，见任务书完成区）：cg0–cg2、cg4 计数器/标识、cg5 rc5、cg6 暂存、
 @@   cg8 rc1 在 chipyard RTL 上未实现（⇒ CFXREG）⇒ 三平台不一致，待 chipyard 任务补齐
 
@@ -56,7 +56,7 @@
 	cfx2rd	cfx_hmon, cg5, rc0, rd6
 	__CHECK_RD   6, rd6, 0x0000000000000003
 
-	@@ switch_run_mode（cg3 rc8）：Tiny 忽略写入，读回保存值 3（`spec/Machine-v5 §2`）
+	@@ switch_run_mode（cg3 rc8）：Tiny 忽略写入，读回保存值 3（`spec/Kaiwu §2`）
 	__LI	rd5, 0x0000000000000000
 	cfx2rc	cfx_hmon, cg3, rc8, rd5
 	cfx2rd	cfx_hmon, cg3, rc8, rd6

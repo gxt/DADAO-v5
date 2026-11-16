@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..5a19688
+index 0000000..5eb027f
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
 @@ -0,0 +1,267 @@
@@ -9,7 +9,7 @@ index 0000000..5a19688
 +//
 +// Source of truth: spec/DADAO-12 §2/§3/§4 (register file, exception-entry
 +// flow, cfx_pmem §4.9, cfx_time/cfx_hart §4.7/§4.10), spec/DADAO-13 §1
-+// (hypv cg3 rows), spec/Machine-v5 §1-§4 and ADR-0040/ADR-0041/ADR-0042/
++// (hypv cg3 rows), spec/Kaiwu §1-§4 and ADR-0040/ADR-0041/ADR-0042/
 +// ADR-0043/ADR-0045.  The Node state is per thread and lives in the ISA
 +// object; the SE and Tiny FS paths never touch it.
 +#ifndef __ARCH_DADAO_NODE_CFX_HH__
@@ -65,7 +65,7 @@ index 0000000..5a19688
 +    CauseIalign   = 1ULL << 13,
 +    /* Page-table missing/fragment and A/D write-back failure are reported as
 +     * CauseCfxMem; HSJU/R/W/X denial as CauseCfxPerm (DADAO-12
-+     * §2.2.6/§5.2 + Machine-v5 §7.1).  No PTWERR/page-level one-hot cause. */
++     * §2.2.6/§5.2 + Kaiwu §7.1).  No PTWERR/page-level one-hot cause. */
 +    CauseTimer    = 1ULL << 10,
 +    CausePmemDma  = 1ULL << 8,
 +};

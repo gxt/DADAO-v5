@@ -76,7 +76,7 @@
 ## 说明
 
 - **K0 的成功判据只有「链接出可解析 vmlinux」**；不跑 QEMU、不要求 boot info 校验通过、不要求 early console 输出。若实现顺带跑通最小执行，须明确标「超出 K0 要求、非本任务验收项」。
-- **链接地址**：`0x0000_0200_0010_0000` 与既有 Vast raw loader 的 `kernel_base` 一致（`spec/Machine-v5 §6.3`，`m14-spec-001` 冻结）；若评估认为必须改链接地址，**不得自改**，登记「待裁定」。
+- **链接地址**：`0x0000_0200_0010_0000` 与既有 Vast raw loader 的 `kernel_base` 一致（`spec/Kaiwu §6.3`，`m14-spec-001` 冻结）；若评估认为必须改链接地址，**不得自改**，登记「待裁定」。
 - **`-O2` vs `-O0`**：本任务不强制优化级；以能链接为准。若某优化级链接失败，记录实际使用值，不在本任务修 LLVM。
 - 参考实现只读：`.cache/refs/DADAO-0628/code-agent/tasks/KL-149a-k3-linux-linked-image-reset-handoff.md` 的阶段划分/踩坑可对照（**内容溯源，非执行必需**），其地址 `0x80000000`、flat Image、ROM handoff 均**不采用**。
 

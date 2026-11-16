@@ -1,12 +1,12 @@
 diff --git a/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingLoadMem.cc b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingLoadMem.cc
 new file mode 100644
-index 0000000..5a3e96c
+index 0000000..15c6bb1
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingLoadMem.cc
 @@ -0,0 +1,332 @@
 +// WumingLoadMem.cc — host model behind `WumingLoadMem.v` (m12-chipyard-003).
 +//
-+// The model owns the whole `+loadmem=<elf>` flow for Machine-v5-Tiny:
++// The model owns the whole `+loadmem=<elf>` flow for Kaiwu-Tiny:
 +//
 +//   1. parse the plusargs (the Verilog module calls init() once, after reset);
 +//   2. parse and validate the ELF *here*: ELF64 + ELFDATA2MSB + ET_EXEC,
@@ -49,7 +49,7 @@ index 0000000..5a3e96c
 +std::map<uint64_t, uint8_t> image;  // absolute address -> byte
 +uint64_t mem_base = 0;
 +uint64_t mem_size = 0;
-+// m12-007: Tiny application-load contract (spec/Machine-v5 §6).
++// m12-007: Tiny application-load contract (spec/Kaiwu §6).
 +uint64_t load_entry = 0;
 +uint64_t bootrom_base = 0;
 +uint64_t bootrom_size = 0;
@@ -139,10 +139,10 @@ index 0000000..5a3e96c
 +    fail("ELF program headers are out of file bounds: " + path);
 +
 +  const uint64_t entry = be64(p + 24);
-+  // spec/Machine-v5 §6: `e_entry` must equal the fixed application entry.
++  // spec/Kaiwu §6: `e_entry` must equal the fixed application entry.
 +  if (load_entry != 0 && entry != load_entry)
 +    fail("ELF e_entry " + hex(entry) + " is not the fixed Tiny entry " + hex(load_entry) +
-+         " (spec/Machine-v5 §6): " + path);
++         " (spec/Kaiwu §6): " + path);
 +  unsigned segments = 0;
 +  uint64_t span_lo = UINT64_MAX, span_hi = 0;
 +  for (unsigned i = 0; i < phnum; i++) {

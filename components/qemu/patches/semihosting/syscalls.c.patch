@@ -1,5 +1,5 @@
 diff --git a/semihosting/syscalls.c b/semihosting/syscalls.c
-index 20f155f..f75981f 100644
+index 20f155f..69ad577 100644
 --- a/semihosting/syscalls.c
 +++ b/semihosting/syscalls.c
 @@ -9,6 +9,7 @@
@@ -17,7 +17,7 @@ index 20f155f..f75981f 100644
 +        /*
 +         * A length of 0 means "measure it".  System mode goes through the
 +         * target's semihosting string hook: DADAO's pointers are physical
-+         * addresses (spec/Machine-v5 §5.2) and must not be walked through the
++         * addresses (spec/Kaiwu §5.2) and must not be walked through the
 +         * page table, while every other target keeps the default (which is
 +         * the same MMU walk as before).
 +         */

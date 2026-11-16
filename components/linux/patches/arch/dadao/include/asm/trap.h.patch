@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/include/asm/trap.h b/arch/dadao/include/asm/trap.h
 new file mode 100644
-index 000000000..be52014fe
+index 000000000..3a1243ccb
 --- /dev/null
 +++ b/arch/dadao/include/asm/trap.h
 @@ -0,0 +1,92 @@
@@ -87,7 +87,7 @@ index 000000000..be52014fe
 +void __noreturn dadao_async_die(unsigned long cause, unsigned long info);
 +
 +/*
-+ * The exit code a fatal synchronous exception produces (spec/Machine-v5 §7.1):
++ * The exit code a fatal synchronous exception produces (spec/Kaiwu §7.1):
 + * "other cfx" for CFXTRAP/CFXESC, the monitor segment for everything else.
 + * Exposed so the K2 self-test can assert both branches without dying.
 + */

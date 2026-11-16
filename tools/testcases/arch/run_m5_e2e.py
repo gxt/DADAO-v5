@@ -9,13 +9,13 @@ flat-bin pipeline and compares the observed result against the manifest:
 
     llvm-mc --triple=dadao-unknown-elf -filetype=obj <prog.s> -> <prog>.o
     llvm-objcopy -O binary --only-section=.text  <prog>.o    -> <prog>.bin
-    qemu-system-dadao -M dadao-tiny -bios <bootrom.bin> -kernel <prog>.bin \
+    qemu-system-dadao -M kaiwu-tiny -bios <bootrom.bin> -kernel <prog>.bin \
         -semihosting-config enable=on,target=native,chardev=semi \
         -chardev file,id=semi,path=<console> -d cpu -D <log>
                                                              -> host exit code
 
 The bin is loaded at the Vast profile ENTRY by `-kernel`; the Vast BootROM
-(`-machine dadao-vast,bootrom-image=.dadao/tests/bootrom/step5/bootrom_step5.bin`) starts at reset
+(`-machine kaiwu-vast,bootrom-image=.dadao/tests/bootrom/step5/bootrom_step5.bin`) starts at reset
 0xffff_ffff_0000, runs power -> hmon, hmon installs page tables/PTW and hands
 the app to *hypv*.  Tiny has no cfx and is rejected by this driver.  Every vector carries a hand-derived expectation in the
 manifest; the expected values come from `.tao/contracts/contract-*.md` +
@@ -71,7 +71,7 @@ import machine_profile  # noqa: E402
 _TOOLCHAIN_BIN = str(_dadao_paths.host_toolchain_bin())
 _TEST_ARTIFACTS = _dadao_paths.test_artifacts_dir()
 
-# Machine fault exit codes (spec/Machine-v5 §7.1): monitor 0xC0-0xFF
+# Machine fault exit codes (spec/Kaiwu §7.1): monitor 0xC0-0xFF
 # (bit5:4 = run mode, bit3:0 = cause index) and other cfx 0x80-0xBF (cfxHA).
 # Used only to *explain* a mismatch; the primary comparison is exact.
 _MONITOR_FAULT_NAMES = {
@@ -298,9 +298,9 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
             os.remove(stale)
     if PROFILE.name == "vast":
         machine_args = ["-machine",
-                        "dadao-vast,bootrom-image=" + tools["bootrom"]]
+                        "kaiwu-vast,bootrom-image=" + tools["bootrom"]]
     else:
-        machine_args = ["-M", "dadao-tiny", "-bios", tools["bootrom"]]
+        machine_args = ["-M", "kaiwu-tiny", "-bios", tools["bootrom"]]
     cmd = [
         tools["qemu"],
         *machine_args,

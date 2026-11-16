@@ -1,5 +1,5 @@
 diff --git a/build.sbt b/build.sbt
-index f56621c..6ad3c36 100644
+index f56621c..23fb38a 100644
 --- a/build.sbt
 +++ b/build.sbt
 @@ -163,6 +163,66 @@ lazy val rocketchip = freshProject("rocketchip", rocketChipDir)
@@ -27,13 +27,13 @@ index f56621c..6ad3c36 100644
 +  .settings(libraryDependencies ++= rocketLibDeps.value)
 +  .settings(commonSettings)
 +  .settings(
-+    // m12-002: the Machine-v5-Tiny BootROM image is checked in as a *text* hex
++    // m12-002: the Kaiwu-Tiny BootROM image is checked in as a *text* hex
 +    // file (a component patch set cannot carry binary blobs).  Decode it into
 +    // the classpath resource that `WithBootROM` names; the resource rides the
 +    // wuming jar into the elaboration classpath.
 +    //
 +    // m12-007: the image became the 64 KiB fixed firmware (power stub + hmon
-+    // segment + reserved + image index table, spec/Machine-v5 §6.2), so the
++    // segment + reserved + image index table, spec/Kaiwu §6.2), so the
 +    // text form is *sparse*: `@<offset>` lines set the write offset and byte
 +    // lines append.  The 40 KiB reserved region stays implicit zeros.
 +    Compile / resourceGenerators += Def.task {

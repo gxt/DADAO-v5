@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/tiny_cfx.cc b/src/arch/dadao/tiny_cfx.cc
 new file mode 100644
-index 0000000..fd12346
+index 0000000..c6c6156
 --- /dev/null
 +++ b/src/arch/dadao/tiny_cfx.cc
 @@ -0,0 +1,486 @@
@@ -20,7 +20,7 @@ index 0000000..fd12346
 +{
 +
 +/** The hmon frame is a single hardware frame; this guard stops a runaway
-+ *  recursive fault (spec/Machine-v5 §4.4; the implementation may stop the
++ *  recursive fault (spec/Kaiwu §4.4; the implementation may stop the
 + *  machine when the handler cannot make progress). */
 +constexpr unsigned kMaxDepth = 8;
 +
@@ -50,7 +50,7 @@ index 0000000..fd12346
 +int
 +monitorIndex(uint8_t runMode)
 +{
-+    // Tiny is always hypv; its monitor is cfx3 (spec/Machine-v5 §2/§4.4).
++    // Tiny is always hypv; its monitor is cfx3 (spec/Kaiwu §2/§4.4).
 +    (void)runMode;
 +    return tinyCfxIndex(TinyCfxhaHmon);
 +}
@@ -190,12 +190,12 @@ index 0000000..fd12346
 +    }
 +
 +    // Step 6: the run mode is fixed at hypv on the Tiny profile -- the machine
-+    // provides no mode-switch path (spec/Machine-v5 §2), so a guest-written
++    // provides no mode-switch path (spec/Kaiwu §2), so a guest-written
 +    // switch_run_mode value cannot leave hypv.  QEMU applies the same
 +    // profile-level override (non-user profile => DADAO_MODE_HYPV).
 +    // Step 7 value = the target vector.
 +    const uint64_t vec = s.cfx[ci].mode[entryMode & 0x3].excpVector;
-+    s.runMode = 3;  // hypv (spec/Machine-v5 §2; DADAO-13 §1)
++    s.runMode = 3;  // hypv (spec/Kaiwu §2; DADAO-13 §1)
 +    s.cfxCode = static_cast<uint8_t>(target);
 +    return vec;
 +}
@@ -254,7 +254,7 @@ index 0000000..fd12346
 +            // Platform-defined vector初值 (DADAO-13 §1): the hmon handler is
 +            // installed at the hmon SRAM base; the power reset vector is the
 +            // BootROM base.  Guest software still writes the hmon vector
-+            // explicitly at startup (spec/Machine-v5 §4.4).
++            // explicitly at startup (spec/Kaiwu §4.4).
 +            mr.excpVector = (cfxha == TinyCfxhaHmon) ? hmonBase : romBase;
 +            mr.cgRegDeleg = (m == 3) ? ~0ULL : 0;
 +        }
@@ -319,7 +319,7 @@ index 0000000..fd12346
 +
 +    const uint64_t vec = tinyEnter(s, cause, target, causeIp, causeInfo);
 +    // The vector must live in an implemented segment; otherwise the frame can
-+    // never run (spec/Machine-v5 §4.4 implementation stop condition).
++    // never run (spec/Kaiwu §4.4 implementation stop condition).
 +    if (!tinyAddressMapped(s, vec, 4))
 +        return false;
 +
@@ -348,7 +348,7 @@ index 0000000..fd12346
 +    }
 +    if (tinyCfxIndex(cfxha) < 0) {
 +        // Tiny implements only cfx3/cfx63: every other cfxha is ILLI here
-+        // (spec/Machine-v5 §3/§4.4), unlike the Vast CFXREG routing.
++        // (spec/Kaiwu §3/§4.4), unlike the Vast CFXREG routing.
 +        tinyCfxRaise(tc, s, TinyCauseIlli, -1, pc, info);
 +        return;
 +    }
@@ -470,7 +470,7 @@ index 0000000..fd12346
 +        return false;
 +    }
 +    if (cg == 3 && rc == 8) {
-+        // Machine-v5 §2: on the Tiny profile a switch_run_mode write is
++        // Kaiwu §2: on the Tiny profile a switch_run_mode write is
 +        // ignored -- the saved value stays 3 (hypv) and a read returns the
 +        // saved value (it is not a "constant 3" read-only register).  The
 +        // write itself succeeds, so no fault is raised.

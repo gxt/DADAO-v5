@@ -3,7 +3,7 @@
 # Assembles tests/unit/llvm/e2e/cfi_e2e.s (a main() carrying
 # .cfi_startproc/.cfi_endproc + .cfi_def_cfa/.cfi_def_cfa_offset/
 # .cfi_def_cfa_register/.cfi_offset), links it with the shared crt0 and the
-# Tiny contract linker script, and runs it on qemu dadao-tiny with semihosting.
+# Tiny contract linker script, and runs it on qemu kaiwu-tiny with semihosting.
 #
 # Checks, in order:
 #   1. the CFI directives assemble (llvm-mc rc = 0, no abort);
@@ -15,6 +15,6 @@
 # RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=obj %crt0 -o %t.crt0.o
 # RUN: %ld -T %linker_script %t.crt0.o %t.o -o %t.elf
 # RUN: %llvm_objdump -h %t.elf | %FileCheck %s --check-prefix=SEC
-# RUN: timeout 30 %qemu -machine dadao-tiny,bootrom-image=%bootrom -kernel %t.elf -semihosting-config enable=on,target=native -display none -nographic
+# RUN: timeout 30 %qemu -machine kaiwu-tiny,bootrom-image=%bootrom -kernel %t.elf -semihosting-config enable=on,target=native -display none -nographic
 #
 # SEC: .eh_frame

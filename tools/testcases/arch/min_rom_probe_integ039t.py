@@ -12,7 +12,7 @@ QEMU implementation:
     exception priority P=0 → SPF/GPF → HSJU → R/W/X, page-table faults enter
     cfx_ptw, A/D fields defined but no update point without a TLB.
   - .tao/adr/adr-0040-pte-pagewalk-permissions.md D1–D10.
-  - spec/Machine-v5-测试机运行环境.md §1.2/§3 (test-machine scope: page tables
+  - spec/Kaiwu-测试机运行环境.md §1.2/§3 (test-machine scope: page tables
     live in pmem; A/D maintenance and TLB are later steps).
   - contracts/opcodes.yaml (ld.o/st.o/jump/set.zw/or.w/cfx2rd/cfx2rc/trap/
     escape encodings); contracts/cfx-aliases.txt (cfx_ptw = cfx4).
@@ -140,9 +140,9 @@ PTE_R = 1 << 7
 PPN_MASK = 0x00FF_FFFF_FFFF_0000
 SPPN_MASK = 0x00FF_FFFF_E000_0000
 
-# monitor cause ids (DADAO-12 §2.2.6/§5.2 + Machine-v5 §7.1)
+# monitor cause ids (DADAO-12 §2.2.6/§5.2 + Kaiwu §7.1)
 # Page-table faults go to the current run-mode monitor (DADAO-12
-# §2.2.6/§5.2 + Machine-v5 §7.1): missing/fragment => CFXMEM,
+# §2.2.6/§5.2 + Kaiwu §7.1): missing/fragment => CFXMEM,
 # HSJU/R/W/X => CFXPERM.  No page-level one-hot cause any more.
 C_CFXMEM = 1 << 1
 C_CFXPERM = 1 << 7

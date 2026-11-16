@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..82172fabb
+index 000000000..75f5ce45c
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
 @@ -0,0 +1,322 @@
@@ -47,7 +47,7 @@ index 000000000..82172fabb
 +
 +/*
 + * Self-check codes for the fields only this file can judge: the guest FAIL
-+ * segment of spec/Machine-v5 §7.1 (0x01-0x7f, value = check point index).
++ * segment of spec/Kaiwu §7.1 (0x01-0x7f, value = check point index).
 + * head.S carries 0x01/0x02/0x03 for magic/version/size, so this file starts
 + * at 0x04.  The values also stay <= 0x7f because the semihosting SYS_EXIT
 + * subcode is the host process exit status (0x100 would wrap to 0 and read as

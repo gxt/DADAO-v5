@@ -1,5 +1,5 @@
 diff --git a/semihosting/arm-compat-semi.c b/semihosting/arm-compat-semi.c
-index 5e5f181..ca9b3fe 100644
+index 5e5f181..ca73cee 100644
 --- a/semihosting/arm-compat-semi.c
 +++ b/semihosting/arm-compat-semi.c
 @@ -216,6 +216,30 @@ static LayoutInfo common_semi_find_bases(CPUState *cs)
@@ -12,7 +12,7 @@ index 5e5f181..ca9b3fe 100644
 + *
 + * The default walks the address through the current MMU context, which is what
 + * a target whose semihosting pointers are VAs needs.  DADAO is the opposite:
-+ * spec/Machine-v5 §5.2 / contract-semihosting §2 make every semihosting
++ * spec/Kaiwu §5.2 / contract-semihosting §2 make every semihosting
 + * pointer a **physical address**, so `target/dadao/common-semi-target.c`
 + * provides a strong definition of this hook that reads physical memory.  The
 + * weak default keeps every other target on its existing path, byte for byte.
@@ -43,7 +43,7 @@ index 5e5f181..ca9b3fe 100644
 +         * string hook instead of lock_user_string(): the latter would measure
 +         * the pointer through the page table (uaccess_strlen_user ->
 +         * probe_access_flags), which is wrong for a target whose semihosting
-+         * pointers are physical addresses (spec/Machine-v5 §5.2,
++         * pointers are physical addresses (spec/Kaiwu §5.2,
 +         * contract-semihosting §2) — the file name would fault with EFAULT
 +         * before the lock even happened.  This is the system-mode twin of
 +         * lock_user_string() (target_strlen + lock_user), and the hook's weak
@@ -65,7 +65,7 @@ index 5e5f181..ca9b3fe 100644
 -            ssize_t len = target_strlen(args);
 +            /* The pointer is an address in the target's semihosting pointer
 +             * space; measure it through the target hook so a target that hands
-+             * over physical addresses (spec/Machine-v5 §5.2) is not forced
++             * over physical addresses (spec/Kaiwu §5.2) is not forced
 +             * through the page table by the length probe. */
 +            ssize_t len = common_semi_strlen(cs, args);
              if (len < 0) {

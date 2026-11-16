@@ -32,7 +32,7 @@ HSJU 四位掩码取代旧“HMON/SMON 00/01/10”两位语义，避免模式与
 - G 位（bit4）在 Step 3 落地 TLB 时补进 spec/QEMU 测试；Step 2 已验收的页表步进不需要重开，但规格中的 bit4“保留”必须同步改为 G。
 - QEMU 需要页表步进与 HSJU/RWX/SPF/GPF 检查；A/D 更新在 Step 3 才验证。
 - `NUPERM/NJPERM/NSPERM/NHPERM` 保留；不再使用旧 PTBR 模式权限。
-- **平台使用**：`Machine-v5-Node` 的第一张页表只用 L1 超页 4 项覆盖 PA `[0, 2 GiB)`（低地址线性映射 `VA [0, 2 GiB)` → PA `[0, 2 GiB)`，每项 `H=1,S=1,U=J=0,R=W=X=1,P=1,SP=1,A=D=1,SPF=0xFF`）；`Machine-v5-Tiny` 不使用页表。PTE 格式与异常优先级不变。
+- **平台使用**：`Kaiwu-Node` 的第一张页表只用 L1 超页 4 项覆盖 PA `[0, 2 GiB)`（低地址线性映射 `VA [0, 2 GiB)` → PA `[0, 2 GiB)`，每项 `H=1,S=1,U=J=0,R=W=X=1,P=1,SP=1,A=D=1,SPF=0xFF`）；`Kaiwu-Tiny` 不使用页表。PTE 格式与异常优先级不变。
 
 ## 状态说明
 
@@ -40,12 +40,12 @@ Step 2 已由 `INTEG-039t` 落地并验收；G 的 TLB 行为在 Step 3 实现�
 
 ## 修订
 
-**rev. 2026-11-02（用户 2026-11-02 逐条确认，`SPEC-183t`）**：`Consequences` 补一条平台使用说明（`Machine-v5-Node` 的第一张页表 = L1 超页 4 项、`SPF=0xFF`；`Machine-v5-Tiny` 不用页表）。`D1`–`D11` 决策、PTE 格式与异常优先级**不变**。
+**rev. 2026-11-02（用户 2026-11-02 逐条确认，`SPEC-183t`）**：`Consequences` 补一条平台使用说明（`Kaiwu-Node` 的第一张页表 = L1 超页 4 项、`SPF=0xFF`；`Kaiwu-Tiny` 不用页表）。`D1`–`D11` 决策、PTE 格式与异常优先级**不变**。
 
-- **用户原话（经主会话转达）**：「用户已逐条确认 ADR-0004/0039/0040/0043 四项修订」；逐条口径见 `.tao/tasks/spec/SPEC-183t-Machine-v5-Tiny-Node规范收口.md`。
+- **用户原话（经主会话转达）**：「用户已逐条确认 ADR-0004/0039/0040/0043 四项修订」；逐条口径见 `.tao/tasks/spec/`.tao/archive/M11/spec/SPEC-183t-Machine-v5-Tiny-Node规范收口.md`（归档不改名）`。
 - **流程说明**：本次只补平台使用说明（不改决策），`Process-03` 的「决策变更新增 ADR」不适用；`**状态**` 行已标 `rev. 2026-11-02`。
 
-**rev. 2026-11-05（`SPEC-184t`，用户 2026-11-05 裁定 A「就地修订」）**：`Consequences` 的平台使用说明改为**低地址线性映射**（`Machine-v5-Node` 首张页表 4 项超页覆盖 PA `[0, 2 GiB)`，`VA [0, 2 GiB)` → PA `[0, 2 GiB)`，每项 `H=1,S=1,U=J=0,A=D=1,SPF=0xFF`）。`D1`–`D11` 决策、PTE 格式与异常优先级**不变**。
+**rev. 2026-11-05（`SPEC-184t`，用户 2026-11-05 裁定 A「就地修订」）**：`Consequences` 的平台使用说明改为**低地址线性映射**（`Kaiwu-Node` 首张页表 4 项超页覆盖 PA `[0, 2 GiB)`，`VA [0, 2 GiB)` → PA `[0, 2 GiB)`，每项 `H=1,S=1,U=J=0,A=D=1,SPF=0xFF`）。`D1`–`D11` 决策、PTE 格式与异常优先级**不变**。
 
 - **用户原话（经主会话转达）**：「ADR **A 就地修订**：ADR-0043 D10/D11/D12 + ADR-0039/0040 平台口径；每册 rev. 2026-11-05；不新立 ADR。」
 - **流程说明**：经用户授权的**就地修订**（`Process-03` 一般规则为新增 ADR 或标 `Superseded`），只改平台使用说明；`**状态**` 行已标 `rev. 2026-11-05`，不保留与现行 spec 冲突的旧数字。

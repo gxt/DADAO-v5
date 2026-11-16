@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build test binary from ISA vector YAML for dadao-tiny QEMU testing.
+"""Build test binary from ISA vector YAML for kaiwu-tiny QEMU testing.
 
 Binary layout (loaded at BINARY_BASE = the selected profile's RAM entry):
   [section 1] loader   - Set rd/rb/ra registers from input_state, write memory
@@ -13,7 +13,7 @@ Design decisions (ADR-0009):
   D2: guest-internal comparison via XOR+ORR accumulator
   D4: RD scratch=rd60-63, RB scratch=rb60-63, RA not scratch
   D5: exit code 0x00=PASS, 0x01-0x7F=FAIL (check point 1-127), 0x80-0xFF=machine fault
-      (spec/Machine-v5 §7.1)
+      (spec/Kaiwu §7.1)
 
 Exit channel (ADR-0020 D8: semihosting SYS_EXIT replaces the legacy MMIO halt device):
   the PASS/FAIL epilogue writes the 64-bit argument block
@@ -21,7 +21,7 @@ Exit channel (ADR-0020 D8: semihosting SYS_EXIT replaces the legacy MMIO halt de
   `rd16 = 0x18 (SYS_EXIT); rb16 = block; trap` -- the reported status is the
   low byte of `code` (contract-semihosting.md §3/§5).  The harness must run
   QEMU with `-semihosting-config enable=on,target=native` (ADR-0020 D7).
-  Fault cases (spec/Machine-v5 §4.4/§7.1) are observed as the monitor-segment
+  Fault cases (spec/Kaiwu §4.4/§7.1) are observed as the monitor-segment
   code `0xF0|exception_bit`: Vast's hmon writes the RAM fault record and exits
   with that code itself (TESTCASES-092t §3); Tiny's minimal hmon only saves
   `cause_id` and escapes to the return slot +0xF8, so the test image installs
@@ -65,7 +65,7 @@ PC_DUMP_OFF = 0x400                  # pc (rb0 via rb2rd→st.o-rd) at +0x400
 SEMIHOST_TAG = 0x3FF00               # immu18[17:8] == 0x3FF (0x3FF00-0x3FFFF) -> semihosting trap
 SYS_EXIT = 0x18                      # SYS_EXIT service number
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
-EXIT_GUEST_FAIL = 0x01               # spec/Machine-v5 §7.1 guest FAIL = failing check point 1
+EXIT_GUEST_FAIL = 0x01               # spec/Kaiwu §7.1 guest FAIL = failing check point 1
 
 # Register conventions (ADR-0009 D4)
 TEMP_RD     = 60                      # rd60: temp for loading expected values
@@ -78,13 +78,13 @@ HMON_RB     = 60                      # rb60: hmon SRAM base (fault landing pad)
 
 # cfx3 hmon fixed data slots (tests/shared/bootrom/tiny/hmon.S header):
 #   +0xE0 cause_id (one-hot, spec/DADAO-12 §5.2), +0xF8 return address.
-# `spec/Machine-v5 §6.2`: power writes the default (`trap+4`), the framework
+# `spec/Kaiwu §6.2`: power writes the default (`trap+4`), the framework
 # (the application image) may overwrite it -- that is how the Tiny fault
-# oracle is dispatched through hmon (spec/Machine-v5 §4.4).
+# oracle is dispatched through hmon (spec/Kaiwu §4.4).
 HMON_SLOT_CAUSE_ID = 0xE0
 HMON_SLOT_RETURN = 0xF8
 
-# spec/Machine-v5 §7.1 monitor-segment exception bit indexes (DADAO cause bits).
+# spec/Kaiwu §7.1 monitor-segment exception bit indexes (DADAO cause bits).
 # CFXTRAP/CFXESC are encoded in the *other-cfx* segment (0x80-0xBF) and are
 # therefore deliberately absent: the landing pad would encode them wrongly.
 FAULT_CAUSE_BIT = {
@@ -241,7 +241,7 @@ def uses_hmon_landing_pad(vector_case):
     Tiny 的固定固件 hmon 是「最小保存-跳转」（m13-integ-007 用户裁定）：只把
     `cause_id` 存进 hmon SRAM +0xE0 并 `escape` 到返回槽 +0xF8 指向的地址，
     自身不产生退出码。故障口径因此由被测镜像安装落点、读 cause 后产生
-    （`spec/Machine-v5 §4.4`）。Vast 的 hmon 写 RAM `fault_record` 并按固件
+    （`spec/Kaiwu §4.4`）。Vast 的 hmon 写 RAM `fault_record` 并按固件
     策略直接退出（TESTCASES-092t §3）⇒ 不需要落点。
     """
     return (bool(vector_case.get("expected_fault"))
@@ -253,7 +253,7 @@ def build_hmon_landing_pad(expected_fault):
     """故障落点：核对固件 hmon 记录的 one-hot cause，再按 monitor 段退出码退出。
 
     命中期望 ⇒ `SYS_EXIT(0xF0 | 异常位索引)`（Tiny 恒 hypv ⇒ monitor 段
-    `0xF0`–`0xFF`，`spec/Machine-v5 §7.1`）；未命中 ⇒ guest FAIL(1)，与
+    `0xF0`–`0xFF`，`spec/Kaiwu §7.1`）；未命中 ⇒ guest FAIL(1)，与
     `expected_fault` 的安全网同义。与 `tests/inst/macros/inst_test.inc` 的
     `.faultpad` 同一口径。
     """
@@ -981,7 +981,7 @@ def build_test_binary(vector_case, trusted_instrs=None, dump_mode=False):
         words.extend(exit_words)
         return _pack_words(words)
 
-    # Tiny fault case (spec/Machine-v5 §4.4): before the instruction under
+    # Tiny fault case (spec/Kaiwu §4.4): before the instruction under
     # test, install the harness landing pad in the firmware hmon's return slot
     # (+0xF8, "framework may overwrite" per §6.2).  The pad is the last block.
     hmon_base_words = emit_load_imm64_rb(HMON_RB, machine_profile.HMON_BASE)

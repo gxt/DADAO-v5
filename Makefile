@@ -247,7 +247,7 @@ help:
 	@echo "  make linux-initramfs Build the initramfs image (M14; script lands later)"
 	@echo "  make linux-semihosting-smoke  Boot the kernel under QEMU semihosting (smoke; M14; script lands later)"
 	@echo "  make check-linux-toolchain  Check the dadao cross toolchain can build the kernel (L1; M14)"
-	@echo "  make check-linux-boot-contract  Check the boot ABI contract against spec/Machine-v5 (L1; M14)"
+	@echo "  make check-linux-boot-contract  Check the boot ABI contract against spec/Kaiwu (L1; M14)"
 	@echo "  make check-linux-k0  K0 closure gate: vmlinux ELF/boot-ABI + initramfs (reproducible, /init) + toolchain matrix + boot contract + apply-series idempotence (L2; m14-infra-003)"
 	@echo "  make check-linux-k1  K1 closure gate: Vast end-to-end power->hmon->smon->kernel->start_kernel->SYS_EXIT(0) before any clock; boot info + kernel-built PTBR (L2; m14-linux-005)"
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
@@ -774,12 +774,12 @@ _locked-install-cfx-aliases:
 #                     semihost_{smoke,fail,unimpl,write}.o/.elf}
 BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
 STEP5_BOOTROM_DIR = $(BOOTROM_DIR)/step5
-# m12-chipyard-007: Machine-v5-Tiny fixed BootROM firmware image
+# m12-chipyard-007: Kaiwu-Tiny fixed BootROM firmware image
 # (power stub + hmon segment + reserved + image index table,
-# spec/Machine-v5 §6.1/§6.2); the chipyard `wuming` resource is the same image.
+# spec/Kaiwu §6.1/§6.2); the chipyard `wuming` resource is the same image.
 TINY_BOOTROM_DIR = $(BOOTROM_DIR)/tiny
 TINY_BOOTROM = $(TINY_BOOTROM_DIR)/bootrom_tiny.bin
-# Machine-v5-Vast 4 MiB BootROM (QEMU-080t): supplied through the
+# Kaiwu-Vast 4 MiB BootROM (QEMU-080t): supplied through the
 # `bootrom-image` machine property; the flat 64 KiB `-bios` window stays Tiny.
 # TESTCASES-092t: two hmon fault-policy variants from the same hmon.S:
 #   bootrom_step5.bin      HMON_FAULT_POLICY=0 (resume: arch / check-arch*)
@@ -800,7 +800,7 @@ _locked-build-bootrom:
 	$(LLVM_OBJCOPY_BIN) -O binary --only-section=.text $(BOOTROM_DIR)/bootrom_app.o $(BOOTROM_DIR)/bootrom_app.bin
 	@# m12-chipyard-003/007: ELF smoke application for the chipyard `+loadmem=`
 	@# closed loop.  The application is `tiny_crt.o` (SP setup at the fixed
-	@# entry, spec/Machine-v5 §6) + the smoke body, linked into one ELF.
+	@# entry, spec/Kaiwu §6) + the smoke body, linked into one ELF.
 	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/tiny_crt.S -o $(BOOTROM_DIR)/tiny_crt.o
 	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/tiny_smoke.S -o $(BOOTROM_DIR)/tiny_smoke.o
 	$(LLD_BIN) -T tests/shared/bootrom/tiny_smoke.lds $(BOOTROM_DIR)/tiny_crt.o $(BOOTROM_DIR)/tiny_smoke.o -o $(BOOTROM_DIR)/tiny_smoke.elf
@@ -890,7 +890,7 @@ _locked-test-picolibc-smoke: build-picolibc
 # representative set — one test per Meson suite, mechanically derived by the
 # harness (no hand-picked list).  The harness configures the picolibc Meson test
 # build (for the authoritative test inventory), then compiles/links/runs each
-# test under qemu-system-dadao -machine dadao-tiny + semihosting.  Fails if any
+# test under qemu-system-dadao -machine kaiwu-tiny + semihosting.  Fails if any
 # representative reports a genuine test failure (fail=0); backend/library gaps
 # are reported separately as `blocked`, never as silent skips.
 _locked-check-picolibc-tests: build-picolibc build-bootrom
@@ -931,8 +931,8 @@ _locked-check-clmul-probe: install-host build-musl
 
 # check-testcases-suites (TESTCASES-045t stage 1): drive the two upstream
 # *reference* suites -- libc-test and llvm-test-suite -- through the static musl
-# flow (compile -> ld.lld -T dadao-tiny.lds -> flat image -> qemu-system-dadao
-# -machine dadao-tiny, "path B").  Upstream's own harnesses are unusable here
+# flow (compile -> ld.lld -T kaiwu-tiny.lds -> flat image -> qemu-system-dadao
+# -machine kaiwu-tiny, "path B").  Upstream's own harnesses are unusable here
 # (libc-test's runtest.exe needs fork/waitpid/signals; llvm-test-suite's
 # CMake/lit driver assumes a hosted OS), so tools/testcases/run_suite.py drives
 # the corpora directly and classifies every case live.
@@ -1584,7 +1584,7 @@ _locked-check-lit-full:
 #   llc -march=dadao <prog.ll> -> .s; cat minimal_crt0.s prog.s -> .s;
 #   llvm-mc --triple=dadao -filetype=obj -> .o;
 #   llvm-objcopy -O binary --only-section=.text -> .bin;
-#   qemu-system-dadao -M dadao-tiny -bios <64 KiB firmware> -kernel .bin ...
+#   qemu-system-dadao -M kaiwu-tiny -bios <64 KiB firmware> -kernel .bin ...
 # The guest process exit code is compared against tests/unit/llvm/codegen/expected.yaml.
 # Fail-closed: any mismatch / timeout / machine fault => non-zero exit.
 LLC_BIN = $(HOST_TOOLCHAIN_BIN)/llc
@@ -1621,8 +1621,8 @@ _locked-test-codegen: install-host
 # build trees.  Pipeline (multi-object, per contract-elf.md §6.1.2):
 #   llvm-mc --triple=dadao -filetype=obj tests/shared/crt0/minimal_crt0.s -> crt0.o;
 #   per TU llc -march=dadao -filetype=obj                            -> <tu>.o;
-#   ld.lld -T tests/shared/linker/dadao-tiny.lds crt0.o <tu>.o ... -o <prog>.elf;
-#   qemu-system-dadao -M dadao-tiny -kernel <prog>.elf ...
+#   ld.lld -T tests/shared/linker/kaiwu-tiny.lds crt0.o <tu>.o ... -o <prog>.elf;
+#   qemu-system-dadao -M kaiwu-tiny -kernel <prog>.elf ...
 # The guest process exit code is compared against the independent M4 manifest
 # tests/unit/llvm/codegen/m4/expected.yaml (TESTCASES-030t/032t).
 # Fail-closed: any mismatch / timeout / build-step non-zero => non-zero exit.
@@ -1642,7 +1642,7 @@ _locked-test-elf: install-host build-bootrom
 	  DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/unit/run_elf_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --ldlld $(LLD_BIN) \
 	    --qemu $(QEMU_BIN) --crt0 tests/shared/crt0/minimal_crt0.s \
-	    --lds tests/shared/linker/dadao-tiny-app.lds \
+	    --lds tests/shared/linker/kaiwu-tiny-app.lds \
 	    --bootrom $(TINY_BOOTROM) \
 	    --vectors-dir tests/unit/llvm/codegen/m4 \
 	    --expected tests/unit/llvm/codegen/m4/expected.yaml \
@@ -1885,7 +1885,7 @@ check-fp-contract:
 # Vast 的 ISA 语义由 `spec/` + M13 三平台差分矩阵承担（docs/Process-07 §1）。
 
 # `.S` 载体门控 (m13-testcases-030 / ISS-413, L2)：`tests/inst/<册>/*.S` 的**全部**
-# 迁移 id（12 册）逐镜像执行 —— 同一份 ELF 交给 QEMU `dadao-tiny`：链例比结果
+# 迁移 id（12 册）逐镜像执行 —— 同一份 ELF 交给 QEMU `kaiwu-tiny`：链例比结果
 # 字节流（`8 × 检查点数`，逐字节）、故障例比 monitor 段退出码（`0xF0|异常位`）。
 # 载体数 / 镜像数 / 检查点数一律**现场统计**（`run_asm_suite.py` 解析 `.S`），本
 # 目标与脚本都不写死。**单平台**：chipyard/gem5 的三方逐字节是各册任务的验收口径

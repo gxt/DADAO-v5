@@ -1,4 +1,4 @@
-@@ tiny_hmon_layout.inc — Machine-v5-Tiny hmon 用例的 SRAM 布局（m13-gem5-001）
+@@ tiny_hmon_layout.inc — Kaiwu-Tiny hmon 用例的 SRAM 布局（m13-gem5-001）
 @@
 @@ `tiny_hmon.S`（应用）使用本布局：应用在 SRAM 里放结果表与固定数据区，
 @@ 并以符号调用自己的记录例程（`.rcheck`）。hmon 段是**共享最小 handler**

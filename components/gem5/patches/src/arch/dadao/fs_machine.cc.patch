@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/fs_machine.cc b/src/arch/dadao/fs_machine.cc
 new file mode 100644
-index 0000000..63773d0
+index 0000000..ad5e0b7
 --- /dev/null
 +++ b/src/arch/dadao/fs_machine.cc
 @@ -0,0 +1,139 @@
@@ -31,7 +31,7 @@ index 0000000..63773d0
 +bool faultRaised = false;
 +
 +/** Current run mode for the monitor segment.  Tiny has no cfx/run-mode switch
-+ *  (spec/Machine-v5 §2: it executes nominally in hypv); Node exposes the live
++ *  (spec/Kaiwu §2: it executes nominally in hypv); Node exposes the live
 + *  mode of its architectural state. */
 +uint8_t
 +currentRunMode(ThreadContext *tc)
@@ -98,7 +98,7 @@ index 0000000..63773d0
 +MachineFault::invoke(ThreadContext *tc, const StaticInstPtr &)
 +{
 +    // Tiny: the synchronous exception enters the hmon vector with the
-+    // architectural frame (spec/Machine-v5 §4.4).  Only when the handler
++    // architectural frame (spec/Kaiwu §4.4).  Only when the handler
 +    // cannot run (unmapped vector / nesting guard) does the machine stop with
 +    // the §7.1 code below.
 +    if (tc != nullptr) {

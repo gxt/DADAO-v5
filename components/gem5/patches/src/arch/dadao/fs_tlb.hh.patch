@@ -1,10 +1,10 @@
 diff --git a/src/arch/dadao/fs_tlb.hh b/src/arch/dadao/fs_tlb.hh
 new file mode 100644
-index 0000000..37f91e9
+index 0000000..f7c139c
 --- /dev/null
 +++ b/src/arch/dadao/fs_tlb.hh
 @@ -0,0 +1,81 @@
-+// DADAO FS TLB (Machine-v5-Tiny): identity translation with segment checks.
++// DADAO FS TLB (Kaiwu-Tiny): identity translation with segment checks.
 +//
 +// Tiny has no PTW, no page table and no TLB fill: VA == PA, and only two
 +// segments exist (BootROM, read/execute; SRAM, read/write/execute).  Every

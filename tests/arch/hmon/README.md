@@ -1,8 +1,8 @@
-# arch/hmon — Machine-v5-Tiny `cfx_power` + `cfx3 hmon`
+# arch/hmon — Kaiwu-Tiny `cfx_power` + `cfx3 hmon`
 
 `TESTCASES`-style execution case for the Tiny machine's cfx set
 (`m13-gem5-001`): `cfx_power` (cfx63, boot handover) and `cfx3 hmon` (the hypv
-monitor).  Source: `spec/Machine-v5 §1.1/§2/§3/§4.4/§5`, `spec/DADAO-12 §5`,
+monitor).  Source: `spec/Kaiwu §1.1/§2/§3/§4.4/§5`, `spec/DADAO-12 §5`,
 `spec/DADAO-13 §1`.
 
 ## Files
@@ -42,7 +42,7 @@ old gem5-only dispatch handler (`tiny_hmon_handler.{S,lds}`, 18 instructions /
    hmon (records 32–35).
 5. Semihosting is cfxha-agnostic: the case calls `SYS_WRITE0` through
    `trap cfx_power, 0x3FF00` and the rest through `trap cfx_hmon, 0x3FF00`.
-6. The run mode stays `hypv` on Tiny (`Machine-v5 §2`): the body writes
+6. The run mode stays `hypv` on Tiny (`Kaiwu §2`): the body writes
    `switch_run_mode = user(0)`, takes a `CFXMEM`, and after the fault reads a
    cg3 (hypv-only, `DADAO-13 §1`) register successfully while
    `excp_prev_run_mode` records `3` (records 36, 42, 38–40).  The old

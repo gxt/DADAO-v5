@@ -4,14 +4,15 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
+- **2026-11-16（m14-infra-004）**：**测试机整机名 = `Kaiwu`（开物，`ADR-0055` 已 Accepted）**——`spec/Kaiwu-测试机运行环境.md`（册改名 + 锁 path/sha256 同笔重算）、QEMU 机器串 `kaiwu-tiny`/`kaiwu-vast`（**无旧名别名**）、全仓 `Kaiwu-Tiny`/`Kaiwu-Vast` 机械替换（`docs/DDLN/**` 改、`.tao/archive/**` 不动）；`DADAO`/`Wuming`/`Gewu` 与三元组 `dadao-unknown-elf` 不变。命名与机器串见下「反套用清单」命名条。
 - **2026-11-15（晚）**：**M13 已收口并归档**（107 件全已验证、台账已删）；**M15 `m15-testcases-001` 已收口**（`tests/inst` 10 宏下沉共享层、镜像 904/904 与 md5 22/22 均不变）；M12 已收口且已归档；M14 K1 收口（19）、**K2 待授权立册**；M16 已验证 9 / 待开始 1（`chipyard-001`，等 M13 收口→现已解锁）；M15 `m15-spec-001` 待返工（WIP `0584a64b`，用户要求先摊开文件 + 逐条语句分析）。
 - **M13 收口事实**：矩阵冻结 `docs/TestReports/M13-三平台差分-矩阵.md`（整数 637 + FP 227 = **864 镜像三平台逐例一致、差异 0、未归因 0**）；报告记 `input commit`；新增链例字节级断言；`refs/m13-005-acceptance.*` 是 **refs/ 最后一批产物**。
 - **rf2rf 批（全部合入）**：`spec-010`（264→263 id）+ llvm/qemu/gem5/chipyard 四实现 + 向量 `02-reg-copy/rf2rf_orri_rf.S`；伪指令体系迁入 `SimRISC-00 §5`、`SimRISC-03` 按 rd/rb/rf 拆三章；7 个伪指令载体（`pseudo_set.*`，113 点）；RMW 合成序 `atomic_rmw.S`；`atomics` 5 探针退役改执行型 `atomics_e2e`；`set.fo` 最小指令数展开。
-- **sim md5 / qemu md5**：chipyard **`bd5e75b3a64044b4cb69d20c298f080d`**（`m16-chipyard-002`：cfx 独立为 `dadao-gewu`；旧 `4e072a71…` 作废）；qemu `9750c139f24a7bcebca37909c287b67c`（`m14-qemu-002`：semihosting 指针按 PA）；**两者都只在同一构建环境/时段内可比**（`ISS-451`/`ISS-453`）。
+- **sim md5 / qemu md5**：chipyard **`71574df4dbd0033b6c0a7b133239b95a`**（`m14-infra-004`：改名 `Kaiwu`；旧 `bd5e75b3…` 作废）；qemu **`50752f5feeda4e15fe35de6a6a260a4e`**（`m14-infra-004`：机器串 `kaiwu-tiny`/`kaiwu-vast`；旧 `9750c139…` 作废）；**两者都只在同一构建环境/时段内可比**（`ISS-451`/`ISS-453`）。
 - **L1 全绿**（`check-inst-asm` 904/904、`check-lit` 177/177、`check-interface` 89/89、`check-musl-freshness` PASS）。
 - **规则新增（2026-11-15）**：派单顺序（先提交任务书再建 worktree，R2 机械校验）、台账时间戳取 `date`/`git log`、复核分档（小改 1 路注入 ≤15 min）、脚本入仓判据=会不会再跑。
 - 队列：M13 收口完成 → **`refs/` 清空**（用户已定，方式待选）+ **M13 归档**；M16 `chipyard-001` 已解锁；M14 K2 待授权。
-- **待用户裁定**：① `refs/` 清空方式（直接删 / 归档到 `archive/<M>/refs/`）；② 机器/版本命名（约 147 文件）；③ 平台×机型×用例 6 问；④ gem5 SE `--semihost` 开关；⑤ `ISS-440`/`ISS-443`/`ISS-433` 是否合批做 ADR；⑥ K2 立册范围；⑦ `m15-spec-001` 的推进方式（先摊开文件 + 逐条语句分析）。
+- **待用户裁定**：① `refs/` 清空方式（直接删 / 归档到 `archive/<M>/refs/`）；② 平台×机型×用例 6 问；③ gem5 SE `--semihost` 开关；④ `ISS-440`/`ISS-443`/`ISS-433` 是否合批做 ADR；⑤ K2 立册范围；⑥ `m15-spec-001` 的推进方式（先摊开文件 + 逐条语句分析）。
 
 ## 入口指针
 
@@ -57,7 +58,8 @@
 - **`rb0`/`ra0` 特殊**：`rb0` 是当前 IP，`ra0` 是 DADAO MemRAS；`ret rd0, 0` 等边界不能按其他 ISA 猜。
 - **浮点/ABI**：`rf0` 状态位、`long double = binary128`、聚合/多返回值规则按 `contract-abi`/`spec/DADAO-21` 为准。
 - **浮点行为以 IEEE-754 2019 为准（用户 2026-11-12）**：浮点设计与实现过程中出现的**任何差分**（本核 / QEMU / gem5 / hardfloat / `spec/SimRISC-07` 之间），一律以 **IEEE-754 2019** 规定的行为裁决；`SimRISC` 指令系统与各模拟器须据此**更新和修订**。**「与既有实现一致」不构成保留依据**；若确有偏离，必须在 spec 里显式写明为有意偏离并给理由。
-- **测试机不是通用平台**：BootROM/RAM/复位/地址映射按 `spec/Machine-v5` + `ADR-0004`。
+- **测试机不是通用平台**：BootROM/RAM/复位/地址映射按 `spec/Kaiwu` + `ADR-0004`。
+- **三层命名不互换**（`ADR-0055`）：项目/ISA = `DADAO`（三元组 `dadao-unknown-elf`）、核 = `Wuming`（generator `dadao-wuming`）、cfx 寄存器堆 = `Gewu`（generator `dadao-gewu`）、**整机 = `Kaiwu`**（机型 `tiny`/`vast`；QEMU 机器串 `kaiwu-tiny`/`kaiwu-vast`，**无旧名别名**）。改名只换名字，编码/几何/契约值不变。
 - **不确定时**：先查 `spec/` 对应篇目；不猜；spec 冲突或语义不明，直接问用户。
 
 ## 权威文档地图

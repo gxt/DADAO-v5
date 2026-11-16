@@ -9,13 +9,13 @@
 
 ## 背景
 
-M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Machine-v5 §6` 只规定测试机 BootROM 装载与 `power → hmon → smon` 移交，**没有** Vast 上内核镜像的装载规则、入口寄存器/运行模式、内存分区与启动参数结构；`DADAO-23 §3` 的 S-mode 入口约定以**设备树**为 `rb17` 的语义。主会话派单转达的 2026-11-13 用户确认前提：**不引入设备树 DTB，启动传参改为固定 boot info 结构**；平台 = QEMU system 模式、单核、semihosting 控制台。
+M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Kaiwu §6` 只规定测试机 BootROM 装载与 `power → hmon → smon` 移交，**没有** Vast 上内核镜像的装载规则、入口寄存器/运行模式、内存分区与启动参数结构；`DADAO-23 §3` 的 S-mode 入口约定以**设备树**为 `rb17` 的语义。主会话派单转达的 2026-11-13 用户确认前提：**不引入设备树 DTB，启动传参改为固定 boot info 结构**；平台 = QEMU system 模式、单核、semihosting 控制台。
 
 本任务把上述决定落成**可实现的契约**：spec 正文 + 人读合约 + 机器可读投影 + 机械一致性检查。K0 只冻结契约，**不实现** QEMU 侧装载扩展（K1）。
 
 ## 目标
 
-1. `spec/Machine-v5` 新增 **§6.3「`Machine-v5-Vast` 内核装载与启动 ABI」**（v5 自定），含：
+1. `spec/Kaiwu` 新增 **§6.3「`Kaiwu-Vast` 内核装载与启动 ABI」**（v5 自定），含：
    - 两条装载路径（ELF / raw loadmem）与校验规则；
    - 内核入口地址、进入时运行模式/PTW/寄存器约定；
    - RAM 分区（低端保留区、内核区、initramfs 区）与大小上限；
@@ -24,7 +24,7 @@ M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Mac
 2. 新建 `.tao/contracts/contract-linux-boot.md`（归一化人读契约，版本 `0.1.0`）。
 3. 新建机器可读投影 `contracts/linux-boot.yaml`（`check-contracts-dir` 白名单内的 `*.yaml`）。
 4. 新建 `tools/linux/check_boot_contract.py`（`make check-linux-boot-contract`，目标由 `m14-linux-001` 已声明）：正文表 ↔ 契约 ↔ YAML 三方逐字段一致；`--self-test` 每类断言可达 FAIL。
-5. 版本与只读锁：`Machine-v5` `0.4.5-rc` → **`0.4.6-rc`**，附录新段；`manifests/spec-readonly.lock.toml` 同笔更新该册 sha256 + 注记（其余 20 册不变）。
+5. 版本与只读锁：`Kaiwu` `0.4.5-rc` → **`0.4.6-rc`**，附录新段；`manifests/spec-readonly.lock.toml` 同笔更新该册 sha256 + 注记（其余 20 册不变）。
 
 ## 接口规范（本任务冻结值）
 
@@ -76,7 +76,7 @@ M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Mac
 | 项 | 值 |
 |---|---|
 | 运行模式 | `supv`（`DADAO-23 §3` 的 smon 移交路径；`power → hmon → smon → 内核`） |
-| PTW | 开启；身份映射 `VA [0, 2 GiB) → PA [0, 2 GiB)`（`Machine-v5 §6` 首张页表）；`PTBR = 0`；64 KiB 页 |
+| PTW | 开启；身份映射 `VA [0, 2 GiB) → PA [0, 2 GiB)`（`Kaiwu §6` 首张页表）；`PTBR = 0`；64 KiB 页 |
 | `rb17` | boot info PA `0x0001_0000`（与 `DADAO-23 §3` 的「设备树地址」同位；本机**无 DTB**，内核不得按 DTB 解析） |
 | `rb16` | 入口地址 `0x0010_0000`（移交用；移交后不再有意义） |
 | `rb1`（SP） | 未定义；`head.S` 必须在任何栈使用前自建 early stack |
@@ -90,12 +90,12 @@ M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Mac
 
 ## 范围（改哪些文件）
 
-- `spec/Machine-v5-测试机运行环境.md`（新增 §6.3；§6 Vast 装载段落加指针；§1.1 Vast 的 PA RAM 行加「内部分区见 §6.3」指针；附录 `0.4.6-rc`；册头版本）
+- `spec/Kaiwu-测试机运行环境.md`（新增 §6.3；§6 Vast 装载段落加指针；§1.1 Vast 的 PA RAM 行加「内部分区见 §6.3」指针；附录 `0.4.6-rc`；册头版本）
 - `.tao/contracts/contract-linux-boot.md`（新建，0.1.0）
 - `contracts/linux-boot.yaml`（新建）
 - `.tao/contracts/README.md`（文件表加一行）
 - `tools/linux/check_boot_contract.py`（新建；含 `--self-test`）
-- `manifests/spec-readonly.lock.toml`（仅 `Machine-v5` sha + 注记）
+- `manifests/spec-readonly.lock.toml`（仅 `Kaiwu` sha + 注记）
 - 本任务书
 
 ## 验收标准
@@ -104,18 +104,18 @@ M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Mac
 2. boot info 表 = 上文逐字段一致（偏移/宽度/端序/值/对齐/越界语义/写入方与保护）；全册 grep 无「设备树/DTS/DTB 由本机传入」类表述（历史附录除外，须加注）。
 3. 装载规则可机械核：ELF 路径 7 条校验 + raw 路径 4 条（基址/入口/长度/BSS 责任）+ initramfs 区/上限 + 失败即 host 非零退出；每条在正文有唯一断言句。
 4. 明确「不定义 TLB/cache/LLC/UART/多核」；K0 只引用 `DADAO-12 §2.2` 既有页表语义。
-5. `contract-linux-boot.md`（0.1.0）：每条规范句带来源标注（`[Machine-v5 §6.3]` / `[contract-elf §5.2]` / `[DADAO-23 §3]` / `[用户裁定 2026-11-13]`；无上游依据的冻结值标 `[spec-decision]` 并在文末列出）；与 `contract-elf`/`contract-abi`/`contract-semihosting` 无重复正文（只指针）。
+5. `contract-linux-boot.md`（0.1.0）：每条规范句带来源标注（`[Kaiwu §6.3]` / `[contract-elf §5.2]` / `[DADAO-23 §3]` / `[用户裁定 2026-11-13]`；无上游依据的冻结值标 `[spec-decision]` 并在文末列出）；与 `contract-elf`/`contract-abi`/`contract-semihosting` 无重复正文（只指针）。
 6. `contracts/linux-boot.yaml` 与正文表逐字段相等；`python3 tools/linux/check_boot_contract.py` rc=0（打印现场字段数），`--self-test` 注入四类（偏移错、magic 错、入口/基址错、字段缺失）各自 FAIL；`make check-linux-boot-contract` rc=0（目标由 `m14-linux-001` 声明；L1 登记/接线由 `m14-infra-003`）。
-7. 版本/锁：`Machine-v5` 册头与附录 `0.4.6-rc`；`make check-spec-readonly` rc=0 且 21 册逐册重算**仅 1 册**变（其余 20 册 sha 与派单基线一致）；`make check-spec-changelog`/`check-spec-drift`/`check-spec-numbering`/`check-spec-refs`/`check-contracts-dir`/`check-knowledge-refs`/`check-test-reports` 全 rc=0。
+7. 版本/锁：`Kaiwu` 册头与附录 `0.4.6-rc`；`make check-spec-readonly` rc=0 且 21 册逐册重算**仅 1 册**变（其余 20 册 sha 与派单基线一致）；`make check-spec-changelog`/`check-spec-drift`/`check-spec-numbering`/`check-spec-refs`/`check-contracts-dir`/`check-knowledge-refs`/`check-test-reports` 全 rc=0。
 8. ADR 提醒：启动 ABI 属跨模块外部契约，命中 ADR 判据；**是否立 ADR 由用户裁定**（本任务不写 `adr-*.md`，在完成区登记提醒）。
 9. 一键证据脚本（含注入→FAIL→`cp`+md5 还原→回绿）；完成区 ≤30 行、无运行期路径。
 
 ## 说明
 
-- **授权提醒**：本任务改 `spec/Machine-v5`（只读锁内册）。按 `docs/Process-06 §2/§5` 须用户**事先**明确允许、留存原话，并同笔更新锁 sha；派单前由主会话把授权原话落到本任务书「用户授权」段；未落纸 ⇒ BLOCKED。
-- **`rb17` 语义的边界**：`DADAO-23 §3` 属上游只读册，本任务只在 `Machine-v5` 写「本机约定」；若评审认为必须改上游册，**不得自改**，登记「待裁定」。
+- **授权提醒**：本任务改 `spec/Kaiwu`（只读锁内册）。按 `docs/Process-06 §2/§5` 须用户**事先**明确允许、留存原话，并同笔更新锁 sha；派单前由主会话把授权原话落到本任务书「用户授权」段；未落纸 ⇒ BLOCKED。
+- **`rb17` 语义的边界**：`DADAO-23 §3` 属上游只读册，本任务只在 `Kaiwu` 写「本机约定」；若评审认为必须改上游册，**不得自改**，登记「待裁定」。
 - 参考实现只读：`.cache/refs/DADAO/ENV-linux`（5.4 时代）可对照「镜像装载/入口」的踩坑，但**内容溯源，非执行必需**，不复制代码/地址。
-- `Machine-v5 §6.3` 运行期装载实现（QEMU 写 boot info、装 initramfs、把 `rb16/rb17` 交给 smon）属 **K1** 任务，不在本任务范围。
+- `Kaiwu §6.3` 运行期装载实现（QEMU 写 boot info、装 initramfs、把 `rb16/rb17` 交给 smon）属 **K1** 任务，不在本任务范围。
 
 ## 硬约束（子代理必读）
 
@@ -132,9 +132,9 @@ M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Mac
 
 ## 用户授权
 
-**用户授权（2026-11-13，渠道 = 主会话问答；选项「授权这三处（推荐）」）**：用户同意本批任务修改 `spec/Machine-v5`（含只读锁）、`docs/Process-01`、`docs/Process-07` 三处；本任务按授权执行，其余 `spec/` 与 `docs/Process-*` 改动仍需逐次授权。
+**用户授权（2026-11-13，渠道 = 主会话问答；选项「授权这三处（推荐）」）**：用户同意本批任务修改 `spec/Kaiwu`（含只读锁）、`docs/Process-01`、`docs/Process-07` 三处；本任务按授权执行，其余 `spec/` 与 `docs/Process-*` 改动仍需逐次授权。
 
-本任务范围：`spec/Machine-v5` 新增 §6.3 + 版本与只读锁同笔更新。
+本任务范围：`spec/Kaiwu` 新增 §6.3 + 版本与只读锁同笔更新。
 
 ## 待裁定
 
@@ -150,19 +150,19 @@ M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Mac
 **测试结果**（返工后全量重跑）：`python3 tools/linux/check_boot_contract.py` **rc=0**（boot info 15 字段 ×〔正文/契约〕+ 语义列 15 + 每字段 kind 地址术语断言、分区 5 行、进入状态 10 项、规则 16 条＝elf:7/raw:4/initramfs:3/fail:2、术语/启动模型断言，条数全现场统计）；`--self-test` **rc=0**（**6 类**注入：偏移 / magic / 入口基址 / 字段缺失 / 术语缺失 / boot info 改称 PA，各「注入⇒FAIL⇒还原⇒回绿」）；运行期证据脚本（`.work/evidence/**`）**rc=0**（`PASS=53 FAIL=0`，3 路真实文件注入 + `cp`+md5 还原、锁 21 册仅 1 册变、H 段术语/启动模型逐项）。
 
 **修改文件**（= `git status --porcelain -uall`）：
-- `M spec/Machine-v5-测试机运行环境.md`（§6.3 按**裁定 A/B**重写：地址术语 VA / 启动模型 M1 预建页表 + VA 入口 / `ptw_enable=0 ⇒ CFXMEM` 硬约束 / 其它 hart 未定义；§1.1 与 §6 各 1 条指针；册头与附录 `0.4.6-rc`）
+- `M spec/Kaiwu-测试机运行环境.md`（§6.3 按**裁定 A/B**重写：地址术语 VA / 启动模型 M1 预建页表 + VA 入口 / `ptw_enable=0 ⇒ CFXMEM` 硬约束 / 其它 hart 未定义；§1.1 与 §6 各 1 条指针；册头与附录 `0.4.6-rc`）
 - `A .tao/contracts/contract-linux-boot.md`（新建；`0.1.0`；同步 VA 术语与 M1）
 - `A contracts/linux-boot.yaml`（新建；增 `address_model` / `startup_model` / 每字段 `kind`、`pa`→`va`）
 - `A tools/linux/check_boot_contract.py`（新建；增术语/启动模型断言、kind 地址断言、6 类 self-test）
 - `M .tao/contracts/README.md`（文件表 + 投影清单各 1 行）
-- `M manifests/spec-readonly.lock.toml`（仅 Machine-v5 sha + 注记；其余 20 册 sha 与基线逐册相同）
+- `M manifests/spec-readonly.lock.toml`（仅 Kaiwu sha + 注记；其余 20 册 sha 与基线逐册相同）
 - `M` 本任务书（裁定留纸 / 完成区 / 第 2 轮自审 / 状态）
 
 **验收结果**：①**裁定 A** — ABI 地址一律 VA（`addr[41:0]`），PA 仅剩页表项/`PTBR`/loader 写内存（检查器按 `kind` 逐字段断言 va 字段写 VA、`ptbr` 写 PA，并断言旧口径 `p_vaddr == p_paddr`、`固定 PA \`0x0001_0000\`` 已消失）②**裁定 B** — §6.3 明写预建身份映射页表 + `ptw_enable = 1` + `rb16` VA 入口，并写明 `ptw_enable = 0` 取指/访存即 `CFXMEM`（引 `§1.2`）、M1 无 MMU 关中间态；其它 hart 状态未定义；低端保留区与 initramfs 区不得回收③boot info 15 字段逐字段一致（偏移/宽度/字段/值/语义）④规则 16 条各有唯一断言句⑤不定义项逐项点名⑥`check-spec-readonly`/`changelog`/`drift`/`numbering`/`refs`/`contracts-dir`/`contracts-pending`/`test-reports`/`dirs`/`no-residue`/`purity`/`cite-targets` 全 rc=0⑦证据脚本见「测试结果」⑧reviewer 非阻断 finding：§6.3.3 页末措辞已改（「页内偏移 `0x60` 之后至该页末」）；`contracts/README.md` 未改（超范围，登记遗留）。
 
 **新发现/坑**：
 - **`check-spec-drift` 对 spec-sourced 契约强制「契约版本 == README 已发布版本」**：本契约 `0.1.0` ≠ README `Machine` 列 `0.4.0`，故按 ADR-sourced 分类（引 `adr-0004-test-machine.md`，Accepted；装载模型确为其 `§D2.2`/`§D2.3` 的延伸），版本行写 `> **契约版本**：0.1.0`（reviewer 第 1 轮已确认成立；版本线对齐口径仍列待裁定）。
-- **门控前缀**：`check-spec-refs` 只识别 `Machine-\d+`；`[Machine-v5 §6.3]` **不被校验**（不是判红——reviewer 订正），故契约统一写 `[Machine-01 §6.3]`（契约头注明 = `Machine-v5` 册），spec 册内引用按册内惯例写 `§N.M`。
+- **门控前缀**：`check-spec-refs` 只识别 `Machine-\d+`；`[Kaiwu §6.3]` **不被校验**（不是判红——reviewer 订正），故契约统一写 `[Machine-01 §6.3]`（契约头注明 = `Kaiwu` 册），spec 册内引用按册内惯例写 `§N.M`。
 - `check-knowledge-refs` **既有红**（rc=1，5 处具体 `.work/**` 引用全在 `m13-testcases-013` 任务书）：该文件相对基线 `8cd4c184` 未改 ⇒ 非本任务引入（证据脚本 F 段断言归属）。
 - `make check-linux-boot-contract` **BLOCKED**：Makefile 目标声明归 `m14-linux-001`（主会话边界裁定「本任务不改 Makefile」）；本任务以直接调用脚本取证。
 - 既有 `tests/shared/machine-profiles.yaml` 的 vast profile（`kernel_base`/`entry`/`ram_base`/`ram_size`）与 boot info 冻结值数值一致（仅佐证，不作 oracle）。
@@ -210,11 +210,11 @@ M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Mac
 
 **独立注入（非工程师自检）**：`cp` 契约→`.preinject` + md5 `173033c7…` → §5 `rb17 0x0001_0000→0x0002_0000` → 检查器 **rc=1**（`进入状态[2] 契约==YAML` FAIL）、同一证据脚本 **rc=1**（`PASS=20 FAIL=7`）→ `cp` 回、md5 相等 → 检查器 **rc=0**、证据脚本 **rc=0**（`PASS=27 FAIL=0`）。快照对账：验收前后 7 文件 md5 逐一相等、`git status --porcelain -uall` 输出为空、无 `.preinject` 残留。
 
-**约束核验**：改动 = 基线 `8cd4c184`→HEAD 恰 7 文件（spec 册 + 契约 + YAML + 检查器 + `.tao/contracts/README.md` + 锁 + 任务书），越界 0；完成区 27 行 ≤30、无运行期路径；证据基线钉 commit 常量非 `HEAD`；`DADAO-23` 与其余 20 册未改（锁现算 sha 全对、仅 Machine-v5 变，册头/附录 `0.4.6-rc`）；全程未提交 git、未动主工作树。
+**约束核验**：改动 = 基线 `8cd4c184`→HEAD 恰 7 文件（spec 册 + 契约 + YAML + 检查器 + `.tao/contracts/README.md` + 锁 + 任务书），越界 0；完成区 27 行 ≤30、无运行期路径；证据基线钉 commit 常量非 `HEAD`；`DADAO-23` 与其余 20 册未改（锁现算 sha 全对、仅 Kaiwu 变，册头/附录 `0.4.6-rc`）；全程未提交 git、未动主工作树。
 
 **check-spec-drift 分类裁定：成立（非凑绿）** —— ① ADR-0004 引用有实质：`§D2.2/D2.3` = ELF+raw 双路径与「装载越界 ⇒ host 非零退出」，状态 Accepted，`contract-elf` 同源同引；② 任务同时硬性要求契约 `0.1.0` 与 drift rc=0，而 spec-sourced 分支强制 == README Machine `0.4.0`，二者不可兼得（改 README Machine 列＝篡改「spec 册已发布版本」语义、改契约版本＝违反验收2，均不成立）；③ 仓库已有 ADR-sourced 先例（`contract-elf`、`contract-see`）。**finding**：版本线对齐口径（自有 `0.1.0` vs Machine `0.4.0`）宜登记「待裁定」，与遗留的「是否立启动 ABI ADR」一并交用户/architect 裁定。
 
-**非阻断 finding（文档级，architect 收尾改）**：① spec §6.3.3「`0x60` 之后到页尾（`0x1_0000`）」含混（页为 `[0x0001_0000, 0x0002_0000)`，建议改「页内偏移至 `0x1_0000`」，改后须同笔重算锁 sha）；② 根 `contracts/README.md` 投影表缺 `linux-boot.yaml` 行（超范围，完成区已披露）；③ 自审表 F5 中间 sha `6dadcbb…` ≠ 最终锁值 `b0216180…`（其后改动重算所致）；④ 完成区称 `[Machine-v5 §6.3]` 会被 `check-spec-refs` 判红——本人在临时树全量替换为该形 rc=0，实为「不被校验」而非判红，理由措辞不准（改用 `Machine-01` 前缀的结论仍对，`contract-see` 同惯例）。
+**非阻断 finding（文档级，architect 收尾改）**：① spec §6.3.3「`0x60` 之后到页尾（`0x1_0000`）」含混（页为 `[0x0001_0000, 0x0002_0000)`，建议改「页内偏移至 `0x1_0000`」，改后须同笔重算锁 sha）；② 根 `contracts/README.md` 投影表缺 `linux-boot.yaml` 行（超范围，完成区已披露）；③ 自审表 F5 中间 sha `6dadcbb…` ≠ 最终锁值 `b0216180…`（其后改动重算所致）；④ 完成区称 `[Kaiwu §6.3]` 会被 `check-spec-refs` 判红——本人在临时树全量替换为该形 rc=0，实为「不被校验」而非判红，理由措辞不准（改用 `Machine-01` 前缀的结论仍对，`contract-see` 同惯例）。
 
 
 ### 第 2 轮 engineer 自审（返工：裁定 A 地址术语 / 裁定 B 启动模型）
@@ -231,7 +231,7 @@ M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Mac
 | R6 self-test 仅 4 类，未覆盖新裁定 | ✅已修 | 增「术语缺失（CFXMEM→CFXPERM）」「boot info 改称固定 PA」两类 ⇒ 6 类，各可达 FAIL | `--self-test` rc=0，6 类注入 6 次「注入 FAIL → 还原回绿」 |
 | R7 证据脚本注入类数写死 4、缺术语/启动模型段 | ✅已修 | 类数由 self-test 日志现场派生；新增 H 段（术语/旧口径/M1/其它 hart/保留区）与第 3 路真实注入 | 证据脚本 rc=0，`PASS=53 FAIL=0` |
 | R8 reviewer finding① §6.3.3「页尾」措辞含混 | ✅已修 | 改「页内偏移 `0x60` 之后至该页末（页内偏移 `0x1_0000`）」 | 文本核对；锁 sha 同笔重算 |
-| R9 reviewer finding④ 完成区称 `[Machine-v5 §6.3]`「判红」不准 | ✅已修 | 改为「不被校验」 | 完成区已更新 |
+| R9 reviewer finding④ 完成区称 `[Kaiwu §6.3]`「判红」不准 | ✅已修 | 改为「不被校验」 | 完成区已更新 |
 | R10 表格 header 改「区间（VA）」后检查器未同步 | ✅已修 | 检查器表头匹配同步改「区间（VA）」 | 分区 5 行双向 PASS |
 | R11 新块拼接后 §6.3.5 与 `---` 缺空行 | ✅已修 | 补空行 | 结构检查（numbering/changelog）rc=0 |
 
@@ -247,7 +247,7 @@ M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Mac
 - `bash <运行期证据目录>/run.sh` | **0** | `汇总: PASS=53 FAIL=0`（返工后跑 2 次均绿；3 路真实文件注入 + `cp`+md5 还原；日志内 4 条 `[FAIL]` 均为 `[INFO]` 回显的注入态失败，非断言失败）
 - 门控 `make check-spec-{readonly,changelog,drift,numbering,refs}`、`check-contracts-{dir,pending}`、`check-test-reports`、`check-{dirs,no-residue}`、`check-spec-{purity,cite-targets}` **全 rc=0**（readonly=`21 read-only spec volume(s) OK`，refs=`0 violations`，drift=`错误 0 个`）
 - `python3 tools/infra/check_knowledge_refs.py` | **1** | 5 条全在 `m13-testcases-013` 任务书；该文件与检查器相对基线 `8cd4c184` diff 为空 ⇒ 基线既有红（非本任务引入，验收7 该项照旧 BLOCKED）
-- 锁现算：`sha256sum spec/Machine-v5-…` = `e13ac126…` 与锁值相等；`git diff 8cd4c184..HEAD -- manifests/spec-readonly.lock.toml` 仅 1 hunk、仅 Machine-v5（其余 20 册 sha 不变）
+- 锁现算：`sha256sum spec/Kaiwu-…` = `e13ac126…` 与锁值相等；`git diff 8cd4c184..HEAD -- manifests/spec-readonly.lock.toml` 仅 1 hunk、仅 Kaiwu（其余 20 册 sha 不变）
 - `grep check-linux-boot-contract Makefile` **本分支缺席**（分支基线早于 `m14-linux-001` 的 `6e1b0f14` 合入）；用 `make -f <(git show master:Makefile) check-linux-boot-contract` 验 master 侧目标 **rc=0** ⇒ 目标可用，合入 master 后即可直接跑
 
 **裁定落地（逐条核）**：**A ✓** — §6.3 L324「地址术语硬约定：一律 VA、`addr[41:0]`、PA 只三处」、L385/L416/L417 VA 口径、L351/L357 `p_paddr` 不作装载地址；YAML `address_model.abi_addresses: va` + 每字段 `kind`（`pa` 仅 `ptbr`）。**B ✓** — L326 M1「预建 64 KiB 身份映射 `VA[0,2GiB)→PA[0,2GiB)`、`PTBR` 指向、`ptw_enable=1`、`rb16` VA 入口」、L328「`ptw_enable=0` 取指/访存直接 `CFXMEM`（引 §1.2）、不存在 MMU 关运行」、L422/L428 其它 hart 未定义、L345 保留区与 initramfs 区不得回收；契约 §1/§7 与 YAML `startup_model` 同步。
@@ -264,6 +264,6 @@ M14 K0 要冻结「内核怎么进、进来时看到什么」。当前 `spec/Mac
 
 ### 收尾（architect，2026-11-13）
 
-- 用户追加裁定：**身份页表只由 `smon` 固件建立**（宿主 loader 不代写页表页）。已按此改写 `Machine-v5 §6.3` 启动模型段与 `contract-linux-boot.md §1`；检查器 `check_boot_contract.py` 复跑仍 PASS（`--self-test` 6 类）。
+- 用户追加裁定：**身份页表只由 `smon` 固件建立**（宿主 loader 不代写页表页）。已按此改写 `Kaiwu §6.3` 启动模型段与 `contract-linux-boot.md §1`；检查器 `check_boot_contract.py` 复跑仍 PASS（`--self-test` 6 类）。
 - 顺带修 reviewer 非阻断项：`check_boot_contract.py` 注释「4 类」→「6 类」、`fmt_addr` docstring 改「地址格式（VA/PA 通用）」、根 `contracts/README.md` 补 `linux-boot.yaml` 行、锁 sha 按 §6.3 改动重算（`c9a373e4…`）。
 - 台账/`discussing.md` 由主会话维护。

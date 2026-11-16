@@ -1,6 +1,6 @@
 diff --git a/configs/dadao/se_timing.py b/configs/dadao/se_timing.py
 new file mode 100644
-index 0000000..8a30780
+index 0000000..b5435b1
 --- /dev/null
 +++ b/configs/dadao/se_timing.py
 @@ -0,0 +1,262 @@
@@ -126,11 +126,11 @@ index 0000000..8a30780
 +                             "enable_wuming_cycles); off = upstream 1-cycle")
 +    parser.add_argument("--mem-base", default="0",
 +                        help="physical base of the flat memory (default 0). A "
-+                             "Machine-v5-Tiny image is linked at the Tiny SRAM "
++                             "Kaiwu-Tiny image is linked at the Tiny SRAM "
 +                             "base, so a same-ELF comparison against the "
 +                             "chipyard harness passes that base here")
 +    parser.add_argument("--semihost", choices=("off", "on"), default="off",
-+                        help="serve the Machine-v5-Tiny semihosting trap "
++                        help="serve the Kaiwu-Tiny semihosting trap "
 +                             "(`trap cfx<any>, 0x3FFxx`) in SE mode; off keeps "
 +                             "the SE trap path exactly as it was")
 +    parser.add_argument("--semihost-argv",
@@ -176,7 +176,7 @@ index 0000000..8a30780
 +        mem_range = AddrRange(args.mem_size)
 +    else:
 +        # An explicit base: the flat memory has to cover the image's link
-+        # window, which for a Machine-v5-Tiny ELF is the Tiny SRAM base.
++        # window, which for a Kaiwu-Tiny ELF is the Tiny SRAM base.
 +        size = AddrRange(args.mem_size).size()
 +        mem_range = AddrRange(mem_base, mem_base + size)
 +    system.mem_ranges = [mem_range]

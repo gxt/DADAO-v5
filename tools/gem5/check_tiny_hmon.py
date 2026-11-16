@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""check_tiny_hmon — Machine-v5-Tiny cfx_power + cfx3 hmon acceptance runner.
+"""check_tiny_hmon — Kaiwu-Tiny cfx_power + cfx3 hmon acceptance runner.
 
 Builds the §6.2 two-piece load (fixed 64 KiB BootROM image + SRAM-only app ELF)
 from `tests/arch/hmon/` and `tests/shared/bootrom/tiny/`, runs the application
@@ -298,7 +298,7 @@ def main() -> int:
           f"(code {len(hmon_code)} B), "
           f"power segment = {shared_meta['power_len']} B")
 
-    # ---- image layout (spec/Machine-v5 §6.1/§6.2) ---------------------------
+    # ---- image layout (spec/Kaiwu §6.1/§6.2) ---------------------------
     img, meta, tag = shared_img, shared_meta, "shared"
     report(len(img) == 65536, f"{tag} image size", 65536, len(img))
     magic = struct.unpack_from(">I", img, bld.TABLE_OFF)[0]

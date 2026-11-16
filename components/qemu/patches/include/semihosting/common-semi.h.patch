@@ -1,5 +1,5 @@
 diff --git a/include/semihosting/common-semi.h b/include/semihosting/common-semi.h
-index aa511a4..1966747 100644
+index aa511a4..71ed6c0 100644
 --- a/include/semihosting/common-semi.h
 +++ b/include/semihosting/common-semi.h
 @@ -34,6 +34,8 @@
@@ -32,7 +32,7 @@ index aa511a4..1966747 100644
 + * pointers are *physical* addresses overrides this hook (a strong definition
 + * in ``target/<t>/common-semi-target.c`` replaces the weak default at link
 + * time); see ``target/dadao`` for DADAO, whose rule is fixed by
-+ * spec/Machine-v5 §5.2 and contract-semihosting §2.
++ * spec/Kaiwu §5.2 and contract-semihosting §2.
 + *
 + * Returns: the length in bytes (terminator excluded), or -1 when the string
 + *          cannot be read.

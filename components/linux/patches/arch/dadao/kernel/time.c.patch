@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/kernel/time.c b/arch/dadao/kernel/time.c
 new file mode 100644
-index 000000000..8916a18d9
+index 000000000..e55ed1b18
 --- /dev/null
 +++ b/arch/dadao/kernel/time.c
 @@ -0,0 +1,457 @@
@@ -44,7 +44,7 @@ index 000000000..8916a18d9
 +#include <asm/trap.h>
 +
 +/*
-+ * Named boot verdicts.  Guest FAIL segment of spec/Machine-v5 §7.1 (0x01-0x7f,
++ * Named boot verdicts.  Guest FAIL segment of spec/Kaiwu §7.1 (0x01-0x7f,
 + * value = check point index); head.S owns 0x01-0x03, setup.c 0x04-0x08,
 + * mm/k1_pt.c 0x09-0x0c, trap.S 0x0d, traps.c 0x0e/0x0f, so this task starts at
 + * 0x10.  They stay <= 0x7f because the semihosting SYS_EXIT subcode IS the host
@@ -103,7 +103,7 @@ index 000000000..8916a18d9
 +{
 +	unsigned long mode = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_FRAME,
 +					    CFX_HART_RC_FRAME_PREV_MODE) & 0x3;
-+	/* spec/Machine-v5 §7.1: 0xc0 | mode << 4 | bit index of the cause id.
++	/* spec/Kaiwu §7.1: 0xc0 | mode << 4 | bit index of the cause id.
 +	 * A zero cause id has no bit index; it is not an event this entry can
 +	 * classify, so it keeps 0 instead of calling __ffs(0). */
 +	unsigned long index = cause ? ((unsigned long)__ffs(cause) & 0xf) : 0UL;

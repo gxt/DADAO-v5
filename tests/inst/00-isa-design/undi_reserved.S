@@ -6,7 +6,7 @@
 @@ 语义：QFC 主表的空白单元格 = 保留编码 ⇒ 译码即 UNDI（`spec/SimRISC-00 §2.9`；
 @@   `contracts/legality_rules.yaml` 的 `undefined_encoding`）；不是「未实现」也不是 NOP。
 @@ 判据：故障例一例一镜像，退出码 = monitor 段编码 `0xF0|异常位索引` ⇒ UNDI = `0xF9`
-@@   （`spec/Machine-v5 §7.1`）；三平台（chipyard/qemu/gem5）同码。
+@@   （`spec/Kaiwu §7.1`）；三平台（chipyard/qemu/gem5）同码。
 @@ 用例：encoding 0 / semantic 0 / boundary 0 / overlap 0 / legality 3（链例 0 + 故障例 3）
 @@ 来源：原保留编码 YAML 的 3 条**无 id** 用例（该 YAML 已随 YAML 退役删除；
 @@   其余 6 条 CFXMEM 例本就有 id 与 `.S` 载体，随各 id 保留）。
