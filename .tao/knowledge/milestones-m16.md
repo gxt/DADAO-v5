@@ -27,12 +27,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-gem5-010 | 2026-11-16 22:56 | 3–5 h | gem5 侧 `Kaiwu-Vast` 同步异常路由对齐 `§5.2`（删 staged，两 profile 进 monitor） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-gem5-010 | 2026-11-17 01:40 | gem5 侧 `Kaiwu-Vast` 同步异常路由对齐 `§5.2`（staged 真删、帧四项与 QEMU 逐字段同；`check-arch` 由 qemu-005 验收覆盖） |
 | m16-chipyard-002 | 2026-11-16 04:16 | cfx 独立为 `dadao-gewu` generator（`GewuFileIO`/`GewuFile` 参数化、重定向归 core；sim md5 `bd5e75b3…`，37 镜像 cycle 逐条相同） |
 | m16-gem5-007 | 2026-11-15 12:20 | 对标脚手架 `compare_chipyard.py` + M17 报告（三例 3.10/3.68/3.95×；差距 80–87% 来自 gem5 无 icache 的取指） |
 | m16-testcases-001 | 2026-11-15 09:20 | 跑批进度看板 `progress.py`（done/run+ETA/孤儿标 unlogged）+ `run_embench_e2e.py --jsonl-out` 逐例增量落盘 |
