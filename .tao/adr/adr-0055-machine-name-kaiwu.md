@@ -22,9 +22,8 @@ v5 的测试机（含 `tiny`/`vast` 两机型）长期以占位名 `Machine-v5` 
 
 - **D1 名字**：整机名 = **`Kaiwu`**（拼音 `kaiwu`，标识一律小写 `kaiwu`）；机型名保持 `tiny`/`vast`；版本号不进名字（版本走 manifest 与 git）。
 - **D2 改名范围**：`Machine-v5` → `Kaiwu`（spec 册名与正文、文档、任务书、注释、工具默认值、manifest 路径）；`DADAO`（ISA/项目）、`Wuming`（核）、`Gewu`（cfx）**均不改**；三元组 `dadao-unknown-elf` 与 ELF 机器常量不动。
-- **D3 QEMU 机器串**：`dadao-tiny`/`dadao-vast` → **`kaiwu-tiny`/`kaiwu-vast`**，旧名保留**一个版本**作别名（`-M dadao-tiny` 仍可用，打印一次性 deprecation 提示），避免外部脚本硬断。
-- **D4 `Gewu` 不互换**：cfx 模块名继续是 `Gewu`（`ADR-0053` 已 Accepted 且已合入），本 ADR 只补整机名。
-- **D5 迁移方式**：单独立**一件机械改名任务**（不改语义、不散改），任务内含：① 全仓改名 + 三处门控（`check-interface`/`check-spec-refs`/`check-knowledge-refs` 等）回绿；② `spec/` 册改名 ⇒ `manifests/spec-readonly.lock.toml` 的 path 与 sha256 同笔重算；③ 旧 QEMU 机器名别名与其退场判据；④ 完成后更新 `MEMORY.md` 的命名段。
+- **D3 QEMU 机器串**：`dadao-tiny`/`dadao-vast` → **`kaiwu-tiny`/`kaiwu-vast`**，**不保留旧名别名**（直接切换；旧名一律失效）。
+- **D4 迁移方式**：单独立**一件机械改名任务**（不改语义、不散改），任务内含：① 全仓改名 + 三处门控（`check-interface`/`check-spec-refs`/`check-knowledge-refs` 等）回绿；② `spec/` 册改名 ⇒ `manifests/spec-readonly.lock.toml` 的 path 与 sha256 同笔重算；③ 完成后更新 `MEMORY.md` 的命名段；④ `docs/DDLN/**` 一并改（`.tao/archive/**` 不动）。
 
 ## Rationale（理由）
 
@@ -38,8 +37,8 @@ v5 的测试机（含 `tiny`/`vast` 两机型）长期以占位名 `Machine-v5` 
 - `machine-profiles.yaml` 的 profile 名（`tiny`/`vast`）不变 ⇒ 只改前缀；
 - QEMU 机器名变更影响 `tests/`/`tools/` 的 `-M` 调用共 ~437 处，须与 `D3` 的别名一起落，避免中途断链；
 - `spec/` 册改名必须与锁文件同笔重算（`docs/Process-06 §5`），否则 `check-spec-readonly` 会红；
-- `docs/DDLN/`、`.tao/archive/` 里的历史文本**不改**（归档是事实记录；只在文首注一行「当时机器名为 `Machine-v5`，现名 `Kaiwu`」——若需要，另行裁定）。
+- `.tao/archive/**` 的历史文本上**不改**（归档是事实记录，用户 2026-11-16 裁定）；`docs/DDLN/**` 的正文**要改**（用户同日裁定：「DDLN中的改」），因为 DDLN 是长期给别人看的讲义，不是历史快照。
 
 ## 状态说明
 
-2026-11-16 由主会话起草，用户已裁定名字为 `Kaiwu`（原话「好的，我决定就是kaiwu了」）。**D1–D5 须逐条确认**，确认后置 `Accepted` 并按 `D5` 立实施任务（不得先动文件）。
+2026-11-16 由主会话起草。用户已裁定：名字 = `Kaiwu`（原话「好的，我决定就是kaiwu了」）；**删除原 D4（`Gewu` 不互换）**（原话「D4不需要，这是讨论过程，与ADR无关」）；**D3 不保留旧名别名**（原话「旧名不需要保留一个版本做别名」）；**`.tao/archive/` 不动、`docs/DDLN/` 要改**（原话「.tao/archive中的不需要动；DDLN中的改」）。**D1/D2/D4 尚待逐条确认**，确认后置 `Accepted` 并按 D4 立实施任务（不得先动文件）。
