@@ -26,7 +26,6 @@
 | --- | --- | --- |
 | m14-qemu-005 | 4–6 h | QEMU TLB 对齐（fill/三操作/三档范围/ASID_ANY·G/回写失败不删）+ 页表异常子原因 |
 | m14-linux-012 | 6–8 h | page fault 与按需分页（子原因解码 + 匿名/零页 + `brk` 扩展） |
-| m14-linux-014 | 3–4 h | 用户栈增长（`VM_GROWSDOWN` + `RLIMIT_STACK`/guard gap 边界） |
 | m14-linux-015 | 5–6 h | K3 收口门控 `check-linux-k3`（八组 + §4a 退役审计） |
 | m14-qemu-004 | 1 h | `SYS_READC`/`SYS_FLEN` 取字缓冲改 PA（`ISS-452`，用户裁定「现在修」） |
 | m14-linux-010 | 2–3 h | IE 旋钮收敛为 monitor 单行 + `contract-see §6.4` 口径修订（`ISS-455`/`ISS-454`） |
@@ -42,6 +41,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-014 | 2026-11-16 22:05 | **已退役**（用户裁定栈增长归 K4：`VM_GROWSDOWN` 由 `execve` 创建，K3 无用户态；`S1`–`S6` 判据已交接） |
 | m14-linux-013 | 2026-11-16 21:59 | **已退役**（用户裁定 COW 全归 K4：K3 无 `fork`/无文件 mmap、零页已在 012 用掉且不复制） |
 | m14-qemu-006 | 2026-11-16 21:01 | Vast 同步异常单路由进 monitor（删 staged 模型；`ILLI` 的 `cause_info` 回读触发指令；28 oracle 按 spec 复推） |
 | m14-linux-011 | 2026-11-16 19:41 | 内核页表原语与 TLB 维护（修 `pmd_*` 三处 VA→PA；`tlb_control` + 10 flush；`cause&0xffff`；k3_pt 116/116） |
