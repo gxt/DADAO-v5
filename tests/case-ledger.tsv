@@ -65,26 +65,26 @@ asm	tests/inst/00-isa-design/pseudo_set.rb_imm.S	__CHECK_MEM         17, SCRATCH
 asm	tests/inst/00-isa-design/pseudo_set.rb_imm.S	__CHECK_MEM         18, SCRATCH, 0, 0x0000000000000001	1
 asm	tests/inst/00-isa-design/pseudo_set.rb_imm.S	__CHECK_MEM         19, SCRATCH, 0, 0x0000000000000000	1
 asm	tests/inst/00-isa-design/pseudo_set.rb_imm.S	__CHECK_MEM         20, SCRATCH, 0, 0xA5A55A5A0F0FF0F0	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM          1, SCRATCH, 0, 0xDEADBEEFCAFEBABE	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM          2, SCRATCH, 0, 0x0123456789ABCDEF	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM          3, SCRATCH, 0, 0xFFFFFFFF00000000	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM          4, SCRATCH, 0, 0x00000000CAFE0000	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM          5, SCRATCH, 0, 0x000000000000BABE	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM          6, SCRATCH, 0, 0xDEAD000000000000	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM          7, SCRATCH, 0, 0x0000BEEF00000000	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM          8, SCRATCH, 0, 0x0000000000000000	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM          9, SCRATCH, 0, 0xDEADBEEFCAFEBABE	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM         10, SCRATCH, 0, 0xFEDCBA9876543210	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM         11, SCRATCH, 0, 0xDEAD000000000000	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM         12, SCRATCH, 0, 0x0000BEEF00000000	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM         13, SCRATCH, 0, 0x00000000CAFE0000	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM         14, SCRATCH, 0, 0x000000000000BABE	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM         15, SCRATCH, 0, 0xFFFFFFFFFFFFFFFF	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM         16, SCRATCH, 0, 0x8000000000000001	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM         17, SCRATCH, 0, 0x0000FFFF00000000	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM         18, SCRATCH, 0, 0xA5A55A5A0F0FF0F0	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM         19, SCRATCH, 0, 0x00000000FFFFFFFF	1
-asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__CHECK_MEM         20, SCRATCH, 0, 0x0000000000000001	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RB	10, rb25, rb14, 0xFEDCBA9876543210	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RB	11, rb25, rb15, 0xDEAD000000000000	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RB	12, rb25, rb16, 0x0000BEEF00000000	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RB	13, rb25, rb17, 0x00000000CAFE0000	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RB	14, rb25, rb18, 0x000000000000BABE	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RB	15, rb25, rb19, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RB	16, rb25, rb19, 0x8000000000000001	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RB	18, rb25, rb63, 0xA5A55A5A0F0FF0F0	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RB	9, rb25, rb13, 0xDEADBEEFCAFEBABE	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RD	1, rd5, rb5, 0xDEADBEEFCAFEBABE	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RD	17, rd12, rb63, 0x0000FFFF00000000	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RD	19, rd13, rb26, 0x00000000FFFFFFFF	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RD	2, rd6, rb6, 0x0123456789ABCDEF	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RD	20, rd14, rb31, 0x0000000000000001, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RD	3, rd7, rb7, 0xFFFFFFFF00000000	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RD	4, rd8, rb8, 0x00000000CAFE0000	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RD	5, rd9, rb9, 0x000000000000BABE	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RD	6, rd10, rb10, 0xDEAD000000000000	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RD	7, rd11, rb11, 0x0000BEEF00000000	1
+asm	tests/inst/00-isa-design/pseudo_set.rb_reg.S	__PT_SET_RB_RD0	8, rb12	1
 asm	tests/inst/00-isa-design/pseudo_set.rd_imm.S	__CHECK_RD           1, rd5, 0x0000000000000000	1
 asm	tests/inst/00-isa-design/pseudo_set.rd_imm.S	__CHECK_RD           2, rd5, 0x0000000000001234	1
 asm	tests/inst/00-isa-design/pseudo_set.rd_imm.S	__CHECK_RD           3, rd5, 0xFFFFFFFFFFFFFFFF	1
@@ -4689,223 +4689,223 @@ asm	tests/inst/12-misc/lr.w.nn_orrr_rd.S	__CHECK_RD 7, rd2, 0x0000000000000123	1
 asm	tests/inst/12-misc/lr.w.nn_orrr_rd.S	__CHECK_RD 8, rd2, 0x0000000000000123	1
 asm	tests/inst/12-misc/lr.w.nn_orrr_rd.S	__CHECK_RD 9, rd2, 0x000000000000FFFF	1
 asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x476C0083	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 1, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 10, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 11, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 12, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 13, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 14, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 15, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 16, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 2, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 3, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 4, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 5, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 6, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 7, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 8, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__CHECK_RD 9, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_2SC	7, 6, sc.b.ar, lr.b.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0xDEADBEEFCAFEF00D, 0x5A23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_ENC	1, lr.b.nn, rd2, 0x476c5083, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0D23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_LD	10, sc.b.ar, lr.b.nn, rd2, A8, 0x0123456789ABCDEF, 0, 0x0000000000000000, 0x0023456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_LD	11, sc.b.ar, lr.b.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0x0D23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_LD	12, sc.b.ar, lr.b.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0xFEDCBA987654325A, 7	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_LD	13, sc.b.ar, lr.b.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0x0D1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_LD	14, sc.b.ar, lr.b.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_LD	16, sc.b.ar, lr.b.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xFE0DBA9876543210, 1	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_LD	3, sc.b.ar, lr.b.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0x0D23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_LD	9, sc.b.ar, lr.b.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_LD2	5, sc.b.ar, lr.b.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_LD2L	6, sc.b.ar, lr.b.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_LD2_FAIL	8, sc.b.ar, lr.b.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_LOADED	4, sc.b.ar, lr.b.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_NORESV	15, sc.b.ar, lr.b.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.ar_orrr_rd.S	__PT_SC_NORESV	2, sc.b.ar, lr.b.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
 asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	TEST_FAULT_CF1 22, rb3, A0, ILLI, 0x474C0083	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 1, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 10, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 11, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 12, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 13, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 14, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 15, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 16, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 17, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 18, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 19, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 2, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 20, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 21, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 3, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 4, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 5, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 6, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 7, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 8, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__CHECK_RD 9, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_2SC	7, 6, sc.b.nn, lr.b.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0xDEADBEEFCAFEF00D, 0x5A23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_2SC_SELF	21, sc.b.nn, lr.b.nn, rd2, B2, 0x0F1E2D3C4B5A6978, 0x5A5A5A5A5A5A5A5A, 0x9999999999999999, 0x5A1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_ENC	1, lr.b.nn, rd2, 0x474c5083, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0D23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_LD	10, sc.b.nn, lr.b.nn, rd2, A8, 0x0123456789ABCDEF, 0, 0x0000000000000000, 0x0023456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_LD	11, sc.b.nn, lr.b.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0x0D23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_LD	12, sc.b.nn, lr.b.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0xFEDCBA987654325A, 7	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_LD	13, sc.b.nn, lr.b.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0x0D1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_LD	14, sc.b.nn, lr.b.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_LD	16, sc.b.nn, lr.b.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xFE0DBA9876543210, 1	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_LD	3, sc.b.nn, lr.b.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0x0D23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_LD	9, sc.b.nn, lr.b.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_LD2	5, sc.b.nn, lr.b.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_LD2L	20, sc.b.nn, lr.b.nn, rd2, B0, B1, rb4, 0x1122334455667788, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x1122334455667788	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_LD2L	6, sc.b.nn, lr.b.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_LD2_FAIL	8, sc.b.nn, lr.b.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_LOADED	4, sc.b.nn, lr.b.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_NORESV	15, sc.b.nn, lr.b.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_NORESV	2, sc.b.nn, lr.b.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_STORE_PREP	17, sc.b.nn, lr.b.nn, rd2, A14, 0x0123456789ABCDEF, st.b, 0xAA, 1, 0x5A5A5A5A5A5A5A5A, 0x5AAA456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_STORE_PREP	18, sc.b.nn, lr.b.nn, rd2, A15, 0x0123456789ABCDEF, st.t, 0xDEADBEEF, 0, 0x5A5A5A5A5A5A5A5A, 0x5AADBEEF89ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nn_orrr_rd.S	__PT_SC_STORE_PREP	19, sc.b.nn, lr.b.nn, rd2, A16, 0x0123456789ABCDEF, st.b, 0x77, 0, 0x5A5A5A5A5A5A5A5A, 0x5A23456789ABCDEF	1
 asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x475C0083	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 1, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 10, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 11, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 12, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 13, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 14, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 15, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 16, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 2, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 3, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 4, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 5, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 6, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 7, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 8, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__CHECK_RD 9, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_2SC	7, 6, sc.b.nr, lr.b.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0xDEADBEEFCAFEF00D, 0x5A23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_ENC	1, lr.b.nn, rd2, 0x475c5083, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0D23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_LD	10, sc.b.nr, lr.b.nn, rd2, A8, 0x0123456789ABCDEF, 0, 0x0000000000000000, 0x0023456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_LD	11, sc.b.nr, lr.b.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0x0D23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_LD	12, sc.b.nr, lr.b.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0xFEDCBA987654325A, 7	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_LD	13, sc.b.nr, lr.b.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0x0D1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_LD	14, sc.b.nr, lr.b.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_LD	16, sc.b.nr, lr.b.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xFE0DBA9876543210, 1	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_LD	3, sc.b.nr, lr.b.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0x0D23456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_LD	9, sc.b.nr, lr.b.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_LD2	5, sc.b.nr, lr.b.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_LD2L	6, sc.b.nr, lr.b.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_LD2_FAIL	8, sc.b.nr, lr.b.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_LOADED	4, sc.b.nr, lr.b.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_NORESV	15, sc.b.nr, lr.b.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.b.nr_orrr_rd.S	__PT_SC_NORESV	2, sc.b.nr, lr.b.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
 asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x47600083	1
 asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	TEST_FAULT_CF1 18, rb6, LMAL, MALIGN, 0x47605086	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 1, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 10, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 11, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 12, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 13, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 14, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 15, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 16, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 2, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 3, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 4, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 5, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 6, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 7, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 8, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__CHECK_RD 9, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_2SC	7, 6, sc.o.ar, lr.o.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0xDEADBEEFCAFEF00D, 0x5A5A5A5A5A5A5A5A	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_ENC	1, lr.o.nn, rd2, 0x47605083, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_LD	10, sc.o.ar, lr.o.nn, rd2, A8, 0x0123456789ABCDEF, 0, 0x0000000000000000, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_LD	11, sc.o.ar, lr.o.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_LD	12, sc.o.ar, lr.o.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A5A5A5A5A5A5A5A	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_LD	13, sc.o.ar, lr.o.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_LD	14, sc.o.ar, lr.o.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A5A5A5A5A5A5A5A	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_LD	16, sc.o.ar, lr.o.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_LD	3, sc.o.ar, lr.o.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_LD	9, sc.o.ar, lr.o.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_LD2	5, sc.o.ar, lr.o.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_LD2L	6, sc.o.ar, lr.o.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_LD2_FAIL	8, sc.o.ar, lr.o.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_LOADED	4, sc.o.ar, lr.o.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_NORESV	15, sc.o.ar, lr.o.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.o.ar_orrr_rd.S	__PT_SC_NORESV	2, sc.o.ar, lr.o.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
 asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x47400083	1
 asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	TEST_FAULT_CF1 18, rb6, LMAL, MALIGN, 0x47405086	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 1, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 10, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 11, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 12, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 13, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 14, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 15, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 16, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 2, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 3, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 4, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 5, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 6, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 7, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 8, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__CHECK_RD 9, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_2SC	7, 6, sc.o.nn, lr.o.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0xDEADBEEFCAFEF00D, 0x5A5A5A5A5A5A5A5A	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_ENC	1, lr.o.nn, rd2, 0x47405083, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_LD	10, sc.o.nn, lr.o.nn, rd2, A8, 0x0123456789ABCDEF, 0, 0x0000000000000000, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_LD	11, sc.o.nn, lr.o.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_LD	12, sc.o.nn, lr.o.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A5A5A5A5A5A5A5A	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_LD	13, sc.o.nn, lr.o.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_LD	14, sc.o.nn, lr.o.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A5A5A5A5A5A5A5A	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_LD	16, sc.o.nn, lr.o.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_LD	3, sc.o.nn, lr.o.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_LD	9, sc.o.nn, lr.o.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_LD2	5, sc.o.nn, lr.o.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_LD2L	6, sc.o.nn, lr.o.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_LD2_FAIL	8, sc.o.nn, lr.o.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_LOADED	4, sc.o.nn, lr.o.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_NORESV	15, sc.o.nn, lr.o.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.o.nn_orrr_rd.S	__PT_SC_NORESV	2, sc.o.nn, lr.o.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
 asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x47500083	1
 asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	TEST_FAULT_CF1 18, rb6, LMAL, MALIGN, 0x47505086	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 1, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 10, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 11, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 12, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 13, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 14, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 15, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 16, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 2, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 3, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 4, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 5, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 6, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 7, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 8, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__CHECK_RD 9, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_2SC	7, 6, sc.o.nr, lr.o.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0xDEADBEEFCAFEF00D, 0x5A5A5A5A5A5A5A5A	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_ENC	1, lr.o.nn, rd2, 0x47505083, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_LD	10, sc.o.nr, lr.o.nn, rd2, A8, 0x0123456789ABCDEF, 0, 0x0000000000000000, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_LD	11, sc.o.nr, lr.o.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_LD	12, sc.o.nr, lr.o.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A5A5A5A5A5A5A5A	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_LD	13, sc.o.nr, lr.o.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_LD	14, sc.o.nr, lr.o.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A5A5A5A5A5A5A5A	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_LD	16, sc.o.nr, lr.o.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_LD	3, sc.o.nr, lr.o.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xDEADBEEFCAFEF00D	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_LD	9, sc.o.nr, lr.o.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_LD2	5, sc.o.nr, lr.o.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_LD2L	6, sc.o.nr, lr.o.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_LD2_FAIL	8, sc.o.nr, lr.o.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_LOADED	4, sc.o.nr, lr.o.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_NORESV	15, sc.o.nr, lr.o.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.o.nr_orrr_rd.S	__PT_SC_NORESV	2, sc.o.nr, lr.o.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
 asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x47640083	1
 asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	TEST_FAULT_CF1 18, rb6, LMAL, MALIGN, 0x47645086	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 1, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 10, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 11, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 12, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 13, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 14, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 15, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 16, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 2, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 3, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 4, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 5, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 6, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 7, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 8, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__CHECK_RD 9, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_2SC	7, 6, sc.t.ar, lr.t.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0xDEADBEEFCAFEF00D, 0x5A5A5A5A89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_ENC	1, lr.t.nn, rd2, 0x47645083, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0xCAFEF00D89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_LD	10, sc.t.ar, lr.t.nn, rd2, A8, 0x0123456789ABCDEF, 0, 0x0000000000000000, 0x0000000089ABCDEF	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_LD	11, sc.t.ar, lr.t.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xCAFEF00D89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_LD	12, sc.t.ar, lr.t.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0xFEDCBA985A5A5A5A, 4	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_LD	13, sc.t.ar, lr.t.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xCAFEF00D4B5A6978	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_LD	14, sc.t.ar, lr.t.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A5A5A5A89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_LD	16, sc.t.ar, lr.t.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xFEDCBA98CAFEF00D, 4	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_LD	3, sc.t.ar, lr.t.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xCAFEF00D89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_LD	9, sc.t.ar, lr.t.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_LD2	5, sc.t.ar, lr.t.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_LD2L	6, sc.t.ar, lr.t.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_LD2_FAIL	8, sc.t.ar, lr.t.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_LOADED	4, sc.t.ar, lr.t.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_NORESV	15, sc.t.ar, lr.t.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.t.ar_orrr_rd.S	__PT_SC_NORESV	2, sc.t.ar, lr.t.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
 asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x47440083	1
 asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	TEST_FAULT_CF1 18, rb6, LMAL, MALIGN, 0x47445086	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 1, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 10, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 11, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 12, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 13, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 14, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 15, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 16, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 2, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 3, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 4, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 5, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 6, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 7, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 8, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__CHECK_RD 9, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_2SC	7, 6, sc.t.nn, lr.t.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0xDEADBEEFCAFEF00D, 0x5A5A5A5A89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_ENC	1, lr.t.nn, rd2, 0x47445083, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0xCAFEF00D89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_LD	10, sc.t.nn, lr.t.nn, rd2, A8, 0x0123456789ABCDEF, 0, 0x0000000000000000, 0x0000000089ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_LD	11, sc.t.nn, lr.t.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xCAFEF00D89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_LD	12, sc.t.nn, lr.t.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0xFEDCBA985A5A5A5A, 4	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_LD	13, sc.t.nn, lr.t.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xCAFEF00D4B5A6978	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_LD	14, sc.t.nn, lr.t.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A5A5A5A89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_LD	16, sc.t.nn, lr.t.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xFEDCBA98CAFEF00D, 4	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_LD	3, sc.t.nn, lr.t.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xCAFEF00D89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_LD	9, sc.t.nn, lr.t.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_LD2	5, sc.t.nn, lr.t.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_LD2L	6, sc.t.nn, lr.t.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_LD2_FAIL	8, sc.t.nn, lr.t.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_LOADED	4, sc.t.nn, lr.t.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_NORESV	15, sc.t.nn, lr.t.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nn_orrr_rd.S	__PT_SC_NORESV	2, sc.t.nn, lr.t.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
 asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x47540083	1
 asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	TEST_FAULT_CF1 18, rb6, LMAL, MALIGN, 0x47545086	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 1, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 10, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 11, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 12, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 13, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 14, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 15, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 16, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 2, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 3, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 4, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 5, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 6, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 7, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 8, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__CHECK_RD 9, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_2SC	7, 6, sc.t.nr, lr.t.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0xDEADBEEFCAFEF00D, 0x5A5A5A5A89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_ENC	1, lr.t.nn, rd2, 0x47545083, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0xCAFEF00D89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_LD	10, sc.t.nr, lr.t.nn, rd2, A8, 0x0123456789ABCDEF, 0, 0x0000000000000000, 0x0000000089ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_LD	11, sc.t.nr, lr.t.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xCAFEF00D89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_LD	12, sc.t.nr, lr.t.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0xFEDCBA985A5A5A5A, 4	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_LD	13, sc.t.nr, lr.t.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xCAFEF00D4B5A6978	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_LD	14, sc.t.nr, lr.t.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A5A5A5A89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_LD	16, sc.t.nr, lr.t.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xFEDCBA98CAFEF00D, 4	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_LD	3, sc.t.nr, lr.t.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xCAFEF00D89ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_LD	9, sc.t.nr, lr.t.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_LD2	5, sc.t.nr, lr.t.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_LD2L	6, sc.t.nr, lr.t.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_LD2_FAIL	8, sc.t.nr, lr.t.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_LOADED	4, sc.t.nr, lr.t.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_NORESV	15, sc.t.nr, lr.t.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.t.nr_orrr_rd.S	__PT_SC_NORESV	2, sc.t.nr, lr.t.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
 asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x47680083	1
 asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	TEST_FAULT_CF1 18, rb6, LMAL, MALIGN, 0x47685086	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 1, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 10, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 11, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 12, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 13, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 14, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 15, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 16, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 2, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 3, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 4, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 5, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 6, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 7, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 8, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__CHECK_RD 9, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_2SC	7, 6, sc.w.ar, lr.w.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0xDEADBEEFCAFEF00D, 0x5A5A456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_ENC	1, lr.w.nn, rd2, 0x47685083, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0xF00D456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_LD	10, sc.w.ar, lr.w.nn, rd2, A8, 0x0123456789ABCDEF, 0, 0x0000000000000000, 0x0000456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_LD	11, sc.w.ar, lr.w.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xF00D456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_LD	12, sc.w.ar, lr.w.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0xFEDCBA9876545A5A, 6	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_LD	13, sc.w.ar, lr.w.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xF00D2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_LD	14, sc.w.ar, lr.w.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A5A456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_LD	16, sc.w.ar, lr.w.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xFEDCF00D76543210, 2	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_LD	3, sc.w.ar, lr.w.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xF00D456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_LD	9, sc.w.ar, lr.w.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_LD2	5, sc.w.ar, lr.w.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_LD2L	6, sc.w.ar, lr.w.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_LD2_FAIL	8, sc.w.ar, lr.w.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_LOADED	4, sc.w.ar, lr.w.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_NORESV	15, sc.w.ar, lr.w.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.ar_orrr_rd.S	__PT_SC_NORESV	2, sc.w.ar, lr.w.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
 asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x47480083	1
 asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	TEST_FAULT_CF1 18, rb6, LMAL, MALIGN, 0x47485086	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 1, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 10, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 11, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 12, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 13, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 14, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 15, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 16, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 2, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 3, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 4, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 5, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 6, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 7, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 8, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__CHECK_RD 9, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_2SC	7, 6, sc.w.nn, lr.w.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0xDEADBEEFCAFEF00D, 0x5A5A456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_ENC	1, lr.w.nn, rd2, 0x47485083, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0xF00D456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_LD	10, sc.w.nn, lr.w.nn, rd2, A8, 0x0123456789ABCDEF, 0, 0x0000000000000000, 0x0000456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_LD	11, sc.w.nn, lr.w.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xF00D456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_LD	12, sc.w.nn, lr.w.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0xFEDCBA9876545A5A, 6	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_LD	13, sc.w.nn, lr.w.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xF00D2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_LD	14, sc.w.nn, lr.w.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A5A456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_LD	16, sc.w.nn, lr.w.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xFEDCF00D76543210, 2	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_LD	3, sc.w.nn, lr.w.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xF00D456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_LD	9, sc.w.nn, lr.w.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_LD2	5, sc.w.nn, lr.w.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_LD2L	6, sc.w.nn, lr.w.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_LD2_FAIL	8, sc.w.nn, lr.w.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_LOADED	4, sc.w.nn, lr.w.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_NORESV	15, sc.w.nn, lr.w.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nn_orrr_rd.S	__PT_SC_NORESV	2, sc.w.nn, lr.w.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
 asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x47580083	1
 asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	TEST_FAULT_CF1 18, rb6, LMAL, MALIGN, 0x47585086	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 1, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 10, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 11, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 12, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 13, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 14, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 15, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 16, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 2, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 3, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 4, rd5, 0x0000000000000000	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 5, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 6, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 7, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 8, rd5, 0x0000000000000001	1
-asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__CHECK_RD 9, rd5, 0x0000000000000000	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_2SC	7, 6, sc.w.nr, lr.w.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0xDEADBEEFCAFEF00D, 0x5A5A456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_ENC	1, lr.w.nn, rd2, 0x47585083, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0xF00D456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LD	10, sc.w.nr, lr.w.nn, rd2, A8, 0x0123456789ABCDEF, 0, 0x0000000000000000, 0x0000456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LD	11, sc.w.nr, lr.w.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xF00D456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LD	12, sc.w.nr, lr.w.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0xFEDCBA9876545A5A, 6	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LD	13, sc.w.nr, lr.w.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xF00D2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LD	14, sc.w.nr, lr.w.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A5A456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LD	16, sc.w.nr, lr.w.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xFEDCF00D76543210, 2	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LD	3, sc.w.nr, lr.w.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xF00D456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LD	9, sc.w.nr, lr.w.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LD2	5, sc.w.nr, lr.w.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LD2L	6, sc.w.nr, lr.w.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LD2_FAIL	8, sc.w.nr, lr.w.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_LOADED	4, sc.w.nr, lr.w.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_NORESV	15, sc.w.nr, lr.w.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
+asm	tests/inst/12-misc/sc.w.nr_orrr_rd.S	__PT_SC_NORESV	2, sc.w.nr, lr.w.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF	1
 asm	tests/inst/12-misc/swym_oiii_imm.S	__CHECK_RD	1, rd2, 0x0000000000000008	1
 asm	tests/inst/12-misc/swym_oiii_imm.S	__CHECK_RD	10, rd2, 0x0000000000000008	1
 asm	tests/inst/12-misc/swym_oiii_imm.S	__CHECK_RD	11, rd2, 0x0000000000000008	1

@@ -64,7 +64,7 @@ __cmrf_\@:
 @@   目的 rf 经 `st.o` 落 SCRATCH（8 B 独立落点、逐次覆写）再 `__VERIFY_MEM` 整 beat 比。
 @@   `__VERIFY_MEM` 不占点号 ⇒ 一条用例的多元素断言共用点号，只有最后一条 `__CHECK_MEM`
 @@   记结果缓冲（点号行留在用例处，失败点号 = 用例序号在文件里可见）。
-.macro __PT_ST_VERIFY pt, reg, exp
+.macro __RF_ST_VERIFY pt, reg, exp
 	st.o	\reg, [rb29, 0]
 	__VERIFY_MEM	\pt, SCRATCH, 0, \exp
 .endm
@@ -76,7 +76,7 @@ __cmrf_\@:
 	__LI_RF	rf40, 0x3FF0000000000000
 	__LI_RF	rf41, 0xC002000000000000
 	.dd.t32	0x40F14A02
-	__PT_ST_VERIFY	1, rf21, 0xC002000000000000
+	__RF_ST_VERIFY	1, rf21, 0xC002000000000000
 	st.o	rf20, [rb29, 0]
 	__CHECK_MEM	1, SCRATCH, 0, 0x3FF0000000000000
 	@@ 字段边界：dst=rf63 / src=rf62 / immu6=1 ⇒ 0x40F3FF81（最高号目的）
@@ -93,7 +93,7 @@ __cmrf_\@:
 	__LI_RF	rf40, 0x3FF0000000000000
 	__LI_RF	rf41, 0xFFF8000000000001
 	rf2rf	{rf20:rf21}, {rf40:rf41}
-	__PT_ST_VERIFY	4, rf21, 0xFFF8000000000001
+	__RF_ST_VERIFY	4, rf21, 0xFFF8000000000001
 	st.o	rf20, [rb29, 0]
 	__CHECK_MEM	4, SCRATCH, 0, 0x3FF0000000000000
 	@@ 个数 3：±0 与次正规照搬，且**不置标志**（FCSR 位型复制前后不变）
@@ -104,8 +104,8 @@ __cmrf_\@:
 	rf2rf	{rf20:rf22}, {rf40:rf42}
 	rf2rd	{rd23:rd23}, {rf0:rf0}
 	__VERIFY_EQ_RD	5, rd22, rd23
-	__PT_ST_VERIFY	5, rf22, 0x000FFFFFFFFFFFFF
-	__PT_ST_VERIFY	5, rf21, 0x8000000000000000
+	__RF_ST_VERIFY	5, rf22, 0x000FFFFFFFFFFFFF
+	__RF_ST_VERIFY	5, rf21, 0x8000000000000000
 	st.o	rf20, [rb29, 0]
 	__CHECK_MEM	5, SCRATCH, 0, 0x0000000000000000
 	@@ 个数 4：四个元素逐对搬移（值互不相同，顺序错位即红）
@@ -114,9 +114,9 @@ __cmrf_\@:
 	__LI_RF	rf42, 0xAAAAAAAAAAAAAAAA
 	__LI_RF	rf43, 0x5555555555555555
 	rf2rf	{rf20:rf23}, {rf40:rf43}
-	__PT_ST_VERIFY	6, rf23, 0x5555555555555555
-	__PT_ST_VERIFY	6, rf22, 0xAAAAAAAAAAAAAAAA
-	__PT_ST_VERIFY	6, rf21, 0xFEDCBA9876543210
+	__RF_ST_VERIFY	6, rf23, 0x5555555555555555
+	__RF_ST_VERIFY	6, rf22, 0xAAAAAAAAAAAAAAAA
+	__RF_ST_VERIFY	6, rf21, 0xFEDCBA9876543210
 	st.o	rf20, [rb29, 0]
 	__CHECK_MEM	6, SCRATCH, 0, 0x0123456789ABCDEF
 
@@ -127,8 +127,8 @@ __cmrf_\@:
 	__LI_RF	rf42, 0x0000000000000001
 	__LI_RF	rf43, 0x7FFFFFFFFFFFFFFF
 	rf2rf	{rf60:rf63}, {rf40:rf43}
-	__PT_ST_VERIFY	7, rf63, 0x7FFFFFFFFFFFFFFF
-	__PT_ST_VERIFY	7, rf62, 0x0000000000000001
+	__RF_ST_VERIFY	7, rf63, 0x7FFFFFFFFFFFFFFF
+	__RF_ST_VERIFY	7, rf62, 0x0000000000000001
 	st.o	rf61, [rb29, 0]
 	__CHECK_MEM	7, SCRATCH, 0, 0x8000000000000000
 	@@ 最高号单寄存器：rf63 ← rf40
@@ -176,7 +176,7 @@ __cmrf_\@:
 	__LI_RF	rf42, 0x7FF8000000000000
 	__LI_RF	rf43, 0x0000000000000001
 	rf2rf	{rf40:rf41}, {rf42:rf43}
-	__PT_ST_VERIFY	10, rf41, 0x0000000000000001
+	__RF_ST_VERIFY	10, rf41, 0x0000000000000001
 	st.o	rf40, [rb29, 0]
 	__CHECK_MEM	10, SCRATCH, 0, 0x7FF8000000000000
 	@@ rf0 作源合法：复制出的值 == 同一时刻 rf0 的位型（FCSR，含只读 qNaN 字段）

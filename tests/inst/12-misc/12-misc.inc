@@ -115,3 +115,121 @@
 	\lrmnem	rd2, [rb5]
 	\scmnem	rd5, rd2, [rb5]
 .endm
+
+@@ ===========================================================================
+@@ 整例宏（m15-testcases-004；用户 2026-11-16 裁定「整例宏化」）——**一行 = 一整条用例**
+@@
+@@   点号是该行**第 1 个实参**；宏体里**占检查点**的 `__CHECK_RD` 用 `\pt` 作失败点号
+@@   （失败点号 = 用例序号），其余 `__VERIFY_*` 不占检查点、共用同一点号。宏体只做
+@@   「准备段 + 被测 `sc` + 断言」的顺序展开，指令序列与原用例逐条对齐（字节相等）。
+@@   门控 `check-inst-macro-scope` 的 S6/S7/S8 机械判：宏体恰 1 处断言且点号引用 `\pt`、
+@@   一行用例行恰展开 1 个检查点、`.S` 正文不得再有裸 `__CHECK_*`。
+@@
+@@   返回码只有「命中标记 ⇒ 成功 0」与「无标记 / 标记在别处 ⇒ 失败 1」两类（`spec/SimRISC-12
+@@   §1`），故在宏体内固定为常量；**只有点号必须来自调用方**。
+@@ ---------------------------------------------------------------------------
+
+@@ 编码字例：`__PT_SC_ENC(pt, 助记符 lr, 源寄存器, 编码字, ea, 拍初值, 源值, 期望拍)`
+@@   —— 直接执行规范编码字（被测 `sc` 不在宏里，`word` 自带 opc 0x47 + 位域）
+.macro __PT_SC_ENC pt, lrmnem, srcreg, word, ea, init, src, exp
+	__PT_LRSC_LD	\lrmnem, \srcreg, \ea, \init, \src
+	.dd.t32	\word
+	__CHECK_RD	\pt, rd5, 0x0
+	__VERIFY_MEM	\pt, \ea, 0, \exp
+.endm
+
+@@ 命中标记 ⇒ 成功（`rdHB=0`），仅宽度窗口被写。
+@@   `__PT_SC_LD(pt, sc, lr, 源寄存器, ea, 拍初值, 源值, 返回, 期望拍[, k])`
+.macro __PT_SC_LD pt, scmnem, lrmnem, srcreg, ea, init, src, res, exp, k=0
+	__PT_LRSC_LD	\lrmnem, \srcreg, \ea, \init, \src, \k
+	\scmnem	rd5, \srcreg, [rb3]
+	__CHECK_RD	\pt, rd5, \res
+	__VERIFY_MEM	\pt, \ea, 0, \exp
+.endm
+
+@@ 无保留标记（先消费标记）或 `rdHB == rdHC` 且无标记 ⇒ 失败（1）且不写内存。
+.macro __PT_SC_NORESV pt, scmnem, lrmnem, srcreg, ea, init, src, exp
+	__PT_ST_INIT	\ea, \init
+	__PT_LRSC_CLEAR	\lrmnem, \scmnem
+	LOAD_ADDR rb3, \ea
+	__LI	\srcreg, \src
+	\scmnem	rd5, \srcreg, [rb3]
+	__CHECK_RD	\pt, rd5, 0x1
+	__VERIFY_MEM	\pt, \ea, 0, \exp
+.endm
+
+@@ sc 写回同值（源 = 刚 `lr` 读到的寄存器，不重新装载）⇒ 成功且字节不变。
+.macro __PT_SC_LOADED pt, scmnem, lrmnem, srcreg, ea, init, exp
+	__PT_ST_INIT	\ea, \init
+	LOAD_ADDR rb3, \ea
+	\lrmnem	\srcreg, [rb3]
+	\scmnem	rd5, \srcreg, [rb3]
+	__CHECK_RD	\pt, rd5, 0x0
+	__VERIFY_MEM	\pt, \ea, 0, \exp
+.endm
+
+@@ 标记在 a、`sc` 指向 b（不同 8 B 字）⇒ 失败且两处都不写。
+.macro __PT_SC_LD2 pt, scmnem, lrmnem, srcreg, a, b, inita, initb, src, expa, expb
+	__PT_LRSC_LD2	\lrmnem, \srcreg, \a, \b, \inita, \initb, \src
+	LOAD_ADDR rb4, \b
+	\scmnem	rd5, \srcreg, [rb4]
+	__CHECK_RD	\pt, rd5, 0x1
+	__VERIFY_MEM	\pt, \a, 0, \expa
+	__VERIFY_MEM	\pt, \b, 0, \expb
+.endm
+
+@@ 失败的 `sc` 清全部标记 ⇒ 随后 `sc` 原地址仍失败。
+.macro __PT_SC_LD2_FAIL pt, scmnem, lrmnem, srcreg, a, b, inita, initb, src, exp
+	__PT_LRSC_LD2	\lrmnem, \srcreg, \a, \b, \inita, \initb, \src
+	LOAD_ADDR rb4, \b
+	\scmnem	rd5, \srcreg, [rb4]
+	LOAD_ADDR rb3, \a
+	\scmnem	rd5, \srcreg, [rb3]
+	__CHECK_RD	\pt, rd5, 0x1
+	__VERIFY_MEM	\pt, \a, 0, \exp
+.endm
+
+@@ 本 hart 另一条 `lr` 清旧标记（`lr a` → `lr b` → `sc a`）⇒ 失败。
+@@   `mbase` = 第二条 `lr` 的基址寄存器（用例自带：rb3/rb4 两种写法，保持指令字节不变）
+.macro __PT_SC_LD2L pt, scmnem, lrmnem, srcreg, a, b, mbase, inita, initb, src, exp
+	__PT_LRSC_LD2L	\lrmnem, \srcreg, \a, \b, \mbase, \inita, \initb, \src
+	\scmnem	rd5, \srcreg, [rb3]
+	__CHECK_RD	\pt, rd5, 0x1
+	__VERIFY_MEM	\pt, \a, 0, \exp
+.endm
+
+@@ `sc` 成功后标记已消费 ⇒ 第二次 `sc` 失败、保留首次写。
+@@   `prev` = 首次 `sc` 那条 `__VERIFY_RD` 共用的点号（不占新检查点）
+.macro __PT_SC_2SC pt, prev, scmnem, lrmnem, srcreg, ea, init, src1, src2, exp
+	__PT_LRSC_LD	\lrmnem, \srcreg, \ea, \init, \src1
+	\scmnem	rd5, \srcreg, [rb3]
+	__VERIFY_RD	\prev, rd5, 0x0
+	__LI	\srcreg, \src2
+	\scmnem	rd5, \srcreg, [rb3]
+	__CHECK_RD	\pt, rd5, 0x1
+	__VERIFY_MEM	\pt, \ea, 0, \exp
+.endm
+
+@@ 同上但保留粒度例：`lr` 之后先有普通 store（`reload=0`：rb3 仍指向该拍）。
+.macro __PT_SC_2SC_SELF pt, scmnem, lrmnem, srcreg, ea, init, src1, src2, exp
+	__PT_LRSC_PREP	\lrmnem, \ea, \init, 0
+	__LI	\srcreg, \src1
+	\scmnem	rd5, \srcreg, [rb3]
+	__VERIFY_RD	\pt, rd5, 0x0
+	__LI	\srcreg, \src2
+	\scmnem	rd5, \srcreg, [rb3]
+	__CHECK_RD	\pt, rd5, 0x1
+	__VERIFY_MEM	\pt, \ea, 0, \exp
+.endm
+
+@@ 保留粒度：`lr` 之后夹一条**普通 store**（宽度/地址刻意与 `sc` 不同）⇒ 标记仍在、
+@@   `sc` 成功。`reload=0`：`__PT_ST_INIT` 已把 rb3 指向该拍，中间不再重算地址。
+.macro __PT_SC_STORE_PREP pt, scmnem, lrmnem, srcreg, ea, init, stmnem, stval, stoff, src, exp
+	__PT_LRSC_PREP	\lrmnem, \ea, \init, 0
+	__LI	rd6, \stval
+	\stmnem	rd6, [rb3, \stoff]
+	__LI	\srcreg, \src
+	\scmnem	rd5, \srcreg, [rb3]
+	__CHECK_RD	\pt, rd5, 0x0
+	__VERIFY_MEM	\pt, \ea, 0, \exp
+.endm

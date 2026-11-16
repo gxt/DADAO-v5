@@ -64,13 +64,22 @@ FAULT_CODE = {"CFXMEM": 0xF1, "CFXREG": 0xF2, "ILLI": 0xF8,
 # = 一个检查点；`TEST_LDM`/`TEST_STM` 每行只记一个检查点，与宏内单次 `__REC` 对齐；
 # `TEST_MOV1`/`TEST_CS*`（02-reg-copy）/`TEST_WI*`（03-wyde-imm）/`TEST_AR*`
 # （04-arith-logic-octa 算术/逻辑族）同理，多条 `__VERIFY_*` 断言共用一个点号）
+#
+# `__PT_*`（m15-testcases-004 整例宏化）：**一整条用例 = 一行宏调用**，点号是该行的
+# **第一个实参**（`__PT_SC_LD\t7, sc.b.ar, …`）。宏体（`.macro`..`.endm`）由
+# `iter_code_lines` 跳过，故宏内的 `__CHECK_*` 不进计数；「一行 = 一个检查点」由
+# `check_inst_macro_scope` 的 S6/S7/S8 静态判据保证（宏体恰 1 处断言、点号引用 `\pt`、
+# 正文不得留裸 `__CHECK_*`），本文件只负责按点号字面量校验连续性（`pts_ok`，语义不变）。
 CHAIN_CASE_RE = re.compile(r"^\t(TEST_LD\w*|TEST_ST\w*|TEST_MOV\w*|TEST_CS\w*|"
                            r"TEST_WI\w*|TEST_AR\w*|TEST_BR\w*|TEST_FP\w*|"
-                           r"__CHECK_(?:RD|MEM)\w*)\b")
+                           r"__CHECK_(?:RD|MEM)\w*|__PT_\w*)\b")
 # 链例行**写下的点号字面量**（断言用：点号必须等于它在文件里的序号，不能只靠计数器自增）
 CHAIN_PT_RE = re.compile(r"^\t(?:TEST_LD\w*|TEST_ST\w*|TEST_MOV\w*|TEST_CS\w*|"
                          r"TEST_WI\w*|TEST_AR\w*|TEST_BR\w*|TEST_FP\w*|"
                          r"__CHECK_(?:RD|MEM)\w*)\s+(\d+),")
+# `__PT_*` 用例行的点号 = **第一个实参**；该宏允许只有点号一个实参
+# （如 `__PT_RF_COPY_N31 9` 这类形状固定、无需其它操作数的用例）⇒ 行尾逗号可省。
+CHAIN_PT_PT_RE = re.compile(r"^\t__PT_\w*\s+(\d+)\s*(?:,|$)")
 FAULT_RE = re.compile(r"^\tTEST_FAULT(?:_MOV|_CS2|_CS|_M|_WI)?\s+(\d+),\s*(\S+?),\s*(\S+?),\s*"
                       r"(CFXMEM|CFXREG|ILLI|MALIGN|IALIGN|UNDI|RASOF|RASUF)\b")
 FAULT_ENC_RE = re.compile(r"^\tTEST_FAULT_ENC\s+(\d+),\s*"
@@ -152,7 +161,7 @@ def scan_source(path: Path) -> dict:
             continue
         if in_chain and CHAIN_CASE_RE.match(line):
             checks += 1
-            m = CHAIN_PT_RE.match(line)
+            m = CHAIN_PT_RE.match(line) or CHAIN_PT_PT_RE.match(line)
             pts.append(int(m.group(1)) if m else -1)
             continue
         m = FAULT_RE.match(line)

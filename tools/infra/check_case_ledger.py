@@ -22,6 +22,10 @@ vector 侧改由 `.S` 用例行承担；用例行判定复用 `run_asm_suite.sca
 身份 = 内容（`.S` 用例行文本 / lit 的 mnemonic+word）+ 同内容出现序号；
 **不含行号**，故无关行插入/挪动不会产生噪声。
 
+整例宏化（m15-testcases-004）后，`.S` 的用例行 = **一行 `__PT_*` 宏调用**
+（点号是该行第 1 个实参，如 `__PT_SC_LD 7, sc.b.ar, …`）⇒ 身份文本即这一整行，
+删掉任一调用行同样少一行 ⇒ 删除哨兵粒度不变（一条用例 = 一行）。
+
 用法：
   python3 tools/infra/check_case_ledger.py            # 门控（默认）
   python3 tools/infra/check_case_ledger.py --write    # 重新生成清单

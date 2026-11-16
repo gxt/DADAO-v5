@@ -27,133 +27,69 @@
 
 	@@ ---- encoding：规范编码字直接执行（opc 0x47 + ha + hb=rd5 位域） ----
 	@@! inputs: kind=sc-enc sym=A17 k=0 init=0x0123456789ABCDEF enc=0x47485083
-	__PT_LRSC_LD	lr.w.nn, rd2, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D
-	.dd.t32 0x47485083
-	__CHECK_RD 1, rd5, 0x0000000000000000
-	__VERIFY_MEM 1, A17, 0, 0xF00D456789ABCDEF
+	__PT_SC_ENC	1, lr.w.nn, rd2, 0x47485083, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0xF00D456789ABCDEF
 
 	@@ ---- encoding：无保留标记 ⇒ rdHB=1 且不写内存 ----
 	@@! inputs: kind=sc sym=A0 k=0 init=0x0123456789ABCDEF src=0xDEADBEEFCAFEF00D resv=none
-	__PT_ST_INIT	A0, 0x0123456789ABCDEF
 	@@ 清保留标记：lr SCR 后 sc SCR（成功消费，SCR 写 0）
-	__PT_LRSC_CLEAR	lr.w.nn, sc.w.nn
-	LOAD_ADDR rb3, A0
-	__LI	rd2, 0xDEADBEEFCAFEF00D
-	sc.w.nn	rd5, rd2, [rb3]
-	__CHECK_RD 2, rd5, 0x0000000000000001
-	__VERIFY_MEM 2, A0, 0, 0x0123456789ABCDEF
+	__PT_SC_NORESV	2, sc.w.nn, lr.w.nn, rd2, A0, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF
 
 	@@ ---- semantic：命中标记 ⇒ rdHB=0，仅宽度窗口被写 ----
 	@@! inputs: kind=sc sym=A1 k=0 init=0x0123456789ABCDEF src=0xDEADBEEFCAFEF00D resv=same
-	__PT_LRSC_LD	lr.w.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D
-	sc.w.nn	rd5, rd2, [rb3]
-	__CHECK_RD 3, rd5, 0x0000000000000000
-	__VERIFY_MEM 3, A1, 0, 0xF00D456789ABCDEF
+	__PT_SC_LD	3, sc.w.nn, lr.w.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xF00D456789ABCDEF
 
 	@@ ---- semantic：sc 写回同值 ⇒ 成功且字节不变 ----
 	@@! inputs: kind=sc sym=A2 k=0 init=0xFEDCBA9876543210 src=load resv=same
-	__PT_ST_INIT	A2, 0xFEDCBA9876543210
-	LOAD_ADDR rb3, A2
-	lr.w.nn	rd2, [rb3]
-	sc.w.nn	rd5, rd2, [rb3]
-	__CHECK_RD 4, rd5, 0x0000000000000000
-	__VERIFY_MEM 4, A2, 0, 0xFEDCBA9876543210
+	__PT_SC_LOADED	4, sc.w.nn, lr.w.nn, rd2, A2, 0xFEDCBA9876543210, 0xFEDCBA9876543210
 
 	@@ ---- semantic：标记在 A、sc 指向 B（不同 8 B 字）⇒ 失败且都不写 ----
 	@@! inputs: kind=sc@B sym=A3/B3 k=0 init=0x0123456789ABCDEF/0x0F1E2D3C4B5A6978 resv=A
-	__PT_LRSC_LD2	lr.w.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D
-	LOAD_ADDR rb4, B3
-	sc.w.nn	rd5, rd2, [rb4]
-	__CHECK_RD 5, rd5, 0x0000000000000001
-	__VERIFY_MEM 5, A3, 0, 0x0123456789ABCDEF
-	__VERIFY_MEM 5, B3, 0, 0x0F1E2D3C4B5A6978
+	__PT_SC_LD2	5, sc.w.nn, lr.w.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978
 
 	@@ ---- semantic：lr A 后 lr B ⇒ A 的标记被清，sc A 失败 ----
 	@@! inputs: kind=sc@A sym=A4/B4 k=0 init=0x0123456789ABCDEF resv=other
-	__PT_LRSC_LD2L	lr.w.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D
-	sc.w.nn	rd5, rd2, [rb3]
-	__CHECK_RD 6, rd5, 0x0000000000000001
-	__VERIFY_MEM 6, A4, 0, 0x0123456789ABCDEF
+	__PT_SC_LD2L	6, sc.w.nn, lr.w.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF
 
 	@@ ---- semantic：sc 成功后标记已消费 ⇒ 第二次 sc 失败，保留首次写 ----
 	@@! inputs: kind=sc;sc sym=A5 k=0 init=0x0123456789ABCDEF src=0x5A5A5A5A5A5A5A5A,0xDEADBEEFCAFEF00D
-	__PT_LRSC_LD	lr.w.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A
-	sc.w.nn	rd5, rd2, [rb3]
-	__VERIFY_RD 6, rd5, 0x0000000000000000
-	__LI	rd2, 0xDEADBEEFCAFEF00D
-	sc.w.nn	rd5, rd2, [rb3]
-	__CHECK_RD 7, rd5, 0x0000000000000001
-	__VERIFY_MEM 7, A5, 0, 0x5A5A456789ABCDEF
+	__PT_SC_2SC	7, 6, sc.w.nn, lr.w.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0xDEADBEEFCAFEF00D, 0x5A5A456789ABCDEF
 
 	@@ ---- semantic：失败的 sc 清全部标记 ⇒ 随后 sc 原地址仍失败 ----
 	@@! inputs: kind=sc@B(fail);sc@A sym=A6/B6 k=0 init=0x0123456789ABCDEF
-	__PT_LRSC_LD2	lr.w.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D
-	LOAD_ADDR rb4, B6
-	sc.w.nn	rd5, rd2, [rb4]
-	LOAD_ADDR rb3, A6
-	sc.w.nn	rd5, rd2, [rb3]
-	__CHECK_RD 8, rd5, 0x0000000000000001
-	__VERIFY_MEM 8, A6, 0, 0x0123456789ABCDEF
+	__PT_SC_LD2_FAIL	8, sc.w.nn, lr.w.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF
 
 	@@ ---- boundary：全 1 源/拍 ⇒ 成功且仍全 1 ----
 	@@! inputs: kind=sc sym=A7 k=0 init=all1 src=all1
-	__PT_LRSC_LD	lr.w.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF
-	sc.w.nn	rd5, rd2, [rb3]
-	__CHECK_RD 9, rd5, 0x0000000000000000
-	__VERIFY_MEM 9, A7, 0, 0xFFFFFFFFFFFFFFFF
+	__PT_SC_LD	9, sc.w.nn, lr.w.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF
 
 	@@ ---- boundary：零源 ⇒ 仅宽度窗口清零 ----
 	@@! inputs: kind=sc sym=A8 k=0 init=0x0123456789ABCDEF src=0
-	__PT_LRSC_LD	lr.w.nn, rd2, A8, 0x0123456789ABCDEF, 0
-	sc.w.nn	rd5, rd2, [rb3]
-	__CHECK_RD 10, rd5, 0x0000000000000000
-	__VERIFY_MEM 10, A8, 0, 0x0000456789ABCDEF
+	__PT_SC_LD	10, sc.w.nn, lr.w.nn, rd2, A8, 0x0123456789ABCDEF, 0, 0x0000000000000000, 0x0000456789ABCDEF
 
 	@@ ---- boundary：源高位在宽度外 ⇒ 只并低 8w 位 ----
 	@@! inputs: kind=sc sym=A9 k=0 init=0x0123456789ABCDEF src=0xDEADBEEFCAFEF00D
-	__PT_LRSC_LD	lr.w.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D
-	sc.w.nn	rd5, rd2, [rb3]
-	__CHECK_RD 11, rd5, 0x0000000000000000
-	__VERIFY_MEM 11, A9, 0, 0xF00D456789ABCDEF
+	__PT_SC_LD	11, sc.w.nn, lr.w.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xF00D456789ABCDEF
 
 	@@ ---- boundary：窗口贴 8 B 字尾的合并写入 ----
 	@@! inputs: kind=sc sym=A10 k=6 init=0xFEDCBA9876543210 src=0x5A5A5A5A5A5A5A5A
-	__PT_LRSC_LD	lr.w.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 6
-	sc.w.nn	rd5, rd2, [rb3]
-	__CHECK_RD 12, rd5, 0x0000000000000000
-	__VERIFY_MEM 12, A10, 0, 0xFEDCBA9876545A5A
+	__PT_SC_LD	12, sc.w.nn, lr.w.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0xFEDCBA9876545A5A, 6
 
 	@@ ---- boundary：数据区末拍的 sc（地址上界） ----
 	@@! inputs: kind=sc sym=L k=0 init=0x0F1E2D3C4B5A6978 src=0xDEADBEEFCAFEF00D
-	__PT_LRSC_LD	lr.w.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D
-	sc.w.nn	rd5, rd2, [rb3]
-	__CHECK_RD 13, rd5, 0x0000000000000000
-	__VERIFY_MEM 13, L, 0, 0xF00D2D3C4B5A6978
+	__PT_SC_LD	13, sc.w.nn, lr.w.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xF00D2D3C4B5A6978
 
 	@@ ---- overlap：rdHB == rdHC（源=结果）⇒ 源先读、结果后写 ----
 	@@! inputs: kind=sc(rd5,rd5) sym=A11 k=0 init=0x0123456789ABCDEF src=0x5A5A5A5A5A5A5A5A
-	__PT_LRSC_LD	lr.w.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A
-	sc.w.nn	rd5, rd5, [rb3]
-	__CHECK_RD 14, rd5, 0x0000000000000000
-	__VERIFY_MEM 14, A11, 0, 0x5A5A456789ABCDEF
+	__PT_SC_LD	14, sc.w.nn, lr.w.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0x5A5A456789ABCDEF
 
 	@@ ---- overlap：rdHB == rdHC 且无标记 ⇒ 失败且不写 ----
 	@@! inputs: kind=sc(rd5,rd5) sym=A12 k=0 init=0x0123456789ABCDEF resv=none
-	__PT_ST_INIT	A12, 0x0123456789ABCDEF
 	@@ 清保留标记：lr SCR 后 sc SCR（成功消费，SCR 写 0）
-	__PT_LRSC_CLEAR	lr.w.nn, sc.w.nn
-	LOAD_ADDR rb3, A12
-	__LI	rd5, 0xDEADBEEFCAFEF00D
-	sc.w.nn	rd5, rd5, [rb3]
-	__CHECK_RD 15, rd5, 0x0000000000000001
-	__VERIFY_MEM 15, A12, 0, 0x0123456789ABCDEF
+	__PT_SC_NORESV	15, sc.w.nn, lr.w.nn, rd5, A12, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF
 
 	@@ ---- semantic：另一对齐偏移的 sc 合并位置 ----
 	@@! inputs: kind=sc sym=A13 k=2 init=0xFEDCBA9876543210 src=0xDEADBEEFCAFEF00D
-	__PT_LRSC_LD	lr.w.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 2
-	sc.w.nn	rd5, rd2, [rb3]
-	__CHECK_RD 16, rd5, 0x0000000000000000
-	__VERIFY_MEM 16, A13, 0, 0xFEDCF00D76543210
+	__PT_SC_LD	16, sc.w.nn, lr.w.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xFEDCF00D76543210, 2
 
 	__TEST_END
 
