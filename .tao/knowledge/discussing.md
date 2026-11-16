@@ -143,6 +143,14 @@
    - `ISS-452` ⇒ `m14-qemu-004`（`SYS_READC`/`SYS_FLEN` 缓冲改 PA）。
    - `ISS-444` ⇒ 立为流程规则 `docs/Process-07 §4a`「阶段推进即退役过时判据」；`check-linux-k2` 落地后按该条退役 K1 里已不合适的顺序断言。
 
+# K3 的 TLB：三条口径已定（2026-11-16 用户问答）
+
+> 用户原话：「1、这本身是一条指令，我的理解是可以写完等生效才返回；你的建议呢？」「2、目前只考虑单hart情况」「3、M14只考虑qemu；但应该在tests/arch中增加这部分的测试」
+
+1. **失效完成语义 = 同步**（主会话建议，待用户在 K3 spec 任务里最终确认）：`cfx_ptw_tlb_control` 的写指令**返回即生效**，后续访存必须看到失效结果；理由：① spec 的 `[4:0]` 无 busy/done 位，异步需新增寄存器（违背不新增）；② 同步可直接门控（改 PTE → 写 invalid → 立刻访问必须重新步进）；③ 与 QEMU 现有同步实现一致。**推论必须写清**：`clean`/`flush` 需回写 A/D，**回写失败在该写指令上报 `CFXMEM`**（`flush` 失败不删除条目、`clean` 失败不清挂起位），不得出现"部分完成"。
+2. **单 hart**：`tlb_control` 为 **per-hart**；跨 hart 一致性**不在 M14/K3 范围**（登记 `ISS-459`，等多 hart 机型重开，与 `ISS-440` 同类）。
+3. **实现范围**：M14 只做 **QEMU**；chipyard/gem5 不要求（chipyard `wuming` 无 TLB 建模，gem5 已有 `node_tlb.cc` 但不在本阶段验收）。**但 `tests/arch` 必须新增 TLB 探针**（Vast + PTW）：fill/命中不重读 PTE、`invalid` 的 VA/range 两档、`ASID_ANY` 与 `G`、`clean` 回写 A/D、`flush` 回写+删除、回写失败 ⇒ `CFXMEM` 且不删、以及「写 PTBR/ASID/`ptw_enable` **不隐含 invalidate**」。
+
 # 待设计：长仿真如何"证明它还在跑"（gem5 / chipyard，2026-11-15 用户提出）
 
 > 用户原话：「gem5/chipyard 如何在长时间的模拟仿真过程中，让我知道它还在运行，而不是死等运行完成」。

@@ -802,3 +802,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】证据脚本的「改前基线」若取 `git archive HEAD`（或任何指向**当前**提交的引用），**提交后重跑就变成自比假绿**：`m15-testcases-002` 复核发现其 `run.sh` D 项的基线是 `HEAD`，开工时（HEAD 尚未含本任务提交）有效，提交后重跑则新旧两侧同源 ⇒ 必然相等。复核因此改用钉死的 `8da8c985` 独立补证。处置：证据脚本的基线一律**钉死 commit**（或 `git archive <base-commit>`），并在脚本里断言「base != HEAD」；可并入 engineer/reviewer 的「一键证据脚本」规范。"
+- id: ISS-459
+  scope:
+  - spec
+  - qemu
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】TLB 的**跨 hart 失效传播（shootdown）**在 v5 侧无任何规定：`cfx_ptw_tlb_control` 只描述「本 hart 的 TLB」操作（`DADAO-12 §4.5`），而多 hart 下改 PTBR/ASID/PTE 后如何通知其它 hart、经什么机制（IPI 尚无发送服务/寄存器，见架构未决项）全部空白。用户 2026-11-16 裁定「目前只考虑单 hart 情况」⇒ M14/K3 按 **per-hart** 声明（写入 `Kaiwu`/`contract-tlb`），本条保留为多 hart 机型的重开点（与 `ISS-440` 同类处置）。"
