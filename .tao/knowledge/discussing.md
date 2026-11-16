@@ -155,7 +155,7 @@
    6. **`CFXMEM`/`CFXPERM` 与「缺页/COW」的关系（用户 2026-11-16 澄清）**：规范里**不引入**「缺页」「COW」这类 OS 概念 —— `DADAO-12 §2.2.6` 的规范句是「页表未映射（含超页/小页缺失）与 A/D 回写失败 ⇒ `CFXMEM`；HSJU 或 R/W/X 不符 ⇒ `CFXPERM`」（「缺页」只作括注同义词，**COW 在 spec 中完全没有**）；内核把一次 `CFXMEM`/`CFXPERM` 解释成缺页/COW/真越权属**内核判定**，不进规范与契约。（事实层面：PTE 不存在 ⇒ `CFXMEM`；写只读页 ⇒ `CFXPERM` —— 这是硬件语义，不是 OS 概念。）
 5. **K4 待逐项讨论**（用户同日：「K4，我们过会儿逐个讨论」）：上下文切换范围（FP 保存/懒保存）、`clone`/线程是否 K4、`clockevent`/`clocksource` 升级、U-mode 异常入口与 cg5 单帧/递归 —— 四项开工前逐条确认。
 
-> **已定（2026-11-16，`ADR-0056` Accepted，经两次改版）**：`cause_id[15:0]` cause one-hot 不变；`[39:16]` 保留给未来 cause；子原因区 **`[63:40]`** 按字节分三段 —— `[47:40]` 权限类 8 位（`N[UJSH]PERM`、`NR/NW/NXPERM`、`NCFXPERM`）、`[55:48]` 缺失类 8 位（`I/D` × `GPTRAP/SPTRAP/GPFTRAP/SPFTRAP`）、`[63:56]` 其它（`ADWBFAIL`、**`NONPTW`**、6 位保留）；仅 `CFXMEM`/`CFXPERM` 有效；`CFXMEM`/`CFXPERM` 的 `cause_info` **恒为地址**。
+> **已定（2026-11-16，`ADR-0056` Accepted，经三次改版）**：`cause_id[15:0]` cause one-hot 不变；`[31:16]` 保留给未来 cause；子原因区按 **wyde 分段** —— **wyde2 `[47:32]` = `CFXPERM` 的子原因**（低字节 `[39:32]`：`N[UJSH]PERM`/`NR/NW/NXPERM`/`NCFXPERM`，高字节保留）、**wyde3 `[63:48]` = `CFXMEM` 的子原因**（低字节 `[55:48]`：`I/D × GPTRAP/SPTRAP/GPFTRAP/SPFTRAP`，高字节 `[56] ADWBFAIL`/`[57] NONPTW`/6 位保留）；另一 wyde 必须全 0；`cause_info` **恒为地址**。handler 取 `CFXPERM` 用 `>>32`、取 `CFXMEM` 用 `>>48`。
 
 # 待裁定：页表异常的细粒度原因名（`NUPERM`–`NRPERM` / `IGPTRAP`–`DSPFTRAP`）要不要恢复
 
