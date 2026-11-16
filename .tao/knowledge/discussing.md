@@ -15,18 +15,18 @@
 - **`SYS_chmod` 不新增号段**：`chmod()` 经 musl 走 `fchmodat`，不虚构 ABI 号。
 - **输出捕获的 stdout/stderr 顺序（`ISS-357`）**：至少 4 例受影响，修复必须保留 fd1/fd2 写序，不能只交换拼接方向。
 
-# M12：chipyard 上跑 `Machine-v5-Tiny`（收口中）
+# M12：chipyard 上跑 `Kaiwu-Tiny`（收口中）
 
 > 已完成 37 项；剩 `m12-chipyard-016`（embench + picolibc-full 在 chipyard Tiny 上全通）与 `m12-integ-002`（里程碑核验与归档）。M12 **不依赖 M13**、不做三平台差分（归 M13）。
 
 ## M12 未决
 
 - **口径残留（`spec-003`/`spec-004` 未覆盖项）**：
-  - #9 `cfx2rd`/`cfx2rc` 到**保留** cfxha ⇒ `ILLI`（`Machine-v5` 现只说「不存在 cfx 寄存器 ⇒ `CFXREG`」，与 `DADAO-12 §5.2(一)` 冲突）
+  - #9 `cfx2rd`/`cfx2rc` 到**保留** cfxha ⇒ `ILLI`（`Kaiwu` 现只说「不存在 cfx 寄存器 ⇒ `CFXREG`」，与 `DADAO-12 §5.2(一)` 冲突）
   - #10 reserved 集统一（正文 `19–61` vs 附录 0.4.0 `16–31、35–61`）
   - #6 退出码由 hmon handler 生成（`§7.1` 只定编码、未定生成方）
   - #3 Tiny 的 hmon 镜像装载路径（与 R13 绑定）
-  - （`m13-qemu-001` 新增）`excp_cause_info` 覆盖：`Machine-v5 §4.4` 5 项 vs `DADAO-13 §2` 11 项
+  - （`m13-qemu-001` 新增）`excp_cause_info` 覆盖：`Kaiwu §4.4` 5 项 vs `DADAO-13 §2` 11 项
   - （`m13-gem5-001` 新增）`escape` 返回 cfx 取自「异常帧」，但寄存器表无 `prev_cfx` 保存寄存器（实现镜像 QEMU/Node 保持目标 cfx）
   - （`m13-gem5-001` 新增）Tiny `cfx_power` 的 cg7（BootROM start/size）与 `cg8 rc1`（power ctrl，WO）无正文
   - （`m13-gem5-001` 新增）Tiny `switch_run_mode` 写非 hypv 值：寄存器 RW 但无强制路径
@@ -134,7 +134,7 @@
 
 1. **K2（异常与时间，5–7 件）已获授权立册**（用户原话「4、同意，是否并行根据依赖关系来定」）；范围与验收口径见 K2 各任务书。
 2. **TLB 规范正文推迟到 K2 完成后**（用户原话「5、K2完成后再说」）：`ADR-0052 D6` 已定「K3 第一步先定义 TLB、第二步才实现」，具体时点在 K2 收口后由主会话提出。
-3. **semihosting 指针 = PA**（用户裁定「1：选1，PA」）：已落 `spec/Machine-v5 §5.2` + `contract-semihosting §2`（0.7.2）；由此产生的 QEMU 侧缺口登记 `ISS-450`（`SYS_WRITE0` 仍走页表）。
+3. **semihosting 指针 = PA**（用户裁定「1：选1，PA」）：已落 `spec/Kaiwu §5.2` + `contract-semihosting §2`（0.7.2）；由此产生的 QEMU 侧缺口登记 `ISS-450`（`SYS_WRITE0` 仍走页表）。
 4. **`contract-linux-boot §1` 已扩写**（用户裁定「2、1」）：补「内核接管后自建页表并写 `PTBR`」，契约 0.2.1；并澄清 semihosting 指针不属该契约的 ABI 地址。
 5. **`ISS-440` 已立 ADR**（用户裁定「3、1」）：`ADR-0054`（单 hart 机型下该清除事件不可观测、暂不实现），decision 待逐条确认。
 6. **中断 mask 口径两处待你确认（`ISS-454`/`ISS-455`）**：`m14-linux-007` 实测 `escape` 只恢复 mask/mode/IP、**不恢复 `inner_cfx_code`**（`spec/DADAO-12 §5.3`）；故某 cfx 投递过异常后「当前 cfx」变成该 cfx（如 `cfx_hart`），§6.4 写的「当前 cfx = `cfx_smon`」在**首投后不成立**。拟改为「IE 旋钮按**当前 cfx** 选行；正常运行期 = `cfx_smon`，首投后 = 该投递 cfx」，并让 `m14-linux-008` 按此实现（登记 `ISS-454`）。
@@ -172,12 +172,6 @@
 1. 是否允许为心跳**改 chipyard RTL 包装**（`TestDriver.v`）？—— 会影响 sim md5 与既有"冻结 sim `079ae015…`"的基线（选项 B）。
 2. 若不允许，是否接受"只有宿主侧心跳（A）+ gem5 配置层心跳（C）"的折中（周期进度只能靠 A 的 utime 趋势推断）？
 3. 心跳频率与落盘位置口径（默认 60 s / 写节点运行期日志 / 由看板汇总）是否按建议执行。
-
-# 待定：机器/版本命名（用户 2026-11-14）
-
-- **现状**：仓库里混用 `Machine-v5-*`（册名/机型前缀）与 `DADAO-v5`（我临时改的），QEMU 机器名是 `dadao-tiny`/`dadao-vast`。
-- **用户口径**：机器名**既不应是 `Machine-v5` 也不应是 `DADAO-v5`**；`tiny`/`vast` 作为**机型名没问题**；`v5` 放在机器名里也不合适。**具体名字待用户确定**，确定前不做批量改名。
-- **过渡处置**：`spec/Toolchain-01` 的适用范围已改为「本机（测试机）的汇编语言」，不再引入临时名字；其余 `Machine-v5` 引用保持现状，等命名定案后一次性改（涉及约 147 个文件，含册名、机型前缀、契约与工具）。
 
 # M15：ISA 语义结构化（每条指令一段可解析 operation）
 
@@ -244,7 +238,7 @@ M15 exit：264 条记录 **100%** 有 operation 块且 id 一对一；抽取结�
 11 册失配的**最后一次改动**逐册核对提交信息（`git log -1 -- spec/<册>`）：
 
 - `SimRISC-01` `511ec1b1` / `SimRISC-02` `1447f6fc` / `SimRISC-07` `c35d7146` / `SimRISC-08·09·10` `462c5850`：均为「裁定落地：…」，正文即用户浮点/移位裁定的落地；
-- `DADAO-11·12·22` `14af8b8b`、`Machine-v5` `c539eba3`：spec 纯净化（去 scope / 去 ADR 引用 / 去阶段代号），对应用户「spec 不写 ADR、不写元话术、禁用 scope」的要求；
+- `DADAO-11·12·22` `14af8b8b`、`Kaiwu` `c539eba3`：spec 纯净化（去 scope / 去 ADR 引用 / 去阶段代号），对应用户「spec 不写 ADR、不写元话术、禁用 scope」的要求；
 - `Toolchain-01` `7d5e45c5`：机器命名待定 ⇒ 改中性表述（用户 2026-11-14 讨论项）。
 
 结论：**改动均有授权来源，缺的只是「同一变更内重算锁哈希」**（`Process-06 §5`）。⇒ 修复 = 重算这 11 册 sha256 + 追加注记（逐册写明授权出处），**不需要重新裁定**；但注记必须一册一条、可回溯到上述提交/裁定，不得批量刷哈希。
