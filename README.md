@@ -33,6 +33,7 @@
 | M10 | 2026-11-01 | CFX 五步（地址空间/PTE/TLB/DMA/启动链）+ 权限/时间/中断 + 工具链与测试收口 |
 | M11 | 2026-11-09 | gem5 SE/FS 收口：完整 tset 双向一致 + SimRISC 0.5.6 发布 |
 | M12 | 2026-11-15 | Chipyard 上跑通 `Kaiwu-Tiny`：非 cfx 指令全实现 + 启动链/semihosting 闭环 + embench/picolibc engine parity |
+| M13 | 2026-11-15 | 三平台差分对齐（QEMU/gem5/chipyard，含浮点）：864 镜像逐例一致、差异 0 + `rf2rf` 批 + 伪指令体系迁章 |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -127,3 +128,13 @@
 - **基线**：`bootrom.tiny.hex` 与 RTL 组件基线 `base+1`，补丁可重放（`check-patch-tree` chipyard 段 0 问题）。
 - **遗留（要点）**：① embench `2 × timeout(12h)`（`depthconv-O0`/`matmult-int-O0` 打满 12 h、无判决，不计入独有失败）；② qemu 自身 5 例缺口（long-double libcall ×4 + CFX6 ×1；long-double 原记 `ISS-193`，该号已于 M9 关闭，现状另见 `ISS-446`）；③ `picolibc` 5 例多线程/TEE 类 `EXCLUDED` + `test-memmem` 未跑；④ 平台分歧归 M13（`ISS-432`/`ISS-433`/`ISS-435`/`ISS-425`/`ISS-426`）；⑤ 多 hart 清除类归后续（`ISS-440`/`ISS-443`，建议 ADR）；`ISS-444` 归 M14。
 - **归档**：`.tao/archive/M12/`（`README.md` 任务清单/流水/终局证据/MEMORY 摘录 + `m12-retrospective.md` + `issues-closed.md`；**42 册已迁入**，`check-archive` rc=0）。
+
+### M13（2026-11-15）三平台差分对齐（QEMU / gem5 / chipyard，含浮点）
+
+- **判据**：三平台**逐例**比较（不是"两实现一致即正确"）：链例比 `semi.out` **字节流**、故障例比 monitor 段退出码；期望值一律取自 `spec/`/契约，不从实现反推。
+- **矩阵冻结**：`docs/TestReports/M13-三平台差分-矩阵.md` —— 整数 637 + FP 227 = **864 镜像三平台逐例一致、差异 0、未归因 0**；报告记 `input commit`，补 `chain_byte_errors` 字节级断言。
+- **`rf2rf` 批**：`spec-010` 删 `ft2ft`/`fo2fo`、加 `rf2rf`（263 id）+ llvm/qemu/gem5/chipyard 四实现 + 载体 `02-reg-copy/rf2rf_orri_rf.S`；配套把伪指令体系迁入 `SimRISC-00 §5`、`SimRISC-03` 按 rd/rb/rf 拆三章、7 个伪指令专用载体（113 点）。
+- **atomics**：指令层 `atomic_rmw.S`（13 点，三平台 104 B 一致）、编译器层执行型 `atomics_e2e`（20 点）、5 个 C 探针退役；多 hart 清除类记 GAP（`ISS-440`/`ISS-443`）。
+- **门控与判据演进**：engine parity 口径、单二进制纪律、`timeout` 退出码口径、脚本入仓判据（会不会再跑）、复核分档（小改/中改/大改）；新增/加严 `check-inst-asm`、`check-archive`、`check-milestones-fresh`（R1/R2）。
+- **遗留（要点）**：① `ISS-433`（`trap cfx_power` 三平台不一致）；② `ISS-440`/`ISS-443`（多 hart 的保留清除，已由 `ADR-0054` 定为"单 hart 不可观测、暂不实现"）；③ `ISS-446`/`ISS-447`/`ISS-448`；④ `07-floating-point` 的 10 个空白格。
+- **归档**：`.tao/archive/M13/`（`README.md` 五节 / `m13-retrospective.md` / `issues-closed.md` 17 条；**107 册已迁入**，`check-archive` PASS）；`milestones-m13.md` 已合并进归档并删除。
