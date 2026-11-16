@@ -45,7 +45,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
-| m14-spec-007 | 2026-11-16 16:23 | `cause_id` 子原因编码落地（wyde2=`CFXPERM`/wyde3=`CFXMEM` 18 位；`DADAO-12 §3.6/§2.2.6/§4.x` + `DADAO-13 §2` + `contract-see §6.1.1`；两册锁重算） |
+| m14-spec-007 | 2026-11-16 16:23 | `cause_id` 子原因编码（wyde2=CFXPERM/wyde3=CFXMEM，18 位；两册 spec + 契约 + 锁） |
 | m14-linux-009 | 2026-11-16 15:22 | K2 收口门控 `check-linux-k2`（B/E/T/M/S/X/R 七组 104 项；入 L2；ISS-457 两条断言） |
 | m14-infra-004 | 2026-11-16 10:24 | 测试机改名 `Machine-v5`→`Kaiwu` + QEMU 串 `kaiwu-tiny/vast`（547 文件；spec 锁重算；旧名失效） |
 | m14-linux-008 | 2026-11-16 08:25 | K2 中断使能与屏蔽（`irqflags` 按当前 cfx 两行旋钮、`time.c` 临界区；k2_irq 95/95、k2_time 151/151） |
