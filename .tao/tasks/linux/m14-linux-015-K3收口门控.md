@@ -1,8 +1,8 @@
-# m14-linux-015: K3 收口门控 `check-linux-k3`（TLB 四类 + 分页/COW/栈 + K2 不回归 + §4a 退役）
+# m14-linux-015: K3 收口门控 `check-linux-k3`（TLB 四类 + 分页/零页/栈 + K2 不回归 + §4a 退役）
 
 **模块**：linux
 **项目里程碑**：M14
-**依赖**：`m14-qemu-005`、`m14-testcases-005`、`m14-linux-011`、`m14-linux-012`、`m14-linux-013`、`m14-linux-014`（全部 `已验证`）
+**依赖**：`m14-qemu-005`、`m14-testcases-005`、`m14-linux-011`、`m14-linux-012`、`m14-linux-014`（全部 `已验证`；`m14-linux-013` **已退役**，COW 归 K4）
 **可并行分片**：否（单一端到端门控；且要对这些任务的产物做注入重建）
 **并行组**：K3 串行链**最后一环**；唯一可并行的只读动作是契约/清单的静态比对（不占组件）
 **预估**：5–6 h（含 4–5 路注入的重复构建）
@@ -26,7 +26,7 @@ K0/K1/K2 各有收口门控（`check-linux-k0` / `-k1` / `-k2`，均入 L2）。
    - **B 构建与配置**：`.config` 现场解析 —— `CONFIG_PAGE_SIZE_64KB=y`（⇒ 页大小 == 契约值，禁写死 64 KiB）、`CONFIG_DADAO_K1_EARLY_STOP=n`、`CONFIG_DADAO_K2_{EARLY,TIME}_STOP=n`、K3 自检符号按镜像；构建 rc=0；命令行无 `-d/-D`。
    - **M 页表原语**（011）：`pmd_populate` 写出的 L1 表项 `P=1`/`SP=0`/`SPF==0`/`G==0`/PPN == 表 PA（**不得**是表的 VA）；`tlb_control(op,scope,asid_any)` 的**命令值由门控现场重建**（三个维度按 `spec/DADAO-12 §4.5` 拼位）并与内核打印逐一比对；`ASID` 读回 `[63:16]==0`。
    - **F 故障通道**（012）：缺页 ⇒ 处理 + 重试成功 + 第二次访问不再进 handler（计数增量 == 0）；无 VMA ⇒ 具名终止（cause/sub 名正确）；`ADWBFAIL` ⇒ 不分配、不重试；子原因符号表 ↔ `contract-see §6.1` **现场解析逐位比对**（含「其它 cause 的 `[63:16]==0`」一条）；**大类解析必须按 `cause & 0xffff`**（带子原因位时的 cause 仍须命名正确，不得落入 `unknown cause`）。
-   - **C COW**（013）：共享页写 ⇒ 换 PA、另一侧不变；独占页写 ⇒ 不复制；`VM_SHARED` 写 ⇒ 不走 COW；失效成对性（`W2`/`W5`）。
+   - **C 零页**（012 的 `P8`–`P10`）：读缺页映射共享零页、写缺页换新页、零页未被污染。（**非零页 COW 已随 013 退役移交 K4**，K3 门控不含 COW 组。）
    - **S 栈增长**（014）：一页下沉成功；超 `RLIMIT_STACK` 不扩；非 `VM_GROWSDOWN` 不扩；权限类不扩栈。
    - **T TLB 行为（内核侧，011 探针）**：fill 与命中（改 PTE 不失效仍见旧映射）、`invalid`+VA/`range`（只影响相交条目）、`clean` 回写 A/D 且条目保留、`flush` 回写+删除、`ASID_ANY=0` 不动 `G` / `=1` 含 `G`、写 `PTBR`/`ASID`/`ptw_enable` 不隐含失效。
      **注**：**不**在本门控里重跑 `tests/arch` 的 TLB 探针——硬件语义的判据是 L3 `make check-arch`（`docs/Process-07 §4` 一层一列）。本门控只做**静态对账**：`ARCH_CFX_PROBES` 是否含 TLB 探针条目、`tests/arch.yaml` ↔ `tests/arch/ptw/**` 载体是否齐全、`expected.yaml` 的期望位号是否全部来自契约（不写魔数）。
@@ -50,7 +50,7 @@ K0/K1/K2 各有收口门控（`check-linux-k0` / `-k1` / `-k2`，均入 L2）。
 3. **≥4 路可达 FAIL 注入**（`cp` + md5 还原 + **重建**；还原后必须重建再回绿）：
    - ① 内核 `tlb_control` 封装把 `scope` 移位改错 ⇒ M 组红；
    - ② 页故障 handler 不分配直接重试 ⇒ F 组红（重试上限触发，rc≠0）；
-   - ③ COW 不失效 ⇒ C 组红；
+   - ③ 零页被就地写（未换新页）⇒ C 组 `P9`/`P10` 红；
    - ④ 栈增长去掉 `VM_GROWSDOWN` 判定 ⇒ S 组红；
    - ⑤ 把某条已退役的旧断言原样加回 K1 门控 ⇒ R 组（退役机械断言）红。
 4. **不回归**：`make check-linux-k0` rc=0、`make check-linux-k1` rc=0、`make check-linux-k2` rc=0（**不跑 `check-modules`**：会装共享安装根）。

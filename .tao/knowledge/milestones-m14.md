@@ -26,7 +26,6 @@
 | --- | --- | --- |
 | m14-qemu-005 | 4–6 h | QEMU TLB 对齐（fill/三操作/三档范围/ASID_ANY·G/回写失败不删）+ 页表异常子原因 |
 | m14-linux-012 | 6–8 h | page fault 与按需分页（子原因解码 + 匿名/零页 + `brk` 扩展） |
-| m14-linux-013 | 4–5 h | COW 复制页（写只读 ⇒ `CFXPERM`+`NWPERM` ⇒ 复制/改 PTE/`invalid`+VA） |
 | m14-linux-014 | 3–4 h | 用户栈增长（`VM_GROWSDOWN` + `RLIMIT_STACK`/guard gap 边界） |
 | m14-linux-015 | 5–6 h | K3 收口门控 `check-linux-k3`（八组 + §4a 退役审计） |
 | m14-qemu-004 | 1 h | `SYS_READC`/`SYS_FLEN` 取字缓冲改 PA（`ISS-452`，用户裁定「现在修」） |
@@ -43,6 +42,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-013 | 2026-11-16 21:59 | **已退役**（用户裁定 COW 全归 K4：K3 无 `fork`/无文件 mmap、零页已在 012 用掉且不复制） |
 | m14-qemu-006 | 2026-11-16 21:01 | Vast 同步异常单路由进 monitor（删 staged 模型；`ILLI` 的 `cause_info` 回读触发指令；28 oracle 按 spec 复推） |
 | m14-linux-011 | 2026-11-16 19:41 | 内核页表原语与 TLB 维护（修 `pmd_*` 三处 VA→PA；`tlb_control` + 10 flush；`cause&0xffff`；k3_pt 116/116） |
 | m14-spec-006 | 2026-11-16 16:59 | K3 的 TLB 规范与契约（`Kaiwu §3.1` 三条约定 + `contract-tlb` 43 条 + 13 条探针建议） |
