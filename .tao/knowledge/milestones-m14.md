@@ -37,13 +37,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-qemu-006 | 2026-11-16 17:39 | 4–6 h | `Kaiwu-Vast` 同步异常路由对齐 spec（删 staged + 修正编码偏差的 oracle；`ISS-460`） |
 | m14-testcases-005 | 2026-11-16 16:59 | 5–6 h | `tests/arch/ptw` TLB 探针 13 条 + `min_rom_probe_tlb` 驱动 + 子原因断言 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-qemu-006 | 2026-11-16 21:01 | Vast 同步异常单路由进 monitor（删 staged 模型；`ILLI` 的 `cause_info` 回读触发指令；28 oracle 按 spec 复推） |
 | m14-linux-011 | 2026-11-16 19:41 | 内核页表原语与 TLB 维护（修 `pmd_*` 三处 VA→PA；`tlb_control` + 10 flush；`cause&0xffff`；k3_pt 116/116） |
 | m14-spec-006 | 2026-11-16 16:59 | K3 的 TLB 规范与契约（`Kaiwu §3.1` 三条约定 + `contract-tlb` 43 条 + 13 条探针建议） |
 | m14-spec-007 | 2026-11-16 16:23 | `cause_id` 子原因编码（wyde2=CFXPERM/wyde3=CFXMEM，18 位；两册 spec + 契约 + 锁） |
