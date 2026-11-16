@@ -48,6 +48,23 @@
 - `Makefile` 的 `ARCH_CFX_PROBES` **追加一个** id（驱动文件名），并在其上的注释块加一行说明；
 - `tests/arch/README.md` 增加 `ptw/` 一行（目录/cfx/内容）与探针清单指针。
 
+## 增补要求（`m14-qemu-005` 复核，2026-11-17）
+
+### 1. 修 `min_rom_probe_tlb.py::sub_one_hot()` 的位口径 bug（必须）
+
+现状：`sub_one_hot()` 返回的是 **wyde 内相对位**（`DGPTRAP` ⇒ `0x10`），而断言用**绝对 64 位掩码** ⇒ 11/26 条恒红（`m14-qemu-005` 实测）。
+
+- 改为返回**绝对位**（`1 << 绝对位号`，位号取 `contract-see §6.1.1`）；
+- 修完必须给「**先红后绿**」证据：改前 11 条红、改后 26/26；
+- 不得通过放宽断言（比如改成只比大类）来"修绿"。
+
+### 2. 收编 `m14-qemu-005` 的两个临时例（必须）
+
+该任务的以下两例当时只在运行期取证、未入仓，由本任务收编（落 `tests/arch/ptw/**` + `tests/arch.yaml` 登记）：
+
+- **三条目「遇错即停」**：第 1 条正常、第 2 条 A/D 回写必失败、第 3 条正常 ⇒ 断言第 1 条已处理、**第 2 条原样保留**、**第 3 条不处理**；帧 = `CFXMEM` + `ADWBFAIL` + `cause_info` = 第 2 条的 PTE 物理地址；
+- **内存窗口 IP 的 `ILLI`**：`ptw_enable=1` 且异常 IP 落在**内存窗口**内 ⇒ `cause_info` 由「guest TLB 页基 + 页内偏移」算出 PA 回读；取不到 ⇒ 必须 `error_report + exit(1)`（不得静默 0）。
+
 ## 验收（逐条贴真实 rc）
 
 1. `make check-arch-smoke` rc=0（不回归）；`make check-arch` rc=0，且日志中新增探针逐条出现（**计数现场统计**，检查 ARCH_CFX_PROBES 的成员数 == 日志里的 `check-arch: [<id>]` 行数）。
