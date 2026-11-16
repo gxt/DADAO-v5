@@ -785,7 +785,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2】证据脚本按**脚本自身路径**推仓库根，在任务 worktree 里会经 `.work` 软链解析到**主工作树**，从而把产物误写进 `master`：`m14-linux-008` 的 `run.sh` 初版实测误写 6 个文件（已按 HEAD blob 逐文件复原、`git status` 干净、md5 与 HEAD 一致）。与 `ISS-389`（worktree `.work` 未软链导致从零编）是同一软链机制的两个反向踩坑。处置：证据脚本一律**按 cwd 推仓库根**（`git rev-parse --show-toplevel`）并在解析结果等于 `master` 工作树时**拒绝运行**；或把该约束写进 engineer/reviewer 的「一键证据脚本」规范并加一条自检。"
+  title: "【P2】证据脚本按**脚本自身路径**推仓库根，在任务 worktree 里会经 `.work` 软链解析到**主工作树**，从而把产物误写进 `master`：`m14-linux-008` 的 `run.sh` 初版实测误写 6 个文件（已按 HEAD blob 逐文件复原、`git status` 干净、md5 与 HEAD 一致）。与 `ISS-389`（worktree `.work` 未软链导致从零编）是同一软链机制的两个反向踩坑。处置：证据脚本一律**按 cwd 推仓库根**（`git rev-parse --show-toplevel`）并在解析结果等于 `master` 工作树时**拒绝运行**；或把该约束写进 engineer/reviewer 的「一键证据脚本」规范并加一条自检。（2026-11-17 复发：`m16-gem5-010` 复核以证据目录为 cwd ⇒ `make_patch` 写脏主工作树 6 个 patch，已 `cp`+md5 还原）"
 - id: ISS-457
   scope:
   - linux
