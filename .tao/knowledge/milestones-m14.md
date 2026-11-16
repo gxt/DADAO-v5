@@ -37,6 +37,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-qemu-006 | 2026-11-16 17:39 | 4–6 h | `Kaiwu-Vast` 同步异常路由对齐 spec（删 staged + 修正编码偏差的 oracle；`ISS-460`） |
 | m14-testcases-005 | 2026-11-16 16:59 | 5–6 h | `tests/arch/ptw` TLB 探针 13 条 + `min_rom_probe_tlb` 驱动 + 子原因断言 |
 | m14-linux-011 | 2026-11-16 16:59 | 4–5 h | 内核页表原语与 TLB 维护（`tlb_control` 封装/ASID/`flush_tlb_*`；修 `pmd_populate` VA→PA） |
 
