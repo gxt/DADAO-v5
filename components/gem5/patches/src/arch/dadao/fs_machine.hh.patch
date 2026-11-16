@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_machine.hh b/src/arch/dadao/fs_machine.hh
 new file mode 100644
-index 0000000..1372e3d
+index 0000000..d84ae92
 --- /dev/null
 +++ b/src/arch/dadao/fs_machine.hh
-@@ -0,0 +1,132 @@
+@@ -0,0 +1,139 @@
 +// DADAO FS machine fault model.
 +//
 +// Tiny carries cfx3 hmon: a synchronous exception enters the hmon vector with
@@ -131,6 +131,13 @@ index 0000000..1372e3d
 + *  vectors, so there is no call site yet; this is the explicit other-cfx form
 + *  of the spec/Kaiwu §7.1 mapping (never the monitor segment). */
 +Fault machineFaultToCfx(uint8_t cause, uint8_t cfxha);
++
++/** Stop the simulation with the spec/Kaiwu §7.1 code for `cause` (bit index)
++ *  raised in `runMode`; `targetCfxha < 0` selects the monitor segment.  This
++ *  is the "the exception vector cannot be entered" stop itself (no second
++ *  attempt to deliver), used by the Node machine once the monitor vector is
++ *  known to be unreachable. */
++void machineFaultExit(uint8_t cause, uint8_t runMode, int targetCfxha);
 +
 +} // namespace DadaoISA
 +} // namespace gem5

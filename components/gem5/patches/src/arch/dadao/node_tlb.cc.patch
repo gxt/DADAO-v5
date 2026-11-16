@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_tlb.cc b/src/arch/dadao/node_tlb.cc
 new file mode 100644
-index 0000000..d21778d
+index 0000000..a7ce973
 --- /dev/null
 +++ b/src/arch/dadao/node_tlb.cc
-@@ -0,0 +1,351 @@
+@@ -0,0 +1,356 @@
 +// DADAO Node TLB/PTW implementation.
 +#include "arch/dadao/node_tlb.hh"
 +
@@ -48,7 +48,7 @@ index 0000000..d21778d
 +        auto *isa = dynamic_cast<ISA *>(tc->getIsaPtr());
 +        panic_if(isa == nullptr, "DADAO Node: PTW fault without an ISA");
 +        NodeState &s = isa->nodeState();
-+        nodeCfxRaise(tc, s, cause, s.runMode, faultPc, info);
++        nodeSyncEnter(tc, s, cause, s.runMode, faultPc, info);
 +    }
 +};
 +
@@ -70,7 +70,7 @@ index 0000000..d21778d
 +        auto *isa = dynamic_cast<ISA *>(tc->getIsaPtr());
 +        panic_if(isa == nullptr, "DADAO Node: CFXPERM without an ISA");
 +        NodeState &s = isa->nodeState();
-+        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, faultPc, addr);
++        nodeSyncEnter(tc, s, CauseCfxPerm, s.runMode, faultPc, addr);
 +    }
 +};
 +
@@ -142,8 +142,10 @@ index 0000000..d21778d
 +
 +    if (cfxha == 0) {
 +        // Address-space Step 1: no silent pmem pass-through without PTW.
++        // The fault enters the current run-mode monitor as CFXMEM with
++        // `excp_cause_info` = the accessed address (DADAO-12 §5.2(一)).
 +        if (!(s.ptwEnable & 1))
-+            return machineFault(FaultCFXMEM);
++            return machineFaultAt(FaultCFXMEM, faultPc, va);
 +
 +        // Step 2: guest TLB lookup.
 +        for (auto &e : s.tlb) {
@@ -283,8 +285,9 @@ index 0000000..d21778d
 +            req->setPaddr(pmemBase + (off - kPmemCfxOffset));
 +            return NoFault;
 +        }
-+        // Out of the SRAM window ⇒ illegal internal-space access (CFXMEM).
-+        return machineFault(FaultCFXMEM);
++        // Out of the SRAM window ⇒ illegal internal-space access (CFXMEM),
++        // `cause_info` = the accessed internal address (DADAO-12 §4.1).
++        return machineFaultAt(FaultCFXMEM, faultPc, va);
 +    }
 +    // hmon / smon SRAM (cfxha 3 / 2, same internal offset).
 +    if (cfxha == 3 || cfxha == 2) {
@@ -294,12 +297,14 @@ index 0000000..d21778d
 +            req->setPaddr(base + (off - kPmemCfxOffset));
 +            return NoFault;
 +        }
-+        return machineFault(FaultCFXMEM);
++        return machineFaultAt(FaultCFXMEM, faultPc, va);
 +    }
-+    // BootROM: read/execute only; a store is ILLI (ADR-0004 D5.6).
++    // BootROM: read/execute only; a store is ILLI (ADR-0004 D5.6) with
++    // `cause_info` = the instruction encoding (DADAO-12 §4.1) -- the word of
++    // the faulting instruction, recorded by DadaoInst::execute().
 +    if (inRegion(romBase, romSize, va, size)) {
 +        if (write)
-+            return machineFault(FaultILLI);
++            return machineFaultAt(FaultILLI, faultPc, s.curInstWord);
 +        req->setPaddr(va);
 +        return NoFault;
 +    }
@@ -310,8 +315,8 @@ index 0000000..d21778d
 +    }
 +
 +    if (nodeCfxReserved(cfxha))
-+        return machineFault(FaultCFXMEM);
-+    return machineFault(FaultCFXMEM);
++        return machineFaultAt(FaultCFXMEM, faultPc, va);
++    return machineFaultAt(FaultCFXMEM, faultPc, va);
 +}
 +
 +void

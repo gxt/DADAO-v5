@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..ac383fb
+index 0000000..d3a783e
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,809 @@
+@@ -0,0 +1,821 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -487,6 +487,12 @@ index 0000000..ac383fb
 + * raise means the dispatcher and the core disagree (unreachable in practice).
 + * Those paths keep the pre-convergence panic texts verbatim instead of mapping
 + * them to a plausible-looking gem5 fault.
++ *
++ * On the FS machine every one of these is an *execution-time synchronous
++ * exception*: `machineFault*()` carries the architectural frame and enters the
++ * current run-mode monitor (Node: `nodeSyncEnter`; Tiny: hmon).  No route from
++ * here stops the machine directly -- that happens only when the monitor vector
++ * is unreachable (spec/Kaiwu §7.1), inside the delivery itself.
 + */
 +Fault
 +mapExecFault(uint8_t batch, exec::Fault fault, Gem5B1Context &ctx,
@@ -634,6 +640,10 @@ index 0000000..ac383fb
 +    auto *isa = dynamic_cast<DadaoISA::ISA *>(tc->getIsaPtr());
 +    if (isa != nullptr && isa->nodeState().active) {
 +        DadaoISA::NodeState &node = isa->nodeState();
++        // The instruction encoding is `excp_cause_info` for ILLI/UNDI/CFXREG/
++        // CFXESC (DADAO-12 §4.1); the address-translation side (a store to the
++        // read-only BootROM) raises ILLI without seeing this word.
++        node.curInstWord = word;
 +        if (isa->tracing()) {
 +            const std::string_view idv(decoded.ok() ? decoded.entry->id : "");
 +            const bool control =
@@ -688,7 +698,8 @@ index 0000000..ac383fb
 +            if (semi == nullptr) {
 +                if (fs) {
 +                    // --semihost=off: the trap has no service to enter.
-+                    return DadaoISA::machineFault(DadaoISA::FaultILLI);
++                    return DadaoISA::machineFaultAt(
++                        DadaoISA::FaultILLI, tc->pcState().instAddr(), word);
 +                }
 +            } else {
 +                const RegVal op = tc->getReg(RegId(DadaoISA::intRegClass,
@@ -738,7 +749,8 @@ index 0000000..ac383fb
 +        !(isa != nullptr && isa->tinyState().active)) {
 +        const std::string_view id(decoded.entry->id);
 +        if (id == "cfx2rd_crrr_cfx" || id == "cfx2rc_crrr_cfx")
-+            return DadaoISA::machineFault(DadaoISA::FaultCFXREG);
++            return DadaoISA::machineFaultAt(
++                DadaoISA::FaultCFXREG, tc->pcState().instAddr(), word);
 +    }
 +
 +    // Node: trap/escape/cfx2rd/cfx2rc are serviced by the platform model

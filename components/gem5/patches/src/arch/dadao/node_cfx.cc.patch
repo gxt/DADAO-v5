@@ -1,15 +1,16 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..6a60a22
+index 0000000..7eb5919
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1017 @@
+@@ -0,0 +1,1064 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
 +#include <cstring>
 +#include <vector>
 +
++#include "arch/dadao/fs_machine.hh"
 +#include "arch/dadao/isa.hh"
 +#include "arch/dadao/pcstate.hh"
 +#include "base/cprintf.hh"
@@ -342,6 +343,52 @@ index 0000000..6a60a22
 +    setPc(tc, entered ? vec : causeIp + 4);
 +    // A masked exception skips one instruction; keep the trace TB boundary.
 +    s.traceForce = true;
++}
++
++bool
++nodeVectorReachable(const NodeState &s, uint64_t vec)
++{
++    // The vector follows the ordinary address rules (spec/DADAO-12 §5.2
++    // step 7): cfxha = addr[47:42]; `cfxha == 0` is a virtual address, every
++    // other value must land in one of the machine's internal segments.
++    if (vec & 0x3)
++        return false;
++    const Addr addr = vec & NodeAddrMask;
++    const unsigned cfxha = (addr >> 42) & 0x3F;
++
++    if (cfxha == 0) {
++        // Software guarantees the vector page is mapped ("硬件不提供向量缺失
++        // 的恢复机制"); with PTW off nothing in the memory window translates.
++        return (s.ptwEnable & 1) != 0;
++    }
++    if (regionCovers(s.ramBase, s.ramSize, addr, 4) ||
++        regionCovers(s.romBase, s.romSize, addr, 4))
++        return true;
++    // hmon / smon / cfx_pmem internal SRAM: cfxha 3 / 2 / 32, internal offset
++    // 0x3ff_0000_0000 (spec/Kaiwu §1.1, DADAO-13 §1).
++    if (cfxha == 3 || cfxha == 2 || cfxha == CfxhaPmem)
++        return regionCovers(kPmemCfxOffset, kPmemSize, addr & NodeVaMask, 4);
++    return false;
++}
++
++void
++nodeSyncEnter(ThreadContext *tc, NodeState &s, uint64_t cause, int target,
++              uint64_t causeIp, uint64_t causeInfo)
++{
++    const uint8_t entryMode = s.runMode & 0x3;
++    const int ci = nodeCfxIndex(target);
++    const uint64_t vec =
++        (ci >= 0) ? s.cfx[ci].mode[entryMode].excpVector : 0;
++
++    if (ci < 0 || !nodeVectorReachable(s, vec)) {
++        // The monitor vector cannot be entered.  This is the one remaining
++        // machine stop for a synchronous exception (spec/Kaiwu §7.1), encoded
++        // for the *entry* run mode: the frame switch below has not happened.
++        machineFaultExit(static_cast<uint8_t>(__builtin_ctzll(cause)),
++                         entryMode, (target <= 3) ? -1 : target);
++        return;
++    }
++    nodeCfxRaise(tc, s, cause, target, causeIp, causeInfo);
 +}
 +
 +namespace

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..5eb027f
+index 0000000..5b57616
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
-@@ -0,0 +1,267 @@
+@@ -0,0 +1,288 @@
 +// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
 +// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
 +//
@@ -204,6 +204,13 @@ index 0000000..5eb027f
 +    Event *dmaEvent = nullptr;
 +    Event *timerEvent = nullptr;
 +
++    /** Word of the instruction currently executing.  `ILLI`/`UNDI`/`CFXREG`/
++     *  `CFXESC` carry the instruction encoding as `excp_cause_info`
++     *  (DADAO-12 §4.1), including the faults raised from the address-translation
++     *  side (a store to the read-only BootROM), where the word is not a
++     *  parameter of the raise call. */
++    uint64_t curInstWord = 0;
++
 +    /** Force the next instruction-boundary trace dump (set when an exception
 +     *  is masked and the PC skips one instruction). */
 +    bool traceForce = false;
@@ -239,6 +246,20 @@ index 0000000..5eb027f
 + *  entry, pc+4 when masked). */
 +void nodeCfxRaise(ThreadContext *tc, NodeState &s, uint64_t cause, int target,
 +                  uint64_t causeIp, uint64_t causeInfo);
++
++/** True when `vec` can be fetched as an exception vector: 4-byte aligned, a
++ *  virtual address (cfxha 0) with PTW enabled, or inside RAM / BootROM /
++ *  the hmon, smon or cfx_pmem SRAM (spec/DADAO-12 §5.2 step 7). */
++bool nodeVectorReachable(const NodeState &s, uint64_t vec);
++
++/** Deliver one *execution-time synchronous exception* to the current run-mode
++ *  monitor (spec/DADAO-12 §5.2; the monitor is the first handler for every
++ *  sync exception — `Kaiwu-Vast` has no second route).  `cause` is one-hot.
++ *  When the monitor vector cannot be reached (the only remaining case that
++ *  stops the machine) the simulation ends with the spec/Kaiwu §7.1 code of
++ *  the *entry* run mode. */
++void nodeSyncEnter(ThreadContext *tc, NodeState &s, uint64_t cause, int target,
++                   uint64_t causeIp, uint64_t causeInfo);
 +
 +/** cfx2rd / cfx2rc (spec/DADAO-12 §3/§4.5/§4.7/§4.9/§4.10).
 + *  Both return false only when the platform cannot service the access at all
