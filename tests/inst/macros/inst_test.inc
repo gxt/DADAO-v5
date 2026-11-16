@@ -517,6 +517,10 @@ __pad:
 	LOAD_ADDR rb21, HMON_BASE + 0xE0	@@ 固件 hmon 的 cause_id 槽
 	ld.o	rd20, [rb21, 0]
 	ld.o	rd21, [rb11, 0]
+	set.rd	rd22, 0xFFFF			@@ 只比大类 cause_id[15:0]
+	and.o	rd20, rd20, rd22		@@ 依据 ADR-0056 D2 / contract-see §6.1.1：
+						@@ 子原因是 wyde2/wyde3 里的独立
+						@@ one-hot 字段，不参与本比较
 	br.ne	{rd20, rd21}?, [rb0, __pad_fail]
 	ld.o	rd23, [rb11, 8]
 	jump	[rb0, __pad_exit]

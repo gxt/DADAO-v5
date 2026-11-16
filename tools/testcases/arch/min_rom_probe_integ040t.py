@@ -158,6 +158,21 @@ C_CFXREG = 1 << 2
 C_CFXMEM = 1 << 1
 C_CFXPERM = 1 << 7
 
+# `excp_cause_id` fields (contract-see §6.1/§6.1.1; ADR-0056 D3): [15:0]
+# one-hot big class, [63:48] CFXMEM sub-cause, [47:32] CFXPERM sub-cause,
+# [31:16] reserved.  A/D write-back failures are CFXMEM + [56] ADWBFAIL.
+CAUSE_LOW16 = 0xFFFF
+CAUSE_WYDES = 0xFFFF_FFFF_0000_0000
+CAUSE_RESERVED_31_16 = 0xFFFF_0000
+DGPFTRAP = 1 << 54
+NHPERM, NRPERM, NWPERM = 1 << 35, 1 << 36, 1 << 37
+ADWBFAIL, NONPTW = 1 << 56, 1 << 57
+
+
+def cause_id_expect(cls, sub=0):
+    """[(mask, expected)] over the three fields of `excp_cause_id`."""
+    return [(CAUSE_LOW16, cls), (CAUSE_WYDES, sub), (CAUSE_RESERVED_31_16, 0)]
+
 # cfx_ptw_tlb_control encoding (DADAO-12 §4.5): op[1:0], scope[3:2], bit4=ASID_ANY
 OP_NONE, OP_CLEAN, OP_INVALID, OP_FLUSH = 0, 1, 2, 3
 SCOPE_ALL, SCOPE_VA, SCOPE_RANGE, SCOPE_RESERVED = 0, 1, 2, 3
@@ -490,9 +505,10 @@ def fault_at(p):
     return ROM_BASE + 4 * len(p)
 
 
-def fault_expect(cause, va, ip, cfxha=MODE_H, **extra):
-    exp = {"exit": EXIT_PASS, "rd10": cause, "rd11": va, "rd12": ip,
-           "syncn%d" % cfxha: 1, "cid%d" % cfxha: cause}
+def fault_expect(cause, va, ip, cfxha=MODE_H, sub=0, **extra):
+    exp = {"exit": EXIT_PASS, "rd10": cause_id_expect(cause, sub), "rd11": va,
+           "rd12": ip, "syncn%d" % cfxha: 1,
+           "cid%d" % cfxha: cause_id_expect(cause, sub)}
     exp.update(extra)
     return exp
 
@@ -612,7 +628,8 @@ def _tlb_hit_hsju_perm():
     p += exit_seq(0x7E)
     handlers = monitor_handler_dict(False)
     handlers[OFF_MODE_HANDLER] = mode_handler(2)
-    return build_rom(p, handlers), fault_expect(C_CFXPERM, 0x0, ip)
+    return build_rom(p, handlers), \
+        fault_expect(C_CFXPERM, 0x0, ip, sub=NHPERM)
 
 
 @case("tlb_hit_nwperm", "hit uses the entry's W, not the edited PTE")
@@ -627,7 +644,7 @@ def _tlb_hit_nwperm():
     ip = store_va_fault(p, 0x0, MAGIC2)     # hit -> CFXPERM
     p += exit_seq(0x7E)
     return build_rom(p, monitor_handler_dict(False)), \
-        fault_expect(C_CFXPERM, 0x0, ip)
+        fault_expect(C_CFXPERM, 0x0, ip, sub=NWPERM)
 
 
 @case("tlb_hit_gpf_fault", "hit checks the page's GPF fragment bit per access")
@@ -645,7 +662,7 @@ def _tlb_hit_gpf_fault():
     ip = store_va_fault(p, 0x40, MAGIC2, rd=4)   # same page, VA[15:13]=0
     p += exit_seq(0x7E)
     return build_rom(p, monitor_handler_dict(False)), \
-        fault_expect(C_CFXMEM, 0x40, ip)
+        fault_expect(C_CFXMEM, 0x40, ip, sub=DGPFTRAP)
 
 
 # -- fill only after a fully valid walk ------------------------------------
@@ -661,7 +678,7 @@ def _tlb_no_fill_on_perm_fault():
     load_va(p, 0x0, rd=6)                   # must re-walk -> DATA2
     p += exit_seq(EXIT_PASS)
     return build_rom(p, monitor_handler_dict(True)), \
-        fault_expect(C_CFXPERM, 0x0, ip, rd5=0, rd6=MAGIC2)
+        fault_expect(C_CFXPERM, 0x0, ip, sub=NRPERM, rd5=0, rd6=MAGIC2)
 
 
 # -- A/D maintenance --------------------------------------------------------
@@ -792,8 +809,9 @@ def _ptwerr_clean_keeps_entry():
     p += exit_seq(EXIT_PASS)
     return build_rom(p, monitor_handler_dict(True),
                      words_at={ROM_PTE_OFF: ROM_PTE_WORDS}), \
-        {"exit": EXIT_PASS, "rd10": C_CFXMEM, "rd11": ROM_PTE_PA,
-         "rd5": MAGIC, "syncn3": 2, "cid3": C_CFXMEM}
+        {"exit": EXIT_PASS, "rd10": cause_id_expect(C_CFXMEM, ADWBFAIL),
+         "rd11": ROM_PTE_PA, "rd5": MAGIC, "syncn3": 2,
+         "cid3": cause_id_expect(C_CFXMEM, ADWBFAIL)}
 
 
 @case("ptwerr_flush_keeps_entry", "failed FLUSH keeps the dirty entry")
@@ -808,8 +826,9 @@ def _ptwerr_flush_keeps_entry():
     p += exit_seq(EXIT_PASS)
     return build_rom(p, monitor_handler_dict(True),
                      words_at={ROM_PTE_OFF: ROM_PTE_WORDS}), \
-        {"exit": EXIT_PASS, "rd10": C_CFXMEM, "rd11": ROM_PTE_PA,
-         "rd5": MAGIC, "syncn3": 2, "cid3": C_CFXMEM}
+        {"exit": EXIT_PASS, "rd10": cause_id_expect(C_CFXMEM, ADWBFAIL),
+         "rd11": ROM_PTE_PA, "rd5": MAGIC, "syncn3": 2,
+         "cid3": cause_id_expect(C_CFXMEM, ADWBFAIL)}
 
 
 @extra_case("ptwerr_monitor_cfxmem_exit",
@@ -1045,8 +1064,9 @@ def _tlb_bypass_ptw_off():
     ip = load_va_fault(p, va)               # ptw off -> CFXMEM
     p += exit_seq(0x7E)
     return build_rom(p, monitor_handler_dict(False, reptw=True)), \
-        {"exit": EXIT_PASS, "rd10": C_CFXMEM, "rd11": va, "rd12": ip,
-         "syncn3": 1, "cid3": C_CFXMEM}
+        {"exit": EXIT_PASS, "rd10": cause_id_expect(C_CFXMEM, NONPTW),
+         "rd11": va, "rd12": ip, "syncn3": 1,
+         "cid3": cause_id_expect(C_CFXMEM, NONPTW)}
 
 
 @case("tlb_ptbr_write_no_flush", "writing PTBR does not invalidate the TLB")
@@ -1097,9 +1117,16 @@ def run_case(name):
             diffs = []
             for k, v in exp.items():
                 av = obs.get(k)
-                if av != v:
-                    diffs.append("%s exp=0x%x got=%s" % (
-                        k, v, ("0x%x" % av) if av is not None else "None"))
+                for mask, want in (v if isinstance(v, list) else [(None, v)]):
+                    if mask is None:
+                        ok = av == want
+                        shown = "exp=0x%x" % want
+                    else:
+                        ok = av is not None and (av & mask) == want
+                        shown = "exp(mask 0x%x)=0x%x" % (mask, want)
+                    if not ok:
+                        diffs.append("%s %s got=%s" % (
+                            k, shown, ("0x%x" % av) if av is not None else "None"))
             if diffs:
                 return False, "; ".join(diffs), exp
             return True, "ok", exp

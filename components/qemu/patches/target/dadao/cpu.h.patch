@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..6ad7833
+index 0000000..7deb1da
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,616 @@
+@@ -0,0 +1,648 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -314,6 +314,37 @@ index 0000000..6ad7833
 + * CFXMEM (DADAO-12 §2.2.6/§5.2 + Kaiwu §7.1); there is no PTWERR or
 + * page-level one-hot cause any more. */
 +
++/* Sub-cause bits of `excp_cause_id` (DADAO-12 §3.6; contract-see §6.1.1;
++ * ADR-0056 D3).  `cause_id[15:0]` carries the one-hot big class above; the
++ * sub-cause is a second one-hot field in wyde3 [63:48] for CFXMEM and wyde2
++ * [47:32] for CFXPERM.  The wyde that does not belong to the class and
++ * [31:16] (reserved for future big classes) must stay 0. */
++#define DADAO_CAUSE_WYDE2      (0x0000FFFFULL << 32)  /* [47:32] CFXPERM */
++#define DADAO_CAUSE_WYDE3      (0xFFFF0000ULL << 32)  /* [63:48] CFXMEM  */
++#define DADAO_CAUSE_RESERVED16 (0xFFFFULL << 16)      /* [31:16] reserved */
++
++/* wyde2: CFXPERM only (§6.1.1 [32..39]). */
++#define DADAO_SUB_NUPERM      (1ULL << 32)
++#define DADAO_SUB_NJPERM      (1ULL << 33)
++#define DADAO_SUB_NSPERM      (1ULL << 34)
++#define DADAO_SUB_NHPERM      (1ULL << 35)
++#define DADAO_SUB_NRPERM      (1ULL << 36)
++#define DADAO_SUB_NWPERM      (1ULL << 37)
++#define DADAO_SUB_NXPERM      (1ULL << 38)
++#define DADAO_SUB_NCFXPERM    (1ULL << 39)
++
++/* wyde3: CFXMEM only (§6.1.1 [48..57]). */
++#define DADAO_SUB_IGPTRAP     (1ULL << 48)
++#define DADAO_SUB_ISPTRAP     (1ULL << 49)
++#define DADAO_SUB_IGPFTRAP    (1ULL << 50)
++#define DADAO_SUB_ISPFTRAP    (1ULL << 51)
++#define DADAO_SUB_DGPTRAP     (1ULL << 52)
++#define DADAO_SUB_DSPTRAP     (1ULL << 53)
++#define DADAO_SUB_DGPFTRAP    (1ULL << 54)
++#define DADAO_SUB_DSPFTRAP    (1ULL << 55)
++#define DADAO_SUB_ADWBFAIL    (1ULL << 56)
++#define DADAO_SUB_NONPTW      (1ULL << 57)
++
 +#define DADAO_CFXHA_PTW        4   /* cfx4 / ptw (DADAO-12 §1) */
 +#define DADAO_CFXHA_HART       15  /* cfx15 / hart (DADAO-12 §4.7) */
 +#define DADAO_CFXHA_PMEM       32  /* cfx32 / pmem (DADAO-12 §1) */
@@ -501,10 +532,11 @@ index 0000000..6ad7833
 +     * both 0; writes are plain stores (no implicit TLB flush). */
 +    uint64_t ptbr;
 +    uint64_t ptw_enable;
-+    /* Pending page-table fault (DADAO_EXCP_PTW_FAULT): monitor cause id
-+     * (CFXMEM for missing/fragment/A-D, CFXPERM for HSJU/R/W/X) and the
-+     * faulting virtual address (cause_info).  For an A/D write-back failure
-+     * (ADR-0041 D10) cause_info is the failing PTE physical address. */
++    /* Pending page-table fault (DADAO_EXCP_PTW_FAULT): the full monitor
++     * `excp_cause_id` (big class in [15:0] plus the one-hot sub-cause in its
++     * wyde, contract-see §6.1.1) and the faulting virtual address
++     * (cause_info).  For an A/D write-back failure (ADR-0041 D10)
++     * cause_info is the failing PTE physical address. */
 +    uint64_t ptw_fault_cause;
 +    uint64_t ptw_fault_info;
 +    /* Pending two-axis permission denial (DADAO_EXCP_CFXPERM): cause_info is

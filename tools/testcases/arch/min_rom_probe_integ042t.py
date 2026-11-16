@@ -109,6 +109,19 @@ ERR_PA_FAULT = 1 << 6
 # cfx exception cause ids / register coordinates
 CAUSE_CFXREG = 1 << 2
 CAUSE_CFXMEM = 1 << 1
+
+# `excp_cause_id` fields (contract-see §6.1/§6.1.1; ADR-0056 D3): [15:0]
+# one-hot big class, [63:48] CFXMEM sub-cause, [47:32] CFXPERM sub-cause,
+# [31:16] reserved.  Every CFXMEM here is a non-page-table fault => [57].
+CAUSE_LOW16 = 0xFFFF
+CAUSE_WYDES = 0xFFFF_FFFF_0000_0000
+CAUSE_RESERVED_31_16 = 0xFFFF_0000
+NONPTW = 1 << 57
+
+
+def cause_id_expect(cls, sub=0):
+    """[(mask, expected)] over the three fields of `excp_cause_id`."""
+    return [(CAUSE_LOW16, cls), (CAUSE_WYDES, sub), (CAUSE_RESERVED_31_16, 0)]
 CAUSE_PMEM_DMA = 1 << 8
 CG5_CAUSE_ID_RC, CG5_CAUSE_INFO_RC, CG5_CAUSE_IP_RC, CG5_PENDING_RC = 2, 4, 3, 5
 CG3_SWITCH_MODE_RC, CG3_EXCP_VECTOR_RC = 8, 10
@@ -383,7 +396,7 @@ def _sram_oob_cfxmem():
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
     return build_rom(p, {OFF_HMON_HANDLER: HMON_FRAME_HANDLER}), \
-        {"exit": EXIT_PASS, "rd10": CAUSE_CFXMEM,
+        {"exit": EXIT_PASS, "rd10": cause_id_expect(CAUSE_CFXMEM, NONPTW),
          "rd11": PMEM_BASE + PMEM_SRAM_SIZE, "rd12": ip}
 
 
@@ -396,7 +409,7 @@ def _sram_old_offset_cfxmem():
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
     return build_rom(p, {OFF_HMON_HANDLER: HMON_FRAME_HANDLER}), \
-        {"exit": EXIT_PASS, "rd10": CAUSE_CFXMEM, "rd11": PMEM_OLD_BASE,
+        {"exit": EXIT_PASS, "rd10": cause_id_expect(CAUSE_CFXMEM, NONPTW), "rd11": PMEM_OLD_BASE,
          "rd12": ip}
 
 
@@ -755,7 +768,7 @@ def _cfx6_reserved_cfxmem():
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
     return build_rom(p, {OFF_HMON_HANDLER: HMON_FRAME_HANDLER}), \
-        {"exit": EXIT_PASS, "rd10": CAUSE_CFXMEM, "rd11": RESERVED_BASE,
+        {"exit": EXIT_PASS, "rd10": cause_id_expect(CAUSE_CFXMEM, NONPTW), "rd11": RESERVED_BASE,
          "rd12": ip}
 
 
@@ -787,9 +800,16 @@ def run_case(name):
             diffs = []
             for k, v in exp.items():
                 av = obs.get(k)
-                if av != v:
-                    diffs.append("%s exp=0x%x got=%s" % (
-                        k, v, ("0x%x" % av) if av is not None else "None"))
+                for mask, want in (v if isinstance(v, list) else [(None, v)]):
+                    if mask is None:
+                        ok = av == want
+                        shown = "exp=0x%x" % want
+                    else:
+                        ok = av is not None and (av & mask) == want
+                        shown = "exp(mask 0x%x)=0x%x" % (mask, want)
+                    if not ok:
+                        diffs.append("%s %s got=%s" % (
+                            k, shown, ("0x%x" % av) if av is not None else "None"))
             if diffs:
                 return False, "; ".join(diffs), exp
             return True, "ok", exp

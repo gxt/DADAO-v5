@@ -100,6 +100,10 @@ H3 = ROM_BASE + 0x180  # handler slot 3
 USER, JAIL, SUPV, HYPV = 0, 1, 2, 3
 # Cause ids (DADAO-12 §4 monitor exception table)
 CFXTRAP, CFXMEM, CFXREG, ILLI = 1, 2, 4, 1 << 8
+# `excp_cause_id` is a field register (contract-see §6.1/§6.1.1;
+# ADR-0056 D3): [15:0] is the one-hot big class, the sub-cause sits
+# in its own wyde, so a frame check compares [15:0] only.
+CAUSE_LOW16 = 0xFFFF
 CFXPERM = 1 << 7
 
 # Semihosting SYS_EXIT (ADR-0020 D8: SYS_EXIT replaces the legacy MMIO halt device).
@@ -335,6 +339,8 @@ def run_case(name):
             diffs = []
             for k, v in exp.items():
                 av = obs.get(k)
+                if k.startswith("cid:") and av is not None:
+                    av &= CAUSE_LOW16       # cause_id[15:0] = big class
                 if av != v:
                     diffs.append("%s exp=0x%x got=%s" % (
                         k, v, ("0x%x" % av) if av is not None else "None"))

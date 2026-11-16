@@ -89,6 +89,20 @@ USER, JAIL, SUPV, HYPV = 0, 1, 2, 3
 CFXREG = 1 << 2
 CFXPERM = 1 << 7
 ILLI = 1 << 8
+
+# `excp_cause_id` fields (contract-see §6.1/§6.1.1; ADR-0056 D3): [15:0]
+# one-hot big class, [63:48] CFXMEM sub-cause, [47:32] CFXPERM sub-cause,
+# [31:16] reserved.  Every CFXPERM here is a cfx access refused by a source
+# mask => [39] NCFXPERM.
+CAUSE_LOW16 = 0xFFFF
+CAUSE_WYDES = 0xFFFF_FFFF_0000_0000
+CAUSE_RESERVED_31_16 = 0xFFFF_0000
+NCFXPERM = 1 << 39
+
+
+def cause_id_expect(cls, sub=0):
+    """[(mask, expected)] over the three fields of `excp_cause_id`."""
+    return [(CAUSE_LOW16, cls), (CAUSE_WYDES, sub), (CAUSE_RESERVED_31_16, 0)]
 ALL1 = (1 << 64) - 1
 
 # Reset mask rows (ADR-0045 D4): everything but source hmon (cfx3) is denied.
@@ -400,7 +414,7 @@ def _closed_hmon_cg0():
         prog += read_supv_cfxreg(3, 24) + enter_supv_cfx0()
         rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
         if deleg == ALL1:
-            exp = {"exit": 0x2E, "cid:2": CFXPERM,
+            exp = {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
                    "cinfo:2": info_rd(3, 0, 0, 10), "cip:2": ROM_BASE + SUPV_OFF}
         else:
             exp = {"exit": 0x00, "rd10": MASK_HMON}
@@ -415,7 +429,7 @@ def _closed_hmon_cg8():
     prog = probe_base() + set_deleg(3, ALL1) + open_supv_cfxreg(3, 0)
     prog += read_supv_cfxreg(3, 24) + enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
                      "cinfo:2": info_rd(3, 8, 1, 10),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~1})
@@ -429,7 +443,7 @@ def _closed_power_cg4():
     prog = probe_base() + set_deleg(63, ALL1) + open_supv_cfxreg(63, 2)
     prog += read_supv_cfxreg(63, 24) + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
                      "cinfo:2": info_rd(63, 4, 0, 10),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~(1 << 2)})
@@ -460,7 +474,7 @@ def _closed_power_bootrom():
     prog += enter_supv_cfx2()
     ld_idx = len(load_rb(4, POWER_ADDR))
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM, "cinfo:2": POWER_ADDR,
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM), "cinfo:2": POWER_ADDR,
                      "cip:2": ROM_BASE + SUPV_OFF + 4 * ld_idx})
 
 
@@ -490,7 +504,7 @@ def _power_control_write():
     body = [cfx2rc(63, 2, 1, 0)] + exit_seq(0x00)
     prog = probe_base() + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
                      "cinfo:2": info_rc(63, 2, 1, 0),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "memmask:63:2": MASK_DEFAULT})
@@ -502,7 +516,7 @@ def _power_cg7_closed():
     prog = probe_base() + set_deleg(63, ALL1) + open_supv_cfxreg(63, 2)
     prog += read_supv_cfxreg(63, 24) + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
                      "cinfo:2": info_rd(63, 7, 0, 10),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~(1 << 2)})
@@ -516,7 +530,7 @@ def _no_power_full_open():
     prog += set_deleg(2, DELEG_OPEN) + open_supv_cfxreg(63, 2)
     prog += read_supv_cfxreg(63, 24) + enter_supv_cfx2()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
                      "cinfo:2": info_rd(63, 4, 0, 10),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~(1 << 2),
@@ -531,7 +545,7 @@ def _cg3_supv_perm_rd():
     prog = probe_base() + set_deleg(4, DELEG_OPEN) + open_supv_cfxreg(4, 0)
     prog += read_supv_cfxreg(4, 24) + enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
                      "cinfo:2": info_rd(4, 3, 0, 10),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd24": ALL1 & ~1})
@@ -546,7 +560,7 @@ def _cg3_supv_perm_wr():
     prog += enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body,
                            HAND_OFF: handler([cfx2rd(32, 3, 12, 23)])})
-    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
                      "cinfo:2": info_rc(32, 3, 12, 20),
                      "cip:2": ROM_BASE + SUPV_OFF + 16,
                      "rd23": DELEG_OPEN, "rd24": ALL1 & ~1})
@@ -560,7 +574,7 @@ def _cg3_bit3_locked():
     prog += enter_supv_cfx0()
     rom = build_rom(prog, {SUPV_OFF: body,
                            HAND_OFF: handler([cfx2rd(4, 3, 12, 23)])})
-    return one(rom, {"exit": 0x2E, "cid:2": CFXPERM,
+    return one(rom, {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
                      "cinfo:2": info_rd(4, 3, 0, 10),
                      "cip:2": ROM_BASE + SUPV_OFF,
                      "rd23": DELEG_OPEN, "rd24": ALL1 & ~1})
@@ -597,7 +611,7 @@ def _self_not_exempt():
         prog = probe_base() + set_deleg(2, deleg) + enter_supv_cfx2()
         rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
         if deleg == ALL1:
-            exp = {"exit": 0x2E, "cid:2": CFXPERM,
+            exp = {"exit": 0x2E, "cid:2": cause_id_expect(CFXPERM, NCFXPERM),
                    "cinfo:2": info_rd(2, 5, 2, 10),
                    "cip:2": ROM_BASE + SUPV_OFF}
         else:
@@ -663,9 +677,16 @@ def run_case(name):
             diffs = []
             for k, v in exp.items():
                 av = obs.get(k)
-                if av != v:
-                    diffs.append("%s exp=0x%x got=%s" % (
-                        k, v, ("0x%x" % av) if av is not None else "None"))
+                for mask, want in (v if isinstance(v, list) else [(None, v)]):
+                    if mask is None:
+                        ok = av == want
+                        shown = "exp=0x%x" % want
+                    else:
+                        ok = av is not None and (av & mask) == want
+                        shown = "exp(mask 0x%x)=0x%x" % (mask, want)
+                    if not ok:
+                        diffs.append("%s %s got=%s" % (
+                            k, shown, ("0x%x" % av) if av is not None else "None"))
             if diffs:
                 ok = False
                 details.append("%s %s" % (tag, "; ".join(diffs)))

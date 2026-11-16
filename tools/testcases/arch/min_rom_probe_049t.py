@@ -181,6 +181,41 @@ def fault_at(p):
     return ROM_BASE + 4 * len(p)
 
 
+def setup_monitor(p):
+    """Point cfx_hmon's hypv vector at MONITOR (the body runs in hypv)."""
+    p += load_rd(6, MODE_H) + [cfx2rc(3, 3, CG3_SWITCH_MODE_RC, 6)]
+    p += load_rd(6, MONITOR) + [cfx2rc(3, 3, CG3_EXCP_VECTOR_RC, 6)]
+    return p
+
+
+# `excp_cause_id` is a *field* register, not a single value (contract-see
+# §6.1/§6.1.1; ADR-0056 D3): [15:0] = one-hot big class, [63:48] = the CFXMEM
+# sub-cause (wyde3), [47:32] = the CFXPERM sub-cause (wyde2), [31:16] reserved.
+# Every CFXMEM in this probe is a non-page-table fault, i.e. [57] NONPTW.
+CAUSE_LOW16 = 0xFFFF
+CAUSE_WYDES = 0xFFFF_FFFF_0000_0000
+CAUSE_RESERVED_31_16 = 0xFFFF_0000
+SUB_NONPTW = 1 << 57
+
+
+def cause_id_expect(cls, sub=0):
+    """[(mask, expected)] over the three fields of `excp_cause_id`."""
+    return [(CAUSE_LOW16, cls), (CAUSE_WYDES, sub), (CAUSE_RESERVED_31_16, 0)]
+
+
+def frame_expect(prev_mode, cause, ip, info, sub=0):
+    """Full monitor frame: the four saved fields, each read from cg5.
+
+    `cause` is compared per field: the low 16 bits must be the big class and
+    the expected sub-cause must be exactly one-hot in its own wyde with the
+    other wyde and [31:16] zero (the pre-m14-qemu-005 assertion compared the
+    whole 64-bit word against `1 << 1`).
+    """
+    return {"exit": EXIT_PASS, "rd10": prev_mode,
+            "rd11": cause_id_expect(cause, sub),
+            "rd12": ip, "rd13": info}
+
+
 def monitor_words(reptw=False):
     """Read the cfx_hmon hypv frame back (cause id / cause_ip / cause_info /
     prev_run_mode), then leave through SYS_EXIT (DADAO-12 §5.2 steps 5-7).
@@ -199,18 +234,6 @@ def monitor_words(reptw=False):
                cfx2rd(3, 5, CG5_CAUSE_INFO_RC, 13)]
             + exit_seq(EXIT_PASS))
 
-
-def setup_monitor(p):
-    """Point cfx_hmon's hypv vector at MONITOR (the body runs in hypv)."""
-    p += load_rd(6, MODE_H) + [cfx2rc(3, 3, CG3_SWITCH_MODE_RC, 6)]
-    p += load_rd(6, MONITOR) + [cfx2rc(3, 3, CG3_EXCP_VECTOR_RC, 6)]
-    return p
-
-
-def frame_expect(prev_mode, cause, ip, info):
-    """Full monitor frame: the four saved fields, each read from cg5."""
-    return {"exit": EXIT_PASS, "rd10": prev_mode, "rd11": cause,
-            "rd12": ip, "rd13": info}
 
 # ---------------------------------------------------------------------------
 # QEMU runner + dump parsing
@@ -268,7 +291,8 @@ def _old_ram_unmapped():
     prog.append(ld_o(5, 3, 0))
     prog += exit_seq(0x7E)                   # not reached: the handler exits
     return build_rom(prog, {OFF_MONITOR: monitor_words()}), \
-        frame_expect(MODE_H, C_CFXMEM, ip, OLD_RAM_BASE + 0x1000)
+        frame_expect(MODE_H, C_CFXMEM, ip, OLD_RAM_BASE + 0x1000,
+                                  sub=SUB_NONPTW)
 
 
 # -- acc 2: no second mapped RAM region -------------------------------------
@@ -281,7 +305,8 @@ def _legacy_ram_gone():
     prog.append(st_o(4, 3, 0))
     prog += exit_seq(0x7E)                   # not reached: the handler exits
     return build_rom(prog, {OFF_MONITOR: monitor_words()}), \
-        frame_expect(MODE_H, C_CFXMEM, ip, OLD_RAM_BASE + 0x2000)
+        frame_expect(MODE_H, C_CFXMEM, ip, OLD_RAM_BASE + 0x2000,
+                                  sub=SUB_NONPTW)
 
 
 # -- acc 2: RAM top 8 bytes ------------------------------------------------
@@ -327,7 +352,7 @@ def _oob_data_cfxmem():
     prog.append(ld_o(5, 3, 0))
     prog += exit_seq(0x7E)                   # not reached: the handler exits
     return build_rom(prog, {OFF_MONITOR: monitor_words(reptw=True)}), \
-        frame_expect(MODE_H, C_CFXMEM, ip, CFX0_OOB)
+        frame_expect(MODE_H, C_CFXMEM, ip, CFX0_OOB, sub=SUB_NONPTW)
 
 
 @case("oob_data_unmapped", "data access cfxha63 unmapped => CFXMEM")
@@ -339,7 +364,7 @@ def _oob_data_unmapped():
     prog.append(ld_o(5, 3, 0))
     prog += exit_seq(0x7E)                   # not reached: the handler exits
     return build_rom(prog, {OFF_MONITOR: monitor_words()}), \
-        frame_expect(MODE_H, C_CFXMEM, ip, CFX63_OOB)
+        frame_expect(MODE_H, C_CFXMEM, ip, CFX63_OOB, sub=SUB_NONPTW)
 
 
 # -- acc 4: out-of-range FETCH (instruction fetch path) ----------------------
@@ -355,7 +380,7 @@ def _oob_fetch_cfxmem():
     prog.append(jump_rrii(3, 0, 0))
     prog += exit_seq(0x7E)                   # not reached: the handler exits
     return build_rom(prog, {OFF_MONITOR: monitor_words(reptw=True)}), \
-        frame_expect(MODE_H, C_CFXMEM, CFX0_OOB, CFX0_OOB)
+        frame_expect(MODE_H, C_CFXMEM, CFX0_OOB, CFX0_OOB, sub=SUB_NONPTW)
 
 
 @case("oob_fetch_unmapped", "fetch cfxha63 unmapped => CFXMEM")
@@ -366,7 +391,7 @@ def _oob_fetch_unmapped():
     prog.append(jump_rrii(3, 0, 0))
     prog += exit_seq(0x7E)                   # not reached: the handler exits
     return build_rom(prog, {OFF_MONITOR: monitor_words()}), \
-        frame_expect(MODE_H, C_CFXMEM, CFX63_OOB, CFX63_OOB)
+        frame_expect(MODE_H, C_CFXMEM, CFX63_OOB, CFX63_OOB, sub=SUB_NONPTW)
 
 
 # ---------------------------------------------------------------------------
@@ -385,9 +410,16 @@ def run_case(name):
             diffs = []
             for k, v in exp.items():
                 av = obs.get(k)
-                if av != v:
-                    diffs.append("%s exp=0x%x got=%s" % (
-                        k, v, ("0x%x" % av) if av is not None else "None"))
+                for mask, want in (v if isinstance(v, list) else [(None, v)]):
+                    if mask is None:
+                        ok = av == want
+                        shown = "exp=0x%x" % want
+                    else:
+                        ok = av is not None and (av & mask) == want
+                        shown = "exp(mask 0x%x)=0x%x" % (mask, want)
+                    if not ok:
+                        diffs.append("%s %s got=%s" % (
+                            k, shown, ("0x%x" % av) if av is not None else "None"))
             if diffs:
                 return False, "; ".join(diffs), exp
             detail = "ok"

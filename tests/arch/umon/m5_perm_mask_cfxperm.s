@@ -10,7 +10,10 @@
 @@ profile fault-record slot and resumes after the faulting instruction
 @@ (TESTCASES-092t §3/§4); the vector then reads that slot.
 @@
-@@ Expected: cause = CFXPERM (0x80); host $? = 0x21 (SYS_EXIT pass token).
+@@ Expected: cause_id[15:0] = CFXPERM (0x80) — the big class only: the sub-cause
+@@   sits in its own wyde ([39] NCFXPERM in [47:32]; contract-see §6.1/§6.1.1,
+@@   ADR-0056 D3), so the recorded word is masked with 0xFFFF before the compare.
+@@   host $? = 0x21 (SYS_EXIT pass token).
 
 @@ @m5 name=m5_perm_mask_cfxperm
 @@ @m5 kind=permission
@@ -29,6 +32,8 @@ _start:
 	trap	cfx_jmon, 0
 	LOAD_ADDR rb4, FAULT_RECORD
 	ld.o	rd10, [rb4, 0]			@@ fault-record[0] = cause id
+	set.zw	rd13, wp0, 0xFFFF		@@ cause_id[15:0] = one-hot big class
+	and.o	rd10, rd10, rd13
 	set.zw	rd12, wp0, 0x0080		@@ CFXPERM
 	cmp.so	rd11, rd10, rd12
 	br.nz	{rd11}?, [rb0, fail]

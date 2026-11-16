@@ -147,6 +147,26 @@ SPPN_MASK = 0x00FF_FFFF_E000_0000
 C_CFXMEM = 1 << 1
 C_CFXPERM = 1 << 7
 
+# `excp_cause_id` is a field register (contract-see §6.1/§6.1.1; ADR-0056 D3):
+# [15:0] one-hot big class, [63:48] the CFXMEM sub-cause (wyde3), [47:32] the
+# CFXPERM sub-cause (wyde2), [31:16] reserved.  Assertions compare masked
+# fields instead of the whole 64-bit word (formerly `rd10 == 1 << 1`).
+CAUSE_LOW16 = 0xFFFF
+CAUSE_WYDES = 0xFFFF_FFFF_0000_0000
+CAUSE_RESERVED_31_16 = 0xFFFF_0000
+IGPTRAP, ISPTRAP, IGPFTRAP, ISPFTRAP = (1 << n for n in (48, 49, 50, 51))
+DGPTRAP, DSPTRAP, DGPFTRAP, DSPFTRAP = (1 << n for n in (52, 53, 54, 55))
+NUPERM, NJPERM, NSPERM, NHPERM = (1 << n for n in (32, 33, 34, 35))
+NRPERM, NWPERM, NXPERM = (1 << n for n in (36, 37, 38))
+NONPTW = 1 << 57
+# HSJU denial names the *mode* that was denied (§6.1.1 [32..35]).
+HSJU_SUB = {MODE_U: NUPERM, MODE_J: NJPERM, MODE_S: NSPERM, MODE_H: NHPERM}
+
+
+def cause_id_expect(cls, sub=0):
+    """[(mask, expected)] over the three fields of `excp_cause_id`."""
+    return [(CAUSE_LOW16, cls), (CAUSE_WYDES, sub), (CAUSE_RESERVED_31_16, 0)]
+
 SEMIHOST_TAG = 0x3FF00
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
 SEMI_BLOCK = EXIT_BLOCK
@@ -390,9 +410,10 @@ def fault_at(p):
     return ROM_BASE + 4 * len(p)
 
 
-def fault_expect(cause, va, ip, cfxha=MODE_H, **extra):
-    exp = {"exit": EXIT_PASS, "rd10": cause, "rd11": va, "rd12": ip,
-           "syncn%d" % cfxha: 1, "cid%d" % cfxha: cause}
+def fault_expect(cause, va, ip, cfxha=MODE_H, sub=0, **extra):
+    exp = {"exit": EXIT_PASS, "rd10": cause_id_expect(cause, sub), "rd11": va,
+           "rd12": ip, "syncn%d" % cfxha: 1,
+           "cid%d" % cfxha: cause_id_expect(cause, sub)}
     exp.update(extra)
     return exp
 
@@ -581,7 +602,7 @@ def _spf_frag1_fault():
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip, sub=DSPFTRAP)
 
 
 @case("spf_frag0_fault", "superpage SPF bit for VA[28:26]=0 clear -> CFXMEM")
@@ -596,7 +617,7 @@ def _spf_frag0_fault():
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip, sub=DSPFTRAP)
 
 
 @case("gpf_frag1_ok", "normal page GPF bit for VA[15:13]=1 present -> access ok")
@@ -625,7 +646,7 @@ def _gpf_frag0_fault():
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip, sub=DGPFTRAP)
 
 
 # -- page misses ------------------------------------------------------------
@@ -640,7 +661,7 @@ def _l1_p0_dgtrap():
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip, sub=DGPTRAP)
 
 
 @case("l1_p0_isptrap", "L1 P=0 SP=1 fetch -> CFXMEM")
@@ -653,7 +674,7 @@ def _l1_p0_isptrap():
     p += load_rb(3, va)
     p.append(jump_rrii(3, 0, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, va)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, va, sub=ISPTRAP)
 
 
 @case("l2_p0_igtrap", "L2 P=0 fetch -> CFXMEM")
@@ -667,7 +688,7 @@ def _l2_p0_igtrap():
     p += load_rb(3, va)
     p.append(jump_rrii(3, 0, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, va)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, va, sub=IGPTRAP)
 
 
 @case("l2_p0_dgtrap", "L2 P=0 -> CFXMEM (store path)")
@@ -683,7 +704,7 @@ def _l2_p0_dgtrap():
     ip = fault_at(p)
     p.append(st_o(4, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip, sub=DGPTRAP)
 
 
 # -- HSJU: four run modes ---------------------------------------------------
@@ -703,7 +724,7 @@ def _hsju_case(mode, ok):
         if ok:
             exp = {"exit": EXIT_PASS, "rd5": MAGIC}
         else:
-            exp = fault_expect(C_CFXPERM, va, ip)
+            exp = fault_expect(C_CFXPERM, va, ip, sub=HSJU_SUB[mode])
     else:
         setup_mode_handler(p, target_ha, mode)
         p.append(trap(target_ha, 0))
@@ -711,7 +732,8 @@ def _hsju_case(mode, ok):
         if ok:
             exp = {"exit": EXIT_PASS, "rd5": MAGIC, "rd10": 0}
         else:
-            exp = fault_expect(C_CFXPERM, va, MODE_HANDLER + 4, cfxha=mode)
+            exp = fault_expect(C_CFXPERM, va, MODE_HANDLER + 4, cfxha=mode,
+                               sub=HSJU_SUB[mode])
     handlers = monitor_handler_dict()
     if mode != MODE_H:
         handlers[OFF_MODE_HANDLER] = mode_handler(target_ha)
@@ -770,7 +792,7 @@ def _nrperm():
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXPERM, va, ip)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXPERM, va, ip, sub=NRPERM)
 
 
 @case("nwperm", "W=0 store -> CFXPERM")
@@ -785,7 +807,7 @@ def _nwperm():
     ip = fault_at(p)
     p.append(st_o(4, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXPERM, va, ip)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXPERM, va, ip, sub=NWPERM)
 
 
 @case("nxperm", "X=0 fetch -> CFXPERM")
@@ -798,7 +820,7 @@ def _nxperm():
     p += load_rb(3, va)
     p.append(jump_rrii(3, 0, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXPERM, va, va)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXPERM, va, va, sub=NXPERM)
 
 
 # -- exception priority (ADR-0040 D8) --------------------------------------
@@ -813,7 +835,7 @@ def _prio_p0_over_perm():
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip, sub=DGPTRAP)
 
 
 @case("prio_spf_over_perm", "SPF bit 0 + HSJU=0 + R=0 -> CFXMEM")
@@ -827,7 +849,7 @@ def _prio_spf_over_perm():
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip, sub=DSPFTRAP)
 
 
 @case("prio_gpf_over_perm", "GPF bit 0 + HSJU=0 + R=0 -> CFXMEM")
@@ -841,7 +863,7 @@ def _prio_gpf_over_perm():
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip, sub=DGPFTRAP)
 
 
 @case("prio_hsju_over_rwx", "HSJU=0 + R=0 -> CFXPERM (HSJU wins over R)")
@@ -855,7 +877,7 @@ def _prio_hsju_over_rwx():
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXPERM, va, ip)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXPERM, va, ip, sub=NHPERM)
 
 
 @case("prio_l2p_over_perm", "L2 P=0 + HSJU=0 + R=0 -> CFXMEM")
@@ -870,7 +892,7 @@ def _prio_l2p_over_perm():
     ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip)
+    return build_rom(p, monitor_handler_dict()), fault_expect(C_CFXMEM, va, ip, sub=DGPTRAP)
 
 
 # -- regression: ptw_enable=0 still CFXMEM (Step 1 unchanged) ---------------
@@ -890,7 +912,7 @@ def _ptw_off_still_cfxmem():
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
     return build_rom(p, monitor_handler_dict(reptw=True)), \
-        fault_expect(C_CFXMEM, va, ip)
+        fault_expect(C_CFXMEM, va, ip, sub=NONPTW)
 
 
 # ---------------------------------------------------------------------------
@@ -909,9 +931,16 @@ def run_case(name):
             diffs = []
             for k, v in exp.items():
                 av = obs.get(k)
-                if av != v:
-                    diffs.append("%s exp=0x%x got=%s" % (
-                        k, v, ("0x%x" % av) if av is not None else "None"))
+                for mask, want in (v if isinstance(v, list) else [(None, v)]):
+                    if mask is None:
+                        ok = av == want
+                        shown = "exp=0x%x" % want
+                    else:
+                        ok = av is not None and (av & mask) == want
+                        shown = "exp(mask 0x%x)=0x%x" % (mask, want)
+                    if not ok:
+                        diffs.append("%s %s got=%s" % (
+                            k, shown, ("0x%x" % av) if av is not None else "None"))
             if diffs:
                 return False, "; ".join(diffs), exp
             return True, "ok", exp

@@ -134,8 +134,9 @@ programs:
       machine raises CFXPERM into the monitor of the current run mode
       (hypv => cfx_hmon).  hmon records the cause in the fault-record slot and
       resumes after the faulting instruction (TESTCASES-092t §3/§4); the vector
-      requires the recorded cause == CFXPERM (1<<7); pass token 0x21,
-      mismatch 0x71.
+      requires the recorded cause's low 16 bits == CFXPERM (1<<7) — the
+      sub-cause wyde is a separate field (contract-see §6.1.1; ADR-0056 D3),
+      so the vector masks with 0xFFFF; pass token 0x21, mismatch 0x71.
 
   - name: m5_perm_unimpl_cfxreg
     sources: [m5_perm_unimpl_cfxreg.s]

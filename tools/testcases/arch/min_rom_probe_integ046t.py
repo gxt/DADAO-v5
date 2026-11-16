@@ -358,8 +358,15 @@ def load_negative(patch):
     return bytes(img)
 
 
+# `excp_cause_id` is a field register (contract-see §6.1/§6.1.1; ADR-0056 D3):
+# [15:0] is the one-hot big class, the sub-cause sits in its own wyde.
+CAUSE_LOW16 = 0xFFFF
+
+
 def check(checks):
-    bad = {k: v for k, v in checks.items() if v[0] != v[1]}
+    seen = {k: ((v[0] & CAUSE_LOW16) if k.startswith("rd20(fault cause)") and
+                v[0] is not None else v[0], v[1]) for k, v in checks.items()}
+    bad = {k: v for k, v in seen.items() if v[0] != v[1]}
     return (not bad), ("ok" if not bad else "mismatch %r" % bad)
 
 

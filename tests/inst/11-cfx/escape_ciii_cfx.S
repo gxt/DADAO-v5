@@ -268,7 +268,13 @@ __t7_ok:
 	.org	0x16F0
 	@@ case 10：CFXMEM 落点（目标地址 0）
 	__VERIFY_MEM 10, HMON_BASE, 0xE8, 0
-	__CHECK_MEM  10, HMON_BASE, 0xE0, 0x2       @@ CFXMEM（1<<1）
+	LOAD_ADDR rb21, (HMON_BASE + 0xE0)
+	ld.o	rd23, [rb21, 0]
+	set.rd	rd22, 0xFFFF                     @@ 只比大类 cause_id[15:0]
+	and.o	rd23, rd23, rd22                 @@ 依据 ADR-0056 D2 / contract-see
+						@@ §6.1.1：子原因在 wyde2/wyde3，
+						@@ 本断言对象是大类 CFXMEM（1<<1）
+	__CHECK_RD   10, rd23, 0x2
 	jump	[rb0, __next10]
 
 	.org	0x1840

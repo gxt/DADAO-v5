@@ -52,7 +52,10 @@ SHARED_ASM = os.path.join(REPO_ROOT, "tests", "shared", "asm")
 BUILDER = os.path.join(REPO_ROOT, "tools", "testcases", "arch",
                        "build_tiny_bootrom.py")
 
-# spec/DADAO-12 §5.2(二): excp_cause_id is one-hot over the cause bit index.
+# spec/DADAO-12 §5.2(二): excp_cause_id is one-hot over the cause bit index;
+# contract-see §6.1/§6.1.1 (ADR-0056 D3) puts the sub-cause in its own wyde
+# ([63:48] CFXMEM, [47:32] CFXPERM), so only [15:0] is compared here.
+CAUSE_LOW16 = 0xFFFF
 CAUSE_CFXTRAP = 1 << 0
 CAUSE_CFXMEM = 1 << 1
 CAUSE_ILLI = 1 << 8
@@ -302,7 +305,7 @@ def main() -> int:
     # ---- record 0: power -> hmon hand-over (CFXTRAP) --------------------
     handover = recs[0]
     report(handover[0] == 0, "record 0 id", 0, handover[0])
-    report(handover[1] == CAUSE_CFXTRAP, "handover cause_id",
+    report((handover[1] & CAUSE_LOW16) == CAUSE_CFXTRAP, "handover cause_id",
            hex(CAUSE_CFXTRAP), hex(handover[1]))
     report(handover[2] == syms["boot_magic_trap"], "handover cause_ip",
            hex(syms["boot_magic_trap"]), hex(handover[2]))
@@ -330,8 +333,8 @@ def main() -> int:
     for idx, cause, fault, land, info, sentinel in cases:
         rec = recs[idx]
         report(rec[0] == idx, f"record {idx} id", idx, rec[0])
-        report(rec[1] == cause, f"record {idx} cause_id", hex(cause),
-               hex(rec[1]))
+        report((rec[1] & CAUSE_LOW16) == cause, f"record {idx} cause_id",
+               hex(cause), hex(rec[1]))
         # IALIGN is the one cause whose cause_ip is the illegal target itself
         # (spec/DADAO-12 §5.0: IP stays at the illegal address); every other
         # cause records the faulting instruction address.
