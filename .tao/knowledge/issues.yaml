@@ -734,10 +734,10 @@
   scope:
   - qemu
   - spec
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P2】semihosting 指针定为 PA 后，QEMU 的 `SYS_WRITE0`/字符串类路径仍经页表翻译，与规范不符：用户 2026-11-15 裁定「semihosting 参数指针 = PA」（已写进 `spec/Kaiwu §5.2` 与 `contract-semihosting §2`，要求「不经页表翻译」），但 QEMU 侧 `SYS_WRITEC`/`SYS_EXIT` 走 `translate_for_debug`（identity，仅 `[0,2GiB)`∪ROM∪SRAM），`SYS_WRITE0` 先 `target_strlen` 再 `probe_access_flags`（**走页表**）⇒ 开 PTW 后两窗口不相交，`SYS_WRITE0` 无法按 PA 正确取串。另 `translate_for_debug` 注释仍写「DADAO has no MMU」（Vast+PTW 下已过时）。处置：让 semihosting 取参统一走 identity/PA 路径（或明确 VA 与 PA 双支持），同步改注释，并加一条门控（Vast+PTW 下 `SYS_WRITE0` 取串成功）。"
+  status: closed
+  closed_in: M14
+  resolved_by: m14-qemu-002
+  title: "【P2】semihosting 指针定为 PA 后，QEMU 的 `SYS_WRITE0`/字符串类路径仍经页表翻译，与规范不符：用户 2026-11-15 裁定「semihosting 参数指针 = PA」（已写进 `spec/Kaiwu §5.2` 与 `contract-semihosting §2`，要求「不经页表翻译」），但 QEMU 侧 `SYS_WRITEC`/`SYS_EXIT` 走 `translate_for_debug`（identity，仅 `[0,2GiB)`∪ROM∪SRAM），`SYS_WRITE0` 先 `target_strlen` 再 `probe_access_flags`（**走页表**）⇒ 开 PTW 后两窗口不相交，`SYS_WRITE0` 无法按 PA 正确取串。另 `translate_for_debug` 注释仍写「DADAO has no MMU」（Vast+PTW 下已过时）。处置：让 semihosting 取参统一走 identity/PA 路径（或明确 VA 与 PA 双支持），同步改注释，并加一条门控（Vast+PTW 下 `SYS_WRITE0` 取串成功）。（2026-11-17 核实：QEMU 侧 `SYS_WRITE0`/`SYS_OPEN` 已由 `m14-qemu-002` 按 PA 落地、注释亦已订正；`m14-qemu-007` 只补长串覆盖与最后一处注释）"
 - id: ISS-451
   scope:
   - qemu

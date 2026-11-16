@@ -14,6 +14,17 @@
 - **QEMU 现状**：`SYS_WRITEC`/`SYS_EXIT` 走 `translate_for_debug`（identity，仅 `[0,2GiB)` ∪ ROM ∪ SRAM），但 **`SYS_WRITE0` 先 `target_strlen` 再 `probe_access_flags`**，**走页表** ⇒ 开 PTW 后两窗口不相交，`SYS_WRITE0` 无法按 PA 正确取串；
 - 另：`translate_for_debug` 的注释仍写「DADAO has no MMU」，在 Vast + PTW 下已过时。
 
+
+## 前提订正（主会话失误，2026-11-17）
+
+本任务书的「背景」依据 `ISS-450` 的**旧描述**（`SYS_WRITE0` 走页表），但该问题**已被 `m14-qemu-002` 修掉**（`common_semi_strlen()` 钩子 + `dadao` 强定义按 PA 逐块读），`translate_for_debug` 的「no MMU」注释亦彼时订正。**立册前未核现状，属主会话失误。**
+
+本任务实际交付（仍有价值，非重复实现）：
+
+- **补 K14 的覆盖面缺口**：新增 640 B 长串（跨 3 个 256 B 块、起点在块内 48 B 处）的 `SYS_WRITE0` 断言 ⇒ 能把"只读首块"或"窗口上界截断"这类错误判红（3 路注入已证独立判别力）；
+- **收掉最后一处过时注释**（`dadao_cpu_mmu_index()` 的 `M1: no MMU, single index`）；
+- 判据：`check-linux-k1` 111→**112/112**、K14 由 3 条扩到 **7** 条。
+
 ## 目标
 
 1. **字符串类取参统一按 PA**：`SYS_WRITE0`（及同类字符串获取路径）**不经页表翻译**；复用 `m14-qemu-004` 已建立的 PA 口径（`dadao_cpu_va_to_pa` / identity 窗口判定之一，**优先复用**，不另造第二套换算）；
