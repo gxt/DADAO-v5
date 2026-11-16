@@ -833,3 +833,10 @@
   closed_in: null
   resolved_by: null
   title: "【P2】「同组件单写者」按**组件**划分不够，实际冲突发生在**共享构建树**：非 linux 组件任务（如 `m14-qemu-006` 跑 `k2_*` 探针）同样会写 `.work/build/linux/.config` 与内核镜像 ⇒ 与 linux 任务并行时互相打红（`make_defconfig …did not survive olddefconfig`、K1 镜像混入他人的 `CONFIG_DADAO_K2_SELFTEST_UNKNOWN=y`）。`m14-linux-011` 复核实测 3 次 `--gates` 有 2 次因此红，只能等安静窗口重跑。处置：把「单写者」的粒度从组件改为**构建树**（linux 构建树 = 独占资源，凡会 `make_defconfig`/`build-linux` 的任务都必须串行或按 build-root 分目录）。"
+- id: ISS-463
+  scope:
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】在途任务的**共享源树**推进会让 master 上的 `check-patch-tree` 假红：任务分支的 engineer/reviewer 在 `.work/source/<组件>` 里构建时把源树 HEAD 推到**分支的补丁集**，而 master 的 `components/<组件>/patches/` 还停在上一版 ⇒ assertion ⑨「local commit does not match the patch set」+ ⑥「patched-index blob differs from the source worktree」双红，且 `.git status` 是**干净**的（不是脏树，靠“源树是否脏”分辨不出来）。实测：`m14-qemu-003` 在途时（源树 `03186ab` vs master 补丁集）`check-patch-tree` 2 problem；该任务合入后自动回绿。与 `ISS-462`（`.work/build` 的 `.config` 冲突）同族但现象不同。处置候选：① 接受为在途正常态（在 L1 报告里标注“属在途任务”）；② 门控按“源树 HEAD 是否等于某个分支的补丁集”判定并把归属任务号打出来；③ 任务改用独立 build-root/source 根（根治，成本高）。"
