@@ -749,10 +749,10 @@
 - id: ISS-452
   scope:
   - qemu
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P3】`SYS_READC` 的取字缓冲用 `common_semi_stack_bottom(cs) - 1`：该值在 Vast 下是**内核 SP（VA）**，而 semihosting 现已定为 PA 口径（`spec/Kaiwu §5.2`）⇒ 应改为该栈底槽位的 **PA**（`__pa` 化），或改用不落在内核栈的专用 PA 缓冲。同族还有 `SYS_FLEN` 的内部缓冲（`SP-64`，同为 VA）；`m14-qemu-002` 复核时发现，K1 未用这两条服务，故当前无观测差异。处置：与 semihosting PA 口径一致性一起修（取字/取缓冲改 PA），并补 Vast+PTW 下的 `SYS_READC`/`SYS_FLEN` 断言。"
+  status: closed
+  closed_in: M14
+  resolved_by: m14-qemu-004
+  title: "【P3】`SYS_READC` 的取字缓冲用 `common_semi_stack_bottom(cs) - 1`：该值在 Vast 下是**内核 SP（VA）**，而 semihosting 现已定为 PA 口径（`spec/Kaiwu §5.2`）⇒ 应改为该栈底槽位的 **PA**（`__pa` 化），或改用不落在内核栈的专用 PA 缓冲。同族还有 `SYS_FLEN` 的内部缓冲（`SP-64`，同为 VA）；`m14-qemu-002` 复核时发现，K1 未用这两条服务，故当前无观测差异。处置：与 semihosting PA 口径一致性一起修（取字/取缓冲改 PA），并补 Vast+PTW 下的 `SYS_READC`/`SYS_FLEN` 断言。（2026-11-17 核实：`m14-qemu-004` 已把 READC/FLEN 取字缓冲改按 PA 并合入）"
 - id: ISS-453
   scope:
   - chipyard
@@ -774,10 +774,10 @@
   - spec
   - qemu
   - linux
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P2】中断源轴 mask 查**哪一行**三处口径不一致：`spec/DADAO-12 §5.2` 步骤 3 写「源轴查 *mode monitor* 的 `cfx_intr_mask`」（即按运行模式选行），而 `ADR-0045 D3` / `contract-see §6.4` 与 QEMU 实现是**查当前 cfx 的行**。`m14-linux-007` 复核实测：首投后当前 cfx=15（`escape` 不恢复 `inner_cfx_code`，见 `ISS-454`），只开 `cfx_smon` 一行时仅 1 个 tick ⇒ 两读法在首投后**行为不同**（非同义）。现实现「两行都开」对两读法皆成立、无副作用，但不解决口径。处置：定 one 读法（建议按 spec 字面 = 按运行模式选行，再核对 QEMU 是否需要改），同步 `ADR-0045 D3`/`contract-see §6.4` 与 `m14-linux-008` 的 `local_irq_*` 口径。"
+  status: closed
+  closed_in: M14
+  resolved_by: m14-qemu-003
+  title: "【P2】中断源轴 mask 查**哪一行**三处口径不一致：`spec/DADAO-12 §5.2` 步骤 3 写「源轴查 *mode monitor* 的 `cfx_intr_mask`」（即按运行模式选行），而 `ADR-0045 D3` / `contract-see §6.4` 与 QEMU 实现是**查当前 cfx 的行**。`m14-linux-007` 复核实测：首投后当前 cfx=15（`escape` 不恢复 `inner_cfx_code`，见 `ISS-454`），只开 `cfx_smon` 一行时仅 1 个 tick ⇒ 两读法在首投后**行为不同**（非同义）。现实现「两行都开」对两读法皆成立、无副作用，但不解决口径。处置：定 one 读法（建议按 spec 字面 = 按运行模式选行，再核对 QEMU 是否需要改），同步 `ADR-0045 D3`/`contract-see §6.4` 与 `m14-linux-008` 的 `local_irq_*` 口径。（2026-11-17 核实：`m14-qemu-003` 源轴改按运行模式 monitor 行并合入；内核侧收敛在 `m14-linux-010`）"
 - id: ISS-456
   scope:
   - infra
