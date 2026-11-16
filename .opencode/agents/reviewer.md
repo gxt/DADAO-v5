@@ -1,7 +1,7 @@
 ---
 description: 审查者子代理（reviewer）：独立验证子代理产出，重跑验收命令，判定 Accepted/Needs Revision。用于任务交付验收环节。
 mode: subagent
-model: xiaomi-token-plan/mimo-v2.6-flash
+model: xiaomi-token-plan/mimo-v2.6-pro
 permissions:
   # 子代理不得直接向用户提问：需要裁定的问题写进任务书并返回主会话（用户 2026-11-10）
   - action: question
