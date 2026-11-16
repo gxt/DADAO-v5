@@ -16,46 +16,11 @@
 @@   保留粒度平台分歧 / 存储序强度 / sc 偶发失败 —— 均不写用例、不伪造
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/12-misc/12-misc.inc"
 
-@@ 数据区（TEST_DATA 零区；每例独立 8 B 拍，例间不共享可写字节）
-	.equ A0, TEST_DATA + 0x500
-	.equ A1, TEST_DATA + 0x508
-	.equ A2, TEST_DATA + 0x510
-	.equ A3, TEST_DATA + 0x518
-	.equ A4, TEST_DATA + 0x520
-	.equ A5, TEST_DATA + 0x528
-	.equ A6, TEST_DATA + 0x530
-	.equ A7, TEST_DATA + 0x538
-	.equ A8, TEST_DATA + 0x540
-	.equ A9, TEST_DATA + 0x548
-	.equ A10, TEST_DATA + 0x550
-	.equ A11, TEST_DATA + 0x558
-	.equ A12, TEST_DATA + 0x560
-	.equ A13, TEST_DATA + 0x568
-	.equ A14, TEST_DATA + 0x570
-	.equ A15, TEST_DATA + 0x578
-	.equ A16, TEST_DATA + 0x580
-	.equ A17, TEST_DATA + 0x588
-	.equ B0, TEST_DATA + 0x600
-	.equ B1, TEST_DATA + 0x608
-	.equ B2, TEST_DATA + 0x610
-	.equ B3, TEST_DATA + 0x618
-	.equ B4, TEST_DATA + 0x620
-	.equ B5, TEST_DATA + 0x628
-	.equ B6, TEST_DATA + 0x630
-	.equ B7, TEST_DATA + 0x638
-	.equ B8, TEST_DATA + 0x640
-	.equ B9, TEST_DATA + 0x648
-	.equ B10, TEST_DATA + 0x650
-	.equ B11, TEST_DATA + 0x658
-	.equ B12, TEST_DATA + 0x660
-	.equ B13, TEST_DATA + 0x668
-	.equ B14, TEST_DATA + 0x670
-	.equ B15, TEST_DATA + 0x678
-	.equ B16, TEST_DATA + 0x680
-	.equ B17, TEST_DATA + 0x688
-	.equ L, TEST_DATA + 0x7E8        @@ 数据区末拍（末字 0x7F0）
-	.equ SCR, TEST_DATA + 0x7F8      @@ 清标记落点（全 0 拍）
+@@ 数据区（TEST_DATA 零区；每例独立 8 B 拍，例间不共享可写字节）：
+@@   A0..A17 / B0..B17 / L / SCR 在册宏层 `tests/inst/12-misc/12-misc.inc`（单源）；
+@@   本文件只补**宽度专属**的「故意不对齐」地址 LMAL（.w/.t/.o 的 MALIGN 例）。
 	.equ LMAL, TEST_DATA + 0x7f1     @@ 故意不对齐（.w/.t/.o 的 MALIGN 例）
 
 	__TEST_BEGIN

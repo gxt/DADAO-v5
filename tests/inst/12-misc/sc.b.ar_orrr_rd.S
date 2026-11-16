@@ -16,71 +16,27 @@
 @@   保留粒度平台分歧 / 存储序强度 / sc 偶发失败 —— 均不写用例、不伪造
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/12-misc/12-misc.inc"
 
-@@ 数据区（TEST_DATA 零区；每例独立 8 B 拍，例间不共享可写字节）
-	.equ A0, TEST_DATA + 0x500
-	.equ A1, TEST_DATA + 0x508
-	.equ A2, TEST_DATA + 0x510
-	.equ A3, TEST_DATA + 0x518
-	.equ A4, TEST_DATA + 0x520
-	.equ A5, TEST_DATA + 0x528
-	.equ A6, TEST_DATA + 0x530
-	.equ A7, TEST_DATA + 0x538
-	.equ A8, TEST_DATA + 0x540
-	.equ A9, TEST_DATA + 0x548
-	.equ A10, TEST_DATA + 0x550
-	.equ A11, TEST_DATA + 0x558
-	.equ A12, TEST_DATA + 0x560
-	.equ A13, TEST_DATA + 0x568
-	.equ A14, TEST_DATA + 0x570
-	.equ A15, TEST_DATA + 0x578
-	.equ A16, TEST_DATA + 0x580
-	.equ A17, TEST_DATA + 0x588
-	.equ B0, TEST_DATA + 0x600
-	.equ B1, TEST_DATA + 0x608
-	.equ B2, TEST_DATA + 0x610
-	.equ B3, TEST_DATA + 0x618
-	.equ B4, TEST_DATA + 0x620
-	.equ B5, TEST_DATA + 0x628
-	.equ B6, TEST_DATA + 0x630
-	.equ B7, TEST_DATA + 0x638
-	.equ B8, TEST_DATA + 0x640
-	.equ B9, TEST_DATA + 0x648
-	.equ B10, TEST_DATA + 0x650
-	.equ B11, TEST_DATA + 0x658
-	.equ B12, TEST_DATA + 0x660
-	.equ B13, TEST_DATA + 0x668
-	.equ B14, TEST_DATA + 0x670
-	.equ B15, TEST_DATA + 0x678
-	.equ B16, TEST_DATA + 0x680
-	.equ B17, TEST_DATA + 0x688
-	.equ L, TEST_DATA + 0x7E8        @@ 数据区末拍（末字 0x7F0）
-	.equ SCR, TEST_DATA + 0x7F8      @@ 清标记落点（全 0 拍）
+@@ 数据区（TEST_DATA 零区；每例独立 8 B 拍，例间不共享可写字节）：
+@@   A0..A17 / B0..B17 / L / SCR 在册宏层 `tests/inst/12-misc/12-misc.inc`（单源）；
+@@   本文件只补**宽度专属**的「故意不对齐」地址 LMAL（.w/.t/.o 的 MALIGN 例）。
 	.equ LMAL, TEST_DATA + 0x7f1     @@ 故意不对齐（.w/.t/.o 的 MALIGN 例）
 
 	__TEST_BEGIN
 
 	@@ ---- encoding：规范编码字直接执行（opc 0x47 + ha + hb=rd5 位域） ----
 	@@! inputs: kind=sc-enc sym=A17 k=0 init=0x0123456789ABCDEF enc=0x476c5083
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A17
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A17
-	lr.b.nn	rd2, [rb3]
-	__LI	rd2, 0xDEADBEEFCAFEF00D
+	__PT_LRSC_LD	lr.b.nn, rd2, A17, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D
 	.dd.t32 0x476c5083
 	__CHECK_RD 1, rd5, 0x0000000000000000
 	__VERIFY_MEM 1, A17, 0, 0x0D23456789ABCDEF
 
 	@@ ---- encoding：无保留标记 ⇒ rdHB=1 且不写内存 ----
 	@@! inputs: kind=sc sym=A0 k=0 init=0x0123456789ABCDEF src=0xDEADBEEFCAFEF00D resv=none
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A0
-	st.o	rd6, [rb3, 0]
+	__PT_ST_INIT	A0, 0x0123456789ABCDEF
 	@@ 清保留标记：lr SCR 后 sc SCR（成功消费，SCR 写 0）
-	LOAD_ADDR rb5, SCR
-	lr.b.nn	rd2, [rb5]
-	sc.b.ar	rd5, rd2, [rb5]
+	__PT_LRSC_CLEAR	lr.b.nn, sc.b.ar
 	LOAD_ADDR rb3, A0
 	__LI	rd2, 0xDEADBEEFCAFEF00D
 	sc.b.ar	rd5, rd2, [rb3]
@@ -89,21 +45,14 @@
 
 	@@ ---- semantic：命中标记 ⇒ rdHB=0，仅宽度窗口被写 ----
 	@@! inputs: kind=sc sym=A1 k=0 init=0x0123456789ABCDEF src=0xDEADBEEFCAFEF00D resv=same
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A1
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A1
-	lr.b.nn	rd2, [rb3]
-	__LI	rd2, 0xDEADBEEFCAFEF00D
+	__PT_LRSC_LD	lr.b.nn, rd2, A1, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D
 	sc.b.ar	rd5, rd2, [rb3]
 	__CHECK_RD 3, rd5, 0x0000000000000000
 	__VERIFY_MEM 3, A1, 0, 0x0D23456789ABCDEF
 
 	@@ ---- semantic：sc 写回同值 ⇒ 成功且字节不变 ----
 	@@! inputs: kind=sc sym=A2 k=0 init=0xFEDCBA9876543210 src=load resv=same
-	__LI	rd6, 0xFEDCBA9876543210
-	LOAD_ADDR rb3, A2
-	st.o	rd6, [rb3, 0]
+	__PT_ST_INIT	A2, 0xFEDCBA9876543210
 	LOAD_ADDR rb3, A2
 	lr.b.nn	rd2, [rb3]
 	sc.b.ar	rd5, rd2, [rb3]
@@ -112,15 +61,7 @@
 
 	@@ ---- semantic：标记在 A、sc 指向 B（不同 8 B 字）⇒ 失败且都不写 ----
 	@@! inputs: kind=sc@B sym=A3/B3 k=0 init=0x0123456789ABCDEF/0x0F1E2D3C4B5A6978 resv=A
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A3
-	st.o	rd6, [rb3, 0]
-	__LI	rd6, 0x0F1E2D3C4B5A6978
-	LOAD_ADDR rb3, B3
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A3
-	lr.b.nn	rd2, [rb3]
-	__LI	rd2, 0xDEADBEEFCAFEF00D
+	__PT_LRSC_LD2	lr.b.nn, rd2, A3, B3, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D
 	LOAD_ADDR rb4, B3
 	sc.b.ar	rd5, rd2, [rb4]
 	__CHECK_RD 5, rd5, 0x0000000000000001
@@ -129,30 +70,14 @@
 
 	@@ ---- semantic：lr A 后 lr B ⇒ A 的标记被清，sc A 失败 ----
 	@@! inputs: kind=sc@A sym=A4/B4 k=0 init=0x0123456789ABCDEF resv=other
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A4
-	st.o	rd6, [rb3, 0]
-	__LI	rd6, 0xFEDCBA9876543210
-	LOAD_ADDR rb3, B4
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A4
-	lr.b.nn	rd2, [rb3]
-	LOAD_ADDR rb3, B4
-	lr.b.nn	rd2, [rb3]
-	LOAD_ADDR rb3, A4
-	__LI	rd2, 0xDEADBEEFCAFEF00D
+	__PT_LRSC_LD2L	lr.b.nn, rd2, A4, B4, rb3, 0x0123456789ABCDEF, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D
 	sc.b.ar	rd5, rd2, [rb3]
 	__CHECK_RD 6, rd5, 0x0000000000000001
 	__VERIFY_MEM 6, A4, 0, 0x0123456789ABCDEF
 
 	@@ ---- semantic：sc 成功后标记已消费 ⇒ 第二次 sc 失败，保留首次写 ----
 	@@! inputs: kind=sc;sc sym=A5 k=0 init=0x0123456789ABCDEF src=0x5A5A5A5A5A5A5A5A,0xDEADBEEFCAFEF00D
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A5
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A5
-	lr.b.nn	rd2, [rb3]
-	__LI	rd2, 0x5A5A5A5A5A5A5A5A
+	__PT_LRSC_LD	lr.b.nn, rd2, A5, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A
 	sc.b.ar	rd5, rd2, [rb3]
 	__VERIFY_RD 6, rd5, 0x0000000000000000
 	__LI	rd2, 0xDEADBEEFCAFEF00D
@@ -162,15 +87,7 @@
 
 	@@ ---- semantic：失败的 sc 清全部标记 ⇒ 随后 sc 原地址仍失败 ----
 	@@! inputs: kind=sc@B(fail);sc@A sym=A6/B6 k=0 init=0x0123456789ABCDEF
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A6
-	st.o	rd6, [rb3, 0]
-	__LI	rd6, 0x0F1E2D3C4B5A6978
-	LOAD_ADDR rb3, B6
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A6
-	lr.b.nn	rd2, [rb3]
-	__LI	rd2, 0xDEADBEEFCAFEF00D
+	__PT_LRSC_LD2	lr.b.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D
 	LOAD_ADDR rb4, B6
 	sc.b.ar	rd5, rd2, [rb4]
 	LOAD_ADDR rb3, A6
@@ -180,85 +97,51 @@
 
 	@@ ---- boundary：全 1 源/拍 ⇒ 成功且仍全 1 ----
 	@@! inputs: kind=sc sym=A7 k=0 init=all1 src=all1
-	__LI	rd6, 0xFFFFFFFFFFFFFFFF
-	LOAD_ADDR rb3, A7
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A7
-	lr.b.nn	rd2, [rb3]
-	__LI	rd2, 0xFFFFFFFFFFFFFFFF
+	__PT_LRSC_LD	lr.b.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF
 	sc.b.ar	rd5, rd2, [rb3]
 	__CHECK_RD 9, rd5, 0x0000000000000000
 	__VERIFY_MEM 9, A7, 0, 0xFFFFFFFFFFFFFFFF
 
 	@@ ---- boundary：零源 ⇒ 仅宽度窗口清零 ----
 	@@! inputs: kind=sc sym=A8 k=0 init=0x0123456789ABCDEF src=0
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A8
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A8
-	lr.b.nn	rd2, [rb3]
-	__LI	rd2, 0
+	__PT_LRSC_LD	lr.b.nn, rd2, A8, 0x0123456789ABCDEF, 0
 	sc.b.ar	rd5, rd2, [rb3]
 	__CHECK_RD 10, rd5, 0x0000000000000000
 	__VERIFY_MEM 10, A8, 0, 0x0023456789ABCDEF
 
 	@@ ---- boundary：源高位在宽度外 ⇒ 只并低 8w 位 ----
 	@@! inputs: kind=sc sym=A9 k=0 init=0x0123456789ABCDEF src=0xDEADBEEFCAFEF00D
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A9
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A9
-	lr.b.nn	rd2, [rb3]
-	__LI	rd2, 0xDEADBEEFCAFEF00D
+	__PT_LRSC_LD	lr.b.nn, rd2, A9, 0x0123456789ABCDEF, 0xDEADBEEFCAFEF00D
 	sc.b.ar	rd5, rd2, [rb3]
 	__CHECK_RD 11, rd5, 0x0000000000000000
 	__VERIFY_MEM 11, A9, 0, 0x0D23456789ABCDEF
 
 	@@ ---- boundary：窗口贴 8 B 字尾的合并写入 ----
 	@@! inputs: kind=sc sym=A10 k=7 init=0xFEDCBA9876543210 src=0x5A5A5A5A5A5A5A5A
-	__LI	rd6, 0xFEDCBA9876543210
-	LOAD_ADDR rb3, A10
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A10 + 7
-	lr.b.nn	rd2, [rb3]
-	__LI	rd2, 0x5A5A5A5A5A5A5A5A
+	__PT_LRSC_LD	lr.b.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 7
 	sc.b.ar	rd5, rd2, [rb3]
 	__CHECK_RD 12, rd5, 0x0000000000000000
 	__VERIFY_MEM 12, A10, 0, 0xFEDCBA987654325A
 
 	@@ ---- boundary：数据区末拍的 sc（地址上界） ----
 	@@! inputs: kind=sc sym=L k=0 init=0x0F1E2D3C4B5A6978 src=0xDEADBEEFCAFEF00D
-	__LI	rd6, 0x0F1E2D3C4B5A6978
-	LOAD_ADDR rb3, L
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, L
-	lr.b.nn	rd2, [rb3]
-	__LI	rd2, 0xDEADBEEFCAFEF00D
+	__PT_LRSC_LD	lr.b.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D
 	sc.b.ar	rd5, rd2, [rb3]
 	__CHECK_RD 13, rd5, 0x0000000000000000
 	__VERIFY_MEM 13, L, 0, 0x0D1E2D3C4B5A6978
 
 	@@ ---- overlap：rdHB == rdHC（源=结果）⇒ 源先读、结果后写 ----
 	@@! inputs: kind=sc(rd5,rd5) sym=A11 k=0 init=0x0123456789ABCDEF src=0x5A5A5A5A5A5A5A5A
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A11
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A11
-	lr.b.nn	rd2, [rb3]
-	__LI	rd5, 0x5A5A5A5A5A5A5A5A
+	__PT_LRSC_LD	lr.b.nn, rd5, A11, 0x0123456789ABCDEF, 0x5A5A5A5A5A5A5A5A
 	sc.b.ar	rd5, rd5, [rb3]
 	__CHECK_RD 14, rd5, 0x0000000000000000
 	__VERIFY_MEM 14, A11, 0, 0x5A23456789ABCDEF
 
 	@@ ---- overlap：rdHB == rdHC 且无标记 ⇒ 失败且不写 ----
 	@@! inputs: kind=sc(rd5,rd5) sym=A12 k=0 init=0x0123456789ABCDEF resv=none
-	__LI	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A12
-	st.o	rd6, [rb3, 0]
+	__PT_ST_INIT	A12, 0x0123456789ABCDEF
 	@@ 清保留标记：lr SCR 后 sc SCR（成功消费，SCR 写 0）
-	LOAD_ADDR rb5, SCR
-	lr.b.nn	rd2, [rb5]
-	sc.b.ar	rd5, rd2, [rb5]
+	__PT_LRSC_CLEAR	lr.b.nn, sc.b.ar
 	LOAD_ADDR rb3, A12
 	__LI	rd5, 0xDEADBEEFCAFEF00D
 	sc.b.ar	rd5, rd5, [rb3]
@@ -267,12 +150,7 @@
 
 	@@ ---- semantic：另一对齐偏移的 sc 合并位置 ----
 	@@! inputs: kind=sc sym=A13 k=1 init=0xFEDCBA9876543210 src=0xDEADBEEFCAFEF00D
-	__LI	rd6, 0xFEDCBA9876543210
-	LOAD_ADDR rb3, A13
-	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A13 + 1
-	lr.b.nn	rd2, [rb3]
-	__LI	rd2, 0xDEADBEEFCAFEF00D
+	__PT_LRSC_LD	lr.b.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 1
 	sc.b.ar	rd5, rd2, [rb3]
 	__CHECK_RD 16, rd5, 0x0000000000000000
 	__VERIFY_MEM 16, A13, 0, 0xFE0DBA9876543210

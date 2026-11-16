@@ -22,6 +22,7 @@
 @@   功能级无观测点；② 「不占用额外指令带宽」只能由「IP 每次 +4」间接反映（本文件已覆盖）
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/12-misc/12-misc.inc"
 
 @@ 数据区（TEST_DATA 零区；每例独立 8 B 拍）
 	.equ S0, TEST_DATA + 0x500

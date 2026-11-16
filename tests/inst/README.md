@@ -27,7 +27,7 @@
 | `base/`（已删） | 原 YAML 向量目录（`TESTCASES-003t`~`007t` 生成；**YAML 已全退役**，`m13-testcases-043`） |
 | `MIGRATION.md` | YAML → 汇编+宏 的迁移台账（大类/小类/用例模板/任务拆分/删除规则） |
 | `macros/inst_test.inc` | **跨册**共享宏层（`__LI`/`__EXIT`/`__CHECK_*`/`__FAULT_GUARD`/`TEST_FAULT_ENC`/`TEST_AR_ORRR` 等，期望值内联）；只放 **≥2 个册**用到的宏（`m15-testcases-002`） |
-| `<册>/<册>.inc` | **册专用**宏层（`01-load-store`…`07-floating-point` 各一份）；只放本册用的宏，由该册各 `.S` 在共享层之后 `.include` |
+| `<册>/<册>.inc` | **册专用**宏层（`01-load-store`…`07-floating-point`、`12-misc` 各一份）；只放本册用的宏与数据区布局，由该册各 `.S` 在共享层之后 `.include`（`12-misc` 的数据区与 `lr/sc` 准备段见 `m15-testcases-003`） |
 | `01-load-store/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（单元素 `ld.*`/`st.*`，19 个；含 `st.o rb0`（IP 作源/作基址）与 `ld.o ra0`（RAS 窗口读写）补测） |
 | `01-load-store/inst-tiny.lds` | 上面这册的链接布局（固定段地址 + ASSERT 钉住）；`02-reg-copy`/`03-wyde-imm` 复用同一布局 |
 | `02-reg-copy/*.S` | 已迁移的汇编载体：一个 opcode id 一个文件（块复制 9 + `cs.*` 8，共 17 个） |

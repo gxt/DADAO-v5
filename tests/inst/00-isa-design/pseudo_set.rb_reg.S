@@ -24,41 +24,44 @@
 
 	.include "tests/inst/macros/inst_test.inc"
 
+@@ ---- 文件专用宏（m15-testcases-003 收敛；只被本文件使用）----
+@@ `set.rb rb, rs` 一个用例的准备段：源值装载（rd 源用 `__LI`、rb 源用 `__LI_RB`）
+@@   → 伪指令展开 → 目的落 SCRATCH（`st.o` + `__CHECK_MEM` 的整 64 位判据）。
+@@   点号行（`__CHECK_MEM`）留在用例处 ⇒ 失败点号 = 用例序号在文件里直接可见。
+@@   参数 = 源寄存器, 目的寄存器, 源值（源与目的不同名 ⇒ 与用例「不同名」口径一致）。
+.macro __PT_SET_RB_RD src, dst, val
+	__LI	\src, \val
+	set.rb	\dst, \src
+	st.o	\dst, [rb29, 0]
+.endm
+
+.macro __PT_SET_RB_RB src, dst, val
+	__LI_RB	\src, \val
+	set.rb	\dst, \src
+	st.o	\dst, [rb29, 0]
+.endm
+
 	__TEST_BEGIN
 
 	@@ ---- semantic：rd2rb（源值高半非零）----
-	__LI	rd5, 0xDEADBEEFCAFEBABE
-	set.rb	rb5, rd5
-	st.o	rb5, [rb29, 0]
+	__PT_SET_RB_RD	rd5, rb5, 0xDEADBEEFCAFEBABE
 	__CHECK_MEM          1, SCRATCH, 0, 0xDEADBEEFCAFEBABE
-	__LI	rd6, 0x0123456789ABCDEF
-	set.rb	rb6, rd6
-	st.o	rb6, [rb29, 0]
+	__PT_SET_RB_RD	rd6, rb6, 0x0123456789ABCDEF
 	__CHECK_MEM          2, SCRATCH, 0, 0x0123456789ABCDEF
 	@@ 高 32 全 1、低 32 全 0
-	__LI	rd7, 0xFFFFFFFF00000000
-	set.rb	rb7, rd7
-	st.o	rb7, [rb29, 0]
+	__PT_SET_RB_RD	rd7, rb7, 0xFFFFFFFF00000000
 	__CHECK_MEM          3, SCRATCH, 0, 0xFFFFFFFF00000000
 	@@ 只有 wp1
-	__LI	rd8, 0x00000000CAFE0000
-	set.rb	rb8, rd8
-	st.o	rb8, [rb29, 0]
+	__PT_SET_RB_RD	rd8, rb8, 0x00000000CAFE0000
 	__CHECK_MEM          4, SCRATCH, 0, 0x00000000CAFE0000
 	@@ 只有 wp0
-	__LI	rd9, 0x000000000000BABE
-	set.rb	rb9, rd9
-	st.o	rb9, [rb29, 0]
+	__PT_SET_RB_RD	rd9, rb9, 0x000000000000BABE
 	__CHECK_MEM          5, SCRATCH, 0, 0x000000000000BABE
 	@@ 只有 wp3
-	__LI	rd10, 0xDEAD000000000000
-	set.rb	rb10, rd10
-	st.o	rb10, [rb29, 0]
+	__PT_SET_RB_RD	rd10, rb10, 0xDEAD000000000000
 	__CHECK_MEM          6, SCRATCH, 0, 0xDEAD000000000000
 	@@ 只有 wp2
-	__LI	rd11, 0x0000BEEF00000000
-	set.rb	rb11, rd11
-	st.o	rb11, [rb29, 0]
+	__PT_SET_RB_RD	rd11, rb11, 0x0000BEEF00000000
 	__CHECK_MEM          7, SCRATCH, 0, 0x0000BEEF00000000
 	@@ rd0 恒 0 ⇒ 整 64 位写 0（源 rd0 合法：只读、读出 0）
 	set.rb	rb12, rd0
@@ -66,66 +69,42 @@
 	__CHECK_MEM          8, SCRATCH, 0, 0x0000000000000000
 
 	@@ ---- semantic：rb2rb（源值高半非零）----
-	__LI_RB	rb25, 0xDEADBEEFCAFEBABE
-	set.rb	rb13, rb25
-	st.o	rb13, [rb29, 0]
+	__PT_SET_RB_RB	rb25, rb13, 0xDEADBEEFCAFEBABE
 	__CHECK_MEM          9, SCRATCH, 0, 0xDEADBEEFCAFEBABE
-	__LI_RB	rb25, 0xFEDCBA9876543210
-	set.rb	rb14, rb25
-	st.o	rb14, [rb29, 0]
+	__PT_SET_RB_RB	rb25, rb14, 0xFEDCBA9876543210
 	__CHECK_MEM         10, SCRATCH, 0, 0xFEDCBA9876543210
 	@@ 只有 wp3
-	__LI_RB	rb25, 0xDEAD000000000000
-	set.rb	rb15, rb25
-	st.o	rb15, [rb29, 0]
+	__PT_SET_RB_RB	rb25, rb15, 0xDEAD000000000000
 	__CHECK_MEM         11, SCRATCH, 0, 0xDEAD000000000000
 	@@ 只有 wp2
-	__LI_RB	rb25, 0x0000BEEF00000000
-	set.rb	rb16, rb25
-	st.o	rb16, [rb29, 0]
+	__PT_SET_RB_RB	rb25, rb16, 0x0000BEEF00000000
 	__CHECK_MEM         12, SCRATCH, 0, 0x0000BEEF00000000
 	@@ 只有 wp1
-	__LI_RB	rb25, 0x00000000CAFE0000
-	set.rb	rb17, rb25
-	st.o	rb17, [rb29, 0]
+	__PT_SET_RB_RB	rb25, rb17, 0x00000000CAFE0000
 	__CHECK_MEM         13, SCRATCH, 0, 0x00000000CAFE0000
 	@@ 只有 wp0
-	__LI_RB	rb25, 0x000000000000BABE
-	set.rb	rb18, rb25
-	st.o	rb18, [rb29, 0]
+	__PT_SET_RB_RB	rb25, rb18, 0x000000000000BABE
 	__CHECK_MEM         14, SCRATCH, 0, 0x000000000000BABE
 	@@ 全 1
-	__LI_RB	rb25, 0xFFFFFFFFFFFFFFFF
-	set.rb	rb19, rb25
-	st.o	rb19, [rb29, 0]
+	__PT_SET_RB_RB	rb25, rb19, 0xFFFFFFFFFFFFFFFF
 	__CHECK_MEM         15, SCRATCH, 0, 0xFFFFFFFFFFFFFFFF
 	@@ 稀疏位：bit63 + bit0
-	__LI_RB	rb25, 0x8000000000000001
-	set.rb	rb19, rb25
-	st.o	rb19, [rb29, 0]
+	__PT_SET_RB_RB	rb25, rb19, 0x8000000000000001
 	__CHECK_MEM         16, SCRATCH, 0, 0x8000000000000001
 
 	@@ ---- boundary：目的寄存器字段上界 rb63（两种源各一例）----
-	__LI	rd12, 0x0000FFFF00000000
-	set.rb	rb63, rd12
-	st.o	rb63, [rb29, 0]
+	__PT_SET_RB_RD	rd12, rb63, 0x0000FFFF00000000
 	__CHECK_MEM         17, SCRATCH, 0, 0x0000FFFF00000000
-	__LI_RB	rb25, 0xA5A55A5A0F0FF0F0
-	set.rb	rb63, rb25
-	st.o	rb63, [rb29, 0]
+	__PT_SET_RB_RB	rb25, rb63, 0xA5A55A5A0F0FF0F0
 	__CHECK_MEM         18, SCRATCH, 0, 0xA5A55A5A0F0FF0F0
 	@@ 低 32 位全 1、高 32 位全 0（wp1+wp0）
-	__LI	rd13, 0x00000000FFFFFFFF
-	set.rb	rb26, rd13
-	st.o	rb26, [rb29, 0]
+	__PT_SET_RB_RD	rd13, rb26, 0x00000000FFFFFFFF
 	__CHECK_MEM         19, SCRATCH, 0, 0x00000000FFFFFFFF
 
 	@@ ---- overlap：源/目的同名不合法（mreg_range_overlap）⇒ 用例一律不同名；
 	@@   此处断言「目的旧值（高半非零）被整体覆盖」----
 	__LI_RB	rb31, 0xFFFFFFFFFFFFFFFF
-	__LI	rd14, 0x0000000000000001
-	set.rb	rb31, rd14
-	st.o	rb31, [rb29, 0]
+	__PT_SET_RB_RD	rd14, rb31, 0x0000000000000001
 	__CHECK_MEM         20, SCRATCH, 0, 0x0000000000000001
 
 	__TEST_END

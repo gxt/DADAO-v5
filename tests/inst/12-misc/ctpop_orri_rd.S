@@ -17,6 +17,7 @@
 @@ 期望来自 spec/SimRISC-12 §3 + contracts/opcodes.yaml + legality_rules.yaml::dst_rd0（不从实现反推）
 
 	.include "tests/inst/macros/inst_test.inc"
+	.include "tests/inst/12-misc/12-misc.inc"
 
 	__TEST_BEGIN
 
