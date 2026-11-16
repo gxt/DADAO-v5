@@ -96,7 +96,7 @@
 
 **已知的硬事实（证据）**
 
-- `run_asm_suite.py` 只支持 `-M dadao-tiny`（L213/225），`platforms:[system]` 的 264 个 `.S` 全在 Tiny 上跑；
+- `run_asm_suite.py` 只支持 `-M kaiwu-tiny`（L213/225），`platforms:[system]` 的 264 个 `.S` 全在 Tiny 上跑；
 - chipyard 只有 `WumingTinyConfig`（无 Vast 实现）；gem5 有 SE/FS；
 - `semantics_gate --profile vast` 的 1015 例是 Vast 唯一执行证据，`testcases-043` 已按裁定**放弃 Vast 执行覆盖**；
 - `machine-profiles.tiny` 注释里「无任何 cfx」是 M12 前口径（现 `hmon: true`），`default_run_mode: machine` 是旧称。
