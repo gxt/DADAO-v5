@@ -9,7 +9,8 @@
 M16 的定位是「gem5 时序模型对齐 chipyard-wuming，范围只做 Timing」。`m16-gem5-006` 落地时遇到一条硬事实：
 
 - gem5 v25.1 **没有 ISA 级 `readMem`**；`initiateAcc`/`completeAcc` 是 `StaticInst` 的**ISA 级接口**（`src/cpu/static_inst.hh`，默认实现 `panic`），由 **`TimingSimpleCPU` / `MinorCPU` / `O3CPU`** 使用；**`AtomicSimpleCPU` 不用**（它直接 `StaticInst::execute()`，同步完成）。
-- DADAO 当前只实现 `execute()`，且**一个 bundle = 一个 StaticInst、同步跑完**；bundle 内的 `ld/st` 走 `ExecContext::readMem` ⇒ 在 Timing 下落到 `BaseSimpleCPU::readMem` 的 `panic`。
+- DADAO 当前只实现 `execute()`；**每条 32 位指令 = 一个 `StaticInst`**（`ExtMachInst = uint32_t`、PC 步进 `+4`），指令内的访存走 `ExecContext::readMem` ⇒ 在 Timing 下落到 `BaseSimpleCPU::readMem` 的 `panic`。
+- `ldm`/`stm` 是**一条指令搬 N 个元素**（`execute()` 里的 "batch"），而框架对一条 `StaticInst` **只允许一次 `initiateAcc`/一次 `completeAcc`**（`timing.cc` 在 `completeAcc` 后立刻 `advanceInst()` 退休该指令）。
 - 因此 `m16-gem5-006` 的现行实现把 Timing 的数据访问改成 **`SETranslatingPortProxy` 功能访问**：数据正确但**不计时**（实测 `system.mem` 数据侧 0 包），取指仍走真实 `NoncoherentXBar` + `SimpleMemory`。
 
 用户 2026-11-16 裁定：**不把「数据访问不计时」长期化**，改为二期把执行核改成两阶段（本 ADR 的 D1–D7）。ADR 判据四条全中（高代价 / 跨模块 / 多方案 / 结论固化）。
@@ -17,12 +18,14 @@ M16 的定位是「gem5 时序模型对齐 chipyard-wuming，范围只做 Timing
 ## Decision（决策）
 
 - **D1 接口与落点**：DADAO 实现 `StaticInst::initiateAcc`/`completeAcc`；**不改 `src/cpu/simple/**`**（CPU 框架边界）。两阶段**只在 Timing 下生效**；`AtomicSimpleCPU` 保持同步 `execute()`、行为逐字节不变；`MinorCPU`/`O3CPU` 的流水线结构（fetch/decode/issue/ROB/LSQ）**不在本期**。
-- **D2 bundle 续跑与并发度**：`execute()` 跑到**第一条访存**即 `initiateAcc` 并记录续跑点（子操作序号），`completeAcc` 到达后**从续跑点继续**；**同一时刻最多 1 个未完成的数据请求**（`TimingSimpleCPU` 结构性限制：in-order、单一 `DcacheWaitResponse` 状态）。
-- **D3 块传送 = 微操作展开**：`ldm`/`stm` 的 N 个元素各自生成**独立 StaticInst**（各带自己的 `initiateAcc`/`completeAcc`）⇒ **N 次串行往返**（受 D2 约束）。与周期模型 `1×N + 8×⌈N·w/8⌉`（总线字节拍）的口径差异**如实记录**，不以 gem5 的往返数去凑模型值。
-- **D4 周期表边界**：`ld/st` 行的拍数（C 类 `ld.o` 7–16 / `st.o` 10–21、`ld.o rf` 13）在本改动落地时**清零**，cycles 全部由真实内存系统给出 ⇒ 避免与真时序**双重计费**；`docs/core-wuming-cycle-model.md` 的对应口径回填由 `m16-chipyard-001` 处理。
+- **D2 粒度与两阶段落点**：**每条 32 位指令 = 一个 `StaticInst`**；单元素访存指令（`ld`/`st` 各宽度）在 `initiateAcc` 发请求、`completeAcc` 收响应，**不需要续跑机制**；`AtomicSimpleCPU` 仍走同步 `execute()`、逐字节不变。
+- **D3 块传送（`ldm`/`stm`）= 分两期**：
+  - **Phase 1（本期）**：只把**单元素 `ld`/`st`** 做成真时序；`ldm`/`stm` **保持 functional 访问 + 周期表记账**，并在报告/门控里**明确标注「块传送的数据侧未建模」**；
+  - **Phase 2（另立任务）**：用 gem5 的 **macroop/微操作**机制把 N 个元素各展开为一个微操作（各自 `initiateAcc`/`completeAcc`），须同时评估 PC 推进、异常落在哪个元素、周期表 D 类行的清零。
+- **D4 周期表边界（分期）**：Phase 1 只清零**单元素访存**的拍数（C 类 `ld.o` 7–16 / `st.o` 10–21 中对应单元素的部分、`ld.o rf` 13），避免与真时序双重计费；**D 类（`ldm`/`stm`）的行保留到 Phase 2** 再清。`docs/core-wuming-cycle-model.md` 的对应口径由 `m16-chipyard-001` 回填。
 - **D5 取指不变**：取指已走真实 `NoncoherentXBar` + `SimpleMemory`；「`TimingSimpleCPU` 无 icache ⇒ 每指令约 8 拍取指」是**实测事实**，不在本 ADR 内改动。
-- **D6 验收口径**：① `system.mem` 的**数据侧包数 > 0**（证明确实走了内存系统）；② 同一 ELF 的 `numCycles` 在改前/改后**方向与量级自洽**（记录两值）；③ 与 chipyard 的比值**只记录、不设阈值**（`SimpleMemory` 无背压模型，`st.o` 的 10–21 拍不可复现）。
-- **D7 表述边界**：报告与门控统一写「M16 时序 = **取指与数据均走真实内存系统**（`TimingSimpleCPU`；无 icache；**无 back-pressure/队列模型**）；`Minor`/`O3` 不在本期」。
+- **D6 验收口径**：① `system.mem` 的**数据侧包数 > 0**（单元素访问确实走了内存系统）；② 同一 ELF 的 `numCycles` 在改前/改后**方向与量级自洽**（记录两值）；③ 与 chipyard 的比值**只记录、不设阈值**（`SimpleMemory` 无背压/队列模型，`st.o` 的 10–21 拍不可复现）；④ `ldm`/`stm` 的周期在本期**仍来自周期表**，须在完成区注明。
+- **D7 表述边界**：报告与门控统一写「M16 时序 = **取指与单元素 `ld`/`st` 走真实内存系统**（`TimingSimpleCPU`；无 icache；无 back-pressure 模型）；**块传送（`ldm`/`stm`）与 `Minor`/`O3` 不在本期**」。
 
 ## Rationale（理由）
 
