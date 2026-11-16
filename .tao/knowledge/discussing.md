@@ -150,6 +150,8 @@
 1. **失效完成语义 = 同步**（主会话建议，待用户在 K3 spec 任务里最终确认）：`cfx_ptw_tlb_control` 的写指令**返回即生效**，后续访存必须看到失效结果；理由：① spec 的 `[4:0]` 无 busy/done 位，异步需新增寄存器（违背不新增）；② 同步可直接门控（改 PTE → 写 invalid → 立刻访问必须重新步进）；③ 与 QEMU 现有同步实现一致。**推论必须写清**：`clean`/`flush` 需回写 A/D，**回写失败在该写指令上报 `CFXMEM`**（`flush` 失败不删除条目、`clean` 失败不清挂起位），不得出现"部分完成"。
 2. **单 hart**：`tlb_control` 为 **per-hart**；跨 hart 一致性**不在 M14/K3 范围**（登记 `ISS-459`，等多 hart 机型重开，与 `ISS-440` 同类）。
 3. **实现范围**：M14 只做 **QEMU**；chipyard/gem5 不要求（chipyard `wuming` 无 TLB 建模，gem5 已有 `node_tlb.cc` 但不在本阶段验收）。**但 `tests/arch` 必须新增 TLB 探针**（Vast + PTW）：fill/命中不重读 PTE、`invalid` 的 VA/range 两档、`ASID_ANY` 与 `G`、`clean` 回写 A/D、`flush` 回写+删除、回写失败 ⇒ `CFXMEM` 且不删、以及「写 PTBR/ASID/`ptw_enable` **不隐含 invalidate**」。
+4. **K3 的"内存"范围 = 做**（用户 2026-11-16 原话「K3：做，这些都是成熟的方案，简单验证即可」）：**按需分页 / COW / 用户栈增长** 全部纳入 K3；验证口径 = **简单验证即可**（每类 1–2 个代表用例 + 一条门控断言，不追求穷举），判据仍要能 FAIL。⇒ K3 规模从 6–8 件上调为 8–10 件。
+5. **K4 待逐项讨论**（用户同日：「K4，我们过会儿逐个讨论」）：上下文切换范围（FP 保存/懒保存）、`clone`/线程是否 K4、`clockevent`/`clocksource` 升级、U-mode 异常入口与 cg5 单帧/递归 —— 四项开工前逐条确认。
 
 # 待设计：长仿真如何"证明它还在跑"（gem5 / chipyard，2026-11-15 用户提出）
 

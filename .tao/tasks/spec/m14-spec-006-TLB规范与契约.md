@@ -32,7 +32,11 @@
 2. **新建 `.tao/contracts/contract-tlb.md`**（归一化投影，不复制上游正文）：逐条收编上列上游语义（匹配键 / 命中检查 / fill 条件 / A-D 状态机与原子 OR 回写 / `tlb_control` 三维与判序 / 三操作语义 / 范围三档 / `ASID_ANY` 与 `G` / 异常路由），**每条带 `[DADAO-12 §…]` 来源**；三条 v5 约定标 `[spec-decision]`（用户 2026-11-16）。
    - **版本**：`contract-tlb` 映射 `DADAO-12` ⇒ 按 `check-spec-drift` 规则版本须等于 `.tao/contracts/README.md` 的 **SEE / SBI 已发布版（`0.7.1`）**；
    - 同笔在 `.tao/contracts/README.md` 表里加一行（`contract-tlb.md` | TLB 与失效接口合约（K3；0.7.1））。
-3. **门控设计（只设计，不实现）**：在契约里给出「门控建议」小节 —— `tests/arch` 8 条探针（fill+命中 / 命中不重读 PTE / `invalid`+VA / `invalid`+range / `ASID_ANY` 与 `G` / `clean` 回写 A/D vs `invalid` 不回写 / `flush` 回写+删除、回写失败 ⇒ `CFXMEM` 且不删 / 写 PTBR·ASID·`ptw_enable` 不隐含 invalidate），并注明载体形态（`tests/arch/umon/*.s` + `expected.yaml`，需自建页表的走 `min_rom_probe` 并登记 `ARCH_CFX_PROBES`）。
+3. **补「缺页/fault 路径」的契约口径（K3 扩展范围所需）**：用户 2026-11-16 裁定「K3：做（按需分页/COW/栈增长），简单验证即可」⇒ 契约需明确：
+   - **未映射 / 权限拒绝 / A-D 回写失败** 三类 fault 的 `cause_info` 语义（`CFXMEM` 的 `info` = 访存地址；`CFXPERM` 的 `info` 口径），供内核 page fault handler 区分"缺页/COW/越权"；
+   - **软件改 PTE 后的责任**：改 PTE（或写 PTBR/ASID/`ptw_enable`）**不隐含 invalidate** ⇒ 内核必须写 `tlb_control`（`invalid` 或 `flush`）；写明推荐的组合（如 COW 用 `invalid`+`VA`）；
+   - **不引入新寄存器/新异常**：按需分页与 COW 全部用既有 fault + `tlb_control` 表达。
+3. **门控设计（只设计，不实现）**：在契约里给出「门控建议」小节 —— `tests/arch` 8 条探针（fill+命中 / 命中不重读 PTE / `invalid`+VA / `invalid`+range / `ASID_ANY` 与 `G` / `clean` 回写 A/D vs `invalid` 不回写 / `flush` 回写+删除、回写失败 ⇒ `CFXMEM` 且不删 / 写 PTBR·ASID·`ptw_enable` 不隐含 invalidate），并注明载体形态（`tests/arch/umon/*.s` + `expected.yaml`，需自建页表的走 `min_rom_probe` 并登记 `ARCH_CFX_PROBES`）。**另加 3 条与 K3 扩展范围对应的探针**：⑨ 未映射访问 ⇒ `CFXMEM` 且 `cause_info` == 访存地址（供缺页判定）；⑩ 权限拒绝 ⇒ `CFXPERM`（与 `CFXMEM` 可区分）；⑪ 改 PTE 后**不** invalidate ⇒ 仍命中旧条目、写 `invalid`+`VA` 后 ⇒ 命中新 PTE（COW 的最小闭环）。
 4. **锁**：`spec/Kaiwu-…` sha256 同笔重算 + 注记（用户原话「目前只考虑单hart情况」「M14只考虑qemu；但应该在tests/arch中增加这部分的测试」「这本身是一条指令…可以写完等生效才返回」）。
 
 ## 验收（真实 rc + 输出）
