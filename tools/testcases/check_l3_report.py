@@ -14,8 +14,11 @@
    ``finished_utc`` / ``commit`` 非空，``toolchain.{clang,qemu}`` 有非空 id（libc/lld 记录但非必需）。
 3. **结构**：``manifest.tsv`` 表头 = ``scope\tsuite\trc\tlog``，数据行 ≥1、四列、
    ``rc`` 为整数、``log`` 非空且**文件真实存在且非空**（防伪造全绿）。
-4. **覆盖**：至少四种 scope（inst/arch/unit/tset）且 L3 直接清单
-   （``l3_run.DEFAULT_MEMBERS``，单一真源）的每个 ``scope:suite`` 都在 —— 缺 ⇒ FAIL。
+4. **覆盖**：至少覆盖 L3 成员表所列 scope 且 ``l3_run.DEFAULT_MEMBERS``
+   （单一真源）的每个 ``scope:suite`` 都在 —— 缺 ⇒ FAIL。scope 集合按成员表
+   **现场派生**（``m15-testcases-008``：最后一个 ``inst`` 成员（clmul 探针）退役后
+   只剩 arch/unit/tset），不另抄常量；历史报告里多出的行（如已退役的
+   ``inst:fp-clmul``）不影响判定（只查「缺」，不查「多」）。
 5. **结果**：任一 ``rc != 0`` ⇒ FAIL；``run.log`` 的 ``[exit marker] rc=N`` 须与
    manifest 一致（全绿 N=0；有红 N=1），不一致 ⇒ FAIL（防「伪造全绿」）。
 
@@ -37,7 +40,6 @@ from report_io import HEADER
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STAMP_RE = re.compile(r"^\d{8}T\d{6}Z$")
 EXIT_RE = re.compile(r"\[exit marker\] rc=(\d+)")
-REQUIRED_SCOPES = {"inst", "arch", "unit", "tset"}
 REQUIRED_TOOLS = ("clang", "qemu")   # libc/lld 只记录：L3 的 inst/arch/unit 不依赖 musl
 
 
@@ -60,6 +62,15 @@ def expected_members() -> list[tuple[str, str]]:
     import l3_run  # noqa: PLC0415
 
     return [(scope, suite) for scope, suite, _cmd in l3_run.DEFAULT_MEMBERS]
+
+
+def required_scopes() -> set[str]:
+    """报告必须覆盖的 scope 集合 —— 按成员表**现场派生**（不另抄常量）。
+
+    成员退役/增删时本集合自动跟随（``m15-testcases-008``：clmul 探针退役后
+    成员表只剩 arch/unit/tset，``inst`` 不再是必需 scope）。
+    """
+    return {scope for scope, _suite in expected_members()}
 
 
 def latest_stamp_dir(l3_root: Path) -> Path | None:
@@ -168,10 +179,11 @@ def check(root: Path, stamp: str | None, repo_root: Path = REPO_ROOT) -> Report:
     # 4. 覆盖
     if rep.rows:
         scopes = {r["scope"] for r in rep.rows}
-        missing_scopes = sorted(REQUIRED_SCOPES - scopes)
+        need_scopes = required_scopes()
+        missing_scopes = sorted(need_scopes - scopes)
         if missing_scopes:
             rep.fail(f"manifest 缺 scope 行：{', '.join(missing_scopes)}"
-                     f"（L3 至少覆盖四 scope：{', '.join(sorted(REQUIRED_SCOPES))}）")
+                     f"（L3 须覆盖成员表所列 scope：{', '.join(sorted(need_scopes))}）")
         present = {(r["scope"], r["suite"]) for r in rep.rows}
         missing = [f"{s}:{u}" for s, u in expected_members() if (s, u) not in present]
         if missing:
@@ -276,10 +288,17 @@ def cmd_selftest(args: argparse.Namespace) -> int:
                   [row for row in GREEN_ROWS if row[0] != "tset"], r6 / "logs")
     expect("missing tset scope => FAIL", r6, False)
 
+    # 缺某成员 ⇒ FAIL（成员与 scope 都按 DEFAULT_MEMBERS 现场派生，不写死 suite 名）。
+    dropped = GREEN_ROWS[0]                         # 清单首项（现场派生）
     r7 = base / "g"
     _write_report(r7 / "l3" / "20261027T000000Z",
-                  [row for row in GREEN_ROWS if row[1] != "fp-clmul"], r7 / "logs")
-    expect("missing fp-clmul member => FAIL", r7, False)
+                  [row for row in GREEN_ROWS if row[:2] != dropped[:2]], r7 / "logs")
+    rep7 = check(r7, None, repo_root=base)
+    want_member = f"{dropped[0]}:{dropped[1]}"
+    checks.append((f"missing {want_member} member => FAIL",
+                   bool(rep7.errors) and any("缺 L3 成员行" in e and want_member in e
+                                             for e in rep7.errors),
+                   "errors=" + ("; ".join(rep7.errors)[:140] if rep7.errors else "-")))
 
     r8 = base / "h"
     _write_report(r8 / "l3" / "20261027T000000Z", GREEN_ROWS, r8 / "logs",
@@ -304,6 +323,12 @@ def cmd_selftest(args: argparse.Namespace) -> int:
     _write_report(r12 / "l3" / "20261026T000000Z", GREEN_ROWS, r12 / "logs")
     expect("--stamp points to absent dir => FAIL", r12, False,
            stamp="20261027T000000Z")
+
+    # 旧报告仍可读：退役前的报告带已下线的 `inst:fp-clmul` 行 ⇒ 只查「缺」不查「多」⇒ PASS
+    r13 = base / "m"
+    _write_report(r13 / "l3" / "20261027T000000Z",
+                  GREEN_ROWS + [("inst", "fp-clmul", 0)], r13 / "logs")
+    expect("legacy report with retired inst:fp-clmul => PASS", r13, True)
 
     fails = sum(0 if ok else 1 for _, ok, _ in checks)
     for name, ok, detail in checks:

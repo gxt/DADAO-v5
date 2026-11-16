@@ -11,9 +11,11 @@
 
 成员（= L3 的**直接**清单，``docs/Process-07 §1``；一个检查只在一层）：
 
-* ``inst``：**只有** 4 个 FP 探针（``fp`` 身份无向量）；`.S` 载体的执行门控是
-  L2 ``check-inst-asm``（``m13-testcases-043``：YAML 退役后 ``check-inst`` 删除，
-  「一个检查只在一层」⇒ L3 不重复列 inst 执行）
+* ``inst``：**不在 L3 列**——四类 FP 探针（rnd/minmax/fma/clmul）已全部退役
+  （``m13-testcases-044`` / ``m15-testcases-008``），FP 由 ``07-floating-point`` 的
+  ``.S`` + lit + e2e 承担；``.S`` 载体的执行门控是 L2 ``check-inst-asm``
+  （``m13-testcases-043``：YAML 退役后 ``check-inst`` 删除，「一个检查只在一层」
+  ⇒ L3 不重复列 inst 执行）
 * ``arch``：``check-arch``（全 cfx）
 * ``unit``：``check-unit-full``（= ``check-unit`` + ``check-lit-full``）
 * ``tset``：``test-m6`` 的**集成**步骤（全量 lit + ir-lli + Embench E2E）；082t 后
@@ -51,10 +53,10 @@ STAMP_RE = re.compile(r"^\d{8}T\d{6}Z$")
 
 # 成员 = L3 的直接清单（真源；``docs/Process-07 §1``）。
 DEFAULT_MEMBERS: list[tuple[str, str, str]] = [
-    # inst 执行 = L2 `check-inst-asm`（`.S` 全量）；L3 只列 `fp` 身份无向量的探针。
-    # `fp-rnd`/`fp-minmax`/`fp-fma` 三探针已由 `m13-testcases-044` 退役（语义由
-    # `07-floating-point` 的 `.S` 载体 + lit/e2e/picolibc 承担）⇒ L3 只剩 clmul。
-    ("inst", "fp-clmul", "make check-clmul-probe"),
+    # 四类 FP 探针（rnd/minmax/fma/clmul）已**全部退役**
+    # （`m13-testcases-044` / `m15-testcases-008`），FP 由 `07-floating-point` 的
+    # `.S` 载体 + lit + e2e 承担；inst 执行 = L2 `check-inst-asm`（`.S` 全量）
+    # ⇒ L3 无 inst 成员。
     ("arch", "cfx", "make check-arch"),
     ("unit", "full", "make check-unit-full"),
     # test-m6 = 集成步骤：全量 lit + ir-lli + Embench E2E；082t 后 L3 无独立 tset
@@ -203,9 +205,11 @@ def cmd_selftest(args: argparse.Namespace) -> int:
     checks.append(("manifest has one row per member",
                    len(body) == len(DEFAULT_MEMBERS),
                    f"{len(body)} vs {len(DEFAULT_MEMBERS)}"))
-    checks.append(("manifest covers four scopes",
-                   len({ln.split("\t")[0] for ln in body}) >= 4,
-                   str(sorted({ln.split("\t")[0] for ln in body}))))
+    want_scopes = sorted({s for s, _, _ in DEFAULT_MEMBERS})
+    got_scopes = sorted({ln.split("\t")[0] for ln in body})
+    checks.append(("manifest covers every member scope",
+                   got_scopes == want_scopes,
+                   f"{got_scopes} vs {want_scopes}"))
     run_log = (tests_root / "l3" / "20261027T000000Z" / "run.log").read_text()
     checks.append(("green run.log exit marker rc=0",
                    "[exit marker] rc=0" in run_log, run_log.splitlines()[-1]))

@@ -65,7 +65,7 @@
 | `unit/llvm/e2e/` | 45（44） | 14 个 lit E2E（`.test`）+ 29 个 C/asm 源（含 9 个无 runner 引用，§7.4）；084t 由顶层 `e2e/` 归入 | U | `check-lit`（跑 `lit/`） | 自动（9 个源已死，§7.4） | 编译→链接→运行整体链路 |
 | `scripts/` | 30（24） | 共享 harness：向量→二进制构建、QEMU 单例/批量运行、冒烟驱动、bootrom/lds/crt0、dump 校验 | U（+I/S 载体） | 被 `check-qemu-*`、`test-codegen/elf/semihost`、`semantics_gate.py` 调用 | 自动（含手工 CLI） | harness 自身正确性、测试机约定 |
 | `atomics/` | 0（退役） | 5 个 C 探针已于 `m13-testcases-050` 退役（裁定 A）；编译器语义层 → `tests/unit/llvm/e2e/atomics_e2e.c`，争用/内存序 → `tests/inst/MIGRATION.md` GAP 节 | I | `check-lit`（e2e 真跑） | 自动 | 原子内建/子字宽 RMW/`ISS-312`/`ISS-313` |
-| `clmul/` | 4（4） | clmul 边界/GHASH/CRC-32C 探针 + IR | I | `check-clmul-probe`(L3) | 自动 | `clmul.o`、GHASH、CRC-32C |
+| `clmul/` | 0（退役） | 4 个 C/IR 探针（边界/GHASH/CRC-32C + IR）已于 `m15-testcases-008` 退役；ISA 语义 → `tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S`（`check-inst-asm`），编译器侧 → `lit/CodeGen/DADAO/clmul.ll` + `unit/llvm/e2e/lit/clmul_builtin.test`（`check-lit`）；i128 composite / GHASH / CRC-32C 运行期覆盖随之下线（§6） | I | 无（探针目标已删） | — | — |
 | `qemu/` | 1（1） | 占位 README（QEMU 组件测试落点，暂无内容） | — | 无 | — | — |
 | `case-ledger.tsv` | 1（1） | 逐条身份清单（生成物，`--write` 重生成） | — | `check-case-ledger`(L1) | 自动 | 删用例/pattern 的哨兵 |
 
@@ -191,7 +191,7 @@
 | `check-arch` | L3 | `check-arch-smoke` + cfx min-ROM 探针 044/045/049 | 同上 | `.work/log/arch/check-arch*.log` |
 | `test-semihost` | 别名 | → `check-arch-smoke`（旧前置 `test-elf`/`test-codegen`/`check` 保留） | 同上 | 同上 |
 | `test-m6` | L3 | lit-full + ir-lli 19 + Embench 38 | `ir-lli-diff`、`m6-embench` | `.work/log/integ/test-m6-*.log` |
-| `check-clmul-probe` | L3 | 627 例 × O0/O2 | 同上 | `TESTCASES-057t-*` |
+| （`clmul` 探针目标） | — | **已退役**（`m15-testcases-008`；历史 627 例 × O0/O2）；承接方见 §6 | — | — |
 | `check-picolibc-tests` | L2 | fast 档 20（18 pass / 2 excluded） | `.work/build/picolibc*` | stdout |
 | `check-picolibc-tests-full` | opt | full 档 235（209 pass / 1 fail / 22 excluded / 3 blocked，最近日志） | 同上 | stdout |
 | `check-testcases-suites` | opt | libc-test + llvm-test-suite fast 子集 | `.work/log/testcases/runs/fast.json` | stdout |
@@ -220,7 +220,7 @@
 
 - **指令身份覆盖**：`contracts/opcodes.yaml` 共 **264** 身份；向量覆盖 **193**（`m1` 152/156、`m9` 34/34、`m8` 7/7）。未覆盖：`fp` 66、`m1` cfx 4（`cfx2rc`/`cfx2rd`/`escape`/`trap`，`deferred TESTCASES-033t`）、`m3` 1（`sub.o_orrr_dbb`，由 CodeGen lit 覆盖）。`excluded` 现 0 条（`cfxld`/`cfxst` 已删除）。
 - **cfx**：`inventory.md:172-175` 明示 4 个 cfx 身份 deferred；`misc.yaml` 仅 2 例。
-- **fp**：`fp` 身份已有 `.S` 向量（`tests/inst/07-floating-point/`，`check-inst-asm` 执行）；`fma/minmax/roundint` 三探针已于 `m13-testcases-044` 退役（缺口 34 点已补进 `.S`，`clmul` 探针保留）。覆盖信息仍分散在 `inventory.md`、`llvm-isa-backend-matrix.tsv`、`.S` 载体三处。
+- **fp**：`fp` 身份已有 `.S` 向量（`tests/inst/07-floating-point/`，`check-inst-asm` 执行）；`fma/minmax/roundint` 三探针已于 `m13-testcases-044` 退役（缺口 34 点已补进 `.S`），`clmul` C/IR 探针于 `m15-testcases-008` 退役 —— ISA 语义由 `inst/04-arith-logic-octa/clmul.o_rrrr_rd.S`（**19 链例检查点 + 2 故障例**）承担、编译器侧由 `lit/CodeGen/DADAO/clmul.ll`（8 函数 + `FileCheck`）+ `unit/llvm/e2e/lit/clmul_builtin.test` 承担；**丢掉**的运行期覆盖 = i128 composite（高低半拼回 128 位再比）、GHASH、CRC-32C 两条真实算法链路。覆盖信息仍分散在 `inventory.md`、`llvm-isa-backend-matrix.tsv`、`.S` 载体三处。
 - **lit pattern 覆盖**：`case-ledger.tsv` 守护 500 条 `@@ OBJ:` pattern。
 - **门控载体**：`check-qemu-semantics` 20 册（`isa` 16 + `rol` + `atomics` ×2 + `clmul`），`rev`/`bitcnt` 未纳入。
 
@@ -228,7 +228,7 @@
 
 ## 7. 已知问题清单（供重组方案决策；本册不修）
 
-1. **职责重叠**：顶层 `atomics/`、`clmul/`（探针源）与 `vectors/atomics/`、`vectors/clmul/`（向量）同名不同物；`tests/unit/llvm/codegen`（执行程序）与 `tests/unit/llvm/lit/CodeGen`（结构断言）也易混。
+1. **职责重叠（已消解一部分）**：顶层 `atomics/`、`clmul/`（探针源）已分别于 `m13-testcases-050`、`m15-testcases-008` 退役删除 ⇒ 与 `vectors/atomics/`、`vectors/clmul/`（向量）的同名不同物问题不再存在；`tests/unit/llvm/codegen`（执行程序）与 `tests/unit/llvm/lit/CodeGen`（结构断言）仍易混。
 2. **无统一入口**：仓库没有「列出全部用例 / 按 ID 跑一个用例」的 runner；入口 = §5.2 的 21 个目标 + 手工 README 命令。
 3. **m6 执行向量无门控**：`tests/unit/llvm/codegen/m6` 8 程序只能手工跑；`codegen-m6/`、`elf-m6/` 为手工产物目录。
 4. **9 个 e2e 源无 runner**：`fp_codegen.c`、`fp_hfa.c`、`i1_load_e2e.c`、`large_const_cmp_e2e.c`、`mulhi_e2e.c`、`selectcc_e2e.c`、`setcc_e2e.c`、`smulhi_e2e.c`、`switch_jt_e2e.c`（仅归档任务书引用）。

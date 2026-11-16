@@ -7,14 +7,16 @@
   - 非 `base/` 的既有载体目录：`tests/inst/rol/*.yaml`（`QEMU-064t`：`rol.*`
     scope = m9，故不在 `base/`）与 `tests/inst/atomics/*.yaml`
     （`QEMU-067t`：`fence`/`lr`/`sc` 已实现原子语义，非 M1 身份）与
-    `tests/inst/clmul/*.yaml`（`QEMU-068t`：`clmul.o` 语义已实现，scope
-    翻转归 `SPEC-155t`，故暂不在 `base/`）与 `tests/inst/fp/*.yaml`
-    （`TESTCASES-090t`：`ftsclb`/`fosclb` 为 scope fp，非 M1 身份）。
+    `tests/inst/fp/*.yaml`（`TESTCASES-090t`：`ftsclb`/`fosclb` 为 scope fp，
+    非 M1 身份）。`clmul` 的 YAML 载体（`QEMU-068t`）曾同列此集：其载体已随
+    `m13-testcases-043` 全量退役、C/IR 探针与目录由 `m15-testcases-008` 删除
+    ⇒ **现场已无该目录**（本段只是退役模式的历史说明）。
   - **不在**本门控：`tests/inst/rev/`、`tests/inst/bitcnt/`（M8 scope，
     2 册；见 `tests/inst/inventory.md`「非 M1 向量」）。
 
 结构性断言（fail-closed，禁静默跳过）：
-  - 每个载体目录（`base`/`rol`/`atomics`/`clmul`）非空 —— 0 册 ⇒ FAIL；
+  - 每个载体目录（`base`/`rol`/`atomics`/`clmul`/`fp`；`clmul` 目录已随
+    `m15-testcases-008` 删除）非空 —— 0 册 ⇒ FAIL；
   - `git` 索引登记的载体册须全部在盘 —— 缺册 ⇒ FAIL（真源 = git 索引，
     故不写死册名/册数；无 git 工作树时打印 SKIP 提示后跳过该项）；
   - 载体 `basename` 唯一 —— 重名会被 gate 目录的 symlink 互相覆盖 ⇒ FAIL；

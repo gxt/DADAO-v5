@@ -625,10 +625,9 @@ def link_static(name: str, obj: Path, work: Path) -> Path:
     crt = MUSL / "lib" / "crt1.o"
     libc = MUSL / "lib" / "libc.a"
     # The static musl archive's printf pulls in the long-double (binary128)
-    # helpers, so the compiler-rt builtins archive must be linked too.  Same
-    # recipe (and ordering) as tools/testcases/run_clmul_probe.py: crt first,
-    # then libc/builtins in one --start-group so their references resolve in
-    # either order.
+    # helpers, so the compiler-rt builtins archive must be linked too.  Link
+    # order: crt first, then libc/builtins in one --start-group so their
+    # references resolve in either order.
     r = run([tool("ld.lld"), crt, obj, "--start-group", libc,
              builtins_archive(), "--end-group", "-o", out])
     if r.returncode != 0:

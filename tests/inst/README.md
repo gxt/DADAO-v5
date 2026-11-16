@@ -1,8 +1,10 @@
 # inst scope — 指令级测试用例（`tests/inst/`）
 
-本目录是 **inst scope**（`docs/Process-09` §3）：单指令/短序列执行语义的**源码用例**，
-另含 `clmul` 探针源（`atomics` 探针已于 `m13-testcases-050` 退役）（`fma/minmax/roundint` 三个 C 探针已由 `m13-testcases-044` 退役，
-其边界点已抽进 `07-floating-point` 的 `.S` 载体）。向量是 LLVM/QEMU/gem5 的**独立 oracle**。
+本目录是 **inst scope**（`docs/Process-09` §3）：单指令/短序列执行语义的**源码用例**。
+C/IR 探针已**全部退役**、目录已删：`atomics` 五探针 `m13-testcases-050`、`fma`/`minmax`/`roundint`
+三探针 `m13-testcases-044`（边界点已抽进 `07-floating-point` 的 `.S` 载体）、`clmul` 四文件 + 驱动/oracle
+`m15-testcases-008`（ISA 语义由 `04-arith-logic-octa/clmul.o_rrrr_rd.S` 承担，编译器侧由
+`tests/unit/llvm/lit` + `e2e/lit` 承担）⇒ 现行载体只有 `.S`。向量是 LLVM/QEMU/gem5 的**独立 oracle**。
 
 > `TESTCASES-072t`（2026-10-27）从 `tests/vectors/` 与 `tests/{atomics,clmul,fma,minmax,roundint}/`
 > 迁入；执行 harness 在 `tools/testcases/{lib,inst}/`。`fma/minmax/roundint` 探针于

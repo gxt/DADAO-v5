@@ -64,7 +64,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         linux-defconfig linux-vmlinux linux-initramfs linux-semihosting-smoke \
         check-linux-toolchain check-linux-boot-contract check-linux-k0 check-linux-k1 \
         check-linux-k2 \
-        check-picolibc-tests check-picolibc-tests-full check-clmul-probe \
+        check-picolibc-tests check-picolibc-tests-full \
         check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-knowledge-refs \
         check-inst-asm check-tests-index check-inst-macro-scope check-arch check-arch-smoke \
@@ -170,7 +170,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
                       check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
                       clean-tests test-repro \
-                      check-picolibc-tests check-picolibc-tests-full check-clmul-probe \
+                      check-picolibc-tests check-picolibc-tests-full \
                       check-testcases-suites check-testcases-suites-full \
                       check check-modules check-full
 
@@ -255,7 +255,6 @@ help:
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
-	@echo "  make check-clmul-probe  Run the clmul.o instruction / GHASH / CRC-32C probes at -O0 and -O2 (L3; TESTCASES-057t)"
 	@echo "  make check-testcases-suites  Run the two upstream reference suites (libc-test + llvm-test-suite) fast subset (opt-in, not L2; TESTCASES-045t)"
 	@echo "  make check-testcases-suites-full  Run every enumerable C case with main() from both suites (opt-in/L3-like; TESTCASES-045t)"
 	@echo "  make check-tset-libc-smoke  libc-test user-mode smoke representative set (L2; TESTCASES-075t)"
@@ -271,7 +270,7 @@ help:
 	@echo "  make validate-vectors  Validate tests/inst vectors schema/inventory/coverage (L1)"
 	@echo "  make check           Run repository-level structural checks (L1: static + component smoke)"
 	@echo "  make check-modules   Run L2 = the four scopes' smoke sets (inst/arch/unit + tset x3; no FP probes)"
-	@echo "  make check-full      Run L3 = check-arch + check-unit-full + 1 FP probe (clmul) + test-m6; writes .dadao/tests/l3/<UTC>/ (inst is L2 check-inst-asm only; tset smoke is L2-only; tset full is night-only; TESTCASES-082t/083t)"
+	@echo "  make check-full      Run L3 = check-arch + check-unit-full + test-m6; writes .dadao/tests/l3/<UTC>/ (inst is L2 check-inst-asm only; tset smoke is L2-only; tset full is night-only; TESTCASES-082t/083t)"
 	@echo "  make night-run       Run the regression set (tset full x3 + long arch: QEMU system cfx + gem5 FS inst/arch; gem5 SE static x3) into .dadao/tests/night/<date>/ under its own lock; observation only, does not block gates (setsid nohup; TESTCASES-076t/INFRA-127t/TESTCASES-105t)"
 	@echo "  make check-night-report  Observe: regression report exists + structurally complete (QEMU tset/arch + gem5 SE/FS members) + green (on-demand diagnostics, NOT a milestone gate; TESTCASES-076t/TESTCASES-105t)"
 	@echo "  make check-l3-report  Gate: the latest L3 report exists, covers four scopes, and is fully green (milestone closure; TESTCASES-083t)"
@@ -904,34 +903,6 @@ _locked-check-picolibc-tests: build-picolibc build-bootrom
 _locked-check-picolibc-tests-full: build-picolibc build-bootrom
 	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/picolibc_tests.py --stage full --jobs $(TEST_JOBS)
 
-# check-clmul-probe (TESTCASES-057t): clmul.o integration -- instruction level
-# (boundary cells + 64 seeded random cells, all three compiler-visible exits:
-# generic `llvm.clmul` low half, `llvm.dadao.clmul.hi` high half, the
-# `__builtin_dadao_clmul` i128 composite, plus the `{lo,hi}` pair intrinsic),
-# GHASH (GCM specification Appendix B test cases 1-4 with their published
-# intermediates, zero H, all-ones H, single/two-block chains, AAD + partial
-# blocks) and CRC-32C through a clmul folding kernel + GF(2) Barrett reduction
-# (lengths 0/1/7/8/9/15/16/17/63/64/65/1000, `"123456789" -> 0xE3069283`).
-# Expectations come from tools/testcases/oracle_clmul.py: GF(2) polynomial
-# arithmetic in plain Python integers + the published standards' vectors, never
-# from QEMU/LLVM.  Two optimisation levels, measured ~1 s => L2 (Process-07 §3
-# rule 2).
-_locked-check-clmul-probe: install-host build-musl
-	@mkdir -p .work/log/testcases
-	@$(PYTHON) tools/testcases/run_clmul_probe.py --opt O0 \
-	    --json-out .work/log/testcases/TESTCASES-057t-O0.json \
-	    > .work/log/testcases/TESTCASES-057t-O0.log 2>&1; \
-	  rc=$$?; \
-	  tail -2 .work/log/testcases/TESTCASES-057t-O0.log; \
-	  if [ $$rc -ne 0 ]; then echo "check-clmul-probe: FAIL (-O0 rc=$$rc)"; exit $$rc; fi
-	@$(PYTHON) tools/testcases/run_clmul_probe.py --opt O2 \
-	    --json-out .work/log/testcases/TESTCASES-057t-O2.json \
-	    > .work/log/testcases/TESTCASES-057t-O2.log 2>&1; \
-	  rc=$$?; \
-	  tail -2 .work/log/testcases/TESTCASES-057t-O2.log; \
-	  if [ $$rc -ne 0 ]; then echo "check-clmul-probe: FAIL (-O2 rc=$$rc)"; exit $$rc; fi
-	@echo "check-clmul-probe: PASS (O0 + O2)"
-
 # check-testcases-suites (TESTCASES-045t stage 1): drive the two upstream
 # *reference* suites -- libc-test and llvm-test-suite -- through the static musl
 # flow (compile -> ld.lld -T kaiwu-tiny.lds -> flat image -> qemu-system-dadao
@@ -1154,16 +1125,16 @@ _locked-clean-work:
 # ── 门控分层 (INFRA-058t；用户 2026-10-09 裁定，落 milestones「规划中」) ─────────
 # L1 `make check`（默认，秒~几十秒）   = 仓库完整性（静态检查）+ 组件可用性冒烟
 # L2 `make check-modules`（几十~几百秒）= **四 scope 代表集**（inst/arch/unit + tset×3）
-# L3 `make check-full`（几百~几千秒）   = **全量**（check-arch/check-unit-full
-#                                        + 1 个 FP 探针 clmul）+ test-m6（全量 lit + ir-lli + Embench E2E）
+# L3 `make check-full`（几百~几千秒）   = **全量**（check-arch + check-unit-full）
+#                                        + test-m6（全量 lit + ir-lli + Embench E2E）
 # inst 全量执行**不在 L3**：`.S` 载体由 L2 `check-inst-asm` 全量跑（m13-testcases-043）。
 # 回归运行 `make night-run`（小时级）     = tset full×3 + 长 arch + gem5 SE×3 + gem5 FS；报告 `.dadao/tests/night/<date>/`
 # tset（TESTCASES-082t）：smoke 只在 L2（`check-modules`），full 只在回归运行（`night-run`）；
 # L3 不直接列 tset smoke ⇒ 「一个检查只在一层」（docs/Process-07 §4）。
 # 说明（TESTCASES-076t）：`check-interface`/`check-code-range` 只做静态/合成 fixture 断言
-# ⇒ 按 docs/Process-07 §3 判据 1 归 L1（原在 L2）。FP 探针（原 rnd/minmax/fma/clmul，
-# 前三个已由 m13-testcases-044 退役、只余 clmul）
-# 覆盖无向量的 `fp` 身份，属 **inst scope 的 FP 语义代表集**，只在 L3。
+# ⇒ 按 docs/Process-07 §3 判据 1 归 L1（原在 L2）。FP 探针（原 rnd/minmax/fma/clmul）
+# 已**全部退役**（前三个 `m13-testcases-044`、clmul `m15-testcases-008`）⇒ L3 不再有
+# inst scope 成员；FP 语义由 `07-floating-point` 的 `.S` 载体 + lit/e2e 承担。
 # 「层间不重复」= 同一检查只在一层「直接」列出；触发点见 AGENTS.md「门控分层与触发点」。
 # 旧名 `check-qemu-semantics`/`check-qemu-smoke`/`test-semihost`/`check-{libc-test,llvm-ts,embench}-smoke`
 # 已于 TESTCASES-076t 删除（P6 收口）；现行名 = check-inst-asm / check-arch-smoke /
@@ -1181,7 +1152,8 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 	@echo "repository checks (L1): PASS"
 
 # L2 = 四 scope 的 **smoke** 集（TESTCASES-076t 收口；2026-10-27 用户裁定「L2 只保留四 scope
-# smoke」⇒ FP 探针**移出** L2，只在 L3；rnd/minmax/fma 三探针已由 m13-testcases-044 退役）
+# smoke」⇒ FP 探针**移出** L2，只在 L3；四类探针 rnd/minmax/fma/clmul 此后已**全部退役**
+# ——前三类 `m13-testcases-044`、clmul `m15-testcases-008`）
 #   inst : check-inst-asm（`.S` 载体全量 265 id，单平台 QEMU；YAML 载体已全退役）
 #   arch : check-arch-smoke
 #   unit : check-unit（= check-lit + test-codegen + test-elf + ir-lli + picolibc fast）
@@ -1203,8 +1175,9 @@ _locked-check-modules: check-inst-asm check-arch-smoke check-unit check-tset-lib
 #               此处经**前置依赖**间接跑到 ⇒ 符合 Process-07 §4「被上层前置依赖不算重复」
 #   tset      : **不直接列出**（L2 已有 smoke；tset full 只在回归运行 night-run）；
 #               `test-m6` 的 Embench E2E 是集成步骤，不算 tset smoke 重复
-#   fp 语义   : 1 个 FP 探针 `clmul`（已移出 L2，只在 L3）；rnd/minmax/fma 三探针
-#               由 m13-testcases-044 退役（其语义已由 07-floating-point 的 .S 载体 + lit/e2e 覆盖）
+#   fp 语义   : **无 L3 成员**——四类 FP 探针（rnd/minmax/fma/clmul）已全部退役
+#               （`m13-testcases-044` / `m15-testcases-008`），FP 由 `07-floating-point`
+#               的 `.S` 载体 + lit/e2e 承担
 #   整链      : test-m6（Embench E2E + ir-lli + 全量 lit；其 [1/3] 亦跑 check-lit-full）
 #   报告      : 由 l3_run.py **逐成员**跑上面列出的目标并按 `scope:suite` 记 rc（不写死条数），落
 #               `<TESTS_ROOT>/l3/<YYYYMMDDTHHMMSSZ>/`（manifest.tsv/meta.json/run.log，

@@ -63,8 +63,8 @@ ENV_STATE = "DADAO_WRITER_STATE_DIR"
 READER_ENTRIES = [
     "tools/testcases/inst/run_asm_suite.py",
     "tools/testcases/arch/run_m5_e2e.py",
-    # run_{rnd,minmax,fma}_probe.py 已由 m13-testcases-044 退役（入口文件删除）
-    "tools/testcases/run_clmul_probe.py",
+    # run_{rnd,minmax,fma,clmul}_probe.py 已退役（入口文件删除）：前三者
+    # m13-testcases-044、clmul m15-testcases-008
     "tools/testcases/unit/run_codegen_e2e.py",
     "tools/testcases/unit/run_elf_e2e.py",
     "tools/testcases/diff_ir_lli.py",
