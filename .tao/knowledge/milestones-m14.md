@@ -29,7 +29,6 @@
 | m14-linux-013 | 4–5 h | COW 复制页（写只读 ⇒ `CFXPERM`+`NWPERM` ⇒ 复制/改 PTE/`invalid`+VA） |
 | m14-linux-014 | 3–4 h | 用户栈增长（`VM_GROWSDOWN` + `RLIMIT_STACK`/guard gap 边界） |
 | m14-linux-015 | 5–6 h | K3 收口门控 `check-linux-k3`（八组 + §4a 退役审计） |
-| m14-qemu-003 | 1.5–2 h | 异步源轴 mask 改按「当前运行模式 monitor」（`ISS-455`；QEMU 侧） |
 | m14-qemu-004 | 1 h | `SYS_READC`/`SYS_FLEN` 取字缓冲改 PA（`ISS-452`，用户裁定「现在修」） |
 | m14-linux-010 | 2–3 h | IE 旋钮收敛为 monitor 单行 + `contract-see §6.4` 口径修订（`ISS-455`/`ISS-454`） |
 
@@ -37,6 +36,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-qemu-003 | 2026-11-16 21:29 | 1.5–2 h | 异步源轴 mask 改按「当前运行模式 monitor」（`ISS-455`；首投后一行仍 tick 的先红后绿断言） |
 | m14-testcases-005 | 2026-11-16 16:59 | 5–6 h | `tests/arch/ptw` TLB 探针 13 条 + `min_rom_probe_tlb` 驱动 + 子原因断言 |
 
 ## 已验证
