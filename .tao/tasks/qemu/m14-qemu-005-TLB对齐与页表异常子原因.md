@@ -1,4 +1,4 @@
-# m14-qemu-005: QEMU TLB 按契约对齐 + 页表异常填 `cause_id[32:16]` 子原因
+# m14-qemu-005: QEMU TLB 按契约对齐 + 页表异常填 `cause_id[63:40]` 子原因
 
 **模块**：qemu
 **项目里程碑**：M14
@@ -19,7 +19,7 @@ QEMU 侧 TLB 的**结构**已在（可核，`components/qemu/patches/target/dada
 
 **但对照 K3 契约有三处实质缺口**（本任务就是补它们）：
 
-1. **子原因完全没填**：`ptw_fault_cause` 只承载大类（`1<<1` / `1<<7`），`cause_id[32:16]` 恒 0 ⇒ 内核无法区分「超页缺失 / 小页缺失 / GPF 缺失 / HSJU 不符 / R/W/X 不符 / A/D 回写失败」（`ADR-0056 D3` 的 17 位 one-hot）。
+1. **子原因完全没填**：`ptw_fault_cause` 只承载大类（`1<<1` / `1<<7`），`cause_id[63:40]` 恒 0 ⇒ 内核无法区分「超页缺失 / 小页缺失 / GPF 缺失 / HSJU 不符 / R/W/X 不符 / A/D 回写失败」（`ADR-0056 D3` 的 18 位 one-hot）。
 2. **「不得部分完成」未落实**：`dadao_tlb_control_exec` 对匹配条目**逐条**回写/删除，第 N 条失败时前 N−1 条已改（`clean` 的挂起位已清、`flush` 的条目已删）⇒ 与用户口径（`clean`/`flush` 失败**不得部分完成**）冲突；`spec/DADAO-12 §4.5` 只写了「失败条目保留」，没写跨条目原子性。
 3. **命中路径两支写同一结果**：`dadao_tlb_check` 里 `if (super) *cause = CFXMEM; else *cause = CFXMEM;` —— 子原因化后这两支必须分别给 `ISPTRAP`/`DSPTRAP` 与 `IGPTRAP`/`DGPTRAP`，否则该分支永远无法通过反例门控。
 
@@ -27,7 +27,7 @@ QEMU 侧 TLB 的**结构**已在（可核，`components/qemu/patches/target/dada
 
 ## 目标
 
-1. **填子原因**（`ADR-0056 D3`，`cause_id[32:16]` 恰一位）：
+1. **填子原因**（`ADR-0056 D3`，`cause_id[63:40]` 恰一位）：
    - 取指侧：L1 `P=0 && SP=1` ⇒ `[17] ISPTRAP`；L1 `P=0 && SP=0` ⇒ `[16] IGPTRAP`；L1 `SP=1` 且 `SPF` 位=0 ⇒ `[19] ISPFTRAP`；L2 `P=0` ⇒ `[16] IGPTRAP`；L2 `GPF` 位=0 ⇒ `[18] IGPFTRAP`；
    - 数据侧同名：`[20] DGPTRAP` / `[21] DSPTRAP` / `[22] DGPFTRAP` / `[23] DSPFTRAP`；
    - HSJU 不符 ⇒ 按**当前运行模式**的位给 `[24] NUPERM`(user) / `[25] NJPERM`(jail) / `[26] NSPERM`(supv) / `[27] NHPERM`(hypv)；
@@ -65,16 +65,16 @@ QEMU 侧 TLB 的**结构**已在（可核，`components/qemu/patches/target/dada
 
 ## 跨任务顺序风险（必须处理，否则整机门控会红）
 
-QEMU 一旦开始填 `cause_id[32:16]`，**内核侧的 cause 名表会立刻失配**：`arch/dadao/kernel/traps.c` 的 `dadao_trap_handler()` 用 `dadao_cause_name(cause)` 做**整值**查表，查不到就 `dadao_die()`（`unknown cause` 属异常终止）。于是每一次页表故障都会变成「未知原因终止」，`check-linux-k0/-k1/-k2` 全红。
+QEMU 一旦开始填 `cause_id[63:40]`，**内核侧的 cause 名表会立刻失配**：`arch/dadao/kernel/traps.c` 的 `dadao_trap_handler()` 用 `dadao_cause_name(cause)` 做**整值**查表，查不到就 `dadao_die()`（`unknown cause` 属异常终止）。于是每一次页表故障都会变成「未知原因终止」，`check-linux-k0/-k1/-k2` 全红。
 
 ⇒ 处置（两件必须同批落地，顺序写在下面）：
-- **内核侧**（归 `m14-linux-012`）：入口先 `cause_id[15:0]` 取大类查表、`[32:16]` 单独解析；未知**高位**不等于未知 cause（大类在表内即可），未列出的高位组合才终止。
+- **内核侧**（归 `m14-linux-012`）：入口先 `cause_id[15:0]` 取大类查表、`[63:40]` 单独解析；未知**高位**不等于未知 cause（大类在表内即可），未列出的高位组合才终止。
 - **本任务**侧：在「内核侧掩码」尚未落地前，`check-linux-k0/-k1/-k2` 的不回归**只能用「子原因位注入为 0」的 QEMU 构建取证**，并在完成区写明「整机回归待 `m14-linux-012` 同批落地后由该任务/`m14-linux-015` 覆盖」；**不得**把整机回归红当成 QEMU 侧的问题忽视，也不得据此改动内核（越界）。
 
 ## 待裁定
 
 1. **「不得部分完成」的粒度**：命令级原子（本任务默认：全程失败 ⇒ 一条都不改）vs 条目级（`ADR-0041 D3.2` 现文只保证失败条目保留）。建议命令级（用户原话「不得部分完成」）；代价是每条命令多一趟记账/补偿，且 `flush` 的失败点从「第 N 条」变成「命令」。**须由主会话确认，并在 `m14-spec-006` 的契约正文里写清**（否则实现与契约不同步）。
-2. **`CFXMEM` 非页表类子原因**：段映射/未实现 cfx 的普通访存、`cfx_pmem` SRAM 越界这类 `CFXMEM` 没有 `ADR-0056 D3` 的位号。建议：这类 `CFXMEM` 的 `[32:16] = 0`，并把 `ADR-0056 D2` 的 one-hot 表述收窄为「页表类 `CFXMEM`/`CFXPERM` 恰一位，非页表类 `CFXMEM` 为 0」；替代方案是给它们造一位（17 位已满，需扩到 `[33]` 并改 `D2` 的保留区说法）。**建议前者**，须与 `m14-spec-006` 同步。
+2. **`CFXMEM` 非页表类子原因**：段映射/未实现 cfx 的普通访存、`cfx_pmem` SRAM 越界这类 `CFXMEM` 没有 `ADR-0056 D3` 的位号。建议：这类 `CFXMEM` 的 `[63:40] = 0`，并把 `ADR-0056 D2` 的 one-hot 表述收窄为「页表类 `CFXMEM`/`CFXPERM` 恰一位，非页表类 `CFXMEM` 为 0」；替代方案是给它们造一位（18 位已满，需扩到 `[33]` 并改 `D2` 的保留区说法）。**建议前者**，须与 `m14-spec-006` 同步。
 3. **开工前置**：若 `m14-spec-006` 在派单时仍未落地，是否允许以 `ADR-0041`+`ADR-0056` 为临时依据先行编码、`spec-006` 落地后对账？`ADR-0052 D6` 的「先定义后实现」默认**不允许**；本任务据此按「等 `spec-006`」排期。
 
 ## 审阅记录

@@ -4,7 +4,7 @@
 **项目里程碑**：M14
 **依赖**：`m14-linux-011`（页表原语 / `tlb_control` 封装 / L2 分配 / ASID）
 **可并行分片**：否（`components/linux` 单写者）
-**并行组**：**可**与 `m14-qemu-005` 并行（不同组件域）；但 **`cause & 0xffff` 的掩码改造必须与 `m14-qemu-005` 同批或更早**（QEMU 一开始填 `[32:16]`，未掩码的名表会把每次页表故障判成 `unknown cause` ⇒ K0–K2 门控全红）；与 `m14-linux-013`/`014`/`015` **必须串行**（`mm/fault.c`、`mm/Makefile`、`Kconfig.debug` 三处共享）
+**并行组**：**可**与 `m14-qemu-005` 并行（不同组件域）；但 **`cause & 0xffff` 的掩码改造必须与 `m14-qemu-005` 同批或更早**（QEMU 一开始填 `[63:40]`，未掩码的名表会把每次页表故障判成 `unknown cause` ⇒ K0–K2 门控全红）；与 `m14-linux-013`/`014`/`015` **必须串行**（`mm/fault.c`、`mm/Makefile`、`Kconfig.debug` 三处共享）
 **预估**：6–8 h（新通道 + 子原因解码 + 探针镜像）
 **档位**：大改（组件改 + 新故障通道 + 探针 + 重建；复核须独立重跑 + ≥4 路注入）
 **状态**：待开始
@@ -13,7 +13,7 @@
 
 K2 的 `CFXMEM` 处理只有一条路：**预先注册的探针**命中即跳过，其余一律具名终止（`arch/dadao/kernel/traps.c` 的注册通道）。K3 要把它变成正式的**页故障通道**：
 
-- 硬件侧（`spec/DADAO-12 §2.2.6` + `ADR-0056`）：未映射（L1 `P=0` / L2 `P=0` / SPF / GPF）与 A/D 回写失败 ⇒ `CFXMEM`；HSJU 或 R/W/X 不符 ⇒ `CFXPERM`；`cause_id[32:16]` 给**子原因** one-hot：
+- 硬件侧（`spec/DADAO-12 §2.2.6` + `ADR-0056`）：未映射（L1 `P=0` / L2 `P=0` / SPF / GPF）与 A/D 回写失败 ⇒ `CFXMEM`；HSJU 或 R/W/X 不符 ⇒ `CFXPERM`；`cause_id[63:40]` 给**子原因** one-hot：
   - 缺失类 `[16..23]` = `IGPTRAP` `ISPTRAP` `IGPFTRAP` `ISPFTRAP` `DGPTRAP` `DSPTRAP` `DGPFTRAP` `DSPFTRAP`；
   - 权限类 `[24..30]` = `NUPERM` `NJPERM` `NSPERM` `NHPERM`（HSJU 四位） / `NRPERM` `NWPERM` `NXPERM`（R/W/X）；
   - `[31] NCFXPERM`（cfx 访问被掩码拒绝）、`[32] ADWBFAIL`（A/D 回写失败）；
@@ -23,7 +23,7 @@ K2 的 `CFXMEM` 处理只有一条路：**预先注册的探针**命中即跳过
 
 ## 目标
 
-1. **入口分派**（`kernel/traps.c`）：**先按 `cause_id[15:0]` 取大类**（`cause & 0xffff`，`dadao_cause_name()` 的整值查表必须改，否则 QEMU 一旦填子原因位，每一次页表故障都会被判成 `unknown cause`）；`[32:16]` 交给子原因解码；`[63:33]` 非 0 ⇒ 终止（保留区被触发）；然后 `CFXMEM`/`CFXPERM` 走 `dadao_do_page_fault(regs, cause, subcause, info)`；**保留** K1/K2 的注册探针通道且**优先级更高**（否则 K0–K2 门控会红）；未知/多位置 1 的子原因 ⇒ 具名终止（不得默认按缺页处理）。
+1. **入口分派**（`kernel/traps.c`）：**先按 `cause_id[15:0]` 取大类**（`cause & 0xffff`，`dadao_cause_name()` 的整值查表必须改，否则 QEMU 一旦填子原因位，每一次页表故障都会被判成 `unknown cause`）；`[63:40]` 交给子原因解码；`[63:33]` 非 0 ⇒ 终止（保留区被触发）；然后 `CFXMEM`/`CFXPERM` 走 `dadao_do_page_fault(regs, cause, subcause, info)`；**保留** K1/K2 的注册探针通道且**优先级更高**（否则 K0–K2 门控会红）；未知/多位置 1 的子原因 ⇒ 具名终止（不得默认按缺页处理）。
 2. **子原因解码**（新 `include/asm/cause-sub.h` 或在 `ptrace.h`）：位号 → 枚举，值必须与 `contract-see §6.1`（`m14-spec-007` 落地后）**逐位一致**，并与 `ADR-0056 D3` 一致；提供 `is_missing(sub)` / `is_perm(sub)` 两个判据函数（其余位号一律视为「不认识」⇒ 终止）。
 3. **缺页路径**（新 `mm/fault.c`）：
    - `find_vma(mm, addr)`；无 VMA ⇒ 具名终止（K3 无信号；K4 起改 `SIGSEGV`，在完成区登记为遗留）；
@@ -45,7 +45,7 @@ K2 的 `CFXMEM` 处理只有一条路：**预先注册的探针**命中即跳过
 ## 验收（逐条贴真实 rc）
 
 1. `python3 tools/linux/k3_page_probe.py` rc=0；每个 case 打印一行（含 cause/sub 符号名），gate 现场解析；期望值来自契约（`contract-see §6.1` 的符号名 → 位号）与 `.config`，**禁写死**。
-2. **大类-子原因并存**：探针打印**原始 `cause_id` 全 64 位**与「按 `[15:0]` 解析出的大类名 + `[32:16]` 子原因名」；两者必须同时正确（高位非 0 时大类仍是 `CFXMEM`/`CFXPERM`，不得落入 `unknown cause`）。`[63:33]` 非 0 的构造 ⇒ 走终止分支。
+2. **大类-子原因并存**：探针打印**原始 `cause_id` 全 64 位**与「按 `[15:0]` 解析出的大类名 + `[63:40]` 子原因名」；两者必须同时正确（高位非 0 时大类仍是 `CFXMEM`/`CFXPERM`，不得落入 `unknown cause`）。`[63:33]` 非 0 的构造 ⇒ 走终止分支。
 3. **≥4 路注入**（`cp`+md5 还原 + 重建回绿）：
    - ① `is_missing()` 把 `DGPFTRAP` 判成非缺失 ⇒ `P3` 红；
    - ② 缺页路径直接返回「重试」但**不分配/不装 PTE** ⇒ 进入重试循环 ⇒ 探针在**有限次数**内红（必须有循环上限，否则整机挂死——门控要用超时兜底并判 FAIL）；
