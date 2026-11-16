@@ -853,4 +853,4 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2】探针超时后遗留的 **`gem5.opt` 进程 + 巨大 `-D cpu` trace** 把工作盘写满（`m16-gem5-010` 实测，与 `ISS-464` 同夜的第二次 ENOSPC）：超时只杀 driver，`gem5.opt` 子进程继续跑并持续写 trace ⇒ 几分钟内写满盘。处置：① 证据脚本/门控一律加 `EXIT` trap 杀进程组（该任务已就地加）；② 跑批入口统一 `timeout --kill-after` 或 `setsid` + 组杀；③ `-D <flag>` 类调试日志必须配 `--debug-start/--debug-end` 窗口（AGENTS 已有此规则，缺机械门控）。"
+  title: "【P2】探针超时后遗留的 **`gem5.opt` 进程 + 巨大 `-D cpu` trace** 把工作盘写满（`m16-gem5-010` 实测，与 `ISS-464` 同夜的第二次 ENOSPC）：超时只杀 driver，`gem5.opt` 子进程继续跑并持续写 trace ⇒ 几分钟内写满盘。处置：① 证据脚本/门控一律加 `EXIT` trap 杀进程组（该任务已就地加）；② 跑批入口统一 `timeout --kill-after` 或 `setsid` + 组杀；③ `-D <flag>` 类调试日志必须配 `--debug-start/--debug-end` 窗口（AGENTS 已有此规则，缺机械门控）。（2026-11-17 追加实测：gem5 跑 `integ042t` 单次 dump **约 7.8 GB**，已停跑清理）"
