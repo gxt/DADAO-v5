@@ -36,8 +36,8 @@
 **5 条 K3 扩展探针**
 
 9. `⑨a ptw_off_direct_cfxmem`：`ptw_enable=0` 时对 `VA[47:42]=0` 的普通访存 ⇒ **直接 `CFXMEM`**，且 `cause_info` = 访存地址、子原因按「待裁定 2」（默认 0）；**不产生 TLB 条目**（恢复 `ptw_enable=1` 后该页仍走步进/仍未映射）。在 ROM 内执行（见背景）。
-10. `⑨b ptw_on_unmapped`：`ptw_enable=1` + 页表未映射（L1 `P=0`）⇒ `CFXMEM` + 子原因 `[16] IGPTRAP`/`[20] DGPTRAP`（按取指/数据分别断言）、`cause_info` = 访存地址。
-11. `⑩ perm_denied_cfxperm`：写一个 `W=0` 的页 ⇒ `CFXPERM` + 子原因 `[29] NWPERM`；读一个 `R=0` 的页 ⇒ `[28] NRPERM`；取指一个 `X=0` 的页 ⇒ `[30] NXPERM`；HSJU：把当前运行模式对应的位置 0 ⇒ `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM` 中对应那位（探针按自己运行的 cfx/mode 现场选，不写死）。三条与 `CFXMEM` **可区分**（大类不同）。
+10. `⑨b ptw_on_unmapped`：`ptw_enable=1` + 页表未映射（L1 `P=0`）⇒ `CFXMEM` + 子原因 `[48] IGPTRAP`/`[52] DGPTRAP`（按取指/数据分别断言）、`cause_info` = 访存地址。
+11. `⑩ perm_denied_cfxperm`：写一个 `W=0` 的页 ⇒ `CFXPERM` + 子原因 `[37] NWPERM`；读一个 `R=0` 的页 ⇒ `[36] NRPERM`；取指一个 `X=0` 的页 ⇒ `[38] NXPERM`；HSJU：把当前运行模式对应的位置 0 ⇒ `NUPERM`/`NJPERM`/`NSPERM`/`NHPERM` 中对应那位（探针按自己运行的 cfx/mode 现场选，不写死）。三条与 `CFXMEM` **可区分**（大类不同）。
 12. `⑪ pte_change_needs_invalidate`：改 PTE 后**不** invalidate ⇒ 仍命中旧条目（与 `tlb_hit_no_pte_reread` 同一现象、不同载体：本条按「改映射语义」组织，附带断言改后 `invalid`+VA ⇒ 命中新 PTE）。
 13. `⑫ cfx_space_bypasses_ptw`：`VA[47:42] ≠ 0` 的访问**不走 PTW/TLB**。正例：访问 `cfx_pmem` SRAM 内偏移（已实现的空间）在 `ptw_enable=1`、页表**故意全空**（L1 全 0）的页表条件下仍能读写成功；反例：访问未实现/保留 cfx 的普通访存 ⇒ 得到 `CFXMEM`，但其子原因**不得**是页表「未映射」类（`IGPTRAP`/`DGPTRAP` 等），且 `ptw_enable=0` 时同一地址语义不变（不依赖 PTW 开关）。
 
