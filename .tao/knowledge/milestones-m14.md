@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m14-spec-007 | 2–3 h | `cause_id` 子原因编码落地（`DADAO-12 §3.6/§4.x/§2.2.6` + `contract-see §6.1` 扩列 + 锁重算） |
 | m14-spec-006 | 3–4 h | K3 的 TLB 规范与契约（撤 `Kaiwu` 不定义句、新建 `contract-tlb`、8 条探针门控设计；只定义不实现） |
 | m14-qemu-003 | 1.5–2 h | 异步源轴 mask 改按「当前运行模式 monitor」（`ISS-455`；QEMU 侧） |
 | m14-qemu-004 | 1 h | `SYS_READC`/`SYS_FLEN` 取字缓冲改 PA（`ISS-452`，用户裁定「现在修」） |
