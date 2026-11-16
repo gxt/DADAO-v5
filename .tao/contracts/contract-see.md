@@ -49,7 +49,7 @@
 - 权限拒绝触发 `CFXPERM`（`1<<7`，进入当前模式 monitor），不再是 ILLI；escape 帧/目标错误触发 `CFXESC`（`1<<3`，进入当前 cfx）。[ADR-0045 D6/D7][DADAO-12 §4. 专有寄存器设计规范]
 - **cg 级授权**：每个 cfx 的 `cfx_⟨cfxname⟩_hypv_cg_reg_deleg`（`cg3 rc12`，复位全 1、RW）为 64 位位图，bit 索引 = cg 编号（0–63），`bit=0` 允许 `supv` 访问该 cg、`bit=1` 拒绝；`bit3` 硬件固定 1（软件写 0 无效、读回恒 1），故 `supv` 访问任何 cfx 的 cg3 恒被拒；`supv` 访问**任何** cfx（含自身）都查**目标 cfx** 的该位图（**不豁免 self**），拒绝走 `CFXPERM`（无 cg3 例外）；`hypv` 不受该位图约束，`user`/`jail` 不参与该检查（其 cg3 仍由寄存器组合规则报 `CFXREG`）。软件约定：需开放的 cfx 由 `hmon` 写 `cg3 rc12 = 0x8` 整组开放（唯一置位为恒 1 的 bit3），不逐 cg 清位；`cfx_power` 例外——其 deleg 保持 `~0`，仅写 `cg2 rc1` 的 bit2=0（cfxmem 轴）供 `smon` 读 BootROM，不改 deleg 语义。[DADAO-13 §1. cg3 - hypv mode 寄存器][DADAO-23 §3. 启动与引导移交约定]
 - reserved cfxha（`6`–`14`、`16`–`31`、`35`–`61`）触发 `ILLI`。[DADAO-12 §5. 异常进入与异常退出]
-- 异步中断按当前 cfx 的 `cfx_intr_mask`（当前 cfx 的 `inner_run_mode` 行）与当前 mode monitor 的 `global_cfx_intr_mask` 两级来源过滤，两级 mask 的**位索引 = 目标 cfxha**；被屏蔽时置**目标 cfx** 的 `cg5 rc5` pending，mask 解除后补投。[ADR-0045 D3][DADAO-12 §5. 异常进入与异常退出]
+- 异步中断按**当前运行模式 monitor** 的 `cfx_intr_mask`（`<mode>_cfx_intr_mask`，与 `inner_cfx_code` 无关；`ISS-455`）与当前 mode monitor 的 `global_cfx_intr_mask` 两级来源过滤，两级 mask 的**位索引 = 目标 cfxha**；被屏蔽时置**目标 cfx** 的 `cg5 rc5` pending，mask 解除后补投。[ADR-0045 D3][DADAO-12 §5. 异常进入与异常退出]
 - 访问**未实现**的核芯功能扩展（其 cfx 寄存器）触发 `CFXREG`。[DADAO-22 §3. 系统信息（smon）]
 - HSJU 或 R/W/X 不符属于页表/PTW 层权限异常：当前运行模式对应的 HSJU 位为 0，或取指/读/写分别不满足 X/R/W 时触发 `CFXPERM`（当前运行模式 monitor）；地址转换第一步不再按 `VA[47:42]` 选择 PTBR，也无 PTBR 模式权限位图。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw - page table walker]
 - **两层权限不可混同**：页表/PTW 层权限（HSJU 或 R/W/X 不符）与 cfx 访问权限（`cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` mask 拒绝）分属不同层次；两者失败后均归当前运行模式 monitor 的 `CFXPERM`（原因名收敛，权限来源不同）。[ADR-0020 D9][ADR-0045 D6][DADAO-12 §4. 专有寄存器设计规范]
@@ -167,6 +167,8 @@
 - 本节只归一化 v5 内核侧口径，不重定义上游语义；`spec/` 正文的修订走 `docs/Process-02` 的变更流程（上游补文须另立 spec 面任务并同笔重算锁文件；`m14-spec-007` 即此类：`DADAO-12 §3.6` 子原因编码已入册、锁已同笔重算）。[spec-decision]
 
 ---
+
+- **0.7.3-rc + §3 源轴读法同步（2026-11-17）**：§3 的「异步中断按当前 cfx 的 `cfx_intr_mask`（当前 cfx 的 `inner_run_mode` 行）」与 `§6.4` 的新读法冲突（`INTEG-051t` 带入的旧读法），已改为「**当前运行模式 monitor** 的 `<mode>_cfx_intr_mask`」，依据 `spec/DADAO-12 §5.2` 步骤 3 与 `ISS-455`（`m14-linux-010` 复核交叉项）。
 
 ## 附录 A：来源对照
 
