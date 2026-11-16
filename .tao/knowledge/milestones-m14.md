@@ -26,12 +26,12 @@
 | --- | --- | --- |
 | m14-linux-012 | 6–8 h | page fault 与按需分页（子原因解码 + 匿名/零页 + `brk` 扩展） |
 | m14-linux-015 | 5–6 h | K3 收口门控 `check-linux-k3`（八组 + §4a 退役审计） |
-| m14-linux-010 | 2–3 h | IE 旋钮收敛为 monitor 单行 + `contract-see §6.4` 口径修订（`ISS-455`/`ISS-454`） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-linux-010 | 2026-11-17 01:40 | 2–3 h | IE 旋钮收敛为 monitor 单行 + `contract-see §6.4` 口径修订（`ISS-455`/`ISS-454`） |
 | m14-qemu-005 | 2026-11-17 00:52 | 4–6 h | QEMU TLB 对齐（fill/三操作/三档范围/ASID_ANY·G/遇错即停）+ 页表异常子原因 + 5 处掩码 |
 | m14-testcases-005 | 2026-11-16 16:59 | 5–6 h | `tests/arch/ptw` TLB 探针 13 条 + `min_rom_probe_tlb` 驱动 + 子原因断言 |
 
