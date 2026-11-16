@@ -50,6 +50,13 @@ QEMU 侧 TLB 的**结构**已在（可核，`components/qemu/patches/target/dada
 - 把这 5 处改为「**低 16 位 == `1<<1`（掩码比较）** + 期望的子原因位」；子原因位按各例的真实情形给（`NONPTW`/缺失类/`ADWBFAIL`），**从 spec 派生、不读实现输出**；
 - 每处注明「原为全宽相等 ⇒ 改为掩码 + 子原因」，并在完成区列表。
 
+## 增补要求（`m14-qemu-006` 复核 finding 3，2026-11-16）
+
+**`dadao_insn_word` 的「内存窗口」分支当前无用例覆盖**：现有唯一哨兵来源是「只读 ROM 存储 ⇒ ILLI」，走的是 RAM/ROM 恒等地址分支。补一例覆盖窗口分支：
+
+- 场景：`ptw_enable=1`（`Kaiwu-Vast`）下，异常 IP 落在**内存窗口**内（`VA[47:42]=0` 且经 PTW 映射到 PA）时的 `ILLI`/取指异常 ⇒ `cause_info` 必须由「guest TLB 页基 + 页内偏移」算出 PA 再回读，且**不得**递归进 `tlb_fill`；
+- 断言：`cinfo:2` = 该地址上的真实指令字（由探针源码/spec 编码表派生）；若窗口分支取不到 ⇒ 必须 `error_report + exit(1)`（不得静默 0）。
+
 ## 增补要求（`m14-linux-011` 复核 F6，2026-11-16）
 
 - **`tlb_control` 的 A/D 回写失败必须「条目级」不得部分完成**：现状 `dadao_tlb_control_exec` 遇 A/D 回写失败即 `return`，而 `contract-tlb` TLB-37 要求「**失败条目保持原状、其余条目照常处理**」（`flush` 失败不删该条目、`clean` 失败不清挂起位）。须改为：逐条目处理、失败条目跳过并最终报 `CFXMEM`（`cause_info` = 该 PTE 物理地址、子原因 `ADWBFAIL[56]`），其它条目继续。
