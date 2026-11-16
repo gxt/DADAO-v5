@@ -74,7 +74,7 @@
 - `check-temp-dirs` 红：运行期临时目录下 `m14-linux-005`/`006`（已是 `已验证` 任务的残留，非本任务，只报告不删除）。
 - `check-qemu-forms` 是 umon 形态哨兵（不判机器串）⇒ 注入 ② 的红由 `check-inst-asm` 承担。
 
-**状态**：待验收
+**状态**：已验证
 
 
 > **收尾订正（2026-11-16，按 reviewer F1/F2/F5）**：① 完成区的 `dadao-unknown-elf`/`dadao-wuming`/`dadao-gewu` 命中数应为 **741/89/41**、`.tao` 文件数 **38**（原写 740/87/39、37）；② 证据脚本**未**逐项打印豁免清单（原表述不实，豁免项为：`.tao/archive/**`、`ADR-0055`、本任务书、`components/*/changelog.md`、`discussing.md`）；③ 「非 token 增删仅 3 处」应改为「4 类 token 之外另有 65 处必要改动（补丁 index 行、changelog 段、锁注记/对齐、spec 附录条目等）」；④ 4 处 ADR 里指向 `SPEC-183t` 的引用已改指归档真名（归档不改名）。
