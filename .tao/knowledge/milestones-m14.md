@@ -31,7 +31,6 @@
 | m14-linux-013 | 4–5 h | COW 复制页（写只读 ⇒ `CFXPERM`+`NWPERM` ⇒ 复制/改 PTE/`invalid`+VA） |
 | m14-linux-014 | 3–4 h | 用户栈增长（`VM_GROWSDOWN` + `RLIMIT_STACK`/guard gap 边界） |
 | m14-linux-015 | 5–6 h | K3 收口门控 `check-linux-k3`（八组 + §4a 退役审计） |
-| m14-spec-007 | 2–3 h | `cause_id` 子原因编码落地（`DADAO-12 §3.6/§4.x/§2.2.6` + `contract-see §6.1` 扩列 + 锁重算） |
 | m14-spec-006 | 3–4 h | K3 的 TLB 规范与契约（撤 `Kaiwu` 不定义句、新建 TLB 契约、12 条探针门控设计；只定义不实现） |
 | m14-qemu-003 | 1.5–2 h | 异步源轴 mask 改按「当前运行模式 monitor」（`ISS-455`；QEMU 侧） |
 | m14-qemu-004 | 1 h | `SYS_READC`/`SYS_FLEN` 取字缓冲改 PA（`ISS-452`，用户裁定「现在修」） |
@@ -41,6 +40,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-spec-007 | 2026-11-16 14:55 | 2–3 h | `cause_id` 子原因编码落地（`DADAO-12 §3.6/§4.x/§2.2.6` + `contract-see §6.1` 扩列 + 锁重算） |
 | m14-linux-009 | 2026-11-16 13:21 | 4–5 h | K2 收口门控 `check-linux-k2`（4 条口径 + 复用顺序/退出码断言；入 L2） |
 
 ## 已验证
