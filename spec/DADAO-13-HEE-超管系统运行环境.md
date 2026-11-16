@@ -38,7 +38,7 @@ hmon 为 hypv 下的同步异常处理核芯功能扩展，处理 hypv 下的同
 | `1 << 1`   | CFXMEM  | 访问核内地址空间或内部存储块故障 | 否 | 访存地址 |
 | `1 << 2`   | CFXREG  | 非法核芯功能扩展寄存器访问 | 否 | 指令编码                        |
 | `1 << 3`   | CFXESC  | escape 帧或目标错误 | 否 | 指令编码                        |
-| `1 << 7`   | CFXPERM | cfx 两轴权限拒绝 | 否 | 访存地址或指令编码 |
+| `1 << 7`   | CFXPERM | cfx 两轴权限拒绝 | 否 | 访存地址 |
 | `1 << 8`   | ILLI    | 非法指令      | 否 | 指令编码                        |
 | `1 << 9`   | UNDI    | 未定义指令     | 否 | 指令编码                        |
 | `1 << 10`  | RASOF   | RAS上溢     | 否 | 准备压栈的返回地址                   |
@@ -63,6 +63,7 @@ hmon 为 hypv 下的同步异常处理核芯功能扩展，处理 hypv 下的同
 - 版本号与 HBI 同步（HBI §3 补 `HBI_<name>_INIT` 不落在 semihosting 区 `0x3FF00–0x3FFFF` 的说明）。
 - cg3 按两轴权限模型重排：`rc0`–`rc3` 为 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` 四类同步来源 mask，`rc4` 为 `cfx_intr_mask`；删除 `hypv_global_version` 与 `hypv_global_cfx_mask`；mask 初值与 SEE 一致（hmon 自身 `0x7FFF_FFFF_FFFF_FFF7`，其余 `0xFFFF_FFFF_FFFF_FFF7`）。
 - hmon 异常原因表新增 `CFXESC`（`1 << 3`）与 `CFXPERM`（`1 << 7`）。
+- `CFXPERM` 的 `excp cause info` 收敛为**地址**（不再有「或指令编码」第二种形态）：页表/`cfxmem` 权限拒绝 = 访存地址，`cfxexe` 拒绝 = 目标 IP，`cfxtrap`/`cfx2rd`/`cfx2rc` 拒绝 = 触发指令地址（与 `excp_cause_ip` 同值，见 SEE `§3.6`）；`CFXMEM` 的 `info` 口径不变。
 - 删除无效屏蔽寄存器定义：`switch_cfx_mask`（`cg3` `rc9`）与 `excp_cause_mask`（`cg3` `rc11`）保留编号并标为 `reserved`（访问 ⇒ `CFXREG`）。
 
 ### 0.1.3（2026-10-26）

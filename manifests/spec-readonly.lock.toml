@@ -627,7 +627,21 @@ group = "dadao-1x"
 # 2026-11-14（ISS-436 补账；授权依据 = 用户 2026-11-14 对 `ISS-436` 的决定「4现在就做」，即确认「本册改动均有授权、只补锁哈希」；
 #   现场审计见 `.tao/knowledge/discussing.md` §ISS-436）：本册正文由 14af8b8b 修改（去 `scope`、ISA 字段统一称「地址范围」、机器名）时未同笔重算，本次补算 sha256（**正文未改**）。
 # 2026-11-15（m13-spec-010，同授权）：精确异常段的多元素寄存器指令清单由同组纯复制改为 `rf2rf`；sha256 同笔重算。
-sha256 = "daecc85e0fa2fb19b31f4c9bacb160fec49e03d7f9e42f4d82dd0308632829a0"
+# 2026-11-16（m14-spec-007，授权依据 = `ADR-0056`（Accepted，D1–D7 经用户 2026-11-16 逐条确认「同意」）+
+#   用户三次原话：①「收敛过头了」（M11 `SPEC-186t`/`SPEC-189t` 把页表细粒度原因名一并删掉）；
+#   ②「既然是one-hot，就再加一位；同时，我建议，把位置调整一下，整体位置放在32位以上，权限相关的正好8位，
+#   放在一个byte对齐的位置」；③「正好 wyde2 给 `CFXPERM`，wyde3 给 `CFXMEM`」）：
+#   §3.6 异常原因改分层编码——`[15:0]` cause one-hot（原 11 项一字不改）、`[31:16]` 保留给未来新的大类 cause
+#   （当前必须全 0）、子原因按 wyde 分段且每个 cause 独占一个 wyde：**wyde2 `[47:32]` 专供 `CFXPERM`**
+#   （低字节 `[39:32]` 8 位权限原因：NUPERM/NJPERM/NSPERM/NHPERM/NRPERM/NWPERM/NXPERM/NCFXPERM；`[47:40]` 保留）、
+#   **wyde3 `[63:48]` 专供 `CFXMEM`**（低字节 `[55:48]` 8 位缺失类：IGPTRAP/ISPTRAP/IGPFTRAP/ISPFTRAP/DGPTRAP/
+#   DSPTRAP/DGPFTRAP/DSPFTRAP；`[56] ADWBFAIL`、`[57] NONPTW`、`[63:58]` 保留）；`CFXPERM` 时 wyde3 必须全 0、
+#   `CFXMEM` 时 wyde2 必须全 0、其它 cause 两个 wyde 都必须全 0；新增两 wyde 位表与 handler 取值
+#   `(cause_id >> 32/48) & 0xFFFF`，以及「`CFXMEM`/`CFXPERM` 的 `cause_info` 恒为地址（`cfxtrap`/`cfx2rd`/`cfx2rc`
+#   拒绝 = 触发指令地址，与 `excp_cause_ip` 同值，刻意统一）」口径；§2.2.6 七步优先级逐步对应子原因位；
+#   §4.1–§4.6 的 `CFXMEM`/`CFXPERM` 行注明 `info` 恒为地址与子原因 wyde；附录 0.7.3-rc 补一条；退出码仍取低位
+#   cause 索引。版本不变（仍 `0.7.3-rc`）；sha256 同笔重算（其余 20 册不变）。
+sha256 = "d0b27146a124a434920062900a3267fac642be2dfb6fbbab514033a8e78b1d65"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -643,7 +657,12 @@ group = "dadao-1x"
 #   应ignore后两位」）：§1 cg3 rc10 初值 = 该 cfx 内部 SRAM 起始地址（无内部 SRAM 者由平台/实现定义），
 #   写入忽略低 2 位（`value[1:0] ← 0`）且不产生异常；附录 `0.1.4-rc` 对应条目就地改写（未发布，不另开段）；
 #   版本不变（仍 `0.1.4-rc`）；sha256 同笔重算。
-sha256 = "a284856bb0643876a5165579092bbc8751596e77f86aeae70ba6c970b8b1dabe"
+# 2026-11-16（m14-spec-007，授权依据 = 用户原话「CFXPERM异常发生时，except_info不应该有两种情况，处理程序会困惑的，
+#   应该就是地址」+ `ADR-0056`（Accepted，D1–D7 经用户逐条确认「同意」）的 D4「`CFXMEM`/`CFXPERM` 的 `cause_info`
+#   恒为地址」）：§2 hmon 异常原因表的 `CFXPERM` 行 `info` 由「访存地址或指令编码」收敛为「**访存地址**」（`cfxexe`
+#   拒绝 = 目标 IP、`cfxtrap`/`cfx2rd`/`cfx2rc` 拒绝 = 触发指令地址，均属地址，细则见 SEE `§3.6`）；附录 `0.1.4-rc`
+#   补一条（版本不变：`0.1.4-rc` 未发布）。仅本册重算 sha256（其余 20 册不变）。
+sha256 = "c06c94aff0aef80bc2f1d676e44a6100900eeb007028b33f22d6e7d1fef6402c"
 
 [[spec]]
 path = "spec/DADAO-21-ABI-应用程序二进制接口.md"
