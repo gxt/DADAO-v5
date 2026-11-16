@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """k2_irq_probe.py — M14 K2 interrupt-enable knob gate (`m14-linux-008`).
 
-DADAO has no interrupt-enable state bit: the software IE knob is the per-cfx
-`supv_cfx_intr_mask` (`cg2 rc4`), and the kernel maps `local_irq_*` onto it
+DADAO has no interrupt-enable state bit: the software IE knob is the running
+mode monitor's `supv_cfx_intr_mask` (`cfx_smon cg2 rc4`, spec/DADAO-12 §5.2
+step 3 / user ruling ISS-455), and the kernel maps `local_irq_*` onto it
 (contract-see §6.4, ADR-0045 D3).  Whether that mapping is *real* can only be
 seen from the physical register, so the probe image (`kernel/k2_irq_test.c`,
-CONFIG_DADAO_K2_IRQ_TEST) reads both knob rows back with `cfx2rd` after every
-step and prints the raw words; this gate is the judge.
+CONFIG_DADAO_K2_IRQ_TEST) reads the knob row back with `cfx2rd` after every step
+— and the delivered cfx's row as well, as the witness that nothing writes it —
+and prints the raw words; this gate is the judge.
 
 Boot path under test:
 
@@ -165,28 +167,37 @@ def contract_knob_register() -> tuple[int, int]:
 
 
 def knob_rows_written() -> tuple[bool, bool]:
-    """Does the write path cover *both* knob rows (ISS-454)?
+    """Which rows the knob's *write* path touches (ISS-455: exactly one).
 
-    The values cannot show this (both rows start from the same word and the
-    single-row bug only shows up as behaviour), so the row set is asserted on
-    the source the same way the register identity is.
+    The run mode picks the row — `supv` ⇒ the mode monitor's `cfx_smon`
+    `cg2 rc4` — so the write path must never touch the delivered cfx's row.
+    The values cannot show this from behaviour (and the second write is
+    indistinguishable in the readback), so the row set is asserted on the
+    source the same way the register identity is.  The reader lives in
+    ``k2_time_probe`` because C10 needs the very same judgement.
     """
-    text = (SOURCE / IRQFLAGS).read_text(encoding="utf-8")
-    m = re.search(r"static inline void dadao_irq_mask_row_write"
-                  r"\(unsigned long value\)\s*\{(.*?)\n\}", text, re.S)
-    body = m.group(1) if m else ""
-    # Match the *write*, not the bare name: a comment naming the missing row
-    # must not satisfy the check.
-    return (bool(re.search(r"DADAO_CFX_WRITE\(cfx_smon\s*,", body)),
-            bool(re.search(r"DADAO_CFX_WRITE\(cfx_hart\s*,", body)))
+    return k2time.knob_rows_written()
 
 
-def derivation() -> dict:
+def image_config() -> str:
+    """The ``.config`` of the image just built.
+
+    The build tree is shared with every other Linux gate (and every worktree
+    reaches the same one through ``.work``), so this has to be read right after
+    the build, never at the end of the run: a concurrent gate re-slicing
+    ``.config`` in between is otherwise indistinguishable from "the image was
+    built without the symbols this gate pinned".
+    """
+    return (Path(linux_paths.linux_build_dir()) / ".config").read_text(
+        encoding="utf-8")
+
+
+def derivation(cfg: str | None = None) -> dict:
     """Everything the checks compare against, read once."""
     hart = k2time.cfxha("cfx_hart")
     freq = k2time.contract_freq()
-    cfg = (Path(linux_paths.linux_build_dir()) / ".config").read_text(
-        encoding="utf-8")
+    if cfg is None:
+        cfg = image_config()
     hz = k2time.config_hz(cfg)
     period = freq // hz
     if not period:
@@ -220,6 +231,22 @@ def kernel_path() -> Path:
     return Path(linux_paths.linux_build_dir()) / "vmlinux"
 
 
+def freeze_image(tag: str) -> dict:
+    """Copy the image and its ``.config`` out of the shared build tree.
+
+    The build tree is one directory for every worktree (``.work`` is shared) and
+    every Linux gate rebuilds it, so a concurrent run can replace the ELF
+    between this gate's build and its boot.  Freezing both artefacts right after
+    the build makes the run judge the image it built: the boot uses the copy and
+    the config assertions use the captured text.
+    """
+    out = SCRATCH / "images" / tag
+    out.mkdir(parents=True, exist_ok=True)
+    kernel = out / "vmlinux"
+    kernel.write_bytes(kernel_path().read_bytes())
+    return {"kernel": kernel, "config": image_config()}
+
+
 def firmware(tag: str) -> str:
     k0.load_contract()
     if not k0.ABI:
@@ -230,9 +257,9 @@ def firmware(tag: str) -> str:
                              name=f"bootrom_k0_{tag}.bin")
 
 
-def boot(tag: str, rom: str,
+def boot(tag: str, rom: str, kernel: Path | None = None,
          timeout: int | None = None) -> tuple[int, str, list[str]]:
-    kernel = kernel_path()
+    kernel = kernel or kernel_path()
     if not kernel.is_file():
         raise SystemExit(f"k2_irq_probe: {kernel} missing")
     log = SCRATCH / "log" / f"{tag}.log"
@@ -336,12 +363,12 @@ def check_static(rep: Report, spec: dict) -> None:
     rep.check("C0", "源位 != TIMER cause id（两套编号不混用）", True,
               bit != d["timer"])
     # Register identity is a *static* property: with the knob on another row the
-    # printed values stay self-consistent (both rows carry the same default and
-    # init_IRQ opens both), so only the source can pin it.
+    # printed values stay self-consistent (the row carries its own default and
+    # init_IRQ opens it), so only the source can pin it.
     rep.check("C0", "旋钮寄存器 == 契约 §6.4 的 cg/rc", contract_knob_register(),
               knob_register())
-    rep.check("C0", "旋钮写入覆盖两行（cfx_smon + 投递过的 cfx_hart）",
-              (True, True), knob_rows_written())
+    rep.check("C0", "旋钮只写运行模式 monitor 行（cfx_smon；不写 cfx_hart，"
+              "ISS-455）", (True, False), knob_rows_written())
     rep.stat(f"bit={bit:#x} cfx_hart={d['hart']} timer_cause={d['timer']:#x} "
              f"freq={d['freq']} hz={d['hz']} period={d['period']}")
 
@@ -417,10 +444,10 @@ def check_mask_axes(rep: Report, text: str, d: dict) -> None:
         return
     smon, hart, glob = ints(m.group(1, 2, 3))
     bit = d["bit"]
-    rep.check("C1", "源轴 cfx_smon 行已放开该位（mode monitor 行，§5.2 step 3）",
+    rep.check("C1", "源轴 cfx_smon 行已放开该位（运行模式 monitor 行，§5.2 step 3）",
               0, smon & bit)
-    rep.check("C1", "源轴 cfx_hart 行也已放开该位（内核两行覆盖，ISS-454）", 0,
-              hart & bit)
+    rep.check("C1", "cfx_hart 行未被内核写过（仍是复位值，该位屏蔽，ISS-455）",
+              bit, hart & bit)
     rep.check("C1", "全局轴已放开该位（帧内由硬件接管，不是旋钮）", 0, glob & bit)
     rep.check("C1", "mask 位 = 目标 cfxha", bit, int(m.group(5), 0))
 
@@ -447,15 +474,18 @@ def check_p1(rep: Report, text: str, d: dict) -> None:
     all_ones = (1 << 64) - 1
     rep.check("P1", "save 的整字 == 复位全 1 只清源位（64 位，高位参与）",
               all_ones & ~bit, before_smon)
-    rep.check("P1", "两行稳态值相同（单字保存的前提）", before_smon, before_hart)
+    rep.check("P1", "before: cfx_hart 行的源位仍屏蔽（内核从未写过它）", bit,
+              before_hart & bit)
     rep.check("P1", "save 后 cfx_smon 行置位源位", before_smon | bit,
               masked_smon)
-    rep.check("P1", "save 后 cfx_hart 行置位源位", before_hart | bit,
-              masked_hart)
     rep.check("P1", "save 返回的是保存前的整字", before_smon, flags)
+    rep.check("P1", "save 没有写 cfx_hart 行（值不变）", before_hart, masked_hart)
     rep.check("P1", "restore 后 cfx_smon 逐位等于保存值", flags, rest_smon)
-    rep.check("P1", "restore 后 cfx_hart 逐位等于保存值", flags, rest_hart)
-    rep.check("P1", "restore 后两行都回到保存前", before_smon, rest_smon)
+    rep.check("P1", "restore 后整字 == 复位全 1 只清源位（逐位复原的绝对锚点）",
+              all_ones & ~bit, rest_smon)
+    rep.check("P1", "restore 后 cfx_smon 回到保存前", before_smon, rest_smon)
+    rep.check("P1", "restore 后 cfx_hart 行仍不变（旋钮只写 monitor 行）",
+              before_hart, rest_hart)
 
 
 def check_p3(rep: Report, text: str, d: dict) -> None:
@@ -470,9 +500,9 @@ def check_p3(rep: Report, text: str, d: dict) -> None:
     rep.check("P3", "内层 save 返回外层值 | 源位", outer | bit, inner)
     rep.check("P3", "内层 restore 后 cfx_smon 仍屏蔽（外层未恢复）", inner,
               inner_smon)
-    rep.check("P3", "内层 restore 后 cfx_hart 仍屏蔽", inner, inner_hart)
+    rep.check("P3", "内层 restore 后 cfx_hart 行仍不变", before_hart, inner_hart)
     rep.check("P3", "外层 restore 后 cfx_smon 回到最初", before_smon, outer_smon)
-    rep.check("P3", "外层 restore 后 cfx_hart 回到最初", before_hart, outer_hart)
+    rep.check("P3", "外层 restore 后 cfx_hart 行仍不变", before_hart, outer_hart)
     rep.check("P3", "源位在最终状态是放开的（嵌套没有泄漏成屏蔽）", 0,
               outer_smon & bit)
 
@@ -492,12 +522,16 @@ def check_p5(rep: Report, text: str, d: dict) -> None:
     for state in P5_STATES:
         flags, disabled, flags_disabled, smon, hart = rows[state]
         live = 1 if (smon & bit) else 0
-        rep.check("P5", f"{state}: 现场 cfx_smon 与 cfx_hart 的源位一致", True,
-                  bool(smon & bit) == bool(hart & bit))
-        rep.check("P5", f"{state}: arch_irqs_disabled() == 现场寄存器", live,
+        rep.check("P5", f"{state}: arch_irqs_disabled() == 现场 cfx_smon 位", live,
                   disabled)
         rep.check("P5", f"{state}: arch_irqs_disabled_flags(flags) == 位与结果",
                   1 if (flags & bit) else 0, flags_disabled)
+        rep.check("P5", f"{state}: cfx_hart 行的源位仍屏蔽（旋钮不写它）", bit,
+                  hart & bit)
+    # The witness that the delivered cfx's row is never written: it holds one
+    # value across all four states.
+    rep.check("P5", "cfx_hart 行四态恒定（旋钮只写 monitor 行）", 1,
+              len({rows[state][4] for state in P5_STATES}))
     # The three saved/live pairs have to differ, otherwise the "3 mask states"
     # claim would be vacuous.
     rep.check("P5", "disable 与 enable 的现场值不同", True,
@@ -511,9 +545,8 @@ def check_p5(rep: Report, text: str, d: dict) -> None:
     # Granularity anchor (ISS-457): `enable` may only clear the source bits; a
     # blanket write of 0 would also discard a policy the kernel does not own, and
     # every other P5 assertion stays green under it.
-    rep.check("P5", "enable == disable 清掉源位（其余位保持，两行）",
-              [rows["disable"][3] & ~bit, rows["disable"][4] & ~bit],
-              [rows["enable"][3], rows["enable"][4]])
+    rep.check("P5", "enable == disable 清掉源位（其余位保持）",
+              rows["disable"][3] & ~bit, rows["enable"][3])
 
 
 # ---------------------------------------------------------------------------
@@ -609,9 +642,9 @@ def check_totals(rep: Report, text: str, d: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def run_checks(rc: int, text: str, cmd: list[str], spec: dict, *,
-               static: bool = True) -> Report:
+               static: bool = True, cfg: str | None = None) -> Report:
     rep = Report()
-    d = derivation()
+    d = derivation(cfg)
     if static:
         check_static(rep, spec)
     check_image_meta(rep, rc, text, cmd, d)
@@ -629,9 +662,10 @@ def run_checks(rc: int, text: str, cmd: list[str], spec: dict, *,
 def run_gate(rep: Report) -> dict:
     if config() != 0:
         raise SystemExit("k2_irq_probe: image build failed")
+    image = freeze_image("irq")     # this image, before anyone rebuilds
     rom = firmware("irq")
-    rc, text, cmd = boot("irq", rom)
-    return {"rc": rc, "text": text, "cmd": cmd}
+    rc, text, cmd = boot("irq", rom, kernel=image["kernel"])
+    return {"rc": rc, "text": text, "cmd": cmd, "config": image["config"]}
 
 
 # ---------------------------------------------------------------------------
@@ -644,9 +678,9 @@ def run_selfcheck(result: dict, spec: dict) -> int:
 
     mutations = [
         ("P1", lambda t: re.sub(r"(restored_hart=)\S+", r"\g<1>0x0", t),
-         "restore 后 cfx_hart 行没有回到保存值"),
+         "restore 写了 cfx_hart 行（该行应恒定不变）"),
         ("P3", lambda t: re.sub(r"(inner_hart=)\S+", r"\g<1>0xffffffffffff7fff",
-                                t), "内层 restore 就把屏蔽放开了"),
+                                t), "内层 restore 改了 cfx_hart 行（该行应恒定）"),
         ("P1", lambda t: re.sub(
             r"(P1: before_smon=)0x\S+( before_hart=\S+ flags=\S+ "
             r"masked_smon=\S+ masked_hart=\S+ restored_smon=\S+ "
@@ -668,7 +702,8 @@ def run_selfcheck(result: dict, spec: dict) -> int:
                                 flags=re.MULTILINE), "删掉退出标记行"),
     ]
     for cid, mutate, why in mutations:
-        rep = run_checks(rc, mutate(text), cmd, spec, static=False)
+        rep = run_checks(rc, mutate(text), cmd, spec, static=False,
+                         cfg=result["config"])
         red = [msg for msg in rep.fails if msg.startswith(cid)]
         print(f"  [{'PASS' if red else 'FAIL'}] selfcheck {cid} | "
               f"注入「{why}」⇒ 期望={cid} 变红 实际={red[0] if red else '未变红'}",
@@ -687,7 +722,7 @@ def run_selfcheck(result: dict, spec: dict) -> int:
     if not bit_ok:
         problems.append("selfcheck C0: 头文件常量不可解析")
 
-    rep = run_checks(rc, text, cmd, spec)
+    rep = run_checks(rc, text, cmd, spec, cfg=result["config"])
     print(f"  [{'PASS' if not rep.fails else 'FAIL'}] selfcheck 对照 未改动 | "
           f"期望=0 失败 实际={len(rep.fails)} 失败", flush=True)
     if rep.fails:
@@ -721,33 +756,34 @@ INJECTIONS: dict[str, tuple] = {
            "/* injected */\n}\n"))],
         0, r"^K2 irq: done ticks=", None, ("P3",),
     ),
+    # ①b `restore` writes only the low 32 bits of the saved word: the round trip
+    #    stops being bit-identical to the save, which is precisely what P1's
+    #    "restore 后 cfx_smon 逐位等于保存值" pins.  (Task m14-linux-010 §2①: a
+    #    truncating *restore* must reach the restore assertion, not only the
+    #    save anchor that `flags-32` hits.)
+    "restore-32": (
+        IRQFLAGS,
+        [(("static inline void arch_local_irq_restore(unsigned long flags)\n"
+           "{\n\tdadao_irq_mask_row_write(flags);\n}\n"),
+          ("static inline void arch_local_irq_restore(unsigned long flags)\n"
+           "{\n\tdadao_irq_mask_row_write(flags & 0xffffffffUL);\t"
+           "/* injected: low half only */\n}\n"))],
+        0, r"^K2 irq: done ticks=", None, ("P1",),
+    ),
     # ② the knob is wired to the mode-level row (`cfx_smon cg8 rc1`) instead of
-    #    the per-cfx supv row: delivery still gets masked outside a frame, so the
-    #    behavioural cases survive — what breaks is the register identity the
-    #    gate pins (P1/P3/P5 read the *cfx* rows back).  See the task's
-    #    completion area: the frame-time collision needs the frame path, which is
-    #    injection `global-row-unmask` below.
+    #    the mode monitor's supv row: the register identity the gate pins (C0)
+    #    goes red, and the run itself dies on the first `cg8` access — the
+    #    firmware's `supv_cfxreg` delegation covers `cg2`, not `cg8`, so the
+    #    kernel gets a named `CFXREG` instead of reaching its boot marker.
     "knob-on-global": (
         IRQFLAGS,
         [(("#define DADAO_IRQ_CG_SUPV\t\t2\t/* supv row, spec/DADAO-12 §3.3 */\n"
            "#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK\t4\n"),
           ("#define DADAO_IRQ_CG_SUPV\t\t8\t/* injected: global row */\n"
-           "#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK\t1\n")),
-         (("static inline unsigned long dadao_irq_mask_row_hart(void)\n"
-           "{\n\treturn DADAO_CFX_READ(cfx_hart, DADAO_IRQ_CG_SUPV,\n"
-           "\t\t\t      DADAO_IRQ_RC_SUPV_CFX_INTR_MASK);\n}\n"),
-          ("static inline unsigned long dadao_irq_mask_row_hart(void)\n"
-           "{\n\treturn DADAO_CFX_READ(cfx_smon, DADAO_IRQ_CG_SUPV,\n"
-           "\t\t\t      DADAO_IRQ_RC_SUPV_CFX_INTR_MASK);\t"
-           "/* injected */\n}\n")),
-         (("\tDADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,\n"
-           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);\n}"),
-          ("\t/* injected: single mode-level row */\n}")),
-         (("\tDADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,\n"
-           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK,\n"
-           "\t\t\tdadao_irq_mask_row_hart() & ~DADAO_IRQ_SOURCE_BITS);\n"),
-          ("\t/* injected: single mode-level row */\n"))],
-        0, r"^K2 irq: done ticks=", None, ("C0",),
+           "#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK\t1\n"))],
+        ("monitor", "supv", "CFXREG"),
+        r"^dadao: unrecoverable supv exception cause=CFXREG", r"^K2 irq: done",
+        ("C0",),
     ),
     # ②b restore also clears the source bit in the mode-level global row: the
     #     frame's own protection is that row, so the P4 event is delivered
@@ -791,11 +827,11 @@ INJECTIONS: dict[str, tuple] = {
         0, r"^K2 irq: done ticks=", None, ("P2",),
     ),
     # ⑥ `save` hands back only the low 32 bits (ISS-457): the handler restores
-    #    that word, so from the first tick on both rows genuinely hold 0xffff7fff
-    #    and every P1 read agrees with every other P1 read — including the row
-    #    `init_IRQ` prints (start_kernel's earlier saves already wrote it back).
-    #    Only the contract's reset value (all-ones) minus the source bit can see
-    #    the dropped high half.
+    #    that word, so from the first tick on the monitor row genuinely holds
+    #    0xffff7fff and every P1 read agrees with every other P1 read — including
+    #    the row `init_IRQ` prints (start_kernel's earlier saves already wrote it
+    #    back).  Only the contract's reset value (all-ones) minus the source bit
+    #    can see the dropped high half.
     "flags-32": (
         IRQFLAGS,
         [(("\tunsigned long flags = dadao_irq_mask_row_smon();\n"
@@ -816,41 +852,25 @@ INJECTIONS: dict[str, tuple] = {
         IRQFLAGS,
         [(("\tDADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,\n"
            "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK,\n"
-           "\t\t\tdadao_irq_mask_row_smon() & ~DADAO_IRQ_SOURCE_BITS);\n"
-           "\tDADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,\n"
-           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK,\n"
-           "\t\t\tdadao_irq_mask_row_hart() & ~DADAO_IRQ_SOURCE_BITS);\n"),
+           "\t\t\tdadao_irq_mask_row_smon() & ~DADAO_IRQ_SOURCE_BITS);\n"),
           ("\tDADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,\n"
-           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, 0UL);\t/* injected */\n"
-           "\tDADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,\n"
            "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, 0UL);\t/* injected */\n"))],
         0, r"^K2 irq: done ticks=", None, ("P5",),
     ),
-    # ⑤ only cfx_smon's row is written, never the delivered cfx's row
-    #    (ISS-454's two-row rule).  Since m14-qemu-003 the async source filter
-    #    reads the *mode monitor's* row (spec/DADAO-12 §5.2 step 3), so the
-    #    behavioural half of that rule — "the masked window keeps ticking" — no
-    #    longer has a FAIL path (the monitor row the kernel does write is the one
-    #    consulted).  What stays red is the static identity: the two-row write
-    #    coverage (C0) and the per-row readback round trip (P1).  The positive
-    #    direction ("smon row only ⇒ the tick series still completes") is judged
-    #    by k2_time_probe's C10 single-row run.
-    "only-smon-row": (
-        IRQFLAGS,
-        [(("\tDADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,\n"
-           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);\n"
-           "\tDADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,\n"
-           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);\n"),
-          ("\tDADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,\n"
-           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);\n"
-           "\t/* injected: cfx_hart's row left alone (ISS-454) */\n"))],
-        0, r"^K2 irq: done ticks=", None, ("C0", "P1"),
-    ),
+    # ⑤ cfx_hart's row left alone: since m14-linux-010 that is the *shipped*
+    #    state, so the "does the kernel still write a second row" direction is
+    #    injected the other way round — k2_time_probe's C10 `two-row` mutation
+    #    adds the write back and requires a red.  A mutation without a reachable
+    #    FAIL path does not belong in this table.
 }
 
 
 def run_inject(name: str, problems: list[str], spec: dict) -> None:
     rel, patches, want_rc, want_re, forbid, want_cids = INJECTIONS[name]
+    if isinstance(want_rc, tuple):
+        # ("monitor", mode, cause): the run must die with that §7.1 code.
+        _kind, mode, cause = want_rc
+        want_rc = k2time.monitor_code(spec, mode, cause)
     path = SOURCE / rel
     before = md5(path)
     backup = SCRATCH / f"inject-{name}.bak"
@@ -879,7 +899,10 @@ def run_inject(name: str, problems: list[str], spec: dict) -> None:
         if config() != 0:
             problems.append(f"inject:{name}: 重建失败")
         else:
-            rc, text_out, _cmd = boot(f"inject_{name}", firmware("irq"))
+            image = freeze_image(f"inject_{name}")
+            rc, text_out, _cmd = boot(f"inject_{name}", firmware("irq"),
+                                      kernel=image["kernel"])
+            cfg = image["config"]
             print(f"---- guest output ({name}, rc={rc}) ----")
             print(text_out.strip()[-2500:])
             print("----------------------------------------")
@@ -892,7 +915,7 @@ def run_inject(name: str, problems: list[str], spec: dict) -> None:
                 absent = not re.search(forbid, text_out, re.MULTILINE)
                 checks.append(("禁止行", absent, f"无 {forbid}",
                                "无" if absent else "有"))
-            rep = run_checks(rc, text_out, _cmd, spec)
+            rep = run_checks(rc, text_out, _cmd, spec, cfg=cfg)
             for cid in want_cids:
                 red = [msg for msg in rep.fails if msg.startswith(cid)]
                 checks.append((f"断言 {cid} 变红", bool(red), f"{cid} 出现 FAIL",
@@ -918,8 +941,11 @@ def run_inject(name: str, problems: list[str], spec: dict) -> None:
     if config() != 0:
         problems.append(f"inject:{name}: 还原后重建失败")
         return
-    rc, text_out, _cmd = boot(f"inject_{name}_green", firmware("irq"))
-    rep = run_checks(rc, text_out, _cmd, spec, static=False)
+    image = freeze_image(f"inject_{name}_green")
+    cfg = image["config"]
+    rc, text_out, _cmd = boot(f"inject_{name}_green", firmware("irq"),
+                              kernel=image["kernel"])
+    rep = run_checks(rc, text_out, _cmd, spec, static=False, cfg=cfg)
     green = not rep.fails
     print(f"  [{'PASS' if green else 'FAIL'}] inject:{name} 还原后回绿 | "
           f"期望=0 失败 实际={len(rep.fails)} 失败", flush=True)
@@ -980,7 +1006,8 @@ def main() -> int:
     if args.selfcheck:
         return run_selfcheck(result, specs)
 
-    rep = run_checks(result["rc"], result["text"], result["cmd"], specs)
+    rep = run_checks(result["rc"], result["text"], result["cmd"], specs,
+                     cfg=result["config"])
     if not rep.fails:
         print(f"k2_irq_probe: PASS ({rep.total}/{rep.total})")
     else:

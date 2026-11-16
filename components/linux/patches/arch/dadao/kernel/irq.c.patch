@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/irq.c b/arch/dadao/kernel/irq.c
 new file mode 100644
-index 000000000..04296e8dc
+index 000000000..311217c30
 --- /dev/null
 +++ b/arch/dadao/kernel/irq.c
-@@ -0,0 +1,149 @@
+@@ -0,0 +1,146 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO supv asynchronous-interrupt entry installation and the two mask axes
@@ -22,21 +22,21 @@ index 000000000..04296e8dc
 + *    -back pair doubles as the 4-byte alignment check — the hardware ignores
 + *    the low two bits, so an unaligned entry would not read back.
 + *
-+ * 2. Delivery needs **two** axes: the current cfx's supv `cfx_intr_mask`
-+ *    (bit index = target cfxha) *and* the supv mode monitor's
++ * 2. Delivery needs **two** axes: the running mode monitor's supv
++ *    `cfx_intr_mask` row (bit index = target cfxha) *and* that monitor's
 + *    `global_cfx_intr_mask` (same bit index).  The global one is a one-time
 + *    mode-level release — the hardware saves it on frame entry and restores it
 + *    on `escape` (§6.3), so the kernel must not treat it as its IE knob; the
 + *    per-source row is the knob (contract-see §6.4).
 + *
-+ * The per-source row needs *two* writes, not one: `escape` restores only the
-+ * run mode, so after the first delivery `inner_cfx_code` stays at the target
-+ * cfx (spec/DADAO-12 §5.2 step 6 and §5.3 — a frame carries no previous cfx,
-+ * contract-see §6.2).  The next delivery therefore reads **cfx_hart's** supv
-+ * row, not cfx_smon's.  `tools/testcases/arch/min_rom_probe_integ051t.py`
-+ * records the same convention for the bare-metal probe ("cross-cfx access after
-+ * a delivery keeps inner_cfx_code at the target"); opening only cfx_smon's row
-+ * delivers exactly one tick.
++ * Which cfx owns that per-source row follows from the **run mode**, not from
++ * `inner_cfx_code` (spec/DADAO-12 §5.2(三) step 3, user ruling ISS-455): the
++ * kernel runs in `supv`, so the row is `cfx_smon`'s `cg2 rc4`.  It stays that
++ * row after the first delivery even though `escape` leaves `inner_cfx_code` at
++ * the target cfx (spec/DADAO-12 §5.3, contract-see §6.2) — the run mode is
++ * unchanged, so the filter keeps consulting the same monitor row (ISS-454).
++ * `cfx_hart`'s row is therefore left at its reset value; it is only *read back*
++ * below, as the witness that no kernel path writes it (m14-linux-010).
 + */
 +#include <linux/init.h>
 +#include <linux/kernel.h>
@@ -136,16 +136,13 @@ index 000000000..04296e8dc
 +	mask = smon_supv_intr_mask() & ~bit;
 +	DADAO_CFX_WRITE(cfx_smon, CFX_SMON_CG_SUPV,
 +			CFX_SMON_RC_SUPV_CFX_INTR_MASK, mask);
-+	/*
-+	 * ... and cfx_hart's own row: after the first delivery the kernel runs
-+	 * in cfx_hart (§5.3 restores only the run mode), so the *next* delivery
-+	 * filters on this row.  Same bit, different cfx.
-+	 */
-+	mask = hart_supv_intr_mask() & ~bit;
-+	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_SUPV,
-+			CFX_SMON_RC_SUPV_CFX_INTR_MASK, mask);
 +#endif
 +
++	/*
++	 * cfx_hart's row is deliberately *not* written (m14-linux-010): the
++	 * filter consults the running mode monitor's row, and the read-back in
++	 * the line below shows that this row is still the reset value.
++	 */
 +	dadao_early_printf("K2 irq: mask cfx_smon_supv_cfx_intr_mask=%#lx "
 +			   "cfx_hart_supv_cfx_intr_mask=%#lx "
 +			   "cfx_smon_global_cfx_intr_mask=%#lx cfxha=%lu "

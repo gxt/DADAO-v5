@@ -43,7 +43,8 @@ default.
 
 Checks: C0 static inputs / C1 image + stage order / C2 time base / C3 tick
 series / C4 interval + margin / C5 stopped timer / C6 IMASK / C7 the two axes /
-C8 permission negative / C9 live counts.
+C8 permission negative / C9 live counts / C10 single-row source axis (the
+running mode monitor's row; a standing assertion on the shipped image).
 
 `--selfcheck` mutates the captured runs and shows every group flips.
 `--inject` corrupts the kernel source, rebuilds, asserts the expected FAIL and
@@ -89,7 +90,7 @@ CONTRACT_SEE = _REPO / ".tao" / "contracts" / "contract-see.md"
 CFX_ALIASES = _REPO / "contracts" / "cfx-aliases.txt"
 SOURCE = linux_paths.linux_source_dir()
 
-#: Kernel paths the single-row variant (C10) mutates at run time.
+#: Kernel sources the injections below mutate (single file each).
 TIME_C = "arch/dadao/kernel/time.c"
 IRQ_C = "arch/dadao/kernel/irq.c"
 IRQFLAGS_H = "arch/dadao/include/asm/irqflags.h"
@@ -443,9 +444,10 @@ def check_vector_and_masks(rep: Report, text: str, syms: dict,
               printed_bit)
     rep.check("C7", "mask 位 != TIMER cause id（两套编号不混用）", True,
               printed_bit != cause_id)
-    rep.check("C7", "源轴 cfx_smon 行已放开该位", 0, smon & bit)
-    rep.check("C7", "源轴 cfx_hart 行已放开该位（投放后 inner_cfx 换到 15）",
-              0, hart_row & bit)
+    rep.check("C7", "源轴 cfx_smon 行已放开该位（运行模式 monitor 行）", 0,
+              smon & bit)
+    rep.check("C7", "源轴 cfx_hart 行未被写（复位值，该位屏蔽，ISS-455）", bit,
+              hart_row & bit)
     rep.check("C7", "全局轴 cfx_smon 行已放开该位", 0, global_row & bit)
     rep.stat(f"masks: smon_supv={smon:#x} hart_supv={hart_row:#x} "
              f"global={global_row:#x} bit={bit:#x}")
@@ -604,30 +606,66 @@ def check_axis(rep: Report, name: str, text: str, case: int) -> None:
         return
     smon, hart_row, global_row = ints(mask.group(1, 2, 3))
     bit = 1 << cfxha("cfx_hart")
+    # `cfx_hart`'s row is never written by the kernel (m14-linux-010): it keeps
+    # the contract's reset all-ones value, so its bit stays masked in both
+    # images and says nothing about which axis the case closed.
+    rep.check("C7", f"{name} 镜像：cfx_hart 行未被写（复位值，该位屏蔽）", bit,
+              hart_row & bit)
     if name == "source":
-        rep.check("C7", "source 镜像：源轴两行仍屏蔽", bit,
-                  (smon | hart_row) & bit)
+        rep.check("C7", "source 镜像：源轴（monitor 行）仍屏蔽", bit, smon & bit)
         rep.check("C7", "source 镜像：全局轴已放开（只关了一轴）", 0,
                   global_row & bit)
     else:
         rep.check("C7", "global 镜像：全局轴仍屏蔽", bit, global_row & bit)
-        rep.check("C7", "global 镜像：源轴已放开（只关了一轴）", 0,
-                  (smon | hart_row) & bit)
+        rep.check("C7", "global 镜像：源轴（monitor 行）已放开（只关了一轴）", 0,
+                  smon & bit)
+
+
+def knob_rows_written() -> tuple[bool, bool]:
+    """Which rows the IE knob's *write* path touches (ISS-455: exactly one).
+
+    Reads the shipped kernel source (``arch/dadao/include/asm/irqflags.h``) at
+    both write sites — the raw row writer used by save/restore and `enable`'s
+    read-modify-write — and returns ``(cfx_smon written on both, cfx_hart
+    written on either)``.  The printed register words cannot show a second
+    write: the delivered cfx's row happens to hold the same value whenever the
+    extra write would fire, so only the source can pin "one row" (and the
+    `two-row` injection needs exactly this to have a reachable FAIL path).
+    """
+    text = (SOURCE / IRQFLAGS_H).read_text(encoding="utf-8")
+    bodies = []
+    for pattern in (r"static inline void dadao_irq_mask_row_write"
+                    r"\(unsigned long value\)\s*\{(.*?)\n\}",
+                    r"static inline void arch_local_irq_enable\(void\)\s*"
+                    r"\{(.*?)\n\}"):
+        m = re.search(pattern, text, re.S)
+        bodies.append(m.group(1) if m else "")
+    smon = all(bool(re.search(r"DADAO_CFX_WRITE\(cfx_smon\s*,", body))
+               for body in bodies)
+    hart = any(bool(re.search(r"DADAO_CFX_WRITE\(cfx_hart\s*,", body))
+               for body in bodies)
+    return smon, hart
 
 
 def check_single_row(rep: Report, rc: int, text: str, hart: int) -> None:
-    """C10 (ISS-455 / m14-qemu-003): the source axis is the *running mode
+    """C10 (ISS-455 / m14-linux-010): the source axis is the *running mode
     monitor's* row, not the current cfx's.
 
-    The image is built from a kernel reduced at run time to writing only
-    `cfx_smon`'s supv `cfx_intr_mask` row (`cg2 rc4`); `cfx_hart`'s row keeps
-    its reset all-1 value.  spec/DADAO-12 §5.2 step 3 filters asynchronous
-    sources on the mode monitor's `<mode>_cfx_intr_mask`, so the whole tick
-    series must still complete.  A filter that reads the *current cfx's* row
-    delivers exactly one tick after the first frame (current cfx = cfx_hart)
-    and parks every later event in pending — m14-linux-007's measurement.
+    The shipped image writes only `cfx_smon`'s supv `cfx_intr_mask` row
+    (`cg2 rc4`); `cfx_hart`'s row keeps its reset all-1 value.
+    spec/DADAO-12 §5.2 step 3 filters asynchronous sources on the mode monitor's
+    `<mode>_cfx_intr_mask`, so the whole tick series must still complete.  A
+    filter that reads the *current cfx's* row delivers exactly one tick after
+    the first frame (current cfx = cfx_hart) and parks every later event in
+    pending — m14-linux-007's measurement, and the `two-row` injection below
+    puts the second write back to show the gate still notices it.
     """
     bit = 1 << hart
+    # The source half: one row, and the delivered cfx's row is not one of them.
+    # This is the only half the `two-row` injection can move — the extra write
+    # lands on a row that already holds the same word at this point.
+    rep.check("C10", "single-row：写路径只写 monitor 行（源码，ISS-455）",
+              (True, False), knob_rows_written())
     m = IRQ_MASK.search(text)
     if not m:
         rep.check("C10", "single-row mask 行存在", "存在", "缺失")
@@ -653,17 +691,19 @@ def check_permission(rep: Report, rc: int, text: str, specs: dict,
     rep.check("C8", "输出具名 CFXPERM 行", True,
               bool(re.search(r"^dadao: unrecoverable supv exception "
                              r"cause=CFXPERM\(0x80\)", text, re.MULTILINE)))
-    # The software IE knob is real since m14-linux-008, so the kernel's *first*
-    # cfx access is now the local_irq_* plumbing inside start_kernel, not the
-    # cfx_time read in time_init.  Both live behind the same firmware opening,
-    # which is what this case proves; pin the span and the fact that the denial
-    # is a source-mask rejection (`info` = instruction word, not an address).
+    # The firmware `noperm` variant closes the `cfx_hart` / `cfx_time` targets
+    # only, and permissions are per target cfx.  Since m14-linux-010 the IE knob
+    # touches `cfx_smon` alone (allowed), so the first *denied* access is the
+    # `cfx_time` frequency read at the top of `time_init` — still behind the same
+    # firmware opening, which is what this case proves.  Pin the span and the
+    # fact that the denial is a source-mask rejection (`info` = instruction
+    # word, not an address).
     syms = snap["syms"]
     m = re.search(r"cause=CFXPERM\(0x80\) ip=(\S+) info=(\S+)", text)
     ip = int(m.group(1), 0) if m else None
     info = int(m.group(2), 0) if m else None
-    rep.check("C8", "首次触碰是 start_kernel 内的掩码拒绝（info = 指令字）", True,
-              ip is not None and syms["start_kernel"] <= ip < syms["time_init"]
+    rep.check("C8", "首次被拒的是 time_init 里的 cfx_time 读（info = 指令字）", True,
+              ip is not None and syms["time_init"] <= ip < syms["init_IRQ"]
               and info <= 0xffffffff)
     rep.check("C8", "输出无 tick 行（没走到定时器）", [],
               [line for line in text.splitlines()
@@ -671,73 +711,37 @@ def check_permission(rep: Report, rc: int, text: str, specs: dict,
 
 
 # ---------------------------------------------------------------------------
-# C10: the single-row variant (ISS-455 / m14-qemu-003)
+# C10: the single-row variant (ISS-455 / m14-linux-010)
 # ---------------------------------------------------------------------------
 
-#: Every kernel write to the *target cfx's* supv `cfx_intr_mask` row, removed at
+#: Kernel writes to the *delivered cfx's* supv `cfx_intr_mask` row, removed at
 #: run time so that `cfx_hart`'s row keeps its reset all-1 value and only the
-#: running mode monitor's row (`cfx_smon cg2 rc4`) is ever opened.  This is a
-#: source mutation with ``cp`` + md5 restore (never a patch-set edit): the kernel
-#: writing both rows is m14-linux-008's state, narrowed by m14-linux-010.
-SINGLE_ROW_PATCHES = (
-    (IRQ_C,
-     "\tmask = hart_supv_intr_mask() & ~bit;\n"
-     "\tDADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_SUPV,\n"
-     "\t\t\tCFX_SMON_RC_SUPV_CFX_INTR_MASK, mask);\n",
-     "\t/* single-row variant: cfx_hart's row keeps its reset value */\n"),
-    (IRQFLAGS_H,
-     "\tDADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,\n"
-     "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);\n",
-     "\t/* single-row variant: cfx_hart's row left alone */\n"),
-    (IRQFLAGS_H,
-     "\tDADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,\n"
-     "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK,\n"
-     "\t\t\tdadao_irq_mask_row_hart() & ~DADAO_IRQ_SOURCE_BITS);\n",
-     "\t/* single-row variant: cfx_hart's row left alone */\n"),
-)
+#: running mode monitor's row (`cfx_smon cg2 rc4`) is ever opened.
+#:
+#: **Empty since m14-linux-010**: the kernel itself is single-row now, so C10
+#: runs against the *shipped* image and is a standing assertion (no rebuild, no
+#: source mutation).  The table stays so the run-time patch path keeps its shape
+#: and so its emptiness is explicit; the reverse direction — a kernel that writes
+#: the delivered cfx's row again — lives in ``INJECTIONS["two-row"]`` and must
+#: turn C10 red.
+SINGLE_ROW_PATCHES: tuple[tuple[str, str, str], ...] = ()
 
 
 def single_row_run(rep: Report, hart: int) -> dict:
-    """Build + boot the single-row image; returns the run for ``--selfcheck``.
+    """Boot the shipped image and judge it as the single-row variant (C10).
 
-    The source is patched in place and restored with ``cp`` + md5 in a
-    ``finally`` block; the caller rebuilds the pristine ``time`` image before it
-    interprets anything else (the noperm run does that explicitly).
+    ``SINGLE_ROW_PATCHES`` used to strip the second row's writes at run time.
+    Now that nothing is stripped, "the run-time mutation is empty" is asserted
+    rather than assumed: a non-empty table would mean C10 judged something other
+    than the shipped kernel.  Returns the run for ``--selfcheck``.
     """
-    originals: dict[str, bytes] = {}
-    before_md5: dict[str, str] = {}
-    texts: dict[str, str] = {}
-    for rel, old, new in SINGLE_ROW_PATCHES:
-        path = SOURCE / rel
-        if rel not in originals:
-            originals[rel] = path.read_bytes()
-            before_md5[rel] = md5(path)
-            texts[rel] = originals[rel].decode("utf-8")
-        if texts[rel].count(old) != 1:
-            raise SystemExit(f"k2_time_probe: single-row 注入点不唯一 "
-                             f"({rel}: {texts[rel].count(old)} 处)")
-        texts[rel] = texts[rel].replace(old, new, 1)
-    try:
-        for rel in originals:
-            (SOURCE / rel).write_text(texts[rel], encoding="utf-8")
-            print(f"  [PASS] single-row 注入 {rel} | md5 "
-                  f"{before_md5[rel][:8]} -> {md5(SOURCE / rel)[:8]}",
-                  flush=True)
-        if md5(SOURCE / IRQ_C) == before_md5[IRQ_C]:
-            raise SystemExit("k2_time_probe: single-row 注入是空操作（md5 未变）")
-        if config("time") != 0:
-            raise SystemExit("k2_time_probe: single-row 重建失败")
-        rc, text, cmd = boot("single_row", firmware("time"))
-    finally:
-        for rel, blob in originals.items():
-            (SOURCE / rel).write_bytes(blob)
-            restored = md5(SOURCE / rel)
-            print(f"  [{'PASS' if restored == before_md5[rel] else 'FAIL'}] "
-                  f"single-row 还原 {rel} (cp) | md5 "
-                  f"期望={before_md5[rel][:8]} 实际={restored[:8]}", flush=True)
-            if restored != before_md5[rel]:
-                raise SystemExit(f"k2_time_probe: single-row 还原后 md5 不一致 "
-                                 f"({rel})")
+    if SINGLE_ROW_PATCHES:
+        raise SystemExit(
+            f"k2_time_probe: C10 must judge the shipped kernel, but "
+            f"SINGLE_ROW_PATCHES has {len(SINGLE_ROW_PATCHES)} entries")
+    if config("time") != 0:
+        raise SystemExit("k2_time_probe: single-row rebuild failed")
+    rc, text, cmd = boot("single_row", firmware("time"))
     check_single_row(rep, rc, text, hart)
     return {"rc": rc, "text": text, "cmd": cmd}
 
@@ -990,12 +994,52 @@ INJECTIONS: dict[str, tuple] = {
         0, r"^K2 time: done ticks=", None, ("C4",), None,
     ),
     # ⑤ was "only cfx_smon's supv row opened (irq.c)": after m14-linux-008 the
-    #    software IE knob writes *both* rows on every save/restore (ISS-454), so
-    #    the handler itself re-opens cfx_hart's row on the first tick and the
-    #    missing init_IRQ write no longer has an observable.  That property is
-    #    judged by k2_irq_probe's `only-smon-row` injection instead; a mutation
-    #    without a reachable FAIL path does not belong in this table.
+    #    software IE knob wrote *both* rows on every save/restore (ISS-454), so
+    #    the handler itself re-opened cfx_hart's row on the first tick and the
+    #    missing init_IRQ write had no observable.  m14-linux-010 flipped both:
+    #    the kernel is single-row, so the *reachable-FAIL* direction is now the
+    #    reverse one — `two-row` below adds the second row back and requires C10
+    #    to go red.  C10 itself runs on the shipped image (standing assertion).
+    #
+    # ⑦ `two-row` (ISS-455 / m14-linux-010): the shipped kernel writes only the
+    #    running mode monitor's row; this puts the delivered cfx's row back into
+    #    the save/restore path.  Behaviour still completes (the filter reads the
+    #    monitor row either way), so the red has to come from C10's "cfx_hart's
+    #    row is the reset value" assertion: a gate that cannot see a second row
+    #    would let the two-row state back in unnoticed.
+    "two-row": (
+        "time",
+        [(("static inline void dadao_irq_mask_row_write(unsigned long value)\n"
+           "{\n"
+           "\tDADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,\n"
+           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);\n"
+           "}\n"),
+          ("static inline void dadao_irq_mask_row_write(unsigned long value)\n"
+           "{\n"
+           "\tDADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,\n"
+           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);\n"
+           "\tDADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,\n"
+           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);\t"
+           "/* injected: second row back */\n"
+           "}\n"))],
+        0, r"^K2 time: done ticks=", None, ("C10",), None,
+    ),
 }
+
+
+def gate_report(image: str, rc: int, text: str, cmd: list[str], snap: dict,
+                hart: int) -> Report:
+    """Every check group an image's run answers to.
+
+    The ``time`` image also carries the single-row claim (C10), so an injection
+    that touches the knob is judged against it as well as against C1–C9.
+    """
+    rep = Report(quiet=True)
+    with contextlib.redirect_stdout(io.StringIO()):
+        check_image(image, rc, text, cmd, rep, snap)
+        if image == "time":
+            check_single_row(rep, rc, text, hart)
+    return rep
 
 
 def run_inject(name: str, problems: list[str], specs: dict) -> None:
@@ -1006,6 +1050,8 @@ def run_inject(name: str, problems: list[str], specs: dict) -> None:
         want_rc = monitor_code(specs, mode, cause)
     # Each injection targets one file; its patches apply in order.
     rel = TIME_C if name in ("hz-hardcoded", "period-doubled") else IRQ_C
+    if name == "two-row":
+        rel = IRQFLAGS_H
     path = SOURCE / rel
     before = md5(path)
     backup = SCRATCH / f"inject-{name}.bak"
@@ -1050,9 +1096,8 @@ def run_inject(name: str, problems: list[str], specs: dict) -> None:
                 absent = not re.search(forbid, text_out, re.MULTILINE)
                 checks.append(("禁止行", absent, f"无 {forbid}",
                                "无" if absent else "有"))
-            rep = Report(quiet=True)
-            with contextlib.redirect_stdout(io.StringIO()):
-                check_image(image, rc, text_out, _cmd, rep, snap)
+            rep = gate_report(image, rc, text_out, _cmd, snap,
+                              cfxha("cfx_hart"))
             for cid in want_cids:
                 red = [msg for msg in rep.fails if msg.startswith(cid)]
                 checks.append((f"断言 {cid} 变红", bool(red), f"{cid} 出现 FAIL",
@@ -1081,9 +1126,7 @@ def run_inject(name: str, problems: list[str], specs: dict) -> None:
         return
     snap = snapshot()
     rc, text_out, _cmd = boot(f"inject_{name}_green", firmware("time"))
-    rep = Report(quiet=True)
-    with contextlib.redirect_stdout(io.StringIO()):
-        check_image(image, rc, text_out, _cmd, rep, snap)
+    rep = gate_report(image, rc, text_out, _cmd, snap, cfxha("cfx_hart"))
     green = not rep.fails
     print(f"  [{'PASS' if green else 'FAIL'}] inject:{name} 还原后回绿 | "
           f"期望=0 失败 实际={len(rep.fails)} 失败", flush=True)

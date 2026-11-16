@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/irqflags.h b/arch/dadao/include/asm/irqflags.h
 new file mode 100644
-index 000000000..492a376af
+index 000000000..957d91e0d
 --- /dev/null
 +++ b/arch/dadao/include/asm/irqflags.h
-@@ -0,0 +1,173 @@
+@@ -0,0 +1,162 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_IRQFLAGS_H
 +#define __ASM_IRQFLAGS_H
@@ -21,11 +21,25 @@ index 000000000..492a376af
 + *
 + * both indexed by the *target cfxha* and both "0 = allow, 1 = mask".
 + *
++ * The knob is the **running mode monitor's** `<mode>_cfx_intr_mask` row
++ * (spec/DADAO-12 §5.2(三) step 3, user ruling ISS-455): the kernel runs in
++ * `supv`, so the row is `cfx_smon`'s `cg2 rc4`.  Which register the knob writes
++ * follows from the *run mode* alone — it is not derived from "which cfx is
++ * current".
++ *
 + * `global_cfx_intr_mask` is not usable as the software knob: the hardware saves
 + * it when a frame is established, sets it all-1, and restores it on `escape`
 + * (contract-see §6.3/§6.4, ADR-0045 D9), so a software write-back would collide
-+ * with the frame's own save/restore.  The knob is the per-cfx supv row; the
-+ * global row stays a one-time mode-level release owned by init_IRQ().
++ * with the frame's own save/restore.  It stays a one-time mode-level release
++ * owned by init_IRQ().
++ *
++ * m14-linux-008 also wrote `cfx_hart`'s row, justified by "after the first
++ * delivery the current cfx is cfx_hart".  ISS-454 retired that reason: `escape`
++ * restores only the run mode and never `inner_cfx_code` (spec/DADAO-12 §5.3),
++ * so the current cfx indeed stays at the target — but the run mode is still
++ * `supv`, so the monitor row is still the one the filter consults, and writing
++ * the delivered cfx's row only obscured the reading it was meant to support.
++ * The knob writes one row (m14-linux-010).
 + */
 +#define DADAO_IRQ_CG_SUPV		2	/* supv row, spec/DADAO-12 §3.3 */
 +#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK	4
@@ -39,31 +53,10 @@ index 000000000..492a376af
 + */
 +#define DADAO_IRQ_SOURCE_BITS		(1UL << 15)
 +
-+/*
-+ * The two rows the knob is written to, and why two:
-+ *
-+ *   cfx_smon  the kernel's own cfx and the row contract-see §6.4 names; it is
-+ *             also the `supv` mode monitor's row, i.e. the one the "按运行模式
-+ *             选行" reading of spec/DADAO-12 §5.2 step 3 tests.
-+ *   cfx_hart  the target of the only enabled source.  `escape` restores only
-+ *             the run mode, never `inner_cfx_code` (spec/DADAO-12 §5.3), so
-+ *             after the first delivery the kernel keeps running with inner cfx
-+ *             15 and the *next* delivery is filtered by this row (ISS-454).
-+ *
-+ * Both rows are written with the same word: the kernel owns both, and that is
-+ * what makes a single `flags` value a complete save.  Writing both is also
-+ * correct under either reading of ISS-455 (see below) at the cost of one extra
-+ * `cfx2rc`.
-+ *
-+ * ISS-455 (open, disclosed in the task's completion area): spec/DADAO-12 §5.2
-+ * step 3 describes the source axis as the *mode monitor's* row, while ADR-0045
-+ * D3 / contract-see §6.4 and the QEMU model read the *current cfx's* row.  The
-+ * two readings differ only after a delivery (current cfx = cfx_hart); covering
-+ * both rows is behaviourally identical to both.
-+ */
-+
-+/* Raw row access.  Kept as three one-liners so a probe image can read the
-+ * physical register back (`cfx2rd`) instead of trusting a recorded shadow. */
++/* Raw row access.  Two one-liners so a probe image can read the physical
++ * registers back (`cfx2rd`) instead of trusting a recorded shadow.  Only the
++ * `smon` row is written below; the `hart` reader exists so the probe can show
++ * that the delivered cfx's row is not touched at all. */
 +static inline unsigned long dadao_irq_mask_row_smon(void)
 +{
 +	return DADAO_CFX_READ(cfx_smon, DADAO_IRQ_CG_SUPV,
@@ -80,8 +73,6 @@ index 000000000..492a376af
 +{
 +	DADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,
 +			DADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);
-+	DADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,
-+			DADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);
 +}
 +
 +/*
@@ -89,7 +80,8 @@ index 000000000..492a376af
 + * the mask register IS the state, there is no separate IE bit to pack, and a
 + * whole-word save needs no field layout that would have to change when a
 + * second source (or a second mask register) appears.  The assumption to revisit
-+ * then is stated here on purpose: `restore` writes this one word to both rows.
++ * then is stated here on purpose: `restore` writes this one word back to the
++ * one row the run mode selects.
 + */
 +
 +static inline unsigned long arch_local_save_flags(void)
@@ -101,10 +93,10 @@ index 000000000..492a376af
 + * Mask every source this kernel cares about and return the previous knob value.
 + *
 + * Round trip: `arch_local_irq_restore(arch_local_irq_save())` writes `flags`
-+ * back to both rows, so afterwards both read *bit-identically* what the
-+ * canonical row (`cfx_smon`) read before — not merely "the same masked state".
-+ * Nesting is therefore plain value passing: an inner save records
-+ * `flags | DADAO_IRQ_SOURCE_BITS`, and only the outer restore re-enables.
++ * back to the same row, so afterwards it reads *bit-identically* what it read
++ * before — not merely "the same masked state".  Nesting is therefore plain
++ * value passing: an inner save records `flags | DADAO_IRQ_SOURCE_BITS`, and
++ * only the outer restore re-enables.
 + *
 + * A masked source is not lost: the event is still recorded in the *target*
 + * cfx's `cg5 rc5` pending bit and the hardware re-kicks it after a mask write /
@@ -130,10 +122,10 @@ index 000000000..492a376af
 +}
 +
 +/*
-+ * Enable: clear the kernel's source bits only, keeping every other bit each row
++ * Enable: clear the kernel's source bits only, keeping every other bit the row
 + * already carried (task ruling 2) — a blanket "write 0" would also discard a
 + * source policy this kernel does not own (firmware, later K4 source
-+ * management).  Each row is a physical read-modify-write, so the result stays
++ * management).  The row is a physical read-modify-write, so the result stays
 + * observable with `cfx2rd`.
 + */
 +static inline void arch_local_irq_enable(void)
@@ -141,9 +133,6 @@ index 000000000..492a376af
 +	DADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,
 +			DADAO_IRQ_RC_SUPV_CFX_INTR_MASK,
 +			dadao_irq_mask_row_smon() & ~DADAO_IRQ_SOURCE_BITS);
-+	DADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,
-+			DADAO_IRQ_RC_SUPV_CFX_INTR_MASK,
-+			dadao_irq_mask_row_hart() & ~DADAO_IRQ_SOURCE_BITS);
 +}
 +
 +static inline int arch_irqs_disabled_flags(unsigned long flags)

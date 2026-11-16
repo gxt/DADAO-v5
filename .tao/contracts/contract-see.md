@@ -149,10 +149,10 @@
 
 ### §6.4 内核侧 IE（中断使能）单旋钮
 
-- **硬件没有 IE 状态位**：只有两级来源 mask（当前 cfx 的 `<mode>_cfx_intr_mask` = `cg0`–`cg3` 的 `rc4`；`cfx0`–`cfx3` 的 `global_cfx_intr_mask` = `cg8 rc1`），无 PS.IE 类架构状态位。[DADAO-12 §3.1 cg0 - user mode 寄存器][DADAO-12 §3.3 cg2 - supv mode 寄存器][ADR-0045 D3]
-- **单旋钮 = 当前 cfx 的 `<mode>_cfx_intr_mask`**：内核（`supv`，当前 cfx = `cfx_smon`）以 `cfx_smon_supv_cfx_intr_mask`（`cg2 rc4`）为唯一软件 IE 旋钮——`local_irq_disable`/`enable` = 置位/清位内核关心的源位，`local_irq_save` = 读回该寄存器整字作 `flags`，`restore` = 写回保存值。[DADAO-12 §3.3 cg2 - supv mode 寄存器][ADR-0045 D3]
+- **硬件没有 IE 状态位**：只有两级来源 mask（每个 cfx 各有 `<mode>_cfx_intr_mask` = `cg0`–`cg3` 的 `rc4`；`cfx0`–`cfx3` 的 `global_cfx_intr_mask` = `cg8 rc1`），无 PS.IE 类架构状态位。[DADAO-12 §3.1 cg0 - user mode 寄存器][DADAO-12 §3.3 cg2 - supv mode 寄存器][ADR-0045 D3]
+- **单旋钮 = 当前运行模式 monitor 的 `<mode>_cfx_intr_mask`**：异步来源过滤查的是**当前运行模式 monitor** 的那一行（§5.2 步骤 3 的原话是 `cfx_<monitor>_<mode>_cfx_intr_mask`，不是「当前 cfx」的行）；内核在 `supv` 运行 ⇒ monitor 为 `cfx_smon`，旋钮 = `cfx_smon_supv_cfx_intr_mask`（`cg2 rc4`）。`local_irq_disable`/`enable` = 置位/清位内核关心的源位，`local_irq_save` = 读回该寄存器整字作 `flags`，`restore` = 写回保存值。行只由**运行模式**选定，与 `inner_cfx_code` 无关：`escape` 不恢复 `inner_cfx_code`（首投后当前 cfx 仍是投递目标，§6.2），而运行模式不变 ⇒ 过滤仍查同一 monitor 行。[DADAO-12 §5.2 异常进入流程][DADAO-12 §5.3 异常退出流程][DADAO-12 §3.3 cg2 - supv mode 寄存器][ADR-0045 D3]
 - **两处编号不得混用**：mask 的位索引 = **目标 cfxha**（`cfx_hart` ⇒ bit 15），**不是** `excp_cause_id` 的位索引（`TIMER` ⇒ 10）；`0 = 允许`、`1 = 屏蔽`。[DADAO-12 §3.3 cg2 - supv mode 寄存器][ADR-0045 D3][contract-see §3]
-- **`global_cfx_intr_mask` 只作一次性模式级放行**：投递要求两轴都允许（§3），故对目标 cfxha 位的清 0 属初始化动作，**不得**在 `local_irq_*` 路径里读写它——它在帧建立时被硬件置全 1、`escape` 恢复（§6.3），软件当旋钮会与帧的保存/恢复互相覆盖。[ADR-0045 D3][ADR-0045 D9][spec-decision]
+- **`global_cfx_intr_mask` 只作模式级放行**：投递要求两轴都允许（§3、§5.2 步骤 3），故对目标 cfxha 位的清 0 属初始化动作，**不得**在 `local_irq_*` 路径里读写它——它在帧建立时被硬件置全 1、`escape` 恢复（§6.3），软件当旋钮会与帧的保存/恢复互相覆盖。[ADR-0045 D3][ADR-0045 D9][DADAO-12 §5.2 异常进入流程][spec-decision]
 - **屏蔽只阻止投递**：屏蔽期事件仍置**目标 cfx** 的 `cg5 rc5` pending，mask 写 / `escape` / 新源事件之后由硬件重踢补投；内核**不自建**软件 pending 位图。[contract-see §3][DADAO-12 §4.7 cfx_hart - hart management]
 - **决策层**：本口径是 `ADR-0045 D3`（两级 mask 语义）在**内核侧的软件映射**，不新立决策；改口径须回到 `ADR-0045 D3` 并逐条确认。[ADR-0045 D3]
 
@@ -177,7 +177,7 @@
 | §3 | cfx 共有寄存器 / mask / PERM 层次 / 未实现 cfx / cfx_time / cfx_hart 定时器与计数 / 异步边界 | `DADAO-12 §3. 共有寄存器设计规范`、`§3.8 cg7 - 内部空间描述寄存器`、`§4.7 cfx_hart - hart management`、`§4.9 cfx_pmem - physical memory management`、`§4.10 cfx_time - 全局时间计数器`、`§5. 异常进入与异常退出`、`§2.2.1 超页的地址转换`、`§2.2.2 普通页的地址转换`；`DADAO-22 §3. 系统信息（smon）`、`§7. Hart管理（cfx_hart）`、`§10. 全局时间（cfx_time）`；`ADR-0020 D9`、`ADR-0046 D2` |
 | §4 | trap/escape 路由、异常进入/退出 | `DADAO-12 §5. 异常进入与异常退出`、`§异常退出流程`；`DADAO-22 §1. 调用约定`；`SimRISC-11 §退出指令`；`ADR-0020 D10` |
 | §5 | SBI 调用约定、参数/返回寄存器、错误码 | `DADAO-22 §1. 调用约定`；`DADAO-21 §参数寄存器：Parameter registers`、`§标量类型返回值：Scalar type return`、`§系统调用规范` |
-| §6 | 内核侧异常/中断：`excp_cause_info` 11 项 + 子原因位 wyde2/wyde3（`CFXPERM`/`CFXMEM`，共 18 位）+ 未规定者为 0、`escape` 返回 cfx 恒为当前 cfx、`TIMER` 的 `cfx_hart` supv 入口（`cg2 rc10`/`rc8`）、内核 IE 单旋钮（`cfx_smon` `cg2 rc4`）、时间口径指针与两处缺口 | `DADAO-13 §2. cfx_hmon - hypervisor monitor`、`§1. cg3 - hypv mode 寄存器`；`DADAO-12 §3.1`/`§3.3`/`§3.6`/`§2.2.6`/`§4.7`/`§4.10`/`§5`/`§5.1`/`§5.2`/`§5.3`；`Kaiwu §4.4`；`ADR-0045 D3`/`D8`/`D9`；`ADR-0056 D2`/`D4`；`contract-syscall §8` |
+| §6 | 内核侧异常/中断：`excp_cause_info` 11 项 + 子原因位 wyde2/wyde3（`CFXPERM`/`CFXMEM`，共 18 位）+ 未规定者为 0、`escape` 返回 cfx 恒为当前 cfx、`TIMER` 的 `cfx_hart` supv 入口（`cg2 rc10`/`rc8`）、内核 IE 单旋钮（当前运行模式 monitor 的 `<mode>_cfx_intr_mask`；`supv` ⇒ `cfx_smon cg2 rc4`）、时间口径指针与两处缺口 | `DADAO-13 §2. cfx_hmon - hypervisor monitor`、`§1. cg3 - hypv mode 寄存器`；`DADAO-12 §3.1`/`§3.3`/`§3.6`/`§2.2.6`/`§4.7`/`§4.10`/`§5`/`§5.1`/`§5.2`/`§5.3`；`Kaiwu §4.4`；`ADR-0045 D3`/`D8`/`D9`；`ADR-0056 D2`/`D4`；`contract-syscall §8` |
 
 ---
 
@@ -185,5 +185,6 @@
 
 - **0.7.3-rc + M14 K2 扩展（2026-11-15）**：新增 §6「内核侧异常与中断」——① `excp_cause_info` 的 11 项语义表 + 「本表之外为 0」+ `TIMER` 的 `info = 0`；② `escape` 的返回 cfx 恒为当前 cfx（帧内无 `prev_cfx`，跨 cfx 返回不存在）；③ 异步中断的内核入口 = `cfx_hart` 的 `supv` 行（`cg2 rc10`/`rc8`）、异步帧借走 `global_cfx_intr_mask`；④ 内核 IE 单旋钮 = `cfx_smon_supv_cfx_intr_mask`（`cg2 rc4`），`global_cfx_intr_mask` 只作一次性模式级放行；⑤ 时间口径指针与两处缺口（放行前提、`escape` 后补投）。附录 A 增 §6 一行。版本号仍随 SEE 册 `DADAO-12` 为 **0.7.3-rc**（`check-spec-drift` 不变量：spec-sourced 合约版本 == 上游册版本）。[DADAO-12 §5. 异常进入与异常退出][m14-spec-005]
 - **0.7.3-rc + 子原因位（2026-11-16，`m14-spec-007`）**：§6.1 增「子原因」列与 §6.1.1 子原因位表（**wyde2 `[47:32]` 专供 `CFXPERM`**：`[39:32]` 8 位权限原因、`[47:40]` 保留；**wyde3 `[63:48]` 专供 `CFXMEM`**：`[55:48]` 8 位缺失类、`[56] ADWBFAIL`、`[57] NONPTW`、`[63:58]` 保留；`[31:16]` 保留给未来新的大类 cause），与 `DADAO-12 §3.6` 逐位一致；`CFXMEM`/`CFXPERM` 的 `info` 改为**恒为地址**（`CFXPERM` 的 `cfxtrap`/`cfx2rd`/`cfx2rc` 拒绝 = 触发指令地址，与 `excp_cause_ip` 同值）；非页表类 `CFXMEM` 用 `NONPTW`，归属互斥（`CFXPERM`→wyde2、`CFXMEM`→wyde3，另一 wyde 全 0）。版本号仍为 **0.7.3-rc**（上游册版本未变）。[DADAO-12 §3.6 cg5 - 异常现场寄存器][ADR-0056 D2][ADR-0056 D4]
+- **0.7.3-rc + IE 旋钮口径收敛（2026-11-16，`m14-linux-010`，用户裁定）**：§6.4 的旋钮改为**当前运行模式 monitor** 的 `<mode>_cfx_intr_mask`——按 `DADAO-12 §5.2` 步骤 3 的字面读法（`cfx_<monitor>_<mode>_cfx_intr_mask`），内核运行在 `supv` ⇒ `cfx_smon cg2 rc4`；**删去**「当前 cfx = `cfx_smon`」这一实例表述（`escape` 不恢复 `inner_cfx_code`，首投后当前 cfx 仍是投递目标，选择依据只有运行模式，`ISS-454`/`ISS-455`）；`global_cfx_intr_mask` 明确为**模式级放行**。附录 A 的 §6 行同步。版本号仍为 **0.7.3-rc**（上游册 `DADAO-12` 版本未变，`check-spec-drift` 不变量）。[DADAO-12 §5.2 异常进入流程][DADAO-12 §5.3 异常退出流程][ADR-0045 D3][ISS-455][ISS-454]
 - **§6 内的推导登记**：`cg2 rc10` 写入忽略低 2 位（按 `cg3 rc10` 同构）、异步帧的 `global_cfx_intr_mask` 保存/置全 1（把 `ADR-0045 D9` 的 trap 保护扩到异步帧）、`cg5 rc3` 可写 + 固定偏移的组合效果，三处上游未明文，均标 `[spec-decision]` 并在条文内写清推导链。[spec-decision][ADR-0045 D9][m14-spec-005]
 - **追加方式**：此后按「日期 + 改动摘要 + 落点（§）/ 关联 ADR / ISS」追加；上游 spec 正文变更仍走 `docs/Process-02` 的同步流程，本记录只记 v5 扩展口径。[contract-syscall §12]
