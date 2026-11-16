@@ -14,10 +14,9 @@
 K2 的 `CFXMEM` 处理只有一条路：**预先注册的探针**命中即跳过，其余一律具名终止（`arch/dadao/kernel/traps.c` 的注册通道）。K3 要把它变成正式的**页故障通道**：
 
 - 硬件侧（`spec/DADAO-12 §2.2.6` + `ADR-0056`）：未映射（L1 `P=0` / L2 `P=0` / SPF / GPF）与 A/D 回写失败 ⇒ `CFXMEM`；HSJU 或 R/W/X 不符 ⇒ `CFXPERM`；`cause_id[63:48]/[47:32]（wyde3/wyde2）` 给**子原因** one-hot：
-  - 缺失类 `[16..23]` = `IGPTRAP` `ISPTRAP` `IGPFTRAP` `ISPFTRAP` `DGPTRAP` `DSPTRAP` `DGPFTRAP` `DSPFTRAP`；
-  - 权限类 `[24..30]` = `NUPERM` `NJPERM` `NSPERM` `NHPERM`（HSJU 四位） / `NRPERM` `NWPERM` `NXPERM`（R/W/X）；
-  - `[31] NCFXPERM`（cfx 访问被掩码拒绝）、`[32] ADWBFAIL`（A/D 回写失败）；
-  - **其它 cause 的 `[63:16]` 必须为 0**。
+  - **位号一律取权威表，不在本任务书复制**：`.tao/contracts/contract-see.md §6.1.1`（逐位表）+ `ADR-0056 D3`；
+  - 语义分组（据 `D3`）：缺失类 8 位（`IGPTRAP`…`DSPFTRAP`，占 wyde3 低字节）、权限类 8 位（`NUPERM`/`NJPERM`/`NSPERM`/`NHPERM` + `NRPERM`/`NWPERM`/`NXPERM` + `NCFXPERM`，占 wyde2 低字节）、`ADWBFAIL`（A/D 回写失败）与 `NONPTW`（非页表类 `CFXMEM`，占 wyde3 高字节两位）；
+  - **另一 wyde 必须全 0**，且 `[31:16]` 保留、**其它 cause 的 `[63:16]` 必须为 0**（区分：`CFXPERM` ⇒ wyde2 有效、wyde3 全 0；`CFXMEM` ⇒ wyde3 有效、wyde2 全 0）。
 - 内核侧：`CFXMEM`/`CFXPERM` 与「缺页 / COW / 越权」这些 **OS 概念无关**（用户 2026-11-16 口径）；如何解释由内核结合 VMA 与 PTE 自行判定——这就是本任务。
 - K3 没有用户态（K4/K5 才有）⇒ 本任务的验证载体是**内核侧探针**（S-mode 用真实访存触发真实硬件异常，经入口分派回来），不造用户进程、不做 `fork`。
 

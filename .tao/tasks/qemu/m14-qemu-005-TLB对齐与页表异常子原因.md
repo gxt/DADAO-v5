@@ -31,7 +31,7 @@ QEMU 侧 TLB 的**结构**已在（可核，`components/qemu/patches/target/dada
    - 取指侧：L1 `P=0 && SP=1` ⇒ `[17] ISPTRAP`；L1 `P=0 && SP=0` ⇒ `[16] IGPTRAP`；L1 `SP=1` 且 `SPF` 位=0 ⇒ `[19] ISPFTRAP`；L2 `P=0` ⇒ `[16] IGPTRAP`；L2 `GPF` 位=0 ⇒ `[18] IGPFTRAP`；
    - 数据侧同名：`[20] DGPTRAP` / `[21] DSPTRAP` / `[22] DGPFTRAP` / `[23] DSPFTRAP`；
    - HSJU 不符 ⇒ 按**当前运行模式**的位给 `[24] NUPERM`(user) / `[25] NJPERM`(jail) / `[26] NSPERM`(supv) / `[27] NHPERM`(hypv)；
-   - R/W/X 不符 ⇒ `[28] NRPERM`(读缺 R) / `[29] NWPERM`(写缺 W) / `[30] NXPERM`(取指缺 X)；
+   - R/W/X 不符 ⇒ `[36] NRPERM`(读缺 R) / `[37] NWPERM`(写缺 W) / `[38] NXPERM`(取指缺 X)；
    - A/D 回写失败 ⇒ `[32] ADWBFAIL`（替换时失败与 `clean`/`flush` 失败同一位）；
    - **命中路径与步进路径同表**（命中不重读 PTE，但检查项相同 ⇒ 子原因也必须相同）。
 2. **其它 cause 高位必须为 0**（`ADR-0056 D2`）：`CFXTRAP`/`CFXREG`/`CFXESC`/`ILLI`/`UNDI`/`MALIGN`/`IALIGN`/`RASOF`/`RASUF` 的 `[63:16]` 全 0；`CFXMEM` 的非页表类按「待裁定 2」的结论落地。
