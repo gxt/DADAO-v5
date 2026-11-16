@@ -376,6 +376,8 @@ M17 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个
 - **影响**：`m16-gem5-007 对标脚手架 + embench 集成` 的报告要直接用这套拍数；`m16-chipyard-001 周期模型收口复测` 的"权威版本"取决于此。
 
 
+**明日继续（用户 2026-11-16 收工指示）**：`ADR-0057` 的 D5/D6/D7 未定。**前置 = 先调整 gem5 的配置信息**（Tiny/Vast 的 Profile 与内存层次配置分开）；用户已指出 `Kaiwu-Tiny` 跑在 SRAM 上不需要 cache、`Kaiwu-Vast` 需要 cache 但尚未增加（RTL 侧 `WumingParams.icache/dcache = None`、无 Vast 配置）。核实后：`configs/dadao/` 三个配置都只有 `SimpleMemory`（+ `se_timing` 的 `NonCoherentXBar`），无任何 cache。
+
 **已定（用户 2026-11-16，选 ②）：二期把执行核改成两阶段 —— 给 DADAO 补 `StaticInst::initiateAcc`/`completeAcc` 并让 bundle 可续跑**（目标 CPU = `TimingSimpleCPU`；`AtomicSimpleCPU` 不走两阶段、保持同步 `execute`；Minor/O3 的流水线结构不在本期）。
 
 **随之必须同笔做的三条**：① 周期表里 `ld/st` 的 9/10 拍（`ld.o` 7–16、`st.o` 10–21，含背压）**清零**，否则与真时序双重计费；② 一个 bundle 可能含多条访存 ⇒ bundle 需可"停在中间"（记录子操作序号与未完成请求数），块传送（`ldm`/`stm`）的 N 个元素如何发请求（串行 or 并发）需在 ADR 里定；③ 取指侧的 8 拍/指令（无 icache）是既有事实，两阶段只解决数据侧。

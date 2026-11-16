@@ -50,4 +50,16 @@ M16 的定位是「gem5 时序模型对齐 chipyard-wuming，范围只做 Timing
 
 ## 状态说明
 
-2026-11-16 由主会话起草（触发：用户裁定「② 重构 bundle 两阶段」）。**D1–D7 为提案，须逐条与用户确认后方可置 `Accepted`**；未确认前保持 `Candidate`，实施任务不得据此开工。
+2026-11-16 由主会话起草（触发：用户裁定「② 重构 bundle 两阶段」）。逐条确认进度：
+
+- **D1 接口与落点** —— ✅ 已确认（2026-11-16）
+- **D2 粒度与两阶段落点** —— ✅ 已确认（2026-11-16；原稿基于「bundle = StaticInst」的错误前提，已按「每条 32 位指令 = 一个 StaticInst」订正）
+- **D3 块传送 = 宏操作展开（一次做完）** —— ✅ 已确认（2026-11-16）
+- **D4 周期表边界（清零全部访存类拍数）** —— ✅ 已确认（2026-11-16；勘误：周期表钩子只在 `timing.cc` 调用，Atomic 不查表、无双重计费）
+- **D5 取指 / cache** —— ❌ **未定**（用户 2026-11-16 指出：`Kaiwu-Tiny` 跑在 SRAM 上不需要 cache，`Kaiwu-Vast` 需要 cache 但尚未增加；并指出 **gem5 的配置本身要先调整**，cache 参数档位因此暂不裁定）
+- **D6 验收口径** —— ⏸ 待定（依赖 D5）
+- **D7 表述边界** —— ⏸ 待定（依赖 D5）
+
+**D5 的前置（用户 2026-11-16 指示，明日继续）**：先调整 **gem5 的配置信息**（Profile/机型与内存层次的配置划分，Tiny 与 Vast 分开），再谈 cache 参数。已核事实：`configs/dadao/` 只有 `se.py`/`se_timing.py`/`fs.py` 三个配置、都只用 `SimpleMemory`（+ `se_timing` 的 `NoncoherentXBar`）；chipyard 侧只有 `WumingTinyConfig`（SRAM 主存、`icache/dcache = None`），**没有 Vast 配置**。
+
+未确认前保持 `Candidate`，实施任务不得据此开工。
