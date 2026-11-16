@@ -30,12 +30,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-linux-008 | 2026-11-16 06:35 | 2–3 h | K2 中断使能与屏蔽（`local_irq_*` 按当前 cfx 选行、两行都开；屏蔽窗冻结 + 补投 1） |
+| m14-infra-004 | 2026-11-16 08:25 | 3–4 h | 测试机改名 `Machine-v5`→`Kaiwu` + QEMU 串 `kaiwu-tiny/vast`（无别名；spec 锁同笔重算） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-008 | 2026-11-16 08:25 | K2 中断使能与屏蔽（`irqflags` 按当前 cfx 两行旋钮、`time.c` 临界区；k2_irq 95/95、k2_time 151/151） |
 | m14-linux-007 | 2026-11-16 06:35 | K2 时钟与定时器（`hmon` 放行 `cfx_hart`/`cfx_time` + `time.c`/`irq.c`/`async_trap.S`；HZ 现场派生、margin=period/2；time 探针 149/149） |
 | m14-linux-006 | 2026-11-16 05:27 | K2 异常入口与 cause 分派（`trap.S` 全 GPR 保存 + 11 项表 + A′ 退出码分段；K0 119/119、K1 108/108、K2 85/85） |
 | m14-qemu-002 | 2026-11-16 02:38 | semihosting 指针改按 PA（`SYS_WRITE0` 取串 + `SYS_OPEN` 无长度名经 target 钩子；K1 门控 +K14 6 条，108/108） |
