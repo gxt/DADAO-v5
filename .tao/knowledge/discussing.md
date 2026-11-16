@@ -137,8 +137,11 @@
 3. **semihosting 指针 = PA**（用户裁定「1：选1，PA」）：已落 `spec/Kaiwu §5.2` + `contract-semihosting §2`（0.7.2）；由此产生的 QEMU 侧缺口登记 `ISS-450`（`SYS_WRITE0` 仍走页表）。
 4. **`contract-linux-boot §1` 已扩写**（用户裁定「2、1」）：补「内核接管后自建页表并写 `PTBR`」，契约 0.2.1；并澄清 semihosting 指针不属该契约的 ABI 地址。
 5. **`ISS-440` 已立 ADR**（用户裁定「3、1」）：`ADR-0054`（单 hart 机型下该清除事件不可观测、暂不实现），decision 待逐条确认。
-6. **中断 mask 口径两处待你确认（`ISS-454`/`ISS-455`）**：`m14-linux-007` 实测 `escape` 只恢复 mask/mode/IP、**不恢复 `inner_cfx_code`**（`spec/DADAO-12 §5.3`）；故某 cfx 投递过异常后「当前 cfx」变成该 cfx（如 `cfx_hart`），§6.4 写的「当前 cfx = `cfx_smon`」在**首投后不成立**。拟改为「IE 旋钮按**当前 cfx** 选行；正常运行期 = `cfx_smon`，首投后 = 该投递 cfx」，并让 `m14-linux-008` 按此实现（登记 `ISS-454`）。
-   **另**：`spec/DADAO-12 §5.2` 步骤 3 写「源轴查 *mode monitor* 的行」，与 `ADR-0045 D3`/`§6.4`/QEMU「查当前 cfx 的行」**不一致**；`m14-linux-007` 实测两者首投后行为不同（只开一行仅 1 tick）。现实现**两行都开**、对两读法皆成立，但口径仍需定一条（`ISS-455`）——**`m14-linux-008` 会受影响**。
+6. **中断 mask 口径已裁定（2026-11-16）**：用户原话「ISS-455：查 mode monitor」「ISS-454：没看懂」「ISS-452：现在修，用 PA」「ISS-444：每推进一个阶段，前面的不合适的门控就可以关闭了」。
+   - `ISS-455` ⇒ 异步源轴查**当前运行模式 monitor** 的行（`spec/DADAO-12 §5.2（三）步骤 3`），与 `inner_cfx_code` 无关；落地 = `m14-qemu-003`（QEMU）+ `m14-linux-010`（内核单行收敛 + 契约）。
+   - `ISS-454` 随 455 一并解决：`cfx_smon cg2 rc4` **仍然正确**，但理由是"运行模式 → monitor"，不是"当前 cfx"；契约 §6.4 的那句实例表述在 `m14-linux-010` 里改掉。
+   - `ISS-452` ⇒ `m14-qemu-004`（`SYS_READC`/`SYS_FLEN` 缓冲改 PA）。
+   - `ISS-444` ⇒ 立为流程规则 `docs/Process-07 §4a`「阶段推进即退役过时判据」；`check-linux-k2` 落地后按该条退役 K1 里已不合适的顺序断言。
 
 # 待设计：长仿真如何"证明它还在跑"（gem5 / chipyard，2026-11-15 用户提出）
 
