@@ -112,6 +112,14 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
   - **`cg7` 空间块 0 = BootROM**：`desc` = `exists|ROM`（`0x5`）、`start = BootROM 起始地址 − (63 << 42)`、`size` = BootROM 字节数、`attr` = `R|X`（`0x5`）；其余空间块 `exists = 0`（`start`/`size`/`attr` 读 0）。按 profile：`Kaiwu-Tiny` ⇒ `start = 0x3ff_ffff_0000`、`size = 0x1_0000`（64 KiB）；`Kaiwu-Vast` ⇒ `start = 0x3ff_ffc0_0000`、`size = 0x40_0000`（4 MiB）。两者均满足 `start + size = 2^42`。[DADAO-12 §3.8 cg7][DADAO-12 §2.1 核内地址空间]
   - **`cg8`/`rc1`（`cfx_power_ctrl`，WO；`bit0`=关机、`bit1`=硬复位、`bit2`=软复位）**：`Kaiwu-Tiny` **未实现**该寄存器，访问 ⇒ `CFXREG`（显式失败，不设静默成功的桩）。[DADAO-12 §4.12 cfx_power]
 
+### 3.1 TLB 的测试机约定
+
+TLB 属 `cfx_ptw`，其匹配键、命中检查、填充条件、A/D 维护与失效接口按 `DADAO-12 §2.2.1–§2.2.6`、`§4.5` 执行（见 `§1.2`、`§6.3.5`）；下列三条为本机的**测试机约定**，不改变上游语义。[DADAO-12 §2.2.1 超页的地址转换][DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw - page table walker]
+
+- **失效同步完成**：`cfx_ptw_tlb_control` 的写指令**同步完成**——指令返回即生效，其后的访存必见失效结果（无 busy/done 位、无异步完成信号）。`clean`/`flush` 触发的 A/D 回写失败**在该写指令上**报当前运行模式 monitor 的 `CFXMEM`（`cause_info` = PTE 物理地址），且**不得部分完成**——按**条目级**解释：处理失败的条目保持原状（`flush` 失败不删除该条目、`clean` 失败不清其挂起位），其余条目照常处理。[DADAO-12 §4.5 cfx_ptw - page table walker][spec-decision]（用户 2026-11-16 确认）
+- **per-hart**：TLB 与 `cfx_ptw_tlb_control` 都是 **per-hart** 状态，失效命令只作用于执行该指令的 hart；跨 hart 的失效传播与一致性不在本册范围（多 hart 机型另行规定）。[DADAO-12 §4.5 cfx_ptw - page table walker][spec-decision]（用户 2026-11-16 确认）
+- **实现范围**：本机的 TLB 建模由 **QEMU** 机器模型承担；`tests/arch` 的 PTW/TLB 探针是**跨实现判据**，其它实现不在本册验收面。[spec-decision]（用户 2026-11-16 确认）
+
 ---
 
 ## 4. `trap`/`escape` 与异常进入流程
@@ -432,7 +440,9 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 
 #### 6.3.5 不定义范围
 
-本节**不定义**：TLB 填充/失效/ASID、cache/LLC、设备树（DTB）、UART、多核启动与 SMP 停核协议、MMU 关运行（`ptw_enable = 0` 时内核无法从 RAM 取指/访存，见本节开头）、用户 VA 空间 `[0, 2 TiB)` 的布局与用户态映射、`[3 TiB, 4 TiB)` 的用途、内核窗口内固定分区之外（`+512 MiB` 以上）的映射扩展；这些本节不引入。[spec-decision]
+本节**不定义**：cache/LLC、设备树（DTB）、UART、多核启动与 SMP 停核协议、MMU 关运行（`ptw_enable = 0` 时内核无法从 RAM 取指/访存，见本节开头）、用户 VA 空间 `[0, 2 TiB)` 的布局与用户态映射、`[3 TiB, 4 TiB)` 的用途、内核窗口内固定分区之外（`+512 MiB` 以上）的映射扩展；这些本节不引入。[spec-decision]
+
+- **TLB**：TLB 的匹配键、命中检查、填充条件、A/D 维护与失效接口**不在本节定义**，按 `DADAO-12 §2.2.1–§2.2.6`、`§4.5` 与 `§3.1` 执行；内核无需在本节的启动 ABI 之外另立 TLB 契约。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw - page table walker][spec-decision]
 
 ---
 
@@ -489,6 +499,8 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 - **内核 VA 窗口改为 `[2 TiB, 3 TiB)`**（用户 2026-11-13 裁定：内核空间不从 0 开始；用户空间 `[0, 2 TiB)`；渠道 = 主会话问答）：`§6.3` 的四段固定分区整体迁入内核窗口，窗口内 `VA = PA + 2 TiB`——首张页表页 VA `0x0200_0000_0000`（`PTBR` 仍为页表页 PA 0）、boot info VA `0x0200_0001_0000`（PA 侧不变）、内核镜像区 VA `[0x0200_0010_0000, 0x0200_0400_0000)`（`kernel_base` / `e_entry` / `raw` 基址同步）、initramfs 区 VA `[0x0200_0400_0000, 0x0200_0600_0000)`；boot info 的 `ram_base` 改记内核窗口起点（VA `0x0200_0000_0000`）。`§6` 的 Vast 首张页表由「全域 4 个 512 MiB 超页」改为「内核窗口基址段 1 个 512 MiB 超页」（`VA [0x0200_0000_0000, 0x0200_2000_0000) → PA [0, 0x2000_0000)`）；物理侧（PA RAM 2 GiB、内核镜像 PA 起点 0、boot info PA `0x1_0000`、页表页 PA 0）不变。`§6.3` 的启动模型改为「预建带偏置页表 + VA 入口」，不再是身份映射。
 
 - **semihosting 指针语义固定为 PA**（用户 2026-11-15 裁定）：`§5.2` 明写参数块指针与 `SYS_WRITEC`/`SYS_WRITE0` 的指针一律为**物理地址、不经页表翻译**，`§5.3` 服务表的其它指针字段同此口径。
+
+- **TLB 排除项撤销 + 三条测试机约定**（用户 2026-11-16 确认）：`§6.3.5` 的排除项删去「TLB 填充/失效/ASID」，改为指向 `DADAO-12 §2.2.1–§2.2.6`、`§4.5`；新增 `§3.1`——`cfx_ptw_tlb_control` 的写指令**同步完成**（回写失败在该写指令上报 `CFXMEM`、按条目级不得部分完成）、TLB 与失效命令 **per-hart**（跨 hart 一致性不在本册范围）、TLB 建模由 QEMU 机器模型承担且 `tests/arch` 探针为跨实现判据。版本不变（0.4.7-rc）。
 
 ### 0.4.6（未发布，被 0.4.7-rc 取代；本段所列地址为旧值，已作废）
 

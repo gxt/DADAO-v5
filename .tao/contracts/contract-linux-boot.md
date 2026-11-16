@@ -1,6 +1,6 @@
 # 启动 ABI 合约（Vast 内核装载 + 固定 boot info）
 
-> **契约版本**：`0.2.1`（本契约自有版本线，不随 spec 册版本走；`0.2.0` = 内核 VA 窗口改 `[2 TiB, 3 TiB)`、`VA = PA + 2 TiB`；`0.2.1` = 补「内核接管后自建页表并写 PTBR」与 semihosting 指针不属本契约 ABI 地址两条）
+> **契约版本**：`0.2.2`（本契约自有版本线，不随 spec 册版本走；`0.2.0` = 内核 VA 窗口改 `[2 TiB, 3 TiB)`、`VA = PA + 2 TiB`；`0.2.1` = 补「内核接管后自建页表并写 PTBR」与 semihosting 指针不属本契约 ABI 地址两条；`0.2.2` = 撤销 §6 不定义范围的 `TLB` 排除项，TLB 改由 `contract-tlb` 与上游 `DADAO-12 §2.2.1`–`§2.2.6`/`§4.5` 定义）
 >
 > **来源**：规范正文 `spec/Kaiwu-测试机运行环境.md` `§6.3`（v5 自定册，0.4.7-rc）；装载模型继承 `.tao/adr/adr-0004-test-machine.md`（ADR-0004，Accepted，`§D2.2`/`§D2.3`：ELF + raw-bin 双路径）；冻结值经用户 **2026-11-13** 裁定「按提案冻结」、地址术语与启动模型经用户 **2026-11-13** 裁定「VA 为 ABI 地址」「M1 预建页表 + VA 入口」（渠道 = 经主会话问答，授权原话落纸于本任务书 §用户裁定）；内核窗口 `[2 TiB, 3 TiB)` 与 `VA = PA + 2 TiB` 偏置经用户 **2026-11-13** 更正裁定（渠道 = 经主会话问答；取代先前的低地址冻结值）。
 >
@@ -130,7 +130,8 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 
 ## §6 边界与不定义范围
 
-- 本合约**不定义**：TLB 填充/失效/ASID、cache/LLC、设备树（DTB）、UART、多核启动与 SMP 停核协议、MMU 关运行（`ptw_enable = 0` 时内核无法从 RAM 取指/访存）、用户 VA 空间 `[0, 2 TiB)` 的布局与用户态映射、`[3 TiB, 4 TiB)` 的用途、内核窗口内固定分区之外（`+512 MiB` 以上）的映射扩展；这些属后续里程碑，不引入。[Machine-01 §6.3][spec-decision]
+- 本合约**不定义**：cache/LLC、设备树（DTB）、UART、多核启动与 SMP 停核协议、MMU 关运行（`ptw_enable = 0` 时内核无法从 RAM 取指/访存）、用户 VA 空间 `[0, 2 TiB)` 的布局与用户态映射、`[3 TiB, 4 TiB)` 的用途、内核窗口内固定分区之外（`+512 MiB` 以上）的映射扩展；这些属后续里程碑，不引入。[Machine-01 §6.3][spec-decision]
+- **TLB 不在本合约的不定义范围**：TLB 的匹配键、命中检查、填充条件、A/D 维护与失效接口由 `.tao/contracts/contract-tlb.md` 归一化投影（上游 `DADAO-12` 的 `§2.2.1`–`§2.2.6` 与 `§4.5`）；本合约只固定启动 ABI，不含 TLB 语义。[Machine-01 §6.3][Machine-01 §3.1 TLB 的测试机约定][DADAO-12 §4.5 cfx_ptw - page table walker]
 - 与 `contract-elf` 的关系：ELF 头字段、段对齐、`PT_LOAD` 装载与 `.bss` 零填充**只引用** `contract-elf`（§1、§5、§6），本合约不复制其正文。[contract-elf §1.1][contract-elf §5.2][contract-elf §6.1.2]
 - 与 `contract-abi` 的关系：端序与指针宽度只引用 `contract-abi`（§1.7），不重复定义。[contract-abi §1.7]
 - 与 `contract-semihosting` 的关系：`SYS_EXIT` 语义只引用 `contract-semihosting`（§5），本合约只规定「必须显式失败」这一义务。[contract-semihosting §5]

@@ -248,8 +248,9 @@ rules:
     rule: "`magic`/`version`/`size` 任一不符 ⇒ 内核 `head.S` 显式失败（semihosting `SYS_EXIT` + 固定失败码）"
 
 # 明示不定义的能力（§6.3 与契约 §6 的「不定义」句须逐项点名）。
+# 2026-11-16（m14-spec-006）：撤销 `TLB` 排除项——TLB 改由 `DADAO-12 §2.2.1–§2.2.6`/`§4.5` 与
+# `.tao/contracts/contract-tlb.md` 定义，不再属 §6.3 的不定义范围。
 not_defined:
-  - TLB
   - cache
   - LLC
   - 设备树（DTB）

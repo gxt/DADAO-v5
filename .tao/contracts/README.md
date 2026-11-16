@@ -20,6 +20,7 @@
 | `contract-see.md` | SEE/HEE 运行环境合约（M5；0.7.1） |
 | `contract-semihosting.md` | semihosting 合约（M5；0.7.1） |
 | `contract-syscall.md` | Linux syscall 映射合约（M8：无内核的 Linux 用户态栈） |
+| `contract-tlb.md` | TLB 与失效接口合约（K3：匹配键/填充/A-D/`tlb_control`/子原因；0.7.1） |
 
 ## 迁移授权链（留纸）
 
