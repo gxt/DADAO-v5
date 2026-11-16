@@ -5,6 +5,7 @@
 > **本页只维护 M16 任务台账**：历史任务见 `.tao/archive/`；当前讨论/规划见 `.tao/knowledge/discussing.md`。
 
 > **M16 定位（用户 2026-11-13）**：**gem5 时序模型对齐 chipyard-wuming**。范围只做 **Timing**（`Minor`/`O3` 对应 `wuqing`/`wuxing`，等其 RTL 出现后再开）。设计取向：**保留 gem5 `TimingSimpleCPU` 原汁原味**，只加「每指令延迟」——钩子默认 0、`timing.cc` 仅 1 行、延迟表由周期模型文档现场生成；块传送用微操作展开；访存交给 `NoncoherentXBar` + `SimpleMemory`。`AtomicSimpleCPU` 不动，只作零成本基线。
+> **范围扩展（用户 2026-11-16）**：本页同时收录 gem5 / chipyard 侧的 **ISA 语义对齐**任务（`ADR-0056` 子原因编码、`DADAO-12 §5.2` 同步异常路由），编号沿用 `m16-<module>-NNN`；这些任务与时序模型无关，不得混算进 `m16-chipyard-001` 的周期复测口径。
 
 本页分三张**任务表**，**表位置 = 任务状态**（不另设状态列）：
 
@@ -18,6 +19,9 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-003 | 6–8 h | chipyard 侧 `cause_id` 子原因编码（ADR-0056 D6；`GewuFile` 接口 + `WumingCore` 判定点） |
+| m16-gem5-010 | 3–5 h | gem5 侧 `Kaiwu-Vast` 同步异常路由对齐 `§5.2`（删 staged，两 profile 进 monitor） |
+| m16-gem5-009 | 4–6 h | gem5 侧 `cause_id` 子原因编码（ADR-0056 D6；`node_cfx`/`tiny_cfx` raise 点算子原因） |
 | m16-chipyard-001 | 2–3 天 | 周期模型收口复测（M13 收尾后全量重测并更新文档；权威版本） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
