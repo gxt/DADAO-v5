@@ -1,0 +1,321 @@
+diff --git a/arch/dadao/kernel/k2_irq_test.c b/arch/dadao/kernel/k2_irq_test.c
+new file mode 100644
+index 000000000..42c2854d5
+--- /dev/null
++++ b/arch/dadao/kernel/k2_irq_test.c
+@@ -0,0 +1,315 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * K2 interrupt-enable knob self-test (CONFIG_DADAO_K2_IRQ_TEST, m14-linux-008).
++ *
++ * The knob itself is the five inline helpers in asm/irqflags.h.  Whether it is
++ * *real* cannot be seen from outside the kernel: the evidence is the physical
++ * mask register, so every step below reads the register back with `cfx2rd` —
++ * both knob rows, never a recorded shadow — and prints the raw word.  Judging
++ * is done by tools/linux/k2_irq_probe.py from those words, not here; this file
++ * only stops the boot when it cannot proceed (no tick / no P4 sequence).
++ *
++ * Cases, in order (one observation line each, parsed by the probe):
++ *
++ *   P1  round trip: `save` masks *both* rows, `restore` is bit-identical to the
++ *       saved word on both (not merely "the same masked state").
++ *   P3  two nested saves: the inner restore is still masked, the outer one
++ *       restores the original word.
++ *   P5  arch_irqs_disabled() / arch_irqs_disabled_flags() agree with the
++ *       physical register in three mask states.
++ *   P2  a masked window of ≥3 periods freezes the tick count while ISTATUS is
++ *       set; releasing delivers that one parked event (+1: merged by the
++ *       hardware, neither lost nor doubled).
++ *   P4  inside a live frame: the handler has already restored the knob to
++ *       "allow", so this file arms a deadline that expires *within* the frame.
++ *       No second tick may be delivered that frame (the hardware's all-1
++ *       `global_cfx_intr_mask` blocks it, contract-see §6.3) and exactly that
++ *       event must arrive immediately after `escape` restores it.
++ *
++ * Why the P4 cases run from inside the tick (dadao_timer_interrupt() calls
++ * dadao_k2_irq_inframe() after its own restore): the "no nesting inside a
++ * frame" property has no observable unless an event is made pending while the
++ * frame is live, which only the frame itself can do.
++ */
++#include <linux/init.h>
++#include <linux/irqflags.h>
++#include <linux/jiffies.h>
++#include <linux/kernel.h>
++#include <linux/types.h>
++
++#include <asm/cfx.h>
++#include <asm/irqflags.h>
++#include <asm/setup.h>
++#include <asm/time.h>
++
++/*
++ * The two entry points kernel/time.c calls (it declares them for its own use);
++ * repeated here so this translation unit has the prototypes before use.
++ */
++void dadao_k2_irq_inframe(void);
++void __noreturn dadao_k2_irq_test(void);
++
++/* Boot verdicts, guest segment of spec/Machine-v5 §7.1 (time.c continues). */
++#define K2_FAIL_IRQ_NO_TICK	0x14	/* the first tick never arrived */
++#define K2_FAIL_IRQ_SEQUENCE	0x15	/* the P4 in-frame sequence stalled */
++
++/*
++ * P4's state machine: 0 idle, 1 = the next tick does the in-frame part, 2 = the
++ * tick after that reports the delivery, 3 = done.  `volatile` because the two
++ * halves run in different contexts and the waiting boot code polls it.
++ * `k2_p4_left_frame` is the instant the in-frame part returned, i.e. where the
++ * "delivery happened right after escape" claim is measured from.
++ */
++static volatile unsigned int k2_p4_stage;
++static unsigned long k2_p4_left_frame;
++
++/* -------------------------------------------------------------------------
++ * waits (period-relative windows, never a wall-clock constant)
++ * ------------------------------------------------------------------------- */
++
++static unsigned long __init k2_irq_period(void)
++{
++	/* freq / HZ, derived live — the same derivation time.c uses. */
++	return dadao_time_freq() / HZ;
++}
++
++/* Burn @counts of the time base without expecting a tick. */
++static void __init k2_irq_wait_counts(unsigned long counts)
++{
++	unsigned long start = dadao_read_time();
++
++	while (dadao_read_time() - start <= counts)
++		;
++}
++
++/* Wait until the tick count reaches @target (absolute); -1 if @window runs out. */
++static int __init k2_irq_wait_tick(unsigned long target, unsigned long window)
++{
++	unsigned long start = dadao_read_time();
++
++	while ((long)(READ_ONCE(jiffies_64) - target) < 0) {
++		if (dadao_read_time() - start > window)
++			return -1;
++	}
++	return 0;
++}
++
++static int __init k2_irq_wait_stage(unsigned int want, unsigned long window)
++{
++	unsigned long start = dadao_read_time();
++
++	while (READ_ONCE(k2_p4_stage) < want) {
++		if (dadao_read_time() - start > window)
++			return -1;
++	}
++	return 0;
++}
++
++/* -------------------------------------------------------------------------
++ * P1 / P3 / P5: the knob's value semantics
++ * ------------------------------------------------------------------------- */
++
++static void __init k2_irq_case_p1(void)
++{
++	unsigned long before_smon = dadao_irq_mask_row_smon();
++	unsigned long before_hart = dadao_irq_mask_row_hart();
++	unsigned long flags, masked_smon, masked_hart;
++	unsigned long restored_smon, restored_hart;
++
++	local_irq_save(flags);
++	masked_smon = dadao_irq_mask_row_smon();
++	masked_hart = dadao_irq_mask_row_hart();
++	local_irq_restore(flags);
++	restored_smon = dadao_irq_mask_row_smon();
++	restored_hart = dadao_irq_mask_row_hart();
++
++	dadao_early_printf("K2 irq P1: before_smon=%#lx before_hart=%#lx "
++			   "flags=%#lx masked_smon=%#lx masked_hart=%#lx "
++			   "restored_smon=%#lx restored_hart=%#lx\n",
++			   before_smon, before_hart, flags, masked_smon,
++			   masked_hart, restored_smon, restored_hart);
++}
++
++static void __init k2_irq_case_p3(void)
++{
++	unsigned long before_smon = dadao_irq_mask_row_smon();
++	unsigned long before_hart = dadao_irq_mask_row_hart();
++	unsigned long outer, inner, inner_smon, inner_hart;
++	unsigned long outer_smon, outer_hart;
++
++	outer = arch_local_irq_save();
++	inner = arch_local_irq_save();
++	/* The inner pair must not re-enable: the outer save is still live. */
++	local_irq_restore(inner);
++	inner_smon = dadao_irq_mask_row_smon();
++	inner_hart = dadao_irq_mask_row_hart();
++	local_irq_restore(outer);
++	outer_smon = dadao_irq_mask_row_smon();
++	outer_hart = dadao_irq_mask_row_hart();
++
++	dadao_early_printf("K2 irq P3: before_smon=%#lx before_hart=%#lx "
++			   "outer=%#lx inner=%#lx inner_smon=%#lx "
++			   "inner_hart=%#lx outer_smon=%#lx outer_hart=%#lx\n",
++			   before_smon, before_hart, outer, inner, inner_smon,
++			   inner_hart, outer_smon, outer_hart);
++}
++
++/*
++ * Three mask states.  `flags` is what local_irq_save()/save_flags() returned
++ * (a *saved* word, possibly pre-mask); `disabled` is the live answer and
++ * `smon`/`hart` are the live registers — the probe compares the two against
++ * the words rather than against each other's claims.
++ */
++static void __init k2_irq_case_p5_print(const char *state,
++					unsigned long flags)
++{
++	dadao_early_printf("K2 irq P5: state=%s flags=%#lx disabled=%d "
++			   "flags_disabled=%d smon=%#lx hart=%#lx\n",
++			   state, flags, arch_irqs_disabled(),
++			   arch_irqs_disabled_flags(flags),
++			   dadao_irq_mask_row_smon(),
++			   dadao_irq_mask_row_hart());
++}
++
++static void __init k2_irq_case_p5(void)
++{
++	unsigned long flags;
++
++	/* 1: masked through irq_disable (flags describes the masked state). */
++	local_irq_disable();
++	k2_irq_case_p5_print("disable", arch_local_save_flags());
++
++	/* 2: open. */
++	local_irq_enable();
++	k2_irq_case_p5_print("enable", arch_local_save_flags());
++
++	/* 3: saved from the open state — the returned word says "enabled" while
++	 * the registers are masked, which is exactly the save/restore contract. */
++	flags = arch_local_irq_save();
++	k2_irq_case_p5_print("save", flags);
++	local_irq_restore(flags);
++
++	k2_irq_case_p5_print("restore", arch_local_save_flags());
++}
++
++/* -------------------------------------------------------------------------
++ * P2: the masked window
++ * ------------------------------------------------------------------------- */
++
++static void __init k2_irq_case_p2(unsigned long period)
++{
++	unsigned long window = 3 * period;	/* ≥3 deadlines pass while masked */
++	unsigned long release = period / 2;	/* < 1 period: "+1" is assertable */
++	unsigned long flags, t0, t_masked, t_released, ctrl, released_at, elapsed;
++
++	t0 = READ_ONCE(jiffies_64);
++	local_irq_save(flags);
++	k2_irq_wait_counts(window);
++	t_masked = READ_ONCE(jiffies_64);
++	ctrl = dadao_timer_status();
++
++	/*
++	 * Release: the mask write re-kicks the pending event, so the delivery is
++	 * expected at once.  `release` (half a period) is both the measurement
++	 * window and the assertion: the deadline the handler re-arms from the
++	 * delivered tick is still half a period away, so a count advance inside
++	 * that window can only be the parked event — neither lost nor doubled.
++	 */
++	released_at = dadao_read_time();
++	local_irq_restore(flags);
++	(void)k2_irq_wait_tick(t_masked + 1, release);
++	t_released = READ_ONCE(jiffies_64);
++	elapsed = dadao_read_time() - released_at;
++
++	dadao_early_printf("K2 irq P2: masked ticks=%lu ctrl=%#lx window=%lu\n",
++			   t_masked - t0, ctrl, window);
++	dadao_early_printf("K2 irq P2: released ticks=%lu window=%lu "
++			   "elapsed=%lu\n", t_released - t0, release, elapsed);
++}
++
++/* -------------------------------------------------------------------------
++ * P4: inside a live frame / the delivery right after `escape`
++ * ------------------------------------------------------------------------- */
++
++void dadao_k2_irq_inframe(void)
++{
++	unsigned long period = k2_irq_period();
++
++	if (k2_p4_stage == 1) {
++		unsigned long tick = READ_ONCE(jiffies_64);
++		unsigned long armed = dadao_read_time();
++		unsigned long waited, ctrl, elapsed;
++
++		/*
++		 * A deadline one count ahead (the arm adds it to the current
++		 * value): it expires while this frame is still live, so the event
++		 * is pending with the knob wide open and the frame's global mask
++		 * as the only gate.
++		 */
++		dadao_timer_arm(1);
++		k2_irq_wait_counts(period / 2);
++		waited = READ_ONCE(jiffies_64);
++		ctrl = dadao_timer_status();
++		elapsed = dadao_read_time() - armed;
++
++		dadao_early_printf("K2 irq P4: frame tick=%lu waited_ticks=%lu "
++				   "ctrl=%#lx window=%lu elapsed=%lu\n",
++				   tick, waited - tick, ctrl, period / 2, elapsed);
++		/* Last thing before `escape`: where "right after the frame" starts. */
++		k2_p4_left_frame = dadao_read_time();
++		k2_p4_stage = 2;
++	} else if (k2_p4_stage == 2) {
++		unsigned long tick = READ_ONCE(jiffies_64);
++
++		k2_p4_stage = 3;
++		dadao_early_printf("K2 irq P4: afterframe tick=%lu gap=%lu "
++				   "period=%lu\n", tick,
++				   dadao_read_time() - k2_p4_left_frame, period);
++	}
++}
++
++/* -------------------------------------------------------------------------
++ * the probe image's boot
++ * ------------------------------------------------------------------------- */
++
++void __init __noreturn dadao_k2_irq_test(void)
++{
++	unsigned long period = k2_irq_period();
++	unsigned long jiffies_start = READ_ONCE(jiffies_64);
++
++	if (!period)
++		dadao_k2_fail(K2_FAIL_IRQ_NO_TICK, "irq test: freq / HZ");
++
++	/*
++	 * Arm and take one tick first: every case below then observes the steady
++	 * state between ticks, not the very first delivery (which still runs
++	 * inside init_IRQ()'s own frame).
++	 */
++	dadao_timer_arm(period);
++	if (k2_irq_wait_tick(READ_ONCE(jiffies_64) + 1,
++			     (DADAO_K2_TIME_TICKS + 4) * period))
++		dadao_k2_fail(K2_FAIL_IRQ_NO_TICK, "irq test: first TIMER tick");
++	dadao_early_printf("K2 irq: armed ticks period=%lu\n", period);
++
++	k2_irq_case_p1();
++	k2_irq_case_p3();
++	k2_irq_case_p5();
++	k2_irq_case_p2(period);
++
++	/* P4 needs two further tick entries: the frame part and the report. */
++	k2_p4_stage = 1;
++	if (k2_irq_wait_stage(3, (DADAO_K2_TIME_TICKS + 8) * period))
++		dadao_k2_fail(K2_FAIL_IRQ_SEQUENCE, "irq test: P4 sequence");
++
++	/*
++	 * The exit sequence runs masked (task §2) and is never restored, so the
++	 * last line reports the knob value the machine leaves with: the gate
++	 * asserts the kernel's source bits are set there.
++	 */
++	local_irq_disable();
++	dadao_timer_stop();
++	dadao_early_printf("K2 irq: done ticks=%lu mask=%#lx\n",
++			   (unsigned long)READ_ONCE(jiffies_64) - jiffies_start,
++			   dadao_irq_mask_row_smon());
++	dadao_early_exit(0);
++}

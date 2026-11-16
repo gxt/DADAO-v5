@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..1a9ea497d
+index 000000000..e27aa2582
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,123 @@
+@@ -0,0 +1,139 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -75,6 +75,22 @@ index 000000000..1a9ea497d
 +	  Cases 2/3 exist to show that the two axes are independently required
 +	  (contract-see §3/§6.4); they are test scaffolding and never part of a
 +	  milestone image.
++
++config DADAO_K2_IRQ_TEST
++	bool "Run the K2 interrupt-enable knob self-test at the K2 boundary"
++	default n
++	depends on DADAO_K2_TIME_STOP
++	help
++	  Exercise the software IE knob (asm/irqflags.h) from inside the kernel
++	  and print the physical mask register back after every step (see
++	  kernel/k2_irq_test.c): the save/restore round trip, two nested saves,
++	  arch_irqs_disabled() against the live register, a masked window that
++	  freezes the tick count, and an event made pending inside a live frame
++	  that must only be delivered after `escape`.
++
++	  The boot ends after the cases.  This is test scaffolding (the K2 gate
++	  builds a probe image with it); it is not part of the image the later
++	  milestones boot.
 +
 +config DADAO_K2_TRAP_SELFTEST
 +	bool "Run the K2 supv-exception self-test at the K2 boundary"

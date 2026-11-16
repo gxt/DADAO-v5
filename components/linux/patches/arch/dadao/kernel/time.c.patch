@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/time.c b/arch/dadao/kernel/time.c
 new file mode 100644
-index 000000000..f8047032e
+index 000000000..8916a18d9
 --- /dev/null
 +++ b/arch/dadao/kernel/time.c
-@@ -0,0 +1,405 @@
+@@ -0,0 +1,457 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO time base and single-hart timer (K2).
@@ -32,6 +32,7 @@ index 000000000..f8047032e
 + */
 +#include <linux/bitops.h>
 +#include <linux/init.h>
++#include <linux/irqflags.h>
 +#include <linux/jiffies.h>
 +#include <linux/kernel.h>
 +#include <linux/types.h>
@@ -57,6 +58,16 @@ index 000000000..f8047032e
 +/* cfx_hart's cg5 frame: only the entry mode is read here (§3.6). */
 +#define CFX_HART_CG_FRAME		5
 +#define CFX_HART_RC_FRAME_PREV_MODE	0
++
++#if CONFIG_DADAO_K2_IRQ_TEST
++/*
++ * Probe-image half (kernel/k2_irq_test.c, CONFIG_DADAO_K2_IRQ_TEST): the
++ * interrupt-enable knob cases, plus the hook the tick calls after it restored
++ * the knob inside a live frame.  Never part of a milestone image.
++ */
++void __noreturn dadao_k2_irq_test(void);
++void dadao_k2_irq_inframe(void);
++#endif
 +
 +/*
 + * The period and the tick bookkeeping.  `period` is derived once in
@@ -172,9 +183,23 @@ index 000000000..f8047032e
 + */
 +void dadao_timer_interrupt(void)
 +{
-+	unsigned long now = dadao_read_time();
-+	unsigned int slot = dadao_ticks;
++	unsigned long flags;
++	unsigned long now;
++	unsigned int slot;
 +
++	/*
++	 * "Read the counter -> update it -> write the compare/ctrl pair" is one
++	 * unit (task m14-linux-008 §2): with the source masked, no tick can
++	 * observe the bookkeeping half-done and no re-arm can race the previous
++	 * one.  Inside an asynchronous frame the hardware's all-1
++	 * `global_cfx_intr_mask` already blocks nesting (contract-see §6.3); the
++	 * mask is what keeps the invariant when the same code runs outside a
++	 * frame, and it is cheap enough to state unconditionally.
++	 */
++	local_irq_save(flags);
++
++	now = dadao_read_time();
++	slot = dadao_ticks;
 +	dadao_ticks = slot + 1;
 +
 +	/*
@@ -197,6 +222,18 @@ index 000000000..f8047032e
 +			now + dadao_period);
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
 +			DADAO_TIMER_ENABLE);
++
++	local_irq_restore(flags);
++
++#if CONFIG_DADAO_K2_IRQ_TEST
++	/*
++	 * Probe image only (kernel/k2_irq_test.c): the body has just restored the
++	 * knob to "allow" while the frame is still live, so this is the place to
++	 * show that a source made pending here is *not* delivered until `escape`
++	 * releases the frame's global mask.
++	 */
++	dadao_k2_irq_inframe();
++#endif
 +}
 +
 +/*
@@ -363,7 +400,17 @@ index 000000000..f8047032e
 +			   (unsigned long)(dadao_ticks - stop_ticks),
 +			   2 * dadao_period);
 +
-+	dadao_early_printf("K2 time: done ticks=%u\n", dadao_ticks);
++	/*
++	 * The exit sequence runs with the knob closed (task m14-linux-008 §2):
++	 * `stop` cancels the deadline and nothing may be delivered between that
++	 * write and SYS_EXIT, so the boot cannot be perturbed while it reports and
++	 * leaves.  The mask is deliberately never restored — there is no code
++	 * after the exit.
++	 */
++	local_irq_disable();
++	dadao_timer_stop();
++	dadao_early_printf("K2 time: done ticks=%u mask=%#lx\n", dadao_ticks,
++			   dadao_irq_mask_row_smon());
 +	dadao_early_exit(0);
 +}
 +
@@ -397,6 +444,11 @@ index 000000000..f8047032e
 +{
 +	time_init();
 +	init_IRQ();
++
++#if CONFIG_DADAO_K2_IRQ_TEST
++	/* Probe image: the IE knob cases own the rest of the boot. */
++	dadao_k2_irq_test();
++#endif
 +
 +#if CONFIG_DADAO_K2_TIME_CASE == 1
 +	dadao_time_case_imask();

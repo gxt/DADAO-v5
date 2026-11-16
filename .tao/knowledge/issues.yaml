@@ -786,3 +786,11 @@
   closed_in: null
   resolved_by: null
   title: "【P2】证据脚本按**脚本自身路径**推仓库根，在任务 worktree 里会经 `.work` 软链解析到**主工作树**，从而把产物误写进 `master`：`m14-linux-008` 的 `run.sh` 初版实测误写 6 个文件（已按 HEAD blob 逐文件复原、`git status` 干净、md5 与 HEAD 一致）。与 `ISS-389`（worktree `.work` 未软链导致从零编）是同一软链机制的两个反向踩坑。处置：证据脚本一律**按 cwd 推仓库根**（`git rev-parse --show-toplevel`）并在解析结果等于 `master` 工作树时**拒绝运行**；或把该约束写进 engineer/reviewer 的「一键证据脚本」规范并加一条自检。"
+- id: ISS-457
+  scope:
+  - linux
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】K2 两条派单口径缺「可达 FAIL」断言（`m14-linux-008` 复核实测）：① 把 `local_irq_save` 的 `flags` 截成低 32 位 ⇒ `k2_irq_probe` **95/95 全绿**；② 把 `enable` 改成全清 0（而非只清源位）⇒ **同样全绿**。两条都是本任务**明确要求**的性质，却无判据可抓 ⇒ 违反「每条断言须有可达 FAIL 路径」。处置：在 `m14-linux-009`（K2 收口门控）补两条绝对断言——`P1`：`before_smon` == `init_IRQ` 行值（高位参与比较）；`P5`：`enable` 态 == `disable` 态 `& ~DADAO_IRQ_SOURCE_BITS`。另订正 `run.sh --inject` 的「time 6 路」标签（实为 5 路）。"

@@ -8,7 +8,7 @@ M13 及以前本组件只是**参考输入**（`ADR-0025 D2`：无内核目标�
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），清单见 `series`。
 - 规范：`docs/Process-01-组件补丁组织与构建编排.md`；上位决策：`ADR-0025`（M8 用户态栈）、`ADR-0006`（浅裸镜像）。
-- **现状（M14 K2）**：68 份补丁 = 67 份 `arch/dadao/**` + 1 份 `init/main.c`（K2 起 `arch/dadao/kernel/` 有 `time.c`（`cfx_time`/`cfx_hart` 定时器）、`async_trap.S`（`cfx_hart` 的 supv 异步向量）与 `irq.c`（向量安装 + 两条 mask 轴），GPR 保存/恢复在 `include/asm/entry.h` 里由同步与异步两个入口共用）。`init/main.c` 的唯一改动是在 `start_kernel()` 首句插入 `dadao_k1_early_stop()`（`CONFIG_DADAO_K1_EARLY_STOP`，默认 y）：K1 的判据边界只到「进入 `start_kernel` 并在开时钟前打印退出」，K2 起关掉该选项即恢复上游调用序列。上游其余文件**未改动**：`ARCH=dadao` 的 target triple 走 `CLANG_TARGET_FLAGS` make 变量，导出表/符号表相关开关走 arch `Makefile` 的编译选项，因此不触碰 `scripts/Makefile.clang`、`include/linux/export.h`。
+- **现状（M14 K2）**：69 份补丁 = 68 份 `arch/dadao/**` + 1 份 `init/main.c`（K2 起 `arch/dadao/kernel/` 有 `time.c`（`cfx_time`/`cfx_hart` 定时器）、`async_trap.S`（`cfx_hart` 的 supv 异步向量）、`irq.c`（向量安装 + 两条 mask 轴）与 `k2_irq_test.c`（`local_irq_*` 旋钮的探针镜像自检，`CONFIG_DADAO_K2_IRQ_TEST` 默认 n），GPR 保存/恢复在 `include/asm/entry.h` 里由同步与异步两个入口共用；软件 IE 旋钮在 `include/asm/irqflags.h`）。`init/main.c` 的唯一改动是在 `start_kernel()` 首句插入 `dadao_k1_early_stop()`（`CONFIG_DADAO_K1_EARLY_STOP`，默认 y）：K1 的判据边界只到「进入 `start_kernel` 并在开时钟前打印退出」，K2 起关掉该选项即恢复上游调用序列。上游其余文件**未改动**：`ARCH=dadao` 的 target triple 走 `CLANG_TARGET_FLAGS` make 变量，导出表/符号表相关开关走 arch `Makefile` 的编译选项，因此不触碰 `scripts/Makefile.clang`、`include/linux/export.h`。
 - 后续范围：机器/中断/定时器/页表/启动入口按 K1–K3 逐任务落地，具体以各任务书为准。
 
 ## 构建与验证

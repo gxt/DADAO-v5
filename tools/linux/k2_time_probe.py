@@ -102,6 +102,7 @@ IMAGES: dict[str, list[str]] = {
         "CONFIG_DADAO_K2_EARLY_STOP=n",
         "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
         "CONFIG_DADAO_K2_TIME_STOP=y",
+        "CONFIG_DADAO_K2_IRQ_TEST=n",   # m14-linux-008 image must not leak in
         f"CONFIG_DADAO_K2_TIME_CASE={case}",
     ]
     for name, case in (("time", 0), ("imask", 1), ("source", 2), ("global", 3))
@@ -213,7 +214,7 @@ def kernel_selfcheck_codes() -> dict[str, int]:
     files = ("arch/dadao/kernel/head.S", "arch/dadao/kernel/setup.c",
              "arch/dadao/mm/k1_pt.c", "arch/dadao/kernel/traps.c",
              "arch/dadao/include/asm/trap.h", "arch/dadao/kernel/time.c",
-             "arch/dadao/kernel/irq.c")
+             "arch/dadao/kernel/irq.c", "arch/dadao/kernel/k2_irq_test.c")
     codes: dict[str, int] = {}
     for rel in files:
         path = SOURCE / rel
@@ -320,7 +321,8 @@ TICK = re.compile(r"^K2 tick (\d+): time=(\d+) jiffies=(\d+)$", re.MULTILINE)
 SUMMARY = re.compile(r"^K2 time: ticks=(\d+) jiffies_delta=(\d+)$", re.MULTILINE)
 AFTER_STOP = re.compile(r"^K2 time: after stop ticks=(\d+) window=(\d+)$",
                         re.MULTILINE)
-DONE = re.compile(r"^K2 time: done ticks=(\d+)$", re.MULTILINE)
+DONE = re.compile(r"^K2 time: done ticks=(\d+) mask=(\S+)$",
+                  re.MULTILINE)
 IMASK = re.compile(r"^K2 imask: ctrl=(\S+) ticks=(\d+)$", re.MULTILINE)
 IMASK_RELEASED = re.compile(r"^K2 imask: released ctrl=(\S+) ticks=(\d+)$",
                             re.MULTILINE)
@@ -550,6 +552,12 @@ def check_image(name: str, rc: int, text: str, cmd: list[str], rep: Report,
     m = DONE.search(text)
     rep.check("C1", f"{name} 镜像退出 tick 数 == n_ticks", base.get("n"),
               int(m.group(1)) if m else "<missing>")
+    # m14-linux-008: the exit sequence (stop + SYS_EXIT) runs with the software
+    # IE knob closed, so the last line reports the mask and it must still block
+    # the kernel's source bit.
+    bit = 1 << hart
+    rep.check("C1", f"{name} 镜像退出序列在屏蔽下完成（源位仍置位）", True,
+              bool(m and (int(m.group(2), 0) & bit)))
     return base
 
 
@@ -610,11 +618,18 @@ def check_permission(rep: Report, rc: int, text: str, specs: dict,
     rep.check("C8", "输出具名 CFXPERM 行", True,
               bool(re.search(r"^dadao: unrecoverable supv exception "
                              r"cause=CFXPERM\(0x80\)", text, re.MULTILINE)))
+    # The software IE knob is real since m14-linux-008, so the kernel's *first*
+    # cfx access is now the local_irq_* plumbing inside start_kernel, not the
+    # cfx_time read in time_init.  Both live behind the same firmware opening,
+    # which is what this case proves; pin the span and the fact that the denial
+    # is a source-mask rejection (`info` = instruction word, not an address).
     syms = snap["syms"]
-    m = re.search(r"cause=CFXPERM\(0x80\) ip=(\S+)", text)
-    ip = m.group(1) if m else "<missing>"
-    rep.check("C8", "首次触碰发生在 time_init（第一个 cfx_time 读）",
-              hex(syms["time_init"]), ip)
+    m = re.search(r"cause=CFXPERM\(0x80\) ip=(\S+) info=(\S+)", text)
+    ip = int(m.group(1), 0) if m else None
+    info = int(m.group(2), 0) if m else None
+    rep.check("C8", "首次触碰是 start_kernel 内的掩码拒绝（info = 指令字）", True,
+              ip is not None and syms["start_kernel"] <= ip < syms["time_init"]
+              and info <= 0xffffffff)
     rep.check("C8", "输出无 tick 行（没走到定时器）", [],
               [line for line in text.splitlines()
                if line.startswith("K2 tick ")])
@@ -731,7 +746,7 @@ def run_selfcheck(result: dict) -> int:
             r"(cfx_smon_global_cfx_intr_mask=)(\S+)",
             lambda m: m.group(1) + hex(int(m.group(2), 0) & ~(1 << cfxha("cfx_hart"))), t),
          "全局轴被放开（读回不再屏蔽）"),
-        ("time", "C1", lambda t: re.sub(r"^K2 time: done ticks=\d+\n",
+        ("time", "C1", lambda t: re.sub(r"^K2 time: done ticks=\d+.*\n",
                                         "", t, flags=re.MULTILINE),
          "删掉退出标记行"),
         ("noperm", "C8", lambda t: t.replace("cause=CFXPERM(0x80)", "cause=CFXMEM(0x2)"),
@@ -837,17 +852,12 @@ INJECTIONS: dict[str, tuple] = {
                   ("\t\t\tnow + 2 * dadao_period);\t/* injected */\n"))],
         0, r"^K2 time: done ticks=", None, ("C4",), None,
     ),
-    # ⑤ Only cfx_smon's supv row opened: after the first delivery the kernel is
-    #    in cfx_hart (spec/DADAO-12 §5.3), so the second delivery is filtered by
-    #    cfx_hart's still-masked row -> exactly one tick, then the wait times out.
-    "only-smon-row": (
-        "time", [(("\tmask = hart_supv_intr_mask() & ~bit;\n"
-                   "\tDADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_SUPV,\n"
-                   "\t\t\tCFX_SMON_RC_SUPV_CFX_INTR_MASK, mask);\n"),
-                  ("\t/* injected: cfx_hart's own row left masked */\n"))],
-        None, r"^K2 fail: timer delivered no tick code=0x13$", r"^K2 tick 2:",
-        ("C1", "C3"), None,
-    ),
+    # ⑤ was "only cfx_smon's supv row opened (irq.c)": after m14-linux-008 the
+    #    software IE knob writes *both* rows on every save/restore (ISS-454), so
+    #    the handler itself re-opens cfx_hart's row on the first tick and the
+    #    missing init_IRQ write no longer has an observable.  That property is
+    #    judged by k2_irq_probe's `only-smon-row` injection instead; a mutation
+    #    without a reachable FAIL path does not belong in this table.
 }
 
 
