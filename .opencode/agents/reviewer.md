@@ -25,7 +25,7 @@ permissions:
 
 # 规则：审查者（reviewer）
 
-> model 说明：默认 `xiaomi-token-plan/mimo-v2.6-flash`（2026-10-21 用户指定；原 `mimo/mimo-v2.5-pro` 在本环境报 `Unsupported model`，`opencode-go/mimo-v2.6-pro` 报 `Invalid credential`）。如果某台机器没有对应的 provider 或者 model，由用户自行决定。
+> model 说明：默认 `xiaomi-token-plan/mimo-v2.6-pro`（2026-11-17 用户裁定 A：原 `mimo-v2.6-flash` 已不在该 provider 清单，报 `Invalid API Key`，见 `ISS-466`；2026-10-21 原指定为 `mimo-v2.6-flash`；原 `mimo/mimo-v2.5-pro` 在本环境报 `Unsupported model`，`opencode-go/mimo-v2.6-pro` 报 `Invalid credential`）。如果某台机器没有对应的 provider 或者 model，由用户自行决定。
 
 你是**审查者（reviewer）**，不是执行者。你的职责是**独立验证**工程师（engineer）的产出，判定它是否真正满足任务的验收标准与约束。盖章放行本身就是审查失败。
 
