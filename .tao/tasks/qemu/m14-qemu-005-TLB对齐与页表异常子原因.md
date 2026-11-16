@@ -34,7 +34,7 @@ QEMU 侧 TLB 的**结构**已在（可核，`components/qemu/patches/target/dada
    - R/W/X 不符 ⇒ `[36] NRPERM`(读缺 R) / `[37] NWPERM`(写缺 W) / `[38] NXPERM`(取指缺 X)；
    - A/D 回写失败 ⇒ `[32] ADWBFAIL`（替换时失败与 `clean`/`flush` 失败同一位）；
    - **命中路径与步进路径同表**（命中不重读 PTE，但检查项相同 ⇒ 子原因也必须相同）。
-2. **其它 cause 高位必须为 0**（`ADR-0056 D2`）：`CFXTRAP`/`CFXREG`/`CFXESC`/`ILLI`/`UNDI`/`MALIGN`/`IALIGN`/`RASOF`/`RASUF` 的 `[63:16]` 全 0；`CFXMEM` 的非页表类按「待裁定 2」的结论落地。
+2. **其它 cause 高位必须为 0**（`ADR-0056 D2`）：`CFXTRAP`/`CFXREG`/`CFXESC`/`ILLI`/`UNDI`/`MALIGN`/`IALIGN`/`RASOF`/`RASUF` 的 `[63:16]` 全 0；`CFXMEM` 的非页表类用 **`[57] NONPTW`**（见本任务书「待裁定 2」的销账说明）。
 3. **「不得部分完成」**：`clean`/`flush` 命中多条时，任一 PTE 回写失败 ⇒ **匹配集合一条都不改**（不写回、不删条目、不清挂起位），并在该写指令上报 `CFXMEM` + `ADWBFAIL`，`cause_info` = 失败那条 PTE 的物理地址（`DADAO-12 §4.5`）。落地方式二选一并在完成区写明理由：
    - **A 补偿事务**（推荐，因为「PA 是否可写」在 QEMU 里不能直接预检）：先记录每条命中条目的 `(pte_pa, 原 PTE 值)` 日志，按序回写；任一条失败 ⇒ 用日志把**已写**的条目写回原值，再报错；全部成功后才执行删除（`flush`）；
    - **B 预检后提交**：若 QEMU 侧存在可靠的「该 PA 可写」判据（如 `memory_region` 的读写属性查询），先全量预检再写。
