@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..6cafd0a
+index 0000000..d583099
 --- /dev/null
 +++ b/target/dadao/cpu.c
 @@ -0,0 +1,645 @@
@@ -82,7 +82,7 @@ index 0000000..6cafd0a
 +    .ptw_supported = true,
 +    .rom_elf_segments = false,  /* Vast test bodies load into PA RAM only */
 +    .unmapped_is_cfxmem = false,
-+    .sync_exc_monitor_entry = false,   /* staged direct-fault mapping */
++    .sync_exc_monitor_entry = true,     /* one route: current run-mode monitor */
 +    .user_mode = true,
 +    .semihosting = true,
 +};

@@ -88,6 +88,7 @@ USER, JAIL, SUPV, HYPV = 0, 1, 2, 3
 # Cause ids (DADAO-12 §4 monitor exception table)
 CFXREG = 1 << 2
 CFXPERM = 1 << 7
+ILLI = 1 << 8
 ALL1 = (1 << 64) - 1
 
 # Reset mask rows (ADR-0045 D4): everything but source hmon (cfx3) is denied.
@@ -191,6 +192,7 @@ def observe(log):
         o["rd%d" % n] = lasthex(log, r"RD\[%02d\]: ([0-9a-f]+)" % n)
     for ha in (0, 1, 2, 3, 4, 17, 63):
         t = "CFX%02d" % ha
+        o["prevm:%d" % ha] = lasthex(log, t + r" PREVM:([0-9a-f]+)")
         o["cid:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]* CID:([0-9a-f]+)")
         o["cip:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]*CIP:([0-9a-f]+)")
         o["cinfo:%d" % ha] = lasthex(log, t + r" PREVM:[^\n]*CINFO:([0-9a-f]+)")
@@ -462,15 +464,25 @@ def _closed_power_bootrom():
                      "cip:2": ROM_BASE + SUPV_OFF + 4 * ld_idx})
 
 
-@case("power_bootrom_store", "power cfxmem bit2=0: st.o boot ROM => ILLI (monitor: supv + index 8)")
+@case("power_bootrom_store", "power cfxmem bit2=0: st.o boot ROM => ILLI (supv monitor frame)")
 def _power_bootrom_store():
-    body = load_rb(4, POWER_ADDR) + [st_o(20, 4, 0)] + exit_seq(0x00)
+    st_insn = st_o(20, 4, 0)              # the faulting store instruction
+    body = load_rb(4, POWER_ADDR) + [st_insn] + exit_seq(0x00)
     prog = probe_base() + set_power_cfxmem(POWER_CFXMEM_OPEN)
     prog += enter_supv_cfx2()
+    st_idx = len(load_rb(4, POWER_ADDR))
     rom = build_rom(prog, {SUPV_OFF: body, HAND_OFF: handler()})
-    # ADR-0004 D5.6: ROM is read-only; the store never reaches a handler, the
-    # test machine reports ILLI as monitor code 0xE8 (supv mode + ILLI index 8).
-    return one(rom, {"exit": 0xE8})
+    # ADR-0004 D5.6: the ROM is read-only, so a store is ILLI.  It is an
+    # execution-time synchronous exception, so it enters the supv monitor
+    # (DADAO-12 §5.2 steps 1-7) and the cfx_smon frame carries cause id ILLI,
+    # cause_ip = the faulting instruction address, cause_info = that
+    # instruction's encoding (DADAO-12 §4.1 / Kaiwu §4.4).  The expected
+    # encoding is derived from `contracts/opcodes.yaml` (`st.o_rrii_rd`:
+    # opc 0x21, rdha[23:18] = rd20, rbhb[17:12] = rb4, imms12 = 0) via the
+    # probe's own encoder -- never from the model's output.
+    return one(rom, {"exit": 0x2E, "cid:2": ILLI, "cinfo:2": st_insn,
+                     "cip:2": ROM_BASE + SUPV_OFF + 4 * st_idx,
+                     "prevm:2": SUPV, "syncn:2": 1})
 
 
 @case("power_control_write", "default axes: supv write cfx_power cg2 rc1 => CFXPERM")

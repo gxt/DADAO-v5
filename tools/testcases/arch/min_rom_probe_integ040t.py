@@ -87,7 +87,9 @@ RAM_BASE = _MACH.ram_base
 RAM_SIZE = _MACH["ram_size"]
 
 EXIT_PASS = 0x00
-EXIT_CFXMEM = 0xF1    # monitor: hypv + CFXMEM index 1
+# Machine-fault fallback (spec/Kaiwu §7.1) for the one case whose monitor
+# vector is deliberately unreachable: hypv + CFXMEM index 1.
+EXIT_CFXMEM = 0xF1
 
 # cfx_ptw (cfx4) register coordinates (DADAO-12 §4.5)
 PTW_HA = 4
@@ -444,16 +446,25 @@ def extra_case(name, desc):
     return deco
 
 
-def monitor_words(cfxha, skip):
-    """Read the faulted monitor's cfx cg5 cause frame and exit/escape."""
-    words = [cfx2rd(cfxha, 5, CAUSE_ID_RC, 10),
-             cfx2rd(cfxha, 5, CAUSE_INFO_RC, 11),
-             cfx2rd(cfxha, 5, CAUSE_IP_RC, 12)]
+def monitor_words(cfxha, skip, reptw=False):
+    """Read the faulted monitor's cfx cg5 cause frame and exit/escape.
+
+    `reptw` re-enables the page table before the report: a case that faults
+    with `ptw_enable=0` left the memory window translating nothing, so the
+    SYS_EXIT argument-block store would itself be CFXMEM (DADAO-12 §2.2 step 1).
+    """
+    words = []
+    if reptw:
+        words += load_rd(17, 1) + [cfx2rc(PTW_HA, PTW_ENABLE_CG,
+                                          PTW_ENABLE_RC, 17)]
+    words += [cfx2rd(cfxha, 5, CAUSE_ID_RC, 10),
+              cfx2rd(cfxha, 5, CAUSE_INFO_RC, 11),
+              cfx2rd(cfxha, 5, CAUSE_IP_RC, 12)]
     return words + ([escape(cfxha, 1)] if skip else exit_seq(EXIT_PASS))
 
 
-def monitor_handler_dict(skip):
-    return {OFF_PTW_HANDLER + m * 0x40: monitor_words(m, skip)
+def monitor_handler_dict(skip, reptw=False):
+    return {OFF_PTW_HANDLER + m * 0x40: monitor_words(m, skip, reptw)
             for m in range(4)}
 
 # Current-mode monitor (cfx_hmon) equivalent: the CFXREG from a cfx2rd/cfx2rc
@@ -1029,9 +1040,13 @@ def _tlb_bypass_ptw_off():
     load_va(p, 0x0)                         # entry exists now
     p += load_rd(17, 0)
     p.append(cfx2rc(PTW_HA, PTW_ENABLE_CG, PTW_ENABLE_RC, 17))
-    load_va(p, 0x0)                         # ptw off -> CFXMEM
+    setup_ptw_handler(p)                    # monitor frame (DADAO-12 §5.2)
+    va = 0x0
+    ip = load_va_fault(p, va)               # ptw off -> CFXMEM
     p += exit_seq(0x7E)
-    return build_rom(p), {"exit": EXIT_CFXMEM}
+    return build_rom(p, monitor_handler_dict(False, reptw=True)), \
+        {"exit": EXIT_PASS, "rd10": C_CFXMEM, "rd11": va, "rd12": ip,
+         "syncn3": 1, "cid3": C_CFXMEM}
 
 
 @case("tlb_ptbr_write_no_flush", "writing PTBR does not invalidate the TLB")

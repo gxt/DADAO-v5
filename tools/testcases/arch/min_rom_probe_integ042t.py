@@ -108,8 +108,9 @@ ERR_PA_FAULT = 1 << 6
 
 # cfx exception cause ids / register coordinates
 CAUSE_CFXREG = 1 << 2
+CAUSE_CFXMEM = 1 << 1
 CAUSE_PMEM_DMA = 1 << 8
-CG5_CAUSE_ID_RC, CG5_CAUSE_INFO_RC, CG5_PENDING_RC = 2, 4, 5
+CG5_CAUSE_ID_RC, CG5_CAUSE_INFO_RC, CG5_CAUSE_IP_RC, CG5_PENDING_RC = 2, 4, 3, 5
 CG3_SWITCH_MODE_RC, CG3_EXCP_VECTOR_RC = 8, 10
 CG3_CFX_INTR_MASK_RC = 4
 INTR_SRC_PMEM = 1 << PMEM_HA          # cfx_intr_mask bit index = source cfxha
@@ -118,7 +119,10 @@ CG8_GLOBAL_INTR_MASK_RC = 1
 MODE_H = 3
 
 EXIT_PASS = 0x00
-EXIT_CFXMEM = 0xF1    # monitor: hypv + CFXMEM index 1
+
+# Faulting IP of the next appended word (the instruction that will fault).
+def fault_at(p):
+    return ROM_BASE + 4 * len(p)
 
 # Data addresses inside RAM
 DATA_A = RAM_BASE + 0x1000
@@ -270,6 +274,13 @@ HMON_CFXREG_HANDLER = ([cfx2rd(3, 5, CG5_CAUSE_ID_RC, 10),
                         cfx2rd(3, 5, CG5_CAUSE_INFO_RC, 11)]
                        + exit_seq(EXIT_PASS))
 
+# Execution-time sync fault in hypv => cfx_hmon frame (DADAO-12 §5.2 steps
+# 1-7): record cause id / cause_info / cause_ip, then leave through SYS_EXIT.
+HMON_FRAME_HANDLER = ([cfx2rd(3, 5, CG5_CAUSE_ID_RC, 10),
+                       cfx2rd(3, 5, CG5_CAUSE_INFO_RC, 11),
+                       cfx2rd(3, 5, CG5_CAUSE_IP_RC, 12)]
+                      + exit_seq(EXIT_PASS))
+
 
 def setup_pmem_vector(p, handler):
     p += load_rd(17, MODE_H)
@@ -360,18 +371,28 @@ def _sram_ldst_roundtrip():
 
 @case("sram_oob_cfxmem", "SRAM offset >= 64 KiB => CFXMEM (monitor)")
 def _sram_oob_cfxmem():
-    p = load_rb(3, PMEM_BASE + PMEM_SRAM_SIZE)
+    p = []
+    setup_hmon_vector(p, HMON_HANDLER)
+    p += load_rb(3, PMEM_BASE + PMEM_SRAM_SIZE)
+    ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p), {"exit": EXIT_CFXMEM}
+    return build_rom(p, {OFF_HMON_HANDLER: HMON_FRAME_HANDLER}), \
+        {"exit": EXIT_PASS, "rd10": CAUSE_CFXMEM,
+         "rd11": PMEM_BASE + PMEM_SRAM_SIZE, "rd12": ip}
 
 
 @case("sram_old_offset_cfxmem", "internal offset 0 (old base) is outside the SRAM")
 def _sram_old_offset_cfxmem():
-    p = load_rb(3, PMEM_OLD_BASE)
+    p = []
+    setup_hmon_vector(p, HMON_HANDLER)
+    p += load_rb(3, PMEM_OLD_BASE)
+    ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p), {"exit": EXIT_CFXMEM}
+    return build_rom(p, {OFF_HMON_HANDLER: HMON_FRAME_HANDLER}), \
+        {"exit": EXIT_PASS, "rd10": CAUSE_CFXMEM, "rd11": PMEM_OLD_BASE,
+         "rd12": ip}
 
 
 # -- DMA both directions ---------------------------------------------------
@@ -720,10 +741,15 @@ def _cfx5_cache_cfxreg():
 
 @case("cfx6_reserved_cfxmem", "cfx6 is reserved: plain ld/st => CFXMEM")
 def _cfx6_reserved_cfxmem():
-    p = load_rb(3, RESERVED_BASE)
+    p = []
+    setup_hmon_vector(p, HMON_HANDLER)
+    p += load_rb(3, RESERVED_BASE)
+    ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p), {"exit": EXIT_CFXMEM}
+    return build_rom(p, {OFF_HMON_HANDLER: HMON_FRAME_HANDLER}), \
+        {"exit": EXIT_PASS, "rd10": CAUSE_CFXMEM, "rd11": RESERVED_BASE,
+         "rd12": ip}
 
 
 @case("pmem_cg15_reserved_cfxreg", "cg15 rc5 is reserved => CFXREG")

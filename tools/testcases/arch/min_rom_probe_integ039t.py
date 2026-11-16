@@ -83,10 +83,10 @@ ROM_BASE = _prelude.ROM_BASE
 RAM_BASE = _MACH.ram_base
 RAM_SIZE = _MACH["ram_size"]
 
-# Exit codes (ADR-0004 D5.8 / Machine-01 §1.2): a page-table fault that reaches
-# monitor fault is handled by the probe handler, so every case exits with SYS_EXIT 0.
+# Exit codes (ADR-0004 D5.8 / Machine-01 §1.2): every execution-time
+# synchronous exception enters the current run-mode monitor (DADAO-12 §5.2),
+# is handled by the probe handler, and exits with SYS_EXIT 0.
 EXIT_PASS = 0x00
-EXIT_CFXMEM = 0xF1    # monitor: hypv + CFXMEM index 1
 
 # cfx_ptw (cfx4) register coordinates (DADAO-12 §4.5)
 PTW_HA = 4
@@ -356,15 +356,26 @@ def case(name, desc):
     return deco
 
 
-def monitor_words(cfxha):
-    return ([cfx2rd(cfxha, 5, CAUSE_ID_RC, 10),
-             cfx2rd(cfxha, 5, CAUSE_INFO_RC, 11),
-             cfx2rd(cfxha, 5, CAUSE_IP_RC, 12)]
+def monitor_words(cfxha, reptw=False):
+    """Read the monitor frame (cause id / info / ip) and leave through SYS_EXIT.
+
+    `reptw` re-enables the page table before the report: a case that faults
+    with `ptw_enable=0` left the memory window translating nothing, so the
+    SYS_EXIT argument-block store would itself be CFXMEM (DADAO-12 §2.2 step 1).
+    """
+    words = []
+    if reptw:
+        words += load_rd(17, 1) + [cfx2rc(PTW_HA, PTW_ENABLE_CG,
+                                          PTW_ENABLE_RC, 17)]
+    return (words + [cfx2rd(cfxha, 5, CAUSE_ID_RC, 10),
+                     cfx2rd(cfxha, 5, CAUSE_INFO_RC, 11),
+                     cfx2rd(cfxha, 5, CAUSE_IP_RC, 12)]
             + exit_seq(EXIT_PASS))
 
 
-def monitor_handler_dict():
-    return {OFF_PTW_HANDLER + m * 0x40: monitor_words(m) for m in range(4)}
+def monitor_handler_dict(reptw=False):
+    return {OFF_PTW_HANDLER + m * 0x40: monitor_words(m, reptw)
+            for m in range(4)}
 
 
 def mode_handler(target_ha, rd=5):
@@ -867,12 +878,19 @@ def _prio_l2p_over_perm():
 def _ptw_off_still_cfxmem():
     # The prelude enables PTW; rebuild the spec precondition explicitly
     # (DADAO-12 §2.2 step 1: ptw_enable=0 => memory-window access CFXMEM).
+    # It is an execution-time synchronous exception like any other, so it
+    # enters the current run-mode monitor (DADAO-12 §5.2 steps 1-7) and the
+    # handler observes cause_id / cause_info / cause_ip from the frame.
     p = []
+    setup_ptw_handler(p)
     p += load_rd(17, 0) + [cfx2rc(PTW_HA, PTW_ENABLE_CG, PTW_ENABLE_RC, 17)]
-    p += load_rb(3, 0x1000)
+    va = 0x1000
+    p += load_rb(3, va)
+    ip = fault_at(p)
     p.append(ld_o(5, 3, 0))
     p += exit_seq(0x7E)
-    return build_rom(p), {"exit": EXIT_CFXMEM}
+    return build_rom(p, monitor_handler_dict(reptw=True)), \
+        fault_expect(C_CFXMEM, va, ip)
 
 
 # ---------------------------------------------------------------------------

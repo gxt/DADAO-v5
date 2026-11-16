@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..cdbf9f2
+index 0000000..44fef00
 --- /dev/null
 +++ b/target/dadao/cpu.h
 @@ -0,0 +1,612 @@
@@ -198,9 +198,9 @@ index 0000000..cdbf9f2
 +    bool rom_elf_segments;      /* ELF PT_LOAD may target the BootROM */
 +    bool unmapped_is_cfxmem;    /* every unmapped access => CFXMEM (Tiny) */
 +    /* Every execution-time synchronous exception enters the current run-mode
-+     * monitor (DADAO-12 §5.2(一), Kaiwu §4.4).  Tiny needs this; Vast
-+     * still uses the staged M1 mapping of those causes to a machine-fault exit
-+     * code (see dadao_cpu_do_interrupt), which its probe oracles encode. */
++     * monitor (DADAO-12 §5.2(一), Kaiwu §4.4).  Both machines set this; a
++     * profile that clears it is rejected at exception entry (there is no
++     * direct-fault mapping any more, see dadao_cpu_do_interrupt). */
 +    bool sync_exc_monitor_entry;
 +    bool user_mode;             /* user/jail/supv reachable via cfx switches */
 +    bool semihosting;

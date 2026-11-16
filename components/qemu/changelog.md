@@ -379,3 +379,7 @@
 - **2026-11-16 `m14-infra-004`**
   - 摘要：**测试机整机名 `Kaiwu`（`ADR-0055`）随全仓改名**：补丁里 `Machine-v5*` → `Kaiwu*`、QEMU 机器串 `dadao-tiny`/`dadao-vast` → `kaiwu-tiny`/`kaiwu-vast`（无旧名别名）、`spec/Kaiwu §…` 注记同步；**只改名不改语义**（编码/几何/契约值零改动）。
   - 执行者：engineer
+
+- **2026-11-16 `m14-qemu-006`**
+  - 摘要：**Vast 同步异常路由对齐 `DADAO-12 §5.2`（删 staged 直映射，两 profile 统一进 monitor）**。`target/dadao/cpu.c`：`dadao_profile_vast.sync_exc_monitor_entry` 由 `false` 改 `true`（Tiny 原为 `true`）。`target/dadao/helper.c`：`dadao_cpu_do_interrupt` 删去 staged 分支（`dadao_excp_to_exit_code()` + `qemu_system_shutdown_request_with_code(GUEST_PANIC)` 的一路，以及 CFXPERM 的 `cfx_raise` 旁路），ILLI/UNDI/CFXMEM/CFXREG/CFXPERM/MALIGN/IALIGN/RASOF/RASUF 一律经 `dadao_sync_enter()`（存帧 → 跳 `<mode>_excp_vector`）；`CFXPERM` 的 `cause_info = cfx_perm_info` 由 `dadao_sync_cause()` 继续传递，「已在关停流程中不再进 monitor/覆盖退出码」短路保留；向量不可达仍按 `spec/Kaiwu §7.1` 落 monitor 段机器 fault；profile 关掉该开关 ⇒ 具名报错并 `exit(1)`（不再有第二条路由）。`target/dadao/cpu.h` 注释同步改述。Vast 探针 oracle 同步改为帧级期望（`cause_id`/`cause_ip`/`cause_info`/`prev_run_mode`）。补丁 3 份改。
+  - 执行者：engineer

@@ -86,10 +86,21 @@ RAM_SIZE = _MACH["ram_size"]
 OLD_RAM_BASE = 0xFFFF_0000_0000
 OLD_RAM_SIZE = 16 * 1024 * 1024
 
-# Exit codes (ADR-0004 D5.8 + ADR-0020 D15)
+# Exit codes (ADR-0004 D5.8 + ADR-0020 D15): every execution-time synchronous
+# exception enters the current run-mode monitor (DADAO-12 §5.2), so a fault
+# case is judged on the monitor frame and leaves through SYS_EXIT(0).
 EXIT_PASS = 0x00
-EXIT_CFXMEM = 0xF1    # monitor: hypv + CFXMEM index 1
-EXIT_UNMAPPED = EXIT_CFXMEM  # unmapped is reported as CFXMEM
+# Monitor cause ids (DADAO-12 §5.2(二)) and the body's run mode.
+C_CFXMEM = 1 << 1
+MODE_H = 3
+
+# Monitor-frame observer (DADAO-12 §5.2 steps 5-7): the body runs in hypv, so
+# the monitor is cfx_hmon (cfx3) and the handler reads its own cg5 frame.
+OFF_MONITOR = 0x300
+MONITOR = ROM_BASE + OFF_MONITOR
+CG5_PREV_MODE_RC, CG5_CAUSE_ID_RC, CG5_CAUSE_IP_RC, CG5_CAUSE_INFO_RC = 0, 2, 3, 4
+CG3_SWITCH_MODE_RC, CG3_EXCP_VECTOR_RC = 8, 10
+PTW_ENABLE_CG, PTW_ENABLE_RC = 8, 8
 
 # Out-of-range addresses
 CFX0_OOB = 0x0000_0100_0000           # cfxha 0 (umon): no RAM there => CFXMEM (monitor)
@@ -122,6 +133,7 @@ def jump_rrii(rb, rd, off): return _rrii(0x71, rb, rd, off)
 def jump_iiii(imms24):   return (0x70 << 24) | (imms24 & 0xFFFFFF)
 def trap(ha, immu18):    return (0x7F << 24) | (ha << 18) | (immu18 & 0x3FFFF)
 def cfx2rc(ha, cg, rc, rd): return (0x7B << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
+def cfx2rd(ha, cg, rc, rd): return (0x7A << 24) | (ha << 18) | (cg << 12) | (rc << 6) | rd
 
 
 def swym():              return 0x47880000
@@ -159,9 +171,46 @@ def words_to_bytes(ws):
     return b"".join(struct.pack(">I", x & 0xFFFFFFFF) for x in ws)
 
 
-def build_rom(prog):
+def build_rom(prog, handlers=None):
     """Shared prelude: body at RESET_PC + 0x1000 in the 4 MiB ROM image."""
-    return _prelude.build_rom(prog, {})
+    return _prelude.build_rom(prog, handlers or {})
+
+
+def fault_at(p):
+    """ROM address of the next appended instruction (the faulting one)."""
+    return ROM_BASE + 4 * len(p)
+
+
+def monitor_words(reptw=False):
+    """Read the cfx_hmon hypv frame back (cause id / cause_ip / cause_info /
+    prev_run_mode), then leave through SYS_EXIT (DADAO-12 §5.2 steps 5-7).
+
+    `reptw` re-enables the page table first: a case that faults with
+    `ptw_enable=0` left the memory window translating nothing, so the SYS_EXIT
+    argument-block store would itself be CFXMEM (DADAO-12 §2.2 step 1).
+    """
+    words = []
+    if reptw:
+        words += load_rd(6, 1) + [cfx2rc(4, PTW_ENABLE_CG, PTW_ENABLE_RC, 6)]
+    return (words
+            + [cfx2rd(3, 5, CG5_PREV_MODE_RC, 10),
+               cfx2rd(3, 5, CG5_CAUSE_ID_RC, 11),
+               cfx2rd(3, 5, CG5_CAUSE_IP_RC, 12),
+               cfx2rd(3, 5, CG5_CAUSE_INFO_RC, 13)]
+            + exit_seq(EXIT_PASS))
+
+
+def setup_monitor(p):
+    """Point cfx_hmon's hypv vector at MONITOR (the body runs in hypv)."""
+    p += load_rd(6, MODE_H) + [cfx2rc(3, 3, CG3_SWITCH_MODE_RC, 6)]
+    p += load_rd(6, MONITOR) + [cfx2rc(3, 3, CG3_EXCP_VECTOR_RC, 6)]
+    return p
+
+
+def frame_expect(prev_mode, cause, ip, info):
+    """Full monitor frame: the four saved fields, each read from cg5."""
+    return {"exit": EXIT_PASS, "rd10": prev_mode, "rd11": cause,
+            "rd12": ip, "rd13": info}
 
 # ---------------------------------------------------------------------------
 # QEMU runner + dump parsing
@@ -212,16 +261,27 @@ def _ram_rw():
 # -- acc 2: legacy RAM segment removed (C1 step2) --------------------------
 @case("old_ram_unmapped", "legacy RAM 0xffff_0000_0000 removed => data access CFXMEM (monitor)")
 def _old_ram_unmapped():
-    prog = load_rb(3, OLD_RAM_BASE + 0x1000) + [ld_o(5, 3, 0)] + exit_seq(0x7E)
-    return build_rom(prog), {"exit": EXIT_UNMAPPED}
+    prog = []
+    setup_monitor(prog)
+    prog += load_rb(3, OLD_RAM_BASE + 0x1000)
+    ip = fault_at(prog)
+    prog.append(ld_o(5, 3, 0))
+    prog += exit_seq(0x7E)                   # not reached: the handler exits
+    return build_rom(prog, {OFF_MONITOR: monitor_words()}), \
+        frame_expect(MODE_H, C_CFXMEM, ip, OLD_RAM_BASE + 0x1000)
 
 
 # -- acc 2: no second mapped RAM region -------------------------------------
 @case("legacy_ram_gone", "write to 0xffff_0000_0000 => CFXMEM (monitor) (RAM is the only RAM)")
 def _legacy_ram_gone():
-    prog = load_rb(3, OLD_RAM_BASE + 0x2000) + load_rd(4, 0xAAAA_5555) + [st_o(4, 3, 0)]
-    prog += exit_seq(0x7E)
-    return build_rom(prog), {"exit": EXIT_UNMAPPED}
+    prog = []
+    setup_monitor(prog)
+    prog += load_rb(3, OLD_RAM_BASE + 0x2000) + load_rd(4, 0xAAAA_5555)
+    ip = fault_at(prog)
+    prog.append(st_o(4, 3, 0))
+    prog += exit_seq(0x7E)                   # not reached: the handler exits
+    return build_rom(prog, {OFF_MONITOR: monitor_words()}), \
+        frame_expect(MODE_H, C_CFXMEM, ip, OLD_RAM_BASE + 0x2000)
 
 
 # -- acc 2: RAM top 8 bytes ------------------------------------------------
@@ -257,29 +317,56 @@ def _oob_data_cfxmem():
     # TESTCASES-093t §3 category C: the prelude enables PTW, so the spec's
     # "memory-window access with ptw_enable=0 => CFXMEM" precondition is
     # rebuilt explicitly (DADAO-12 §2.2 step 1) instead of relying on the
-    # legacy PTW-off machine.
-    prog = [cfx2rc(4, 8, 8, 0)] + load_rb(3, CFX0_OOB) + [ld_o(5, 3, 0)] + exit_seq(0x7E)
-    return build_rom(prog), {"exit": EXIT_CFXMEM}
+    # legacy PTW-off machine.  The handler re-enables PTW before reporting:
+    # the SYS_EXIT block store needs a live page table.
+    prog = []
+    setup_monitor(prog)
+    prog += load_rd(6, 0) + [cfx2rc(4, PTW_ENABLE_CG, PTW_ENABLE_RC, 6)]
+    prog += load_rb(3, CFX0_OOB)
+    ip = fault_at(prog)
+    prog.append(ld_o(5, 3, 0))
+    prog += exit_seq(0x7E)                   # not reached: the handler exits
+    return build_rom(prog, {OFF_MONITOR: monitor_words(reptw=True)}), \
+        frame_expect(MODE_H, C_CFXMEM, ip, CFX0_OOB)
 
 
 @case("oob_data_unmapped", "data access cfxha63 unmapped => CFXMEM")
 def _oob_data_unmapped():
-    prog = load_rb(3, CFX63_OOB) + [ld_o(5, 3, 0)] + exit_seq(0x7E)
-    return build_rom(prog), {"exit": EXIT_UNMAPPED}
+    prog = []
+    setup_monitor(prog)
+    prog += load_rb(3, CFX63_OOB)
+    ip = fault_at(prog)
+    prog.append(ld_o(5, 3, 0))
+    prog += exit_seq(0x7E)                   # not reached: the handler exits
+    return build_rom(prog, {OFF_MONITOR: monitor_words()}), \
+        frame_expect(MODE_H, C_CFXMEM, ip, CFX63_OOB)
 
 
 # -- acc 4: out-of-range FETCH (instruction fetch path) ----------------------
 @case("oob_fetch_cfxmem", "ptw_enable=0 + fetch in the memory window => CFXMEM (monitor)")
 def _oob_fetch_cfxmem():
-    # Same category C rebuild as oob_data_cfxmem (DADAO-12 §2.2 step 1).
-    prog = [cfx2rc(4, 8, 8, 0)] + load_rb(3, CFX0_OOB) + [jump_rrii(3, 0, 0)] + exit_seq(0x7E)
-    return build_rom(prog), {"exit": EXIT_CFXMEM}
+    # Same category C rebuild as oob_data_cfxmem (DADAO-12 §2.2 step 1).  A
+    # fetch fault is precise: cause_ip is the illegal IP itself, i.e. the
+    # fetch address (DADAO-12 §5.2 step 5, §5 「IP 停留在非法地址」).
+    prog = []
+    setup_monitor(prog)
+    prog += load_rd(6, 0) + [cfx2rc(4, PTW_ENABLE_CG, PTW_ENABLE_RC, 6)]
+    prog += load_rb(3, CFX0_OOB)
+    prog.append(jump_rrii(3, 0, 0))
+    prog += exit_seq(0x7E)                   # not reached: the handler exits
+    return build_rom(prog, {OFF_MONITOR: monitor_words(reptw=True)}), \
+        frame_expect(MODE_H, C_CFXMEM, CFX0_OOB, CFX0_OOB)
 
 
 @case("oob_fetch_unmapped", "fetch cfxha63 unmapped => CFXMEM")
 def _oob_fetch_unmapped():
-    prog = load_rb(3, CFX63_OOB) + [jump_rrii(3, 0, 0)] + exit_seq(0x7E)
-    return build_rom(prog), {"exit": EXIT_UNMAPPED}
+    prog = []
+    setup_monitor(prog)
+    prog += load_rb(3, CFX63_OOB)
+    prog.append(jump_rrii(3, 0, 0))
+    prog += exit_seq(0x7E)                   # not reached: the handler exits
+    return build_rom(prog, {OFF_MONITOR: monitor_words()}), \
+        frame_expect(MODE_H, C_CFXMEM, CFX63_OOB, CFX63_OOB)
 
 
 # ---------------------------------------------------------------------------
@@ -303,7 +390,12 @@ def run_case(name):
                         k, v, ("0x%x" % av) if av is not None else "None"))
             if diffs:
                 return False, "; ".join(diffs), exp
-            return True, "ok", exp
+            detail = "ok"
+            if "rd10" in exp:
+                detail = ("frame prev_mode=%d cause_id=0x%x cause_ip=0x%x "
+                          "cause_info=0x%x" % (obs["rd10"], obs["rd11"],
+                                               obs["rd12"], obs["rd13"]))
+            return True, detail, exp
     raise KeyError(name)
 
 

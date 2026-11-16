@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..3484efc
+index 0000000..393a243
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,2995 @@
+@@ -0,0 +1,3062 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -106,6 +106,67 @@ index 0000000..3484efc
 +static void cfx_raise(CPUDADAOState *env, uint64_t cause, int target,
 +                      uint64_t pc, uint64_t cause_info);
 +static int cfx_idx(CPUDADAOState *env, int cfxha);
++static DADAOTlbEntry *dadao_tlb_lookup(CPUDADAOState *env, uint64_t va);
++
++/* `sync_fault_info` sentinel for "the raise site could not supply cause_info".
++ * Instruction encodings are 32-bit zero-extended values, so a 64-bit all-ones
++ * word can never collide with one. */
++#define DADAO_INFO_UNSET  (~(uint64_t)0)
++
++/* Instruction word at the faulting IP, for `ILLI`'s cause_info
++ * (DADAO-12 §4.1 / Kaiwu §4.4: `cause_info` = 指令编码).
++ *
++ * Every other ILLI raise site carries the encoding from the translator
++ * (`ctx->opcode`, see gen_exception_illegal); the read-only-ROM store check in
++ * dadao_cpu_tlb_fill is raised from the TLB fill path, which cannot see the
++ * instruction, so the word is read back from the faulting IP.  The address
++ * rules are the ones that fetch used: core-internal segments are identity (the
++ * cfx SRAM windows map onto their host region) and the memory window uses the
++ * TLB entry the fetch installed.  Returns false when the word cannot be read;
++ * the caller reports that instead of recording a made-up value.
++ */
++static bool dadao_insn_word(CPUDADAOState *env, uint64_t pc, uint32_t *word)
++{
++    const DadaoProfile *prof = DADAO_PROFILE(env);
++    unsigned cfxha = DADAO_ADDR_CFXHA(pc);
++    uint64_t off;
++    hwaddr pa;
++    MemTxResult res = MEMTX_OK;
++
++    pc &= DADAO_ADDR_MASK;
++    if (cfxha == DADAO_CFXHA_MEM) {
++        DADAOTlbEntry *e;
++
++        if (!prof->ptw_supported || !(env->ptw_enable & 1)) {
++            return false;
++        }
++        e = dadao_tlb_lookup(env, pc);
++        if (e == NULL) {
++            return false;
++        }
++        pa = e->pa | (pc & ((1ULL << e->size_log2) - 1));
++    } else if (cfxha == DADAO_CFXHA_PMEM && prof->pmem_sram &&
++               (off = pc & DADAO_VA_MASK) >= DADAO_PMEM_SRAM_CFX_OFFSET &&
++               off - DADAO_PMEM_SRAM_CFX_OFFSET < DADAO_PMEM_SRAM_SIZE) {
++        pa = DADAO_PMEM_SRAM_HOST_BASE + (off - DADAO_PMEM_SRAM_CFX_OFFSET);
++    } else if (((cfxha == DADAO_CFXHA_HMON && prof->hmon_sram) ||
++                (cfxha == 2 && prof->smon_sram)) &&
++               (off = pc & DADAO_VA_MASK) >= DADAO_MON_SRAM_CFX_OFFSET &&
++               off - DADAO_MON_SRAM_CFX_OFFSET < DADAO_MON_SRAM_SIZE) {
++        pa = (cfxha == DADAO_CFXHA_HMON ? DADAO_HMON_SRAM_HOST_BASE
++                                        : DADAO_SMON_SRAM_HOST_BASE)
++             + (off - DADAO_MON_SRAM_CFX_OFFSET);
++    } else if (pc >= prof->ram_base && pc - prof->ram_base < prof->ram_size) {
++        pa = pc;
++    } else if (pc >= prof->rom_base && pc - prof->rom_base < prof->rom_size) {
++        pa = pc;
++    } else {
++        return false;
++    }
++    *word = address_space_ldl_be(&address_space_memory, pa,
++                                 MEMTXATTRS_UNSPECIFIED, &res);
++    return res == MEMTX_OK;
++}
 +
 +/* Map a direct machine fault to its exit code (spec/Kaiwu §7.1).
 + *
@@ -199,6 +260,22 @@ index 0000000..3484efc
 +    default:
 +        *cause = DADAO_CAUSE_ILLI;
 +        *info = env->sync_fault_info;
++        if (*info == DADAO_INFO_UNSET) {
++            /* Raised where the encoding is not at hand (read-only-ROM store,
++             * dadao_cpu_tlb_fill): read it back from the faulting IP, which
++             * this point has already restored (DADAO-12 §4.1 requires the
++             * instruction encoding as `ILLI`'s cause_info).  A failed read is
++             * reported, never recorded as an invented value. */
++            uint32_t word;
++
++            if (!dadao_insn_word(env, env->pc, &word)) {
++                error_report("dadao: ILLI at IP 0x%016" PRIx64 " — the "
++                             "instruction word for cause_info cannot be read "
++                             "(DADAO-12 §4.1)", env->pc);
++                exit(1);
++            }
++            *info = word;
++        }
 +        break;
 +    }
 +}
@@ -347,34 +424,22 @@ index 0000000..3484efc
 +        return;
 +    }
 +
-+    if (DADAO_PROFILE(env)->sync_exc_monitor_entry) {
-+        /* Kaiwu-Tiny (fixed hypv, monitor = cfx3 hmon): every cause
-+         * enters the hmon vector instead of being mapped straight to an exit
-+         * code (spec/Kaiwu §4.4); the shared helper also keeps an
-+         * unreachable vector from recursing. */
-+        dadao_sync_enter(env, cs->exception_index);
-+        return;
++    if (!DADAO_PROFILE(env)->sync_exc_monitor_entry) {
++        /* Both machines route every execution-time synchronous exception to
++         * the current run-mode monitor (`DADAO-12 §5.2` steps 1-7).  There is
++         * no staged direct-fault mapping any more, so a profile that turns
++         * this off would silently drop the exception frame: fail loudly
++         * instead of inventing a second route. */
++        error_report("dadao: profile %s does not route execution-time "
++                     "synchronous exceptions into the current run-mode "
++                     "monitor (DADAO-12 §5.2)", DADAO_PROFILE(env)->name);
++        exit(1);
 +    }
-+
-+    /*
-+     * Staged model still used by Kaiwu-Vast, which maps these causes to
-+     * the monitor-segment machine-fault exit code rather than entering a
-+     * vector (the PTW-fault and CFXPERM paths above do enter the monitor).
-+     * The deviation from DADAO-12 §5.2 is registered in the task's spec-gap
-+     * list because the Vast probe oracles encode it.
-+     */
-+    if (cs->exception_index == DADAO_EXCP_CFXPERM) {
-+        cfx_raise(env, DADAO_CAUSE_CFXPERM, env->inner_run_mode,
-+                  env->pc, env->cfx_perm_info);
-+        return;
-+    }
-+    {
-+        int exit_code = dadao_excp_to_exit_code(env, cs->exception_index);
-+
-+        qemu_system_shutdown_request_with_code(SHUTDOWN_CAUSE_GUEST_PANIC,
-+                                               exit_code);
-+        cpu_exit(cs);
-+    }
++    /* Every cause (ILLI/UNDI/CFXMEM/CFXREG/CFXPERM/MALIGN/IALIGN/RASOF/RASUF)
++     * enters the current run-mode monitor through one flow; CFXPERM carries
++     * `cfx_perm_info` as its cause_info, and the shared helper keeps an
++     * unreachable vector from recursing (machine fault, spec/Kaiwu §7.1). */
++    dadao_sync_enter(env, cs->exception_index);
 +}
 +
 +/*
@@ -1000,9 +1065,11 @@ index 0000000..3484efc
 +         * However, TCG fast-path stores may not check write permission.
 +         * Catch stores here in the TLB fill path to raise ILLI. */
 +        if (access_type == MMU_DATA_STORE) {
-+            /* cause_info would be the instruction encoding, which this path
-+             * cannot see; leave 0 rather than a stale value. */
-+            env->sync_fault_info = 0;
++            /* `ILLI` with cause_info = the instruction encoding (DADAO-12
++             * §4.1).  This path cannot see the instruction, so it leaves the
++             * "not supplied" sentinel and dadao_sync_cause reads the word back
++             * from the faulting IP. */
++            env->sync_fault_info = DADAO_INFO_UNSET;
 +            cs->exception_index = DADAO_EXCP_ILLI;
 +            cpu_loop_exit_restore(cs, retaddr);
 +            /* not reached */
