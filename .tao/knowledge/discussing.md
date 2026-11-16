@@ -159,22 +159,6 @@
 
 > **已定（2026-11-16，`ADR-0056` Accepted，经三次改版）**：`cause_id[15:0]` cause one-hot 不变；`[31:16]` 保留给未来 cause；子原因区按 **wyde 分段** —— **wyde2 `[47:32]` = `CFXPERM` 的子原因**（低字节 `[39:32]`：`N[UJSH]PERM`/`NR/NW/NXPERM`/`NCFXPERM`，高字节保留）、**wyde3 `[63:48]` = `CFXMEM` 的子原因**（低字节 `[55:48]`：`I/D × GPTRAP/SPTRAP/GPFTRAP/SPFTRAP`，高字节 `[56] ADWBFAIL`/`[57] NONPTW`/6 位保留）；另一 wyde 必须全 0；`cause_info` **恒为地址**。handler 取 `CFXPERM` 用 `>>32`、取 `CFXMEM` 用 `>>48`。
 
-# 待裁定：页表异常的细粒度原因名（`NUPERM`–`NRPERM` / `IGPTRAP`–`DSPFTRAP`）要不要恢复
-
-用户 2026-11-16 提出：「收敛过头了，当时只是删除 `PTWERR`，没有要删除后面的各种缺页/权限类的 ptw 相关的同步异常；否则，怎么判断错误原因？全都用 `excp_info`？？？」
-
-**事实链（已核）**
-
-- 细粒度名字（`IGPTRAP`/`ISPTRAP`/`IGPFTRAP`/`ISPFTRAP`/`DGPTRAP`/`DSPTRAP`/`DGPFTRAP`/`DSPFTRAP`、`NUPERM`/`NJPERM`/`NSPERM`/`NHPERM`、`NXPERM`/`NWPERM`/`NRPERM`）原本只出现在 `DADAO-12 §2.2.6` **散文**里，异常投递目标是 `cfx_ptw`；而 `cfx0–cfx3` 的 cause 表一直只有 **11 个** `1 << n`（CFXTRAP…IALIGN），**这些细名从来没有独立的 cause 位**；`cfx_ptw` 的表里只有 `1 << 7 = PTWERR`（与 `CFXPERM` 同号）。
-- 用户 2026-11-05 裁定「执行期事件先入当前 monitor」「`unmapped` 归当前 monitor 的 `CFXMEM`」「`PTWERR` 删除」⇒ `SPEC-186t`（§5.2 重写）+ `SPEC-189t`（跨节同步，`ISS-344`）把它们**并成** `CFXMEM`（未映射/A-D 失败）/ `CFXPERM`（HSJU、R/W/X），并在任务书里写了「不再区分 `IGPTRAP`…/`NUPERM`…」。
-- 现状：`spec/` 内旧名 0 命中；`cause_info` 只承载**地址/指令编码**，**没有子原因** ⇒ 内核只能靠 `CFXMEM` vs `CFXPERM` + 自读 PTE 细分。
-
-**待你选的恢复方式**
-
-- **A 扩 cause 位**：给细名分配新 `1 << n`（14+）；语义最直白，但 `§7.1` 退出码 monitor 段 `bit3:0` 只有 4 位（11 个已占）⇒ 必须同时改退出码编码（影响 `§7.1`、三实现、全部相关测试）。
-- **B `cause_info` 带子原因**：保持 11 位 cause（`CFXMEM`/`CFXPERM`），把子原因编码进 `cause_info` 高位（如 `[63:48]` = 子原因号，`[47:0]` = 地址/PTE 地址）；不动 `§7.1` 与 11 项表，改动集中在 `§3.6 cg5 rc4` 语义 + 三实现 + 契约（约 1–2 天）。**主会话建议此方案**。
-- **C 不改硬件**：规范只保留名字作"原因说明"，硬件仍只报两类；内核靠读 PTE/VMA 细分（与现状一致，即用户批评的那条路）。
-
 # 待设计：长仿真如何"证明它还在跑"（gem5 / chipyard，2026-11-15 用户提出）
 
 > 用户原话：「gem5/chipyard 如何在长时间的模拟仿真过程中，让我知道它还在运行，而不是死等运行完成」。
