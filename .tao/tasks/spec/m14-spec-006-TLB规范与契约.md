@@ -33,10 +33,14 @@
    - **版本**：`contract-tlb` 映射 `DADAO-12` ⇒ 按 `check-spec-drift` 规则版本须等于 `.tao/contracts/README.md` 的 **SEE / SBI 已发布版（`0.7.1`）**；
    - 同笔在 `.tao/contracts/README.md` 表里加一行（`contract-tlb.md` | TLB 与失效接口合约（K3；0.7.1））。
 3. **fault 路径：只收编硬件语义，不引入 OS 概念（用户 2026-11-16 澄清：「缺页/COW 与 `CFXMEM`/`CFXPERM` 没有关系」）**
+   - **判定顺序必须先分地址类、再分 `ptw_enable`（用户 2026-11-16 补充口径）**：
+     ① **先看 `VA[47:42]`**：≠ 0 ⇒ 属 **cfx 核内地址空间**（cfx 1–63，访问规则按 `DADAO-12 §1`/`§2.1` 的核内空间语义，**不进入 PTW/TLB 流程**）；
+     ② `VA[47:42] = 0`（内存窗口）且 **`ptw_enable = 0`** ⇒ 访存**直接 `CFXMEM`**（`DADAO-12 §2.2.1 第一步`；`Kaiwu §1.2` 同口径），**不查 TLB、不产生 TLB 条目**；
+     ③ `VA[47:42] = 0` 且 **`ptw_enable = 1`** ⇒ 才进入 PTW/TLB 四步流程（`§2.2.1`/`§2.2.2`）：未映射 ⇒ `CFXMEM`、权限不符 ⇒ `CFXPERM`。
    - 契约只固定**硬件侧**：`DADAO-12 §2.2.6`「页表未映射（含超页/小页缺失）与 A/D 回写失败 ⇒ `CFXMEM`；HSJU 或 R/W/X 不符 ⇒ `CFXPERM`」，以及 `cause_info`（`CFXMEM` = 访存地址，A/D 回写失败时为 PTE 物理地址；`CFXPERM` = 访存地址或指令编码）；
    - **不得**把「缺页 / COW / 越权」这类 **OS 概念**写进 `CFXMEM`/`CFXPERM` 的定义：spec 本身只用「页表未映射/权限不符」表述（「缺页」仅出现在括注里解释「未映射」；**COW 在 spec 中完全没有**）；
    - 内核如何把一次 `CFXMEM`/`CFXPERM` 解释成"缺页 / COW / 真越权"，由内核结合 VMA 与 PTE 自行判定，**不进规范、不进契约**；契约只在门控建议里注明"探针按硬件语义断言（未映射 ⇒ `CFXMEM`；写只读页 ⇒ `CFXPERM`）"，不出现 OS 术语。
-3. **门控设计（只设计，不实现）**：在契约里给出「门控建议」小节 —— `tests/arch` 8 条探针（fill+命中 / 命中不重读 PTE / `invalid`+VA / `invalid`+range / `ASID_ANY` 与 `G` / `clean` 回写 A/D vs `invalid` 不回写 / `flush` 回写+删除、回写失败 ⇒ `CFXMEM` 且不删 / 写 PTBR·ASID·`ptw_enable` 不隐含 invalidate），并注明载体形态（`tests/arch/umon/*.s` + `expected.yaml`，需自建页表的走 `min_rom_probe` 并登记 `ARCH_CFX_PROBES`）。**另加 3 条与 K3 扩展范围对应的探针（只按硬件语义，不用 OS 术语）**：⑨ 页表未映射 ⇒ `CFXMEM` 且 `cause_info` == 访存地址；⑩ 权限不符（写只读页）⇒ `CFXPERM`（与 `CFXMEM` 可区分）；⑪ 改 PTE 后**不** invalidate ⇒ 仍命中旧条目；写 `invalid`+`VA` 后 ⇒ 命中新 PTE。
+3. **门控设计（只设计，不实现）**：在契约里给出「门控建议」小节 —— `tests/arch` 8 条探针（fill+命中 / 命中不重读 PTE / `invalid`+VA / `invalid`+range / `ASID_ANY` 与 `G` / `clean` 回写 A/D vs `invalid` 不回写 / `flush` 回写+删除、回写失败 ⇒ `CFXMEM` 且不删 / 写 PTBR·ASID·`ptw_enable` 不隐含 invalidate），并注明载体形态（`tests/arch/umon/*.s` + `expected.yaml`，需自建页表的走 `min_rom_probe` 并登记 `ARCH_CFX_PROBES`）。**另加 4 条与 K3 扩展范围对应的探针（只按硬件语义，不用 OS 术语）**：⑨a `VA[47:42]=0` 且 `ptw_enable=0` ⇒ 访存直接 `CFXMEM`（贴 `cause_info` = 访存地址）；⑨b `ptw_enable=1` 且页表未映射 ⇒ `CFXMEM`；⑩ `VA[47:42]=0`、`ptw_enable=1` 且**权限不符**（写只读页）⇒ `CFXPERM`（与 `CFXMEM` 可区分）；⑪ 改 PTE 后**不** invalidate ⇒ 仍命中旧条目；写 `invalid`+`VA` 后 ⇒ 命中新 PTE；⑫ `VA[47:42] ≠ 0`（cfx 核内空间）⇒ **不走 PTW/TLB**（按核内空间语义处理，不产生 `CFXMEM` 的"未映射"口径）。
 4. **锁**：`spec/Kaiwu-…` sha256 同笔重算 + 注记（用户原话「目前只考虑单hart情况」「M14只考虑qemu；但应该在tests/arch中增加这部分的测试」「这本身是一条指令…可以写完等生效才返回」）。
 
 ## 验收（真实 rc + 输出）

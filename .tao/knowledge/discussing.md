@@ -151,6 +151,7 @@
 2. **单 hart**：`tlb_control` 为 **per-hart**；跨 hart 一致性**不在 M14/K3 范围**（登记 `ISS-459`，等多 hart 机型重开，与 `ISS-440` 同类）。
 3. **实现范围**：M14 只做 **QEMU**；chipyard/gem5 不要求（chipyard `wuming` 无 TLB 建模，gem5 已有 `node_tlb.cc` 但不在本阶段验收）。**但 `tests/arch` 必须新增 TLB 探针**（Vast + PTW）：fill/命中不重读 PTE、`invalid` 的 VA/range 两档、`ASID_ANY` 与 `G`、`clean` 回写 A/D、`flush` 回写+删除、回写失败 ⇒ `CFXMEM` 且不删、以及「写 PTBR/ASID/`ptw_enable` **不隐含 invalidate**」。
 4. **K3 的"内存"范围 = 做**（用户 2026-11-16 原话「K3：做，这些都是成熟的方案，简单验证即可」）：**按需分页 / COW / 用户栈增长** 全部纳入 K3；验证口径 = **简单验证即可**（每类 1–2 个代表用例 + 一条门控断言，不追求穷举），判据仍要能 FAIL。⇒ K3 规模从 6–8 件上调为 8–10 件。
+   7. **访存异常的判定顺序（用户 2026-11-16 补充）**：**先看 `VA[47:42]`**——≠0 ⇒ cfx 核内空间（不走 PTW/TLB）；=0 ⇒ 再看 **`ptw_enable`**：`0` ⇒ 访存直接 `CFXMEM`（不查 TLB）；`1` ⇒ 才进 PTW/TLB（未映射 ⇒ `CFXMEM`、权限 ⇒ `CFXPERM`）。
    6. **`CFXMEM`/`CFXPERM` 与「缺页/COW」的关系（用户 2026-11-16 澄清）**：规范里**不引入**「缺页」「COW」这类 OS 概念 —— `DADAO-12 §2.2.6` 的规范句是「页表未映射（含超页/小页缺失）与 A/D 回写失败 ⇒ `CFXMEM`；HSJU 或 R/W/X 不符 ⇒ `CFXPERM`」（「缺页」只作括注同义词，**COW 在 spec 中完全没有**）；内核把一次 `CFXMEM`/`CFXPERM` 解释成缺页/COW/真越权属**内核判定**，不进规范与契约。（事实层面：PTE 不存在 ⇒ `CFXMEM`；写只读页 ⇒ `CFXPERM` —— 这是硬件语义，不是 OS 概念。）
 5. **K4 待逐项讨论**（用户同日：「K4，我们过会儿逐个讨论」）：上下文切换范围（FP 保存/懒保存）、`clone`/线程是否 K4、`clockevent`/`clocksource` 升级、U-mode 异常入口与 cg5 单帧/递归 —— 四项开工前逐条确认。
 
