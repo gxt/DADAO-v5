@@ -4,6 +4,10 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
+- **2026-11-17 07:20（会话重启交接）**：**6 件待复核**——`m14-linux-010`(`5dca2df3`)、`m16-gem5-009`(`ab5a548b`)、`m14-testcases-005`(`2e2c9aa9`)、`m14-qemu-007`(`b60e4204`)、`m15-testcases-007`(`64ce03e7`)、`m16-chipyard-003`(`7fc11ece`)；**reviewer 模型已定 `xiaomi-token-plan/mimo-v2.6-pro`**（curl 实测 HTTP 200；`ISS-466`：中途改 model 不生效，须重启会话）。
+- **已完成待合入**：`m15-testcases-006`（伪指令+lds 统一）、`m14-qemu-003/004/005`（已合入）；**待开始**：`m14-linux-012`（等 linux-010 合入）、`m14-linux-015`（等 012）、`m15-testcases-009`（等 007）。
+- **磁盘**：`/mnt/tao` 29%（333G）；今夜两次 ENOSPC（`ISS-464`/`ISS-465`）已登记；`check-temp-dirs`/`check-run-artifacts`/`check-knowledge-refs` 已回绿。
+
 - **2026-11-16（m14-infra-004）**：**测试机整机名 = `Kaiwu`（开物，`ADR-0055` 已 Accepted）**——`spec/Kaiwu-测试机运行环境.md`（册改名 + 锁 path/sha256 同笔重算）、QEMU 机器串 `kaiwu-tiny`/`kaiwu-vast`（**无旧名别名**）、全仓 `Kaiwu-Tiny`/`Kaiwu-Vast` 机械替换（`docs/DDLN/**` 改、`.tao/archive/**` 不动）；`DADAO`/`Wuming`/`Gewu` 与三元组 `dadao-unknown-elf` 不变。命名与机器串见下「反套用清单」命名条。
 - **2026-11-15（晚）**：**M13 已收口并归档**（107 件全已验证、台账已删）；**M15 `m15-testcases-001` 已收口**（`tests/inst` 10 宏下沉共享层、镜像 904/904 与 md5 22/22 均不变）；M12 已收口且已归档；M14 K1 收口（19）、**K2 待授权立册**；M16 已验证 9 / 待开始 1（`chipyard-001`，等 M13 收口→现已解锁）；M15 `m15-spec-001` 待返工（WIP `0584a64b`，用户要求先摊开文件 + 逐条语句分析）。
 - **M13 收口事实**：矩阵冻结 `docs/TestReports/M13-三平台差分-矩阵.md`（整数 637 + FP 227 = **864 镜像三平台逐例一致、差异 0、未归因 0**）；报告记 `input commit`；新增链例字节级断言；`refs/m13-005-acceptance.*` 是 **refs/ 最后一批产物**。
