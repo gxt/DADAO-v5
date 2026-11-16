@@ -376,7 +376,11 @@ M17 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个
 - **影响**：`m16-gem5-007 对标脚手架 + embench 集成` 的报告要直接用这套拍数；`m16-chipyard-001 周期模型收口复测` 的"权威版本"取决于此。
 
 
-**Timing 下数据访问只能 functional（不计时），要不要二期做真时序？**（`m16-gem5-006` 现场结论）
+**已定（用户 2026-11-16，选 ②）：二期把执行核改成两阶段 —— 给 DADAO 补 `StaticInst::initiateAcc`/`completeAcc` 并让 bundle 可续跑**（目标 CPU = `TimingSimpleCPU`；`AtomicSimpleCPU` 不走两阶段、保持同步 `execute`；Minor/O3 的流水线结构不在本期）。
+
+**随之必须同笔做的三条**：① 周期表里 `ld/st` 的 9/10 拍（`ld.o` 7–16、`st.o` 10–21，含背压）**清零**，否则与真时序双重计费；② 一个 bundle 可能含多条访存 ⇒ bundle 需可"停在中间"（记录子操作序号与未完成请求数），块传送（`ldm`/`stm`）的 N 个元素如何发请求（串行 or 并发）需在 ADR 里定；③ 取指侧的 8 拍/指令（无 icache）是既有事实，两阶段只解决数据侧。
+
+**判据提醒**：本改动属「高代价 + 跨模块（`src/arch/dadao/**` 与 bundle 执行核）+ 多方案」，按 `docs/Process-03` 应先出 **ADR**。
 
 - 事实①：gem5 v25.1 **无 ISA 级 `readMem`**（`src/arch/{generic,dummy,x86}` 均无）；`ExecContext::readMem` 直调 `BaseSimpleCPU::readMem` ⇒ `panic`。x86/riscv 的 load 用 `initiateAcc/completeAcc` **两阶段**。
 - 事实②：`006` 的落点是 `src/arch/dadao/inst.cc` 的 `Gem5B1Context` —— Timing 模式下数据访问走 `SETranslatingPortProxy` **功能访问**（与 SE 系统调用、ELF 装载同路径），**未触 `src/cpu/simple/**`**。
