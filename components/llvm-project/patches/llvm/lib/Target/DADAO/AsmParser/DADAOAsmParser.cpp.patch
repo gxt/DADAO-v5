@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..c3012d185
+index 000000000..96fdc52ec
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2737 @@
+@@ -0,0 +1,2749 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1592,7 +1592,7 @@ index 000000000..c3012d185
 +//===----------------------------------------------------------------------===//
 +// Pseudo-instruction expansion (ADR-0013 D11 / spec/Toolchain-01 §6).
 +//
-+// The eight retained synthetic pseudo-forms are expanded here, in the front
++// The seven retained synthetic pseudo-forms are expanded here, in the front
 +// end, into real hardware instructions; pseudo text never reaches the printer
 +// or the disassembler.  Each expanded instruction is fed back through
 +// matchAndEmitInstruction so the existing legality checks and the auto-
@@ -1603,11 +1603,13 @@ index 000000000..c3012d185
 +//   set.rd rd, rs    : rb2rd / rf2rd / ra2rd / rd2rd
 +//   set.rb rb, imm64 : set.zw-rb + or.w-rb (no set.ow-rb; all-ones = 4 insns)
 +//   set.rb rb, rs    : rd2rb / rb2rb
++//   set.rf rf, rs    : rd2rf / rf2rf (an RF source is a full 64-bit copy)
 +//   set.ft rf, imm32 : 2x set.w (never touches the high 32 bits)
-+//   set.ft rf, rs    : rd2rf / rf2rf (an RF source is a full 64-bit copy)
 +//   set.fo rf, imm64 : rd2rf from rd0 + set.w per NON-ZERO wyde (1 + k insns)
 +//                      when k <= 3; 4x set.w when k == 4 (rd0 would need 5)
-+//   set.fo rf, rs    : rd2rf / rf2rf (an RF source is a full 64-bit copy)
++//
++// `set.ft` / `set.fo` take an immediate only: the register-source form was
++// merged into `set.rf` (spec/Toolchain-01 §6.1) and no alias is kept.
 +//===----------------------------------------------------------------------===//
 +
 +bool DADAOAsmParser::expandPseudoInstruction(
@@ -1634,7 +1636,7 @@ index 000000000..c3012d185
 +                   ? isGPRDRegister(DstReg)
 +                   : (Mnem == "set.rb")
 +                         ? isGPRBRegister(DstReg)
-+                         : /* set.ft / set.fo */ isRFRegister(DstReg);
++                         : /* set.rf / set.ft / set.fo */ isRFRegister(DstReg);
 +  if (!DstOK)
 +    return Error(DstLoc, "invalid '" + Mnem.str() +
 +                             "': destination register is in the wrong bank");
@@ -1684,12 +1686,16 @@ index 000000000..c3012d185
 +    } else if (Mnem == "set.rb") {
 +      if (isGPRDRegister(S))      Real = "rd2rb";
 +      else if (isGPRBRegister(S)) Real = "rb2rb";
-+    } else if (Mnem == "set.ft") {
++    } else if (Mnem == "set.rf") {
 +      if (isGPRDRegister(S))      Real = "rd2rf";
 +      else if (isRFRegister(S))   Real = "rf2rf";
-+    } else { // set.fo
-+      if (isGPRDRegister(S))      Real = "rd2rf";
-+      else if (isRFRegister(S))   Real = "rf2rf";
++    } else {
++      // set.ft / set.fo take an immediate only.  The register-source forms were
++      // merged into `set.rf` (spec/Toolchain-01 §6.1); refuse the old spelling
++      // explicitly instead of silently accepting it (no alias is kept).
++      return Error(SrcLoc, "invalid '" + Mnem.str() +
++                               "': this pseudo-instruction takes an immediate "
++                               "only; use 'set.rf rf, rs' for a register source");
 +    }
 +    if (Real.empty())
 +      return Error(SrcLoc, "invalid '" + Mnem.str() +
@@ -1709,7 +1715,7 @@ index 000000000..c3012d185
 +  // 48 bits, so the slices are wp2/wp1/wp0; set.zw seeds the high slice and
 +  // zeroes the remaining bits.  Only set.rd/set.rb materialize addresses.
 +  if (SymExpr) {
-+    if (Mnem == "set.ft" || Mnem == "set.fo")
++    if (Mnem == "set.rf" || Mnem == "set.ft" || Mnem == "set.fo")
 +      return Error(SrcLoc, "invalid '" + Mnem.str() +
 +                               "': a symbol/relocatable operand is not "
 +                               "supported (only set.rd/set.rb)");
@@ -1721,6 +1727,12 @@ index 000000000..c3012d185
 +      return true;
 +    return false;
 +  }
++
++  // set.rf has no immediate form: it is the register-source pseudo only.
++  if (Mnem == "set.rf")
++    return Error(SrcLoc, "invalid 'set.rf': this pseudo-instruction takes a "
++                         "register source only (use set.ft/set.fo for an "
++                         "immediate)");
 +
 +  // set.ft: exactly two set.w, low tetra only.  set.ft never uses rd2rf (that
 +  // would clear the high 32 bits).
@@ -2088,8 +2100,8 @@ index 000000000..c3012d185
 +  // hardware instructions before any of the real-instruction checks run.
 +  if (Operands.size() >= 1 && Operands[0]->isToken()) {
 +    StringRef Mnem = static_cast<DADAOOperand *>(Operands[0].get())->getToken();
-+    if (Mnem == "set.rd" || Mnem == "set.rb" || Mnem == "set.ft" ||
-+        Mnem == "set.fo")
++    if (Mnem == "set.rd" || Mnem == "set.rb" || Mnem == "set.rf" ||
++        Mnem == "set.ft" || Mnem == "set.fo")
 +      return expandPseudoInstruction(IDLoc, Mnem, Operands, Out, Opcode,
 +                                     ErrorInfo, MatchingInlineAsm);
 +  }

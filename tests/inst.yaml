@@ -69,7 +69,7 @@
   requires: []
 
 - id: inst-00-isa-design-008
-  file: inst/00-isa-design/pseudo_set.fx_reg.S
+  file: inst/00-isa-design/pseudo_set.rf_reg.S
   platforms:
   - system
   level: full

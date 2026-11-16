@@ -1,19 +1,17 @@
-@@ pseudo_set.fx_reg.S — 伪指令 `set.ft/set.fo rfHA, rfHC`（寄存器源 ⇒ `rf2rf`；无 opcode 身份）
+@@ pseudo_set.rf_reg.S — 伪指令 `set.rf rfHA, rs`（寄存器源 ⇒ `rd2rf`/`rf2rf`；无 opcode 身份）
 @@ 大类：00-isa-design（伪指令的**前端展开**面）；册目录 `tests/inst/00-isa-design/`
 @@ 名字不是 opcode id（`spec/SimRISC-00 §5`：伪指令不是硬件指令）⇒ 在 `tests/inst.yaml` 以
 @@   `inst-00-isa-design-008` 登记，并在 `tools/testcases/{check_tests_index,validate_vectors}.py`
 @@   的 `NON_ID_CARRIERS` 显式登记（逐文件，不做目录级豁免）。
-@@ 文件名里的 `fx` = `ft`/`fo` 两族：两者从 rf 源展开都是 `rf2rf`、语义一致（用户 2026-11-15
-@@   裁定方案 A），故一个载体同时覆盖两族。
-@@ 语义（真源）：`spec/Toolchain-01 §6.1`（`set.ft rf, rs` / `set.fo rf, rs` → `rd2rf`/`rf2rf`；
-@@   **rf 源为整 64 位复制**）+ `spec/SimRISC-03 §4` 注 + `spec/SimRISC-02 §1`（`rf2rf` 按
+@@ 语义（真源）：`spec/Toolchain-01 §6.1` + §6.2.3（`set.rf rf, rs` → `rd2rf`/`rf2rf`；
+@@   **rf 源为整 64 位复制**）+ `spec/SimRISC-02 §1`（`rf2rf` 按
 @@   **整 64 位逐位复制**、源读 64 位/目的写 64 位）+ `spec/SimRISC-00 §2.3`「例外」段
 @@   （`rf2rf` 不是 ft 结果写入 ⇒ **不做窄写、不保留目的高半**）。
-@@ ★ 写宽对照第二行（本任务核心）：`set.ft/set.fo rf, rf` 展开为 `rf2rf` ⇒ 结果 = 源的完整
-@@   64 位，**高 32 位被覆盖**（不保留目的旧高半）；`set.ft rf, imm32` 则相反（窄写，见
-@@   `pseudo_set.ft_imm32.S`）。这正是 `m13-spec-010` 把 FT/FO 同组复制合并为 `rf2rf` 后的
-@@   可观察变化 ⇒ 本文件是它的第一道回归。
-@@ 负向判据：若实现把 `set.ft rf, rf` 展开成两条 `set.w`（窄写）或保留目的高半，本文件
+@@ ★ 写宽对照第二行（本任务核心）：`set.rf rf, rs` 展开为 `rf2rf`（rf 源）/`rd2rf`（rd 源）
+@@   ⇒ 结果 = 源的完整 64 位，**高 32 位被覆盖**（不保留目的旧高半）；`set.ft rf, imm32` 则
+@@   相反（窄写，见 `pseudo_set.ft_imm32.S`）。这正是 `m13-spec-010` 把 FT/FO 同组复制合并为
+@@   `rf2rf` 后的可观察变化 ⇒ 本文件是它的第一道回归。
+@@ 负向判据：若实现把 `set.rf rf, rf` 展开成两条 `set.w`（窄写）或保留目的高半，本文件
 @@   每个检查点都要求「高半 = 源高半」而初值高半一律与源高半不同 ⇒ 必红。
 @@ 用例：encoding 0 / semantic 6 / boundary 4 / overlap 3（链例 13，故障例 0）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；链例逐检查点把实测 8 字节
@@ -32,37 +30,37 @@
 	@@ 源高 32 = 0，目的高 32 = 0xAAAAAAAA ⇒ 结果高 32 必须是 0（窄写/保留高半都会红）
 	__LI_RF	rf1, 0xAAAAAAAAAAAAAAAA
 	__LI_RF	rf2, 0x0000000012345678
-	set.ft	rf1, rf2
+	set.rf	rf1, rf2
 	rf2rd	{rd21:rd21}, {rf1:rf1}
 	__CHECK_RD           1, rd21, 0x0000000012345678
 	@@ 目的高 32 全 1、源高 32 全 0 ⇒ 结果高 32 = 0
 	__LI_RF	rf3, 0xFFFFFFFF00000000
 	__LI_RF	rf4, 0x0000000000000001
-	set.fo	rf3, rf4
+	set.rf	rf3, rf4
 	rf2rd	{rd21:rd21}, {rf3:rf3}
 	__CHECK_RD           2, rd21, 0x0000000000000001
 	@@ 源全 1 ⇒ 目的（初值全 0x11）整 64 位变全 1（高半被覆盖为 1）
 	__LI_RF	rf5, 0x1111111111111111
 	__LI_RF	rf6, 0xFFFFFFFFFFFFFFFF
-	set.ft	rf5, rf6
+	set.rf	rf5, rf6
 	rf2rd	{rd21:rd21}, {rf5:rf5}
 	__CHECK_RD           3, rd21, 0xFFFFFFFFFFFFFFFF
 	@@ 目的初值 0、源四 wyde 互异
 	__LI_RF	rf7, 0x0000000000000000
 	__LI_RF	rf8, 0x0123456789ABCDEF
-	set.fo	rf7, rf8
+	set.rf	rf7, rf8
 	rf2rd	{rd21:rd21}, {rf7:rf7}
 	__CHECK_RD           4, rd21, 0x0123456789ABCDEF
 	@@ 源只有 bit63 ⇒ 结果 = 0x8000...（目的旧低半被覆盖）
 	__LI_RF	rf9, 0x000000000000FFFF
 	__LI_RF	rf10, 0x8000000000000000
-	set.ft	rf9, rf10
+	set.rf	rf9, rf10
 	rf2rd	{rd21:rd21}, {rf9:rf9}
 	__CHECK_RD           5, rd21, 0x8000000000000000
 	@@ 目的交替掩码、源 wyde 交替全 0/全 1
 	__LI_RF	rf11, 0xA5A55A5A0F0FF0F0
 	__LI_RF	rf12, 0x0000FFFF0000FFFF
-	set.fo	rf11, rf12
+	set.rf	rf11, rf12
 	rf2rd	{rd21:rd21}, {rf11:rf11}
 	__CHECK_RD           6, rd21, 0x0000FFFF0000FFFF
 
@@ -70,24 +68,24 @@
 	@@ 窗口上界 rf62 ← rf63
 	__LI_RF	rf62, 0x1111111111111111
 	__LI_RF	rf63, 0xA5A55A5A0F0FF0F0
-	set.ft	rf62, rf63
+	set.rf	rf62, rf63
 	rf2rd	{rd21:rd21}, {rf62:rf62}
 	__CHECK_RD           7, rd21, 0xA5A55A5A0F0FF0F0
 	@@ 窗口上界反向 rf63 ← rf62
 	__LI_RF	rf62, 0xDEADBEEFCAFEBABE
 	__LI_RF	rf63, 0x0000000000000000
-	set.fo	rf63, rf62
+	set.rf	rf63, rf62
 	rf2rd	{rd21:rd21}, {rf63:rf63}
 	__CHECK_RD           8, rd21, 0xDEADBEEFCAFEBABE
 	@@ rd 源（rd0 恒 0）⇒ `rd2rf`：整 64 位写 0（目的旧高半被覆盖）
 	__LI_RF	rf1, 0xFFFFFFFFFFFFFFFF
-	set.ft	rf1, rd0
+	set.rf	rf1, rd0
 	rf2rd	{rd21:rd21}, {rf1:rf1}
 	__CHECK_RD           9, rd21, 0x0000000000000000
 	@@ rd 源（非 0）⇒ 整 64 位复制
 	__LI	rd5, 0xDEADBEEFCAFEBABE
 	__LI_RF	rf2, 0x0000000000000000
-	set.fo	rf2, rd5
+	set.rf	rf2, rd5
 	rf2rd	{rd21:rd21}, {rf2:rf2}
 	__CHECK_RD          10, rd21, 0xDEADBEEFCAFEBABE
 
@@ -95,19 +93,19 @@
 	@@ 源 = 全 0 的 rf、目的旧值全 1 ⇒ 结果必须整 64 位 0
 	__LI_RF	rf3, 0xFFFFFFFFFFFFFFFF
 	__LI_RF	rf4, 0x0000000000000000
-	set.ft	rf3, rf4
+	set.rf	rf3, rf4
 	rf2rd	{rd21:rd21}, {rf3:rf3}
 	__CHECK_RD          11, rd21, 0x0000000000000000
-	@@ 同上，set.fo 形式
+	@@ 同上，rf 源形态（`rf2rf`）
 	__LI_RF	rf5, 0xFFFFFFFFFFFFFFFF
 	__LI_RF	rf6, 0x0000000000000000
-	set.fo	rf5, rf6
+	set.rf	rf5, rf6
 	rf2rd	{rd21:rd21}, {rf5:rf5}
 	__CHECK_RD          12, rd21, 0x0000000000000000
 	@@ 源低半全 1、高半全 0；目的旧值高半全 1 ⇒ 结果 = 0x00000000FFFFFFFF
 	__LI_RF	rf7, 0xFFFFFFFFFFFFFFFF
 	__LI_RF	rf8, 0x00000000FFFFFFFF
-	set.fo	rf7, rf8
+	set.rf	rf7, rf8
 	rf2rd	{rd21:rd21}, {rf7:rf7}
 	__CHECK_RD          13, rd21, 0x00000000FFFFFFFF
 

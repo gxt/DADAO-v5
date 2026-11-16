@@ -2,7 +2,7 @@
 @@ RUN: %llvm_objdump -d --triple=dadao-unknown-elf %t | %FileCheck %s
 @@ RUN: %llvm_mc --triple=dadao-unknown-elf -filetype=asm %s | %FileCheck %s --check-prefix=ASM
 
-@@ M4 L1 向量：伪指令展开（`set.rd`/`set.rb`/`set.ft`/`set.fo`）（TESTCASES-029t）。
+@@ M4 L1 向量：伪指令展开（`set.rd`/`set.rb`/`set.rf`/`set.ft`/`set.fo`）（TESTCASES-029t）。
 @@ 权威源 = ``spec/Toolchain-01-汇编语言.md §6``（`ADR-0013 D11`）。
 @@ 期望值（展开 + 各真实指令编码）由 `tools/testcases/validate_mc_vectors.py`
 @@ 从 `contracts/opcodes.yaml`（编码身份）与 `spec §6.1`（展开规则）独立派生。
@@ -90,11 +90,11 @@ set.ft rf1, 0                    @@ @exp set.w rf1, wp1, 0x0 ; set.w rf1, wp0, 0
 @@ ASM: set.w rf1, wp1, 0x0
 @@ ASM: set.w rf1, wp0, 0x0
 
-@@ --- set.ft / set.fo rf, rs ---
-set.ft rf1, rd5                  @@ @exp rd2rf {rf1}, {rd5}
+@@ --- set.rf rf, rs ---
+set.rf rf1, rd5                  @@ @exp rd2rf {rf1}, {rd5}
 @@ CHECK: rd2rf {rf1}, {rd5}
 @@ ASM: rd2rf {rf1}, {rd5}
-set.ft rf1, rf2                  @@ @exp rf2rf {rf1}, {rf2}
+set.rf rf1, rf2                  @@ @exp rf2rf {rf1}, {rf2}
 @@ CHECK: rf2rf {rf1}, {rf2}
 @@ ASM: rf2rf {rf1}, {rf2}
 
@@ -146,9 +146,9 @@ set.fo rf6, 0x3FF0000000000000   @@ @exp rd2rf {rf6}, {rd0} ; set.w rf6, wp3, 0x
 @@ CHECK-NEXT: set.w rf6, wp3, 0x3ff0
 @@ ASM: rd2rf {rf6}, {rd0}
 @@ ASM-NEXT: set.w rf6, wp3, 0x3ff0
-set.fo rf2, rf7                  @@ @exp rf2rf {rf2}, {rf7}
+set.rf rf2, rf7                  @@ @exp rf2rf {rf2}, {rf7}
 @@ CHECK: rf2rf {rf2}, {rf7}
 @@ ASM: rf2rf {rf2}, {rf7}
-set.fo rf3, rd9                  @@ @exp rd2rf {rf3}, {rd9}
+set.rf rf3, rd9                  @@ @exp rd2rf {rf3}, {rd9}
 @@ CHECK: rd2rf {rf3}, {rd9}
 @@ ASM: rd2rf {rf3}, {rd9}

@@ -45,19 +45,6 @@ asm	tests/inst/00-isa-design/pseudo_set.ft_imm32.S	__CHECK_RD          12, rd21,
 asm	tests/inst/00-isa-design/pseudo_set.ft_imm32.S	__CHECK_RD          13, rd21, 0x11112222AAAABBBB	1
 asm	tests/inst/00-isa-design/pseudo_set.ft_imm32.S	__CHECK_RD          14, rd21, 0xFFFFFFFF00000000	1
 asm	tests/inst/00-isa-design/pseudo_set.ft_imm32.S	__CHECK_RD          15, rd21, 0x0123456712345678	1
-asm	tests/inst/00-isa-design/pseudo_set.fx_reg.S	__CHECK_RD           1, rd21, 0x0000000012345678	1
-asm	tests/inst/00-isa-design/pseudo_set.fx_reg.S	__CHECK_RD           2, rd21, 0x0000000000000001	1
-asm	tests/inst/00-isa-design/pseudo_set.fx_reg.S	__CHECK_RD           3, rd21, 0xFFFFFFFFFFFFFFFF	1
-asm	tests/inst/00-isa-design/pseudo_set.fx_reg.S	__CHECK_RD           4, rd21, 0x0123456789ABCDEF	1
-asm	tests/inst/00-isa-design/pseudo_set.fx_reg.S	__CHECK_RD           5, rd21, 0x8000000000000000	1
-asm	tests/inst/00-isa-design/pseudo_set.fx_reg.S	__CHECK_RD           6, rd21, 0x0000FFFF0000FFFF	1
-asm	tests/inst/00-isa-design/pseudo_set.fx_reg.S	__CHECK_RD           7, rd21, 0xA5A55A5A0F0FF0F0	1
-asm	tests/inst/00-isa-design/pseudo_set.fx_reg.S	__CHECK_RD           8, rd21, 0xDEADBEEFCAFEBABE	1
-asm	tests/inst/00-isa-design/pseudo_set.fx_reg.S	__CHECK_RD           9, rd21, 0x0000000000000000	1
-asm	tests/inst/00-isa-design/pseudo_set.fx_reg.S	__CHECK_RD          10, rd21, 0xDEADBEEFCAFEBABE	1
-asm	tests/inst/00-isa-design/pseudo_set.fx_reg.S	__CHECK_RD          11, rd21, 0x0000000000000000	1
-asm	tests/inst/00-isa-design/pseudo_set.fx_reg.S	__CHECK_RD          12, rd21, 0x0000000000000000	1
-asm	tests/inst/00-isa-design/pseudo_set.fx_reg.S	__CHECK_RD          13, rd21, 0x00000000FFFFFFFF	1
 asm	tests/inst/00-isa-design/pseudo_set.rb_imm.S	__CHECK_MEM          1, SCRATCH, 0, 0x0000000000000000	1
 asm	tests/inst/00-isa-design/pseudo_set.rb_imm.S	__CHECK_MEM          2, SCRATCH, 0, 0x0000000000001234	1
 asm	tests/inst/00-isa-design/pseudo_set.rb_imm.S	__CHECK_MEM          3, SCRATCH, 0, 0x00000000CAFE0000	1
@@ -128,6 +115,19 @@ asm	tests/inst/00-isa-design/pseudo_set.rd_reg.S	__CHECK_RD           7, rd12, 0
 asm	tests/inst/00-isa-design/pseudo_set.rd_reg.S	__CHECK_RD           8, rd13, 0xA5A55A5A0F0FF0F0	1
 asm	tests/inst/00-isa-design/pseudo_set.rd_reg.S	__CHECK_RD           9, rd14, 0x0000000000000000	1
 asm	tests/inst/00-isa-design/pseudo_set.rd_reg.S	__CHECK_RD          10, rd15, 0x0000FFFF00000000	1
+asm	tests/inst/00-isa-design/pseudo_set.rf_reg.S	__CHECK_RD           1, rd21, 0x0000000012345678	1
+asm	tests/inst/00-isa-design/pseudo_set.rf_reg.S	__CHECK_RD           2, rd21, 0x0000000000000001	1
+asm	tests/inst/00-isa-design/pseudo_set.rf_reg.S	__CHECK_RD           3, rd21, 0xFFFFFFFFFFFFFFFF	1
+asm	tests/inst/00-isa-design/pseudo_set.rf_reg.S	__CHECK_RD           4, rd21, 0x0123456789ABCDEF	1
+asm	tests/inst/00-isa-design/pseudo_set.rf_reg.S	__CHECK_RD           5, rd21, 0x8000000000000000	1
+asm	tests/inst/00-isa-design/pseudo_set.rf_reg.S	__CHECK_RD           6, rd21, 0x0000FFFF0000FFFF	1
+asm	tests/inst/00-isa-design/pseudo_set.rf_reg.S	__CHECK_RD           7, rd21, 0xA5A55A5A0F0FF0F0	1
+asm	tests/inst/00-isa-design/pseudo_set.rf_reg.S	__CHECK_RD           8, rd21, 0xDEADBEEFCAFEBABE	1
+asm	tests/inst/00-isa-design/pseudo_set.rf_reg.S	__CHECK_RD           9, rd21, 0x0000000000000000	1
+asm	tests/inst/00-isa-design/pseudo_set.rf_reg.S	__CHECK_RD          10, rd21, 0xDEADBEEFCAFEBABE	1
+asm	tests/inst/00-isa-design/pseudo_set.rf_reg.S	__CHECK_RD          11, rd21, 0x0000000000000000	1
+asm	tests/inst/00-isa-design/pseudo_set.rf_reg.S	__CHECK_RD          12, rd21, 0x0000000000000000	1
+asm	tests/inst/00-isa-design/pseudo_set.rf_reg.S	__CHECK_RD          13, rd21, 0x00000000FFFFFFFF	1
 asm	tests/inst/00-isa-design/undi_reserved.S	TEST_FAULT_ENC        1, UNDI, 0x08040001, rb3, TEST_DATA, rd19, 0	1
 asm	tests/inst/00-isa-design/undi_reserved.S	TEST_FAULT_ENC        2, UNDI, 0x1B040001, rb3, TEST_DATA, rd19, 0	1
 asm	tests/inst/00-isa-design/undi_reserved.S	TEST_FAULT_ENC        3, UNDI, 0x58040001, rb3, TEST_DATA, rd19, 0	1
@@ -5394,7 +5394,7 @@ lit	tests/unit/llvm/lit/MC/DADAO/rrrr.s	5020928b	add.uo	1
 lit	tests/unit/llvm/lit/MC/DADAO/rrrr.s	5120928b	add.so	1
 lit	tests/unit/llvm/lit/MC/DADAO/rwii.s	4c201234	set.zw	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f01081	rf2rf	1
-lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f021c1	rf2rf	1
+lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f02001	rf2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f41001	rd2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f41141	rd2rf	1
 lit	tests/unit/llvm/lit/MC/DADAO/set-ft-fo.s	40f44001	rd2rf	1

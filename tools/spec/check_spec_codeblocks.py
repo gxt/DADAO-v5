@@ -68,10 +68,11 @@ SPEC_DIR = ROOT / "spec"
 # Assembler pseudo-instructions (SimRISC-00: 伪指令 / spec/Toolchain-01: 伪指令).
 # These are expanded by the assembler into real instructions, so they are
 # exempt from the opcodes.yaml lookup and the operand-count check.
-# 合法伪指令（权威定义 = `spec/Toolchain-01 §6`；`ADR-0013 D11` 只保留 8 条合成型
-# = 4 个助记符 × 2 种形态）。`nop`/`return`/`not.*`/`neg.*` 已删除，不再放行。
+# 合法伪指令（权威定义 = `spec/Toolchain-01 §6`；`ADR-0013 D11` 只保留 7 条合成型
+# = 5 个助记符 × 源形式：set.rd/set.rb 各 2 形态，set.rf/set.ft/set.fo 各 1）。
+# `nop`/`return`/`not.*`/`neg.*` 已删除，不再放行。
 PSEUDO_INSTRUCTIONS = frozenset({
-    "set.rd", "set.rb", "set.ft", "set.fo",
+    "set.rd", "set.rb", "set.rf", "set.ft", "set.fo",
 })
 
 _MNEMONIC_RE = re.compile(r"^[a-z][a-z0-9_.]*$")

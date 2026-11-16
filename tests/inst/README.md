@@ -22,7 +22,7 @@
 | `schema.md` | **历史**：向量 YAML 字段规范（含 `expected_pc`、class 定义、encoding 豁免、deferred 规则）；YAML 已全退役（`m13-testcases-043`），保留作类别/故障词表与独立派生规则 |
 | `inventory.md` | M1 覆盖矩阵（以 `id` 为行，含 `format`/`file` 列与 deferred reason） |
 | `00-isa-design/undi_reserved.S` | **非 id 载体**（保留编码 ⇒ UNDI，3 条；逐文件登记，见 `check_tests_index.NON_ID_CARRIERS`） |
-| `00-isa-design/pseudo_set.*.S` | **非 id 载体**：7 个伪指令展开形态（`set.rd`/`set.rb` 的 imm/reg 四条 + `set.ft rf, imm32` + `set.fo rf, imm64` + `set.ft/set.fo rf, rf`；逐文件登记，索引 id `inst-00-isa-design-002`…`-008`）；**写宽对照**见下节 |
+| `00-isa-design/pseudo_set.*.S` | **非 id 载体**：7 个伪指令展开形态（`set.rd`/`set.rb` 的 imm/reg 四条 + `set.rf rf, rs` + `set.ft rf, imm32` + `set.fo rf, imm64`；逐文件登记，索引 id `inst-00-isa-design-002`…`-008`）；**写宽对照**见下节 |
 | `00-isa-design/atomic_rmw.S` | **非 id 载体**（原子 RMW 的**合成序**：`lr` → 寄存器计算 → `sc` → 失败重读重试，13 条；跨 24 条 `lr`/`sc` 身份而非单个 id，故不入 `01`–`12` 册——那 12 册保持「一个 opcode id 一个文件」；逐文件登记 + `inst-00-isa-design-009` 索引） |
 | `base/`（已删） | 原 YAML 向量目录（`TESTCASES-003t`~`007t` 生成；**YAML 已全退役**，`m13-testcases-043`） |
 | `MIGRATION.md` | YAML → 汇编+宏 的迁移台账（大类/小类/用例模板/任务拆分/删除规则） |
@@ -96,7 +96,7 @@ python3 tools/testcases/inst/run_asm_suite.py \
 | `pseudo_set.rb_reg.S` | `set.rb rb, rs`（`rd2rb`/`rb2rb`） | 两种源，**整 64 位** |
 | `pseudo_set.ft_imm32.S` | `set.ft rf, imm32`（2× `set.w`） | **写宽对照第一行：高 32 位保持写前值**（结果 = `(旧值 & 0xFFFFFFFF00000000) \| imm32`） |
 | `pseudo_set.fo_imm64.S` | `set.fo rf, imm64` | **整 64 位**；`imm = 0` 走 `rd2rf rd0`（旧值整 64 位清零） |
-| `pseudo_set.fx_reg.S` | `set.ft`/`set.fo rf, rf` ⇒ `rf2rf` | **写宽对照第二行：高 32 位被覆盖**（整 64 位逐位复制；`fx` = `ft`/`fo` 两族） |
+| `pseudo_set.rf_reg.S` | `set.rf rf, rs` ⇒ `rd2rf`（rd 源）/`rf2rf`（rf 源） | **写宽对照第二行：高 32 位被覆盖**（整 64 位逐位复制） |
 
 展开**形状**（「只能一条 `set.zw`/`set.ow`」「全 0/全 1 ≤1 条」「rb 无 `set.ow`」「`set.fo
 imm=0` 只有 `rd2rf`」）guest 观察不到 ⇒ 由 `m13-testcases-048` 的证据脚本对 `llvm-mc` +

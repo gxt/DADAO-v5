@@ -66,7 +66,7 @@ GAS_DIRECTIVES = (".octa", ".byte", ".short", ".long", ".quad", ".align")
 DELETED_PSEUDO = ("nop", "return", "not.b", "not.w", "not.t", "not.o",
                   "neg.b", "neg.w", "neg.t", "neg.o")
 # 依 spec §6.1 保留的合成型伪指令（不是 opcodes.yaml 中的真实助记符）
-PSEUDO_MNEMONICS = ("set.rd", "set.rb", "set.ft", "set.fo")
+PSEUDO_MNEMONICS = ("set.rd", "set.rb", "set.rf", "set.ft", "set.fo")
 CATEGORIES = ("pseudo", "directive", "option", "diagnostic", "roundtrip")
 
 REG_BANKS = {"rd": "rd", "rb": "rb", "ra": "ra", "rf": "rf"}
@@ -490,19 +490,28 @@ def expand_pseudo(insn_text):
                 seq.append("or.w %s, wp%d, 0x%x" % (dst, i, wydes[i]))
         return seq
 
+    if mnemonic == "set.rf":
+        # 寄存器源**只**由 set.rf 承担（Toolchain-01 §6.1）：rd 源 ⇒ rd2rf、
+        # rf 源 ⇒ rf2rf（整 64 位逐位复制）；无立即数形。
+        if len(ops) != 2:
+            raise AssignError("set.rf arity")
+        dst, src = ops[0].strip(), ops[1].strip()
+        rs = parse_reg(src)
+        if not rs:
+            raise AssignError("set.rf takes a register source only")
+        if rs[0] == "rd":
+            return ["rd2rf {%s}, {%s%d}" % (dst, "rd", rs[1])]
+        if rs[0] == "rf":
+            return ["rf2rf {%s}, {%s%d}" % (dst, "rf", rs[1])]
+        raise AssignError("set.rf bad src")
+
     if mnemonic == "set.ft":
         if len(ops) != 2:
             raise AssignError("set.ft arity")
         dst, src = ops[0].strip(), ops[1].strip()
-        rs = parse_reg(src)
-        if rs:
-            if rs[0] == "rd":
-                return ["rd2rf {%s}, {%s%d}" % (dst, "rd", rs[1])]
-            if rs[0] == "rf":
-                # rf→rf 源：唯一可用的同组搬移是 rf2rf（整 64 位逐位复制；
-                # ft 窄写语义不再保留，见 SimRISC-00 §2.3）。
-                return ["rf2rf {%s}, {%s%d}" % (dst, "rf", rs[1])]
-            raise AssignError("set.ft bad src")
+        if parse_reg(src):
+            # 寄存器源已并入 set.rf，set.ft 只接受立即数（无旧名别名）。
+            raise AssignError("set.ft takes an immediate only")
         val = eval_expr(src) & 0xFFFFFFFF
         return ["set.w %s, wp1, 0x%x" % (dst, (val >> 16) & 0xFFFF),
                 "set.w %s, wp0, 0x%x" % (dst, val & 0xFFFF)]
@@ -511,13 +520,9 @@ def expand_pseudo(insn_text):
         if len(ops) != 2:
             raise AssignError("set.fo arity")
         dst, src = ops[0].strip(), ops[1].strip()
-        rs = parse_reg(src)
-        if rs:
-            if rs[0] == "rd":
-                return ["rd2rf {%s}, {%s%d}" % (dst, "rd", rs[1])]
-            if rs[0] == "rf":
-                return ["rf2rf {%s}, {%s%d}" % (dst, "rf", rs[1])]
-            raise AssignError("set.fo bad src")
+        if parse_reg(src):
+            # 寄存器源已并入 set.rf，set.fo 只接受立即数（无旧名别名）。
+            raise AssignError("set.fo takes an immediate only")
         # Toolchain-01 §6.1（`rd2rf` 清零 + 只改非零 wyde，取最小指令数）：
         # (a) `rd2rf rf, rd0` 清零整 octa + 每个**非零** wyde 一条 `set.w`
         #     ⇒ 1 + k 条（k = 非零 wyde 数，k == 0 只剩 rd2rf）；
