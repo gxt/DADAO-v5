@@ -1,5 +1,5 @@
 diff --git a/include/semihosting/common-semi.h b/include/semihosting/common-semi.h
-index aa511a4..71ed6c0 100644
+index aa511a4..0321f91 100644
 --- a/include/semihosting/common-semi.h
 +++ b/include/semihosting/common-semi.h
 @@ -34,6 +34,8 @@
@@ -11,7 +11,7 @@ index aa511a4..71ed6c0 100644
  void do_common_semihosting(CPUState *cs);
  uint64_t common_semi_arg(CPUState *cs, int argno);
  void common_semi_set_ret(CPUState *cs, uint64_t ret);
-@@ -42,4 +44,28 @@ bool common_semi_sys_exit_is_extended(CPUState *cs);
+@@ -42,4 +44,53 @@ bool common_semi_sys_exit_is_extended(CPUState *cs);
  uint64_t common_semi_stack_bottom(CPUState *cs);
  bool common_semi_has_synccache(CPUArchState *env);
  
@@ -38,5 +38,30 @@ index aa511a4..71ed6c0 100644
 + *          cannot be read.
 + */
 +ssize_t common_semi_strlen(CPUState *cs, vaddr addr);
++
++/**
++ * common_semi_scratch_addr:
++ * @cs: CPU state
++ * @size: bytes of scratch the service needs (1 for SYS_READC, 64 for SYS_FLEN)
++ * @addr: out-parameter, the scratch slot in the address space the target's
++ *        semihosting convention uses for pointer arguments
++ *
++ * Names the internal scratch slot the responder uses for the services that
++ * need target memory but take no buffer argument:
++ *   - SYS_READC (0x07): one byte holding the character just read;
++ *   - SYS_FLEN (0x0c): the 64-byte gdb_stat block the remote gdb fills in.
++ *
++ * The default is upstream's "just below the target's stack pointer", which is
++ * only correct when the stack pointer lives in the semihosting pointer space.
++ * A target whose pointers are physical addresses while its stack pointer is a
++ * VA overrides this hook with a strong definition (see
++ * ``target/dadao/common-semi-target.c``; ISS-452).
++ *
++ * Returns: 0 with @addr set to the slot, or -1 when the slot cannot be named
++ *          in the target's semihosting pointer space.  @addr is only written
++ *          on success; a target's strong definition must keep that rule (a
++ *          caller may pre-seed it with a placeholder).
++ */
++int common_semi_scratch_addr(CPUState *cs, uint64_t size, uint64_t *addr);
 +
  #endif /* COMMON_SEMI_H */

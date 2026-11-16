@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..44fef00
+index 0000000..6ad7833
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,612 @@
+@@ -0,0 +1,616 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -592,6 +592,10 @@ index 0000000..44fef00
 +bool dadao_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
 +                        MMUAccessType access_type, int mmu_idx,
 +                        bool probe, uintptr_t retaddr);
++/* Reverse VA->PA through the single PTBR (no TLB/A-D side effect).  Used by
++ * the semihosting scratch-slot hook, whose slot is a stack slot (VA in the
++ * kernel window) that must be named as a PA (ISS-452). */
++bool dadao_cpu_va_to_pa(CPUDADAOState *env, uint64_t va, hwaddr *pa);
 +/* cfx_pmem DMA (DADAO-12 §4.9; ADR-0042) */
 +void dadao_pmem_dma_init(CPUState *cs);
 +void dadao_pmem_dma_reset(CPUDADAOState *env);

@@ -1,9 +1,9 @@
 diff --git a/target/dadao/common-semi-target.c b/target/dadao/common-semi-target.c
 new file mode 100644
-index 0000000..683c336
+index 0000000..83c1a02
 --- /dev/null
 +++ b/target/dadao/common-semi-target.c
-@@ -0,0 +1,152 @@
+@@ -0,0 +1,200 @@
 +/*
 + * Target-specific parts of semihosting/arm-compat-semi.c for the DADAO
 + * test machine (QEMU-046t).
@@ -36,7 +36,10 @@ index 0000000..683c336
 + * §5.2 / contract-semihosting §2, user ruling 2026-11-15), so this file also
 + * overrides the shared string hook `common_semi_strlen()` with a PA walk; the
 + * rest of the shared layer already reads pointers through the PA path
-+ * (`semihosting/uaccess.h` -> `cpu_memory_rw_debug()`).
++ * (`semihosting/uaccess.h` -> `cpu_memory_rw_debug()`).  The same rule reaches
++ * the *internal* scratch slot of SYS_READC / SYS_FLEN, which the shared layer
++ * would otherwise derive from the stack pointer: that hook
++ * (`common_semi_scratch_addr()`) is overridden here too (ISS-452).
 + *
 + * SPDX-License-Identifier: GPL-2.0-or-later
 + */
@@ -108,6 +111,51 @@ index 0000000..683c336
 +            return -1;
 +        }
 +    }
++}
++
++/*
++ * Internal scratch slot of SYS_READC / SYS_FLEN (ISS-452).
++ *
++ * Upstream puts it just below the stack pointer, which is right when the
++ * stack pointer is expressed in the semihosting pointer space.  On DADAO that
++ * holds only while the machine runs on raw physical addresses; from the moment
++ * a page table is live (contract/linux-boot.yml §6.3: PTW on, VA = PA + 2 TiB)
++ * `rb1` is a **VA** while every semihosting pointer is a **PA**
++ * (spec/Kaiwu §5.2, contract-semihosting §2, user ruling 2026-11-15).  The
++ * responder then reads `VA - 1` as a PA: the address is 2 TiB beyond RAM, the
++ * read fails and SYS_READC returns EFAULT instead of a character (SYS_FLEN's
++ * gdb_stat block likewise).  The slot itself is the right place — it is the
++ * scratch area the guest's own ABI designates below SP — so convert it.
++ *
++ * Which conversion applies follows the machine's own address-space model
++ * (DADAO-12 §2.2, ADR-0039): only the cfxha==MEM window is translated by the
++ * PTW, every other partition is addressed physically — kaiwu-tiny keeps its
++ * RAM/ROM at 0xffff_ff00_0000 and has no PTW at all, and the hmon/smon SRAMs
++ * live in their own cfx windows.  That is the same partition test
++ * dadao_cpu_translate_for_debug() applies to semihosting pointers, so the slot
++ * ends up in exactly the address space the responder reads:
++ *   - cfxha != MEM, or ptw_enable == 0: the stack pointer is already physical
++ *     (tiny, or a Vast stage before smon turns the PTW on) -> use it as is;
++ *   - cfxha == MEM with the PTW on: the stack slot is a VA -> walk the page
++ *     table and hand the PA of the very same slot to the responder.
++ * A slot that is neither physical nor mapped-and-writable has no PA, and the
++ * service fails with EFAULT instead of writing somewhere else.
++ */
++int common_semi_scratch_addr(CPUState *cs, uint64_t size, uint64_t *addr)
++{
++    CPUDADAOState *env = cpu_env(cs);
++    uint64_t slot = common_semi_stack_bottom(cs) - size;
++    hwaddr pa;
++
++    if (DADAO_ADDR_CFXHA(slot) != DADAO_CFXHA_MEM || !(env->ptw_enable & 1)) {
++        *addr = slot;
++        return 0;
++    }
++    if (!dadao_cpu_va_to_pa(env, slot, &pa)) {
++        return -1;
++    }
++    *addr = pa;
++    return 0;
 +}
 +#endif /* !CONFIG_USER_ONLY */
 +

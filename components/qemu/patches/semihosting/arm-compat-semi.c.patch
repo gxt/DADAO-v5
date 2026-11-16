@@ -1,8 +1,8 @@
 diff --git a/semihosting/arm-compat-semi.c b/semihosting/arm-compat-semi.c
-index 5e5f181..ca73cee 100644
+index 5e5f181..2d62f61 100644
 --- a/semihosting/arm-compat-semi.c
 +++ b/semihosting/arm-compat-semi.c
-@@ -216,6 +216,30 @@ static LayoutInfo common_semi_find_bases(CPUState *cs)
+@@ -216,8 +216,61 @@ static LayoutInfo common_semi_find_bases(CPUState *cs)
  static uint64_t syscall_err;
  
  #include "semihosting/uaccess.h"
@@ -32,8 +32,80 @@ index 5e5f181..ca73cee 100644
 +}
  #endif
  
++/*
++ * Address of the internal scratch slot (ISS-452).
++ *
++ * SYS_READC (0x07) and SYS_FLEN (0x0c) take no buffer argument, yet both need
++ * a byte / a 64-byte gdb_stat block in target memory; upstream puts it just
++ * below the target's stack pointer, i.e. inside the target's own pointer
++ * space.  That is only correct while the stack pointer is expressed in the
++ * same address space as semihosting pointers.
++ *
++ * DADAO is the case where it is not: semihosting pointers are **physical
++ * addresses** (spec/Kaiwu §5.2, contract-semihosting §2, user ruling
++ * 2026-11-15) while the stack pointer is a VA once the kernel runs on the
++ * page table (contract/linux-boot.yml §6.3), so `SP - 1` names a VA that the
++ * responder then reads as a PA — an address outside RAM, hence EFAULT.
++ * `target/dadao/common-semi-target.c` therefore provides a strong definition
++ * of this hook that converts the stack slot to its physical address.  The weak
++ * default below is exactly upstream's `SP - size`, so every other target keeps
++ * its previous behaviour byte for byte.
++ *
++ * Returns: 0 with @addr set to the slot, or -1 when the slot cannot be named
++ *          in the target's semihosting pointer space.
++ */
++int __attribute__((weak)) common_semi_scratch_addr(CPUState *cs, uint64_t size,
++                                                   uint64_t *addr)
++{
++    *addr = common_semi_stack_bottom(cs) - size;
++    return 0;
++}
++
  static inline uint32_t get_swi_errno(CPUState *cs)
-@@ -404,7 +428,23 @@ void do_common_semihosting(CPUState *cs)
+ {
+ #ifdef CONFIG_USER_ONLY
+@@ -297,12 +350,13 @@ static void common_semi_seek_cb(CPUState *cs, uint64_t ret, int err)
+  * Return an address in target memory of 64 bytes where the remote
+  * gdb should write its stat struct. (The format of this structure
+  * is defined by GDB's remote protocol and is not target-specific.)
+- * We put this on the guest's stack just below SP.
++ * We put this on the guest's stack just below SP, through
++ * common_semi_scratch_addr() so a target whose semihosting pointers are not
++ * stack-pointer addresses can name the slot itself (ISS-452).
+  */
+-static uint64_t common_semi_flen_buf(CPUState *cs)
++static int common_semi_flen_buf(CPUState *cs, uint64_t *buf)
+ {
+-    vaddr sp = common_semi_stack_bottom(cs);
+-    return sp - 64;
++    return common_semi_scratch_addr(cs, 64, buf);
+ }
+ 
+ static void
+@@ -310,8 +364,9 @@ common_semi_flen_fstat_cb(CPUState *cs, uint64_t ret, int err)
+ {
+     if (!err) {
+         /* The size is always stored in big-endian order, extract the value. */
+-        uint64_t size;
+-        if (cpu_memory_rw_debug(cs, common_semi_flen_buf(cs) +
++        uint64_t size, buf;
++        if (!common_semi_flen_buf(cs, &buf) ||
++            cpu_memory_rw_debug(cs, buf +
+                                 offsetof(struct gdb_stat, gdb_st_size),
+                                 &size, 8, 0)) {
+             ret = -1, err = EFAULT;
+@@ -328,8 +383,9 @@ common_semi_readc_cb(CPUState *cs, uint64_t ret, int err)
+     if (!err) {
+         CPUArchState *env G_GNUC_UNUSED = cpu_env(cs);
+         uint8_t ch;
++        uint64_t buf;
+ 
+-        if (get_user_u8(ch, common_semi_stack_bottom(cs) - 1)) {
++        if (common_semi_scratch_addr(cs, 1, &buf) || get_user_u8(ch, buf)) {
+             ret = -1, err = EFAULT;
+         } else {
+             ret = ch;
+@@ -404,7 +460,23 @@ void do_common_semihosting(CPUState *cs)
          GET_ARG(0);
          GET_ARG(1);
          GET_ARG(2);
@@ -58,7 +130,7 @@ index 5e5f181..ca73cee 100644
          if (!s) {
              goto do_fault;
          }
-@@ -467,7 +507,11 @@ void do_common_semihosting(CPUState *cs)
+@@ -467,7 +539,11 @@ void do_common_semihosting(CPUState *cs)
  
      case TARGET_SYS_WRITE0:
          {
@@ -71,3 +143,49 @@ index 5e5f181..ca73cee 100644
              if (len < 0) {
                  common_semi_dead_cb(cs, -1, EFAULT);
              } else {
+@@ -492,9 +568,16 @@ void do_common_semihosting(CPUState *cs)
+         break;
+ 
+     case TARGET_SYS_READC:
+-        semihost_sys_read_gf(cs, common_semi_readc_cb, &console_in_gf,
+-                             common_semi_stack_bottom(cs) - 1, 1);
++    {
++        uint64_t buf;
++
++        if (common_semi_scratch_addr(cs, 1, &buf)) {
++            common_semi_cb(cs, -1, EFAULT);
++            break;
++        }
++        semihost_sys_read_gf(cs, common_semi_readc_cb, &console_in_gf, buf, 1);
+         break;
++    }
+ 
+     case TARGET_SYS_ISERROR:
+     {
+@@ -516,10 +599,25 @@ void do_common_semihosting(CPUState *cs)
+         break;
+ 
+     case TARGET_SYS_FLEN:
++    {
++        uint64_t buf;
++
+         GET_ARG(0);
++        /*
++         * The stat block is only ever filled on the gdb path: a host or static
++         * file is sized by its own fstat and never touches the block.  So a
++         * slot that cannot be named is not an error here -- hand over an
++         * address that aliases nothing, and the path that does need the block
++         * fails with EFAULT (common_semi_flen_fstat_cb() derives the slot
++         * itself and refuses it) instead of writing at an arbitrary PA.
++         */
++        if (common_semi_flen_buf(cs, &buf)) {
++            buf = UINT64_MAX;
++        }
+         semihost_sys_flen(cs, common_semi_flen_fstat_cb, common_semi_cb,
+-                          arg0, common_semi_flen_buf(cs));
++                          arg0, buf);
+         break;
++    }
+ 
+     case TARGET_SYS_TMPNAM:
+     {

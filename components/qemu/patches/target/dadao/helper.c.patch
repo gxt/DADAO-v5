@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..2fe65c3
+index 0000000..c49e5e1
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,3066 @@
+@@ -0,0 +1,3094 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -831,6 +831,34 @@ index 0000000..2fe65c3
 +            ((pte & DADAO_PTE_X) ? PAGE_EXEC : 0);
 +    *leaf_pte = pte;
 +    return 1;
++}
++
++bool dadao_cpu_va_to_pa(CPUDADAOState *env, uint64_t va, hwaddr *pa)
++{
++    uint64_t cause = 0;
++    uint64_t leaf_pte = 0;
++    hwaddr leaf_pa = 0;
++    int prot = 0;
++
++    /*
++     * Reverse lookup for callers that hold a guest VA and must name the same
++     * location in the machine's physical map (ISS-452: the semihosting
++     * responder's internal scratch slot is derived from the stack pointer,
++     * which is a VA once the kernel runs on the page table, while every
++     * semihosting pointer is a PA — spec/Kaiwu §5.2).
++     *
++     * This is the same single PTBR walk the MMU uses (DADAO-12 §2.2), with
++     * no TLB or A/D side effect: the walk only reads page-table pages, so it
++     * neither fills the guest TLB nor sets A/D (those belong to a real guest
++     * access, dadao_cpu_tlb_fill()).  The caller stores through the debug
++     * map, so a slot the guest may not write is refused here rather than
++     * silently overwritten: a mapped-but-read-only page is "not writable".
++     */
++    if (dadao_ptw_walk(env, va & DADAO_ADDR_MASK, MMU_DATA_STORE, pa, &cause,
++                       &prot, &leaf_pte, &leaf_pa) != 1) {
++        return false;
++    }
++    return (prot & PAGE_WRITE) != 0;
 +}
 +
 +bool dadao_cpu_tlb_fill(CPUState *cs, vaddr address, int size,

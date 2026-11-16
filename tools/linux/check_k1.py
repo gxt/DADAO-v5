@@ -71,6 +71,13 @@ restoring it: ``cp`` + md5):
       the page table faults on those pointers.  The probe self-checks the
       "unmapped as a VA" premise against the live page table before it prints
       anything.
+  K15 the same rule reaches `SYS_READC`'s internal scratch slot (`ISS-452`): a
+      third run executes ``tools/linux/semihost_readc_probe.S``, which installs
+      a kernel-window **VA** as `rb1` (like the kernel's own early stack) and
+      asks for one character; the gate feeds that character on the semihosting
+      console chardev and the guest must get exactly that byte back, twice (the
+      `rd8` exit code and the echoed console byte).  A responder that names the
+      slot by its VA reads 2 TiB beyond RAM and returns −1.
 
 Exit status: 0 = every check passed; 1 = at least one FAIL; 2 = an input could
 not be derived (contract / image / profile / symbols missing).
@@ -457,6 +464,123 @@ def check_semihost_pa(rep: Report, rc: int, console: bytes) -> None:
 
 
 # ---------------------------------------------------------------------------
+# K15: SYS_READC's internal scratch slot is named as a PA (ISS-452)
+# ---------------------------------------------------------------------------
+
+READC_PROBE_S = _REPO / "tools" / "linux" / "semihost_readc_probe.S"
+#: The probe sets rb1 to this VA (inside the mapped kernel-window superpage,
+#: one 64 KiB image above the entry: the probe image is <= 64 KiB).
+READC_SCRATCH_OFF = 0x20000
+#: The character the gate feeds on the semihosting console chardev.
+READC_CHAR = b"K"
+READC_DATA_OFF = {
+    "sp_exit_block": 0xA00,
+    "sp_char": 0xB00,
+}
+
+
+def build_readc_probe(ctx: Ctx) -> Path:
+    """Assemble+link the SYS_READC scratch-slot probe (K15)."""
+    # Premise B (the slot's numeric value is not a plausible PA) is only a
+    # premise while RAM is smaller than 2 GiB; the probe tests bit 32.
+    if ctx.ram_size > (1 << 32):
+        raise SystemExit(f"check_k1: RAM {ctx.ram_size:#x} > 2^32; the READC "
+                         f"probe's premise check no longer discriminates")
+
+    scratch_va = ctx.entry_va + READC_SCRATCH_OFF
+    values = {
+        "ENTRY_VA": ctx.entry_va,
+        "SCRATCH_VA": scratch_va,
+        "SCRATCH_PTE_INDEX": scratch_va >> 29,
+        "PT_VA": k0.LAYOUT["page_table"][0],
+        "EXPECT_CHAR": READC_CHAR[0],
+        "CHAR_PA": ctx.pa(ctx.entry_va + READC_DATA_OFF["sp_char"]),
+        "EXIT_BLOCK_VA": ctx.entry_va + READC_DATA_OFF["sp_exit_block"],
+        "EXIT_BLOCK_PA": ctx.pa(ctx.entry_va + READC_DATA_OFF["sp_exit_block"]),
+    }
+    defs: list[str] = []
+    for key, value in values.items():
+        value &= 0xFFFFFFFFFFFFFFFF
+        if value >= 1 << 63:              # llvm-mc --defsym takes a signed i64
+            value -= 1 << 64
+        defs += ["--defsym", f"{key}={value}"]
+
+    out = SCRATCH / "semihost_readc"
+    out.mkdir(parents=True, exist_ok=True)
+    obj, elf = out / "semihost_readc_probe.o", out / "semihost_readc_probe.elf"
+    k0.run([k0.tool("llvm-mc"), "--triple=dadao-unknown-elf", "-filetype=obj",
+            *defs, str(READC_PROBE_S), "-o", str(obj)])
+    k0.run([k0.tool("ld.lld"), "-z", "max-page-size=0x10000", "-T",
+            str(SEMI_PROBE_LDS), str(obj), "-o", str(elf)])
+
+    # K1 ELF-VA-TO-PA: the loader uses p_paddr, so rewrite it to p_vaddr - BIAS.
+    buf = k0.elf_read(elf)
+    for (off, vaddr, _paddr, _filesz, _memsz, _align) in k0.elf_loads(buf):
+        if vaddr < ctx.bias:
+            raise SystemExit("check_k1: READC probe segment below the kernel "
+                             "window")
+        k0.put64(buf, off + 24, vaddr - ctx.bias)
+    elf.write_bytes(buf)
+
+    symbols = k1boot.symbols(elf)
+    expected = [("_start", ctx.entry_va)] + [
+        (name, ctx.entry_va + offset) for name, offset in READC_DATA_OFF.items()]
+    for name, want in expected:
+        if symbols.get(name) != want:
+            raise SystemExit(f"check_k1: READC probe symbol {name}="
+                             f"{symbols.get(name)!r}, expected {hex(want)}")
+
+    # The echoed character must be the byte the gate feeds, or the console
+    # assertion would compare against something the probe never printed.
+    raw = elf.read_bytes()
+    offset = _elf_file_offset(elf, symbols["sp_char"])
+    if raw[offset:offset + 1] != READC_CHAR:
+        raise SystemExit(f"check_k1: READC probe sp_char={raw[offset:offset + 1]!r}"
+                         f", expected {READC_CHAR!r}")
+    return elf
+
+
+def run_readc_probe(ctx: Ctx, elf: Path) -> tuple[int, bytes, bytes]:
+    """Run the READC probe with a fed semihosting console; (rc, out, err).
+
+    SYS_READC reads the semihosting console, so this run needs a chardev: the
+    probe would otherwise block forever with no input source.  ``stdio`` is
+    used for the semihosting console (``-serial none`` keeps it off the serial
+    port) and the fed character goes in on stdin.
+    """
+    log = SCRATCH / "semihost_readc.log"
+    cmd = [ctx.qemu,
+           "-machine", f"kaiwu-vast,bootrom-image={ctx.bootrom}",
+           "-display", "none", "-serial", "none",
+           "-chardev", "stdio,id=semi",
+           "-semihosting-config", "enable=on,target=native,chardev=semi",
+           "-kernel", str(elf)]
+    try:
+        proc = subprocess.run(cmd, cwd=str(_REPO), capture_output=True,
+                              input=READC_CHAR, timeout=TIMEOUT_QEMU)
+        rc, out, err = proc.returncode & 0xFF, proc.stdout, proc.stderr
+    except subprocess.TimeoutExpired as exc:
+        rc = 124
+        out = exc.stdout if isinstance(exc.stdout, bytes) else b""
+        err = exc.stderr if isinstance(exc.stderr, bytes) else b""
+    log.write_bytes(out + b"\n--- stderr ---\n" + err)
+    return rc, out, err
+
+
+def check_semihost_readc(rep: Report, rc: int, console: bytes,
+                         err: bytes) -> None:
+    """SYS_READC's scratch slot must be the PA of the stack slot (PTW on)."""
+    rep.check("K15", "QEMU 未自行报错（探针不是启动失败）", False,
+              b"qemu-system-dadao:" in err)
+    # rc encodes more than "did it fail": the probe's own premise checks use
+    # 0xE3/0xE5, so a broken setup can never be read as a broken responder.
+    rep.check("K15", "SYS_READC：取字缓冲按 PA 命名（读回喂入的字节；"
+                     "0xE3/0xE5=前提不成立，0xE4=取字不符）", 0, rc)
+    rep.check("K15", "SYS_READC 读回的字符经 SYS_WRITEC 回显 == 喂入字符",
+              READC_CHAR, console)
+
+
+# ---------------------------------------------------------------------------
 # stage anchors: one line each, in the order the boot chain produces them
 # ---------------------------------------------------------------------------
 
@@ -780,6 +904,18 @@ def gate(kernel: Path, qemu: str, bootrom: Path, rep: Report) -> tuple[int, str]
         print(probe_console.decode("utf-8", "backslashreplace").strip())
         print("----------------------")
     check_semihost_pa(rep, probe_rc, probe_console)
+
+    # ── K15: SYS_READC's internal scratch slot is a PA (ISS-452) ────────
+    # Same Vast firmware (PTW on), third run: the probe installs a kernel-window
+    # VA as SP (like the kernel's early stack) and asks for one character.
+    readc_elf = build_readc_probe(ctx)
+    readc_rc, readc_out, readc_err = run_readc_probe(ctx, readc_elf)
+    if not rep.quiet:
+        print(f"---- READC probe output (rc={readc_rc:#x}) ----")
+        print(readc_out.decode("utf-8", "backslashreplace").strip())
+        print(readc_err.decode("utf-8", "backslashreplace").strip())
+        print("----------------------")
+    check_semihost_readc(rep, readc_rc, readc_out, readc_err)
     return rc, text
 
 
@@ -850,6 +986,22 @@ def run_selfcheck(qemu: str, bootrom: Path) -> int:
         hit = [msg for msg in rep.fails if msg.startswith("K14")]
         print(f"  [{'PASS' if hit else 'FAIL'}] selfcheck K14 {label} | "
               f"期望=K14 FAIL 实际={hit[0] if hit else '未翻转'}", flush=True)
+        if not hit:
+            bad += 1
+
+    # K15 reads the third run's exit code and the character it echoed back;
+    # both channels are flipped, plus the probe's "premise broken" code.
+    groups += 3
+    for label, readc_rc, readc_out in (
+            ("取字不符（0xE4）", 0xE4, READC_CHAR),
+            ("前提不成立（0xE3）", 0xE3, READC_CHAR),
+            ("回显字符不符", 0, b"X")):
+        rep = Report(quiet=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            check_semihost_readc(rep, readc_rc, readc_out, b"")
+        hit = [msg for msg in rep.fails if msg.startswith("K15")]
+        print(f"  [{'PASS' if hit else 'FAIL'}] selfcheck K15 {label} | "
+              f"期望=K15 FAIL 实际={hit[0] if hit else '未翻转'}", flush=True)
         if not hit:
             bad += 1
 
