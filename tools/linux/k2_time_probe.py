@@ -89,6 +89,11 @@ CONTRACT_SEE = _REPO / ".tao" / "contracts" / "contract-see.md"
 CFX_ALIASES = _REPO / "contracts" / "cfx-aliases.txt"
 SOURCE = linux_paths.linux_source_dir()
 
+#: Kernel paths the single-row variant (C10) mutates at run time.
+TIME_C = "arch/dadao/kernel/time.c"
+IRQ_C = "arch/dadao/kernel/irq.c"
+IRQFLAGS_H = "arch/dadao/include/asm/irqflags.h"
+
 #: The floor on consecutive ticks a K2 image must show.  This is the task's
 #: capability requirement ("连续 N 次 TIMER tick"), not the expected count: the
 #: expected count is the kernel's own declaration, read from the output.
@@ -610,6 +615,36 @@ def check_axis(rep: Report, name: str, text: str, case: int) -> None:
                   (smon | hart_row) & bit)
 
 
+def check_single_row(rep: Report, rc: int, text: str, hart: int) -> None:
+    """C10 (ISS-455 / m14-qemu-003): the source axis is the *running mode
+    monitor's* row, not the current cfx's.
+
+    The image is built from a kernel reduced at run time to writing only
+    `cfx_smon`'s supv `cfx_intr_mask` row (`cg2 rc4`); `cfx_hart`'s row keeps
+    its reset all-1 value.  spec/DADAO-12 §5.2 step 3 filters asynchronous
+    sources on the mode monitor's `<mode>_cfx_intr_mask`, so the whole tick
+    series must still complete.  A filter that reads the *current cfx's* row
+    delivers exactly one tick after the first frame (current cfx = cfx_hart)
+    and parks every later event in pending — m14-linux-007's measurement.
+    """
+    bit = 1 << hart
+    m = IRQ_MASK.search(text)
+    if not m:
+        rep.check("C10", "single-row mask 行存在", "存在", "缺失")
+        return
+    smon, hart_row, _global = ints(m.group(1, 2, 3))
+    rep.check("C10", "single-row：源轴只剩 cfx_smon 行放开该位", 0, smon & bit)
+    rep.check("C10", "single-row：cfx_hart 行仍是复位值（该位屏蔽）", True,
+              bool(hart_row & bit))
+    declared = declared_ticks()
+    rep.check("C10", "single-row：tick 行数 == 内核声明（首投后仍持续投递）",
+              declared, len(TICK.findall(text)))
+    m = DONE.search(text)
+    rep.check("C10", "single-row：退出 tick 数 == 内核声明", declared,
+              int(m.group(1)) if m else "<missing>")
+    rep.check("C10", "single-row：guest rc（SYS_EXIT 子码）", 0, rc)
+
+
 def check_permission(rep: Report, rc: int, text: str, specs: dict,
                      snap: dict) -> None:
     """C8: without the firmware's opening the first cfx_time read is CFXPERM."""
@@ -633,6 +668,78 @@ def check_permission(rep: Report, rc: int, text: str, specs: dict,
     rep.check("C8", "输出无 tick 行（没走到定时器）", [],
               [line for line in text.splitlines()
                if line.startswith("K2 tick ")])
+
+
+# ---------------------------------------------------------------------------
+# C10: the single-row variant (ISS-455 / m14-qemu-003)
+# ---------------------------------------------------------------------------
+
+#: Every kernel write to the *target cfx's* supv `cfx_intr_mask` row, removed at
+#: run time so that `cfx_hart`'s row keeps its reset all-1 value and only the
+#: running mode monitor's row (`cfx_smon cg2 rc4`) is ever opened.  This is a
+#: source mutation with ``cp`` + md5 restore (never a patch-set edit): the kernel
+#: writing both rows is m14-linux-008's state, narrowed by m14-linux-010.
+SINGLE_ROW_PATCHES = (
+    (IRQ_C,
+     "\tmask = hart_supv_intr_mask() & ~bit;\n"
+     "\tDADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_SUPV,\n"
+     "\t\t\tCFX_SMON_RC_SUPV_CFX_INTR_MASK, mask);\n",
+     "\t/* single-row variant: cfx_hart's row keeps its reset value */\n"),
+    (IRQFLAGS_H,
+     "\tDADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,\n"
+     "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);\n",
+     "\t/* single-row variant: cfx_hart's row left alone */\n"),
+    (IRQFLAGS_H,
+     "\tDADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,\n"
+     "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK,\n"
+     "\t\t\tdadao_irq_mask_row_hart() & ~DADAO_IRQ_SOURCE_BITS);\n",
+     "\t/* single-row variant: cfx_hart's row left alone */\n"),
+)
+
+
+def single_row_run(rep: Report, hart: int) -> dict:
+    """Build + boot the single-row image; returns the run for ``--selfcheck``.
+
+    The source is patched in place and restored with ``cp`` + md5 in a
+    ``finally`` block; the caller rebuilds the pristine ``time`` image before it
+    interprets anything else (the noperm run does that explicitly).
+    """
+    originals: dict[str, bytes] = {}
+    before_md5: dict[str, str] = {}
+    texts: dict[str, str] = {}
+    for rel, old, new in SINGLE_ROW_PATCHES:
+        path = SOURCE / rel
+        if rel not in originals:
+            originals[rel] = path.read_bytes()
+            before_md5[rel] = md5(path)
+            texts[rel] = originals[rel].decode("utf-8")
+        if texts[rel].count(old) != 1:
+            raise SystemExit(f"k2_time_probe: single-row 注入点不唯一 "
+                             f"({rel}: {texts[rel].count(old)} 处)")
+        texts[rel] = texts[rel].replace(old, new, 1)
+    try:
+        for rel in originals:
+            (SOURCE / rel).write_text(texts[rel], encoding="utf-8")
+            print(f"  [PASS] single-row 注入 {rel} | md5 "
+                  f"{before_md5[rel][:8]} -> {md5(SOURCE / rel)[:8]}",
+                  flush=True)
+        if md5(SOURCE / IRQ_C) == before_md5[IRQ_C]:
+            raise SystemExit("k2_time_probe: single-row 注入是空操作（md5 未变）")
+        if config("time") != 0:
+            raise SystemExit("k2_time_probe: single-row 重建失败")
+        rc, text, cmd = boot("single_row", firmware("time"))
+    finally:
+        for rel, blob in originals.items():
+            (SOURCE / rel).write_bytes(blob)
+            restored = md5(SOURCE / rel)
+            print(f"  [{'PASS' if restored == before_md5[rel] else 'FAIL'}] "
+                  f"single-row 还原 {rel} (cp) | md5 "
+                  f"期望={before_md5[rel][:8]} 实际={restored[:8]}", flush=True)
+            if restored != before_md5[rel]:
+                raise SystemExit(f"k2_time_probe: single-row 还原后 md5 不一致 "
+                                 f"({rel})")
+    check_single_row(rep, rc, text, hart)
+    return {"rc": rc, "text": text, "cmd": cmd}
 
 
 # ---------------------------------------------------------------------------
@@ -680,6 +787,13 @@ def run_gate(rep: Report, build_images: bool = True) -> dict:
     check_image("source", *runs["source"], rep, snaps["source"])
     check_image("global", *runs["global"], rep, snaps["global"])
 
+    # C10 (ISS-455): reduce the kernel to the single mode-monitor row and show
+    # the tick series still completes.  Runs last but one so the noperm rebuild
+    # below returns the shared build tree to the pristine image.
+    single_row = None
+    if build_images:
+        single_row = single_row_run(rep, cfxha("cfx_hart"))
+
     # The permission-negative run uses the *time* image against a firmware whose
     # hmon leaves cfx_hart / cfx_time closed.
     rom = firmware("noperm", ["--defsym", "K2_TIME_PERM=0"])
@@ -694,7 +808,7 @@ def run_gate(rep: Report, build_images: bool = True) -> dict:
     rep.stat(f"runs={len(runs)} qemu={Path(k0.DEFAULT_QEMU).name} "
              f"md5={md5(Path(k0.DEFAULT_QEMU))[:8]}")
     return {"runs": runs, "snaps": snaps, "specs": specs, "codes": codes,
-            "base": base}
+            "base": base, "single_row": single_row}
 
 
 # ---------------------------------------------------------------------------
@@ -773,7 +887,33 @@ def run_selfcheck(result: dict) -> int:
         if rep.fails:
             problems.append(f"selfcheck 对照 {name}: {rep.fails[0]}")
 
-    total = len(mutations) + len(runs)
+    # C10's capture (ISS-455): truncated to the first delivery it must go red;
+    # untouched it must stay green.
+    single_row = result.get("single_row")
+    if single_row:
+        hart = cfxha("cfx_hart")
+        one_tick = re.sub(r"^K2 tick (?:[2-9]|\d\d+):.*\n", "",
+                          single_row["text"], flags=re.MULTILINE)
+        rep = Report(quiet=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            check_single_row(rep, single_row["rc"], one_tick, hart)
+        red = [msg for msg in rep.fails if msg.startswith("C10")]
+        print(f"  [{'PASS' if red else 'FAIL'}] selfcheck single_row/C10 | "
+              f"注入「tick 停在首投那一次」⇒ 期望=C10 变红 实际="
+              f"{red[0] if red else '未变红'}", flush=True)
+        if not red:
+            problems.append("selfcheck single_row/C10: 未变红")
+
+        rep = Report(quiet=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            check_single_row(rep, single_row["rc"], single_row["text"], hart)
+        print(f"  [{'PASS' if not rep.fails else 'FAIL'}] selfcheck 对照 "
+              f"single_row 未改动 | 期望=0 失败 实际={len(rep.fails)} 失败",
+              flush=True)
+        if rep.fails:
+            problems.append(f"selfcheck 对照 single_row: {rep.fails[0]}")
+
+    total = len(mutations) + len(runs) + (2 if single_row else 0)
     if problems:
         print(f"k2_time_probe --selfcheck: FAIL ({len(problems)} 问题)")
         for problem in problems:
@@ -786,9 +926,6 @@ def run_selfcheck(result: dict) -> int:
 # ---------------------------------------------------------------------------
 # --inject: source injections, cp + md5 restore, green again
 # ---------------------------------------------------------------------------
-
-TIME_C = "arch/dadao/kernel/time.c"
-IRQ_C = "arch/dadao/kernel/irq.c"
 
 #: name -> (image, [(old, new), ...], expected rc, output regex, forbidden regex,
 #:          check groups that must go red)

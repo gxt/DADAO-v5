@@ -417,8 +417,9 @@ def check_mask_axes(rep: Report, text: str, d: dict) -> None:
         return
     smon, hart, glob = ints(m.group(1, 2, 3))
     bit = d["bit"]
-    rep.check("C1", "源轴 cfx_smon 行已放开该位（旋钮行）", 0, smon & bit)
-    rep.check("C1", "源轴 cfx_hart 行已放开该位（首投后当前 cfx 行）", 0,
+    rep.check("C1", "源轴 cfx_smon 行已放开该位（mode monitor 行，§5.2 step 3）",
+              0, smon & bit)
+    rep.check("C1", "源轴 cfx_hart 行也已放开该位（内核两行覆盖，ISS-454）", 0,
               hart & bit)
     rep.check("C1", "全局轴已放开该位（帧内由硬件接管，不是旋钮）", 0, glob & bit)
     rep.check("C1", "mask 位 = 目标 cfxha", bit, int(m.group(5), 0))
@@ -826,8 +827,14 @@ INJECTIONS: dict[str, tuple] = {
         0, r"^K2 irq: done ticks=", None, ("P5",),
     ),
     # ⑤ only cfx_smon's row is written, never the delivered cfx's row
-    #    (ISS-454): after the first delivery the kernel runs in cfx_hart, so the
-    #    "masked" window keeps ticking — the direct judge for the two-row rule.
+    #    (ISS-454's two-row rule).  Since m14-qemu-003 the async source filter
+    #    reads the *mode monitor's* row (spec/DADAO-12 §5.2 step 3), so the
+    #    behavioural half of that rule — "the masked window keeps ticking" — no
+    #    longer has a FAIL path (the monitor row the kernel does write is the one
+    #    consulted).  What stays red is the static identity: the two-row write
+    #    coverage (C0) and the per-row readback round trip (P1).  The positive
+    #    direction ("smon row only ⇒ the tick series still completes") is judged
+    #    by k2_time_probe's C10 single-row run.
     "only-smon-row": (
         IRQFLAGS,
         [(("\tDADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,\n"
@@ -837,7 +844,7 @@ INJECTIONS: dict[str, tuple] = {
           ("\tDADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,\n"
            "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);\n"
            "\t/* injected: cfx_hart's row left alone (ISS-454) */\n"))],
-        0, r"^K2 irq: done ticks=", None, ("C0", "P1", "P2"),
+        0, r"^K2 irq: done ticks=", None, ("C0", "P1"),
     ),
 }
 

@@ -918,13 +918,15 @@ def _global_mask_block():
 
 
 @case("per_cfx_mask_block",
-      "cfx_intr_mask reads the *current* cfx row, indexed by target cfxha")
+      "cfx_intr_mask reads the *running mode monitor's* row, indexed by cfxha")
 def _per_cfx_mask_block():
     a = Asm()
     set_global_mask(a, 0)
     dma_status_clear(a)
-    # Phase 1 (current cfx == hmon): hmon's hypv row masks target cfxha 32 and
-    # cfx_pmem's own row also masks 32 -> the DMA must not be delivered.
+    # Phase 1 (run mode hypv => monitor cfx_hmon): hmon's hypv row masks target
+    # cfxha 32 and cfx_pmem's own row also masks 32 -> the DMA must not be
+    # delivered.  Since m14-qemu-003 the filter is the monitor's row
+    # (spec/DADAO-12 §5.2 step 3, ISS-455); cfx_pmem's row is no longer read.
     a.emit(*load_rd(22, 1 << 32))
     a.emit(cfx2rc(HMON_HA, 3, CG3_CFX_INTR_MASK_RC, 22))
     a.emit(cfx2rc(PMEM_HA, 3, CG3_CFX_INTR_MASK_RC, 22))
@@ -937,15 +939,15 @@ def _per_cfx_mask_block():
     need_eq(a, 5, 0, 0x61, "pmem_blocked")
     pend(a, PMEM_HA, 6)
     need_mask_set(a, 6, PMEM_DMA, 0x62, "pmem_pending_kept")
-    # Phase 2 (reverse): release the *current* cfx row only.  cfx_pmem's own row
-    # still masks bit32, so a delivery proves the arbiter/cfx_enter reads the
-    # current cfx row with the target cfxha as bit index.
+    # Phase 2 (reverse): release the *monitor's* row only.  cfx_pmem's own row
+    # still masks bit32, so a delivery proves cfx_enter reads the running mode
+    # monitor's row with the source cfxha as bit index.
     set_hmon_intr_mask(a, 0)
     settle_bound(a)
     wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "pcm2",
               0x6D, 0x6E)
     ram_ld(a, RAM_PMEM_N, 7)
-    need_eq(a, 7, 1, 0x63, "current_row_only")
+    need_eq(a, 7, 1, 0x63, "monitor_row_only")
     pend(a, PMEM_HA, 8)
     need_mask_clr(a, 8, PMEM_DMA, 0x64, "pmem_cleared")
     # Phase 3: a different source (TIMER, target 15) is not blocked by bit32.
@@ -970,7 +972,7 @@ def _per_cfx_mask_block():
 def _intr_mask_tail_kick():
     a = Asm()
     set_global_mask(a, 0)
-    # delivery filters on the *current* cfx row (hmon, the body's cfx)
+    # delivery filters on the running mode monitor's row (hypv => cfx_hmon)
     set_hmon_intr_mask(a, 1 << PMEM_HA)
     dma_status_clear(a)
     dma_start(a)

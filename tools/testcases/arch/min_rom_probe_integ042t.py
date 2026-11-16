@@ -297,9 +297,14 @@ def setup_hmon_vector(p, handler):
 
 
 def mask_pmem_dma(p, mask=INTR_SRC_PMEM):
-    """Mask the PMEM_DMA source at the lower (current-cfx) filter level."""
+    """Mask the PMEM_DMA source at the running mode monitor's filter level.
+
+    spec/DADAO-12 §5.2 step 3 filters async sources on the *mode monitor's*
+    `<mode>_cfx_intr_mask` (hypv => cfx_hmon `cg3 rc4`, ISS-455), not on the
+    current cfx's row: the body runs in hypv, so cfx_hmon owns the axis.
+    """
     p += load_rd(17, mask)
-    p.append(cfx2rc(PMEM_HA, MODE_H, CG3_CFX_INTR_MASK_RC, 17))
+    p.append(cfx2rc(3, MODE_H, CG3_CFX_INTR_MASK_RC, 17))
 
 
 def words_to_bytes(ws):
@@ -637,8 +642,9 @@ def _dma_busy_w1c_ignored():
 #
 # PMEM_DMA is maskable; the probe first enters cfx_pmem through a non-maskable
 # trap, which makes cfx_pmem the current cfx.  From there the DMA completion is
-# delivered to cfx_pmem itself, filtered only by the two-level source masks
-# (DADAO-12 §5.2 step 3, §4.9).
+# delivered to cfx_pmem itself, filtered only by the two-level source masks —
+# both owned by the *running mode monitor* (hypv => cfx_hmon; DADAO-12 §5.2
+# step 3, §4.9, ISS-455).
 def _make_irq_handler(spin=True):
     w = [cfx2rd(PMEM_HA, 5, CG5_CAUSE_ID_RC, 10),
          cfx2rd(PMEM_HA, 5, CG5_CAUSE_INFO_RC, 11)]
@@ -692,11 +698,12 @@ def _pmem_entry_setup(p, handler_addr, allow_irq=False):
     p += load_rd(17, 0x7FFFFFFEFFFFFFF7)
     p.append(cfx2rc(3, MODE_H, CG3_CFXREG_RC, 17))
     if allow_irq:
-        # Two-level async filter (ADR-0045 D3): current cfx (pmem) source mask
-        # and the current-mode monitor (hmon) global mask must both allow
-        # source cfx32.
+        # Two-level async filter (DADAO-12 §5.2 step 3, ISS-455): the source
+        # axis is the *running mode monitor's* hypv `cfx_intr_mask` (cfx_hmon
+        # cg3 rc4, bit index = source cfxha 32) and the same monitor's cg8 rc1
+        # global mask; both must allow source cfx32.
         p += load_rd(17, 0)
-        p.append(cfx2rc(PMEM_HA, MODE_H, 4, 17))     # cfx_pmem hypv cfx_intr_mask
+        p.append(cfx2rc(3, MODE_H, CG3_CFX_INTR_MASK_RC, 17))  # cfx_hmon row
         p.append(cfx2rc(3, 8, 1, 17))                # cfx_hmon global_cfx_intr_mask
 
 

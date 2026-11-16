@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..393a243
+index 0000000..2fe65c3
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,3062 @@
+@@ -0,0 +1,3066 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -2042,18 +2042,22 @@ index 0000000..393a243
 +        *entered = false;
 +        return 0;
 +    }
-+    /* step 3 (async only): two-level interrupt source filter (ADR-0045 D3).
-+     * The current cfx's cfx_intr_mask and the current mode monitor's
-+     * global_cfx_intr_mask both mask by source cfxha; either one set =>
-+     * pending, no delivery. */
++    /* step 3 (async only): two-level interrupt source filter (DADAO-12 §5.2
++     * step 3, ADR-0045 D3).  Both levels belong to the *running mode monitor*:
++     * the source axis is that monitor's `<mode>_cfx_intr_mask` (S-mode =>
++     * cfx_smon `cg2 rc4`) and the second axis its `global_cfx_intr_mask`
++     * (`cg8 rc1`).  The source axis is deliberately independent of
++     * `inner_cfx_code`: after a delivery the frame restores only the run mode
++     * (§5.3), so the current cfx stays at the target and a "current cfx row"
++     * reading would filter on a row the kernel never owns (ISS-455).
++     * Both masks are indexed by the source cfxha; either one set => pending,
++     * no delivery. */
 +    if (!sync) {
-+        int cur = cfx_idx(env, env->inner_cfx_code);
-+        uint64_t cur_mask = (cur >= 0)
-+            ? env->cfx[cur].mode[entry_mode].cfx_intr_mask : 0;
-+        uint64_t global_mask =
-+            env->cfx[entry_mode & 0x3].global_cfx_intr_mask;
++        int mon = entry_mode & 0x3;
++        uint64_t src_mask = env->cfx[mon].mode[mon].cfx_intr_mask;
++        uint64_t global_mask = env->cfx[mon].global_cfx_intr_mask;
 +
-+        if ((cur_mask & (1ULL << target)) ||
++        if ((src_mask & (1ULL << target)) ||
 +            (global_mask & (1ULL << target))) {
 +            env->cfx[ci].pending |= cause;
 +            *entered = false;
