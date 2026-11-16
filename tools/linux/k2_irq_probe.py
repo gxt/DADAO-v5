@@ -26,10 +26,14 @@ What is derived live (nothing is restated):
   * the self-check code space -> every `*FAIL*` constant the kernel sources
     define (same scan the K2 time gate uses, extended with this task's file).
 
-Checks: C0 static inputs / C1 image + stage order / P1 save-restore round trip /
+Checks: C0 static inputs / C1 image + stage order / P1 save-restore round trip
+(plus the absolute anchor ISS-457 added: the saved word == the contract's reset
+value — all-ones — minus the source bit, so a high-half truncation cannot stay
+self-consistent) /
 P2 masked window + merged re-delivery / P3 nested saves / P4 no nesting inside a
 live frame and delivery right after `escape` / P5 `arch_irqs_disabled()` versus
-the live register / C9 totals (masked exit).
+the live register and the enable-granularity anchor (ISS-457: enable == disable
+with only the source bits cleared) / C9 totals (masked exit).
 
 `--selfcheck` mutates the captured run and shows every group flips.
 `--inject` corrupts the kernel source, rebuilds, asserts the expected FAIL and
@@ -432,6 +436,16 @@ def check_p1(rep: Report, text: str, d: dict) -> None:
     before_smon, before_hart, flags, masked_smon, masked_hart, rest_smon, \
         rest_hart = ints(m.groups())
     bit = d["bit"]
+    # Absolute anchor (ISS-457): contract-see §3 pins `cfx_intr_mask`'s reset
+    # value to all-ones and the kernel's single knob only ever clears the source
+    # bits it owns, so the saved word must be exactly "all-ones minus that bit".
+    # A truncated save stays self-consistent everywhere else — including the row
+    # `init_IRQ` prints, because start_kernel's own `local_irq_*` calls run
+    # through the same save and have already written the truncated word back
+    # (measured) — so the reset value is the only anchor left.
+    all_ones = (1 << 64) - 1
+    rep.check("P1", "save 的整字 == 复位全 1 只清源位（64 位，高位参与）",
+              all_ones & ~bit, before_smon)
     rep.check("P1", "两行稳态值相同（单字保存的前提）", before_smon, before_hart)
     rep.check("P1", "save 后 cfx_smon 行置位源位", before_smon | bit,
               masked_smon)
@@ -493,6 +507,12 @@ def check_p5(rep: Report, text: str, d: dict) -> None:
               rows["save"][0])
     rep.check("P5", "restore 后 flags == 现场 cfx_smon 行", rows["restore"][3],
               rows["restore"][0])
+    # Granularity anchor (ISS-457): `enable` may only clear the source bits; a
+    # blanket write of 0 would also discard a policy the kernel does not own, and
+    # every other P5 assertion stays green under it.
+    rep.check("P5", "enable == disable 清掉源位（其余位保持，两行）",
+              [rows["disable"][3] & ~bit, rows["disable"][4] & ~bit],
+              [rows["enable"][3], rows["enable"][4]])
 
 
 # ---------------------------------------------------------------------------
@@ -626,8 +646,17 @@ def run_selfcheck(result: dict, spec: dict) -> int:
          "restore 后 cfx_hart 行没有回到保存值"),
         ("P3", lambda t: re.sub(r"(inner_hart=)\S+", r"\g<1>0xffffffffffff7fff",
                                 t), "内层 restore 就把屏蔽放开了"),
+        ("P1", lambda t: re.sub(
+            r"(P1: before_smon=)0x\S+( before_hart=\S+ flags=\S+ "
+            r"masked_smon=\S+ masked_hart=\S+ restored_smon=\S+ "
+            r"restored_hart=)\S+", r"\g<1>0xffff7fff\g<2>0xffff7fff", t),
+         "save 只带回低 32 位（与契约复位全 1 失配）"),
         ("P5", lambda t: re.sub(r"(state=disable flags=\S+ disabled=)1",
                                 r"\g<1>0", t), "屏蔽态下 irqs_disabled() 说没屏蔽"),
+        ("P5", lambda t: re.sub(
+            r"(state=enable flags=\S+ disabled=\d+ flags_disabled=\d+ smon=)\S+"
+            r"( hart=)\S+", r"\g<1>0x0\g<2>0x0", t),
+         "enable 把整行写 0（其余位没保持）"),
         ("P2", lambda t: re.sub(r"(P2: masked ticks=)0", r"\g<1>3", t),
          "屏蔽窗内照样 tick"),
         ("P4", lambda t: re.sub(r"(waited_ticks=)0", r"\g<1>1", t),
@@ -759,6 +788,42 @@ INJECTIONS: dict[str, tuple] = {
           ("\treleased_at = dadao_read_time();\n\t(void)flags;\t"
            "/* injected */\n"))],
         0, r"^K2 irq: done ticks=", None, ("P2",),
+    ),
+    # ⑥ `save` hands back only the low 32 bits (ISS-457): the handler restores
+    #    that word, so from the first tick on both rows genuinely hold 0xffff7fff
+    #    and every P1 read agrees with every other P1 read — including the row
+    #    `init_IRQ` prints (start_kernel's earlier saves already wrote it back).
+    #    Only the contract's reset value (all-ones) minus the source bit can see
+    #    the dropped high half.
+    "flags-32": (
+        IRQFLAGS,
+        [(("\tunsigned long flags = dadao_irq_mask_row_smon();\n"
+           "\n"
+           "\tdadao_irq_mask_row_write(flags | DADAO_IRQ_SOURCE_BITS);\n"
+           "\treturn flags;\n"),
+          ("\tunsigned long flags = dadao_irq_mask_row_smon();\n"
+           "\n"
+           "\tdadao_irq_mask_row_write(flags | DADAO_IRQ_SOURCE_BITS);\n"
+           "\treturn flags & 0xffffffffUL;\t"
+           "/* injected: high half dropped */\n"))],
+        0, r"^K2 irq: done ticks=", None, ("P1",),
+    ),
+    # ⑦ `enable` writes 0 instead of clearing only the source bits (ISS-457):
+    #    the enable row loses the other sources' policy, and only the
+    #    granularity anchor can see it.
+    "enable-write-zero": (
+        IRQFLAGS,
+        [(("\tDADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,\n"
+           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK,\n"
+           "\t\t\tdadao_irq_mask_row_smon() & ~DADAO_IRQ_SOURCE_BITS);\n"
+           "\tDADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,\n"
+           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK,\n"
+           "\t\t\tdadao_irq_mask_row_hart() & ~DADAO_IRQ_SOURCE_BITS);\n"),
+          ("\tDADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,\n"
+           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, 0UL);\t/* injected */\n"
+           "\tDADAO_CFX_WRITE(cfx_hart, DADAO_IRQ_CG_SUPV,\n"
+           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, 0UL);\t/* injected */\n"))],
+        0, r"^K2 irq: done ticks=", None, ("P5",),
     ),
     # ⑤ only cfx_smon's row is written, never the delivered cfx's row
     #    (ISS-454): after the first delivery the kernel runs in cfx_hart, so the
