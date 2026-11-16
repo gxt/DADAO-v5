@@ -41,6 +41,15 @@ QEMU 侧 TLB 的**结构**已在（可核，`components/qemu/patches/target/dada
    - `cause_info` 的取值不变（失败那条 PTE 的物理地址），与 A/B 选型无关。
 4. **逐条对齐契约**（现有实现逐项核对，不一致就改）：fill 只在步进成功且全部检查通过后；缺页/权限失败不填条目、不动 A/D；`invalid` 不回写；`clean` 回写保条目；`flush` 回写后删除；范围三档（`all` 忽略 start/size；`VA` 只看起始地址所在页；`range` 与 `[start,start+size)` 相交；`scope=11` 或 `range && size=0` ⇒ `CFXREG`）；`none` 无条件 no-op（不校验 scope/size）；`ASID_ANY=0` 只处理 `G=0` 且 ASID 匹配者、**不碰** `G=1`；`ASID_ANY=1` 含 `G=1`；写 `PTBR`/`ASID`/`ptw_enable=1` **不**清 TLB。
 
+## 增补要求（`m14-qemu-006` 复核的跨任务耦合，2026-11-16）
+
+**5 个既有 `CFXMEM` oracle 断言 `cause_id` 的「全宽」**（`docs`/`tests` 侧见 `tools/testcases/arch/{049t,integ039t,integ040t,integ042t}` 与 `integ048t` 的 `cause_id` 断言）。本任务一旦开始填子原因 wyde（`cause_id[63:48]`），这些**精确等于 `1<<1`** 的断言会立刻红。
+
+处置（本任务内一并改）：
+
+- 把这 5 处改为「**低 16 位 == `1<<1`（掩码比较）** + 期望的子原因位」；子原因位按各例的真实情形给（`NONPTW`/缺失类/`ADWBFAIL`），**从 spec 派生、不读实现输出**；
+- 每处注明「原为全宽相等 ⇒ 改为掩码 + 子原因」，并在完成区列表。
+
 ## 增补要求（`m14-linux-011` 复核 F6，2026-11-16）
 
 - **`tlb_control` 的 A/D 回写失败必须「条目级」不得部分完成**：现状 `dadao_tlb_control_exec` 遇 A/D 回写失败即 `return`，而 `contract-tlb` TLB-37 要求「**失败条目保持原状、其余条目照常处理**」（`flush` 失败不删该条目、`clean` 失败不清挂起位）。须改为：逐条目处理、失败条目跳过并最终报 `CFXMEM`（`cause_info` = 该 PTE 物理地址、子原因 `ADWBFAIL[56]`），其它条目继续。
