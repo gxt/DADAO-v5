@@ -41,12 +41,12 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m14-spec-007 | 2026-11-16 14:55 | 2–3 h | `cause_id` 子原因编码落地（`DADAO-12 §3.6/§4.x/§2.2.6` + `contract-see §6.1` 扩列 + 锁重算） |
-| m14-linux-009 | 2026-11-16 13:21 | 4–5 h | K2 收口门控 `check-linux-k2`（4 条口径 + 复用顺序/退出码断言；入 L2） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-009 | 2026-11-16 15:22 | K2 收口门控 `check-linux-k2`（B/E/T/M/S/X/R 七组 104 项；入 L2；ISS-457 两条断言） |
 | m14-infra-004 | 2026-11-16 10:24 | 测试机改名 `Machine-v5`→`Kaiwu` + QEMU 串 `kaiwu-tiny/vast`（547 文件；spec 锁重算；旧名失效） |
 | m14-linux-008 | 2026-11-16 08:25 | K2 中断使能与屏蔽（`irqflags` 按当前 cfx 两行旋钮、`time.c` 临界区；k2_irq 95/95、k2_time 151/151） |
 | m14-linux-007 | 2026-11-16 06:35 | K2 时钟与定时器（`hmon` 放行 `cfx_hart`/`cfx_time` + `time.c`/`irq.c`/`async_trap.S`；HZ 现场派生、margin=period/2；time 探针 149/149） |
