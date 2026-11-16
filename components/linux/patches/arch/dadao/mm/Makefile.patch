@@ -1,8 +1,10 @@
 diff --git a/arch/dadao/mm/Makefile b/arch/dadao/mm/Makefile
 new file mode 100644
-index 000000000..3ddf27ffb
+index 000000000..cab81d99c
 --- /dev/null
 +++ b/arch/dadao/mm/Makefile
-@@ -0,0 +1,2 @@
+@@ -0,0 +1,4 @@
 +# SPDX-License-Identifier: GPL-2.0
-+obj-y += init.o k1_pt.o
++obj-y += init.o k1_pt.o mmu.o
++# K3 page-table/TLB self-test: probe image only.
++obj-$(CONFIG_DADAO_K3_PT_SELFTEST) += k3_pt_selftest.o

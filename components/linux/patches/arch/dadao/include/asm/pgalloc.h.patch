@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/pgalloc.h b/arch/dadao/include/asm/pgalloc.h
 new file mode 100644
-index 000000000..69a4de439
+index 000000000..f61aad95e
 --- /dev/null
 +++ b/arch/dadao/include/asm/pgalloc.h
-@@ -0,0 +1,37 @@
+@@ -0,0 +1,58 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PGALLOC_H
 +#define __ASM_PGALLOC_H
@@ -25,16 +25,37 @@ index 000000000..69a4de439
 +	return __pgd_alloc(mm, 0);
 +}
 +
++/*
++ * The L1 entry that points at an L2 table (spec/DADAO-12 §2.2.3):
++ *
++ *   P = 1, SP = 0, PPN = PA[55:16]
++ *
++ * `table` is the *kernel virtual* address the kernel uses to fill the table;
++ * the hardware walks physical addresses, so the entry must carry `__pa(table)`.
++ * Writing the virtual address instead is off by PAGE_OFFSET (2 TiB) and points
++ * the walker at memory that does not exist — the reason this helper exists as
++ * the single place the conversion happens.
++ *
++ * Non-leaf entries use only P and SP: G and SPF are meaningless there and
++ * software writes 0 (contract-tlb TLB-27, §2.2.3).  S is set like on the leaf
++ * mappings (the kernel runs in supv); the walker does not check HSJU on a
++ * non-leaf entry, so this is documentation rather than a permission.
++ */
++static inline unsigned long __dadao_l1_entry(void *table)
++{
++	return __pa(table) | _PAGE_PRESENT | _PAGE_S;
++}
++
 +static inline void pmd_populate(struct mm_struct *mm, pmd_t *pmd,
 +				pgtable_t pte)
 +{
-+	set_pmd(pmd, __pmd((unsigned long)page_to_virt(pte) | _PAGE_PRESENT));
++	set_pmd(pmd, __pmd(__dadao_l1_entry(page_to_virt(pte))));
 +}
 +
 +static inline void pmd_populate_kernel(struct mm_struct *mm, pmd_t *pmd,
 +				       pte_t *pte)
 +{
-+	set_pmd(pmd, __pmd((unsigned long)pte | _PAGE_PRESENT));
++	set_pmd(pmd, __pmd(__dadao_l1_entry(pte)));
 +}
 +
 +#define __pte_free_tlb(tlb, pte, addr)	pte_free((tlb)->mm, (pte))

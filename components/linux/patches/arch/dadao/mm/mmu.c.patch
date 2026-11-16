@@ -1,0 +1,76 @@
+diff --git a/arch/dadao/mm/mmu.c b/arch/dadao/mm/mmu.c
+new file mode 100644
+index 000000000..8e9db370e
+--- /dev/null
++++ b/arch/dadao/mm/mmu.c
+@@ -0,0 +1,70 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DADAO MMU context (K3, m14-linux-011): ASID allocation.
++ *
++ * A G = 0 mapping is only reachable when `cfx_ptw_tlb_asid` equals the ASID the
++ * entry was filled with (spec/DADAO-12 §4.5, contract-tlb TLB-05/TLB-26).  The
++ * kernel runs as ASID 0 with G = 1 mappings, so a user address space gets an
++ * ASID from 1 upwards; 0 is never handed out.
++ *
++ * Allocation is a monotonic counter with wraparound — the simplest scheme that
++ * gives distinct address spaces distinct ASIDs for as long as the 16-bit space
++ * lasts.  Exhaustion is not a failure here: a single hart (contract-tlb TLB-38)
++ * can simply drop every entry before ASID 1 is reused, which is exactly what
++ * the wrap path does.  A bitmap/free-list would only postpone that, at the cost
++ * of state that has to be kept right across mm lifetimes.
++ *
++ * `destroy_context()` is the "return" side: the hardware has no per-mm state to
++ * free (the ASID register belongs to the hart), so the mm's ASID is dropped and
++ * the monotonic counter is left alone.
++ */
++#include <linux/kernel.h>
++#include <linux/mm.h>
++#include <linux/sched.h>
++
++#include <asm/mmu_context.h>
++#include <asm/page.h>
++#include <asm/ptw.h>
++#include <asm/tlbflush.h>
++
++/* The next ASID to hand out; 0 keeps the kernel's identity out of circulation. */
++static unsigned long dadao_asid_next = DADAO_ASID_KERNEL + 1;
++
++unsigned long dadao_asid_alloc(void)
++{
++	unsigned long asid = dadao_asid_next;
++
++	if (asid == DADAO_ASID_KERNEL || asid > DADAO_ASID_MASK)
++		asid = DADAO_ASID_KERNEL + 1;
++
++	dadao_asid_next = asid + 1;
++	if (dadao_asid_next > DADAO_ASID_MASK) {
++		/*
++		 * The ASID space is exhausted: the next allocation reuses ASID
++		 * 1, whose stale TLB entries would otherwise alias the new
++		 * address space.  One hart, no shootdown (TLB-38): dropping all
++		 * entries is enough and is what the wrap costs.
++		 */
++		dadao_tlb_invalidate_all();
++		dadao_asid_next = DADAO_ASID_KERNEL + 1;
++	}
++
++	return asid;
++}
++
++int init_new_context(struct task_struct *tsk, struct mm_struct *mm)
++{
++	mm->context.asid = dadao_asid_alloc();
++	return 0;
++}
++
++void destroy_context(struct mm_struct *mm)
++{
++	/*
++	 * Nothing to free on the hardware side; drop the software identity and
++	 * leave the counter alone (the ASID may still be referenced by a
++	 * finished-but-not-yet-reaped context, and reusing the number early is
++	 * what the monotonic scheme avoids).
++	 */
++	mm->context.asid = DADAO_ASID_KERNEL;
++}

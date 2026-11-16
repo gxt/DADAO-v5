@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..8842d63e9
+index 000000000..76003df4a
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,109 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -67,6 +67,13 @@ index 000000000..8842d63e9
 +void dadao_k2_boundary(void);
 +/* K2 self-test scaffolding (kernel/k2_selftest.c, probe images only). */
 +void dadao_k2_selftest(void);
++
++/*
++ * K3 page-table / TLB self-test (mm/k3_pt_selftest.c, probe images only,
++ * CONFIG_DADAO_K3_PT_SELFTEST): builds an L2 table with the primitives, runs
++ * the TLB command matrix and ends the boot from the end of setup_arch().
++ */
++void __noreturn dadao_k3_pt_selftest(void);
 +
 +/* Early console: semihosting SYS_WRITE0 / SYS_EXIT (contract-semihosting). */
 +void dadao_early_write(const char *s);

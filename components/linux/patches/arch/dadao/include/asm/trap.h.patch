@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/trap.h b/arch/dadao/include/asm/trap.h
 new file mode 100644
-index 000000000..3a1243ccb
+index 000000000..dfc3512b6
 --- /dev/null
 +++ b/arch/dadao/include/asm/trap.h
-@@ -0,0 +1,92 @@
+@@ -0,0 +1,115 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception entry: the contract between the assembly
@@ -29,6 +29,29 @@ index 000000000..3a1243ccb
 + * point; the numbering lives in kernel/traps.c).
 + */
 +#define DADAO_TRAP_BAD_POLICY	0x0d
++
++/*
++ * Cause ids (spec/DADAO-13 §2, contract-see §6.1): one bit each.  A hardware
++ * `excp_cause_id` is a *class* in `[15:0]` plus sub-reason wyde(s) above it
++ * (ADR-0056: `[47:32]` = CFXPERM sub-reason, `[63:48]` = CFXMEM sub-reason),
++ * so every name lookup and every exit-code decision works on
++ * `cause & DADAO_CAUSE_MASK` and only the sub-reason decoder looks at the rest
++ * (m14-linux-012).
++ */
++#define DADAO_CAUSE_CFXTRAP	(1UL << 0)
++#define DADAO_CAUSE_CFXMEM	(1UL << 1)
++#define DADAO_CAUSE_CFXREG	(1UL << 2)
++#define DADAO_CAUSE_CFXESC	(1UL << 3)
++#define DADAO_CAUSE_CFXPERM	(1UL << 7)
++#define DADAO_CAUSE_ILLI	(1UL << 8)
++#define DADAO_CAUSE_UNDI	(1UL << 9)
++#define DADAO_CAUSE_RASOF	(1UL << 10)
++#define DADAO_CAUSE_RASUF	(1UL << 11)
++#define DADAO_CAUSE_MALIGN	(1UL << 12)
++#define DADAO_CAUSE_IALIGN	(1UL << 13)
++
++#define DADAO_CAUSE_MASK	0xffffUL
++#define DADAO_CAUSE_CLASS(id)	((id) & DADAO_CAUSE_MASK)
 +
 +#ifndef __ASSEMBLY__
 +

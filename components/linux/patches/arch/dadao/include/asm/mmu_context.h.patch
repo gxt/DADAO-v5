@@ -1,22 +1,53 @@
 diff --git a/arch/dadao/include/asm/mmu_context.h b/arch/dadao/include/asm/mmu_context.h
 new file mode 100644
-index 000000000..e18450aa3
+index 000000000..5e33c6810
 --- /dev/null
 +++ b/arch/dadao/include/asm/mmu_context.h
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,55 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_MMU_CONTEXT_H
 +#define __ASM_MMU_CONTEXT_H
 +
 +#include <linux/mm_types.h>
++
 +#include <asm/page.h>
 +#include <asm/pgtable.h>
++#include <asm/ptw.h>
++#include <asm/tlbflush.h>
 +
++struct task_struct;
++
++/*
++ * switch_mm() is the *interface* only in K3 (m14-linux-011 §3): a real address
++ * space switch is the four-step sequence of contract-tlb TLB-30 —
++ *
++ *   ① write the new ASID (and/or PTBR)
++ *   ② *explicitly* invalidate the TLB  (nothing in ① invalidates: TLB-29)
++ *   ③ set ptw_enable = 1
++ *   ④ save/restore the cfx cg6 scratch registers
++ *
++ * — and arrives with the user-mode cfx hand-off (K4).  Until then no code may
++ * assume that a context switch made a new address space visible; the only
++ * kernel mappings K3 has are G = 1 and live in the single kernel table.
++ */
 +static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 +			     struct task_struct *tsk)
 +{
-+	/* K0: the PTBR switch lands with the smon hand-off (K1). */
 +}
++
++/*
++ * ASID allocation (mm/mmu.c): one monotonic counter over 1..DADAO_ASID_MASK
++ * (0 is the kernel's).  It wraps, and a wrap invalidates the whole TLB before
++ * ASID 1 is handed out again — single hart (contract-tlb TLB-38), so no
++ * cross-hart shootdown is involved.
++ */
++unsigned long dadao_asid_alloc(void);
++
++extern int init_new_context(struct task_struct *tsk, struct mm_struct *mm);
++extern void destroy_context(struct mm_struct *mm);
++/* Tell asm-generic/mmu_context.h not to install its no-op versions. */
++#define init_new_context	init_new_context
++#define destroy_context	destroy_context
 +
 +static inline void activate_mm(struct mm_struct *prev, struct mm_struct *next)
 +{

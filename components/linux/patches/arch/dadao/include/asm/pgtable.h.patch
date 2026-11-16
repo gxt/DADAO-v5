@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/pgtable.h b/arch/dadao/include/asm/pgtable.h
 new file mode 100644
-index 000000000..97c9548de
+index 000000000..91b80efb1
 --- /dev/null
 +++ b/arch/dadao/include/asm/pgtable.h
-@@ -0,0 +1,251 @@
+@@ -0,0 +1,285 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PGTABLE_H
 +#define __ASM_PGTABLE_H
@@ -12,13 +12,27 @@ index 000000000..97c9548de
 +#include <asm-generic/pgtable-nopmd.h>
 +
 +/*
++ * spec/DADAO-12 §2.2.2: the page offset is VA[15:0], i.e. 64 KiB pages.  The
++ * value comes from CONFIG_PAGE_SHIFT (selected by CONFIG_PAGE_SIZE_64KB in
++ * arch/dadao/Kconfig) and the whole geometry below is derived from it, so a
++ * build with another page size is refused here instead of producing a table
++ * the walker reads with different bit positions.
++ */
++#if PAGE_SHIFT != 16
++#error "dadao: PAGE_SHIFT must be 16 (64 KiB pages, spec/DADAO-12 §2.2.2)"
++#endif
++
++/*
 + * Two-level page tables, 64 KiB pages (spec/DADAO-12 §2.2.2):
 + *   VA[41:29] -> L1 index (8192 entries, one 64 KiB table)
 + *   VA[28:16] -> L2 index (8192 entries, one 64 KiB table)
 + *   VA[15:0]  -> page offset
 + * pmd/pud/p4d are folded (asm-generic/pgtable-nopmd.h).
++ *
++ * Both levels have 8-byte entries, so one 64 KiB page holds 2^13 of them and
++ * the L1 index starts 13 bits above the page offset.
 + */
-+#define PGDIR_SHIFT		29
++#define PGDIR_SHIFT		(PAGE_SHIFT + 13)
 +#define PTRS_PER_PGD		(1 << 13)
 +#define PGDIR_SIZE		(_AC(1, UL) << PGDIR_SHIFT)
 +#define PGDIR_MASK		(~(PGDIR_SIZE - 1))
@@ -61,6 +75,18 @@ index 000000000..97c9548de
 +	pr_err("%s:%d: bad pte %016lx\n", __FILE__, __LINE__, pte_val(e))
 +
 +#define pgd_index(address)	(((address) >> PGDIR_SHIFT) & (PTRS_PER_PGD - 1))
++
++/*
++ * The rest of the index helpers are the generic ones (include/linux/pgtable.h):
++ * `pgd_offset()`/`pgd_offset_k()` use pgd_index() above, `pmd_off()`/`pmd_off_k()`
++ * follow the folded levels, and `pte_offset_kernel()` turns an L1 entry into
++ * the L2 table's kernel address through pmd_page_vaddr() below.
++ *
++ * `pgd_none()`/`pgd_clear()` are the folded-p4d stubs of
++ * asm-generic/pgtable-nop4d.h (always "not empty" / no-op); nothing on this
++ * two-level table uses them — the L1 entry's presence is `pmd_none()` or
++ * `pgd_val(entry) & _PAGE_PRESENT`.
++ */
 +
 +/* Kernel mappings: supervisor mode, readable/writable/executable, all
 + * fragments resident. */
@@ -202,14 +228,17 @@ index 000000000..97c9548de
 +
 +static inline int pmd_leaf(pmd_t pmd)
 +{
-+	/* K0 never installs 512 MiB superpages in a kernel-owned table. */
-+	return 0;
++	/* An L1 entry with SP = 1 maps a 512 MiB superpage (§2.2.3); K1 installs
++	 * the kernel window that way, so this is not hypothetical. */
++	return !!(pgd_val(pmd.pud.p4d.pgd) & _PAGE_SUPER);
 +}
 +
 +static inline unsigned long pmd_page_vaddr(pmd_t pmd)
 +{
-+	return (unsigned long)__va((pgd_val(pmd.pud.p4d.pgd) & _PAGE_PFN_MASK) >>
-+				   _PAGE_PFN_SHIFT);
++	/* PPN[55:16] already *is* the table's PA[55:16] (the field starts at
++	 * PAGE_SHIFT), so the kernel address is __va() of the field itself — no
++	 * shift.  Shifting here would divide the PA by 64 KiB. */
++	return (unsigned long)__va(pgd_val(pmd.pud.p4d.pgd) & _PAGE_PFN_MASK);
 +}
 +
 +/* Macro: pfn_to_page() is not resolvable while mm_types.h is loading. */
@@ -241,7 +270,12 @@ index 000000000..97c9548de
 +#define pte_clear	pte_clear
 +#define pte_page(pte)		pfn_to_page(pte_pfn(pte))
 +
-+/* No cache/TLB maintenance hook exists yet (K3 adds the cfx_tlb calls). */
++/*
++ * The walker owns the TLB: it fills entries on a miss and maintains A/D itself
++ * (spec/DADAO-12 §4.5), so there is no software TLB to prime here.  What the
++ * kernel does have to do is invalidate after changing a mapping — asm/tlbflush.h
++ * carries those commands (contract-tlb §5/§7).
++ */
 +#define update_mmu_cache_range(vmf, vma, addr, ptep, nr)	do { } while (0)
 +#define update_mmu_cache(vma, addr, ptep)			do { } while (0)
 +

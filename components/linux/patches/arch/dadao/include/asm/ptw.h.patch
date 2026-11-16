@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/ptw.h b/arch/dadao/include/asm/ptw.h
 new file mode 100644
-index 000000000..7fc6d2cd9
+index 000000000..42aa68d96
 --- /dev/null
 +++ b/arch/dadao/include/asm/ptw.h
-@@ -0,0 +1,104 @@
+@@ -0,0 +1,227 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO page table walker interface (spec/DADAO-12 §2.2, §4.5).
@@ -16,6 +16,7 @@ index 000000000..7fc6d2cd9
 +#ifndef __ASM_PTW_H
 +#define __ASM_PTW_H
 +
++#include <linux/compiler.h>
 +#include <linux/const.h>
 +#include <linux/types.h>
 +
@@ -43,6 +44,9 @@ index 000000000..7fc6d2cd9
 +#define PTW_RC_PTBR		0
 +#define PTW_CG_TLB		12
 +#define PTW_RC_TLB_CONTROL	0
++#define PTW_RC_TLB_ASID		1
++#define PTW_RC_TLB_ADDR_START	2
++#define PTW_RC_TLB_ADDR_SIZE	3
 +
 +/* cfx_* identity register (cg4 rc0, read-only): cfx_id == cfxha (§3.5). */
 +#define CFX_CG_ID		4
@@ -75,20 +79,139 @@ index 000000000..7fc6d2cd9
 +}
 +
 +/*
-+ * TLB maintenance (§4.5): `invalid` over range `all` with `ASID_ANY` — drop
-+ * every entry, including the global ones, without writing A/D back.
++ * TLB address space id (cg12 rc1, §4.5): 16 bits, every value usable, `[63:16]`
++ * reads 0.  The TLB matches a G = 0 entry's ASID against this register; G = 1
++ * entries are global and cross ASIDs (contract-tlb TLB-05/TLB-26).
 + *
-+ * The write value is `[1:0] = 10` (invalid) | `[3:2] = 00` (all) | `bit4 =
-+ * ASID_ANY` (§4.5): `ASID_ANY = 0` only handles `G = 0` entries whose ASID
-+ * matches and leaves `G = 1` entries alone, while `ASID_ANY = 1` includes
-+ * them.  Every kernel mapping carries `G = 1` (`_PAGE_KERNEL` in
-+ * `asm/pgtable.h`), so `0x2` would leave exactly the mappings this switch
-+ * replaces.  Writing PTBR does *not* invalidate the TLB (§2.2.5), hence the
-+ * explicit command.
++ * Writing it does *not* invalidate anything (contract-tlb TLB-29), which is the
++ * whole reason `switch_mm` has to issue an explicit command afterwards
++ * (contract-tlb TLB-30).  ASID 0 is the kernel's (it is also the reset value);
++ * user address spaces take 1..DADAO_ASID_MASK from `dadao_asid_alloc()`
++ * (asm/mmu_context.h).
++ */
++#define DADAO_ASID_BITS		16
++#define DADAO_ASID_MASK		((1UL << DADAO_ASID_BITS) - 1)
++#define DADAO_ASID_KERNEL	0UL
++
++static inline unsigned long dadao_asid_read(void)
++{
++	return DADAO_CFX_READ(cfx_ptw, PTW_CG_TLB, PTW_RC_TLB_ASID) &
++	       DADAO_ASID_MASK;
++}
++
++static inline void dadao_asid_write(unsigned long asid)
++{
++	DADAO_CFX_WRITE(cfx_ptw, PTW_CG_TLB, PTW_RC_TLB_ASID,
++			asid & DADAO_ASID_MASK);
++}
++
++/*
++ * Operands of the invalidation command (cg12 rc2/rc3, §4.5): the start VA
++ * (`VA[41:0]`) and the *byte count* of the range.  Only the `VA` (start) and
++ * `range` (start + size) address scopes look at them; `all` ignores both
++ * (contract-tlb TLB-23).
++ */
++#define DADAO_TLB_ADDR_MASK	0x000003ffffffffffUL	/* VA[41:0] */
++
++static inline unsigned long dadao_tlb_addr_start_read(void)
++{
++	return DADAO_CFX_READ(cfx_ptw, PTW_CG_TLB, PTW_RC_TLB_ADDR_START) &
++	       DADAO_TLB_ADDR_MASK;
++}
++
++static inline void dadao_tlb_addr_start_write(unsigned long va)
++{
++	DADAO_CFX_WRITE(cfx_ptw, PTW_CG_TLB, PTW_RC_TLB_ADDR_START,
++			va & DADAO_TLB_ADDR_MASK);
++}
++
++static inline unsigned long dadao_tlb_addr_size_read(void)
++{
++	return DADAO_CFX_READ(cfx_ptw, PTW_CG_TLB, PTW_RC_TLB_ADDR_SIZE) &
++	       DADAO_TLB_ADDR_MASK;
++}
++
++static inline void dadao_tlb_addr_size_write(unsigned long bytes)
++{
++	DADAO_CFX_WRITE(cfx_ptw, PTW_CG_TLB, PTW_RC_TLB_ADDR_SIZE,
++			bytes & DADAO_TLB_ADDR_MASK);
++}
++
++/*
++ * `cfx_ptw_tlb_control` (cg12 rc0, WO, §4.5): three orthogonal dimensions —
++ *
++ *   [1:0] op         00 none / 01 clean / 10 invalid / 11 flush
++ *   [3:2] scope      00 all / 01 Va (contains tlb_addr_start) / 10 range
++ *                    ([start, start+size) intersects) / 11 reserved
++ *   [4]   ASID_ANY   1 = every entry (including G = 1) / 0 = only G = 0
++ *                    entries whose ASID equals cfx_ptw_tlb_asid
++ *
++ * The write executes synchronously (no busy/done, contract-tlb TLB-37), so the
++ * next memory access already sees the effect.  Op and scope are independent:
++ * `none` is an unconditional no-op and does not even look at the operands
++ * (contract-tlb TLB-22), while the other three reject scope = 11 and
++ * `range` with size = 0 as CFXREG (contract-tlb TLB-24).
++ */
++enum dadao_tlb_op {
++	DADAO_TLB_NONE		= 0,
++	DADAO_TLB_CLEAN		= 1,
++	DADAO_TLB_INVALID	= 2,
++	DADAO_TLB_FLUSH		= 3,
++};
++
++enum dadao_tlb_scope {
++	DADAO_TLB_SCOPE_ALL	= 0,
++	DADAO_TLB_SCOPE_VA	= 1,
++	DADAO_TLB_SCOPE_RANGE	= 2,
++};
++
++#define DADAO_TLB_CTRL_OP_SHIFT		0
++#define DADAO_TLB_CTRL_SCOPE_SHIFT	2
++#define DADAO_TLB_CTRL_ASID_ANY_SHIFT	4
++#define DADAO_TLB_CTRL_OP_MASK		0x3UL
++#define DADAO_TLB_CTRL_SCOPE_MASK	0x3UL
++
++/* The value a (op, scope, asid_any) triple writes; the single place the
++ * encoding lives (§4.5).  Exposed so a test can state the expected value
++ * instead of re-spelling the shifts. */
++static inline unsigned long dadao_tlb_control_value(unsigned int op,
++						    unsigned int scope,
++						    bool asid_any)
++{
++	return ((op & DADAO_TLB_CTRL_OP_MASK) << DADAO_TLB_CTRL_OP_SHIFT) |
++	       ((scope & DADAO_TLB_CTRL_SCOPE_MASK)
++		<< DADAO_TLB_CTRL_SCOPE_SHIFT) |
++	       (asid_any ? (1UL << DADAO_TLB_CTRL_ASID_ANY_SHIFT) : 0UL);
++}
++
++static inline void dadao_tlb_control(unsigned int op, unsigned int scope,
++				     bool asid_any)
++{
++	/*
++	 * Compiler barriers around the command: the hardware executes it on the
++	 * write (contract-tlb TLB-37), so a PTE store before it must not be sunk
++	 * below it and a load after it must not be hoisted above it — and the
++	 * cfx write macro carries no memory clobber of its own.
++	 */
++	barrier();
++	DADAO_CFX_WRITE(cfx_ptw, PTW_CG_TLB, PTW_RC_TLB_CONTROL,
++			dadao_tlb_control_value(op, scope, asid_any));
++	barrier();
++}
++
++/*
++ * Drop every entry, including the global ones, without writing A/D back:
++ * `invalid` over scope `all` with `ASID_ANY = 1`.
++ *
++ * ASID_ANY matters here: `ASID_ANY = 0` only handles `G = 0` entries whose ASID
++ * matches and leaves `G = 1` entries alone (contract-tlb TLB-26), while every
++ * kernel mapping carries `G = 1` (`_PAGE_KERNEL` in `asm/pgtable.h`).  Writing
++ * PTBR does *not* invalidate the TLB (contract-tlb TLB-29), hence the explicit
++ * command after the switch.
 + */
 +static inline void dadao_tlb_invalidate_all(void)
 +{
-+	DADAO_CFX_WRITE(cfx_ptw, PTW_CG_TLB, PTW_RC_TLB_CONTROL, 0x12);
++	dadao_tlb_control(DADAO_TLB_INVALID, DADAO_TLB_SCOPE_ALL, true);
 +}
 +
 +/* Build + verify + install the kernel's own table (K1). */

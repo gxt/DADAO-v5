@@ -66,4 +66,6 @@ arch/dadao/lib/delay.c.patch
 arch/dadao/mm/Makefile.patch
 arch/dadao/mm/init.c.patch
 arch/dadao/mm/k1_pt.c.patch
+arch/dadao/mm/k3_pt_selftest.c.patch
+arch/dadao/mm/mmu.c.patch
 init/main.c.patch

@@ -1,37 +1,187 @@
 diff --git a/arch/dadao/include/asm/tlbflush.h b/arch/dadao/include/asm/tlbflush.h
 new file mode 100644
-index 000000000..0fb22be57
+index 000000000..040f89b90
 --- /dev/null
 +++ b/arch/dadao/include/asm/tlbflush.h
-@@ -0,0 +1,31 @@
+@@ -0,0 +1,181 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_TLBFLUSH_H
 +#define __ASM_TLBFLUSH_H
 +
 +#include <linux/mm_types.h>
 +
++#include <asm/page.h>
++#include <asm/ptw.h>
++
 +/*
-+ * K0 has a prebuilt page table and never changes it, so the TLB does not
-+ * need maintenance yet.  K3 adds the cfx_tlb CLEAN/FLUSH/INVALID calls.
++ * TLB maintenance on cfx_ptw (spec/DADAO-12 §4.5; contract-tlb §5/§6/§7).
++ *
++ * Every function here is a thin mapping onto `dadao_tlb_control(op, scope,
++ * asid_any)` — the three dimensions are orthogonal and none of them is implied
++ * by a register write: writing PTBR, writing the ASID and setting
++ * `ptw_enable = 1` all leave the TLB untouched (contract-tlb TLB-29).  The
++ * `switch_mm` sequence of K4 therefore has to be "write ASID/PTBR → *explicit*
++ * invalidate → enable" (contract-tlb TLB-30).
++ *
++ * ASID dimension (contract-tlb TLB-25/TLB-26):
++ *   - kernel addresses (>= PAGE_OFFSET) are mapped with G = 1, so they can only
++ *     be reached with ASID_ANY = 1;
++ *   - a user mm's G = 0 entries are matched against `mm->context.asid` with
++ *     ASID_ANY = 0, which by construction does not touch the G = 1 kernel
++ *     entries.  Selecting that ASID means writing `cfx_ptw_tlb_asid` for the
++ *     duration of the command and restoring it afterwards: a write to the ASID
++ *     register does not invalidate anything, so the restore is not observable
++ *     in the TLB.
++ *
++ * Single hart (contract-tlb TLB-38, ISS-459): the non-`local_` names run the
++ * same code as the `local_` ones.  There is no IPI/shootdown face yet; when
++ * multi-hart arrives the `smp_*`/`flush_*` spelling is already the right
++ * boundary to extend.
++ *
++ * The hardware is not software-managed (the walker fills the TLB itself), so
++ * there is no `update_mmu_cache` work: see asm/pgtable.h.
 + */
-+static inline void local_flush_tlb_all(void)		{ }
-+static inline void local_flush_tlb_mm(struct mm_struct *mm) { }
++
++/*
++ * Issue one command.  @scope decides whether @start/@size are used at all
++ * (contract-tlb TLB-23: `all` ignores both), and a `range` command needs a
++ * non-zero @size or the hardware raises CFXREG (TLB-24) — callers with an
++ * empty range return before getting here.
++ *
++ * A NULL @vma (or kernel address) never reaches the `vma->vm_mm` walk below:
++ * a kernel address is always handled with ASID_ANY = 1.
++ *
++ * The ASID write and its restore bracket the command, so an interrupt taken
++ * inside the window would run with the *other* mm's ASID.  That is harmless
++ * while the only run mode is supv and the kernel's own mappings are G = 1
++ * (a G = 1 entry matches every ASID); K4, which introduces G = 0 user
++ * mappings, has to decide whether the window needs IRQs off.
++ */
++static inline void __dadao_tlb_flush(unsigned int op, unsigned int scope,
++				     unsigned long start, unsigned long size,
++				     unsigned long asid, bool asid_any)
++{
++	if (scope != DADAO_TLB_SCOPE_ALL) {
++		dadao_tlb_addr_start_write(start);
++		if (scope == DADAO_TLB_SCOPE_RANGE)
++			dadao_tlb_addr_size_write(size);
++	}
++
++	if (asid_any) {
++		dadao_tlb_control(op, scope, true);
++		return;
++	}
++
++	{
++		unsigned long saved = dadao_asid_read();
++
++		dadao_asid_write(asid);
++		dadao_tlb_control(op, scope, false);
++		/* Restoring the ASID is not an invalidation (TLB-29). */
++		dadao_asid_write(saved);
++	}
++}
++
++/* True for an address the kernel maps with G = 1 (contract-tlb TLB-26). */
++static inline bool dadao_addr_is_kernel(unsigned long addr)
++{
++	return addr >= PAGE_OFFSET;
++}
++
++static inline void local_flush_tlb_all(void)
++{
++	__dadao_tlb_flush(DADAO_TLB_INVALID, DADAO_TLB_SCOPE_ALL, 0, 0, 0, true);
++}
++
++static inline void local_flush_tlb_mm(struct mm_struct *mm)
++{
++	/*
++	 * The kernel's address space (and a missing mm) has no ASID of its own:
++	 * a full, ASID_ANY invalidation is the only spelling that reaches the
++	 * G = 1 kernel entries.
++	 */
++	if (!mm || mm == &init_mm) {
++		local_flush_tlb_all();
++		return;
++	}
++	__dadao_tlb_flush(DADAO_TLB_INVALID, DADAO_TLB_SCOPE_ALL, 0, 0,
++			  mm->context.asid, false);
++}
++
 +static inline void local_flush_tlb_page(struct vm_area_struct *vma,
-+					unsigned long addr) { }
++					unsigned long addr)
++{
++	if (dadao_addr_is_kernel(addr)) {
++		__dadao_tlb_flush(DADAO_TLB_INVALID, DADAO_TLB_SCOPE_VA, addr, 0,
++				  0, true);
++		return;
++	}
++	__dadao_tlb_flush(DADAO_TLB_INVALID, DADAO_TLB_SCOPE_VA, addr, 0,
++			  vma->vm_mm->context.asid, false);
++}
++
 +static inline void local_flush_tlb_range(struct vm_area_struct *vma,
 +					 unsigned long start,
-+					 unsigned long end) { }
++					 unsigned long end)
++{
++	if (end <= start)	/* `range` with size 0 is CFXREG (TLB-24) */
++		return;
++	if (dadao_addr_is_kernel(start)) {
++		__dadao_tlb_flush(DADAO_TLB_INVALID, DADAO_TLB_SCOPE_RANGE,
++				  start, end - start, 0, true);
++		return;
++	}
++	__dadao_tlb_flush(DADAO_TLB_INVALID, DADAO_TLB_SCOPE_RANGE, start,
++			  end - start, vma->vm_mm->context.asid, false);
++}
++
 +static inline void local_flush_tlb_kernel_range(unsigned long start,
-+						unsigned long end) { }
-+static inline void flush_tlb_all(void)			{ }
-+static inline void flush_tlb_mm(struct mm_struct *mm)	{ }
++						unsigned long end)
++{
++	if (end <= start)
++		return;
++	__dadao_tlb_flush(DADAO_TLB_INVALID, DADAO_TLB_SCOPE_RANGE, start,
++			  end - start, 0, true);
++}
++
++/*
++ * Single hart (contract-tlb TLB-38): the "all harts" names are the same
++ * commands.  They stay separate spellings because the call sites mean different
++ * things, and because the multi-hart extension point is exactly here.
++ */
++static inline void flush_tlb_all(void)
++{
++	local_flush_tlb_all();
++}
++
++static inline void flush_tlb_mm(struct mm_struct *mm)
++{
++	local_flush_tlb_mm(mm);
++}
++
 +static inline void flush_tlb_page(struct vm_area_struct *vma,
-+				  unsigned long addr)	{ }
++				  unsigned long addr)
++{
++	local_flush_tlb_page(vma, addr);
++}
++
 +static inline void flush_tlb_range(struct vm_area_struct *vma,
-+				   unsigned long start,
-+				   unsigned long end)	{ }
++				   unsigned long start, unsigned long end)
++{
++	local_flush_tlb_range(vma, start, end);
++}
++
 +static inline void flush_tlb_kernel_range(unsigned long start,
-+					  unsigned long end) { }
++					  unsigned long end)
++{
++	local_flush_tlb_kernel_range(start, end);
++}
++
++/*
++ * Freeing a page-table page: the TLB holds entries, not table pointers, so
++ * there is nothing extra to drop here — the range's entries were invalidated
++ * when the leaf mappings went away.
++ */
 +#define flush_tlb_pgtables(mm, start, end)	do { } while (0)
 +
-+#endif
++#endif /* __ASM_TLBFLUSH_H */

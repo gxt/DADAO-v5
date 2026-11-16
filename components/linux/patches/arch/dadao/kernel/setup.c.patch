@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..75f5ce45c
+index 000000000..12d83bb50
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,322 @@
+@@ -0,0 +1,328 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -216,6 +216,12 @@ index 000000000..75f5ce45c
 +	dadao_early_printf("K2 setup_arch: memblock_add ram=%#lx size=%#lx cmdline=%#lx\n",
 +			   dadao_ram_base, dadao_ram_size,
 +			   (unsigned long)*cmdline_p);
++
++#ifdef CONFIG_DADAO_K3_PT_SELFTEST
++	/* K3 page-table/TLB self-test: builds an L2 table through the primitives,
++	 * runs the TLB command matrix and ends the boot (probe image only). */
++	dadao_k3_pt_selftest();
++#endif
 +
 +#ifdef CONFIG_DADAO_K2_EARLY_STOP
 +	dadao_k2_boundary();
