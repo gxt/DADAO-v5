@@ -25,8 +25,6 @@
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
 | m14-qemu-005 | 4–6 h | QEMU TLB 对齐（fill/三操作/三档范围/ASID_ANY·G/回写失败不删）+ 页表异常子原因 |
-| m14-testcases-005 | 5–6 h | `tests/arch` TLB 探针 13 条（8 基础 + ⑨a/⑨b/⑩/⑪/⑫）+ `min_rom_probe_tlb` 驱动 |
-| m14-linux-011 | 4–5 h | 内核页表原语与 TLB 维护（`tlb_control` 封装/ASID/`flush_tlb_*`；修 `pmd_populate` VA→PA） |
 | m14-linux-012 | 6–8 h | page fault 与按需分页（子原因解码 + 匿名/零页 + `brk` 扩展） |
 | m14-linux-013 | 4–5 h | COW 复制页（写只读 ⇒ `CFXPERM`+`NWPERM` ⇒ 复制/改 PTE/`invalid`+VA） |
 | m14-linux-014 | 3–4 h | 用户栈增长（`VM_GROWSDOWN` + `RLIMIT_STACK`/guard gap 边界） |
@@ -39,6 +37,8 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-testcases-005 | 2026-11-16 16:59 | 5–6 h | `tests/arch/ptw` TLB 探针 13 条 + `min_rom_probe_tlb` 驱动 + 子原因断言 |
+| m14-linux-011 | 2026-11-16 16:59 | 4–5 h | 内核页表原语与 TLB 维护（`tlb_control` 封装/ASID/`flush_tlb_*`；修 `pmd_populate` VA→PA） |
 
 ## 已验证
 
