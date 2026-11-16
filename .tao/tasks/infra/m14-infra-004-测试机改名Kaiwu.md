@@ -98,7 +98,7 @@
 
 ### 第 1 轮 reviewer 验收
 
-**重跑（本机实测，非采信）**：`bash .work/evidence/m14-infra-004/run.sh` → **rc=0，PASS=55/FAIL=0，283 s**；`--inject` → **rc=0，PASS=75/FAIL=0，302 s**（其 4 路均「注入红→md5 还原→回绿」）。门控真数（我这轮日志）：`check-inst-asm` **904/904**（272 id）、`check-lit` **177/177**、K0 **119/119**、K1 **108/108**、k2_trap **85/85**、k2_time **151/151**、k2_irq **95/95**、`check-spec-readonly` 21 册 rc=0、spec-drift/refs/interface/knowledge-*/dirs/archive/patch-tree(414)/qemu-forms/purity/changelog 均 rc=0；`-M kaiwu-tiny` rc=0（控制台 1136 B）、`-M dadao-tiny` rc=1 `unsupported machine type`、`-M help` 仅 `kaiwu-tiny/kaiwu-vast`；qemu md5 `50752f5f…`。
+**重跑（本机实测，非采信）**：`bash <任务证据目录>/run.sh` → **rc=0，PASS=55/FAIL=0，283 s**；`--inject` → **rc=0，PASS=75/FAIL=0，302 s**（其 4 路均「注入红→md5 还原→回绿」）。门控真数（我这轮日志）：`check-inst-asm` **904/904**（272 id）、`check-lit` **177/177**、K0 **119/119**、K1 **108/108**、k2_trap **85/85**、k2_time **151/151**、k2_irq **95/95**、`check-spec-readonly` 21 册 rc=0、spec-drift/refs/interface/knowledge-*/dirs/archive/patch-tree(414)/qemu-forms/purity/changelog 均 rc=0；`-M kaiwu-tiny` rc=0（控制台 1136 B）、`-M dadao-tiny` rc=1 `unsupported machine type`、`-M help` 仅 `kaiwu-tiny/kaiwu-vast`；qemu md5 `50752f5f…`。
 
 **零语义变化（全量机审 + 逐行人审）**：547 文件逐个做「基线内容 + 4 类 token（Machine-v5→Kaiwu / machine-v5→kaiwu / dadao-tiny→kaiwu-tiny / dadao-vast→kaiwu-vast）⇒ 应等于新内容」字节比对：**482/547 完全一致**；其余 **65 文件**差异逐行审毕 = 45 份补丁 `index` 右侧 hash（随内容变，左侧不变）、4 组件 changelog + chipyard README + MEMORY/里程碑/任务书新增记录、锁注记/sha256、spec 附录改名条目、里程碑行 `Kaiwu→Kaiwu` 机械破损修复、`spec/README`「Machine 各册」→「Kaiwu 各册」；**未见任何编码/几何/契约值/空格引号行尾的静默改动**，tests 336 + tools 95 全为纯 token。
 
