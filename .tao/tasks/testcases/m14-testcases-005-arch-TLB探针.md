@@ -60,7 +60,7 @@
 ## 硬约束
 
 1. 独立 `git worktree`（分支 = 任务号）；`git rev-parse --show-toplevel` 自证；禁改主工作树。
-2. **只改**：`tests/arch/**`、`tests/arch.yaml`、`Makefile`（`ARCH_CFX_PROBES` 一行 + 注释一行）、`tools/testcases/arch/min_rom_probe_tlb.py`（**新增**驱动）。**不改**既有 `min_rom_probe_*.py`、`node_probe_prelude.py`、`run_m5_e2e.py`；**不改** `components/**`、`tools/linux/**`、`spec/**`、`.tao/contracts/**`、`tests/arch/umon/*.s`（现有向量）。
+2. **只改**：`tests/arch/**`、`tests/arch.yaml`、`Makefile`（`ARCH_CFX_PROBES` 一行 + 注释一行）、`tools/testcases/arch/min_rom_probe_tlb.py`（**新增**驱动）。**不改**既有 `min_rom_probe_*.py`、`node_probe_prelude.py`、`run_m5_e2e.py`；**不改** `components/**`、`tools/linux/**`、`spec/**`、`.tao/contracts/**`、`tests/arch/ptw/*.s`（现有向量）。
 3. 不提交 git；注入还原 `cp` + md5；权限/模式等 `defsym` 参数用 `DADAO_TEST_PROFILE=vast`。
 4. 期望值**不从 QEMU 输出反推**：探针在 **guest 内**自检（读回 `cfx2rd` 的 `cause_id`/`cause_info`、PTE 内容、标记字），host 只判退出码与清单；`expected.yaml` 的每一项必须写「来源 §」。
 5. 单条探针的执行时间要能进 L3（避免轮询大循环）；不得用 `-d` 逐指令日志。
