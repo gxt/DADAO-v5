@@ -169,17 +169,20 @@ DADAO M1 的汇编语言语法已在 `spec/Toolchain-01-汇编语言.md` v1 中�
 **引用**：`spec/SimRISC-00 §伪指令`、`spec/SimRISC-03 §set.rd/set.rb`、`contract-asm §6`、`ADR-0019`
 
 - **原则**：只保留「**ISA 无法直接表达、需多指令合成**」的伪指令；**1:1 助记符别名一律不保留**；**反汇编只显示真实硬件指令**。
-- **保留（实现，8 条）**：
+- **保留（实现，7 条）**（**2026-11-16 就地修订**：见本节末「修订记」）：
   - `set.rd rd, imm64`（常量 → 最少指令数 `set.zw/ow`+`or.w/andn.w`；符号 → 3 片 + `R_DADAO_ABS48`）、`set.rd rd, rs`（`rb2rd`/`rf2rd`/`ra2rd`/`rd2rd`）；
   - `set.rb rb, imm64`（`set.zw-rb`+`or.w-rb`）、`set.rb rb, rs`（`rd2rb`/`rb2rb`）；
-  - `set.ft rf, imm32`（2 条 `set.w`）/ `set.ft rf, rs`（`rd2rf`/`ft2ft`）；
-  - `set.fo rf, imm64`（4 条 `set.w`）/ `set.fo rf, rs`（`rd2rf`/`fo2fo`）。
+  - `set.rf rf, rs`（`rd2rf`/`rf2rf`，**整 64 位复制**）——寄存器源按**目的 bank** 命名，与 `set.rd`/`set.rb` 同规则；
+  - `set.ft rf, imm32`（2 条 `set.w`，**窄写**：只写低 32、高 32 保持）；
+  - `set.fo rf, imm64`（`rd2rf rf, rd0` + 仅非零 wyde 的 `set.w`；`set.fo rf, 0` ⇒ 1 条）。
 - **删除（不实现，10 条）**：`nop`（用 `swym 0`）、`return`（用 `ret rd0, 0`）、`not.{b,w,t,o}`（用 `xnor.o`/`xnor.X`）、`neg.{b,w,t,o}`（用 `sub.sX`）。
 - **`ret` 语法**：保持 `ret rdha, imms18` 显式；**不加无参形态**。
 - **`set.rb` 细节**：允许 `wp0–wp3`（不限制）；**明确为地址时 ≤48 位**；**不补 `set.ow-rb`**（注明不对称：全 1 需 `set.zw`+3×`or.w` = 4 条，而 `set.rd` 用 `set.ow` 仅 1 条）。
 - **常量 vs 符号**：第二操作数为**可汇编期求值的常量** → 「最少指令数」；为**符号/可重定位** → **固定 3 片 + `R_DADAO_ABS48`**（`ADR-0019` D4/D5）。同段可解析的表达式按可求值处理；跨段/外部按符号处理。
 - **偏离**：本决策删除上游 `SimRISC-0.5.4` 定义的 5 类伪指令 ⇒ **上游偏离**，登记 `MEMORY.md` 偏离台账。
 - **被否方案**：R1 全保留（1:1 别名也实现）→ 否决（手写汇编罕见、清晰优先）；R2 保留 `nop` → 否决（用户 2026-10-06 裁定「不留」）。
+- **修订记（2026-11-16，用户裁定「就地修订ADR-0013」）**：① 原写法把 `set.ft rf, rs` 与 `set.fo rf, rs` 列为两条、展开分别写 `rd2rf`/`ft2ft` 与 `rd2rf`/`fo2fo`——其中 `ft2ft`/`fo2fo` 已于 M13（`m13-spec-010`）删除、两种寄存器源的实际展开**完全相同**（`rd2rf`/`rf2rf`，整 64 位复制）；② 故将两条寄存器源**合并为 `set.rf rf, rs`**（寄存器源无宽度歧义 ⇒ 按目的 bank 命名；立即数源保留 `ft`/`fo` 以承载窄写/整 64 位的可观察差异），保留条数 **8 → 7**；③ 现状正文以 `spec/Toolchain-01 §6.1`（7 条表）与 `spec/SimRISC-00 §5`（7 行表）为准。
+
 
 ## Rationale（理由）
 
