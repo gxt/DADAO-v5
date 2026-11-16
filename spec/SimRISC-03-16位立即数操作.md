@@ -2,7 +2,7 @@
 
 > **版本：0.5.7-rc**（与 SimRISC-00 一致）
 > **分类：16位立即数操作** — set.zw/set.ow/set.w/or.w/andn.w（rwii 格式）
-> **伪指令**：`set.rd`/`set.rb`/`set.ft`/`set.fo` 见 `SimRISC-00 §5`。
+> **伪指令**：`set.rd`/`set.rb`/`set.ft`/`set.fo` 见 `Toolchain-01 §6.2`。
 
 ## 1. 立即数常数赋值：RD 组
 

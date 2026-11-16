@@ -458,7 +458,7 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 | `or.w rdha, wpN, immu16` | `rdha[wyde(wpN)] = rdha[wyde(wpN)] \| immu16`，其余 wyde 不变 | [SimRISC-03 §立即数常数赋值：RD 组] |
 | `andn.w rdha, wpN, immu16` | `rdha[wyde(wpN)] = rdha[wyde(wpN)] & ~immu16`，其余 wyde 不变 | [SimRISC-03 §立即数常数赋值：RD 组] |
 
-- `set.zw`/`set.ow` 会改变所有 64 位，不能连续使用多条来设置不同 wyde；只能使用一条 `set.zw`/`set.ow` 作为第一条，后续用 `or.w`/`andn.w` 逐 wyde 修正。[SimRISC-00 §5.1 set.rd 伪指令]
+- `set.zw`/`set.ow` 会改变所有 64 位，不能连续使用多条来设置不同 wyde；只能使用一条 `set.zw`/`set.ow` 作为第一条，后续用 `or.w`/`andn.w` 逐 wyde 修正。[Toolchain-01 §6.2.1 set.rd 伪指令]
 - 注意：`or.w` 同时是 OPC-wyde 表的三寄存器逻辑 OR 指令（`or.w rdhb, rdhc, rdhd`），汇编器按操作数格式区分。[SimRISC-03 §立即数常数赋值：RD 组]
 
 ### §5.2 RB 立即数设置（rwii 格式）
@@ -471,28 +471,28 @@ RA 寄存器都是 64 位，不需指定数据长度。RA 寄存器模型（ra0�
 | `or.w rbha, wpN, immu16` | `rbha[wyde(wpN)] = rbha[wyde(wpN)] \| immu16`，其余不变 | [SimRISC-03 §立即数常数赋值：RB 组] |
 | `andn.w rbha, wpN, immu16` | `rbha[wyde(wpN)] = rbha[wyde(wpN)] & ~immu16`，其余不变 | [SimRISC-03 §立即数常数赋值：RB 组] |
 
-- RB 无 `set.ow` 变体。[SimRISC-00 §5.2 set.rb 伪指令]
-- `set.zw` 会清零其余所有位，不能连续使用多条；只能一条 `set.zw` 作为第一条，后续用 `or.w`/`andn.w` 逐 wyde 修正。[SimRISC-00 §5.2 set.rb 伪指令]
+- RB 无 `set.ow` 变体。[Toolchain-01 §6.2.2 set.rb 伪指令]
+- `set.zw` 会清零其余所有位，不能连续使用多条；只能一条 `set.zw` 作为第一条，后续用 `or.w`/`andn.w` 逐 wyde 修正。[Toolchain-01 §6.2.2 set.rb 伪指令]
 - RB 立即数设置全 64 位覆盖，bits[63:48] 正常读写，允许 wyde-pos=3。[SimRISC-00 §基址寄存器]
 
 ### §5.4 伪指令（立即数设置）
 
 | 伪指令 | 展开形式 | 说明 | 来源 |
 |--------|----------|------|------|
-| `set.rd rdxx, imm64` | `set.zw`/`set.ow` + `or.w`/`andn.w`（1–4 条） | 加载 64 位立即数到 rd | [SimRISC-00 §5.1 set.rd 伪指令] |
-| `set.rd rdxx, rs` | `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` | 从其他寄存器传值到 rd；M1 支持 `rb`/`rd`/`ra` 源（`rf` 源 Excluded） | [SimRISC-00 §5.1 set.rd 伪指令] |
-| `set.rb rbxx, imm64` | `set.zw-rb` + `or.w-rb` | 加载立即数到 rb | [SimRISC-00 §5.2 set.rb 伪指令] |
-| `set.rb rbxx, rs` | `rd2rb`/`rb2rb` | 从其他寄存器传值到 rb | [SimRISC-00 §5.2 set.rb 伪指令] |
+| `set.rd rdxx, imm64` | `set.zw`/`set.ow` + `or.w`/`andn.w`（1–4 条） | 加载 64 位立即数到 rd | [Toolchain-01 §6.2.1 set.rd 伪指令] |
+| `set.rd rdxx, rs` | `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` | 从其他寄存器传值到 rd；M1 支持 `rb`/`rd`/`ra` 源（`rf` 源 Excluded） | [Toolchain-01 §6.2.1 set.rd 伪指令] |
+| `set.rb rbxx, imm64` | `set.zw-rb` + `or.w-rb` | 加载立即数到 rb | [Toolchain-01 §6.2.2 set.rb 伪指令] |
+| `set.rb rbxx, rs` | `rd2rb`/`rb2rb` | 从其他寄存器传值到 rb | [Toolchain-01 §6.2.2 set.rb 伪指令] |
 
-`set.rd` 展开规则（汇编器应优先选择指令数最少的方案）：[SimRISC-00 §5.1 set.rd 伪指令]
+`set.rd` 展开规则（汇编器应优先选择指令数最少的方案）：[Toolchain-01 §6.2.1 set.rd 伪指令]
 1. 若 64 位全同（全 0 或全 1），1 条 `set.zw`/`set.ow`。
 2. 若连续 wyde 值相同（如高 48 位全 0），填充初始 wyde 后 `or.w` 补充剩余差异。
 3. 一般情况：`set.zw`/`set.ow` 设置一个基数 wyde，其余 wyde 用 `or.w` 设 1、`andn.w` 清 0。
 
-> `set.rd rdxx, rs` 中源为 `rb` 时展开为 `rb2rd`（M1）、源为 `rd` 时展开为 `rd2rd`（M1）、源为 `ra` 时展开为 `ra2rd`（M1，见 §3.3.3）；源为 `rf` 展开 `rf2rd`，属 Excluded from M1（见 §9）。[SimRISC-00 §5.1 set.rd 伪指令]
+> `set.rd rdxx, rs` 中源为 `rb` 时展开为 `rb2rd`（M1）、源为 `rd` 时展开为 `rd2rd`（M1）、源为 `ra` 时展开为 `ra2rd`（M1，见 §3.3.3）；源为 `rf` 展开 `rf2rd`，属 Excluded from M1（见 §9）。[Toolchain-01 §6.2.1 set.rd 伪指令]
 
-- `set.rb` 展开为 `set.zw` 与 `or.w` 的组合（rb 无 `set.ow` 变体，无需 `andn.w`）。[SimRISC-00 §5.2 set.rb 伪指令]
-- 汇编器应优先通过 `set.zw` 加载地址值，利用其清零其余位的特性自动处理高 16 位。[SimRISC-00 §5.2 set.rb 伪指令]
+- `set.rb` 展开为 `set.zw` 与 `or.w` 的组合（rb 无 `set.ow` 变体，无需 `andn.w`）。[Toolchain-01 §6.2.2 set.rb 伪指令]
+- 汇编器应优先通过 `set.zw` 加载地址值，利用其清零其余位的特性自动处理高 16 位。[Toolchain-01 §6.2.2 set.rb 伪指令]
 
 ---
 

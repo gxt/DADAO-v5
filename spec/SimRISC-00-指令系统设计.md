@@ -382,131 +382,20 @@ byte 位宽（8 位）指令，覆盖移位、扩展、逻辑、算术、比较�
 
 伪指令**不是**硬件指令，由汇编器在前端展开为一条或多条真实硬件指令；**反汇编器只输出真实硬件指令**，不输出伪指令。汇编层的操作数书写规则见 `Toolchain-01`。
 
-本版仅保留「ISA 无法直接表达、需多指令合成」的合成型伪指令：`set.rd`/`set.rb`/`set.ft`/`set.fo`，各有「立即数」与「寄存器」两种源形式；逐条语义与展开示例如下。
+本版仅保留「ISA 无法直接表达、需多指令合成」的合成型伪指令：`set.rd`/`set.rb`/`set.ft`/`set.fo`，各有「立即数」与「寄存器」两种源形式；各形式可能采用的硬件指令见下表：
 
-### 5.1 set.rd 伪指令
+| 伪指令 | 形式 | 可能的实现（硬件指令） |
+|---|---|---|
+| `set.rd` | `rd, imm64` | 常量 → **最少指令数**（`set.zw`/`set.ow` + `or.w`/`andn.w`，≤4 条）；**偏移地址（disp）** → **有符号数**、**不限指令数**（按值所需片数展开，≤4 条） |
+| `set.rd` | `rd, rs` | `rb2rd`/`rf2rd`/`ra2rd`/`rd2rd` |
+| `set.rb` | `rb, imm64` | `set.zw-rb` + `or.w-rb` 组合；符号/可重定位（**地址**）→ **固定 3 片** + `R_DADAO_ABS48` |
+| `set.rb` | `rb, rs` | `rd2rb`/`rb2rb` |
+| `set.ft` | `rf, imm32` | 2 条 `set.w` |
+| `set.ft` | `rf, rs` | `rd2rf`/`rf2rf`（rf 源为整 64 位复制） |
+| `set.fo` | `rf, imm64` | `rd2rf rf, rd0`（以 `rd0` 恒 0 清零目的 `rf`）+ 仅对**非零** wyde 的 `set.w rf, wpN, <wyde>`；`set.fo rf, 0` ⇒ 1 条 |
+| `set.fo` | `rf, rs` | `rd2rf`/`rf2rf`（rf 源为整 64 位复制） |
 
-`set.rd` 不是硬件指令，而是汇编器提供的伪指令，用于将任意 64 位立即数加载到 rd 寄存器。汇编器将 `set.rd` 展开为 1~4 条 rwii 格式指令。
-
-**策略**：先通过 `set.ow` 或 `set.zw` 设置一个 wyde 的初始值（同时确定其余位的状态：`set.ow` 置 1、`set.zw` 清 0），再用 `or.w` 和 `andn.w` 修正剩余 wyde。
-
-> **重要**：`set.zw`/`set.ow` 会改变所有 64 位，不能连续使用多条来设置不同 wyde——后一条会覆盖前一条的结果。只能使用**一条** `set.zw` 或 `set.ow` 作为第一条指令，后续必须用 `or.w`（设 1）或 `andn.w`（清 0）逐 wyde 修正。
-
-**常用模式示例**：
-
-```simrisc
-@@ 加载零 → set.zw 即可覆盖全 64 位
-set.rd   rd1, 0                     @@ 展开为 set.zw rd1, wp0, 0
-
-@@ 加载全 1（-1）→ set.ow 一条指令全 64 位置 1
-set.rd   rd1, -1                    @@ 展开为 set.ow rd1, wp0, 0xFFFF
-
-@@ 加载负数（利用 set.ow 将其余 48 位置 1 的特性，自动完成符号扩展）
-set.rd   rd1, -42                   @@ 展开为 set.ow rd1, wp0, 0xFFD6  (-42 的低 16 位)
-
-@@ 加载位掩码（高位全 1 的低 16 位掩码）
-set.rd   rd1, 0xFFFFFFFFFFFFFFF0    @@ 展开为 set.ow rd1, wp0, 0xFFF0
-
-@@ 加载 ~(1<<n) → set.ow 一条指令
-set.rd   rd1, ~(1<<5)              @@ 展开为 set.ow rd1, wp0, 0xFFDF
-
-@@ 加载小正数（16 位以内）→ wp0 一条指令
-set.rd   rd1, 42                    @@ 展开为 set.zw rd1, wp0, 42
-set.rd   rd1, 0x1234ABCD            @@ 展开为：
-                                    @@   set.zw rd1, wp1, 0x1234
-                                    @@   or.w   rd1, wp0, 0xABCD
-
-@@ 加载 64 位常数 → 分 4 个 wyde 依次设置
-set.rd   rd1, 0xDEADBEEF_CAFEBABE  @@ 展开为：
-                                    @@   set.zw rd1, wp3, 0xDEAD
-                                    @@   or.w   rd1, wp2, 0xBEEF
-                                    @@   or.w   rd1, wp1, 0xCAFE
-                                    @@   or.w   rd1, wp0, 0xBABE
-```
-
-**展开规则**：任意 64 位立即数最多 4 条指令即可实现（每 wyde 至多一条）。汇编器应优先选择指令数最少的展开方案，推荐策略：
-
-1. 若 64 位全同（全 0 或全 1），1 条 `set.zw`/`set.ow`。
-2. 若连续 wyde 值相同（如高 48 位全 0），填充初始 wyde 后 `or.w` 补充剩余差异。
-3. 一般情况：`set.zw`/`set.ow` 设置一个基数 wyde，其余 wyde 用 `or.w` 设 1、`andn.w` 清 0。
-
-**寄存器传值**：`set.rd rd, rs` 也可用于从 rb、rf、ra 寄存器传值至 rd，汇编器根据源寄存器类型展开为单条块赋值指令：
-
-```simrisc
-set.rd   rd5, rb3       @@ 展开为 rb2rd {rd5}, {rb3}
-set.rd   rd2, rf7       @@ 展开为 rf2rd {rd2}, {rf7}
-set.rd   rd8, rd3       @@ 展开为 rd2rd {rd8}, {rd3}
-set.rd   rd4, ra10      @@ 展开为 ra2rd {rd4}, {ra10}
-```
-
-### 5.2 set.rb 伪指令
-
-`set.rb` 是汇编器提供的伪指令，用于将立即数加载到 rb 寄存器，展开为 `set.zw-rb` 和 `or.w-rb` 的组合（rb 无 `set.ow` 变体，无需 `andn.w`）。
-
-> **重要**：`set.zw` 会清零其余所有位，因此不能连续使用多条 `set.zw`。只能使用**一条** `set.zw` 作为第一条指令，后续用 `or.w`（设 1）或 `andn.w`（清 0）逐 wyde 修正。
-
-```simrisc
-@@ 加载零
-set.rb   rb1, 0                      @@ 展开为 set.zw rb1, wp0, 0
-
-@@ 加载 48 位地址
-set.rb   rb1, 0x123456789ABC         @@ 展开为：
-                                      @@   set.zw rb1, wp2, 0x1234
-                                      @@   or.w  rb1, wp1, 0x5678
-                                      @@   or.w  rb1, wp0, 0x9ABC
-```
-
-**寄存器传值**：`set.rb rb, rs` 也可用于从 rd 或 rb 寄存器传值至 rb，汇编器根据源寄存器类型展开为单条块赋值指令：
-
-```simrisc
-set.rb   rb5, rd3       @@ 展开为 rd2rb {rb5}, {rd3}
-set.rb   rb2, rb7       @@ 展开为 rb2rb {rb2}, {rb7}
-```
-
-**注**：rb 高 16 位（bits[63:48]）可用于地址溢出检测。汇编器应优先通过 `set.zw` 加载地址值，利用其清零其余位的特性自动处理高 16 位。
-
-### 5.3 set.ft / set.fo 伪指令
-
-`set.ft` 和 `set.fo` 是汇编器提供的伪指令，用于将立即数加载到 rf 寄存器，分别对应单精（tetra，32 位）和双精（octa，64 位）浮点格式。伪指令展开为 `set.w` 的组合。
-
-```simrisc
-@@ 加载单精浮点 1.0（0x3F800000）→ 只需设置低 32 位
-set.ft   rf1, 0x3F800000             @@ 展开为：
-                                      @@   set.w rf1, wp1, 0x3F80
-                                      @@   set.w rf1, wp0, 0x0000
-
-@@ 加载双精浮点 1.0（0x3FF0000000000000）
-set.fo   rf1, 0x3FF0000000000000     @@ 展开为：
-                                      @@   set.w rf1, wp3, 0x3FF0
-                                      @@   set.w rf1, wp2, 0x0000
-                                      @@   set.w rf1, wp1, 0x0000
-                                      @@   set.w rf1, wp0, 0x0000
-
-@@ 加载零：set.fo 用 rd0（恒为 0）整 64 位清零；set.ft 是窄写，只能清低 32、高 32 保持
-set.ft   rf1, 0                       @@ 展开为 set.w rf1, wp1, 0x0000 ; set.w rf1, wp0, 0x0000
-set.fo   rf1, 0                       @@ 展开为 rd2rf {rf1}, {rd0}
-```
-
-**寄存器传值**：`set.ft`/`set.fo` 也可用于从 rd 或 rf 寄存器传值至 rf，汇编器展开为 `rd2rf` 或 `rf2rf`：
-
-```simrisc
-set.ft   rf1, rd5       @@ 展开为 rd2rf {rf1}, {rd5}
-set.ft   rf1, rf2       @@ 展开为 rf2rf {rf1}, {rf2}
-set.fo   rf2, rf7       @@ 展开为 rf2rf {rf2}, {rf7}
-```
-
-> **注**：rf 作源时展开为 rf 组块复制 `rf2rf`，按**整 64 位**逐位复制（源读 64 位、目的写 64 位）；该形式不接受「只写低 32 位」的窄写语义（写宽总则见 §2.3）。
-
-**注**：加载全零时汇编器自动使用 `rd2rf` 从 `rd0` 拷贝。
-
-**写宽对照**（`set.ft` 两种源形式的写入宽度不同）：
-
-| 源形式 | 写入宽度 |
-|---|---|
-| `set.ft rf, imm32` | **只写低 32 位**；高 32 位保持原值（不符号扩展、不零填）——两条 `set.w` 只触及 `wp1`/`wp0` |
-| `set.ft rf, rf` | **整 64 位**（源读 64 位、目的写 64 位）——展开为 rf 组块复制 `rf2rf`，宽度透明（`rd` 源展开的 `rd2rf` 同为整 64 位） |
-
-> **注**：`rf` 源形式的**整 64 位**写入来自本版删除「同格式单精纯复制」并改由 `rf2rf` 承担（见本册变更记录）；旧版该形式为**只写低 32 位**的窄写搬移，故此处属**可观察变化**。
+逐条语义与展开示例见 `Toolchain-01 §6.2`。
 
 ## 6. 异常规则
 
@@ -525,6 +414,8 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.5.7-rc（未发布）
+
+- **§5 伪指令改为简述 + 实现表**：本册 §5 只留定性说明与「伪指令 × 源形式」8 行表（第三列「可能的实现（硬件指令）」与 `Toolchain-01 §6.1` 的展开列逐字一致）；逐条语义与展开示例迁至 `Toolchain-01 §6.2`，本册不留副本。
 
 - **`set.ft rf, 0` 的展开订正**（与 `Toolchain-01 §6.1` 及窄写语义对齐）：原写「展开为 `rd2rf {rf1}, {rd0}`」，但 `rd2rf` 是整 64 位搬移，会把目的高 32 一并清零，与「`set.ft` 只写低 32、高 32 保持」（本册 §2.3）矛盾；改为 2 条 `set.w`（`wp1`/`wp0` 置 0，高 32 不动）。`set.fo rf, 0` 仍为 `rd2rf {rf1}, {rd0}`（64 位清零，语义正确）。
 

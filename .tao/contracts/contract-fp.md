@@ -130,8 +130,8 @@
 
 ## §14 伪指令（非 65 条 id，仅说明）<a id="pseudo"></a>
 
-- `set.ft`/`set.fo` 不是硬件指令，由汇编器展开为 `set.w` 组合：全零 → `rd2rf {rf}, {rd0}`；寄存器传值 → `rd2rf`（rd 源）或 `rf2rf`（rf 源，整 64 位复制）。[SimRISC-00 §5.3 set.ft / set.fo 伪指令]
-- 伪指令属汇编器展开，**不进** `contracts/opcodes.yaml` 的 65 条。[SimRISC-00 §5.3 set.ft / set.fo 伪指令]
+- `set.ft`/`set.fo` 不是硬件指令，由汇编器展开为 `set.w` 组合：全零 → `rd2rf {rf}, {rd0}`；寄存器传值 → `rd2rf`（rd 源）或 `rf2rf`（rf 源，整 64 位复制）。[Toolchain-01 §6.2.3 set.ft / set.fo 伪指令]
+- 伪指令属汇编器展开，**不进** `contracts/opcodes.yaml` 的 65 条。[Toolchain-01 §6.2.3 set.ft / set.fo 伪指令]
 
 ## §15 合法性规则映射
 
