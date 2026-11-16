@@ -23,6 +23,16 @@
 2. **契约修订**：`.tao/contracts/contract-see.md §6.4` 改为「IE 旋钮 = **当前运行模式 monitor** 的 `<mode>_cfx_intr_mask`（supv ⇒ `cfx_smon cg2 rc4`）；`global_cfx_intr_mask` 只作模式级放行（被异步帧借用）」——**删掉**「当前 cfx = `cfx_smon`」的实例表述（`ISS-454`）；接口版本按 `docs/Process-02` 处理（`contract-see` 为 ADR-sourced，版本头保持 `0.7.3-rc`）；
 3. **探针**：`k2_irq_probe` 的"两行"断言改为**单行**断言（`save` 后只 `cfx_smon cg2 rc4` 的源位置位、`restore` 后逐位复原），并保留**首投后仍能 tick**这类跨阶段证据（若 QEMU 侧已由 `m14-qemu-003` 覆盖，则此处只核内核侧读写）。
 
+## 增补要求（`m14-qemu-003` 复核 finding 1，2026-11-16）
+
+**本任务删掉 `cfx_hart` 行写入后，`tools/linux/k2_time_probe.py` 的 `SINGLE_ROW_PATCHES` 注入点会消失**（三处 old 串 count=0 ⇒ 现有代码 `SystemExit("注入点不唯一 (0 处)")` 会把整个探针跑红）。
+
+必须在**本任务内**同步改，判据不得因此变弱：
+
+- `SINGLE_ROW_PATCHES` 退化为**空表**，`single_row_run()` 直接用**未注入的内核**跑 C10（此时内核天然只写 `cfx_smon` 行，C10 由"注入式先红后绿"转为**常驻断言**）；
+- **保留可失败性**：另加一路反向注入——临时**加回** `cfx_hart` 行写入 ⇒ C10 **必红**（证明判据仍能抓"写了两行"）；
+- 验收里写明这两条（常驻断言 + 反向注入）的实测输出。
+
 ## 验收（真实 rc + 输出）
 
 1. `k2_irq_probe` 全绿（条数现场统计，不低于改前 95）、`--selfcheck`/`--inject` 可跑；`k2_trap_probe` 85/85、`k2_time_probe` 151/151、`check-linux-k0` 119/119、`check-linux-k1` 108/108；
