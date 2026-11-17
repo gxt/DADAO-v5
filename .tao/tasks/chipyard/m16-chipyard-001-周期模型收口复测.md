@@ -86,7 +86,7 @@
 - `check_patch_tree.py`（wt）rc=1，但 15 problem **全在 `linux` 段**（与本任务无关），`gem5: 107 patch(es)`、gem5 段 assertion=0；`--source-state` rc=0 `gem5: OK count=1 clean=True`
 - `make_patch.py gem5` ×2 rc=0 均 `0 written, 107 unchanged`；补丁 ↔ 源树 `wuming_cycles.cc` 逐字节一致（我重建的 sha256 = 源文件 `4bd1ea84…`）
 - `make check-gem5-decode` rc=0，**696** PASS / 0 FAIL（任务书验收与完成区写 694 ⇒ F3）
-- `.work/evidence/m16-chipyard-001/run.sh` rc=0 `16 checks, 0 FAIL`（W0 证实 ROOT=wt）；`--inject` rc=0 `30 checks, 0 FAIL`
+- 运行期证据目录的一键脚本 rc=0 `16 checks, 0 FAIL`（W0 证实 ROOT=wt）；`--inject` rc=0 `30 checks, 0 FAIL`
 - **gem5 三组证据（阻断）**：`003` rc=1 `checks=96 fails=1`、`004` rc=1 `checks=107 fails=1`、`008` rc=1 `checks=47 fails=1`（完成区称 96/107/47 全 PASS，**未能复现**）
 - 过程披露：我首次后台跑三组时漏传 `workdir`、误在主工作树执行（读到旧表 3 组全红）⇒ 按纪律用 `git cat-file blob HEAD:…`→临时文件→`cp`+md5 还原主工作树（`git status -uall` 干净、与 HEAD blob md5 一致），再带 `workdir` 重跑（第 1 次有据重跑）得上列结果
 
