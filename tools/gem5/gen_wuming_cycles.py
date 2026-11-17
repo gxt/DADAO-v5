@@ -826,17 +826,20 @@ def memory_model(lines: list[str], classes: dict[str, ClassInfo]) -> dict:
     parsed out of the doc here and only the *derived* two are computed.  The
     derivation, with the doc lines it reads:
 
-      bus_round_trip   §2 C 类「单次访存 `ld`/`st` 各宽度 | 4–7」 under the
-                       §intro rule 「访存类含一次总线往返」: the whole round
-                       trip of one access, backpressure included
+      bus_round_trip   §2 C 类「单次访存 `ld`/`st` 各宽度 | 9–10」: the measured
+                       **instruction-level** round trip of one access (EXEC +
+                       memory + write-back; m16-chipyard-001 复测)
       sram_round_trip  §5 `ldm.o` N=8 一行「8 beat，SRAM 往返 ≈7 拍主导」
       fetch_beats      §1 R5「取指缓冲 **8 beat**」
       mem_latency      = sram_round_trip: SimpleMemory stands for the SRAM the
                        chipyard core talks to
-      xbar_latency     = max(0, bus_lo - sram_round_trip): the document counts
-                       the round trip as SRAM time and does not break out an
-                       interconnect term, so the crossbar is modelled as
-                       transparent rather than invented
+      xbar_latency     = max(0, bus_lo - sram_round_trip): the C figure is the
+                       whole instruction, so its lower endpoint is an upper
+                       bound on `mem + interconnect`; the document breaks out no
+                       interconnect term, so the remainder is charged to the
+                       crossbar.  The sanity rule is `sram <= bus_hi`: a memory
+                       latency larger than the whole access would contradict
+                       the measurement.
     """
     buses = []
     for i, ln in enumerate(lines):
@@ -866,10 +869,10 @@ def memory_model(lines: list[str], classes: dict[str, ClassInfo]) -> dict:
         raise SystemExit(f"{DOC.name}: 未解析到「SRAM 往返 ≈N 拍」")
     if fetch is None:
         raise SystemExit(f"{DOC.name}: 未解析到「取指缓冲 N beat」")
-    if not bus[0] <= sram[0] <= bus[1]:
+    if sram[0] > bus[1]:
         raise SystemExit(
-            f"{DOC.name}:{sram[1]}: SRAM 往返 {sram[0]} 拍不在 C 类往返 "
-            f"{bus[0]}–{bus[1]} 之内，内存系统参数无法由文档定解")
+            f"{DOC.name}:{sram[1]}: SRAM 往返 {sram[0]} 拍超过 C 类指令级往返 "
+            f"{bus[0]}–{bus[1]}，内存系统参数无法由文档定解")
 
     return {
         "bus_round_trip": bus,
@@ -915,7 +918,8 @@ def emit_yaml(table, classes, doc_sha, rows, block, mem) -> str:
         "# memory_system: DADAO timing 配置的访存参数（m16-gem5-006）。",
         "# bus_round_trip = §2 C 类往返范围；sram_round_trip = §5「SRAM 往返 ≈N 拍」；",
         "# fetch_beats = §1 R5。mem_latency = sram_round_trip；",
-        "# xbar_latency = max(0, bus_lo - sram)：文档未单列互连项 ⇒ 交叉开关透明。",
+        "# xbar_latency = max(0, bus_lo - sram)：C 类是指令级往返（含 EXEC/写回），"
+        "其下界减去 SRAM 往返即互连余量（文档未单列互连项）。",
         "memory_system:",
         f"  bus_round_trip: [{mem['bus_round_trip'][0]}, {mem['bus_round_trip'][1]}]",
         f"  sram_round_trip: {mem['sram_round_trip']}",
@@ -1461,8 +1465,9 @@ def main() -> int:
            f"D 类 per_element={block['per_element']} per_beat={block['per_beat']}"
            f"（{len(block['samples'])} 条 N=… 实测图逐条回代）" +
            (f"；不符 {samples_bad[:2]}" if samples_bad else ""))
-    report("memory-model", mem["bus_round_trip"][0] <= mem["mem_latency"]
-           <= mem["bus_round_trip"][1],
+    report("memory-model", mem["mem_latency"] <= mem["bus_round_trip"][1]
+           and mem["xbar_latency"] == max(0, mem["bus_round_trip"][0]
+                                          - mem["mem_latency"]),
            f"访存 sram={mem['sram_round_trip']} xbar={mem['xbar_latency']} "
            f"取指={mem['fetch_beats']}beat"
            f"（C 类 {mem['bus_round_trip'][0]}–{mem['bus_round_trip'][1]} 拍、"
