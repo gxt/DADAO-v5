@@ -137,7 +137,7 @@
 2. **TLB 规范正文推迟到 K2 完成后**（用户原话「5、K2完成后再说」）：`ADR-0052 D6` 已定「K3 第一步先定义 TLB、第二步才实现」，具体时点在 K2 收口后由主会话提出。
 3. **semihosting 指针 = PA**（用户裁定「1：选1，PA」）：已落 `spec/Kaiwu §5.2` + `contract-semihosting §2`（0.7.2）；由此产生的 QEMU 侧缺口登记 `ISS-450`（`SYS_WRITE0` 仍走页表）。
 4. **`contract-linux-boot §1` 已扩写**（用户裁定「2、1」）：补「内核接管后自建页表并写 `PTBR`」，契约 0.2.1；并澄清 semihosting 指针不属该契约的 ABI 地址。
-5. **`ISS-440` 已立 ADR**（用户裁定「3、1」）：`ADR-0054`（单 hart 机型下该清除事件不可观测、暂不实现），decision 待逐条确认。
+5. **`ISS-440` 已立 ADR**（用户裁定「3、1」）：`ADR-0054` **已 Accepted**（`D1`–`D3` 用户逐条确认，原话「确认，继续」）。
 6. **中断 mask 口径已裁定（2026-11-16）**：用户原话「ISS-455：查 mode monitor」「ISS-454：没看懂」「ISS-452：现在修，用 PA」「ISS-444：每推进一个阶段，前面的不合适的门控就可以关闭了」。
    - `ISS-455` ⇒ 异步源轴查**当前运行模式 monitor** 的行（`spec/DADAO-12 §5.2（三）步骤 3`），与 `inner_cfx_code` 无关；落地 = `m14-qemu-003`（QEMU）+ `m14-linux-010`（内核单行收敛 + 契约）。
    - `ISS-454` 随 455 一并解决：`cfx_smon cg2 rc4` **仍然正确**，但理由是"运行模式 → monitor"，不是"当前 cfx"；契约 §6.4 的那句实例表述在 `m14-linux-010` 里改掉。
@@ -148,7 +148,7 @@
 
 > 用户原话：「1、这本身是一条指令，我的理解是可以写完等生效才返回；你的建议呢？」「2、目前只考虑单hart情况」「3、M14只考虑qemu；但应该在tests/arch中增加这部分的测试」
 
-1. **失效完成语义 = 同步**（主会话建议，待用户在 K3 spec 任务里最终确认）：`cfx_ptw_tlb_control` 的写指令**返回即生效**，后续访存必须看到失效结果；理由：① spec 的 `[4:0]` 无 busy/done 位，异步需新增寄存器（违背不新增）；② 同步可直接门控（改 PTE → 写 invalid → 立刻访问必须重新步进）；③ 与 QEMU 现有同步实现一致。**推论必须写清**：`clean`/`flush` 需回写 A/D，**回写失败在该写指令上报 `CFXMEM`**（`flush` 失败不删除条目、`clean` 失败不清挂起位），不得出现"部分完成"。
+1. **失效完成语义 = 同步**（已由 `m14-spec-006` 收口）：`cfx_ptw_tlb_control` 的写指令**返回即生效**，后续访存必须看到失效结果；理由：① spec 的 `[4:0]` 无 busy/done 位，异步需新增寄存器（违背不新增）；② 同步可直接门控（改 PTE → 写 invalid → 立刻访问必须重新步进）；③ 与 QEMU 现有同步实现一致。**推论必须写清**：`clean`/`flush` 需回写 A/D，**回写失败在该写指令上报 `CFXMEM`**（`flush` 失败不删除条目、`clean` 失败不清挂起位），不得出现"部分完成"。
 2. **单 hart**：`tlb_control` 为 **per-hart**；跨 hart 一致性**不在 M14/K3 范围**（登记 `ISS-459`，等多 hart 机型重开，与 `ISS-440` 同类）。
 3. **实现范围**：M14 只做 **QEMU**；chipyard/gem5 不要求（chipyard `wuming` 无 TLB 建模，gem5 已有 `node_tlb.cc` 但不在本阶段验收）。**但 `tests/arch` 必须新增 TLB 探针**（Vast + PTW）：fill/命中不重读 PTE、`invalid` 的 VA/range 两档、`ASID_ANY` 与 `G`、`clean` 回写 A/D、`flush` 回写+删除、回写失败 ⇒ `CFXMEM` 且不删、以及「写 PTBR/ASID/`ptw_enable` **不隐含 invalidate**」。
 4. **K3 的"内存"范围 = 按需分页 + 共享零页**（用户 2026-11-16 原话「K3：做，这些都是成熟的方案，简单验证即可」）；**COW（裁定「B」）与用户栈增长（裁定「A」）均移出 K3、全归 K4**：前者在 K3 没有真实来源（无 `fork`、无文件 `mmap`；零页已在 `m14-linux-012` 用掉且**不复制**）；后者依赖 `execve` 创建的 `VM_GROWSDOWN` VMA、`RLIMIT_STACK` 继承、用户态触发与超限后的信号 ⇒ `m14-linux-013`/`m14-linux-014` 退役。验证口径 = **简单验证即可**（每类 1–2 个代表用例 + 一条门控断言，不追求穷举），判据仍要能 FAIL。
@@ -156,7 +156,7 @@
    - **K4 的栈增长判据交接**（源自退役册 `m14-linux-014`）：`S1` 一页下沉成功；`S2` 连续下沉两次（VMA 大小 == 起始 + 2 页）；`S3` 超 `RLIMIT_STACK` 不扩（**须在无邻接 VMA 的布局下构造**，否则被 guard gap 遮蔽）；`S4` 非 `VM_GROWSDOWN` 不扩；`S5` 权限类不触发扩栈（VMA 不扩、扩栈计数 +0）；`S6` 邻接保护（下沉进入 `stack_guard_gap` 即停，不蚕食邻接 VMA；探针须把 gap 设小到 gap 先于 limit 触发）。`RLIMIT_STACK` 由内核侧设/还原（`init_task` 默认 8 MiB = 128 页），断言用现场读值；`setrlimit` 的 syscall 面与继承归 K5。
    7. **访存异常的判定顺序（用户 2026-11-16 补充）**：**先看 `VA[47:42]`**——≠0 ⇒ cfx 核内空间（不走 PTW/TLB）；=0 ⇒ 再看 **`ptw_enable`**：`0` ⇒ 访存直接 `CFXMEM`（不查 TLB）；`1` ⇒ 才进 PTW/TLB（未映射 ⇒ `CFXMEM`、权限 ⇒ `CFXPERM`）。
    6. **`CFXMEM`/`CFXPERM` 与「缺页/COW」的关系（用户 2026-11-16 澄清）**：规范里**不引入**「缺页」「COW」这类 OS 概念 —— `DADAO-12 §2.2.6` 的规范句是「页表未映射（含超页/小页缺失）与 A/D 回写失败 ⇒ `CFXMEM`；HSJU 或 R/W/X 不符 ⇒ `CFXPERM`」（「缺页」只作括注同义词，**COW 在 spec 中完全没有**）；内核把一次 `CFXMEM`/`CFXPERM` 解释成缺页/COW/真越权属**内核判定**，不进规范与契约。（事实层面：PTE 不存在 ⇒ `CFXMEM`；写只读页 ⇒ `CFXPERM` —— 这是硬件语义，不是 OS 概念。）
-5. **K4 待逐项讨论**（用户同日：「K4，我们过会儿逐个讨论」）：上下文切换范围（FP 保存/懒保存）、`clone`/线程是否 K4、`clockevent`/`clocksource` 升级、U-mode 异常入口与 cg5 单帧/递归 —— 四项开工前逐条确认。
+5. ~~**K4 待逐项讨论**~~ **已全部裁定（用户 2026-11-17）**：① FP 保存 → 四组入口/出口帧（`022`）；② `clone` → K4 内核线程（选 A）；③ clockevent/clocksource → 后移 K5（选 B）；④ U-mode 入口 → 最小闭环并入 016/017（选 C）。
    - **K4/K5 分界已定（用户 2026-11-17 选 A）**：K4 = 内核侧进程/线程原语（`copy_process`/`kernel_thread`/`kthreadd`/调度/COW/栈增长 + 最小 U-mode 闭环〔④ 选 C〕）；K5 = 用户态——用户 `clone`（`CLONE_VM`/`CLONE_SETTLS`/`CLONE_THREAD`）、TLS（`rb3=rbtp`）用户面、`futex`、pthread 类测试归 K5。
    - **K5 候选（用户 2026-11-17 裁定后移）**：`clocksource`(cfx_time)+`clockevent`(cfx_hart) 升级到通用框架（原 `m14-linux-021`）；另含用户态 `clone`/TLS/futex（原 `020` 的 C1–C4 判据）。**（① 已裁定：`rd/rb/rf/ra` 全部在异常入口/出口帧处理，`ra`/`rf` 用 `ldm.o`/`stm.o`；由 `m14-linux-022` 落地，`__switch_to` 不再单独保存 FP。）**
 
@@ -346,7 +346,7 @@ M17 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个
 - **理由（可复用口径）**：`WumingTinyConfig` 无 MMU/TLB（`WumingParams.nL2TLBEntries=0`，源码注明 MMU/TLB out of scope）是**设计决定**；Tiny 是 SRAM+cfx 测试机。补 TLB 属新机型能力，应与「是否做 Vast 实现」一起决策，不为子原因位可达性单独改。M14/K3 口径亦为「M14 只做 QEMU，chipyard/gem5 不要求 TLB」。
 - **已完成**：18 位表 + `wellFormed` 校验 + 8 处 `CFXMEM` 走 `NONPTW`；三方 87×3 逐字节一致。
 
-## 待裁定：chipyard 的 `cg3 rc0–rc3` 被并成一份 mask（2026-11-17）
+## 已解决：chipyard 的 `cg3 rc0–rc3` 合并（2026-11-17，`m14-spec-008` 已把 DADAO-13 §1 并入 DADAO-12 §3.4，正文判据就位）
 
 - **事实**：`spec/DADAO-12 §3.1` 规定 `cg3` 有 **四个** run-mode 行（`rc0`–`rc3`），但 `GewuFile` 把四个并成**一份** mask；`m16-chipyard-003` 复核时发现（既有缺陷、非本任务引入）。
 - **待你定**：是否立任务修正（会影响三个 profile 的 mask 语义与既有探针）。
@@ -380,7 +380,7 @@ M17 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个
 - **归因**：gem5 **取指/基础项占 |Δ| 的 80.2%–87.0%** —— `TimingSimpleCPU` **无 icache**，每指令 8 拍（7 拍 SRAM 往返 + 1 拍执行）；chipyard 硬件是 8-beat 摊销（~0.06 拍/指令）。次项：chipyard 侧取指摊销 `A` −1.13…−1.54 拍/指令、分支 `A2` −3.30…−7.77、块复制 `D′` −1.02…−1.67；正项 `B1` 乘法（模型 3 拍 vs 实测 1.00–1.30）。
 - **含义**：当前比值**不是周期模型本身的误差**，而是 gem5 配置（无 icache）与 chipyard（8-beat 摊销）的结构差异。若目标是"模型对标"，应先决定是否给 gem5 配 icache 再比；否则 3–4× 的结论对模型改进没有指导意义。
 - **同批发现的模型偏差**（建议 `m16-chipyard-001 周期模型收口复测` 一并复核）：`B1` 乘法实测 ≈1 拍（模型初值 3）；`B3` 除法硬件 1 拍（文档"待实测"、模型 0）。
-- **另一条硬事实**：gem5 **SE 完全没有 semihosting** ⇒ Tiny 应用在 SE 上不可直接跑；`007` 给 `DadaoSEWorkload` 加了 `semihosting` 参数（默认 `NULL`、SE 行为逐字节不变、`--semihost on` 才开）。**待裁定**：是否接受该开关，还是改走 FS 方案。
+- **另一条硬事实**：gem5 **SE 完全没有 semihosting** ⇒ Tiny 应用在 SE 上不可直接跑；`m16-gem5-011` 已按裁定把 `--semihost` 默认改为 **`off`**（显式开），并文档化机制与边界。
 
 ### M16 已裁定：C 类（`ld/st`）拍数口径（2026-11-17）
 

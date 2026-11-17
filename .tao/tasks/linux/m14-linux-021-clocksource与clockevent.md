@@ -50,7 +50,7 @@ DADAO 特有事实（`contract-see §3/§6.5`，**不得偏离**）：
 
 ## 待裁定（本任务不得自决；主会话转达用户后回填）
 
-1. **（待裁定 3）clockevent/clocksource 是否在 K4 升级**：**选项**：A = 保留（K4 升级到通用框架，`sched_clock`/`timekeeping` 走真时钟，替代 jiffies 最小记账）；B = 后移 K5（K4 沿用 K2 最小 jiffies 框架，升级延后）。**建议 B**：调度/进程/COW/栈不依赖精确时钟（jiffies 已够），clocksource/clockevent 升级是「时间精度」优化、与进程语义正交；但若 K4 要跑真 init（musl 可能调 `clock_gettime`/`clock_getres`），则需 A。**本任务已按 A 立项**，若用户选 B 则撤销、归 K5。
+1. ~~**（待裁定 3）clockevent/clocksource 是否在 K4 升级**~~ **已裁定（用户 2026-11-17 选 B）**：**后移 K5**（K5 的 `m14-linux-026`）；K4 只做最小 jiffies/最小 clockevent（`017`）。原选项文字保留供追溯：**选项**：A = 保留（K4 升级到通用框架，`sched_clock`/`timekeeping` 走真时钟，替代 jiffies 最小记账）；B = 后移 K5（K4 沿用 K2 最小 jiffies 框架，升级延后）。**建议 B**：调度/进程/COW/栈不依赖精确时钟（jiffies 已够），clocksource/clockevent 升级是「时间精度」优化、与进程语义正交；但若 K4 要跑真 init（musl 可能调 `clock_gettime`/`clock_getres`），则需 A。**本任务已按 A 立项**，若用户选 B 则撤销、归 K5。
 
 ## 审阅记录
 
