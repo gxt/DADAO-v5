@@ -24,6 +24,8 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-020 | 2–3 h | 内核线程（`kernel_thread`/`kthreadd`/`kthread_create`；用户 clone/TLS 归 K5） |
+| m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 | m14-linux-030 | 3–4 h | K6 busybox 构建接入（静态 musl + 最小 applet 集） |
 
 | m14-linux-031 | 2–3 h | K6 initramfs 集成（busybox + applet 链接 + `/init` 切换） |
@@ -34,7 +36,6 @@
 
 | m14-linux-034 | 3–4 h | K6 收口门控 `check-linux-k6`（代表例 + §4a 退役） |
 | m14-linux-018 | 4–5 h | COW：fork 共享只读页→写复制旧内容/改 PTE/失效（5 判据） |
-| m14-linux-020 | 2–3 h | 内核线程：kernel_thread(CLONE_FS|FILES)/kthreadd/kthread_create 最小面（用户 clone/TLS 归 K5） |
 | m14-linux-023 | 4–6 h | 用户态 syscall 闭环（umon 入口+分发表+errno rd8 负值+TLS rb3 入口保存/恢复） |
 | m14-linux-024 | 3–5 h | 用户 clone/线程（CLONE_VM/SETTLS/THREAD + TLS 用户面；子 rd8=0+父返 tid） |
 | m14-linux-025 | 3–4 h | futex 与原子性（WAIT 原子/WAKE 不丢唤醒/用户 lr+sc 不跨 syscall） |
