@@ -1,5 +1,7 @@
 # m14-linux-021: clocksource / clockevent 升级（cfx_time 真时钟 + cfx_hart 定时器进通用框架）
 
+> **本任务已由用户 2026-11-17 裁定后移 K5**（K4 只跑 jiffies 最小框架；进程/COW/栈不依赖精确时钟）。正文保留作 K5 交接材料，**不实现、不派单**。
+
 **模块**：linux
 **项目里程碑**：M14
 **依赖**：`m14-linux-007`（K2 时间最小框架：`time.c` 的 `dadao_read_time`/`dadao_timer_arm` 等）、`m14-linux-017`（调度上电后 `schedule_tick` 有运行队列）
@@ -7,7 +9,7 @@
 **并行组**：与 K4 其余任务**串行**（同组件同写者）
 **预估**：3–4 h（接线为主，风险在 clocksource 稳定性判据与 clockevent 的 next-event 编程）
 **档位**：中改（时间子系统接线 + 探针；复核 ≥3 路注入）
-**状态**：待开始
+**状态**：已后移 K5
 
 ## 背景
 

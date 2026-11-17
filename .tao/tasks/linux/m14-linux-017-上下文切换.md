@@ -52,11 +52,7 @@ DADAO 特有事实（不得套 RISC-V/x86）：
 
 ## 待裁定（本任务不得自决；主会话转达用户后回填）
 
-1. **（待裁定 1）FP 保存范围**：`__switch_to` 是否保存/恢复 `rf32–63`（callee-saved FP）。**事实**：`rf32–63` 属 CSR（`contract-abi §4.5`）；内核 defconfig 无显式 FPU 开关、`processor.h` 注明「No lazy FPU」；无 PS/TS 位 ⇒ 懒保存需额外 FP-access 陷阱（复杂度高）。**选项**：
-   - **A（建议）**：**eager 保存/恢复 `rf32–63`**（`thread_struct` 增 FP 段），前提是内核或用户态可能用 RF；简单、正确、与「No lazy FPU」一致。
-   - **B**：**不保存 FP**，前提是**内核编译 soft-float 且 K4 用户态（musl 静态 init）不用 RF**；`thread_struct` 无 FP 段（最小）。
-   - **C**：懒保存 FP（需 FP-access 陷阱机制），不推荐（无 PS 位、单核收益低、复杂度高）。
-   - 建议 **A**（除非确认全程 soft-float 且用户态不用 FP，才取 B）。本任务按 A 写字段与汇编，待裁定回填后定稿。
+1. ~~（待裁定 1）FP 保存范围~~ **已裁定（用户 2026-11-17）**：`rd/rb/rf/ra` **全部在异常入口/出口帧处理**（由 `m14-linux-022` 落地：`ra`/`rf` 用 `ldm.o`/`stm.o` 块传送）；`__switch_to` **不再单独保存/恢复 FP**，只切换内核栈与内核态 callee-saved。本任务的 `S5`（U-mode 帧往返）按此断言。
 2. ~~（待裁定 4）~~ **已裁定（用户 2026-11-17 选 C）**：最小 U-mode 闭环并入本任务 + `016`；「用户进程 A↔B 切换」断言（`S5`）已加入，单帧、不含递归（同 cfx 嵌套留 K5）。
 
 ## 审阅记录

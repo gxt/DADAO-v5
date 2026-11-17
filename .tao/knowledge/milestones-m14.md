@@ -28,8 +28,7 @@
 | m14-linux-017 | 5–7 h | __switch_to 汇编 + switch_mm 四步 + 调度跑双任务 + U-mode↔S-mode 帧往返（FP 保存范围待裁定） |
 | m14-linux-018 | 4–5 h | COW：fork 共享只读页→写复制旧内容/改 PTE/失效（5 判据） |
 | m14-linux-019 | 3–4 h | 用户栈增长：VM_GROWSDOWN 下方扩栈（S1–S6） |
-| m14-linux-020 | 3–5 h | clone/线程：CLONE_VM/SETTLS/THREAD + TLS（rb3=rbtp） |
-| m14-linux-021 | 3–4 h | clocksource(cfx_time)+clockevent(cfx_hart) 进通用框架 |
+| m14-linux-020 | 2–3 h | 内核线程：kernel_thread(CLONE_FS|FILES)/kthreadd/kthread_create 最小面（用户 clone/TLS 归 K5） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
