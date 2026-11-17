@@ -2,7 +2,7 @@
 
 **模块**：linux
 **项目里程碑**：M14
-**依赖**：`m14-linux-012`（页故障通道 + 按需分页）、`m14-linux-015`（K3 收口门控）
+**依赖**：`m14-linux-012`（页故障通道 + 按需分页）、`m14-linux-015`（K3 收口门控）、`m14-linux-022`（异常帧四组 rd/rb/ra/rf，已验证）
 **可并行分片**：否（`components/linux` 单写者；共享 `mm/fault.c`、`include/asm/processor.h`、`kernel/process.c`）
 **并行组**：与 `m14-linux-017`…`021` **全部串行**（同组件同写者 + 共享 `arch/dadao` 文件）；与 qemu/testcases 模块可并行（不同组件）
 **预估**：7–9 h（代码量最大的一件：进程骨架 + mm 接线 + execve + 用户态入口骨架 + 探针）
