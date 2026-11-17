@@ -25,12 +25,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-chipyard-003 | 2026-11-17 05:01 | 6–8 h | chipyard 侧 `cause_id` 子原因编码（ADR-0056 D6；`GewuFile` 接口 + `WumingCore` 判定点） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-003 | 2026-11-17 08:16 | chipyard 侧子原因（`GewuCauseId` + 校验器；仅 `NONPTW` 可达；三方 cmp 逐字节一致） |
 | m16-gem5-009 | 2026-11-17 07:59 | gem5 侧子原因 18 位 + `checkCauseId`（F1 修 `Fault::invoke` PC 前进、向量首条不再双执）；与 QEMU 全宽一致 |
 | m16-gem5-010 | 2026-11-17 01:40 | gem5 侧 `Kaiwu-Vast` 同步异常路由对齐 `§5.2`（staged 真删、帧四项与 QEMU 逐字段同；`check-arch` 由 qemu-005 验收覆盖） |
 | m16-chipyard-002 | 2026-11-16 04:16 | cfx 独立为 `dadao-gewu` generator（`GewuFileIO`/`GewuFile` 参数化、重定向归 core；sim md5 `bd5e75b3…`，37 镜像 cycle 逐条相同） |
