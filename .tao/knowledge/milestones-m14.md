@@ -49,12 +49,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-linux-016 | 2026-11-17 19:41 | 8–10 h | 进程骨架（copy_process/dup_mm）+ kernel_thread/kthreadd + 最小 U-mode 入口（F3 栈 VMA 移 017；依赖 testcases-006） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-016 | 2026-11-18 00:20 | 进程抽象 + fork/execve 基础 + kernel_thread/kthreadd + 最小 U-mode 入口（F5）；101/101、5 路注入、k0-k3 全绿 |
 | m14-testcases-006 | 2026-11-17 21:53 | 固件：除 hmon 外 8 个已实现 cfx 的 supv 四轴放行 smon（含负例；bootrom b662183a） |
 | m14-linux-022 | 2026-11-17 19:39 | 异常帧扩四组（rd/rb/ra/rf，2064B；ra/rf 用 ldm.o/stm.o；k2 170/170、10 路注入） |
 | m14-spec-008 | 2026-11-17 16:02 | DADAO-13 §1/§2 并入 DADAO-12 §3.4/§4.4（只留引用）；Kaiwu 9 行同步；版本号未变 |
