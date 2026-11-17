@@ -32,7 +32,6 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m15-testcases-014 | 2026-11-18 07:00 | 30–60 min | `inst-tiny.lds` 移入 `tests/ee-tiny/`（inst 测试集内容不动） |
-| m15-testcases-013 | 2026-11-18 06:55 | 1.5–2 h | vast 资产集中到 `tests/ee-vast/`（step5 bootrom 7 + kaiwu-vast.lds；测试集不动） |
 
 | m15-spec-001 | 2026-11-13 22:05 | 3–5 天 | UDB IDL 语法 v0 + 5 条样板 operation + `idlc` 复用评估 + 抽取器原型（**待返工**：WIP `0584a64b`，用户要求先摊开文件内容 + 逐条语句分析；延后裁决） |
 
@@ -40,6 +39,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-testcases-013 | 2026-11-18 07:05 | vast 资产集中到 `tests/ee-vast/`（step5 bootrom 7 + kaiwu-vast.lds；md5 8/8） |
 | m15-testcases-012 | 2026-11-18 06:41 | user 资产集中到 `tests/ee-user/`（12 脚本 + 5 crt/lds/runtime；与 011 双 `-L` 并存） |
 | m15-testcases-011 | 2026-11-17 23:33 | tiny 资产集中到 `tests/ee-tiny/`（4 脚本 + 10 bootrom + 3 lds；272/272、bootrom md5 不变） |
 | m15-testcases-010 | 2026-11-17 21:51 | 01 册 38 文件：opc 0x16→0x20、boundary 正/负/全1、rb0 imm 负/零/正；272/272 |
