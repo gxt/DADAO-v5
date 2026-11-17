@@ -2,10 +2,10 @@
 
 **模块**：linux
 **项目里程碑**：M14
-**依赖**：`m14-linux-016`（进程骨架 + `copy_thread` + `thread_struct`）
+**依赖**：`m14-linux-016`（进程骨架 + `copy_thread` + `thread_struct`）、`m14-testcases-006`（hmon 全 cfx supv 权限转交 smon，U-mode 帧固件前置）
 **可并行分片**：否（`components/linux` 单写者；共享 `include/asm/{switch_to,processor}.h`、`kernel/process.c`）
 **并行组**：与 K4 其余任务**串行**（同组件同写者）
-**预估**：5–7 h（风险在 `__switch_to` 汇编、FP 保存范围（待裁定 1）、U-mode ↔ S-mode 帧往返）
+**预估**：7–9 h（`__switch_to` 汇编 + U-mode ↔ S-mode 帧往返 + 最小 clockevent + F3/init 真跑）
 **档位**：大改（新汇编入口 + 调度接线 + 探针；复核须独立重跑 + ≥4 路注入）
 **状态**：待开始
 
@@ -27,6 +27,8 @@ DADAO 特有事实（不得套 RISC-V/x86）：
 4. **调度接线**：`cpu_idle`/`schedule` 路径跑通，`kernel_init` 之后 fork 出的子进程与 init task **来回切换**（探针观测「两个任务交替执行」）。
 5. **`switch_mm`**（`mm/mmu.c`，K3 只留接口注释「K4 落地四步序列」）：落地 `switch_mm_irqs_off` 四步——切 ASID（`cfx_ptw_tlb_asid`）、失效旧 ASID 的 `G=0` 条目（`tlb_control invalid|VA/range|ASID_ANY=0`）、按需写 PTBR、返回（`contract-tlb TLB-30`）。
 6. **U-mode ↔ S-mode 帧保存/恢复（cg5 单帧，用户 2026-11-17 选 C）**：用户进程切换时，被切换走的进程若在**用户态**，其用户态上下文（`pt_regs` 全量 + 用户栈 `rb1`）随 `thread_struct`/`task` 保存；切回时经 `cfx_umon` user 行向量/`escape` 恢复用户态帧。验证「用户进程 A ↔ B 切换后各自用户态帧/寄存器正确」。**单帧、不含递归**（同 cfx 嵌套留 K5）。
+7. **最小 clockevent（用户 2026-11-17 裁定）**：`cfx_hart` 的 timer（`cg8 rc4 = timer_cmp` 绝对时间 / `rc5 = timer_ctrl` ENABLE/IMASK/ISTATUS）驱动 tick 中断，仅满足 `kernel_init`/调度/计时需要（`schedule_tick`、jiffies 推进）；**不做** clocksource/clockevent 通用框架升级（那属 K5 的 `m14-linux-021`）。寄存器语义按 `contract-see §3/§6.5`（`cfx_hart` 定时器、`TIMER` 异步入口 `cfx_hart` supv 行已由 K2 `async_trap.S` 落地）；放行前提（`cfx_hart` cg8 的 `hypv_cg_reg_deleg`）K2 已放行。
+8. **F3：execve 建 `VM_GROWSDOWN` 栈 VMA + init 真跑（用户 2026-11-17 裁定从 `016` 移入）**：`kernel_init` → initramfs `/init`（静态 musl）在 QEMU 上跑起来；execve 后 `current->mm` 有且仅一个 `VM_GROWSDOWN` 栈 VMA（`vm_start`/`vm_end` 现场打印、大小 ≥ 1 页、入口 `ip`/`rb1` 已由 `start_thread` 填）。**与 019 分工**：本任务只到「init 能跑 + 栈 VMA 存在」，`019` 测 `S1–S6`（栈 VMA 下方扩栈）。
 
 ## 验收（逐条贴真实 rc，每条须能 FAIL）
 
@@ -37,7 +39,9 @@ DADAO 特有事实（不得套 RISC-V/x86）：
    - `S3 switch_mm`：切到新 `mm` 后 `cfx_ptw_tlb_asid` == `mm->context.asid`（现场读值），且失效命令值按 `contract-tlb TLB-19` 现场重建（不写死）。
    - `S4 callee-saved 越界`：`__switch_to` 只碰 callee-saved 段 + SP，**不得**碰 caller-saved（`rd8–31`/`rb8–31`）与保留（`rb2`/`rb3`）——探针用哨兵值断言切换前后 caller-saved/保留寄存器不变。
    - `S5 U-mode 帧往返（用户 2026-11-17 选 C）`：两个用户进程 A/B 交替切换，断言各进程用户态帧字段逐项正确——`ip`/`rb1`/`rb3`/`rd32–63`/`rb32–63`（callee-saved）在 A→B→A 往返后与首入一致（现场哨兵值）；`status == 0`；**不含递归**（切换路径不写 cg5→cg6）。
-3. **≥5 路注入**（`cp`+md5 还原 + 重建回绿）：① `__switch_to` 不保存 `rd32` 段 ⇒ `S1` 红（b 侧 rd32 哨兵被 clobber）；② 保存了但恢复错序 ⇒ `S1` 红；③ `switch_mm` 不写 ASID ⇒ `S3` 红；④ 切换碰了 `rb3`（rbtp）⇒ `S4` 红；⑤ 用户态帧不保存 `rb3`（rbtp）⇒ `S5` 红（A 往返后 rbtp 被 clobber）。
+   - `S6 最小 clockevent`：`cfx_hart` timer 驱动 tick——写 `timer_cmp = now + period`（`period = freq/HZ` 现场派生）后在期望间隔内收到 `TIMER`，`jiffies`/`schedule_tick` 推进；**不注册** clocksource/clockevent 通用框架（负例：探针断言通用框架未接线，`021` 归 K5）。
+   - `S7 F3/init 真跑`：`kernel_init` → initramfs `/init`（静态 musl）在 QEMU 上跑起来（打印 init 标记）；execve 后 `current->mm` 有且仅一个 `VM_GROWSDOWN` 栈 VMA（`vm_start`/`vm_end` 现场打印、大小 ≥ 1 页、入口 `ip`/`rb1` 已填）。
+3. **≥6 路注入**（`cp`+md5 还原 + 重建回绿）：① `__switch_to` 不保存 `rd32` 段 ⇒ `S1` 红（b 侧 rd32 哨兵被 clobber）；② 保存了但恢复错序 ⇒ `S1` 红；③ `switch_mm` 不写 ASID ⇒ `S3` 红；④ 切换碰了 `rb3`（rbtp）⇒ `S4` 红；⑤ 用户态帧不保存 `rb3`（rbtp）⇒ `S5` 红（A 往返后 rbtp 被 clobber）；⑥ timer 不写 `timer_cmp`（无 tick）⇒ `S6` 红；⑦ `execve` 不建 `VM_GROWSDOWN` ⇒ `S7` 红。
 4. **不回归**：`make check-linux-k0/-k1/-k2/-k3` rc=0；`k4_fork_probe.py`（016）rc=0；`make check-patch-tree` rc=0。
 5. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`。
 
@@ -49,6 +53,7 @@ DADAO 特有事实（不得套 RISC-V/x86）：
 4. 语义以 `contract-abi §4.5`（callee-saved/CSR）、`SimRISC-01 §1/§2`（块传送）、`contract-tlb TLB-30`（switch_mm）为准；**不得**套 RISC-V `ra`/`s0-s11` 或 x86 帧布局。
 5. `__switch_to` 必须在关中断/关抢占的临界区被调（`switch_to` 的既有调用点保证）；`last = __switch_to(prev,next)` 语义与 `switch_to` 宏一致（返回 `prev`）。
 6. **单帧、不递归（用户 2026-11-17 选 C）**：U-mode ↔ S-mode 帧往返用 cg5 单帧，**不实现同 cfx 递归**（cg5→cg6 保存留 K5）；用户态进程切换不引入 umon 递归。
+7. **最小 clockevent 不做通用框架升级（用户 2026-11-17 裁定）**：只做 `cfx_hart` timer 驱动 tick，**不得**注册 clocksource/clockevent 通用框架（`021` 已后移 K5）；不破坏 K2 的「两轴 mask / 单旋钮」口径（`contract-see §6.4`）。
 
 ## 待裁定（本任务不得自决；主会话转达用户后回填）
 

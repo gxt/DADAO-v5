@@ -24,7 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-linux-017 | 5–7 h | __switch_to 汇编 + switch_mm 四步 + 调度跑双任务 + U-mode↔S-mode 帧往返（FP 保存范围待裁定） |
+| m14-linux-017 | 7–9 h | __switch_to + switch_mm + 调度跑双任务 + 最小 clockevent + F3/init 真跑 + U-mode↔S-mode 帧往返 |
 | m14-linux-018 | 4–5 h | COW：fork 共享只读页→写复制旧内容/改 PTE/失效（5 判据） |
 | m14-linux-019 | 3–4 h | 用户栈增长：VM_GROWSDOWN 下方扩栈（S1–S6） |
 | m14-linux-020 | 2–3 h | 内核线程：kernel_thread(CLONE_FS|FILES)/kthreadd/kthread_create 最小面（用户 clone/TLS 归 K5） |
@@ -34,7 +34,7 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m14-testcases-006 | 2026-11-17 20:37 | 1–1.5 h | 固件：除 hmon 外全部 cfx 的 supv 四类 mask 清 smon 位（含负例；linux-016 F5 依赖） |
-| m14-linux-016 | 2026-11-17 19:41 | 8–10 h | 进程骨架（copy_process/dup_mm）+ kernel_thread/kthreadd + execve 建栈 VMA + 最小 U-mode 入口 |
+| m14-linux-016 | 2026-11-17 19:41 | 8–10 h | 进程骨架（copy_process/dup_mm）+ kernel_thread/kthreadd + 最小 U-mode 入口（F3 栈 VMA 移 017；依赖 testcases-006） |
 
 ## 已验证
 

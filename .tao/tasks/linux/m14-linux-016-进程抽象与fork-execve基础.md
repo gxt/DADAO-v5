@@ -2,10 +2,10 @@
 
 **模块**：linux
 **项目里程碑**：M14
-**依赖**：`m14-linux-012`（页故障通道 + 按需分页）、`m14-linux-015`（K3 收口门控）、`m14-linux-022`（异常帧四组 rd/rb/ra/rf，已验证）
+**依赖**：`m14-linux-012`（页故障通道 + 按需分页）、`m14-linux-015`（K3 收口门控）、`m14-linux-022`（异常帧四组 rd/rb/ra/rf，已验证）、`m14-testcases-006`（hmon 全 cfx supv 权限转交 smon，`F5` U-mode 帧固件前置）
 **可并行分片**：否（`components/linux` 单写者；共享 `mm/fault.c`、`include/asm/processor.h`、`kernel/process.c`）
-**并行组**：与 `m14-linux-017`…`021` **全部串行**（同组件同写者 + 共享 `arch/dadao` 文件）；与 qemu/testcases 模块可并行（不同组件）
-**预估**：7–9 h（代码量最大的一件：进程骨架 + mm 接线 + execve + 用户态入口骨架 + 探针）
+**并行组**：与 `m14-linux-017`…`020` **全部串行**（同组件同写者 + 共享 `arch/dadao` 文件）；与 qemu/testcases 模块可并行（不同组件）
+**预估**：6–8 h（F3「execve 建栈 VMA + init 真跑」已移 `017`；剩余：进程骨架 + mm 接线 + 用户态入口骨架 + 探针）
 **档位**：大改（组件改 + 新子系统接线 + 探针；复核须独立重跑 + ≥4 路注入）
 **状态**：待开始
 
@@ -21,11 +21,11 @@ DADAO 特有事实（不得套 RISC-V/x86）：
 
 ## 目标
 
-1. **`include/asm/processor.h`**：`thread_struct` 由 `{sp, ra, tp}` 扩为完整上下文（`sp`/`ra` + callee-saved `rd32–63`/`rb32–63` + FP 范围见**待裁定 1**）；`start_thread(regs, pc, sp)` 真实现（填用户入口 `ip`/`rb1`、清 `rb3`、设 `status=0`）。
+1. **`include/asm/processor.h`**：`thread_struct` 由 `{sp, ra, tp}` 扩为完整上下文（`sp`/`ra` + callee-saved `rd32–63`/`rb32–63` + FP 范围按已裁定：`rd/rb/rf/ra` 全在异常入口/出口帧处理，`__switch_to` 不单独保存 FP，见 `m14-linux-022`）；`start_thread(regs, pc, sp)` 真实现（填用户入口 `ip`/`rb1`、清 `rb3`、设 `status=0`）。
 2. **越过 `mm_core_init()`**：`kernel/setup.c` 去掉 K2/K3 边界 stop，使 `alloc_page`/`find_vma`/VMA cache 可用；`mm/fault.c` 把 `dadao_pf_alloc_page()` 换为 `alloc_page(GFP_KERNEL|__GFP_ZERO)`、`dadao_pf_find_vma()` 换为 `find_vma(current->mm, addr)`（**其余行不动**，注释已明）。
 3. **`copy_process` 的 arch 钩子**：`copy_thread()` 把父 `pt_regs` 复制到子任务栈顶、设子 `thread.sp`/返回路径；子进程入口 `ret_from_fork`（可先复用 `trap.S` 的恢复序列，或最小 stub）。
 4. **`copy_mm` → `dup_mm` → `copy_page_range`**：地址空间克隆，**全量私有复制**非零页（先正确、后优化——COW 由 `m14-linux-018` 替换）；共享零页**保持共享不复制**（`fault.c` 已有 `unshare_zero`，`012` 口径）。
-5. **`execve` 基础**：`arch/dadao` 侧 bprm 装载（从 initramfs 读静态 musl `init` ELF）、建 **`VM_GROWSDOWN` 用户栈 VMA**、`start_thread` 填入口并**建立 U-mode 初始帧**（用户入口 `ip`/`rb1`、清 `rb3`、`status=0`、`ret_from_fork` 落回用户态）；号表/errno/TLS 口径见 `contract-syscall §8–§11`（本任务只做「能 execve 成功、栈 VMA 创建 + 进入用户态」，栈增长的**扩展**语义归 `019`）。
+5. **`execve` 基础**：`arch/dadao` 侧 bprm 装载（从 initramfs 读静态 musl `init` ELF）、`start_thread` 填入口并**建立 U-mode 初始帧**（用户入口 `ip`/`rb1`、清 `rb3`、`status=0`、`ret_from_fork` 落回用户态）；号表/errno/TLS 口径见 `contract-syscall §8–§11`。**「execve 建 `VM_GROWSDOWN` 栈 VMA + init 真跑」已由用户 2026-11-17 裁定移到 `017`**（本任务只做到「execve 成功 + 进入用户态」；栈 VMA 存在性断言 `F3` 归 017，栈增长扩展语义归 `019`）。
 6. **用户态入口骨架（最小 U-mode 闭环，用户 2026-11-17 选 C）**：`cfx_umon` 的 user 模式路由——内核启动时写 `cfx_umon_user_switch_run_mode`（复位 `2 = supv` 可沿用）与 `cfx_umon_user_excp_vector`（复位 `0`，内核须自写，`contract-syscall §8`）；用户 syscall `trap cfx_umon, 0` ⇒ 进 `cfx_umon` 的 user 行向量，`supv` 模式、`cfx_umon` 上下文内开始执行，入口帧保存/恢复寄存器以 `contract-see §6` + `spec/DADAO-12 §5.2` 为准（硬件只存 cg5 五字段、**不存通用寄存器**，`contract-syscall §8`）；返回 = `escape cfx_umon, [excp_cause_ip, 4]`。U-mode **同步异常**（页故障/对齐等）走 `cfx_smon` 的 `supv_excp_vector`（`contract-syscall §8`，`trap.S` 已具备）。**单帧、不递归**；同 cfx 递归 / cg5→cg6 保存留 K5。
 7. **`kernel_init()`** 推进到「创建 init 进程并**进入用户态第一条指令**」（用户 2026-11-17 裁定 ④ 选 C：最小 U-mode 闭环并入本任务）。
 
@@ -35,10 +35,10 @@ DADAO 特有事实（不得套 RISC-V/x86）：
 2. **探针 case 覆盖（每 case 一条可达 FAIL 断言）**：
    - `F1 fork 建子进程`：`copy_process` 后子任务存在、`mm` 非空、`context.asid` 与父不同（现场读值）、子 `pt_regs` 是父的副本（`ip`/`rb1` 相等、`rd8=0` 由 `copy_thread` 设）。
    - `F2 地址空间克隆`：父映射的非零页在子侧 PA **不同**（全量复制，非共享）；共享零页两侧 PA **相同**（不复制）。
-   - `F3 execve 建栈 VMA`：execve 后 `current->mm` 有且仅一个 `VM_GROWSDOWN` VMA，`vm_start`/`vm_end` 现场打印、大小 ≥ 1 页；入口 `ip`/`rb1` 已由 `start_thread` 填。
+   - ~~`F3 execve 建栈 VMA`~~ **已由用户 2026-11-17 裁定移到 `017`**（需 init 真跑 + clockevent）；本任务不再断言栈 VMA 存在性。
    - `F4 换页来源`：`dadao_pf_alloc_page` 不再从 RAM 顶取页（`alloc_page` 生效），`dadao_pf_find_vma` 走 `find_vma(current->mm)`（`current->mm` 非空时命中真 VMA）。
    - `F5 U-mode 入口（用户 2026-11-17 选 C）`：用户态 `trap cfx_umon, 0` ⇒ 经 `cfx_umon` user 行向量进入内核（断言 `cfx_umon_user_switch_run_mode == 2`、`cfx_umon_user_excp_vector` 已自写非 0）；帧字段与 `spec/DADAO-12 §5.2` 逐项一致——`excp_prev_run_mode == user(0)`、`excp_cause_id == 1<<0`（`CFXTRAP`）、`excp_cause_ip == trap` 指令地址、`excp_cause_info == 触发指令编码`（`immu18 = info & 0x3FFFF`，`contract-syscall §8`）；`escape cfx_umon, [excp_cause_ip, 4]` 落回 `trap` 下一条；U-mode 同步异常（页故障）走 `cfx_smon` `supv_excp_vector`（断言**不串 `umon` 帧**）。
-3. **≥5 路注入**（`cp`+md5 还原 + 重建回绿）：① 不复制 `pt_regs`（子 regs 全 0）⇒ `F1` 红；② `copy_page_range` 不复制直接共享 ⇒ `F2` 红（两侧 PA 相同）；③ `execve` 不建 `VM_GROWSDOWN` ⇒ `F3` 红；④ `fault.c` 不换 `find_vma`（仍走静态窗口）⇒ `F4` 红；⑤ `cfx_umon_user_excp_vector` 不写（复位 0）⇒ `F5` 红（首帧跳地址 0，非内核代码）；⑥ 入口不保存 `excp_cause_ip` ⇒ `F5` 红（返回 IP 错）。
+3. **≥5 路注入**（`cp`+md5 还原 + 重建回绿）：① 不复制 `pt_regs`（子 regs 全 0）⇒ `F1` 红；② `copy_page_range` 不复制直接共享 ⇒ `F2` 红（两侧 PA 相同）；③ ~~`execve` 不建 `VM_GROWSDOWN` ⇒ `F3` 红~~ 随 F3 移到 `017`；④ `fault.c` 不换 `find_vma`（仍走静态窗口）⇒ `F4` 红；⑤ `cfx_umon_user_excp_vector` 不写（复位 0）⇒ `F5` 红（首帧跳地址 0，非内核代码）；⑥ 入口不保存 `excp_cause_ip` ⇒ `F5` 红（返回 IP 错）。
 4. **不回归**：`make check-linux-k0/-k1/-k2/-k3` rc=0（**不跑 `check-modules`**：会装共享安装根）；`make check-patch-tree` rc=0。
 5. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`。
 
@@ -53,7 +53,7 @@ DADAO 特有事实（不得套 RISC-V/x86）：
 
 ## 待裁定（本任务不得自决；主会话转达用户后回填）
 
-1. **（待裁定 1）上下文切换 FP 保存范围**：`thread_struct` 是否含 `rf32–63` 决定本任务 `copy_thread`/上下文保存的字段集。选项与建议见任务 `017` 待裁定 1；本任务先按「含 RF」的**保守上界**写字段（`copy_thread` 复制的字段集与 017 一致）。
+1. ~~（待裁定 1）上下文切换 FP 保存范围~~ **已裁定（用户 2026-11-17，由 `m14-linux-022` 落地）**：`rd/rb/rf/ra` 全部在异常入口/出口帧处理；`thread_struct` 不含单独 FP 段，`__switch_to` 不单独保存 FP。本任务 `copy_thread` 的字段集与 017 一致。
 2. **（待裁定 2/3）** 本任务不涉及，见 `020`/`021`。
 3. ~~（待裁定 4）U-mode 异常入口~~ **已裁定（用户 2026-11-17 选 C）**：最小 U-mode 闭环并入本任务 + `017`——只做「用户 syscall → `cfx_umon` user 行 + U-mode 同步异常 → `cfx_smon`」的路由与帧，**单帧、不递归**；「同 cfx 递归 / cg5→cg6 保存」留 K5。本任务目标 5/6/7 与验收 `F5` 已按此落地。
 
