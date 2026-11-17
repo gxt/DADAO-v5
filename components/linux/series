@@ -8,6 +8,7 @@ arch/dadao/include/asm/atomic.h.patch
 arch/dadao/include/asm/bitops.h.patch
 arch/dadao/include/asm/cache.h.patch
 arch/dadao/include/asm/cacheflush.h.patch
+arch/dadao/include/asm/cause-sub.h.patch
 arch/dadao/include/asm/cfx.h.patch
 arch/dadao/include/asm/current.h.patch
 arch/dadao/include/asm/elf.h.patch
@@ -64,8 +65,10 @@ arch/dadao/kernel/vmlinux.lds.S.patch
 arch/dadao/lib/Makefile.patch
 arch/dadao/lib/delay.c.patch
 arch/dadao/mm/Makefile.patch
+arch/dadao/mm/fault.c.patch
 arch/dadao/mm/init.c.patch
 arch/dadao/mm/k1_pt.c.patch
+arch/dadao/mm/k3_pf_selftest.c.patch
 arch/dadao/mm/k3_pt_selftest.c.patch
 arch/dadao/mm/mmu.c.patch
 init/main.c.patch

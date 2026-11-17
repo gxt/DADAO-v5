@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..76003df4a
+index 000000000..d1a1e8ca5
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,109 @@
+@@ -0,0 +1,145 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -74,6 +74,42 @@ index 000000000..76003df4a
 + * the TLB command matrix and ends the boot from the end of setup_arch().
 + */
 +void __noreturn dadao_k3_pt_selftest(void);
++
++/*
++ * K3 page-fault channel (mm/fault.c, m14-linux-012) and its probe image
++ * (mm/k3_pf_selftest.c, CONFIG_DADAO_K3_PF_SELFTEST: 0 = off, 1..5 = one case
++ * per image, so every value but 1 ends the boot).  The declarations below are
++ * the probe's *view* of the channel; the channel itself is entered from
++ * kernel/traps.c through asm/ptrace.h's dadao_do_page_fault().
++ */
++struct vm_area_struct;
++
++void __noreturn dadao_k3_pf_selftest(void);
++/* Idempotent; `__init` because it reserves the page pool from memblock (the
++ * fault path only ever bumps the pool pointer afterwards). */
++void __init dadao_pf_init(void);
++/*
++ * Register one anonymous window (the K3 stand-in for an mmap'd VMA: there is no
++ * process and no slab allocator before mm_core_init()).  @backing_pa is the page
++ * a *fetch* fault installs (0 = this window has no code); @superpage_pa is the
++ * 512 MiB base a superpage-missing fault (`ISPTRAP`/`DSPTRAP`) maps, or
++ * DADAO_PF_NO_SUPERPAGE.
++ */
++#define DADAO_PF_NO_SUPERPAGE	(~0UL)
++struct vm_area_struct *dadao_pf_window_add(unsigned long start,
++					   unsigned long end,
++					   unsigned long vm_flags,
++					   unsigned long backing_pa,
++					   unsigned long superpage_pa);
++/* The covering window for @addr (the channel's lookup; the probe asserts the
++ * window edges with it instead of taking a fault for every edge). */
++struct vm_area_struct *dadao_pf_find_vma(unsigned long addr);
++/* One zeroed page from the channel's page pool (same source the handler uses). */
++unsigned long dadao_pf_alloc_page(void);
++/* Counters every handler entry reports; the probe asserts their deltas. */
++unsigned long dadao_pf_entry_count(void);
++unsigned long dadao_pf_alloc_count(void);
++unsigned long dadao_pf_zero_page_pa(void);
 +
 +/* Early console: semihosting SYS_WRITE0 / SYS_EXIT (contract-semihosting). */
 +void dadao_early_write(const char *s);

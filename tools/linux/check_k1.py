@@ -132,6 +132,9 @@ K1_CONFIG = [
     "CONFIG_DADAO_K2_EARLY_STOP=n",
     "CONFIG_DADAO_K2_TIME_STOP=n",
     "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
+    # m14-linux-012: the K3 page-fault probe is an int (0 = off); pin it so an
+    # image that reaches setup_arch() never inherits another gate's case.
+    "CONFIG_DADAO_K3_PF_SELFTEST=0",
 ]
 
 TIMEOUT_QEMU = int(os.environ.get("K1_QEMU_TIMEOUT", "120"))

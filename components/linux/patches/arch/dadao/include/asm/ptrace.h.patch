@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/ptrace.h b/arch/dadao/include/asm/ptrace.h
 new file mode 100644
-index 000000000..15848644e
+index 000000000..130b2b1b0
 --- /dev/null
 +++ b/arch/dadao/include/asm/ptrace.h
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,79 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PTRACE_H
 +#define __ASM_PTRACE_H
@@ -48,6 +48,27 @@ index 000000000..15848644e
 +	 */
 +	return 0;
 +}
++
++/*
++ * The page-fault channel (mm/fault.c, m14-linux-012).  kernel/traps.c extracts
++ * the class (`cause_id[15:0]`) and the sub-reason (`[63:48]`/`[47:32]`,
++ * asm/cause-sub.h) and calls this for CFXMEM/CFXPERM only; the return value is
++ * a resume policy for the entry stub:
++ *
++ *   DADAO_PF_RETRY  re-execute the faulting instruction (`escape …, 0`): the
++ *                   handler installed the mapping (or set the missing fragment
++ *                   bit) and invalidated the TLB;
++ *   DADAO_PF_FATAL  nothing was installed; traps.c names the cause and stops
++ *                   with spec/Kaiwu §7.1's monitor code.
++ *
++ * The handler never returns a "skip": a page fault either makes the access
++ * possible or ends the boot — the instruction it belongs to has no meaningful
++ * value to skip to.
++ */
++#define DADAO_PF_RETRY		0
++#define DADAO_PF_FATAL		1
++unsigned long dadao_do_page_fault(struct pt_regs *regs, unsigned long cause,
++				  unsigned long info);
 +
 +#define instruction_pointer(regs)	((regs)->ip)
 +#define user_stack_pointer(regs)	((regs)->rb[1])

@@ -110,6 +110,8 @@ IMAGES = {
         "CONFIG_DADAO_K2_SELFTEST_REENTRY=n",
         "CONFIG_DADAO_K2_SELFTEST_CFXTRAP=n",
         "CONFIG_DADAO_K2_SELFTEST_CFXESC=n",
+        # m14-linux-012: the K3 page-fault probe is an int (0 = off).
+        "CONFIG_DADAO_K3_PF_SELFTEST=0",
     ],
     "irq": [
         "CONFIG_DADAO_K1_EARLY_STOP=n",
@@ -118,6 +120,7 @@ IMAGES = {
         "CONFIG_DADAO_K2_TIME_CASE=0",
         "CONFIG_DADAO_K2_IRQ_TEST=y",
         "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
+        "CONFIG_DADAO_K3_PF_SELFTEST=0",
     ],
 }
 

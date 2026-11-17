@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..12d83bb50
+index 000000000..ea8a95b7b
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,328 @@
+@@ -0,0 +1,334 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -221,6 +221,12 @@ index 000000000..12d83bb50
 +	/* K3 page-table/TLB self-test: builds an L2 table through the primitives,
 +	 * runs the TLB command matrix and ends the boot (probe image only). */
 +	dadao_k3_pt_selftest();
++#endif
++
++#if CONFIG_DADAO_K3_PF_SELFTEST
++	/* K3 page-fault channel self-test (probe images only; the int symbol
++	 * selects one case per image, 0 = off). */
++	dadao_k3_pf_selftest();
 +#endif
 +
 +#ifdef CONFIG_DADAO_K2_EARLY_STOP

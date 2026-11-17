@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..d461e419b
+index 000000000..68da5078d
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,496 @@
+@@ -0,0 +1,528 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -39,6 +39,7 @@ index 000000000..d461e419b
 +#include <linux/elfcore.h>
 +
 +#include <asm/cfx.h>
++#include <asm/cause-sub.h>
 +#include <asm/elf.h>
 +#include <asm/page.h>
 +#include <asm/ptrace.h>
@@ -377,6 +378,16 @@ index 000000000..d461e419b
 +	if (!dadao_cause_name(cause))
 +		dadao_die(regs, raw_cause, info);
 +
++	/*
++	 * The sub-reason layout of ADR-0056 D2 (asm/cause-sub.h): CFXMEM/CFXPERM
++	 * must carry exactly one bit in their own wyde and nothing in the other
++	 * wyde or in [31:16]; every other class must carry nothing above [15:0].
++	 * An id that does not have this shape is terminated by name *before* any
++	 * decoder runs, so a malformed id can never be read as a page fault.
++	 */
++	if (dadao_subcause_layout(raw_cause) != DADAO_SUB_LAYOUT_OK)
++		dadao_die(regs, raw_cause, info);
++
 +	probe = dadao_probe_match(cause, info);
 +	if (probe) {
 +		unsigned long policy = DADAO_TRAP_RESUME_SKIP;
@@ -406,6 +417,27 @@ index 000000000..d461e419b
 +			probe->report(probe, regs, info);
 +		dadao_trap_busy = 0;
 +		return policy;
++	}
++
++	/*
++	 * The page-fault channel (K3, mm/fault.c): only the two page-table
++	 * classes carry a sub-reason and only they can be demand-filled.  The
++	 * registered-probe channel above keeps its priority — K1's "is this VA
++	 * mapped yet?" probe, K2's self-tests and the K3 page-table self-test are
++	 * ordinary clients that must still be able to resume their own faults.
++	 *
++	 * A RETRY here re-executes the faulting instruction (`escape …, 0`); the
++	 * handler has already installed the mapping and invalidated the
++	 * translation.  Anything else is FATAL and falls through to dadao_die(),
++	 * which keeps the K2 exit-code segmentation and the one-line report.
++	 */
++	if (cause == DADAO_CAUSE_CFXMEM || cause == DADAO_CAUSE_CFXPERM) {
++		unsigned long policy = dadao_do_page_fault(regs, raw_cause, info);
++
++		if (policy == DADAO_PF_RETRY) {
++			dadao_trap_busy = 0;
++			return DADAO_TRAP_RESUME_RETRY;
++		}
 +	}
 +
 +	dadao_die(regs, cause, info);

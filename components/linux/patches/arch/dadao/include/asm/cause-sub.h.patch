@@ -1,0 +1,215 @@
+diff --git a/arch/dadao/include/asm/cause-sub.h b/arch/dadao/include/asm/cause-sub.h
+new file mode 100644
+index 000000000..19bde3428
+--- /dev/null
++++ b/arch/dadao/include/asm/cause-sub.h
+@@ -0,0 +1,209 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Page-fault sub-reasons of `excp_cause_id` (spec/DADAO-12 §3.6, ADR-0056 D2/D3,
++ * contract-see §6.1/§6.1.1).
++ *
++ * The class stays in `excp_cause_id[15:0]` (asm/trap.h: 11 one-hot ids), and the
++ * sub-reason rides in a *wyde above it*:
++ *
++ *   [63:48]  CFXMEM sub-reason: [55:48] the 8 missing classes, [56] ADWBFAIL,
++ *            [57] NONPTW, [63:58] reserved;
++ *   [47:32]  CFXPERM sub-reason: [39:32] the 8 permission classes, [47:40]
++ *            reserved;
++ *   [31:16]  reserved for future classes (must stay 0);
++ *   exactly one bit inside the class's own wyde, the other wyde all 0, and any
++ *   other class carries no sub-reason at all (contract-see §6.1).
++ *
++ * Every number below is a projection of `contract-see §6.1.1`; the gate
++ * `tools/linux/k3_page_probe.py` parses that table and that contract text and
++ * refuses to run when this header disagrees with it, so the two can never drift
++ * apart silently.  Adding a bit is a contract change first.
++ */
++#ifndef __ASM_DADAO_CAUSE_SUB_H
++#define __ASM_DADAO_CAUSE_SUB_H
++
++#include <asm/trap.h>
++
++/* wyde placement (contract-see §6.1 "handler 取值: 一个 cause 只查一个 wyde") */
++#define DADAO_SUB_WYDE_BITS	16
++#define DADAO_SUB_WYDE_MASK	0xffffUL
++#define DADAO_SUB_PERM_SHIFT	32	/* CFXPERM: (cause_id >> 32) & 0xffff */
++#define DADAO_SUB_MEM_SHIFT	48	/* CFXMEM:  (cause_id >> 48) & 0xffff */
++#define DADAO_SUB_PERM_WYDE	(DADAO_SUB_WYDE_MASK << DADAO_SUB_PERM_SHIFT)
++#define DADAO_SUB_MEM_WYDE	(DADAO_SUB_WYDE_MASK << DADAO_SUB_MEM_SHIFT)
++/* [31:16]: reserved for future classes, never a sub-reason (ADR-0056 D2) */
++#define DADAO_SUB_RESERVED16	(0xffffUL << 16)
++
++/*
++ * Absolute bit numbers (contract-see §6.1.1).  `DADAO_SUB_NONE` is not a bit:
++ * it is "this id carries no sub-reason", which is a malformed CFXMEM/CFXPERM
++ * (0 bits or several bits in its wyde) and stays 0 so it never collides with a
++ * real one.
++ */
++#define DADAO_SUB_NONE		0
++
++/* wyde2 — CFXPERM (contract-see §6.1.1 [32..39]; [47:40] reserved) */
++#define DADAO_SUB_NUPERM	32	/* HSJU.U = 0, current mode = user */
++#define DADAO_SUB_NJPERM	33	/* HSJU.J = 0, current mode = jail */
++#define DADAO_SUB_NSPERM	34	/* HSJU.S = 0, current mode = supv */
++#define DADAO_SUB_NHPERM	35	/* HSJU.H = 0, current mode = hypv */
++#define DADAO_SUB_NRPERM	36	/* read of a page with R = 0 */
++#define DADAO_SUB_NWPERM	37	/* write of a page with W = 0 */
++#define DADAO_SUB_NXPERM	38	/* fetch of a page with X = 0 */
++#define DADAO_SUB_NCFXPERM	39	/* cfx access refused by a source mask */
++#define DADAO_SUB_PERM_RESERVED	(0xffUL << 40)	/* [47:40] must be 0 */
++
++/* wyde3 — CFXMEM (contract-see §6.1.1 [48..57]; [63:58] reserved) */
++#define DADAO_SUB_IGPTRAP	48	/* fetch: L1 P=0,SP=0 or L2 P=0 */
++#define DADAO_SUB_ISPTRAP	49	/* fetch: L1 P=0,SP=1 (superpage missing) */
++#define DADAO_SUB_IGPFTRAP	50	/* fetch: L2 P=1, GPF bit = 0 */
++#define DADAO_SUB_ISPFTRAP	51	/* fetch: L1 P=1,SP=1, SPF bit = 0 */
++#define DADAO_SUB_DGPTRAP	52	/* data: L1 P=0,SP=0 or L2 P=0 */
++#define DADAO_SUB_DSPTRAP	53	/* data: L1 P=0,SP=1 (superpage missing) */
++#define DADAO_SUB_DGPFTRAP	54	/* data: L2 P=1, GPF bit = 0 */
++#define DADAO_SUB_DSPFTRAP	55	/* data: L1 P=1,SP=1, SPF bit = 0 */
++#define DADAO_SUB_ADWBFAIL	56	/* A/D write-back failed (info = PTE PA) */
++#define DADAO_SUB_NONPTW	57	/* non-page-table CFXMEM source */
++#define DADAO_SUB_MEM_RESERVED	(0x3fUL << 58)	/* [63:58] must be 0 */
++
++/* The verdict of dadao_subcause_layout(): 0 = the id is well formed. */
++#define DADAO_SUB_LAYOUT_OK		0
++#define DADAO_SUB_LAYOUT_RESERVED	1  /* [31:16], or a wyde's reserved bits */
++#define DADAO_SUB_LAYOUT_FOREIGN	2  /* the wyde of the other class */
++#define DADAO_SUB_LAYOUT_SHAPE		3  /* not exactly one bit in its wyde */
++
++#ifndef __ASSEMBLY__
++
++/*
++ * Absolute bit number of the class's sub-reason, or DADAO_SUB_NONE when the id
++ * carries none (wrong class, zero bits, or more than one bit).  The caller that
++ * needs to *refuse* a malformed id calls dadao_subcause_layout() instead; this
++ * is the decoding step of the page-fault path.
++ */
++static inline unsigned int dadao_subcause_pos(unsigned long cause_id)
++{
++	unsigned long cls = DADAO_CAUSE_CLASS(cause_id);
++	unsigned long wyde;
++	unsigned int base;
++	unsigned int bit = 0;
++
++	if (cls == DADAO_CAUSE_CFXMEM) {
++		wyde = (cause_id & DADAO_SUB_MEM_WYDE) >> DADAO_SUB_MEM_SHIFT;
++		base = DADAO_SUB_MEM_SHIFT;
++	} else if (cls == DADAO_CAUSE_CFXPERM) {
++		wyde = (cause_id & DADAO_SUB_PERM_WYDE) >> DADAO_SUB_PERM_SHIFT;
++		base = DADAO_SUB_PERM_SHIFT;
++	} else {
++		return DADAO_SUB_NONE;
++	}
++
++	if (!wyde || (wyde & (wyde - 1)))
++		return DADAO_SUB_NONE;
++	while (!(wyde & 1UL)) {
++		wyde >>= 1;
++		bit++;
++	}
++	return base + bit;
++}
++
++/* The 8 missing classes (wyde3 low byte) — "the page is not there". */
++static inline bool dadao_subcause_is_missing(unsigned int pos)
++{
++	return pos >= DADAO_SUB_IGPTRAP && pos <= DADAO_SUB_DSPFTRAP;
++}
++
++/* The 8 permission classes (wyde2 low byte) — "the page is there, the access
++ * is not allowed" (HSJU or R/W/X, or a cfx source mask). */
++static inline bool dadao_subcause_is_perm(unsigned int pos)
++{
++	return pos >= DADAO_SUB_NUPERM && pos <= DADAO_SUB_NCFXPERM;
++}
++
++/*
++ * The four fetch classes carry the "I" prefix of contract-see §6.1.1
++ * ("取指用 I 前缀、数据读写用 D 前缀"): the *only* place the kernel can learn
++ * that the faulting access was an instruction fetch, because the missing-page
++ * classes for data do not distinguish read from write (which is why the fill
++ * maps the read-only zero page first and lets a second, permission-class fault
++ * turn a write into a private page).
++ */
++static inline bool dadao_subcause_is_fetch(unsigned int pos)
++{
++	return pos == DADAO_SUB_IGPTRAP || pos == DADAO_SUB_ISPTRAP ||
++	       pos == DADAO_SUB_IGPFTRAP || pos == DADAO_SUB_ISPFTRAP;
++}
++
++/* Symbolic name of a sub-reason (the gate parses it against the contract). */
++static inline const char *dadao_subcause_name(unsigned int pos)
++{
++	switch (pos) {
++	case DADAO_SUB_NUPERM:		return "NUPERM";
++	case DADAO_SUB_NJPERM:		return "NJPERM";
++	case DADAO_SUB_NSPERM:		return "NSPERM";
++	case DADAO_SUB_NHPERM:		return "NHPERM";
++	case DADAO_SUB_NRPERM:		return "NRPERM";
++	case DADAO_SUB_NWPERM:		return "NWPERM";
++	case DADAO_SUB_NXPERM:		return "NXPERM";
++	case DADAO_SUB_NCFXPERM:	return "NCFXPERM";
++	case DADAO_SUB_IGPTRAP:		return "IGPTRAP";
++	case DADAO_SUB_ISPTRAP:		return "ISPTRAP";
++	case DADAO_SUB_IGPFTRAP:	return "IGPFTRAP";
++	case DADAO_SUB_ISPFTRAP:	return "ISPFTRAP";
++	case DADAO_SUB_DGPTRAP:		return "DGPTRAP";
++	case DADAO_SUB_DSPTRAP:		return "DSPTRAP";
++	case DADAO_SUB_DGPFTRAP:	return "DGPFTRAP";
++	case DADAO_SUB_DSPFTRAP:	return "DSPFTRAP";
++	case DADAO_SUB_ADWBFAIL:	return "ADWBFAIL";
++	case DADAO_SUB_NONPTW:		return "NONPTW";
++	default:			return NULL;
++	}
++}
++
++/*
++ * The shape check of contract-see §6.1 / ADR-0056 D2, the kernel's own copy of
++ * what the machine model enforces at every raise site: CFXMEM/CFXPERM must have
++ * exactly one bit in their own wyde, no bit in the other wyde and nothing in
++ * [31:16]; every other class must have nothing above [15:0].  A malformed id is
++ * terminated by name — it is never "assumed to be a page fault" (task rule).
++ */
++static inline int dadao_subcause_layout(unsigned long cause_id)
++{
++	unsigned long cls = DADAO_CAUSE_CLASS(cause_id);
++	unsigned long sub = cause_id & ~DADAO_CAUSE_MASK;
++	unsigned long own = 0;
++	unsigned long foreign = 0;
++	unsigned long reserved = 0;
++
++	if (sub & DADAO_SUB_RESERVED16)
++		return DADAO_SUB_LAYOUT_RESERVED;
++
++	if (cls == DADAO_CAUSE_CFXMEM) {
++		own = DADAO_SUB_MEM_WYDE;
++		foreign = DADAO_SUB_PERM_WYDE;
++		reserved = DADAO_SUB_MEM_RESERVED;
++	} else if (cls == DADAO_CAUSE_CFXPERM) {
++		own = DADAO_SUB_PERM_WYDE;
++		foreign = DADAO_SUB_MEM_WYDE;
++		reserved = DADAO_SUB_PERM_RESERVED;
++	} else {
++		/* Every other class carries no sub-reason at all. */
++		return sub ? DADAO_SUB_LAYOUT_FOREIGN : DADAO_SUB_LAYOUT_OK;
++	}
++
++	if (sub & foreign)
++		return DADAO_SUB_LAYOUT_FOREIGN;
++	if (sub & reserved)
++		return DADAO_SUB_LAYOUT_RESERVED;
++	{
++		unsigned long bits = (sub & own) >> (own == DADAO_SUB_MEM_WYDE
++						    ? DADAO_SUB_MEM_SHIFT
++						    : DADAO_SUB_PERM_SHIFT);
++
++		if (!bits || (bits & (bits - 1)))
++			return DADAO_SUB_LAYOUT_SHAPE;
++	}
++	return DADAO_SUB_LAYOUT_OK;
++}
++
++#endif /* !__ASSEMBLY__ */
++#endif /* __ASM_DADAO_CAUSE_SUB_H */
