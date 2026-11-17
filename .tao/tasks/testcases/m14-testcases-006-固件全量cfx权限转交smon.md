@@ -80,7 +80,7 @@
 
 **重跑记录（我自己的输出/rc）**
 
-1. 证据脚本 `./.work/evidence/m14-testcases-006/run.sh` ⇒ **rc=1**（`EVIDENCE: FAIL (1 failed)`）：baseline 40/40 PASS、注入 A/B/C 均「注入→指定 case 转红→`cp` 还原→md5 一致」；但 [5/6] `git diff confined…` **FAIL** —— HEAD 已含改动，裸 `git diff --name-only` 为空 ⇒ 空行判不通过。完成区「40/40 PASS」在 HEAD **不可复现** ⇒ 阻断（AGENTS「提交后仍须回绿、禁裸 `git diff`」）。
+1. 证据脚本 运行期证据目录的一键脚本 `run.sh` ⇒ **rc=1**（`EVIDENCE: FAIL (1 failed)`）：baseline 40/40 PASS、注入 A/B/C 均「注入→指定 case 转红→`cp` 还原→md5 一致」；但 [5/6] `git diff confined…` **FAIL** —— HEAD 已含改动，裸 `git diff --name-only` 为空 ⇒ 空行判不通过。完成区「40/40 PASS」在 HEAD **不可复现** ⇒ 阻断（AGENTS「提交后仍须回绿、禁裸 `git diff`」）。
 2. `make check-linux-k0/-k1/-k2/-k3` ⇒ **rc=0/0/0/0**，`119/119`、`112/112`、`170/170`、`263/263`（17/22/75/51 s）；`check-arch` 后复跑 k0 仍 rc=0 / 119。
 3. `make build-bootrom` **rc=0**；`tiny/bootrom_tiny.bin` md5 `514300876ea66ec108396334f3ef2b0f` == `tests/arch/hmon/expected.yaml::shared_bootrom_md5`；`grep -rn 'b662183a\|3c178b55' tools/ tests/ contracts/ Makefile` **空**（门控无写死）；probe 现场重建镜像 md5 = `b662183a…`(pos) / `3c178b55…`(neg)，与完成区逐字一致。
 4. **`make check-arch` ⇒ EXIT=0（82 s）**：安静窗口存在（`ps` 无 make/qemu、load 0.32、llvm/qemu 源树 `git status` 空）⇒ `install-host: PASS` + `build-bootrom: PASS` + `check-arch-smoke: PASS` + 15 个 min-ROM 探针全 PASS ⇒ engineer 的 BLOCKED **已解除**。
@@ -111,7 +111,7 @@
 | R5 `check-arch` BLOCKED 解除 | ✅已记录 | 不跑（reviewer 已整跑）；完成区 4 改为引用 reviewer 的 `make check-arch` **EXIT=0（82 s）** | reviewer 第 1 轮验收第 4 条 |
 | R6 F7（QEMU `cause_info` 偏离契约） | ✅已转登记 | 主会话已登记 `ISS-469`；探针仍按实测断言并在断言名点名 deviation | 完成区「遗留问题」 |
 
-**返工后复跑（本次输出/rc）**：`./.work/evidence/m14-testcases-006/run.sh` ⇒ rc=0、`EVIDENCE: PASS (0 failed)`、40/40；`make check-linux-k0` ⇒ rc=0、**119/119**（12.6 s）；`build-bootrom`/tiny md5/`min_rom_probe_046t` 未变（本轮只改注释与证据脚本）。
+**返工后复跑（本次输出/rc）**：运行期证据目录的一键脚本 `run.sh` ⇒ rc=0、`EVIDENCE: PASS (0 failed)`、40/40；`make check-linux-k0` ⇒ rc=0、**119/119**（12.6 s）；`build-bootrom`/tiny md5/`min_rom_probe_046t` 未变（本轮只改注释与证据脚本）。
 
 ### 第 2 轮 reviewer 验收（R1 返工复验，2026-11-17；小改复核档）
 
