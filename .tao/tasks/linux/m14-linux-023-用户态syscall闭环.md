@@ -51,7 +51,7 @@ DADAO 特有事实（`contract-syscall §2/§3/§8/§9/§10`，**不得偏离**�
 
 ## 待裁定（本任务不得自决；主会话转达用户后回填）
 
-1. **`execve` 清 0 的实现点**（`contract-syscall §10`）：「`rbtp` 清 0」在内核 `execve` 路径 vs musl 启动代码，二者择一。建议：内核 `execve` 清 0（与「`clone` 子入口 `rd8=0`」同层，内核保证初始态），musl 侧不重复；若用户选 musl 校准，则本任务 TLS 用户面只做「入口保存/返回恢复」，清 0 交 `024`/musl 任务。
+1. ~~**`execve` 清 0 的实现点**~~ **已裁定（用户 2026-11-17，选 A）**：**内核 `execve`/`start_thread` 清 `rbtp = 0`**（对齐 x86-64 `loadsegment(fs,0)` / ARM64 `tpidr_el0=0`；RISC-V/MIPS 是内核不清、由 libc 校准的反例）。`m14-linux-016` 的 `start_thread` 已实现；本任务只负责把它写成验收断言（`execve` 后用户态首条指令处 `rb3 == 0`）并加注入（改回不清 ⇒ 红）。musl 侧不重复清。
 
 ## 审阅记录
 
