@@ -50,7 +50,7 @@ DADAO 特有事实（**不得偏离**）：
 
 ## 待裁定（本任务不得自决；主会话转达用户后回填）
 
-1. **信号帧的 uapi 布局**：`uapi/asm/ptrace.h` 的 `user_regs_struct` 现为 K0 旧定义（`rd[32]/rb[32]/ra[8]`），与内核 `pt_regs`（4 组 2064 B）不一致。**选项**：A = 扩 `user_regs_struct` 到 4 组（`rd/rb/ra/rf` 各 64 + `ip`/`status`），`sigcontext` 直接引用，与内核布局同构（建议，musl 侧 sigcontext 结构随之对齐）；B = `sigcontext` 用独立精简布局（只存 caller/callee-saved 需要的），uapi `user_regs_struct` 不动。**建议 A**（单一真源、与 ptrace/core dump 同布局）；需用户确认 musl 移植侧的 `mcontext_t`/`sigcontext` 对齐口径。
+1. ~~**信号帧的 uapi 布局**~~ **已裁定（用户 2026-11-17，选 A 且精简）**：`user_regs_struct` = **`rd[64]` / `rb[64]` / `ra[64]` / `rf[64]`**，共 **2048 B**；**删除 `status`**（DADAO 无 status 寄存器）；**`rb[0]` 充当 IP**（只读寄存器的数据副本），不另设 `ip` 字段；`sigcontext` 直接引用。落地三条硬断言：① 帧内 `rb[0] == 异常时的 ip`（内核组装时不能沿用 `pt_regs.rb[0]=0` 的占位）；② `rt_sigreturn` 用 `rb[0]` 决定返回 IP、`rb1..63` 写回寄存器，**不得写 `rb0` 寄存器**（只读，写 ⇒ `ILLI`）；③ 编译期断言 `sizeof==2048` 与各段偏移（`rb=512`、`ra=1024`、`rf=1536`）。musl 侧 `mcontext_t`/`MC_PC` 按 `rb[0]` 槽对齐。术语一律用 IP，不用 PC。
 
 ## 审阅记录
 
