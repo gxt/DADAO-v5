@@ -31,6 +31,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m15-testcases-015 | 2026-11-18 07:31 | 1.5–2 h | 剩余 tiny bootrom 资产（k0/ 7 + bootrom.lds/tiny_crt/tiny_smoke/semihost_msg.inc）→ `tests/ee-tiny/` |
 
 | m15-spec-001 | 2026-11-13 22:05 | 3–5 天 | UDB IDL 语法 v0 + 5 条样板 operation + `idlc` 复用评估 + 抽取器原型（**待返工**：WIP `0584a64b`，用户要求先摊开文件内容 + 逐条语句分析；延后裁决） |
 
