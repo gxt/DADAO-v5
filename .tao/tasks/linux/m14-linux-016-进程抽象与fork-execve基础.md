@@ -1,0 +1,59 @@
+# m14-linux-016: 进程抽象与 fork/execve 基础（task_struct / mm / copy_process / 地址空间克隆）
+
+**模块**：linux
+**项目里程碑**：M14
+**依赖**：`m14-linux-012`（页故障通道 + 按需分页）、`m14-linux-015`（K3 收口门控）
+**可并行分片**：否（`components/linux` 单写者；共享 `mm/fault.c`、`include/asm/processor.h`、`kernel/process.c`）
+**并行组**：与 `m14-linux-017`…`021` **全部串行**（同组件同写者 + 共享 `arch/dadao` 文件）；与 qemu/testcases 模块可并行（不同组件）
+**预估**：6–8 h（代码量最大的一件：进程骨架 + mm 接线 + execve + 探针）
+**档位**：大改（组件改 + 新子系统接线 + 探针；复核须独立重跑 + ≥4 路注入）
+**状态**：待开始
+
+## 背景
+
+K3 收口时内核停在 `setup_arch()` 末尾：`current->mm == NULL`（init task 无地址空间），页故障通道的**页来源**与 **VMA 查找**是 K3 占位（`mm/fault.c` 的 `dadao_pf_alloc_page()` 从 RAM 顶取页、`dadao_pf_find_vma()` 走静态 `dadao_pf_window[]` 数组；源文件注释已明写「K4 替换这两处、其余行不动」）。K4 要建立进程模型，让这些占位变成真实现，并使 `fork`/`execve` 能创建带独立地址空间、可运行的进程。
+
+DADAO 特有事实（不得套 RISC-V/x86）：
+- **四组寄存器** `rd/rb/rf/ra`；`SP=rb1`、`FP=rb2`（无条件保留）、`TP=rb3`（rbtp）；`rb0`=只读 IP、`rd0`=恒 0。callee-saved = `rd32–63 ∪ rb32–63 ∪ rf32–63`（`contract-abi §4.5`）。
+- **页 64 KiB**、VA 42 位、单 PTBR；ASID 16 位（`mm->context.asid`，K3 `mm/mmu.c` 已分配）。
+- **无状态寄存器 / 无 PS.IE**：`struct pt_regs.status` 恒 0（`asm/ptrace.h`）。
+- `copy_process`/`dup_mm`/`copy_page_range` 是**通用**代码；本任务只补 `arch/dadao` 钩子（`copy_thread`、`copy_mm` 的 arch 部分、`start_thread`、`ret_from_fork`）。
+
+## 目标
+
+1. **`include/asm/processor.h`**：`thread_struct` 由 `{sp, ra, tp}` 扩为完整上下文（`sp`/`ra` + callee-saved `rd32–63`/`rb32–63` + FP 范围见**待裁定 1**）；`start_thread(regs, pc, sp)` 真实现（填用户入口 `ip`/`rb1`、清 `rb3`、设 `status=0`）。
+2. **越过 `mm_core_init()`**：`kernel/setup.c` 去掉 K2/K3 边界 stop，使 `alloc_page`/`find_vma`/VMA cache 可用；`mm/fault.c` 把 `dadao_pf_alloc_page()` 换为 `alloc_page(GFP_KERNEL|__GFP_ZERO)`、`dadao_pf_find_vma()` 换为 `find_vma(current->mm, addr)`（**其余行不动**，注释已明）。
+3. **`copy_process` 的 arch 钩子**：`copy_thread()` 把父 `pt_regs` 复制到子任务栈顶、设子 `thread.sp`/返回路径；子进程入口 `ret_from_fork`（可先复用 `trap.S` 的恢复序列，或最小 stub）。
+4. **`copy_mm` → `dup_mm` → `copy_page_range`**：地址空间克隆，**全量私有复制**非零页（先正确、后优化——COW 由 `m14-linux-018` 替换）；共享零页**保持共享不复制**（`fault.c` 已有 `unshare_zero`，`012` 口径）。
+5. **`execve` 基础**：`arch/dadao` 侧 bprm 装载（从 initramfs 读静态 musl `init` ELF）、建 **`VM_GROWSDOWN` 用户栈 VMA**、`start_thread` 填入口；号表/errno/TLS 口径见 `contract-syscall §8–§11`（本任务只做「能 execve 成功、栈 VMA 创建」，栈增长的**扩展**语义归 `019`）。
+6. **`kernel_init()`** 推进到「创建 init 进程」这一层（是否真跑用户 init 取决于**待裁定 4**）。
+
+## 验收（逐条贴真实 rc，每条须能 FAIL）
+
+1. `python3 tools/linux/k4_fork_probe.py` rc=0，逐 case 打印；期望值现场派生（页大小/几何 ← 镜像 `.config` + `spec/DADAO-12 §2.2.2`，寄存器角色 ← `contract-abi §4.5`，mm/regs 布局 ← 内核源现场符号）。
+2. **探针 case 覆盖（每 case 一条可达 FAIL 断言）**：
+   - `F1 fork 建子进程`：`copy_process` 后子任务存在、`mm` 非空、`context.asid` 与父不同（现场读值）、子 `pt_regs` 是父的副本（`ip`/`rb1` 相等、`rd8=0` 由 `copy_thread` 设）。
+   - `F2 地址空间克隆`：父映射的非零页在子侧 PA **不同**（全量复制，非共享）；共享零页两侧 PA **相同**（不复制）。
+   - `F3 execve 建栈 VMA`：execve 后 `current->mm` 有且仅一个 `VM_GROWSDOWN` VMA，`vm_start`/`vm_end` 现场打印、大小 ≥ 1 页；入口 `ip`/`rb1` 已由 `start_thread` 填。
+   - `F4 换页来源`：`dadao_pf_alloc_page` 不再从 RAM 顶取页（`alloc_page` 生效），`dadao_pf_find_vma` 走 `find_vma(current->mm)`（`current->mm` 非空时命中真 VMA）。
+3. **≥4 路注入**（`cp`+md5 还原 + 重建回绿）：① 不复制 `pt_regs`（子 regs 全 0）⇒ `F1` 红；② `copy_page_range` 不复制直接共享 ⇒ `F2` 红（两侧 PA 相同）；③ `execve` 不建 `VM_GROWSDOWN` ⇒ `F3` 红；④ `fault.c` 不换 `find_vma`（仍走静态窗口）⇒ `F4` 红。
+4. **不回归**：`make check-linux-k0/-k1/-k2/-k3` rc=0（**不跑 `check-modules`**：会装共享安装根）；`make check-patch-tree` rc=0。
+5. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`。
+
+## 硬约束
+
+1. 独立 `git worktree`（分支 = 任务号）；`git rev-parse --show-toplevel` 自证；禁改主工作树；临时文件放 `/tmp/opencode/m14-linux-016/`。
+2. **预计改动文件**：`components/linux/patches/arch/dadao/include/asm/{processor,ptrace,thread_info}.h.patch`、`components/linux/patches/arch/dadao/kernel/{process.c,Makefile,setup.c}.patch`（process.c 新建）、`components/linux/patches/arch/dadao/mm/{fault.c,Makefile}.patch`（fault.c 仅换两处占位）、`components/linux/patches/arch/dadao/kernel/{Kconfig.debug,execve?}.patch`、`components/linux/changelog.md`、`tools/linux/k4_fork_probe.py`（新）。**不改** `spec/**`、`.tao/contracts/**`、`tests/**`、`components/qemu/**`、`Makefile`。
+3. 不提交 git；注入还原 `cp`+md5；注入后重建；禁 `checkout/restore/stash/reset --hard`。
+4. 语义以 `spec/DADAO-12 §2.2/§3.6` + `contract-abi §4.5` + `contract-syscall §8–§11` + `contract-tlb` 为准；`copy_process`/`dup_mm` 的通用逻辑不重写，只补 arch 钩子。
+5. 页来源替换后**不得**再依赖 `dadao_pf_pool_*` 静态池；`dadao_pf_init()` 的池初始化改为 `alloc_page` 就绪后的零页初始化。
+
+## 待裁定（本任务不得自决；主会话转达用户后回填）
+
+1. **（待裁定 1）上下文切换 FP 保存范围**：`thread_struct` 是否含 `rf32–63` 决定本任务 `copy_thread`/上下文保存的字段集。选项与建议见任务 `017` 待裁定 1；本任务先按「含 RF」的**保守上界**写字段（`copy_thread` 复制的字段集与 017 一致）。
+2. **（待裁定 4）U-mode 异常入口是否在 K4**：本任务 `execve` 出的 init 进程能否真跑用户态（`kernel_init` 走到 `ret_from_fork` 落回用户）取决于 U-mode 入口（`cfx_umon` user 行 `switch_run_mode`/`excp_vector`，`contract-syscall §8`）。**若 U-mode 归 K5**：本任务验收停在「创建 init 进程 + 内核侧自检」（`F1–F4`），不断言「init 在用户态跑起来」；**若归 K4**：本任务作为 U-mode 入口任务的前置，验收补「init 进入用户态第一条指令」。
+3. **（待裁定 2/3）** 本任务不涉及，见 `020`/`021`。
+
+## 审阅记录
+
+（待填）
