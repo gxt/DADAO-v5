@@ -1,4 +1,4 @@
-# m14-testcases-007: tiny 资产集中到 `tests/tiny/`（脚本 + bootrom + lds）
+# m14-testcases-007: tiny 资产集中到 `tests/ee-tiny/`（脚本 + bootrom + lds）
 
 **模块**：testcases
 **项目里程碑**：M14
@@ -10,7 +10,7 @@
 
 ## 背景（用户 2026-11-17 指示）
 
-把 kaiwu-tiny 专属的**脚本、bootrom、lds** 集中到 `tests/tiny/`；**不建子目录**（平铺，文件名说明用途）；**测试集不移动**（`tests/inst`、`tests/tset`、`tests/unit` 原地不动）。
+把 kaiwu-tiny 专属的**脚本、bootrom、lds** 集中到 `tests/ee-tiny/`；**不建子目录**（平铺，文件名说明用途）；**测试集不移动**（`tests/inst`、`tests/tset`、`tests/unit` 原地不动）。
 
 ## 目标（迁移清单，共 17 个文件）
 
@@ -42,7 +42,7 @@
 
 **不移动**：`tests/inst/linker/inst-tiny.lds`（属 inst 测试集布局，测试集不动）；`tests/shared/bootrom/step5/**`（Vast）；`tests/shared/linker/dadao-*.lds`、`kaiwu-vast.lds`（多机型/其它）；`tests/unit/picolibc/**`、`tests/tset/**`、`tests/inst/**`。
 
-**迁移后目录**：`tests/tiny/` 平铺上述 13 个 bootrom/lds 文件（脚本 4 个也放 `tests/tiny/`，按用户指示）。
+**迁移后目录**：`tests/ee-tiny/` 平铺上述 13 个 bootrom/lds 文件（脚本 4 个也放 `tests/ee-tiny/`，按用户指示）。
 
 ## 引用更新（必须全量 grep，不得漏）
 
@@ -56,7 +56,7 @@
 1. `git mv` 后旧路径不存在、新路径存在；17 个文件内容逐字节不变（md5 对账）。
 2. `make build-bootrom` rc=0；tiny bootrom md5 与迁移前一致。
 3. `check-inst-asm` **272/272**（测试集未动）；`check-tests-index`、`check-case-ledger`、`check-inst-macro-scope`、`check-dirs`、`check-no-residue` 全 rc=0。
-4. `python3 tests/tiny/run_asm_suite.py --help`、`python3 tests/tiny/picolibc_tests.py --list`（或等价轻量路径）可运行；`run_embench_e2e.py --help`、`run_semihosting_smoke.py --help` 可运行。
+4. `python3 tests/ee-tiny/run_asm_suite.py --help`、`python3 tests/ee-tiny/picolibc_tests.py --list`（或等价轻量路径）可运行；`run_embench_e2e.py --help`、`run_semihosting_smoke.py --help` 可运行。
 5. 1 路注入：把引用改回旧路径 ⇒ 对应门控/构建红；`cp`+md5 还原 ⇒ 回绿。
 6. 完成区 ≤30 行；`**状态**` → `待验收`。
 
