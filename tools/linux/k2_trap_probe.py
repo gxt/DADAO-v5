@@ -115,6 +115,10 @@ def _image(selftest: bool = False, terminal: str | None = None,
         "CONFIG_DADAO_K2_TIME_STOP": "n",
         "CONFIG_DADAO_K2_TRAP_SELFTEST": "y" if selftest else "n",
         "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "y" if unknown else "n",
+        # m14-linux-011/012 images must not leak in either (the shared build
+        # tree is configured by whichever gate ran last).
+        "CONFIG_DADAO_K3_PT_SELFTEST": "n",
+        "CONFIG_DADAO_K3_PF_SELFTEST": "0",
     }
     for name in _SELFTEST_TERMINALS:
         slice_[f"CONFIG_DADAO_K2_SELFTEST_{name}"] = \

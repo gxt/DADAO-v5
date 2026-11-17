@@ -1,12 +1,14 @@
 diff --git a/arch/dadao/include/asm/ptrace.h b/arch/dadao/include/asm/ptrace.h
 new file mode 100644
-index 000000000..130b2b1b0
+index 000000000..5027e36a2
 --- /dev/null
 +++ b/arch/dadao/include/asm/ptrace.h
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,123 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PTRACE_H
 +#define __ASM_PTRACE_H
++
++#include <linux/stddef.h>
 +
 +#include <uapi/asm/ptrace.h>
 +#include <asm/trap.h>
@@ -14,14 +16,31 @@ index 000000000..130b2b1b0
 +#ifndef __ASSEMBLY__
 +
 +/*
-+ * The complete saved context of a supv synchronous exception.
++ * The complete saved context of a supv exception — synchronous (kernel/trap.S)
++ * or asynchronous (kernel/async_trap.S), the two frames are the same shape.
 + *
 + * spec/DADAO-12 §3.6: the hardware saves *no* general register, only the cg5
-+ * frame fields, so the kernel entry saves the general register file itself
-+ * (contract-syscall §8).  The frame mirrors the register file one slot per
-+ * register: rd1-rd63 and rb1-rb63 carry the faulting context's values, and
-+ * rd0/rb0 — which are not saved — stay 0 (rd0 reads as zero; rb0 is the
-+ * read-only IP, mirrored into `ip`).
++ * frame fields, so the kernel entry saves the register file itself
++ * (contract-syscall §8).  The frame mirrors the file one slot per register, all
++ * four banks (§2.1/§2.4 of spec/SimRISC-00):
++ *
++ *   rd[0..63]  rd0 stays 0 (it is not a register: `ld` to it is ILLI);
++ *   rb[0..63]  rb0 stays 0 (it is the read-only IP, mirrored into `ip`);
++ *   ra[0..63]  the return-address stack, *including* ra0 — the {RACNT, MRPTR}
++ *              metadata word (spec/SimRISC-00 §2.4) — so that a round trip
++ *              through this frame leaves `ra0-ra63` bit-identical
++ *              (§2.4: "异常进入和退出不改变 ra0–ra63 的内容");
++ *   rf[0..63]  rf0 is the FCSR and is saved/restored as a whole; its write port
++ *              masks the non-writable fields (§2.3), so a value read back out
++ *              of this frame is the architectural one, not the raw input.
++ *
++ * Field order is not free: `st.o`/`ld.o` form their address as
++ * `[rbHB, imms12]` (signed 12-bit ⇒ at most 2048 bytes from the base,
++ * spec/SimRISC-01 §1), while `stm.o`/`ldm.o` address their transfer with a
++ * *register* index (rdHC) and are therefore unlimited.  The two scalar slots
++ * the stub writes with a plain immediate (`ip`, `status`) sit inside that
++ * window; the two banks that need 64 slots each (`ra`, `rf`) follow it and are
++ * moved in block transfers (asm/entry.h).
 + *
 + * `ip` is `excp_cause_ip` (spec/DADAO-12 §3.6) and is the software copy: an
 + * `escape` returns to the *hardware* `cfx_smon.excp_cause_ip`, so a handler
@@ -38,7 +57,32 @@ index 000000000..130b2b1b0
 +	unsigned long rb[64];
 +	unsigned long ip;
 +	unsigned long status;
++	unsigned long ra[64];
++	unsigned long rf[64];
 +};
++
++/*
++ * The layout is pinned here once: every offset the assembly uses comes from
++ * asm-offsets (PT_* macros, derived from these very fields), so a mismatch
++ * between this struct and the stubs' expectations has to fail the build rather
++ * than corrupt a context at run time.  The 2048 bound is `imms12`'s positive
++ * reach (spec/SimRISC-01 §1), the reason `ip`/`status` precede the two banks.
++ */
++_Static_assert(sizeof(struct pt_regs) ==
++		       (4 * 64 + 2) * sizeof(unsigned long),
++	       "pt_regs: four 64-slot banks plus ip/status");
++_Static_assert(sizeof(((struct pt_regs *)0)->ra) == 64 * sizeof(unsigned long),
++	       "pt_regs: ra holds all 64 return-address slots");
++_Static_assert(sizeof(((struct pt_regs *)0)->rf) == 64 * sizeof(unsigned long),
++	       "pt_regs: rf holds all 64 floating-point slots");
++_Static_assert(offsetof(struct pt_regs, ip) % 8 == 0 &&
++		       offsetof(struct pt_regs, status) % 8 == 0,
++	       "pt_regs: ip/status must be 8-byte aligned");
++_Static_assert(offsetof(struct pt_regs, status) + sizeof(unsigned long) <= 2048,
++	       "pt_regs: ip/status must stay inside st.o's imms12 window");
++_Static_assert(offsetof(struct pt_regs, ra) % 8 == 0 &&
++		       offsetof(struct pt_regs, rf) % 8 == 0,
++	       "pt_regs: block-transferred banks must be 8-byte aligned");
 +
 +static inline int user_mode(struct pt_regs *regs)
 +{

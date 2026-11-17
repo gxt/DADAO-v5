@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k2_selftest.c b/arch/dadao/kernel/k2_selftest.c
 new file mode 100644
-index 000000000..c545dc889
+index 000000000..190feda8b
 --- /dev/null
 +++ b/arch/dadao/kernel/k2_selftest.c
-@@ -0,0 +1,487 @@
+@@ -0,0 +1,815 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K2 supv-exception self-test (CONFIG_DADAO_K2_TRAP_SELFTEST).
@@ -28,6 +28,11 @@ index 000000000..c545dc889
 + *       frames must be identical in every GPR except `ip` (the second load is
 + *       the next instruction).  This is the frame-integrity check: a register
 + *       the save/restore got wrong shows up as a mismatch.
++ *   P12 four round trips (A, B, A, B) with different feature values in the two
++ *       *special* banks: the frame must hold ra0-ra63/rf0-rf63 exactly
++ *       (checked inside the handler, after its own call/ret), and the live
++ *       bank must be bit-identical after the exit.  m14-linux-022 — see the
++ *       P12 block below for what each of the three counts measures.
 + *   P3  an *unregistered* fault must terminate: the dispatcher has no default
 + *       for a CFXMEM, names it, and stops with the monitor exit code of
 + *       spec/Kaiwu §7.1.  P3 is the last case because it ends the boot.
@@ -298,6 +303,328 @@ index 000000000..c545dc889
 +			   k2_fault_ip[1] - k2_fault_ip[0]);
 +}
 +
++/* -------------------------------------------------------------------------
++ * P12: the RA and RF banks across the synchronous entry (m14-linux-022)
++ * ------------------------------------------------------------------------- */
++
++/*
++ * P5 compares the two banks of the *general* register file.  P12 asks the same
++ * question of the two *special* banks:
++ *
++ *   frame  the frame the entry captured must hold the faulting context's
++ *          ra0-ra63 and rf0-rf63 exactly — checked inside the handler, while
++ *          the frame is the only copy;
++ *   after  when the handler has used `call`/`ret` (spec/SimRISC-00 §2.4: a
++ *          handler is allowed to) and the exit restored the file, the live
++ *          bank must be bit-identical to what it was before the fault.  The
++ *          handler's pushes are the corruption this measures: with RACNT
++ *          entries live, its `call` overwrites ra[63-RACNT]'s *content*, which
++ *          only a restore from the frame puts back;
++ *   switch the same round trip is repeated with four *different* feature sets
++ *          (A, B, A, B), which is the kernel-side half of the process-switch
++ *          requirement: two contexts distinguished by their ra/rf values must
++ *          not be able to see each other's.
++ *
++ * The feature values go into the *undefined* part of the RAS
++ * (spec/SimRISC-00 §2.4: only ra[64-RACNT..63] is live; the rest "不参与栈
++ * 语义"), so writing them cannot disturb the call chain — and reading them back
++ * unchanged proves the whole bank, not just the live window, round-tripped.
++ * rf0's feature value is an FCSR word: its read-back is the *masked* value
++ * (§2.3), which is why the expectation is taken from the bank itself.  The
++ * handler also *writes* the FP bank (rf32 := a per-pass sentinel): without a
++ * write, a missing RF restore would have nothing to leave behind, because the
++ * handler would never have changed the bank in the first place.
++ */
++#define K2_P12_TAGS	16			/* feature slots per bank */
++#define K2_P12_PASSES	4			/* A, B, A, B */
++#define K2_P12_TAG_BASE	0xa0220000UL		/* "022", distinct per pass */
++/*
++ * What the *handler* writes into the FP bank (rf32).  The handler legitimately
++ * uses the register file; without a write the "missing RF restore" half of this
++ * case would have no observable (nothing would differ from the entry's frame),
++ * so the write is the counter-example's carrier — and the exit's RF restore is
++ * what puts the interrupted context's value back.
++ */
++#define K2_P12_RF_SENTINEL	0xd0220000UL
++#define K2_P12_RF_SLOT		32
++#define K2_P12_NONE	0xff			/* "no mismatch" index */
++
++static unsigned long k2_p12_ra_before[64], k2_p12_ra_exp[64];
++static unsigned long k2_p12_ra_after[64];
++static unsigned long k2_p12_rf_before[64], k2_p12_rf_exp[64];
++static unsigned long k2_p12_rf_after[64];
++static unsigned long k2_p12_tags[K2_P12_TAGS + 1];	/* [16] = FCSR word */
++static unsigned long k2_p12_call;		/* the handler's call/ret result */
++static unsigned long k2_p12_sentinel;		/* written into rf32 by the handler */
++
++static unsigned int k2_p12_frame_mm, k2_p12_frame_at;
++static unsigned long k2_p12_frame_exp, k2_p12_frame_have;
++static unsigned int k2_p12_after_mm, k2_p12_after_at;
++static unsigned long k2_p12_after_exp, k2_p12_after_have;
++static unsigned int k2_p12_restore_mm;
++
++/*
++ * The four block transfers the entry itself uses (asm/entry.h), both as a
++ * snapshot of the live bank and as a writer of it.  `__always_inline` is
++ * load-bearing: a call in the window between the expectation snapshot and the
++ * fault would push an entry and make the expectation stale.
++ */
++static __always_inline void k2_p12_save_ra(unsigned long *dst)
++{
++	register unsigned long base __asm__("rb18") = (unsigned long)dst;
++
++	__asm__ __volatile__(
++		"set.rd\trd3, 0\n\t"
++		"stm.o\t{ra0:ra62}, [rb18, rd3]\n\t"
++		"set.rd\trd3, 504\n\t"
++		"stm.o\t{ra63:ra63}, [rb18, rd3]"
++		: : "r"(base) : "rd3", "memory");
++}
++
++static __always_inline void k2_p12_save_rf(unsigned long *dst)
++{
++	register unsigned long base __asm__("rb18") = (unsigned long)dst;
++
++	__asm__ __volatile__(
++		"set.rd\trd3, 0\n\t"
++		"stm.o\t{rf0:rf62}, [rb18, rd3]\n\t"
++		"set.rd\trd3, 504\n\t"
++		"stm.o\t{rf63:rf63}, [rb18, rd3]"
++		: : "r"(base) : "rd3", "memory");
++}
++
++static __always_inline void k2_p12_load_ra(const unsigned long *src)
++{
++	register unsigned long base __asm__("rb18") = (unsigned long)src;
++
++	__asm__ __volatile__(
++		"set.rd\trd3, 0\n\t"
++		"ldm.o\t{ra0:ra62}, [rb18, rd3]\n\t"
++		"set.rd\trd3, 504\n\t"
++		"ldm.o\t{ra63:ra63}, [rb18, rd3]"
++		: : "r"(base) : "rd3", "memory");
++}
++
++static __always_inline void k2_p12_load_rf(const unsigned long *src)
++{
++	register unsigned long base __asm__("rb18") = (unsigned long)src;
++
++	__asm__ __volatile__(
++		"set.rd\trd3, 0\n\t"
++		"ldm.o\t{rf0:rf62}, [rb18, rd3]\n\t"
++		"set.rd\trd3, 504\n\t"
++		"ldm.o\t{rf63:rf63}, [rb18, rd3]"
++		: : "r"(base) : "rd3", "memory");
++}
++
++/* Install the pass's feature values (ra1-ra16, rf1-rf16, and rf0 = FCSR). */
++static __always_inline void k2_p12_write_tags(void)
++{
++	register unsigned long *tags __asm__("rb18") = k2_p12_tags;
++
++	__asm__ __volatile__(
++		"ld.o\tra1, [rb18, 0]\n\t"
++		"ld.o\tra2, [rb18, 8]\n\t"
++		"ld.o\tra3, [rb18, 16]\n\t"
++		"ld.o\tra4, [rb18, 24]\n\t"
++		"ld.o\tra5, [rb18, 32]\n\t"
++		"ld.o\tra6, [rb18, 40]\n\t"
++		"ld.o\tra7, [rb18, 48]\n\t"
++		"ld.o\tra8, [rb18, 56]\n\t"
++		"ld.o\tra9, [rb18, 64]\n\t"
++		"ld.o\tra10, [rb18, 72]\n\t"
++		"ld.o\tra11, [rb18, 80]\n\t"
++		"ld.o\tra12, [rb18, 88]\n\t"
++		"ld.o\tra13, [rb18, 96]\n\t"
++		"ld.o\tra14, [rb18, 104]\n\t"
++		"ld.o\tra15, [rb18, 112]\n\t"
++		"ld.o\tra16, [rb18, 120]\n\t"
++		"ld.o\trf1, [rb18, 0]\n\t"
++		"ld.o\trf2, [rb18, 8]\n\t"
++		"ld.o\trf3, [rb18, 16]\n\t"
++		"ld.o\trf4, [rb18, 24]\n\t"
++		"ld.o\trf5, [rb18, 32]\n\t"
++		"ld.o\trf6, [rb18, 40]\n\t"
++		"ld.o\trf7, [rb18, 48]\n\t"
++		"ld.o\trf8, [rb18, 56]\n\t"
++		"ld.o\trf9, [rb18, 64]\n\t"
++		"ld.o\trf10, [rb18, 72]\n\t"
++		"ld.o\trf11, [rb18, 80]\n\t"
++		"ld.o\trf12, [rb18, 88]\n\t"
++		"ld.o\trf13, [rb18, 96]\n\t"
++		"ld.o\trf14, [rb18, 104]\n\t"
++		"ld.o\trf15, [rb18, 112]\n\t"
++		"ld.o\trf16, [rb18, 120]\n\t"
++		"ld.o\trf0, [rb18, 128]"
++		: : "r"(tags) : "memory");
++}
++
++/* The handler's own call/ret: whatever it pushes must not survive the exit. */
++static noinline unsigned long k2_p12_helper(unsigned long v)
++{
++	return v + 0x0f;
++}
++
++static void k2_p12_note_frame(unsigned int bank, unsigned int i,
++			      unsigned long exp, unsigned long have)
++{
++	if (!k2_p12_frame_mm) {
++		k2_p12_frame_at = bank * 64 + i;
++		k2_p12_frame_exp = exp;
++		k2_p12_frame_have = have;
++	}
++	k2_p12_frame_mm++;
++}
++
++static void k2_p12_report(struct dadao_fault_probe *probe,
++			  struct pt_regs *regs, unsigned long info)
++{
++	unsigned int i;
++
++	k2_p12_call = k2_p12_helper(0x5a5a);
++
++	/* Clobber the FP bank: the exit's RF restore is the only thing that
++	 * brings this slot back (spec/SimRISC-00 §2.3/§2.4 — the handler may use
++	 * both special banks, the interrupted context must not see it). */
++	{
++		register unsigned long *p __asm__("rb18") =
++			&k2_p12_sentinel;
++
++		__asm__ __volatile__("ld.o\trf32, [rb18, 0]"
++				     : : "r"(p) : "memory");
++	}
++
++	for (i = 0; i < 64; i++) {
++		if (regs->ra[i] != k2_p12_ra_exp[i])
++			k2_p12_note_frame(0, i, k2_p12_ra_exp[i], regs->ra[i]);
++		if (regs->rf[i] != k2_p12_rf_exp[i])
++			k2_p12_note_frame(1, i, k2_p12_rf_exp[i], regs->rf[i]);
++	}
++}
++
++static void __init k2_p12_pass(unsigned int pass)
++{
++	unsigned long racnt;
++	unsigned int i;
++
++	for (i = 0; i < K2_P12_TAGS; i++)
++		k2_p12_tags[i] = K2_P12_TAG_BASE + ((unsigned long)pass << 12) +
++				 (i << 4);
++	/* rf0's feature value: an FCSR word (rounding mode + sticky flags). */
++	k2_p12_tags[K2_P12_TAGS] = ((unsigned long)(pass & 3) << 32) | 0x11UL;
++	k2_p12_sentinel = K2_P12_RF_SENTINEL + pass;
++
++	k2_p12_frame_mm = 0;
++	k2_p12_frame_at = K2_P12_NONE;
++	k2_p12_frame_exp = 0;
++	k2_p12_frame_have = 0;
++	k2_p12_after_mm = 0;
++	k2_p12_after_at = K2_P12_NONE;
++	k2_p12_after_exp = 0;
++	k2_p12_after_have = 0;
++	k2_p12_restore_mm = 0;
++	k2_p12_call = 0;
++
++	/*
++	 * The RAS we are about to overwrite: restored verbatim at the end, so
++	 * the driver's own return chain survives the experiment.
++	 */
++	k2_p12_save_ra(k2_p12_ra_before);
++	k2_p12_save_rf(k2_p12_rf_before);
++	racnt = (k2_p12_ra_before[0] >> 48) & 0x3f;
++
++	k2_p12_write_tags();
++
++	/*
++	 * No call between here and the faulting load: the expectation has to be
++	 * the state the entry actually captures.
++	 */
++	k2_p12_save_ra(k2_p12_ra_exp);
++	k2_p12_save_rf(k2_p12_rf_exp);
++	barrier();
++	(void)*(volatile unsigned long *)k2_probe_va;
++	k2_p12_save_ra(k2_p12_ra_after);
++	k2_p12_save_rf(k2_p12_rf_after);
++
++	for (i = 0; i < 64; i++) {
++		if (k2_p12_ra_after[i] != k2_p12_ra_exp[i]) {
++			if (!k2_p12_after_mm) {
++				k2_p12_after_at = i;
++				k2_p12_after_exp = k2_p12_ra_exp[i];
++				k2_p12_after_have = k2_p12_ra_after[i];
++			}
++			k2_p12_after_mm++;
++		}
++		if (k2_p12_rf_after[i] != k2_p12_rf_exp[i]) {
++			if (!k2_p12_after_mm) {
++				k2_p12_after_at = 64 + i;
++				k2_p12_after_exp = k2_p12_rf_exp[i];
++				k2_p12_after_have = k2_p12_rf_after[i];
++			}
++			k2_p12_after_mm++;
++		}
++	}
++
++	k2_p12_load_ra(k2_p12_ra_before);
++	k2_p12_load_rf(k2_p12_rf_before);
++	k2_p12_save_ra(k2_p12_ra_after);
++	k2_p12_save_rf(k2_p12_rf_after);
++	for (i = 0; i < 64; i++) {
++		if (k2_p12_ra_after[i] != k2_p12_ra_before[i])
++			k2_p12_restore_mm++;
++		if (k2_p12_rf_after[i] != k2_p12_rf_before[i])
++			k2_p12_restore_mm++;
++	}
++
++	/*
++	 * `ra1`/`rf1`/`rf0` are read back out of the *bank* (the expectation
++	 * snapshot), not echoed from the tag table: they are what the entry must
++	 * have captured, and rf0 shows the FCSR write mask (spec/SimRISC-00
++	 * §2.3) doing its job on the way in.  The line stays under the early
++	 * console's 256-byte buffer; a mismatch gets a second, detailed line.
++	 */
++	dadao_early_printf("K2 probe P12: pass=%u racnt=%lu ra0=%#lx tag0=%#lx "
++			   "ra1=%#lx rf1=%#lx rf0=%#lx call=%#lx sent=%#lx "
++			   "frame_mm=%u after_mm=%u restore_mm=%u\n",
++			   pass, racnt, k2_p12_ra_exp[0], k2_p12_tags[0],
++			   k2_p12_ra_exp[1], k2_p12_rf_exp[1], k2_p12_rf_exp[0],
++			   k2_p12_call, k2_p12_sentinel, k2_p12_frame_mm,
++			   k2_p12_after_mm, k2_p12_restore_mm);
++	if (k2_p12_frame_mm)
++		dadao_early_printf("K2 probe P12: pass=%u frame_first=%u "
++				   "exp=%#lx got=%#lx\n", pass,
++				   k2_p12_frame_at, k2_p12_frame_exp,
++				   k2_p12_frame_have);
++	if (k2_p12_after_mm)
++		dadao_early_printf("K2 probe P12: pass=%u after_first=%u "
++				   "exp=%#lx got=%#lx\n", pass,
++				   k2_p12_after_at, k2_p12_after_exp,
++				   k2_p12_after_have);
++}
++
++/* P12: four round trips (A, B, A, B) through the synchronous entry. */
++static void __init k2_case_p12(void)
++{
++	unsigned int pass;
++
++	k2_probe.cause = 1UL << 1;		/* CFXMEM */
++	k2_probe.info = k2_probe_va;
++	k2_probe.retry = 0;			/* resume past the faulting load */
++	k2_probe.hits = 0;
++	k2_probe.max_hits = 8;
++	k2_probe.redirect = 0;
++	k2_probe.report = k2_p12_report;
++	if (dadao_trap_probe_register(&k2_probe)) {
++		dadao_early_printf("K2 probe P12: FAIL register\n");
++		return;
++	}
++	for (pass = 0; pass < K2_P12_PASSES; pass++)
++		k2_p12_pass(pass);
++	dadao_trap_probe_unregister(&k2_probe);
++	/* Leave the struct as the other cases expect to find it. */
++	k2_probe.report = k2_probe_report;
++}
++
 +
 +/*
 + * P6: CFXTRAP is in the table and dispatchable (a supv `trap cfx_smon, n` is
@@ -482,6 +809,7 @@ index 000000000..c545dc889
 +	k2_case_p1();
 +	k2_case_p2();
 +	k2_case_p5();
++	k2_case_p12();
 +	k2_case_p6();
 +	k2_case_p7();
 +	k2_case_p8();

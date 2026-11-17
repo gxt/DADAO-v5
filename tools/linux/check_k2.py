@@ -21,7 +21,10 @@ Two assertions from the original criteria stay in the gate without being part of
 the four (they were folded, not dropped): **S** end-to-end stage order and **X**
 the A′ exit-code segmentation.  **B** asserts that the image under test is the
 K2 image the gate asked for (``defconfig`` as-is) and that its plain boot is
-clean.
+clean.  **G** (``m14-linux-022``) judges the *frame* the two stubs build: all
+four register banks (rd/rb/ra/rf) are captured and restored on both entries, so
+a handler's own ``call``/``ret`` cannot leak into the interrupted context's
+``ra0-ra63`` and ``rf0-rf63`` (spec/SimRISC-00 §2.3/§2.4).
 
 Expectations are derived live — this file restates none of them:
 
@@ -38,7 +41,10 @@ Expectations are derived live — this file restates none of them:
   * the firmware stage order -> the image ``build_firmware`` just produced and
     the machine profile;
   * the self-check code space -> every ``*FAIL*`` constant the kernel sources
-    define (the same scan the K2 time gate uses).
+    define (the same scan the K2 time gate uses);
+  * the four-bank frame -> ``k2_selftest.c``/``k2_irq_test.c`` (tag bases,
+    FCSR word, helper offsets), ``include/asm/ptrace.h`` (the layout
+    assertions) and ``spec/SimRISC-00``'s ``ra0–ra63`` for the bank width.
 
 Images (each one configured explicitly; the build tree is shared, so no image may
 inherit whichever gate configured it last):
@@ -55,7 +61,9 @@ parsed out of their output, never restated here).
 ``--selfcheck`` mutates the captured runs / the captured ``.config`` and shows
 that *every* group flips.  ``--inject`` corrupts the kernel source, rebuilds,
 asserts the named groups go red, restores with ``cp`` + md5 and proves the image
-is green again — one path per capability.
+is green again — one path per capability, plus one path per way of breaking the
+four-bank frame (missing capture on either entry, missing RA/RF restore,
+off-by-one slot).
 
 Exit status: 0 = every check passed; 1 = at least one FAIL; 2 = an input could
 not be derived (spec / contract / image / build tree missing).
@@ -110,7 +118,10 @@ IMAGES = {
         "CONFIG_DADAO_K2_SELFTEST_REENTRY=n",
         "CONFIG_DADAO_K2_SELFTEST_CFXTRAP=n",
         "CONFIG_DADAO_K2_SELFTEST_CFXESC=n",
-        # m14-linux-012: the K3 page-fault probe is an int (0 = off).
+        # m14-linux-011/012: neither K3 probe may leak in from whichever image
+        # configured the shared build tree last (the pt image is the trap: it is
+        # built first and carries K3_PT_SELFTEST=y).
+        "CONFIG_DADAO_K3_PT_SELFTEST=n",
         "CONFIG_DADAO_K3_PF_SELFTEST=0",
     ],
     "irq": [
@@ -120,6 +131,7 @@ IMAGES = {
         "CONFIG_DADAO_K2_TIME_CASE=0",
         "CONFIG_DADAO_K2_IRQ_TEST=y",
         "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
+        "CONFIG_DADAO_K3_PT_SELFTEST=n",
         "CONFIG_DADAO_K3_PF_SELFTEST=0",
     ],
 }
@@ -135,9 +147,9 @@ IMAGE_CONFIG = {
 #: milestone boundaries), asserted as "no ``CONFIG_X=`` line at all".
 IMAGE_UNSET = {
     "k2": ("CONFIG_DADAO_K1_EARLY_STOP", "CONFIG_DADAO_K2_EARLY_STOP"),
-    "trap": ("CONFIG_DADAO_K1_EARLY_STOP",),
+    "trap": ("CONFIG_DADAO_K1_EARLY_STOP", "CONFIG_DADAO_K3_PT_SELFTEST"),
     "irq": ("CONFIG_DADAO_K1_EARLY_STOP", "CONFIG_DADAO_K2_EARLY_STOP",
-            "CONFIG_DADAO_K2_TRAP_SELFTEST"),
+            "CONFIG_DADAO_K2_TRAP_SELFTEST", "CONFIG_DADAO_K3_PT_SELFTEST"),
 }
 
 KERNEL_BUILD = "vmlinux"
@@ -197,7 +209,7 @@ class Report:
 
     def summary(self) -> str:
         parts = []
-        for group in "BETMSXR":
+        for group in "BETMSXRG":
             if group in self.groups:
                 total, failed = self.groups[group]
                 parts.append(f"{group} {total - failed}/{total}")
@@ -513,6 +525,185 @@ def check_exception(rep: Report, rc: int, text: str, d: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# G: the four-bank frame (rd/rb/ra/rf) on both entries (m14-linux-022)
+# ---------------------------------------------------------------------------
+# spec/SimRISC-00 §2.4 requires an exception entry *and* exit to leave
+# ra0-ra63 unchanged while the handler is free to use call/ret — the handler's
+# pushes overwrite the contents of the entries it pushes, so only a save+restore
+# of the whole bank satisfies it.  §2.3 gives rf0 (FCSR) a write port that
+# accepts [33:32] and [4:0] only.  Both facts are measured from inside the
+# kernel by its own cases: k2_selftest.c's P12 (synchronous, four passes
+# A/B/A/B) and k2_irq_test.c's P6 (asynchronous, one tick).  This group judges
+# their prints.  Everything it compares against is parsed live: the tag bases,
+# FCSR word and helper offsets out of those two sources, the per-bank register
+# count out of spec/SimRISC-00's `ra0–ra63`, and the frame layout out of the
+# entry banner the kernel itself prints.
+
+SRC_SELFTEST = "arch/dadao/kernel/k2_selftest.c"
+SRC_IRQTEST = "arch/dadao/kernel/k2_irq_test.c"
+SRC_PTRACE = "arch/dadao/include/asm/ptrace.h"
+
+
+def _source(rel: str) -> str:
+    return (linux_paths.linux_source_dir() / rel).read_text(encoding="utf-8")
+
+
+def _src_define(rel: str, name: str) -> int:
+    m = re.search(rf"^#define\s+{name}\s+(0x[0-9a-fA-F]+|\d+)(?:ULL|UL|L|U)?\b",
+                  _source(rel), re.MULTILINE)
+    if not m:
+        raise SystemExit(f"check_k2: {rel} has no #define {name}")
+    return int(m.group(1), 0)
+
+
+def _src_int(pattern: str, rel: str, what: str) -> int:
+    m = re.search(pattern, _source(rel), re.MULTILINE)
+    if not m:
+        raise SystemExit(f"check_k2: {rel} has no {what}")
+    return int(m.group(1), 0)
+
+
+def bank_registers() -> int:
+    """Registers per bank, from spec/SimRISC-00's `ra0–ra63` (0..63)."""
+    text = (_REPO / "spec" / "SimRISC-00-指令系统设计.md").read_text(
+        encoding="utf-8")
+    m = re.search(r"全部 ra0[–-]ra(\d+) 寄存器", text)
+    if not m:
+        raise SystemExit("check_k2: spec/SimRISC-00 has no ra0–raN range")
+    return int(m.group(1)) + 1
+
+
+def _tokens(line: str) -> dict:
+    return {tok.split("=")[0]: tok.split("=")[1]
+            for tok in line.split() if "=" in tok}
+
+
+def _p12_rows(text: str) -> tuple[list[dict], list[dict]]:
+    """P12 pass rows and mismatch-detail rows, in print order."""
+    rows, details = [], []
+    for line in text.splitlines():
+        m = re.match(r"^K2 probe P12: (.*)$", line, re.MULTILINE)
+        if not m:
+            continue
+        row = _tokens(m.group(1))
+        if "frame_first" in row or "after_first" in row:
+            details.append(row)
+        elif "pass" in row:
+            rows.append(row)
+    return rows, details
+
+
+def _ra0_decode(word: int) -> tuple[int, int]:
+    """(RACNT, MRPTR) out of the ra0 metadata word (spec/SimRISC-00 §2.4)."""
+    return (word >> 48) & 0x3f, word & 0x0000FFFFFFFFFFFF
+
+
+def check_four_banks_sync(rep: Report, text: str, d: dict) -> None:
+    tags = _src_define(SRC_SELFTEST, "K2_P12_TAGS")
+    passes = _src_define(SRC_SELFTEST, "K2_P12_PASSES")
+    tag_base = _src_define(SRC_SELFTEST, "K2_P12_TAG_BASE")
+    sentinel = _src_define(SRC_SELFTEST, "K2_P12_RF_SENTINEL")
+    call_arg = _src_int(r"k2_p12_helper\((0x[0-9a-fA-F]+)\)", SRC_SELFTEST,
+                        "k2_p12_helper(...) call")
+    call_add = _src_int(r"return v \+ (0x[0-9a-fA-F]+);", SRC_SELFTEST,
+                        "k2_p12_helper() body")
+    regs = bank_registers()
+
+    rows, details = _p12_rows(text)
+    rep.check("G1", "同步：P12 轮数 == k2_selftest.c 的 K2_P12_PASSES",
+              list(range(passes)), [int(r.get("pass", -1)) for r in rows])
+    rep.check("G2", "同步：无任何帧差异明细行（入口/出口零 mismatch）", [],
+              [f"{k}={v}" for row in details for k, v in row.items()
+               if k.endswith("_first")])
+    for row in rows:
+        p = row.get("pass", "?")
+        rep.check("G3", f"同步 pass={p}：入口捕获 RA/RF（frame_mm）", "0",
+                  row.get("frame_mm", "<missing>"))
+        rep.check("G4", f"同步 pass={p}：handler call/ret 后出口恢复（after_mm）",
+                  "0", row.get("after_mm", "<missing>"))
+        rep.check("G5", f"同步 pass={p}：自检自身还原驱动 RAS（restore_mm）", "0",
+                  row.get("restore_mm", "<missing>"))
+        racnt, mrptr = _ra0_decode(num(row.get("ra0"), 0))
+        rep.check("G6", f"同步 pass={p}：特征值落在 RAS 未定义区"
+                  f"（0 < RACNT <= {regs - tags}）", True,
+                  0 < racnt <= regs - tags)
+        rep.check("G7", f"同步 pass={p}：ra0 == RACNT<<48 | MRPTR(0)", 0, mrptr)
+        rep.check("G7", f"同步 pass={p}：ra0 的 RACNT == 报告的 racnt",
+                  int(row.get("racnt", -1)), racnt)
+        want = tag_base + (int(row.get("pass", 0)) << 12)
+        rep.check("G8", f"同步 pass={p}：特征值真的进了 RA 组（ra1 == tag0）",
+                  hex(want), row.get("ra1", "<missing>"))
+        rep.check("G8", f"同步 pass={p}：特征值真的进了 RF 组（rf1 == tag0）",
+                  hex(want), row.get("rf1", "<missing>"))
+        rep.check("G8", f"同步 pass={p}：tag0 == TAG_BASE + pass<<12",
+                  hex(want), row.get("tag0", "<missing>"))
+        rf0 = num(row.get("rf0"), 0)
+        rep.check("G9", f"同步 pass={p}：rf0[33:32] == 写入的舍入模式"
+                  "（spec §2.3 写口掩码）", int(row.get("pass", 0)) & 3,
+                  (rf0 >> 32) & 3)
+        rep.check("G10", f"同步 pass={p}：handler 内 call/ret 真的执行并有返回值",
+                  hex(call_arg + call_add), row.get("call", "<missing>"))
+        # The handler writes rf32: that write is what makes the "missing RF
+        # restore" half reachable (a handler that never touched the FP bank
+        # would leave nothing for the restore to undo).
+        rep.check("G10", f"同步 pass={p}：handler 写过 FP 组（rf32 = 哨兵）",
+                  hex(sentinel + int(row.get("pass", 0))),
+                  row.get("sent", "<missing>"))
+
+    # The frame the stub reports covers four banks; its size follows from the
+    # bank count and the per-bank register count.
+    m = re.search(r"^K2 trap: entry=\S+ frame=\S+ frame_bytes=(\d+) "
+                  r"banks=(\S+) ", text, re.MULTILINE)
+    fields = m.group(2).split(",") if m else []
+    rep.check("G11", "帧覆盖四组寄存器（rd,rb,ra,rf）",
+              ["rd", "rb", "ra", "rf"], fields)
+    rep.check("G11", "frame_bytes == 组数×寄存器数×8 + ip/status",
+              (len(fields) * regs + 2) * 8, int(m.group(1)) if m else -1)
+
+    # The layout assertions are compile-time (ptrace.h); a stub that cannot see
+    # them must not pass this group either.
+    asserts = re.findall(r"_Static_assert\((.*?),\s*\n?\s*\"", _source(SRC_PTRACE),
+                         re.DOTALL)
+    rep.check("G12", "ptrace.h 带编译期布局断言（>=4 条）", True, len(asserts) >= 4)
+    rep.check("G12", "ptrace.h 断言钉住 ip/status 的 12 位立即数窗口（2048）",
+              True, any("2048" in a for a in asserts))
+
+
+def check_four_banks_async(rep: Report, text: str, d: dict) -> None:
+    tags = _src_define(SRC_IRQTEST, "K2_P6_TAGS")
+    tag_base = _src_define(SRC_IRQTEST, "K2_P6_TAG_BASE")
+    fcsr = _src_int(r"k2_p6_tags\[K2_P6_TAGS\] = (0x[0-9a-fA-F]+)UL;",
+                    SRC_IRQTEST, "the P6 FCSR word")
+    regs = bank_registers()
+
+    m = re.search(r"^K2 irq P6: (.*)$", text, re.MULTILINE)
+    rep.check("G13", "异步：P6 行存在（时钟中断路径走了一遍）", "存在",
+              "缺失" if not m else "存在")
+    if not m:
+        return
+    row = _tokens(m.group(1))
+    rep.check("G13", "异步：P6 视野内恰有 >=1 次投递（ticks）", True,
+              num(row.get("ticks"), 0) >= 1)
+    rep.check("G14", "异步：入口捕获 RA/RF（frame_mm）", "0",
+              row.get("frame_mm", "<missing>"))
+    rep.check("G14", "异步：出口恢复（restore_mm）", "0",
+              row.get("restore_mm", "<missing>"))
+    racnt, mrptr = _ra0_decode(num(row.get("ra0"), 0))
+    rep.check("G15", "异步：特征值落在 RAS 未定义区"
+              f"（0 < RACNT <= {regs - tags}）", True, 0 < racnt <= regs - tags)
+    rep.check("G15", "异步：ra0 == RACNT<<48 | MRPTR(0)", 0, mrptr)
+    rep.check("G16", "异步：特征值进了 RA 组（ra1 == TAG_BASE）",
+              hex(tag_base), row.get("ra1", "<missing>"))
+    rep.check("G16", "异步：特征值进了 RF 组（rf1 == TAG_BASE）",
+              hex(tag_base), row.get("rf1", "<missing>"))
+    rf0 = num(row.get("rf0"), 0)
+    rep.check("G17", "异步：rf0[33:32] == P6 写入的舍入模式（spec §2.3）",
+              (fcsr >> 32) & 3, (rf0 >> 32) & 3)
+    rep.check("G17", "异步：rf0[4:0] == P6 写入的 sticky 标志", fcsr & 0x1f,
+              rf0 & 0x1f)
+
+
+# ---------------------------------------------------------------------------
 # M: the masked window and the +1 release
 # ---------------------------------------------------------------------------
 
@@ -760,6 +951,7 @@ def check_trap_image(rep: Report, rc: int, text: str, cmd: list[str], snap: dict
                      rc_build: int, d: dict) -> None:
     check_build(rep, "trap", rc_build, snap, cmd, text, terminating=True)
     check_exception(rep, rc, text, d)
+    check_four_banks_sync(rep, text, d)
     check_exit_trap(rep, rc, text, d)
 
 
@@ -767,6 +959,7 @@ def check_irq_image(rep: Report, rc: int, text: str, cmd: list[str], snap: dict,
                     rc_build: int, d: dict, rom: str) -> None:
     check_build(rep, "irq", rc_build, snap, cmd, text)
     check_mask(rep, text, d)
+    check_four_banks_async(rep, text, d)
     check_order(rep, text, rom)
     rep.check("M12", "irq 镜像 guest rc（SYS_EXIT 子码）", 0, rc)
 
@@ -883,6 +1076,13 @@ def run_selfcheck(qemu: str) -> int:
         rep, itext.replace("K2 irq P2: released ticks=1",
                            "K2 irq P2: released ticks=2"), derivs["irq"]))
 
+    # G: a frame mismatch / an asynchronous gap (m14-linux-022).
+    flip("G", "G 同步帧差异", lambda rep: check_four_banks_sync(
+        rep, ttext.replace("frame_mm=0", "frame_mm=1", 1), derivs["trap"]))
+    flip("G", "G 异步无投递", lambda rep: check_four_banks_async(
+        rep, re.sub(r"(K2 irq P6: .*?ticks=)\d+", r"\g<1>0", itext),
+        derivs["irq"]))
+
     # S: an anchor disappears / the exit is no longer the last line.
     flip("S", "S 缺 armed 锚点", lambda rep: check_order(
         rep, re.sub(r"^K2 irq: armed .*\n", "", itext, flags=re.MULTILINE),
@@ -911,10 +1111,10 @@ def run_selfcheck(qemu: str) -> int:
         rep, k0_result=(1, "118/119 项通过\n"),
         k1_result=(0, "check-linux-k1: PASS (10/10)\n")))
 
-    groups = [group for group in "BETMSXR" if flipped.get(group)]
-    missing = [group for group in "BETMSXR" if not flipped.get(group)]
+    groups = [group for group in "BETMSXRG" if flipped.get(group)]
+    missing = [group for group in "BETMSXRG" if not flipped.get(group)]
     print(f"check-k2 selfcheck: {'PASS' if not missing else 'FAIL'} "
-          f"({len(groups)}/7 组可翻转；未翻转 {missing})")
+          f"({len(groups)}/8 组可翻转；未翻转 {missing})")
     return 0 if not missing and not base.fails else 1
 
 
@@ -934,6 +1134,16 @@ def _exit_state(text: str) -> str:
     return ("有 K2 time: done"
             if re.search(r"^K2 time: done", text, re.MULTILINE)
             else "无 K2 time: done")
+
+
+def _ras_state(text: str) -> str:
+    """What the injected RA corruption looked like, for the PASS/FAIL line."""
+    m = re.search(r"cause=(RAS(U|O)F)\(0x[0-9a-f]+\)", text)
+    if m:
+        return f"{m.group(1)} 具名终止"
+    if re.search(r"^K2 probe P12: pass=\d+ frame_first=", text, re.MULTILINE):
+        return "P12 frame_first= 行"
+    return "无（RA 损坏未被发现）"
 
 
 def _in_guest(code: int, d: dict) -> str:
@@ -1019,6 +1229,122 @@ INJECTIONS = {
              "P7 cfxmem ∈ 0x00-0x7f",
              re.search(r"cfxmem=\S+", text).group(0)
              if re.search(r"cfxmem=\S+", text) else "<missing>"),
+        ],
+    ),
+    # ⑤-⑧ m14-linux-022: the four-bank frame.  The RA/RF banks are what a
+    #    handler's own call/ret corrupts, so each of the four ways to get them
+    #    wrong (capture, restore, and the frame offset that addresses them) has
+    #    to show up in the G group's print.  The injected text is the block
+    #    transfer itself, not the test: the test keeps asking the same question.
+    "no-ra-save": (
+        "trap", "arch/dadao/include/asm/entry.h",
+        "\t/* The RA bank: ra0 ({RACNT, MRPTR}) with entries, then the top slot. */\n"
+        "\tset.rd\trd2, PT_RA_BASE\t\t\t/* &frame.ra[0] */\n"
+        "\tstm.o\t{ra0:ra62}, [rb3, rd2]\n"
+        "\tset.rd\trd2, PT_RA_LAST\t\t\t/* &frame.ra[63] */\n"
+        "\tstm.o\t{ra63:ra63}, [rb3, rd2]\n",
+        "\t/* injected: the RA bank is not captured */\n",
+        ("G",),
+        lambda rc, text, d: [
+            # Any exception before P12 already exposes it: the stale frame is
+            # restored on the way out and the next `ret` underflows/overflows.
+            ("入口漏存 ra：P12 报帧差异，或更早的异常即因 RAS 被破坏而具名终止",
+             bool(re.search(r"^K2 probe P12: pass=\d+ frame_first=", text,
+                            re.MULTILINE))
+             or (rc != 0 and bool(re.search(r"cause=RAS(U|O)F\(", text))),
+             "P12 frame_first= 行 或 RASUF/RASOF 具名终止",
+             _ras_state(text)),
+        ],
+    ),
+    "no-rf-save": (
+        "trap", "arch/dadao/include/asm/entry.h",
+        "\t/* The RF bank, rf0 = FCSR first. */\n"
+        "\tset.rd\trd2, PT_RF_BASE\t\t\t/* &frame.rf[0] */\n"
+        "\tstm.o\t{rf0:rf62}, [rb3, rd2]\n"
+        "\tset.rd\trd2, PT_RF_LAST\t\t\t/* &frame.rf[63] */\n"
+        "\tstm.o\t{rf63:rf63}, [rb3, rd2]\n",
+        "\t/* injected: the RF bank is not captured */\n",
+        ("G",),
+        lambda rc, text, d: [
+            ("入口漏存 rf：帧差异落在 RF 组（下标 >= 64）",
+             bool(re.search(r"^K2 probe P12: pass=\d+ frame_first=(6[4-9]|[7-9]\d|1[0-2]\d)\b",
+                            text, re.MULTILINE)),
+             "frame_first >= 64（RF 组）",
+             (re.search(r"frame_first=(\d+)", text).group(1)
+              if re.search(r"frame_first=(\d+)", text) else "无")),
+        ],
+    ),
+    # The same missing capture on the *asynchronous* image: the tick's entry
+    # runs the same macro, and the async half of the G group has to see it.
+    "no-rf-save-irq": (
+        "irq", "arch/dadao/include/asm/entry.h",
+        "\t/* The RF bank, rf0 = FCSR first. */\n"
+        "\tset.rd\trd2, PT_RF_BASE\t\t\t/* &frame.rf[0] */\n"
+        "\tstm.o\t{rf0:rf62}, [rb3, rd2]\n"
+        "\tset.rd\trd2, PT_RF_LAST\t\t\t/* &frame.rf[63] */\n"
+        "\tstm.o\t{rf63:rf63}, [rb3, rd2]\n",
+        "\t/* injected: the RF bank is not captured */\n",
+        ("G",),
+        lambda rc, text, d: [
+            ("异步入口漏存 rf：P6 报帧差异且首差在 RF 组",
+             bool(re.search(r"^K2 irq P6: .*frame_mm=[1-9]\d* .*at=(6[4-9]|[7-9]\d|1[01]\d)\b",
+                            text, re.MULTILINE)),
+             "frame_mm>0 且 at>=64（RF 组）",
+             (re.search(r"^K2 irq P6: .*frame_mm=\d+ at=\d+", text,
+                        re.MULTILINE).group(0)
+              if re.search(r"^K2 irq P6: ", text, re.MULTILINE) else "无 P6 行")),
+        ],
+    ),
+    # The reachable counter-example for the *RF* half of the restore: the P12
+    # handler writes rf32, so a missing RF restore must leave that sentinel in
+    # the interrupted context (a handler that never touched the FP bank would
+    # give this injection nothing to observe).
+    "no-rf-restore": (
+        "trap", "arch/dadao/include/asm/entry.h",
+        "\tset.rd\trd2, PT_RF_BASE\n"
+        "\tldm.o\t{rf0:rf62}, [rb3, rd2]\n"
+        "\tset.rd\trd2, PT_RF_LAST\n"
+        "\tldm.o\t{rf63:rf63}, [rb3, rd2]\n",
+        "\t/* injected: the RF bank is not restored */\n",
+        ("G",),
+        lambda rc, text, d: [
+            ("出口漏恢复 rf：P12 报「出口后」差异且首差在 RF 组（handler 写过 rf32）",
+             bool(re.search(r"^K2 probe P12: pass=\d+ after_first=(6[4-9]|[7-9]\d|1[01]\d)\b",
+                            text, re.MULTILINE)),
+             "after_first >= 64（RF 组）",
+             (re.search(r"after_first=(\d+)", text).group(1)
+              if re.search(r"after_first=(\d+)", text) else "无")),
+        ],
+    ),
+    "no-ra-restore": (
+        "trap", "arch/dadao/include/asm/entry.h",
+        "\tset.rd\trd2, PT_RA_BASE\n"
+        "\tldm.o\t{ra0:ra62}, [rb3, rd2]\t\t/* ra0 = {RACNT, MRPTR} */\n"
+        "\tset.rd\trd2, PT_RA_LAST\n"
+        "\tldm.o\t{ra63:ra63}, [rb3, rd2]\n",
+        "\t/* injected: the RA bank is not restored */\n",
+        ("G",),
+        lambda rc, text, d: [
+            ("出口漏恢复 ra：P12 报「出口后」差异明细",
+             bool(re.search(r"^K2 probe P12: pass=\d+ after_first=", text,
+                            re.MULTILINE)),
+             "P12 after_first= 行", "无（出口污染未被发现）"),
+        ],
+    ),
+    "ra-last-slot-off-by-one": (
+        "trap", "arch/dadao/include/asm/entry.h",
+        "\tset.rd\trd2, PT_RA_LAST\t\t\t/* &frame.ra[63] */\n"
+        "\tstm.o\t{ra63:ra63}, [rb3, rd2]\n",
+        "\tset.rd\trd2, PT_RA_LAST - 8\t\t/* injected: ra62's slot */\n"
+        "\tstm.o\t{ra63:ra63}, [rb3, rd2]\n",
+        ("G",),
+        lambda rc, text, d: [
+            ("帧偏移错一位：P12 报帧差异，或更早的异常即因 RAS 被破坏而具名终止",
+             bool(re.search(r"^K2 probe P12: pass=\d+ frame_first=", text,
+                            re.MULTILINE))
+             or (rc != 0 and bool(re.search(r"cause=RAS(U|O)F\(", text))),
+             "P12 frame_first= 行 或 RASUF/RASOF 具名终止",
+             _ras_state(text)),
         ],
     ),
 }

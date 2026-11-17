@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/async_trap.S b/arch/dadao/kernel/async_trap.S
 new file mode 100644
-index 000000000..b0103947f
+index 000000000..9cff08873
 --- /dev/null
 +++ b/arch/dadao/kernel/async_trap.S
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,76 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO cfx_hart supv asynchronous-interrupt vector (K2).
@@ -20,7 +20,11 @@ index 000000000..b0103947f
 + * capture is asm/entry.h's `DADAO_GPR_SAVE` with the *cfx_hart* cg6 scratch
 + * registers — the stub runs with `inner_cfx_code` = cfx_hart, and cfx_smon's
 + * scratch registers are not reachable from there without a permission the
-+ * kernel does not need.
++ * kernel does not need.  That macro covers all four banks (rd/rb/ra/rf) plus
++ * the cg5-derived `ip`/`status` slots, so an interrupt taken in the middle of
++ * a *user* RA/RF sequence leaves ra0-ra63 (spec/SimRISC-00 §2.4: the handler's
++ * call/ret must not disturb them) and rf0-rf63 bit-identical — the asynchronous
++ * half of k2_selftest.c's P10 / k2_irq_test.c's P6.
 + *
 + * The escape offset is **0**, not +4: for an asynchronous frame
 + * `excp_cause_ip` is already the *next* instruction (§5.2), so `+4` would skip

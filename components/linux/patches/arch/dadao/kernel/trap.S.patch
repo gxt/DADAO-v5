@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/trap.S b/arch/dadao/kernel/trap.S
 new file mode 100644
-index 000000000..e2131f6a1
+index 000000000..c1fa79275
 --- /dev/null
 +++ b/arch/dadao/kernel/trap.S
-@@ -0,0 +1,103 @@
+@@ -0,0 +1,110 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception vector (K2).
@@ -21,12 +21,19 @@ index 000000000..e2131f6a1
 + *   PT_RB_BASE                 frame.rb[0..63]   rb0 unused (read-only IP)
 + *   PT_IP                      excp_cause_ip
 + *   PT_STATUS                  0 (no status register on this machine)
++ *   PT_RA_BASE                 frame.ra[0..63]   ra0 = {RACNT, MRPTR}
++ *   PT_RF_BASE                 frame.rf[0..63]   rf0 = FCSR
 + *
 + * The hardware saves **only** the cg5 frame fields — no general register at
-+ * all (§3.6, contract-syscall §8) — so every GPR the faulting context may be
-+ * using has to be captured here, *before* this stub touches anything:
-+ * rd1-rd63 and rb1-rb63.  rd0 is hardwired zero and rb0 is the read-only IP,
-+ * so neither is part of the frame.
++ * all (§3.6, contract-syscall §8) — so every register the faulting context may
++ * be using has to be captured here, *before* this stub touches anything:
++ * rd1-rd63 and rb1-rb63 (rd0 is hardwired zero and rb0 is the read-only IP, so
++ * neither is part of the frame), and both special banks — the return-address
++ * stack (spec/SimRISC-00 §2.4: entering and leaving an exception must not
++ * change ra0-ra63, yet the handler legitimately uses call/ret — k2_selftest.c's
++ * P12 measures both the captured frame and the restored bank, four passes with
++ * different feature values) and the floating-point file with its FCSR at rf0
++ * (§2.3).
 + *
 + * The capture/restore sequence itself — where the frame lives and why it cannot
 + * be the faulting stack, the `rb3`/`rd2`/`rd3` bootstrap through the cfx_smon

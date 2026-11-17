@@ -109,6 +109,8 @@ IMAGES: dict[str, list[str]] = {
         "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
         "CONFIG_DADAO_K2_TIME_STOP=y",
         "CONFIG_DADAO_K2_IRQ_TEST=n",   # m14-linux-008 image must not leak in
+        "CONFIG_DADAO_K3_PT_SELFTEST=n",  # neither may the m14-linux-011/012 ones
+        "CONFIG_DADAO_K3_PF_SELFTEST=0",
         f"CONFIG_DADAO_K2_TIME_CASE={case}",
     ]
     for name, case in (("time", 0), ("imask", 1), ("source", 2), ("global", 3))

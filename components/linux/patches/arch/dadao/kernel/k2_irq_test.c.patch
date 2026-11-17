@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k2_irq_test.c b/arch/dadao/kernel/k2_irq_test.c
 new file mode 100644
-index 000000000..2e9eebe88
+index 000000000..bc4d6e83f
 --- /dev/null
 +++ b/arch/dadao/kernel/k2_irq_test.c
-@@ -0,0 +1,315 @@
+@@ -0,0 +1,527 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K2 interrupt-enable knob self-test (CONFIG_DADAO_K2_IRQ_TEST, m14-linux-008).
@@ -234,6 +234,217 @@ index 000000000..2e9eebe88
 +}
 +
 +/* -------------------------------------------------------------------------
++ * P6: the RA and RF banks across an asynchronous entry (m14-linux-022)
++ * ------------------------------------------------------------------------- */
++
++/*
++ * The synchronous half of this check is k2_selftest.c's P12 — same four block
++ * transfers (asm/entry.h is what both stubs run), same tag scheme, different
++ * vector.  Here the *interrupt* has to do the round trip, so the sequence is:
++ *
++ *   1. snapshot the live bank (restored at the end: the driver's own return
++ *      chain must survive the experiment) and install feature values in the
++ *      undefined part of the RAS (spec/SimRISC-00 §2.4: only
++ *      ra[64-RACNT..63] is live) and in rf1-rf16 + the FCSR word;
++ *   2. snapshot the expectation — and from here to the comparison there is
++ *      **no call**: a call would push an entry and make the expectation stale,
++ *      so the wait for the tick is a bare load+branch loop;
++ *   3. after the tick's `escape` returned, the live bank must be bit-identical
++ *      to the expectation.  The tick handler uses call/ret (its pushes land on
++ *      the RAS the frame captured), which is exactly what a missing save or
++ *      restore would leak.
++ *
++ * The spin count is a bail-out, not a deadline: it only exists so that a
++ * machine with no tick reports "no tick" instead of hanging the boot.
++ */
++#define K2_P6_TAGS	16
++#define K2_P6_TAG_BASE	0xa0230000UL
++#define K2_P6_SPINS	0x200000UL
++
++static unsigned long k2_p6_tags[K2_P6_TAGS + 1];	/* [16] = FCSR word */
++static unsigned long k2_p6_ra_before[64], k2_p6_ra_exp[64], k2_p6_ra_after[64];
++static unsigned long k2_p6_rf_before[64], k2_p6_rf_exp[64], k2_p6_rf_after[64];
++
++/* The four block transfers of asm/entry.h, used from the C side. */
++static __always_inline void k2_p6_save_ra(unsigned long *dst)
++{
++	register unsigned long base __asm__("rb18") = (unsigned long)dst;
++
++	__asm__ __volatile__(
++		"set.rd\trd3, 0\n\t"
++		"stm.o\t{ra0:ra62}, [rb18, rd3]\n\t"
++		"set.rd\trd3, 504\n\t"
++		"stm.o\t{ra63:ra63}, [rb18, rd3]"
++		: : "r"(base) : "rd3", "memory");
++}
++
++static __always_inline void k2_p6_save_rf(unsigned long *dst)
++{
++	register unsigned long base __asm__("rb18") = (unsigned long)dst;
++
++	__asm__ __volatile__(
++		"set.rd\trd3, 0\n\t"
++		"stm.o\t{rf0:rf62}, [rb18, rd3]\n\t"
++		"set.rd\trd3, 504\n\t"
++		"stm.o\t{rf63:rf63}, [rb18, rd3]"
++		: : "r"(base) : "rd3", "memory");
++}
++
++static __always_inline void k2_p6_load_ra(const unsigned long *src)
++{
++	register unsigned long base __asm__("rb18") = (unsigned long)src;
++
++	__asm__ __volatile__(
++		"set.rd\trd3, 0\n\t"
++		"ldm.o\t{ra0:ra62}, [rb18, rd3]\n\t"
++		"set.rd\trd3, 504\n\t"
++		"ldm.o\t{ra63:ra63}, [rb18, rd3]"
++		: : "r"(base) : "rd3", "memory");
++}
++
++static __always_inline void k2_p6_load_rf(const unsigned long *src)
++{
++	register unsigned long base __asm__("rb18") = (unsigned long)src;
++
++	__asm__ __volatile__(
++		"set.rd\trd3, 0\n\t"
++		"ldm.o\t{rf0:rf62}, [rb18, rd3]\n\t"
++		"set.rd\trd3, 504\n\t"
++		"ldm.o\t{rf63:rf63}, [rb18, rd3]"
++		: : "r"(base) : "rd3", "memory");
++}
++
++static __always_inline void k2_p6_write_tags(void)
++{
++	register unsigned long *tags __asm__("rb18") = k2_p6_tags;
++
++	__asm__ __volatile__(
++		"ld.o\tra1, [rb18, 0]\n\t"
++		"ld.o\tra2, [rb18, 8]\n\t"
++		"ld.o\tra3, [rb18, 16]\n\t"
++		"ld.o\tra4, [rb18, 24]\n\t"
++		"ld.o\tra5, [rb18, 32]\n\t"
++		"ld.o\tra6, [rb18, 40]\n\t"
++		"ld.o\tra7, [rb18, 48]\n\t"
++		"ld.o\tra8, [rb18, 56]\n\t"
++		"ld.o\tra9, [rb18, 64]\n\t"
++		"ld.o\tra10, [rb18, 72]\n\t"
++		"ld.o\tra11, [rb18, 80]\n\t"
++		"ld.o\tra12, [rb18, 88]\n\t"
++		"ld.o\tra13, [rb18, 96]\n\t"
++		"ld.o\tra14, [rb18, 104]\n\t"
++		"ld.o\tra15, [rb18, 112]\n\t"
++		"ld.o\tra16, [rb18, 120]\n\t"
++		"ld.o\trf1, [rb18, 0]\n\t"
++		"ld.o\trf2, [rb18, 8]\n\t"
++		"ld.o\trf3, [rb18, 16]\n\t"
++		"ld.o\trf4, [rb18, 24]\n\t"
++		"ld.o\trf5, [rb18, 32]\n\t"
++		"ld.o\trf6, [rb18, 40]\n\t"
++		"ld.o\trf7, [rb18, 48]\n\t"
++		"ld.o\trf8, [rb18, 56]\n\t"
++		"ld.o\trf9, [rb18, 64]\n\t"
++		"ld.o\trf10, [rb18, 72]\n\t"
++		"ld.o\trf11, [rb18, 80]\n\t"
++		"ld.o\trf12, [rb18, 88]\n\t"
++		"ld.o\trf13, [rb18, 96]\n\t"
++		"ld.o\trf14, [rb18, 104]\n\t"
++		"ld.o\trf15, [rb18, 112]\n\t"
++		"ld.o\trf16, [rb18, 120]\n\t"
++		"ld.o\trf0, [rb18, 128]"
++		: : "r"(tags) : "memory");
++}
++
++/* Wait for one tick with nothing but a load and a branch in the loop. */
++static __always_inline void k2_p6_wait_tick(void)
++{
++	register unsigned long *jp __asm__("rb18") =
++		(unsigned long *)&jiffies_64;
++
++	__asm__ __volatile__(
++		"set.rd\trd6, 0\n\t"
++		"set.rd\trd7, %1\n\t"
++		"ld.o\trd4, [rb18, 0]\n\t"
++		"1:\n\t"
++		"ld.o\trd5, [rb18, 0]\n\t"
++		"br.ne\t{rd5, rd4}?, [rb0, 9f]\n\t"
++		"add.si\trd6, 1\n\t"
++		"br.ne\t{rd6, rd7}?, [rb0, 1b]\n\t"
++		"9:"
++		: : "r"(jp), "i"(K2_P6_SPINS)
++		: "rd4", "rd5", "rd6", "rd7", "memory");
++}
++
++static void __init k2_irq_case_p6(void)
++{
++	unsigned long flags, racnt, j0, j1, exp0 = 0, have0 = 0;
++	unsigned int i, mm = 0, at = 0xff, restore_mm = 0;
++
++	for (i = 0; i < K2_P6_TAGS; i++)
++		k2_p6_tags[i] = K2_P6_TAG_BASE + (i << 4);
++	k2_p6_tags[K2_P6_TAGS] = 0x0000000f00000012UL;	/* rm + sticky flags */
++
++	local_irq_save(flags);
++	k2_p6_save_ra(k2_p6_ra_before);
++	k2_p6_save_rf(k2_p6_rf_before);
++	racnt = (k2_p6_ra_before[0] >> 48) & 0x3f;
++	k2_p6_write_tags();
++	k2_p6_save_ra(k2_p6_ra_exp);
++	k2_p6_save_rf(k2_p6_rf_exp);
++
++	/*
++	 * Call-free from here to the comparison below: the release of the mask may
++	 * deliver a parked tick immediately, and it must find the expectation in
++	 * the RAS the frame captures.
++	 */
++	local_irq_enable();
++	j0 = READ_ONCE(jiffies_64);
++	k2_p6_wait_tick();
++	j1 = READ_ONCE(jiffies_64);
++	k2_p6_save_ra(k2_p6_ra_after);
++	k2_p6_save_rf(k2_p6_rf_after);
++
++	for (i = 0; i < 64; i++) {
++		if (k2_p6_ra_after[i] != k2_p6_ra_exp[i]) {
++			if (!mm) {
++				at = i;
++				exp0 = k2_p6_ra_exp[i];
++				have0 = k2_p6_ra_after[i];
++			}
++			mm++;
++		}
++		if (k2_p6_rf_after[i] != k2_p6_rf_exp[i]) {
++			if (!mm) {
++				at = 64 + i;
++				exp0 = k2_p6_rf_exp[i];
++				have0 = k2_p6_rf_after[i];
++			}
++			mm++;
++		}
++	}
++
++	/* Put the driver's own RAS back and prove it (no call in between). */
++	k2_p6_load_ra(k2_p6_ra_before);
++	k2_p6_load_rf(k2_p6_rf_before);
++	k2_p6_save_ra(k2_p6_ra_after);
++	k2_p6_save_rf(k2_p6_rf_after);
++	for (i = 0; i < 64; i++) {
++		if (k2_p6_ra_after[i] != k2_p6_ra_before[i])
++			restore_mm++;
++		if (k2_p6_rf_after[i] != k2_p6_rf_before[i])
++			restore_mm++;
++	}
++	local_irq_restore(flags);
++
++	dadao_early_printf("K2 irq P6: racnt=%lu ra0=%#lx ra1=%#lx rf1=%#lx "
++			   "rf0=%#lx ticks=%lu frame_mm=%u at=%u exp=%#lx "
++			   "got=%#lx restore_mm=%u\n",
++			   racnt, k2_p6_ra_exp[0], k2_p6_ra_exp[1],
++			   k2_p6_rf_exp[1], k2_p6_rf_exp[0], j1 - j0, mm,
++			   at, exp0, have0, restore_mm);
++}
++
++/* -------------------------------------------------------------------------
 + * P4: inside a live frame / the delivery right after `escape`
 + * ------------------------------------------------------------------------- */
 +
@@ -301,6 +512,7 @@ index 000000000..2e9eebe88
 +	k2_irq_case_p3();
 +	k2_irq_case_p5();
 +	k2_irq_case_p2(period);
++	k2_irq_case_p6();
 +
 +	/* P4 needs two further tick entries: the frame part and the report. */
 +	k2_p4_stage = 1;

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/entry.h b/arch/dadao/include/asm/entry.h
 new file mode 100644
-index 000000000..c1a9dcd9c
+index 000000000..e4e0b7389
 --- /dev/null
 +++ b/arch/dadao/include/asm/entry.h
-@@ -0,0 +1,105 @@
+@@ -0,0 +1,144 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO exception-entry register-file save/restore (assembly only).
@@ -11,9 +11,16 @@ index 000000000..c1a9dcd9c
 + * spec/DADAO-12 §3.6: the hardware saves **only** the cg5 frame fields — not a
 + * single general register — so every entry stub has to capture `rd1-rd63` and
 + * `rb1-rb63` itself (`rd0` is hardwired zero, `rb0` is the read-only IP; §3.6,
-+ * contract-syscall §8).  Both stubs of the K2 channel (kernel/trap.S for supv
-+ * synchronous exceptions, kernel/async_trap.S for the cfx_hart asynchronous
-+ * vector) do exactly the same thing, so the sequence lives here once.
++ * contract-syscall §8).  spec/SimRISC-00 §2.4 adds the return-address bank:
++ * "异常进入和退出不改变 ra0–ra63 的内容，异常 handler 中可正常使用 call/ret",
++ * which only holds if the entry saves the whole RAS — the handler's own
++ * `call`/`ret` pairs push and pop entries and leave their *contents* behind —
++ * and restores it on the way out.  The floating-point bank goes with it: the
++ * user process owns `rf0-rf63` (rf0 = FCSR) and the handler may use it.
++ *
++ * Both stubs of the K2 channel (kernel/trap.S for supv synchronous exceptions,
++ * kernel/async_trap.S for the cfx_hart asynchronous vector) do exactly the same
++ * thing, so the sequence lives here once.
 + *
 + * Bootstrap order — why this shape:
 + *
@@ -33,17 +40,29 @@ index 000000000..c1a9dcd9c
 + * hart takes one exception at a time and the handler never sleeps; K4
 + * (preemption / re-entrancy) moves it to the kernel stack of the task it saves.
 + *
-+ * Saving/restoring in blocks (spec/SimRISC-01 §1/§2):
++ * Saving/restoring in blocks (spec/SimRISC-01 §1–§4):
 + *
 + *   `stm.o`/`ldm.o` move 1-63 consecutive registers at an 8-byte aligned
-+ *   address.  Three blocks cover the file: {rd1:rd63} at PT_RD_BASE (index
-+ *   rd0 = 0), {rb1:rb2} and {rb4:rb63} at their slots, and `rb3` — the base
-+ *   register — last, with a single `ld.o rb3, [rb3, <slot>]` (the address is
-+ *   formed before the destination is written, so this is the one load that can
-+ *   keep using the base it destroys).  `ldm` must not have its base register
-+ *   inside the transfer range (§1/§2), which is why {rb1:rb63} is split around
-+ *   rb3.  The index register of the RB blocks is `rd2`, restored afterwards by
-+ *   the RD block — order: RB blocks, then RD block, then rb3.
++ *   address.  `immu6 <= 63`, so a 64-slot bank needs two transfers: {x0:x62}
++ *   and {x63:x63}.  Nothing is transposed through `rd`: the RA and RF forms are
++ *   hardware transfers (spec/SimRISC-00 §2.4.3 says as much for `ra`, whose
++ *   ring-buffer base index has to be translated by the *hardware* for the
++ *   software-visible view to come out right), so a trap costs four block
++ *   transfers for the two banks rather than 128 single loads/stores.
++ *
++ *   Five blocks cover the file: {rd1:rd63} at PT_RD_BASE (index rd0 = 0),
++ *   {rb1:rb2} and {rb4:rb63} at their slots, {ra0:ra62} + {ra63:ra63} at
++ *   PT_RA_BASE, and {rf0:rf62} + {rf63:rf63} at PT_RF_BASE.  `ra0` is the
++ *   {RACNT, MRPTR} word (spec/SimRISC-00 §2.4): saving it with the entries and
++ *   writing it back on the way out is what makes the RAS state — not just the
++ *   63 entry slots — round-trip; `rf0` is the FCSR and the block form reads and
++ *   writes it whole (§2.3).  `rb3` — the base register — comes last, with a
++ *   single `ld.o rb3, [rb3, <slot>]` (the address is formed before the
++ *   destination is written, so this is the one load that can keep using the
++ *   base it destroys).  `ldm` must not have its base register inside the
++ *   transfer range (§1/§2), which is why {rb1:rb63} is split around rb3.  The
++ *   index register of every block is `rd2`, restored afterwards by the RD
++ *   block — order: RB blocks, RA/RF banks, RD block, then rb3.
 + *
 + * `rb0` is never used as a temporary: it is the read-only IP register
 + * (spec/SimRISC-00), and the stubs only ever *read* it through the branch and
@@ -87,6 +106,18 @@ index 000000000..c1a9dcd9c
 +	stm.o	{rb1:rb2}, [rb3, rd2]		/* SP, FP */
 +	set.rd	rd2, PT_RB_BASE + 4 * 8		/* &frame.rb[4] */
 +	stm.o	{rb4:rb63}, [rb3, rd2]		/* rest of the RB file */
++
++	/* The RA bank: ra0 ({RACNT, MRPTR}) with entries, then the top slot. */
++	set.rd	rd2, PT_RA_BASE			/* &frame.ra[0] */
++	stm.o	{ra0:ra62}, [rb3, rd2]
++	set.rd	rd2, PT_RA_LAST			/* &frame.ra[63] */
++	stm.o	{ra63:ra63}, [rb3, rd2]
++
++	/* The RF bank, rf0 = FCSR first. */
++	set.rd	rd2, PT_RF_BASE			/* &frame.rf[0] */
++	stm.o	{rf0:rf62}, [rb3, rd2]
++	set.rd	rd2, PT_RF_LAST			/* &frame.rf[63] */
++	stm.o	{rf63:rf63}, [rb3, rd2]
 +	.endm
 +
 +/*
@@ -100,6 +131,14 @@ index 000000000..c1a9dcd9c
 +	ldm.o	{rb1:rb2}, [rb3, rd2]
 +	set.rd	rd2, PT_RB_BASE + 4 * 8
 +	ldm.o	{rb4:rb63}, [rb3, rd2]
++	set.rd	rd2, PT_RF_BASE
++	ldm.o	{rf0:rf62}, [rb3, rd2]
++	set.rd	rd2, PT_RF_LAST
++	ldm.o	{rf63:rf63}, [rb3, rd2]
++	set.rd	rd2, PT_RA_BASE
++	ldm.o	{ra0:ra62}, [rb3, rd2]		/* ra0 = {RACNT, MRPTR} */
++	set.rd	rd2, PT_RA_LAST
++	ldm.o	{ra63:ra63}, [rb3, rd2]
 +	ld.o	rd1, [rb3, PT_RD_BASE + 1 * 8]
 +	set.rd	rd2, PT_RD_BASE + 4 * 8
 +	ldm.o	{rd4:rd63}, [rb3, rd2]

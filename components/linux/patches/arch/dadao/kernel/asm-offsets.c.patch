@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/asm-offsets.c b/arch/dadao/kernel/asm-offsets.c
 new file mode 100644
-index 000000000..fa64e80d2
+index 000000000..1fc1cf859
 --- /dev/null
 +++ b/arch/dadao/kernel/asm-offsets.c
-@@ -0,0 +1,29 @@
+@@ -0,0 +1,33 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Generate the assembler offsets used by head.S / entry code.
@@ -25,6 +25,10 @@ index 000000000..fa64e80d2
 +	DEFINE(PT_STATUS, offsetof(struct pt_regs, status));
 +	DEFINE(PT_RD_BASE, offsetof(struct pt_regs, rd));
 +	DEFINE(PT_RB_BASE, offsetof(struct pt_regs, rb));
++	DEFINE(PT_RA_BASE, offsetof(struct pt_regs, ra));
++	DEFINE(PT_RF_BASE, offsetof(struct pt_regs, rf));
++	DEFINE(PT_RA_LAST, offsetof(struct pt_regs, ra) + 63 * sizeof(unsigned long));
++	DEFINE(PT_RF_LAST, offsetof(struct pt_regs, rf) + 63 * sizeof(unsigned long));
 +	DEFINE(PT_SP, offsetof(struct pt_regs, rb) + 1 * sizeof(unsigned long));
 +	DEFINE(PT_RET, offsetof(struct pt_regs, rd) + 8 * sizeof(unsigned long));
 +	BLANK();

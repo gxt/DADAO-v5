@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..68da5078d
+index 000000000..a8be28048
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,528 @@
+@@ -0,0 +1,530 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -472,9 +472,11 @@ index 000000000..68da5078d
 +	for (i = 0; i < DADAO_CAUSE_COUNT; i++)
 +		dadao_early_printf(" %s=%#lx", dadao_cause_table[i].name,
 +				   dadao_cause_table[i].id);
-+	dadao_early_printf("\nK2 trap: entry=dadao_supv_excp frame=%#lx gpr=rd1-rd63,rb1-rb63 "
++	dadao_early_printf("\nK2 trap: entry=dadao_supv_excp frame=%#lx frame_bytes=%u "
++			   "banks=rd,rb,ra,rf "
 +			   "escape={0,4} segments={self 0x01-0x7f,monitor 0xc0|mode<<4|bit}\n",
-+			   (unsigned long)dadao_excp_save);
++			   (unsigned long)dadao_excp_save,
++			   (unsigned int)sizeof(struct pt_regs));
 +}
 +
 +/* -------------------------------------------------------------------------

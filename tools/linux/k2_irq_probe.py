@@ -90,6 +90,8 @@ IMAGE = [
     "CONFIG_DADAO_K2_TIME_STOP=y",
     "CONFIG_DADAO_K2_TIME_CASE=0",
     "CONFIG_DADAO_K2_IRQ_TEST=y",
+    "CONFIG_DADAO_K3_PT_SELFTEST=n",   # m14-linux-011/012 images must not leak in
+    "CONFIG_DADAO_K3_PF_SELFTEST=0",
 ]
 
 #: Deliveries the case sequence forces: the first tick, the event merged out of
