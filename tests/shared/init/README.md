@@ -1,4 +1,4 @@
-# tests/linux/init — M14 K0 MVP `init`
+# tests/shared/init — M14 K0 MVP `init`
 
 The first user program the K1 kernel runs from the built-in initramfs
 (`.tao/tasks/infra/m14-infra-002-initramfs与semihosting闭环.md`).  It is a
@@ -46,8 +46,8 @@ logic is unit-tested on the build host with injectable shims
 scenario):
 
 ```
-cc -DHOST_TEST -O1 -Wall -Wextra tests/linux/init/init.c \
-   tests/linux/init/host_test.c -o /tmp/opencode/<task>/host_test
+cc -DHOST_TEST -O1 -Wall -Wextra tests/shared/init/init.c \
+   tests/shared/init/host_test.c -o /tmp/opencode/<task>/host_test
 /tmp/opencode/<task>/host_test ok             # rc 0
 /tmp/opencode/<task>/host_test ok_short       # rc 0 — 5-byte partial writes
 /tmp/opencode/<task>/host_test write_fail     # rc 2

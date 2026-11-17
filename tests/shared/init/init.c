@@ -26,7 +26,7 @@
  *
  *   * target build (default): linked with musl `crt1.o` + `libc.a` by
  *     `tools/linux/make_initramfs.py`; runs under the Linux kernel.
- *   * host build (`-DHOST_TEST`, driven by `tests/linux/init/host_test.c`):
+ *   * host build (`-DHOST_TEST`, driven by `tests/shared/init/host_test.c`):
  *     the three kernel calls are replaced by injectable shims so the error
  *     logic is unit-testable on the host build machine (the target ELF cannot
  *     run before the kernel exists).  This branch never reaches the ELF.
@@ -34,7 +34,7 @@
 
 #ifdef HOST_TEST
 
-/* Host-unit-test shims (tests/linux/init/host_test.c).  They return the same
+/* Host-unit-test shims (tests/shared/init/host_test.c).  They return the same
  * raw shape as the kernel calls: byte count / -1, pid / <= 0, break address /
  * negative errno. */
 long host_test_write(int fd, const void *buf, unsigned long len);

@@ -18,8 +18,8 @@
  *   brk_recheck_fail  rc 4   grow "succeeds", brk(0) re-read disagrees
  *
  * Build (from the repository root):
- *   cc -DHOST_TEST -O1 -Wall -Wextra tests/linux/init/init.c \
- *      tests/linux/init/host_test.c -o <tmp>/host_test
+ *   cc -DHOST_TEST -O1 -Wall -Wextra tests/shared/init/init.c \
+ *      tests/shared/init/host_test.c -o <tmp>/host_test
  * Exit status: the init exit code for the chosen scenario (0/2/3/4);
  * 125 = bad usage, 126 = unknown scenario.
  */
