@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..eabe25e
+index 0000000..cda9c77
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,1479 @@
+@@ -0,0 +1,1513 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -54,6 +54,15 @@ index 0000000..eabe25e
 +// synchronous fault classes (CFXMEM/ILLI/UNDI/MALIGN/IALIGN) — each one writes
 +// the cause frame and jumps to `excp_vector` instead of terminating the core.
 +//
++// m16-chipyard-003 encodes the `excp_cause_id` sub-cause wyde (ADR-0056 D2/D3,
++// `contract-see` §6.1.1, `DADAO-12` §3.6): `enterHmon` takes a wyde-local
++// sub-cause index and `GewuCauseId` places it in the wyde its class owns
++// (`CFXPERM` → wyde2, `CFXMEM` → wyde3); `gewu`'s frame-write point rejects a
++// malformed id by name.  This profile has no page-table walk, so every
++// `CFXMEM` is the non-page-table sub-cause `[57] NONPTW` (`enterHmonMem`'s
++// default); the page-fault sub-causes are unreachable here and the profile
++// raises no `CFXPERM` at all (no source-mask permission gate).
++//
 +// m12-chipyard-009 completes control flow and the return address stack
 +// (spec/SimRISC-06, spec/SimRISC-00 §2.4):
 +//
@@ -99,7 +108,7 @@ index 0000000..eabe25e
 +import chisel3._
 +import chisel3.util._
 +import freechips.rocketchip.tilelink.{TLBundle, TLEdgeOut}
-+import gewu.GewuFile
++import gewu.{GewuCauseId, GewuFile}
 +
 +class WumingCore(
 +  fetchEdge: TLEdgeOut,
@@ -190,9 +199,10 @@ index 0000000..eabe25e
 +  gewu.io.excp.info := excpInfo
 +
 +  val CFXTRAP_BIT = 0
-+  val CFXMEM_BIT  = 1
++  val CFXMEM_BIT  = GewuCauseId.MEM_BIT
 +  val CFXREG_BIT  = 2
 +  val CFXESC_BIT  = 3
++  val CFXPERM_BIT = GewuCauseId.PERM_BIT
 +  val ILLI_BIT    = 8
 +  val UNDI_BIT    = 9
 +  val RASOF_BIT   = 10
@@ -885,6 +895,13 @@ index 0000000..eabe25e
 +    * method only declares the architectural event and drives the PC/flush it
 +    * asks for (ADR-0053 D4).
 +    *
++    * `sub` is a **wyde-local** sub-cause index (`GewuCauseId.*`); the wyde is
++    * chosen by the cause class (`contract-see` §6.1.1: `CFXPERM` → wyde2,
++    * `CFXMEM` → wyde3), so a sub-cause can never land in the wrong wyde here.
++    * A cause with no sub-cause wyde must pass -1 (the default).  `gewu`'s
++    * frame-write point re-checks the finished id and fails by name if it is
++    * malformed (`ADR-0056` D2/D3).
++    *
 +    * The entry target is `gewu`'s `vector` register output, not
 +    * `redirect.target`: this method can be reached from `finish` *while* an
 +    * `escape` is committing (the escape target failed its IALIGN check), and
@@ -892,10 +909,13 @@ index 0000000..eabe25e
 +    * both jump to the wrong address and close a combinational loop through
 +    * `finish`'s alignment test.
 +    */
-+  def enterHmon(causeIpValue: UInt, causeOneHot: UInt, info: UInt): Unit = {
-+    printf(p"WumingCore: excp cause=0x${Hexadecimal(causeOneHot)} cause_ip=0x${Hexadecimal(causeIpValue(47, 0))} info=0x${Hexadecimal(info)} vector=0x${Hexadecimal(gewu.io.vector(47, 0))} cycle=${cycles}\n")
++  def enterHmon(causeIpValue: UInt, causeOneHot: UInt, info: UInt,
++                sub: Int = -1): Unit = {
++    val causeId = GewuCauseId.encode(causeOneHot,
++      (if (sub < 0) BigInt(0) else BigInt(1) << sub).U(GewuCauseId.WYDE_BITS.W))
++    printf(p"WumingCore: excp cause=0x${Hexadecimal(causeId)} cause_ip=0x${Hexadecimal(causeIpValue(47, 0))} info=0x${Hexadecimal(info)} vector=0x${Hexadecimal(gewu.io.vector(47, 0))} cycle=${cycles}\n")
 +    excpValid := true.B
-+    excpCause := causeOneHot
++    excpCause := causeId
 +    excpCauseIp := causeIpValue
 +    excpInfo := info
 +    // Any exception entry clears the reservation (spec/SimRISC-12 §1.1): an
@@ -904,6 +924,20 @@ index 0000000..eabe25e
 +    ip := gewu.io.vector
 +    continueAt(gewu.io.vector)
 +  }
++
++  /**
++    * `CFXMEM` entry with a wyde3 sub-cause (`contract-see` §6.1.1 `[63:48]`).
++    *
++    * Tiny has no page-table walk (`WumingParams` has no PTW/PTBR, the core has
++    * no `cfx_ptw` access), i.e. the profile is `ptw_enable = 0` for every
++    * access, so **every** `CFXMEM` on this profile is the non-page-table case
++    * `[57] NONPTW` (`DADAO-12` §3.6 (四)).  The page-fault sub-causes
++    * (`IGPTRAP`…`DSPFTRAP`, `ADWBFAIL`) are unreachable here by construction;
++    * a profile with a TLB passes its own bit explicitly.
++    */
++  def enterHmonMem(causeIpValue: UInt, info: UInt,
++                   sub: Int = GewuCauseId.MEM_NONPTW): Unit =
++    enterHmon(causeIpValue, (1.U << CFXMEM_BIT).pad(64), info, sub)
 +
 +  def finish(nextIp: UInt): Unit = {
 +    ip := nextIp
@@ -935,7 +969,7 @@ index 0000000..eabe25e
 +      when(!fetchLegal) {
 +        // No manager backs this address: CFXMEM with the fetch address as
 +        // `cause_info` (spec/Kaiwu §4.4).
-+        enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), ip)
++        enterHmonMem(ip, ip)
 +      }.elsewhen(io.imem.a.fire) {
 +        demandBeat := ip(addrBits - 1, 3)
 +        state := sFwait
@@ -956,7 +990,7 @@ index 0000000..eabe25e
 +        }
 +      }.elsewhen(fetchResp) {
 +        when(imemD.denied) {
-+          enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), ip)
++          enterHmonMem(ip, ip)
 +        }.otherwise {
 +          fifoPush := true.B
 +          pushBeat := demandBeat
@@ -1017,7 +1051,7 @@ index 0000000..eabe25e
 +        }.elsewhen(callNeedsSpill) {
 +          when(!callSpillLegal) {
 +            // C3b spill target is not backed: precise CFXMEM, no push.
-+            enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), (mrptr - 8.U).pad(64))
++            enterHmonMem(ip, (mrptr - 8.U).pad(64))
 +          }.otherwise {
 +            // C3b: write the oldest RegRAS entry to MemRAS[MRPTR - 8] first;
 +            // the shift-push is committed when the store is accepted.
@@ -1062,7 +1096,7 @@ index 0000000..eabe25e
 +          // D4b: RACNT == 0 and MemRAS enabled — read the entry at MRPTR first
 +          // (the RASUF/consume/refill decision is taken when it arrives).
 +          when(!retMemLegal) {
-+            enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), mrptr.pad(64))
++            enterHmonMem(ip, mrptr.pad(64))
 +          }.otherwise {
 +            memStore := false.B
 +            memMulti := false.B
@@ -1120,7 +1154,7 @@ index 0000000..eabe25e
 +          // (spec/SimRISC-12 §1.1: .b=1 / .w=2 / .t=4 / .o=8).
 +          enterHmon(ip, (1.U << MALIGN_BIT).pad(64), lrscAddr)
 +        }.elsewhen(d.isLr && !lrscGetLegal) {
-+          enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), lrscAddr)
++          enterHmonMem(ip, lrscAddr)
 +        }.elsewhen(d.isSc && scFailNow) {
 +          // Reservation miss: rdHB = 1, no memory access, and the reservation
 +          // is consumed either way (spec/SimRISC-12 §1.1).  The rd write is
@@ -1128,7 +1162,7 @@ index 0000000..eabe25e
 +          resvValid := false.B
 +          finish(ip + 4.U)
 +        }.elsewhen(d.isSc && scMemFail) {
-+          enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), lrscAddr)
++          enterHmonMem(ip, lrscAddr)
 +        }.otherwise {
 +          memStore := false.B
 +          memMulti := false.B
@@ -1183,7 +1217,7 @@ index 0000000..eabe25e
 +        }.elsewhen(!memRangeLegalNow) {
 +          // CFXMEM: no manager backs the access (whole `ldm`/`stm` range is
 +          // checked here, before the first beat, so the fault is precise).
-+          enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), memAddrNow)
++          enterHmonMem(ip, memAddrNow)
 +        }.otherwise {
 +          memStore := d.isSt || d.isStm
 +          memMulti := isMulti
@@ -1261,7 +1295,7 @@ index 0000000..eabe25e
 +          // instruction.  `corrupt` is the same architectural outcome
 +          // (design note §3.3: denied/corrupt are one CFXMEM fallback).  The
 +          // same holds for a MemRAS access: the RAS state is untouched.
-+          enterHmon(ip, (1.U << CFXMEM_BIT).pad(64), memBeat)
++          enterHmonMem(ip, memBeat)
 +        }.elsewhen(rasMemKind === 1.U) {
 +          // C3b spill accepted: commit MRPTR -= 8 and the shift-push.
 +          rasOp := WumingRasOp.SPILL

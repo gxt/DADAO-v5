@@ -196,3 +196,14 @@ make check-patch-tree
 - **sim 重建（必须）**：SRAM 名进 elaboration ⇒ 生成物变了，旧二进制不对应当前补丁态。`make verilog CONFIG=WumingTinyConfig -j32` + `make CONFIG=WumingTinyConfig -j32` ⇒ 新 md5 **`71574df4dbd0033b6c0a7b133239b95a`**（旧 `bd5e75b3…` 作废）。
 - **构建环境坑**：必须在 chipyard 自带 conda 环境里构建（`PATH` 前置 conda `bin`、`RISCV=<conda>/riscv-tools`）——系统 JDK 21 下 sbt 1.8.2 报 `bad constant pool index`、`RISCV` 未设时生成物含 `-I/include` 且缺 `fesvr/*.h`。
 - **验证**：`trap_ciii_cfx`/`escape_ciii_cfx` 2 个 id / 16 个镜像（链例 + 故障例）chipyard ↔ QEMU **逐字节相同**（`semi.out` + 退出码），新 sim 语义与改前一致。
+
+## `excp_cause_id` 子原因 wyde（`m16-chipyard-003`）
+
+- **编码**（`ADR-0056` D1–D4，`contract-see §6.1.1` = `DADAO-12 §3.6`）：`[15:0]` 大类 one-hot、`[31:16]` 留给未来大类的保留段、子原因放进**该 cause 独占的 16 位 wyde** —— `CFXPERM` → wyde2 `[47:32]`（低字节 8 位权限类，`[47:40]` 保留）、`CFXMEM` → wyde3 `[63:48]`（低字节 8 位缺失类、`[56] ADWBFAIL`、`[57] NONPTW`、`[63:58]` 保留）。wyde 归属互斥：另一 wyde 与非 `CFXMEM`/`CFXPERM` 的 cause 的两个 wyde **必须全 0**。
+- **单一真源 = `gewu` 生成器**：`GewuCauseId` 持有 18 位表（wyde2 8 + wyde3 10，含 `encode`（按 cause 选 wyde）与 `wellFormed`（结构判据））。核只传 **wyde-local 位号**，因此子原因**不可能被手放到错的 wyde**；`WumingCore.CFXMEM_BIT`/`CFXPERM_BIT` 也引用该表，不再各写一份字面量。
+- **写帧点校验（具名失败）**：`GewuFile` 是 `cg5 rc2` 的唯一写点；`excp.valid` 那拍调 `wellFormed`，违规由 `chisel3.assert` 具名致命（RTL 为 `$error("Assertion failed: GewuFile: malformed excp_cause_id 0x…")` + `$fatal`，仿真 rc=255）。漏填子原因、子原因放错 wyde、wyde 内两位、保留位被占都会**当场停仿真**，不会静默写进帧。
+- **本 profile 的可达面**：`WumingTinyConfig` 无 MMU/TLB/PTBR（`WumingParams` 无 PTW 字段、核无 `cfx_ptw` 访问）⇒ `ptw_enable = 0` 恒成立 ⇒ **每一处 `CFXMEM` 都是 `[57] NONPTW`**（`enterHmonMem` 的默认，8 个判定点：取指窗口两处、`call` spill 目标、`ret` refill 目标、`lr`/`sc`、`ld`/`ldm` 预检、中途 `denied`/`corrupt`）。页表缺失 8 类与 `[56] ADWBFAIL` 在此 profile **结构性不可达**，也不发 `CFXPERM`（无来源掩码判权）⇒ 这些位需等 TLB 实现另立任务；表与校验器已就位，届时只需在判定点传对应位号。
+- **`cause_info` 语义不变（D4）**：`CFXMEM` 恒为地址（中途失败用**该 beat 的地址**`memBeat`；`beatOf` 已按 8 B 对齐），`MALIGN` 为访存地址，`IALIGN` 为非法 IP，其余大类保持各自的指令编码语义。
+- **sim 重建**：`make verilog CONFIG=WumingTinyConfig -j32` + `make CONFIG=WumingTinyConfig -j32`（`JOBS=32`，约 5 min）⇒ 交付二进制 md5 **`2fb79602f30916c363ecff17eb3c33c8`**（旧 `71574df4…` 作废）。**注意**：同一源码的 `make clean-sim` + 重建可产出不同字节（本次观测到 `e7234109…` 与 `2fb79602…`，同 RTL、同链接库、**行为逐字节相同**）⇒ `sim md5` 只作记录，身份判据取**行为**（`ISS-453`）。
+- **验证载体**：`tools/chipyard/excp/causeid.S`（8 类异常各一例：数据/取指 `CFXMEM`、`ILLI`、`UNDI`、`MALIGN`、`CFXREG`、`CFXTRAP`、`IALIGN`；用 `aip.si` 现场写固件 hmon 的返回槽 `+0xF8`，回落点读 `+0xE0`/`+0xF0` 各记 8 B）+ `check_causeid.py`（**现场从合约解析位号**并与 `spec §3.6` 逐位互校；断言全 64 位相等、`[31:16]` 保留、非 `CFXMEM` 两 wyde 全 0、`cause_info` 恒为地址）。同一 ELF 在 chipyard / QEMU / gem5 上 **128 B 字节流逐字节相同**（`CFXMEM` ⇒ `0x0200000000000002`）。
+- **既有工具的已知问题（非本任务引入）**：`tools/chipyard/excp/app.S`（`m12-chipyard-019`）在**改前基线**就失败（`rc=69`）：它按旧固件「`escape` 恒回 `trap+4`」写，而 `m12-chipyard-028` 起固件从 hmon `+0xF8` 取返回地址、`app.S` 从不写该槽 ⇒ 第一个异常就跳回 BootROM 并重启程序；另有 `cg3 rc0–rc3` 在 `GewuFile` 里被并成一份 mask（`DADAO-12 §3.1` 是四个独立 mask）导致读回互相污染。两处均与本任务无关，待各自任务修。
