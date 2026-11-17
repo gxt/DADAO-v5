@@ -7,7 +7,7 @@
 **并行组**：K3 串行链**最后一环**；唯一可并行的只读动作是契约/清单的静态比对（不占组件）
 **预估**：5–6 h（含 4–5 路注入的重复构建）
 **档位**：大改（新建 L2 门控 + 退役既有断言 + 注入改组件源码；复核须独立重跑 + 独立注入）
-**状态**：待开始
+**状态**：待验收
 
 ## 背景
 
@@ -76,4 +76,105 @@ K0/K1/K2 各有收口门控（`check-linux-k0` / `-k1` / `-k2`，均入 L2）。
 
 ## 审阅记录
 
-（待填）
+### 第 1 轮 engineer 自审（engineer，2026-11-17）
+
+**范围**：本任务全部改动（`tools/linux/check_k3.py` 新、`check_k1.py` 三条文案、`check_k2.py` 一条文案 + 组注释、`Makefile` 接线、`docs/Process-07` 层表行 + §4a.1、本任务书），逐行读 diff，逐条对照 `spec/DADAO-12 §2.2.2/§2.2.3/§4.5`、`contract-tlb` TLB-04/19/29/34、`contract-see §6.1/§6.1.1`、`spec/DADAO-13 §2`、`spec/Kaiwu §7.1`、`docs/Process-07 §4a`。判决：**可交付**（findings 全部处置，`待验收` 等待独立复核）。
+
+| finding | 处置 | 改了什么 | 复验证据 |
+|---------|------|---------|---------|
+| F1 `k3pt.one()` 在注入镜像上抛 `SystemExit`（行缺失）⇒ 门控按「输入缺失」rc=2 中途退出，`--inject` 跑不完 | ✅已修 | `_bundle()` 把每段的 `SystemExit` 转成「该组行缺失」红；`run_inject` 同时捕 `(Exception, SystemExit)` | `scope-shift` 注入记 `M 行缺失` 红，`--inject` 6/6 全跑完 |
+| F2 `spec_tlb_control()` 首版把 §4.5 的 scope 名 `VA` 当键（内核用 `va`）⇒ 首跑 rc=2 | ✅已修 | spec 与 contract 两侧解析统一 `.lower()` | `§4.5 scopes parsed as [...]` 消失；M4 19 条命令值全绿 |
+| F3 `expected.yaml` 的 `subcause: null`（「无子原因」）被当成「符号不在契约里」⇒ T7 假红 | ✅已修 | 过滤 `is not None` | T7 期望符号检查实际 `{}` |
+| F4 `K3_PF_MAGIC` 不在 pt 探针的 `kernel_marks()` ⇒ `KeyError` | ✅已修 | 新增 `d["pf"] = k3pf.kernel_consts()`（pf 探针常量） | P2/C2 读回值断言通过 |
+| F5 P8 行的 `pte_pa` 已是页号，首版又套一次 PPN 位移 ⇒ 恒 0 | ✅已修 | C1 与 `num(pte_pa)` 直比 | C1 期望 32767 实际 32767 |
+| F6 X5 把终止后的寄存器转储 `dadao: rdNN:` 当成终止行（34 条） | ✅已修 | 只数带 `cause=(0x..) ip=` 的行；并改断言「输出末尾是 die 汇总行且 code == rc」 | pf4/pf5 X5 全绿；注入档终止行恰 1 |
+| F7 R3 把池计数当数据页数（缺页填充会为新建 L1 表分配一页）⇒ 误红 | ✅已修 | 改为「单次入口至多一页」 | R3 全绿（P3a 首次填充 +1 不再误判） |
+| F8 B3 的「无 `-d/-D`」只查门控自己拼的 argv（恒真） | ✅已修 | 增「输出无 `IN:`/`Trace` 逐指令转储标记」的控制台断言 | B 44→48 条（4 镜像 ×1） |
+| F9 证据脚本自身把注入路数 `6/6` 读成 `66` ⇒ 假 FAIL | ✅已修 | 用 `sed` 取分子 | 二轮 `注入路数 … 实际=6 路` PASS，全程 `RESULT: PASS` |
+
+> 过程记录：K0/K1/K2 在改动**前**先跑过一遍基线（rc=0/0/0）；`check-linux-k1`/`-k2` 的文案改动后由证据脚本再跑一遍（rc=0/0/0）。共享构建树按镜像逐个 `apply_config_lines` 钉住四个边界符号，未出现「继承上一镜像配置」的假绿。
+
+
+### 第 1 轮 reviewer 验收（reviewer，2026-11-17）
+
+**重跑（自采 rc，不采信完成区）**
+1. `git rev-parse --show-toplevel` = 本任务 worktree；基线与收尾 `git status --porcelain -uall` 均空（快照逐行对账一致）。
+2. `make check-linux-k3` rc=0（52 s）：`[GROUP] B 48/48 M 37/37 F 38/38 C 17/17 T 66/66 X 28/28 R 29/29` → `check-linux-k3: PASS (263/263)`。
+3. `python3 tools/linux/check_k3.py --selfcheck` rc=0 → `PASS (7/7 组可翻转；未翻转 [])`。
+4. 一键证据脚本 `run.sh` rc=0（430 s，`RESULT: PASS`）：build / gate / selfcheck / `--inject 6/6`（逐路 cp+md5 还原 + 重建回绿）/ K0-K2 / TLB 静态 / verify 27 项，全绿。
+5. `make check-linux-k0/-k1/-k2` rc=0/0/0（119/119、112/112、104/104）。
+6. `min_rom_probe_tlb.py --selfcheck` rc=0（18 子原因 / 11 大类 / 15 case / 29 check）；`check_tests_index` rc=0（arch=11、file 存在）。
+7. TLB 静态对账：`ARCH_CFX_PROBES` 含 `tlb`；`expected.yaml` 15 case 全带 source、无裸编码（T7 八条绿）；`tests/arch.yaml` 按其 README 只索引 `.s` 载体、ptw 载体不放 `.s`，与索引门控双向一致。
+8. 本轮无外因红（在途 `m16-chipyard-001` 未造成任何门控红项，无需归因）。
+
+**独立注入（cp+md5 + 重建回绿；①③⑤ 为任务书未列的注入面）**
+- ① 页大小改 4 KiB（组件 Kconfig 的 select + defconfig，非 `pgtable.h` 断言）⇒ `rc=1`、`B0 期望=0 实际=1`；还原 md5 相等；回绿 263/263。
+- ② `tlb_control` 的 OP 移位 0→1（非 engineer 的 scope 移位）⇒ `rc=1`、B5 红 + M 组截断；回绿 263/263。
+- ③ 子原因 PERM wyde 32→48（非 MEM）⇒ `rc=1`、B5 红；回绿 263/263（F 侧红由 `--inject subcause-wyde` 实证 `F1 期望=48 实际=32`）。
+- ④ 退役旧文案回潮 ⇒ `rc=1`、`R 28/29`、具名 `R4 …已退役的旧文案不在`；回绿 263/263。
+- ⑤ 替代判据缺失（k1 三处 `check-linux-k3 F 组` 指向改掉）⇒ `rc=1`、`R 23/29`、6 条 R4 红；回绿 263/263。
+- 组件源 4 个被注入文件 md5 全部复位（与 engineer 注入日志的期望值逐一相等）；全程未用 `checkout/restore/stash/reset`。
+
+**断言抽查（跨 B/M/F/C/T/X/R ≥10 条，均可达 FAIL、非恒真）**：B1/B2（破坏 `.config` ⇒ 7 红，`B2 期望=65536 实际=4096`）；M4（`0x16→0x14`）、M3/M5（两侧独立现场值）；F1（`48/32`）、F2（`1/-1`）、F5（`{}` 集合式）；C2（`True/False`）、C3（`zero_dirty`）；T5（`1/0`）、T7（vacuous ⇒ FAIL）；X2（`0x80` 越界）、X1（正例 rc）；R1（`1/2`）、R2（预算现场解析自 `fault.c` 的 `DADAO_PF_RETRY_BUDGET 4`，非写死）、R4（注入④⑤）。**项数现场派生**：`263` 在门控/证据脚本零命中，PASS 打印 `rep.total/rep.total`。
+
+**§4a 退役核对**：改限定语 4 条（k1 K13×3、k2 E8，diff 确认原地改名、断言数不变）；删除 0 条（`stub|不参与|旁路` 零命中）；保留 6 类理由见 §4a.1；机械断言实测可抓「旧文案回潮」（注入④）与「替代判据缺失」（注入⑤）。**越界核对**：`git diff --name-only 3f3914be..HEAD` = 6 文件、与完成区一致，`spec/|.tao/contracts/|tests/|.tao/knowledge/` 零命中；PHONY / GATE_LOCKED_TARGETS / `_locked-check-modules` / `make help` / docs 层表 grep 取证全含；完成区 23 行 ≤30、无运行期路径。
+
+**findings（不阻断，architect 收尾处置）**：① §4a.1 保留清单漏 3 个任务书口径 grep 命中项（k1 `page_size_log2`、k11 阶段序含 PTW、k2 `X9`），建议补三行理由；② 证据脚本 `S1` 用工作树态，提交后恒报「改动文件 0 个」，建议改 `BASE..HEAD` ∪ 未跟踪（我实测其可达 FAIL：在 `spec/` 下放越界文件 ⇒ rc=1，移除回绿）；③ 门控在 guest 早死时于首个 SystemExit 中止、后续组不入报告（rc 仍非 0，`--inject` 路径有逐组归因）；④ 完成区 L3 表述与验收 5 的「L3 待主会话」措辞略异（语义等同）。
+
+**判决：Accepted** —— 验收命令块在我自己的重跑下全部通过、硬约束无违反；L3 `make check-arch` 仍留主会话，任务状态维持 `待验收`。
+
+### 第 2 轮 reviewer 验收（收尾 cleanup）（reviewer，2026-11-17）
+
+**重跑（自采 rc）**：基线与收尾 `git status --porcelain -uall` 均空；一键证据脚本 rc=0（432 s，`RESULT: PASS`）—— gate `PASS (263/263)`（B48 M37 F38 C17 T66 X28 R29）、`--selfcheck 7/7`、`--inject 6/6`（逐路 cp+md5 还原 + 回绿）、K0/K1/K2 rc=0/0/0、TLB 静态、`verify.py` **37/37 PASS rc=0**；`check_k1.py --selfcheck` rc=0（19/19 组可翻转）、`check_k2.py --selfcheck` rc=0（7/7）；`BASE..HEAD` 仍恰 6 文件（任务书 / `Makefile` / `Process-07` / `check_k1/k2/k3.py`），无越界。
+
+**1 §4a.1 补充**：3 行保留理由已入 `docs/Process-07 §4a.1` 补充表；现场 grep 逐条核实断言存在 —— `check_k1.py` K6 `page_size_log2`（L747）、K11 `STAGE_ANCHORS` 含 `ptw-announce/table-build/install/post-switch` 四段（L616-619）+ `ONE_SHOT`，`check_k2.py` X9（L699）；理由成立（交接块字段 / K1 出口判据 / 内核自报值 vs K3 实测 rc，对象不同、互不取代）。`verify.py` RA0–RA2 共 7 项基线全绿，独立反例：
+- RA1（文档无理由行）：删掉 `page_size_log2` 保留行 ⇒ **rc=1**、`[FAIL] RA1 …期望=1 实际=0`；cp+md5 还原 ⇒ rc=0（37 项）。
+- RA2（源码无该断言）：改名移除 `ptw-announce` ⇒ **rc=1**、`[FAIL] RA2 K11 阶段序 …实际=False`；还原 ⇒ rc=0。
+
+**2 证据脚本 S1**：已改为 `BASE..HEAD ∪ 工作树 ∪ 未跟踪`，STAT 实报 6 个（修复前恒报 0）；`S0` fail-closed 已加。独立注入（任务书未列）：给已跟踪 `README.md` 追加一行 + 在 `spec/` 放未跟踪文件 ⇒ **rc=1**、`[FAIL] S1 …实际=['README.md', 'spec/zz-r2-probe.md']`（N4 反例同步红）；cp+md5 还原 README、删除新文件 ⇒ STAT 回 6 个、rc=0。`S0` 可达 FAIL 以 BASE=HEAD（改动集为空）在内存演示：`[FAIL] S0 …实际=False`。
+
+**3 L3 表述**：完成区与遗留问题均已改为「`make check-arch` 已由主会话执行 rc=0」；我独立核运行期日志：`CHECK_ARCH_EXIT=0`、`check-arch: PASS`，TLB 探针逐条日志 **29 PASS / 0 FAIL、15 个 `arch-ptw` case 齐全、`29/29 checks passed`**。验收 5 原文（条件式判据）未改，完成区已满足其「已跑 ⇒ 贴 rc」分支，二者不再矛盾。
+
+**4 已知限制**：已登记于遗留问题（guest 早死 ⇒ 首个 `SystemExit` 中止、后续组不入报告、rc 仍非 0、`--inject` 路径逐组归因），与上轮 finding ③ 一致。
+
+**findings（不阻断）**：① `RA2` 用子串匹配 token，保留前缀的改名（`ptw-announce`→`ptw-announceX`）实测 **rc=0 不翻红**，建议改带定界的精确匹配；② §4a.1 补充表 K11 行写「`ONE_SHOT` 的 `ptw` 行」，但 `ONE_SHOT` 无 `ptw` 键（实为 `vec/ids/pre/map/post/new/text/boot/mark/done` 等 10 条 `K1 ptw *` 行），措辞建议改准（文档级）。
+
+**判决：Accepted** —— 4 项收尾逐条实证、不回归全绿、`BASE..HEAD` 范围未漂移、L3 证据闭合；状态推进由主会话裁定。
+
+### 第 3 轮 reviewer 验收（finding 处置确认）（reviewer，2026-11-17）
+
+**重跑（自采 rc）**：`make check-linux-k3` **rc=0**、`PASS (263/263)`（B48 M37 F38 C17 T66 X28 R29）；`verify.py` **rc=0、37/37 PASS、0 FAIL**（STAT 实报 `BASE..HEAD ∪ 未跟踪 = 6 个`）；`git diff --name-only 3f3914be..HEAD` 恰 **6 文件**；基线与收尾 `git status --porcelain -uall` 均空。
+
+**1 RA2 已改定界精确匹配**：实现改为 `re.findall` + lookaround 边界（`(?<![A-Za-z0-9_])…(?![A-Za-z0-9_])`，`ptw-announce` 把 `-` 一并纳入边界）。**我注入一路**：`ptw-announce`→`ptw-announceX`（正是上轮的绕过写法）⇒ **rc=1**、`[FAIL] RA2 K11 阶段序：源码里有该断言且是完整 token（定界匹配）…实际=False`；`cp`+md5 还原 ⇒ rc=0。另两 token 现场抽查：`page_size_log2` 原样命中 1 / 加后缀 0；`"X9"` 原样 1 / 加后缀 0 / 改前缀 0，真实 `check_k2.py` 命中 1。
+
+**2 §4a.1 K11 措辞**：已改为「`ONE_SHOT` 里 10 条 `K1 ptw *` 行：`vec`/`ids`/`pre`/`map`/`post`/`new`/`text`/`boot`/`mark`/`done`」；现场解析 `ONE_SHOT`：**17 键、其中 `K1 ptw *` 恰 10 条**、列出的键名逐一对得上、确认无 `ptw` 键 —— 措辞与实际一致。
+
+**判决：Accepted** —— 2 条 finding 处置到位、不回归全绿、`BASE..HEAD` 范围未漂移；无未闭合项（未提交 git，本轮仅改本任务书审阅记录）。
+
+## 完成区
+
+**测试结果**：通过 263/263（`make check-linux-k3` rc=0；分组现场计数 B 48/48 M 37/37 F 38/38 C 17/17 T 66/66 X 28/28 R 29/29，总项数不写死）；`--selfcheck` 7/7 组可翻转；`--inject` 6/6 路（`cp`+md5 还原 + 重建回绿）；一键证据脚本 `RESULT: PASS`（431 s）；K0/K1/K2 各 rc=0；`min_rom_probe_tlb.py --selfcheck` rc=0；静态复核 37 项全 PASS。失败原因：无。
+
+**修改文件**：`tools/linux/check_k3.py`（新：B/M/F/C/T/X/R 七组 + `--selfcheck` + 6 路注入）、`tools/linux/check_k1.py`（仅 K13 三条文案 + 文件头说明）、`tools/linux/check_k2.py`（仅 E8 文案 + E 组注释）、`Makefile`（`_locked-check-linux-k3` 目标 + `PHONY` + `GATE_LOCKED_TARGETS` + `_locked-check-modules` + `help` + 块注释）、`docs/Process-07-门控分层规范.md`（目标-层表一行 + §4a.1 退役记录）、本任务书。（`git status -uall` 对账：跟踪文件改动仅此 6 项，无临时残留。）
+
+**验收结果**（真实输出）
+- `[GROUP] B 48/48  M 37/37  F 38/38  C 17/17  T 66/66  X 28/28  R 29/29` → `check-linux-k3: PASS (263/263)`
+- `check-k3 selfcheck: PASS (7/7 组可翻转；未翻转 [])`
+- `check-linux-k3 --inject: PASS (6/6 路注入按预期变红并还原)`：`page-size-4k` 构建 rc=1 ⇒ B；`scope-shift` ⇒ M；`subcause-wyde` ⇒ F；`zero-page-write` ⇒ C；`retry-no-fill` ⇒ F+R（控制台实录 `try=5 result=die-budget`）；`retired-back` ⇒ R
+- `make check-linux-k0/-k1/-k2` rc=0/0/0；`min_rom_probe_tlb.py --selfcheck` rc=0（18 子原因 / 11 大类 / 15 case / 29 check）；`verify.py`（接线 6 + §4a 18 + 补充核对 7 + 改动范围 2 + 反例自检 4）全 PASS
+- **L3 已由主会话执行**：`make check-arch` rc=0（TLB 探针含在其中，逐条结论见运行期日志）
+
+**§4a 退役（逐条）**：**改限定语 4 条** —— `check_k1.py` K13「CFXMEM 计数」「CFXMEM resumed」「后置子系统痕迹」、`check_k2.py` E8「未声明 CFXMEM 退出码」，均限定为「本镜像内（`CONFIG_DADAO_K1_EARLY_STOP=y` / 无 mm 子系统）…」，替代判据 = `check-linux-k3` F 组。**删除 0 条**：无「TLB 维护为空 stub / TLB 不参与」类断言（`grep -n 'stub\|不参与\|旁路' tools/linux/check_k1.py tools/linux/check_k2.py` 零命中），故无删除对象。**保留**（各自镜像内仍成立，理由见 `docs/Process-07 §4a.1`）：K1 K8 预建表、K9 内核自建表、K14 半主机按 PA 取值、`FATAL_PATTERNS`；K2 E2/E3 注册探针、X6/X8 退出码分段；**补充核对 3 项**（K1 K6 `page_size_log2`、K1 K11 阶段序含 PTW、K2 X9）经现场 `grep` 复核亦为保留，理由见 §4a.1 补充表。机械断言 = R 组按文档锚点核对「新文案在 / 旧文案不在 / 替代判据指向 / 文档有记录」，`--inject retired-back` 与 selfcheck 各给一条可达 FAIL。
+
+**期望值来源（全部现场派生，未从被测输出反推）**：页大小/几何 ← 镜像 `.config` + `spec/DADAO-12 §2.2.2` + 契约 `page_size`；L1 字段位 ← §2.2.3；`tlb_control` 三维编码与 op 语义（删除/回写）← §4.5 寄存器行与「失效接口」段，并与 `contract-tlb` TLB-19/TLB-29 双向比对；ASID 位宽 ← §4.5 ↔ TLB-04；子原因位/wyde ← `contract-see §6.1/§6.1.1` ↔ 内核 `asm/cause-sub.h`；cause 表 ← `spec/DADAO-13 §2`；退出码段/模式/位号 ← `spec/Kaiwu §7.1`；自检码全集 ← 现场发现的 `k3_*_selftest.c`；重试预算 ← `fault.c`；数据标记 ← 自检源；TLB 探针清单 ← `tests/arch/ptw/expected.yaml` + 载体 `--selfcheck`。结构性常量仅「入口次数 / 分配增量」（case 设计，验收 6 允许）。
+
+**新发现/坑**
+1. 运行时间：门控 52 s（4 镜像增量构建 + 4 次启动）、`--inject` ≈3.5 min、全套证据 431 s（未触 15 min 分片线）。
+2. `scope-shift` 注入不是「打印值错一位」而是让 `invalid|VA` 变成 `range`+`size=0` ⇒ 内核按 §4.5 判序报 CFXREG 并具名终止，门控看到的是「计划行缺失」；「错值」路径由 `--selfcheck` 的命令值改一位直接覆盖。
+3. 共享构建树的 `.config` 会被逐个镜像覆盖 ⇒ `.config`/符号表必须在**该镜像构建后立即**快照（沿用 K2 门控做法）。
+4. 池计数不等于数据页数：缺页填充会为新建 L1 表分配页（P3a 首次填充 +1），逆向断言只能定「单次入口至多一页」+ P9/P9b 的分配增量。
+5. 建议沉淀：「阶段收口门控 = 代表例 + 跨镜像阶段不变量」；编码/位宽类期望须**同时**从 spec 章节与 contract 条目解析并互比（本任务 M6 已采用）。
+
+**遗留问题**：L3 无遗留（`make check-arch` 已由主会话执行、rc=0，TLB 探针含在其中）；L1 `make check-knowledge-refs` rc=2，两条具体引用都在 `m15-testcases-009`（基线既有、本任务未触及，`git status` 无该文件），非本任务引入；**已知限制**（reviewer finding ③，不阻断、不改代码）：guest 在首个 `SystemExit` 处早死时门控立即中止、后续组不进入报告（rc 仍非 0；`--inject` 路径逐组归因）；其它无。
+
+**第 2 轮 findings 处置**（reviewer ①②）：① `verify.py` 的 RA2 改为**定界精确匹配**（`(?<![A-Za-z0-9_-])ptw-announce(?![A-Za-z0-9_-])` 等，三个 token 各自带两侧边界，不再是更长 token 的前缀）；三行均实测「加后缀改名 ⇒ `[FAIL] RA2 …` rc=1、`cp`+md5 还原 ⇒ rc=0」（`ptw-announce`→`ptw-announceX`、`page_size_log2`→`page_size_log2X`、`"X9"`→`"X9b"`，md5 逐一相等），并在同一文件上对照「旧子串判据 True / 新定界判据 False」。② §4a.1 补充表 K11 行按实际改写为「`STAGE_ANCHORS` 四段 + `ONE_SHOT` 里 10 条 `K1 ptw *` 行（`vec`/`ids`/`pre`/`map`/`post`/`new`/`text`/`boot`/`mark`/`done`）」，键名现场 `grep` 核对（`ONE_SHOT` 无 `ptw` 键，原文有误）。收尾重跑：门控 263/263、`verify.py` 37/37。

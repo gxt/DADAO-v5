@@ -61,8 +61,12 @@ restoring it: ``cp`` + md5):
       ``[start_kernel, next symbol)``, and the exit line is the **last** line
   K13 reverse assertions: no ``panic``/``oops``/``BUG``/``Call Trace``; no
       named machine fault, no kernel-table rejection, no boot-info rejection;
-      the only ``CFXMEM`` is the single declared (and resumed) probe; nothing
-      from a post-K1 subsystem appears (init / syscall / IRQ / timer / tick)
+      **in this image** (``CONFIG_DADAO_K1_EARLY_STOP=y``, no mm subsystem) the
+      only ``CFXMEM`` is the single declared (and resumed) probe, and nothing
+      from a post-K1 subsystem appears (init / syscall / IRQ / timer / tick).
+      §4a (`m14-linux-015`): those three assertions are qualified to this
+      image; the K3 criterion for a page fault (handled, retried, no second
+      entry) is `check-linux-k3` F group (record: `docs/Process-07 §4a`).
   K14 semihosting pointers are PAs (`ISS-450`): a second run on the same Vast
       firmware (PTW already on) executes ``tools/linux/semihost_pa_probe.S``,
       which hands `SYS_WRITE0` (a short string and a 640-byte long string that
@@ -858,13 +862,12 @@ def check_all(ctx: Ctx, rc: int, text: str, cmd: list[str], rep: Report) -> None
         rep.check("K13", f"无 {label}", [],
                   [line for line in body if re.search(pattern, line, re.M)])
     cfxmem = [line for line in body if "CFXMEM" in line]
-    rep.check("K13", "CFXMEM 只出现 1 次（唯一一次预先声明的探针）", 1,
-              len(cfxmem))
-    rep.check("K13", "该 CFXMEM 是被处理过的探针（resumed）", True,
+    rep.check("K13", "本镜像内（CONFIG_DADAO_K1_EARLY_STOP=y、无 mm 子系统）CFXMEM 只出现 1 次：唯一一次预先声明的探针；替代判据 = check-linux-k3 F 组", 1, len(cfxmem))
+    rep.check("K13", "本镜像内（无 mm 子系统）该 CFXMEM 是被处理过的探针（resumed）；替代判据 = check-linux-k3 F 组", True,
               bool(cfxmem) and bool(re.match(
                   r"^K1 ptw fault probed cause=CFXMEM va=\S+ ip=\S+ \(resumed\)$",
                   cfxmem[0])))
-    rep.check("K13", "无 K1 之后的子系统痕迹（init/syscall/IRQ/timer/tick）", [],
+    rep.check("K13", "本镜像内（CONFIG_DADAO_K1_EARLY_STOP=y、无 mm 子系统 ⇒ 无页故障通道痕迹）无 K1 之后的子系统迹象（init/syscall/IRQ/timer/tick）；替代判据 = check-linux-k3 F 组", [],
               [line for line in body if re.search(POST_K1_PATTERN, line)])
 
 

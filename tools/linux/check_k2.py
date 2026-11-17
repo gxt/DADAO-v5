@@ -453,6 +453,12 @@ def check_clock(rep: Report, rc: int, text: str, snap: dict, d: dict) -> None:
 # ---------------------------------------------------------------------------
 # E: the synchronous exception channel (declared vs undeclared CFXMEM)
 # ---------------------------------------------------------------------------
+# §4a disposition (`m14-linux-015`): from K3 on, an unregistered CFXMEM at an
+# address the page-fault channel owns is *handled* rather than terminated, so
+# E8's expectation is only true for this gate's own image — the trap image pins
+# `CONFIG_DADAO_K3_PF_SELFTEST=0`, i.e. it has no mm subsystem.  The criterion
+# for the K3 stage lives in `check-linux-k3`'s F group; the doc record is in
+# `docs/Process-07 §4a`.
 
 def check_exception(rep: Report, rc: int, text: str, d: dict) -> None:
     specs = d["specs"]
@@ -486,7 +492,7 @@ def check_exception(rep: Report, rc: int, text: str, d: dict) -> None:
 
     die = k2trap.die_line(text)
     want = k2time.monitor_code(specs, "supv", "CFXMEM")
-    rep.check("E8", "未声明的 CFXMEM：退出码 == §7.1 supv+CFXMEM", hex(want),
+    rep.check("E8", "本镜像内（无 mm 子系统）未声明的 CFXMEM：退出码 == §7.1 supv+CFXMEM；K3 起同址由页故障通道接住，替代判据 = check-linux-k3 F 组", hex(want),
               hex(rc))
     rep.check("E9", "未声明：终止行的原因名", cause_name,
               die["cause"] if die else "<missing>")
