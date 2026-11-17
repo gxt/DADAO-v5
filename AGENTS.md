@@ -20,6 +20,7 @@
 - **台账双册**：M11 及以前 → `milestones.md`；M12 起 → `milestones-m12.md`；按任务书 `**项目里程碑**` 路由，`check-milestones-fresh` 机械校验（跨册错放 FAIL）。
 
 ## 核心原则
+- **版本号升级须经用户认可（用户 2026-11-17）**：`spec/`、`.tao/contracts/`、组件 manifest、任务书等**任何版本号**（含 `-rc`）的升级，必须先取得用户明确同意；**禁止自行升级**。变更记录可先记内容条目，版本号保持原值，等用户认可后再升。
 - **Spec-first**：编码/语义期望值来自 `.tao/contracts/contract-*.md`，不从实现反推。
 - **DADAO 特有行为先查 spec**：涉及页/地址/端序/对齐/ABI/编码/cfx 等，先查 `spec/` 对应篇目与 `.tao/knowledge/MEMORY.md` 反套用清单；不确定不猜；spec 冲突或语义不明直接问用户；不得用 RISC-V/x86/ARM 经验补全。
 - **Independent oracle**：测试向量不从 LLVM/QEMU 生成，须独立派生自 `spec/`。
