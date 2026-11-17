@@ -34,7 +34,7 @@
     python3 tests/ee-tiny/run_asm_suite.py --json-out <f>          # 逐例记录
 
 `--books-root`（`make check-inst-asm` 用）：扫描该根的**全部子目录**，凡含 `.S` 的册
-即为载体目录。**全部册共用同一份布局** `tests/inst/linker/inst-tiny.lds`
+即为载体目录。**全部册共用同一份布局** `tests/ee-tiny/inst-tiny.lds`
 （`m15-testcases-006`；册目录内不再有 `.lds`），`--lds` 只用于覆盖它。
 `--vectors` 可重复（单/多目录），与 `--books-root` 可叠加。
 
@@ -139,7 +139,7 @@ def iter_code_lines(text: str):
         yield line
 
 
-DEFAULT_LDS = "tests/inst/linker/inst-tiny.lds"
+DEFAULT_LDS = "tests/ee-tiny/inst-tiny.lds"
 DEFAULT_VECTORS = "tests/inst/01-load-store"
 DEFAULT_GEM5 = ".work/source/gem5/build/DADAO/gem5.opt"
 DEFAULT_GEM5_CONFIG = ".work/source/gem5/configs/dadao/fs.py"
@@ -370,7 +370,7 @@ def main() -> int:
                     help="扫描该根下所有含 .S 的子目录作为册载体"
                          "（如 tests/inst ⇒ 全部册）")
     ap.add_argument("--lds", default=None,
-                    help="覆盖链接布局（默认 tests/inst/linker/inst-tiny.lds，"
+                    help="覆盖链接布局（默认 tests/ee-tiny/inst-tiny.lds，"
                          "全部册共用）")
     ap.add_argument("--id", action="append", default=None,
                     help="只跑这些 id（可重复；默认全部）")

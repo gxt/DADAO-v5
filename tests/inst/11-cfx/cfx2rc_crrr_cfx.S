@@ -6,7 +6,7 @@
 @@   （rd0 恒读出 0，见 `spec/SimRISC-00 §2`）；Tiny 上 `switch_run_mode` 写入被忽略、
 @@   `excp_vector` 写入忽略低 2 位（`spec/Kaiwu §2`、`spec/DADAO-13 §1`）。
 @@ 编码：crrr = opc[31:24] | cfxha[23:18] | cghb[17:12] | rchc[11:6] | rdhd[5:0]
-@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
+@@ 链接布局：`tests/ee-tiny/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 9 / boundary 6 / overlap 2（链例 17 + 故障例 7）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流

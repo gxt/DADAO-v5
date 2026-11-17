@@ -6,7 +6,7 @@
 @@   cfx（Tiny：cfx0/1/2/4/5/32/33/34…）或已实现 cfx 的未定义/只写 cg·rc ⇒ CFXREG
 @@   （`spec/Kaiwu §3`；`contracts/legality_rules.yaml` `encode_cfx_reserved`）。
 @@ 编码：crrr = opc[31:24] | cfxha[23:18] | cghb[17:12] | rchc[11:6] | rdhd[5:0]
-@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
+@@ 链接布局：`tests/ee-tiny/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 13 / boundary 5 / overlap 2（链例 22 + 故障例 7）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流

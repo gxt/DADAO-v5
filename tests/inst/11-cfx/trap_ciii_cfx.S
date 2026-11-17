@@ -8,7 +8,7 @@
 @@   （Tiny：cfx0/1/2/4/5/32…）⇒ ILLI（`spec/Kaiwu §3`）；`immu18[17:8] == 0x3FF`
 @@   （0x3FF00–0x3FFFF）为 semihosting 短路、**不进向量**（`spec/Kaiwu §5.1/§5.4`）。
 @@ 编码：ciii = opc[31:24] | cfxha[23:18] | immu18[17:0]
-@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
+@@ 链接布局：`tests/ee-tiny/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 2（链例 9 + 故障例 6）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流

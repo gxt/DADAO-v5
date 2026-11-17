@@ -12,7 +12,7 @@
 @@   —— llvm-mc 只折装**绝对常量**表达式，标签差（`. - _start`）在指令立即数里会被折成 0
 @@   （现场实测，见 `MIGRATION §6/019`），故本文件不用标签算术
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rb` 拼初值；本册复用 04 的数据块）
-@@ 链接布局：`tests/inst/linker/inst-tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
+@@ 链接布局：`tests/ee-tiny/inst-tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 2 / semantic 4 / boundary 3 / overlap 2（链例 11 + 故障例 1；无「源=目」类
 @@   ——目的只写、基址 rb0 只读）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`

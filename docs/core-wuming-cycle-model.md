@@ -103,7 +103,7 @@
 
 **方法**（本册唯一口径，沿用 `008`–`014`）：
 
-- **载体**：`tests/inst/**/*.S` 的 **272 个镜像**（一个 opcode id 一个镜像），`llvm-mc` + `ld.lld`（`tests/inst/linker/inst-tiny.lds`）汇编，`+loadmem=` 装进 chipyard `simulator-chipyard.harness-WumingTinyConfig` 全核准；
+- **载体**：`tests/inst/**/*.S` 的 **272 个镜像**（一个 opcode id 一个镜像），`llvm-mc` + `ld.lld`（`tests/ee-tiny/inst-tiny.lds`）汇编，`+loadmem=` 装进 chipyard `simulator-chipyard.harness-WumingTinyConfig` 全核准；
 - **采样**：`+verbose` 打开 `WumingCore: exec ip=… inst=… cycle=…` 观测点，取**相邻两条 `exec` 的 `cycle=` 差**，归给前一条指令；若下一条不是「本指令 +4」且该指令不是控制转移，则该样本**丢弃**（中间有一次未打印的取指重填，会把别人的拍数算进来）；
 - **操作数**：每个 `.S` 自带 semantic / boundary / overlap 等 5–13 个**不同操作数**用例，同族由多个镜像共同给样本 ⇒ 每族 ≥2 组操作数（见下表 n 与镜像数）；
 - **取值**：静态单拍/定长族取**与取指无关的最小值**（同族中位数在少数跨 beat 采样里会被取指抬到 8，属取指代价不是指令代价）；多周期族（FP 除/开方/取余、`ldm`/`stm`）取该操作数/N 下的**中位数**；控制转移把「取指队列命中」与「跨 beat 目标」分两种情形列出；
