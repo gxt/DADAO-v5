@@ -4,7 +4,8 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
-- **2026-11-17 07:20（会话重启交接）**：**6 件待复核**——`m14-linux-010`(`5dca2df3`)、`m16-gem5-009`(`ab5a548b`)、`m14-testcases-005`(`2e2c9aa9`)、`m14-qemu-007`(`b60e4204`)、`m15-testcases-007`(`64ce03e7`)、`m16-chipyard-003`(`7fc11ece`)；**reviewer 模型已定 `xiaomi-token-plan/mimo-v2.6-pro`**（curl 实测 HTTP 200；`ISS-466`：中途改 model 不生效，须重启会话）。
+- **2026-11-17 08:30（会话冲突处置 + 本会话接管主控）**：曾**两个主会话并行写 master**（旧 `ses_e2ca7cc3…` + 本会话 `ses_e194cc5d…`）；旧会话 07:41–08:16 已合入收尾 `m14-testcases-005`/`m15-testcases-007`/`m16-gem5-009`/`m16-chipyard-003`（含 chipyard-003 的 reviewer Accepted 记录），用户裁定**本会话继续主控**。已停重复 reviewer、还原 gem5 源树注入残留并重建（`5601d414…`）、登记 `ISS-467`（chipyard-003 遗留 5 条 finding）。
+- **在跑**：`m14-linux-012`（engineer）、`m15-testcases-009`（engineer，08:28 派）、`m16-chipyard-001`（engineer，08:29 派，2–3 天）。**已验证增量**：`m14-qemu-007`（08:26 收尾）。**待开始**：`m14-linux-015`（等 012）、`m15-spec-001`（待返工，等用户定推进方式）。
 - **已完成待合入**：`m15-testcases-006`（伪指令+lds 统一）、`m14-qemu-003/004/005`（已合入）；**待开始**：`m14-linux-012`（等 linux-010 合入）、`m14-linux-015`（等 012）、`m15-testcases-009`（等 007）。
 - **磁盘**：`/mnt/tao` 29%（333G）；今夜两次 ENOSPC（`ISS-464`/`ISS-465`）已登记；`check-temp-dirs`/`check-run-artifacts`/`check-knowledge-refs` 已回绿。
 

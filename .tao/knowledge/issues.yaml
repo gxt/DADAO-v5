@@ -861,3 +861,10 @@
   closed_in: null
   resolved_by: null
   title: "【P3】子代理 session 因 provider 报 `Invalid API Key` 连续 3 次失败（`m16-gem5-009` 复核，session `ses_e19ef9868ffeKGPge77MIcsrEb`）：初始 + 2 次重试**原 session** 均即时返回该错误，同批其它 reviewer session（`m14-qemu-005`）正常 ⇒ 疑为该 session 绑定失效而非全局故障。处置：按「子代理返回异常处理」判定原 session 不可恢复，**新建 reviewer session** 并在此登记原因；建议后续在派单脚本里对 `Invalid API Key` 做「换 session 而非原地重试」的自动判定。（2026-11-17 根因实测定案：① `~/.local/share/opencode/auth.json` 里**只有** `deepseek` 与 `opencode-go` 两个 provider，`xiaomi-token-plan` **无凭据** ⇒ `Invalid API Key`；② `opencode-go` 的 key 报 `Invalid credential`；③ 仓内**唯一可用 provider = `deepseek`**；④ 改 `.opencode/agents/reviewer.md` 的 model **在会话内不生效**（agent 配置在会话启动时加载）⇒ 必须用 subagent 的 `model` 参数显式指定。处置：reviewer 改用 `deepseek/deepseek-v4-pro`（与 engineer 的 `deepseek-flash` 区分型号）。）"
+- id: ISS-467
+  scope:
+  - chipyard
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`m16-chipyard-003` 收尾后遗留 5 条非阻断 finding（两轮 reviewer 一致）：① `components/chipyard/changelog.md` L133 与 `README.md` L204 仍写「`printf`+`stop()` 具名失败」，实际通道是 `chisel3.assert`（Verilator `$error`、`rc=255`）；② changelog 的 sim md5 `7bcf2e2f…` 与 README/完成区 `2fb79602…` 不一致；③ 完成区写「904/904」，实测镜像 272/272（口径混用）；④ 完成区「`m14-testcases-005` 待返工」已过时（已合入 master；但 chipyard 无 TLB ⇒ ptw 探针仍不可跑，实质正确）；⑤ 证据脚本 `run.sh` F 段 `rebuild X && eq …rc… 0 \"$?\"` 是恒真式——重建失败会被 `&&` 短路吞掉，本次正因此把「elab 被杀」误显成 `sim ends cleanly 255`；E 段 `--jobs 8` 应改「核数−2」。处置：文档三处改写 + 证据脚本改为先取 rc 再断言。"
