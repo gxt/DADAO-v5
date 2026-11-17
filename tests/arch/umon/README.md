@@ -23,7 +23,7 @@ qemu-system-dadao -machine kaiwu-vast,bootrom-image=.dadao/tests/bootrom/step5/b
 ```
 
 The flat bin is loaded at the Vast profile ENTRY (`-kernel`); the Vast BootROM
-(`tests/shared/bootrom/step5/`) starts at reset `0xffff_ffff_0000`, power hands
+(`tests/ee-vast/`) starts at reset `0xffff_ffff_0000`, power hands
 to hmon, hmon installs the page table/PTW and hands the test body to **hypv**.
 No multi-TU ELF is used (ELF loading moved to M6, `ISS-168`).
 

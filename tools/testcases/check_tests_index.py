@@ -210,7 +210,7 @@ def check_profile_lds(root: Path):
         print(f"  地址扫描: {checked} 个文本文件，旧几何残留 0")
 
     lds_map = {"tiny": "tests/ee-tiny/kaiwu-tiny.lds",
-               "vast": "tests/shared/linker/kaiwu-vast.lds"}
+               "vast": "tests/ee-vast/kaiwu-vast.lds"}
     for name, rel in lds_map.items():
         path = root / rel
         if not path.is_file():
@@ -261,7 +261,7 @@ def check_profile_lds(root: Path):
     print(f"  profile↔lds: {len(lds_map)} 份链接脚本 + common 逐项核对")
 
     # BootROM 复位窗口：power.lds ORIGIN == vast reset_pc。
-    power_lds = root / "tests/shared/bootrom/step5/power.lds"
+    power_lds = root / "tests/ee-vast/power.lds"
     if power_lds.is_file():
         mem = _parse_lds_memory(power_lds.read_text(encoding="utf-8"))
         prof = profs["vast"]
@@ -691,7 +691,7 @@ def _write_profile_lds(root: Path, tamper: str | None = None) -> None:
     """Write minimal, profile-consistent linker scripts for the self-test tree."""
     profs = machine_profile.all_profiles()
     for name, rel in (("tiny", "ee-tiny/kaiwu-tiny.lds"),
-                      ("vast", "shared/linker/kaiwu-vast.lds")):
+                      ("vast", "ee-vast/kaiwu-vast.lds")):
         prof = profs[name]
         origin, length = prof.ram_base, prof["ram_size"]
         rom_origin, rom_len = prof.bootrom_base, prof["bootrom_size"]

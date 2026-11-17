@@ -58,7 +58,7 @@ import yaml  # noqa: E402
 
 CONTRACT = os.path.join(_REPO, "contracts", "linux-boot.yaml")
 K0_DIR = os.path.join(_REPO, "tests", "shared", "bootrom", "k0")
-STEP5_DIR = os.path.join(_REPO, "tests", "shared", "bootrom", "step5")
+STEP5_DIR = os.path.join(_REPO, "tests", "ee-vast")
 BUILD_STEP5 = os.path.join(_REPO, "tools", "testcases", "arch",
                            "build_step5_bootrom.py")
 QEMU_SRC = os.path.join(_REPO, ".work", "source", "qemu")

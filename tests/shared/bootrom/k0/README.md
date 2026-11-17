@@ -19,7 +19,7 @@ Normative sources (nothing here restates them):
 ## Files
 
 - `power.S`/`power.lds` — **not here**: the step5 power stage is reused
-  verbatim (`tests/shared/bootrom/step5/`); it also carries the two shared ROM
+  verbatim (`tests/ee-vast/`); it also carries the two shared ROM
   routines (`rom_validate_table` at ROM+`0x2000`, `elf_loader` at ROM+`0x2400`).
 - `hmon.S` / `hmon.lds` — K1 boot hmon at `0x0fff_0000_0000` (cfx3/hypv):
   trap-cause/magic check → image index table lookup of type 2 (smon) →

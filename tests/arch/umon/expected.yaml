@@ -16,7 +16,7 @@
 #     `llvm-objcopy -O binary --only-section=.text`) to a flat bin;
 #   * the bin is loaded at the Vast profile ENTRY by `-kernel`;
 #   * the reset PC is 0xffff_ffff_0000 (cfx_power_hypv_excp_vector); the Vast
-#     BootROM (tests/shared/bootrom/step5/) runs power -> hmon, hmon installs
+#     BootROM (tests/ee-vast/) runs power -> hmon, hmon installs
 #     the page table/PTW and hands the test body to *hypv*.
 #   * arch is Vast-only (Tiny has no cfx).
 # No multi-TU ELF is used (ELF loading moved to M6, ISS-168).

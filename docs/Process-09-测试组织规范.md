@@ -223,7 +223,7 @@ tools/testcases/
   （`m15-testcases-011`）；`tests/ee-user/`、`tests/ee-vast/` 同规则。判据：只服务一个执行环境 ⇒ `ee-<env>/`；
   被 ≥2 环境复用 ⇒ `tests/shared/`。
 - **glue（测试胶水）**：把上游套件/被测程序接到 DADAO 的**非用例**代码与数据，分三类：
-  1. **链接/布局**：`tests/ee-tiny/kaiwu-tiny{,-app}.lds`、`tests/ee-user/dadao-{common,dyn}.lds`、`tests/shared/linker/kaiwu-vast.lds`、`tests/shared/bootrom/bootrom.lds`（基址、段、对齐）；
+  1. **链接/布局**：`tests/ee-tiny/kaiwu-tiny{,-app}.lds`、`tests/ee-user/dadao-{common,dyn}.lds`、`tests/ee-vast/kaiwu-vast.lds`、`tests/shared/bootrom/bootrom.lds`（基址、段、对齐）；
   2. **启动/运行时**：`crt0`（`tests/ee-user/minimal_crt0.s`）、bootrom（`tests/ee-tiny/{bootrom,bootrom_app}.S`；Tiny 的 `-bios` 用 **64 KiB 固定固件** `bootrom/tiny/bootrom_tiny.bin`，旧 trampoline 已于 M13 退役）、`embench_runtime.c`/`embench_user_boardsupport.c`、`picolibc_test_crt0.s`；
   3. **接口桩**：syscall/semihosting stub、`SYS_EXIT`/console 适配、公共宏/头（`embench_include/`）。
   - **不是 patch**：patch 只用于**改上游组件源码**（`components/<name>/patches/**`，如 picolibc `semihost-dadao.S`、embench `boardsupport.c`、musl `arch/dadao`）；测试胶水**不改上游**，是我们自己的文件。

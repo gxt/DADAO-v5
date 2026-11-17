@@ -537,7 +537,7 @@ def check_adr_alignment():
 
     for name, rel, mem_name in (
             ("tiny", "tests/ee-tiny/kaiwu-tiny.lds", "RAM"),
-            ("vast", "tests/shared/linker/kaiwu-vast.lds", "RAM")):
+            ("vast", "tests/ee-vast/kaiwu-vast.lds", "RAM")):
         text = load_file(rel)
         m = re.search(
             r"RAM\s*\(rwx\)\s*:\s*ORIGIN\s*=\s*(0x[0-9a-fA-F_]+)"

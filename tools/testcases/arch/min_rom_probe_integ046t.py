@@ -3,7 +3,7 @@
 
 Expectations come from the frozen interface sources, not from the firmware
 implementation:
-  * tests/shared/bootrom/step5/README.md + hmon.S/power.S (the shipped
+  * tests/ee-vast/README.md + hmon.S/power.S (the shipped
     power -> hmon -> test-body chain; smon is reserved and not entered --
     user ruling 2026-11-02 / ADR-0043 D1/D4);
   * .tao/tasks/integ/INTEG-046t-Step5启动链落地.md §接口规范 1/2/5 (image

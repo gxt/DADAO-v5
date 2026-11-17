@@ -836,16 +836,16 @@ _locked-build-bootrom:
 	@# INTEG-046t step5: 256 KiB BootROM (power flat + hmon/smon ELFs) and the
 	@# image index table builder.  -z max-page-size keeps the small images inside
 	@# the 64 KiB per-image limit (the default 64 KiB page padding would not).
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/step5/power.S -o $(STEP5_BOOTROM_DIR)/power.o
-	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/step5/power.lds $(STEP5_BOOTROM_DIR)/power.o -o $(STEP5_BOOTROM_DIR)/power.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-vast/power.S -o $(STEP5_BOOTROM_DIR)/power.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-vast/power.lds $(STEP5_BOOTROM_DIR)/power.o -o $(STEP5_BOOTROM_DIR)/power.elf
 	$(LLVM_OBJCOPY_BIN) -O binary $(STEP5_BOOTROM_DIR)/power.elf $(STEP5_BOOTROM_DIR)/power.bin
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/step5/hmon.S -o $(STEP5_BOOTROM_DIR)/hmon.o
-	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/step5/hmon.lds $(STEP5_BOOTROM_DIR)/hmon.o -o $(STEP5_BOOTROM_DIR)/hmon.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-vast/hmon.S -o $(STEP5_BOOTROM_DIR)/hmon.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-vast/hmon.lds $(STEP5_BOOTROM_DIR)/hmon.o -o $(STEP5_BOOTROM_DIR)/hmon.elf
 	@# TESTCASES-092t: the exit-policy hmon variant (same source, --defsym).
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym HMON_FAULT_POLICY=1 tests/shared/bootrom/step5/hmon.S -o $(STEP5_BOOTROM_DIR)/hmon_inst.o
-	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/step5/hmon.lds $(STEP5_BOOTROM_DIR)/hmon_inst.o -o $(STEP5_BOOTROM_DIR)/hmon_inst.elf
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/step5/smon.S -o $(STEP5_BOOTROM_DIR)/smon.o
-	$(LLD_BIN) -z max-page-size=0x1000 -T tests/shared/bootrom/step5/smon.lds $(STEP5_BOOTROM_DIR)/smon.o -o $(STEP5_BOOTROM_DIR)/smon.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym HMON_FAULT_POLICY=1 tests/ee-vast/hmon.S -o $(STEP5_BOOTROM_DIR)/hmon_inst.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-vast/hmon.lds $(STEP5_BOOTROM_DIR)/hmon_inst.o -o $(STEP5_BOOTROM_DIR)/hmon_inst.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-vast/smon.S -o $(STEP5_BOOTROM_DIR)/smon.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-vast/smon.lds $(STEP5_BOOTROM_DIR)/smon.o -o $(STEP5_BOOTROM_DIR)/smon.elf
 	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
 	  --out-dir $(STEP5_BOOTROM_DIR) \
 	  --power-elf $(STEP5_BOOTROM_DIR)/power.elf \

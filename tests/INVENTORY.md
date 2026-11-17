@@ -116,7 +116,7 @@
 | 原内容 | P6 后去向 |
 |---|---|
 | 运行/构建 harness（5：`build_test_binary`/`run_qemu_test`/`run_qemu_smoke`/`verify_harness_dump`/`test_harness_exit_path`） | `tools/testcases/{lib,inst}/`（迁移期薄 wrapper 已删；旧的 trampoline 生成器已于 M13 退役） |
-| 测试机夹具（bootrom 三件、`minimal_crt0.s`、`kaiwu-tiny.lds`、`dadao-dyn.lds`） | `tests/shared/bootrom/`；`kaiwu-tiny{,-app}.lds`/`picolibc-tiny.ld` 现于 `tests/ee-tiny/`（`m15-testcases-011`）；`minimal_crt0.s`/`dadao-common.lds`/`dadao-dyn.lds` 现于 `tests/ee-user/`（`m15-testcases-012`） |
+| 测试机夹具（bootrom 三件、`minimal_crt0.s`、`kaiwu-tiny.lds`、`dadao-dyn.lds`） | `tests/shared/bootrom/`；`kaiwu-tiny{,-app}.lds`/`picolibc-tiny.ld` 现于 `tests/ee-tiny/`（`m15-testcases-011`）；`minimal_crt0.s`/`dadao-common.lds`/`dadao-dyn.lds` 现于 `tests/ee-user/`（`m15-testcases-012`）；Vast step5 固件（`power/hmon/smon.{S,lds}`）与 `kaiwu-vast.lds` 现于 `tests/ee-vast/`（`m15-testcases-013`） |
 | 运行时辅助（`dadao_mem_runtime.ll`、`dadao_user_dyn_probe.c`） | `tests/ee-user/`（M15 `m15-testcases-012`） |
 | Embench 套件 glue（`embench_runtime.c`/`embench_user_boardsupport.c`/`embench_include/`） | `tests/tset/embench/` |
 
@@ -198,7 +198,7 @@
 | `check-testcases-suites` | opt | libc-test + llvm-test-suite fast 子集 | `.work/log/testcases/runs/fast.json` | stdout |
 | `check-testcases-suites-full` | opt | 两套件全量可枚举 C 用例 | `runs/full.json` | stdout |
 | `test-picolibc-smoke` | opt | `printf("hi")` 端到端 | `.work/build/picolibc-smoke` | stdout |
-| `build-bootrom` | 前置 | `tests/ee-tiny/` 的 `bootrom.S`/`bootrom_app.S`/`power`/`hmon` + step5 `power/hmon/smon` 汇编链接与 256 KiB 镜像打包 | `.dadao/tests/bootrom`（含 `step5/`） | stdout |
+| `build-bootrom` | 前置 | `tests/ee-tiny/` 的 `bootrom.S`/`bootrom_app.S`/`power`/`hmon` + `tests/ee-vast/` 的 step5 `power/hmon/smon` 汇编链接与 256 KiB 镜像打包 | `.dadao/tests/bootrom`（含 `step5/`） | stdout |
 
 （表中「最近」数字取自各目标最近一次日志，非本次重跑；`make` 本册未执行任何被测语义。）
 
