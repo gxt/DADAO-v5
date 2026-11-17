@@ -24,13 +24,22 @@ Normative sources (nothing here restates them):
 - `hmon.S` / `hmon.lds` — K1 boot hmon at `0x0fff_0000_0000` (cfx3/hypv):
   trap-cause/magic check → image index table lookup of type 2 (smon) →
   `elf_loader` into smon SRAM → `cfx_smon.hypv_excp_vector = e_entry`,
-  `hypv_switch_run_mode = supv` → open the supv permissions smon needs →
+  `hypv_switch_run_mode = supv` → open the supv permissions →
   `trap cfx_smon, 0x30001`. It **never** builds a page table, never writes PA
-  `0` and never touches the boot info page. Since K2 the same open list also
-  covers `cfx_hart` and `cfx_time` (the kernel's timer and time registers), for
-  source cfx 2 (kernel as `cfx_smon`) **and** 15 (kernel after its first
-  `cfx_hart` interrupt delivery, `spec/DADAO-12 §5.3`); `--defsym
-  K2_TIME_PERM=0` builds the K2 gate's negative variant with them left closed.
+  `0` and never touches the boot info page. **Every cfx this machine implements
+  except `cfx_hmon` is handed to smon** (user ruling 2026-11-17): for each
+  target the four supv synchronous source masks (`cg2` rc0–rc3: cfxtrap/
+  cfxmem/cfxreg/cfxexe) get source bits {2, 15} cleared (`cfx_smon` and, after
+  the kernel's first `cfx_hart` interrupt delivery, `cfx_hart` —
+  `spec/DADAO-12 §5.3`) and `hypv_cg_reg_deleg` = `0x8`. `cfx_hmon` stays at
+  its reset masks, so supv access to the hypervisor monitor is still
+  `CFXPERM`. `cfx5`/`cfx33`/`cfx62` are allocated but not implemented by
+  `Kaiwu-Vast` (`spec/Kaiwu §「测试机 cfx 实现范围（按 profile）」`), so they
+  have no rows to open. `cfx_pmem`/`cfx_ptw`/`cfx_smon` always stay open (the
+  boot chain needs them before the kernel exists); `--defsym
+  OPEN_SUPV_ALL=0` builds the permission-negative variant with the remaining
+  targets left closed, and `--defsym K2_TIME_PERM=0` closes `cfx_hart`/
+  `cfx_time` only (the K2 gate's negative case).
 - `smon.S` / `smon.lds` — K1 smon at `0x0bff_0000_0000` (cfx2/supv):
   boot info read-only validation → 64 KiB page table with **one** 512 MiB
   superpage PTE → DMA to PA `0` → TLB invalidate, `PTBR = 0`,

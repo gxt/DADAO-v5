@@ -80,13 +80,19 @@ _start:
 	LD64	rd6, 0x0002, 0x0000, 0x0000, 0x0000
 	cfx2rc	cfx_smon, cg3, rc8, rd6
 
-	@@ --- 5. open exactly the supv permissions smon needs ---
-	@@ smon runs in supv (cfxcode 2) and must reach cfx_pmem (DMA),
-	@@ cfx_ptw (PTBR/PTW_ENABLE/TLB) and its own cfx_smon exception frame.
-	@@ Two axes per target cfx (DADAO-12 §3.2/§3.3, DADAO-13 §1):
-	@@   supv_cfxreg bit2 = 0  (source cfx 2 = smon may use cfx2rd/cfx2rc)
-	@@   supv_cfxmem bit2 = 0  (cfx_pmem only: st to the pmem SRAM)
-	@@   hypv_cg_reg_deleg  = 0x8 (every cg except the hypv row cg3)
+	@@ --- 5. hand every cfx's supv permissions to smon (hmon itself excluded) ---
+	@@ User ruling 2026-11-17 (m14-testcases-006): hmon hands *every* cfx
+	@@ over to smon, except hmon itself.  smon runs in supv with cfxcode 2,
+	@@ so for a target cfx C != cfx_hmon the firmware opens all four
+	@@ synchronous source masks of C's supv row (DADAO-12 §3.3, ADR-0045 D6):
+	@@   C supv cfxtrap/cfxmem/cfxreg/cfxexe (cg2 rc0..rc3) bit2 = 0
+	@@     (source cfx 2 = smon may trap / ld-st / cfx2rd-cfx2rc / fetch
+	@@      into C)
+	@@   C hypv_cg_reg_deleg (cg3 rc12) = 0x8  (every cg row except the hypv
+	@@     row cg3, whose bit3 is hardware-fixed 1; DADAO-13 §1)
+	@@ cfx_hmon is deliberately absent from the open list: the kernel may
+	@@ neither enter nor read/write the hypervisor monitor, so its masks keep
+	@@ the reset value (~0x8, i.e. bit2 still set = source smon denied).
 	@@ hmon runs in hypv, so its own writes use the hypv rows (bit3 = 0).
 	@@
 	@@ The cleared source bits are {2, 15}: the kernel starts as cfx_smon (2),
@@ -96,35 +102,66 @@ _start:
 	@@ kernel asking (tools/testcases/arch/min_rom_probe_integ051t.py records
 	@@ the same convention), so both source bits are opened.
 	.macro	OPEN_SUPV_REGS cfx
-	cfx2rd	\cfx, cg2, rc2, rd6
-	LD64	rd7, 0x7ffb, 0xffff, 0xffff, 0xffff	@@ ~((1 << 2) | (1 << 15))
-	and.o	rd6, rd6, rd7
-	cfx2rc	\cfx, cg2, rc2, rd6
-	LD64	rd6, 0x0008, 0x0000, 0x0000, 0x0000
-	cfx2rc	\cfx, cg3, rc12, rd6
+	cfx2rd	\cfx, cg2, rc0, rd20		@@ supv cfxtrap
+	cfx2rd	\cfx, cg2, rc1, rd21		@@ supv cfxmem
+	cfx2rd	\cfx, cg2, rc2, rd22		@@ supv cfxreg
+	cfx2rd	\cfx, cg2, rc3, rd23		@@ supv cfxexe
+	LD64	rd24, 0x7ffb, 0xffff, 0xffff, 0xffff	@@ ~((1 << 2) | (1 << 15))
+	and.o	rd20, rd20, rd24
+	and.o	rd21, rd21, rd24
+	and.o	rd22, rd22, rd24
+	and.o	rd23, rd23, rd24
+	cfx2rc	\cfx, cg2, rc0, rd20
+	cfx2rc	\cfx, cg2, rc1, rd21
+	cfx2rc	\cfx, cg2, rc2, rd22
+	cfx2rc	\cfx, cg2, rc3, rd23
+	LD64	rd24, 0x0008, 0x0000, 0x0000, 0x0000
+	cfx2rc	\cfx, cg3, rc12, rd24
 	.endm
+
+	@@ The three cfx the boot chain itself needs stay open unconditionally:
+	@@ smon stages the page table through cfx_pmem (its SRAM is the staging
+	@@ area, i.e. the cfxmem axis covers it), programs cfx_ptw and reads its
+	@@ own cfx_smon exception frame -- all *before* the kernel exists, so a
+	@@ negative variant that closed them would stop the chain at smon.
 	OPEN_SUPV_REGS cfx_pmem
 	OPEN_SUPV_REGS cfx_ptw
 	OPEN_SUPV_REGS cfx_smon
-	@@ cfx_pmem supv cfxmem: the pmem SRAM is the page-table staging area.
-	cfx2rd	cfx_pmem, cg2, rc1, rd6
-	LD64	rd7, 0xfffb, 0xffff, 0xffff, 0xffff
-	and.o	rd6, rd6, rd7
-	cfx2rc	cfx_pmem, cg2, rc1, rd6
 
+	@@ Every other cfx is opened for smon by the same macro.  OPEN_SUPV_ALL=0
+	@@ assembles the permission-negative variant the K0/K1/K2/K3 gates use to
+	@@ prove these permissions really come from the firmware (not from a
+	@@ hardware default): with it the kernel's first cfx2rd cfx_umon is
+	@@ CFXPERM, and the boot chain still reaches the kernel.  The committed
+	@@ image keeps them open.
+	@@
+	@@ Only cfx this machine implements are listed.  `spec/Kaiwu §「测试机 cfx
+	@@ 实现范围（按 profile）」` fixes the Kaiwu-Vast set at cfx0/1/2/3/63 +
+	@@ cfx4 (ptw) + cfx32 (pmem) and states that cfx5 (cache) is allocated but
+	@@ not implemented (`cfx2rd`/`cfx2rc` on it => CFXREG); cfx15 (hart) and
+	@@ cfx34 (time) are the K2 time sources this machine implements
+	@@ (`spec/DADAO-12 §4.7`/`§4.10`).  cfx33 (llc) and cfx62 (uart) sit in
+	@@ the same `cfx32`–`cfx63` per-system range (`spec/DADAO-12 §1`) but are
+	@@ not implemented here, so cfx5/33/62 have no supv rows to open.
+	@@ cfx_hmon (3) is excluded on purpose (see above); a platform that
+	@@ implements more must extend this list.
+	.ifndef	OPEN_SUPV_ALL
+	.equ	OPEN_SUPV_ALL, 1
+	.endif
+	.if OPEN_SUPV_ALL
+	OPEN_SUPV_REGS cfx_umon
+	OPEN_SUPV_REGS cfx_jmon
 	@@ K2 (m14-linux-007): the kernel reads cfx_time (freq/value) and programs
-	@@ the cfx_hart timer (cmp/ctrl), so those two targets need the same two
-	@@ axes -- supv_cfxreg source bits {2, 15} cleared and hypv_cg_reg_deleg =
-	@@ 0x8 (cfx_hart needs cg8, cfx_time cg10; 0x8 opens every cg but cg3).
-	@@ K2_TIME_PERM=0 assembles the negative variant the K2 gate uses to prove
-	@@ these permissions really come from the firmware: with it the kernel's
-	@@ first cfx_time read is CFXPERM.  The committed image keeps them open.
+	@@ the cfx_hart timer (cmp/ctrl).  K2_TIME_PERM=0 closes exactly these two
+	@@ so the K2 gate can show the same firmware-sourced permission.
 	.ifndef	K2_TIME_PERM
 	.equ	K2_TIME_PERM, 1
 	.endif
 	.if K2_TIME_PERM
 	OPEN_SUPV_REGS cfx_hart
 	OPEN_SUPV_REGS cfx_time
+	.endif
+	OPEN_SUPV_REGS cfx_power
 	.endif
 
 	@@ --- 6. test-only boot info patch (SMON_NEG_CASE 1|2) ---
