@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m14-infra-005 | 4–6 h | 机型/执行环境/测试矩阵三契约迁移（消费点切到 `contracts/`，删旧 machine-profiles） |
 | m14-linux-020 | 2–3 h | 内核线程（`kernel_thread`/`kthreadd`/`kthread_create`；用户 clone/TLS 归 K5） |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 | m14-linux-030 | 3–4 h | K6 busybox 构建接入（静态 musl + 最小 applet 集） |
