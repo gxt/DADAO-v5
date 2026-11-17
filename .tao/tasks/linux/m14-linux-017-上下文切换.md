@@ -5,7 +5,7 @@
 **依赖**：`m14-linux-016`（进程骨架 + `copy_thread` + `thread_struct`）
 **可并行分片**：否（`components/linux` 单写者；共享 `include/asm/{switch_to,processor}.h`、`kernel/process.c`）
 **并行组**：与 K4 其余任务**串行**（同组件同写者）
-**预估**：4–6 h（风险在 `__switch_to` 汇编与 FP 保存范围的实现，见**待裁定 1**）
+**预估**：5–7 h（风险在 `__switch_to` 汇编、FP 保存范围（待裁定 1）、U-mode ↔ S-mode 帧往返）
 **档位**：大改（新汇编入口 + 调度接线 + 探针；复核须独立重跑 + ≥4 路注入）
 **状态**：待开始
 
@@ -26,6 +26,7 @@ DADAO 特有事实（不得套 RISC-V/x86）：
 3. **`__switch_to_asm`**（`kernel/entry.S` 或并入 `process.c` 的 inline asm）：用 `stm.o`/`ldm.o` 整段保存/恢复 `rd32–63`/`rb32–63`（`SimRISC-01 §1/§2` 的块传送布局），FP 段按裁定。
 4. **调度接线**：`cpu_idle`/`schedule` 路径跑通，`kernel_init` 之后 fork 出的子进程与 init task **来回切换**（探针观测「两个任务交替执行」）。
 5. **`switch_mm`**（`mm/mmu.c`，K3 只留接口注释「K4 落地四步序列」）：落地 `switch_mm_irqs_off` 四步——切 ASID（`cfx_ptw_tlb_asid`）、失效旧 ASID 的 `G=0` 条目（`tlb_control invalid|VA/range|ASID_ANY=0`）、按需写 PTBR、返回（`contract-tlb TLB-30`）。
+6. **U-mode ↔ S-mode 帧保存/恢复（cg5 单帧，用户 2026-11-17 选 C）**：用户进程切换时，被切换走的进程若在**用户态**，其用户态上下文（`pt_regs` 全量 + 用户栈 `rb1`）随 `thread_struct`/`task` 保存；切回时经 `cfx_umon` user 行向量/`escape` 恢复用户态帧。验证「用户进程 A ↔ B 切换后各自用户态帧/寄存器正确」。**单帧、不含递归**（同 cfx 嵌套留 K5）。
 
 ## 验收（逐条贴真实 rc，每条须能 FAIL）
 
@@ -35,7 +36,8 @@ DADAO 特有事实（不得套 RISC-V/x86）：
    - `S2 双任务交替`：fork 后两个任务各递增自己的计数器并 `schedule()`，探针断言「两个计数器都推进」（证明真切换、非单跑）。
    - `S3 switch_mm`：切到新 `mm` 后 `cfx_ptw_tlb_asid` == `mm->context.asid`（现场读值），且失效命令值按 `contract-tlb TLB-19` 现场重建（不写死）。
    - `S4 callee-saved 越界`：`__switch_to` 只碰 callee-saved 段 + SP，**不得**碰 caller-saved（`rd8–31`/`rb8–31`）与保留（`rb2`/`rb3`）——探针用哨兵值断言切换前后 caller-saved/保留寄存器不变。
-3. **≥4 路注入**（`cp`+md5 还原 + 重建回绿）：① `__switch_to` 不保存 `rd32` 段 ⇒ `S1` 红（b 侧 rd32 哨兵被 clobber）；② 保存了但恢复错序 ⇒ `S1` 红；③ `switch_mm` 不写 ASID ⇒ `S3` 红；④ 切换碰了 `rb3`（rbtp）⇒ `S4` 红。
+   - `S5 U-mode 帧往返（用户 2026-11-17 选 C）`：两个用户进程 A/B 交替切换，断言各进程用户态帧字段逐项正确——`ip`/`rb1`/`rb3`/`rd32–63`/`rb32–63`（callee-saved）在 A→B→A 往返后与首入一致（现场哨兵值）；`status == 0`；**不含递归**（切换路径不写 cg5→cg6）。
+3. **≥5 路注入**（`cp`+md5 还原 + 重建回绿）：① `__switch_to` 不保存 `rd32` 段 ⇒ `S1` 红（b 侧 rd32 哨兵被 clobber）；② 保存了但恢复错序 ⇒ `S1` 红；③ `switch_mm` 不写 ASID ⇒ `S3` 红；④ 切换碰了 `rb3`（rbtp）⇒ `S4` 红；⑤ 用户态帧不保存 `rb3`（rbtp）⇒ `S5` 红（A 往返后 rbtp 被 clobber）。
 4. **不回归**：`make check-linux-k0/-k1/-k2/-k3` rc=0；`k4_fork_probe.py`（016）rc=0；`make check-patch-tree` rc=0。
 5. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`。
 
@@ -46,6 +48,7 @@ DADAO 特有事实（不得套 RISC-V/x86）：
 3. 不提交 git；注入还原 `cp`+md5；注入后重建；禁 `checkout/restore/stash/reset --hard`。
 4. 语义以 `contract-abi §4.5`（callee-saved/CSR）、`SimRISC-01 §1/§2`（块传送）、`contract-tlb TLB-30`（switch_mm）为准；**不得**套 RISC-V `ra`/`s0-s11` 或 x86 帧布局。
 5. `__switch_to` 必须在关中断/关抢占的临界区被调（`switch_to` 的既有调用点保证）；`last = __switch_to(prev,next)` 语义与 `switch_to` 宏一致（返回 `prev`）。
+6. **单帧、不递归（用户 2026-11-17 选 C）**：U-mode ↔ S-mode 帧往返用 cg5 单帧，**不实现同 cfx 递归**（cg5→cg6 保存留 K5）；用户态进程切换不引入 umon 递归。
 
 ## 待裁定（本任务不得自决；主会话转达用户后回填）
 
@@ -54,7 +57,7 @@ DADAO 特有事实（不得套 RISC-V/x86）：
    - **B**：**不保存 FP**，前提是**内核编译 soft-float 且 K4 用户态（musl 静态 init）不用 RF**；`thread_struct` 无 FP 段（最小）。
    - **C**：懒保存 FP（需 FP-access 陷阱机制），不推荐（无 PS 位、单核收益低、复杂度高）。
    - 建议 **A**（除非确认全程 soft-float 且用户态不用 FP，才取 B）。本任务按 A 写字段与汇编，待裁定回填后定稿。
-2. **（待裁定 4）** 本任务的双任务交替探针（`S2`）在**内核侧**即可构造（fork 两个内核任务互切），**不依赖 U-mode 入口**；是否补「用户进程切换」断言由 016 的待裁定 4 决定。
+2. ~~（待裁定 4）~~ **已裁定（用户 2026-11-17 选 C）**：最小 U-mode 闭环并入本任务 + `016`；「用户进程 A↔B 切换」断言（`S5`）已加入，单帧、不含递归（同 cfx 嵌套留 K5）。
 
 ## 审阅记录
 
