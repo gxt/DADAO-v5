@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/mmu.c b/arch/dadao/mm/mmu.c
 new file mode 100644
-index 000000000..8e9db370e
+index 000000000..cddba0e14
 --- /dev/null
 +++ b/arch/dadao/mm/mmu.c
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,149 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO MMU context (K3, m14-linux-011): ASID allocation.
@@ -73,4 +73,83 @@ index 000000000..8e9db370e
 +	 * what the monotonic scheme avoids).
 +	 */
 +	mm->context.asid = DADAO_ASID_KERNEL;
++}
++
++/* -------------------------------------------------------------------------
++ * The arch half of dup_mm(): materialise the child's private pages
++ * ------------------------------------------------------------------------- */
++
++/*
++ * One PTE of the child that `copy_page_range()` left pointing at a page the
++ * parent also maps: give the child its own physical page with the same content.
++ *
++ * What is *not* copied:
++ *
++ *  - a mapping that is not present (nothing to copy — the child fills it on
++ *    demand, exactly like the parent);
++ *  - the shared zero page (`is_zero_pfn()`): it is read-only by construction and
++ *    every anonymous mapping in the system points at it (user ruling
++ *    2026-11-16).  Copying it would hand out a private zeroed page per mapping
++ *    and lose the sharing the page fault channel relies on;
++ *  - a mapping the parent does not own privately (VM_SHARED: file/device
++ *    mappings, and anything not `is_cow_mapping()`), where sharing is the
++ *    point.
++ */
++static int dadao_dup_one_pte(struct vm_area_struct *vma, unsigned long addr)
++{
++	pmd_t *pmd = pmd_off(vma->vm_mm, addr);
++	pte_t *ptep;
++	pte_t entry;
++	struct page *src, *dst;
++
++	if (pmd_none(*pmd) || (pmd_val(*pmd) & _PAGE_SUPER))
++		return 0;
++	ptep = pte_offset_kernel(pmd, addr);
++	entry = ptep_get(ptep);
++	if (!pte_present(entry))
++		return 0;
++	if (is_zero_pfn(pte_pfn(entry)))
++		return 0;
++	if (!is_cow_mapping(vma->vm_flags))
++		return 0;
++
++	src = pfn_to_page(pte_pfn(entry));
++	dst = alloc_page(GFP_KERNEL | __GFP_ZERO);
++	if (!dst)
++		return -ENOMEM;
++	copy_page(page_address(dst), page_address(src));
++
++	/*
++	 * The child's page takes the *VMA's* protection, not the write-protected
++	 * copy `copy_page_range()` wrote: this is where the eager copy replaces
++	 * the COW contract.
++	 */
++	entry = __pte((page_to_phys(dst) & _PAGE_PFN_MASK) | _PAGE_PRESENT |
++		      _PAGE_FRAG_ALL | _PAGE_READ | _PAGE_S |
++		      ((vma->vm_flags & VM_WRITE) ? _PAGE_WRITE : 0) |
++		      ((vma->vm_flags & VM_EXEC) ? _PAGE_EXEC : 0));
++	set_pte(ptep, entry);
++	return 0;
++}
++
++int dadao_dup_mmap_private(struct mm_struct *mm)
++{
++	struct vm_area_struct *vma;
++	VMA_ITERATOR(vmi, mm, 0);
++	unsigned long addr;
++	int ret;
++
++	if (!mm)
++		return -EINVAL;
++
++	for_each_vma(vmi, vma) {
++		if (!is_cow_mapping(vma->vm_flags))
++			continue;
++		for (addr = vma->vm_start; addr < vma->vm_end; addr += PAGE_SIZE) {
++			ret = dadao_dup_one_pte(vma, addr);
++			if (ret)
++				return ret;
++		}
++	}
++	return 0;
 +}

@@ -1,17 +1,21 @@
 diff --git a/arch/dadao/kernel/Makefile b/arch/dadao/kernel/Makefile
 new file mode 100644
-index 000000000..961ef6a88
+index 000000000..98f987463
 --- /dev/null
 +++ b/arch/dadao/kernel/Makefile
-@@ -0,0 +1,11 @@
+@@ -0,0 +1,15 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-y += head.o setup.o early_console.o syscall_table.o traps.o syscalls.o trap.o
++# K4 process model: copy_thread / the user-mode entry rows (m14-linux-016).
++obj-y += process.o
 +# K2 time base, the cfx_hart asynchronous vector and its installation.
 +obj-y += time.o async_trap.o irq.o
 +# K2 self-test scaffolding: compiled only into a probe image.
 +obj-$(CONFIG_DADAO_K2_TRAP_SELFTEST) += k2_selftest.o
 +# K2 interrupt-enable knob self-test: probe image only.
 +obj-$(CONFIG_DADAO_K2_IRQ_TEST) += k2_irq_test.o
++# K4 process-model self-test: probe image only.
++obj-$(CONFIG_DADAO_K4_SELFTEST) += k4_selftest.o
 +
 +# The final link needs arch/dadao/kernel/vmlinux.lds (preprocessed from .S).
 +always-$(KBUILD_BUILTIN) += vmlinux.lds

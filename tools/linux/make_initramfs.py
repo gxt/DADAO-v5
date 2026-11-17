@@ -53,7 +53,9 @@ sys.path.insert(0, str(_REPO_ROOT))
 
 from tools.linux import paths as linux_paths  # noqa: E402
 
-INIT_SOURCE = _REPO_ROOT / "tests" / "linux" / "init" / "init.c"
+# m14-testcases-006 移动后 `tests/linux/init` → `tests/shared/init`（m14-linux-016
+# 顺带修正：这里仍是旧路径，K0 门控的 initramfs 增量构建因此报 rc=1）。
+INIT_SOURCE = _REPO_ROOT / "tests" / "shared" / "init" / "init.c"
 TARGET = "dadao-unknown-elf"
 
 #: syscall names the MVP init is scoped to (`.tao/contracts/contract-syscall.md`

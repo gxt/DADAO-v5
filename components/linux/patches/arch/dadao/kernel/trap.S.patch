@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/trap.S b/arch/dadao/kernel/trap.S
 new file mode 100644
-index 000000000..c1fa79275
+index 000000000..410e4a314
 --- /dev/null
 +++ b/arch/dadao/kernel/trap.S
-@@ -0,0 +1,110 @@
+@@ -0,0 +1,273 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception vector (K2).
@@ -113,4 +113,167 @@ index 000000000..c1fa79275
 +	.p2align 3
 +	.globl	dadao_excp_save
 +dadao_excp_save:
++	.zero	PT_REGS_SIZE
++
++/*
++ * ---- K4: the user-mode entry (m14-linux-016, contract-syscall §8) ----------
++ *
++ * Entering user mode is a `trap cfx_umon` from supv: the hardware takes the
++ * target and the new run mode from cfx_umon's *supv* row (cg2) and jumps to
++ * `cfx_umon_supv_excp_vector`, which `dadao_enter_user()` points at the user
++ * IP.  Coming back is the user's own `trap cfx_umon, 0`, which lands here with
++ * the run mode already switched to supv (cfx_umon's *user* row, cg0).
++ *
++ * Single frame (user ruling 2026-11-17, option C): the user entry saves into
++ * `dadao_umon_save` and the handler always escapes back to user; a nested umon
++ * entry is refused by name in process.c, and the cg5->cg6 save that would make
++ * it re-entrant is K5.
++ */
++	.section .text,"ax"
++	.globl	dadao_umon_excp
++	.p2align 2
++dadao_umon_excp:
++	/* 1.-3. Capture the user's register file (asm/entry.h, cfx_umon's scratch). */
++	DADAO_GPR_SAVE cfx_umon, dadao_umon_save
++
++	/*
++	 * 3b. Leave the user's stack.  The hardware does not switch stacks on an
++	 * exception (spec/DADAO-12 §5.2 saves the cg5 fields only), so the C
++	 * half would run on the *user* SP — which may be unmapped, and always
++	 * belongs to the process.  K4 enters a dedicated kernel entry stack
++	 * here; the user's SP is already in the frame and comes back with
++	 * DADAO_GPR_RESTORE.  The stack carries a `struct thread_info` at its
++	 * base (kernel/process.c keeps its `task` pointing at `current`), because
++	 * this port derives `current` from SP.
++	 *
++	 * A task's *own* kernel stack needs a per-task pointer the entry cannot
++	 * read (it would come from `current`, i.e. from SP): that is
++	 * m14-linux-017/020's switch_to/thread work, not single-frame K4.
++	 */
++	set.rb	rb1, dadao_umon_stack_top
++
++	/*
++	 * 4. cg5 fields + the C half.  The same argument shape as the supv stub:
++	 *    rb16 = &frame, rd16 = cause id, rd17 = cause info (the cause ip
++	 *    lands in the frame's `ip`).
++	 */
++	cfx2rd	cfx_umon, cg5, rc2, rd16	/* excp_cause_id */
++	cfx2rd	cfx_umon, cg5, rc3, rd17	/* excp_cause_ip */
++	st.o	rd17, [rb3, PT_IP]
++	st.o	rd0, [rb3, PT_STATUS]
++
++	/*
++	 * 4a. A user *syscall* (`trap cfx_umon, 0`) is handled here, in the umon
++	 *     context: the C half dispatches it and the escape offsets are the
++	 *     contract's (+4 continues after the trap, contract-syscall §8).
++	 */
++	set.rd	rd4, DADAO_CAUSE_CFXTRAP
++	br.ne	{rd16, rd4}?, [rb0, .Lumon_delegate]
++
++	cfx2rd	cfx_umon, cg5, rc4, rd17	/* excp_cause_info -> 3rd argument */
++	set.rb	rb16, dadao_umon_save
++	set.rb	rb5, dadao_user_excp_handler
++	call	[rb5, rd0, 0]			/* policy -> rd8 */
++
++	/* 5. Resume: retry the trapping instruction, or continue after it. */
++	br.z	{rd8}?, [rb0, .Lumon_retry]
++	DADAO_GPR_RESTORE dadao_umon_save
++	escape	cfx_umon, [excp_cause_ip, 4]
++.Lumon_retry:
++	DADAO_GPR_RESTORE dadao_umon_save
++	escape	cfx_umon, [excp_cause_ip, 0]
++
++	/*
++	 * 4b. Any *other* U-mode synchronous exception (page table, alignment,
++	 *     illegal instruction…) is a kernel matter and belongs to the supv
++	 *     channel (contract-syscall §8).  The hardware routes it here
++	 *     (spec/DADAO-12 §3.1: non-trap U-mode exceptions enter cfx_umon),
++	 *     so the entry hands it over explicitly:
++	 *
++	 *       trap cfx_smon, DADAO_SMON_FROM_USER  with
++	 *         rb16 = &umon frame, rd16 = cause id, rd17 = cause ip,
++	 *         rd18 = cause info
++	 *
++	 *     The supv vector saves *its own* frame (the two frames never
++	 *     alias), its C half recognises the selector, handles the cause
++	 *     through the page-fault channel with the umon frame as the task's
++	 *     context, and returns RESUME_SKIP, which lands back here.
++	 */
++.Lumon_delegate:
++	cfx2rd	cfx_umon, cg5, rc4, rd18	/* excp_cause_info */
++	set.rb	rb16, dadao_umon_save
++	trap	cfx_smon, DADAO_SMON_FROM_USER
++	/*
++	 * Back from the supv channel: the mapping is installed and
++	 * `cfx_umon`'s supv row points at the instruction to resume, so the
++	 * user's registers are restored and control returns to user mode
++	 * there (a page fault either becomes accessible or ends the boot, so
++	 * RETRY is the only outcome that comes back -- spec/DADAO-12 §3.6).
++	 */
++	DADAO_GPR_RESTORE dadao_umon_save
++	trap	cfx_umon, 0
++	jump	[rb0, .Lumon_stuck]
++
++	/*
++	 * Load the static frame `dadao_enter_user()` filled and hand control to
++	 * user mode.  `trap cfx_umon, 0` is the only instruction after the
++	 * restore, so every register the restore wrote is the user's.
++	 */
++	.globl	dadao_umon_enter
++	.p2align 2
++dadao_umon_enter:
++	DADAO_GPR_RESTORE dadao_user_frame
++	trap	cfx_umon, 0
++	/* The trap returns here only if the user row's switch value is not a
++	 * lower mode; the kernel must not silently continue in supv. */
++	jump	[rb0, .Lumon_stuck]
++.Lumon_stuck:
++	jump	[rb0, .Lumon_stuck]		/* park: the trap must not return */
++
++	/*
++	 * ---- K4 probe: the user program (m14-linux-016) ---------------------
++	 *
++	 * The F5 case copies these instructions into a user-accessible page and
++	 * enters user mode at its first instruction.  Kept in assembly so the
++	 * program is assembled, not hand-encoded, and register-only so it can be
++	 * copied anywhere:
++	 *
++	 *   0  trap cfx_umon, 0     syscall #0: the kernel verifies the frame
++	 *   4  ld.o rd20, [rb10,0]  read a demand-paged user page (CFXMEM, user)
++	 *   8  trap cfx_umon, 1     syscall #1: verify the second frame, stop
++	 *  12  jump [rb0, 0]        park (never reached)
++	 */
++	.section .rodata,"a"
++	.p2align 2
++	.globl	dadao_k4_user_stub
++	.globl	dadao_k4_user_stub_end
++dadao_k4_user_stub:
++	trap	cfx_umon, 0
++	ld.o	rd20, [rb10, 0]
++	trap	cfx_umon, 1
++dadao_k4_user_park:
++	jump	[rb0, 0]
++dadao_k4_user_stub_end:
++
++	.section .bss,"aw",%nobits
++	/*
++	 * The kernel entry stack the user entry runs on (THREAD_SIZE, 64 KiB
++	 * aligned so that `SP & ~(THREAD_SIZE-1)` finds the `thread_info` at its
++	 * base).  Single, non-reentrant: one hart, no nesting in K4.
++	 */
++	.p2align 16
++	.globl	dadao_umon_stack
++dadao_umon_stack:
++	.zero	65536
++	.globl	dadao_umon_stack_top
++dadao_umon_stack_top:
++	.p2align 3
++	/* The frame the user entry saved (single, non-reentrant: see above). */
++	.globl	dadao_umon_save
++dadao_umon_save:
++	.zero	PT_REGS_SIZE
++	.p2align 3
++	/* The frame `dadao_umon_enter` loads: the user's register file. */
++	.globl	dadao_user_frame
++dadao_user_frame:
 +	.zero	PT_REGS_SIZE

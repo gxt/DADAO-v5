@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..d1a1e8ca5
+index 000000000..c8b5e5d28
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,145 @@
+@@ -0,0 +1,178 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -85,8 +85,8 @@ index 000000000..d1a1e8ca5
 +struct vm_area_struct;
 +
 +void __noreturn dadao_k3_pf_selftest(void);
-+/* Idempotent; `__init` because it reserves the page pool from memblock (the
-+ * fault path only ever bumps the pool pointer afterwards). */
++/* Idempotent; `__init` because it must run once, from the boot path, after the
++ * buddy allocator exists (mm_core_init()): it allocates the shared zero page. */
 +void __init dadao_pf_init(void);
 +/*
 + * Register one anonymous window (the K3 stand-in for an mmap'd VMA: there is no
@@ -110,6 +110,39 @@ index 000000000..d1a1e8ca5
 +unsigned long dadao_pf_entry_count(void);
 +unsigned long dadao_pf_alloc_count(void);
 +unsigned long dadao_pf_zero_page_pa(void);
++
++/*
++ * K4 (m14-linux-016): the user-mode entry rows and the boundary the process
++ * model is exercised at.
++ */
++/* Writes the cfx_umon cg0/cg2 entry registers (contract-syscall §8). */
++void __init dadao_user_entry_install(void);
++/* Enter user mode at @regs (never returns). */
++void __noreturn dadao_enter_user(struct pt_regs *regs);
++/* Loads the static frame and `trap cfx_umon` (kernel/trap.S). */
++void __noreturn dadao_umon_enter(void);
++/* The C half of the user-mode entry stub. */
++unsigned long dadao_user_excp_handler(struct pt_regs *regs, unsigned long cause,
++				      unsigned long info);
++/* A task's first instruction after a context switch (kernel/process.c). */
++void __noreturn dadao_ret_from_fork(void);
++/*
++ * Guest FAIL check points of the K4 user-mode entry (spec/Kaiwu §7.1 guest
++ * segment).  They live here because two files share them: the entry's
++ * installer/handler (kernel/process.c) and the probe that judges it
++ * (kernel/k4_selftest.c).
++ */
++#define K4_FAIL_UMON_NO_ZERO	0x30	/* user excp vector reads back 0 / frame */
++#define K4_FAIL_UMON_SWITCH	0x31	/* a run-mode row does not hold its value */
++#define K4_FAIL_UMON_RECURSE	0x32	/* a second umon entry while one is live */
++
++/* Probe image only: the user-mode syscall hook of kernel/k4_selftest.c. */
++int dadao_k4_user_syscall(struct pt_regs *regs, unsigned long nr,
++			  unsigned long *policy);
++
++/* The K4 boundary: page-fault page source + the probe self-tests. */
++void __init __noreturn dadao_k4_boundary(void);
++void __init dadao_k4_selftest(void);
 +
 +/* Early console: semihosting SYS_WRITE0 / SYS_EXIT (contract-semihosting). */
 +void dadao_early_write(const char *s);

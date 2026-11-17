@@ -1,0 +1,349 @@
+diff --git a/arch/dadao/kernel/process.c b/arch/dadao/kernel/process.c
+new file mode 100644
+index 000000000..3395ddc8a
+--- /dev/null
++++ b/arch/dadao/kernel/process.c
+@@ -0,0 +1,343 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DADAO process model (K4, m14-linux-016).
++ *
++ * `copy_process()` / `dup_mm()` / `copy_page_range()` are generic code: this
++ * file only supplies the arch hooks they call, plus the user-mode entry the
++ * machine needs and no other arch does.
++ *
++ *  - `copy_thread()`: a child task starts either at the parent's saved user
++ *    context (fork/clone: `pt_regs` copied to the top of the child's stack,
++ *    `rd8 = 0`) or at a kernel function (kernel_thread: `args->fn`), and in
++ *    both cases with a *zeroed* callee-saved bank — the ABI makes no promise
++ *    about them across the creation of a task (contract-abi §4.5), and the
++ *    child's first resume goes through `dadao_ret_from_fork`, not through a
++ *    `ret` that would need the parent's RAS.  The one register that must not be
++ *    zeroed is `rbtp` (rb3): `start_thread()` clears it for a new *image*, but
++ *    a forked task keeps the parent's thread pointer (contract-syscall §10 —
++ *    the parent's TLS block is shared until execve).
++ *
++ *  - `start_thread()` (kernel/setup.c): the execve side — clear every register,
++ *    user entry IP and SP, `rbtp = 0`, `status = 0`.
++ *
++ *  - the user-mode entry (`dadao_user_entry_install()`,
++ *    `dadao_enter_user()`, `dadao_user_excp_handler()`): the two cfx_umon rows
++ *    of contract-syscall §8.  Entering user mode is a `trap cfx_umon` from
++ *    supv, whose target comes from `cfx_umon_supv_excp_vector` and whose new run
++ *    mode comes from `cfx_umon_supv_switch_run_mode` (0 = user); coming back is
++ *    the user's own `trap cfx_umon, 0`, whose vector is
++ *    `cfx_umon_user_excp_vector` (this file's entry stub) and whose new run mode
++ *    is `cfx_umon_user_switch_run_mode` (2 = supv).
++ *
++ *    This is the **single-frame** K4 shape (user ruling 2026-11-17, option C):
++ *    the umon cg5 frame is saved into one static `.bss` frame per entry and the
++ *    handler always returns to user; a *nested* umon entry (the handler taking
++ *    another umon exception) is not supported and is named as such.  Saving cg5
++ *    to cg6 and re-entering belongs to K5 (contract-syscall §8 嵌套).
++ *
++ * Frame handling follows m14-linux-022: the hardware stores **no** general
++ * register (§3.6), so the stub saves all four banks with asm/entry.h's
++ * `DADAO_GPR_SAVE`/`DADAO_GPR_RESTORE`, exactly like the supv stub of
++ * kernel/trap.S.
++ */
++#include <linux/errno.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/mm.h>
++#include <linux/sched.h>
++#include <linux/sched/task.h>
++#include <linux/sched/task_stack.h>
++#include <linux/string.h>
++#include <linux/types.h>
++
++#include <asm/cfx.h>
++#include <asm/page.h>
++#include <asm/processor.h>
++#include <asm/ptrace.h>
++#include <asm/setup.h>
++#include <asm/thread_info.h>
++#include <asm/trap.h>
++
++/* The user-mode entry stub and the frame it saves (kernel/trap.S). */
++void dadao_umon_excp(void);
++extern struct pt_regs dadao_umon_save;
++
++/* The frame `dadao_enter_user()` loads into the register file (kernel/trap.S). */
++extern struct pt_regs dadao_user_frame;
++
++/* The kernel entry stack the user entry switches to (kernel/trap.S). */
++extern char dadao_umon_stack[];
++
++/*
++ * The one service a K4 probe uses through a user `trap cfx_umon, 0`: report the
++ * frame and end the boot with the user's exit code.  The number is probe-only
++ * scaffolding (the real table is K5's), and it is spelled here rather than being
++ * an `-ENOSYS` that would make the probe unable to stop cleanly.
++ */
++#define DADAO_K4_SYS_EXIT	0xffff
++
++/* The guest FAIL check points of this file live in asm/setup.h (shared with
++ * the probe that judges them). */
++
++/*
++ * A second umon entry while one is live is a kernel bug in the K4 shape (one
++ * static frame, no cg6 save): report it by name instead of silently corrupting
++ * the live frame.
++ */
++static volatile int dadao_umon_busy;
++
++/* -------------------------------------------------------------------------
++ * copy_thread(): the fork/clone/kernel_thread hook
++ * ------------------------------------------------------------------------- */
++
++int copy_thread(struct task_struct *p, const struct kernel_clone_args *args)
++{
++	struct pt_regs *childregs = task_pt_regs(p);
++	struct pt_regs *regs = current_pt_regs();
++	struct thread_struct *t = &p->thread;
++
++	/*
++	 * The callee-saved banks are *not* inherited: the child starts in
++	 * `dadao_ret_from_fork` (or in its kernel function), never in the middle
++	 * of the parent's expression, so nothing of the parent's callee-saved
++	 * state may leak into it (contract-abi §4.5 says which registers a call
++	 * preserves, not that a new task starts with them).
++	 */
++	memset(t, 0, sizeof(*t));
++	t->ra = (unsigned long)dadao_ret_from_fork;
++
++	if (unlikely(args->fn)) {
++		/*
++		 * kernel_thread(): the child runs @fn(@arg) on its own kernel
++		 * stack.  rd16/rd17 are the ABI's first two data arguments
++		 * (contract-abi §4.1); the frame's IP is the entry stub, which
++		 * `dadao_ret_from_fork` reads back out of the frame.
++		 */
++		memset(childregs, 0, sizeof(*childregs));
++		childregs->rd[16] = (unsigned long)args->fn;
++		childregs->rd[17] = (unsigned long)args->fn_arg;
++		childregs->ip = (unsigned long)dadao_ret_from_fork;
++		/* The kernel stack grows down from the frame: rb1 is the frame
++		 * itself, which `ret_from_fork` pops before calling @fn. */
++		childregs->rb[1] = (unsigned long)childregs;
++		childregs->rb[2] = 0;			/* FP: no caller frame */
++		childregs->rb[3] = 0;			/* kernel thread: no TP */
++		t->sp = (unsigned long)childregs;
++		return 0;
++	}
++
++	/*
++	 * fork()/clone(): the child returns from the same syscall the parent is
++	 * in, with the same registers — except the return value, which must be
++	 * 0 in the child (contract-syscall §9: rd8 carries it).
++	 */
++	*childregs = *regs;
++	childregs->rd[8] = 0;
++	childregs->ip = regs->ip;
++	childregs->rb[3] = regs->rb[3];		/* TLS: inherited until execve */
++
++	/*
++	 * A new user stack only for `clone(CLONE_VM)`-style children, where the
++	 * caller passed one (args->stack); a fork keeps the parent's SP so the
++	 * child continues in the same frame.
++	 */
++	if (args->stack)
++		childregs->rb[1] = args->stack;
++	t->sp = (unsigned long)childregs;
++	t->tp = childregs->rb[3];
++	return 0;
++}
++
++/*
++ * A task created by copy_thread() starts here (m14-linux-017 restores
++ * `thread.ra`/`thread.sp` and jumps).  For a user task the frame on the task
++ * stack is the user context `start_thread()` or the parent built, and entering
++ * user mode is the same `trap cfx_umon` the boot path uses; for a kernel thread
++ * it is `fn(arg)`.
++ *
++ * K4 keeps this a plain C function: the context switch itself
++ * (`__switch_to` / `switch_mm`) is m14-linux-017, and until then nothing
++ * schedules a second task.
++ */
++void __noreturn dadao_ret_from_fork(void)
++{
++	struct pt_regs *regs = current_pt_regs();
++
++	schedule_tail(current);
++	if (regs->rb[3] == 0 && regs->ip == (unsigned long)dadao_ret_from_fork) {
++		/* kernel thread: rd16 = fn, rd17 = arg */
++		int (*fn)(void *) = (int (*)(void *))regs->rd[16];
++
++		fn((void *)regs->rd[17]);
++		/* A kernel thread that returns must not fall through into user
++		 * mode: name it instead of picking a context. */
++		dadao_early_printf("K4: kernel thread returned to ret_from_fork\n");
++		dadao_early_exit(0x33);
++	}
++
++	dadao_enter_user(regs);
++}
++
++/* -------------------------------------------------------------------------
++ * The cfx_umon rows (contract-syscall §8)
++ * ------------------------------------------------------------------------- */
++
++void __init dadao_user_entry_install(void)
++{
++	unsigned long vec = (unsigned long)dadao_umon_excp;
++	unsigned long smon_trap, smon_reg;
++
++	/*
++	 * user row (cg0): where a *user* `trap cfx_umon, 0` lands, and the run
++	 * mode it lands in.  The reset value of the switch is already 2 (supv),
++	 * but the kernel writes both rows anyway: the entry registers are the
++	 * kernel's responsibility (contract-syscall §8), and a boot SEE that
++	 * leaves a stale row must not be able to change what a syscall does.
++	 */
++	DADAO_CFX_WRITE(cfx_umon, UMON_CG_USER, UMON_RC_SWITCH_RUN_MODE,
++			DADAO_MODE_SUPV);
++	DADAO_CFX_WRITE(cfx_umon, UMON_CG_USER, UMON_RC_EXCP_VECTOR, vec);
++
++	/*
++	 * supv row (cg2): how the *kernel* hands control to user mode.  The
++	 * vector is filled per entry by `dadao_enter_user()` (it is the user IP
++	 * of the task being started); the run mode is user.
++	 */
++	DADAO_CFX_WRITE(cfx_umon, UMON_CG_SUPV, UMON_RC_SWITCH_RUN_MODE,
++			DADAO_MODE_USER);
++
++	/*
++	 * The kernel's own source bit in cfx_smon's supv row.
++	 *
++	 * Once a task is running in user mode the hardware's current cfx is
++	 * `cfx_umon` (spec/DADAO-12 §5.2 step 6 sets it on entry and `escape`
++	 * does not restore it, contract-syscall §8 嵌套 / ISS-454).  The U-mode
++	 * page-fault hand-over (`trap cfx_smon, DADAO_SMON_FROM_USER`) therefore
++	 * arrives with source cfx = 0, and the entry has to allow it: the
++	 * firmware opens source bits {2,15} only, and contract-syscall §8 puts
++	 * the "open what the kernel itself needs" half on the kernel ("不得依赖
++	 * 固件默认掩码长期放行宽于需要的来源").
++	 *
++	 * Only the two axes the hand-over actually uses are opened: `cfxtrap`
++	 * (the trampoline itself) and `cfxreg` (the supv channel reads its own
++	 * cg5 frame and the exit-code segmentation).  cfxmem/cfxexe stay masked:
++	 * the kernel never touches cfx_smon's SRAM or fetches into it.
++	 */
++	smon_trap = DADAO_CFX_READ(cfx_smon, UMON_CG_SUPV, UMON_RC_TRAP_MASK);
++	smon_reg = DADAO_CFX_READ(cfx_smon, UMON_CG_SUPV, UMON_RC_REG_MASK);
++	DADAO_CFX_WRITE(cfx_smon, UMON_CG_SUPV, UMON_RC_TRAP_MASK,
++			smon_trap & ~(1UL << DADAO_CFX_UMON));
++	DADAO_CFX_WRITE(cfx_smon, UMON_CG_SUPV, UMON_RC_REG_MASK,
++			smon_reg & ~(1UL << DADAO_CFX_UMON));
++
++	/*
++	 * The entry stack's `thread_info` has to point at the running task: this
++	 * port computes `current` from SP, and the user entry switches SP to
++	 * that stack before any C code runs (trap.S, step 3b).
++	 */
++	{
++		struct thread_info *ti = (struct thread_info *)dadao_umon_stack;
++
++		ti->flags = 0;
++		ti->syscall_work = 0;
++		ti->status = 0;
++		ti->preempt_count = 0;
++		ti->task = current;
++	}
++
++	dadao_early_printf("K4 umon vec user_mode=%#lx user_vector=%#lx "
++			   "supv_mode=%#lx smon_trap=%#lx smon_reg=%#lx\n",
++			   DADAO_CFX_READ(cfx_umon, UMON_CG_USER,
++					  UMON_RC_SWITCH_RUN_MODE),
++			   DADAO_CFX_READ(cfx_umon, UMON_CG_USER,
++					  UMON_RC_EXCP_VECTOR),
++			   DADAO_CFX_READ(cfx_umon, UMON_CG_SUPV,
++					  UMON_RC_SWITCH_RUN_MODE),
++			   DADAO_CFX_READ(cfx_smon, UMON_CG_SUPV,
++					  UMON_RC_TRAP_MASK),
++			   DADAO_CFX_READ(cfx_smon, UMON_CG_SUPV,
++					  UMON_RC_REG_MASK));
++
++	if (!DADAO_CFX_READ(cfx_umon, UMON_CG_USER, UMON_RC_EXCP_VECTOR))
++		dadao_early_exit(K4_FAIL_UMON_NO_ZERO);
++	if ((DADAO_CFX_READ(cfx_umon, UMON_CG_USER,
++			    UMON_RC_SWITCH_RUN_MODE) & 0x3) != DADAO_MODE_SUPV)
++		dadao_early_exit(K4_FAIL_UMON_SWITCH);
++	if ((DADAO_CFX_READ(cfx_umon, UMON_CG_SUPV,
++			    UMON_RC_SWITCH_RUN_MODE) & 0x3) != DADAO_MODE_USER)
++		dadao_early_exit(K4_FAIL_UMON_SWITCH);
++	if ((DADAO_CFX_READ(cfx_smon, UMON_CG_SUPV, UMON_RC_TRAP_MASK) |
++	     DADAO_CFX_READ(cfx_smon, UMON_CG_SUPV, UMON_RC_REG_MASK)) &
++	    (1UL << DADAO_CFX_UMON))
++		dadao_early_exit(K4_FAIL_UMON_SWITCH);
++}
++
++/*
++ * Enter user mode at @regs: fill the static frame `dadao_enter_user()` restores
++ * and point the supv row at the user IP.  Never returns: the user program either
++ * traps back into `dadao_user_excp_handler()` or dies.
++ */
++void __noreturn dadao_enter_user(struct pt_regs *regs)
++{
++	dadao_user_frame = *regs;
++	dadao_user_frame.rb[0] = 0;		/* rb0 is the read-only IP */
++	dadao_user_frame.rd[0] = 0;		/* rd0 reads as zero */
++	DADAO_CFX_WRITE(cfx_umon, UMON_CG_SUPV, UMON_RC_EXCP_VECTOR,
++			regs->ip);
++	dadao_umon_busy = 0;
++	dadao_umon_enter();
++}
++
++/*
++ * The C half of the umon entry (kernel/trap.S `dadao_umon_excp`): the frame is
++ * the user's register file, @cause/@ip/@info are cfx_umon's cg5 after the
++ * hardware switched to supv.
++ *
++ * Return value is the entry stub's resume policy, as in kernel/trap.S:
++ * `DADAO_TRAP_RESUME_RETRY` (0) re-executes `excp_cause_ip`, `RESUME_SKIP` (1)
++ * continues after it.  Everything that cannot be resumed ends the boot by name.
++ */
++unsigned long dadao_user_excp_handler(struct pt_regs *regs, unsigned long cause,
++				      unsigned long info)
++{
++	unsigned long cls = DADAO_CAUSE_CLASS(cause);
++
++	if (dadao_umon_busy)
++		dadao_early_exit(K4_FAIL_UMON_RECURSE);
++	dadao_umon_busy = 1;
++
++	if (cls != DADAO_CAUSE_CFXTRAP) {
++		/*
++		 * The entry stub hands every non-trap U-mode exception to the
++		 * supv channel (kernel/trap.S `.Lumon_delegate`), so reaching
++		 * this point with one of them means the stub's decision and this
++		 * handler disagree.  Name it instead of guessing a resume.
++		 */
++		dadao_early_printf("K4 user excp: cause=%#lx reached the syscall "
++				   "handler instead of the supv channel\n", cause);
++		dadao_early_exit(0xc0UL | ((DADAO_MODE_USER & 0x3) << 4) | 0x2);
++	}
++
++#ifdef CONFIG_DADAO_K4_SELFTEST
++	{
++		unsigned long policy;
++
++		/* The probe image's own services (kernel/k4_selftest.c).  A
++		 * milestone image does not compile this hook at all. */
++		if (dadao_k4_user_syscall(regs, regs->rd[15], &policy)) {
++			dadao_umon_busy = 0;
++			return policy;
++		}
++	}
++#endif
++
++	/*
++	 * K4 has no syscall table yet (K5 owns the numbers and the table,
++	 * contract-syscall §1): everything else is refused the contract's way —
++	 * `-ENOSYS` in rd8, and the trap is skipped (the user continues after
++	 * it) — never silently ignored and never a fake success.
++	 */
++	regs->rd[8] = (unsigned long)-ENOSYS;
++	dadao_umon_busy = 0;
++	return DADAO_TRAP_RESUME_SKIP;
++}

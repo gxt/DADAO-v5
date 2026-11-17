@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..ea8a95b7b
+index 000000000..9536fa544
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,334 @@
+@@ -0,0 +1,410 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -59,8 +59,10 @@ index 000000000..ea8a95b7b
 +#define FAIL_IMAGE_RANGE	0x07	/* [kernel_base, +kernel_size) outside RAM */
 +#define FAIL_NOT_START_KERNEL	0x08	/* the marker is not inside start_kernel() */
 +
-+/* Linker-provided: the entry point head.S is linked at (contract §3.1). */
++/* Linker-provided: the entry point head.S is linked at (contract §3.1), and
++ * the image ends at `_end` (vmlinux.lds.S). */
 +extern char _start[];
++extern char _end[];
 +
 +/*
 + * Return address of the current function.  DADAO keeps it on the RAS, not in
@@ -169,7 +171,16 @@ index 000000000..ea8a95b7b
 +	 * carries `init_thread_info` (include/asm-generic/vmlinux.lds.h
 +	 * INIT_TASK_DATA), i.e. exactly the thread_info this port expects.
 +	 */
-+	dadao_jump_on_stack(init_stack + THREAD_SIZE / sizeof(unsigned long),
++	/*
++	 * K4 keeps the top `sizeof(struct pt_regs)` of the init task's stack
++	 * free: that is where a task's saved context lives (task_pt_regs()) and
++	 * where `current_pt_regs()` reads it, and a kernel stack that starts at
++	 * the very top would let the first call frame overwrite the saved
++	 * context of the task it belongs to.  K1-K3 never looked at a saved
++	 * frame, so the difference is invisible until fork.
++	 */
++	dadao_jump_on_stack((char *)init_stack + THREAD_SIZE -
++				    sizeof(struct pt_regs),
 +			    start_kernel);
 +}
 +
@@ -207,6 +218,29 @@ index 000000000..ea8a95b7b
 +	dadao_parse_boot_info();
 +
 +	memblock_add(dadao_ram_base, dadao_ram_size);
++	/*
++	 * Reserve the kernel image.  K1-K3 never allocated from RAM (the page
++	 * fault channel took pages off the top and nothing else asked), so the
++	 * omission was invisible; the first `alloc_page()` after mm_core_init()
++	 * hands out live text otherwise -- K4 allocated PA 0x100000 (`_text`)
++	 * for a data page and the next function call executed the overwrite.
++	 * The early stack, page tables and boot info live inside this span too
++	 * (the image's .bss and the smon-built tables start above `_end`); the
++	 * tables are covered by the reserve below.
++	 */
++	memblock_reserve((unsigned long)__pa(_start),
++			 (unsigned long)(__pa(_end) - __pa(_start)));
++
++	/*
++	 * Hand the same window to the generic page allocator: memblock knows the
++	 * memory, but `memblock_free_all()` only frees [0, max_low_pfn), so the
++	 * arch has to publish the range (K4).  K3 never got past setup_arch(),
++	 * so nothing below ever asked -- without these the buddy allocator owns
++	 * no page and the first slab cache panics.
++	 */
++	max_pfn = PFN_DOWN(dadao_ram_base + dadao_ram_size);
++	max_low_pfn = max_pfn;
++	min_low_pfn = PFN_UP(dadao_ram_base);
 +
 +	/* No DTB, no command line (contract-linux-boot §4). */
 +	*cmdline_p = boot_command_line;
@@ -223,11 +257,11 @@ index 000000000..ea8a95b7b
 +	dadao_k3_pt_selftest();
 +#endif
 +
-+#if CONFIG_DADAO_K3_PF_SELFTEST
-+	/* K3 page-fault channel self-test (probe images only; the int symbol
-+	 * selects one case per image, 0 = off). */
-+	dadao_k3_pf_selftest();
-+#endif
++/*
++ * The K3 page-fault cases moved to dadao_k4_boundary(): their page source is
++ * the buddy allocator now (m14-linux-016), which does not exist yet here.  The
++ * cases themselves did not change.
++ */
 +
 +#ifdef CONFIG_DADAO_K2_EARLY_STOP
 +	dadao_k2_boundary();
@@ -235,6 +269,52 @@ index 000000000..ea8a95b7b
 +#ifdef CONFIG_DADAO_K2_TIME_STOP
 +	dadao_k2_time_boundary();
 +#endif
++}
++
++/*
++ * The K4 boundary: the point where the generic kernel has an allocator, a
++ * scheduler data structure and a task model, but has not started a second task
++ * (that needs the context switch of m14-linux-017) and has no initramfs yet
++ * (that needs kernel_init, i.e. the same switch).
++ *
++ * K4's job here: bring up the page-fault channel's *real* page source — the
++ * shared zero page has to come from the buddy allocator once, and the fault
++ * handler then allocates from it — and, in a probe image, run the K4 self-test
++ * (kernel/k4_selftest.c) and the K3 channel cases, which can only run once the
++ * allocator exists.
++ *
++ * The milestone image ends here for now and says so by name; continuing to a
++ * user-mode `init` is the K4 tail that needs m14-linux-017 (switch_mm /
++ * __switch_to) and m14-linux-021 (clockevent tick), see the task book.
++ */
++void __init __noreturn dadao_k4_boundary(void)
++{
++	dadao_pf_init();
++	/*
++	 * K4: the user-mode entry rows (contract-syscall §8).  Installed here —
++	 * not in `trap_init()`, whose weak body in init/main.c is inlined away,
++	 * and not next to the supv vector, where the kernel still runs on the
++	 * prebuilt table.  The firmware (m14-testcases-006) hands every cfx's
++	 * supv four-axis permission to smon, which is what makes the kernel's
++	 * `cfx_umon` accesses legal; the kernel opens its own source bit in
++	 * `cfx_smon` for the U-mode page-fault hand-over.
++	 */
++	dadao_user_entry_install();
++	dadao_early_printf("K4 boundary: alloc=%lu zero=%#lx mm=%#lx\n",
++			   dadao_pf_alloc_count(), dadao_pf_zero_page_pa(),
++			   (unsigned long)(current->mm ? 1 : 0));
++
++#if CONFIG_DADAO_K3_PF_SELFTEST
++	/* The channel's cases, now with the allocator behind them. */
++	dadao_k3_pf_selftest();
++#endif
++#ifdef CONFIG_DADAO_K4_SELFTEST
++	dadao_k4_selftest();
++#endif
++	dadao_early_printf("K4 done: semihosting SYS_EXIT(0) at the K4 boundary "
++			   "(process model + fault channel page source; no scheduler, "
++			   "no initramfs)\n");
++	dadao_early_exit(0);
 +}
 +
 +/*
@@ -291,9 +371,19 @@ index 000000000..ea8a95b7b
 +void __init trap_init(void)
 +{
 +	/*
-+	 * The vector is installed in dadao_start_kernel(), before the kernel
++	 * The supv vector is installed in dadao_start_kernel(), before the kernel
 +	 * switches to its own page table (a fault during the switch has to be
-+	 * reportable).  Nothing to do here until K4 installs per-mode entries.
++	 * reportable).  K4 adds the *other* direction: the rows a user-mode entry
++	 * uses (contract-syscall §8 — the firmware only opens the source masks,
++	 * the kernel writes the entry registers itself).
++	 */
++	/*
++	 * Nothing here: `trap_init()` is `__weak` and empty in init/main.c — the
++	 * same translation unit as start_kernel() — so the compiler inlines the
++	 * empty body there and the call site disappears even when this file
++	 * supplies a strong definition (verified on this toolchain: start_kernel
++	 * carries no call to `trap_init`).  K4's user-mode entry rows are
++	 * therefore installed next to the supv vector, in dadao_start_kernel().
 +	 */
 +}
 +
@@ -304,20 +394,6 @@ index 000000000..ea8a95b7b
 +	regs->rb[1] = sp;
 +	regs->rb[3] = 0;
 +	regs->status = 0;
-+}
-+
-+int copy_thread(struct task_struct *p, const struct kernel_clone_args *args)
-+{
-+	unsigned long sp = (unsigned long)task_stack_page(p) + THREAD_SIZE -
-+			   sizeof(struct pt_regs);
-+	struct pt_regs *childregs = (struct pt_regs *)sp;
-+
-+	*childregs = *current_pt_regs();
-+	childregs->rd[8] = 0;
-+	childregs->rb[1] = sp;
-+	p->thread.sp = sp;
-+
-+	return 0;
 +}
 +
 +__visible struct task_struct *__switch_to(struct task_struct *prev,

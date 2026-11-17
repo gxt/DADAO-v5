@@ -104,11 +104,21 @@ SCRATCH = (Path(os.environ.get("K2G_TMP")
                 or os.environ.get("DADAO_TMP")
                 or "/tmp/opencode/m14-linux-009") / "check-linux-k2")
 
-#: ``None`` = configure with ``make defconfig`` (the K2 image as delivered).
-#: Every other image pins every milestone symbol, so the shared build tree cannot
-#: leak one image's configuration into another.
+#: Every image pins every milestone symbol, so the shared build tree cannot leak
+#: one image's configuration into another.  The K2 image used to be "whatever
+#: `make defconfig` says"; since m14-linux-016 the delivered default image is the
+#: K4 one (no stop inside `setup_arch()`) and the K2 milestone image is the slice
+#: below — same image, pinned instead of inherited.
 IMAGES = {
-    "k2": None,
+    "k2": [
+        "CONFIG_DADAO_K1_EARLY_STOP=n",
+        "CONFIG_DADAO_K2_EARLY_STOP=n",
+        "CONFIG_DADAO_K2_TIME_STOP=y",
+        "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
+        "CONFIG_DADAO_K3_PT_SELFTEST=n",
+        "CONFIG_DADAO_K3_PF_SELFTEST=0",
+        "CONFIG_DADAO_K4_SELFTEST=n",
+    ],
     "trap": [
         "CONFIG_DADAO_K1_EARLY_STOP=n",
         "CONFIG_DADAO_K2_EARLY_STOP=y",

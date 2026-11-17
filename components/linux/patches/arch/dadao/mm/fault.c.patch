@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/fault.c b/arch/dadao/mm/fault.c
 new file mode 100644
-index 000000000..5e0b042b7
+index 000000000..1d1bac1d1
 --- /dev/null
 +++ b/arch/dadao/mm/fault.c
-@@ -0,0 +1,541 @@
+@@ -0,0 +1,535 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO demand paging: the CFXMEM / CFXPERM fault channel (K3, m14-linux-012).
@@ -29,13 +29,16 @@ index 000000000..5e0b042b7
 + *
 + * Two properties of this machine shape the code:
 + *
-+ *  - **No slab, no buddy allocator.**  K3 stops at the end of setup_arch(), so
-+ *    mm_core_init() has not run: `alloc_page()` does not exist yet and neither
-+ *    does the VMA cache.  The page source is therefore the top of RAM
-+ *    (`dadao_pf_alloc_page()`, the same source the probe uses for its tables)
-+ *    and the windows are static `struct vm_area_struct`s registered by the
-+ *    probe.  K4 replaces those two bodies — `alloc_page(GFP_KERNEL|__GFP_ZERO)`
-+ *    and `find_vma(current->mm, addr)` — and keeps every other line.
++ *  - **The page source is the buddy allocator (K4).**  K3 had neither a slab nor
++ *    a buddy allocator (it stopped before mm_core_init()), so it took pages off
++ *    the top of RAM; K4's `dadao_pf_alloc_page()` is `alloc_page(GFP_KERNEL |
++ *    __GFP_ZERO)` and the shared zero page comes from the same allocator
++ *    (`dadao_pf_init()`, called once mm_core_init() has run).  K4 also replaces
++ *    the window lookup: a task with an address space goes through
++ *    `find_vma(current->mm, addr)`.  The static window array stays as the
++ *    probe-image path (K3's cases run with `current->mm == NULL`, and a K4 probe
++ *    can point at it deliberately) - it is a *test* registry, not a page
++ *    source.
 + *
 + *  - **The missing classes do not say read or write.**  DGPTRAP covers a load
 + *    and a store alike (contract-see §6.1.1), so a missing fill maps the
@@ -52,7 +55,6 @@ index 000000000..5e0b042b7
 + */
 +#include <linux/init.h>
 +#include <linux/kernel.h>
-+#include <linux/memblock.h>
 +#include <linux/mm.h>
 +#include <linux/pgtable.h>
 +#include <linux/string.h>
@@ -69,10 +71,8 @@ index 000000000..5e0b042b7
 +#include <asm/tlbflush.h>
 +#include <asm/trap.h>
 +
-+/* How many windows the K3 probe may register (static storage, see above). */
++/* How many windows a probe may register (static storage, see below). */
 +#define DADAO_PF_WINDOWS	12
-+/* Pages the channel may hand out: zero page, L2 tables, private pages. */
-+#define DADAO_PF_POOL_PAGES	32
 +/*
 + * Retry budget: the same (address, cause id) may come back this many times
 + * before the handler decides it is not making progress.  A correct sequence
@@ -85,80 +85,52 @@ index 000000000..5e0b042b7
 + * Page source and the shared zero page
 + * ------------------------------------------------------------------------- */
 +
-+static unsigned long dadao_pf_pool_next;	/* next free PA (walks down) */
-+static unsigned long dadao_pf_pool_base;	/* first PA the pool owns */
-+static unsigned long dadao_pf_pool_pages;	/* pages handed out so far */
-+static unsigned long dadao_zero_pa;		/* the one shared zero page */
-+
-+extern char _end[];
++static unsigned long dadao_pf_pages;	/* pages handed out so far */
++static unsigned long dadao_zero_pa;	/* the one shared zero page */
 +
 +/*
-+ * Carve the pool and mark it reserved.  `__init` on purpose: memblock_reserve()
-+ * lives in .init.text and must not be reachable from the fault path (the
-+ * handler runs after the init sections are gone on any later K).  The channel is
-+ * initialised once, by an init function — the K3 probe does it explicitly, K4's
-+ * mm_init() will — and the handler only ever bumps the pointer.
-+ */
-+static void __init dadao_pf_pool_setup(void)
-+{
-+	unsigned long top;
-+
-+	if (dadao_pf_pool_base)
-+		return;
-+	if (!dadao_ram_size)
-+		return;
-+
-+	top = (dadao_ram_base + dadao_ram_size) & PAGE_MASK;
-+	if (top < dadao_ram_base + (DADAO_PF_POOL_PAGES + 1) * PAGE_SIZE)
-+		return;
-+	dadao_pf_pool_base = top - DADAO_PF_POOL_PAGES * PAGE_SIZE;
-+	/* The image lives at the bottom of RAM; a pool that reached it would
-+	 * hand out live text as data. */
-+	if (dadao_pf_pool_base < __pa(_end))
-+		return;
-+	dadao_pf_pool_next = top;
-+	/*
-+	 * Mark the pool reserved: not because something else allocates from
-+	 * memblock today (nothing runs between here and mm_core_init(), which
-+	 * K3 never reaches), but because the next K that does must not be handed
-+	 * these pages a second time.
-+	 */
-+	memblock_reserve(dadao_pf_pool_base,
-+			 DADAO_PF_POOL_PAGES * PAGE_SIZE);
-+}
-+
-+/*
-+ * One zeroed page.  This is the K3 spelling of `alloc_page(GFP_KERNEL |
-+ * __GFP_ZERO)`: the same contract (a fresh page the caller owns, contents
-+ * zero), from the only allocator that exists at the K3 boundary.  K4 keeps the
-+ * interface and swaps the body.
++ * One zeroed page the caller owns — `alloc_page(GFP_KERNEL | __GFP_ZERO)`.
++ *
++ * The handler runs with the buddy allocator up (it is only reachable from a
++ * task, and tasks exist only after mm_core_init()), so this is an ordinary
++ * allocation; 0 still means "no page", which the caller reports by name.
++ *
++ * Not `__GFP_HIGHMEM`/`GFP_ATOMIC`: a fault is allowed to sleep — taking the
++ * mmap read lock and the page fault itself are sleepable contexts — and there is
++ * no highmem on this machine (single 42-bit VA window, flat RAM).
 + */
 +unsigned long dadao_pf_alloc_page(void)
 +{
-+	unsigned long pa;
++	struct page *page = alloc_page(GFP_KERNEL | __GFP_ZERO);
 +
-+	if (!dadao_pf_pool_base ||
-+	    dadao_pf_pool_next <= dadao_pf_pool_base)
++	if (!page)
 +		return 0;
-+
-+	pa = dadao_pf_pool_next - PAGE_SIZE;
-+	dadao_pf_pool_next = pa;
-+	dadao_pf_pool_pages++;
-+	clear_page(__va(pa));
-+	return pa;
++	dadao_pf_pages++;
++	return page_to_phys(page);
 +}
 +
 +/*
 + * The shared zero page (user ruling 2026-11-16): allocated once, zeroed, never
 + * freed and never written again — every anonymous read mapping points at it, so
 + * a write must replace the mapping instead of touching the page.
++ *
++ * It has to exist before the first fault, so this is called from the K4 boot
++ * path once the allocator is up (kernel/setup.c: dadao_k4_boundary()), not from
++ * the fault path itself: `alloc_page()` there would grow the allocator's state
++ * from inside a fault, and the zero page must never be re-allocated.
 + */
 +void __init dadao_pf_init(void)
 +{
 +	if (dadao_zero_pa)
 +		return;
-+	dadao_pf_pool_setup();
-+	dadao_zero_pa = dadao_pf_alloc_page();
++	/*
++	 * The *canonical* zero page — the one `is_zero_pfn()` answers true for
++	 * (mm_init.c's `init_zero_page_pfn()` pins `zero_pfn` from
++	 * `ZERO_PAGE(0)`, i.e. this very page).  A privately allocated page
++	 * would look like ordinary data to the generic code, so `dup_mm()`
++	 * would copy it and COW would not know it may be shared (m14-linux-018).
++	 */
++	dadao_zero_pa = page_to_phys(ZERO_PAGE(0));
 +}
 +
 +/* -------------------------------------------------------------------------
@@ -197,8 +169,8 @@ index 000000000..5e0b042b7
 +		vm_flags_init(vma, vm_flags);
 +		vma->vm_start = start;
 +		vma->vm_end = end;
-+		/* A kernel-window mapping belongs to no mm; K3 has none anyway
-+		 * (dadao_pf_find_vma() takes the `current->mm` arm only in K4). */
++		/* A probe window belongs to no mm: the probe path is the only
++		 * one that looks these up (see dadao_pf_find_vma()). */
 +		vma->vm_mm = NULL;
 +		vma->vm_page_prot = vm_get_page_prot(vm_flags);
 +		vma->vm_private_data = (void *)backing_pa;
@@ -214,9 +186,15 @@ index 000000000..5e0b042b7
 +}
 +
 +/*
-+ * The covering window, or NULL.  K3 has no process (`current->mm` is NULL on
-+ * the init task), so the registered windows are the whole "address space"; the
-+ * `find_vma()` arm is the K4 shape and is never taken here.
++ * The VMA covering @addr, or NULL.
++ *
++ * With an address space (K4: every task that has one) this is the generic
++ * `find_vma()` on `current->mm` — the handler's only source of "is this address
++ * part of something the process owns".  Without one (init_task, and the K3 probe
++ * images whose cases run before any process exists) the registered probe
++ * windows are the whole "address space"; that arm is test scaffolding, never a
++ * production path: it answers from a static array, exactly what a real task must
++ * not do.
 + *
 + * Exposed (asm/setup.h) so the probe can assert the window edges — the same
 + * question the handler asks, answered without taking a fault.
@@ -261,7 +239,7 @@ index 000000000..5e0b042b7
 +
 +unsigned long dadao_pf_alloc_count(void)
 +{
-+	return dadao_pf_pool_pages;
++	return dadao_pf_pages;
 +}
 +
 +unsigned long dadao_pf_zero_page_pa(void)
@@ -289,9 +267,23 @@ index 000000000..5e0b042b7
 + * on this machine (§2.2.5), so a private data page is R|W (never X) and a code
 + * page is R|X (never W).
 + */
-+static unsigned long dadao_pf_pte(unsigned long pa, bool write, bool exec)
++static unsigned long dadao_pf_mode_bits(struct vm_area_struct *vma)
 +{
-+	unsigned long prot = _PAGE_PRESENT | _PAGE_S | _PAGE_GLOBAL |
++	/*
++	 * Which run mode may reach the mapping (spec/DADAO-12 §2.2.6: the walker
++	 * checks the HSJU bit of the *accessing* mode).  A VMA that belongs to an
++	 * address space is a user task's mapping and must be reachable in user
++	 * mode; a probe window has no mm and is a kernel window (K1-K3 shape).
++	 * The kernel reaches a user page through __va(), never through the user
++	 * VA, so U alone is enough — mapping both is not needed.
++	 */
++	return vma && vma->vm_mm ? _PAGE_U : _PAGE_S;
++}
++
++static unsigned long dadao_pf_pte(struct vm_area_struct *vma, unsigned long pa,
++				  bool write, bool exec)
++{
++	unsigned long prot = _PAGE_PRESENT | dadao_pf_mode_bits(vma) |
 +			     _PAGE_FRAG_ALL | _PAGE_READ;
 +
 +	if (write)
@@ -301,11 +293,13 @@ index 000000000..5e0b042b7
 +	return (pa & _PAGE_PFN_MASK) | prot;
 +}
 +
-+/* The shared zero page is read-only and non-executable: a write must fault. */
-+static unsigned long dadao_pf_zero_pte(void)
++/* The shared zero page is read-only and non-executable: a write must fault.  It
++ * takes the VMA's mode bits for the same reason a data page does: a user read
++ * of an untouched anonymous page maps it for user mode. */
++static unsigned long dadao_pf_zero_pte(struct vm_area_struct *vma)
 +{
-+	return (dadao_zero_pa & _PAGE_PFN_MASK) | _PAGE_PRESENT | _PAGE_S |
-+	       _PAGE_GLOBAL | _PAGE_FRAG_ALL | _PAGE_READ;
++	return (dadao_zero_pa & _PAGE_PFN_MASK) | _PAGE_PRESENT |
++	       dadao_pf_mode_bits(vma) | _PAGE_FRAG_ALL | _PAGE_READ;
 +}
 +
 +/* Do the mapping change and drop the stale translation.  A PTE store alone is
@@ -398,7 +392,7 @@ index 000000000..5e0b042b7
 +		pa = (unsigned long)vma->vm_private_data;
 +		if (!pa)
 +			return NULL;
-+		set_pte(ptep, __pte(dadao_pf_pte(pa, false, true)));
++		set_pte(ptep, __pte(dadao_pf_pte(vma, pa, false, true)));
 +		dadao_pf_publish(vma, addr, ptep);
 +		return "fill-code";
 +	}
@@ -407,7 +401,7 @@ index 000000000..5e0b042b7
 +	 * faults again with CFXPERM + NWPERM and is turned private there. */
 +	if (!dadao_zero_pa)
 +		return NULL;
-+	set_pte(ptep, __pte(dadao_pf_zero_pte()));
++	set_pte(ptep, __pte(dadao_pf_zero_pte(vma)));
 +	dadao_pf_publish(vma, addr, ptep);
 +	return "fill-zero";
 +}
@@ -441,7 +435,7 @@ index 000000000..5e0b042b7
 +	pa = dadao_pf_alloc_page();
 +	if (!pa)
 +		return false;
-+	set_pte(ptep, __pte(dadao_pf_pte(pa, true, false)));
++	set_pte(ptep, __pte(dadao_pf_pte(vma, pa, true, false)));
 +	dadao_pf_publish(vma, addr, ptep);
 +	return true;
 +}
@@ -540,7 +534,7 @@ index 000000000..5e0b042b7
 +			   regs ? regs->ip : 0UL, info,
 +			   vma ? vma->vm_start : 0UL, vma ? vma->vm_end : 0UL,
 +			   vma ? dadao_pf_show_pte(info) : 0UL,
-+			   dadao_pf_pool_pages,
++			   dadao_pf_pages,
 +			   dadao_pf_streak, result);
 +
 +	return policy;

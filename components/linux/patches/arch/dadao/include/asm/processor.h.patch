@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/processor.h b/arch/dadao/include/asm/processor.h
 new file mode 100644
-index 000000000..674ca1100
+index 000000000..a62238f4a
 --- /dev/null
 +++ b/arch/dadao/include/asm/processor.h
-@@ -0,0 +1,54 @@
+@@ -0,0 +1,75 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PROCESSOR_H
 +#define __ASM_PROCESSOR_H
@@ -17,14 +17,35 @@ index 000000000..674ca1100
 +
 +struct task_struct;
 +
++/*
++ * The part of a task's register file that survives a context switch, i.e. the
++ * callee-saved set of contract-abi §4.5: `rd32-rd63 ∪ rb32-rb63 ∪ rf32-rf63`
++ * plus the two fixed roles the ABI never allocates to the compiler — `sp`
++ * (rb1) and `rbtp` (rb3) — and the return address the new task resumes at.
++ *
++ * The banks are stored as their own arrays so that one block transfer each
++ * (`stm.o`/`ldm.o`, spec/SimRISC-01 §1-§4) moves a whole bank: the first entry
++ * of `rd[]` is `rd32`, of `rb[]` is `rb32`, of `rf[]` is `rf32`.  `rf32-rf63`
++ * are in the set even though K4 never runs floating point: the frame of
++ * m14-linux-022 already carries all four banks, and m14-linux-017 (context
++ * switch) restores exactly this field set, so leaving them out here would
++ * silently drop the FP half of a switch.
++ *
++ * Not here: `ip` — it is not callee-saved, it lives in the saved `pt_regs` on
++ * the task stack (task_pt_regs()) and comes back through `ret_from_fork`;
++ * `ra0` — the {RACNT, MRPTR} RAS metadata belongs to the return-address stack,
++ * which the entry/exit stubs save and restore per frame (asm/entry.h).
++ */
 +struct thread_struct {
-+	unsigned long sp;
-+	unsigned long ra;	/* return address (link register) */
-+	unsigned long tp;	/* thread pointer (rb3 / rbtp) */
-+	unsigned long regs[0];
++	unsigned long sp;		/* rb1 (SP) */
++	unsigned long ra;		/* resume address for a new task */
++	unsigned long tp;		/* rb3 (rbtp) */
++	unsigned long rd[32];		/* rd32-rd63 */
++	unsigned long rb[32];		/* rb32-rb63 */
++	unsigned long rf[32];		/* rf32-rf63 */
 +};
 +
-+#define INIT_THREAD  { .sp = 0, .ra = 0, .tp = 0 }
++#define INIT_THREAD  { }
 +
 +extern void start_thread(struct pt_regs *regs, unsigned long pc,
 +			 unsigned long sp);

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/configs/defconfig b/arch/dadao/configs/defconfig
 new file mode 100644
-index 000000000..25f884b67
+index 000000000..829bf9abc
 --- /dev/null
 +++ b/arch/dadao/configs/defconfig
-@@ -0,0 +1,45 @@
+@@ -0,0 +1,48 @@
 +# K0 minimal defconfig: single hart, big endian, 64 KiB pages, no SMP,
 +# no device tree, no UART/PCI, semihosting console stub.
 +CONFIG_DADAO=y
@@ -22,10 +22,13 @@ index 000000000..25f884b67
 +# K2 image: the supv exception channel and the timer are real and setup_arch()
 +# runs; the milestone stop is the K2 time boundary (m14-linux-007), which
 +# reports time_init / the asynchronous vector / the two mask axes, delivers the
-+# configured number of TIMER ticks and exits.  The earlier K2 boundary
-+# (m14-linux-006, CONFIG_DADAO_K2_EARLY_STOP) is off in this image and the K2
-+# exception gate pins it on for its own images.
-+CONFIG_DADAO_K2_TIME_STOP=y
++# configured number of TIMER ticks and exits.
++#
++# K4 (m14-linux-016) moves the default image past all of them: the kernel has to
++# reach mm_core_init() (the page allocator, the VMA cache, the process model), so
++# no boundary inside setup_arch() may stop it.  The K1/K2/K3 gates pin the
++# boundaries they need on their own images.
++CONFIG_DADAO_K2_TIME_STOP=n
 +CONFIG_BINFMT_ELF=y
 +CONFIG_PRINTK=y
 +CONFIG_TTY=y

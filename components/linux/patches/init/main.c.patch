@@ -1,5 +1,5 @@
 diff --git a/init/main.c b/init/main.c
-index dd7b2a659..0a814d1c1 100644
+index dd7b2a659..103dd459c 100644
 --- a/init/main.c
 +++ b/init/main.c
 @@ -979,6 +979,11 @@ void start_kernel(void)
@@ -14,3 +14,20 @@ index dd7b2a659..0a814d1c1 100644
  	set_task_stack_end_magic(&init_task);
  	smp_setup_processor_id();
  	debug_objects_early_init();
+@@ -1176,6 +1181,16 @@ void start_kernel(void)
+ 	arch_post_acpi_subsys_init();
+ 	kcsan_init();
+ 
++	/*
++	 * DADAO K4 boundary (m14-linux-016): the process model and the page-fault
++	 * channel's real page source exist from here (mm_core_init() has run) and
++	 * no second task has been created yet (that needs the context switch of
++	 * m14-linux-017).  Probe images run their self-tests and stop here; the
++	 * milestone image says by name that it stops here too, instead of
++	 * pretending to continue into a scheduler that cannot switch.
++	 */
++	dadao_k4_boundary();
++
+ 	/* Do the rest non-__init'ed, we're now alive */
+ 	rest_init();
+ 

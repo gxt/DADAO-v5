@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/mmu_context.h b/arch/dadao/include/asm/mmu_context.h
 new file mode 100644
-index 000000000..5e33c6810
+index 000000000..a54764e97
 --- /dev/null
 +++ b/arch/dadao/include/asm/mmu_context.h
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,98 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_MMU_CONTEXT_H
 +#define __ASM_MMU_CONTEXT_H
@@ -55,7 +55,50 @@ index 000000000..5e33c6810
 +}
 +#define activate_mm	activate_mm
 +
-+#include <asm-generic/mm_hooks.h>
++/*
++ * dup_mm() -> dup_mmap() -> arch_dup_mmap(): the arch half of a fork's address
++ * space clone.
++ *
++ * Generic `copy_page_range()` write-protects every private writable PTE and
++ * leaves both processes pointing at the *same* page — the classic
++ * copy-on-write contract, which assumes the arch can resolve a write fault by
++ * calling into the generic `do_wp_page()`.
++ *
++ * This port cannot do that yet: its page-fault channel reads CFXPERM + NWPERM
++ * itself (mm/fault.c) and knows only the shared zero page, so a write to a
++ * COW-shared page after a fork would be a named termination instead of a copy.
++ * `dadao_dup_mmap_private()` therefore materialises the private pages of the
++ * child right here — "correct first, optimise later" (m14-linux-016): the child
++ * gets its own physical pages, and the zero page stays shared.
++ *
++ * m14-linux-018 (COW) replaces this hook: it makes the write fault resolve the
++ * copy and drops the eager walk.
++ */
++int dadao_dup_mmap_private(struct mm_struct *mm);
++
 +#include <asm-generic/mmu_context.h>
++
++/*
++ * The three mm hooks (asm-generic/mm_hooks.h is deliberately *not* included:
++ * this port replaces one of them, and the header defines all three as static
++ * inlines — same shape as arch/arm64's asm/mmu_context.h).
++ */
++static inline int arch_dup_mmap(struct mm_struct *oldmm, struct mm_struct *mm)
++{
++	return dadao_dup_mmap_private(mm);
++}
++
++static inline void arch_exit_mmap(struct mm_struct *mm)
++{
++}
++
++static inline bool arch_vma_access_permitted(struct vm_area_struct *vma,
++					     bool write, bool execute,
++					     bool foreign)
++{
++	/* No MPK/domains on this machine: the page-table bits are the whole
++	 * permission model (spec/DADAO-12 §2.2.5). */
++	return true;
++}
 +
 +#endif

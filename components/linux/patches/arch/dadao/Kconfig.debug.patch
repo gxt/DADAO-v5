@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..ce6adc797
+index 000000000..31280965f
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,200 @@
+@@ -0,0 +1,216 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -204,3 +204,19 @@ index 000000000..ce6adc797
 +
 +	  This is test scaffolding (the K3 page-fault gate builds these probe
 +	  images); it is not part of the image the later milestones boot.
++
++config DADAO_K4_SELFTEST
++	bool "Run the K4 process-model self-test at the K4 boundary"
++	default n
++	help
++	  Exercise the K4 process model from inside the kernel (see
++	  kernel/k4_selftest.c): create a child task through kernel_clone() and
++	  check that its address space is a full private copy of a parent's
++	  (different physical pages for populated pages, the same physical page
++	  for the shared zero page), that the child's saved context is the
++	  parent's with rd8 = 0, and that the page-fault channel's lookup answers
++	  through find_vma(current->mm) once the task has an mm.
++
++	  The boot ends after the self-test.  This is test scaffolding (the K4
++	  gate builds a probe image with it); it is not part of the image the
++	  later milestones boot.

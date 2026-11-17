@@ -32,6 +32,13 @@ Groups (the group letter is what ``--selfcheck``/``--inject`` flip):
      a write fault replaces it with a private page, and the zero page itself is
      never written.  (Non-zero-page COW moved to K4 with `m14-linux-013`; the
      stack-growth group left with `m14-linux-014` — neither is in this gate.)
+     §4a (m14-linux-016): the *boundary* of the F/C groups moved.  The channel's
+     page source is `alloc_page()` since K4, so the cases run at the K4 boundary
+     (after `mm_core_init()`, before `rest_init()`) instead of at the end of
+     `setup_arch()`; the cases themselves are unchanged and the assertions below
+     are still the same ones.  The zero page is the canonical `ZERO_PAGE(0)`
+     from K4 on, which is why the group still compares *its* PA rather than an
+     allocated one.
   T  TLB, kernel side (the m14-linux-011 probe): fill/hit (a changed PTE stays
      invisible until an explicit invalidation), `invalid`+VA/`range` (and an
      empty range leaving the entry alone), `clean` (A/D back, entry kept),
@@ -141,6 +148,10 @@ BASE_IMAGE = [
     "CONFIG_DADAO_K1_EARLY_STOP=n",
     "CONFIG_DADAO_K2_EARLY_STOP=n",
     "CONFIG_DADAO_K2_TIME_STOP=n",
+    # m14-linux-016: the K3 page-fault cases moved to the K4 boundary (their
+    # page source is the buddy allocator now), so the K3 images must reach it —
+    # and must not also carry the K4 self-test.
+    "CONFIG_DADAO_K4_SELFTEST=n",
 ]
 
 #: name -> the config slice that makes this image (every boundary pinned).
@@ -174,7 +185,7 @@ IMAGE_OFF = {
 #: Every image: the page-size symbol plus the earlier milestones' early stops.
 ALWAYS_ON = {"CONFIG_PAGE_SIZE_64KB": "y"}
 ALWAYS_OFF = ("CONFIG_DADAO_K1_EARLY_STOP", "CONFIG_DADAO_K2_EARLY_STOP",
-              "CONFIG_DADAO_K2_TIME_STOP")
+              "CONFIG_DADAO_K2_TIME_STOP", "CONFIG_DADAO_K4_SELFTEST")
 
 #: (must be present, must be absent) — the K3 self-test symbols of *this* image.
 IMAGE_SYMBOLS = {

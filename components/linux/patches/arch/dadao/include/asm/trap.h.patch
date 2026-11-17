@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/trap.h b/arch/dadao/include/asm/trap.h
 new file mode 100644
-index 000000000..dfc3512b6
+index 000000000..4a099b8bd
 --- /dev/null
 +++ b/arch/dadao/include/asm/trap.h
-@@ -0,0 +1,115 @@
+@@ -0,0 +1,126 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception entry: the contract between the assembly
@@ -29,6 +29,17 @@ index 000000000..dfc3512b6
 + * point; the numbering lives in kernel/traps.c).
 + */
 +#define DADAO_TRAP_BAD_POLICY	0x0d
++
++/*
++ * K4 (m14-linux-016): the `immu18` the user-mode entry stub uses to hand a
++ * U-mode synchronous exception to the supv channel.  The hardware routes such an
++ * exception into `cfx_umon` (spec/DADAO-12 §3.1: "非 trap 的 U-mode 异常固定进入
++ * cfx_umon"), so the *cause* is lost on the way to `cfx_smon`; the stub therefore
++ * passes it in registers and selects the delegated path with this immediate
++ * (contract-syscall §8: the smon channel is the one that owns page-table
++ * causes).  It is a kernel-private selector, not a syscall number.
++ */
++#define DADAO_SMON_FROM_USER	0x2f5
 +
 +/*
 + * Cause ids (spec/DADAO-13 §2, contract-see §6.1): one bit each.  A hardware

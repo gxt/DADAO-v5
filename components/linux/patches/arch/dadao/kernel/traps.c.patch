@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..a8be28048
+index 000000000..b78e729fe
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,530 @@
+@@ -0,0 +1,600 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -333,6 +333,60 @@ index 000000000..a8be28048
 + * `regs->rb[0]` is filled here: rb0 is the read-only IP register, so it has no
 + * frame slot of its own, and its value at the fault *is* `regs->ip`.
 + */
++/*
++ * A U-mode synchronous exception handed over by the user entry
++ * (kernel/trap.S: `trap cfx_smon, DADAO_SMON_FROM_USER`).
++ *
++ * The cause is carried in registers because the hardware's own reason for this
++ * trap is CFXTRAP (the stub's `trap`) — the U-mode cause would otherwise be
++ * lost.  @frame is the *user* frame the umon entry saved; the smon frame
++ * (@smon_regs) stays a frame of its own, so the two never alias ("不串 umon
++ * 帧"), and the page-fault channel works on the user's register file, which is
++ * what its `ip`/`sp` reporting and its zero-page replacement need.
++ *
++ * Returns the supv vector's resume policy: SKIP, i.e. "continue after the
++ * trap", which lands back in the user entry stub.  A page fault that cannot be
++ * served never comes back — the channel ends the boot by name.
++ */
++static unsigned long dadao_user_fault_from_umon(struct pt_regs *smon_regs,
++						struct pt_regs *frame,
++						unsigned long cause,
++						unsigned long info)
++{
++	unsigned long policy;
++
++	dadao_early_printf("K4 umon->smon: frame_umon=%#lx frame_smon=%#lx "
++			   "cause=%#lx ip=%#lx info=%#lx\n",
++			   (unsigned long)frame, (unsigned long)smon_regs,
++			   cause, frame->ip, info);
++
++	/* The carried cause may hold a sub-reason wyde (ADR-0056); the channel
++	 * decodes it, so only the class is judged here. */
++	if (DADAO_CAUSE_CLASS(cause) != DADAO_CAUSE_CFXMEM &&
++	    DADAO_CAUSE_CLASS(cause) != DADAO_CAUSE_CFXPERM) {
++		dadao_early_printf("K4 umon->smon: cause %#lx is not a page-table "
++				   "cause; the supv channel has no verdict for it\n",
++				   cause);
++		dadao_early_exit(0xc0UL | ((DADAO_MODE_USER & 0x3) << 4) | 0x0);
++	}
++
++	policy = dadao_do_page_fault(frame, cause, info);
++	if (policy != DADAO_PF_RETRY) {
++		dadao_early_printf("K4 umon->smon: the channel did not install a "
++				   "mapping (policy=%lu)\n", policy);
++		dadao_early_exit(0xc0UL | ((DADAO_MODE_USER & 0x3) << 4) | 0x1);
++	}
++
++	/*
++	 * The user resumes at the instruction that faulted: point the umon
++	 * supv row at it.  (This runs with the kernel's current cfx = cfx_smon,
++	 * which the firmware opened for source cfx 2; the umon rows themselves
++	 * are opened for the kernel by dadao_user_entry_install().)
++	 */
++	DADAO_CFX_WRITE(cfx_umon, UMON_CG_SUPV, UMON_RC_EXCP_VECTOR, frame->ip);
++	return DADAO_TRAP_RESUME_SKIP;
++}
++
 +unsigned long dadao_trap_handler(struct pt_regs *regs, unsigned long cause,
 +				 unsigned long info)
 +{
@@ -368,6 +422,22 @@ index 000000000..a8be28048
 +		dadao_selfcheck(K2_FAIL_RECURSIVE, "recursive supv exception",
 +				regs, raw_cause, info);
 +	dadao_trap_busy = 1;
++
++	/*
++	 * K4: the user entry's hand-over (kernel/trap.S, `.Lumon_delegate`).
++	 * Checked before the cause table because the *carried* cause is what
++	 * decides, not the CFXTRAP the hardware raised for the trampoline.
++	 */
++	if (cause == DADAO_CAUSE_CFXTRAP &&
++	    (info & 0x3ffffUL) == DADAO_SMON_FROM_USER) {
++		unsigned long policy =
++			dadao_user_fault_from_umon(regs,
++						   (struct pt_regs *)regs->rb[16],
++						   regs->rd[16], regs->rd[18]);
++
++		dadao_trap_busy = 0;
++		return policy;
++	}
 +
 +	/*
 +	 * A cause outside the 11-item table is still an *abnormal termination*,

@@ -55,6 +55,8 @@ arch/dadao/kernel/head.S.patch
 arch/dadao/kernel/irq.c.patch
 arch/dadao/kernel/k2_irq_test.c.patch
 arch/dadao/kernel/k2_selftest.c.patch
+arch/dadao/kernel/k4_selftest.c.patch
+arch/dadao/kernel/process.c.patch
 arch/dadao/kernel/setup.c.patch
 arch/dadao/kernel/syscall_table.c.patch
 arch/dadao/kernel/syscalls.c.patch

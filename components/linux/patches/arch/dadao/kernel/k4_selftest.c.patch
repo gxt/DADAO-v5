@@ -1,0 +1,556 @@
+diff --git a/arch/dadao/kernel/k4_selftest.c b/arch/dadao/kernel/k4_selftest.c
+new file mode 100644
+index 000000000..0db034968
+--- /dev/null
++++ b/arch/dadao/kernel/k4_selftest.c
+@@ -0,0 +1,550 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * K4 process-model self-test (CONFIG_DADAO_K4_SELFTEST, m14-linux-016).
++ *
++ * Runs at the K4 boundary (kernel/setup.c: dadao_k4_boundary()), i.e. after
++ * mm_core_init() — the buddy allocator, the VMA cache, the kmem caches and the
++ * fork machinery exist — and before rest_init() creates the first kernel thread.
++ * Nothing here runs a second task: scheduling one needs the context switch of
++ * m14-linux-017, so every check below inspects a *created* task and its address
++ * space instead of letting it run.
++ *
++ * What each case proves, and how:
++ *
++ *   F1  `kernel_clone()` builds a child task: it exists, it has an address
++ *       space of its own, that address space has its own ASID, and its saved
++ *       context is the parent's with `rd8 = 0` (the fork return value).
++ *
++ *   F2  the child's address space is a *private copy*: a page the parent
++ *       populated is at a different physical address in the child and has the
++ *       same content, while a mapping of the shared zero page is at the *same*
++ *       physical address on both sides (it is shared, never copied).
++ *
++ *   F4  the page-fault channel's two K3 placeholders are gone: pages come from
++ *       `alloc_page()` (distinct, zeroed, and the shared zero page is the
++ *       canonical `ZERO_PAGE(0)` the generic code recognises), and the lookup
++ *       answers through `find_vma(current->mm)` once the task has an mm.
++ *
++ * The page tables the test builds are walked through the port's own primitives
++ * (`pmd_off()`/`pte_offset_kernel()`), the same way the fault channel does.  The
++ * test never switches PTBR: the address space under test is not the one the
++ * kernel runs on (that hand-off is m14-linux-017's switch_mm()).
++ *
++ * One image, one verdict: every case prints its values and the boot ends with
++ * SYS_EXIT(0); a violated expectation ends with the guest FAIL segment
++ * (spec/Kaiwu §7.1) naming the case.
++ */
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/mman.h>
++#include <linux/mm.h>
++#include <linux/mm_types.h>
++#include <linux/pgtable.h>
++#include <linux/sched.h>
++#include <linux/sched/mm.h>
++#include <linux/sched/task.h>
++#include <linux/sched/task_stack.h>
++#include <linux/signal.h>
++#include <linux/string.h>
++#include <linux/types.h>
++
++#include <asm/mmu_context.h>
++#include <asm/page.h>
++#include <asm/pgalloc.h>
++#include <asm/pgtable.h>
++#include <asm/processor.h>
++#include <asm/ptrace.h>
++#include <asm/setup.h>
++
++/* Guest FAIL segment (spec/Kaiwu §7.1): process.c owns 0x30-0x32. */
++#define K4_FAIL_ALLOC		0x33	/* alloc_page() did not hand out pages */
++#define K4_FAIL_ZERO_PAGE	0x34	/* the zero page is not the canonical one */
++#define K4_FAIL_MM		0x35	/* mm_alloc()/vm_mmap() failed */
++#define K4_FAIL_FIND_VMA	0x36	/* the lookup did not answer through the mm */
++#define K4_FAIL_CLONE		0x37	/* kernel_clone() failed */
++#define K4_FAIL_CHILD		0x38	/* the child task is missing/soon gone */
++#define K4_FAIL_REGS		0x39	/* the child's context is not the parent's */
++#define K4_FAIL_ASID		0x3a	/* the child reused the parent's ASID */
++
++/* The magic the parent writes into its private page; the child must inherit it
++ * by *content*, not by sharing the page. */
++#define K4_MAGIC		0x4b34505249564154UL	/* "K4PRIVAT" */
++#define K4_ZERO_MAGIC		0x0000000000000000UL
++
++/* Markers the parent pins in its saved context before the clone (F1). */
++#define K4_PARENT_IP		0x000000000000beefUL
++#define K4_PARENT_SP		0x00000000cafef00dUL
++#define K4_PARENT_TP		0x0000000000001234UL
++#define K4_PARENT_RD8		0x00000000deadbeefUL
++
++/*
++ * The scratch window: an L1 slot the kernel does not map (K1 maps RAM only, in
++ * slots 4096..4099) and that is inside user space, so a real task could own it.
++ */
++#define K4_VA_BASE		(1UL << 40)	/* 1 TiB: inside [0, 2 TiB) */
++#define K4_VA_PAGES		3
++
++static struct mm_struct *k4_mm;
++static struct vm_area_struct *k4_vma;
++
++static void __noreturn k4_fail(unsigned int code, const char *what,
++			       unsigned long value)
++{
++	dadao_early_printf("K4 FAIL: %s=%#lx code=%#x\n", what, value, code);
++	dadao_early_exit(code);
++}
++
++static void k4_expect(const char *what, unsigned long expected,
++		      unsigned long actual, unsigned int code)
++{
++	dadao_early_printf("K4 check %s want=%#lx got=%#lx %s\n", what, expected,
++			   actual, expected == actual ? "ok" : "FAIL");
++	if (expected != actual)
++		k4_fail(code, what, actual);
++}
++
++/* The PTE of @addr in @mm, or 0 when there is none (walked the port's way). */
++static unsigned long k4_pte(struct mm_struct *mm, unsigned long addr)
++{
++	pmd_t *pmd = pmd_off(mm, addr);
++
++	if (pmd_none(*pmd) || (pmd_val(*pmd) & _PAGE_SUPER))
++		return 0;
++	return pte_val(*pte_offset_kernel(pmd, addr));
++}
++
++/* Map one page at @addr in @mm with the protection the test asks for. */
++static void k4_map(struct mm_struct *mm, unsigned long addr, unsigned long pa,
++		   bool writable)
++{
++	pmd_t *pmd = pmd_off(mm, addr);
++	pte_t *ptep;
++
++	if (pmd_none(*pmd)) {
++		pte_t *tbl = (pte_t *)__get_free_page(GFP_KERNEL | __GFP_ZERO);
++
++		if (!tbl)
++			k4_fail(K4_FAIL_MM, "pte_alloc", addr);
++		pmd_populate_kernel(mm, pmd, tbl);
++	}
++	ptep = pte_offset_kernel(pmd, addr);
++	set_pte(ptep, __pte((pa & _PAGE_PFN_MASK) | _PAGE_PRESENT |
++			    _PAGE_FRAG_ALL | _PAGE_READ | _PAGE_S |
++			    (writable ? _PAGE_WRITE : 0)));
++}
++
++static unsigned long k4_va(int page)
++{
++	return K4_VA_BASE + (unsigned long)page * PAGE_SIZE;
++}
++
++/* -------------------------------------------------------------------------
++ * F5: the user-mode entry (single frame, m14-linux-016)
++ * ------------------------------------------------------------------------- */
++
++#define K4_F5_CODE_VA		(K4_VA_BASE + 32 * PAGE_SIZE)
++#define K4_F5_DATA_VA		(K4_VA_BASE + 33 * PAGE_SIZE)
++#define K4_F5_SENTINEL_RD	0x4b3446ff00000001UL	/* "K4F" + index */
++#define K4_F5_SENTINEL_RB	0x4b3446ff0000bb00UL
++#define K4_F5_SENTINEL_RF	0x4b3446ff0000ff00UL
++
++/* The user program the probe runs (kernel/trap.S, copied into the code page). */
++extern char dadao_k4_user_stub[];
++extern char dadao_k4_user_stub_end[];
++
++static struct pt_regs k4_f5_frame[2];
++static int k4_f5_n;
++static unsigned long k4_f5_pf_before;
++
++/* Map @pa at @va in the *active* table (the kernel's own), with @prot. */
++static void k4_map_active(unsigned long va, unsigned long pa, unsigned long prot)
++{
++	pmd_t *pmd = pmd_off_k(va);
++	pte_t *pte;
++
++	if (pmd_none(*pmd)) {
++		pte_t *tbl = (pte_t *)__get_free_page(GFP_KERNEL | __GFP_ZERO);
++
++		if (!tbl)
++			k4_fail(K4_FAIL_MM, "f5 pte_alloc", va);
++		pmd_populate_kernel(&init_mm, pmd, tbl);
++	}
++	pte = pte_offset_kernel(pmd, va);
++	set_pte(pte, __pte((pa & _PAGE_PFN_MASK) | _PAGE_PRESENT |
++			   _PAGE_FRAG_ALL | prot));
++}
++
++static unsigned long k4_f5_sentinel(unsigned long base, int i)
++{
++	return base + (unsigned long)i;
++}
++
++/* The user-mode syscall hook (kernel/process.c calls it in probe images). */
++int dadao_k4_user_syscall(struct pt_regs *regs, unsigned long nr,
++			  unsigned long *policy)
++{
++	struct pt_regs *f;
++	unsigned long cause, ip, info, mode, vec, i, bad = 0;
++
++	if (k4_f5_n >= 2)
++		return 0;			/* the program makes exactly two */
++
++	f = &k4_f5_frame[k4_f5_n];
++	*f = *regs;
++
++	/* cg5, straight from the cfx (self access bypasses the cfx axis). */
++	mode = DADAO_CFX_READ(cfx_umon, 5, 0);	/* excp_prev_run_mode */
++	cause = DADAO_CFX_READ(cfx_umon, 5, 2);	/* excp_cause_id */
++	ip = DADAO_CFX_READ(cfx_umon, 5, 3);	/* excp_cause_ip */
++	info = DADAO_CFX_READ(cfx_umon, 5, 4);	/* excp_cause_info */
++	vec = DADAO_CFX_READ(cfx_umon, UMON_CG_USER, UMON_RC_EXCP_VECTOR);
++
++	dadao_early_printf("K4 f5 sys%lu: nr=%lu prev_mode=%lu cause=%#lx ip=%#lx "
++			   "info=%#lx immu18=%#lx vec=%#lx umon_switch=%#lx "
++			   "smon_switch=%#lx\n", (unsigned long)k4_f5_n, nr,
++			   mode & 0x3, cause, ip, info, info & 0x3ffffUL, vec,
++			   DADAO_CFX_READ(cfx_umon, UMON_CG_USER,
++					  UMON_RC_SWITCH_RUN_MODE) & 0x3,
++			   DADAO_CFX_READ(cfx_umon, UMON_CG_SUPV,
++					  UMON_RC_SWITCH_RUN_MODE) & 0x3);
++
++	k4_expect("f5-prev-mode-user", DADAO_MODE_USER, mode & 0x3,
++		  K4_FAIL_UMON_NO_ZERO);
++	k4_expect("f5-cause", DADAO_CAUSE_CFXTRAP, cause, K4_FAIL_UMON_NO_ZERO);
++	k4_expect("f5-user-vector", 1, vec ? 1 : 0, K4_FAIL_UMON_NO_ZERO);
++	k4_expect("f5-switch-supv", DADAO_MODE_SUPV,
++		  DADAO_CFX_READ(cfx_umon, UMON_CG_USER,
++				 UMON_RC_SWITCH_RUN_MODE) & 0x3,
++		  K4_FAIL_UMON_SWITCH);
++	k4_expect("f5-switch-user", DADAO_MODE_USER,
++		  DADAO_CFX_READ(cfx_umon, UMON_CG_SUPV,
++				 UMON_RC_SWITCH_RUN_MODE) & 0x3,
++		  K4_FAIL_UMON_SWITCH);
++
++	/* The trap's own address and immediate: `trap cfx_umon, <nr>`. */
++	k4_expect("f5-cause-ip", K4_F5_CODE_VA + 8 * (unsigned long)k4_f5_n, ip,
++		  K4_FAIL_UMON_NO_ZERO);
++	/* The immediate encodes the program's own service number (that is what
++	 * `trap cfx_umon, <n>` carries); rd15 is the *syscall* number and the
++	 * stub leaves it alone, so it is reported but not judged here. */
++	k4_expect("f5-immu18", (unsigned long)k4_f5_n, info & 0x3ffffUL,
++		  K4_FAIL_UMON_NO_ZERO);
++	/* ... and the entry saved it into the frame (that is what the C half
++	 * of every channel reads). */
++	k4_expect("f5-frame-ip", ip, f->ip, K4_FAIL_UMON_NO_ZERO);
++
++	/* The four banks the entry saved (m14-linux-022 shape): the callee-saved
++	 * sentinels must be there, in the frame, untouched. */
++	for (i = 0; i < 32; i++) {
++		if (f->rd[32 + i] != k4_f5_sentinel(K4_F5_SENTINEL_RD, i) ||
++		    f->rb[32 + i] != k4_f5_sentinel(K4_F5_SENTINEL_RB, i) ||
++		    f->rf[32 + i] != k4_f5_sentinel(K4_F5_SENTINEL_RF, i))
++			bad++;
++	}
++	dadao_early_printf("K4 f5 banks: rd32=%#lx rb32=%#lx rf32=%#lx "
++			   "rd63=%#lx rf63=%#lx bad=%lu\n",
++			   f->rd[32], f->rb[32], f->rf[32], f->rd[63], f->rf[63],
++			   bad);
++	k4_expect("f5-banks-in-frame", 0, bad, K4_FAIL_UMON_NO_ZERO);
++
++	if (k4_f5_n == 1) {
++		/* Second round trip: the restore must have preserved them, and the
++		 * RAS must be bit-identical (022: entering/leaving an exception
++		 * does not change ra0-ra63). */
++		unsigned long ras_bad = 0, sent_bad = 0;
++
++		for (i = 0; i < 64; i++)
++			if (f->ra[i] != k4_f5_frame[0].ra[i])
++				ras_bad++;
++		for (i = 0; i < 32; i++)
++			if (f->rd[32 + i] != k4_f5_frame[0].rd[32 + i] ||
++			    f->rb[32 + i] != k4_f5_frame[0].rb[32 + i] ||
++			    f->rf[32 + i] != k4_f5_frame[0].rf[32 + i])
++				sent_bad++;
++		dadao_early_printf("K4 f5 roundtrip: ras_bad=%lu sentinel_bad=%lu "
++				   "ra0=%#lx ra0_prev=%#lx rd20=%#lx "
++				   "pf_entries_delta=%lu\n", ras_bad, sent_bad,
++				   f->ra[0], k4_f5_frame[0].ra[0], f->rd[20],
++				   dadao_pf_entry_count() - k4_f5_pf_before);
++		k4_expect("f5-ras-preserved", 0, ras_bad, K4_FAIL_UMON_NO_ZERO);
++		k4_expect("f5-sentinels-preserved", 0, sent_bad,
++			  K4_FAIL_UMON_NO_ZERO);
++		/* rd20 was 0 before the user program ran and the demand-filled
++		 * zero page is what the retried load reads: a value of 0 *and* one
++		 * delegated page fault prove the load executed after the retry. */
++		k4_expect("f5-load-ran", 0, f->rd[20], K4_FAIL_UMON_NO_ZERO);
++		k4_expect("f5-one-delegated-fault", 1,
++			  dadao_pf_entry_count() - k4_f5_pf_before,
++			  K4_FAIL_UMON_NO_ZERO);
++
++		/* The mapping the channel installed for the user page. */
++		{
++			pmd_t *pmd = pmd_off_k(K4_F5_DATA_VA);
++			unsigned long entry = 0;
++
++			if (!pmd_none(*pmd) &&
++			    !(pmd_val(*pmd) & _PAGE_SUPER))
++				entry = pte_val(*pte_offset_kernel(pmd, K4_F5_DATA_VA));
++			dadao_early_printf("K4 f5 pte data=%#lx present=%lu u=%lu w=%lu "
++					   "pfn=%#lx zero_pfn=%#lx\n", entry,
++					   (entry & _PAGE_PRESENT) ? 1UL : 0UL,
++					   (entry & _PAGE_U) ? 1UL : 0UL,
++					   (entry & _PAGE_WRITE) ? 1UL : 0UL,
++					   (entry & _PAGE_PFN_MASK),
++					   dadao_pf_zero_page_pa());
++			k4_expect("f5-user-pte-present", 1,
++				  (entry & _PAGE_PRESENT) ? 1 : 0, K4_FAIL_UMON_NO_ZERO);
++			k4_expect("f5-user-pte-U", 1, (entry & _PAGE_U) ? 1 : 0,
++				  K4_FAIL_UMON_NO_ZERO);
++		}
++
++		dadao_early_printf("K4 f5 done: syscalls=%d frames=%#lx/%#lx\n",
++				   k4_f5_n + 1, (unsigned long)&k4_f5_frame[0],
++				   (unsigned long)&k4_f5_frame[1]);
++		dadao_early_exit(0);
++	}
++
++	k4_f5_n++;
++	*policy = DADAO_TRAP_RESUME_SKIP;
++	return 1;
++}
++
++void __init dadao_k4_selftest(void)
++{
++	struct kernel_clone_args args = {
++		.flags = 0,
++		.exit_signal = SIGCHLD,
++	};
++	struct task_struct *child;
++	struct pt_regs *regs = current_pt_regs();
++	unsigned long pa_a, pa_b, zero_pa, magic_page, addr, pte;
++	unsigned long parent_pa, child_pa, parent_zero, child_zero;
++	struct page *page;
++	pid_t pid;
++
++	/* ---- F4a: the page source is alloc_page() ------------------------- */
++	pa_a = dadao_pf_alloc_page();
++	pa_b = dadao_pf_alloc_page();
++	if (!pa_a || !pa_b)
++		k4_fail(K4_FAIL_ALLOC, "dadao_pf_alloc_page", pa_a ? pa_b : pa_a);
++	dadao_early_printf("K4 f4 alloc pa1=%#lx pa2=%#lx distinct=%d zeroed=%d "
++			   "count=%lu\n", pa_a, pa_b, pa_a != pa_b,
++			   *(unsigned long *)__va(pa_a) == 0UL &&
++			   *(unsigned long *)__va(pa_b) == 0UL,
++			   dadao_pf_alloc_count());
++	k4_expect("alloc-distinct", 1, pa_a != pa_b, K4_FAIL_ALLOC);
++	k4_expect("alloc-zeroed", 1,
++		  (*(unsigned long *)__va(pa_a) == 0UL) &&
++		  (*(unsigned long *)__va(pa_b) == 0UL), K4_FAIL_ALLOC);
++
++	/* ---- F4b: the zero page is the canonical one ---------------------- */
++	zero_pa = dadao_pf_zero_page_pa();
++	dadao_early_printf("K4 f4 zero_page pa=%#lx canonical_pa=%#lx "
++			   "is_zero_pfn=%d\n", zero_pa,
++			   (unsigned long)page_to_phys(ZERO_PAGE(0)),
++			   is_zero_pfn(page_to_pfn(ZERO_PAGE(0))) ? 1 : 0);
++	if (!zero_pa)
++		k4_fail(K4_FAIL_ZERO_PAGE, "zero_pa", 0);
++	k4_expect("zero-page-canonical", page_to_phys(ZERO_PAGE(0)), zero_pa,
++		  K4_FAIL_ZERO_PAGE);
++
++	/* ---- the parent address space ------------------------------------- */
++	k4_mm = mm_alloc();
++	if (!k4_mm)
++		k4_fail(K4_FAIL_MM, "mm_alloc", 0);
++
++	/*
++	 * The probe task owns the space from here on: `vm_mmap()` maps into
++	 * `current->mm` (there is no other caller of it in the kernel outside
++	 * exec/syscall context), and the page-fault channel takes its
++	 * `find_vma(current->mm)` arm only when the mm is attached.
++	 */
++	current->mm = k4_mm;
++	current->active_mm = k4_mm;
++
++	addr = vm_mmap(NULL, K4_VA_BASE, K4_VA_PAGES * PAGE_SIZE,
++		       PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, 0);
++	dadao_early_printf("K4 f2 mm=%#lx vma=%#lx asid=%lu\n",
++			   (unsigned long)k4_mm, addr,
++			   (unsigned long)k4_mm->context.asid);
++	if (addr != K4_VA_BASE)
++		k4_fail(K4_FAIL_MM, "vm_mmap", addr);
++
++	mmap_write_lock(k4_mm);
++	k4_vma = find_vma(k4_mm, K4_VA_BASE);
++	/*
++	 * The test maps its pages by hand (`k4_map()` fills a PTE the way the
++	 * fault channel does), so the VMA is a *mixed* mapping: its pages are
++	 * not the anonymous-folio kind the generic fork path can reconstitute
++	 * lazily, and `copy_page_range()` must therefore carry them across a
++	 * fork — which is exactly the path F2 judges (and the reason the child's
++	 * private copy is materialised by arch_dup_mmap()).
++	 */
++	if (k4_vma)
++		vm_flags_set(k4_vma, VM_MIXEDMAP);
++	mmap_write_unlock(k4_mm);
++	if (!k4_vma || k4_vma->vm_start != K4_VA_BASE ||
++	    !is_cow_mapping(k4_vma->vm_flags))
++		k4_fail(K4_FAIL_MM, "vma", k4_vma ? k4_vma->vm_flags : 0);
++
++	/* Page 0: a private page with a marker in it.  Page 1: the shared zero
++	 * page, mapped read-only.  Page 2 stays unmapped (nothing to copy). */
++	page = alloc_page(GFP_KERNEL | __GFP_ZERO);
++	if (!page)
++		k4_fail(K4_FAIL_ALLOC, "parent page", 0);
++	magic_page = page_to_phys(page);
++	*(unsigned long *)page_address(page) = K4_MAGIC;
++	k4_map(k4_mm, k4_va(0), magic_page, true);
++	k4_map(k4_mm, k4_va(1), zero_pa, false);
++
++	/* ---- F4c: the lookup goes through find_vma(current->mm) ----------- */
++	{
++		struct vm_area_struct *found = dadao_pf_find_vma(k4_va(0));
++
++		dadao_early_printf("K4 f4 find_vma va=%#lx vma=%#lx-%#lx hit=%d\n",
++				   k4_va(0), found ? found->vm_start : 0UL,
++				   found ? found->vm_end : 0UL, found ? 1 : 0);
++		if (found != k4_vma)
++			k4_fail(K4_FAIL_FIND_VMA, "find_vma", found ? 1 : 0);
++		k4_expect("find-vma-hit", 1, found == k4_vma, K4_FAIL_FIND_VMA);
++	}
++
++	/*
++	 * ---- F1: kernel_clone() creates the child -------------------------
++	 *
++	 * The parent's saved context is the task's own `pt_regs` at the top of
++	 * its kernel stack; the test pins distinguishable values in it so that
++	 * "the child is a copy of the parent" is a real comparison rather than
++	 * two zeroes.
++	 */
++	regs->ip = K4_PARENT_IP;
++	regs->rb[1] = K4_PARENT_SP;
++	regs->rb[3] = K4_PARENT_TP;
++	regs->rd[8] = K4_PARENT_RD8;
++	pid = kernel_clone(&args);
++	dadao_early_printf("K4 f1 clone pid=%d\n", (int)pid);
++	if (pid <= 0)
++		k4_fail(K4_FAIL_CLONE, "kernel_clone_pid", (unsigned long)-(long)pid);
++
++	child = find_get_task_by_vpid(pid);
++	if (!child || !child->mm)
++		k4_fail(K4_FAIL_CHILD, "child_task", child ? 0UL : 1UL);
++
++	dadao_early_printf("K4 f1 child=%#lx mm=%#lx parent_mm=%#lx "
++			   "asid_parent=%lu asid_child=%lu asid_diff=%d\n",
++			   (unsigned long)child, (unsigned long)child->mm,
++			   (unsigned long)k4_mm,
++			   (unsigned long)k4_mm->context.asid,
++			   (unsigned long)child->mm->context.asid,
++			   child->mm != k4_mm);
++	k4_expect("child-own-mm", 1, child->mm != k4_mm, K4_FAIL_CHILD);
++	k4_expect("child-asid-differs", 1,
++		  child->mm->context.asid != k4_mm->context.asid, K4_FAIL_ASID);
++
++	/* The saved context: the parent's frame with the child's return value. */
++	{
++		struct pt_regs *cregs = task_pt_regs(child);
++
++		dadao_early_printf("K4 f1 regs parent_ip=%#lx child_ip=%#lx "
++				   "parent_sp=%#lx child_sp=%#lx child_rd8=%lu "
++				   "child_rb3=%#lx\n", regs->ip, cregs->ip,
++				   regs->rb[1], cregs->rb[1], cregs->rd[8],
++				   cregs->rb[3]);
++		k4_expect("child-ip-copied", K4_PARENT_IP, cregs->ip,
++			  K4_FAIL_REGS);
++		k4_expect("child-sp-copied", K4_PARENT_SP, cregs->rb[1],
++			  K4_FAIL_REGS);
++		k4_expect("child-rd8-zero", 0, cregs->rd[8], K4_FAIL_REGS);
++		k4_expect("child-tp-inherited", K4_PARENT_TP, cregs->rb[3],
++			  K4_FAIL_REGS);
++	}
++
++	/* ---- F2: the address space is a private copy ---------------------- */
++	parent_pa = k4_pte(k4_mm, k4_va(0)) & _PAGE_PFN_MASK;
++	child_pa = k4_pte(child->mm, k4_va(0)) & _PAGE_PFN_MASK;
++	if (!parent_pa || !child_pa)
++		k4_fail(K4_FAIL_CHILD, "pte_present", parent_pa ? child_pa : parent_pa);
++	dadao_early_printf("K4 f2 private parent_pa=%#lx child_pa=%#lx "
++			   "pa_diff=%d content_parent=%#lx content_child=%#lx\n",
++			   parent_pa, child_pa, parent_pa != child_pa,
++			   *(unsigned long *)__va(parent_pa),
++			   *(unsigned long *)__va(child_pa));
++	k4_expect("private-pa-differs", 1, parent_pa != child_pa, K4_FAIL_CHILD);
++	k4_expect("private-content-equal", K4_MAGIC,
++		  *(unsigned long *)__va(child_pa), K4_FAIL_CHILD);
++
++	parent_zero = k4_pte(k4_mm, k4_va(1)) & _PAGE_PFN_MASK;
++	child_zero = k4_pte(child->mm, k4_va(1)) & _PAGE_PFN_MASK;
++	dadao_early_printf("K4 f2 zero parent_pa=%#lx child_pa=%#lx same=%d "
++			   "zero_bytes=%#lx\n", parent_zero, child_zero,
++			   parent_zero == child_zero,
++			   *(unsigned long *)__va(child_zero));
++	k4_expect("zero-pa-shared", 1, parent_zero == child_zero, K4_FAIL_CHILD);
++	k4_expect("zero-page-zeroed", K4_ZERO_MAGIC,
++		  *(unsigned long *)__va(child_zero), K4_FAIL_CHILD);
++	k4_expect("zero-pa-is-zero-pfn", 1,
++		  is_zero_pfn(parent_zero >> PAGE_SHIFT) ? 1 : 0, K4_FAIL_ZERO_PAGE);
++
++	/* The page the parent never touched is not present on either side. */
++	pte = k4_pte(child->mm, k4_va(2));
++	k4_expect("untouched-page-absent", 0, pte & _PAGE_PRESENT, K4_FAIL_CHILD);
++
++	dadao_early_printf("K4 selftest: mm=%#lx child_pid=%d pages=%lu\n",
++			   (unsigned long)k4_mm, (int)pid,
++			   dadao_pf_alloc_count());
++
++	/* ---- F5: enter user mode and come back through cfx_umon ----------- */
++	addr = vm_mmap(NULL, K4_F5_CODE_VA, PAGE_SIZE, PROT_READ | PROT_EXEC,
++		       MAP_PRIVATE | MAP_ANONYMOUS, 0);
++	if (addr != K4_F5_CODE_VA)
++		k4_fail(K4_FAIL_MM, "f5 code vma", addr);
++	addr = vm_mmap(NULL, K4_F5_DATA_VA, PAGE_SIZE, PROT_READ | PROT_WRITE,
++		       MAP_PRIVATE | MAP_ANONYMOUS, 0);
++	if (addr != K4_F5_DATA_VA)
++		k4_fail(K4_FAIL_MM, "f5 data vma", addr);
++
++	/*
++	 * The code page is mapped by hand in the *active* table: K4 has one
++	 * PTBR and it is the kernel's (a task's own table is activated by
++	 * m14-linux-017's switch_mm()), so the probe maps its user page where the
++	 * hardware will look — the same table the page-fault channel fills.
++	 * Nothing is cached for this VA yet, so no invalidation is needed.
++	 */
++	page = alloc_page(GFP_KERNEL | __GFP_ZERO);
++	if (!page)
++		k4_fail(K4_FAIL_ALLOC, "f5 code page", 0);
++	{
++		unsigned long n = (unsigned long)(dadao_k4_user_stub_end -
++						  dadao_k4_user_stub);
++
++		memcpy(page_address(page), dadao_k4_user_stub, n);
++		k4_map_active(K4_F5_CODE_VA, page_to_phys(page),
++			      _PAGE_READ | _PAGE_EXEC | _PAGE_U);
++		dadao_early_printf("K4 f5 enter: ip=%#lx sp=%#lx data_va=%#lx "
++				   "data_pte=%#lx stub_bytes=%lu\n",
++				   K4_F5_CODE_VA, K4_F5_DATA_VA + PAGE_SIZE,
++				   K4_F5_DATA_VA,
++				   k4_pte(&init_mm, K4_F5_DATA_VA), n);
++	}
++
++	k4_f5_pf_before = dadao_pf_entry_count();
++	memset(&k4_f5_frame[0], 0, sizeof(k4_f5_frame));
++	{
++		struct pt_regs frame;
++
++		memset(&frame, 0, sizeof(frame));
++		frame.ip = K4_F5_CODE_VA;
++		/* SP: the program parks in place, so the stack is never touched;
++		 * rb10 is the demand-paged page the second instruction reads. */
++		frame.rb[1] = K4_F5_DATA_VA + PAGE_SIZE;
++		frame.rb[3] = 0;		/* execve clears rbtp (§10) */
++		frame.rb[10] = K4_F5_DATA_VA;
++		frame.rd[15] = 0;		/* syscall number of trap #0 */
++		for (unsigned long k4i = 0; k4i < 32; k4i++) {
++			frame.rd[32 + k4i] = k4_f5_sentinel(K4_F5_SENTINEL_RD, k4i);
++			frame.rb[32 + k4i] = k4_f5_sentinel(K4_F5_SENTINEL_RB, k4i);
++			frame.rf[32 + k4i] = k4_f5_sentinel(K4_F5_SENTINEL_RF, k4i);
++		}
++		dadao_enter_user(&frame);
++	}
++}
