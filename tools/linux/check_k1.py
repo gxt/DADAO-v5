@@ -65,10 +65,13 @@ restoring it: ``cp`` + md5):
       from a post-K1 subsystem appears (init / syscall / IRQ / timer / tick)
   K14 semihosting pointers are PAs (`ISS-450`): a second run on the same Vast
       firmware (PTW already on) executes ``tools/linux/semihost_pa_probe.S``,
-      which hands `SYS_WRITE0` (string), `SYS_WRITEC` (character) and `SYS_OPEN`
-      (file name, length field 0) the **PA** of data whose PA, read as a VA, is
-      *unmapped*.  All three must come back byte-exact; a responder that walks
-      the page table faults on those pointers.  The probe self-checks the
+      which hands `SYS_WRITE0` (a short string and a 640-byte long string that
+      spans the responder's 256-byte block reads), `SYS_WRITEC` (character) and
+      `SYS_OPEN` (file name, length field 0) the **PA** of data whose PA, read
+      as a VA, is *unmapped*.  All of them must come back byte-exact; a
+      responder that walks the page table faults on those pointers, and one
+      that stops at the first block (or whose physical window is cut short)
+      cannot reproduce the long string.  The probe self-checks the
       "unmapped as a VA" premise against the live page table before it prints
       anything.
   K15 the same rule reaches `SYS_READC`'s internal scratch slot (`ISS-452`): a
@@ -309,6 +312,7 @@ SEMI_DATA_OFF = {
     "sp_exit_block": 0x900,     # SYS_EXIT {reason, code}
     "sp_open_block": 0x940,     # SYS_OPEN {name pointer, mode, length}
     "sp_path": 0x980,           # the SYS_OPEN file name
+    "sp_long": 0x1030,          # SYS_WRITE0 long string (m14-qemu-007)
 }
 SEMI_EXIT_BLOCK_OFF = SEMI_DATA_OFF["sp_exit_block"]
 #: The Arm semihosting console name the responder special-cases (the probe's
@@ -316,41 +320,50 @@ SEMI_EXIT_BLOCK_OFF = SEMI_DATA_OFF["sp_exit_block"]
 SEMI_CONSOLE_NAME = b":tt"
 
 
-def semi_console_oracle() -> tuple[bytes, bytes, bytes, bytes, bytes]:
+def semi_console_oracle() -> tuple[bytes, bytes, bytes, bytes, bytes, bytes]:
     """Console expectation from the probe source, in file order.
 
-    ``(SYS_WRITE0 string, SYS_WRITEC characters, SYS_OPEN ok marker,
-    SYS_OPEN bad marker, SYS_OPEN file name)``.
+    ``(SYS_WRITE0 string, SYS_WRITE0 long string, SYS_WRITEC characters,
+    SYS_OPEN ok marker, SYS_OPEN bad marker, SYS_OPEN file name)``.
 
     Same oracle discipline as `run_semihosting_smoke`: the expectation is the
-    `.ascii` text of the probe, decoded here, never QEMU's own output.
+    `.ascii` text of the probe, decoded here, never QEMU's own output.  The
+    long string is the concatenation of every `.ascii` payload **after** the
+    SYS_OPEN name, so it can be written as several readable lines.
     """
     payloads = [part for line in SEMI_PROBE_S.read_text(encoding="utf-8").splitlines()
                 for part in run_semihosting_smoke._ascii_payloads(line)]
-    if len(payloads) != 5:
+    if len(payloads) < 6:
         raise SystemExit(
-            f"check_k1: {SEMI_PROBE_S.name}: expected 5 .ascii payloads "
-            f"(string, characters, open-ok, open-bad, file name), "
+            f"check_k1: {SEMI_PROBE_S.name}: expected >= 6 .ascii payloads "
+            f"(string, characters, open-ok, open-bad, file name, long string), "
             f"found {len(payloads)}")
-    payload, chars, mark_ok, mark_bad, path = payloads
+    payload, chars, mark_ok, mark_bad, path = payloads[:5]
+    long_payload = b"".join(payloads[5:])
+    if len(long_payload) <= 2 * 256:
+        raise SystemExit(
+            f"check_k1: {SEMI_PROBE_S.name}: long string is "
+            f"{len(long_payload)} B, must exceed two 256-byte block reads")
     if path != SEMI_CONSOLE_NAME:
         raise SystemExit(f"check_k1: {SEMI_PROBE_S.name}: SYS_OPEN name is "
                          f"{path!r}, expected {SEMI_CONSOLE_NAME!r}")
     # The markers must be distinguishable from the printed text, otherwise a
     # dropped SYS_OPEN result could hide inside the payload.
     for mark in (mark_ok, mark_bad):
-        if mark in payload or mark in chars or len(mark) != 1:
-            raise SystemExit(f"check_k1: {SEMI_PROBE_S.name}: marker {mark!r} "
-                             f"is not a single byte outside the payload")
+        for text in (payload, chars, long_payload):
+            if mark in text or len(mark) != 1:
+                raise SystemExit(f"check_k1: {SEMI_PROBE_S.name}: marker "
+                                 f"{mark!r} is not a single byte outside the "
+                                 f"payload")
     if mark_ok == mark_bad:
         raise SystemExit(f"check_k1: {SEMI_PROBE_S.name}: open markers equal")
-    return payload, chars, mark_ok, mark_bad, path
+    return payload, long_payload, chars, mark_ok, mark_bad, path
 
 
 def build_semihost_probe(ctx: Ctx) -> tuple[Path, tuple[bytes, ...]]:
     """Assemble+link the PA probe; returns (elf, console oracle parts)."""
     oracle = semi_console_oracle()
-    payload, _chars, _ok, _bad, _path = oracle
+    payload, _long, _chars, _ok, _bad, _path = oracle
 
     def va_of(symbol: str) -> int:
         return ctx.entry_va + SEMI_DATA_OFF[symbol]
@@ -362,6 +375,7 @@ def build_semihost_probe(ctx: Ctx) -> tuple[Path, tuple[bytes, ...]]:
         "ENTRY_VA": ctx.entry_va,
         "PAYLOAD_VA": va_of("sp_payload"),
         "PAYLOAD_PA": pa_of("sp_payload"),
+        "LONG_PA": pa_of("sp_long"),
         "CHARSET_PA": pa_of("sp_chars"),
         "MARK_OK_PA": pa_of("sp_mark_ok"),
         "MARK_BAD_PA": pa_of("sp_mark_bad"),
@@ -446,11 +460,15 @@ def run_semihost_probe(ctx: Ctx, elf: Path) -> tuple[int, bytes]:
 
 def check_semihost_pa(rep: Report, rc: int, console: bytes) -> None:
     """Console services + SYS_OPEN must read their pointers by PA (PTW on)."""
-    payload, chars, mark_ok, mark_bad, _path = semi_console_oracle()
+    payload, long_payload, chars, mark_ok, mark_bad, _path = semi_console_oracle()
     rep.check("K14", "QEMU 未自行报错（探针不是启动失败）", False,
               b"qemu-system-dadao:" in console)
     rep.check("K14", "SYS_WRITE0：字符串经 PA 取出（该 PA 作为 VA 未映射）",
               True, payload in console)
+    # 长串：跨 256 字节分块读、起点不在分块边界 ⇒ 长度探测必须走完整个
+    # physical map 的窗口（不是只读一块），且长度/内容都正确（m14-qemu-007）。
+    rep.check("K14", "SYS_WRITE0：长串（>2×256 B，跨分块）经 PA 完整取出",
+              True, long_payload in console)
     rep.check("K14", "SYS_WRITEC：字符经 PA 取出（该 PA 作为 VA 未映射）", True,
               chars in console)
     # SYS_OPEN 的无长度文件名经 `common_semi_strlen` 钩子 + `lock_user`（identity = PA）
@@ -459,7 +477,7 @@ def check_semihost_pa(rep: Report, rc: int, console: bytes) -> None:
                      "（该 PA 作为 VA 未映射）", True,
               mark_ok in console and mark_bad not in console)
     rep.check("K14", "控制台字节 == 探针源文件推导的 oracle",
-              payload + chars + mark_ok, console)
+              payload + long_payload + chars + mark_ok, console)
     rep.check("K14", "SYS_EXIT：参数块经 PA 读取（guest rc）", 0, rc)
 
 
@@ -971,15 +989,17 @@ def run_selfcheck(qemu: str, bootrom: Path) -> int:
             bad += 1
 
     # K14 reads the *second* run's console bytes (the PA probe), so it is
-    # flipped on a captured console: dropping either service must redden it.
-    # 4 flips read the run itself / an image copy (K5, K2, K3, K4), 2 are K14's.
-    groups = len(TEXT_MUTATIONS) + 4 + 3
-    payload, chars, mark_ok, mark_bad, _path = semi_console_oracle()
-    green = payload + chars + mark_ok
+    # flipped on a captured console: dropping either service, truncating the
+    # long string, or failing SYS_OPEN must redden it.
+    # 4 flips read the run itself / an image copy (K5, K2, K3, K4), 4 are K14's.
+    groups = len(TEXT_MUTATIONS) + 4 + 4
+    payload, long_payload, chars, mark_ok, mark_bad, _path = semi_console_oracle()
     for label, console in (
-            ("WRITE0 缺串", chars + mark_ok),
-            ("WRITEC 缺字", payload + mark_ok),
-            ("SYS_OPEN 失败标记", payload + chars + mark_bad)):
+            ("WRITE0 缺串", long_payload + chars + mark_ok),
+            ("WRITE0 长串截断", payload + long_payload[:len(long_payload) // 2]
+                                + chars + mark_ok),
+            ("WRITEC 缺字", payload + long_payload + mark_ok),
+            ("SYS_OPEN 失败标记", payload + long_payload + chars + mark_bad)):
         rep = Report(quiet=True)
         with contextlib.redirect_stdout(io.StringIO()):
             check_semihost_pa(rep, 0, console)

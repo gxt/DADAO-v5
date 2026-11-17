@@ -25,8 +25,13 @@
 @@ Console expectation is derived from this file by the gate (the `.ascii`
 @@ payloads below, in file order): [0] SYS_WRITE0 string, [1] SYS_WRITEC
 @@ characters, [2] SYS_OPEN success marker, [3] SYS_OPEN failure marker,
-@@ [4] the file name handed to SYS_OPEN.  Never from QEMU's own output:
+@@ [4] the file name handed to SYS_OPEN, then everything after it concatenated
+@@ = the SYS_WRITE0 long string (m14-qemu-007).  Never from QEMU's own output:
 @@   SYS_WRITE0 (0x04, string pointer = PAYLOAD_PA)   -> "W0PAOK\n"
+@@   SYS_WRITE0 (0x04, string pointer = LONG_PA)      -> 640 bytes (> 2 x the
+@@     responder's 256-byte block read, and the string starts 48 bytes into such
+@@     a block) — the length probe must cross block boundaries and return the
+@@     exact length; a truncated measurement shows up as a byte-exact mismatch
 @@   SYS_WRITEC (0x03, char pointers  = charset PAs)  -> "XYZ"
 @@   SYS_OPEN   (0x01, block {name PA, mode 0, len 0}) -> "+" (handle >= 0)
 @@                                                       or "-" (EFAULT)
@@ -36,6 +41,8 @@
 @@ none of them is a literal in the body):
 @@   ENTRY_VA          kernel-window base VA (contract: kernel.start)
 @@   PAYLOAD_PA/VA     SYS_WRITE0 string VA (mapped) and its PA (unmapped as VA)
+@@   LONG_PA           PA of the SYS_WRITE0 long string (same "unmapped as VA"
+@@                     rule; longer than the responder's block read)
 @@   CHARSET_PA        PA of the first SYS_WRITEC character ("XYZ")
 @@   MARK_OK_PA        PA of the SYS_OPEN success marker
 @@   MARK_BAD_PA       PA of the SYS_OPEN failure marker
@@ -86,6 +93,15 @@ sc_b_ok:
 
 	@@ ---- SYS_WRITE0 (0x04): NUL-terminated string, pointer = its PA ------
 	LOAD_ADDR rb16, PAYLOAD_PA
+	set.zw	rd16, wp0, 0x0004
+	trap	cfx_umon, 0x3FF00
+
+	@@ ---- SYS_WRITE0 (0x04) again: the long string (m14-qemu-007) -------
+	@@ Same pointer rule (PA of data whose PA-as-VA is unmapped), but the text
+	@@ is longer than the responder's 256-byte block read and starts 48 bytes
+	@@ into such a block, so a page-table walk or a truncated measurement
+	@@ (first block only / window cut short) cannot produce it byte-exactly.
+	LOAD_ADDR rb16, LONG_PA
 	set.zw	rd16, wp0, 0x0004
 	trap	cfx_umon, 0x3FF00
 
@@ -173,4 +189,17 @@ sp_open_block:
 	.org	0x980
 sp_path:
 	.ascii	":tt"
+	.dd.b08	0
+
+	@@ ---- the SYS_WRITE0 long string (m14-qemu-007) ---------------------
+	@@ 640 bytes = 2.5 x the responder's 256-byte block read, starting 48
+	@@ bytes into the first block: the length probe must join three block
+	@@ reads.  No "+"/"-" so the SYS_OPEN markers stay findable.
+	.org	0x1030
+sp_long:
+	.ascii	"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	.ascii	"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	.ascii	"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	.ascii	"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	.ascii	"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	.dd.b08	0

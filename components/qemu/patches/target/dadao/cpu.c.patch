@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..d583099
+index 0000000..317461f
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,645 @@
+@@ -0,0 +1,656 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -142,7 +142,18 @@ index 0000000..d583099
 +
 +static int dadao_cpu_mmu_index(CPUState *cs, bool ifetch)
 +{
-+    /* M1: no MMU, single index */
++    /*
++     * One index for both build modes: a hart has exactly one address space
++     * (DADAO-12 §2.2, ADR-0039), so no index has to encode a mode or a
++     * context.  This says nothing about translation: on kaiwu-vast the memory
++     * window's two-level walk is consulted inside dadao_cpu_tlb_fill() --
++     * never through a separate "translated" index -- and every input that can
++     * change its result (PTBR, ptw_enable, ASID, the two-axis cfx masks, TLB
++     * commands) drops QEMU's derived translation cache in the same write
++     * (dadao_soft_tlb_flush(), ADR-0041 D5), so a stale entry cannot outlive
++     * the guest state it was derived from.  kaiwu-tiny has no PTW at all
++     * (spec/Kaiwu §1.2).
++     */
 +    return 0;
 +}
 +
