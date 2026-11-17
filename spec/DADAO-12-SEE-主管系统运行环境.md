@@ -358,7 +358,27 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 
 ### 3.4 cg3 - hypv mode 寄存器
 
-H-mode 寄存器（cg=3）定义见 HEE。
+每个核芯功能扩展中针对超管模式（hypv）有以下寄存器（cg=3）。这部分寄存器的读写，只有当前运行环境是 hypv 时才能进行，否则触发 CFXREG 异常。
+
+| cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
+|----|----|---------|---------|--------|------|------|
+| 3 | 0 | hypv cfxtrap cfx mask | cfx_⟨cfxname⟩_hypv_cfxtrap | `0xFFFF_FFFF_FFFF_FFF7`（hmon 自身 `0x7FFF_FFFF_FFFF_FFF7`） | RW | `trap`/`escape` 控制转移，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
+| 3 | 1 | hypv cfxmem cfx mask | cfx_⟨cfxname⟩_hypv_cfxmem | 同上 | RW | 直接 `ld/st` 访问该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
+| 3 | 2 | hypv cfxreg cfx mask | cfx_⟨cfxname⟩_hypv_cfxreg | 同上 | RW | `cfx2rd`/`cfx2rc` 访问，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
+| 3 | 3 | hypv cfxexe cfx mask | cfx_⟨cfxname⟩_hypv_cfxexe | 同上 | RW | 直接跳转/取指进入该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
+| 3 | 4 | hypv cfx intr mask | cfx_⟨cfxname⟩_hypv_cfx_intr_mask | 全1 | RW | 异步中断来源 cfx 掩码，0=允许，1=屏蔽。按当前 cfx 过滤 |
+| 3 | 8 | hypv switch run mode | cfx_⟨cfxname⟩_hypv_switch_run_mode | 3 (hypv) | RW | 从hypv陷入时切换的运行模式 |
+| 3 | 9 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
+| 3 | 10 | hypv excp vector | cfx_⟨cfxname⟩_hypv_excp_vector | 该 cfx 内部 SRAM 的起始地址（无内部 SRAM 者由平台/实现定义） | RW | 从hypv陷入时的异常向量入口地址；**写入忽略低 2 位**（`value[1:0] ← 0`，按 4 字节对齐落盘），不产生异常 |
+| 3 | 11 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
+| 3 | 12 | hypv cg reg delegation | cfx_⟨cfxname⟩_hypv_cg_reg_deleg | 全1 | RW | cg访问授权，bit=0时允许supv访问。bit3固定为1 |
+
+`rc0`–`rc3` 为四类同步来源 mask，`rc4` 为异步中断来源 mask；位索引=源 cfx，`0=允许`、`1=屏蔽`，自身只绕过 cfx 轴。`rc5`–`rc7` 保留，访问触发 `CFXREG`。`cfx0`–`cfx3` 的 `cg8`/`rc1` 为 `global_cfx_intr_mask`（见 §3.1）。
+
+`rc10`（`hypv_excp_vector`）的初值与写入：
+
+- **初值**：该 cfx **内部 SRAM 的起始地址**（有内部 SRAM 的 cfx 见 §2.1 核内地址空间表）；**无内部 SRAM 的 cfx**（如 `cfx_power` 的 BootROM、`cfx_umon`/`cfx_jmon`）由平台/实现定义。有内部 SRAM 的 cfx，其 HBI 初始化入口应位于该 SRAM 起始（即初值所指），据此满足 HBI §3「各 cfx 的 `hypv_excp_vector` 复位值应指向其 HBI 初始化入口」。
+- **写入忽略低 2 位**：`value[1:0] ← 0`（4 字节对齐落盘），**不产生异常**；读回为落盘值（低 2 位为 0）。
 
 ### 3.5 cg4 - 核芯功能扩展配置寄存器
 
@@ -521,7 +541,9 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 |----|----|---------|---------|--------|------|------|
 | 8 | 1 | global cfx intr mask | cfx_hmon_global_cfx_intr_mask | 全1 | RW | 当前 hypv 模式 monitor 的全局中断来源掩码，0=允许，1=屏蔽 |
 
-异常原因编码与 cfx_umon 一致（`CFXMEM`/`CFXPERM` 的 `cause_info` 恒为地址，子原因见 §3.6（wyde3 / wyde2））。详细定义见 HEE。
+hmon 为 hypv 下的同步异常处理核芯功能扩展，处理 hypv 下的同步异常。hmon 核芯功能扩展的寄存器的读写，只有当前运行环境是 hypv 时才能进行，否则触发 CFXREG 异常。
+
+异常原因编码与 cfx_umon 一致（表见 §4.1）；`CFXMEM`/`CFXPERM` 的 `cause_info` 与子原因见 §3.6（wyde3 / wyde2）。
 
 ### 4.5 cfx_ptw - page table walker
 
@@ -982,6 +1004,8 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.7.3-rc（未发布）
+
+- `DADAO-13` 的第 1、2 章正文并入本册：`cg3` 寄存器表与 `rc10` 初值/写入口径并入 `§3.4 cg3 - hypv mode 寄存器`，hmon 说明段并入 `§4.4 cfx_hmon - hypervisor monitor`；hmon 异常原因表不再重复，引 `§4.1`/`§3.6`。依据原话：「请把 DADAO-13 的第一章第二章移动至 DADAO-12，DADAO-13 只保留个引用就行。」
 
 - 屏障指令 `fence cfxHA, immu18`：`cfx0`/`cfx_umon` 表示 all cfx，`cfx1`–`cfx63` 指定 cfx；资源域顺序只约束本 hart，不等待 DMA。
 - cfx 编号调整：`cfx5` 为 `cache`（原 `cfx6` 迁入）；`cfx6`–`cfx14`、`cfx19`–`cfx61` 保留。

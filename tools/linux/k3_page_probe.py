@@ -14,7 +14,7 @@ Nothing is restated here — every expectation is derived from its owner:
   * the sub-reason bits and their wyde        -> ``contract-see §6.1.1`` (the
     per-bit table) and §6.1 (the shape rule), checked against the kernel's own
     ``arch/dadao/include/asm/cause-sub.h``;
-  * the 11 big classes                        -> ``spec/DADAO-13 §2``
+  * the 11 big classes                        -> ``spec/DADAO-12 §4.1``
   * the exit-code segmentation                -> ``spec/Kaiwu §7.1``
   * the page geometry (offset width, entries) -> ``spec/DADAO-12 §2.2.2``
   * the page size the image really has        -> the image's ``.config``

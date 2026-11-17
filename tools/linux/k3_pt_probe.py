@@ -13,7 +13,7 @@ Nothing is restated here — every expectation is derived from its owner:
   * the page-offset width and the per-level entry count -> §2.2.2
   * the invalidation encoding (op/scope/ASID_ANY)  -> ``contract-tlb`` TLB-19
   * the ASID register width                       -> ``contract-tlb`` TLB-04
-  * the cause id of CFXMEM                        -> ``spec/DADAO-13 §2``
+  * the cause id of CFXMEM                        -> ``spec/DADAO-12 §4.1``
   * the self-check codes (guest segment)          -> ``spec/Kaiwu §7.1``
   * the page size / geometry the image really has -> the image's ``.config``
   * the data-page markers                         -> the kernel source itself
@@ -87,7 +87,6 @@ IMAGE = [
 ]
 
 SPEC_DADAO12 = _REPO / "spec" / "DADAO-12-SEE-主管系统运行环境.md"
-SPEC_DADAO13 = _REPO / "spec" / "DADAO-13-HEE-超管系统运行环境.md"
 SPEC_MACHINE = _REPO / "spec" / "Kaiwu-测试机运行环境.md"
 CONTRACT_TLB = _REPO / ".tao" / "contracts" / "contract-tlb.md"
 SOURCE = linux_paths.linux_source_dir()

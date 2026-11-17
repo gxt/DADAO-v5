@@ -25,7 +25,7 @@ clean.
 
 Expectations are derived live — this file restates none of them:
 
-  * cause table / bit indices / exit-code segments -> ``spec/DADAO-13 §2`` and
+  * cause table / bit indices / exit-code segments -> ``spec/DADAO-12 §4.1`` and
     ``spec/Kaiwu §7.1`` (through the K2 exception gate's parsers);
   * ``cfx_time_freq`` -> ``.tao/contracts/contract-see.md §3``;
   * ``HZ`` -> the ``.config`` captured with the image under test;
@@ -251,7 +251,7 @@ def cause_of(table, name: str) -> tuple[int, str]:
     for cause_id, cause_name in table:
         if cause_name == name:
             return cause_id, cause_name
-    raise SystemExit(f"check_k2: spec/DADAO-13 §2 has no cause {name!r}")
+    raise SystemExit(f"check_k2: spec/DADAO-12 §4.1 has no cause {name!r}")
 
 
 # ---------------------------------------------------------------------------
@@ -474,7 +474,7 @@ def check_exception(rep: Report, rc: int, text: str, d: dict) -> None:
     first = rows[0] if rows else None
     rep.check("E2", "预先声明的 CFXMEM 命中 1 次", 1,
               first["hit"] if first else "<missing>")
-    rep.check("E3", "命中行的原因名 == spec/DADAO-13 §2 的表名", cause_name,
+    rep.check("E3", "命中行的原因名 == spec/DADAO-12 §4.1 的表名", cause_name,
               first["cause"] if first else "<missing>")
     rep.check("E4", "命中行的 info == probe_va", probe_va,
               first["info"] if first else "<missing>")

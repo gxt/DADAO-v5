@@ -6,45 +6,11 @@
 
 ## 1. cg3 - hypv mode 寄存器
 
-每个核芯功能扩展中针对超管模式（hypv）有以下寄存器（cg=3）。这部分寄存器的读写，只有当前运行环境是 hypv 时才能进行，否则触发 CFXREG 异常。
-
-| cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
-|----|----|---------|---------|--------|------|------|
-| 3 | 0 | hypv cfxtrap cfx mask | cfx_⟨cfxname⟩_hypv_cfxtrap | `0xFFFF_FFFF_FFFF_FFF7`（hmon 自身 `0x7FFF_FFFF_FFFF_FFF7`） | RW | `trap`/`escape` 控制转移，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
-| 3 | 1 | hypv cfxmem cfx mask | cfx_⟨cfxname⟩_hypv_cfxmem | 同上 | RW | 直接 `ld/st` 访问该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
-| 3 | 2 | hypv cfxreg cfx mask | cfx_⟨cfxname⟩_hypv_cfxreg | 同上 | RW | `cfx2rd`/`cfx2rc` 访问，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
-| 3 | 3 | hypv cfxexe cfx mask | cfx_⟨cfxname⟩_hypv_cfxexe | 同上 | RW | 直接跳转/取指进入该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
-| 3 | 4 | hypv cfx intr mask | cfx_⟨cfxname⟩_hypv_cfx_intr_mask | 全1 | RW | 异步中断来源 cfx 掩码，0=允许，1=屏蔽。按当前 cfx 过滤 |
-| 3 | 8 | hypv switch run mode | cfx_⟨cfxname⟩_hypv_switch_run_mode | 3 (hypv) | RW | 从hypv陷入时切换的运行模式 |
-| 3 | 9 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
-| 3 | 10 | hypv excp vector | cfx_⟨cfxname⟩_hypv_excp_vector | 该 cfx 内部 SRAM 的起始地址（无内部 SRAM 者由平台/实现定义） | RW | 从hypv陷入时的异常向量入口地址；**写入忽略低 2 位**（`value[1:0] ← 0`，按 4 字节对齐落盘），不产生异常 |
-| 3 | 11 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
-| 3 | 12 | hypv cg reg delegation | cfx_⟨cfxname⟩_hypv_cg_reg_deleg | 全1 | RW | cg访问授权，bit=0时允许supv访问。bit3固定为1 |
-
-`rc0`–`rc3` 为四类同步来源 mask，`rc4` 为异步中断来源 mask；位索引=源 cfx，`0=允许`、`1=屏蔽`，自身只绕过 cfx 轴。`rc5`–`rc7` 保留，访问触发 `CFXREG`。`cfx0`–`cfx3` 的 `cg8`/`rc1` 为 `global_cfx_intr_mask`（见 SEE §3.1）。
-
-`rc10`（`hypv_excp_vector`）的初值与写入：
-
-- **初值**：该 cfx **内部 SRAM 的起始地址**（有内部 SRAM 的 cfx 见 SEE §2.1 核内地址空间表）；**无内部 SRAM 的 cfx**（如 `cfx_power` 的 BootROM、`cfx_umon`/`cfx_jmon`）由平台/实现定义。有内部 SRAM 的 cfx，其 HBI 初始化入口应位于该 SRAM 起始（即初值所指），据此满足 HBI §3「各 cfx 的 `hypv_excp_vector` 复位值应指向其 HBI 初始化入口」。
-- **写入忽略低 2 位**：`value[1:0] ← 0`（4 字节对齐落盘），**不产生异常**；读回为落盘值（低 2 位为 0）。
+本节正文见 SEE `§3.4 cg3 - hypv mode 寄存器`。
 
 ## 2. cfx_hmon - hypervisor monitor
 
-hmon 为 hypv 下的同步异常处理核芯功能扩展，处理 hypv 下的同步异常。hmon 核芯功能扩展的寄存器的读写，只有当前运行环境是 hypv 时才能进行，否则触发 CFXREG 异常。
-
-| excp cause id | 名称      | 触发条件      | 是否可屏蔽 | excp cause info                |
-| --------   | ------  | --------- | ---------- | ---------                   |
-| `1 << 0`   | CFXTRAP | 功能调用      | 否 | 指令编码                        |
-| `1 << 1`   | CFXMEM  | 访问核内地址空间或内部存储块故障 | 否 | 访存地址 |
-| `1 << 2`   | CFXREG  | 非法核芯功能扩展寄存器访问 | 否 | 指令编码                        |
-| `1 << 3`   | CFXESC  | escape 帧或目标错误 | 否 | 指令编码                        |
-| `1 << 7`   | CFXPERM | cfx 两轴权限拒绝 | 否 | 访存地址 |
-| `1 << 8`   | ILLI    | 非法指令      | 否 | 指令编码                        |
-| `1 << 9`   | UNDI    | 未定义指令     | 否 | 指令编码                        |
-| `1 << 10`  | RASOF   | RAS上溢     | 否 | 准备压栈的返回地址                   |
-| `1 << 11`  | RASUF   | RAS下溢     | 否 | 全零（无效）                      |
-| `1 << 12`  | MALIGN  | 非对齐访存    | 否 | 访存地址                        |
-| `1 << 13`  | IALIGN  | 取指未对齐    | 否 | IP 值                          |
+本节正文见 SEE `§4.4 cfx_hmon - hypervisor monitor`；异常原因编码与 `cfx_umon` 同表（见 `§4.1 cfx_umon - user monitor`），`CFXMEM`/`CFXPERM` 的 `cause_info` 与子原因见 SEE `§3.6 cg5 - 异常现场寄存器`。
 
 ## 3. 启动与引导移交
 
@@ -57,6 +23,8 @@ hmon 为 hypv 下的同步异常处理核芯功能扩展，处理 hypv 下的同
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.1.4-rc（未发布）
+
+- 第 1、2 章正文并入 SEE：`cg3` 寄存器表与 `rc10` 初值/写入口径见 SEE `§3.4 cg3 - hypv mode 寄存器`，hmon 说明段见 SEE `§4.4 cfx_hmon - hypervisor monitor`；本册两节只保留引用，章节编号保留作锚点。依据原话：「请把 DADAO-13 的第一章第二章移动至 DADAO-12，DADAO-13 只保留个引用就行。」
 
 - `cfx_⟨cfxname⟩_hypv_excp_vector`（`cg3 rc10`）**必须有初值 = 该 cfx 内部 SRAM 的起始地址**（无内部 SRAM 的 cfx 由平台/实现定义）；写入**忽略低 2 位**（`value[1:0] ← 0`，4 字节对齐落盘），不产生异常。
 

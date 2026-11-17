@@ -641,7 +641,11 @@ group = "dadao-1x"
 #   拒绝 = 触发指令地址，与 `excp_cause_ip` 同值，刻意统一）」口径；§2.2.6 七步优先级逐步对应子原因位；
 #   §4.1–§4.6 的 `CFXMEM`/`CFXPERM` 行注明 `info` 恒为地址与子原因 wyde；附录 0.7.3-rc 补一条；退出码仍取低位
 #   cause 索引。版本不变（仍 `0.7.3-rc`）；sha256 同笔重算（其余 20 册不变）。
-sha256 = "d0b27146a124a434920062900a3267fac642be2dfb6fbbab514033a8e78b1d65"
+# 2026-11-17（m14-spec-008，授权原话「请把 DADAO-13 的第一章第二章移动至 DADAO-12，DADAO-13 只保留个引用就行」）：
+#   §3.4 cg3 - hypv mode 寄存器 由「定义见 HEE」占位改为 HEE §1 全文（cg3 表 rc0–rc12 + 四类同步 mask 段 +
+#   rc10 初值/写入段）；§4.4 cfx_hmon 迁入 hmon 说明段、原因表改引 §4.1/§3.6；附录 0.7.3-rc 补内容条目。
+#   版本号不变（仍 0.7.3-rc）；sha256 同笔重算（其余 20 册不变）。
+sha256 = "9e3e3b73dec2b27175cb59b354c1d000cdd8da726d6b428cf73ccaf8e8aa0f61"
 
 [[spec]]
 path = "spec/DADAO-13-HEE-超管系统运行环境.md"
@@ -662,7 +666,9 @@ group = "dadao-1x"
 #   恒为地址」）：§2 hmon 异常原因表的 `CFXPERM` 行 `info` 由「访存地址或指令编码」收敛为「**访存地址**」（`cfxexe`
 #   拒绝 = 目标 IP、`cfxtrap`/`cfx2rd`/`cfx2rc` 拒绝 = 触发指令地址，均属地址，细则见 SEE `§3.6`）；附录 `0.1.4-rc`
 #   补一条（版本不变：`0.1.4-rc` 未发布）。仅本册重算 sha256（其余 20 册不变）。
-sha256 = "c06c94aff0aef80bc2f1d676e44a6100900eeb007028b33f22d6e7d1fef6402c"
+# 2026-11-17（m14-spec-008，授权同上）：§1/§2 正文并入 SEE（DADAO-12 §3.4 / §4.4），本册两节只保留标题 + 引用行、
+#   章节编号作锚点；原因表不再在本册重复；附录 0.1.4-rc 补内容条目。版本号不变（仍 0.1.4-rc）；sha256 同笔重算。
+sha256 = "6a39d00370600cbf3bc56ebb8e0d2f4b5d20b484e1579ab26ea328763fdf9f96"
 
 [[spec]]
 path = "spec/DADAO-21-ABI-应用程序二进制接口.md"
@@ -933,4 +939,9 @@ group = "kaiwu"
 #   `cfx_ptw_tlb_control` 写指令同步完成（回写失败在该写指令上报 `CFXMEM`、按条目级不得部分完成）/ per-hart
 #   （跨 hart 一致性不在本册范围，问题落点 `ISS-459`）/ 实现范围 = QEMU 建模 + `tests/arch` 探针为跨实现判据；
 #   附录 0.4.7-rc 补一条；版本不变（0.4.7-rc）；sha256 同笔重算（其余 20 册不变）。
-sha256 = "841d93d275967199dac5799989e686e4ad3154adc78d862d1d31468e5e07c751"
+# 2026-11-17（m14-spec-008，授权同上：DADAO-13 第 1/2 章并入 DADAO-12）：9 行活跃指针改指新位置——
+#   `DADAO-13 §1` → `DADAO-12 §3.4 cg3 - hypv mode 寄存器`（7 行：§1.1 表、cg3 段首句「定义见 HEE」、
+#   switch_run_mode 段、启动链段、§4.4 进入目标、BootROM 初始化清单、附录一条）；`DADAO-13 §2` →
+#   `DADAO-12 §4.1 cfx_umon - user monitor`（异常原因同表：§4.4 规定范围 + 附录一条，2 行）。语义未变；
+#   版本号不变（仍 0.4.7-rc）；sha256 同笔重算（其余 20 册不变）。
+sha256 = "6b26cd6f10a35bb6ebea8e24429f17aad6fd40b4334d05e983702dff85d1d23d"

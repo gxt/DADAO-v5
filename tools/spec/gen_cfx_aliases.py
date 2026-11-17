@@ -4,7 +4,9 @@
 Sources
 -------
 * ``spec/DADAO-12-SEE-主管系统运行环境.md`` -- cfxha↔cfxname table + cg0-7 tables
-* ``spec/DADAO-13-HEE-超管系统运行环境.md`` -- cg3 (hypv) table
+  (cg3/hypv among them)
+* ``spec/DADAO-13-HEE-超管系统运行环境.md`` -- no register table (cg3 正文并入
+  DADAO-12 §3.4；本册只留引用)
 
 Two alias types per ADR-0017 D3/D4:
   1. **Scalar**: ``cfx_<cfxname>``  ⇔  ``cfx<code>``
@@ -253,8 +255,8 @@ def render_markdown(
     lines.append("本文档由生成器从 spec 寄存器表机械生成。**禁止手工维护** ✗。")
     lines.append("")
     lines.append("生成来源：")
-    lines.append(f"- `spec/DADAO-12-SEE-主管系统运行环境.md`（cfxha↔cfxname 表 + cg0-7/cg4-7 寄存器表 + 各 cfx 专有寄存器表）")
-    lines.append(f"- `spec/DADAO-13-HEE-超管系统运行环境.md`（cg3 hypv 寄存器表）")
+    lines.append(f"- `spec/DADAO-12-SEE-主管系统运行环境.md`（cfxha↔cfxname 表 + cg0-7 寄存器表（含 `§3.4` cg3/hypv 表）+ cg4-7 寄存器表 + 各 cfx 专有寄存器表）")
+    lines.append(f"- `spec/DADAO-13-HEE-超管系统运行环境.md`（cg3 正文已并入 `DADAO-12` `§3.4`，本册只留引用）")
     lines.append(f"- 生成器：`tools/spec/gen_cfx_aliases.py`")
     lines.append("")
     lines.append("映射规则见 `ADR-0017`（D3 标量别名、D4 寄存器别名查表、D8 机械生成、D9 独立生成附录）。")

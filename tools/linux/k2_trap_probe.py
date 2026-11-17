@@ -11,7 +11,9 @@ What this gate asserts, and where each expectation comes from (nothing is
 restated here):
 
   * the cause table (11 names + ids) -> parsed live out of
-    ``spec/DADAO-13 §2`` (contract-see §6.1 is the same table);
+    ``spec/DADAO-12 §4.1 cfx_umon`` (the monitor 原因表 is shared by
+    ``cfx_umon``/``jmon``/``smon``/``hmon``; contract-see §6.1 is the same
+    table);
   * the exit-code segmentation -> parsed live out of
     ``spec/Kaiwu §7.1``: the segment ranges, the run-mode encoding
     (``supv = 10b``) and the 11 monitor bit indices;
@@ -36,7 +38,7 @@ Checks:
   C2  plain image: stage order (boot info -> stack -> vector -> table -> switch
       -> setup_arch -> cause table -> K2 boundary) and SYS_EXIT(0); the K2
       boundary is the last line; no clock/timer/IRQ bring-up before it
-  C3  cause table == spec/DADAO-13 §2 (ids, names, order) and the dispatcher
+  C3  cause table == spec/DADAO-12 §4.1 (ids, names, order) and the dispatcher
       reports the same count
   C4  the entry the kernel installed is its own vector, and the escape offsets
       it may use are the contract's two
@@ -130,7 +132,7 @@ IMAGES["cfxesc"] = _image(selftest=True, terminal="CFXESC")
 #: The images whose boot ends in the terminal case (rc is the case's verdict).
 TERMINAL_IMAGES = ("probe", "reentry", "cftrap", "cfxesc")
 
-SPEC_DADAO13 = _REPO / "spec" / "DADAO-13-HEE-超管系统运行环境.md"
+SPEC_DADAO12 = _REPO / "spec" / "DADAO-12-SEE-主管系统运行环境.md"
 SPEC_MACHINE = _REPO / "spec" / "Kaiwu-测试机运行环境.md"
 CONTRACT_SEE = _REPO / ".tao" / "contracts" / "contract-see.md"
 SOURCE = linux_paths.linux_source_dir()
@@ -172,17 +174,17 @@ class Report:
 # ---------------------------------------------------------------------------
 
 def spec_cause_table() -> list[tuple[int, str]]:
-    """The 11 ``excp_cause_id`` rows of ``spec/DADAO-13 §2`` in table order."""
-    text = SPEC_DADAO13.read_text(encoding="utf-8")
-    section = text.split("## 2. cfx_hmon", 1)
+    """The 11 ``excp_cause_id`` rows of ``spec/DADAO-12 §4.1 cfx_umon``."""
+    text = SPEC_DADAO12.read_text(encoding="utf-8")
+    section = text.split("### 4.1 cfx_umon", 1)
     if len(section) != 2:
-        raise SystemExit("k2_trap_probe: spec/DADAO-13 §2 not found")
-    body = section[1].split("\n## ", 1)[0]
+        raise SystemExit("k2_trap_probe: spec/DADAO-12 §4.1 cfx_umon not found")
+    body = section[1].split("\n### ", 1)[0]
     rows = re.findall(r"^\|\s*`1\s*<<\s*(\d+)`\s*\|\s*`?(\w+)`?\s*\|",
                       body, re.MULTILINE)
     table = [(1 << int(bit), name) for bit, name in rows]
     if len(table) != 11:
-        raise SystemExit(f"k2_trap_probe: spec/DADAO-13 §2 parsed "
+        raise SystemExit(f"k2_trap_probe: spec/DADAO-12 §4.1 parsed "
                          f"{len(table)} causes, expected 11: {table}")
     return table
 
@@ -437,9 +439,9 @@ def check_plain(rc: int, text: str, rep: Report, specs: dict, table,
         rep.check("C3", "cause 表行存在", "存在", "缺失")
         return
     printed = re.findall(r"(\w+)=(0x[0-9a-fA-F]+)", m.group(2))
-    rep.check("C3", "cause 表条目数 == spec/DADAO-13 §2", len(table),
+    rep.check("C3", "cause 表条目数 == spec/DADAO-12 §4.1", len(table),
               int(m.group(1)))
-    rep.check("C3", "cause 名字/编号逐项 == spec/DADAO-13 §2",
+    rep.check("C3", "cause 名字/编号逐项 == spec/DADAO-12 §4.1",
               [(name, hex(cid)) for cid, name in table],
               [(name, cid) for name, cid in printed])
 
@@ -1078,7 +1080,7 @@ def main() -> int:
     table = spec_cause_table()
     plain_code = _monitor_code(specs, "supv", "CFXMEM")
     print(f"k2: qemu={k0.DEFAULT_QEMU} md5={md5(Path(k0.DEFAULT_QEMU))[:8]}")
-    print(f"k2: spec/DADAO-13 §2 causes={len(table)} "
+    print(f"k2: spec/DADAO-12 §4.1 causes={len(table)} "
           f"spec/Kaiwu §7.1 supv={specs['modes']['supv']:02b}b "
           f"CFXMEM index={specs['indices']['CFXMEM']} "
           f"=> supv+CFXMEM exit code {hex(plain_code)}")
