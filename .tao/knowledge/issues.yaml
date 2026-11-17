@@ -868,3 +868,10 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`m16-chipyard-003` 收尾后遗留 5 条非阻断 finding（两轮 reviewer 一致）：① `components/chipyard/changelog.md` L133 与 `README.md` L204 仍写「`printf`+`stop()` 具名失败」，实际通道是 `chisel3.assert`（Verilator `$error`、`rc=255`）；② changelog 的 sim md5 `7bcf2e2f…` 与 README/完成区 `2fb79602…` 不一致；③ 完成区写「904/904」，实测镜像 272/272（口径混用）；④ 完成区「`m14-testcases-005` 待返工」已过时（已合入 master；但 chipyard 无 TLB ⇒ ptw 探针仍不可跑，实质正确）；⑤ 证据脚本 `run.sh` F 段 `rebuild X && eq …rc… 0 \"$?\"` 是恒真式——重建失败会被 `&&` 短路吞掉，本次正因此把「elab 被杀」误显成 `sim ends cleanly 255`；E 段 `--jobs 8` 应改「核数−2」。处置：文档三处改写 + 证据脚本改为先取 rc 再断言。"
+- id: ISS-468
+  scope:
+  - llvm
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`llvm-objdump` 对 `rf` 银行寄存器号断言崩溃（`DADAOInstPrinter::getRegisterName` 越界），`tests/inst/**/*_rf.S` 的 9 个镜像无法生成 IP→助记符表（`m16-chipyard-001` 实测；本轮改用固定布局探针 `.dd.t32` + 已知编码字补测 `ftcls`/`focls`/`rf2rf`）。影响：任何按 objdump 反汇编做周期/语义测量的工具对这 9 例都失效。处置：修 `getRegisterName` 的 rf 银行映射并补 lit 用例（含 rf 银行全部指令）。"
