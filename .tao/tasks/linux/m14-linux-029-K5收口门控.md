@@ -38,8 +38,9 @@ DADAO 特有事实（沿 K0–K3 门控口径，**不得偏离**）：
 2. `--selfcheck` 每组至少一次「翻转输入 ⇒ 红」（S/C/F/T/G/P/R 各一）。
 3. **≥4 路可达 FAIL 注入**（`cp`+md5 还原 + 重建回绿）：① errno 写 `rd1` ⇒ S 红；② `CLONE_SETTLS` 不设 rbtp ⇒ C 红；③ `SIGSEGV` 走 `DADAO_PF_FATAL` ⇒ G 红；④ `AT_PAGESZ` 写 4096 ⇒ P 红。
 4. **不回归**：`make check-linux-k0/-k1/-k2/-k3` rc=0（不跑 `check-modules`）。
-5. `docs/Process-07` L2 组成表含 `check-linux-k5`；`make help` 有对应行；`GATE_LOCKED_TARGETS`/`PHONY`/`_locked-check-modules` 含之（grep 取证）。
-6. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`。
+5. **端到端 pthread 代表例**（用户 2026-11-17 裁定）：initramfs 里跑一个 `pthread_create`/join/共享变量的最小程序，断言线程创建、TLS（`rb3`）、共享 `mm` 与 join 返回正确（这是 `024` 内核侧自检之外的唯一端到端覆盖）。
+6. `docs/Process-07` L2 组成表含 `check-linux-k5`；`make help` 有对应行；`GATE_LOCKED_TARGETS`/`PHONY`/`_locked-check-modules` 含之（grep 取证）。
+7. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`。
 
 ## 硬约束
 

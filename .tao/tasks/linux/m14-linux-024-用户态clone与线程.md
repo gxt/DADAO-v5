@@ -50,8 +50,8 @@ DADAO 特有事实（`contract-syscall §10/§11`，**不得偏离**）：
 
 ## 待裁定（本任务不得自决；主会话转达用户后回填）
 
-1. **`execve` 清 0 实现点**：同 `023` 待裁定 1（若用户选 musl 校准，本任务的 TLS 用户面只做「入口保存/返回恢复 + `clone` SETTLS」，清 0 交 musl 任务）。
-2. **pthread 类测试的载体**：本任务验收用**内核侧 clone 自检**（`kernel_thread` 风格 + 用户态 flag）；「真实 musl `pthread_create`」端到端依赖 musl 移植 + `futex`（`025`），是否在本任务断言由用户定（建议：留 `029` 收口门控做端到端，本任务只做 clone 语义）。
+1. ~~**`execve` 清 0 实现点**~~ **已裁定（用户 2026-11-17 选 A）**：内核 `start_thread` 清 `rbtp=0`（`023` 同口径）；本任务 TLS 用户面做「入口保存/返回恢复 + `clone` SETTLS」，不重复清 0。
+2. ~~**pthread 类测试的载体**~~ **已裁定（用户 2026-11-17，选 A）**：本任务用**内核侧 clone 自检**（`k5_clone_probe.py`：`CLONE_VM` 共享 mm/asid、`CLONE_SETTLS` 子 `rb3=tls`、`CLONE_THREAD` `tgid`、子入口 `rd8=0`）；**真实 musl `pthread_create` 端到端留 `029` 收口门控**做代表例（与 015 的「门控只跑代表例」口径一致）。
 
 ## 审阅记录
 
