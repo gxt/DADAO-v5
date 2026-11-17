@@ -10,7 +10,9 @@
 
 ## 背景（用户 2026-11-17）
 
-`ADR-0052` 已就地修订：M14 出口扩到 **K6（busybox 启动）**。K6 采用**静态 busybox**（不依赖 ldso），最小 applet 集 = `sh` + `ls/cat/echo/mkdir/rm/cp/mv/grep/ps`（`ps` 在无 `/proc` 时退化为打印自身/空表）。首版**不做 `/proc`、不做作业控制**。
+`ADR-0052` 已就地修订：M14 出口扩到 **K6（busybox 启动）**。**busybox 版本 = `1.38.0`（用户 2026-11-17 指定）**。K6 采用**静态 busybox**（不依赖 ldso），最小 applet 集 = `sh` + `ls/cat/echo/mkdir/rm/cp/mv/grep/ps`（`ps` 在无 `/proc` 时退化为打印自身/空表）。首版**不做 `/proc`、不做作业控制**。
+
+**源码锁定**：`manifests/components.lock.toml` 新增 `[[component]] name = "busybox"`，`repository = "https://github.com/mirror/busybox.git"`、`shallow_ref = "1_38_0"`、`commit` 取该 tag 的 40 字符 commit（**不以 tag 作最终身份**）；下载源（镜像）由用户确认后填入 `[[component.source]]`。不得自行选定镜像并下载。
 
 ## 目标
 
@@ -22,7 +24,7 @@
 ## 验收（逐条贴真实 rc）
 
 1. `busybox` 产出存在、`file`/`readelf` 显示静态（无 `PT_INTERP`、无 `PT_DYNAMIC`）。
-2. applet 清单 = 约定集合（逐项 `readelf`/`busybox --list` 核对）。
+2. applet 清单 = 约定集合（逐项 `readelf`/`busybox --list` 核对）；`busybox --version` 输出 `BusyBox v1.38.0`（版本断言）。
 3. 工具链缺口逐条登记（blocker 0 才可继续；有 blocker 则写明解锁条件并 BLOCKED）。
 4. 构建幂等：二次构建产物哈希一致（或给出非确定性归因）。
 5. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`。
