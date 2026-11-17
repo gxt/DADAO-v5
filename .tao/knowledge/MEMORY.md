@@ -4,6 +4,7 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
+- **2026-11-18 00:45（017 首轮未达验收）**：`m14-linux-017` 已交付 `__switch_to`/`switch_mm`/最小 clockevent（探针 39 PASS / 3 FAIL），但 **S5（用户 A↔B 往返）与 S7/F3（initramfs `/init` 真跑）未打通**，F8（同镜像 S2 被执行两次）根因未定位 ⇒ 状态保持 `待开始`，**未提交**。**待裁定 3**（任务书）：任务背景「不保存 ra 数组」在硬件上不成立（`ret` 落点由 `RACNT/ra0/ra63` 决定），当前实现保存整条 RAS（每次切换 +4 条块传送），需用户确认接受或另定机制。
 - **2026-11-18 00:20（夜间续跑）**：`m14-linux-016` 已收尾（合入 `6ddb3bbd`，F5 打通、101/101）；`m14-linux-017` 已派单（夜跑，7–9 h：`switch_to`+调度+U-mode 帧往返+最小 clockevent+F3/init）。**`m15-testcases-012` 仍待合入**（与 011 16 处链接冲突，明早按「crt0/runtime/dadao-* → ee-user；kaiwu-tiny*.lds → ee-tiny；`-L` 并存」解）。
 - **2026-11-17 23:40（夜间交接）**：`m15-testcases-011` 已收尾（tiny 资产 → `tests/ee-tiny/`）；**`m15-testcases-012` 复核 Accepted 但未合入**——与 011 在 16 个链接点冲突（`-L` 需并存 `ee-tiny`+`ee-user`，`crt0/runtime/dadao-*` 走 `ee-user`，`kaiwu-tiny*.lds` 走 `ee-tiny`），明早解冲突后合入并跑 `check-tests-index`+链接冒烟。`m14-linux-016` 复核判 Needs Revision（`--selfcheck` 循环迭代单字符），修复中；提交时必须显式 stage `components/linux/patches/init/main.c.patch`。
 - **2026-11-17 14:05（M16 收口 + K3 收尾中）**：`m16-chipyard-001` 已收尾（周期模型全量复测，实测 261+可配 2；B1/B3 裁定={①}，R2/R3 作废）；`m14-linux-012` 已收尾（196/196、9 路注入）；`m14-linux-015` reviewer Accepted，L3 `check-arch` 由主会话在跑，之后处理 3 条非阻断 finding 再收尾。`m15-testcases-009`、`m14-qemu-007` 已收尾。
