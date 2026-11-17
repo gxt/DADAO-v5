@@ -1,7 +1,7 @@
-# m14-testcases-007: tiny 资产集中到 `tests/ee-tiny/`（脚本 + bootrom + lds）
+# m15-testcases-011: tiny 资产集中到 `tests/ee-tiny/`（脚本 + bootrom + lds）
 
 **模块**：testcases
-**项目里程碑**：M14
+**项目里程碑**：M15
 **依赖**：无（纯目录/路径迁移；测试集内容不变）
 **可并行分片**：否（跨目录引用唯一）
 **预估**：2–3 h

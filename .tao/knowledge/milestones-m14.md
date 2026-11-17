@@ -49,8 +49,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-testcases-008 | 2026-11-17 23:12 | 2–3 h | user 执行环境资产集中到 `tests/ee-user/`（12 脚本 + 5 crt/lds/runtime；测试集不动） |
-| m14-testcases-007 | 2026-11-17 22:40 | 2–3 h | tiny 资产集中到 `tests/tiny/`（4 脚本 + 10 bootrom + 3 lds；测试集不动） |
 | m14-linux-016 | 2026-11-17 19:41 | 8–10 h | 进程骨架（copy_process/dup_mm）+ kernel_thread/kthreadd + 最小 U-mode 入口（F3 栈 VMA 移 017；依赖 testcases-006） |
 
 ## 已验证
