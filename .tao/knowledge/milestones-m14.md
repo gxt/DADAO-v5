@@ -34,7 +34,6 @@
 
 | m14-linux-034 | 3–4 h | K6 收口门控 `check-linux-k6`（代表例 + §4a 退役） |
 | m14-linux-018 | 4–5 h | COW：fork 共享只读页→写复制旧内容/改 PTE/失效（5 判据） |
-| m14-linux-019 | 3–4 h | 用户栈增长：VM_GROWSDOWN 下方扩栈（S1–S6） |
 | m14-linux-020 | 2–3 h | 内核线程：kernel_thread(CLONE_FS|FILES)/kthreadd/kthread_create 最小面（用户 clone/TLS 归 K5） |
 | m14-linux-023 | 4–6 h | 用户态 syscall 闭环（umon 入口+分发表+errno rd8 负值+TLS rb3 入口保存/恢复） |
 | m14-linux-024 | 3–5 h | 用户 clone/线程（CLONE_VM/SETTLS/THREAD + TLS 用户面；子 rd8=0+父返 tid） |
@@ -48,6 +47,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-linux-019 | 2026-11-18 06:40 | 3–4 h | 用户栈增长：`VM_GROWSDOWN` 下方扩栈（S1–S6，真实用户进程触发） |
 | m14-linux-017 | 2026-11-18 00:20 | 7–9 h | 上下文切换（switch_to + 调度 + U-mode↔S-mode 帧往返）+ 最小 clockevent + F3/init 真跑 |
 
 ## 已验证
