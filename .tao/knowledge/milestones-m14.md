@@ -33,6 +33,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-testcases-006 | 2026-11-17 20:37 | 1–1.5 h | 固件：除 hmon 外全部 cfx 的 supv 四类 mask 清 smon 位（含负例；linux-016 F5 依赖） |
 | m14-linux-016 | 2026-11-17 19:41 | 8–10 h | 进程骨架（copy_process/dup_mm）+ kernel_thread/kthreadd + execve 建栈 VMA + 最小 U-mode 入口 |
 
 ## 已验证

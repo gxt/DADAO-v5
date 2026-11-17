@@ -1,7 +1,7 @@
-# m15-testcases-011: 固件把全部 cfx 的 supv 权限转交 smon（除 hmon 自身）
+# m14-testcases-006: 固件把全部 cfx 的 supv 权限转交 smon（除 hmon 自身）
 
 **模块**：testcases
-**项目里程碑**：M15
+**项目里程碑**：M14
 **依赖**：无（`tests/shared/bootrom/k0/hmon.S` 现状）
 **可并行分片**：否（单一 bootrom 镜像）
 **预估**：1–1.5 h
