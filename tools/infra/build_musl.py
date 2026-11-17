@@ -128,8 +128,9 @@ REPO_ROOT = paths.repo_root()
 TOOLCHAIN_BIN = paths.host_toolchain_bin()
 MUSL_SRC = REPO_ROOT / ".work" / "source" / "musl"
 LDS = REPO_ROOT / "tests" / "ee-tiny" / "kaiwu-tiny.lds"
-# `INCLUDE dadao-common.lds` is found through -L (common script stays shared).
-SHARED_LDS_DIR = REPO_ROOT / "tests" / "shared" / "linker"
+# 资产归属（m15-testcases-011/012）：Tiny lds 在 `tests/ee-tiny/`，被它
+# `INCLUDE` 的 `dadao-common.lds` 在 `tests/ee-user/`（ld.lld 只搜 cwd + -L）。
+COMMON_LDS_DIR = REPO_ROOT / "tests" / "ee-user"
 
 TARGET = "dadao-unknown-elf"
 EM_DADAO = 0x0DA0
@@ -592,7 +593,8 @@ def compile_program(work: Path) -> Path:
 
 def link_program(work: Path, obj: Path) -> Path:
     elf = work / "musl_smoke.elf"
-    cmd = [str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(SHARED_LDS_DIR), "-T", str(LDS),
+    cmd = [str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(LDS.parent),
+           "-L", str(COMMON_LDS_DIR), "-T", str(LDS),
            str(MUSL_SRC / "lib" / "crt1.o"), str(obj), str(MUSL_SRC / "lib" / "libc.a"),
            "-o", str(elf)]
     res = run(cmd, cwd=REPO_ROOT)
@@ -616,7 +618,7 @@ def link_dynamic_program(work: Path, obj: Path, so: Path) -> Path:
       PT_DYNAMIC are never emitted -- and the link still succeeds (rc=0), so
       that script silently yields a non-interpreted ET_EXEC.  Wrong tool for
       this job.
-    * ``tests/shared/linker/dadao-dyn.lds`` targets ET_DYN (``-shared`` / ``-pie``)
+    * ``tests/ee-user/dadao-dyn.lds`` targets ET_DYN (``-shared`` / ``-pie``)
       and its single RWX segment starts at vaddr 0.  The smoke crt (crt1.o) is
       non-PIC, so an ET_EXEC at the RAM base/at 0 cannot carry it here.
 

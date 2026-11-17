@@ -48,6 +48,13 @@
 > benchmark）。**运行目录名仍按 `Process-08`**（`<test-artifacts>/<suite>-user/…`），
 > 不改 `tset/<suite>/` 形状（收口见 P6）。
 
+> **2026-11-17 更新（`m15-testcases-011`/`012`，M15）**：执行环境专属资产按环境归口（平铺）——
+> qemu-user / gem5 SE（12 脚本 + `minimal_crt0.s`/`dadao_mem_runtime.ll`/
+> `dadao_user_dyn_probe.c`/`dadao-common.lds`/`dadao-dyn.lds`）→ `tests/ee-user/`；
+> Tiny（4 脚本 + bootrom + `kaiwu-tiny{,-app}.lds`/`picolibc-tiny.ld`）→ `tests/ee-tiny/`；
+> 测试集目录不动。`dadao-common.lds` 与 tiny lds 分居两目录 ⇒ 链接行须同时带
+> `-L tests/ee-tiny` 与 `-L tests/ee-user`（lld 的 `INCLUDE` 只搜 cwd + `-L`）。
+
 > **2026-10-27 更新（`TESTCASES-074t`，P4）**：旧 `llvm/` 的 `lit/{MC,CodeGen}`、
 > `codegen/{M3,m4,m6}`、`ir-lli` → `tests/unit/llvm/`（迁移期
 > 符号链接已由 084t 删除）；picolibc 自测入口 → `tests/unit/picolibc/`（仍只在 picolibc
@@ -207,16 +214,17 @@ tools/testcases/
   `tools/testcases/unit/`；embench 系统态端到端驱动 → `tools/testcases/tset/embench/`；
   跨模块接口一致性检查 `check_interface_alignment.py` → `tools/infra/`（静态检查，归 L1）。
 - 旧 `tests/scripts/embench_*`（P6 已删除）与旧 `tools/testcases/run_embench_user_suite.py` 已合并为
-  `tools/testcases/tset/embench` 一份（`TESTCASES-075t`）；套件独有 glue →
-  `tests/tset/embench/`，共享运行时 → `tests/shared/runtime/dadao_mem_runtime.ll`。
+  `tests/ee-user/run_embench_user_suite.py` 一份（`TESTCASES-075t`；`m15-testcases-012` 迁入
+  `tests/ee-user/`）；套件独有 glue → `tests/tset/embench/`，共享运行时 →
+  `tests/ee-user/dadao_mem_runtime.ll`。
 - `tests/shared/` 只放**非用例**数据（bootrom、linker、crt0、宏、公共期望）。
 - **执行环境独有资产 → `tests/ee-<env>/`**（`env` 见 `contracts/exec-envs.yaml`；平铺、不建子目录）：
   `tests/ee-tiny/` = Kaiwu-Tiny 专属的驱动（asm/picolibc/embench/semihosting 四个脚本）+ bootrom + lds
   （`m15-testcases-011`）；`tests/ee-user/`、`tests/ee-vast/` 同规则。判据：只服务一个执行环境 ⇒ `ee-<env>/`；
   被 ≥2 环境复用 ⇒ `tests/shared/`。
 - **glue（测试胶水）**：把上游套件/被测程序接到 DADAO 的**非用例**代码与数据，分三类：
-  1. **链接/布局**：`tests/ee-tiny/kaiwu-tiny{,-app}.lds`、`tests/shared/linker/dadao-{common,dyn}.lds`、`tests/shared/bootrom/bootrom.lds`（基址、段、对齐）；
-  2. **启动/运行时**：`crt0`（`minimal_crt0.s`）、bootrom（`tests/ee-tiny/{bootrom,bootrom_app}.S`；Tiny 的 `-bios` 用 **64 KiB 固定固件** `bootrom/tiny/bootrom_tiny.bin`，旧 trampoline 已于 M13 退役）、`embench_runtime.c`/`embench_user_boardsupport.c`、`picolibc_test_crt0.s`；
+  1. **链接/布局**：`tests/ee-tiny/kaiwu-tiny{,-app}.lds`、`tests/ee-user/dadao-{common,dyn}.lds`、`tests/shared/linker/kaiwu-vast.lds`、`tests/shared/bootrom/bootrom.lds`（基址、段、对齐）；
+  2. **启动/运行时**：`crt0`（`tests/ee-user/minimal_crt0.s`）、bootrom（`tests/ee-tiny/{bootrom,bootrom_app}.S`；Tiny 的 `-bios` 用 **64 KiB 固定固件** `bootrom/tiny/bootrom_tiny.bin`，旧 trampoline 已于 M13 退役）、`embench_runtime.c`/`embench_user_boardsupport.c`、`picolibc_test_crt0.s`；
   3. **接口桩**：syscall/semihosting stub、`SYS_EXIT`/console 适配、公共宏/头（`embench_include/`）。
   - **不是 patch**：patch 只用于**改上游组件源码**（`components/<name>/patches/**`，如 picolibc `semihost-dadao.S`、embench `boardsupport.c`、musl `arch/dadao`）；测试胶水**不改上游**，是我们自己的文件。
   - **不只是链接脚本**：链接脚本只是第 1 类。
@@ -348,7 +356,7 @@ cmd: python3 tests/ee-tiny/run_asm_suite.py --id add.si_riii_rd --platforms qemu
 | 原始基线 JSON（数据） | 逐例 `status`/`exit`/时长 + 机器指纹 | 跑批任务（如 `m13-testcases-00x`） | 运行期目录；被引用时升格 `.tao/knowledge/refs/` | 原始数据否；被引 summary 是 |
 | 逐例报告（派生） | 归一化逐例行 + 归因标记（机器派生；人读结论另册） | 生成器（`tools/testcases/parity/*.py`） | 运行期目录 | 否 |
 | 矩阵快照（展示） | `docs/TestReports/M13-三平台差分矩阵.md` | 生成器渲染 + 证据脚本写入 | `docs/TestReports/<M>-<主题>.md` | 是（只重建，不手改） |
-| 生成器（代码） | `run_parity.py` / `se_tset_matrix.py` / `three_platform_matrix.py` | 任务实现 | `tools/testcases/parity/` | 是 |
+| 生成器（代码） | `run_parity.py` / `three_platform_matrix.py`（`tools/testcases/parity/`）、`se_tset_matrix.py`（`tests/ee-user/`） | 任务实现 | `tools/testcases/parity/` + `tests/ee-user/` | 是 |
 
 - **快照只从已入库 JSON 重建**：三平台矩阵的 `--check` 要求入库册与重建结果**逐字节一致**；因此快照不写「重建时刻」（册头「生成时间」= 基线数据时间），也不写运行期路径，只写机器指纹（CPU / 引擎 md5+版本 / 源码 tree hash / driver md5）。
 - **chipyard 列未就绪**：核未就绪（`m12-chipyard-007` 未开始）时该列记 `N/A` 并附依据（不是伪值）；填列由 `m13-integ-002`/`003` 用 canonical 输入完成，生成器对非 `N/A` 行强制 `owner` + `basis`（fail-closed）。
@@ -408,6 +416,6 @@ cmd: python3 tests/ee-tiny/run_asm_suite.py --id add.si_riii_rd --platforms qemu
 
 ### 17.2 落点
 
-- 拆分器与入库参考：`tools/testcases/tset/llvm-ts/ref_split.py` → `tests/tset/llvm-ts/refs/`（`index.tsv` 钉上游文档 sha256 与两路哈希；`--check` 防漂移，驱动加载时校验索引）。
-- 驱动：`tools/testcases/tset/llvm-ts/run_llvm_ts_user.py`（qemu 两路分文件捕获；gem5 直接用 `guest.stdout` / `guest.stderr`）。
+- 拆分器与入库参考：`tests/ee-user/ref_split.py` → `tests/tset/llvm-ts/refs/`（`index.tsv` 钉上游文档 sha256 与两路哈希；`--check` 防漂移，驱动加载时校验索引）。
+- 驱动：`tests/ee-user/run_llvm_ts_user.py`（qemu 两路分文件捕获；gem5 直接用 `guest.stdout` / `guest.stderr`）。
 

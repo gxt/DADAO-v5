@@ -43,12 +43,13 @@ from datetime import datetime, timedelta, timezone
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))))
 
-# Paths relative to `tools/testcases/` (TESTCASES-075t: tset drivers moved to
-# `tools/testcases/tset/<suite>/`; the old flat paths are thin wrappers).
+# Paths relative to the repo root (m15-testcases-012: the user-mode suite
+# drivers moved to `tests/ee-user/`; `tools/testcases/run_*.py` are thin
+# wrappers that keep the old command lines).
 DRIVERS = (
-    os.path.join("tset", "libc-test", "run_libc_test_user_suite.py"),
-    os.path.join("tset", "llvm-ts", "run_llvm_ts_user.py"),
-    os.path.join("tset", "embench", "run_embench_user_suite.py"),
+    os.path.join("tests", "ee-user", "run_libc_test_user_suite.py"),
+    os.path.join("tests", "ee-user", "run_llvm_ts_user.py"),
+    os.path.join("tests", "ee-user", "run_embench_user_suite.py"),
 )
 RUN_DIR_RE = re.compile(r"^\d{8}T\d{6}Z-")
 # 任务号两种并存（用户 2026-11-08，m12-infra-001）：旧 `PREFIX-nnn[suffix]` 与新
@@ -70,9 +71,10 @@ def _read(path: str) -> str:
 
 
 def _driver_dir(root: str | None) -> str:
+    """Base directory for `DRIVERS` (repo root: `tests/ee-user/`)."""
     if root:
-        return os.path.join(root, "tools", "testcases")
-    return os.path.join(REPO_ROOT, "tools", "testcases")
+        return root
+    return REPO_ROOT
 
 
 # ---------------------------------------------------------------------------
@@ -369,9 +371,9 @@ def _write(path: str, text: str) -> None:
 
 
 def _clean_tree(tree: str) -> None:
-    src = os.path.join(REPO_ROOT, "tools", "testcases")
-    dst = os.path.join(tree, "tools", "testcases")
-    os.makedirs(dst, exist_ok=True)
+    src = REPO_ROOT
+    dst = tree
+    os.makedirs(os.path.join(dst, "tests", "ee-user"), exist_ok=True)
     for name in DRIVERS:
         target = os.path.join(dst, name)
         os.makedirs(os.path.dirname(target), exist_ok=True)
@@ -424,7 +426,7 @@ def self_test(base: str) -> int:
 
     # 2. A1: --json-out loses required=True.
     tree = fresh()
-    path = os.path.join(tree, "tools", "testcases", "tset", "libc-test",
+    path = os.path.join(tree, "tests", "ee-user",
                         "run_libc_test_user_suite.py")
     text = _read(path)
     injected = text.replace('"--json-out", required=True',
@@ -438,7 +440,7 @@ def self_test(base: str) -> int:
 
     # 3. A1: a fixed DEFAULT_LOG_DIR fallback reappears.
     tree = fresh()
-    path = os.path.join(tree, "tools", "testcases", "tset", "llvm-ts",
+    path = os.path.join(tree, "tests", "ee-user",
                         "run_llvm_ts_user.py")
     _write(path, _read(path) + '\nDEFAULT_LOG_DIR = ".work/log/testcases"\n')
     out = []

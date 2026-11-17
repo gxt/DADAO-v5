@@ -15,8 +15,8 @@
 均**未改动**。`--list` 只打印代表集（供门控/证据核对）。
 
 用法：
-    python3 tools/testcases/tset/libc-test/run_smoke.py --list
-    python3 tools/testcases/tset/libc-test/run_smoke.py --link-mode static \
+    python3 tests/ee-user/run_libc_test_smoke.py --list
+    python3 tests/ee-user/run_libc_test_smoke.py --link-mode static \
         --json-out /tmp/.../libc-smoke.json
 （其余参数原样转发给 `run_libc_test_user_suite.py`。）
 """
@@ -29,7 +29,7 @@ import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.normpath(os.path.join(HERE, "..", "..", "..", ".."))
+REPO_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 DRIVER = os.path.join(HERE, "run_libc_test_user_suite.py")
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "testcases"))

@@ -100,14 +100,15 @@ ALLOWED = {
         "0xFFFF_0000_0000": "negative target: legacy RAM removed => UNMAPPED",
         "0xFFFF00000000": "negative target: legacy RAM removed => UNMAPPED",
     },
-    # tset/llvm-ts 属 qemu-user/gem5 SE，非 Kaiwu FS profile（任务书 §范围）。
-    "tools/testcases/tset/llvm-ts/run_llvm_ts_user.py": {
+    # tests/ee-user 的 qemu-user 驱动属 qemu-user/gem5 SE，非 Kaiwu FS profile
+    # （任务书 §范围；m15-testcases-012 起集中到 `tests/ee-user/`）。
+    "tests/ee-user/run_llvm_ts_user.py": {
         "0xFC0000000000": "qemu-user scripted VA base; out of Kaiwu scope",
     },
-    "tools/testcases/tset/libc-test/run_libc_test_user_suite.py": {
+    "tests/ee-user/run_libc_test_user_suite.py": {
         "0xFC0000000000": "qemu-user scripted VA base; out of Kaiwu scope",
     },
-    "tools/testcases/tset/embench/run_embench_user_suite.py": {
+    "tests/ee-user/run_embench_user_suite.py": {
         "0xFC0000000000": "qemu-user scripted VA base; out of Kaiwu scope",
     },
 }
@@ -245,9 +246,9 @@ def check_profile_lds(root: Path):
         elif int(mheap.group(1).replace("_", ""), 16) != expected_heap:
             errors.append(f"LDS: {rel} __heap_end {mheap.group(1)} != "
                           f"sp-0x1000 {expected_heap:#x}")
-    common = root / "tests/shared/linker/dadao-common.lds"
+    common = root / "tests/ee-user/dadao-common.lds"
     if not common.is_file():
-        errors.append("LDS MISSING: tests/shared/linker/dadao-common.lds")
+        errors.append("LDS MISSING: tests/ee-user/dadao-common.lds")
     else:
         ctext = common.read_text(encoding="utf-8")
         for sym in ("__bss_start = .;", "__bss_end = .;",
@@ -707,7 +708,7 @@ def _write_profile_lds(root: Path, tamper: str | None = None) -> None:
         path = root / TESTS_REL / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
-    common = root / TESTS_REL / "shared" / "linker" / "dadao-common.lds"
+    common = root / TESTS_REL / "ee-user" / "dadao-common.lds"
     common.parent.mkdir(parents=True, exist_ok=True)
     common.write_text(
         "  .bss : ALIGN(8) { __bss_start = .; *(.bss) __bss_end = .; } > RAM\n"

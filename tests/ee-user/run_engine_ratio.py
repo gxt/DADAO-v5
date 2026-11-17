@@ -61,18 +61,16 @@ import subprocess
 import sys
 
 REPO_ROOT = os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".."))
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
 SUITES = ("libc-test", "llvm-ts", "embench")
 
 DRIVERS = {
-    "libc-test": os.path.join(
-        "tools", "testcases", "tset", "libc-test",
-        "run_libc_test_user_suite.py"),
-    "llvm-ts": os.path.join(
-        "tools", "testcases", "tset", "llvm-ts", "run_llvm_ts_user.py"),
-    "embench": os.path.join(
-        "tools", "testcases", "tset", "embench", "run_embench_user_suite.py"),
+    "libc-test": os.path.join("tests", "ee-user",
+                              "run_libc_test_user_suite.py"),
+    "llvm-ts": os.path.join("tests", "ee-user", "run_llvm_ts_user.py"),
+    "embench": os.path.join("tests", "ee-user",
+                            "run_embench_user_suite.py"),
 }
 
 ENGINES = ("qemu", "gem5-se")

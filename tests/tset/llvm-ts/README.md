@@ -8,11 +8,12 @@
 | 用途 | 命令 |
 |---|---|
 | L2 代表集 | `make check-tset-llvm-smoke` |
-| 套件全量（按需/回归运行） | `python3 tools/testcases/tset/llvm-ts/run_llvm_ts_user.py --link-mode static --jobs 4 --json-out /tmp/.../llvm.json` |
-| 代表集规则（不跑 guest） | `python3 tools/testcases/tset/llvm-ts/run_smoke.py --list` |
+| 套件全量（按需/回归运行） | `python3 tests/ee-user/run_llvm_ts_user.py --link-mode static --jobs 4 --json-out /tmp/.../llvm.json` |
+| 代表集规则（不跑 guest） | `python3 tests/ee-user/run_llvm_ts_smoke.py --list` |
 
-- 驱动实现：`tools/testcases/tset/llvm-ts/run_llvm_ts_user.py`
-  （`TESTCASES-075t` 从 `tools/testcases/` 迁入；旧路径 = 薄 wrapper，命令行等价）。
+- 驱动实现：`tests/ee-user/run_llvm_ts_user.py`、`tests/ee-user/run_llvm_ts_smoke.py`
+  （`m15-testcases-012` 从 `tools/testcases/tset/llvm-ts/` 迁入；`tools/testcases/run_llvm_ts_user.py`
+  仍是等价薄 wrapper）。
 - 运行目录 / 三件套：`<test-artifacts>/llvm-ts-user/<UTC>-llvm-ts-user-<档>/`
   （`docs/Process-08`；目录名**未改**）。
 
@@ -85,13 +86,13 @@
 上游 `RunSafely.sh` 把 stdout/stderr 指向**同一文件**，`*.reference_output` 因此是
 **单条交错流**；判据按通道比对（`docs/Process-09 §17`），**不拼接、不用 `2>&1`**：
 
-- 拆分器：`tools/testcases/tset/llvm-ts/ref_split.py`。依据是**源码里的
+- 拆分器：`tests/ee-user/ref_split.py`。依据是**源码里的
   `fprintf(stderr, …)` 格式串**（`#define X stderr` 别名、`#define NAME "text"`
   字符串宏都解析；纯数字格式只在整个行匹配时才用；内容匹配只作交叉校验）。
 - 入库结果：`refs/index.tsv` + `refs/<case>.ref.stdout|.ref.stderr`。
   `index.tsv` 钉上游文档 sha256 与两路 sha256/size；驱动加载时逐项校验，语料
   或拆分规则变动 ⇒ **setup error**（不拿旧拆分判分）。
-- `python3 tools/testcases/tset/llvm-ts/ref_split.py --check` 复核（只读语料，不跑 guest）；
+- `python3 tests/ee-user/ref_split.py --check` 复核（只读语料，不跑 guest）；
   `--write` 确定性重建。`--stats` 打印逐例两路大小。
 - **哈希型参考**（`HASH_PROGRAM_OUTPUT`，参考只有一个 md5）：摘要不含字节，
   **仅当一路为空**时该哈希才是合法的分通道判据（单流即该通道）；两路都非空 ⇒

@@ -16,7 +16,7 @@
 
   * 载体用例行/故障例解析 = `tests/ee-tiny/run_asm_suite.py::scan_source`
     （检查点数、故障点数、点号连续性）；
-  * owner 词表 = `tools/testcases/parity/se_tset_matrix.py::OWNERS`。
+  * owner 词表 = `tests/ee-user/se_tset_matrix.py::OWNERS`。
     **平台状态词表不另立**：状态由 `rc` 现场派生（`0` ⇒ `PASS`，非 `0` ⇒ `FAIL`），
     三平台判定 = 本脚本 `classify`（不 import `run_parity`，其 `STATUSES` 是 SE 侧词表）。
 
@@ -64,7 +64,8 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 _REPO = _HERE.parents[2]
 for _p in (str(_HERE), str(_REPO / "tools" / "infra"),
-           str(_REPO / "tests" / "ee-tiny")):
+           str(_REPO / "tests" / "ee-tiny"),
+           str(_REPO / "tests" / "ee-user")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 

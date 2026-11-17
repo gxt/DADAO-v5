@@ -35,9 +35,9 @@ to attribute.
 
 CLI::
 
-    python3 tools/testcases/tset/llvm-ts/ref_split.py --stats
-    python3 tools/testcases/tset/llvm-ts/ref_split.py --write
-    python3 tools/testcases/tset/llvm-ts/ref_split.py --check
+    python3 tests/ee-user/ref_split.py --stats
+    python3 tests/ee-user/ref_split.py --write
+    python3 tests/ee-user/ref_split.py --check
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-REPO_ROOT = os.path.normpath(os.path.join(HERE, "..", "..", "..", ".."))
+REPO_ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 # Append, not insert: this file lives next to the real
 # ``run_llvm_ts_user.py`` and must import *that* one, not the legacy flat
 # wrapper under ``tools/testcases/`` (same module name).

@@ -113,8 +113,9 @@ MUSL_SRC = REPO_ROOT / ".work" / "source" / "musl"
 LIBC_TEST = REPO_ROOT / ".work" / "source" / "libc-test"
 LLVM_TS = REPO_ROOT / ".work" / "source" / "llvm-test-suite"
 LDS = REPO_ROOT / "tests" / "ee-tiny" / "kaiwu-tiny.lds"
-# `INCLUDE dadao-common.lds` is found through -L (common script stays shared).
-SHARED_LDS_DIR = REPO_ROOT / "tests" / "shared" / "linker"
+# 资产归属（m15-testcases-011/012）：Tiny lds 在 `tests/ee-tiny/`，被它
+# `INCLUDE` 的 `dadao-common.lds` 在 `tests/ee-user/`（ld.lld 只搜 cwd + -L）。
+COMMON_LDS_DIR = REPO_ROOT / "tests" / "ee-user"
 DEFAULT_BOOTROM = TEST_ARTIFACTS / "bootrom" / "bootrom.bin"
 
 TARGET = "dadao-unknown-elf"
@@ -403,7 +404,8 @@ def build_case(suite: str, case_abs: Path, work: Path, log, common_objs,
         # upstream's `LDLIBS = libtest.a`.  Force-including them all would drag in
         # unused members and their whole dependency closure.
         objs += ["--start-lib", *[str(o) for o in common_objs], "--end-lib"]
-    cmd = ([str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(SHARED_LDS_DIR), "-T", str(LDS), *objs,
+    cmd = ([str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(LDS.parent),
+            "-L", str(COMMON_LDS_DIR), "-T", str(LDS), *objs,
             str(MUSL_SRC / "lib" / "libc.a"), "-o", str(elf)])
     res = run(cmd, cwd=REPO_ROOT)
     log.append({"stage": "link", "cmd": " ".join(cmd), "rc": res.returncode,

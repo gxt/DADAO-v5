@@ -65,10 +65,11 @@ import machine_profile  # noqa: E402
 REPO_ROOT = paths.repo_root()
 TOOLCHAIN_BIN = paths.host_toolchain_bin()
 SYSROOT = paths.target_sysroot_dir()
-CRT0 = REPO_ROOT / "tests" / "shared" / "crt0" / "minimal_crt0.s"
+# 资产归属（m15-testcases-011/012）：crt0 在 `tests/ee-user/`，Tiny lds 在
+# `tests/ee-tiny/`；`dadao-common.lds` 在 `tests/ee-user/`（`INCLUDE` 经 -L 解析）。
+CRT0 = REPO_ROOT / "tests" / "ee-user" / "minimal_crt0.s"
 LDS = REPO_ROOT / "tests" / "ee-tiny" / "kaiwu-tiny.lds"
-# `INCLUDE dadao-common.lds` is found through -L (common script stays shared).
-SHARED_LDS_DIR = REPO_ROOT / "tests" / "shared" / "linker"
+COMMON_LDS_DIR = REPO_ROOT / "tests" / "ee-user"
 
 PROG_C = """\
 #include <stdio.h>
@@ -237,7 +238,8 @@ def main() -> int:
                   f"{missing}; undefined={sorted(undef)})", file=sys.stderr)
             return 1
 
-        res = run([str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(SHARED_LDS_DIR), "-T", str(LDS),
+        res = run([str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(LDS.parent),
+                   "-L", str(COMMON_LDS_DIR), "-T", str(LDS),
          str(work / "crt0.o"), str(obj),
                    str(SYSROOT / "lib" / "libc.a"), str(SYSROOT / "lib" / "libm.a"),
                    str(SYSROOT / "lib" / "libsemihost.a"), "-o", str(elf)])

@@ -63,18 +63,16 @@ import threading
 import time
 
 REPO_ROOT = os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".."))
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
 TASK = "m13-testcases-003"
 
 SUITES = ("libc-test", "llvm-ts")
 
 DRIVERS = {
-    "libc-test": os.path.join(
-        "tools", "testcases", "tset", "libc-test",
-        "run_libc_test_user_suite.py"),
-    "llvm-ts": os.path.join(
-        "tools", "testcases", "tset", "llvm-ts", "run_llvm_ts_user.py"),
+    "libc-test": os.path.join("tests", "ee-user",
+                              "run_libc_test_user_suite.py"),
+    "llvm-ts": os.path.join("tests", "ee-user", "run_llvm_ts_user.py"),
 }
 
 ENGINE_MODULE = os.path.join("tools", "testcases", "lib", "gem5_se_engine.py")
@@ -581,8 +579,8 @@ def self_test(work_dir, repo_root):
                "llvm-ts": dict(still_blocked=["MultiSource/X/b"]),
                "embench": dict(still_blocked=["crc32-0"])})), fh)
     ratio = load_module("_m13_ratio_for_selftest",
-                        os.path.join(repo_root, "tools", "testcases", "tset",
-                                     "gem5-se-baseline", "run_engine_ratio.py"))
+                        os.path.join(repo_root, "tests", "ee-user",
+                                     "run_engine_ratio.py"))
     selection = ratio.load_selection(case_list, ["libc-test", "llvm-ts"],
                                      "recheck")
     check("selection read", {"libc-test": ["functional/a"],
@@ -706,8 +704,7 @@ def main() -> int:
     case_list = abspath(args.case_list, repo_root)
     try:
         ratio = load_module("_m13_ratio_loader",
-                            os.path.join(repo_root, "tools", "testcases",
-                                         "tset", "gem5-se-baseline",
+                            os.path.join(repo_root, "tests", "ee-user",
                                          "run_engine_ratio.py"))
         with open(case_list, "r") as fh:
             record = json.load(fh)

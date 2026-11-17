@@ -18,7 +18,8 @@
 > `tests/unit/llvm/`；picolibc 自测入口 → `tests/unit/picolibc/`
 > （仍只在 picolibc 构建下跑）；门控收拢为 `check-unit`（L2），旧目标名保留。
 > **P5 tset（2026-10-27，`TESTCASES-075t`）**：三个 user-mode 套件驱动 →
-> `tools/testcases/tset/{libc-test,llvm-ts,embench}/`（旧扁平路径留薄 wrapper）；
+> `tools/testcases/tset/{libc-test,llvm-ts,embench}/`（旧扁平路径留薄 wrapper；**M15
+> `m15-testcases-012` 再迁 `tests/ee-user/`**）；
 > Embench 套件 glue → `tests/tset/embench/`（`tests/scripts/` 留符号链接，P6 已删除）；门控
 > `check-tset-{libc,llvm,embench}-smoke`（L2）。
 > **P6 收口（2026-10-27，`TESTCASES-076t`）**：`tests/scripts/`、`tests/qemu/` 已删除；共享
@@ -115,8 +116,8 @@
 | 原内容 | P6 后去向 |
 |---|---|
 | 运行/构建 harness（5：`build_test_binary`/`run_qemu_test`/`run_qemu_smoke`/`verify_harness_dump`/`test_harness_exit_path`） | `tools/testcases/{lib,inst}/`（迁移期薄 wrapper 已删；旧的 trampoline 生成器已于 M13 退役） |
-| 测试机夹具（bootrom 三件、`minimal_crt0.s`、`kaiwu-tiny.lds`、`dadao-dyn.lds`） | `tests/shared/bootrom/`、`tests/shared/{crt0,linker}/` |
-| 运行时辅助（`dadao_mem_runtime.ll`、`dadao_user_dyn_probe.c`） | `tests/shared/runtime/` |
+| 测试机夹具（bootrom 三件、`minimal_crt0.s`、`kaiwu-tiny.lds`、`dadao-dyn.lds`） | `tests/shared/bootrom/`；`kaiwu-tiny{,-app}.lds`/`picolibc-tiny.ld` 现于 `tests/ee-tiny/`（`m15-testcases-011`）；`minimal_crt0.s`/`dadao-common.lds`/`dadao-dyn.lds` 现于 `tests/ee-user/`（`m15-testcases-012`） |
+| 运行时辅助（`dadao_mem_runtime.ll`、`dadao_user_dyn_probe.c`） | `tests/ee-user/`（M15 `m15-testcases-012`） |
 | Embench 套件 glue（`embench_runtime.c`/`embench_user_boardsupport.c`/`embench_include/`） | `tests/tset/embench/` |
 
 > 启动固件（`-bios`）：旧 `trampoline.bin`（56 B 跳转桩）**已于 M13 退役**，改用
@@ -140,10 +141,10 @@
 
 | 子目录 | 文件数 | 体积 | 由谁生成 | 可重生成? | 备注 |
 |---|---|---|---|---|---|
-| `llvm-ts-user/` | 16,112 | 836 M | `tools/testcases/tset/llvm-ts/run_llvm_ts_user.py`（`--work-dir` 默认） | 是（需 llvm-test-suite 源 + 工具链，耗时长） | 20 个运行目录 + `static/`/`dynamic/` 脚手架 |
+| `llvm-ts-user/` | 16,112 | 836 M | `tests/ee-user/run_llvm_ts_user.py`（`--work-dir` 默认） | 是（需 llvm-test-suite 源 + 工具链，耗时长） | 20 个运行目录 + `static/`/`dynamic/` 脚手架 |
 | `llvm-ts-user-050t/` | 826 | 209 M | **无脚本**：全仓 grep `llvm-ts-user-050t` 零命中（仅归档任务书 `TESTCASES-048t` 提及） | **否**（生成脚本已不在仓库） | 孤儿，建议清理 |
-| `libc-test-user/` | 1,897 | 77 M | `tools/testcases/tset/libc-test/run_libc_test_user_suite.py` | 是 | 118 个运行目录（三件套）+ 脚手架 |
-| `embench-user/` | 415 | 7.4 M | `tools/testcases/tset/embench/run_embench_user_suite.py` | 是 | 6 个运行目录 |
+| `libc-test-user/` | 1,897 | 77 M | `tests/ee-user/run_libc_test_user_suite.py` | 是 | 118 个运行目录（三件套）+ 脚手架 |
+| `embench-user/` | 415 | 7.4 M | `tests/ee-user/run_embench_user_suite.py` | 是 | 6 个运行目录 |
 | `m6-embench/` | 312 | 3.3 M | `test-m6` [3/3] → `tests/ee-tiny/run_embench_e2e.py` | 是 | `rm -rf` 后重建 |
 | `codegen-e2e/` | 60 | 264 K | `test-codegen` → `run_codegen_e2e.py` | 是 | 每次 `rm -rf` |
 | `codegen-m6/` | 28 | 132 K | `run_codegen_e2e.py` 的**手工**调用（m6 README） | 是（手工） | 无 make 目标 |

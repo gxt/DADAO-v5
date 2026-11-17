@@ -111,7 +111,7 @@ DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
 # the legacy 56-byte `-bios` blob is no longer used by this gate.
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir() / "bootrom" / "tiny"
                       / "bootrom_tiny.bin")
-DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
+DEFAULT_CRT0 = "tests/ee-user/minimal_crt0.s"
 DEFAULT_VECTORS_DIR = "tests/unit/llvm/codegen"
 DEFAULT_EXPECTED = "tests/unit/llvm/codegen/expected.yaml"
 # Work dir under the SDK test-artifacts root (ADR-0016 D6), resolved through

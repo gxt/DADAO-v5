@@ -362,7 +362,7 @@ import time
 import sys
 
 REPO_ROOT = os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..")
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 )
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))
@@ -454,7 +454,7 @@ TARGET = "dadao-unknown-elf"
 DYNAMIC_LINKER = "/lib/ld-musl-dadao.so.1"
 
 # Public include set for *user* translation units (the same header view the
-# sister driver tools/testcases/tset/libc-test/run_libc_test_user_suite.py uses, and for the
+# sister driver tests/ee-user/run_libc_test_user_suite.py uses, and for the
 # same verified reason): musl's own build view (src/include/errno.h) maps
 # ``errno`` to the hidden ``___errno_location``, which libc.a defines but
 # libc.so keeps LOCAL HIDDEN -- a user TU compiled with the internal headers
@@ -792,7 +792,7 @@ STRUCTURAL_EXCLUSIONS = {
 }
 
 # Dynamic round only (TESTCASES-049t / ISS-259 candidate (2), the same finding
-# tools/testcases/tset/libc-test/run_libc_test_user_suite.py records): a user TU that takes the
+# tests/ee-user/run_libc_test_user_suite.py records): a user TU that takes the
 # address of a libc.so data object (``stdout``/``stderr``/``environ`` -- every
 # program that prints) otherwise needs an ``R_DADAO_COPY`` copy relocation,
 # which lld refuses by design (ADR-0026 D7(2) / contract-dynlink §10(2)):
@@ -1923,7 +1923,7 @@ def load_split(case: Case):
     if row is None:
         raise SetupError(
             f"no committed channel split for {case.cid}; run "
-            "tools/testcases/tset/llvm-ts/ref_split.py --write")
+            "tests/ee-user/ref_split.py --write")
     digest = sha256_bytes(case.expected_doc)
     if digest != row.get("reference_sha256"):
         raise SetupError(

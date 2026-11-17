@@ -98,7 +98,7 @@ import subprocess
 import sys
 
 REPO_ROOT = os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..")
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 )
 
 sys.path.insert(0, os.path.join(REPO_ROOT, "tools", "infra"))

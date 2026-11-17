@@ -105,9 +105,9 @@ def load(name, rel):
 
 
 libc = load("tc085_libc_runner",
-            "tools/testcases/tset/libc-test/run_libc_test_user_suite.py")
+            "tests/ee-user/run_libc_test_user_suite.py")
 emb = load("tc085_embench_runner",
-           "tools/testcases/tset/embench/run_embench_user_suite.py")
+           "tests/ee-user/run_embench_user_suite.py")
 
 proc_reap.install()
 

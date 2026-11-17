@@ -17,7 +17,7 @@ returned by `@main`**:
 
 - host: `lli` runs `@main` natively and the OS truncates its `i64` return to the
   low byte (verified: `ret i64 300` ⇒ exit `44` = `300 & 0xFF`);
-- target: the startup stub `tests/shared/crt0/minimal_crt0.s` calls `@main`, then
+- target: the startup stub `tests/ee-user/minimal_crt0.s` calls `@main`, then
   reports the returned value (`rd8`, the M6 ABI return register) through the
   semihosting `SYS_EXIT` service and QEMU propagates it to the host `$?` (low
   byte).
@@ -80,7 +80,7 @@ The `lli` result must never be used as a substitute for those.
 ## Corpus
 
 `corpus_roots` = `tests/unit/llvm/codegen` + `tests/unit/llvm/lit/CodeGen/DADAO`.  Every
-`.ll` under them is classified (include or exclude). `tests/shared/runtime/
+`.ll` under them is classified (include or exclude). `tests/ee-user/
 dadao_mem_runtime.ll` is a runtime helper (not a CodeGen vector) and is outside
 the corpus.
 

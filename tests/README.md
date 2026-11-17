@@ -26,6 +26,10 @@
   `tests/shared/{crt0,linker,runtime}/`；集成驱动 → `tools/testcases/{unit,tset}/` +
   `tools/infra/`；门控重写（L2/L3）+ `night-run` / `clean-tests` / `test-repro`。
   原顶层 `e2e/` 于 P6 未动；`TESTCASES-084t` 已归 `tests/unit/llvm/e2e/`（工具链 E2E 属 unit）。
+- **执行环境资产（2026-11-17）**：按执行环境重新归口——Tiny 专属脚本/固件/lds →
+  `tests/ee-tiny/`（`m15-testcases-011`）；qemu-user / gem5 SE 的脚本、crt0、runtime、
+  lds → `tests/ee-user/`（`m15-testcases-012`，平铺不建子目录）。测试集目录（`tset/`、
+  `inst/`、`unit/`、`arch/`）不动。
 
 | scope | 测什么 | `platforms` 允许值 | 目录 |
 |---|---|---|---|
@@ -66,10 +70,9 @@
 | `unit/llvm/e2e/lit/*.test` | U | 工具链端到端 smoke/FP/clmul/weak/CM（14）；`TESTCASES-084t` 由顶层 `e2e/` 归入 | `make check-lit` |
 | `unit/llvm/e2e/*.c|*.s|*.lds` | U | 上述 `.test` 的源（9 个已无 runner，见 `INVENTORY §7.4`） | 经 `.test` |
 | `ee-tiny/` | S 载体 | Kaiwu-Tiny 执行环境资产（平铺，`m15-testcases-011`）：4 个驱动（`run_asm_suite.py` / `picolibc_tests.py` / `run_embench_e2e.py` / `run_semihosting_smoke.py`）+ 10 个 bootrom（`bootrom.S`、`bootrom_app.S`、`semihost_smoke.S`、`power/hmon.{S,lds}`、`tiny_common.inc`、`tiny_smoke.lds`、`semihost_smoke.lds`）+ 3 个 lds（`kaiwu-tiny{,-app}.lds`、`picolibc-tiny.ld`） | `make build-bootrom`；`check-inst-asm` / `check-picolibc-tests` / `test-m6` / `linux-semihosting-smoke` |
+| `ee-user/` | T 执行环境 | qemu-user / gem5 SE 资产平铺（`m15-testcases-012`）：12 个脚本（三套件全量驱动 + 代表集 + gem5 SE 基线/池 + `se_tset_matrix`）与 `minimal_crt0.s`/`dadao_mem_runtime.ll`/`dadao_user_dyn_probe.c`/`dadao-common.lds`/`dadao-dyn.lds` | `make check-tset-{libc,llvm,embench}-{smoke,full}`、`test-codegen`/`test-elf`/lit/e2e、`test-m6` |
 | `shared/bootrom/` | S 载体 | 其余共享 bootrom（`bootrom.lds`、`tiny_crt.S`、`tiny_smoke.S`、`semihost_msg.inc`；step5 `step5/{power,hmon,smon}.{S,lds}` 与 256 KiB BootROM 打包；`make build-bootrom` 用） | — |
-| `shared/crt0/minimal_crt0.s` | 共享 glue | 单 TU/多 TU 端到端启动桩（`_start` → `@main` → `SYS_EXIT`） | 被 `test-codegen`/`test-elf`/lit/e2e 引用 |
-| `shared/linker/{dadao-common.lds,dadao-dyn.lds,kaiwu-vast.lds}` | 共享 glue | 公共段/符号、ET_DYN 动态布局、Vast 布局链接脚本（Tiny 两份已迁 `ee-tiny/`） | 同上 + musl/P5 驱动（dyn） |
-| `shared/runtime/{dadao_mem_runtime.ll,dadao_user_dyn_probe.c}` | 共享 glue | freestanding `mem*` 运行时 + 动态装载 auxv 探针程序 | `test-m6`/embench/手工 |
+| `shared/linker/kaiwu-vast.lds` | 共享 glue | Vast 布局链接脚本（Tiny 两份 → `ee-tiny/`；`dadao-common.lds`/`dadao-dyn.lds` → `ee-user/`） | `check-interface` / `run_parity`（vast） |
 | `case-ledger.tsv` | — | 逐条身份清单（1,962 行含表头；生成物） | `make check-case-ledger`（L1） |
 
 ---

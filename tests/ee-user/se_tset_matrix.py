@@ -31,7 +31,7 @@ is reported instead of being copied into the matrix.
 Usage::
 
     # Per-case report + SE section: runtime locations (not committed).
-    python3 tools/testcases/parity/se_tset_matrix.py \\
+    python3 tests/ee-user/se_tset_matrix.py \\
         --json-out <运行期目录>/se-parity.json \\
         --markdown-out <运行期目录>/se-parity.md \\
         --matrix-section-out <运行期目录>/matrix-section.md
@@ -63,7 +63,7 @@ import re
 import sys
 
 REPO_ROOT = os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", ".."))
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
 SUITES = ("libc-test", "llvm-ts", "embench")
 TRACKS = ("static", "dynamic")
@@ -89,8 +89,8 @@ def _load_baseline_module():
     Reusing one table keeps this report and the per-track baseline consistent;
     a local copy would be free to drift.
     """
-    path = os.path.join(REPO_ROOT, "tools", "testcases", "tset",
-                        "gem5-se-baseline", "run_gem5_se_baseline.py")
+    path = os.path.join(REPO_ROOT, "tests", "ee-user",
+                        "run_gem5_se_baseline.py")
     spec = importlib.util.spec_from_file_location("gem5_se_baseline", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

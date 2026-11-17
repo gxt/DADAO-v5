@@ -76,7 +76,7 @@ import time
 from types import SimpleNamespace
 
 REPO_ROOT = os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".."))
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
 _INFRA = os.path.join(REPO_ROOT, "tools", "infra")
 if _INFRA not in sys.path:
@@ -88,9 +88,9 @@ EVIDENCE_DIR = ".work/evidence/" + TASK
 
 SUITES = ("libc-test", "llvm-ts", "embench")
 DRIVERS = {
-    "libc-test": "tools/testcases/tset/libc-test/run_libc_test_user_suite.py",
-    "llvm-ts": "tools/testcases/tset/llvm-ts/run_llvm_ts_user.py",
-    "embench": "tools/testcases/tset/embench/run_embench_user_suite.py",
+    "libc-test": "tests/ee-user/run_libc_test_user_suite.py",
+    "llvm-ts": "tests/ee-user/run_llvm_ts_user.py",
+    "embench": "tests/ee-user/run_embench_user_suite.py",
 }
 # Per-suite "run exactly this one case" flag of the existing driver.  llvm-ts
 # spells it --only; libc-test/embench spell the same thing --filter (a regex

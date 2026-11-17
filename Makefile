@@ -937,8 +937,9 @@ _locked-check-testcases-suites-full:
 		--json-out .work/log/testcases/runs/full.json
 
 # ── tset smoke（TESTCASES-075t，L2）──────────────────────────────────────────
-# 三个 user-mode 上游套件驱动已迁 `tools/testcases/tset/<suite>/`（旧路径 = 薄
-# wrapper，命令行等价）；代表集由各 suite 的 `run_smoke.py` **机械派生**
+# 三个 user-mode 上游套件驱动已迁 `tests/ee-user/`（旧 `tools/testcases/tset/` 路径
+# 已删除；`tools/testcases/run_*.py` 仍留薄 wrapper，命令行等价）；代表集由
+# `run_{libc_test,llvm_ts}_smoke.py` **机械派生**
 # （libc-test: 每顶层语料类别取源码最小用例；llvm-ts: 每棵树取源码最小用例；
 # embench: 全量 benchmark，任务口径 ~1 min），计数现场统计、不写死。
 # 运行目录/三件套仍按 `docs/Process-08`（`<test-artifacts>/<suite>-user/...`）。
@@ -951,7 +952,7 @@ _locked-check-tset-libc-smoke:
 	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-libc-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
 	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-libc-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/tset/libc-test/run_smoke.py --link-mode static \
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-user/run_libc_test_smoke.py --link-mode static \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-libc-smoke.json \
 	    > .work/log/testcases/check-tset-libc-smoke.log 2>&1; \
 	  rc=$$?; \
@@ -965,7 +966,7 @@ _locked-check-tset-llvm-smoke:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-llvm-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
 	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-llvm-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
 	@test -d .work/source/llvm-test-suite || { echo "check-tset-llvm-smoke: ERROR: .work/source/llvm-test-suite not found — run 'make fetch'"; exit 1; }
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/tset/llvm-ts/run_smoke.py --link-mode static --jobs $(TEST_JOBS) \
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-user/run_llvm_ts_smoke.py --link-mode static --jobs $(TEST_JOBS) \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-llvm-smoke.json \
 	    > .work/log/testcases/check-tset-llvm-smoke.log 2>&1; \
 	  rc=$$?; \
@@ -979,7 +980,7 @@ _locked-check-tset-embench-smoke:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-embench-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
 	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-embench-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
 	@test -d .work/source/embench-iot || { echo "check-tset-embench-smoke: ERROR: .work/source/embench-iot not found — run 'make fetch'"; exit 1; }
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/tset/embench/run_embench_user_suite.py --link-mode static \
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-user/run_embench_user_suite.py --link-mode static \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-embench-smoke.json \
 	    > .work/log/testcases/check-tset-embench-smoke.log 2>&1; \
 	  rc=$$?; \
@@ -1001,7 +1002,7 @@ _locked-check-tset-libc-full:
 	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-libc-full: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
 	@fail=0; for m in $(TSET_FULL_MODES); do \
 	  echo "check-tset-libc-full: [$$m] full suite"; \
-	  $(PYTHON) tools/testcases/tset/libc-test/run_libc_test_user_suite.py --link-mode $$m \
+	  $(PYTHON) tests/ee-user/run_libc_test_user_suite.py --link-mode $$m \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-libc-full-$$m.json \
 	    > .work/log/testcases/check-tset-libc-full-$$m.log 2>&1; \
 	  rc=$$?; tail -3 .work/log/testcases/check-tset-libc-full-$$m.log; \
@@ -1016,7 +1017,7 @@ _locked-check-tset-llvm-full:
 	@test -d .work/source/llvm-test-suite || { echo "check-tset-llvm-full: ERROR: .work/source/llvm-test-suite not found — run 'make fetch'"; exit 1; }
 	@fail=0; for m in $(TSET_FULL_MODES); do \
 	  echo "check-tset-llvm-full: [$$m] full suite"; \
-	  $(PYTHON) tools/testcases/tset/llvm-ts/run_llvm_ts_user.py --link-mode $$m --jobs $(TEST_JOBS) \
+	  $(PYTHON) tests/ee-user/run_llvm_ts_user.py --link-mode $$m --jobs $(TEST_JOBS) \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-llvm-full-$$m.json \
 	    > .work/log/testcases/check-tset-llvm-full-$$m.log 2>&1; \
 	  rc=$$?; tail -3 .work/log/testcases/check-tset-llvm-full-$$m.log; \
@@ -1031,7 +1032,7 @@ _locked-check-tset-embench-full:
 	@test -d .work/source/embench-iot || { echo "check-tset-embench-full: ERROR: .work/source/embench-iot not found — run 'make fetch'"; exit 1; }
 	@fail=0; for m in $(TSET_FULL_MODES); do \
 	  echo "check-tset-embench-full: [$$m] full suite"; \
-	  $(PYTHON) tools/testcases/tset/embench/run_embench_user_suite.py --link-mode $$m \
+	  $(PYTHON) tests/ee-user/run_embench_user_suite.py --link-mode $$m \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-embench-full-$$m.json \
 	    > .work/log/testcases/check-tset-embench-full-$$m.log 2>&1; \
 	  rc=$$?; tail -3 .work/log/testcases/check-tset-embench-full-$$m.log; \
@@ -1600,7 +1601,7 @@ _locked-test-codegen: install-host
 	  DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/unit/run_codegen_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
 	    --qemu $(QEMU_BIN) \
-	    --crt0 tests/shared/crt0/minimal_crt0.s \
+	    --crt0 tests/ee-user/minimal_crt0.s \
 	    --vectors-dir tests/unit/llvm/codegen \
 	    --expected tests/unit/llvm/codegen/expected.yaml \
 	    --work-dir $(CODEGEN_E2E_WORK) \
@@ -1613,7 +1614,7 @@ _locked-test-codegen: install-host
 # M4 multi-TU / multi-section ELF end-to-end gate (INTEG-016t).  Tools are taken
 # from the install root (ADR-0016 D9); install-host keeps it in sync with the
 # build trees.  Pipeline (multi-object, per contract-elf.md §6.1.2):
-#   llvm-mc --triple=dadao -filetype=obj tests/shared/crt0/minimal_crt0.s -> crt0.o;
+#   llvm-mc --triple=dadao -filetype=obj tests/ee-user/minimal_crt0.s -> crt0.o;
 #   per TU llc -march=dadao -filetype=obj                            -> <tu>.o;
 #   ld.lld -T tests/ee-tiny/kaiwu-tiny.lds crt0.o <tu>.o ... -o <prog>.elf;
 #   qemu-system-dadao -M kaiwu-tiny -kernel <prog>.elf ...
@@ -1635,7 +1636,7 @@ _locked-test-elf: install-host build-bootrom
 	  mkdir -p .work/log/integ; \
 	  DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/unit/run_elf_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --ldlld $(LLD_BIN) \
-	    --qemu $(QEMU_BIN) --crt0 tests/shared/crt0/minimal_crt0.s \
+	    --qemu $(QEMU_BIN) --crt0 tests/ee-user/minimal_crt0.s \
 	    --lds tests/ee-tiny/kaiwu-tiny-app.lds \
 	    --bootrom $(TINY_BOOTROM) \
 	    --vectors-dir tests/unit/llvm/codegen/m4 \

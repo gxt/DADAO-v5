@@ -6,7 +6,7 @@ mode (``--link-mode static|dynamic``, default ``static``) on both engines --
 QEMU user mode and gem5 syscall emulation -- and joins the two per-case JSONs
 by case id:
 
-    python3 tools/testcases/tset/gem5-se-baseline/run_gem5_se_baseline.py \
+    python3 tests/ee-user/run_gem5_se_baseline.py \
         --work-dir <runtime dir> --json-out <runtime dir>/baseline.json
 
 The drivers do the enumeration, the build lines and the verdicts; this script
@@ -58,7 +58,7 @@ import sys
 import types
 
 REPO_ROOT = os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", ".."))
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 
 SUITES = ("libc-test", "llvm-ts", "embench")
 
@@ -79,13 +79,11 @@ TIMEOUT_KIND = "timeout"
 TIMEOUT_CAPABILITY = "time budget"
 
 DRIVERS = {
-    "libc-test": os.path.join(
-        "tools", "testcases", "tset", "libc-test",
-        "run_libc_test_user_suite.py"),
-    "llvm-ts": os.path.join(
-        "tools", "testcases", "tset", "llvm-ts", "run_llvm_ts_user.py"),
-    "embench": os.path.join(
-        "tools", "testcases", "tset", "embench", "run_embench_user_suite.py"),
+    "libc-test": os.path.join("tests", "ee-user",
+                              "run_libc_test_user_suite.py"),
+    "llvm-ts": os.path.join("tests", "ee-user", "run_llvm_ts_user.py"),
+    "embench": os.path.join("tests", "ee-user",
+                            "run_embench_user_suite.py"),
 }
 
 # The driver's JSON key that names a case, per suite.
@@ -670,7 +668,7 @@ def markdown(summary):
     out("## 复跑")
     out()
     out("```")
-    out("JOBS=32 python3 tools/testcases/tset/gem5-se-baseline/run_gem5_se_baseline.py \\")
+    out("JOBS=32 python3 tests/ee-user/run_gem5_se_baseline.py \\")
     out(f"    --link-mode {mode} --work-dir <runtime dir> \\")
     out("    --json-out <runtime dir>/gem5-se-baseline.json")
     out("```")

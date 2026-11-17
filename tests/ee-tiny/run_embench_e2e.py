@@ -110,12 +110,14 @@ DEFAULT_QEMU = os.path.join(_TARGET_BIN, "qemu-system-dadao")
 DEFAULT_EMBENCH_SRC = ".work/source/embench-iot"
 DEFAULT_INCLUDE = "tests/tset/embench/embench_include"
 DEFAULT_RUNTIME = "tests/tset/embench/embench_runtime.c"
-DEFAULT_MEM_RUNTIME = "tests/shared/runtime/dadao_mem_runtime.ll"
-DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
+# 资产归属（m15-testcases-011/012）：`dadao_mem_runtime.ll`/`minimal_crt0.s` 在
+# `tests/ee-user/`；Tiny 的 lds 在 `tests/ee-tiny/`。
+DEFAULT_MEM_RUNTIME = "tests/ee-user/dadao_mem_runtime.ll"
+DEFAULT_CRT0 = "tests/ee-user/minimal_crt0.s"
 DEFAULT_LDS = "tests/ee-tiny/kaiwu-tiny-app.lds"
-# `INCLUDE dadao-common.lds` inside the moved scripts resolves through -L
-# (ld.lld searches cwd + -L; the common script stays in tests/shared/linker/).
-SHARED_LDS_DIR = "tests/shared/linker"
+# `INCLUDE dadao-common.lds` resolves through -L (ld.lld searches cwd + -L only);
+# the common fragment lives in `tests/ee-user/`.
+COMMON_LDS_DIR = "tests/ee-user"
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir()
                       / "bootrom" / "tiny" / "bootrom_tiny.bin")
 DEFAULT_BOARDSUPPORT = "examples/dadao/boardsupport.c"
@@ -322,7 +324,8 @@ def build_and_run(bench, opt, tools, work_dir, timeout, verbose=False):
     # 5. link (ld.lld).
     elf = os.path.join(outdir, bench + ".elf")
     objs = sorted(glob.glob(os.path.join(outdir, "*.o")))
-    rc, _o, err, timed = _run([tools["ldlld"], "-L", _abspath(SHARED_LDS_DIR),
+    rc, _o, err, timed = _run([tools["ldlld"], "-L", os.path.dirname(tools["lds"]),
+                              "-L", _abspath(COMMON_LDS_DIR),
                               "-T", tools["lds"]] + objs + ["-o", elf])
     if timed or rc != 0:
         res.reason = f"ld.lld failed (rc={rc}): {err.strip()[:200]}"

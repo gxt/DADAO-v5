@@ -1,7 +1,7 @@
 # `tests/tset/llvm-ts/patches/` — 测试胶水（llvm-test-suite）
 
 上游语料 **保持 patchless**（`manifests/components.lock.toml` 锁定、只读）。本目录
-只放**逐例声明**、由驱动 `tools/testcases/tset/llvm-ts/run_llvm_ts_user.py` 施加到
+只放**逐例声明**、由驱动 `tests/ee-user/run_llvm_ts_user.py` 施加到
 **per-case run 副本 / 链接行**的胶水，用来把「上游参考与目标平台的固有差异」变成
 可复现、可审计的输入/链接适配。**不改语料、不改目标语义（字节序 / ABI）、不放宽
 任何比较**。

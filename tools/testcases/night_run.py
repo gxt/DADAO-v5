@@ -8,7 +8,7 @@
 
 成员可用性证据（`TESTCASES-105t`；**不重跑全量**）：
 * gem5 SE static  —— `.tao/knowledge/refs/GEM5-021t-baseline-summary.json`
-  （`TESTCASES-103t` 预算/分类全量，复用 `tset/gem5-se-baseline` 驱动）；
+  （`TESTCASES-103t` 预算/分类全量，复用 `tests/ee-user/run_gem5_se_baseline.py` 驱动）；
 * gem5 SE dynamic —— `.tao/knowledge/refs/TESTCASES-104t-dynamic-summary.json`
   （`TESTCASES-104t` 动态档全量；成员本身跑 static，不重复 dynamic）；
 * gem5 FS inst/arch —— `docs/TestReports/M11-三平台一致矩阵.md`（`GEM5-017t/018t` 矩阵）。
@@ -67,7 +67,7 @@ def _gem5_se_member(suite: str) -> str:
     """
     json_out = f"{GEM5_SE_DIR}/{suite}.json"
     return (
-        "python3 tools/testcases/tset/gem5-se-baseline/run_gem5_se_baseline.py"
+        "python3 tests/ee-user/run_gem5_se_baseline.py"
         f" --suites {suite} --link-mode static --jobs 8"
         f" --work-dir {GEM5_SE_DIR}/{suite}"
         f" --json-out {json_out}"
@@ -87,7 +87,7 @@ DEFAULT_MEMBERS = [
     "tset:embench=make check-tset-embench-full",
     "arch:cfx=make check-arch",
     # gem5 SE（TESTCASES-105t）：static 档，复用 TESTCASES-103t 的
-    # `tset/gem5-se-baseline` 驱动（同一 script 同时跑 QEMU-user 与 gem5-SE 并
+    # `tests/ee-user/run_gem5_se_baseline.py` 驱动（同一 script 同时跑 QEMU-user 与 gem5-SE 并
     # 逐 case 对照）。成员可用性证据（全量落盘，本成员不重复）：
     #   static  .tao/knowledge/refs/GEM5-021t-baseline-summary.json
     #   dynamic .tao/knowledge/refs/TESTCASES-104t-dynamic-summary.json

@@ -80,13 +80,13 @@ int main(void) { return 7; }
 EOF
 "$TC/clang" -target dadao-unknown-elf -O0 -ffreestanding -fno-builtin -std=gnu99 \
     -c "$W/t.c" -o "$W/t.o" 2>/dev/null
-"$TC/llvm-mc" --triple=dadao -filetype=obj "$REPO/tests/shared/crt0/minimal_crt0.s" -o "$W/crt0.o"
-"$TC/ld.lld" -L "$REPO/tests/shared/linker" -T "$REPO/tests/ee-tiny/kaiwu-tiny-app.lds" \
+"$TC/llvm-mc" --triple=dadao -filetype=obj "$REPO/tests/ee-user/minimal_crt0.s" -o "$W/crt0.o"
+"$TC/ld.lld" -L "$REPO/tests/ee-tiny" -L "$REPO/tests/ee-user" -T "$REPO/tests/ee-tiny/kaiwu-tiny-app.lds" \
     "$W/t.o" "$W/crt0.o" -o "$W/t.elf"
 "$SIM" +permissive +loadmem="$W/t.elf" +semiout="$W/out" +max-cycles=2000000 \
     +permissive-off none > "$W/sim.log" 2>&1
 chk_rc "B1 spec-form guest exit status (rd16 op channel)" 7 $?
-TRAP=$(grep -c "trap	cfx0, 0x3FF00" "$REPO/tests/shared/crt0/minimal_crt0.s")
+TRAP=$(grep -c "trap	cfx0, 0x3FF00" "$REPO/tests/ee-user/minimal_crt0.s")
 chk "B2 probe really uses the canonical 0x3FF00 tag" 1 "$TRAP"
 CH=$(grep -c "semiOp := rf.io.r0Data(7, 0)" "$CHIP/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala")
 chk "B4 RTL 当前服务号来源 = rd16" 1 "$CH"

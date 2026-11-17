@@ -79,13 +79,12 @@ if not os.path.isfile(qemu_bin):
                             "qemu-system-dadao")
 config.substitutions.append(("%qemu", os.path.abspath(qemu_bin)))
 
-shared_dir = os.path.join(root, 'tests', 'shared')
-
 # Locate the target linker (ld.lld) for the linked-ELF E2E pipeline
 # (llvm-mc -> ld.lld -T kaiwu-tiny.lds -> qemu -kernel <elf>).  It sits in the same
 # host toolchain bin as llvm-mc (ADR-0016 D9).
 config.substitutions.append(("%ld", os.path.abspath(os.path.join(tools_dir, "ld.lld"))
-                             + " -L " + os.path.join(shared_dir, "linker")))
+                             + " -L " + os.path.join(root, "tests", "ee-tiny")
+                             + " -L " + os.path.join(root, "tests", "ee-user")))
 
 # Locate the fixed 64 KiB Kaiwu-Tiny BootROM firmware produced by
 # `make build-bootrom` (m13-qemu-002): the contract ELF tests boot through the
@@ -100,9 +99,10 @@ config.substitutions.append(("%bootrom", bootrom))
 # pipeline.  The Tiny script is the contract layout (crt + program in SRAM,
 # e_entry = 0xffff_ff01_0100, spec/Kaiwu §6); `kaiwu-tiny.lds` remains the
 # pre-contract crt-in-ROM layout for legacy harnesses.
-config.substitutions.append(("%crt0", os.path.join(shared_dir, "crt0", "minimal_crt0.s")))
-# m15-testcases-011: Tiny 的 lds 在 `tests/ee-tiny/`（`%ld` 的 `-L` 仍指向 shared/linker，
-# 供 `INCLUDE dadao-common.lds` 解析）。
+# 资产归属（m15-testcases-011/012）：crt0 在 `tests/ee-user/`，Tiny lds 在
+# `tests/ee-tiny/`；`dadao-common.lds` 在 `tests/ee-user/`，故 `%ld` 同时带
+# 两个 `-L`（ee-tiny 供 `kaiwu-tiny-app.lds`，ee-user 供其 `INCLUDE`）。
+config.substitutions.append(("%crt0", os.path.join(root, "tests", "ee-user", "minimal_crt0.s")))
 config.substitutions.append(("%linker_script", os.path.join(root, "tests", "ee-tiny", "kaiwu-tiny-app.lds")))
 
 # Locate e2e source directory: <repo>/tests/unit/llvm/e2e/ (this config lives
