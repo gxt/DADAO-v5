@@ -23,7 +23,7 @@ from a guest exit code: such a run carries QEMU's own error text on stderr and
 is never accepted as "guest exited with N".
 
 Usage:
-  python3 tools/linux/run_semihosting_smoke.py
+  python3 tests/ee-tiny/run_semihosting_smoke.py
 
 Requires: `make install-host build-bootrom`.  Missing prerequisites exit 2 with
 the exact make invocation to run.
@@ -39,7 +39,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+_REPO_ROOT = Path(__file__).resolve().parents[2]   # `tests/ee-tiny/`（m15-testcases-011）
 sys.path.insert(0, str(_REPO_ROOT))
 
 from tools.infra import paths as infra_paths  # noqa: E402
@@ -60,7 +60,7 @@ QEMU_TIMEOUT_S = 120
 QEMU_ERROR_PREFIX = b"qemu-system-dadao:"
 
 _MSG_INC = _REPO_ROOT / "tests" / "shared" / "bootrom" / "semihost_msg.inc"
-_SMOKE_S = _REPO_ROOT / "tests" / "shared" / "bootrom" / "semihost_smoke.S"
+_SMOKE_S = _REPO_ROOT / "tests" / "ee-tiny" / "semihost_smoke.S"
 
 
 class SetupError(RuntimeError):

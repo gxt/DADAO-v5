@@ -61,12 +61,12 @@ chk_rc() { local n="$1" want="$2" got="$3"; [ "$want" = "$got" ] && ok "$n" "rc=
 
 # ---------------------------------------------------------------------------
 echo "== A. engine wiring (both runners expose --engine chipyard)"
-A=$(cd "$REPO" && python3 tools/testcases/tset/embench/run_embench_e2e.py --help 2>&1 | grep -c "engine chipyard")
+A=$(cd "$REPO" && python3 tests/ee-tiny/run_embench_e2e.py --help 2>&1 | grep -c "engine chipyard")
 chk "A1 embench runner has --engine chipyard" 1 "$A"
-B=$(cd "$REPO" && python3 tools/testcases/picolibc_tests.py --help 2>&1 | grep -c "engine chipyard")
+B=$(cd "$REPO" && python3 tests/ee-tiny/picolibc_tests.py --help 2>&1 | grep -c "engine chipyard")
 [ "$B" -ge 1 ] && ok "A2 picolibc runner has --engine chipyard" ">=1" "$B" \
     || bad "A2 picolibc runner has --engine chipyard" ">=1" "$B"
-C=$(cd "$REPO" && grep -c "chipyard_engine" tools/testcases/picolibc_tests.py tools/testcases/tset/embench/run_embench_e2e.py | awk -F: '{s+=$2} END {print s}')
+C=$(cd "$REPO" && grep -c "chipyard_engine" tests/ee-tiny/picolibc_tests.py tests/ee-tiny/run_embench_e2e.py | awk -F: '{s+=$2} END {print s}')
 [ "$C" -ge 4 ] && ok "A3 both runners import the shared engine module" ">=4 refs" "$C refs" || bad "A3 shared engine module used" ">=4 refs" "$C refs"
 
 # ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ EOF
 "$TC/clang" -target dadao-unknown-elf -O0 -ffreestanding -fno-builtin -std=gnu99 \
     -c "$W/t.c" -o "$W/t.o" 2>/dev/null
 "$TC/llvm-mc" --triple=dadao -filetype=obj "$REPO/tests/shared/crt0/minimal_crt0.s" -o "$W/crt0.o"
-"$TC/ld.lld" -L "$REPO/tests/shared/linker" -T "$REPO/tests/shared/linker/kaiwu-tiny-app.lds" \
+"$TC/ld.lld" -L "$REPO/tests/shared/linker" -T "$REPO/tests/ee-tiny/kaiwu-tiny-app.lds" \
     "$W/t.o" "$W/crt0.o" -o "$W/t.elf"
 "$SIM" +permissive +loadmem="$W/t.elf" +semiout="$W/out" +max-cycles=2000000 \
     +permissive-off none > "$W/sim.log" 2>&1
@@ -218,7 +218,7 @@ int verify_benchmark(int result) { return result == 42; }
 EOF
   ln -s "$REPO/.work/source/embench-iot/support" "$INJ/support"
   ln -s "$REPO/.work/source/embench-iot/examples" "$INJ/examples"
-  RUN=(python3 tools/testcases/tset/embench/run_embench_e2e.py --engine chipyard
+  RUN=(python3 tests/ee-tiny/run_embench_e2e.py --engine chipyard
        --embench-src "$INJ" --opt O2 --work-dir "$INJ/work" --timeout 600)
   ( cd "$REPO" && "${RUN[@]}" > "$INJ/base.log" 2>&1 )
   chk_rc "H1 baseline green" 0 $?

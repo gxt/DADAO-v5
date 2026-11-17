@@ -25,7 +25,7 @@ Pipeline per (benchmark, optimisation level)::
     qemu-dadao -L <guest-root> <b>.elf
 
 Base address (ISS-247): the link line carries **no** ``-T``/linker script, so
-lld's default base is used.  ``tests/shared/linker/kaiwu-tiny.lds`` (``RAM ORIGIN =
+lld's default base is used.  ``tests/ee-tiny/kaiwu-tiny.lds`` (``RAM ORIGIN =
 the old high RAM base``) cannot be loaded by ``qemu-user`` on this 47-bit host VA
 (``Unable to find a guest_base ...``).  The driver records the link command and
 the minimum ``PT_LOAD`` virtual address of every produced ELF and refuses an
@@ -156,7 +156,7 @@ FAULT_NAMES = {0xC0 | (mode << 4) | idx: name
 FAULT_NAMES.update({code: "CFX%d" % (code & 0x3F)
                     for code in range(0x80, 0xC0)})
 
-# The scripted base of tests/shared/linker/kaiwu-tiny.lds (ISS-247) -- an image linked
+# The scripted base of tests/ee-tiny/kaiwu-tiny.lds (ISS-247) -- an image linked
 # there cannot be loaded by qemu-user on this host and is rejected here.
 SCRIPTED_BASE = 0xFC0000000000
 

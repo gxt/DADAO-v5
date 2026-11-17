@@ -50,7 +50,7 @@ from types import SimpleNamespace
 _HERE = Path(__file__).resolve().parent
 _REPO = _HERE.parents[2]
 for _p in (str(_HERE), str(_REPO / "tools" / "infra"),
-           str(_REPO / "tools" / "testcases" / "inst")):
+           str(_REPO / "tests" / "ee-tiny")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 

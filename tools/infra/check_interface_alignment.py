@@ -536,7 +536,7 @@ def check_adr_alignment():
                "BINARY_BASE/EXIT_BLOCK/DUMP_BASE from machine_profile")
 
     for name, rel, mem_name in (
-            ("tiny", "tests/shared/linker/kaiwu-tiny.lds", "RAM"),
+            ("tiny", "tests/ee-tiny/kaiwu-tiny.lds", "RAM"),
             ("vast", "tests/shared/linker/kaiwu-vast.lds", "RAM")):
         text = load_file(rel)
         m = re.search(

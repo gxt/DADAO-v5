@@ -18,7 +18,7 @@
 
 	.include "tests/shared/asm/machine-tiny.inc"
 	.include "tests/shared/asm/machine.inc"
-	.include "tests/shared/bootrom/tiny/tiny_common.inc"
+	.include "tests/ee-tiny/tiny_common.inc"
 
 	.equ	PARAM,      ENTRY + 0x6000	@@ SYS_EXIT parameter block
 	.equ	SITE0,      ENTRY + 0x4000	@@ IALIGN jump sites

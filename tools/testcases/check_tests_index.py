@@ -76,7 +76,7 @@ import machine_profile  # noqa: E402
 
 # `.S` 载体检查点计数复用 L2 `check-inst-asm` / `validate_vectors` 的同一真源
 # （`scan_source`），避免门控与执行侧各认一套语法（M13-TESTCASES-042）。
-sys.path.insert(0, str(Path(__file__).resolve().parent / "inst"))
+sys.path.insert(0, str(ROOT / "tests" / "ee-tiny"))   # m15-testcases-011
 import run_asm_suite  # noqa: E402
 
 SCAN_ROOTS = ("tests", "tools/testcases")
@@ -208,7 +208,7 @@ def check_profile_lds(root: Path):
     if not hits:
         print(f"  地址扫描: {checked} 个文本文件，旧几何残留 0")
 
-    lds_map = {"tiny": "tests/shared/linker/kaiwu-tiny.lds",
+    lds_map = {"tiny": "tests/ee-tiny/kaiwu-tiny.lds",
                "vast": "tests/shared/linker/kaiwu-vast.lds"}
     for name, rel in lds_map.items():
         path = root / rel
@@ -291,7 +291,7 @@ def check_profile_lds(root: Path):
                               f"missing {expected!r}")
 
     # picolibc Tiny layout (A scheme): crt stub ROM / app SRAM / e_entry ROM.
-    pico = root / "tests/shared/linker/picolibc-tiny.ld"
+    pico = root / "tests/ee-tiny/picolibc-tiny.ld"
     if pico.is_file():
         ptext = pico.read_text(encoding="utf-8")
         for needle in ("ORIGIN = 0xffffffff0000", "ORIGIN = 0xffffff010100",
@@ -299,7 +299,7 @@ def check_profile_lds(root: Path):
             if needle not in ptext:
                 errors.append(f"PICOLIBC LDS: missing {needle!r}")
     else:
-        errors.append("PICOLIBC LDS MISSING: tests/shared/linker/picolibc-tiny.ld")
+        errors.append("PICOLIBC LDS MISSING: tests/ee-tiny/picolibc-tiny.ld")
 
     # Harness must not carry a RAM base literal (profile-derived only).
     harness = root / "tools/testcases/lib/build_test_binary.py"
@@ -689,7 +689,7 @@ def audit(root: Path, registry: dict[str, str] | None = None) -> int:
 def _write_profile_lds(root: Path, tamper: str | None = None) -> None:
     """Write minimal, profile-consistent linker scripts for the self-test tree."""
     profs = machine_profile.all_profiles()
-    for name, rel in (("tiny", "shared/linker/kaiwu-tiny.lds"),
+    for name, rel in (("tiny", "ee-tiny/kaiwu-tiny.lds"),
                       ("vast", "shared/linker/kaiwu-vast.lds")):
         prof = profs[name]
         origin, length = prof.ram_base, prof["ram_size"]
@@ -712,7 +712,7 @@ def _write_profile_lds(root: Path, tamper: str | None = None) -> None:
     common.write_text(
         "  .bss : ALIGN(8) { __bss_start = .; *(.bss) __bss_end = .; } > RAM\n"
         "  PROVIDE(__heap_start = __end);\n", encoding="utf-8")
-    (root / TESTS_REL / "shared" / "linker" / "picolibc-tiny.ld").write_text(
+    (root / TESTS_REL / "ee-tiny" / "picolibc-tiny.ld").write_text(
         "MEMORY { flash (rx!w) : ORIGIN = 0xffffffff0000, LENGTH = 0x10000\n"
         "         ram (rwx) : ORIGIN = 0xffffff010100, LENGTH = 0x7eff00 }\n"
         "__stack = 0xffffff7eff00;\n"
@@ -930,7 +930,7 @@ def self_test() -> int:
         case_no += 1
         work = tmpdir / f"case{case_no}"
         _write_tree(work, _empty_indexes())
-        _write_profile_lds(work, tamper="shared/linker/kaiwu-tiny.lds")
+        _write_profile_lds(work, tamper="ee-tiny/kaiwu-tiny.lds")
         rc, out = _run(work)
         good_lds = rc == 1 and "RAM ORIGIN" in out
         ok = ok and good_lds

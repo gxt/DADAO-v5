@@ -66,7 +66,9 @@ REPO_ROOT = paths.repo_root()
 TOOLCHAIN_BIN = paths.host_toolchain_bin()
 SYSROOT = paths.target_sysroot_dir()
 CRT0 = REPO_ROOT / "tests" / "shared" / "crt0" / "minimal_crt0.s"
-LDS = REPO_ROOT / "tests" / "shared" / "linker" / "kaiwu-tiny.lds"
+LDS = REPO_ROOT / "tests" / "ee-tiny" / "kaiwu-tiny.lds"
+# `INCLUDE dadao-common.lds` is found through -L (common script stays shared).
+SHARED_LDS_DIR = REPO_ROOT / "tests" / "shared" / "linker"
 
 PROG_C = """\
 #include <stdio.h>
@@ -235,7 +237,7 @@ def main() -> int:
                   f"{missing}; undefined={sorted(undef)})", file=sys.stderr)
             return 1
 
-        res = run([str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(LDS.parent), "-T", str(LDS),
+        res = run([str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(SHARED_LDS_DIR), "-T", str(LDS),
          str(work / "crt0.o"), str(obj),
                    str(SYSROOT / "lib" / "libc.a"), str(SYSROOT / "lib" / "libm.a"),
                    str(SYSROOT / "lib" / "libsemihost.a"), "-o", str(elf)])

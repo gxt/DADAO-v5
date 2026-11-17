@@ -23,7 +23,7 @@
 
 	.include "tests/shared/asm/machine-tiny.inc"
 	.include "tests/shared/asm/machine.inc"
-	.include "tests/shared/bootrom/tiny/tiny_common.inc"
+	.include "tests/ee-tiny/tiny_common.inc"
 
 	.text
 	.globl	_start

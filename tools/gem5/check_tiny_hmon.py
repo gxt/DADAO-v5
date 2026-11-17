@@ -2,7 +2,7 @@
 """check_tiny_hmon — Kaiwu-Tiny cfx_power + cfx3 hmon acceptance runner.
 
 Builds the §6.2 two-piece load (fixed 64 KiB BootROM image + SRAM-only app ELF)
-from `tests/arch/hmon/` and `tests/shared/bootrom/tiny/`, runs the application
+from `tests/arch/hmon/` and `tests/ee-tiny/`, runs the application
 on the gem5 Tiny FS profile, and compares the guest-exported result table
 against the independent oracle in `tests/arch/hmon/expected.yaml`
 (spec-derived cause ids, ELF-symbol IPs, and profile-derived cg7 offsets).
@@ -36,7 +36,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 CASE_DIR = ROOT / "tests" / "arch" / "hmon"
 SHARED_ASM = ROOT / "tests" / "shared" / "asm"
-TINY_FW = ROOT / "tests" / "shared" / "bootrom" / "tiny"
+TINY_FW = ROOT / "tests" / "ee-tiny"   # m15-testcases-011
 BUILDER = ROOT / "tools" / "testcases" / "arch" / "build_tiny_bootrom.py"
 DEFAULT_GEM5 = ROOT / ".work" / "source" / "gem5" / "build" / "DADAO" / "gem5.opt"
 DEFAULT_CONFIG = ROOT / ".work" / "source" / "gem5" / "configs" / "dadao" / "fs.py"

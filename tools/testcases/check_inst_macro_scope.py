@@ -54,7 +54,7 @@ from collections import defaultdict
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(Path(__file__).resolve().parent / "inst"))
+sys.path.insert(0, str(ROOT / "tests" / "ee-tiny"))   # m15-testcases-011
 import run_asm_suite  # noqa: E402  (宏体跳过的单一真源)
 
 INC_ROOT_REL = "tests/inst"

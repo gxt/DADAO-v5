@@ -64,7 +64,7 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(os.path.dirname(_SCRIPT_DIR))
 # harness / 冒烟驱动在 `tools/testcases/{lib,inst}`（TESTCASES-072t）。
 sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "testcases", "lib"))
-sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "testcases", "inst"))
+sys.path.insert(0, os.path.join(_REPO_ROOT, "tests", "ee-tiny"))   # m15-testcases-011
 sys.path.insert(0, os.path.join(_REPO_ROOT, "tools", "infra"))
 import writer_guard  # noqa: E402
 

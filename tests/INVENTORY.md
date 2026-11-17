@@ -144,7 +144,7 @@
 | `llvm-ts-user-050t/` | 826 | 209 M | **无脚本**：全仓 grep `llvm-ts-user-050t` 零命中（仅归档任务书 `TESTCASES-048t` 提及） | **否**（生成脚本已不在仓库） | 孤儿，建议清理 |
 | `libc-test-user/` | 1,897 | 77 M | `tools/testcases/tset/libc-test/run_libc_test_user_suite.py` | 是 | 118 个运行目录（三件套）+ 脚手架 |
 | `embench-user/` | 415 | 7.4 M | `tools/testcases/tset/embench/run_embench_user_suite.py` | 是 | 6 个运行目录 |
-| `m6-embench/` | 312 | 3.3 M | `test-m6` [3/3] → `run_embench_e2e.py` | 是 | `rm -rf` 后重建 |
+| `m6-embench/` | 312 | 3.3 M | `test-m6` [3/3] → `tests/ee-tiny/run_embench_e2e.py` | 是 | `rm -rf` 后重建 |
 | `codegen-e2e/` | 60 | 264 K | `test-codegen` → `run_codegen_e2e.py` | 是 | 每次 `rm -rf` |
 | `codegen-m6/` | 28 | 132 K | `run_codegen_e2e.py` 的**手工**调用（m6 README） | 是（手工） | 无 make 目标 |
 | `elf-m6/` | 3 | 20 K | `run_elf_e2e.py` 的**手工**调用（m6 README） | 是（手工） | 无 make 目标 |
@@ -197,7 +197,7 @@
 | `check-testcases-suites` | opt | libc-test + llvm-test-suite fast 子集 | `.work/log/testcases/runs/fast.json` | stdout |
 | `check-testcases-suites-full` | opt | 两套件全量可枚举 C 用例 | `runs/full.json` | stdout |
 | `test-picolibc-smoke` | opt | `printf("hi")` 端到端 | `.work/build/picolibc-smoke` | stdout |
-| `build-bootrom` | 前置 | legacy `bootrom.S`/`bootrom_app.S` + step5 `power/hmon/smon` 汇编链接与 256 KiB 镜像打包 | `.dadao/tests/bootrom`（含 `step5/`） | stdout |
+| `build-bootrom` | 前置 | `tests/ee-tiny/` 的 `bootrom.S`/`bootrom_app.S`/`power`/`hmon` + step5 `power/hmon/smon` 汇编链接与 256 KiB 镜像打包 | `.dadao/tests/bootrom`（含 `step5/`） | stdout |
 
 （表中「最近」数字取自各目标最近一次日志，非本次重跑；`make` 本册未执行任何被测语义。）
 

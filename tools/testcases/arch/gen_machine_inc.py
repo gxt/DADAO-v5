@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """gen_machine_inc.py — render assembler geometry headers from the profile table.
 
-The Makefile builds tests/shared/bootrom/*.S directly, so those sources cannot
+The Makefile builds tests/ee-tiny/*.S and tests/shared/bootrom/*.S directly, so they cannot
 receive llvm-mc --defsym from a driver.  They include a committed header that is
 generated from tests/shared/machine-profiles.yaml:
 

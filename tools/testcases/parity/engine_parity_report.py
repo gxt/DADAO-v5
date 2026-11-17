@@ -112,8 +112,7 @@ def _is_budget(status, reason):
 # status.  This generator prints the *same* label, so it imports it rather than
 # re-deriving the rule here (a second copy would drift).
 _BUDGET = None
-_BUDGET_PATH = os.path.join("tools", "testcases", "tset", "embench",
-                            "run_embench_e2e.py")
+_BUDGET_PATH = os.path.join("tests", "ee-tiny", "run_embench_e2e.py")
 
 
 class BudgetError(RuntimeError):

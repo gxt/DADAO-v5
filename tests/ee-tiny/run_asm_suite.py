@@ -26,12 +26,12 @@
 派生，三方比较用 `cmp` 语义（全字节）。
 
 用法：
-    python3 tools/testcases/inst/run_asm_suite.py                    # 01 册全部 id
-    python3 tools/testcases/inst/run_asm_suite.py --id ld.o_rrii_ra  # 单个
-    python3 tools/testcases/inst/run_asm_suite.py --books-root tests/inst \
-        --platforms qemu                                             # 全部册（L2 门控）
-    python3 tools/testcases/inst/run_asm_suite.py --platforms qemu   # 快速自查
-    python3 tools/testcases/inst/run_asm_suite.py --json-out <f>     # 逐例记录
+    python3 tests/ee-tiny/run_asm_suite.py                         # 01 册全部 id
+    python3 tests/ee-tiny/run_asm_suite.py --id ld.o_rrii_ra       # 单个
+    python3 tests/ee-tiny/run_asm_suite.py --books-root tests/inst \
+        --platforms qemu                                          # 全部册（L2 门控）
+    python3 tests/ee-tiny/run_asm_suite.py --platforms qemu        # 快速自查
+    python3 tests/ee-tiny/run_asm_suite.py --json-out <f>          # 逐例记录
 
 `--books-root`（`make check-inst-asm` 用）：扫描该根的**全部子目录**，凡含 `.S` 的册
 即为载体目录。**全部册共用同一份布局** `tests/inst/linker/inst-tiny.lds`
@@ -54,7 +54,7 @@ import tempfile
 from pathlib import Path
 
 _HERE = Path(__file__).resolve()
-_REPO = _HERE.parents[3]
+_REPO = _HERE.parents[2]
 sys.path.insert(0, str(_REPO / "tools" / "infra"))
 import paths  # noqa: E402
 import writer_guard  # noqa: E402

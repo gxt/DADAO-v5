@@ -37,7 +37,7 @@
   （`TESTCASES-075t` 从 `tools/testcases/` 迁入；旧路径 = 薄 wrapper，命令行等价）。
 - 运行目录 / 三件套：`<test-artifacts>/embench-user/<UTC>-embench-user-<档>/`
   （`docs/Process-08`；目录名**未改**）。
-- `test-m6` 的 Embench E2E（`tools/testcases/tset/embench/run_embench_e2e.py`）共用本目录 glue，
+- `test-m6` 的 Embench E2E（`tests/ee-tiny/run_embench_e2e.py`）共用本目录 glue，
   路径已同步。
 
 ## 口径

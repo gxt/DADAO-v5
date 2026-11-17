@@ -130,7 +130,7 @@ The static link line names ``libc.a`` **explicitly**: ``-L <musl>/lib -lc``
 would pick ``libc.so`` from the same directory (no ``PT_INTERP``, but
 ``PT_DYNAMIC`` present) and ``qemu-user`` then segfaults (TESTCASES-046t /
 QEMU-062t).  Base address (ISS-247): no ``-T``/linker script is passed, so
-lld's default base is used; ``tests/shared/linker/kaiwu-tiny.lds`` (``RAM ORIGIN =
+lld's default base is used; ``tests/ee-tiny/kaiwu-tiny.lds`` (``RAM ORIGIN =
 the old high RAM base``) cannot be loaded by ``qemu-user`` on this 47-bit host VA.
 Every image's minimum ``PT_LOAD`` and its ``PT_INTERP`` are read back from the
 file (the modality is asserted, not assumed).
@@ -937,7 +937,7 @@ FAULT_NAMES = {0xC0 | (mode << 4) | idx: name
 FAULT_NAMES.update({code: "CFX%d" % (code & 0x3F)
                     for code in range(0x80, 0xC0)})
 
-# The scripted base of tests/shared/linker/kaiwu-tiny.lds (ISS-247).
+# The scripted base of tests/ee-tiny/kaiwu-tiny.lds (ISS-247).
 SCRIPTED_BASE = 0xFC0000000000
 
 PT_LOAD = 1

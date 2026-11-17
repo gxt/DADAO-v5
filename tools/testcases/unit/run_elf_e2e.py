@@ -8,7 +8,7 @@ expected value (it does NOT rely on lit exit codes):
     per TU:  llc -march=dadao -filetype=obj  <tu>.ll     -> <tu>.o
     once:    llvm-mc --triple=dadao -filetype=obj \
                  tests/shared/crt0/minimal_crt0.s        -> crt0.o
-    link:    ld.lld -T tests/shared/linker/kaiwu-tiny-app.lds \
+    link:    ld.lld -T tests/ee-tiny/kaiwu-tiny-app.lds \
                  crt0.o <tu>.o ... -o <prog>.elf          (ET_EXEC, SRAM-only)
     run:     timeout N qemu-system-dadao \
                  -machine kaiwu-tiny,bootrom-image=<fixed 64 KiB firmware> \
@@ -97,7 +97,9 @@ DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
 DEFAULT_LDLLD = os.path.join(_TOOLCHAIN_BIN, "ld.lld")
 DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
 DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
-DEFAULT_LDS = "tests/shared/linker/kaiwu-tiny-app.lds"
+DEFAULT_LDS = "tests/ee-tiny/kaiwu-tiny-app.lds"
+# `INCLUDE dadao-common.lds` resolves through -L (the common script stays shared).
+SHARED_LDS_DIR = "tests/shared/linker"
 # Fixed Kaiwu-Tiny BootROM firmware (make build-bootrom).
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir()
                       / "bootrom" / "tiny" / "bootrom_tiny.bin")
@@ -230,7 +232,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     # 2. ld.lld -T kaiwu-tiny.lds crt0.o <objs> -o <prog>.elf
     elf = os.path.join(work_dir, stem + ".elf")
     rc, _out, err, timed = _run(
-        [tools["ldlld"], "-L", os.path.dirname(tools["lds"]),
+        [tools["ldlld"], "-L", _abspath(SHARED_LDS_DIR),
          "-T", tools["lds"], crt0_o] + objs + ["-o", elf]
     )
     if timed or rc != 0:

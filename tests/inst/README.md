@@ -107,17 +107,17 @@ C/IR 探针已**全部退役**、目录已删：`atomics` 五探针 `m13-testcas
   指令流与定长 4 条的旧宏必然不同，故**不**用镜像字节相等做判据（`m15-testcases-006`）。
 
 ```
-python3 tools/testcases/inst/run_asm_suite.py --id ld.o_rrii_rd   # 单个 id
-python3 tools/testcases/inst/run_asm_suite.py                     # 01-load-store 全册
-python3 tools/testcases/inst/run_asm_suite.py \
+python3 tests/ee-tiny/run_asm_suite.py --id ld.o_rrii_rd   # 单个 id
+python3 tests/ee-tiny/run_asm_suite.py                     # 01-load-store 全册
+python3 tests/ee-tiny/run_asm_suite.py \
     --vectors tests/inst/00-isa-design                            # 00 册（非 id 载体：
                                                                   # 保留编码 + 原子 RMW 合成序）
-python3 tools/testcases/inst/run_asm_suite.py --vectors tests/inst/02-reg-copy
-python3 tools/testcases/inst/run_asm_suite.py --vectors tests/inst/03-wyde-imm
-python3 tools/testcases/inst/run_asm_suite.py --vectors tests/inst/04-arith-logic-octa
-python3 tools/testcases/inst/run_asm_suite.py --vectors tests/inst/06-control-flow
-python3 tools/testcases/inst/run_asm_suite.py --vectors tests/inst/07-floating-point
-python3 tools/testcases/inst/run_asm_suite.py --books-root tests/inst   # 全部册全量（L2 门控）
+python3 tests/ee-tiny/run_asm_suite.py --vectors tests/inst/02-reg-copy
+python3 tests/ee-tiny/run_asm_suite.py --vectors tests/inst/03-wyde-imm
+python3 tests/ee-tiny/run_asm_suite.py --vectors tests/inst/04-arith-logic-octa
+python3 tests/ee-tiny/run_asm_suite.py --vectors tests/inst/06-control-flow
+python3 tests/ee-tiny/run_asm_suite.py --vectors tests/inst/07-floating-point
+python3 tests/ee-tiny/run_asm_suite.py --books-root tests/inst   # 全部册全量（L2 门控）
 ```
 
 **链接布局**：无需 `--lds`——全部册（00 + 01–12）默认用 `tests/inst/linker/inst-tiny.lds`

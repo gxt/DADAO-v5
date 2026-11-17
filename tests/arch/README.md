@@ -15,7 +15,7 @@ per-hart/per-system、TIMER/IPI/UART/power），只跑 **`system`** 平台
 |------|-----|------|
 | `umon/` | `cfx_umon`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.s`，10 条）+ `expected.yaml` 清单 |
 | `ptw/` | `cfx_ptw`（TLB/PTW） | 15 条 TLB 探针（`arch-ptw-001`…`015`，含 014「A/D 回写失败条目级遇错即停」与 015「内存窗口 IP 的 `ILLI cause_info`」）的期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 来源 §）；载体是驱动 `tools/testcases/arch/min_rom_probe_tlb.py`（`Makefile` 的 `ARCH_CFX_PROBES` id `tlb`，`--only arch-ptw-0NN` 逐条跑），**不在**本目录放 `.s` 载体 |
-| `hmon/` | `cfx3 hmon` + `cfx_power`（Tiny） | `tiny_hmon.S`（gem5 Tiny FS 应用：读 hmon SRAM 数据槽记录 power→hmon 移交、五类同步异常、IALIGN IP 停留、`trap` 两路、`cfx2rd`/`cfx2rc`、Tiny 恒 `hypv` 与 `cg3` 仅 hypv 可读、`cg3 rc10` 掩低 2 位；hmon 段用共享最小编码 `tests/shared/bootrom/tiny/hmon.S`）+ `tiny_hmon_min.S`（QEMU 同契约探针应用）+ `tiny_hmon_layout.inc`（应用数据区布局）+ `expected.yaml`；装载按 `Kaiwu §6.2` 两件（固定 64 KiB BootROM + 仅 SRAM 的应用 ELF） |
+| `hmon/` | `cfx3 hmon` + `cfx_power`（Tiny） | `tiny_hmon.S`（gem5 Tiny FS 应用：读 hmon SRAM 数据槽记录 power→hmon 移交、五类同步异常、IALIGN IP 停留、`trap` 两路、`cfx2rd`/`cfx2rc`、Tiny 恒 `hypv` 与 `cg3` 仅 hypv 可读、`cg3 rc10` 掩低 2 位；hmon 段用共享最小编码 `tests/ee-tiny/hmon.S`）+ `tiny_hmon_min.S`（QEMU 同契约探针应用）+ `tiny_hmon_layout.inc`（应用数据区布局）+ `expected.yaml`；装载按 `Kaiwu §6.2` 两件（固定 64 KiB BootROM + 仅 SRAM 的应用 ELF） |
 
 其余 cfx（`jmon`/`smon`/`cache`/`hart`/`llc`/`pmem`/`time`/`uart`）按需增建；**不建** `arch/isa`、空壳子目录。`hmon/` 的 Tiny 用例由 gem5 运行（`python3 tools/gem5/check_tiny_hmon.py`），不进 QEMU 探针门控。
 
@@ -34,4 +34,4 @@ python3 tools/gem5/check_tiny_hmon.py   # Tiny 两件装载契约 + cfx_power/cf
 ```
 
 前置：`make install-host`（工具链 + QEMU 取自安装根，ADR-0016 D9）与
-`make build-bootrom`（bootrom 源在 `tests/shared/bootrom/`）。
+`make build-bootrom`（Tiny bootrom 源在 `tests/ee-tiny/`，其余在 `tests/shared/bootrom/`）。

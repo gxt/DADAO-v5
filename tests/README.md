@@ -65,9 +65,10 @@
 | `tset/embench/` | T | Embench 套件说明 + 套件独有 glue（runtime/boardsupport/头） | `make check-tset-embench-smoke` |
 | `unit/llvm/e2e/lit/*.test` | U | 工具链端到端 smoke/FP/clmul/weak/CM（14）；`TESTCASES-084t` 由顶层 `e2e/` 归入 | `make check-lit` |
 | `unit/llvm/e2e/*.c|*.s|*.lds` | U | 上述 `.test` 的源（9 个已无 runner，见 `INVENTORY §7.4`） | 经 `.test` |
-| `shared/bootrom/` | S 载体 | SEE bootrom 源 + 链接脚本（legacy `bootrom.{S,lds}`/`bootrom_app.S`；step5 `step5/{power,hmon,smon}.{S,lds}` 与 256 KiB BootROM 打包；`make build-bootrom` 用） | — |
+| `ee-tiny/` | S 载体 | Kaiwu-Tiny 执行环境资产（平铺，`m15-testcases-011`）：4 个驱动（`run_asm_suite.py` / `picolibc_tests.py` / `run_embench_e2e.py` / `run_semihosting_smoke.py`）+ 10 个 bootrom（`bootrom.S`、`bootrom_app.S`、`semihost_smoke.S`、`power/hmon.{S,lds}`、`tiny_common.inc`、`tiny_smoke.lds`、`semihost_smoke.lds`）+ 3 个 lds（`kaiwu-tiny{,-app}.lds`、`picolibc-tiny.ld`） | `make build-bootrom`；`check-inst-asm` / `check-picolibc-tests` / `test-m6` / `linux-semihosting-smoke` |
+| `shared/bootrom/` | S 载体 | 其余共享 bootrom（`bootrom.lds`、`tiny_crt.S`、`tiny_smoke.S`、`semihost_msg.inc`；step5 `step5/{power,hmon,smon}.{S,lds}` 与 256 KiB BootROM 打包；`make build-bootrom` 用） | — |
 | `shared/crt0/minimal_crt0.s` | 共享 glue | 单 TU/多 TU 端到端启动桩（`_start` → `@main` → `SYS_EXIT`） | 被 `test-codegen`/`test-elf`/lit/e2e 引用 |
-| `shared/linker/{kaiwu-tiny.lds,dadao-dyn.lds}` | 共享 glue | M4 静态布局 / ET_DYN 动态布局链接脚本 | 同上 + musl/P5 驱动（dyn） |
+| `shared/linker/{dadao-common.lds,dadao-dyn.lds,kaiwu-vast.lds}` | 共享 glue | 公共段/符号、ET_DYN 动态布局、Vast 布局链接脚本（Tiny 两份已迁 `ee-tiny/`） | 同上 + musl/P5 驱动（dyn） |
 | `shared/runtime/{dadao_mem_runtime.ll,dadao_user_dyn_probe.c}` | 共享 glue | freestanding `mem*` 运行时 + 动态装载 auxv 探针程序 | `test-m6`/embench/手工 |
 | `case-ledger.tsv` | — | 逐条身份清单（1,962 行含表头；生成物） | `make check-case-ledger`（L1） |
 
@@ -116,17 +117,17 @@ make test-repro  SCOPE=unit               # 两次生产 + 构建产物逐字节
 
 ```sh
 # 单个 `.S` 载体（= 一个 id；链例比结果字节流、故障例比 monitor 退出码）
-python3 tools/testcases/inst/run_asm_suite.py --id add.si_riii_rd --platforms qemu
+python3 tests/ee-tiny/run_asm_suite.py --id add.si_riii_rd --platforms qemu
 
 # 一册（目录）
-python3 tools/testcases/inst/run_asm_suite.py --vectors tests/inst/04-arith-logic-octa \
+python3 tests/ee-tiny/run_asm_suite.py --vectors tests/inst/04-arith-logic-octa \
     --platforms qemu
 
 # 全部册（= L2 `check-inst-asm` 的同一命令）
-python3 tools/testcases/inst/run_asm_suite.py --books-root tests/inst --platforms qemu
+python3 tests/ee-tiny/run_asm_suite.py --books-root tests/inst --platforms qemu
 
 # 只做现场统计（不建镜像、不跑）：点数 / 点号连续性 / ≤127
-python3 tools/testcases/inst/run_asm_suite.py --books-root tests/inst --scan-only
+python3 tests/ee-tiny/run_asm_suite.py --books-root tests/inst --scan-only
 ```
 
 前置：`make install-host`（`qemu-system-dadao` 取自安装根，见 `tools/testcases/lib/README.md`）。
@@ -134,7 +135,7 @@ python3 tools/testcases/inst/run_asm_suite.py --books-root tests/inst --scan-onl
 arch（`tests/arch/`）单跑：
 
 ```sh
-make build-bootrom                                   # SEE bootrom（tests/shared/bootrom/）
+make build-bootrom                                   # SEE bootrom（源在 tests/ee-tiny/ + tests/shared/bootrom/）
 python3 tools/testcases/arch/run_m5_e2e.py --only m5_semi_exit
 python3 tools/testcases/arch/run_m5_e2e.py --inject   # 反例自检（FAIL ⇒ 还原 ⇒ 回绿）
 python3 tools/testcases/arch/min_rom_probe_044t.py --list   # cfx min-ROM 场景探针

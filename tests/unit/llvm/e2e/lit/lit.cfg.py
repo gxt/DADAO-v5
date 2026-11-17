@@ -101,7 +101,9 @@ config.substitutions.append(("%bootrom", bootrom))
 # e_entry = 0xffff_ff01_0100, spec/Kaiwu §6); `kaiwu-tiny.lds` remains the
 # pre-contract crt-in-ROM layout for legacy harnesses.
 config.substitutions.append(("%crt0", os.path.join(shared_dir, "crt0", "minimal_crt0.s")))
-config.substitutions.append(("%linker_script", os.path.join(shared_dir, "linker", "kaiwu-tiny-app.lds")))
+# m15-testcases-011: Tiny 的 lds 在 `tests/ee-tiny/`（`%ld` 的 `-L` 仍指向 shared/linker，
+# 供 `INCLUDE dadao-common.lds` 解析）。
+config.substitutions.append(("%linker_script", os.path.join(root, "tests", "ee-tiny", "kaiwu-tiny-app.lds")))
 
 # Locate e2e source directory: <repo>/tests/unit/llvm/e2e/ (this config lives
 # in its lit/ subdirectory, so the source dir is its parent).

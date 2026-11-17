@@ -61,7 +61,7 @@ ENV_STATE = "DADAO_WRITER_STATE_DIR"
 # Declared batch / evidence entries (docs/Process-07 §2.1).  Each one must keep
 # the start/finish guard calls -- that is S1, so a silent regression goes red.
 READER_ENTRIES = [
-    "tools/testcases/inst/run_asm_suite.py",
+    "tests/ee-tiny/run_asm_suite.py",
     "tools/testcases/arch/run_m5_e2e.py",
     # run_{rnd,minmax,fma,clmul}_probe.py 已退役（入口文件删除）：前三者
     # m13-testcases-044、clmul m15-testcases-008
@@ -71,15 +71,15 @@ READER_ENTRIES = [
     "tools/testcases/tset/libc-test/run_libc_test_user_suite.py",
     "tools/testcases/tset/llvm-ts/run_llvm_ts_user.py",
     "tools/testcases/tset/embench/run_embench_user_suite.py",
-    "tools/testcases/tset/embench/run_embench_e2e.py",
+    "tests/ee-tiny/run_embench_e2e.py",
     "tools/testcases/l3_run.py",
     "tools/testcases/night_run.py",
     "tools/gem5/check_tiny_hmon.py",
-    "tools/testcases/picolibc_tests.py",
+    "tests/ee-tiny/picolibc_tests.py",
     "tools/qemu/user_mode_smoke.py",
     "tools/qemu/semantics_gate.py",
     "tools/qemu/k0_boot_probe.py",
-    "tools/linux/run_semihosting_smoke.py",
+    "tests/ee-tiny/run_semihosting_smoke.py",
 ]
 
 
@@ -279,7 +279,7 @@ def check_w1(rep: Report, tmp: Path, env: dict) -> None:
     def entry(*extra: str) -> subprocess.CompletedProcess:
         # `.S` 批量入口（`m13-testcases-043`：YAML 代表集入口 `run_qemu_smoke.py` 已退役）。
         # 只跑 1 个载体（3 个故障镜像）⇒ stub qemu 下秒级。
-        return _run([sys.executable, "tools/testcases/inst/run_asm_suite.py",
+        return _run([sys.executable, "tests/ee-tiny/run_asm_suite.py",
                      "--qemu", str(stub), "--bootrom", str(bootrom),
                      "--platforms", "qemu", "--vectors", "tests/inst/00-isa-design",
                      "--id", "undi_reserved",
@@ -418,7 +418,7 @@ def check_w5(rep: Report, tmp: Path, env: dict) -> None:
     _stub_binary(stub, tmp / "sdd-marker")
     bootrom = tmp / "bootrom2.bin"
     bootrom.write_bytes(b"\x00")
-    q = _run([sys.executable, "tools/testcases/inst/run_asm_suite.py",
+    q = _run([sys.executable, "tests/ee-tiny/run_asm_suite.py",
               "--qemu", str(stub), "--bootrom", str(bootrom),
               "--platforms", "qemu", "--vectors", "tests/inst/00-isa-design",
               "--id", "undi_reserved",

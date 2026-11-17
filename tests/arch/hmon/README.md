@@ -16,7 +16,7 @@ monitor).  Source: `spec/Kaiwu §1.1/§2/§3/§4.4/§5`, `spec/DADAO-12 §5`,
 | `expected.yaml` | Independent oracle (spec-derived cause ids, ELF-symbol IPs and return slots, profile-derived cg7 values) |
 
 The BootROM firmware (power stub + hmon handler) is **not** in this directory:
-it is the *shared* `tests/shared/bootrom/tiny/{power,hmon}.S` built by
+it is the *shared* `tests/ee-tiny/{power,hmon}.S` built by
 `build_tiny_bootrom.py` — the same 64 KiB image QEMU and chipyard boot.  The
 old gem5-only dispatch handler (`tiny_hmon_handler.{S,lds}`, 18 instructions /
 248 B, frame recording + IALIGN rewrite + `+4`) was removed by

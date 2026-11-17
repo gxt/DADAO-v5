@@ -26,7 +26,7 @@ commit 上复算（或显式传同一 sha）。
   * 逐镜像记录装载 / 三平台判定 / 结果字节流读取 = `fp_diff.py`
     （`load_run` / `merge_runs` / `classify` / `_read_out` / `chain_byte_errors`；
     `m13-integ-002` 已验收）；
-  * 载体用例行 / 故障例解析 = `tools/testcases/inst/run_asm_suite.py::scan_source`；
+  * 载体用例行 / 故障例解析 = `tests/ee-tiny/run_asm_suite.py::scan_source`；
   * owner 词表 = `se_tset_matrix.OWNERS`（经 `fp_diff` 转出）；**平台状态词表不另立**：
     状态由 `rc` 现场派生（`0` ⇒ `PASS`，非 `0` ⇒ `FAIL`），三平台判定复用
     `fp_diff.classify`（本脚本不 import `run_parity`，其 `STATUSES` 是 SE 侧词表）。
@@ -71,7 +71,7 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 _REPO = _HERE.parents[2]
 for _p in (str(_HERE), str(_REPO / "tools" / "infra"),
-           str(_REPO / "tools" / "testcases" / "inst")):
+           str(_REPO / "tests" / "ee-tiny")):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 

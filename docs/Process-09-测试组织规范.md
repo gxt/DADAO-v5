@@ -210,13 +210,17 @@ tools/testcases/
   `tools/testcases/tset/embench` 一份（`TESTCASES-075t`）；套件独有 glue →
   `tests/tset/embench/`，共享运行时 → `tests/shared/runtime/dadao_mem_runtime.ll`。
 - `tests/shared/` 只放**非用例**数据（bootrom、linker、crt0、宏、公共期望）。
+- **执行环境独有资产 → `tests/ee-<env>/`**（`env` 见 `contracts/exec-envs.yaml`；平铺、不建子目录）：
+  `tests/ee-tiny/` = Kaiwu-Tiny 专属的驱动（asm/picolibc/embench/semihosting 四个脚本）+ bootrom + lds
+  （`m15-testcases-011`）；`tests/ee-user/`、`tests/ee-vast/` 同规则。判据：只服务一个执行环境 ⇒ `ee-<env>/`；
+  被 ≥2 环境复用 ⇒ `tests/shared/`。
 - **glue（测试胶水）**：把上游套件/被测程序接到 DADAO 的**非用例**代码与数据，分三类：
-  1. **链接/布局**：`kaiwu-tiny.lds`、`dadao-dyn.lds`、`bootrom.lds`（基址、段、对齐）；
-  2. **启动/运行时**：`crt0`（`minimal_crt0.s`）、bootrom（`bootrom.S`/`bootrom_app.S`；Tiny 的 `-bios` 用 **64 KiB 固定固件** `bootrom/tiny/bootrom_tiny.bin`，旧 trampoline 已于 M13 退役）、`embench_runtime.c`/`embench_user_boardsupport.c`、`picolibc_test_crt0.s`；
+  1. **链接/布局**：`tests/ee-tiny/kaiwu-tiny{,-app}.lds`、`tests/shared/linker/dadao-{common,dyn}.lds`、`tests/shared/bootrom/bootrom.lds`（基址、段、对齐）；
+  2. **启动/运行时**：`crt0`（`minimal_crt0.s`）、bootrom（`tests/ee-tiny/{bootrom,bootrom_app}.S`；Tiny 的 `-bios` 用 **64 KiB 固定固件** `bootrom/tiny/bootrom_tiny.bin`，旧 trampoline 已于 M13 退役）、`embench_runtime.c`/`embench_user_boardsupport.c`、`picolibc_test_crt0.s`；
   3. **接口桩**：syscall/semihosting stub、`SYS_EXIT`/console 适配、公共宏/头（`embench_include/`）。
   - **不是 patch**：patch 只用于**改上游组件源码**（`components/<name>/patches/**`，如 picolibc `semihost-dadao.S`、embench `boardsupport.c`、musl `arch/dadao`）；测试胶水**不改上游**，是我们自己的文件。
   - **不只是链接脚本**：链接脚本只是第 1 类。
-  - **落点**：**共享**（被 ≥2 scope/套件复用，或基础 harness）→ `tests/shared/`；**套件独有** → `tests/tset/<suite>/`；扩展独有 → `tests/inst/<ext>/`；cfx 独有 → `tests/arch/<cfx>/`；Python harness → `tools/testcases/lib`；**必须改上游源码** → `components/<name>/patches/`。
+  - **落点**：**共享**（被 ≥2 scope/套件/执行环境复用，或基础 harness）→ `tests/shared/`；**执行环境独有** → `tests/ee-<env>/`（`contracts/exec-envs.yaml`）；**套件独有** → `tests/tset/<suite>/`；扩展独有 → `tests/inst/<ext>/`；cfx 独有 → `tests/arch/<cfx>/`；Python harness → `tools/testcases/lib`；**必须改上游源码** → `components/<name>/patches/`。
 
 ---
 
@@ -231,7 +235,7 @@ tools/testcases/
 
 ## 8. 门控分层（一个检查只在一层）
 
-- **任务级（Task）**：任务书 `## 验证` 必须写 `scope`、`level`（targeted/smoke）、`cmd`；reviewer 重跑同一命令。**≤2 min**，如 `python3 tools/testcases/inst/run_asm_suite.py --id <id> --platforms qemu`、`make check-arch-smoke CFX=...`、`make check-unit`、`make check-tset-libc-smoke`。
+- **任务级（Task）**：任务书 `## 验证` 必须写 `scope`、`level`（targeted/smoke）、`cmd`；reviewer 重跑同一命令。**≤2 min**，如 `python3 tests/ee-tiny/run_asm_suite.py --id <id> --platforms qemu`、`make check-arch-smoke CFX=...`、`make check-unit`、`make check-tset-libc-smoke`。
 - **L1（静态）**：`tests/*.yaml` 索引、ID/文件/字段、`case-ledger`（`.S` 用例行 + lit pattern）、链接/引用、**跨模块接口一致性**（`check-interface`）、**代码跨度自检**（`check-code-range`）；**不跑 guest**。
 - **L2（四 scope smoke）**：`check-inst-asm`（`.S` 载体全量；原 `check-inst-smoke` 的 YAML 代表集已随 YAML 退役删除，`m13-testcases-043`）、`check-arch-smoke`、`check-unit`、`check-tset-{libc,llvm,embench}-smoke` ⇒ `make check-modules`。**不含 FP 探针**（2026-10-27 用户裁定「L2 只保留四 scope smoke」）。
 - **L3（全量）**：`check-arch`（全 cfx）、**`check-unit-full`**（= `check-unit` + `check-lit-full`）、**FP 语义**（四类探针已全部退役：`rnd`/`minmax`/`fma` 由 `m13-testcases-044`、`clmul` 由 `m15-testcases-008`；现由 `tests/inst/07-floating-point/` 的 `.S` 载体（L2 `check-inst-asm`）+ `tests/unit/llvm/lit` + `e2e/lit` 承担）、`test-m6`（全量 lit + ir-lli + Embench E2E）⇒ `make check-full`；**inst 不在 L3 列**（`.S` 执行门控 = L2 `check-inst-asm`；原 `check-inst` 随 YAML 退役删除，Vast 的 ISA 执行覆盖明确放弃，`m13-testcases-043`）；运行时逐成员落 `.dadao/tests/l3/<UTC>/` 报告（`l3_run.py`），由里程碑层 `check-l3-report` 消费。
@@ -252,7 +256,7 @@ tools/testcases/
 ```yaml
 scope: inst/04-arith-logic-octa
 level: smoke
-cmd: python3 tools/testcases/inst/run_asm_suite.py --id add.si_riii_rd --platforms qemu
+cmd: python3 tests/ee-tiny/run_asm_suite.py --id add.si_riii_rd --platforms qemu
 ```
 
 - 任务只跑**自己 scope 的 smoke/targeted**；全量/回归运行不进任务。

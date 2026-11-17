@@ -19,7 +19,7 @@
 Stages (each one re-runnable; ``all`` = build + run + report):
 
     build   compile the embench subset through the existing e2e driver
-            (``tools/testcases/tset/embench/run_embench_e2e.py``, tiny profile)
+            (``tests/ee-tiny/run_embench_e2e.py``, tiny profile)
             and record the ELF facts + the corpus' own expected exit code
     run     run every case on both engines and keep the raw observations
     report  join the two sides, attribute the cycles to the model classes and
@@ -72,7 +72,7 @@ PROFILES = ROOT / "tests/shared/machine-profiles.yaml"
 PROCESS_PATCH = ROOT / "components/gem5/patches/src/arch/dadao/process.cc.patch"
 GEM5 = ROOT / ".work/source/gem5/build/DADAO/gem5.opt"
 CONFIG = ROOT / ".work/source/gem5/configs/dadao/se_timing.py"
-E2E = ROOT / "tools/testcases/tset/embench/run_embench_e2e.py"
+E2E = ROOT / "tests" / "ee-tiny" / "run_embench_e2e.py"
 
 # The e2e driver's freestanding runtime prints these through the board shim;
 # a guest that exits 0 without ever running the benchmark would miss them.
@@ -997,7 +997,7 @@ def render_report(rep):
     w("    --md docs/TestReports/M17-wuming-timing.md")
     w("```")
     w("")
-    w("`build` 复用 `tools/testcases/tset/embench/run_embench_e2e.py` 的编译行（tiny")
+    w("`build` 复用 `tests/ee-tiny/run_embench_e2e.py` 的编译行（tiny")
     w("profile + freestanding runtime），ELF 与 L2 `check-tset-embench-*` 同源；`run` 每例")
     w("跑 chipyard 一次（带 `+verbose` 轨迹）+ gem5 两次（hooks on/off）；`report` 只读")
     w("原始输出并重跑周期表门控。")

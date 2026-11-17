@@ -28,7 +28,7 @@ Pipeline per (benchmark, optimisation level):
     clang ... -c tests/tset/embench/embench_runtime.c                    -> *.o
     llc  -march=dadao -O0 -filetype=obj dadao_mem_runtime.ll        -> *.o
     llvm-mc --triple=dadao -filetype=obj minimal_crt0.s             -> crt0.o
-    ld.lld -T kaiwu-tiny-app.lds *.o                                     -> <b>.elf
+    ld.lld -T tests/ee-tiny/kaiwu-tiny-app.lds *.o                  -> <b>.elf
     timeout N qemu-system-dadao \
             -machine kaiwu-tiny,bootrom-image=<fixed 64 KiB firmware> \
             -kernel <b>.elf -semihosting-config enable=on,target=native -> guest exit
@@ -85,9 +85,10 @@ import shutil
 import subprocess
 import sys
 
-# 本文件在 `tools/testcases/tset/embench/run_embench_e2e.py`（TESTCASES-076t 从集成驱动目录迁入）⇒ 仓库根在 4 层之上。
+# 本文件在 `tests/ee-tiny/run_embench_e2e.py`（m15-testcases-011 从 `tools/testcases/tset/embench/`
+# 迁入；TESTCASES-076t 曾从集成驱动目录迁入）⇒ 仓库根在 2 层之上。
 REPO_ROOT = os.path.normpath(
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..")
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
 )
 
 # Install root (ADR-0016 D7/D9): resolve tools from the single source of truth
@@ -111,7 +112,10 @@ DEFAULT_INCLUDE = "tests/tset/embench/embench_include"
 DEFAULT_RUNTIME = "tests/tset/embench/embench_runtime.c"
 DEFAULT_MEM_RUNTIME = "tests/shared/runtime/dadao_mem_runtime.ll"
 DEFAULT_CRT0 = "tests/shared/crt0/minimal_crt0.s"
-DEFAULT_LDS = "tests/shared/linker/kaiwu-tiny-app.lds"
+DEFAULT_LDS = "tests/ee-tiny/kaiwu-tiny-app.lds"
+# `INCLUDE dadao-common.lds` inside the moved scripts resolves through -L
+# (ld.lld searches cwd + -L; the common script stays in tests/shared/linker/).
+SHARED_LDS_DIR = "tests/shared/linker"
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir()
                       / "bootrom" / "tiny" / "bootrom_tiny.bin")
 DEFAULT_BOARDSUPPORT = "examples/dadao/boardsupport.c"
@@ -318,7 +322,7 @@ def build_and_run(bench, opt, tools, work_dir, timeout, verbose=False):
     # 5. link (ld.lld).
     elf = os.path.join(outdir, bench + ".elf")
     objs = sorted(glob.glob(os.path.join(outdir, "*.o")))
-    rc, _o, err, timed = _run([tools["ldlld"], "-L", os.path.dirname(tools["lds"]),
+    rc, _o, err, timed = _run([tools["ldlld"], "-L", _abspath(SHARED_LDS_DIR),
                               "-T", tools["lds"]] + objs + ["-o", elf])
     if timed or rc != 0:
         res.reason = f"ld.lld failed (rc={rc}): {err.strip()[:200]}"
@@ -630,7 +634,7 @@ def main():
         sys.stderr.write("ERROR: profile %r does not run embench\n" % prof.name)
         return 2
     if args.lds == DEFAULT_LDS:
-        args.lds = ("tests/shared/linker/kaiwu-tiny-app.lds"
+        args.lds = ("tests/ee-tiny/kaiwu-tiny-app.lds"
                     if prof.name == "tiny"
                     else "tests/shared/linker/dadao-%s.lds" % prof.name)
 

@@ -15,7 +15,7 @@ DADAO executable:
    the fp-contract flag is musl's own accuracy requirement (ISS-332).
 2. **smoke link** -- compile a minimal program (``write(1, "hi\\n", 3)`` +
    ``return 0``) against that library and link it with ``lib/crt1.o`` and the
-   project ELF script ``tests/shared/linker/kaiwu-tiny.lds``.
+   project ELF script ``tests/ee-tiny/kaiwu-tiny.lds``.
 3. **verify** -- the ELF is parsed here (ELF64 / big-endian / ET_EXEC /
    e_machine = EM_DADAO 0x0DA0 / no PT_INTERP / no PT_DYNAMIC, entry inside the
    first PT_LOAD) and cross-checked against ``file(1)``; the disassembly must
@@ -127,7 +127,9 @@ import toolchain_id as tid  # noqa: E402
 REPO_ROOT = paths.repo_root()
 TOOLCHAIN_BIN = paths.host_toolchain_bin()
 MUSL_SRC = REPO_ROOT / ".work" / "source" / "musl"
-LDS = REPO_ROOT / "tests" / "shared" / "linker" / "kaiwu-tiny.lds"
+LDS = REPO_ROOT / "tests" / "ee-tiny" / "kaiwu-tiny.lds"
+# `INCLUDE dadao-common.lds` is found through -L (common script stays shared).
+SHARED_LDS_DIR = REPO_ROOT / "tests" / "shared" / "linker"
 
 TARGET = "dadao-unknown-elf"
 EM_DADAO = 0x0DA0
@@ -590,7 +592,7 @@ def compile_program(work: Path) -> Path:
 
 def link_program(work: Path, obj: Path) -> Path:
     elf = work / "musl_smoke.elf"
-    cmd = [str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(LDS.parent), "-T", str(LDS),
+    cmd = [str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(SHARED_LDS_DIR), "-T", str(LDS),
            str(MUSL_SRC / "lib" / "crt1.o"), str(obj), str(MUSL_SRC / "lib" / "libc.a"),
            "-o", str(elf)]
     res = run(cmd, cwd=REPO_ROOT)
@@ -608,7 +610,7 @@ def link_dynamic_program(work: Path, obj: Path, so: Path) -> Path:
 
     No linker script is used here, and that is a deliberate, measured decision:
 
-    * ``tests/shared/linker/kaiwu-tiny.lds`` (the static/M4 layout) declares its own PHDRS.
+    * ``tests/ee-tiny/kaiwu-tiny.lds`` (the static/M4 layout) declares its own PHDRS.
       lld then takes the *whole* program-header set from the script
       (``LinkerScript::createPhdrs``), i.e. ``.interp``/PT_INTERP and
       PT_DYNAMIC are never emitted -- and the link still succeeds (rc=0), so

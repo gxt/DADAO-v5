@@ -45,7 +45,7 @@
   文件的**全部**故障例（异常不返回被测指令之后，由 `.faulttab` 顺序续跑）。
   `-defsym CASE_N=<检查点>` = **调试用单例模式**（`_start` 直接跳该例，只比退出码，
   不进 `check-inst-asm`）。检查点数 ≤ 127，失败点号 = 用例序号。
-- 三方比较（同一份 ELF）：`tools/testcases/inst/run_asm_suite.py`（chipyard
+- 三方比较（同一份 ELF）：`tests/ee-tiny/run_asm_suite.py`（chipyard
   `WumingTinyConfig` / QEMU `kaiwu-tiny` / gem5 FS `tiny`）。
 
 ## 3. 每个 id 的用例设计模板（5 类）
@@ -391,7 +391,7 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 - 用例：每 id 16–18 条（encoding 2 / legality 2–5 / semantic 5 / boundary 5–6 /
   overlap 2）；四处 YAML 中属于这 19 个 id 的用例已并入（含 `reserved.yaml` 的
   reserved-cfx `CFXMEM` 6 例）。
-- 三方逐字节：`tools/testcases/inst/run_asm_suite.py` 跑 19 链例 + 49 故障例
+- 三方逐字节：`tests/ee-tiny/run_asm_suite.py` 跑 19 链例 + 49 故障例
   （同一 ELF：chipyard / QEMU / gem5），链例比较结果字节流、故障例比较 monitor
   段退出码。
 - **YAML 未删**：`mem-rd.yaml`/`mem-ra.yaml`/`mem-rb.yaml` 仍含 `ldm`/`stm` id，

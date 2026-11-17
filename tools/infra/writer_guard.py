@@ -14,7 +14,7 @@ started by one session *replaces binaries another session is reading*:
 
 ``gate.lock`` (``docs/Process-07 §2``) only serializes make targets inside one
 worktree and says nothing to a *reader*: a review runs
-``python3 tools/testcases/inst/run_asm_suite.py`` directly, takes no lock, and
+``python3 tests/ee-tiny/run_asm_suite.py`` directly, takes no lock, and
 cannot tell that ``gem5.opt`` is being rewritten.
 
 Two mechanisms, both mechanical:

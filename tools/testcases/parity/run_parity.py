@@ -19,12 +19,12 @@ Scope (ADR-0048 D1/D2/D5; task book §0/§1/§4):
 The driver reuses the existing engines instead of re-implementing them:
 
   inst      **已退役**（`m13-testcases-043`）：YAML 载体全删；inst 的三平台逐字节
-            改由 `tools/testcases/inst/run_asm_suite.py --platforms chipyard,qemu,gem5`
+            改由 `tests/ee-tiny/run_asm_suite.py --platforms chipyard,qemu,gem5`
             （`.S` 载体，Tiny）承担，不再从本驱动派生
   arch      tools/testcases/arch/run_m5_e2e.py --json-out  (10 smoke) plus the
             13 ``ARCH_CFX_PROBES`` + ``min_rom_probe_046t`` run per check
-  embench   tools/testcases/tset/embench/run_embench_e2e.py --json-out
-  picolibc  tools/testcases/picolibc_tests.py --stage fast (Tiny only; the
+  embench   tests/ee-tiny/run_embench_e2e.py --json-out
+  picolibc  tests/ee-tiny/picolibc_tests.py --stage fast (Tiny only; the
             produced ELF is re-run on gem5 with the same argv)
 
 Usage:
@@ -67,7 +67,7 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(_HERE)))
 for _sub in (("tools", "testcases", "lib"), ("tools", "testcases"),
              ("tools", "qemu"), ("tools", "testcases", "arch"),
-             ("tools", "testcases", "tset", "embench"), ("tools", "infra")):
+             ("tools", "infra"), ("tests", "ee-tiny")):
     _p = os.path.join(_REPO_ROOT, *_sub)
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -79,10 +79,8 @@ import run_qemu_test as harness  # noqa: E402
 SHIM = os.path.join(_HERE, "qemu_gem5_shim.py")
 SEMANTICS_GATE = os.path.join(_REPO_ROOT, "tools", "qemu", "semantics_gate.py")
 RUN_M5 = os.path.join(_REPO_ROOT, "tools", "testcases", "arch", "run_m5_e2e.py")
-RUN_EMBENCH = os.path.join(_REPO_ROOT, "tools", "testcases", "tset", "embench",
-                           "run_embench_e2e.py")
-PICOLIBC_TESTS = os.path.join(_REPO_ROOT, "tools", "testcases",
-                              "picolibc_tests.py")
+RUN_EMBENCH = os.path.join(_REPO_ROOT, "tests", "ee-tiny", "run_embench_e2e.py")
+PICOLIBC_TESTS = os.path.join(_REPO_ROOT, "tests", "ee-tiny", "picolibc_tests.py")
 ARCH_DIR = os.path.join(_REPO_ROOT, "tools", "testcases", "arch")
 
 SCOPES = ("inst", "arch", "embench", "picolibc")
@@ -258,7 +256,7 @@ def enumerate_inst(profile):
     """inst scope **已退役**（`m13-testcases-043`）：显式失败，不静默给空集。"""
     raise SetupError(
         "inst scope retired (m13-testcases-043): tests/inst/**/*.yaml 已全删；"
-        "inst 三平台逐字节改用 tools/testcases/inst/run_asm_suite.py "
+        "inst 三平台逐字节改用 tests/ee-tiny/run_asm_suite.py "
         "--platforms chipyard,qemu,gem5（.S 载体）")
 
 

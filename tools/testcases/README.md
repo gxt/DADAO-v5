@@ -20,7 +20,7 @@
 
 若需**新增**用例：直接写 `.S`（模板见 `tests/inst/01-load-store/*.S` 与
 `tests/inst/macros/inst_test.inc`），再跑
-`python3 tools/testcases/inst/run_asm_suite.py --id <id> --platforms qemu`。
+`python3 tests/ee-tiny/run_asm_suite.py --id <id> --platforms qemu`。
 
 ## 共享工具登记（路径 / 用途 / 入口 / 调用者）
 
