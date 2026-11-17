@@ -447,10 +447,10 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   与之共用同一 `ticksPerSecond = 1e9` 基准（`floor(curTick() * 1e9 /
   sim_clock::Frequency)`，128 位中间量、64 位结果；M11 用户裁定基线，
   spec 只写「ticks/秒」）。
-- **CLI**：`--kernel`（必填）、`--bootrom`、`--semihost {on,off}`、
-  `--semihost-argv`/`--semihost-arg`、`--semihost-system {deny,native}`、
-  `--console-out`、`--max-ticks`（命中 ⇒ 非 guest 125）、`--dump-geometry`、
-  `--dump-semihost-services`。
+- **CLI**：`--kernel`（必填）、`--bootrom`、`--semihost {on,off}`
+  （**默认 `off`**，需显式开启，见下节）、`--semihost-argv`/`--semihost-arg`、
+  `--semihost-system {deny,native}`、`--console-out`、`--max-ticks`
+  （命中 ⇒ 非 guest 125）、`--dump-geometry`、`--dump-semihost-services`。
 - **已知限制**：无 cfx/PTW/user/hmon/smon/中断/设备/时序；不支持
   checkpoint/GDB/多核；`SYS_GET_CMDLINE` 来自 `--semihost-argv`。
 
@@ -509,6 +509,39 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 - **已知限制**：无 cache/时序/设备/GDB/checkpoint/多核；smon 不启动也不验收；
   `spec/Kaiwu §6` 的 `0x0200_...` 窗口未实现（依用户口径用 identity，
   冲突见 `ISS-340`）；picolibc 不跑（Vast profile）。
+
+## semihosting 调用机制与安全边界（m16-gem5-011）
+
+> 语义真源是 `contract-semihosting §1–§4`；本节只说明 gem5 侧「guest 怎么调到宿主」。
+
+- **触发**：guest 执行 `trap <任意 cfxha>, 0x3FFxx`（判据只看
+  `immu18[17:8] == 0x3FF`，`cfxha` 任意等效）；gem5 在 **cfx/向量处理之前**
+  短路（`IP += 4`、不进向量），QEMU 同口径。`--semihost off`（默认）或工作
+  负载无 responder 时**该 trap 行为不变**：FS 仍按 `immu18 >= 0x3FF00` ⇒
+  ILLI（tiny 走 `Kaiwu §7.1` 退出码、vast 进 monitor `§5.2`），SE 仍落执行核
+  panic（无静默成功桩）。
+- **传参**：服务号 `rd16`、参数块指针 `rb16`、标量返回 `rd8`
+  （`contract-semihosting §2`）；参数块与标量恒 **64 位、大端**，指针为
+  **物理地址**（不经页表翻译）。
+- **服务表**：`BaseSemihosting` 的 **24 个 generic 服务** + v5 自定的
+  `SYS_SYNCCACHE (0x19)` = 25，号值取 Arm Semihosting；适配器
+  `src/arch/dadao/semihosting.{hh,cc}` 只提供 `State`（`rd16`/`rb16` 映射）与
+  `Result`（`rd8` 写出）两件东西——寄存器映射、大端打包、
+  `TranslatingPortProxy` 取参数块，服务语义全在共享层；
+  `--dump-semihost-services` 打印实际表。
+- **宿主边界**：console（`SYS_WRITEC`/`SYS_WRITE0`）→ **宿主 stdout**
+  （`--console-out <path>` 改写到宿主文件）；文件服务经共享层
+  `files_root_dir` 前缀解析（DADAO 两个配置**不设**该参数 ⇒ 默认空串，文件名
+  按 **gem5 进程 cwd** 解析；需要隔离就显式设 `files_root_dir`）；时间
+  （`SYS_CLOCK`/`SYS_TIME`）取**模拟时基**（`BaseSemihosting.time` 基准，默认
+  2009-01-01，加模拟 tick；**不读宿主挂钟**），`SYS_ELAPSED`/`SYS_TICKFREQ` 同用
+  模拟 tick（1e9 基准，M11 裁定）；`SYS_SYSTEM` 默认 **deny**（`EPERM`、不执行
+  宿主命令），只有 `--semihost-system native` 才 `std::system()` 执行。
+- **默认关**：`configs/dadao/se_timing.py` 与 `configs/dadao/fs.py` 的
+  `--semihost` 默认都是 **`off`**（与 gem5 上游 ARM `--semi-enable`、RISC-V
+  `--semihosting` 一致），必须显式 `--semihost on`；现有调用方
+  （`tools/gem5/compare_chipyard.py`、`tools/testcases/parity/qemu_gem5_shim.py`）
+  均显式传 `on`，改默认值不改变它们的行为。
 
 ## 补丁集
 

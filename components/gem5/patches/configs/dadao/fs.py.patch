@@ -1,9 +1,9 @@
 diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
 new file mode 100644
-index 0000000..133c925
+index 0000000..d6bd345
 --- /dev/null
 +++ b/configs/dadao/fs.py
-@@ -0,0 +1,295 @@
+@@ -0,0 +1,298 @@
 +#!/usr/bin/env python3
 +# DADAO FS configuration (GEM5-015t Tiny, GEM5-016t Vast).
 +#
@@ -80,8 +80,11 @@ index 0000000..133c925
 +    parser.add_argument("--bootrom", default="",
 +                        help="flat BootROM image (tiny: the fixed exactly "
 +                             "64 KiB firmware; vast: the 4 MiB image)")
-+    parser.add_argument("--semihost", choices=("on", "off"), default="on",
-+                        help="enable semihosting services")
++    parser.add_argument("--semihost", choices=("on", "off"), default="off",
++                        help="serve the Kaiwu semihosting trap "
++                             "(`trap <any cfxha>, 0x3FFxx`) in FS mode; off "
++                             "(default) keeps the FS trap path unchanged and "
++                             "must be enabled explicitly")
 +    parser.add_argument("--semihost-argv", default="",
 +                        help="guest command line reported by SYS_GET_CMDLINE")
 +    parser.add_argument("--semihost-arg", action="append", default=[],
