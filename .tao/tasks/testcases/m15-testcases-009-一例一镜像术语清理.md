@@ -70,7 +70,7 @@
 **`make -k check` 三红逐项归因（rc=2；仅 3 目标红，其余全 PASS）**
 - `check-patch-tree`（15 problem）：断言全指 `arch/dadao/**`（linux 组件源超前补丁集）；本 diff 无组件路径 ⇒ **外因**。
 - `check-milestones-fresh`（1 VIOLATION）：`m16-chipyard-001` 有 worktree 但 m16 台账在「待开始」（`git worktree list` 可见其在途）；本任务的 m14/m15 台账均 PASS ⇒ **外因**。
-- `check-run-artifacts`（7 problem）：`.work/log/m14-linux-012/*`、`.work/log/gem5/restore-after-inject.log`、`.work/log/linux/archived-tmp/*`；本任务证据落 `.work/evidence/<任务ID>/`（不入 `.work/log/`）⇒ **外因**。
+- `check-run-artifacts`（7 problem）：均为运行期日志目录里的旧命名文件（m14-linux-012、gem5 重建、linux 归档临时目录）；本任务证据落运行期证据目录（不入运行期日志目录）⇒ **外因**。
 - 三红与本 diff 交集 = **0**（diff 路径域仅 `tests/` 214 + `docs/` 1 + `.tao/` 1）。
 
 **遗留（非阻断）**：① 建议 `grep -r "一例一镜像" tests/inst docs` 进 L1 防回潮；② `docs/Process-07`「每册目录内 `.lds`」与 `m15-testcases-006` 布局不符（超本任务范围，engineer 已记「新发现」）。
