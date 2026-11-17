@@ -1,0 +1,23 @@
+# contracts/exec-envs.yaml — 执行环境契约
+#
+# 每个执行环境 = 机型 + 引擎 + 装载方式。不含 entry/sp/退出记录（属测试资产或驱动）。
+# engine 后的括号是机型名（与 QEMU 机器串一致）。
+
+envs:
+  tiny:
+    machine: kaiwu-tiny
+    engines: [qemu-system(kaiwu-tiny), chipyard(kaiwu-tiny), gem5-fs(kaiwu-tiny)]
+    load:
+      kind: raw-kernel+elf-ptload
+
+  vast:
+    machine: kaiwu-vast
+    engines: [qemu-system(kaiwu-vast), gem5-fs(kaiwu-vast)]
+    load:
+      kind: kernel-image
+
+  user:
+    machine: kaiwu-vast
+    engines: [qemu-user(kaiwu-vast), gem5-se(kaiwu-vast)]
+    load:
+      kind: elf-user

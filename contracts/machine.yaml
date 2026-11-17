@@ -1,0 +1,42 @@
+# contracts/machine.yaml — 机型契约（纯硬件几何与能力）
+#
+# 只描述「机器有什么」：BootROM/RAM 几何 + 硬件能力 + 支持的运行模式。
+# 不含：entry/sp/装载方式/退出记录/测试集开关/semihosting（这些属 exec-envs 或测试侧）。
+# 来源：spec/Kaiwu §1–§4 + ADR-0004。
+
+profiles:
+  tiny:
+    name: kaiwu-tiny
+    bootrom:
+      base: 0xFFFF_FFFF_0000
+      size: 0x1_0000
+      reset_pc: 0xFFFF_FFFF_0000
+    ram:
+      base: 0xFFFF_FF00_0000
+      size: 0x80_0000
+    capabilities:
+      ptw: false
+      hmon: true
+      smon: false
+      umon: false
+      cache: false
+      llc: false
+    run_modes: [hypv]
+
+  vast:
+    name: kaiwu-vast
+    bootrom:
+      base: 0xFFFF_FFC0_0000
+      size: 0x40_0000
+      reset_pc: 0xFFFF_FFFF_0000
+    ram:
+      base: 0x0000_0000_0000
+      size: 0x8000_0000
+    capabilities:
+      ptw: true
+      hmon: true
+      smon: true
+      umon: true
+      cache: false
+      llc: false
+    run_modes: [user, jail, supv, hypv]

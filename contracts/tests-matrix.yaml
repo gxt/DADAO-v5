@@ -1,0 +1,9 @@
+# contracts/tests-matrix.yaml — 测试集 × 执行环境
+#
+# 行为执行环境（contracts/exec-envs.yaml），列为套件。
+# 同一套件可在多个环境出现（构建/运行方式由该环境下的驱动决定，不写进套件名）。
+
+matrix:
+  tiny: [inst, tset/embench, unit/picolibc]
+  user: [tset/embench, tset/libc-test, tset/llvm-ts]
+  vast: [arch, tset/embench]
