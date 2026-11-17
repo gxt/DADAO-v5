@@ -81,7 +81,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ dst_rd0：目的 rd0 ⇒ ILLI
 	TEST_FAULT_ALU_SI   15, add.si, ILLI, rd0, 1

@@ -252,7 +252,7 @@ tests/inst/base/（及其它 YAML 载体目录）
   ctrl-ret.yaml           misc.yaml
 ```
 
-`.S` 载体的一个文件 = 一个 ELF（链例 + 一例一镜像的故障例），期望值内联在用例行里，
+`.S` 载体的一个文件 = 一个 ELF（镜像 = 每 `.S` 一个：链例 + 该文件的全部故障例顺序跑），期望值内联在用例行里，
 判据见 `tests/inst/macros/inst_test.inc` 与 `tools/testcases/inst/run_asm_suite.py`
 （L2 `make check-inst-asm`）。`base/mem-{rd,rb,ra}.yaml` 已于 `m13-testcases-030` 退役
 （访存 id 全部由 `01-load-store/<id>.S` 承载），YAML 文件级 schema 不再适用于它们。

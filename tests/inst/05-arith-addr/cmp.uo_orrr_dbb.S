@@ -69,7 +69,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ dst_rd0：目的 rd0 ⇒ ILLI（单目的指令丢弃唯一结果无语义）
 	TEST_FAULT_DBB      14, cmp.uo, ILLI, rd0, rb6, rb7

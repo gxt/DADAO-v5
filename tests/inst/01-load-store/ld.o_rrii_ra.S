@@ -6,7 +6,7 @@
 @@ 合法性：该银行 0 号寄存器可作目的（无 dst_0 限制）；`ra0` 是 **DADAO MemRAS 窗口**：
 @@   `[63:54]` = SBZ（**写无效**）、`[53:48]` = `RACNT`、`[47:0]` = `MRPTR`（`spec/SimRISC-00 §2.4`）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节 beat，字面量见该文件）
-@@ 用例：encoding 2 / legality 2 / semantic 5 / boundary 6 / overlap 2 / ra0 7（链例 22 + 故障例 2；故障例一例一镜像，`-defsym CASE_N=<点号>`）
+@@ 用例：encoding 2 / legality 2 / semantic 5 / boundary 6 / overlap 2 / ra0 7（链例 22 + 故障例 2；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ ra0 段（用户 2026-11-13 裁定：读写都测；写时 `[63:54]` 的 SBZ 10 位忽略）：
@@ -144,7 +144,7 @@ __r4_land:
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 	TEST_FAULT        23, ld.o,   ra1,   MALIGN, rb3,                TEST_DATA, 0x004  @@ EA 未按 8 B 自然对齐 ⇒ MALIGN
 	TEST_FAULT        24, ld.o,   ra1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
 

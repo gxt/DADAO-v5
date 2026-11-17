@@ -91,7 +91,7 @@ __aip_block:
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ dst_rb0：目的 rb0 ⇒ ILLI（rb0 读出为当前 IP、只读）
 	TEST_FAULT_RB_SI    12, aip.si, ILLI, rb0, 0

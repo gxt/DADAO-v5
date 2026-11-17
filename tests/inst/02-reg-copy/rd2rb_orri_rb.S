@@ -99,7 +99,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 	@@ 目的 rb0 ⇒ ILLI（dst_rb0；汇编器对 rd2rb 放行该编码）
 	TEST_FAULT_MOV        12, rd2rb, {rb0}, ILLI, {rd1}
 	@@ immu6=0 ⇒ ILLI（mreg_zero；汇编器拒绝该编码，故用原始字）

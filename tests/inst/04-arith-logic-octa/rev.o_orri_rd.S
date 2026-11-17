@@ -67,7 +67,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ encode_onehot：k=0 非 one-hot ⇒ ILLI
 	TEST_FAULT_ALU_ORRI 14, rev.o, ILLI, rd5, rd6, 0

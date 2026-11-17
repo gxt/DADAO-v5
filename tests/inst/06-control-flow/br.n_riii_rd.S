@@ -106,7 +106,7 @@ __d_ck_l:
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ 目标落在 SRAM 之下（imms18 = -0x20000 ⇒ rb0 - 0x80000）⇒ 取指 CFXMEM
 	TEST_FAULT_CF1      14, rd1, 0xFFFFFFFFFFFFFFFF, CFXMEM, 0x68060000

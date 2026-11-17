@@ -5,7 +5,7 @@
 @@   `tools/testcases/{check_tests_index,validate_vectors}.py` 的 `NON_ID_CARRIERS` 显式登记。
 @@ 语义：QFC 主表的空白单元格 = 保留编码 ⇒ 译码即 UNDI（`spec/SimRISC-00 §2.9`；
 @@   `contracts/legality_rules.yaml` 的 `undefined_encoding`）；不是「未实现」也不是 NOP。
-@@ 判据：故障例一例一镜像，退出码 = monitor 段编码 `0xF0|异常位索引` ⇒ UNDI = `0xF9`
+@@ 判据：故障例链入同一镜像（异常不返回被测指令之后），退出码 = monitor 段编码 `0xF0|异常位索引` ⇒ UNDI = `0xF9`
 @@   （`spec/Kaiwu §7.1`）；三平台（chipyard/qemu/gem5）同码。
 @@ 用例：encoding 0 / semantic 0 / boundary 0 / overlap 0 / legality 3（链例 0 + 故障例 3）
 @@ 来源：原保留编码 YAML 的 3 条**无 id** 用例（该 YAML 已随 YAML 退役删除；
@@ -21,7 +21,7 @@
 	__TEST_BEGIN
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ op=0x08 整行 reserved（ha=0x01，非全零）
 	TEST_FAULT_ENC        1, UNDI, 0x08040001, rb3, TEST_DATA, rd19, 0

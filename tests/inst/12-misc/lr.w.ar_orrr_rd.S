@@ -205,7 +205,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像；原始编码）----
+	@@ ---- fault（同镜像故障链；原始编码）----
 	@@ fault 19：lr 的 hb(rdHB) != rd0 ⇒ ILLI（原始编码）
 	TEST_FAULT_CF1 19, rb3, A0, ILLI, 0x47285083
 

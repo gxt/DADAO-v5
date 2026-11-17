@@ -9,7 +9,8 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > active case；`—` = 该类不适用；`deferred <reason>` = 该类暂缓（须记原因）。
 > `file` 列 = **载体** `<册>/<id>.S`（汇编套件；**唯一**载体模型，YAML 载体已全退役）。
 > 覆盖判据：`.S` 载体由 L2 `check-inst-asm` **逐镜像执行**（`tools/testcases/inst/
-> run_asm_suite.py`，链例比结果字节流、故障例比 monitor 段退出码），`validate_vectors.py`
+> run_asm_suite.py`；**镜像 = 每 `.S` 一个**：链例 + 该文件的全部故障例顺序跑，
+> 比结果字节流、故障例不符 ⇒ 该镜像退出码 ≠ 0），`validate_vectors.py`
 > 只断言载体存在且结构完好（`<id>.S` 是 `contracts/opcodes.yaml` 的身份、含用例行、
 > 检查点号 1..N 连续）；类级覆盖（每类 ≥1 条）由各 `.S` 的 `@@ 用例：` 头与逐点断言承担。
 >
@@ -220,10 +221,13 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 
 ## `.S` 载体覆盖（L2 `check-inst-asm`）
 
-`tests/inst/<册>/*.S` 是**执行型**载体：每个 `<id>.S` 一个 ELF，`run_asm_suite.py` 对链例
-（`CASE_N=0`）比**结果字节流**（`8 × 检查点数`，逐字节）、对故障例（`-defsym CASE_N=<点号>`）
-比 monitor 段退出码 `0xF0|异常位索引`。`make check-inst-asm`（L2，单平台 QEMU
-`kaiwu-tiny`）跑本表全部册；chipyard / gem5 的三方逐字节是各册任务的验收口径（不在 L2）。
+`tests/inst/<册>/*.S` 是**执行型**载体：**镜像 = 每 `.S` 一个**（链例 + 该文件的全部
+故障例顺序跑，`m15-testcases-007`），`run_asm_suite.py` 对每个镜像比**结果字节流**
+（`8 × 检查点数`，逐字节）；故障例不符表现为该镜像退出码 ≠ 0（`0xF0|异常位索引`
+或 `SYS_EXIT(点号)`）。`-defsym CASE_N=<点号>` = **调试用单例模式**（只比退出码，
+不进 `check-inst-asm`）。`make check-inst-asm`（L2，单平台 QEMU `kaiwu-tiny`）跑本表
+全部册；chipyard / gem5 的三方逐字节是各册任务的验收口径（不在 L2）。镜像数以该目标
+现场统计为准。
 
 本表是**读者面登记**，`make check-inst-asm` 的载体集 = `tests/inst/` 下**含 `.S` 的子
 目录**（现场派生，`run_asm_suite.py --books-root tests/inst`），册名/册数不写死。
@@ -232,7 +236,8 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 
 - **拦得住**：现存每个 `<id>.S` 的结构 —— stem 必须是 `contracts/opcodes.yaml` 的身份、
   含 ≥1 用例行、检查点号 1..N 连续（`validate_vectors.py` 的 `ASM CARRIER *` 断言），
-  且 L2 `check-inst-asm` 会把**现存**载体逐镜像真跑（链例字节流 + 故障例退出码）。
+  且 L2 `check-inst-asm` 会把**现存**载体逐镜像真跑（每 `.S` 一个镜像：链例字节流 +
+  故障链的镜像内断言/退出码）。
   删单个 `.S` 但保留 `tests/inst.yaml` 条目 ⇒ `check-tests-index` 红（`file` 不存在）。
 - **拦得住（逐条删除哨兵）**：`check-case-ledger` 自本任务起派生**`.S` 载体逐用例身份**
   （`asm` 行 = 载体路径 + 用例行文本 + 同内容序号，无行号）⇒ 删任一用例行 ⇒ 少一行 ⇒ 红；

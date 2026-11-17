@@ -90,7 +90,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ dst_dual_same：两个目的同为 rd0（汇编器拒绝该助记符形式 ⇒ 用原始编码字）
 	TEST_FAULT_ENC      20, ILLI, 0x560000C4, rb3, TEST_DATA, rd7, 0x000

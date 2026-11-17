@@ -73,7 +73,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 	@@ 目的 rd0 ⇒ ILLI（dst_rd0；汇编器拒绝该编码，故用原始字）
 	TEST_FAULT_ENC        12, ILLI, 0x40F80041, rb3, TEST_DATA, rd19, 0x000
 	@@ immu6=0 ⇒ ILLI（mreg_zero）

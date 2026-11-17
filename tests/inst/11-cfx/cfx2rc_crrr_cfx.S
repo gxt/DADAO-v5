@@ -118,7 +118,7 @@
 
 	__TEST_END
 
-	@@ ---- 故障例（一例一镜像）----
+	@@ ---- 故障例（同镜像故障链）----
 	@@ reserved cfxha ⇒ ILLI（编号 6/61 分属两个保留段）
 	TEST_FAULT_ENC  18, ILLI,   0x7B183105, rb12, TEST_DATA, rd11, 0
 	TEST_FAULT_ENC  19, ILLI,   0x7BF43105, rb12, TEST_DATA, rd11, 0

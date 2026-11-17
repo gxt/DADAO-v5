@@ -79,7 +79,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 	@@ 目的 rf0 ⇒ ILLI（dst_rf0；汇编器拒绝该编码，故用原始字：rdHA=1, rfHB=0, rfHC=3, rfHD=4）
 	TEST_FAULT_ENC        15, ILLI, 0x610400C4, rb3, TEST_DATA, rd19, 0x000
 

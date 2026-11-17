@@ -5,7 +5,7 @@
 @@ 对齐：EA 需 8 B 自然对齐，未对齐 ⇒ MALIGN
 @@ 合法性：源 0 号寄存器：rb0 读出**当前指令地址**（合法，见下方 rb0 段）；无 dst_0 限制
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节 beat，字面量见该文件）
-@@ 用例：encoding 2 / legality 2 / semantic 5 / boundary 5 / overlap 2 / rb0 3（链例 17 + 故障例 2；故障例一例一镜像，`-defsym CASE_N=<点号>`）
+@@ 用例：encoding 2 / legality 2 / semantic 5 / boundary 5 / overlap 2 / rb0 3（链例 17 + 故障例 2；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ rb0 段（`spec/SimRISC-00 §2`：rb0 读出 = **当前正在执行的指令地址**，非 PC+4）：
@@ -94,7 +94,7 @@ __rb0_abs_ck:
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 	TEST_FAULT        18, st.o,   rb1,   MALIGN, rb3,                TEST_DATA, 0x004  @@ EA 未按 8 B 自然对齐 ⇒ MALIGN
 	TEST_FAULT        19, st.o,   rb1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
 

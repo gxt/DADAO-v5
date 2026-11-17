@@ -85,7 +85,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ [17] （原 YAML 并入）legality rol.w orri: immu6=16 > W-1=15 -> ILLI (encode_sbz)
 	TEST_FAULT_ALU_ORRI 17, rol.w, ILLI, rd1, rd2, 16

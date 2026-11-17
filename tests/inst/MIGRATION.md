@@ -40,9 +40,11 @@
 | `TEST_ST` / `TEST_ST_RB` / `TEST_ST_RA` / `TEST_ST_RF` | `检查点, 助记符, 源, 基址, 基址值, 偏移, 源值, beat 期望` | 存储后该 8 字节 beat 逐字节相等（b/w/t 只改几条通道，其余保持） |
 | `TEST_FAULT` | `检查点, 助记符, 目的/源, 故障名, 基址, 基址值, 偏移` | 该指令触发 `CFXMEM`/`CFXREG`/`ILLI`/`MALIGN`/`IALIGN`，退出码 = `0xF0|异常位索引` |
 
-- **一个 `.S` = 两种镜像**：`CASE_N=0`（缺省）= 链例（非故障用例顺序跑，逐检查点把
-  实测 8 字节写进结果缓冲并打印）；`CASE_N=<检查点>` = 该故障例单独成像（异常不返回
-  被测指令之后，故故障例一例一镜像）。检查点数 ≤ 127，失败点号 = 用例序号。
+- **镜像 = 每 `.S` 一个**（`m15-testcases-007`）：一个 `.S` 产出**一个** ELF/镜像 ——
+  链例（非故障用例顺序跑，逐检查点把实测 8 字节写进结果缓冲并打印）跑完**接着**跑该
+  文件的**全部**故障例（异常不返回被测指令之后，由 `.faulttab` 顺序续跑）。
+  `-defsym CASE_N=<检查点>` = **调试用单例模式**（`_start` 直接跳该例，只比退出码，
+  不进 `check-inst-asm`）。检查点数 ≤ 127，失败点号 = 用例序号。
 - 三方比较（同一份 ELF）：`tools/testcases/inst/run_asm_suite.py`（chipyard
   `WumingTinyConfig` / QEMU `kaiwu-tiny` / gem5 FS `tiny`）。
 

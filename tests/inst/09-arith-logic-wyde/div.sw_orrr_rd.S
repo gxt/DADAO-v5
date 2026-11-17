@@ -98,7 +98,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ [20] （原 YAML 并入）legality div.sw: dest=rd0/rb0 → ILLI (dst_rd0)
 	TEST_FAULT_ALU3     20, div.sw, ILLI, rd0, rd0, rd1

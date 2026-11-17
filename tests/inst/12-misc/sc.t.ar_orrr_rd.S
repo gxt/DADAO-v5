@@ -93,7 +93,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像；原始编码）----
+	@@ ---- fault（同镜像故障链；原始编码）----
 	@@ fault 17：sc 的 rdHB = rd0 ⇒ ILLI（成功/失败结果不可丢弃，原始编码）
 	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x47640083
 

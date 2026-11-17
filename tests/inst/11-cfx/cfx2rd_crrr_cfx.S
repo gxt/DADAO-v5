@@ -93,7 +93,7 @@
 
 	__TEST_END
 
-	@@ ---- 故障例（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- 故障例（同镜像故障链：异常不返回到被测指令之后）----
 	@@ reserved cfxha ⇒ ILLI（`encode_cfx_reserved`；编号 6/16/35 分属三个保留段）
 	TEST_FAULT_ENC  23, ILLI,   0x7A183285, rb12, TEST_DATA, rd11, 0
 	TEST_FAULT_ENC  24, ILLI,   0x7A403285, rb12, TEST_DATA, rd11, 0

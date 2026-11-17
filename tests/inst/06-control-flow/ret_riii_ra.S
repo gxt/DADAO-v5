@@ -176,7 +176,7 @@ __ckD4b1:
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ dst_rd0_nonzero：ret rd0, 1（imms18 ≠ 0）⇒ ILLI（汇编器拒绝该编码，直接给编码字）
 	TEST_FAULT_CF      19, ILLI, 0x76000001

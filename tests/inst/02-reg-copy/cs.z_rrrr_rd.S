@@ -78,7 +78,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 	@@ 目的 rd0 ⇒ ILLI（dst_rd0；汇编器对 cs.* 放行该编码）
 	TEST_FAULT_CS         16, cs.z, rd0, ILLI, rd1, rd3, rd4
 

@@ -63,7 +63,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 	@@ 目的 rb0 ⇒ ILLI（dst_rb0；汇编器放行该编码）
 	TEST_FAULT_WI       15, set.zw, rb0, ILLI, wp0, 0x0001
 

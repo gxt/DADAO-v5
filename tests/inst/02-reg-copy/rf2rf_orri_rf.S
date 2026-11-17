@@ -184,7 +184,7 @@ __cmrf_\@:
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后；汇编器会拒绝的编码用原始字）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后；汇编器会拒绝的编码用原始字）----
 	@@ 目的起始为 rf0 ⇒ ILLI（dst_rf0：同组复制不可写 FCSR）
 	TEST_FAULT_ENC	12, ILLI, 0x40F00A01, rb3, TEST_DATA, rd19, 0x000
 	@@ immu6=0 ⇒ ILLI（mreg_zero）

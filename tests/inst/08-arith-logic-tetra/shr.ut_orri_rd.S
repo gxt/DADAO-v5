@@ -74,7 +74,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ [17] immu6 = 32 ⇒ ILLI（`encode_sbz`）
 	TEST_FAULT_ALU_ORRI 17, shr.ut, ILLI, rd5, rd6, 32

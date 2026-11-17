@@ -87,7 +87,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像）----
+	@@ ---- fault（同镜像故障链）----
 	@@ fault 19：目的 rdhb = rd0 ⇒ ILLI（dst_rd0）
 	TEST_FAULT_ALU_ORRI	19, ctlz, ILLI, rd0, rd6, 7
 

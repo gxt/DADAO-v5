@@ -74,7 +74,7 @@
 
 	__TEST_END
 
-	@@ ---- fault（一例一镜像：异常不返回到被测指令之后）----
+	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 
 	@@ dst_dual_same：两个目的同为 rd0
 	TEST_FAULT_DUAL     15, sub.uo, ILLI, rd0, rd0, rd7, rd8
