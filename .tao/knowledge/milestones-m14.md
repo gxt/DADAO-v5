@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-linux-016 | 7–9 h | 进程骨架 + execve 建栈 VMA + 最小 U-mode 入口（cfx_umon user 行/单帧不递归）+ fault.c 换 alloc_page/find_vma |
 | m14-linux-017 | 5–7 h | __switch_to 汇编 + switch_mm 四步 + 调度跑双任务 + U-mode↔S-mode 帧往返（FP 保存范围待裁定） |
 | m14-linux-018 | 4–5 h | COW：fork 共享只读页→写复制旧内容/改 PTE/失效（5 判据） |
 | m14-linux-019 | 3–4 h | 用户栈增长：VM_GROWSDOWN 下方扩栈（S1–S6） |
@@ -34,6 +33,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-linux-016 | 2026-11-17 19:41 | 8–10 h | 进程骨架（copy_process/dup_mm）+ kernel_thread/kthreadd + execve 建栈 VMA + 最小 U-mode 入口 |
 
 ## 已验证
 
