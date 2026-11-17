@@ -25,12 +25,12 @@
 1. **帧结构扩四组**：`struct pt_regs`（`arch/dadao/include/asm/ptrace.h`）增加 `ra[0..63]` 与 `rf[0..63]`，与现有 `rd`/`rb` 并列；所有偏移用 `PT_*` 宏，禁止在探针里硬编码偏移。
 2. **入口保存**（同步 `trap.S` 与异步 `async_trap.S` 两条路径都要）：
    - `rd`/`rb` 保持现有方式；
-   - `ra0–ra63` 用 `st.o ra_i, [rb3, PT_RA_BASE + i*8]`（`ra` 的**基准索引**语义按 spec 处理：保存/恢复必须使 `RACNT`/`MRPTR` 与内容一致）；
-   - `rf0–rf63` 用 `st.o rf_i, [rb3, PT_RF_BASE + i*8]`。
-3. **出口恢复**：反向 `ld.o`；恢复 `ra` 时保证 `RACNT/MRPTR` 与保存时一致（若 `ld.o-ra` 只改条目内容，按 spec 补 `rd2ra` 或等价方式）。
+   - `ra0–ra63` 用 **`stm.o {ra0:ra63}`**（`SimRISC-01` L102–103 / `stm.o_rrri_ra`；`immu6` ≤63 ⇒ 分 2 条）；基准索引语义按 spec；
+   - `rf0–rf63` 用 **`stm.o {rf0:rf63}`**（L124–127 / `stm.o_rrri_rf`；`rf0` 作源读完整 64 位）；同样分 2 条。
+3. **出口恢复**：反向 `ldm.o {ra…}` / `ldm.o {rf…}`；恢复 `ra` 时保证 `RACNT/MRPTR` 与保存时一致。
 4. **语义目标**：异常 handler 内正常使用 `call`/`ret` **不得**改变用户可见的 `ra`/`rf`；进程切换后用户四组寄存器原样恢复。
 5. **K2/K3 回改**：现有探针/门控若按旧帧偏移/字段数断言，须同步；`check-linux-k2`、`check-linux-k3` 必须回绿（旧断言可在本任务内按「阶段推进即退役」规则改限定语）。
-6. **性能登记**：每 trap 增加 ~128 条 `st.o`/`ld.o`；M14 不优化，登记为「后续优化项」（lazy/按需/switch_to 迁移等），**不得**在本任务引入 lazy 机制。
+6. **性能登记**：每 trap 增加 **~4 条块传送**（ra/rf 各 2 条 `stm.o`/`ldm.o`）；M14 不优化，登记为「后续优化项」（lazy/按需/switch_to 迁移等），**不得**在本任务引入 lazy 机制。
 
 ## 验收（逐条贴真实 rc）
 
