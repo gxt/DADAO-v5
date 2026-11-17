@@ -185,3 +185,122 @@ __smdone_\@:
 	\mnem	\grp, [\base, \offreg]
 	__FAULT_BODY_END \pt
 .endm
+
+@@ ---------------------------------------------------------------------------
+@@ `rb0` 作**基址**（`spec/SimRISC-00 §2`：rb0 读出 = **当前指令地址** IP，非「下一条」；
+@@   `spec/SimRISC-01` 只禁 `rb0` 作**目的**）—— 零档（`imm`/偏移寄存器 = 0）用例：
+@@   EA = **被测指令自身地址** ⇒ 目标是**指令字**，期望值只能现场派生：用**同一条指令、
+@@   同宽度**经显式基址（`aip.si` 取 IP 再 +4/+8）读同一地址，逐位相等即断言
+@@   「EA = 当前指令地址」（若实现取「下一条」，两侧 EA 相差 4 ⇒ 不等 ⇒ 判红）。
+@@   调用点由 `.org` 钉住被测指令地址（见各 `.S` 的 `__rb0z` 段；64 位形式须 8 B 对齐）。
+@@   宏名带 `__CHECK_` ⇒ 一行宏调用 = 一个检查点（失败点号 = 用例序号）。
+@@ ---------------------------------------------------------------------------
+
+@@ ld.*（rrii）零档：`mnem dst, [rb0, 0]` vs `mnem tmp, [rb12, 4]`
+.macro __CHECK_RD_IP pt, mnem, dst, tmp, bank
+	aip.si	rb12, 0
+	\mnem	\dst, [rb0, 0x000]
+	add.si	rd2, 0			@@ 填充：让「下一条」处的字节与本指令不同（判别 IP 口径）
+	\mnem	\tmp, [rb12, 0x004]
+	.ifc	\bank, rd
+	rd2rd	{rd21:rd21}, {\dst:\dst}
+	rd2rd	{rd22:rd22}, {\tmp:\tmp}
+	.endif
+	.ifc	\bank, rb
+	rb2rd	{rd21:rd21}, {\dst:\dst}
+	rb2rd	{rd22:rd22}, {\tmp:\tmp}
+	.endif
+	.ifc	\bank, ra
+	ra2rd	{rd21:rd21}, {\dst:\dst}
+	ra2rd	{rd22:rd22}, {\tmp:\tmp}
+	.endif
+	.ifc	\bank, rf
+	rf2rd	{rd21:rd21}, {\dst:\dst}
+	rf2rd	{rd22:rd22}, {\tmp:\tmp}
+	.endif
+	__REC	rd21
+	br.eq	{rd21, rd22}?, [rb0, __ipok_\@]
+	__EXIT	\pt
+__ipok_\@:
+.endm
+
+@@ ldm.*（rrri）零档：偏移寄存器取 rd0（= 0）⇒ EA = 自身；读回用显式基址 + 偏移 8
+.macro __CHECK_RD_LDM_IP pt, mnem, reg, tmp, bank
+	aip.si	rb12, 0
+	set.rd	rd19, 0x008
+	\mnem	{\reg:\reg}, [rb0, rd0]
+	add.si	rd2, 0			@@ 填充：让「下一条」处的字节与本指令不同（判别 IP 口径）
+	\mnem	{\tmp:\tmp}, [rb12, rd19]
+	.ifc	\bank, rd
+	rd2rd	{rd21:rd21}, {\reg:\reg}
+	rd2rd	{rd22:rd22}, {\tmp:\tmp}
+	.endif
+	.ifc	\bank, rb
+	rb2rd	{rd21:rd21}, {\reg:\reg}
+	rb2rd	{rd22:rd22}, {\tmp:\tmp}
+	.endif
+	.ifc	\bank, ra
+	ra2rd	{rd21:rd21}, {\reg:\reg}
+	ra2rd	{rd22:rd22}, {\tmp:\tmp}
+	.endif
+	.ifc	\bank, rf
+	rf2rd	{rd21:rd21}, {\reg:\reg}
+	rf2rd	{rd22:rd22}, {\tmp:\tmp}
+	.endif
+	__REC	rd21
+	br.eq	{rd21, rd22}?, [rb0, __ipok_\@]
+	__EXIT	\pt
+__ipok_\@:
+.endm
+
+@@ st.*（rrii，8 B 宽）零档：EA = 自身地址 ⇒ 8 B 拍的低 32 位是**其后的指令字**，
+@@   必须原样保留：先读回原拍、只改写高 32 位的两个 wyde 再写回；读回与写入值相等
+@@   即断言「store 落在自身地址」。调用点 `.org` 钉住预读指令（被测 st 在 +0x10）。
+.macro __CHECK_RD_ST_IP pt, mnem, src, bank
+	ld.o	rd2, [rb0, 0x010]		@@ 预读被测 st.o 处的 8 B 拍
+	andn.w	rd2, wp2, 0xFFFF		@@ 高 32 位改写 ⇒ 写入值与原地不同
+	or.w	rd2, wp3, 0x0001
+	.ifc	\bank, rb
+	set.rb	\src, rd2
+	.endif
+	.ifc	\bank, ra
+	rd2ra	{\src:\src}, {rd2:rd2}
+	.endif
+	.ifc	\bank, rf
+	set.rf	\src, rd2
+	.endif
+	.ifc	\bank, rd
+	rd2rd	{\src:\src}, {rd2:rd2}
+	.endif
+	\mnem	\src, [rb0, 0x000]		@@ 被测：EA = 自身指令地址（8 B 拍）
+	ld.o	rd21, [rb0, -0x004]		@@ 独立通路读回（自身 IP − 4）
+	__REC	rd21
+	br.eq	{rd2, rd21}?, [rb0, __ipok_\@]
+	__EXIT	\pt
+__ipok_\@:
+.endm
+
+@@ stm.*（rrri，8 B 宽）零档：同上（偏移寄存器 rd0 = 0 ⇒ EA = 自身地址）
+.macro __CHECK_RD_STM_IP pt, mnem, src, bank
+	ld.o	rd2, [rb0, 0x010]
+	andn.w	rd2, wp2, 0xFFFF
+	or.w	rd2, wp3, 0x0001
+	.ifc	\bank, rb
+	set.rb	\src, rd2
+	.endif
+	.ifc	\bank, ra
+	rd2ra	{\src:\src}, {rd2:rd2}
+	.endif
+	.ifc	\bank, rf
+	set.rf	\src, rd2
+	.endif
+	.ifc	\bank, rd
+	rd2rd	{\src:\src}, {rd2:rd2}
+	.endif
+	\mnem	{\src:\src}, [rb0, rd0]		@@ 被测：EA = 自身指令地址（8 B 拍）
+	ld.o	rd21, [rb0, -0x004]
+	__REC	rd21
+	br.eq	{rd2, rd21}?, [rb0, __ipok_\@]
+	__EXIT	\pt
+__ipok_\@:
+.endm

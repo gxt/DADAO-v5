@@ -6,7 +6,7 @@
 @@ 合法性：该银行 0 号寄存器可作目的（无 dst_0 限制）；`ra0` 是 **DADAO MemRAS 窗口**：
 @@   `[63:54]` = SBZ（**写无效**）、`[53:48]` = `RACNT`、`[47:0]` = `MRPTR`（`spec/SimRISC-00 §2.4`）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节 beat，字面量见该文件）
-@@ 用例：encoding 2 / legality 2 / semantic 5 / boundary 6 / overlap 2 / ra0 7（链例 22 + 故障例 2；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
+@@ 用例：encoding 2 / legality 2 / semantic 5 / boundary 9 / overlap 2 / ra0 7 / rb0 3（链例 28 + 故障例 2；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ ra0 段（用户 2026-11-13 裁定：读写都测；写时 `[63:54]` 的 SBZ 10 位忽略）：
@@ -142,10 +142,45 @@ __r4_land:
 
 	rd2ra	{ra0}, {rd0}                 @@ 复位 RA 状态（RACNT = 0、MRPTR = 0）
 
+
+	@@ ==== m15-testcases-010 追补：boundary 极值 + rb0 作基址三档 ====
+	@@ ---- boundary：宽度极值（正向极大 / 负向极小 / 全 1；取自 TEST_DATA 现有 beat）----
+	TEST_LD_RA  23, ld.o,    ra5,   rb6,   TEST_DATA,          0x028,    0x7FFFFFFFFFFFFFFF
+	TEST_LD_RA  24, ld.o,    ra5,   rb6,   TEST_DATA,          0x020,    0x8000000000000000
+	TEST_LD_RA  25, ld.o,    ra5,   rb6,   TEST_DATA,          0x088,    0xFFFFFFFFFFFFFFFF
+
+	@@ ---- rb0 作基址：imm 负 / 零 / 正三档（`spec/SimRISC-00 §2`：rb0 读出 = **当前指令地址**，非「下一条」）----
+	@@   槽与被测指令都由 `.org` 钉住：llvm-mc 把标签差折成 0（ISS-424）⇒ imm 只能写字面常量；
+	@@   负档 EA = ENTRY+0x2000（死的预设数据槽）、零档 EA = 被测指令自身地址、正档 EA = ENTRY+0x2188。
+	jump	[rb0, __rb0n]
+	.org	0x2000
+	.dd.o64	0x8000000000000000	@@ 负档槽（死数据；各宽度取首字节/半字/字 = 负向极小）
+	.org	0x2040
+__rb0n:
+	ld.o     ra5, [rb0, -0x040]		@@ 被测 @0x2040：EA = 0x2000
+	ra2rd	{rd21:rd21}, {ra5:ra5}
+	__CHECK_RD 26, rd21, 0x8000000000000000	@@ 负向极小
+__rb0n_ck:
+	jump	[rb0, __rb0z]
+	.org	0x20C4
+__rb0z:
+	@@ 被测 @0x20C8：EA = 自身指令地址（宏内 aip.si @0x20C4 + 显式基址 +4 读回）
+	__CHECK_RD_IP 27, ld.o, ra5, ra13, ra
+__rb0z_ck:
+	jump	[rb0, __rb0p]
+	.org	0x2180
+__rb0p:
+	ld.o     ra5, [rb0, 0x008]		@@ 被测 @0x2180：EA = 0x2188（正档槽）
+	jump	[rb0, __rb0p_ck]
+	.org	0x2188
+	.dd.o64	0x7FFFFFFFFFFFFFFF	@@ 正档槽（死数据；各宽度取首字节/半字/字 = 正向极大）
+__rb0p_ck:
+	ra2rd	{rd21:rd21}, {ra5:ra5}
+	__CHECK_RD 28, rd21, 0x7FFFFFFFFFFFFFFF	@@ 正向极大
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
-	TEST_FAULT        23, ld.o,   ra1,   MALIGN, rb3,                TEST_DATA, 0x004  @@ EA 未按 8 B 自然对齐 ⇒ MALIGN
-	TEST_FAULT        24, ld.o,   ra1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
+	TEST_FAULT        29, ld.o,   ra1,   MALIGN, rb3,                TEST_DATA, 0x004  @@ EA 未按 8 B 自然对齐 ⇒ MALIGN
+	TEST_FAULT        30, ld.o,   ra1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
 
 	__TEST_SECTIONS
