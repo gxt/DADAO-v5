@@ -24,6 +24,15 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-030 | 3–4 h | K6 busybox 构建接入（静态 musl + 最小 applet 集） |
+
+| m14-linux-031 | 2–3 h | K6 initramfs 集成（busybox + applet 链接 + `/init` 切换） |
+
+| m14-linux-032 | 3–4 h | K6 shell 启动（busybox sh + semihosting + 前台执行，无作业控制） |
+
+| m14-linux-033 | 2–3 h | K6 基础命令回归（sh 内 5 条命令 + 退出码） |
+
+| m14-linux-034 | 3–4 h | K6 收口门控 `check-linux-k6`（代表例 + §4a 退役） |
 | m14-linux-017 | 7–9 h | __switch_to + switch_mm + 调度跑双任务 + 最小 clockevent + F3/init 真跑 + U-mode↔S-mode 帧往返 |
 | m14-linux-018 | 4–5 h | COW：fork 共享只读页→写复制旧内容/改 PTE/失效（5 判据） |
 | m14-linux-019 | 3–4 h | 用户栈增长：VM_GROWSDOWN 下方扩栈（S1–S6） |
