@@ -337,11 +337,11 @@ M15 exit：264 条记录 **100%** 有 operation 块且 id 一对一；抽取结�
 
 M17 exit：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个向量走到；`make check-idl` 进 L2；分歧归因落 spec 裁定（**不是「IDL 一定对」**）。
 
-## 待裁定：chipyard 是否补 TLB（`m16-chipyard-003` Q1，2026-11-17）
+## 已裁定：chipyard 维持现状，不补 TLB（`m16-chipyard-003` Q1，2026-11-17 选 A）
 
-- **事实**：chipyard 的 `WumingTinyConfig` **没有 MMU/TLB/PTBR、没有来源掩码判权**（`ptw_enable = 0` 恒成立）⇒ `ADR-0056` 的 18 位子原因中 **17 位结构性不可达**，只有 `[57] NONPTW` 有意义。
-- 已完成（`m16-chipyard-003`）：18 位表 + `wellFormed` 校验器 + 8 处 `CFXMEM` 站点走 `NONPTW`；三方全宽一致（chipyard/QEMU/gem5 `cmp` 逐字节相同，87 项×3 引擎）。
-- **待你定**：是否**另立任务给 chipyard 补 TLB/PTW**（这样 17 位才可达），或**维持现状**（Tiny 无页表，子原因位由 QEMU/gem5 覆盖，chipyard 只覆盖 `NONPTW`）。
+- **裁定**：维持现状——chipyard 只覆盖 `[57] NONPTW`；页表类/权限类子原因由 QEMU + gem5 覆盖。**不另立任务补 TLB/PTW**。
+- **理由（可复用口径）**：`WumingTinyConfig` 无 MMU/TLB（`WumingParams.nL2TLBEntries=0`，源码注明 MMU/TLB out of scope）是**设计决定**；Tiny 是 SRAM+cfx 测试机。补 TLB 属新机型能力，应与「是否做 Vast 实现」一起决策，不为子原因位可达性单独改。M14/K3 口径亦为「M14 只做 QEMU，chipyard/gem5 不要求 TLB」。
+- **已完成**：18 位表 + `wellFormed` 校验 + 8 处 `CFXMEM` 走 `NONPTW`；三方 87×3 逐字节一致。
 
 ## 待裁定：chipyard 的 `cg3 rc0–rc3` 被并成一份 mask（2026-11-17）
 
