@@ -88,7 +88,7 @@
 
 1. `make check-idl-sync` rc=0；`idl/render.py --check` 幂等（两次一致）。
 2. **可达 FAIL（三路）**：改 spec 块的一个字符 ⇒ 红；改 `.idl` 后不重渲染 ⇒ 红；删一条 `# id:` 但留标记 ⇒ 红。各自 `cp`+md5 还原 ⇒ 绿。
-3. `idlc` 编写期 oracle（人工跑一次并记录退出码）：把 `idl/*.idl` 与 `README.md §4` 的库按序拼接 ⇒ `idlc compile --root isa` **exit 0**；对 5 条 operation 逐条 `compile --root instruction_operation` exit 0。
+3. `idlc` 编写期 oracle（人工跑一次并记录退出码，**两段式**）：① `README.md §4` 的语义库（含 `enum`/`function`/`builtin function`）⇒ `idlc compile --root isa` **exit 0**；② 每条 operation 单独（注入解码变量）⇒ `compile --root instruction_operation` **5/5 exit 0**。（`isa` 根只接受声明，库与 operation 不能拼成一个文件跑 `isa`。）
 4. `make check-manifests-guard` rc=0（`idl` 在受检目录内；`idl/.manifests.toml` 的文件集合与现场一致）。
 5. `check-spec-drift`/`-purity`/`-refs`/`-numbering`/`-changelog` rc=0（spec 只加标记块，正文语义未改）。
 6. `contracts/isa/` 已移除；`grep -rn "contracts/isa" --include=*.md --include=*.py --include=Makefile .` = 0（历史任务书/归档除外，逐条列明）。

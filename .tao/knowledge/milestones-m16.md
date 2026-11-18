@@ -19,13 +19,13 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m16-gem5-013 | 3–4 h | gem5 侧 `escape` 新语义对齐（`prevCfxCode`；删恢复行 ⇒ `CFXESC`） |
-| m16-chipyard-005 | 3–4 h | chipyard RTL 的 `escape` 新语义核实/补（`prev_cfx_code`；先核后补） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-chipyard-005 | 2026-11-18 23:40 | 3–4 h | chipyard RTL 的 `escape` 新语义核实/补（`prev_cfx_code`；先核后补） |
+| m16-gem5-013 | 2026-11-18 23:40 | 3–4 h | gem5 侧 `escape` 新语义对齐（`prevCfxCode`；删恢复行 ⇒ `CFXESC`） |
 
 ## 已验证
 

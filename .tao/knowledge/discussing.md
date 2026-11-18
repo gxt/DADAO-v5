@@ -145,7 +145,7 @@
 ## N16. M15 语法 v0 的 4 条待定
 
 - 是否直接采用 UDB `idlc` 作为抽取器（版本/许可证/可离线），还是只借语法、自写抽取器。
-- 是否在 M15 就冻结 `.idl` 语法版本（`contracts/isa/idl-v0.md`）并进 L1 门控。
+- 是否在 M15 就冻结 `.idl` 语法版本（`idl/README.md`）并进 L1 门控。
 - 渲染形态（spec 里显示格式化伪代码而非原始 IDL）是否需要单独任务。
 - 语料次序：5 条样板 → 6 族各一条 → 全量，是否按此三阶段立册。
 
@@ -209,7 +209,7 @@
 
 ## 候选任务
 
-- `m15-spec-001`（**已立册，待返工**）：语法 v0（`contracts/isa/idl-v0.md`）+ 5 条样板（add.so / ld.o / br.eq / lr.o.nn / trap）+ `extract.py` 原型；3–5 天。
+- `m15-spec-001`（**已立册，方向反转后重写**）：`idl/` 语义源 v0（`idl/README.md`）+ 5 条样板（add.so / ld.o / br.eq / lr.o.nn / trap）+ `idl/render.py`；2–3 天。
 - `m15-spec-002`（未立）：6 族形状定稿（alu/mem/ctrl/atomic/system/fp 各一条完整族）+ 共享函数层；5–8 天。
 - `m15-spec-003`（未立）：全量 operations，264 条记录 → 约 90 个语义单元；25–35 天。
 - `m15-infra-004`（未立）：抽取器 + L1 门控「spec 抽取结果 == 仓库 `.idl` 逐字节」；6–8 天。
