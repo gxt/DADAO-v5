@@ -80,6 +80,17 @@
 - 原因：M15 期间 `.idl` 会大量增改，逐次重算锁的成本高于收益。
 - 收口检查项：M15 收尾时把 `idl/*.idl` 逐文件 sha256 写入 `idl/.manifests.toml`，并确认 `check-manifests-guard` 会校验它（schema 已支持条目级 `sha256`）。
 
+## N22. `m14-linux-017` 的 S5（U-mode 帧 A/B 往返）实现方式待裁
+
+- **核查结论（第 23 轮）**：S5 要求 A/B **交替** ⇒ handler 必须 `schedule()` 阻塞；而 umon 入口跑在**静态入口栈**（`trap.S` 把 `rb1` 设为 `dadao_umon_stack_top`，`current = SP & ~(THREAD_SIZE-1)`）⇒ 两个任务的内核续跑点会叠在同一张 64 KiB 栈上，**与帧放在哪里无关**。所以「只把帧按任务化」不足以实现 S5（F13 回退正是此机制）。
+- **入口不能直接换到任务内核栈**：入口时 SP 还是用户栈，`current` 尚不可知（F28 正是为此在静态栈上刷新 `thread_info.task`）。
+- **三个选项**：
+  - **(A)** 新增**全局 `dadao_current_task`**（`__switch_to`/`dadao_enter_user` 写入），umon 入口读它取 `task_stack_page(task)+THREAD_SIZE` 作新 SP。单 hart、无递归 ⇒ 全局单元安全；`thread_info` 天然在各任务内核栈底。改动面：`entry.S`/`process.c`/`thread_info.h`（核心结构改动）。
+  - **(B)** S5 降级为「帧按任务化 + 不阻塞的交替」（放宽判据，用帧切换模拟交替）。
+  - **(C)** S5 推迟到 K5，与嵌套/抢占一起做。
+- **架构侧建议 (A)**：S5 是 K4 上下文切换的核心能力，用帧切换模拟等于不测真正的交替；`current_task` 是标准做法（Linux 的 `current` 同理），单 hart 下安全。代价是核心结构改动、需扩权。
+- **当前状态**：017 的 **S7 已绿**（`/init` 经 musl 完整跑通、exit=0），switch 门控 42 PASS / 1 FAIL（唯一红项 S5）；等用户裁定后继续。
+
 ## N7. cfx 待实现范围
 
 - 已实现：umon / jmon / smon / hmon / ptw / pmem / time / hart / power。
