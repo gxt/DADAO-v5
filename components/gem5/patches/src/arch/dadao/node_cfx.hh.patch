@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..120f7e1
+index 0000000..d234e57
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
-@@ -0,0 +1,292 @@
+@@ -0,0 +1,295 @@
 +// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
 +// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
 +//
@@ -120,6 +120,9 @@ index 0000000..120f7e1
 +    uint64_t escapeNum = 0;
 +    uint64_t scratchRegsNum = 0;
 +    uint64_t prevRunMode = 0;
++    /* cg5 rc1 (spec/DADAO-12 §3.6): `inner_cfx_code` at exception entry, saved
++     * by step 5 before step 6 rewrites it and restored by `escape` (§5.3). */
++    uint64_t prevCfxCode = 0;
 +    uint64_t causeId = 0;
 +    uint64_t causeIp = 0;
 +    uint64_t causeInfo = 0;

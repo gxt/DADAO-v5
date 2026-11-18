@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/tiny_cfx.hh b/src/arch/dadao/tiny_cfx.hh
 new file mode 100644
-index 0000000..3bd9e8f
+index 0000000..84d4143
 --- /dev/null
 +++ b/src/arch/dadao/tiny_cfx.hh
-@@ -0,0 +1,153 @@
+@@ -0,0 +1,156 @@
 +// DADAO Tiny machine model: cfx_power (cfx63) + cfx3 hmon.
 +//
 +// Source of truth: spec/Kaiwu §1.1/§2/§3/§4.1/§4.4/§5/§6/§7.1 and
@@ -78,6 +78,9 @@ index 0000000..3bd9e8f
 +    uint64_t escapeNum = 0;
 +    uint64_t scratchRegsNum = 0;
 +    uint64_t prevRunMode = 0;
++    /* cg5 rc1 (spec/DADAO-12 §3.6): `inner_cfx_code` at exception entry, saved
++     * by step 5 before step 6 rewrites it and restored by `escape` (§5.3). */
++    uint64_t prevCfxCode = 0;
 +    uint64_t causeId = 0;
 +    uint64_t causeIp = 0;
 +    uint64_t causeInfo = 0;

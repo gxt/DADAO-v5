@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..f394fc6
+index 0000000..7dafa3e
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1083 @@
+@@ -0,0 +1,1093 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -325,8 +325,12 @@ index 0000000..f394fc6
 +    else
 +        s.cfx[ci].excpSyncNum++;
 +
-+    // step 5: save the previous run mode (no independent cfx-mask state)
++    // step 5: save the previous run mode and current cfx (no independent
++    // cfx-mask state).  `prevCfxCode` must be sampled *before* step 6 rewrites
++    // `cfxCode` (DADAO-12 §5.2 step 5/6), so a frame that receives a nested
++    // async delivery still knows the cfx it interrupted.
 +    s.cfx[ci].prevRunMode = entryMode;
++    s.cfx[ci].prevCfxCode = s.cfxCode & 0x3F;
 +
 +    // step 6: switch to the entry-mode values; the cfx target changes but
 +    // there is no cfx-mask layer to switch.
@@ -483,6 +487,7 @@ index 0000000..f394fc6
 +      case 5:
 +        switch (rc) {
 +          case 0: return &r.prevRunMode;
++          case 1: return &r.prevCfxCode;
 +          case 2: return write ? nullptr : &r.causeId;
 +          case 3: return &r.causeIp;
 +          case 4: return write ? nullptr : &r.causeInfo;
@@ -920,9 +925,14 @@ index 0000000..f394fc6
 +    // step 1: restore the monitor's global interrupt mask (D9)
 +    const int mon = s.cfx[ci].savedIntrMonitor & 0x3;
 +    s.cfx[mon].globalCfxIntrMask = s.cfx[ci].savedGlobalIntrMask;
-+    // step 2: restore the previous run mode from the frame (no cfx-mask layer
-+    // is restored; the trap saved only globalCfxIntrMask)
++    // step 2: restore the previous run mode and current cfx from the frame (no
++    // cfx-mask layer is restored; the trap saved only globalCfxIntrMask).
++    // Without the cfx restore a frame that received a nested async delivery
++    // could never escape: step 6 of the nested entry moved cfxCode to the
++    // delivered cfx, so this escape's cfxha check would fail with CFXESC
++    // (DADAO-12 §5.3 step 0/2).
 +    s.runMode = s.cfx[ci].prevRunMode & 0x3;
++    s.cfxCode = static_cast<uint8_t>(s.cfx[ci].prevCfxCode & 0x3F);
 +    // step 3: increment the escape counter
 +    s.cfx[ci].escapeNum++;
 +    // step 4: return to cause_ip + (imms18 << 2)

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/tiny_cfx.cc b/src/arch/dadao/tiny_cfx.cc
 new file mode 100644
-index 0000000..cd36ef6
+index 0000000..07ac9fe
 --- /dev/null
 +++ b/src/arch/dadao/tiny_cfx.cc
-@@ -0,0 +1,493 @@
+@@ -0,0 +1,499 @@
 +// DADAO Tiny machine model: cfx_power (cfx63) + cfx3 hmon.
 +#include "arch/dadao/tiny_cfx.hh"
 +
@@ -114,6 +114,7 @@ index 0000000..cd36ef6
 +      case 5:
 +        switch (rc) {
 +          case 0: return &r.prevRunMode;
++          case 1: return &r.prevCfxCode;
 +          case 2: return write ? nullptr : &r.causeId;
 +          case 3: return &r.causeIp;
 +          case 4: return write ? nullptr : &r.causeInfo;
@@ -182,7 +183,10 @@ index 0000000..cd36ef6
 +        s.cfx[ci].excpSyncNum++;
 +
 +    // Step 5: save the frame and, for a trap, the monitor's global mask.
++    // `prevCfxCode` is sampled before step 6 rewrites `cfxCode`
++    // (DADAO-12 §5.2 step 5/6).
 +    s.cfx[ci].prevRunMode = entryMode;
++    s.cfx[ci].prevCfxCode = s.cfxCode & 0x3F;
 +    s.cfx[ci].causeIp = causeIp;
 +    s.cfx[ci].causeId = cause;
 +    s.cfx[ci].causeInfo = causeInfo;
@@ -398,8 +402,10 @@ index 0000000..cd36ef6
 +            s.cfx[mon].globalCfxIntrMask = s.cfx[ci].savedGlobalIntrMask;
 +        s.cfx[ci].savedIntrValid = false;
 +    }
-+    // Step 2: restore the previous run mode.
++    // Step 2: restore the previous run mode and current cfx (spec/DADAO-12
++    // §5.3 step 2); without the cfx restore a nested frame could not escape.
 +    s.runMode = s.cfx[ci].prevRunMode & 0x3;
++    s.cfxCode = static_cast<uint8_t>(s.cfx[ci].prevCfxCode & 0x3F);
 +    // Step 3/4: count the escape and return to cause_ip + offset.
 +    s.cfx[ci].escapeNum++;
 +    if (s.depth > 0)
