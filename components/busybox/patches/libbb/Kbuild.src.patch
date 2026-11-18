@@ -1,0 +1,23 @@
+diff --git a/libbb/Kbuild.src b/libbb/Kbuild.src
+index cb8d2c2..4c57ed2 100644
+--- a/libbb/Kbuild.src
++++ b/libbb/Kbuild.src
+@@ -57,11 +57,18 @@ lib-y += login.o
+ lib-y += make_directory.o
+ lib-y += makedev.o
+ lib-y += hash_md5_sha.o
++# Hand-written x86 assembly: compile it only for x86 targets.  The bodies are
++# `#if defined(__x86_64__)`-guarded (empty elsewhere), but the generator's
++# `#`-style header comment is not a comment character on DADAO
++# (spec/Toolchain-01 §2.2) and fails the assembler even though everything below
++# is preprocessed away.
++ifneq ($(filter x86_64 amd64 i386 i686 x86,$(ARCH)),)
+ lib-y += hash_sha1_x86-64.o
+ lib-y += hash_sha1_hwaccel_x86-64.o
+ lib-y += hash_sha1_hwaccel_x86-32.o
+ lib-y += hash_sha256_hwaccel_x86-64.o
+ lib-y += hash_sha256_hwaccel_x86-32.o
++endif
+ # Alternative (disabled) MD5 implementation
+ #lib-y += hash_md5prime.o
+ lib-y += messages.o

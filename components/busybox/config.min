@@ -1,0 +1,34 @@
+# busybox 1.38.0 —— K6 最小 config（m14-linux-030）
+#
+# 用法（`tools/linux/build_busybox.py` 唯一消费者）：先 `make allnoconfig`
+# （全部关掉），再把本文件里 `CONFIG_<SYM>=y` 逐条打开，最后 `make
+# silentoldconfig` 让 Kconfig 解析 `select`/依赖，并**再断言**每个符号仍为 `y`
+# （依赖不满足时 busybox 会把它悄悄关掉，必须显式失败）。
+#
+# 口径：K6 首版只要求 `sh` + 9 个基础 applet，静态链接、无 `/proc`、无作业
+# 控制、无 NFS、无 PAM。applet 集见任务书 `m14-linux-030`；`ps` 在无 `/proc`
+# 时退化为只列自身/空表（applet 仍须存在）。
+
+# 静态链接（busybox 自己会加 -static；交叉链接行由构建脚本的 CC wrapper 补 crt/libc）
+CONFIG_STATIC=y
+
+# 多调用分发器本身：`busybox <applet>` / `busybox sh` / `--list` / `--version`。
+# allnoconfig 会把它连同 `--version` 一起关掉，而 K6 的启动路径（`busybox sh`）
+# 和验收（`--version`）都需要它。
+CONFIG_BUSYBOX=y
+CONFIG_FEATURE_VERSION=y
+
+# shell：/bin/sh = ash
+CONFIG_ASH=y
+CONFIG_SH_IS_ASH=y
+
+# 基础 applet（任务书约定集合，逐条显式列出，不靠 defconfig 默认）
+CONFIG_LS=y
+CONFIG_CAT=y
+CONFIG_ECHO=y
+CONFIG_MKDIR=y
+CONFIG_RM=y
+CONFIG_CP=y
+CONFIG_MV=y
+CONFIG_GREP=y
+CONFIG_PS=y

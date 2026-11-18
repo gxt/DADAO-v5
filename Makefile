@@ -123,6 +123,7 @@ WRITER_TARGET_COMPONENTS = install-host:llvm,qemu install-cfx-aliases:llvm \
                            build-qemu:qemu build-qemu-reconfig:qemu build-gem5:gem5 \
                            build-bootrom:bootrom \
                            build-picolibc:sysroot build-musl:sysroot build-musl-shared:sysroot \
+                           build-busybox:busybox \
                            linux-defconfig:linux linux-vmlinux:linux linux-initramfs:linux
 # 读方（Python 脚本）用同一个状态目录：显式导出，`WRITER_STATE_DIR` 覆盖也生效。
 export DADAO_WRITER_STATE_DIR := $(WRITER_STATE_DIR)
@@ -162,6 +163,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       build-mc build-mc-lite build-mc-reconfig build-lld build-qemu build-qemu-reconfig \
                       build-gem5 check-gem5-decode \
                       build-builtins build-bootrom build-picolibc build-musl build-musl-shared \
+                      build-busybox \
                       linux-defconfig linux-vmlinux linux-initramfs linux-semihosting-smoke \
                       check-linux-k0 check-linux-k1 check-linux-k2 check-linux-k3 \
                       test-codegen test-elf test-m6 test-picolibc-smoke \
@@ -243,6 +245,7 @@ help:
 	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl-shared  Build musl shared/PIC libc.so + the PIC static archive libc_pic.a (for -static-pie) + link a dynamic smoke executable (PT_INTERP/DT_NEEDED), and install libc.so + libc_pic.a + the ld-musl-dadao.so.1 symlink into the target sysroot (INFRA-085t stage A1/B1, INFRA-108t; needs install-host + fetch/apply-series)"
 	@echo "  make build-builtins  Rebuild the compiler-rt builtins with the current build-tree clang and stage the archive into that clang's resource dir (ISS-293; needs build-mc + a configured compiler-rt build tree)"
+	@echo "  make build-busybox   Build the static musl busybox 1.38.0 (minimal applet set from components/busybox/config.min) for dadao-unknown-elf (K6; m14-linux-030; needs install-host + build-musl + fetch/apply-series)"
 	@echo "  make linux-defconfig  Configure the Linux kernel for dadao (M14; glibc-free defconfig; script lands in a later m14-linux task)"
 	@echo "  make linux-vmlinux   Build the Linux kernel image (M14; JOBS= parallel make; script lands later)"
 	@echo "  make linux-initramfs Build the initramfs image (M14; script lands later)"
@@ -1106,6 +1109,13 @@ _locked-linux-initramfs:
 
 _locked-linux-semihosting-smoke:
 	@JOBS=$(JOBS) $(PYTHON) tests/ee-tiny/run_semihosting_smoke.py
+
+# build-busybox（m14-linux-030）：K6 的静态 musl busybox（最小 applet 集，真源
+# = components/busybox/config.min）。前置：install-host 工具链 + build-musl 的
+# crt1.o/libc.a + `make fetch`/`apply_series.py --component busybox` 的源树；
+# 缺任一条脚本显式报错（不静默退化）。产物 .work/build/busybox/busybox。
+_locked-build-busybox:
+	@JOBS=$(JOBS) $(PYTHON) tools/linux/build_busybox.py --jobs $(JOBS)
 
 _locked-check-linux-k0:
 	@JOBS=$(JOBS) $(PYTHON) tools/linux/check_k0.py

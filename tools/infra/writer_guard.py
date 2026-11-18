@@ -131,6 +131,10 @@ COMPONENTS: dict[str, tuple[str, tuple[str, ...]]] = {
                  ".work/source/picolibc")),
     "linux": ("Linux kernel build tree",
               (".work/build/linux",)),
+    # m14-linux-030: the busybox build is in-tree (kbuild), so the source tree
+    # itself is written as well as the product root.
+    "busybox": ("busybox source/build tree (static musl busybox)",
+                (".work/source/busybox", ".work/build/busybox")),
 }
 
 

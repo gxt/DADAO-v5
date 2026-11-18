@@ -1,0 +1,17 @@
+diff --git a/libbb/const_hack.c b/libbb/const_hack.c
+index 1d17548..c1842e9 100644
+--- a/libbb/const_hack.c
++++ b/libbb/const_hack.c
+@@ -16,7 +16,11 @@ static ALWAYS_INLINE void* not_const_pp(const void *p)
+ {
+ 	void *pp;
+ 	asm volatile (
+-		"# forget that p points to const"
++		/* DADAO: '#' is not a comment character (spec/Toolchain-01 §2.2),
++		 * so the upstream template comment is dropped; the register
++		 * constraints alone are the barrier.  A target-neutral empty
++		 * template keeps this file valid for every backend. */
++		""
+ 		: /*outputs*/ "=r" (pp)
+ 		: /*inputs*/ "0" (p)
+ 	);
