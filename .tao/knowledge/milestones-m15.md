@@ -32,13 +32,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m15-testcases-018 | 2026-11-19 00:58 | 0.5–1 h | `run_inst_tiny.py` gem5 lane 补 `--semihost on`（`m16-gem5-011` 改默认后未同步） |
 
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-testcases-018 | 2026-11-19 03:05 | gem5 lane 补 `--semihost on`（`run_inst_tiny`/`check_tiny_hmon`/`run_parity --direct-check`；21/21、42/42） |
 | m15-testcases-019 | 2026-11-19 02:15 | 11-cfx 链例12 SRAM 哨兵显式清零（chipyard TLRAM 上电非 0；双 lane 96 B 相同） |
 | m15-spec-001 | 2026-11-19 00:38 | ISA 语义源迁 `idl/`（`.idl` 为源 + `render.py` 生成 spec 块；5 条样板、4 路注入） |
 | m15-testcases-017 | 2026-11-18 23:11 | RF 窄写补测（`ld.t`/`ldm.t` 高 32 位保持）+ 11-cfx 两载体按新 escape 语义（272/272） |
