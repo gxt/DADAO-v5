@@ -75,7 +75,7 @@
 **重跑（我的真实输出/rc）**：
 - `make check-manifests-guard` ⇒ **rc=0**，`清单 4；受检目录 4；文件 32；sha256 22`，打印 8 行 `owner components/<dir> = <模块>`。
 - `python3 tools/infra/check_manifests_guard.py --self-test` ⇒ **rc=0、15/15**（含「悬空 key」「值非字符串」两例 + 基线正例）。
-- 证据脚本 `./.work/evidence/m15-infra-006/run.sh` ⇒ **rc=0、32/32 PASS**（4 路注入+还原、三份旧清单 `subdir_owners=False`、self-test 计数现场派生非写死）。
+- 运行期证据目录内的 `run.sh` ⇒ **rc=0、32/32 PASS**（4 路注入+还原、三份旧清单 `subdir_owners=False`、self-test 计数现场派生非写死）。
 - **四路注入（我自跑，`cp`/`mv`+md5 还原）**：① `mkdir components/zztest` ⇒ **rc=2**「多出子目录 zztest」、rmdir ⇒ rc=0；② `mv components/busybox` ⇒ **rc=2**「缺失子目录 busybox」、mv 回 md5 `49c7aabfc1be70ae553034a417468ddf` 前后一致 ⇒ rc=0；③ `rm components/.manifests.toml` ⇒ **rc=2**「缺少清单」、cp 回 md5 `b712c8d47bca11d6a4c6bfa67a0e5c5e` ⇒ rc=0；④ **未列**：`[subdir_owners]` 塞 `ghost = "x"` ⇒ **rc=2**「悬空 owner（不在 subdirs 中）」、cp 回同 md5 ⇒ rc=0。
 - **独立反例（改被测产物后重跑同一脚本）**：注入 `ghost` ⇒ `run.sh` **rc=1**、`合计 32 项检查，失败 7 项`（基线/还原A/B/C/D、owner 映射全报 FAIL）；`cp` 还原 md5 一致 ⇒ `make check-manifests-guard` **rc=0 回绿** ⇒ 脚本可达 FAIL、非恒真。
 - **向后兼容（关键回归）**：`spec/.manifests.toml`、`.tao/.manifests.toml`、`.tao/knowledge/.manifests.toml` 现读 `subdir_owners=False`、`git diff` 0 行，guard 仍 **rc=0**。

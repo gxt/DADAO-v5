@@ -39,7 +39,7 @@
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
 | m15-infra-007 | 2026-11-18 19:02 | 死引用收口（台账改自动发现、删退役 `check_005t_coverage`；NON_LIVE 11→3） |
-| m15-infra-006 | 2026-11-18 19:05 | `components/` 目录防护（8 目录 + `[subdir_owners]`；新增目录须用户同意） |
+| m15-infra-006 | 2026-11-18 18:44 | `components/` 目录防护（8 目录 + `[subdir_owners]`；新增目录须用户同意） |
 | m15-infra-005 | 2026-11-18 16:05 | `.manifests.toml` 第一波（spec/.tao/.tao-knowledge + 必需清单注册表；删清单/删注册表/游离清单即红） |
 | m15-infra-002 | 2026-11-18 11:42 | refs 清空（9 孤儿删除；其余 20 份由 004 承接：迁 13 + 删 7） |
 | m15-infra-004 | 2026-11-18 11:42 | refs 13 份活数据源迁 `tests/data/` + refs 清空 + `check_dead_refs`（未接门控） |
