@@ -5,7 +5,7 @@
 schema: 1
 generated_by: tools/gem5/gen_wuming_cycles.py
 source_doc: docs/core-wuming-cycle-model.md
-source_doc_sha256: 'c54e9a0563ba341c9f879ad066f6e28584ccb612c3acc131045c45c339853437'
+source_doc_sha256: '454cfb5640f970d7b1000e77166da6bae418264b4f0487782b9ec290c735adb4'
 instruction_count: 263
 static_rows: 188
 dynamic_rows: 75

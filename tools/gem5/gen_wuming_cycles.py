@@ -15,7 +15,7 @@ Pipeline
 3. match every id of ``contracts/opcodes.yaml`` against those rows with
    the row's own mnemonics / globs / operation words, under a fixed specificity
    order; an id that cannot be matched is reported as an error, never guessed
-4. emit ``tools/gem5/wuming_cycles.yaml`` (id -> class / cycles / dynamic
+4. emit ``contracts/wuming-cycles.yaml`` (id -> class / cycles / dynamic
    parameter) plus the generated C++ table
    ``<gem5 source>/src/arch/dadao/wuming_cycles.{hh,cc}``
 
@@ -53,7 +53,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 DOC = ROOT / "docs/core-wuming-cycle-model.md"
 OPCODES = ROOT / "contracts/opcodes.yaml"
-OUT_YAML = ROOT / "tools/gem5/wuming_cycles.yaml"
+OUT_YAML = ROOT / "contracts/wuming-cycles.yaml"
 DEFAULT_SOURCE = ROOT / ".work/source/gem5"
 CPP_HH = "src/arch/dadao/wuming_cycles.hh"
 CPP_CC = "src/arch/dadao/wuming_cycles.cc"
@@ -1478,7 +1478,7 @@ def main() -> int:
     cc_text = emit_cc(table, order, block)
     source = Path(args.source)
     artifacts = [
-        (Path("tools/gem5/wuming_cycles.yaml"), yaml_text),
+        (Path("contracts/wuming-cycles.yaml"), yaml_text),
         (source / CPP_HH, hh_text),
         (source / CPP_CC, cc_text),
     ]

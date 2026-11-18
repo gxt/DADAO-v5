@@ -27,7 +27,7 @@ Stages (each one re-runnable; ``all`` = build + run + report):
 
 Every number in the report is produced here from raw simulator output; the
 script carries **no cycle figure** -- class figures come from
-``tools/gem5/wuming_cycles.yaml`` (the live parse of
+``contracts/wuming-cycles.yaml`` (the live parse of
 docs/core-wuming-cycle-model.md), and the wrapper refuses to run when the table
 does not match the document.
 
@@ -68,7 +68,7 @@ import machine_profile as _machine_profile                   # noqa: E402
 import paths as _paths                                       # noqa: E402
 
 DOC = ROOT / "docs/core-wuming-cycle-model.md"
-YAML = ROOT / "tools/gem5/wuming_cycles.yaml"
+YAML = ROOT / "contracts/wuming-cycles.yaml"
 PROCESS_PATCH = ROOT / "components/gem5/patches/src/arch/dadao/process.cc.patch"
 GEM5 = ROOT / ".work/source/gem5/build/DADAO/gem5.opt"
 CONFIG = ROOT / ".work/source/gem5/configs/dadao/se_timing.py"
@@ -191,7 +191,7 @@ def tiny_layout():
 
 
 # ---------------------------------------------------------------------------
-# cycle table (tools/gem5/wuming_cycles.yaml) -- the model's own figures
+# cycle table (contracts/wuming-cycles.yaml) -- the model's own figures
 # ---------------------------------------------------------------------------
 def load_table():
     import yaml

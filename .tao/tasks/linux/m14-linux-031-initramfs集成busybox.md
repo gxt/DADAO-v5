@@ -70,7 +70,7 @@ K6 出口：QEMU system 下的 initramfs 内含 `/bin/busybox` 与 applet 链接
 - 上限**现场取数** `contracts/linux-boot.yaml` `memory_map.initramfs`：`0x20006000000−0x20004000000 = 33554432`；实测 `332116 ≤ 33554432` ✅。
 - **宿主 `cpio -itv` 独立读**（非生成器解析）：15 条目、无未约定项；`bin/busybox` 311408 B、root:root、`-rwxr-xr-x`；10 条 `bin/{sh,ls,cat,echo,mkdir,rm,cp,mv,grep,ps} -> busybox` 全为真符号链接；`init` 193 B `-rwxr-xr-x`、首行 `#!/bin/sh`、末有效行 `exec /bin/sh`；`init.musl` 18520 B 在位。
 - **manifest 逐条对账**（我自写解析 + 自行 `cpio -id` 解包）：`entries` 15 条 + `init`/`musl_init`/`busybox`/`cpio`/`applet_links(10)` 的 size/sha256 全部与解包树相等 → **rc=0**。
-- `bash .work/evidence/m14-linux-031/run.sh` → **rc=0**；末字段 `rc=0` **37 条**、`rc=1` **0 条**、`rc=-`（现场统计+BLOCKED）**6 行**，共 43 行含 `rc=`。
+- 运行期证据目录内的 `run.sh`（`bash run.sh`）→ **rc=0**；末字段 `rc=0` **37 条**、`rc=1` **0 条**、`rc=-`（现场统计+BLOCKED）**6 行**，共 43 行含 `rc=`。
 - K0 相位独立重跑 `probe_initramfs_phase.py` → **rc=0**，`probe: 20 checks, 0 FAIL`（K7/K8/K9/K13 逐条 PASS 现场输出）。
 - **注入 4 路**：① `--inject mtime` → rc=1、诊断点名 `mtime`；② `--inject applet`（删 `bin/sh`）→ rc=1、点名 `bin/sh`；③ **我自选、run.sh 未列的 `--inject mode`** → **rc=1**、`FAIL: 条目 'init' 的 mode 为 100644，应为 100755`，归档未被坏产物覆盖；④ **独立改被测产物**（`INIT_SCRIPT` 的 `exec /bin/sh`→`exec /bin/busybox`，`cp`+md5 备份）后重跑**同一** `run.sh` → **rc=1**、`init-exec-line | exec /bin/sh | exec /bin/busybox | rc=1`；`cp` 还原 md5 回 `30ad4c64…` → 重跑 **rc=0** 回绿、归档回 `6819200f…`。
 - busybox 静态 ELF **我自行解析头/程序头**：`class=64 data=BE type=2(ET_EXEC) machine=0xda0 flags=0x1`、`PT_INTERP absent`、`PT_DYNAMIC absent` ⇒ 静态 DADAO ELF。

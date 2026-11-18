@@ -522,7 +522,7 @@ _locked-check-gem5-decode:
 # (the only source of the class taxonomy and of every cycle figure) and verify
 # 264/264 coverage, class set == §2, parameterised rows carry their parameter,
 # each cycle text is verbatim in the doc line it cites, and both artifacts
-# (tools/gem5/wuming_cycles.yaml + the generated gem5 C++ table
+# (contracts/wuming-cycles.yaml + the generated gem5 C++ table
 # src/arch/dadao/wuming_cycles.{hh,cc}) are a byte-identical fresh parse.
 # Read-only and build-free, so it stays outside $(GATE_LOCKED_TARGETS).
 check-wuming-cycles:
