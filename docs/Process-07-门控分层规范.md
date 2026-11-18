@@ -39,6 +39,7 @@
 | `make check-spec-archive-verify` | **里程碑收尾专项**（随 `check-milestone`；**不入 L1**） | 归档**内容**：以各目录 `PROVENANCE.md` 的「快照提交」为锚，逐文件 sha256 与该提交树全等 + 「版本组合 sha256」= 按表重算值（拒绝子串/前缀匹配）；无 `PROVENANCE.md` 的既有目录回落派生快照；`-rc` 打印 SKIP。判定归 `tools/spec/gen_spec_archive.py --verify`（判据未改，仅接线）。 |
 | `make check-milestone` | **L2 层 / 里程碑收尾专项**（按需；**不入** `check-modules`） | 先跑 `check-spec-archive` + `check-spec-archive-verify`（归档结构 + 内容 sha）+ `check-l3-report`（L3 报告存在性/结构/结果）；**回归运行报告不入本目标**（观测，按需 `check-night-report`，`INFRA-126t`）；再：**里程碑台账**（自动发现 `.tao/knowledge/milestones*.md`：`milestones.md` / `milestones-m12.md` / `milestones-m13.md` / `milestones-m14.md`，或用 `--file` 指定）逐本校验：须有 `项目里程碑 = M<n>` 断言（否则 vacuous FAIL），台账列出的任务号须在 `.tao/tasks/**` 或 `.tao/archive/**` 真实存在（台账零任务号 ⇒ vacuous FAIL）；并接 `check_tasks.py --strict`（漏收尾 = 0）。**核验册（`m` 册）机制已删除**（用户 2026-11-10：可删掉核验册机制；2026-11-08 起 M11 不建 m 册、M12 编号 `mNN-<module>-<NNNN>`）⇒ 不再做册识别、旧册顶替与册内号检查。 |
 | `make check-manifests-guard` | **L1** | 全仓 `.manifests.toml` 双向校验：目录直接子文件（清单自身不计）== `files` 键、直接子目录 == `subdirs`（多一个/少一个都红）；带 `sha256` 的条目逐字节校验；`recursive = true` 对子目录递归（单向 ⊆）；`owner` 只打印。零清单 / 清单纯空 ⇒ FAIL。判定归 `tools/infra/check_manifests_guard.py`。第一批清单：`spec/`、`.tao/`、`.tao/knowledge/`（能力并入原「spec 只读册 sha256 锁」与「`.tao/knowledge/` 顶层白名单」两个已删门控）。**必需清单注册表** = `manifests/dir-guard-roots.toml`：登记目录缺清单 / 目录不存在 / 注册表缺失 / 游离清单 ⇒ 均红（删清单不关闭约束）。 |
+| `make check-idl-sync` | **L1** | `idl/*.idl` 是语义源，`spec/SimRISC-*` 的 `<!-- IDL:<id> BEGIN -->` … `<!-- IDL:<id> END -->` 之间是**渲染结果**：重渲染后**逐字节**比对（漂移 ⇒ 红）；源 id 不在 `contracts/opcodes.yaml`、`# id:` 重复/缺正文、落点缺标记/空标记/串册、标记嵌套 ⇒ 红。`--self-test` 四类注入（改 spec 块一个字符 / 改源不重渲染 / 删一条 `# id:` 留标记 / 调用未声明的库函数）各自须 FAIL。判定归 `idl/render.py --check`。源 = `m15-spec-001`。 |
 | `make check-syscall-abi` | **L1** | syscall 参数银行表的三载体（musl `__dadao_argmask` / `src/thread/dadao/syscall_cp.s` 派发 / QEMU `cpu_loop.c:dadao_argmask`）逐项一致（号→掩码全等；asm 子集逐号相等 + 每个 `.Lm<mask>` 块的 `rd2rb`/`rd2rd` 条数 = 掩码位值）+ 完整性（musl 能发出的 syscall 名 ⊆ 表，空表 vacuous FAIL）。工作树在则读树，否则读 `components/**` 补丁（新克隆可跑）；完整性/audit 两项在无 musl/qemu 检出时 SKIP 并打印。 |
 | `make check-musl-freshness` | **L1** | 安装根 `libc.so` 必须由**当前** musl 源 + 工具链构建：`build_musl.py` 成功构建后落 `obj/.dadao-musl-source-stamp`（全树内容 sha256）与 `obj/.dadao-toolchain-stamp`；门控比对两戳记 + 安装副本与构建产物 sha256 一致 + `ld-musl-dadao.so.1` 符号链接指向 + **`obj/.dadao-builtins-stamp`**（`libc.so` 的 `LIBCC` 归档内容 sha256，`ISS-293`：DSO 内嵌 builtins，归档变则须 relink）。任一项不符 ⇒ FAIL（提示 `make build-musl-shared`）。无构建树 / 无共享产物 ⇒ SKIP 并打印（L1 在纯静态工作流与新克隆仍可用；有产物而缺戳记 = FAIL）。成本 ~1.3 s。源 = `ISS-258`（协议双侧变更后 `libc.so` 未重建 ⇒ 动态档全灭）。 |
 | `make check-builtins-freshness` | **L1** | 工具链消费的**三份** compiler-rt builtins 归档（构建树产物 / 构建树 clang 资源目录副本 / 安装根副本）须同一 sha256，且归档 mtime 与其**每个成员 `.c.o`** 的 mtime 均 ≥ 构建树 `clang` mtime（`ar` 确定性模式成员头无时间戳 ⇒ 成员按名回查构建树对象；`gcc_personality_v0` 类非成员对象不计）。缺构建树 / 安装根 ⇒ SKIP；有产物而缺副本 = FAIL，提示 `make build-builtins` + `make install-host`。`--self-test` 四类注入（篡改安装副本 ⇒ 红；只动 mtime ⇒ 不假红，`ISS-263`）。成本 ~0.1 s。源 = `ISS-293`（`shl` 编码迁移后 builtins 未重建 ⇒ 旧编码残留 ⇒ 新 qemu 按 ILLI 打 SIGILL）。 |
@@ -165,13 +166,13 @@ K3 门控 `check-linux-k3` 落地后，K1/K2 门控里「同一地址只有那�
 
 ## 7. 文件防护门控清单（防新增 / 防修改）
 
-> 本节的定位：盘点 `Makefile` 里全部 `^check-[a-z0-9-]*:` 目标（现场 `grep -c "^check-[a-z0-9-]*:" Makefile` = **64** 个），回答三个问题——① 是否扫描文件系统、扫描面是什么；② 是否**防新增**（白名单 / 许可集 / 命名规则 / 覆盖要求）；③ 是否**防修改**（sha256 锁 / git blob / 逐字节比对 / 生成物一致性）。判据一律**读脚本源码或本规范 §1.1**，不凭门控名猜。
+> 本节的定位：盘点 `Makefile` 里全部 `^check-[a-z0-9-]*:` 目标（现场 `grep -c "^check-[a-z0-9-]*:" Makefile` = **63** 个，另加 1 个经 `gate-locked-rule` 生成的 `check-manifests-guard`），回答三个问题——① 是否扫描文件系统、扫描面是什么；② 是否**防新增**（白名单 / 许可集 / 命名规则 / 覆盖要求）；③ 是否**防修改**（sha256 锁 / git blob / 逐字节比对 / 生成物一致性）。判据一律**读脚本源码或本规范 §1.1**，不凭门控名猜。
 >
 > **防新增 / 防修改**两列的取值口径（简写，详见各脚本）：
 > - 防新增：`白名单`（顶层只允许既定模式）｜`命名规则`（新文件名须匹配）｜`覆盖`（新文件/载体须被某清单双向覆盖，删/漏即红）｜`结构`（目录封闭集合）｜`—`（不防新增）。
 > - 防修改：`sha256 锁`（锁文件重算比对）｜`git blob`（补丁 index/内容 blob 重算）｜`逐字节`（重生成产物字节级比对）｜`一致性`（跨文件/跨载体机械核对，非哈希）｜`git 状态`（clean + base+N）｜`—`（不防修改）。
 >
-> 清单行数与 `grep -c` 现场值**相等**（64）。不在此列的还有：`check`/`check-modules`/`check-full`/`check-lit*`/`check-inst-asm`/`check-arch*`/`check-unit*`/`check-tset-*`/`test-*`/`check-linux-k0..k3` 等 —— 它们是 `GATE_LOCKED_TARGETS` 经 `gate-locked-rule` 生成的 `_locked-*` 包装目标（真源在 `_locked-check`/`_locked-check-modules`/`_locked-check-full`），**不匹配** `^check-*:`，故不在本清单；其防新增/防修改语义由成员门控承担。
+> 清单行数 = 现场 `grep -c` 值 **63** + `gate-locked-rule` 生成的 `check-manifests-guard` **1** = **64** 行；删/增门控时两处同笔更新。不在此列的还有：`check`/`check-modules`/`check-full`/`check-lit*`/`check-inst-asm`/`check-arch*`/`check-unit*`/`check-tset-*`/`test-*`/`check-linux-k0..k3` 等 —— 它们是 `GATE_LOCKED_TARGETS` 经 `gate-locked-rule` 生成的 `_locked-*` 包装目标（真源在 `_locked-check`/`_locked-check-modules`/`_locked-check-full`），**不匹配** `^check-*:`，故不在本清单；其防新增/防修改语义由成员门控承担。
 
 | 门控 | 层级 | 扫描面 | 防新增 | 防修改 | 判据出处 | 缺口 |
 |---|---|---|---|---|---|---|
@@ -198,7 +199,8 @@ K3 门控 `check-linux-k3` 落地后，K1/K2 门控里「同一地址只有那�
 | `check-sync-nonmaskable` | 里程碑 | `spec/DADAO-12/22/23` 异常原因表 | — | 一致性（异步源白名单） | `tools/spec/check_sync_nonmaskable.py:41-45` | 无 |
 | `check-spec-refs` | L1 | `.tao/contracts/contract-*.md` 的 spec 引用 | — | 一致性（引用可解析） | `tools/infra/check_spec_refs.py:4-25` | 无 |
 | `check-knowledge-refs` | L1 | `AGENTS.md`/`spec`/`knowledge`/`tasks`/`contracts` 的 `.work/**` 引用 | 白名单（具体 `.work/**` 引用一律 FAIL） | —（悬空引用） | `tools/infra/check_knowledge_refs.py:12-52` | 无 |
-| `check-manifests-guard` | L1 | 全仓 `.manifests.toml` 所在目录（第一批 `spec/`、`.tao/`、`.tao/knowledge/`） | 双向白名单（直接子文件 == `files`、直接子目录 == `subdirs`） | sha256 锁（条目可带）+ 递归（`recursive=true` 单向 ⊆） | `tools/infra/check_manifests_guard.py:89-236` | 清单自身可被改（加/删条目不红）⇒ 变更依据看 `git log`；`owner` 只打印 |
+| `check-manifests-guard` | L1 | 全仓 `.manifests.toml` 所在目录（`manifests/dir-guard-roots.toml` 登记：`spec/`、`idl/`、`.tao/`、`.tao/knowledge/`、`components/`） | 双向白名单（直接子文件 == `files`、直接子目录 == `subdirs`） | sha256 锁（条目可带）+ 递归（`recursive=true` 单向 ⊆） | `tools/infra/check_manifests_guard.py:89-236` | 清单自身可被改（加/删条目不红）⇒ 变更依据看 `git log`；`owner` 只打印 |
+| `check-idl-sync` | L1 | `idl/*.idl` + `spec/SimRISC-*` 的 IDL 标记段 | 覆盖（源 operation ↔ 落点双向）+ 命名规则（`SimRISC-NN.idl`、id ∈ `opcodes.yaml`） | 逐字节（重渲染比对） | `idl/render.py`（`render_all`/`run`） | 只核标记段内的块；标记外的散文不核 |
 | `check-contracts-dir` | L1 | `.tao/contracts/` + `contracts/` 顶层 | 白名单（glob + 显式名） | — | `tools/infra/check_contracts_dir.py:41-50` | **子目录不限** |
 | `check-syscall-abi` | L1 | musl/QEMU/gem5 参数银行表 + `syscall.tbl` | — | sha256 锁（syscall.tbl）+ 一致性（四载体逐项） | `tools/qemu/check_syscall_abi.py:6-40` | 无 |
 | `check-musl-freshness` | L1 | musl 构建树 + 安装根 | — | sha256 锁 + 戳记（源/toolchain/builtins） | `tools/infra/check_musl_freshness.py:16-36,159` | 无 |

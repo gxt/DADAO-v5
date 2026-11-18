@@ -18,6 +18,18 @@ br.ne    {rdHA, rdHB}?, [rb0, imms14]
 
 跳转地址计算公式：`Addr = rb0 + (imms12 << 2)`（64 位计算），结果写回 `rb0`，取低 48 位为下一条地址。
 
+<!-- IDL:br.eq_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: br.eq_rrii_rd
+# 汇编层 imms14 = 编码层 imms12 << 2（字节偏移）；IP = 当前正在执行的指令地址
+if (rd[rdHA] == rd[rdHB]) {
+  Bits<14> scaled = {imms12, 2'b00};          # 12 位编码层偏移 → 14 位补码字节偏移
+  jump({16'd0, ip()} + $signed(scaled));      # 64 位计算；写回 rb0，下一条取其低 48 位
+}
+```
+<!-- IDL:br.eq_rrii_rd END -->
+
 > COD P226页指出，br.ne和br.eq这两条指令的占比为7.4%
 
 第二类跳转指令的操作数类型为：`riii`。一个操作数为rd寄存器，根据该寄存器的值进行判断，选择是否跳转。

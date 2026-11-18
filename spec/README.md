@@ -29,6 +29,12 @@
 | [`SimRISC-11-核芯功能扩展指令.md`](SimRISC-11-核芯功能扩展指令.md) | 核芯功能扩展指令（`trap`/`escape`/`cfx2rd`/`cfx2rc`/`fence`） |
 | [`SimRISC-12-其它指令.md`](SimRISC-12-其它指令.md) | 其它指令（原子 / 空转 / 位扫描与位计数） |
 
+### ISA 语义（IDL）
+
+**源在仓库根 `idl/`**：每册一个 `idl/SimRISC-NN.idl`，每条指令一段以 `# id: <指令 id>` 开头的 operation（id 与汇编速查表一致），只描述**单条指令**对架构状态的作用，语法取 UDB IDL（不另造方言）。
+
+本册的 `idl` 代码块是**渲染结果**：落在 `<!-- IDL:<id> BEGIN -->` 与 `<!-- IDL:<id> END -->` 之间，由 `idl/render.py` 从源生成，**不得手改**。语法基线、寄存器模型与语义库见 [`../idl/README.md`](../idl/README.md)。
+
 ### 环境
 
 | 分册 | 职责 |

@@ -1,0 +1,25 @@
+schema = 1
+owner = "idl"
+subdirs = []
+recursive = false
+
+[files."README.md"]
+owner = "idl"
+
+[files."render.py"]
+owner = "idl"
+
+[files."SimRISC-01.idl"]
+owner = "idl"
+
+[files."SimRISC-04.idl"]
+owner = "idl"
+
+[files."SimRISC-06.idl"]
+owner = "idl"
+
+[files."SimRISC-11.idl"]
+owner = "idl"
+
+[files."SimRISC-12.idl"]
+owner = "idl"

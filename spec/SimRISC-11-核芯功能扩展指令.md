@@ -31,6 +31,20 @@ trap    cfxHA, immu18
 
 其中，cfx_<cfxname> 指定核芯功能扩展名称；immu18指定具体功能编号。
 
+<!-- IDL:trap_ciii_cfx BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: trap_ciii_cfx
+if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ 进当前运行模式 monitor
+  raise(ExceptionCode::Illegal, mode(), {16'd0, ip()});
+} else if (cfx_trap_denied(cfxHA)) {          # 目标 cfx 的 cfxtrap 掩码拒绝源 cfx
+  raise(ExceptionCode::CfxPerm, mode(), {16'd0, ip()});
+} else {                                      # CFXTRAP：计数 → 现场 → 模式/目标 → 向量
+  cfx_trap_enter(cfxHA, immu18);
+}
+```
+<!-- IDL:trap_ciii_cfx END -->
+
 ## 3. 退出指令
 
 退出指令用于退出当前的特权态，将控制权交还给陷入异常前的状态。

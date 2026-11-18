@@ -27,6 +27,24 @@ sub.so  {rdHA, rdHB}, rdHC, rdHD    @@ SX，rdHA = 高64位
 
 `rdHA` 和 `rdHB` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
 
+<!-- IDL:add.so_rrrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: add.so_rrrr_rd
+# 双目的 rdHA/rdHB 分别为结果的高/低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
+if (rdHA == rdHB) {
+  raise(ExceptionCode::Illegal, mode(), {16'd0, ip()});
+}
+
+# 先读后写：两个源操作数在任何写入之前全部捕获到 sum
+Bits<65> sum = $signed(rd[rdHC]) `+ $signed(rd[rdHD]);
+Bits<128> wide = {{63{sum[64]}}, sum};        # 符号扩展至 128 位
+
+rd[rdHA] = wide[127:64];                      # rdHA 为 rd0 时写入丢弃
+rd[rdHB] = wide[63:0];                        # rdHB 为 rd0 时写入丢弃
+```
+<!-- IDL:add.so_rrrr_rd END -->
+
 ### 1.2 自增自减
 
 自增自减指令需要一个寄存器和一个立即数，操作数类型为 `riii`。

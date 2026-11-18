@@ -1,0 +1,16 @@
+# id: lr.o.nn_orrr_rd
+if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), {16'd0, ip()});
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(64, ea)) {          # .o 按数据宽度（8 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+Bits<64> value = read_memory(64, ea);         # 先读：故障时不得改动任何架构状态
+reservation_clear_all();                      # 本 hart 执行另一条 lr ⇒ 清除既有保留标记
+reservation_set(ea, 64);                      # 键 = 精确地址 + 访问宽度
+rd[rdHC] = value;

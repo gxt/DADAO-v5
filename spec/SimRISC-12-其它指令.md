@@ -55,6 +55,28 @@ sc 指令会先判断 rbHD 内存地址是否有设置保留标记，如果设�
 
 > **保留机制**（参考 RISC-V RV64A）：一条 lr 指令在 hart 上设置保留标记。sc 指令在保留标记仍在时写入内存并返回 0，否则不写入并返回非 0 值。sc 可能偶发性失败（spurious failure），软件应在循环中重试。以下事件清除 hart 上的保留标记：另一 hart 对**同一精确地址、相同访问宽度**的 store、当前 hart 执行另一条 lr 指令、异常或中断进入。如果 hart 在 lr 和 sc 之间执行了异常处理程序，sc 必定失败。**保留标记的粒度 = 精确地址 + 访问宽度**（以 lr 的地址与 `.b`/`.w`/`.t`/`.o` 宽度为键；不按 cache line 扩大，也不因不同地址或不同宽度的访问清除）。
 
+<!-- IDL:lr.o.nn_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: lr.o.nn_orrr_rd
+if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), {16'd0, ip()});
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(64, ea)) {          # .o 按数据宽度（8 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+Bits<64> value = read_memory(64, ea);         # 先读：故障时不得改动任何架构状态
+reservation_clear_all();                      # 本 hart 执行另一条 lr ⇒ 清除既有保留标记
+reservation_set(ea, 64);                      # 键 = 精确地址 + 访问宽度
+rd[rdHC] = value;
+```
+<!-- IDL:lr.o.nn_orrr_rd END -->
+
 ## 2. 空转指令
 
 当指令地址需要对齐或特意留出空白时，需要使用到空转指令。通常需要的空转指令是 no-operation 指令。SimRISC借鉴Knuth的创意，采用了 swym 助记符作为空转指令，可称之为"划水"指令。Swym一词参考Knuth的MMIX中的定义，含义为 sympathize with your machinery，Knuth是这样描述的：

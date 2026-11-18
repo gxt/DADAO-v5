@@ -33,6 +33,26 @@ st.o     rdHA, [rbHB, imms12]
 
 限制：`ld` 指令的 `rdHA` 为 `rd0` 时触发 ILLI 异常。（rd0 通用约定见 SimRISC-00）`st` 指令允许 `rdHA` 为 `rd0`（rd0 作为源寄存器读出 0）。
 
+<!-- IDL:ld.o_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: ld.o_rrii_rd
+# 目的 rd0 ⇒ ILLI（先于地址计算）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), {16'd0, ip()});
+}
+
+Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 64 位全宽计算
+Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+if (!is_naturally_aligned(64, ea)) {          # .o 按数据宽度（8 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+rd[rdHA] = read_memory(64, ea);               # 大端读：最低地址的字节是最高有效字节
+```
+<!-- IDL:ld.o_rrii_rd END -->
+
 多load/store类指令如下：
 
 ```simrisc
