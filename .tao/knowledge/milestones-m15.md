@@ -31,7 +31,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m15-testcases-015 | 2026-11-18 07:31 | 1.5–2 h | 剩余 tiny bootrom 资产（k0/ 7 + bootrom.lds/tiny_crt/tiny_smoke/semihost_msg.inc）→ `tests/ee-tiny/` |
 
 | m15-spec-001 | 2026-11-13 22:05 | 3–5 天 | UDB IDL 语法 v0 + 5 条样板 operation + `idlc` 复用评估 + 抽取器原型（**待返工**：WIP `0584a64b`，用户要求先摊开文件内容 + 逐条语句分析；延后裁决） |
 
@@ -39,6 +38,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-testcases-015 | 2026-11-18 08:27 | 剩余 bootrom：`k0_*` 7 件 → `tests/ee-vast/`、4 散件 → `tests/ee-tiny/`（k0 101/101、k0/k1 119/112） |
 | m15-testcases-014 | 2026-11-18 07:30 | `inst-tiny.lds` 移入 `tests/ee-tiny/`（202 .S 头注释同步；272/272） |
 | m15-testcases-013 | 2026-11-18 07:05 | vast 资产集中到 `tests/ee-vast/`（step5 bootrom 7 + kaiwu-vast.lds；md5 8/8） |
 | m15-testcases-012 | 2026-11-18 06:41 | user 资产集中到 `tests/ee-user/`（12 脚本 + 5 crt/lds/runtime；与 011 双 `-L` 并存） |
