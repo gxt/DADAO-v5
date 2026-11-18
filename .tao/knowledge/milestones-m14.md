@@ -27,7 +27,6 @@
 | m14-linux-020 | 2–3 h | 内核线程（`kernel_thread`/`kthreadd`/`kthread_create`；用户 clone/TLS 归 K5） |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 
-| m14-linux-031 | 2–3 h | K6 initramfs 集成（busybox + applet 链接 + `/init` 切换） |
 
 | m14-linux-032 | 3–4 h | K6 shell 启动（busybox sh + semihosting + 前台执行，无作业控制） |
 
@@ -47,6 +46,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-linux-031 | 2026-11-18 10:02 | 2–3 h | K6 initramfs 集成 busybox（/bin/busybox + applet 链接 + `/init`；QEMU 实跑 BLOCKED 等 K5） |
 | m14-linux-019 | 2026-11-18 06:40 | 3–4 h | 用户栈增长：`VM_GROWSDOWN` 下方扩栈（S1–S6，真实用户进程触发） |
 | m14-linux-017 | 2026-11-18 00:20 | 7–9 h | 上下文切换（switch_to + 调度 + U-mode↔S-mode 帧往返）+ 最小 clockevent + F3/init 真跑 |
 
