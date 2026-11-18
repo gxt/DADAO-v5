@@ -56,7 +56,7 @@ cmd = [gem5, "--outdir=…", config, "--profile", "tiny",
 **重跑记录（我自己的命令与真实输出）**
 1. worktree 自证：`git rev-parse --show-toplevel` → `/tmp/opencode/m15-testcases-018/wt`；分支 `m15-testcases-018`；`git status -uall` 干净；`git diff --name-only 92175296 c13bf77f` → **3 文件**（本任务书 / `tests/ee-tiny/run_inst_tiny.py` / `tools/gem5/check_tiny_hmon.py`）；`git diff master...HEAD -- components/` 空。
 2. 修复有效性（我自己跑两侧）：`--platforms qemu` ⇒ rc=0、224 B；`--platforms gem5` ⇒ rc=0、224 B；`cmp -s` ⇒ **rc=0**，两侧 md5 同 `7e5529cea8821543d0956011fefd59c4`；gem5 日志含 `semi:ADP_Stopped`。
-3. 证据脚本重跑：`bash .work/evidence/m15-testcases-018/run.sh` ⇒ **17/17，exit 0**；`--inject all` ⇒ **31/31，exit 0**（真红项在场：`inject suite: rc is timeout -2`、`inject hmon: no hmon-ok PASS line`）。
+3. 证据脚本重跑：`bash 运行期证据目录内的 `run.sh` ⇒ **17/17，exit 0**；`--inject all` ⇒ **31/31，exit 0**（真红项在场：`inject suite: rc is timeout -2`、`inject hmon: no hmon-ok PASS line`）。
 4. 独立注入（我自己删 flag，非脚本自带）：md5 `d234da65…`→`af62c268…`、`cmp` 备份 rc=1；重跑同一脚本 ⇒ **9/17，exit 1**（8 FAIL：`minimal gem5 lane rc exp=0 got=1`、`bytes exp=224 got=0`）；`cp`+md5 还原回 `d234da65…`、`cmp` rc=0 ⇒ **17/17，exit 0**。
 5. 独立 fs.py 探针：同一 fs.py 命令**无** `--semihost on` ⇒ `timeout 90` **rc=124**、console 缺失；**加** ⇒ rc=0、224 B。
 6. 门控（我自己直接跑）：`check-tests-index` rc=0（472 条 PASS）、`check-dirs` rc=0、`check-no-residue` rc=0。
@@ -102,7 +102,7 @@ cmd = [gem5, "--outdir=…", config, "--profile", "tiny",
 
 ## 完成区
 
-**测试结果**：证据 `.work/evidence/m15-testcases-018/run.sh` fast **21/21**、`--inject all` **42/42**（gem5.opt md5 `e88498f3…`，脚本内断言跑前=跑后；`check-source-state` rc=0）。
+**测试结果**：证据 运行期证据目录内的 `run.sh` fast **21/21**、`--inject all` **42/42**（gem5.opt md5 `e88498f3…`，脚本内断言跑前=跑后；`check-source-state` rc=0）。
 **验收结果**：
 1. `--platforms gem5 --id ld.o_rrii_ra` ⇒ rc=0、224 B（补前 rc=-2 超时、0 B）；`--platforms qemu,gem5` ⇒ PASS，两侧 `.out` `cmp` 逐字节相同。
 2. **`--direct-check` 直跑路径**：`run_parity._run_gem5_direct` 已补 `--semihost on`；用 `direct_probe.py` 调**真实** `_run_gem5_direct`（inst 原样 extra；arch 真实为 profile=vast + `args.bootrom_vast`，本轮以 tiny+显式 bootrom 代跑、**未覆盖**） ⇒ `SHAPE inst/arch/embench rc=0 console=224/224/0 flag=yes semi=yes`（3/3）。删 flag ⇒ 同一探针 `timeout 90` 三形全 `rc=124 console=0`（可达 FAIL）；`cp`+md5 还原 `a8bbc703…` ⇒ 3/3 回绿。

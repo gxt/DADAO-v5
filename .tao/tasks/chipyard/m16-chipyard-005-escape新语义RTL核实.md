@@ -80,7 +80,7 @@
 ### 第 1 轮 reviewer 验收（2026-11-19，中改 / ≥2 路注入）
 
 **重跑记录（全部为我自己的命令与真实输出/退出码）**
-1. `bash .work/evidence/m16-chipyard-005/run.sh` ⇒ **`EXIT=0`，`PASS=17 FAIL=0`**：A1–A4/B1–B3/C1/C3–C6/D1/D2×4 全 PASS；`sim md5 = 9b6928e035c321835d81cef03542c6f7`；prevcfx **48 B**、`boot=63`、RW `37(0x25)`、`landing=2`、`cause_id=1/8`；11-cfx 4 载体 chipyard==QEMU（184/136/72/112 B，rc 0/0）；`escape_ciii` 未清零原载体复跑仍 `chipyard rc=12 / 0 B`、`qemu 96 B`。
+1. `bash 运行期证据目录内的 `run.sh` ⇒ **`EXIT=0`，`PASS=17 FAIL=0`**：A1–A4/B1–B3/C1/C3–C6/D1/D2×4 全 PASS；`sim md5 = 9b6928e035c321835d81cef03542c6f7`；prevcfx **48 B**、`boot=63`、RW `37(0x25)`、`landing=2`、`cause_id=1/8`；11-cfx 4 载体 chipyard==QEMU（184/136/72/112 B，rc 0/0）；`escape_ciii` 未清零原载体复跑仍 `chipyard rc=12 / 0 B`、`qemu 96 B`。
 2. `run.sh --inject save` ⇒ **`EXIT_SAVE=0`**：INJ3 `rc=1、semiout 0B`（真红）⇒ `cp`+md5 还原（`5fd5da7e…` 相等）⇒ 重建 ⇒ `INJ6/INJ7` 绿、**`PASS=24 FAIL=0`**；`run.sh --inject restore` ⇒ **`EXIT_RESTORE=0`**：INJ3 `rc=7、semiout 0B`（真红）⇒ 同上 **`PASS=24 FAIL=0`**；两路结束 sim md5 均回 `9b6928e0`。
 3. **第 3 路（我独立注入，run.sh 未列）**：`curCfx := prevCfx(viewIdx)(5,0)` → `gp.cfx(monitor).id.U(6.W)`（恢复成 monitor）⇒ `probe rc=7 / 0 B / check rc=1`（真红，落点第 3 次到达）；`cp` 还原（md5 `5fd5da7e…` 相等）+`touch`+重建 ⇒ `probe rc=0 / 48 B / check rc=0`（回绿），sim md5 回 `9b6928e0`。
 4. **核实结论对「改动前」补丁**（`git show HEAD~1:<patch>` 逐条）：① cg5 仅 `isPrevMode`(rc=0)（base L359），`readOk/writeOk` 不含 rc1（L365–372）⇒ 落 `CFXREG`；② `grep -c inner_cfx_code <base GewuFile> = 0`（无该状态）；③ `escapeOk = ha===io.monitorHa && hasFrame(causeId(monitor))`（L418/L433），恢复仅 `runMode := prevMode(monitor)`（L460）；④ base `WumingCore` `ip := gewu.io.vector` = `vector(monitor)`（L924–925），CFXESC 走 `enterHmon` ⇒ 交 monitor ⇒ **「部分实现」四条全部成立**。
