@@ -64,6 +64,16 @@
 - 待定：是否改模型（改 `wuming_latency.hh` 的 beats 公式 + 表 + 探针），以及是否需要把「相位」作为表格的输入维度（当前表只有 `per_element`/`per_beat`）。
 - 另记两个 N=1 地址特例（SRAM 尾拍 +11、`.text` 内 off-queue 取指 −1），已是实测例外，不解释 +1。
 
+## N20. `escape` 是否应恢复 `inner_cfx_code`（`ISS-454` 语义纠正，待裁定）
+
+- **现场（`m14-linux-017` F36）**：同步帧内到达 tick ⇒ `inner_cfx_code` 被置为 `cfx_hart`（`§5.2 步骤6`）；该帧随后的 `escape cfx_smon` 报 `CFXESC`（`§5.3 步骤0`：`cfxha != inner_cfx_code`）。把那次 tick 关掉后同路径连做 3 次 escape 全成功 ⇒ 根因确认为「`escape` 不恢复 `inner_cfx_code`」。
+- **spec 现状**：`§5.3` 伪码只恢复 `global_cfx_intr_mask` 与 `excp_prev_run_mode`，**没有恢复 `inner_cfx_code`** 这一步；`§5.2 步骤6` 明确 trap 会改它 ⇒ 构成缺口（异常帧被异步事件「污染」后无法正确返回）。
+- **两个解法**：
+  - **(A) 内核侧**：把「恢复中断掩码」挪到 `escape` 之后（`cg5 rc3` 重定向到 unmask 蹦床，K2 有先例）；难点是 umon 帧会拿用户 `rd2/rd3` 当 scratch。
+  - **(B) 语义侧**：认定 `escape` 应把 `inner_cfx_code` 恢复为异常发生时的 cfx（即补 `ISS-454`），需改 `spec/DADAO-12 §5.3` + QEMU `helper_cfx_escape`。
+- **工程侧建议 (B)**：(A) 在 umon 帧上无法干净实现，且它与 F37 残余是同一口径的两面。**但改 spec 须用户裁定 + 授权**，本任务不自行改。
+- 影响：`ISS-454` 登记、`spec/DADAO-12` 正文、QEMU 模型、K2/K3/K4 探针的帧内诊断口径。
+
 ## N7. cfx 待实现范围
 
 - 已实现：umon / jmon / smon / hmon / ptw / pmem / time / hart / power。
