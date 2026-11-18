@@ -97,7 +97,7 @@
 ### 第 1 轮 reviewer 验收（2026-11-18）
 
 **重跑记录（均本人在任务 worktree 执行，命令 → 真实 rc/输出）**
-- 证据脚本 `bash .work/evidence/m14-spec-009/run.sh` ⇒ `RUNSH_RC=0`，`PASS=16 / FAIL=0`：source-state、patch-tree `problems=0`、`make_patch` 两次 `0 written`、`build-qemu`、probe `guest exit 0`、注入 `escape_restore → 0x31`、`rc1_dispatch → 0x41`、两次 `restore (cp+md5)` 一致、两次回绿 `0`。
+- 运行期证据目录内的 `run.sh` ⇒ `RUNSH_RC=0`，`PASS=16 / FAIL=0`：source-state、patch-tree `problems=0`、`make_patch` 两次 `0 written`、`build-qemu`、probe `guest exit 0`、注入 `escape_restore → 0x31`、`rc1_dispatch → 0x41`、两次 `restore (cp+md5)` 一致、两次回绿 `0`。
 - 自注入①（删 §5.2 保存行 `env->cfx[ci].prev_cfx_code = env->inner_cfx_code & 0x3F`）：`run.sh --no-inject` ⇒ `rc=1`、5 FAIL（source-state `clean=False`、patch-tree `problems=2`、make_patch `actual=1 1`＝脏树拒导出 E1/E3 故补丁未被改写、probe `actual=harness-rc=1`、guest TIMEOUT）。
 - 自注入②（删 §5.3 恢复行 `env->inner_cfx_code = env->cfx[ci].prev_cfx_code & 0x3F`）：同脚本 ⇒ `rc=1`、probe `expected=0 actual=0x31`（CFXESC）。
 - 两次还原均 `cp` + `md5sum -c` OK（helper.c `ea8a789f…`、helper.c.patch `16bc63c0…` 均与注入前相同）；还原后 `run.sh --no-inject` ⇒ `RC=0`（6/6 PASS）。
