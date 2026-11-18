@@ -138,7 +138,7 @@ TLB 属 `cfx_ptw`，其匹配键、命中检查、填充条件、A/D 维护与�
 
 被调方通过 `escape cfxha, [excp_cause_ip, 4]` 返回 trap 指令的下一条指令（`excp_cause_ip + 4`）。[DADAO-22 §1. 调用约定]
 
-- **返回/目标 cfx 恒为当前 cfx（帧中不保存 `prev_cfx`）**：`DADAO-12 §5.3` 原文为「`escape` 指令编码中指定了 `cfxha`，它必须是当前执行的核芯功能扩展（`inner_cfx_code`）；返回 cfx、运行模式与 IP 均取自当前 cfx 的异常帧」；其硬件语义（`§5.3` 步骤 0–3）在 `cfxha != inner_cfx_code` 时先报**当前 cfx** 的 `CFXESC`，通过后只恢复 `global_cfx_intr_mask` 与 `excp_prev_run_mode`、递增 `escape_num` 并更新 `IP`，**不改变 `inner_cfx_code`**；异常帧中也没有保存 `prev_cfx` 的寄存器。故 `escape` 的目标 cfx 恒为**当前 cfx**（即发起 `escape` 的 cfx）。[DADAO-12 §5.3 异常退出流程]
+- **`escape` 的目标 cfx 恒为当前 cfx；退出后当前 cfx 恢复为异常前的值**：`DADAO-12 §5.3` 原文为「`escape` 指令编码中指定了 `cfxha`，它必须是当前执行的核芯功能扩展（`inner_cfx_code`）；返回 cfx、运行模式与 IP 均取自当前 cfx 的异常帧」；其硬件语义（`§5.3` 步骤 0–3）在 `cfxha != inner_cfx_code` 时先报**当前 cfx** 的 `CFXESC`；通过后恢复 `global_cfx_intr_mask`、`excp_prev_run_mode` **与 `inner_cfx_code ← excp_prev_cfx_code`**（`cg5 rc1`，异常进入时保存，见 `§3.6`），递增 `escape_num` 并更新 `IP`。故 `escape` 的**目标**恒为当前 cfx（即发起 `escape` 的 cfx），而**退出后的当前 cfx** 恢复为异常发生前的值。任何帧内到达的异步事件会改写 `inner_cfx_code`，该恢复保证本帧后续 `escape` 仍能正确匹配目标。[DADAO-12 §5.3 异常退出流程]
 
 ### 4.3 两条路对照
 
@@ -311,7 +311,7 @@ BootROM 镜像的段表两 profile **同格式、大端**（DADAO 为大端）�
 4. 写 `cfx_hmon_hypv_excp_vector = 0x0fff_0000_0000`；该寄存器初值已等于 hmon SRAM 起始（`DADAO-12 §3.4`），此步幂等、可省；
 5. 写 `cfx_hmon_hypv_switch_run_mode`（Tiny 下写入被忽略、保存值保持 `3`，见 `§2`）；
 6. `trap cfx_hmon, <boot_magic>`（= 表头 `boot_magic`）按 `DADAO-12 §5.2` 的 `CFXTRAP` 进入 hmon 向量；
-7. hmon 入口校验 `CFXTRAP` 与 magic、按需配置权限，`escape cfx_hmon, [excp_cause_ip, 4]` 返回 power stub（`§4.2`，`inner_cfx_code` 不因 `escape` 改变）；
+7. hmon 入口校验 `CFXTRAP` 与 magic、按需配置权限，`escape cfx_hmon, [excp_cause_ip, 4]` 返回 power stub（`§4.2`；`escape` 退出后 `inner_cfx_code` 恢复为异常进入前的值，即 `cfx_power`）；
 8. power 跳固定应用入口 `0xffff_ff01_0100`，不返回。
 
 **复制目标与长度上限**：目标固定为 hmon SRAM 起始 `0x0fff_0000_0000`；单段长度上限 = **8 KiB**（镜像预算；hmon SRAM 本身 64 KiB，故 SRAM 不是约束）。表项须满足 `size ≤ 56 KiB`、`offset + size` 落在 BootROM 内且两值 8 字节对齐，否则**构建期失败**、power 运行时按 `§6.1` 失败语义 park（不截断、不静默继续）。hmon SRAM 未被表项覆盖的字节为 0（宿主不预置）。
