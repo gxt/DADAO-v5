@@ -108,12 +108,11 @@
 - 建议任务形状（1–2 h）：8 模块补索引（路径/用途/入口/调用者）+ 零引用者逐个处置 + 新增 L1 `check-tools-index`（只报告不删除）。
 - 另挂：`m12-chipyard-017` 里的 `engine_parity_run.sh`/`engine_parity_collect.sh` 按「一次性编排不入仓」规则待迁回运行期目录。
 
-## N14. `.tao/knowledge/refs/` 清空方式
+## N14. `.tao/knowledge/refs/` 清空 → **已裁定并执行（用户 2026-11-18 选 A：直接删除、不归档）**
 
-- 用户 2026-11-15 已定「下一步也要清空」；执行时间点：M13 收口前后 或 M15（M13 已归档）。
-- 影响：refs 内现有报告**不再作为结论载体**；结论改落根 `README.md`、`docs/DDLN/`、`.tao/archive/M*/README.md` 与台账。
-- 清空前须确认：① 还有谁在引用（任务书/台账/门控）⇒ 先改成「结论已迁至 X」；② **删除 or 归档到 `.tao/archive/M*/refs/`**；③ 是否同步改 `docs/Process-0x` 关于 refs 落点的规定。
-- **在此之前新任务不得再往 `refs/` 写文件**。
+- 执行结果：9 个孤儿 + 7 份人读报告已删；**13 份活数据源迁到 `tests/data/`**（md5 逐一致）；目录已消失（`m15-infra-002` + `m15-infra-004`）。
+- **教训（可复用判据）**：清理类任务不能只 `grep "目录/文件"`——**必须用「文件名本身」全仓 grep**（不带目录前缀），否则漏掉「只写文件名」的代码常量。refs 事件就是靠这条才没删断 `gen_decode_table.py` 的输入。
+- 遗留：`components/chipyard/patches/**/WumingCore.scala.patch:12` 注释仍含旧路径，需随下次 chipyard 组件改动同批 `make_patch` 重导出（不能手改 index）。
 
 ## N15. `tests/inst.yaml` 的 `platforms:` 字段去留
 
