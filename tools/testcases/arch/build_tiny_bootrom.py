@@ -66,7 +66,7 @@ TABLE_SIZE = 0x2000
 TABLE_HDR = 16
 TABLE_ENT = 32
 
-# spec/DADAO-12 §2.1 / tests/shared/machine-profiles.yaml (tiny).
+# spec/DADAO-12 §2.1 / contracts/machine.yaml (tiny).
 BOOTROM_BASE = 0xFFFF_FFFF_0000
 HMON_BASE = 0x0FFF_0000_0000
 

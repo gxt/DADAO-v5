@@ -7,7 +7,7 @@ Spec sources (task file is the interface truth for this artifact):
     (ELF image checks, enforced by the *firmware*; this builder only packs).
   * .tao/adr/adr-0043-boot-handoff.md D1/D2 (image index table, ELF images,
     64 KiB reset window) and the `vast` profile in
-    tests/shared/machine-profiles.yaml (4 MiB BootROM).
+    contracts/machine.yaml (4 MiB BootROM).
 
 Layout produced (all big-endian):
   offset 0x00000  header + 2 entries

@@ -228,6 +228,11 @@ tools/testcases/
   `tests/ee-tiny/` = Kaiwu-Tiny 专属的驱动（asm/picolibc/embench/semihosting 四个脚本）+ bootrom + lds
   （`m15-testcases-011`）；`tests/ee-user/`、`tests/ee-vast/` 同规则。判据：只服务一个执行环境 ⇒ `ee-<env>/`；
   被 ≥2 环境复用 ⇒ `tests/shared/`。
+- **机器/环境/矩阵三契约 + 运行布局（`m15-infra-001`）**：几何与能力 → `contracts/machine.yaml`；
+  执行环境（机型/引擎/`load.kind`）→ `contracts/exec-envs.yaml`；套件开关 → `contracts/tests-matrix.yaml`；
+  测试侧运行布局（entry/sp/image_window/kernel_*/exit_block/dump_base/fault_record/cfx）→
+  `tests/ee-<env>/runtime.yaml`。读取统一走 `tools/testcases/lib/machine_profile.py`
+  （`--profile {tiny,vast}` / `DADAO_TEST_PROFILE`；套件查询 `suite_enabled()`）。
 - **glue（测试胶水）**：把上游套件/被测程序接到 DADAO 的**非用例**代码与数据，分三类：
   1. **链接/布局**：`tests/ee-tiny/kaiwu-tiny{,-app}.lds`、`tests/ee-user/dadao-{common,dyn}.lds`、`tests/ee-vast/kaiwu-vast.lds`、`tests/ee-tiny/bootrom.lds`（基址、段、对齐）；
   2. **启动/运行时**：`crt0`（`tests/ee-user/minimal_crt0.s`）、bootrom（`tests/ee-tiny/{bootrom,bootrom_app}.S`；Tiny 的 `-bios` 用 **64 KiB 固定固件** `bootrom/tiny/bootrom_tiny.bin`，旧 trampoline 已于 M13 退役）、`embench_runtime.c`/`embench_user_boardsupport.c`、`picolibc_test_crt0.s`；

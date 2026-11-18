@@ -97,7 +97,8 @@ DEFAULT_EXPECTED = "tests/arch/umon/expected.yaml"
 DEFAULT_WORK_DIR = str(_TEST_ARTIFACTS / "arch" / "m5-e2e")
 DEFAULT_TIMEOUT = 30
 
-# Geometry is selected from tests/shared/machine-profiles.yaml in main().
+# Geometry is selected from contracts/machine.yaml + tests/ee-<env>/runtime.yaml
+# (through machine_profile) in main().
 PROFILE = None
 RESET_PC = None
 RAM_BASE = None
@@ -472,10 +473,10 @@ def main():
     except machine_profile.ProfileError as exc:
         sys.stderr.write("ERROR: %s\n" % exc)
         return 2
-    if not prof.get("arch", False):
+    if not machine_profile.suite_enabled(prof, "arch"):
         sys.stderr.write(
-            "ERROR: profile %r does not support arch tests (Tiny has no cfx; "
-            "arch is Vast-only per user ruling 2026-11-02)\n" % prof.name)
+            "ERROR: profile %r does not run the arch suite "
+            "(contracts/tests-matrix.yaml; Tiny has no cfx)\n" % prof.name)
         return 2
     bootrom = args.bootrom or (
         DEFAULT_BOOTROM if prof.name == "tiny" else DEFAULT_BOOTROM_VAST)

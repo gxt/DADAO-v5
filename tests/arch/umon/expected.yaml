@@ -117,7 +117,7 @@ programs:
       SimRISC-11 指令域与执行条件), so the machine raises ILLI and redirects to the
       the current-mode monitor.  The body runs in hypv, whose monitor is
       cfx_hmon; hmon records the cause in the profile fault-record slot
-      (FAULT_RECORD, tests/shared/machine-profiles.yaml: +0 cause id, +8
+      (FAULT_RECORD, tests/ee-vast/runtime.yaml: +0 cause id, +8
       cause ip; VA=PA identity) and resumes after the faulting instruction
       (TESTCASES-092t §3/§4).  The vector `ld.o`-reads that slot and requires
       ILLI (1<<8); pass token 0x20, mismatch token 0x71.

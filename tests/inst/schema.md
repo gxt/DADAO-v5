@@ -142,8 +142,10 @@
 
 ### 机器几何、token 与 `profiles`（TESTCASES-091t）
 
-- 几何真源：`tests/shared/machine-profiles.yaml`（Tiny / Vast）。驱动统一接受
-  `--profile {tiny,vast}`，环境变量 `DADAO_TEST_PROFILE` 可替代，缺省 `tiny`。
+- 几何真源：`contracts/machine.yaml`（几何/能力）+ `contracts/exec-envs.yaml`
+  （执行环境）+ `tests/ee-{tiny,vast}/runtime.yaml`（测试侧运行布局）。
+  驱动统一接受 `--profile {tiny,vast}`，环境变量 `DADAO_TEST_PROFILE` 可替代，
+  缺省 `tiny`；套件开关在 `contracts/tests-matrix.yaml`。
 - 几何敏感字段允许符号 token：`@RAM_BASE`、`@RAM_END`、`@SP`、`@BOOTROM_BASE`、
   `@ENTRY`、`@RESET_PC`，可带**单个** `+0x…`/`-0x…` 偏移。适用于
   `input_state.rd/rb/ra`、`input_state.memory[].address/value`、

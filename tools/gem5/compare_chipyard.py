@@ -64,11 +64,11 @@ sys.path.insert(0, str(ROOT / "tools" / "testcases" / "lib"))
 
 import chipyard_engine                                       # noqa: E402
 import gem5_se_engine                                        # noqa: E402
+import machine_profile as _machine_profile                   # noqa: E402
 import paths as _paths                                       # noqa: E402
 
 DOC = ROOT / "docs/core-wuming-cycle-model.md"
 YAML = ROOT / "tools/gem5/wuming_cycles.yaml"
-PROFILES = ROOT / "tests/shared/machine-profiles.yaml"
 PROCESS_PATCH = ROOT / "components/gem5/patches/src/arch/dadao/process.cc.patch"
 GEM5 = ROOT / ".work/source/gem5/build/DADAO/gem5.opt"
 CONFIG = ROOT / ".work/source/gem5/configs/dadao/se_timing.py"
@@ -147,12 +147,9 @@ def write_json(path, data):
 # provenance: the machine profile and gem5's own constants
 # ---------------------------------------------------------------------------
 def machine_profile(name="tiny"):
-    import yaml
-    with open(PROFILES, encoding="utf-8") as fh:
-        data = yaml.safe_load(fh)
-    prof = data["profiles"][name]
-    return {k: (int(v, 0) if isinstance(v, str) and v.lower().startswith("0x")
-                else v) for k, v in prof.items()}
+    """Merged machine profile (contracts/machine.yaml + tests/ee-<env>/runtime.yaml)."""
+    prof = _machine_profile.load(name)
+    return prof.to_dict()
 
 
 def stack_base():
@@ -868,7 +865,7 @@ def render_report(rep):
       f"周期表 `{meta['table_sha']}`、doc `{meta['doc_sha']}`")
     w("- 复现：§6 一条命令（build 复用 embench e2e 驱动，run 双引擎，report 只读原始输出）")
     w(f"- 机器画像 `tiny`：SRAM `{layout['ram_base']:#x}` + {layout['ram_size'] // 1024 // 1024} MiB，"
-      f"SP `{layout['sp']:#x}`（`tests/shared/machine-profiles.yaml`）")
+      f"SP `{layout['sp']:#x}`（`contracts/machine.yaml` + `tests/ee-tiny/runtime.yaml`）")
     w(f"- gem5 `se_timing`：TimingSimpleCPU + NoncoherentXBar + SimpleMemory，1 GHz；"
       f"mem `{layout['mem_base']:#x}`+"
       f"{layout['mem_size'] / 1024 / 1024:.2f} MiB（至 `StackBase`），"

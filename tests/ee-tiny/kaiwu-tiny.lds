@@ -1,6 +1,7 @@
 /* kaiwu-tiny.lds — DADAO-v5 Kaiwu-Tiny ELF link script (TESTCASES-091t).
  *
- * Geometry comes from tests/shared/machine-profiles.yaml (profile `tiny`):
+ * Geometry comes from contracts/machine.yaml + tests/ee-tiny/runtime.yaml
+ * (profile `tiny`):
  *   ROM : 0xffff_ffff_0000 .. 0xffff_ffff_ffff  (64 KiB, rx; crt startup stub)
  *   RAM : 0xffff_ff00_0000 .. 0xffff_ff7f_ffff  (8 MiB, rwx)
  *

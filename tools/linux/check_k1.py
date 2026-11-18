@@ -19,7 +19,8 @@ Expectations are derived live — this file restates none of them:
     superpage sizes, the incoming PTBR and ``ptw_enable`` ->
     ``contracts/linux-boot.yaml`` (through ``tools/qemu/k0_boot_probe``);
   * the reset vector / bootrom / hmon / smon windows -> the machine profile
-    (``tests/shared/machine-profiles.yaml`` via ``machine_profile``);
+    (``contracts/machine.yaml`` + ``tests/ee-vast/runtime.yaml`` via
+    ``machine_profile``);
   * ``kernel_size`` / entry word -> the image's own program headers;
   * ``swapper_pg_dir`` (the table PA), ``start_kernel`` and its enclosing
     symbol -> the image's own symbol table (``llvm-nm``);

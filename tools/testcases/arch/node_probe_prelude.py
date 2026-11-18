@@ -56,9 +56,9 @@ if not PROFILE.get("ptw") or not PROFILE.get("hmon"):
     raise SystemExit(
         "node_probe_prelude: profile %r has no PTW/hmon; the Vast L3 prelude "
         "only supports a profile with monitor + page-table walker "
-        "(tests/shared/machine-profiles.yaml)" % PROFILE.name)
+        "(contracts/machine.yaml)" % PROFILE.name)
 
-# --- machine geometry (single source: tests/shared/machine-profiles.yaml) ---
+# --- machine geometry (single source: contracts/machine.yaml) ---
 RAM_BASE = PROFILE.ram_base
 RAM_END = PROFILE.ram_end
 SP = PROFILE.sp

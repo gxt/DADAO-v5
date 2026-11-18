@@ -625,9 +625,9 @@ def main() -> int:
     writer_guard.add_arguments(ap)
     args = ap.parse_args()
     prof = machine_profile.load(args.profile)
-    if not prof.get("picolibc", False):
+    if not machine_profile.suite_enabled(prof, "unit/picolibc"):
         print("picolibc-tests: ERROR: profile %r does not run picolibc "
-              "(Tiny-only per user ruling 2026-11-02)" % prof.name,
+              "(contracts/tests-matrix.yaml)" % prof.name,
               file=sys.stderr)
         return 2
 

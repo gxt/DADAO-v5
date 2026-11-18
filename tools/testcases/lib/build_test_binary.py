@@ -36,7 +36,8 @@ import sys
 import os
 import yaml
 
-# Machine geometry is read from tests/shared/machine-profiles.yaml through the
+# Machine geometry is read from contracts/machine.yaml + tests/ee-<env>/
+# runtime.yaml through the
 # single reader (TESTCASES-091t).  No RAM/ROM/entry literal lives in the harness.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import machine_profile  # noqa: E402

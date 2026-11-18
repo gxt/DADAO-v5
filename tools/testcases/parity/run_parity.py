@@ -274,10 +274,10 @@ def enumerate_all(args):
             if scope == "inst":
                 live[key] = enumerate_inst(profile)
             elif scope == "arch":
-                # Tiny arch is N/A by profile (tiny.arch=false); the same IDs
-                # are enumerated so the matrix has no silent gap.
-                if profile == "tiny" and not machine_profile.load("tiny").get(
-                        "arch", False):
+                # Tiny arch is N/A by the tests matrix; the same IDs are
+                # enumerated so the matrix has no silent gap.
+                if profile == "tiny" and not machine_profile.suite_enabled(
+                        "tiny", "arch"):
                     live[key] = enumerate_arch("vast")
                     for row in live[key]:
                         row["profile"] = "tiny"
@@ -287,8 +287,8 @@ def enumerate_all(args):
             elif scope == "embench":
                 live[key] = enumerate_embench(args, profile)
             elif scope == "picolibc":
-                if profile != "tiny":
-                    live[key] = []  # Vast picolibc is not run (profile table)
+                if not machine_profile.suite_enabled(profile, "unit/picolibc"):
+                    live[key] = []  # not in contracts/tests-matrix.yaml
                 else:
                     live[key] = enumerate_picolibc()
     return live
@@ -594,13 +594,13 @@ def build_rows(args, live):
                     for t in templates:
                         rows.append(_row(
                             t, _rec("N/A", None, {"basis":
-                                 "tests/shared/machine-profiles.yaml "
-                                 "tiny.arch=false (Tiny has no cfx)"},
+                                 "contracts/tests-matrix.yaml "
+                                 "(tiny has no arch suite)"},
                                     ""),
                             _rec("N/A", None, {"basis":
-                                 "tests/shared/machine-profiles.yaml "
-                                 "tiny.arch=false"}, ""),
-                            note="arch is Vast-only (profile Tiny arch=false)"))
+                                 "contracts/tests-matrix.yaml "
+                                 "(tiny has no arch suite)"}, ""),
+                            note="arch is Vast-only (tests-matrix)"))
                     continue
                 qjson = os.path.join(args.work_dir, f"arch-{profile}-qemu.json")
                 gjson = os.path.join(args.work_dir, f"arch-{profile}-gem5.json")
@@ -1148,9 +1148,9 @@ def write_markdown(path, ident, rows, counts):
         lines.append("| %s | %s | %s |" % (
             profile, scope, " | ".join(str(c[k]) for k in keys)))
     lines.append("")
-    lines.append("Cells not run by profile design: `tiny/arch` is N/A "
-                 "(`machine-profiles.yaml` `tiny.arch=false`); `vast/picolibc` "
-                 "is not run (`vast.picolibc=false`).")
+    lines.append("Cells not run by `contracts/tests-matrix.yaml`: `tiny/arch` "
+                 "is N/A (tiny has no arch suite); `vast/picolibc` is not run "
+                 "(vast has no picolibc suite).")
     lines.append("")
     lines.append("## Non-AGREE_PASS rows")
     lines.append("")
@@ -1173,8 +1173,8 @@ def write_markdown(path, ident, rows, counts):
     lines.append("## N/A / BLOCKED basis")
     lines.append("")
     if any(r["profile"] == "tiny" and r["scope"] == "arch" for r in rows):
-        lines.append("- `tiny/arch`: `tests/shared/machine-profiles.yaml` "
-                     "`tiny.arch=false` (Tiny has no cfx/monitor).")
+        lines.append("- `tiny/arch`: `contracts/tests-matrix.yaml` (tiny has "
+                     "no arch suite; Tiny has no cfx/monitor).")
     if any(r["case_id"].endswith("/math_test") and
            r["gem5"]["status"] == "PASS" for r in rows):
         lines.append("- `picolibc/math_test`: PASS (no B7 difference; fixed by "
@@ -1522,7 +1522,7 @@ def parse_args(argv):
     if bad:
         ap.error(f"unknown scope(s): {bad}")
     if args.profiles == ["vast"] and "picolibc" in args.scopes:
-        ap.error("picolibc is Tiny-only (vast.picolibc=false)")
+        ap.error("picolibc is Tiny-only (contracts/tests-matrix.yaml: vast lacks unit/picolibc)")
     return args
 
 

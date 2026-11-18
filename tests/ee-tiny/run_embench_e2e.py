@@ -633,8 +633,9 @@ def main():
     writer_guard.add_arguments(ap)
     args = ap.parse_args()
     prof = machine_profile.load(args.profile)
-    if not prof.get("embench", False):
-        sys.stderr.write("ERROR: profile %r does not run embench\n" % prof.name)
+    if not machine_profile.suite_enabled(prof, "tset/embench"):
+        sys.stderr.write("ERROR: profile %r does not run embench "
+                         "(contracts/tests-matrix.yaml)\n" % prof.name)
         return 2
     if args.lds == DEFAULT_LDS:
         args.lds = ("tests/ee-tiny/kaiwu-tiny-app.lds"

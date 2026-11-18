@@ -1,0 +1,23 @@
+# tests/ee-vast/runtime.yaml — Vast 执行环境的测试侧运行布局
+#
+# 机器几何（BootROM/RAM/reset_pc）、硬件能力（ptw/hmon/…）与 run_modes 真源在
+# `contracts/machine.yaml`；执行环境（机型/引擎/load.kind）在
+# `contracts/exec-envs.yaml`；套件开关在 `contracts/tests-matrix.yaml`。
+#
+# 本文件只承载**测试资产/驱动需要、契约明确不收录**的运行期布局（用户裁定
+# 2026-11-18）：应用入口、栈、装载窗口、退出记录槽等。改这些字段只改这里，
+# `tools/testcases/lib/machine_profile.py` 与链接脚本交叉核对。
+#
+# Vast：`-kernel` 装 `kernel_base`（`kernel_reserved = 0`），hmon 把
+# `cfx_umon.hypv.excp_vector` 指向 `entry`（spec/Kaiwu §4.4）。
+entry: 0x0000_0000_0010_0000
+sp: 0x0000_0000_7FFF_0000
+image_window: 0x1_0000
+kernel_base: 0x0000_0000_0010_0000
+kernel_reserved: 0x0
+exit_block: 0x7FFD_0000
+dump_base: 0x7FFE_0000
+# hmon 的同步 fault 记录槽（8 字节对齐，16 字节记录：+0 cause / +8 cause_ip）。
+fault_record: 0x7FFC_0000
+# Vast 有完整 cfx（cfx0/寄存器堆/monitor）⇒ arch/semihosting 驱动要求 hypv。
+cfx: true

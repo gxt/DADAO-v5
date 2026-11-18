@@ -1,6 +1,7 @@
 /* kaiwu-vast.lds — DADAO-v5 Kaiwu-Vast ELF link script (TESTCASES-091t).
  *
- * Geometry comes from tests/shared/machine-profiles.yaml (profile `vast`):
+ * Geometry comes from contracts/machine.yaml + tests/ee-vast/runtime.yaml
+ * (profile `vast`):
  *   RAM : 0x0000_0000_0000 .. 0x7fff_ffff  (2 GiB, rwx; VA=PA identity, PTW on)
  *   ROM : 0xffff_ffc0_0000 .. 0xffff_ffff_ffff (4 MiB, rx)
  *

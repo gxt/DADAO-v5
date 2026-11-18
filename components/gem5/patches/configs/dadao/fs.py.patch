@@ -1,16 +1,17 @@
 diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
 new file mode 100644
-index 0000000..d6bd345
+index 0000000..b789ecc
 --- /dev/null
 +++ b/configs/dadao/fs.py
-@@ -0,0 +1,298 @@
+@@ -0,0 +1,299 @@
 +#!/usr/bin/env python3
 +# DADAO FS configuration (GEM5-015t Tiny, GEM5-016t Vast).
 +#
 +# One AtomicSimpleCPU, no caches and no timing.  The profile selects the
 +# machine geometry; every constant below is the single source passed to the
 +# workload, the TLB and the memories, and `--dump-geometry` prints the values
-+# actually in force (they must equal tests/shared/machine-profiles.yaml).
++# actually in force (they must equal contracts/machine.yaml + the
++# tests/ee-<env>/runtime.yaml runtime layout).
 +#
 +#   tiny: 64 KiB BootROM + 8 MiB SRAM + 64 KiB hmon SRAM, identity segment
 +#         checks, cfx63 power + cfx3 hmon, no PTW.
@@ -30,7 +31,7 @@ index 0000000..d6bd345
 +NON_GUEST_EXIT = 125
 +
 +PROFILES = {
-+    # Kaiwu-Tiny (spec/Kaiwu §1.1; machine-profiles.yaml tiny).
++    # Kaiwu-Tiny (spec/Kaiwu §1.1; contracts/machine.yaml tiny).
 +    "tiny": {
 +        "bootrom_base": 0xFFFF_FFFF_0000,
 +        "bootrom_size": 0x1_0000,
@@ -46,7 +47,7 @@ index 0000000..d6bd345
 +        "pmem": None,
 +        "exit_block": 0xFFFF_FF7E_0000,
 +    },
-+    # Kaiwu-Vast (spec/Kaiwu §1.1; machine-profiles.yaml vast).
++    # Kaiwu-Vast (spec/Kaiwu §1.1; contracts/machine.yaml vast).
 +    "vast": {
 +        "bootrom_base": 0xFFFF_FFC0_0000,
 +        "bootrom_size": 0x40_0000,

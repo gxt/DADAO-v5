@@ -6,7 +6,8 @@
 @@ application entry.  No cfx2rc/trap/escape/user-mode switch is used here.
 @@
 @@ Geometry is injected by tests/shared/asm/machine-tiny.inc (generated from
-@@ tests/shared/machine-profiles.yaml); no address literal is hand-written.
+@@ contracts/machine.yaml + tests/ee-tiny/runtime.yaml); no address literal is
+@@ hand-written.
 
 	.include "tests/shared/asm/machine-tiny.inc"
 	.include "tests/shared/asm/machine.inc"

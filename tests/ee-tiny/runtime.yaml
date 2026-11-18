@@ -1,0 +1,26 @@
+# tests/ee-tiny/runtime.yaml — Tiny 执行环境的测试侧运行布局
+#
+# 机器几何（BootROM/RAM/reset_pc）、硬件能力（ptw/hmon/…）与 run_modes 真源在
+# `contracts/machine.yaml`；执行环境（机型/引擎/load.kind）在
+# `contracts/exec-envs.yaml`；套件开关在 `contracts/tests-matrix.yaml`。
+#
+# 本文件只承载**测试资产/驱动需要、契约明确不收录**的运行期布局（用户裁定
+# 2026-11-18）：应用入口、栈、装载窗口、退出记录槽等。改这些字段只改这里，
+# `tools/testcases/lib/machine_profile.py` 与链接脚本交叉核对。
+#
+# Tiny：raw `-kernel` 装 `kernel_base`，前 `kernel_reserved` 字节零保留，应用入口
+# = `kernel_base + kernel_reserved`（spec/Kaiwu §6）；`tests/ee-tiny/kaiwu-tiny-app.lds`
+# 提供同一 entry。
+entry: 0xFFFF_FF01_0100
+sp: 0xFFFF_FF7E_FF00
+image_window: 0x1_0000
+kernel_base: 0xFFFF_FF01_0000
+kernel_reserved: 0x100
+exit_block: 0xFFFF_FF7E_0000
+dump_base: 0xFFFF_FF7E_8000
+# Tiny 的 cfx3 hmon 是最小「保存-跳转」处理器（spec/Kaiwu §1.1/§3），
+# 不写 RAM fault 记录槽 ⇒ null。
+fault_record: null
+# cfx0/cfx 寄存器堆在 Tiny 上不完整（arch/semihosting 套件不走 Tiny，
+# 见 `contracts/tests-matrix.yaml`）；驱动据此不要求 hypv 运行模式。
+cfx: false

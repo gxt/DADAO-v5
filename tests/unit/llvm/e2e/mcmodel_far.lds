@@ -1,6 +1,7 @@
 /* mcmodel_far.lds -- far code-layout link script (LLVM-131t; ADR-0036 D1/D5).
  *
- * Geometry follows the tiny profile (tests/shared/machine-profiles.yaml).
+ * Geometry follows the tiny profile (contracts/machine.yaml + tests/ee-tiny/
+ * runtime.yaml).
  * `.text.start` (crt stub) sits at the Tiny ROM base; app `.text` starts at the
  * profile entry.  The `.far` output section is 64 MiB below `.text` (outside the
  * 8 MiB RAM window and beyond the ±32 MiB REL26 reach) and owns its own FAR

@@ -180,7 +180,7 @@ def wyde_values(name):
 
 
 # ---------------------------------------------------------------------------
-# Machine layout (single source: tests/shared/machine-profiles.yaml + prelude)
+# Machine layout (single source: contracts/machine.yaml + prelude)
 # ---------------------------------------------------------------------------
 
 # The prelude leaves PTBR = PT_PA (identity superpages over the 2 GiB RAM

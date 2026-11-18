@@ -319,47 +319,35 @@ def check_adr_alignment():
             record(cat, 'machine_name="%s"' % machine, "FAIL",
                    "QEMU patch 未找到 %s 机器名定义" % machine)
 
-    # --- RAM/ROM geometry = profile table (TESTCASES-091t) ---
-    # Expected values come from tests/shared/machine-profiles.yaml.  QEMU's
-    # macros are compared only when the profile's qemu_* fields are filled; a
-    # profile whose fields are all null prints DEFERRED instead of silently
-    # passing.  Macro prefix per profile: `tiny` uses its dedicated
-    # DADAO_TINY_* macros; `vast` uses the canonical DADAO_* names.
+    # --- RAM/ROM geometry = contracts/machine.yaml（几何唯一真源） ---
+    # 期望值来自机型契约 `contracts/machine.yaml`（m15-infra-001：QEMU 回填的
+    # `qemu_*` 字段已从测试侧 profile 移出，profile 不再提供 QEMU 常量）。
+    # Macro prefix per profile: `tiny` uses its dedicated DADAO_TINY_* macros;
+    # `vast` uses the canonical DADAO_* names.
     macro_prefix = {"tiny": "DADAO_TINY_", "vast": "DADAO_"}
     for prof_name, prof in sorted(machine_profile.all_profiles().items()):
-        fields = ("qemu_ram_base", "qemu_ram_size", "qemu_bootrom_base",
-                  "qemu_bootrom_size", "qemu_reset_pc")
-        if all(prof.get(f) is None for f in fields):
-            record(cat, f"geometry (profile {prof_name})", "MANUAL",
-                   f"DEFERRED (QEMU-080t): profile {prof_name} qemu_* fields are null")
-            continue
         prefix = macro_prefix.get(prof_name)
         if prefix is None:
             record(cat, f"geometry (profile {prof_name})", "FAIL",
                    f"no QEMU macro prefix registered for profile {prof_name}")
             continue
         qemu_fields = (
-            (f"{prefix}RAM_BASE", "qemu_ram_base",
+            (f"{prefix}RAM_BASE", prof["ram_base"],
              rf'#define\s+{prefix}RAM_BASE\s+(0x[0-9a-fA-F]+)', 16),
             # Product factors may carry an integer suffix: 2 GiB needs a
             # 64-bit constant (2048ULL * 1024 * 1024), a bare 2048 * 1024 *
             # 1024 would overflow signed int.  The parser below still
             # requires an exact numeric product (no identifiers/expressions).
-            (f"{prefix}RAM_SIZE", "qemu_ram_size",
+            (f"{prefix}RAM_SIZE", prof["ram_size"],
              rf'#define\s+{prefix}RAM_SIZE\s+\(([0-9UuLl\s\*]+)\)', "product"),
-            (f"{prefix}ROM_BASE", "qemu_bootrom_base",
+            (f"{prefix}ROM_BASE", prof["bootrom_base"],
              rf'#define\s+{prefix}ROM_BASE\s+(0x[0-9a-fA-F]+)', 16),
-            (f"{prefix}ROM_SIZE", "qemu_bootrom_size",
+            (f"{prefix}ROM_SIZE", prof["bootrom_size"],
              rf'#define\s+{prefix}ROM_SIZE\s+\(([0-9UuLl\s\*]+)\)', "product"),
-            (f"{prefix}RESET_PC", "qemu_reset_pc",
+            (f"{prefix}RESET_PC", prof["reset_pc"],
              rf'#define\s+{prefix}RESET_PC\s+(\S+)', "reset"),
         )
-        for item, field, pattern, kind in qemu_fields:
-            expected = prof.get(field)
-            if expected is None:
-                record(cat, f"{item} (profile {prof_name})", "MANUAL",
-                       f"DEFERRED: profile {prof_name} {field} is null")
-                continue
+        for item, expected, pattern, kind in qemu_fields:
             m = re.search(pattern, patch_content)
             if not m:
                 record(cat, item, "FAIL", "QEMU patch 未找到对应宏")
@@ -391,10 +379,11 @@ def check_adr_alignment():
                 actual = int(m.group(1), 16)
             if actual == expected:
                 record(cat, item, "PASS",
-                       f"QEMU = profile {expected:#x}")
+                       f"QEMU = contracts/machine.yaml {expected:#x}")
             else:
                 record(cat, item, "FAIL",
-                       f"QEMU {actual!r} != profile {expected:#x}")
+                       f"QEMU {actual!r} != contracts/machine.yaml "
+                       f"{expected:#x}")
 
     # --- legacy RAM segment removed (C1 step2) ---
     # Source: ADR-0020 D15 step2.  The legacy 0xffff_0000_0000 RAM segment

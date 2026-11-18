@@ -97,7 +97,7 @@ python3 tools/testcases/lib/run_qemu_test.py --qemu /path/to/qemu-system-dadao .
 ## Binary Layout
 
 The test binary is loaded at the selected profile RAM entry (`@ENTRY`, see
-`tests/shared/machine-profiles.yaml`):
+`contracts/machine.yaml` + `tests/ee-<env>/runtime.yaml`):
 
 ```
 [section 1] loader   - Set rd/rb/ra registers from input_state, write memory

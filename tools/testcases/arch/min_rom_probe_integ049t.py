@@ -45,7 +45,7 @@ import sys
 import os, sys
 
 # TESTCASES-091t: probe geometry from the single profile source
-# (tests/shared/machine-profiles.yaml); runtime execution stays BLOCKED until
+# (contracts/machine.yaml + contracts/exec-envs.yaml); runtime execution stays BLOCKED until
 # QEMU-079/080 provide the Tiny/Vast machines.
 _MACH_REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))

@@ -9,7 +9,7 @@
  * loader's zero fill of the tail is exercised by the same load.
  *
  * No address literal is invented here: the value is the `tiny` profile entry
- * (tests/shared/machine-profiles.yaml).
+ * (contracts/machine.yaml + tests/ee-tiny/runtime.yaml).
  */
 
 ENTRY(_start)

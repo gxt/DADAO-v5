@@ -50,7 +50,8 @@ SPEC_FENCE = "SimRISC-11: fence"
 
 WIDTH = {"o": 8, "t": 4, "w": 2, "b": 1}
 
-# Geometry comes from tests/shared/machine-profiles.yaml (TESTCASES-091t); the
+# Geometry comes from contracts/machine.yaml + tests/ee-tiny/runtime.yaml
+# (TESTCASES-091t); the
 # vectors emit @RAM_BASE tokens, never absolute addresses.
 sys.path.insert(0, os.path.join(ROOT, "tools", "testcases", "lib"))
 import machine_profile as _machine_profile  # noqa: E402

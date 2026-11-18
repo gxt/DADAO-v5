@@ -5,8 +5,12 @@
 
 | 子目录 / 文件 | 内容 | 谁用 |
 |---|---|---|
-| `machine-profiles.yaml` | Tiny/Vast 的 BootROM/RAM/entry/SP/装载/PTW **唯一几何真源**（TESTCASES-091t） | 所有测试驱动 + 生成器 + `check-tests-index` |
-| `asm/` | `machine.inc`（`LOAD_ADDR` 宏）+ 由 profile 生成的 `machine-{tiny,vast}.inc` | bootrom / crt0 / arch 向量 |
+| `asm/` | `machine.inc`（`LOAD_ADDR` 宏）+ 由 `contracts/machine.yaml` + `tests/ee-<env>/runtime.yaml` 生成的 `machine-{tiny,vast}.inc` | bootrom / crt0 / arch 向量 |
+
+> **机器几何真源已迁出本目录**（`m15-infra-001`）：几何/能力在 `contracts/machine.yaml`，
+> 执行环境在 `contracts/exec-envs.yaml`，套件开关在 `contracts/tests-matrix.yaml`，
+> 测试侧运行布局在 `tests/ee-{tiny,vast}/runtime.yaml`；读取统一走
+> `tools/testcases/lib/machine_profile.py`。本目录不再有测试侧 profile 表。
 
 > **2026-11-17（`m15-testcases-011` / `m15-testcases-012`）**：Tiny 专属 bootrom 与
 > `kaiwu-tiny{,-app}.lds`/`picolibc-tiny.ld` 集中到 `tests/ee-tiny/`；qemu-user / gem5 SE 的
@@ -17,7 +21,7 @@
 > **2026-11-18（`m15-testcases-015`）**：`bootrom/` 下的 Tiny 残留（`bootrom.lds`、`tiny_crt.S`、
 > `tiny_smoke.S`、`semihost_msg.inc`）→ `tests/ee-tiny/`；K1 boot 链固件（原 `bootrom/k0/`，
 > 实为 Kaiwu-Vast，加 `k0_` 前缀以免与 step5 的 `hmon.S`/`smon.S` 同名）→ `tests/ee-vast/`
-> （均平铺）；`bootrom/` 子目录随之消失，本目录只剩 `machine-profiles.yaml`、`asm/`、`init/`。
+> （均平铺）；`bootrom/` 子目录随之消失，本目录只剩 `asm/`、`init/`。
 
 ## 纪律
 

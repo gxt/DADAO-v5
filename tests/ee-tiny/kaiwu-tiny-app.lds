@@ -6,7 +6,8 @@
  * BootROM firmware is supplied separately (bootrom-image); the host loader
  * never places a PT_LOAD in the BootROM or in hmon SRAM.
  *
- * Geometry comes from tests/shared/machine-profiles.yaml (profile `tiny`):
+ * Geometry comes from contracts/machine.yaml + tests/ee-tiny/runtime.yaml
+ * (profile `tiny`):
  *   RAM : 0xffff_ff00_0000 .. 0xffff_ff7f_ffff  (8 MiB, rwx)
  *
  * `kaiwu-tiny.lds` is kept as the pre-contract (crt-in-ROM) layout for the

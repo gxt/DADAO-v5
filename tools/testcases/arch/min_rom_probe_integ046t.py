@@ -11,7 +11,8 @@ implementation:
   * spec/DADAO-12 §2.2.3 + ADR-0043 D10 (identity superpage PTE:
     HSJU=0xC (H=1,S=1,U=J=0), PPN[55:29]=i, SPF=0xFF, flags 0xEF); DADAO-13 §1 +
     ADR-0045 D4 (hypv cg3 reset rows / cg_reg_deleg).
-  * tests/shared/machine-profiles.yaml (vast) for every address/size.
+  * contracts/machine.yaml (vast) + tests/ee-vast/runtime.yaml for every
+    address/size.
 
 Layout driven here:
   * 4 MiB `bootrom-image` (Vast) at BOOTROM_BASE; no `-bios`;

@@ -1,18 +1,33 @@
 #!/usr/bin/env python3
-"""machine_profile.py — 测试侧机器几何的唯一读取层（TESTCASES-091t）。
+"""machine_profile.py — 测试侧机器几何/能力的唯一读取层。
 
-真源：``tests/shared/machine-profiles.yaml``。本模块只做三件事：
+真源（三契约 + 测试侧运行布局）：
 
-  * ``load(name)`` / ``all_profiles()``：按名字取 profile；
+  * ``contracts/machine.yaml``      —— 机器几何（BootROM/RAM/reset_pc）、
+    硬件能力（capabilities）、支持的运行模式（run_modes）；
+  * ``contracts/exec-envs.yaml``    —— 执行环境 → 机型 + 引擎 + ``load.kind``；
+  * ``contracts/tests-matrix.yaml`` —— 执行环境 → 套件（套件开关的唯一真源）；
+  * ``tests/ee-<env>/runtime.yaml`` —— **测试侧运行布局**：entry / sp /
+    image_window / kernel_base / kernel_reserved / exit_block / dump_base /
+    fault_record / cfx（用户裁定 2026-11-18：这些属测试资产/驱动参数，
+    不写进 ``contracts/machine.yaml``）。
+
+本模块做四件事：
+
+  * ``load(name)`` / ``all_profiles()``：按名字取合并后的 profile；
   * ``resolve(token, profile)``：把向量里的 ``@RAM_BASE`` 等符号 token
     解析为所选 profile 的 48/64 位数值；
   * ``resolve_case(case, profile)``：返回一份把几何敏感字段全部解析后的深拷贝，
-    harness/validator 共用同一解析函数（禁止各写一份）。
+    harness/validator 共用同一解析函数（禁止各写一份）；
+  * ``suites(env)`` / ``suite_enabled(env, suite)``：读 ``contracts/tests-matrix.yaml``。
 
 选择方式（驱动统一）：
   * 显式 ``--profile {tiny,vast}``；
   * 环境变量 ``DADAO_TEST_PROFILE``；
   * 缺省 ``tiny``（不改 Makefile）。
+
+``{tiny,vast}`` 是 **FS 执行环境**（有 ``tests/ee-<env>/runtime.yaml`` 的机器环境）；
+``user``（qemu-user / gem5 SE）没有 FS 几何，不在此模块。
 
 token 语法（任务书 §3）：
   ``@RAM_BASE`` / ``@RAM_END`` / ``@SP`` / ``@BOOTROM_BASE`` / ``@ENTRY`` /
@@ -34,10 +49,22 @@ import sys
 
 import yaml
 
-PROFILE_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(
-        os.path.dirname(os.path.abspath(__file__))))),
-    "tests", "shared", "machine-profiles.yaml")
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))))
+
+MACHINE_CONTRACT = os.path.join(REPO_ROOT, "contracts", "machine.yaml")
+EXEC_ENVS_CONTRACT = os.path.join(REPO_ROOT, "contracts", "exec-envs.yaml")
+TESTS_MATRIX_CONTRACT = os.path.join(REPO_ROOT, "contracts", "tests-matrix.yaml")
+
+
+def runtime_layout_path(env):
+    """``tests/ee-<env>/runtime.yaml``（测试侧运行布局）。"""
+    return os.path.join(REPO_ROOT, "tests", "ee-%s" % env, "runtime.yaml")
+
+
+# 有 FS 运行布局的机器环境。`user` 是 qemu-user / gem5 SE，没有 FS 几何，
+# 因此 `--profile` 的取值集仍是 {tiny, vast}（与迁移前一致）。
+FS_ENVS = ("tiny", "vast")
 
 TOKEN_NAMES = ("RAM_BASE", "RAM_END", "SP", "BOOTROM_BASE", "ENTRY", "RESET_PC")
 _TOKEN_RE = re.compile(
@@ -48,49 +75,57 @@ _COUNT_TOKEN_RE = re.compile(
     r"^(?P<count>\d+|0[xX][0-9a-fA-F_]+):(?P<token>@.+)$")
 ADDR48_MAX = 0xFFFF_FFFF_FFFF
 COUNT_MAX = 0xFFFF
-REQUIRED_FIELDS = (
-    "bootrom_base", "bootrom_size", "reset_pc", "bootrom_load",
-    "ram_base", "ram_size", "ram_end",
-    "entry", "sp", "host_loader", "image_window",
-    "kernel_base", "kernel_reserved",
-    "ptw", "hmon", "smon", "cfx", "semihosting", "arch", "embench",
-    "picolibc", "default_run_mode",
-    "exit_block", "dump_base", "fault_record",
-    "qemu_ram_base", "qemu_ram_size", "qemu_bootrom_base",
-    "qemu_bootrom_size", "qemu_reset_pc",
+
+# 契约侧必填（contracts/machine.yaml + contracts/exec-envs.yaml）。
+REQUIRED_CONTRACT_FIELDS = ("bootrom", "ram", "capabilities", "run_modes", "name")
+REQUIRED_CAPABILITIES = ("ptw", "hmon", "smon", "umon", "cache", "llc")
+# 测试侧运行布局必填（tests/ee-<env>/runtime.yaml）。
+REQUIRED_RUNTIME_FIELDS = (
+    "entry", "sp", "image_window", "kernel_base", "kernel_reserved",
+    "exit_block", "dump_base", "fault_record", "cfx",
 )
-# `spec/DADAO-13 §1`：cfx3 hmon 的 SRAM 基址（Tiny/Vast 同址，异常向量初值）。
-# 无 monitor 的 profile 不使用该常量；执行资产（bootrom/harness）共用此值。
-HMON_BASE = 0x0FFF_0000_0000
-
-# M12（`spec/Kaiwu §1`）：profile 名 -> QEMU 机器名。两台机器分开后
-# 不再用「单机型 + `profile=`」双入口；驱动一律按本表选机器名。
-PROFILE_MACHINE = {"tiny": "kaiwu-tiny", "vast": "kaiwu-vast"}
-
+# 合并后扁平 profile 的必填字段（三契约 + 运行布局 + 矩阵行）。
+REQUIRED_PROFILE_FIELDS = (
+    ("name", "machine", "engines", "load_kind", "run_modes", "capabilities",
+     "bootrom_base", "bootrom_size", "reset_pc", "ram_base", "ram_size",
+     "ram_end")
+    + REQUIRED_RUNTIME_FIELDS + ("suites",)
+)
 _INT_FIELDS = (
     "bootrom_base", "bootrom_size", "reset_pc", "ram_base", "ram_size",
     "ram_end", "entry", "sp", "image_window", "kernel_base",
     "kernel_reserved", "exit_block", "dump_base", "fault_record",
-    "qemu_ram_base", "qemu_ram_size", "qemu_bootrom_base",
-    "qemu_bootrom_size", "qemu_reset_pc",
 )
+# `spec/DADAO-13 §1`：cfx3 hmon 的 SRAM 基址（Tiny/Vast 同址，异常向量初值）。
+# 无 monitor 的 profile 不使用该常量；执行资产（bootrom/harness）共用此值。
+HMON_BASE = 0x0FFF_0000_0000
 
 
 class ProfileError(ValueError):
     """机器 profile 缺失/非法/无法解析。"""
 
 
-class Profile:
-    """一个机器 profile；字段按 YAML 名访问，另有便捷属性。"""
+def _read_yaml(path, what):
+    if not os.path.isfile(path):
+        raise ProfileError("%s not found: %s" % (what, path))
+    with open(path, encoding="utf-8") as fh:
+        doc = yaml.safe_load(fh)
+    if not isinstance(doc, dict):
+        raise ProfileError("%s: top-level must be a mapping (%s)" % (what, path))
+    return doc
 
-    def __init__(self, name, data):
-        self.name = name
+
+class Profile:
+    """一个执行环境的机器 profile；字段按 YAML 名访问，另有便捷属性。"""
+
+    def __init__(self, env, data):
+        self.env = env
+        self.name = env                      # 兼容旧字段：profile 名 = 环境名
         self._data = data
-        for field in REQUIRED_FIELDS:
+        for field in REQUIRED_PROFILE_FIELDS:
             if field not in data:
                 raise ProfileError(
-                    "profile %r missing required field %r in %s"
-                    % (name, field, PROFILE_PATH))
+                    "profile %r missing required field %r" % (env, field))
         for field in _INT_FIELDS:
             val = data[field]
             if val is None:
@@ -98,60 +133,84 @@ class Profile:
             if not isinstance(val, int):
                 raise ProfileError(
                     "profile %r field %r must be an integer or null (got %r)"
-                    % (name, field, val))
+                    % (env, field, val))
+        caps = data["capabilities"]
+        for cap in REQUIRED_CAPABILITIES:
+            if not isinstance(caps.get(cap), bool):
+                raise ProfileError(
+                    "profile %r capability %r must be a bool (got %r)"
+                    % (env, cap, caps.get(cap)))
         if data["ram_end"] != data["ram_base"] + data["ram_size"] - 1:
             raise ProfileError(
                 "profile %r: ram_end %#x != ram_base+ram_size-1 %#x"
-                % (name, data["ram_end"],
+                % (env, data["ram_end"],
                    data["ram_base"] + data["ram_size"] - 1))
         if data["kernel_base"] + data["kernel_reserved"] != data["entry"]:
             raise ProfileError(
-                "profile %r: kernel_base+kernel_reserved %#x != entry %#x"
-                % (name, data["kernel_base"] + data["kernel_reserved"],
-                   data["entry"]))
+                "profile %r: kernel_base+kernel_reserved %#x != entry %#x "
+                "(kernel_base=%#x, kernel_reserved=%#x)"
+                % (env, data["kernel_base"] + data["kernel_reserved"],
+                   data["entry"], data["kernel_base"],
+                   data["kernel_reserved"]))
         if not (data["ram_base"] <= data["kernel_base"] <= data["ram_end"]):
             raise ProfileError(
                 "profile %r: kernel_base %#x outside RAM"
-                % (name, data["kernel_base"]))
+                % (env, data["kernel_base"]))
         if not (data["bootrom_base"] <= data["reset_pc"]
                 < data["bootrom_base"] + data["bootrom_size"]):
             raise ProfileError(
                 "profile %r: reset_pc %#x outside bootrom [%#x, %#x)"
-                % (name, data["reset_pc"], data["bootrom_base"],
+                % (env, data["reset_pc"], data["bootrom_base"],
                    data["bootrom_base"] + data["bootrom_size"]))
         for field in ("entry", "sp", "exit_block", "dump_base"):
             val = data[field]
             if not (data["ram_base"] <= val <= data["ram_end"]):
                 raise ProfileError(
                     "profile %r: %s %#x outside RAM [%#x, %#x]"
-                    % (name, field, val, data["ram_base"], data["ram_end"]))
+                    % (env, field, val, data["ram_base"], data["ram_end"]))
         fault_record = data["fault_record"]
         if fault_record is not None:
             if not isinstance(fault_record, int):
                 raise ProfileError(
                     "profile %r field 'fault_record' must be an integer or null"
-                    % name)
+                    % env)
             if fault_record % 8:
                 raise ProfileError(
                     "profile %r: fault_record %#x is not 8-byte aligned"
-                    % (name, fault_record))
+                    % (env, fault_record))
             # 16-byte record, inside RAM and strictly below the exit block so a
             # fault record can never alias the SYS_EXIT argument block or dump.
             if not (data["ram_base"] <= fault_record
                     and fault_record + 16 <= data["exit_block"]):
                 raise ProfileError(
                     "profile %r: fault_record %#x+16 outside RAM below "
-                    "exit_block %#x" % (name, fault_record, data["exit_block"]))
+                    "exit_block %#x" % (env, fault_record, data["exit_block"]))
             if fault_record in (data["exit_block"], data["dump_base"]):
                 raise ProfileError(
                     "profile %r: fault_record %#x collides with exit_block/"
-                    "dump_base" % (name, fault_record))
+                    "dump_base" % (env, fault_record))
+        if not isinstance(data["suites"], list) or not data["suites"]:
+            raise ProfileError(
+                "profile %r: tests-matrix has no suite for this environment"
+                % env)
 
     def __getitem__(self, key):
         return self._data[key]
 
     def get(self, key, default=None):
         return self._data.get(key, default)
+
+    def __contains__(self, key):
+        return key in self._data
+
+    def to_dict(self):
+        """浅拷贝的扁平字段表（含 capabilities 字典与 suites 列表）。"""
+        return dict(self._data)
+
+    @property
+    def machine(self):
+        """QEMU/gem5 机器名（``contracts/exec-envs.yaml`` 的 engine 括号值）。"""
+        return self._data["machine"]
 
     @property
     def ram_base(self):
@@ -209,28 +268,155 @@ class Profile:
         return mapping[name]
 
     def __repr__(self):
-        return "Profile(%r)" % self.name
+        return "Profile(%r)" % self.env
 
 
 _CACHE = None
+_MATRIX_CACHE = None
+
+
+def _int_field(env, prof_name, data, key, where):
+    val = data.get(key)
+    if val is None:
+        raise ProfileError(
+            "machine %r (%s): missing %r in %s" % (prof_name, env, key, where))
+    if isinstance(val, bool) or not isinstance(val, int):
+        raise ProfileError(
+            "machine %r (%s): %r must be an integer (got %r) in %s"
+            % (prof_name, env, key, val, where))
+    return val
+
+
+def _build_profile(env, machines, envs, matrix):
+    """按 env 合并三契约 + 测试侧运行布局，返回 Profile。"""
+    if env not in envs:
+        raise ProfileError(
+            "environment %r missing from %s" % (env, EXEC_ENVS_CONTRACT))
+    entry = envs[env]
+    if not isinstance(entry, dict):
+        raise ProfileError("env %r must be a mapping in %s"
+                           % (env, EXEC_ENVS_CONTRACT))
+    machine_name_ = entry.get("machine")
+    if not isinstance(machine_name_, str):
+        raise ProfileError("env %r has no machine name in %s"
+                           % (env, EXEC_ENVS_CONTRACT))
+    load_block = entry.get("load")
+    if (not isinstance(load_block, dict)
+            or not isinstance(load_block.get("kind"), str)):
+        raise ProfileError("env %r has no load.kind in %s"
+                           % (env, EXEC_ENVS_CONTRACT))
+    engines = entry.get("engines")
+    if not isinstance(engines, list) or not engines:
+        raise ProfileError("env %r has no engines in %s"
+                           % (env, EXEC_ENVS_CONTRACT))
+
+    # machine.yaml 的 profile 键（tiny/vast）与 env 名一致，但以 `name` 字段匹配，
+    # 避免「键名巧合」成为隐式契约。
+    matches = [(k, v) for k, v in machines.items()
+               if isinstance(v, dict) and v.get("name") == machine_name_]
+    if len(matches) != 1:
+        raise ProfileError(
+            "env %r machine %r must match exactly one profile in %s (got %d)"
+            % (env, machine_name_, MACHINE_CONTRACT, len(matches)))
+    mach_key, mach = matches[0]
+    for field in REQUIRED_CONTRACT_FIELDS:
+        if field not in mach:
+            raise ProfileError(
+                "machine %r (%s) missing required field %r in %s"
+                % (mach_key, machine_name_, field, MACHINE_CONTRACT))
+    bootrom, ram, caps = mach["bootrom"], mach["ram"], mach["capabilities"]
+    for block, keys in ((bootrom, ("base", "size", "reset_pc")),
+                        (ram, ("base", "size"))):
+        if not isinstance(block, dict):
+            raise ProfileError("machine %r: geometry block must be a mapping"
+                               % machine_name_)
+        for key in keys:
+            if key not in block:
+                raise ProfileError(
+                    "machine %r: geometry block missing %r in %s"
+                    % (machine_name_, key, MACHINE_CONTRACT))
+    if not isinstance(caps, dict):
+        raise ProfileError("machine %r: capabilities must be a mapping"
+                           % machine_name_)
+    run_modes = mach["run_modes"]
+    if not isinstance(run_modes, list) or not run_modes:
+        raise ProfileError("machine %r: run_modes must be a non-empty list"
+                           % machine_name_)
+
+    ram_base = _int_field(env, machine_name_, ram, "base", MACHINE_CONTRACT)
+    ram_size = _int_field(env, machine_name_, ram, "size", MACHINE_CONTRACT)
+    data = {
+        "name": env,
+        "machine": machine_name_,
+        "engines": list(engines),
+        "load_kind": load_block["kind"],
+        "run_modes": list(run_modes),
+        "capabilities": dict(caps),
+        "bootrom_base": _int_field(env, machine_name_, bootrom, "base",
+                                   MACHINE_CONTRACT),
+        "bootrom_size": _int_field(env, machine_name_, bootrom, "size",
+                                   MACHINE_CONTRACT),
+        "reset_pc": _int_field(env, machine_name_, bootrom, "reset_pc",
+                               MACHINE_CONTRACT),
+        "ram_base": ram_base,
+        "ram_size": ram_size,
+        "ram_end": ram_base + ram_size - 1,
+    }
+    # 能力平铺（`prof["ptw"]` 等旧调用点保持不变；capabilities 仍是真源）。
+    for cap in REQUIRED_CAPABILITIES:
+        data[cap] = caps.get(cap)
+
+    layout_path = runtime_layout_path(env)
+    layout = _read_yaml(layout_path, "runtime layout")
+    for field in REQUIRED_RUNTIME_FIELDS:
+        if field not in layout:
+            raise ProfileError(
+                "profile %r: runtime layout %s missing required field %r"
+                % (env, layout_path, field))
+    for field in REQUIRED_RUNTIME_FIELDS:
+        data[field] = layout[field]
+
+    data["suites"] = list(matrix.get(env) or [])
+    return Profile(env, data)
+
+
+def _load_matrix():
+    global _MATRIX_CACHE
+    if _MATRIX_CACHE is not None:
+        return _MATRIX_CACHE
+    doc = _read_yaml(TESTS_MATRIX_CONTRACT, "tests matrix")
+    matrix = doc.get("matrix")
+    if not isinstance(matrix, dict) or not matrix:
+        raise ProfileError(
+            "%s: top-level must be a mapping with 'matrix'"
+            % TESTS_MATRIX_CONTRACT)
+    for env, suites in matrix.items():
+        if not isinstance(suites, list) or not suites:
+            raise ProfileError(
+                "%s: env %r must list at least one suite"
+                % (TESTS_MATRIX_CONTRACT, env))
+    _MATRIX_CACHE = matrix
+    return _MATRIX_CACHE
 
 
 def all_profiles():
-    """返回 {name: Profile}（首次调用读盘；缺字段立即报错）。"""
+    """返回 {env: Profile}（首次调用读盘；缺字段/缺契约立即报错）。"""
     global _CACHE
     if _CACHE is not None:
         return dict(_CACHE)
-    if not os.path.isfile(PROFILE_PATH):
-        raise ProfileError("machine profile source not found: %s" % PROFILE_PATH)
-    with open(PROFILE_PATH, encoding="utf-8") as fh:
-        doc = yaml.safe_load(fh)
-    if not isinstance(doc, dict) or not isinstance(doc.get("profiles"), dict):
-        raise ProfileError("%s: top-level must be a mapping with 'profiles'"
-                           % PROFILE_PATH)
-    _CACHE = {name: Profile(name, data)
-              for name, data in doc["profiles"].items()}
-    if not _CACHE:
-        raise ProfileError("%s: no profiles defined" % PROFILE_PATH)
+    machines = _read_yaml(MACHINE_CONTRACT, "machine contract").get("profiles")
+    if not isinstance(machines, dict) or not machines:
+        raise ProfileError(
+            "%s: top-level must be a mapping with 'profiles'"
+            % MACHINE_CONTRACT)
+    envs = _read_yaml(EXEC_ENVS_CONTRACT, "exec-envs contract").get("envs")
+    if not isinstance(envs, dict) or not envs:
+        raise ProfileError(
+            "%s: top-level must be a mapping with 'envs'"
+            % EXEC_ENVS_CONTRACT)
+    matrix = _load_matrix()
+    _CACHE = {env: _build_profile(env, machines, envs, matrix)
+              for env in FS_ENVS}
     return dict(_CACHE)
 
 
@@ -239,23 +425,36 @@ def load(name=None):
     profiles = all_profiles()
     if name is None:
         name = os.environ.get("DADAO_TEST_PROFILE") or "tiny"
-    name = str(name).strip().lower()
-    if name not in profiles:
+    env = getattr(name, "env", name)
+    env = str(env).strip().lower()
+    if env not in profiles:
         raise ProfileError(
             "unknown machine profile %r (valid: %s)"
-            % (name, ", ".join(sorted(profiles))))
-    return profiles[name]
+            % (env, ", ".join(sorted(profiles))))
+    return profiles[env]
 
 
 def machine_name(profile=None):
     """profile 名（或 Profile）-> QEMU `-M` 机器名；未登记 ⇒ ProfileError。"""
     prof = profile if isinstance(profile, Profile) else load(profile)
-    try:
-        return PROFILE_MACHINE[prof.name]
-    except KeyError:
+    return prof.machine
+
+
+def suites(env="tiny"):
+    """执行环境的套件清单（``contracts/tests-matrix.yaml`` 矩阵行）。"""
+    matrix = _load_matrix()
+    key = getattr(env, "env", env)
+    key = str(key).strip().lower()
+    if key not in matrix:
         raise ProfileError(
-            "profile %r has no QEMU machine name (known: %s)"
-            % (prof.name, ", ".join(sorted(PROFILE_MACHINE)))) from None
+            "unknown execution environment %r (tests-matrix has: %s)"
+            % (key, ", ".join(sorted(matrix))))
+    return list(matrix[key])
+
+
+def suite_enabled(env, suite):
+    """该执行环境是否跑 `suite`（``inst``/``arch``/``tset/embench``/``unit/picolibc``…）。"""
+    return suite in suites(env)
 
 
 def _parse_int(text):
@@ -390,9 +589,11 @@ def add_profile_argument(parser, default=None):
 
 def print_profiles():
     for name, prof in sorted(all_profiles().items()):
-        print("%-5s bootrom=%#x+%#x ram=%#x..%#x entry=%#x sp=%#x ptw=%s"
-              % (name, prof.bootrom_base, prof["bootrom_size"], prof.ram_base,
-                 prof.ram_end, prof.entry, prof.sp, prof["ptw"]))
+        print("%-5s machine=%s bootrom=%#x+%#x ram=%#x..%#x entry=%#x sp=%#x "
+              "ptw=%s suites=%s"
+              % (name, prof.machine, prof.bootrom_base, prof["bootrom_size"],
+                 prof.ram_base, prof.ram_end, prof.entry, prof.sp,
+                 prof["ptw"], ",".join(prof["suites"])))
 
 if __name__ == "__main__":
     try:
