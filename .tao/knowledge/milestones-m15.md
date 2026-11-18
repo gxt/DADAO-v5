@@ -31,6 +31,8 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m15-infra-006 | 2026-11-18 18:30 | 1–1.5 h | `components/` 目录防护（`.manifests.toml` + owner；busybox 例外） |
+| m15-infra-007 | 2026-11-18 18:30 | 0.5–1 h | 两处既有死引用收口（`check_milestones_fresh` 默认值、`check_005t_coverage` 退役载体） |
 
 | m15-spec-001 | 2026-11-13 22:05 | 3–5 天 | UDB IDL 语法 v0 + 5 条样板 operation + `idlc` 复用评估 + 抽取器原型（**待返工**：WIP `0584a64b`，用户要求先摊开文件内容 + 逐条语句分析；延后裁决） |
 
