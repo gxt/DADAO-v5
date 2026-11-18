@@ -46,7 +46,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-linux-031 | 2026-11-18 10:02 | 2–3 h | K6 initramfs 集成 busybox（/bin/busybox + applet 链接 + `/init`；QEMU 实跑 BLOCKED 等 K5） |
 | m14-linux-019 | 2026-11-18 06:40 | 3–4 h | 用户栈增长：`VM_GROWSDOWN` 下方扩栈（S1–S6，真实用户进程触发） |
 | m14-linux-017 | 2026-11-18 00:20 | 7–9 h | 上下文切换（switch_to + 调度 + U-mode↔S-mode 帧往返）+ 最小 clockevent + F3/init 真跑 |
 
@@ -54,6 +53,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-031 | 2026-11-18 10:31 | initramfs 集成 busybox（`/init` 脚本 → `sh`；332116 B、确定性；QEMU 实跑等 K5） |
 | m14-linux-030 | 2026-11-18 09:26 | K6 busybox 1.38.0 静态构建接入（官方源锁定、11 applet、无 PT_INTERP、幂等；证据 16/16） |
 | m14-linux-016 | 2026-11-18 00:20 | 进程抽象 + fork/execve 基础 + kernel_thread/kthreadd + 最小 U-mode 入口（F5）；101/101、5 路注入、k0-k3 全绿 |
 | m14-testcases-006 | 2026-11-17 21:53 | 固件：除 hmon 外 8 个已实现 cfx 的 supv 四轴放行 smon（含负例；bootrom b662183a） |
