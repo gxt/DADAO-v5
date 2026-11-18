@@ -157,6 +157,11 @@ __c11:
 	@@   第一次 escape 后应用回到 cfx_power(63) ⇒ 再 `escape cfx_hmon` 必判 CFXESC
 	@@   （cfxha 3 ≠ inner 63）；旧语义（inner 仍为 3）下会直接成功落回本 pad ⇒ 计数超限判红
 __c12:
+	@@ 哨兵槽显式清零（chipyard TLRAM 上电随机；QEMU 恰为 0，不可依赖）：
+	@@   0xC0 = probe 入口记录的 cause_id（0 = 未被调用）、0xC8 = 到达计数
+	set.rd	rd7, 0
+	st.o	rd7, [rb20, 0xC0]
+	st.o	rd7, [rb20, 0xC8]
 	__MON_ENTER (ENTRY + 0x1B40), (ENTRY + 0x1E00)
 	__EXIT	12
 
