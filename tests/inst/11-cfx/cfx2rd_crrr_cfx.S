@@ -7,9 +7,11 @@
 @@   （`spec/Kaiwu §3`；`contracts/legality_rules.yaml` `encode_cfx_reserved`）。
 @@ 编码：crrr = opc[31:24] | cfxha[23:18] | cghb[17:12] | rchc[11:6] | rdhd[5:0]
 @@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 13 / boundary 5 / overlap 2（链例 22 + 故障例 7）
+@@ 用例：encoding 2 / semantic 14 / boundary 5 / overlap 2（链例 23 + 故障例 6）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
+@@ cg5 rc1 = `excp_prev_cfx_code`（m14-spec-009 起；`spec/DADAO-12 §3.6`）⇒ 链例 23 断言
+@@   它的 boot 保存值（0x3F = cfx_power）与 RW 可写性；原「rc1 保留 ⇒ CFXREG」故障例随之删除
 @@ 探针：被读寄存器取 Tiny 已实现的 cfx3(hmon)/cfx63(power) 的 cg3/cg5/cg7（`spec/Kaiwu §3`）；
 @@   期望值按 `spec/DADAO-12 §3.5/§3.8`、`§4.12` 与 `spec/Kaiwu §1.1` 的地址图内联
 @@ GAP（不计入链例，见任务书完成区）：cfx 共有寄存器 cg0–cg2、cg4（cfx_id/version/计数器/
@@ -91,20 +93,36 @@
 	cfx2rd	cfx_hmon, cg7, rc2, rd3
 	__CHECK_RD  22, rd3, 0x10000
 
+	@@ ---- semantic：cg5 rc1 = `excp_prev_cfx_code`（m14-spec-009 起，`spec/DADAO-12 §3.6`：
+	@@   「异常前当前核芯功能扩展编号，硬件陷入时保存，软件可写」；不再是 reserved）----
+	@@ 期望 0x3F（= cfx_power 63）的独立 oracle：复位地址/复位 cfx = cfx_power
+	@@   （`spec/Kaiwu §1`：复位地址 `cfx_power_hypv_excp_vector`，cfxha 63 / power），
+	@@   boot 第 6 步 power 以 `trap cfx_hmon` 移交（`spec/Kaiwu §6.2`），`§5.2` 第 5 步
+	@@   把当时的 `inner_cfx_code`（= 63）存进 hmon 帧 ⇒ rc1 = 63。
+	@@ 再验 RW：写哨兵 0x25 读回（`§3.6` 访问 = RW，软件可写）；该帧字段在下一次陷入时
+	@@   由硬件重新写入，故不影响后续用例/故障链。
+	cfx2rd	cfx_hmon, cg5, rc1, rd5
+	__VERIFY_RD 23, rd5, 0x3F
+	set.rd	rd5, 0x25
+	cfx2rc	cfx_hmon, cg5, rc1, rd5
+	cfx2rd	cfx_hmon, cg5, rc1, rd5
+	__CHECK_RD  23, rd5, 0x25
+
 	__TEST_END
 
 	@@ ---- 故障例（同镜像故障链：异常不返回到被测指令之后）----
 	@@ reserved cfxha ⇒ ILLI（`encode_cfx_reserved`；编号 6/16/35 分属三个保留段）
-	TEST_FAULT_ENC  23, ILLI,   0x7A183285, rb12, TEST_DATA, rd11, 0
-	TEST_FAULT_ENC  24, ILLI,   0x7A403285, rb12, TEST_DATA, rd11, 0
-	TEST_FAULT_ENC  25, ILLI,   0x7A8C3285, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  24, ILLI,   0x7A183285, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  25, ILLI,   0x7A403285, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  26, ILLI,   0x7A8C3285, rb12, TEST_DATA, rd11, 0
 
 	@@ 已分配但 Tiny 未实现的 cfx（cfx5 cache / cfx32 pmem）⇒ CFXREG
-	TEST_FAULT_ENC  26, CFXREG, 0x7A143285, rb12, TEST_DATA, rd11, 0
-	TEST_FAULT_ENC  27, CFXREG, 0x7A803285, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  27, CFXREG, 0x7A143285, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  28, CFXREG, 0x7A803285, rb12, TEST_DATA, rd11, 0
 
-	@@ 已实现 cfx 的未定义 rc（cg5 rc1、cg3 rc9 保留）⇒ CFXREG
-	TEST_FAULT_ENC  28, CFXREG, 0x7A0C5045, rb12, TEST_DATA, rd11, 0
+	@@ 已实现 cfx 的未定义 rc（cg3 rc9 保留）⇒ CFXREG
+	@@   （原「cg5 rc1 保留」例已删除：m14-spec-009 起 rc1 = excp_prev_cfx_code，可读可写，
+	@@    该例在新 spec 下不再合法——见链例 23）
 	TEST_FAULT_ENC  29, CFXREG, 0x7A0C3245, rb12, TEST_DATA, rd11, 0
 
 	__TEST_SECTIONS

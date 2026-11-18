@@ -304,8 +304,10 @@ asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	__CHECK_RD 15, rd2, 0x0000000000000
 asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	__CHECK_RD 19, rd21, 0xFFFFFFFFFFFF8000	@@ 负向极小	1
 asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	__CHECK_RD 21, rd21, 0x0000000000007FFF	@@ 正向极大	1
 asm	tests/inst/01-load-store/ld.sw_rrii_rd.S	__CHECK_RD_IP 20, ld.sw, rd5, rd13, rd	1
-asm	tests/inst/01-load-store/ld.t_rrii_rf.S	TEST_FAULT        22, ld.t,   rf1,   MALIGN, rb3,                TEST_DATA, 0x002  @@ EA 未按 4 B 自然对齐 ⇒ MALIGN	1
-asm	tests/inst/01-load-store/ld.t_rrii_rf.S	TEST_FAULT        23, ld.t,   rf1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
+asm	tests/inst/01-load-store/ld.t_rrii_rf.S	TEST_FAULT        24, ld.t,   rf1,   MALIGN, rb3,                TEST_DATA, 0x002  @@ EA 未按 4 B 自然对齐 ⇒ MALIGN	1
+asm	tests/inst/01-load-store/ld.t_rrii_rf.S	TEST_FAULT        25, ld.t,   rf1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
+asm	tests/inst/01-load-store/ld.t_rrii_rf.S	TEST_LD_RF_FULL 22, ld.t,   rf5,   rb6,   TEST_DATA,          0x078,   0x008,   0xDEADBEEF00112233	1
+asm	tests/inst/01-load-store/ld.t_rrii_rf.S	TEST_LD_RF_FULL 23, ld.t,   rf13,  rb6,   TEST_DATA,          0x070,   0x018,   0xA5A5A5A5FFEEDDCC	1
 asm	tests/inst/01-load-store/ld.t_rrii_rf.S	TEST_LD_RF_LO32    1, ld.t,   rf63,  rb63,  TEST_DATA,          0x000,    0x0000000001234567	1
 asm	tests/inst/01-load-store/ld.t_rrii_rf.S	TEST_LD_RF_LO32    2, ld.t,   rf1,   rb1,   TEST_DATA + 0x008,  0x000,    0x0000000000112233	1
 asm	tests/inst/01-load-store/ld.t_rrii_rf.S	TEST_LD_RF_LO32    3, ld.t,   rf2,   rb4,   TEST_DATA,          0x000,    0x0000000001234567	1
@@ -591,13 +593,13 @@ asm	tests/inst/01-load-store/ldm.sw_rrri_rd.S	__CHECK_RD         6, rd7, 0xFFFFF
 asm	tests/inst/01-load-store/ldm.sw_rrri_rd.S	__CHECK_RD 15, rd21, 0xFFFFFFFFFFFF8000	@@ 负向极小	1
 asm	tests/inst/01-load-store/ldm.sw_rrri_rd.S	__CHECK_RD 17, rd21, 0xFFFFFFFFFFFFFFFF	@@ 全 1（正偏移 ⇒ 数据区）	1
 asm	tests/inst/01-load-store/ldm.sw_rrri_rd.S	__CHECK_RD_LDM_IP 16, ldm.sw, rd5, rd13, rd	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_ENC        19, ILLI, 0x2E143040, rb3, MDATA_T, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_ENC        20, ILLI, 0x2EDC304A, rb3, MDATA_T, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_ENC        21, ILLI, 0x2EFC3042, rb3, MDATA_T, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        22, ldm.t, {rf5:rf6}, MALIGN, rb3, MDATA_T, rd19, 0x001	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        23, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        24, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0xFFFFFF7FFFFC, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        25, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_ENC        21, ILLI, 0x2E143040, rb3, MDATA_T, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_ENC        22, ILLI, 0x2EDC304A, rb3, MDATA_T, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_ENC        23, ILLI, 0x2EFC3042, rb3, MDATA_T, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        24, ldm.t, {rf5:rf6}, MALIGN, rb3, MDATA_T, rd19, 0x001	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        25, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        26, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0xFFFFFF7FFFFC, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        27, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_LDM         1, ldm.t, {rf63:rf63}, rb3, MDATA_T + 0x000, rd19, 0x000, MDUMP + 0x000, 1, 0x8000000000000000	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_LDM         2, ldm.t, {rf1:rf2}, rb3, MDATA_T + 0x008, rd19, 0x000, MDUMP + 0x008, 1, 0x8000000280000003	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_LDM         3, ldm.t, {rf5:rf7}, rb3, MDATA_T + 0x010, rd19, 0x000, MDUMP + 0x010, 2, 0x8000000480000005, 0x8000000600000000	1
@@ -610,11 +612,13 @@ asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_LDM        11, ldm.t, {rf32:rf
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_LDM  13, ldm.t,   {rf5:rf5}, rb3, TEST_DATA + 0x028, rd19, 0x000, MDUMP + 0x1C0, 1, 0x7FFFFFFF00000000	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_LDM  14, ldm.t,   {rf5:rf5}, rb3, TEST_DATA + 0x020, rd19, 0x000, MDUMP + 0x1C8, 1, 0x8000000000000000	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_LDM  15, ldm.t,   {rf5:rf5}, rb3, TEST_DATA + 0x088, rd19, 0x000, MDUMP + 0x1D0, 1, 0xFFFFFFFF00000000	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_LDM_RF_FULL2  19, rf5, rf6, rb3, MDATA_T, 0x008, 0x010, 0x020, 0x8000000280000008, 0x8000000480000009	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	__CHECK_RD         5, rd21, 0x000000008000000C	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	__CHECK_RD         6, rd21, 0x000000008000000E	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	__CHECK_RD        12, rd21, 0x0000000080000006	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	__CHECK_RD 16, rd21, 0x0000000080000000	@@ 负向极小	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	__CHECK_RD 18, rd21, 0x00000000FFFFFFFF	@@ 全 1（正偏移 ⇒ 数据区）	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	__CHECK_RD 20, rd21, 0x8000000080000007	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	__CHECK_RD_LDM_IP 17, ldm.t, rf5, rf13, rf	1
 asm	tests/inst/01-load-store/ldm.ub_rrri_rd.S	TEST_FAULT_ENC        22, ILLI, 0x28143040, rb3, MDATA_B, rd19, 0x000	1
 asm	tests/inst/01-load-store/ldm.ub_rrri_rd.S	TEST_FAULT_ENC        23, ILLI, 0x28DC304A, rb3, MDATA_B, rd19, 0x000	1
@@ -4537,12 +4541,11 @@ asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  14, rd6, 0x0000000000000000	
 asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  15, rd6, (ENTRY + 4)	1
 asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  16, rd6, 0x2222222222222222	1
 asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  17, rd6, 0x1111111111111111	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  23, ILLI,   0x7A183285, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  24, ILLI,   0x7A403285, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  25, ILLI,   0x7A8C3285, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  26, CFXREG, 0x7A143285, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  27, CFXREG, 0x7A803285, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  28, CFXREG, 0x7A0C5045, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  24, ILLI,   0x7A183285, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  25, ILLI,   0x7A403285, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  26, ILLI,   0x7A8C3285, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  27, CFXREG, 0x7A143285, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  28, CFXREG, 0x7A803285, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  29, CFXREG, 0x7A0C3245, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD   1, rd5, HMON_BASE	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD   2, rd5, BOOTROM_BASE	1
@@ -4566,6 +4569,7 @@ asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  19, rd63, HMON_BASE	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  20, rd0, 0	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  21, rd3, 0x10000	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  22, rd3, 0x10000	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  23, rd5, 0x25	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  13, ILLI, 0x7E0C0002, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  14, ILLI, 0x7E0C0003, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  15, ILLI, 0x7EFDFFFF, rb12, TEST_DATA, rd11, 0	1
@@ -4574,18 +4578,18 @@ asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  17, ILLI, 0x7E180000, rb
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  18, ILLI, 0x7EF40000, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  19, ILLI, 0x7EFC0002, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  20, ILLI, 0x7EFC0003, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  11, HMON_BASE, 0xE0, 0x8       @@ CFXESC（1<<3）	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  12, HMON_BASE, 0xE0, 0x8	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  9, HMON_BASE, 0xE0, 0x2000     @@ IALIGN（1<<13）	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  10, HMON_BASE, 0xE0, 0x8       @@ CFXESC（1<<3）	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  11, HMON_BASE, 0xE0, 0x8	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  8, HMON_BASE, 0xE0, 0x2000     @@ IALIGN（1<<13）	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   1, rd5, (ENTRY + 0x884)	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   10, rd23, 0x2	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   2, rd5, (ENTRY + 0x988)	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   3, rd5, (ENTRY + 0xA84)	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   4, rd5, (ENTRY + 0xB88)	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   5, rd5, (ENTRY + 0xD84)	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   6, rd5, (ENTRY + 0xF88)	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   7, rd6, 0x100                 @@ 记录实测帧来源 = case 5 的 ILLI 帧	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   8, rd5, (ENTRY + 0x1454)	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   6, rd6, 0x1                   @@ 且就是 CFXTRAP（记录实测值）	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   7, rd5, (ENTRY + 0x1454)	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   9, rd23, 0x2	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD  12, rd7, 0x8                    @@ 第二次到达：cause_id = CFXESC（1<<3）	1
 asm	tests/inst/11-cfx/fence_ciii_cfx.S	TEST_FAULT_ENC  15, ILLI, 0x79001000, rb12, TEST_DATA, rd11, 0   @@ hb = 1	1
 asm	tests/inst/11-cfx/fence_ciii_cfx.S	TEST_FAULT_ENC  16, ILLI, 0x7903F000, rb12, TEST_DATA, rd11, 0   @@ hb = 63（上界）	1
 asm	tests/inst/11-cfx/fence_ciii_cfx.S	TEST_FAULT_ENC  17, ILLI, 0x79180000, rb12, TEST_DATA, rd11, 0	1

@@ -4,12 +4,32 @@
 @@ 语义：目的 i ← mem32[EA + 4i]（写 RF 低 32 位，高 32 位不变）；EA = rb[47:0] + rd[63:0]（immu6 = 元素个数 1..63；元素宽度整除 8 且起址按宽度对齐 ⇒ 元素不跨 8 B 拍）
 @@ 合法性：rf0 作目的合法（按 FCSR 写掩码）；overlap 不适用（范围在 RF、基址在 RB、索引在 RD ⇒ 天然不相交）；immu6=0 ⇒ ILLI；rfHA+immu6>64 ⇒ ILLI（不环绕、不截断）；首址未按 4 B 对齐 ⇒ MALIGN
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的多元素区（MDATA_B/W/T/O、MUNI、MDUMP、MSTORE；字面量见该文件）
-@@ 用例：boundary 3 / rb0 3（链例 18 + 故障例 7；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
+@@ 用例：boundary 3 / rb0 3 / 窄写 2（链例 20 + 故障例 7；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/01-load-store/01-load-store.inc"
+
+	@@ ---- 文件专用宏（m15-testcases-017：窄写补测）----
+	@@ `ldm.t` 只写各目的 rf 低 32 位、高 32 位保持原值（`spec/SimRISC-01 §4` 写入宽度注；
+	@@   `spec/SimRISC-00 §2.3`）⇒ 先用 `ld.o` 把目的装成「高位已知非零」的 8 B 拍，装入后
+	@@   `rf2rd` 读回**完整 64 位**。期望两半都取自数据区字面量（独立 oracle，不从实现反推）；
+	@@   实现若零扩展（高半清 0）⇒ 用例必红。
+	@@ 两个元素（count=2）：两个目的各自预置高位，一次装入两个元素后**两个寄存器都比完整
+	@@   64 位**（前一个 `__VERIFY_RD` 不占点号，后一个 `__CHECK_RD` 记本用例 ⇒ 一例一点）。
+	@@   参数：pre0/pre1 = 预置拍偏移，off = 装入的元素偏移（同一基址内）。
+.macro TEST_LDM_RF_FULL2 pt, r0, r1, base, baseval, pre0, pre1, off, exp0, exp1
+	LOAD_ADDR \base, \baseval
+	ld.o	\r0, [\base, \pre0]
+	ld.o	\r1, [\base, \pre1]
+	set.rd	rd19, \off
+	ldm.t	{\r0:\r1}, [\base, rd19]
+	rf2rd	{rd22:rd22}, {\r0:\r0}
+	__VERIFY_RD \pt, rd22, \exp0
+	rf2rd	{rd21:rd21}, {\r1:\r1}
+	__CHECK_RD \pt, rd21, \exp1
+.endm
 
 	__TEST_BEGIN
 
@@ -53,7 +73,7 @@
 
 	@@ overlap：**不适用** —— 范围在 RF bank，基址恒在 RB、索引恒在 RD ⇒ 结构上不可能相交
 
-	@@ overlap：同一 RF 连装两次，后到者生效（只比低 32 位）
+	@@ overlap：同一 RF 连装两次，后到者生效（本用例只比低 32 位；高 32 位保持见点 20）
 	LOAD_ADDR rb3, MDATA_T + 0x090
 	set.rd    rd19, 0x000
 	ldm.t	{rf9:rf9}, [rb3, rd19]
@@ -102,24 +122,41 @@ __rb0p:
 	ldm.t    {rf5:rf5}, [rb0, rd19]	@@ 被测 @0x2188：EA = ENTRY+0x5888
 	rf2rd	{rd21:rd21}, {rf5:rf5}
 	__CHECK_RD 18, rd21, 0x00000000FFFFFFFF	@@ 全 1（正偏移 ⇒ 数据区）
+
+	@@ ==== m15-testcases-017：窄写补测（高 32 位保持，`spec/SimRISC-01 §4` 注）====
+	@@ MDATA_T 的元素是 0x80000000+i（i = 偏移/4）⇒ 字面量可现推：`ld.o` 一拍 = 相邻两元素，
+	@@   高半 = 前一个元素 ⇒ 期望两半都取自数据区字面量，实现若零扩展（高半清 0）必红。
+	@@ 两元素组：高半分别预置 0x80000002（+0x008 拍 = 元素 2/3）/ 0x80000004（+0x010 拍 = 元素 4/5），
+	@@   装入 +0x020 的两个元素 0x80000008/0x80000009
+	TEST_LDM_RF_FULL2  19, rf5, rf6, rb3, MDATA_T, 0x008, 0x010, 0x020, 0x8000000280000008, 0x8000000480000009
+	@@ 同一寄存器被多个元素依次写：预置高半 0x80000000（+0x000 拍），先装元素 0x80000025、
+	@@   再装元素 0x80000007 ⇒ 两次窄写都不碰高半，最终仍是 0x8000000080000007
+	LOAD_ADDR rb3, MDATA_T
+	ld.o	rf9, [rb3, 0x000]
+	set.rd	rd19, 0x094
+	ldm.t	{rf9:rf9}, [rb3, rd19]
+	set.rd	rd19, 0x01C
+	ldm.t	{rf9:rf9}, [rb3, rd19]
+	rf2rd	{rd21:rd21}, {rf9:rf9}
+	__CHECK_RD 20, rd21, 0x8000000080000007
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 	@@ 口径：多元素指令**允许部分元素已生效**（用户 2026-11-13 裁定）⇒ 故障例只比异常码，
 	@@   不判目的寄存器/目标内存的副作用（单元素 `ld`/`st` 的精确性见 `012`，不在本文件）
 	@@ immu6=0 ⇒ ILLI（mreg_zero；汇编器拒绝该编码，故用原始字）
-	TEST_FAULT_ENC        19, ILLI, 0x2E143040, rb3, MDATA_T, rd19, 0x000
+	TEST_FAULT_ENC        21, ILLI, 0x2E143040, rb3, MDATA_T, rd19, 0x000
 	@@ 组首+immu6=65 > 64 ⇒ ILLI（mreg_range_overflow）
-	TEST_FAULT_ENC        20, ILLI, 0x2EDC304A, rb3, MDATA_T, rd19, 0x000
+	TEST_FAULT_ENC        22, ILLI, 0x2EDC304A, rb3, MDATA_T, rd19, 0x000
 	@@ bank 顶端 63 + immu6=2 = 65 > 64 ⇒ ILLI（边界不环绕）
-	TEST_FAULT_ENC        21, ILLI, 0x2EFC3042, rb3, MDATA_T, rd19, 0x000
+	TEST_FAULT_ENC        23, ILLI, 0x2EFC3042, rb3, MDATA_T, rd19, 0x000
 	@@ 首址未按 4 B 对齐 ⇒ MALIGN
-	TEST_FAULT_M        22, ldm.t, {rf5:rf6}, MALIGN, rb3, MDATA_T, rd19, 0x001
+	TEST_FAULT_M        24, ldm.t, {rf5:rf6}, MALIGN, rb3, MDATA_T, rd19, 0x001
 	@@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
-	TEST_FAULT_M        23, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0x0, rd19, 0x000
+	TEST_FAULT_M        25, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0x0, rd19, 0x000
 	@@ 整段越出地址窗口（首元素在 SRAM 尾、后续元素越界）⇒ CFXMEM
-	TEST_FAULT_M        24, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0xFFFFFF7FFFFC, rd19, 0x000
+	TEST_FAULT_M        26, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0xFFFFFF7FFFFC, rd19, 0x000
 	@@ 保留 cfx 地址空间（addr[47:42]=6）的普通访存 ⇒ CFXMEM
-	TEST_FAULT_M        25, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000
+	TEST_FAULT_M        27, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000
 
 	__TEST_SECTIONS

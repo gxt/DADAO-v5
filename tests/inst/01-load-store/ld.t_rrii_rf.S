@@ -5,7 +5,7 @@
 @@ 对齐：EA 需 4 B 自然对齐，未对齐 ⇒ MALIGN
 @@ 合法性：该银行 0 号寄存器可作目的（无 dst_0 限制）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节 beat，字面量见该文件）
-@@ 用例：encoding 2 / legality 2 / semantic 5 / boundary 9 / overlap 2 / rb0 3（链例 21 + 故障例 2；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
+@@ 用例：encoding 2 / legality 2 / semantic 7 / boundary 9 / overlap 2 / rb0 3（链例 23 + 故障例 2；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 
@@ -19,6 +19,23 @@
 	\mnem	\dst, [\base, \off]
 	rf2rd	{rd21:rd21}, {\dst:\dst}
 	ext.uo	rd21, rd21, 31
+	set.rd	rd20, \exp
+	__REC	rd21
+	br.eq	{rd20, rd21}?, [rb0, __ck_\@]
+	__EXIT	\pt
+__ck_\@:
+.endm
+
+@@ rf 目的，比**完整 64 位**（m15-testcases-017）：`ld.t` 只写目的寄存器低 32 位、
+@@   高 32 位保持原值（`spec/SimRISC-01 §4` 写入宽度注；`spec/SimRISC-00 §2.3`）⇒
+@@   先用 `ld.o` 把目的装成**高位已知非零**的 8 B 拍（`\preoff`），再执行 `ld.t`（`\off`），
+@@   `rf2rd` 读回完整 64 位。期望 = 预置拍的高半 + 该偏移处的字（两半都是数据区字面量，
+@@   独立 oracle，不从实现反推）。**零扩展实现（高半清 0）⇒ 本宏用例必红。**
+.macro TEST_LD_RF_FULL pt, mnem, dst, base, baseval, preoff, off, exp
+	LOAD_ADDR \base, \baseval
+	ld.o	\dst, [\base, \preoff]
+	\mnem	\dst, [\base, \off]
+	rf2rd	{rd21:rd21}, {\dst:\dst}
 	set.rd	rd20, \exp
 	__REC	rd21
 	br.eq	{rd20, rd21}?, [rb0, __ck_\@]
@@ -96,10 +113,18 @@ __rb0p:
 __rb0p_ck:
 	rf2rd	{rd21:rd21}, {rf5:rf5}
 	__CHECK_RD 21, rd21, 0x000000007FFFFFFF	@@ 正向极大
+
+	@@ ==== m15-testcases-017：窄写补测（高 32 位保持，`spec/SimRISC-01 §4` 注）====
+	@@ 构造：`ld.o` 先把目的 rf 装成高位已知非零的 8 B 拍，再 `ld.t`；`rf2rd` 比完整 64 位。
+	@@ 期望两半都取自 TEST_DATA 字面量（高半 = 预置拍高 32、低半 = 装入处的大端字）：
+	@@   +0x078 = 0xDEADBEEFCAFEF00D、+0x070 = 0xA5A5A5A55A5A5A5A；+0x008 字 = 0x00112233、+0x018 字 = 0xFFEEDDCC
+	@@   ⇒ 实现若把 `ld.t` 做成零扩展（高 32 清 0），期望 ≠ 实测 ⇒ 本两点必红。
+	TEST_LD_RF_FULL 22, ld.t,   rf5,   rb6,   TEST_DATA,          0x078,   0x008,   0xDEADBEEF00112233
+	TEST_LD_RF_FULL 23, ld.t,   rf13,  rb6,   TEST_DATA,          0x070,   0x018,   0xA5A5A5A5FFEEDDCC
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
-	TEST_FAULT        22, ld.t,   rf1,   MALIGN, rb3,                TEST_DATA, 0x002  @@ EA 未按 4 B 自然对齐 ⇒ MALIGN
-	TEST_FAULT        23, ld.t,   rf1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
+	TEST_FAULT        24, ld.t,   rf1,   MALIGN, rb3,                TEST_DATA, 0x002  @@ EA 未按 4 B 自然对齐 ⇒ MALIGN
+	TEST_FAULT        25, ld.t,   rf1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
 
 	__TEST_SECTIONS
