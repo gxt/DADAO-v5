@@ -29,7 +29,7 @@
 
 `spec/` 下每个文件（上游只读册 20 册 + v5 自定册 `spec/Kaiwu` + 目录索引 `spec/README.md`）登记于 **`spec/.manifests.toml`**，逐文件 `sha256`，由 **`make check-manifests-guard`** 校验（L1，已纳入 `make check`）。确需**新增 / 修改 / 删除**某册（**须先经用户授权**，见 §2）时，**同一变更**内**必须**同步更新 `spec/.manifests.toml`（登记新条目 / 删条目 / 重算 `sha256`）+ 在完成区记录授权原话；**未同步即动册 ⇒ 门控 FAIL**。
 
-- 清单体例（`.manifests.toml` schema v1，数据文件：**只写数据、不写过程注记**，变更依据看 `git log`）：`schema = 1` + `owner = "spec"` + `subdirs = []` + `recursive = false` + 每册一条 `[files."<name>"]`（`sha256`）。清单**自身不计入集合**，`files` 的键是**该目录的直接子文件**。
+- 清单体例（`.manifests.toml` schema v1，数据文件：**只写数据、不写过程注记**，变更依据看 `git log`）：`schema = 1` + `owner = "spec"` + `subdirs = []` + `recursive = false` + 每册一条 `[files."<name>"]`（`sha256`）。清单**自身不计入集合**，`files` 的键是**该目录的直接子文件**。可选 `[subdir_owners]`（`子目录名 = "模块"`）为**声明性**子目录归属映射：门控只打印不判红，但**键必须属于 `subdirs`**（悬空 owner ⇒ FAIL），故归属也须写成数据而非注记；不填合法（`spec/`、`.tao/`、`.tao/knowledge/` 均不填）。
 - 校验器：`tools/infra/check_manifests_guard.py`——**双向**断言（目录实际文件集合 == `files`，新增册与删除册**都红**）+ 逐字节 `sha256`；`owner` 只打印不判红。同一清单机制也覆盖 `.tao/`、`.tao/knowledge/`（口径见 `docs/Process-07`）。
 - **必需清单注册表**：`manifests/dir-guard-roots.toml`（`schema = 1` + `roots = [...]`）列出「必须有 `.manifests.toml` 的目录」。门控**按注册表逐个校验**（不是「扫到什么管什么」）：登记目录**缺清单** / **目录不存在** / **注册表自身缺失或不可解析** ⇒ FAIL；**游离清单**（磁盘上有但目录未登记）⇒ FAIL（只提示会让新增清单被静默忽略 = 另一个 fail-open）。删某份清单**不再**等于关闭该目录的约束。
 

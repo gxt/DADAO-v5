@@ -1,0 +1,26 @@
+schema = 1
+owner = "infra"
+recursive = false
+
+subdirs = [
+    "busybox",
+    "chipyard",
+    "gem5",
+    "linux",
+    "llvm-project",
+    "musl",
+    "picolibc",
+    "qemu",
+]
+
+[subdir_owners]
+busybox = "linux"
+chipyard = "chipyard"
+gem5 = "gem5"
+linux = "linux"
+llvm-project = "llvm"
+musl = "llvm"
+picolibc = "testcases"
+qemu = "qemu"
+
+[files.".gitkeep"]

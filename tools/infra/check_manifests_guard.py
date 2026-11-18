@@ -17,7 +17,7 @@
 **清单 Schema（v1）**
 
     schema    = 1                 必填
-    owner     = "<name>"          可选，**声明性**：门控只打印，不判红
+    owner     = "<name>"          可选，**声明性**：值只打印；键悬空判红
     subdirs   = ["a", "b"]        允许的**直接**子目录；空 = 禁止建子目录
     recursive = false             可选；true ⇒ 对每个 `subdirs` 子目录**递归**套用本清单的
                                   `files`/`subdirs` 规则（第一批无使用者；`--self-test` 覆盖）
@@ -25,6 +25,10 @@
     [files."<name>"]
     sha256 = "<64 hex>"           可选；有则逐字节校验
     owner  = "<name>"             可选；只打印
+
+    [subdir_owners]               可选，**声明性**映射：`子目录名 = "模块"`；门控只打印，
+                                  不判红；但**键必须属于 `subdirs`**（悬空 ⇒ FAIL，见 A8）。
+                                  未填合法（向后兼容：`spec/`、`.tao/`、`.tao/knowledge/`）。
 
 **断言（任一不满足 ⇒ 非零退出）**
 
@@ -38,7 +42,9 @@
   A6 `recursive = true` ⇒ 对每个子目录递归套用 A2/A4/A5（**单向 ⊆**：只禁多出，
      不要求每个声明名在每层都出现）；子目录里若另有 `.manifests.toml`，它由**自己那条**
      清单管（不在此处计入集合，也不得被父清单列入）；
-  A7 **fail-closed**：某清单 `files`/`subdirs` 皆空 ⇒ FAIL。
+  A7 **fail-closed**：某清单 `files`/`subdirs` 皆空 ⇒ FAIL；
+  A8 `[subdir_owners]`（可选）：值须为非空字符串；**键必须属于 `subdirs`**——
+     悬空 owner（拼错/子目录已删）⇒ FAIL，防止声明性与实际脱钩后静默失效。
 
 **实际集合**：目录内容一律取**磁盘**（遍历时剪掉 `.git`、`.work`、`.cache` 三个目录）——
 新增册即使未提交也红（`spec/` 新增逃逸正是要堵的缺口）。
@@ -64,7 +70,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ".manifests.toml"
 REGISTRY = Path("manifests") / "dir-guard-roots.toml"
-ALLOWED_TOP = frozenset({"schema", "owner", "subdirs", "recursive", "files"})
+ALLOWED_TOP = frozenset({"schema", "owner", "subdirs", "recursive", "files", "subdir_owners"})
 ALLOWED_REGISTRY = frozenset({"schema", "roots"})
 ALLOWED_ENTRY = frozenset({"sha256", "owner"})
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -194,6 +200,19 @@ def load_manifest(path: Path, errors: list[str]) -> dict | None:
         errors.append(f"{where}: files 须为表（实际 {type(files).__name__}）")
         files = {}
 
+    subdir_owners = doc.get("subdir_owners", {})
+    if not isinstance(subdir_owners, dict):
+        errors.append(f"{where}: subdir_owners 须为表（实际 {type(subdir_owners).__name__}）")
+        subdir_owners = {}
+    for name, owner in sorted(subdir_owners.items()):
+        if not isinstance(owner, str) or not owner:
+            errors.append(f"{where}: subdir_owners[{name!r}] 须为非空字符串（实际 {owner!r}）")
+            continue
+        if name not in subdirs:
+            errors.append(
+                f"{where}: subdir_owners[{name!r}] 悬空 owner（不在 subdirs 中；"
+                f"子目录名须与 subdirs 一致，实际 subdirs={subdirs}）")
+
     for name, entry in sorted(files.items()):
         if not isinstance(name, str) or not name:
             errors.append(f"{where}: files 键须为非空字符串（实际 {name!r}）")
@@ -216,7 +235,8 @@ def load_manifest(path: Path, errors: list[str]) -> dict | None:
         errors.append(f"{where}: 清单为空（files 与 subdirs 皆空）⇒ vacuous")
 
     return {"schema": doc.get("schema"), "owner": doc.get("owner"),
-            "subdirs": subdirs, "recursive": recursive, "files": files}
+            "subdirs": subdirs, "recursive": recursive, "files": files,
+            "subdir_owners": subdir_owners}
 
 
 def check_tree(manifest_dir: Path, doc: dict, rel_dir: str,
@@ -294,6 +314,10 @@ def audit(root: Path, quiet: bool = False, collect: list[str] | None = None) -> 
             print(f"清单 {rel}  owner={owner}  recursive={doc['recursive']}")
         check_tree(path.parent, doc, str(Path(rel).parent), errors, stats,
                    verbose=not quiet)
+        if not quiet:
+            rel_dir = str(Path(rel).parent)
+            for name in sorted(doc["subdir_owners"]):
+                print(f"    owner {rel_dir}/{name} = {doc['subdir_owners'][name]}")
         # 计数现场统计、不写死
         if not quiet:
             print(f"  files 登记 {len(doc['files'])} / subdirs 登记 {len(doc['subdirs'])}")
@@ -321,6 +345,9 @@ BASE_A = """schema = 1
 owner = "selftest"
 subdirs = ["sub"]
 recursive = false
+
+[subdir_owners]
+sub = "mod"
 
 [files."x.txt"]
 sha256 = "{sha_x}"
@@ -397,9 +424,20 @@ def self_test() -> int:
         ("游离清单（目录未登记）",
          lambda r: _write(r / "c" / MANIFEST, 'schema = 1\nsubdirs = []\n'),
          1, "c/.manifests.toml: 游离清单"),
+        # ── subdir_owners（A8，可选映射）──
+        ("subdir_owners 悬空 key（不在 subdirs）",
+         lambda r: _write(r / "a" / MANIFEST, BASE_A.format(
+             sha_x=hashlib.sha256(b"alpha\n").hexdigest()).replace(
+                 'sub = "mod"', 'sub = "mod"\nghost = "mod"')),
+         1, "悬空 owner"),
+        ("subdir_owners 值非字符串",
+         lambda r: _write(r / "a" / MANIFEST, BASE_A.format(
+             sha_x=hashlib.sha256(b"alpha\n").hexdigest()).replace(
+                 'sub = "mod"', "sub = 1")),
+         1, "subdir_owners['sub'] 须为非空字符串"),
     ]
     print("=" * 78)
-    print("check-manifests-guard --self-test（六类目录注入 + 注册表 4 例 + 3 例补充）")
+    print(f"check-manifests-guard --self-test（目录/文件注入 + 注册表 + subdir_owners，共 {len(cases)} 例）")
     print("=" * 78)
     bad = 0
     for name, mutate, want_rc, needle in cases:
