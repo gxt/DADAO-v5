@@ -66,7 +66,8 @@ fail-closed：任一标题/表头/分隔行缺失、三表皆空 ⇒ FAIL。
 
 Usage:
     python3 tools/infra/check_milestones_fresh.py [--file PATH] [--root DIR] [--self-test]
-       `--file` 默认 `.tao/knowledge/milestones.md`；`--root` 下按同一相对路径解析。
+       `--file` 缺省 ⇒ 自动发现 `.tao/knowledge/milestones*.md` 逐本校验（按里程碑号
+       升序；一本都没有 ⇒ fail-closed）；`--root` 下按同一相对路径解析。
 Exit code: 0 = PASS；1 = FAIL。
 """
 from __future__ import annotations
@@ -82,8 +83,10 @@ from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-MILESTONES_REL = Path(".tao/knowledge/milestones.md")
-MILESTONES_M12_REL = Path(".tao/knowledge/milestones-m12.md")
+# 历史台账只留**文件名**（M1–M13 单册已归档删除；路径由 `KNOWLEDGE_REL` 拼出）：
+# `LEGACY_LEDGER_NAME` 供旧格式行兜底路由，`SELFTEST_M12_LEDGER_NAME` 只供自测 fixture。
+LEGACY_LEDGER_NAME = "milestones.md"
+SELFTEST_M12_LEDGER_NAME = "milestones-m12.md"
 KNOWLEDGE_REL = Path(".tao/knowledge")
 LEDGER_GLOB = "milestones*.md"
 TASKS_REL = Path(".tao/tasks")
@@ -194,7 +197,7 @@ def home_ledger(root: Path, ms: int | None, owners: dict[int, Path]) -> Path | N
         return None
     if ms in owners:
         return owners[ms]
-    legacy = (root / MILESTONES_REL).resolve()
+    legacy = (root / KNOWLEDGE_REL / LEGACY_LEDGER_NAME).resolve()
     legacy_ms = ledger_milestone(legacy)
     if legacy_ms is not None and ms <= legacy_ms:
         return legacy
@@ -457,7 +460,7 @@ def check_rows(
     return parsed
 
 
-def audit(root: Path, ledger_rel: Path = MILESTONES_REL) -> int:
+def audit(root: Path, ledger_rel: Path) -> int:
     print("=" * 72)
     print(f"check-milestones-fresh — 待开始 / 进行中 / 已验证（L1）；台账 = {ledger_rel}")
     print("=" * 72)
@@ -619,7 +622,7 @@ def audit(root: Path, ledger_rel: Path = MILESTONES_REL) -> int:
         p = index.get(tid)
         home = home_ledger(root, tid_milestone(tid, index), owners)
         if home is None and p is None and id_milestone(tid) is None:
-            home = (root / MILESTONES_REL).resolve()  # 旧格式悬空号归历史台账
+            home = (root / KNOWLEDGE_REL / LEGACY_LEDGER_NAME).resolve()  # 旧格式悬空号归历史台账
         if home != mine:
             continue
         if p is None:
@@ -696,9 +699,9 @@ def write_tree(root: Path, ms: str, books: dict[str, str],
     (root / ".tao/knowledge").mkdir(parents=True, exist_ok=True)
     for mod in ("infra", "spec", "qemu", "integ", "testcases"):
         (root / ".tao/tasks" / mod).mkdir(parents=True, exist_ok=True)
-    (root / MILESTONES_REL).write_text(ms, encoding="utf-8")
+    (root / KNOWLEDGE_REL / LEGACY_LEDGER_NAME).write_text(ms, encoding="utf-8")
     if ledger is not None:
-        (root / MILESTONES_M12_REL).write_text(ledger, encoding="utf-8")
+        (root / KNOWLEDGE_REL / SELFTEST_M12_LEDGER_NAME).write_text(ledger, encoding="utf-8")
     mod_of = {"SPEC": "spec", "INFRA": "infra", "QEMU": "qemu",
               "TESTCASES": "testcases"}
     for tid, body in books.items():
@@ -715,7 +718,7 @@ def book_milestone_field(tid: str) -> str:
     return f"**项目里程碑**：M{n if n is not None else 11}"
 
 
-def _run(root: Path, ledger: Path = MILESTONES_REL) -> tuple[int, str]:
+def _run(root: Path, ledger: Path) -> tuple[int, str]:
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
         rc = audit(root, ledger)
@@ -790,7 +793,7 @@ def r1_self_test() -> bool:
             _git_run(repo, "add", "-A")
             _git_run(repo, "commit", "-q", "-m", "ledger")
             setup(repo, base)
-            rc, out = _run(repo)
+            rc, out = _run(repo, KNOWLEDGE_REL / LEGACY_LEDGER_NAME)
         good = rc == want_rc and marker in out
         ok &= good
         print(f"  {'PASS' if good else 'FAIL'}  {name}: rc={rc} 期望 {want_rc}"
@@ -867,13 +870,15 @@ def self_test() -> int:
     print("check-milestones-fresh --self-test（十四类注入 + A6 双台账八类 + R1 六类 + R2 两例，各自可达 FAIL）")
     print("=" * 72)
     ok = True
+    ledger11_path = KNOWLEDGE_REL / LEGACY_LEDGER_NAME        # fixture：单册（M11）
+    ledger12_path = KNOWLEDGE_REL / SELFTEST_M12_LEDGER_NAME  # fixture：M12 分册
 
     def case(name: str, ms: str, marker: str) -> None:
         nonlocal ok
         with tempfile.TemporaryDirectory(prefix="milestones-fresh-") as td:
             root = Path(td)
             write_tree(root, ms, BOOKS)
-            rc, out = _run(root)
+            rc, out = _run(root, ledger11_path)
         hit = marker in out
         good = rc == 1 and hit
         ok &= good
@@ -882,7 +887,7 @@ def self_test() -> int:
     with tempfile.TemporaryDirectory(prefix="milestones-fresh-") as td:
         root = Path(td)
         write_tree(root, BASE_MS, BOOKS)
-        rc, out = _run(root)
+        rc, out = _run(root, ledger11_path)
     print(f"  {'PASS' if rc == 0 else 'FAIL'}  干净基线: rc={rc}")
     ok &= rc == 0
 
@@ -969,24 +974,24 @@ def self_test() -> int:
     m12_book = {**BOOKS, "m12-infra-901": "**状态**：待开始\n",
                 "m12-infra-902": "**状态**：待开始\n"}
     route("A6 基线① M11 台账 PASS", BASE_MS, M12_MS, m12_book,
-          MILESTONES_REL, 0, "结果: PASS")
+          ledger11_path, 0, "结果: PASS")
     route("A6 基线② M12 台账（--file）PASS", BASE_MS, M12_MS, m12_book,
-          MILESTONES_M12_REL, 0, "结果: PASS")
+          ledger12_path, 0, "结果: PASS")
     route("A6 注入① M12 行写进 M11 台账 ⇒ 跨台账 FAIL", BASE_MS.replace(
         wip_row, wip_row + "\n| m12-infra-901 | 2026-11-08 21:00 | 1 h | 错放 M11 |"),
-        M12_MS, m12_book, MILESTONES_REL, 1, "跨台账错放")
+        M12_MS, m12_book, ledger11_path, 1, "跨台账错放")
     route("A6 注入② M11 行写进 M12 台账 ⇒ 跨台账 FAIL", BASE_MS, M12_MS.replace(
         m12_wip, m12_wip + "\n| QEMU-103t | 2026-11-08 21:00 | 1 h | 错放 M12 |"),
-        m12_book, MILESTONES_M12_REL, 1, "跨台账错放")
+        m12_book, ledger12_path, 1, "跨台账错放")
     route("A6 注入③ M12 活册未列入 M12 台账 ⇒ 覆盖 FAIL", BASE_MS, M12_MS.replace(
-        m12_wip + "\n", ""), m12_book, MILESTONES_M12_REL, 1, "未列入台账三表")
+        m12_wip + "\n", ""), m12_book, ledger12_path, 1, "未列入台账三表")
     route("A6 基线③ M12 台账不存在 ⇒ M12 册不属 M11（跳过、非 vacuous）",
-          BASE_MS, None, m12_book, MILESTONES_REL, 0, "结果: PASS")
+          BASE_MS, None, m12_book, ledger11_path, 0, "结果: PASS")
     route("A6 注入④ 跳过不等于 vacuous：M11 台账坏仍 FAIL", BASE_MS.replace(
         "| QEMU-103t | 1 h | 未开工：待开始表 |\n", ""), None, m12_book,
-        MILESTONES_REL, 1, "未列入台账三表")
+        ledger11_path, 1, "未列入台账三表")
     route("A6 注入⑤ 活任务册缺 `**项目里程碑**` 字段 ⇒ FAIL", BASE_MS, M12_MS,
-          m12_book, MILESTONES_REL, 1, "无头部 `**项目里程碑**` 字段",
+          m12_book, ledger11_path, 1, "无头部 `**项目里程碑**` 字段",
           mutate=lambda root: (root / ".tao/tasks/spec/SPEC-101t-x.md").write_text(
               "# SPEC-101t\n\n**状态**：已验证\n", encoding="utf-8"))
 
@@ -999,11 +1004,26 @@ def self_test() -> int:
     return 0 if ok else 1
 
 
+def live_ledgers(root: Path) -> list[Path]:
+    """现有台账（`.tao/knowledge/milestones*.md`）的相对路径，按里程碑号升序。
+
+    台账已分册（M14 起各一本、旧册归档删除），故缺省不钉死某一本：现场扫描 = 唯一真源。
+    """
+    kdir = root / KNOWLEDGE_REL
+    if not kdir.is_dir():
+        return []
+    found: list[tuple[int, Path]] = []
+    for p in sorted(kdir.glob(LEDGER_GLOB)):
+        n = ledger_milestone(p)
+        found.append((n if n is not None else 10**6, KNOWLEDGE_REL / p.name))
+    return [rel for _n, rel in sorted(found)]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--root", type=Path, default=None, help="检查另一棵树（默认仓库根）")
-    ap.add_argument("--file", type=Path, default=MILESTONES_REL,
-                    help="台账相对路径（默认 `.tao/knowledge/milestones.md`）")
+    ap.add_argument("--file", type=Path, default=None,
+                    help="台账相对路径（默认：自动发现 `.tao/knowledge/milestones*.md` 逐本校验）")
     ap.add_argument("--self-test", action="store_true", help="跑内置十四类注入自检")
     args = ap.parse_args()
     if args.self_test:
@@ -1012,7 +1032,15 @@ def main() -> int:
     if not root.is_dir():
         print(f"check-milestones-fresh: ERROR: --root 不存在: {root}", file=sys.stderr)
         return 1
-    return audit(root, args.file)
+    targets = [args.file] if args.file else live_ledgers(root)
+    if not targets:
+        print(f"check-milestones-fresh: ERROR: 未发现任何活台账"
+              f"（`{KNOWLEDGE_REL.as_posix()}/{LEDGER_GLOB}`）⇒ fail-closed", file=sys.stderr)
+        return 1
+    rc = 0
+    for rel in targets:
+        rc |= audit(root, rel)
+    return rc
 
 
 if __name__ == "__main__":

@@ -31,10 +31,9 @@
 **只报告、不修改**：不存在 ≠ 一定错（也可能是运行期才生成的产物），所以脚本只
 打印 `文件:行: 路径`，由人判断是否真死引用。
 
-已知的**非活引用**（`NON_LIVE`）逐条列出、每次运行都打印，不计入 FAIL：它们是
-**自测 fixture**（写在临时树里、真树不该有）、**已退役工具/数据**、或**已退役台账的
-默认值**——都不是活消费者的路径。**新增**死引用（不在表内）才判红；表只许逐条收窄，
-且表项若已不再缺失 ⇒ 打印 `STALE` 提示删除（防白名单腐烂）。
+已知的**非活引用**（`NON_LIVE`）逐条列出、每次运行都打印，不计入 FAIL：现只剩
+**自测 fixture**（写在临时树里、真树不该有）。**新增**死引用（不在表内）才判红；
+表只许逐条收窄，且表项若已不再缺失 ⇒ 打印 `STALE` 提示删除（防白名单腐烂）。
 
 用法::
 
@@ -59,29 +58,9 @@ from pathlib import Path
 DEFAULT_ROOT = Path(__file__).resolve().parents[2]
 
 #: 非活引用（逐条、带引用处与理由；**只许收窄**）。每次运行都打印，不计 FAIL：
-#: 自测 fixture / 已退役工具或数据 / 已退役台账默认值——都不是活消费者的路径。
+#: 现只剩**自测 fixture**（文件写在临时树里、真树不该有）——不是活消费者的路径。
 #: 按**路径**匹配（同一路径多处出现一并列出）。新增死路径不在表内 ⇒ 判红。
 NON_LIVE = {
-    "tests/inst/base/reg-arith.yaml":
-        ("tools/qemu/check_005t_coverage.py",
-         "YAML 载体已随 `m13-testcases-043` 全退役；该探针无任何调用者，属待退役工具"),
-    "tests/inst/base/reg-shift-extend.yaml":
-        ("tools/qemu/check_005t_coverage.py", "同上：YAML 载体已全退役"),
-    "tests/inst/base/reg-logic.yaml":
-        ("tools/qemu/check_005t_coverage.py", "同上：YAML 载体已全退役"),
-    "tests/inst/base/reg-imm-block.yaml":
-        ("tools/qemu/check_005t_coverage.py", "同上：YAML 载体已全退役"),
-    "tests/inst/base/reg-compare.yaml":
-        ("tools/qemu/check_005t_coverage.py", "同上：YAML 载体已全退役"),
-    "tests/inst/base/reg-cond-assign.yaml":
-        ("tools/qemu/check_005t_coverage.py", "同上：YAML 载体已全退役"),
-    ".tao/knowledge/milestones.md":
-        ("tools/infra/check_milestones_fresh.py:85（`--file` 默认值）",
-         "单册台账已分册化（`milestones-m14/15/16.md`），旧默认值失效；"
-         "门控实际走 `--file` 显式传参，默认值清理归台账收口"),
-    ".tao/knowledge/milestones-m12.md":
-        ("tools/infra/check_milestones_fresh.py:86",
-         "M12 分册已归档删除；该常量只被自测在临时树里写入"),
     "tests/inst/aa/aa.inc":
         ("tools/testcases/check_inst_macro_scope.py:560（`FIXTURE` 表）",
          "自测 fixture：文件写在临时树里，真树不该有"),
