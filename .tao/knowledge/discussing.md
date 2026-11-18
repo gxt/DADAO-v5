@@ -74,6 +74,12 @@
 - **工程侧建议 (B)**：(A) 在 umon 帧上无法干净实现，且它与 F37 残余是同一口径的两面。**但改 spec 须用户裁定 + 授权**，本任务不自行改。
 - 影响：`ISS-454` 登记、`spec/DADAO-12` 正文、QEMU 模型、K2/K3/K4 探针的帧内诊断口径。
 
+## N21. M15 收口时补 `idl/*.idl` 的 sha256 锁
+
+- 用户 2026-11-18 裁定：`idl/` 目录的 `.manifests.toml` **先只列文件名**（双向集合断言），`sha256` **等 M15 完成后统一补**。
+- 原因：M15 期间 `.idl` 会大量增改，逐次重算锁的成本高于收益。
+- 收口检查项：M15 收尾时把 `idl/*.idl` 逐文件 sha256 写入 `idl/.manifests.toml`，并确认 `check-manifests-guard` 会校验它（schema 已支持条目级 `sha256`）。
+
 ## N7. cfx 待实现范围
 
 - 已实现：umon / jmon / smon / hmon / ptw / pmem / time / hart / power。
