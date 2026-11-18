@@ -1,0 +1,70 @@
+schema = 1
+owner = "spec"
+subdirs = []
+recursive = false
+
+[files."DADAO-11-AEE-应用程序运行环境.md"]
+sha256 = "40c9e910ba71a2b2a40ef07f5b4cf73fe0eb3d739eaccdcbdfd460989341699b"
+
+[files."DADAO-12-SEE-主管系统运行环境.md"]
+sha256 = "9e3e3b73dec2b27175cb59b354c1d000cdd8da726d6b428cf73ccaf8e8aa0f61"
+
+[files."DADAO-13-HEE-超管系统运行环境.md"]
+sha256 = "6a39d00370600cbf3bc56ebb8e0d2f4b5d20b484e1579ab26ea328763fdf9f96"
+
+[files."DADAO-21-ABI-应用程序二进制接口.md"]
+sha256 = "68e72e8f4ac462a1c1b8f693b5f4580adef9b7a8d1822f3b1369ab6c17c4fc58"
+
+[files."DADAO-22-SBI-主管系统二进制接口.md"]
+sha256 = "f1ce0c61df939003eed15fcf4893bb3f36e130a42e087a58bed1ab519b0163d4"
+
+[files."DADAO-23-HBI-超管系统二进制接口.md"]
+sha256 = "efcb7d428923520fd4bcd70ba19b4760ea289c1369b561977734b05382b57e56"
+
+[files."Kaiwu-测试机运行环境.md"]
+sha256 = "6b26cd6f10a35bb6ebea8e24429f17aad6fd40b4334d05e983702dff85d1d23d"
+
+[files."README.md"]
+sha256 = "3f2d57a7446f22cef9bcae2ef2a7dfb71ede862b424c630bf14e227bb56baa01"
+
+[files."SimRISC-00-指令系统设计.md"]
+sha256 = "1aa73526b83caf931420855c5da5d120448b60dfcca6b5b350b18ec22e077571"
+
+[files."SimRISC-01-取数存数.md"]
+sha256 = "1a6367885643fee8933dff522a95ffba16ca1c7f087cc6bbb1072c50cb2d6670"
+
+[files."SimRISC-02-寄存器复制.md"]
+sha256 = "6c93f0dd3af3e5dfbf2b48f50aa5189e6aa2c6b29711562c1a27fe4ee1e99638"
+
+[files."SimRISC-03-16位立即数操作.md"]
+sha256 = "19727abfebd1b9d3bd0c25e90d32e11e132759efb171baabe7beda53046d0053"
+
+[files."SimRISC-04-64位数据运算.md"]
+sha256 = "186b375d4f586936b53aac03a1b6d9111630dc942754410deae9c2d7ce136cdc"
+
+[files."SimRISC-05-64位地址运算.md"]
+sha256 = "5c77bdf96a9a8779e77ecdee35248dd1ce1dce5c1463cdac8e594e78b809fbd7"
+
+[files."SimRISC-06-控制流.md"]
+sha256 = "2549942a9a966ff50cd5492df44f0896c35b1eb0f9b3af5b669ee1c8c638564c"
+
+[files."SimRISC-07-浮点运算.md"]
+sha256 = "e884712ecfdf8c8033e32531e639fe14fb087a3f4051b10ee05b568143592f12"
+
+[files."SimRISC-08-32位数据运算.md"]
+sha256 = "7c77f6419576430f07609aeec46481b50ebaafb344a810f03f910b69b9adaaa5"
+
+[files."SimRISC-09-16位数据运算.md"]
+sha256 = "01ceb91779631c309c1a5f78a66e35a16f5bc2a4f6e759febd93a2954e308ca0"
+
+[files."SimRISC-10-8位数据运算.md"]
+sha256 = "299ddc18a256bb5c08cc9939f56af299107f42bdf464ea8bb71b453a8511dd5a"
+
+[files."SimRISC-11-核芯功能扩展指令.md"]
+sha256 = "616f70ee970d076021a734b2d831404e90088aafa32d49ed6e3c3d97b5ef6530"
+
+[files."SimRISC-12-其它指令.md"]
+sha256 = "3f051f49639001fa74cc355fba2053a7c973dd3eb0b13b03fbfa8fa596ef0a7d"
+
+[files."Toolchain-01-汇编语言.md"]
+sha256 = "19879673fdc686ccec07fc91682c02f3bcd1da5a2515365f9b8128233b1554ee"

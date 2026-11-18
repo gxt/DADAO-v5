@@ -1,7 +1,7 @@
 # spec 目录保护规范
 
 > **状态**：生效（2026-10-07）｜**上位依据**：无——属**工程过程规范**（可逆、单项目、无外部契约，不命中 ADR 判据，见 `docs/Process-03`）。
-> **缘起**：`SPEC-114t` 的工程师**未获授权擅自修改上游只读册** `spec/DADAO-12`、`spec/DADAO-22`（各插入 2 行）事故。用户 2026-10-07 裁定「**所有针对 spec 目录的修改，都应该经过我的允许，不能擅自进行**」；本规范把该纪律落为**机械门控**（哈希锁）+ **三处固定检查**（下发 / 验收 / 提交）。
+> **缘起**：`SPEC-114t` 的工程师**未获授权擅自修改上游只读册** `spec/DADAO-12`、`spec/DADAO-22`（各插入 2 行）事故。用户 2026-10-07 裁定「**所有针对 spec 目录的修改，都应该经过我的允许，不能擅自进行**」；本规范把该纪律落为**机械门控**（清单 + 哈希）+ **三处固定检查**（下发 / 验收 / 提交）。
 > **关键词**：本规范用「**必须**（MUST）／**应当**（SHOULD）／**可以**（MAY）」表达规范性等级。§1–§5 均标 **MUST**。
 
 ---
@@ -25,16 +25,17 @@
 - **reviewer** 验收与 **architect** 提交前，**必须**固定执行 `git diff --name-only`（提交前为 `git diff --cached --name-only`）并与 `spec/` 清单交叉；
 - **有交集而缺用户授权证据** ⇒ **reviewer 判 `Needs Revision` / architect 拒绝提交**。
 
-## 5. 只读册哈希锁机制（MUST）
+## 5. 只读册清单 + 哈希校验机制（MUST）
 
-只读册（上游 20 册 + v5 自定册 `spec/Kaiwu`）以 **`manifests/spec-readonly.lock.toml`** 逐册 `sha256` 锁定，由 **`make check-spec-readonly`** 校验（已纳入 `make check`）。确需修改某只读册（**须先经用户授权**，见 §2）时，**同一变更**内**必须**更新该册 `sha256` 锁 + 在完成区记录授权原话；**未更新锁即改册 ⇒ 门控 FAIL**。
+`spec/` 下每个文件（上游只读册 20 册 + v5 自定册 `spec/Kaiwu` + 目录索引 `spec/README.md`）登记于 **`spec/.manifests.toml`**，逐文件 `sha256`，由 **`make check-manifests-guard`** 校验（L1，已纳入 `make check`）。确需**新增 / 修改 / 删除**某册（**须先经用户授权**，见 §2）时，**同一变更**内**必须**同步更新 `spec/.manifests.toml`（登记新条目 / 删条目 / 重算 `sha256`）+ 在完成区记录授权原话；**未同步即动册 ⇒ 门控 FAIL**。
 
-- 锁文件体例：`format = 1` + `policy = "readonly-requires-authorization"` + 每册一条 `[[spec]]`（`path` / `group` / `sha256`）。
-- 校验器：`tools/infra/check_spec_readonly.py`——逐册重算 `sha256` 与锁比对；**不符 / 缺失 ⇒ 非零退出**并逐条打印「册 + 期望 / 实际」。
+- 清单体例（`.manifests.toml` schema v1，数据文件：**只写数据、不写过程注记**，变更依据看 `git log`）：`schema = 1` + `owner = "spec"` + `subdirs = []` + `recursive = false` + 每册一条 `[files."<name>"]`（`sha256`）。清单**自身不计入集合**，`files` 的键是**该目录的直接子文件**。
+- 校验器：`tools/infra/check_manifests_guard.py`——**双向**断言（目录实际文件集合 == `files`，新增册与删除册**都红**）+ 逐字节 `sha256`；`owner` 只打印不判红。同一清单机制也覆盖 `.tao/`、`.tao/knowledge/`（口径见 `docs/Process-07`）。
+- **必需清单注册表**：`manifests/dir-guard-roots.toml`（`schema = 1` + `roots = [...]`）列出「必须有 `.manifests.toml` 的目录」。门控**按注册表逐个校验**（不是「扫到什么管什么」）：登记目录**缺清单** / **目录不存在** / **注册表自身缺失或不可解析** ⇒ FAIL；**游离清单**（磁盘上有但目录未登记）⇒ FAIL（只提示会让新增清单被静默忽略 = 另一个 fail-open）。删某份清单**不再**等于关闭该目录的约束。
 
-## 6. 只读册清单（判据，21 册）
+## 6. 只读册清单（判据，21 册 + 索引）
 
-> `sha256` 真源见 `manifests/spec-readonly.lock.toml`（本节只列册与分组，避免双份哈希漂移）。
+> `sha256` 真源见 **`spec/.manifests.toml`**（本节只列册与分组，避免双份哈希漂移）。
 
 | group | 册 |
 |-------|----|
@@ -44,7 +45,7 @@
 | `toolchain-01` | `spec/Toolchain-01-汇编语言.md` |
 | `kaiwu` | `spec/Kaiwu-测试机运行环境.md` |
 
-> **不在锁内**：`docs/Process-0x`、`spec/README.md` 为 **v5 自定册**，其正当修订由 §2 的授权流程把关（哈希锁只覆盖**锁内只读册**——上游只读册 + `spec/Kaiwu`，其「不该被擅改」可由机械门控判定）。
+> **不在 `spec/` 清单内**：`docs/Process-0x`（工程流程规范）——其正当修订由 §2 的授权流程把关。`spec/README.md` 是**目录索引**，已在 `spec/.manifests.toml` 内（新增 / 修改 / 删除同样须授权 + 同步清单）。
 
 ## 7. 与其它规范的关系
 

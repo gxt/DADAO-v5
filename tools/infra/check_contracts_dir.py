@@ -2,7 +2,7 @@
 """check-contracts-dir: 契约目录**顶层白名单门控**（守两处；INFRA-071t）。
 
 背景：`INFRA-070t`（Phase A）把 `.tao/knowledge/` 顶层收拢为白名单门控
-（`check_knowledge_dir.py`）；`INFRA-071t`（Phase B）把 11 份 `contract-*.md`
+（该脚本已并入 `check_manifests_guard.py`）；`INFRA-071t`（Phase B）把 11 份 `contract-*.md`
 （人读叙述正文）迁入 **`.tao/contracts/`**，仓库根 `contracts/` 保持
 **纯机器可读数据**。本门控把「两处顶层只允许既定模式」落为**机械门控**：
 白名单外文件即 **FAIL**（治根），不靠人眼。
@@ -15,7 +15,7 @@
     llvm-mc/llvm-objdump 运行时读取的纯数据） / **子目录**
     ——``contract-*.md`` **不在**白名单（Phase B 已迁出 ⇒ 残留在 `contracts/` 顶层即 FAIL）。
 
-设计要点（沿用 `check_knowledge_dir.py` 体例，`AGENTS.md`「验证脚本反例门控」）：
+设计要点（沿用 knowledge 顶层白名单门控体例，`AGENTS.md`「验证脚本反例门控」）：
 
   - **计数现场统计、不写死**；
   - **fail-closed**：任一目录缺失、或顶层**无任何条目**（空 ⇒ 扫描面 vacuous）⇒ 非零退出；

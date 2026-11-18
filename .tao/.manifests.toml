@@ -1,0 +1,6 @@
+schema = 1
+owner = "main-session"
+subdirs = ["adr", "archive", "contracts", "knowledge", "tasks"]
+recursive = false
+
+[files."README.md"]

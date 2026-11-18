@@ -23,7 +23,7 @@ spec 为每个 cfx 定义 cg0–cg7（及 cfx0–cfx3 的 cg8/rc1），但具体
 
 ## Consequences（影响）
 
-- 需要维护 `.tao/knowledge/cfx-register-usage.md` 统计表；
+- 需要维护 `docs/cfx-register-usage.md` 统计表；
 - 具体 cfx 实现可按 profile 省略 optional 寄存器；
 - spec 不因 profile 变化而反复删改；
 - 未实现寄存器必须明确 `CFXREG`，不能静默成功。

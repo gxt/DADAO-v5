@@ -73,7 +73,7 @@
 5. 不强制记 ADR —— 仅「多方案取舍 / 外部契约 / 取向改变」才记
 ```
 
-> **前置（MUST）**：改 `spec/` 任何册（含 v5 自定册与 `spec/README.md`）须**用户事先授权**；上游只读册另有 `sha256` 锁门控（`make check-spec-readonly`，已纳入 `make check`）。
+> **前置（MUST）**：改 `spec/` 任何册（含 v5 自定册与 `spec/README.md`）须**用户事先授权**；上游只读册另有 `sha256` 锁门控（`make check-manifests-guard`，已纳入 `make check`）。
 
 ## 册维护约定
 

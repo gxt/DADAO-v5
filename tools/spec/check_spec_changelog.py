@@ -24,10 +24,11 @@
 """
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-LOCK = REPO / "manifests" / "spec-readonly.lock.toml"
+MANIFEST = REPO / "spec" / ".manifests.toml"
 
 APPENDIX_RE = re.compile(r"^##\s+附录：版本与变更记录\s*$")
 H2_RE = re.compile(r"^##\s")
@@ -40,8 +41,8 @@ HEADER_STATUS_VER_RE = re.compile(r"^>\s*\*\*状态\*\*[：:].*?（(\d+(?:\.\d+)
 TASK_ID_RE = re.compile(r"\b(?:SPEC|QEMU|LLVM|INFRA|TESTCASES|INTEG|GOLDEN|GEM5|SAIL|DOCS|ADR|ISS)-\d+")
 TABLE_ROW_RE = re.compile(r"^\s*\|")
 
-# 互锁组（组内版本必须一致）。注意：锁文件的 `group`
-# （`simrisc-00..12` / `dadao-1x` / `dadao-2x` …）与该语义分组的粒度不同，故按每册名显式归类。
+# 互锁组（组内版本必须一致）。语义分组与 `spec/.manifests.toml` 的条目粒度不同，
+# 故按每册名显式归类。
 _LOCK_GROUP_TO_INTERLOCK = {
     "simrisc-00..12": ["simrisc-00..12"],
     "dadao-1x": ["aee-abi", "see-sbi", "hee-hbi"],
@@ -67,21 +68,9 @@ INTERLOCK_GROUPS = ("simrisc-00..12", "aee-abi", "see-sbi", "hee-hbi")
 
 
 def lock_entries():
-    """Return [(path, group)] in lock-file order."""
-    out = []
-    lines = LOCK.read_text().splitlines()
-    cur = {}
-    for line in lines:
-        m = re.match(r'path\s*=\s*"([^"]+)"', line)
-        if m:
-            cur = {"path": m.group(1)}
-            continue
-        m = re.match(r'group\s*=\s*"([^"]+)"', line)
-        if m and cur:
-            cur["group"] = m.group(1)
-            out.append((cur["path"], cur["group"]))
-            cur = {}
-    return out
+    """Return spec volume paths（`spec/.manifests.toml` 的 files 键；`README.md` 是目录索引，不入本门控）。"""
+    doc = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
+    return [f"spec/{name}" for name in sorted(doc["files"]) if name != "README.md"]
 
 
 def vtuple(v):
@@ -95,7 +84,7 @@ def main():
     top_versions = {}     # group -> set（版本段顶部段版本）
     header_versions = {}  # group -> set（册头版本，SPEC-165t）
 
-    for rel, group in entries:
+    for rel in entries:
         p = REPO / rel
         stats["files"] += 1
         lines = p.read_text(encoding="utf-8").splitlines()

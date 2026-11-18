@@ -22,6 +22,8 @@
 ## 核心原则
 - **版本号升级须经用户认可（用户 2026-11-17）**：`spec/`、`.tao/contracts/`、组件 manifest、任务书等**任何版本号**（含 `-rc`）的升级，必须先取得用户明确同意；**禁止自行升级**。变更记录可先记内容条目，版本号保持原值，等用户认可后再升。
 - **Spec-first**：编码/语义期望值来自 `.tao/contracts/contract-*.md`，不从实现反推。
+- **`spec/` 只允许 spec 模块任务修改，且需用户裁定**：`spec/` 下任何新增/修改/删除须用户明确授权（`docs/Process-06`），并同笔更新 `spec/.manifests.toml`；新增册/删除册/改 `sha256` 三类都由 `check-manifests-guard` 判红。
+- **清单/锁类文件只写数据、不写过程注记**：`.manifests.toml` 等只记文件名/`sha256`/`owner` 等数据；不写日期、任务号、变更缘由——变更依据看 `git log`。
 - **DADAO 特有行为先查 spec**：涉及页/地址/端序/对齐/ABI/编码/cfx 等，先查 `spec/` 对应篇目与 `.tao/knowledge/MEMORY.md` 反套用清单；不确定不猜；spec 冲突或语义不明直接问用户；不得用 RISC-V/x86/ARM 经验补全。
 - **Independent oracle**：测试向量不从 LLVM/QEMU 生成，须独立派生自 `spec/`。
 - **Component lock**：LLVM/QEMU/gem5 以 `manifests/` 精确 commit 锁定，不用 tag/branch。

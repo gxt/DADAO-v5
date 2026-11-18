@@ -74,7 +74,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
-        check-dirs check-no-residue check-spec-readonly check-cfx-aliases check-asm-prose check-lit \
+        check-dirs check-no-residue check-manifests-guard check-cfx-aliases check-asm-prose check-lit \
         check-cfx-alias-table check-cfx-alias-install check-cfx-vectors \
         check-lit-full \
         check-run-artifacts \
@@ -86,7 +86,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-musl-freshness check-builtins-freshness check-install-tools check-milestones-fresh \
         check-tasks check-archive check-spec-codeblocks check-legality-invariants \
         check-isa-coverage check-spec-numbering check-spec-changelog check-spec-archive \
-        check-contracts-dir check-knowledge-dir \
+        check-contracts-dir \
         check-spec-archive-verify check-milestone check-sync-nonmaskable \
         check-component-changelog check-syscall-abi check-spec-purity check-spec-cite-targets \
         check-width-sizes check-code-range check-runner-reap
@@ -174,6 +174,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       clean-tests test-repro \
                       check-picolibc-tests check-picolibc-tests-full \
                       check-testcases-suites check-testcases-suites-full \
+                      check-manifests-guard \
                       check check-modules check-full
 
 # $(call gate-locked,<target>): 在锁下重入 make 跑 `_locked-<target>`。
@@ -291,7 +292,7 @@ help:
 	@echo "  make check-width-sizes  64-bit width + ELF64/rela/got + DWARF64 addr_size probe (L1; LLVM-130t)"
 	@echo "  make check-code-range  DADAO code-span gate: REL26 edge ≤ 32 MiB + exec_span < 30 MiB (L1; ADR-0036/INFRA-106t)"
 	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
-	@echo "  make check-knowledge-dir  Whitelist gate for .tao/knowledge/ top level (L1; INFRA-070t/INFRA-112t)"
+	@echo "  make check-manifests-guard  Directory manifests (.manifests.toml) gate: bidirectional file/subdir sets + sha256, recursive option (L1; m15-infra-005)"
 	@echo "  make check-component-changelog  Component changelog list-form/milestone-section gate (L1; INFRA-084t)"
 	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
@@ -338,7 +339,6 @@ help:
 	@echo "  make check-asm-list-drift  Check assembly-list drift gate (INFRA-027t)"
 	@echo "  make check-dirs      Validate install-dirs paths and symlink prefix guard"
 	@echo "  make check-no-residue  Detect unexpected untracked temp files"
-	@echo "  make check-spec-readonly  Verify read-only spec volumes against sha256 lock (SPEC-119t)"
 	@echo "  make size-report  Report added-component-file sizes (advisory, not a gate)"
 	@echo "  make check-tasks  Report tasks with filled 完成区 but status still 待验收 (advisory; --strict to fail)"
 
@@ -1168,7 +1168,7 @@ _locked-clean-work:
 # 两条排在 `check-temp-dirs` **之前**：它们在 `$DADAO_TMP`（`check_toolchain.py`
 # 默认建任务临时目录）下跑探针，先跑可让该目录 mtime 保持新鲜，避免陈旧临时
 # 目录误报；`check_k0.py`（L2）另行把 DADAO_TMP 指到自己的 scratch。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-spec-readonly check-spec-refs check-knowledge-refs check-contracts-dir check-knowledge-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-writer-guards check-temp-dirs
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-manifests-guard check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-writer-guards check-temp-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1371,12 +1371,16 @@ check-spec-refs:
 check-knowledge-refs:
 	@$(PYTHON) tools/infra/check_knowledge_refs.py
 
-# `.tao/knowledge/` 顶层白名单门控 (**L1 成员**; INFRA-070t 建立；`SPEC-176t` 2026-10-26
-# 临时挪到 `check-milestone`，`INFRA-112t` 2026-10-31 回 L1)：顶层只允许既定模式
-# （台账集合 / 子目录）；`contract-*.md` 已随 INFRA-071t 迁出 ⇒ 顶层再出现即白名单外 FAIL。
-# 计数现场统计、不写死。规则见 AGENTS.md「文档分层与单一真源」+ docs/Process-07。
-check-knowledge-dir:
-	@$(PYTHON) tools/infra/check_knowledge_dir.py
+# 目录清单门控 (m15-infra-005, **L1 成员**): 按必需清单注册表
+# `manifests/dir-guard-roots.toml` 逐个校验——目录的**直接子文件**（清单自身不计）== `files`
+# 键、直接子目录 == `subdirs`，多一个/少一个都 FAIL；带 `sha256` 的条目逐字节校验；
+# `recursive = true` 时对子目录递归套用（单向 ⊆）。`owner` 只打印。**能力并入**原「spec
+# 只读册 sha256 锁」门控（spec 册新增/删除/改哈希）与原「`.tao/knowledge/` 顶层白名单」门控
+# ⇒ 两者脚本与目标已删。fail-closed：注册表缺失 / 登记目录缺清单或不存在 / 游离清单 ⇒ FAIL
+# （删某份清单不关闭约束）。`--self-test` 覆盖六类目录注入 + 注册表 4 例。
+# 规则见 docs/Process-06 §5 + docs/Process-07。
+_locked-check-manifests-guard:
+	@$(PYTHON) tools/infra/check_manifests_guard.py
 
 # 契约目录顶层白名单门控 (INFRA-071t, L1 成员; 守两处): `.tao/contracts/` 顶层只允许
 # `contract-*.md` / `README.md` / 子目录; `contracts/` 顶层只允许 `*.yaml` / `README.md` /
@@ -1532,11 +1536,6 @@ check-code-range:
 # 孤儿。合成驱动 + 伪 qemu，不编译、不跑被测语义；可达 FAIL 见任务证据注入。
 check-runner-reap:
 	@$(PYTHON) tools/testcases/check_runner_reap.py --mode helper
-
-# spec 目录只读锁 (SPEC-119t): 只读册 sha256 校验；失配 ⇒ FAIL（须先取用户授权并同步改锁）。
-# 规则见 docs/Process-06-spec目录保护规范.md §5。
-check-spec-readonly:
-	@$(PYTHON) tools/infra/check_spec_readonly.py
 
 # Spec embedded assembly list consistency (SPEC-037t).
 check-asm-list:

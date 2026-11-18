@@ -24,10 +24,11 @@
 """
 import re
 import sys
+import tomllib
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-LOCK = REPO / "manifests" / "spec-readonly.lock.toml"
+MANIFEST = REPO / "spec" / ".manifests.toml"
 
 HEADER_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*$")
 # `##` → `N.` ; `###` → `N.M` ; `####` → `N.M.K`
@@ -43,8 +44,9 @@ APPENDIX_TITLES = (APPENDIX_A, APPENDIX_B, APPENDIX_CHANGELOG)
 
 
 def lock_paths():
-    return [REPO / m.group(1) for line in LOCK.read_text().splitlines()
-            if (m := re.match(r'path\s*=\s*"([^"]+)"', line))]
+    """技术册列表 = `spec/.manifests.toml` 的 files 键（`README.md` 是目录索引，不入本门控）。"""
+    doc = tomllib.loads(MANIFEST.read_text(encoding="utf-8"))
+    return [REPO / "spec" / name for name in sorted(doc["files"]) if name != "README.md"]
 
 
 def tail_start(lines: list[str]) -> int:
