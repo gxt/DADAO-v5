@@ -911,3 +911,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`tests/inst/11-cfx/escape_ciii_cfx.S` 链例 12 的注释称「第 3 次到达判红（不挂死）」，实测不成立（`m15-testcases-019` 复核注入①）：把 case12 改成读未写槽 `0xC4` 后，QEMU 与 chipyard **双 lane 均挂死至超时**（qemu `rc=-2`、0 B），不是「判红退出」。影响：该例的 fail 路径不可用于回归判据（超时而非具名失败）。处置建议：改注释措辞，或让 probe 在到达计数超限时走 `__EXIT` 具名失败（不用挂死）。"
+- id: ISS-474
+  scope:
+  - chipyard
+  - infra
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】chipyard `make verilog` 在并发构建下偶发 sbt 缓存损坏（`m16-chipyard-005` 合入后重建共享树时实测）：报 `ClassfileParser$ConstantPool.errorBadIndex` + `NoClassDefFoundError: sbt.internal.parser.SbtParser$`，`.classpath_cache` 只剩 `tapeout.jar`、`chipyard.jar` 未生成。疑似与同机其它组件构建（linux/gem5）并发时的缓存写竞争有关。处置：删 `.classpath_cache` 后重跑（第 1 次重试）；若复发则登记并改为串行构建。"
