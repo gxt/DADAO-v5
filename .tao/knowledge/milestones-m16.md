@@ -24,12 +24,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-chipyard-005 | 2026-11-18 23:40 | 3–4 h | chipyard RTL 的 `escape` 新语义核实/补（`prev_cfx_code`；先核后补） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-005 | 2026-11-19 02:00 | RTL 补 `inner_cfx_code`/`prevCfx`（cg5 rc1 RW、CFXESC 交当前 cfx；sim md5 `9b6928e0`） |
 | m16-gem5-013 | 2026-11-19 01:45 | gem5 补 `prevCfxCode`（trap 保存/escape 恢复/cg5 rc1 RW）；删恢复行 ⇒ `0x7E` |
 | m16-gem5-012 | 2026-11-18 19:09 | C/D 周期表分行给值（ld=9/st=10、`stm` 用 `n_base=1`、`ldm` 不带；容差 ±1→0） |
 | m16-chipyard-004 | 2026-11-18 11:20 | `stm` 偏置实测（362 样本）：**固定 +1、与 N 无关**；附带发现 beats 相位算法（N19） |
