@@ -26,12 +26,12 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m15-testcases-016 | 2–3 h | `tests/ee-*` 文件名统一为 `<role>_<ee>`（51 件 `git mv`，含 `run_asm_suite.py`→`run_inst_tiny.py`） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m15-testcases-016 | 2026-11-18 09:00 | 2–3 h | `tests/ee-*` 文件名统一为 `<role>_<ee>`（50 件 `git mv`，含 `run_asm_suite.py`→`run_inst_tiny.py`） |
 
 | m15-spec-001 | 2026-11-13 22:05 | 3–5 天 | UDB IDL 语法 v0 + 5 条样板 operation + `idlc` 复用评估 + 抽取器原型（**待返工**：WIP `0584a64b`，用户要求先摊开文件内容 + 逐条语句分析；延后裁决） |
 

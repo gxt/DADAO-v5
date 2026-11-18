@@ -23,7 +23,7 @@
 5. **仅改文件名与引用路径，不改任何文件内容**（重命名文件逐字节不变；`git mv`）。
 6. **本任务不改归属**：文件归哪个模块/里程碑由用户随后统一裁决。
 
-## 改名清单（共 51 个 `git mv`，其中 D1 待定 1 个；其余 2 件保持原名）
+## 改名清单（50 个 `git mv`；`README.md` 与 `k0_README.md` 保持原名，见待裁定 D1）
 
 ### `tests/ee-tiny/`（22 改 / 0 保持）
 
@@ -75,7 +75,7 @@
 
 保持不变（已符合规则）：`run_llvm_ts_user.py`。
 
-### `tests/ee-vast/`（13 改 / 2 保持）
+### `tests/ee-vast/`（12 改 / 2 保持）
 
 | 旧 | 新 |
 | --- | --- |
@@ -125,4 +125,10 @@
 
 ## 待裁定
 
-**D1 `tests/ee-vast/k0_README.md` 是否也套规则？** 建议 `README_k0_vast.md`（与 `README.md` 并存、不冲突）；若选「文档类一律不套规则」则保持原名。**建议：改 `README_k0_vast.md`**，使 ee-vast 仅 `README.md` 一个例外。
+**D1 `tests/ee-vast/k0_README.md`：本任务不动**（不改名、不删、内容不改）。
+
+用户 2026-11-18：「k0_readme 不应该存在」——该文件的内容去处（并入 `tests/ee-vast/README.md` + 探针 docstring）**另案处理**，等用户裁定后单独执行。本任务只做其余 50 件改名，避免与内容搬移混在一起。
+
+## 本轮改名计数（D1 未定前的范围）
+
+- `tests/ee-tiny/` 22 件 + `tests/ee-user/` 16 件 + `tests/ee-vast/` **12 件**（不含 `k0_README.md` 与 `README.md`）= **50 件**。
