@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-infra-005 | 4–6 h | 机型/执行环境/测试矩阵三契约迁移（消费点切到 `contracts/`，删旧 machine-profiles） |
 | m14-linux-020 | 2–3 h | 内核线程（`kernel_thread`/`kthreadd`/`kthread_create`；用户 clone/TLS 归 K5） |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 | m14-linux-030 | 3–4 h | K6 busybox 构建接入（静态 musl + 最小 applet 集） |
@@ -49,6 +48,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-infra-005 | 2026-11-18 08:28 | 4–6 h | 三契约消费点迁移（machine_profile → `contracts/`，测试集开关移 tests-matrix，删旧 machine-profiles） |
 | m14-linux-019 | 2026-11-18 06:40 | 3–4 h | 用户栈增长：`VM_GROWSDOWN` 下方扩栈（S1–S6，真实用户进程触发） |
 | m14-linux-017 | 2026-11-18 00:20 | 7–9 h | 上下文切换（switch_to + 调度 + U-mode↔S-mode 帧往返）+ 最小 clockevent + F3/init 真跑 |
 
