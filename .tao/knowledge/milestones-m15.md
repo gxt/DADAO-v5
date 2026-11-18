@@ -31,7 +31,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m15-infra-006 | 2026-11-18 18:30 | 1–1.5 h | `components/` 目录防护（`.manifests.toml` + owner；busybox 例外） |
 | m15-infra-007 | 2026-11-18 18:30 | 0.5–1 h | 两处既有死引用收口（`check_milestones_fresh` 默认值、`check_005t_coverage` 退役载体） |
 
 | m15-spec-001 | 2026-11-13 22:05 | 3–5 天 | UDB IDL 语法 v0 + 5 条样板 operation + `idlc` 复用评估 + 抽取器原型（**待返工**：WIP `0584a64b`，用户要求先摊开文件内容 + 逐条语句分析；延后裁决） |
@@ -40,6 +39,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-infra-006 | 2026-11-18 19:05 | `components/` 目录防护（8 目录 + `[subdir_owners]`；新增目录须用户同意） |
 | m15-infra-005 | 2026-11-18 16:05 | `.manifests.toml` 第一波（spec/.tao/.tao-knowledge + 必需清单注册表；删清单/删注册表/游离清单即红） |
 | m15-infra-002 | 2026-11-18 11:42 | refs 清空（9 孤儿删除；其余 20 份由 004 承接：迁 13 + 删 7） |
 | m15-infra-004 | 2026-11-18 11:42 | refs 13 份活数据源迁 `tests/data/` + refs 清空 + `check_dead_refs`（未接门控） |
