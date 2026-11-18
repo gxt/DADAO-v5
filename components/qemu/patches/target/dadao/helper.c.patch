@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..b044a36
+index 0000000..bd04952
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,3161 @@
+@@ -0,0 +1,3169 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -2028,6 +2028,7 @@ index 0000000..b044a36
 +    case 5:
 +        switch (rc) {
 +        case 0: return &r->prev_run_mode;
++        case 1: return &r->prev_cfx_code;
 +        case 2: return write ? NULL : &r->cause_id;
 +        case 3: return &r->cause_ip;
 +        case 4: return write ? NULL : &r->cause_info;
@@ -2137,9 +2138,8 @@ index 0000000..b044a36
 +     * the source axis is that monitor's `<mode>_cfx_intr_mask` (S-mode =>
 +     * cfx_smon `cg2 rc4`) and the second axis its `global_cfx_intr_mask`
 +     * (`cg8 rc1`).  The source axis is deliberately independent of
-+     * `inner_cfx_code`: after a delivery the frame restores only the run mode
-+     * (§5.3), so the current cfx stays at the target and a "current cfx row"
-+     * reading would filter on a row the kernel never owns (ISS-455).
++     * `inner_cfx_code`: the filter row is selected by the run mode alone, not
++     * by the cfx the last delivery left behind (ISS-455).
 +     * Both masks are indexed by the source cfxha; either one set => pending,
 +     * no delivery. */
 +    if (!sync) {
@@ -2163,8 +2163,11 @@ index 0000000..b044a36
 +    } else {
 +        env->cfx[ci].excp_sync_num++;
 +    }
-+    /* step 5: save the previous run mode (no independent cfx-mask state). */
++    /* step 5: save the previous run mode and current cfx (no independent
++     * cfx-mask state).  prev_cfx_code must be sampled *before* step 6
++     * rewrites inner_cfx_code (DADAO-12 §5.2 step 5/6). */
 +    env->cfx[ci].prev_run_mode = entry_mode;
++    env->cfx[ci].prev_cfx_code = env->inner_cfx_code & 0x3F;
 +    /* step 6: switch run mode to the <entry_mode> switch value; the cfx
 +     * target changes but there is no cfx-mask layer to switch.
 +     * HSJU permission is re-checked on every tlb_fill against the entry, so the
@@ -2899,9 +2902,14 @@ index 0000000..b044a36
 +     * re-kick so the arbiter can deliver what accumulated meanwhile. */
 +    dadao_async_kick(env);
 +#endif
-+    /* step 2: restore the previous run mode from the frame (no cfx-mask
-+     * layer is restored; the trap saved only global_cfx_intr_mask). */
++    /* step 2: restore the previous run mode and current cfx from the frame
++     * (no cfx-mask layer is restored; the trap saved only
++     * global_cfx_intr_mask).  Without the cfx restore a frame that received a
++     * nested async delivery could never escape: step 6 of the nested entry
++     * moved inner_cfx_code to the delivered cfx, so this escape's cfxha check
++     * would fail with CFXESC (DADAO-12 §5.3 step 2). */
 +    env->inner_run_mode = env->cfx[ci].prev_run_mode & 0x3;
++    env->inner_cfx_code = env->cfx[ci].prev_cfx_code & 0x3F;
 +    dadao_soft_tlb_flush(env);
 +    /* step 3: increment the escape counter */
 +    env->cfx[ci].escape_num++;

@@ -401,7 +401,7 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
 | 5 | 0 | excp prev run mode | cfx_⟨cfxname⟩_excp_prev_run_mode | 0 | RW | 异常前运行模式，硬件陷入时保存，软件可写 |
-| 5 | 1 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
+| 5 | 1 | excp prev cfx code | cfx_⟨cfxname⟩_excp_prev_cfx_code | 0 | RW | 异常前当前核芯功能扩展编号，硬件陷入时保存，软件可写 |
 | 5 | 2 | excp cause id | cfx_⟨cfxname⟩_excp_cause_id | 0 | HW | 异常原因编号（分层：`[15:0]` 为 cause；wyde2 `[47:32]`/wyde3 `[63:48]` 为子原因；`[31:16]` 保留，见下），硬件在异常进入时写入 |
 | 5 | 3 | excp cause ip | cfx_⟨cfxname⟩_excp_cause_ip | 0 | RW | 异常发生前的指令指针，硬件陷入时保存，软件可写 |
 | 5 | 4 | excp cause info | cfx_⟨cfxname⟩_excp_cause_info | 0 | HW | 发生异常的辅助信息（`CFXMEM`/`CFXPERM` 恒为地址，见下） |
@@ -820,7 +820,7 @@ trap/escape/cfx2rd/cfx2rc 指令可以在任意运行模式下执行。若 cfxha
 | 重新执行触发异常的指令 | `escape cfxha, [excp_cause_ip, 0]` | cause_ip |
 | 跳过触发指令（继续执行） | `escape cfxha, [excp_cause_ip, 4]` | cause_ip + 4 |
 
-`escape` 恢复 `excp_prev_run_mode`，以及 trap 进入时保存的 `global_cfx_intr_mask`。
+`escape` 恢复 `excp_prev_run_mode`、`excp_prev_cfx_code`，以及 trap 进入时保存的 `global_cfx_intr_mask`。
 
 ### 5.2 异常进入流程
 
@@ -873,7 +873,7 @@ monitor 不再有独立的页表异常原因：页表未映射与 A/D 回写失�
 2. **同步异常不可屏蔽**：同步异常全部不可屏蔽，不查任何异常原因掩码；异步中断只按来源过滤（下一步），也不查异常原因掩码。
 3. **异步中断来源过滤**（仅异步）：检查当前运行模式 monitor 的 `cfx_<monitor>_<mode>_cfx_intr_mask`（cg0–3 rc4）与 `cfx_<monitor>_global_cfx_intr_mask`（cg8 rc1）第 cfxha 位（位索引 = 中断来源 cfx）；任一为 1 则不投递，置 monitor 的 `excp_pending`（cg5 rc5）。
 4. **更新陷入计数**：根据异常类型递增目标 cfx 的 `trap_num`（`trap` 指令）、`excp_sync_num`（同步异常）或 `excp_async_num`（异步中断）。
-5. **保存现场**：`excp_prev_run_mode` 记录异常前的运行模式；`excp_cause_ip`（同步为触发指令地址，异步为下一条指令地址）、`excp_cause_id`、`excp_cause_info` 记录异常现场。`trap` 进入时另保存当前模式 monitor 的 `global_cfx_intr_mask`（异常前核芯功能扩展中断掩码状态）并置全 1，供 `escape` 恢复；不保存独立的 cfx 屏蔽状态。
+5. **保存现场**：`excp_prev_run_mode` 记录异常前的运行模式，`excp_prev_cfx_code` 记录异常前的当前核芯功能扩展编号（`inner_cfx_code`，**在本步之后才被第 6 步改写**）；`excp_cause_ip`（同步为触发指令地址，异步为下一条指令地址）、`excp_cause_id`、`excp_cause_info` 记录异常现场。`trap` 进入时另保存当前模式 monitor 的 `global_cfx_intr_mask`（异常前核芯功能扩展中断掩码状态）并置全 1，供 `escape` 恢复；不保存独立的 cfx 屏蔽状态。
 6. **模式/目标切换**：`inner_run_mode` 取目标 cfx 的 `<mode>_switch_run_mode`，`inner_cfx_code` 取目标 cfx；**不切换独立 cfx 屏蔽层**（同步屏蔽层已拆除；异步来源过滤与 pending 由 monitor 的 `cfx_intr_mask` 与 `excp_pending` 承担）。
 7. **跳转至异常向量**：跳转至目标 cfx 的 `<mode>_excp_vector`。该地址与普通访存规则一致：`ptw_enable=0` 或地址 `addr[47:42] != 0` 时为核内地址，`ptw_enable=1` 且 `addr[47:42] = 0` 时为虚拟地址。软件须保证异常向量所在页不会发生页缺失，硬件不提供向量缺失的恢复机制。
 
@@ -946,6 +946,7 @@ else:
 
 // 5. 保存现场
 cfx_⟨cfxname⟩_excp_prev_run_mode  <= inner_run_mode
+cfx_⟨cfxname⟩_excp_prev_cfx_code  <= inner_cfx_code       // 必须在第 6 步改写 inner_cfx_code 之前
 cfx_⟨cfxname⟩_excp_cause_ip       <= inner_excp_cause_ip     // 同步为触发指令地址，异步为下一条指令地址
 cfx_⟨cfxname⟩_excp_cause_id       <= inner_excp_cause_id
 cfx_⟨cfxname⟩_excp_cause_info     <= inner_excp_cause_info
@@ -969,7 +970,7 @@ inner_inst_pointer       <= cfx_⟨cfxname⟩_<mode>_excp_vector
 
 0. **检查目标/帧**：若 `imms18[17:1] != 0`（SBZ 非零），触发 ILLI；若 `cfxha` 为 reserved，触发 ILLI；若 `cfxha` 非当前 cfx，或当前 cfx 无有效异常帧（`excp_cause_id = 0`），在切换任何状态前触发当前 cfx 的 `CFXESC`
 1. **恢复中断屏蔽**：恢复 trap 进入时保存的 `global_cfx_intr_mask`
-2. **恢复运行模式**：依据 `cfx_⟨cfxname⟩_excp_prev_run_mode` 还原为异常发生前的运行模式
+2. **恢复运行模式与当前 cfx**：依据 `cfx_⟨cfxname⟩_excp_prev_run_mode` / `cfx_⟨cfxname⟩_excp_prev_cfx_code` 还原为异常发生前的运行模式与当前核芯功能扩展（`inner_cfx_code`）
 3. **更新退出计数并跳转**：`cfx_⟨cfxname⟩_escape_num` 递增 1；返回地址 = `excp_cause_ip + (imms18 << 2)`（编译期固定偏移）
 
 ```
@@ -990,8 +991,9 @@ if cfxha != inner_cfx_code or cfx_⟨cfxname⟩_excp_cause_id == 0:
 
 // 1. 恢复 trap 保存的 global 中断屏蔽
 cfx_⟨saved_mode_monitor⟩_global_cfx_intr_mask <= saved_global_cfx_intr_mask
-// 2. 恢复运行模式
+// 2. 恢复运行模式与当前 cfx
 inner_run_mode               <= cfx_⟨cfxname⟩_excp_prev_run_mode
+inner_cfx_code               <= cfx_⟨cfxname⟩_excp_prev_cfx_code
 // 3. 更新退出计数并跳转
 cfx_⟨cfxname⟩_escape_num             <= cfx_⟨cfxname⟩_escape_num + 1
 inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
@@ -1045,6 +1047,7 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 - `§2.1` 校验示例笔误修正：`size = 64 KiB` ⇒ `start = 0x3ff_ffff_0000`、`size = 4 MiB` ⇒ `start = 0x3ff_ffc0_0000`（原文各少一组 `FF`）；`start = 2^42 − size` 规则不变。
 - 多元素**内存**指令的精确性例外：`ldm.*`/`stm.*`（含 rf 形式，SimRISC-01）不再要求无副作用——处理多个元素的过程中触发同步异常时，此前已处理的元素**允许已经生效**，目的寄存器/内存可能已被部分更新；异常原因码仍须与触发元素一致、`excp_cause_ip` 仍指向该指令。寄存器类多元素指令（`rd2rd`/`rb2rb`/`rb2rd`/`rd2rb`/`ra2rd`/`rd2ra`、`rd2rf`/`rf2rd`/`rf2rf`、`ftcls`/`focls`）**不适用**该例外、仍为精确异常；整段预检是**允许的更强行为**、软件不得依赖；单元素 `ld`/`st` 仍须精确。
 - `ldm` 的地址寄存器不得落入传送范围：传送范围在 RD 组时索引寄存器为 `rdHC`、在 RB 组时基址寄存器为 `rbHB`（`起始 <= 地址寄存器 < 起始 + immu6`）⇒ `ILLI`；`stm` 允许该重叠（只读传送范围、不写寄存器）；RA/RF 形式结构性不可能重叠。原「允许重叠、地址按原始 `rdHC` 计算」口径作废，本例外改以「地址寄存器不被传送过程改写」为前提。
+- `cg5 rc1` 由 `reserved` 改为 `excp prev cfx code`（`cfx_⟨cfxname⟩_excp_prev_cfx_code`，RW，初值 0）：`§5.2` 第 5 步硬件陷入时保存异常前的 `inner_cfx_code`，`§5.3` 第 2 步 `escape` 恢复，使 `inner_cfx_code` 与 `inner_run_mode` 同进退。动机：同步异常帧内到达异步事件（如 `TIMER`）时，`§5.2` 第 6 步会把 `inner_cfx_code` 改写为目标 cfx，该帧随后的 `escape` 命中 `§5.3` 第 0 步的目标错误检查（`cfxha != inner_cfx_code` ⇒ `CFXESC`），无法返回被中断的上下文；影响：`escape` 后 `inner_cfx_code` 回到进入前值（嵌套各层逐层回退），`§3.6` 表与 `§5.2`/`§5.3` 伪代码同步。
 
 ### 0.7.2（2026-10-26）
 

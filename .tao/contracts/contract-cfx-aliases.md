@@ -77,6 +77,7 @@ Per ADR-0017 D4：寄存器别名查 spec 寄存器表的 `cg`/`rc` 列。
 | `cfx_⟨cfxname⟩_escape_num` | 4 | 5 | — |
 | `cfx_⟨cfxname⟩_scratch_regs_num` | 4 | 6 | — |
 | `cfx_⟨cfxname⟩_excp_prev_run_mode` | 5 | 0 | — |
+| `cfx_⟨cfxname⟩_excp_prev_cfx_code` | 5 | 1 | — |
 | `cfx_⟨cfxname⟩_excp_cause_id` | 5 | 2 | — |
 | `cfx_⟨cfxname⟩_excp_cause_ip` | 5 | 3 | — |
 | `cfx_⟨cfxname⟩_excp_cause_info` | 5 | 4 | — |
@@ -87,7 +88,7 @@ Per ADR-0017 D4：寄存器别名查 spec 寄存器表的 `cg`/`rc` 列。
 | `cfx_⟨cfxname⟩_space_size[i]` | 7 | 4i+2 | — |
 | `cfx_⟨cfxname⟩_space_attr[i]` | 7 | 4i+3 | — |
 
-展开后共 1272 条目（12 cfxname × 46 模板；数组模板按 stride 展开）。
+展开后共 1284 条目（12 cfxname × 47 模板；数组模板按 stride 展开）。
 
 ### 2.2 专有寄存器（cg8+，各 cfx 独有）
 
@@ -133,7 +134,7 @@ Per ADR-0017 D4：寄存器别名查 spec 寄存器表的 `cg`/`rc` 列。
 ## 3. 统计
 
 - 标量别名：12 条
-- 寄存器别名（展开后）：1308 条
-  - 通用（cg0-7 展开）：1272 条（12 cfxname × 46 模板）
+- 寄存器别名（展开后）：1320 条
+  - 通用（cg0-7 展开）：1284 条（12 cfxname × 47 模板）
   - 专有（cg8+）：36 条
 

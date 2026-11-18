@@ -7,7 +7,7 @@
 #          reg    <name> <cfxha> <cg> <rc-base> <rc-count> [canonical]
 #          array  <name-base> <cfxha> <cg> <rc-base> <count> <stride> [canonical]
 # Read at run time from <exe-dir>/../share/dadao/cfx-aliases.txt (or $DADAO_CFX_ALIAS_FILE / --dadao-cfx-alias=).
-# scalars=12 regs=1308
+# scalars=12 regs=1320
 scalar cfx_umon 0 canonical
 scalar cfx_jmon 1 canonical
 scalar cfx_smon 2 canonical
@@ -57,6 +57,7 @@ reg cfx_umon_excp_async_num 0 4 4 1 canonical
 reg cfx_umon_escape_num 0 4 5 1 canonical
 reg cfx_umon_scratch_regs_num 0 4 6 1 canonical
 reg cfx_umon_excp_prev_run_mode 0 5 0 1 canonical
+reg cfx_umon_excp_prev_cfx_code 0 5 1 1 canonical
 reg cfx_umon_excp_cause_id 0 5 2 1 canonical
 reg cfx_umon_excp_cause_ip 0 5 3 1 canonical
 reg cfx_umon_excp_cause_info 0 5 4 1 canonical
@@ -104,6 +105,7 @@ reg cfx_jmon_excp_async_num 1 4 4 1 canonical
 reg cfx_jmon_escape_num 1 4 5 1 canonical
 reg cfx_jmon_scratch_regs_num 1 4 6 1 canonical
 reg cfx_jmon_excp_prev_run_mode 1 5 0 1 canonical
+reg cfx_jmon_excp_prev_cfx_code 1 5 1 1 canonical
 reg cfx_jmon_excp_cause_id 1 5 2 1 canonical
 reg cfx_jmon_excp_cause_ip 1 5 3 1 canonical
 reg cfx_jmon_excp_cause_info 1 5 4 1 canonical
@@ -151,6 +153,7 @@ reg cfx_smon_excp_async_num 2 4 4 1 canonical
 reg cfx_smon_escape_num 2 4 5 1 canonical
 reg cfx_smon_scratch_regs_num 2 4 6 1 canonical
 reg cfx_smon_excp_prev_run_mode 2 5 0 1 canonical
+reg cfx_smon_excp_prev_cfx_code 2 5 1 1 canonical
 reg cfx_smon_excp_cause_id 2 5 2 1 canonical
 reg cfx_smon_excp_cause_ip 2 5 3 1 canonical
 reg cfx_smon_excp_cause_info 2 5 4 1 canonical
@@ -198,6 +201,7 @@ reg cfx_hmon_excp_async_num 3 4 4 1 canonical
 reg cfx_hmon_escape_num 3 4 5 1 canonical
 reg cfx_hmon_scratch_regs_num 3 4 6 1 canonical
 reg cfx_hmon_excp_prev_run_mode 3 5 0 1 canonical
+reg cfx_hmon_excp_prev_cfx_code 3 5 1 1 canonical
 reg cfx_hmon_excp_cause_id 3 5 2 1 canonical
 reg cfx_hmon_excp_cause_ip 3 5 3 1 canonical
 reg cfx_hmon_excp_cause_info 3 5 4 1 canonical
@@ -245,6 +249,7 @@ reg cfx_ptw_excp_async_num 4 4 4 1 canonical
 reg cfx_ptw_escape_num 4 4 5 1 canonical
 reg cfx_ptw_scratch_regs_num 4 4 6 1 canonical
 reg cfx_ptw_excp_prev_run_mode 4 5 0 1 canonical
+reg cfx_ptw_excp_prev_cfx_code 4 5 1 1 canonical
 reg cfx_ptw_excp_cause_id 4 5 2 1 canonical
 reg cfx_ptw_excp_cause_ip 4 5 3 1 canonical
 reg cfx_ptw_excp_cause_info 4 5 4 1 canonical
@@ -297,6 +302,7 @@ reg cfx_cache_excp_async_num 5 4 4 1 canonical
 reg cfx_cache_escape_num 5 4 5 1 canonical
 reg cfx_cache_scratch_regs_num 5 4 6 1 canonical
 reg cfx_cache_excp_prev_run_mode 5 5 0 1 canonical
+reg cfx_cache_excp_prev_cfx_code 5 5 1 1 canonical
 reg cfx_cache_excp_cause_id 5 5 2 1 canonical
 reg cfx_cache_excp_cause_ip 5 5 3 1 canonical
 reg cfx_cache_excp_cause_info 5 5 4 1 canonical
@@ -346,6 +352,7 @@ reg cfx_hart_excp_async_num 15 4 4 1 canonical
 reg cfx_hart_escape_num 15 4 5 1 canonical
 reg cfx_hart_scratch_regs_num 15 4 6 1 canonical
 reg cfx_hart_excp_prev_run_mode 15 5 0 1 canonical
+reg cfx_hart_excp_prev_cfx_code 15 5 1 1 canonical
 reg cfx_hart_excp_cause_id 15 5 2 1 canonical
 reg cfx_hart_excp_cause_ip 15 5 3 1 canonical
 reg cfx_hart_excp_cause_info 15 5 4 1 canonical
@@ -397,6 +404,7 @@ reg cfx_pmem_excp_async_num 32 4 4 1 canonical
 reg cfx_pmem_escape_num 32 4 5 1 canonical
 reg cfx_pmem_scratch_regs_num 32 4 6 1 canonical
 reg cfx_pmem_excp_prev_run_mode 32 5 0 1 canonical
+reg cfx_pmem_excp_prev_cfx_code 32 5 1 1 canonical
 reg cfx_pmem_excp_cause_id 32 5 2 1 canonical
 reg cfx_pmem_excp_cause_ip 32 5 3 1 canonical
 reg cfx_pmem_excp_cause_info 32 5 4 1 canonical
@@ -452,6 +460,7 @@ reg cfx_llc_excp_async_num 33 4 4 1 canonical
 reg cfx_llc_escape_num 33 4 5 1 canonical
 reg cfx_llc_scratch_regs_num 33 4 6 1 canonical
 reg cfx_llc_excp_prev_run_mode 33 5 0 1 canonical
+reg cfx_llc_excp_prev_cfx_code 33 5 1 1 canonical
 reg cfx_llc_excp_cause_id 33 5 2 1 canonical
 reg cfx_llc_excp_cause_ip 33 5 3 1 canonical
 reg cfx_llc_excp_cause_info 33 5 4 1 canonical
@@ -500,6 +509,7 @@ reg cfx_time_excp_async_num 34 4 4 1 canonical
 reg cfx_time_escape_num 34 4 5 1 canonical
 reg cfx_time_scratch_regs_num 34 4 6 1 canonical
 reg cfx_time_excp_prev_run_mode 34 5 0 1 canonical
+reg cfx_time_excp_prev_cfx_code 34 5 1 1 canonical
 reg cfx_time_excp_cause_id 34 5 2 1 canonical
 reg cfx_time_excp_cause_ip 34 5 3 1 canonical
 reg cfx_time_excp_cause_info 34 5 4 1 canonical
@@ -548,6 +558,7 @@ reg cfx_uart_excp_async_num 62 4 4 1 canonical
 reg cfx_uart_escape_num 62 4 5 1 canonical
 reg cfx_uart_scratch_regs_num 62 4 6 1 canonical
 reg cfx_uart_excp_prev_run_mode 62 5 0 1 canonical
+reg cfx_uart_excp_prev_cfx_code 62 5 1 1 canonical
 reg cfx_uart_excp_cause_id 62 5 2 1 canonical
 reg cfx_uart_excp_cause_ip 62 5 3 1 canonical
 reg cfx_uart_excp_cause_info 62 5 4 1 canonical
@@ -598,6 +609,7 @@ reg cfx_power_excp_async_num 63 4 4 1 canonical
 reg cfx_power_escape_num 63 4 5 1 canonical
 reg cfx_power_scratch_regs_num 63 4 6 1 canonical
 reg cfx_power_excp_prev_run_mode 63 5 0 1 canonical
+reg cfx_power_excp_prev_cfx_code 63 5 1 1 canonical
 reg cfx_power_excp_cause_id 63 5 2 1 canonical
 reg cfx_power_excp_cause_ip 63 5 3 1 canonical
 reg cfx_power_excp_cause_info 63 5 4 1 canonical

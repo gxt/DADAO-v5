@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..7deb1da
+index 0000000..804d1c5
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,648 @@
+@@ -0,0 +1,649 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -480,6 +480,7 @@ index 0000000..7deb1da
 +    uint64_t escape_num;        /* cg4 rc5 */
 +    uint64_t scratch_regs_num;  /* cg4 rc6 (RO) */
 +    uint64_t prev_run_mode;     /* cg5 rc0 */
++    uint64_t prev_cfx_code;     /* cg5 rc1 (DADAO-12 §3.6/§5.2/§5.3) */
 +    uint64_t cause_id;          /* cg5 rc2 (RO) */
 +    uint64_t cause_ip;          /* cg5 rc3 */
 +    uint64_t cause_info;        /* cg5 rc4 (RO) */
