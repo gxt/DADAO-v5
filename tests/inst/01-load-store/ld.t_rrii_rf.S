@@ -1,7 +1,7 @@
 @@ ld.t_rrii_rf.S — ld.t rfHA, [rbHB, imms12]（rrii, opc 0x16）
 @@ 大类：01-load-store（取数存数，`spec/SimRISC-01 §1`）
 @@ id：ld.t_rrii_rf　形式：rrii　opc：0x16　mask：0xFF000000
-@@ 语义：目的 ← zero_extend(mem[EA])；EA = rb[47:0] + imms12（大端；32 位零扩展）
+@@ 语义：目的 ← mem32[EA]（只写 RF 低 32 位，高 32 位保持原值）；EA = rb[47:0] + imms12（大端）
 @@ 对齐：EA 需 4 B 自然对齐，未对齐 ⇒ MALIGN
 @@ 合法性：该银行 0 号寄存器可作目的（无 dst_0 限制）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节 beat，字面量见该文件）
@@ -13,7 +13,7 @@
 	.include "tests/inst/01-load-store/01-load-store.inc"
 
 @@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
-@@ rf 目的，只比低 32 位（ld.t 存单精：高 32 位不做特殊规定 ⇒ 不据以判失败）
+@@ rf 目的，只比低 32 位（ld.t 存单精：高 32 位保持原值，见 `spec/SimRISC-01 §1` 注；本宏只验低 32 位）
 .macro TEST_LD_RF_LO32 pt, mnem, dst, base, baseval, off, exp
 	LOAD_ADDR \base, \baseval
 	\mnem	\dst, [\base, \off]
