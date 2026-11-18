@@ -31,7 +31,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m15-testcases-016 | 2026-11-18 09:00 | 2–3 h | `tests/ee-*` 文件名统一为 `<role>_<ee>`（51 mv + 删 `k0_README`，含 `run_inst_tiny.py`） |
 
 | m15-spec-001 | 2026-11-13 22:05 | 3–5 天 | UDB IDL 语法 v0 + 5 条样板 operation + `idlc` 复用评估 + 抽取器原型（**待返工**：WIP `0584a64b`，用户要求先摊开文件内容 + 逐条语句分析；延后裁决） |
 
@@ -39,6 +38,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-testcases-016 | 2026-11-18 10:01 | `tests/ee-*` 统一 `<role>_<ee>`（51 mv + 删 `k0_README`；272/272、k0 101/101） |
 | m15-infra-001 | 2026-11-18 09:00 | 三契约消费点迁移（machine_profile 拆读 machine/exec-envs/tests-matrix + `ee-*/runtime.yaml`；删旧 machine-profiles） |
 | m15-testcases-015 | 2026-11-18 08:27 | 剩余 bootrom：`k0_*` 7 件 → `tests/ee-vast/`、4 散件 → `tests/ee-tiny/`（k0 101/101、k0/k1 119/112） |
 | m15-testcases-014 | 2026-11-18 07:30 | `inst-tiny.lds` 移入 `tests/ee-tiny/`（202 .S 头注释同步；272/272） |
