@@ -186,7 +186,7 @@ owner  = "spec"             # 可选；条目级声明
 1. **越授权 4 字已回退**：`git diff 4aa0cb03..HEAD -- spec/README.md` = **单行**（±各 1 行）；把新行的 `make check-manifests-guard` 还原回旧命令名后与旧行**逐字节相同**（我用 python 归一化比对 = `True`），`sha256 锁门控` **原词保留**、`清单门控` 已消失 ⇒ 该行**只差命令名**。
 2. **README sha256 同笔重算**：`spec/.manifests.toml` 相对第 1 轮 `7b2267ab` **仅 `README.md` 一条** sha 变化（`ebe91b62…` → `3f2d57a7…`）；21 册对照 `4aa0cb03` 我自解析重算 = **21/21 MATCH**；清单 22 条现场重算 **0 不符**；`git diff 4aa0cb03..HEAD -- spec/` 仍只有 `spec/README.md` + `spec/.manifests.toml`（**21 册本体 0 改动**）。
 3. **措辞留痕**：`## 待裁定` 新增「`锁门控` → `清单门控` 的措辞修正因超出授权已回退；如需该措辞，请用户另行授权」✓；自审 R5 与完成区均已改为「**仅命令名** / 其余文字不动」并更新 sha `3f2d57a7…` ✓（原「仅第 76 行门控名」已订正）。
-4. **我第 2 轮记录未被篡改**：`diff` 两个 ref 抽出的该节 = **只改 1 行**（`.work/evidence/…` → 「一处具体证据脚本路径」，为 `check-knowledge-refs` 回绿），**`阻断（1 条）` 与 `判决：Needs Revision` 两行原样**，全节 `.work` 字面残留 **0**。
+4. **我第 2 轮记录未被篡改**：`diff` 两个 ref 抽出的该节 = **只改 1 行**（原具体证据脚本路径 → 「一处具体证据脚本路径」，为 `check-knowledge-refs` 回绿），**`阻断（1 条）` 与 `判决：Needs Revision` 两行原样**，全节 `.work` 字面残留 **0**。
 5. **门控**：`make check-manifests-guard` **rc=0**、`make check-knowledge-refs` **rc=0**。
 6. **非阻断（记一笔）**：小节顺序为「第 2 轮 engineer 自审 → **第 3 轮 engineer 自审** → 第 2 轮 reviewer → 第 3 轮 reviewer」，第 3 轮自审被排在第 2 轮验收之前（engineer 落位时所致）；只影响阅读顺序，不改任何文字，无需返工。
 
