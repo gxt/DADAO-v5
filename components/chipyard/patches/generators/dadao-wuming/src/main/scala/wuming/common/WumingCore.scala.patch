@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..cda9c77
+index 0000000..4868d94
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,1513 @@
+@@ -0,0 +1,1529 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -178,6 +178,8 @@ index 0000000..cda9c77
 +  //   cg3 rc10     excp_vector — reset = the cfx's own base; writes drop the
 +  //                low 2 bits (DADAO-13 §1)
 +  //   cg5 rc0      excp_prev_run_mode (RW; `escape` restores it)
++  //   cg5 rc1      excp_prev_cfx_code (RW; saved at entry, `escape` restores
++  //                `inner_cfx_code` from it — DADAO-12 §5.2/§5.3)
 +  //   cg5 rc2/rc4  excp_cause_id / excp_cause_info (hardware-written)
 +  //   cg5 rc3      excp_cause_ip (RW)
 +  //   cg7 rc0-63   internal space descriptors (read-only; writes are CFXREG)
@@ -190,10 +192,12 @@ index 0000000..cda9c77
 +  // Exception entry: the cause triple is driven by `enterHmon` below, which is
 +  // called from every faulting branch (and from the `trap` handoff).
 +  private val excpValid = WireDefault(false.B)
++  private val excpToCurrent = WireDefault(false.B)
 +  private val excpCause = WireDefault(0.U(64.W))
 +  private val excpCauseIp = WireDefault(0.U(64.W))
 +  private val excpInfo = WireDefault(0.U(64.W))
 +  gewu.io.excp.valid := excpValid
++  gewu.io.excp.toCurrent := excpToCurrent
 +  gewu.io.excp.cause := excpCause
 +  gewu.io.excp.causeIp := excpCauseIp
 +  gewu.io.excp.info := excpInfo
@@ -902,27 +906,33 @@ index 0000000..cda9c77
 +    * frame-write point re-checks the finished id and fails by name if it is
 +    * malformed (`ADR-0056` D2/D3).
 +    *
-+    * The entry target is `gewu`'s `vector` register output, not
-+    * `redirect.target`: this method can be reached from `finish` *while* an
-+    * `escape` is committing (the escape target failed its IALIGN check), and
-+    * routing the entry through the escape-selected `redirect.target` would
-+    * both jump to the wrong address and close a combinational loop through
-+    * `finish`'s alignment test.
++    * The entry target is `gewu`'s `entryVector`, not `redirect.target`: this
++    * method can be reached from `finish` *while* an `escape` is committing (the
++    * escape target failed its IALIGN check), and routing the entry through the
++    * escape-selected `redirect.target` would both jump to the wrong address and
++    * close a combinational loop through `finish`'s alignment test.
++    *
++    * `toCurrent` selects the entry target: the monitor (default, every cause on
++    * this profile) or the **current cfx** (`CFXESC`, `DADAO-12` §5.3 step 0 —
++    * "在切换任何状态前触发当前 cfx 的 `CFXESC`", i.e. the entry lands in the
++    * cfx that issued the `escape`, which is `cfx_power` for an application
++    * frame and the monitor for a handler frame).
 +    */
 +  def enterHmon(causeIpValue: UInt, causeOneHot: UInt, info: UInt,
-+                sub: Int = -1): Unit = {
++                sub: Int = -1, toCurrent: Boolean = false): Unit = {
 +    val causeId = GewuCauseId.encode(causeOneHot,
 +      (if (sub < 0) BigInt(0) else BigInt(1) << sub).U(GewuCauseId.WYDE_BITS.W))
-+    printf(p"WumingCore: excp cause=0x${Hexadecimal(causeId)} cause_ip=0x${Hexadecimal(causeIpValue(47, 0))} info=0x${Hexadecimal(info)} vector=0x${Hexadecimal(gewu.io.vector(47, 0))} cycle=${cycles}\n")
++    printf(p"WumingCore: excp cause=0x${Hexadecimal(causeId)} cause_ip=0x${Hexadecimal(causeIpValue(47, 0))} info=0x${Hexadecimal(info)} vector=0x${Hexadecimal(gewu.io.entryVector(47, 0))} cycle=${cycles}\n")
 +    excpValid := true.B
++    excpToCurrent := toCurrent.B
 +    excpCause := causeId
 +    excpCauseIp := causeIpValue
 +    excpInfo := info
 +    // Any exception entry clears the reservation (spec/SimRISC-12 §1.1): an
 +    // `sc` after an exception handler must fail.
 +    resvValid := false.B
-+    ip := gewu.io.vector
-+    continueAt(gewu.io.vector)
++    ip := gewu.io.entryVector
++    continueAt(gewu.io.entryVector)
 +  }
 +
 +  /**
@@ -1135,12 +1145,18 @@ index 0000000..cda9c77
 +          7.U -> (v =/= srcB)))       // br.ne
 +        finish(Mux(taken, (ip + d.brOff)(63, 0), ip + 4.U))
 +      }.elsewhen(d.isEscape) {
-+        // DADAO-12 §5.3: cfxha must be the current cfx (hmon after the
-+        // handoff) and the frame must be valid; otherwise CFXESC enters the
-+        // current cfx without switching anything.  Both checks live in `gewu`.
++        // DADAO-12 §5.3: cfxha must be the current cfx (`inner_cfx_code`) and
++        // that cfx's frame must be valid; otherwise CFXESC enters the current
++        // cfx without switching anything.  A legal escape also restores
++        // `inner_cfx_code` from `cg5 rc1` (§5.3 step 2).  All checks and the
++        // restore live in `gewu`.
 +        gewu.io.escape.valid := true.B
 +        when(!gewu.io.escapeOk) {
-+          enterHmon(ip, (1.U << CFXESC_BIT).pad(64), inst.pad(64))
++          // CFXESC lands in the *current* cfx (§5.3 step 0), not in the
++          // monitor: an application frame's escape error is handled by the cfx
++          // that issued it (cfx_power for an application).
++          enterHmon(ip, (1.U << CFXESC_BIT).pad(64), inst.pad(64),
++            toCurrent = true)
 +        }.otherwise {
 +          finish(gewu.io.redirect.target)
 +        }
@@ -1504,7 +1520,7 @@ index 0000000..cda9c77
 +    printf(p"WumingCore: cfxtrap ip=0x${Hexadecimal(ip(47, 0))} magic=0x${Hexadecimal(inst(17, 0))} vector=0x${Hexadecimal(gewu.io.vector(47, 0))} cycle=${cycles}\n")
 +  }
 +  when(state === sExec && d.isEscape && !execFault) {
-+    printf(p"WumingCore: escape ip=0x${Hexadecimal(ip(47, 0))} frame=0x${Hexadecimal(gewu.io.causeId)} cause_ip=0x${Hexadecimal(gewu.io.causeIp(47, 0))} target=0x${Hexadecimal((gewu.io.causeIp + d.escOff)(47, 0))} mode=${gewu.io.runMode} cycle=${cycles}\n")
++    printf(p"WumingCore: escape ip=0x${Hexadecimal(ip(47, 0))} frame=0x${Hexadecimal(gewu.io.causeId)} cause_ip=0x${Hexadecimal(gewu.io.causeIp(47, 0))} target=0x${Hexadecimal((gewu.io.causeIp + d.escOff)(47, 0))} mode=${gewu.io.runMode} cfx=${gewu.io.curCfx} prev_cfx=${Hexadecimal(gewu.io.prevCfx(5, 0))} cycle=${cycles}\n")
 +  }
 +  when(state === sExec && d.isCfx2 && !execFault) {
 +    printf(p"WumingCore: cfx2 ip=0x${Hexadecimal(ip(47, 0))} ha=${d.cfxHa} cg=${d.cfxCg} rc=${d.cfxRc} write=${d.cfxWrite} ok=${cfxRegOk} mode=${gewu.io.runMode} data=0x${Hexadecimal(cfxRdata)} wdata=0x${Hexadecimal(srcA)} cycle=${cycles}\n")

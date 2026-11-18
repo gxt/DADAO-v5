@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..ebefe35
+index 0000000..e120626
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,207 @@
+@@ -0,0 +1,212 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -117,6 +117,11 @@ index 0000000..ebefe35
 +    sourceMaskBits = 64,
 +    // `inner_run_mode` (DADAO-12 §5.2 step 6): Tiny starts and stays in hypv.
 +    runModeReset = 3,
++    // `inner_cfx_code` at reset: the reset vector is
++    // `cfx_power_hypv_excp_vector` inside the BootROM, i.e. the core starts as
++    // cfx_power (spec/Kaiwu §1).  The boot ROM hands over with `trap cfx_hmon`
++    // and the monitor's `escape` restores this value (§5.3 step 2).
++    runCfxReset = WumingCfxHa.power,
 +    hypvMode = 3,
 +    switchModeValue = 3)
 +}

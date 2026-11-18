@@ -119,15 +119,16 @@ c5_resume:
 	ld.o	rd5, [rb20, 0xF0]
 	__REC	rd5
 
-	@@ ⑥ CFXREG：保留寄存器 `cg5 rc1`（`spec/DADAO-12 §3.6`：保留 ⇒ CFXREG，
-	@@ 三个实现一致；`cause_info` = 触发指令编码）
+	@@ ⑥ CFXREG：保留寄存器 `cg5 rc63`（`spec/DADAO-12 §3.6`：保留 ⇒ CFXREG，
+	@@ 三个实现一致；`cause_info` = 触发指令编码）。`cg5 rc1` 自 m14-spec-009 起是
+	@@ `excp_prev_cfx_code`（RW），不再是保留寄存器，故换用表内明写 reserved 的 rc63。
 	.globl	c6_aip
 c6_aip:
 	aip.si	rb21, 0
 	add.si	rb21, 16
 	st.o	rb21, [rb20, 0xF8]
 c6_fault:
-	cfx2rd	cfx_hmon, cg5, rc1, rd18
+	cfx2rd	cfx_hmon, cg5, rc63, rd18
 	.globl	c6_resume
 c6_resume:
 	ld.o	rd5, [rb20, 0xE0]

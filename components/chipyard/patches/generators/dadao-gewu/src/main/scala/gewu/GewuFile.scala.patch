@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..4008cf4
+index 0000000..10d95b1
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
-@@ -0,0 +1,473 @@
+@@ -0,0 +1,545 @@
 +// See LICENSE for license details.
 +//
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
@@ -48,6 +48,8 @@ index 0000000..4008cf4
 +//   cg3 rc10     excp_vector — reset = the cfx's own base; writes drop the low
 +//                two bits
 +//   cg5 rc0      excp_prev_run_mode (RW; `escape` restores it)
++//   cg5 rc1      excp_prev_cfx_code (RW; saved at exception entry, `escape`
++//                restores `inner_cfx_code` from it)
 +//   cg5 rc2/rc4  excp_cause_id / excp_cause_info (hardware-written)
 +//   cg5 rc3      excp_cause_ip (RW)
 +//   cg7 rc0-63   internal space descriptors (read-only; writes are CFXREG)
@@ -205,14 +207,17 @@ index 0000000..4008cf4
 +  *   - `cfx`             — one entry per implemented cfx (order fixes the frame
 +  *                         index, so a caller can name them positionally);
 +  *   - `monitor`         — index into `cfx` of the instance that owns the
-+  *                         exception frame and receives exception entries; it
-+  *                         is the "current cfx" `escape` checks against
-+  *                         (`DADAO-12` §5.3);
++  *                         exception frame and receives exception entries; a
++  *                         legal `escape` checks the target against the
++  *                         *current* cfx and reads the frame of the cfx that
++  *                         owns one (`DADAO-12` §5.3);
 +  *   - `dataBits`        — width of one cfx register / of the cause fields /
 +  *                         of the IP (all 64-bit on this spec);
 +  *   - `modeBits`        — width of `excp_prev_run_mode` / `inner_run_mode`;
 +  *   - `sourceMaskBits`  — width of the source/interrupt masks;
 +  *   - `runModeReset`    — `inner_run_mode` reset value;
++  *   - `runCfxReset`     — `inner_cfx_code` reset value (the cfx whose space the
++  *                         reset vector lives in, `spec/Kaiwu §1`);
 +  *   - `hypvMode`        — the mode exception entry forces (`DADAO-12` §5.2);
 +  *   - `switchModeValue` — value `cg3 rc8` reads (a core may accept the write
 +  *                         and keep one mode, or supply a real mode register).
@@ -224,6 +229,7 @@ index 0000000..4008cf4
 +  modeBits: Int,
 +  sourceMaskBits: Int,
 +  runModeReset: Int,
++  runCfxReset: Int,
 +  hypvMode: Int,
 +  switchModeValue: Int
 +) {
@@ -239,6 +245,8 @@ index 0000000..4008cf4
 +    "Gewu: the source masks are cfx data registers and share their width")
 +  require(runModeReset >= 0 && BigInt(runModeReset) < (BigInt(1) << modeBits),
 +    "Gewu: `runModeReset` must fit the run mode field")
++  require(runCfxReset >= 0 && runCfxReset < 64,
++    "Gewu: `runCfxReset` is a 6-bit cfxha")
 +  require(hypvMode >= 0 && BigInt(hypvMode) < (BigInt(1) << modeBits),
 +    "Gewu: `hypvMode` must fit the run mode field")
 +  require(switchModeValue >= 0 && BigInt(switchModeValue) < (BigInt(1) << dataBits),
@@ -272,6 +280,9 @@ index 0000000..4008cf4
 +  /** Exception entry into `monitor`: latch the cause frame and force hypv. */
 +  val excp = new Bundle {
 +    val valid = Input(Bool())
++    /** Enter the *current* cfx instead of the monitor (`CFXESC` is delivered to
++      * the current cfx, `DADAO-12` §5.2/§5.3 step 0). */
++    val toCurrent = Input(Bool())
 +    val cause = Input(UInt(gp.dataBits.W)) // one-hot excp_cause_id
 +    val causeIp = Input(UInt(gp.dataBits.W)) // excp_cause_ip
 +    val info = Input(UInt(gp.dataBits.W)) // excp_cause_info
@@ -302,14 +313,21 @@ index 0000000..4008cf4
 +  val monitorHa = Output(UInt(6.W))
 +  /** `excp_vector` of the monitor (cg3 rc10). */
 +  val vector = Output(UInt(gp.dataBits.W))
++  /** `excp_vector` of the cfx this exception entry targets: the monitor, or
++    * the current cfx when `excp.toCurrent` is set (`DADAO-12` §5.2 step 7). */
++  val entryVector = Output(UInt(gp.dataBits.W))
 +  /** `excp_cause_id != 0`: a frame exists (`escape` may return from it). */
 +  val frameValid = Output(Bool())
 +  val causeId = Output(UInt(gp.dataBits.W))
 +  val causeIp = Output(UInt(gp.dataBits.W))
 +  val causeInfo = Output(UInt(gp.dataBits.W))
 +  val prevMode = Output(UInt(gp.modeBits.W))
++  /** `excp_prev_cfx_code` of the monitor (cg5 rc1). */
++  val prevCfx = Output(UInt(gp.dataBits.W))
 +  /** `inner_run_mode`. */
 +  val runMode = Output(UInt(gp.modeBits.W))
++  /** `inner_cfx_code` (`DADAO-12` §5.2 step 6 / §5.3 step 2). */
++  val curCfx = Output(UInt(6.W))
 +  /** `cfx_intr_mask` of the monitor (cg3 rc4). */
 +  val intrMask = Output(UInt(gp.sourceMaskBits.W))
 +}
@@ -342,12 +360,18 @@ index 0000000..4008cf4
 +  val intrMask = RegInit(VecInit(gp.cfx.map(_ => allOnes)))
 +  // cg3 rc10: the cfx's own base (`DADAO-13` §1).
 +  val vector = RegInit(VecInit(gp.cfx.map(c => c.vectorBase.U(gp.dataBits.W))))
-+  // cg5 rc0 / rc2 / rc3 / rc4 exception frame.
++  // cg5 rc0 / rc1 / rc2 / rc3 / rc4 exception frame.
 +  val prevMode = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.modeBits.W))))
++  val prevCfx = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
 +  val causeId = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
 +  val causeIp = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
 +  val causeInfo = RegInit(VecInit(gp.cfx.map(_ => 0.U(gp.dataBits.W))))
 +  val runMode = RegInit(gp.runModeReset.U(gp.modeBits.W))
++  // `inner_cfx_code`: the cfx the core currently runs as.  It starts at the cfx
++  // that owns the reset vector (`spec/Kaiwu §1`), becomes the entry target on an
++  // exception (`DADAO-12` §5.2 step 6) and is restored from the frame on
++  // `escape` (§5.3 step 2).
++  val curCfx = RegInit(gp.runCfxReset.U(6.W))
 +
 +  // ---- register access ----------------------------------------------------
 +  private val isCg3 = io.addr.cg === 3.U
@@ -357,19 +381,21 @@ index 0000000..4008cf4
 +  private val isSwitchMode = isCg3 && io.addr.rc === 8.U
 +  private val isVector = isCg3 && io.addr.rc === 10.U
 +  private val isPrevMode = io.addr.cg === 5.U && io.addr.rc === 0.U
++  private val isPrevCfx = io.addr.cg === 5.U && io.addr.rc === 1.U
 +  private val isCauseId = io.addr.cg === 5.U && io.addr.rc === 2.U
 +  private val isCauseIp = io.addr.cg === 5.U && io.addr.rc === 3.U
 +  private val isCauseInfo = io.addr.cg === 5.U && io.addr.rc === 4.U
 +  private val isSpace = io.addr.cg === 7.U
 +
 +  io.readOk := implemented && cg3Allowed &&
-+    (isMask || isSwitchMode || isVector || isPrevMode || isCauseId ||
-+      isCauseIp || isCauseInfo || isSpace)
++    (isMask || isSwitchMode || isVector || isPrevMode || isPrevCfx ||
++      isCauseId || isCauseIp || isCauseInfo || isSpace)
 +  // cg3 rc8 accepts the write and ignores it when the core keeps one mode;
 +  // cg5 rc2/rc4 are hardware-written and cg7 is read-only, so writing them is
 +  // CFXREG (`DADAO-12` §5.2).
 +  io.writeOk := implemented && cg3Allowed &&
-+    (isMask || isSwitchMode || isVector || isPrevMode || isCauseIp)
++    (isMask || isSwitchMode || isVector || isPrevMode || isPrevCfx ||
++      isCauseIp)
 +
 +  /** Per-cfx constant, selected by the addressed instance. */
 +  private def perCfx(f: GewuCfxParams => BigInt): UInt =
@@ -395,9 +421,10 @@ index 0000000..4008cf4
 +    Mux(isSwitchMode, gp.switchModeValue.U(gp.dataBits.W),
 +      Mux(isVector, vector(sel),
 +        Mux(isPrevMode, prevMode(sel).pad(gp.dataBits),
-+          Mux(isCauseId, causeId(sel),
-+            Mux(isCauseIp, causeIp(sel),
-+              Mux(isCauseInfo, causeInfo(sel), cg7Rdata)))))))
++          Mux(isPrevCfx, prevCfx(sel),
++            Mux(isCauseId, causeId(sel),
++              Mux(isCauseIp, causeIp(sel),
++                Mux(isCauseInfo, causeInfo(sel), cg7Rdata))))))))
 +
 +  when(io.wEn && io.writeOk) {
 +    when(isMask) {
@@ -408,6 +435,10 @@ index 0000000..4008cf4
 +      vector(sel) := Cat(io.wdata(gp.dataBits - 1, 2), 0.U(2.W))
 +    }.elsewhen(isPrevMode) {
 +      prevMode(sel) := io.wdata(gp.modeBits - 1, 0)
++    }.elsewhen(isPrevCfx) {
++      // RW (`DADAO-12` §3.6): the stored value is the code word as written;
++      // only the 6-bit field is used when `escape` restores `inner_cfx_code`.
++      prevCfx(sel) := io.wdata
 +    }.elsewhen(isCauseIp) {
 +      causeIp(sel) := io.wdata
 +    }
@@ -415,35 +446,57 @@ index 0000000..4008cf4
 +  }
 +
 +  // ---- observable state ---------------------------------------------------
-+  private val hasFrame = causeId(monitor) =/= 0.U
++  // Entry target (`DADAO-12` §5.2): the monitor, or the current cfx when the
++  // entry asks for it (`CFXESC` goes to the current cfx, §5.3 step 0).  A
++  // software-written `excp_prev_cfx_code` can name a cfx this machine does not
++  // implement; such a code has no vector and no frame, so the entry falls back
++  // to the monitor instead of addressing nothing.
++  private val hitCur = VecInit(gp.cfx.map(c => curCfx === c.id.U(6.W)))
++  private val curImplemented = hitCur.asUInt.orR
++  private val hitMonitor = VecInit(gp.cfx.zipWithIndex.map {
++    case (_, i) => i.U === monitor.U })
++  private val curIdx = PriorityEncoder(hitCur)
++  private val entrySel =
++    Mux(io.excp.toCurrent && curImplemented, hitCur, hitMonitor)
++  private val entryIdx = PriorityEncoder(entrySel)
++  private val entryHa = Mux1H(entrySel, gp.cfx.map(c => c.id.U(6.W)))
++  // The frame the core observes and `escape` returns from is the current
++  // cfx's; an unimplemented current code has no frame (fall back to the monitor
++  // for the traces only).
++  private val viewIdx = Mux(curImplemented, curIdx, monitor.U)
++
++  private val hasFrame = causeId(viewIdx) =/= 0.U
 +  io.monitorHa := gp.cfx(monitor).id.U(6.W)
 +  io.vector := vector(monitor)
++  io.entryVector := vector(entryIdx)
 +  io.frameValid := hasFrame
-+  io.causeId := causeId(monitor)
-+  io.causeIp := causeIp(monitor)
-+  io.causeInfo := causeInfo(monitor)
-+  io.prevMode := prevMode(monitor)
++  io.causeId := causeId(viewIdx)
++  io.causeIp := causeIp(viewIdx)
++  io.causeInfo := causeInfo(viewIdx)
++  io.prevMode := prevMode(viewIdx)
++  io.prevCfx := prevCfx(viewIdx)
 +  io.runMode := runMode
++  io.curCfx := curCfx
 +  io.intrMask := intrMask(monitor)
 +
 +  // ---- events and redirect request (D4) -----------------------------------
-+  // `escape` (`DADAO-12` §5.3): cfxha must be the current (monitor) cfx and the
-+  // frame must be valid; otherwise the caller enters the monitor with CFXESC
-+  // and nothing switches.
++  // `escape` (`DADAO-12` §5.3): `cfxha` must be the *current* cfx
++  // (`inner_cfx_code`) and that cfx's frame must be valid; otherwise the caller
++  // enters the current cfx with CFXESC and nothing switches.
 +  private val escapeOk =
-+    io.escape.valid && io.escape.ha === io.monitorHa && hasFrame
++    io.escape.valid && curImplemented && io.escape.ha === curCfx && hasFrame
 +  io.escapeOk := escapeOk
-+  private val escapeTarget = (causeIp(monitor) + io.escape.off)(gp.dataBits - 1, 0)
++  private val escapeTarget = (causeIp(viewIdx) + io.escape.off)(gp.dataBits - 1, 0)
 +
 +  io.redirect.valid := io.excp.valid || escapeOk
 +  // The target must not depend on `excp.valid`: the core feeds it back into its
 +  // own `enterHmon` decision (`finish` checks the low bits for IALIGN), which
 +  // would close a combinational loop.  Exception entry and a legal `escape`
 +  // never happen in the same cycle, so keying on `escapeOk` alone is exact.
-+  io.redirect.target := Mux(escapeOk, escapeTarget, vector(monitor))
++  io.redirect.target := Mux(escapeOk, escapeTarget, io.entryVector)
 +  io.redirect.cause := Mux(io.excp.valid, io.excp.cause,
-+    Mux(escapeOk, causeId(monitor), 0.U(gp.dataBits.W)))
-+  io.redirect.causeIp := Mux(io.excp.valid, io.excp.causeIp, causeIp(monitor))
++    Mux(escapeOk, causeId(viewIdx), 0.U(gp.dataBits.W)))
++  io.redirect.causeIp := Mux(io.excp.valid, io.excp.causeIp, causeIp(viewIdx))
 +  io.redirect.info := Mux(io.excp.valid, io.excp.info, 0.U(gp.dataBits.W))
 +  io.redirect.isEscape := !io.excp.valid && escapeOk
 +
@@ -451,13 +504,32 @@ index 0000000..4008cf4
 +  // either enters an exception or returns from one, never both, and making the
 +  // precedence explicit keeps the state update deterministic.
 +  when(io.excp.valid) {
-+    causeId(monitor) := io.excp.cause
-+    causeIp(monitor) := io.excp.causeIp
-+    causeInfo(monitor) := io.excp.info
-+    prevMode(monitor) := runMode
++    causeId(entryIdx) := io.excp.cause
++    causeIp(entryIdx) := io.excp.causeIp
++    causeInfo(entryIdx) := io.excp.info
++    // §5.2 step 5 saves the *entering* cfx; step 6 switches the target after.
++    // Keeping the order explicit is what makes a nested entry (an async event
++    // delivered inside a frame) leave the frame's own cfx recoverable.
++    //
++    // The one cycle where an entry and a legal `escape` coincide is the escape
++    // whose return address fails its alignment check: the `escape` commits
++    // (§5.3 step 2 restores mode/cfx) and the resulting `IALIGN` enters
++    // afterwards, so the frame this entry writes must record the *restored*
++    // values.  Saving the pre-escape ones would make the frame claim it was
++    // entered from the handler and the next `escape` would leave the core in
++    // the handler's cfx (the QEMU model has the same order: restore, then
++    // raise).
++    prevMode(entryIdx) := Mux(escapeOk, prevMode(viewIdx), runMode)
++    prevCfx(entryIdx) :=
++      Mux(escapeOk, prevCfx(viewIdx), curCfx.pad(gp.dataBits))
 +    runMode := gp.hypvMode.U(gp.modeBits.W)
++    // §5.2 step 6: switch to the entry target (monitor, or the current cfx for
++    // CFXESC).  A `toCurrent` entry keeps the code it entered as.
++    curCfx := entryHa
 +  }.elsewhen(escapeOk) {
-+    runMode := prevMode(monitor)
++    runMode := prevMode(viewIdx)
++    // §5.3 step 2: restore the current cfx of the frame being returned from.
++    curCfx := prevCfx(viewIdx)(5, 0)
 +  }
 +
 +  // ---- `excp_cause_id` structure at the frame-write point ------------------
