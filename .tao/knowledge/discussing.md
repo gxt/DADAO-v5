@@ -177,6 +177,7 @@
 - **semihosting 指针 = PA**（`spec/Kaiwu §5.2` + `contract-semihosting §2`）；QEMU 侧缺口 `ISS-450`。
 - **中断 mask 口径**（2026-11-16）：异步源轴查**当前运行模式 monitor** 的行（`DADAO-12 §5.2（三）步骤 3`），与 `inner_cfx_code` 无关。
 - **阶段推进即退役过时判据**：`docs/Process-07 §4a`。
+- **异常帧内禁止 semihosting 打印**（`m14-linux-017` F33，2026-11-18 按 spec 判定）：`DADAO-12 §5.2 步骤6` 规定 `trap` 把 `inner_cfx_code` 置为目标 cfx；`§5.3 步骤0` 规定 `cfxha != inner_cfx_code` ⇒ `CFXESC`。因此在异常帧内做 `trap cfx0`（打印）后，`escape <原 cfx>` 必然报 `CFXESC`——**硬件行为正确，探针写法错误**。正确做法：帧内只写内存槽、`escape` 之后再打印。**推广到 K2–K4 探针另立任务**（会改各门控判据输入）。
 - **`cause_info` 编码**（`ADR-0056` Accepted）：`cause_id[15:0]` one-hot 不变；`[31:16]` 保留；wyde2 `[47:32]` = `CFXPERM` 子原因、wyde3 `[63:48]` = `CFXMEM` 子原因（`[56] ADWBFAIL`/`[57] NONPTW`）；另一 wyde 必须全 0；`cause_info` 恒为地址。
 
 ---
