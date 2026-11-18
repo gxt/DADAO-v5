@@ -1,14 +1,16 @@
 # step5 BootROM firmware (INTEG-046t)
 
 4 MiB BootROM (`BOOTROM_BASE` – `0xffff_ffff_ffff`) implementing the
-ADR-0043 chain **power → hmon → test body (hypv)**.  `smon` is reserved and is
-not entered by the Vast test path (user ruling 2026-11-02).  The interface truth for the image
+ADR-0043 chain **power → hmon → test body (hypv)**.  The step5 **test** path
+does not enter `smon` (user ruling 2026-11-02); the **K1 kernel boot chain**
+(`power → hmon → smon → kernel`, `tools/qemu/k0_boot_probe.py`) does
+(`spec/Kaiwu §6.3`).  The interface truth for the image
 index table, ELF checks and failure codes is the task file
 `.tao/tasks/integ/INTEG-046t-Step5启动链落地.md` §接口规范 1/2/5.
 
 ## Files
 
-- `power.S` — power stage (cfx63/hypv) plus the two shared ROM routines:
+- `power_vast.S` — power stage (cfx63/hypv) plus the two shared ROM routines:
   - `rom_validate_table` at ROM base + `0x2000`: validates the header
     (`magic 0x44424F54`, version 1, count 2, reserved 0) and every entry
     (`type ∈ {1,2}`, flags bits `[31:3] = 0`); looks up one entry by type.
@@ -17,10 +19,11 @@ index table, ELF checks and failure codes is the task file
   - `elf_loader` at ROM base + `0x2400`: validates/loads an ELF image.
     Inputs `rd2` file offset, `rd3` size, `rb2` target SRAM base, `rd4` flags;
     returns `rd8` (0 / `0xB3` / `0xB4` / `0xB5`) and `rd5 = e_entry`.
-- `hmon.S` — hmon stage at `0x0fff_0000_0000` (cfx3/hypv).
-- `smon.S` — smon stage at `0x0bff_0000_0000` (cfx2/supv).
-- `power.lds` / `hmon.lds` / `smon.lds` — 64 KiB link windows with size
-  `ASSERT`s; `power.lds` also pins the two shared routine offsets.
+- `hmon_vast.S` — hmon stage at `0x0fff_0000_0000` (cfx3/hypv).
+- `smon_vast.S` — smon stage at `0x0bff_0000_0000` (cfx2/supv).
+- `power_vast.lds` / `hmon_vast.lds` / `smon_vast.lds` — 64 KiB link
+  windows with size `ASSERT`s; `power_vast.lds` also pins the two shared
+  routine offsets.
 - `../build_step5_bootrom.py` (in `tools/testcases/arch/`) packs the table and
   the three images; it patches the `boot_magic_trap` immediate to the table's
   `boot_magic` (default `0x30001`).
@@ -47,7 +50,7 @@ Flags used: `REQUIRED=1`, `LOAD=2`, `VERIFY=4` (default `0x7`).
   `cfx_pmem` (`DIR=0`), invalidates the TLB, sets `PTBR=0` then
   `PTW_ENABLE=1`, programs `cfx_umon.hypv.excp_vector = ENTRY` with
   `switch_run_mode = hypv`, then `trap cfx_umon`.
-- `smon.S` is kept buildable but is not entered by this path; the kernel/smon
+- `smon_vast.S` is kept buildable but is not entered by the step5 test path; the kernel/smon
   tests keep the `power → hmon → smon` route in a later task.
 
 ## Observation registers (`-d cpu`)

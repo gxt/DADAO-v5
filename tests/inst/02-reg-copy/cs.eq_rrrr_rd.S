@@ -4,7 +4,7 @@
 @@ 语义：rdHA == rdHB ⇒ rdHC = rdHD；否则 rdHC 不变（**目的在第三个操作数** rdHC）
 @@ 合法性：目的 rdHC 为 rd0 ⇒ ILLI（`dst_rd0`）；比较操作数可为 rd0 合法（读出 0）
 @@ 数据块：本文件只用立即数准备寄存器；`tests/inst/macros/inst_test.inc` 的 RDATA 供 rf 变体用
-@@ 链接布局：`tests/ee-tiny/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
+@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 3 / boundary 8 / overlap 2（链例 15 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流

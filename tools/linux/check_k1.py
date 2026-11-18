@@ -117,7 +117,7 @@ from tools.linux import make_vmlinux as vmlinux   # noqa: E402  (build driver)
 from tools.linux import paths as linux_paths      # noqa: E402
 # `.ascii` oracle helper: `tests/ee-tiny/` 不是合法模块名（`-`），按文件路径加载
 # （m15-testcases-011：脚本迁出 `tools/linux/`）。
-_SEMI_SMOKE = _REPO / "tests" / "ee-tiny" / "run_semihosting_smoke.py"
+_SEMI_SMOKE = _REPO / "tests" / "ee-tiny" / "run_semihosting_tiny.py"
 _spec = importlib.util.spec_from_file_location("tiny_run_semihosting_smoke", _SEMI_SMOKE)
 run_semihosting_smoke = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(run_semihosting_smoke)
@@ -127,9 +127,9 @@ sys.path.insert(0, str(_REPO / "tools" / "testcases" / "lib"))
 import machine_profile                             # noqa: E402
 
 PROFILE = "vast"
-BOOTROM_MAGIC = 0x44424F54            # tests/ee-vast/k0_*, image index table
+BOOTROM_MAGIC = 0x44424F54            # tests/ee-vast/*_vast.*, image index table
 POWER_WINDOW = 0x10000                # spec/Kaiwu §1: last 64 KiB = reset
-#: BootROM index types (`tests/ee-vast/k0_README.md`): 1 = hmon, 2 = smon.
+#: BootROM index types (spec/Kaiwu §6.3): 1 = hmon, 2 = smon.
 STAGE_TYPES = {1: "hmon", 2: "smon"}
 #: Monitor SRAM windows (spec/Kaiwu §1.1): the image index table names the
 #: ELF each stage is loaded from; power copies them here before the handover.

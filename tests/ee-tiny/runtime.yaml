@@ -9,7 +9,7 @@
 # `tools/testcases/lib/machine_profile.py` 与链接脚本交叉核对。
 #
 # Tiny：raw `-kernel` 装 `kernel_base`，前 `kernel_reserved` 字节零保留，应用入口
-# = `kernel_base + kernel_reserved`（spec/Kaiwu §6）；`tests/ee-tiny/kaiwu-tiny-app.lds`
+# = `kernel_base + kernel_reserved`（spec/Kaiwu §6）；`tests/ee-tiny/app_tiny.lds`
 # 提供同一 entry。
 entry: 0xFFFF_FF01_0100
 sp: 0xFFFF_FF7E_FF00

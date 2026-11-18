@@ -24,7 +24,7 @@ one and both suites are spread over the shards).  Every written file is
 re-read through ``run_engine_ratio``'s own loader before the run succeeds --
 a file that loader cannot select the intended ids from is a hard error.
 
-    python3 tests/ee-user/make_blocked_case_lists.py \
+    python3 tests/ee-user/gem5se_blocked_lists_user.py \
         --out-dir <runtime dir>/lists --shards 2
 
 Nothing here changes a case, an expectation, a source or a gate.
@@ -62,7 +62,7 @@ def iso_utc() -> str:
 
 def ratio_module(repo_root: str = REPO_ROOT):
     """`run_engine_ratio` by path -- the loader that must accept our files."""
-    path = os.path.join(repo_root, "tests", "ee-user", "run_engine_ratio.py")
+    path = os.path.join(repo_root, "tests", "ee-user", "run_gem5se_ratio_user.py")
     spec = importlib.util.spec_from_file_location("_m13_ratio_loader", path)
     if spec is None or spec.loader is None:      # pragma: no cover - fixed path
         raise ImportError(f"cannot load {path}")

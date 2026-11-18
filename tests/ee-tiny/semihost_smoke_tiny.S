@@ -1,4 +1,4 @@
-@@ semihost_smoke.S — Kaiwu-Tiny semihosting responder probe
+@@ semihost_smoke_tiny.S — Kaiwu-Tiny semihosting responder probe
 @@ (m12-chipyard-004).
 @@
 @@ Runs unchanged on QEMU `kaiwu-tiny`, gem5 FS `tiny` and the chipyard
@@ -37,7 +37,7 @@
 	.include "tests/shared/asm/machine-tiny.inc"
 	.include "tests/shared/asm/machine.inc"
 
-@@ Fixed placement (kept in sync by semihost_smoke.lds ASSERTs):
+@@ Fixed placement (kept in sync by semihost_smoke_tiny.lds ASSERTs):
 @@   .text     ENTRY + 0x000   (<= 0x400)
 @@   BUF       ENTRY + 0x400   (64 bytes, payload of SYS_WRITE)
 @@   EXCL      ENTRY + 0x440   (one character for SYS_WRITEC)
@@ -113,7 +113,7 @@ EXCL:
 	.ascii	"!"
 	.p2align 3
 MSG:
-	.include "tests/ee-tiny/semihost_msg.inc"
+	.include "tests/ee-tiny/semihost_msg_tiny.inc"
 
 	.section .bss
 	.p2align 3

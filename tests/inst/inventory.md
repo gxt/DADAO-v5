@@ -9,7 +9,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 > active case；`—` = 该类不适用；`deferred <reason>` = 该类暂缓（须记原因）。
 > `file` 列 = **载体** `<册>/<id>.S`（汇编套件；**唯一**载体模型，YAML 载体已全退役）。
 > 覆盖判据：`.S` 载体由 L2 `check-inst-asm` **逐镜像执行**（`tools/testcases/inst/
-> run_asm_suite.py`；**镜像 = 每 `.S` 一个**：链例 + 该文件的全部故障例顺序跑，
+> run_inst_tiny.py`；**镜像 = 每 `.S` 一个**：链例 + 该文件的全部故障例顺序跑，
 > 比结果字节流、故障例不符 ⇒ 该镜像退出码 ≠ 0），`validate_vectors.py`
 > 只断言载体存在且结构完好（`<id>.S` 是 `contracts/opcodes.yaml` 的身份、含用例行、
 > 检查点号 1..N 连续）；类级覆盖（每类 ≥1 条）由各 `.S` 的 `@@ 用例：` 头与逐点断言承担。
@@ -222,7 +222,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 ## `.S` 载体覆盖（L2 `check-inst-asm`）
 
 `tests/inst/<册>/*.S` 是**执行型**载体：**镜像 = 每 `.S` 一个**（链例 + 该文件的全部
-故障例顺序跑，`m15-testcases-007`），`run_asm_suite.py` 对每个镜像比**结果字节流**
+故障例顺序跑，`m15-testcases-007`），`run_inst_tiny.py` 对每个镜像比**结果字节流**
 （`8 × 检查点数`，逐字节）；故障例不符表现为该镜像退出码 ≠ 0（`0xF0|异常位索引`
 或 `SYS_EXIT(点号)`）。`-defsym CASE_N=<点号>` = **调试用单例模式**（只比退出码，
 不进 `check-inst-asm`）。`make check-inst-asm`（L2，单平台 QEMU `kaiwu-tiny`）跑本表
@@ -230,7 +230,7 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 现场统计为准。
 
 本表是**读者面登记**，`make check-inst-asm` 的载体集 = `tests/inst/` 下**含 `.S` 的子
-目录**（现场派生，`run_asm_suite.py --books-root tests/inst`），册名/册数不写死。
+目录**（现场派生，`run_inst_tiny.py --books-root tests/inst`），册名/册数不写死。
 
 ### 覆盖边界（如实）
 
@@ -270,6 +270,6 @@ M1 覆盖矩阵。每行唯一对应一个覆盖率主键 `id`
 >   单平台 QEMU `kaiwu-tiny`，链例比结果字节流、故障例比 monitor 段退出码；
 > - **L3 不再有 inst 全量执行**：Vast 的 ISA 级执行覆盖**明确放弃**（用户 2026-11-14 裁定），
 >   其 ISA 语义由 `spec/` + M13 三平台差分矩阵承担（inst 行 = `.S` 的
->   `run_asm_suite.py --platforms chipyard,qemu,gem5`，Tiny）；`check-inst`/`check-inst-smoke`
+>   `run_inst_tiny.py --platforms chipyard,qemu,gem5`，Tiny）；`check-inst`/`check-inst-smoke`
 >   两个目标已删除（`docs/Process-07`）。
 > - 各册见上「`.S` 载体覆盖（L2 `check-inst-asm`）」表；`00-isa-design` 是非 id 载体册。

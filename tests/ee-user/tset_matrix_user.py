@@ -31,7 +31,7 @@ is reported instead of being copied into the matrix.
 Usage::
 
     # Per-case report + SE section: runtime locations (not committed).
-    python3 tests/ee-user/se_tset_matrix.py \\
+    python3 tests/ee-user/tset_matrix_user.py \\
         --json-out <运行期目录>/se-parity.json \\
         --markdown-out <运行期目录>/se-parity.md \\
         --matrix-section-out <运行期目录>/matrix-section.md
@@ -90,7 +90,7 @@ def _load_baseline_module():
     a local copy would be free to drift.
     """
     path = os.path.join(REPO_ROOT, "tests", "ee-user",
-                        "run_gem5_se_baseline.py")
+                        "run_gem5se_baseline_user.py")
     spec = importlib.util.spec_from_file_location("gem5_se_baseline", path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)

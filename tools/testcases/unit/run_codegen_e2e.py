@@ -6,7 +6,7 @@ single-TU pipeline and compares the **guest process exit code** against the
 independently-derived expected value (it does NOT rely on lit exit codes):
 
     llc -march=dadao <prog.ll>                 -> <prog>.s
-    cat minimal_crt0.s <prog>.s -> <prog>.s     (single TU; the stub is
+    cat crt0_user.s <prog>.s -> <prog>.s     (single TU; the stub is
                                                  re-targeted at `.text` so the
                                                  `call main` resolves without a
                                                  linker -- see _read_raw_crt0)
@@ -111,7 +111,7 @@ DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
 # the legacy 56-byte `-bios` blob is no longer used by this gate.
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir() / "bootrom" / "tiny"
                       / "bootrom_tiny.bin")
-DEFAULT_CRT0 = "tests/ee-user/minimal_crt0.s"
+DEFAULT_CRT0 = "tests/ee-user/crt0_user.s"
 DEFAULT_VECTORS_DIR = "tests/unit/llvm/codegen"
 DEFAULT_EXPECTED = "tests/unit/llvm/codegen/expected.yaml"
 # Work dir under the SDK test-artifacts root (ADR-0016 D6), resolved through
@@ -166,7 +166,7 @@ def _require_exec(path: str, what: str) -> None:
         sys.exit(2)
 
 
-# ``minimal_crt0.s`` places ``_start`` in ``.text.start`` so the linked-ELF
+# ``crt0_user.s`` places ``_start`` in ``.text.start`` so the linked-ELF
 # pipelines can pin the stub at the profile's ROM base.  The raw pipeline has no
 # linker: it assembles crt0+program as ONE translation unit and extracts bytes
 # with objcopy, which does not apply relocations.  A cross-section

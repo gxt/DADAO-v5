@@ -4,7 +4,7 @@
 @@
 @@ Load contract (spec/Kaiwu §6.2): the host loader installs exactly two
 @@ artefacts — the fixed 64 KiB BootROM firmware (shared power stub + the shared
-@@ minimal hmon of tests/ee-tiny/hmon.S, built by
+@@ minimal hmon of tests/ee-tiny/hmon_tiny.S, built by
 @@ build_tiny_bootrom.py) and this application ELF, whose only PT_LOAD is in
 @@ SRAM and whose e_entry is the fixed ENTRY 0xffff_ff01_0100.  The host never
 @@ installs BootROM or hmon.

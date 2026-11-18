@@ -14,8 +14,8 @@ Two independent properties per run (spec/Kaiwu §5.3/§5.5):
      `subprocess.returncode` — never through a shell pipe (`| tee`/`| tail`
      would swallow it);
   2. console bytes: the guest console stream must equal the oracle derived
-     from the probe *sources* (`tests/ee-tiny/semihost_msg.inc` for the
-     SYS_WRITE0 payload, `semihost_smoke.S`'s `EXCL` for the SYS_WRITEC
+     from the probe *sources* (`tests/ee-tiny/semihost_msg_tiny.inc` for the
+     SYS_WRITE0 payload, `semihost_smoke_tiny.S`'s `EXCL` for the SYS_WRITEC
      character).  QEMU's own output is never used to build the expectation.
 
 A QEMU startup failure (missing firmware, bad machine) is reported separately
@@ -23,7 +23,7 @@ from a guest exit code: such a run carries QEMU's own error text on stderr and
 is never accepted as "guest exited with N".
 
 Usage:
-  python3 tests/ee-tiny/run_semihosting_smoke.py
+  python3 tests/ee-tiny/run_semihosting_tiny.py
 
 Requires: `make install-host build-bootrom`.  Missing prerequisites exit 2 with
 the exact make invocation to run.
@@ -59,8 +59,8 @@ EXPECT_FAIL_RC = 64
 QEMU_TIMEOUT_S = 120
 QEMU_ERROR_PREFIX = b"qemu-system-dadao:"
 
-_MSG_INC = _REPO_ROOT / "tests" / "ee-tiny" / "semihost_msg.inc"
-_SMOKE_S = _REPO_ROOT / "tests" / "ee-tiny" / "semihost_smoke.S"
+_MSG_INC = _REPO_ROOT / "tests" / "ee-tiny" / "semihost_msg_tiny.inc"
+_SMOKE_S = _REPO_ROOT / "tests" / "ee-tiny" / "semihost_smoke_tiny.S"
 
 
 class SetupError(RuntimeError):
@@ -211,7 +211,7 @@ def main() -> int:
             args, [str(_qemu()), str(bootrom)], label="run_semihosting_smoke")
 
         print(f"[INFO] oracle: {len(oracle)} bytes from "
-              f"{_MSG_INC.name} + semihost_smoke.S:EXCL")
+              f"{_MSG_INC.name} + semihost_smoke_tiny.S:EXCL")
         failures = 0
         failures += run_case(smoke, bootrom, oracle, EXPECT_SMOKE_RC,
                              "semihost_smoke.elf", args.timeout)

@@ -50,7 +50,7 @@ _YAML_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tests" / "ee-tiny"))   # m15-testcases-011
-import run_asm_suite  # noqa: E402  (用例行正则的单一真源)
+import run_inst_tiny as run_asm_suite  # noqa: E402  (用例行正则的单一真源)
 
 # 与 `run_asm_suite.scan_source` 同样的用例行判定（链例 + 各类故障宏）。
 _ASM_CASE_RES = (

@@ -9,7 +9,7 @@
  *   * .text.start (minimal_crt0 `_start`) is linked at the profile entry
  *     (RAM + 1 MiB); .text follows it.  Vast has no separate ROM stub.
  *   * common .rodata/.data/.bss + __bss_start/__bss_end symbols live in
- *     dadao-common.lds (INCLUDE below).
+ *     common_user.lds (INCLUDE below).
  */
 
 ENTRY(_start)
@@ -42,7 +42,7 @@ SECTIONS
     *(.text .text.*)
   } > RAM :text
 
-  INCLUDE dadao-common.lds
+  INCLUDE common_user.lds
 
   .rom : ALIGN(4) {
     *(.rom .rom.*)

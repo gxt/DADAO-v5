@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """k0_boot_probe.py — Kaiwu-Vast K1 boot probe (m14-qemu-001).
 
-Builds the K1 firmware (`tests/ee-vast/k0_*`: boot hmon + smon) on top of
+Builds the K1 firmware (`tests/ee-vast/hmon_k0_vast.S` + `smon_k0_vast.S`: boot hmon + smon) on top of
 the reused step5 power stage, builds the minimal raw/ELF probe kernel, runs it
 on `qemu-system-dadao -machine kaiwu-vast,bootrom-image=...,-kernel ...` and
 checks the frozen startup ABI of `spec/Kaiwu §6.3` field by field.
@@ -14,9 +14,7 @@ Expectation sources (never the implementation):
     entry-state values and the failure semantics;
   * `spec/DADAO-12 §2.2.3` — L1 PTE bit layout (HSJU/PPN/SPF/flags);
   * `contracts/linux-boot.yaml::rules[].id` — the rule names a bad image must
-    be rejected by;
-  * `tests/ee-vast/k0_README.md` — smon failure codes and the probe
-    register map.
+    be rejected by.
 
 What "reachable FAIL" means here: every positive assertion is a live compare
 against a freshly derived value (a mistyped field, PTE or register value turns
@@ -63,7 +61,7 @@ BUILD_STEP5 = os.path.join(_REPO, "tools", "testcases", "arch",
                            "build_step5_bootrom.py")
 QEMU_SRC = os.path.join(_REPO, ".work", "source", "qemu")
 MACHINE_C = os.path.join(QEMU_SRC, "hw", "dadao", "dadao-machine.c")
-SMON_S = os.path.join(K0_DIR, "k0_smon.S")
+SMON_S = os.path.join(K0_DIR, "smon_k0_vast.S")
 
 DEFAULT_QEMU = str(_paths.host_toolchain_bin() / "qemu-system-dadao")
 TOOLCHAIN = _paths.host_toolchain_bin()
@@ -247,17 +245,17 @@ def build_firmware(out_dir, neg_case=0, *, hmon_src=None, hmon_defs=(),
         run([lld, "-z", "max-page-size=0x1000", "-T", lds, out,
              "-o", out.replace(".o", ".elf")])
 
-    assemble(os.path.join(STEP5_DIR, "power.S"),
+    assemble(os.path.join(STEP5_DIR, "power_vast.S"),
              os.path.join(out_dir, "power.o"),
-             os.path.join(STEP5_DIR, "power.lds"))
+             os.path.join(STEP5_DIR, "power_vast.lds"))
     run([objcopy, "-O", "binary", os.path.join(out_dir, "power.elf"),
          os.path.join(out_dir, "power.bin")])
-    assemble(hmon_src or os.path.join(K0_DIR, "k0_hmon.S"),
+    assemble(hmon_src or os.path.join(K0_DIR, "hmon_k0_vast.S"),
              os.path.join(out_dir, "hmon.o"),
-             os.path.join(K0_DIR, "k0_hmon.lds"), list(defs) + list(hmon_defs))
-    assemble(os.path.join(K0_DIR, "k0_smon.S"),
+             os.path.join(K0_DIR, "hmon_k0_vast.lds"), list(defs) + list(hmon_defs))
+    assemble(os.path.join(K0_DIR, "smon_k0_vast.S"),
              os.path.join(out_dir, "smon.o"),
-             os.path.join(K0_DIR, "k0_smon.lds"), list(defs) + list(smon_defs))
+             os.path.join(K0_DIR, "smon_k0_vast.lds"), list(defs) + list(smon_defs))
     if name is None:
         name = ("bootrom_k0_neg%d.bin" % neg_case if neg_case
                 else "bootrom_k0.bin")
@@ -327,10 +325,10 @@ def build_kernel(out_dir):
                 val -= 1 << 64
             defs += ["--defsym", "%s=%d" % (key, val)]
         run([mc, "--triple=dadao-unknown-elf", "-filetype=obj", *defs,
-             os.path.join(K0_DIR, "k0_probe_kernel.S"), "-o",
+             os.path.join(K0_DIR, "probe_kernel_k0_vast.S"), "-o",
              os.path.join(out_dir, "probe_kernel.o")])
         run([lld, "-z", "max-page-size=0x10000", "-T",
-             os.path.join(K0_DIR, "k0_probe_kernel.lds"),
+             os.path.join(K0_DIR, "probe_kernel_k0_vast.lds"),
              os.path.join(out_dir, "probe_kernel.o"), "-o", elf_path])
         run([objcopy, "-O", "binary", elf_path, raw_path])
         with open(raw_path, "rb") as fh:

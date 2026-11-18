@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """acceptance_report.py -- M13 收口：矩阵冻结 + 差异归因（`m13-integ-005`）.
 
-本脚本**不跑 guest**。输入 = 同一批 `run_asm_suite.py` 的三平台逐镜像 JSON +
+本脚本**不跑 guest**。输入 = 同一批 `run_inst_tiny.py` 的三平台逐镜像 JSON +
 每镜像 `.out` 结果流（与 `m13-integ-002`/`003` 同一形态），并**复用**两个已验收的
 差分生成器：
 
@@ -56,7 +56,7 @@ for _p in (str(_HERE), str(_REPO / "tools" / "infra"),
 
 import fp_diff as fp                    # noqa: E402  (FP 生成器 + 共用工具)
 import int_diff as intd                 # noqa: E402  (整数/访存生成器)
-import run_asm_suite as asm             # noqa: E402  (载体现场统计)
+import run_inst_tiny as asm             # noqa: E402  (载体现场统计)
 
 SCHEMA = "m13-acceptance/1"
 TASK = "m13-integ-005"

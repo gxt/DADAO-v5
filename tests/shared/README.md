@@ -13,14 +13,14 @@
 > `tools/testcases/lib/machine_profile.py`。本目录不再有测试侧 profile 表。
 
 > **2026-11-17（`m15-testcases-011` / `m15-testcases-012`）**：Tiny 专属 bootrom 与
-> `kaiwu-tiny{,-app}.lds`/`picolibc-tiny.ld` 集中到 `tests/ee-tiny/`；qemu-user / gem5 SE 的
+> `kernel_tiny.lds`/`app_tiny.lds`/`picolibc_tiny.ld` 集中到 `tests/ee-tiny/`；qemu-user / gem5 SE 的
 > `crt0/minimal_crt0.s`、`runtime/*`、`linker/dadao-common.lds`、`linker/dadao-dyn.lds` 集中到
 > `tests/ee-user/`（均平铺）；本目录只留共用 BootROM 与 Vast 布局脚本。
 > **2026-11-18（`m15-testcases-013`）**：Vast 的 step5 BootROM 固件与 `linker/kaiwu-vast.lds`
 > 集中到 `tests/ee-vast/`（平铺）；`linker/` 子目录随之消失。
 > **2026-11-18（`m15-testcases-015`）**：`bootrom/` 下的 Tiny 残留（`bootrom.lds`、`tiny_crt.S`、
 > `tiny_smoke.S`、`semihost_msg.inc`）→ `tests/ee-tiny/`；K1 boot 链固件（原 `bootrom/k0/`，
-> 实为 Kaiwu-Vast，加 `k0_` 前缀以免与 step5 的 `hmon.S`/`smon.S` 同名）→ `tests/ee-vast/`
+> 实为 Kaiwu-Vast，以 `_k0_vast` 后缀与 step5 的 `hmon_vast.S`/`smon_vast.S` 区分）→ `tests/ee-vast/`
 > （均平铺）；`bootrom/` 子目录随之消失，本目录只剩 `asm/`、`init/`。
 
 ## 纪律

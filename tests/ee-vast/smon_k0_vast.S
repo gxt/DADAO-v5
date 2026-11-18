@@ -36,8 +36,8 @@
 @@ the only DMA destination is PA 0 (page table), so the host-written page
 @@ survives the handover (probe: boot info page tail non-zero count == 0).
 @@
-@@ Failure codes (task §7; identical in this source, tests/shared/bootrom/k0/
-@@ README.md and tools/qemu/k0_boot_probe.py):
+@@ Failure codes (task §7; identical in this source and
+@@ tools/qemu/k0_boot_probe.py):
 @@   0xB8 trap cause / boot magic mismatch (step5 value, unchanged)
 @@   0xC1 boot info magic or version mismatch
 @@   0xC2 boot info size < 0x60

@@ -13,7 +13,7 @@
  *     (RAM + 0x10100); the first 0x100 bytes of the raw -kernel window are
  *     reserved/zero, not part of the ELF sections.
  *   * __bss_start/__bss_end bracket .bss (minimal_crt0 clears it itself).
- *   * common sections/symbols live in dadao-common.lds (INCLUDE below).
+ *   * common sections/symbols live in common_user.lds (INCLUDE below).
  */
 
 ENTRY(_start)
@@ -45,7 +45,7 @@ SECTIONS
     *(.text .text.*)
   } > RAM :text
 
-  INCLUDE dadao-common.lds
+  INCLUDE common_user.lds
 
   /* Test assets (minimal_crt0/picolibc) put _start in .text.start at ROM.
    * Legacy musl crt1.o keeps _start in .text at the application entry; it is

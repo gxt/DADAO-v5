@@ -769,7 +769,7 @@ _locked-install-cfx-aliases:
 
 # build-bootrom (QEMU-047t / ADR-0020 D12): assemble and link the SEE bootrom
 # firmware with the project toolchain (llvm-mc + ld.lld + tests/ee-tiny/ sources and
-# tests/ee-tiny/bootrom.lds; ADR-0003 / ADR-0019 / contract-elf §6.1.2) and emit the flat
+# tests/ee-tiny/bootrom_tiny.lds; ADR-0003 / ADR-0019 / contract-elf §6.1.2) and emit the flat
 # `-bios` image, plus the sample user application loaded by `-kernel`
 # (ADR-0004 D2.3 path B: raw-bin dual image).  Tools come from the install root
 # (ADR-0016 D9); run `make install-host` first.  Outputs live under the SDK
@@ -787,7 +787,7 @@ TINY_BOOTROM_DIR = $(BOOTROM_DIR)/tiny
 TINY_BOOTROM = $(TINY_BOOTROM_DIR)/bootrom_tiny.bin
 # Kaiwu-Vast 4 MiB BootROM (QEMU-080t): supplied through the
 # `bootrom-image` machine property; the flat 64 KiB `-bios` window stays Tiny.
-# TESTCASES-092t: two hmon fault-policy variants from the same hmon.S:
+# TESTCASES-092t: two hmon fault-policy variants from the same hmon_tiny.S:
 #   bootrom_step5.bin      HMON_FAULT_POLICY=0 (resume: arch / check-arch*)
 #   bootrom_step5_inst.bin HMON_FAULT_POLICY=1 (exit: inst harness observes
 #                          the machine-fault exit code instead of 0xB7)
@@ -799,26 +799,26 @@ _locked-build-bootrom:
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "build-bootrom: ERROR: $(LLVM_OBJCOPY_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLVM_NM_BIN) || { echo "build-bootrom: ERROR: $(LLVM_NM_BIN) not found — run 'make install-host' first"; exit 1; }
 	@mkdir -p $(BOOTROM_DIR) $(STEP5_BOOTROM_DIR)
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/bootrom.S -o $(BOOTROM_DIR)/bootrom.o
-	$(LLD_BIN) -T tests/ee-tiny/bootrom.lds $(BOOTROM_DIR)/bootrom.o -o $(BOOTROM_DIR)/bootrom.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/bootrom_tiny.S -o $(BOOTROM_DIR)/bootrom.o
+	$(LLD_BIN) -T tests/ee-tiny/bootrom_tiny.lds $(BOOTROM_DIR)/bootrom.o -o $(BOOTROM_DIR)/bootrom.elf
 	$(LLVM_OBJCOPY_BIN) -O binary $(BOOTROM_DIR)/bootrom.elf $(BOOTROM_DIR)/bootrom.bin
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/bootrom_app.S -o $(BOOTROM_DIR)/bootrom_app.o
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/bootrom_app_tiny.S -o $(BOOTROM_DIR)/bootrom_app.o
 	$(LLVM_OBJCOPY_BIN) -O binary --only-section=.text $(BOOTROM_DIR)/bootrom_app.o $(BOOTROM_DIR)/bootrom_app.bin
 	@# m12-chipyard-003/007: ELF smoke application for the chipyard `+loadmem=`
 	@# closed loop.  The application is `tiny_crt.o` (SP setup at the fixed
 	@# entry, spec/Kaiwu §6) + the smoke body, linked into one ELF.
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/tiny_crt.S -o $(BOOTROM_DIR)/tiny_crt.o
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/tiny_smoke.S -o $(BOOTROM_DIR)/tiny_smoke.o
-	$(LLD_BIN) -T tests/ee-tiny/tiny_smoke.lds $(BOOTROM_DIR)/tiny_crt.o $(BOOTROM_DIR)/tiny_smoke.o -o $(BOOTROM_DIR)/tiny_smoke.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/crt0_tiny.S -o $(BOOTROM_DIR)/tiny_crt.o
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/smoke_tiny.S -o $(BOOTROM_DIR)/tiny_smoke.o
+	$(LLD_BIN) -T tests/ee-tiny/smoke_tiny.lds $(BOOTROM_DIR)/tiny_crt.o $(BOOTROM_DIR)/tiny_smoke.o -o $(BOOTROM_DIR)/tiny_smoke.elf
 	@# m12-chipyard-007: Tiny fixed BootROM — power stub (8 KiB segment at the
 	@# reset vector) + minimal hmon handler (8 KiB segment at hmon SRAM) packed
 	@# into one 64 KiB image with the §6.1 image index table.  Every layout
 	@# limit is a build-time failure (builder + linker asserts).
 	@mkdir -p $(TINY_BOOTROM_DIR)
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/power.S -o $(TINY_BOOTROM_DIR)/power.o
-	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-tiny/power.lds $(TINY_BOOTROM_DIR)/power.o -o $(TINY_BOOTROM_DIR)/power.elf
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/hmon.S -o $(TINY_BOOTROM_DIR)/hmon.o
-	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-tiny/hmon.lds $(TINY_BOOTROM_DIR)/hmon.o -o $(TINY_BOOTROM_DIR)/hmon.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/power_tiny.S -o $(TINY_BOOTROM_DIR)/power.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-tiny/power_tiny.lds $(TINY_BOOTROM_DIR)/power.o -o $(TINY_BOOTROM_DIR)/power.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/hmon_tiny.S -o $(TINY_BOOTROM_DIR)/hmon.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-tiny/hmon_tiny.lds $(TINY_BOOTROM_DIR)/hmon.o -o $(TINY_BOOTROM_DIR)/hmon.elf
 	$(PYTHON) tools/testcases/arch/build_tiny_bootrom.py \
 	  --out-dir $(TINY_BOOTROM_DIR) \
 	  --power-elf $(TINY_BOOTROM_DIR)/power.elf \
@@ -828,27 +828,27 @@ _locked-build-bootrom:
 	@# m12-chipyard-004: semihosting responder probes.  One source, four images:
 	@#   3-platform smoke (SYS_WRITE0/WRITEC/CLOCK/EXIT), guest-FAIL status,
 	@#   unimplemented SYS_OPEN (must be a loud harness error), SYS_WRITE.
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=0 --defsym EXIT_CODE=0x00 --defsym SEMIHOST_UNIMPL=0 tests/ee-tiny/semihost_smoke.S -o $(BOOTROM_DIR)/semihost_smoke.o
-	$(LLD_BIN) -T tests/ee-tiny/semihost_smoke.lds $(BOOTROM_DIR)/semihost_smoke.o -o $(BOOTROM_DIR)/semihost_smoke.elf
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=0 --defsym EXIT_CODE=0x40 --defsym SEMIHOST_UNIMPL=0 tests/ee-tiny/semihost_smoke.S -o $(BOOTROM_DIR)/semihost_fail.o
-	$(LLD_BIN) -T tests/ee-tiny/semihost_smoke.lds $(BOOTROM_DIR)/semihost_fail.o -o $(BOOTROM_DIR)/semihost_fail.elf
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=0 --defsym EXIT_CODE=0x00 --defsym SEMIHOST_UNIMPL=1 tests/ee-tiny/semihost_smoke.S -o $(BOOTROM_DIR)/semihost_unimpl.o
-	$(LLD_BIN) -T tests/ee-tiny/semihost_smoke.lds $(BOOTROM_DIR)/semihost_unimpl.o -o $(BOOTROM_DIR)/semihost_unimpl.elf
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=1 --defsym EXIT_CODE=0x00 --defsym SEMIHOST_UNIMPL=0 tests/ee-tiny/semihost_smoke.S -o $(BOOTROM_DIR)/semihost_write.o
-	$(LLD_BIN) -T tests/ee-tiny/semihost_smoke.lds $(BOOTROM_DIR)/semihost_write.o -o $(BOOTROM_DIR)/semihost_write.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=0 --defsym EXIT_CODE=0x00 --defsym SEMIHOST_UNIMPL=0 tests/ee-tiny/semihost_smoke_tiny.S -o $(BOOTROM_DIR)/semihost_smoke.o
+	$(LLD_BIN) -T tests/ee-tiny/semihost_smoke_tiny.lds $(BOOTROM_DIR)/semihost_smoke.o -o $(BOOTROM_DIR)/semihost_smoke.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=0 --defsym EXIT_CODE=0x40 --defsym SEMIHOST_UNIMPL=0 tests/ee-tiny/semihost_smoke_tiny.S -o $(BOOTROM_DIR)/semihost_fail.o
+	$(LLD_BIN) -T tests/ee-tiny/semihost_smoke_tiny.lds $(BOOTROM_DIR)/semihost_fail.o -o $(BOOTROM_DIR)/semihost_fail.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=0 --defsym EXIT_CODE=0x00 --defsym SEMIHOST_UNIMPL=1 tests/ee-tiny/semihost_smoke_tiny.S -o $(BOOTROM_DIR)/semihost_unimpl.o
+	$(LLD_BIN) -T tests/ee-tiny/semihost_smoke_tiny.lds $(BOOTROM_DIR)/semihost_unimpl.o -o $(BOOTROM_DIR)/semihost_unimpl.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=1 --defsym EXIT_CODE=0x00 --defsym SEMIHOST_UNIMPL=0 tests/ee-tiny/semihost_smoke_tiny.S -o $(BOOTROM_DIR)/semihost_write.o
+	$(LLD_BIN) -T tests/ee-tiny/semihost_smoke_tiny.lds $(BOOTROM_DIR)/semihost_write.o -o $(BOOTROM_DIR)/semihost_write.elf
 	@# INTEG-046t step5: 256 KiB BootROM (power flat + hmon/smon ELFs) and the
 	@# image index table builder.  -z max-page-size keeps the small images inside
 	@# the 64 KiB per-image limit (the default 64 KiB page padding would not).
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-vast/power.S -o $(STEP5_BOOTROM_DIR)/power.o
-	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-vast/power.lds $(STEP5_BOOTROM_DIR)/power.o -o $(STEP5_BOOTROM_DIR)/power.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-vast/power_vast.S -o $(STEP5_BOOTROM_DIR)/power.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-vast/power_vast.lds $(STEP5_BOOTROM_DIR)/power.o -o $(STEP5_BOOTROM_DIR)/power.elf
 	$(LLVM_OBJCOPY_BIN) -O binary $(STEP5_BOOTROM_DIR)/power.elf $(STEP5_BOOTROM_DIR)/power.bin
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-vast/hmon.S -o $(STEP5_BOOTROM_DIR)/hmon.o
-	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-vast/hmon.lds $(STEP5_BOOTROM_DIR)/hmon.o -o $(STEP5_BOOTROM_DIR)/hmon.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-vast/hmon_vast.S -o $(STEP5_BOOTROM_DIR)/hmon.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-vast/hmon_vast.lds $(STEP5_BOOTROM_DIR)/hmon.o -o $(STEP5_BOOTROM_DIR)/hmon.elf
 	@# TESTCASES-092t: the exit-policy hmon variant (same source, --defsym).
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym HMON_FAULT_POLICY=1 tests/ee-vast/hmon.S -o $(STEP5_BOOTROM_DIR)/hmon_inst.o
-	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-vast/hmon.lds $(STEP5_BOOTROM_DIR)/hmon_inst.o -o $(STEP5_BOOTROM_DIR)/hmon_inst.elf
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-vast/smon.S -o $(STEP5_BOOTROM_DIR)/smon.o
-	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-vast/smon.lds $(STEP5_BOOTROM_DIR)/smon.o -o $(STEP5_BOOTROM_DIR)/smon.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym HMON_FAULT_POLICY=1 tests/ee-vast/hmon_vast.S -o $(STEP5_BOOTROM_DIR)/hmon_inst.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-vast/hmon_vast.lds $(STEP5_BOOTROM_DIR)/hmon_inst.o -o $(STEP5_BOOTROM_DIR)/hmon_inst.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-vast/smon_vast.S -o $(STEP5_BOOTROM_DIR)/smon.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-vast/smon_vast.lds $(STEP5_BOOTROM_DIR)/smon.o -o $(STEP5_BOOTROM_DIR)/smon.elf
 	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
 	  --out-dir $(STEP5_BOOTROM_DIR) \
 	  --power-elf $(STEP5_BOOTROM_DIR)/power.elf \
@@ -900,16 +900,16 @@ _locked-test-picolibc-smoke: build-picolibc
 # representative reports a genuine test failure (fail=0); backend/library gaps
 # are reported separately as `blocked`, never as silent skips.
 _locked-check-picolibc-tests: build-picolibc build-bootrom
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-tiny/picolibc_tests.py --stage fast --jobs $(TEST_JOBS)
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-tiny/run_picolibc_tiny.py --stage fast --jobs $(TEST_JOBS)
 
 # check-picolibc-tests-full (TESTCASES-042t): the full picolibc self-test set
 # (opt-in; L3-like — hundreds of compile/link/QEMU runs, several minutes).
 _locked-check-picolibc-tests-full: build-picolibc build-bootrom
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-tiny/picolibc_tests.py --stage full --jobs $(TEST_JOBS)
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-tiny/run_picolibc_tiny.py --stage full --jobs $(TEST_JOBS)
 
 # check-testcases-suites (TESTCASES-045t stage 1): drive the two upstream
 # *reference* suites -- libc-test and llvm-test-suite -- through the static musl
-# flow (compile -> ld.lld -T kaiwu-tiny.lds -> flat image -> qemu-system-dadao
+# flow (compile -> ld.lld -T kernel_tiny.lds -> flat image -> qemu-system-dadao
 # -machine kaiwu-tiny, "path B").  Upstream's own harnesses are unusable here
 # (libc-test's runtest.exe needs fork/waitpid/signals; llvm-test-suite's
 # CMake/lit driver assumes a hosted OS), so tools/testcases/run_suite.py drives
@@ -955,7 +955,7 @@ _locked-check-tset-libc-smoke:
 	@mkdir -p .work/log/testcases $(TSET_GATE_JSON_DIR)
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-libc-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
 	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-libc-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-user/run_libc_test_smoke.py --link-mode static \
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-user/run_libc_test_smoke_user.py --link-mode static \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-libc-smoke.json \
 	    > .work/log/testcases/check-tset-libc-smoke.log 2>&1; \
 	  rc=$$?; \
@@ -969,7 +969,7 @@ _locked-check-tset-llvm-smoke:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-llvm-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
 	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-llvm-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
 	@test -d .work/source/llvm-test-suite || { echo "check-tset-llvm-smoke: ERROR: .work/source/llvm-test-suite not found — run 'make fetch'"; exit 1; }
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-user/run_llvm_ts_smoke.py --link-mode static --jobs $(TEST_JOBS) \
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-user/run_llvm_ts_smoke_user.py --link-mode static --jobs $(TEST_JOBS) \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-llvm-smoke.json \
 	    > .work/log/testcases/check-tset-llvm-smoke.log 2>&1; \
 	  rc=$$?; \
@@ -983,7 +983,7 @@ _locked-check-tset-embench-smoke:
 	@test -x $(HOST_TOOLCHAIN_BIN)/clang || { echo "check-tset-embench-smoke: ERROR: $(HOST_TOOLCHAIN_BIN)/clang not found — run 'make install-host'"; exit 1; }
 	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-embench-smoke: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
 	@test -d .work/source/embench-iot || { echo "check-tset-embench-smoke: ERROR: .work/source/embench-iot not found — run 'make fetch'"; exit 1; }
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-user/run_embench_user_suite.py --link-mode static \
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-user/run_embench_user.py --link-mode static \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-embench-smoke.json \
 	    > .work/log/testcases/check-tset-embench-smoke.log 2>&1; \
 	  rc=$$?; \
@@ -1005,7 +1005,7 @@ _locked-check-tset-libc-full:
 	@test -f .work/source/musl/lib/libc.a || { echo "check-tset-libc-full: ERROR: .work/source/musl/lib/libc.a not found — run 'make build-musl'"; exit 1; }
 	@fail=0; for m in $(TSET_FULL_MODES); do \
 	  echo "check-tset-libc-full: [$$m] full suite"; \
-	  $(PYTHON) tests/ee-user/run_libc_test_user_suite.py --link-mode $$m \
+	  $(PYTHON) tests/ee-user/run_libc_test_user.py --link-mode $$m \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-libc-full-$$m.json \
 	    > .work/log/testcases/check-tset-libc-full-$$m.log 2>&1; \
 	  rc=$$?; tail -3 .work/log/testcases/check-tset-libc-full-$$m.log; \
@@ -1035,7 +1035,7 @@ _locked-check-tset-embench-full:
 	@test -d .work/source/embench-iot || { echo "check-tset-embench-full: ERROR: .work/source/embench-iot not found — run 'make fetch'"; exit 1; }
 	@fail=0; for m in $(TSET_FULL_MODES); do \
 	  echo "check-tset-embench-full: [$$m] full suite"; \
-	  $(PYTHON) tests/ee-user/run_embench_user_suite.py --link-mode $$m \
+	  $(PYTHON) tests/ee-user/run_embench_user.py --link-mode $$m \
 	    --json-out $(TSET_GATE_JSON_DIR)/check-tset-embench-full-$$m.json \
 	    > .work/log/testcases/check-tset-embench-full-$$m.log 2>&1; \
 	  rc=$$?; tail -3 .work/log/testcases/check-tset-embench-full-$$m.log; \
@@ -1108,7 +1108,7 @@ _locked-linux-initramfs:
 	@JOBS=$(JOBS) $(PYTHON) tools/linux/make_initramfs.py
 
 _locked-linux-semihosting-smoke:
-	@JOBS=$(JOBS) $(PYTHON) tests/ee-tiny/run_semihosting_smoke.py
+	@JOBS=$(JOBS) $(PYTHON) tests/ee-tiny/run_semihosting_tiny.py
 
 # build-busybox（m14-linux-030）：K6 的静态 musl busybox（最小 applet 集，真源
 # = components/busybox/config.min）。前置：install-host 工具链 + build-musl 的
@@ -1586,7 +1586,7 @@ _locked-check-lit-full:
 # M3 CodeGen end-to-end gate (INTEG-012t).  Tools are taken from the install
 # root (ADR-0016 D9); install-host keeps it in sync with the .work/ build trees.
 # Pipeline (single TU, per ADR-0003 D5):
-#   llc -march=dadao <prog.ll> -> .s; cat minimal_crt0.s prog.s -> .s;
+#   llc -march=dadao <prog.ll> -> .s; cat crt0_user.s prog.s -> .s;
 #   llvm-mc --triple=dadao -filetype=obj -> .o;
 #   llvm-objcopy -O binary --only-section=.text -> .bin;
 #   qemu-system-dadao -M kaiwu-tiny -bios <64 KiB firmware> -kernel .bin ...
@@ -1611,7 +1611,7 @@ _locked-test-codegen: install-host
 	  DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/unit/run_codegen_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
 	    --qemu $(QEMU_BIN) \
-	    --crt0 tests/ee-user/minimal_crt0.s \
+	    --crt0 tests/ee-user/crt0_user.s \
 	    --vectors-dir tests/unit/llvm/codegen \
 	    --expected tests/unit/llvm/codegen/expected.yaml \
 	    --work-dir $(CODEGEN_E2E_WORK) \
@@ -1624,9 +1624,9 @@ _locked-test-codegen: install-host
 # M4 multi-TU / multi-section ELF end-to-end gate (INTEG-016t).  Tools are taken
 # from the install root (ADR-0016 D9); install-host keeps it in sync with the
 # build trees.  Pipeline (multi-object, per contract-elf.md §6.1.2):
-#   llvm-mc --triple=dadao -filetype=obj tests/ee-user/minimal_crt0.s -> crt0.o;
+#   llvm-mc --triple=dadao -filetype=obj tests/ee-user/crt0_user.s -> crt0.o;
 #   per TU llc -march=dadao -filetype=obj                            -> <tu>.o;
-#   ld.lld -T tests/ee-tiny/kaiwu-tiny.lds crt0.o <tu>.o ... -o <prog>.elf;
+#   ld.lld -T tests/ee-tiny/kernel_tiny.lds crt0.o <tu>.o ... -o <prog>.elf;
 #   qemu-system-dadao -M kaiwu-tiny -kernel <prog>.elf ...
 # The guest process exit code is compared against the independent M4 manifest
 # tests/unit/llvm/codegen/m4/expected.yaml (TESTCASES-030t/032t).
@@ -1646,8 +1646,8 @@ _locked-test-elf: install-host build-bootrom
 	  mkdir -p .work/log/integ; \
 	  DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/unit/run_elf_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --ldlld $(LLD_BIN) \
-	    --qemu $(QEMU_BIN) --crt0 tests/ee-user/minimal_crt0.s \
-	    --lds tests/ee-tiny/kaiwu-tiny-app.lds \
+	    --qemu $(QEMU_BIN) --crt0 tests/ee-user/crt0_user.s \
+	    --lds tests/ee-tiny/app_tiny.lds \
 	    --bootrom $(TINY_BOOTROM) \
 	    --vectors-dir tests/unit/llvm/codegen/m4 \
 	    --expected tests/unit/llvm/codegen/m4/expected.yaml \
@@ -1768,7 +1768,7 @@ _locked-check-arch: check-arch-smoke
 #      (`@main` return low byte) -- tools/testcases/diff_ir_lli.py (038t).
 #   2. Embench-IoT E2E: every benchmark under <embench-src>/src/ is compiled,
 #      linked and run at -O0 and -O2; judgement = guest exit code 0
-#      (support/main.c returns !correct) -- tests/ee-tiny/run_embench_e2e.py.
+#      (support/main.c returns !correct) -- tests/ee-tiny/run_embench_tiny.py.
 #   3. the full generated lit MC suite (check-lit-full, 037t), driven through a
 #      sub-make so its own exit code is captured.
 # opt-in: NOT part of `make check` (the fast lit subset is already in check-lit).
@@ -1776,7 +1776,7 @@ _locked-check-arch: check-arch-smoke
 # Landing: work dirs under the SDK test-artifacts root (ADR-0016 D6 /
 # Process-05 §6), resolved via paths.py (D7) -- never hardcoded.
 DIFF_IR_LLI = tools/testcases/diff_ir_lli.py
-EMBENCH_E2E = tests/ee-tiny/run_embench_e2e.py
+EMBENCH_E2E = tests/ee-tiny/run_embench_tiny.py
 EMBENCH_SRC = .work/source/embench-iot
 IR_LLI_WORK = $(TEST_ARTIFACTS_DIR)/ir-lli-diff
 EMBENCH_E2E_WORK = $(TEST_ARTIFACTS_DIR)/m6-embench
@@ -1901,7 +1901,7 @@ check-fp-contract:
 # `.S` 载体门控 (m13-testcases-030 / ISS-413, L2)：`tests/inst/<册>/*.S` 的**全部**
 # 迁移 id（12 册）逐镜像执行 —— 同一份 ELF 交给 QEMU `kaiwu-tiny`：链例比结果
 # 字节流（`8 × 检查点数`，逐字节）、故障例比 monitor 段退出码（`0xF0|异常位`）。
-# 载体数 / 镜像数 / 检查点数一律**现场统计**（`run_asm_suite.py` 解析 `.S`），本
+# 载体数 / 镜像数 / 检查点数一律**现场统计**（`run_inst_tiny.py` 解析 `.S`），本
 # 目标与脚本都不写死。**单平台**：chipyard/gem5 的三方逐字节是各册任务的验收口径
 # （分钟级~小时级），不进 L2；L2 要的是「YAML 退役后每条已迁 id 仍有可执行回归」。
 # 前置只要求**已存在**的固定 64 KiB 固件与 QEMU：不挂 `build-bootrom` 前置 ⇒ L2
@@ -1912,7 +1912,7 @@ _locked-check-inst-asm:
 	@mkdir -p .work/log/qemu
 	@test -x $(QEMU_BIN) || { echo "check-inst-asm: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -f $(TINY_BOOTROM) || { echo "check-inst-asm: ERROR: $(TINY_BOOTROM) not found — run 'make build-bootrom' first"; exit 1; }
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-tiny/run_asm_suite.py \
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-tiny/run_inst_tiny.py \
 	    --books-root tests/inst --platforms qemu --jobs $(TEST_JOBS) \
 	    > $(INST_ASM_LOG) 2>&1; \
 	  rc=$$?; \

@@ -71,7 +71,7 @@ SUITES = ("libc-test", "llvm-ts")
 
 DRIVERS = {
     "libc-test": os.path.join("tests", "ee-user",
-                              "run_libc_test_user_suite.py"),
+                              "run_libc_test_user.py"),
     "llvm-ts": os.path.join("tests", "ee-user", "run_llvm_ts_user.py"),
 }
 
@@ -580,7 +580,7 @@ def self_test(work_dir, repo_root):
                "embench": dict(still_blocked=["crc32-0"])})), fh)
     ratio = load_module("_m13_ratio_for_selftest",
                         os.path.join(repo_root, "tests", "ee-user",
-                                     "run_engine_ratio.py"))
+                                     "run_gem5se_ratio_user.py"))
     selection = ratio.load_selection(case_list, ["libc-test", "llvm-ts"],
                                      "recheck")
     check("selection read", {"libc-test": ["functional/a"],
@@ -705,7 +705,7 @@ def main() -> int:
     try:
         ratio = load_module("_m13_ratio_loader",
                             os.path.join(repo_root, "tests", "ee-user",
-                                         "run_engine_ratio.py"))
+                                         "run_gem5se_ratio_user.py"))
         with open(case_list, "r") as fh:
             record = json.load(fh)
         available = sorted((record.get("timeout_recheck") or {}))

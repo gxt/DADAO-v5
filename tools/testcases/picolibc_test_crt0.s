@@ -18,7 +18,7 @@
 @@
 @@ The stub is placed in .text.start at ROM 0xffff_ffff_0000 (Tiny A scheme:
 @@ e_entry in ROM, application in SRAM); picolibc __start clears BSS.
-@@ Entry/exit conventions follow tests/ee-user/minimal_crt0.s and
+@@ Entry/exit conventions follow tests/ee-user/crt0_user.s and
 @@ contract-semihosting.md §3/§5 (SYS_EXIT reaches the host $?).
 
 	.include "tests/shared/asm/machine-tiny.inc"

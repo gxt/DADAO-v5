@@ -130,7 +130,7 @@ The static link line names ``libc.a`` **explicitly**: ``-L <musl>/lib -lc``
 would pick ``libc.so`` from the same directory (no ``PT_INTERP``, but
 ``PT_DYNAMIC`` present) and ``qemu-user`` then segfaults (TESTCASES-046t /
 QEMU-062t).  Base address (ISS-247): no ``-T``/linker script is passed, so
-lld's default base is used; ``tests/ee-tiny/kaiwu-tiny.lds`` (``RAM ORIGIN =
+lld's default base is used; ``tests/ee-tiny/kernel_tiny.lds`` (``RAM ORIGIN =
 the old high RAM base``) cannot be loaded by ``qemu-user`` on this 47-bit host VA.
 Every image's minimum ``PT_LOAD`` and its ``PT_INTERP`` are read back from the
 file (the modality is asserted, not assumed).
@@ -373,7 +373,7 @@ import writer_guard  # noqa: E402
 import run_artifacts as _run_artifacts  # noqa: E402
 import proc_reap  # noqa: E402  (TESTCASES-085t: reap qemu on external signals)
 import gem5_se_engine  # noqa: E402  (GEM5-021t: second engine, driver layer)
-import ref_split  # noqa: E402  (per-channel reference split, TESTCASES-006)
+import gem5se_ref_split_user as ref_split  # noqa: E402  (per-channel reference split, TESTCASES-006)
 
 TOOLCHAIN_BIN = str(_paths.host_toolchain_bin())
 
@@ -454,7 +454,7 @@ TARGET = "dadao-unknown-elf"
 DYNAMIC_LINKER = "/lib/ld-musl-dadao.so.1"
 
 # Public include set for *user* translation units (the same header view the
-# sister driver tests/ee-user/run_libc_test_user_suite.py uses, and for the
+# sister driver tests/ee-user/run_libc_test_user.py uses, and for the
 # same verified reason): musl's own build view (src/include/errno.h) maps
 # ``errno`` to the hidden ``___errno_location``, which libc.a defines but
 # libc.so keeps LOCAL HIDDEN -- a user TU compiled with the internal headers
@@ -792,7 +792,7 @@ STRUCTURAL_EXCLUSIONS = {
 }
 
 # Dynamic round only (TESTCASES-049t / ISS-259 candidate (2), the same finding
-# tests/ee-user/run_libc_test_user_suite.py records): a user TU that takes the
+# tests/ee-user/run_libc_test_user.py records): a user TU that takes the
 # address of a libc.so data object (``stdout``/``stderr``/``environ`` -- every
 # program that prints) otherwise needs an ``R_DADAO_COPY`` copy relocation,
 # which lld refuses by design (ADR-0026 D7(2) / contract-dynlink §10(2)):
@@ -937,7 +937,7 @@ FAULT_NAMES = {0xC0 | (mode << 4) | idx: name
 FAULT_NAMES.update({code: "CFX%d" % (code & 0x3F)
                     for code in range(0x80, 0xC0)})
 
-# The scripted base of tests/ee-tiny/kaiwu-tiny.lds (ISS-247).
+# The scripted base of tests/ee-tiny/kernel_tiny.lds (ISS-247).
 SCRIPTED_BASE = 0xFC0000000000
 
 PT_LOAD = 1
@@ -1923,7 +1923,7 @@ def load_split(case: Case):
     if row is None:
         raise SetupError(
             f"no committed channel split for {case.cid}; run "
-            "tests/ee-user/ref_split.py --write")
+            "tests/ee-user/gem5se_ref_split_user.py --write")
     digest = sha256_bytes(case.expected_doc)
     if digest != row.get("reference_sha256"):
         raise SetupError(

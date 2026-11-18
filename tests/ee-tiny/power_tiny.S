@@ -1,4 +1,4 @@
-@@ power.S — Kaiwu-Tiny power 启动 stub（m12-chipyard-007）
+@@ power_tiny.S — Kaiwu-Tiny power 启动 stub（m12-chipyard-007）
 @@
 @@ 规范：spec/Kaiwu §6.1（image index table）/ §6.2（Tiny 的 hmon 装载契约）。
 @@ 位置：BootROM 镜像偏移 0x0000–0x1FFF（上限 8 KiB），链接在复位向量
@@ -23,7 +23,7 @@
 
 	.include "tests/shared/asm/machine-tiny.inc"
 	.include "tests/shared/asm/machine.inc"
-	.include "tests/ee-tiny/tiny_common.inc"
+	.include "tests/ee-tiny/common_tiny.inc"
 
 	.text
 	.globl	_start

@@ -199,9 +199,9 @@ tools/testcases/
   arch/         # bootrom/min-ROM/CFX 场景（原 min_rom_probe）
   unit/         # codegen/elf 端到端驱动（原集成驱动目录）、lit/codegen/ir-lli 校验、picolibc
   tset/         # 外部套件驱动（TESTCASES-075t 已落）
-    libc-test/  # run_libc_test_user_suite.py + run_smoke.py（L2 代表集）
-    llvm-ts/    # run_llvm_ts_user.py + run_smoke.py
-    embench/    # run_embench_user_suite.py（L2 跑全量 benchmark）
+    libc-test/  # run_libc_test_user.py + run_libc_test_smoke_user.py（L2 代表集）
+    llvm-ts/    # run_llvm_ts_user.py + run_llvm_ts_smoke_user.py
+    embench/    # run_embench_user.py（L2 跑全量 benchmark）
   gen/          # 向量/oracle 生成器（ISA/rev/bitcnt/atomics/...）
   manage_tests.py       # make clean-tests / test-repro 的实现（scope→目录映射单一真源）
   night_run.py          # make night-run 的实现（tset full×3 + 长 arch + gem5 SE×3 + gem5 FS → 报告）
@@ -220,9 +220,9 @@ tools/testcases/
   `tools/testcases/unit/`；embench 系统态端到端驱动 → `tools/testcases/tset/embench/`；
   跨模块接口一致性检查 `check_interface_alignment.py` → `tools/infra/`（静态检查，归 L1）。
 - 旧 `tests/scripts/embench_*`（P6 已删除）与旧 `tools/testcases/run_embench_user_suite.py` 已合并为
-  `tests/ee-user/run_embench_user_suite.py` 一份（`TESTCASES-075t`；`m15-testcases-012` 迁入
+  `tests/ee-user/run_embench_user.py` 一份（`TESTCASES-075t`；`m15-testcases-012` 迁入
   `tests/ee-user/`）；套件独有 glue → `tests/tset/embench/`，共享运行时 →
-  `tests/ee-user/dadao_mem_runtime.ll`。
+  `tests/ee-user/mem_runtime_user.ll`。
 - `tests/shared/` 只放**非用例**数据（bootrom、linker、crt0、宏、公共期望）。
 - **执行环境独有资产 → `tests/ee-<env>/`**（`env` 见 `contracts/exec-envs.yaml`；平铺、不建子目录）：
   `tests/ee-tiny/` = Kaiwu-Tiny 专属的驱动（asm/picolibc/embench/semihosting 四个脚本）+ bootrom + lds
@@ -234,8 +234,8 @@ tools/testcases/
   `tests/ee-<env>/runtime.yaml`。读取统一走 `tools/testcases/lib/machine_profile.py`
   （`--profile {tiny,vast}` / `DADAO_TEST_PROFILE`；套件查询 `suite_enabled()`）。
 - **glue（测试胶水）**：把上游套件/被测程序接到 DADAO 的**非用例**代码与数据，分三类：
-  1. **链接/布局**：`tests/ee-tiny/kaiwu-tiny{,-app}.lds`、`tests/ee-user/dadao-{common,dyn}.lds`、`tests/ee-vast/kaiwu-vast.lds`、`tests/ee-tiny/bootrom.lds`（基址、段、对齐）；
-  2. **启动/运行时**：`crt0`（`tests/ee-user/minimal_crt0.s`）、bootrom（`tests/ee-tiny/{bootrom,bootrom_app}.S`；Tiny 的 `-bios` 用 **64 KiB 固定固件** `bootrom/tiny/bootrom_tiny.bin`，旧 trampoline 已于 M13 退役）、`embench_runtime.c`/`embench_user_boardsupport.c`、`picolibc_test_crt0.s`；
+  1. **链接/布局**：`tests/ee-tiny/kernel_tiny.lds`/`app_tiny.lds`、`tests/ee-user/common_user.lds`/`dyn_user.lds`、`tests/ee-vast/kernel_vast.lds`、`tests/ee-tiny/bootrom_tiny.lds`（基址、段、对齐）；
+  2. **启动/运行时**：`crt0`（`tests/ee-user/crt0_user.s`）、bootrom（`tests/ee-tiny/bootrom_tiny.S`/`bootrom_app_tiny.S`；Tiny 的 `-bios` 用 **64 KiB 固定固件** `bootrom/tiny/bootrom_tiny.bin`，旧 trampoline 已于 M13 退役）、`embench_runtime.c`/`embench_user_boardsupport.c`、`picolibc_test_crt0.s`；
   3. **接口桩**：syscall/semihosting stub、`SYS_EXIT`/console 适配、公共宏/头（`embench_include/`）。
   - **不是 patch**：patch 只用于**改上游组件源码**（`components/<name>/patches/**`，如 picolibc `semihost-dadao.S`、embench `boardsupport.c`、musl `arch/dadao`）；测试胶水**不改上游**，是我们自己的文件。
   - **不只是链接脚本**：链接脚本只是第 1 类。
@@ -254,7 +254,7 @@ tools/testcases/
 
 ## 8. 门控分层（一个检查只在一层）
 
-- **任务级（Task）**：任务书 `## 验证` 必须写 `scope`、`level`（targeted/smoke）、`cmd`；reviewer 重跑同一命令。**≤2 min**，如 `python3 tests/ee-tiny/run_asm_suite.py --id <id> --platforms qemu`、`make check-arch-smoke CFX=...`、`make check-unit`、`make check-tset-libc-smoke`。
+- **任务级（Task）**：任务书 `## 验证` 必须写 `scope`、`level`（targeted/smoke）、`cmd`；reviewer 重跑同一命令。**≤2 min**，如 `python3 tests/ee-tiny/run_inst_tiny.py --id <id> --platforms qemu`、`make check-arch-smoke CFX=...`、`make check-unit`、`make check-tset-libc-smoke`。
 - **L1（静态）**：`tests/*.yaml` 索引、ID/文件/字段、`case-ledger`（`.S` 用例行 + lit pattern）、链接/引用、**跨模块接口一致性**（`check-interface`）、**代码跨度自检**（`check-code-range`）；**不跑 guest**。
 - **L2（四 scope smoke）**：`check-inst-asm`（`.S` 载体全量；原 `check-inst-smoke` 的 YAML 代表集已随 YAML 退役删除，`m13-testcases-043`）、`check-arch-smoke`、`check-unit`、`check-tset-{libc,llvm,embench}-smoke` ⇒ `make check-modules`。**不含 FP 探针**（2026-10-27 用户裁定「L2 只保留四 scope smoke」）。
 - **L3（全量）**：`check-arch`（全 cfx）、**`check-unit-full`**（= `check-unit` + `check-lit-full`）、**FP 语义**（四类探针已全部退役：`rnd`/`minmax`/`fma` 由 `m13-testcases-044`、`clmul` 由 `m15-testcases-008`；现由 `tests/inst/07-floating-point/` 的 `.S` 载体（L2 `check-inst-asm`）+ `tests/unit/llvm/lit` + `e2e/lit` 承担）、`test-m6`（全量 lit + ir-lli + Embench E2E）⇒ `make check-full`；**inst 不在 L3 列**（`.S` 执行门控 = L2 `check-inst-asm`；原 `check-inst` 随 YAML 退役删除，Vast 的 ISA 执行覆盖明确放弃，`m13-testcases-043`）；运行时逐成员落 `.dadao/tests/l3/<UTC>/` 报告（`l3_run.py`），由里程碑层 `check-l3-report` 消费。
@@ -275,7 +275,7 @@ tools/testcases/
 ```yaml
 scope: inst/04-arith-logic-octa
 level: smoke
-cmd: python3 tests/ee-tiny/run_asm_suite.py --id add.si_riii_rd --platforms qemu
+cmd: python3 tests/ee-tiny/run_inst_tiny.py --id add.si_riii_rd --platforms qemu
 ```
 
 - 任务只跑**自己 scope 的 smoke/targeted**；全量/回归运行不进任务。
@@ -367,7 +367,7 @@ cmd: python3 tests/ee-tiny/run_asm_suite.py --id add.si_riii_rd --platforms qemu
 | 原始基线 JSON（数据） | 逐例 `status`/`exit`/时长 + 机器指纹 | 跑批任务（如 `m13-testcases-00x`） | 运行期目录；被引用时升格 `.tao/knowledge/refs/` | 原始数据否；被引 summary 是 |
 | 逐例报告（派生） | 归一化逐例行 + 归因标记（机器派生；人读结论另册） | 生成器（`tools/testcases/parity/*.py`） | 运行期目录 | 否 |
 | 矩阵快照（展示） | `docs/TestReports/M13-三平台差分矩阵.md` | 生成器渲染 + 证据脚本写入 | `docs/TestReports/<M>-<主题>.md` | 是（只重建，不手改） |
-| 生成器（代码） | `run_parity.py` / `three_platform_matrix.py`（`tools/testcases/parity/`）、`se_tset_matrix.py`（`tests/ee-user/`） | 任务实现 | `tools/testcases/parity/` + `tests/ee-user/` | 是 |
+| 生成器（代码） | `run_parity.py` / `three_platform_matrix.py`（`tools/testcases/parity/`）、`tset_matrix_user.py`（`tests/ee-user/`） | 任务实现 | `tools/testcases/parity/` + `tests/ee-user/` | 是 |
 
 - **快照只从已入库 JSON 重建**：三平台矩阵的 `--check` 要求入库册与重建结果**逐字节一致**；因此快照不写「重建时刻」（册头「生成时间」= 基线数据时间），也不写运行期路径，只写机器指纹（CPU / 引擎 md5+版本 / 源码 tree hash / driver md5）。
 - **chipyard 列未就绪**：核未就绪（`m12-chipyard-007` 未开始）时该列记 `N/A` 并附依据（不是伪值）；填列由 `m13-integ-002`/`003` 用 canonical 输入完成，生成器对非 `N/A` 行强制 `owner` + `basis`（fail-closed）。
@@ -410,7 +410,7 @@ cmd: python3 tests/ee-tiny/run_asm_suite.py --id add.si_riii_rd --platforms qemu
 
 ### 16.5 现状与差距
 
-- 现有 `run_engine_ratio.py` 是**套件粒度**、结果在套件结束落盘 ⇒ 仅适合小批量/里程碑门控，**不适合大规模长尾**。
+- 现有 `run_gem5se_ratio_user.py` 是**套件粒度**、结果在套件结束落盘 ⇒ 仅适合小批量/里程碑门控，**不适合大规模长尾**。
 - 差距由任务补齐：case 级 pool runner（读 `cases.jsonl`、按 16.3 协议、与 `remote.py` 配合）；在此之前，大规模跑批至少要做到「按耗时分组 + 长尾独立节点」。
 
 ## 17. 输出判据：分通道比对（stdout / stderr 分离，2026-11-10）
@@ -427,6 +427,6 @@ cmd: python3 tests/ee-tiny/run_asm_suite.py --id add.si_riii_rd --platforms qemu
 
 ### 17.2 落点
 
-- 拆分器与入库参考：`tests/ee-user/ref_split.py` → `tests/tset/llvm-ts/refs/`（`index.tsv` 钉上游文档 sha256 与两路哈希；`--check` 防漂移，驱动加载时校验索引）。
+- 拆分器与入库参考：`tests/ee-user/gem5se_ref_split_user.py` → `tests/tset/llvm-ts/refs/`（`index.tsv` 钉上游文档 sha256 与两路哈希；`--check` 防漂移，驱动加载时校验索引）。
 - 驱动：`tests/ee-user/run_llvm_ts_user.py`（qemu 两路分文件捕获；gem5 直接用 `guest.stdout` / `guest.stderr`）。
 

@@ -5,7 +5,7 @@
 @@ 期望值由独立参考模型（精确有理数 + 手写 round-and-pack，见证据脚本）按 `SimRISC-07` 现算，不手写
 @@ 分类（§5）：结果只占 [9:0]（其余位清零），按 rf 窗口逐个分类写到 rd 窗口；个数 1–63、起始+个数 ≤ 64、目的不得为 rd0。
 @@ ftcls 只看源寄存器**低 32 位**（高 32 位不作规定）；rf0 作源合法。
-@@ 链接布局：`tests/ee-tiny/inst-tiny.lds`（全部册共用（00 + 01–12）；段址见宏层文件头）
+@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段址见宏层文件头）
 
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/07-floating-point/07-floating-point.inc"

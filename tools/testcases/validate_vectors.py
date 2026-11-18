@@ -37,12 +37,12 @@ try:
 except ImportError:  # pragma: no cover
     sys.exit("ERROR: PyYAML 未安装。运行: pip install pyyaml")
 
-# m15-testcases-011: 扫描器 = `tests/ee-tiny/run_asm_suite.py`（原 tools/testcases/inst/）。
+# m15-testcases-011: 扫描器 = `tests/ee-tiny/run_inst_tiny.py`（原 tools/testcases/inst/）。
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                 "..", "..", "tests", "ee-tiny"))
 # `.S` 载体的结构扫描与 L2 执行门控（`check-inst-asm`）**同一真源**：点号/用例行
 # 的解析只在这里写一次，避免「门控和 validator 各认一套语法」。
-import run_asm_suite  # noqa: E402
+import run_inst_tiny as run_asm_suite  # noqa: E402
 
 # 非 opcode 身份的载体（**显式登记**，逐文件；不得放宽成「某目录下任意 `.S` 豁免」）。
 # 键 = 相对仓库根的 posix 路径，值 = 理由。登记项必须：现场存在、含用例行、

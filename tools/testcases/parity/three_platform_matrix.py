@@ -15,7 +15,7 @@
 
   * 状态词表与配对判定 `qemu ↔ gem5` = `run_parity.py`（`STATUSES`、
     `_verdict`）；`QEMU PASS ⇒ 对方 PASS` 的硬门语义随之继承；
-  * 归因 owner 词表与「预算耗尽 ≠ 判定」口径 = `tests/ee-user/se_tset_matrix.py`
+  * 归因 owner 词表与「预算耗尽 ≠ 判定」口径 = `tests/ee-user/tset_matrix_user.py`
     （`OWNERS`、`TIMEOUT_CAPABILITY`）。
 
 输入 JSON 两种形态（按有无 `qemu_klass` 自动识别）：
@@ -70,7 +70,7 @@ for _p in (_HERE, os.path.join(_REPO_ROOT, "tests", "ee-user")):
         sys.path.insert(0, _p)
 
 import run_parity as parity  # noqa: E402
-import se_tset_matrix as se  # noqa: E402
+import tset_matrix_user as se  # noqa: E402
 
 PLATFORMS = ("qemu", "gem5", "chipyard")
 SNAPSHOT_MARKER = "<!-- 现场生成，勿手改 -->"

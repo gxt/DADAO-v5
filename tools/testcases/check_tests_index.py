@@ -77,7 +77,7 @@ import machine_profile  # noqa: E402
 # `.S` 载体检查点计数复用 L2 `check-inst-asm` / `validate_vectors` 的同一真源
 # （`scan_source`），避免门控与执行侧各认一套语法（M13-TESTCASES-042）。
 sys.path.insert(0, str(ROOT / "tests" / "ee-tiny"))   # m15-testcases-011
-import run_asm_suite  # noqa: E402
+import run_inst_tiny as run_asm_suite  # noqa: E402
 
 SCAN_ROOTS = ("tests", "tools/testcases")
 TEXT_SUFFIXES = (
@@ -105,10 +105,10 @@ ALLOWED = {
     "tests/ee-user/run_llvm_ts_user.py": {
         "0xFC0000000000": "qemu-user scripted VA base; out of Kaiwu scope",
     },
-    "tests/ee-user/run_libc_test_user_suite.py": {
+    "tests/ee-user/run_libc_test_user.py": {
         "0xFC0000000000": "qemu-user scripted VA base; out of Kaiwu scope",
     },
-    "tests/ee-user/run_embench_user_suite.py": {
+    "tests/ee-user/run_embench_user.py": {
         "0xFC0000000000": "qemu-user scripted VA base; out of Kaiwu scope",
     },
 }
@@ -209,8 +209,8 @@ def check_profile_lds(root: Path):
     if not hits:
         print(f"  地址扫描: {checked} 个文本文件，旧几何残留 0")
 
-    lds_map = {"tiny": "tests/ee-tiny/kaiwu-tiny.lds",
-               "vast": "tests/ee-vast/kaiwu-vast.lds"}
+    lds_map = {"tiny": "tests/ee-tiny/kernel_tiny.lds",
+               "vast": "tests/ee-vast/kernel_vast.lds"}
     for name, rel in lds_map.items():
         path = root / rel
         if not path.is_file():
@@ -246,9 +246,9 @@ def check_profile_lds(root: Path):
         elif int(mheap.group(1).replace("_", ""), 16) != expected_heap:
             errors.append(f"LDS: {rel} __heap_end {mheap.group(1)} != "
                           f"sp-0x1000 {expected_heap:#x}")
-    common = root / "tests/ee-user/dadao-common.lds"
+    common = root / "tests/ee-user/common_user.lds"
     if not common.is_file():
-        errors.append("LDS MISSING: tests/ee-user/dadao-common.lds")
+        errors.append("LDS MISSING: tests/ee-user/common_user.lds")
     else:
         ctext = common.read_text(encoding="utf-8")
         for sym in ("__bss_start = .;", "__bss_end = .;",
@@ -256,12 +256,12 @@ def check_profile_lds(root: Path):
             if sym not in ctext:
                 errors.append(f"LDS COMMON: missing {sym!r}")
         for rel in lds_map.values():
-            if "INCLUDE dadao-common.lds" not in (root / rel).read_text(encoding="utf-8"):
-                errors.append(f"LDS: {rel} does not INCLUDE dadao-common.lds")
+            if "INCLUDE common_user.lds" not in (root / rel).read_text(encoding="utf-8"):
+                errors.append(f"LDS: {rel} does not INCLUDE common_user.lds")
     print(f"  profile↔lds: {len(lds_map)} 份链接脚本 + common 逐项核对")
 
     # BootROM 复位窗口：power.lds ORIGIN == vast reset_pc。
-    power_lds = root / "tests/ee-vast/power.lds"
+    power_lds = root / "tests/ee-vast/power_vast.lds"
     if power_lds.is_file():
         mem = _parse_lds_memory(power_lds.read_text(encoding="utf-8"))
         prof = profs["vast"]
@@ -292,7 +292,7 @@ def check_profile_lds(root: Path):
                               f"missing {expected!r}")
 
     # picolibc Tiny layout (A scheme): crt stub ROM / app SRAM / e_entry ROM.
-    pico = root / "tests/ee-tiny/picolibc-tiny.ld"
+    pico = root / "tests/ee-tiny/picolibc_tiny.ld"
     if pico.is_file():
         ptext = pico.read_text(encoding="utf-8")
         for needle in ("ORIGIN = 0xffffffff0000", "ORIGIN = 0xffffff010100",
@@ -300,7 +300,7 @@ def check_profile_lds(root: Path):
             if needle not in ptext:
                 errors.append(f"PICOLIBC LDS: missing {needle!r}")
     else:
-        errors.append("PICOLIBC LDS MISSING: tests/ee-tiny/picolibc-tiny.ld")
+        errors.append("PICOLIBC LDS MISSING: tests/ee-tiny/picolibc_tiny.ld")
 
     # Harness must not carry a RAM base literal (profile-derived only).
     harness = root / "tools/testcases/lib/build_test_binary.py"
@@ -690,8 +690,8 @@ def audit(root: Path, registry: dict[str, str] | None = None) -> int:
 def _write_profile_lds(root: Path, tamper: str | None = None) -> None:
     """Write minimal, profile-consistent linker scripts for the self-test tree."""
     profs = machine_profile.all_profiles()
-    for name, rel in (("tiny", "ee-tiny/kaiwu-tiny.lds"),
-                      ("vast", "ee-vast/kaiwu-vast.lds")):
+    for name, rel in (("tiny", "ee-tiny/kernel_tiny.lds"),
+                      ("vast", "ee-vast/kernel_vast.lds")):
         prof = profs[name]
         origin, length = prof.ram_base, prof["ram_size"]
         rom_origin, rom_len = prof.bootrom_base, prof["bootrom_size"]
@@ -702,7 +702,7 @@ def _write_profile_lds(root: Path, tamper: str | None = None) -> None:
             f"  RAM (rwx) : ORIGIN = 0x{origin:X}, LENGTH = 0x{length:X}\n"
             f"  ROM (rx)  : ORIGIN = 0x{rom_origin:X}, LENGTH = 0x{rom_len:X}\n"
             "}\nSECTIONS\n{\n  .text : ALIGN(4) { *(.text) } > RAM\n"
-            f"  INCLUDE dadao-common.lds\n"
+            f"  INCLUDE common_user.lds\n"
             f"  .rom : ALIGN(4) {{ *(.rom) }} > ROM\n}}\n"
             f"__heap_end = 0x{prof.sp - 0x1000:X};\n")
         path = root / TESTS_REL / rel
@@ -931,7 +931,7 @@ def self_test() -> int:
         case_no += 1
         work = tmpdir / f"case{case_no}"
         _write_tree(work, _empty_indexes())
-        _write_profile_lds(work, tamper="ee-tiny/kaiwu-tiny.lds")
+        _write_profile_lds(work, tamper="ee-tiny/kernel_tiny.lds")
         rc, out = _run(work)
         good_lds = rc == 1 and "RAM ORIGIN" in out
         ok = ok and good_lds

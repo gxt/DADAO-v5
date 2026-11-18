@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""run_embench_e2e.py -- Embench-IoT end-to-end gate (INTEG-025t, M6).
+"""run_embench_tiny.py -- Embench-IoT end-to-end gate (INTEG-025t, M6).
 
 Compiles every Embench-IoT benchmark from ``<embench-src>/src/*/`` with the
 DADAO cross toolchain at each requested optimisation level, links it against
@@ -26,9 +26,9 @@ Pipeline per (benchmark, optimisation level):
           -DWARMUP_HEAT=1 -DGLOBAL_SCALE_FACTOR=1 \
           -c support/{main,beebsc}.c <src>/<b>/*.c <boardsupport>.c  -> *.o
     clang ... -c tests/tset/embench/embench_runtime.c                    -> *.o
-    llc  -march=dadao -O0 -filetype=obj dadao_mem_runtime.ll        -> *.o
-    llvm-mc --triple=dadao -filetype=obj minimal_crt0.s             -> crt0.o
-    ld.lld -T tests/ee-tiny/kaiwu-tiny-app.lds *.o                  -> <b>.elf
+    llc  -march=dadao -O0 -filetype=obj mem_runtime_user.ll            -> *.o
+    llvm-mc --triple=dadao -filetype=obj crt0_user.s                   -> crt0.o
+    ld.lld -T tests/ee-tiny/app_tiny.lds *.o                        -> <b>.elf
     timeout N qemu-system-dadao \
             -machine kaiwu-tiny,bootrom-image=<fixed 64 KiB firmware> \
             -kernel <b>.elf -semihosting-config enable=on,target=native -> guest exit
@@ -85,7 +85,7 @@ import shutil
 import subprocess
 import sys
 
-# 本文件在 `tests/ee-tiny/run_embench_e2e.py`（m15-testcases-011 从 `tools/testcases/tset/embench/`
+# 本文件在 `tests/ee-tiny/run_embench_tiny.py`（m15-testcases-011 从 `tools/testcases/tset/embench/`
 # 迁入；TESTCASES-076t 曾从集成驱动目录迁入）⇒ 仓库根在 2 层之上。
 REPO_ROOT = os.path.normpath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
@@ -110,12 +110,12 @@ DEFAULT_QEMU = os.path.join(_TARGET_BIN, "qemu-system-dadao")
 DEFAULT_EMBENCH_SRC = ".work/source/embench-iot"
 DEFAULT_INCLUDE = "tests/tset/embench/embench_include"
 DEFAULT_RUNTIME = "tests/tset/embench/embench_runtime.c"
-# 资产归属（m15-testcases-011/012）：`dadao_mem_runtime.ll`/`minimal_crt0.s` 在
+# 资产归属（m15-testcases-011/012）：`mem_runtime_user.ll`/`crt0_user.s` 在
 # `tests/ee-user/`；Tiny 的 lds 在 `tests/ee-tiny/`。
-DEFAULT_MEM_RUNTIME = "tests/ee-user/dadao_mem_runtime.ll"
-DEFAULT_CRT0 = "tests/ee-user/minimal_crt0.s"
-DEFAULT_LDS = "tests/ee-tiny/kaiwu-tiny-app.lds"
-# `INCLUDE dadao-common.lds` resolves through -L (ld.lld searches cwd + -L only);
+DEFAULT_MEM_RUNTIME = "tests/ee-user/mem_runtime_user.ll"
+DEFAULT_CRT0 = "tests/ee-user/crt0_user.s"
+DEFAULT_LDS = "tests/ee-tiny/app_tiny.lds"
+# `INCLUDE common_user.lds` resolves through -L (ld.lld searches cwd + -L only);
 # the common fragment lives in `tests/ee-user/`.
 COMMON_LDS_DIR = "tests/ee-user"
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir()
@@ -638,7 +638,7 @@ def main():
                          "(contracts/tests-matrix.yaml)\n" % prof.name)
         return 2
     if args.lds == DEFAULT_LDS:
-        args.lds = ("tests/ee-tiny/kaiwu-tiny-app.lds"
+        args.lds = ("tests/ee-tiny/app_tiny.lds"
                     if prof.name == "tiny"
                     else "tests/shared/linker/dadao-%s.lds" % prof.name)
 

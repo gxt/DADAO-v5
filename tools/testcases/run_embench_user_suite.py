@@ -12,7 +12,7 @@ import sys
 
 _IMPL = os.path.normpath(os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
-    "..", "..", "tests", "ee-user", "run_embench_user_suite.py"))
+    "..", "..", "tests", "ee-user", "run_embench_user.py"))
 
 sys.path.insert(0, os.path.dirname(_IMPL))
 runpy.run_path(_IMPL, run_name="__main__")

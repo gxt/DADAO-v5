@@ -77,7 +77,7 @@ MEM_RB      = 61                      # rb61: temp for memory address
 DUMP_RB     = 62                      # rb62: dump pointer
 HMON_RB     = 60                      # rb60: hmon SRAM base (fault landing pad)
 
-# cfx3 hmon fixed data slots (tests/ee-tiny/hmon.S header; m15-testcases-011):
+# cfx3 hmon fixed data slots (tests/ee-tiny/hmon_tiny.S header; m15-testcases-011):
 #   +0xE0 cause_id (one-hot, spec/DADAO-12 §5.2), +0xF8 return address.
 # `spec/Kaiwu §6.2`: power writes the default (`trap+4`), the framework
 # (the application image) may overwrite it -- that is how the Tiny fault

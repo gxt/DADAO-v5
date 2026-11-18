@@ -34,7 +34,7 @@
 ```
 
 - 各次权威跑**并列、永不覆盖**；`authoritative/latest` 指向最新权威跑目录（符号链接或内容为目录路径的文本文件）。
-- **子集跑**（`--filter` / `--only` / `--limit`）**不得**写 `authoritative/`。带子集参数的驱动（`tests/ee-user/run_libc_test_user_suite.py` 的 `--filter`；`tests/ee-user/run_llvm_ts_user.py` 的 `--only`/`--limit`）在组合命中时**显式拒绝**（`rc=2` + 提示，`run_artifacts.subset_authoritative_error()`），拒绝发生在建目录之前。
+- **子集跑**（`--filter` / `--only` / `--limit`）**不得**写 `authoritative/`。带子集参数的驱动（`tests/ee-user/run_libc_test_user.py` 的 `--filter`；`tests/ee-user/run_llvm_ts_user.py` 的 `--only`/`--limit`）在组合命中时**显式拒绝**（`rc=2` + 提示，`run_artifacts.subset_authoritative_error()`），拒绝发生在建目录之前。
 - 当前三个驱动默认把运行目录建在 `--work-dir` 下；把 `--work-dir` 指向 `authoritative/` 即构成权威跑，由调用者负责选择（子集组合除外，见上一条）。
 
 ### 1.3 驱动约束
@@ -133,7 +133,7 @@
 # 旧（旧扁平路径仍可用：薄 wrapper 转发现路径）
 python3 tools/testcases/run_libc_test_user_suite.py --link-mode static
 # 新（--report-out 可省，自动同目录同名 .log）
-python3 tests/ee-user/run_libc_test_user_suite.py --link-mode static \
+python3 tests/ee-user/run_libc_test_user.py --link-mode static \
     --json-out .work/tests/<UTC>-libc-test-static/results.json
 ```
 

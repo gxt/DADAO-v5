@@ -7,8 +7,8 @@ expected value (it does NOT rely on lit exit codes):
 
     per TU:  llc -march=dadao -filetype=obj  <tu>.ll     -> <tu>.o
     once:    llvm-mc --triple=dadao -filetype=obj \
-                 tests/ee-user/minimal_crt0.s            -> crt0.o
-    link:    ld.lld -T tests/ee-tiny/kaiwu-tiny-app.lds \
+                 tests/ee-user/crt0_user.s               -> crt0.o
+    link:    ld.lld -T tests/ee-tiny/app_tiny.lds \
                  crt0.o <tu>.o ... -o <prog>.elf          (ET_EXEC, SRAM-only)
     run:     timeout N qemu-system-dadao \
                  -machine kaiwu-tiny,bootrom-image=<fixed 64 KiB firmware> \
@@ -97,9 +97,9 @@ DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
 DEFAULT_LDLLD = os.path.join(_TOOLCHAIN_BIN, "ld.lld")
 DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
 # 资产归属（m15-testcases-011/012）：crt0 在 `tests/ee-user/`，Tiny lds 在
-# `tests/ee-tiny/`；`dadao-common.lds` 在 `tests/ee-user/`（`INCLUDE` 经 -L 解析）。
-DEFAULT_CRT0 = "tests/ee-user/minimal_crt0.s"
-DEFAULT_LDS = "tests/ee-tiny/kaiwu-tiny-app.lds"
+# `tests/ee-tiny/`；`common_user.lds` 在 `tests/ee-user/`（`INCLUDE` 经 -L 解析）。
+DEFAULT_CRT0 = "tests/ee-user/crt0_user.s"
+DEFAULT_LDS = "tests/ee-tiny/app_tiny.lds"
 COMMON_LDS_DIR = "tests/ee-user"
 # Fixed Kaiwu-Tiny BootROM firmware (make build-bootrom).
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir()
@@ -230,7 +230,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
             return res
         objs.append(obj)
 
-    # 2. ld.lld -T kaiwu-tiny.lds crt0.o <objs> -o <prog>.elf
+    # 2. ld.lld -T kernel_tiny.lds crt0.o <objs> -o <prog>.elf
     elf = os.path.join(work_dir, stem + ".elf")
     rc, _out, err, timed = _run(
         [tools["ldlld"], "-L", os.path.dirname(tools["lds"]),

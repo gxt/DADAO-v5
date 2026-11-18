@@ -81,14 +81,14 @@ guest exit、`picolibc` 的分类）；**不比较**时序、性能、PC/日志�
 ## SE tset 双向一致性（INTEG-059t，G3 收口）
 
 `run_parity.py` 只做 **QEMU system ↔ gem5 FS**；SE user 模式的完整 tset 对账由
-`tests/ee-user/se_tset_matrix.py` 汇总（`m15-testcases-012` 从本目录迁出；不跑 guest，只读两份已入库的 per-case 基线）：
+`tests/ee-user/tset_matrix_user.py` 汇总（`m15-testcases-012` 从本目录迁出；不跑 guest，只读两份已入库的 per-case 基线）：
 
 ```sh
-python3 tests/ee-user/se_tset_matrix.py \
+python3 tests/ee-user/tset_matrix_user.py \
   --json-out <运行期目录>/se-parity.json \
   --markdown-out <运行期目录>/se-parity.md \
   --matrix-section-out <运行期目录>/matrix-section.md
-python3 tests/ee-user/se_tset_matrix.py --self-test   # 逐条反例注入
+python3 tests/ee-user/tset_matrix_user.py --self-test   # 逐条反例注入
 ```
 
 - 中间产物（per-case JSON、SE 段）落**运行期目录**；入库的人读快照是

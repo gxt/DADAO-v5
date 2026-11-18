@@ -525,8 +525,8 @@ def check_adr_alignment():
                "BINARY_BASE/EXIT_BLOCK/DUMP_BASE from machine_profile")
 
     for name, rel, mem_name in (
-            ("tiny", "tests/ee-tiny/kaiwu-tiny.lds", "RAM"),
-            ("vast", "tests/ee-vast/kaiwu-vast.lds", "RAM")):
+            ("tiny", "tests/ee-tiny/kernel_tiny.lds", "RAM"),
+            ("vast", "tests/ee-vast/kernel_vast.lds", "RAM")):
         text = load_file(rel)
         m = re.search(
             r"RAM\s*\(rwx\)\s*:\s*ORIGIN\s*=\s*(0x[0-9a-fA-F_]+)"

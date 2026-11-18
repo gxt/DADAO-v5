@@ -20,7 +20,7 @@ For every selected case (one ``.c`` translation unit that carries ``main``) it
 runs the project's *static* musl flow and reports the case's own verdict:
 
   compile ``clang --target=dadao-unknown-elf -nostdinc <musl includes> -c``
-  link    ``ld.lld -T tests/ee-tiny/kaiwu-tiny.lds crt1.o <obj> [libtest] libc.a``
+  link    ``ld.lld -T tests/ee-tiny/kernel_tiny.lds crt1.o <obj> [libtest] libc.a``
   image   ``llvm-objcopy -O binary`` (flat ``-kernel`` image, "path B")
   run     ``qemu-system-dadao -M kaiwu-tiny -bios bootrom.bin -kernel <flat>``
 
@@ -112,9 +112,9 @@ TEST_ARTIFACTS = paths.test_artifacts_dir()
 MUSL_SRC = REPO_ROOT / ".work" / "source" / "musl"
 LIBC_TEST = REPO_ROOT / ".work" / "source" / "libc-test"
 LLVM_TS = REPO_ROOT / ".work" / "source" / "llvm-test-suite"
-LDS = REPO_ROOT / "tests" / "ee-tiny" / "kaiwu-tiny.lds"
+LDS = REPO_ROOT / "tests" / "ee-tiny" / "kernel_tiny.lds"
 # 资产归属（m15-testcases-011/012）：Tiny lds 在 `tests/ee-tiny/`，被它
-# `INCLUDE` 的 `dadao-common.lds` 在 `tests/ee-user/`（ld.lld 只搜 cwd + -L）。
+# `INCLUDE` 的 `common_user.lds` 在 `tests/ee-user/`（ld.lld 只搜 cwd + -L）。
 COMMON_LDS_DIR = REPO_ROOT / "tests" / "ee-user"
 DEFAULT_BOOTROM = TEST_ARTIFACTS / "bootrom" / "bootrom.bin"
 

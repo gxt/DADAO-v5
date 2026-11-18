@@ -338,12 +338,12 @@ def check_negative(which: str, kernel: Path, rep: Report) -> None:
     _written, smon_def, field, code = NEG[which]
     work = Path(k0.WORK) / f"neg_{which}"
     work.mkdir(parents=True, exist_ok=True)
-    hmon = k0.K0_DIR + "/k0_hmon.S"
+    hmon = k0.K0_DIR + "/hmon_k0_vast.S"
     before = md5(Path(hmon))
     if which == "magic":
         text = Path(hmon).read_text()
         if text.count(HNEG_CASE3) != 1:
-            raise SystemExit("k1_boot_probe: hmon.S negative-case block not unique")
+            raise SystemExit("k1_boot_probe: hmon_k0_vast.S negative-case block not unique")
         variant = work / "hmon_magic.S"
         variant.write_text(text.replace(HNEG_CASE3, HNEG_MAGIC))
         hmon_src = str(variant)
@@ -354,7 +354,7 @@ def check_negative(which: str, kernel: Path, rep: Report) -> None:
     rom = k0.build_firmware(str(work), neg_case, hmon_src=hmon_src,
                             smon_defs=["--defsym", smon_def],
                             name=f"bootrom_neg_{which}.bin")
-    rep.check(f"N1.{which}", "committed hmon.S 未被改动", before, md5(Path(hmon)))
+    rep.check(f"N1.{which}", "committed hmon_k0_vast.S 未被改动", before, md5(Path(hmon)))
 
     rc, text = run(rom, kernel)
     print(f"---- guest output ({which}) ----")

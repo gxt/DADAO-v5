@@ -10,7 +10,7 @@ YAML 载体已随 `m13-testcases-043` 全退役 ⇒ 驱动与向量扫描部分�
   * ELF/raw 布局（`LDS` / `assemble` / `toolchain_bin` / `IMAGE_LIMIT`）。
 
 **这些函数生成的期望值不作判据**：判定一律走 `tests/inst/**/*.S` 的内联期望 +
-`run_asm_suite.py`（chipyard/qemu/gem5 三平台逐字节）与 L2 `check-inst-asm`。
+`run_inst_tiny.py`（chipyard/qemu/gem5 三平台逐字节）与 L2 `check-inst-asm`。
 """
 from __future__ import annotations
 

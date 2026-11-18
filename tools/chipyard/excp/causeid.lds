@@ -1,7 +1,7 @@
 /*
  * causeid.lds — `tools/chipyard/excp/causeid.S` 的链接布局（`m16-chipyard-003`）。
  *
- * 与 `tests/ee-tiny/inst-tiny.lds` 同一套固定地址（同一宏层
+ * 与 `tests/ee-tiny/inst_tiny.lds` 同一套固定地址（同一宏层
  * `tests/inst/macros/inst_test.inc` 的 `.equ`：TEST_BUF / TEST_EXITB），差别只有
  * 本文件末尾的 ASSERT：每个用例的回落点必须是 `aip.si` 指令 + N B
  * （`aip → add.si(+16) → st.o(返回槽) → 故障指令 → 回落点`）。手写的 12 是立即数（标签差进不了

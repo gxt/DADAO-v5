@@ -1,6 +1,6 @@
 @@ semihost_pa_probe.S — K1 gate probe: semihosting pointers are PAs (ISS-450)
 @@
-@@ Runs on `-M kaiwu-vast` under the K1 firmware (`tests/ee-vast/k0_*`, the
+@@ Runs on `-M kaiwu-vast` under the K1 firmware (`tests/ee-vast/*_k0_vast.*`, the
 @@ same power -> hmon -> smon chain `check-linux-k1` boots the kernel through),
 @@ so it is entered exactly like the kernel image: PTW is already on and PTBR
 @@ points at the prebuilt table, which maps exactly ONE 512 MiB superpage at the

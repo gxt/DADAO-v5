@@ -5,7 +5,7 @@
 @@ 每个用例：清 rf0[4:0] → 设 rf0[33:32] → 执行 → 断言 rf0[4:0]（NV=1/DZ=2/OF=4/UF=8/NX=16）
 @@   → 比对结果（二者共用点号）；ft 只比低 32 位（高 32 位不作规定）
 @@ 初值经 `set.fo` 装配（整 64 位：`rd2rf rf, rd0` + 非零 wyde 的 `set.w`；不经浮点指令）；期望值由独立 IEEE 754 参考模型复算
-@@ 链接布局：`tests/ee-tiny/inst-tiny.lds`（全部册共用（00 + 01–12）；段址见宏层文件头）
+@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段址见宏层文件头）
 
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/07-floating-point/07-floating-point.inc"

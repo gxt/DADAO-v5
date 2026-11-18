@@ -8,7 +8,7 @@
 @@   k = immu6 须 one-hot 且 k < 8（合法档 1/2/4）⇒ 0/3/5..7 与非 one-hot 值、
 @@   以及 k ≥ 8（含 k=8 恒等档）触发 ILLI（`encode_onehot`）
 @@ 编码：orri = opc[31:24] | ha[23:18] | rdhb[17:12] | rdhc[11:6] | immu6[5:0]
-@@ 链接布局：`tests/ee-tiny/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
+@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 4 / overlap 3（链例 14 + 故障例 3）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流

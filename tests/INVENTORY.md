@@ -143,9 +143,9 @@
 |---|---|---|---|---|---|
 | `llvm-ts-user/` | 16,112 | 836 M | `tests/ee-user/run_llvm_ts_user.py`（`--work-dir` 默认） | 是（需 llvm-test-suite 源 + 工具链，耗时长） | 20 个运行目录 + `static/`/`dynamic/` 脚手架 |
 | `llvm-ts-user-050t/` | 826 | 209 M | **无脚本**：全仓 grep `llvm-ts-user-050t` 零命中（仅归档任务书 `TESTCASES-048t` 提及） | **否**（生成脚本已不在仓库） | 孤儿，建议清理 |
-| `libc-test-user/` | 1,897 | 77 M | `tests/ee-user/run_libc_test_user_suite.py` | 是 | 118 个运行目录（三件套）+ 脚手架 |
-| `embench-user/` | 415 | 7.4 M | `tests/ee-user/run_embench_user_suite.py` | 是 | 6 个运行目录 |
-| `m6-embench/` | 312 | 3.3 M | `test-m6` [3/3] → `tests/ee-tiny/run_embench_e2e.py` | 是 | `rm -rf` 后重建 |
+| `libc-test-user/` | 1,897 | 77 M | `tests/ee-user/run_libc_test_user.py` | 是 | 118 个运行目录（三件套）+ 脚手架 |
+| `embench-user/` | 415 | 7.4 M | `tests/ee-user/run_embench_user.py` | 是 | 6 个运行目录 |
+| `m6-embench/` | 312 | 3.3 M | `test-m6` [3/3] → `tests/ee-tiny/run_embench_tiny.py` | 是 | `rm -rf` 后重建 |
 | `codegen-e2e/` | 60 | 264 K | `test-codegen` → `run_codegen_e2e.py` | 是 | 每次 `rm -rf` |
 | `codegen-m6/` | 28 | 132 K | `run_codegen_e2e.py` 的**手工**调用（m6 README） | 是（手工） | 无 make 目标 |
 | `elf-m6/` | 3 | 20 K | `run_elf_e2e.py` 的**手工**调用（m6 README） | 是（手工） | 无 make 目标 |

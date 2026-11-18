@@ -5,7 +5,7 @@
 @@ 合法性：目的起始为 rd0 ⇒ ILLI；immu6=0 ⇒ ILLI；起始+immu6>64 ⇒ ILLI（两侧）；
 @@   跨组复制（RA → RD）结构上不可能相交 ⇒ `mreg_range_overlap` 不适用
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 RDATA（ra 初值经 `ld.o` 装载）/ SCRATCH
-@@ 链接布局：`tests/ee-tiny/inst-tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
+@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 3 / overlap 1（链例 11 + 故障例 4）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流

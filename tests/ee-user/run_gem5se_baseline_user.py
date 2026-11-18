@@ -6,7 +6,7 @@ mode (``--link-mode static|dynamic``, default ``static``) on both engines --
 QEMU user mode and gem5 syscall emulation -- and joins the two per-case JSONs
 by case id:
 
-    python3 tests/ee-user/run_gem5_se_baseline.py \
+    python3 tests/ee-user/run_gem5se_baseline_user.py \
         --work-dir <runtime dir> --json-out <runtime dir>/baseline.json
 
 The drivers do the enumeration, the build lines and the verdicts; this script
@@ -80,10 +80,10 @@ TIMEOUT_CAPABILITY = "time budget"
 
 DRIVERS = {
     "libc-test": os.path.join("tests", "ee-user",
-                              "run_libc_test_user_suite.py"),
+                              "run_libc_test_user.py"),
     "llvm-ts": os.path.join("tests", "ee-user", "run_llvm_ts_user.py"),
     "embench": os.path.join("tests", "ee-user",
-                            "run_embench_user_suite.py"),
+                            "run_embench_user.py"),
 }
 
 # The driver's JSON key that names a case, per suite.
@@ -668,7 +668,7 @@ def markdown(summary):
     out("## 复跑")
     out()
     out("```")
-    out("JOBS=32 python3 tests/ee-user/run_gem5_se_baseline.py \\")
+    out("JOBS=32 python3 tests/ee-user/run_gem5se_baseline_user.py \\")
     out(f"    --link-mode {mode} --work-dir <runtime dir> \\")
     out("    --json-out <runtime dir>/gem5-se-baseline.json")
     out("```")

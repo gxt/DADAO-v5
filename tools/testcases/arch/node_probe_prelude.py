@@ -13,7 +13,7 @@ Loading model (task book §0/§2, spec/Kaiwu §1 + DADAO-12 §4.5/§4.9):
     cfxmem/cfxexe mask for cg0-cg3 (former `bootstrap_stage`), writes four
     identity superpage PTEs (0xC000_0000_0000_FFEF | (i << 29); HSJU=0xC =
     H=1/S=1/U=J=0, D10 bit-identical to
-    tests/ee-vast/hmon.S; L1[3] additionally grants U+J so the
+    tests/ee-vast/hmon_vast.S; L1[3] additionally grants U+J so the
     user/jail probes can write their exception frame and SYS_EXIT block) into
     cfx_pmem SRAM, copies them to
     `PT_PA` with the cfx_pmem DMA, invalidates the TLB, sets PTBR and
@@ -279,7 +279,7 @@ def words_to_bytes(ws):
 def _pte(i):
     """spec/DADAO-12 §2.2.3 + hmon.S: HSJU=0xC (H=1,S=1,U=J=0), PPN=i, SPF=0xFF, flags=0xEF.
 
-    D10 base, bit-identical to tests/ee-vast/hmon.S, for L1 0-2.
+    D10 base, bit-identical to tests/ee-vast/hmon_vast.S, for L1 0-2.
     L1 index 3 covers PA/VA [0x6000_0000, 0x8000_0000), which holds FAULT_RECORD
     (0x7FFC_0000) and EXIT_BLOCK (0x7FFD_0000): the user/jail probes must reach
     their exception frame and SYS_EXIT block, so that one superpage also

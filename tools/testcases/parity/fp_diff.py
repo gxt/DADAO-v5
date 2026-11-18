@@ -14,9 +14,9 @@
 
 复用（不复制另一套口径）：
 
-  * 载体用例行/故障例解析 = `tests/ee-tiny/run_asm_suite.py::scan_source`
+  * 载体用例行/故障例解析 = `tests/ee-tiny/run_inst_tiny.py::scan_source`
     （检查点数、故障点数、点号连续性）；
-  * owner 词表 = `tests/ee-user/se_tset_matrix.py::OWNERS`。
+  * owner 词表 = `tests/ee-user/tset_matrix_user.py::OWNERS`。
     **平台状态词表不另立**：状态由 `rc` 现场派生（`0` ⇒ `PASS`，非 `0` ⇒ `FAIL`），
     三平台判定 = 本脚本 `classify`（不 import `run_parity`，其 `STATUSES` 是 SE 侧词表）。
 
@@ -69,8 +69,8 @@ for _p in (str(_HERE), str(_REPO / "tools" / "infra"),
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-import se_tset_matrix as se          # noqa: E402  (owner 词表)
-import run_asm_suite as asm          # noqa: E402  (载体现场统计)
+import tset_matrix_user as se        # noqa: E402  (owner 词表)
+import run_inst_tiny as asm          # noqa: E402  (载体现场统计)
 
 SCHEMA = "fp-three-platform-diff/1"
 TASK = "m13-integ-002"

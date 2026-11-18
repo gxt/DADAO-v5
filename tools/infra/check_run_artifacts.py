@@ -47,9 +47,9 @@ REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(
 # drivers moved to `tests/ee-user/`; `tools/testcases/run_*.py` are thin
 # wrappers that keep the old command lines).
 DRIVERS = (
-    os.path.join("tests", "ee-user", "run_libc_test_user_suite.py"),
+    os.path.join("tests", "ee-user", "run_libc_test_user.py"),
     os.path.join("tests", "ee-user", "run_llvm_ts_user.py"),
-    os.path.join("tests", "ee-user", "run_embench_user_suite.py"),
+    os.path.join("tests", "ee-user", "run_embench_user.py"),
 )
 RUN_DIR_RE = re.compile(r"^\d{8}T\d{6}Z-")
 # 任务号两种并存（用户 2026-11-08，m12-infra-001）：旧 `PREFIX-nnn[suffix]` 与新
@@ -427,7 +427,7 @@ def self_test(base: str) -> int:
     # 2. A1: --json-out loses required=True.
     tree = fresh()
     path = os.path.join(tree, "tests", "ee-user",
-                        "run_libc_test_user_suite.py")
+                        "run_libc_test_user.py")
     text = _read(path)
     injected = text.replace('"--json-out", required=True',
                             '"--json-out", default=None', 1)

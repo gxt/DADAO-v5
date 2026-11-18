@@ -70,9 +70,9 @@
 | `tset/embench/` | T | Embench 套件说明 + 套件独有 glue（runtime/boardsupport/头） | `make check-tset-embench-smoke` |
 | `unit/llvm/e2e/lit/*.test` | U | 工具链端到端 smoke/FP/clmul/weak/CM（14）；`TESTCASES-084t` 由顶层 `e2e/` 归入 | `make check-lit` |
 | `unit/llvm/e2e/*.c|*.s|*.lds` | U | 上述 `.test` 的源（9 个已无 runner，见 `INVENTORY §7.4`） | 经 `.test` |
-| `ee-tiny/` | S 载体 | Kaiwu-Tiny 执行环境资产（平铺，`m15-testcases-011`；`m15-testcases-015` 补齐）：4 个驱动（`run_asm_suite.py` / `picolibc_tests.py` / `run_embench_e2e.py` / `run_semihosting_smoke.py`）+ Tiny bootrom/lds/公共宏（`bootrom{,_app}.S`、`bootrom.lds`、`semihost_smoke.{S,lds}`、`power/hmon.{S,lds}`、`tiny_common.inc`、`tiny_smoke.{S,lds}`、`tiny_crt.S`、`semihost_msg.inc`、`kaiwu-tiny{,-app}.lds`、`picolibc-tiny.ld`） | `make build-bootrom`；`check-inst-asm` / `check-picolibc-tests` / `test-m6` / `linux-semihosting-smoke` |
-| `ee-user/` | T 执行环境 | qemu-user / gem5 SE 资产平铺（`m15-testcases-012`）：12 个脚本（三套件全量驱动 + 代表集 + gem5 SE 基线/池 + `se_tset_matrix`）与 `minimal_crt0.s`/`dadao_mem_runtime.ll`/`dadao_user_dyn_probe.c`/`dadao-common.lds`/`dadao-dyn.lds` | `make check-tset-{libc,llvm,embench}-{smoke,full}`、`test-codegen`/`test-elf`/lit/e2e、`test-m6` |
-| `ee-vast/` | S 载体 | Vast 执行环境资产平铺（`m15-testcases-013`；`m15-testcases-015` 补 K1 boot 链）：step5 BootROM 固件 7 件（`power/hmon/smon.{S,lds}` + `README.md`）+ `kaiwu-vast.lds` + K1 boot 链固件 `k0_*`（`k0_README.md`、`k0_{hmon,smon,probe_kernel}.{S,lds}`；`k0_` 前缀与 step5 的 `hmon.S`/`smon.S` 区分） | `make build-bootrom` → `check-arch{,-smoke}`；`check-interface` / `run_parity`（vast）；`check-linux-k0{,-k1}` / `k0_boot_probe`（`k0_*`） |
+| `ee-tiny/` | S 载体 | Kaiwu-Tiny 执行环境资产（平铺，`m15-testcases-011`；`m15-testcases-015` 补齐）：4 个驱动（`run_inst_tiny.py` / `run_picolibc_tiny.py` / `run_embench_tiny.py` / `run_semihosting_tiny.py`）+ Tiny bootrom/lds/公共宏（`bootrom_tiny{,_app}.S`、`bootrom_tiny.lds`、`semihost_smoke_tiny.{S,lds}`、`power_tiny/hmon_tiny.{S,lds}`、`common_tiny.inc`、`smoke_tiny.{S,lds}`、`crt0_tiny.S`、`semihost_msg_tiny.inc`、`kernel_tiny.lds`/`app_tiny.lds`、`picolibc_tiny.ld`） | `make build-bootrom`；`check-inst-asm` / `check-picolibc-tests` / `test-m6` / `linux-semihosting-smoke` |
+| `ee-user/` | T 执行环境 | qemu-user / gem5 SE 资产平铺（`m15-testcases-012`）：12 个脚本（三套件全量驱动 + 代表集 + gem5 SE 基线/池 + `tset_matrix_user`）与 `crt0_user.s`/`mem_runtime_user.ll`/`dyn_probe_user.c`/`common_user.lds`/`dyn_user.lds` | `make check-tset-{libc,llvm,embench}-{smoke,full}`、`test-codegen`/`test-elf`/lit/e2e、`test-m6` |
+| `ee-vast/` | S 载体 | Vast 执行环境资产平铺（`m15-testcases-013`；`m15-testcases-015` 补 K1 boot 链）：step5 BootROM 固件 7 件（`power_vast/hmon_vast/smon_vast.{S,lds}` + `README.md`）+ `kernel_vast.lds` + K1 boot 链固件（`hmon_k0_vast`/`smon_k0_vast`/`probe_kernel_k0_vast` 的 `.S`/`.lds`） | `make build-bootrom` → `check-arch{,-smoke}`；`check-interface` / `run_parity`（vast）；`check-linux-k0{,-k1}` / `k0_boot_probe`（K1 链） |
 | `case-ledger.tsv` | — | 逐条身份清单（1,962 行含表头；生成物） | `make check-case-ledger`（L1） |
 
 ---
@@ -120,17 +120,17 @@ make test-repro  SCOPE=unit               # 两次生产 + 构建产物逐字节
 
 ```sh
 # 单个 `.S` 载体（= 一个 id；链例比结果字节流、故障例比 monitor 退出码）
-python3 tests/ee-tiny/run_asm_suite.py --id add.si_riii_rd --platforms qemu
+python3 tests/ee-tiny/run_inst_tiny.py --id add.si_riii_rd --platforms qemu
 
 # 一册（目录）
-python3 tests/ee-tiny/run_asm_suite.py --vectors tests/inst/04-arith-logic-octa \
+python3 tests/ee-tiny/run_inst_tiny.py --vectors tests/inst/04-arith-logic-octa \
     --platforms qemu
 
 # 全部册（= L2 `check-inst-asm` 的同一命令）
-python3 tests/ee-tiny/run_asm_suite.py --books-root tests/inst --platforms qemu
+python3 tests/ee-tiny/run_inst_tiny.py --books-root tests/inst --platforms qemu
 
 # 只做现场统计（不建镜像、不跑）：点数 / 点号连续性 / ≤127
-python3 tests/ee-tiny/run_asm_suite.py --books-root tests/inst --scan-only
+python3 tests/ee-tiny/run_inst_tiny.py --books-root tests/inst --scan-only
 ```
 
 前置：`make install-host`（`qemu-system-dadao` 取自安装根，见 `tools/testcases/lib/README.md`）。

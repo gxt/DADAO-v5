@@ -17,7 +17,7 @@ them:
 
 Value channel (frozen, see tests/unit/llvm/ir-lli/README.md): the process exit code
 == the low byte of the `i64` value returned by `@main`.  The startup stub
-`tests/ee-user/minimal_crt0.s` calls `@main` and reports the returned value
+`tests/ee-user/crt0_user.s` calls `@main` and reports the returned value
 (`rd8`, the M6 ABI return register) through the semihosting `SYS_EXIT` service;
 `lli` runs `@main` natively and the OS truncates its `i64` return to the low
 byte.  Both sides therefore expose exactly the same value channel.
@@ -97,7 +97,7 @@ DEFAULT_LLC = os.path.join(TARGET_TOOLS_BIN, "llc")
 DEFAULT_LLVM_MC = os.path.join(TARGET_TOOLS_BIN, "llvm-mc")
 DEFAULT_LLVM_OBJCOPY = os.path.join(TARGET_TOOLS_BIN, "llvm-objcopy")
 DEFAULT_QEMU = os.path.join(TARGET_TOOLS_BIN, "qemu-system-dadao")
-DEFAULT_CRT0 = "tests/ee-user/minimal_crt0.s"
+DEFAULT_CRT0 = "tests/ee-user/crt0_user.s"
 # 固定 64 KiB Tiny 固件（`make build-bootrom` 产物；产物根经 paths.py 解析，ADR-0016 D7）
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir() / "bootrom" / "tiny" /
                       "bootrom_tiny.bin")
@@ -119,7 +119,7 @@ _DEFSYMS = [
     "--defsym", "__bss_end=0",
 ]
 
-# `minimal_crt0.s` keeps `_start` in `.text.start` for the linked-ELF pipelines;
+# `crt0_user.s` keeps `_start` in `.text.start` for the linked-ELF pipelines;
 # the raw single-TU pipeline has no linker, so the stub is re-targeted at
 # `.text` (otherwise `call main` stays a cross-section relocation and objcopy
 # emits an unrelocated `call [rb0, 0]`).

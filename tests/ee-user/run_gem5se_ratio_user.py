@@ -67,10 +67,10 @@ SUITES = ("libc-test", "llvm-ts", "embench")
 
 DRIVERS = {
     "libc-test": os.path.join("tests", "ee-user",
-                              "run_libc_test_user_suite.py"),
+                              "run_libc_test_user.py"),
     "llvm-ts": os.path.join("tests", "ee-user", "run_llvm_ts_user.py"),
     "embench": os.path.join("tests", "ee-user",
-                            "run_embench_user_suite.py"),
+                            "run_embench_user.py"),
 }
 
 ENGINES = ("qemu", "gem5-se")

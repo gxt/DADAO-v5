@@ -4,7 +4,7 @@
  *
  * One PT_LOAD at the §6.3 kernel image region base (VA 0x0200_0010_0000),
  * 64 KiB aligned — the same shape as the K1 probe kernel
- * (`tests/ee-vast/k0_probe_kernel.lds`).  The gate re-writes p_paddr to
+ * (`tests/ee-vast/probe_kernel_k0_vast.lds`).  The gate re-writes p_paddr to
  * `p_vaddr - BIAS` before handing the image to QEMU (the K1 ELF-VA-TO-PA
  * relation), so this script only fixes the VA and the footprint.
  *

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""run_asm_suite.py — 跑 `tests/inst/<册>/*.S`（汇编 + 宏）用例，三方逐字节对照。
+"""run_inst_tiny.py — 跑 `tests/inst/<册>/*.S`（汇编 + 宏）用例，三方逐字节对照。
 
 被测对象（M13 用户裁定 2026-11-12）：`tests/inst/01-load-store/*.S`，一行一个用例，
 **期望值内联**，宏层 `tests/inst/macros/inst_test.inc`（`TEST_LD` / `TEST_ST` /
@@ -26,15 +26,15 @@
 派生，三方比较用 `cmp` 语义（全字节）。
 
 用法：
-    python3 tests/ee-tiny/run_asm_suite.py                         # 01 册全部 id
-    python3 tests/ee-tiny/run_asm_suite.py --id ld.o_rrii_ra       # 单个
-    python3 tests/ee-tiny/run_asm_suite.py --books-root tests/inst \
+    python3 tests/ee-tiny/run_inst_tiny.py                         # 01 册全部 id
+    python3 tests/ee-tiny/run_inst_tiny.py --id ld.o_rrii_ra       # 单个
+    python3 tests/ee-tiny/run_inst_tiny.py --books-root tests/inst \
         --platforms qemu                                          # 全部册（L2 门控）
-    python3 tests/ee-tiny/run_asm_suite.py --platforms qemu        # 快速自查
-    python3 tests/ee-tiny/run_asm_suite.py --json-out <f>          # 逐例记录
+    python3 tests/ee-tiny/run_inst_tiny.py --platforms qemu        # 快速自查
+    python3 tests/ee-tiny/run_inst_tiny.py --json-out <f>          # 逐例记录
 
 `--books-root`（`make check-inst-asm` 用）：扫描该根的**全部子目录**，凡含 `.S` 的册
-即为载体目录。**全部册共用同一份布局** `tests/ee-tiny/inst-tiny.lds`
+即为载体目录。**全部册共用同一份布局** `tests/ee-tiny/inst_tiny.lds`
 （`m15-testcases-006`；册目录内不再有 `.lds`），`--lds` 只用于覆盖它。
 `--vectors` 可重复（单/多目录），与 `--books-root` 可叠加。
 
@@ -139,7 +139,7 @@ def iter_code_lines(text: str):
         yield line
 
 
-DEFAULT_LDS = "tests/ee-tiny/inst-tiny.lds"
+DEFAULT_LDS = "tests/ee-tiny/inst_tiny.lds"
 DEFAULT_VECTORS = "tests/inst/01-load-store"
 DEFAULT_GEM5 = ".work/source/gem5/build/DADAO/gem5.opt"
 DEFAULT_GEM5_CONFIG = ".work/source/gem5/configs/dadao/fs.py"
@@ -370,7 +370,7 @@ def main() -> int:
                     help="扫描该根下所有含 .S 的子目录作为册载体"
                          "（如 tests/inst ⇒ 全部册）")
     ap.add_argument("--lds", default=None,
-                    help="覆盖链接布局（默认 tests/ee-tiny/inst-tiny.lds，"
+                    help="覆盖链接布局（默认 tests/ee-tiny/inst_tiny.lds，"
                          "全部册共用）")
     ap.add_argument("--id", action="append", default=None,
                     help="只跑这些 id（可重复；默认全部）")

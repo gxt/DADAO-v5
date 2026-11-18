@@ -88,9 +88,9 @@ EVIDENCE_DIR = ".work/evidence/" + TASK
 
 SUITES = ("libc-test", "llvm-ts", "embench")
 DRIVERS = {
-    "libc-test": "tests/ee-user/run_libc_test_user_suite.py",
+    "libc-test": "tests/ee-user/run_libc_test_user.py",
     "llvm-ts": "tests/ee-user/run_llvm_ts_user.py",
-    "embench": "tests/ee-user/run_embench_user_suite.py",
+    "embench": "tests/ee-user/run_embench_user.py",
 }
 # Per-suite "run exactly this one case" flag of the existing driver.  llvm-ts
 # spells it --only; libc-test/embench spell the same thing --filter (a regex

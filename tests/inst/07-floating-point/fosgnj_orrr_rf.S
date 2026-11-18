@@ -8,7 +8,7 @@
 @@ 特例：rfHD = rf0 ⇒ abs / -abs；rfHC = rfHD ⇒ copy / negate
 @@ 期望值由独立参考模型（精确有理数 + 手写 round-and-pack，证据脚本 `fp_ref.py`）按 spec 现算，不手写
 @@ 目的预置 `0xDEADBEEFCAFEF00D`：ft 只写低 32 ⇒ 期望高 32 必须是 `0xDEADBEEF`（写宽回归）
-@@ 链接布局：`tests/ee-tiny/inst-tiny.lds`（全部册共用（00 + 01–12）；段址见宏层文件头）
+@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段址见宏层文件头）
 
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/07-floating-point/07-floating-point.inc"

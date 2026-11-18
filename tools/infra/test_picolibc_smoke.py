@@ -66,9 +66,9 @@ REPO_ROOT = paths.repo_root()
 TOOLCHAIN_BIN = paths.host_toolchain_bin()
 SYSROOT = paths.target_sysroot_dir()
 # 资产归属（m15-testcases-011/012）：crt0 在 `tests/ee-user/`，Tiny lds 在
-# `tests/ee-tiny/`；`dadao-common.lds` 在 `tests/ee-user/`（`INCLUDE` 经 -L 解析）。
-CRT0 = REPO_ROOT / "tests" / "ee-user" / "minimal_crt0.s"
-LDS = REPO_ROOT / "tests" / "ee-tiny" / "kaiwu-tiny.lds"
+# `tests/ee-tiny/`；`common_user.lds` 在 `tests/ee-user/`（`INCLUDE` 经 -L 解析）。
+CRT0 = REPO_ROOT / "tests" / "ee-user" / "crt0_user.s"
+LDS = REPO_ROOT / "tests" / "ee-tiny" / "kernel_tiny.lds"
 COMMON_LDS_DIR = REPO_ROOT / "tests" / "ee-user"
 
 PROG_C = """\

@@ -8,7 +8,7 @@
 - `embench_runtime.c` — 最小运行时（`str*` / `ctype` / `sqrt` / `abort`，不引 libc）。
 - `embench_include/` — freestanding 头（`assert.h` / `stdio.h` / …）。
 
-`TESTCASES-075t` 从旧共享区迁入；迁移期符号链接已在 `TESTCASES-076t`（P6）删除。`tests/ee-user/dadao_mem_runtime.ll` 是**共享**运行时，未随本
+`TESTCASES-075t` 从旧共享区迁入；迁移期符号链接已在 `TESTCASES-076t`（P6）删除。`tests/ee-user/mem_runtime_user.ll` 是**共享**运行时，未随本
 套件移动。
 
 ## 补丁集
@@ -31,14 +31,14 @@
 | 用途 | 命令 |
 |---|---|
 | L2 smoke（全量 benchmark × `-O0/-O2`） | `make check-tset-embench-smoke` |
-| 驱动（按需） | `python3 tests/ee-user/run_embench_user_suite.py --link-mode static --json-out /tmp/.../embench.json` |
+| 驱动（按需） | `python3 tests/ee-user/run_embench_user.py --link-mode static --json-out /tmp/.../embench.json` |
 
-- 驱动实现：`tests/ee-user/run_embench_user_suite.py`
+- 驱动实现：`tests/ee-user/run_embench_user.py`
   （`m15-testcases-012` 从 `tools/testcases/tset/embench/` 迁入；`tools/testcases/run_embench_user_suite.py`
   仍是等价薄 wrapper）。
 - 运行目录 / 三件套：`<test-artifacts>/embench-user/<UTC>-embench-user-<档>/`
   （`docs/Process-08`；目录名**未改**）。
-- `test-m6` 的 Embench E2E（`tests/ee-tiny/run_embench_e2e.py`）共用本目录 glue，
+- `test-m6` 的 Embench E2E（`tests/ee-tiny/run_embench_tiny.py`）共用本目录 glue，
   路径已同步。
 
 ## 口径

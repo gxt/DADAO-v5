@@ -46,8 +46,8 @@ import paths  # noqa: E402
 
 TINY_FW = os.path.join(REPO_ROOT, "tests", "ee-tiny")
 APP_SRC = os.path.join(REPO_ROOT, "tests", "arch", "hmon", "tiny_hmon_min.S")
-APP_LDS = os.path.join(REPO_ROOT, "tests", "ee-tiny", "kaiwu-tiny-app.lds")
-# `INCLUDE dadao-common.lds` 由 `tests/ee-user/` 提供（ld.lld 只搜 cwd + -L）。
+APP_LDS = os.path.join(REPO_ROOT, "tests", "ee-tiny", "app_tiny.lds")
+# `INCLUDE common_user.lds` 由 `tests/ee-user/` 提供（ld.lld 只搜 cwd + -L）。
 COMMON_LDS_DIR = os.path.join(REPO_ROOT, "tests", "ee-user")
 SHARED_ASM = os.path.join(REPO_ROOT, "tests", "shared", "asm")
 BUILDER = os.path.join(REPO_ROOT, "tools", "testcases", "arch",
@@ -160,13 +160,13 @@ def symbols(tc, elf):
 def build_firmware(bld, tc, work):
     power_elf = os.path.join(work, "power.elf")
     hmon_elf = os.path.join(work, "hmon.elf")
-    assemble(tc, os.path.join(TINY_FW, "power.S"), os.path.join(work, "power.o"),
+    assemble(tc, os.path.join(TINY_FW, "power_tiny.S"), os.path.join(work, "power.o"),
              [REPO_ROOT])
-    link(tc, os.path.join(TINY_FW, "power.lds"),
+    link(tc, os.path.join(TINY_FW, "power_tiny.lds"),
          [os.path.join(work, "power.o")], power_elf)
-    assemble(tc, os.path.join(TINY_FW, "hmon.S"), os.path.join(work, "hmon.o"),
+    assemble(tc, os.path.join(TINY_FW, "hmon_tiny.S"), os.path.join(work, "hmon.o"),
              [REPO_ROOT])
-    link(tc, os.path.join(TINY_FW, "hmon.lds"),
+    link(tc, os.path.join(TINY_FW, "hmon_tiny.lds"),
          [os.path.join(work, "hmon.o")], hmon_elf)
 
     out_dir = os.path.join(work, "img")

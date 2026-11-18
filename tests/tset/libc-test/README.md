@@ -40,10 +40,10 @@ musl/Linux 用户态一致性测试语料（`TESTCASES-044t`，`ADR-0025 D6`）�
 | 用途 | 命令 |
 |---|---|
 | L2 代表集 | `make check-tset-libc-smoke` |
-| 套件全量（按需） | `python3 tests/ee-user/run_libc_test_user_suite.py --link-mode static --json-out /tmp/.../libc.json` |
-| 代表集规则（不跑 guest） | `python3 tests/ee-user/run_libc_test_smoke.py --list` |
+| 套件全量（按需） | `python3 tests/ee-user/run_libc_test_user.py --link-mode static --json-out /tmp/.../libc.json` |
+| 代表集规则（不跑 guest） | `python3 tests/ee-user/run_libc_test_smoke_user.py --list` |
 
-- 驱动实现：`tests/ee-user/run_libc_test_user_suite.py`、`tests/ee-user/run_libc_test_smoke.py`
+- 驱动实现：`tests/ee-user/run_libc_test_user.py`、`tests/ee-user/run_libc_test_smoke_user.py`
   （`m15-testcases-012` 从 `tools/testcases/tset/libc-test/` 迁入；`tools/testcases/run_libc_test_user_suite.py`
   仍是等价薄 wrapper）。
 - 运行目录 / 三件套：`<test-artifacts>/libc-test-user/<UTC>-libc-test-user-<档>/`

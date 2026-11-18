@@ -274,9 +274,9 @@ def main() -> int:
     prof = oracle["profile"]
 
     # ---- build inputs: shared firmware + application ------------------------
-    power_elf = build_elf(tc, TINY_FW / "power.S", TINY_FW / "power.lds",
+    power_elf = build_elf(tc, TINY_FW / "power_tiny.S", TINY_FW / "power_tiny.lds",
                           work, "power")
-    shared_hmon = build_elf(tc, TINY_FW / "hmon.S", TINY_FW / "hmon.lds",
+    shared_hmon = build_elf(tc, TINY_FW / "hmon_tiny.S", TINY_FW / "hmon_tiny.lds",
                             work, "shared_hmon")
     app_elf = build_elf(tc, CASE_DIR / "tiny_hmon.S", CASE_DIR / "tiny_hmon.lds",
                         work, "tiny_hmon")

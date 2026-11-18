@@ -43,7 +43,7 @@ SECTIONS
     *(.text .text.*)
   } > RAM :image
 
-  INCLUDE dadao-common.lds
+  INCLUDE common_user.lds
 
   ASSERT(SIZEOF(.text.start) == 0 || _start == 0xffffff010100,
          "tiny app: _start must be the fixed entry")

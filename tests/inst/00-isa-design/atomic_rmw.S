@@ -22,7 +22,7 @@
 @@   `lr`（`spec/SimRISC-12 §1` 的第一条清标记事件）⇒ 单 hart 可构造、可重复。
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA 零区；每例独立 8 B 拍（0x500 起），
 @@   例间不共享可写字节 ⇒ 用例可单独阅读、顺序无关。
-@@ 链接布局：`tests/ee-tiny/inst-tiny.lds`（全部册共用（00 + 01–12）；`run_asm_suite` 默认布局）。
+@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；`run_asm_suite` 默认布局）。
 @@ GAP（不可构造，不伪造、不写用例）：
 @@   ① **多 hart 争用**：Tiny 单 hart，无法构造"另一 hart 对同址同宽 store 清标记"；
 @@   ② **内存序强度**（`an`/`ar`/`nr` 的重排约束）：单 hart 顺序执行不可观测；
