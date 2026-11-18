@@ -46,6 +46,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-spec-009 | 2026-11-18 21:32 | 2–3 h | `escape` 恢复 `inner_cfx_code`（cg5 rc1 `excp_prev_cfx_code`；spec + QEMU 同笔，版本号不变） |
 | m14-linux-019 | 2026-11-18 06:40 | 3–4 h | 用户栈增长：`VM_GROWSDOWN` 下方扩栈（S1–S6，真实用户进程触发） |
 | m14-linux-017 | 2026-11-18 00:20 | 7–9 h | 上下文切换（switch_to + 调度 + U-mode↔S-mode 帧往返）+ 最小 clockevent + F3/init 真跑 |
 
