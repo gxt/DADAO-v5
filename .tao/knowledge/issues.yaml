@@ -897,3 +897,10 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`tools/gem5/check_tiny_hmon.py` 有与 semihosting 无关的预存在红（`m15-testcases-018` 复核时发现）：期望 `cause_id = 0x2`，而引擎自 `m16-gem5-009` 起给 18 位子原因 `0x200000000000002`（cause 与 wyde 子原因合写）；record 34 起错位、条数 43 vs 42。影响：该脚本的结论不可直接用于 hmon 验收。处置建议：按 `DADAO-12 §3.6` 的 18 位口径改期望（或比较时只取低 16 位 cause），并核对条数差异的来源；单独立 gem5 任务。"
+- id: ISS-472
+  scope:
+  - gem5
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】gem5 `nodeEscape` 缺 QEMU 的 `saved_intr_mask_valid` 守卫（`m16-gem5-013` 复核查出）：从**同步异常帧** `escape` 时，gem5 会把 `cfx0.global_cfx_intr_mask` 写成 0，而 QEMU（`helper.c:2889`）有 `saved_intr_mask_valid` 判定、不写。影响：同步帧 escape 后两引擎的中断屏蔽状态分叉（当前探针不触发该路径，故未暴露）。处置建议：gem5 补同形守卫 + 一条探针断言（同步帧 escape 后 `global_cfx_intr_mask` 不变）。"
