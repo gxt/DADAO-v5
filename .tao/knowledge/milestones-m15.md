@@ -26,6 +26,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m15-testcases-016 | 2–3 h | `tests/ee-*` 文件名统一为 `<role>_<ee>`（51 件 `git mv`，含 `run_asm_suite.py`→`run_inst_tiny.py`） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
