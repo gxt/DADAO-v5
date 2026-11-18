@@ -153,7 +153,7 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 M1/M3 ABI 事实的机器可读形式见 `contracts/abi.yaml`（`version: "0.9.2"`），其字段与 §1 / §4 一致：
 
 - `registers` 表为逐寄存器分类的**权威来源**（`rb1`/`rb2` 依 spec 标 `callee_saved: true`）。[DADAO-21 §寄存器规范]
-- `callee_saved` / `reserved_registers` 为便于消费者读取的**派生分类索引**：`callee_saved` 给出各 bank 的**通用 callee-saved 块**（`rd`: 32–63；`rb`: 32–63，`rb63` 为普通成员；**RF 整体 `Excluded from M3`、`allocatable.rf` 为空，其块仅作 spec 事实登记**）；`reserved_registers` 依 M3 口径（C6）为 `rd1–rd3` / `rb2–rb3`（其中 `rb2` 为 frame pointer、无条件保留）。[DADAO-21 §寄存器规范][ADR-0018（C6）]
+- `callee_saved` / `reserved_registers` 为便于消费者读取的**派生分类索引**：`callee_saved` 给出各 bank 的**通用 callee-saved 块**（`rd`: 32–63；`rb`: 32–63，`rb63` 为普通成员；**RF 整体 `Excluded from M3`、`allocatable.rf` 为空，其块仅作 spec 事实登记**）；`reserved_registers` 依 M3 口径（C6）为 `rd1–rd3` / `rb3`（**`rb2` 不列入 reserved**：它是 **callee-saved 的 frame pointer（无条件保留）**，进程/上下文切换必须保存与恢复）。[DADAO-21 §寄存器规范][ADR-0018（C6）]
 - `scalar_calling_convention` 为 §4 标量调用约定的 M3 机器可读投影。[DADAO-21 §函数调用规范][ADR-0018（C4）]
 - `open_items` 为空（M3 的未决项已由用户逐条裁定于 M6 消解，见 §6）；`deferred_to_m4` 为 M3 范围外的高级 ABI 边界索引（见 §5）；其中 `hfa` / `hpa` / `aggregate_arguments` 已由用户 2026-10-09 裁定于 M6 收口（见 §6.4）。[DADAO-21 §返回值 §多返回值][DADAO-21 §传参 §聚合类型参数]
 - `stack_alignment` / `call_sp_alignment` = **16**（本册同步）；`stack_natural_alignment_bits: 128` 不变。[DADAO-21 §传参 §栈溢出规则][ADR-0018（C9）]

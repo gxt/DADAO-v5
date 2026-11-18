@@ -103,7 +103,7 @@ non_allocatable:
   - {reg: "rd2-rd3",  reason: "reserved (debug/test-reserved)"}
   - {reg: rb0,        reason: pc}
   - {reg: rb1,        reason: stack_pointer}
-  - {reg: rb2,        reason: frame_pointer}
+  - {reg: rb2,        reason: "frame_pointer (callee-saved, unconditional)"}
   - {reg: rb3,        reason: thread_pointer}
   - {reg: "ra0-ra63", reason: managed_by_call_ret}
   - {reg: "rf0-rf63", reason: excluded_from_m3}
@@ -121,8 +121,9 @@ callee_saved:
   rd: [32, 63]
   rb: [32, 63]   # 连续块；SP=rb1 / FP=rb2（无条件保留）见 registers 表
   rf: [32, 63]
-# reserved 区间（M3 口径 C6）：rd1–rd3 / rb2–rb3。rb1=SP、rb0=IP。
-# rd2–rd3 为 spec 明文 reserved（调试/测试保留）；rb2=frame pointer（无条件保留）、rb3=TP，M3 保留不分配。
+# reserved 区间（M3 口径 C6）：rd1–rd3 / rb3。rb1=SP、rb0=IP。
+# rd2–rd3 为 spec 明文 reserved（调试/测试保留）；rb3=TP 保留不分配。
+# rb2 **不属于 reserved**：它是 callee-saved 的 frame pointer（无条件保留），进程/上下文切换必须保存与恢复。
 reserved_registers:
   rd: [1, 3]
   rb: [2, 3]
