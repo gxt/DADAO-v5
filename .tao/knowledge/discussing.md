@@ -92,13 +92,12 @@
 - **裁定（用户 2026-11-19，原话「A」）**：按 (A) 实现「每任务内核栈」；spec 不改。
 - **实现细节（用户 2026-11-19 二次裁定，取代「全局 `dadao_current_task`」）**：用 **`cg6` 暂存寄存器 + `rd2`（reserved）** 做过渡——
   ```
-  rb2rd {rd2},{rb1},1        # rd2 ← 用户 sp
-  cfx2rc cfx_umon,cg6,rc0,rd2 # scratch0 ← 用户 sp
-  cfx2rd cfx_umon,cg6,rc1,rd2 # rd2 ← 任务内核栈顶（__switch_to 预写）
-  rd2rb {rb1},{rd2},1         # rb1 ← 任务栈顶
-  cfx2rd cfx_umon,cg6,rc0,rd2 # rd2 ← 用户 sp
-  st.o  rd2,[rb1,FRAME_SP]    # 存进新栈的帧
+  rb2rd  {rd2:rd2},{rb1:rb1},1       # rd2 ← 用户 sp
+  cfx2rd cfx_umon,cg6,rc1,rd3        # rd3 ← 任务内核栈顶（__switch_to 预写）
+  rd2rb  {rb1:rb1},{rd3:rd3},1       # rb1 ← 任务栈顶
+  st.o   rd2,[rb1,FRAME_SP]          # 用户 sp → 新栈的帧
   ```
+  （`rd2`/`rd3` 都是 reserved、编译器不分配，故全程可安全做过渡；`cg6` 只占 `rc1` 一个槽。）
   `__switch_to` 只加一行：把 `task_stack_page(next)+THREAD_SIZE` 写进 `cfx_umon cg6 rc1`。**不需要全局变量、不改 `thread_info.h`**（入口切到任务栈后 `current = SP & ~(THREAD_SIZE-1)` 自然成立）；静态栈保留为 boot 早期兜底（`cg6 rc1 == 0` 时用）。依据：`rb2rd`/`rd2rb` 见 `SimRISC-02`；`rd2–rd3` 是 reserved（编译器不分配）；`cg6` 见 `DADAO-12 §3.7`（内核专用）。**用户补充质疑已澄清**：共用的是内核态静态栈（非用户栈）；spec 未规定 `trap` 自动切栈（`§5.1/§5.2` 只定向量与 `inner_cfx_code`）；「每任务内核栈」由软件决定，故走 A 而非改 spec。
 
 ## N7. cfx 待实现范围
