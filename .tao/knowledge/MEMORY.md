@@ -8,7 +8,7 @@
   - `m14-linux-017` 第 23 轮：**S7 已转绿**（`/init` → musl → `getpid`/`write`/`brk`/`exit_group`，exit=0）；switch 门控 **42 PASS / 1 FAIL**，唯一红项 = 本任务 **S5**（U-mode 帧 A/B 往返），本轮按「入口栈静态 + 帧按任务化」方案做。修过的真缺陷：F47 代码页错位、F48 `protection_map` 缺 U 位、F50 文件后备数据页被映射成零页、`brk` 钩子读错寄存器组（`rb16` 非 `rd16`）。
   - `m15-spec-001`：**已收尾**（`ab03d5ce`）——`.idl` 源迁 `idl/`、`render.py` 生成 spec 块、`check-idl-sync` 进 L1；5 条样板、4 路注入。
   - `m16-gem5-013`：gem5 补 `prevCfxCode`（`escape` 恢复 `inner_cfx_code`）。
-  - `m16-chipyard-005`：**已收尾**（`a39611f4`）——RTL 补 `inner_cfx_code`/`prevCfx`（cg5 rc1 RW、CFXESC 交当前 cfx）；sim md5 `9b6928e0`。**共享 `.work/source/chipyard` 仍是旧基线（`b20308d`），待重建**。
+  - `m16-chipyard-005`：**已收尾**（`a39611f4`）——RTL 补 `inner_cfx_code`/`prevCfx`（cg5 rc1 RW、CFXESC 交当前 cfx）；sim md5 `9b6928e0`。**共享 `.work/source/chipyard` 已重置 base 并重新应用 23 补丁（`f874b8b`）；`make verilog CONFIG=WumingTinyConfig` 重建中（后台）**。
 - **已定口径（2026-11-18）**：`escape` 恢复 `inner_cfx_code ← excp_prev_cfx_code`（`cg5 rc1`；spec+DADAO-12/Kaiwu+QEMU 已落，版本号未动）；`spec/Kaiwu` 三处已对齐；IDL 寄存器模型 = 方案 C（四组数组 + `fo`/`ft` 视图、`ra` 逻辑栈序 + `ras_*`）；`read_memory`/`write_memory`（无 `_be`）/`fetch_memory`/`raise(code,mode,addr)`/`is_naturally_aligned`；`idlc` 不进门控；`.idl` sha256 锁延后到 M15 收口（N21）。
 - **目录防护第一波已收尾**：`spec/`、`.tao/`、`.tao/knowledge`、`components/` 各有 `.manifests.toml` + `check-manifests-guard`（缺清单/缺注册表/游离清单均红）；`check-spec-readonly`/`check-knowledge-dir` 已删并入。
 - **待开始**：`m15-infra-008`（CONFIG 钉子门控，等 017 收口）；`m14-linux-018`(COW)/`023`(用户 syscall)/`032`–`034`(K6)；`m14-linux-019`（暂停，等 017 释放 linux）。
