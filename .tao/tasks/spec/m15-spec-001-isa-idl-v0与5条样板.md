@@ -1,88 +1,110 @@
-# m15-spec-001: ISA IDL 语法 v0（UDB IDL 基线）+ 5 条样板 operation + `idlc` 复用评估
+# m15-spec-001: ISA 语义源（`idl/`）v0 + 5 条样板 + 渲染器
 
 **模块**：spec
 **项目里程碑**：M15
-**依赖**：`m14-spec-001`/`m14-spec-003`（启动 ABI 与内核窗口，只作语义上下文，不阻塞）；无其它 M15 前置
-**可并行分片**：否（单册单写者：`spec/SimRISC-*` + `contracts/isa/` + `tools/spec/`）
-**预估**：3–5 天
-**状态**：待返工
+**依赖**：无
+**可并行分片**：否（`idl/` 单写者）
+**预估**：2–3 天
+**档位**：中改
+**状态**：待开始
 
-## 用户裁定（2026-11-13，渠道 = 主会话问答）
+## 背景与方向修正（用户 2026-11-18）
 
-> 1. M15 = 「ISA 语义结构化」，把 spec 升级为「每条指令一段可解析的 operation」，**不执行**（执行归 M17）。
-> 2. **以 `riscv-unified-db` 的 IDL 为准**；不合适处再扩展；不要自造"四不像"语法。
-> 3. 执行方式：**边写边改**（先 5 条样板，语法随样板修正）。
-> 4. 授权：本任务可修改 `spec/SimRISC-0x` 与 `spec/README.md`（只加 operation 块与说明，不改既有语义），并同笔更新只读锁。
+原 WIP（`0584a64b`）走的是「spec Markdown 是真源 → 抽取 `.idl` 投影」，**方向已反转**（用户 2026-11-18 裁定）：
 
-## 背景与取向
+- **`.idl` 是机器可读语义源**；spec 正文里的 ```idl 块是**渲染结果**，不许手改；
+- 源与消费它的工具**放一起**，放仓库根 **`idl/`**（用户：`tools/` 已用废，不再往那儿塞）；
+- `contracts/` 只放**从 spec 派生的**机器数据，不再放 IDL 源。
 
-- UDB 有正式 IDL 文档 `doc/idl.adoc`：强类型（`Bits<N>`）、`X(rs1)` 寄存器访问、`jump(...)`/`raise(ExceptionCode::...)`、`function` 定义、配置常量；工具侧有 `idlc`（IDL 编译器）与 VS Code `yamlidl` 语法高亮。
-- 本仓 spec 目前只有散文 + 模板行（如 `ld.o rdHA, [rbHB, imms12]`），无 per-instruction operation。
-- **本任务的产物是"第一版可运行的形态"，不是最终语法**；允许在 5 条样板上迭代修正语法，并把每次修正写进 `contracts/isa/idl-v0.md` 的变更记录。
+## 用户裁定（逐条，返工必须遵守）
+
+1. **目录**：仓库根 `idl/`；每册一个 `.idl`（`SimRISC-0x.idl`）。
+2. **寄存器模型（方案 C）**：`rd[]`/`rb[]`/`rf[]`/`ra[]` 各 64×64；`fo[]`（64 位视图）/`ft[]`（低 32 位视图）是 `rf` 的数据视图；`rf[]` 只用于整 64 位搬移（`rf2rf`/`rf2rd`/`rd2rf`）与 FCSR。
+3. **0 号语义**：`rd[0]` 读 0、写丢弃（目的是否 ILLI 由各指令判）；`rb[0]` 读出 = IP、写 ⇒ ILLI；`rf[0]` = FCSR（`ft[0]` 只覆盖可写 `[4:0]`）；`ra[0]` = `{RACNT, MRPTR}` 元数据。
+4. **`ra`**：逻辑栈序（`ra63` = 栈顶）+ `ras_*` 函数；物理环状缓冲不暴露（`spec/SimRISC-00 §2.4` 已加实现注）。
+5. **写宽度**：`rd`/`rb`/`ra`/`rf` 整 64；`ft` 只写低 32；`ld.t`/`ldm.t` 走 `ft[]`。
+6. **访存函数**：**不带 `_be` 后缀**（DADAO 只支持大端），用 `read_memory(width_bits, ea)` / `write_memory(width_bits, ea, value)`，与 UDB 同名；**取指单独 `fetch_memory(...)`**。
+7. **`raise` 带三参**：`raise(code, mode, addr)`（与 UDB 同形）；`mode()` 返回当前运行模式。
+8. **对齐判定按 UDB**：`is_naturally_aligned(N, value) -> Boolean`，异常由 operation 显式 `raise`（不再用会抛异常的 `check_alignment`）。
+9. **`idlc` 不进门控**，只作编写期 oracle。
+10. **语法子集「用到再说」**（不现在扩 tuple/struct/include）。
+11. **`.idl` 的 sha256 锁延后**：`idl/.manifests.toml` 本轮**只列文件名**（双向集合断言照做），**不写 `sha256`**；M15 收口统一补（`discussing.md` N21）。
 
 ## 交付物
 
-1. `contracts/isa/idl-v0.md`：**语法说明（直接引用 UDB `doc/idl.adoc` 的规则，不复制其全文）+ 本仓扩展清单**：
-   - 扩展一律优先用 IDL `function`（四 bank 读写、48 位地址/分区、大端访存、异常集、cfx 分发）；
-   - 若必须改语言（例如新增类型/语法），**单列「扩展提案」**，写清动机、被否替代方案、对 `idlc` 兼容性的影响。
-2. **5 条样板 operation**，写入对应 spec 分册的指令小节（fenced ```` ```idl ```` 块）：
-   - `add.so_rrrr_rd`（`SimRISC-04`；双目的 + 符号扩展 128）
-   - `ld.o_rrii_rd`（`SimRISC-01`；48 位地址、大端、对齐、`rd0⇒ILLI`）
-   - `br.eq_rrii_rd`（`SimRISC-06`；**IP = 当前指令地址**、目标写回 `rb0`）
-   - `lr.o.nn_rrri_rd`（`SimRISC-12`；保留标记键 = 精确地址 + 宽度）
-   - `trap_ciii_cfx`（`SimRISC-11`；cfx 编号 + `immu18` 服务号，无 CSR/向量表）
-3. `tools/spec/extract_idl.py` 原型：从 spec 抽取 ```` ```idl ```` 块 → `contracts/isa/idl/`（一指令一文件）；`--check` 逐字节比对，缺失/漂移即非零退出。
-4. **`idlc` 复用评估报告**（写进完成区 + `contracts/isa/idl-v0.md` 一节）：许可证、能否离线运行、是否绑定 RISC-V CSR/`X[]` 模型、可否只复用**语法/解析器**而不引入其语义库；给出「直接复用 / 只借语法自写抽取器」的结论与证据（实际跑一次 `idlc`）。
+### 1. `idl/README.md`（语法与语义库说明）
 
-## 验收
+- §1 语法基线（UDB 子集，逐条列出实际用到的构造；不复制 `doc/idl.adoc` 全文）；
+- §2 命名约定（编码字段名 ↔ 解码变量；立即数「汇编层宽 2 位」的移位表：`br.eq` `<<2`、`aip.si` `<<12` 等）；
+- §3 寄存器模型（四组数组 + `fo`/`ft` 视图 + 0 号语义表 + 写宽度）；
+- §4 语义库（函数签名 + `description` + `body` 或 `builtin`）：
+  ```
+  ip() -> Bits<48>
+  mode() -> RunMode
+  jump(Bits<64> target)
+  raise(ExceptionCode, RunMode, Bits<64> addr)
+  fetch_memory(U32 width_bits, Bits<48> ea) -> Bits<64>
+  read_memory(U32 width_bits, Bits<48> ea) -> Bits<64>
+  write_memory(U32 width_bits, Bits<48> ea, Bits<64> value)
+  is_naturally_aligned(U32 width_bits, Bits<48> ea) -> Boolean
+  cfx_is_reserved(Bits<6>) -> Boolean
+  cfx_trap_denied(Bits<6>) -> Boolean
+  cfx_trap_enter(Bits<6> cfxha, Bits<18> immu18)
+  reservation_set(Bits<48> ea, U32 width_bits)
+  reservation_clear_all()
+  ras_push(Bits<48>) / ras_pop() -> Bits<48> / ras_cnt() -> Bits<6>
+  ```
+- §5 语法扩展提案（三态：采纳/搁置/否决；当前应为 0 条语法扩展）；
+- §6 `idlc` 复用评估（沿用 WIP 的实测结论，注明「不进门控」）。
 
-1. 5 条 operation 块存在且可被 `extract_idl.py` 抽取；抽取结果与 spec 内块**逐字节一致**；`--check` 幂等（两次运行同一结果）。
-2. 5 条样板覆盖本任务声明的「DADAO 扩展点」：四 bank、48 位地址、大端、异常集、cfx 分发；每条至少出现一次。
-3. `contracts/isa/idl-v0.md` 内每条扩展都能对应到「IDL 现有能力 / 新增 function / 扩展提案」三态之一，**无未分类项**。
-4. `idlc` 评估有**真实命令与退出码**；「能否离线」用断网/离线方式实证（不得只凭 README 断言）。
-5. 可达 FAIL 注入 ≥2 路（抽取值改错 / spec 块删一行 / 扩展清单漏项）⇒ 门控非零退出；`cp`+md5 还原回绿。
-6. spec 门控（`check-spec-*`）+ `check-spec-readonly` + `check-contracts-dir` 全绿；锁 sha 同笔重算。
-7. 完成区 ≤30 行、无运行期路径；不改台账 / `discussing.md`。
+### 2. `idl/SimRISC-0x.idl`（每册一个，本任务只做 5 册）
 
-## 状态与推进口径（用户 2026-11-15）
+- `SimRISC-01.idl`（`ld.o_rrii_rd`）、`SimRISC-04.idl`（`add.so_rrrr_rd`）、`SimRISC-06.idl`（`br.eq_rrii_rd`）、`SimRISC-11.idl`（`trap_ciii_cfx`）、`SimRISC-12.idl`（`lr.o.nn_orrr_rd`）；
+- 每条以 `# id: <instr-id>` 开头，id 必须存在于 `contracts/opcodes.yaml`；
+- **按第 2–8 条重写**（数组式、`read_memory`、`raise` 三参、`is_naturally_aligned`）。
 
-- **肯定要做**，但**本轮不裁决**；先处理其它裁定项，M15 **最后**再议。
-- 用户提出的两点前置要求：
-  1. **要能看到"修改后的文件内容"** —— WIP 分支 `0584a64b`（17 文件 / +1005 行）目前只在 git 里，需要以**可读形式**摊开（建议：`contracts/isa/idl-v0.md` 全文 + 5 个 `.idl` + 6 册 operation 块 + `extract_idl.py` 关键函数，逐段过目）；
-  2. **逐条语句如何定义需要展开分析** —— 即对每条 operation 块按语句逐条讲清"这句在定义什么、依据哪条 spec 散文、对应哪个编码字段/副作用"，而不是只看能否解析。
-- 因此后续 M15 任务书须增加一节「逐条语句分析」，作为审阅的主要材料。
-- 当前状态：分支落后 master 341 提交；任务书 `**状态**` 由主会话改回 **`待返工`**（原 `待验收` 为已终止子代理所留，不实）。
+### 3. `idl/render.py`（渲染器，**完全重写**）
 
-## 硬约束（子代理必读）
+- 读 `idl/*.idl`，按 `# id:` 切分；
+- 在对应 spec 册里找 `<!-- IDL:<instr-id> BEGIN -->` … `<!-- IDL:<instr-id> END -->`，替换为 fenced ```idl 块；
+- `--check`：重渲染后与 spec 文件逐字节比对，不一致 ⇒ 非零；
+- 断言：`.idl` 的 id ∈ `opcodes.yaml`；每个 id 在 spec 有标记；spec 的标记都有对应 id（防空标记）；
+- `--self-test`：三类注入（改 `.idl` 未重渲染 / 改 spec 块 / 删除一条 id）。
 
-1. 独立 `git worktree`（分支名 = 任务号）；禁改主工作树；临时文件放 `/tmp/opencode/<任务ID>/`。
-2. 不提交 git。
-3. 完成区与真实输出逐条对齐；计数现场统计。
-4. 只动「交付物」列出的文件；越界须披露。
-5. 需用户语义裁定写进「待裁定」段返回主会话（尤其：是否允许新增 IDL 语法）。
-6. 禁 `git checkout/restore/stash` 还原注入；用 `cp`+md5。
+### 4. spec 册加标记块
 
-## 用户裁定（2026-11-18，`SimRISC-00` 口径定稿，返工必须按此执行）
+5 册各加一个标记块（内容由 `render.py` 生成，**禁止手写**）。`spec/*.md` 改动后**同笔重算** `spec/.manifests.toml` 的对应 sha256（既有门控要求）。
 
-1. **寄存器组全部数组式（方案 C）**：`rd[]` / `rb[]` / `rf[]` / `ra[]` 各 64 项 × 64 位；`fo[]` 与 `ft[]` 作为 `rf` 的数据视图（见 3）。
-2. **0 号语义**（写进 `§4`）：
-   - `rd[0]`：读出恒 0；写入丢弃（「目的为 `rd0` 是否 ILLI」由各指令判）。
-   - `rb[0]`：读出 = `ip()`（当前指令地址）；写入 ⇒ ILLI。
-   - `rf[0]`：FCSR（只读位 + 可写位）；`ft[0]` 只覆盖 `[31:0]` 中可写的 `[4:0]`，`[33:32]` 不在视图内。
-   - `ra[0]`：`{RACNT, MRPTR}` 元数据，不是返回地址。
-3. **`fo` / `ft` / `rf` 三分工**（用户 2026-11-18 确认）：
-   - `fo[i]` = 64 位双精视图；`ft[i]` = 低 32 位单精视图（窄写天然表达）；
-   - `rf[i]` 只用于**整 64 位搬移**（`rf2rf`/`rf2rd`/`rd2rf`）与 FCSR；
-   - 浮点运算按数据格式选 `ft[]` 或 `fo[]`。
-4. **`ra` 的栈语义**：`ra[1..63]` 按**逻辑栈序**编号（`ra63` = 栈顶），RAS 操作一律走 `ras_push`/`ras_pop`/`ras_cnt`；物理环状缓冲（`ras_base`）**非架构可见**，IDL 不暴露。`spec/SimRISC-00 §2.4` 已加实现注（`6604fa70`）。
-5. **写宽度**：`rd`/`rb`/`ra` 整 64；`rf` 整 64；`ft` 只写低 32 位；`ld.t`/`ldm.t` 走 `ft[]`。
-6. **`raise(code)`** = 进**当前运行模式 monitor**；`CFXTRAP` 走 `cfx_trap_enter(cfxha, immu18)`，不用 `raise`。
-7. **`.idl` sha256 锁延后（用户 2026-11-18）**：`idl/.manifests.toml` 本轮**只列文件名**（双向集合断言照做），**不写 `sha256`**；等 **M15 收口时统一补**（见 `discussing.md` 的 N21）。理由：M15 期间 `.idl` 还会大量增改，逐次重算锁的成本高于收益。
-8. **EA 截断顺序**（`ld/o` 等访存）**待定**：`rb[47:0] + imm`（先截再加）还是 `(rb + imm)[47:0]`（加后截断）；IDL 暂用后者，**须在 `SimRISC-01` 讨论时由用户裁定**。
+### 5. 目录与门控
+
+- `manifests/dir-guard-roots.toml` 的 `roots` 加 `"idl"`；
+- `idl/.manifests.toml`：列 `README.md`、`render.py`、`SimRISC-*.idl`（**无 sha256**），可在 `subdirs` 预留 `m17`；
+- `Process-06` 加「生成段不许手改」规则与 `<!-- IDL:… -->` 标记约定；
+- `Process-07` 门控表加 `check-idl-sync`（L1，调 `idl/render.py --check`）；
+- `Makefile` 加 `check-idl-sync` 目标（进 `_locked-check`）；
+- **移除** `contracts/isa/`（WIP 产物）与 `contracts/README.md` 对应行。
+
+## 验收（逐条贴真实 rc）
+
+1. `make check-idl-sync` rc=0；`idl/render.py --check` 幂等（两次一致）。
+2. **可达 FAIL（三路）**：改 spec 块的一个字符 ⇒ 红；改 `.idl` 后不重渲染 ⇒ 红；删一条 `# id:` 但留标记 ⇒ 红。各自 `cp`+md5 还原 ⇒ 绿。
+3. `idlc` 编写期 oracle（人工跑一次并记录退出码）：把 `idl/*.idl` 与 `README.md §4` 的库按序拼接 ⇒ `idlc compile --root isa` **exit 0**；对 5 条 operation 逐条 `compile --root instruction_operation` exit 0。
+4. `make check-manifests-guard` rc=0（`idl` 在受检目录内；`idl/.manifests.toml` 的文件集合与现场一致）。
+5. `check-spec-drift`/`-purity`/`-refs`/`-numbering`/`-changelog` rc=0（spec 只加标记块，正文语义未改）。
+6. `contracts/isa/` 已移除；`grep -rn "contracts/isa" --include=*.md --include=*.py --include=Makefile .` = 0（历史任务书/归档除外，逐条列明）。
+7. 完成区 ≤30 行；`**状态**` → `待验收`。
+
+## 硬约束
+
+1. 独立 worktree（分支 `m15-spec-001`，**先 `git merge master`** 并解决冲突；冲突以 master 版任务书/台账为准）。
+2. 禁改主工作树；**禁提交 git**；**不改版本号**（spec 册只加标记块与生成内容，版本行不动）。
+3. **不手写 spec 里的 ```idl 块**——一律由 `render.py` 生成。
+4. 只动：`idl/**`、5 个 spec 册的标记块、`spec/.manifests.toml`（重算 sha256）、`manifests/dir-guard-roots.toml`、`Makefile`、`docs/Process-06`、`docs/Process-07`、`contracts/README.md`（删行）、`contracts/isa/**`（移除）、本任务书。
+5. `cp`+md5 还原（禁 checkout/restore/stash/show）。
 
 ## 待裁定
 
-（实现中写：问题 + 选项 + 建议 + 自决的临时处置。）
+（执行中如有 → 写入本节并返回）
 
 ## 审阅记录
 
