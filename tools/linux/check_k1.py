@@ -126,9 +126,9 @@ sys.path.insert(0, str(_REPO / "tools" / "testcases" / "lib"))
 import machine_profile                             # noqa: E402
 
 PROFILE = "vast"
-BOOTROM_MAGIC = 0x44424F54            # tests/shared/bootrom, image index table
+BOOTROM_MAGIC = 0x44424F54            # tests/ee-vast/k0_*, image index table
 POWER_WINDOW = 0x10000                # spec/Kaiwu §1: last 64 KiB = reset
-#: BootROM index types (`tests/shared/bootrom/k0/README.md`): 1 = hmon, 2 = smon.
+#: BootROM index types (`tests/ee-vast/k0_README.md`): 1 = hmon, 2 = smon.
 STAGE_TYPES = {1: "hmon", 2: "smon"}
 #: Monitor SRAM windows (spec/Kaiwu §1.1): the image index table names the
 #: ELF each stage is loaded from; power copies them here before the handover.

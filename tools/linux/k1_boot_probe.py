@@ -338,7 +338,7 @@ def check_negative(which: str, kernel: Path, rep: Report) -> None:
     _written, smon_def, field, code = NEG[which]
     work = Path(k0.WORK) / f"neg_{which}"
     work.mkdir(parents=True, exist_ok=True)
-    hmon = k0.K0_DIR + "/hmon.S"
+    hmon = k0.K0_DIR + "/k0_hmon.S"
     before = md5(Path(hmon))
     if which == "magic":
         text = Path(hmon).read_text()

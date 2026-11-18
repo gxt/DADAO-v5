@@ -116,7 +116,7 @@
 | 原内容 | P6 后去向 |
 |---|---|
 | 运行/构建 harness（5：`build_test_binary`/`run_qemu_test`/`run_qemu_smoke`/`verify_harness_dump`/`test_harness_exit_path`） | `tools/testcases/{lib,inst}/`（迁移期薄 wrapper 已删；旧的 trampoline 生成器已于 M13 退役） |
-| 测试机夹具（bootrom 三件、`minimal_crt0.s`、`kaiwu-tiny.lds`、`dadao-dyn.lds`） | `tests/shared/bootrom/`；`kaiwu-tiny{,-app}.lds`/`picolibc-tiny.ld` 现于 `tests/ee-tiny/`（`m15-testcases-011`）；`minimal_crt0.s`/`dadao-common.lds`/`dadao-dyn.lds` 现于 `tests/ee-user/`（`m15-testcases-012`）；Vast step5 固件（`power/hmon/smon.{S,lds}`）与 `kaiwu-vast.lds` 现于 `tests/ee-vast/`（`m15-testcases-013`） |
+| 测试机夹具（bootrom 三件、`minimal_crt0.s`、`kaiwu-tiny.lds`、`dadao-dyn.lds`） | `tests/ee-tiny/`（bootrom 三件 + Tiny bootrom 固件，`m15-testcases-011`/`015`）；`kaiwu-tiny{,-app}.lds`/`picolibc-tiny.ld` 现于 `tests/ee-tiny/`（`m15-testcases-011`）；`minimal_crt0.s`/`dadao-common.lds`/`dadao-dyn.lds` 现于 `tests/ee-user/`（`m15-testcases-012`）；Vast step5 固件（`power/hmon/smon.{S,lds}`）与 `kaiwu-vast.lds` 现于 `tests/ee-vast/`（`m15-testcases-013`）；K1 boot 链固件 `k0_*` 现于 `tests/ee-vast/`（`m15-testcases-015`） |
 | 运行时辅助（`dadao_mem_runtime.ll`、`dadao_user_dyn_probe.c`） | `tests/ee-user/`（M15 `m15-testcases-012`） |
 | Embench 套件 glue（`embench_runtime.c`/`embench_user_boardsupport.c`/`embench_include/`） | `tests/tset/embench/` |
 

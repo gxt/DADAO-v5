@@ -5,7 +5,6 @@
 
 | 子目录 / 文件 | 内容 | 谁用 |
 |---|---|---|
-| `bootrom/` | `bootrom.lds`、`tiny_crt.S`、`tiny_smoke.S`、`semihost_msg.inc`（Tiny 的 `.S`/`lds` 已迁 `tests/ee-tiny/`，`m15-testcases-011`；Vast 的 step5 固件已迁 `tests/ee-vast/`，`m15-testcases-013`） | `make build-bootrom` → `check-arch{,-smoke}` |
 | `machine-profiles.yaml` | Tiny/Vast 的 BootROM/RAM/entry/SP/装载/PTW **唯一几何真源**（TESTCASES-091t） | 所有测试驱动 + 生成器 + `check-tests-index` |
 | `asm/` | `machine.inc`（`LOAD_ADDR` 宏）+ 由 profile 生成的 `machine-{tiny,vast}.inc` | bootrom / crt0 / arch 向量 |
 
@@ -14,8 +13,11 @@
 > `crt0/minimal_crt0.s`、`runtime/*`、`linker/dadao-common.lds`、`linker/dadao-dyn.lds` 集中到
 > `tests/ee-user/`（均平铺）；本目录只留共用 BootROM 与 Vast 布局脚本。
 > **2026-11-18（`m15-testcases-013`）**：Vast 的 step5 BootROM 固件与 `linker/kaiwu-vast.lds`
-> 集中到 `tests/ee-vast/`（平铺）；本目录只留 `bootrom.lds`/`tiny_crt.S`/`tiny_smoke.S`/
-> `semihost_msg.inc` 与 `machine-profiles.yaml`/`asm/`；`linker/` 子目录随之消失。
+> 集中到 `tests/ee-vast/`（平铺）；`linker/` 子目录随之消失。
+> **2026-11-18（`m15-testcases-015`）**：`bootrom/` 下的 Tiny 残留（`bootrom.lds`、`tiny_crt.S`、
+> `tiny_smoke.S`、`semihost_msg.inc`）→ `tests/ee-tiny/`；K1 boot 链固件（原 `bootrom/k0/`，
+> 实为 Kaiwu-Vast，加 `k0_` 前缀以免与 step5 的 `hmon.S`/`smon.S` 同名）→ `tests/ee-vast/`
+> （均平铺）；`bootrom/` 子目录随之消失，本目录只剩 `machine-profiles.yaml`、`asm/`、`init/`。
 
 ## 纪律
 

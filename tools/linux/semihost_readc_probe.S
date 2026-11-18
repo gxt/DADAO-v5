@@ -1,7 +1,7 @@
 @@ semihost_readc_probe.S — K1 gate probe: SYS_READC's scratch slot is a PA
 @@ (ISS-452)
 @@
-@@ Runs on `-M kaiwu-vast` under the K1 firmware (`tests/shared/bootrom/k0/`, the
+@@ Runs on `-M kaiwu-vast` under the K1 firmware (`tests/ee-vast/k0_*`, the
 @@ same power -> hmon -> smon chain `check-linux-k1` boots through), so PTW is
 @@ already on and PTBR points at the prebuilt table (VA = PA + 2 TiB over the
 @@ kernel window, spec/Kaiwu §6.3 / contract `contracts/linux-boot.yaml`).

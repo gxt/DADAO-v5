@@ -34,4 +34,4 @@ python3 tools/gem5/check_tiny_hmon.py   # Tiny 两件装载契约 + cfx_power/cf
 ```
 
 前置：`make install-host`（工具链 + QEMU 取自安装根，ADR-0016 D9）与
-`make build-bootrom`（Tiny bootrom 源在 `tests/ee-tiny/`，其余在 `tests/shared/bootrom/`）。
+`make build-bootrom`（Tiny bootrom 源与 lds 全在 `tests/ee-tiny/`，Vast step5 固件与 K1 boot 链 `k0_*` 在 `tests/ee-vast/`）。

@@ -14,7 +14,7 @@ Two independent properties per run (spec/Kaiwu §5.3/§5.5):
      `subprocess.returncode` — never through a shell pipe (`| tee`/`| tail`
      would swallow it);
   2. console bytes: the guest console stream must equal the oracle derived
-     from the probe *sources* (`tests/shared/bootrom/semihost_msg.inc` for the
+     from the probe *sources* (`tests/ee-tiny/semihost_msg.inc` for the
      SYS_WRITE0 payload, `semihost_smoke.S`'s `EXCL` for the SYS_WRITEC
      character).  QEMU's own output is never used to build the expectation.
 
@@ -59,7 +59,7 @@ EXPECT_FAIL_RC = 64
 QEMU_TIMEOUT_S = 120
 QEMU_ERROR_PREFIX = b"qemu-system-dadao:"
 
-_MSG_INC = _REPO_ROOT / "tests" / "shared" / "bootrom" / "semihost_msg.inc"
+_MSG_INC = _REPO_ROOT / "tests" / "ee-tiny" / "semihost_msg.inc"
 _SMOKE_S = _REPO_ROOT / "tests" / "ee-tiny" / "semihost_smoke.S"
 
 

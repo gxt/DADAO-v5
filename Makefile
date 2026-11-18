@@ -766,7 +766,7 @@ _locked-install-cfx-aliases:
 
 # build-bootrom (QEMU-047t / ADR-0020 D12): assemble and link the SEE bootrom
 # firmware with the project toolchain (llvm-mc + ld.lld + tests/ee-tiny/ sources and
-# tests/shared/bootrom/bootrom.lds; ADR-0003 / ADR-0019 / contract-elf §6.1.2) and emit the flat
+# tests/ee-tiny/bootrom.lds; ADR-0003 / ADR-0019 / contract-elf §6.1.2) and emit the flat
 # `-bios` image, plus the sample user application loaded by `-kernel`
 # (ADR-0004 D2.3 path B: raw-bin dual image).  Tools come from the install root
 # (ADR-0016 D9); run `make install-host` first.  Outputs live under the SDK
@@ -797,15 +797,15 @@ _locked-build-bootrom:
 	@test -x $(LLVM_NM_BIN) || { echo "build-bootrom: ERROR: $(LLVM_NM_BIN) not found — run 'make install-host' first"; exit 1; }
 	@mkdir -p $(BOOTROM_DIR) $(STEP5_BOOTROM_DIR)
 	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/bootrom.S -o $(BOOTROM_DIR)/bootrom.o
-	$(LLD_BIN) -T tests/shared/bootrom/bootrom.lds $(BOOTROM_DIR)/bootrom.o -o $(BOOTROM_DIR)/bootrom.elf
+	$(LLD_BIN) -T tests/ee-tiny/bootrom.lds $(BOOTROM_DIR)/bootrom.o -o $(BOOTROM_DIR)/bootrom.elf
 	$(LLVM_OBJCOPY_BIN) -O binary $(BOOTROM_DIR)/bootrom.elf $(BOOTROM_DIR)/bootrom.bin
 	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/bootrom_app.S -o $(BOOTROM_DIR)/bootrom_app.o
 	$(LLVM_OBJCOPY_BIN) -O binary --only-section=.text $(BOOTROM_DIR)/bootrom_app.o $(BOOTROM_DIR)/bootrom_app.bin
 	@# m12-chipyard-003/007: ELF smoke application for the chipyard `+loadmem=`
 	@# closed loop.  The application is `tiny_crt.o` (SP setup at the fixed
 	@# entry, spec/Kaiwu §6) + the smoke body, linked into one ELF.
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/tiny_crt.S -o $(BOOTROM_DIR)/tiny_crt.o
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/shared/bootrom/tiny_smoke.S -o $(BOOTROM_DIR)/tiny_smoke.o
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/tiny_crt.S -o $(BOOTROM_DIR)/tiny_crt.o
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/tiny_smoke.S -o $(BOOTROM_DIR)/tiny_smoke.o
 	$(LLD_BIN) -T tests/ee-tiny/tiny_smoke.lds $(BOOTROM_DIR)/tiny_crt.o $(BOOTROM_DIR)/tiny_smoke.o -o $(BOOTROM_DIR)/tiny_smoke.elf
 	@# m12-chipyard-007: Tiny fixed BootROM — power stub (8 KiB segment at the
 	@# reset vector) + minimal hmon handler (8 KiB segment at hmon SRAM) packed

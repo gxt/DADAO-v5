@@ -113,7 +113,7 @@ EXCL:
 	.ascii	"!"
 	.p2align 3
 MSG:
-	.include "tests/shared/bootrom/semihost_msg.inc"
+	.include "tests/ee-tiny/semihost_msg.inc"
 
 	.section .bss
 	.p2align 3

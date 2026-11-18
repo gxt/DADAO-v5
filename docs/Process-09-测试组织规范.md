@@ -55,6 +55,12 @@
 > 测试集目录不动。`dadao-common.lds` 与 tiny lds 分居两目录 ⇒ 链接行须同时带
 > `-L tests/ee-tiny` 与 `-L tests/ee-user`（lld 的 `INCLUDE` 只搜 cwd + `-L`）。
 
+> **2026-11-18 更新（`m15-testcases-013`/`015`，M15）**：Vast 的 step5 BootROM 固件与
+> `kaiwu-vast.lds` → `tests/ee-vast/`；`tests/shared/bootrom/` 的 Tiny 残留（`bootrom.lds`/
+> `tiny_crt.S`/`tiny_smoke.S`/`semihost_msg.inc`）→ `tests/ee-tiny/`；K1 boot 链固件
+> （原 `bootrom/k0/`，实为 Kaiwu-Vast，迁入后 `k0_*` 前缀）→ `tests/ee-vast/`；
+> `tests/shared/bootrom/` 目录消失。
+
 > **2026-10-27 更新（`TESTCASES-074t`，P4）**：旧 `llvm/` 的 `lit/{MC,CodeGen}`、
 > `codegen/{M3,m4,m6}`、`ir-lli` → `tests/unit/llvm/`（迁移期
 > 符号链接已由 084t 删除）；picolibc 自测入口 → `tests/unit/picolibc/`（仍只在 picolibc
@@ -223,7 +229,7 @@ tools/testcases/
   （`m15-testcases-011`）；`tests/ee-user/`、`tests/ee-vast/` 同规则。判据：只服务一个执行环境 ⇒ `ee-<env>/`；
   被 ≥2 环境复用 ⇒ `tests/shared/`。
 - **glue（测试胶水）**：把上游套件/被测程序接到 DADAO 的**非用例**代码与数据，分三类：
-  1. **链接/布局**：`tests/ee-tiny/kaiwu-tiny{,-app}.lds`、`tests/ee-user/dadao-{common,dyn}.lds`、`tests/ee-vast/kaiwu-vast.lds`、`tests/shared/bootrom/bootrom.lds`（基址、段、对齐）；
+  1. **链接/布局**：`tests/ee-tiny/kaiwu-tiny{,-app}.lds`、`tests/ee-user/dadao-{common,dyn}.lds`、`tests/ee-vast/kaiwu-vast.lds`、`tests/ee-tiny/bootrom.lds`（基址、段、对齐）；
   2. **启动/运行时**：`crt0`（`tests/ee-user/minimal_crt0.s`）、bootrom（`tests/ee-tiny/{bootrom,bootrom_app}.S`；Tiny 的 `-bios` 用 **64 KiB 固定固件** `bootrom/tiny/bootrom_tiny.bin`，旧 trampoline 已于 M13 退役）、`embench_runtime.c`/`embench_user_boardsupport.c`、`picolibc_test_crt0.s`；
   3. **接口桩**：syscall/semihosting stub、`SYS_EXIT`/console 适配、公共宏/头（`embench_include/`）。
   - **不是 patch**：patch 只用于**改上游组件源码**（`components/<name>/patches/**`，如 picolibc `semihost-dadao.S`、embench `boardsupport.c`、musl `arch/dadao`）；测试胶水**不改上游**，是我们自己的文件。
