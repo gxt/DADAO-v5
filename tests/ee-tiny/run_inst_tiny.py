@@ -20,7 +20,8 @@
 三平台 = 同一份 ELF：
   * chipyard `WumingTinyConfig`（Verilator harness，`+loadmem=<elf>`）
   * QEMU system `kaiwu-tiny`（`-bios <bootrom> -kernel <elf>`）
-  * gem5 FS `tiny`（`configs/dadao/fs.py --bootrom <bootrom> --kernel <elf>`）
+  * gem5 FS `tiny`（`configs/dadao/fs.py --bootrom <bootrom> --kernel <elf>
+    --semihost on`；`m16-gem5-011` 起 `--semihost` 默认 `off`，必须显式开）
 
 判据里没有任何「写死的用例数/字节数」：检查点数由 `.S` 现场统计，字节数由检查点数
 派生，三方比较用 `cmp` 语义（全字节）。
@@ -259,7 +260,7 @@ def run_gem5(gem5: Path, config: Path, elf: Path, bootrom: Path, out: Path,
     out.unlink(missing_ok=True)
     cmd = [str(gem5), "--outdir=%s" % outdir, str(config),
            "--profile", "tiny", "--bootrom", str(bootrom),
-           "--kernel", str(elf), "--console-out", str(out)]
+           "--kernel", str(elf), "--semihost", "on", "--console-out", str(out)]
     return _run(cmd, log, timeout, out)
 
 

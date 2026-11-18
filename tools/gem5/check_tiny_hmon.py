@@ -219,7 +219,7 @@ def run_gem5(gem5: Path, config: Path, work: Path, tag: str, kernel: Path,
     out_dir.mkdir(parents=True, exist_ok=True)
     cmd = [str(gem5.resolve()), "--outdir", str(out_dir.resolve()),
            str(config.resolve()), "--profile", "tiny",
-           "--kernel", str(kernel.resolve())]
+           "--kernel", str(kernel.resolve()), "--semihost", "on"]
     if bootrom is not None:
         cmd += ["--bootrom", str(bootrom.resolve())]
     cmd += ["--max-ticks", str(max_ticks)]

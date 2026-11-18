@@ -1622,7 +1622,8 @@ def _run_gem5_direct(args, profile, extra, log_path, bootrom=None):
     env = _engine_env(args, profile, gem5=True)
     cmd = [os.path.abspath(args.gem5), "--outdir",
            os.path.join(args.work_dir, "direct-out", profile),
-           os.path.abspath(args.gem5_config), "--profile", profile]
+           os.path.abspath(args.gem5_config), "--profile", profile,
+           "--semihost", "on"]
     if bootrom is None and profile == "vast":
         bootrom = os.path.abspath(args.bootrom_vast)
     if bootrom:
