@@ -31,11 +31,13 @@ Assertions (each one has a reachable FAIL; ``--inject`` proves it):
        in cfxha 3 => both are outside that window, so they are provably
        disjoint from a segment that satisfies this)
   K6   ``llvm-nm -u vmlinux`` is empty
-  K7   initramfs ``newc``: ``.`` + ``init`` (0100755) + ``TRAILER!!!``; payload
-       == the built init ELF == the manifest sha256
+  K7   initramfs ``newc``: ``.`` first, ``TRAILER!!!`` last, ``init`` (0100755)
+       payload == the delivered `/init` == the manifest sha256 (``init`` is the
+       busybox boot script since m14-linux-031; ``init.musl`` is the K0 ELF)
   K8   a second generation in a scratch directory is byte-identical
-  K9   initramfs size <= the initramfs area; the init ELF is static (no
-       ``PT_INTERP`` / ``PT_DYNAMIC``)
+  K9   initramfs size <= the initramfs area; the user-space ELFs the image
+       ships (``init.musl``, ``bin/busybox``) are static (no ``PT_INTERP`` /
+       ``PT_DYNAMIC``)
   K10  ``check_toolchain.py`` logic returns 0
   K11  ``check_boot_contract.py`` logic returns 0
   K12  ``apply-series`` is idempotent for linux: two runs rc=0, ``HEAD``
@@ -725,6 +727,7 @@ def phase_initramfs(env: Env, rep: Report) -> int:
     started = time.monotonic()
     proj = env.projection
     init_path = env.initramfs_dir / "init"
+    musl_init_path = env.initramfs_dir / make_initramfs.MUSL_INIT_NAME
     cpio_path = env.initramfs_dir / "initramfs.cpio"
     manifest_path = env.initramfs_dir / "manifest.json"
 
@@ -738,7 +741,8 @@ def phase_initramfs(env: Env, rep: Report) -> int:
             rep.info("下一步: `make build-musl` + `make install-host`，然后 "
                      "`make linux-initramfs`")
 
-    missing = [p.name for p in (init_path, cpio_path, manifest_path) if not p.is_file()]
+    missing = [p.name for p in (init_path, musl_init_path, cpio_path, manifest_path)
+               if not p.is_file()]
     rep.check("K7", f"initramfs 产物齐全（{_rel(env.initramfs_dir)}）", [], missing)
     if missing:
         rep.info("下一步: `make linux-initramfs`")
@@ -754,7 +758,11 @@ def phase_initramfs(env: Env, rep: Report) -> int:
               names[-1] if names else "<空>")
 
     by_name = {entry.name: entry for entry in entries}
-    init_bytes = init_path.read_bytes()
+    # `init` is the `/init` script since m14-linux-031 (busybox boot path); the
+    # K0 self-written ELF ships alongside it as `init.musl`, which is what the
+    # static-ELF assertions below inspect.
+    init_payload = init_path.read_bytes()
+    musl_init_bytes = musl_init_path.read_bytes()
     try:
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
@@ -766,12 +774,15 @@ def phase_initramfs(env: Env, rep: Report) -> int:
     if "init" in by_name:
         entry = by_name["init"]
         rep.check("K7", "init mode == 0100755", 0o100755, entry.mode)
-        rep.check("K7", "init payload sha256 == 构建的 init ELF sha256",
-                  hashlib.sha256(init_bytes).hexdigest(),
+        rep.check("K7", "init payload sha256 == 交付的 /init 载荷 sha256",
+                  hashlib.sha256(init_payload).hexdigest(),
                   hashlib.sha256(entry.body).hexdigest())
-    rep.check("K7", "manifest init sha256 == init ELF sha256",
-              hashlib.sha256(init_bytes).hexdigest(),
+    rep.check("K7", "manifest init sha256 == /init 载荷 sha256",
+              hashlib.sha256(init_payload).hexdigest(),
               (manifest.get("init") or {}).get("sha256"))
+    rep.check("K7", "manifest musl_init sha256 == init.musl sha256",
+              hashlib.sha256(musl_init_bytes).hexdigest(),
+              (manifest.get("musl_init") or {}).get("sha256"))
     rep.check("K7", "manifest cpio sha256 == 归档 sha256",
               hashlib.sha256(raw).hexdigest(), (manifest.get("cpio") or {}).get("sha256"))
     rep.check("K7", "manifest cpio size == 归档大小", len(raw),
@@ -795,18 +806,23 @@ def phase_initramfs(env: Env, rep: Report) -> int:
         rep.check("K8", "二次生成 == 交付的 initramfs.cpio", hashlib.sha256(raw).hexdigest(),
                   hashlib.sha256(first).hexdigest())
 
-    # ── K9: size limit + static init ELF ─────────────────────────────────
+    # ── K9: size limit + static user-space ELF ───────────────────────────
     rep.check("K9", f"initramfs 大小 <= initramfs 区（{proj.initramfs_limit} B）",
               True, len(raw) <= proj.initramfs_limit)
-    try:
-        init_image = parse_elf(init_bytes)
-    except ValueError as exc:
-        rep.bad("K9", "init 可解析（ELF64 头 + 程序头）", "可解析", f"{exc}")
-        init_image = None
-    if init_image is not None:
-        types = [seg.p_type for seg in init_image.segments]
-        rep.check("K9", "init 无 PT_INTERP", False, PT_INTERP in types)
-        rep.check("K9", "init 无 PT_DYNAMIC（静态链接）", False, PT_DYNAMIC in types)
+    # m14-linux-031: `/init` is the busybox boot script, so the static-ELF
+    # property is asserted on the ELF the image still ships (`init.musl`) and on
+    # the busybox payload, not on the `/init` entry.
+    for label, elf_bytes in (("init.musl", musl_init_bytes),
+                             ("bin/busybox", by_name["bin/busybox"].body
+                              if "bin/busybox" in by_name else b"")):
+        try:
+            image = parse_elf(elf_bytes)
+        except ValueError as exc:
+            rep.bad("K9", f"{label} 可解析（ELF64 头 + 程序头）", "可解析", f"{exc}")
+            continue
+        types = [seg.p_type for seg in image.segments]
+        rep.check("K9", f"{label} 无 PT_INTERP", False, PT_INTERP in types)
+        rep.check("K9", f"{label} 无 PT_DYNAMIC（静态链接）", False, PT_DYNAMIC in types)
 
     cpio_payload = sum(len(entry.body) for entry in entries)
     rep.check("K13", f"cpio 载荷合计({cpio_payload} B) <= 归档大小({len(raw)} B)",
@@ -814,10 +830,11 @@ def phase_initramfs(env: Env, rep: Report) -> int:
     rep.check("K13", "cpio 条目数 >= 2（'.' + TRAILER!!!）", True, len(entries) >= 2)
 
     env.state["initramfs_size"] = len(raw)
-    env.state["init_size"] = len(init_bytes)
+    env.state["init_size"] = len(musl_init_bytes)
     env.state["cpio_entries"] = len(entries)
     rep.stat(f"initramfs: {len(raw)} B / 区上限 {proj.initramfs_limit} B，"
-             f"cpio 条目 {len(entries)} 个，init ELF {len(init_bytes)} B，"
+             f"cpio 条目 {len(entries)} 个，init.musl {len(musl_init_bytes)} B，"
+             f"busybox {len(by_name['bin/busybox'].body) if 'bin/busybox' in by_name else 0} B，"
              f"耗时 {time.monotonic() - started:.1f} s（含二次生成）")
     return len(rep.fails) - before
 
@@ -1004,7 +1021,7 @@ def inject(env: Env, scratch: Path) -> int:
     def case_no_init() -> tuple[int, str, str]:
         target = scratch / "tampered-initramfs"
         target.mkdir(parents=True, exist_ok=True)
-        for name in ("init", "manifest.json", "initramfs.cpio"):
+        for name in ("init", "init.musl", "manifest.json", "initramfs.cpio"):
             shutil.copy2(env.initramfs_dir / name, target / name)
         entries, problems = parse_newc((target / "initramfs.cpio").read_bytes())
         if problems:
@@ -1279,7 +1296,7 @@ def main(argv: list[str] | None = None) -> int:
               f"PT_LOAD {len(loads)} 个；cpio 条目 {env.state.get('cpio_entries', 0)} 个；"
               f"vmlinux {env.state.get('vmlinux_size', 0)} B；"
               f"initramfs {env.state.get('initramfs_size', 0)} B；"
-              f"init {env.state.get('init_size', 0)} B")
+              f"init.musl {env.state.get('init_size', 0)} B")
 
         passed = rep.total - len(rep.fails)
         print(f"\n{passed}/{rep.total} 项通过（失败 {len(rep.fails)}，耗时 {elapsed:.1f} s）")
