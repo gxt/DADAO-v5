@@ -238,7 +238,10 @@ def model_total_cycles(entry, ctx):
         pe, pb = entry.get("per_element"), entry.get("per_beat")
         if pe is None or pb is None or w == 0:
             return 0
-        return pe * n + pb * ((n * w + 7) // 8)
+        base = entry.get("n_base") or 0
+        if base < 0:          # -1 = the family has no constant term (`ldm`)
+            base = 0
+        return base + pe * n + pb * ((n * w + 7) // 8)
     if "D′" in klasses:
         n = ctx.get("elements")
         if n is None:
@@ -271,11 +274,9 @@ def model_total_cycles(entry, ctx):
             rng = entry.get("range") or [0, 0]
             cyc = rng[0] + off
             return min(cyc, rng[1])
-        # C class: one ld/st, evaluated on the block model at one element.
-        pe, pb = entry.get("per_element"), entry.get("per_beat")
-        if pe is None or pb is None:
-            return 0
-        return pe + pb
+        # C rows carry a single measured value since m16-gem5-012 and are read
+        # from `value` above; any other documented range is not modelled here.
+        return 0
     if dyn == "exponent-diff":
         d = ctx.get("exp_diff")
         if d is None:
@@ -979,10 +980,10 @@ def render_report(rep):
     w("")
     w("- `rd2rd` 类实测 `1+N`（文档 §3 02 行写的 `1+N` 与该实测一致）；")
     w("- `ra2rd`/`rd2ra` 实测 `1+N`，而文档该行仍标「未测」⇒ 模型按 provenance 规则计 0；")
-    w("- `stm` 比模型多 1 拍且零方差（`stm.o` N=8 实测 73、`stm.b` 17）。")
+    w("- `stm` 的每指令 +1 已进模型（`n_base`：`stm.o` N=8 = 73、`stm.b` = 17；`m16-gem5-012`），`ldm` 无常数项。")
     w("")
-    w("三条都不是本任务的修改项：本报告的 chipyard 列按**实测**呈现、gem5 列按**生成表**")
-    w("呈现，因此它们只会以 `D′`/`D` 两行的差值形式出现，不做任何修补。")
+    w("前两条不是本任务的修改项：本报告的 chipyard 列按**实测**呈现、gem5 列按**生成表**")
+    w("呈现，因此它们只会以 `D′` 行的差值形式出现，不做任何修补。")
     w("")
 
     w("## 6. 复现")

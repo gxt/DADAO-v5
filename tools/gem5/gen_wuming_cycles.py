@@ -474,6 +474,9 @@ def classify_value(text: str, raw: str):
 # `n_beat` below is the number of 8-byte bus beats the element group needs.
 N8_RE = re.compile(r"N\s*=\s*(\d+)\s*[:：]\s*(\d+)")
 DPLUS_RE = re.compile(r"^(\d+)\s*\+\s*N$")
+# §5「块传送（D）实测表」的一条具体样本：``N=8 ⇒ 73``（箭头，不是 §3 的冒号）。
+NBASE_RE = re.compile(r"N\s*=\s*(\d+)\s*(?:⇒|=>)\s*(\d+)")
+BLOCK_BULLET_RE = re.compile(r"^-\s*`((?:ldm|stm)\.[a-z]+)`\s*[:：]")
 
 
 def block_width(mnemonic: str) -> int:
@@ -547,6 +550,48 @@ def block_model(rows) -> dict:
         raise SystemExit(f"{DOC.name}: D 类实测图的每 beat 字节数不一致 {beat_sizes}")
     return {"per_element": a, "per_beat": b, "samples": samples,
             "beat_bytes": beat_sizes.pop()}
+
+
+def block_n_base(lines: list[str], block: dict) -> dict:
+    """§5「块传送（D）实测表」里的每指令固定偏置（`stm` 的 +1）。
+
+    每个具体样本（``N=8 ⇒ 73``）给出 ``figure = per_element*N +
+    per_beat*beats + n_base``，因此 ``n_base`` 是样本的残差。按指令族
+    （助记符前缀 ``ldm`` / ``stm``）取残差：同一族的每个样本必须给出同一个
+    值，否则报错——不取整、不平均、不回落。``ldm`` 的残差必须为 0（装载没有
+    写完成拍），``stm`` 的残差就是 §5 那句「同一模型 +1」。
+    """
+    start, end = section_bounds(lines, "## 5.", "## 6.")
+    base: dict[str, int] = {}
+    samples = 0
+    for i in range(start, end):
+        m = BLOCK_BULLET_RE.match(lines[i].strip())
+        if not m:
+            continue
+        mnemonic = m.group(1)
+        role = mnemonic.split(".")[0]
+        width = block_width(mnemonic)
+        for n_text, figure_text in NBASE_RE.findall(lines[i]):
+            n, figure = int(n_text), int(figure_text)
+            beats = (n * width + 7) // 8
+            body = block["per_element"] * n + block["per_beat"] * beats
+            residual = figure - body
+            if residual < 0:
+                raise SystemExit(
+                    f"{DOC.name}:{i + 1}: {mnemonic} N={n} 实测 {figure} 小于模型"
+                    f"本体 {body}（块传送系数与该样本矛盾）")
+            if role in base and base[role] != residual:
+                raise SystemExit(
+                    f"{DOC.name}:{i + 1}: {role} 族的固定偏置不一致"
+                    f"（已解出 {base[role]}，此样本为 {residual}）")
+            base[role] = residual
+            samples += 1
+    if samples < 2 or not {"ldm", "stm"} <= set(base):
+        raise SystemExit(f"{DOC.name}: §5 块传送实测表缺 ldm/stm 的具体 N=… 样本")
+    if base["ldm"] != 0:
+        raise SystemExit(f"{DOC.name}: §5 块传送实测表的 ldm 残差为 {base['ldm']}"
+                         "（装载没有写完成拍，应为 0）")
+    return {"roles": base, "samples": samples}
 
 
 def pick_segment(row: Row, inst: Inst):
@@ -904,7 +949,8 @@ def emit_yaml(table, classes, doc_sha, rows, block, mem) -> str:
         f"dynamic_rows: {sum(1 for e in table if e['dynamic'] is not None)}",
         "class_set: [" + ", ".join(q(c) for c in classes) + "]",
         "by_class: {" + ", ".join(f"{q(k)}: {v}" for k, v in sorted(by_class.items())) + "}",
-        "# block_model: 多元素传送的模型系数，由 §3 的 N=… 实测图解出（不是手抄）",
+        "# block_model: 多元素传送的模型系数，由 §3 的 N=… 实测图解出（不是手抄）；",
+        "# 每指令固定偏置 n_base 由 §5 块传送实测表的 N=… 样本解出（`stm` = 1）。",
         "block_model:",
         f"  per_element: {block['per_element']}",
         f"  per_beat: {block['per_beat']}",
@@ -954,8 +1000,12 @@ def emit_yaml(table, classes, doc_sha, rows, block, mem) -> str:
         pol = policy_fields(entry, block)
         if pol["per_element"] >= 0 or pol["n_base"] >= 0:
             fields += [f"per_element: {pol['per_element']}",
-                       f"per_beat: {pol['per_beat']}",
-                       f"n_base: {pol['n_base']}", f"n_step: {pol['n_step']}",
+                       f"per_beat: {pol['per_beat']}"]
+            # `n_base` 只在非 -1 时发出：`ldm` 没有常数项 ⇒ 该行不带这个字段
+            # （用户 2026-11-18 裁定「分行、不加列」；-1 = 不适用不入表）。
+            if pol["n_base"] >= 0:
+                fields.append(f"n_base: {pol['n_base']}")
+            fields += [f"n_step: {pol['n_step']}",
                        f"elem_width: {pol['elem_width']}"]
         # m16-gem5-007: the parameterised classes' figures travel with the row
         # too, exactly as the generated C++ table carries them, so an
@@ -1044,7 +1094,9 @@ constexpr unsigned kNumInstructionRows = {count};
  *   semihostValue  (0/0 when the row has no semihosting variant)
  *   perElement     D 类每个元素的拍数（= 每个元素一条微操作）
  *   perBeat        D 类每条 8 B 总线 beat 的拍数
- *   nBase/nStep    D′ 类块复制的 "base + step*N"（`1+N` / `N`）
+ *   nBase          D 类每指令固定偏置（§5 实测：`stm` = 1、`ldm` 无 ⇒ -1）；
+ *                  D′ 类块复制的常数项 "base + step*N"
+ *   nStep          D′ 类块复制的 "base + step*N"（`1+N` / `N`）
  *   elemWidth      D 类的元素宽度（字节；0 = 非多元素访存）
  *
  * ``perElement``/``perBeat`` 由生成器从文档自己的 N=… 实测图解出（两条不同
@@ -1157,24 +1209,12 @@ def policy_fields(entry, block: "dict | None" = None) -> dict:
             raise SystemExit(f"{DOC.name}: {entry['id']}: exponent-diff 公式无法解析")
         out["dyn_base"], out["dyn_add"] = int(m.group(1)), int(m.group(2))
     elif dyn == "range":
-        # A documented range: `escape` (3–4) and the C class (`ld`/`st` widths,
-        # 4–7 / 7–16 / 10–21).  Both endpoints travel with the row.
+        # A documented bus-conditioned range (the C rows carry single values
+        # since m16-gem5-012): `escape` 3–4.  Both endpoints travel with the
+        # row.
         if not entry.get("range"):
             raise SystemExit(f"{DOC.name}: {entry['id']}: range 行缺上下界")
         out["range_lo"], out["range_hi"] = entry["range"]
-        if entry["klass"] == ["C"]:
-            # C (one `ld`/`st`) takes the same element+beat model evaluated at
-            # one element: the document's C range has an explicitly
-            # extrapolated narrow end («其余宽度外推») and a «含背压» top end,
-            # while its measured D rows solve to per_element=1 / per_beat=8, so
-            # one access of at most one beat costs 1 + 8.  m16-gem5-006
-            # measured 9 (ld) / 10 (st) on WumingTiny for every width; see
-            # wuming_latency.hh |dynamicCycles| and the task's disclosure.
-            if block is None:
-                raise SystemExit(f"{DOC.name}: {entry['id']}: 缺块传送模型")
-            out["per_element"] = block["per_element"]
-            out["per_beat"] = block["per_beat"]
-            out["elem_width"] = block_width(entry["mnemonic"])
     else:
         # Block transfers are keyed on the class, not on the parameter label:
         # the doc's D rows carry either an N=… figure or the class-level
@@ -1186,6 +1226,12 @@ def policy_fields(entry, block: "dict | None" = None) -> dict:
             out["per_element"] = block["per_element"]
             out["per_beat"] = block["per_beat"]
             out["elem_width"] = block_width(entry["mnemonic"])
+            # 每指令固定偏置：§5 实测表按助记符族解出的残差（`stm` = +1、
+            # `ldm` = 0）。0 表示该族没有常数项，按本字段的约定写 -1
+            # （「不适用」），不写 0 以免看起来像「常数项被模型用到」。
+            role = entry["mnemonic"].split(".")[0]
+            n_base = (block.get("n_base") or {}).get(role, 0)
+            out["n_base"] = n_base if n_base else -1
         elif "D′" in klasses:
             parsed = block_copy_fields(entry["cycles"])
             if parsed is None:
@@ -1415,6 +1461,9 @@ def main() -> int:
     resolved = assign(insts, rows)
     table, missing = build_table(insts, rows, classes)
     block = block_model(rows)
+    nb = block_n_base(lines, block)
+    block["n_base"] = nb["roles"]
+    block["n_base_samples"] = nb["samples"]
     mem = memory_model(lines, classes)
 
     problems = check_exact_doc_row(insts, resolved)
@@ -1465,6 +1514,22 @@ def main() -> int:
            f"D 类 per_element={block['per_element']} per_beat={block['per_beat']}"
            f"（{len(block['samples'])} 条 N=… 实测图逐条回代）" +
            (f"；不符 {samples_bad[:2]}" if samples_bad else ""))
+    roles = block["n_base"]
+    # 门控：§5 解出的偏置必须逐族进表（`stm` 的 +1 不是被谁写死的常量，
+    # `ldm` 也不得带上常数项）。任一族出现第二个取值即 FAIL。
+    rows_nb: dict[str, set] = {}
+    for entry in table:
+        if "D" in entry["klass"]:
+            role = entry["mnemonic"].split(".")[0]
+            rows_nb.setdefault(role, set()).add(
+                policy_fields(entry, block)["n_base"])
+    want_nb = {role: (value if value else -1) for role, value in roles.items()}
+    report("block-n-base",
+           rows_nb == {role: {value} for role, value in want_nb.items()},
+           "§5 块传送偏置 "
+           + ", ".join(f"{role}={value}" for role, value in sorted(want_nb.items()))
+           + f"（{block['n_base_samples']} 条 N=… 样本逐条回代）；D 行进表 "
+           + ", ".join(f"{role}={sorted(v)}" for role, v in sorted(rows_nb.items())))
     report("memory-model", mem["mem_latency"] <= mem["bus_round_trip"][1]
            and mem["xbar_latency"] == max(0, mem["bus_round_trip"][0]
                                           - mem["mem_latency"]),

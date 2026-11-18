@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/wuming_latency.hh b/src/arch/dadao/wuming_latency.hh
 new file mode 100644
-index 0000000..64d0f6b
+index 0000000..e6780ab
 --- /dev/null
 +++ b/src/arch/dadao/wuming_latency.hh
-@@ -0,0 +1,296 @@
+@@ -0,0 +1,290 @@
 +// Wuming per-instruction latency policy (M16).
 +//
 +// The table itself (``wuming_cycles.hh``) is generated from
@@ -20,9 +20,13 @@ index 0000000..64d0f6b
 +//                 of call/ret, and the trap/escape ranges
 +//   m16-gem5-005  block transfer (D / D')
 +//   m16-gem5-006  single-access memory (C: `ld`/`st`); the E class
-+//                 (lr/sc, m16-gem5-012 rows) keeps its one-cycle placeholder
++//                 (lr/sc) keeps its one-cycle placeholder
 +//   m16-gem5-008  provenance gate: provisional rows (推断 / 未测 / 待实测)
 +//                 never drive the model -- every leaf returns 0 for them
++//   m16-gem5-012  the C rows carry the measured single value (`ld` 9 / `st` 10)
++//                 and are charged straight from ``row.cycles``; `stm` adds the
++//                 §5 measured per-instruction constant (``nBase`` = 1), `ldm`
++//                 has none
 +//
 +// Every figure used here comes from a field of the generated row; there is no
 +// hand-copied cycle count in this file.
@@ -50,6 +54,7 @@ index 0000000..64d0f6b
 +    (1u << static_cast<unsigned>(CycleClass::B3)) |
 +    (1u << static_cast<unsigned>(CycleClass::B4)) |
 +    (1u << static_cast<unsigned>(CycleClass::B5)) |
++    (1u << static_cast<unsigned>(CycleClass::C)) |
 +    (1u << static_cast<unsigned>(CycleClass::G1)) |
 +    (1u << static_cast<unsigned>(CycleClass::G2)) |
 +    (1u << static_cast<unsigned>(CycleClass::G3)) |
@@ -57,15 +62,15 @@ index 0000000..64d0f6b
 +
 +/** Rows of the single-access memory class (C: ``ld.*`` / ``st.*``).
 + *
-+ *  m16-gem5-006 measured what the TimingSimpleCPU can actually do with a
-+ *  load/store: the DADAO exec cores read memory in the middle of
-+ *  ``execute()`` (one-shot, synchronous), while a timed access can only
-+ *  complete asynchronously through ``initiateAcc``/``completeAcc``.  The data
-+ *  path therefore stays functional (see ``inst.cc`` |functionalMem|), i.e. the
-+ *  memory system carries the *contents* but not the *cycles*; the C-class round
-+ *  trip is charged here, like every other class.  ``memoryRow`` is what tells
-+ *  them apart, so a documented *range* of this class is never mistaken for the
-+ *  bus-conditioned ranges of `escape`/`trap`. */
++ *  The C rows are a single measured value per form since m16-gem5-012 (`ld` 9 /
++ *  `st` 10), so they take the ``kStaticClassMask`` path and this predicate no
++ *  longer selects a model -- it only tells the ISA hook whether a documented
++ *  *range* row is a memory range.  m16-gem5-006 measured what the
++ *  TimingSimpleCPU can actually do: the DADAO exec cores read memory in the
++ *  middle of ``execute()`` (one-shot, synchronous), while a timed access can
++ *  only complete asynchronously through ``initiateAcc``/``completeAcc``, so
++ *  the data path stays functional (|inst.cc|) and the round trip is charged
++ *  from the table instead of by the memory system. */
 +inline bool
 +memoryRow(const CycleRow &row)
 +{
@@ -131,14 +136,16 @@ index 0000000..64d0f6b
 +}
 +
 +/** Multi-element *memory* transfer (D): one micro-op per element plus one
-+ *  8-byte bus beat per (partial) element group.
++ *  8-byte bus beat per (partial) element group, plus the row's per-instruction
++ *  constant.
 + *
 + *  ``perElement``/``perBeat`` are solved by tools/gem5/gen_wuming_cycles.py
-+ *  from the document's own N=8 figures (``ldm.ub`` 16 = 1 beat, ``ldm.o`` /
-+ *  ``stm.o`` 72 = 8 beats); this header carries no cycle count.  An element
-+ *  group of N elements of width w needs ``ceil(N*w/8)`` beats, so a partial
-+ *  group still pays a whole beat -- that is what the chipyard core does for
-+ *  e.g. ``ldm.ub`` N=9 (2 beats).
++ *  from the document's own N=8 figures (``ldm.ub`` 16 = 1 beat, ``ldm.o`` 72 =
++ *  8 beats); ``nBase`` is the residual of the same model over §5's whole
++ *  measured table (``stm`` = 1, ``ldm`` = none ⇒ -1).  This header carries no
++ *  cycle count.  An element group of N elements of width w needs
++ *  ``ceil(N*w/8)`` beats, so a partial group still pays a whole beat -- that is
++ *  what the chipyard core does for e.g. ``ldm.ub`` N=9 (2 beats).
 + *
 + *  As with the register copy, this is the timing an N-micro-op expansion would
 + *  produce; m16-gem5-005 does not create real gem5 micro-ops (that would need
@@ -154,7 +161,9 @@ index 0000000..64d0f6b
 +        return 0;
 +    const unsigned bytes = elements * static_cast<unsigned>(row.elemWidth);
 +    const unsigned beats = (bytes + 7u) / 8u;
-+    return static_cast<unsigned>(row.perElement) * elements +
++    const unsigned base =
++        row.nBase > 0 ? static_cast<unsigned>(row.nBase) : 0u;
++    return base + static_cast<unsigned>(row.perElement) * elements +
 +           static_cast<unsigned>(row.perBeat) * beats;
 +}
 +
@@ -231,25 +240,10 @@ index 0000000..64d0f6b
 +                cycles = static_cast<unsigned>(row.rangeHi);
 +            return row.rangeLo > 0 ? cycles : 0;
 +        }
-+        // C class (m16-gem5-006): one `ld`/`st`.  The document's C row is a
-+        // *range* whose top end is a bus condition («含背压», §3 01) and whose
-+        // narrow-width end is explicitly «其余宽度外推», so it cannot pin a
-+        // per-instruction figure.  What the document does measure is the block
-+        // transfer: its N=8 rows solve to one cycle per element plus one 8-byte
-+        // bus beat (§5 `ldm.o`), i.e. a single access of at most one beat costs
-+        // `per_element + per_beat`.  The policy therefore evaluates the same
-+        // solved model at one element -- no figure is written here, and both
-+        // coefficients still come from the document.
-+        //
-+        // Measured on WumingTiny (this task, min of adjacent ip/ip+4 deltas):
-+        // every width of `ld.*` is 9 and every width of `st.*` is 10, i.e.
-+        // width-independent; the doc's extrapolated 4–7 does not hold, and the
-+        // stores' extra cycle is the same zero-variance +1 that m16-gem5-005
-+        // reported for `stm`.  The deviation from the doc's C range is
-+        // disclosed per row (see the task's 待裁定), never hidden: the model is
-+        // the doc's measured structure, not a fit to the trace.
-+        if (memoryRow(row))
-+            return multiElementCycles(row, 1);
++        // The C class used to be evaluated here as the block model at one
++        // element; its rows are single measured values since m16-gem5-012
++        // (`ld` 9 / `st` 10) and take |staticCycles| instead.  Any other
++        // documented range is not a model this policy owns.
 +        return 0;
 +    }
 +    if (dyn == "exponent-diff")
