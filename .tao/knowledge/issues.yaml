@@ -904,3 +904,10 @@
   closed_in: null
   resolved_by: null
   title: "【P3】gem5 `nodeEscape` 缺 QEMU 的 `saved_intr_mask_valid` 守卫（`m16-gem5-013` 复核查出）：从**同步异常帧** `escape` 时，gem5 会把 `cfx0.global_cfx_intr_mask` 写成 0，而 QEMU（`helper.c:2889`）有 `saved_intr_mask_valid` 判定、不写。影响：同步帧 escape 后两引擎的中断屏蔽状态分叉（当前探针不触发该路径，故未暴露）。处置建议：gem5 补同形守卫 + 一条探针断言（同步帧 escape 后 `global_cfx_intr_mask` 不变）。"
+- id: ISS-473
+  scope:
+  - testcases
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`tests/inst/11-cfx/escape_ciii_cfx.S` 链例 12 的注释称「第 3 次到达判红（不挂死）」，实测不成立（`m15-testcases-019` 复核注入①）：把 case12 改成读未写槽 `0xC4` 后，QEMU 与 chipyard **双 lane 均挂死至超时**（qemu `rc=-2`、0 B），不是「判红退出」。影响：该例的 fail 路径不可用于回归判据（超时而非具名失败）。处置建议：改注释措辞，或让 probe 在到达计数超限时走 `__EXIT` 具名失败（不用挂死）。"
