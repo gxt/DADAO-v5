@@ -112,7 +112,7 @@ DADAO 提供四组各 64 个、每个 64 位的用户寄存器，对运行中的
 | ra0–ra63 | 由 `call`/`ret` 管理，非通用可分配 | [DADAO-21 §寄存器规范 §RA寄存器] |
 | rf0–rf63 | `Excluded from M1` | [contract-isa.md §6] |
 
-> `rd1`/`rb3` 的 Callee-saved 分类在 spec 中为 `-`（未分类）。M3 按 C6 将其与同类 `rd2–rd3` 一并归入 **reserved**（编译器不得分配），**不再作为未冻结的 `[OPEN]` 项**（见 §4.5/§6）。`rb2` 为 **frame pointer（无条件保留）**（spec 栏 Callee-saved 为 `Yes`），作 FP 时由 prologue/epilogue 保存/恢复旧值。`rd2–rd3` 为 spec 明文 reserved，角色为**调试/测试保留**。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
+> `rd1`/`rb3` 的 Callee-saved 分类在 spec 中为 `-`（未分类）。M3 按 C6 将其与同类 `rd2–rd3` 一并归入 **reserved**（编译器不得分配），**不再作为未冻结的 `[OPEN]` 项**（见 §4.5/§6）；其中 **`rb3` 是专用 thread pointer（TP），不参与 caller/callee-saved 分类**，跨函数调用保持不变、跨 syscall 由内核保存/恢复（`contract-syscall §10`）。`rb2` 为 **frame pointer（无条件保留）**（spec 栏 Callee-saved 为 `Yes`），作 FP 时由 prologue/epilogue 保存/恢复旧值。`rd2–rd3` 为 spec 明文 reserved，角色为**调试/测试保留**。[DADAO-21 §寄存器规范 §RD寄存器][DADAO-21 §寄存器规范 §RB寄存器][ADR-0018（C6）]
 
 ### §1.7 基础数据布局（M1）
 

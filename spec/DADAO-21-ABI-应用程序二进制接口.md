@@ -44,6 +44,8 @@ RB寄存器的约定如下：
 epilogue 恢复，并作为帧基址；`hasFP` 为假时不参与寄存器分配。
 `rb2` **没有** ABI 助记别名。
 
+`rb3`（`rbtp`）是**专用 thread pointer**：不参与 caller/callee-saved 分类（表内 `-`），编译器不分配；跨函数调用保持不变，跨 syscall 由内核入口保存/返回恢复（`contract-syscall §10`）。
+
 `rb32`–`rb63` 是**连续的 callee-saved 池**，可整段用 `stm`/`ldm` 批量保存/恢复。
 
 ### 1.3 RF寄存器（Floating-point registers）
