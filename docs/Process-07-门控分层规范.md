@@ -162,3 +162,115 @@ K3 门控 `check-linux-k3` 落地后，K1/K2 门控里「同一地址只有那�
 - `AGENTS.md`「门控分层与触发点」= **规则 + 指针**（层名 / 触发点一句话 + 指向本规范）；**本规范 = 明细与演进规则**，二者**不重复**。
 - `docs/Process-05`（里程碑 TDD）= 向量/门控的**开发方法**（L1 编码 / L2 结构 / L3 执行，**测什么**）；本规范 = **工程门控的规模分层与归属**（**怎么组织/何时跑**）——两者维度不同，`Process-05` 的 L1/L2/L3 指**测试向量层次**，本规范的 L1/L2/L3 指**门控目标层次**，**同名不同指**，引用时须写清。
 - `docs/Process-01`（组件补丁）/ `Process-06`（`spec/` 保护）等**与层归属无关**；`check-patch-tree`/`check-spec-readonly` 各按其规范实现，**归属 L1**（不跑被测语义）。
+
+## 7. 文件防护门控清单（防新增 / 防修改）
+
+> 本节的定位：盘点 `Makefile` 里全部 `^check-[a-z0-9-]*:` 目标（现场 `grep -c "^check-[a-z0-9-]*:" Makefile` = **64** 个），回答三个问题——① 是否扫描文件系统、扫描面是什么；② 是否**防新增**（白名单 / 许可集 / 命名规则 / 覆盖要求）；③ 是否**防修改**（sha256 锁 / git blob / 逐字节比对 / 生成物一致性）。判据一律**读脚本源码或本规范 §1.1**，不凭门控名猜。
+>
+> **防新增 / 防修改**两列的取值口径（简写，详见各脚本）：
+> - 防新增：`白名单`（顶层只允许既定模式）｜`命名规则`（新文件名须匹配）｜`覆盖`（新文件/载体须被某清单双向覆盖，删/漏即红）｜`结构`（目录封闭集合）｜`—`（不防新增）。
+> - 防修改：`sha256 锁`（锁文件重算比对）｜`git blob`（补丁 index/内容 blob 重算）｜`逐字节`（重生成产物字节级比对）｜`一致性`（跨文件/跨载体机械核对，非哈希）｜`git 状态`（clean + base+N）｜`—`（不防修改）。
+>
+> 清单行数与 `grep -c` 现场值**相等**（64）。不在此列的还有：`check`/`check-modules`/`check-full`/`check-lit*`/`check-inst-asm`/`check-arch*`/`check-unit*`/`check-tset-*`/`test-*`/`check-linux-k0..k3` 等 —— 它们是 `GATE_LOCKED_TARGETS` 经 `gate-locked-rule` 生成的 `_locked-*` 包装目标（真源在 `_locked-check`/`_locked-check-modules`/`_locked-check-full`），**不匹配** `^check-*:`，故不在本清单；其防新增/防修改语义由成员门控承担。
+
+| 门控 | 层级 | 扫描面 | 防新增 | 防修改 | 判据出处 | 缺口 |
+|---|---|---|---|---|---|---|
+| `check-wuming-cycles` | 按需（独立，不入 L1） | `docs/core-wuming-cycle-model.md` + `contracts/wuming-cycles.yaml` + gem5 源 `wuming_cycles.{hh,cc}` | 覆盖（264 id 全覆盖） | 逐字节（重新解析比对） | `tools/gem5/gen_wuming_cycles.py:22-24` | 不入 L1，仅按需；周期文档非只读锁 |
+| `check-linux-toolchain` | L1 | `tools/linux/toolchain_matrix.json` + 能力探针 | 覆盖（矩阵行集合==覆盖表） | 一致性（declared==measured==实测） | `tools/linux/check_toolchain.py`（矩阵行集合断言） | 无白名单 |
+| `check-linux-boot-contract` | L1 | `spec/Kaiwu §6.3` ↔ `contract-linux-boot` ↔ `contracts/linux-boot.yaml` | — | 一致性（三方逐字段） | `tools/linux/check_boot_contract.py` | 无 |
+| `check-spec-drift` | L1 | `.tao/contracts/contract-*.md` + `README.md` 版本表 + `.tao/adr/` | — | 一致性（版本号/ADR 状态） | `tools/infra/check_spec_drift.py:5-11` | 只核版本头与 ADR 状态，**不核契约正文内容** |
+| `check-spec-numbering` | L1 | `spec/*.md` 标题 | — | 一致性（章节号结构） | `tools/spec/check_numbering.py:5-23` | 无 |
+| `check-spec-changelog` | L1 | `spec/*.md` 附录变更记录 | — | 一致性（逆序/册头一致/无表格） | `tools/spec/check_spec_changelog.py:8-23` | 无 |
+| `check-spec-purity` | L1 | `spec/*.md` 禁用词 | **黑名单**（禁用词表，拦项目痕迹混入规范；非新增白名单） | — | `tools/spec/check_spec_purity.py:38-45` | 只拦禁用词，**不拦新增 spec 册**（见 §7.1 ③） |
+| `check-spec-cite-targets` | L1 | `spec_cite` 目标（opcodes.yaml/测试向量） | — | 一致性（书+目标存在） | `tools/spec/check_spec_cite_targets.py:39-45` | 无 |
+| `check-spec-archive` | 里程碑 | `.tao/archive/SimRISC-*/` | 覆盖（声明版本目录必须存在） | —（只校验存在性与文件集） | `tools/spec/check_spec_archive.py:7-17` | 内容不校验（由 verify 补） |
+| `check-spec-archive-verify` | 里程碑 | `.tao/archive/SimRISC-*/` 内容 | — | sha256 锁（逐文件 + 组合） | `tools/spec/gen_spec_archive.py:430-487` | 无 |
+| `check-patch-tree` | L1 | `components/*/patches` + `series` | 白名单（一文件一补丁/目标路径唯一/patches 纯镜像） | git blob（断言⑥内容一致 + ⑦⑧⑨） | `tools/infra/check_patch_tree.py:7-35,379-431` | 断言④⑥ 需 `.work/source` 在盘才跑 |
+| `check-index-blobs` | L1 | `components/*/patches/*.patch` 的 new-file index | — | git blob（`hash-object --stdin` 重算） | `tools/infra/check_index_blobs.py:124-132` | 只覆盖 new-file，修改类 patch 跳过 |
+| `check-source-state` | 按需（E7，不入 L1） | `.work/source/<name>` | — | git 状态（clean + base+expected） | `tools/infra/check_patch_tree.py:489-544` | 不入 L1，手动跑 |
+| `check-tasks` | 报告（默认 rc=0；`check-tasks --strict` 由 `check-milestone` 与 `check-full` 调用，漏收尾即红） | `.tao/tasks/**` | — | 一致性（任务书↔台账/收尾） | `tools/infra/check_tasks.py:11-31` | 默认不阻断，`--strict` 才拦 |
+| `check-run-artifacts` | L1 | `tests/ee-user` 驱动 + `.work/tests/**` + `.work/log/**` | 命名规则（运行目录三件套 + log 新名） | —（meta 的 sha256 只核非空） | `tools/infra/check_run_artifacts.py:6-25,299-347` | 无 |
+| `check-test-reports` | L1 | `docs/TestReports/*.md` | 命名规则（`<M>-主题`；无二级子目录） | —（快照首行标记） | `tools/infra/check_test_reports.py:44-47` | 无 |
+| `check-temp-dirs` | L1 | `/tmp/opencode` + `$TMPDIR/opencode` | —（只报陈旧、不删） | — | `tools/infra/check_temp_dirs.py:11-26` | 只报告不删除；不扫仓库内 |
+| `check-writer-guards` | L1 | 临时树 stub 二进制 | — | 一致性（读方 md5 结束≠启动 FAIL） | `tools/infra/check_writer_guards.py:11-38` | 自测型，不扫真实 registry |
+| `check-disk` | 按需（运维） | 文件系统占用 | — | — | `tools/infra/check_disk.py:2-13` | 运维守卫，非门控 |
+| `check-milestone` | 里程碑 | 归档 + 台账 + L3 报告 + 同步异常 | 覆盖（台账任务号必须存在） | sha256 锁（归档内容）+ 一致性（报告） | `Makefile:1351` | 收尾专项 |
+| `check-sync-nonmaskable` | 里程碑 | `spec/DADAO-12/22/23` 异常原因表 | — | 一致性（异步源白名单） | `tools/spec/check_sync_nonmaskable.py:41-45` | 无 |
+| `check-spec-refs` | L1 | `.tao/contracts/contract-*.md` 的 spec 引用 | — | 一致性（引用可解析） | `tools/infra/check_spec_refs.py:4-25` | 无 |
+| `check-knowledge-refs` | L1 | `AGENTS.md`/`spec`/`knowledge`/`tasks`/`contracts` 的 `.work/**` 引用 | 白名单（具体 `.work/**` 引用一律 FAIL） | —（悬空引用） | `tools/infra/check_knowledge_refs.py:12-52` | 无 |
+| `check-knowledge-dir` | L1 | `.tao/knowledge/` 顶层 | 白名单（显式名单 + glob） | — | `tools/infra/check_knowledge_dir.py:40-56` | **子目录递归不限** |
+| `check-contracts-dir` | L1 | `.tao/contracts/` + `contracts/` 顶层 | 白名单（glob + 显式名） | — | `tools/infra/check_contracts_dir.py:41-50` | **子目录不限** |
+| `check-syscall-abi` | L1 | musl/QEMU/gem5 参数银行表 + `syscall.tbl` | — | sha256 锁（syscall.tbl）+ 一致性（四载体逐项） | `tools/qemu/check_syscall_abi.py:6-40` | 无 |
+| `check-musl-freshness` | L1 | musl 构建树 + 安装根 | — | sha256 锁 + 戳记（源/toolchain/builtins） | `tools/infra/check_musl_freshness.py:16-36,159` | 无 |
+| `check-builtins-freshness` | L1 | compiler-rt 归档三副本 + sidecar | — | sha256 锁 + 逐成员 `.c.o` | `tools/infra/check_builtins_freshness.py:27-48` | 无 |
+| `check-install-tools` | 按需（install-host 收尾） | 安装根 `HOST_LLVM_TOOLS` + symlinks | — | sha256（`--sha`，默认 size+version） | `tools/infra/check_install_tools.py:21-43` | 默认只比 size，`--sha` 按需 |
+| `check-milestones-fresh` | L1 | `.tao/knowledge/milestones*.md` | 覆盖（三表并集覆盖任务书） | 一致性（分类/状态/格式） | `tools/infra/check_milestones_fresh.py:36-64` | 无 |
+| `check-archive` | L1 | `.tao/archive/M<i>/` | 白名单（三件套 + 模块子目录封闭） | —（结构） | `tools/infra/check_archive.py:7-27,51` | 无 |
+| `check-component-changelog` | L1 | `components/*/changelog.md` + `tests/tset/*/changelog.md` | 覆盖（带补丁集套件必须有） | —（形态） | `tools/infra/check_component_changelog.py:10-17,42` | 无 |
+| `check-contracts-pending` | L1 | `.tao/contracts/**` | — | —（待定标记须带 ADR/ISS 指针） | `tools/infra/check_contracts_pending.py:43-50` | 无 |
+| `check-contract-relocs` | L1 | `contract-elf §2.2` ↔ `contract-dynlink §4.3` | — | 一致性（两表逐行） | `tools/infra/check_contract_relocs.py:9-24` | 无 |
+| `check-cfx-aliases` | L1 | `.tao/contracts/contract-cfx-aliases.md` | — | 逐字节（重生成比对） | `tools/spec/check_cfx_aliases.py:2-12` | 无 |
+| `check-cfx-alias-table` | L1 | `contracts/cfx-aliases.txt` | — | 逐字节（spec 投影） | `tools/llvm/gen_cfx_alias_table.py:37-41` | 无 |
+| `check-cfx-alias-install` | 按需（需 install-host） | 三副本（源/构建树/安装根） | — | sha256 锁（逐字节） | `tools/llvm/check_cfx_alias_install.py:9-19,46-51` | 需 install-host，不入 L1 |
+| `check-cfx-vectors` | L1 | cfx MC 编码向量 | — | 一致性（独立 oracle 重派生） | `tests/unit/llvm/lit/MC/DADAO/validate_cfx_vectors.py` | 无 |
+| `check-dirs` | L1 | `manifests/install-dirs.lock.toml` + 版本文件 symlink 前缀 | —（路径守卫） | — | `tools/infra/check_dirs.py:4-16,38-46` | 无 |
+| `check-no-residue` | L1 | `git ls-files --others` 残留 pattern | 命名规则（`*_tmp*`/`*_gate*`/`*.orig`/`*.rej`） | — | `tools/infra/check_dirs.py:186-238` | 白名单仅 `.tao/tasks`/`.work` |
+| `check-components` | L1 | 安装根 `llc`/`clang`/`qemu` 可用性 | — | — | `tools/infra/check_components.py:7-13` | 无 |
+| `check-width-sizes` | L1 | 编译探针（64 位 + DWARF64） | — | — | `tools/llvm/check-width-sizes.py:15-33` | 无 |
+| `check-code-range` | L1 | 合成 fixture ELF | — | — | `tools/infra/check_code_range.py:44-45` | 无 |
+| `check-runner-reap` | L1 | 合成驱动 + 伪 qemu | — | — | `tools/testcases/check_runner_reap.py:4-21` | 无 |
+| `check-spec-readonly` | L1 | `spec/` 21 册（锁列出的） | — | sha256 锁 | `tools/infra/check_spec_readonly.py:4-12,30-39` | 只锁 `manifests` 列出的册，**新增 spec 册不进锁不红**（见 §7.1 ③） |
+| `check-asm-list` | L1 | `spec/*.md` 嵌入表 vs `gen_asm_list.py` | — | 逐字节（重生成比对） | `tools/spec/check_asm_list_consistency.py:2-8` | 无 |
+| `check-asm-list-drift` | L1 | `.tao/contracts/contract-asm-list.md` | — | 逐字节 | `tools/spec/check_asm_list_drift.py:4-15,63-68` | 无 |
+| `check-asm-prose` | L1 | `spec`/`docs`/`contract`/`adr` 代码块 | — | 一致性（旧格式检测） | `tools/spec/check_asm_prose.py:11-39` | 无 |
+| `check-spec-codeblocks` | L1 | `spec/**/*.md` ```simrisc 代码块 | — | 一致性（mnemonic/operand 计数） | `tools/spec/check_spec_codeblocks.py:19-40` | 无 |
+| `check-legality-drift` | L1 | `spec/SimRISC-01..12` LEGALITY 块 | — | 逐字节（整块比对） | `tools/spec/check_legality_drift.py:9-16` | 无 |
+| `check-legality-invariants` | L1 | `contracts/*.yaml` | — | 一致性（规则改名旧 id 0 命中） | `tools/spec/check_legality_invariants.py:6-24,57-59` | 无 |
+| `check-interface` | L1 | 跨模块 ADR/contract/patch 接口 | — | 一致性（内联期望值） | `tools/infra/check_interface_alignment.py:4-14` | 无 |
+| `check-instrinfo` | L1 | `DADAOInstrInfo*.td.patch` ↔ `opcodes.yaml` | — | 一致性（编码身份 join） | `tools/llvm/validate_instrinfo.py:26-39` | 无 |
+| `check-isa-coverage` | L1 | 覆盖矩阵 `tsv`/`md` | — | 逐字节（重派生比对） | `tools/llvm/gen_isa_coverage.py:33-34` | 无 |
+| `check-case-ledger` | L1 | `tests/case-ledger.tsv` | —（删除哨兵） | 逐字节（身份清单） | `tools/infra/check_case_ledger.py:13-27,137-165` | 无 |
+| `check-tests-index` | L1 | `tests/*.yaml` + 载体 | 白名单（scope 合法 / 载体↔索引双向 / YAML 残留禁止 / 非 id 逐文件登记） | — | `tools/testcases/check_tests_index.py:7-35,421-494` | 无 |
+| `check-inst-macro-scope` | L1 | `tests/inst/**` | 白名单（宏三层作用域 / 死宏 0） | — | `tools/testcases/check_inst_macro_scope.py:7-38` | 无 |
+| `check-decodetree-repro` | L1 | `Makefile` build-qemu recipe + decodetree 两 seed | — | 一致性（PYTHONHASHSEED 可复现） | `tools/qemu/check_decodetree_repro.py:2-19` | 无 |
+| `check-qemu-forms` | L1 | `components/qemu/patches` `helper.c.patch` | — | 一致性（符号 0 命中哨兵） | `tools/qemu/semantics_gate.py:28-34` | 无 |
+| `check-scope` | L1 | `opcodes.yaml` scope 分区 | — | 一致性（分区不变量） | `tools/spec/check_scope.py:6-19` | 无 |
+| `check-rule-refs` | L1 | `opcodes.yaml` ↔ `legality_rules.yaml` | — | 一致性（双向 + 豁免文件） | `tools/spec/check_rule_refs.py:4-17` | 无 |
+| `check-fp-contract` | L1 | `fp_semantics.yaml` ↔ `opcodes.yaml` ↔ `contract-fp.md` | — | 一致性（三方 + 规则派生） | `tools/spec/check_fp_contract.py:4-22` | 无 |
+| `check-night-report` | 按需诊断（观测） | `.dadao/tests/night/<date>/` 三件套 | — | 一致性（rc==0，不阻断收口） | `tools/testcases/check_night_report.py:8-20` | 观测不阻断 |
+| `check-l3-report` | 里程碑 | `.dadao/tests/l3/<UTC>/` 三件套 | — | 一致性（rc + exit marker 防伪造） | `tools/testcases/check_l3_report.py:10-23` | 无 |
+
+### 7.1 缺口分析（本清单核心产出）
+
+> 只给事实与缺口，**不提改造方案**（改造另立任务）。
+
+**① 无白名单（防新增）目录清单** —— 逐个目录判定「是否被某门控约束只能放什么」：
+
+- `tests/` —— **部分约束**：`check-tests-index` 约束 `tests/*.yaml` 的 scope 合法、载体↔索引双向、`tests/inst/` 下 YAML 残留禁止、非 id 载体逐文件登记；`check-inst-macro-scope` 约束 `tests/inst/**` 宏三层作用域。但 **`tests/` 下新增任意新子目录/新文件（非索引条目、非载体后缀）无白名单**。
+- `tools/` —— **无白名单**：`check-dirs` 只扫 symlink 前缀违规，`check-no-residue` 只拦残留 pattern，`compileall` 只证语法。新增 `tools/xxx/foo.py` 不被任何门控拦截。「脚本入仓须在模块 `README.md` 登记」只是 `AGENTS.md` 规则，**无机械门控**。
+- `.tao/tasks/` —— **无白名单**（可任意新增任务书），但 `check-milestones-fresh` 的 **A2 覆盖**会拦「有任务书但未入台账三表」的新任务书；`.tao/adr/` 仅做悬空引用解析。
+- `docs/` —— **无白名单**：`check-test-reports` 只约束 `docs/TestReports/`；`docs/` 其余（Process-0x、DDLN、`core-wuming-cycle-model.md` 等）新增文件无门控。
+- `.tao/` —— **部分约束**：`knowledge/`/`contracts/` 顶层白名单 + `archive/M<i>/` 结构封闭；但 **`.tao/adr/` 与 `.tao/tasks/` 无白名单**（任务书命名由 `check-tasks` 报告型 + `check-milestones-fresh` 覆盖承担，不拦命名）。
+- `components/` —— **无白名单**：`check-patch-tree` 只约束 `patches/` 纯镜像 + `series`，`check-component-changelog` 只约束 `changelog.md` 形态，`manifest-check` 只查 `patch_dir`/`series` 存在。**`components/<name>/` 下新增任意文件（非补丁、非 changelog）无门控**。
+- `manifests/` —— **无白名单**：`manifest-check` 校验 `install-dirs`/`components`/`references` 内容，但**不防新增 `manifests/*.toml`**。
+- `contracts/` —— **顶层有白名单**（`*.yaml`/`README.md`/`cfx-aliases.txt`），但 **`contracts/` 子目录不限**。
+
+**② 只靠「人不改」（无哈希/blob 校验）的受保护文件清单**：
+
+- `manifests/reference-snapshots.toml` —— 记录每份参考材料的 `sha256`，但**全仓无任何门控核对它**（`grep -rn "reference-snapshots" Makefile tools/` 零命中）——连「人不改」都不如：改了也不会红。
+- `manifests/components.lock.toml` 的 `commit` / `manifests/references.lock.toml` 的 `head` —— `manifest_check.py:45,110` 只查 40-hex 格式，**不核对实际 fetch 到的 commit**。
+- `manifests/install-dirs.lock.toml` —— `check_dirs.py:34-73` 只校验键值 + 相对路径，无 hash。
+- `contracts/*.yaml`（`opcodes.yaml` 等编码真源）—— **无 sha256 锁**；防漂移靠多路一致性门控（`check-scope`/`check-instrinfo`/`check-isa-coverage`/`check-fp-contract`/`check-rule-refs`）间接兜住，但 `opcodes.yaml` 自身**无逐字节锁**。
+- `.tao/contracts/contract-*.md`（人读契约正文）—— `check-spec-drift` 只核版本头/ADR 状态（`check_spec_drift.py:5-11`），**不核正文内容**。
+- `.tao/adr/*.md` —— 无 hash、无白名单。
+- `docs/*.md`（Process-0x / DDLN）—— 无 hash、无白名单。
+
+**③ 冗余与空白（各 ≥1 例）**：
+
+- **冗余**：
+  - 汇编指令表**同源三锁**：`check-asm-list`（spec 嵌入表逐字节） + `check-asm-list-drift`（`contract-asm-list.md` 逐字节） + `gen_asm_list.py` 都从 `opcodes.yaml` 投影同一份表 —— 同一数据三条门控。
+  - cfx 别名**同源三层**：`check-cfx-aliases`（`contract-cfx-aliases.md` 逐字节） + `check-cfx-alias-table`（`cfx-aliases.txt` 逐字节） + `check-cfx-alias-install`（三副本 sha256）都从同一 spec 投影同一份别名 —— 三层锁同一数据。
+- **空白**：
+  - 「新增 `.py`/工具脚本必须登记」**无机械门控**（`tools/` 无白名单、无 README 登记断言）。
+  - `manifests/reference-snapshots.toml` 的 `sha256` **无任何门控核对**（见 ②）。
+  - `spec/` 新增册**逃锁**：`check-spec-readonly` 只重算锁内条目的 sha256，**无「`spec/*.md` 全集 ⊆ 锁条目」的反向断言**（`check_spec_readonly.py:117-132` 只遍历 entries）——新增一册 `spec/SimRISC-13-*.md` 不进 `spec-readonly.lock.toml`，本门控不会红。
