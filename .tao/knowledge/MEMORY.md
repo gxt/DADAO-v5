@@ -4,6 +4,17 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
+- **2026-11-18 23:41（夜间续跑，4 件在跑）**：
+  - `m14-linux-017` 第 21 轮：S7 已推进到「用户态 `_start` 与 objdump 逐条一致」；当前堵点 **F48 用户栈 PTE 缺 U 位**（`l2e` S=1/U=0，VMA 在、通道未填过 ⇒ 第二个写入者，优先查 K1 `ptw` 越界覆盖 PGD 4095）；S5 未做。
+  - `m15-spec-001`：**方向反转已定**（`.idl` 为源、放仓库根 `idl/`；spec 块由 `render.py` 生成）；正在重写 `contracts/isa/**` → `idl/**`。
+  - `m16-gem5-013`：gem5 补 `prevCfxCode`（`escape` 恢复 `inner_cfx_code`）。
+  - `m16-chipyard-005`：chipyard RTL 核实/补同一语义。
+- **已定口径（2026-11-18）**：`escape` 恢复 `inner_cfx_code ← excp_prev_cfx_code`（`cg5 rc1`；spec+DADAO-12/Kaiwu+QEMU 已落，版本号未动）；`spec/Kaiwu` 三处已对齐；IDL 寄存器模型 = 方案 C（四组数组 + `fo`/`ft` 视图、`ra` 逻辑栈序 + `ras_*`）；`read_memory`/`write_memory`（无 `_be`）/`fetch_memory`/`raise(code,mode,addr)`/`is_naturally_aligned`；`idlc` 不进门控；`.idl` sha256 锁延后到 M15 收口（N21）。
+- **目录防护第一波已收尾**：`spec/`、`.tao/`、`.tao/knowledge`、`components/` 各有 `.manifests.toml` + `check-manifests-guard`（缺清单/缺注册表/游离清单均红）；`check-spec-readonly`/`check-knowledge-dir` 已删并入。
+- **待开始**：`m15-infra-008`（CONFIG 钉子门控，等 017 收口）；`m14-linux-018`(COW)/`023`(用户 syscall)/`032`–`034`(K6)；`m14-linux-019`（暂停，等 017 释放 linux）。
+- **磁盘/负载**：`/mnt/tao` 29%；125G 内存 available 115G；load 13（64 核）。
+- **待用户裁定**：无阻塞项（队列已续满）。
+
 - **2026-11-18 00:45（017 首轮未达验收）**：`m14-linux-017` 已交付 `__switch_to`/`switch_mm`/最小 clockevent（探针 39 PASS / 3 FAIL），但 **S5（用户 A↔B 往返）与 S7/F3（initramfs `/init` 真跑）未打通**，F8（同镜像 S2 被执行两次）根因未定位 ⇒ 状态保持 `待开始`，**未提交**。**待裁定 3**（任务书）：任务背景「不保存 ra 数组」在硬件上不成立（`ret` 落点由 `RACNT/ra0/ra63` 决定），当前实现保存整条 RAS（每次切换 +4 条块传送），需用户确认接受或另定机制。
 - **2026-11-18 00:20（夜间续跑）**：`m14-linux-016` 已收尾（合入 `6ddb3bbd`，F5 打通、101/101）；`m14-linux-017` 已派单（夜跑，7–9 h：`switch_to`+调度+U-mode 帧往返+最小 clockevent+F3/init）。**`m15-testcases-012` 仍待合入**（与 011 16 处链接冲突，明早按「crt0/runtime/dadao-* → ee-user；kaiwu-tiny*.lds → ee-tiny；`-L` 并存」解）。
 - **2026-11-17 23:40（夜间交接）**：`m15-testcases-011` 已收尾（tiny 资产 → `tests/ee-tiny/`）；**`m15-testcases-012` 复核 Accepted 但未合入**——与 011 在 16 个链接点冲突（`-L` 需并存 `ee-tiny`+`ee-user`，`crt0/runtime/dadao-*` 走 `ee-user`，`kaiwu-tiny*.lds` 走 `ee-tiny`），明早解冲突后合入并跑 `check-tests-index`+链接冒烟。`m14-linux-016` 复核判 Needs Revision（`--selfcheck` 循环迭代单字符），修复中；提交时必须显式 stage `components/linux/patches/init/main.c.patch`。
