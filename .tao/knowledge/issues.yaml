@@ -27,7 +27,7 @@
   status: closed
   closed_in: M13
   resolved_by: m13-testcases-006（分通道判据）
-  title: 【P2】gem5 SE 输出捕获的 stdout/stderr 顺序与参考不一致（`2>&1` 交错 vs fd1/fd2 分开后按 `stdout+stderr` 串接）。已确认**至少 4 例**可由 `stderr+stdout+exit` 与参考逐字节相等：FreeBench `analyzer`/`pifft`/`mason`/`neural` （前两例本在第一轮 9 个 fail 内；后两例是 `gem5_only_fail` 9→11 的差值）。 **不可全局交换顺序**：另有 1 例需 `stdout+stderr`，31 例 pass 走非逐字节比对。 修复方向：SE 驱动层保留 fd1/fd2 写出顺序；修复前不按能力缺口计。详见 `.tao/knowledge/refs/TESTCASES-103t-timeout-recheck.md`。
+  title: 【P2】gem5 SE 输出捕获的 stdout/stderr 顺序与参考不一致（`2>&1` 交错 vs fd1/fd2 分开后按 `stdout+stderr` 串接）。已确认**至少 4 例**可由 `stderr+stdout+exit` 与参考逐字节相等：FreeBench `analyzer`/`pifft`/`mason`/`neural` （前两例本在第一轮 9 个 fail 内；后两例是 `gem5_only_fail` 9→11 的差值）。 **不可全局交换顺序**：另有 1 例需 `stdout+stderr`，31 例 pass 走非逐字节比对。 修复方向：SE 驱动层保留 fd1/fd2 写出顺序；修复前不按能力缺口计。
 - id: ISS-358
   scope:
   - gem5
@@ -42,7 +42,7 @@
   status: closed
   closed_in: M13
   resolved_by: m13-gem5-003
-  title: 【P2】gem5 SE loader 拒绝字节对齐的 `.bss` 子段：`src/sim/process.cc:196` 的 `fatal_if((seg.base & 3) != 0, ...)` 在 `p_vaddr + p_filesz` 非 4 字节对齐时直接 fatal。 dynamic llvm-ts 有 7 例因此 blocked（QEMU 可正常装载），名单见 `refs/INTEG-059t-se-parity-summary.json` 的 `new_findings`。 建议：改为「按对齐要求零填到下一个对齐边界」而不是 fatal；属 gem5 实现缺口，另立任务。
+  title: 【P2】gem5 SE loader 拒绝字节对齐的 `.bss` 子段：`src/sim/process.cc:196` 的 `fatal_if((seg.base & 3) != 0, ...)` 在 `p_vaddr + p_filesz` 非 4 字节对齐时直接 fatal。 dynamic llvm-ts 有 7 例因此 blocked（QEMU 可正常装载），名单可由 `tests/ee-user/tset_matrix_user.py` 的 `attribution` 块现场重算。 建议：改为「按对齐要求零填到下一个对齐边界」而不是 fatal；属 gem5 实现缺口，另立任务。
 - id: ISS-360
   scope:
   - infra
@@ -65,7 +65,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: 【P1】gem5 SE（dynamic）`MultiSource/Benchmarks/FreeBench/neural` **oracle mismatch**： 输出长度相同（358 B vs 358 B）但内容不同，qemu 侧同例通过（输出 == reference）。 首行 `Matrix size is 20x28` 一致 ⇒ 差异在后段，疑浮点舍入/格式化（与 M13 FP 差分同源）。 证据：`m13-testcases-002` 全量（93 例）结果，`refs/m13-002-dynamic-3600s-full.json`。 建议：M13 FP 差分任务（`m13-integ-002`）把它作为首个定位样本；先 `cmp` 逐字节定位差异列。
+  title: 【P1】gem5 SE（dynamic）`MultiSource/Benchmarks/FreeBench/neural` **oracle mismatch**： 输出长度相同（358 B vs 358 B）但内容不同，qemu 侧同例通过（输出 == reference）。 首行 `Matrix size is 20x28` 一致 ⇒ 差异在后段，疑浮点舍入/格式化（与 M13 FP 差分同源）。 证据：`m13-testcases-002` 全量（93 例）结果，`tests/data/m13-002-dynamic-3600s-full.json`。 建议：M13 FP 差分任务（`m13-integ-002`）把它作为首个定位样本；先 `cmp` 逐字节定位差异列。
 - id: ISS-363
   scope:
   - gem5

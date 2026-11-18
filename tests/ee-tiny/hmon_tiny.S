@@ -1,6 +1,6 @@
 @@ hmon.S — Kaiwu-Tiny cfx3 hmon handler：最小「保存-跳转」算法
 @@ （m13-integ-007；用户 2026-11-11 第二次修正，见
-@@   .tao/knowledge/refs/m12-006-cycle-design.md §11）
+@@   .tao/archive/M13/integ/m13-integ-007-hmon最小保存跳转算法.md）
 @@
 @@ 规范：spec/Kaiwu §1.1/§2/§4.4/§6.2；spec/DADAO-12 §5.1–§5.3；
 @@       spec/DADAO-13 §1–§2（cfx_hmon cg3/cg5）。

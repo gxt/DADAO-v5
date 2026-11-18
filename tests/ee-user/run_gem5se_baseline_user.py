@@ -807,7 +807,7 @@ def main() -> int:
                     help="runtime directory for per-case artifacts/JSONs")
     ap.add_argument("--json-out", required=True,
                     help="full baseline JSON (runtime; per-case detail)")
-    ap.add_argument("--summary-dir", default=".tao/knowledge/refs",
+    ap.add_argument("--summary-dir", default="tests/data",
                     help="where the compact summary JSON+Markdown go")
     ap.add_argument("--suites", default=",".join(SUITES),
                     help="comma-separated subset (default: all three)")

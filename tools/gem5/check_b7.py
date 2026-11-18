@@ -50,7 +50,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-MATRIX = ROOT / ".tao/knowledge/refs/GEM5-002t-semantic-matrix.tsv"
+MATRIX = ROOT / "tests/data/GEM5-002t-semantic-matrix.tsv"
 INST_FP = ROOT / "tests/inst/07-floating-point"
 HARNESS_ID = re.compile(r"^\[PASS\] b7-id (\S+)$", re.MULTILINE)
 

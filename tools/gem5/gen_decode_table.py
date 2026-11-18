@@ -4,7 +4,7 @@
 Spec-first: the decode table is derived from ``contracts/opcodes.yaml`` (the
 machine-readable projection of ``.tao/contracts/contract-isa.md`` /
 ``contract-fp.md``); the assertions are derived from
-``.tao/knowledge/refs/GEM5-002t-semantic-matrix.tsv`` (GEM5-002t snapshot).
+``tests/data/GEM5-002t-semantic-matrix.tsv`` (GEM5-002t snapshot).
 The two inputs are cross-checked row by row, so a drift in either side fails
 the generator instead of silently producing a table that disagrees with the
 matrix.
@@ -34,7 +34,8 @@ contract regression fail here instead of silently emitting a stale table.
 
 B0 scope: decode/format/field/opcode/sub-table dispatch only.  Execution
 semantics (B1-B7) are not part of this table; the batch column only fixes the
-B1-B7 boundary counts (38/8/42/63/28/30/55) from GEM5-002t-REPORT.md §5.
+B1-B7 boundary counts (38/8/42/63/28/30/55), frozen from the GEM5-002t §5
+figures (that report is no longer in the tree).
 """
 from __future__ import annotations
 
@@ -47,7 +48,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-MATRIX = ROOT / ".tao/knowledge/refs/GEM5-002t-semantic-matrix.tsv"
+MATRIX = ROOT / "tests/data/GEM5-002t-semantic-matrix.tsv"
 OPCODES = ROOT / "contracts/opcodes.yaml"
 ASSERT_TSV = ROOT / "components/gem5/decode-assertions.tsv"
 NEGATIVE_TSV = ROOT / "components/gem5/decode-negative.tsv"

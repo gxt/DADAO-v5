@@ -1,5 +1,5 @@
 @@ tiny_hmon_min.S — QEMU 端的 Tiny hmon「最小保存-跳转」行为用例
-@@ （m13-integ-007；算法见 .tao/knowledge/refs/m12-006-cycle-design.md §11）
+@@ （m13-integ-007；算法见 .tao/archive/M13/integ/m13-integ-007-hmon最小保存跳转算法.md）
 @@
 @@ 加载契约：宿主只装本应用 ELF（crt + 本文件，SRAM-only，固定入口 ENTRY）；
 @@ 固定 64 KiB BootROM（共享 power stub + hmon_tiny.S）由 `bootrom-image` 提供。

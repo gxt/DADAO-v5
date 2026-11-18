@@ -33,7 +33,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-MATRIX = ROOT / ".tao/knowledge/refs/GEM5-002t-semantic-matrix.tsv"
+MATRIX = ROOT / "tests/data/GEM5-002t-semantic-matrix.tsv"
 OPCODES = ROOT / "contracts/opcodes.yaml"
 
 # Frozen per-batch [PASS] baselines (GEM5-006t..GEM5-012t, re-measured

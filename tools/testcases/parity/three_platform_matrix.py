@@ -77,8 +77,8 @@ SNAPSHOT_MARKER = "<!-- 现场生成，勿手改 -->"
 CANONICAL_SCHEMA = "three-platform-cases/1"
 #: 默认输入：已入库的两份 M13 长尾基线（fresh clone 上可读 ⇒ 矩阵可重建）。
 DEFAULT_SOURCES = (
-    os.path.join(".tao", "knowledge", "refs", "m13-001-static-3600s-full.json"),
-    os.path.join(".tao", "knowledge", "refs", "m13-002-dynamic-3600s-full.json"),
+    os.path.join("tests", "data", "m13-001-static-3600s-full.json"),
+    os.path.join("tests", "data", "m13-002-dynamic-3600s-full.json"),
 )
 #: chipyard 列不可用的**依据**（核未就绪）；`N/A` 必须能指到这句。
 CHIPYARD_BASIS = ("`m12-chipyard-007` 未开始（M12 核未就绪）⇒ chipyard 列记 `N/A`"

@@ -39,6 +39,9 @@
 | `unit` | 各模块自身：LLVM/lld/QEMU/picolibc/仓库工具 | `host`、`toolchain` | `tests/unit/` |
 | `tset` | 外部套件在成品系统上跑：libc-test/llvm-ts/Embench | `user`（`hw` 预留） | `tests/tset/` |
 
+> `tests/data/` **不是 scope**：只放被代码消费的入库数据（语义矩阵、长尾基线 summary、
+> 冻结的三平台报告），不成册、无 `*.yaml` 索引（`m15-infra-004`）。
+
 - **`platforms` 语义**：`system` = **qemu-system 运行模式**（相对 `user` 用户态），**不**代表 Vast
   机型；Vast 已明确**不做 ISA 级执行覆盖**（`m13-testcases-043`，用户 2026-11-14 裁定）。`.S` 载体的
   索引条目一律 `platforms: [system]`。

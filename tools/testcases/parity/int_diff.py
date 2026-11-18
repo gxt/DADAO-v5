@@ -10,7 +10,7 @@
   * `.tao/contracts/contract-isa.md`（人读契约正文，按族给出口径指针）；
   * `tests/inst.yaml`（载体是否入索引）。
 
-输出 `.tao/knowledge/refs/m13-003-int-diff.{json,md}`，内容是上述输入的
+输出 `tests/data/m13-003-int-diff.{json,md}`（入库基线的落点），内容是上述输入的
 **确定性函数**：不写生成时刻、不写运行期路径。报告另记 **输入 commit**
 （`--input-commit`，缺省取 `git rev-parse HEAD`）：没有这个锚，后人只能靠
 `--check` 发现报告陈旧（`m13-integ-003` 复核 F3）。`--check` 因此要求在同一

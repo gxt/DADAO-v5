@@ -7,9 +7,9 @@
 ``setsid nohup make night-run > log 2>&1 &`` 脱离会话（不自带 `nohup`，避免嵌套）。
 
 成员可用性证据（`TESTCASES-105t`；**不重跑全量**）：
-* gem5 SE static  —— `.tao/knowledge/refs/GEM5-021t-baseline-summary.json`
+* gem5 SE static  —— `tests/data/GEM5-021t-baseline-summary.json`
   （`TESTCASES-103t` 预算/分类全量，复用 `tests/ee-user/run_gem5se_baseline_user.py` 驱动）；
-* gem5 SE dynamic —— `.tao/knowledge/refs/TESTCASES-104t-dynamic-summary.json`
+* gem5 SE dynamic —— `tests/data/TESTCASES-104t-dynamic-summary.json`
   （`TESTCASES-104t` 动态档全量；成员本身跑 static，不重复 dynamic）；
 * gem5 FS inst/arch —— `docs/TestReports/M11-三平台一致矩阵.md`（`GEM5-017t/018t` 矩阵）。
 每次跑建一个只读报告目录（`docs/Process-09 §8`）：
@@ -89,8 +89,8 @@ DEFAULT_MEMBERS = [
     # gem5 SE（TESTCASES-105t）：static 档，复用 TESTCASES-103t 的
     # `tests/ee-user/run_gem5se_baseline_user.py` 驱动（同一 script 同时跑 QEMU-user 与 gem5-SE 并
     # 逐 case 对照）。成员可用性证据（全量落盘，本成员不重复）：
-    #   static  .tao/knowledge/refs/GEM5-021t-baseline-summary.json
-    #   dynamic .tao/knowledge/refs/TESTCASES-104t-dynamic-summary.json
+    #   static  tests/data/GEM5-021t-baseline-summary.json
+    #   dynamic tests/data/TESTCASES-104t-dynamic-summary.json
     # 每个套件用独立 summary-dir，避免同名的 GEM5-021t-baseline-summary.json 互相覆盖。
     "tset:gem5-se-libc=" + _gem5_se_member("libc-test"),
     "tset:gem5-se-llvm=" + _gem5_se_member("llvm-ts"),

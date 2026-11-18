@@ -95,8 +95,8 @@ python3 tests/ee-user/tset_matrix_user.py --self-test   # 逐条反例注入
   `docs/TestReports/M11-三平台一致矩阵.md`（目录规则见
   `docs/TestReports/README.md`），由证据脚本从运行期 `cp`，不手改。
 
-- 输入：static = `refs/GEM5-021t-baseline-summary.json`（`TESTCASES-103t` 预算）、
-  dynamic = `refs/TESTCASES-104t-dynamic-summary.json`（`GEM5-027t` 动态装载）。
+- 输入：static = `tests/data/GEM5-021t-baseline-summary.json`（`TESTCASES-103t` 预算）、
+  dynamic = `tests/data/TESTCASES-104t-dynamic-summary.json`（`GEM5-027t` 动态装载）。
 - **不信任已声明计数**：per-suite counts / cross 列表 / totals / gap 桶全部从
   per-case 行重算并与声明值对账；不一致 rc=1。
 - **每个非 pass 行必须有 owner**：`timeout` ⇒ budget；`blocked` ⇒ 证据文本必须
@@ -147,7 +147,7 @@ python3 tools/testcases/parity/three_platform_matrix.py --self-test
 `fp_diff.py` **不跑 guest**：输入是 `run_asm_suite.py` 的三平台逐镜像 JSON
 （同 ELF、status/exit/结果字节流）+ 每镜像 `.out` 结果流（按 8 字节检查点切分），
 加上 `contracts/opcodes.yaml`、`spec/SimRISC-07` 附录 A、`tests/inst.yaml` 三个
-静态真源，输出 `.tao/knowledge/refs/m13-002-fp-diff.{json,md}`。
+静态真源，输出 `tests/data/m13-002-fp-diff.{json,md}`（入库基线的落点）。
 
 ```sh
 python3 tools/testcases/parity/fp_diff.py \
@@ -178,7 +178,7 @@ python3 tools/testcases/parity/fp_diff.py --self-test    # 8 类反例逐条判�
 `int_diff.py` 与 `fp_diff.py` 同形：**不跑 guest**，输入是 `run_asm_suite.py` 的
 三平台逐镜像 JSON + 每镜像 `.out` 结果流；范围 = `tests/inst/**/*.S` 中**非 cfx**
 （册 `11-cfx`）且**非 FP**（`scope: fp`）的载体（现场枚举，计数不写死）。
-输出 `.tao/knowledge/refs/m13-003-int-diff.{json,md}`。
+输出 `tests/data/m13-003-int-diff.{json,md}`（入库基线的落点）。
 
 ```sh
 python3 tools/testcases/parity/int_diff.py \
@@ -226,11 +226,11 @@ python3 tools/testcases/parity/acceptance_report.py --self-test   # 9 类反例
 - **向量面对账**：逐册统计载体 / 链例点 / 故障例 / 镜像，并断言
   「int + fp + cfx = `tests/inst` 全量」与「两份报告的 `coverage`/`results` 分母
   逐项相符」——对不上即 rc=1，不静默。
-- **差异归因合并**：002/003 的差异由**同一批输入重算**（不读旧 `refs`），按
+- **差异归因合并**：002/003 的差异由**同一批输入重算**（不读旧报告），按
   `spec` / `implementation` / `test asset` 分类；未知 owner 或未知缺口 kind ⇒ rc=1。
   004（riscv-tests）语料已退役，只保留任务书结论作指针。
 - **冻结产物**：矩阵册 `docs/TestReports/M13-三平台差分-矩阵.md` + 收口报告
-  （`.tao/knowledge/refs/m13-005-acceptance.{json,md}`）。三者都是输入的确定性
+  （`tests/data/m13-005-acceptance.{json,md}`）。三者都是输入的确定性
   函数：不写墙钟、不写运行期路径，**记输入 commit**（`--input-commit`，缺省
   `git rev-parse HEAD`）；换 commit 复算须显式传同一 sha，否则 `--check` 会如实报
   不一致（陈旧可见）。
@@ -239,7 +239,7 @@ python3 tools/testcases/parity/acceptance_report.py --self-test   # 9 类反例
 
 M12 判据 = **engine parity**（chipyard 与 qemu 同代码同 ELF、只换引擎，picolibc
 逐例状态必须一致；qemu 侧既有缺口登记在册、不计到 chipyard）。报告对
-（`.tao/knowledge/refs/m12-016-embench-picolibc.{json,md}`）是**运行期批次输入的
+（`tests/data/m12-016-embench-picolibc.{json,md}`）是**运行期批次输入的
 确定性函数**，本目录的四个脚本即其生成器（此前只在 016 证据树里，fresh clone
 复现不了）：
 

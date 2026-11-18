@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Refresh the stale notes of the GEM5-002t semantic matrix (GEM5-013t).
 
-The matrix (``.tao/knowledge/refs/GEM5-002t-semantic-matrix.tsv``) is the
+The matrix (``tests/data/GEM5-002t-semantic-matrix.tsv``) is the
 2026-11-01 baseline snapshot; four cell families were written before the later
 contract closures and still carry "open point" wording.  This tool rewrites
 *only* those cells, using the already-effective contracts -- it adds no new
-semantics and never touches ``tests/``, ``spec/`` or ``contracts/``:
+semantics and never touches ``spec/``, ``contracts/`` or any ``tests/`` asset
+other than this data file (the matrix itself lives under ``tests/data/``):
 
 * ``g1_note`` for the 12 ``lr.*`` rows (SPEC-182t F1: ``hb`` is SBZ, plus the
   F8.1 reservation granularity);
@@ -40,7 +41,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-MATRIX = ROOT / ".tao/knowledge/refs/GEM5-002t-semantic-matrix.tsv"
+MATRIX = ROOT / "tests/data/GEM5-002t-semantic-matrix.tsv"
 OPCODES = ROOT / "contracts/opcodes.yaml"
 
 TARGET_COLUMNS = ("g1_note", "exceptions", "semantics", "operands")

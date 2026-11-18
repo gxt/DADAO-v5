@@ -27,7 +27,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 B6_ID = re.compile(r"^\[PASS\] b6-id (\S+)$", re.MULTILINE)
-MATRIX = ROOT / ".tao/knowledge/refs/GEM5-002t-semantic-matrix.tsv"
+MATRIX = ROOT / "tests/data/GEM5-002t-semantic-matrix.tsv"
 
 # contracts/opcodes.yaml rule_refs for the 30 B6 rows, by id.  Written out one
 # id at a time: batch membership is never guessed from a mnemonic, and the

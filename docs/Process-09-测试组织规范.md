@@ -101,12 +101,16 @@ tests/
     libc-test/ llvm-ts/ embench/
   shared/                   # 共享测试基础设施（非用例）
     bootrom/ linker/ crt0/ runtime/ macros/ expected/
+  data/                     # 入库的机器可读测试输入/基线（非 scope，不成册、不进索引）
   inst.yaml arch.yaml unit.yaml tset.yaml   # 根级 case 清单（见 §5）
   case-ledger.tsv           # 身份清单（生成物，L1 门控）
   README.md
 ```
 
 - **禁止** `inst/isa` 子层、`unit/tools`、`tests/index/`、`tests/manifest/`。
+- `tests/data/` 只放**被代码消费**的入库数据（语义矩阵、长尾基线 summary、冻结的
+  三平台报告）；它不是 scope：没有 `data.yaml`、不进 §5 的 case 清单与载体断言
+  （`m15-infra-004`；原 `.tao/knowledge/` 下 `refs/` 的活数据源在此落位）。
 - `tests/qemu/`（占位 README）**已删除**（`TESTCASES-076t`）；QEMU 组件测试将来落
   `tests/unit/qemu/`（现在为空，不建空目录）。
 - 工具链 E2E：`tests/unit/llvm/e2e/`（`check-lit` 跑其 `lit/`）。原顶层 `e2e/`
@@ -349,7 +353,7 @@ cmd: python3 tests/ee-tiny/run_inst_tiny.py --id add.si_riii_rd --platforms qemu
 | 产物 | 落点 | 入库 |
 |---|---|---|
 | 运行产物（`run.json`/`run.log`/`meta.json`、`m5out/`、guest 日志、逐例 JSON） | 运行期目录 `<test-artifacts>/…`（`Process-08`）或任务运行期目录 | 否 |
-| 被引用的原始数据 / 基线 summary | 原始数据落运行期目录（不入库）；被引用的 **summary** 按 `AGENTS.md`「被引材料不得只放 `.work/`」升格 `.tao/knowledge/refs/` | 原始数据否；被引 summary 是 |
+| 被引用的原始数据 / 基线 summary | 原始数据落运行期目录（不入库）；被引用的 **summary** 按 `AGENTS.md`「被引材料不得只放 `.work/`」升格 `tests/data/` | 原始数据否；被引 summary 是 |
 | 里程碑快照（现场生成的矩阵） | `docs/TestReports/<M>-<主题>.md` | 是（只 `cp`，不手改） |
 | 人读结论（差分归因、阶段结论、口径/凡例） | `docs/TestReports/<M>-<主题>[-<后缀>].md` | 是 |
 
@@ -364,7 +368,7 @@ cmd: python3 tests/ee-tiny/run_inst_tiny.py --id add.si_riii_rd --platforms qemu
 
 | 产物 | 典型内容 | 谁生成 | 落点 | 入库 |
 |---|---|---|---|---|
-| 原始基线 JSON（数据） | 逐例 `status`/`exit`/时长 + 机器指纹 | 跑批任务（如 `m13-testcases-00x`） | 运行期目录；被引用时升格 `.tao/knowledge/refs/` | 原始数据否；被引 summary 是 |
+| 原始基线 JSON（数据） | 逐例 `status`/`exit`/时长 + 机器指纹 | 跑批任务（如 `m13-testcases-00x`） | 运行期目录；被引用时升格 `tests/data/` | 原始数据否；被引 summary 是 |
 | 逐例报告（派生） | 归一化逐例行 + 归因标记（机器派生；人读结论另册） | 生成器（`tools/testcases/parity/*.py`） | 运行期目录 | 否 |
 | 矩阵快照（展示） | `docs/TestReports/M13-三平台差分矩阵.md` | 生成器渲染 + 证据脚本写入 | `docs/TestReports/<M>-<主题>.md` | 是（只重建，不手改） |
 | 生成器（代码） | `run_parity.py` / `three_platform_matrix.py`（`tools/testcases/parity/`）、`tset_matrix_user.py`（`tests/ee-user/`） | 任务实现 | `tools/testcases/parity/` + `tests/ee-user/` | 是 |

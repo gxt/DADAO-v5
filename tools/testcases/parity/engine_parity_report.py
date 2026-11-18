@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """engine_parity_report.py -- 由运行期批次输入重生成 m12-016 的 engine-parity
-报告对（`.tao/knowledge/refs/m12-016-embench-picolibc.{json,md}`）。
+报告对（`tests/data/m12-016-embench-picolibc.{json,md}`）。
 
 本文件是 `m12-chipyard-016` 证据脚本的**入仓版**（`m12-chipyard-017`）：只改
 「路径解析 + 入口形态」，报告口径（`CRITERION` / `QEMU_BASELINE_GAPS` / union
@@ -11,7 +11,7 @@
   * `--repo <根>`：仓库根，默认 = 本脚本所在目录上溯三层；
   * `--log-dir <目录>`：批次输入目录（运行期日志，永不入库），
     默认 = `<repo>` 内 chipyard 模块的运行期日志目录；
-  * `--out-dir <目录>`：报告输出目录，默认 `<repo>/.tao/knowledge/refs`；
+  * `--out-dir <目录>`：报告输出目录，默认 `<repo>/tests/data`；
   * `--node-map <日志名>=<节点>`：覆盖分片→节点名（默认见 `SHARD_NODE`，可重复）。
 
 用法::
@@ -739,7 +739,7 @@ def main(argv=None) -> int:
     ap.add_argument("--log-dir", default=None,
                     help="批次输入目录（默认 = <repo> 内 chipyard 运行期日志目录）")
     ap.add_argument("--out-dir", default=None,
-                    help="报告输出目录（默认 <repo>/.tao/knowledge/refs）")
+                    help="报告输出目录（默认 <repo>/tests/data）")
     ap.add_argument("--node-map", action="append", default=[],
                     metavar="LOG=NODE",
                     help="覆盖分片→节点名（默认见 SHARD_NODE，可重复）")
@@ -752,7 +752,7 @@ def main(argv=None) -> int:
     LOG = (os.path.abspath(args.log_dir) if args.log_dir
            else os.path.join(REPO, ".work", "log", "chipyard"))
     out_dir = (os.path.abspath(args.out_dir) if args.out_dir
-               else os.path.join(REPO, ".tao", "knowledge", "refs"))
+               else os.path.join(REPO, "tests", "data"))
     try:
         NODE_MAP.update(_parse_node_map(args.node_map))
     except ValueError as exc:

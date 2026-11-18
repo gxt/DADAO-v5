@@ -9,7 +9,7 @@
   * `spec/SimRISC-07-浮点运算.md` 附录 A（人读排版口径）；
   * `tests/inst.yaml`（用例索引：载体是否入库登记）。
 
-输出 `.tao/knowledge/refs/m13-002-fp-diff.{json,md}`，内容是上述输入的**确定性
+输出 `tests/data/m13-002-fp-diff.{json,md}`（入库基线的落点），内容是上述输入的**确定性
 函数**：不写生成时刻、不写运行期路径，`--check` 在 fresh clone 上可逐字节复现。
 
 复用（不复制另一套口径）：

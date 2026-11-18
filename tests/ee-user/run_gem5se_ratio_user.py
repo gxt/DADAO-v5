@@ -76,7 +76,7 @@ DRIVERS = {
 ENGINES = ("qemu", "gem5-se")
 ENGINE_LABEL = {"qemu": "qemu", "gem5-se": "gem5"}
 
-DEFAULT_CASE_LIST = ".tao/knowledge/refs/GEM5-021t-baseline-summary.json"
+DEFAULT_CASE_LIST = "tests/data/GEM5-021t-baseline-summary.json"
 DEFAULT_GEM5 = ".work/source/gem5/build/DADAO/gem5.opt"
 DEFAULT_SE_CONFIG = ".work/source/gem5/configs/dadao/se.py"
 DEFAULT_MUSL = ".work/source/musl"

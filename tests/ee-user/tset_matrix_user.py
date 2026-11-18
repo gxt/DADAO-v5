@@ -4,8 +4,8 @@
 This is the G3 (``ADR-0048 D4/D5``) aggregation step.  It does **not** run a
 guest: the per-case evidence already lives in the two committed tset baselines
 
-    * static  -- ``.tao/knowledge/refs/GEM5-021t-baseline-summary.json``
-    * dynamic -- ``.tao/knowledge/refs/TESTCASES-104t-dynamic-summary.json``
+    * static  -- ``tests/data/GEM5-021t-baseline-summary.json``
+    * dynamic -- ``tests/data/TESTCASES-104t-dynamic-summary.json``
 
 and this script only *recomputes* every count from the per-case rows, joins the
 two link modes, and forces an attribution on every non-``pass`` row:
@@ -69,9 +69,9 @@ SUITES = ("libc-test", "llvm-ts", "embench")
 TRACKS = ("static", "dynamic")
 
 DEFAULT_SOURCE = {
-    "static": os.path.join(".tao", "knowledge", "refs",
+    "static": os.path.join("tests", "data",
                            "GEM5-021t-baseline-summary.json"),
-    "dynamic": os.path.join(".tao", "knowledge", "refs",
+    "dynamic": os.path.join("tests", "data",
                             "TESTCASES-104t-dynamic-summary.json"),
 }
 
@@ -922,8 +922,8 @@ def render_matrix_section(report):
                 add(f"- {mode} / {suite} ({len(names)}): "
                     + ", ".join(f"`{n}`" for n in names))
     add("")
-    add("Full per-case attribution and the static/dynamic join: "
-        "`.tao/knowledge/refs/INTEG-059t-se-parity-summary.md`.")
+    add("Full per-case attribution and the static/dynamic join: the "
+        "`attribution` block of the JSON emitted next to this report.")
     add("")
     return "\n".join(lines) + "\n"
 

@@ -15,7 +15,7 @@
   2. **差异归因合并**：把 002（FP）/ 003（整数与访存）/ 004（riscv-tests）的差异
      清单合并，按「spec 歧义 / 实现缺陷 / 测试资产」分类；未归因的差异一律 rc=1；
   3. **冻结两份产物**：`docs/TestReports/M13-三平台差分-矩阵.md`（矩阵）与
-     `.tao/knowledge/refs/m13-005-acceptance.{json,md}`（收口报告）。
+     `tests/data/m13-005-acceptance.{json,md}`（收口报告）。
 
 确定性：不写生成时刻、不写运行期路径；**输入 commit 显式记录**（`--input-commit`，
 缺省 `git rev-parse HEAD`）——矩阵与两份逐例报告都是该 commit 上向量面的函数，
@@ -544,7 +544,7 @@ def render_matrix(report: dict) -> str:
     a("- **数据来源**：同一批三平台逐镜像运行输入（同一份 ELF 在 chipyard Tiny / "
       "qemu system / gem5 FS 上的退出码 + 逐检查点 8 字节结果流），由 "
       "`tools/testcases/parity/int_diff.py` 与 `fp_diff.py` 现场重算；逐例明细见"
-      "收口报告（`.tao/knowledge/refs/m13-005-acceptance.json`）的嵌入式逐例表")
+      "收口报告（`tests/data/m13-005-acceptance.json`）的嵌入式逐例表")
     a("- **机器指纹**：" + "；".join(_eng_lines(report)))
     a("- **复现**：`bash <运行期证据目录>/run.sh`（默认段重算并逐字节比对，"
       "`--inject` 段做反例注入）；生成器 = `tools/testcases/parity/"
@@ -700,7 +700,7 @@ def render_matrix(report: dict) -> str:
     a("")
     a("## 7. 可回溯与复现")
     a("")
-    a("- 逐例（三平台 `exit` / 字节数 / 结果流 md5）：`.tao/knowledge/refs/"
+    a("- 逐例（三平台 `exit` / 字节数 / 结果流 md5）：`tests/data/"
       "m13-005-acceptance.json` 的 `int_report.results.per_image` 与 "
       "`fp_report.results.per_image`（每条即一份状态摘要）")
     a("- 输入静态真源 sha256：" + "、".join(

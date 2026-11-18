@@ -45,8 +45,8 @@ REPO_ROOT = os.path.normpath(
 SUITES = ("libc-test", "llvm-ts")
 
 DEFAULT_REFS = {
-    "static": ".tao/knowledge/refs/m13-001-static-3600s-full.json",
-    "dynamic": ".tao/knowledge/refs/m13-002-dynamic-3600s-full.json",
+    "static": "tests/data/m13-001-static-3600s-full.json",
+    "dynamic": "tests/data/m13-002-dynamic-3600s-full.json",
 }
 
 TASK = "m13-testcases-003"

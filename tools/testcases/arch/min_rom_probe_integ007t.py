@@ -2,7 +2,7 @@
 """min_rom_probe_integ007t.py -- QEMU probe for the Tiny hmon save-and-jump handler.
 
 Oracle for the user ruling of 2026-11-11 (algorithm:
-``.tao/knowledge/refs/m12-006-cycle-design.md`` §11):
+``.tao/archive/M13/integ/m13-integ-007-hmon最小保存跳转算法.md``):
 
   * hmon SRAM layout: code at 0x00 (no jump); data at 0xD8 saved rd63 /
     0xE0 cause_id / 0xE8 cause_ip / 0xF0 cause_info / 0xF8 return address;
