@@ -32,7 +32,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m15-infra-001 | 2026-11-18 08:28 | 4–6 h | 三契约消费点迁移（machine_profile → `contracts/`，测试集开关移 tests-matrix，删旧 machine-profiles） |
 
 | m15-spec-001 | 2026-11-13 22:05 | 3–5 天 | UDB IDL 语法 v0 + 5 条样板 operation + `idlc` 复用评估 + 抽取器原型（**待返工**：WIP `0584a64b`，用户要求先摊开文件内容 + 逐条语句分析；延后裁决） |
 
@@ -40,6 +39,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-infra-001 | 2026-11-18 09:00 | 三契约消费点迁移（machine_profile 拆读 machine/exec-envs/tests-matrix + `ee-*/runtime.yaml`；删旧 machine-profiles） |
 | m15-testcases-015 | 2026-11-18 08:27 | 剩余 bootrom：`k0_*` 7 件 → `tests/ee-vast/`、4 散件 → `tests/ee-tiny/`（k0 101/101、k0/k1 119/112） |
 | m15-testcases-014 | 2026-11-18 07:30 | `inst-tiny.lds` 移入 `tests/ee-tiny/`（202 .S 头注释同步；272/272） |
 | m15-testcases-013 | 2026-11-18 07:05 | vast 资产集中到 `tests/ee-vast/`（step5 bootrom 7 + kaiwu-vast.lds；md5 8/8） |
