@@ -108,7 +108,7 @@
 - `DADAO_TMP_ROOT=… python3 tools/qemu/k0_boot_probe.py` → **rc=0，`result: 101 passed, 0 failed`**；`bootrom_k0.bin` md5 **`b662183a70586e2f463f0811a04a6e0e`** == baseline。
 - L1：`check-tests-index` **rc=0（结果: PASS，472 条）**、`check-dirs` rc=0（`check-dirs: PASS`）、`check-no-residue` rc=0（`PASS`）、`check-interface` rc=0（`全部机械可判定项 PASS`，Schema 41 + Opcodes 8）。
 - `make check-linux-k0`：默认共享树 **rc=2，116/119**（仅 K12：`apply-series: linux HEAD (0a2d2cfcc42b) is neither base (7b20d05fd38d) nor base+1 matching the patch set`）；将 `manifests/components.lock.toml` 的 `work_root` 临时改 `../work`（本任务私有 linux 树 76 补丁 == 仓库 76）后 **rc=0，119/119**；`make check-linux-k1` **rc=0，`check-linux-k1: PASS (112/112)`**；跑完 `cp`+md5 还原 `5c4a8cc5…`、`git status -uall` 空。
-- 证据脚本 `.work/evidence/m15-testcases-015/run.sh`：默认 **rc=0，`checks: 34 passed, 0 failed`**；`WITH_LINUX=1`（同上临时 work_root，跑完还原）**rc=0，`checks: 36 passed, 0 failed`**；`--inject` **rc=0，`checks: 8 passed, 0 failed`**，且红路径真实：`ld.lld: error: cannot find linker script tests/shared/bootrom/bootrom.lds`、`llvm-mc: error: …/tests/shared/bootrom/k0/k0_hmon.S: No such file or directory`。
+- 证据脚本 运行期证据目录内的 `run.sh`：默认 **rc=0，`checks: 34 passed, 0 failed`**；`WITH_LINUX=1`（同上临时 work_root，跑完还原）**rc=0，`checks: 36 passed, 0 failed`**；`--inject` **rc=0，`checks: 8 passed, 0 failed`**，且红路径真实：`ld.lld: error: cannot find linker script tests/shared/bootrom/bootrom.lds`、`llvm-mc: error: …/tests/shared/bootrom/k0/k0_hmon.S: No such file or directory`。
 
 **独立注入 2 路（均非任务书列明的注入点；一律 `cp`+md5，未用 checkout/restore/stash/show）**
 - **IC（未列）** `tests/ee-tiny/semihost_smoke.S` 的 `.include` 改回旧路径 → `make build-bootrom` **rc=2**（`Could not find include file 'tests/shared/bootrom/semihost_msg.inc'`）→ 还原 md5 `a0ae36fd…` → **rc=0**。
