@@ -5,7 +5,7 @@
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
 - **2026-11-18 23:41（夜间续跑，4 件在跑）**：
-  - `m14-linux-017` 第 21 轮：S7 已推进到「用户态 `_start` 与 objdump 逐条一致」；当前堵点 **F48 用户栈 PTE 缺 U 位**（`l2e` S=1/U=0，VMA 在、通道未填过 ⇒ 第二个写入者，优先查 K1 `ptw` 越界覆盖 PGD 4095）；S5 未做。
+  - `m14-linux-017` 第 23 轮：**S7 已转绿**（`/init` → musl → `getpid`/`write`/`brk`/`exit_group`，exit=0）；switch 门控 **42 PASS / 1 FAIL**，唯一红项 = 本任务 **S5**（U-mode 帧 A/B 往返），本轮按「入口栈静态 + 帧按任务化」方案做。修过的真缺陷：F47 代码页错位、F48 `protection_map` 缺 U 位、F50 文件后备数据页被映射成零页、`brk` 钩子读错寄存器组（`rb16` 非 `rd16`）。
   - `m15-spec-001`：**已收尾**（`ab03d5ce`）——`.idl` 源迁 `idl/`、`render.py` 生成 spec 块、`check-idl-sync` 进 L1；5 条样板、4 路注入。
   - `m16-gem5-013`：gem5 补 `prevCfxCode`（`escape` 恢复 `inner_cfx_code`）。
   - `m16-chipyard-005`：chipyard RTL 核实/补同一语义。
