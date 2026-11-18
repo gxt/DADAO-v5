@@ -6,7 +6,7 @@
 
 - **2026-11-18 23:41（夜间续跑，4 件在跑）**：
   - `m14-linux-017` 第 21 轮：S7 已推进到「用户态 `_start` 与 objdump 逐条一致」；当前堵点 **F48 用户栈 PTE 缺 U 位**（`l2e` S=1/U=0，VMA 在、通道未填过 ⇒ 第二个写入者，优先查 K1 `ptw` 越界覆盖 PGD 4095）；S5 未做。
-  - `m15-spec-001`：**方向反转已定**（`.idl` 为源、放仓库根 `idl/`；spec 块由 `render.py` 生成）；正在重写 `contracts/isa/**` → `idl/**`。
+  - `m15-spec-001`：**已收尾**（`ab03d5ce`）——`.idl` 源迁 `idl/`、`render.py` 生成 spec 块、`check-idl-sync` 进 L1；5 条样板、4 路注入。
   - `m16-gem5-013`：gem5 补 `prevCfxCode`（`escape` 恢复 `inner_cfx_code`）。
   - `m16-chipyard-005`：chipyard RTL 核实/补同一语义。
 - **已定口径（2026-11-18）**：`escape` 恢复 `inner_cfx_code ← excp_prev_cfx_code`（`cg5 rc1`；spec+DADAO-12/Kaiwu+QEMU 已落，版本号未动）；`spec/Kaiwu` 三处已对齐；IDL 寄存器模型 = 方案 C（四组数组 + `fo`/`ft` 视图、`ra` 逻辑栈序 + `ras_*`）；`read_memory`/`write_memory`（无 `_be`）/`fetch_memory`/`raise(code,mode,addr)`/`is_naturally_aligned`；`idlc` 不进门控；`.idl` sha256 锁延后到 M15 收口（N21）。
