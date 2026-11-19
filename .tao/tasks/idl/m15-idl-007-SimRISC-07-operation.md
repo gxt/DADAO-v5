@@ -119,7 +119,7 @@
 
 6. **【已消解｜signaling compare 的 payload 不再传播】** 原疑点是「两操作数皆 NaN 时取哪个 payload」；`spec/SimRISC-07 §4` 已由用户授权改为「**四种比较一律返回 canonical quiet NaN**」（§1.3 的「signaling compare 例外条」同时删除）⇒ 不存在 payload 选择问题，本项撤销。**原 `m15-idl-018`（scmp 改 canonical）因同文件双写冲突已并入本任务返工；其任务书与台账行已撤。**
 
-## 语义抽查（批 1–3 全部 30 条，逐句对照；机器版见 `.work/evidence/m15-idl-007/check_semantics.py` 的 `[ok]` 明细）
+## 语义抽查（批 1–3 全部 30 条，逐句对照；机器版见 运行期证据目录内的 `check_semantics.py` 的 `[ok]` 明细）
 
 **§1.1 六档的公共开头**：15 条均以 `RoundingMode mode = rm_to_mode(immu6);` 起 ⇔ §1.1「`immu6` 必须是六值之一；其他取值（含 `0x00`）⇒ ILLI」+「只有 `0x20` 读 `rf0[33:32]`」（解析与 ILLI 都在库函数内，op 不直接读写 `rf0[33:32]`）。
 
@@ -324,7 +324,7 @@
 
 ## 完成区
 
-**测试结果（返工后，全册）**：证据脚本 `.work/evidence/m15-idl-007/run.sh` → `PASS=93 FAIL=0`、`ALL GREEN`、rc=0。可达 FAIL 注入 **36 路**（覆盖 3 / 散文 3 / 语义 22 / 渲染 2 / idlc 2 / 位宽求解 2 / 清单 2）+ **7 个 oracle 注入跑**（6 个 `--inject` + `oracle_b5 --no-specials`），逐路「注入 ⇒ FAIL → 从真实树重拷 ⇒ 回绿」；真实文件 md5 前后不变。
+**测试结果（返工后，全册）**：证据脚本 `运行期证据目录内的 `run.sh`` → `PASS=93 FAIL=0`、`ALL GREEN`、rc=0。可达 FAIL 注入 **36 路**（覆盖 3 / 散文 3 / 语义 22 / 渲染 2 / idlc 2 / 位宽求解 2 / 清单 2）+ **7 个 oracle 注入跑**（6 个 `--inject` + `oracle_b5 --no-specials`），逐路「注入 ⇒ FAIL → 从真实树重拷 ⇒ 回绿」；真实文件 md5 前后不变。
 **本轮返工（reviewer Needs Revision）三项**
 1. **`(±0, ∓0)` ⇒ 0**：四条比较在「异号 ⇒ 负者小」之前加「两者量值全 0 ⇒ 结果 0」（ft `0x7FFF_FFFF` / fo `0x7FFF_FFFF_FFFF_FFFF` 掩码），散文出处 IEEE 754-2019 §5.10 / `§4`「= ⇒ 0」/ `contract-fp §8`。
 2. **`scmp` 无序结果改 canonical**（`spec §4` 已授权变更为「四种比较一律 canonical」）：`ftscmp` ⇒ `64'h0000_0000_7FC0_0000`、`foscmp` ⇒ `DP_CANONICAL_NAN`，删掉 `nanpat` 位型传播；`NV` 规则不变（quiet 仅 sNaN、signaling 无序即置）。

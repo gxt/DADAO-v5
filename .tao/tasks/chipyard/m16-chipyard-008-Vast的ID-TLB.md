@@ -24,6 +24,9 @@
 - ⇒ DADAO 按同构分工：**TLB 核内、PTW tile 级**；接口 = 「多条 PTW 请求端口 + 异常回传」。
 - **待裁定**：PTW 的页表读在 DADAO 是否经 D-Cache（`DADAO-12 §2.2` 只规定用物理地址、不规定是否过 cache）——RTL 与 gem5 必须一致。
 
+
+> **暂停（用户 2026-11-19）：`WumingVast` 不做，转 `wuqing` 路线**——本任务（基于 Wuming 的 Vast RT��）暂不开工；其 **PTW/TLB 的核无关部分**在重启时按「独立模块 + 核适配层」重写，`cfx_ptw` 寄存器面可复用 `m16-chipyard-006` 的成果。
+
 ## 目标
 
 1. **I-TLB / D-TLB 各一套**：普通页 `2×8`、超页 `4` 条全相联；**I 侧无 dirty 位**；

@@ -231,6 +231,7 @@
 
 - **现状**：chipyard 只有 `WumingTinyConfig`（SRAM、`useVM=false`、无 MMU/PTW；`WumingCompatCoreParams` 里 `pgLevels=3` 是 RISC-V 残留）；gem5 侧 Vast 已完整（两级步查、cfx 模型、pmem DMA、time/hart），但 TLB 是**单数组 16 条全相联 + 轮转**、超页与普通页混存。
 - **用户裁定（2026-11-19）**：只设**一级 TLB、分 I/D**（I/D 分离是**设计**不是实现细节；I-TLB 无 dirty 位）；普通页 **16 条 = 2 组 × 8 路、不设 sectored**；超页 **4 条全相联 + LRU**（4 条就够）；**无特殊条目**（rocket 的 special entry 为 PMP，DADAO 无 PMP）；**gem5 与 chipyard 在这些方面保持统一**（含组相联与超页个数）。
+- **WumingVast 暂停（用户 2026-11-19）**：不做 Wuming 版 Vast；`m16-chipyard-006/007/008` 冻结，转 `wuqing` 路线。可复用部分 = **`cfx_ptw` 寄存器面（SoC 侧）**；PTW/TLB 待重启时按「独立模块 + 核适配层」重写。
 - **落地方式**：归 **M16**（`milestones-m16.md`，用户 2026-11-19 裁定「这是 M16 的任务」）：`m16-chipyard-006`（核参数/地址通路/`cfx_ptw` 寄存器面）→ `007`（PTW 两级步查 + A/D）→ `008`（I/D TLB）→ `009`（D-Cache）→ `010`（I-Cache + 大存储/地址图）→ `011`（三方差分收口）；gem5 侧 `m16-gem5-014`（TLB 双表 + 2×8 + 4 超页 LRU）。
 - **顺序理由**：cache 会改变 M16 已标定的周期基线（`docs/core-wuming-cycle-model.md` 在 SRAM/无 cache 上标定）⇒ **cache 单独排**，不与功能改动混做。
 - **待定**：① 分片（`frags`）在 RTL 侧与 cache 的交互（64 KiB 页 = 1024 × 64 B block）；② `spike`/gem5 侧的 PTW 延迟是否要建模（当前 atomic，无时序）；③ `ISS-340`（gem5 Vast 仍 identity，而 spec 要求 `VA = PA + 2 TiB` 内核窗口）何时对齐。
