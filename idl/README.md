@@ -145,9 +145,10 @@ function jump {
 builtin function raise {
   arguments ExceptionCode code, RunMode from_mode, Bits<64> addr
   description {
-    进入当前运行模式 monitor 的**同步异常**进入流程：`code` 为异常码，`from_mode` 为发生时的
-    运行模式，`addr` 写入异常帧的 `excp_cause_ip`（非法类填该指令地址、地址类填故障地址）。
-    `CFXTRAP` 不走本函数，走 `cfx_trap_enter`。
+    进入**同步异常**流程：`code` 为异常码，`from_mode` 为发生时的运行模式，`addr` 写入异常帧的
+    `excp_cause_ip`（非法类填该指令地址、地址类填故障地址）。
+    **进入目标由 `code` 按 spec 路由**：一般同步异常进**当前运行模式 monitor**（`DADAO-12 §5.2`）；
+    `CFXESC` 进**当前 cfx**（`§5.3` 步骤 0）。`CFXTRAP` 不走本函数，走 `cfx_trap_enter`。
   }
 }
 ```
