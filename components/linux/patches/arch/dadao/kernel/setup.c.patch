@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..0b7add34c
+index 000000000..6102498a2
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,428 @@
+@@ -0,0 +1,437 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -337,6 +337,15 @@ index 000000000..0b7add34c
 +	 * `kthreadd` and the threads it creates only exist after `rest_init()`,
 +	 * so the probe runs inside `kernel_init` (init/main.c) and owns the
 +	 * final SYS_EXIT there.
++	 */
++	return;
++#endif
++#ifdef CONFIG_DADAO_K5_SYSCALL_SELFTEST
++	/*
++	 * The syscall probe (m14-linux-023) is the same shape: its user
++	 * program needs the initramfs and the VFS, so it runs from a
++	 * `late_initcall` inside `kernel_init` (kernel/k5_syscall_selftest.c)
++	 * and owns the final SYS_EXIT there.
 +	 */
 +	return;
 +#endif

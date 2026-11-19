@@ -1,0 +1,253 @@
+diff --git a/arch/dadao/kernel/syscall_argmask.c b/arch/dadao/kernel/syscall_argmask.c
+new file mode 100644
+index 000000000..b148620e5
+--- /dev/null
++++ b/arch/dadao/kernel/syscall_argmask.c
+@@ -0,0 +1,247 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DADAO syscall argument routing (m14-linux-023, user ruling C′).
++ *
++ * Which positional argument of a syscall is an *address* and which is *data*.
++ * The n-th address argument travels in `rb(16+n)`, the n-th data argument in
++ * `rd(16+n)`, each bank counted from 16 on its own (contract-syscall §3,
++ * contract-abi §4.1), so the kernel cannot place a value by its declaration
++ * alone — it has to know the syscall's routing.
++ *
++ * This table is the kernel's copy of a fact that already exists in three other
++ * carriers, and `tools/qemu/check_syscall_abi.py` compares all four number for
++ * number (the gate fails if one side is edited alone):
++ *
++ *   1. musl `arch/dadao/syscall_arch.h:__dadao_argmask()`  (the C stub),
++ *   2. QEMU `linux-user/dadao/cpu_loop.c:dadao_argmask()`   (the host side),
++ *   3. musl `src/thread/dadao/syscall_cp.s`                 (the cancellable stub),
++ *   4. this file                                            (the kernel entry).
++ *
++ * Where the mask comes from: each syscall's own prototype — the Linux
++ * `SYSCALL_DEFINE` signature behind the number in the locked table
++ * (contract-syscall §1.2) — *except* for a documented set of numbers where the
++ * kernel declares an address as an integer or hides it behind a pointer
++ * typedef.  Those follow the **userspace** prototype, because that is what the
++ * caller actually sends: `brk` (arg 0 is the break *address*), `mmap`,
++ * `munmap`, `mprotect`, `mremap`, `mlock`, `munlock`, `mlock2`, `madvise`,
++ * `msync`, `mincore`, `remap_file_pages`, `ioctl`, `capget`, `capset`,
++ * `ptrace`, `semctl` (and `riscv_flush_icache` if a caller issues it).  That
++ * list is exactly why a "declare the real type" wrapper cannot work here: the
++ * kernel's `SYSCALL_DEFINE1(brk, unsigned long, brk)` would put the value in
++ * the data bank while every user of the number puts it in the address bank.
++ *
++ * Coverage: one row per number this kernel's callers issue with a non-empty
++ * mask; every other number defaults to 0 (all arguments data), which is what
++ * musl's `default:` arm answers as well.  Masks are six bits wide — the
++ * `SYSCALL_DEFINE` maximum (`DADAO_SYSCALL_ARGMASK_BITS`).
++ *
++ * This file is data, not policy: `dadao_syscall_arg()` below reads it.
++ */
++#include <linux/kernel.h>
++#include <linux/linkage.h>
++#include <linux/types.h>
++
++#include <asm/ptrace.h>
++#include <asm/syscall.h>
++#include <asm/unistd.h>
++
++const unsigned char dadao_syscall_argmask[__NR_syscalls] = {
++	[  5] = 0x07,	/* setxattr */
++	[  6] = 0x07,	/* lsetxattr */
++	[  7] = 0x06,	/* fsetxattr */
++	[  8] = 0x07,	/* getxattr */
++	[  9] = 0x07,	/* lgetxattr */
++	[ 10] = 0x06,	/* fgetxattr */
++	[ 11] = 0x03,	/* listxattr */
++	[ 12] = 0x03,	/* llistxattr */
++	[ 13] = 0x02,	/* flistxattr */
++	[ 14] = 0x03,	/* removexattr */
++	[ 15] = 0x03,	/* lremovexattr */
++	[ 16] = 0x02,	/* fremovexattr */
++	[ 17] = 0x01,	/* getcwd */
++	[ 21] = 0x08,	/* epoll_ctl */
++	[ 22] = 0x12,	/* epoll_pwait */
++	[ 27] = 0x02,	/* inotify_add_watch */
++	[ 29] = 0x04,	/* ioctl */
++	[ 33] = 0x02,	/* mknodat */
++	[ 34] = 0x02,	/* mkdirat */
++	[ 35] = 0x02,	/* unlinkat */
++	[ 36] = 0x05,	/* symlinkat */
++	[ 37] = 0x0a,	/* linkat */
++	[ 39] = 0x01,	/* umount2 */
++	[ 40] = 0x17,	/* mount */
++	[ 41] = 0x03,	/* pivot_root */
++	[ 43] = 0x03,	/* statfs */
++	[ 44] = 0x02,	/* fstatfs */
++	[ 45] = 0x01,	/* truncate */
++	[ 48] = 0x02,	/* faccessat */
++	[ 49] = 0x01,	/* chdir */
++	[ 51] = 0x01,	/* chroot */
++	[ 53] = 0x02,	/* fchmodat */
++	[ 54] = 0x02,	/* fchownat */
++	[ 56] = 0x02,	/* openat */
++	[ 59] = 0x01,	/* pipe2 */
++	[ 60] = 0x0a,	/* quotactl */
++	[ 61] = 0x02,	/* getdents64 */
++	[ 63] = 0x02,	/* read */
++	[ 64] = 0x02,	/* write */
++	[ 65] = 0x02,	/* readv */
++	[ 66] = 0x02,	/* writev */
++	[ 67] = 0x02,	/* pread64 */
++	[ 68] = 0x02,	/* pwrite64 */
++	[ 69] = 0x02,	/* preadv */
++	[ 70] = 0x02,	/* pwritev */
++	[ 71] = 0x04,	/* sendfile */
++	[ 72] = 0x3e,	/* pselect6 */
++	[ 73] = 0x0d,	/* ppoll */
++	[ 74] = 0x02,	/* signalfd4 */
++	[ 75] = 0x02,	/* vmsplice */
++	[ 76] = 0x0a,	/* splice */
++	[ 78] = 0x06,	/* readlinkat */
++	[ 79] = 0x06,	/* newfstatat */
++	[ 80] = 0x02,	/* fstat */
++	[ 86] = 0x0c,	/* timerfd_settime */
++	[ 87] = 0x02,	/* timerfd_gettime */
++	[ 88] = 0x06,	/* utimensat */
++	[ 89] = 0x01,	/* acct */
++	[ 90] = 0x03,	/* capget */
++	[ 91] = 0x03,	/* capset */
++	[ 95] = 0x14,	/* waitid */
++	[ 96] = 0x01,	/* set_tid_address */
++	[ 98] = 0x19,	/* futex */
++	[ 99] = 0x01,	/* set_robust_list */
++	[100] = 0x06,	/* get_robust_list */
++	[101] = 0x03,	/* nanosleep */
++	[102] = 0x02,	/* getitimer */
++	[103] = 0x06,	/* setitimer */
++	[105] = 0x05,	/* init_module */
++	[106] = 0x01,	/* delete_module */
++	[107] = 0x06,	/* timer_create */
++	[108] = 0x02,	/* timer_gettime */
++	[110] = 0x0c,	/* timer_settime */
++	[112] = 0x02,	/* clock_settime */
++	[113] = 0x02,	/* clock_gettime */
++	[114] = 0x02,	/* clock_getres */
++	[115] = 0x0c,	/* clock_nanosleep */
++	[116] = 0x02,	/* syslog */
++	[117] = 0x0c,	/* ptrace */
++	[118] = 0x02,	/* sched_setparam */
++	[119] = 0x04,	/* sched_setscheduler */
++	[121] = 0x02,	/* sched_getparam */
++	[122] = 0x04,	/* sched_setaffinity */
++	[123] = 0x04,	/* sched_getaffinity */
++	[127] = 0x02,	/* sched_rr_get_interval */
++	[132] = 0x03,	/* sigaltstack */
++	[133] = 0x01,	/* rt_sigsuspend */
++	[134] = 0x06,	/* rt_sigaction */
++	[135] = 0x06,	/* rt_sigprocmask */
++	[136] = 0x01,	/* rt_sigpending */
++	[137] = 0x07,	/* rt_sigtimedwait */
++	[138] = 0x04,	/* rt_sigqueueinfo */
++	[142] = 0x08,	/* reboot */
++	[148] = 0x07,	/* getresuid */
++	[150] = 0x07,	/* getresgid */
++	[153] = 0x01,	/* times */
++	[158] = 0x02,	/* getgroups */
++	[159] = 0x02,	/* setgroups */
++	[160] = 0x01,	/* uname */
++	[161] = 0x01,	/* sethostname */
++	[162] = 0x01,	/* setdomainname */
++	[163] = 0x02,	/* getrlimit */
++	[164] = 0x02,	/* setrlimit */
++	[165] = 0x02,	/* getrusage */
++	[168] = 0x07,	/* getcpu */
++	[169] = 0x03,	/* gettimeofday */
++	[170] = 0x03,	/* settimeofday */
++	[171] = 0x01,	/* adjtimex */
++	[179] = 0x01,	/* sysinfo */
++	[180] = 0x09,	/* mq_open */
++	[181] = 0x01,	/* mq_unlink */
++	[182] = 0x12,	/* mq_timedsend */
++	[183] = 0x1a,	/* mq_timedreceive */
++	[184] = 0x02,	/* mq_notify */
++	[185] = 0x06,	/* mq_getsetattr */
++	[187] = 0x04,	/* msgctl */
++	[188] = 0x02,	/* msgrcv */
++	[189] = 0x02,	/* msgsnd */
++	[191] = 0x08,	/* semctl */
++	[192] = 0x0a,	/* semtimedop */
++	[193] = 0x02,	/* semop */
++	[195] = 0x04,	/* shmctl */
++	[196] = 0x02,	/* shmat */
++	[197] = 0x01,	/* shmdt */
++	[199] = 0x08,	/* socketpair */
++	[200] = 0x02,	/* bind */
++	[202] = 0x06,	/* accept */
++	[203] = 0x02,	/* connect */
++	[204] = 0x06,	/* getsockname */
++	[205] = 0x06,	/* getpeername */
++	[206] = 0x12,	/* sendto */
++	[207] = 0x32,	/* recvfrom */
++	[208] = 0x08,	/* setsockopt */
++	[209] = 0x18,	/* getsockopt */
++	[211] = 0x02,	/* sendmsg */
++	[212] = 0x02,	/* recvmsg */
++	[214] = 0x01,	/* brk */
++	[215] = 0x01,	/* munmap */
++	[216] = 0x11,	/* mremap */
++	[220] = 0x14,	/* clone */
++	[221] = 0x07,	/* execve */
++	[222] = 0x01,	/* mmap */
++	[224] = 0x01,	/* swapon */
++	[225] = 0x01,	/* swapoff */
++	[226] = 0x01,	/* mprotect */
++	[227] = 0x01,	/* msync */
++	[228] = 0x01,	/* mlock */
++	[229] = 0x01,	/* munlock */
++	[232] = 0x05,	/* mincore */
++	[233] = 0x01,	/* madvise */
++	[234] = 0x01,	/* remap_file_pages */
++	[242] = 0x06,	/* accept4 */
++	[243] = 0x12,	/* recvmmsg */
++	[260] = 0x0a,	/* wait4 */
++	[261] = 0x0c,	/* prlimit64 */
++	[263] = 0x10,	/* fanotify_mark */
++	[264] = 0x0e,	/* name_to_handle_at */
++	[265] = 0x02,	/* open_by_handle_at */
++	[266] = 0x02,	/* clock_adjtime */
++	[269] = 0x02,	/* sendmmsg */
++	[270] = 0x0a,	/* process_vm_readv */
++	[271] = 0x0a,	/* process_vm_writev */
++	[276] = 0x0a,	/* renameat2 */
++	[278] = 0x01,	/* getrandom */
++	[279] = 0x01,	/* memfd_create */
++	[281] = 0x0e,	/* execveat */
++	[284] = 0x01,	/* mlock2 */
++	[285] = 0x0a,	/* copy_file_range */
++	[286] = 0x02,	/* preadv2 */
++	[287] = 0x02,	/* pwritev2 */
++	[291] = 0x12,	/* statx */
++	[439] = 0x02,	/* faccessat2 */
++	[452] = 0x02,	/* fchmodat2 */
++};
++
++/*
++ * The i-th positional argument of the syscall described by @regs.
++ *
++ * The number is `rd15` (contract-syscall §3) and the frame's `rd16+`/`rb16+`
++ * are the two parameter banks; `rd8` (the result) and `rb3` (`rbtp`, §10) are
++ * never part of the argument list, and the banks start at 16 (§3).
++ */
++long dadao_syscall_arg(const struct pt_regs *regs, unsigned int i)
++{
++	unsigned long nr = regs->rd[15];
++	unsigned int mask, addr_before, data_before;
++
++	if (i >= DADAO_SYSCALL_ARGMASK_BITS)
++		return 0;
++
++	mask = (nr < __NR_syscalls) ? dadao_syscall_argmask[nr] : 0;
++	addr_before = hweight32(mask & ((1u << i) - 1));
++	data_before = i - addr_before;
++
++	if (mask & (1u << i))
++		return regs->rb[16 + addr_before];
++
++	return regs->rd[16 + data_before];
++}

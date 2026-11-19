@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..e8139b6d3
+index 000000000..eb52a8331
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,322 @@
+@@ -0,0 +1,345 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -326,3 +326,26 @@ index 000000000..e8139b6d3
 +	  kernel-thread gate builds a probe image with it); it is not part of
 +	  the image the later milestones boot.  User `clone()` (CLONE_VM /
 +	  CLONE_THREAD / CLONE_SETTLS), TLS and futex are K5's.
++
++config DADAO_K5_SYSCALL_SELFTEST
++	bool "Run the K5 user-syscall probe from a late_initcall (ends the boot)"
++	default n
++	depends on !DADAO_K4_SELFTEST && !DADAO_K4_SWITCH_SELFTEST && !DADAO_K4_KTHREAD_SELFTEST
++	help
++	  Exercise the user syscall closure of m14-linux-023 (see
++	  kernel/k5_syscall_selftest.c): a user program of its own issues
++	  `trap cfx_umon, 0` with the Linux number in `rd15` and its arguments
++	  in the ABI's parameter registers, the entry dispatches the number
++	  through `sys_call_table`, and the results are judged from the frame
++	  the round trip left behind — `write()` returning its byte count and the
++	  bytes really landing in a ramfs file, `exit(0)` ending the task with
++	  status 0, the `rd8 = -errno` shape for an unsupported number and a bad
++	  argument (with `rd1` untouched), `rb3` (`rbtp`) unchanged across every
++	  round trip, and the cg5 frame fields plus the `immu18` parse.
++
++	  It runs from a `late_initcall`, i.e. inside `kernel_init` after the
++	  initcalls: only then is the initramfs unpacked and the VFS usable,
++	  which is what the `write` target needs (this image ships no
++	  `/dev/console`).  The boot ends after the cases.  This is test
++	  scaffolding (the K5 syscall gate builds a probe image with it); it is
++	  not part of the image the later milestones boot.

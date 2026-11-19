@@ -1,11 +1,14 @@
 diff --git a/arch/dadao/kernel/Makefile b/arch/dadao/kernel/Makefile
 new file mode 100644
-index 000000000..0739c733b
+index 000000000..1a975b76a
 --- /dev/null
 +++ b/arch/dadao/kernel/Makefile
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,29 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-y += head.o setup.o early_console.o syscall_table.o traps.o syscalls.o trap.o
++# The syscall argument routing table (m14-linux-023): data, read by the
++# SYSCALL_DEFINE entry wrappers.
++obj-y += syscall_argmask.o
 +# K4 process model: copy_thread / the user-mode entry rows (m14-linux-016).
 +obj-y += process.o
 +# K4 context switch: the register half of __switch_to (m14-linux-017).
@@ -24,6 +27,9 @@ index 000000000..0739c733b
 +# K4 kernel-thread self-test (m14-linux-020): probe image only; runs inside
 +# kernel_init, after kthreadd exists.
 +obj-$(CONFIG_DADAO_K4_KTHREAD_SELFTEST) += k4_kthread_selftest.o
++# K5 user-syscall probe (m14-linux-023): probe image only; a late_initcall
++# that runs a user program through the umon entry and ends the boot.
++obj-$(CONFIG_DADAO_K5_SYSCALL_SELFTEST) += k5_syscall_selftest.o
 +
 +# The final link needs arch/dadao/kernel/vmlinux.lds (preprocessed from .S).
 +always-$(KBUILD_BUILTIN) += vmlinux.lds

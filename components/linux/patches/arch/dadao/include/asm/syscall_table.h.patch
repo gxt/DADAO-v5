@@ -1,14 +1,18 @@
 diff --git a/arch/dadao/include/asm/syscall_table.h b/arch/dadao/include/asm/syscall_table.h
 new file mode 100644
-index 000000000..08bdb9665
+index 000000000..7a50aa28e
 --- /dev/null
 +++ b/arch/dadao/include/asm/syscall_table.h
-@@ -0,0 +1,8 @@
+@@ -0,0 +1,12 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
-+#ifndef __ASM_SYSCALL_TABLE_H
-+#define __ASM_SYSCALL_TABLE_H
-+
-+/* Generated from scripts/syscall.tbl by scripts/syscalltbl.sh. */
++/*
++ * The generated syscall list, included once per pass by
++ * kernel/syscall_table.c: first with `__SYSCALL(nr, name)` expanding to a
++ * prototype for every entry it takes the address of, then with it expanding to
++ * the table initialiser.  So this file must **not** carry an include guard —
++ * the same shape arch/riscv/include/asm/syscall_table.h has, and the reason it
++ * has none either.
++ *
++ * Generated from scripts/syscall.tbl by scripts/syscalltbl.sh.
++ */
 +#include <asm/syscall_table_64.h>
-+
-+#endif

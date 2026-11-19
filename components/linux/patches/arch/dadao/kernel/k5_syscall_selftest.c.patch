@@ -1,0 +1,797 @@
+diff --git a/arch/dadao/kernel/k5_syscall_selftest.c b/arch/dadao/kernel/k5_syscall_selftest.c
+new file mode 100644
+index 000000000..83196d0ea
+--- /dev/null
++++ b/arch/dadao/kernel/k5_syscall_selftest.c
+@@ -0,0 +1,791 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * K5 user-syscall probe (CONFIG_DADAO_K5_SYSCALL_SELFTEST, m14-linux-023).
++ *
++ * The closure this proves is the one the milestone is about: a user program
++ * executes `trap cfx_umon, 0` with `rd15 = nr` and its arguments in the ABI's
++ * parameter registers (contract-syscall §2/§3), the kernel dispatches the number
++ * through `sys_call_table`, the result comes back in `rd8` (negative = `-errno`,
++ * §9) and the escape lands after the trap — with `rb3` (`rbtp`) unchanged (§10).
++ *
++ * How the probe runs, and why here:
++ *
++ *   - as a `late_initcall`, i.e. inside `kernel_init` after `kernel_init_freeable()`
++ *     has run the initcalls.  That is the first point where the initramfs is
++ *     unpacked and the VFS can be used, which the probe needs for the `write`
++ *     round trip's fd: this image's initramfs ships no `/dev/console`, so the
++ *     console is not an fd yet (measured: `console_on_rootfs()` reports
++ *     "unable to open an initial console").  The probe creates `/k5out` on the
++ *     rootfs, hands its fd to the user program, and reads the bytes back after
++ *     the program exits — the *content* is the output, not a console trace.
++ *   - the program runs in a child task of its own, for two reasons: `exit()`
++ *     has to be a real syscall whose status the boot task can observe
++ *     (`U2`), and the child gets an address space of its own for the code page
++ *     and the buffer (the m14-linux-017 S5 shape: `mm_alloc()` + `vm_mmap()`;
++ *     the code page is the window's `vm_private_data`, the buffer is a file
++ *     mapping — see `k5_map_window()` for why the two differ).
++ *   - the program itself is `dadao_k5_user_stub` in kernel/trap.S — assembled,
++ *     register-only, and copied into the code page.
++ *
++ * Cases (the gate reads the `K5 ...` lines):
++ *
++ *   U1  `write(fd, buf, 12)` goes through the umon entry and the table, returns
++ *       the byte count, and the twelve bytes land in the file.
++ *   U2  `exit(0)` ends the child through `do_exit`; the boot task observes
++ *       `exit_code == 0`.
++ *   U3  the error shape: an in-range slot that the table maps to
++ *       `sys_ni_syscall`, a number past `__NR_syscalls`, and a bad argument to
++ *       the arch's own `mmap` all answer `-ENOSYS`/`-ENOSYS`/`-EINVAL` in `rd8`,
++ *       inside `[-4095, -1]`, and `rd1` still holds the sentinel (§9: `rd1`
++ *       takes no part).
++ *   U4  TLS: the frame's `rb3` is the sentinel at every trap (the entry saved
++ *       it), and the value the user program reads back after a completed
++ *       syscall is the same sentinel (the escape restored it, §10).
++ *   U5  the frame fields: every trap reports `excp_cause_id = CFXTRAP`,
++ *       `excp_prev_run_mode = user`, `excp_cause_ip` at the trap instruction
++ *       and `immu18 = excp_cause_info & 0x3FFFF`; the two SBI functions of
++ *       spec/DADAO-22 §2 answer as the contract says (version, and `-ENOSYS`
++ *       for an undefined one), which is what makes the immediate parse
++ *       observable.
++ *   U6  the internal restart codes do not reach user mode (§9): the conversion
++ *       is exercised directly, because raising a real `ERESTARTSYS` needs
++ *       signal delivery (m14-linux-027).
++ *   U7  the execve half of the TLS rule (§10, user ruling 2026-11-17): after
++ *       `kernel_execve("/init.musl")` the frame the entry will load has
++ *       `rb3 = 0`, and its `ip` is the ELF header's `e_entry`, read back from
++ *       the file the image carries.
++ *   U8  the argument-bank routing (the user ruling C′ of 2026-11-19): `brk`'s
++ *       one argument is an *address*, so the user side sends it in `rb16` while
++ *       the kernel prototype declares it `unsigned long`.  The stub reads the
++ *       break, grows it by one page and reads it back; the kernel checks the
++ *       three answers, that `mm->brk` really moved, and that a VMA was created
++ *       for the grown range.
++ *
++ * One image, one verdict: every case prints its values and the boot ends with
++ * SYS_EXIT(0); a violated expectation ends with the guest FAIL segment
++ * (spec/Kaiwu §7.1) naming the case.
++ */
++#include <linux/binfmts.h>
++#include <linux/completion.h>
++#include <linux/errno.h>
++#include <linux/fcntl.h>
++#include <linux/file.h>
++#include <linux/fs.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/mman.h>
++#include <linux/mm.h>
++#include <linux/mm_types.h>
++#include <linux/pid.h>
++#include <linux/sched.h>
++#include <linux/sched/mm.h>
++#include <linux/sched/task.h>
++#include <linux/sched/task_stack.h>
++#include <linux/signal.h>
++#include <linux/string.h>
++#include <linux/types.h>
++#include <linux/uaccess.h>
++#include <linux/wait.h>
++#include <uapi/linux/wait.h>
++
++#include <asm/mmu_context.h>
++#include <asm/page.h>
++#include <asm/pgalloc.h>
++#include <asm/ptrace.h>
++#include <asm/setup.h>
++#include <asm/syscall.h>
++
++/*
++ * Guest FAIL segment (spec/Kaiwu §7.1, 0x01-0x7f).  kernel/process.c owns
++ * 0x30-0x32, k4_selftest.c 0x33-0x3a, k4_switch_selftest.c 0x40-0x45 and
++ * k4_kthread_selftest.c 0x50-0x52; this probe takes 0x60-0x67.
++ */
++#define K5_FAIL_SETUP		0x60	/* mm / page / clone / file setup failed */
++#define K5_FAIL_U1		0x61	/* the write round trip did not happen */
++#define K5_FAIL_U2		0x62	/* exit() did not end the child with 0 */
++#define K5_FAIL_U3		0x63	/* the error shape is wrong */
++#define K5_FAIL_U4		0x64	/* rbtp did not survive the round trip */
++#define K5_FAIL_U5		0x65	/* the frame fields / SBI answers are wrong */
++#define K5_FAIL_U6		0x66	/* a restart code reached the frame */
++#define K5_FAIL_U7		0x67	/* execve left a thread pointer behind */
++#define K5_FAIL_U8		0x68	/* brk did not go through the address bank */
++
++/* The file the user program writes to, and the one its buffer is mapped from
++ * (both on the rootfs, created by the probe). */
++#define K5_OUT			"/k5out"
++#define K5_MSG			"/k5msg"
++/* The static-musl init the image carries: U7's `execve` target. */
++#define K5_INIT_ELF		"/init.musl"
++
++/* The bytes the user program writes and the boot task reads back. */
++static const char k5_message[] = "K5 write ok\n";
++#define K5_MSG_LEN		(sizeof(k5_message) - 1)
++
++/*
++ * Where the probe puts the program (1 TiB, inside user space and outside every
++ * slot the kernel maps: the same window m14-linux-016/017 use).
++ */
++#define K5_VA_BASE		(1UL << 40)
++#define K5_CODE_VA		(K5_VA_BASE + 64 * PAGE_SIZE)
++#define K5_DATA_VA		(K5_VA_BASE + 65 * PAGE_SIZE)
++#define K5_STACK_VA		(K5_VA_BASE + 66 * PAGE_SIZE)
++
++/*
++ * U8's break (user ruling C′): a page-aligned window whose *end* is the initial
++ * break, so `sys_brk()` has to grow (a VMA covering the page it adds would take
++ * its "already mapped" early exit).  `brk`'s one argument is an address, so the
++ * user side sends it in `rb16` while the kernel prototype says `unsigned long`.
++ */
++#define K5_BRK_VA		(K5_VA_BASE + 80 * PAGE_SIZE)
++#define K5_BRK_WANT		(K5_BRK_VA + PAGE_SIZE)
++
++/* The TLS sentinel: `rb3` is `rbtp`, reserved by the ABI (contract-abi §4.5). */
++#define K5_RB3_SENTINEL		0x4b35544c53000001UL	/* "K5TLS" + 1 */
++/* `rd1` is `rderrno`; §9 keeps it out of the syscall path entirely. */
++#define K5_RD1_SENTINEL		0x4b354552524e4f31UL	/* "K5ERRNO1" */
++
++/* The probe's own trap immediates (spec/DADAO-22 §2 has 0 and 1). */
++#define K5_TRAP_UNDEFINED	0x2aaaUL	/* no umon function has this */
++#define K5_TRAP_REPORT		0x2aabUL	/* the probe claims this one */
++
++/* How many times the boot task yields while the child runs to its `exit`. */
++#define K5_WAIT_ROUNDS		10000
++
++/*
++ * The traps of kernel/trap.S's `dadao_k5_user_stub`, by the byte offset of the
++ * `trap` and the immediate it carries.  The gate derives the same list from the
++ * *built* vmlinux's disassembly, so a drift between this table and the assembly
++ * shows up as a FAIL instead of agreeing with itself.
++ */
++static const struct {
++	unsigned long off;
++	unsigned long immu18;
++} k5_traps[] = {
++	{ 0x00, SBI_UMON_SYSCALL },	/* U1 write */
++	{ 0x10, SBI_UMON_SYSCALL },	/* U3a in-range sys_ni_syscall */
++	{ 0x1c, SBI_UMON_SYSCALL },	/* U3b past __NR_syscalls */
++	{ 0x44, SBI_UMON_SYSCALL },	/* U3c mmap's -EINVAL (address in rb16) */
++	{ 0x4c, SBI_UMON_GET_VERSION },	/* U5a */
++	{ 0x54, K5_TRAP_UNDEFINED },	/* U5b undefined umon function */
++	{ 0x68, SBI_UMON_SYSCALL },	/* U8a brk(0): read the break */
++	{ 0x74, SBI_UMON_SYSCALL },	/* U8b brk(want): grow */
++	{ 0x84, SBI_UMON_SYSCALL },	/* U8c brk(0): re-read */
++	{ 0x90, K5_TRAP_REPORT },	/* U5c the report trap */
++	{ 0x9c, SBI_UMON_SYSCALL },	/* U2 exit */
++};
++#define K5_NTRAPS	(ARRAY_SIZE(k5_traps))
++#define K5_REPORT_INDEX	(K5_NTRAPS - 2)
++
++extern const char dadao_k5_user_stub[];
++extern const char dadao_k5_user_stub_end[];
++
++/* What the program's trap hook observes, one entry per trap. */
++static unsigned long k5_seen_ip[K5_NTRAPS];
++static unsigned long k5_seen_immu18[K5_NTRAPS];
++static unsigned long k5_seen_rb3[K5_NTRAPS];
++static unsigned long k5_seen_rd1[K5_NTRAPS];
++static unsigned long k5_seen_nr[K5_NTRAPS];
++static unsigned long k5_seen_mode[K5_NTRAPS];
++static unsigned long k5_seen_cause[K5_NTRAPS];
++static unsigned int k5_entries;
++
++static unsigned int k5_failed;
++static int k5_child_pid;
++/*
++ * The pair that hands the CPU to the child.
++ *
++ * This port has no `sched_clock()` of its own yet (the guest clock source is
++ * K5's m14-linux-021), and the fallback is jiffies-based: in a **tickless**
++ * image the scheduler's vruntimes never advance, so a task that calls
++ * `schedule()` from the runnable state is handed the CPU straight back —
++ * measured: a fresh child with `on_rq = 1` and a frozen vruntime never ran
++ * across 10000 `schedule()` calls.  Blocking is different: a task waiting on a
++ * completion is *off* the run queue, so the child is the only choice.  The
++ * child completes it at its last trap (just before `exit(0)`); the exit state
++ * itself is read below.
++ */
++static struct completion k5_child_exit;
++
++/* -------------------------------------------------------------------------
++ * reporting
++ * ------------------------------------------------------------------------- */
++
++static void __noreturn k5_fail(unsigned int code, const char *what,
++			       unsigned long value)
++{
++	dadao_early_printf("K5 selftest FAIL: %s=%#lx code=%#x\n", what, value,
++			   code);
++	dadao_early_exit(code);
++}
++
++static void k5_expect(const char *what, unsigned long expected,
++		      unsigned long actual, unsigned int code)
++{
++	int ok = expected == actual;
++
++	dadao_early_printf("K5 check %s want=%#lx got=%#lx %s\n", what, expected,
++			   actual, ok ? "ok" : "FAIL");
++	if (!ok)
++		k5_failed |= code;
++}
++
++/* A negative answer in `[-4095, -1]` (contract-syscall §9), nothing else. */
++static void k5_expect_errno(const char *what, long expected, long actual,
++			    unsigned int code)
++{
++	int in_range = actual <= -1 && actual >= -4095;
++	int ok = actual == expected && in_range;
++
++	dadao_early_printf("K5 check %s want=%ld got=%ld in_range=%d %s\n", what,
++			   expected, actual, in_range, ok ? "ok" : "FAIL");
++	if (!ok)
++		k5_failed |= code;
++}
++
++/* -------------------------------------------------------------------------
++ * the user program's task and address space
++ * ------------------------------------------------------------------------- */
++
++static struct mm_struct *k5_mm;
++
++/*
++ * One single-page window of the probe's address space.
++ *
++ * @file + @page describe where the page's content comes from, in the two shapes
++ * mm/fault.c serves (it only reads `vm_private_data` for an *instruction fetch*;
++ * a data fault takes the file-backed arm or, with neither, the shared zero
++ * page):
++ *
++ *  - the code window uses @page: the channel fills the page with exactly that
++ *    PA when the fetch faults ("fill-code");
++ *  - the buffer window uses @file: the data fault reads the file's bytes
++ *    ("fill-file"), which is also what a real program's `.rodata` does —
++ *    handing a data window a `vm_private_data` page would get it zeros, because
++ *    that field is the fetch path's ("Data … map the shared zero page").
++ */
++static void k5_map_window(unsigned long va, unsigned long prot,
++			  struct page *page, struct file *file)
++{
++	struct vm_area_struct *vma;
++	unsigned long flags = MAP_PRIVATE | MAP_FIXED;
++	unsigned long addr;
++
++	if (!file)
++		flags |= MAP_ANONYMOUS;
++	addr = vm_mmap(file, va, PAGE_SIZE, prot, flags, 0);
++	if (addr != va)
++		k5_fail(K5_FAIL_SETUP, "vm_mmap", addr);
++
++	if (!page)
++		return;
++	mmap_write_lock(k5_mm);
++	vma = find_vma(k5_mm, va);
++	if (!vma)
++		k5_fail(K5_FAIL_SETUP, "find_vma", va);
++	vma->vm_private_data = (void *)page_to_phys(page);
++	mmap_write_unlock(k5_mm);
++}
++
++static struct pt_regs k5_user_frame;	/* one hart, one program: static */
++
++static int k5_user_task(void *arg)
++{
++	struct pt_regs *frame = &k5_user_frame;
++
++	dadao_early_printf("K5 user: enter arg=%lu pid=%d\n",
++			   (unsigned long)arg, current->pid);
++	current->mm = k5_mm;
++	current->active_mm = k5_mm;
++	dadao_switch_mm(NULL, k5_mm, current);
++	dadao_early_printf("K5 user: pid=%d ptbr=%#lx\n", current->pid,
++			   dadao_ptbr_read());
++
++	/*
++	 * The frame is what the user program starts from: the first syscall's
++	 * arguments are already in the ABI's registers — fd in `rd16` (data
++	 * argument 1), the buffer in `rb16` (address argument 1), the count in
++	 * `rd17`, the number in `rd15` — plus the two sentinels this milestone
++	 * is about (`rb3`, `rd1`).
++	 */
++	memset(frame, 0, sizeof(*frame));
++	frame->ip = K5_CODE_VA;
++	frame->rb[1] = K5_STACK_VA + PAGE_SIZE;
++	frame->rb[3] = K5_RB3_SENTINEL;
++	frame->rb[16] = K5_DATA_VA;
++	frame->rd[1] = K5_RD1_SENTINEL;
++	frame->rd[15] = 64;			/* __NR_write */
++	frame->rd[13] = K5_BRK_WANT;		/* U8's target break */
++	frame->rd[16] = (unsigned long)arg;	/* the fd the probe opened */
++	frame->rd[17] = K5_MSG_LEN;
++	frame->status = 0;
++	dadao_enter_user(frame);		/* never returns */
++}
++
++/* -------------------------------------------------------------------------
++ * U1-U5: what the trap hook sees, printed at the report trap
++ * ------------------------------------------------------------------------- */
++
++/*
++ * The umon entry's view of one trap (called from kernel/process.c before the
++ * dispatch): record the frame fields the contract names (U4, U5) and print them;
++ * the report trap is claimed and judged here.
++ *
++ * The results of the previous traps are read out of the frame — the program
++ * copies every syscall's `rd8` into a callee-saved register (`rd24`-`rd31`) for
++ * exactly this, so what the probe judges is what user mode saw.
++ */
++/*
++ * Set right before the probe enters `/init.musl`: from then on the traps belong
++ * to the real init, not to the probe's program.  The shim exists for two
++ * reasons and touches nothing else:
++ *
++ *  - this image's initramfs ships no `/dev/console`, so fd 1 is not open and
++ *    `write()` would answer -EBADF without ever showing the init's own output.
++ *    Printing it here is what makes "the init really ran and really grew the
++ *    break" visible on the console (`init: brk +65536 ok`);
++ *  - `exit_group` ends the boot with the init's own status, so the host process
++ *    exit code *is* the init's exit code.
++ *
++ * Every other number — `getpid`, `brk`, and the rest of musl's startup — goes
++ * to the real dispatcher, which is the point: U8 and the init run prove the
++ * argument-bank routing end to end.
++ */
++static int k5_init_running;
++
++static int k5_init_shim(struct pt_regs *regs, unsigned long *policy)
++{
++	unsigned long nr = regs->rd[15];
++
++	if (nr == 64) {				/* write(fd, buf, count) */
++		static char text[129];
++		unsigned long count = regs->rd[17];
++		unsigned long want = count > sizeof(text) - 1 ? sizeof(text) - 1
++							      : count;
++		unsigned long got;
++
++		if (!want)
++			return 0;		/* let the kernel answer 0 */
++		got = want;
++		if (copy_from_user(text, (const void __user *)regs->rb[16], want))
++			regs->rd[8] = (unsigned long)-EFAULT;
++		else {
++			text[want] = '\0';
++			dadao_early_printf("%s", text);
++			regs->rd[8] = got;
++		}
++		*policy = DADAO_TRAP_RESUME_SKIP;
++		return 1;
++	}
++
++	if (nr == 94 || nr == 93) {		/* exit_group / exit */
++		dadao_early_printf("K5 init: exit=%lu\n", regs->rd[16]);
++		dadao_early_exit(regs->rd[16] & 0xff);
++	}
++
++	return 0;				/* a real syscall: dispatch it */
++}
++
++int dadao_k5_user_trap(struct pt_regs *regs, unsigned long immu18,
++		       unsigned long *policy)
++{
++	unsigned int i;
++
++	if (k5_init_running)
++		return k5_init_shim(regs, policy);
++
++	i = k5_entries++;
++
++	if (i < K5_NTRAPS) {
++		k5_seen_ip[i] = regs->ip;
++		k5_seen_immu18[i] = immu18;
++		k5_seen_rb3[i] = regs->rb[3];
++		k5_seen_rd1[i] = regs->rd[1];
++		k5_seen_nr[i] = regs->rd[15];
++		k5_seen_mode[i] = DADAO_CFX_READ(cfx_umon, 5, 0) & 0x3;
++		k5_seen_cause[i] = DADAO_CFX_READ(cfx_umon, 5, 2);
++		dadao_early_printf("K5 trap %u: ip=%#lx immu18=%#lx nr=%#lx "
++				   "cause=%#lx mode=%lu rb3=%#lx rd1=%#lx\n",
++				   i, regs->ip, immu18, regs->rd[15],
++				   k5_seen_cause[i], k5_seen_mode[i],
++				   regs->rb[3], regs->rd[1]);
++	}
++
++	/*
++	 * Two judging points, because one of them has to come after the last
++	 * trap:
++	 *
++	 *  - the *report* trap: every result the program copied into its
++	 *    callee-saved registers (`rd24`-`rd31`) is complete, so U1/U3/U5's
++	 *    answers and U6 are judged here;
++	 *  - the *last* trap (the `exit` one): its own frame fields are only
++	 *    visible now, so the per-trap field checks (U5's trap address and
++	 *    immediate, U4's `rb3`, U3's `rd1`) are judged here.
++	 */
++	if (immu18 == K5_TRAP_REPORT) {
++		/* The value the *program* reads back after a completed syscall
++		 * (§10: the escape restored it) and the number it asked for. */
++		k5_expect("u4_user_rb3", K5_RB3_SENTINEL, regs->rd[25],
++			  K5_FAIL_U4);
++		k5_expect("u3_rd1_sentinel", K5_RD1_SENTINEL, regs->rd[31],
++			  K5_FAIL_U3);
++		k5_expect("u5_nr_write", 64, k5_seen_nr[0], K5_FAIL_U5);
++		k5_expect("u5_nr_ni", 18, k5_seen_nr[1], K5_FAIL_U5);
++		k5_expect("u5_nr_range", 0x1f00, k5_seen_nr[2], K5_FAIL_U5);
++		k5_expect("u5_nr_mmap", 222, k5_seen_nr[3], K5_FAIL_U5);
++
++		/* U1: the write returned the byte count. */
++		k5_expect("u1_write_ret", K5_MSG_LEN, regs->rd[24],
++			  K5_FAIL_U1);
++
++		/* U3: the three error shapes (the contract's `rd8 = -errno`
++		 * form, inside [-4095, -1]). */
++		k5_expect_errno("u3_ni_enosys", -ENOSYS, (long)regs->rd[26],
++				K5_FAIL_U3);
++		k5_expect_errno("u3_range_enosys", -ENOSYS, (long)regs->rd[27],
++				K5_FAIL_U3);
++		k5_expect_errno("u3_mmap_einval", -EINVAL, (long)regs->rd[28],
++				K5_FAIL_U3);
++		k5_expect_errno("u3_undef_enosys", -ENOSYS, (long)regs->rd[30],
++				K5_FAIL_U3);
++
++		/* U5: the two SBI functions of spec/DADAO-22 §2. */
++		k5_expect("u5_version", DADAO_SBI_VERSION, regs->rd[29],
++			  K5_FAIL_U5);
++
++		/* U8: `brk` through the address bank, and a real grow.  The
++		 * user side sends the break in `rb16` (argmask 0x01), the kernel
++		 * prototype calls it `unsigned long` — the routing table is what
++		 * makes the two agree. */
++		k5_expect("u8_brk_read", K5_BRK_VA, regs->rd[21], K5_FAIL_U8);
++		k5_expect("u8_brk_grow", K5_BRK_WANT, regs->rd[22], K5_FAIL_U8);
++		k5_expect("u8_brk_recheck", regs->rd[22], regs->rd[23],
++			  K5_FAIL_U8);
++		k5_expect("u8_brk_mm", K5_BRK_WANT, k5_mm->brk, K5_FAIL_U8);
++		k5_expect("u8_brk_vma", 1,
++			  find_vma(k5_mm, K5_BRK_VA) ? 1 : 0, K5_FAIL_U8);
++
++		/* U6: the internal restart codes cannot reach the frame (§9).
++		 * A real `ERESTARTSYS` needs signal delivery (m14-linux-027),
++		 * so the reduction is exercised on a fabricated result. */
++		{
++			static struct pt_regs probe;
++
++			probe = *regs;
++			probe.rd[8] = (unsigned long)-ERESTARTSYS;
++			dadao_user_syscall_post(&probe);
++			k5_expect("u6_erestartsys_eintr", (unsigned long)-EINTR,
++				  probe.rd[8], K5_FAIL_U6);
++			probe.rd[8] = (unsigned long)-ERESTART_RESTARTBLOCK;
++			dadao_user_syscall_post(&probe);
++			k5_expect("u6_restartblock_eintr",
++				  (unsigned long)-EINTR, probe.rd[8],
++				  K5_FAIL_U6);
++		}
++
++		/* Claim the trap: the probe answers it, the program continues
++		 * into its `exit(0)` (U2's oracle). */
++		dadao_early_printf("K5 report: traps=%u\n", k5_entries);
++		*policy = DADAO_TRAP_RESUME_SKIP;
++		return 1;
++	}
++
++	if (i + 1 >= K5_NTRAPS) {
++		unsigned long bad_ip = 0, bad_immu = 0, bad_cause = 0;
++		unsigned long bad_mode = 0, bad_rb3 = 0, bad_rd1 = 0;
++		unsigned int k;
++
++		/*
++		 * U5: the trap address and the immediate parse, against the
++		 * stub's own layout.  (The gate derives the same two facts from
++		 * the built vmlinux's disassembly, so this table agreeing with
++		 * itself is not the oracle.)
++		 */
++		for (k = 0; k < K5_NTRAPS && k < k5_entries; k++) {
++			if (k5_seen_ip[k] != K5_CODE_VA + k5_traps[k].off)
++				bad_ip |= 1UL << k;
++			if (k5_seen_immu18[k] != k5_traps[k].immu18)
++				bad_immu |= 1UL << k;
++			if (k5_seen_cause[k] != DADAO_CAUSE_CFXTRAP)
++				bad_cause |= 1UL << k;
++			if (k5_seen_mode[k] != DADAO_MODE_USER)
++				bad_mode |= 1UL << k;
++			if (k5_seen_rb3[k] != K5_RB3_SENTINEL)
++				bad_rb3 |= 1UL << k;
++			if (k5_seen_rd1[k] != K5_RD1_SENTINEL)
++				bad_rd1 |= 1UL << k;
++		}
++		k5_expect("u5_traps", K5_NTRAPS, k5_entries, K5_FAIL_U5);
++		k5_expect("u5_trap_ip", 0, bad_ip, K5_FAIL_U5);
++		k5_expect("u5_trap_immu18", 0, bad_immu, K5_FAIL_U5);
++		k5_expect("u5_cause_cfxtrap", 0, bad_cause, K5_FAIL_U5);
++		k5_expect("u5_prev_mode_user", 0, bad_mode, K5_FAIL_U5);
++		k5_expect("u4_frame_rb3", 0, bad_rb3, K5_FAIL_U4);
++		k5_expect("u3_rd1_untouched", 0, bad_rd1, K5_FAIL_U3);
++
++		/* The boot task is waiting on exactly this point; the next thing
++		 * this task does is the `exit(0)` the wait exists for. */
++		complete(&k5_child_exit);
++	}
++
++	return 0;			/* a real syscall: dispatch it */
++}
++
++/*
++ * U7's second check as its own function so the FAIL code travels with it: the
++ * frame `execve` leaves must have `rb3` (= `rbtp`) cleared, because a new image
++ * has no thread pointer until its libc sets one (contract-syscall §10).
++ */
++static void k5_expect_u7_rb3(struct pt_regs *frame)
++{
++	k5_expect("u7_exec_rbtp_zero", 0, frame->rb[3], K5_FAIL_U7);
++}
++
++/* -------------------------------------------------------------------------
++ * the entry point
++ * ------------------------------------------------------------------------- */
++
++static int k5_open(const char *path, int flags)
++{
++	struct file *file = filp_open(path, flags, 0644);
++	int fd;
++
++	if (IS_ERR(file))
++		return (int)PTR_ERR(file);
++	fd = get_unused_fd_flags(0);
++	if (fd < 0) {
++		filp_close(file, NULL);
++		return fd;
++	}
++	fd_install(fd, file);
++	return fd;
++}
++
++/* Create @path with @len bytes of @buf (the probe's buffer window's source). */
++static int k5_write_file(const char *path, const char *buf, int len)
++{
++	struct file *file = filp_open(path, O_CREAT | O_WRONLY | O_TRUNC, 0644);
++	loff_t pos = 0;
++	ssize_t n;
++
++	if (IS_ERR(file))
++		return (int)PTR_ERR(file);
++	n = kernel_write(file, buf, len, &pos);
++	filp_close(file, NULL);
++	return (int)n;
++}
++
++/*
++ * The ELF64 entry of @path, or ~0 when it cannot be read: the probe checks the
++ * frame `execve` left against the program's own header (big-endian, 8 bytes at
++ * offset 24) instead of against a number that could agree with itself.
++ */
++static unsigned long k5_elf_entry(const char *path)
++{
++	unsigned char head[32];
++	struct file *file = filp_open(path, O_RDONLY, 0);
++	loff_t pos = 0;
++	ssize_t n;
++	unsigned long entry = ~0UL;
++	int k;
++
++	if (IS_ERR(file))
++		return ~0UL;
++	n = kernel_read(file, head, sizeof(head), &pos);
++	filp_close(file, NULL);
++	if (n != (ssize_t)sizeof(head))
++		return ~0UL;
++	/* ELF64 header: e_ident[16], then e_type/e_machine/e_version (2+2+4),
++	 * then e_entry at offset 24. */
++	for (k = 0; k < 8; k++)
++		entry = (entry << 8) | head[24 + k];
++	return entry;
++}
++
++/* The bytes the program wrote, read back the kernel's way. */
++static int k5_read_back(char *buf, int len)
++{
++	struct file *file = filp_open(K5_OUT, O_RDONLY, 0);
++	loff_t pos = 0;
++	ssize_t n;
++
++	if (IS_ERR(file))
++		return (int)PTR_ERR(file);
++	n = kernel_read(file, buf, len, &pos);
++	filp_close(file, NULL);
++	return (int)n;
++}
++
++void __noreturn dadao_k5_syscall_selftest(void)
++{
++	struct kernel_clone_args args = { .flags = 0, .exit_signal = SIGCHLD };
++	struct page *code;
++	struct file *msg;
++	unsigned long size;
++	char back[K5_MSG_LEN + 1];
++	int fd, n, i, mismatch = 0, state = 0;
++	unsigned long exit_code = ~0UL;
++
++	dadao_early_printf("K5 selftest: begin pid=%d mm=%lu\n", current->pid,
++			   (unsigned long)(current->mm ? 1 : 0));
++
++	fd = k5_open(K5_OUT, O_CREAT | O_RDWR | O_TRUNC);
++	if (fd < 0)
++		k5_fail(K5_FAIL_SETUP, "open", (unsigned long)fd);
++	dadao_early_printf("K5 selftest: %s fd=%d\n", K5_OUT, fd);
++
++	/* The code page: it is the code window's `vm_private_data`, the one
++	 * shape mm/fault.c fills an *instruction fetch* from. */
++	code = alloc_page(GFP_KERNEL | __GFP_ZERO);
++	if (!code)
++		k5_fail(K5_FAIL_SETUP, "alloc_page", 0);
++	size = (unsigned long)(dadao_k5_user_stub_end - dadao_k5_user_stub);
++	if (size > PAGE_SIZE)
++		k5_fail(K5_FAIL_SETUP, "stub size", size);
++	memcpy(page_address(code), dadao_k5_user_stub, size);
++
++	/* The buffer's content is a *file*: that is the arm mm/fault.c serves a
++	 * data page from (see k5_map_window()). */
++	n = k5_write_file(K5_MSG, k5_message, K5_MSG_LEN);
++	if (n != K5_MSG_LEN)
++		k5_fail(K5_FAIL_SETUP, "message file", (unsigned long)n);
++	msg = filp_open(K5_MSG, O_RDONLY, 0);
++	if (IS_ERR(msg))
++		k5_fail(K5_FAIL_SETUP, "open message", (unsigned long)PTR_ERR(msg));
++
++	k5_mm = mm_alloc();
++	if (!k5_mm)
++		k5_fail(K5_FAIL_SETUP, "mm_alloc", 0);
++	{
++		/* vm_mmap() against a task's mm; the probe's own task has none. */
++		struct mm_struct *saved = current->mm;
++
++		current->mm = k5_mm;
++		k5_map_window(K5_CODE_VA, PROT_READ | PROT_EXEC, code, NULL);
++		k5_map_window(K5_DATA_VA, PROT_READ, NULL, msg);
++		k5_map_window(K5_STACK_VA, PROT_READ | PROT_WRITE, NULL, NULL);
++		/*
++		 * U8's break: a data window that *ends* at the initial break, so
++		 * `sys_brk()` has to grow (a VMA covering the page it adds would
++		 * take its "already mapped" early exit).
++		 */
++		k5_map_window(K5_BRK_VA - PAGE_SIZE, PROT_READ | PROT_WRITE,
++			      NULL, NULL);
++		k5_mm->start_brk = K5_BRK_VA - PAGE_SIZE;
++		k5_mm->end_data = K5_BRK_VA - PAGE_SIZE;
++		k5_mm->brk = K5_BRK_VA;
++		current->mm = saved;
++	}
++	fput(msg);
++	dadao_early_printf("K5 selftest: stub=%lu bytes code=%#lx data=%#lx\n",
++			   size, K5_CODE_VA, K5_DATA_VA);
++
++	init_completion(&k5_child_exit);
++	args.fn = k5_user_task;
++	args.fn_arg = (void *)(unsigned long)fd;
++	k5_child_pid = kernel_clone(&args);
++	if (k5_child_pid <= 0)
++		k5_fail(K5_FAIL_SETUP, "kernel_clone", 0);
++
++	/* Off the run queue: the child is the only task that can run (see
++	 * k5_child_exit's comment).  It completes this from its last trap. */
++	wait_for_completion(&k5_child_exit);
++
++	/*
++	 * U2: wait for the child's `exit(0)`.  `kernel_wait4()` cannot carry the
++	 * status back here: it writes it with `put_user()`, and this port's
++	 * `put_user()` refuses anything at or above `TASK_SIZE` — a kernel
++	 * pointer included (measured: -EINVAL from a WNOWAIT option, and the
++	 * status copy is the same wall).  So the probe polls the exit state the
++	 * way `wait_task_zombie()` reads it, and never reaps: the boot ends
++	 * here.
++	 */
++	for (i = 0; i < K5_WAIT_ROUNDS; i++) {
++		struct pid *pid = find_get_pid(k5_child_pid);
++		struct task_struct *child = pid ? get_pid_task(pid, PIDTYPE_PID)
++						: NULL;
++
++		if (child) {
++			exit_code = (unsigned long)child->exit_code;
++			state = child->exit_state;
++			put_task_struct(child);
++		}
++		put_pid(pid);
++		if (state == EXIT_ZOMBIE)
++			break;
++		schedule();
++	}
++	dadao_early_printf("K5 exit: child=%d state=%d status=%#lx code=%lu "
++		   "rounds=%d\n", k5_child_pid, state, exit_code,
++		   exit_code >> 8, i);
++	k5_expect("u2_exited", EXIT_ZOMBIE, (unsigned long)state, K5_FAIL_U2);
++	k5_expect("u2_exit_code", 0, exit_code >> 8, K5_FAIL_U2);
++	k5_expect("u2_exit_reason", 0, exit_code & 0x7f, K5_FAIL_U2);
++
++	/* U1 (second half): the bytes really arrived, in order. */
++	n = k5_read_back(back, K5_MSG_LEN + 1);
++	k5_expect("u1_file_bytes", K5_MSG_LEN, (unsigned long)n, K5_FAIL_U1);
++	for (i = 0; i < K5_MSG_LEN && i < n; i++)
++		if (back[i] != k5_message[i])
++			mismatch |= 1 << i;
++	k5_expect("u1_file_content", 0, (unsigned long)mismatch, K5_FAIL_U1);
++
++	/*
++	 * U7: the other half of the TLS rule — a new image starts with
++	 * `rbtp = 0` (contract-syscall §10; user ruling 2026-11-17, option A:
++	 * the kernel's `start_thread()` clears it, musl does not repeat that).
++	 *
++	 * `kernel_execve()` is the honest way to see it: it runs the whole
++	 * `execve` path — `begin_new_exec()` → `start_thread()` — and leaves the
++	 * frame the entry will load in `task_pt_regs(current)`.  `/init.musl` is
++	 * in the image (the initramfs ships it), and its ELF entry is read back
++	 * from the file so the frame's `ip` is checked against the program that
++	 * is about to run rather than against a constant.
++	 */
++	{
++		static const char *argv[] = { "/init.musl", NULL };
++		static const char *envp[] = { NULL };
++		unsigned long entry = k5_elf_entry(K5_INIT_ELF);
++		int rc = kernel_execve("/init.musl", argv, envp);
++		struct pt_regs *frame = task_pt_regs(current);
++
++		dadao_early_printf("K5 exec: rc=%d entry=%#lx ip=%#lx rb3=%#lx "
++				   "mm=%lu\n", rc, entry, frame->ip, frame->rb[3],
++				   (unsigned long)(current->mm ? 1 : 0));
++		k5_expect("u7_exec_ok", 0, (unsigned long)(rc < 0 ? -rc : 0),
++			  K5_FAIL_U7);
++		if (rc == 0) {
++			k5_expect("u7_entry_ip", entry, frame->ip, K5_FAIL_U7);
++			k5_expect_u7_rb3(frame);
++		}
++	}
++
++	if (k5_failed) {
++		dadao_early_printf("K5 selftest: FAIL mask=%#x\n", k5_failed);
++		dadao_early_exit(k5_failed);
++	}
++	dadao_early_printf("K5 selftest: probe cases done (syscall round trip "
++			   "closed)\n");
++
++	/*
++	 * The end-to-end half: let the real `/init.musl` run on the same
++	 * dispatcher.  It asks for `getpid`, `write`, `brk` (read / grow /
++	 * re-check) and `exit_group`; the shim only puts its console output on
++	 * this log and turns `exit_group` into the boot's status.  A successful
++	 * run prints "init: brk +65536 ok" and exits 0, which is the "brk grows"
++	 * evidence the review asked for.
++	 */
++	k5_init_running = 1;
++	dadao_early_printf("K5 init: enter /init.musl pid=%d\n", current->pid);
++	dadao_enter_user(task_pt_regs(current));	/* never returns */
++}
++
++/*
++ * `late_initcall`: inside `kernel_init`, after `kernel_init_freeable()` ran the
++ * initcalls — the initramfs is unpacked and the VFS is usable, which is what
++ * the probe's file needs.  A milestone image does not compile this.
++ */
++static int __init k5_syscall_selftest_init(void)
++{
++	dadao_k5_syscall_selftest();
++}
++late_initcall(k5_syscall_selftest_init);

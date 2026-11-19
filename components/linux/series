@@ -32,6 +32,7 @@ arch/dadao/include/asm/string.h.patch
 arch/dadao/include/asm/switch_to.h.patch
 arch/dadao/include/asm/syscall.h.patch
 arch/dadao/include/asm/syscall_table.h.patch
+arch/dadao/include/asm/syscall_wrapper.h.patch
 arch/dadao/include/asm/thread_info.h.patch
 arch/dadao/include/asm/time.h.patch
 arch/dadao/include/asm/timex.h.patch
@@ -60,8 +61,10 @@ arch/dadao/kernel/k4_kthread_selftest.c.patch
 arch/dadao/kernel/k4_selftest.c.patch
 arch/dadao/kernel/k4_switch_asm.S.patch
 arch/dadao/kernel/k4_switch_selftest.c.patch
+arch/dadao/kernel/k5_syscall_selftest.c.patch
 arch/dadao/kernel/process.c.patch
 arch/dadao/kernel/setup.c.patch
+arch/dadao/kernel/syscall_argmask.c.patch
 arch/dadao/kernel/syscall_table.c.patch
 arch/dadao/kernel/syscalls.c.patch
 arch/dadao/kernel/time.c.patch

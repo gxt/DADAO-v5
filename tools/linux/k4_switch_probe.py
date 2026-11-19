@@ -101,6 +101,9 @@ CONFIG_PINS = {
     # m14-linux-018: same reason — the COW probe is an int with no `depends on`,
     # so it carries a concrete value rather than "unset".
     "CONFIG_DADAO_K4_COW_SELFTEST": "0",
+    # m14-linux-023: the user-syscall probe image; pin it off so no other
+    # image inherits it from the shared build tree.
+    "CONFIG_DADAO_K5_SYSCALL_SELFTEST": "n",
 }
 
 IMAGE = config_pins.config_lines(CONFIG_PINS)

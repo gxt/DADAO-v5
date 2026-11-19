@@ -1,0 +1,78 @@
+diff --git a/arch/dadao/include/asm/syscall_wrapper.h b/arch/dadao/include/asm/syscall_wrapper.h
+new file mode 100644
+index 000000000..c12b02d94
+--- /dev/null
++++ b/arch/dadao/include/asm/syscall_wrapper.h
+@@ -0,0 +1,72 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * DADAO syscall definitions (m14-linux-023, user ruling C′).
++ *
++ * The generic `SYSCALL_DEFINE` chain flattens every parameter to `long` and
++ * hands them to the body in declaration order.  That is right for a machine
++ * with one positional register file, and wrong for this one only in *where the
++ * values come from*: DADAO splits its parameter registers by type — the n-th
++ * address argument travels in `rb(16+n)`, the n-th data argument in
++ * `rd(16+n)`, each bank counted from 16 on its own (contract-syscall §3,
++ * contract-abi §4.1).
++ *
++ * So this header keeps the generic chain exactly (`__se_sys_*` over
++ * `__SC_LONG`, `__SC_CAST` back to the declared types, `__SC_TEST`,
++ * `__PROTECT`) and replaces only the entry point: `sys_<name>()` takes the
++ * `struct pt_regs *` the umon entry passes (an address argument, so it arrives
++ * in `rb16`), and rebuilds the positional list from the frame with
++ * `dadao_syscall_arg(regs, i)` — one value per position, picked from the bank
++ * the syscall's own argmask says (kernel/syscall_argmask.c, the kernel's copy of
++ * the table musl/QEMU/the cancellable stub use).
++ *
++ * Why this shape and not "declare the real types": the kernel's prototypes are
++ * not the userspace ones for a documented set of numbers (`brk`, `mmap`,
++ * `ioctl`, `ptrace`, `semctl`, ... — see the argmask table's comment).  A typed
++ * entry would route `brk`'s pointer through the data bank while every user of
++ * the number sends it through the address bank.  With the mask, the *position*
++ * decides, and the prototype only decides how the value is used inside the
++ * body.
++ */
++#ifndef __ASM_SYSCALL_WRAPPER_H
++#define __ASM_SYSCALL_WRAPPER_H
++
++struct pt_regs;
++
++/* Rebuild the i-th positional argument of the syscall in @regs. */
++long dadao_syscall_arg(const struct pt_regs *regs, unsigned int i);
++
++#define SC_DADAO_ARG(i)			dadao_syscall_arg(regs, i)
++#define SC_DADAO_ARGS1()		SC_DADAO_ARG(0)
++#define SC_DADAO_ARGS2()		SC_DADAO_ARGS1(), SC_DADAO_ARG(1)
++#define SC_DADAO_ARGS3()		SC_DADAO_ARGS2(), SC_DADAO_ARG(2)
++#define SC_DADAO_ARGS4()		SC_DADAO_ARGS3(), SC_DADAO_ARG(3)
++#define SC_DADAO_ARGS5()		SC_DADAO_ARGS4(), SC_DADAO_ARG(4)
++#define SC_DADAO_ARGS6()		SC_DADAO_ARGS5(), SC_DADAO_ARG(5)
++#define SC_DADAO_ARGS(x)		SC_DADAO_ARGS##x()
++
++#define __SYSCALL_DEFINEx(x, name, ...)						\
++	asmlinkage long sys##name(const struct pt_regs *regs);			\
++	ALLOW_ERROR_INJECTION(sys##name, ERRNO);				\
++	static inline long __do_sys##name(__MAP(x, __SC_DECL, __VA_ARGS__));	\
++	static long __se_sys##name(__MAP(x, __SC_LONG, __VA_ARGS__));		\
++	static long __se_sys##name(__MAP(x, __SC_LONG, __VA_ARGS__))		\
++	{									\
++		long ret = __do_sys##name(__MAP(x, __SC_CAST, __VA_ARGS__));	\
++		__MAP(x, __SC_TEST, __VA_ARGS__);				\
++		__PROTECT(x, ret, __MAP(x, __SC_ARGS, __VA_ARGS__));		\
++		return ret;							\
++	}									\
++	asmlinkage long sys##name(const struct pt_regs *regs)			\
++	{									\
++		return __se_sys##name(SC_DADAO_ARGS(x));			\
++	}									\
++	static inline long __do_sys##name(__MAP(x, __SC_DECL, __VA_ARGS__))
++
++/* No positional parameters to rebuild for the zero-argument form. */
++#define SYSCALL_DEFINE0(sname)							\
++	SYSCALL_METADATA(_##sname, 0);						\
++	asmlinkage long sys_##sname(const struct pt_regs *__unused);		\
++	ALLOW_ERROR_INJECTION(sys_##sname, ERRNO);				\
++	asmlinkage long sys_##sname(const struct pt_regs *__unused)
++
++#endif /* __ASM_SYSCALL_WRAPPER_H */

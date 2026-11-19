@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/process.c b/arch/dadao/kernel/process.c
 new file mode 100644
-index 000000000..d4a612497
+index 000000000..915a8e536
 --- /dev/null
 +++ b/arch/dadao/kernel/process.c
-@@ -0,0 +1,543 @@
+@@ -0,0 +1,584 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO process model (K4, m14-linux-016).
@@ -66,6 +66,7 @@ index 000000000..d4a612497
 +#include <asm/ptrace.h>
 +#include <asm/setup.h>
 +#include <asm/switch_to.h>
++#include <asm/syscall.h>
 +#include <asm/thread_info.h>
 +#include <asm/time.h>
 +#include <asm/trap.h>
@@ -457,6 +458,7 @@ index 000000000..d4a612497
 +					      unsigned long info)
 +{
 +	unsigned long cls = DADAO_CAUSE_CLASS(cause);
++	unsigned long immu18;
 +
 +	if (dadao_umon_busy)
 +		dadao_early_exit(K4_FAIL_UMON_RECURSE);
@@ -522,15 +524,54 @@ index 000000000..d4a612497
 +#endif
 +
 +	/*
-+	 * K4 has no syscall table yet (K5 owns the numbers and the table,
-+	 * contract-syscall §1): everything else is refused the contract's way —
-+	 * `-ENOSYS` in rd8, and the trap is skipped (the user continues after
-+	 * it) — never silently ignored and never a fake success.
++	 * The umon function number, parsed once: `immu18` is the low 18 bits of
++	 * the trap instruction the hardware reported (contract-syscall §8), and
++	 * both the probe's observer and the dispatcher below must see the same
++	 * value.
 +	 */
-+	regs->rd[8] = (unsigned long)-ENOSYS;
-+	dadao_umon_busy = 0;
-+	dadao_in_frame = 0;
-+	return DADAO_TRAP_RESUME_SKIP;
++	immu18 = info & DADAO_IMMU18_MASK;
++
++#if defined(CONFIG_DADAO_K5_SYSCALL_SELFTEST)
++	{
++		unsigned long policy;
++
++		/*
++		 * The syscall probe's view of the same trap (m14-linux-023,
++		 * kernel/k5_syscall_selftest.c).  It claims only its own
++		 * reporting trap; everything else is a real syscall it wants to
++		 * see dispatched, so it observes and returns 0.
++		 */
++		if (dadao_k5_user_trap(regs, immu18, &policy)) {
++			dadao_umon_busy = 0;
++			dadao_in_frame = 0;
++			return policy;
++		}
++	}
++#endif
++
++	/*
++	 * The syscall itself (m14-linux-023, kernel/syscalls.c): the SBI
++	 * function in `immu18`, the Linux number in `rd15`, the arguments and
++	 * the result in the ABI's registers (contract-syscall §2/§3).  The C
++	 * half decides; the entry stub makes the call with the frame's
++	 * parameter registers, because that is where the ABI expects them
++	 * (`dadao_call_syscall()`, kernel/trap.S).
++	 *
++	 * The entry's re-entrancy guard covers the dispatch only: from here on
++	 * this is an ordinary kernel call on the task's own stack, and it may
++	 * sleep and let another task take its own umon entry (`dadao_umon_busy`
++	 * is what a *nested* entry into the not-yet-adopted state would trip).
++	 */
++	{
++		unsigned long fn = dadao_user_syscall(regs, immu18);
++
++		dadao_umon_busy = 0;
++		if (fn)
++			regs->rd[8] = (unsigned long)dadao_call_syscall(regs,
++								       (void *)fn);
++	}
++
++	return dadao_user_syscall_post(regs);
 +}
 +
 +/*

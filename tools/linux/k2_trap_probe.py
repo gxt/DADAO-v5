@@ -130,6 +130,9 @@ CONFIG_PINS = {
     # m14-linux-020: the kernel-thread probe is an image of its own; pin it
     # off so the shared build tree cannot hand this image that symbol.
     "CONFIG_DADAO_K4_KTHREAD_SELFTEST": "n",
+    # m14-linux-023: the user-syscall probe image; pin it off so no other
+    # image inherits it from the shared build tree.
+    "CONFIG_DADAO_K5_SYSCALL_SELFTEST": "n",
 }
 
 IMAGE_PINS = {

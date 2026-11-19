@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..35bb12fad
+index 000000000..bfc026298
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,210 @@
+@@ -0,0 +1,239 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -127,8 +127,37 @@ index 000000000..35bb12fad
 +/* The C half of the user-mode entry stub. */
 +unsigned long dadao_user_excp_handler(struct pt_regs *regs, unsigned long cause,
 +				      unsigned long info);
++/* The umon entry's two frame helpers (kernel/process.c, called from trap.S):
++ * adopt the staged frame into the task's own `task_pt_regs()` slot, and
++ * re-derive it after the C half (which may sleep). */
++struct pt_regs *dadao_umon_adopt(void);
++struct pt_regs *dadao_umon_frame(void);
 +/* A task's first instruction after a context switch (kernel/process.c). */
 +void __noreturn dadao_ret_from_fork(void);
++
++/*
++ * The umon entry's trap dispatch (m14-linux-023, kernel/syscalls.c + trap.S).
++ *
++ * `dadao_user_syscall()` decides what a `trap cfx_umon, immu18` means and
++ * returns the `sys_call_table` entry the entry stub has to call, or 0 when the
++ * answer is already in the frame's `rd8` (contract-syscall §2/§3/§9).
++ * `dadao_call_syscall()` is that call: it reloads the ABI's parameter registers
++ * from the frame and invokes the entry.  `dadao_user_syscall_post()` runs
++ * afterwards (internal restart codes, TIF hooks) and returns the stub's resume
++ * policy.
++ */
++unsigned long dadao_user_syscall(struct pt_regs *regs, unsigned long immu18);
++long dadao_call_syscall(struct pt_regs *regs, void *fn);
++unsigned long dadao_user_syscall_post(struct pt_regs *regs);
++
++#if defined(CONFIG_DADAO_K5_SYSCALL_SELFTEST)
++/* The syscall-probe image: runs from a late_initcall and ends the boot. */
++void __noreturn dadao_k5_syscall_selftest(void);
++/* Its view of every umon trap of the probe's user program.  Returns 1 when the
++ * probe claims the trap (its reporting trap), 0 to let the dispatcher run. */
++int dadao_k5_user_trap(struct pt_regs *regs, unsigned long immu18,
++		       unsigned long *policy);
++#endif
 +/*
 + * Guest FAIL check points of the K4 user-mode entry (spec/Kaiwu §7.1 guest
 + * segment).  They live here because two files share them: the entry's

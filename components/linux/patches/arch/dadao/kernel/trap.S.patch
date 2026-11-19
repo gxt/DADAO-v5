@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/trap.S b/arch/dadao/kernel/trap.S
 new file mode 100644
-index 000000000..a9a16a518
+index 000000000..2e24bf091
 --- /dev/null
 +++ b/arch/dadao/kernel/trap.S
-@@ -0,0 +1,333 @@
+@@ -0,0 +1,441 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception vector (K2).
@@ -289,6 +289,114 @@ index 000000000..a9a16a518
 +	jump	[rb0, .Lumon_stuck]
 +.Lumon_stuck:
 +	jump	[rb0, .Lumon_stuck]		/* park: the trap must not return */
++
++	/*
++	 * ---- the syscall body of the umon entry (m14-linux-023) --------------
++	 *
++	 * long dadao_call_syscall(struct pt_regs *regs, void *fn)
++	 *
++	 * A `sys_call_table` entry is a `SYSCALL_DEFINE` wrapper that takes the
++	 * frame (`asm/syscall_wrapper.h`: the generic `__SC_LONG` chain, with the
++	 * positional arguments rebuilt from the frame by the syscall's argmask).
++	 * Its only parameter is a pointer, i.e. address argument 1, which the C
++	 * caller already passes in `rb16` — so this is a plain indirect call:
++	 * nothing of the user's register file has to be loaded into the machine
++	 * (the wrapper reads the frame, not the registers), and the entry's own
++	 * `DADAO_GPR_RESTORE` puts the user's file back afterwards.
++	 *
++	 * `rb3` (`rbtp`) is set to 0 for the duration: the kernel keeps it 0 in
++	 * its own contexts (asm/entry.h) and the user's value is in the frame
++	 * (contract-syscall §10).  `rb5` is a caller-saved scratch, and a `call`
++	 * target must be an RB register (spec/SimRISC-00 §4, `call_rrii_ra`).
++	 */
++	.globl	dadao_call_syscall
++	.p2align 2
++dadao_call_syscall:
++	rb2rb	{rb5}, {rb17}			/* rb5 = the table entry */
++	set.rb	rb3, 0				/* rbtp stays the kernel's */
++	call	[rb5, rd0, 0]			/* rd8 = sys_<name>(rb16 = &frame) */
++	ret	rd0, 0
++
++	/*
++	 * ---- K5 probe: the user program (m14-linux-023) ---------------------
++	 *
++	 * Copied into a user-accessible code page and entered at its first
++	 * instruction (kernel/k5_syscall_selftest.c), so it must be
++	 * position-independent and register-only.  Its argument layout is the
++	 * **user** side of the ABI (contract-syscall §3 + the syscall's argmask,
++	 * the same table the kernel entry reads):
++	 *
++	 *   - the kernel fills the frame with the first call's arguments (the
++	 *     ramfs fd in `rd16`, the buffer in `rb16`, the count in `rd17`, the
++	 *     number in `rd15`), the TLS sentinel in `rb3`, the `rd1` sentinel and
++	 *     the break value U8 asks for in `rd13` — so `trap #0` is the
++	 *     `write()` round trip;
++	 *   - `mmap`'s mask is 0x01: its address argument goes to `rb16` and the
++	 *     five data arguments to `rd16`-`rd20` (this is exactly the "kernel
++	 *     prototype says `unsigned long`" case the argmask exists for);
++	 *   - `brk`'s mask is 0x01 too: the break is an *address*, so U8 passes it
++	 *     in `rb16` (the fixed init does `syscall(SYS_brk, (void *)addr)`);
++	 *     it reads the break, grows it by one page and reads it back;
++	 *   - each result is copied into a callee-saved register (`rd21`-`rd31`)
++	 *     so the kernel's syscall hook can read it at the next trap: the frame
++	 *     is what survives the round trip, and `rd1` is copied too (nothing
++	 *     may write the errno there, contract-syscall §9);
++	 *   - `rb3` is copied after the first round trip: whatever the escape
++	 *     restored is what user mode sees;
++	 *   - the two SBI traps (`immu18 = 1` and an undefined `0x2AAA`) make the
++	 *     immediate parse observable; the reporting trap (`immu18 = 0x2AAB`)
++	 *     is claimed by the kernel and judged there, and the program then ends
++	 *     in `exit(0)`, whose status the boot task observes.
++	 */
++#ifdef CONFIG_DADAO_K5_SYSCALL_SELFTEST
++	.section .rodata,"a"
++	.p2align 2
++	.globl	dadao_k5_user_stub
++	.globl	dadao_k5_user_stub_end
++dadao_k5_user_stub:
++	/*  0 */ trap	cfx_umon, 0		/* U1 write(fd, buf, 12) */
++	/*  4 */ rd2rd	rd24, rd8, 1
++	/*  8 */ rb2rd	rd25, rb3, 1
++	/*  c */ set.rd	rd15, 18		/* an in-range slot = sys_ni_syscall */
++	/* 10 */ trap	cfx_umon, 0		/* U3a */
++	/* 14 */ rd2rd	rd26, rd8, 1
++	/* 18 */ set.rd	rd15, 0x1f00		/* past __NR_syscalls */
++	/* 1c */ trap	cfx_umon, 0		/* U3b */
++	/* 20 */ rd2rd	rd27, rd8, 1
++	/* 24 */ set.rd	rd14, 0			/* mmap: addr (mask 0x01) -> rb16 */
++	/* 28 */ rd2rb	rb16, rd14, 1
++	/* 2c */ set.rd	rd16, 0x1000		/*       len */
++	/* 30 */ set.rd	rd17, 3			/*       prot = RW */
++	/* 34 */ set.rd	rd18, 0x22		/*       flags = PRIVATE|ANON */
++	/* 38 */ set.rd	rd19, 0			/*       fd */
++	/* 3c */ set.rd	rd20, 1			/*       off = 1 (unaligned) */
++	/* 40 */ set.rd	rd15, 222		/* __NR_mmap */
++	/* 44 */ trap	cfx_umon, 0		/* U3c: the arch hook's -EINVAL */
++	/* 48 */ rd2rd	rd28, rd8, 1
++	/* 4c */ trap	cfx_umon, 1		/* U5a SBI_UMON_GET_VERSION */
++	/* 50 */ rd2rd	rd29, rd8, 1
++	/* 54 */ trap	cfx_umon, 0x2aaa	/* U5b: undefined umon function */
++	/* 58 */ rd2rd	rd30, rd8, 1
++	/* 5c */ set.rd	rd15, 214		/* U8: brk (mask 0x01) */
++	/* 60 */ set.rd	rd14, 0			/*       brk(0): read the break */
++	/* 64 */ rd2rb	rb16, rd14, 1
++	/* 68 */ trap	cfx_umon, 0
++	/* 6c */ rd2rd	rd21, rd8, 1
++	/* 70 */ rd2rb	rb16, rd13, 1		/*       brk(want), want = frame rd13 */
++	/* 74 */ trap	cfx_umon, 0
++	/* 78 */ rd2rd	rd22, rd8, 1
++	/* 7c */ set.rd	rd14, 0			/*       brk(0): re-read it */
++	/* 80 */ rd2rb	rb16, rd14, 1
++	/* 84 */ trap	cfx_umon, 0
++	/* 88 */ rd2rd	rd23, rd8, 1
++	/* 8c */ rd2rd	rd31, rd1, 1		/* rd1 must still be the sentinel */
++	/* 90 */ trap	cfx_umon, 0x2aab	/* U5c: the probe's report trap */
++	/* 94 */ set.rd	rd16, 0			/* exit(0) */
++	/* 98 */ set.rd	rd15, 93		/* __NR_exit */
++	/* 9c */ trap	cfx_umon, 0		/* U2: does not return */
++	/* a0 */ jump	[rb0, 0]		/* park */
++dadao_k5_user_stub_end:
++#endif
 +
 +	/*
 +	 * ---- K4 probe: the user program (m14-linux-016) ---------------------

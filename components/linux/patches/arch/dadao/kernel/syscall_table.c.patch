@@ -1,21 +1,40 @@
 diff --git a/arch/dadao/kernel/syscall_table.c b/arch/dadao/kernel/syscall_table.c
 new file mode 100644
-index 000000000..80a946027
+index 000000000..c726c7e51
 --- /dev/null
 +++ b/arch/dadao/kernel/syscall_table.c
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,39 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO syscall table.  Numbers come from the asm-generic table
 + * (scripts/syscall.tbl, emitted into syscall_table_64.h), which is the
 + * numbering contract of contract-syscall §1.
++ *
++ * The entries are the `sys_<name>` functions themselves, with their declared
++ * types (asm/syscall_wrapper.h: the port keeps the ABI's type-split parameter
++ * registers instead of flattening every argument to `long`).  With
++ * `CONFIG_ARCH_HAS_SYSCALL_WRAPPER` the generic header does not declare them,
++ * so this translation unit declares every name it takes the address of — the
++ * same shape other ports' table files use (`asm-generic/syscalls.h` is
++ * deliberately not included here: it declares `sys_mmap`/`sys_rt_sigreturn`
++ * with their real signatures, and a table-wide placeholder declaration would
++ * collide with those two in this translation unit).
 + */
 +#include <linux/linkage.h>
 +#include <linux/syscalls.h>
-+#include <asm-generic/syscalls.h>
 +#include <asm/syscall.h>
 +
 +#undef __SYSCALL
++#undef __SYSCALL_WITH_COMPAT
++#undef __SYSCALL_NORETURN
++#define __SYSCALL(nr, call)		asmlinkage long call(void);
++#define __SYSCALL_WITH_COMPAT(nr, native, compat) __SYSCALL(nr, native)
++#define __SYSCALL_NORETURN(nr, call)	__SYSCALL(nr, call)
++#include <asm/syscall_table.h>
++
++#undef __SYSCALL
++#undef __SYSCALL_WITH_COMPAT
++#undef __SYSCALL_NORETURN
 +#define __SYSCALL(nr, call)		[nr] = (call),
 +#define __SYSCALL_WITH_COMPAT(nr, native, compat) __SYSCALL(nr, native)
 +#define __SYSCALL_NORETURN(nr, call)	__SYSCALL(nr, call)

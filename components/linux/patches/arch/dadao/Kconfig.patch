@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig b/arch/dadao/Kconfig
 new file mode 100644
-index 000000000..41b5082e6
+index 000000000..ca750b975
 --- /dev/null
 +++ b/arch/dadao/Kconfig
-@@ -0,0 +1,95 @@
+@@ -0,0 +1,97 @@
 +# SPDX-License-Identifier: GPL-2.0
 +#
 +# DADAO (v5 test machine "Vast") architecture.
@@ -19,6 +19,8 @@ index 000000000..41b5082e6
 +	select ARCH_HAS_DMA_PREP_COHERENT if DMA
 +	select MMU_GATHER_NO_RANGE if MMU
 +	select UACCESS_MEMCPY
++	# The syscall ABI splits arguments by type; see asm/syscall_wrapper.h.
++	select ARCH_HAS_SYSCALL_WRAPPER
 +	help
 +	  DADAO is a 64-bit big-endian architecture with a 42-bit memory
 +	  window (addr[41:0]) and 64 KiB pages.  The v5 test machine boots

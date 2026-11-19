@@ -1,22 +1,74 @@
 diff --git a/arch/dadao/include/asm/syscall.h b/arch/dadao/include/asm/syscall.h
 new file mode 100644
-index 000000000..06b4934ef
+index 000000000..b863bf515
 --- /dev/null
 +++ b/arch/dadao/include/asm/syscall.h
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,126 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SYSCALL_H
 +#define __ASM_SYSCALL_H
 +
 +#include <uapi/linux/audit.h>
++#include <asm/unistd.h>
 +#include <linux/err.h>
 +#include <asm/ptrace.h>
 +
 +#define AUDIT_ARCH_DADAO	(EM_DADAO | __AUDIT_ARCH_64BIT)
 +#include <asm/elf.h>
 +
++/*
++ * The umon entry's two dispatch layers (contract-syscall §2, spec/DADAO-22 §2):
++ * the hardware transaction number `immu18` — the immediate of the `trap`, which
++ * the hardware reports inside `excp_cause_info` — selects the SBI function, and
++ * `rd15` selects the Linux number inside SBI_UMON_SYSCALL.
++ *
++ * `immu18 = excp_cause_info & 0x3FFFF` is the contract's own derivation
++ * (contract-syscall §8): `ciii` carries the 18-bit immediate in the low bits of
++ * the encoding (`hb` high / `hc` middle / `hd` low, spec/SimRISC-00 §3.1), and
++ * the hardware stores the triggering instruction word as-is.  Measured against
++ * the assembler: `trap cfx_umon, 0x2AAA` assembles to `0x7f002aaa`, so the
++ * immediate really is `[17:0]`.
++ */
++#define DADAO_IMMU18_MASK	0x3ffffUL
++#define SBI_UMON_SYSCALL	0
++#define SBI_UMON_GET_VERSION	1
++/* `(major << 32) | (minor << 16) | patch` of spec/DADAO-22 §2 — 0.7.2. */
++#define DADAO_SBI_VERSION	0x00070002UL
++
 +extern void * const sys_call_table[];
 +
++/*
++ * The positional argument list of a syscall (m14-linux-023, user ruling C′).
++ *
++ * The generic `SYSCALL_DEFINE` chain hands the body every parameter as a
++ * `long`, in declaration order; DADAO instead assigns each argument to a bank
++ * by type — the n-th address argument in `rb(16+n)`, the n-th data argument in
++ * `rd(16+n)`, each counted from 16 on its own (contract-syscall §3).  Which
++ * position is which is a property of the syscall, and it is the same table the
++ * user side already uses: musl's `__dadao_argmask()` (arch/dadao/
++ * syscall_arch.h), QEMU's `linux-user/dadao/cpu_loop.c`, the cancellable stub
++ * `src/thread/dadao/syscall_cp.s` — and now the kernel's own copy in
++ * kernel/syscall_argmask.c, which `tools/qemu/check_syscall_abi.py` compares
++ * against the other three number for number.
++ *
++ * bit i set  <=> positional argument i is an address: it is the
++ *               (#addresses before i)-th RB slot, `rb(16+n)`;
++ * bit i clear <=> it is data: the (#data before i)-th RD slot, `rd(16+n)`.
++ * Arguments are at most six (`DADAO_SYSCALL_ARGMASK_BITS`).
++ */
++#define DADAO_SYSCALL_ARGMASK_BITS	6
++#define DADAO_SYSCALL_ARGMASK_ALL	((1u << DADAO_SYSCALL_ARGMASK_BITS) - 1)
++
++extern const unsigned char dadao_syscall_argmask[__NR_syscalls];
++
++/* The i-th positional argument of the syscall described by @regs. */
++long dadao_syscall_arg(const struct pt_regs *regs, unsigned int i);
++
++/*
++ * The syscall number lives in `rd15` and the result in `rd8`
++ * (contract-syscall §3); `rd1` (`rderrno`) takes no part in the syscall path
++ * (§9, the 2026-10-14 ruling: errors are `rd8 = -errno`).
++ */
 +static inline long syscall_get_nr(struct task_struct *task,
 +				  struct pt_regs *regs)
 +{
@@ -29,8 +81,8 @@ index 000000000..06b4934ef
 +	regs->rd[15] = nr;
 +}
 +
-+static inline unsigned long syscall_get_return_value(struct task_struct *task,
-+						     struct pt_regs *regs)
++static inline long syscall_get_return_value(struct task_struct *task,
++					    struct pt_regs *regs)
 +{
 +	return regs->rd[8];
 +}
@@ -42,11 +94,34 @@ index 000000000..06b4934ef
 +	regs->rd[8] = error ? -error : val;
 +}
 +
-+static inline unsigned long *syscall_get_arguments(struct task_struct *task,
-+						   struct pt_regs *regs)
++/*
++ * The positional view the generic tracing/audit code asks for.  DADAO splits
++ * the parameter registers by *type* — data from rd16, addresses from rb16,
++ * floats from rf16, each bank counted from 16 on its own (contract-syscall §3,
++ * contract-abi §4.1) — so a single six-slot array cannot hold a mixed list
++ * faithfully.  What this returns is the data bank's first six slots; the
++ * address and float arguments stay where the ABI put them.  M14 enables neither
++ * audit nor the syscall tracepoints, so nothing consumes it yet; a consumer that
++ * needs the full list must read the frame by bank.
++ */
++static inline void syscall_get_arguments(struct task_struct *task,
++					 struct pt_regs *regs,
++					 unsigned long *args)
 +{
-+	/* rda0..rda5 are rd16..rd21 (DADAO-21 parameter registers). */
-+	return &regs->rd[16];
++	int i;
++
++	for (i = 0; i < 6; i++)
++		args[i] = regs->rd[16 + i];
++}
++
++static inline void syscall_set_arguments(struct task_struct *task,
++					 struct pt_regs *regs,
++					 const unsigned long *args)
++{
++	int i;
++
++	for (i = 0; i < 6; i++)
++		regs->rd[16 + i] = args[i];
 +}
 +
 +static inline int syscall_get_arch(struct task_struct *task)

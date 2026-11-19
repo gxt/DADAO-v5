@@ -1,19 +1,25 @@
 diff --git a/arch/dadao/kernel/syscalls.c b/arch/dadao/kernel/syscalls.c
 new file mode 100644
-index 000000000..2bc73d6cc
+index 000000000..2cb0dfd57
 --- /dev/null
 +++ b/arch/dadao/kernel/syscalls.c
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,143 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
-+ * DADAO syscalls that the generic table expects from the architecture.
++ * DADAO syscalls that the generic table expects from the architecture, plus the
++ * umon entry's dispatch (m14-linux-023).
 + */
-+#include <linux/linkage.h>
-+#include <linux/mm.h>
++#include <linux/errno.h>
++#include <linux/kernel.h>
++#include <linux/nospec.h>
++#include <linux/sched.h>
 +#include <linux/syscalls.h>
 +#include <linux/uaccess.h>
 +
 +#include <asm/ptrace.h>
++#include <asm/setup.h>
++#include <asm/syscall.h>
++#include <asm/trap.h>
 +
 +/*
 + * The generic table uses the byte-offset mmap form (architectures without
@@ -32,9 +38,112 @@ index 000000000..2bc73d6cc
 +/*
 + * Signal delivery/restore needs the signal frame, which K0 does not define.
 + * The syscall exists so the table is coherent; with no signal frame format a
-+ * return here is the only honest answer until user mode exists (K2).
++ * return here is the only honest answer until signals exist (m14-linux-027).
++ *
++ * Spelled without `SYSCALL_DEFINE0`, and with the prototype
++ * `asm-generic/syscalls.h` gives it: that header is what the table's own
++ * translation unit sees, and a `(void)` definition would contradict it there.
++ * The argument is the entry's `rb16`, which a signal-return path does not use
++ * (the frame it needs is `current_pt_regs()`).
 + */
-+SYSCALL_DEFINE0(rt_sigreturn)
++asmlinkage long sys_rt_sigreturn(struct pt_regs *regs);
++asmlinkage long sys_rt_sigreturn(struct pt_regs *regs)
 +{
 +	return -EINVAL;
++}
++
++/*
++ * ---- the umon entry's trap dispatch (m14-linux-023) ----------------------
++ *
++ * A DADAO syscall takes its arguments in the ABI's parameter registers — data
++ * from `rd16`, addresses from `rb16`, floats from `rf16`, each bank counted from
++ * 16 on its own (contract-syscall §3, contract-abi §4.1) — and those live in the
++ * task's frame, not in whatever the kernel's own C code happens to leave in
++ * them.  So the C half cannot make the call: it decides *what* to call, and
++ * `dadao_call_syscall()` (kernel/trap.S) reloads the parameter registers from
++ * the frame and calls the entry.
++ *
++ * That is legal because the syscall ABI and the call ABI are the same document:
++ * a table entry is an ordinary C function, and the user's argument registers are
++ * exactly the ones its prototype puts its arguments in (contract-syscall §3).
++ * What the reload deliberately does *not* restore — the callee-saved banks, the
++ * return-address stack, the FP file — belongs to the kernel side of the call;
++ * the entry's own restore puts all of it back afterwards.
++ */
++
++/*
++ * Answer the trap in the frame, or name the entry the stub has to call.
++ *
++ * Return: the table entry (`sys_call_table[nr]`), or 0 when the answer is
++ * already in `regs->rd[8]`: an SBI function answered here, an out-of-range
++ * number, an undefined SBI function, or a probe image's own service.
++ */
++unsigned long dadao_user_syscall(struct pt_regs *regs, unsigned long immu18)
++{
++	unsigned long nr;
++
++	if (immu18 == SBI_UMON_GET_VERSION) {
++		/* spec/DADAO-22 §2: no argument, `rd8` = the umon version. */
++		regs->rd[8] = DADAO_SBI_VERSION;
++		return 0;
++	}
++
++	if (immu18 != SBI_UMON_SYSCALL) {
++		/*
++		 * spec/DADAO-22 §2 defines exactly two umon functions.  An
++		 * undefined one is *not* a syscall (it has no `rd15` layer), so
++		 * it gets the contract's "unsupported" answer (§9) instead of a
++		 * guessed service.  The immediate is printed because that is the
++		 * only way to tell a broken caller from a broken parser.
++		 */
++		dadao_early_printf("K5 syscall: undefined umon function "
++				   "immu18=%#lx\n", immu18);
++		regs->rd[8] = (unsigned long)-ENOSYS;
++		return 0;
++	}
++
++	nr = (unsigned long)syscall_get_nr(current, regs);
++	if (nr >= __NR_syscalls) {
++		/* contract-syscall §9: an unsupported syscall is -ENOSYS, in
++		 * `rd8`, and the user continues after the trap. */
++		regs->rd[8] = (unsigned long)-ENOSYS;
++		return 0;
++	}
++	nr = array_index_nospec(nr, __NR_syscalls);
++
++	return (unsigned long)sys_call_table[nr];
++}
++
++/*
++ * The other half, after the entry returned: everything that has to happen
++ * between the syscall and the frame going back to user mode.
++ *
++ *  - the internal restart codes become something a user may see.  A restarted
++ *    syscall needs signal delivery (`ERESTARTSYS` is resolved by `do_signal()`
++ *    through the signal frame), which is m14-linux-027; K5 does not implement
++ *    it, and `-ERESTARTSYS` must not escape into `[-4095, -1]` where a user
++ *    would read it as errno 512 (contract-syscall §9: 内核内部码不外泄).  The
++ *    honest reduction is `-EINTR`: the call was interrupted, and the process is
++ *    free to retry it.
++ *  - the TIF_* work of contract-syscall §8 (reschedule / signal) has its hook
++ *    here; K5 has no signal delivery, and the reschedule flag is already acted
++ *    on when the kernel returns to user mode elsewhere.  The return value is
++ *    the stub's resume policy: continue after the trap.
++ */
++unsigned long dadao_user_syscall_post(struct pt_regs *regs)
++{
++	long ret = (long)regs->rd[8];
++
++	switch (ret) {
++	case -ERESTARTSYS:
++	case -ERESTARTNOINTR:
++	case -ERESTARTNOHAND:
++	case -ERESTART_RESTARTBLOCK:
++		ret = -EINTR;
++		break;
++	}
++
++	regs->rd[8] = (unsigned long)ret;
++
++	return DADAO_TRAP_RESUME_SKIP;
 +}

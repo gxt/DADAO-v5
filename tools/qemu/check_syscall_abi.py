@@ -7,14 +7,19 @@ The facts, each derived from a different artefact:
    must be byte-identical to the qemu tree's ``linux-user/riscv/syscall.tbl``,
    whose sha256 the contract pins (contract-syscall.md §1.2).  The expected
    digest is *read from the contract*, not from the tree.
-2. **argument routing, four carriers** -- the guest stub decides where each
+2. **argument routing, five carriers** -- the guest stub decides where each
    argument goes (data bank rd16+ / address bank rb16+) from the syscall
-   NUMBER, and every host must rebuild the positional list with the SAME mask:
+   NUMBER, and every consumer must rebuild the positional list with the SAME
+   mask:
 
    * musl ``arch/dadao/syscall_arch.h:__dadao_argmask`` (the C path),
    * QEMU ``linux-user/dadao/cpu_loop.c:dadao_argmask`` (the host path),
    * gem5 ``src/arch/dadao/se_workload.cc:dadaoArgmask`` (the SE path),
-   * musl ``src/thread/dadao/syscall_cp.s`` (the cancellable path).
+   * musl ``src/thread/dadao/syscall_cp.s`` (the cancellable path),
+   * the **kernel** ``arch/dadao/kernel/syscall_argmask.c`` (the guest-side
+     entry, ``m14-linux-023``): the generic ``SYSCALL_DEFINE`` chain hands the
+     body its arguments positionally, so the entry rebuilds each one from the
+     bank this table names.
 
    The three tables must agree number for number; the asm dispatch must agree
    with them on every number it dispatches, and each of its blocks must move
@@ -65,6 +70,8 @@ QEMU_PATCHES = ROOT / "components" / "qemu" / "patches"
 MUSL_PATCHES = ROOT / "components" / "musl" / "patches"
 GEM5 = ROOT / ".work" / "source" / "gem5"
 GEM5_PATCHES = ROOT / "components" / "gem5" / "patches"
+LINUX = ROOT / ".work" / "source" / "linux"
+LINUX_PATCHES = ROOT / "components" / "linux" / "patches"
 
 ABIS = {"common", "64", "riscv", "rlimit", "memfd_secret"}
 
@@ -80,6 +87,7 @@ GUEST_TABLE = ("arch/dadao/syscall_arch.h", MUSL, MUSL_PATCHES)
 HOST_TABLE = ("linux-user/dadao/cpu_loop.c", QEMU, QEMU_PATCHES)
 SE_TABLE = ("src/arch/dadao/se_workload.cc", GEM5, GEM5_PATCHES)
 GUEST_CP = ("src/thread/dadao/syscall_cp.s", MUSL, MUSL_PATCHES)
+KERNEL_TABLE = ("arch/dadao/kernel/syscall_argmask.c", LINUX, LINUX_PATCHES)
 SYSCALL_TBL = ("linux-user/dadao/syscall.tbl", QEMU, QEMU_PATCHES)
 TARGET_SYSCALL_H = QEMU / "linux-user" / "dadao" / "target_syscall.h"
 PORT_NR_H = ("arch/dadao/bits/syscall.h.in", MUSL, MUSL_PATCHES)
@@ -157,6 +165,22 @@ def parse_c_table(text: str, prefix: str) -> dict[str, int]:
                       "unique", "duplicate")
             table[name] = mask
     return table
+
+
+#: ``[<nr>] = 0xNN, /* name */`` -- the kernel's table is data, not a switch,
+#: and the row comment is what ties the number to a name (checked below, the
+#: same way the gem5 carrier's rows are).
+KERNEL_ROW_RE = re.compile(
+    r"^[ \t]*\[\s*(\d+)\s*\]\s*=\s*(0x[0-9A-Fa-f]+)\s*,"
+    r"[ \t]*/\*\s*(\w+)\s*\*/", re.M)
+
+
+def parse_kernel_table(text: str) -> dict[int, tuple[str, int]]:
+    """number -> (name, mask) out of the kernel's argument-routing table."""
+    rows: dict[int, tuple[str, int]] = {}
+    for nr, mask, name in KERNEL_ROW_RE.findall(text):
+        rows[int(nr)] = (name, int(mask, 0))
+    return rows
 
 
 CP_DISPATCH_RE = re.compile(
@@ -368,6 +392,44 @@ def main() -> int:
     extra_names = sorted(se[nr][0] for nr in extras if nr in se)
     check("gem5 routing: the extra rows are named", ["tgkill", "time"],
           extra_names)
+
+    # 3c. the kernel carrier -- the same table, read by the SYSCALL_DEFINE
+    # entry wrappers (m14-linux-023, user ruling C′).  It is the guest's own
+    # side, so a row edited here alone must fail exactly like one edited in
+    # musl or on the host side.
+    kern_text, kern_origin = source(KERNEL_TABLE)
+    print(f"# kernel carrier: {kern_origin}")
+    kern = parse_kernel_table(kern_text)
+    check("kernel routing table non-empty", "True", str(bool(kern)))
+    # The kernel carries only the non-zero rows (a number absent from both
+    # sides defaults to "all data", which is what musl's `default:` arm says),
+    # so the set to compare against is musl's non-zero rows.
+    musl_nonzero = {nr: m for nr, m in musl_by_nr.items() if m}
+    check("kernel routing: same number set as musl (non-zero rows)",
+          sorted(musl_nonzero), sorted(kern))
+    bad_kern = [f"{nr} {kern[nr][0]}: musl={musl_nonzero[nr]:#04x} "
+                f"kernel={kern[nr][1]:#04x}"
+                for nr in sorted(set(kern) & set(musl_nonzero))
+                if kern[nr][1] != musl_nonzero[nr]]
+    for item in bad_kern:
+        print(f"[FAIL] kernel routing mask {item}")
+    check("kernel routing: every shared entry has the same mask",
+          f"{len(set(kern) & set(musl_nonzero))} equal",
+          f"{len(bad_kern)} unequal", not bad_kern)
+    misnamed_kern = [f"{nr}: {kern[nr][0]} != {name_by_nr.get(nr)}"
+                     for nr in sorted(kern)
+                     if name_by_nr.get(nr) != kern[nr][0]]
+    check("kernel routing: every row names its number", "[]",
+          str(misnamed_kern))
+    width = [f"{nr}: {kern[nr][1]:#04x}" for nr in sorted(kern)
+             if kern[nr][1] == 0 or kern[nr][1] > 0x3f]
+    check("kernel routing: masks are 1..6 bits wide", "[]", str(width))
+    check("kernel routing: the entry's width constant is 6", "6",
+          "6" if "DADAO_SYSCALL_ARGMASK_BITS	6" in Path(
+              LINUX / "arch/dadao/include/asm/syscall.h").read_text()
+          or "DADAO_SYSCALL_ARGMASK_BITS	6" in (
+              LINUX_PATCHES / "arch/dadao/include/asm/syscall.h.patch"
+          ).read_text() else "missing")
 
     dispatch, se_body = parse_se_dispatch(se_text)
     check("gem5 dispatch: case list non-empty", "True", str(bool(dispatch)))

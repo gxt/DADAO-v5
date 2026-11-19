@@ -104,6 +104,9 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K4_KTHREAD_SELFTEST": "n",
     "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
     "CONFIG_DADAO_K4_COW_SELFTEST": "0",
+    # m14-linux-023: the user-syscall probe image; pin it off so no other
+    # image inherits it from the shared build tree.
+    "CONFIG_DADAO_K5_SYSCALL_SELFTEST": "n",
 }
 
 #: The COW case each image carries (one image per case: a case whose verdict is

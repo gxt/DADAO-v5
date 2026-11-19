@@ -126,6 +126,9 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K4_SELFTEST": "n",
     "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
     "CONFIG_DADAO_K4_KTHREAD_SELFTEST": "y",
+    # m14-linux-023: the user-syscall probe image; pin it off so no other
+    # image inherits it from the shared build tree.
+    "CONFIG_DADAO_K5_SYSCALL_SELFTEST": "n",
 }
 
 IMAGE = config_pins.config_lines(CONFIG_PINS)
