@@ -30,12 +30,12 @@
 | --- | --- | --- | --- |
 | m16-chipyard-012 | 2026-11-20 00:33 | 1–2 h | RTL `scmp` 无序结果改 canonical quiet NaN（四方对齐的 RTL 缺口；`NV` 规则不变） |
 | m16-gem5-017 | 2026-11-19 22:45 | 2–3 h | 配置命名统一：`se.py` + `--cpu-type`，删 `se_timing.py` |
-| m16-gem5-016 | 2026-11-19 22:20 | 2–3 h | 周期表 §3 的 08/09/10 拆行（移位=2 拍；N5 第 3 条，用户裁定 a） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-gem5-016 | 2026-11-20 00:45 | 周期表 08/09/10 拆行（移位=2；逐册行成为拍数来源；clmul 判 A/2） |
 | m16-gem5-015 | 2026-11-20 00:55 | FS 加 `--cpu-type {atomic,timing}`（tiny/vast 两机型；`functionalFsAccess`；周期 FS==SE） |
 | m16-chipyard-006 | 2026-11-20 00:30 | Vast 核参数与地址通路（`useVM`/PTBR·ASID/`ptw_enable`/`cfx_ptw` 寄存器面/地址路由；Tiny 零增益） |
 | m16-gem5-014 | 2026-11-19 17:52 | Vast 一级 I/D TLB（2×8 + 4 超页 LRU、双表失效、A/D OR 合并） |
