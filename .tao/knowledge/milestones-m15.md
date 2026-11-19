@@ -34,13 +34,13 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m15-idl-019 | 2026-11-19 22:48 | 1 h | `ftsclb` 改调库 `ft_scale`（先验等价；不一致则停下待裁定） |
-| m15-qemu-001 | 2026-11-19 20:10 | 1–2 h | `scmp` 无序结果改 canonical quiet NaN（QEMU） |
 
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-qemu-001 | 2026-11-19 23:10 | `scmp` 无序结果改 canonical quiet NaN（QEMU 侧；20/20 含可达 FAIL） |
 | m15-idl-007 | 2026-11-19 21:40 | `SimRISC-07` 全册 50 条（±0 相等修复、scmp canonical、oracle 特殊值池；93/93） |
 | m15-spec-007 | 2026-11-19 21:25 | `contract-fp.md` 对齐 spec（scmp 无序 canonical；11 处 sNaN 逐条处置） |
 | m15-gem5-001 | 2026-11-19 21:05 | gem5 `scmp` 无序结果改 canonical quiet NaN（`check_b7` 3946 vectors） |
