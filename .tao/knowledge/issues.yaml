@@ -918,4 +918,4 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P3】chipyard `make verilog` 在并发构建下偶发 sbt 缓存损坏（`m16-chipyard-005` 合入后重建共享树时实测）：报 `ClassfileParser$ConstantPool.errorBadIndex` + `NoClassDefFoundError: sbt.internal.parser.SbtParser$`，`.classpath_cache` 只剩 `tapeout.jar`、`chipyard.jar` 未生成。疑似与同机其它组件构建（linux/gem5）并发时的缓存写竞争有关。处置：删 `.classpath_cache` 后重跑（第 1 次重试）；若复发则登记并改为串行构建。"
+  title: "【P3】chipyard `make verilog` 在并发构建下偶发 sbt 缓存损坏（`m16-chipyard-005` 合入后重建共享树时实测）：报 `ClassfileParser$ConstantPool.errorBadIndex` + `NoClassDefFoundError: sbt.internal.parser.SbtParser$`，`.classpath_cache` 只剩 `tapeout.jar`、`chipyard.jar` 未生成。**根因已定位（第 2 次重试时）**：`sbt 1.8.2` + `Scala 2.12.17` 跑在 **Ubuntu Java 21** 上 ⇒ `bad constant pool index: 0` / `NoClassDefFoundError: sbt.internal.parser.SbtParser$`（Scala 2.12 读不了 Java 21 的 class 版本）。与并发无关。处置：构建时 `JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64`（系统已装 JDK 17），清 `.classpath_cache` 后重跑（第 3 次尝试）。"
