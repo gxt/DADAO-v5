@@ -19,6 +19,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m16-gem5-015 | 2–4 天 | FS + Timing（tiny/vast 两机型；`translateTiming` 落地） |
 | m16-chipyard-007 | 2–3 天 | PTW 两级步查（64 KiB 页 + 512 MiB 超页、大端 PTE、HSJU/frags、A/D 本地+回写） |
 | m16-chipyard-008 | 1–2 天 | I/D TLB（2×8 + 4 超页 FA/LRU、I 无 D 位）+ `cfx_ptw_tlb_control` 双表失效 |
 

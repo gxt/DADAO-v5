@@ -25,7 +25,7 @@
 - **待裁定**：PTW 的页表读在 DADAO 是否经 D-Cache（`DADAO-12 §2.2` 只规定用物理地址、不规定是否过 cache）——RTL 与 gem5 必须一致。
 
 
-> **暂停（用户 2026-11-19）：`WumingVast` 不做，转 `wuqing` 路线**——本任务（基于 Wuming 的 Vast RT��）暂不开工；其 **PTW/TLB 的核无关部分**在重启时按「独立模块 + 核适配层」重写，`cfx_ptw` 寄存器面可复用 `m16-chipyard-006` 的成果。
+> **已恢复（用户 2026-11-19 反悔）：`WumingVast` 恢复开发，并按「最终上 FPGA」推进**——本任务继续；`gem5` 侧同步补 **FS + Timing（tiny/vast 两种机型）**，见 `m16-gem5-015`。
 
 ## 目标
 
