@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
 new file mode 100644
-index 0000000..d0dab78
+index 0000000..3b110ad
 --- /dev/null
 +++ b/src/arch/dadao/isa.hh
-@@ -0,0 +1,160 @@
+@@ -0,0 +1,172 @@
 +// DADAO ISA object (B0 skeleton + B6 LR/SC reservation state).
 +#ifndef __ARCH_DADAO_ISA_HH__
 +#define __ARCH_DADAO_ISA_HH__
@@ -121,6 +121,15 @@ index 0000000..d0dab78
 +            dataMemReads++;
 +    }
 +
++    /** Address of the instruction entering `execute()` (m16-gem5-018).
++     *
++     *  The latency hook runs from `advanceInst()`, after `advancePC()`, so the
++     *  thread's pc state no longer names the executed instruction.  A block
++     *  transfer may use `rb0` (= current IP) as its base, and only the
++     *  instruction address can reconstruct that operand; `DadaoInst::execute`
++     *  records it before the instruction can move any register. */
++    void noteWumingInstAddr(Addr addr) { wumingInstAddr = addr; }
++
 +  private:
 +    /** Guest data-memory accesses retired by the exec cores (m16-gem5-006). */
 +    statistics::Scalar dataMemReads;
@@ -142,6 +151,9 @@ index 0000000..d0dab78
 +     *  raises MRPTR; unchanged MRPTR means the RegRAS path). */
 +    mutable uint64_t wumingLastMrptr = 0;
 +    mutable bool wumingRasSeen = false;
++
++    /** Address of the instruction that entered `execute()` (m16-gem5-018). */
++    Addr wumingInstAddr = 0;
 +
 +    /** Harts that currently hold a reservation (store-side invalidation). */
 +    static std::vector<ISA *> holders;

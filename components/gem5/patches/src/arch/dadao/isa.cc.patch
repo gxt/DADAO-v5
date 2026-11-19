@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..06db751
+index 0000000..70893d8
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,448 @@
+@@ -0,0 +1,480 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
@@ -49,7 +49,7 @@ index 0000000..06db751
 + *  then keeps the one-cycle placeholder instead of guessing. */
 +bool
 +fillDynamicState(const DadaoISAInst::DadaoInst &inst,
-+                 const wuming::CycleRow &row, ThreadContext *tc,
++                 const wuming::CycleRow &row, ThreadContext *tc, Addr instAddr,
 +                 wuming::DynamicState &state)
 +{
 +    const std::string_view dyn(row.dynamic);
@@ -95,6 +95,38 @@ index 0000000..06db751
 +        if (!inst.fieldValue("immu6", count))
 +            return false;
 +        state.elements = static_cast<unsigned>(count);
++        if ((row.classMask & wuming::kDClassMask) == 0)
++            return true; // D′ register copy: instruction-side only, no beats
++        // D memory forms: the bus beats are counted from the group's start
++        // address (m16-gem5-018), so the policy needs the EA.  It is the same
++        // EA the exec core forms -- rb[rbhb] + rd[rdhc] (SimRISC-01 §1/§2) --
++        // and both registers still hold their pre-instruction values here:
++        // `ldm` rejects a destination block that overlaps its address
++        // register, and `stm` writes no register at all.  `rb0` is not a
++        // register but the current IP, which is why the hook is handed the
++        // address of the instruction that just executed.
++        if (tc == nullptr)
++            return false;
++        uint64_t base = 0, off = 0;
++        if (!inst.fieldValue("rbhb", base) || !inst.fieldValue("rdhc", off))
++            return false;
++        if (base >= 64 || off >= 64)
++            return false;
++        const RegVal baseValue =
++            base == 0
++                ? instAddr
++                : tc->getReg(RegId(intRegClass,
++                                   int_reg::RbBase +
++                                       static_cast<RegIndex>(base)));
++        const RegVal offValue =
++            off == 0 ? 0
++                     : tc->getReg(RegId(intRegClass,
++                                        int_reg::RdBase +
++                                            static_cast<RegIndex>(off)));
++        // The group's start EA.  The policy only reads its low three bits
++        // (the beat phase); the exec core's 48-bit virtual wrap (exec/b1.cc)
++        // is a multiple of 8, so it cannot change them.
++        state.addr = baseValue + offValue;
 +        return true;
 +    }
 +    return true; // mul-config: the optional TimingExpr is handled by the hook
@@ -274,7 +306,7 @@ index 0000000..06db751
 +        wuming::DynamicState state;
 +        state.rasMem = mnemonic == "call" ? mrptrDropped
 +                     : mnemonic == "ret"  ? mrptrGrew : false;
-+        if (fillDynamicState(*dadao, *row, tc, state))
++        if (fillDynamicState(*dadao, *row, tc, wumingInstAddr, state))
 +            total = wuming::dynamicCycles(*row, state);
 +    } else {
 +        total = wuming::staticCycles(*row);

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..22a7e6b
+index 0000000..0da2d3d
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,876 @@
+@@ -0,0 +1,882 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -693,6 +693,12 @@ index 0000000..22a7e6b
 +    // optional PC/MODE trace, and deliver one pending async source before the
 +    // instruction runs (single-hart, AtomicSimpleCPU granularity).
 +    auto *isa = dynamic_cast<DadaoISA::ISA *>(tc->getIsaPtr());
++    // The latency hook runs from advanceInst(), after advancePC(); record the
++    // address of *this* instruction while it is still the pc state.  A block
++    // transfer may take `rb0` (= current IP) as its base, which no register
++    // read can recover after the pc has advanced (m16-gem5-018).
++    if (isa != nullptr)
++        isa->noteWumingInstAddr(tc->pcState().instAddr());
 +    if (isa != nullptr && isa->nodeState().active) {
 +        DadaoISA::NodeState &node = isa->nodeState();
 +        // The instruction encoding is `excp_cause_info` for ILLI/UNDI/CFXREG/

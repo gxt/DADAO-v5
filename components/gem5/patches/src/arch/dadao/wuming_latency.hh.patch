@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/wuming_latency.hh b/src/arch/dadao/wuming_latency.hh
 new file mode 100644
-index 0000000..e6780ab
+index 0000000..b8e5cb9
 --- /dev/null
 +++ b/src/arch/dadao/wuming_latency.hh
-@@ -0,0 +1,290 @@
+@@ -0,0 +1,307 @@
 +// Wuming per-instruction latency policy (M16).
 +//
 +// The table itself (``wuming_cycles.hh``) is generated from
@@ -27,6 +27,9 @@ index 0000000..e6780ab
 +//                 and are charged straight from ``row.cycles``; `stm` adds the
 +//                 §5 measured per-instruction constant (``nBase`` = 1), `ldm`
 +//                 has none
++//   m16-gem5-018  the D beats are counted from the group's start address
++//                 (``ceil((addr%8 + N*w)/8)``), so an off-phase `ldm`/`stm`
++//                 pays the extra bus beat the chipyard core shows
 +//
 +// Every figure used here comes from a field of the generated row; there is no
 +// hand-copied cycle count in this file.
@@ -113,6 +116,12 @@ index 0000000..e6780ab
 +    unsigned expDiff = 0;
 +    /** Element count of a block transfer (D / D′): the decoded `immu6`. */
 +    unsigned elements = 0;
++    /** Start effective address of a *memory* block transfer (D), i.e. the
++     *  address of its first element.  The bus counts the 8-byte beats from
++     *  that address, so a group that does not start on an 8-byte boundary
++     *  needs one more beat (§5, m16-gem5-018).  The register copy (D′) has no
++     *  memory beats and leaves this at 0. */
++    uint64_t addr = 0;
 +};
 +
 +/** Class masks of the two block-transfer classes (see §2 D / D′). */
@@ -143,9 +152,16 @@ index 0000000..e6780ab
 + *  from the document's own N=8 figures (``ldm.ub`` 16 = 1 beat, ``ldm.o`` 72 =
 + *  8 beats); ``nBase`` is the residual of the same model over §5's whole
 + *  measured table (``stm`` = 1, ``ldm`` = none ⇒ -1).  This header carries no
-+ *  cycle count.  An element group of N elements of width w needs
-+ *  ``ceil(N*w/8)`` beats, so a partial group still pays a whole beat -- that is
-+ *  what the chipyard core does for e.g. ``ldm.ub`` N=9 (2 beats).
++ *  cycle count.
++ *
++ *  The beats are counted from the **start address of the group**, not from an
++ *  aligned boundary: an N-element group of width w starting at phase
++ *  ``p = addr % 8`` occupies ``ceil((p + N*w)/8)`` beats (§5, chipyard
++ *  measurement m16-chipyard-004).  A partial group still pays a whole beat
++ *  (``ldm.ub`` N=9 ⇒ 2), and an off-phase group pays one more: ``ldm.ub`` N=8
++ *  at ``p=2`` needs 2 beats, i.e. 8 + 2*8 = 24 cycles, where the 8-byte-phase
++ *  point is 16.  ``p = 0`` reproduces every §5 measured figure exactly -- they
++ *  were all taken at an 8-byte phase.
 + *
 + *  As with the register copy, this is the timing an N-micro-op expansion would
 + *  produce; m16-gem5-005 does not create real gem5 micro-ops (that would need
@@ -155,12 +171,13 @@ index 0000000..e6780ab
 + *  round trip in the memory system, i.e. the C class.  The element/beat cost of
 + *  the multi-element forms stays here, so the two do not double count. */
 +inline unsigned
-+multiElementCycles(const CycleRow &row, unsigned elements)
++multiElementCycles(const CycleRow &row, unsigned elements, uint64_t addr)
 +{
 +    if (row.perElement < 0 || row.perBeat < 0 || row.elemWidth == 0)
 +        return 0;
 +    const unsigned bytes = elements * static_cast<unsigned>(row.elemWidth);
-+    const unsigned beats = (bytes + 7u) / 8u;
++    const unsigned phase = static_cast<unsigned>(addr % 8u);
++    const unsigned beats = (phase + bytes + 7u) / 8u;
 +    const unsigned base =
 +        row.nBase > 0 ? static_cast<unsigned>(row.nBase) : 0u;
 +    return base + static_cast<unsigned>(row.perElement) * elements +
@@ -214,7 +231,7 @@ index 0000000..e6780ab
 +    // test is a bit test, so a row that ever gains a second class keeps the
 +    // element cost.
 +    if ((row.classMask & kDClassMask) != 0)
-+        return multiElementCycles(row, state.elements);
++        return multiElementCycles(row, state.elements, state.addr);
 +    if ((row.classMask & kDpClassMask) != 0)
 +        return blockCopyCycles(row, state.elements);
 +    const std::string_view dyn(row.dynamic);
