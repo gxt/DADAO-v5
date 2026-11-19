@@ -35,7 +35,6 @@
 | --- | --- | --- | --- |
 | m15-spec-007 | 2026-11-19 20:35 | 0.5–1 h | `contract-fp.md` 与 spec 对齐（scmp 无序结果改 canonical） |
 | m15-qemu-001 | 2026-11-19 20:10 | 1–2 h | `scmp` 无序结果改 canonical quiet NaN（QEMU） |
-| m15-gem5-001 | 2026-11-19 20:10 | 1–2 h | `scmp` 无序结果改 canonical quiet NaN（gem5） |
 | m15-idl-007 | 2026-11-19 10:45 | 5–7 天 | `SimRISC-07` 50 条指令的 operation |
 
 
@@ -43,6 +42,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-gem5-001 | 2026-11-19 21:05 | gem5 `scmp` 无序结果改 canonical quiet NaN（`check_b7` 3946 vectors） |
 | m15-idl-017 | 2026-11-19 18:02 | ft 族补正（tininess 后判、类型缺陷、i32/u32→fo、ft_scale；108 函数 0 例外） |
 | m15-idl-016 | 2026-11-19 17:20 | 浮点库 fo 族 + remainder（105 函数；oracle 30698 例） |
 | m15-idl-015 | 2026-11-19 13:00 | 浮点语义库 ft 族 53 函数（`idl/lib/fp.idl`；oracle 10478 例） |
