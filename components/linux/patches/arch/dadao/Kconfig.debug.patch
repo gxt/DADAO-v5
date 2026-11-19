@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..eb52a8331
+index 000000000..e9bb34abe
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,345 @@
+@@ -0,0 +1,370 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -349,3 +349,28 @@ index 000000000..eb52a8331
 +	  `/dev/console`).  The boot ends after the cases.  This is test
 +	  scaffolding (the K5 syscall gate builds a probe image with it); it is
 +	  not part of the image the later milestones boot.
++
++config DADAO_K5_CLONE_SELFTEST
++	bool "Run the K5 user clone/thread probe from a late_initcall (ends the boot)"
++	default n
++	depends on !DADAO_K4_SELFTEST && !DADAO_K4_SWITCH_SELFTEST && !DADAO_K4_KTHREAD_SELFTEST && !DADAO_K5_SYSCALL_SELFTEST
++	help
++	  Exercise the user clone/thread surface of m14-linux-024 (see
++	  kernel/k5_clone_selftest.c): a user program issues `clone()` through the
++	  umon entry and the two tasks it creates are judged from the kernel side.
++
++	  `CLONE_VM`: the thread child's `mm` is the parent's, with the same
++	  `context.asid` and one more `mm_users`, while a `fork` from the same
++	  program gets an address space of its own with a different ASID.
++	  `CLONE_SETTLS`: the child's `rb3` (`rbtp`) is the `tls` argument and the
++	  parent's is untouched.  The child's `rd8 = 0` and the parent's `clone`
++	  return is the child's tid — the "dual return" itself stays in the user
++	  wrapper (contract-syscall §10).  `CLONE_THREAD`: one thread group
++	  (`tgid`, `group_leader`) and shared `fs`/`files`/`sighand`.  `rbtp`
++	  survives syscalls, `lr`…`sc` cannot cross one (SimRISC-12 §1), and
++	  `execve` clears `rbtp`.
++
++	  It runs from a `late_initcall` (the initramfs and the futex hash must
++	  exist) and ends the boot.  This is test scaffolding (the K5 clone gate
++	  builds a probe image with it); it is not part of the image the later
++	  milestones boot.

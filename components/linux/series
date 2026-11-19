@@ -61,6 +61,7 @@ arch/dadao/kernel/k4_kthread_selftest.c.patch
 arch/dadao/kernel/k4_selftest.c.patch
 arch/dadao/kernel/k4_switch_asm.S.patch
 arch/dadao/kernel/k4_switch_selftest.c.patch
+arch/dadao/kernel/k5_clone_selftest.c.patch
 arch/dadao/kernel/k5_syscall_selftest.c.patch
 arch/dadao/kernel/process.c.patch
 arch/dadao/kernel/setup.c.patch

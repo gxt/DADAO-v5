@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/process.c b/arch/dadao/kernel/process.c
 new file mode 100644
-index 000000000..915a8e536
+index 000000000..f4e2efb8e
 --- /dev/null
 +++ b/arch/dadao/kernel/process.c
-@@ -0,0 +1,584 @@
+@@ -0,0 +1,670 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO process model (K4, m14-linux-016).
@@ -80,6 +80,26 @@ index 000000000..915a8e536
 +/* The kernel entry stack the user entry switches to (kernel/trap.S). */
 +extern char dadao_umon_stack[];
 +
++/*
++ * The kernel-stack top of the task that is about to run in user mode.
++ *
++ * The umon entry needs a stack of its own *before* it can know which task it
++ * belongs to (the hardware saves no register and SP still points at the user's
++ * stack), and it must be the trapping task's stack rather than one shared entry
++ * stack: the C half may sleep (a blocking syscall, a wait) while another task
++ * takes its own umon entry.
++ *
++ * It used to be parked in `cfx_umon cg6 rc1`, which does not survive the
++ * capture: `DADAO_GPR_SAVE` stages the user's `rd2`/`rd3` through exactly those
++ * two scratch registers, so the entry read the user's `rd3` and used it as a
++ * stack pointer (measured with this probe: a user program whose `rd3` held an
++ * `sc` result took its next trap at SP=1).  A plain per-hart variable is what
++ * the single-hart K5 shape needs: `__switch_to()` writes it before the stack
++ * moves, `dadao_enter_user()` writes it again for a task that enters user mode
++ * without a switch, and the entry reads it with SP still unknown.
++ */
++unsigned long dadao_user_stack_top;
++
 +/* The staging frame the umon entry captures into (kernel/trap.S). */
 +extern struct pt_regs dadao_umon_save;
 +
@@ -117,6 +137,12 @@ index 000000000..915a8e536
 +int dadao_k4_s5_syscall(struct pt_regs *regs, unsigned long nr,
 +			unsigned long *policy);
 +
++
++/*
++ * One instruction, in bytes: the only step `escape` offers past a `trap`
++ * (`[excp_cause_ip, +4]`, spec/DADAO-12 §5.3).
++ */
++#define DADAO_INSN_BYTES	4
 +
 +/*
 + * A second umon entry while one is live is a kernel bug in the K4 shape (one
@@ -186,12 +212,35 @@ index 000000000..915a8e536
 +	/*
 +	 * fork()/clone(): the child returns from the same syscall the parent is
 +	 * in, with the same registers — except the return value, which must be
-+	 * 0 in the child (contract-syscall §9: rd8 carries it).
++	 * 0 in the child (contract-syscall §9: rd8 carries it) and `rbtp`,
++	 * which `CLONE_SETTLS` replaces.
++	 *
++	 * The frame's `ip` is the *resume* address, not the trapping
++	 * instruction: the umon dispatcher advances it past the `trap` before
++	 * the syscall body runs (the parent's own return takes its address from
++	 * cg5, so only a child ever reads this field).  See
++	 * `dadao_user_excp_dispatch()`.
 +	 */
 +	*childregs = *regs;
 +	childregs->rd[8] = 0;
 +	childregs->ip = regs->ip;
-+	childregs->rb[3] = regs->rb[3];		/* TLS: inherited until execve */
++
++	/*
++	 * `rb3` = `rbtp` (contract-syscall §10).  Without `CLONE_SETTLS` the
++	 * thread pointer is inherited — a forked task shares its parent's TLS
++	 * block until execve clears it — and the parent's own frame is never
++	 * touched either way: the `tls` argument is drawn into the *child's*
++	 * frame only, which is the "parent unchanged" half of the rule.
++	 *
++	 * The argument is the syscall's 4th one (`CONFIG_CLONE_BACKWARDS`:
++	 * flags, newsp, parent_tidptr, tls, child_tidptr), so it arrives in
++	 * `rd18` by the argmask table; a `tls` value without the flag means
++	 * nothing and is ignored, as in every other port.
++	 */
++	if (args->flags & CLONE_SETTLS)
++		childregs->rb[3] = args->tls;
++	else
++		childregs->rb[3] = regs->rb[3];
 +
 +	/*
 +	 * A new user stack only for `clone(CLONE_VM)`-style children, where the
@@ -217,14 +266,13 @@ index 000000000..915a8e536
 +{
 +	/*
 +	 * Park the next task's kernel-stack top where the user entry can read it
-+	 * *before* it has a kernel SP of its own: `cfx_umon cg6 rc1` is that
-+	 * cfx's scratch slot (spec/DADAO-12 §3.7), and the entry moves SP there
-+	 * first thing (m14-linux-017 S5, user ruling).  Written before the stack
-+	 * moves, so the entry can never observe the previous task's value; the
-+	 * entry treats 0 as "no switch yet" and falls back to the boot entry stack.
++	 * *before* it has a kernel SP of its own (`dadao_user_stack_top`, see its
++	 * definition for why it is not a cfx scratch slot).  Written before the
++	 * stack moves, so the entry can never observe the previous task's value;
++	 * the entry treats 0 as "no switch yet" and falls back to the boot entry
++	 * stack.
 +	 */
-+	DADAO_CFX_WRITE(cfx_umon, UMON_CG_SCRATCH, UMON_RC_SCRATCH_STACK_TOP,
-+			(unsigned long)task_stack_page(next) + THREAD_SIZE);
++	dadao_user_stack_top = (unsigned long)task_stack_page(next) + THREAD_SIZE;
 +	dadao_switch_to_asm(&prev->thread, &next->thread);
 +	return prev;
 +}
@@ -282,6 +330,22 @@ index 000000000..915a8e536
 +		dadao_flog_report();
 +		dadao_early_printf("K4 fork: kernel thread exec'd ip=%#lx sp=%#lx "
 +				   "rb3=%#lx\n", regs->ip, regs->rb[1], regs->rb[3]);
++	} else {
++		/*
++		 * A fork/clone child of a *user* task: its frame is the parent's
++		 * syscall frame, whose `ip` is the trapping instruction (the umon
++		 * entry wrote `excp_cause_ip` into it).  The child starts at the
++		 * syscall's *return* address, one instruction on — the parent's
++		 * own `escape` adds the same 4 (contract-syscall §10: 子线程从
++		 * syscall 返回处开始执行；`copy_thread()` copies the frame, this
++		 * is the one field whose value is "past" rather than "at").
++		 *
++		 * Doing it here rather than in `copy_thread()` keeps that hook a
++		 * pure copy of the parent's context, which is what m14-linux-016's
++		 * F1 asserts, and it cannot touch the kernel-thread path above
++		 * (whose frame was rewritten by `start_thread()` at execve).
++		 */
++		regs->ip += DADAO_INSN_BYTES;
 +	}
 +
 +	dadao_enter_user(regs);
@@ -435,6 +499,8 @@ index 000000000..915a8e536
 +	 * fault handler (measured).
 +	 */
 +	((struct thread_info *)dadao_umon_stack)->task = current;
++	dadao_user_stack_top = (unsigned long)task_stack_page(current) +
++			       THREAD_SIZE;
 +	dadao_user_frame = *regs;
 +	dadao_user_frame.rb[0] = 0;		/* rb0 is the read-only IP */
 +	dadao_user_frame.rd[0] = 0;		/* rd0 reads as zero */
@@ -563,8 +629,28 @@ index 000000000..915a8e536
 +	 * is what a *nested* entry into the not-yet-adopted state would trip).
 +	 */
 +	{
-+		unsigned long fn = dadao_user_syscall(regs, immu18);
++		unsigned long fn;
 +
++		dadao_umon_busy = 0;
++#ifdef CONFIG_DADAO_K5_CLONE_SELFTEST
++		{
++			unsigned long policy;
++
++			/*
++			 * The clone probe's hook (kernel/k5_clone_selftest.c)
++			 * runs *after* the guard is dropped because it blocks:
++			 * the parent's "wait for my children" trap parks here
++			 * until a child has exited, and that child's own umon
++			 * entry must not be mistaken for a nested one.  The
++			 * guard is re-armed for the dispatch below — nothing
++			 * sleeps between the two.
++			 */
++			if (dadao_k5c_user_trap(regs, immu18, &policy))
++				return policy;
++			dadao_umon_busy = 1;
++		}
++#endif
++		fn = dadao_user_syscall(regs, immu18);
 +		dadao_umon_busy = 0;
 +		if (fn)
 +			regs->rd[8] = (unsigned long)dadao_call_syscall(regs,

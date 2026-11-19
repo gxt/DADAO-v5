@@ -1,0 +1,665 @@
+diff --git a/arch/dadao/kernel/k5_clone_selftest.c b/arch/dadao/kernel/k5_clone_selftest.c
+new file mode 100644
+index 000000000..3c0036d5f
+--- /dev/null
++++ b/arch/dadao/kernel/k5_clone_selftest.c
+@@ -0,0 +1,659 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * K5 user clone/thread probe (CONFIG_DADAO_K5_CLONE_SELFTEST, m14-linux-024).
++ *
++ * What this proves, and where every expectation comes from
++ * (contract-syscall §10/§11, contract-abi §4, spec/SimRISC-12 §1):
++ *
++ *   C1 `CLONE_VM` shares the parent's address space: the thread child's `mm`
++ *      is the parent's, its `context.asid` is the same (one address space, one
++ *      ASID), and `mm_users` grew by exactly one while the child lived and
++ *      came back after it exited.  The contrast is measured in the same boot:
++ *      a `fork` (no `CLONE_VM`) gets an `mm` of its own with a *different*
++ *      ASID.
++ *   C2 `CLONE_SETTLS`: the child's `rb3` (= `rbtp`) is the `tls` argument, and
++ *      the parent's is untouched (its sentinel survives both clones).
++ *   C3 the child's entry: `rd8 = 0` in the child, the parent's `clone` return is
++ *      the child's tid, and the rest of the frame is the parent's *copy* (a
++ *      sentinel register the program loads before the clone and never writes
++ *      again comes back unchanged, §11).  The *dual return* is the user wrapper's
++ *      half — the program tests `rd8 == 0` and branches, exactly what musl's
++ *      `clone` stub does — the kernel promises only those two facts (§10).
++ *   C4 `CLONE_THREAD`: the child shares the thread group (`tgid`,
++ *      `group_leader`, and the `signal` struct), and `CLONE_FS`/`CLONE_FILES`/
++ *      `CLONE_SIGHAND` share the `fs`/`files`/`sighand` pointers; a fork child
++ *      has none of that (`tgid == its own pid`, private tables).
++ *   C5 TLS survives syscalls: the child's `rbtp` is the `tls` argument at the
++ *      trap after a completed `getpid` (the entry saved it, the escape
++ *      restored it, §10).
++ *   A  atomics across a syscall (SimRISC-12 §1「保留机制」, §11): `lr` …`sc`
++ *      with no exception in between succeeds (0); with a `trap` in between the
++ *      entry cleared the reservation and `sc` must fail (1).  The *control*
++ *      case is what keeps the second one from passing vacuously.
++ *   X  `execve` clears `rbtp` (016's `start_thread()`, §10): after
++ *      `kernel_execve("/init.musl")` the frame the entry will load has
++ *      `rb3 = 0` and `ip` = the ELF's `e_entry`.
++ *
++ * How it runs: like the m14-linux-023 probe, a `late_initcall` inside
++ * `kernel_init` (the VFS and the futex hash must exist) starts one user task of
++ * its own — `mm_alloc()`, a code page and two stack pages — and blocks.  That
++ * user task (the *parent* below) runs the program in `kernel/trap.S`
++ * (`dadao_k5c_user_stub`), which issues the two `clone`s and the `getpid`s.
++ *
++ * The judging cannot live in the user program: `mm`, `tgid` and the pointer
++ * identities are kernel state.  It lives in `dadao_k5c_user_trap()`, called by
++ * `dadao_user_excp_dispatch()` for every umon trap *after* the re-entrancy
++ * guard is dropped — the parent's "wait" traps park in there, and a child must
++ * be free to take its own umon entry while the parent sleeps.  On this port a
++ * *runnable* task never yields (`schedule()` re-picks it: no sched_clock yet),
++ * so every hand-over in this probe is a blocking wait.
++ *
++ * One image, one verdict: every case prints its values (`K5 check <name>
++ * want=… got=… ok|FAIL`), and the boot ends with SYS_EXIT(0); a violated
++ * expectation ends with the guest FAIL segment (spec/Kaiwu §7.1) naming it.
++ */
++#include <linux/binfmts.h>
++#include <linux/completion.h>
++#include <linux/errno.h>
++#include <linux/file.h>
++#include <linux/fs.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/mman.h>
++#include <linux/mm.h>
++#include <linux/mm_types.h>
++#include <linux/pid.h>
++#include <linux/sched.h>
++#include <linux/sched/mm.h>
++#include <linux/sched/task.h>
++#include <linux/sched/task_stack.h>
++#include <linux/signal.h>
++#include <linux/string.h>
++#include <linux/types.h>
++#include <linux/wait.h>
++
++#include <asm/mmu_context.h>
++#include <asm/page.h>
++#include <asm/pgalloc.h>
++#include <asm/ptrace.h>
++#include <asm/setup.h>
++#include <asm/syscall.h>
++#include <asm/trap.h>
++#include <asm/unistd.h>
++
++/*
++ * Guest FAIL segment (spec/Kaiwu §7.1, 0x01-0x7f).  kernel/process.c owns
++ * 0x30-0x32, k4_selftest.c 0x33-0x3a, k4_switch_selftest.c 0x40-0x45,
++ * k4_kthread_selftest.c 0x50-0x52 and k5_syscall_selftest.c 0x60-0x68; this
++ * probe takes 0x70-0x77.
++ */
++#define K5C_FAIL_SETUP		0x70	/* mm / page / task setup failed */
++#define K5C_FAIL_C1		0x71	/* CLONE_VM: mm / asid / mm_users */
++#define K5C_FAIL_C2		0x72	/* CLONE_SETTLS: the child's rbtp */
++#define K5C_FAIL_C3		0x73	/* the child's rd8 / the parent's tid */
++#define K5C_FAIL_C4		0x74	/* CLONE_THREAD: the thread group */
++#define K5C_FAIL_C5		0x75	/* rbtp did not survive a syscall */
++#define K5C_FAIL_ATOM		0x76	/* lr/sc across a syscall */
++#define K5C_FAIL_EXEC		0x77	/* execve left a thread pointer behind */
++
++/* The probe's window (1 TiB: inside user space, outside every kernel slot). */
++#define K5C_VA_BASE		(1UL << 40)
++#define K5C_CODE_VA		(K5C_VA_BASE + 64 * PAGE_SIZE)
++#define K5C_STACK_VA		(K5C_VA_BASE + 66 * PAGE_SIZE)
++#define K5C_CHILD_STACK_VA	(K5C_VA_BASE + 67 * PAGE_SIZE)
++
++/* The parent's thread pointer: `rb3` = `rbtp`, reserved by the ABI. */
++#define K5C_RB3_SENTINEL	0x4b35435450530001UL	/* "K5CTPS" + 1 */
++
++/* The static-musl init the image carries: X's `execve` target. */
++#define K5C_INIT_ELF		"/init.musl"
++
++/* How many times the boot task yields while the children run. */
++#define K5C_WAIT_ROUNDS		10000
++
++/* The umon functions the program uses (spec/DADAO-22 §2 has 0 and 1). */
++#define K5C_TRAP_WAIT_THREAD	0x2b01UL
++#define K5C_TRAP_CHILD_REPORT	0x2b02UL
++#define K5C_TRAP_WAIT_FORK	0x2b03UL
++#define K5C_TRAP_FORKCHILD_REPORT 0x2b04UL
++#define K5C_TRAP_DONE		0x2b05UL
++
++extern const char dadao_k5c_user_stub[];
++extern const char dadao_k5c_user_stub_end[];
++
++/* -------------------------------------------------------------------------
++ * reporting
++ * ------------------------------------------------------------------------- */
++
++static unsigned int k5c_failed;
++
++static void __noreturn k5c_fail(unsigned int code, const char *what,
++				unsigned long value)
++{
++	dadao_early_printf("K5 clone FAIL: %s=%#lx code=%#x\n", what, value, code);
++	dadao_early_exit(code);
++}
++
++static void k5c_expect(const char *what, unsigned long expected,
++		       unsigned long actual, unsigned int code)
++{
++	int ok = expected == actual;
++
++	dadao_early_printf("K5 check %s want=%#lx got=%#lx %s\n", what, expected,
++			   actual, ok ? "ok" : "FAIL");
++	if (!ok)
++		k5c_failed |= code;
++}
++
++/* -------------------------------------------------------------------------
++ * state shared between the probe task and the umon hook
++ * ------------------------------------------------------------------------- */
++
++static struct mm_struct *k5c_mm;
++static struct pt_regs k5c_user_frame;		/* one hart, one program */
++
++/* The parent task (the probe's user task) and what it looked like at clone. */
++static struct task_struct *k5c_parent;
++static unsigned long k5c_parent_tgid;
++static unsigned long k5c_parent_asid;
++static unsigned long k5c_parent_rb3;
++static int k5c_mm_users_pre;
++static unsigned long k5c_tls_arg;
++static unsigned long k5c_frame_copy;	/* the parent frame's sentinel (rd12) */
++static unsigned long k5c_flags_arg;
++static unsigned long k5c_stack_arg;
++static unsigned long k5c_fork_flags_arg;
++static unsigned long k5c_fork_mm_users_pre;
++
++static int k5c_child_pid;
++static int k5c_fork_pid;
++static int k5c_clones;		/* how many `clone` calls the parent issued */
++
++/* The blocking hand-overs (a runnable task never yields on this port). */
++static struct completion k5c_thread_gone;	/* thread child: exit dispatched */
++static struct completion k5c_fork_gone;		/* fork child: exit dispatched */
++static struct completion k5c_user_done;		/* the parent: all cases judged */
++static struct completion k5c_park;		/* never completed: parks a task */
++
++static unsigned int k5c_traps;
++
++/* -------------------------------------------------------------------------
++ * the user program's task and address space
++ * ------------------------------------------------------------------------- */
++
++/*
++ * One single-page window.  The code window is filled through
++ * `vm_private_data` (mm/fault.c serves an *instruction fetch* from it) and the
++ * two stacks are ordinary anonymous pages.
++ */
++static void k5c_map_window(unsigned long va, unsigned long prot,
++			   struct page *page)
++{
++	struct vm_area_struct *vma;
++	unsigned long addr;
++	unsigned long flags = MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS;
++
++	addr = vm_mmap(NULL, va, PAGE_SIZE, prot, flags, 0);
++	if (addr != va)
++		k5c_fail(K5C_FAIL_SETUP, "vm_mmap", addr);
++	if (!page)
++		return;
++	mmap_write_lock(k5c_mm);
++	vma = find_vma(k5c_mm, va);
++	if (!vma)
++		k5c_fail(K5C_FAIL_SETUP, "find_vma", va);
++	vma->vm_private_data = (void *)page_to_phys(page);
++	mmap_write_unlock(k5c_mm);
++}
++
++static int k5c_user_task(void *arg)
++{
++	struct pt_regs *frame = &k5c_user_frame;
++
++	dadao_early_printf("K5 clone user: enter pid=%d\n", current->pid);
++	/* The task the probe judges: recorded before it can trap. */
++	get_task_struct(current);
++	k5c_parent = current;
++	current->mm = k5c_mm;
++	current->active_mm = k5c_mm;
++	dadao_switch_mm(NULL, k5c_mm, current);
++
++	memset(frame, 0, sizeof(*frame));
++	frame->ip = K5C_CODE_VA;
++	frame->rb[1] = K5C_STACK_VA + PAGE_SIZE;
++	frame->rb[3] = K5C_RB3_SENTINEL;	/* the parent's rbtp */
++	frame->rd[11] = K5C_STACK_VA;		/* the page lr/sc work on */
++	frame->rd[13] = K5C_CHILD_STACK_VA + PAGE_SIZE;	/* the child's newsp */
++	frame->status = 0;
++	dadao_enter_user(frame);		/* never returns */
++}
++
++/* -------------------------------------------------------------------------
++ * the umon hook: what parent and children look like at their traps
++ * ------------------------------------------------------------------------- */
++
++/* C1/C2/C3/C4/C5 from the thread child's first trap (`getpid`). */
++static void k5c_judge_thread_child(struct task_struct *child, struct pt_regs *regs)
++{
++	k5c_child_pid = child->pid;
++	dadao_early_printf("K5 clone child: pid=%d tgid=%d mm=%#lx parent_mm=%#lx "
++			   "asid=%lu parent_asid=%lu mm_users=%d rd8_at_entry=%#lx "
++			   "rb3=%#lx tls_arg=%#lx copy=%#lx\n", child->pid,
++			   child->tgid, (unsigned long)child->mm,
++			   (unsigned long)k5c_parent->mm,
++			   child->mm ? child->mm->context.asid : 0UL,
++			   k5c_parent_asid,
++			   child->mm ? atomic_read(&child->mm->mm_users) : 0,
++			   regs->rd[27], regs->rd[28], k5c_tls_arg,
++			   regs->rd[12]);
++
++	/* C3: what the child's `clone` returned. */
++	k5c_expect("c3_child_rd8_zero", 0, regs->rd[27], K5C_FAIL_C3);
++	/*
++	 * C3, the copy half (contract-syscall §11「子现场 = 父现场副本」): a
++	 * register the program loaded before the clone and never wrote again
++	 * must come back at the child's first trap — and the sentinel itself
++	 * must be non-zero, so an all-zero frame cannot pass this.
++	 */
++	k5c_expect("c3_child_frame_copy_set", 1, k5c_frame_copy ? 1 : 0,
++		   K5C_FAIL_C3);
++	k5c_expect("c3_child_frame_copy", k5c_frame_copy, regs->rd[12],
++		   K5C_FAIL_C3);
++
++	/* C2: the child's rbtp is the `tls` argument ... */
++	k5c_expect("c2_child_rb3", k5c_tls_arg, regs->rd[28], K5C_FAIL_C2);
++
++	/* C1: one address space, one ASID, one more user. */
++	k5c_expect("c1_thread_mm_shared", 1,
++		   (child->mm && child->mm == k5c_parent->mm) ? 1 : 0,
++		   K5C_FAIL_C1);
++	k5c_expect("c1_thread_asid_same", k5c_parent_asid,
++		   child->mm ? child->mm->context.asid : 0, K5C_FAIL_C1);
++	k5c_expect("c1_thread_mm_users",
++		   (unsigned long)(k5c_mm_users_pre + 1),
++		   child->mm ? (unsigned long)atomic_read(&child->mm->mm_users) : 0,
++		   K5C_FAIL_C1);
++
++	/* C4: the thread group and the three shared tables. */
++	k5c_expect("c4_tgid_shared", k5c_parent_tgid, (unsigned long)child->tgid,
++		   K5C_FAIL_C4);
++	k5c_expect("c4_group_leader", 1,
++		   child->group_leader == k5c_parent->group_leader ? 1 : 0,
++		   K5C_FAIL_C4);
++	k5c_expect("c4_fs_shared", 1, child->fs == k5c_parent->fs ? 1 : 0,
++		   K5C_FAIL_C4);
++	k5c_expect("c4_files_shared", 1, child->files == k5c_parent->files ? 1 : 0,
++		   K5C_FAIL_C4);
++	k5c_expect("c4_sighand_shared", 1,
++		   child->sighand == k5c_parent->sighand ? 1 : 0, K5C_FAIL_C4);
++
++	/* C5, entry half: the frame carried the tls argument in. */
++	k5c_expect("c5_child_frame_rb3", k5c_tls_arg, regs->rb[3], K5C_FAIL_C5);
++}
++
++/* C4/C5 from the thread child's report trap (after a completed `getpid`). */
++static void k5c_judge_thread_report(struct task_struct *child,
++				    struct pt_regs *regs)
++{
++	dadao_early_printf("K5 clone child report: pid=%d getpid=%#lx rb3=%#lx\n",
++			   child->pid, regs->rd[29], regs->rd[30]);
++	/* getpid answers the *thread group's* pid, not this thread's. */
++	k5c_expect("c4_child_getpid", k5c_parent_tgid, regs->rd[29], K5C_FAIL_C4);
++	k5c_expect("c5_child_rb3_after_syscall", k5c_tls_arg, regs->rd[30],
++		   K5C_FAIL_C5);
++	k5c_expect("c3_child_rd8_still_zero", 0, regs->rd[27], K5C_FAIL_C3);
++}
++
++/* C1's contrast + C4's negative half, from the fork child's report trap. */
++static void k5c_judge_fork_child(struct task_struct *child, struct pt_regs *regs)
++{
++	k5c_fork_pid = child->pid;
++	dadao_early_printf("K5 clone fork child: pid=%d tgid=%d mm=%#lx "
++			   "parent_mm=%#lx asid=%lu parent_asid=%lu "
++			   "parent_mm_users=%d rd8_at_entry=%#lx rb3=%#lx\n",
++			   child->pid, child->tgid, (unsigned long)child->mm,
++			   (unsigned long)k5c_parent->mm,
++			   child->mm ? child->mm->context.asid : 0UL,
++			   k5c_parent_asid, atomic_read(&k5c_parent->mm->mm_users),
++			   regs->rd[21], regs->rd[23]);
++
++	k5c_expect("c3_fork_child_rd8_zero", 0, regs->rd[21], K5C_FAIL_C3);
++	k5c_expect("c3_fork_child_frame_copy", k5c_frame_copy, regs->rd[12],
++		   K5C_FAIL_C3);
++	k5c_expect("c1_fork_mm_private", 1,
++		   (child->mm && child->mm != k5c_parent->mm) ? 1 : 0,
++		   K5C_FAIL_C1);
++	k5c_expect("c1_fork_asid_differs", 1,
++		   (child->mm && child->mm->context.asid != k5c_parent_asid) ? 1 : 0,
++		   K5C_FAIL_C1);
++	/* The fork took no reference on the parent's address space. */
++	k5c_expect("c1_fork_parent_mm_users", (unsigned long)k5c_fork_mm_users_pre,
++		   (unsigned long)atomic_read(&k5c_parent->mm->mm_users),
++		   K5C_FAIL_C1);
++	/* No CLONE_THREAD: its own thread group, its own tables. */
++	k5c_expect("c4_fork_tgid_own", (unsigned long)child->pid,
++		   (unsigned long)child->tgid, K5C_FAIL_C4);
++	k5c_expect("c4_fork_tgid_differs", 1,
++		   child->tgid != k5c_parent->tgid ? 1 : 0, K5C_FAIL_C4);
++	k5c_expect("c4_fork_fs_private", 1,
++		   child->fs != k5c_parent->fs ? 1 : 0, K5C_FAIL_C4);
++	k5c_expect("c4_fork_files_private", 1,
++		   child->files != k5c_parent->files ? 1 : 0, K5C_FAIL_C4);
++	/* No CLONE_SETTLS: the thread pointer is inherited. */
++	k5c_expect("c2_fork_child_rb3", K5C_RB3_SENTINEL, regs->rd[23],
++		   K5C_FAIL_C2);
++}
++
++/* The parent's last trap: everything user mode saw after both clones. */
++static void k5c_judge_done(struct task_struct *parent, struct pt_regs *regs)
++{
++	dadao_early_printf("K5 clone done: pid=%d thread_ret=%#lx parent_rb3=%#lx "
++			   "fork_ret=%#lx fork_rb3=%#lx sc_now=%#lx "
++			   "sc_across=%#lx mm_users=%d traps=%u\n",
++			   parent->pid, regs->rd[27], regs->rd[28], regs->rd[21],
++			   regs->rd[22], regs->rd[24], regs->rd[26],
++			   atomic_read(&k5c_mm->mm_users), k5c_traps);
++
++	/* C3: the parent's clone returned the child's tid (not 0). */
++	k5c_expect("c3_parent_tid", (unsigned long)k5c_child_pid, regs->rd[27],
++		   K5C_FAIL_C3);
++	k5c_expect("c3_parent_tid_nonzero", 1, regs->rd[27] ? 1 : 0, K5C_FAIL_C3);
++	/* C2: CLONE_SETTLS left the parent's rbtp alone ... */
++	k5c_expect("c2_parent_rb3", K5C_RB3_SENTINEL, regs->rd[28], K5C_FAIL_C2);
++	/* ... and so did the fork's clone. */
++	k5c_expect("c3_fork_parent_tid", (unsigned long)k5c_fork_pid, regs->rd[21],
++		   K5C_FAIL_C3);
++	k5c_expect("c2_parent_rb3_after_fork", K5C_RB3_SENTINEL, regs->rd[22],
++		   K5C_FAIL_C2);
++	/* C1: the thread's reference is gone again (both children exited). */
++	k5c_expect("c1_mm_users_restored", (unsigned long)k5c_mm_users_pre,
++		   (unsigned long)atomic_read(&k5c_mm->mm_users), K5C_FAIL_C1);
++	/*
++	 * A: `lr`…`sc` with nothing in between succeeds (rd24 = 0), and the same
++	 * pair with a `trap` in between fails (rd26 = 1): the exception entry
++	 * cleared the reservation (SimRISC-12 §1, contract-syscall §11).
++	 */
++	k5c_expect("atom_sc_immediate", 0, regs->rd[24], K5C_FAIL_ATOM);
++	k5c_expect("atom_sc_after_syscall", 1, regs->rd[26], K5C_FAIL_ATOM);
++}
++
++int dadao_k5c_user_trap(struct pt_regs *regs, unsigned long immu18,
++			unsigned long *policy)
++{
++	struct task_struct *cur = current;
++	unsigned long nr = regs->rd[15];
++
++	if (k5c_traps++ < 48)
++		dadao_early_printf("K5 clone trap %u: pid=%d nr=%#lx immu18=%#lx "
++				   "ip=%#lx rd8=%#lx rb3=%#lx\n", k5c_traps,
++				   cur->pid, nr, immu18, regs->ip, regs->rd[8],
++				   regs->rb[3]);
++
++	if (cur == k5c_parent) {
++		if (immu18 == SBI_UMON_SYSCALL && nr == __NR_clone) {
++			if (!k5c_clones) {
++				/* the thread clone: record what the user sent */
++				k5c_flags_arg = regs->rd[16];
++				k5c_stack_arg = regs->rd[17];
++				k5c_tls_arg = regs->rd[18];
++				k5c_frame_copy = regs->rd[12];
++				k5c_parent_rb3 = regs->rb[3];
++				k5c_parent_tgid = (unsigned long)cur->tgid;
++				k5c_parent_asid = k5c_mm->context.asid;
++				k5c_mm_users_pre = atomic_read(&k5c_mm->mm_users);
++				/* C2's "parent unchanged" is judged at `done`. */
++				dadao_early_printf("K5 clone pre: pid=%d flags=%#lx "
++						   "stack=%#lx tls=%#lx rb3=%#lx "
++						   "copy=%#lx mm=%#lx asid=%lu "
++						   "mm_users=%d\n", cur->pid,
++						   k5c_flags_arg, k5c_stack_arg,
++						   k5c_tls_arg, k5c_parent_rb3,
++						   k5c_frame_copy,
++						   (unsigned long)k5c_mm,
++						   k5c_parent_asid,
++						   k5c_mm_users_pre);
++				k5c_clones = 1;
++			} else {
++				/* the fork contrast, from the same task */
++				k5c_fork_flags_arg = regs->rd[16];
++				k5c_fork_mm_users_pre =
++					atomic_read(&k5c_mm->mm_users);
++				dadao_early_printf("K5 clone fork pre: pid=%d "
++						   "flags=%#lx stack=%#lx "
++						   "asid=%lu mm_users=%d\n",
++						   cur->pid, k5c_fork_flags_arg,
++						   regs->rd[17], k5c_parent_asid,
++						   k5c_fork_mm_users_pre);
++				k5c_clones = 2;
++			}
++			return 0;		/* a real syscall: dispatch it */
++		}
++
++		if (immu18 == K5C_TRAP_WAIT_THREAD) {
++			/* Park the parent: only a sleeping task lets a child run. */
++			wait_for_completion(&k5c_thread_gone);
++			*policy = DADAO_TRAP_RESUME_SKIP;
++			return 1;
++		}
++		if (immu18 == K5C_TRAP_WAIT_FORK) {
++			wait_for_completion(&k5c_fork_gone);
++			*policy = DADAO_TRAP_RESUME_SKIP;
++			return 1;
++		}
++		if (immu18 == K5C_TRAP_DONE) {
++			k5c_judge_done(cur, regs);
++			complete(&k5c_user_done);
++			/*
++			 * The probe is over: park the parent inside the kernel
++			 * so the boot task's execve check runs deterministically
++			 * (a parked task is off the run queue and cannot trap).
++			 */
++			wait_for_completion(&k5c_park);
++			*policy = DADAO_TRAP_RESUME_SKIP;
++			return 1;
++		}
++		return 0;			/* a real syscall: dispatch it */
++	}
++
++	/* ---- a child: the first trap carries what the clone left behind ---- */
++	if (immu18 == K5C_TRAP_CHILD_REPORT) {
++		k5c_judge_thread_report(cur, regs);
++		*policy = DADAO_TRAP_RESUME_SKIP;
++		return 1;
++	}
++	if (immu18 == K5C_TRAP_FORKCHILD_REPORT) {
++		k5c_judge_fork_child(cur, regs);
++		*policy = DADAO_TRAP_RESUME_SKIP;
++		return 1;
++	}
++	/*
++	 * The parent's own path, reached by a task that is not the parent: the
++	 * user wrapper branches on `rd8 == 0` and this task did not take the
++	 * child's arm, i.e. its `clone` return value was not 0.  Name it — the
++	 * alternative (letting it fall through to the dispatcher) parks the real
++	 * parent on a completion that can never come and the boot only times out.
++	 */
++	if (immu18 == K5C_TRAP_WAIT_THREAD || immu18 == K5C_TRAP_WAIT_FORK ||
++	    immu18 == K5C_TRAP_DONE) {
++		k5c_expect("c3_child_took_parent_path", 0,
++			   (unsigned long)cur->pid, K5C_FAIL_C3);
++		*policy = DADAO_TRAP_RESUME_SKIP;
++		return 1;
++	}
++	if (immu18 == SBI_UMON_SYSCALL && nr == __NR_exit) {
++		/*
++		 * Let the child die before the waiting parent runs again: the
++		 * completion is taken here, and `do_exit()` — which the dispatch
++		 * performs next — is what gives the CPU back.
++		 */
++		if (cur->pid == k5c_child_pid) {
++			dadao_early_printf("K5 clone child exit: pid=%d "
++					   "status=%#lx\n", cur->pid,
++					   regs->rd[16]);
++			complete(&k5c_thread_gone);
++		} else if (cur->pid == k5c_fork_pid) {
++			dadao_early_printf("K5 clone fork child exit: pid=%d "
++					   "status=%#lx\n", cur->pid,
++					   regs->rd[16]);
++			complete(&k5c_fork_gone);
++		}
++		return 0;			/* the real `exit` */
++	}
++	if (immu18 == SBI_UMON_SYSCALL && nr == __NR_getpid && !k5c_child_pid) {
++		k5c_judge_thread_child(cur, regs);
++		return 0;			/* the real `getpid` */
++	}
++	return 0;
++}
++
++/* -------------------------------------------------------------------------
++ * the entry point
++ * ------------------------------------------------------------------------- */
++
++/*
++ * The ELF64 entry of @path (big-endian, 8 bytes at offset 24), or ~0 when it
++ * cannot be read: the frame `execve` left is checked against the program's own
++ * header, not against a constant.
++ */
++static unsigned long k5c_elf_entry(const char *path)
++{
++	unsigned char head[32];
++	struct file *file;
++	loff_t pos = 0;
++	ssize_t n;
++	unsigned long entry = ~0UL;
++	int k;
++
++	file = filp_open(path, O_RDONLY, 0);
++	if (IS_ERR(file))
++		return ~0UL;
++	n = kernel_read(file, head, sizeof(head), &pos);
++	filp_close(file, NULL);
++	if (n != (ssize_t)sizeof(head))
++		return ~0UL;
++	for (k = 0; k < 8; k++)
++		entry = (entry << 8) | head[24 + k];
++	return entry;
++}
++
++void __noreturn dadao_k5_clone_selftest(void)
++{
++	struct kernel_clone_args args = { .flags = 0, .exit_signal = SIGCHLD };
++	struct page *code;
++	unsigned long size, exit_code = ~0UL;
++	int i, state = 0, pid;
++
++	dadao_early_printf("K5 clone selftest: begin pid=%d mm=%lu\n",
++			   current->pid,
++			   (unsigned long)(current->mm ? 1 : 0));
++
++	size = (unsigned long)(dadao_k5c_user_stub_end - dadao_k5c_user_stub);
++	if (size > PAGE_SIZE)
++		k5c_fail(K5C_FAIL_SETUP, "stub size", size);
++
++	code = alloc_page(GFP_KERNEL | __GFP_ZERO);
++	if (!code)
++		k5c_fail(K5C_FAIL_SETUP, "alloc_page", 0);
++	memcpy(page_address(code), dadao_k5c_user_stub, size);
++
++	k5c_mm = mm_alloc();
++	if (!k5c_mm)
++		k5c_fail(K5C_FAIL_SETUP, "mm_alloc", 0);
++	{
++		/* vm_mmap() maps into a task's mm; the probe's own has none. */
++		struct mm_struct *saved = current->mm;
++
++		current->mm = k5c_mm;
++		k5c_map_window(K5C_CODE_VA, PROT_READ | PROT_EXEC, code);
++		k5c_map_window(K5C_STACK_VA, PROT_READ | PROT_WRITE, NULL);
++		k5c_map_window(K5C_CHILD_STACK_VA, PROT_READ | PROT_WRITE, NULL);
++		current->mm = saved;
++	}
++	dadao_early_printf("K5 clone selftest: stub=%lu bytes code=%#lx "
++			   "stack=%#lx child_stack=%#lx\n", size, K5C_CODE_VA,
++			   K5C_STACK_VA, K5C_CHILD_STACK_VA);
++
++	init_completion(&k5c_thread_gone);
++	init_completion(&k5c_fork_gone);
++	init_completion(&k5c_user_done);
++	init_completion(&k5c_park);
++
++	args.fn = k5c_user_task;
++	args.fn_arg = NULL;
++	pid = kernel_clone(&args);
++	if (pid <= 0)
++		k5c_fail(K5C_FAIL_SETUP, "kernel_clone", (unsigned long)pid);
++
++	/* Off the run queue: the user task (and its children) can run. */
++	wait_for_completion(&k5c_user_done);
++
++	/*
++	 * The thread child exited before the parent's last trap (the completion
++	 * at its `exit` trap is what woke the parent, and `do_exit()` gives the
++	 * CPU back only after it is done), and a non-leader thread is released
++	 * at exit rather than left as a zombie — so "the tid is no longer a
++	 * task" is the fact to assert, not EXIT_ZOMBIE.
++	 */
++	for (i = 0; i < K5C_WAIT_ROUNDS; i++) {
++		struct task_struct *t = find_get_task_by_vpid(k5c_child_pid);
++
++		if (!t)
++			break;
++		state = t->exit_state;
++		exit_code = (unsigned long)t->exit_code;
++		put_task_struct(t);
++		schedule();
++	}
++	dadao_early_printf("K5 clone exit: thread=%d state=%d status=%#lx "
++			   "rounds=%d traps=%u\n", k5c_child_pid, state, exit_code,
++			   i, k5c_traps);
++	k5c_expect("clone_thread_gone", 0,
++		   (unsigned long)(find_get_task_by_vpid(k5c_child_pid) ? 1 : 0),
++		   K5C_FAIL_SETUP);
++
++	/*
++	 * X: `execve` must leave `rbtp = 0` for the new image (§10, user ruling
++	 * 2026-11-17 option A: the kernel's `start_thread()` clears it).  The
++	 * whole path runs here — `kernel_execve()` → `begin_new_exec()` →
++	 * `start_thread()` — and the frame the entry will load is
++	 * `task_pt_regs(current)`.
++	 */
++	{
++		static const char *argv[] = { K5C_INIT_ELF, NULL };
++		static const char *envp[] = { NULL };
++		unsigned long entry = k5c_elf_entry(K5C_INIT_ELF);
++		int rc = kernel_execve(K5C_INIT_ELF, argv, envp);
++		struct pt_regs *frame = task_pt_regs(current);
++
++		dadao_early_printf("K5 clone exec: rc=%d entry=%#lx ip=%#lx "
++				   "rb3=%#lx\n", rc, entry, frame->ip,
++				   frame->rb[3]);
++		k5c_expect("exec_ok", 0, (unsigned long)(rc < 0 ? -rc : 0),
++			   K5C_FAIL_EXEC);
++		if (rc == 0) {
++			k5c_expect("exec_entry_ip", entry, frame->ip,
++				   K5C_FAIL_EXEC);
++			k5c_expect("exec_rbtp_zero", 0, frame->rb[3],
++				   K5C_FAIL_EXEC);
++		}
++	}
++
++	if (k5c_failed) {
++		dadao_early_printf("K5 clone selftest: FAIL mask=%#x\n",
++				   k5c_failed);
++		dadao_early_exit(k5c_failed);
++	}
++	dadao_early_printf("K5 clone selftest: done (clone/thread/TLS closed)\n");
++	dadao_early_exit(0);
++}
++
++/*
++ * `late_initcall`: inside `kernel_init`, once the initramfs is unpacked and the
++ * futex hash exists (a clone from a task with an mm sizes it — m14-linux-020's
++ * note).  A milestone image does not compile this.
++ */
++static int __init k5_clone_selftest_init(void)
++{
++	dadao_k5_clone_selftest();
++}
++late_initcall(k5_clone_selftest_init);

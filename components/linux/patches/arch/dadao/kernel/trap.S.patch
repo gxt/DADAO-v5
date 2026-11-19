@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/trap.S b/arch/dadao/kernel/trap.S
 new file mode 100644
-index 000000000..2e24bf091
+index 000000000..b209e8717
 --- /dev/null
 +++ b/arch/dadao/kernel/trap.S
-@@ -0,0 +1,441 @@
+@@ -0,0 +1,596 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception vector (K2).
@@ -43,6 +43,7 @@ index 000000000..2e24bf091
 + * which needs exactly the same sequence.
 + */
 +#include <asm/asm-offsets.h>
++#include <asm/cfx.h>
 +#include <asm/entry.h>
 +#include <asm/trap.h>
 +
@@ -176,15 +177,19 @@ index 000000000..2e24bf091
 +	 */
 +	/*
 +	 * The stack this task's handler runs on: the top of its own kernel stack,
-+	 * parked in `cfx_umon cg6 rc1` by `__switch_to()` (m14-linux-017 S5).  A
-+	 * zero means no switch has run yet (early boot): fall back to the static
-+	 * entry stack, which is what the boot path used before K4 had tasks.
++	 * parked in `dadao_user_stack_top` by `__switch_to()` (and again by
++	 * `dadao_enter_user()`).  A cfx scratch slot cannot carry it — the
++	 * capture below stages `rd2`/`rd3` through cg6 rc0/rc1 and would
++	 * overwrite it (m14-linux-024).  A zero means no switch has run yet
++	 * (early boot): fall back to the static entry stack, which is what the
++	 * boot path used before K4 had tasks.
 +	 *
 +	 * rd2/rd3 are the reserved debug registers (contract-abi §4.5: the
 +	 * compiler never allocates them), so they are safe as the transition.
 +	 */
 +	rb2rd	rd2, rb1, 1			/* rd2 = user SP */
-+	cfx2rd	cfx_umon, cg6, rc1, rd3		/* rd3 = task kernel-stack top */
++	set.rb	rb3, dadao_user_stack_top	/* rb3 = &the parked value */
++	ld.o	rd3, [rb3, 0]			/* rd3 = task kernel-stack top */
 +	br.z	{rd3}?, [rb0, .Lumon_boot_stack]
 +	rd2rb	rb1, rd3, 1			/* rb1 = task stack top */
 +	jump	[rb0, .Lumon_stack_done]
@@ -224,17 +229,34 @@ index 000000000..2e24bf091
 +	set.rb	rb5, dadao_user_excp_handler
 +	call	[rb5, rd0, 0]			/* policy -> rd8 */
 +
-+	/* 5. Resume: retry the trapping instruction, or continue after it. */
++	/*
++	 * 5. Resume: retry the trapping instruction, or continue after it.
++	 *
++	 * cfx_umon's cg5 holds **one** frame, and it is the last entry's — this
++	 * task may have slept in the C half (a blocking syscall, the clone
++	 * probe's wait) while another task took its own umon entry and
++	 * overwrote `excp_cause_ip`.  `escape` takes its address from there, so
++	 * the field is rewritten from *this* task's frame first: the frame's
++	 * `ip` is the trap instruction it entered at (the stub wrote it from cg5
++	 * before any C code ran, and it is per-task because the frame lives on
++	 * this task's kernel stack).  Only `cause_ip` needs restoring — the
++	 * other cg5 fields the escape reads (`excp_prev_run_mode`,
++	 * `excp_prev_cfx_code`) are the same for every user trap.
++	 */
 +	br.z	{rd8}?, [rb0, .Lumon_retry]
 +	set.rb	rb5, dadao_umon_frame
 +	call	[rb5, rd0, 0]			/* rb8 = &task_pt_regs(current) */
 +	rb2rb	{rb3}, {rb8}
++	ld.o	rd4, [rb3, PT_IP]		/* this task's trap instruction */
++	cfx2rc	cfx_umon, cg5, rc3, rd4		/* cg5 rc3 = excp_cause_ip */
 +	DADAO_GPR_RESTORE_AT
 +	escape	cfx_umon, [excp_cause_ip, 4]
 +.Lumon_retry:
 +	set.rb	rb5, dadao_umon_frame
 +	call	[rb5, rd0, 0]
 +	rb2rb	{rb3}, {rb8}
++	ld.o	rd4, [rb3, PT_IP]
++	cfx2rc	cfx_umon, cg5, rc3, rd4		/* cg5 rc3 = excp_cause_ip */
 +	DADAO_GPR_RESTORE_AT
 +	escape	cfx_umon, [excp_cause_ip, 0]
 +
@@ -396,6 +418,139 @@ index 000000000..2e24bf091
 +	/* 9c */ trap	cfx_umon, 0		/* U2: does not return */
 +	/* a0 */ jump	[rb0, 0]		/* park */
 +dadao_k5_user_stub_end:
++#endif
++
++	/*
++	 * ---- K5 probe: the user program for clone/thread (m14-linux-024) ----
++	 *
++	 * Copied into a user-accessible code page and entered at its first
++	 * instruction (kernel/k5_clone_selftest.c), so it must be
++	 * position-independent (labels only) and register-only.
++	 *
++	 * The kernel hands it three values in the initial frame:
++	 *   rd11 = the page `lr`/`sc` work on (the probe's stack page),
++	 *   rd13 = the child's stack top (`newsp` of the thread clone),
++	 * and the parent's `rb3` = `rbtp` sentinel.
++	 *
++	 * Flow (every result goes to a callee-saved rd (21-31) so the kernel's
++	 * trap hook reads what user mode saw; the two `clone`s return in both
++	 * parent and child and the rd8 = 0 test is the wrapper's half of the
++	 * "double return", contract-syscall §10):
++	 *
++	 *   1. `lr` ; `sc` with nothing in between -> sc must succeed (0)
++	 *   2. `lr` ; getpid ; `sc` -> the exception entry cleared the
++	 *      reservation, so sc must fail (1) (SimRISC-12 §1, §11)
++	 *   3. clone(CLONE_VM|FS|FILES|SIGHAND|THREAD|SETTLS, new stack, tls)
++	 *        parent: tid in rd8 -> wait trap -> fork case
++	 *        child : rd8 = 0, rb3 = tls -> getpid, report, exit(0)
++	 *   4. clone(SIGCHLD, no stack) -- the fork contrast
++	 *        parent: tid in rd8 -> wait trap -> done trap
++	 *        child : rd8 = 0 -> report, exit(0)
++	 */
++#ifdef CONFIG_DADAO_K5_CLONE_SELFTEST
++/*
++ * The probe's own constants, kept next to the program that uses them: the
++ * kernel half (kernel/k5_clone_selftest.c) reads the flags and the tls value
++ * back *out of the frame* instead of repeating them, and the gate cross-checks
++ * what the console reports against `include/uapi/linux/sched.h` and against
++ * this file, so a drift is a FAIL rather than a silent agreement.
++ *
++ * CLONE_* values as `include/uapi/linux/sched.h` defines them:
++ *   VM 0x100 | FS 0x200 | FILES 0x400 | SIGHAND 0x800 | THREAD 0x10000 |
++ *   SETTLS 0x80000  = 0x90f00  (exit_signal = 0: a thread, not a process)
++ *
++ * The `0x2b00` immediates are probe-only umon functions (the contract defines
++ * 0 and 1, spec/DADAO-22 §2); the kernel's hook claims them.
++ */
++#define K5C_CLONE_FLAGS		0x90f00
++#define K5C_TLS			0x4b3543544c530001
++/* The frame-copy sentinel: a value only the *copy* of the frame can explain. */
++#define K5C_FRAME_SENTINEL	0x5c5c5c5c5c5c5c5c
++#define K5C_TRAP_WAIT_THREAD	0x2b01
++#define K5C_TRAP_CHILD_REPORT	0x2b02
++#define K5C_TRAP_WAIT_FORK	0x2b03
++#define K5C_TRAP_FORKCHILD_REPORT 0x2b04
++#define K5C_TRAP_DONE		0x2b05
++
++	.section .rodata,"a"
++	.p2align 2
++	.globl	dadao_k5c_user_stub
++	.globl	dadao_k5c_user_stub_end
++dadao_k5c_user_stub:
++	/*
++	 * 1. lr ; sc with *nothing* in between: the reservation is still held.
++	 *
++	 * The page is touched first with a plain store: the first access to an
++	 * anonymous page is a fault, and a fault clears the reservation
++	 * (SimRISC-12 §1) — without this the case would measure the fault
++	 * handler instead of the reservation.
++	 */
++	rd2rb	rb5, rd11, 1		/* rb5 = the page the probe reserved on */
++	st.o	rd0, [rb5, 0]		/* first touch: private + writable */
++	lr.o.nn	rd2, [rb5]
++	sc.o.nn	rd3, rd2, [rb5]
++	rd2rd	rd24, rd3, 1		/* rd24 = 0 (success) */
++	/* 2. lr ; syscall ; sc: the entry cleared it, so sc must fail */
++	lr.o.nn	rd2, [rb5]
++	set.rd	rd15, 172		/* __NR_getpid */
++	trap	cfx_umon, 0
++	sc.o.nn	rd6, rd2, [rb5]
++	rd2rd	rd26, rd6, 1		/* rd26 = 1 (failure) */
++	/* 3. clone(CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_SIGHAND|CLONE_THREAD|
++	 *          CLONE_SETTLS) with its own stack and a new thread pointer.
++	 *
++	 * `rd12` is loaded with a sentinel the program never writes again: the
++	 * child's frame must be the parent's *copy*, so the same value has to
++	 * come back at the child's first trap (contract-syscall §11「子现场 =
++	 * 父现场副本」). */
++	set.rd	rd12, K5C_FRAME_SENTINEL
++	set.rd	rd16, K5C_CLONE_FLAGS
++	rd2rd	rd17, rd13, 1		/* newsp = the child's stack top */
++	set.rd	rd14, 0
++	rd2rb	rb16, rd14, 1		/* parent_tidptr = NULL */
++	set.rd	rd18, K5C_TLS		/* tls */
++	rd2rb	rb17, rd14, 1		/* child_tidptr = NULL */
++	set.rd	rd15, 220		/* __NR_clone */
++	trap	cfx_umon, 0
++	rd2rd	rd27, rd8, 1		/* parent: tid; child: 0 */
++	rb2rd	rd28, rb3, 1		/* parent: sentinel; child: tls */
++	br.z	{rd8}?, [rb0, .Lk5c_child]
++	/* ---- parent: let the thread child and then the fork child run ---- */
++	trap	cfx_umon, K5C_TRAP_WAIT_THREAD
++	set.rd	rd16, 17		/* SIGCHLD: a real fork, no stack */
++	set.rd	rd17, 0
++	set.rd	rd14, 0
++	rd2rb	rb16, rd14, 1
++	rd2rb	rb17, rd14, 1
++	set.rd	rd15, 220		/* __NR_clone */
++	trap	cfx_umon, 0
++	rd2rd	rd21, rd8, 1
++	rb2rd	rd22, rb3, 1
++	br.z	{rd8}?, [rb0, .Lk5c_fork_child]
++	trap	cfx_umon, K5C_TRAP_WAIT_FORK
++	trap	cfx_umon, K5C_TRAP_DONE
++	jump	[rb0, .Lk5c_park]
++	/* ---- the thread child: rd8 = 0, rb3 = tls ---- */
++.Lk5c_child:
++	set.rd	rd15, 172		/* __NR_getpid: a second syscall */
++	trap	cfx_umon, 0
++	rd2rd	rd29, rd8, 1		/* the thread's getpid = the group's tgid */
++	rb2rd	rd30, rb3, 1		/* rbtp after a completed syscall */
++	trap	cfx_umon, K5C_TRAP_CHILD_REPORT
++	set.rd	rd16, 0
++	set.rd	rd15, 93		/* __NR_exit */
++	trap	cfx_umon, 0
++	jump	[rb0, .Lk5c_park]
++	/* ---- the fork child: rd8 = 0, its own address space ---- */
++.Lk5c_fork_child:
++	rb2rd	rd23, rb3, 1		/* rbtp inherited from the parent */
++	trap	cfx_umon, K5C_TRAP_FORKCHILD_REPORT
++	set.rd	rd16, 0
++	set.rd	rd15, 93		/* __NR_exit */
++	trap	cfx_umon, 0
++.Lk5c_park:
++	jump	[rb0, .Lk5c_park]	/* no path returns here */
++dadao_k5c_user_stub_end:
 +#endif
 +
 +	/*

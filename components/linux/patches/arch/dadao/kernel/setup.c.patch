@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..6102498a2
+index 000000000..4ade9eb42
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,437 @@
+@@ -0,0 +1,446 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -346,6 +346,15 @@ index 000000000..6102498a2
 +	 * program needs the initramfs and the VFS, so it runs from a
 +	 * `late_initcall` inside `kernel_init` (kernel/k5_syscall_selftest.c)
 +	 * and owns the final SYS_EXIT there.
++	 */
++	return;
++#endif
++#ifdef CONFIG_DADAO_K5_CLONE_SELFTEST
++	/*
++	 * The clone/thread probe (m14-linux-024) is that shape too, and for one
++	 * more reason: its `clone()` calls need the futex hash, which only
++	 * exists after the initcalls.  It runs from a `late_initcall` inside
++	 * `kernel_init` (kernel/k5_clone_selftest.c) and owns the final SYS_EXIT.
 +	 */
 +	return;
 +#endif

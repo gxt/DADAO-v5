@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..bfc026298
+index 000000000..398a4edd3
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,239 @@
+@@ -0,0 +1,250 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -157,6 +157,17 @@ index 000000000..bfc026298
 + * probe claims the trap (its reporting trap), 0 to let the dispatcher run. */
 +int dadao_k5_user_trap(struct pt_regs *regs, unsigned long immu18,
 +		       unsigned long *policy);
++#endif
++
++#if defined(CONFIG_DADAO_K5_CLONE_SELFTEST)
++/* The clone/thread probe image: runs from a late_initcall and ends the boot. */
++void __noreturn dadao_k5_clone_selftest(void);
++/* Its view of every umon trap of the probe's user tasks (parent and children).
++ * Returns 1 when the probe claims the trap, 0 to let the dispatcher run; it may
++ * block (the parent's "wait for my children" traps park here), which is why the
++ * dispatcher calls it with the re-entrancy guard dropped. */
++int dadao_k5c_user_trap(struct pt_regs *regs, unsigned long immu18,
++			unsigned long *policy);
 +#endif
 +/*
 + * Guest FAIL check points of the K4 user-mode entry (spec/Kaiwu §7.1 guest

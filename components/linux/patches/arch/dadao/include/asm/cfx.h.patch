@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/cfx.h b/arch/dadao/include/asm/cfx.h
 new file mode 100644
-index 000000000..0fbe5ee30
+index 000000000..ce1cafde3
 --- /dev/null
 +++ b/arch/dadao/include/asm/cfx.h
-@@ -0,0 +1,93 @@
+@@ -0,0 +1,102 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO cfx register access (spec/DADAO-12 §3, §4): `cfx2rd` / `cfx2rc`.
@@ -49,10 +49,19 @@ index 000000000..0fbe5ee30
 +#define UMON_CG_SUPV			2
 +#define UMON_RC_TRAP_MASK		0	/* supv cfxtrap source mask */
 +#define UMON_RC_REG_MASK		2	/* supv cfxreg source mask */
-+/* cg6 = the per-cfx scratch registers (spec/DADAO-12 §3.7); the user entry
-+ * reads the task's kernel-stack top from rc1 (m14-linux-017 S5). */
-+#define UMON_CG_SCRATCH			6
-+#define UMON_RC_SCRATCH_STACK_TOP	1
++/*
++ * cg5 = the exception frame fields (spec/DADAO-12 §3.6), same layout in every
++ * cfx.  `rc3` (`excp_cause_ip`) is the one the umon return path owns: `escape`
++ * adds its 0/+4 offset to it, and a task that slept inside the handler must put
++ * its *own* value back before escaping — a cfx's cg5 holds only the last entry,
++ * which may have been another task's (m14-linux-024, kernel/trap.S).
++ */
++/*
++ * cg6 = the per-cfx scratch registers (spec/DADAO-12 §3.7).  Its rc0/rc1 are
++ * the exception capture's staging slots for `rd2`/`rd3` (asm/entry.h), so they
++ * do NOT survive an entry: the umon entry's per-task stack top lives in
++ * `dadao_user_stack_top` (kernel/process.c), not here (m14-linux-024).
++ */
 +/*
 + * The cfx that can be *current* inside the kernel: cfx_smon at boot,
 + * cfx_umon after a task has trapped (spec/DADAO-12 §5.2 step 6), cfx_hart after

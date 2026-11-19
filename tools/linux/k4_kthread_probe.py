@@ -54,10 +54,12 @@ Groups (the letters ``--selfcheck``/``--inject`` flip):
      `rb3`/`thread.tp` at 0 and starts at `dadao_ret_from_fork`; a fork from the
      same task gets a private `mm` with a different ASID.
   K4 the *negative* half — what this milestone must not implement: no user
-     `clone()` (`copy_thread()` takes no `tls` argument, the arch never spells
-     `CLONE_SETTLS`/`CLONE_THREAD`/`ret_from_kernel_thread`, there is no clone
-     entry in the syscall table) and a kernel thread's frame carries no `rd8`
-     return value.  All structural, judged from the sources.
+     `clone()` in this probe (`copy_thread()` takes no `tls` argument and the
+     kernel-thread probe never spells `CLONE_SETTLS`/`CLONE_THREAD`), no
+     `ret_from_kernel_thread` and no futex surface, and a kernel thread's frame
+     carries no `rd8` return value.  The user `clone()`/TLS work arrived with
+     m14-linux-024 (K5) and lives in `copy_thread()`'s `CLONE_SETTLS` branch and
+     in the K5 clone probe — structural, judged from the sources either way.
 
 ``--inject`` corrupts one rule, rebuilds, asserts the named group goes red,
 restores with ``cp`` + md5 and proves the image is green again: ① `rest_init()`
@@ -129,6 +131,7 @@ CONFIG_PINS = {
     # m14-linux-023: the user-syscall probe image; pin it off so no other
     # image inherits it from the shared build tree.
     "CONFIG_DADAO_K5_SYSCALL_SELFTEST": "n",
+    "CONFIG_DADAO_K5_CLONE_SELFTEST": "n",
 }
 
 IMAGE = config_pins.config_lines(CONFIG_PINS)
@@ -515,14 +518,26 @@ def check_static(rep: Report, rc_build: int, snap: dict | None, d: dict) -> None
               "int copy_thread(struct task_struct *p, "
               "const struct kernel_clone_args *args)" in process)
 
-    # K4's negative half: no user clone surface in this milestone.
+    # K4's negative half: this milestone owns kernel threads only.  The user
+    # `clone()`/TLS surface arrived with m14-linux-024 (K5) — it lives in the
+    # arch's `copy_thread()` hook and in the K5 clone probe, and must stay out
+    # of *this* milestone's probe; the kernel-thread shape above (S4) is what
+    # this gate is about either way.
     arch = "\n".join(strip_comments(kernel_text(rel)) for rel in (
         PROCESS_C, "arch/dadao/kernel/syscall_table.c",
         "arch/dadao/kernel/syscalls.c", SETUP_C, SELFTEST_C))
-    for token in ("CLONE_SETTLS", "CLONE_THREAD", "ret_from_kernel_thread",
-                  "futex"):
-        rep.check("S5", f"arch/dadao 不实现 {token}（用户 clone/TLS/futex 归 K5）",
+    kthread_probe = strip_comments(kernel_text(SELFTEST_C))
+    for token in ("CLONE_SETTLS", "CLONE_THREAD"):
+        rep.check("S5", f"K4 探针不处理 {token}（用户 clone 归 K5）", 0,
+                  kthread_probe.count(token))
+    for token in ("ret_from_kernel_thread", "futex"):
+        rep.check("S5", f"arch/dadao 不实现 {token}（futex 归 K5/m14-linux-025）",
                   0, arch.count(token))
+    rep.check("S5", "用户 clone 的 SETTLS 分支在 arch 的进程钩子里（K5）", True,
+              "args->flags & CLONE_SETTLS" in process)
+    rep.check("S5", "K5 clone 探针登记在 kernel/Makefile（探针镜像）", True,
+              "obj-$(CONFIG_DADAO_K5_CLONE_SELFTEST) += k5_clone_selftest.o"
+              in kernel_text("arch/dadao/kernel/Makefile"))
     rep.check("S5", "arch 的 syscalls.c 没有 clone 实现（表走 asm-generic）", False,
               "clone" in kernel_text("arch/dadao/kernel/syscalls.c").lower())
 
