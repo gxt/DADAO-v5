@@ -1,13 +1,15 @@
 diff --git a/arch/dadao/mm/Makefile b/arch/dadao/mm/Makefile
 new file mode 100644
-index 000000000..934483535
+index 000000000..f51efefc0
 --- /dev/null
 +++ b/arch/dadao/mm/Makefile
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,24 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-y += init.o k1_pt.o mmu.o
 +# K3 demand paging: the CFXMEM/CFXPERM page-fault channel (m14-linux-012).
 +obj-y += fault.o
++# K4 copy-on-write: the write half of a forked address space (m14-linux-018).
++obj-y += cow.o
 +# K3 page-table/TLB self-test: probe image only.
 +obj-$(CONFIG_DADAO_K3_PT_SELFTEST) += k3_pt_selftest.o
 +# K3 page-fault self-test: probe image only.  The symbol is an int (0 = off,
@@ -20,4 +22,9 @@ index 000000000..934483535
 +# symbol has no y/m spelling, so this is a make-level test like the K3 one).
 +ifneq ($(CONFIG_DADAO_K4_STACK_SELFTEST),0)
 +obj-y += k4_stack_selftest.o
++endif
++# K4 copy-on-write self-test: probe image only, one case per image (same shape:
++# the int symbol has no y/m spelling).
++ifneq ($(CONFIG_DADAO_K4_COW_SELFTEST),0)
++obj-y += k4_cow_selftest.o
 +endif

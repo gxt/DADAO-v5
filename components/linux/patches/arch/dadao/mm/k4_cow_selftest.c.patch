@@ -1,0 +1,477 @@
+diff --git a/arch/dadao/mm/k4_cow_selftest.c b/arch/dadao/mm/k4_cow_selftest.c
+new file mode 100644
+index 000000000..7130f2d39
+--- /dev/null
++++ b/arch/dadao/mm/k4_cow_selftest.c
+@@ -0,0 +1,471 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * K4 copy-on-write self-test (m14-linux-018's W1-W5, probe image only).
++ *
++ * A fork shares every private writable page: generic `copy_page_range()` points
++ * both address spaces at the same physical page and write-protects both sides,
++ * and this port resolves the write half itself (mm/cow.c) because its fault
++ * channel reads CFXPERM + NWPERM instead of calling the generic
++ * `do_wp_page()`.  What this file proves, and how:
++ *
++ *   W1  the child writes the shared page: its PTE moves to a different physical
++ *       page whose *contents are the old ones* (a non-zero sentinel at offset 0
++ *       survives, and the child's own value is at offset 8) — a page that was
++ *       merely allocated (zeroed) would lose the sentinel, so the check tells a
++ *       copy from a fresh page.  The child runs for real: it is a task created
++ *       by `kernel_clone()`, scheduled by the parent's `schedule()` loop, with
++ *       its own address space activated by `switch_mm()` (m14-linux-017).
++ *
++ *   W2  non-interference: the parent's PTE still points at the original page,
++ *       its contents are unchanged (the child's write is not visible), and that
++ *       page is still the one the parent reads.
++ *
++ *   W4  references: the page has one reference before the fork, two after it
++ *       (the fork took one), one again once the child copied (the copy dropped
++ *       the fork's reference), and none after the parent unmaps the mapping —
++ *       the last reference frees the page.  All four are printed, not assumed.
++ *
++ *   W5  invalidation: after the child's copy the parent's PTE is *still*
++ *       read-only, so the parent's own write enters the channel again — and
++ *       because the page is now its sole reference, it is upgraded in place (no
++ *       second copy, same PA).  The invalidation the COW issued is printed with
++ *       its operands, so the gate can hold them against contract-tlb TLB-19
++ *       (op/scope/ASID_ANY/ASID); W3 below is the counter-例 for "no
++ *       invalidation at all" (the retried store would fault forever and the
++ *       retry budget ends the boot).
++ *
++ *   W3  (a separate image, because it ends the boot) a write to a read-only page
++ *       of a `VM_SHARED` mapping is *not* copy-on-write: sharing is what that
++ *       mapping is for, so it is a genuine permission violation and the channel
++ *       terminates by name (CFXPERM + NWPERM, `die-perm`).
++ *
++ * The write itself is done by kernel-side probe code (a supv store to a user
++ * VA), which the task book allows: pressing on the page from user mode is the
++ * U-mode closure of m14-linux-016/017 and is recorded there, not faked here.
++ *
++ * One image, one verdict: the recoverable cases print their values and end with
++ * SYS_EXIT(0); a violated expectation ends the boot with the guest FAIL segment
++ * (spec/Kaiwu §7.1) naming the case.
++ */
++#include <linux/completion.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/mman.h>
++#include <linux/mm.h>
++#include <linux/mm_types.h>
++#include <linux/sched.h>
++#include <linux/sched/mm.h>
++#include <linux/sched/task.h>
++#include <linux/sched/task_stack.h>
++#include <linux/signal.h>
++#include <linux/string.h>
++#include <linux/types.h>
++
++#include <asm/mmu_context.h>
++#include <asm/page.h>
++#include <asm/pgalloc.h>
++#include <asm/pgtable.h>
++#include <asm/setup.h>
++
++/*
++ * Guest FAIL segment (spec/Kaiwu §7.1): kernel/process.c owns 0x30-0x32,
++ * kernel/k4_selftest.c 0x33-0x3a, mm/k4_stack_selftest.c 0x3b-0x3e and
++ * kernel/k4_switch_selftest.c 0x40-0x46; this probe starts at 0x47.
++ */
++#define COW_FAIL_SETUP		0x47	/* mm_alloc()/vm_mmap()/PTE build */
++#define COW_FAIL_CHILD		0x48	/* the forked task did not run */
++#define COW_FAIL_W1		0x49	/* the write did not produce a copy */
++#define COW_FAIL_W2		0x4a	/* the other side was disturbed */
++#define COW_FAIL_W4		0x4b	/* reference counting */
++#define COW_FAIL_W5		0x4c	/* the second write / invalidation */
++
++/*
++ * The scratch window: inside user space (spec/Kaiwu §6.3, [0, 2 TiB)) and far
++ * from the other K4 probes' bases (1 TiB and 1 TiB + 256 GiB).
++ */
++#define COW_VA_BASE		(1UL << 39)
++
++/* The sentinel the parent stores before the fork; the child must inherit it by
++ * *content*, not by sharing the page. */
++#define COW_MAGIC		0x4b34434f57000001UL	/* "K4COW" + 1 */
++#define COW_CHILD_MARK		0x4b34434f5700c11dUL	/* the child's own word */
++#define COW_PARENT_MARK		0x4b34434f5700b0b0UL	/* the parent's own word */
++#define COW_OFF_CHILD		8		/* where the child writes */
++#define COW_OFF_PARENT		16		/* where the parent writes */
++
++static struct mm_struct *cow_mm;
++
++static volatile unsigned long cow_child_done;
++static volatile unsigned long cow_child_seen_pa;
++static volatile unsigned long cow_child_seen_write;
++static volatile unsigned long cow_child_read;
++static volatile unsigned long cow_child_new_pa;
++static volatile unsigned long cow_child_store_ok;
++/* A completion nobody ever completes: the proper way for a probe task to park
++ * (kernel/k4_switch_selftest.c documents the "PID 1 must not exit" reason). */
++static DECLARE_COMPLETION(cow_parked);
++
++static noinline unsigned long cow_load(unsigned long va)
++{
++	return *(volatile unsigned long *)va;
++}
++
++static noinline void cow_store(unsigned long va, unsigned long value)
++{
++	*(volatile unsigned long *)va = value;
++}
++
++static void __noreturn cow_fail(unsigned long why, const char *what,
++				unsigned long value)
++{
++	dadao_early_printf("K4 cow FAIL: %s=%#lx why=%#lx\n", what, value, why);
++	dadao_early_exit(why);
++}
++
++static void cow_expect(const char *what, unsigned long want, unsigned long got,
++		       unsigned long why)
++{
++	dadao_early_printf("K4 check %s want=%#lx got=%#lx %s\n", what, want,
++			   got, want == got ? "ok" : "BAD");
++	if (want != got)
++		cow_fail(why, what, got);
++}
++
++/* The PTE of @addr in @mm, or 0 when there is none (walked the port's way). */
++static unsigned long cow_pte(struct mm_struct *mm, unsigned long addr)
++{
++	pmd_t *pmd = pmd_off(mm, addr);
++
++	if (pmd_none(*pmd) || (pmd_val(*pmd) & _PAGE_SUPER))
++		return 0;
++	return pte_val(*pte_offset_kernel(pmd, addr));
++}
++
++static unsigned long cow_pfn_of(struct mm_struct *mm, unsigned long addr)
++{
++	return cow_pte(mm, addr) & _PAGE_PFN_MASK;
++}
++
++/* The probe owns the address space from here on: `vm_mmap()` maps into
++ * `current->mm` and the fault channel takes its `find_vma(current->mm)` arm
++ * only when the mm is attached and is the one the walker uses. */
++static void cow_setup_mm(void)
++{
++	cow_mm = mm_alloc();
++	if (!cow_mm)
++		cow_fail(COW_FAIL_SETUP, "mm_alloc", 1);
++	current->mm = cow_mm;
++	current->active_mm = cow_mm;
++	dadao_switch_mm(NULL, cow_mm, current);
++	dadao_early_printf("K4 cow mm: mm=%#lx pgd=%#lx asid=%lu ptbr=%#lx "
++			   "page=%lu shift=%u\n", (unsigned long)cow_mm,
++			   (unsigned long)cow_mm->pgd,
++			   (unsigned long)cow_mm->context.asid,
++			   dadao_ptbr_read(), (unsigned long)PAGE_SIZE,
++			   (unsigned int)PAGE_SHIFT);
++}
++
++static unsigned long cow_map(unsigned long addr, unsigned long len,
++			     unsigned long prot, unsigned long flags)
++{
++	unsigned long ret = vm_mmap(NULL, addr, len, prot,
++				    flags | MAP_FIXED, 0);
++
++	if (ret != addr)
++		cow_fail(COW_FAIL_SETUP, "vm_mmap", ret);
++	return ret;
++}
++
++/* -------------------------------------------------------------------------
++ * Case 1: W1 + W2 + W4 + W5 (all recoverable, one boot)
++ * ------------------------------------------------------------------------- */
++
++#if CONFIG_DADAO_K4_COW_SELFTEST == 1
++
++/*
++ * The child task: reads the shared page, writes it, and reports what the
++ * channel did.  It runs with its *own* address space (dup_mm + switch_mm), so
++ * the fault it takes is resolved against the child's PTE — which is the whole
++ * point of a copy-on-write.
++ */
++static int cow_child(void *arg)
++{
++	unsigned long pte;
++
++	(void)arg;
++	pte = cow_pte(current->mm, COW_VA_BASE);
++	cow_child_seen_pa = pte & _PAGE_PFN_MASK;
++	cow_child_seen_write = (pte & _PAGE_WRITE) ? 1 : 0;
++
++	/* A read of the shared page: the fork's PTE is present and R, so this
++	 * must not fault, and it must see the parent's sentinel. */
++	cow_child_read = cow_load(COW_VA_BASE);
++
++	/* The write that must resolve through mm/cow.c. */
++	cow_store(COW_VA_BASE + COW_OFF_CHILD, COW_CHILD_MARK);
++	cow_child_store_ok =
++		cow_load(COW_VA_BASE + COW_OFF_CHILD) == COW_CHILD_MARK;
++
++	pte = cow_pte(current->mm, COW_VA_BASE);
++	cow_child_new_pa = pte & _PAGE_PFN_MASK;
++	dadao_early_printf("K4 cow child: mm=%#lx asid=%lu pa=%#lx new_pa=%#lx "
++			   "w=%lu new_w=%lu read=%#lx store_ok=%lu\n",
++			   (unsigned long)current->mm,
++			   (unsigned long)current->mm->context.asid,
++			   cow_child_seen_pa, cow_child_new_pa,
++			   cow_child_seen_write,
++			   (pte & _PAGE_WRITE) ? 1UL : 0UL, cow_child_read,
++			   cow_child_store_ok);
++	cow_child_done = 1;
++
++	/* Park: the boot task owns the verdict (and PID 1 must not exit). */
++	wait_for_completion(&cow_parked);
++	return 0;
++}
++
++static noinline void cow_case_shared(void)
++{
++	struct kernel_clone_args args = { .flags = 0, .exit_signal = SIGCHLD };
++	struct task_struct *child;
++	unsigned long orig_pa, child_pa, child_new_pa, content0, content1;
++	unsigned long spins = 0, entries0, copies0, inplaces0, puts0, refs;
++	struct page *page, *new_page;
++	pid_t pid;
++
++	cow_setup_mm();
++
++	/*
++	 * The parent's page, populated through the channel itself (a store to a
++	 * fresh MAP_PRIVATE page faults, gets the zero page, faults again on the
++	 * write and is turned private) — so the page under test is the ordinary
++	 * kind a task owns, not one hand-built by the probe.
++	 */
++	cow_map(COW_VA_BASE, 2 * PAGE_SIZE, PROT_READ | PROT_WRITE,
++		MAP_PRIVATE | MAP_ANONYMOUS);
++	cow_store(COW_VA_BASE, COW_MAGIC);
++	content0 = cow_load(COW_VA_BASE);
++	orig_pa = cow_pfn_of(cow_mm, COW_VA_BASE);
++	if (!orig_pa)
++		cow_fail(COW_FAIL_SETUP, "parent-pa", COW_VA_BASE);
++	page = pfn_to_page(orig_pa >> PAGE_SHIFT);
++	dadao_early_printf("K4 cow setup: va=%#lx pa=%#lx content=%#lx count=%lu "
++			   "w=%lu copies=%lu inplace=%lu puts=%lu\n",
++			   COW_VA_BASE, orig_pa, content0, page_count(page),
++			   (cow_pte(cow_mm, COW_VA_BASE) & _PAGE_WRITE) ? 1UL : 0UL,
++			   dadao_cow_stats[DADAO_COW_COPY],
++			   dadao_cow_stats[DADAO_COW_INPLACE],
++			   dadao_cow_stats[DADAO_COW_PUT]);
++	cow_expect("setup-content", COW_MAGIC, content0, COW_FAIL_SETUP);
++	cow_expect("setup-one-ref", 1, page_count(page), COW_FAIL_SETUP);
++
++	/* ---- the fork: the page becomes shared and read-only on both sides -- */
++	args.fn = cow_child;
++	args.fn_arg = NULL;
++	pid = kernel_clone(&args);
++	clear_tsk_need_resched(current);
++	if (pid <= 0)
++		cow_fail(COW_FAIL_CHILD, "clone", (unsigned long)-(long)pid);
++	child = find_get_task_by_vpid(pid);
++	if (!child || !child->mm)
++		cow_fail(COW_FAIL_CHILD, "child", child ? 0UL : 1UL);
++
++	child_pa = cow_pfn_of(child->mm, COW_VA_BASE);
++	dadao_early_printf("K4 cow fork: pid=%d parent_pa=%#lx child_pa=%#lx "
++			   "same=%lu w_parent=%lu w_child=%lu count=%lu "
++			   "dup_pages=%lu dup_writable=%lu\n", (int)pid, orig_pa,
++			   child_pa, child_pa == orig_pa ? 1UL : 0UL,
++			   (cow_pte(cow_mm, COW_VA_BASE) & _PAGE_WRITE) ? 1UL : 0UL,
++			   (cow_pte(child->mm, COW_VA_BASE) & _PAGE_WRITE) ? 1UL : 0UL,
++			   page_count(page), dadao_cow_dup_pages,
++			   dadao_cow_dup_writable);
++	cow_expect("w1-fork-shares-pa", 1, child_pa == orig_pa, COW_FAIL_W1);
++	cow_expect("w1-fork-child-readonly", 0,
++		   (cow_pte(child->mm, COW_VA_BASE) & _PAGE_WRITE) ? 1UL : 0UL,
++		   COW_FAIL_W1);
++	cow_expect("w1-fork-parent-readonly", 0,
++		   (cow_pte(cow_mm, COW_VA_BASE) & _PAGE_WRITE) ? 1UL : 0UL,
++		   COW_FAIL_W2);
++	cow_expect("w4-refs-after-fork", 2, page_count(page), COW_FAIL_W4);
++	cow_expect("fork-dup-writable", 0, dadao_cow_dup_writable, COW_FAIL_W1);
++
++	/* ---- let the child run: its write is the COW ---------------------- */
++	while (!cow_child_done && spins < 200000UL) {
++		spins++;
++		schedule();
++	}
++	dadao_early_printf("K4 cow wait: spins=%lu done=%lu\n", spins,
++			   cow_child_done);
++	cow_expect("w1-child-ran", 1, cow_child_done, COW_FAIL_CHILD);
++
++	/* ---- W1: the write side owns a *copy of the old contents* --------- */
++	child_new_pa = cow_pfn_of(child->mm, COW_VA_BASE);
++	new_page = pfn_to_page(child_new_pa >> PAGE_SHIFT);
++	content0 = *(unsigned long *)__va(child_new_pa);
++	content1 = *(unsigned long *)(__va(child_new_pa) + COW_OFF_CHILD);
++	dadao_early_printf("K4 cow w1: orig_pa=%#lx child_pa=%#lx "
++			   "child_new_pa=%#lx child_w=%lu content0=%#lx "
++			   "content1=%#lx new_count=%lu\n", orig_pa, child_pa,
++			   child_new_pa,
++			   (cow_pte(child->mm, COW_VA_BASE) & _PAGE_WRITE) ? 1UL : 0UL,
++			   content0, content1, page_count(new_page));
++	cow_expect("w1-pa-moved", 1, child_new_pa != orig_pa, COW_FAIL_W1);
++	cow_expect("w1-copied-sentinel", COW_MAGIC, content0, COW_FAIL_W1);
++	cow_expect("w1-child-own-word", COW_CHILD_MARK, content1, COW_FAIL_W1);
++	cow_expect("w1-now-writable", 1,
++		   (cow_pte(child->mm, COW_VA_BASE) & _PAGE_WRITE) ? 1UL : 0UL,
++		   COW_FAIL_W1);
++	cow_expect("w1-child-read-saw-shared", COW_MAGIC, cow_child_read,
++		   COW_FAIL_W1);
++	cow_expect("w4-refs-after-copy", 1, page_count(page), COW_FAIL_W4);
++	cow_expect("w4-copy-one-ref", 1, page_count(new_page), COW_FAIL_W4);
++
++	/* ---- W2: the parent's page and contents are untouched ------------- */
++	content0 = *(unsigned long *)__va(orig_pa);
++	content1 = *(unsigned long *)(__va(orig_pa) + COW_OFF_CHILD);
++	dadao_early_printf("K4 cow w2: parent_pa=%#lx content0=%#lx "
++			   "content1=%#lx count=%lu\n",
++			   cow_pfn_of(cow_mm, COW_VA_BASE), content0, content1,
++			   page_count(page));
++	cow_expect("w2-parent-pa-kept", orig_pa, cow_pfn_of(cow_mm, COW_VA_BASE),
++		   COW_FAIL_W2);
++	cow_expect("w2-parent-content-kept", COW_MAGIC, content0, COW_FAIL_W2);
++	cow_expect("w2-child-write-not-seen", 0, content1, COW_FAIL_W2);
++
++	/* ---- W5: the parent's own write faults again, in place ------------ */
++	entries0 = dadao_pf_entry_count();
++	copies0 = dadao_cow_stats[DADAO_COW_COPY];
++	inplaces0 = dadao_cow_stats[DADAO_COW_INPLACE];
++	puts0 = dadao_cow_stats[DADAO_COW_PUT];
++	cow_store(COW_VA_BASE + COW_OFF_PARENT, COW_PARENT_MARK);
++	content0 = cow_load(COW_VA_BASE + COW_OFF_PARENT);
++	dadao_early_printf("K4 cow w5: entries=%lu copies=%lu inplace=%lu "
++			   "puts=%lu pa=%#lx content=%#lx ctrl=%#lx flush_asid=%lu "
++			   "flush_any=%lu flush_va=%#lx mm_asid=%lu\n",
++			   dadao_pf_entry_count() - entries0,
++			   dadao_cow_stats[DADAO_COW_COPY] - copies0,
++			   dadao_cow_stats[DADAO_COW_INPLACE] - inplaces0,
++			   dadao_cow_stats[DADAO_COW_PUT] - puts0,
++			   cow_pfn_of(cow_mm, COW_VA_BASE), content0,
++			   dadao_cow_last_flush[0], dadao_cow_last_flush[1],
++			   dadao_cow_last_flush[2], dadao_cow_last_flush[3],
++			   (unsigned long)cow_mm->context.asid);
++	cow_expect("w5-second-fault", 1, dadao_pf_entry_count() - entries0,
++		   COW_FAIL_W5);
++	cow_expect("w5-in-place", 1,
++		   dadao_cow_stats[DADAO_COW_INPLACE] - inplaces0, COW_FAIL_W5);
++	cow_expect("w5-no-second-copy", 0,
++		   dadao_cow_stats[DADAO_COW_COPY] - copies0, COW_FAIL_W5);
++	cow_expect("w5-no-second-put", 0,
++		   dadao_cow_stats[DADAO_COW_PUT] - puts0, COW_FAIL_W5);
++	cow_expect("w5-pa-kept", orig_pa, cow_pfn_of(cow_mm, COW_VA_BASE),
++		   COW_FAIL_W5);
++	cow_expect("w5-content", COW_PARENT_MARK, content0, COW_FAIL_W5);
++	/* The invalidation: ASID_ANY must be off and the ASID must be this
++	 * mm's (contract-tlb TLB-19/-25); the encoding itself is judged from
++	 * the operands the gate derives, not from the kernel's own helper. */
++	cow_expect("w5-flush-asid-any", 0, dadao_cow_last_flush[2], COW_FAIL_W5);
++	cow_expect("w5-flush-asid", (unsigned long)cow_mm->context.asid,
++		   dadao_cow_last_flush[1], COW_FAIL_W5);
++	cow_expect("w5-flush-va", COW_VA_BASE + COW_OFF_PARENT,
++		   dadao_cow_last_flush[3], COW_FAIL_W5);
++
++	/* ---- W4: the last reference is released by the unmap -------------- */
++	refs = page_count(page);
++	cow_expect("w4-last-ref-before-unmap", 1, refs, COW_FAIL_W4);
++	if (vm_munmap(COW_VA_BASE, 2 * PAGE_SIZE))
++		cow_fail(COW_FAIL_W4, "munmap", COW_VA_BASE);
++	dadao_early_printf("K4 cow w4: refs_before=%lu refs_after=%lu puts=%lu "
++			   "va=%#lx pte=%#lx\n", refs, page_count(page),
++			   dadao_cow_stats[DADAO_COW_PUT], COW_VA_BASE,
++			   cow_pte(cow_mm, COW_VA_BASE));
++	cow_expect("w4-last-ref-released", 0, page_count(page), COW_FAIL_W4);
++
++	dadao_early_printf("K4 cow done: copies=%lu inplace=%lu puts=%lu "
++			   "refused=%lu entries=%lu\n",
++			   dadao_cow_stats[DADAO_COW_COPY],
++			   dadao_cow_stats[DADAO_COW_INPLACE],
++			   dadao_cow_stats[DADAO_COW_PUT],
++			   dadao_cow_stats[DADAO_COW_REFUSED],
++			   dadao_pf_entry_count());
++	dadao_early_exit(0);
++}
++
++#endif /* case 1 */
++
++/* -------------------------------------------------------------------------
++ * Case 3: W3 — a VM_SHARED mapping is not copy-on-write
++ * ------------------------------------------------------------------------- */
++
++#if CONFIG_DADAO_K4_COW_SELFTEST == 3
++
++static noinline void cow_case_shared_vma(void)
++{
++	struct vm_area_struct *vma;
++	unsigned long pa;
++	struct page *page;
++	pmd_t *pmd;
++	pte_t *ptep;
++
++	cow_setup_mm();
++
++	/*
++	 * A shared mapping: a write to one of its read-only pages is a genuine
++	 * permission violation (the mapping exists to be written by everyone who
++	 * maps it), so the channel must *not* copy and must terminate by name.
++	 * The page is built by hand because the point is the mapping's flags, not
++	 * how the page got there.
++	 */
++	cow_map(COW_VA_BASE, PAGE_SIZE, PROT_READ | PROT_WRITE,
++		MAP_SHARED | MAP_ANONYMOUS);
++	page = alloc_page(GFP_KERNEL | __GFP_ZERO);
++	if (!page)
++		cow_fail(COW_FAIL_SETUP, "page", 0);
++	pa = page_to_phys(page);
++	*(unsigned long *)page_address(page) = COW_MAGIC;
++
++	pmd = pmd_off(cow_mm, COW_VA_BASE);
++	if (pmd_none(*pmd)) {
++		pte_t *tbl = (pte_t *)__get_free_page(GFP_KERNEL | __GFP_ZERO);
++
++		if (!tbl)
++			cow_fail(COW_FAIL_SETUP, "pte_alloc", COW_VA_BASE);
++		pmd_populate_kernel(cow_mm, pmd, tbl);
++	}
++	ptep = pte_offset_kernel(pmd, COW_VA_BASE);
++	set_pte(ptep, __pte((pa & _PAGE_PFN_MASK) | _PAGE_PRESENT |
++			    _PAGE_FRAG_ALL | _PAGE_READ | _PAGE_S | _PAGE_U));
++
++	vma = dadao_pf_find_vma(COW_VA_BASE);
++	dadao_early_printf("K4 cow w3: va=%#lx pa=%#lx flags=%#lx shared=%lu "
++			   "w=%lu vma=%#lx-%#lx pte=%#lx\n", COW_VA_BASE, pa,
++			   vma ? vma->vm_flags : 0UL,
++			   (vma && (vma->vm_flags & VM_SHARED)) ? 1UL : 0UL,
++			   (pte_val(*ptep) & _PAGE_WRITE) ? 1UL : 0UL,
++			   vma ? vma->vm_start : 0UL, vma ? vma->vm_end : 0UL,
++			   pte_val(*ptep));
++	if (!vma || !(vma->vm_flags & VM_SHARED) || (pte_val(*ptep) & _PAGE_WRITE))
++		cow_fail(COW_FAIL_SETUP, "w3-vma",
++			 vma ? vma->vm_flags : 0UL);
++
++	/* Not reached: the channel terminates with `die-perm`. */
++	cow_store(COW_VA_BASE, COW_PARENT_MARK);
++	cow_fail(COW_FAIL_SETUP, "w3-store-returned", COW_MAGIC);
++}
++
++#endif /* case 3 */
++
++void __init __noreturn dadao_k4_cow_selftest(void)
++{
++	dadao_early_printf("K4 cow: begin case=%d page=%lu shared=%#lx\n",
++			   CONFIG_DADAO_K4_COW_SELFTEST,
++			   (unsigned long)PAGE_SIZE, (unsigned long)COW_VA_BASE);
++
++#if CONFIG_DADAO_K4_COW_SELFTEST == 1
++	cow_case_shared();
++#elif CONFIG_DADAO_K4_COW_SELFTEST == 3
++	cow_case_shared_vma();
++#else
++#error "CONFIG_DADAO_K4_COW_SELFTEST: 1 or 3"
++#endif
++	cow_fail(COW_FAIL_SETUP, "no-case", 0);	/* every case ends by exiting */
++}

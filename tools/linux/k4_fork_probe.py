@@ -33,9 +33,11 @@ Groups (the letters ``--selfcheck``/``--inject`` flip):
   F1 `kernel_clone()` created a child: it exists, it has an address space of
      its own with a *different* ASID, and its saved context is the parent's
      with `rd8 = 0` (the fork return value).
-  F2 the address space was cloned *privately*: a page the parent populated is
-     at a different physical address in the child with the same content, while
-     the shared zero page is the *same* physical page on both sides.
+  F2 the address space was cloned *copy-on-write* (m14-linux-018): a page the
+     parent populated is at the *same* physical address on both sides, both
+     PTEs are write-protected and the page carries two references, while the
+     shared zero page is shared exactly the same way.  The write that splits
+     the two is judged by `k4_cow_probe.py` (W1-W5), not here.
   F4 the K3 placeholders are gone in behaviour too: pages come from
      `alloc_page()` (distinct, zeroed), the shared zero page is the canonical
      `ZERO_PAGE(0)` the generic code recognises, and the lookup answers through
@@ -110,6 +112,9 @@ CONFIG_PINS = {
     # m14-linux-017/019: the stack-growth probe is an int too; pin it
     # so no image inherits another gate's case (F30 class, twice seen).
     "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    # m14-linux-018: the copy-on-write probe is an int with no `depends on`, so
+    # it carries a concrete value rather than "unset".
+    "CONFIG_DADAO_K4_COW_SELFTEST": "0",
 }
 
 IMAGE = config_pins.config_lines(CONFIG_PINS)
@@ -431,13 +436,16 @@ def check_static(rep: Report, rc_build: int, snap: dict | None, d: dict) -> None
     rep.check("S4", "copy_thread() 设子 rd8 = 0（fork 返回值）", True,
               "childregs->rd[8] = 0" in process)
     mmu_ctx = kernel_text("arch/dadao/include/asm/mmu_context.h")
-    rep.check("S4", "dup_mm 的 arch 钩子 arch_dup_mmap 接到 dadao_dup_mmap_private",
+    rep.check("S4", "dup_mm 的 arch 钩子 arch_dup_mmap 接到 dadao_dup_mmap_cow",
               True, "static inline int arch_dup_mmap(struct mm_struct *oldmm,"
-              in mmu_ctx and "return dadao_dup_mmap_private(mm);" in mmu_ctx)
+              in mmu_ctx and "return dadao_dup_mmap_cow(oldmm, mm);" in mmu_ctx)
     mmu = kernel_text("arch/dadao/mm/mmu.c")
-    rep.check("S4", "私有页复制在 mm/mmu.c 实现（分配 + 拷贝 + 换 PTE）", True,
-              "int dadao_dup_mmap_private(struct mm_struct *mm)" in mmu
-              and "copy_page(page_address(dst), page_address(src))" in mmu)
+    # m14-linux-018: the child's PTE is the parent's, write-protected, with the
+    # reference the second mapping owns — sharing, not an eager private copy.
+    rep.check("S4", "COW 共享在 mm/mmu.c 实现（同一个 PA + 取引用 + 写保护）", True,
+              "int dadao_dup_mmap_cow(struct mm_struct *oldmm, struct mm_struct *mm)"
+              in mmu and "get_page(pte_page(entry));" in mmu
+              and "ptep_set_wrprotect(src_mm, addr, src_pte);" in mmu)
 
     # The callee-saved set the task must carry (contract-abi §4.5).
     fields = thread_struct_fields()
@@ -453,7 +461,7 @@ def check_static(rep: Report, rc_build: int, snap: dict | None, d: dict) -> None
     # The probe image carries the symbols the run must show.
     syms = snap["syms"]
     for name in ("dadao_k4_selftest", "dadao_k4_boundary", "copy_thread",
-                 "dadao_dup_mmap_private", "dadao_pf_alloc_page",
+                 "dadao_dup_mmap_cow", "dadao_pf_alloc_page",
                  "dadao_user_excp_handler"):
         rep.check("S6", f"镜像含符号 {name}", True, name in syms)
 
@@ -503,17 +511,23 @@ def check_f1(rep: Report, rc: int, text: str, d: dict) -> None:
 
 def check_f2(rep: Report, text: str, d: dict) -> None:
     f2 = line_with(text, "K4 f2 private ")
-    rep.check("F2", "F2 私有页行存在（vacuous ⇒ FAIL）", True, f2 is not None)
+    rep.check("F2", "F2 共享页行存在（vacuous ⇒ FAIL）", True, f2 is not None)
     if not f2:
         return
     parent_pa = num(f2.get("parent_pa"))
     child_pa = num(f2.get("child_pa"))
     rep.check("F2", "父页已映射（PA 非 0）", True, parent_pa > 0)
     rep.check("F2", "子页已映射（PA 非 0）", True, child_pa > 0)
-    rep.check("F2", "两侧 PA 不同（全量私有复制，非共享）", True, parent_pa != child_pa)
-    rep.check("F2", "两侧 64 KiB 页对齐", [],
+    # m14-linux-018: a fork shares the page (COW); the split happens on the
+    # first write and is mm/k4_cow_selftest.c's W1-W5, not this probe's.
+    rep.check("F2", "两侧 PA 相同（写时复制共享，非私有复制）", 1,
+              num(f2.get("pa_same")))
+    rep.check("F2", "父侧 PTE 已写保护（W = 0）", 0, num(f2.get("w_parent")))
+    rep.check("F2", "子侧 PTE 已写保护（W = 0）", 0, num(f2.get("w_child")))
+    rep.check("F2", "页引用计数 == 2（两个映射各一份）", 2, num(f2.get("count")))
+    rep.check("F2", "两侧页对齐", [],
               [hex(pa) for pa in (parent_pa, child_pa) if pa % d["page_size"]])
-    rep.check("F2", "内容相同（拷贝而非清零）", d["consts"]["K4_MAGIC"],
+    rep.check("F2", "内容相同（共享同一页）", d["consts"]["K4_MAGIC"],
               num(f2.get("content_child")))
     rep.check("F2", "父侧内容仍是探针写的魔数", d["consts"]["K4_MAGIC"],
               num(f2.get("content_parent")))
@@ -682,8 +696,16 @@ def mutate(text: str, group: str) -> str:
                          "child-ip-copied want=0xbeef got=0x0 FAIL")
                 .replace("child_ip=0xbeef", "child_ip=0x0"))
     if group == "F2":
-        return re.sub(r"K4 f2 private parent_pa=(\S+) child_pa=(\S+) pa_diff=1",
-                      r"K4 f2 private parent_pa=\1 child_pa=\1 pa_diff=0", text)
+        # Both a value the derived checks read (pa_same / w_child) and the
+        # kernel's own verdict line flip: a mutation of one copy cannot leave
+        # the group green.
+        return (text
+                .replace(" pa_same=1 ", " pa_same=0 ")
+                .replace(" w_child=0 ", " w_child=1 ")
+                .replace("cow-pa-shared want=0x1 got=0x1 ok",
+                         "cow-pa-shared want=0x1 got=0x0 FAIL")
+                .replace("cow-child-readonly want=0x0 got=0x0 ok",
+                         "cow-child-readonly want=0x0 got=0x1 FAIL"))
     if group == "F5":
         return text.replace("K4 f5 sys0: nr=0 prev_mode=0 cause=0x1",
                             "K4 f5 sys0: nr=0 prev_mode=2 cause=0x1")
@@ -728,12 +750,41 @@ INJECTIONS = {
         "group": "F1",
         "why": "子上下文不再复制父 pt_regs",
     },
-    "share-pages": {
-        "file": "arch/dadao/include/asm/mmu_context.h",
-        "old": "\treturn dadao_dup_mmap_private(mm);\n",
-        "new": "\treturn 0;\n",
+    "eager-copy": {
+        # m14-linux-018 turned the hook into COW sharing; the injection puts the
+        # m14-linux-016 eager private copy back, which is exactly what F2 says
+        # must not happen any more (the child's PA would differ).
+        #
+        # The anchor is the *early-return* branch: F2's VMA is `VM_MIXEDMAP`,
+        # so the generic `copy_page_range()` has already installed the child's
+        # PTE (`vma_needs_copy()` returns true for it) and the sharing code
+        # below never runs for this page — an injection placed there is dead
+        # code for F2 (measured by the reviewer: `F2 red checks = 0`).
+        "file": "arch/dadao/mm/mmu.c",
+        "old": "\tif (pte_present(ptep_get(dst_pte))) {\n"
+               "\t\t/*\n"
+               "\t\t * The generic path shared this one already (a VM_MIXEDMAP VMA):\n",
+        "new": "\tif (pte_present(ptep_get(dst_pte))) {\n"
+               "\t\t/* injected: 016's eager private copy is back, so the child\n"
+               "\t\t * gets a page of its own instead of sharing the parent's */\n"
+               "\t\t{\n"
+               "\t\t\tstruct page *cow_dst =\n"
+               "\t\t\t\talloc_page(GFP_KERNEL | __GFP_ZERO);\n"
+               "\t\n"
+               "\t\t\tif (cow_dst) {\n"
+               "\t\t\t\tcopy_page(page_address(cow_dst),\n"
+               "\t\t\t\t\t  __va(pte_val(entry) & _PAGE_PFN_MASK));\n"
+               "\t\t\t\tset_pte(dst_pte,\n"
+               "\t\t\t\t\t__pte((page_to_phys(cow_dst) &\n"
+               "\t\t\t\t\t\t _PAGE_PFN_MASK) |\n"
+               "\t\t\t\t\t      (pte_val(entry) &\n"
+               "\t\t\t\t\t\t ~_PAGE_PFN_MASK)));\n"
+               "\t\t\t}\n"
+               "\t\t}\n"
+               "\t\t/*\n"
+               "\t\t * The generic path shared this one already (a VM_MIXEDMAP VMA):\n",
         "group": "F2",
-        "why": "arch_dup_mmap 不物化私有页（子与父共享）",
+        "why": "arch 钩子退回 016 的私有页复制（子 PA 与父不同）",
     },
     "no-user-vector": {
         "file": "arch/dadao/kernel/process.c",

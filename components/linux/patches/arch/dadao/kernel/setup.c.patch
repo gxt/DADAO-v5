@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..659e3d62a
+index 000000000..27f5f0b5d
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,414 @@
+@@ -0,0 +1,419 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -315,6 +315,11 @@ index 000000000..659e3d62a
 +	/* User-stack growth cases (m14-linux-019's S1-S6): every case ends the
 +	 * boot, because "did not grow" is a named termination. */
 +	dadao_k4_stack_selftest();
++#endif
++#if CONFIG_DADAO_K4_COW_SELFTEST
++	/* Copy-on-write cases (m14-linux-018's W1-W5): the recoverable ones run
++	 * one boot and exit 0; W3 ends the boot by name. */
++	dadao_k4_cow_selftest();
 +#endif
 +#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
 +	/*

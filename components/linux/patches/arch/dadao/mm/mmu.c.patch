@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/mmu.c b/arch/dadao/mm/mmu.c
 new file mode 100644
-index 000000000..844746fcd
+index 000000000..c142abf2a
 --- /dev/null
 +++ b/arch/dadao/mm/mmu.c
-@@ -0,0 +1,225 @@
+@@ -0,0 +1,293 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO MMU context (K3, m14-linux-011): ASID allocation.
@@ -30,6 +30,7 @@ index 000000000..844746fcd
 +
 +#include <asm/mmu_context.h>
 +#include <asm/page.h>
++#include <asm/pgalloc.h>
 +#include <asm/ptw.h>
 +#include <asm/setup.h>
 +#include <asm/tlbflush.h>
@@ -152,80 +153,147 @@ index 000000000..844746fcd
 +}
 +
 +/* -------------------------------------------------------------------------
-+ * The arch half of dup_mm(): materialise the child's private pages
++ * The arch half of dup_mm(): the COW hook
 + * ------------------------------------------------------------------------- */
 +
 +/*
-+ * One PTE of the child that `copy_page_range()` left pointing at a page the
-+ * parent also maps: give the child its own physical page with the same content.
++ * The arch half of dup_mm() (K4, m14-linux-018: the COW hook).
 + *
-+ * What is *not* copied:
++ * A fork's address space is *shared*, not copied: both processes keep pointing
++ * at the same physical pages and both PTEs are made read-only, so the first
++ * write on either side is what makes a private copy (mm/cow.c's
++ * `dadao_do_wp_page()`).  Two things have to happen for that, and only one of
++ * them is generic:
 + *
-+ *  - a mapping that is not present (nothing to copy — the child fills it on
-+ *    demand, exactly like the parent);
-+ *  - the shared zero page (`is_zero_pfn()`): it is read-only by construction and
-+ *    every anonymous mapping in the system points at it (user ruling
-+ *    2026-11-16).  Copying it would hand out a private zeroed page per mapping
-+ *    and lose the sharing the page fault channel relies on;
-+ *  - a mapping the parent does not own privately (VM_SHARED: file/device
-+ *    mappings, and anything not `is_cow_mapping()`), where sharing is the
-+ *    point.
++ *  - **the sharing**, per present PTE of a private writable VMA
++ *    (`is_cow_mapping()`): install the parent's PTE in the child with W clear,
++ *    clear W in the parent's, and take the reference the second mapping owns.
++ *    Generic `copy_page_range()` does exactly that *when* `vma_needs_copy()`
++ *    lets it run — and it does not for this port's pages: that test asks for an
++ *    `anon_vma` (a page table "which naturally cannot be reconstituted on page
++ *    fault"), and the fault channel's pages are not anonymous-folio pages with
++ *    an anon_vma behind them — they are ordinary pages the channel mapped
++ *    itself (mm/fault.c), with nothing to reconstitute them from.  A VMA that
++ *    says `VM_MIXEDMAP`/`VM_PFNMAP` takes the other arm and *is* copied by the
++ *    generic code, so the walk below finds the child's PTE already present and
++ *    leaves it alone (no second reference, no second write-protect).
++ *
++ *  - **the invalidation** (nobody else can do it): the parent's PTE was
++ *    rewritten while its address space is the one the walker is using, and a
++ *    TLB hit is not re-walked (contract-tlb TLB-07/-11) — without a flush the
++ *    parent would keep writing through its stale writable entry and silently
++ *    modify the child's page.  `local_flush_tlb_mm()` issues `invalid | all`
++ *    for this mm's ASID with `ASID_ANY = 0`, which drops exactly the G = 0
++ *    entries the rewrite affects and leaves the kernel's G = 1 mappings alone
++ *    (contract-tlb TLB-19/-25).  The child has never run, so it has no entries
++ *    of its own to drop.
++ *
++ * The shared zero page stays *shared*: every anonymous mapping points at it,
++ * it is read-only by construction, and no reference is taken for it (generic
++ * `copy_present_pte()` does not take one either: it is a special mapping, not a
++ * page the address spaces own).
 + */
-+static int dadao_dup_one_pte(struct vm_area_struct *vma, unsigned long addr)
++static int dadao_dup_one_pte(struct vm_area_struct *src,
++			     struct vm_area_struct *dst, unsigned long addr)
 +{
-+	pmd_t *pmd = pmd_off(vma->vm_mm, addr);
-+	pte_t *ptep;
-+	pte_t entry;
-+	struct page *src, *dst;
++	struct mm_struct *src_mm = src->vm_mm;
++	pmd_t *src_pmd = pmd_off(src_mm, addr);
++	pmd_t *dst_pmd = pmd_off(dst->vm_mm, addr);
++	pte_t entry, child;
++	pte_t *src_pte, *dst_pte;
 +
-+	if (pmd_none(*pmd) || (pmd_val(*pmd) & _PAGE_SUPER))
++	if (pmd_none(*src_pmd) || (pmd_val(*src_pmd) & _PAGE_SUPER))
 +		return 0;
-+	ptep = pte_offset_kernel(pmd, addr);
-+	entry = ptep_get(ptep);
++	src_pte = pte_offset_kernel(src_pmd, addr);
++	entry = ptep_get(src_pte);
 +	if (!pte_present(entry))
 +		return 0;
-+	if (is_zero_pfn(pte_pfn(entry)))
-+		return 0;
-+	if (!is_cow_mapping(vma->vm_flags))
-+		return 0;
 +
-+	src = pfn_to_page(pte_pfn(entry));
-+	dst = alloc_page(GFP_KERNEL | __GFP_ZERO);
-+	if (!dst)
-+		return -ENOMEM;
-+	copy_page(page_address(dst), page_address(src));
++	if (pmd_none(*dst_pmd)) {
++		pte_t *tbl = (pte_t *)__get_free_page(GFP_KERNEL | __GFP_ZERO);
 +
-+	/*
-+	 * The child's page takes the *VMA's* protection, not the write-protected
-+	 * copy `copy_page_range()` wrote: this is where the eager copy replaces
-+	 * the COW contract.
-+	 */
-+	entry = __pte((page_to_phys(dst) & _PAGE_PFN_MASK) | _PAGE_PRESENT |
-+		      _PAGE_FRAG_ALL | _PAGE_READ | _PAGE_S |
-+		      ((vma->vm_flags & VM_WRITE) ? _PAGE_WRITE : 0) |
-+		      ((vma->vm_flags & VM_EXEC) ? _PAGE_EXEC : 0));
-+	set_pte(ptep, entry);
++		if (!tbl)
++			return -ENOMEM;
++		pmd_populate_kernel(dst->vm_mm, dst_pmd, tbl);
++	}
++	dst_pte = pte_offset_kernel(dst_pmd, addr);
++	if (pte_present(ptep_get(dst_pte))) {
++		/*
++		 * The generic path shared this one already (a VM_MIXEDMAP VMA):
++		 * its write-protect and its reference are in place.
++		 */
++		dadao_cow_dup_pages++;
++		if (pte_write(ptep_get(dst_pte)))
++			dadao_cow_dup_writable++;
++		return 0;
++	}
++
++	child = pte_wrprotect(entry);
++	if (!is_zero_pfn(pte_pfn(entry))) {
++		/*
++		 * The second mapping owns a reference: without it the last
++		 * unmap on either side would free a page the other still maps.
++		 */
++		get_page(pte_page(entry));
++		/* The parent's side becomes read-only too: its stale writable
++		 * translation is dropped by the flush below. */
++		ptep_set_wrprotect(src_mm, addr, src_pte);
++	}
++	set_pte(dst_pte, child);
++	dadao_cow_dup_pages++;
++	if (pte_write(child))
++		dadao_cow_dup_writable++;
 +	return 0;
 +}
 +
-+int dadao_dup_mmap_private(struct mm_struct *mm)
++int dadao_dup_mmap_cow(struct mm_struct *oldmm, struct mm_struct *mm)
 +{
-+	struct vm_area_struct *vma;
++	struct vm_area_struct *dst;
 +	VMA_ITERATOR(vmi, mm, 0);
 +	unsigned long addr;
-+	int ret;
++	int ret = 0;
 +
-+	if (!mm)
++	if (!mm || !oldmm)
 +		return -EINVAL;
 +
-+	for_each_vma(vmi, vma) {
-+		if (!is_cow_mapping(vma->vm_flags))
++	/*
++	 * The child's VMA tree is a copy of the parent's (dup_mmap() built it
++	 * with the same edges and the same order), so the parent's VMA for each
++	 * child VMA is the one covering its start address.
++	 */
++	for_each_vma(vmi, dst) {
++		struct vm_area_struct *src;
++
++		if (!is_cow_mapping(dst->vm_flags))
 +			continue;
-+		for (addr = vma->vm_start; addr < vma->vm_end; addr += PAGE_SIZE) {
-+			ret = dadao_dup_one_pte(vma, addr);
++		/*
++		 * `VM_PFNMAP` PTEs are raw device/IO physical addresses with no
++		 * `struct page` behind them (`vm_normal_page()` answers NULL for
++		 * them, and generic `copy_present_pte()` takes no reference):
++		 * sharing them would mean calling `get_page()` on a pfn that
++		 * names no page, so they are left to the generic path, which
++		 * copies the entries without accounting.
++		 */
++		if (dst->vm_flags & VM_PFNMAP)
++			continue;
++		src = find_vma(oldmm, dst->vm_start);
++		if (!src || src->vm_start != dst->vm_start ||
++		    src->vm_end != dst->vm_end)
++			continue;
++		for (addr = dst->vm_start; addr < dst->vm_end; addr += PAGE_SIZE) {
++			ret = dadao_dup_one_pte(src, dst, addr);
 +			if (ret)
 +				return ret;
 +		}
 +	}
-+	return 0;
++
++	/*
++	 * Drop the forking hart's stale translations for this address space: the
++	 * parent's PTEs were just write-protected while its table is the one the
++	 * walker uses (contract-tlb TLB-07/-11, TLB-19).
++	 */
++	if (dadao_cow_dup_pages)
++		local_flush_tlb_mm(oldmm);
++
++	return dadao_cow_dup_writable ? -EBUSY : 0;
 +}

@@ -95,6 +95,9 @@ CONFIG_PINS = {
     # image inherits the last stack case and ends the boot at the K4
     # boundary (F30 class: sibling config symbols are pinned in pairs).
     "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    # m14-linux-018: same reason — the COW probe is an int with no `depends on`,
+    # so it carries a concrete value rather than "unset".
+    "CONFIG_DADAO_K4_COW_SELFTEST": "0",
 }
 
 IMAGE = config_pins.config_lines(CONFIG_PINS)
@@ -393,6 +396,7 @@ def static_recon(rep: Report, snap: dict | None) -> None:
     CUR_CONFIG[0] = config
     for symbol, value in {"CONFIG_DADAO_K4_SWITCH_SELFTEST": "y",
                           "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+                          "CONFIG_DADAO_K4_COW_SELFTEST": "0",
                           "CONFIG_DADAO_K4_SELFTEST": "n",
                           "CONFIG_PAGE_SIZE_64KB": "y"}.items():
         # `n` is spelled as a comment by kconfig ("# SYM is not set"), so the

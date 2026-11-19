@@ -128,6 +128,9 @@ CONFIG_PINS = {
     # m14-linux-017/019: the stack-growth probe is an int too; pin it
     # so no image inherits another gate's case (F30 class, twice seen).
     "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    # m14-linux-018: the copy-on-write probe is an int with no `depends on`,
+    # so it has no "unset" spelling: pin the concrete 0.
+    "CONFIG_DADAO_K4_COW_SELFTEST": "0",
     "CONFIG_DADAO_K4_SELFTEST": "n",
     "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
 }

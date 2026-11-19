@@ -74,6 +74,9 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K4_SELFTEST": "n",
     "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
     "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    # m14-linux-018: the copy-on-write probe is an int with no `depends on`, so
+    # it carries a concrete value rather than "unset".
+    "CONFIG_DADAO_K4_COW_SELFTEST": "0",
 }
 
 #: The stack case each image carries (0 = off is not an image here: the gate

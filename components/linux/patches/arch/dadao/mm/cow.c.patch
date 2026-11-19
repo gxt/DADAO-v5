@@ -1,0 +1,216 @@
+diff --git a/arch/dadao/mm/cow.c b/arch/dadao/mm/cow.c
+new file mode 100644
+index 000000000..3bfafb8e5
+--- /dev/null
++++ b/arch/dadao/mm/cow.c
+@@ -0,0 +1,210 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DADAO copy-on-write resolution (K4, m14-linux-018).
++ *
++ * Generic `copy_page_range()` already delivers the *sharing* half of the COW
++ * contract on this port: for a private writable VMA it write-protects the
++ * parent's PTE, points the child at the same physical page and takes the second
++ * reference — the page `arch_dup_mmap()`'s hook only has to make that visible to
++ * the forking hart (mm/mmu.c).  What was missing is the *write* half: this port
++ * has no generic `do_wp_page()` — its fault channel reads CFXPERM + NWPERM
++ * itself (mm/fault.c) — so before this file a write to a shared read-only page
++ * was a named termination.
++ *
++ * What a NWPERM write on a non-zero, read-only page means, and what is done:
++ *
++ *  - the VMA must be private and writable (`VM_WRITE`, and **not**
++ *    `VM_SHARED`).  A write to a read-only page of a shared mapping is a
++ *    genuine permission violation — sharing is the point of that mapping — and
++ *    is refused here so fault.c can terminate by name (task case W3);
++ *  - the page is referenced more than once: it is shared with another address
++ *    space (a fork), so the writer gets its own page — allocate, copy the whole
++ *    old page into it, point the PTE at the new page with W and D set, drop the
++ *    reference the sharing took, invalidate the faulting VA;
++ *  - it is the only reference: nothing else observes a write, so the mapping is
++ *    merely write-protected (a read-only file page, or the last sharer of a COW
++ *    page) and is upgraded in place — no copy (task rule: `page_count == 1`
++ *    must not copy).
++ *
++ * Two DADAO facts shape the invalidation (spec/DADAO-12 §4.5):
++ *
++ *  - a PTE store is invisible until the TLB entry is gone: the walker fills on a
++ *    miss and a hit does not re-read the PTE (contract-tlb TLB-07/-11), so
++ *    `invalid` is issued for the faulting VA — dropping the invalidation makes
++ *    the retried store fault again forever (the retry budget then ends the
++ *    boot, which is exactly what case W5's counter-例 shows);
++ *  - the command is `invalid | VA` with `ASID_ANY = 0` and **this mm's** ASID
++ *    (contract-tlb TLB-19/-25/-26): `ASID_ANY = 1` would also drop the kernel's
++ *    G = 1 mappings, which belong to no address space and which every task
++ *    needs (spec/DADAO-12 §4.5).
++ *
++ * Page size: everything here is `PAGE_SIZE`, derived from `PAGE_SHIFT`
++ * (spec/DADAO-12 §2.2.2).  There is no separate "COW granularity" and nothing
++ * is written as a literal byte count.
++ *
++ * Counters are *reported*, never asserted here: the probe image
++ * (mm/k4_cow_selftest.c) prints them and the gate derives the deltas it expects
++ * from what the case does (task rule: no absolute numbers in the kernel).
++ */
++#include <linux/kernel.h>
++#include <linux/mm.h>
++#include <linux/mm_types.h>
++#include <linux/pgtable.h>
++#include <linux/string.h>
++#include <linux/types.h>
++
++#include <asm/mmu_context.h>
++#include <asm/page.h>
++#include <asm/pgtable.h>
++#include <asm/ptw.h>
++#include <asm/setup.h>
++#include <asm/tlbflush.h>
++
++/*
++ * The invalidation this file issues, as the numbers the probe judges
++ * (spec/DADAO-12 §4.5, contract-tlb TLB-19):
++ * `[0]` control value, `[1]` ASID, `[2]` ASID_ANY, `[3]` address.
++ *
++ * The values are taken from the *same* variables the command is issued with,
++ * so a corrupted command cannot leave a truthful-looking record behind.
++ */
++unsigned long dadao_cow_last_flush[4];
++/* `[0]` old PA, `[1]` new PA, `[2]` reference count before, `[3]` after. */
++unsigned long dadao_cow_last_page[4];
++
++/* How many writes took each path (DADAO_COW_* in asm/pgtable.h). */
++unsigned long dadao_cow_stats[DADAO_COW_NR_STATS];
++
++/* The fork side (mm/mmu.c): pages found shared across a fork, and how many of
++ * them were *still writable* in the child (must be 0). */
++unsigned long dadao_cow_dup_pages;
++unsigned long dadao_cow_dup_writable;
++
++static void cow_invalidate(struct vm_area_struct *vma, unsigned long addr)
++{
++	const unsigned int op = DADAO_TLB_INVALID;
++	const unsigned int scope = DADAO_TLB_SCOPE_VA;
++	bool asid_any = false;
++	unsigned long asid = vma->vm_mm->context.asid;
++
++	dadao_cow_last_flush[0] = dadao_tlb_control_value(op, scope, asid_any);
++	dadao_cow_last_flush[1] = asid;
++	dadao_cow_last_flush[2] = asid_any ? 1 : 0;
++	dadao_cow_last_flush[3] = addr;
++
++	/*
++	 * The primitive itself, not `local_flush_tlb_page()`: the record above
++	 * has to be the command that is actually issued, and the helper would
++	 * re-decide the operands (it has a kernel-address arm this path never
++	 * takes).
++	 */
++	__dadao_tlb_flush(op, scope, addr, 0, asid, asid_any);
++}
++
++/*
++ * Resolve a CFXPERM + NWPERM fault on @addr, whose leaf PTE is @ptep, as a
++ * copy-on-write (or a plain write upgrade).  Returns DADAO_WP_COPY when a page
++ * was copied, DADAO_WP_INPLACE when the mapping was made writable in place, and
++ * DADAO_WP_NONE when this is not a COW fault at all (the caller terminates by
++ * name).
++ */
++unsigned int dadao_do_wp_page(struct vm_area_struct *vma, unsigned long addr,
++			      pte_t *ptep)
++{
++	pte_t entry, fresh;
++	struct page *page;
++	unsigned long old_pa, pa, count, after;
++	const char *kind;
++	unsigned int ret;
++
++	if (!vma || !ptep)
++		return DADAO_WP_NONE;
++	/*
++	 * A shared mapping is written through by design; a VMA that is not
++	 * writable has no COW contract either.  Both are genuine permission
++	 * faults (task case W3).
++	 */
++	if (!(vma->vm_flags & VM_WRITE) || (vma->vm_flags & VM_SHARED)) {
++		dadao_cow_stats[DADAO_COW_REFUSED]++;
++		return DADAO_WP_NONE;
++	}
++
++	entry = ptep_get(ptep);
++	if (!pte_present(entry) || pte_write(entry))
++		return DADAO_WP_NONE;	/* not this fault's shape */
++	/*
++	 * The shared zero page is fault.c's `unshare_zero` (its content is all
++	 * zero, so there is nothing to copy).  Reached only if that arm declined
++	 * for a reason of its own (no VM_WRITE — handled above); refuse instead
++	 * of copying a page whose whole content is known to be zero.
++	 */
++	if (is_zero_pfn(pte_pfn(entry)))
++		return DADAO_WP_NONE;
++
++	page = pte_page(entry);
++	old_pa = pte_val(entry) & _PAGE_PFN_MASK;
++	count = page_count(page);
++	pa = old_pa;
++
++	if (count == 1) {
++		/*
++		 * The only reference: the mapping was merely write-protected.
++		 * Every attribute the faulting mapping already carries (HSJU
++		 * bits, fragment bits, R/X) is kept — only W and D are added
++		 * (spec/DADAO-12 §2.2.5: the permission bits are orthogonal).
++		 */
++		fresh = pte_mkwrite(pte_mkdirty(entry), vma);
++		set_pte(ptep, fresh);
++		kind = "in-place";
++		ret = DADAO_WP_INPLACE;
++	} else {
++		/*
++		 * Shared: the writer gets its own page with the *old contents*
++		 * (copy-on-write, not copy-on-allocate: a zeroed page would lose
++		 * everything the parent stored).  The allocation is the channel's
++		 * own source (`alloc_page(GFP_KERNEL | __GFP_ZERO)`), which is
++		 * what makes "copied" and "freshly zeroed" tell apart.
++		 */
++		pa = dadao_pf_alloc_page();
++		if (!pa) {
++			dadao_cow_stats[DADAO_COW_NO_PAGE]++;
++			return DADAO_WP_NONE;
++		}
++		memcpy(__va(pa), __va(old_pa), PAGE_SIZE);
++		fresh = __pte((pa & _PAGE_PFN_MASK) |
++			      (pte_val(entry) & ~_PAGE_PFN_MASK));
++		fresh = pte_mkwrite(pte_mkdirty(fresh), vma);
++		set_pte(ptep, fresh);
++		/* The reference the fork took: dropped now that the writer no
++		 * longer maps this page (the last sharer frees it). */
++		put_page(page);
++		dadao_cow_stats[DADAO_COW_PUT]++;
++		kind = "copy";
++		ret = DADAO_WP_COPY;
++	}
++
++	after = (ret == DADAO_WP_COPY) ? page_count(page) :
++					 page_count(pte_page(fresh));
++	dadao_cow_stats[ret == DADAO_WP_COPY ? DADAO_COW_COPY :
++					       DADAO_COW_INPLACE]++;
++	dadao_cow_last_page[0] = old_pa;
++	dadao_cow_last_page[1] = pa;
++	dadao_cow_last_page[2] = count;
++	dadao_cow_last_page[3] = after;
++
++	/* The PTE store is invisible until the stale translation is dropped. */
++	cow_invalidate(vma, addr);
++
++#if CONFIG_DADAO_K4_COW_SELFTEST
++	dadao_early_printf("K4 cow: kind=%s va=%#lx page=%#lx old_pa=%#lx "
++			   "new_pa=%#lx count=%lu after=%lu ctrl=%#lx asid=%lu "
++			   "any=%lu copies=%lu inplace=%lu puts=%lu\n",
++			   kind, addr, (unsigned long)PAGE_SIZE, old_pa, pa,
++			   count, after, dadao_cow_last_flush[0],
++			   dadao_cow_last_flush[1], dadao_cow_last_flush[2],
++			   dadao_cow_stats[DADAO_COW_COPY],
++			   dadao_cow_stats[DADAO_COW_INPLACE],
++			   dadao_cow_stats[DADAO_COW_PUT]);
++#endif
++	return ret;
++}

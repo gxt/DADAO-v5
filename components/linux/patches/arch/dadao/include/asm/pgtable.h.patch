@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/pgtable.h b/arch/dadao/include/asm/pgtable.h
 new file mode 100644
-index 000000000..089f20a62
+index 000000000..01df34f79
 --- /dev/null
 +++ b/arch/dadao/include/asm/pgtable.h
-@@ -0,0 +1,305 @@
+@@ -0,0 +1,342 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PGTABLE_H
 +#define __ASM_PGTABLE_H
@@ -306,6 +306,43 @@ index 000000000..089f20a62
 +#define pmd_bad		pmd_bad
 +#define pmd_leaf	pmd_leaf
 +#define pmd_page_vaddr	pmd_page_vaddr
++
++/*
++ * Copy-on-write (m14-linux-018, mm/cow.c).
++ *
++ * The *sharing* half of the contract is the generic `copy_page_range()`: it
++ * write-protects a private writable PTE on both sides and takes the second
++ * reference.  The *write* half is this port's own — the fault channel reads
++ * CFXPERM + NWPERM itself (mm/fault.c), so there is no generic `do_wp_page()`
++ * to call.  It lives here (rather than in asm/setup.h, where the boot/probe
++ * hooks are) because the interface is about a PTE: the caller has already
++ * resolved the leaf and hands it over.
++ */
++#define DADAO_WP_NONE		0	/* not a COW fault: the caller decides */
++#define DADAO_WP_COPY		1	/* a page was copied (shared) */
++#define DADAO_WP_INPLACE	2	/* the mapping was made writable (sole ref) */
++
++/* Counter slots of `dadao_cow_stats[]`: what the probe image reports. */
++#define DADAO_COW_COPY		0	/* writes resolved by copying */
++#define DADAO_COW_INPLACE	1	/* writes resolved in place */
++#define DADAO_COW_PUT		2	/* old references dropped */
++#define DADAO_COW_REFUSED	3	/* not a COW fault (VM_SHARED / no W) */
++#define DADAO_COW_NO_PAGE	4	/* alloc_page() failed */
++#define DADAO_COW_NR_STATS	5
++
++/* `pte_t` and `struct vm_area_struct` are already in scope here (the folding
++ * headers above and the forward declaration near the top). */
++unsigned int dadao_do_wp_page(struct vm_area_struct *vma, unsigned long addr,
++			      pte_t *ptep);
++
++extern unsigned long dadao_cow_stats[DADAO_COW_NR_STATS];
++/* `{control value, ASID, ASID_ANY, address}` of the last invalidation. */
++extern unsigned long dadao_cow_last_flush[4];
++/* `{old PA, new PA, references before, references after}`. */
++extern unsigned long dadao_cow_last_page[4];
++/* Fork side (mm/mmu.c): pages found shared, and how many were still writable. */
++extern unsigned long dadao_cow_dup_pages;
++extern unsigned long dadao_cow_dup_writable;
 +
 +#endif /* !__ASSEMBLY__ */
 +#endif /* __ASM_PGTABLE_H */

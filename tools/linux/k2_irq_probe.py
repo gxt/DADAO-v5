@@ -100,6 +100,9 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K3_PT_SELFTEST": "n",   # m14-linux-011/012 images must not leak in
     "CONFIG_DADAO_K3_PF_SELFTEST": "0",
     "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    # m14-linux-018: the copy-on-write probe is an int with no `depends on`,
+    # so it has no "unset" spelling: pin the concrete 0.
+    "CONFIG_DADAO_K4_COW_SELFTEST": "0",
     "CONFIG_DADAO_K4_SELFTEST": "n",
     "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
 }

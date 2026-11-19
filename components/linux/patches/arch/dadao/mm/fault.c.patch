@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/fault.c b/arch/dadao/mm/fault.c
 new file mode 100644
-index 000000000..b10c7c4bf
+index 000000000..8c5eafa2f
 --- /dev/null
 +++ b/arch/dadao/mm/fault.c
-@@ -0,0 +1,814 @@
+@@ -0,0 +1,832 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO demand paging: the CFXMEM / CFXPERM fault channel (K3, m14-linux-012).
@@ -17,9 +17,16 @@ index 000000000..b10c7c4bf
 + *
 + *   missing class, inside an anonymous window  -> demand fill and re-execute;
 + *   missing class, outside every window        -> named termination;
-+ *   R/W/X permission class                     -> named termination, *except*
-+ *                                                 a write to the shared zero
-+ *                                                 page, which becomes private;
++ *   R/W/X permission class                     -> named termination, *except* a
++ *                                                 write to a read-only private
++ *                                                 page: the shared zero page
++ *                                                 becomes a private zeroed page
++ *                                                 (m14-linux-012) and any other
++ *                                                 read-only page is resolved by
++ *                                                 mm/cow.c — copied when it is
++ *                                                 shared, upgraded in place when
++ *                                                 the writer is the only user
++ *                                                 (m14-linux-018);
 + *   HSJU / cfx-mask permission class           -> named termination;
 + *   ADWBFAIL                                   -> named termination (a retry
 + *                                                 would loop: nothing about the
@@ -582,8 +589,9 @@ index 000000000..b10c7c4bf
 +/*
 + * A write to a mapping that points at the shared zero page: give it a private
 + * zeroed page.  This is *not* a copy-on-write of the zero page — the source is
-+ * all zero, so copying 64 KiB would be pure waste (user ruling 2026-11-16).
-+ * Returns true when the mapping was replaced.
++ * all zero, so copying a page would be pure waste (user ruling 2026-11-16).
++ * Returns true when the mapping was replaced; any other read-only page is
++ * mm/cow.c's `dadao_do_wp_page()` (m14-linux-018).
 + */
 +static bool dadao_pf_unshare_zero(struct vm_area_struct *vma, unsigned long addr)
 +{
@@ -610,23 +618,14 @@ index 000000000..b10c7c4bf
 +	}
 +
 +	/*
-+	 * Any other read-only page gets a private copy of *its* contents — this
-+	 * is the write half of `fill-file` (a `.data` page read from the ELF, or
-+	 * any file-backed read-only mapping).  Copying is right here: the page
-+	 * has content, unlike the zero page above.
++	 * Any *other* read-only page is not this function's business from
++	 * m14-linux-018 on: it has content, so the write is a copy-on-write (or a
++	 * plain upgrade when the page is not shared) and mm/cow.c owns it —
++	 * `dadao_do_wp_page()`.  Copying it here would be a second implementation
++	 * of the same rule, without the reference accounting the COW path owes
++	 * the fork.
 +	 */
-+	{
-+		unsigned long from = pte_val(*ptep) & _PAGE_PFN_MASK;
-+
-+		pa = dadao_pf_alloc_page();
-+		if (!pa)
-+			return false;
-+		memcpy(__va(pa), __va(from), PAGE_SIZE);
-+		set_pte(ptep, __pte(dadao_pf_pte(vma, pa, true,
-+					       !!(vma->vm_flags & VM_EXEC))));
-+		dadao_pf_publish(vma, addr, ptep);
-+		return true;
-+	}
++	return false;
 +}
 +
 +/* -------------------------------------------------------------------------
@@ -749,13 +748,31 @@ index 000000000..b10c7c4bf
 +		 * A write to the shared zero page is the one permission-class fault
 +		 * that is not a verdict: the PTE is read-only *because* the mapping
 +		 * is shared, so the handler gives the writer its own page.
-+		 * Everything else (HSJU, R/X, cfx masks, a W = 0 mapping that is not
-+		 * the zero page) terminates.
++		 *
++		 * From m14-linux-018 a write to any *other* read-only page is one
++		 * too, as long as the page is private: a page shared by a fork is
++		 * copied (the writer gets the old contents), a page it alone maps is
++		 * upgraded in place.  mm/cow.c owns that decision; a refusal there
++		 * means the mapping really is not writable, and the fault stands.
 +		 */
-+		if (pos == DADAO_SUB_NWPERM && dadao_pf_unshare_zero(vma, info))
++		if (pos == DADAO_SUB_NWPERM && dadao_pf_unshare_zero(vma, info)) {
 +			result = "replace-zero";
-+		else
++		} else if (pos == DADAO_SUB_NWPERM) {
++			switch (dadao_do_wp_page(vma, info,
++						 dadao_pf_ptep(vma, info))) {
++			case DADAO_WP_COPY:
++				result = "cow-copy";
++				break;
++			case DADAO_WP_INPLACE:
++				result = "cow-write";
++				break;
++			default:
++				result = "die-perm";
++				break;
++			}
++		} else {
 +			result = "die-perm";
++		}
 +	} else if (dadao_subcause_is_missing(pos)) {
 +		result = dadao_pf_fill(vma, info, pos);
 +		if (!result)
@@ -767,7 +784,8 @@ index 000000000..b10c7c4bf
 +	if (!strcmp(result, "fill-zero") || !strcmp(result, "fill-code") ||
 +	    !strcmp(result, "fill-file") ||
 +	    !strcmp(result, "fill-super") || !strcmp(result, "frag-set") ||
-+	    !strcmp(result, "replace-zero"))
++	    !strcmp(result, "replace-zero") || !strcmp(result, "cow-copy") ||
++	    !strcmp(result, "cow-write"))
 +		policy = DADAO_PF_RETRY;
 +
 +#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
@@ -784,7 +802,7 @@ index 000000000..b10c7c4bf
 +		static const char *const res[] = {
 +			"none", "fill-zero", "fill-code", "fill-super",
 +			"frag-set", "replace-zero", "die-perm",
-+			"die-missing", "die-sub",
++			"die-missing", "die-sub", "cow-copy", "cow-write",
 +		};
 +		unsigned long i;
 +

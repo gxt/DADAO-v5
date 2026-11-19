@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k4_selftest.c b/arch/dadao/kernel/k4_selftest.c
 new file mode 100644
-index 000000000..b2044e6fe
+index 000000000..7fdebe1e7
 --- /dev/null
 +++ b/arch/dadao/kernel/k4_selftest.c
-@@ -0,0 +1,559 @@
+@@ -0,0 +1,579 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K4 process-model self-test (CONFIG_DADAO_K4_SELFTEST, m14-linux-016).
@@ -21,10 +21,12 @@ index 000000000..b2044e6fe
 + *       space of its own, that address space has its own ASID, and its saved
 + *       context is the parent's with `rd8 = 0` (the fork return value).
 + *
-+ *   F2  the child's address space is a *private copy*: a page the parent
-+ *       populated is at a different physical address in the child and has the
-+ *       same content, while a mapping of the shared zero page is at the *same*
-+ *       physical address on both sides (it is shared, never copied).
++ *   F2  the child's address space is a *copy-on-write copy* (m14-linux-018): a
++ *       page the parent populated is at the *same* physical address on both
++ *       sides with both PTEs read-only and two references on the page, while a
++ *       mapping of the shared zero page is shared the same way (it is never
++ *       copied).  The write that splits the two is W1-W5 of
++ *       mm/k4_cow_selftest.c.
 + *
 + *   F4  the page-fault channel's two K3 placeholders are gone: pages come from
 + *       `alloc_page()` (distinct, zeroed, and the shared zero page is the
@@ -383,8 +385,8 @@ index 000000000..b2044e6fe
 +	 * fault channel does), so the VMA is a *mixed* mapping: its pages are
 +	 * not the anonymous-folio kind the generic fork path can reconstitute
 +	 * lazily, and `copy_page_range()` must therefore carry them across a
-+	 * fork — which is exactly the path F2 judges (and the reason the child's
-+	 * private copy is materialised by arch_dup_mmap()).
++	 * fork — which is exactly the path F2 judges (the sharing it installs is
++	 * what arch_dup_mmap()'s COW hook then makes visible to the hart).
 +	 */
 +	if (k4_vma)
 +		vm_flags_set(k4_vma, VM_MIXEDMAP);
@@ -474,17 +476,35 @@ index 000000000..b2044e6fe
 +			  K4_FAIL_REGS);
 +	}
 +
-+	/* ---- F2: the address space is a private copy ---------------------- */
++	/*
++	 * ---- F2: the address space is a copy-on-write copy ----------------
++	 *
++	 * From m14-linux-018 the fork *shares* the page: both PTEs point at the
++	 * same physical page and both are read-only, and the page has the two
++	 * references the two mappings own.  The write that would split them is
++	 * mm/cow.c's job (judged by mm/k4_cow_selftest.c, W1-W5); m14-linux-016
++	 * materialised a private page here, which this task replaces.
++	 */
 +	parent_pa = k4_pte(k4_mm, k4_va(0)) & _PAGE_PFN_MASK;
 +	child_pa = k4_pte(child->mm, k4_va(0)) & _PAGE_PFN_MASK;
 +	if (!parent_pa || !child_pa)
 +		k4_fail(K4_FAIL_CHILD, "pte_present", parent_pa ? child_pa : parent_pa);
 +	dadao_early_printf("K4 f2 private parent_pa=%#lx child_pa=%#lx "
-+			   "pa_diff=%d content_parent=%#lx content_child=%#lx\n",
-+			   parent_pa, child_pa, parent_pa != child_pa,
++			   "pa_same=%d w_parent=%lu w_child=%lu count=%lu "
++			   "content_parent=%#lx content_child=%#lx\n",
++			   parent_pa, child_pa, parent_pa == child_pa,
++			   (k4_pte(k4_mm, k4_va(0)) & _PAGE_WRITE) ? 1UL : 0UL,
++			   (k4_pte(child->mm, k4_va(0)) & _PAGE_WRITE) ? 1UL : 0UL,
++			   page_count(pfn_to_page(parent_pa >> PAGE_SHIFT)),
 +			   *(unsigned long *)__va(parent_pa),
 +			   *(unsigned long *)__va(child_pa));
-+	k4_expect("private-pa-differs", 1, parent_pa != child_pa, K4_FAIL_CHILD);
++	k4_expect("cow-pa-shared", 1, parent_pa == child_pa, K4_FAIL_CHILD);
++	k4_expect("cow-parent-readonly", 0,
++		  (k4_pte(k4_mm, k4_va(0)) & _PAGE_WRITE) ? 1 : 0, K4_FAIL_CHILD);
++	k4_expect("cow-child-readonly", 0,
++		  (k4_pte(child->mm, k4_va(0)) & _PAGE_WRITE) ? 1 : 0, K4_FAIL_CHILD);
++	k4_expect("cow-two-references", 2,
++		  page_count(pfn_to_page(parent_pa >> PAGE_SHIFT)), K4_FAIL_CHILD);
 +	k4_expect("private-content-equal", K4_MAGIC,
 +		  *(unsigned long *)__va(child_pa), K4_FAIL_CHILD);
 +

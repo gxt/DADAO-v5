@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..91e89f9b9
+index 000000000..28b5898ca
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,261 @@
+@@ -0,0 +1,287 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -233,6 +233,32 @@ index 000000000..91e89f9b9
 +
 +	  This is test scaffolding (the K3 page-fault gate builds these probe
 +	  images); it is not part of the image the later milestones boot.
++
++config DADAO_K4_COW_SELFTEST
++	int "K4 copy-on-write self-test case (0 = off)"
++	default 0
++	range 0 3
++	help
++	  Exercise the write half of a forked address space (see
++	  mm/k4_cow_selftest.c): a page the parent populated is shared read-only
++	  by the fork, and the first write by either side copies it.  This is
++	  m14-linux-018's W1-W5.
++
++	  Each value builds one image, because a case whose verdict is a named
++	  termination ends the boot:
++
++	    0  off — the only value a milestone image carries;
++	    1  W1 + W2 + W4 + W5: the child writes the shared page (its PTE is
++	       moved to a copy holding the old contents), the parent's page and
++	       contents stay put, the fork's second reference is dropped by the
++	       copy and the last one by the parent's unmap, and the parent's own
++	       write then resolves in place (its PTE was still read-only);
++	    3  W3: a write to a read-only page of a VM_SHARED mapping is *not*
++	       copy-on-write — it is a genuine permission violation, and the boot
++	       ends in the channel's named termination.
++
++	  This is test scaffolding (the K4 COW gate builds these probe images);
++	  it is not part of the image the later milestones boot.
 +
 +config DADAO_K4_SELFTEST
 +	bool "Run the K4 process-model self-test at the K4 boundary"
