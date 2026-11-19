@@ -272,8 +272,16 @@
 
 ## Vivado
 
-- **当前状态**：尚无内容。
-- **立项时需补**：目标板卡/器件、综合与实现流程、与 chipyard 交付物的关系（谁产出 bitstream/报告）、门控判据（时序收敛、资源占用）与许可证/环境要求。
+- **当前状态**：尚无内容（**尚无一次综合实测**）；以下是用户 2026-11-19 的初步方向与手头数据。
+- **目标板卡 / 器件**：**Genesys2**（Digilent），`XC7K325T-2FFG900C`（Kintex-7，-2 速度等级）；手册在 `.work/genesys2_rm.pdf`。
+- **器件资源（手册原文）**：**50,950 logic slices**（≈203,800 LUT6 / 407,600 FF）、**块 RAM「close to 16 Mbits」= 16,020 Kb = 445 × RAMB36 ≈ 1.91 MiB**、840 DSP、板载 **1 GiB DDR3**（32-bit/1800 Mbps）、32 MiB 配置 Flash。
+- **用户初步想法（2026-11-19）**：FPGA 上先跑 **Kaiwu-Tiny**，**SRAM 缩为 256 KiB**（不接 DDR）。
+- **BRAM 预算（64 位宽折算）**：64 位下 1 块 RAMB36 = **512 × 64 bit = 4 KiB**。⇒ BootROM 64 KiB = **16 块**、SRAM 256 KiB = **64 块**，合计 **80 / 445（18%）**，余 **365 块**给核/cache/UART。
+- **空间够不够（实测/估计依据）**：`tests/inst` 单镜像 ≈ 40 KiB（`inst_tiny.lds` 布局）；**Embench 实测最大 66.2 KiB**（`nsichneu` O0，按 ELF `LOAD.memsz` 求和，76 个 ELF 现场统计）；picolibc 未实测（现每次现场构建）；栈建议 **16 KiB**、堆建议 **32 KiB** ⇒ 峰值 ≈ **114 KiB < 256 KiB**。
+- **不上 DDR 就做不了的**：Tiny 的 8 MiB SRAM、Vast 的 4 MiB BootROM、Vast 的 2 GiB PA RAM（板子只有 1 GiB DDR3）、K4/K6 的 initramfs/busybox、Linux 用户态 ⇒ **Genesys2 的定位是「Tiny 裸机测试平台」**。
+- **落地要点（待立项）**：新增 profile（如 `tiny-fpga`：ROM 64 KiB + SRAM 256 KiB），**不改** `Tiny` 本体；`DadaoConfigs.scala` 加 `WumingTinyFpgaConfig`；`+loadmem=` 窗口按新 SRAM 参数化；`tests/ee-tiny/*.lds` 的 SRAM 区参数化（现在 `picolibc_tiny.ld` 写死 8 MiB 布局、栈 4 KiB）。
+- **需用户授权**：`spec/Kaiwu §1.1` 目前冻结「SRAM 8 MiB」，新 profile 需在 spec 补一段「FPGA 实现可用缩减 profile」。
+- **待定**：① 是否保留 8 MiB 地址窗口、只实现前 256 KiB（不建议：会出现「写了读不回」）；② 栈/堆水位实测方法（栈填 `0xA5` 扫高水位 + `sbrk` 记峰值）是否立任务；③ 首次 Vivado 综合的判据（时序收敛频率、LUT/FF/BRAM 占用阈值）。
 
 ## LFS
 
