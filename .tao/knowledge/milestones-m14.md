@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-linux-020 | 2–3 h | 内核线程（`kernel_thread`/`kthreadd`/`kthread_create`；用户 clone/TLS 归 K5） |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 
 
@@ -45,6 +44,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-linux-020 | 2026-11-19 15:32 | 2–3 h | 内核线程（`kernel_thread`/`kthreadd`/`kthread_create`） |
 
 ## 已验证
 
