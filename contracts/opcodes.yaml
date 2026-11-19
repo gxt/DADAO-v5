@@ -195,10 +195,11 @@
     role: imm
     bank: imm
     signed: true
-  legality: []
+  legality:
+  - aligned(4)
   spec_cite: 'SimRISC-01: ld.t'
   scope: fp
-  rule_refs: []
+  rule_refs: [excp_malign]
 - id: st.t_rrii_rf
   mnemonic: st.t
   format: rrii
@@ -219,10 +220,11 @@
     role: imm
     bank: imm
     signed: true
-  legality: []
+  legality:
+  - aligned(4)
   spec_cite: 'SimRISC-01: st.t'
   scope: fp
-  rule_refs: []
+  rule_refs: [excp_malign]
 - id: st.b_rrii_rd
   mnemonic: st.b
   format: rrii
@@ -479,10 +481,11 @@
     role: imm
     bank: imm
     signed: true
-  legality: []
+  legality:
+  - aligned(8)
   spec_cite: 'SimRISC-01: ld.o'
   scope: fp
-  rule_refs: []
+  rule_refs: [excp_malign]
 - id: st.o_rrii_rf
   mnemonic: st.o
   format: rrii
@@ -503,10 +506,11 @@
     role: imm
     bank: imm
     signed: true
-  legality: []
+  legality:
+  - aligned(8)
   spec_cite: 'SimRISC-01: st.o'
   scope: fp
-  rule_refs: []
+  rule_refs: [excp_malign]
 - id: ldm.ub_rrri_rd
   mnemonic: ldm.ub
   format: rrri
@@ -758,11 +762,13 @@
   legality:
   - immu6 != 0
   - rfha + immu6 <= 64
+  - aligned(4)
   spec_cite: 'SimRISC-01: ldm.t'
   scope: fp
   rule_refs:
   - mreg_zero
   - mreg_range_overflow
+  - excp_malign
 - id: stm.t_rrri_rf
   mnemonic: stm.t
   format: rrri
@@ -790,11 +796,13 @@
   legality:
   - immu6 != 0
   - rfha + immu6 <= 64
+  - aligned(4)
   spec_cite: 'SimRISC-01: stm.t'
   scope: fp
   rule_refs:
   - mreg_zero
   - mreg_range_overflow
+  - excp_malign
 - id: stm.b_rrri_rd
   mnemonic: stm.b
   format: rrri
@@ -1134,11 +1142,13 @@
   legality:
   - immu6 != 0
   - rfha + immu6 <= 64
+  - aligned(8)
   spec_cite: 'SimRISC-01: ldm.o'
   scope: fp
   rule_refs:
   - mreg_zero
   - mreg_range_overflow
+  - excp_malign
 - id: stm.o_rrri_rf
   mnemonic: stm.o
   format: rrri
@@ -1166,11 +1176,13 @@
   legality:
   - immu6 != 0
   - rfha + immu6 <= 64
+  - aligned(8)
   spec_cite: 'SimRISC-01: stm.o'
   scope: fp
   rule_refs:
   - mreg_zero
   - mreg_range_overflow
+  - excp_malign
 - id: or.w_rwii_rd
   mnemonic: or.w
   format: rwii

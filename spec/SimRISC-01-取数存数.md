@@ -214,11 +214,5 @@ stm.o   {rfHA:rfHA+immu6-1}, [rbHB, rdHC]
 * `mreg_zero`：immu6=0 → ILLI — `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.o_rrri_rf`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.t_rrri_rf`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `stm.b_rrri_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.o_rrri_rf`, `stm.t_rrri_rd`, `stm.t_rrri_rf`, `stm.w_rrri_rd`（19 条）
 * `mreg_range_overflow`：起始+immu6>64 → ILLI — `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.o_rrri_rf`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.t_rrri_rf`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `stm.b_rrri_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.o_rrri_rf`, `stm.t_rrri_rd`, `stm.t_rrri_rf`, `stm.w_rrri_rd`（19 条）
 * `mreg_range_addr_overlap`：`ldm` 基址/索引落入传送范围 → ILLI — `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.sb_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.ub_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`（8 条）
-* `excp_malign`（动态）：未对齐访问 → MALIGN — `ld.o_rrii_ra`, `ld.o_rrii_rb`, `ld.o_rrii_rd`, `ld.st_rrii_rd`, `ld.sw_rrii_rd`, `ld.ut_rrii_rd`, `ld.uw_rrii_rd`, `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `st.o_rrii_ra`, `st.o_rrii_rb`, `st.o_rrii_rd`, `st.t_rrii_rd`, `st.w_rrii_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.t_rrri_rd`, `stm.w_rrri_rd`（24 条）
-
-**无附加合法性规则：**
-* `ld.o_rrii_rf`
-* `ld.t_rrii_rf`
-* `st.o_rrii_rf`
-* `st.t_rrii_rf`
+* `excp_malign`（动态）：未对齐访问 → MALIGN — `ld.o_rrii_ra`, `ld.o_rrii_rb`, `ld.o_rrii_rd`, `ld.o_rrii_rf`, `ld.st_rrii_rd`, `ld.sw_rrii_rd`, `ld.t_rrii_rf`, `ld.ut_rrii_rd`, `ld.uw_rrii_rd`, `ldm.o_rrri_ra`, `ldm.o_rrri_rb`, `ldm.o_rrri_rd`, `ldm.o_rrri_rf`, `ldm.st_rrri_rd`, `ldm.sw_rrri_rd`, `ldm.t_rrri_rf`, `ldm.ut_rrri_rd`, `ldm.uw_rrri_rd`, `st.o_rrii_ra`, `st.o_rrii_rb`, `st.o_rrii_rd`, `st.o_rrii_rf`, `st.t_rrii_rd`, `st.t_rrii_rf`, `st.w_rrii_rd`, `stm.o_rrri_ra`, `stm.o_rrri_rb`, `stm.o_rrri_rd`, `stm.o_rrri_rf`, `stm.t_rrri_rd`, `stm.t_rrri_rf`, `stm.w_rrri_rd`（32 条）
 <!-- LEGALITY_END -->
