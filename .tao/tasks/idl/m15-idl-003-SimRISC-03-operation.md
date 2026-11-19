@@ -120,7 +120,7 @@
 ### 第 1 轮 reviewer 验收（中改，≥2 路注入）
 
 **重跑（worktree `/tmp/opencode/m15-idl-003/wt`，分支 `m15-idl-003`，HEAD `34c25358`，`git status -uall` 干净）**
-- `./.work/evidence/m15-idl-003/run.sh` → rc=0，`PASS=30 FAIL=0`（注入前、注入还原后各 1 次，两次同分）
+- 运行期证据目录内的 `run.sh` → rc=0，`PASS=30 FAIL=0`（注入前、注入还原后各 1 次，两次同分）
 - `python3 idl/render.py --check` → rc=0（源 13 / 落点 6 册 / 块 13）；`make check-idl-sync` rc=0；`make check-manifests-guard` rc=0
 - `coverage.py` → `8 条 / 8 条，集合相等` rc=0；标记块 8 == `# id:` 8
 - idlc：库 `compile --root isa` rc=0；逐条 `instruction_operation` **8/8 rc=0**；`tc.rb` 现场跑出 **8 行 OK、rc=0**

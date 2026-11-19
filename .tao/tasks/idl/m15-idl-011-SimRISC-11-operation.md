@@ -135,7 +135,7 @@
 
 **自证**：worktree `/tmp/opencode/m15-idl-011/wt`、分支 `m15-idl-011`、HEAD `6b39be30`；`git status --porcelain -uall` **rc=0 干净**；相对 merge-base `71c359ee` 改动集仍**恰 4 文件**（`idl/SimRISC-11.idl`、`spec/SimRISC-11`、`spec/.manifests.toml`、本任务书）；`idl/.manifests.toml` diff 0 行。
 
-**阻断已消除（已提交状态下重跑）**：`bash .work/evidence/m15-idl-011/run.sh` ⇒ **`PASS=37 FAIL=0`、`RUN_RC=0`、`ALL GREEN`**（`grep '\[FAIL\]'` 无命中），跑于 HEAD `6b39be30`（比完成区声明的 `05af728a` 更新，结论更强）。第 1 轮红的两项现均绿：`prose_unchanged.py（显式基线=merge-base 71c359ee）rc=0`、`（默认基线=merge-base）rc=0`；新增反例 c「基线误取含块版本」期望 rc=1 ⇒ **实际 rc=1**（可达 FAIL 成立）。
+**阻断已消除（已提交状态下重跑）**：运行期证据目录内的 `run.sh` ⇒ **`PASS=37 FAIL=0`、`RUN_RC=0`、`ALL GREEN`**（`grep '\[FAIL\]'` 无命中），跑于 HEAD `6b39be30`（比完成区声明的 `05af728a` 更新，结论更强）。第 1 轮红的两项现均绿：`prose_unchanged.py（显式基线=merge-base 71c359ee）rc=0`、`（默认基线=merge-base）rc=0`；新增反例 c「基线误取含块版本」期望 rc=1 ⇒ **实际 rc=1**（可达 FAIL 成立）。
 
 **独立注入 1 路（未在 run.sh 内）**：`cp` 备份 `prose_unchanged.py`（md5 `4f045e01848d98cf2d3a68c6ca2c63d3`）→ 把 `merge-base HEAD master` 改回 `rev-parse HEAD` ⇒ `基线: 6b39be30… / 基线=10 现=10 / 新增标记 0 行 / RESULT: FAIL`、**rc=1** → `cp` 还原 ⇒ md5 `4f045e01848d98cf2d3a68c6ca2c63d3` **相等** ⇒ `基线: 71c359ee… / 基线=2 现=10 / 新增标记 8 行 / RESULT: PASS`、**rc=0**；无 `*.preinject` 残留。
 
@@ -152,7 +152,7 @@
 **判决：Needs Revision**（唯一阻断项 = 证据脚本提交后不回绿；5 条语义与门控本身全过）
 
 **重跑**（worktree `wt`，先 `git merge master` 拿 `71c359ee` 的 `raise` 路由说明；基线 = merge-base `71c359ee`）
-- `bash .work/evidence/m15-idl-011/run.sh` ⇒ **`PASS=34 FAIL=1`，`RUN_RC=1`**；失败项 `prose_unchanged.py（期望 rc=0，实际 rc=1）`，输出 `标记行数: 期望 基线+8 / 实际 基线=10 现=10 … 新增标记 实际 0 行`
+- 运行期证据目录内的 `run.sh` ⇒ **`PASS=34 FAIL=1`，`RUN_RC=1`**；失败项 `prose_unchanged.py（期望 rc=0，实际 rc=1）`，输出 `标记行数: 期望 基线+8 / 实际 基线=10 现=10 … 新增标记 实际 0 行`
 - 根因（非环境）：`prose_unchanged.py` 默认基线取 `git show HEAD:<spec>`，而 WIP `074adc2d` 已把本册 spec 提交进 HEAD ⇒ 「新增标记」恒 0 ⇒ **提交后必红**（违反 `DD-Y003`「提交后仍须回绿」）。同一类问题已被架构师登记 **ISS-475**（master `5a21d33e`，P3/open，处置口径 = 锚 merge-base）。
 - 独立复核：把基线换成 `git show merge-base:spec/…` 后 `prose_unchanged.py` **rc=0**（散文删块后与基线**逐字节相同**，新增恰 4 对标记）⇒ 交付物散文无恙，红仅来自基线锚点。
 
@@ -162,7 +162,7 @@
 
 **约束核验**：① 改动集恰 4 文件（`idl/SimRISC-11.idl`、`spec/SimRISC-11`、`spec/.manifests.toml` 一行 sha256、本任务书），`git status -uall` 干净；② 散文零改动（删块+配套空行后与 master 逐字节相同）；③ 语义 5 条与 `DADAO-12 §5.2/§5.3`、`SimRISC-11 §3–§5` 逐句相符（escape 步骤 0 四检查、步骤 2 归 `cfx_escape_enter`；cfx2* reserved⇒ILLI 后 `cfx_read/write`，权限不进 operation；fence 两条 ILLI + `cfx_fence(cfxHA, immu18[11:6], immu18[5:0])` 六位）；④ `raise(CfxEsc, mode(), ip())` 与 master `idl/README.md §4.3`「`CFXESC` 进当前 cfx」一致；⑤ `idl/.manifests.toml` diff **0 行**；⑥ 无「银行」。
 
-**返工要求（1 处）**：`.work/evidence/m15-idl-011/run.sh` 第 78 行给 `prose_unchanged.py` 传 merge-base 基线（把第 80 行 `git show "$BASE:$SPEC" > "$TMP/spec_head.md"` 上移，并改为 `… "$ROOT" "$SPEC" "$TMP/spec_head.md"`），或改其默认基线为 `merge-base`。预期：**提交后**重跑 `run.sh` ⇒ `FAIL=0`、`RUN_RC=0`。
+**返工要求（1 处）**：运行期证据目录内 `run.sh` 的第 78 行给 `prose_unchanged.py` 传 merge-base 基线（把第 80 行 `git show "$BASE:$SPEC" > "$TMP/spec_head.md"` 上移，并改为 `… "$ROOT" "$SPEC" "$TMP/spec_head.md"`），或改其默认基线为 `merge-base`。预期：**提交后**重跑 `run.sh` ⇒ `FAIL=0`、`RUN_RC=0`。
 
 **非阻塞 finding**：a) 完成区写 `PASS=32`，末次 `run_final3.log` 实为 **35**（数字不对齐）；b) 任务书 R4 仍写「请确认」，但 master `71c359ee` 已把路由说明补进 `README §4.3`（提交信息称「011 的 R4 裁定」）⇒ R4 实已裁定、任务书未同步；c) 「删块后逐字节相同」须连块后配套空行（4 行排版间隔）一并删，仅删块差 3 处空行——非散文内容。
 

@@ -101,7 +101,7 @@
 **自证/范围**：分支 `m15-idl-005`，HEAD `d248cd6d`（WIP），`git status --porcelain -uall` 干净；注入前后两次 5 文件 md5 快照 `diff` 为空。`git diff 629f8d7e HEAD --stat` = **5 文件**（任务书、`idl/.manifests.toml`、`spec/.manifests.toml`、`spec/SimRISC-05-64位地址运算.md`、新增 `idl/SimRISC-05.idl`），与完成区声明一致。
 
 **重跑（我的输出/退出码）**：
-- `bash .work/evidence/m15-idl-005/run.sh` → **rc=0，13/13 PASS**：coverage `idl=6 opcodes=6 missing=[] extra=[]`；`render-check` PASS；`t1-ip64` PASS；`idlc-lib-isa` rc=0；6 条 op `compile rc=0`；typecheck `fail_count=0`；4 路注入 rc=1 且日志点名；restored 2 项 rc=0。
+- 运行期证据目录内的 `run.sh` → **rc=0，13/13 PASS**：coverage `idl=6 opcodes=6 missing=[] extra=[]`；`render-check` PASS；`t1-ip64` PASS；`idlc-lib-isa` rc=0；6 条 op `compile rc=0`；typecheck `fail_count=0`；4 路注入 rc=1 且日志点名；restored 2 项 rc=0。
 - `python3 idl/render.py --check` → `idl-render: PASS（…11 个，逐字节一致）` **rc=0**；`make check-idl-sync` **rc=0**；`make check-manifests-guard` → `结果: PASS（双向集合一致、sha256 全符）` **rc=0**。
 - 独立覆盖率（我按 `contracts/opcodes.yaml` 的 `spec_cite` 前缀现场算）= 6 条，与 `.idl` 6 个 `# id:` 集合相等。
 
