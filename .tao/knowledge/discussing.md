@@ -110,6 +110,13 @@
 - **T6 cfx 寄存器访问（已裁定）**：RISC-V 的做法是 `CSR[name]` 直接索引 + 每个 CSR 自带 `sw_read()` / `field.sw_write(csr_value)` 钩子（钩子在 CSR 定义里，不在指令 operation 里）。对应到 DADAO：`cfx_read(cfxha, cg, rc)` / `cfx_write(cfxha, cg, rc, value)` 两个函数（覆盖全部 cfx 寄存器），读写权限（RW/HW/RO/保留）由 spec 寄存器表描述、IDL 只做访问。
 - **T7 `fence`（已裁定）**：UDB **有** `builtin function fence(pi,pr,po,pw,si,sr,so,sw)`（无 body，由实现提供），`fence.yaml` 的 operation 只做 FIOM 覆盖后调用它；但 UDB **没有**一般内存序的形式定义（只有 `memory_model_acquire`/`release` 两个 builtin 供 `lr`/`sc` 的 aq/rl 用）。⇒ 照 UDB 加 `builtin function cfx_fence(cfxha, pred, succ)`（无 body），注释说明「顺序语义由实现提供，IDL v0 不建模」。
 
+## N25. 进程页表必须复制「2 TiB 以上」的顶层项（用户 2026-11-19 裁定，`m14-linux-017` F56）
+
+- **用户原话**：「2TiB以上是smon空间，所以，每个进程新建L1页表时，应该复制2TiB以上的完整的页表项；据我所知，其它isa应该都是这么做的」。
+- **spec 依据**：`spec/Kaiwu-测试机运行环境.md` §内存窗口 —— Vast 窗口 `VA [0, 4 TiB)`；用户空间 `[0, 2 TiB)`、内核 VA 窗口 `[2 TiB, 3 TiB)`、`[3 TiB, 4 TiB)` 不定义；窗口内 `VA = PA + 2 TiB`。本端口两级页表：`L1 = VA[41:29]`（8192 项 × 512 MiB = 4 TiB）、`L2 = VA[28:16]`、页内 `[15:0]`；`USER_PTRS_PER_PGD = TASK_SIZE / PGDIR_SIZE`。
+- **口径**：`pgd_alloc()` 之后把 `swapper_pg_dir` 中**下标 ≥ `USER_PTRS_PER_PGD`** 的顶层项整段复制进新表（smon/内核半区共享）；`pgd_free` 不得释放这些共享表。**禁止**用「探针窗口」之类旁路绕过切 mm（第 29 轮的 `pf_window` 路线作废）。
+- **推论**：既然每个进程的 L1 都带内核半区，切换 mm 就是安全的 ⇒ S5 用「每任务真 mm + 正常 `switch_mm`」即可；`vm_mm == NULL` 的窗口空指针（F57/F58）不再是必须打补丁的路径。
+
 ## N24. `sc` 的保留标记判定与 `lr` 窄读高位（用户 2026-11-19 裁定）
 
 - **R1 已裁定：用 `store_conditional`，不新增 `reservation_test`**。依据 = UDB 先例（`.cache/refs/riscv-unified-db` 的 `spec/std/isa/isa/globals.isa:2944`）：`store_conditional(N, va, value, aq, rl, encoding) -> Boolean` 把「查标记 + 条件写 + 清标记」做成一个原子函数，指令层只有 `success ? 0 : 1` 两行；配套 `load_reserved(...)` 做 `register_reservation_set`。两段式（先查再写）会引入可被插入的中间态，故不取。DADAO 落为 `builtin function store_conditional(Bits<48> ea, U32 width_bits, Bits<64> value) -> Bits<64>`（0 成功 / 1 失败），已写入 `idl/README.md §4.5`。
