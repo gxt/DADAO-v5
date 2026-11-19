@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..e120626
+index 0000000..199658b
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,212 @@
+@@ -0,0 +1,291 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -27,7 +27,7 @@ index 0000000..e120626
 +import freechips.rocketchip.tile._
 +import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, MulDivParams}
 +import freechips.rocketchip.prci.ClockSinkParameters
-+import gewu.{GewuCfxParams, GewuParams}
++import gewu.{GewuCfxParams, GewuParams, GewuPtwParams}
 +
 +/** DADAO core parameters: no RISC-V semantics. */
 +case class WumingCoreParams(
@@ -60,13 +60,30 @@ index 0000000..e120626
 +  hmonBase: Option[BigInt] = None,
 +  hmonSize: Option[BigInt] = None,
 +  bootromBase: Option[BigInt] = None,
-+  bootromSize: Option[BigInt] = None
++  bootromSize: Option[BigInt] = None,
++  // m16-chipyard-006: does the memory window (`addr[47:42] = 0`) translate?
++  //
++  //   * `false` (`Kaiwu-Tiny`): no `cfx_ptw` on the machine, so the window is
++  //     simply not backed and every access there is `CFXMEM` `[57] NONPTW`;
++  //   * `true` (`Kaiwu-Vast`): the window's fate is `cfx_ptw_enable`
++  //     (`DADAO-12` §2.2, `contract-tlb` §10 TLB-40…TLB-43) — 0 bypasses the
++  //     TLB and faults, 1 enters the walker.
++  //
++  // It is also what makes this machine implement `cfx_ptw`'s register face
++  // (cfx4) instead of reporting CFXREG for those rows.
++  //
++  // This is *our* field with the DADAO meaning.  The same-named rocket-chip
++  // field in `WumingCompatCoreParams` is a RISC-V-MMU wiring flag and stays
++  // `false` on both profiles (see the note there).
++  useVM: Boolean = false
 +)
 +
-+/** `cfxha` values of the two cfx this machine implements (`DADAO-12` §3.8). */
++/** `cfxha` values of the cfx this machine can implement (`DADAO-12` §3.8). */
 +object WumingCfxHa {
 +  val hmon: Int = 3
 +  val power: Int = 63
++  /** Page-table walker + TLB (`DADAO-12` §4.5); `Kaiwu-Vast` only. */
++  val ptw: Int = 4
 +}
 +
 +/**
@@ -91,10 +108,19 @@ index 0000000..e120626
 +      s"WumingGewuParams: $what must be configured from the machine address map"))
 +
 +  // DADAO-12 §3.1 / ADR-0045 D4: four source masks reset to "only cfx_power and
-+  // itself allowed" (the self bit is ignored by hardware).
++  // itself allowed" (the self bit is ignored by hardware).  The same value is the
++  // reset of every ordinary cfx, `cfx_ptw` included.
 +  private val maskInitHmon = BigInt("7ffffffffffffff7", 16)
-+  private val maskInitPower = BigInt("fffffffffffffff7", 16)
++  private val maskInitCfx = BigInt("fffffffffffffff7", 16)
 +
++  /**
++    * The implemented cfx set: `cfx_hmon` (monitor), `cfx_power` (BootROM), plus
++    * `cfx_ptw` when the machine translates the memory window (`useVM`).
++    * `cfx_ptw` has no internal space (`cg7` blocks all `exists = 0`) and no
++    * own vector, so its `vectorBase`/space fields are zero: the walk reports
++    * into the current mode's monitor, never into `cfx_ptw` (`contract-tlb`
++    * TLB-31).
++    */
 +  def apply(p: WumingCoreParams): GewuParams = GewuParams(
 +    cfx = Seq(
 +      GewuCfxParams(
@@ -110,12 +136,19 @@ index 0000000..e120626
 +        spaceDesc = 0x5,
 +        spaceSize = required(p.bootromSize, "bootromSize"),
 +        spaceAttr = 0x5,
-+        sourceMaskReset = maskInitPower)),
++        sourceMaskReset = maskInitCfx)) ++
++      (if (p.useVM) Seq(GewuCfxParams(
++        id = WumingCfxHa.ptw,
++        vectorBase = 0,
++        spaceDesc = 0,
++        spaceSize = 0,
++        spaceAttr = 0,
++        sourceMaskReset = maskInitCfx)) else Nil),
 +    monitor = 0, // cfx_hmon owns the exception frame (spec/Kaiwu §4.1)
 +    dataBits = 64,
 +    modeBits = 2,
 +    sourceMaskBits = 64,
-+    // `inner_run_mode` (DADAO-12 §5.2 step 6): Tiny starts and stays in hypv.
++    // `inner_run_mode` (DADAO-12 §5.2 step 6): both profiles start in hypv.
 +    runModeReset = 3,
 +    // `inner_cfx_code` at reset: the reset vector is
 +    // `cfx_power_hypv_excp_vector` inside the BootROM, i.e. the core starts as
@@ -123,7 +156,37 @@ index 0000000..e120626
 +    // and the monitor's `escape` restores this value (§5.3 step 2).
 +    runCfxReset = WumingCfxHa.power,
 +    hypvMode = 3,
-+    switchModeValue = 3)
++    switchModeValue = 3,
++    // cfx_ptw's register rows exist only on the translating machine.
++    ptw = if (p.useVM) Some(GewuPtwParams(WumingCfxHa.ptw)) else None)
++}
++
++/**
++  * Kaiwu-Vast core parameters (`m16-chipyard-006`).
++  *
++  * The same core as Kaiwu-Tiny plus the translated memory window
++  * (`useVM = true`) and the `cfx_ptw` register face.  The address-map values are
++  * required, not defaulted, for the same reason as Tiny's: an absent base must
++  * be an elaboration error instead of a silently misplaced load.
++  */
++object WumingVastParams {
++  def apply(
++    loadMemBase: BigInt,
++    loadMemSize: BigInt,
++    loadMemEntry: BigInt,
++    hmonBase: BigInt,
++    hmonSize: BigInt,
++    bootromBase: BigInt,
++    bootromSize: BigInt
++  ): WumingCoreParams = WumingCoreParams(
++    loadMemBase = Some(loadMemBase),
++    loadMemSize = Some(loadMemSize),
++    loadMemEntry = Some(loadMemEntry),
++    hmonBase = Some(hmonBase),
++    hmonSize = Some(hmonSize),
++    bootromBase = Some(bootromBase),
++    bootromSize = Some(bootromSize),
++    useVM = true)
 +}
 +
 +/** Wiring-only adapter: `TileParams.core` is typed `CoreParams`. */
@@ -133,7 +196,15 @@ index 0000000..e120626
 +  val retireWidth = w.retireWidth
 +  val nLocalInterrupts = w.nLocalInterrupts
 +
-+  // No virtual memory / privilege / debug / atomics / compressed ISA state.
++  // 字段保留、语义不用: this is rocket-chip's RISC-V-MMU wiring flag
++  // (`BaseTile.vaddrBits` = Sv39/Sv48 VA width, `Core` requires
++  // `pgLevels >= 3` for xLen = 64).  DADAO's address space is the *opposite*
++  // shape — 42-bit VA, 56-bit PA (`DADAO-12` §2.2) — so setting it aborts
++  // elaboration: `require(v == xLen || xLen > v && v > paddrBits)` in
++  // `BaseTile.vaddrBits` fails for paddrBits = 48.  It stays `false` on both
++  // profiles; the translation this machine really performs is `cfx_ptw`
++  // inside the core, driven by `WumingCoreParams.useVM` (which lives one
++  // class up and carries no RISC-V meaning).
 +  val useVM = false
 +  val useHypervisor = false
 +  val useUser = false
@@ -170,6 +241,14 @@ index 0000000..e120626
 +  val mtvecInit: Option[BigInt] = None
 +  val mtvecWritable = false
 +  val traceHasWdata = false
++  // 字段保留、语义不用: `pgLevels` is rocket-chip's RISC-V page-table depth
++  // (2 = Sv32, 3 = Sv39/Sv48) and nothing in this tile reads it.  The DADAO
++  // two-level table (L1/L2, both 8192 × 8 B = 64 KiB, `DADAO-12` §2.2.1/§2.2.2)
++  // is implemented by `cfx_ptw` inside the core, not by this field, so the value
++  // stays at the upstream-legal placeholder 3.  It cannot carry the DADAO depth:
++  // `Core` (Core.scala) requires `pgLevels >= 3` for xLen = 64 whenever the
++  // upstream `useVM` is set, and that path is unusable anyway (see the `useVM`
++  // note above).  No geometry may be derived from this field.
 +  val pgLevels = 3
 +  val lrscCycles = 1
 +}

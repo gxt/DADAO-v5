@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..10d95b1
+index 0000000..04eda25
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
-@@ -0,0 +1,545 @@
+@@ -0,0 +1,741 @@
 +// See LICENSE for license details.
 +//
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
@@ -53,6 +53,18 @@ index 0000000..10d95b1
 +//   cg5 rc2/rc4  excp_cause_id / excp_cause_info (hardware-written)
 +//   cg5 rc3      excp_cause_ip (RW)
 +//   cg7 rc0-63   internal space descriptors (read-only; writes are CFXREG)
++//
++// `cfx_ptw` (cfx4 on `Kaiwu-Vast`; absent on `Kaiwu-Tiny`, where those rows are
++// CFXREG) contributes its register face only — the walk and the TLB arrays are
++// core state (`m16-chipyard-006`/`007`/`008`):
++//
++//   cg8 rc8      cfx_ptw_enable            (RW; bit0, reset 0)
++//   cg9 rc0      cfx_ptw_ptbr              (RW; stores PPN[55:16] only)
++//   cg12 rc0     cfx_ptw_tlb_control       (WO; the write is the command, no
++//                                           completion state — exposed to the
++//                                           core as a one-cycle event)
++//   cg12 rc1     cfx_ptw_tlb_asid          (RW; [15:0], [63:16] read 0)
++//   cg12 rc2/3   cfx_ptw_tlb_addr_start/size (RW; VA[41:0] / byte count)
 +//
 +// Every other (cg, rc) of an implemented cfx is not on this profile and
 +// reads/writes as CFXREG — never as a silent zero.  A `cfxha` that names no
@@ -198,6 +210,21 @@ index 0000000..10d95b1
 +)
 +
 +/**
++  * The `cfx_ptw` register face (`DADAO-12` §4.5, `contract-tlb` §1 TLB-01…TLB-04).
++  *
++  * Only the *registers* are here; the walk, the TLB arrays and the A/D
++  * write-back are core state (`m16-chipyard-007`/`008`).  Keeping the registers
++  * in `gewu` means no core writes architectural cfx state by hand (ADR-0053 D3).
++  *
++  * `cfxId` is the `cfxha` the machine assigns to `cfx_ptw` (`spec` uses 4).  The
++  * row numbers — `ptw_enable` at `cg8 rc8`, the single PTBR at `cg9 rc0`, the
++  * invalidation interface at `cg12 rc0-rc3` — are the *spec's*, so like
++  * `GewuCauseId` they are fixed here rather than injected; only the `cfxha` is a
++  * machine choice.
++  */
++case class GewuPtwParams(cfxId: Int)
++
++/**
 +  * `Gewu` parameters (ADR-0053 D5).
 +  *
 +  * The calling core injects the implemented cfx set and every machine-specific
@@ -220,7 +247,10 @@ index 0000000..10d95b1
 +  *                         reset vector lives in, `spec/Kaiwu §1`);
 +  *   - `hypvMode`        — the mode exception entry forces (`DADAO-12` §5.2);
 +  *   - `switchModeValue` — value `cg3 rc8` reads (a core may accept the write
-+  *                         and keep one mode, or supply a real mode register).
++  *                         and keep one mode, or supply a real mode register);
++  *   - `ptw`             — `Some` when this machine implements `cfx_ptw`
++  *                         (`Kaiwu-Vast`); `None` leaves those rows undefined,
++  *                         i.e. CFXREG (`Kaiwu-Tiny`, `contract-see §3`).
 +  */
 +case class GewuParams(
 +  cfx: Seq[GewuCfxParams],
@@ -231,7 +261,8 @@ index 0000000..10d95b1
 +  runModeReset: Int,
 +  runCfxReset: Int,
 +  hypvMode: Int,
-+  switchModeValue: Int
++  switchModeValue: Int,
++  ptw: Option[GewuPtwParams] = None
 +) {
 +  require(cfx.nonEmpty, "Gewu: at least one cfx must be implemented")
 +  require(cfx.map(_.id).distinct.length == cfx.length,
@@ -251,6 +282,10 @@ index 0000000..10d95b1
 +    "Gewu: `hypvMode` must fit the run mode field")
 +  require(switchModeValue >= 0 && BigInt(switchModeValue) < (BigInt(1) << dataBits),
 +    "Gewu: `switchModeValue` must fit a cfx register")
++  // `cfx_ptw` is a normal cfx: its rows must belong to an implemented cfxha, or
++  // every access would be a CFXREG and the register face would be dead code.
++  require(ptw.forall(p => cfx.exists(_.id == p.cfxId)),
++    "Gewu: `ptw.cfxId` must name an implemented cfx")
 +}
 +
 +/**
@@ -330,6 +365,34 @@ index 0000000..10d95b1
 +  val curCfx = Output(UInt(6.W))
 +  /** `cfx_intr_mask` of the monitor (cg3 rc4). */
 +  val intrMask = Output(UInt(gp.sourceMaskBits.W))
++
++  // ---- `cfx_ptw` state a core's address path consumes (`DADAO-12` §4.5) ----
++  //
++  // The three architectural states the walk needs (`TLB-03`: reset PTBR = 0,
++  // ASID = 0, `ptw_enable` = 0) plus the invalidation interface.  The whole
++  // group is **absent** on a machine that does not implement `cfx_ptw`
++  // (`gp.ptw = None`): such a profile must neither see the ports nor pay for
++  // them, and its `cfx_ptw` rows are CFXREG (`contract-see §3`).
++  val ptw: Option[PtwState] = gp.ptw.map(_ => new PtwState(gp.dataBits))
++}
++
++/** The `cfx_ptw` state a core's address path consumes (`DADAO-12` §4.5). */
++class PtwState(dataBits: Int) extends Bundle {
++  /** `cg8 rc8 cfx_ptw_enable`: 1 = the memory window is translated. */
++  val enable = Output(Bool())
++  /** `cg9 rc0 cfx_ptw_ptbr`: only `PPN[55:16]` is stored. */
++  val ptbr = Output(UInt(40.W))
++  /** `cg12 rc1 cfx_ptw_tlb_asid` (`[15:0]`). */
++  val tlbAsid = Output(UInt(16.W))
++  /** `cg12 rc2 cfx_ptw_tlb_addr_start` (`VA[41:0]`). */
++  val tlbAddrStart = Output(UInt(42.W))
++  /** `cg12 rc3 cfx_ptw_tlb_addr_size` (byte count). */
++  val tlbAddrSize = Output(UInt(dataBits.W))
++  /** `cg12 rc0 cfx_ptw_tlb_control` write-commit pulse (WO, write-executes). */
++  val tlbControl = Output(Bool())
++  /** Data of that `tlb_control` write (`[1:0]` op, `[3:2]` scope, bit4
++    * `ASID_ANY`; `contract-tlb` §5 TLB-19). */
++  val tlbControlData = Output(UInt(dataBits.W))
 +}
 +
 +/**
@@ -373,6 +436,33 @@ index 0000000..10d95b1
 +  // `escape` (§5.3 step 2).
 +  val curCfx = RegInit(gp.runCfxReset.U(6.W))
 +
++  // ---- `cfx_ptw` architectural state (`DADAO-12` §4.5) ---------------------
++  // Reset values are the spec's (`contract-tlb` TLB-03): PTBR = 0, ASID = 0,
++  // `ptw_enable` = 0.  Nothing here is a walker: the tables, A/D bits and the
++  // invalidation effects are the core's (`m16-chipyard-007`/`008`); these are
++  // the registers software reads and writes.
++  //
++  // The state exists **only** when the machine implements `cfx_ptw`: a profile
++  // without it (Kaiwu-Tiny) must not gain flops or muxing from a feature it
++  // reports as CFXREG — its RTL identity is a regression criterion.
++  private val ptwId = gp.ptw.map(_.cfxId)
++
++  /** `cfx_ptw`'s registers; created only when `gp.ptw` is set. */
++  private class PtwRegs {
++    val enable = RegInit(false.B)
++    val ptbr = RegInit(0.U(40.W))           // PPN[55:16] only
++    val asid = RegInit(0.U(16.W))           // `[63:16]` reads 0
++    val addrStart = RegInit(0.U(42.W))      // `VA[41:0]`
++    val addrSize = RegInit(0.U(gp.dataBits.W))
++    // `tlb_control` is write-only with no completion state: the *write* is the
++    // command.  The value is latched one cycle for the execute event; no read
++    // path exists (a read of a WO register is CFXREG, `DADAO-12` §4.5 "访问").
++    val control = RegInit(false.B)
++    val controlData = RegInit(0.U(gp.dataBits.W))
++  }
++
++  private val ptwRegs: Option[PtwRegs] = ptwId.map(_ => new PtwRegs)
++
 +  // ---- register access ----------------------------------------------------
 +  private val isCg3 = io.addr.cg === 3.U
 +  // `DADAO-13` §1: the whole cg3 row is hypv-only.
@@ -386,24 +476,57 @@ index 0000000..10d95b1
 +  private val isCauseIp = io.addr.cg === 5.U && io.addr.rc === 3.U
 +  private val isCauseInfo = io.addr.cg === 5.U && io.addr.rc === 4.U
 +  private val isSpace = io.addr.cg === 7.U
++  // cfx_ptw rows (`DADAO-12` §4.5), decoded only when the machine implements the
++  // cfx: on any other profile these rows stay CFXREG and add no hardware.
++  private val ptwRows: Option[PtwRows] = ptwId.map { id =>
++    val isCfx = io.addr.ha === id.U(6.W)
++    new PtwRows(
++      isEnable = isCfx && io.addr.cg === 8.U && io.addr.rc === 8.U,
++      isPtbr = isCfx && io.addr.cg === 9.U && io.addr.rc === 0.U,
++      isControl = isCfx && io.addr.cg === 12.U && io.addr.rc === 0.U,
++      isAsid = isCfx && io.addr.cg === 12.U && io.addr.rc === 1.U,
++      isStart = isCfx && io.addr.cg === 12.U && io.addr.rc === 2.U,
++      isSize = isCfx && io.addr.cg === 12.U && io.addr.rc === 3.U)
++  }
 +
-+  io.readOk := implemented && cg3Allowed &&
-+    (isMask || isSwitchMode || isVector || isPrevMode || isPrevCfx ||
-+      isCauseId || isCauseIp || isCauseInfo || isSpace)
++  /** The six `cfx_ptw` row decoders (one-hot by cg/rc construction). */
++  private class PtwRows(
++    val isEnable: Bool,
++    val isPtbr: Bool,
++    val isControl: Bool,
++    val isAsid: Bool,
++    val isStart: Bool,
++    val isSize: Bool) {
++    val anyRead = isEnable || isPtbr || isAsid || isStart || isSize
++    val anyWrite = anyRead || isControl
++    val isCfx = isEnable || isPtbr || isControl || isAsid || isStart || isSize
++  }
++
++  // Base rows of every implemented cfx (`DADAO-13` §1, `DADAO-12` §3).
++  private val readBase = isMask || isSwitchMode || isVector || isPrevMode ||
++    isPrevCfx || isCauseId || isCauseIp || isCauseInfo || isSpace
 +  // cg3 rc8 accepts the write and ignores it when the core keeps one mode;
 +  // cg5 rc2/rc4 are hardware-written and cg7 is read-only, so writing them is
 +  // CFXREG (`DADAO-12` §5.2).
++  private val writeBase = isMask || isSwitchMode || isVector || isPrevMode ||
++    isPrevCfx || isCauseIp
++  io.readOk := implemented && cg3Allowed &&
++    (readBase || ptwRows.map(_.anyRead).getOrElse(false.B))
++  // `tlb_control` is WO: writing it is legal, reading it is not (it is not in
++  // the read set above).
 +  io.writeOk := implemented && cg3Allowed &&
-+    (isMask || isSwitchMode || isVector || isPrevMode || isPrevCfx ||
-+      isCauseIp)
++    (writeBase || ptwRows.map(_.anyWrite).getOrElse(false.B))
 +
 +  /** Per-cfx constant, selected by the addressed instance. */
 +  private def perCfx(f: GewuCfxParams => BigInt): UInt =
 +    Mux1H(hit, gp.cfx.map(c => f(c).U(gp.dataBits.W)))
 +
 +  // cg7 space block 0 start = base - (cfxha << 42) (`DADAO-12` §2.1/§3.8).
++  // A cfx without internal space (`spaceDesc` bit0 = 0, e.g. `cfx_ptw`) has no
++  // base to anchor: 0 keeps the arithmetic non-negative and matches the spec's
++  // "exists = 0 ⇒ start/size/attr read 0" rule (the read mux enforces the rest).
 +  private def spaceStart(c: GewuCfxParams): BigInt =
-+    c.vectorBase - (BigInt(c.id) << 42)
++    if ((c.spaceDesc & 1) == 0) BigInt(0) else c.vectorBase - (BigInt(c.id) << 42)
 +
 +  private val cg7Data = MuxLookup(io.addr.rc(1, 0), 0.U(gp.dataBits.W))(Seq(
 +    0.U -> perCfx(_.spaceDesc),
@@ -411,13 +534,25 @@ index 0000000..10d95b1
 +    2.U -> perCfx(_.spaceSize),
 +    3.U -> perCfx(_.spaceAttr)))
 +  // cg7 is 16 blocks of 4 words (desc/start/size/attr); only block 0 exists.
++  // `exists = 0` (desc bit0) ⇒ start/size/attr read 0 (`DADAO-12` §3.8), which is
++  // the path cfx_ptw (no internal space) reads through.  Only a machine with a
++  // spaceless cfx needs that gate: when every implemented cfx has block 0 the
++  // original expression is kept, so a profile without such a cfx gains no muxing.
++  private val anySpaceMissing = gp.cfx.exists(c => (c.spaceDesc & 1) == 0)
 +  private val cg7Rdata =
-+    Mux(io.addr.rc(5, 2) === 0.U, cg7Data, 0.U(gp.dataBits.W))
++    if (anySpaceMissing) {
++      Mux(io.addr.rc(5, 2) =/= 0.U, 0.U(gp.dataBits.W),
++        Mux(io.addr.rc(1, 0) === 0.U || perCfx(_.spaceDesc)(0),
++          cg7Data, 0.U(gp.dataBits.W)))
++    } else {
++      Mux(io.addr.rc(5, 2) === 0.U, cg7Data, 0.U(gp.dataBits.W))
++    }
 +
 +  // The read data is defined for every address (the permission outputs say
 +  // whether it may be used): a rejected access must not leak a stale value.
 +  private val maskData = Mux(io.addr.rc === 4.U, intrMask(sel), sourceMask(sel))
-+  io.rdata := Mux(isMask, maskData,
++  // Base read data (every implemented cfx, `DADAO-13` §1 / `DADAO-12` §3).
++  private val baseRdata = Mux(isMask, maskData,
 +    Mux(isSwitchMode, gp.switchModeValue.U(gp.dataBits.W),
 +      Mux(isVector, vector(sel),
 +        Mux(isPrevMode, prevMode(sel).pad(gp.dataBits),
@@ -425,6 +560,22 @@ index 0000000..10d95b1
 +            Mux(isCauseId, causeId(sel),
 +              Mux(isCauseIp, causeIp(sel),
 +                Mux(isCauseInfo, causeInfo(sel), cg7Rdata))))))))
++
++  // cfx_ptw read data: PTBR reads back as `[63:56] = 0, [55:16] = PPN,
++  // [15:0] = 0`; ASID as `[15:0]` plus zeros; start as `VA[41:0]` plus zeros
++  // (`DADAO-12` §4.5 — the stored fields are the only readable ones).
++  // `Bool.asUInt` is the same node (Bool <: UInt), so widen the enable with `Cat`.
++  private val ptwRdata = for {
++    rows <- ptwRows
++    regs <- ptwRegs
++  } yield Mux(rows.isEnable, Cat(0.U((gp.dataBits - 1).W), regs.enable),
++    Mux(rows.isPtbr, Cat(0.U((gp.dataBits - 56).W), regs.ptbr, 0.U(16.W)),
++      Mux(rows.isAsid, regs.asid.pad(gp.dataBits),
++        Mux(rows.isStart, regs.addrStart.pad(gp.dataBits),
++          Mux(rows.isSize, regs.addrSize, 0.U(gp.dataBits.W))))))
++
++  io.rdata := ptwRdata.map(d => Mux(ptwRows.get.isCfx, d, baseRdata))
++    .getOrElse(baseRdata)
 +
 +  when(io.wEn && io.writeOk) {
 +    when(isMask) {
@@ -443,6 +594,38 @@ index 0000000..10d95b1
 +      causeIp(sel) := io.wdata
 +    }
 +    // cg3 rc8 is accepted and ignored: no run-mode register to write.
++  }
++
++  // cfx_ptw writes (`DADAO-12` §4.5): a separate block because the rows are
++  // disjoint from the base ones by construction (different cg/rc), and it only
++  // exists when the machine implements the cfx.
++  for {
++    rows <- ptwRows
++    regs <- ptwRegs
++  } {
++    // `tlb_control` is a one-cycle pulse: low every cycle, raised by the write.
++    regs.control := false.B
++    when(io.wEn && io.writeOk) {
++      when(rows.isEnable) {
++        // 1 bit of state: 0 = bypass the TLB, 1 = translate (`§4.5`).
++        regs.enable := io.wdata(0)
++      }.elsewhen(rows.isPtbr) {
++        // Only `PPN[55:16]` is stored: 64 KiB alignment is structural, and the
++        // `[63:56]`/`[15:0]` fields do not exist (`§4.5`).
++        regs.ptbr := io.wdata(55, 16)
++      }.elsewhen(rows.isAsid) {
++        regs.asid := io.wdata(15, 0)
++      }.elsewhen(rows.isStart) {
++        regs.addrStart := io.wdata(41, 0)
++      }.elsewhen(rows.isSize) {
++        regs.addrSize := io.wdata
++      }.elsewhen(rows.isControl) {
++        // Write-executes: the write is the command, so the value is only handed
++        // to the core as a one-cycle event (`§4.5` "写即同步执行，无完成状态").
++        regs.control := true.B
++        regs.controlData := io.wdata
++      }
++    }
 +  }
 +
 +  // ---- observable state ---------------------------------------------------
@@ -478,6 +661,19 @@ index 0000000..10d95b1
 +  io.runMode := runMode
 +  io.curCfx := curCfx
 +  io.intrMask := intrMask(monitor)
++
++  // ---- `cfx_ptw` state to the core's address path (D3: outputs) -----------
++  // On a machine without `cfx_ptw` no row can be written, so these keep their
++  // reset values (`TLB-03`) and the core must not treat them as a feature.
++  for (b <- io.ptw; r <- ptwRegs) {
++    b.enable := r.enable
++    b.ptbr := r.ptbr
++    b.tlbAsid := r.asid
++    b.tlbAddrStart := r.addrStart
++    b.tlbAddrSize := r.addrSize
++    b.tlbControl := r.control
++    b.tlbControlData := r.controlData
++  }
 +
 +  // ---- events and redirect request (D4) -----------------------------------
 +  // `escape` (`DADAO-12` §5.3): `cfxha` must be the *current* cfx

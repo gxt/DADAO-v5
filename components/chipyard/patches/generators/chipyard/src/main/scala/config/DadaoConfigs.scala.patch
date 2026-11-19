@@ -1,9 +1,9 @@
 diff --git a/generators/chipyard/src/main/scala/config/DadaoConfigs.scala b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
 new file mode 100644
-index 0000000..e9390e1
+index 0000000..eb5cf75
 --- /dev/null
 +++ b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,225 @@
 +// See LICENSE for license details.
 +//
 +// DADAO SoC configurations.
@@ -144,4 +144,88 @@ index 0000000..e9390e1
 +    hmonSize = Some(WumingTinyAddressMap.hmonSize),
 +    bootromBase = Some(WumingTinyAddressMap.bootROMBase),
 +    bootromSize = Some(BigInt(WumingTinyAddressMap.bootROMSize)))) ++
++  new chipyard.config.AbstractConfig)
++
++// ---------------------------------------------------------------------------
++// m16-chipyard-006: Kaiwu-Vast
++// ---------------------------------------------------------------------------
++//
++// Kaiwu-Vast is the same core as Kaiwu-Tiny plus a translated memory window
++// (`WumingCoreParams.useVM = true`, `DADAO-12` §2.2): with `cfx_ptw_enable = 0`
++// every `addr[47:42] = 0` access is `CFXMEM` `[57] NONPTW` and cfx-space
++// addresses are reached exactly as on Tiny, so the two profiles share the
++// core-internal map below and are comparable byte for byte.
++//
++// What is *not* here yet: the physical half of the Vast machine (`spec/Kaiwu §1`
++// — a 4 MiB BootROM and 2 GiB of PA RAM behind the page tables).  Only a
++// translating machine can reach that memory, so it lands with the walker
++// (`m16-chipyard-007`); until then `cfx_ptw_enable = 1` faults with the missing
++// class instead of pretending to have memory.  The map below is therefore the
++// *groundwork* map, and the two `BankedScratchpad` device names are distinct so
++// a DTS/log cannot confuse one profile with the other.
++
++/** Kaiwu-Vast core-internal address map (groundwork: `m16-chipyard-006`). */
++object WumingVastAddressMap {
++  val bootROMBase: BigInt = WumingTinyAddressMap.bootROMBase
++  val bootROMSize: Int = WumingTinyAddressMap.bootROMSize
++  val sramBase: BigInt = WumingTinyAddressMap.sramBase
++  val sramSize: BigInt = WumingTinyAddressMap.sramSize
++  val hmonBase: BigInt = WumingTinyAddressMap.hmonBase
++  val hmonSize: BigInt = WumingTinyAddressMap.hmonSize
++  val appEntry: BigInt = WumingTinyAddressMap.appEntry
++  val bootROMImage: String = WumingTinyAddressMap.bootROMImage
++}
++
++/**
++  * Kaiwu-Vast memory map fragment.
++  *
++  * Same shape as `WithDadaoTinyAddressMap` (deliberately a separate fragment
++  * rather than a shared parameterised one: Tiny's elaboration is frozen by its
++  * regression vectors, and Vast's geometry diverges when the PA RAM lands).
++  */
++class WithDadaoVastAddressMap extends Config((site, here, up) => {
++  case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(appendDTB = false))
++
++  case ExtMem => None
++  case ExtTLMem => None
++
++  case BankedScratchpadKey => Seq(
++    BankedScratchpadParams(
++      base = WumingVastAddressMap.sramBase,
++      size = WumingVastAddressMap.sramSize,
++      busWhere = MBUS,
++      banks = 1,
++      subBanks = 1,
++      name = "kaiwu-vast-sram",
++      dtsEnabled = true),
++    BankedScratchpadParams(
++      base = WumingVastAddressMap.hmonBase,
++      size = WumingVastAddressMap.hmonSize,
++      busWhere = MBUS,
++      banks = 1,
++      subBanks = 1,
++      name = "kaiwu-vast-hmon-sram",
++      dtsEnabled = false))
++})
++
++/** Kaiwu-Vast: one `wuming` tile with the memory window translated. */
++class WumingVastConfig extends Config(
++  new chipyard.config.WithBootROM(
++    address = WumingVastAddressMap.bootROMBase,
++    size = WumingVastAddressMap.bootROMSize,
++    hang = WumingVastAddressMap.bootROMBase,
++    contentFileName = Some(WumingVastAddressMap.bootROMImage)) ++
++  new chipyard.iobinders.WithWumingCeaseSuccess ++
++  new chipyard.harness.WithTraceGenSuccess ++
++  new WithDadaoVastAddressMap ++
++  // `WumingVastParams` supplies the same address-map values plus
++  // `useVM = true` (no defaults: an absent base is an elaboration error).
++  new wuming.common.WithNWumingTiles(1, wuming.common.WumingVastParams(
++    loadMemBase = WumingVastAddressMap.sramBase,
++    loadMemSize = WumingVastAddressMap.sramSize,
++    loadMemEntry = WumingVastAddressMap.appEntry,
++    hmonBase = WumingVastAddressMap.hmonBase,
++    hmonSize = WumingVastAddressMap.hmonSize,
++    bootromBase = WumingVastAddressMap.bootROMBase,
++    bootromSize = WumingVastAddressMap.bootROMSize)) ++
 +  new chipyard.config.AbstractConfig)
