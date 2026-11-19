@@ -93,6 +93,7 @@
 - 入口：`spec/README.md`（分册清单、册维护约定、规范修订流程）。
 - 实现前先查对应分册；DDLN 只作讲义，不作实现判据。
 - 与其它文档冲突时，以 spec + 已 Accepted ADR 为准；冲突未消解时停下问用户。
+- **M14 已定口径（曾记于 `discussing.md`，已按「只记未决项」规则移出）**：TLB 失效=同步语义见 `m14-spec-006`；内存异常判定顺序（先看 `VA[47:42]`）与「规范不引入缺页/COW」见 `DADAO-12 §2.2.6`；semihosting 指针=PA 见 `contract-semihosting §2`；中断 mask 查当前运行模式 monitor 行见 `DADAO-12 §5.2（三）`；`cause_info` 编码见 `ADR-0056`；异常帧内禁 semihosting 见 `DADAO-12 §5.2/§5.3` + `m14-linux-017`。
 
 ### contracts/ 与 .tao/contracts/ — 合约与投影
 

@@ -2,7 +2,7 @@
 
 > **组织方式（用户 2026-11-18 重排）**：`未决项` → `M14` → `M15` → `M16` → `Milestone 候选`。**所有未决/待裁定项统一放在最前**（逐个二级标题），里程碑各节只放**已定口径与现状**；Milestone 候选列**尚未立册**的后续方向。
 >
-> **维护规则（2026-11-13）**：本文件**只记** ① 当前未决 / 待裁定；② **仍然生效**的口径。裁定一旦落成 `spec/`、ADR、任务书或 `AGENTS.md`，**从本文件删除**（git 历史可回溯）；过程快照、已完成任务的方案叙述、过期队列状态一律不留。任务流水看 `milestones-m14/15/16.md`，M13 及以前见 `.tao/archive/`。
+> **维护规则（2026-11-13，用户 2026-11-19 重申）**：本文件**只记未裁决项**。裁定一旦落成 `spec/`、ADR、任务书、`AGENTS.md` 或 `docs/DDLN/`，**从本文件删除**（git 历史可回溯）——该迁的迁、无保留价值的直接删；过程快照、已完成任务的方案叙述、过期队列状态一律不留。任务流水看 `milestones-m14/15/16.md`，M13 及以前见 `.tao/archive/`。
 
 # 未决项
 
@@ -45,18 +45,6 @@
 5. `jump/call/ret` 的 8/26/15 是**预取失效期上界**（文档 §5 称「`015` 收口时复测」，但 `m12-chipyard-015` 已完成、未回填）⇒ 表暂按现值；回填后**必须重跑生成器**（`check-wuming-cycles` 绑文档 sha256，会立刻红——设计意图）。
 6. `B2`（1 可配）按「可配」处理，`value` 留空。
 
-## N6. M16 `st`/`stm` 的 +1 拍 → **已裁定（用户 2026-11-18）：表格分行给值，不加列**
-
-- **裁定原话**：「表格把 ld/st/ldm/stm 分为不同的行即可，不要加列。不要把简单的事情做复杂。」
-- 事实基础：`ld.*` 全宽度 9、`st.*` 全宽度 10（宽度无关）。**已实测确认（`m16-chipyard-004`，2026-11-18）**：N=1/2/3/4/8/16 × 宽度 b/w/t/o、362 样本、48 个 (指令,N) 格、66 个 (指令,N,beats) 格，**每格方差 0**；`ldm` 恒 +0、`stm` 恒 +1；机制为 `exec→最后数据 beat` 跨度 `stm` 恰多 1 拍（写完成拍）。
-- 实施（待立任务回填）：
-  - `ld.*` 行：`cycles: '9'`（单值，去掉 `9–10` 区间）；
-  - `st.*` 行：`cycles: '10'`；
-  - `ldm.*` 行：保持 `per_element: 1` / `per_beat: 8`（N=8 → 72）；
-  - `stm.*` 行：同系数 + 启用表内**已有**字段 `n_base: 1`（常数项，N=8 → 73、N=1 → 10）；
-  - gem5：C 分支直接取值（不再用 D 公式在 N=1 求值）、D 分支加 `n_base` 常数项；
-  - C/D 探针容差 ±1 → **0**。
-
 ## N19. D 类 `beats` 必须按起始相位算（`m16-chipyard-004` 实测发现）
 
 - 现行 `wuming_latency.hh` 的块传送 beats 按「元素不跨 8 B 拍」推导；实测要求 **`beats = ⌈(addr%8 + N·w)/8⌉`**——非 8 B 相位起址时每组恰多 8 拍（`ldm.ub` N=8 相位 2 ⇒ 24 拍而非 16）。
@@ -64,23 +52,13 @@
 - 待定：是否改模型（改 `wuming_latency.hh` 的 beats 公式 + 表 + 探针），以及是否需要把「相位」作为表格的输入维度（当前表只有 `per_element`/`per_beat`）。
 - 另记两个 N=1 地址特例（SRAM 尾拍 +11、`.text` 内 off-queue 取指 −1），已是实测例外，不解释 +1。
 
-## N20. `escape` 是否应恢复 `inner_cfx_code`（`ISS-454` 语义纠正，待裁定）
-
-- **现场（`m14-linux-017` F36）**：同步帧内到达 tick ⇒ `inner_cfx_code` 被置为 `cfx_hart`（`§5.2 步骤6`）；该帧随后的 `escape cfx_smon` 报 `CFXESC`（`§5.3 步骤0`：`cfxha != inner_cfx_code`）。把那次 tick 关掉后同路径连做 3 次 escape 全成功 ⇒ 根因确认为「`escape` 不恢复 `inner_cfx_code`」。
-- **spec 现状**：`§5.3` 伪码只恢复 `global_cfx_intr_mask` 与 `excp_prev_run_mode`，**没有恢复 `inner_cfx_code`** 这一步；`§5.2 步骤6` 明确 trap 会改它 ⇒ 构成缺口（异常帧被异步事件「污染」后无法正确返回）。
-- **两个解法**：
-  - **(A) 内核侧**：把「恢复中断掩码」挪到 `escape` 之后（`cg5 rc3` 重定向到 unmask 蹦床，K2 有先例）；难点是 umon 帧会拿用户 `rd2/rd3` 当 scratch。
-  - **(B) 语义侧**：认定 `escape` 应把 `inner_cfx_code` 恢复为异常发生时的 cfx（即补 `ISS-454`），需改 `spec/DADAO-12 §5.3` + QEMU `helper_cfx_escape`。
-- **工程侧建议 (B)**：(A) 在 umon 帧上无法干净实现，且它与 F37 残余是同一口径的两面。**但改 spec 须用户裁定 + 授权**，本任务不自行改。
-- 影响：`ISS-454` 登记、`spec/DADAO-12` 正文、QEMU 模型、K2/K3/K4 探针的帧内诊断口径。
-
 ## N21. M15 收口时补 `idl/*.idl` 的 sha256 锁
 
 - 用户 2026-11-18 裁定：`idl/` 目录的 `.manifests.toml` **先只列文件名**（双向集合断言），`sha256` **等 M15 完成后统一补**。
 - 原因：M15 期间 `.idl` 会大量增改，逐次重算锁的成本高于收益。
 - 收口检查项：M15 收尾时把 `idl/*.idl` 逐文件 sha256 写入 `idl/.manifests.toml`，并确认 `check-manifests-guard` 会校验它（schema 已支持条目级 `sha256`）。
 
-## N22. `m14-linux-017` 的 S5（U-mode 帧 A/B 往返）→ **已裁定 A（用户 2026-11-19）**
+## N22. `m14-linux-017` 的 S5（U-mode 帧 A/B 往返）→ **已裁定 A（用户 2026-11-19）**〔017 收尾时移入任务书并删除本节〕
 
 - **核查结论（第 23 轮）**：S5 要求 A/B **交替** ⇒ handler 必须 `schedule()` 阻塞；而 umon 入口跑在**静态入口栈**（`trap.S` 把 `rb1` 设为 `dadao_umon_stack_top`，`current = SP & ~(THREAD_SIZE-1)`）⇒ 两个任务的内核续跑点会叠在同一张 64 KiB 栈上，**与帧放在哪里无关**。所以「只把帧按任务化」不足以实现 S5（F13 回退正是此机制）。
 - **入口不能直接换到任务内核栈**：入口时 SP 还是用户栈，`current` 尚不可知（F28 正是为此在静态栈上刷新 `thread_info.task`）。
@@ -100,35 +78,12 @@
   （`rd2`/`rd3` 都是 reserved、编译器不分配，故全程可安全做过渡；`cg6` 只占 `rc1` 一个槽。）
   `__switch_to` 只加一行：把 `task_stack_page(next)+THREAD_SIZE` 写进 `cfx_umon cg6 rc1`。**不需要全局变量、不改 `thread_info.h`**（入口切到任务栈后 `current = SP & ~(THREAD_SIZE-1)` 自然成立）；静态栈保留为 boot 早期兜底（`cg6 rc1 == 0` 时用）。依据：`rb2rd`/`rd2rb` 见 `SimRISC-02`；`rd2–rd3` 是 reserved（编译器不分配）；`cg6` 见 `DADAO-12 §3.7`（内核专用）。**用户补充质疑已澄清**：共用的是内核态静态栈（非用户栈）；spec 未规定 `trap` 自动切栈（`§5.1/§5.2` 只定向量与 `inner_cfx_code`）；「每任务内核栈」由软件决定，故走 A 而非改 spec。
 
-## N23. IDL 语义库 v1 的裁定（用户 2026-11-19，T1–T7 全部已定）
-
-- **T1 `ip()` 宽度（已裁定）**：`ip()` 返回 **`Bits<64>`**，但**高 16 位固定为 0**（= 48 位地址零扩展）。跳转类指令的计算用 64 位，**写回 IP 时只保留 48 位**（`rb0 ← target[47:0]`）。⇒ 语义库 `ip() -> Bits<64>`；`br.eq` 去掉 `{16'd0, ip()}`；`aip.si` 直接用 `ip()`。
-- **T2 `set.w` 写 rf（已裁定 A）**：切片赋值 `rf[d][wyde*16 +: 16] = imm`，其余位保持；**不新增库函数**。
-- **T3 `SimRISC-00 §2.3` 散文（已裁定）**：改为「`rf` **专用于**浮点类指令」。用户解释：不在 `SimRISC-07` 里的那些（`set.*`/`ld.t`/`ldm.t`/`rf2rf`/`rd2rf`）都是**对 rf 直接赋值/复制**类，**不牵涉任何运算**，不受「专用于浮点类」限制。⇒ 散文需补这一句（用户已授权）。
-- **T4 `set.ow`/`set.zw` 的 wyde 选择（已裁定 B）**：在散文里补一句把「选中 wyde = `immu16` 的某几位」写全（不改 operation 理解）。
-- **T5 `escape` 缺函数（已裁定 A）**：语义库补 `inner_cfx_code()` / `cfx_frame_valid(cfxha)` / `cfx_escape_enter(cfxha, imm)`（按 `cfx_trap_enter` 风格）。
-- **T6 cfx 寄存器访问（已裁定）**：RISC-V 的做法是 `CSR[name]` 直接索引 + 每个 CSR 自带 `sw_read()` / `field.sw_write(csr_value)` 钩子（钩子在 CSR 定义里，不在指令 operation 里）。对应到 DADAO：`cfx_read(cfxha, cg, rc)` / `cfx_write(cfxha, cg, rc, value)` 两个函数（覆盖全部 cfx 寄存器），读写权限（RW/HW/RO/保留）由 spec 寄存器表描述、IDL 只做访问。
-- **T7 `fence`（已裁定）**：UDB **有** `builtin function fence(pi,pr,po,pw,si,sr,so,sw)`（无 body，由实现提供），`fence.yaml` 的 operation 只做 FIOM 覆盖后调用它；但 UDB **没有**一般内存序的形式定义（只有 `memory_model_acquire`/`release` 两个 builtin 供 `lr`/`sc` 的 aq/rl 用）。⇒ 照 UDB 加 `builtin function cfx_fence(cfxha, pred, succ)`（无 body），注释说明「顺序语义由实现提供，IDL v0 不建模」。
-
-## N26. IDL 块在 spec 内的布局（用户 2026-11-19 裁定 A）
-
-- **问题**："插入 idl 代码的痕迹太生硬"——无导语、块首 `# id:` 与上下文重复、三行注释夹着代码块、打断逐条叙事。
-- **裁定 A（节末集中 + 三级标题）**：每册每个 `##` 节**末尾**集中该节全部 operation，配一个 `### N.M 形式化语义（IDL）`；块前一句生成导语；块内去掉重复的 `# id:`，改一行粗体 `<id>`；**不新增附录**。
-- **否决 B（逐条三级标题）**：263 条指令 ⇒ 263 个标题，`SimRISC-07` 一册 50 个，目录失控。
-- **否决 C（附录 C）**：`tools/spec/check_numbering.py` 断言 6/7 限定 `SimRISC-01`–`12` 尾段只能是附录 A、B；且 `##`/`###` 必须带编号（`N.` / `N.M`），无编号的指令标题会红 ⇒ 需改多个门控，且正文与语义分离后更难一眼对账。
-- **时机**：等 `m15-idl-001`…`012` 全部合入后一次性做（避免 7 个在途分支重渲染两遍）⇒ 立 `m15-spec-002`。
-
-## N25. 进程页表必须复制「2 TiB 以上」的顶层项（用户 2026-11-19 裁定，`m14-linux-017` F56）
+## N25. 进程页表必须复制「2 TiB 以上」的顶层项（用户 2026-11-19 裁定，`m14-linux-017` F56）〔017 收尾时移入任务书并删除本节〕
 
 - **用户原话**：「2TiB以上是smon空间，所以，每个进程新建L1页表时，应该复制2TiB以上的完整的页表项；据我所知，其它isa应该都是这么做的」。
 - **spec 依据**：`spec/Kaiwu-测试机运行环境.md` §内存窗口 —— Vast 窗口 `VA [0, 4 TiB)`；用户空间 `[0, 2 TiB)`、内核 VA 窗口 `[2 TiB, 3 TiB)`、`[3 TiB, 4 TiB)` 不定义；窗口内 `VA = PA + 2 TiB`。本端口两级页表：`L1 = VA[41:29]`（8192 项 × 512 MiB = 4 TiB）、`L2 = VA[28:16]`、页内 `[15:0]`；`USER_PTRS_PER_PGD = TASK_SIZE / PGDIR_SIZE`。
 - **口径**：`pgd_alloc()` 之后把 `swapper_pg_dir` 中**下标 ≥ `USER_PTRS_PER_PGD`** 的顶层项整段复制进新表（smon/内核半区共享）；`pgd_free` 不得释放这些共享表。**禁止**用「探针窗口」之类旁路绕过切 mm（第 29 轮的 `pf_window` 路线作废）。
 - **推论**：既然每个进程的 L1 都带内核半区，切换 mm 就是安全的 ⇒ S5 用「每任务真 mm + 正常 `switch_mm`」即可；`vm_mm == NULL` 的窗口空指针（F57/F58）不再是必须打补丁的路径。
-
-## N24. `sc` 的保留标记判定与 `lr` 窄读高位（用户 2026-11-19 裁定）
-
-- **R1 已裁定：用 `store_conditional`，不新增 `reservation_test`**。依据 = UDB 先例（`.cache/refs/riscv-unified-db` 的 `spec/std/isa/isa/globals.isa:2944`）：`store_conditional(N, va, value, aq, rl, encoding) -> Boolean` 把「查标记 + 条件写 + 清标记」做成一个原子函数，指令层只有 `success ? 0 : 1` 两行；配套 `load_reserved(...)` 做 `register_reservation_set`。两段式（先查再写）会引入可被插入的中间态，故不取。DADAO 落为 `builtin function store_conditional(Bits<48> ea, U32 width_bits, Bits<64> value) -> Bits<64>`（0 成功 / 1 失败），已写入 `idl/README.md §4.5`。
-- **R2 已裁定：`lr.b`/`lr.w`/`lr.t` 只写低字节，`rd` 高位保持原值不变**（既非零扩展、也非符号扩展）。与 `ld.ub/uw/ut` 的零扩展口径**不同**，属 DADAO 特有窄读语义（与 `set.ft` 窄写「只写低 32 位」同类）。⇒ 已记入反套用清单；spec 是否补一句待授权（当前散文未写）。
 
 ## N7. cfx 待实现范围
 
@@ -181,12 +136,6 @@
 - 建议任务形状（1–2 h）：8 模块补索引（路径/用途/入口/调用者）+ 零引用者逐个处置 + 新增 L1 `check-tools-index`（只报告不删除）。
 - 另挂：`m12-chipyard-017` 里的 `engine_parity_run.sh`/`engine_parity_collect.sh` 按「一次性编排不入仓」规则待迁回运行期目录。
 
-## N14. `.tao/knowledge/refs/` 清空 → **已裁定并执行（用户 2026-11-18 选 A：直接删除、不归档）**
-
-- 执行结果：9 个孤儿 + 7 份人读报告已删；**13 份活数据源迁到 `tests/data/`**（md5 逐一致）；目录已消失（`m15-infra-002` + `m15-infra-004`）。
-- **教训（可复用判据）**：清理类任务不能只 `grep "目录/文件"`——**必须用「文件名本身」全仓 grep**（不带目录前缀），否则漏掉「只写文件名」的代码常量。refs 事件就是靠这条才没删断 `gen_decode_table.py` 的输入。
-- 遗留：`components/chipyard/patches/**/WumingCore.scala.patch:12` 注释仍含旧路径，需随下次 chipyard 组件改动同批 `make_patch` 重导出（不能手改 index）。
-
 ## N15. `tests/inst.yaml` 的 `platforms:` 字段去留
 
 - `m15-infra-001` 已把机型/引擎/套件的真源迁到 `contracts/machine.yaml` + `exec-envs.yaml` + `tests-matrix.yaml`，但 `tests/inst.yaml` 里 **273 处 `platforms:`** 仍在，与 `exec-envs.yaml` 的 `engines` 语义重叠。
@@ -215,42 +164,11 @@
 
 > 2026-11-01 用户裁定：Linux 开发延至 M12 或后续；**现定为 M14**（三线分开进行）。
 
-## 收口范围：到 K6
-
-- `ADR-0052` 已于 2026-11-17 就地修订：M14 出口扩展到 **K6**（busybox 用户态）。
-- UART / cache / LLC / gem5 侧仍**不阻塞**收口。
-
-## K4 / K5 / K6 分界（用户 2026-11-17 选 A）
-
-- **K4** = 内核侧进程/线程原语：`copy_process` / `kernel_thread` / `kthreadd` / 调度 / COW / 用户栈增长 + 最小 U-mode 闭环。
-- **K5** = 用户态：用户 `clone`（`CLONE_VM`/`CLONE_SETTLS`/`CLONE_THREAD`）、TLS（`rb3 = rbtp`）用户面、`futex`、pthread 类测试；另含 `clocksource`(cfx_time) + `clockevent`(cfx_hart) 升级到通用框架（原 `m14-linux-021`）。
-- **K6** = 用户态应用：静态 busybox、最小 applet（`sh ls cat echo mkdir rm cp mv grep ps`）、不做 `/proc`、不做作业控制；出口 = `sh` 启动后 5 条命令正确。
-
 ## 阶段与任务量（K0 后校准）
 
 - K0 基线与契约：5–7 个任务（补丁组件、工具链缺口、启动 ABI、syscall/errno/TLS、initramfs/semihosting、门控）。
 - K1 启动与控制台：4–6 个；K2 异常与时间：5–7 个；K3 内存与 TLB：6–8 个；K4 进程与上下文：5–7 个；K5 用户态闭环：5–7 个；K6 用户态应用：4–6 个。
 - 合计约 34–48 个。
-
-## 已定口径（仍生效）
-
-- **TLB 失效语义 = 同步**（`m14-spec-006`）：`cfx_ptw_tlb_control` 写指令**返回即生效**；`clean`/`flush` 需回写 A/D，**回写失败在该写指令上报 `CFXMEM`**（`flush` 失败不删条目、`clean` 失败不清挂起位），不得出现「部分完成」。
-- **单 hart**：`tlb_control` per-hart；跨 hart 一致性**不在 M14/K3 范围**（`ISS-459`，同 `ISS-440` 类）。
-- **M14 只做 QEMU**；chipyard/gem5 不要求 TLB；但 `tests/arch` 必须新增 TLB 探针（Vast + PTW）。
-- **内存异常判定顺序**（用户 2026-11-16）：**先看 `VA[47:42]`**——≠0 ⇒ cfx 核内空间（不走 PTW/TLB）；=0 ⇒ 再看 `ptw_enable`：`0` ⇒ `CFXMEM`（不查 TLB）；`1` ⇒ 进 PTW/TLB（未映射 ⇒ `CFXMEM`、权限 ⇒ `CFXPERM`）。
-- **规范不引入「缺页/COW」**：`DADAO-12 §2.2.6` 的规范句是「页表未映射（含超页/小页缺失）与 A/D 回写失败 ⇒ `CFXMEM`；HSJU 或 R/W/X 不符 ⇒ `CFXPERM`」；内核把它解释成缺页/COW/真越权属**内核判定**。
-- **K3 内存范围 = 按需分页 + 共享零页**（「简单验证即可」）；COW 与用户栈增长全归 K4。
-- **semihosting 指针 = PA**（`spec/Kaiwu §5.2` + `contract-semihosting §2`）；QEMU 侧缺口 `ISS-450`。
-- **中断 mask 口径**（2026-11-16）：异步源轴查**当前运行模式 monitor** 的行（`DADAO-12 §5.2（三）步骤 3`），与 `inner_cfx_code` 无关。
-- **阶段推进即退役过时判据**：`docs/Process-07 §4a`。
-- **异常帧内禁止 semihosting 打印**（`m14-linux-017` F33，2026-11-18 按 spec 判定）：`DADAO-12 §5.2 步骤6` 规定 `trap` 把 `inner_cfx_code` 置为目标 cfx；`§5.3 步骤0` 规定 `cfxha != inner_cfx_code` ⇒ `CFXESC`。因此在异常帧内做 `trap cfx0`（打印）后，`escape <原 cfx>` 必然报 `CFXESC`——**硬件行为正确，探针写法错误**。正确做法：帧内只写内存槽、`escape` 之后再打印。**推广到 K2–K4 探针另立任务**（会改各门控判据输入）。
-- **`cause_info` 编码**（`ADR-0056` Accepted）：`cause_id[15:0]` one-hot 不变；`[31:16]` 保留；wyde2 `[47:32]` = `CFXPERM` 子原因、wyde3 `[63:48]` = `CFXMEM` 子原因（`[56] ADWBFAIL`/`[57] NONPTW`）；另一 wyde 必须全 0；`cause_info` 恒为地址。
-
----
-
-# M15：ISA 语义结构化
-
-> **定位（用户 2026-11-12/13）**：只做「**结构化**」——把 `spec/` 升级为「每条指令一段**可解析的 operation**」，**不执行**（执行归 Milestone 候选：IDL 可执行参考模型）。M13 不加 IDL 任务；M14 已分配给内核。
 
 ## 目标与出口
 
@@ -260,7 +178,7 @@
 ## 候选任务
 
 - `m15-spec-001`（**已立册，方向反转后重写**）：`idl/` 语义源 v0（`idl/README.md`）+ 5 条样板（add.so / ld.o / br.eq / lr.o.nn / trap）+ `idl/render.py`；2–3 天。
-- `m15-spec-002`（未立）：6 族形状定稿（alu/mem/ctrl/atomic/system/fp 各一条完整族）+ 共享函数层；5–8 天。
+- `m15-spec-004`（未立）：6 族形状定稿（alu/mem/ctrl/atomic/system/fp 各一条完整族）+ 共享函数层；5–8 天。
 - `m15-spec-003`（未立）：全量 operations，264 条记录 → 约 90 个语义单元；25–35 天。
 - `m15-infra-004`（未立）：抽取器 + L1 门控「spec 抽取结果 == 仓库 `.idl` 逐字节」；6–8 天。
 - `m15-infra-005`（未立）：文档渲染（spec 里显示格式化 operation，不是原始 IDL）；4–5 天。
@@ -276,11 +194,6 @@
 - **`DADAO`（旧仓）**：`ENV-linux` 与 opcodes/runtime 目录的早期编码与运行时假设（历史对照）。
 - **仓内既有资产**：`contracts/opcodes.yaml`（编码真源）、`contracts/fp_semantics.yaml`、`contracts/legality_rules.yaml`、`spec/SimRISC-0x` 附录 A、`docs/DDLN/B002`。
 - **外部标准形态**：ARM ASL、RISC-V Sail、x86/ARM 手册的「伪代码块」体例。
-
-## 设计取向（用户 2026-11-13 裁定）
-
-- **以 `riscv-unified-db` 的 IDL 为准**（`doc/idl.adoc`：`Bits<N>` / `X(rs1)` / `jump()` / `raise(ExceptionCode::…)` / `function` / 配置常量），**优先复用其语法与工具**（`idlc`、`yamlidl`）；只在不合适处扩展。
-- 扩展方式优先用 IDL 的 **`function` 定义**（四 bank 读写、48 位地址、大端访存、cfx 分发）；确需语法扩展时单列「扩展提案」逐条裁定。
 
 ## 对标维度（讨论提纲）
 
@@ -309,30 +222,6 @@
 - **含义**：当前比值**不是周期模型本身的误差**，而是 gem5 配置（无 icache）与 chipyard（8-beat 摊销）的结构差异。要「模型对标」，应先决定是否给 gem5 配 icache 再比（见 N4）。
 - **同批发现的模型偏差**（`m16-chipyard-001` 一并复核）：`B1` 乘法实测 ≈1 拍（模型初值 3）；`B3` 除法硬件 1 拍（文档「待实测」、模型 0）。
 - **gem5 SE 完全没有 semihosting** ⇒ Tiny 应用在 SE 上不可直接跑；`m16-gem5-011` 已把 `--semihost` 默认改为 **off**（显式开）。
-
-## 已裁定：C 类（`ld/st`）拍数口径（用户 2026-11-17 选 ①）
-
-- 承认 chipyard 实测 `ld.*` = **9**、`st.*` = **10** 为真值；`docs/core-wuming-cycle-model.md` 的 C 行「4–7」记为**外推失效**，由 `m16-chipyard-001` 回填并把来源改为「实测」。
-- 依据：`m16-gem5-006` 用文档 **D 类**（块传送）模型在 **N=1** 处求值 ⇒ 得 9/10，13/13 落在 ≤1 拍容差内；四源一致且 D 模型在 N=1 的自洽性有算术依据。
-
-## 已定：二期把执行核改成两阶段（用户 2026-11-16 选 ②）
-
-- 给 DADAO 补 `StaticInst::initiateAcc`/`completeAcc` 并让 bundle 可续跑；目标 CPU = `TimingSimpleCPU`（`AtomicSimpleCPU` 不走两阶段）。
-- **随之必须同笔做**：① 周期表里 `ld/st` 的 9/10 拍（`ld.o` 7–16、`st.o` 10–21，含背压）**清零**，否则双重计费；② 一个 bundle 可能含多条访存 ⇒ 需能「停在中间」（记录子操作序号与未完成请求数），`ldm`/`stm` 的 N 个元素如何发请求（串行 or 并发）在 ADR 里定；③ 取指侧 8 拍/指令（无 icache）是既有事实，两阶段只解决数据侧。
-- 落地载体：`ADR-0057`（`Candidate`，D5–D7 见 N4）。
-
-## 参考材料分工（`.cache/refs/`，只读参考、不复制实现）
-
-- **`riscv-unified-db`**（`manifests/references.lock.toml` 已登记）：机器可读 ISA 数据的形态。
-- **`DADAO-0628`**：Python 解释器与 Sail 两套独立实现的经验。
-- **`DADAO-v5-pr4`**：RTL 侧微操作分层与「生成器 vs 独立校验器」对偶。
-- 落盘方式：这两份参考材料**不用 git 镜像**，改为 **tarball 快照**（`manifests/reference-snapshots.toml` 记录 URL/commit/sha256）。
-
----
-
-# Milestone 候选
-
-> 尚未立册的后续方向；立项时把「目标 / 出口判据 / 首件任务」补进对应小节。
 
 ## IDL 可执行参考模型
 
