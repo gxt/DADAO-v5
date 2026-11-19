@@ -19,7 +19,7 @@
 
 ## 目标
 
-1. **新增 `configs/dadao/fs_timing.py`**：与 `fs.py` 同几何（`--profile {tiny,vast}`），CPU 换成 DADAO 的 `TimingSimpleCPU` 变体（`DadaoTimingSimpleCPU` 复用 `se_timing.py` 的类），挂 `NoncoherentXBar` + `SimpleMemory`；
+1. **在 `configs/dadao/fs.py` 上加 `--cpu-type {atomic,timing}`**（默认 `atomic` 保持现状）——**不新建 `fs_timing.py`**（用户 2026-11-19 裁定：按模式命名 + CPU 类型参数化，与 gem5 上游 `--cpu-type` 惯例一致）；`timing` 分支用 `DadaoTimingSimpleCPU` + `NoncoherentXBar` + `SimpleMemory`；
 2. **`translateTiming` 落地**：`fs_tlb.cc`（Tiny）与 `node_tlb.cc`（Vast）现在的 `translateTiming` 是 **stub/未实现**（忽略 `translation` 参数）；需按各 TLB 的解析逻辑实现，使 timed 访问能正确翻译并回填；
 3. **`--wuming-cycles` 在 FS 下仍生效**（逐指令延迟钩子是 arch 侧，与 SE/FS 无关，确认即可）；
 4. **Vast 的 TLB/PTW 时序口径**：若 TLB miss 的走查代价暂时不建模，必须在文件头**显式声明**（「PTW 走查按 0 延迟，由周期表另行记账」），并给出后续接入点；
