@@ -18,3 +18,10 @@ path = ".cache/refs/DADAO"
 repository = "https://github.com/gxt/DADAO.git"
 head = "f9bde0481668ffab325db8d8c5d8c4cc791c6232"
 reuse = "各阶段早期实现的架构与工程教训，不复制实现"
+
+[[reference]]
+id = "riscv-arch-test"
+path = ".cache/refs/riscv-arch-test"
+repository = "https://github.com/riscv-non-isa/riscv-arch-test.git"
+head = "0a2f8c8b16dae159845eb632d6d8bdb2b80c4784"
+reuse = "测试用例设计与签名（signature）机制参考；PTE 编码/异常码/端序不同，不复制被测代码"
