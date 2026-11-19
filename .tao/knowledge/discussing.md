@@ -34,13 +34,6 @@
 - 已核事实：`configs/dadao/` 只有 `se.py`/`se_timing.py`/`fs.py`，都只用 `SimpleMemory`（`se_timing` 另有 `NoncoherentXBar`）；chipyard 侧只有 `WumingTinyConfig`（SRAM 主存、`icache/dcache = None`），**无 Vast 配置**。
 - 用户已指出：`Kaiwu-Tiny` 跑在 SRAM 上**不需要** cache；`Kaiwu-Vast` 需要 cache 但 RTL 尚未增加。
 
-## N19. D 类 `beats` 必须按起始相位算（`m16-chipyard-004` 实测发现）
-
-- 现行 `wuming_latency.hh` 的块传送 beats 按「元素不跨 8 B 拍」推导；实测要求 **`beats = ⌈(addr%8 + N·w)/8⌉`**——非 8 B 相位起址时每组恰多 8 拍（`ldm.ub` N=8 相位 2 ⇒ 24 拍而非 16）。
-- 影响：非对齐起址的 `ldm`/`stm` 模型会低估；`ldm.ub` N=8 = 16 是 8 B 相位上的值，不能外推到其它相位。
-- 待定：是否改模型（改 `wuming_latency.hh` 的 beats 公式 + 表 + 探针），以及是否需要把「相位」作为表格的输入维度（当前表只有 `per_element`/`per_beat`）。
-- 另记两个 N=1 地址特例（SRAM 尾拍 +11、`.text` 内 off-queue 取指 −1），已是实测例外，不解释 +1。
-
 ## N21. M15 收口时补 `idl/*.idl` 的 sha256 锁
 
 - 用户 2026-11-18 裁定：`idl/` 目录的 `.manifests.toml` **先只列文件名**（双向集合断言），`sha256` **等 M15 完成后统一补**。
