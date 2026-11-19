@@ -173,12 +173,21 @@ def load_declared(root: Path) -> set[str]:
     return declared
 
 
+def strip_comments(text: str) -> str:
+    """抹掉 ``#`` 行尾注释（只用于「未声明函数」扫描）。
+
+    operation 的注释里常引述散文的记号（如 ``rol(x, n)``、``GF(2)``），
+    按字面扫会把注释误判成「调用了未声明的函数」，逼人改注释措辞。
+    """
+    return "\n".join(line.split("#", 1)[0] for line in text.split("\n"))
+
+
 def check_calls_declared(ops: dict[str, Op], declared: set[str]) -> int:
     """每条 operation 调用的函数都必须在 §4 声明（防「引用了不存在的语义库」）。"""
     bad: list[str] = []
     total = 0
     for op in ops.values():
-        for m in CALL_RE.finditer(op.text):
+        for m in CALL_RE.finditer(strip_comments(op.text)):
             name = m.group(1)
             if name in NON_CALL:
                 continue
