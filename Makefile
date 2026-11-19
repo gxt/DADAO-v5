@@ -62,7 +62,8 @@ DOCKER_TAG ?= dadao-v5-dev:local
         build-builtins build-qemu build-qemu-reconfig build-gem5 check-gem5-decode check-wuming-cycles build-bootrom build-picolibc \
         build-musl build-musl-shared test-picolibc-smoke install-host install-cfx-aliases docker-image docker-shell check \
         linux-defconfig linux-vmlinux linux-initramfs linux-semihosting-smoke \
-        check-linux-toolchain check-linux-boot-contract check-linux-k0 check-linux-k1 \
+        check-linux-toolchain check-linux-boot-contract check-config-pins \
+        check-linux-k0 check-linux-k1 \
         check-linux-k2 check-linux-k3 \
         check-picolibc-tests check-picolibc-tests-full \
         check-testcases-suites check-testcases-suites-full \
@@ -253,6 +254,7 @@ help:
 	@echo "  make linux-semihosting-smoke  Boot the kernel under QEMU semihosting (smoke; M14; script lands later)"
 	@echo "  make check-linux-toolchain  Check the dadao cross toolchain can build the kernel (L1; M14)"
 	@echo "  make check-linux-boot-contract  Check the boot ABI contract against spec/Kaiwu (L1; M14)"
+	@echo "  make check-config-pins  Every gate's CONFIG_PINS == all config DADAO_* of Kconfig.debug (slice derived from it, fail-closed; L1; ISS-470/m15-infra-008)"
 	@echo "  make check-linux-k0  K0 closure gate: vmlinux ELF/boot-ABI + initramfs (reproducible, /init) + toolchain matrix + boot contract + apply-series idempotence (L2; m14-infra-003)"
 	@echo "  make check-linux-k1  K1 closure gate: Vast end-to-end power->hmon->smon->kernel->start_kernel->SYS_EXIT(0) before any clock; boot info + kernel-built PTBR (L2; m14-linux-005)"
 	@echo "  make check-linux-k2  K2 closure gate: supv exception channel (declared vs undeclared CFXMEM) + clock (freq/time/interval) + IE masking (+1 release) + K0/K1 no regression (L2; m14-linux-009)"
@@ -1083,10 +1085,11 @@ _locked-build-musl-shared:
 # 加目标才改这里。路径解析唯一来源 = tools/linux/paths.py（脚本不得各自拼路径）。
 # 写者（defconfig/vmlinux/initramfs/semihosting-smoke）与会**增量构建**的
 # check-linux-k0 / check-linux-k1 / check-linux-k2 / check-linux-k3 列入 $(GATE_LOCKED_TARGETS)
-# （docs/Process-07 §2）；两个只读门控（check-linux-toolchain /
-# check-linux-boot-contract）不占锁。
+# （docs/Process-07 §2）；三个只读门控（check-linux-toolchain /
+# check-linux-boot-contract / check-config-pins）不占锁。
 # L1/L2 成员接线（m14-infra-003 / m14-linux-005 / m14-linux-009 / m14-linux-015）：
-# L1 `_locked-check` 含 check-linux-toolchain + check-linux-boot-contract；
+# L1 `_locked-check` 含 check-linux-toolchain + check-linux-boot-contract +
+# check-config-pins；
 # L2 `_locked-check-modules` 含 check-linux-k0（K0 收口）、check-linux-k1（K1 收口）、
 # check-linux-k2（K2 收口）与 check-linux-k3（K3 收口）。
 # check-linux-k3 的成员 = B/M/F/C/T/X/R 七组：B 构建与配置、M 页表原语
@@ -1136,6 +1139,13 @@ check-linux-toolchain:
 check-linux-boot-contract:
 	@$(PYTHON) tools/linux/check_boot_contract.py
 
+# CONFIG_DADAO_* 钉子全集（ISS-470；F30/F41 两次复发）：每个切片脚本的模块级
+# CONFIG_PINS 键集合必须 == Kconfig 真源全集，且切片由 config_pins.config_lines()
+# 派生（无手写字面量），int 钉 "n" 须依赖确实不满足；Kconfig 解析不到符号 ⇒ 红
+# （fail-closed）。`--self-test` 6 类注入。只读静态（不建、不跑）⇒ L1。
+check-config-pins:
+	@$(PYTHON) tools/linux/check_config_pins.py
+
 docker-image:
 	docker build -t $(DOCKER_TAG) containers/dev
 
@@ -1169,7 +1179,7 @@ _locked-clean-work:
 # 两条排在 `check-temp-dirs` **之前**：它们在 `$DADAO_TMP`（`check_toolchain.py`
 # 默认建任务临时目录）下跑探针，先跑可让该目录 mtime 保持新鲜，避免陈旧临时
 # 目录误报；`check_k0.py`（L2）另行把 DADAO_TMP 指到自己的 scratch。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-manifests-guard check-idl-sync check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-writer-guards check-temp-dirs
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-manifests-guard check-idl-sync check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-config-pins check-writer-guards check-temp-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"

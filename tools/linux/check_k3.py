@@ -117,6 +117,7 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+from tools.linux import config_pins                     # noqa: E402  (pins)
 from tools.linux import k1_boot_probe as k1boot          # noqa: E402  (symbols)
 from tools.linux import k2_trap_probe as k2trap         # noqa: E402  (§7.1, §2)
 from tools.linux import k3_page_probe as k3pf           # noqa: E402  (channel parsers)
@@ -144,31 +145,44 @@ SOURCE = linux_paths.linux_source_dir()
 
 GROUPS = "BMFCTXR"
 
-BASE_IMAGE = [
-    "CONFIG_DADAO_K1_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_TIME_STOP=n",
+#: The images this gate builds: every milestone symbol is pinned in every image
+#: (`make check-config-pins`, ISS-470), the per-image K3 probe value comes from
+#: `IMAGE_PINS`.  `CONFIG_PINS` is the K3 image with both K3 probes off.
+CONFIG_PINS = {
+    "CONFIG_DADAO_K1_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_STOP": "n",
+    # int symbols whose `depends on` is not met are "left unset": Kconfig has no
+    # `n` value for them and drops them from .config (see tools/linux/config_pins.py).
+    "CONFIG_DADAO_K2_TIME_CASE": "n",
+    "CONFIG_DADAO_K2_IRQ_TEST": "n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST": "n",
+    "CONFIG_DADAO_K2_SELFTEST_REENTRY": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
+    "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
+    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
+    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
+    # m14-linux-017/019: the stack-growth probe is an int too; pin it
+    # so no image inherits another gate's case (F30 class, twice seen).
+    "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
     # m14-linux-016: the K3 page-fault cases moved to the K4 boundary (their
     # page source is the buddy allocator now), so the K3 images must reach it —
     # and must not also carry the K4 self-test.
-    "CONFIG_DADAO_K4_SELFTEST=n",
-    "CONFIG_DADAO_K4_SWITCH_SELFTEST=n",
-    # m14-linux-017/019: the stack-growth probe is an int too; pin it
-    # so no image inherits another gate's case (F30 class, twice seen).
-    "CONFIG_DADAO_K4_STACK_SELFTEST=0",
-]
-
-#: name -> the config slice that makes this image (every boundary pinned).
-IMAGES = {
-    "pt": BASE_IMAGE + ["CONFIG_DADAO_K3_PT_SELFTEST=y",
-                        "CONFIG_DADAO_K3_PF_SELFTEST=0"],
-    "pf1": BASE_IMAGE + ["CONFIG_DADAO_K3_PT_SELFTEST=n",
-                         "CONFIG_DADAO_K3_PF_SELFTEST=1"],
-    "pf4": BASE_IMAGE + ["CONFIG_DADAO_K3_PT_SELFTEST=n",
-                         "CONFIG_DADAO_K3_PF_SELFTEST=4"],
-    "pf5": BASE_IMAGE + ["CONFIG_DADAO_K3_PT_SELFTEST=n",
-                         "CONFIG_DADAO_K3_PF_SELFTEST=5"],
+    "CONFIG_DADAO_K4_SELFTEST": "n",
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
 }
+
+#: Per-image overrides: the K3 probe this image runs (the other one stays off).
+IMAGE_PINS = {
+    "pt": {"CONFIG_DADAO_K3_PT_SELFTEST": "y"},
+    "pf1": {"CONFIG_DADAO_K3_PF_SELFTEST": "1"},
+    "pf4": {"CONFIG_DADAO_K3_PF_SELFTEST": "4"},
+    "pf5": {"CONFIG_DADAO_K3_PF_SELFTEST": "5"},
+}
+
+IMAGES = {name: config_pins.config_lines(CONFIG_PINS, IMAGE_PINS[name])
+          for name in ("pt", "pf1", "pf4", "pf5")}
 
 #: Symbols this image must carry as ``SYMBOL=value`` (exact line).
 IMAGE_ON = {

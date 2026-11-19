@@ -84,6 +84,7 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+from tools.linux import config_pins                    # noqa: E402  (pins)
 from tools.linux import check_k1 as k1gate          # noqa: E402  (BootROM image)
 from tools.linux import k1_boot_probe as k1boot     # noqa: E402  (symbols/ELF)
 from tools.linux import k2_irq_probe as k2irq       # noqa: E402  (P2/P4 lines)
@@ -108,47 +109,49 @@ SCRATCH = (Path(os.environ.get("K2G_TMP")
 #: one image's configuration into another.  The K2 image used to be "whatever
 #: `make defconfig` says"; since m14-linux-016 the delivered default image is the
 #: K4 one (no stop inside `setup_arch()`) and the K2 milestone image is the slice
-#: below — same image, pinned instead of inherited.
-IMAGES = {
-    "k2": [
-        "CONFIG_DADAO_K1_EARLY_STOP=n",
-        "CONFIG_DADAO_K2_EARLY_STOP=n",
-        "CONFIG_DADAO_K2_TIME_STOP=y",
-        "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
-        "CONFIG_DADAO_K3_PT_SELFTEST=n",
-        "CONFIG_DADAO_K3_PF_SELFTEST=0",
-        "CONFIG_DADAO_K4_SELFTEST=n",
-        "CONFIG_DADAO_K4_SWITCH_SELFTEST=n",
+#: below — same image, pinned instead of inherited.  `CONFIG_PINS` is the
+#: complete set for the K2 image (enforced by `make check-config-pins`, ISS-470);
+#: `IMAGE_PINS` holds the per-image overrides only.
+CONFIG_PINS = {
+    "CONFIG_DADAO_K1_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_STOP": "y",
+    "CONFIG_DADAO_K2_TIME_CASE": "0",
+    "CONFIG_DADAO_K2_IRQ_TEST": "n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST": "n",
+    "CONFIG_DADAO_K2_SELFTEST_REENTRY": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
+    "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
+    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
+    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
     # m14-linux-017/019: the stack-growth probe is an int too; pin it
     # so no image inherits another gate's case (F30 class, twice seen).
-    "CONFIG_DADAO_K4_STACK_SELFTEST=0",
-    ],
-    "trap": [
-        "CONFIG_DADAO_K1_EARLY_STOP=n",
-        "CONFIG_DADAO_K2_EARLY_STOP=y",
-        "CONFIG_DADAO_K2_TIME_STOP=n",
-        "CONFIG_DADAO_K2_TRAP_SELFTEST=y",
-        "CONFIG_DADAO_K2_SELFTEST_UNKNOWN=n",
-        "CONFIG_DADAO_K2_SELFTEST_REENTRY=n",
-        "CONFIG_DADAO_K2_SELFTEST_CFXTRAP=n",
-        "CONFIG_DADAO_K2_SELFTEST_CFXESC=n",
-        # m14-linux-011/012: neither K3 probe may leak in from whichever image
-        # configured the shared build tree last (the pt image is the trap: it is
-        # built first and carries K3_PT_SELFTEST=y).
-        "CONFIG_DADAO_K3_PT_SELFTEST=n",
-        "CONFIG_DADAO_K3_PF_SELFTEST=0",
-    ],
-    "irq": [
-        "CONFIG_DADAO_K1_EARLY_STOP=n",
-        "CONFIG_DADAO_K2_EARLY_STOP=n",
-        "CONFIG_DADAO_K2_TIME_STOP=y",
-        "CONFIG_DADAO_K2_TIME_CASE=0",
-        "CONFIG_DADAO_K2_IRQ_TEST=y",
-        "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
-        "CONFIG_DADAO_K3_PT_SELFTEST=n",
-        "CONFIG_DADAO_K3_PF_SELFTEST=0",
-    ],
+    "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    "CONFIG_DADAO_K4_SELFTEST": "n",
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
 }
+
+#: Per-image overrides (every key is also in CONFIG_PINS).  `k2` names the base
+#: image for the expectation table below (an empty override = "no change");
+#: `trap` stops at the early K2 boundary (`m14-linux-011/012`: neither K3 probe
+#: may leak in from whichever image configured the shared build tree last);
+#: `irq` keeps the time boundary and adds the mask-knob self-test.
+IMAGE_PINS = {
+    "k2": {},
+    "trap": {
+        "CONFIG_DADAO_K2_EARLY_STOP": "y",
+        "CONFIG_DADAO_K2_TIME_STOP": "n",
+        "CONFIG_DADAO_K2_TIME_CASE": "n",
+        "CONFIG_DADAO_K2_TRAP_SELFTEST": "y",
+    },
+    "irq": {
+        "CONFIG_DADAO_K2_IRQ_TEST": "y",
+    },
+}
+
+IMAGES = {name: config_pins.config_lines(CONFIG_PINS, IMAGE_PINS.get(name))
+          for name in ("k2", "trap", "irq")}
 
 #: The boundary symbols each image must carry in its own ``.config``.
 IMAGE_CONFIG = {

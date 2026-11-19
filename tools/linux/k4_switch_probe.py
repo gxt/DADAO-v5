@@ -60,6 +60,7 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+from tools.linux import config_pins                          # noqa: E402  (pins)
 from tools.linux import make_defconfig as defconfig          # noqa: E402
 from tools.linux import make_vmlinux as make_vmlinux         # noqa: E402
 from tools.linux import paths as linux_paths                 # noqa: E402
@@ -72,20 +73,31 @@ SOURCE = linux_paths.linux_source_dir()
 CONTRACT_TLB = _REPO / ".tao" / "contracts" / "contract-tlb.md"
 CONTRACT_ABI = _REPO / ".tao" / "contracts" / "contract-abi.md"
 
-#: Every milestone boundary pinned off, and only this probe compiled in.
-IMAGE = [
-    "CONFIG_DADAO_K1_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_TIME_STOP=n",
-    "CONFIG_DADAO_K3_PF_SELFTEST=0",
-    "CONFIG_DADAO_K3_PT_SELFTEST=n",
-    "CONFIG_DADAO_K4_SELFTEST=n",
-    "CONFIG_DADAO_K4_SWITCH_SELFTEST=y",
+#: Every milestone boundary pinned off, and only this probe compiled in
+#: (`make check-config-pins`, ISS-470; an int pinned ``"n"`` is "left unset"
+#: because its `depends on` is not met).
+CONFIG_PINS = {
+    "CONFIG_DADAO_K1_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_CASE": "n",
+    "CONFIG_DADAO_K2_IRQ_TEST": "n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST": "n",
+    "CONFIG_DADAO_K2_SELFTEST_REENTRY": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
+    "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
+    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
+    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
+    "CONFIG_DADAO_K4_SELFTEST": "n",
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST": "y",
     # The stack-growth probe is an int (0 = off); pin it off or this
     # image inherits the last stack case and ends the boot at the K4
     # boundary (F30 class: sibling config symbols are pinned in pairs).
-    "CONFIG_DADAO_K4_STACK_SELFTEST=0",
-]
+    "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+}
+
+IMAGE = config_pins.config_lines(CONFIG_PINS)
 
 TIMEOUT_BUILD = int(os.environ.get("K4S_BUILD_TIMEOUT", "2400"))
 TIMEOUT_QEMU = int(os.environ.get("K4S_QEMU_TIMEOUT", "180"))

@@ -71,6 +71,7 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+from tools.linux import config_pins                     # noqa: E402  (pins)
 from tools.linux import k1_boot_probe as k1boot          # noqa: E402  (symbols)
 from tools.linux import make_defconfig as defconfig     # noqa: E402  (config slice)
 from tools.linux import paths as linux_paths            # noqa: E402
@@ -84,23 +85,34 @@ SPEC_DADAO12 = _REPO / "spec" / "DADAO-12-SEE-主管系统运行环境.md"
 CONTRACT_ABI = _REPO / ".tao" / "contracts" / "contract-abi.md"
 SOURCE = linux_paths.linux_source_dir()
 
-#: Every boundary pinned: the K4 image has no stop inside setup_arch() and no
-#: other milestone's self-test compiled in.
-IMAGE = [
-    "CONFIG_DADAO_K1_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_TIME_STOP=n",
-    "CONFIG_DADAO_K3_PF_SELFTEST=0",
-    "CONFIG_DADAO_K3_PT_SELFTEST=n",
-    "CONFIG_DADAO_K4_SELFTEST=y",
+#: Every boundary pinned (`make check-config-pins`, ISS-470): the K4 image has no
+#: stop inside setup_arch() and no other milestone's self-test compiled in.
+CONFIG_PINS = {
+    "CONFIG_DADAO_K1_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_STOP": "n",
+    # int symbols with an unmet `depends on` are "left unset" (no `n` value in
+    # Kconfig; the symbol is dropped from .config) — tools/linux/config_pins.py.
+    "CONFIG_DADAO_K2_TIME_CASE": "n",
+    "CONFIG_DADAO_K2_IRQ_TEST": "n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST": "n",
+    "CONFIG_DADAO_K2_SELFTEST_REENTRY": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
+    "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
+    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
+    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
+    "CONFIG_DADAO_K4_SELFTEST": "y",
     # m14-linux-017: the context-switch probe is the mutually exclusive sibling
     # of this one (Kconfig: `depends on !DADAO_K4_SELFTEST`); pin it off so the
     # shared build tree cannot hand this image the other probe's symbol.
-    "CONFIG_DADAO_K4_SWITCH_SELFTEST=n",
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
     # m14-linux-017/019: the stack-growth probe is an int too; pin it
     # so no image inherits another gate's case (F30 class, twice seen).
-    "CONFIG_DADAO_K4_STACK_SELFTEST=0",
-]
+    "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+}
+
+IMAGE = config_pins.config_lines(CONFIG_PINS)
 
 ALWAYS_OFF = ("CONFIG_DADAO_K1_EARLY_STOP", "CONFIG_DADAO_K2_EARLY_STOP",
               "CONFIG_DADAO_K2_TIME_STOP")

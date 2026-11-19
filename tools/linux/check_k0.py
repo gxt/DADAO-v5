@@ -90,6 +90,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.linux import config_pins  # noqa: E402
 from tools.linux import make_defconfig as defconfig  # noqa: E402
 from tools.linux import make_initramfs  # noqa: E402
 from tools.linux import paths as linux_paths  # noqa: E402
@@ -116,24 +117,37 @@ CPIO_MAGIC = b"070701"
 CPIO_TRAILER = "TRAILER!!!"
 
 #: Wall-clock guards.  `timeout` => rc 124, which is a FAIL (AGENTS.md「长任务」).
-#: The image this gate inspects: the K1 stop is on, the K2 symbols are
-#: explicitly off (m14-linux-006 config slices keep the shared build tree
-#: deterministic no matter which gate ran last).
-K0_CONFIG = [
-    "CONFIG_DADAO_K1_EARLY_STOP=y",
-    "CONFIG_DADAO_K2_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_TIME_STOP=n",
-    "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
+#: The image this gate inspects: the K1 stop is on, every other milestone
+#: symbol is explicitly off (m14-linux-006 config slices keep the shared build
+#: tree deterministic no matter which gate ran last; the complete set is what
+#: `make check-config-pins` enforces, ISS-470).  An int pinned ``"n"`` is
+#: "left unset" -- its `depends on` is not met, so Kconfig drops it (see
+#: tools/linux/config_pins.py).
+CONFIG_PINS = {
+    "CONFIG_DADAO_K1_EARLY_STOP": "y",
+    "CONFIG_DADAO_K2_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_CASE": "n",
+    "CONFIG_DADAO_K2_IRQ_TEST": "n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST": "n",
+    "CONFIG_DADAO_K2_SELFTEST_REENTRY": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
+    "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
+    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
     # m14-linux-012: the K3 page-fault probe is an int (0 = off); pin it so an
     # image that reaches setup_arch() never inherits another gate's case.
-    "CONFIG_DADAO_K3_PF_SELFTEST=0",
-    # m14-linux-017: the context-switch probe image; pin it off so this
-    # image never inherits another gate's build tree state.
-    "CONFIG_DADAO_K4_SWITCH_SELFTEST=n",
+    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
     # m14-linux-017/019: the stack-growth probe is an int too; pin it
     # so no image inherits another gate's case (F30 class, twice seen).
-    "CONFIG_DADAO_K4_STACK_SELFTEST=0",
-]
+    "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    "CONFIG_DADAO_K4_SELFTEST": "n",
+    # m14-linux-017: the context-switch probe image; pin it off so this
+    # image never inherits another gate's build tree state.
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
+}
+
+K0_CONFIG = config_pins.config_lines(CONFIG_PINS)
 
 TIMEOUT_VMLINUX = int(os.environ.get("K0_VMLINUX_TIMEOUT", "3600"))
 TIMEOUT_INITRAMFS = int(os.environ.get("K0_INITRAMFS_TIMEOUT", "600"))

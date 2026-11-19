@@ -76,6 +76,7 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+from tools.linux import config_pins                    # noqa: E402  (pins)
 from tools.linux import k1_boot_probe as k1boot        # noqa: E402  (symbols/ELF)
 from tools.linux import make_defconfig as defconfig   # noqa: E402  (config slice)
 from tools.linux import make_vmlinux as vmlinux       # noqa: E402  (build driver)
@@ -92,9 +93,10 @@ SCRATCH = (Path(os.environ.get("K2_TMP")
                 or os.environ.get("DADAO_TMP")
                 or "/tmp/opencode/m14-linux-006") / "k2_trap_probe")
 
-#: Images the gate builds.  Each one pins every milestone symbol it cares
-#: about, so the shared build tree cannot leak one image's configuration into
-#: another (this is the whole point of the explicit config slice).
+#: Images the gate builds.  `CONFIG_PINS` is the complete set for the plain K2
+#: image (enforced by `make check-config-pins`, ISS-470) and `IMAGE_PINS` holds
+#: the per-image overrides, so the shared build tree cannot leak one image's
+#: configuration into another (this is the whole point of the explicit slice).
 #:
 #:   plain     K2 image (no self-test)                       -> SYS_EXIT(0)
 #:   probe     self-test, last case = unregistered CFXMEM    -> P1..P8 + P3
@@ -102,36 +104,44 @@ SCRATCH = (Path(os.environ.get("K2_TMP")
 #:   reentry   self-test, last case = fault in the handler   -> re-entrancy guard
 #:   cftrap    self-test, last case = unregistered CFXTRAP   -> "other cfx" code
 #:   cfxesc    self-test, last case = escape to another cfx  -> same code
-_SELFTEST_TERMINALS = ("REENTRY", "CFXTRAP", "CFXESC")
+CONFIG_PINS = {
+    "CONFIG_DADAO_K1_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_EARLY_STOP": "y",
+    "CONFIG_DADAO_K2_TIME_STOP": "n",
+    # int with an unmet `depends on`: "left unset" (no `n` value in Kconfig;
+    # the symbol is dropped from .config) — tools/linux/config_pins.py.
+    "CONFIG_DADAO_K2_TIME_CASE": "n",
+    "CONFIG_DADAO_K2_IRQ_TEST": "n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST": "n",
+    "CONFIG_DADAO_K2_SELFTEST_REENTRY": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
+    "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
+    # m14-linux-011/012 images must not leak in either (the shared build
+    # tree is configured by whichever gate ran last).
+    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
+    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
+    "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    "CONFIG_DADAO_K4_SELFTEST": "n",
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
+}
 
-IMAGES: dict[str, list[str]] = {}
+IMAGE_PINS = {
+    "probe": {"CONFIG_DADAO_K2_TRAP_SELFTEST": "y"},
+    "unknown": {"CONFIG_DADAO_K2_TRAP_SELFTEST": "y",
+                "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "y"},
+    "reentry": {"CONFIG_DADAO_K2_TRAP_SELFTEST": "y",
+                "CONFIG_DADAO_K2_SELFTEST_REENTRY": "y"},
+    "cftrap": {"CONFIG_DADAO_K2_TRAP_SELFTEST": "y",
+               "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "y"},
+    "cfxesc": {"CONFIG_DADAO_K2_TRAP_SELFTEST": "y",
+               "CONFIG_DADAO_K2_SELFTEST_CFXESC": "y"},
+}
 
-
-def _image(selftest: bool = False, terminal: str | None = None,
-           unknown: bool = False) -> list[str]:
-    slice_ = {
-        "CONFIG_DADAO_K1_EARLY_STOP": "n",
-        "CONFIG_DADAO_K2_EARLY_STOP": "y",
-        "CONFIG_DADAO_K2_TIME_STOP": "n",
-        "CONFIG_DADAO_K2_TRAP_SELFTEST": "y" if selftest else "n",
-        "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "y" if unknown else "n",
-        # m14-linux-011/012 images must not leak in either (the shared build
-        # tree is configured by whichever gate ran last).
-        "CONFIG_DADAO_K3_PT_SELFTEST": "n",
-        "CONFIG_DADAO_K3_PF_SELFTEST": "0",
-    }
-    for name in _SELFTEST_TERMINALS:
-        slice_[f"CONFIG_DADAO_K2_SELFTEST_{name}"] = \
-            "y" if name == terminal else "n"
-    return [f"{symbol}={value}" for symbol, value in slice_.items()]
-
-
-IMAGES["plain"] = _image()
-IMAGES["probe"] = _image(selftest=True)
-IMAGES["unknown"] = _image(selftest=True, unknown=True)
-IMAGES["reentry"] = _image(selftest=True, terminal="REENTRY")
-IMAGES["cftrap"] = _image(selftest=True, terminal="CFXTRAP")
-IMAGES["cfxesc"] = _image(selftest=True, terminal="CFXESC")
+IMAGES: dict[str, list[str]] = {
+    name: config_pins.config_lines(CONFIG_PINS, IMAGE_PINS.get(name))
+    for name in ("plain", "probe", "unknown", "reentry", "cftrap", "cfxesc")
+}
 
 #: The images whose boot ends in the terminal case (rc is the case's verdict).
 TERMINAL_IMAGES = ("probe", "reentry", "cftrap", "cfxesc")

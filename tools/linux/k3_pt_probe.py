@@ -63,6 +63,7 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+from tools.linux import config_pins                     # noqa: E402  (pins)
 from tools.linux import k1_boot_probe as k1boot          # noqa: E402  (symbols)
 from tools.linux import k2_trap_probe as k2trap         # noqa: E402  (cause table)
 from tools.linux import make_defconfig as defconfig     # noqa: E402  (config slice)
@@ -77,14 +78,29 @@ SCRATCH = (Path(os.environ.get("K3_TMP")
                 or os.environ.get("DADAO_TMP")
                 or "/tmp/opencode/m14-linux-011") / "k3_pt_probe")
 
-#: The probe image pins every milestone boundary it depends on, so the shared
-#: build tree cannot leak another image's configuration into this one.
-IMAGE = [
-    "CONFIG_DADAO_K1_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_TIME_STOP=n",
-    "CONFIG_DADAO_K3_PT_SELFTEST=y",
-]
+#: The probe image pins every milestone boundary (complete set,
+#: `make check-config-pins`, ISS-470), so the shared build tree cannot leak
+#: another image's configuration into this one.  An int pinned ``"n"`` is "left
+#: unset" because its `depends on` is not met.
+CONFIG_PINS = {
+    "CONFIG_DADAO_K1_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_CASE": "n",
+    "CONFIG_DADAO_K2_IRQ_TEST": "n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST": "n",
+    "CONFIG_DADAO_K2_SELFTEST_REENTRY": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
+    "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
+    "CONFIG_DADAO_K3_PT_SELFTEST": "y",
+    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
+    "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    "CONFIG_DADAO_K4_SELFTEST": "n",
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
+}
+
+IMAGE = config_pins.config_lines(CONFIG_PINS)
 
 SPEC_DADAO12 = _REPO / "spec" / "DADAO-12-SEE-主管系统运行环境.md"
 SPEC_MACHINE = _REPO / "spec" / "Kaiwu-测试机运行环境.md"

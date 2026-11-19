@@ -45,6 +45,7 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+from tools.linux import config_pins                          # noqa: E402  (pins)
 from tools.linux import make_defconfig as defconfig          # noqa: E402
 from tools.linux import paths as linux_paths                 # noqa: E402
 from tools.qemu import k0_boot_probe as k0                   # noqa: E402
@@ -54,16 +55,35 @@ SCRATCH = (Path(os.environ.get("K4ST_TMP")
                 or "/tmp/opencode/m14-linux-017") / "check-linux-k4-stack")
 SOURCE = linux_paths.linux_source_dir()
 
-#: Every milestone probe pinned off; the case is added per image.
-IMAGE = [
-    "CONFIG_DADAO_K1_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_TIME_STOP=n",
-    "CONFIG_DADAO_K3_PF_SELFTEST=0",
-    "CONFIG_DADAO_K3_PT_SELFTEST=n",
-    "CONFIG_DADAO_K4_SELFTEST=n",
-    "CONFIG_DADAO_K4_SWITCH_SELFTEST=n",
-]
+#: Every milestone probe pinned off; the case is the one per-image override
+#: (`make check-config-pins`, ISS-470; an int pinned ``"n"`` is "left unset"
+#: because its `depends on` is not met).
+CONFIG_PINS = {
+    "CONFIG_DADAO_K1_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_CASE": "n",
+    "CONFIG_DADAO_K2_IRQ_TEST": "n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST": "n",
+    "CONFIG_DADAO_K2_SELFTEST_REENTRY": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
+    "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
+    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
+    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
+    "CONFIG_DADAO_K4_SELFTEST": "n",
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
+    "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+}
+
+#: The stack case each image carries (0 = off is not an image here: the gate
+#: builds one image per case).
+IMAGE_PINS = {
+    "1": {"CONFIG_DADAO_K4_STACK_SELFTEST": "1"},
+    "3": {"CONFIG_DADAO_K4_STACK_SELFTEST": "3"},
+    "4": {"CONFIG_DADAO_K4_STACK_SELFTEST": "4"},
+    "6": {"CONFIG_DADAO_K4_STACK_SELFTEST": "6"},
+}
 
 CASES = {1: ("S1", "S2", "S5"), 3: ("S3",), 4: ("S4",), 6: ("S6",)}
 
@@ -168,7 +188,12 @@ def pf_rows(text: str) -> list[dict[str, str]]:
 # ---------------------------------------------------------------------------
 
 def build_image(case: int, label: str = "") -> int:
-    rc = defconfig.apply_config_lines(IMAGE + [f"CONFIG_DADAO_K4_STACK_SELFTEST={case}"])
+    # The gate's four images are the declared pins; an ad-hoc `--cases N` value
+    # is a debug path and overrides just this symbol.
+    overrides = IMAGE_PINS.get(str(case),
+                               {"CONFIG_DADAO_K4_STACK_SELFTEST": str(case)})
+    rc = defconfig.apply_config_lines(
+        config_pins.config_lines(CONFIG_PINS, overrides))
     if rc != 0:
         print(f"k4_stack_probe: FAIL: config slice rc={rc}", file=sys.stderr)
         return rc

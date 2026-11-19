@@ -110,6 +110,7 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+from tools.linux import config_pins  # noqa: E402  (CONFIG_DADAO_* pins)
 from tools.linux import k1_boot_probe as k1boot    # noqa: E402  (ELF/symbols)
 from tools.linux import make_defconfig as defconfig  # noqa: E402  (config slice)
 from tools.linux import k1_pt_probe as k1pt       # noqa: E402  (ptw parsers)
@@ -135,24 +136,36 @@ STAGE_TYPES = {1: "hmon", 2: "smon"}
 #: ELF each stage is loaded from; power copies them here before the handover.
 SPEC_SRAM = {"hmon": 0x0FFF_0000_0000, "smon": 0x0BFF_0000_0000}
 
-#: The image this gate boots: the K1 stop is on and the K2 symbols are
-#: explicitly off, so the result never depends on which gate configured the
-#: shared build tree last (m14-linux-006 config slices).
-K1_CONFIG = [
-    "CONFIG_DADAO_K1_EARLY_STOP=y",
-    "CONFIG_DADAO_K2_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_TIME_STOP=n",
-    "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
+#: The image this gate boots: the K1 stop is on and every other milestone
+#: symbol is explicitly off, so the result never depends on which gate
+#: configured the shared build tree last (m14-linux-006 config slices).  The
+#: complete set is what `make check-config-pins` enforces (`ISS-470`); an int
+#: pinned ``"n"`` is "left unset" because its `depends on` is not met.
+CONFIG_PINS = {
+    "CONFIG_DADAO_K1_EARLY_STOP": "y",
+    "CONFIG_DADAO_K2_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_CASE": "n",
+    "CONFIG_DADAO_K2_IRQ_TEST": "n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST": "n",
+    "CONFIG_DADAO_K2_SELFTEST_REENTRY": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
+    "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
+    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
     # m14-linux-012: the K3 page-fault probe is an int (0 = off); pin it so an
     # image that reaches setup_arch() never inherits another gate's case.
-    "CONFIG_DADAO_K3_PF_SELFTEST=0",
-    # m14-linux-017: the context-switch probe image; pin it off so this
-    # image never inherits another gate's build tree state.
-    "CONFIG_DADAO_K4_SWITCH_SELFTEST=n",
+    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
     # m14-linux-017/019: the stack-growth probe is an int too; pin it
     # so no image inherits another gate's case (F30 class, twice seen).
-    "CONFIG_DADAO_K4_STACK_SELFTEST=0",
-]
+    "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    "CONFIG_DADAO_K4_SELFTEST": "n",
+    # m14-linux-017: the context-switch probe image; pin it off so this
+    # image never inherits another gate's build tree state.
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
+}
+
+K1_CONFIG = config_pins.config_lines(CONFIG_PINS)
 
 TIMEOUT_QEMU = int(os.environ.get("K1_QEMU_TIMEOUT", "120"))
 TIMEOUT_BUILD = int(os.environ.get("K1_BUILD_TIMEOUT", "3600"))

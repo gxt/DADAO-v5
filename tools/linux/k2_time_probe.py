@@ -70,6 +70,7 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+from tools.linux import config_pins                  # noqa: E402  (pins)
 from tools.linux import k1_boot_probe as k1boot      # noqa: E402  (symbols)
 from tools.linux import k2_trap_probe as k2trap      # noqa: E402  (§7.1 parser)
 from tools.linux import make_defconfig as defconfig  # noqa: E402  (config slice)
@@ -100,20 +101,37 @@ IRQFLAGS_H = "arch/dadao/include/asm/irqflags.h"
 #: expected count is the kernel's own declaration, read from the output.
 TICK_FLOOR = 3
 
-#: Images the gate builds.  Every milestone symbol is pinned so the shared build
-#: tree cannot leak one image's configuration into another.
+#: Images the gate builds.  Every milestone symbol is pinned (complete set,
+#: `make check-config-pins`, ISS-470) so the shared build tree cannot leak one
+#: image's configuration into another; the time case is the per-image override.
+CONFIG_PINS = {
+    "CONFIG_DADAO_K1_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_STOP": "y",
+    "CONFIG_DADAO_K2_TIME_CASE": "0",
+    "CONFIG_DADAO_K2_IRQ_TEST": "n",   # m14-linux-008 image must not leak in
+    "CONFIG_DADAO_K2_TRAP_SELFTEST": "n",
+    "CONFIG_DADAO_K2_SELFTEST_REENTRY": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
+    "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
+    "CONFIG_DADAO_K3_PT_SELFTEST": "n",  # neither may the m14-linux-011/012 ones
+    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
+    "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    "CONFIG_DADAO_K4_SELFTEST": "n",
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
+}
+
+#: The exercised case per image: 0 production, 1 IMASK, 2 source axis, 3 global.
+IMAGE_PINS = {
+    "imask": {"CONFIG_DADAO_K2_TIME_CASE": "1"},
+    "source": {"CONFIG_DADAO_K2_TIME_CASE": "2"},
+    "global": {"CONFIG_DADAO_K2_TIME_CASE": "3"},
+}
+
 IMAGES: dict[str, list[str]] = {
-    name: [
-        "CONFIG_DADAO_K1_EARLY_STOP=n",
-        "CONFIG_DADAO_K2_EARLY_STOP=n",
-        "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
-        "CONFIG_DADAO_K2_TIME_STOP=y",
-        "CONFIG_DADAO_K2_IRQ_TEST=n",   # m14-linux-008 image must not leak in
-        "CONFIG_DADAO_K3_PT_SELFTEST=n",  # neither may the m14-linux-011/012 ones
-        "CONFIG_DADAO_K3_PF_SELFTEST=0",
-        f"CONFIG_DADAO_K2_TIME_CASE={case}",
-    ]
-    for name, case in (("time", 0), ("imask", 1), ("source", 2), ("global", 3))
+    name: config_pins.config_lines(CONFIG_PINS, IMAGE_PINS.get(name))
+    for name in ("time", "imask", "source", "global")
 }
 
 

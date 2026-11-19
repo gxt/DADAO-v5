@@ -90,6 +90,7 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+from tools.linux import config_pins               # noqa: E402  (pins)
 from tools.linux import k1_boot_probe as k1     # noqa: E402
 from tools.linux import make_defconfig as defconfig  # noqa: E402  (config slice)
 from tools.linux import make_vmlinux as vmlinux  # noqa: E402
@@ -98,13 +99,29 @@ from tools.qemu import k0_boot_probe as k0        # noqa: E402
 
 import yaml                                        # noqa: E402
 
-#: This probe boots the *K1* image: K1's stop is on and the K2 symbols are off
-#: (m14-linux-006 config slices — the default image is the K2 one).
-K1_CONFIG = [
-    "CONFIG_DADAO_K1_EARLY_STOP=y",
-    "CONFIG_DADAO_K2_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
-]
+#: This probe boots the *K1* image: K1's stop is on and every other milestone
+#: symbol is off (m14-linux-006 config slices — the default image is the K4 one).
+#: Complete set, enforced by `make check-config-pins` (ISS-470); an int pinned
+#: ``"n"`` is "left unset" because its `depends on` is not met.
+CONFIG_PINS = {
+    "CONFIG_DADAO_K1_EARLY_STOP": "y",
+    "CONFIG_DADAO_K2_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_CASE": "n",
+    "CONFIG_DADAO_K2_IRQ_TEST": "n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST": "n",
+    "CONFIG_DADAO_K2_SELFTEST_REENTRY": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
+    "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
+    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
+    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
+    "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    "CONFIG_DADAO_K4_SELFTEST": "n",
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
+}
+
+K1_CONFIG = config_pins.config_lines(CONFIG_PINS)
 
 TIMEOUT = int(os.environ.get("K1_PT_TIMEOUT", "120"))
 

@@ -61,6 +61,7 @@ REPO = Path(__file__).resolve().parents[2]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
+from tools.linux import config_pins                     # noqa: E402  (pins)
 from tools.linux import k2_time_probe as k2time         # noqa: E402  (derivations)
 from tools.linux import k2_trap_probe as k2trap        # noqa: E402  (§7.1 parser)
 from tools.linux import make_defconfig as defconfig    # noqa: E402  (config slice)
@@ -81,18 +82,29 @@ SOURCE = linux_paths.linux_source_dir()
 IRQFLAGS = "arch/dadao/include/asm/irqflags.h"
 IRQ_TEST = "arch/dadao/kernel/k2_irq_test.c"
 
-#: Every milestone symbol is pinned so the shared build tree cannot leak one
-#: image's configuration into another.
-IMAGE = [
-    "CONFIG_DADAO_K1_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_TRAP_SELFTEST=n",
-    "CONFIG_DADAO_K2_TIME_STOP=y",
-    "CONFIG_DADAO_K2_TIME_CASE=0",
-    "CONFIG_DADAO_K2_IRQ_TEST=y",
-    "CONFIG_DADAO_K3_PT_SELFTEST=n",   # m14-linux-011/012 images must not leak in
-    "CONFIG_DADAO_K3_PF_SELFTEST=0",
-]
+#: Every milestone symbol is pinned (complete set, `make check-config-pins`,
+#: ISS-470) so the shared build tree cannot leak one image's configuration into
+#: another; an int pinned ``"n"`` is "left unset" because its `depends on` is
+#: not met.
+CONFIG_PINS = {
+    "CONFIG_DADAO_K1_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_STOP": "y",
+    "CONFIG_DADAO_K2_TIME_CASE": "0",
+    "CONFIG_DADAO_K2_IRQ_TEST": "y",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST": "n",
+    "CONFIG_DADAO_K2_SELFTEST_REENTRY": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
+    "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
+    "CONFIG_DADAO_K3_PT_SELFTEST": "n",   # m14-linux-011/012 images must not leak in
+    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
+    "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    "CONFIG_DADAO_K4_SELFTEST": "n",
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
+}
+
+IMAGE = config_pins.config_lines(CONFIG_PINS)
 
 #: Deliveries the case sequence forces: the first tick, the event merged out of
 #: the P2 masked window, and the P4 event delivered after `escape`.  The floor is

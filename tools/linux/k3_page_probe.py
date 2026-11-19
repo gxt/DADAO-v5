@@ -70,6 +70,7 @@ _REPO = Path(__file__).resolve().parents[2]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+from tools.linux import config_pins                     # noqa: E402  (pins)
 from tools.linux import k1_boot_probe as k1boot          # noqa: E402  (symbols)
 from tools.linux import k2_trap_probe as k2trap         # noqa: E402  (causes)
 from tools.linux import k3_pt_probe as k3pt             # noqa: E402  (geometry)
@@ -91,18 +92,48 @@ SOURCE = linux_paths.linux_source_dir()
 CAUSE_SUB_H = SOURCE / "arch/dadao/include/asm/cause-sub.h"
 SELFTEST_C = SOURCE / "arch/dadao/mm/k3_pf_selftest.c"
 
-#: The probe image pins every milestone boundary it depends on: the shared build
-#: tree must never leak another image's configuration into this one.
-BASE_IMAGE = [
-    "CONFIG_DADAO_K1_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_EARLY_STOP=n",
-    "CONFIG_DADAO_K2_TIME_STOP=n",
-    "CONFIG_DADAO_K3_PT_SELFTEST=n",
-]
+#: The probe image pins every milestone boundary (complete set,
+#: `make check-config-pins`, ISS-470) so the shared build tree must never leak
+#: another image's configuration into this one; the case is the per-image
+#: override.  An int pinned ``"n"`` is "left unset" because its `depends on` is
+#: not met.
+CONFIG_PINS = {
+    "CONFIG_DADAO_K1_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_EARLY_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_STOP": "n",
+    "CONFIG_DADAO_K2_TIME_CASE": "n",
+    "CONFIG_DADAO_K2_IRQ_TEST": "n",
+    "CONFIG_DADAO_K2_TRAP_SELFTEST": "n",
+    "CONFIG_DADAO_K2_SELFTEST_REENTRY": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
+    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
+    "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
+    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
+    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
+    "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
+    "CONFIG_DADAO_K4_SELFTEST": "n",
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
+}
+
+#: The K3 page-fault case each image runs (Kconfig `range 0 9`).
+IMAGE_PINS = {
+    "0": {"CONFIG_DADAO_K3_PF_SELFTEST": "0"},
+    "1": {"CONFIG_DADAO_K3_PF_SELFTEST": "1"},
+    "2": {"CONFIG_DADAO_K3_PF_SELFTEST": "2"},
+    "3": {"CONFIG_DADAO_K3_PF_SELFTEST": "3"},
+    "4": {"CONFIG_DADAO_K3_PF_SELFTEST": "4"},
+    "5": {"CONFIG_DADAO_K3_PF_SELFTEST": "5"},
+    "6": {"CONFIG_DADAO_K3_PF_SELFTEST": "6"},
+    "7": {"CONFIG_DADAO_K3_PF_SELFTEST": "7"},
+    "8": {"CONFIG_DADAO_K3_PF_SELFTEST": "8"},
+    "9": {"CONFIG_DADAO_K3_PF_SELFTEST": "9"},
+}
 
 
 def image(case: int) -> list[str]:
-    return BASE_IMAGE + [f"CONFIG_DADAO_K3_PF_SELFTEST={case}"]
+    overrides = IMAGE_PINS.get(
+        str(case), {"CONFIG_DADAO_K3_PF_SELFTEST": str(case)})
+    return config_pins.config_lines(CONFIG_PINS, overrides)
 
 
 # ---------------------------------------------------------------------------
