@@ -116,11 +116,11 @@ jump_rrii_rb	jump	rrii	m1	jump_rrii;tailjmp_rrii	accept	ok	jump [rb8, rd9, 96]	y
 ld.o_rrii_ra	ld.o	rrii	m1	ld_o_ra	accept	ok	ld.o ra8, [rb9, 8]	no		
 ld.o_rrii_rb	ld.o	rrii	m1	ld_o_rb	accept	ok	ld.o rb8, [rb9, 8]	yes	buildmi:DADAOFrameLowering.cpp.patch:465:ld_o_rb;buildmi:DADAOInstrInfo.cpp.patch:493:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:175:ld_o_rb;isel-cpp:DADAOISelDAGToDAG.cpp.patch:670:ld_o_rb	DADAOFrameLowering.cpp.patch:465;DADAOInstrInfo.cpp.patch:493;DADAOInstrInfo.cpp.patch:555
 ld.o_rrii_rd	ld.o	rrii	m1	ld_o_rd	accept	ok	ld.o rd8, [rb9, 8]	yes	pat:DADAOCodeGen.td.patch:805:ld_o_rd	DADAOInstrInfo.cpp.patch:553
-ld.o_rrii_rf	ld.o	rrii	fp	ld_o_rrii_rf	accept	ok	ld.o rf8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:1176:ld_o_rrii_rf	DADAOInstrInfo.cpp.patch:557
+ld.o_rrii_rf	ld.o	rrii	fp	ld_o_rrii_rf	accept	ok	ld.o rf8, [rb9, 8]	yes	pat:DADAOCodeGen.td.patch:1176:ld_o_rrii_rf	DADAOInstrInfo.cpp.patch:557
 ld.sb_rrii_rd	ld.sb	rrii	m1	ld_sb_rd	accept	ok	ld.sb rd8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:812:ld_sb_rd;pat:DADAOCodeGen.td.patch:849:ld_sb_rd;pat:DADAOCodeGen.td.patch:850:ld_sb_rd	
 ld.st_rrii_rd	ld.st	rrii	m1	ld_st_rd	accept	ok	ld.st rd8, [rb9, 4]	yes	pat:DADAOCodeGen.td.patch:827:ld_st_rd	
 ld.sw_rrii_rd	ld.sw	rrii	m1	ld_sw_rd	accept	ok	ld.sw rd8, [rb9, 2]	yes	pat:DADAOCodeGen.td.patch:820:ld_sw_rd;pat:DADAOCodeGen.td.patch:854:ld_sw_rd	
-ld.t_rrii_rf	ld.t	rrii	fp	ld_t_rrii_rf	accept	ok	ld.t rf8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:1180:ld_t_rrii_rf	
+ld.t_rrii_rf	ld.t	rrii	fp	ld_t_rrii_rf	accept	ok	ld.t rf8, [rb9, 4]	yes	pat:DADAOCodeGen.td.patch:1180:ld_t_rrii_rf	
 ld.ub_rrii_rd	ld.ub	rrii	m1	ld_ub_rd	accept	ok	ld.ub rd8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:810:ld_ub_rd;pat:DADAOCodeGen.td.patch:811:ld_ub_rd;pat:DADAOCodeGen.td.patch:838:ld_ub_rd;pat:DADAOCodeGen.td.patch:845:ld_ub_rd;pat:DADAOCodeGen.td.patch:846:ld_ub_rd;pat:DADAOCodeGen.td.patch:847:ld_ub_rd;pat:DADAOCodeGen.td.patch:848:ld_ub_rd	
 ld.ut_rrii_rd	ld.ut	rrii	m1	ld_ut_rd	accept	ok	ld.ut rd8, [rb9, 4]	yes	pat:DADAOCodeGen.td.patch:825:ld_ut_rd;pat:DADAOCodeGen.td.patch:826:ld_ut_rd;pat:DADAOCodeGen.td.patch:840:ld_ut_rd	
 ld.uw_rrii_rd	ld.uw	rrii	m1	ld_uw_rd	accept	ok	ld.uw rd8, [rb9, 2]	yes	pat:DADAOCodeGen.td.patch:818:ld_uw_rd;pat:DADAOCodeGen.td.patch:819:ld_uw_rd;pat:DADAOCodeGen.td.patch:839:ld_uw_rd;pat:DADAOCodeGen.td.patch:852:ld_uw_rd;pat:DADAOCodeGen.td.patch:853:ld_uw_rd	
@@ -232,9 +232,9 @@ st.b_rrii_rd	st.b	rrii	m1	st_b_rd	accept	ok	st.b rd8, [rb9, 1]	yes	pat:DADAOCode
 st.o_rrii_ra	st.o	rrii	m1	st_o_ra	accept	ok	st.o ra8, [rb9, 8]	no		
 st.o_rrii_rb	st.o	rrii	m1	st_o_rb	accept	ok	st.o rb8, [rb9, 8]	yes	buildmi:DADAOFrameLowering.cpp.patch:417:st_o_rb	DADAOFrameLowering.cpp.patch:77;DADAOFrameLowering.cpp.patch:417;DADAOInstrInfo.cpp.patch:520
 st.o_rrii_rd	st.o	rrii	m1	st_o_rd	accept	ok	st.o rd8, [rb9, 8]	yes	pat:DADAOCodeGen.td.patch:806:st_o_rd	DADAOInstrInfo.cpp.patch:518
-st.o_rrii_rf	st.o	rrii	fp	st_o_rrii_rf	accept	ok	st.o rf8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:1178:st_o_rrii_rf	DADAOInstrInfo.cpp.patch:522
+st.o_rrii_rf	st.o	rrii	fp	st_o_rrii_rf	accept	ok	st.o rf8, [rb9, 8]	yes	pat:DADAOCodeGen.td.patch:1178:st_o_rrii_rf	DADAOInstrInfo.cpp.patch:522
 st.t_rrii_rd	st.t	rrii	m1	st_t_rd	accept	ok	st.t rd8, [rb9, 4]	yes	pat:DADAOCodeGen.td.patch:828:st_t_rd;pat:DADAOCodeGen.td.patch:843:st_t_rd	
-st.t_rrii_rf	st.t	rrii	fp	st_t_rrii_rf	accept	ok	st.t rf8, [rb9, 1]	yes	pat:DADAOCodeGen.td.patch:1182:st_t_rrii_rf	
+st.t_rrii_rf	st.t	rrii	fp	st_t_rrii_rf	accept	ok	st.t rf8, [rb9, 4]	yes	pat:DADAOCodeGen.td.patch:1182:st_t_rrii_rf	
 st.w_rrii_rd	st.w	rrii	m1	st_w_rd	accept	ok	st.w rd8, [rb9, 2]	yes	pat:DADAOCodeGen.td.patch:821:st_w_rd;pat:DADAOCodeGen.td.patch:822:st_w_rd;pat:DADAOCodeGen.td.patch:842:st_w_rd	
 stm.b_rrri_rd	stm.b	rrri	m1	stm_b_rd	accept	ok	stm.b {rd8}, [rb0, rd9]	no		
 stm.o_rrri_ra	stm.o	rrri	m1	stm_o_ra	accept	ok	stm.o {ra8}, [rb0, rd9]	no		

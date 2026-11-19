@@ -56,10 +56,10 @@ ld.o rb8, [rb9, 8]
 @@ ASM: ld.o rd8, [rb9, 8]
 ld.o rd8, [rb9, 8]
 
-@@ @src ld.o_rrii_rf 26209001 | SimRISC-01: ld.o
-@@ OBJ: {{[0-9a-f]+:}} 26 20 90 01{{.*}}ld.o
-@@ ASM: ld.o rf8, [rb9, 1]
-ld.o rf8, [rb9, 1]
+@@ @src ld.o_rrii_rf 26209008 | SimRISC-01: ld.o
+@@ OBJ: {{[0-9a-f]+:}} 26 20 90 08{{.*}}ld.o
+@@ ASM: ld.o rf8, [rb9, 8]
+ld.o rf8, [rb9, 8]
 
 @@ @src ld.sb_rrii_rd 13209001 | SimRISC-01: ld.sb
 @@ OBJ: {{[0-9a-f]+:}} 13 20 90 01{{.*}}ld.sb
@@ -76,10 +76,10 @@ ld.st rd8, [rb9, 4]
 @@ ASM: ld.sw rd8, [rb9, 2]
 ld.sw rd8, [rb9, 2]
 
-@@ @src ld.t_rrii_rf 16209001 | SimRISC-01: ld.t
-@@ OBJ: {{[0-9a-f]+:}} 16 20 90 01{{.*}}ld.t
-@@ ASM: ld.t rf8, [rb9, 1]
-ld.t rf8, [rb9, 1]
+@@ @src ld.t_rrii_rf 16209004 | SimRISC-01: ld.t
+@@ OBJ: {{[0-9a-f]+:}} 16 20 90 04{{.*}}ld.t
+@@ ASM: ld.t rf8, [rb9, 4]
+ld.t rf8, [rb9, 4]
 
 @@ @src ld.ub_rrii_rd 10209001 | SimRISC-01: ld.ub
 @@ OBJ: {{[0-9a-f]+:}} 10 20 90 01{{.*}}ld.ub
@@ -116,20 +116,20 @@ st.o rb8, [rb9, 8]
 @@ ASM: st.o rd8, [rb9, 8]
 st.o rd8, [rb9, 8]
 
-@@ @src st.o_rrii_rf 27209001 | SimRISC-01: st.o
-@@ OBJ: {{[0-9a-f]+:}} 27 20 90 01{{.*}}st.o
-@@ ASM: st.o rf8, [rb9, 1]
-st.o rf8, [rb9, 1]
+@@ @src st.o_rrii_rf 27209008 | SimRISC-01: st.o
+@@ OBJ: {{[0-9a-f]+:}} 27 20 90 08{{.*}}st.o
+@@ ASM: st.o rf8, [rb9, 8]
+st.o rf8, [rb9, 8]
 
 @@ @src st.t_rrii_rd 1a209004 | SimRISC-01: st.t
 @@ OBJ: {{[0-9a-f]+:}} 1a 20 90 04{{.*}}st.t
 @@ ASM: st.t rd8, [rb9, 4]
 st.t rd8, [rb9, 4]
 
-@@ @src st.t_rrii_rf 17209001 | SimRISC-01: st.t
-@@ OBJ: {{[0-9a-f]+:}} 17 20 90 01{{.*}}st.t
-@@ ASM: st.t rf8, [rb9, 1]
-st.t rf8, [rb9, 1]
+@@ @src st.t_rrii_rf 17209004 | SimRISC-01: st.t
+@@ OBJ: {{[0-9a-f]+:}} 17 20 90 04{{.*}}st.t
+@@ ASM: st.t rf8, [rb9, 4]
+st.t rf8, [rb9, 4]
 
 @@ @src st.w_rrii_rd 19209002 | SimRISC-01: st.w
 @@ OBJ: {{[0-9a-f]+:}} 19 20 90 02{{.*}}st.w
