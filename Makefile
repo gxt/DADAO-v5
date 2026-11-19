@@ -241,7 +241,7 @@ help:
 	@echo "  ccache               $(if $(CCACHE),$(CCACHE) (auto-detected on PATH; pass CCACHE= to disable),off — ccache not on PATH; LLVM uses the cmake compiler launcher, QEMU the CC/CXX prefix)"
 	@echo "  make build-gem5      Build gem5 with the DADAO arch skeleton (SCons; GEM5_SCONS=... if not on PATH; GEM5-004t)"
 	@echo "  make check-gem5-decode  Regenerate/compare the decode table and run the 264-row decode assertions (GEM5-004t)"
-	@echo "  make check-wuming-cycles Re-parse the cycle model doc and check the 264-id cycle table + generated C++ (m16-gem5-002)"
+	@echo "  make check-wuming-cycles Re-parse the cycle model doc and check the 264-id cycle table + generated C++ (m16-gem5-002; the timing model is consumed by 'gem5.opt configs/dadao/se.py --cpu-type timing --cycle-table contracts/wuming-cycles.yaml')"
 	@echo "  make build-bootrom   Assemble+link the SEE bootrom firmware and sample app (QEMU-047t; needs install-host)"
 	@echo "  make build-picolibc  Build picolibc for dadao-unknown-elf and install it into the target sysroot (INFRA-057t; needs install-host + fetch/apply-series)"
 	@echo "  make build-musl      Build the static musl libc (libc.a + crt) for dadao-unknown-elf in .work/source/musl (INFRA-082t; needs install-host + fetch/apply-series)"

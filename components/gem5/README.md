@@ -404,13 +404,44 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 - **页大小**：`PageShift = 16`（64 KiB），`AT_PAGESZ = 65536`（与架构页一致）。
 - **初始状态**：PC = `e_entry`、SP = `rb1`、`rf0 = 0x7FF800007FC00000`、
   `ra0` 指向 1 MiB 预置 MemRAS（`MRPTR = 区顶 − 8`，invalid entry = 0）。
-- **CLI**：`configs/dadao/se.py --binary <elf> [--args "a b"] [--env K=V]
-  [--mem-size] [--max-stack] [--guest-stdout/-stderr/-stdin] [--cwd]
-  [--max-insts]`；退出码 = guest `status & 0xff`，非 guest 退出为 125。
-- **已知限制**：无 gdb/checkpoint/多核/非 ATOMIC CPU；SEE 异常帧仍 panic。
+- **CLI**：`configs/dadao/se.py --profile user --cpu-type {atomic,timing}
+  --binary <elf> [--args "a b"] [--env K=V] [--mem-size] [--max-stack]
+  [--guest-stdout/-stderr/-stdin] [--cwd] [--max-insts] [--num-threads]`；
+  `--profile user` 是唯一机型（默认，可省略），`--cpu-type` 默认 `atomic`
+  （见下「SE Timing 平台」）；退出码 = guest `status & 0xff`，非 guest
+  退出为 125。
+- **已知限制**：无 gdb/checkpoint/多核/cache 模型/`atomic|timing` 之外的
+  CPU；SEE 异常帧仍 panic。
 - **页大小对照**：`qemu-dadao` 的 4 KiB 页是 QEMU 侧缺陷，已由 `QEMU-081t`
   改为 `TARGET_PAGE_BITS=16`；本任务现场 `pagesz` 在 gem5 与 qemu 两侧均
   `$?==0`（65536）。
+
+## SE Timing 平台（m16-gem5-006，m16-gem5-017 并入 `se.py`）
+
+- **入口**：`configs/dadao/se.py --cpu-type timing`（与上游
+  `configs/example/se.py --cpu-type` 同构；脚本按**模式**命名，CPU 类型是参数）。
+  `--cpu-type atomic`（默认）就是上面的 SE 参考配置，行为逐字节不变。
+- **构成**：`DadaoTimingSimpleCPU`（`BaseTimingSimpleCPU` + `DadaoCPU`，
+  `mmu = DadaoMMU()`）→ `NoncoherentXBar` → 单个 `SimpleMemory`，1 GHz。
+  访存延迟不写死在脚本里：从生成周期表的 `memory_system:` 段读
+  （`--cycle-table contracts/wuming-cycles.yaml`），`make check-wuming-cycles`
+  保证它仍是文档的活解析；缺段/缺键直接退出，不回退手抄默认值。
+- **`--wuming-cycles`**：打开逐指令周期模型（`DadaoISA.enable_wuming_cycles`，
+  关 = 上游 1 拍/指令 + 指令侧内存时序）；`tools/gem5/compare_chipyard.py`
+  用同一 ELF 的 on/off 两次实测差值对账周期表。
+- **数据路径边界**：执行核在 `execute()` 内同步读内存 ⇒ 数据面经
+  functional access（`src/arch/dadao/inst.cc`），ld/st 往返由 wuming 周期模型
+  记账；内存系统对取指（及将来的 cache 模型）是真实时序的。
+- **CLI（timing 专属，`atomic` 下传即报错）**：`--cycle-table`、
+  `--mem-latency`/`--xbar-latency`/`--beat-bytes`（覆盖表值）、
+  `--mem-base`（Tiny SRAM 窗口；默认 0）、`--semihost {off,on}`（默认 off）+
+  `--semihost-argv`/`--console-out`、`--wuming-cycles`。
+  `--num-threads` 默认 timing = 1、atomic = 64。
+- **退出因**：guest 退出（`exiting with last active thread context`）与
+  semihosting `SYS_EXIT`（`semi:<ADP code>`）按 guest 码退出，其余 125。
+- **命名迁移（m16-gem5-017，用户 2026-11-19 裁定）**：原先独立成文件的 SE
+  timing 配置（`m16-gem5-006` 新建、文件名编码了 CPU 类型）已全部并入
+  `se.py` 的 timing 分支并删除；同一 ELF 在新旧入口下逐指令拍数逐项一致。
 
 ## FS 平台（GEM5-015t，Kaiwu-Tiny）
 
@@ -544,9 +575,10 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   2009-01-01，加模拟 tick；**不读宿主挂钟**），`SYS_ELAPSED`/`SYS_TICKFREQ` 同用
   模拟 tick（1e9 基准，M11 裁定）；`SYS_SYSTEM` 默认 **deny**（`EPERM`、不执行
   宿主命令），只有 `--semihost-system native` 才 `std::system()` 执行。
-- **默认关**：`configs/dadao/se_timing.py` 与 `configs/dadao/fs.py` 的
-  `--semihost` 默认都是 **`off`**（与 gem5 上游 ARM `--semi-enable`、RISC-V
-  `--semihosting` 一致），必须显式 `--semihost on`；现有调用方
+- **默认关**：`configs/dadao/se.py`（`--cpu-type timing`）与
+  `configs/dadao/fs.py` 的 `--semihost` 默认都是 **`off`**（与 gem5 上游
+  ARM `--semi-enable`、RISC-V `--semihosting` 一致），必须显式
+  `--semihost on`；现有调用方
   （`tools/gem5/compare_chipyard.py`、`tools/testcases/parity/qemu_gem5_shim.py`）
   均显式传 `on`，改默认值不改变它们的行为。
 

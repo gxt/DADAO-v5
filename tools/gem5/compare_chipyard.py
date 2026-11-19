@@ -10,11 +10,11 @@
                between consecutive EXEC entries -- the *same* method
                docs/core-wuming-cycle-model.md §5 uses.  The SYS_EXIT line
                carries the cycle counter at the exit trap.
-    gem5     : ``configs/dadao/se_timing.py`` (TimingSimpleCPU + NoncoherentXBar
-               + SimpleMemory, ``--wuming-cycles`` on) and the same ELF with the
-               per-instruction table **off**.  ``on - off`` is the cycle count
-               the model actually charged, i.e. a measured number, not the sum
-               of a table read back.
+    gem5     : ``configs/dadao/se.py --cpu-type timing`` (TimingSimpleCPU +
+               NoncoherentXBar + SimpleMemory, ``--wuming-cycles`` on) and the
+               same ELF with the per-instruction table **off**.  ``on - off``
+               is the cycle count the model actually charged, i.e. a measured
+               number, not the sum of a table read back.
 
 Stages (each one re-runnable; ``all`` = build + run + report):
 
@@ -71,7 +71,7 @@ DOC = ROOT / "docs/core-wuming-cycle-model.md"
 YAML = ROOT / "contracts/wuming-cycles.yaml"
 PROCESS_PATCH = ROOT / "components/gem5/patches/src/arch/dadao/process.cc.patch"
 GEM5 = ROOT / ".work/source/gem5/build/DADAO/gem5.opt"
-CONFIG = ROOT / ".work/source/gem5/configs/dadao/se_timing.py"
+CONFIG = ROOT / ".work/source/gem5/configs/dadao/se.py"
 E2E = ROOT / "tests" / "ee-tiny" / "run_embench_tiny.py"
 
 # The e2e driver's freestanding runtime prints these through the board shim;
@@ -524,6 +524,7 @@ def run_gem5(elf, outdir, args, layout, *, cycles_on):
     semi = outdir / "semi.out"
     log = outdir / "gem5.log"
     cmd = [str(args.gem5), f"--outdir={m5out}", str(args.gem5_config),
+           "--cpu-type", "timing",
            "--binary", str(elf), "--cycle-table", str(args.table),
            "--mem-base", hex(layout["mem_base"]),
            "--mem-size", str(layout["mem_size"]),
@@ -867,7 +868,8 @@ def render_report(rep):
     w("- 复现：§6 一条命令（build 复用 embench e2e 驱动，run 双引擎，report 只读原始输出）")
     w(f"- 机器画像 `tiny`：SRAM `{layout['ram_base']:#x}` + {layout['ram_size'] // 1024 // 1024} MiB，"
       f"SP `{layout['sp']:#x}`（`contracts/machine.yaml` + `tests/ee-tiny/runtime.yaml`）")
-    w(f"- gem5 `se_timing`：TimingSimpleCPU + NoncoherentXBar + SimpleMemory，1 GHz；"
+    w(f"- gem5 `se.py --cpu-type timing`：TimingSimpleCPU + NoncoherentXBar + "
+      f"SimpleMemory，1 GHz；"
       f"mem `{layout['mem_base']:#x}`+"
       f"{layout['mem_size'] / 1024 / 1024:.2f} MiB（至 `StackBase`），"
       f"`--max-stack {layout['max_stack']}`（栈预留与 SRAM 窗口由 `StackBase` 与 SP 现场推出）")

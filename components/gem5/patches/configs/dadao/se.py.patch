@@ -1,17 +1,39 @@
 diff --git a/configs/dadao/se.py b/configs/dadao/se.py
 new file mode 100644
-index 0000000..0a5692b
+index 0000000..65f11fc
 --- /dev/null
 +++ b/configs/dadao/se.py
-@@ -0,0 +1,158 @@
+@@ -0,0 +1,372 @@
 +#!/usr/bin/env python3
-+# DADAO syscall-emulation configuration (GEM5-014t).
++# DADAO syscall-emulation configuration.
 +#
-+# A deliberately small classic-style SE configuration: one AtomicSimpleCPU, one
-+# flat SimpleMemory starting at physical address 0, and the DADAO SE workload.
-+# Guest virtual addresses are the ELF p_vaddr values; translation is done by
-+# the DADAO SE TLB through the host page table.  The FS machine model (boot ROM,
++# One script per simulation mode, CPU type chosen with --cpu-type (same shape as
++# upstream configs/example/se.py):
++#
++#   --cpu-type atomic   AtomicSimpleCPU + SystemXBar (the reference; default)
++#   --cpu-type timing   TimingSimpleCPU behind a NoncoherentXBar and one flat
++#                       SimpleMemory (m16-gem5-006); --wuming-cycles turns the
++#                       per-instruction cycle model on
++#
++# Guest virtual addresses are the ELF p_vaddr values; translation is done by the
++# DADAO SE TLB through the host page table.  The FS machine model (boot ROM,
 +# memory window, page-table walker) is not part of this configuration.
++#
++# In the timing configuration the memory-system latencies are *not* written
++# here: they are read from the ``memory_system:`` block of the generated cycle
++# table (contracts/wuming-cycles.yaml), which
++# tools/gem5/gen_wuming_cycles.py parses out of
++# docs/core-wuming-cycle-model.md.  ``make check-wuming-cycles`` fails as soon
++# as that block drifts from the document, so a hand-copied latency cannot come
++# back unnoticed.
++#
++# Scope note (m16-gem5-006): the DADAO exec cores read memory synchronously in
++# the middle of execute(), which a timed access cannot provide; the data path
++# therefore reaches the same memory through a functional access
++# (src/arch/dadao/inst.cc) and the ld/st round trip is charged by the wuming
++# cycle model.  The memory system here is real for instruction fetch (and for
++# any future cache model), and ``--wuming-cycles`` turns the per-instruction
++# model on.
 +
 +import argparse
 +import os
@@ -20,9 +42,21 @@ index 0000000..0a5692b
 +
 +import m5
 +from m5.objects import *
++from m5.objects.BaseTimingSimpleCPU import BaseTimingSimpleCPU
++from m5.objects.DadaoCPU import DadaoCPU
++from m5.objects.DadaoMMU import DadaoMMU
++
++
++class DadaoTimingSimpleCPU(BaseTimingSimpleCPU, DadaoCPU):
++    mmu = DadaoMMU()
 +
 +
 +EXIT_CAUSE = "exiting with last active thread context"
++
++# The clock the derived latencies are expressed in; the cycle table counts
++# cycles, and one cycle is one nanosecond here.
++CLOCK = "1GHz"
++CYCLE_NS = 1.0
 +
 +
 +def parse_redirect(spec):
@@ -34,8 +68,50 @@ index 0000000..0a5692b
 +    return (app, host)
 +
 +
++def read_memory_system(path):
++    """Read the ``memory_system:`` block of the generated cycle table.
++
++    The file is generated and gated, so a deliberately small parser is enough;
++    it fails loudly on a missing key instead of falling back to a default.
++    """
++    wanted = ("mem_latency", "xbar_latency", "fetch_beats",
++              "sram_round_trip", "beat_bytes")
++    found = {}
++    inside = False
++    with open(path, encoding="utf-8") as f:
++        for line in f:
++            if not line.strip() or line.lstrip().startswith("#"):
++                continue
++            if not line[0].isspace():
++                inside = line.split(":", 1)[0].strip() == "memory_system"
++                continue
++            if not inside:
++                continue
++            key, _, value = line.strip().partition(":")
++            key = key.strip()
++            if key in wanted:
++                found[key] = value.strip()
++    missing = [k for k in wanted if k not in found]
++    if missing:
++        # A plain `sys.exit(str)` aborts inside gem5's pybind11 exit handler
++        # (cast_error); print and exit with an int instead.
++        print(f"{path}: memory_system 段缺少 {missing}；请重跑 "
++              f"tools/gem5/gen_wuming_cycles.py", file=sys.stderr)
++        sys.exit(1)
++    return {k: int(v) for k, v in found.items()}
++
++
 +def parse_args():
 +    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument("--profile", choices=("user",), default="user",
++                        help="SE machine profile; `user` is the only one "
++                             "(the default) and may be omitted")
++    parser.add_argument("--cpu-type", choices=("atomic", "timing"),
++                        default="atomic",
++                        help="CPU/memory system model: `atomic` is the "
++                             "AtomicSimpleCPU reference (default), `timing` "
++                             "runs a DadaoTimingSimpleCPU behind a "
++                             "NoncoherentXBar + SimpleMemory")
 +    parser.add_argument("--binary", required=True,
 +                        help="DADAO ELF to run (ET_EXEC; a PT_INTERP "
 +                             "interpreter is loaded when --interp-dir is given)")
@@ -68,23 +144,124 @@ index 0000000..0a5692b
 +                        help="guest current working directory")
 +    parser.add_argument("--max-insts", type=int, default=0,
 +                        help="safety cap; hitting it is NOT a guest exit")
-+    parser.add_argument("--num-threads", type=int, default=64,
++    parser.add_argument("--num-threads", type=int, default=None,
 +                        help="thread contexts: one is the initial process and "
 +                             "one is needed for every live thread (clone "
 +                             "CLONE_THREAD) or fork(2)/clone(2) child "
 +                             "(GEM5-025t/GEM5-026t).  The corpus reaches 11 "
 +                             "live threads (pthread_cond-smasher) and ~100 "
 +                             "short-lived fork children (raise-race), so the "
-+                             "default is 64")
-+    return parser.parse_args()
++                             "default is 64 for --cpu-type atomic and 1 for "
++                             "--cpu-type timing (the timing model's historical "
++                             "default)")
++    # --- timing-only options ------------------------------------------------
++    parser.add_argument("--cycle-table", default=None,
++                        help="[timing] generated cycle table that carries the "
++                             "memory_system latencies "
++                             "(contracts/wuming-cycles.yaml)")
++    parser.add_argument("--mem-latency", type=int, default=None,
++                        help="[timing] SimpleMemory round trip in cycles; "
++                             "default from the cycle table")
++    parser.add_argument("--xbar-latency", type=int, default=None,
++                        help="[timing] NonCoherentXBar latency in cycles; "
++                             "default from the cycle table")
++    parser.add_argument("--beat-bytes", type=int, default=None,
++                        help="[timing] bus width in bytes; default from the "
++                             "cycle table (the doc's 8-byte beat)")
++    parser.add_argument("--wuming-cycles", action="store_true",
++                        help="[timing] enable the wuming cycle table (DadaoISA "
++                             "enable_wuming_cycles); off = upstream 1-cycle")
++    parser.add_argument("--mem-base", default="0",
++                        help="[timing] physical base of the flat memory "
++                             "(default 0). A Kaiwu-Tiny image is linked at the "
++                             "Tiny SRAM base, so a same-ELF comparison against "
++                             "the chipyard harness passes that base here")
++    parser.add_argument("--semihost", choices=("off", "on"), default=None,
++                        help="[timing] serve the Kaiwu-Tiny semihosting trap "
++                             "(`trap cfx<any>, 0x3FFxx`) in SE mode; off "
++                             "(default) keeps the SE trap path exactly as it "
++                             "was")
++    parser.add_argument("--semihost-argv", default=None,
++                        help="[timing] SYS_GET_CMDLINE answer, split like a "
++                             "shell would")
++    parser.add_argument("--console-out", default=None,
++                        help="[timing] file for the semihosting console; empty "
++                             "= the simulator's stdout")
++    args = parser.parse_args()
++
++    timing = args.cpu_type == "timing"
++    if not timing:
++        # These knobs describe the timing memory system; accepting them under
++        # atomic and ignoring them would be a silent success.
++        given = [name for name, value in (
++            ("--cycle-table", args.cycle_table),
++            ("--mem-latency", args.mem_latency),
++            ("--xbar-latency", args.xbar_latency),
++            ("--beat-bytes", args.beat_bytes),
++            ("--semihost", args.semihost),
++            ("--semihost-argv", args.semihost_argv),
++            ("--console-out", args.console_out),
++        ) if value is not None]
++        if args.mem_base != "0":
++            given.insert(0, "--mem-base")
++        if args.wuming_cycles:
++            given.insert(0, "--wuming-cycles")
++        if given:
++            parser.error("--cpu-type atomic does not take the timing options: "
++                         + ", ".join(given))
++
++    if args.num_threads is None:
++        args.num_threads = 1 if timing else 64
++    if args.semihost is None:
++        args.semihost = "off"
++    if args.semihost_argv is None:
++        args.semihost_argv = ""
++    if args.console_out is None:
++        args.console_out = ""
++    return args
 +
 +
 +def main():
 +    args = parse_args()
++    timing = args.cpu_type == "timing"
++
++    if timing:
++        mem_cycles = args.mem_latency
++        xbar_cycles = args.xbar_latency
++        beat_bytes = None
++        if mem_cycles is None or xbar_cycles is None or args.beat_bytes is None:
++            if args.cycle_table is None:
++                print("se.py --cpu-type timing: --cycle-table is required "
++                      "unless --mem-latency, --xbar-latency and --beat-bytes "
++                      "are all given (no hand-copied latency default)",
++                      file=sys.stderr)
++                sys.exit(1)
++            table = read_memory_system(args.cycle_table)
++            if mem_cycles is None:
++                mem_cycles = table["mem_latency"]
++            if xbar_cycles is None:
++                xbar_cycles = table["xbar_latency"]
++            beat_bytes = table["beat_bytes"]
++        if args.beat_bytes is not None:
++            beat_bytes = args.beat_bytes
++
++        def latency(cycles):
++            return f"{cycles * CYCLE_NS:g}ns"
 +
 +    system = System()
-+    system.mem_mode = "atomic"
-+    system.mem_ranges = [AddrRange(args.mem_size)]
++    system.mem_mode = args.cpu_type
++    if timing:
++        mem_base = int(str(args.mem_base), 0)
++        if mem_base == 0:
++            mem_range = AddrRange(args.mem_size)
++        else:
++            # An explicit base: the flat memory has to cover the image's link
++            # window, which for a Kaiwu-Tiny ELF is the Tiny SRAM base.
++            size = AddrRange(args.mem_size).size()
++            mem_range = AddrRange(mem_base, mem_base + size)
++    else:
++        mem_range = AddrRange(args.mem_size)
++    system.mem_ranges = [mem_range]
 +    system.cache_line_size = 64
 +    # More than one thread context is what makes fork(2)/clone(2) possible: the
 +    # child runs on a free context of the same CPU (GEM5-025t).
@@ -92,15 +269,34 @@ index 0000000..0a5692b
 +
 +    # The CPU is a ClockedObject, so the system needs a clock domain.
 +    system.voltage_domain = VoltageDomain()
-+    system.clk_domain = SrcClockDomain(clock="1GHz",
++    system.clk_domain = SrcClockDomain(clock=CLOCK,
 +                                       voltage_domain=system.voltage_domain)
 +
-+    system.membus = SystemXBar()
-+    system.mem = SimpleMemory(range=AddrRange(args.mem_size))
++    if timing:
++        system.membus = NoncoherentXBar(frontend_latency=xbar_cycles,
++                                        forward_latency=xbar_cycles,
++                                        response_latency=xbar_cycles,
++                                        width=beat_bytes)
++        system.mem = SimpleMemory(range=mem_range,
++                                  latency=latency(mem_cycles))
++    else:
++        system.membus = SystemXBar()
++        system.mem = SimpleMemory(range=AddrRange(args.mem_size))
 +    system.mem.port = system.membus.mem_side_ports
++    # The system port is what carries functional accesses (ELF load, argv/
++    # stack set-up, syscall copyin/copyout and the exec cores' functional data
++    # path) into this memory system.
 +    system.system_port = system.membus.cpu_side_ports
 +
-+    system.workload = DadaoSEWorkload()
++    if timing and args.semihost == "on":
++        system.workload = DadaoSEWorkload(
++            semihosting=DadaoSemihosting(
++                cmd_line=args.semihost_argv,
++                console_out=args.console_out,
++                semihost_system_native=False,
++            ))
++    else:
++        system.workload = DadaoSEWorkload()
 +
 +    # Dynamic executables (ET_EXEC + PT_INTERP, GEM5-027t): the interpreter is
 +    # opened on the host while the Process is constructed (ElfObject parses
@@ -129,7 +325,10 @@ index 0000000..0a5692b
 +            for app, host in args.redirect
 +        ]
 +
-+    system.cpu = DadaoAtomicSimpleCPU(numThreads=args.num_threads)
++    if timing:
++        system.cpu = DadaoTimingSimpleCPU(numThreads=args.num_threads)
++    else:
++        system.cpu = DadaoAtomicSimpleCPU(numThreads=args.num_threads)
 +    # SE associates one Process with each thread context.  They all start on
 +    # the initial process; fork(2)/clone(2) moves a free context to the child
 +    # (GEM5-025t).
@@ -139,8 +338,18 @@ index 0000000..0a5692b
 +    system.cpu.dcache_port = system.membus.cpu_side_ports
 +    system.cpu.createThreads()
 +
++    if timing and args.wuming_cycles:
++        # createThreads() builds the per-thread ISA vector; set the parameters
++        # before m5.instantiate() constructs the C++ objects.
++        for isa in system.cpu.isa:
++            isa.enable_wuming_cycles = True
++
 +    if args.max_insts > 0:
 +        system.cpu.max_insts_any_thread = args.max_insts
++
++    if timing:
++        print(f"GEM5_MEM_SYSTEM=NoncoherentXBar(xbar={xbar_cycles}cyc)"
++              f"+SimpleMemory(mem={mem_cycles}cyc)", file=sys.stderr)
 +
 +    root = Root(full_system=False, system=system)
 +    m5.instantiate()
@@ -150,10 +359,15 @@ index 0000000..0a5692b
 +    # Evidence hook: the exit cause is host-side information, never guest
 +    # output, so it goes to stderr.
 +    print(f"GEM5_EXIT_CAUSE={cause}", file=sys.stderr)
-+    if cause != EXIT_CAUSE:
++    # A semihosting SYS_EXIT ends the simulation with `semi:<ADP code>`; the
++    # guest's own exit code is the event's code (m16-gem5-007).
++    guest_exit = cause == EXIT_CAUSE or (
++        timing and cause.startswith("semi:"))
++    if not guest_exit:
 +        # A non-guest exit (max-insts, panic unwinding, ...) must never be
 +        # mistaken for the guest's own status.
-+        print(f"gem5 SE: simulation ended without a guest exit: {cause}",
++        label = "gem5 SE timing" if timing else "gem5 SE"
++        print(f"{label}: simulation ended without a guest exit: {cause}",
 +              file=sys.stderr)
 +        sys.exit(125)
 +
