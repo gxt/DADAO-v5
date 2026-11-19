@@ -1,0 +1,1847 @@
+%version: 0.1
+
+# 浮点语义库（ft = binary32 族）——移植自 riscv-unified-db `spec/std/isa/isa/fp.idl`
+# 版权：RISC-V Unified Database（BSD-3-Clause-Clear）；`softfloat_*` 系列源自
+# berkeley-softfloat-3（BSD-3-Clause，John R. Hauser）。
+#
+# DADAO 适配（逐条对应任务 m15-idl-015 的三条实测事实，**不照抄 UDB**）：
+#   1. 异常标志写 **rf0[4:0]**（sticky）、舍入模式读 **rf0[33:32]**（SimRISC-00 §2.3.1）
+#      ——不是 UDB 的 `CSR[fcsr]`/`CSR[frm]`；
+#   2. **无 NaN-boxing**：删除 `nan_box`/`check_f_ok` 与高半 `0xffffffff` 检查——DADAO 的
+#      ft 结果「只写目的低 32 位、高 32 位保持」（SimRISC-00 §2.3）；
+#   3. 函数名：指令级统一 `ft_*`（`ft_to_i32`/`i32_to_ft`…），`softfloat_*` 原语保留原名。
+#
+# 其余不移植项（**显式删除，不留空实现**）：
+#   * `mark_f_state_dirty`：DADAO 无 `mstatus.FS`（无浮点状态脏标记），无对应语义；
+#   * `f32_to_i64`/`f32_to_ui64`/`i64_to_f32`/`ui64_to_f32`：64 位整型↔浮点的转换按任务
+#     裁定不在本批（`softfloat_roundToI64`/`softfloat_roundToUI64` 作为原语保留）。
+#   * UDB 的 `count_leading_zeros`/`count_leading_zeros_64` 不是 idlc 内建（实测 `No symbol`）
+#     ⇒ 本库自备 `ft_clz32`/`ft_clz64`（二分法，可编译、可执行）。
+#
+# **UDB 转写问题（复核确认的 5 条，未照抄）**（逐条由独立 oracle 发现并复验，见任务书完成区）：
+#   a. `softfloat_roundToUI32` 的 RDN+负号只置 NV 不返回 ⇒ 会再置 NX（违反「NV 不置 NX」）；
+#   b. `softfloat_roundPackToF32_no_flag` 的 tie-even 清位表达式写反；
+#   c. `f32_to_i32_no_flag` 用 8 位 `shiftDist` 做无符号比较（Inf 时 −85 变 171）；
+#   d. `softfloat_addMagsF32` 在两个 0 次正规/零相加时直接 `a + b` ⇒ 两个负数之和丢符号；
+#   e. `softfloat_subMagsF32` 用无符号 `if (sigDiff < 0)`（恒假）⇒ 同指数异号减法符号错；
+#      且 `if (expZ < 0)`（`Bits<8>` 恒假）使次正规差的指数钳位失效；对 qNaN 输入还无条件置 NV
+#      （应只在 Inf − Inf 时置）。
+#
+# **不是 bug 的改写**：`softfloat_roundPackToF32` 的溢出判据在 UDB 写作
+# `'shFD < $signed(exp)`。`doc/idl.adoc` 规定「Verilog 字面量省略位宽时按 MXLEN」⇒
+# `'shFD` = 253（实测 `idlc eval "'shFD"` = 253；`idlc eval "'shFD < $signed(16'h00FD)"`
+# = false、对照 `…00FE` = true）⇒ UDB 原式 ≡ `0xFD < exp`，**与本库的 `16'h00FD < exp` 等价**；
+# 本库只是写成显式无符号比较以便阅读，不是修正 bug。
+#
+# **实现口径差异**：`ft_sqrt` 用精确整数平方根（`ft_isqrt64`）而非 UDB/softfloat 的
+# 32 位倒数平方根近似（该近似在 C 里依赖 `uint_fast32_t` 的平台宽度，32/64 位宿主不同）。
+# `ft_muladd` 的 `op` 取反口径贯穿「加数为 ±Inf / 乘积为 ±0」两条早退路径（UDB 只服务 addC）。
+#
+# 语义真源：IEEE 754-2019；标志/舍入口径见 SimRISC-00 §2.3.1、SimRISC-07 §1.3。
+
+# ── 枚举与常量 ───────────────────────────────────────────────────────────────
+
+# 舍入方向（SimRISC-07 §1.1 六档；RNA 仅由静态档 0x02 提供，rf0[33:32] 无此编码）
+enum RoundingMode {
+  RNE 0b000 # 就近取偶
+  RTZ 0b001 # 向 0
+  RDN 0b010 # 向 −∞
+  RUP 0b011 # 向 +∞
+  RNA 0b100 # 就近、平局远离 0
+}
+
+# 融合乘加的加数处理（UDB `F32MulAddOp`）：DADAO `ftfma` 用 `AddC`；
+# 另两档保留给库的通用性（`SubC` 取反加数、`SubProd` 取反乘积）
+enum MulAddOp {
+  AddC 0
+  SubC 1
+  SubProd 2
+}
+
+# 累积异常标志；成员值 = rf0[4:0] 的位序号对应的 one-hot（SimRISC-00 §2.3.1）
+enum FpFlag {
+  NV 0b00001 # bit0 Invalid Operation
+  DZ 0b00010 # bit1 Divide by Zero
+  OF 0b00100 # bit2 Overflow
+  UF 0b01000 # bit3 Underflow
+  NX 0b10000 # bit4 Inexact
+}
+
+Bits<32> SP_POS_INF = 32'b0_11111111_00000000000000000000000;
+Bits<32> SP_NEG_INF = 32'b1_11111111_00000000000000000000000;
+Bits<32> SP_POS_ZERO = 32'b0_00000000_00000000000000000000000;
+Bits<32> SP_NEG_ZERO = 32'b1_00000000_00000000000000000000000;
+Bits<32> SP_CANONICAL_NAN = 32'b0_11111111_10000000000000000000000;
+
+# 饱和值（SimRISC-07 §1.3：NaN/+Inf/正溢出 ⇒ 最大正值，−Inf/负溢出 ⇒ 最小负值/0）
+Bits<32> WORD_NEG_OVERFLOW = 32'h8000_0000;
+Bits<32> WORD_POS_OVERFLOW = 32'h7FFF_FFFF;
+Bits<32> UI32_NEG_OVERFLOW = 32'h0000_0000;
+Bits<32> UI32_POS_OVERFLOW = 32'hFFFF_FFFF;
+Bits<32> UI32_NAN = 32'hFFFF_FFFF;
+Bits<32> I32_NAN = 32'h7FFF_FFFF;
+
+Bits<64> I64_NEG_OVERFLOW = 64'h8000_0000_0000_0000;
+Bits<64> I64_POS_OVERFLOW = 64'h7FFF_FFFF_FFFF_FFFF;
+Bits<64> UI64_NEG_OVERFLOW = 64'h0000_0000_0000_0000;
+Bits<64> UI64_POS_OVERFLOW = 64'hFFFF_FFFF_FFFF_FFFF;
+
+# ── 环境（FCSR）─────────────────────────────────────────────────────────────
+
+function set_fp_flag {
+  arguments FpFlag flag
+  description {
+    置位 `rf0[4:0]` 的累积异常标志；标志是 **sticky**（只置 1、不清零，软件写 rf0 才清，
+    SimRISC-00 §2.3.1）。成员位序：NV=0、DZ=1、OF=2、UF=3、NX=4。
+  }
+  body {
+    if (flag == FpFlag::NV) {
+      rf[6'd0][0] = 1;
+    } else if (flag == FpFlag::DZ) {
+      rf[6'd0][1] = 1;
+    } else if (flag == FpFlag::OF) {
+      rf[6'd0][2] = 1;
+    } else if (flag == FpFlag::UF) {
+      rf[6'd0][3] = 1;
+    } else if (flag == FpFlag::NX) {
+      rf[6'd0][4] = 1;
+    }
+  }
+}
+
+function rm_to_mode {
+  returns RoundingMode
+  arguments Bits<6> immu6
+  description {
+    把舍入方向字段 `immu6`（6 位 one-hot，SimRISC-07 §1.1）解析为 `RoundingMode`：
+    `0x01` RNE / `0x02` RNA / `0x04` RTZ / `0x08` RUP / `0x10` RDN；
+    `0x20` = 动态档，读 `rf0[33:32]`（`00` RNE / `01` RTZ / `10` RDN / `11` RUP）。
+    其他取值（含 `0x00`）⇒ ILLI。
+  }
+  body {
+    if (immu6 == 6'h01) {
+      return RoundingMode::RNE;
+    } else if (immu6 == 6'h02) {
+      return RoundingMode::RNA;
+    } else if (immu6 == 6'h04) {
+      return RoundingMode::RTZ;
+    } else if (immu6 == 6'h08) {
+      return RoundingMode::RUP;
+    } else if (immu6 == 6'h10) {
+      return RoundingMode::RDN;
+    } else if (immu6 == 6'h20) {
+      # 读 rf0[33:32]；这里用两次单比特取值（idlc 的 const-eval 对 rf 元素的位切片会命中
+      # 上游 `AryRangeAccessAst#const_eval?` 的 NoMethodError，实测），语义等价
+      Bits<1> rm_hi = rf[6'd0][33];
+      Bits<1> rm_lo = rf[6'd0][32];
+      if (rm_hi == 1'b0) {
+        return (rm_lo == 1'b0) ? RoundingMode::RNE : RoundingMode::RTZ;
+      } else {
+        return (rm_lo == 1'b0) ? RoundingMode::RDN : RoundingMode::RUP;
+      }
+    } else {
+      raise(ExceptionCode::Illegal, mode(), ip());
+    }
+  }
+}
+
+# ── 32 位整数前导零（替代 UDB 的 count_leading_zeros 内建）───────────────────
+
+function ft_clz32 {
+  returns Bits<8>
+  arguments Bits<32> value
+  description {
+    `value` 的前导零位数（`value == 0` ⇒ 32）。5 步二分，等价于 `count_leading_zeros(32, value)`。
+  }
+  body {
+    if (value == 0) {
+      return 32;
+    }
+
+    Bits<8> n = 0;
+    Bits<32> v = value;
+
+    if ((v >> 16) == 0) {
+      n = n + 16;
+      v = v << 16;
+    }
+    if ((v >> 24) == 0) {
+      n = n + 8;
+      v = v << 8;
+    }
+    if ((v >> 28) == 0) {
+      n = n + 4;
+      v = v << 4;
+    }
+    if ((v >> 30) == 0) {
+      n = n + 2;
+      v = v << 2;
+    }
+    if ((v >> 31) == 0) {
+      n = n + 1;
+    }
+    return n;
+  }
+}
+
+# ── 字段抽取与分类 ──────────────────────────────────────────────────────────
+
+function signF32UI {
+  returns Bits<1>
+  arguments Bits<32> a
+  description {
+    取 ft 的符号位（bit31）。
+  }
+  body {
+    return a[31];
+  }
+}
+
+function expF32UI {
+  returns Bits<8>
+  arguments Bits<32> a
+  description {
+    取 ft 的指数域（bit30:23）。
+  }
+  body {
+    return a[30:23];
+  }
+}
+
+function fracF32UI {
+  returns Bits<23>
+  arguments Bits<32> a
+  description {
+    取 ft 的尾数域（bit22:0）。
+  }
+  body {
+    return a[22:0];
+  }
+}
+
+function is_sp_neg_inf? {
+  returns Boolean
+  arguments Bits<32> sp_value
+  description {
+    `sp_value` 是否为负无穷。
+  }
+  body {
+    return sp_value == SP_NEG_INF;
+  }
+}
+
+function is_sp_pos_inf? {
+  returns Boolean
+  arguments Bits<32> sp_value
+  description {
+    `sp_value` 是否为正无穷。
+  }
+  body {
+    return sp_value == SP_POS_INF;
+  }
+}
+
+function is_sp_neg_norm? {
+  returns Boolean
+  arguments Bits<32> sp_value
+  description {
+    `sp_value` 是否为负正规数。
+  }
+  body {
+    return
+      (sp_value[31] == 1)                 # 负
+      && (sp_value[30:23] != 0b11111111)  # 非 inf/NaN
+      && (sp_value[30:23] != 0b00000000); # 非零/次正规
+  }
+}
+
+function is_sp_pos_norm? {
+  returns Boolean
+  arguments Bits<32> sp_value
+  description {
+    `sp_value` 是否为正正规数。
+  }
+  body {
+    return
+      (sp_value[31] == 0)                 # 正
+      && (sp_value[30:23] != 0b11111111)  # 非 inf/NaN
+      && (sp_value[30:23] != 0b00000000); # 非零
+  }
+}
+
+function is_sp_neg_subnorm? {
+  returns Boolean
+  arguments Bits<32> sp_value
+  description {
+    `sp_value` 是否为负次正规数。
+  }
+  body {
+    return
+      (sp_value[31] == 1)        # 负
+      && (sp_value[30:23] == 0)  # 次正规指数
+      && (sp_value[22:0] != 0);  # 非零
+  }
+}
+
+function is_sp_pos_subnorm? {
+  returns Boolean
+  arguments Bits<32> sp_value
+  description {
+    `sp_value` 是否为正次正规数。
+  }
+  body {
+    return
+      (sp_value[31] == 0)        # 正
+      && (sp_value[30:23] == 0)  # 次正规指数
+      && (sp_value[22:0] != 0);  # 非零
+  }
+}
+
+function is_sp_neg_zero? {
+  returns Boolean
+  arguments Bits<32> sp_value
+  description {
+    `sp_value` 是否为负零。
+  }
+  body {
+    return sp_value == SP_NEG_ZERO;
+  }
+}
+
+function is_sp_pos_zero? {
+  returns Boolean
+  arguments Bits<32> sp_value
+  description {
+    `sp_value` 是否为正零。
+  }
+  body {
+    return sp_value == SP_POS_ZERO;
+  }
+}
+
+function is_sp_nan? {
+  returns Boolean
+  arguments Bits<32> sp_value
+  description {
+    `sp_value` 是否为 NaN（quiet 或 signaling）。
+  }
+  body {
+    return
+      (sp_value[30:23] == 0b11111111)
+      && (sp_value[22:0] != 0);
+  }
+}
+
+function is_sp_signaling_nan? {
+  returns Boolean
+  arguments Bits<32> sp_value
+  description {
+    `sp_value` 是否为 signaling NaN（quiet 位为 0 且尾数非零）。
+  }
+  body {
+    return
+      (sp_value[30:23] == 0b11111111)
+      && (sp_value[22] == 0)
+      && (sp_value[21:0] != 0);
+  }
+}
+
+function is_sp_quiet_nan? {
+  returns Boolean
+  arguments Bits<32> sp_value
+  description {
+    `sp_value` 是否为 quiet NaN（quiet 位为 1）。
+  }
+  body {
+    return
+      (sp_value[30:23] == 0b11111111)
+      && (sp_value[22] == 1);
+  }
+}
+
+# ── softfloat 位操作原语 ────────────────────────────────────────────────────
+
+function packToF32UI {
+  returns Bits<32>
+  arguments Bits<1> sign, Bits<8> exp, Bits<32> sig
+  description {
+    把符号位、指数、尾数打包成一个 32 位 ft 位型。
+  }
+  body {
+    return (sign `<< 31) + (exp `<< 23) + sig;
+  }
+}
+
+function softfloat_shiftRightJam32 {
+  returns Bits<32>
+  arguments Bits<32> a, Bits<32> dist
+  description {
+    把 `a` 右移 `dist` 位（`dist` 不得为 0）；移出的位若不全为 0 则"粘"到结果最低位。
+    `dist` 可任意大：超过 31 时结果为 0 或 1（取决于 `a` 是否为 0）。
+  }
+  body {
+    if (dist < 31) {
+      Bits<32> z = a >> dist;
+      Bits<32> lost = a & ((32'h1 << dist) - 1);
+      if (lost != 0) {
+        z = z | 1;
+      }
+      return z;
+    }
+    return (a != 0) ? 1 : 0;
+  }
+}
+
+function softfloat_shiftRightJam64 {
+  returns Bits<64>
+  arguments Bits<64> a, Bits<32> dist
+  description {
+    `softfloat_shiftRightJam32` 的 64 位版本（`dist` 超过 63 时结果为 0 或 1）。
+  }
+  body {
+    if (dist < 63) {
+      Bits<64> z = a >> dist;
+      Bits<64> lost = a & ((64'h1 << dist) - 1);
+      if (lost != 0) {
+        z = z | 1;
+      }
+      return z;
+    }
+    return (a != 0) ? 1 : 0;
+  }
+}
+
+function softfloat_shortShiftRightJam64 {
+  returns Bits<64>
+  arguments Bits<64> a, Bits<8> dist
+  description {
+    把 `a` 右移 `dist` 位（`dist` 须在 1..31），移出的非零位粘到结果最低位。
+  }
+  body {
+    return a >> dist | (((a & ((64'h1 << dist) - 1)) != 0) ? 1 : 0);
+  }
+}
+
+# ── 舍入与打包 ──────────────────────────────────────────────────────────────
+
+function softfloat_roundPackToF32 {
+  returns Bits<32>
+  arguments Bits<1> sign, Bits<16> exp, Bits<32> sig, RoundingMode mode
+  description {
+    按 `mode` 舍入后打包成 ft 位型；置位 NX/OF/UF（sticky，写 rf0[4:0]）。
+    UF 仅在结果 tiny **且** inexact 时置位（tininess 检测点 = 舍入后，SimRISC-07 §1.3）。
+    溢出结果按舍入方向取 ±Inf 或 ±最大有限值（SimRISC-07 §1.3 表），两者都置 OF + NX。
+  }
+  body {
+    Bits<8> roundIncrement = 0x40;
+    if ((mode != RoundingMode::RNE) && (mode != RoundingMode::RNA)) {
+      roundIncrement = (mode == ((sign != 0) ? RoundingMode::RDN : RoundingMode::RUP)) ? 0x7F : 0;
+    }
+    Bits<8> roundBits = sig & 0x7f;
+
+    if (0xFD <= exp) {
+      if ($signed(exp) < 's0) {
+        Boolean isTiny =
+          ($signed(exp) < -8's1) || (sig + roundIncrement < 0x80000000);
+        sig = softfloat_shiftRightJam32(sig, -exp);
+        exp = 0;
+        roundBits = sig & 0x7F;
+        if (isTiny && (roundBits != 0)) {
+          set_fp_flag(FpFlag::UF);
+        }
+      } else if ((16'h00FD < exp) || (0x80000000 <= sig + roundIncrement)) {
+        # 溢出判据（IEEE 754-2019 §7.4）：无符号 exp > 0xFD，或舍入使有效数进位到 2^24。
+        # UDB 写作 `'shFD < $signed(exp)`；`doc/idl.adoc` 规定省略位宽的 Verilog 字面量按 MXLEN
+        # ⇒ `'shFD` = 253（`idlc eval "'shFD"` = 253）⇒ 原式 ≡ `0xFD < exp`，与本式**等价**；
+        # 这里写成显式无符号比较只为可读（不是修正 bug）
+        set_fp_flag(FpFlag::OF);
+        set_fp_flag(FpFlag::NX);
+        return packToF32UI(sign, 0xFF, 0) - ((roundIncrement == 0) ? 1 : 0);
+      }
+    }
+
+    sig = (sig + roundIncrement) >> 7;
+    if (roundBits != 0) {
+      set_fp_flag(FpFlag::NX);
+    }
+    if ((roundBits == 0x40) && (mode == RoundingMode::RNE)) {
+      sig = sig & ~32'b1;
+    }
+    if (sig == 0) {
+      exp = 0;
+    }
+    return packToF32UI(sign, exp, sig);
+  }
+}
+
+function softfloat_normRoundPackToF32 {
+  returns Bits<32>
+  arguments Bits<1> sign, Bits<16> exp, Bits<32> sig, RoundingMode mode
+  description {
+    规格化后按 `mode` 舍入打包成 ft（`sig` 须非零）。
+  }
+  body {
+    # 分两句写：idlc 的 const-eval 对「声明即用函数调用初始化」会缓存静态求值的错误结果
+    # （实测 `Bits<8> d = ft_clz32(sig) - 1;` 二次求值得 255），拆开可保证逐次求值正确
+    Bits<8> shiftDist = 0;
+    shiftDist = ft_clz32(sig) - 1;
+    exp = exp - shiftDist;
+    if ((7 <= shiftDist) && (exp < 0xFD)) {
+      return packToF32UI(sign, (sig != 0) ? exp : 0, sig << (shiftDist - 7));
+    } else {
+      return softfloat_roundPackToF32(sign, exp, sig << shiftDist, mode);
+    }
+  }
+}
+
+function softfloat_roundPackToF32_no_flag {
+  returns Bits<32>
+  arguments Bits<1> sign, Bits<16> exp, Bits<32> sig, RoundingMode mode
+  description {
+    `softfloat_roundPackToF32` 的不置标志版本（供不置标志的内部路径使用）。
+  }
+  body {
+    Bits<8> roundIncrement = 0x40;
+    if ((mode != RoundingMode::RNE) && (mode != RoundingMode::RNA)) {
+      roundIncrement = (mode == ((sign != 0) ? RoundingMode::RDN : RoundingMode::RUP)) ? 0x7F : 0;
+    }
+    Bits<8> roundBits = sig & 0x7f;
+
+    if (0xFD <= exp) {
+      if ($signed(exp) < 's0) {
+        sig = softfloat_shiftRightJam32(sig, -exp);
+        exp = 0;
+        roundBits = sig & 0x7F;
+      } else if ((16'h00FD < exp) || (0x80000000 <= sig + roundIncrement)) {
+        # 同上：`16'h00FD < exp` 与 UDB 的 `'shFD < $signed(exp)` 等价（`'shFD` = 253）
+        return packToF32UI(sign, 0xFF, 0) - ((roundIncrement == 0) ? 1 : 0);
+      }
+    }
+
+    sig = (sig + roundIncrement) >> 7;
+    if ((roundBits == 0x40) && (mode == RoundingMode::RNE)) {
+      sig = sig & ~32'b1;
+    }
+    if (sig == 0) {
+      exp = 0;
+    }
+    return packToF32UI(sign, exp, sig);
+  }
+}
+
+function softfloat_normRoundPackToF32_no_flag {
+  returns Bits<32>
+  arguments Bits<1> sign, Bits<16> exp, Bits<32> sig, RoundingMode mode
+  description {
+    `softfloat_normRoundPackToF32` 的不置标志版本。
+  }
+  body {
+    # 分两句写：idlc 的 const-eval 对「声明即用函数调用初始化」会缓存静态求值的错误结果
+    # （实测 `Bits<8> d = ft_clz32(sig) - 1;` 二次求值得 255），拆开可保证逐次求值正确
+    Bits<8> shiftDist = 0;
+    shiftDist = ft_clz32(sig) - 1;
+    exp = exp - shiftDist;
+    if ((7 <= shiftDist) && (exp < 0xFD)) {
+      return packToF32UI(sign, (sig != 0) ? exp : 0, sig << (shiftDist - 7));
+    } else {
+      return softfloat_roundPackToF32_no_flag(sign, exp, sig << shiftDist, mode);
+    }
+  }
+}
+
+# ── 浮点 → 整型（舍入）────────────────────────────────────────────────────
+
+function softfloat_roundToI32 {
+  returns Bits<32>
+  arguments Bits<1> sign, Bits<64> sig, RoundingMode roundingMode
+  description {
+    按 `roundingMode` 把「`sig` / 2^12」舍入为有符号 32 位整数；溢出/越界置 NV 并饱和，
+    inexact 置 NX（SimRISC-07 §1.3）。
+  }
+  body {
+    Bits<16> roundIncrement = 0x800;
+    if ((roundingMode != RoundingMode::RNA) && (roundingMode != RoundingMode::RNE)) {
+      roundIncrement = 0;
+      if (sign == 1 ? (roundingMode == RoundingMode::RDN) : (roundingMode == RoundingMode::RUP)) {
+        roundIncrement = 0xFFF;
+      }
+    }
+    Bits<16> roundBits = sig & 0xFFF;
+    sig = sig + roundIncrement;
+    if ((sig & 0xFFFFF00000000000) != 0) {
+      set_fp_flag(FpFlag::NV);
+      return (sign == 1) ? WORD_NEG_OVERFLOW : WORD_POS_OVERFLOW;
+    }
+
+    Bits<32> sig32 = sig >> 12;
+    if ((roundBits == 0x800) && (roundingMode == RoundingMode::RNE)) {
+      sig32 = sig32 & ~32'b1;
+    }
+
+    Bits<32> z = (sign == 1) ? -sig32 : sig32;
+    if ((z != 0) && (($signed(z) < 's0) != (sign == 1))) {
+      set_fp_flag(FpFlag::NV);
+      return (sign == 1) ? WORD_NEG_OVERFLOW : WORD_POS_OVERFLOW;
+    }
+
+    if (roundBits != 0) {
+      set_fp_flag(FpFlag::NX);
+    }
+    return z;
+  }
+}
+
+function softfloat_roundToI32_no_flag {
+  returns Bits<32>
+  arguments Bits<1> sign, Bits<64> sig, RoundingMode roundingMode
+  description {
+    `softfloat_roundToI32` 的不置标志版本。
+  }
+  body {
+    Bits<16> roundIncrement = 0x800;
+    if ((roundingMode != RoundingMode::RNA) && (roundingMode != RoundingMode::RNE)) {
+      roundIncrement = 0;
+      if (sign == 1 ? (roundingMode == RoundingMode::RDN) : (roundingMode == RoundingMode::RUP)) {
+        roundIncrement = 0xFFF;
+      }
+    }
+    Bits<16> roundBits = sig & 0xFFF;
+    sig = sig + roundIncrement;
+    if ((sig & 0xFFFFF00000000000) != 0) {
+      return (sign == 1) ? WORD_NEG_OVERFLOW : WORD_POS_OVERFLOW;
+    }
+
+    Bits<32> sig32 = sig >> 12;
+    if ((roundBits == 0x800) && (roundingMode == RoundingMode::RNE)) {
+      sig32 = sig32 & ~32'b1;
+    }
+
+    Bits<32> z = (sign == 1) ? -sig32 : sig32;
+    if ((z != 0) && (($signed(z) < 's0) != (sign == 1))) {
+      return (sign == 1) ? WORD_NEG_OVERFLOW : WORD_POS_OVERFLOW;
+    }
+
+    return z;
+  }
+}
+
+function softfloat_roundToUI32 {
+  returns Bits<32>
+  arguments Bits<1> sign, Bits<64> sig, RoundingMode roundingMode
+  description {
+    按 `roundingMode` 把「`sig` / 2^12」舍入为无符号 32 位整数；越界/负数置 NV 并饱和
+    （正 ⇒ 32'hFFFF_FFFF、负 ⇒ 0），inexact 置 NX（SimRISC-07 §1.3）。
+  }
+  body {
+    Bits<16> roundIncrement = 0x800;
+    if ((roundingMode != RoundingMode::RNA) && (roundingMode != RoundingMode::RNE)) {
+      roundIncrement = 0;
+      if (sign == 1) {
+        if (sig == 0) {
+          return 0;
+        }
+        # UDB 此处只置 NV 未返回（会再置 NX）；DADAO 口径为「NV 时不再置 NX」⇒ 直接饱和返回
+        if (roundingMode == RoundingMode::RDN) {
+          set_fp_flag(FpFlag::NV);
+          return UI32_NEG_OVERFLOW;
+        }
+      } else {
+        if (roundingMode == RoundingMode::RUP) {
+          roundIncrement = 0xFFF;
+        }
+      }
+    }
+
+    Bits<16> roundBits = sig & 0xFFF;
+    sig = sig + roundIncrement;
+    if ((sig & 0xFFFFF00000000000) != 0) {
+      set_fp_flag(FpFlag::NV);
+      return (sign == 1) ? UI32_NEG_OVERFLOW : UI32_POS_OVERFLOW;
+    }
+
+    Bits<32> z = sig >> 12;
+    if ((roundBits == 0x800) && (roundingMode == RoundingMode::RNE)) {
+      z = z & ~32'b1;
+    }
+
+    if ((z != 0) && (sign == 1)) {
+      set_fp_flag(FpFlag::NV);
+      return (sign == 1) ? UI32_NEG_OVERFLOW : UI32_POS_OVERFLOW;
+    }
+
+    if (roundBits != 0) {
+      set_fp_flag(FpFlag::NX);
+    }
+    return z;
+  }
+}
+
+function softfloat_roundToI64 {
+  returns Bits<64>
+  arguments Bits<1> sign, Bits<64> sig, Bits<64> sigExtra, RoundingMode roundingMode
+  description {
+    按 `roundingMode` 把「`sig`.`sigExtra`」舍入为有符号 64 位整数（原语；本批无调用者，
+    供后续 64 位整型↔浮点转换使用）。越界置 NV 并饱和，inexact 置 NX。
+  }
+  body {
+    Bits<64> z;
+    Boolean needs_increment = false;
+
+    if ((roundingMode == RoundingMode::RNA) || (roundingMode == RoundingMode::RNE)) {
+      if (64'h8000000000000000 <= sigExtra) {
+        needs_increment = true;
+      }
+    } else {
+      if ((sigExtra != 0) && ((sign != 0) ? (roundingMode == RoundingMode::RDN) : (roundingMode == RoundingMode::RUP))) {
+        needs_increment = true;
+      }
+    }
+
+    if (needs_increment) {
+      sig = sig + 1;
+      if (sig == 0) {
+        set_fp_flag(FpFlag::NV);
+        return (sign == 1) ? I64_NEG_OVERFLOW : I64_POS_OVERFLOW;
+      }
+      if ((sigExtra == 64'h8000000000000000) && (roundingMode == RoundingMode::RNE)) {
+        sig = sig & ~64'h1;
+      }
+    }
+
+    z = (sign == 1) ? -sig : sig;
+    if ((z != 0) && (((($signed(z) < 0s) ? 1 : 0) ^ sign) == 1)) {
+      set_fp_flag(FpFlag::NV);
+      return (sign == 1) ? I64_NEG_OVERFLOW : I64_POS_OVERFLOW;
+    }
+
+    if (sigExtra != 0) {
+      set_fp_flag(FpFlag::NX);
+    }
+
+    return z;
+  }
+}
+
+function softfloat_roundToUI64 {
+  returns Bits<64>
+  arguments Bits<1> sign, Bits<64> sig, Bits<64> sigExtra, RoundingMode roundingMode
+  description {
+    按 `roundingMode` 把「`sig`.`sigExtra`」舍入为无符号 64 位整数（原语；本批无调用者）。
+    越界置 NV 并饱和（正 ⇒ 全 1、负 ⇒ 0），inexact 置 NX。
+  }
+  body {
+    Boolean needs_increment = false;
+
+    if ((roundingMode == RoundingMode::RNA) || (roundingMode == RoundingMode::RNE)) {
+      if (64'h8000000000000000 <= sigExtra) {
+        needs_increment = true;
+      }
+    } else {
+      if (sign != 0) {
+        if ((sig | sigExtra) == 0) {
+          return 0;
+        }
+        if (roundingMode == RoundingMode::RDN) {
+          set_fp_flag(FpFlag::NV);
+          return (sign == 1) ? UI64_NEG_OVERFLOW : UI64_POS_OVERFLOW;
+        }
+      } else {
+        if ((roundingMode == RoundingMode::RUP) && (sigExtra != 0)) {
+          needs_increment = true;
+        }
+      }
+    }
+
+    if (needs_increment) {
+      sig = sig + 1;
+      if (sig == 0) {
+        set_fp_flag(FpFlag::NV);
+        return (sign == 1) ? UI64_NEG_OVERFLOW : UI64_POS_OVERFLOW;
+      }
+      if ((sigExtra == 64'h8000000000000000) && (roundingMode == RoundingMode::RNE)) {
+        sig = sig & ~64'h1;
+      }
+    }
+
+    if ((sign != 0) && (sig != 0)) {
+      set_fp_flag(FpFlag::NV);
+      return (sign == 1) ? UI64_NEG_OVERFLOW : UI64_POS_OVERFLOW;
+    }
+
+    if (sigExtra != 0) {
+      set_fp_flag(FpFlag::NX);
+    }
+    return sig;
+  }
+}
+
+# ── ft ↔ 32 位整型（DADAO 指令级入口）──────────────────────────────────────
+
+function ft_to_i32 {
+  returns Bits<32>
+  arguments Bits<32> a, RoundingMode mode
+  description {
+    ft → 有符号 32 位整数（`ft2it`）。NaN/±Inf/越界 ⇒ 置 NV、饱和（NaN 与 +Inf ⇒ 0x7FFF_FFFF，
+    −Inf/负溢出 ⇒ 0x8000_0000），**不置 NX**；有限值 inexact ⇒ 置 NX（SimRISC-07 §1.3）。
+  }
+  body {
+    Bits<1> sign = signF32UI(a);
+    Bits<16> exp = expF32UI(a);
+    Bits<32> sig = fracF32UI(a);
+    Bits<16> shiftDist;
+    U64 sig64;
+
+    # NaN：一律按「正」处理（与符号位无关），置 NV
+    if ((exp == 8'hFF) && (sig != 0)) {
+      sign = 0;
+      set_fp_flag(FpFlag::NV);
+      return I32_NAN;
+    }
+
+    # 最小负整数为 −2^31 ⇒ 显式置隐式位（SimRISC-07 §1.3）
+    if (exp != 0) {
+      sig = sig | 32'h00800000;
+    }
+
+    sig64 = sig `<< 32;
+    shiftDist = 8'hAA - exp;
+
+    if ($signed(shiftDist) > 0s) {
+      sig64 = softfloat_shiftRightJam64(sig64, shiftDist);
+    }
+
+    return softfloat_roundToI32(sign, sig64, mode);
+  }
+}
+
+function ft_to_i32_no_flag {
+  returns Bits<32>
+  arguments Bits<32> a, RoundingMode mode
+  description {
+    `ft_to_i32` 的不置标志版本（供 `ftrnd` 等内部路径使用）。
+  }
+  body {
+    Bits<1> sign = signF32UI(a);
+    Bits<16> exp = expF32UI(a);
+    Bits<32> sig = fracF32UI(a);
+    Bits<16> shiftDist;
+    U64 sig64;
+
+    if ((exp == 8'hFF) && (sig != 0)) {
+      sign = 0;
+      return I32_NAN;
+    }
+
+    if (exp != 0) {
+      sig = sig | 32'h00800000;
+    }
+
+    sig64 = sig `<< 32;
+    # UDB 该变体用 `Bits<8> shiftDist` 且按无符号比较（exp=0xFF 时 −85 变成 171 ⇒ 误当右移），
+    # 这里改用 16 位 + 有符号比较，与置标志版本一致
+    shiftDist = 8'hAA - exp;
+
+    if ($signed(shiftDist) > 0s) {
+      sig64 = softfloat_shiftRightJam64(sig64, shiftDist);
+    }
+
+    return softfloat_roundToI32_no_flag(sign, sig64, mode);
+  }
+}
+
+function ft_to_ui32 {
+  returns Bits<32>
+  arguments Bits<32> a, RoundingMode mode
+  description {
+    ft → 无符号 32 位整数（`ft2ut`）。NaN/±Inf/越界 ⇒ 置 NV、饱和（NaN 与 +Inf ⇒ 0xFFFF_FFFF，
+    −Inf/负溢出 ⇒ 0），**不置 NX**；有限值 inexact ⇒ 置 NX（SimRISC-07 §1.3）。
+  }
+  body {
+    Bits<1> sign = signF32UI(a);
+    Bits<16> exp = expF32UI(a);
+    Bits<32> sig = fracF32UI(a);
+    Bits<16> shiftDist;
+    U64 sig64;
+
+    if ((exp == 8'hFF) && (sig != 0)) {
+      sign = 0;
+      set_fp_flag(FpFlag::NV);
+      return UI32_NAN;
+    }
+
+    if (exp != 0) {
+      sig = sig | 32'h00800000;
+    }
+
+    sig64 = sig `<< 32;
+    shiftDist = 8'hAA - exp;
+
+    if ($signed(shiftDist) > 0s) {
+      sig64 = softfloat_shiftRightJam64(sig64, shiftDist);
+    }
+
+    return softfloat_roundToUI32(sign, sig64, mode);
+  }
+}
+
+function i32_to_ft {
+  returns Bits<32>
+  arguments Bits<32> a, RoundingMode mode
+  description {
+    有符号 32 位整数 → ft（`it2ft`）。精度损失 ⇒ 置 NX（`±0` 与 `−2^31` 精确，不置标志）。
+  }
+  body {
+    Bits<1> sign = a[31];
+    if ((a & 0x7FFFFFFF) == 0) {
+      # ±0 与 −2^31：sign 为 0 时返回 +0，为 1 时返回 −2^31（指数 0x9E）
+      return (sign == 1) ? packToF32UI(1, 0x9E, 0) : packToF32UI(0, 0, 0);
+    }
+    U32 absA = (sign == 1) ? -a : a;
+    return softfloat_normRoundPackToF32(sign, 0x9C, absA, mode);
+  }
+}
+
+function i32_to_ft_no_flag {
+  returns Bits<32>
+  arguments Bits<32> a, RoundingMode mode
+  description {
+    `i32_to_ft` 的不置标志版本（供 `ftrnd` 等内部路径使用）。
+  }
+  body {
+    Bits<1> sign = a[31];
+    if ((a & 0x7FFFFFFF) == 0) {
+      return (sign == 1) ? packToF32UI(1, 0x9E, 0) : packToF32UI(0, 0, 0);
+    }
+    U32 absA = (sign == 1) ? -a : a;
+    return softfloat_normRoundPackToF32_no_flag(sign, 0x9C, absA, mode);
+  }
+}
+
+function ui32_to_ft {
+  returns Bits<32>
+  arguments Bits<32> a, RoundingMode mode
+  description {
+    无符号 32 位整数 → ft（`ut2ft`）。精度损失 ⇒ 置 NX（`0` 精确，不置标志）。
+  }
+  body {
+    if (a == 0) {
+      return a;
+    }
+    if (a[31] == 1) {
+      return softfloat_roundPackToF32(0, 0x9D, a>>1 | (a & 1), mode);
+    } else {
+      return softfloat_normRoundPackToF32(0, 0x9C, a, mode);
+    }
+  }
+}
+
+# ── 64 位前导零（替代 UDB 的 count_leading_zeros_64 内建）──────────────────────
+
+function ft_clz64 {
+  returns Bits<8>
+  arguments Bits<64> value
+  description {
+    `value` 的前导零位数（`value == 0` ⇒ 64）。6 步二分，等价于 `count_leading_zeros_64(64, value)`
+    （idlc 无此内建，实测 `No symbol`）。
+  }
+  body {
+    if (value == 0) {
+      return 64;
+    }
+
+    Bits<8> n = 0;
+    Bits<64> v = value;
+
+    if ((v >> 32) == 0) {
+      n = n + 32;
+      v = v << 32;
+    }
+    if ((v >> 48) == 0) {
+      n = n + 16;
+      v = v << 16;
+    }
+    if ((v >> 56) == 0) {
+      n = n + 8;
+      v = v << 8;
+    }
+    if ((v >> 60) == 0) {
+      n = n + 4;
+      v = v << 4;
+    }
+    if ((v >> 62) == 0) {
+      n = n + 2;
+      v = v << 2;
+    }
+    if ((v >> 63) == 0) {
+      n = n + 1;
+    }
+    return n;
+  }
+}
+
+# ── 次正规规格化（UDB 用 struct ExpAndSig 返回二元组；本库不引入 struct ⇒ 拆两函数）──
+
+function softfloat_normSubnormalF32Exp {
+  returns Bits<16>
+  arguments Bits<32> sig
+  description {
+    次正规 ft 的尾数规格化后应加到指数上的值：`1 − (clz32(sig) − 8)`（16 位两位补码，可为负）。
+    对应 UDB `softfloat_normSubnormalF32Sig` 返回结构体的 `.exp` 字段。
+  }
+  body {
+    Bits<8> shiftDist = 0;
+    shiftDist = ft_clz32(sig) - 8;
+    Bits<16> d = 0;
+    d = {8'h0, shiftDist};
+    return 16'sd1 - d;
+  }
+}
+
+function softfloat_normSubnormalF32Sig {
+  returns Bits<32>
+  arguments Bits<32> sig
+  description {
+    次正规 ft 的尾数规格化：`sig << (clz32(sig) − 8)`（隐式位落到 bit23）。
+    对应 UDB `softfloat_normSubnormalF32Sig` 返回结构体的 `.sig` 字段。
+  }
+  body {
+    Bits<8> shiftDist = 0;
+    shiftDist = ft_clz32(sig) - 8;
+    return sig << shiftDist;
+  }
+}
+
+# ── NaN/幅值辅助（UDB 同名）──────────────────────────────────────────────────
+
+function returnNonSignalingNaN {
+  returns Bits<32>
+  arguments Bits<32> a
+  description {
+    返回 `a` 的 quiet 版本（把 bit22 置 1，其余位保持），不改输入。
+  }
+  body {
+    U32 a_copy = a;
+    a_copy[22] = 1'b1;
+    return a_copy;
+  }
+}
+
+function returnMag {
+  returns Bits<32>
+  arguments Bits<32> a
+  description {
+    返回 `a` 的幅值（清符号位），不改输入。
+  }
+  body {
+    U32 a_copy = a;
+    a_copy[31] = 1'b0;
+    return a_copy;
+  }
+}
+
+function returnLargerMag {
+  returns Bits<32>
+  arguments Bits<32> a, Bits<32> b
+  description {
+    按**幅值**取较大者（幅值相同取 `b` 的 quiet 版）；两者都先 quiet 化（供 `ftmin`/`ftmax` 用）。
+  }
+  body {
+    U32 mag_a = returnMag(a);
+    U32 mag_b = returnMag(b);
+    U32 nonsig_a = returnNonSignalingNaN(a);
+    U32 nonsig_b = returnNonSignalingNaN(b);
+    if (mag_a < mag_b) {
+      return nonsig_b;
+    }
+    if (mag_b < mag_a) {
+      return nonsig_a;
+    }
+    return (nonsig_a < nonsig_b) ? nonsig_a : nonsig_b;
+  }
+}
+
+# ── 幅值加/减（softfloat 核心）──────────────────────────────────────────────
+
+function softfloat_addMagsF32 {
+  returns Bits<32>
+  arguments Bits<32> a, Bits<32> b, RoundingMode mode
+  description {
+    同号数的幅值相加（IEEE 754-2019 §6.3 零符号：精确和为零时 RDN ⇒ −0，其余 ⇒ +0）。
+    sNaN 作输入置 NV，NaN 结果取 canonical quiet NaN。
+  }
+  body {
+    if (is_sp_signaling_nan?(a) || is_sp_signaling_nan?(b)) {
+      set_fp_flag(FpFlag::NV);
+    }
+
+    Bits<16> expA = expF32UI(a);
+    Bits<32> sigA = fracF32UI(a);
+    Bits<16> expB = expF32UI(b);
+    Bits<32> sigB = fracF32UI(b);
+
+    U32 z;
+    Bits<16> expZ;
+    Bits<1> signZ;
+
+    Bits<16> expDiff = expA - expB;
+
+    if (expDiff == 16'd0) {
+      if (expA == 16'd0) {
+        # 两者同为 0 次正规/零：按幅值相加再补符号（UDB 直接 `a + b`，两个负次正规数
+        # 之和会在 32 位回绕时丢掉符号位，实测 `-1e-40 + -1e-40` 变正号）
+        U32 magA = a & 32'h7FFFFFFF;
+        U32 magB = b & 32'h7FFFFFFF;
+        z = packToF32UI(signF32UI(a), 8'd0, 32'd0) + magA + magB;
+        return z;
+      }
+
+      if (expA == 16'hFF) {
+        if ((sigA != 0) || (sigB != 0)) {
+          return SP_CANONICAL_NAN;
+        }
+        return a;
+      }
+
+      signZ = signF32UI(a);
+      expZ = expA;
+      U32 sigZ = 32'h01000000 + sigA + sigB;
+
+      if (((sigZ & 1) == 0) && (expZ < 16'hFE)) {
+        sigZ = sigZ >> 1;
+        return (32'h0 + (signZ `<< 31) + (expZ `<< 23) + sigZ);
+      }
+
+      sigZ = sigZ << 6;
+      return softfloat_roundPackToF32(signZ, expZ, sigZ, mode);
+    }
+
+    signZ = signF32UI(a);
+    sigA = sigA << 6;
+    sigB = sigB << 6;
+
+    if ($signed(expDiff) < 0s) {
+      if (expB == 16'hFF) {
+        if (sigB != 0) {
+          return SP_CANONICAL_NAN;
+        }
+        return packToF32UI(signZ, 8'hFF, 23'h0);
+      }
+      expZ = expB;
+      sigA = (expA == 0) ? 2 * sigA : (sigA + 0x20000000);
+      sigA = softfloat_shiftRightJam32(sigA, -expDiff);
+    } else {
+      if (expA == 16'hFF) {
+        if (sigA != 0) {
+          return SP_CANONICAL_NAN;
+        }
+        return a;
+      }
+      expZ = expA;
+      sigB = (expB == 0) ? 2 * sigB : (sigB + 0x20000000);
+      sigB = softfloat_shiftRightJam32(sigB, expDiff);
+    }
+
+    U32 sigZ2 = 0;
+    sigZ2 = 0x20000000 + sigA + sigB;
+    if (sigZ2 < 0x40000000) {
+      expZ = expZ - 1;
+      sigZ2 = sigZ2 << 1;
+    }
+    return softfloat_roundPackToF32(signZ, expZ, sigZ2, mode);
+  }
+}
+
+function softfloat_subMagsF32 {
+  returns Bits<32>
+  arguments Bits<32> a, Bits<32> b, RoundingMode mode
+  description {
+    异号数的幅值相减：`|a| − |b|`，符号取绝对值较大者。
+    精确差为零 ⇒ RDN 时 −0，其余 +0；`Inf − Inf` ⇒ NV + canonical qNaN（qNaN 输入不置 NV）。
+  }
+  body {
+    if (is_sp_signaling_nan?(a) || is_sp_signaling_nan?(b)) {
+      set_fp_flag(FpFlag::NV);
+    }
+
+    Bits<16> expA = expF32UI(a);
+    Bits<32> sigA = fracF32UI(a);
+    Bits<16> expB = expF32UI(b);
+    Bits<32> sigB = fracF32UI(b);
+
+    Bits<1> signZ;
+    Bits<16> expZ;
+    Bits<8> shiftDist;
+    U32 sigX;
+    U32 sigY;
+
+    Bits<16> expDiff = expA - expB;
+
+    if (expDiff == 16'd0) {
+      if (expA == 16'hFF) {
+        # 两者同为 Inf（或含 NaN）：只有 Inf − Inf 是无效运算；qNaN 输入不置 NV
+        if ((sigA == 0) && (sigB == 0)) {
+          set_fp_flag(FpFlag::NV);
+        }
+        return SP_CANONICAL_NAN;
+      }
+
+      U32 sigDiff = sigA - sigB;
+      if (sigDiff == 0) {
+        return packToF32UI((mode == RoundingMode::RDN) ? 1 : 0, 8'd0, 32'd0);
+      }
+      if (expA != 0) {
+        expA = expA - 1;
+      }
+      signZ = signF32UI(a);
+      if ($signed(sigDiff) < 's0) {
+        signZ = ~signZ;
+        sigDiff = -sigDiff;
+      }
+      shiftDist = ft_clz32(sigDiff) - 8;
+      expZ = expA - shiftDist;
+      if (shiftDist > expA) {
+        shiftDist = expA;
+        expZ = 0;
+      }
+      return packToF32UI(signZ, expZ, sigDiff << shiftDist);
+    }
+
+    signZ = signF32UI(a);
+    sigA = sigA << 7;
+    sigB = sigB << 7;
+    if ($signed(expDiff) < 0s) {
+      signZ = ~signZ;
+      if (expB == 16'hFF) {
+        if (sigB != 0) {
+          return SP_CANONICAL_NAN;
+        }
+        return packToF32UI(signZ, 8'hFF, 23'h0);
+      }
+      expZ = expB - 1;
+      sigX = sigB | 0x40000000;
+      sigY = sigA + ((expA != 0) ? 0x40000000 : sigA);
+      expDiff = -expDiff;
+    } else {
+      if (expA == 16'hFF) {
+        if (sigA != 0) {
+          return SP_CANONICAL_NAN;
+        }
+        return a;
+      }
+      expZ = expA - 1;
+      sigX = sigA | 0x40000000;
+      sigY = sigB + ((expB != 0) ? 0x40000000 : sigB);
+    }
+    U32 sigToSub = 0;
+    sigToSub = softfloat_shiftRightJam32(sigY, expDiff);
+    return softfloat_normRoundPackToF32(signZ, expZ, sigX - sigToSub, mode);
+  }
+}
+
+# ── 指令级算术入口（DADAO ftadd/ftsub/ftmul/ftdiv/ftfma/ftroot）──────────────
+
+function ft_add {
+  returns Bits<32>
+  arguments Bits<32> a, Bits<32> b, RoundingMode mode
+  description {
+    ft 加法（`ftadd`）：IEEE 754-2019 addition。同号走幅值加、异号走幅值减；
+    sNaN 置 NV，NaN 结果恒 canonical quiet NaN；UF 仅在结果 tiny 且 inexact 时置位。
+  }
+  body {
+    U32 a_xor_b = a ^ b;
+    if (signF32UI(a_xor_b) == 1) {
+      return softfloat_subMagsF32(a, b, mode);
+    }
+    return softfloat_addMagsF32(a, b, mode);
+  }
+}
+
+function ft_sub {
+  returns Bits<32>
+  arguments Bits<32> a, Bits<32> b, RoundingMode mode
+  description {
+    ft 减法（`ftsub`）：IEEE 754-2019 subtraction（= `a + (−b)`）。
+  }
+  body {
+    U32 a_xor_b = a ^ b;
+    if (signF32UI(a_xor_b) == 1) {
+      return softfloat_addMagsF32(a, b, mode);
+    }
+    return softfloat_subMagsF32(a, b, mode);
+  }
+}
+
+function ft_mul {
+  returns Bits<32>
+  arguments Bits<32> a, Bits<32> b, RoundingMode mode
+  description {
+    ft 乘法（`ftmul`）：IEEE 754-2019 multiplication。`0 × ±Inf` ⇒ NV + canonical qNaN。
+  }
+  body {
+    if (is_sp_signaling_nan?(a) || is_sp_signaling_nan?(b)) {
+      set_fp_flag(FpFlag::NV);
+    }
+    Bits<1> signA = signF32UI(a);
+    Bits<16> expA = expF32UI(a);
+    Bits<23> fracA = fracF32UI(a);
+    Bits<1> signB = signF32UI(b);
+    Bits<16> expB = expF32UI(b);
+    Bits<23> fracB = fracF32UI(b);
+    Bits<1> signZ = signA ^ signB;
+
+    Bits<32> sigA = fracA;
+    Bits<32> sigB = fracB;
+    Bits<16> expZ;
+
+    if (expA == 16'hFF) {
+      if ((fracA != 0) || ((expB == 16'hFF) && (fracB != 0))) {
+        return SP_CANONICAL_NAN;
+      }
+      if ((expB == 0) && (fracB == 0)) {
+        set_fp_flag(FpFlag::NV);
+        return SP_CANONICAL_NAN;
+      }
+      return packToF32UI(signZ, 8'hFF, 0);
+    }
+    if (expB == 16'hFF) {
+      if (fracB != 0) {
+        return SP_CANONICAL_NAN;
+      }
+      if ((expA == 0) && (fracA == 0)) {
+        set_fp_flag(FpFlag::NV);
+        return SP_CANONICAL_NAN;
+      }
+      return packToF32UI(signZ, 8'hFF, 0);
+    }
+
+    if (expA == 0) {
+      if (fracA == 0) {
+        return packToF32UI(signZ, 8'd0, 32'd0);
+      }
+      Bits<16> e = 0;
+      e = softfloat_normSubnormalF32Exp(fracA);
+      sigA = 0;
+      sigA = softfloat_normSubnormalF32Sig(fracA);
+      expA = e;
+    }
+    if (expB == 0) {
+      if (fracB == 0) {
+        return packToF32UI(signZ, 8'd0, 32'd0);
+      }
+      Bits<16> e = 0;
+      e = softfloat_normSubnormalF32Exp(fracB);
+      sigB = 0;
+      sigB = softfloat_normSubnormalF32Sig(fracB);
+      expB = e;
+    }
+
+    expZ = expA + expB - 16'h007F;
+    sigA = (sigA | 32'h00800000) << 7;
+    sigB = (sigB | 32'h00800000) << 8;
+    U64 prod = 0;
+    prod = sigA `* sigB;
+    Bits<32> sigZ = 0;
+    sigZ = softfloat_shiftRightJam64(prod, 32);
+    if (sigZ < 0x40000000) {
+      expZ = expZ - 1;
+      sigZ = sigZ << 1;
+    }
+    return softfloat_roundPackToF32(signZ, expZ, sigZ, mode);
+  }
+}
+
+function softfloat_approxRecip32_1 {
+  returns Bits<32>
+  arguments Bits<32> a
+  description {
+    `floor(0x7FFF_FFFF_FFFF_FFFF / a)`（Berkeley SoftFloat 的 32 位倒数近似宏，64 位宿主口径）。
+    UDB 用 32 步长除循环实现；这里直接用整数除（语义等价，且可执行）。
+  }
+  body {
+    Bits<64> num = 64'h7FFFFFFFFFFFFFFF;
+    Bits<64> den = 0;
+    den = {32'h0, a};
+    Bits<64> q = 0;
+    q = num / den;
+    return q[31:0];
+  }
+}
+
+function ft_div {
+  returns Bits<32>
+  arguments Bits<32> a, Bits<32> b, RoundingMode mode
+  description {
+    ft 除法（`ftdiv`）：IEEE 754-2019 division。`0/0` 与 `Inf/Inf` ⇒ NV；`x/0`（x 有限非零）⇒ DZ。
+  }
+  body {
+    if (is_sp_signaling_nan?(a) || is_sp_signaling_nan?(b)) {
+      set_fp_flag(FpFlag::NV);
+    }
+    Bits<1> signA = signF32UI(a);
+    Bits<16> expA = expF32UI(a);
+    Bits<32> sigA = fracF32UI(a);
+    Bits<1> signB = signF32UI(b);
+    Bits<16> expB = expF32UI(b);
+    Bits<32> sigB = fracF32UI(b);
+    Bits<1> signZ = signA ^ signB;
+
+    Bits<16> expZ;
+
+    if (expA == 16'hFF) {
+      if (sigA != 0) {
+        return SP_CANONICAL_NAN;
+      }
+      if (expB == 16'hFF) {
+        if (sigB != 0) {
+          return SP_CANONICAL_NAN;
+        }
+        set_fp_flag(FpFlag::NV);
+        return SP_CANONICAL_NAN;
+      }
+      return packToF32UI(signZ, 8'hFF, 0);
+    }
+    if (expB == 16'hFF) {
+      if (sigB != 0) {
+        return SP_CANONICAL_NAN;
+      }
+      return packToF32UI(signZ, 8'd0, 32'd0);
+    }
+
+    if (expB == 0) {
+      if (sigB == 0) {
+        if ((expA == 0) && (sigA == 0)) {
+          set_fp_flag(FpFlag::NV);
+          return SP_CANONICAL_NAN;
+        }
+        set_fp_flag(FpFlag::DZ);
+        return packToF32UI(signZ, 8'hFF, 0);
+      }
+      Bits<16> e = 0;
+      Bits<32> norm = 0;
+      norm = softfloat_normSubnormalF32Sig(sigB);
+      e = softfloat_normSubnormalF32Exp(sigB);
+      sigB = norm;
+      expB = e;
+    }
+
+    if (expA == 0) {
+      if (sigA == 0) {
+        return packToF32UI(signZ, 8'd0, 32'd0);
+      }
+      Bits<16> e = 0;
+      Bits<32> norm = 0;
+      norm = softfloat_normSubnormalF32Sig(sigA);
+      e = softfloat_normSubnormalF32Exp(sigA);
+      sigA = norm;
+      expA = e;
+    }
+
+    expZ = expA - expB + 16'h007E;
+    sigA = sigA | 32'h00800000;
+    sigB = sigB | 32'h00800000;
+
+    if (sigA < sigB) {
+      expZ = expZ - 1;
+      sigA = sigA << 8;
+    } else {
+      sigA = sigA << 7;
+    }
+    sigB = sigB << 8;
+
+    U32 recip32 = softfloat_approxRecip32_1(sigB);
+    U64 prod = 0;
+    prod = sigA `* recip32;
+    Bits<32> sigZ = 0;
+    sigZ = prod >> 32;
+    sigZ = sigZ + 2;
+
+    if ((sigZ & 7) <= 2) {
+      sigZ = sigZ & ~32'h3;
+      U64 remA = 0;
+      remA = sigA `<< 31;
+      U64 remB = 0;
+      remB = sigZ `* sigB;
+      Bits<64> rem = 0;
+      rem = remA - remB;
+      if ($signed(rem) < 's0) {
+        sigZ = sigZ - 4;
+      } else {
+        if (rem != 0) {
+          sigZ = sigZ | 1;
+        }
+      }
+    }
+
+    return softfloat_roundPackToF32(signZ, expZ, sigZ, mode);
+  }
+}
+
+function ft_muladd {
+  returns Bits<32>
+  arguments Bits<32> a, Bits<32> b, Bits<32> c, MulAddOp op, RoundingMode mode
+  description {
+    融合乘加（`ftfma`，IEEE 754-2019 fusedMultiplyAdd）：`a × b` 的**精确积**与 `c` 相加、
+    只在最后舍入一次。`op` 选择 `(a×b)+c` / `(a×b)−c` / `−(a×b)+c`。
+    `0 × ±Inf` 即使加数为 qNaN 也置 NV（无效运算优先于 NaN 传播）；精确和为零时
+    RDN ⇒ −0，其余 ⇒ +0。
+  }
+  body {
+    if (is_sp_signaling_nan?(a) || is_sp_signaling_nan?(b) || is_sp_signaling_nan?(c)) {
+      set_fp_flag(FpFlag::NV);
+    }
+    Bits<1> signA = signF32UI(a);
+    Bits<16> expA = expF32UI(a);
+    Bits<32> sigA = fracF32UI(a);
+    Bits<1> signB = signF32UI(b);
+    Bits<16> expB = expF32UI(b);
+    Bits<32> sigB = fracF32UI(b);
+    Bits<1> signC = signF32UI(c) ^ ((op == MulAddOp::SubC) ? 1 : 0);
+    Bits<16> expC = expF32UI(c);
+    Bits<32> sigC = fracF32UI(c);
+    Bits<1> signProd = (signA ^ signB) ^ ((op == MulAddOp::SubProd) ? 1 : 0);
+
+    Bits<32> magBits;
+    Bits<64> sig64Z;
+
+    if (expA == 16'hFF) {
+      if ((sigA != 0) || ((expB == 16'hFF) && (sigB != 0))) {
+        return SP_CANONICAL_NAN;
+      }
+      magBits = expB | sigB;
+      if (magBits != 0) {
+        U32 zA = packToF32UI(signProd, 8'hFF, 0);
+        if (expC != 16'hFF) {
+          return zA;
+        }
+        if (sigC != 0) {
+          return SP_CANONICAL_NAN;
+        }
+        if (signProd == signC) {
+          return zA;
+        }
+      }
+      set_fp_flag(FpFlag::NV);
+      return SP_CANONICAL_NAN;
+    }
+
+    if (expB == 16'hFF) {
+      if (sigB != 0) {
+        return SP_CANONICAL_NAN;
+      }
+      magBits = expA | sigA;
+      if (magBits != 0) {
+        U32 zB = packToF32UI(signProd, 8'hFF, 0);
+        if (expC != 16'hFF) {
+          return zB;
+        }
+        if (sigC != 0) {
+          return SP_CANONICAL_NAN;
+        }
+        if (signProd == signC) {
+          return zB;
+        }
+      }
+      set_fp_flag(FpFlag::NV);
+      return SP_CANONICAL_NAN;
+    }
+
+    if (expC == 16'hFF) {
+      if (sigC != 0) {
+        return SP_CANONICAL_NAN;
+      }
+      # 加数为 ±Inf：按 `op` 的取反口径返回（`SubC` 时取反）
+      return packToF32UI(signC, 8'hFF, 23'h0);
+    }
+
+    if (expA == 0) {
+      if (sigA == 0) {
+        if (((expC | sigC) == 0) && (signProd != signC)) {
+          return packToF32UI((mode == RoundingMode::RDN) ? 1 : 0, 8'd0, 32'd0);
+        }
+        # 乘积为 ±0 ⇒ 结果就是加数本身，但要按 `op` 的取反口径（`SubC` 时取反）
+        return packToF32UI(signC, expF32UI(c), fracF32UI(c));
+      }
+      Bits<16> e = 0;
+      Bits<32> norm = 0;
+      norm = softfloat_normSubnormalF32Sig(sigA);
+      e = softfloat_normSubnormalF32Exp(sigA);
+      sigA = norm;
+      expA = e;
+    }
+
+    if (expB == 0) {
+      if (sigB == 0) {
+        if (((expC | sigC) == 0) && (signProd != signC)) {
+          return packToF32UI((mode == RoundingMode::RDN) ? 1 : 0, 8'd0, 32'd0);
+        }
+        # 乘积为 ±0 ⇒ 结果就是加数本身，但要按 `op` 的取反口径（`SubC` 时取反）
+        return packToF32UI(signC, expF32UI(c), fracF32UI(c));
+      }
+      Bits<16> e = 0;
+      Bits<32> norm = 0;
+      norm = softfloat_normSubnormalF32Sig(sigB);
+      e = softfloat_normSubnormalF32Exp(sigB);
+      sigB = norm;
+      expB = e;
+    }
+
+    Bits<16> expProd = expA + expB - 16'h007E;
+    sigA = (sigA | 32'h00800000) << 7;
+    sigB = (sigB | 32'h00800000) << 7;
+    U64 sigProd = 0;
+    sigProd = sigA `* sigB;
+    if (sigProd < 64'h2000000000000000) {
+      expProd = expProd - 1;
+      sigProd = sigProd << 1;
+    }
+    Bits<1> signZ = signProd;
+    Bits<16> expZ;
+    Bits<32> sigZ;
+
+    if (expC == 0) {
+      if (sigC == 0) {
+        expZ = expProd - 1;
+        sigZ = softfloat_shiftRightJam64(sigProd, 31);
+        return softfloat_roundPackToF32(signZ, expZ, sigZ, mode);
+      }
+      Bits<16> e = 0;
+      Bits<32> norm = 0;
+      norm = softfloat_normSubnormalF32Sig(sigC);
+      e = softfloat_normSubnormalF32Exp(sigC);
+      sigC = norm;
+      expC = e;
+    }
+    sigC = (sigC | 32'h00800000) << 6;
+
+    Bits<16> expDiff = expProd - expC;
+
+    if (signProd == signC) {
+      if ($signed(expDiff) <= 0s) {
+        expZ = expC;
+        U32 sigProdShifted = 0;
+        Bits<32> shiftAmt = 0;
+        shiftAmt = 32 - expDiff;
+        sigProdShifted = softfloat_shiftRightJam64(sigProd, shiftAmt);
+        sigZ = sigC + sigProdShifted;
+      } else {
+        expZ = expProd;
+        sig64Z = sigProd + softfloat_shiftRightJam64(sigC `<< 32, expDiff);
+        sigZ = softfloat_shiftRightJam64(sig64Z, 32);
+      }
+      if (sigZ < 0x40000000) {
+        expZ = $signed(expZ) - 16'sd1;
+        sigZ = sigZ << 1;
+      }
+      return softfloat_roundPackToF32(signZ, expZ, sigZ, mode);
+    }
+
+    U64 sig64C = 0;
+    sig64C = sigC `<< 32;
+    if ($signed(expDiff) < 0s) {
+      signZ = signC;
+      expZ = expC;
+      Bits<32> negExpDiff = 0;
+      negExpDiff = -expDiff;
+      sig64Z = sig64C - softfloat_shiftRightJam64(sigProd, negExpDiff);
+    } else if (expDiff == 0) {
+      expZ = expProd;
+      sig64Z = sigProd - sig64C;
+      if (sig64Z == 0) {
+        return packToF32UI((mode == RoundingMode::RDN) ? 1 : 0, 8'd0, 32'd0);
+      }
+      if ((sig64Z & 64'h8000000000000000) != 0) {
+        signZ = signZ ^ 1;
+        sig64Z = -sig64Z;
+      }
+    } else {
+      expZ = expProd;
+      sig64Z = sigProd - softfloat_shiftRightJam64(sig64C, expDiff);
+    }
+    Bits<8> shiftDist = 0;
+    shiftDist = ft_clz64(sig64Z) - 1;
+    expZ = $signed(expZ) - $signed(shiftDist);
+    shiftDist = shiftDist - 8'h20;
+    if ($signed(shiftDist) < 0s) {
+      Bits<32> uShift = 0;
+      uShift = -shiftDist;
+      sigZ = softfloat_shiftRightJam64(sig64Z, uShift);
+    } else {
+      sigZ = sig64Z << shiftDist;
+    }
+    return softfloat_roundPackToF32(signZ, expZ, sigZ, mode);
+  }
+}
+
+# ── 开方（精确整数平方根 + 最后舍入）────────────────────────────────────────
+
+function ft_isqrt64 {
+  returns Bits<64>
+  arguments Bits<64> n
+  description {
+    `floor(√n)`（`n < 2^64`）。初值取 `2^ceil(bitlen(n)/2)`（保证 ≥ √n），6 次牛顿迭代后
+    做 ±1 校正。IDL 无 `sqrt`，UDB 的 `f32_sqrt` 则依赖平台相关的近似宏（见文件头）。
+  }
+  body {
+    if (n == 0) {
+      return 0;
+    }
+    Bits<8> bits = 0;
+    bits = 64 - ft_clz64(n);
+    Bits<8> sh = 0;
+    sh = (bits + 1) >> 1;
+    Bits<64> x = 0;
+    x = 64'h1 << sh;
+    Bits<64> q = 0;
+
+    q = n / x;
+    x = (x + q) >> 1;
+    q = n / x;
+    x = (x + q) >> 1;
+    q = n / x;
+    x = (x + q) >> 1;
+    q = n / x;
+    x = (x + q) >> 1;
+    q = n / x;
+    x = (x + q) >> 1;
+    q = n / x;
+    x = (x + q) >> 1;
+
+    Bits<64> sq = 0;
+    sq = x * x;
+    if (sq > n) {
+      x = x - 1;
+    }
+    Bits<64> y = 0;
+    y = x + 1;
+    if (y < 64'h100000000) {
+      Bits<64> y2 = 0;
+      y2 = y * y;
+      if (y2 <= n) {
+        x = y;
+      }
+    }
+    return x;
+  }
+}
+
+function ft_sqrt {
+  returns Bits<32>
+  arguments Bits<32> a, RoundingMode mode
+  description {
+    ft 开方（`ftroot`，n = 2 ⇒ `rootn(x,2)` / IEEE 754-2019 squareRoot）。负数（非 −0）⇒
+    NV + canonical qNaN；`rootn(±0, 2) = +0`（IEEE 754-2019 §9.2.1 NOTE；SimRISC-07 §2.2 采用）；
+    `+Inf` 原样返回。实现：把输入规格化为 `S × 2^(E−150)`，用**精确整数平方根**得到
+    「31 位有效数（含 7 位保护位）」再交 `softfloat_roundPackToF32` 舍入 ⇒ 正确舍入的結果。
+    **偏离 UDB**：UDB 用表 + Newton 的 32 位倒数平方根近似，该近似在 C 里依赖
+    `uint_fast32_t` 的平台宽度（32/64 位宿主给出不同初值），且需 `count_leading_zeros_64` 内建。
+  }
+  body {
+    if (is_sp_signaling_nan?(a)) {
+      set_fp_flag(FpFlag::NV);
+    }
+    Bits<1> signA = signF32UI(a);
+    Bits<16> expA = expF32UI(a);
+    Bits<32> sigA = fracF32UI(a);
+
+    if (expA == 16'hFF) {
+      if (sigA != 0) {
+        return SP_CANONICAL_NAN;
+      }
+      if (signA == 0) {
+        return a;
+      }
+      set_fp_flag(FpFlag::NV);
+      return SP_CANONICAL_NAN;
+    }
+    if (is_sp_pos_zero?(a) || is_sp_neg_zero?(a)) {
+      # `rootn(±0, 2) = +0`（与 `squareRoot(−0) = −0` 不同，是有意的口径）
+      return packToF32UI(1'b0, 8'd0, 32'd0);
+    }
+    if (signA == 1) {
+      set_fp_flag(FpFlag::NV);
+      return SP_CANONICAL_NAN;
+    }
+
+    # 规格化：S ∈ [2^23, 2^24)，value = S × 2^(E−150)
+    Bits<32> S = 0;
+    Bits<16> E = 0;
+    if (expA == 0) {
+      S = softfloat_normSubnormalF32Sig(sigA);
+      E = softfloat_normSubnormalF32Exp(sigA);
+    } else {
+      S = sigA | 32'h00800000;
+      E = expA;
+    }
+
+    Bits<16> ex = 0;
+    ex = E - 16'sd150;                       # 2 的幂次（两位补码，可为负）
+    Bits<1> odd = ex[0];
+    Bits<32> m = 0;
+    m = (odd == 1'b1) ? (S << 1) : S;        # 奇次幂 ⇒ 2S，使幂次变偶
+    Bits<16> ex2 = 0;
+    ex2 = (odd == 1'b1) ? (ex - 16'sd1) : ex;
+    Bits<16> half = 0;
+    half = (ex2 >> 1) ^ (ex2 & 16'h8000);    # 两位补码的算术右移 1 位
+
+    Bits<8> K = 0;
+    K = (m < 32'h01000000) ? 8'd19 : 8'd18;  # 使 Q = floor(√m·2^K) ∈ [2^30, 2^31)
+    Bits<8> twoK = 0;
+    twoK = K + K;
+    Bits<64> N = 0;
+    N = m `<< twoK;
+    Bits<64> Q = 0;
+    Q = ft_isqrt64(N);
+
+    Bits<32> sigZ = 0;
+    sigZ = Q;                                # Q < 2^31 ⇒ 截断无损
+    Bits<64> sq = 0;
+    sq = Q * Q;
+    if (sq != N) {
+      sigZ = sigZ | 1;                       # 非精确 ⇒ 粘滞位置 1（供最后舍入）
+    }
+
+    Bits<16> expZ = 0;
+    expZ = 16'sd156 + half - K;              # 满足 value = sigZ × 2^(expZ − 156)
+    return softfloat_roundPackToF32(1'b0, expZ, sigZ, mode);
+  }
+}
+
+# ── 取整（roundToIntegral）──────────────────────────────────────────────────
+
+function round_ft_to_integral {
+  returns Bits<32>
+  arguments Bits<32> a, RoundingMode mode
+  description {
+    取整（`ftrnd`，IEEE 754-2019 roundToIntegral）：结果格式不变。NaN ⇒ canonical qNaN
+    （sNaN 置 NV）；±Inf 与 ±0 原样返回；`|x| ≥ 2^23` 时值已是整数 ⇒ 原样返回（不经整型转换）；
+    结果为 0 时沿用输入的符号位。**本函数不置 NX**：`immu6 = 0x20`（roundToIntegralExact）的
+    「结果 ≠ 输入 ⇒ NX」由 operation 判定（SimRISC-07 §2.3）。
+  }
+  body {
+    if (is_sp_nan?(a)) {
+      if (is_sp_signaling_nan?(a)) {
+        set_fp_flag(FpFlag::NV);
+      }
+      return SP_CANONICAL_NAN;
+    }
+    if (is_sp_neg_inf?(a) || is_sp_pos_inf?(a)) {
+      return a;
+    }
+    if (is_sp_pos_zero?(a) || is_sp_neg_zero?(a)) {
+      return a;
+    }
+    # |x| ≥ 2^23 ⇒ 该 f32 值已是整数（ULP = 1），必须原样返回
+    if (expF32UI(a) >= 16'sd150) {
+      return a;
+    }
+    U32 intermediate = 0;
+    intermediate = ft_to_i32_no_flag(a, mode);
+    U32 z = 0;
+    z = i32_to_ft_no_flag(intermediate, mode);
+    if ((z & 32'h7FFFFFFF) == 0) {
+      # 取整结果为 0 ⇒ 沿用输入符号（trunc(-0.5) = −0）
+      return packToF32UI(signF32UI(a), 8'd0, 32'd0);
+    }
+    return z;
+  }
+}

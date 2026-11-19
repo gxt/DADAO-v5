@@ -1,7 +1,10 @@
 schema = 1
 owner = "idl"
-subdirs = []
+subdirs = ["lib"]
 recursive = false
+
+[subdir_owners]
+lib = "idl"
 
 [files."README.md"]
 owner = "idl"

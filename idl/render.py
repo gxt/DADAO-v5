@@ -24,8 +24,9 @@ B. id 存在于 ``contracts/opcodes.yaml``（防与编码表脱节）。
 C. 落点：每个 id 在对应册内**恰好一对**标记（BEGIN 先于 END、期间无其它 BEGIN）；
    每个 ``# id:`` 都有落点；**每个落点都有源**（防空标记）；落点所在册 == 源文件册。
 D. 一致性：重渲染后的整册文本与磁盘**逐字节相同**（``--check``）；两次渲染同结果。
-E. 交叉断言：每条 operation 调用的函数都在 ``idl/README.md §4`` 声明（防「引用了不存在的
-   语义库」——语义正确性由编写期 ``idlc`` oracle 另行检查，不动门控）。
+E. 交叉断言：每条 operation 调用的函数都在语义库声明（``idl/README.md §4`` 的代码块
+   **加 ``idl/lib/*.idl``**；含 ``?`` 后缀函数名；防「引用了不存在的语义库」——语义正确性
+   由编写期 ``idlc`` oracle 另行检查，不动门控）。
 F. 解码变量不得当寄存器内容用：``rdHA``…/``rbH*``/``raH*``/``rfH*`` **紧跟 ``[``** 即 FAIL
    （散文里 ``rdHC`` 指**内容**，``.idl`` 里它是 **6 位寄存器号**；合法用法只有作下标
    ``rd[rdHC]``）。``idlc`` 不校验位宽 ⇒ ``rdHC[i]`` 会静默取到寄存器号的位（m15-idl-014）。
@@ -34,7 +35,7 @@ F. 解码变量不得当寄存器内容用：``rdHA``…/``rbH*``/``raH*``/``rfH
 ----
 * ``python3 idl/render.py``              # 生成/更新 spec 册内的标记块
 * ``python3 idl/render.py --check``      # 只校验（漂移 ⇒ 非零退出）
-* ``python3 idl/render.py --self-test``  # 临时树内 5 类注入自检（各自须 FAIL）
+* ``python3 idl/render.py --self-test``  # 临时树内 6 类注入自检（各自须 FAIL）
 * ``--root DIR``：在另一棵树（同布局）内运行，供注入自检使用
 
 退出码：0 = 通过；1 = 任一断言失败。
@@ -60,8 +61,11 @@ ID_RE = re.compile(r"^#\s*id:\s*(\S+)\s*$")
 BEGIN_RE = re.compile(r"^<!--\s*IDL:(\S+)\s+BEGIN\s*-->\s*$")
 END_RE = re.compile(r"^<!--\s*IDL:(\S+)\s+END\s*-->\s*$")
 BOOK_RE = re.compile(r"^SimRISC-(\d{2})\.idl$")
-DECL_RE = re.compile(r"^\s*(?:builtin\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{")
+DECL_RE = re.compile(r"^\s*(?:builtin\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*\??)\s*\{")
 CALL_RE = re.compile(r"(?<![\w$.])([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+# 以 `?` 结尾的函数名（如 `is_sp_nan?`）：上面 CALL_RE 要求标识符后紧跟 `(`，捕不到 `?`，
+# 故单列一条；两条分开匹配可避免把三目 `a ? (…)` 误当函数调用。
+QBANG_CALL_RE = re.compile(r"(?<![\w$.])([A-Za-z_][A-Za-z0-9_]*\?)\s*\(")
 # 解码变量（寄存器号）：rdHA…rdHD / rbH* / raH* / rfH*；它们**不是**内容
 DECODE_VAR = r"(?:rd|rb|ra|rf)H[A-Za-z0-9]*"
 DECODE_VAR_RE = re.compile(r"(?<![\w$])(" + DECODE_VAR + r")\s*\[")
@@ -167,14 +171,26 @@ def load_opcodes(root: Path) -> set[str]:
     return ids
 
 
+LIB_SUBDIR = "lib"
+
+
 def load_declared(root: Path) -> set[str]:
-    """§4 语义库声明的函数名（``function X {`` / ``builtin function X {``）。"""
+    """语义库声明的函数名（``function X {`` / ``builtin function X {``）。
+
+    扫描面 = ``idl/README.md §4`` 的代码块 **+ ``idl/lib/*.idl``**（m15-idl-015 起浮点族
+    等大库拆到 ``idl/lib/``）。
+    """
     readme = root / IDL_REL / "README.md"
     text = read_text(readme)
     if "## 4." not in text or "## 5." not in text:
         raise RenderError(f"{readme.name}: 找不到 §4 语义库小节（约定见该文件）")
     section = text.split("## 4.", 1)[1].split("## 5.", 1)[0]
     declared = {m.group(1) for m in (DECL_RE.match(line) for line in section.split("\n")) if m}
+    for path in sorted((root / IDL_REL / LIB_SUBDIR).glob("*.idl")):
+        for line in strip_comments(read_text(path)).split("\n"):
+            m = DECL_RE.match(line)
+            if m:
+                declared.add(m.group(1))
     if not declared:
         raise RenderError(f"{readme.name} §4: 没有解析到任何函数声明")
     return declared
@@ -190,12 +206,18 @@ def strip_comments(text: str) -> str:
 
 
 def check_calls_declared(ops: dict[str, Op], declared: set[str]) -> int:
-    """每条 operation 调用的函数都必须在 §4 声明（防「引用了不存在的语义库」）。"""
+    """每条 operation 调用的函数都必须在语义库声明（防「引用了不存在的语义库」）。
+
+    函数名可带 ``?`` 后缀（如 ``is_sp_nan?``）；``CALL_RE`` 与 ``QBANG_CALL_RE`` 分开匹配，
+    两类都按**原名**比对（``?`` 也算名字的一部分）。
+    """
     bad: list[str] = []
     total = 0
     for op in ops.values():
-        for m in CALL_RE.finditer(strip_comments(op.text)):
-            name = m.group(1)
+        body = strip_comments(op.text)
+        called = [m.group(1) for m in CALL_RE.finditer(body)]
+        called += [m.group(1) for m in QBANG_CALL_RE.finditer(body)]
+        for name in called:
             if name in NON_CALL:
                 continue
             total += 1
@@ -423,7 +445,7 @@ def run_rc(root: Path) -> int:
 
 
 def self_test() -> int:
-    """临时树内注入自检：基线 PASS，3 类注入各自 FAIL，还原后 PASS。"""
+    """临时树内注入自检：基线 PASS、6 类注入各自 FAIL、还原后 PASS。"""
     repo = REPO
     tmp_parent = Path(tempfile.gettempdir()) / "opencode"
     tmp_parent.mkdir(parents=True, exist_ok=True)
@@ -449,7 +471,7 @@ def self_test() -> int:
         raise RenderError("临时树内没有标记块")
 
     cases = ["baseline", "spec-char", "idl-drift", "drop-id", "undeclared-call",
-             "decode-var-as-content", "restored"]
+             "decode-var-as-content", "qbang-undeclared-call", "restored"]
     try:
         for idx, name in enumerate(cases, 1):
             root = tmpdir / f"{idx}-{name}"
@@ -490,6 +512,15 @@ def self_test() -> int:
                 path.write_text(injected, encoding="utf-8")
                 if injected == text:
                     raise RenderError("空注入（undeclared-call）")
+            elif name == "qbang-undeclared-call":
+                # `?` 后缀函数名未声明（CALL_RE 要求标识符后紧跟 `(` ⇒ 只有 QBANG_CALL_RE 抓得到；
+                # 缺了它这类调用会被断言 E 静默漏检，m15-idl-015）
+                path = first_op_file(root)
+                text = read_text(path)
+                injected = text + "Boolean probe_q = no_such_predicate?(32'd0);\n"
+                path.write_text(injected, encoding="utf-8")
+                if injected == text:
+                    raise RenderError("空注入（qbang-undeclared-call）")
             elif name == "decode-var-as-content":
                 # 把解码变量当寄存器内容用（m15-idl-014 的缺陷类：`rdHC[0]` 取到的是寄存器号的位）
                 path = first_op_file(root)

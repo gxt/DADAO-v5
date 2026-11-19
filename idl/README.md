@@ -7,6 +7,7 @@
 | 文件 | 内容 |
 |------|------|
 | `SimRISC-NN.idl` | 该册每条指令的一段 operation（`# id:` 开头，id 与 `contracts/opcodes.yaml` 一致） |
+| `lib/fp.idl` | 浮点语义库（ft/binary32 族，移植 UDB `fp.idl`；适配见 §4.7） |
 | `render.py` | 渲染器 + 门控：按 `# id:` 切分 → 填 `spec/` 的 `<!-- IDL:<id> BEGIN/END -->` 标记 → `--check` 逐字节比对 |
 | `.manifests.toml` | 本目录文件集清单（双向集合断言；`sha256` 待 M15 收口统一补） |
 
@@ -68,7 +69,7 @@ python3 idl/render.py --self-test # 临时树内 5 类注入自检（改 spec �
 
 ## 4. 语义库
 
-四个寄存器组、当前指令地址、访存、异常（进入与退出）、保留标记、返回地址栈、核芯功能扩展的分发/寄存器访问/屏障，全部用「现有语法 + 本库函数」表达：带 `body` 的给参考定义，`builtin function` 由实现（golden model / ISS / RTL）提供。**本节代码块按 §4.1→§4.6 顺序拼接即一份可编译的 `.idl` 库**（与各册 operation 拼接后交 `idlc` 类型检查）。
+四个寄存器组、当前指令地址、访存、异常（进入与退出）、保留标记、返回地址栈、核芯功能扩展的分发/寄存器访问/屏障，全部用「现有语法 + 本库函数」表达：带 `body` 的给参考定义，`builtin function` 由实现（golden model / ISS / RTL）提供。**本节代码块按 §4.1→§4.6 顺序拼接、再接 `idl/lib/*.idl`（§4.7）即一份可编译的 `.idl` 库**（与各册 operation 拼接后交 `idlc` 类型检查）。
 
 ### 4.1 类型与常量
 
@@ -329,6 +330,25 @@ builtin function cfx_fence {
 }
 ```
 
+### 4.7 浮点原语（`idl/lib/fp.idl`）
+
+浮点原语见 `idl/lib/fp.idl`，语义按 IEEE 754-2019（标志/舍入口径见 `SimRISC-00 §2.3.1`、
+`SimRISC-07 §1.3`）。移植自 UDB `spec/std/isa/isa/fp.idl`，**三处适配**：① 异常标志写
+`rf0[4:0]`（sticky）、舍入模式读 `rf0[33:32]`（不是 `CSR[fcsr]`/`CSR[frm]`）；② **删掉
+NaN-boxing**——DADAO 的 ft 结果「只写目的低 32 位、高 32 位保持」（`SimRISC-00 §2.3`），
+`nan_box`/`check_f_ok` 及其高半检查一并删除；③ 函数名指令级统一 `ft_*`
+（`ft_to_i32`/`i32_to_ft`…），`softfloat_*` 原语保留原名。`render.py` 的「已声明函数」
+扫描面 = 本节代码块 **+ `idl/lib/*.idl`**。
+
+覆盖范围：分类（`is_sp_*`）、转换（`ft_to_i32`/`ft_to_ui32`/`i32_to_ft`/`ui32_to_ft`）、
+算术（`ft_add`/`ft_sub`/`ft_mul`/`ft_div`/`ft_muladd`/`ft_sqrt`）、取整
+（`round_ft_to_integral`）与 softfloat 位操作原语。**两处实现口径差异**（语义仍按
+IEEE 754-2019）：① `ft_sqrt` 用精确整数平方根（`ft_isqrt64`）而非 softfloat 的
+32 位倒数平方根近似宏（该近似在 C 里依赖 `uint_fast32_t` 的平台宽度）；② `ft_muladd`
+的 `op` 取反口径也贯穿「加数为 ±Inf / 乘积为 ±0」两条早退路径（UDB 只服务 RISC-V 的 addC）。
+UDB 本身若干转写错误（溢出判据、无符号比较、qNaN 置 NV、负次正规相加丢符号等）未照抄，
+逐条记在 `idl/lib/fp.idl` 文件头。
+
 ## 5. 语法扩展提案
 
 三态：**采纳** / **搁置** / **否决**。判定口径：能用「现有语法 + §4 的新函数」表达 ⇒ 不进本表。
@@ -379,4 +399,5 @@ builtin function cfx_fence {
 
 - **v0（初版）**：确立「`.idl` 为源、spec 块为渲染结果」的方向；语法基线（§1）、命名约定（§2）、寄存器模型（§3，数组式 + `fo`/`ft` 视图）、语义库（§4，UDB 同名 `read_memory`/`write_memory`/`fetch_memory`/`is_naturally_aligned`、三参 `raise`、`ras_*`、`reservation_*`）、扩展提案（§5，采纳 0 条）与 `idlc` 评估（§6）。
 - **v0.1（语义库 v1）**：`ip()` 改 `Bits<64>`（高 16 位恒 0），`jump` 只写回 `target[47:0]`；§3 补「按 wyde 写 = 切片赋值」；§4.6 补 `inner_cfx_code`/`cfx_frame_valid`/`cfx_escape_enter`（异常退出）、`cfx_read`/`cfx_write`（cfx 寄存器访问，权限由 SEE 寄存器表描述）与 `cfx_fence`（无 body）。
+- **（未定版）浮点库**：新增 `idl/lib/fp.idl`（ft/binary32 族，§4.7）；`render.py` 的「已声明函数」扫描面加 `idl/lib/*.idl`（含 `?` 后缀的函数名）。
 - 待 M15 收口：`idl/.manifests.toml` 统一补 `sha256`。
