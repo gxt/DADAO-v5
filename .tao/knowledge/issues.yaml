@@ -934,3 +934,11 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`ftsclb_orrr_rf` 的临时写法在指数极值处会下溢（合 §2.1/IEEE 应为溢出）：`e64 = off + n` 以 64 位有符号视图越过 2^63 变负 ⇒ 命中 `< -2000` 饱和。分叉区间 = `n ∈ [2^63-260, 2^63-1]`（src 有限非零、5 档舍入全中）：临时写法给 `±0`/`±1` + `UF|NX`，库 `ft_scale` 给 `±Inf`/`±最大有限` + `OF|NX`。仓内 spec-exact oracle `tools/chipyard/fp_ref.py::sclb_exact` 与库侧 0 失配、与临时写法全反；f64 兄弟 `fosclb` 早已直调 `fo_scale` ⇒ f32/f64 口径不一致。修法见 `m15-idl-019`（待裁定 A/B）。"
+- id: ISS-477
+  scope:
+  - testcases
+  - qemu
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`tools/testcases/arch/min_rom_probe_035t.py` 的执行通道整体失效（`m15-testcases-020` 实测）：该探针按「裸 ROM 直接传 `-bios` + 末尾 ILLI 收尾」建模，但现 QEMU `-bios` 只接受恰 65536 B 的 BootROM 固件（raw `-kernel` 需 ≥256 B 零前缀），且 ILLI 收尾实测会挂起 ⇒ 修好 spec 章节锚点（`## 7.` → `## 5.`）与 canonical 期望后仍不能真跑。要复活须迁移到「BootROM 固件 + raw kernel + `SYS_EXIT` 收尾」模型，甚至重写故障例判据；属独立改造，本任务只落了锚点与 canonical 两项。"
