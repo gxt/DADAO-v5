@@ -27,12 +27,12 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m16-chipyard-006 | 2026-11-19 16:28 | 2–3 天 | Vast 核参数与地址通路（`useVM`/PTBR·ASID·`ptw_enable`/`cfx_ptw` 寄存器面/地址路由） |
-| m16-gem5-014 | 2026-11-19 16:28 | 1–2 天 | gem5 Vast TLB 改造：I/D 双表、2 组×8 路、4 超页 FA/LRU、双表失效、A/D OR 合并 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-gem5-014 | 2026-11-19 17:52 | Vast 一级 I/D TLB（2×8 + 4 超页 LRU、双表失效、A/D OR 合并） |
 | m16-chipyard-005 | 2026-11-19 02:00 | RTL 补 `inner_cfx_code`/`prevCfx`（cg5 rc1 RW、CFXESC 交当前 cfx；sim md5 `9b6928e0`） |
 | m16-gem5-013 | 2026-11-19 01:45 | gem5 补 `prevCfxCode`（trap 保存/escape 恢复/cg5 rc1 RW）；删恢复行 ⇒ `0x7E` |
 | m16-gem5-012 | 2026-11-18 19:09 | C/D 周期表分行给值（ld=9/st=10、`stm` 用 `n_base=1`、`ldm` 不带；容差 ±1→0） |
