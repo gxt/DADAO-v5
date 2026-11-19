@@ -273,7 +273,7 @@
 ## Vivado
 
 - **当前状态**：尚无内容（**尚无一次综合实测**）；以下是用户 2026-11-19 的初步方向与手头数据。
-- **目标板卡 / 器件**：**Genesys2**（Digilent），`XC7K325T-2FFG900C`（Kintex-7，-2 速度等级）；手册在 `.work/genesys2_rm.pdf`。
+- **目标板卡 / 器件**：**Genesys2**（Digilent），`XC7K325T-2FFG900C`（Kintex-7，-2 速度等级）（厂商参考手册，运行期下载、未入库）。
 - **器件资源（手册原文）**：**50,950 logic slices**（≈203,800 LUT6 / 407,600 FF）、**块 RAM「close to 16 Mbits」= 16,020 Kb = 445 × RAMB36 ≈ 1.91 MiB**、840 DSP、板载 **1 GiB DDR3**（32-bit/1800 Mbps）、32 MiB 配置 Flash。
 - **用户初步想法（2026-11-19）**：FPGA 上先跑 **Kaiwu-Tiny**，**SRAM 缩为 256 KiB**（不接 DDR）。
 - **BRAM 预算（64 位宽折算）**：64 位下 1 块 RAMB36 = **512 × 64 bit = 4 KiB**。

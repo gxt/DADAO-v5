@@ -23,7 +23,7 @@
 - 舍入模式 `rf0[33:32]`：`00` RNE（就近取偶）、`01` RTZ（向零）、`10` RDN（向下）、`11` RUP（向上）。[SimRISC-00 §浮点状态寄存器]
 - 异常标志 `rf0[4:0]` 按 IEEE754 累积（accrued、**sticky**：置位后保持到软件清零）：bit0 NV、bit1 DZ、bit2 OF、bit3 UF、bit4 NX；`UF` 仅在结果 **tiny 且 inexact** 时置位（**tininess 检测点 = 舍入后**），`UF ⇒ NX`，反之不成立。[SimRISC-00 §浮点状态寄存器][SimRISC-07 §格式转换指令]
 - 浮点格式符合 IEEE754；浮点指令**不触发异常**，始终按 IEEE754 返回结果（NaN/Inf 等）。[SimRISC-00 §浮点状态寄存器]
-- **结果 NaN 一律 canonical quiet NaN**：凡结果应为 quiet NaN 的情形（算术、缩放、开方、取余、融合乘加、取整、最小最大、格式转换、比较的 quiet 无序结果，以及一切无效操作产生的 qNaN）一律取符号位 0、payload 全零（ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）；IEEE 754-2019 §6.2.3 对 payload 传播只是 *should*、§6.3 不规定 NaN 结果的符号位 ⇒ 取 canonical 属 IEEE 允许的实现选择，**不是**有意偏离。**不适用**：rf 组块复制 `rf2rf` 等纯位搬移（不改位、不置标志）；signaling compare（`ftscmp`/`foscmp`）的无序结果（保持 signaling NaN 位型、符号位 0）；`ftmin`/`ftmax`/`fomin`/`fomax` 的单 NaN 情形（返回那个数）。sNaN 作输入仍按各节规则置 `NV`，结果同样取 canonical quiet NaN。[SimRISC-07 §异常与标志]
+- **结果 NaN 一律 canonical quiet NaN**：凡结果应为 quiet NaN 的情形（算术、缩放、开方、取余、融合乘加、取整、最小最大、格式转换、比较的无序结果，以及一切无效操作产生的 qNaN）一律取符号位 0、payload 全零（ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）；IEEE 754-2019 §6.2.3 对 payload 传播只是 *should*、§6.3 不规定 NaN 结果的符号位 ⇒ 取 canonical 属 IEEE 允许的实现选择，**不是**有意偏离。**不适用**：rf 组块复制 `rf2rf` 等纯位搬移（不改位、不置标志）；`ftmin`/`ftmax`/`fomin`/`fomax` 的单 NaN 情形（返回那个数）。sNaN 作输入仍按各节规则置 `NV`，结果同样取 canonical quiet NaN。quiet 与 signaling 的差别只体现在 `NV` 标志（signaling 无序即置 `NV`，quiet 仅 sNaN 置 `NV`）。[SimRISC-07 §异常与标志][SimRISC-07 §浮点比较指令]
 - `immu6` 多重语义：作**连续个数**（1–63）用于块复制（`rf2rf`/`rd2rf`/`rf2rd`）/ 分类 / RF 多寄存器；作**舍入方向六档**用于 15 条结果依赖舍入的格式转换；作 **SBZ**（必须为 0）用于 3 条精确格式转换；作 **n** 用于 `root`（仅 2）。[SimRISC-07 §格式转换指令][SimRISC-07 §取整（roundToIntegral）][SimRISC-07 §S1D1]
 - 浮点寄存器只能用于浮点类指令（RF 组）。[SimRISC-00 §浮点寄存器]
 
@@ -85,7 +85,7 @@
 
 - 指令：`ftqcmp`/`ftscmp`/`foqcmp`/`foscmp`（orrr：`rdHB` 目的、`rfHC`/`rfHD` 源）。[SimRISC-07 §浮点比较指令]
 - 结果写入 rdHB：`rfHC > rfHD` → 1、`=` → 0、`<` → −1。[SimRISC-07 §浮点比较指令]
-- unordered（含 NaN）：Quiet Compare 返回 **canonical quiet NaN**（符号位 0、payload 全零）、Signaling Compare 返回 sNaN（符号位为 0、payload 不限）。[SimRISC-07 §浮点比较指令][SimRISC-07 §异常与标志]
+- unordered（含 NaN）：**四种比较一律返回 canonical quiet NaN**（符号位 0、payload 全零，见 §异常与标志）；quiet 与 signaling 的差别只体现在 `NV` 标志（signaling 无序即置 `NV`，quiet 仅 sNaN 置 `NV`）。[SimRISC-07 §浮点比较指令][SimRISC-07 §异常与标志]
 - **异常标志（signaling compare）**（IEEE 754-2019 §5.6.1 / §5.11）：`ftscmp`/`foscmp` 只要比较**无序**（任一操作数为 sNaN 或 qNaN）即置 **`NV`**；有序比较不置标志。[SimRISC-07 §浮点比较指令]
 - **异常标志（quiet compare）**：`ftqcmp`/`foqcmp` **仅**在操作数含 **sNaN** 时置 **`NV`**，只含 qNaN 时为安静的无序结果、**不置任何标志**；有序比较不置标志。四条比较指令只可能置 `NV`，不置 `DZ`/`OF`/`UF`/`NX`，标志按累积（sticky）语义写入 `rf0[4:0]`。[SimRISC-07 §浮点比较指令][SimRISC-00 §浮点状态寄存器]
 - qNaN/sNaN 按整型解读为**正数**；配合 `cs.*-rf`（SimRISC-02 §浮点条件赋值）的使用约定，可区分 Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered 等关系。[SimRISC-07 §浮点比较指令]
