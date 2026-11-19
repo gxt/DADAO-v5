@@ -41,6 +41,78 @@ shr.sw  rdHB, rdHC, rdHD
 shr.sw  rdHB, rdHC, immu6
 ```
 
+<!-- IDL:add.sw_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: add.sw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位有符号加（SimRISC-09 §1.1）：源取 rdHC[15:0]/rdHD[15:0]，溢出静默丢弃；
+# 结果按 bit15 符号扩展写满 64 位
+Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
+Bits<16> src2 = rd[rdHD][15:0];
+Bits<16> sum = $signed(src1) + $signed(src2);  # 结果宽 = 16 ⇒ 高 16 位丢弃
+rd[rdHB] = {{48{sum[15]}}, sum};
+```
+<!-- IDL:add.sw_orrr_rd END -->
+
+<!-- IDL:add.uw_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: add.uw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位无符号加（SimRISC-09 §1.1）：源取 rdHC[15:0]/rdHD[15:0]，进位静默丢弃；
+# 结果零扩展写满 64 位
+Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
+Bits<16> src2 = rd[rdHD][15:0];
+Bits<16> sum = src1 + src2;                    # 结果宽 = 16 ⇒ 高 16 位丢弃
+rd[rdHB] = {48'd0, sum};
+```
+<!-- IDL:add.uw_orrr_rd END -->
+
+<!-- IDL:sub.sw_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sub.sw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位有符号减（SimRISC-09 §1.1）：源取 rdHC[15:0]/rdHD[15:0]，借位静默丢弃；
+# 结果按 bit15 符号扩展写满 64 位
+Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
+Bits<16> src2 = rd[rdHD][15:0];
+Bits<16> diff = $signed(src1) - $signed(src2); # 结果宽 = 16 ⇒ 高 16 位丢弃
+rd[rdHB] = {{48{diff[15]}}, diff};
+```
+<!-- IDL:sub.sw_orrr_rd END -->
+
+<!-- IDL:sub.uw_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sub.uw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位无符号减（SimRISC-09 §1.1）：源取 rdHC[15:0]/rdHD[15:0]，借位静默丢弃；
+# 结果零扩展写满 64 位
+Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
+Bits<16> src2 = rd[rdHD][15:0];
+Bits<16> diff = src1 - src2;                   # 结果宽 = 16 ⇒ 高 16 位丢弃
+rd[rdHB] = {48'd0, diff};
+```
+<!-- IDL:sub.uw_orrr_rd END -->
+
 ### 1.2 比较操作 — 值语义
 
 OPC-wyde 子表中的 `cmp.s`/`cmp.u`（后缀 `.sw`/`.uw`）提供 16 位比较运算。源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
@@ -52,6 +124,52 @@ OPC-wyde 子表中的 `cmp.s`/`cmp.u`（后缀 `.sw`/`.uw`）提供 16 位比较
 **高位规则**：比较结果（−1/0/+1）**按 64 位扩展**写满目的寄存器——−1 ⇒ `0xFFFF_FFFF_FFFF_FFFF`（64 位全 1）、0 ⇒ `0`、+1 ⇒ `1`；`.sw`/`.uw` 结果相同（符号扩展与 64 位扩展在 −1/0/+1 上同值）。源操作数仍按上述位宽截断后比较。
 
 例如 `cmp.sw rd1, rd2, rd3` 将 rd2 和 rd3 的低 16 位按有符号比较：rd2 < rd3 时 `rd1 = 0xFFFF_FFFF_FFFF_FFFF`，相等时 `rd1 = 0`，rd2 > rd3 时 `rd1 = 1`。
+
+<!-- IDL:cmp.sw_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: cmp.sw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位有符号比较（SimRISC-09 §1.2）：源按 size 截断后有符号比较，
+# 结果（−1/0/+1）按 64 位扩展写满目的寄存器
+Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
+Bits<16> src2 = rd[rdHD][15:0];
+if ($signed(src1) < $signed(src2)) {
+  rd[rdHB] = {64{1'b1}};
+} else if (src1 == src2) {
+  rd[rdHB] = 64'd0;
+} else {
+  rd[rdHB] = 64'd1;
+}
+```
+<!-- IDL:cmp.sw_orrr_rd END -->
+
+<!-- IDL:cmp.uw_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: cmp.uw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位无符号比较（SimRISC-09 §1.2）：源按 size 截断后无符号比较，
+# 结果（−1/0/+1）按 64 位扩展写满目的寄存器
+Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
+Bits<16> src2 = rd[rdHD][15:0];
+if (src1 < src2) {
+  rd[rdHB] = {64{1'b1}};
+} else if (src1 == src2) {
+  rd[rdHB] = 64'd0;
+} else {
+  rd[rdHB] = 64'd1;
+}
+```
+<!-- IDL:cmp.uw_orrr_rd END -->
 
 ### 1.3 乘除操作
 
@@ -67,6 +185,158 @@ OPC-wyde 子表中的 `mul`/`div`/`rem` 提供 16 位乘除余运算。`mul` 后
 - **截断方向**：`div.s`/`rem.s` 采用 truncate-toward-zero（C99 标准），余数符号 = 被除数符号。
 - **溢出 → 定值**（不触发异常）：`div.s` 中 wyde 对应的 −32768 ÷ −1 见定值表。`div.u`/`rem.u` 不存在溢出。
 - **定值表**：详见 SimRISC-04。
+
+<!-- IDL:mul.sw_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: mul.sw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位有符号乘（SimRISC-09 §1.3）：源取 rdHC[15:0]/rdHD[15:0]，积只保留低 16 位
+# （补码乘法的低 16 位与无符号乘相同）；结果按 bit15 符号扩展写满 64 位
+Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
+Bits<16> src2 = rd[rdHD][15:0];
+Bits<16> prod = src1 * src2;                   # 结果宽 = 16 ⇒ 高 16 位丢弃
+rd[rdHB] = {{48{prod[15]}}, prod};
+```
+<!-- IDL:mul.sw_orrr_rd END -->
+
+<!-- IDL:mul.uw_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: mul.uw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位无符号乘（SimRISC-09 §1.3）：源取 rdHC[15:0]/rdHD[15:0]，积只保留低 16 位；
+# 结果零扩展写满 64 位
+Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
+Bits<16> src2 = rd[rdHD][15:0];
+Bits<16> prod = src1 * src2;                   # 结果宽 = 16 ⇒ 高 16 位丢弃
+rd[rdHB] = {48'd0, prod};
+```
+<!-- IDL:mul.uw_orrr_rd END -->
+
+<!-- IDL:div.sw_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: div.sw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位有符号除（SimRISC-09 §1.3 + SimRISC-04 §1.4 定值表 div.sw 行，均不抛异常）：
+# 除零 ⇒ 0xFFFF_FFFF_FFFF_FFFF；INT16_MIN ÷ −1 ⇒ 0xFFFF_FFFF_FFFF_8000；
+# 其余 truncate-toward-zero（C99）：取 16 位绝对值做无符号除法，再按异号取负
+Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
+Bits<16> src2 = rd[rdHD][15:0];
+if (src2 == 16'd0) {
+  rd[rdHB] = 64'hFFFF_FFFF_FFFF_FFFF;
+} else if (src1 == 16'h8000 && src2 == 16'hFFFF) {
+  rd[rdHB] = 64'hFFFF_FFFF_FFFF_8000;
+} else {
+  Bits<16> ma = src1;
+  if (src1[15] == 1'b1) {
+    ma = 16'd0 - src1;                         # 16 位取负 = |src1|（|INT16_MIN| = 2^15 仍可容纳）
+  }
+  Bits<16> mb = src2;
+  if (src2[15] == 1'b1) {
+    mb = 16'd0 - src2;
+  }
+  Bits<16> quot = ma / mb;                     # 无符号除法：等于向零截断
+  if (src1[15] != src2[15]) {
+    quot = 16'd0 - quot;                       # 异号 ⇒ 商取负
+  }
+  rd[rdHB] = {{48{quot[15]}}, quot};           # 结果符号扩展写满 64 位
+}
+```
+<!-- IDL:div.sw_orrr_rd END -->
+
+<!-- IDL:div.uw_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: div.uw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位无符号除（SimRISC-09 §1.3 + SimRISC-04 §1.4 定值表 div.uw 行）：
+# 除零 ⇒ 0x0000_0000_0000_FFFF，不抛异常；无符号不存在溢出档
+Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
+Bits<16> src2 = rd[rdHD][15:0];
+if (src2 == 16'd0) {
+  rd[rdHB] = 64'h0000_0000_0000_FFFF;
+} else {
+  Bits<16> quot = src1 / src2;                 # 无符号除法，商向零截断
+  rd[rdHB] = {48'd0, quot};                    # 结果零扩展写满 64 位
+}
+```
+<!-- IDL:div.uw_orrr_rd END -->
+
+<!-- IDL:rem.sw_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: rem.sw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位有符号余（SimRISC-09 §1.3 + SimRISC-04 §1.4 定值表 rem.sw 行，均不抛异常）：
+# 除零 ⇒ 被除数本身（符号扩展）；INT16_MIN % −1 ⇒ 0；
+# 其余 truncate-toward-zero，余数符号 = 被除数符号（C99）
+Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
+Bits<16> src2 = rd[rdHD][15:0];
+if (src2 == 16'd0) {
+  rd[rdHB] = {{48{src1[15]}}, src1};
+} else if (src1 == 16'h8000 && src2 == 16'hFFFF) {
+  rd[rdHB] = 64'd0;
+} else {
+  Bits<16> ma = src1;
+  if (src1[15] == 1'b1) {
+    ma = 16'd0 - src1;                         # 16 位取负 = |src1|（|INT16_MIN| = 2^15 仍可容纳）
+  }
+  Bits<16> mb = src2;
+  if (src2[15] == 1'b1) {
+    mb = 16'd0 - src2;
+  }
+  Bits<16> rem = ma % mb;                      # 无符号余数（幅度 < |src2| ≤ 2^15）
+  if (src1[15] == 1'b1) {
+    rem = 16'd0 - rem;                         # 被除数为负 ⇒ 余数取负
+  }
+  rd[rdHB] = {{48{rem[15]}}, rem};             # 结果符号扩展写满 64 位
+}
+```
+<!-- IDL:rem.sw_orrr_rd END -->
+
+<!-- IDL:rem.uw_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: rem.uw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位无符号余（SimRISC-09 §1.3 + SimRISC-04 §1.4 定值表 rem.uw 行）：
+# 除零 ⇒ 被除数本身（零扩展），不抛异常；无符号不存在溢出档
+Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
+Bits<16> src2 = rd[rdHD][15:0];
+if (src2 == 16'd0) {
+  rd[rdHB] = {48'd0, src1};
+} else {
+  Bits<16> rem = src1 % src2;                  # 无符号余数
+  rd[rdHB] = {48'd0, rem};                     # 结果零扩展写满 64 位
+}
+```
+<!-- IDL:rem.uw_orrr_rd END -->
 
 ## 2. Bit manipulating：位操作指令 — 值语义
 
