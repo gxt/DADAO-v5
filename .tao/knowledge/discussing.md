@@ -248,7 +248,8 @@
 - **当前状态**：gem5 侧只用 `TimingSimpleCPU`（加每指令延迟的钩子），Minor 尚未接入；chipyard 侧**只有 `WumingTinyConfig`**（SRAM + cfx 测试机、无 MMU/TLB），`wuqing` 的 RTL 尚未出现。
 - **开启条件**：`wuqing` RTL 可用（用户 2026-11-13：等其 RTL 出现后再开）。
 - **前置条件（用户 2026-11-19 追加）：随机指令流差分测试**，参考 RISC-V 的 `riscv-dv` 思路——在接入 Minor / `wuqing` **之前**先具备「随机生成合法指令流 + 多模型逐指令比对」的能力，否则流水线核的时序/功能差异会被定向向量掩盖（定向用例只覆盖已知路径）。
-  - 待定：生成器的合法性约束来源（`contracts/opcodes.yaml` + `legality_rules.yaml` 派生，**不照抄 riscv-dv 的 RISC-V 约束**）；比对模型组合（QEMU / gem5 / RTL / IDL 参考模型取哪几方）；失败归因判据（谁是 golden）。
+  - **TestRIG**（**RISC-V International 官方项目**，比 `riscv-dv` 更接近我们要的形态）：用 **QuickCheck**（Haskell 属性测试）**生成随机指令流**，经 **DII 接口**（Design-Under-Test Interface）喂给**两个实现**，比对两侧 **RVFI trace**（RISC-V Formal Interface：逐指令的寄存器/内存读写与提交记录），不一致时**自动收缩（shrink）出最小反例**。两条可借的东西：① **RVFI 式逐指令 trace** 作为比对载体（比「比对最终内存」强得多，能定位到哪一条指令、哪个字段）；② **属性测试 + 自动收缩**（反例从几千条缩到十几条，才可能人工归因）。
+  - 待定：生成器的合法性约束来源（`contracts/opcodes.yaml` + `legality_rules.yaml` 派生，**不照抄 riscv-dv / TestRIG 的 RISC-V 约束**）；比对模型组合（QEMU / gem5 / RTL / IDL 参考模型取哪几方）；失败归因判据（谁是 golden）；**DADAO 侧要不要先定义「DII 等价接口 + 逐指令 trace 格式」**（没有它，RVFI 这套方法论落不了地——可能要先为此立一个 infra 任务）。
 - **待定**：Minor 的 `initiateAcc`/`completeAcc` 两阶段是 `ADR-0057` 在 `TimingSimpleCPU` 上先验证；迁到 Minor 时周期表哪些行仍然生效。
 
 ## 乱序处理器核（gem5-o3 / chipyard-wuxing）
