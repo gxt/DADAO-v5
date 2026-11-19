@@ -8,9 +8,13 @@
 **档位**：小改
 **状态**：待开始
 
-## 背景
+## 背景（订正：原判断有误）
 
-现有 `tests/inst/07-floating-point/ftscmp_orrr_rf.S` 与 `foscmp_orrr_rf.S` **没有 NaN/无序用例**（现场核过：无 `0x7F8/0x7FC` 位型）⇒「无序结果 = canonical quiet NaN」这条规范**没有任何向量守护**。
+`tests/inst/07-floating-point/ftscmp_orrr_rf.S` 与 `foscmp_orrr_rf.S` **有点 10–16 的无序用例**，但它们用 `TEST_FPCMP_S` 宏，目前只做**结构断言**（符号位 0 + 指数/quiet 位形态 + 尾数非 0，见 `07-floating-point.inc:287`），**没有钉住 canonical 的完整位型**；`m15-qemu-001` 实测在 new spec 下 guest **rc=10**（点 10 红）⇒ 这些点与宏需要一起订正。
+
+## 必读
+
+`m15-qemu-001` 的证据：新 spec 下 `ftscmp`/`foscmp` 的无序结果 = **canonical quiet NaN**（ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`），`qcmp` 同为 canonical、`NV` 规则不变（scmp 无序恒置、qcmp 仅 sNaN 置）。
 
 ## 要做
 
