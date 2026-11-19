@@ -170,6 +170,10 @@
 - K1 启动与控制台：4–6 个；K2 异常与时间：5–7 个；K3 内存与 TLB：6–8 个；K4 进程与上下文：5–7 个；K5 用户态闭环：5–7 个；K6 用户态应用：4–6 个。
 - 合计约 34–48 个。
 
+# M15：ISA 语义结构化
+
+> **定位（用户 2026-11-12/13）**：只做「**结构化**」——把 `spec/` 升级为「每条指令一段**可解析的 operation**」，**不执行**（执行归 Milestone 候选：IDL 可执行参考模型）。M13 不加 IDL 任务；M14 已分配给内核。
+
 ## 目标与出口
 
 - `spec/` 的每条指令记录带一段 operation 块（语法可解析、语义单元唯一），与编码字段、合法性规则、异常语义一一对应。
@@ -223,6 +227,14 @@
 - **同批发现的模型偏差**（`m16-chipyard-001` 一并复核）：`B1` 乘法实测 ≈1 拍（模型初值 3）；`B3` 除法硬件 1 拍（文档「待实测」、模型 0）。
 - **gem5 SE 完全没有 semihosting** ⇒ Tiny 应用在 SE 上不可直接跑；`m16-gem5-011` 已把 `--semihost` 默认改为 **off**（显式开）。
 
+## Kaiwu-Vast on chipyard（TLB / PTW / Cache；用户 2026-11-19 已定口径）
+
+- **现状**：chipyard 只有 `WumingTinyConfig`（SRAM、`useVM=false`、无 MMU/PTW；`WumingCompatCoreParams` 里 `pgLevels=3` 是 RISC-V 残留）；gem5 侧 Vast 已完整（两级步查、cfx 模型、pmem DMA、time/hart），但 TLB 是**单数组 16 条全相联 + 轮转**、超页与普通页混存。
+- **用户裁定（2026-11-19）**：只设**一级 TLB、分 I/D**（I/D 分离是**设计**不是实现细节；I-TLB 无 dirty 位）；普通页 **16 条 = 2 组 × 8 路、不设 sectored**；超页 **4 条全相联 + LRU**（4 条就够）；**无特殊条目**（rocket 的 special entry 为 PMP，DADAO 无 PMP）；**gem5 与 chipyard 在这些方面保持统一**（含组相联与超页个数）。
+- **落地方式**：归 **M16**（`milestones-m16.md`，用户 2026-11-19 裁定「这是 M16 的任务」）：`m16-chipyard-006`（核参数/地址通路/`cfx_ptw` 寄存器面）→ `007`（PTW 两级步查 + A/D）→ `008`（I/D TLB）→ `009`（D-Cache）→ `010`（I-Cache + 大存储/地址图）→ `011`（三方差分收口）；gem5 侧 `m16-gem5-014`（TLB 双表 + 2×8 + 4 超页 LRU）。
+- **顺序理由**：cache 会改变 M16 已标定的周期基线（`docs/core-wuming-cycle-model.md` 在 SRAM/无 cache 上标定）⇒ **cache 单独排**，不与功能改动混做。
+- **待定**：① 分片（`frags`）在 RTL 侧与 cache 的交互（64 KiB 页 = 1024 × 64 B block）；② `spike`/gem5 侧的 PTW 延迟是否要建模（当前 atomic，无时序）；③ `ISS-340`（gem5 Vast 仍 identity，而 spec 要求 `VA = PA + 2 TiB` 内核窗口）何时对齐。
+
 # 后续里程碑备选（尚未立册）
 
 > 以下为 M16 之后的方向候选：每条只记**当前状态 / 开启条件 / 待定项**，立册时按 `docs/Process-02` 转任务书。
@@ -242,14 +254,6 @@
 - **候选任务**：`m17-idl-001` lexer/parser/AST/类型检查（12–16 天）；`m17-idl-002` 解释器：加载 ELF、四 bank 状态、48 位地址/大端、异常与 monitor、trace（10–14 天）；`m17-idl-003` 差分接入：273（整数）+ 167（访存）+ 67（控制流）逐例与 QEMU 一致、纳入 L2（8–10 天）；`m17-idl-004` 向量「算期望」派生（输入仍人挑，期望由 IDL 算，**不做输入自动生成**，8–10 天）；`m17-idl-005` FP 特殊值语义（NaN/Inf/次正规/五类标志，15–20 天）。
 - **出口**：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个向量走到；`make check-idl` 进 L2；分歧归因落 spec 裁定（**不是「IDL 一定对」**）。
 - **与 M15 的边界**：M15 只结构化、不执行；可执行在此。
-
-## Kaiwu-Vast on chipyard（TLB / PTW / Cache；用户 2026-11-19 已定口径）
-
-- **现状**：chipyard 只有 `WumingTinyConfig`（SRAM、`useVM=false`、无 MMU/PTW；`WumingCompatCoreParams` 里 `pgLevels=3` 是 RISC-V 残留）；gem5 侧 Vast 已完整（两级步查、cfx 模型、pmem DMA、time/hart），但 TLB 是**单数组 16 条全相联 + 轮转**、超页与普通页混存。
-- **用户裁定（2026-11-19）**：只设**一级 TLB、分 I/D**（I/D 分离是**设计**不是实现细节；I-TLB 无 dirty 位）；普通页 **16 条 = 2 组 × 8 路、不设 sectored**；超页 **4 条全相联 + LRU**（4 条就够）；**无特殊条目**（rocket 的 special entry 为 PMP，DADAO 无 PMP）；**gem5 与 chipyard 在这些方面保持统一**（含组相联与超页个数）。
-- **落地方式**：归 **M16**（`milestones-m16.md`，用户 2026-11-19 裁定「这是 M16 的任务」）：`m16-chipyard-006`（核参数/地址通路/`cfx_ptw` 寄存器面）→ `007`（PTW 两级步查 + A/D）→ `008`（I/D TLB）→ `009`（D-Cache）→ `010`（I-Cache + 大存储/地址图）→ `011`（三方差分收口）；gem5 侧 `m16-gem5-014`（TLB 双表 + 2×8 + 4 超页 LRU）。
-- **顺序理由**：cache 会改变 M16 已标定的周期基线（`docs/core-wuming-cycle-model.md` 在 SRAM/无 cache 上标定）⇒ **cache 单独排**，不与功能改动混做。
-- **待定**：① 分片（`frags`）在 RTL 侧与 cache 的交互（64 KiB 页 = 1024 × 64 B block）；② `spike`/gem5 侧的 PTW 延迟是否要建模（当前 atomic，无时序）；③ `ISS-340`（gem5 Vast 仍 identity，而 spec 要求 `VA = PA + 2 TiB` 内核窗口）何时对齐。
 
 ## 流水线处理器核（gem5-minor / chipyard-wuqing）
 
