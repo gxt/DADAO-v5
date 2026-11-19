@@ -36,7 +36,6 @@
 | m15-spec-007 | 2026-11-19 20:35 | 0.5–1 h | `contract-fp.md` 与 spec 对齐（scmp 无序结果改 canonical） |
 | m15-qemu-001 | 2026-11-19 20:10 | 1–2 h | `scmp` 无序结果改 canonical quiet NaN（QEMU） |
 | m15-gem5-001 | 2026-11-19 20:10 | 1–2 h | `scmp` 无序结果改 canonical quiet NaN（gem5） |
-| m15-idl-018 | 2026-11-19 20:10 | 1–2 h | `scmp` 无序结果改 canonical quiet NaN（IDL） |
 | m15-idl-007 | 2026-11-19 10:45 | 5–7 天 | `SimRISC-07` 50 条指令的 operation |
 
 
