@@ -17,6 +17,7 @@
 - 因此**没有 `folio_add_new_anon_rmap()` / `lru_cache_add()`** ⇒ `folio->mapping == NULL`、`folio_test_anon()` 为假；
 - 直接后果（`m14-linux-025` 实测）：`kernel/futex/core.c` 的 `if (unlikely(!mapping)) return -EFAULT;` 命中 ⇒ **匿名页上的 shared futex 恒 `-EFAULT`**（`discussing.md` N27）；
 - 文件页也绕过 page cache：`dadao_pf_fill_from_file()` 用 `kernel_read()` 直接读进新页。
+- **`get_user_pages_fast` 在文件映射页上停住**（`m14-linux-025` 第 2 轮返工实测，240 s 超时）：因为该页不是 page cache 页、也不在任何 `mapping` 上 ⇒ 走查 `!folio->mapping` 后无法推进。影响面不止 futex：**GUP / `vmsplice` / `O_DIRECT` / RDMA pin** 一类操作都会受影响。
 
 这不是 DADAO 特有语义所必需——**PTE 编码、地址窗口、cfx 故障码**是 DADAO 特有的，但 rmap/LRU/page cache 是 `mm/` 通用机制。
 
