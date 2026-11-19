@@ -1,8 +1,61 @@
 # id: trap_ciii_cfx
 if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ 进当前运行模式 monitor
-  raise(ExceptionCode::Illegal, mode(), {16'd0, ip()});
+  raise(ExceptionCode::Illegal, mode(), ip());
 } else if (cfx_trap_denied(cfxHA)) {          # 目标 cfx 的 cfxtrap 掩码拒绝源 cfx
-  raise(ExceptionCode::CfxPerm, mode(), {16'd0, ip()});
+  raise(ExceptionCode::CfxPerm, mode(), ip());
 } else {                                      # CFXTRAP：计数 → 现场 → 模式/目标 → 向量
   cfx_trap_enter(cfxHA, immu18);
 }
+
+# id: escape_ciii_cfx
+# 步骤 0（DADAO-12 §5.3）：SBZ 非零 / 保留 cfx ⇒ ILLI（进当前运行模式 monitor）；
+# 目标错或帧无效 ⇒ 当前 cfx 的 CFXESC（切换任何状态之前）
+if (imms18[17:1] != 17'd0) {                  # imms18[17:1] 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+if (cfxHA != inner_cfx_code()) {              # cfxha 必须是当前 cfx，否则 ⇒ CFXESC
+  raise(ExceptionCode::CfxEsc, mode(), ip());
+}
+if (!cfx_frame_valid(cfxHA)) {                # 当前 cfx 无有效帧（excp_cause_id == 0）⇒ CFXESC
+  raise(ExceptionCode::CfxEsc, mode(), ip());
+}
+
+# 步骤 1–3：恢复 global_cfx_intr_mask、inner_run_mode 与 inner_cfx_code（后者取自
+# cfx_<cfxname>_excp_prev_cfx_code = cg5 rc1，m14-spec-009 2026-11-18 裁定 B），escape_num++，
+# 控制转到 excp_cause_ip + (imms18 << 2)；字节偏移只允许 0 或 4 ⇒ 由 imms18[0] 给出 bit2
+Bits<64> imm = {61'd0, imms18[0], 2'b00};     # 字节偏移 = imms18[0] << 2 ∈ {0, 4}
+cfx_escape_enter(cfxHA, imm);
+
+# id: cfx2rd_crrr_cfx
+if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 读 cfx_<cfxname>_cgHB_rcHC 到 rdHD；存在性与读写权限（HW/RO/保留 ⇒ CFXREG）由 SEE 的寄存器表
+# 描述、cfxreg 来源掩码拒绝（⇒ CFXPERM）由 §5.2 的表描述：operation 只表达访问（T6 裁定）
+rd[rdHD] = cfx_read(cfxHA, cgHB, rcHC);
+
+# id: cfx2rc_crrr_cfx
+if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 把 rdHD 的值写到 cfx_<cfxname>_cgHB_rcHC；存在性与读写权限（HW/RO/保留 ⇒ CFXREG）由 SEE 的
+# 寄存器表描述、cfxreg 来源掩码拒绝（⇒ CFXPERM）由 §5.2 的表描述：operation 只表达访问（T6 裁定）
+cfx_write(cfxHA, cgHB, rcHC, rd[rdHD]);
+
+# id: fence_ciii_cfx
+if (immu18[17:12] != 6'd0) {                  # hb = immu18[17:12] 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 屏障：pred = immu18[11:6]、succ = immu18[5:0]（各 6 位访问类型掩码，bit0–5 = cr/cw/ci/co/mr/mw），
+# cfx0 = all cfx、cfx1–cfx63 = 指定 cfx；只约束本 hart，不跨 hart、不等待 DMA、不维护 TLB/icache。
+# 顺序/可见性语义由实现提供，IDL v0 不建模（T7 裁定）；零掩码是合法 no-op
+cfx_fence(cfxHA, immu18[11:6], immu18[5:0]);
