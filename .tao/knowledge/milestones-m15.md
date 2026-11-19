@@ -26,6 +26,8 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m15-testcases-020 | 1–2 h | `scmp` 无序结果向量（canonical；ft/fo × q/s × 双 NaN） |
+| m15-idl-018 | 1–2 h | `scmp` 无序结果改 canonical quiet NaN（IDL） |
 | m15-spec-005 | 4–6 h | IDL 块布局改造（节末集中 + 三级标题；等 12 册合入后） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）

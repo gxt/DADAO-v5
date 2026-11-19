@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m14-qemu-008 | 1–2 h | `scmp` 无序结果改 canonical quiet NaN（QEMU） |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 
 
