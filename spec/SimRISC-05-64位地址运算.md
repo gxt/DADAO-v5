@@ -17,6 +17,48 @@ sub.o  rbHB, rbHC, rdHD
 sub.o  rdHB, rbHC, rbHD
 ```
 
+<!-- IDL:add.o_orrr_bbd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: add.o_orrr_bbd
+# 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
+if (rbHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位补码加法，全 64 位参与、结果完整保留（本指令不做地址截断）
+rb[rbHB] = rb[rbHC] + rd[rdHD];
+```
+<!-- IDL:add.o_orrr_bbd END -->
+
+<!-- IDL:sub.o_orrr_bbd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sub.o_orrr_bbd
+# 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
+if (rbHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位补码减法，全 64 位参与、结果完整保留（本指令不做地址截断）
+rb[rbHB] = rb[rbHC] - rd[rdHD];
+```
+<!-- IDL:sub.o_orrr_bbd END -->
+
+<!-- IDL:sub.o_orrr_dbb BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sub.o_orrr_dbb
+# 目的 rd0 ⇒ ILLI
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# rdHB = rbHC − rbHD：64 位补码减法，全 64 位参与、结果完整保留
+rd[rdHB] = rb[rbHC] - rb[rbHD];
+```
+<!-- IDL:sub.o_orrr_dbb END -->
+
 ## 2. 自增自减
 
 自增自减指令需要一个寄存器和一个立即数，操作数类型是 `riii`，立即数为18位有符号数，经过符号扩展后与寄存器执行加法，结果写回同一寄存器。
@@ -31,6 +73,21 @@ add.si  rbHA, imms18
 由于imms18为有符号数，该加法指令也隐含实现了减法指令。
 针对rb寄存器的add.si指令的重要性在于对栈指针的操作，在没有提供专门的push/pop类指令的情况下，栈指针需要通过显式的加减移动其位置。
 
+<!-- IDL:add.si_riii_rb BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: add.si_riii_rb
+# 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
+if (rbHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# imms18 为 18 位有符号数，符号扩展后与同一寄存器相加，结果完整保留 64 位
+Bits<64> imm = {{46{imms18[17]}}, imms18};
+rb[rbHA] = rb[rbHA] + imm;
+```
+<!-- IDL:add.si_riii_rb END -->
+
 ## 3. 比较操作
 
 `cmp.uo-rb` 对两个操作数的**整 64 位**进行**无符号**比较（`bits[63:48]` 参与），**比较结果 -1/0/1** 分别对应小于/等于/大于，写入目的寄存器。结果 -1/0/1 可以作为有符号数解读，但主要用于区分三种关系。
@@ -42,6 +99,26 @@ add.si  rbHA, imms18
 ```simrisc
 cmp.uo  rdHB, rbHC, rbHD
 ```
+
+<!-- IDL:cmp.uo_orrr_dbb BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: cmp.uo_orrr_dbb
+# 目的 rd0 ⇒ ILLI
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 整 64 位无符号比较：小于 → -1、等于 → 0、大于 → 1（结果写满 64 位）
+if (rb[rbHC] < rb[rbHD]) {
+  rd[rdHB] = {64{1'b1}};
+} else if (rb[rbHC] == rb[rbHD]) {
+  rd[rdHB] = 64'd0;
+} else {
+  rd[rdHB] = 64'd1;
+}
+```
+<!-- IDL:cmp.uo_orrr_dbb END -->
 
 > **注**：rb0 通用约定（rb0 读出为当前指令的地址，只读，显式目的触发 ILLI）和 RB 高 16 位行为见 SimRISC-00。
 
@@ -64,6 +141,22 @@ aip.si rbHA, imms30
 
 `aip.si` 为全 64 位运算，结果完整保留 64 位（`rbHA[63:0]`）；**仅当以该结果访存时**取 `rbHA[47:0]`（低 48 位）为有效地址，用户可通过 `rbHA` 的高 16 位（bits[63:48]）判断地址溢出。
 目的 `rbHA` 为 `rb0` 时触发 ILLI（`rb0` 读出为当前指令地址、只读，见上「注」与 SimRISC-00）。
+
+<!-- IDL:aip.si_riii_rb BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: aip.si_riii_rb
+# 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
+if (rbHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# imms18 为 4 KiB 块偏移：符号扩展后左移 12 位
+# 基址 = IP（`ip()` 为 64 位、高 16 位恒 0，见 README §4.3/T1），64 位全宽相加
+Bits<64> offset = {{34{imms18[17]}}, imms18, 12'd0};
+rb[rbHA] = ip() + offset;
+```
+<!-- IDL:aip.si_riii_rb END -->
 
 <!-- ASSEMBLY_LIST_START -->
 ## 附录 A：汇编指令速查

@@ -1,0 +1,62 @@
+# id: add.o_orrr_bbd
+# 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
+if (rbHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位补码加法，全 64 位参与、结果完整保留（本指令不做地址截断）
+rb[rbHB] = rb[rbHC] + rd[rdHD];
+
+# id: sub.o_orrr_bbd
+# 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
+if (rbHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位补码减法，全 64 位参与、结果完整保留（本指令不做地址截断）
+rb[rbHB] = rb[rbHC] - rd[rdHD];
+
+# id: sub.o_orrr_dbb
+# 目的 rd0 ⇒ ILLI
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# rdHB = rbHC − rbHD：64 位补码减法，全 64 位参与、结果完整保留
+rd[rdHB] = rb[rbHC] - rb[rbHD];
+
+# id: add.si_riii_rb
+# 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
+if (rbHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# imms18 为 18 位有符号数，符号扩展后与同一寄存器相加，结果完整保留 64 位
+Bits<64> imm = {{46{imms18[17]}}, imms18};
+rb[rbHA] = rb[rbHA] + imm;
+
+# id: aip.si_riii_rb
+# 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
+if (rbHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# imms18 为 4 KiB 块偏移：符号扩展后左移 12 位
+# 基址 = IP（`ip()` 为 64 位、高 16 位恒 0，见 README §4.3/T1），64 位全宽相加
+Bits<64> offset = {{34{imms18[17]}}, imms18, 12'd0};
+rb[rbHA] = ip() + offset;
+
+# id: cmp.uo_orrr_dbb
+# 目的 rd0 ⇒ ILLI
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 整 64 位无符号比较：小于 → -1、等于 → 0、大于 → 1（结果写满 64 位）
+if (rb[rbHC] < rb[rbHD]) {
+  rd[rdHB] = {64{1'b1}};
+} else if (rb[rbHC] == rb[rbHD]) {
+  rd[rdHB] = 64'd0;
+} else {
+  rd[rdHB] = 64'd1;
+}
