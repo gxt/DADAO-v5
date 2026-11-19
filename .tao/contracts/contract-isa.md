@@ -710,7 +710,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 `rol` 系列提供**逻辑循环左移**（把寄存器低 `W` 位当作位串循环旋转）：`rdhb[W-1:0] = rol(rdhc[W-1:0], amount)`；`W` 由后缀决定（`.o` 64 / `.t` 32 / `.w` 16 / `.b` 8）。**只有一个方向**（左），**不分有符号/无符号**，**不带 `u`/`s` 后缀**（`ADR-0032 D4`）。[SimRISC-04 §Bit manipulating：位操作指令]
 
-操作数格式 `orrr`（opx = `010-001`）或 `orri`（opx = `011-001`，见 §2.8）；**操作数寄存器均为 `rd` 银行**：`rol.X rdHB, rdHC, rdHD`（orrr）/ `rol.X rdHB, rdHC, immu6`（orri）。[SimRISC-00 §OPC-octa指令编码]
+操作数格式 `orrr`（opx = `010-001`）或 `orri`（opx = `011-001`，见 §2.8）；**操作数寄存器均为 `rd` 寄存器组**：`rol.X rdHB, rdHC, rdHD`（orrr）/ `rol.X rdHB, rdHC, immu6`（orri）。[SimRISC-00 §OPC-octa指令编码]
 
 | 指令 | W | orrr 旋转量 | orri `immu6` | 高位（值语义） |
 |------|---|------------|--------------|----------------|
@@ -793,7 +793,7 @@ rdhb[63:hd+1] = sign/zero_extend(rdhc[hd])               // 符号/零扩展（N
 
 - 编码层立即数 `imms18` 为 18 位**有符号**数，单位为 **4 KiB 块**（`<< 12`，**无** `<< 2`）；`IP` **低位不清零**（`auipc` 式），不足 4 KiB 的余量由后续访存指令的立即数补齐 ⇒ 可寻址范围 **±512 MiB**。[SimRISC-05 §IP 相对寻址][ADR-0029 D1]
 - **汇编层操作数按字节书写、字段名 `imms30`**（须为 4 KiB 整数倍；`imms18 = imms30 >> 12`），见 `Toolchain-01` §5。[SimRISC-05 §IP 相对寻址][Toolchain-01 §5]
-- **与 RISC-V `auipc` 的三点差异**（`auipc` 仅作参照）：① 操作数以**字节**为单位（汇编层 `imms30`；`auipc` 的立即数以 4 KiB 块为单位）；② 结果写入 **RB 银行**（`rbha`；`auipc` 写通用整数寄存器）；③ 可达 **±512 MiB**。[SimRISC-05 §IP 相对寻址][ADR-0029 D1]
+- **与 RISC-V `auipc` 的三点差异**（`auipc` 仅作参照）：① 操作数以**字节**为单位（汇编层 `imms30`；`auipc` 的立即数以 4 KiB 块为单位）；② 结果写入 **RB 寄存器组**（`rbha`；`auipc` 写通用整数寄存器）；③ 可达 **±512 MiB**。[SimRISC-05 §IP 相对寻址][ADR-0029 D1]
 - 结果完整保留 64 位（`rbha[63:0]`）；**仅当以该结果访存时**取 `rbha[47:0]`（低 48 位）为有效地址。[SimRISC-05 §IP 相对寻址][ADR-0012 D8.7]
 - 目的 `rbha` 为 `rb0` ⇒ ILLI（`dst_rb0`，见 §15.1）。[SimRISC-05 §IP 相对寻址][SimRISC-00 §基址寄存器]
 
