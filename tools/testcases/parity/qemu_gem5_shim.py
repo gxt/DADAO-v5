@@ -29,6 +29,7 @@ Engine selection (environment, set by the parity driver):
   PARITY_GEM5_CONFIG  fs.py path (default .work/source/gem5/configs/dadao/fs.py)
   PARITY_GEM5_PROFILE default profile when -machine omits `profile=` (tiny)
   PARITY_GEM5_BOOTROM default BootROM when -machine omits `bootrom-image=`
+  PARITY_GEM5_ARGS    extra gem5-config argv (e.g. `--cpu-type timing`)
   PARITY_WORK_ROOT    root for the per-run gem5 --outdir (default /tmp/opencode/qemu-gem5-parity/shim)
 
 Exit status is the gem5 FS guest exit code.  A non-guest gem5 stop is reported
@@ -39,6 +40,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import shutil
 import signal
 import subprocess
@@ -280,6 +282,11 @@ def build_gem5_argv(cfg: dict, outdir: str, gem5: str, config: str) -> list[str]
         argv += ["--console-out", cfg["console"]]
     if cfg["trace"]:
         argv += ["--trace-cpu", cfg["trace"]]
+    # Extra gem5-config flags (e.g. `--cpu-type timing`).  Kept in the
+    # environment so the existing drivers keep emitting pure QEMU argv.
+    extra = os.environ.get("PARITY_GEM5_ARGS", "")
+    if extra:
+        argv += shlex.split(extra)
     return argv
 
 

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_tlb.cc b/src/arch/dadao/fs_tlb.cc
 new file mode 100644
-index 0000000..61a3c48
+index 0000000..d9f1058
 --- /dev/null
 +++ b/src/arch/dadao/fs_tlb.cc
-@@ -0,0 +1,105 @@
+@@ -0,0 +1,110 @@
 +// DADAO FS TLB -- identity translation with Kaiwu-Tiny segment rules.
 +#include "arch/dadao/fs_tlb.hh"
 +
@@ -90,6 +90,11 @@ index 0000000..61a3c48
 +FsTLB::translateTiming(const RequestPtr &req, ThreadContext *tc,
 +                       BaseMMU::Translation *translation, BaseMMU::Mode mode)
 +{
++    // Timed access (instruction fetch under a TimingSimpleCPU): the identity
++    // map has no walk, so the translation completes inline.  This is the
++    // entry point a future Tiny PTW would make asynchronous: charge the walk
++    // and call `finish` from a scheduled event instead of inline
++    // (m16-gem5-015; the walk cost must then come from the RTL).
 +    translation->finish(translate(req, tc, mode), req, tc, mode);
 +}
 +

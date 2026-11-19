@@ -420,7 +420,13 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `DadaoFsWorkload`（BootROM/SRAM 装载、复位、ELF 校验）、
   `DadaoSemihosting`（v5 25 服务、`rd16`/`rb16`/`rd8`、大端 64 位）、
   `configs/dadao/fs.py`。**无** cache/PTW/PTBR/cfx/user/hmon/smon/设备/GDB/
-  checkpoint/多核；`mem_mode=atomic` 为唯一模式。
+  checkpoint/多核。
+- **`--cpu-type {atomic,timing}`**（m16-gem5-015，默认 `atomic` 保持原状）：
+  `timing` 用 `se_timing.py` 的 `DadaoTimingSimpleCPU`（MMU 换成本 profile 的），
+  挂 `NoncoherentXBar` + 每段一个 `SimpleMemory`，**取指**走真实内存系统；
+  数据侧仍是 functional（执行核在 `execute()` 中同步取数），ld/st 由周期模型
+  记账；TLB miss 的 PTW 走查**按 0 延迟**（`fs_tlb.cc`/`node_tlb.cc` 的
+  `translateTiming` 就地 `finish`，是后续接走查延迟的接入点）。
 - **几何**（与 `tests/shared/machine-profiles.yaml` `tiny` 逐项一致）：
   BootROM `0xffff_ffff_0000` 64 KiB（读/取指；写 ⇒ ILLI）；SRAM
   `0xffff_ff00_0000` 8 MiB；raw 基址 `0xffff_ff01_0000`、前 `0x100` 零、

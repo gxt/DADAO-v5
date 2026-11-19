@@ -49,6 +49,7 @@ import glob
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -256,11 +257,12 @@ def run_qemu(qemu: Path, elf: Path, bootrom: Path, out: Path, log: Path,
 
 
 def run_gem5(gem5: Path, config: Path, elf: Path, bootrom: Path, out: Path,
-             log: Path, outdir: Path, timeout: int):
+             log: Path, outdir: Path, timeout: int, extra=()):
     out.unlink(missing_ok=True)
     cmd = [str(gem5), "--outdir=%s" % outdir, str(config),
            "--profile", "tiny", "--bootrom", str(bootrom),
            "--kernel", str(elf), "--semihost", "on", "--console-out", str(out)]
+    cmd += list(extra)
     return _run(cmd, log, timeout, out)
 
 
@@ -322,7 +324,7 @@ def check_variant(task, cfg) -> dict:
             m5dir = outdir / (stem + ".m5out")
             rc, data, _ = run_gem5(cfg["gem5"], cfg["gem5_config"], elf,
                                    cfg["bootrom"], out, log, m5dir,
-                                   cfg["timeouts"]["gem5"])
+                                   cfg["timeouts"]["gem5"], cfg["gem5_args"])
         else:
             rc, data, _ = run_chipyard(cfg["chipyard"], elf, out, log,
                                        cfg["timeouts"]["chipyard"],
@@ -382,6 +384,9 @@ def main() -> int:
     ap.add_argument("--qemu", default=None)
     ap.add_argument("--gem5", default=str(_REPO / DEFAULT_GEM5))
     ap.add_argument("--gem5-config", default=str(_REPO / DEFAULT_GEM5_CONFIG))
+    ap.add_argument("--gem5-args", default="",
+                    help="附加给 gem5 配置的 argv（如 '--cpu-type timing'），"
+                         "用来在同一份配置上比较 CPU 模型")
     ap.add_argument("--chipyard", default=None)
     ap.add_argument("--bootrom", default=None)
     ap.add_argument("--work-dir", default=None)
@@ -484,6 +489,7 @@ def main() -> int:
     cfg = {"toolbin": toolbody, "qemu": qemu,
            "gem5": Path(args.gem5), "gem5_config": Path(args.gem5_config),
            "chipyard": chipyard, "bootrom": bootrom, "work": work,
+           "gem5_args": shlex.split(args.gem5_args),
            "logdir": logdir, "platforms": plats,
            "timeouts": {"qemu": args.timeout_qemu, "gem5": args.timeout_gem5,
                         "chipyard": args.timeout_chipyard},

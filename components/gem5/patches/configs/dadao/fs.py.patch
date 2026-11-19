@@ -1,34 +1,78 @@
 diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
 new file mode 100644
-index 0000000..7d0e4c3
+index 0000000..9fa4a10
 --- /dev/null
 +++ b/configs/dadao/fs.py
-@@ -0,0 +1,305 @@
+@@ -0,0 +1,489 @@
 +#!/usr/bin/env python3
 +# DADAO FS configuration (GEM5-015t Tiny, GEM5-016t Vast).
 +#
-+# One AtomicSimpleCPU, no caches and no timing.  The profile selects the
-+# machine geometry; every constant below is the single source passed to the
-+# workload, the TLB and the memories, and `--dump-geometry` prints the values
-+# actually in force (they must equal contracts/machine.yaml + the
-+# tests/ee-<env>/runtime.yaml runtime layout).
++# The profile selects the machine geometry; every constant below is the single
++# source passed to the workload, the TLB and the memories, and
++# `--dump-geometry` prints the values actually in force (they must equal
++# contracts/machine.yaml + the tests/ee-<env>/runtime.yaml runtime layout).
 +#
 +#   tiny: 64 KiB BootROM + 8 MiB SRAM + 64 KiB hmon SRAM, identity segment
 +#         checks, cfx63 power + cfx3 hmon, no PTW.
 +#   vast: 4 MiB BootROM + 2 GiB PA RAM + hmon/smon/pmem SRAM, PTW identity
 +#         map, cfx register file/monitor, cfx_pmem DMA, cfx_time/cfx_hart.
++#
++# `--cpu-type` selects the CPU model (same names as gem5's own
++# configs/example/*.py):
++#
++#   atomic (default)  AtomicSimpleCPU + SystemXBar; no caches, no timing.
++#   timing            DadaoTimingSimpleCPU (the class of the SE timing config)
++#                     + NoncoherentXBar + one SimpleMemory per address window;
++#                     instruction fetch is timed by the memory system.
++#
++# Timing-mode limits, stated rather than implied (m16-gem5-015):
++#
++# 1. **Data accesses are functional.**  The DADAO exec cores read memory
++#    synchronously inside execute(), so a timed data access would need a
++#    two-phase execute model (m16-gem5-006 待裁定 1).  The access translates
++#    through the guest TLB -- the same segment/PTW checks and the same
++#    CFXMEM/CFXPERM/PTW faults the atomic path produces -- and then moves the
++#    bytes functionally (src/arch/dadao/inst.cc, |functionalFsAccess|); the
++#    ld/st round trip is charged by the wuming cycle model instead of by the
++#    memory system.
++# 2. **A TLB miss / page-table walk costs 0 cycles.**  `translateTiming` in
++#    fs_tlb.cc (Tiny identity map, no walk) and node_tlb.cc (Vast walk)
++#    completes synchronously, so the walk itself is not charged.  Those two
++#    `translateTiming` implementations are the insert point for a walk
++#    latency: schedule `translation->finish(...)` after the walk cost instead
++#    of calling it inline, with the cost taken from the RTL measurement.
++#
++# Memory-system latencies in timing mode are *not* written here: they are read
++# from the ``memory_system:`` block of the generated cycle table
++# (contracts/wuming-cycles.yaml, parsed out of
++# docs/core-wuming-cycle-model.md); `make check-wuming-cycles` fails as soon as
++# that block drifts, so a hand-copied latency cannot come back unnoticed.
 +
 +import argparse
++import os
 +import shlex
 +import sys
 +
 +import m5
 +from m5.objects import *
 +
++_HERE = os.path.dirname(os.path.abspath(__file__))
++if os.path.isfile(os.path.join(_HERE, "se_timing.py")):
++    # m16-gem5-017 folds the SE timing config into se.py; until it lands the
++    # class and the cycle-table reader live in se_timing.py.
++    from se_timing import DadaoTimingSimpleCPU, read_memory_system
++else:
++    from se import DadaoTimingSimpleCPU, read_memory_system
++
 +LAST_THREAD_CAUSE = "exiting with last active thread context"
 +FAULT_PREFIX = "DADAO_FS_FAULT_"
 +SEMI_PREFIX = "semi:"
 +NON_GUEST_EXIT = 125
++CPU_TYPES = ("atomic", "timing")
++# The clock the timing latencies are expressed in: the cycle table counts
++# cycles and one cycle is one nanosecond here (same clock as the SE config).
++CLOCK = "1GHz"
++CYCLE_NS = 1.0
 +
 +PROFILES = {
 +    # Kaiwu-Tiny (spec/Kaiwu §1.1; contracts/machine.yaml tiny).
@@ -71,11 +115,16 @@ index 0000000..7d0e4c3
 +WORKLOAD_PROFILES = {"tiny": "tiny", "vast": "node"}
 +
 +
-+def parse_args():
++def build_parser():
++    """The FS CLI (one geometry, one command line)."""
 +    parser = argparse.ArgumentParser(description=__doc__)
 +    parser.add_argument("--profile", choices=("tiny", "vast"),
 +                        default="tiny",
 +                        help="FS machine profile (default tiny)")
++    parser.add_argument("--cpu-type", choices=CPU_TYPES, default="atomic",
++                        help="CPU model (default atomic = AtomicSimpleCPU, "
++                             "unchanged); 'timing' uses the DADAO "
++                             "TimingSimpleCPU with a timed instruction fetch")
 +    parser.add_argument("--kernel", default="",
 +                        help="raw or ET_EXEC DADAO ELF image (tiny: required)")
 +    parser.add_argument("--bootrom", default="",
@@ -100,6 +149,31 @@ index 0000000..7d0e4c3
 +                        help="write a QEMU `-d cpu` compatible PC:/MODE: trace")
 +    parser.add_argument("--max-ticks", type=int, default=0,
 +                        help="safety cap; hitting it is NOT a guest exit")
++    parser.add_argument("--max-insts", type=int, default=0,
++                        help="retire at most N instructions, then stop (not a "
++                             "guest exit); the same N on two CPU models "
++                             "compares them on the identical instruction "
++                             "prefix")
++    parser.add_argument("--wuming-cycles", action="store_true",
++                        help="enable the wuming cycle table (DadaoISA "
++                             "enable_wuming_cycles); off = upstream 1-cycle")
++    parser.add_argument("--cycle-table",
++                        default=os.environ.get("DADAO_WUMING_CYCLE_TABLE",
++                                               "contracts/wuming-cycles.yaml"),
++                        help="--cpu-type timing only: generated cycle table "
++                             "carrying the memory_system latencies "
++                             "(contracts/wuming-cycles.yaml).  Default: "
++                             "$DADAO_WUMING_CYCLE_TABLE, else the table's "
++                             "repo path")
++    parser.add_argument("--mem-latency", type=int, default=None,
++                        help="--cpu-type timing only: SimpleMemory round trip "
++                             "in cycles; default from the cycle table")
++    parser.add_argument("--xbar-latency", type=int, default=None,
++                        help="--cpu-type timing only: NonCoherentXBar latency "
++                             "in cycles; default from the cycle table")
++    parser.add_argument("--beat-bytes", type=int, default=None,
++                        help="--cpu-type timing only: bus width in bytes; "
++                             "default from the cycle table (8-byte beat)")
 +    parser.add_argument("--dump-mem", action="append", default=[],
 +                        metavar="BASE:SIZE:FILE",
 +                        help="dump SIZE bytes of physical memory at BASE to "
@@ -111,7 +185,11 @@ index 0000000..7d0e4c3
 +                             "simulation ends (TLB hit/miss counters)")
 +    parser.add_argument("--dump-semihost-services", action="store_true",
 +                        help="print the C++ semihosting service table and exit")
-+    return parser.parse_args()
++    return parser
++
++
++def parse_args():
++    return build_parser().parse_args()
 +
 +
 +def guest_argv(args):
@@ -157,45 +235,66 @@ index 0000000..7d0e4c3
 +    ]
 +
 +
-+def build(args, g):
-+    system = System()
-+    system.mem_mode = "atomic"
-+    system.cache_line_size = 64
++def memory_regions(profile, g):
++    """``(object name, base, size)`` of every FS memory region, in map order.
 +
-+    voltage = VoltageDomain()
-+    system.clk_domain = SrcClockDomain(clock="1GHz", voltage_domain=voltage)
++    Single source for the atomic and the timing memory system, so the two CPU
++    models can never describe different machines.
++    """
++    if profile == "vast":
++        return [
++            ("rom", g["bootrom_base"], g["bootrom_size"]),
++            ("ram", g["ram_base"], g["ram_size"]),
++            ("hmon", g["hmon"][0], g["hmon"][1]),
++            ("smon", g["smon"][0], g["smon"][1]),
++            ("pmem", g["pmem"][0], g["pmem"][1]),
++        ]
++    return [
++        ("rom", g["bootrom_base"], g["bootrom_size"]),
++        ("sram", g["ram_base"], g["ram_size"]),
++        ("hmon", g["hmon"][0], g["hmon"][1]),
++    ]
 +
-+    system.membus = SystemXBar()
-+    system.system_port = system.membus.cpu_side_ports
 +
-+    ranges = []
++def make_semihosting(args):
++    if args.semihost != "on":
++        return NULL
++    return DadaoSemihosting(
++        cmd_line=" ".join(guest_argv(args)),
++        console_out=args.console_out,
++        semihost_system_native=(args.semihost_system == "native"),
++    )
 +
-+    def add_memory(obj_name, base, size):
-+        memory = SimpleMemory(range=AddrRange(base, size=size))
-+        memory.port = system.membus.mem_side_ports
-+        setattr(system, obj_name, memory)
-+        ranges.append(AddrRange(base, size=size))
 +
-+    add_memory("rom", g["bootrom_base"], g["bootrom_size"])
-+    if args.profile == "vast":
-+        add_memory("ram", g["ram_base"], g["ram_size"])
-+        add_memory("hmon", g["hmon"][0], g["hmon"][1])
-+        add_memory("smon", g["smon"][0], g["smon"][1])
-+        add_memory("pmem", g["pmem"][0], g["pmem"][1])
-+    else:
-+        add_memory("sram", g["ram_base"], g["ram_size"])
-+        add_memory("hmon", g["hmon"][0], g["hmon"][1])
-+    system.mem_ranges = ranges
++def make_mmu(profile, g):
++    """The MMU of the profile, both TLBs set to the profile geometry."""
++    if profile == "vast":
++        mmu = DadaoNodeMMU()
++        for tb in (mmu.itb, mmu.dtb):
++            tb.rom_base = g["bootrom_base"]
++            tb.rom_size = g["bootrom_size"]
++            tb.ram_base = g["ram_base"]
++            tb.ram_size = g["ram_size"]
++            tb.hmon_base = g["hmon"][0]
++            tb.hmon_size = g["hmon"][1]
++            tb.smon_base = g["smon"][0]
++            tb.smon_size = g["smon"][1]
++            tb.pmem_base = g["pmem"][0]
++            tb.pmem_size = g["pmem"][1]
++        return mmu
++    mmu = DadaoFsMMU()
++    for tb in (mmu.itb, mmu.dtb):
++        tb.rom_base = g["bootrom_base"]
++        tb.rom_size = g["bootrom_size"]
++        tb.sram_base = g["ram_base"]
++        tb.sram_size = g["ram_size"]
++        tb.hmon_base = g["hmon"][0]
++        tb.hmon_size = g["hmon"][1]
++    return mmu
 +
-+    semihosting = NULL
-+    if args.semihost == "on":
-+        semihosting = DadaoSemihosting(
-+            cmd_line=" ".join(guest_argv(args)),
-+            console_out=args.console_out,
-+            semihost_system_native=(args.semihost_system == "native"),
-+        )
 +
-+    system.workload = DadaoFsWorkload(
++def make_workload(args, g, semihosting):
++    return DadaoFsWorkload(
 +        profile=WORKLOAD_PROFILES[args.profile],
 +        bootrom=args.bootrom,
 +        kernel=args.kernel,
@@ -217,29 +316,87 @@ index 0000000..7d0e4c3
 +        sp=g["sp"],
 +    )
 +
-+    if args.profile == "vast":
-+        mmu = DadaoNodeMMU()
-+        for tb in (mmu.itb, mmu.dtb):
-+            tb.rom_base = g["bootrom_base"]
-+            tb.rom_size = g["bootrom_size"]
-+            tb.ram_base = g["ram_base"]
-+            tb.ram_size = g["ram_size"]
-+            tb.hmon_base = g["hmon"][0]
-+            tb.hmon_size = g["hmon"][1]
-+            tb.smon_base = g["smon"][0]
-+            tb.smon_size = g["smon"][1]
-+            tb.pmem_base = g["pmem"][0]
-+            tb.pmem_size = g["pmem"][1]
++
++def memory_system_latency(args):
++    """(mem_cycles, xbar_cycles, beat_bytes) for --cpu-type timing.
++
++    The numbers come from the generated cycle table, never from a literal in
++    this file (a hand-copied latency is a drift source; the table is gated by
++    `make check-wuming-cycles`).
++    """
++    mem_cycles = args.mem_latency
++    xbar_cycles = args.xbar_latency
++    beat_bytes = args.beat_bytes
++    if mem_cycles is None or xbar_cycles is None or beat_bytes is None:
++        try:
++            table = read_memory_system(args.cycle_table)
++        except OSError as exc:
++            sys.stderr.write(
++                f"gem5 FS: --cpu-type timing needs the generated cycle table "
++                f"({args.cycle_table}): {exc}\n"
++                f"         pass --cycle-table FILE, set "
++                f"DADAO_WUMING_CYCLE_TABLE, or give --mem-latency/"
++                f"--xbar-latency/--beat-bytes (no hand-copied default)\n")
++            sys.exit(2)
++        if mem_cycles is None:
++            mem_cycles = table["mem_latency"]
++        if xbar_cycles is None:
++            xbar_cycles = table["xbar_latency"]
++        if beat_bytes is None:
++            beat_bytes = table["beat_bytes"]
++    return mem_cycles, xbar_cycles, beat_bytes
++
++
++def build(args, g):
++    timing = args.cpu_type == "timing"
++    system = System()
++    system.mem_mode = "timing" if timing else "atomic"
++    system.cache_line_size = 64
++
++    voltage = VoltageDomain()
++    system.clk_domain = SrcClockDomain(clock=CLOCK, voltage_domain=voltage)
++
++    mem_cycles = xbar_cycles = beat_bytes = None
++    if timing:
++        mem_cycles, xbar_cycles, beat_bytes = memory_system_latency(args)
++        # NonCoherentXBar takes its latencies in *cycles* here (same choice as
++        # the SE timing config; a ``"0ns"`` Time would be rejected).
++        system.membus = NoncoherentXBar(frontend_latency=xbar_cycles,
++                                        forward_latency=xbar_cycles,
++                                        response_latency=xbar_cycles,
++                                        width=beat_bytes)
++    else:
++        system.membus = SystemXBar()
++    system.system_port = system.membus.cpu_side_ports
++
++    ranges = []
++
++    def add_memory(obj_name, base, size):
++        if timing:
++            memory = SimpleMemory(range=AddrRange(base, size=size),
++                                  latency=f"{mem_cycles * CYCLE_NS:g}ns")
++        else:
++            memory = SimpleMemory(range=AddrRange(base, size=size))
++        memory.port = system.membus.mem_side_ports
++        setattr(system, obj_name, memory)
++        ranges.append(AddrRange(base, size=size))
++
++    for obj_name, base, size in memory_regions(args.profile, g):
++        add_memory(obj_name, base, size)
++    system.mem_ranges = ranges
++
++    semihosting = make_semihosting(args)
++    system.workload = make_workload(args, g, semihosting)
++
++    mmu = make_mmu(args.profile, g)
++    if timing:
++        # The SE timing class carries the SE MMU as its default; the FS profile
++        # supplies its own (identity segments / PTW walk), exactly like the
++        # atomic pair below.
++        system.cpu = DadaoTimingSimpleCPU()
++    elif args.profile == "vast":
 +        system.cpu = DadaoNodeAtomicSimpleCPU()
 +    else:
-+        mmu = DadaoFsMMU()
-+        for tb in (mmu.itb, mmu.dtb):
-+            tb.rom_base = g["bootrom_base"]
-+            tb.rom_size = g["bootrom_size"]
-+            tb.sram_base = g["ram_base"]
-+            tb.sram_size = g["ram_size"]
-+            tb.hmon_base = g["hmon"][0]
-+            tb.hmon_size = g["hmon"][1]
 +        system.cpu = DadaoFsAtomicSimpleCPU()
 +
 +    system.cpu.mmu = mmu
@@ -247,6 +404,25 @@ index 0000000..7d0e4c3
 +    system.cpu.icache_port = system.membus.cpu_side_ports
 +    system.cpu.dcache_port = system.membus.cpu_side_ports
 +    system.cpu.createThreads()
++
++    if args.wuming_cycles and timing:
++        # createThreads() builds the per-thread ISA vector; set the parameters
++        # before m5.instantiate() constructs the C++ objects.  The hook is on
++        # the arch side (ISA::extraExecLatency, driven by timing.cc's
++        # advanceInst), so it behaves identically in SE and FS.
++        for isa in system.cpu.isa:
++            isa.enable_wuming_cycles = True
++    elif args.wuming_cycles:
++        print("gem5 FS: --wuming-cycles has no effect with --cpu-type atomic "
++              "(the per-instruction latency is scheduled by timing.cc)",
++              file=sys.stderr)
++
++    if args.max_insts > 0:
++        system.cpu.max_insts_any_thread = args.max_insts
++
++    if timing:
++        print(f"GEM5_MEM_SYSTEM=NoncoherentXBar(xbar={xbar_cycles}cyc)"
++              f"+SimpleMemory(mem={mem_cycles}cyc)", file=sys.stderr)
 +
 +    return system, semihosting
 +
@@ -261,7 +437,15 @@ index 0000000..7d0e4c3
 +        return 0
 +
 +    system, semihosting = build(args, g)
++    return run(args, system, semihosting)
 +
++
++def run(args, system, semihosting):
++    """Instantiate, simulate and turn the exit event into a process code.
++
++    Shared by the atomic config and `fs_timing.py`, so the two models can
++    never disagree on what a guest exit, a fault or a non-guest stop means.
++    """
 +    root = Root(full_system=True, system=system)
 +    m5.instantiate()
 +

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_tlb.cc b/src/arch/dadao/node_tlb.cc
 new file mode 100644
-index 0000000..e8416b6
+index 0000000..99ae241
 --- /dev/null
 +++ b/src/arch/dadao/node_tlb.cc
-@@ -0,0 +1,552 @@
+@@ -0,0 +1,558 @@
 +// DADAO Node TLB/PTW implementation.
 +#include "arch/dadao/node_tlb.hh"
 +
@@ -534,6 +534,12 @@ index 0000000..e8416b6
 +                         BaseMMU::Translation *translation,
 +                         BaseMMU::Mode mode)
 +{
++    // Timed access (instruction fetch under a TimingSimpleCPU).  The TLB
++    // lookup and, on a miss, the two-level walk run inline: the walk costs
++    // **0 cycles** (m16-gem5-015 declares that explicitly in
++    // configs/dadao/fs.py, --cpu-type timing).  This call is the insert point
++    // for a walk latency: schedule `translation->finish(...)` after the walk
++    // cost instead of calling it inline, with the cost taken from the RTL.
 +    translation->finish(translate(req, tc, mode, true), req, tc, mode);
 +}
 +
