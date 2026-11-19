@@ -110,6 +110,14 @@
 - **T6 cfx 寄存器访问（已裁定）**：RISC-V 的做法是 `CSR[name]` 直接索引 + 每个 CSR 自带 `sw_read()` / `field.sw_write(csr_value)` 钩子（钩子在 CSR 定义里，不在指令 operation 里）。对应到 DADAO：`cfx_read(cfxha, cg, rc)` / `cfx_write(cfxha, cg, rc, value)` 两个函数（覆盖全部 cfx 寄存器），读写权限（RW/HW/RO/保留）由 spec 寄存器表描述、IDL 只做访问。
 - **T7 `fence`（已裁定）**：UDB **有** `builtin function fence(pi,pr,po,pw,si,sr,so,sw)`（无 body，由实现提供），`fence.yaml` 的 operation 只做 FIOM 覆盖后调用它；但 UDB **没有**一般内存序的形式定义（只有 `memory_model_acquire`/`release` 两个 builtin 供 `lr`/`sc` 的 aq/rl 用）。⇒ 照 UDB 加 `builtin function cfx_fence(cfxha, pred, succ)`（无 body），注释说明「顺序语义由实现提供，IDL v0 不建模」。
 
+## N26. IDL 块在 spec 内的布局（用户 2026-11-19 裁定 A）
+
+- **问题**："插入 idl 代码的痕迹太生硬"——无导语、块首 `# id:` 与上下文重复、三行注释夹着代码块、打断逐条叙事。
+- **裁定 A（节末集中 + 三级标题）**：每册每个 `##` 节**末尾**集中该节全部 operation，配一个 `### N.M 形式化语义（IDL）`；块前一句生成导语；块内去掉重复的 `# id:`，改一行粗体 `<id>`；**不新增附录**。
+- **否决 B（逐条三级标题）**：263 条指令 ⇒ 263 个标题，`SimRISC-07` 一册 50 个，目录失控。
+- **否决 C（附录 C）**：`tools/spec/check_numbering.py` 断言 6/7 限定 `SimRISC-01`–`12` 尾段只能是附录 A、B；且 `##`/`###` 必须带编号（`N.` / `N.M`），无编号的指令标题会红 ⇒ 需改多个门控，且正文与语义分离后更难一眼对账。
+- **时机**：等 `m15-idl-001`…`012` 全部合入后一次性做（避免 7 个在途分支重渲染两遍）⇒ 立 `m15-spec-002`。
+
 ## N25. 进程页表必须复制「2 TiB 以上」的顶层项（用户 2026-11-19 裁定，`m14-linux-017` F56）
 
 - **用户原话**：「2TiB以上是smon空间，所以，每个进程新建L1页表时，应该复制2TiB以上的完整的页表项；据我所知，其它isa应该都是这么做的」。
