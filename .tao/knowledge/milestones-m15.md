@@ -44,13 +44,13 @@
 | m15-idl-011 | 2026-11-19 07:29 | 1–2 天 | `SimRISC-11` 5 条指令的 operation |
 | m15-idl-005 | 2026-11-19 07:25 | 1–2 天 | `SimRISC-05` 6 条指令的 operation |
 | m15-idl-003 | 2026-11-19 07:27 | 1–2 天 | `SimRISC-03` 8 条指令的 operation |
-| m15-idl-013 | 2026-11-19 08:46 | 2–3 h | 语义库 v1（T1–T7 裁定落地：`ip()` 64 位、cfx 访问/escape/fence、rf 专用表述）+ 两处散文补正 |
 
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-idl-013 | 2026-11-19 09:14 | 语义库 v1（`ip()` 64 位、cfx 访问/escape/fence、rf 专用表述）；T1–T7 落地 |
 | m15-testcases-018 | 2026-11-19 03:05 | gem5 lane 补 `--semihost on`（`run_inst_tiny`/`check_tiny_hmon`/`run_parity --direct-check`；21/21、42/42） |
 | m15-testcases-019 | 2026-11-19 02:15 | 11-cfx 链例12 SRAM 哨兵显式清零（chipyard TLRAM 上电非 0；双 lane 96 B 相同） |
 | m15-spec-001 | 2026-11-19 00:38 | ISA 语义源迁 `idl/`（`.idl` 为源 + `render.py` 生成 spec 块；5 条样板、4 路注入） |
