@@ -24,10 +24,103 @@ andn.w   rdHA, wpN, immu16
 
 由于rd寄存器为64位，而set.ow/set.zw指令只设置了其中16位，两者的区别在于set.ow指令则将其余48位置1，set.zw指令将其余48位置0。
 
+<!-- IDL:set.ow_rwii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: set.ow_rwii_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde 整体写 immu16，其余 48 位全 1（SimRISC-03 §1 set.ow）；
+# 「其余 48 位」按整寄存器赋值表达（idl/README §3）
+if (wpN == 2'd0) {
+  rd[rdHA] = {48'hFFFF_FFFF_FFFF, immu16};
+} else if (wpN == 2'd1) {
+  rd[rdHA] = {32'hFFFF_FFFF, immu16, 16'hFFFF};
+} else if (wpN == 2'd2) {
+  rd[rdHA] = {16'hFFFF, immu16, 32'hFFFF_FFFF};
+} else {
+  rd[rdHA] = {immu16, 48'hFFFF_FFFF_FFFF};
+}
+```
+<!-- IDL:set.ow_rwii_rd END -->
+
+<!-- IDL:set.zw_rwii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: set.zw_rwii_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde 整体写 immu16，其余 48 位全 0（SimRISC-03 §1 set.zw）；
+# 「其余 48 位」按整寄存器赋值表达（idl/README §3）
+if (wpN == 2'd0) {
+  rd[rdHA] = {48'd0, immu16};
+} else if (wpN == 2'd1) {
+  rd[rdHA] = {32'd0, immu16, 16'd0};
+} else if (wpN == 2'd2) {
+  rd[rdHA] = {16'd0, immu16, 32'd0};
+} else {
+  rd[rdHA] = {immu16, 48'd0};
+}
+```
+<!-- IDL:set.zw_rwii_rd END -->
+
 `or.w` 指令（rwii 格式）：将 `rdHA` 中由 `wpN` 指定的 wyde 替换为 `(rdHA[wyde] | immu16)`，其余 wyde 保持不变。
 
 > **注意**：`or.w` 同时是 OPC-wyde 表的三寄存器逻辑 OR 指令（`or.w rdHB, rdHC, rdHD`），汇编器按操作数格式区分。
+
+<!-- IDL:or.w_rwii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: or.w_rwii_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde 替换为 (旧 wyde | immu16)，其余 48 位不变；按 wyde 写用切片赋值（idl/README §3）
+Bits<64> old = rd[rdHA];
+if (wpN == 2'd0) {
+  rd[rdHA][15:0] = (old[15:0] | immu16);
+} else if (wpN == 2'd1) {
+  rd[rdHA][31:16] = (old[31:16] | immu16);
+} else if (wpN == 2'd2) {
+  rd[rdHA][47:32] = (old[47:32] | immu16);
+} else {
+  rd[rdHA][63:48] = (old[63:48] | immu16);
+}
+```
+<!-- IDL:or.w_rwii_rd END -->
 `andn.w` 指令：将 `rdHA` 中由 `wpN` 指定的 wyde 替换为 `(rdHA[wyde] & ~immu16)`，其余 wyde 保持不变。
+
+<!-- IDL:andn.w_rwii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: andn.w_rwii_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde（[16*N+15:16*N]，SimRISC-03 §1）替换为 (旧 wyde & ~immu16)，
+# 其余 48 位不变；按 wyde 写用切片赋值（idl/README §3）
+Bits<64> old = rd[rdHA];
+if (wpN == 2'd0) {
+  rd[rdHA][15:0] = (old[15:0] & ~immu16);
+} else if (wpN == 2'd1) {
+  rd[rdHA][31:16] = (old[31:16] & ~immu16);
+} else if (wpN == 2'd2) {
+  rd[rdHA][47:32] = (old[47:32] & ~immu16);
+} else {
+  rd[rdHA][63:48] = (old[63:48] & ~immu16);
+}
+```
+<!-- IDL:andn.w_rwii_rd END -->
 
 ## 2. 立即数常数赋值：RB 组
 
@@ -40,6 +133,78 @@ set.zw  rbHA, wpN, immu16
 or.w    rbHA, wpN, immu16
 andn.w  rbHA, wpN, immu16
 ```
+
+<!-- IDL:andn.w_rwii_rb BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: andn.w_rwii_rb
+# 目的 rb0 ⇒ ILLI（附录 B dst_rb0；rb0 读出为 IP，不得作普通目的）
+if (rbHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde（[16*N+15:16*N]，SimRISC-03 §1）替换为 (旧 wyde & ~immu16)，
+# 其余 48 位不变；按 wyde 写用切片赋值（idl/README §3）
+# （语义见 SimRISC-03 §1 andn.w；§2 把同名指令给 rb 组）
+Bits<64> old = rb[rbHA];
+if (wpN == 2'd0) {
+  rb[rbHA][15:0] = (old[15:0] & ~immu16);
+} else if (wpN == 2'd1) {
+  rb[rbHA][31:16] = (old[31:16] & ~immu16);
+} else if (wpN == 2'd2) {
+  rb[rbHA][47:32] = (old[47:32] & ~immu16);
+} else {
+  rb[rbHA][63:48] = (old[63:48] & ~immu16);
+}
+```
+<!-- IDL:andn.w_rwii_rb END -->
+
+<!-- IDL:or.w_rwii_rb BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: or.w_rwii_rb
+# 目的 rb0 ⇒ ILLI（附录 B dst_rb0）
+if (rbHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde 替换为 (旧 wyde | immu16)，其余 48 位不变；按 wyde 写用切片赋值
+# （语义见 SimRISC-03 §1 or.w；§2 把同名指令给 rb 组）
+Bits<64> old = rb[rbHA];
+if (wpN == 2'd0) {
+  rb[rbHA][15:0] = (old[15:0] | immu16);
+} else if (wpN == 2'd1) {
+  rb[rbHA][31:16] = (old[31:16] | immu16);
+} else if (wpN == 2'd2) {
+  rb[rbHA][47:32] = (old[47:32] | immu16);
+} else {
+  rb[rbHA][63:48] = (old[63:48] | immu16);
+}
+```
+<!-- IDL:or.w_rwii_rb END -->
+
+<!-- IDL:set.zw_rwii_rb BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: set.zw_rwii_rb
+# 目的 rb0 ⇒ ILLI（附录 B dst_rb0）
+if (rbHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde 整体写 immu16，其余 48 位全 0；「其余 48 位」按整寄存器赋值表达
+# （语义见 SimRISC-03 §1 set.zw；§2 把同名指令给 rb 组）
+if (wpN == 2'd0) {
+  rb[rbHA] = {48'd0, immu16};
+} else if (wpN == 2'd1) {
+  rb[rbHA] = {32'd0, immu16, 16'd0};
+} else if (wpN == 2'd2) {
+  rb[rbHA] = {16'd0, immu16, 32'd0};
+} else {
+  rb[rbHA] = {immu16, 48'd0};
+}
+```
+<!-- IDL:set.zw_rwii_rb END -->
 
 ## 3. 立即数常数赋值：RF 组
 
@@ -55,6 +220,33 @@ set.w    rfHA, wpN, immu16
 因此，32位单精浮点（tetra）需要两条指令设置立即数的值，64位双精浮点（octa）则需要四条指令。
 
 > **注**：`set.w rf0, wpN, immu16` 合法；写入按 SimRISC-00 写语义（`wp2` 命中舍入模式、`wp0` 命中异常状态、`wp1`/`wp3` 完全写无效）。
+
+<!-- IDL:set.w_rwii_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: set.w_rwii_rf
+# wpN 选中的 wyde 整体写 immu16，其余 48 位保持；按 wyde 写用切片赋值（idl/README §3）
+# rf0 = FCSR（SimRISC-00 §2.3.1）：写 rf0 只更新 [33:32]（舍入模式）与 [4:0]（异常状态），
+# 其余位写无效、保持原值 ⇒ wp2 只写 [33:32]、wp0 只写 [4:0]、wp1/wp3 完全写无效（SimRISC-03 §3 注）
+# rf 属「直接赋值/复制类」，不受「专用于浮点类指令」限制（SimRISC-00 §2.3）
+if (rfHA == 6'd0) {
+  if (wpN == 2'd2) {
+    rf[6'd0][33:32] = immu16[1:0];
+  } else if (wpN == 2'd0) {
+    rf[6'd0][4:0] = immu16[4:0];
+  }
+  # wp1/wp3：完全写无效，不写
+} else if (wpN == 2'd0) {
+  rf[rfHA][15:0] = immu16;
+} else if (wpN == 2'd1) {
+  rf[rfHA][31:16] = immu16;
+} else if (wpN == 2'd2) {
+  rf[rfHA][47:32] = immu16;
+} else {
+  rf[rfHA][63:48] = immu16;
+}
+```
+<!-- IDL:set.w_rwii_rf END -->
 
 <!-- ASSEMBLY_LIST_START -->
 ## 附录 A：汇编指令速查

@@ -12,6 +12,9 @@ owner = "idl"
 [files."SimRISC-01.idl"]
 owner = "idl"
 
+[files."SimRISC-03.idl"]
+owner = "idl"
+
 [files."SimRISC-04.idl"]
 owner = "idl"
 

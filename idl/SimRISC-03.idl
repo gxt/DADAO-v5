@@ -1,0 +1,151 @@
+# id: andn.w_rwii_rb
+# 目的 rb0 ⇒ ILLI（附录 B dst_rb0；rb0 读出为 IP，不得作普通目的）
+if (rbHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde（[16*N+15:16*N]，SimRISC-03 §1）替换为 (旧 wyde & ~immu16)，
+# 其余 48 位不变；按 wyde 写用切片赋值（idl/README §3）
+# （语义见 SimRISC-03 §1 andn.w；§2 把同名指令给 rb 组）
+Bits<64> old = rb[rbHA];
+if (wpN == 2'd0) {
+  rb[rbHA][15:0] = (old[15:0] & ~immu16);
+} else if (wpN == 2'd1) {
+  rb[rbHA][31:16] = (old[31:16] & ~immu16);
+} else if (wpN == 2'd2) {
+  rb[rbHA][47:32] = (old[47:32] & ~immu16);
+} else {
+  rb[rbHA][63:48] = (old[63:48] & ~immu16);
+}
+
+# id: andn.w_rwii_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde（[16*N+15:16*N]，SimRISC-03 §1）替换为 (旧 wyde & ~immu16)，
+# 其余 48 位不变；按 wyde 写用切片赋值（idl/README §3）
+Bits<64> old = rd[rdHA];
+if (wpN == 2'd0) {
+  rd[rdHA][15:0] = (old[15:0] & ~immu16);
+} else if (wpN == 2'd1) {
+  rd[rdHA][31:16] = (old[31:16] & ~immu16);
+} else if (wpN == 2'd2) {
+  rd[rdHA][47:32] = (old[47:32] & ~immu16);
+} else {
+  rd[rdHA][63:48] = (old[63:48] & ~immu16);
+}
+
+# id: or.w_rwii_rb
+# 目的 rb0 ⇒ ILLI（附录 B dst_rb0）
+if (rbHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde 替换为 (旧 wyde | immu16)，其余 48 位不变；按 wyde 写用切片赋值
+# （语义见 SimRISC-03 §1 or.w；§2 把同名指令给 rb 组）
+Bits<64> old = rb[rbHA];
+if (wpN == 2'd0) {
+  rb[rbHA][15:0] = (old[15:0] | immu16);
+} else if (wpN == 2'd1) {
+  rb[rbHA][31:16] = (old[31:16] | immu16);
+} else if (wpN == 2'd2) {
+  rb[rbHA][47:32] = (old[47:32] | immu16);
+} else {
+  rb[rbHA][63:48] = (old[63:48] | immu16);
+}
+
+# id: or.w_rwii_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde 替换为 (旧 wyde | immu16)，其余 48 位不变；按 wyde 写用切片赋值（idl/README §3）
+Bits<64> old = rd[rdHA];
+if (wpN == 2'd0) {
+  rd[rdHA][15:0] = (old[15:0] | immu16);
+} else if (wpN == 2'd1) {
+  rd[rdHA][31:16] = (old[31:16] | immu16);
+} else if (wpN == 2'd2) {
+  rd[rdHA][47:32] = (old[47:32] | immu16);
+} else {
+  rd[rdHA][63:48] = (old[63:48] | immu16);
+}
+
+# id: set.ow_rwii_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde 整体写 immu16，其余 48 位全 1（SimRISC-03 §1 set.ow）；
+# 「其余 48 位」按整寄存器赋值表达（idl/README §3）
+if (wpN == 2'd0) {
+  rd[rdHA] = {48'hFFFF_FFFF_FFFF, immu16};
+} else if (wpN == 2'd1) {
+  rd[rdHA] = {32'hFFFF_FFFF, immu16, 16'hFFFF};
+} else if (wpN == 2'd2) {
+  rd[rdHA] = {16'hFFFF, immu16, 32'hFFFF_FFFF};
+} else {
+  rd[rdHA] = {immu16, 48'hFFFF_FFFF_FFFF};
+}
+
+# id: set.w_rwii_rf
+# wpN 选中的 wyde 整体写 immu16，其余 48 位保持；按 wyde 写用切片赋值（idl/README §3）
+# rf0 = FCSR（SimRISC-00 §2.3.1）：写 rf0 只更新 [33:32]（舍入模式）与 [4:0]（异常状态），
+# 其余位写无效、保持原值 ⇒ wp2 只写 [33:32]、wp0 只写 [4:0]、wp1/wp3 完全写无效（SimRISC-03 §3 注）
+# rf 属「直接赋值/复制类」，不受「专用于浮点类指令」限制（SimRISC-00 §2.3）
+if (rfHA == 6'd0) {
+  if (wpN == 2'd2) {
+    rf[6'd0][33:32] = immu16[1:0];
+  } else if (wpN == 2'd0) {
+    rf[6'd0][4:0] = immu16[4:0];
+  }
+  # wp1/wp3：完全写无效，不写
+} else if (wpN == 2'd0) {
+  rf[rfHA][15:0] = immu16;
+} else if (wpN == 2'd1) {
+  rf[rfHA][31:16] = immu16;
+} else if (wpN == 2'd2) {
+  rf[rfHA][47:32] = immu16;
+} else {
+  rf[rfHA][63:48] = immu16;
+}
+
+# id: set.zw_rwii_rb
+# 目的 rb0 ⇒ ILLI（附录 B dst_rb0）
+if (rbHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde 整体写 immu16，其余 48 位全 0；「其余 48 位」按整寄存器赋值表达
+# （语义见 SimRISC-03 §1 set.zw；§2 把同名指令给 rb 组）
+if (wpN == 2'd0) {
+  rb[rbHA] = {48'd0, immu16};
+} else if (wpN == 2'd1) {
+  rb[rbHA] = {32'd0, immu16, 16'd0};
+} else if (wpN == 2'd2) {
+  rb[rbHA] = {16'd0, immu16, 32'd0};
+} else {
+  rb[rbHA] = {immu16, 48'd0};
+}
+
+# id: set.zw_rwii_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# wpN 选中的 wyde 整体写 immu16，其余 48 位全 0（SimRISC-03 §1 set.zw）；
+# 「其余 48 位」按整寄存器赋值表达（idl/README §3）
+if (wpN == 2'd0) {
+  rd[rdHA] = {48'd0, immu16};
+} else if (wpN == 2'd1) {
+  rd[rdHA] = {32'd0, immu16, 16'd0};
+} else if (wpN == 2'd2) {
+  rd[rdHA] = {16'd0, immu16, 32'd0};
+} else {
+  rd[rdHA] = {immu16, 48'd0};
+}
