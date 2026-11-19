@@ -36,7 +36,6 @@
 | --- | --- | --- | --- |
 | m15-idl-001 | 2026-11-19 10:04 | 5–7 天 | `SimRISC-01` 38 条指令的 operation |
 | m15-idl-004 | 2026-11-19 10:04 | 3–5 天 | `SimRISC-04` 33 条指令的 operation |
-| m15-idl-010 | 2026-11-19 10:04 | 3–5 天 | `SimRISC-10` 21 条指令的 operation |
 | m15-idl-012 | 2026-11-19 10:07 | 3–5 天 | `SimRISC-12` 28 条指令的 operation |
 | m15-idl-008 | 2026-11-19 10:08 | 3–5 天 | `SimRISC-08` 21 条指令的 operation |
 
@@ -45,6 +44,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-idl-010 | 2026-11-19 10:44 | `SimRISC-10` 21 条 operation（`rev.b` 逐块反转；62/62） |
 | m15-idl-006 | 2026-11-19 10:44 | `SimRISC-06` 15 条 operation（call/ret 走 `ras_*`；52 检查项） |
 | m15-idl-002 | 2026-11-19 10:43 | `SimRISC-02` 17 条 operation（cs.* 条件按 §3.2 位级；38/38） |
 | m15-idl-011 | 2026-11-19 10:06 | `SimRISC-11` 5 条 operation（escape/cfx2rd/cfx2rc/fence 按语义库 v1；37/37） |
