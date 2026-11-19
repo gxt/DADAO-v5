@@ -33,7 +33,6 @@
 | m14-linux-033 | 2–3 h | K6 基础命令回归（sh 内 5 条命令 + 退出码） |
 
 | m14-linux-034 | 3–4 h | K6 收口门控 `check-linux-k6`（代表例 + §4a 退役） |
-| m14-linux-018 | 4–5 h | COW：fork 共享只读页→写复制旧内容/改 PTE/失效（5 判据） |
 | m14-linux-023 | 4–6 h | 用户态 syscall 闭环（umon 入口+分发表+errno rd8 负值+TLS rb3 入口保存/恢复） |
 | m14-linux-024 | 3–5 h | 用户 clone/线程（CLONE_VM/SETTLS/THREAD + TLS 用户面；子 rd8=0+父返 tid） |
 | m14-linux-025 | 3–4 h | futex 与原子性（WAIT 原子/WAKE 不丢唤醒/用户 lr+sc 不跨 syscall） |
@@ -53,6 +52,7 @@
 | --- | --- | --- |
 | m14-linux-019 | 2026-11-19 12:25 | 已并入 m14-linux-017（栈增长 S1–S6 随 017 交付，`k4_stack_probe` 44/44） |
 | m14-linux-017 | 2026-11-19 12:14 | 上下文切换/U-mode 帧往返（F55 rbtp、F59/F60 cfx 掩码按源 cfx、pgd 复制；S5+S7 绿 51/51） |
+| m14-linux-018 | 2026-11-19 12:45 | 4–5 h | COW：写共享只读页 ⇒ 复制旧内容/改 PTE/失效（5 判据） |
 | m14-spec-009 | 2026-11-18 21:55 | `escape` 恢复 `inner_cfx_code`（cg5 rc1 `excp_prev_cfx_code`；注入删恢复行 ⇒ `CFXESC` 0x31） |
 | m14-linux-031 | 2026-11-18 10:31 | initramfs 集成 busybox（`/init` 脚本 → `sh`；332116 B、确定性；QEMU 实跑等 K5） |
 | m14-linux-030 | 2026-11-18 09:26 | K6 busybox 1.38.0 静态构建接入（官方源锁定、11 applet、无 PT_INTERP、幂等；证据 16/16） |
