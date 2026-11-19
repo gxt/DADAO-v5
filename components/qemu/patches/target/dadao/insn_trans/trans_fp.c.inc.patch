@@ -1,9 +1,9 @@
 diff --git a/target/dadao/insn_trans/trans_fp.c.inc b/target/dadao/insn_trans/trans_fp.c.inc
 new file mode 100644
-index 0000000..58ff557
+index 0000000..53672a0
 --- /dev/null
 +++ b/target/dadao/insn_trans/trans_fp.c.inc
-@@ -0,0 +1,1242 @@
+@@ -0,0 +1,1241 @@
 +/* SPDX-License-Identifier: GPL-2.0-or-later */
 +/*
 + * DADAO FP (rf) instruction translation routines.
@@ -286,8 +286,9 @@ index 0000000..58ff557
 +
 +/* IEEE three-way compare of two raw values (already width-masked):
 + *   rfHC > rfHD → 1, == → 0, < → -1; unordered → nan_const.
-+ * ±0 compare equal.  The result itself is unaffected by the NV rule (qNaN for
-+ * quiet, sNaN for signaling, sign bit 0).  NV accrual depends on the kind:
++ * ±0 compare equal.  The result itself is unaffected by the NV rule: all four
++ * compares return canonical quiet NaN on unordered (sign bit 0, payload zero;
++ * SimRISC-07 §4).  NV accrual depends on the kind:
 + *   FP_CMP_NV_UNORDERED — signaling compare (ftscmp/foscmp): ANY unordered
 + *                         result raises, i.e. an sNaN or a qNaN operand
 + *                         (IEEE 754-2019 §5.6.1 / user ruling 2026-11-11);
@@ -1063,14 +1064,12 @@ index 0000000..58ff557
 +}
 +
 +/* compare */
-+/* Unordered result constants (sign bit 0):
-+ *   quiet compare     → qNaN  0x7FC00000 (ft) / 0x7FF8000000000000 (fo)
-+ *   signaling compare → sNaN  0x7F800001 (ft) / 0x7FF0000000000001 (fo)
++/* Unordered result constant (sign bit 0) — shared by quiet and signaling
++ * compare, which differ only in NV accrual (SimRISC-07 §4):
++ *   canonical quiet NaN  0x7FC00000 (ft) / 0x7FF8000000000000 (fo)
 + * The qNaN values match the FCSR qNaN(ft/fo) fields (SimRISC-00). */
 +#define FP_FT_QNAN  0x000000007FC00000ULL
-+#define FP_FT_SNAN  0x000000007F800001ULL
 +#define FP_FO_QNAN  0x7FF8000000000000ULL
-+#define FP_FO_SNAN  0x7FF0000000000001ULL
 +
 +static bool trans_ftqcmp_orrr_rf(DisasContext *ctx, arg_misc *a)
 +{
@@ -1086,7 +1085,7 @@ index 0000000..58ff557
 +    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
 +        return true;
 +    }
-+    gen_fp_cmp(a, false, FP_FT_SNAN, FP_CMP_NV_UNORDERED);
++    gen_fp_cmp(a, false, FP_FT_QNAN, FP_CMP_NV_UNORDERED);
 +    return true;
 +}
 +
@@ -1104,7 +1103,7 @@ index 0000000..58ff557
 +    if (!fp_check_dst_rd0(ctx, a->hb)) {   /* dest rdHB (SPEC-089t) */
 +        return true;
 +    }
-+    gen_fp_cmp(a, true, FP_FO_SNAN, FP_CMP_NV_UNORDERED);
++    gen_fp_cmp(a, true, FP_FO_QNAN, FP_CMP_NV_UNORDERED);
 +    return true;
 +}
 +

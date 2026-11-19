@@ -399,3 +399,9 @@
 - **2026-11-17 `m14-qemu-007`**
   - 摘要：**semihosting 字符串取参按 PA：补 K14 的长串（多分块）覆盖 + 收掉最后一处过时注释（`ISS-450` 收尾）**。**前提订正**：`SYS_WRITE0`/`SYS_OPEN` 的串长探测已由 `m14-qemu-002` 改为 target 钩子 `common_semi_strlen()`（dadao 强定义按 PA 逐块读，复用 `cpu_memory_rw_debug` → `dadao_cpu_translate_for_debug`），`translate_for_debug` 注释亦已于彼时订正；基线实测 `check-linux-k1` 111/111、K14 的 `SYS_WRITE0` 断言已绿 ⇒ 本任务**不重复实现**，只补覆盖与注释：`tools/linux/semihost_pa_probe.S` 增第二个 `SYS_WRITE0`（640 B 长串，起点在 256 B 块内 48 字节处、跨 3 个块；`sp_long` = `ENTRY_VA+0x1030`）；`tools/linux/check_k1.py` 的 K14 oracle 改为「前 5 段 `.ascii` 固定 + 其余拼接为长串（现场要求 > 2×256 B）」，新增断言「长串经 PA 完整取出」，逐字节全等断言纳入长串，`--selfcheck` 的 K14 翻转 3 → 4 路（总组数 18 → 19，`check-linux-k1` 断言 111 → 112）；`target/dadao/cpu.c` 的 `dadao_cpu_mmu_index()` 注释由「M1: no MMU, single index」改为与 Vast+PTW 一致的口径（单一 index 的判据 = 单地址空间 + 窗口两级走在 `dadao_cpu_tlb_fill()` 内查询 + PTBR/ptw_enable/ASID/两轴 mask/TLB 命令同笔丢弃派生翻译缓存）。补丁 1 份改（`target/dadao/cpu.c`）。
   - 执行者：engineer
+
+## M15
+
+- **2026-11-19 `m15-qemu-001`**
+  - 摘要：**`ftscmp`/`foscmp` 无序结果由 sNaN 位型改为 canonical quiet NaN（`spec/SimRISC-07 §4`，IEEE 754-2019 §6.2.1 的 `shall`；用户 2026-11-19 授权，版本号不变）**。`target/dadao/insn_trans/trans_fp.c.inc`：两条 signaling compare 的 `nan_const` 由 `FP_FT_SNAN`/`FP_FO_SNAN` 改为 `FP_FT_QNAN`(`0x7FC0_0000`)/`FP_FO_QNAN`(`0x7FF8_0000_0000_0000`)，删除两个 sNaN 常量与相应注释；`NV` 置位规则不变（`FP_CMP_NV_UNORDERED` 仍取 `unord` 谓词、`FP_CMP_NV_SNAN` 仍取 sNaN 谓词）⇒ quiet 与 signaling 的差别只剩 `NV`。补丁 1 份改。
+  - 执行者：engineer
