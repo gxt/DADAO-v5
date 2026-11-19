@@ -60,7 +60,7 @@ sc 指令会先判断 rbHD 内存地址是否有设置保留标记，如果设�
 ```idl
 # id: lr.o.nn_orrr_rd
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
-  raise(ExceptionCode::Illegal, mode(), {16'd0, ip()});
+  raise(ExceptionCode::Illegal, mode(), ip());
 }
 
 Bits<64> base = rb[rbHD];
@@ -76,6 +76,537 @@ reservation_set(ea, 64);                      # 键 = 精确地址 + 访问宽�
 rd[rdHC] = value;
 ```
 <!-- IDL:lr.o.nn_orrr_rd END -->
+
+<!-- IDL:lr.t.nn_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: lr.t.nn_orrr_rd
+if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(32, ea)) {          # .t 按数据宽度（4 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 窄读只写低 32 位、rd 高位保持原值（散文 §1.1：既不零扩展也不符号扩展）
+Bits<64> value = read_memory(32, ea);         # 先读：故障时不得改动任何架构状态
+reservation_clear_all();                      # 本 hart 执行另一条 lr ⇒ 清除既有保留标记
+reservation_set(ea, 32);                      # 键 = 精确地址 + 访问宽度
+rd[rdHC][31:0] = value[31:0];                 # 只写低 32 位
+```
+<!-- IDL:lr.t.nn_orrr_rd END -->
+
+<!-- IDL:lr.w.nn_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: lr.w.nn_orrr_rd
+if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(16, ea)) {          # .w 按数据宽度（2 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 窄读只写低 16 位、rd 高位保持原值（散文 §1.1：既不零扩展也不符号扩展）
+Bits<64> value = read_memory(16, ea);         # 先读：故障时不得改动任何架构状态
+reservation_clear_all();                      # 本 hart 执行另一条 lr ⇒ 清除既有保留标记
+reservation_set(ea, 16);                      # 键 = 精确地址 + 访问宽度
+rd[rdHC][15:0] = value[15:0];                 # 只写低 16 位
+```
+<!-- IDL:lr.w.nn_orrr_rd END -->
+
+<!-- IDL:lr.b.nn_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: lr.b.nn_orrr_rd
+if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(8, ea)) {           # .b 按数据宽度（1 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 窄读只写低 8 位、rd 高位保持原值（散文 §1.1：既不零扩展也不符号扩展）
+Bits<64> value = read_memory(8, ea);          # 先读：故障时不得改动任何架构状态
+reservation_clear_all();                      # 本 hart 执行另一条 lr ⇒ 清除既有保留标记
+reservation_set(ea, 8);                       # 键 = 精确地址 + 访问宽度
+rd[rdHC][7:0] = value[7:0];                   # 只写低 8 位
+```
+<!-- IDL:lr.b.nn_orrr_rd END -->
+
+<!-- IDL:lr.o.an_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: lr.o.an_orrr_rd
+if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(64, ea)) {          # .o 按数据宽度（8 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+Bits<64> value = read_memory(64, ea);         # 先读：故障时不得改动任何架构状态
+reservation_clear_all();                      # 本 hart 执行另一条 lr ⇒ 清除既有保留标记
+reservation_set(ea, 64);                      # 键 = 精确地址 + 访问宽度
+rd[rdHC] = value;
+# 存储序（acquire）：本指令之后的所有访存不得重排到本指令之前（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:lr.o.an_orrr_rd END -->
+
+<!-- IDL:lr.t.an_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: lr.t.an_orrr_rd
+if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(32, ea)) {          # .t 按数据宽度（4 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 窄读只写低 32 位、rd 高位保持原值（散文 §1.1：既不零扩展也不符号扩展）
+Bits<64> value = read_memory(32, ea);         # 先读：故障时不得改动任何架构状态
+reservation_clear_all();                      # 本 hart 执行另一条 lr ⇒ 清除既有保留标记
+reservation_set(ea, 32);                      # 键 = 精确地址 + 访问宽度
+rd[rdHC][31:0] = value[31:0];                 # 只写低 32 位
+# 存储序（acquire）：本指令之后的所有访存不得重排到本指令之前（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:lr.t.an_orrr_rd END -->
+
+<!-- IDL:lr.w.an_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: lr.w.an_orrr_rd
+if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(16, ea)) {          # .w 按数据宽度（2 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 窄读只写低 16 位、rd 高位保持原值（散文 §1.1：既不零扩展也不符号扩展）
+Bits<64> value = read_memory(16, ea);         # 先读：故障时不得改动任何架构状态
+reservation_clear_all();                      # 本 hart 执行另一条 lr ⇒ 清除既有保留标记
+reservation_set(ea, 16);                      # 键 = 精确地址 + 访问宽度
+rd[rdHC][15:0] = value[15:0];                 # 只写低 16 位
+# 存储序（acquire）：本指令之后的所有访存不得重排到本指令之前（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:lr.w.an_orrr_rd END -->
+
+<!-- IDL:lr.b.an_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: lr.b.an_orrr_rd
+if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(8, ea)) {           # .b 按数据宽度（1 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 窄读只写低 8 位、rd 高位保持原值（散文 §1.1：既不零扩展也不符号扩展）
+Bits<64> value = read_memory(8, ea);          # 先读：故障时不得改动任何架构状态
+reservation_clear_all();                      # 本 hart 执行另一条 lr ⇒ 清除既有保留标记
+reservation_set(ea, 8);                       # 键 = 精确地址 + 访问宽度
+rd[rdHC][7:0] = value[7:0];                   # 只写低 8 位
+# 存储序（acquire）：本指令之后的所有访存不得重排到本指令之前（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:lr.b.an_orrr_rd END -->
+
+<!-- IDL:lr.o.ar_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: lr.o.ar_orrr_rd
+if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(64, ea)) {          # .o 按数据宽度（8 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+Bits<64> value = read_memory(64, ea);         # 先读：故障时不得改动任何架构状态
+reservation_clear_all();                      # 本 hart 执行另一条 lr ⇒ 清除既有保留标记
+reservation_set(ea, 64);                      # 键 = 精确地址 + 访问宽度
+rd[rdHC] = value;
+# 存储序（acquire + release）：本指令之前/之后的访存分别不得越过本指令重排（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:lr.o.ar_orrr_rd END -->
+
+<!-- IDL:lr.t.ar_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: lr.t.ar_orrr_rd
+if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(32, ea)) {          # .t 按数据宽度（4 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 窄读只写低 32 位、rd 高位保持原值（散文 §1.1：既不零扩展也不符号扩展）
+Bits<64> value = read_memory(32, ea);         # 先读：故障时不得改动任何架构状态
+reservation_clear_all();                      # 本 hart 执行另一条 lr ⇒ 清除既有保留标记
+reservation_set(ea, 32);                      # 键 = 精确地址 + 访问宽度
+rd[rdHC][31:0] = value[31:0];                 # 只写低 32 位
+# 存储序（acquire + release）：本指令之前/之后的访存分别不得越过本指令重排（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:lr.t.ar_orrr_rd END -->
+
+<!-- IDL:lr.w.ar_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: lr.w.ar_orrr_rd
+if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(16, ea)) {          # .w 按数据宽度（2 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 窄读只写低 16 位、rd 高位保持原值（散文 §1.1：既不零扩展也不符号扩展）
+Bits<64> value = read_memory(16, ea);         # 先读：故障时不得改动任何架构状态
+reservation_clear_all();                      # 本 hart 执行另一条 lr ⇒ 清除既有保留标记
+reservation_set(ea, 16);                      # 键 = 精确地址 + 访问宽度
+rd[rdHC][15:0] = value[15:0];                 # 只写低 16 位
+# 存储序（acquire + release）：本指令之前/之后的访存分别不得越过本指令重排（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:lr.w.ar_orrr_rd END -->
+
+<!-- IDL:lr.b.ar_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: lr.b.ar_orrr_rd
+if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(8, ea)) {           # .b 按数据宽度（1 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 窄读只写低 8 位、rd 高位保持原值（散文 §1.1：既不零扩展也不符号扩展）
+Bits<64> value = read_memory(8, ea);          # 先读：故障时不得改动任何架构状态
+reservation_clear_all();                      # 本 hart 执行另一条 lr ⇒ 清除既有保留标记
+reservation_set(ea, 8);                       # 键 = 精确地址 + 访问宽度
+rd[rdHC][7:0] = value[7:0];                   # 只写低 8 位
+# 存储序（acquire + release）：本指令之前/之后的访存分别不得越过本指令重排（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:lr.b.ar_orrr_rd END -->
+
+<!-- IDL:sc.o.nn_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sc.o.nn_orrr_rd
+if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(64, ea)) {          # .o 按数据宽度（8 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 原子「查标记 → 条件写 → 清标记」由 store_conditional 一次完成（照 UDB 先例，不拆成「先查再写」）：
+# 返回 0 = 成功 / 1 = 失败（散文：设标记 ⇒ 写 0；未设 ⇒ 不写内存、写 1）；成败都清标记。
+Bits<64> ok = store_conditional(ea, 64, rd[rdHC]);
+rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd0 ⇒ ILLI）
+```
+<!-- IDL:sc.o.nn_orrr_rd END -->
+
+<!-- IDL:sc.o.nr_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sc.o.nr_orrr_rd
+if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(64, ea)) {          # .o 按数据宽度（8 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 原子「查标记 → 条件写 → 清标记」由 store_conditional 一次完成（照 UDB 先例，不拆成「先查再写」）：
+# 返回 0 = 成功 / 1 = 失败（散文：设标记 ⇒ 写 0；未设 ⇒ 不写内存、写 1）；成败都清标记。
+Bits<64> ok = store_conditional(ea, 64, rd[rdHC]);
+rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd0 ⇒ ILLI）
+# 存储序（release）：本指令之前的所有访存不得重排到本指令之后（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:sc.o.nr_orrr_rd END -->
+
+<!-- IDL:sc.o.ar_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sc.o.ar_orrr_rd
+if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(64, ea)) {          # .o 按数据宽度（8 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 原子「查标记 → 条件写 → 清标记」由 store_conditional 一次完成（照 UDB 先例，不拆成「先查再写」）：
+# 返回 0 = 成功 / 1 = 失败（散文：设标记 ⇒ 写 0；未设 ⇒ 不写内存、写 1）；成败都清标记。
+Bits<64> ok = store_conditional(ea, 64, rd[rdHC]);
+rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd0 ⇒ ILLI）
+# 存储序（acquire + release）：本指令之前/之后的访存分别不得越过本指令重排（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:sc.o.ar_orrr_rd END -->
+
+<!-- IDL:sc.t.nn_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sc.t.nn_orrr_rd
+if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(32, ea)) {          # .t 按数据宽度（4 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 原子「查标记 → 条件写 → 清标记」由 store_conditional 一次完成（照 UDB 先例，不拆成「先查再写」）：
+# 返回 0 = 成功 / 1 = 失败（散文：设标记 ⇒ 写 0；未设 ⇒ 不写内存、写 1）；成败都清标记。
+Bits<64> ok = store_conditional(ea, 32, rd[rdHC]);
+rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd0 ⇒ ILLI）
+```
+<!-- IDL:sc.t.nn_orrr_rd END -->
+
+<!-- IDL:sc.t.nr_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sc.t.nr_orrr_rd
+if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(32, ea)) {          # .t 按数据宽度（4 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 原子「查标记 → 条件写 → 清标记」由 store_conditional 一次完成（照 UDB 先例，不拆成「先查再写」）：
+# 返回 0 = 成功 / 1 = 失败（散文：设标记 ⇒ 写 0；未设 ⇒ 不写内存、写 1）；成败都清标记。
+Bits<64> ok = store_conditional(ea, 32, rd[rdHC]);
+rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd0 ⇒ ILLI）
+# 存储序（release）：本指令之前的所有访存不得重排到本指令之后（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:sc.t.nr_orrr_rd END -->
+
+<!-- IDL:sc.t.ar_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sc.t.ar_orrr_rd
+if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(32, ea)) {          # .t 按数据宽度（4 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 原子「查标记 → 条件写 → 清标记」由 store_conditional 一次完成（照 UDB 先例，不拆成「先查再写」）：
+# 返回 0 = 成功 / 1 = 失败（散文：设标记 ⇒ 写 0；未设 ⇒ 不写内存、写 1）；成败都清标记。
+Bits<64> ok = store_conditional(ea, 32, rd[rdHC]);
+rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd0 ⇒ ILLI）
+# 存储序（acquire + release）：本指令之前/之后的访存分别不得越过本指令重排（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:sc.t.ar_orrr_rd END -->
+
+<!-- IDL:sc.w.nn_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sc.w.nn_orrr_rd
+if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(16, ea)) {          # .w 按数据宽度（2 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 原子「查标记 → 条件写 → 清标记」由 store_conditional 一次完成（照 UDB 先例，不拆成「先查再写」）：
+# 返回 0 = 成功 / 1 = 失败（散文：设标记 ⇒ 写 0；未设 ⇒ 不写内存、写 1）；成败都清标记。
+Bits<64> ok = store_conditional(ea, 16, rd[rdHC]);
+rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd0 ⇒ ILLI）
+```
+<!-- IDL:sc.w.nn_orrr_rd END -->
+
+<!-- IDL:sc.w.nr_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sc.w.nr_orrr_rd
+if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(16, ea)) {          # .w 按数据宽度（2 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 原子「查标记 → 条件写 → 清标记」由 store_conditional 一次完成（照 UDB 先例，不拆成「先查再写」）：
+# 返回 0 = 成功 / 1 = 失败（散文：设标记 ⇒ 写 0；未设 ⇒ 不写内存、写 1）；成败都清标记。
+Bits<64> ok = store_conditional(ea, 16, rd[rdHC]);
+rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd0 ⇒ ILLI）
+# 存储序（release）：本指令之前的所有访存不得重排到本指令之后（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:sc.w.nr_orrr_rd END -->
+
+<!-- IDL:sc.w.ar_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sc.w.ar_orrr_rd
+if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(16, ea)) {          # .w 按数据宽度（2 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 原子「查标记 → 条件写 → 清标记」由 store_conditional 一次完成（照 UDB 先例，不拆成「先查再写」）：
+# 返回 0 = 成功 / 1 = 失败（散文：设标记 ⇒ 写 0；未设 ⇒ 不写内存、写 1）；成败都清标记。
+Bits<64> ok = store_conditional(ea, 16, rd[rdHC]);
+rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd0 ⇒ ILLI）
+# 存储序（acquire + release）：本指令之前/之后的访存分别不得越过本指令重排（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:sc.w.ar_orrr_rd END -->
+
+<!-- IDL:sc.b.nn_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sc.b.nn_orrr_rd
+if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(8, ea)) {           # .b 按数据宽度（1 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 原子「查标记 → 条件写 → 清标记」由 store_conditional 一次完成（照 UDB 先例，不拆成「先查再写」）：
+# 返回 0 = 成功 / 1 = 失败（散文：设标记 ⇒ 写 0；未设 ⇒ 不写内存、写 1）；成败都清标记。
+Bits<64> ok = store_conditional(ea, 8, rd[rdHC]);
+rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd0 ⇒ ILLI）
+```
+<!-- IDL:sc.b.nn_orrr_rd END -->
+
+<!-- IDL:sc.b.nr_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sc.b.nr_orrr_rd
+if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(8, ea)) {           # .b 按数据宽度（1 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 原子「查标记 → 条件写 → 清标记」由 store_conditional 一次完成（照 UDB 先例，不拆成「先查再写」）：
+# 返回 0 = 成功 / 1 = 失败（散文：设标记 ⇒ 写 0；未设 ⇒ 不写内存、写 1）；成败都清标记。
+Bits<64> ok = store_conditional(ea, 8, rd[rdHC]);
+rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd0 ⇒ ILLI）
+# 存储序（release）：本指令之前的所有访存不得重排到本指令之后（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:sc.b.nr_orrr_rd END -->
+
+<!-- IDL:sc.b.ar_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sc.b.ar_orrr_rd
+if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> base = rb[rbHD];
+Bits<48> ea = base[47:0];                     # 有效地址 = 基址低 48 位
+
+if (!is_naturally_aligned(8, ea)) {           # .b 按数据宽度（1 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 原子「查标记 → 条件写 → 清标记」由 store_conditional 一次完成（照 UDB 先例，不拆成「先查再写」）：
+# 返回 0 = 成功 / 1 = 失败（散文：设标记 ⇒ 写 0；未设 ⇒ 不写内存、写 1）；成败都清标记。
+Bits<64> ok = store_conditional(ea, 8, rd[rdHC]);
+rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd0 ⇒ ILLI）
+# 存储序（acquire + release）：本指令之前/之后的访存分别不得越过本指令重排（访存序由实现保证，IDL v0 不建模）
+```
+<!-- IDL:sc.b.ar_orrr_rd END -->
 
 ## 2. 空转指令
 
@@ -93,6 +624,16 @@ swym    immu18
 - `swym N` 可作为硬件时延指令，后18位立即数为时延参数：具体时延由硬件实现确定，其时延约为 `swym 0` 的 N+1 倍。
   - 硬件可设时延上限，N 超过阈值后时延不再增加。
   - 无论 N 取何值，指令仍为单条 32 位指令，不占用额外指令带宽。
+
+<!-- IDL:swym_oiii_imm BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: swym_oiii_imm
+# 空转指令（§2）：`swym 0` 除 IP 自增外**无任何架构副作用**（IP 自增属取指模型，本 operation 不描述）。
+# `immu18` 只是硬件时延参数（时延 ≈ `swym 0` 的 N+1 倍，实现可设上限），属实现时序，IDL v0 不建模；
+# 散文本节未赋予它访存序/屏障语义（与 `fence` 不同），故不写顺序约束。
+```
+<!-- IDL:swym_oiii_imm END -->
 
 ## 3. 位扫描与位计数 ctlz/cttz/ctpop（orri 格式）
 
@@ -139,6 +680,81 @@ ctpop   rdHB, rdHC, immu6       @@ 1 的个数（immu6=63 → 64 位）
 ```
 
 **格式**：三条为 `orri` 格式但**无位宽后缀**，位于 `OPC-MISC` 子表的 `100-101`/`100-110`/`100-111` 格位（见 SimRISC-00 §4.1）；**有效位宽**由立即数 `hd` 在运行时给出。
+
+<!-- IDL:ctlz_orri_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: ctlz_orri_rd
+if (rdHB == 6'd0) {                           # 目的 rd0 ⇒ ILLI（沿用 dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<7> hi = {1'b0, immu6};                   # 有效位上界 hd = immu6（0..63）
+Bits<7> n = 7'd0;
+Boolean go = true;                            # 尚未遇到「1」
+for (Bits<7> k = 7'd0; k != 7'd64; k = k + 7'd1) {
+  if (go) {                                   # 散文伪码：从 bit hd 向下数前导零
+    if (k <= hi) {
+      if (rdHC[hi - k] == 1'b1) {
+        go = false;
+      } else {
+        n = n + 7'd1;
+      }
+    } else {
+      go = false;                             # [hd:0] 全 0 走完 ⇒ n = hd + 1（定值）
+    }
+  }
+}
+rd[rdHB] = {57'd0, n};                        # 结果 0..64，写满 64 位（高位置 0）
+```
+<!-- IDL:ctlz_orri_rd END -->
+
+<!-- IDL:cttz_orri_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: cttz_orri_rd
+if (rdHB == 6'd0) {                           # 目的 rd0 ⇒ ILLI（沿用 dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<7> hi = {1'b0, immu6};                   # 有效位上界 hd = immu6（0..63）
+Bits<7> n = 7'd0;
+Boolean go = true;                            # 尚未遇到「1」
+for (Bits<7> i = 7'd0; i != 7'd64; i = i + 7'd1) {
+  if (go) {                                   # 散文伪码：从 bit 0 向上数末尾零（到 bit hd 止）
+    if (i <= hi) {
+      if (rdHC[i] == 1'b1) {
+        go = false;
+      } else {
+        n = n + 7'd1;
+      }
+    } else {
+      go = false;                             # [hd:0] 全 0 走完 ⇒ n = hd + 1（定值）
+    }
+  }
+}
+rd[rdHB] = {57'd0, n};                        # 结果 0..64，写满 64 位（高位置 0）
+```
+<!-- IDL:cttz_orri_rd END -->
+
+<!-- IDL:ctpop_orri_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: ctpop_orri_rd
+if (rdHB == 6'd0) {                           # 目的 rd0 ⇒ ILLI（沿用 dst_rd0）
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<7> hi = {1'b0, immu6};                   # 有效位上界 hd = immu6（0..63）
+Bits<7> n = 7'd0;
+for (Bits<7> i = 7'd0; i != 7'd64; i = i + 7'd1) {
+  if (i <= hi && rdHC[i] == 1'b1) {           # 散文伪码：n += rdHC[i]，i 走 0..hd
+    n = n + 7'd1;
+  }
+}
+rd[rdHB] = {57'd0, n};                        # 结果 0..64，写满 64 位（高位置 0）
+```
+<!-- IDL:ctpop_orri_rd END -->
 
 <!-- ASSEMBLY_LIST_START -->
 ## 附录 A：汇编指令速查
