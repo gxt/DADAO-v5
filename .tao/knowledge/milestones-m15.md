@@ -26,12 +26,9 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m15-idl-002 | 2–3 天 | `SimRISC-02` 17 条指令的 operation |
-| m15-idl-006 | 2–3 天 | `SimRISC-06` 15 条指令的 operation |
 | m15-idl-007 | 5–7 天 | `SimRISC-07` 50 条指令的 operation |
 | m15-idl-008 | 3–5 天 | `SimRISC-08` 21 条指令的 operation |
 | m15-idl-009 | 3–5 天 | `SimRISC-09` 21 条指令的 operation |
-| m15-idl-012 | 3–5 天 | `SimRISC-12` 28 条指令的 operation |
 | m15-infra-008 | 2–3 h | 门控切片 `CONFIG_DADAO_*` 钉子全集检查（F30/F41 两次复发；等 017 收口） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
@@ -41,6 +38,9 @@
 | m15-idl-001 | 2026-11-19 10:04 | 5–7 天 | `SimRISC-01` 38 条指令的 operation |
 | m15-idl-004 | 2026-11-19 10:04 | 3–5 天 | `SimRISC-04` 33 条指令的 operation |
 | m15-idl-010 | 2026-11-19 10:04 | 3–5 天 | `SimRISC-10` 21 条指令的 operation |
+| m15-idl-002 | 2026-11-19 10:07 | 2–3 天 | `SimRISC-02` 17 条指令的 operation |
+| m15-idl-006 | 2026-11-19 10:07 | 2–3 天 | `SimRISC-06` 15 条指令的 operation |
+| m15-idl-012 | 2026-11-19 10:07 | 3–5 天 | `SimRISC-12` 28 条指令的 operation |
 
 
 ## 已验证
