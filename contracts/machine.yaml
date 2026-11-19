@@ -40,3 +40,19 @@ profiles:
       cache: false
       llc: false
     run_modes: [user, jail, supv, hypv]
+
+  user:
+    name: kaiwu-user
+    # 用户态（SE，系统调用由宿主代劳）专用机型：无 BootROM、2 GiB 平坦存储（用户 2026-11-19 裁定）
+    bootrom: null
+    ram:
+      base: 0x0000_0000_0000
+      size: 0x8000_0000
+    capabilities:
+      ptw: false
+      hmon: false
+      smon: false
+      umon: false
+      cache: false
+      llc: false
+    run_modes: [user]
