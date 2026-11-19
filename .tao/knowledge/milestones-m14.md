@@ -32,7 +32,6 @@
 | m14-linux-033 | 2–3 h | K6 基础命令回归（sh 内 5 条命令 + 退出码） |
 
 | m14-linux-034 | 3–4 h | K6 收口门控 `check-linux-k6`（代表例 + §4a 退役） |
-| m14-linux-023 | 4–6 h | 用户态 syscall 闭环（umon 入口+分发表+errno rd8 负值+TLS rb3 入口保存/恢复） |
 | m14-linux-024 | 3–5 h | 用户 clone/线程（CLONE_VM/SETTLS/THREAD + TLS 用户面；子 rd8=0+父返 tid） |
 | m14-linux-025 | 3–4 h | futex 与原子性（WAIT 原子/WAKE 不丢唤醒/用户 lr+sc 不跨 syscall） |
 | m14-linux-026 | 3–4 h | clocksource(cfx_time)+clockevent(cfx_hart) 通用框架（原 021 后移） |
@@ -44,6 +43,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-linux-023 | 2026-11-19 17:08 | 4–6 h | 用户态 syscall 闭环（umon 入口 + 分发表 + errno + TLS） |
 
 ## 已验证
 
