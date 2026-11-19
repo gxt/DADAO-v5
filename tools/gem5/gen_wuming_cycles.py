@@ -31,7 +31,7 @@ Matching order (highest first).  "section" is the SimRISC book number of the id
   T3  glob / operation word, same section
   T4  exact mnemonic or glob, other section   cross-book refinement, e.g. the
       ``rev.*``/``rol.*``/``clmul.o`` row of book 12 or ``add.si`` of book 05
-  T5  ``<tetra|wyde|byte> 全套`` section-wide row
+  T5  ``<tetra|wyde|byte> …全套`` section-wide row
   T6  operation word, other section           e.g. 04's «比较» row covers the
       05 ``cmp.uo`` dbb form
   T7  §2 class default for the FP book (07) leftovers, e.g. ``ftadd`` -> B4
@@ -112,15 +112,11 @@ REQUIRES_EXACT_DOC_ROW = {
 
 # §5 实测推翻 §3 估计时的收敛口径。值仍出自文档；每条必须在 doc 指定的行里
 # 逐字出现（gate 校验），并写进 YAML 的 overrides 段。
-OVERRIDES: dict[str, dict[str, str]] = {
-    "clmul.o": {
-        "klass": "A",
-        "cycles": "2",
-        "doc_line": "87",
-        "doc": "§5 行 117（位操作 ctpop/ctlz/cttz/rev/rol/clmul 实测 2）+ §3 行 87（A/2）",
-        "why": "§3 行 61 把 clmul.o 归 B1「3（可配）」，是实测前的估计；010 实测 2 拍。",
-    },
-}
+#
+# 当前为空：`m16-gem5-016` 之后 `clmul.o` 的 2 拍由 §3 12 册的 A/2 行直接给出
+# （§3 04 册的 B1 行只覆盖 `mul.*`，§5 的位操作实测与 12 册行一致），因此不再
+# 需要一条与 §3 行并存的 override —— 同一拍数只允许一个真源。
+OVERRIDES: dict[str, dict[str, str]] = {}
 
 
 # ── doc parsing ────────────────────────────────────────────────────────────
@@ -332,7 +328,7 @@ def parse_rows(lines: list[str], mnemonics: set[str], formats: set[str]) -> list
                 "gen_wuming_cycles: §3 行缺「来源」列（行 %d）：%s" % (i + 1, ln[:60]))
         row = Row(cells[0].split()[0], cells[1], cells[2], cells[3], i + 1)
         row.provenance = cells[4].strip()
-        row.wide = bool(re.match(r"^(tetra|wyde|byte)\s*全套", row.family))
+        row.wide = bool(re.match(r"^(tetra|wyde|byte)\s*[^（(]*全套", row.family))
         prose = strip_code(row.family)
         row.kinds = tuple(w for w in KIND_STEMS if w in prose)
         for raw in re.findall(r"`([^`]*)`", row.family):
@@ -977,7 +973,7 @@ def emit_yaml(table, classes, doc_sha, rows, block, mem) -> str:
         f"sram: {mem['lines']['sram']}, fetch: {mem['lines']['fetch']}}}",
     ]
     out += ["# overrides: §5 实测与 §3 估计冲突时的收敛口径（值仍出自文档）",
-            "overrides:"]
+            "overrides:" if OVERRIDES else "overrides: []"]
     for mnemonic, o in OVERRIDES.items():
         out.append(f"- {{mnemonic: {q(mnemonic)}, klass: {q(o['klass'])}, "
                    f"cycles: {q(o['cycles'])}, doc: {q(o['doc'])}, why: {q(o['why'])}}}")
