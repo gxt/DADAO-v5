@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..27f5f0b5d
+index 000000000..0b7add34c
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,419 @@
+@@ -0,0 +1,428 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -329,6 +329,15 @@ index 000000000..27f5f0b5d
 +	 * syscall hook owns the verdict and the final SYS_EXIT.
 +	 */
 +	dadao_k4_switch_selftest();
++	return;
++#endif
++#ifdef CONFIG_DADAO_K4_KTHREAD_SELFTEST
++	/*
++	 * The kernel-thread probe (m14-linux-020) does not stop here either:
++	 * `kthreadd` and the threads it creates only exist after `rest_init()`,
++	 * so the probe runs inside `kernel_init` (init/main.c) and owns the
++	 * final SYS_EXIT there.
++	 */
 +	return;
 +#endif
 +	dadao_early_printf("K4 done: semihosting SYS_EXIT(0) at the K4 boundary "

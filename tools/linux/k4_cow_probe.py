@@ -99,6 +99,9 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K3_PT_SELFTEST": "n",
     "CONFIG_DADAO_K4_SELFTEST": "n",
     "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
+    # m14-linux-020: the kernel-thread probe is an image of its own; pin it
+    # off so the shared build tree cannot hand this image that symbol.
+    "CONFIG_DADAO_K4_KTHREAD_SELFTEST": "n",
     "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
     "CONFIG_DADAO_K4_COW_SELFTEST": "0",
 }

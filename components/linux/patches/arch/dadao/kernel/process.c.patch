@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/process.c b/arch/dadao/kernel/process.c
 new file mode 100644
-index 000000000..24b7e58bb
+index 000000000..d4a612497
 --- /dev/null
 +++ b/arch/dadao/kernel/process.c
-@@ -0,0 +1,522 @@
+@@ -0,0 +1,543 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO process model (K4, m14-linux-016).
@@ -21,7 +21,9 @@ index 000000000..24b7e58bb
 + *    `ret` that would need the parent's RAS.  The one register that must not be
 + *    zeroed is `rbtp` (rb3): `start_thread()` clears it for a new *image*, but
 + *    a forked task keeps the parent's thread pointer (contract-syscall §10 —
-+ *    the parent's TLS block is shared until execve).
++ *    the parent's TLS block is shared until execve).  A kernel thread has no
++ *    user address space at all (m14-linux-020): the reference `copy_mm()` took
++ *    for `kernel_thread()`'s CLONE_VM is dropped here and `rb3` stays 0.
 + *
 + *  - `start_thread()` (kernel/setup.c): the execve side — clear every register,
 + *    user entry IP and SP, `rbtp = 0`, `status = 0`.
@@ -51,6 +53,7 @@ index 000000000..24b7e58bb
 +#include <linux/kernel.h>
 +#include <linux/mm.h>
 +#include <linux/sched.h>
++#include <linux/sched/mm.h>
 +#include <linux/sched/task.h>
 +#include <linux/sched/task_stack.h>
 +#include <linux/string.h>
@@ -147,7 +150,25 @@ index 000000000..24b7e58bb
 +		 * stack.  rd16/rd17 are the ABI's first two data arguments
 +		 * (contract-abi §4.1); the frame's IP is the entry stub, which
 +		 * `dadao_ret_from_fork` reads back out of the frame.
++		 *
++		 * A kernel thread owns no user address space.  `kernel_thread()`
++		 * forces CLONE_VM, so the generic `copy_mm()` *shares* the
++		 * parent's mm rather than duplicating it — and when the parent
++		 * has none (the boot task, `kthreadd`) that already leaves the
++		 * child with `mm == NULL`.  The reference it took on a parent
++		 * that *does* have one is dropped here: a kernel thread runs on
++		 * the kernel's own mappings and inherits an `active_mm` from the
++		 * switch (`context_switch()`'s lazy-TLB arm), never a user mm of
++		 * its own (m14-linux-020; the mm-less shape is what the K4
++		 * kernel-thread probe asserts against 016's fork).
 +		 */
++		if (args->kthread && p->mm) {
++			struct mm_struct *mm = p->mm;
++
++			p->mm = NULL;
++			p->active_mm = NULL;
++			mmput(mm);
++		}
 +		memset(childregs, 0, sizeof(*childregs));
 +		childregs->rd[16] = (unsigned long)args->fn;
 +		childregs->rd[17] = (unsigned long)args->fn_arg;

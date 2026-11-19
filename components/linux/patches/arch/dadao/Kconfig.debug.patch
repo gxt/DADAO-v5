@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..28b5898ca
+index 000000000..e8139b6d3
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,287 @@
+@@ -0,0 +1,322 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -291,3 +291,38 @@ index 000000000..28b5898ca
 +	  Unlike DADAO_K4_SELFTEST this image *does* run other tasks, so it must
 +	  not be combined with the single-task process-model probe.  The boot
 +	  ends when the probe's syscall hook sees `exit_group` or a named failure.
++
++config DADAO_K4_KTHREAD_SELFTEST
++	bool "Run the K4 kernel-thread probe inside kernel_init (needs kthreadd)"
++	default n
++	depends on !DADAO_K4_SELFTEST && !DADAO_K4_SWITCH_SELFTEST
++	help
++	  Exercise the kernel-thread primitives of m14-linux-020 from inside
++	  `kernel_init`, after `kernel_init_freeable()` — the first point at
++	  which the boot has both kernel threads the probe needs (`kthreadd`
++	  itself, pid 2, created by `rest_init()` from the boot task, and the
++	  threads it creates on request; see kernel/k4_kthread_selftest.c) and
++	  the initcalls have run.
++
++	  It cannot run earlier than the initcalls: `kernel_thread()` forces
++	  CLONE_VM, so a clone from a task that has an mm sizes the futex hash
++	  through `futex_hash_allocate_default()`, whose `futex_hashmask` is
++	  only set by `futex_init()` (a core_initcall, i.e. inside
++	  `kernel_init_freeable()`); before that the bucket count clamps to 1
++	  and the allocation answers -EINVAL, failing the whole clone.
++
++	  Cases: K1 `kthreadd` exists, is pid 2, is a kernel thread with
++	  `mm == NULL` and real `fs`/`files` tables; K2 `kthread_create()` +
++	  `wake_up_process()` and `kthread_run()` start a body that runs,
++	  `kthread_stop()` makes `kthread_should_stop()` true (the body's
++	  return code comes back), and the task then leaves the run queue and
++	  its counter freezes; K3 `kernel_thread(fn, arg, CLONE_FS |
++	  CLONE_FILES)` shares the parent's `fs`/`files`, owns no user `mm`
++	  even when the parent has one, and leaves `rb3`/`thread.tp` at 0 —
++	  against a fork from the same task, which gets a private `mm` with a
++	  different ASID.
++
++	  The boot ends after the cases.  This is test scaffolding (the K4
++	  kernel-thread gate builds a probe image with it); it is not part of
++	  the image the later milestones boot.  User `clone()` (CLONE_VM /
++	  CLONE_THREAD / CLONE_SETTLS), TLS and futex are K5's.

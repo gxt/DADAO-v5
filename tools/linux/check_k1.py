@@ -166,6 +166,9 @@ CONFIG_PINS = {
     # m14-linux-017: the context-switch probe image; pin it off so this
     # image never inherits another gate's build tree state.
     "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
+    # m14-linux-020: the kernel-thread probe is an image of its own; pin it
+    # off so the shared build tree cannot hand this image that symbol.
+    "CONFIG_DADAO_K4_KTHREAD_SELFTEST": "n",
 }
 
 K1_CONFIG = config_pins.config_lines(CONFIG_PINS)

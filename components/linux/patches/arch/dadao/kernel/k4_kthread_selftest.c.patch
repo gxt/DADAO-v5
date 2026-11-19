@@ -1,0 +1,476 @@
+diff --git a/arch/dadao/kernel/k4_kthread_selftest.c b/arch/dadao/kernel/k4_kthread_selftest.c
+new file mode 100644
+index 000000000..5592f48d6
+--- /dev/null
++++ b/arch/dadao/kernel/k4_kthread_selftest.c
+@@ -0,0 +1,470 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * K4 kernel-thread self-test (CONFIG_DADAO_K4_KTHREAD_SELFTEST, m14-linux-020).
++ *
++ * Runs inside `kernel_init` (pid 1), after `kernel_init_freeable()` — the first
++ * point at which both kernel threads this probe needs exist (`kthreadd` itself,
++ * created by `rest_init()` from the boot task, pid 2, and, through it, the
++ * threads `kthread_create()`/`kthread_run()` make) *and* the initcalls have
++ * run.  It cannot run earlier than the initcalls: `kernel_thread()` forces
++ * CLONE_VM, so a clone from a task that has an mm sizes the futex hash through
++ * `futex_hash_allocate_default()`, whose `futex_hashmask` is only set by
++ * `futex_init()` (a core_initcall, i.e. inside `kernel_init_freeable()`);
++ * before that the bucket count clamps to 1 and the allocation answers -EINVAL,
++ * failing the whole clone.  Unlike the process-model probe of m14-linux-016
++ * this one therefore *does* run other tasks, and unlike the context-switch
++ * probe of m14-linux-017 it does not need user mode at all: a kernel thread
++ * never has a user address space.
++ *
++ * Cases (the gate reads the `K4 kthread ...` / `K4 check ...` lines):
++ *
++ *   K1  `kthreadd` is the kernel's own daemon: it exists, it is pid 2, it is a
++ *       kernel thread (`PF_KTHREAD`), it owns no user `mm`, its `fs`/`files`
++ *       tables are real (the two resource tables `kernel_thread` shares by
++ *       default) and its name is "kthreadd".
++ *
++ *   K2  `kthread_create()` + `wake_up_process()` and `kthread_run()` both
++ *       produce a running kernel thread: the function body executes (its
++ *       counter advances, and the body prints its own pid/mm from inside the
++ *       thread), `kthread_stop()` makes `kthread_should_stop()` true in the
++ *       body (the body returns the "stopped" code, which is what
++ *       `kthread_stop()` hands back), and the task then leaves the run queue
++ *       (`TASK_DEAD`, `on_rq == 0`) and its counter stops advancing.
++ *
++ *   K3  `kernel_thread(fn, arg, CLONE_FS | CLONE_FILES)` — the flags both
++ *       in-kernel callers use (init/main.c's `kthreadd`, kernel/kthread.c's
++ *       `kthread`) — gives a child that *shares* the parent's `fs` and `files`
++ *       and owns no user `mm` (this port's `copy_thread()` drops the reference
++ *       the generic `copy_mm()` took for `CLONE_VM`), with `rb3`/`thread.tp`
++ *       left at 0 (a kernel thread has no thread pointer) and its entry IP at
++ *       `dadao_ret_from_fork`.  The contrast is created in the same boot: a
++ *       fork (`kernel_clone()` without `CLONE_VM`, from the same task with an
++ *       mm attached) gets an address space of its own, with a *different*
++ *       ASID — that is 016's tree-fork path, not a kernel thread.
++ *
++ * K4 (the negative half — what this milestone must *not* implement) is judged
++ * by the gate from the sources: `copy_thread()` takes no `tls` argument and
++ * this port never spells `CLONE_SETTLS`/`CLONE_THREAD`, so user `clone()`,
++ * its dual return and the whole TLS/futex surface stay with K5.  The one
++ * runtime half is printed here: the kernel thread's saved frame has `rb3 = 0`
++ * (an `rb3` carrying a user thread pointer would make `dadao_ret_from_fork`
++ * treat the task as a user task).
++ *
++ * One image, one verdict: every case prints its values and the boot ends with
++ * SYS_EXIT(0); a violated expectation ends with the guest FAIL segment
++ * (spec/Kaiwu §7.1) naming the case.  Nothing here allocates a VMA, maps a
++ * page or enters user mode.
++ */
++#include <linux/completion.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/kthread.h>
++#include <linux/mm.h>
++#include <linux/mm_types.h>
++#include <linux/sched.h>
++#include <linux/sched/mm.h>
++#include <linux/sched/task.h>
++#include <linux/sched/task_stack.h>
++#include <linux/signal.h>
++#include <linux/string.h>
++#include <linux/types.h>
++
++#include <asm/page.h>
++#include <asm/processor.h>
++#include <asm/ptrace.h>
++#include <asm/setup.h>
++
++/*
++ * Guest FAIL segment (spec/Kaiwu §7.1, 0x01-0x7f).  kernel/process.c owns
++ * 0x30-0x32, kernel/k4_selftest.c 0x33-0x3a, kernel/k4_switch_selftest.c
++ * 0x40-0x45; this probe takes 0x50-0x52.
++ */
++#define K4KT_FAIL_K1		0x50	/* kthreadd is missing or not a kernel thread */
++#define K4KT_FAIL_K2		0x51	/* create/run/stop did not behave */
++#define K4KT_FAIL_K3		0x52	/* kernel_thread shared state / mm is wrong */
++
++/* What the thread bodies return; `kthread_stop()` hands the code back. */
++#define K4KT_RET_STOPPED	0x4b54	/* "KT": the body saw kthread_should_stop() */
++#define K4KT_RET_LIMIT		0x4b4c	/* "KL": it ran to its bound instead */
++
++/* One hart, no preemption: every loop that waits for another task yields. */
++#define K4KT_SPINS		20000UL
++
++struct k4kt_ctx {
++	int id;
++	volatile unsigned long ticks;
++	volatile int started;
++	volatile int saw_stop;
++	unsigned long limit;
++	/* The three rendezvous points of one create/start/stop round trip. */
++	struct completion go;	/* creator -> body: the work phase starts */
++	struct completion ran;	/* body -> creator: the body really ran */
++	struct completion armed;	/* creator -> body: stop is about to be set */
++};
++
++static void __noreturn k4kt_fail(unsigned int code, const char *what,
++				 unsigned long value)
++{
++	dadao_early_printf("K4 kthread FAIL: %s=%#lx code=%#x\n", what, value,
++			   code);
++	dadao_early_exit(code);
++}
++
++static void k4kt_expect(const char *what, unsigned long expected,
++			unsigned long actual, unsigned int code)
++{
++	dadao_early_printf("K4 check %s want=%#lx got=%#lx %s\n", what, expected,
++			   actual, expected == actual ? "ok" : "FAIL");
++	if (expected != actual)
++		k4kt_fail(code, what, actual);
++}
++
++/*
++ * The body both creators run.  Every hand-over is a *blocking* wait: on this
++ * port a running task's `schedule()` always re-picks itself while there is no
++ * sched_clock (m14-linux-017/021), so only a sleeping task lets the other one
++ * run.  The work phase between the two rendezvous does not block (the creator
++ * is then the one waiting), and it is bounded so that "the stop request never
++ * arrived" is a verdict rather than a hang.
++ */
++static int k4kt_body(void *arg)
++{
++	struct k4kt_ctx *ctx = arg;
++
++	ctx->started = 1;
++	ctx->ticks++;
++	dadao_early_printf("K4 kthread body: id=%d pid=%d mm=%#lx kthread=%d\n",
++			   ctx->id, current->pid, (unsigned long)current->mm,
++			   (current->flags & PF_KTHREAD) ? 1 : 0);
++
++	wait_for_completion(&ctx->go);		/* park: the creator's turn */
++	ctx->ticks++;
++	complete(&ctx->ran);			/* "I ran" */
++	wait_for_completion(&ctx->armed);	/* park: stop is armed next */
++
++	ctx->saw_stop = kthread_should_stop() ? 1 : 0;
++	while (!kthread_should_stop() && ctx->ticks < ctx->limit) {
++		ctx->ticks++;
++		schedule();
++	}
++	if (kthread_should_stop())
++		ctx->saw_stop = 1;
++	return ctx->saw_stop ? K4KT_RET_STOPPED : K4KT_RET_LIMIT;
++}
++
++/* A kernel_thread() body that never returns (the probe only inspects it). */
++static DECLARE_COMPLETION(k4kt_parked);
++
++static int k4kt_park(void *arg)
++{
++	wait_for_completion(&k4kt_parked);
++	return 0;
++}
++
++/* -------------------------------------------------------------------------
++ * K1: kthreadd
++ * ------------------------------------------------------------------------- */
++
++static void k4kt_case_k1(void)
++{
++	struct task_struct *kd = kthreadd_task;
++
++	dadao_early_printf("K4 kthread k1: present=%d pid=%d mm=%#lx "
++			   "kthread=%d fs=%#lx files=%#lx comm_before_run=%s\n",
++			   kd ? 1 : 0, kd ? kd->pid : -1,
++			   kd ? (unsigned long)kd->mm : ~0UL,
++			   kd ? ((kd->flags & PF_KTHREAD) ? 1 : 0) : 0,
++			   kd ? (unsigned long)kd->fs : 0UL,
++			   kd ? (unsigned long)kd->files : 0UL,
++			   kd ? kd->comm : "(null)");
++	k4kt_expect("k1-kthreadd-present", 1, kd ? 1 : 0, K4KT_FAIL_K1);
++	k4kt_expect("k1-kthreadd-pid", 2, kd->pid, K4KT_FAIL_K1);
++	k4kt_expect("k1-kthreadd-no-user-mm", 1, kd->mm ? 0 : 1, K4KT_FAIL_K1);
++	k4kt_expect("k1-kthreadd-flag", 1, (kd->flags & PF_KTHREAD) ? 1 : 0,
++		    K4KT_FAIL_K1);
++	k4kt_expect("k1-kthreadd-resource-tables", 1,
++		    (kd->fs && kd->files) ? 1 : 0, K4KT_FAIL_K1);
++
++	/*
++	 * The name and the rest of the daemon's prologue are written by
++	 * kthreadd itself, i.e. only once it has been scheduled — and on this
++	 * port a *running* task never yields (`schedule()` re-picks itself
++	 * while there is no sched_clock, m14-linux-017/021), so the proof that
++	 * the daemon ran is a blocking operation: K2's first
++	 * `kthread_create()`, which can only return once kthreadd serviced the
++	 * request.  The name is therefore asserted there
++	 * (`k2-kthreadd-ran`), not here.
++	 */
++}
++
++/* -------------------------------------------------------------------------
++ * K2: kthread_create() + wake_up_process(), and kthread_run()
++ * ------------------------------------------------------------------------- */
++
++/*
++ * One create/start/stop round trip.  @from_run selects `kthread_run()`
++ * (create + wake in one call) over `kthread_create()` + `wake_up_process()`.
++ */
++static void k4kt_start_stop(int id, int from_run)
++{
++	static struct k4kt_ctx ctx[2];
++	struct k4kt_ctx *c = &ctx[id - 1];
++	struct task_struct *t;
++	unsigned long frozen, spins;
++	int ret;
++
++	memset(c, 0, sizeof(*c));
++	init_completion(&c->go);
++	init_completion(&c->ran);
++	init_completion(&c->armed);
++	c->id = id;
++	c->limit = K4KT_SPINS;
++
++	if (from_run)
++		t = kthread_run(k4kt_body, c, "k4kt%u", (unsigned int)id);
++	else
++		t = kthread_create(k4kt_body, c, "k4kt%u", (unsigned int)id);
++	if (IS_ERR(t))
++		k4kt_fail(K4KT_FAIL_K2, from_run ? "kthread_run" : "kthread_create",
++			  (unsigned long)PTR_ERR(t));
++	get_task_struct(t);
++
++	dadao_early_printf("K4 kthread k2: id=%d create=%s pid=%d mm=%#lx "
++			   "kthread=%d state=%d\n", id,
++			   from_run ? "kthread_run" : "kthread_create", t->pid,
++			   (unsigned long)t->mm,
++			   (t->flags & PF_KTHREAD) ? 1 : 0, (int)t->__state);
++	k4kt_expect("k2-kthread-flag", 1, (t->flags & PF_KTHREAD) ? 1 : 0,
++		    K4KT_FAIL_K2);
++	k4kt_expect("k2-kthread-no-user-mm", 1, t->mm ? 0 : 1, K4KT_FAIL_K2);
++	k4kt_expect("k2-kthread-pid-above-kthreadd", 1,
++		    (kthreadd_task && t->pid > kthreadd_task->pid) ? 1 : 0,
++		    K4KT_FAIL_K2);
++
++	/* Start it and hand it the hart (a blocking wait is the hand-over). */
++	if (!from_run)
++		wake_up_process(t);
++	complete(&c->go);
++	wait_for_completion(&c->ran);
++	dadao_early_printf("K4 kthread k2: id=%d started=%d ticks=%lu\n", id,
++			   c->started, c->ticks);
++	k4kt_expect("k2-body-ran", 1, c->started ? 1 : 0, K4KT_FAIL_K2);
++	k4kt_expect("k2-body-ticks", 2, c->ticks, K4KT_FAIL_K2);
++
++	/*
++	 * Arm the stop request *after* letting the body park again, so the
++	 * creator is the one that calls `kthread_stop()` first and the body
++	 * then observes the bit: that ordering is what makes the body's
++	 * return code evidence of `kthread_should_stop()`.
++	 */
++	complete(&c->armed);
++	ret = kthread_stop(t);
++	frozen = c->ticks;
++	dadao_early_printf("K4 kthread k2: id=%d stop_ret=%#x saw_stop=%d "
++			   "ticks=%lu\n", id, ret, c->saw_stop, frozen);
++	k4kt_expect("k2-stop-ret", K4KT_RET_STOPPED, (unsigned long)ret,
++		    K4KT_FAIL_K2);
++	k4kt_expect("k2-stop-seen", 1, c->saw_stop ? 1 : 0, K4KT_FAIL_K2);
++
++	/* Let do_exit() finish on the dead task's own stack. */
++	for (spins = 0; spins < 16; spins++)
++		schedule();
++	dadao_early_printf("K4 kthread k2: id=%d state=%d on_rq=%d frozen=%d "
++			   "ticks_now=%lu\n", id, (int)t->__state, (int)t->on_rq,
++			   frozen == c->ticks, c->ticks);
++	k4kt_expect("k2-task-dead", 1, t->__state == TASK_DEAD ? 1 : 0,
++		    K4KT_FAIL_K2);
++	k4kt_expect("k2-task-off-runqueue", 0, (unsigned long)t->on_rq,
++		    K4KT_FAIL_K2);
++	k4kt_expect("k2-counter-frozen", 0, c->ticks - frozen, K4KT_FAIL_K2);
++	k4kt_expect("k2-not-running", 0, task_is_running(t) ? 1 : 0,
++		    K4KT_FAIL_K2);
++	put_task_struct(t);
++}
++
++static void k4kt_case_k2(void)
++{
++	k4kt_start_stop(1, 0);	/* kthread_create() + wake_up_process() */
++	k4kt_start_stop(2, 1);	/* kthread_run() */
++
++	/*
++	 * Now the daemon has certainly run: no `kthread_create()` can return
++	 * before kthreadd serviced the request, and kthreadd's own prologue is
++	 * what names it and arms its resource tables.
++	 */
++	dadao_early_printf("K4 kthread k2: kthreadd_comm=%s mm=%#lx\n",
++			   kthreadd_task ? kthreadd_task->comm : "(null)",
++			   kthreadd_task ? (unsigned long)kthreadd_task->mm : ~0UL);
++	k4kt_expect("k2-kthreadd-ran", 1,
++		    (kthreadd_task && !strcmp(kthreadd_task->comm, "kthreadd")) ? 1 : 0,
++		    K4KT_FAIL_K2);
++}
++
++/* -------------------------------------------------------------------------
++ * K3: kernel_thread() shares fs/files, owns no mm; a fork gets its own
++ * ------------------------------------------------------------------------- */
++
++static void k4kt_case_k3(void)
++{
++	unsigned long flags = CLONE_FS | CLONE_FILES;
++	struct kernel_clone_args args = {
++		.flags = 0,
++		.exit_signal = SIGCHLD,
++	};
++	struct task_struct *kt, *fk;
++	struct mm_struct *tmp;
++	struct pt_regs *frame;
++	unsigned long kt_pid, fk_pid, parent_mm, mm_users_pre, mm_users_post;
++	unsigned long asid_parent = 0, asid_child = 0;
++
++	parent_mm = (unsigned long)current->mm;
++	dadao_early_printf("K4 kthread k3: parent_pid=%d parent_mm=%#lx "
++			   "clone_fs=%#lx clone_files=%#lx\n", current->pid,
++			   parent_mm, (unsigned long)CLONE_FS,
++			   (unsigned long)CLONE_FILES);
++
++	/*
++	 * 3a: from a task with no mm at all (this one before execve) — the
++	 * way `rest_init()` and `kthreadd` itself create threads.
++	 */
++	kt_pid = kernel_thread(k4kt_park, NULL, "k4ktkt", flags);
++	if ((long)kt_pid < 0)
++		k4kt_fail(K4KT_FAIL_K3, "kernel_thread", (unsigned long)-(long)kt_pid);
++	kt = find_get_task_by_vpid(kt_pid);
++	if (!kt)
++		k4kt_fail(K4KT_FAIL_K3, "kernel_thread-task", kt_pid);
++	frame = task_pt_regs(kt);
++	dadao_early_printf("K4 kthread k3: kt_pid=%d kt_mm=%#lx fs=%#lx "
++			   "files=%#lx parent_fs=%#lx parent_files=%#lx "
++			   "fs_same=%d files_same=%d tp=%#lx frame_ip=%#lx "
++			   "frame_rb3=%#lx frame_rd8=%#lx\n", kt->pid,
++			   (unsigned long)kt->mm, (unsigned long)kt->fs,
++			   (unsigned long)kt->files, (unsigned long)current->fs,
++			   (unsigned long)current->files,
++			   kt->fs == current->fs ? 1 : 0,
++			   kt->files == current->files ? 1 : 0,
++			   kt->thread.tp, frame->ip, frame->rb[3], frame->rd[8]);
++	k4kt_expect("k3-fs-shared", 1, kt->fs == current->fs ? 1 : 0,
++		    K4KT_FAIL_K3);
++	k4kt_expect("k3-files-shared", 1, kt->files == current->files ? 1 : 0,
++		    K4KT_FAIL_K3);
++	k4kt_expect("k3-no-user-mm", 1, kt->mm ? 0 : 1, K4KT_FAIL_K3);
++	k4kt_expect("k3-kthread-flag", 1, (kt->flags & PF_KTHREAD) ? 1 : 0,
++		    K4KT_FAIL_K3);
++	k4kt_expect("k3-no-thread-pointer", 0, kt->thread.tp, K4KT_FAIL_K3);
++	k4kt_expect("k3-frame-rb3-zero", 0, frame->rb[3], K4KT_FAIL_K3);
++	k4kt_expect("k3-frame-rd8-zero", 0, frame->rd[8], K4KT_FAIL_K3);
++	k4kt_expect("k3-frame-entry", (unsigned long)dadao_ret_from_fork,
++		    frame->ip, K4KT_FAIL_K3);
++	get_task_struct(kt);
++
++	/*
++	 * 3b: the same call from a task that *has* an address space.  The
++	 * generic `copy_mm()` shares it for CLONE_VM; `copy_thread()` must drop
++	 * that reference again — a kernel thread owns no user mm.  The
++	 * reference count is measured on both sides of the call, so a leak
++	 * (or a kept mm) is visible.
++	 */
++	tmp = mm_alloc();
++	if (!tmp)
++		k4kt_fail(K4KT_FAIL_K3, "mm_alloc", 0);
++	current->mm = tmp;
++	current->active_mm = tmp;
++	mm_users_pre = (unsigned long)atomic_read(&tmp->mm_users);
++	kt_pid = kernel_thread(k4kt_park, NULL, "k4ktmm", flags);
++	if ((long)kt_pid < 0)
++		k4kt_fail(K4KT_FAIL_K3, "kernel_thread-mm",
++			  (unsigned long)-(long)kt_pid);
++	kt = find_get_task_by_vpid(kt_pid);
++	if (!kt)
++		k4kt_fail(K4KT_FAIL_K3, "kernel_thread-mm-task", kt_pid);
++	get_task_struct(kt);
++	mm_users_post = (unsigned long)atomic_read(&tmp->mm_users);
++	dadao_early_printf("K4 kthread k3: mm_pid=%d mm_parent_mm=%#lx "
++			   "kt_mm=%#lx mm_users_pre=%lu mm_users_post=%lu\n",
++			   kt->pid, (unsigned long)tmp, (unsigned long)kt->mm,
++			   mm_users_pre, mm_users_post);
++	k4kt_expect("k3-no-mm-with-parent-mm", 1, kt->mm ? 0 : 1,
++		    K4KT_FAIL_K3);
++	k4kt_expect("k3-mm-reference-balanced", 0, mm_users_post - mm_users_pre,
++		    K4KT_FAIL_K3);
++
++	/*
++	 * 3c: the contrast — a *fork* from the same task keeps the address
++	 * space, with a private copy (016's path) and an ASID of its own.
++	 *
++	 * The child's saved frame is *this* task's, and this task is
++	 * `kernel_init`: pin a parked kernel function into the frame before the
++	 * clone so that a reschedule during the `mmput()` below (or anything
++	 * later in this boot) can never turn the child into a second
++	 * `kernel_init`.  The frame's `ip`/`rb1` are unchanged, so the child is
++	 * still the ordinary fork shape the case is about.
++	 */
++	{
++		struct pt_regs *regs = current_pt_regs();
++
++		regs->rd[16] = (unsigned long)k4kt_park;
++		regs->rd[17] = 0;
++	}
++	fk_pid = kernel_clone(&args);
++	if ((long)fk_pid < 0)
++		k4kt_fail(K4KT_FAIL_K3, "kernel_clone", (unsigned long)-(long)fk_pid);
++	fk = find_get_task_by_vpid(fk_pid);
++	if (!fk)
++		k4kt_fail(K4KT_FAIL_K3, "fork-task", fk_pid);
++	get_task_struct(fk);
++	/*
++	 * The child is a *user* task whose saved frame is this task's: it must
++	 * not run (m14-linux-016's rule — 016's own probe image is where forks
++	 * are inspected; running one here would re-enter kernel_init).
++	 */
++	clear_tsk_need_resched(current);
++	if (fk->mm) {
++		asid_parent = current->mm->context.asid;
++		asid_child = fk->mm->context.asid;
++	}
++	dadao_early_printf("K4 kthread k3: fork_pid=%d fork_mm=%#lx "
++			   "fork_mm_diff=%d asid_parent=%lu asid_child=%lu\n",
++			   fk->pid, (unsigned long)fk->mm,
++			   (fk->mm && fk->mm != current->mm) ? 1 : 0,
++			   asid_parent, asid_child);
++	k4kt_expect("k3-fork-has-mm", 1, fk->mm ? 1 : 0, K4KT_FAIL_K3);
++	k4kt_expect("k3-fork-mm-private", 1,
++		    (fk->mm && fk->mm != current->mm) ? 1 : 0, K4KT_FAIL_K3);
++	k4kt_expect("k3-fork-asid-differs", 1,
++		    (fk->mm && asid_child != asid_parent) ? 1 : 0, K4KT_FAIL_K3);
++	k4kt_expect("k3-fork-asid-16bit", 1,
++		    (asid_parent > 0 && asid_parent <= 0xffffUL &&
++		     asid_child > 0 && asid_child <= 0xffffUL) ? 1 : 0,
++		    K4KT_FAIL_K3);
++	get_task_struct(fk);	/* hold: a child task must not be freed under us */
++
++	/* Detach the temporary address space again (this task had none). */
++	current->mm = NULL;
++	current->active_mm = NULL;
++	mmput(tmp);
++
++	/*
++	 * The tasks created above were never scheduled (and the machine ends
++	 * right after this case), so no probe thread body runs in this boot:
++	 * the kernel-thread *entry* is what K2 exercised, and a body that ran
++	 * here would have to park to avoid exiting pid 1's sibling.
++	 */
++}
++
++/* -------------------------------------------------------------------------
++ * entry
++ * ------------------------------------------------------------------------- */
++
++void dadao_k4_kthread_selftest(void)
++{
++	dadao_early_printf("K4 kthread begin: pid=%d mm=%#lx j=%lu\n",
++			   current->pid, (unsigned long)current->mm,
++			   (unsigned long)jiffies_64);
++	k4kt_case_k1();
++	k4kt_case_k2();
++	k4kt_case_k3();
++	dadao_early_printf("K4 kthread done: kthreadd=pid2 no-mm; create/run/"
++			   "stop; kernel_thread shared fs/files, fork private mm\n");
++	dadao_early_exit(0);
++}

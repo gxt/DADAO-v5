@@ -91,6 +91,9 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K3_PT_SELFTEST": "n",
     "CONFIG_DADAO_K4_SELFTEST": "n",
     "CONFIG_DADAO_K4_SWITCH_SELFTEST": "y",
+    # m14-linux-020: the kernel-thread probe is an image of its own; pin it
+    # off so the shared build tree cannot hand this image that symbol.
+    "CONFIG_DADAO_K4_KTHREAD_SELFTEST": "n",
     # The stack-growth probe is an int (0 = off); pin it off or this
     # image inherits the last stack case and ends the boot at the K4
     # boundary (F30 class: sibling config symbols are pinned in pairs).

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/Makefile b/arch/dadao/kernel/Makefile
 new file mode 100644
-index 000000000..32d900df2
+index 000000000..0739c733b
 --- /dev/null
 +++ b/arch/dadao/kernel/Makefile
-@@ -0,0 +1,20 @@
+@@ -0,0 +1,23 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-y += head.o setup.o early_console.o syscall_table.o traps.o syscalls.o trap.o
 +# K4 process model: copy_thread / the user-mode entry rows (m14-linux-016).
@@ -21,6 +21,9 @@ index 000000000..32d900df2
 +# K4 context-switch self-test (m14-linux-017): probe image only, and the only
 +# probe that lets other tasks run.
 +obj-$(CONFIG_DADAO_K4_SWITCH_SELFTEST) += k4_switch_selftest.o k4_switch_asm.o
++# K4 kernel-thread self-test (m14-linux-020): probe image only; runs inside
++# kernel_init, after kthreadd exists.
++obj-$(CONFIG_DADAO_K4_KTHREAD_SELFTEST) += k4_kthread_selftest.o
 +
 +# The final link needs arch/dadao/kernel/vmlinux.lds (preprocessed from .S).
 +always-$(KBUILD_BUILTIN) += vmlinux.lds

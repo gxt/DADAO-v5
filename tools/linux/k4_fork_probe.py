@@ -109,6 +109,9 @@ CONFIG_PINS = {
     # of this one (Kconfig: `depends on !DADAO_K4_SELFTEST`); pin it off so the
     # shared build tree cannot hand this image the other probe's symbol.
     "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
+    # m14-linux-020: the kernel-thread probe is an image of its own; pin it
+    # off so the shared build tree cannot hand this image that symbol.
+    "CONFIG_DADAO_K4_KTHREAD_SELFTEST": "n",
     # m14-linux-017/019: the stack-growth probe is an int too; pin it
     # so no image inherits another gate's case (F30 class, twice seen).
     "CONFIG_DADAO_K4_STACK_SELFTEST": "0",

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..a6e668702
+index 000000000..35bb12fad
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,207 @@
+@@ -0,0 +1,210 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -167,6 +167,9 @@ index 000000000..a6e668702
 +void __noreturn dadao_k4_cow_selftest(void);
 +/* The context-switch probe image (CONFIG_DADAO_K4_SWITCH_SELFTEST). */
 +void __init dadao_k4_switch_selftest(void);
++/* The kernel-thread probe image (CONFIG_DADAO_K4_KTHREAD_SELFTEST): runs
++ * inside kernel_init once kthreadd exists, and ends the boot. */
++void dadao_k4_kthread_selftest(void);
 +
 +/* Early console: semihosting SYS_WRITE0 / SYS_EXIT (contract-semihosting). */
 +void dadao_early_write(const char *s);

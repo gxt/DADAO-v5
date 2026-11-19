@@ -56,6 +56,7 @@ arch/dadao/kernel/head.S.patch
 arch/dadao/kernel/irq.c.patch
 arch/dadao/kernel/k2_irq_test.c.patch
 arch/dadao/kernel/k2_selftest.c.patch
+arch/dadao/kernel/k4_kthread_selftest.c.patch
 arch/dadao/kernel/k4_selftest.c.patch
 arch/dadao/kernel/k4_switch_asm.S.patch
 arch/dadao/kernel/k4_switch_selftest.c.patch

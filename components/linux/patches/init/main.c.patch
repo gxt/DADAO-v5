@@ -1,5 +1,5 @@
 diff --git a/init/main.c b/init/main.c
-index dd7b2a659..4926c25ff 100644
+index dd7b2a659..530ddfff5 100644
 --- a/init/main.c
 +++ b/init/main.c
 @@ -979,6 +979,11 @@ void start_kernel(void)
@@ -48,7 +48,30 @@ index dd7b2a659..4926c25ff 100644
  }
  
  static int try_to_run_init_process(const char *init_filename)
-@@ -1643,28 +1666,50 @@ static noinline void __init kernel_init_freeable(void)
+@@ -1550,7 +1573,22 @@ static int __ref kernel_init(void *unused)
+ 	 */
+ 	wait_for_completion(&kthreadd_done);
+ 
++
+ 	kernel_init_freeable();
++#ifdef CONFIG_DADAO_K4_KTHREAD_SELFTEST
++	/*
++	 * K4 kernel-thread probe (m14-linux-020).  It runs here, not at the
++	 * `kthreadd_done` wait above: `kernel_init_freeable()` is what runs the
++	 * initcalls, and some of them are prerequisites of the probe (the futex
++	 * hash a CLONE_VM clone allocates for a task that has an mm is sized
++	 * from `futex_init()`'s table; before it the allocation answers
++	 * -EINVAL).  `kthreadd` and everything created through it exist by now,
++	 * and this image runs no init program — the probe ends the boot with
++	 * the spec/Kaiwu §7.1 guest segment.  A milestone image compiles this
++	 * out.
++	 */
++	dadao_k4_kthread_selftest();
++#endif
+ 	/* need to finish all async __init code before freeing the memory */
+ 	async_synchronize_full();
+ 
+@@ -1643,28 +1681,50 @@ static noinline void __init kernel_init_freeable(void)
  
  	rcu_assign_pointer(cad_pid, get_pid(task_pid(current)));
  
@@ -99,7 +122,7 @@ index dd7b2a659..4926c25ff 100644
  	console_on_rootfs();
  
  	/*
-@@ -1672,7 +1717,27 @@ static noinline void __init kernel_init_freeable(void)
+@@ -1672,7 +1732,27 @@ static noinline void __init kernel_init_freeable(void)
  	 * the work
  	 */
  	int ramdisk_command_access;
