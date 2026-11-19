@@ -6,11 +6,13 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
-- **2026-11-18 23:41（夜间续跑，4 件在跑）**：
-  - `m14-linux-017` 第 23 轮：**S7 已转绿**（`/init` → musl → `getpid`/`write`/`brk`/`exit_group`，exit=0）；switch 门控 **42 PASS / 1 FAIL**，唯一红项 = 本任务 **S5**（U-mode 帧 A/B 往返），本轮按「入口栈静态 + 帧按任务化」方案做。修过的真缺陷：F47 代码页错位、F48 `protection_map` 缺 U 位、F50 文件后备数据页被映射成零页、`brk` 钩子读错寄存器组（`rb16` 非 `rd16`）。
-  - `m15-spec-001`：**已收尾**（`ab03d5ce`）——`.idl` 源迁 `idl/`、`render.py` 生成 spec 块、`check-idl-sync` 进 L1；5 条样板、4 路注入。
-  - `m16-gem5-013`：gem5 补 `prevCfxCode`（`escape` 恢复 `inner_cfx_code`）。
-  - `m16-chipyard-005`：**已收尾**（`a39611f4`）——RTL 补 `inner_cfx_code`/`prevCfx`（cg5 rc1 RW、CFXESC 交当前 cfx）；sim md5 **`df16728e`**（`.conda-env` 下重建，`11-cfx` 5/5 验证）。共享 `.work/source/chipyard` = base + 23 补丁（`f874b8b`）。
+- **2026-11-19 11:55（M15 IDL 收官在即）**：
+  - **M15 12 册 IDL**：已收尾 11 册（001/002/003/004/005/006/008/009/010/011/012/013 中除 007 外全部）；`007`（浮点 50 条）**拆分**为 `015`（浮点语义库移植 ft 族，A2 全量移植 UDB `fp.idl`，先 ft）——批 1 已交 36 函数、oracle 2978 例失配 0，批 2 算术族在跑；`fo` 族另立任务。
+  - **`m15-idl-014`**（解码变量当内容用）：修 010×4/012×3 代码 + 04/09/08 全部注释记号，加 `render.py` 机械门控；第 2 轮 Accepted，第三轮仅处理「合并态」08 注释 34 处。
+  - **`m14-linux-017` 第 31 轮 S5 转绿**（51/51）：F59/F60 根因 = cfx 掩码**按源 cfx 索引**（`DADAO-12 §3.3`），内核须清所需来源位（`contract-syscall:117`）；pgd 复制 `VA≥2TiB` 逐项断言 `items=4096 mismatches=0`；大改档复核中。
+  - **chipyard sim md5 `df16728e…`**（`.conda-env` 重建，`11-cfx` 5/5）；构建**必须**用 `.conda-env` 的 `PATH`+`RISCV`（`ISS-474`）。
+  - **流程新增**：`docs/Process-07 §5a` 验收必验「合并态」（清单 sha256 按 master 重算；扫全仓/全文门控须在合并态跑）；`discussing.md` 只记未裁决项。
+  - **待开始**：`m15-spec-005`（IDL 块布局改造：节末集中 + 三级标题，等 12 册合入后）；`m15-infra-008`（CONFIG 钉子门控，等 017 收口）；`m14-linux-018`/`023`/`032`–`034`。
 - **已定口径（2026-11-18）**：`escape` 恢复 `inner_cfx_code ← excp_prev_cfx_code`（`cg5 rc1`；spec+DADAO-12/Kaiwu+QEMU 已落，版本号未动）；`spec/Kaiwu` 三处已对齐；IDL 寄存器模型 = 方案 C（四组数组 + `fo`/`ft` 视图、`ra` 逻辑栈序 + `ras_*`）；`read_memory`/`write_memory`（无 `_be`）/`fetch_memory`/`raise(code,mode,addr)`/`is_naturally_aligned`；`idlc` 不进门控；`.idl` sha256 锁延后到 M15 收口（N21）。
 - **目录防护第一波已收尾**：`spec/`、`.tao/`、`.tao/knowledge`、`components/` 各有 `.manifests.toml` + `check-manifests-guard`（缺清单/缺注册表/游离清单均红）；`check-spec-readonly`/`check-knowledge-dir` 已删并入。
 - **待开始**：`m15-infra-008`（CONFIG 钉子门控，等 017 收口）；`m14-linux-018`(COW)/`023`(用户 syscall)/`032`–`034`(K6)；`m14-linux-019`（暂停，等 017 释放 linux）。
