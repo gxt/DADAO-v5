@@ -207,3 +207,158 @@ if (src2 == 16'd0) {
   Bits<16> rem = src1 % src2;                  # 无符号余数
   rd[rdHB] = {48'd0, rem};                     # 结果零扩展写满 64 位
 }
+
+# id: shl.w_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 立即数形式：immu6 > N=15 ⇒ ILLI（SimRISC-09 §2；附录 B encode_sbz「shl.w … shamt > 15」）
+if (immu6 > 6'd15) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位左移（SimRISC-09 §2 公式 shl.w）：shamt = immu6[3:0]，块内左移、移出位丢弃，
+# 结果零扩展写满 64 位（rdHB[63:16] = 0）
+Bits<4> shamt = immu6[3:0];
+Bits<16> res = rd[rdHC][15:0] << shamt;        # 先读后写：源在任何写入之前捕获
+rd[rdHB] = {48'd0, res};
+
+# id: shl.w_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 寄存器形式：shamt = rd[rdHD][3:0]（取 rdHD 号寄存器的低 4 位，天然对 16 取模，
+#               rdHD 的更高位忽略、不抛 ILLI，§2）；
+# 16 位左移、移出位丢弃，结果零扩展写满 64 位
+Bits<4> shamt = rd[rdHD][3:0];
+Bits<16> res = rd[rdHC][15:0] << shamt;        # 先读后写：源在任何写入之前捕获
+rd[rdHB] = {48'd0, res};
+
+# id: shr.uw_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 立即数形式：immu6 > N=15 ⇒ ILLI（SimRISC-09 §2；附录 B encode_sbz「shr.uw … shamt > 15」）
+if (immu6 > 6'd15) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位逻辑右移（§2 公式 shr.uw）：shamt = immu6[3:0]，高位补 0，结果零扩展写满 64 位
+Bits<4> shamt = immu6[3:0];
+Bits<16> res = rd[rdHC][15:0] >> shamt;        # 先读后写：源在任何写入之前捕获
+rd[rdHB] = {48'd0, res};
+
+# id: shr.uw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 寄存器形式：shamt = rd[rdHD][3:0]（取 rdHD 号寄存器的低 4 位，高位忽略、不抛 ILLI，§2）；
+# 16 位逻辑右移、高位补 0，结果零扩展写满 64 位
+Bits<4> shamt = rd[rdHD][3:0];
+Bits<16> res = rd[rdHC][15:0] >> shamt;        # 先读后写：源在任何写入之前捕获
+rd[rdHB] = {48'd0, res};
+
+# id: shr.sw_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 立即数形式：immu6 > N=15 ⇒ ILLI（SimRISC-09 §2；附录 B encode_sbz「shr.sw … shamt > 15」）
+if (immu6 > 6'd15) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位算术右移（§2 公式 shr.sw）：shamt = immu6[3:0]；块内右移、空位补 rdHC[15]，
+# 目的[63:16] = 符号扩展 rdHC[15] ⇒ {48{val[15]}}
+Bits<16> val = rd[rdHC][15:0];                 # 先读后写：源在任何写入之前捕获
+Bits<4> shamt = immu6[3:0];
+Bits<16> res = $signed(val) >>> shamt;
+rd[rdHB] = {{48{val[15]}}, res};
+
+# id: shr.sw_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 寄存器形式：shamt = rd[rdHD][3:0]（取 rdHD 号寄存器的低 4 位，高位忽略、不抛 ILLI，§2）；
+# 16 位算术右移、空位补 rdHC[15]，目的[63:16] = 符号扩展 rdHC[15]
+Bits<16> val = rd[rdHC][15:0];                 # 先读后写：源在任何写入之前捕获
+Bits<4> shamt = rd[rdHD][3:0];
+Bits<16> res = $signed(val) >>> shamt;
+rd[rdHB] = {{48{val[15]}}, res};
+
+# id: rev.w_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# k 须 one-hot 且 k < S=16（SimRISC-09 §2.1 + SimRISC-04 §2.2.1；附录 B encode_onehot）
+# ⇒ 合法仅 {1,2,4,8}；非 one-hot 或 k ≥ 16 ⇒ ILLI
+if (immu6 != 6'd1 && immu6 != 6'd2 && immu6 != 6'd4 && immu6 != 6'd8) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位块内逐块反转（§2.1）：整 64 位源按 16 位块切分（4 块），每块按 k 位切成 16/k 个单元，
+# 反转单元顺序、单元内部位序不变，四块一律同法处理（不是 64 位整体位反序，也不是 bswap16 专用）。
+# 等价写法：按距离 8/4/2/1 依次交换单元（k=8 只做距离 8、k=1 四步全做）；
+# 掩码在 16 位块内重复 ⇒ 交换不跨块
+Bits<64> x = rd[rdHC];
+if (immu6 == 6'd1) {
+  x = ((x & 64'hAAAA_AAAA_AAAA_AAAA) >> 1) | ((x & 64'h5555_5555_5555_5555) << 1);
+}
+if (immu6 == 6'd1 || immu6 == 6'd2) {
+  x = ((x & 64'hCCCC_CCCC_CCCC_CCCC) >> 2) | ((x & 64'h3333_3333_3333_3333) << 2);
+}
+if (immu6 == 6'd1 || immu6 == 6'd2 || immu6 == 6'd4) {
+  x = ((x & 64'hF0F0_F0F0_F0F0_F0F0) >> 4) | ((x & 64'h0F0F_0F0F_0F0F_0F0F) << 4);
+}
+x = ((x & 64'hFF00_FF00_FF00_FF00) >> 8) | ((x & 64'h00FF_00FF_00FF_00FF) << 8);
+rd[rdHB] = x;
+
+# id: rol.w_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 立即数形式：immu6 > 15 ⇒ ILLI（SimRISC-09 §2.2；附录 B encode_sbz「rol.w … shamt > 15」）
+if (immu6 > 6'd15) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 16 位逻辑循环左移（§2.2）：shamt = immu6[3:0]，只一个方向，结果零扩展写满 64 位。
+# 按位等价式：val 左移 s 位 与 val 右移 16-s 位 按位或；写成 {val,val} 右移 16-s 后取低 16 位，
+# 使 s=0 时右移量 16 落在 32 位宽内（不出现对 16 位值右移 16 位）
+Bits<16> val = rd[rdHC][15:0];                 # 先读后写：源在任何写入之前捕获
+Bits<4> shamt = immu6[3:0];
+Bits<32> dup = {2{val}};
+Bits<32> shifted = dup >> (16 - shamt);
+Bits<16> res = shifted[15:0];
+rd[rdHB] = {48'd0, res};
+
+# id: rol.w_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 寄存器形式：shamt = rd[rdHD][3:0]（取 rdHD 号寄存器的低 4 位，天然对 16 取模，
+#               rdHD 的更高位忽略、不抛 ILLI，§2.2）；
+# 16 位逻辑循环左移、只一个方向，结果零扩展写满 64 位（同 orri 形式的算式）
+Bits<16> val = rd[rdHC][15:0];                 # 先读后写：源在任何写入之前捕获
+Bits<4> shamt = rd[rdHD][3:0];
+Bits<32> dup = {2{val}};
+Bits<32> shifted = dup >> (16 - shamt);
+Bits<16> res = shifted[15:0];
+rd[rdHB] = {48'd0, res};
