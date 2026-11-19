@@ -105,7 +105,7 @@
 ### 第 1 轮 reviewer 验收（2026-11-19，中改档 30 min，独立重跑）
 
 **重跑记录（我自己的命令 + 真实输出/退出码）**
-- `bash .work/evidence/m15-testcases-020/run.sh --inject`（`GEM5_BIN=` 冻结副本 `f6dab072…`、`DADAO_ALLOW_CONCURRENT=1`）⇒ **`RUNSH_EXIT=0`、`failures=0`**；PASS 46 行 = 命名检查 20 项（C0a…C8b）+ INJ0–5 共 6 项，run.sh 级 FAIL 0（输出里 3 处 `[FAIL]` 是 C7/INJ1 消费的下层打印）。
+- 仓库根执行运行期证据目录内的 `run.sh --inject`（`GEM5_BIN=` 冻结副本 `f6dab072…`、`DADAO_ALLOW_CONCURRENT=1`）⇒ **`RUNSH_EXIT=0`、`failures=0`**；PASS 46 行 = 命名检查 20 项（C0a…C8b）+ INJ0–5 共 6 项，run.sh 级 FAIL 0（输出里 3 处 `[FAIL]` 是 C7/INJ1 消费的下层打印）。
 - C3 双 lane：两 id 各 `检查点 18 / 144 B / rc {'qemu': 0, 'gem5': 0}`；`运行期检查点之和=36 / 静态之和=36`。检查点**现场统计**：`scan_source` 两文件 `checks=18 faults=1 pts_ok=True`（1..19 连续），`grep -c` = 2×ENC + 16×FPCMP = 18，与运行期一致（`run.sh` 无写死 18/144）。
 - 门控独立重跑：`check_case_ledger --write` rc=0 → `check` rc=0（**5672 条**）；`check_inst_macro_scope` rc=0（**死宏 0**）；`check_tests_index` rc=0（**472 条**）；`refresh_matrix_notes --check` rc=0。
 - canonical 独立核对：`spec/SimRISC-07 §1.3`（L876：ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）+ `§4`（L1754：四种比较一律 canonical；signaling 无序恒置 NV、quiet 仅 sNaN 置）。两 `.S` 点 10–17 期望均为**整 64 位 canonical**（ft 零扩展 `0x000000007FC00000`）、flags `0x01`，非结构断言；qcmp 两册亦 canonical 且 NV 按 quiet 规则（点14 payload qNaN→`0x00`、点17 sNaN+qNaN→`0x01`）。

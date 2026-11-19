@@ -32,12 +32,12 @@
 | m16-gem5-017 | 2026-11-19 22:45 | 2–3 h | 配置命名统一：`se.py` + `--cpu-type`，删 `se_timing.py` |
 | m16-gem5-016 | 2026-11-19 22:20 | 2–3 h | 周期表 §3 的 08/09/10 拆行（移位=2 拍；N5 第 3 条，用户裁定 a） |
 | m16-gem5-015 | 2026-11-19 22:15 | 2–4 天 | FS + Timing（tiny/vast 两机型；`translateTiming` 落地） |
-| m16-chipyard-006 | 2026-11-19 16:28 | 2–3 天 | Vast 核参数与地址通路（`useVM`/PTBR·ASID·`ptw_enable`/`cfx_ptw` 寄存器面/地址路由） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-006 | 2026-11-20 00:30 | Vast 核参数与地址通路（`useVM`/PTBR·ASID/`ptw_enable`/`cfx_ptw` 寄存器面/地址路由；Tiny 零增益） |
 | m16-gem5-014 | 2026-11-19 17:52 | Vast 一级 I/D TLB（2×8 + 4 超页 LRU、双表失效、A/D OR 合并） |
 | m16-chipyard-005 | 2026-11-19 02:00 | RTL 补 `inner_cfx_code`/`prevCfx`（cg5 rc1 RW、CFXESC 交当前 cfx；sim md5 `9b6928e0`） |
 | m16-gem5-013 | 2026-11-19 01:45 | gem5 补 `prevCfxCode`（trap 保存/escape 恢复/cg5 rc1 RW）；删恢复行 ⇒ `0x7E` |

@@ -8,7 +8,7 @@
 **可并行分片**：否（改 `dadao-wuming` generator + `DadaoConfigs.scala`）
 **预估**：2–3 天
 **档位**：大改
-**状态**：待验收
+**状态**：已验证
 
 ## 背景
 
@@ -148,7 +148,7 @@
 2. **B2 读码**：B 段两条新判据 = ① 路由谓词 `(|(x[47:42])) | ~_gewu_io_ptw_enable` 现场计数 ≥1；② `CFXMEM` 三原因字（位号现场从 `contract-see §6.1.1` 解析、互校 `ADR-0056`）3/3 —— 均非恒真、各有可达 FAIL。
 3. **reviewer 独立注入 2 路（均不在脚本 3 路内）**：① `enterMemFault` 删 `|| !ptwEnable` ⇒ 重建 ⇒ B 段 `route predicate sites = 0`、FAIL=4、**rc=1**，探针 oracle **rc=1**（record 15/17）；② `enterHmonMem` 默认子原因 NONPTW→IGPTRAP ⇒ 重建 ⇒ `cause words 2/3`、FAIL=2、**rc=1**。两路均 `cp`+md5 还原（md5=`f762e98d…` 相等，**未用** checkout/restore/stash）⇒ 重建 ⇒ B 段 PASS=14 FAIL=0、**rc=0**、探针 oracle rc=0、组件源树 `git status` 空。
 4. 脚本自带注入 `--inject`：**PASS=25 FAIL=0、rc=0**（inj1/2 oracle rc=1、inj3 guest rc=124+oracle rc=1；三路 md5 相等还原→重建→回绿）。
-5. **合并态全量**：`bash .work/evidence/m16-chipyard-006/run.sh` ⇒ **PASS=59 FAIL=0、rc=0**（首版 10 条红全部 = 并发 qemu 写者致 `writer-guard REFUSED rc=75` 拒跑首册，非交付物缺陷；该写者结束后重跑全绿）。首册 38 镜像 / 6128 B 三方两两 **0 差异**、38/38；`route predicate sites = 4`、cause words 3/3。
+5. **合并态全量**：仓库根执行运行期证据目录内的 `run.sh` ⇒ **PASS=59 FAIL=0、rc=0**（首版 10 条红全部 = 并发 qemu 写者致 `writer-guard REFUSED rc=75` 拒跑首册，非交付物缺陷；该写者结束后重跑全绿）。首册 38 镜像 / 6128 B 三方两两 **0 差异**、38/38；`route predicate sites = 4`、cause words 3/3。
 6. **独立重建**：Tiny 与 Vast 的 `make verilog` + `make` 均 **rc=0、`%Error`=0/0**；4 份补丁源 md5 与注入前快照逐字节相同。
 7. **合并态范围**：`git diff master...HEAD --stat` = 10 文件（chipyard 4 补丁 + `tools/chipyard/ptw/` 3 件 + 任务书 006/007/008），无越界；组件源树 `git status` 空；工作树快照前后均 0 行、逐行对账无差异。
 8. 磁盘 `df -h /tmp` 全程余量 ≥5.2G；术语「银行」0 违例（「寄存器组」）；finding a–e 任务书如实标「未处理」；证据脚本基线为固定 md5/常量（无 `HEAD`/`merge-base`，`Process-07 §5b` 合规）。
