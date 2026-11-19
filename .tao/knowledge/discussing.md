@@ -47,14 +47,12 @@
 - **选项**：**A（推荐）** 按原计划改调 `ft_scale`（可观测变化只在该区间：下溢→溢出，= 修 bug + 与 `fosclb` 对齐；`m15-idl-019` 拟好 body）；**B** 保持临时写法（任务撤销），另立任务把「先饱和 `n` 再算指数」写进临时写法。
 - **现状**：`m15-idl-019` 已停在「待裁定」，未改任何代码；引擎侧证据 `PASS=19 FAIL=0`（绿 = 结论成立）、等价性 11875 例失配 78、oracle 对库 0 失配。缺陷登记 `ISS-476`。
 
-## N27. 匿名页上的 shared futex（`m14-linux-025` 补测后，**待用户定是否支持**）
+## N27. 匿名页 shared futex ⇒ 由 `m14-linux-035` 按标准流程解决（用户 2026-11-20 已裁）
 
-- **原记录已作废**：曾称「`CLONE_CHILD_CLEARTID` 走 shared futex ⇒ `pthread_join` 不可用」——复核证明 `join` 等的是 `detach_state`（private），**不受影响**。
-- **补测事实（`025` 返工，控制台原文）**：正确常量 `CLONE_CHILD_CLEARTID = 0x00200000` 下 **CLEARTID 的「清」可用**（`tid` 字被清零）；`-14` 的真实条件是 **op 不带 `FUTEX_PRIVATE_FLAG` + 故障通道装的匿名页无 rmap**（`get_futex_key()` 的 `!folio->mapping` 分支）——private 同页正常（`-11` = `EAGAIN`）、**文件后备页 shared 正常**（`-11`）⇒ 与 op/flag 无关，是**页类**问题。
-- **后果**：该类页上的 shared `WAIT`/`WAKE` 都返回 `-14`；`mm_release()` 不检查返回值 ⇒ CLEARTID 的**唤醒**发不出去（但「清」成立）。
-- **新发现（影响面可能更大）**：musl 把 CLEARTID 挂在 `__thread_list_lock`（`pthread_create.c:245/355`），`__tl_lock()`/`__tl_sync()` 对它做 **shared** 等待（`__tl_sync` 仅在锁被占用时才等）⇒ 线程创建/回收的高并发路径可能踩到 `-14`。
-- **选项**：**A** 给匿名页补 rmap（改 `mm/`，让 shared futex 在匿名页可得，跨模块风险高）；**B** 在 `get_futex_key()` 的 `!folio->mapping` 分支上把 futex key 退化为「按 VA 私有化」并明确文档化（语义偏离，但单进程多线程够用）；**C** 暂不支持，只保证 private 路径（记录为已知限制，`029`/`032`–`034` 用单线程或 private 语义规避）。
-- **状态**：`025` 第 2 轮复核中；本条**不阻塞 `027`**，但 `029`（K5 收口）前须定。
+- **根因（已查明）**：`arch/dadao/mm/fault.c` 是**自定义缺页通道**（`find_vma` + `dadao_pf_alloc_page()` 返回 PA + `set_pte`），**不调 `handle_mm_fault`**、**不注册 rmap** ⇒ `folio->mapping == NULL` ⇒ `kernel/futex/core.c` 的 `!mapping` 分支 `return -EFAULT`。**rmap 不是 ISA 特性**（`mm/` 通用机制），是我们绕过了它。
+- **用户裁定（2026-11-20）**：「**M14，尽量按主流 ISA 的标准流程走**」⇒ 已写入 `AGENTS.md`（内核实现优先走 `mm/`/`kernel/` 通用路径，DADAO 特有处只做 arch 适配）。
+- **执行**：立 `m14-linux-035 缺页路径回归 Linux 通用流程`（阶段 1 评估 PTE 兼容性与 `handle_mm_fault` 所需 arch 钩子 → 阶段 2 补 rmap/LRU/page cache）；`025` 的 F7 记录问题按实测修正（不再有「`pthread_join` 不可用」这类错结论）。
+- **原 A/B/C 三选一作废**（那是基于「要不要支持一类新语义」的误解）。
 
 ## N7. cfx 待实现范围
 
