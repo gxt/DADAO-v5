@@ -5351,8 +5351,8 @@ lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	12209004	ld.ut	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	13209001	ld.sb	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	14209002	ld.sw	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	15209004	ld.st	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	16209001	ld.t	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	17209001	st.t	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	16209004	ld.t	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	17209004	st.t	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	18209001	st.b	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	19209002	st.w	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	1a209004	st.t	1
@@ -5362,8 +5362,8 @@ lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	22209008	ld.o	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	23209008	st.o	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	24209008	ld.o	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	25209008	st.o	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	26209001	ld.o	1
-lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	27209001	st.o	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	26209008	ld.o	1
+lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	27209008	st.o	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	5c209001	cmp.ui	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	5d209001	cmp.si	1
 lit	tests/unit/llvm/lit/MC/DADAO-gen/gen-rrii.s	6e209004	br.eq	1
