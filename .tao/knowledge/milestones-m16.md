@@ -20,7 +20,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m16-chipyard-012 | 1–2 h | RTL `scmp` 无序结果改 canonical quiet NaN（四方对齐的 RTL 缺口；`NV` 规则不变） |
 | m16-gem5-018 | 3–4 h | 块传送 `beats` 按起始相位算（N19；等 `m16-gem5-016` 改同一文档） |
 | m16-chipyard-007 | 2–3 天 | PTW 两级步查（64 KiB 页 + 512 MiB 超页、大端 PTE、HSJU/frags、A/D 本地+回写） |
 | m16-chipyard-008 | 1–2 天 | I/D TLB（2×8 + 4 超页 FA/LRU、I 无 D 位）+ `cfx_ptw_tlb_control` 双表失效 |
@@ -29,6 +28,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-chipyard-012 | 2026-11-20 00:33 | 1–2 h | RTL `scmp` 无序结果改 canonical quiet NaN（四方对齐的 RTL 缺口；`NV` 规则不变） |
 | m16-gem5-017 | 2026-11-19 22:45 | 2–3 h | 配置命名统一：`se.py` + `--cpu-type`，删 `se_timing.py` |
 | m16-gem5-016 | 2026-11-19 22:20 | 2–3 h | 周期表 §3 的 08/09/10 拆行（移位=2 拍；N5 第 3 条，用户裁定 a） |
 | m16-gem5-015 | 2026-11-19 22:15 | 2–4 天 | FS + Timing（tiny/vast 两机型；`translateTiming` 落地） |
