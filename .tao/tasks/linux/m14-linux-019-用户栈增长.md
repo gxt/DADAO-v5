@@ -7,7 +7,9 @@
 **并行组**：与 `m14-linux-018`（COW）**必须串行**（共享 `mm/fault.c` 的 `CFXPERM`/缺失分发点 / `mm/Makefile` / `Kconfig.debug`）；与 qemu/testcases 可并行
 **预估**：3–4 h（单点语义：栈 VMA 下方扩展分支；复核 ≥3 路注入）
 **档位**：中改（单点语义；复核 ≥3 路注入——高于中改下限 2，覆盖「栈底边界/上限/非栈 VMA/权限类/邻接」多反例）
-**状态**：待开始
+**状态**：已验证
+
+> **并入说明（2026-11-19）**：`m14-linux-017` 第 18 轮已按本任务书的 `S1`–`S6` 实现并交付（`fault.c` 的 `dadao_pf_grow_stack()`、`Kconfig.debug` 的 `CONFIG_DADAO_K4_STACK_SELFTEST`、`tools/linux/k4_stack_probe.py` 44 条断言），探针在 017 的第 31 轮与复核中 **44/44、rc=0**。本任务不再单独开工，判据由 `k4_stack_probe` 承接。
 
 ## 背景
 
