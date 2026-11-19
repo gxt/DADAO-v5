@@ -1,7 +1,7 @@
-# m14-qemu-008: `scmp` 无序结果改 canonical quiet NaN（spec 已改）
+# m15-qemu-001: `scmp` 无序结果改 canonical quiet NaN（spec 已改）
 
 **模块**：qemu
-**项目里程碑**：M14
+**项目里程碑**：M15
 **依赖**：spec 修改已落盘（`a6f11e23`）
 **可并行分片**：否
 **预估**：1–2 h
