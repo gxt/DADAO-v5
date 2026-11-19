@@ -68,7 +68,7 @@
 ### 第 1 轮 reviewer 验收
 
 **重跑记录（reviewer 现场 rc）**：
-- `.work/evidence/m15-qemu-001/run.sh --inject` ⇒ **rc=1，SUMMARY pass=19 fail=1**；唯一 FAIL = `merge-state`（master 非 HEAD 祖先）。根因＝环境漂移：master 在 engineer 提交（810b7120，20:22:03）后 4 秒起并发前进 30 commits（5e5d7f78 20:22:07 → 2b19ed6d 22:56:18），非交付物缺陷；其完成区「20/20」在其时点为真。其余 19 项全 PASS（canon 20/20 字节、regress rc=0/0/10/10、注入红/还原/回绿、patch-tree rc=0）。
+- `运行期证据目录内的 run.sh --inject` ⇒ **rc=1，SUMMARY pass=19 fail=1**；唯一 FAIL = `merge-state`（master 非 HEAD 祖先）。根因＝环境漂移：master 在 engineer 提交（810b7120，20:22:03）后 4 秒起并发前进 30 commits（5e5d7f78 20:22:07 → 2b19ed6d 22:56:18），非交付物缺陷；其完成区「20/20」在其时点为真。其余 19 项全 PASS（canon 20/20 字节、regress rc=0/0/10/10、注入红/还原/回绿、patch-tree rc=0）。**architect 合并后在合并态重跑该脚本 `--inject` ⇒ 20/20、rc=0（含 `merge-state` PASS）。**
 - 4 门控（自跑）：`check-patch-tree` rc=0（11 sets/434 patches OK）、`check-fp-contract` rc=0、`check-index-blobs` rc=0、`check-component-changelog` rc=0（40 项）。`check-temp-dirs` rc=2 归属他任务（m14-linux-*×5、m15-gem5-001 陈旧目录、/tmp 共享 70.5%），不背。
 - 合并态补证：`git merge-tree --write-tree HEAD master` rc=0、0 CONFLICT；master 未动 `tests/inst`/`components/qemu`/`Makefile`/`tests/ee-tiny` ⇒ 行为类 PASS 可携带（合并归 architect，reviewer 未做 git 写操作）。
 
