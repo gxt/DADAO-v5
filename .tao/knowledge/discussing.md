@@ -100,6 +100,16 @@
   （`rd2`/`rd3` 都是 reserved、编译器不分配，故全程可安全做过渡；`cg6` 只占 `rc1` 一个槽。）
   `__switch_to` 只加一行：把 `task_stack_page(next)+THREAD_SIZE` 写进 `cfx_umon cg6 rc1`。**不需要全局变量、不改 `thread_info.h`**（入口切到任务栈后 `current = SP & ~(THREAD_SIZE-1)` 自然成立）；静态栈保留为 boot 早期兜底（`cg6 rc1 == 0` 时用）。依据：`rb2rd`/`rd2rb` 见 `SimRISC-02`；`rd2–rd3` 是 reserved（编译器不分配）；`cg6` 见 `DADAO-12 §3.7`（内核专用）。**用户补充质疑已澄清**：共用的是内核态静态栈（非用户栈）；spec 未规定 `trap` 自动切栈（`§5.1/§5.2` 只定向量与 `inner_cfx_code`）；「每任务内核栈」由软件决定，故走 A 而非改 spec。
 
+## N23. IDL 语义库 v1 的裁定（用户 2026-11-19，T1–T5 已定；T6/T7 待定）
+
+- **T1 `ip()` 宽度（已裁定）**：`ip()` 返回 **`Bits<64>`**，但**高 16 位固定为 0**（= 48 位地址零扩展）。跳转类指令的计算用 64 位，**写回 IP 时只保留 48 位**（`rb0 ← target[47:0]`）。⇒ 语义库 `ip() -> Bits<64>`；`br.eq` 去掉 `{16'd0, ip()}`；`aip.si` 直接用 `ip()`。
+- **T2 `set.w` 写 rf（已裁定 A）**：切片赋值 `rf[d][wyde*16 +: 16] = imm`，其余位保持；**不新增库函数**。
+- **T3 `SimRISC-00 §2.3` 散文（已裁定）**：改为「`rf` **专用于**浮点类指令」。用户解释：不在 `SimRISC-07` 里的那些（`set.*`/`ld.t`/`ldm.t`/`rf2rf`/`rd2rf`）都是**对 rf 直接赋值/复制**类，**不牵涉任何运算**，不受「专用于浮点类」限制。⇒ 散文需补这一句（用户已授权）。
+- **T4 `set.ow`/`set.zw` 的 wyde 选择（已裁定 B）**：在散文里补一句把「选中 wyde = `immu16` 的某几位」写全（不改 operation 理解）。
+- **T5 `escape` 缺函数（已裁定 A）**：语义库补 `inner_cfx_code()` / `cfx_frame_valid(cfxha)` / `cfx_escape_enter(cfxha, imm)`（按 `cfx_trap_enter` 风格）。
+- **T6 cfx 寄存器访问（待定）**：RISC-V 的做法是 `CSR[name]` 直接索引 + 每个 CSR 自带 `sw_read()` / `field.sw_write(csr_value)` 钩子（钩子在 CSR 定义里，不在指令 operation 里）。对应到 DADAO：建议 `cfx_read(cfxha, cg, rc)` / `cfx_write(cfxha, cg, rc, value)` 两个函数（覆盖全部 cfx 寄存器），读写权限（RW/HW/RO/保留）由 spec 寄存器表描述、IDL 只做访问。
+- **T7 `fence`（待定）**：UDB **有** `builtin function fence(pi,pr,po,pw,si,sr,so,sw)`（无 body，由实现提供），`fence.yaml` 的 operation 只做 FIOM 覆盖后调用它；但 UDB **没有**一般内存序的形式定义（只有 `memory_model_acquire`/`release` 两个 builtin 供 `lr`/`sc` 的 aq/rl 用）。⇒ 建议照 UDB：加 `builtin function cfx_fence(cfxha, pred, succ)`（无 body），注释说明「顺序语义由实现提供，IDL v0 不建模」。
+
 ## N7. cfx 待实现范围
 
 - 已实现：umon / jmon / smon / hmon / ptw / pmem / time / hart / power。
