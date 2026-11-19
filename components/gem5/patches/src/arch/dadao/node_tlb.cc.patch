@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_tlb.cc b/src/arch/dadao/node_tlb.cc
 new file mode 100644
-index 0000000..1137f0d
+index 0000000..e8416b6
 --- /dev/null
 +++ b/src/arch/dadao/node_tlb.cc
-@@ -0,0 +1,415 @@
+@@ -0,0 +1,552 @@
 +// DADAO Node TLB/PTW implementation.
 +#include "arch/dadao/node_tlb.hh"
 +
@@ -12,6 +12,7 @@ index 0000000..1137f0d
 +#include "arch/dadao/fs_machine.hh"
 +#include "arch/dadao/isa.hh"
 +#include "arch/dadao/node_cfx.hh"
++#include "base/cprintf.hh"
 +#include "base/logging.hh"
 +#include "cpu/thread_context.hh"
 +#include "mem/request.hh"
@@ -22,6 +23,29 @@ index 0000000..1137f0d
 +
 +namespace DadaoISA
 +{
++
++NodeTLB::NodeTLB(const Params &p) :
++    BaseTLB(p), romBase(p.rom_base), romSize(p.rom_size),
++    ramBase(p.ram_base), ramSize(p.ram_size), hmonBase(p.hmon_base),
++    hmonSize(p.hmon_size), smonBase(p.smon_base), smonSize(p.smon_size),
++    pmemBase(p.pmem_base), pmemSize(p.pmem_size), stats(*this)
++{
++    // Structural assertion, printed once per side at start-up (derived from
++    // the NodeTlb* geometry constants, never hand-written counts).
++    const bool dataSide = (p.entry_type == TypeTLB::data);
++    inform("DADAO Node TLB (%s): groups=%u ways=%u super_entries=%u "
++           "set_index=VA[%u] replacement=LRU dirty_bit=%u\n",
++           dataSide ? "D" : "I", NodeTlbSets, NodeTlbWays,
++           NodeTlbSuperEntries, NodeTlbSetShift, dataSide ? 1 : 0);
++}
++
++NodeTLB::TlbStats::TlbStats(NodeTLB &parent) :
++    statistics::Group(&parent),
++    ADD_STAT(hits, statistics::units::Count::get(),
++             "guest TLB lookups that hit an entry"),
++    ADD_STAT(misses, statistics::units::Count::get(),
++             "guest TLB lookups that missed and started a page-table walk")
++{}
 +
 +namespace
 +{
@@ -143,6 +167,183 @@ index 0000000..1137f0d
 +    return SubNuPerm << (runMode & 0x3);
 +}
 +
++/** Set (group) index of a normal page: VA[16] (user ruling 2026-11-19). */
++unsigned
++tlbSetOf(uint64_t va)
++{
++    return (va >> NodeTlbSetShift) & (NodeTlbSets - 1);
++}
++
++/** Promote `way` to MRU in an N-way LRU age column (0 = MRU, N-1 = victim). */
++template <unsigned N>
++void
++lruTouch(uint8_t (&age)[N], unsigned way)
++{
++    const uint8_t old = age[way];
++    for (unsigned i = 0; i < N; ++i) {
++        if (i != way && age[i] < old)
++            ++age[i];
++    }
++    age[way] = 0;
++}
++
++/** Replacement choice: an invalid entry if the table still has one, else the
++ *  LRU way. */
++template <class Entry, unsigned N>
++unsigned
++lruVictim(Entry (&entries)[N], const uint8_t (&age)[N])
++{
++    for (unsigned i = 0; i < N; ++i) {
++        if (!entries[i].valid)
++            return i;
++    }
++    unsigned victim = 0;
++    for (unsigned i = 1; i < N; ++i) {
++        if (age[i] > age[victim])
++            victim = i;
++    }
++    return victim;
++}
++
++/** Guest TLB lookup (TLB-05/TLB-06): the group x way array of the matching
++ *  set first, then the fully-associative superpage array.  A hit is promoted
++ *  to MRU and returned; a miss returns nullptr and the caller walks. */
++template <class Entry>
++Entry *
++tlbProbe(Entry (&sets)[NodeTlbSets][NodeTlbWays],
++         uint8_t (&setLru)[NodeTlbSets][NodeTlbWays],
++         Entry (&super)[NodeTlbSuperEntries],
++         uint8_t (&superLru)[NodeTlbSuperEntries], uint64_t va, uint16_t asid)
++{
++    const unsigned set = tlbSetOf(va);
++    auto matches = [va, asid](const Entry &e) {
++        if (!e.valid)
++            return false;
++        const uint64_t mask = (1ULL << e.sizeLog2) - 1;
++        if ((va & ~mask) != e.va)
++            return false;
++        return e.g || e.asid == asid;
++    };
++    for (unsigned way = 0; way < NodeTlbWays; ++way) {
++        if (matches(sets[set][way])) {
++            lruTouch<NodeTlbWays>(setLru[set], way);
++            return &sets[set][way];
++        }
++    }
++    for (unsigned way = 0; way < NodeTlbSuperEntries; ++way) {
++        if (matches(super[way])) {
++            lruTouch<NodeTlbSuperEntries>(superLru, way);
++            return &super[way];
++        }
++    }
++    return nullptr;
++}
++
++/** Hit path (TLB-09/TLB-10/TLB-14): fragment -> HSJU -> R/W/X in spec order,
++ *  then update the local A/D state and form the physical address.  The I
++ *  side tracks A only (its entry has no D state). */
++template <class Entry>
++Fault
++tlbHit(Entry &e, uint64_t va, bool fetch, bool write, const NodeState &s,
++       const RequestPtr &req, Addr faultPc)
++{
++    const bool super = (e.sizeLog2 == NodeSuperShift);
++    const unsigned frag = super ? ((va >> 26) & 0x7) : ((va >> 13) & 0x7);
++    if (!(e.frags & (1u << frag))) {
++        return std::make_shared<NodePtwFault>(
++            CauseCfxMem | missingFragSub(fetch, super), va, faultPc);
++    }
++    if (!(e.hsju & (1ULL << (s.runMode & 0x3)))) {
++        return std::make_shared<NodePtwFault>(
++            CauseCfxPerm | hsjuSub(s.runMode), va, faultPc);
++    }
++    if (fetch && !e.x) {
++        return std::make_shared<NodePtwFault>(
++            CauseCfxPerm | SubNxPerm, va, faultPc);
++    }
++    if (write && !e.w) {
++        return std::make_shared<NodePtwFault>(
++            CauseCfxPerm | SubNwPerm, va, faultPc);
++    }
++    if (!fetch && !write && !e.r) {
++        return std::make_shared<NodePtwFault>(
++            CauseCfxPerm | SubNrPerm, va, faultPc);
++    }
++
++    nodeTlbTouch(e, write);
++    const uint64_t mask = (1ULL << e.sizeLog2) - 1;
++    req->setPaddr(e.pa | (va & mask));
++    return NoFault;
++}
++
++/** Fill after a successful walk (TLB-08/TLB-11/TLB-12/TLB-13): choose the
++ *  victim (invalid-first, else LRU), write back its dirty A/D, then install.
++ *  A write-back failure keeps the victim untouched and reports
++ *  CFXMEM[56] with the PTE physical address (ADR-0041 D7/D10). */
++template <class Entry>
++Fault
++tlbInstall(NodeState &s, Entry (&sets)[NodeTlbSets][NodeTlbWays],
++           uint8_t (&setLru)[NodeTlbSets][NodeTlbWays],
++           Entry (&super)[NodeTlbSuperEntries],
++           uint8_t (&superLru)[NodeTlbSuperEntries], bool superpage,
++           uint64_t va, uint64_t pte, Addr leafPa, bool write,
++           const RequestPtr &req, Addr faultPc, Addr ramBase, Addr ramSize)
++{
++    const unsigned set = tlbSetOf(va);
++    unsigned way;
++    Entry *victim;
++    if (superpage) {
++        way = lruVictim(super, superLru);
++        victim = &super[way];
++    } else {
++        way = lruVictim(sets[set], setLru[set]);
++        victim = &sets[set][way];
++    }
++
++    if (victim->valid && nodeTlbDirty(*victim)) {
++        if (!writablePte(ramBase, ramSize, victim->ptePa)) {
++            // A/D write-back failure: `cause_info` is the PTE physical
++            // address, not the accessed address (ADR-0056 D4).
++            return std::make_shared<NodePtwFault>(
++                CauseCfxMem | SubAdwbFail, victim->ptePa, faultPc);
++        }
++        // Atomic OR keeps any bits another table already wrote back.
++        writePteOr(s.tc->getSystemPtr(), victim->ptePa,
++                   nodeTlbDirtyBits(*victim));
++    }
++
++    Entry &e = *victim;
++    e = Entry();
++    e.valid = true;
++    e.sizeLog2 = superpage ? NodeSuperShift : NodeNormalShift;
++    e.va = va & ~((1ULL << e.sizeLog2) - 1);
++    e.pa = superpage ? (pte & NodeSuperPpnMask) : (pte & NodePpnMask);
++    e.ptePa = leafPa;
++    e.hsju = (pte >> 60) & 0xF;
++    e.frags = (pte >> NodeFragShift) & 0xFF;
++    e.r = (pte & PteR) != 0;
++    e.w = (pte & PteW) != 0;
++    e.x = (pte & PteX) != 0;
++    e.g = (pte & PteG) != 0;
++    e.asid = static_cast<uint16_t>(s.tlbAsid);
++    e.aLocal = (pte & PteA) != 0;
++    e.aDirty = false;
++    nodeTlbSetDLocal(e, pte);
++
++    // The fill access is itself an access (§2.2.5): load/fetch set A, store
++    // sets A/D.
++    nodeTlbTouch(e, write);
++
++    if (superpage)
++        lruTouch<NodeTlbSuperEntries>(superLru, way);
++    else
++        lruTouch<NodeTlbWays>(setLru[set], way);
++
++    const uint64_t mask = (1ULL << e.sizeLog2) - 1;
++    req->setPaddr(e.pa | (va & mask));
++    return NoFault;
++}
++
 +} // anonymous namespace
 +
 +Fault
@@ -176,50 +377,26 @@ index 0000000..1137f0d
 +        if (!(s.ptwEnable & 1))
 +            return machineFaultAt(FaultCFXMEM, faultPc, va, SubNonPtw);
 +
-+        // Step 2: guest TLB lookup.
-+        for (auto &e : s.tlb) {
-+            if (!e.valid)
-+                continue;
-+            const uint64_t mask = (1ULL << e.sizeLog2) - 1;
-+            if ((va & ~mask) != e.va)
-+                continue;
-+            if (!e.g && e.asid != static_cast<uint16_t>(s.tlbAsid))
-+                continue;
-+            // hit path: fragment -> HSJU -> R/W/X (§2.2.6 priority)
-+            const bool super = (e.sizeLog2 == NodeSuperShift);
-+            const unsigned frag = super ? ((va >> 26) & 0x7) : ((va >> 13) & 0x7);
-+            if (!(e.frags & (1u << frag))) {
-+                return std::make_shared<NodePtwFault>(
-+                    CauseCfxMem | missingFragSub(fetch, super), va, faultPc);
++        // Step 2: guest TLB lookup.  Fetch and data use separate first-level
++        // tables (a design split, not an implementation detail); a hit never
++        // re-reads the PTE.
++        const uint16_t asid = static_cast<uint16_t>(s.tlbAsid);
++        if (fetch) {
++            NodeTlbEntry *e = tlbProbe(s.itlb, s.itlbLru, s.itlbSp,
++                                       s.itlbSpLru, va, asid);
++            if (e != nullptr) {
++                stats.hits++;
++                return tlbHit(*e, va, fetch, write, s, req, faultPc);
 +            }
-+            if (!(e.hsju & (1ULL << (s.runMode & 0x3)))) {
-+                return std::make_shared<NodePtwFault>(
-+                    CauseCfxPerm | hsjuSub(s.runMode), va, faultPc);
++        } else {
++            NodeTlbDataEntry *e = tlbProbe(s.dtlb, s.dtlbLru, s.dtlbSp,
++                                           s.dtlbSpLru, va, asid);
++            if (e != nullptr) {
++                stats.hits++;
++                return tlbHit(*e, va, fetch, write, s, req, faultPc);
 +            }
-+            if (fetch && !e.x) {
-+                return std::make_shared<NodePtwFault>(
-+                    CauseCfxPerm | SubNxPerm, va, faultPc);
-+            }
-+            if (write && !e.w) {
-+                return std::make_shared<NodePtwFault>(
-+                    CauseCfxPerm | SubNwPerm, va, faultPc);
-+            }
-+            if (!fetch && !write && !e.r) {
-+                return std::make_shared<NodePtwFault>(
-+                    CauseCfxPerm | SubNrPerm, va, faultPc);
-+            }
-+
-+            if (!e.aLocal) {
-+                e.aLocal = true;
-+                e.aDirty = true;
-+            }
-+            if (write && !e.dLocal) {
-+                e.dLocal = true;
-+                e.dDirty = true;
-+            }
-+            req->setPaddr(e.pa | (va & mask));
-+            return NoFault;
 +        }
++        stats.misses++;
 +
 +        // Step 3: two-level walk on a miss.
 +        const Addr l1pa =
@@ -285,56 +462,16 @@ index 0000000..1137f0d
 +                CauseCfxPerm | SubNrPerm, va, faultPc);
 +        }
 +
-+        const Addr pagePa = superpage ? (pte & NodeSuperPpnMask)
-+                                      : (pte & NodePpnMask);
-+        const Addr offset = superpage ? (va & 0x1FFFFFFFULL)
-+                                      : (va & 0xFFFFULL);
-+
-+        // Fill: write back a dirty victim first (ADR-0041 D4/D8).
-+        NodeTlbEntry &e = s.tlb[s.tlbNext];
-+        if (e.valid && (e.aDirty || e.dDirty)) {
-+            if (!writablePte(ramBase, ramSize, e.ptePa)) {
-+                // A/D write-back failure: `cause_info` is the PTE physical
-+                // address, not the accessed address (ADR-0056 D4).
-+                return std::make_shared<NodePtwFault>(
-+                    CauseCfxMem | SubAdwbFail, e.ptePa, faultPc);
-+            }
-+            writePteOr(system, e.ptePa,
-+                       (e.aDirty ? PteA : 0) | (e.dDirty ? PteD : 0));
++        // Fill the table of the side that missed: invalid-first/LRU victim,
++        // dirty write-back before replacement (ADR-0041 D4/D8).
++        if (fetch) {
++            return tlbInstall(s, s.itlb, s.itlbLru, s.itlbSp, s.itlbSpLru,
++                              superpage, va, pte, leafPa, write, req, faultPc,
++                              ramBase, ramSize);
 +        }
-+        s.tlbNext = (s.tlbNext + 1) % NodeNumTlbEntries;
-+
-+        e = NodeTlbEntry();
-+        e.valid = true;
-+        e.sizeLog2 = superpage ? NodeSuperShift : NodeNormalShift;
-+        e.va = va & ~((1ULL << e.sizeLog2) - 1);
-+        e.pa = pagePa;
-+        e.ptePa = leafPa;
-+        e.hsju = hsju;
-+        e.frags = (pte >> NodeFragShift) & 0xFF;
-+        e.r = (pte & PteR) != 0;
-+        e.w = (pte & PteW) != 0;
-+        e.x = (pte & PteX) != 0;
-+        e.g = (pte & PteG) != 0;
-+        e.asid = static_cast<uint16_t>(s.tlbAsid);
-+        e.aLocal = (pte & PteA) != 0;
-+        e.dLocal = (pte & PteD) != 0;
-+        e.aDirty = false;
-+        e.dDirty = false;
-+
-+        // The fill access is itself an access (§2.2.5): load/fetch set A,
-+        // store sets A/D.
-+        if (!e.aLocal) {
-+            e.aLocal = true;
-+            e.aDirty = true;
-+        }
-+        if (write && !e.dLocal) {
-+            e.dLocal = true;
-+            e.dDirty = true;
-+        }
-+
-+        req->setPaddr(pagePa | offset);
-+        return NoFault;
++        return tlbInstall(s, s.dtlb, s.dtlbLru, s.dtlbSp, s.dtlbSpLru,
++                          superpage, va, pte, leafPa, write, req, faultPc,
++                          ramBase, ramSize);
 +    }
 +
 +    // cfx_pmem SRAM (cfxha 32, internal offset 0x3ff_0000_0000).

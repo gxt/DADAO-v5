@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..7dafa3e
+index 0000000..663179b
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1093 @@
+@@ -0,0 +1,1138 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -190,9 +190,20 @@ index 0000000..7dafa3e
 +    s.tlbStart = 0;
 +    s.tlbSize = 0;
 +    s.tlbControl = 0;
-+    s.tlbNext = 0;
-+    for (auto &entry : s.tlb)
-+        entry = NodeTlbEntry();
++    for (unsigned set = 0; set < NodeTlbSets; ++set) {
++        for (unsigned way = 0; way < NodeTlbWays; ++way) {
++            s.itlb[set][way] = NodeTlbEntry();
++            s.dtlb[set][way] = NodeTlbDataEntry();
++            s.itlbLru[set][way] = way;
++            s.dtlbLru[set][way] = way;
++        }
++    }
++    for (unsigned way = 0; way < NodeTlbSuperEntries; ++way) {
++        s.itlbSp[way] = NodeTlbEntry();
++        s.dtlbSp[way] = NodeTlbDataEntry();
++        s.itlbSpLru[way] = way;
++        s.dtlbSpLru[way] = way;
++    }
 +
 +    s.dma = NodeDmaState();
 +
@@ -710,9 +721,75 @@ index 0000000..7dafa3e
 +    }
 +}
 +
++/** True when `e` falls inside the command's address scope (TLB-23). */
++bool
++tlbEntryInScope(const NodeState &s, const NodeTlbEntry &e, unsigned scope,
++                bool asidAny, uint64_t start, uint64_t size)
++{
++    if (!e.valid)
++        return false;
++    if (!asidAny && (e.g || e.asid != static_cast<uint16_t>(s.tlbAsid)))
++        return false;
++    if (scope == 0x1) {
++        const uint64_t mask = (1ULL << e.sizeLog2) - 1;
++        return (start & ~mask) == e.va;
++    }
++    if (scope == 0x2) {
++        uint64_t end = start + size;
++        const uint64_t pageEnd = e.va + (1ULL << e.sizeLog2);
++        if (end < start)
++            end = ~0ULL;
++        return e.va < end && start < pageEnd;
++    }
++    return true;
++}
++
++/** Run one `cfx_ptw_tlb_control` operation over one table.  Entry-granular
++ *  and stop-on-first-failure (TLB-37): a write-back failure keeps the failing
++ *  entry and everything after it untouched, and returns 2 with its PTE PA. */
++template <class Entry, unsigned N>
++int
++tlbTableExec(NodeState &s, Entry (&entries)[N], unsigned op, unsigned scope,
++             bool asidAny, uint64_t start, uint64_t size, uint64_t *errPa)
++{
++    for (unsigned i = 0; i < N; ++i) {
++        Entry &e = entries[i];
++        if (!tlbEntryInScope(s, e, scope, asidAny, start, size))
++            continue;
++        if ((op & 0x1) && nodeTlbDirty(e)) {
++            if (!regionCovers(s.ramBase, s.ramSize, e.ptePa, 8)) {
++                // The backing store is not writable (e.g. a page table in
++                // the BootROM): monitor CFXMEM, entry kept (ADR-0041 D7/D10).
++                *errPa = e.ptePa;
++                return 2;
++            }
++            System *system = s.tc->getSystemPtr();
++            uint64_t pte = 0;
++            for (unsigned b = 0; b < 8; ++b) {
++                uint8_t byte = 0;
++                system->physProxy.readBlobPhys(e.ptePa + b, 0, &byte, 1);
++                pte = (pte << 8) | byte;
++            }
++            // Atomic OR: the I and D tables may each hold pending bits for
++            // the same PTE, so never overwrite the word (TLB-15).
++            pte |= nodeTlbDirtyBits(e);
++            uint8_t bytes[8];
++            for (unsigned b = 0; b < 8; ++b)
++                bytes[b] = (pte >> (56 - 8 * b)) & 0xFF;
++            system->physProxy.writeBlobPhys(e.ptePa, 0, bytes, 8);
++            nodeTlbClearDirty(e);
++        }
++        if (op & 0x2)
++            e.valid = false;
++    }
++    return 0;
++}
++
 +/** cfx_ptw cg12 rc0 command (DADAO-12 §4.5; ADR-0041 D3/D6/D7).
 + *  Returns 0 (ok), 1 (CFXREG operand) or 2 (A/D write-back failure with
-+ *  *errPa; delivered to the current monitor as CFXMEM). */
++ *  *errPa; delivered to the current monitor as CFXMEM).  The spec has one
++ *  TLB (no I/D selector), so every command walks the I table and then the D
++ *  table; a failure stops the whole command. */
 +int
 +tlbControlExec(NodeState &s, uint64_t val, uint64_t *errPa)
 +{
@@ -729,54 +806,22 @@ index 0000000..7dafa3e
 +    if (scope == 0x2 && size == 0)
 +        return 1;
 +
-+    for (auto &e : s.tlb) {
-+        if (!e.valid)
-+            continue;
-+        if (!asidAny && (e.g || e.asid != static_cast<uint16_t>(s.tlbAsid)))
-+            continue;
-+        if (scope == 0x1) {
-+            const uint64_t mask = (1ULL << e.sizeLog2) - 1;
-+            if ((start & ~mask) != e.va)
-+                continue;
-+        } else if (scope == 0x2) {
-+            uint64_t end = start + size;
-+            const uint64_t pageEnd = e.va + (1ULL << e.sizeLog2);
-+            if (end < start)
-+                end = ~0ULL;
-+            if (!(e.va < end && start < pageEnd))
-+                continue;
-+        }
-+        if (op & 0x1) {
-+            if (e.aDirty || e.dDirty) {
-+                if (!regionCovers(s.ramBase, s.ramSize, e.ptePa, 8)) {
-+                    // The backing store is not writable (e.g. a page table in
-+                    // the BootROM): monitor CFXMEM, entry kept (ADR-0041 D7/D10).
-+                    *errPa = e.ptePa;
-+                    return 2;
-+                }
-+                System *system = s.tc->getSystemPtr();
-+                uint64_t pte = 0;
-+                for (unsigned i = 0; i < 8; ++i) {
-+                    uint8_t byte = 0;
-+                    system->physProxy.readBlobPhys(e.ptePa + i, 0, &byte, 1);
-+                    pte = (pte << 8) | byte;
-+                }
-+                if (e.aDirty)
-+                    pte |= PteA;
-+                if (e.dDirty)
-+                    pte |= PteD;
-+                uint8_t bytes[8];
-+                for (unsigned i = 0; i < 8; ++i)
-+                    bytes[i] = (pte >> (56 - 8 * i)) & 0xFF;
-+                system->physProxy.writeBlobPhys(e.ptePa, 0, bytes, 8);
-+                e.aDirty = false;
-+                e.dDirty = false;
-+            }
-+        }
-+        if (op & 0x2)
-+            e.valid = false;
++    for (unsigned set = 0; set < NodeTlbSets; ++set) {
++        const int r = tlbTableExec(s, s.itlb[set], op, scope, asidAny, start,
++                                   size, errPa);
++        if (r != 0)
++            return r;
 +    }
-+    return 0;
++    int r = tlbTableExec(s, s.itlbSp, op, scope, asidAny, start, size, errPa);
++    if (r != 0)
++        return r;
++    for (unsigned set = 0; set < NodeTlbSets; ++set) {
++        r = tlbTableExec(s, s.dtlb[set], op, scope, asidAny, start, size,
++                         errPa);
++        if (r != 0)
++            return r;
++    }
++    return tlbTableExec(s, s.dtlbSp, op, scope, asidAny, start, size, errPa);
 +}
 +
 +} // anonymous namespace

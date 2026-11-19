@@ -1,9 +1,9 @@
 diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
 new file mode 100644
-index 0000000..b789ecc
+index 0000000..7d0e4c3
 --- /dev/null
 +++ b/configs/dadao/fs.py
-@@ -0,0 +1,299 @@
+@@ -0,0 +1,305 @@
 +#!/usr/bin/env python3
 +# DADAO FS configuration (GEM5-015t Tiny, GEM5-016t Vast).
 +#
@@ -106,6 +106,9 @@ index 0000000..b789ecc
 +                             "FILE when the simulation ends (repeatable)")
 +    parser.add_argument("--dump-geometry", action="store_true",
 +                        help="print the effective geometry and exit")
++    parser.add_argument("--dump-stats", action="store_true",
++                        help="dump gem5 statistics (outdir/stats.txt) when the "
++                             "simulation ends (TLB hit/miss counters)")
 +    parser.add_argument("--dump-semihost-services", action="store_true",
 +                        help="print the C++ semihosting service table and exit")
 +    return parser.parse_args()
@@ -276,6 +279,9 @@ index 0000000..b789ecc
 +    cause = exit_event.getCause()
 +    print(f"GEM5_EXIT_CAUSE={cause}", file=sys.stderr)
 +    print(f"GEM5_EXIT_CODE={exit_event.getCode()}", file=sys.stderr)
++
++    if args.dump_stats:
++        m5.stats.dump()
 +
 +    for spec in args.dump_mem:
 +        try:

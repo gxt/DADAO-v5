@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..d234e57
+index 0000000..3f876af
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
-@@ -0,0 +1,295 @@
+@@ -0,0 +1,402 @@
 +// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
 +// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
 +//
@@ -91,7 +91,20 @@ index 0000000..d234e57
 +constexpr uint64_t NodeVaMask = 0x000003FFFFFFFFFFULL;
 +constexpr uint64_t NodeAddrMask = 0x0000FFFFFFFFFFFFULL;
 +constexpr unsigned NodeFragShift = 8;
-+constexpr unsigned NodeNumTlbEntries = 16;
++
++/** First-level I/D TLB geometry (user ruling 2026-11-19; identical to the
++ *  Kaiwu-Vast RTL): normal pages use NodeTlbSets groups x NodeTlbWays ways
++ *  with the set index taken from VA[16] (the 64 KiB page-number LSB);
++ *  superpages use NodeTlbSuperEntries fully-associative entries.  Both
++ *  arrays replace by LRU; there are no special entries.  Every entry count
++ *  in the model is derived from these constants. */
++constexpr unsigned NodeTlbSets = 2;
++constexpr unsigned NodeTlbWays = 8;
++constexpr unsigned NodeTlbSuperEntries = 4;
++constexpr unsigned NodeTlbSetShift = 16;
++static_assert((NodeTlbSets & (NodeTlbSets - 1)) == 0,
++              "the set index masks VA[16], so the group count must be a "
++              "power of two");
 +
 +/** One cfx mode row (cg0-cg3, spec/DADAO-12 §3; DADAO-13 §1 for cg3).
 + *  rc9 / rc11 are reserved holes and keep no state (access => CFXREG). */
@@ -132,7 +145,9 @@ index 0000000..d234e57
 +    uint64_t savedIntrMonitor = 0;
 +};
 +
-+/** One guest-visible TLB entry (ADR-0041 D8/D9). */
++/** One guest-visible TLB entry (ADR-0041 D8/D9).  This is the instruction-side
++ *  shape: it has no D state at all (`instruction` TLB, user ruling 2026-11-19),
++ *  so the I table can never record a dirty bit. */
 +struct NodeTlbEntry
 +{
 +    bool valid = false;
@@ -148,10 +163,91 @@ index 0000000..d234e57
 +    bool g = false;
 +    uint16_t asid = 0;
 +    bool aLocal = false;
-+    bool dLocal = false;
 +    bool aDirty = false;
++};
++
++/** Data-side TLB entry: the common fields plus the local D state. */
++struct NodeTlbDataEntry : NodeTlbEntry
++{
++    bool dLocal = false;
 +    bool dDirty = false;
 +};
++
++/** True when the entry has A/D bits that still have to reach its PTE. */
++inline bool
++nodeTlbDirty(const NodeTlbEntry &e)
++{
++    return e.aDirty;
++}
++
++inline bool
++nodeTlbDirty(const NodeTlbDataEntry &e)
++{
++    return e.aDirty || e.dDirty;
++}
++
++/** PTE bits a write-back has to OR in (A/D only; other fields untouched). */
++inline uint64_t
++nodeTlbDirtyBits(const NodeTlbEntry &e)
++{
++    return e.aDirty ? PteA : 0;
++}
++
++inline uint64_t
++nodeTlbDirtyBits(const NodeTlbDataEntry &e)
++{
++    return (e.aDirty ? PteA : 0) | (e.dDirty ? PteD : 0);
++}
++
++inline void
++nodeTlbClearDirty(NodeTlbEntry &e)
++{
++    e.aDirty = false;
++}
++
++inline void
++nodeTlbClearDirty(NodeTlbDataEntry &e)
++{
++    e.aDirty = false;
++    e.dDirty = false;
++}
++
++/** Apply one access to the local A/D state (TLB-14).  The instruction side
++ *  only ever tracks A, so its overload ignores `write`. */
++inline void
++nodeTlbTouch(NodeTlbEntry &e, bool write)
++{
++    (void)write;
++    if (!e.aLocal) {
++        e.aLocal = true;
++        e.aDirty = true;
++    }
++}
++
++inline void
++nodeTlbTouch(NodeTlbDataEntry &e, bool write)
++{
++    if (!e.aLocal) {
++        e.aLocal = true;
++        e.aDirty = true;
++    }
++    if (write && !e.dLocal) {
++        e.dLocal = true;
++        e.dDirty = true;
++    }
++}
++
++/** Seed the local D state from the leaf PTE; the I side has no D bit. */
++inline void
++nodeTlbSetDLocal(NodeTlbEntry &, uint64_t)
++{
++}
++
++inline void
++nodeTlbSetDLocal(NodeTlbDataEntry &e, uint64_t pte)
++{
++    e.dLocal = (pte & PteD) != 0;
++}
 +
 +/** cfx_pmem SRAM + DMA register state (spec/DADAO-12 §4.9). */
 +struct NodeDmaState
@@ -193,8 +289,19 @@ index 0000000..d234e57
 +    uint64_t tlbStart = 0;
 +    uint64_t tlbSize = 0;
 +    uint64_t tlbControl = 0;
-+    unsigned tlbNext = 0;
-+    NodeTlbEntry tlb[NodeNumTlbEntries];
++
++    /** First-level TLB, split by side (user ruling 2026-11-19).  Normal pages
++     *  live in the group x way arrays (set = VA[16]); superpages live in the
++     *  fully-associative arrays.  `*Lru` holds the age of each entry: 0 is
++     *  the MRU end and ways - 1 the victim. */
++    NodeTlbEntry itlb[NodeTlbSets][NodeTlbWays];
++    NodeTlbEntry itlbSp[NodeTlbSuperEntries];
++    uint8_t itlbLru[NodeTlbSets][NodeTlbWays] = {};
++    uint8_t itlbSpLru[NodeTlbSuperEntries] = {};
++    NodeTlbDataEntry dtlb[NodeTlbSets][NodeTlbWays];
++    NodeTlbDataEntry dtlbSp[NodeTlbSuperEntries];
++    uint8_t dtlbLru[NodeTlbSets][NodeTlbWays] = {};
++    uint8_t dtlbSpLru[NodeTlbSuperEntries] = {};
 +
 +    NodeDmaState dma;
 +

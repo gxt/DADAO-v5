@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_tlb.hh b/src/arch/dadao/node_tlb.hh
 new file mode 100644
-index 0000000..e130d6e
+index 0000000..65de080
 --- /dev/null
 +++ b/src/arch/dadao/node_tlb.hh
-@@ -0,0 +1,76 @@
+@@ -0,0 +1,82 @@
 +// DADAO Node TLB/PTW (Kaiwu-Node): guest-visible TLB plus a two-level
 +// page-table walk, address routing and cfx_ptw exception delivery.
 +//
@@ -15,6 +15,7 @@ index 0000000..e130d6e
 +#define __ARCH_DADAO_NODE_TLB_HH__
 +
 +#include "arch/generic/tlb.hh"
++#include "base/statistics.hh"
 +#include "base/types.hh"
 +#include "params/DadaoNodeTlb.hh"
 +
@@ -33,12 +34,7 @@ index 0000000..e130d6e
 +  public:
 +    using Params = DadaoNodeTlbParams;
 +
-+    explicit NodeTLB(const Params &p) :
-+        BaseTLB(p), romBase(p.rom_base), romSize(p.rom_size),
-+        ramBase(p.ram_base), ramSize(p.ram_size), hmonBase(p.hmon_base),
-+        hmonSize(p.hmon_size), smonBase(p.smon_base), smonSize(p.smon_size),
-+        pmemBase(p.pmem_base), pmemSize(p.pmem_size)
-+    {}
++    explicit NodeTLB(const Params &p);
 +
 +    void demapPage(Addr vaddr, uint64_t asn) override;
 +
@@ -69,6 +65,16 @@ index 0000000..e130d6e
 +    const Addr smonSize;
 +    const Addr pmemBase;
 +    const Addr pmemSize;
++
++    /** Instruction/data side of the split first-level TLB. */
++    struct TlbStats : public statistics::Group
++    {
++        TlbStats(NodeTLB &parent);
++
++        /** Lookups that hit the table / missed and started a walk. */
++        mutable statistics::Scalar hits;
++        mutable statistics::Scalar misses;
++    } stats;
 +
 +    /** Translate one guest access.  `enterOnFault` is false for functional
 +     *  (debug/semihosting) probes: those never redirect the PC. */
