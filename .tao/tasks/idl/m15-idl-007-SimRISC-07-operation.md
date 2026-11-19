@@ -73,6 +73,28 @@
 - `ut2fo_orri_rf`
 - `ut2ft_orri_rf`
 
+
+- **批 1**：§1.1 舍入方向六档 + §1.2 精确转换（SBZ） + §1.3 异常与标志
+- **批 2**：§1.4 合法性 + §2.1 S2D1 + §2.2 S1D1
+- **批 3**：§2.3 取整（roundToIntegral） + §2.4 最小最大值（minimumNumber / maximumNumber） + §2.5 融合乘加（fusedMultiplyAdd）
+
+
+- **批 1**：§1.1 舍入方向六档 + §1.2 精确转换（SBZ）
+- **批 2**：§1.3 异常与标志 + §1.4 合法性
+- **批 3**：§2.1 S2D1 + §2.2 S1D1
+- **批 4**：§2.3 取整（roundToIntegral） + §2.4 最小最大值（minimumNumber / maximumNumber）
+- **批 5**：§2.5 融合乘加（fusedMultiplyAdd）
+
+## 批次（每批 ≤4 h；做完一批返回，由主会话续派下一批）
+
+> 任务号不拆（整册一起验收）；**同一个 `.idl` 文件，同册串行**。每批只做列出的节，做完即返回，不提交。全册 50 条 ⇒ 分 5 批。
+
+- **批 1**：§1.1 舍入方向六档 + §1.2 精确转换（SBZ） + §1.3 异常与标志
+- **批 2**：§1.4 合法性 + §2.1 S2D1 + §2.2 S1D1
+- **批 3**：§2.3 取整（roundToIntegral） + §2.4 最小最大值（minimumNumber / maximumNumber）
+- **批 4**：§2.5 融合乘加（fusedMultiplyAdd） + §3. 浮点符号位操作指令
+- **批 5**：§4. 浮点比较指令 + §5. 浮点分类指令
+
 ## 交付
 
 1. `idl/SimRISC-07.idl`：上述每条一个 `# id: <id>` + operation；
