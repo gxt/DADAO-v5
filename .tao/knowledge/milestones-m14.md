@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-qemu-008 | 1–2 h | `scmp` 无序结果改 canonical quiet NaN（QEMU） |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 
 
@@ -44,6 +43,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-qemu-008 | 2026-11-19 20:10 | 1–2 h | `scmp` 无序结果改 canonical quiet NaN（QEMU） |
 | m14-linux-023 | 2026-11-19 17:08 | 4–6 h | 用户态 syscall 闭环（umon 入口 + 分发表 + errno + TLS） |
 
 ## 已验证
