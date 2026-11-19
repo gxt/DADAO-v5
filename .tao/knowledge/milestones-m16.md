@@ -32,7 +32,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
-| m16-gem5-018 | 2026-11-20 02:47 | 块传送 `beats` 按起始相位（8 B 相位零回归；`ldm.ub` N=8 相位 2 ⇒ 24） |
+| m16-gem5-018 | 2026-11-20 02:40 | 块传送 `beats` 按起始相位（8 B 相位零回归；`ldm.ub` N=8 相位 2 ⇒ 24） |
 | m16-chipyard-012 | 2026-11-20 02:29 | RTL `scmp` 无序改 canonical（四方一致达成；FP 单元台 oracle 同步） |
 | m16-gem5-017 | 2026-11-20 01:10 | 配置命名统一：`se.py` + `--cpu-type`，删 `se_timing.py`（series 106） |
 | m16-gem5-015 | 2026-11-20 00:55 | FS 加 `--cpu-type {atomic,timing}`（tiny/vast 两机型；`functionalFsAccess`；周期 FS==SE） |
