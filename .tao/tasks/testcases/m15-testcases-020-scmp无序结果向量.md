@@ -27,6 +27,12 @@
 5. **双 NaN**（`rfHC`/`rfHD` 都是 NaN，含一个 sNaN）⇒ 结果 canonical（**不再传播 payload**）、`NV` 按规则；
 6. `ft` 与 `fo` 两种格式各覆盖一遍（`ft` 结果按 `SimRISC-00 §2.3` 的写宽）。
 
+## 追加范围（`m15-gem5-001` 2026-11-19 发现的两处旧口径）
+
+1. `tests/data/GEM5-002t-semantic-matrix.tsv` 的 `ftscmp`/`foscmp` 行仍写「返回 sNaN」⇒ 改为 canonical（该文件是**入库数据**，改后须核 sha/引用）；
+2. `tools/testcases/arch/min_rom_probe_035t.py` 的期望仍写「返回 sNaN」，且它 **在 master 上本就红**（spec 章节号 `## 7.`→`## 5.` 使 classify oracle 取不到锚点）⇒ 一并修锚点 + 改 canonical，并让它回绿（这是既有红，本任务顺带收）。
+3. 三处（两条 `.S` + 上述两处）**必须与三方实现（IDL/QEMU/gem5）一致**，给三方逐字节对照。
+
 ## 验收
 
 1. 三方（`run_inst_tiny.py` 的 chipyard/QEMU/gem5 lane，或 `tests/ee-*` 对应入口）跑新用例 **逐字节一致**；
