@@ -20,12 +20,13 @@
    - `round_ft_to_integral` 里 `Bits<8>` 与 `16'sd150` **不可比较**。
    现状：`check_op.rb` 把它们设为「已知例外」（fail-closed），等于**类型检查被绕过**。
 3. **缺 `i32_to_fo` / `ui32_to_fo`**：`it2fo`/`ut2fo`（§1.2 三条精确转换）需要它们，库中暂无。
+4. **缺 `ft_scale`（`ftsclb` 用）**：`016` 只做了 `fo_scale`（f64）；`007` 的 `ftsclb`（S2D1 缩放）需要 f32 版。与 3. 同批补。
 
 ## 要做
 
 1. **修 tininess**：`softfloat_roundPackToF32`（及其 `_no_flag` 变体）改为「**先舍入、后判 tininess**」，与 f64 侧同口径；**不要**为了省事把 ft 算术一律改走 `no_flag` + 手判（那会让 6 个函数重复逻辑）。
 2. **修两处类型缺陷**：`ft_sqrt` 的 `S`/`E` 改名（小写或语义名）；`round_ft_to_integral` 的比较改为同宽（`Bits<8>` ↔ `Bits<8>`，或显式类型求解确认）。
-3. **补 `i32_to_fo` / `ui32_to_fo`**（与 `i32_to_ft`/`ui32_to_ft` 同构，精确转换、不置标志），供 `it2fo`/`ut2fo` 使用。
+3. **补 `i32_to_fo` / `ui32_to_fo`**（与 `i32_to_ft`/`ui32_to_ft` 同构，精确转换、不置标志），供 `it2fo`/`ut2fo` 使用；同批补 **`ft_scale`**（f32 scaleB，语义与 `016` 的 `fo_scale` 同构：指数饱和 ±252 或按 `SimRISC-07` 定值，须核散文）。
 4. **撤掉 `check_op.rb` 的两条「已知例外」**，让 107 个函数体**全部**通过 type_check（撤掉后应 0 例外）。
 
 ## 验收（逐条贴真实 rc）
