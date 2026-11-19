@@ -61,6 +61,23 @@
 | 历史归档 | `.tao/archive/M*/`（M1–M11） |
 | 临时 / 一次性产物 | `/tmp/opencode/<任务ID>/` |
 
+### 机型 × 平台承载方式（tiny / vast / user）
+
+真源：`contracts/machine.yaml`（几何与能力）；本表只记「各平台用哪个入口选机型」。
+
+| 平台 / 入口 | tiny | vast | user |
+| --- | --- | --- | --- |
+| QEMU system `qemu-system-dadao` | `-M kaiwu-tiny` | `-M kaiwu-vast` | 不支持（system 无此机型） |
+| QEMU user `qemu-dadao` | — | — | 二进制本身即 user 机型，无 `-machine` |
+| gem5 FS `configs/dadao/fs.py` | `--profile tiny` | `--profile vast` | — |
+| gem5 SE `configs/dadao/se.py` | — | — | `--profile user`（默认） |
+| chipyard RTL | `WumingTinyConfig` | `WumingVastConfig`（`m16-chipyard-006`） | —（RTL 不跑 SE） |
+
+- **QEMU**：**编译期注册 QOM 机器类型**，每个类型固定一份 `DadaoMachineDesc`（走 `class_data`）。`kaiwu-tiny`/`kaiwu-vast` 不接受运行期 `profile=`；`-M dadao-m1` 报 machine not found（别名 M12 后已删，`-M help` 只有两台）。
+- **gem5**：`PROFILES` 字典给地址与容量，两个分支给内存对象与 **MMU/TLB 类**（tiny → `DadaoFsMMU`/`DadaoFs*CPU`，vast → `DadaoNodeMMU`/`DadaoNode*CPU`）；CPU 类型由 `--cpu-type {atomic,timing,minor,o3}` 正交选择（`se_timing.py` 正在并入 `--cpu-type`，`m16-gem5-015/017`）。
+- **chipyard**：Scala config 类（`DadaoConfigs.scala`），**编译期**生成 RTL；`user` 机型无 RTL 形态。
+
+
 ## 设计取向（用户 2026-11-14 裁定）
 
 - **设计选择的首要判据是「该设计是否更优秀、更符合 DADAO 理念」，不是改动代价。** 代价必须列出（供用户权衡），但**不得作为推荐或取舍的理由**；也不得因「改动少 / 三实现已一致」就把既有实现当成规范口径（既有实现与规范冲突时，以规范为准，改实现）。

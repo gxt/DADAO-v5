@@ -88,3 +88,9 @@
 - **2026-10-29 INTEG-041t**
   - 摘要：**`arch/dadao/atomic_arch.h` 的 `a_barrier` 跟随 `fence ciii`**（`ADR-0044 D7`）：内联汇编由 `fence 975`（旧 `fm/pred/succ`）改为 `fence cfx_umon, 4095`（`cfx0` = all cfx，`pred = succ = 0xFFF` 六类全置）；文件头与 README 同步。语义仍为全屏障，与后端 acquire-release/seq-cst 的 `fence cfx_umon, 4095` 一致。补丁 **1 份改**（`series` 25）；`build-musl-shared`/`check-musl-freshness` rc=0（安装根已按新工具链重建）。
   - 执行者：engineer
+
+## M16
+
+- **2026-11-19 —**
+  - 摘要：**清理指向已删除 `dadao-m1` 机器的过时注释（无功能改动，`series` 25 不变）**：`arch/dadao/syscall_arch.h` 的 umon 服务方由「`dadao-m1` 机器（`INFRA-082t` 阶段 A1）」改为 linux-user 的 `qemu-dadao`（该机器类型 M12 后已删、其 `umon` 服务 2026-10-15 已撤回）；`README.md` 的「服务方」与「运行」两处同步去掉 `dadao-m1`。`crt_arch.h` 的 History 段保留——它是历史依据，已写明该运行时不再存在。
+  - 执行者：architect

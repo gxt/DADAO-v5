@@ -34,17 +34,6 @@
 - 已核事实：`configs/dadao/` 只有 `se.py`/`se_timing.py`/`fs.py`，都只用 `SimpleMemory`（`se_timing` 另有 `NoncoherentXBar`）；chipyard 侧只有 `WumingTinyConfig`（SRAM 主存、`icache/dcache = None`），**无 Vast 配置**。
 - 用户已指出：`Kaiwu-Tiny` 跑在 SRAM 上**不需要** cache；`Kaiwu-Vast` 需要 cache 但 RTL 尚未增加。
 
-## N5. M16 周期模型文档 6 处口径待确认（2026-11-14）
-
-`m16-gem5-002` 现场解析 `docs/core-wuming-cycle-model.md` 时遇 6 处文档本身不闭合（已按类级口径自决，**需用户口头确认一次**）：
-
-1. **16 条 FT 侧 FP 族**（`ftadd/ftsub/ftmul/ftfma/ftmax/ftmin/ftqcmp/ftsclb/ftscmp/ftrnd`、`fosub/fosclb/foscmp/fosgnj/fosgnn/fornd`）§3 无专行，只有 §2 B4「1–2」类级口径；建议把文档词法改 `ftsgn*`→`f*sgn*`、行 70 的 `fo*`→`f*` 即可逐条定死。
-2. `ext` = 2 拍属**推断**（无实测），已标来源与「待复核」。
-3. §3 行 75/76/77 的「全套」把 A 档写 `1`，与 §2 的 A 两档、§5 `shl.o`=2 冲突 ⇒ 表按 §2 两档解析（`shl.t`=2、`rem.st`=17）；建议文档改列消歧。
-4. `clmul.o` 唯一 override（行 61 的 B1/3 是估计，行 87 + 行 117 实测 A/2）⇒ 记入表 `overrides`。
-5. `jump/call/ret` 的 8/26/15 是**预取失效期上界**（文档 §5 称「`015` 收口时复测」，但 `m12-chipyard-015` 已完成、未回填）⇒ 表暂按现值；回填后**必须重跑生成器**（`check-wuming-cycles` 绑文档 sha256，会立刻红——设计意图）。
-6. `B2`（1 可配）按「可配」处理，`value` 留空。
-
 ## N19. D 类 `beats` 必须按起始相位算（`m16-chipyard-004` 实测发现）
 
 - 现行 `wuming_latency.hh` 的块传送 beats 按「元素不跨 8 B 拍」推导；实测要求 **`beats = ⌈(addr%8 + N·w)/8⌉`**——非 8 B 相位起址时每组恰多 8 拍（`ldm.ub` N=8 相位 2 ⇒ 24 拍而非 16）。
@@ -57,33 +46,6 @@
 - 用户 2026-11-18 裁定：`idl/` 目录的 `.manifests.toml` **先只列文件名**（双向集合断言），`sha256` **等 M15 完成后统一补**。
 - 原因：M15 期间 `.idl` 会大量增改，逐次重算锁的成本高于收益。
 - 收口检查项：M15 收尾时把 `idl/*.idl` 逐文件 sha256 写入 `idl/.manifests.toml`，并确认 `check-manifests-guard` 会校验它（schema 已支持条目级 `sha256`）。
-
-## N22. `m14-linux-017` 的 S5（U-mode 帧 A/B 往返）→ **已裁定 A（用户 2026-11-19）**〔017 收尾时移入任务书并删除本节〕
-
-- **核查结论（第 23 轮）**：S5 要求 A/B **交替** ⇒ handler 必须 `schedule()` 阻塞；而 umon 入口跑在**静态入口栈**（`trap.S` 把 `rb1` 设为 `dadao_umon_stack_top`，`current = SP & ~(THREAD_SIZE-1)`）⇒ 两个任务的内核续跑点会叠在同一张 64 KiB 栈上，**与帧放在哪里无关**。所以「只把帧按任务化」不足以实现 S5（F13 回退正是此机制）。
-- **入口不能直接换到任务内核栈**：入口时 SP 还是用户栈，`current` 尚不可知（F28 正是为此在静态栈上刷新 `thread_info.task`）。
-- **三个选项**：
-  - **(A)** 新增**全局 `dadao_current_task`**（`__switch_to`/`dadao_enter_user` 写入），umon 入口读它取 `task_stack_page(task)+THREAD_SIZE` 作新 SP。单 hart、无递归 ⇒ 全局单元安全；`thread_info` 天然在各任务内核栈底。改动面：`entry.S`/`process.c`/`thread_info.h`（核心结构改动）。
-  - **(B)** S5 降级为「帧按任务化 + 不阻塞的交替」（放宽判据，用帧切换模拟交替）。
-  - **(C)** S5 推迟到 K5，与嵌套/抢占一起做。
-- **架构侧建议 (A)**：S5 是 K4 上下文切换的核心能力，用帧切换模拟等于不测真正的交替；`current_task` 是标准做法（Linux 的 `current` 同理），单 hart 下安全。代价是核心结构改动、需扩权。
-- **裁定（用户 2026-11-19，原话「A」）**：按 (A) 实现「每任务内核栈」；spec 不改。
-- **实现细节（用户 2026-11-19 二次裁定，取代「全局 `dadao_current_task`」）**：用 **`cg6` 暂存寄存器 + `rd2`（reserved）** 做过渡——
-  ```
-  rb2rd  {rd2:rd2},{rb1:rb1},1       # rd2 ← 用户 sp
-  cfx2rd cfx_umon,cg6,rc1,rd3        # rd3 ← 任务内核栈顶（__switch_to 预写）
-  rd2rb  {rb1:rb1},{rd3:rd3},1       # rb1 ← 任务栈顶
-  st.o   rd2,[rb1,FRAME_SP]          # 用户 sp → 新栈的帧
-  ```
-  （`rd2`/`rd3` 都是 reserved、编译器不分配，故全程可安全做过渡；`cg6` 只占 `rc1` 一个槽。）
-  `__switch_to` 只加一行：把 `task_stack_page(next)+THREAD_SIZE` 写进 `cfx_umon cg6 rc1`。**不需要全局变量、不改 `thread_info.h`**（入口切到任务栈后 `current = SP & ~(THREAD_SIZE-1)` 自然成立）；静态栈保留为 boot 早期兜底（`cg6 rc1 == 0` 时用）。依据：`rb2rd`/`rd2rb` 见 `SimRISC-02`；`rd2–rd3` 是 reserved（编译器不分配）；`cg6` 见 `DADAO-12 §3.7`（内核专用）。**用户补充质疑已澄清**：共用的是内核态静态栈（非用户栈）；spec 未规定 `trap` 自动切栈（`§5.1/§5.2` 只定向量与 `inner_cfx_code`）；「每任务内核栈」由软件决定，故走 A 而非改 spec。
-
-## N25. 进程页表必须复制「2 TiB 以上」的顶层项（用户 2026-11-19 裁定，`m14-linux-017` F56）〔017 收尾时移入任务书并删除本节〕
-
-- **用户原话**：「2TiB以上是smon空间，所以，每个进程新建L1页表时，应该复制2TiB以上的完整的页表项；据我所知，其它isa应该都是这么做的」。
-- **spec 依据**：`spec/Kaiwu-测试机运行环境.md` §内存窗口 —— Vast 窗口 `VA [0, 4 TiB)`；用户空间 `[0, 2 TiB)`、内核 VA 窗口 `[2 TiB, 3 TiB)`、`[3 TiB, 4 TiB)` 不定义；窗口内 `VA = PA + 2 TiB`。本端口两级页表：`L1 = VA[41:29]`（8192 项 × 512 MiB = 4 TiB）、`L2 = VA[28:16]`、页内 `[15:0]`；`USER_PTRS_PER_PGD = TASK_SIZE / PGDIR_SIZE`。
-- **口径**：`pgd_alloc()` 之后把 `swapper_pg_dir` 中**下标 ≥ `USER_PTRS_PER_PGD`** 的顶层项整段复制进新表（smon/内核半区共享）；`pgd_free` 不得释放这些共享表。**禁止**用「探针窗口」之类旁路绕过切 mm（第 29 轮的 `pf_window` 路线作废）。
-- **推论**：既然每个进程的 L1 都带内核半区，切换 mm 就是安全的 ⇒ S5 用「每任务真 mm + 正常 `switch_mm`」即可；`vm_mm == NULL` 的窗口空指针（F57/F58）不再是必须打补丁的路径。
 
 ## N7. cfx 待实现范围
 
