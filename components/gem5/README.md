@@ -453,7 +453,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `configs/dadao/fs.py`。**无** cache/PTW/PTBR/cfx/user/hmon/smon/设备/GDB/
   checkpoint/多核。
 - **`--cpu-type {atomic,timing}`**（m16-gem5-015，默认 `atomic` 保持原状）：
-  `timing` 用 `se_timing.py` 的 `DadaoTimingSimpleCPU`（MMU 换成本 profile 的），
+  `timing` 用 `se.py --cpu-type timing` 的 `DadaoTimingSimpleCPU`（MMU 换成本 profile 的），
   挂 `NoncoherentXBar` + 每段一个 `SimpleMemory`，**取指**走真实内存系统；
   数据侧仍是 functional（执行核在 `execute()` 中同步取数），ld/st 由周期模型
   记账；TLB miss 的 PTW 走查**按 0 延迟**（`fs_tlb.cc`/`node_tlb.cc` 的
