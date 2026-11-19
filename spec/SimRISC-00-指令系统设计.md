@@ -417,6 +417,8 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 
 ### 0.5.7-rc（未发布）
 
+- **两处浮点措辞明确（用户 2026-11-19 裁定，版本号不变）**：① `*2it`/`*2ut` 的 32 位结果**符号扩展/零扩展**写满 64 位 `rdHB`（`.io`/`.uo` 直接整 64 位写）；② §2.3 取整的 `0x20` 档**只有「结果 ≠ 输入且输入非 NaN」才置 `NX`**——NaN 输入经 canonical 化改变位型不算 inexact（IEEE 754-2019 §5.9）。
+
 - **signaling compare 的无序结果改为 canonical quiet NaN（IEEE 754-2019 §6.2.1 对齐）**：`ftscmp`/`foscmp` 在无序时**不再返回 sNaN 位型**，与 `ftqcmp`/`foqcmp` 一样返回 **canonical quiet NaN**（符号位 0、payload 全零）；quiet 与 signaling 的差别只剩 `NV` 标志（signaling 无序即置 `NV`，quiet 仅 sNaN 置 `NV`）。原「Signaling Compare 的结果为 sNaN」作废——IEEE 754-2019 规定一般计算类操作收到 signaling NaN 时**必须**返回 quiet NaN，返回 sNaN 不符合该 `shall`。「两个 NaN 取哪个 payload」随之自动消解（统一 canonical，不再传播 payload）。版本号不变（用户 2026-11-19 裁定）。
 
 - **`lr` 的窄宽度写入不定高位**：`lr.t`/`lr.w`/`lr.b` 只写目的 `rd` 的低 32/16/8 位、**高位保持原值不变**（既不零扩展也不符号扩展）；`lr.o` 写满 64 位。此口径**不同于** `ld.ub`/`ld.uw`/`ld.ut` 的零扩展，属有意为之的窄读语义。

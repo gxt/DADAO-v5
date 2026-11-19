@@ -63,6 +63,7 @@
   - **有符号目的**：`NaN`、`+Inf`、正溢出 ⇒ **最大正值**；`−Inf`、负溢出 ⇒ **最小负值**；
   - **无符号目的**：`NaN`、`+Inf`、正溢出 ⇒ **最大无符号值**；`−Inf`、负溢出 ⇒ **0**；
   - **`NaN` 一律按「正」处理、与 `NaN` 自身符号位无关**（与 hardfloat / RISC-V 一致）；`±Inf` 与有限超范围值按符号方向饱和。
+  - **`*2it`/`*2ut` 的 64 位写宽**：目的 `rdHB` 为 64 位，而 `.it`/`.ut` 的整型结果为 32 位 ⇒ `.it`（有符号）**符号扩展**写满 64 位、`.ut`（无符号）**零扩展**写满 64 位（与 `SimRISC-08` 的 `add.st`/`add.ut` 高位规则同口径）；`.io`/`.uo` 本身为 64 位，直接整 64 位写入。
 - **整数→浮点**（8 条：6 条六档 + 精确的 `it2fo`/`ut2fo`）：精度损失 ⇒ 置 NX；结果超出目标格式范围 ⇒ ±Inf 并置 OF；结果 **tiny 且 inexact** ⇒ 按方向处理并置 UF（同时置 NX）。两条精确转换恒不置标志。
 - **浮点→浮点**（`fo2ft` 六档 / `ft2fo` 精确）：`ft2fo` 为精确转换，不置标志；`fo2ft` 的下溢（结果 **tiny 且 inexact**）按方向处理并置 UF（同时置 NX）；NaN 结果取 canonical quiet NaN、sNaN 作为算术输入置 NV 并返回 qNaN（见下方「NaN 结果的取值」）；`fo2ft` 的**溢出**按下方「溢出」段处理。
 
@@ -174,12 +175,12 @@ fornd   rfHB, rfHC, immu6
 | `0x04` | `roundToIntegralTowardZero` | 向 0（静态） | 不置 |
 | `0x08` | `roundToIntegralTowardPositive` | 向 +∞（静态） | 不置 |
 | `0x10` | `roundToIntegralTowardNegative` | 向 −∞（静态） | 不置 |
-| `0x20` | `roundToIntegralExact` | 读 `rf0[33:32]`（RNE/RTZ/RDN/RUP） | **结果 ≠ 输入时置 NX** |
+| `0x20` | `roundToIntegralExact` | 读 `rf0[33:32]`（RNE/RTZ/RDN/RUP） | **结果 ≠ 输入且输入非 NaN 时置 NX** |
 
 共同规则（IEEE 754-2019 §5.9）：
 
 - 5 个静态方向**不受** `rf0[33:32]` 影响；只有 `0x20` 读 `rf0[33:32]`（`00` RNE / `01` RTZ / `10` RDN / `11` RUP）。
-- **只有 `0x20` 置 NX**（且仅当结果 ≠ 输入）；其余 5 档**不得**置 NX。
+- **只有 `0x20` 置 NX**（且仅当结果 ≠ 输入**且输入不是 NaN**）；其余 5 档**不得**置 NX。**NaN 输入不置 NX**：sNaN/qNaN 的 canonical 化会改变位型，但按 IEEE 754-2019 的 quiet 计算口径不属于 inexact（§5.9），故「结果 ≠ 输入」这一条对 NaN 不适用。
 - sNaN 作输入 ⇒ 置 NV、返回 qNaN；qNaN 作输入 ⇒ 返回 qNaN（canonical 化）。
 - `|x| ≥ 2^p`（ft: p = 24；fo: p = 53）⇒ **原样返回**（此时 x 已为整数；不得用「转整数再转回」实现）。
 - `±0` 的符号位保留：`trunc(-0.5) = -0`、`floor(-0.0) = -0`（取整结果为 0 时沿用输入的符号）。
