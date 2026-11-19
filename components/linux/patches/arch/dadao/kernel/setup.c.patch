@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..9536fa544
+index 000000000..659e3d62a
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,410 @@
+@@ -0,0 +1,414 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -287,7 +287,7 @@ index 000000000..9536fa544
 + * user-mode `init` is the K4 tail that needs m14-linux-017 (switch_mm /
 + * __switch_to) and m14-linux-021 (clockevent tick), see the task book.
 + */
-+void __init __noreturn dadao_k4_boundary(void)
++void __init dadao_k4_boundary(void)
 +{
 +	dadao_pf_init();
 +	/*
@@ -310,6 +310,21 @@ index 000000000..9536fa544
 +#endif
 +#ifdef CONFIG_DADAO_K4_SELFTEST
 +	dadao_k4_selftest();
++#endif
++#if CONFIG_DADAO_K4_STACK_SELFTEST
++	/* User-stack growth cases (m14-linux-019's S1-S6): every case ends the
++	 * boot, because "did not grow" is a named termination. */
++	dadao_k4_stack_selftest();
++#endif
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++	/*
++	 * The context-switch probe does not stop here: F3 is the initramfs
++	 * `/init` run, which only happens when the boot continues through
++	 * `rest_init()` -> `kernel_init()` -> `execve("/init")`.  The probe's
++	 * syscall hook owns the verdict and the final SYS_EXIT.
++	 */
++	dadao_k4_switch_selftest();
++	return;
 +#endif
 +	dadao_early_printf("K4 done: semihosting SYS_EXIT(0) at the K4 boundary "
 +			   "(process model + fault channel page source; no scheduler, "
@@ -394,17 +409,6 @@ index 000000000..9536fa544
 +	regs->rb[1] = sp;
 +	regs->rb[3] = 0;
 +	regs->status = 0;
-+}
-+
-+__visible struct task_struct *__switch_to(struct task_struct *prev,
-+					  struct task_struct *next)
-+{
-+	/*
-+	 * Still a C placeholder: the register-save/restore helper lands with
-+	 * the context-switch milestone (K1 stops before any task runs).
-+	 * switch_to() expects the task that was running, i.e. @prev.
-+	 */
-+	return prev;
 +}
 +
 +void flush_thread(void)

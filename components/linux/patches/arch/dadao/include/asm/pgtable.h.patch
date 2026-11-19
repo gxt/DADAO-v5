@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/pgtable.h b/arch/dadao/include/asm/pgtable.h
 new file mode 100644
-index 000000000..91b80efb1
+index 000000000..089f20a62
 --- /dev/null
 +++ b/arch/dadao/include/asm/pgtable.h
-@@ -0,0 +1,285 @@
+@@ -0,0 +1,305 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PGTABLE_H
 +#define __ASM_PGTABLE_H
@@ -99,22 +99,42 @@ index 000000000..91b80efb1
 +#define PAGE_KERNEL_RO		__pgprot(_PAGE_KERNEL & ~_PAGE_WRITE)
 +#define PAGE_KERNEL_NC		__pgprot(_PAGE_KERNEL)
 +
++/*
++ * User-reachable protections (`protection_map[]`, mm/init.c).
++ *
++ * The walker checks the HSJU bits of the *accessing* mode (spec/DADAO-12
++ * §2.2.6), and the kernel services a user address from supv — so a page a user
++ * may reach carries **both** U and S, the same combination the page-fault
++ * channel writes (`dadao_pf_mode_bits()`).  Mapping a user page with the
++ * kernel-only `PAGE_KERNEL*` bits leaves the page present but not user
++ * accessible: the first user access then reports `CFXPERM + NUPERM`
++ * (measured: the initial process stack, whose pages come from `get_arg_page()`
++ * through the *generic* `handle_mm_fault()` path, not through this port's
++ * exception channel).
++ */
++#define _PAGE_USER_R	(_PAGE_S | _PAGE_U | _PAGE_PRESENT | _PAGE_ACCESSED | \
++			 _PAGE_FRAG_ALL | _PAGE_READ)
++#define _PAGE_USER_RW	(_PAGE_USER_R | _PAGE_WRITE)
++#define _PAGE_USER_RX	(_PAGE_USER_R | _PAGE_EXEC)
++#define _PAGE_USER_RWX	(_PAGE_USER_RW | _PAGE_EXEC)
++
++/* PROT_NONE stays kernel-only: "no user access" is exactly "no U". */
 +#define __P000	PAGE_KERNEL_RO
-+#define __P001	PAGE_KERNEL_RO
-+#define __P010	PAGE_KERNEL_RO
-+#define __P011	PAGE_KERNEL_RO
-+#define __P100	PAGE_KERNEL_EXEC
-+#define __P101	PAGE_KERNEL_EXEC
-+#define __P110	PAGE_KERNEL_EXEC
-+#define __P111	PAGE_KERNEL_EXEC
++#define __P001	__pgprot(_PAGE_USER_R)
++#define __P010	__pgprot(_PAGE_USER_RW)
++#define __P011	__pgprot(_PAGE_USER_RW)
++#define __P100	__pgprot(_PAGE_USER_RX)
++#define __P101	__pgprot(_PAGE_USER_RX)
++#define __P110	__pgprot(_PAGE_USER_RWX)
++#define __P111	__pgprot(_PAGE_USER_RWX)
 +#define __S000	PAGE_KERNEL_RO
-+#define __S001	PAGE_KERNEL_RO
-+#define __S010	PAGE_KERNEL
-+#define __S011	PAGE_KERNEL
-+#define __S100	PAGE_KERNEL_EXEC
-+#define __S101	PAGE_KERNEL_EXEC
-+#define __S110	PAGE_KERNEL_EXEC
-+#define __S111	PAGE_KERNEL_EXEC
++#define __S001	__pgprot(_PAGE_USER_R)
++#define __S010	__pgprot(_PAGE_USER_RW)
++#define __S011	__pgprot(_PAGE_USER_RW)
++#define __S100	__pgprot(_PAGE_USER_RX)
++#define __S101	__pgprot(_PAGE_USER_RX)
++#define __S110	__pgprot(_PAGE_USER_RWX)
++#define __S111	__pgprot(_PAGE_USER_RWX)
 +
 +#define pgprot_noncached(prot)	(prot)
 +#define pgprot_writecombine(prot) (prot)

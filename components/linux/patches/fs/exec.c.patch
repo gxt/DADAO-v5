@@ -1,0 +1,29 @@
+diff --git a/fs/exec.c b/fs/exec.c
+index a598d48b5..976169e7d 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -47,6 +47,7 @@
+ #include <linux/key.h>
+ #include <linux/personality.h>
+ #include <linux/binfmts.h>
++#include <asm/setup.h>
+ #include <linux/utsname.h>
+ #include <linux/pid_namespace.h>
+ #include <linux/module.h>
+@@ -1747,6 +1748,10 @@ static int exec_binprm(struct linux_binprm *bprm)
+ 			return -ELOOP;
+ 
+ 		ret = search_binary_handler(bprm);
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++		dadao_early_printf("K4 exec: depth=%d interp=%s ret=%d\n", depth,
++				   bprm->interp ? bprm->interp : "(none)", ret);
++#endif
+ 		if (ret < 0)
+ 			return ret;
+ 		if (!bprm->interpreter)
+@@ -2049,4 +2054,5 @@ fs_initcall(init_fs_exec_sysctls);
+ 
+ #ifdef CONFIG_EXEC_KUNIT_TEST
+ #include "tests/exec_kunit.c"
++#include <asm/setup.h>
+ #endif

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..b78e729fe
+index 000000000..2ada52a49
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,600 @@
+@@ -0,0 +1,633 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -45,6 +45,10 @@ index 000000000..b78e729fe
 +#include <asm/ptrace.h>
 +#include <asm/ptw.h>
 +#include <asm/setup.h>
++#include <asm/irqflags.h>
++
++/* m14-linux-017: no semihosting while a frame is live (待裁定 4 / C). */
++extern int dadao_in_frame;
 +#include <asm/trap.h>
 +
 +/* Semihosting SYS_EXIT: contract-semihosting §1/§2/§5 (rd16 = service,
@@ -301,6 +305,12 @@ index 000000000..b78e729fe
 +static void __noreturn dadao_die(struct pt_regs *regs, unsigned long cause,
 +				 unsigned long info)
 +{
++	/* No semihosting inside the frame (待裁定 4 / C): record and let
++	 * dadao_early_exit print it. */
++	dadao_flog_last[0] = 0xd1e0000000000000UL | (cause & 0xffff);
++	dadao_flog_last[1] = info;
++	dadao_flog_last[2] = regs ? regs->ip : 0UL;
++	dadao_flog_last[3] = regs ? regs->rb[1] : 0UL;
 +	dadao_dump_and_exit("unrecoverable supv exception", regs, cause, info,
 +			    dadao_exit_code(cause));
 +}
@@ -384,11 +394,13 @@ index 000000000..b78e729fe
 +	 * are opened for the kernel by dadao_user_entry_install().)
 +	 */
 +	DADAO_CFX_WRITE(cfx_umon, UMON_CG_SUPV, UMON_RC_EXCP_VECTOR, frame->ip);
++	dadao_in_frame = 0;
 +	return DADAO_TRAP_RESUME_SKIP;
 +}
 +
-+unsigned long dadao_trap_handler(struct pt_regs *regs, unsigned long cause,
-+				 unsigned long info)
++static unsigned long dadao_trap_dispatch(struct pt_regs *regs,
++					 unsigned long cause,
++					 unsigned long info)
 +{
 +	struct dadao_fault_probe *probe;
 +	unsigned long raw_cause;
@@ -436,6 +448,7 @@ index 000000000..b78e729fe
 +						   regs->rd[16], regs->rd[18]);
 +
 +		dadao_trap_busy = 0;
++		dadao_in_frame = 0;
 +		return policy;
 +	}
 +
@@ -486,6 +499,7 @@ index 000000000..b78e729fe
 +		if (probe->report)
 +			probe->report(probe, regs, info);
 +		dadao_trap_busy = 0;
++		dadao_in_frame = 0;
 +		return policy;
 +	}
 +
@@ -511,6 +525,25 @@ index 000000000..b78e729fe
 +	}
 +
 +	dadao_die(regs, cause, info);
++}
++
++/*
++ * The C half of the supv channel.  m14-linux-017 briefly masked the kernel's
++ * async source around it: `escape` used to leave `inner_cfx_code` at the last
++ * delivered cfx (ISS-454), so a tick inside a frame made the frame's own
++ * `escape cfx_smon` fail with CFXESC.  `m14-spec-009` fixed that in the
++ * architecture (trap saves `excp_prev_cfx_code`, escape restores
++ * `inner_cfx_code`), so the workaround is gone and a frame may be interrupted.
++ */
++unsigned long dadao_trap_handler(struct pt_regs *regs, unsigned long cause,
++				 unsigned long info)
++{
++	unsigned long policy;
++
++	dadao_in_frame = 1;
++	policy = dadao_trap_dispatch(regs, cause, info);
++	dadao_in_frame = 0;
++	return policy;
 +}
 +
 +/*

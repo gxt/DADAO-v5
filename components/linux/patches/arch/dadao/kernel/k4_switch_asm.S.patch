@@ -1,0 +1,321 @@
+diff --git a/arch/dadao/kernel/k4_switch_asm.S b/arch/dadao/kernel/k4_switch_asm.S
+new file mode 100644
+index 000000000..2c37739d3
+--- /dev/null
++++ b/arch/dadao/kernel/k4_switch_asm.S
+@@ -0,0 +1,315 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * K4 context-switch probe: register half (CONFIG_DADAO_K4_SWITCH_SELFTEST).
++ *
++ * `dadao_k4_s1_roundtrip()` is the only way to observe what a switch really
++ * does to the register file: C cannot pin values in `rd32-rd63`/`rb32-rb63` and
++ * be sure the compiler kept them there.  The shape:
++ *
++ *   1. fill the callee-saved banks and a set of caller-saved registers with
++ *      distinctive sentinels (a "context A"),
++ *   2. switch to a *fabricated* context B — its `thread_struct` points at
++ *      `dadao_k4_s1_stub`, a stack of its own and sentinel banks,
++ *   3. B's stub records the banks it sees and switches straight back,
++ *   4. A resumes: store its register file for C to compare.
++ *
++ * What the probe proves with that: A's banks were saved into A's `thread_struct`
++ * (step 2 writes them), B's banks arrived intact (step 3 reads them), B's were
++ * saved on the way back, and A's came back unchanged (step 4).
++ *
++ * Register discipline: `rb16-rb19` are the ABI's address arguments (contract-abi
++ * §4.1) and the switch's own arguments — the call is allowed to consume them;
++ * `rd2` is the reserved staging register (ADR-0018 C6) used as the block index,
++ * and `rd8` receives `__switch_to`'s return value.  The sentinels therefore sit
++ * in `rd9-rd15`/`rd20-rd31`/`rb8-rb15`/`rb20-rb31` plus `rb2` (the reserved
++ * frame pointer) and `rb3` (rbtp) — the two registers a switch must never touch.
++ */
++#include <asm/asm-offsets.h>
++
++/*
++ * Offsets inside the probe's result block (`unsigned long res[]`):
++ *   [0..31]   rd32-rd63 as A saw them after resuming
++ *   [32..63]  rb32-rb63 as A saw them after resuming
++ *   [64..71]  A's caller-saved data sentinels after resuming
++ *   [72]      rb2 (frame pointer) after resuming
++ *   [73]      rb3 (rbtp) after resuming
++ *   [74..83]  A's caller-saved address sentinels after resuming
++ *   [84]      A's own rb2 before the switch (restored, see below)
++ */
++#define S1_RES_RD		0
++#define S1_RES_RB		256
++#define S1_RES_CALLER		512
++#define S1_RES_FP		576
++#define S1_RES_TP		584
++#define S1_RES_CALLER_RB	592
++#define S1_RES_FP_SAVE		672
++#define S1_RES_SIZE		680
++
++	.section .text,"ax"
++	.p2align 2
++/*
++ * void dadao_k4_call_probe(void) — what `call`/`ret` do to the RAS, measured:
++ *
++ *   dbg[0] RACNT inside this function (its own `call` already pushed)
++ *   dbg[1] RACNT inside the nested target (one more `call`)
++ *   dbg[2] RACNT after the nested `ret`
++ *   dbg[3] the entry the nested `call` pushed (raw, top 16 bits = count)
++ *   dbg[4] that entry XOR (address right after the `call`), count field cleared
++ *          → 0 means "call pushes call+4", non-zero is the mismatch
++ *
++ * `contract-isa §8.4` says the pushed return address is the `call`'s own
++ * address + 4; the switch's whole save/restore model assumes exactly one entry
++ * per `call` and one pop per `ret`, so both are measured rather than assumed.
++ */
++	.globl	dadao_k4_ras_dump
++/*
++ * void dadao_k4_ras_dump(unsigned long *out) — copy the RAS out (rb16 = out).
++ * Read-only: no load back, so the caller's RAS is untouched.
++ */
++dadao_k4_ras_dump:
++	set.rd	rd2, 0
++	stm.o	{ra0:ra62}, [rb16, rd2]
++	set.rd	rd2, 504
++	stm.o	{ra63:ra63}, [rb16, rd2]
++	ret	rd0, 0
++
++	.p2align 2
++	.globl	dadao_k4_call_probe
++dadao_k4_call_probe:
++	set.rb	rb4, dadao_k4_call_dbg
++	ra2rd	rd8, ra0, 1
++	st.o	rd8, [rb4, 0]
++	set.rb	rb5, .Lcall_target
++	call	[rb5, rd0, 0]
++.Lcall_back:
++	set.rb	rb4, dadao_k4_call_dbg
++	ra2rd	rd8, ra0, 1
++	st.o	rd8, [rb4, 16]
++	ret	rd0, 0
++
++	.p2align 2
++.Lcall_target:
++	set.rb	rb4, dadao_k4_call_dbg
++	ra2rd	rd8, ra0, 1
++	st.o	rd8, [rb4, 8]
++	ra2rd	rd8, ra63, 1			/* the entry our `call` pushed */
++	st.o	rd8, [rb4, 24]
++	set.rb	rb5, .Lcall_back
++	rb2rd	rd18, rb5, 1			/* address right after the call */
++	xor.o	rd19, rd8, rd18
++	andn.w	rd19, wp3, 0xffff
++	st.o	rd19, [rb4, 32]
++	ret	rd0, 0
++
++	.section .bss,"aw",%nobits
++	.p2align 3
++	.globl	dadao_k4_call_dbg
++dadao_k4_call_dbg:
++	.zero	48
++
++	.section .text,"ax"
++	.p2align 2
++/*
++ * unsigned long dadao_k4_ras_racnt(void) — the RAS depth as the hardware holds
++ * it, `RACNT` (ra0[53:48], spec/SimRISC-00 §2.4).
++ *
++ * The call to this function is itself an entry on the RAS, so the value is the
++ * *caller's* depth plus one.
++ */
++	.globl	dadao_k4_ras_idem
++/*
++ * void dadao_k4_ras_idem(unsigned long *a, unsigned long *b)
++ *   rb16 = a, rb17 = b   (64 slots each)
++ *
++ * Save the RAS to `a`, load it back, save again to `b`.  `a == b` proves the
++ * block transfers of the return-address stack are an identity (the ring buffer
++ * has a hidden base index; if the logical view were not rotation-invariant the
++ * two buffers would differ).
++ */
++dadao_k4_ras_idem:
++	set.rd	rd2, 0
++	stm.o	{ra0:ra62}, [rb16, rd2]
++	set.rd	rd2, 504
++	stm.o	{ra63:ra63}, [rb16, rd2]
++	set.rd	rd2, 0
++	ldm.o	{ra0:ra62}, [rb16, rd2]
++	set.rd	rd2, 504
++	ldm.o	{ra63:ra63}, [rb16, rd2]
++	set.rd	rd2, 0
++	stm.o	{ra0:ra62}, [rb17, rd2]
++	set.rd	rd2, 504
++	stm.o	{ra63:ra63}, [rb17, rd2]
++	ret	rd0, 0
++
++	.p2align 2
++	.globl	dadao_k4_ras_racnt
++dadao_k4_ras_racnt:
++	ra2rd	rd8, ra0, 1			/* return value: ra0 */
++	ret	rd0, 0
++
++	.p2align 2
++/*
++ * void dadao_k4_s1_roundtrip(struct thread_struct *a, struct thread_struct *b,
++ *                            const unsigned long *in, unsigned long *res)
++ *   rb16 = a, rb17 = b, rb18 = in, rb19 = res
++ *
++ * `in` supplies the sentinels of the callee-saved banks: [0..31] -> rd32-rd63,
++ * [32..63] -> rb32-rb63.  The caller-saved sentinels and the rbtp value are
++ * constants of this file (they only have to be recognisable in `res`).
++ */
++	.globl	dadao_k4_s1_roundtrip
++dadao_k4_s1_roundtrip:
++	/*
++	 * 0. Park the caller's frame pointer.  The probe puts a sentinel in `rb2`
++	 * to see whether the switch writes it, but the compiler may legitimately
++	 * use `rb2` as its own frame pointer, so the caller's value has to come
++	 * back before the `ret`.
++	 */
++	st.o	rb2, [rb19, S1_RES_FP_SAVE]
++
++	/* 0b. keep the caller's callee-saved banks (see .bss note). */
++	set.rb	rb5, dadao_k4_s1_caller_banks
++	set.rd	rd2, 0
++	stm.o	{rd32:rd63}, [rb5, rd2]
++	set.rd	rd2, 256
++	stm.o	{rb32:rb63}, [rb5, rd2]
++
++	/* 1. context A: the two banks from `in`. */
++	set.rd	rd2, 0
++	ldm.o	{rd32:rd63}, [rb18, rd2]
++	set.rd	rd2, 256
++	ldm.o	{rb32:rb63}, [rb18, rd2]
++
++	/* ... and the sentinels C cannot pin: caller-saved blocks + FP + rbtp. */
++	set.rd	rd9, 0x1009
++	set.rd	rd10, 0x100a
++	set.rd	rd11, 0x100b
++	set.rd	rd12, 0x100c
++	set.rd	rd13, 0x100d
++	set.rd	rd14, 0x100e
++	set.rd	rd15, 0x100f
++	set.rd	rd20, 0x1014
++	set.rd	rd21, 0x1015
++	set.rd	rd22, 0x1016
++	set.rd	rd23, 0x1017
++	set.rd	rd24, 0x1018
++	set.rd	rd25, 0x1019
++	set.rd	rd26, 0x101a
++	set.rd	rd27, 0x101b
++	set.rd	rd28, 0x101c
++	set.rd	rd29, 0x101d
++	set.rd	rd30, 0x101e
++	set.rd	rd31, 0x101f
++	set.rb	rb8, 0x2008
++	set.rb	rb9, 0x2009
++	set.rb	rb10, 0x200a
++	set.rb	rb11, 0x200b
++	set.rb	rb12, 0x200c
++	set.rb	rb13, 0x200d
++	set.rb	rb14, 0x200e
++	set.rb	rb15, 0x200f
++	set.rb	rb20, 0x2014
++	set.rb	rb21, 0x2015
++	set.rb	rb22, 0x2016
++	set.rb	rb23, 0x2017
++	set.rb	rb24, 0x2018
++	set.rb	rb25, 0x2019
++	set.rb	rb26, 0x201a
++	set.rb	rb27, 0x201b
++	set.rb	rb28, 0x201c
++	set.rb	rb29, 0x201d
++	set.rb	rb30, 0x201e
++	set.rb	rb31, 0x201f
++	set.rb	rb2, 0x2f02
++	set.rb	rb3, 0x2b03
++
++	/*
++	 * 2. switch to B (its `thread.ra` makes the switch jump into the stub).
++	 *    The helper is called directly, not through the C `__switch_to`
++	 *    wrapper: a C function may clobber every caller-saved register by the
++	 *    ABI, so the footprint assertions below would measure the compiler
++	 *    instead of the switch.  That the wrapper works — and returns `prev`
++	 *    as `switch_to()`'s `last` — is what the two-thread case (S2) asserts
++	 *    through the scheduler.
++	 */
++	set.rb	rb5, dadao_switch_to_asm
++	call	[rb5, rd0, 0]
++
++	/* 4. back in A: record the register file for C to compare. */
++	set.rd	rd2, S1_RES_RD
++	stm.o	{rd32:rd63}, [rb19, rd2]
++	set.rd	rd2, S1_RES_RB
++	stm.o	{rb32:rb63}, [rb19, rd2]
++	st.o	rd9,  [rb19, S1_RES_CALLER + 0 * 8]
++	st.o	rd10, [rb19, S1_RES_CALLER + 1 * 8]
++	st.o	rd11, [rb19, S1_RES_CALLER + 2 * 8]
++	st.o	rd12, [rb19, S1_RES_CALLER + 3 * 8]
++	st.o	rd13, [rb19, S1_RES_CALLER + 4 * 8]
++	st.o	rd14, [rb19, S1_RES_CALLER + 5 * 8]
++	st.o	rd15, [rb19, S1_RES_CALLER + 6 * 8]
++	st.o	rd20, [rb19, S1_RES_CALLER + 7 * 8]
++	st.o	rb2,  [rb19, S1_RES_FP]
++	st.o	rb3,  [rb19, S1_RES_TP]
++	st.o	rb8,  [rb19, S1_RES_CALLER_RB + 0 * 8]
++	st.o	rb9,  [rb19, S1_RES_CALLER_RB + 1 * 8]
++	st.o	rb10, [rb19, S1_RES_CALLER_RB + 2 * 8]
++	st.o	rb11, [rb19, S1_RES_CALLER_RB + 3 * 8]
++	st.o	rb12, [rb19, S1_RES_CALLER_RB + 4 * 8]
++	st.o	rb13, [rb19, S1_RES_CALLER_RB + 5 * 8]
++	st.o	rb14, [rb19, S1_RES_CALLER_RB + 6 * 8]
++	st.o	rb15, [rb19, S1_RES_CALLER_RB + 7 * 8]
++	st.o	rb20, [rb19, S1_RES_CALLER_RB + 8 * 8]
++	set.rb	rb5, dadao_k4_s1_caller_banks
++	set.rd	rd2, 0
++	ldm.o	{rd32:rd63}, [rb5, rd2]
++	set.rd	rd2, 256
++	ldm.o	{rb32:rb63}, [rb5, rd2]
++	ld.o	rb2, [rb19, S1_RES_FP_SAVE]
++	ret	rd0, 0
++
++/*
++ * Context B: entered by the switch's `jump` (empty RAS, `thread.sp` = the stack
++ * below).  It stores the banks it was given and hands the CPU straight back to
++ * A, whose `thread_struct` the switch filled in step 2.
++ */
++	.p2align 2
++	.globl	dadao_k4_s1_stub
++dadao_k4_s1_stub:
++	set.rb	rb18, dadao_k4_s1_seen		/* not rb19: A keeps its result */
++	set.rd	rd2, 0
++	stm.o	{rd32:rd63}, [rb18, rd2]
++	set.rd	rd2, 256
++	stm.o	{rb32:rb63}, [rb18, rd2]
++
++	/* prev = B (this context), next = A (the one to resume). */
++	set.rb	rb5, dadao_k4_s1_b_thread	/* &pointer variable */
++	ld.o	rb16, [rb5, 0]			/* B's thread_struct */
++	set.rb	rb5, dadao_k4_s1_a_thread
++	ld.o	rb17, [rb5, 0]			/* A's thread_struct */
++	set.rb	rb5, dadao_switch_to_asm
++	call	[rb5, rd0, 0]			/* A resumes inside its own call */
++	jump	[rb0, .Lb_stuck]		/* B is never scheduled again */
++
++.Lb_stuck:
++	jump	[rb0, .Lb_stuck]
++
++	.section .bss,"aw",%nobits
++	.p2align 4
++	/*
++	 * The caller's callee-saved banks.  This helper is a *function*: it
++	 * deliberately puts sentinels into the banks it is testing, so it owes
++	 * the caller the ABI's promise (contract-abi §4.8: a callee saves the
++	 * callee-saved registers it changes) — otherwise the C that called it
++	 * resumes with sentinels in its live registers, which is a bug in the
++	 * probe, not in the switch.
++	 */
++	.globl	dadao_k4_s1_caller_banks
++dadao_k4_s1_caller_banks:
++	.zero	512
++	.globl	dadao_k4_s1_seen
++dadao_k4_s1_seen:
++	.zero	512				/* the banks B was given */
++	.globl	dadao_k4_s1_b_stack_top
++dadao_k4_s1_b_stack:
++	.zero	16384
++dadao_k4_s1_b_stack_top:

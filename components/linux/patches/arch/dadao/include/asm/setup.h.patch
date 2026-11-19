@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..c8b5e5d28
+index 000000000..3fcef91c6
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,178 @@
+@@ -0,0 +1,204 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -110,6 +110,9 @@ index 000000000..c8b5e5d28
 +unsigned long dadao_pf_entry_count(void);
 +unsigned long dadao_pf_alloc_count(void);
 +unsigned long dadao_pf_zero_page_pa(void);
++/* Stack-growth counter (VM_GROWSDOWN, m14-linux-019): how many times a fault
++ * below a growable VMA actually extended it. */
++unsigned long dadao_pf_grow_count(void);
 +
 +/*
 + * K4 (m14-linux-016): the user-mode entry rows and the boundary the process
@@ -136,16 +139,39 @@ index 000000000..c8b5e5d28
 +#define K4_FAIL_UMON_SWITCH	0x31	/* a run-mode row does not hold its value */
 +#define K4_FAIL_UMON_RECURSE	0x32	/* a second umon entry while one is live */
 +
-+/* Probe image only: the user-mode syscall hook of kernel/k4_selftest.c. */
++/*
++ * Probe image only: the user-mode syscall hook.  Each K4 probe image owns
++ * exactly one of them (kernel/k4_selftest.c for the process model,
++ * kernel/k4_switch_selftest.c for the context switch + the init run); the two
++ * configs are mutually exclusive in Kconfig.
++ */
++#if defined(CONFIG_DADAO_K4_SELFTEST) || defined(CONFIG_DADAO_K4_SWITCH_SELFTEST)
 +int dadao_k4_user_syscall(struct pt_regs *regs, unsigned long nr,
 +			  unsigned long *policy);
++#endif
 +
-+/* The K4 boundary: page-fault page source + the probe self-tests. */
-+void __init __noreturn dadao_k4_boundary(void);
++/*
++ * The K4 boundary: page-fault page source + the probe self-tests.
++ *
++ * It returns only for an image that is meant to keep going (the context-switch
++ * probe: the init run lives beyond `rest_init()`); every milestone image and
++ * the process-model probe end the boot here, by name.
++ */
++void __init dadao_k4_boundary(void);
 +void __init dadao_k4_selftest(void);
++/* The user-stack growth probe image (CONFIG_DADAO_K4_STACK_SELFTEST: 1, 3, 4
++ * or 6 = one case per image; every case ends the boot). */
++void __noreturn dadao_k4_stack_selftest(void);
++/* The context-switch probe image (CONFIG_DADAO_K4_SWITCH_SELFTEST). */
++void __init dadao_k4_switch_selftest(void);
 +
 +/* Early console: semihosting SYS_WRITE0 / SYS_EXIT (contract-semihosting). */
 +void dadao_early_write(const char *s);
++/* Frame-safe diagnostics (m14-linux-017): record numbers in a frame, print
++ * them from a frame-free context. */
++extern int dadao_in_frame;
++extern unsigned long dadao_flog_last[4];
++void dadao_flog_report(void);
 +/* One byte at an explicit PA (the responder reads guest memory by PA). */
 +void dadao_early_write_pa(unsigned long pa);
 +void dadao_early_printf(const char *fmt, ...);

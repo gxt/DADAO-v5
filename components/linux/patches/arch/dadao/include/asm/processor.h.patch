@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/processor.h b/arch/dadao/include/asm/processor.h
 new file mode 100644
-index 000000000..a62238f4a
+index 000000000..9b7c53df7
 --- /dev/null
 +++ b/arch/dadao/include/asm/processor.h
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,110 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PROCESSOR_H
 +#define __ASM_PROCESSOR_H
@@ -18,31 +18,66 @@ index 000000000..a62238f4a
 +struct task_struct;
 +
 +/*
-+ * The part of a task's register file that survives a context switch, i.e. the
-+ * callee-saved set of contract-abi §4.5: `rd32-rd63 ∪ rb32-rb63 ∪ rf32-rf63`
-+ * plus the two fixed roles the ABI never allocates to the compiler — `sp`
-+ * (rb1) and `rbtp` (rb3) — and the return address the new task resumes at.
++ * The part of a task's register file that a context switch carries
++ * (m14-linux-017), plus the fields the *frame* path owns.
 + *
-+ * The banks are stored as their own arrays so that one block transfer each
-+ * (`stm.o`/`ldm.o`, spec/SimRISC-01 §1-§4) moves a whole bank: the first entry
-+ * of `rd[]` is `rd32`, of `rb[]` is `rb32`, of `rf[]` is `rf32`.  `rf32-rf63`
-+ * are in the set even though K4 never runs floating point: the frame of
-+ * m14-linux-022 already carries all four banks, and m14-linux-017 (context
-+ * switch) restores exactly this field set, so leaving them out here would
-+ * silently drop the FP half of a switch.
++ * Switched by `__switch_to` (kernel/process.c + kernel/entry.S):
 + *
-+ * Not here: `ip` — it is not callee-saved, it lives in the saved `pt_regs` on
-+ * the task stack (task_pt_regs()) and comes back through `ret_from_fork`;
-+ * `ra0` — the {RACNT, MRPTR} RAS metadata belongs to the return-address stack,
-+ * which the entry/exit stubs save and restore per frame (asm/entry.h).
++ *   `sp`  — `rb1`, the task's kernel stack pointer; the scheduler moves it.
++ *   `ra`  — if non-zero, a *fresh* task's entry point.  `copy_thread()` sets it
++ *           for a new task, whose return-address stack is empty (RACNT = 0,
++ *           spec/SimRISC-00 §2.4: "一个用户进程开始执行时，RegRAS 全部初始化为
++ *           全零"), so there is no `ret` to make and the switch jumps there
++ *           instead.  It is 0 for a task that was switched out normally.
++ *   `rd[]`/`rb[]` — the callee-saved blocks of contract-abi §4.5, `rd32-rd63`
++ *           and `rb32-rb63`.  Stored as their own arrays so that one block
++ *           transfer each (`stm.o`/`ldm.o`, spec/SimRISC-01 §1-§4) moves a whole
++ *           bank: the first entry of `rd[]` is `rd32`, of `rb[]` is `rb32`.
++ *   `fp`  — `rb2`, the frame pointer of the C frame the task is suspended in.
++ *           It is not part of the CSR block (contract-abi §4.5: "rb2 不在 CSR，
++ *           作 FP 时由 prologue 保存"), but a *context switch* suspends a live C
++ *           frame, and that frame's epilogue restores `SP = rb2` — so a task
++ *           that comes back with another task's `rb2` continues on the other
++ *           task's stack.  Measured, not assumed: without this field the probe
++ *           saw the boot task resume with a kernel thread's `SP` and `current`.
++ *   `ras[]` — the return-address stack: `ra0` ({RACNT, MRPTR}, spec/SimRISC-00
++ *           §2.4) followed by the 63 entries `ra1-ra63`.  It is per task for
++ *           the same reason the banks are: a switch suspends a live `call`
++ *           chain, and `ret` on resume must pop *this* task's return address
++ *           (contract-abi §2.3 — the `call`/`ret` pairing must not break across
++ *           the switch point).  The hardware only exposes the RAS as registers,
++ *           so the block transfers of asm/entry.h are the way to move it;
++ *           saving it per task is what keeps `RACNT`/`MRPTR` and the entries
++ *           consistent with the suspended chain.  See the note in the task book
++ *           (m14-linux-017 待裁定 3) for why "save the whole array" is the
++ *           minimal correct shape here.
++ *
++ * Not switched, and why:
++ *
++ *   `rf[]` — `rf32-rf63` belong to the CSR set, but the user ruling of
++ *           2026-11-17 puts the whole floating-point bank in the exception
++ *           entry/exit frame (`m14-linux-022`, asm/entry.h), so a context
++ *           switch neither saves nor restores it: the frame of the task that is
++ *           suspended always carries the FP half.  The field stays declared as
++ *           the record of that contract (contract-abi §4.5 and the K4 process
++ *           gate read `thread_struct` as the task's context).
++ *   `tp`   — `rb3` (rbtp).  The kernel never uses a thread pointer (`rb3 = 0`
++ *           in every kernel context), and the user's `rb3` travels in its
++ *           `pt_regs`; touching it in `__switch_to` would be a kernel-side
++ *           leak of user state.
++ *   `ip`   — not callee-saved: it lives in the saved `pt_regs` on the task
++ *           stack (`task_pt_regs()`) and comes back through `ret_from_fork` /
++ *           the user-mode exit.
 + */
 +struct thread_struct {
 +	unsigned long sp;		/* rb1 (SP) */
-+	unsigned long ra;		/* resume address for a new task */
-+	unsigned long tp;		/* rb3 (rbtp) */
++	unsigned long ra;		/* fresh task's entry point, 0 otherwise */
++	unsigned long tp;		/* rb3 (rbtp); not switched, see above */
++	unsigned long fp;		/* rb2 (FP) of the suspended C frame */
 +	unsigned long rd[32];		/* rd32-rd63 */
 +	unsigned long rb[32];		/* rb32-rb63 */
-+	unsigned long rf[32];		/* rf32-rf63 */
++	unsigned long rf[32];		/* rf32-rf63 (frame-owned, not switched) */
++	unsigned long ras[64];		/* ra0 = {RACNT, MRPTR}, then ra1-ra63 */
 +};
 +
 +#define INIT_THREAD  { }

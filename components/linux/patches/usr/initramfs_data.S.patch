@@ -1,0 +1,17 @@
+diff --git a/usr/initramfs_data.S b/usr/initramfs_data.S
+index cd67edc38..892f3d948 100644
+--- a/usr/initramfs_data.S
++++ b/usr/initramfs_data.S
+@@ -30,7 +30,12 @@ __irf_end:
+ .globl __initramfs_size
+ __initramfs_size:
+ #ifdef CONFIG_64BIT
++#ifdef __DADAO__
++	/* spec/Toolchain-01 §7.1: the only 64-bit data directive is `.dd.o64`. */
++	.dd.o64 __irf_end - __irf_start
++#else
+ 	.quad __irf_end - __irf_start
++#endif
+ #else
+ 	.long __irf_end - __irf_start
+ #endif

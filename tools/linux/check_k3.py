@@ -152,6 +152,10 @@ BASE_IMAGE = [
     # page source is the buddy allocator now), so the K3 images must reach it —
     # and must not also carry the K4 self-test.
     "CONFIG_DADAO_K4_SELFTEST=n",
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST=n",
+    # m14-linux-017/019: the stack-growth probe is an int too; pin it
+    # so no image inherits another gate's case (F30 class, twice seen).
+    "CONFIG_DADAO_K4_STACK_SELFTEST=0",
 ]
 
 #: name -> the config slice that makes this image (every boundary pinned).

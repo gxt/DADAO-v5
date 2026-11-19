@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/entry.h b/arch/dadao/include/asm/entry.h
 new file mode 100644
-index 000000000..e4e0b7389
+index 000000000..555f4f696
 --- /dev/null
 +++ b/arch/dadao/include/asm/entry.h
-@@ -0,0 +1,144 @@
+@@ -0,0 +1,168 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO exception-entry register-file save/restore (assembly only).
@@ -78,18 +78,37 @@ index 000000000..e4e0b7389
 +#include <asm/asm-offsets.h>
 +
 +/*
-+ * Capture the complete register file into @frame (a `struct pt_regs` in
-+ * .bss, 8-byte aligned) and leave `rb3` pointing at it with `rd2` free.
++ * Capture the complete register file into @frame (a `struct pt_regs`, 8-byte
++ * aligned) and leave `rb3` pointing at it with `rd2` free.
 + * @cfx is the cfx whose exception vector is running.
 + */
 +	.macro	DADAO_GPR_SAVE cfx, frame
++	/*
++	 * `rb3` is rbtp, and the frame needs a base register before the capture
++	 * can run — so the two conflict: repurposing `rb3` used to store the
++	 * *frame address* into `frame.rb[3]` and the faulting context's rbtp was
++	 * lost (measured with the user round trip: the frame's `rb3` came back as
++	 * the frame address, not the caller's value).
++	 *
++	 * `rd2` is reserved (contract-abi §4.5: the compiler never allocates it),
++	 * so it holds the rbtp for the two instructions the store needs; its own
++	 * pre-exception value goes to the cfx's cg6 scratch first, which is what
++	 * the capture below does for it anyway.
++	 */
++	cfx2rc	\cfx, cg6, rc0, rd2		/* scratch[0] = the user's rd2 */
++	rb2rd	rd2, rb3, 1			/* rd2 = rbtp */
++	set.rb	rb3, \frame			/* base: the frame */
++	st.o	rd2, [rb3, PT_RB_BASE + 3 * 8]	/* frame.rb[3] = the real rbtp */
++	cfx2rd	\cfx, cg6, rc0, rd2		/* rd2 back (the capture re-reads it) */
++	DADAO_GPR_SAVE_AT \cfx
++	.endm
++
++	.macro	DADAO_GPR_SAVE_AT cfx
 +	cfx2rc	\cfx, cg6, rc0, rd2		/* scratch[0] = rd2 */
 +	cfx2rc	\cfx, cg6, rc1, rd3		/* scratch[1] = rd3 */
-+	set.rd	rd2, rb3			/* rd2 = rbtp */
-+	set.rb	rb3, \frame			/* base: static .bss frame */
 +
-+	/* The two slots with no hardware register behind them, and rbtp. */
-+	st.o	rd2, [rb3, PT_RB_BASE + 3 * 8]	/* frame.rb[3] = rbtp */
++	/* The two slots with no hardware register behind them; `rb3` (rbtp) was
++	 * already stored by DADAO_GPR_SAVE, before the base was repurposed. */
 +	st.o	rd0, [rb3, PT_RD_BASE]		/* frame.rd[0] = 0 (rd0 reads 0) */
 +	st.o	rd0, [rb3, PT_RB_BASE]		/* frame.rb[0] = 0 (rb0 is the IP) */
 +
@@ -127,6 +146,11 @@ index 000000000..e4e0b7389
 + */
 +	.macro	DADAO_GPR_RESTORE frame
 +	set.rb	rb3, \frame
++	DADAO_GPR_RESTORE_AT
++	.endm
++
++/* Same restore with the frame's address already in `rb3` (see above). */
++	.macro	DADAO_GPR_RESTORE_AT
 +	set.rd	rd2, PT_RB_BASE + 1 * 8
 +	ldm.o	{rb1:rb2}, [rb3, rd2]
 +	set.rd	rd2, PT_RB_BASE + 4 * 8

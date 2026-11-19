@@ -1,5 +1,5 @@
 diff --git a/init/main.c b/init/main.c
-index dd7b2a659..103dd459c 100644
+index dd7b2a659..4926c25ff 100644
 --- a/init/main.c
 +++ b/init/main.c
 @@ -979,6 +979,11 @@ void start_kernel(void)
@@ -31,3 +31,99 @@ index dd7b2a659..103dd459c 100644
  	/* Do the rest non-__init'ed, we're now alive */
  	rest_init();
  
+@@ -1471,7 +1486,15 @@ static int run_init_process(const char *init_filename)
+ 	pr_debug("  with environment:\n");
+ 	for (p = envp_init; *p; p++)
+ 		pr_debug("    %s\n", *p);
+-	return kernel_execve(init_filename, argv_init, envp_init);
++	{
++		int ret = kernel_execve(init_filename, argv_init, envp_init);
++
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++		dadao_early_printf("K4 init: kernel_execve(%s)=%d\n",
++				   init_filename, ret);
++#endif
++		return ret;
++	}
+ }
+ 
+ static int try_to_run_init_process(const char *init_filename)
+@@ -1643,28 +1666,50 @@ static noinline void __init kernel_init_freeable(void)
+ 
+ 	rcu_assign_pointer(cad_pid, get_pid(task_pid(current)));
+ 
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++	dadao_early_printf("K4 init: enter kernel_init_freeable j=%lu\n",
++			   (unsigned long)jiffies_64);
++#define DADAO_INIT_MARK(name)						\
++	dadao_early_printf("K4 init: %s j=%lu\n", name,		\
++			   (unsigned long)jiffies_64)
++#else
++#define DADAO_INIT_MARK(name)		do { } while (0)
++#endif
++
++	DADAO_INIT_MARK("before smp_prepare_cpus");
+ 	smp_prepare_cpus(setup_max_cpus);
+ 
++	DADAO_INIT_MARK("before workqueue_init");
+ 	workqueue_init();
++	DADAO_INIT_MARK("after workqueue_init");
+ 
++	DADAO_INIT_MARK("before init_mm_internals");
+ 	init_mm_internals();
+ 
++	DADAO_INIT_MARK("before do_pre_smp_initcalls");
+ 	do_pre_smp_initcalls();
+ 	lockup_detector_init();
+ 
++	DADAO_INIT_MARK("before smp_init");
+ 	smp_init();
++	DADAO_INIT_MARK("before sched_init_smp");
+ 	sched_init_smp();
+ 
++	DADAO_INIT_MARK("before workqueue_init_topology");
+ 	workqueue_init_topology();
+ 	async_init();
+ 	padata_init();
+ 	page_alloc_init_late();
+ 
++	DADAO_INIT_MARK("before do_basic_setup");
+ 	do_basic_setup();
++	DADAO_INIT_MARK("after do_basic_setup");
+ 
+ 	kunit_run_all_tests();
+ 
++	DADAO_INIT_MARK("before wait_for_initramfs");
+ 	wait_for_initramfs();
++	DADAO_INIT_MARK("after wait_for_initramfs");
+ 	console_on_rootfs();
+ 
+ 	/*
+@@ -1672,7 +1717,27 @@ static noinline void __init kernel_init_freeable(void)
+ 	 * the work
+ 	 */
+ 	int ramdisk_command_access;
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++	/*
++	 * Rule (b) of the m14-linux-017 task book: this probe image judges the
++	 * *static musl* init (`/init.musl`).  The image's `/init` script starts
++	 * busybox's `sh`, which needs the syscall table K5 owns — measured on
++	 * this port: with `/init` the boot does reach `Comm: sh`, so the kernel
++	 * side works and the missing piece is the syscall surface.  `/init`
++	 * itself is untouched; only this probe redirects `rdinit`.
++	 */
++	ramdisk_execute_command = (char *)"/init.musl";
++	dadao_early_printf("K4 init: rdinit=%s before eaccess\n",
++			   ramdisk_execute_command ? ramdisk_execute_command
++						   : "(null)");
++#endif
+ 	ramdisk_command_access = init_eaccess(ramdisk_execute_command);
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++	dadao_early_printf("K4 init: init_eaccess(%s)=%d\n",
++			   ramdisk_execute_command ? ramdisk_execute_command
++						   : "(null)",
++			   ramdisk_command_access);
++#endif
+ 	if (ramdisk_command_access != 0) {
+ 		if (ramdisk_execute_command_set)
+ 			pr_warn("check access for rdinit=%s failed: %i, ignoring\n",

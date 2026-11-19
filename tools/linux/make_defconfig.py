@@ -309,7 +309,31 @@ def main() -> int:
               file=sys.stderr)
         return 1
 
-    if args.extra_config:
+    # The built-in initramfs (CONFIG_BLK_DEV_INITRD, set by the arch defconfig)
+    # takes its contents from CONFIG_INITRAMFS_SOURCE.  The staging directory is
+    # a *runtime* path resolved by tools/linux/paths.py, so it is written here
+    # rather than in the component's defconfig; Kbuild assembles a cpio from the
+    # directory itself, so the kernel and `make linux-initramfs` share one
+    # definition of what `/init` and friends are.
+    initramfs_cpio = linux_paths.linux_initramfs_dir() / "initramfs.cpio"
+    initramfs_line = []
+    if initramfs_cpio.is_file():
+        # The *cpio* is the archive `make linux-initramfs` built (it carries
+        # `bin/busybox` and the applet links); the directory around it only has
+        # `/init`, `/init.musl` and the build artefacts, so pointing Kbuild at
+        # the directory would silently ship a rootfs without a shell.
+        initramfs_line = [f'CONFIG_INITRAMFS_SOURCE="{initramfs_cpio}"']
+    rc = apply_config_lines(initramfs_line + list(args.extra_config))
+    if rc != 0:
+        print("make_defconfig: FAIL: the config slice did not apply",
+              file=sys.stderr)
+        return rc
+    if not initramfs_line:
+        print("make_defconfig: WARN: no initramfs archive "
+              f"({initramfs_cpio}); the image will have an empty rootfs",
+              file=sys.stderr)
+
+    if False:
         rc = apply_config_lines(args.extra_config)
         if rc != 0:
             print("make_defconfig: FAIL: the config slice did not apply",

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/ptw.h b/arch/dadao/include/asm/ptw.h
 new file mode 100644
-index 000000000..42aa68d96
+index 000000000..2d0d5d1ec
 --- /dev/null
 +++ b/arch/dadao/include/asm/ptw.h
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,237 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO page table walker interface (spec/DADAO-12 §2.2, §4.5).
@@ -51,6 +51,16 @@ index 000000000..42aa68d96
 +/* cfx_* identity register (cg4 rc0, read-only): cfx_id == cfxha (§3.5). */
 +#define CFX_CG_ID		4
 +#define CFX_RC_ID		0
++
++/*
++ * `cfx_ptw` cg6: the per-cfx scratch registers (§3.7).  switch_mm() brackets its
++ * sequence with them (contract-tlb TLB-30 step ④); `ptw_enable` is bit 0 of cg8
++ * rc8 (§4.5) and is written back to 1 by the same sequence (step ③).
++ */
++#define PTW_CG_SCRATCH		6
++#define PTW_RC_SCRATCH0		0
++#define PTW_RC_SCRATCH1		1
++#define DADAO_PTW_ENABLE_ON	1UL
 +
 +/* cfx_smon mode/frame registers the supv fault path reads (§3.3, §3.6). */
 +#define SMON_CG_SUPV		2

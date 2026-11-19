@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/switch_to.h b/arch/dadao/include/asm/switch_to.h
 new file mode 100644
-index 000000000..ef174947b
+index 000000000..42be31030
 --- /dev/null
 +++ b/arch/dadao/include/asm/switch_to.h
-@@ -0,0 +1,23 @@
+@@ -0,0 +1,41 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SWITCH_TO_H
 +#define __ASM_SWITCH_TO_H
@@ -13,10 +13,28 @@ index 000000000..ef174947b
 +struct task_struct;
 +
 +/*
-+ * K0 context switch: only callee-saved registers and the stack pointer are
-+ * preserved.  Written as a statement-expression so the surrounding code
-+ * compiles before the assembly helper exists (K1 provides
-+ * __switch_to_asm).
++ * The context switch (m14-linux-017): `__switch_to` is the C half
++ * (kernel/process.c) that hands the two `thread_struct`s to the assembly
++ * helper, and the assembly half (kernel/entry.S) is the part that must run with
++ * the register file under its own control:
++ *
++ *   save   prev's `sp`, `rd32-rd63`, `rb32-rb63` and return-address stack
++ *   load   next's, including `sp`
++ *   resume next: `ret` (its own `call __switch_to` is the entry on top of the
++ *          RAS, so the pairing of contract-abi §2.3 holds), or a `jump` to
++ *          `thread.ra` for a task that has never run — its RAS is empty by
++ *          construction (spec/SimRISC-00 §2.4), so there is nothing to return
++ *          to and fabricating an entry just to pop it would be a lie about the
++ *          task's call depth.
++ *
++ * `switch_to(prev, next, last)` keeps the Linux shape: `last` is the task that
++ * was running when `__switch_to` returns, i.e. `prev` — the variable a caller
++ * uses to re-read `current` after the switch.
++ *
++ * The call site contract is unchanged: the caller holds the run queue lock and
++ * has interrupts/preemption disabled (kernel/sched/core.c `context_switch()`),
++ * which is what lets the switch touch the register file without another context
++ * observing the half-switched state.
 + */
 +struct task_struct *__switch_to(struct task_struct *prev,
 +				struct task_struct *next);

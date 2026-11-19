@@ -1,0 +1,307 @@
+diff --git a/arch/dadao/mm/k4_stack_selftest.c b/arch/dadao/mm/k4_stack_selftest.c
+new file mode 100644
+index 000000000..d527b3d12
+--- /dev/null
++++ b/arch/dadao/mm/k4_stack_selftest.c
+@@ -0,0 +1,301 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * K4 user-stack growth self-test (m14-linux-019's S1-S6, probe image only).
++ *
++ * The port implements stack growth in the page-fault channel: a *missing*-class
++ * fault below a `VM_GROWSDOWN` VMA extends that VMA down to the faulting page
++ * (arch/dadao/mm/fault.c, `dadao_pf_grow_stack()`).  The two rules that decide
++ * how far it may go are the generic kernel's own — `stack_guard_gap` against the
++ * previous VMA and `RLIMIT_STACK` — enforced inside `expand_stack_locked()`, so
++ * what this file has to show is that the channel *routes* faults through them:
++ *
++ *   S1  one page down grows the VMA by exactly one page and the page is filled;
++ *   S2  a second page down grows it again (not a one-off) and the size is the
++ *       starting size plus two pages;
++ *   S5  a permission-class fault inside the VMA never grows it (the growth
++ *       counter and `vm_start` stay put);
++ *   S3  a fault that would exceed `RLIMIT_STACK` does not grow — named stop;
++ *   S4  a VMA without `VM_GROWSDOWN` does not grow — named stop;
++ *   S6  growth that would enter `stack_guard_gap` does not happen — named stop
++ *       (the neighbour is placed so the gap binds before the limit does).
++ *
++ * The fault is raised by the *kernel* (a supv load/store to a user VA), which is
++ * the vehicle the m14-linux-019 task book allows; pressing on a stack from a
++ * real user process needs the U-mode closure of m14-linux-016/017 (task book,
++ * F37) and is recorded there rather than faked here.
++ *
++ * Cases 3, 4 and 6 end the boot: "did not grow" is a named termination, so each
++ * value of CONFIG_DADAO_K4_STACK_SELFTEST builds one image — the same shape as
++ * the K3 page-fault cases.
++ */
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/mm.h>
++#include <linux/mm_types.h>
++#include <linux/sched.h>
++#include <linux/sched/mm.h>
++#include <linux/types.h>
++#include <linux/mman.h>
++
++#include <asm/mmu_context.h>
++#include <asm/page.h>
++#include <asm/pgtable.h>
++#include <asm/setup.h>
++
++/*
++ * Guest FAIL segment (spec/Kaiwu §7.1): process.c owns 0x30-0x32,
++ * kernel/k4_selftest.c 0x33-0x3a and kernel/k4_switch_selftest.c 0x40-0x46.
++ */
++#define ST_FAIL_SETUP		0x3b	/* mm_alloc()/vm_mmap()/VMA shape */
++#define ST_FAIL_S1		0x3c	/* the first page down did not grow */
++#define ST_FAIL_S2		0x3d	/* the second page down did not grow */
++#define ST_FAIL_S5		0x3e	/* a permission fault grew the stack */
++
++/* User VA bases: inside the user window (spec/Kaiwu §6.3, [0, 2 TiB)), far
++ * apart so no case's VMA can be the other's neighbour. */
++#define ST_VA(n)	((1UL << 40) + ((unsigned long)(n) << 38))
++
++#define ST_STACK_PAGES	2
++
++static struct mm_struct *st_mm;
++
++/* A load/store the compiler cannot remove or move: the fault has to happen at
++ * the address the case names. */
++static noinline unsigned long st_load(unsigned long va)
++{
++	return *(volatile unsigned long *)va;
++}
++
++static noinline void st_store(unsigned long va, unsigned long value)
++{
++	*(volatile unsigned long *)va = value;
++}
++
++static void __noreturn st_fail(unsigned long why, unsigned long a,
++			       unsigned long b)
++{
++	dadao_early_printf("K4 stack FAIL why=%#lx a=%#lx b=%#lx\n", why, a, b);
++	dadao_early_exit(why);
++}
++
++static void st_expect(const char *what, unsigned long want, unsigned long got,
++		      unsigned long why)
++{
++	dadao_early_printf("K4 check %s want=%#lx got=%#lx %s\n", what, want,
++			   got, want == got ? "ok" : "BAD");
++	if (want != got)
++		st_fail(why, want, got);
++}
++
++/* The probe owns the address space from here on: `vm_mmap()` maps into
++ * `current->mm`, and the fault channel takes its `find_vma(current->mm)` arm
++ * only when the mm is attached (kernel/k4_selftest.c does the same). */
++static void st_setup_mm(void)
++{
++	st_mm = mm_alloc();
++	if (!st_mm)
++		st_fail(ST_FAIL_SETUP, 1, 0);
++	current->mm = st_mm;
++	current->active_mm = st_mm;
++	/*
++	 * Activate it, so the fills land in this address space's own table and
++	 * the invalidation after a fill keys on this mm's ASID — the kernel
++	 * table's ASID would leave the stale translation in place and the
++	 * retried store would fault again (measured: `replace-zero` then
++	 * `die-perm` on the very next entry).
++	 */
++	dadao_switch_mm(NULL, st_mm, current);
++	dadao_early_printf("K4 stack mm: mm=%#lx pgd=%#lx pa=%#lx asid=%lu "
++			   "ptbr=%#lx\n", (unsigned long)st_mm,
++			   (unsigned long)st_mm->pgd, __pa(st_mm->pgd),
++			   dadao_asid_read(), dadao_ptbr_read());
++}
++
++static unsigned long st_map(unsigned long addr, unsigned long len,
++			    unsigned long prot, unsigned long flags)
++{
++	unsigned long ret = vm_mmap(NULL, addr, len, prot,
++				    flags | MAP_FIXED, 0);
++
++	if (ret != addr)
++		st_fail(ST_FAIL_SETUP, addr, ret);
++	return ret;
++}
++
++/* The VMA the channel's own lookup answers for @addr (right edge, not NULL). */
++static struct vm_area_struct *st_vma(unsigned long addr)
++{
++	struct vm_area_struct *vma;
++
++	mmap_read_lock(current->mm);
++	vma = find_vma(current->mm, addr);
++	mmap_read_unlock(current->mm);
++	return vma;
++}
++
++/* S1 + S2 + S5: all recoverable, one boot. */
++#if CONFIG_DADAO_K4_STACK_SELFTEST == 1
++static void st_case_grow(void)
++{
++	unsigned long base = ST_VA(1);
++	unsigned long start, end, grows0, val;
++	struct vm_area_struct *vma;
++	unsigned long page = PAGE_SIZE;
++
++	st_setup_mm();
++	st_map(base + 4 * page, ST_STACK_PAGES * page, PROT_READ | PROT_WRITE,
++	       MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN);
++
++	vma = st_vma(base + 4 * page);
++	if (!vma)
++		st_fail(ST_FAIL_SETUP, base + 4 * page, 0);
++	dadao_early_printf("K4 stack setup: vma=%#lx-%#lx pages=%lu rlimit=%lu "
++			   "gap=%lu grows=%lu\n", vma->vm_start, vma->vm_end,
++			   (vma->vm_end - vma->vm_start) / page,
++			   (unsigned long)rlimit(RLIMIT_STACK),
++			   stack_guard_gap, dadao_pf_grow_count());
++	if (!(vma->vm_flags & VM_GROWSDOWN))
++		st_fail(ST_FAIL_SETUP, vma->vm_flags, 0);
++
++	grows0 = dadao_pf_grow_count();
++	start = vma->vm_start;
++	end = vma->vm_end;
++
++	/* S1: one page below the stack. */
++	val = st_load(base + 3 * page);
++	st_expect("s1-value", 0, val, ST_FAIL_S1);
++	vma = st_vma(base + 3 * page);
++	st_expect("s1-start", start - page, vma->vm_start, ST_FAIL_S1);
++	st_expect("s1-end", end, vma->vm_end, ST_FAIL_S1);
++	st_expect("s1-grows", grows0 + 1, dadao_pf_grow_count(), ST_FAIL_S1);
++
++	/* S2: one more page down — the size is the starting size + two pages. */
++	val = st_load(base + 2 * page);
++	st_expect("s2-value", 0, val, ST_FAIL_S2);
++	vma = st_vma(base + 2 * page);
++	st_expect("s2-start", start - 2 * page, vma->vm_start, ST_FAIL_S2);
++	st_expect("s2-size", (end - start) + 2 * page, vma->vm_end - vma->vm_start,
++		  ST_FAIL_S2);
++	st_expect("s2-grows", grows0 + 2, dadao_pf_grow_count(), ST_FAIL_S2);
++
++	/*
++	 * S5: a permission-class fault inside the VMA.  The read fills the shared
++	 * zero page (read-only by construction), the store then faults with
++	 * CFXPERM + NWPERM and becomes a private page — and neither visit may
++	 * grow the stack.
++	 */
++	val = st_load(base + 5 * page);
++	st_expect("s5-zero-page-read", 0, val, ST_FAIL_S5);
++	st_store(base + 5 * page, 0x5a5a000000000001UL);
++	st_expect("s5-store-value", 0x5a5a000000000001UL,
++		  st_load(base + 5 * page), ST_FAIL_S5);
++	vma = st_vma(base + 2 * page);
++	st_expect("s5-start", start - 2 * page, vma->vm_start, ST_FAIL_S5);
++	st_expect("s5-grows", grows0 + 2, dadao_pf_grow_count(), ST_FAIL_S5);
++
++	dadao_early_printf("K4 stack done: vma=%#lx-%#lx grows=%lu entries=%lu "
++			   "pages=%lu\n", vma->vm_start, vma->vm_end,
++			   dadao_pf_grow_count(), dadao_pf_entry_count(),
++			   dadao_pf_alloc_count());
++	dadao_early_exit(0);
++}
++
++#endif /* case 1 */
++
++/* S3: one step below the stack that would exceed RLIMIT_STACK. */
++#if CONFIG_DADAO_K4_STACK_SELFTEST == 3
++static void st_case_limit(void)
++{
++	unsigned long base = ST_VA(2);
++	unsigned long page = PAGE_SIZE;
++	unsigned long limit = (unsigned long)rlimit(RLIMIT_STACK);
++	unsigned long target;
++
++	st_setup_mm();
++	st_map(base + 4 * page, ST_STACK_PAGES * page, PROT_READ | PROT_WRITE,
++	       MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN);
++	/* No neighbour: the limit is the only rule that can stop this one. */
++	target = base + 4 * page - limit - 2 * page;
++	dadao_early_printf("K4 stack s3: target=%#lx dist=%lu limit=%lu gap=%lu "
++			   "grows=%lu\n", target, base + 4 * page - target,
++			   limit, stack_guard_gap, dadao_pf_grow_count());
++	(void)st_load(target);
++	/* Not reached: the channel terminates with `die-no-vma`. */
++	st_fail(ST_FAIL_SETUP, 2, dadao_pf_grow_count());
++}
++
++#endif /* case 3 */
++
++/* S4: a VMA that is not growable. */
++#if CONFIG_DADAO_K4_STACK_SELFTEST == 4
++static void st_case_non_grow(void)
++{
++	unsigned long base = ST_VA(3);
++	unsigned long page = PAGE_SIZE;
++
++	st_setup_mm();
++	st_map(base + 4 * page, ST_STACK_PAGES * page, PROT_READ | PROT_WRITE,
++	       MAP_PRIVATE | MAP_ANONYMOUS);
++	dadao_early_printf("K4 stack s4: target=%#lx limit=%lu grows=%lu\n",
++			   base + 3 * page,
++			   (unsigned long)rlimit(RLIMIT_STACK),
++			   dadao_pf_grow_count());
++	(void)st_load(base + 3 * page);
++	st_fail(ST_FAIL_SETUP, 3, dadao_pf_grow_count());
++}
++
++#endif /* case 4 */
++
++/* S6: a neighbour inside stack_guard_gap (and well inside the limit). */
++#if CONFIG_DADAO_K4_STACK_SELFTEST == 6
++static void st_case_gap(void)
++{
++	unsigned long base = ST_VA(3);
++	unsigned long page = PAGE_SIZE;
++
++	st_setup_mm();
++	/*
++	 * Neighbour [base+1p, base+3p): the stack starts one page above its end,
++	 * so the faulting page (base+3p) is a hole with the neighbour 0 bytes
++	 * away — the gap binds long before RLIMIT_STACK (4 pages < 8 MiB).
++	 */
++	st_map(base + 1 * page, ST_STACK_PAGES * page, PROT_READ | PROT_WRITE,
++	       MAP_PRIVATE | MAP_ANONYMOUS);
++	st_map(base + 4 * page, ST_STACK_PAGES * page, PROT_READ | PROT_WRITE,
++	       MAP_PRIVATE | MAP_ANONYMOUS | MAP_GROWSDOWN);
++	/*
++	 * `dist` is what the gap rule measures (address - previous vm_end) and
++	 * `size` what the limit rule measures (vm_end - address): the print
++	 * carries both so the gate can prove the gap was the binding rule.
++	 */
++	dadao_early_printf("K4 stack s6: target=%#lx dist=%lu size=%lu "
++			   "gap_budget=%lu limit=%lu grows=%lu\n",
++			   base + 3 * page, page,
++			   base + 6 * page - (base + 3 * page),
++			   stack_guard_gap,
++			   (unsigned long)rlimit(RLIMIT_STACK),
++			   dadao_pf_grow_count());
++	(void)st_load(base + 3 * page);
++	st_fail(ST_FAIL_SETUP, 4, dadao_pf_grow_count());
++}
++
++#endif /* case 6 */
++
++void __init __noreturn dadao_k4_stack_selftest(void)
++{
++	dadao_early_printf("K4 stack: begin case=%d page=%lu\n",
++			   CONFIG_DADAO_K4_STACK_SELFTEST, (unsigned long)PAGE_SIZE);
++
++#if CONFIG_DADAO_K4_STACK_SELFTEST == 1
++	st_case_grow();
++#elif CONFIG_DADAO_K4_STACK_SELFTEST == 3
++	st_case_limit();
++#elif CONFIG_DADAO_K4_STACK_SELFTEST == 4
++	st_case_non_grow();
++#elif CONFIG_DADAO_K4_STACK_SELFTEST == 6
++	st_case_gap();
++#else
++#error "CONFIG_DADAO_K4_STACK_SELFTEST: 1, 3, 4 or 6"
++#endif
++	st_fail(ST_FAIL_SETUP, 0, 0);	/* every case ends by exiting */
++}

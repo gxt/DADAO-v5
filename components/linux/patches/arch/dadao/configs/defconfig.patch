@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/configs/defconfig b/arch/dadao/configs/defconfig
 new file mode 100644
-index 000000000..829bf9abc
+index 000000000..2c1923407
 --- /dev/null
 +++ b/arch/dadao/configs/defconfig
-@@ -0,0 +1,48 @@
+@@ -0,0 +1,51 @@
 +# K0 minimal defconfig: single hart, big endian, 64 KiB pages, no SMP,
 +# no device tree, no UART/PCI, semihosting console stub.
 +CONFIG_DADAO=y
@@ -52,3 +52,6 @@ index 000000000..829bf9abc
 +# K1 brings a DADAO-aware emitter.
 +CONFIG_KALLSYMS=n
 +CONFIG_DEBUG_INFO=n
++
++# Built-in initramfs (m14-linux-017): the K4 image boots /init from it.
++CONFIG_BLK_DEV_INITRD=y

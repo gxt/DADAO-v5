@@ -1,0 +1,75 @@
+diff --git a/kernel/workqueue.c b/kernel/workqueue.c
+index 53608ac01..964fd70e9 100644
+--- a/kernel/workqueue.c
++++ b/kernel/workqueue.c
+@@ -33,6 +33,7 @@
+ #include <linux/signal.h>
+ #include <linux/completion.h>
+ #include <linux/workqueue.h>
++#include <asm/setup.h>
+ #include <linux/slab.h>
+ #include <linux/cpu.h>
+ #include <linux/notifier.h>
+@@ -8163,6 +8164,15 @@ void __init workqueue_init(void)
+ 	struct worker_pool *pool;
+ 	int cpu, bkt;
+ 
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++#define DADAO_WQ_MARK(name, arg)					\
++	dadao_early_printf("K4 wq: " name " %lu j=%lu\n",		\
++			   (unsigned long)(arg), (unsigned long)jiffies_64)
++#else
++#define DADAO_WQ_MARK(name, arg)	do { } while (0)
++#endif
++
++	DADAO_WQ_MARK("thresh_init", 0);
+ 	wq_cpu_intensive_thresh_init();
+ 
+ 	mutex_lock(&wq_pool_mutex);
+@@ -8178,11 +8188,14 @@ void __init workqueue_init(void)
+ 			pool->node = cpu_to_node(cpu);
+ 	}
+ 
++	DADAO_WQ_MARK("rescuer_begin", 0);
+ 	list_for_each_entry(wq, &workqueues, list) {
++		DADAO_WQ_MARK("rescuer", (unsigned long)wq->name);
+ 		WARN(init_rescuer(wq),
+ 		     "workqueue: failed to create early rescuer for %s",
+ 		     wq->name);
+ 	}
++	DADAO_WQ_MARK("rescuer_end", 0);
+ 
+ 	mutex_unlock(&wq_pool_mutex);
+ 
+@@ -8192,22 +8205,30 @@ void __init workqueue_init(void)
+ 	 * affected by hotplug events. Create the BH pseudo workers for all
+ 	 * possible CPUs here.
+ 	 */
++	DADAO_WQ_MARK("bh_workers", 0);
+ 	for_each_possible_cpu(cpu)
+-		for_each_bh_worker_pool(pool, cpu)
++		for_each_bh_worker_pool(pool, cpu) {
+ 			BUG_ON(!create_worker(pool));
++		}
++	DADAO_WQ_MARK("bh_workers_done", 0);
+ 
++	DADAO_WQ_MARK("cpu_workers", 0);
+ 	for_each_online_cpu(cpu) {
+ 		for_each_cpu_worker_pool(pool, cpu) {
+ 			pool->flags &= ~POOL_DISASSOCIATED;
+ 			BUG_ON(!create_worker(pool));
+ 		}
+ 	}
++	DADAO_WQ_MARK("cpu_workers_done", 0);
+ 
++	DADAO_WQ_MARK("unbound_workers", 0);
+ 	hash_for_each(unbound_pool_hash, bkt, pool, hash_node)
+ 		BUG_ON(!create_worker(pool));
++	DADAO_WQ_MARK("unbound_workers_done", 0);
+ 
+ 	wq_online = true;
+ 	wq_watchdog_init();
++	DADAO_WQ_MARK("watchdog_done", 0);
+ }
+ 
+ /*

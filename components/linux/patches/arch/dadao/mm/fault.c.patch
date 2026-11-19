@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/fault.c b/arch/dadao/mm/fault.c
 new file mode 100644
-index 000000000..1d1bac1d1
+index 000000000..b10c7c4bf
 --- /dev/null
 +++ b/arch/dadao/mm/fault.c
-@@ -0,0 +1,535 @@
+@@ -0,0 +1,814 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO demand paging: the CFXMEM / CFXPERM fault channel (K3, m14-linux-012).
@@ -53,6 +53,7 @@ index 000000000..1d1bac1d1
 + * injected handler that returns RETRY without making progress must end the boot
 + * by name instead of spinning (task rule).
 + */
++#include <linux/fs.h>
 +#include <linux/init.h>
 +#include <linux/kernel.h>
 +#include <linux/mm.h>
@@ -227,6 +228,59 @@ index 000000000..1d1bac1d1
 +}
 +
 +/* -------------------------------------------------------------------------
++ * Stack growth (VM_GROWSDOWN, m14-linux-019's S1-S6)
++ * ------------------------------------------------------------------------- */
++
++static unsigned long dadao_pf_grows;
++
++unsigned long dadao_pf_grow_count(void)
++{
++	return dadao_pf_grows;
++}
++
++/*
++ * A *missing*-class fault below a growable VMA: extend that VMA down to the
++ * faulting page and report it, or NULL when nothing may grow.
++ *
++ * The rules are Linux's own and are enforced inside `expand_downwards()`:
++ * `stack_guard_gap` against the previous VMA and `RLIMIT_STACK` through
++ * `acct_stack_growth()`.  This function only decides *whether* that is the right
++ * reading of the fault — a VMA with VM_GROWSDOWN, a hole below it, and an
++ * address space of its own (the K3 probe windows have none and never grow).
++ *
++ * Called for the missing class only: a permission fault must never become a new
++ * mapping (019 S5), which is why the caller tests the class before asking.
++ */
++static struct vm_area_struct *dadao_pf_grow_stack(unsigned long addr)
++{
++	struct mm_struct *mm = current->mm;
++	struct vm_area_struct *vma;
++	int ret;
++
++	if (!mm)
++		return NULL;
++
++	mmap_write_lock(mm);
++	vma = find_vma(mm, addr);
++	if (!vma || addr >= vma->vm_start ||
++	    !(vma->vm_flags & VM_GROWSDOWN)) {
++		mmap_write_unlock(mm);
++		return NULL;
++	}
++	/*
++	 * `expand_stack_locked()` is the generic entry point (include/linux/mm.h);
++	 * on this port it is `expand_downwards()`, which enforces both rules and
++	 * asserts the mmap lock is held for writing — hence the lock above.
++	 */
++	ret = expand_stack_locked(vma, addr);
++	mmap_write_unlock(mm);
++	if (ret)
++		return NULL;
++	dadao_pf_grows++;
++	return vma;
++}
++
++/* -------------------------------------------------------------------------
 + * Counters the probe asserts on
 + * ------------------------------------------------------------------------- */
 +
@@ -271,13 +325,17 @@ index 000000000..1d1bac1d1
 +{
 +	/*
 +	 * Which run mode may reach the mapping (spec/DADAO-12 §2.2.6: the walker
-+	 * checks the HSJU bit of the *accessing* mode).  A VMA that belongs to an
-+	 * address space is a user task's mapping and must be reachable in user
-+	 * mode; a probe window has no mm and is a kernel window (K1-K3 shape).
-+	 * The kernel reaches a user page through __va(), never through the user
-+	 * VA, so U alone is enough — mapping both is not needed.
++	 * checks the HSJU bit of the *accessing* mode; the hardware never lets
++	 * S override U — §2.2.5 "用户页/内核页的组合策略由操作系统决定").
++	 *
++	 * A VMA that belongs to an address space is a user task's mapping, and it
++	 * needs **both** bits from K4 on: U for the task itself, S for the kernel
++	 * servicing it — `write(2)` and `brk(2)` must read the user's buffer and
++	 * `copy_from_user()` walks the user VA, so a U-only page would turn every
++	 * syscall that takes a pointer into CFXPERM/NSPERM.  A probe window has no
++	 * mm and stays a kernel-only mapping (S).
 +	 */
-+	return vma && vma->vm_mm ? _PAGE_U : _PAGE_S;
++	return vma && vma->vm_mm ? (_PAGE_U | _PAGE_S) : _PAGE_S;
 +}
 +
 +static unsigned long dadao_pf_pte(struct vm_area_struct *vma, unsigned long pa,
@@ -311,6 +369,22 @@ index 000000000..1d1bac1d1
 +{
 +	update_mmu_cache(vma, addr, ptep);
 +	local_flush_tlb_page(vma, addr);
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++	{
++		static int n;
++
++		if (n++ < 8)
++			dadao_early_printf("K4 pf pub: va=%#lx mm=%#lx mm_pgd=%#lx "
++					   "ptbr=%#lx asid=%lu mm_asid=%lu "
++					   "pte=%#lx\n", addr,
++					   (unsigned long)vma->vm_mm,
++					   __pa(vma->vm_mm->pgd),
++					   dadao_ptbr_read(),
++					   dadao_asid_read(),
++					   (unsigned long)vma->vm_mm->context.asid,
++					   pte_val(*ptep));
++	}
++#endif
 +}
 +
 +/* -------------------------------------------------------------------------
@@ -321,11 +395,74 @@ index 000000000..1d1bac1d1
 + * Fill a missing page and report which branch did it.  Returns the result name,
 + * or NULL when the fault cannot be served (the caller then terminates by name).
 + */
++/*
++ * The table the walker reads for @addr: once `switch_mm()` has put the faulting
++ * task's own table in PTBR, that is where a fill has to land; before that (the
++ * K1-K4 shape, where PTBR is the kernel's table) and for a VMA that is not the
++ * running task's, the kernel table is the right one.
++ */
++static pmd_t *dadao_pf_table(struct mm_struct *mm, unsigned long addr)
++{
++	if (mm && mm == current->mm && mm->pgd &&
++	    __pa(mm->pgd) == dadao_ptbr_read())
++		return pmd_off(mm, addr);
++	return pmd_off_k(addr);
++}
++
++/*
++ * A code page for a *file-backed* VMA (what `execve` builds: `elf_map()` maps an
++ * ELF segment with `vm_file` + `vm_pgoff`).  The loader leaves the pages to this
++ * channel — the port has no page cache on the fault path — so the page is read
++ * straight from the file at `vm_pgoff << PAGE_SHIFT` plus the in-page offset,
++ * into a fresh zeroed page (a short read leaves the tail zero).  Returns the
++ * page's physical address, or 0 when it cannot be served.
++ */
++static unsigned long dadao_pf_fill_from_file(struct vm_area_struct *vma,
++					     unsigned long addr)
++{
++	struct file *file = vma->vm_file;
++	loff_t pos;
++	unsigned long pa;
++	ssize_t n;
++
++	if (!file)
++		return 0;
++	/*
++	 * The page, not the byte: the first byte of the mapped page is the first
++	 * byte of the file page `elf_map()` chose — `vm_pgoff` already carries
++	 * the in-page offset out of the file offset (`off = p_offset -
++	 * ELF_PAGEOFFSET(p_vaddr)`), so adding `addr & ~PAGE_MASK` here would
++	 * shift the whole page (measured: a page shifted by 0x11c8 executed
++	 * garbage and entered the syscall stub at addresses the ELF does not
++	 * have a `trap` at).
++	 */
++	pos = (loff_t)vma->vm_pgoff << PAGE_SHIFT;
++	pa = dadao_pf_alloc_page();
++	if (!pa)
++		return 0;
++	n = kernel_read(file, __va(pa), PAGE_SIZE, &pos);
++	if (n < 0)
++		return 0;
++	return pa;
++}
++
 +static const char *dadao_pf_fill(struct vm_area_struct *vma, unsigned long addr,
 +				 unsigned int pos)
 +{
 +	bool fetch = dadao_subcause_is_fetch(pos);
-+	pmd_t *pmd = pmd_off_k(addr);
++
++	/*
++	 * Which table this fault belongs to: the *VMA's* address space.  A user
++	 * VMA lives in the process's own table, which is also what PTBR points
++	 * at once `switch_mm()` has run — writing the L2/PTE into the kernel's
++	 * table instead would leave the walker looking at an empty slot forever
++	 * (measured: `fill-zero` then the same fault again, `l1 = 0` through
++	 * PTBR while the channel's own `pmd_off_k` copy was present).  A probe
++	 * window (`vm_mm == NULL`) is a kernel window and keeps the kernel
++	 * table, which is the K1-K4 shape this channel was built on.
++	 */
++	struct mm_struct *mm = vma->vm_mm;
++	pmd_t *pmd = dadao_pf_table(mm, addr);
 +	unsigned long entry = pmd_val(*pmd);
 +	pte_t *ptep;
 +	unsigned long pa;
@@ -371,7 +508,8 @@ index 000000000..1d1bac1d1
 +		pa = dadao_pf_alloc_page();
 +		if (!pa)
 +			return NULL;
-+		pmd_populate_kernel(&init_mm, pmd, (pte_t *)__va(pa));
++		pmd_populate_kernel(mm ? mm : &init_mm, pmd,
++				    (pte_t *)__va(pa));
 +	}
 +
 +	ptep = pte_offset_kernel(pmd, addr);
@@ -388,13 +526,37 @@ index 000000000..1d1bac1d1
 +	if (fetch) {
 +		/* The faulting access was an instruction fetch ("I" prefix):
 +		 * the page must become executable and its content has to be the
-+		 * window's code page. */
++		 * window's code page.
++		 *
++		 * A *file-backed* text VMA (what `execve` builds: `elf_map()` maps
++		 * the ELF segment with `vm_file` + `vm_pgoff`) has no
++		 * `vm_private_data`; its content is read from the file on demand —
++		 * the same page the loader would have brought in, without a page
++		 * cache.  A probe window keeps the single-page `vm_private_data`
++		 * form. */
 +		pa = (unsigned long)vma->vm_private_data;
-+		if (!pa)
-+			return NULL;
++		if (!pa && vma->vm_file)
++			pa = dadao_pf_fill_from_file(vma, addr);
 +		set_pte(ptep, __pte(dadao_pf_pte(vma, pa, false, true)));
 +		dadao_pf_publish(vma, addr, ptep);
 +		return "fill-code";
++	}
++
++	/*
++	 * A *file-backed* data VMA (`.rodata`, `.data`, the startup jump tables
++	 * musl indexes by syscall number) must serve the file's bytes, not zeros:
++	 * mapping the shared zero page here made `sccp`'s jump table all-NULL and
++	 * the first indirect jump went to 0 (measured: `jump [rb4,rd0,0]` with
++	 * rb4 = 0 right after the table was read).
++	 */
++	if (vma->vm_file) {
++		pa = dadao_pf_fill_from_file(vma, addr);
++		if (pa) {
++			set_pte(ptep, __pte(dadao_pf_pte(vma, pa, false,
++							!!(vma->vm_flags & VM_EXEC))));
++			dadao_pf_publish(vma, addr, ptep);
++			return "fill-file";
++		}
 +	}
 +
 +	/* Data (read or write): map the shared zero page read-only.  A store
@@ -407,9 +569,10 @@ index 000000000..1d1bac1d1
 +}
 +
 +/* The leaf PTE for @addr, or NULL when no second-level table exists. */
-+static pte_t *dadao_pf_ptep(unsigned long addr)
++/* The PTE of @addr (the kernel table; see the note in dadao_pf_fill()). */
++static pte_t *dadao_pf_ptep(struct vm_area_struct *vma, unsigned long addr)
 +{
-+	pmd_t *pmd = pmd_off_k(addr);
++	pmd_t *pmd = dadao_pf_table(vma->vm_mm, addr);
 +
 +	if (pmd_none(*pmd) || (pmd_val(*pmd) & _PAGE_SUPER))
 +		return NULL;
@@ -424,25 +587,91 @@ index 000000000..1d1bac1d1
 + */
 +static bool dadao_pf_unshare_zero(struct vm_area_struct *vma, unsigned long addr)
 +{
-+	pte_t *ptep = dadao_pf_ptep(addr);
++	pte_t *ptep = dadao_pf_ptep(vma, addr);
 +	unsigned long pa;
 +
-+	if (!ptep || !dadao_zero_pa || !(vma->vm_flags & VM_WRITE))
++	if (!ptep || !dadao_zero_pa || !(vma->vm_flags & VM_WRITE)) {
++#if CONFIG_DADAO_K4_STACK_SELFTEST
++		dadao_early_printf("K4 stack unshare: refuse ptep=%#lx zero=%#lx "
++				   "flags=%#lx va=%#lx\n",
++				   (unsigned long)ptep, dadao_zero_pa,
++				   vma->vm_flags, addr);
++#endif
 +		return false;
-+	if ((pte_val(*ptep) & _PAGE_PFN_MASK) != (dadao_zero_pa & _PAGE_PFN_MASK))
-+		return false;
++	}
++	if ((pte_val(*ptep) & _PAGE_PFN_MASK) == (dadao_zero_pa & _PAGE_PFN_MASK)) {
++		/* The zero page: nothing to copy (user ruling 2026-11-16). */
++		pa = dadao_pf_alloc_page();
++		if (!pa)
++			return false;
++		set_pte(ptep, __pte(dadao_pf_pte(vma, pa, true, false)));
++		dadao_pf_publish(vma, addr, ptep);
++		return true;
++	}
 +
-+	pa = dadao_pf_alloc_page();
-+	if (!pa)
-+		return false;
-+	set_pte(ptep, __pte(dadao_pf_pte(vma, pa, true, false)));
-+	dadao_pf_publish(vma, addr, ptep);
-+	return true;
++	/*
++	 * Any other read-only page gets a private copy of *its* contents — this
++	 * is the write half of `fill-file` (a `.data` page read from the ELF, or
++	 * any file-backed read-only mapping).  Copying is right here: the page
++	 * has content, unlike the zero page above.
++	 */
++	{
++		unsigned long from = pte_val(*ptep) & _PAGE_PFN_MASK;
++
++		pa = dadao_pf_alloc_page();
++		if (!pa)
++			return false;
++		memcpy(__va(pa), __va(from), PAGE_SIZE);
++		set_pte(ptep, __pte(dadao_pf_pte(vma, pa, true,
++					       !!(vma->vm_flags & VM_EXEC))));
++		dadao_pf_publish(vma, addr, ptep);
++		return true;
++	}
 +}
 +
 +/* -------------------------------------------------------------------------
 + * Entry
 + * ------------------------------------------------------------------------- */
++
++
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++/* The last page fault's verdict, in numbers (see the entry below). */
++unsigned long dadao_pf_last[8];
++unsigned long dadao_pf_last_res;
++
++/*
++ * F27 probe: read the table the *walker* uses (through PTBR) and the table the
++ * channel uses (`current->mm->pgd`), as raw 64-bit words, for one user VA.
++ */
++static void k4s_pf_dump(unsigned long va)
++{
++	static int n;
++	unsigned long ptbr = dadao_ptbr_read();
++	unsigned long mm_pgd = current->mm ? __pa(current->mm->pgd) : 0;
++	unsigned long l1, l1m, l2pa, l2pam, l2e = 0, l2em = 0;
++	unsigned long l1i = ((va >> 29) & (PTRS_PER_PGD - 1)) * 8;
++	unsigned long l2i = ((va >> PAGE_SHIFT) & (PTRS_PER_PTE - 1)) * 8;
++
++	if (n++ >= 6)
++		return;
++
++	l1 = ptbr ? *(unsigned long *)__va(ptbr + l1i) : 0;
++	l1m = mm_pgd ? *(unsigned long *)__va(mm_pgd + l1i) : 0;
++	l2pa = l1 & _PAGE_PFN_MASK;
++	l2pam = l1m & _PAGE_PFN_MASK;
++	if (l2pa && (l1 & _PAGE_PRESENT))
++		l2e = *(unsigned long *)__va(l2pa + l2i);
++	if (l2pam && (l1m & _PAGE_PRESENT))
++		l2em = *(unsigned long *)__va(l2pam + l2i);
++
++	dadao_early_printf("K4 pf raw: va=%#lx ptbr=%#lx l1=%#lx l2pa=%#lx "
++			   "l2e=%#lx | mm_pgd=%#lx l1m=%#lx l2pam=%#lx l2em=%#lx "
++			   "l1i=%#lx l2i=%#lx\n", va, ptbr, l1, l2pa, l2e, mm_pgd,
++			   l1m, l2pam, l2em, l1i, l2i);
++}
++#else
++static inline void k4s_pf_dump(unsigned long va) { }
++#endif
 +
 +/* Same (address, id) this many times in a row: the handler is not making
 + * progress.  Reported, not ignored — an injected "retry without installing"
@@ -470,6 +699,10 @@ index 000000000..1d1bac1d1
 +unsigned long dadao_do_page_fault(struct pt_regs *regs, unsigned long cause,
 +				  unsigned long info)
 +{
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++	k4s_pf_dump(info);
++#endif
++
 +	unsigned int pos = dadao_subcause_pos(cause);
 +	struct vm_area_struct *vma = NULL;
 +	const char *result = NULL;
@@ -498,7 +731,17 @@ index 000000000..1d1bac1d1
 +	} else if (pos == DADAO_SUB_NONPTW) {
 +		result = "die-nonptw";
 +	} else if (!(vma = dadao_pf_find_vma(info))) {
-+		result = "die-no-vma";
++		/*
++		 * The one way a hole becomes a window: a missing-class fault
++		 * below a VM_GROWSDOWN VMA grows the stack (m14-linux-019).
++		 */
++		if (dadao_subcause_is_missing(pos) &&
++		    (vma = dadao_pf_grow_stack(info)))
++			result = dadao_pf_fill(vma, info, pos);
++		else
++			result = "die-no-vma";
++		if (!result)
++			result = "die-missing";
 +	} else if (!dadao_zero_pa) {
 +		result = "die-uninit";	/* dadao_pf_init() never ran */
 +	} else if (dadao_subcause_is_perm(pos)) {
@@ -522,10 +765,47 @@ index 000000000..1d1bac1d1
 +	}
 +
 +	if (!strcmp(result, "fill-zero") || !strcmp(result, "fill-code") ||
++	    !strcmp(result, "fill-file") ||
 +	    !strcmp(result, "fill-super") || !strcmp(result, "frag-set") ||
 +	    !strcmp(result, "replace-zero"))
 +		policy = DADAO_PF_RETRY;
 +
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++	dadao_flog_last[0] = dadao_pf_entries;
++	dadao_flog_last[1] = cause;
++	dadao_flog_last[2] = info;
++	dadao_flog_last[3] = dadao_ptbr_read();
++	/*
++	 * The verdict in numbers (probe image only): the textual "K3 pf:" line
++	 * cannot be printed from inside the frame, and the strings are what the
++	 * next diagnosis needs.  Codes follow the order of the result chain.
++	 */
++	{
++		static const char *const res[] = {
++			"none", "fill-zero", "fill-code", "fill-super",
++			"frag-set", "replace-zero", "die-perm",
++			"die-missing", "die-sub",
++		};
++		unsigned long i;
++
++		dadao_pf_last[0] = pos;
++		dadao_pf_last[1] = policy;
++		dadao_pf_last[2] = regs ? regs->ip : 0UL;
++		dadao_pf_last[3] = vma ? vma->vm_start : 0UL;
++		dadao_pf_last[4] = vma ? vma->vm_end : 0UL;
++		dadao_pf_last[5] = vma ? dadao_pf_show_pte(info) : 0UL;
++		dadao_pf_last[6] = vma ? vma->vm_flags : 0UL;
++		dadao_pf_last[7] = vma ? (unsigned long)vma->vm_private_data : 0UL;
++		extern unsigned long dadao_pf_last_res;
++		dadao_pf_last_res = 0;
++		for (i = 1; i < ARRAY_SIZE(res); i++) {
++			if (!strcmp(result, res[i])) {
++				dadao_pf_last_res = i;
++				break;
++			}
++		}
++	}
++#endif
 +	dadao_early_printf("K3 pf: n=%lu id=%#lx cause=%s sub=%s ip=%#lx va=%#lx "
 +			   "vma=%#lx-%#lx pte=%#lx pool=%lu try=%lu result=%s\n",
 +			   dadao_pf_entries, cause,
@@ -536,6 +816,5 @@ index 000000000..1d1bac1d1
 +			   vma ? dadao_pf_show_pte(info) : 0UL,
 +			   dadao_pf_pages,
 +			   dadao_pf_streak, result);
-+
 +	return policy;
 +}

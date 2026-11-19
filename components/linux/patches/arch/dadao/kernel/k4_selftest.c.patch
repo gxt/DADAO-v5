@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k4_selftest.c b/arch/dadao/kernel/k4_selftest.c
 new file mode 100644
-index 000000000..0db034968
+index 000000000..b2044e6fe
 --- /dev/null
 +++ b/arch/dadao/kernel/k4_selftest.c
-@@ -0,0 +1,550 @@
+@@ -0,0 +1,559 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K4 process-model self-test (CONFIG_DADAO_K4_SELFTEST, m14-linux-016).
@@ -428,6 +428,15 @@ index 000000000..0db034968
 +	regs->rb[3] = K4_PARENT_TP;
 +	regs->rd[8] = K4_PARENT_RD8;
 +	pid = kernel_clone(&args);
++	/*
++	 * `wake_up_new_task()` asked for a reschedule; drop the request.  This
++	 * probe only *inspects* the child (it must not run — m14-linux-017's own
++	 * probe image is where tasks run), and with the real `__switch_to` a
++	 * `cond_resched()` inside a later helper would hand the CPU to it.
++	 * PREEMPT_NONE makes `preempt_disable()` a no-op here (CONFIG_PREEMPT_COUNT
++	 * is off), so clearing the flag is the mechanism that works.
++	 */
++	clear_tsk_need_resched(current);
 +	dadao_early_printf("K4 f1 clone pid=%d\n", (int)pid);
 +	if (pid <= 0)
 +		k4_fail(K4_FAIL_CLONE, "kernel_clone_pid", (unsigned long)-(long)pid);

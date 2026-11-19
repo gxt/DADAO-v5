@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/mmu.c b/arch/dadao/mm/mmu.c
 new file mode 100644
-index 000000000..cddba0e14
+index 000000000..844746fcd
 --- /dev/null
 +++ b/arch/dadao/mm/mmu.c
-@@ -0,0 +1,149 @@
+@@ -0,0 +1,225 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO MMU context (K3, m14-linux-011): ASID allocation.
@@ -31,6 +31,7 @@ index 000000000..cddba0e14
 +#include <asm/mmu_context.h>
 +#include <asm/page.h>
 +#include <asm/ptw.h>
++#include <asm/setup.h>
 +#include <asm/tlbflush.h>
 +
 +/* The next ASID to hand out; 0 keeps the kernel's identity out of circulation. */
@@ -73,6 +74,81 @@ index 000000000..cddba0e14
 +	 * what the monotonic scheme avoids).
 +	 */
 +	mm->context.asid = DADAO_ASID_KERNEL;
++}
++
++/* -------------------------------------------------------------------------
++ * switch_mm(): the four-step address-space switch (contract-tlb TLB-30)
++ * ------------------------------------------------------------------------- */
++
++/*
++ * spec/DADAO-12 §2.2.5 "进程上下文切换" and contract-tlb TLB-30 give the four
++ * steps; TLB-29 says why they cannot be shortened: writing the ASID, writing
++ * the PTBR and enabling the walker all leave the TLB untouched, so only the
++ * explicit command makes the new address space visible.
++ *
++ * Which entries the invalidation has to reach: the new address space's `G = 0`
++ * ones, selected by writing its ASID and issuing `invalid|all` with
++ * `ASID_ANY = 0` (contract-tlb TLB-19/-23/-26).  `ASID_ANY = 1` would also drop
++ * the kernel's `G = 1` mappings, which every address space shares and which no
++ * switch can invalidate, and it would make the kernel re-walk its own text and
++ * data after every task switch.
++ *
++ * A kernel thread (`next == NULL`) keeps the running user ASID: all of its
++ * accesses are `G = 1`, which match under any ASID (TLB-26), so switching the
++ * ASID would buy nothing and cost a re-walk.
++ *
++ * The scratch registers of `cfx_ptw` (cg6) are bracketed by the sequence (step
++ * ④).  Nothing in steps ①–③ uses them — the entry stubs borrow cg6 of the cfx
++ * whose vector they entered, not of the walker — but the step is explicitly
++ * part of the contract, and it is what keeps the sequence composable with a
++ * future step that does use them.
++ */
++void dadao_switch_mm(struct mm_struct *prev, struct mm_struct *next,
++		     struct task_struct *tsk)
++{
++	unsigned long asid;
++	unsigned long scratch0, scratch1;
++
++	(void)prev;
++	(void)tsk;
++
++	if (!next)
++		return;
++
++	scratch0 = DADAO_CFX_READ(cfx_ptw, PTW_CG_SCRATCH, PTW_RC_SCRATCH0);
++	scratch1 = DADAO_CFX_READ(cfx_ptw, PTW_CG_SCRATCH, PTW_RC_SCRATCH1);
++
++	/* ① new ASID + new PTBR (either alone would not be visible: TLB-29). */
++	asid = next->context.asid;
++	dadao_asid_write(asid);
++	dadao_ptbr_write(__pa(next->pgd));
++
++	/* ② explicit invalidation of the new space's G = 0 entries. */
++	__dadao_tlb_flush(DADAO_TLB_INVALID, DADAO_TLB_SCOPE_ALL, 0, 0, asid,
++			  false);
++
++	/* ③ the walker is on (it is also what makes ①..② reachable at all). */
++	if (!dadao_ptw_enabled())
++		DADAO_CFX_WRITE(cfx_ptw, PTW_CG_ENABLE, PTW_RC_ENABLE,
++				DADAO_PTW_ENABLE_ON);
++
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++	{
++		static int n;
++
++		if (n++ < 10)
++			dadao_early_printf("K4 mm switch: mm=%#lx asid=%lu "
++					   "pgd=%#lx pa=%#lx read_back asid=%lu "
++					   "ptbr=%#lx\n", (unsigned long)next,
++					   asid, (unsigned long)next->pgd,
++					   __pa(next->pgd), dadao_asid_read(),
++					   dadao_ptbr_read());
++	}
++#endif
++
++	/* ④ restore the walker's staging registers. */
++	DADAO_CFX_WRITE(cfx_ptw, PTW_CG_SCRATCH, PTW_RC_SCRATCH0, scratch0);
++	DADAO_CFX_WRITE(cfx_ptw, PTW_CG_SCRATCH, PTW_RC_SCRATCH1, scratch1);
 +}
 +
 +/* -------------------------------------------------------------------------

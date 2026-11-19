@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/trap.S b/arch/dadao/kernel/trap.S
 new file mode 100644
-index 000000000..410e4a314
+index 000000000..a9a16a518
 --- /dev/null
 +++ b/arch/dadao/kernel/trap.S
-@@ -0,0 +1,273 @@
+@@ -0,0 +1,333 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception vector (K2).
@@ -52,6 +52,24 @@ index 000000000..410e4a314
 + * asynchronous stub of kernel/async_trap.S).
 + */
 +	.macro	DADAO_TRAP_RESTORE_AND_ESCAPE offset
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++	/*
++	 * Diagnostic (m14-linux-017 only): record the cg5 frame the escape is
++	 * about to use.  rd30/rb31 are dead here (the restore below reloads
++	 * them from the frame), so recording costs nothing but two stores.
++	 * `dadao_supv_diag` = {cause_id, cause_ip, prev_run_mode, returns+1}.
++	 */
++	cfx2rd	cfx_smon, cg5, rc2, rd30
++	set.rb	rb31, dadao_supv_diag
++	st.o	rd30, [rb31, 0]
++	cfx2rd	cfx_smon, cg5, rc3, rd30
++	st.o	rd30, [rb31, 8]
++	cfx2rd	cfx_smon, cg5, rc0, rd30
++	st.o	rd30, [rb31, 16]
++	ld.o	rd30, [rb31, 24]
++	add.si	rd30, 1
++	st.o	rd30, [rb31, 24]
++#endif
 +	DADAO_GPR_RESTORE dadao_excp_save
 +	escape	cfx_smon, [excp_cause_ip, \offset]
 +	.endm
@@ -111,6 +129,12 @@ index 000000000..410e4a314
 +	 */
 +	.section .bss,"aw",%nobits
 +	.p2align 3
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++	.globl	dadao_supv_diag
++dadao_supv_diag:
++	.zero	32
++#endif
++	.p2align 3
 +	.globl	dadao_excp_save
 +dadao_excp_save:
 +	.zero	PT_REGS_SIZE
@@ -150,7 +174,33 @@ index 000000000..410e4a314
 +	 * read (it would come from `current`, i.e. from SP): that is
 +	 * m14-linux-017/020's switch_to/thread work, not single-frame K4.
 +	 */
++	/*
++	 * The stack this task's handler runs on: the top of its own kernel stack,
++	 * parked in `cfx_umon cg6 rc1` by `__switch_to()` (m14-linux-017 S5).  A
++	 * zero means no switch has run yet (early boot): fall back to the static
++	 * entry stack, which is what the boot path used before K4 had tasks.
++	 *
++	 * rd2/rd3 are the reserved debug registers (contract-abi §4.5: the
++	 * compiler never allocates them), so they are safe as the transition.
++	 */
++	rb2rd	rd2, rb1, 1			/* rd2 = user SP */
++	cfx2rd	cfx_umon, cg6, rc1, rd3		/* rd3 = task kernel-stack top */
++	br.z	{rd3}?, [rb0, .Lumon_boot_stack]
++	rd2rb	rb1, rd3, 1			/* rb1 = task stack top */
++	jump	[rb0, .Lumon_stack_done]
++.Lumon_boot_stack:
 +	set.rb	rb1, dadao_umon_stack_top
++.Lumon_stack_done:
++
++	/*
++	 * Adopt the task's own frame: copy the staged register file (captured
++	 * above, while SP was still the user's) into `task_pt_regs(current)` and
++	 * use that from here on, so A's frame lives on A's stack and B's on B's.
++	 */
++	add.si	rb1, -PT_REGS_SIZE		/* SP = &task_pt_regs(current) */
++	set.rb	rb5, dadao_umon_adopt
++	call	[rb5, rd0, 0]			/* rb8 = &task frame (copied) */
++	rb2rb	{rb16}, {rb8}			/* frame argument from here on */
 +
 +	/*
 +	 * 4. cg5 fields + the C half.  The same argument shape as the supv stub:
@@ -159,8 +209,8 @@ index 000000000..410e4a314
 +	 */
 +	cfx2rd	cfx_umon, cg5, rc2, rd16	/* excp_cause_id */
 +	cfx2rd	cfx_umon, cg5, rc3, rd17	/* excp_cause_ip */
-+	st.o	rd17, [rb3, PT_IP]
-+	st.o	rd0, [rb3, PT_STATUS]
++	st.o	rd17, [rb16, PT_IP]		/* into the *task's* frame (rb16) */
++	st.o	rd0, [rb16, PT_STATUS]
 +
 +	/*
 +	 * 4a. A user *syscall* (`trap cfx_umon, 0`) is handled here, in the umon
@@ -171,16 +221,21 @@ index 000000000..410e4a314
 +	br.ne	{rd16, rd4}?, [rb0, .Lumon_delegate]
 +
 +	cfx2rd	cfx_umon, cg5, rc4, rd17	/* excp_cause_info -> 3rd argument */
-+	set.rb	rb16, dadao_umon_save
 +	set.rb	rb5, dadao_user_excp_handler
 +	call	[rb5, rd0, 0]			/* policy -> rd8 */
 +
 +	/* 5. Resume: retry the trapping instruction, or continue after it. */
 +	br.z	{rd8}?, [rb0, .Lumon_retry]
-+	DADAO_GPR_RESTORE dadao_umon_save
++	set.rb	rb5, dadao_umon_frame
++	call	[rb5, rd0, 0]			/* rb8 = &task_pt_regs(current) */
++	rb2rb	{rb3}, {rb8}
++	DADAO_GPR_RESTORE_AT
 +	escape	cfx_umon, [excp_cause_ip, 4]
 +.Lumon_retry:
-+	DADAO_GPR_RESTORE dadao_umon_save
++	set.rb	rb5, dadao_umon_frame
++	call	[rb5, rd0, 0]
++	rb2rb	{rb3}, {rb8}
++	DADAO_GPR_RESTORE_AT
 +	escape	cfx_umon, [excp_cause_ip, 0]
 +
 +	/*
@@ -201,7 +256,9 @@ index 000000000..410e4a314
 +	 */
 +.Lumon_delegate:
 +	cfx2rd	cfx_umon, cg5, rc4, rd18	/* excp_cause_info */
-+	set.rb	rb16, dadao_umon_save
++	set.rb	rb5, dadao_umon_frame
++	call	[rb5, rd0, 0]
++	rb2rb	{rb16}, {rb8}			/* rb16 = &umon frame */
 +	trap	cfx_smon, DADAO_SMON_FROM_USER
 +	/*
 +	 * Back from the supv channel: the mapping is installed and
@@ -210,7 +267,10 @@ index 000000000..410e4a314
 +	 * there (a page fault either becomes accessible or ends the boot, so
 +	 * RETRY is the only outcome that comes back -- spec/DADAO-12 §3.6).
 +	 */
-+	DADAO_GPR_RESTORE dadao_umon_save
++	set.rb	rb5, dadao_umon_frame
++	call	[rb5, rd0, 0]
++	rb2rb	{rb3}, {rb8}
++	DADAO_GPR_RESTORE_AT
 +	trap	cfx_umon, 0
 +	jump	[rb0, .Lumon_stuck]
 +

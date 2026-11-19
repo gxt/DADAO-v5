@@ -1,0 +1,963 @@
+diff --git a/arch/dadao/kernel/k4_switch_selftest.c b/arch/dadao/kernel/k4_switch_selftest.c
+new file mode 100644
+index 000000000..c6df5e6c2
+--- /dev/null
++++ b/arch/dadao/kernel/k4_switch_selftest.c
+@@ -0,0 +1,957 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * K4 context-switch self-test (CONFIG_DADAO_K4_SWITCH_SELFTEST, m14-linux-017).
++ *
++ * Runs at the K4 boundary (kernel/setup.c: dadao_k4_boundary()) and — unlike
++ * the process-model probe of m14-linux-016 — *does* let other tasks run, which
++ * is the point: the context switch, the address-space switch and the tick are
++ * only real if something else executes.
++ *
++ * Cases (the gate reads the `K4 switch ...` / `K4 check ...` lines):
++ *
++ *   S1  register round trip: a fabricated context B is switched to and switches
++ *       straight back (kernel/k4_switch_asm.S).  A's banks are found in A's
++ *       `thread_struct`, B's arrive intact, B's are saved on the way back and
++ *       A's come back unchanged.  Nothing here touches the scheduler.
++ *
++ *   S4  footprint: the same round trip with sentinels in the registers the
++ *       switch must leave alone — the caller-saved blocks it does not use, the
++ *       reserved frame pointer `rb2` and the thread pointer `rb3`
++ *       (contract-abi §4.5: `rb3` is reserved and the kernel keeps it at 0).
++ *
++ *   S2  two tasks: two kernel threads increment their own counters and yield
++ *       until both are done; the boot task then checks that both advanced and
++ *       that each thread, after `schedule()` returned, was still itself
++ *       (`switch_to`'s `last` semantics through the real `__switch_to`).
++ *
++ *   S3  switch_mm: a second address space is activated — the four steps of
++ *       contract-tlb TLB-30 — and the ASID/PTBR read back; the kernel then
++ *       keeps running *on that table*, which is what proves `pgd_alloc()`
++ *       carried the kernel's G = 1 slots into it.
++ *
++ *   S6  minimal clockevent: the cfx_hart timer is armed with `freq / HZ` and
++ *       a real TIMER delivery is waited for; `jiffies` advances by exactly the
++ *       number of ticks, and no generic clockevent/clocksource framework is
++ *       registered (that upgrade is K5's m14-linux-021).
++ *
++ * F3 (the initramfs `/init` run) is not a case here: the probe image returns
++ * from the boundary, so the boot continues into `rest_init()` ->
++ * `kernel_init()` -> `execve("/init")`.  The `K4 switch init` lines and the
++ * final `K4 switch done` come from the syscall hook below, which is the only
++ * part of the kernel that can observe the user program.
++ *
++ * One image, one verdict: a violated expectation ends the boot with the guest
++ * FAIL segment (spec/Kaiwu §7.1) naming the case; a healthy run ends with
++ * SYS_EXIT(0) from the `exit_group` handler.
++ */
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/mm.h>
++#include <linux/sched.h>
++#include <linux/sched/task.h>
++#include <linux/sched/task_stack.h>
++#include <linux/sched/mm.h>
++#include <linux/string.h>
++#include <linux/uaccess.h>
++#include <linux/types.h>
++#include <linux/unistd.h>
++#include <linux/mman.h>
++#include <linux/mm_types.h>
++
++#include <asm/mmu_context.h>
++#include <asm/page.h>
++#include <asm/processor.h>
++#include <asm/ptrace.h>
++#include <asm/ptw.h>
++#include <asm/setup.h>
++#include <asm/time.h>
++#include <asm/tlbflush.h>
++#include <asm/irqflags.h>
++
++/*
++ * Guest FAIL segment (spec/Kaiwu §7.1, 0x01-0x7f).  kernel/process.c owns
++ * 0x30-0x32 and kernel/k4_selftest.c 0x33-0x3a; this probe starts at 0x40.
++ */
++#define K4S_FAIL_S1		0x40	/* bank save/restore round trip */
++#define K4S_FAIL_S4		0x41	/* the switch wrote a register it must not */
++#define K4S_FAIL_S2		0x42	/* the two tasks did not both run */
++#define K4S_FAIL_S3		0x43	/* switch_mm did not take effect */
++#define K4S_FAIL_S6		0x44	/* no tick / no jiffies advance */
++#define K4S_FAIL_INIT		0x45	/* the init run failed in user mode */
++#define K4S_FAIL_HOOK		0x46	/* a probe syscall hook was misused */
++
++/* The second address space's own page: user space, unused by the probes. */
++#define K4S_S3_VA		(1UL << 38)
++/* How many TIMER deliveries S6 waits for (>= 2: one tick could be a leftover). */
++#define K4S_TICKS		3
++
++/* The register block of kernel/k4_switch_asm.S (S1_RES_* there). */
++#define K4S_RES_CALLER		512
++#define K4S_RES_FP		576
++#define K4S_RES_TP		584
++#define K4S_RES_CALLER_RB	592
++#define K4S_RES_SIZE		680
++
++void dadao_k4_s1_roundtrip(struct thread_struct *a, struct thread_struct *b,
++			   const unsigned long *in, unsigned long *res);
++unsigned long dadao_k4_ras_racnt(void);
++void dadao_k4_ras_idem(unsigned long *a, unsigned long *b);
++void dadao_k4_call_probe(void);
++void dadao_k4_ras_dump(unsigned long *out);
++extern unsigned long dadao_k4_call_dbg[6];
++extern unsigned long dadao_k4_s1_seen[64];
++extern char dadao_k4_s1_b_stack_top[];
++extern char dadao_k4_s1_stub[];
++struct thread_struct *dadao_k4_s1_a_thread;
++struct thread_struct *dadao_k4_s1_b_thread;
++
++static void __noreturn k4s_fail(unsigned int code, const char *what,
++				unsigned long value)
++{
++	dadao_early_printf("K4 switch FAIL: %s=%#lx code=%#x\n", what, value, code);
++	dadao_early_exit(code);
++}
++
++static void k4s_expect(const char *what, unsigned long expected,
++		       unsigned long actual, unsigned int code)
++{
++	dadao_early_printf("K4 check %s want=%#lx got=%#lx %s\n", what, expected,
++			   actual, expected == actual ? "ok" : "FAIL");
++	if (expected != actual)
++		k4s_fail(code, what, actual);
++}
++
++/* -------------------------------------------------------------------------
++ * S1 / S4: the register half of the switch
++ * ------------------------------------------------------------------------- */
++
++static struct thread_struct k4s_a, k4s_b;
++static unsigned long k4s_a_racnt_expect;
++static unsigned long k4s_in[64];
++static unsigned long k4s_res[K4S_RES_SIZE / 8];
++
++/*
++ * The sentinels the assembly half pins itself (kernel/k4_switch_asm.S): the
++ * caller-saved blocks it must leave alone, in the order it stores them.
++ */
++static const unsigned long k4s_caller_rd[8] = {
++	0x1009, 0x100a, 0x100b, 0x100c, 0x100d, 0x100e, 0x100f, 0x1014,
++};
++static const unsigned long k4s_caller_rb[9] = {
++	0x2008, 0x2009, 0x200a, 0x200b, 0x200c, 0x200d, 0x200e, 0x200f, 0x2014,
++};
++
++static noinline void k4s_case_s1(void)
++{
++	unsigned long i, bad = 0;
++
++	memset(&k4s_a, 0, sizeof(k4s_a));
++	memset(&k4s_b, 0, sizeof(k4s_b));
++	memset(k4s_res, 0, sizeof(k4s_res));
++	memset(dadao_k4_s1_seen, 0, sizeof(unsigned long) * 64);
++
++	/*
++	 * The sentinels: distinguishable per register so a wrong index shows up
++	 * as a specific mismatch rather than "some value moved somewhere".
++	 */
++	for (i = 0; i < 32; i++) {
++		k4s_in[i] = 0xa5a5000000000000UL | (i << 8) | i;
++		k4s_in[32 + i] = 0x5a5a000000000000UL | (i << 8) | i;
++		k4s_b.rd[i] = k4s_in[i];
++		k4s_b.rb[i] = k4s_in[32 + i];
++	}
++	k4s_b.sp = (unsigned long)dadao_k4_s1_b_stack_top;
++	k4s_b.ra = (unsigned long)dadao_k4_s1_stub;
++	/* an empty RAS, as a task that has never run has (spec/SimRISC-00 §2.4) */
++	k4s_b.ras[0] = 0;
++
++	dadao_k4_s1_a_thread = &k4s_a;
++	dadao_k4_s1_b_thread = &k4s_b;
++
++	dadao_early_printf("K4 switch s1: a=%#lx b=%#lx stack=%#lx stub=%#lx "
++			   "in0=%#lx in32=%#lx\n", (unsigned long)&k4s_a,
++			   (unsigned long)&k4s_b, (unsigned long)dadao_k4_s1_b_stack_top,
++			   (unsigned long)dadao_k4_s1_stub, k4s_in[0], k4s_in[32]);
++
++	/*
++	 * The RAS depth before the round trip.  The measurement call is one
++	 * entry of its own (so it reads the caller's depth + 1); the round trip
++	 * and the switch then add one entry each — one more than what the
++	 * measurement reports.
++	 */
++	{
++		unsigned long racnt = dadao_k4_ras_racnt();
++
++		dadao_early_printf("K4 switch s1: racnt_now=%lu\n",
++				   (racnt >> 48) & 0x3f);
++		k4s_a_racnt_expect = ((racnt >> 48) & 0x3f) + 1;
++	}
++
++	dadao_k4_s1_roundtrip(&k4s_a, &k4s_b, k4s_in, k4s_res);
++
++	/* A's banks as they came back to the register file (step 4). */
++	for (i = 0; i < 32; i++) {
++		if (k4s_res[i] != k4s_in[i])
++			bad |= 1UL;
++		if (k4s_res[32 + i] != k4s_in[32 + i])
++			bad |= 2UL;
++		/* ... and as they were saved into A's thread_struct (step 2). */
++		if (k4s_a.rd[i] != k4s_in[i])
++			bad |= 4UL;
++		if (k4s_a.rb[i] != k4s_in[32 + i])
++			bad |= 8UL;
++		/* B's banks were restored into the register file (step 2 load)... */
++		if (dadao_k4_s1_seen[i] != k4s_in[i])
++			bad |= 16UL;
++		if (dadao_k4_s1_seen[32 + i] != k4s_in[32 + i])
++			bad |= 32UL;
++		/* ... and saved again on the way back (step 3 save). */
++		if (k4s_b.rd[i] != k4s_in[i])
++			bad |= 64UL;
++		if (k4s_b.rb[i] != k4s_in[32 + i])
++			bad |= 128UL;
++	}
++	dadao_early_printf("K4 switch s1: bad=%#lx a_rd0=%#lx a_rb0=%#lx "
++			   "b_rd0=%#lx b_rb0=%#lx seen_rd0=%#lx res_rd0=%#lx\n",
++			   bad, k4s_a.rd[0], k4s_a.rb[0], k4s_b.rd[0],
++			   k4s_b.rb[0], dadao_k4_s1_seen[0], k4s_res[0]);
++	k4s_expect("s1-roundtrip", 0, bad, K4S_FAIL_S1);
++
++	/*
++	 * The RAS travelled with the task: B started empty (RACNT = 0, it was
++	 * entered by `jump`), and by the time the switch saved it, it held
++	 * exactly the one entry B's own `call __switch_to_asm` pushed.
++	 */
++	k4s_expect("s1-b-ras-count", 1, (k4s_b.ras[0] >> 48) & 0x3f, K4S_FAIL_S1);
++	/*
++	 * A's saved RAS depth: the depth the measurement reported (it already
++	 * counts its own call) plus the two entries the trip itself pushes — the
++	 * round trip's call and the switch's call.  This is what makes "the
++	 * suspended call chain travelled with the task" a measurement rather
++	 * than a claim.
++	 */
++	k4s_expect("s1-a-ras-count", k4s_a_racnt_expect,
++		   (k4s_a.ras[0] >> 48) & 0x3f, K4S_FAIL_S1);
++
++	/* ---- S4: the registers the switch must leave alone ---------------- */
++	for (i = 0; i < 8; i++)
++		if (k4s_res[K4S_RES_CALLER / 8 + i] != k4s_caller_rd[i])
++			bad |= 0x100UL;
++	for (i = 0; i < 9; i++)
++		if (k4s_res[K4S_RES_CALLER_RB / 8 + i] != k4s_caller_rb[i])
++			bad |= 0x200UL;
++	dadao_early_printf("K4 switch s4: caller=%#lx caller_rb=%#lx fp=%#lx "
++			   "tp=%#lx\n", k4s_res[K4S_RES_CALLER / 8],
++			   k4s_res[K4S_RES_CALLER_RB / 8],
++			   k4s_res[K4S_RES_FP / 8], k4s_res[K4S_RES_TP / 8]);
++	k4s_expect("s4-footprint", 0, bad & 0x300UL, K4S_FAIL_S4);
++	k4s_expect("s4-rb2-untouched", 0x2f02UL, k4s_res[K4S_RES_FP / 8],
++		   K4S_FAIL_S4);
++	k4s_expect("s4-rb3-untouched", 0x2b03UL, k4s_res[K4S_RES_TP / 8],
++		   K4S_FAIL_S4);
++}
++
++/* -------------------------------------------------------------------------
++ * S2: two kernel threads take turns
++ * ------------------------------------------------------------------------- */
++
++#define K4S_ROUNDS	4
++
++static volatile unsigned long k4s_counter[2];
++static volatile int k4s_go;
++static volatile int k4s_done;
++static volatile unsigned long k4s_switchback_bad;
++/*
++ * How many times each probe thread's body started.  The switch resumes a task
++ * through its own `call __switch_to_asm` entry, so a body that yields must
++ * start exactly once — if `thread.ra` is not cleared after the first entry, the
++ * switch re-enters `dadao_ret_from_fork` and the body restarts (that was the
++ * m14-linux-017 root cause of "kernel_init ran twice").
++ */
++static volatile unsigned long k4s_starts[2];
++/* A completion nobody ever completes: the proper way for a probe thread to park. */
++static DECLARE_COMPLETION(k4s_parked);
++
++static int k4s_thread(void *arg)
++{
++	unsigned long id = (unsigned long)arg;
++	struct task_struct *me = current;
++
++	k4s_starts[id]++;
++
++	while (!k4s_go)
++		schedule();
++
++	while (k4s_counter[id] < K4S_ROUNDS) {
++		k4s_counter[id]++;
++		schedule();
++	}
++	/*
++	 * `switch_to()`'s `last` semantics through the real `__switch_to()`: a
++	 * task that comes back from `schedule()` must still be itself.
++	 */
++	if (current != me)
++		k4s_switchback_bad++;
++	k4s_done++;
++
++	/*
++	 * Park instead of exiting: the probe's first child gets PID 1, and
++	 * exiting PID 1 is "Attempted to kill init".  `wait_for_completion()`
++	 * on a completion that is never completed is the standard
++	 * uninterruptible sleep — the task leaves the run queue and the boot
++	 * (idle) task gets the CPU back, which is what the probe waits for.
++	 */
++	wait_for_completion(&k4s_parked);
++	return 0;		/* not reached: the task stays parked */
++}
++
++static noinline void k4s_case_s2(void)
++{
++	struct kernel_clone_args args = { .flags = 0, .exit_signal = SIGCHLD };
++	unsigned long spins = 0;
++	static int n_s2_entry;
++	static unsigned long ra[64], rb[64];
++
++
++	k4s_counter[0] = 0;
++	k4s_counter[1] = 0;
++	k4s_done = 0;
++	k4s_switchback_bad = 0;
++
++	args.fn = k4s_thread;
++	args.fn_arg = (void *)0UL;
++	if (kernel_clone(&args) <= 0)
++		k4s_fail(K4S_FAIL_S2, "clone-thread-0", 0);
++	args.fn_arg = (void *)1UL;
++	if (kernel_clone(&args) <= 0)
++		k4s_fail(K4S_FAIL_S2, "clone-thread-1", 0);
++
++	k4s_go = 1;
++	/* Let them run: every pass through `schedule()` is a real switch. */
++	while (k4s_done < 2 && spins < 100000UL) {
++		spins++;
++		if (spins == 1) {
++			/*
++			 * A task's own return-address stack must be exactly what it
++			 * was before `schedule()`: the switch pushes its own call
++			 * entry and pops it on resume, so nothing else may move.
++			 */
++			static unsigned long pre[64], post[64];
++			int i, diff = 0;
++
++			memset(pre, 0, sizeof(pre));
++			memset(post, 0, sizeof(post));
++			dadao_k4_ras_dump(pre);
++			schedule();
++			dadao_k4_ras_dump(post);
++			/*
++			 * Slot 63 is the dump's own `call` entry (a different call
++			 * site each time), and slot 0 is {RACNT, MRPTR}; every slot
++			 * below the top must be untouched.
++			 */
++			{
++				unsigned long racnt = (pre[0] >> 48) & 0x3f;
++
++				for (i = (int)(64 - racnt); i < 63; i++) {
++				if (pre[i] != post[i]) {
++					if (diff < 6)
++						dadao_early_printf("K4 switch s2: "
++								   "ras_diff[%d] pre=%#lx "
++								   "post=%#lx\n", i, pre[i],
++								   post[i]);
++					diff++;
++					}
++				}
++			}
++			dadao_early_printf("K4 switch s2: ras_diff=%d pre0=%#lx "
++					   "pre63=%#lx post0=%#lx post63=%#lx\n",
++					   diff, pre[0], pre[63], post[0], post[63]);
++			k4s_expect("s2-ras-unchanged-by-schedule", 0,
++				   (unsigned long)diff, K4S_FAIL_S2);
++			continue;
++		}
++		schedule();
++		if ((spins & 0x3ff) == 0)
++			dadao_early_printf("K4 switch s2: wait spins=%lu done=%d "
++					   "c0=%lu c1=%lu\n", spins, k4s_done,
++					   k4s_counter[0], k4s_counter[1]);
++	}
++
++	dadao_early_printf("K4 switch s2: c0=%lu c1=%lu done=%d spins=%lu "
++			   "back_bad=%lu pid=%d sp=%#lx\n", k4s_counter[0],
++			   k4s_counter[1], k4s_done, spins, k4s_switchback_bad,
++			   current->pid, dadao_stack_pointer());
++	k4s_expect("s2-thread-0-ran", K4S_ROUNDS, k4s_counter[0], K4S_FAIL_S2);
++	k4s_expect("s2-thread-1-ran", K4S_ROUNDS, k4s_counter[1], K4S_FAIL_S2);
++	k4s_expect("s2-both-finished", 2, k4s_done, K4S_FAIL_S2);
++	k4s_expect("s2-switchback", 0, k4s_switchback_bad, K4S_FAIL_S2);
++	k4s_expect("s2-thread-0-started-once", 1, k4s_starts[0], K4S_FAIL_S2);
++	k4s_expect("s2-thread-1-started-once", 1, k4s_starts[1], K4S_FAIL_S2);
++}
++
++/* -------------------------------------------------------------------------
++ * S3: switch_mm() — the four steps of contract-tlb TLB-30
++ * ------------------------------------------------------------------------- */
++
++static struct mm_struct *k4s_mm;
++
++static noinline void k4s_case_s3(void)
++{
++	struct mm_struct *saved_mm = current->mm;
++	unsigned long addr, expect_cmd;
++
++	k4s_mm = mm_alloc();
++	if (!k4s_mm)
++		k4s_fail(K4S_FAIL_S3, "mm_alloc", 0);
++
++	/* Give the address space something of its own (and an L2 to point at). */
++	current->mm = k4s_mm;
++	addr = vm_mmap(NULL, K4S_S3_VA, PAGE_SIZE, PROT_READ | PROT_WRITE,
++		       MAP_PRIVATE | MAP_ANONYMOUS, 0);
++	current->mm = saved_mm;
++	if (addr != K4S_S3_VA)
++		k4s_fail(K4S_FAIL_S3, "vm_mmap", addr);
++
++	dadao_early_printf("K4 switch s3: mm=%#lx pgd=%#lx pa=%#lx asid_before=%lu "
++			   "ptbr_before=%#lx\n", (unsigned long)k4s_mm,
++			   (unsigned long)k4s_mm->pgd, __pa(k4s_mm->pgd),
++			   dadao_asid_read(), dadao_ptbr_read());
++
++	/*
++	 * The switch itself.  Step ② of TLB-30 rebuilds its command value from
++	 * the contract's encoding (contract-tlb TLB-19) instead of a literal.
++	 */
++	dadao_switch_mm(NULL, k4s_mm, current);
++
++	expect_cmd = dadao_tlb_control_value(DADAO_TLB_INVALID,
++					     DADAO_TLB_SCOPE_ALL, false);
++	dadao_early_printf("K4 switch s3: asid=%lu want_asid=%lu ptbr=%#lx "
++			   "want_ptbr=%#lx ptw=%lu invalid_cmd=%#lx\n",
++			   dadao_asid_read(), (unsigned long)k4s_mm->context.asid,
++			   dadao_ptbr_read(), __pa(k4s_mm->pgd),
++			   dadao_ptw_enabled(), expect_cmd);
++
++	k4s_expect("s3-asid", k4s_mm->context.asid, dadao_asid_read(),
++		   K4S_FAIL_S3);
++	k4s_expect("s3-ptbr", __pa(k4s_mm->pgd), dadao_ptbr_read(),
++		   K4S_FAIL_S3);
++	k4s_expect("s3-ptw-enabled", 1, dadao_ptw_enabled(), K4S_FAIL_S3);
++	/* ①ASID + ②invalid|all|ASID_ANY=0 ⇒ op 10, scope 00, bit4 0 = 0x2. */
++	k4s_expect("s3-invalid-cmd", 0x2, expect_cmd, K4S_FAIL_S3);
++
++	/*
++	 * Still executing — on the new table.  That is the assertion that
++	 * `pgd_alloc()` copied the kernel's G = 1 L1 slots: without them the
++	 * next instruction fetch (or this line's own data access) is CFXMEM.
++	 */
++	dadao_early_printf("K4 switch s3: alive_on_new_table=1 k4s_mm=%#lx\n",
++			   (unsigned long)k4s_mm);
++
++	/* Back to the kernel's own table (init_mm: ASID 0, swapper_pg_dir). */
++	dadao_switch_mm(k4s_mm, &init_mm, current);
++	k4s_expect("s3-back-asid", 0, dadao_asid_read(), K4S_FAIL_S3);
++	dadao_early_printf("K4 switch s3: back ptbr=%#lx want=%#lx\n",
++			   dadao_ptbr_read(), __pa(init_mm.pgd));
++	k4s_expect("s3-back-ptbr", __pa(init_mm.pgd), dadao_ptbr_read(),
++		   K4S_FAIL_S3);
++}
++
++/* -------------------------------------------------------------------------
++ * S6: the minimal clockevent
++ * ------------------------------------------------------------------------- */
++
++static noinline void k4s_case_s6(void)
++{
++	unsigned long freq = dadao_time_freq();
++	unsigned long period = freq / HZ;
++	unsigned long t0, ticks0, j0, window, spin = 0;
++
++	if (!freq || !period)
++		k4s_fail(K4S_FAIL_S6, "geometry", freq);
++
++	t0 = dadao_read_time();
++	ticks0 = dadao_tick_count();
++	j0 = jiffies_64;
++	window = 4 * period;
++
++	dadao_early_printf("K4 switch s6: freq=%lu hz=%u period=%lu t0=%lu "
++			   "ticks0=%lu\n", freq, (unsigned int)HZ, period, t0,
++			   ticks0);
++
++	/*
++	 * Arm the one-shot compare with one period and let the *hardware* raise
++	 * TIMER; the handler re-arms from each delivery.  No generic clockevent
++	 * device is registered (K5 owns that upgrade): what ticks here is
++	 * cfx_hart's compare register alone (contract-see §3).
++	 */
++	dadao_clockevent_start();
++
++	while (dadao_tick_count() < ticks0 + K4S_TICKS && spin < window) {
++		spin = dadao_read_time() - t0;
++	}
++	dadao_clockevent_stop();
++
++	dadao_early_printf("K4 switch s6: ticks=%lu jiffies_delta=%lu "
++			   "window=%lu elapsed=%lu\n",
++			   dadao_tick_count() - ticks0,
++			   (unsigned long)jiffies_64 - j0, window, spin);
++
++	k4s_expect("s6-ticks", K4S_TICKS, dadao_tick_count() - ticks0,
++		   K4S_FAIL_S6);
++	k4s_expect("s6-jiffies", K4S_TICKS, (unsigned long)jiffies_64 - j0,
++		   K4S_FAIL_S6);
++}
++
++/* -------------------------------------------------------------------------
++ * The user-mode syscall hook: what the initramfs `/init` needs
++ * ------------------------------------------------------------------------- */
++
++/*
++ * **Which program this serves** (m14-linux-031): the image's `/init` is a
++ * *script* that execs `/bin/sh` (busybox), and the static musl MVP init ships
++ * as `/init.musl`.  This hook answers the four calls the MVP init needs
++ * (`getpid`, `write`, `brk`, `exit_group`, contract-syscall §1.1); running
++ * busybox additionally needs `execve`/`fork`/`wait`/`read`/`openat`, which is
++ * K5's syscall table — until then the honest target is `/init.musl` through the
++ * documented fallback, not a hook that pretends to be a libc.
++ *
++ * The MVP init (`tests/shared/init/init.c`) is scoped to four calls
++ * (contract-syscall §1.1): `getpid`, `write`, `brk`, `exit_group`.  The real
++ * table — numbers, dispatch, error conventions for everything else — is K5's
++ * (contract-syscall §1), so this image answers exactly those four and leaves
++ * every other number to the `-ENOSYS` fallback of kernel/process.c.  The numbers
++ * are the kernel's own `__NR_*` (asm/unistd.h), never literals.
++ *
++ * `brk` is implemented against the task's own `mm` with the generic
++ * `vm_brk_flags()`; `write` copies from the user buffer through
++ * `copy_from_user()` — the reason user mappings carry the S bit (mm/fault.c).
++ */
++#define K4S_INIT_BANNER		"K4 switch init"
++
++static unsigned long k4s_user_copy(char *dst, unsigned long src, unsigned long n,
++				   unsigned long cap)
++{
++	if (n > cap)
++		n = cap;
++	if (copy_from_user(dst, (const void __user *)src, n))
++		return 0;
++	return n;
++}
++
++int dadao_k4_user_syscall(struct pt_regs *regs, unsigned long nr,
++			  unsigned long *policy)
++{
++	switch (nr) {
++	case __NR_getpid:
++		regs->rd[8] = 1;		/* the only task in the system */
++		break;
++
++	case __NR_write: {
++		/*
++		 * F59 regression (m14-linux-017): reading `cfx_ptw` from *inside*
++		 * the umon handler used to be refused with CFXPERM + NCFXPERM,
++		 * because the cfx mask rows are indexed by the current cfx (0 =
++		 * umon after a trap) and only source 2 was open.  One line, once.
++		 */
++		{
++			static int once;
++
++			if (!once++) {
++				unsigned long ptbr = dadao_ptbr_read();
++
++				dadao_early_printf("K4 switch: ptw-from-umon "
++						   "ptbr=%#lx ok=1\n", ptbr);
++			}
++		}
++
++		/* write(fd, buf, count): fd = rd16, buf = rb16, count = rd17 */
++		char text[128];
++		unsigned long n = k4s_user_copy(text, regs->rb[16],
++						regs->rd[17], sizeof(text) - 1);
++
++		text[n] = '\0';
++		dadao_early_printf("%s", text);
++		regs->rd[8] = n;
++		break;
++	}
++
++	case __NR_brk: {
++		/*
++		 * brk(addr): the *pointer* argument is `rb16` (contract-instruction
++		 * §4.1: addresses go in the rb group, values in rd), and 0 reads the
++		 * current break.  Reading `rd16` here read the wrong group and the
++		 * program's step read back a different value than it asked for.
++		 *
++		 * The probe keeps only the bookkeeping the ABI promises (the new
++		 * break is accepted and reads back); it does not fault the pages in —
++		 * "at least a usable heap top, growth need not be real" (the
++		 * m14-linux-017 ruling for the probe-level syscall face).
++		 */
++		struct mm_struct *mm = current->mm;
++		unsigned long want = regs->rb[16];
++
++		if (!mm) {
++			regs->rd[8] = (unsigned long)-EINVAL;
++			break;
++		}
++		if (want && want >= mm->start_brk)
++			mm->brk = want;
++		regs->rd[8] = mm->brk;
++		break;
++	}
++
++	case __NR_exit_group:
++		dadao_early_printf("K4 switch init: exit code=%lu (\"%s\" ran)\n",
++				   regs->rd[16], K4S_INIT_BANNER);
++		dadao_early_printf("K4 switch done: initramfs /init ran under "
++				   "kernel_init, exit=%lu\n", regs->rd[16]);
++		dadao_early_exit(0);
++		break;
++
++	default:
++		return 0;		/* not this probe's: -ENOSYS fallback */
++	}
++
++	*policy = DADAO_TRAP_RESUME_SKIP;
++	return 1;
++}
++
++/* -------------------------------------------------------------------------
++ * S5 (part 2): the U-mode frame A/B round trip, one address space per task
++ * ------------------------------------------------------------------------- */
++
++#define K4S_S5_CODE_VA		(K4S_S3_VA + 64 * PAGE_SIZE)
++#define K4S_S5_DATA_VA		(K4S_S3_VA + 65 * PAGE_SIZE)
++#define K4S_S5_STACK_A		(K4S_S3_VA + 66 * PAGE_SIZE)
++#define K4S_S5_STACK_B		(K4S_S3_VA + 67 * PAGE_SIZE)
++#define K4S_S5_RB3		0x5a5a000000000000UL
++#define K4S_S5_RD32		0x5b5b000000000000UL
++#define K4S_S5_RB32		0x5c5c000000000000UL
++
++/* The probe user stub (kernel/trap.S, `.rodata`). */
++extern const char dadao_k4_user_stub[];
++extern const char dadao_k4_user_stub_end[];
++
++static struct mm_struct *k4s_s5_mm[2];
++static int k4s_s5_pid[2];
++static int k4s_s5_visits[2];
++static unsigned long k4s_s5_bad[2];
++static unsigned long k4s_s5_entries;
++static struct completion k4s_s5_reported[2];
++static struct completion k4s_s5_park;
++
++extern volatile int dadao_umon_busy;
++
++static int k4s_s5_which(struct task_struct *t)
++{
++	return t->pid == k4s_s5_pid[0] ? 0 : 1;
++}
++
++static unsigned long k4s_s5_sentinel(unsigned long base, int who, int i)
++{
++	return base + ((unsigned long)who << 8) + (unsigned long)i;
++}
++
++static unsigned long k4s_s5_check(struct pt_regs *regs, int who)
++{
++	unsigned long bad = 0;
++	int i;
++
++	if (regs->ip != K4S_S5_CODE_VA && regs->ip != K4S_S5_CODE_VA + 8)
++		bad |= 1UL << 0;
++	if (regs->rb[1] != (who ? K4S_S5_STACK_B : K4S_S5_STACK_A) + PAGE_SIZE)
++		bad |= 1UL << 1;
++	if (regs->rb[3] != (K4S_S5_RB3 | (unsigned long)who))
++		bad |= 1UL << 2;
++	if (regs->status != 0)
++		bad |= 1UL << 3;
++	for (i = 32; i < 64; i++) {
++		if (regs->rd[i] != k4s_s5_sentinel(K4S_S5_RD32, who, i))
++			bad |= 1UL << 4;
++		if (regs->rb[i] != k4s_s5_sentinel(K4S_S5_RB32, who, i))
++			bad |= 1UL << 5;
++	}
++	return bad;
++}
++
++static int k4s_s5_task(void *arg)
++{
++	int who = (int)(unsigned long)arg;
++	struct pt_regs frame;
++	int i;
++
++	current->mm = k4s_s5_mm[who];
++	current->active_mm = k4s_s5_mm[who];
++	dadao_switch_mm(NULL, k4s_s5_mm[who], current);
++	dadao_early_printf("K4 s5: task %d on its own table ptbr=%#lx\n", who,
++			   dadao_ptbr_read());
++
++	memset(&frame, 0, sizeof(frame));
++	frame.ip = K4S_S5_CODE_VA;
++	frame.rb[1] = (who ? K4S_S5_STACK_B : K4S_S5_STACK_A) + PAGE_SIZE;
++	frame.rb[3] = K4S_S5_RB3 | (unsigned long)who;
++	frame.rb[10] = K4S_S5_DATA_VA;
++	for (i = 32; i < 64; i++) {
++		frame.rd[i] = k4s_s5_sentinel(K4S_S5_RD32, who, i);
++		frame.rb[i] = k4s_s5_sentinel(K4S_S5_RB32, who, i);
++	}
++	frame.status = 0;
++	dadao_enter_user(&frame);		/* never returns */
++}
++
++int dadao_k4_s5_syscall(struct pt_regs *regs, unsigned long nr,
++			unsigned long *policy)
++{
++	unsigned long svc = regs->ip == K4S_S5_CODE_VA ? 0 :
++			    regs->ip == K4S_S5_CODE_VA + 8 ? 1 : ~0UL;
++	int who = k4s_s5_which(current);
++	int busy;
++
++	/* No printing here: the summary is printed by the boot task. */
++	switch (svc) {
++	case 0:
++		k4s_s5_bad[who] |= k4s_s5_check(regs, who);
++		k4s_s5_entries++;
++		if (k4s_s5_visits[who]++ == 0) {
++			busy = dadao_umon_busy;
++			dadao_umon_busy = 0;
++			schedule();
++			dadao_umon_busy = busy;
++		}
++		k4s_s5_bad[who] |= k4s_s5_check(regs, who);
++		regs->rd[8] = 0;
++		*policy = DADAO_TRAP_RESUME_SKIP;
++		return 1;
++
++	case 1:
++		k4s_s5_bad[who] |= k4s_s5_check(regs, who);
++		complete(&k4s_s5_reported[who]);
++		dadao_umon_busy = 0;
++		dadao_in_frame = 0;
++		/*
++		 * Hand the machine back to the kernel table before blocking: a
++		 * parked task must not leave its own PTBR/ASID behind for the
++		 * cases that follow (measured: the init run after S5 lost its
++		 * `/init` chain).
++		 */
++		dadao_switch_mm(current->mm, &init_mm, current);
++		current->mm = NULL;
++		current->active_mm = &init_mm;
++		wait_for_completion(&k4s_s5_park);	/* never completed */
++		return 0;
++
++	default:
++		return 0;
++	}
++}
++
++static void k4s_s5_build_mm(int who, unsigned long stack_va,
++			    unsigned long code_pa)
++{
++	struct mm_struct *mm = mm_alloc();
++	struct vm_area_struct *vma;
++	struct mm_struct *saved = current->mm;
++	unsigned long addr;
++
++	if (!mm)
++		k4s_fail(K4S_FAIL_S3, "s5 mm_alloc", 0);
++	current->mm = mm;
++	addr = vm_mmap(NULL, K4S_S5_CODE_VA, PAGE_SIZE, PROT_READ | PROT_EXEC,
++		       MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, 0);
++	if (addr != K4S_S5_CODE_VA)
++		k4s_fail(K4S_FAIL_S3, "s5 code vma", addr);
++	addr = vm_mmap(NULL, K4S_S5_DATA_VA, PAGE_SIZE,
++		       PROT_READ | PROT_WRITE,
++		       MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, 0);
++	if (addr != K4S_S5_DATA_VA)
++		k4s_fail(K4S_FAIL_S3, "s5 data vma", addr);
++	addr = vm_mmap(NULL, stack_va, PAGE_SIZE, PROT_READ | PROT_WRITE,
++		       MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, 0);
++	if (addr != stack_va)
++		k4s_fail(K4S_FAIL_S3, "s5 stack vma", addr);
++	current->mm = saved;
++
++	mmap_write_lock(mm);
++	vma = find_vma(mm, K4S_S5_CODE_VA);
++	if (!vma)
++		k4s_fail(K4S_FAIL_S3, "s5 find_vma", 0);
++	vma->vm_private_data = (void *)code_pa;
++	mmap_write_unlock(mm);
++
++	k4s_s5_mm[who] = mm;
++}
++
++static noinline void k4s_case_s5(void)
++{
++	struct kernel_clone_args args = { .flags = 0, .exit_signal = SIGCHLD };
++	struct page *page;
++	int i, reported = 0;
++
++	dadao_early_printf("K4 switch s5: begin (A/B, own mm)\n");
++	page = alloc_page(GFP_KERNEL | __GFP_ZERO);
++	if (!page)
++		k4s_fail(K4S_FAIL_S3, "s5 code page", 0);
++	memcpy(page_address(page), dadao_k4_user_stub,
++	       (unsigned long)(dadao_k4_user_stub_end - dadao_k4_user_stub));
++	k4s_s5_build_mm(0, K4S_S5_STACK_A, page_to_phys(page));
++	k4s_s5_build_mm(1, K4S_S5_STACK_B, page_to_phys(page));
++
++	for (i = 0; i < 2; i++)
++		init_completion(&k4s_s5_reported[i]);
++	init_completion(&k4s_s5_park);
++
++	args.fn = k4s_s5_task;
++	for (i = 0; i < 2; i++) {
++		args.fn_arg = (void *)(unsigned long)i;
++		k4s_s5_pid[i] = kernel_clone(&args);
++		if (k4s_s5_pid[i] <= 0)
++			k4s_fail(K4S_FAIL_S3, "s5 clone", 0);
++	}
++
++	for (i = 0; i < 2; i++) {
++		unsigned long left;
++
++		left = wait_for_completion_timeout(&k4s_s5_reported[i], 5 * HZ);
++		if (left)
++			reported++;
++	}
++
++	dadao_early_printf("K4 switch s5: a_bad=%#lx b_bad=%#lx visits=%d/%d "
++			   "reported=%d entries=%lu\n", k4s_s5_bad[0],
++			   k4s_s5_bad[1], k4s_s5_visits[0], k4s_s5_visits[1],
++			   reported, k4s_s5_entries);
++	k4s_expect("s5-a-frame", 0, k4s_s5_bad[0], K4S_FAIL_S3);
++	k4s_expect("s5-b-frame", 0, k4s_s5_bad[1], K4S_FAIL_S3);
++	k4s_expect("s5-both-reported", 2, (unsigned long)reported, K4S_FAIL_S3);
++	k4s_expect("s5-a-visited", 1, k4s_s5_visits[0] >= 1 ? 1 : 0,
++		   K4S_FAIL_S3);
++	k4s_expect("s5-b-visited", 1, k4s_s5_visits[1] >= 1 ? 1 : 0,
++		   K4S_FAIL_S3);
++	/*
++	 * Exactly two entries: one per task.  `>= 2` would also pass a nested
++	 * entry (a third visit), which is the very thing this asserts against.
++	 */
++	k4s_expect("s5-no-recursion", 2, k4s_s5_entries,
++		   K4S_FAIL_S3);
++}
++
++/* -------------------------------------------------------------------------
++ * S5 (part 1): the kernel window of a new L1 table
++ * ------------------------------------------------------------------------- */
++
++/*
++ * The user's ruling: a new L1 table copies every entry above
++ * `USER_PTRS_PER_PGD`, i.e. the whole `VA >= 2 TiB` smon/kernel window, so a
++ * task can run on its own table and still reach the kernel.  This asserts the
++ * copy directly instead of inferring it from a later round trip.
++ */
++static noinline void k4s_case_s5_pgdcopy(void)
++{
++	struct mm_struct *mm = mm_alloc();
++	unsigned int i;
++	unsigned long items = 0, bad = 0;
++
++	if (!mm)
++		k4s_fail(K4S_FAIL_S3, "s5 pgd mm_alloc", 0);
++	for (i = USER_PTRS_PER_PGD; i < PTRS_PER_PGD; i++) {
++		items++;
++		if (pgd_val(mm->pgd[i]) != pgd_val(swapper_pg_dir[i]))
++			bad++;
++	}
++	dadao_early_printf("K4 switch s5: pgd copy items=%lu mismatches=%lu "
++			   "user_ptrs=%lu\n", items, bad,
++			   (unsigned long)USER_PTRS_PER_PGD);
++	k4s_expect("s5-pgd-copy-items",
++		   (unsigned long)(PTRS_PER_PGD - USER_PTRS_PER_PGD), items,
++		   K4S_FAIL_S3);
++	k4s_expect("s5-pgd-copy-mismatches", 0, bad, K4S_FAIL_S3);
++}
++
++/* -------------------------------------------------------------------------
++ * The entry point
++ * ------------------------------------------------------------------------- */
++
++/*
++ * F3 progress markers (probe image only): `do_initcalls()` runs one level at a
++ * time, so a marker per level says *where* the init sequence stops without
++ * touching init/main.c.  They print once each and do nothing else.
++ */
++static int __init k4s_mark(const char *what)
++{
++	dadao_early_printf("K4 init: %s reached j=%lu pid=%d\n", what,
++			   (unsigned long)jiffies_64, current->pid);
++	return 0;
++}
++static int __init k4s_mark_core(void) { return k4s_mark("core_initcall"); }
++static int __init k4s_mark_postcore(void) { return k4s_mark("postcore_initcall"); }
++static int __init k4s_mark_arch(void) { return k4s_mark("arch_initcall"); }
++static int __init k4s_mark_subsys(void) { return k4s_mark("subsys_initcall"); }
++static int __init k4s_mark_fs(void) { return k4s_mark("fs_initcall"); }
++static int __init k4s_mark_rootfs(void) { return k4s_mark("rootfs_initcall"); }
++static int __init k4s_mark_late(void) { return k4s_mark("late_initcall"); }
++core_initcall(k4s_mark_core);
++postcore_initcall(k4s_mark_postcore);
++arch_initcall(k4s_mark_arch);
++subsys_initcall(k4s_mark_subsys);
++fs_initcall(k4s_mark_fs);
++rootfs_initcall(k4s_mark_rootfs);
++late_initcall(k4s_mark_late);
++
++void __init dadao_k4_switch_selftest(void)
++{
++	dadao_early_printf("K4 switch: begin\n");
++	{
++		/*
++		 * `call`/`ret` bookkeeping (contract-isa §8.4/§8.6): one entry per
++		 * call, one pop per ret, return address = call+4.  The switch's
++		 * save/restore model is only sound if all three hold.
++		 */
++		unsigned long rc_before, rc_in, rc_after, entry, xor_addr;
++
++		memset(dadao_k4_call_dbg, 0, sizeof(unsigned long) * 6);
++		dadao_k4_call_probe();
++		rc_before = (dadao_k4_call_dbg[0] >> 48) & 0x3f;
++		rc_in = (dadao_k4_call_dbg[1] >> 48) & 0x3f;
++		rc_after = (dadao_k4_call_dbg[2] >> 48) & 0x3f;
++		entry = dadao_k4_call_dbg[3];
++		xor_addr = dadao_k4_call_dbg[4];
++		dadao_early_printf("K4 switch call: racnt %lu -> %lu -> %lu "
++				   "entry=%#lx xor_call_plus4=%#lx\n", rc_before,
++				   rc_in, rc_after, entry, xor_addr);
++		k4s_expect("call-pushes-one-entry", rc_before + 1, rc_in,
++			   K4S_FAIL_S1);
++		k4s_expect("ret-pops-one-entry", rc_before, rc_after,
++			   K4S_FAIL_S1);
++		k4s_expect("call-pushes-call-plus4", 0, xor_addr, K4S_FAIL_S1);
++	}
++	{
++		static unsigned long ras_a[64], ras_b[64];
++		int i, diff = 0;
++
++		memset(ras_a, 0, sizeof(ras_a));
++		memset(ras_b, 0, sizeof(ras_b));
++		dadao_k4_ras_idem(ras_a, ras_b);
++		for (i = 0; i < 64; i++)
++			if (ras_a[i] != ras_b[i])
++				diff++;
++		dadao_early_printf("K4 switch ras: racnt=%lu a0=%#lx a63=%#lx "
++				   "diff_slots=%d\n", (ras_a[0] >> 48) & 0x3f,
++				   ras_a[0], ras_a[63], diff);
++		k4s_expect("ras-save-restore-idempotent", 0, (unsigned long)diff,
++			   K4S_FAIL_S1);
++	}
++	k4s_case_s2();
++	k4s_case_s5_pgdcopy();
++	k4s_case_s3();
++	k4s_case_s6();
++	k4s_case_s1();
++	k4s_case_s5();
++	/*
++	 * From here on the tick runs for real: the boot continues into
++	 * `rest_init()` -> `kernel_init()` -> `execve("/init")`, and the minimal
++	 * clockevent is what keeps the scheduler's clock and the idle loop's
++	 * hand-over alive (asm/time.h: no generic clockevent framework, K5).
++	 */
++	dadao_clockevent_start();
++	dadao_early_printf("K4 switch: selftest done, continuing to kernel_init\n");
++}

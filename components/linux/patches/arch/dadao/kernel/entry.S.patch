@@ -1,0 +1,122 @@
+diff --git a/arch/dadao/kernel/entry.S b/arch/dadao/kernel/entry.S
+new file mode 100644
+index 000000000..cb7dad0c7
+--- /dev/null
++++ b/arch/dadao/kernel/entry.S
+@@ -0,0 +1,116 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * DADAO context switch (m14-linux-017).
++ *
++ * `__switch_to()`'s register half.  The C half (kernel/process.c) hands over the
++ * two `thread_struct`s; everything that touches the register file that is *not*
++ * the ABI's argument registers happens here.
++ *
++ * What moves, and why each part is necessary:
++ *
++ *   sp        — `rb1`.  The scheduler decides which kernel stack runs.
++ *   fp        — `rb2`.  The frame pointer of the suspended C frame: that
++ *               frame's epilogue restores `SP` from it (contract-abi §4.7), so
++ *               a task resumed with another task's `rb2` continues on the other
++ *               task's stack.  It is not in the CSR block (§4.5) but it *is*
++ *               part of a task's context.
++ *   rd32-rd63 — the callee-saved data half (contract-abi §4.5).  One block
++ *   rb32-rb63   transfer per bank (`stm.o`/`ldm.o`, spec/SimRISC-01 §1/§2);
++ *               `rb32-rb63` is exactly the "address-class callee-saved" set
++ *               ADR-0018 C16 says must not be clobbered (contract-abi §4.6).
++ *   ra0-ra63  — the return-address stack.  A switch suspends a live `call`
++ *               chain: `ret` on resume has to pop the address *this* task's
++ *               `schedule()` pushed, so the RAS (`ra0` = {RACNT, MRPTR}, then
++ *               the 63 entries, spec/SimRISC-00 §2.4) travels with the task.
++ *               Two transfers: {ra0:ra62} + {ra63:ra63}, because a block move
++ *               takes at most 63 registers.
++ *
++ * What deliberately does *not* move:
++ *
++ *   rb3 (`rbtp`) — the kernel keeps it at 0 in every context; a user's thread
++ *                  pointer is part of its `pt_regs` and comes back with the
++ *                  frame.  Writing it here would leak user state into the
++ *                  kernel and the other way round.
++ *   rf32-rf63    — the user ruling of 2026-11-17 puts the whole FP bank in the
++ *                  exception frame (m14-linux-022, asm/entry.h), so a suspended
++ *                  task already has it saved and a switch must not touch it.
++ *   caller-saved — `rd4-rd31`/`rb4-rb31` are the caller's to lose; the switch
++ *                  is called from C and may clobber them (contract-abi §4.6).
++ *                  The staging registers used below are `rd2` (reserved for
++ *                  exactly this kind of use, ADR-0018 C6) and `rb2` (frame
++ *                  pointer, only touched on the branch that never returns).
++ *
++ * Block-transfer bases: `stm`/`ldm` must not have their base register inside the
++ * transfer range (spec/SimRISC-01 §1/§2) — `rb16`/`rb17` are the ABI's first two
++ * address arguments (contract-abi §4.1) and belong to neither bank; the index
++ * register is `rd2`, restored by the RD block on the way in.
++ *
++ * Resuming: a task that was switched out returns through its own `call
++ * __switch_to` entry — that entry is the top of the restored RAS, so a plain
++ * `ret` lands after the call in *that* task's `schedule()`.  A task that has
++ * never run has an empty RAS by construction (`copy_thread()` zeroes
++ * `thread_struct` and the spec starts a process with RACNT = 0, spec/SimRISC-00
++ * §2.4), so `thread.ra` is non-zero only for it and the switch jumps there
++ * instead of fabricating a return address it never had.
++ */
++#include <asm/asm-offsets.h>
++
++	.section .text,"ax"
++	.globl	dadao_switch_to_asm
++	.p2align 2
++/*
++ * void dadao_switch_to_asm(struct thread_struct *prev,
++ *                          struct thread_struct *next)
++ *   rb16 = prev, rb17 = next
++ */
++dadao_switch_to_asm:
++	/* ---- save the running task into @prev (rb16) ---- */
++	st.o	rb1, [rb16, THREAD_SP]
++	st.o	rb2, [rb16, THREAD_FP]
++
++	set.rd	rd2, THREAD_RD
++	stm.o	{rd32:rd63}, [rb16, rd2]
++	set.rd	rd2, THREAD_RB
++	stm.o	{rb32:rb63}, [rb16, rd2]
++
++	set.rd	rd2, THREAD_RAS
++	stm.o	{ra0:ra62}, [rb16, rd2]		/* ra0 = {RACNT, MRPTR} */
++	set.rd	rd2, THREAD_RAS_LAST
++	stm.o	{ra63:ra63}, [rb16, rd2]
++
++	/* ---- load @next (rb17) ---- */
++	set.rd	rd2, THREAD_RD
++	ldm.o	{rd32:rd63}, [rb17, rd2]
++	set.rd	rd2, THREAD_RB
++	ldm.o	{rb32:rb63}, [rb17, rd2]
++
++	set.rd	rd2, THREAD_RAS
++	ldm.o	{ra0:ra62}, [rb17, rd2]
++	set.rd	rd2, THREAD_RAS_LAST
++	ldm.o	{ra63:ra63}, [rb17, rd2]
++
++	/*
++	 * The stack last: from here on this frame's own stack is gone, so the
++	 * only thing left to do is to resume @next.
++	 */
++	ld.o	rb2, [rb17, THREAD_FP]
++	ld.o	rb1, [rb17, THREAD_SP]
++
++	/*
++	 * Resume.  A task that has never run has `thread.ra` and an empty RAS
++	 * (spec/SimRISC-00 §2.4: a process starts with RACNT = 0), so there is no
++	 * return address to pop and the switch jumps to its entry point.  A task
++	 * that was switched out returns through its own `call __switch_to_asm`:
++	 * that entry is the top of the restored RAS, so the `ret` below is the
++	 * pop — the same `call`/`ret` pairing the task had before the switch
++	 * (contract-abi §2.3).
++	 */
++	ld.o	rd2, [rb17, THREAD_RA]
++	br.z	{rd2}?, [rb0, .Lresume_old]
++	set.rb	rb16, 0
++	jump	[rb16, rd2, 0]			/* fresh task: never returns here */
++.Lresume_old:
++	ret	rd0, 0				/* back into @next's schedule() */
++
++.Lstuck:
++	jump	[rb0, .Lstuck]

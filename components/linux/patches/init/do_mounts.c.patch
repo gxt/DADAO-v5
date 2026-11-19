@@ -1,0 +1,23 @@
+diff --git a/init/do_mounts.c b/init/do_mounts.c
+index 95e0b3a0f..5b36e0be1 100644
+--- a/init/do_mounts.c
++++ b/init/do_mounts.c
+@@ -27,6 +27,7 @@
+ #include <uapi/linux/mount.h>
+ 
+ #include "do_mounts.h"
++#include <asm/setup.h>
+ 
+ int root_mountflags = MS_RDONLY | MS_SILENT;
+ static char __initdata saved_root_name[64];
+@@ -484,6 +485,10 @@ void __init prepare_namespace(void)
+ 	devtmpfs_mount();
+ 
+ 	if (init_pivot_root(".", ".")) {
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++		dadao_early_printf("K4 init: pivot_root failed err=%d\n",
++				   init_pivot_root(".", "."));
++#endif
+ 		pr_err("VFS: Failed to pivot into new rootfs\n");
+ 		return;
+ 	}

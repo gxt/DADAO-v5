@@ -93,6 +93,13 @@ IMAGE = [
     "CONFIG_DADAO_K3_PF_SELFTEST=0",
     "CONFIG_DADAO_K3_PT_SELFTEST=n",
     "CONFIG_DADAO_K4_SELFTEST=y",
+    # m14-linux-017: the context-switch probe is the mutually exclusive sibling
+    # of this one (Kconfig: `depends on !DADAO_K4_SELFTEST`); pin it off so the
+    # shared build tree cannot hand this image the other probe's symbol.
+    "CONFIG_DADAO_K4_SWITCH_SELFTEST=n",
+    # m14-linux-017/019: the stack-growth probe is an int too; pin it
+    # so no image inherits another gate's case (F30 class, twice seen).
+    "CONFIG_DADAO_K4_STACK_SELFTEST=0",
 ]
 
 ALWAYS_OFF = ("CONFIG_DADAO_K1_EARLY_STOP", "CONFIG_DADAO_K2_EARLY_STOP",

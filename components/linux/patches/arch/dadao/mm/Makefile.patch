@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/Makefile b/arch/dadao/mm/Makefile
 new file mode 100644
-index 000000000..b7794a8ff
+index 000000000..934483535
 --- /dev/null
 +++ b/arch/dadao/mm/Makefile
-@@ -0,0 +1,12 @@
+@@ -0,0 +1,17 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-y += init.o k1_pt.o mmu.o
 +# K3 demand paging: the CFXMEM/CFXPERM page-fault channel (m14-linux-012).
@@ -15,4 +15,9 @@ index 000000000..b7794a8ff
 +# spell `obj-3` and kbuild only knows y/m.
 +ifneq ($(CONFIG_DADAO_K3_PF_SELFTEST),0)
 +obj-y += k3_pf_selftest.o
++endif
++# K4 user-stack growth self-test: probe image only, one case per image (the int
++# symbol has no y/m spelling, so this is a make-level test like the K3 one).
++ifneq ($(CONFIG_DADAO_K4_STACK_SELFTEST),0)
++obj-y += k4_stack_selftest.o
 +endif

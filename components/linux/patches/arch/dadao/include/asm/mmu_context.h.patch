@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/mmu_context.h b/arch/dadao/include/asm/mmu_context.h
 new file mode 100644
-index 000000000..a54764e97
+index 000000000..df08b0488
 --- /dev/null
 +++ b/arch/dadao/include/asm/mmu_context.h
-@@ -0,0 +1,98 @@
+@@ -0,0 +1,104 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_MMU_CONTEXT_H
 +#define __ASM_MMU_CONTEXT_H
@@ -18,21 +18,27 @@ index 000000000..a54764e97
 +struct task_struct;
 +
 +/*
-+ * switch_mm() is the *interface* only in K3 (m14-linux-011 §3): a real address
-+ * space switch is the four-step sequence of contract-tlb TLB-30 —
++ * switch_mm() — the four-step sequence of contract-tlb TLB-30
++ * (spec/DADAO-12 §2.2.5 "进程上下文切换"):
 + *
-+ *   ① write the new ASID (and/or PTBR)
++ *   ① write the new ASID and the new PTBR
 + *   ② *explicitly* invalidate the TLB  (nothing in ① invalidates: TLB-29)
 + *   ③ set ptw_enable = 1
 + *   ④ save/restore the cfx cg6 scratch registers
 + *
-+ * — and arrives with the user-mode cfx hand-off (K4).  Until then no code may
-+ * assume that a context switch made a new address space visible; the only
-+ * kernel mappings K3 has are G = 1 and live in the single kernel table.
++ * The body is mm/mmu.c (it needs the page-table and TLB helpers, and it is the
++ * only place that runs during a switch); this header keeps the interface the
++ * scheduler calls.  A kernel thread (`next == NULL`) keeps the last user ASID:
++ * its own accesses are all G = 1, which match any ASID (contract-tlb TLB-26), so
++ * there is nothing to switch — the lazy-TLB shape.
 + */
++void dadao_switch_mm(struct mm_struct *prev, struct mm_struct *next,
++		     struct task_struct *tsk);
++
 +static inline void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 +			     struct task_struct *tsk)
 +{
++	dadao_switch_mm(prev, next, tsk);
 +}
 +
 +/*

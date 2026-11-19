@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/time.c b/arch/dadao/kernel/time.c
 new file mode 100644
-index 000000000..a88965065
+index 000000000..57d81d229
 --- /dev/null
 +++ b/arch/dadao/kernel/time.c
-@@ -0,0 +1,466 @@
+@@ -0,0 +1,530 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO time base and single-hart timer (K2).
@@ -80,12 +80,38 @@ index 000000000..a88965065
 +/* Delivered ticks since reset (volatile: the waiting context polls it). */
 +static volatile unsigned int dadao_ticks;
 +
++/*
++ * The minimal clockevent of m14-linux-017 (asm/time.h explains why it is not the
++ * generic framework): `dadao_tick_on` says whether the periodic clock has been
++ * started, which is also the only condition under which the handler calls into
++ * the scheduler.
++ */
++static int dadao_tick_on;
++
++
 +/* Per-tick samples, printed after the series (printing inside the handler
 + * would push the next deadline and distort the very intervals it reports). */
 +static int dadao_sample_on;
 +static unsigned int dadao_sample_n;
 +static unsigned long dadao_sample_time[K2_TIME_SLOTS];
 +static unsigned long dadao_sample_jiffies[K2_TIME_SLOTS];
++
++void dadao_clockevent_start(void)
++{
++	dadao_tick_on = 1;
++	dadao_timer_arm(dadao_period);
++}
++
++void dadao_clockevent_stop(void)
++{
++	dadao_tick_on = 0;
++	dadao_timer_stop();
++}
++
++unsigned long dadao_tick_count(void)
++{
++	return dadao_ticks;
++}
 +
 +void __noreturn dadao_k2_fail(unsigned int checkpoint, const char *what)
 +{
@@ -110,8 +136,14 @@ index 000000000..a88965065
 +	unsigned long index = cause ? ((unsigned long)__ffs(cause) & 0xf) : 0UL;
 +	unsigned long code = 0xc0UL | (mode << 4) | index;
 +
-+	dadao_early_printf("dadao: unexpected async cause=%#lx info=%#lx mode=%lu "
-+			   "code=%#lx\n", cause, info, mode, code);
++	/*
++	 * No semihosting here (待裁定 4 / C): record, and let `dadao_early_exit`
++	 * print it once the frame is gone.
++	 */
++	dadao_flog_last[0] = 0xa5a5000000000000UL | (cause & 0xffff);
++	dadao_flog_last[1] = info;
++	dadao_flog_last[2] = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_FRAME, 3);
++	dadao_flog_last[3] = mode;
 +	dadao_early_exit(code);
 +}
 +
@@ -217,6 +249,33 @@ index 000000000..a88965065
 +		dadao_sample_n = slot + 1;
 +	}
 +
++	/*
++	 * The scheduler's half of the tick, but only once something has asked for
++	 * a periodic clock (m14-linux-017's clockevent): the K2 boundary delivers
++	 * isolated ticks from `setup_arch()` — before `sched_init()` — and must
++	 * not enter the scheduler.
++	 *
++	 * The call is `sched_tick()` and not the generic "one tick has passed"
++	 * entry (`update_process_times()`, which has no prototype and is private
++	 * to kernel/time/timer.c in this tree): what K4 needs from a tick is the
++	 * scheduler's clock and the reschedule decision, while expired-timer
++	 * processing and user/system time accounting are part of the tick
++	 * framework that K5 (m14-linux-021) brings up.
++	 */
++	if (dadao_tick_on) {
++		sched_tick();
++		/*
++		 * The idle loop has to be *told* that a tick passed: without the
++		 * generic tick/clockevents framework (K5) there is no
++		 * `tick_nohz` hand-over, and `do_idle()`'s poll loop only leaves
++		 * on `TIF_NEED_RESCHED`.  Setting it for the idle task is the
++		 * minimal stand-in and is what lets `rest_init()`'s
++		 * `cpu_startup_entry()` hand the CPU to `kernel_init`.
++		 */
++		if (is_idle_task(current) && !test_tsk_need_resched(current))
++			set_tsk_need_resched(current);
++	}
++
 +	/* Re-arm from *this* sample, so the next deadline is one period away from
 +	 * the tick that was just accounted (not from the end of this handler). */
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
@@ -246,6 +305,10 @@ index 000000000..a88965065
 +void dadao_async_handler(struct pt_regs *regs, unsigned long cause,
 +			 unsigned long info)
 +{
++	/* m14-linux-017: no semihosting while this frame is live (待裁定 4 / C). */
++	extern int dadao_in_frame;
++
++	dadao_in_frame = 1;
 +	(void)regs;
 +
 +	if (cause != DADAO_CAUSE_TIMER)
@@ -257,6 +320,7 @@ index 000000000..a88965065
 +	}
 +
 +	dadao_timer_interrupt();
++	dadao_in_frame = 0;
 +}
 +
 +/* -------------------------------------------------------------------------

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/time.h b/arch/dadao/include/asm/time.h
 new file mode 100644
-index 000000000..cd34ade31
+index 000000000..6591d2896
 --- /dev/null
 +++ b/arch/dadao/include/asm/time.h
-@@ -0,0 +1,70 @@
+@@ -0,0 +1,92 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO time base and single-hart timer — the K2 interface.
@@ -59,6 +59,28 @@ index 000000000..cd34ade31
 + * by design — K4 swaps what is inside, not who calls it.
 + */
 +void dadao_timer_interrupt(void);
++
++/*
++ * The minimal clockevent of m14-linux-017 — *not* the generic framework.
++ *
++ * The kernel needs exactly one thing from a clock: a tick that advances
++ * `jiffies` and lets the scheduler account time.  `cfx_hart`'s one-shot compare
++ * register already provides it (`contract-see §3`), so the whole layer is "arm
++ * one period, re-arm from each delivery" — the body of `dadao_timer_interrupt()`
++ * — plus the two functions below to start and stop it and a counter to observe
++ * it with.
++ *
++ * What is deliberately absent: no `struct clock_event_device`, no
++ * `clocksource`, no `clockevents_register_device()` / `tick_check_new_device()`
++ * registration.  That upgrade — reading time from `cfx_time` as a clocksource
++ * and driving `clock_event_device` from `cfx_hart`, with the guest's own
++ * `sched_clock` — belongs to K5 (m14-linux-021, deferred by the 2026-11-17
++ * ruling).  The probe asserts the absence, so the boundary is checkable.
++ */
++void dadao_clockevent_start(void);
++void dadao_clockevent_stop(void);
++/* Delivered ticks since reset (the counter the probe reads back). */
++unsigned long dadao_tick_count(void);
 +
 +/* The K2 tick target: printed by time_init(), parsed by tools/linux/k2_time_probe.py. */
 +#define DADAO_K2_TIME_TICKS		3

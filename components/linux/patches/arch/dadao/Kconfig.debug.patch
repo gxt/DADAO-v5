@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..31280965f
+index 000000000..91e89f9b9
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,216 @@
+@@ -0,0 +1,261 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -161,6 +161,35 @@ index 000000000..31280965f
 +	  page-table gate builds a probe image with it); it is not part of the
 +	  image the later milestones boot.
 +
++config DADAO_K4_STACK_SELFTEST
++	int "K4 user-stack growth self-test case (0 = off)"
++	default 0
++	range 0 6
++	help
++	  Exercise the page-fault channel's stack-growth branch (see
++	  mm/k4_stack_selftest.c): a missing-class fault below a VM_GROWSDOWN
++	  VMA extends the VMA, and the generic rules (`stack_guard_gap`,
++	  RLIMIT_STACK) decide how far.  This is m14-linux-019's S1-S6.
++
++	  Each value builds one image, because a case whose verdict is a named
++	  termination ends the boot:
++
++	    0  off — the only value a milestone image carries;
++	    1  S1 + S2 + S5: one page down, two pages down, and a permission
++	       fault that must not grow the stack; SYS_EXIT(0);
++	    3  S3: one step below the stack that would exceed RLIMIT_STACK —
++	       no growth, named termination;
++	    4  S4: a VMA without VM_GROWSDOWN — no growth, named termination;
++	    6  S6: growth that would enter stack_guard_gap — no growth, named
++	       termination (the neighbour is placed so the gap binds first).
++
++	  The fault is raised in supv mode (a kernel load/store to a user VA).
++	  A real user process pressing on its stack needs the U-mode closure of
++	  m14-linux-016/017 and is recorded in that task book, not faked here.
++
++	  This is test scaffolding (the K4 stack gate builds these probe
++	  images); it is not part of the image the later milestones boot.
++
 +config DADAO_K3_PF_SELFTEST
 +	int "K3 page-fault self-test case (0 = off)"
 +	default 0
@@ -220,3 +249,19 @@ index 000000000..31280965f
 +	  The boot ends after the self-test.  This is test scaffolding (the K4
 +	  gate builds a probe image with it); it is not part of the image the
 +	  later milestones boot.
++
++config DADAO_K4_SWITCH_SELFTEST
++	bool "Run the K4 context-switch self-test and continue to init"
++	default n
++	depends on !DADAO_K4_SELFTEST
++	help
++	  Exercise the context switch of m14-linux-017 from inside the kernel
++	  (see kernel/k4_switch_selftest.c): the register half of __switch_to()
++	  with a fabricated context, two kernel threads that take turns, the
++	  four-step switch_mm(), the minimal cfx_hart clockevent, and — because
++	  this image does not stop at the boundary — the real `kernel_init()`
++	  path into an initramfs `/init` (F3).
++
++	  Unlike DADAO_K4_SELFTEST this image *does* run other tasks, so it must
++	  not be combined with the single-task process-model probe.  The boot
++	  ends when the probe's syscall hook sees `exit_group` or a named failure.

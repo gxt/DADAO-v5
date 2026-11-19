@@ -51,11 +51,14 @@ arch/dadao/kernel/Makefile.patch
 arch/dadao/kernel/asm-offsets.c.patch
 arch/dadao/kernel/async_trap.S.patch
 arch/dadao/kernel/early_console.c.patch
+arch/dadao/kernel/entry.S.patch
 arch/dadao/kernel/head.S.patch
 arch/dadao/kernel/irq.c.patch
 arch/dadao/kernel/k2_irq_test.c.patch
 arch/dadao/kernel/k2_selftest.c.patch
 arch/dadao/kernel/k4_selftest.c.patch
+arch/dadao/kernel/k4_switch_asm.S.patch
+arch/dadao/kernel/k4_switch_selftest.c.patch
 arch/dadao/kernel/process.c.patch
 arch/dadao/kernel/setup.c.patch
 arch/dadao/kernel/syscall_table.c.patch
@@ -72,5 +75,10 @@ arch/dadao/mm/init.c.patch
 arch/dadao/mm/k1_pt.c.patch
 arch/dadao/mm/k3_pf_selftest.c.patch
 arch/dadao/mm/k3_pt_selftest.c.patch
+arch/dadao/mm/k4_stack_selftest.c.patch
 arch/dadao/mm/mmu.c.patch
+fs/exec.c.patch
+init/do_mounts.c.patch
 init/main.c.patch
+kernel/workqueue.c.patch
+usr/initramfs_data.S.patch

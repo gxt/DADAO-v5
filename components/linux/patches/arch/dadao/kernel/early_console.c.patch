@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/early_console.c b/arch/dadao/kernel/early_console.c
 new file mode 100644
-index 000000000..97485baa3
+index 000000000..df9ec7df2
 --- /dev/null
 +++ b/arch/dadao/kernel/early_console.c
-@@ -0,0 +1,152 @@
+@@ -0,0 +1,229 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO semihosting console — K1 early console (contract-semihosting §1-§4).
@@ -90,11 +90,84 @@ index 000000000..97485baa3
 +		      (const void *)(pa & 0x0000ffffffffffffUL));
 +}
 +
++/*
++ * Printing from inside an exception frame is illegal on this machine: the
++ * console is `trap cfx0, 0x3FF00`, and a `trap` sets `inner_cfx_code` to its
++ * target (spec/DADAO-12 §5.2 step 6), so the frame's own `escape <cfx>` would
++ * then fail with CFXESC (§5.3 step 0).  The exception handlers therefore raise
++ * `dadao_in_frame` while they run, and messages produced there are **queued**
++ * instead of written; the queue is flushed by the first print from outside a
++ * frame (which, in the kernel's control flow, is the first point where the
++ * semihosting trap is legal again).
++ *
++ * This is m14-linux-017's pilot (user ruling: option C of 待裁定 4); K2-K4's
++ * probes still print from frames and are to be migrated separately.
++ */
++int dadao_in_frame;
++
++/*
++ * What a frame may still do: *record numbers* (scalars only — no array, the
++ * text buffer would need a relocation this port's code model cannot express).
++ * Outside a frame, `dadao_flog_report()` prints them.
++ */
++unsigned long dadao_flog_last[4];
++
++void dadao_flog_report(void)
++{
++#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
++	if (!dadao_flog_last[0])
++		return;
++	dadao_early_printf("K4 flog: n=%lu a=%#lx b=%#lx c=%#lx\n",
++			   dadao_flog_last[0], dadao_flog_last[1],
++			   dadao_flog_last[2], dadao_flog_last[3]);
++	dadao_flog_last[0] = 0;
++	{
++		extern unsigned long dadao_supv_diag[4];
++
++		dadao_early_printf("K4 supv: returns=%lu last_id=%#lx "
++				   "last_ip=%#lx last_prev_mode=%lu\n",
++				   dadao_supv_diag[3], dadao_supv_diag[0],
++				   dadao_supv_diag[1], dadao_supv_diag[2]);
++		{
++			extern unsigned long dadao_pf_last[8];
++			extern unsigned long dadao_pf_last_res;
++
++			dadao_early_printf("K4 pf last: res=%lu sub=%#lx "
++					   "policy=%lu ip=%#lx vma=%#lx-%#lx "
++					   "pte=%#lx flags=%#lx priv=%#lx\n",
++					   dadao_pf_last_res, dadao_pf_last[0],
++					   dadao_pf_last[1], dadao_pf_last[2],
++					   dadao_pf_last[3], dadao_pf_last[4],
++					   dadao_pf_last[5], dadao_pf_last[6],
++					   dadao_pf_last[7]);
++		}
++	}
++#endif
++}
++
++/*
++ * Printing from inside an exception frame is illegal here: the console is
++ * `trap cfx0, 0x3FF00`, and a `trap` sets `inner_cfx_code` to its target
++ * (spec/DADAO-12 §5.2 step 6), so the frame's own `escape <cfx>` would fail
++ * with CFXESC (§5.3 step 0).  While `dadao_in_frame` is set, messages are
++ * dropped; the exception handlers record numbers instead and
++ * `dadao_flog_report()` prints them from a frame-free context.
++ *
++ * m14-linux-017 pilot (user ruling: option C of 待裁定 4); K2-K4's probes still
++ * print from frames and are to be migrated separately.
++ */
 +void dadao_early_printf(const char *fmt, ...)
 +{
 +	char buf[256];
 +	va_list args;
 +
++	/*
++	 * In-frame printing is legal again: `m14-spec-009` makes `escape` restore
++	 * `inner_cfx_code`, so the `trap cfx0` this console issues no longer
++	 * strands the frame's own `escape <cfx>` (the mechanism F33/F36 found
++	 * and 方案 C worked around).  `dadao_in_frame` stays as the flag the
++	 * fault channel records with.
++	 */
 +	va_start(args, fmt);
 +	vsnprintf(buf, sizeof(buf), fmt, args);
 +	va_end(args);
@@ -109,6 +182,10 @@ index 000000000..97485baa3
 +void __noreturn dadao_early_exit(unsigned long code)
 +{
 +	unsigned long block[2] = { ADP_STOPPED_APP_EXIT, code };
++
++	/* The machine is ending: the frame's inner-cfx drift no longer matters. */
++	dadao_in_frame = 0;
++	dadao_flog_report();
 +
 +	semihost_call(SEMIHOST_SYS_EXIT, DADAO_SEMIHOST_PA(block));
 +	for (;;)

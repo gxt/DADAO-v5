@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/cfx.h b/arch/dadao/include/asm/cfx.h
 new file mode 100644
-index 000000000..5b4db46c2
+index 000000000..0fbe5ee30
 --- /dev/null
 +++ b/arch/dadao/include/asm/cfx.h
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,93 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO cfx register access (spec/DADAO-12 §3, §4): `cfx2rd` / `cfx2rc`.
@@ -49,6 +49,20 @@ index 000000000..5b4db46c2
 +#define UMON_CG_SUPV			2
 +#define UMON_RC_TRAP_MASK		0	/* supv cfxtrap source mask */
 +#define UMON_RC_REG_MASK		2	/* supv cfxreg source mask */
++/* cg6 = the per-cfx scratch registers (spec/DADAO-12 §3.7); the user entry
++ * reads the task's kernel-stack top from rc1 (m14-linux-017 S5). */
++#define UMON_CG_SCRATCH			6
++#define UMON_RC_SCRATCH_STACK_TOP	1
++/*
++ * The cfx that can be *current* inside the kernel: cfx_smon at boot,
++ * cfx_umon after a task has trapped (spec/DADAO-12 §5.2 step 6), cfx_hart after
++ * an interrupt.  The kernel opens these as sources in every cfx row it touches
++ * (m14-linux-017 S5: the mask rows are indexed by the source cfx, so a row open
++ * only for source 2 refuses the kernel's own access once a task is current).
++ */
++#define DADAO_CFX_SOURCES_OPEN						\
++	((1UL << DADAO_CFX_UMON) | (1UL << DADAO_CFX_SMON) |		\
++	 (1UL << 15 /* cfx_hart */))
 +#define UMON_RC_SWITCH_RUN_MODE		8
 +#define UMON_RC_EXCP_VECTOR		10
 +

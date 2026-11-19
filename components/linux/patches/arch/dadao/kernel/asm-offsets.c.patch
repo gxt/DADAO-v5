@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/asm-offsets.c b/arch/dadao/kernel/asm-offsets.c
 new file mode 100644
-index 000000000..1fc1cf859
+index 000000000..4dcc6b1f0
 --- /dev/null
 +++ b/arch/dadao/kernel/asm-offsets.c
-@@ -0,0 +1,33 @@
+@@ -0,0 +1,51 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Generate the assembler offsets used by head.S / entry code.
@@ -32,8 +32,26 @@ index 000000000..1fc1cf859
 +	DEFINE(PT_SP, offsetof(struct pt_regs, rb) + 1 * sizeof(unsigned long));
 +	DEFINE(PT_RET, offsetof(struct pt_regs, rd) + 8 * sizeof(unsigned long));
 +	BLANK();
++	DEFINE(TASK_STACK, offsetof(struct task_struct, stack));
++	DEFINE(TASK_THREAD, offsetof(struct task_struct, thread));
 +	DEFINE(TASK_THREAD_SP, offsetof(struct task_struct, thread.sp));
 +	DEFINE(TASK_THREAD_RA, offsetof(struct task_struct, thread.ra));
++	BLANK();
++	/*
++	 * The same fields relative to `struct thread_struct` itself: the switch
++	 * helper (kernel/entry.S) is handed `&task->thread`, so it addresses
++	 * `[prev_thread, THREAD_*]`.  (The TASK_THREAD_* pair above is a
++	 * task-struct offset and would be off by the `thread` member's position.)
++	 */
++	DEFINE(THREAD_SP, offsetof(struct thread_struct, sp));
++	DEFINE(THREAD_RA, offsetof(struct thread_struct, ra));
++	DEFINE(THREAD_TP, offsetof(struct thread_struct, tp));
++	DEFINE(THREAD_FP, offsetof(struct thread_struct, fp));
++	DEFINE(THREAD_RD, offsetof(struct thread_struct, rd));
++	DEFINE(THREAD_RB, offsetof(struct thread_struct, rb));
++	DEFINE(THREAD_RAS, offsetof(struct thread_struct, ras));
++	DEFINE(THREAD_RAS_LAST,
++	       offsetof(struct thread_struct, ras) + 63 * sizeof(unsigned long));
 +	BLANK();
 +	return 0;
 +}
