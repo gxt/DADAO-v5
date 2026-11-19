@@ -35,13 +35,13 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m15-qemu-001 | 2026-11-19 20:10 | 1–2 h | `scmp` 无序结果改 canonical quiet NaN（QEMU） |
-| m15-idl-007 | 2026-11-19 10:45 | 5–7 天 | `SimRISC-07` 50 条指令的 operation |
 
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-idl-007 | 2026-11-19 21:40 | `SimRISC-07` 全册 50 条（±0 相等修复、scmp canonical、oracle 特殊值池；93/93） |
 | m15-spec-007 | 2026-11-19 21:25 | `contract-fp.md` 对齐 spec（scmp 无序 canonical；11 处 sNaN 逐条处置） |
 | m15-gem5-001 | 2026-11-19 21:05 | gem5 `scmp` 无序结果改 canonical quiet NaN（`check_b7` 3946 vectors） |
 | m15-idl-017 | 2026-11-19 18:02 | ft 族补正（tininess 后判、类型缺陷、i32/u32→fo、ft_scale；108 函数 0 例外） |
