@@ -67,6 +67,10 @@ def classify_legality_expr(expr: str) -> str | None:
     m = RE_ZERO_COMPARE.match(e)
     if m:
         return ZERO_COMPARE_RULES.get(m.group(2))
+    m_align = re.fullmatch(r"aligned\(\s*(\d+)\s*\)", e)
+    if m_align:
+        # 数据宽度自然对齐（`aligned(4)`/`aligned(8)`）⇒ 动态 MALIGN。
+        return "excp_malign"
     if e == "immu6 != 0":
         return "mreg_zero"
     if e == "immu6 == 0":

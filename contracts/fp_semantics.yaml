@@ -372,42 +372,42 @@ instructions:
     family: rf_mem
     spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
-    legality_refs: []
+    legality_refs: [excp_malign]
   - id: st.t_rrii_rf
     family: rf_mem
     spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
-    legality_refs: []
+    legality_refs: [excp_malign]
   - id: ld.o_rrii_rf
     family: rf_mem
     spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
-    legality_refs: []
+    legality_refs: [excp_malign]
   - id: st.o_rrii_rf
     family: rf_mem
     spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
-    legality_refs: []
+    legality_refs: [excp_malign]
   - id: ldm.t_rrri_rf
     family: rf_mem
     spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
-    legality_refs: [mreg_zero, mreg_range_overflow]
+    legality_refs: [mreg_zero, mreg_range_overflow, excp_malign]
   - id: stm.t_rrri_rf
     family: rf_mem
     spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
-    legality_refs: [mreg_zero, mreg_range_overflow]
+    legality_refs: [mreg_zero, mreg_range_overflow, excp_malign]
   - id: ldm.o_rrri_rf
     family: rf_mem
     spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
-    legality_refs: [mreg_zero, mreg_range_overflow]
+    legality_refs: [mreg_zero, mreg_range_overflow, excp_malign]
   - id: stm.o_rrri_rf
     family: rf_mem
     spec_cite: "SimRISC-01: 存取RF寄存器"
     semantics_ref: "contract-fp.md#rf_mem"
-    legality_refs: [mreg_zero, mreg_range_overflow]
+    legality_refs: [mreg_zero, mreg_range_overflow, excp_malign]
 
   # rf_move（3）
   - id: rd2rf_orri_rf
