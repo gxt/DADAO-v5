@@ -24,6 +24,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-035 | 2–3 h | 缺页路径回归 Linux 通用流程（`handle_mm_fault` + rmap/LRU/page cache；用户 2026-11-20 裁定） |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 
 
