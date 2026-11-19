@@ -27,13 +27,31 @@ sub.so  {rdHA, rdHB}, rdHC, rdHD    @@ SX，rdHA = 高64位
 
 `rdHA` 和 `rdHB` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
 
+<!-- IDL:add.uo_rrrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: add.uo_rrrr_rd
+# 双目的：rdHA = 进位（0 或 1）、rdHB = 结果低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
+if (rdHA == rdHB) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 先读后写：源按零扩展参与 65 位加，sum[64] 即进位
+Bits<65> sum = rd[rdHC] `+ rd[rdHD];
+Bits<64> carry = {63'd0, sum[64]};            # 进位（0/1）零扩展写满 64 位
+
+rd[rdHA] = carry;                             # rdHA 为 rd0 时写入丢弃
+rd[rdHB] = sum[63:0];                         # rdHB 为 rd0 时写入丢弃
+```
+<!-- IDL:add.uo_rrrr_rd END -->
+
 <!-- IDL:add.so_rrrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
 ```idl
 # id: add.so_rrrr_rd
 # 双目的 rdHA/rdHB 分别为结果的高/低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
 if (rdHA == rdHB) {
-  raise(ExceptionCode::Illegal, mode(), {16'd0, ip()});
+  raise(ExceptionCode::Illegal, mode(), ip());
 }
 
 # 先读后写：两个源操作数在任何写入之前全部捕获到 sum
@@ -44,6 +62,46 @@ rd[rdHA] = wide[127:64];                      # rdHA 为 rd0 时写入丢弃
 rd[rdHB] = wide[63:0];                        # rdHB 为 rd0 时写入丢弃
 ```
 <!-- IDL:add.so_rrrr_rd END -->
+
+<!-- IDL:sub.uo_rrrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sub.uo_rrrr_rd
+# 双目的：rdHA = 借位（0 或 1）、rdHB = 结果低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
+if (rdHA == rdHB) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 先读后写：源按零扩展成 65 位做减法，diff[64] = 借位（被减数 < 减数 ⇒ 1）
+Bits<65> minuend = {1'b0, rd[rdHC]};
+Bits<65> subtrahend = {1'b0, rd[rdHD]};
+Bits<65> diff = minuend - subtrahend;
+Bits<64> borrow = {63'd0, diff[64]};          # 借位（0/1）零扩展写满 64 位
+
+rd[rdHA] = borrow;                            # rdHA 为 rd0 时写入丢弃
+rd[rdHB] = diff[63:0];                        # rdHB 为 rd0 时写入丢弃
+```
+<!-- IDL:sub.uo_rrrr_rd END -->
+
+<!-- IDL:sub.so_rrrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: sub.so_rrrr_rd
+# 双目的 rdHA/rdHB 分别为结果的高/低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
+if (rdHA == rdHB) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 先读后写：源按符号扩展成 65 位做减法，diff[64] 即符号位
+Bits<65> minuend = {rd[rdHC][63], rd[rdHC]};
+Bits<65> subtrahend = {rd[rdHD][63], rd[rdHD]};
+Bits<65> diff = minuend - subtrahend;
+Bits<128> wide = {{63{diff[64]}}, diff};      # 符号扩展至 128 位
+
+rd[rdHA] = wide[127:64];                      # rdHA 为 rd0 时写入丢弃
+rd[rdHB] = wide[63:0];                        # rdHB 为 rd0 时写入丢弃
+```
+<!-- IDL:sub.so_rrrr_rd END -->
 
 ### 1.2 自增自减
 
@@ -57,6 +115,21 @@ add.si  rdHA, imms18
 ```
 
 `add.si` 为全 64 位运算，无法单独通过结果判断溢出，用户可结合 `add.uo`/`add.so` 的 rrrr 形式获取进位/符号信息。
+
+<!-- IDL:add.si_riii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: add.si_riii_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# imms18 为 18 位有符号数：符号扩展后与同一寄存器相加，结果完整保留 64 位
+Bits<64> imm = {{46{imms18[17]}}, imms18};
+rd[rdHA] = rd[rdHA] + imm;
+```
+<!-- IDL:add.si_riii_rd END -->
 
 ### 1.3 比较操作
 
@@ -80,6 +153,90 @@ cmp.so  rdHB, rdHC, rdHD
 ```
 
 源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
+
+<!-- IDL:cmp.si_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: cmp.si_rrii_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 有符号比较：rdHB 与符号扩展后的 imms12（编码字段 imms12 为有符号，见 contracts/opcodes.yaml）；
+# 小于 → -1、等于 → 0、大于 → 1，结果写满 64 位
+Bits<64> imm = {{52{imms12[11]}}, imms12};
+if ($signed(rd[rdHB]) < $signed(imm)) {
+  rd[rdHA] = {64{1'b1}};
+} else if (rd[rdHB] == imm) {
+  rd[rdHA] = 64'd0;
+} else {
+  rd[rdHA] = 64'd1;
+}
+```
+<!-- IDL:cmp.si_rrii_rd END -->
+
+<!-- IDL:cmp.ui_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: cmp.ui_rrii_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 无符号比较：rdHB 与零扩展后的 immu12（编码字段 immu12 为无符号，见 contracts/opcodes.yaml）；
+# 小于 → -1、等于 → 0、大于 → 1，结果写满 64 位
+Bits<64> imm = {52'd0, immu12};
+if (rd[rdHB] < imm) {
+  rd[rdHA] = {64{1'b1}};
+} else if (rd[rdHB] == imm) {
+  rd[rdHA] = 64'd0;
+} else {
+  rd[rdHA] = 64'd1;
+}
+```
+<!-- IDL:cmp.ui_rrii_rd END -->
+
+<!-- IDL:cmp.uo_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: cmp.uo_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 整 64 位无符号比较（本册 .o ⇒ size=64，源不截断）：小于 → -1、等于 → 0、大于 → 1（写满 64 位）
+if (rd[rdHC] < rd[rdHD]) {
+  rd[rdHB] = {64{1'b1}};
+} else if (rd[rdHC] == rd[rdHD]) {
+  rd[rdHB] = 64'd0;
+} else {
+  rd[rdHB] = 64'd1;
+}
+```
+<!-- IDL:cmp.uo_orrr_rd END -->
+
+<!-- IDL:cmp.so_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: cmp.so_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 整 64 位有符号比较（本册 .o ⇒ size=64，源不截断）：小于 → -1、等于 → 0、大于 → 1（写满 64 位）
+if ($signed(rd[rdHC]) < $signed(rd[rdHD])) {
+  rd[rdHB] = {64{1'b1}};
+} else if (rd[rdHC] == rd[rdHD]) {
+  rd[rdHB] = 64'd0;
+} else {
+  rd[rdHB] = 64'd1;
+}
+```
+<!-- IDL:cmp.so_orrr_rd END -->
 
 ### 1.4 乘除操作
 
@@ -125,6 +282,133 @@ rem.so  rdHB, rdHC, rdHD
 | `rem.sb`/`rem.sw`/`rem.st`/`rem.so` | 被除数（符号扩展写满 64 位） | `0` |
 | `rem.ub`/`rem.uw`/`rem.ut`/`rem.uo` | 被除数（零扩展写满 64 位） | 不适用 |
 
+<!-- IDL:mul.so_rrrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: mul.so_rrrr_rd
+# 双目的 rdHA/rdHB 分别为 128 位乘积的高/低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
+if (rdHA == rdHB) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 先读后写：源按符号扩展至 128 位相乘；有符号 64×64 乘积 ∈ [-2^126, 2^126] 必可表示，
+# 模 2^128 的低 128 位即精确的有符号乘积（高 64 位为符号扩展后的高半）
+Bits<128> a = {{64{rd[rdHC][63]}}, rd[rdHC]};
+Bits<128> b = {{64{rd[rdHD][63]}}, rd[rdHD]};
+Bits<128> product = a * b;
+
+rd[rdHA] = product[127:64];                   # rdHA 为 rd0 时写入丢弃
+rd[rdHB] = product[63:0];                     # rdHB 为 rd0 时写入丢弃
+```
+<!-- IDL:mul.so_rrrr_rd END -->
+
+<!-- IDL:mul.uo_rrrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: mul.uo_rrrr_rd
+# 双目的 rdHA/rdHB 分别为 128 位乘积的高/低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
+if (rdHA == rdHB) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 先读后写：源按零扩展至 128 位相乘；无符号 64×64 乘积必可表示，模 2^128 即精确值
+Bits<128> a = {64'd0, rd[rdHC]};
+Bits<128> b = {64'd0, rd[rdHD]};
+Bits<128> product = a * b;
+
+rd[rdHA] = product[127:64];                   # rdHA 为 rd0 时写入丢弃
+rd[rdHB] = product[63:0];                     # rdHB 为 rd0 时写入丢弃
+```
+<!-- IDL:mul.uo_rrrr_rd END -->
+
+<!-- IDL:div.uo_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: div.uo_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位无符号除法（本册 .o ⇒ size=64，源不截断）；除零 ⇒ 定值全 1（SimRISC-04 §1.4 定值表）
+if (rd[rdHD] == 64'd0) {
+  rd[rdHB] = {64{1'b1}};
+} else {
+  rd[rdHB] = rd[rdHC] / rd[rdHD];
+}
+```
+<!-- IDL:div.uo_orrr_rd END -->
+
+<!-- IDL:div.so_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: div.so_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位有符号除法：truncate-toward-zero（C99，§1.4）；除零与 INT64_MIN ÷ −1 取定值表的值
+Bits<64> a = rd[rdHC];
+Bits<64> b = rd[rdHD];
+if (b == 64'd0) {
+  rd[rdHB] = {64{1'b1}};                      # 除零 ⇒ 0xFFFF_FFFF_FFFF_FFFF
+} else if (a == 64'h8000_0000_0000_0000 && b == {64{1'b1}}) {
+  rd[rdHB] = 64'h8000_0000_0000_0000;         # 溢出 ⇒ 0x8000_0000_0000_0000
+} else {
+  # 幅值相除后再按商的符号取反 ⇒ 截断方向 = 向零
+  Bits<64> ua = (a[63] == 1'b1) ? -a : a;
+  Bits<64> ub = (b[63] == 1'b1) ? -b : b;
+  Bits<64> q = ua / ub;
+  rd[rdHB] = (a[63] != b[63]) ? -q : q;
+}
+```
+<!-- IDL:div.so_orrr_rd END -->
+
+<!-- IDL:rem.uo_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: rem.uo_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位无符号取余；除零 ⇒ 被除数（零扩展写满 64 位，§1.4 定值表）
+if (rd[rdHD] == 64'd0) {
+  rd[rdHB] = rd[rdHC];
+} else {
+  rd[rdHB] = rd[rdHC] % rd[rdHD];
+}
+```
+<!-- IDL:rem.uo_orrr_rd END -->
+
+<!-- IDL:rem.so_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: rem.so_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位有符号取余：余数符号 = 被除数符号（C99，§1.4）；除零与溢出取定值表的值
+Bits<64> a = rd[rdHC];
+Bits<64> b = rd[rdHD];
+if (b == 64'd0) {
+  rd[rdHB] = a;                               # 除零 ⇒ 被除数（符号扩展写满 64 位 = 原值）
+} else if (a == 64'h8000_0000_0000_0000 && b == {64{1'b1}}) {
+  rd[rdHB] = 64'd0;                           # 溢出 ⇒ 0
+} else {
+  # 幅值取余后再按被除数符号取反 ⇒ 余数符号 = 被除数符号
+  Bits<64> ua = (a[63] == 1'b1) ? -a : a;
+  Bits<64> ub = (b[63] == 1'b1) ? -b : b;
+  Bits<64> r = ua % ub;
+  rd[rdHB] = (a[63] == 1'b1) ? -r : r;
+}
+```
+<!-- IDL:rem.so_orrr_rd END -->
+
 ### 1.5 无进位乘法
 
 无进位乘法（carry-less multiplication，GF(2) 多项式乘）操作数类型为 `rrrr`，与 `mul.*` 同型：`rdHC`、`rdHD` 为源操作数，结果 128 位写入 `rdHA`（高 64 位）与 `rdHB`（低 64 位）。硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
@@ -140,6 +424,31 @@ clmul.o  {rdHA, rdHB}, rdHC, rdHD
 `rdHA` 和 `rdHB` 均可为 `rd0`（丢弃对应部分的结果），但不能**同时**为 `rd0`，也不能为同一非 `rd0` 寄存器。违反上述任一规则触发 ILLI 异常。
 
 单取高半或低半写 `{rdH, rd0}` / `{rd0, rdL}`（与 `mul.uo {rdH, rd0}` 取 `mulhu` 同型）；「反向」无进位乘 `clmulr(a, b) = rev(clmul(rev(a), rev(b)))` 用 `rev.o` 组合，不单设指令。
+
+<!-- IDL:clmul.o_rrrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: clmul.o_rrrr_rd
+# 双目的 rdHA/rdHB 分别为 128 位积的高/低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
+if (rdHA == rdHB) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 先读后写：GF2 上的多项式乘（系数域两个元素）——b 的每一位贡献「(a << i) 与该位的与」，
+# 各位结果按位异或、位间无进位
+Bits<128> a = {64'd0, rd[rdHC]};
+Bits<64> b = rd[rdHD];
+Bits<128> product = 128'd0;
+for (U32 i = 0; i < 64; i++) {
+  if (b[i] == 1'b1) {
+    product = product ^ (a << i);
+  }
+}
+
+rd[rdHA] = product[127:64];                   # rdHA 为 rd0 时写入丢弃
+rd[rdHB] = product[63:0];                     # rdHB 为 rd0 时写入丢弃
+```
+<!-- IDL:clmul.o_rrrr_rd END -->
 
 ## 2. 逻辑运算类指令
 
@@ -157,6 +466,62 @@ clmul.o  {rdHA, rdHB}, rdHC, rdHD
 `xnor` 指令为逻辑同或运算，运算规则：相同为一，相异为零。与异或运算规则相反。即两个操作数值相同时结果为1，两个操作数不一样时为0。
 
 无需提供专门的not指令，可以采用xnor指令实现相同的功能。当rdHC或rdHD为rd0时，xnor指令实现了另一操作数的取反操作，即逻辑非运算。逻辑非的运算规则：一变零，零变一。即操作数为1时结果为0，操作数为0时结果为1。
+
+<!-- IDL:and.o_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: and.o_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位逐位与：bits[63:0] 全 64 位参与（SimRISC-04 §2.1）
+rd[rdHB] = rd[rdHC] & rd[rdHD];
+```
+<!-- IDL:and.o_orrr_rd END -->
+
+<!-- IDL:or.o_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: or.o_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位逐位或：bits[63:0] 全 64 位参与（SimRISC-04 §2.1）
+rd[rdHB] = rd[rdHC] | rd[rdHD];
+```
+<!-- IDL:or.o_orrr_rd END -->
+
+<!-- IDL:xor.o_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: xor.o_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位逐位异或：bits[63:0] 全 64 位参与（SimRISC-04 §2.1）
+rd[rdHB] = rd[rdHC] ^ rd[rdHD];
+```
+<!-- IDL:xor.o_orrr_rd END -->
+
+<!-- IDL:xnor.o_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: xnor.o_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位逐位同或 = 异或取反（SimRISC-04 §2.1）；rdHC 或 rdHD 为 rd0 时即另一操作数取反
+rd[rdHB] = ~(rd[rdHC] ^ rd[rdHD]);
+```
+<!-- IDL:xnor.o_orrr_rd END -->
 
 ### 2.2 Bit manipulating：位操作指令
 
@@ -297,6 +662,220 @@ rdHB[63:0] = rol(rdHC[63:0], amount)
 rol.o   rdHB, rdHC, rdHD        @@ 循环左移（旋转量 = rdHD[5:0]）
 rol.o   rdHB, rdHC, immu6       @@ 循环左移（旋转量 = immu6，0..63）
 ```
+
+<!-- IDL:shl.o_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: shl.o_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位逻辑左移，低位补零；移位量 = rdHD[5:0]（§2.2 表：N=63、hd[5:0] 全有效）
+# ⇒ 移位量 0..63 全合法，「shamt > N 触发 ILLI」在本册不会发生
+rd[rdHB] = rd[rdHC] << rd[rdHD][5:0];
+```
+<!-- IDL:shl.o_orrr_rd END -->
+
+<!-- IDL:shl.o_orri_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: shl.o_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位逻辑左移，低位补零；移位量 = immu6（6 位 ⇒ 0..63 全合法，无越界值）
+rd[rdHB] = rd[rdHC] << immu6;
+```
+<!-- IDL:shl.o_orri_rd END -->
+
+<!-- IDL:rol.o_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: rol.o_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位逻辑循环左移，按 §2.2.2 的公式：(x << n) | (x >> ((64 - n) & 63))，n = 0 时结果为 x 本身
+# （§2.2.2 给的公式；n = rdHD[5:0] 天然等价于 n mod 64）
+Bits<64> x = rd[rdHC];
+Bits<6> n = rd[rdHD][5:0];
+Bits<6> m = (6'd0 - n) & 6'd63;              # (64 - n) & 63 = (-n) mod 64
+rd[rdHB] = (x << n) | (x >> m);
+```
+<!-- IDL:rol.o_orrr_rd END -->
+
+<!-- IDL:rol.o_orri_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: rol.o_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位逻辑循环左移，旋转量 = immu6（0..63 全部合法，无越界值）；公式同 rol.o 的 orrr 形式
+Bits<64> x = rd[rdHC];
+Bits<6> m = (6'd0 - immu6) & 6'd63;
+rd[rdHB] = (x << immu6) | (x >> m);
+```
+<!-- IDL:rol.o_orri_rd END -->
+
+<!-- IDL:shr.uo_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: shr.uo_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位逻辑右移，高位补零；移位量 = rdHD[5:0]（N=63 ⇒ 0..63 全合法）
+rd[rdHB] = rd[rdHC] >> rd[rdHD][5:0];
+```
+<!-- IDL:shr.uo_orrr_rd END -->
+
+<!-- IDL:shr.uo_orri_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: shr.uo_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位逻辑右移，高位补零；移位量 = immu6（0..63 全合法）
+rd[rdHB] = rd[rdHC] >> immu6;
+```
+<!-- IDL:shr.uo_orri_rd END -->
+
+<!-- IDL:shr.so_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: shr.so_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位算术右移，高位补 rdHC[63]（符号位）；移位量 = rdHD[5:0]（N=63 ⇒ 0..63 全合法）
+rd[rdHB] = $signed(rd[rdHC]) >>> rd[rdHD][5:0];
+```
+<!-- IDL:shr.so_orrr_rd END -->
+
+<!-- IDL:shr.so_orri_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: shr.so_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 64 位算术右移，高位补 rdHC[63]（符号位）；移位量 = immu6（0..63 全合法）
+rd[rdHB] = $signed(rd[rdHC]) >>> immu6;
+```
+<!-- IDL:shr.so_orri_rd END -->
+
+<!-- IDL:ext.uo_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: ext.uo_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# hd = rdHD[5:0]（§2.2：orrr 形式的 hd 取 rdHD 低 6 位，更高位忽略、不触发异常）
+# 复制源 [hd:0]，其余位零扩展（N=63 ⇒ 写满 64 位）
+Bits<6> hd = rd[rdHD][5:0];
+Bits<64> mask = {64{1'b1}} >> (6'd63 - hd);   # 低 hd+1 位为 1（hd=63 时为全 1）
+rd[rdHB] = rd[rdHC] & mask;
+```
+<!-- IDL:ext.uo_orrr_rd END -->
+
+<!-- IDL:ext.uo_orri_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: ext.uo_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# hd = immu6；复制源 [hd:0]，其余位零扩展（N=63 ⇒ 写满 64 位）
+Bits<64> mask = {64{1'b1}} >> (6'd63 - immu6);
+rd[rdHB] = rd[rdHC] & mask;
+```
+<!-- IDL:ext.uo_orri_rd END -->
+
+<!-- IDL:ext.so_orrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: ext.so_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# hd = rdHD[5:0]；复制源 [hd:0]，其余位补 rdHC[hd]（符号扩展，N=63 ⇒ 写满 64 位）
+Bits<6> hd = rd[rdHD][5:0];
+Bits<64> mask = {64{1'b1}} >> (6'd63 - hd);
+Bits<64> low = rd[rdHC] & mask;
+rd[rdHB] = (rd[rdHC][hd] == 1'b1) ? (low | ~mask) : low;
+```
+<!-- IDL:ext.so_orrr_rd END -->
+
+<!-- IDL:ext.so_orri_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: ext.so_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# hd = immu6；复制源 [hd:0]，其余位补 rdHC[hd]（符号扩展，N=63 ⇒ 写满 64 位）
+Bits<64> mask = {64{1'b1}} >> (6'd63 - immu6);
+Bits<64> low = rd[rdHC] & mask;
+rd[rdHB] = (rd[rdHC][immu6] == 1'b1) ? (low | ~mask) : low;
+```
+<!-- IDL:ext.so_orri_rd END -->
+
+<!-- IDL:rev.o_orri_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+```idl
+# id: rev.o_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# k 须 one-hot（2 的幂）且 k < S（S=64）；规则 encode_onehot（§2.2.1、附录 B）
+# immu6 为 6 位 ⇒ k ∈ 1..63，k < 64 恒成立，故只需判 one-hot
+if ((immu6 == 6'd0) || ((immu6 & (immu6 - 6'd1)) != 6'd0)) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 单块 64 位切成 64/k 个 k 位单元，反转单元顺序（单元内位序不变），结果写满 64 位
+Bits<32> k = {26'd0, immu6};
+Bits<32> n_units = 32'd64 / k;
+Bits<64> x = rd[rdHC];
+Bits<64> out = 64'd0;
+for (U32 i = 0; i < 64; i++) {
+  Bits<32> u = i / k;                          # 源位 i 所在单元
+  Bits<32> o = i % k;                          # 单元内偏移
+  Bits<32> p = (n_units - 32'd1 - u) * k + o;  # 目标位 = 反转后的单元号 * k + 偏移
+  out = out | ({63'd0, x[i]} << p);
+}
+rd[rdHB] = out;
+```
+<!-- IDL:rev.o_orri_rd END -->
 
 <!-- ASSEMBLY_LIST_START -->
 ## 附录 A：汇编指令速查
