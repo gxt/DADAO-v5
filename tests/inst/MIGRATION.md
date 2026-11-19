@@ -370,8 +370,8 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
   **`hd` 无非法值**；`rdhc` 可为 `rd0`（读出 0）、`rdhb == rdhc`（原地）允许。
 - `swym N`（`spec/SimRISC-12 §2`，oiii）：除 IP 自增（+4）外**无架构副作用**；`N` 只是硬件时延
   提示。用例以 `aip.si rb,0` 差值观测 IP（两次 `aip.si` 之间只放被测 `swym` ⇒ 差值 = 8），并核
-  寄存器/内存/rb 银行哨兵不变；`swym` 无合法性规则 ⇒ **无故障例**；`overlap` 类对该 id **不适用**
-  （oiii 无寄存器操作数），以「插入访存序列中间」与「rb 银行哨兵」等价观测替代。
+  寄存器/内存/rb 寄存器组哨兵不变；`swym` 无合法性规则 ⇒ **无故障例**；`overlap` 类对该 id **不适用**
+  （oiii 无寄存器操作数），以「插入访存序列中间」与「rb 寄存器组哨兵」等价观测替代。
 - 用例：`ct*` 每 id 18 链点 + 1 故障例（encoding 2 / semantic 6 / boundary 7 / legality 2 /
   overlap 1），`swym` 13 链点（encoding 3 / semantic 5 / boundary 5）。目的初值一律全 1 ⇒
   只写低位/不清高位的实现必红（fail-closed）。合计 67 链点 + 3 故障例。
@@ -618,7 +618,7 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 ### `m13-testcases-031`：补 `st.o rb0` / `ld.o ra0`（`01-load-store` 三文件）
 
 - 改动（**不改已通过用例**，只追加段）：`st.o_rrii_rb.S`（+3 链例点，`rb0` 作**源** =
-  当前指令地址）、`st.o_rrii_rd.S`（+1 点，`rb0` 作**基址**，该 id 的源银行是 rd ⇒ 只有
+  当前指令地址）、`st.o_rrii_rd.S`（+1 点，`rb0` 作**基址**，该 id 的源寄存器组是 rd ⇒ 只有
   `rbhb` 能编 `rb0`）、`ld.o_rrii_ra.S`（+7 点 = `ra0` 读 4 + 写 3）；故障例点号顺延。
   宏层新增 `__CHECK_MEM_RB`（内存 beat vs **运行期派生**的 RB 期望：先 `rb2rd` 到 rd22 再比）；
   驱动器 `run_asm_suite.py` 的链例行识别放宽为 `__CHECK_(?:RD|MEM)\w*`。

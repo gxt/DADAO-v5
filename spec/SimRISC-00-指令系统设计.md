@@ -456,7 +456,7 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 - 新增融合乘加 `ftfma`/`fofma`（`rrrr`：1 目的 + 3 源；乘加不中间舍入，只舍入一次）。
 - 新增取整 `ftrnd`/`fornd`（六档取整，`immu6` one-hot）与最小/最大值 `ftmin`/`ftmax`/`fomin`/`fomax`（`minimumNumber`/`maximumNumber` 语义：单 NaN 返回数字、双 NaN 得 canonical qNaN、`-0 < +0`、sNaN 触发 NV、不涉舍入不置 NX）；六条均转为可执行（不再按 ILLI 解码），`dst_rf0` 与 `encode_onehot` 合法性生效。
 - 新增无进位乘 `clmul.o`（`rrrr` 双目的，`rdHA` 高 / `rdHB` 低）、`rol.o`/`rol.t`/`rol.w`/`rol.b`（逻辑循环左移）与 `rev.o`/`rev.t`/`rev.w`/`rev.b`（逐块反转）；新增无位宽后缀的 `ctlz`/`cttz`/`ctpop`（位扫描 / 位计数）与 `sub.o`（RB−RB→RD）；RB 算术三条（`add.o`/`sub.o` 的 `bbd` 形态、`cmp.uo` 的 `dbb` 形态）同时改名并调整编码槽。
-- 恢复 64 位 IP 相对寻址指令并定名 **`aip.si`**（`riii`）：`rbHA = IP + (imms18 << 12)`，`IP` 取该指令自身地址、不清低位；操作数按字节计（汇编层 `imms30`、编码层 `imms18 = imms30 >> 12`），结果写 RB 银行，可达 ±512 MiB（即与 `auipc` 的三点差异）。
+- 恢复 64 位 IP 相对寻址指令并定名 **`aip.si`**（`riii`）：`rbHA = IP + (imms18 << 12)`，`IP` 取该指令自身地址、不清低位；操作数按字节计（汇编层 `imms30`、编码层 `imms18 = imms30 >> 12`），结果写 RB 寄存器组，可达 ±512 MiB（即与 `auipc` 的三点差异）。
 - 删除 `ftlog`/`folog`，`ftroot`/`foroot` 仅保留 n=2；删除浮点条件赋值 `cs.eq_rrrr_rf`/`cs.ne_rrrr_rf`（仅留 `cs.n`/`cs.z`/`cs.p` 的 rf 变体，判「比较结果为 1」改用 `sub` + `cs.z`）；删除 `illi`；伪指令收缩为需多指令合成的合成型（`set.*`），去掉 1:1 别名。
 - `OPC-MISC` 编码面定稿（`opc = 0x47`）：`lr`/`sc` 为 `<lr|sc>.<b|w|t|o>.<nn|an|ar|nr>` 共 24 条（`lr` 占 `000`/`001`、`sc` 占 `010`/`011`，删 `lr.*.nr` 与 `sc.*.an`）；`fence` 占 `100-000`（`ha = 0x20`，`immu18` 拆为 `fm`/`pred`/`succ`）；`swym` 占 `100-010`；`ctpop`/`ctlz`/`cttz` 占 `100-101`/`100-110`/`100-111`。
 - 位宽子表重排：`ext.uo`/`ext.so` 迁 `100-000`/`100-001`（`orrr`）与 `101-000`/`101-001`（`orri`）；`shl` 四位宽变体去 `u` 后缀并迁 `010-000`/`011-000`；`rol` 占 `010-001`/`011-001`；`rev` 在各子表占 `001-100`。

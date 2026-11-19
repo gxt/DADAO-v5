@@ -14,7 +14,7 @@
      计数只**现场统计并打印**，不参与比较。
   4. `scope == "excluded"` ⇔ `decode == "ILLI"`；`scope ∈ {m1, fp, m3, m8, m9}` ⇒ 无 `decode`
      且无旧字段（防回退）。
-  5. `_rf`（RF 银行目的）的 scope 约束：`scope == "fp"` ⇒ `id.endswith("_rf")`；
+  5. `_rf`（RF 寄存器组目的）的 scope 约束：`scope == "fp"` ⇒ `id.endswith("_rf")`；
      `id.endswith("_rf")` ⇒ `scope ∈ {fp, excluded}`。
   6. 旧 M1 排除布尔字段（见 OLD_FIELD）在非历史文件中已消失。
 
@@ -160,7 +160,7 @@ def check(records: list, repo: Path) -> tuple[list[tuple[str, str, str, bool]], 
     if not record("非 excluded ⇒ 无旧字段", "0 条", f"{len(bad_old)} 条") or bad_old:
         fail("非 excluded 记录含旧字段: " + ", ".join(bad_old[:10]))
 
-    # 5. `_rf`（RF 银行目的）记录的 scope 只允许 fp / excluded
+    # 5. `_rf`（RF 寄存器组目的）记录的 scope 只允许 fp / excluded
     fp_bad = [r.get("id", "?") for r in records
               if r.get("scope") == "fp" and not str(r.get("id", "")).endswith("_rf")]
     if not record("scope:fp ⇒ id 以 _rf 结尾", "0 条", f"{len(fp_bad)} 条") or fp_bad:

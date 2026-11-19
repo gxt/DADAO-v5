@@ -63,10 +63,10 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 
 ## 访存（`m12-chipyard-008`）
 
-- **单元素 `ld`/`st`**（`spec/SimRISC-01 §1–§4`）：`ld.{ub,uw,ut,sb,sw,st}`、`st.{b,w,t}` 与 `ld.o`/`st.o` 的 rd/rb/ra 三种银行（RF 银行归 `m12-chipyard-011`，当前仍 ILLI）；地址 = `rbHB + imms12`，按访问宽度做 `MALIGN`，写回按宽度零/符号扩展。
+- **单元素 `ld`/`st`**（`spec/SimRISC-01 §1–§4`）：`ld.{ub,uw,ut,sb,sw,st}`、`st.{b,w,t}` 与 `ld.o`/`st.o` 的 rd/rb/ra 三种寄存器组（RF 寄存器组归 `m12-chipyard-011`，当前仍 ILLI）；地址 = `rbHB + imms12`，按访问宽度做 `MALIGN`，写回按宽度零/符号扩展。
 - **`ldm`/`stm`**（`rrri`，1–63 个寄存器）：地址 = `rbHB + rdHC`（用**原始** `rdHC`），元素 i 在 `addr + i·W`；**按 8 字节 TileLink beat 分组**（元素自然不跨 beat）——`stm` 用整拍 `Put` + byte mask 打包，`ldm` 用整拍 `Get` 后逐元素提取。整段（对齐 + 地址窗口）在 `EXEC` **预检**、第一拍之前判定 ⇒ 精确 `MALIGN`/`CFXMEM`；中途 `denied`/`corrupt` ⇒ `CFXMEM` 进 hmon（非精确，软件可重入整条指令）。
 - **地址合法性 = Tiny 三段窗口**（`spec/Kaiwu §1.1`：BootROM / SRAM / hmon SRAM）：窗口之外一律 `CFXMEM`。不能只看 `TLXbar` 协商出的 manager 集合——chipyard 在地址 0 还有 debug-controller 等外设，会让未映射访问被当成合法总线访问；取指/预取用同一口径。
-- **`ra` 银行**：`WumingRegFile` 增加第三组 64×64 寄存器（`ra0` 可读写）；RAS 的溢出/下溢与 `call`/`ret` 语义归 `m12-chipyard-009`。
+- **`ra` 寄存器组**：`WumingRegFile` 增加第三组 64×64 寄存器（`ra0` 可读写）；RAS 的溢出/下溢与 `call`/`ret` 语义归 `m12-chipyard-009`。
 - **字节序**：所有总线访问按 8 字节 beat 对齐，大端在 beat 内逐字节重组（`addressOrder`/`laneOrder`）；`st.b/.w/.t` 用 byte mask 只写目标字节，邻字节不变。
 
 ## 控制流与 RAS（`m12-chipyard-009`）
@@ -89,9 +89,9 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 
 - **内部表示 = recFN**（`berkeley-hardfloat` 的语义，**不引入其依赖**，代码自写）：`sign ## exp(expWidth+1) ## sig(sigWidth-1)`，比 IEEE 多一位指数 ⇒ 次正规数在内部保持规格化，只有编解码面处理反规格化。`WumingFP.scala` 提供 `recFNFromFN`/`fNFromRecFN`/`rawFloatFromFN`/`rawFloatFromRecFN`（ft = 8/24、fo = 11/53）与 `signInject`。
 - **单一舍入原语** `WumingRoundAnyRawFNToRecFN`（`spec/SimRISC-07 §1.4`）：五档方向（RNE/RTZ/RDN/RUP/RNA，编码同 hardfloat 便于逐例对照）+ `immu6` 六档解码（`0x01`/`0x02`/`0x04`/`0x08`/`0x10`/`0x20`，`0x20` 读 `rf0[33:32]`，其余值 ILLI，`ADR-0050` D2）；**tininess 取舍入后**；下溢只在「舍入后 tiny 且 inexact」置 `UF`，与 `NX` 独立；NaN 结果一律 **canonical quiet NaN**（符号 0、payload 全零；`m12-chipyard-030` 收口，此前把输入 payload 传播、窄化还把丢弃位 OR 进末位），sNaN 另置 `NV`。
-- **`rf0`（FCSR）**（`spec/SimRISC-00 §2.3.1`）：`WumingFcsr` 保存 `[33:32]` 与 `[4:0]`，其余位读出为固定值（只读 qNaN 位 + SBZ），写入按 `[33:32]`/`[4:0]` 掩码；FP 操作抬起的标志按 `rf0[4:0]` 顺序**累积（sticky）**，软件写 `rf0` 即清零。`rf` 银行（64×64）就位，`rf0` 由 FCSR 承担。**单精写入**（`m13-chipyard-001`）：写口带一位「本次写是 ft 结果」标志，只改 `[31:0]`、`[63:32]` 保持；因此 `ld.t`/`ldm.t` 写 `rf0` 只落到 `[4:0]`（`[33:32]` 舍入模式不动），见下文「单精写入宽度」。
+- **`rf0`（FCSR）**（`spec/SimRISC-00 §2.3.1`）：`WumingFcsr` 保存 `[33:32]` 与 `[4:0]`，其余位读出为固定值（只读 qNaN 位 + SBZ），写入按 `[33:32]`/`[4:0]` 掩码；FP 操作抬起的标志按 `rf0[4:0]` 顺序**累积（sticky）**，软件写 `rf0` 即清零。`rf` 寄存器组（64×64）就位，`rf0` 由 FCSR 承担。**单精写入**（`m13-chipyard-001`）：写口带一位「本次写是 ft 结果」标志，只改 `[31:0]`、`[63:32]` 保持；因此 `ld.t`/`ldm.t` 写 `rf0` 只落到 `[4:0]`（`[33:32]` 舍入模式不动），见下文「单精写入宽度」。
 - **分类与符号**：`ftcls`/`focls`（块形式，一拍一个元素，新增 `sCls` 状态：13 → 14 态；`SimRISC-07 §5` 位序 bit0 sNaN … bit9 +Inf，`[63:10]` 清零）；`ftsgnj`/`ftsgnn`/`fosgnj`/`fosgnn`（`copySign`/取反符号，`hd = rf0` 即 `abs`/`-abs`）。
-- **rf 银行的形式**：`ld/st/ldm/stm` 的 `rf` 变体（`ld.t rf` 只写低 32 位、高 32 位保持原值——不符号扩展也不零填，`m13-chipyard-001` 前是符号扩展）、`set.w rf`（只替换所选 wyde；`rf0` 上 `wp2` = 舍入模式、`wp0` = 标志、`wp1`/`wp3` 写无效）、`cs.* rf`、`rd2rf`/`rf2rd`（`rf0` 作源或目的均合法，目的侧走 FCSR 掩码；64 位二进制搬移）。其余 FP 形式（算术/转换/取整/最小最大/FMA/除开方）仍 ILLI，归 `012`–`015`。
+- **rf 寄存器组的形式**：`ld/st/ldm/stm` 的 `rf` 变体（`ld.t rf` 只写低 32 位、高 32 位保持原值——不符号扩展也不零填，`m13-chipyard-001` 前是符号扩展）、`set.w rf`（只替换所选 wyde；`rf0` 上 `wp2` = 舍入模式、`wp0` = 标志、`wp1`/`wp3` 写无效）、`cs.* rf`、`rd2rf`/`rf2rd`（`rf0` 作源或目的均合法，目的侧走 FCSR 掩码；64 位二进制搬移）。其余 FP 形式（算术/转换/取整/最小最大/FMA/除开方）仍 ILLI，归 `012`–`015`。
 - **周期（trace 实测）**：`ftcls`/`focls` = 1 + 元素个数；`ftsgnj`/`ftsgnn`/`fosgnj`/`fosgnn`、`set.w rf`、`cs.* rf` 1 拍；`rd2rf`/`rf2rd` = 1 + 个数；`ld.o rf` 13 拍（单拍数据往返）。
 - **验证**：`tools/chipyard/fp_ref.py`（独立模型 + 精确有理数 oracle）、`tools/chipyard/fp_sweep.py`（分类/符号/rf 访存/FCSR/故障 5 组镜像）、`tools/chipyard/fp_unit/`（Verilator 单元台：同一组向量同时喂本实现与 hardfloat 实例，逐例比对值 + 标志）。
 
@@ -169,7 +169,7 @@ make check-patch-tree
 ## 单精写入宽度（`m13-chipyard-001`）
 
 - **条款**（`spec/SimRISC-01 §4` 注、`spec/SimRISC-07 §1.3`「单精（ft）结果的写入宽度」、`contract-fp §1`；用户 2026-11-14 裁定）：**凡以 ft 寄存器为目的的指令只写低 32 位、`[63:32]` 保持原值**（不符号扩展、不零填）——`ld.t`/`ldm.t`、算术/取余/开方/取整/缩放/最小最大/转换到 ft、符号注入以及 **`ft2ft`** 复制；**不适用**：`fo2fo`、跨组复制 `rd2rf`/`rf2rd`、`ld.o`/`ldm.o`（64 位二进制搬移）。写 `rf0` 时低 32 位里只有 `[4:0]` 在可写域 ⇒ `[33:32]`（舍入模式）、`[31:22]`（只读 qNaN）与 `[21:5]`（SBZ）全部保持原值。
-- **实现**：`WumingRegFile` 的 w0 写口新增 `w0Ft`：`sf(idx) := Cat(sf(idx)(63,32), data(31,0))`；`rf0` 侧 `WumingFcsr` 新 `writeFlagsOnly` 只更新 `[4:0]`（舍入模式不动）。`WumingDecoder` 逐族置 `w0Ft`：`ld.t`/`ldm.t`（RF 银行的 tetra 装载，且 `memSigned` 改 false ⇒ 不再符号扩展）、`fpArith`/`fpFma`/`fpSlow`/`fpRoundInt`/`fpScaleB`/`signInject`/`cvtI2F` 的 ft 变体、`cvtF2F` 的 `fo2ft`、`fpCopy(false)`（`ft2ft`）；`fo2fo` 走 `fpCopy(true)` 保持 64 位。`ft2fo`（fo 结果）、`rd2rf`/`rf2rd`、`ld.o`/`ldm.o` 不置该位。
+- **实现**：`WumingRegFile` 的 w0 写口新增 `w0Ft`：`sf(idx) := Cat(sf(idx)(63,32), data(31,0))`；`rf0` 侧 `WumingFcsr` 新 `writeFlagsOnly` 只更新 `[4:0]`（舍入模式不动）。`WumingDecoder` 逐族置 `w0Ft`：`ld.t`/`ldm.t`（RF 寄存器组的 tetra 装载，且 `memSigned` 改 false ⇒ 不再符号扩展）、`fpArith`/`fpFma`/`fpSlow`/`fpRoundInt`/`fpScaleB`/`signInject`/`cvtI2F` 的 ft 变体、`cvtF2F` 的 `fo2ft`、`fpCopy(false)`（`ft2ft`）；`fo2fo` 走 `fpCopy(true)` 保持 64 位。`ft2fo`（fo 结果）、`rd2rf`/`rf2rd`、`ld.o`/`ldm.o` 不置该位。
 - **验证**（`fp_sweep.py` 新增 `ftwidth` 组 29 例，期望值按条款手写、每例先把目的高半填非零图案）：`ld.t rf0 ← 0xFFFF_FFFF ⇒ 0x7FF8_0000_7FC0_001F`；`ld.t rf5 ← 0xFFFF_FFFF/0x7FFF_FFFF/0` 高半保持；`ldm.t {rf0:rf1}`；`ftadd/ftsub/ftmul/ftfma/ftdiv/ftrem/ftroot/ftrnd/ftsclb/ftmin/ftmax/it2ft/ut2ft/io2ft/fo2ft/ftsgnj/ftsgnn` 各一例；`ft2ft` 单例与三元素块复制；反向对照 `ld.o`/`ldm.o`/`fo2fo`/`rd2rf`/`rf2rd` 仍 64 位。旧实现的同一镜像 24/29 例红（5 个反向对照绿），新实现 29/29 逐字节；四册 `tests/inst` 与 `fp_unit` 全绿。
 
 ## cfx 独立为 `dadao-gewu` generator（`m16-chipyard-002`）

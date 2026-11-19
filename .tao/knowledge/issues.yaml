@@ -874,7 +874,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2】`llvm-objdump` 对 `rf` 银行寄存器号断言崩溃（`DADAOInstPrinter::getRegisterName` 越界），`tests/inst/**/*_rf.S` 的 9 个镜像无法生成 IP→助记符表（`m16-chipyard-001` 实测；本轮改用固定布局探针 `.dd.t32` + 已知编码字补测 `ftcls`/`focls`/`rf2rf`）。影响：任何按 objdump 反汇编做周期/语义测量的工具对这 9 例都失效。处置：修 `getRegisterName` 的 rf 银行映射并补 lit 用例（含 rf 银行全部指令）。"
+  title: "【P2】`llvm-objdump` 对 `rf` 寄存器组寄存器号断言崩溃（`DADAOInstPrinter::getRegisterName` 越界），`tests/inst/**/*_rf.S` 的 9 个镜像无法生成 IP→助记符表（`m16-chipyard-001` 实测；本轮改用固定布局探针 `.dd.t32` + 已知编码字补测 `ftcls`/`focls`/`rf2rf`）。影响：任何按 objdump 反汇编做周期/语义测量的工具对这 9 例都失效。处置：修 `getRegisterName` 的 rf 寄存器组映射并补 lit 用例（含 rf 寄存器组全部指令）。"
 - id: ISS-469
   scope:
   - qemu
