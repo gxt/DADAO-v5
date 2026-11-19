@@ -927,12 +927,13 @@ def _order_key(x, ew, sw):
 def cmp_exact(ew, sw, a, b, signaling):
     """Compare oracle: ``(64-bit result, rf0[4:0] flags)``.
 
-    Ordered pairs give 1 / 0 / -1; an unordered pair gives a quiet NaN (quiet
-    compare) or a signalling NaN (signalling compare), sign bit clear.  `NV`
-    follows spec/SimRISC-07 §4 and IEEE 754-2019 §5.6.1 / §5.11: a signalling
-    compare raises it for **any** unordered pair, quiet NaN included; a quiet
-    compare raises it only when an operand is a signalling NaN (a quiet NaN
-    operand alone raises nothing).
+    Ordered pairs give 1 / 0 / -1; an unordered pair gives the **canonical
+    quiet NaN** (sign 0, payload zero) for all four compares -- quiet and
+    signalling alike (spec/SimRISC-07 §4, `m16-chipyard-012`).  `NV` follows
+    spec/SimRISC-07 §4 and IEEE 754-2019 §5.6.1 / §5.11: a signalling compare
+    raises it for **any** unordered pair, quiet NaN included; a quiet compare
+    raises it only when an operand is a signalling NaN (a quiet NaN operand
+    alone raises nothing).
     """
     ra = raw_from_fn(ew, sw, a)
     rb = raw_from_fn(ew, sw, b)
@@ -941,8 +942,7 @@ def cmp_exact(ew, sw, a, b, signaling):
     else:
         nv = NV if (_is_snan(ra, sw) or _is_snan(rb, sw)) else 0
     if ra["is_nan"] or rb["is_nan"]:
-        nan = _exp_all_ones(ew, sw) | ((1 << 0) if signaling else (1 << (sw - 2)))
-        return nan, nv
+        return _exp_all_ones(ew, sw) | (1 << (sw - 2)), nv
     if ra["is_zero"] and rb["is_zero"]:
         return 0, 0                     # every zero encoding compares equal
     ka = _order_key(a, ew, sw)

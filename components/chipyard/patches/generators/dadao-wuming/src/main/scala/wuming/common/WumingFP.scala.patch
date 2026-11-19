@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
 new file mode 100644
-index 0000000..4a94642
+index 0000000..1313b89
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFP.scala
-@@ -0,0 +1,2056 @@
+@@ -0,0 +1,2068 @@
 +// See LICENSE for license details.
 +//
 +// DADAO floating-point infrastructure (m12-chipyard-011).
@@ -36,10 +36,12 @@ index 0000000..4a94642
 +//
 +// Every quiet NaN *result* is the canonical quiet NaN -- sign 0, payload all
 +// zero (spec/SimRISC-07 §1.4 "NaN 结果的取值") -- which is what hardfloat and
-+// gem5 also produce (m12-chipyard-030); the non-canonical shapes the spec keeps
-+// are the rf block copy (`rf2rf`, a bit-for-bit move that never canonicalises),
-+// the signalling compare's sNaN result and min/max's single-NaN pass-through,
-+// and none of those reach this file's rounding primitive.
++// gem5 also produce (m12-chipyard-030); compare's unordered result is the same
++// canonical quiet NaN for both the quiet and the signalling forms
++// (spec/SimRISC-07 §4).  The non-canonical shapes the spec keeps are the rf
++// block copy (`rf2rf`, a bit-for-bit move that never canonicalises) and
++// min/max's single-NaN pass-through, and neither of those reaches this file's
++// rounding primitive.
 +//
 +// The recoded format (hardfloat's "recFN") is the format all FP data takes
 +// inside the core: `sign ## exp(expWidth+1) ## sig(sigWidth-1)`, i.e. one
@@ -124,6 +126,15 @@ index 0000000..4a94642
 +  def width(expWidth: Int, sigWidth: Int): Int = expWidth + sigWidth + 1
 +
 +  def minNormExp(expWidth: Int): BigInt = (BigInt(1) << (expWidth - 1)) + 2
++
++  /** The canonical quiet NaN of an IEEE format: sign 0, exponent all ones,
++    * payload zero (spec/SimRISC-07 §1.4 "NaN 结果的取值").  Shared by every
++    * rule that hands out a NaN *constant* (compare's unordered result, min/max
++    * on two NaNs) so the bit pattern has one definition.
++    */
++  def canonicalQuietNan(expWidth: Int, sigWidth: Int): BigInt =
++    (((BigInt(1) << expWidth) - 1) << (sigWidth - 1)) |
++      (BigInt(1) << (sigWidth - 2))
 +
 +  /** Index of the most significant set bit, `n` when the input is zero
 +    * (hardfloat `countLeadingZeros`, used for subnormal normalisation).
@@ -1808,14 +1819,16 @@ index 0000000..4a94642
 +/** Quiet / signalling compare (hardfloat `CompareRecFN`), spec/SimRISC-07 §4.
 +  *
 +  * The comparison itself is the total order on the IEEE encoding (sign then
-+  * magnitude, so `-0 < +0`); an unordered pair returns a quiet NaN for
-+  * `ftqcmp`/`foqcmp` and a signalling NaN for `ftscmp`/`foscmp`, both with a
-+  * clear sign bit.  `NV` follows spec/SimRISC-07 §4 and IEEE 754-2019 §5.6.1
-+  * / §5.11 (m12-chipyard-024): a signalling compare (`ftscmp`/`foscmp`) raises
-+  * it for **any** unordered pair, quiet NaN included; a quiet compare
++  * magnitude, so `-0 < +0`); an unordered pair returns the **canonical quiet
++  * NaN** (sign 0, payload zero) for all four compares -- `ftqcmp`/`foqcmp` and
++  * `ftscmp`/`foscmp` alike (spec/SimRISC-07 §4, `a6f11e23`: quiet and
++  * signalling differ only in the `NV` rule, not in the result).  `NV` follows
++  * spec/SimRISC-07 §4 and IEEE 754-2019 §5.6.1 / §5.11
++  * (m12-chipyard-024): a signalling compare (`ftscmp`/`foscmp`) raises it for
++  * **any** unordered pair, quiet NaN included; a quiet compare
 +  * (`ftqcmp`/`foqcmp`) raises it only when an operand is a signalling NaN --
-+  * a quiet NaN operand alone raises nothing.  This is hardfloat's
-+  * `CompareRecFN` rule bit for bit.
++  * a quiet NaN operand alone raises nothing.  Only the result is DADAO's
++  * (`DADAO:`); hardfloat returns a signalling NaN for its signalling compare.
 +  */
 +class WumingCompareRecFN(expWidth: Int, sigWidth: Int) extends Module {
 +  val io = IO(new Bundle {
@@ -1847,10 +1860,10 @@ index 0000000..4a94642
 +  val lt = !unordered && !bothZero && keyA < keyB
 +  val gt = !unordered && !bothZero && keyA > keyB
 +
-+  val expOnes = ((BigInt(1) << expWidth) - 1) << (sigWidth - 1)
-+  val quietNan = expOnes | (BigInt(1) << (sigWidth - 2))
-+  val sigNan = expOnes | 1
-+  val nanBits = Mux(io.signaling, sigNan.U(fmtW.W), quietNan.U(fmtW.W))
++  // `DADAO:` the unordered result is the canonical quiet NaN for all four
++  // compares (spec/SimRISC-07 §4); only the `NV` rule below distinguishes the
++  // quiet and signalling forms.
++  val nanBits = WumingRecFN.canonicalQuietNan(expWidth, sigWidth).U(fmtW.W)
 +
 +  val cmp = Mux(lt, "hffff_ffff_ffff_ffff".U, Mux(gt, 1.U, 0.U))
 +  io.out := Mux(unordered, nanBits.pad(64), cmp.pad(64))
@@ -1887,8 +1900,7 @@ index 0000000..4a94642
 +  val pickA = Mux(io.isMax, keyA >= keyB, keyA <= keyB)
 +  val numeric = Mux(pickA, aBits, bBits)
 +
-+  val canonNan = (((BigInt(1) << expWidth) - 1) << (sigWidth - 1)) |
-+    (BigInt(1) << (sigWidth - 2))
++  val canonNan = WumingRecFN.canonicalQuietNan(expWidth, sigWidth)
 +  val bothNan = rawA.isNaN && rawB.isNaN
 +  val sel = Mux(bothNan, canonNan.U(fmtW.W),
 +    Mux(rawA.isNaN, bBits, Mux(rawB.isNaN, aBits, numeric)))

@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
 new file mode 100644
-index 0000000..9281577
+index 0000000..ba98e1b
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingFPUnitHarness.scala
-@@ -0,0 +1,729 @@
+@@ -0,0 +1,731 @@
 +// See LICENSE for license details.
 +//
 +// Unit bench for the FP infrastructure (m12-chipyard-011).
@@ -377,8 +377,12 @@ index 0000000..9281577
 +
 +  // hardfloat's quiet compare raises NV for a signalling NaN input, and its
 +  // signalling compare for any unordered pair (IEEE 754-2019 §5.6.1 / §5.11) --
-+  // exactly the spec/SimRISC-07 §4 contract (m12-chipyard-024), so every
-+  // compare form compares flags against its own hardfloat instance.
++  // exactly the spec/SimRISC-07 §4 `NV` contract (m12-chipyard-024), so every
++  // compare form compares flags against its own hardfloat instance.  The
++  // *value* of an unordered pair is not taken from hardfloat (which returns a
++  // signalling NaN for its signalling form): spec/SimRISC-07 §4 fixes it to
++  // the canonical quiet NaN for all four compares, so `hfCmpValue` below
++  // substitutes that constant.
 +  val hfCmpFtQ = Module(new hardfloat.CompareRecFN(WumingFmt.ftExp, WumingFmt.ftSig))
 +  val hfCmpFtS = Module(new hardfloat.CompareRecFN(WumingFmt.ftExp, WumingFmt.ftSig))
 +  val hfCmpFoQ = Module(new hardfloat.CompareRecFN(WumingFmt.foExp, WumingFmt.foSig))
@@ -393,14 +397,12 @@ index 0000000..9281577
 +    u.io.signaling := signaling.B
 +  }
 +
-+  // Value of a hardfloat comparison: 1 / 0 / -1, or the NaN constant the
-+  // DADAO compare returns for an unordered pair.
++  // Value of a hardfloat comparison: 1 / 0 / -1, or the canonical quiet NaN
++  // that spec/SimRISC-07 §4 gives every unordered pair (both compare forms).
 +  def hfCmpValue(q: hardfloat.CompareRecFN, s: hardfloat.CompareRecFN,
 +      ew: Int, sw: Int): UInt = {
 +    val unordered = !(q.io.lt || q.io.eq || q.io.gt)
-+    val expOnes = ((BigInt(1) << ew) - 1) << (sw - 1)
-+    val nanBits = Mux(q.io.signaling, (expOnes | 1).U((ew + sw).W),
-+      (expOnes | (BigInt(1) << (sw - 2))).U((ew + sw).W))
++    val nanBits = WumingRecFN.canonicalQuietNan(ew, sw).U((ew + sw).W)
 +    val cmp = Mux(q.io.lt, "hffff_ffff_ffff_ffff".U,
 +      Mux(q.io.gt, 1.U, 0.U))
 +    Mux(unordered, nanBits.pad(64), cmp.pad(64))

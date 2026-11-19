@@ -62,7 +62,7 @@ tools/golden/fp_ref.py
 ## 5. 标志位（NV/DZ/OF/UF/NX）与 NaN/Inf 传播
 
 - 标志须**累积**到 `rf0[4:0]`（accrued），非仅当条；sNaN → NV + qNaN；浮点→整型饱和 → NV；溢出 → ±Inf + OF；下溢按舍入模式 + UF；inexact → NX。
-- NaN/Inf 逐族实现：`convert_ff` 传播 payload、`compare` 的 unordered 编码（qcmp → qNaN / scmp → sNaN，符号位 0）、`sign` 的符号注入与 `rfHD = rf0` 的 `abs()` 特例。
+- NaN/Inf 逐族实现：`convert_ff` 传播 payload、`compare` 的 unordered 编码一律 canonical quiet NaN（符号位 0、payload 全零；`spec/SimRISC-07 §4`，2026-11-19 裁定后 quiet 与 signaling 只差 `NV`）、`sign` 的符号注入与 `rfHD = rf0` 的 `abs()` 特例。
 - 非算术类（`sign` / `classify`）不置标志位的约定，按 `contract-fp.md` 各族锚点执行。
 
 ## 6. 独立验证方式（自证，不靠 LLVM/QEMU）

@@ -362,7 +362,12 @@ def check(args):
                     print(f"  [ORACLE] {name} x={x:x} signed={signed} "
                           f"mode={r['mode']} want={want:x}/{wflags:x} "
                           f"got={r['out']:x}/{r['flags']:x}")
-            if r["out"] != r["hf_out"]:
+            # an unordered pair is a NaN constant (canonical here, hardfloat
+            # keeps sNaN for its signalling form) => compare only the ordered
+            # values with hardfloat; the oracle checks the NaN bits above
+            ordered = not (F.raw_from_fn(ew, sw, r["in_lo"])["is_nan"] or
+                           F.raw_from_fn(ew, sw, r["in_hi"])["is_nan"])
+            if ordered and r["out"] != r["hf_out"]:
                 bad_hf += 1
                 if bad_hf <= 6:
                     print(f"  [DIFF] {name} x={x:x} signed={signed} "
@@ -583,11 +588,14 @@ def check(args):
     # add/sub/mul/fma: value compared against hardfloat's RTL (NaNs collapsed,
     # since the two implementations pick different NaN payloads) and against
     # the exact oracle bit for bit (the DADAO payload rule is part of the
-    # contract).  compare: value against hardfloat's lt/eq/gt and the NaN
-    # constant, flags against hardfloat's own form (signalling compare raises
-    # NV on any unordered pair; quiet compare raises it for an sNaN input
-    # only, a documented divergence from spec/SimRISC-07 §4, which the core
-    # follows).  min/max have no hardfloat counterpart: oracle only.
+    # contract).  compare: ordered values against hardfloat's lt/eq/gt; an
+    # unordered pair is the canonical quiet NaN (`m16-chipyard-012`) for both
+    # forms, so the NaN *value* is not compared with hardfloat (it keeps a
+    # signalling NaN for its signalling form) -- the oracle below decides it.
+    # Flags are compared strictly against hardfloat's own form (signalling
+    # compare raises NV on any unordered pair; quiet compare raises it for an
+    # sNaN input only), which is exactly spec/SimRISC-07 §4.  min/max have no
+    # hardfloat counterpart: oracle only.
     BIN = {25: ("add ft", F.FT, False), 26: ("sub ft", F.FT, True),
            27: ("mul ft", F.FT, None),
            29: ("add fo", F.FO, False), 30: ("sub fo", F.FO, True),
@@ -682,7 +690,12 @@ def check(args):
                 if bad_oracle <= 6:
                     print(f"  [ORACLE] {name} a={a:x} b={b:x} "
                           f"want={want:x}/{wflags:x} got={r['out']:x}/{r['flags']:x}")
-            if r["out"] != r["hf_out"]:
+            # an unordered pair is a NaN constant (canonical here, hardfloat
+            # keeps sNaN for its signalling form) => compare only the ordered
+            # values with hardfloat; the oracle checks the NaN bits above
+            ordered = not (F.raw_from_fn(ew, sw, r["in_lo"])["is_nan"] or
+                           F.raw_from_fn(ew, sw, r["in_hi"])["is_nan"])
+            if ordered and r["out"] != r["hf_out"]:
                 bad_hf += 1
                 if bad_hf <= 6:
                     print(f"  [DIFF] {name} a={a:x} b={b:x} "
@@ -847,9 +860,9 @@ def check(args):
     #   * every NaN result is the canonical quiet NaN -- sign 0, payload all
     #     zero (§1.4) -- for arithmetic, the conversions and the quiet
     #     compare; an sNaN input adds `NV`;
-    #   * the exclusions the spec keeps: the signalling compare returns the
-    #     sNaN bit pattern (0x7F80_0001 for ft, 0x7FF0_..._0001 for fo) and
-    #     min/max returns the number for a single NaN.
+    #   * the exclusion the spec keeps: min/max returns the number for a
+    #     single NaN.  (The signalling compare used to be a second exclusion
+    #     -- an sNaN result -- until `m16-chipyard-012` aligned it to §4.)
     SPEC_POINTS = (
         # name, op, in_lo, in_hi, mode, value, rf0[4:0]
         ("root ft(-0)", 43, 0x80000000, 0, F.RNE, 0x00000000, 0),
@@ -876,9 +889,9 @@ def check(args):
         ("ft2fo(qNaN payload)", 22, 0x7FC12345, 0, F.RNE,
          0x7FF8000000000000, 0),
         ("scmp ft(qNaN,1.0)", 34, 0x7FC00000, 0x3F800000, 0,
-         0x7F800001, F.NV),
+         0x7FC00000, F.NV),
         ("scmp fo(qNaN,1.0)", 36, 0x7FF8000000000123,
-         0x3FF0000000000000, 0, 0x7FF0000000000001, F.NV),
+         0x3FF0000000000000, 0, 0x7FF8000000000000, F.NV),
         ("qcmp fo(qNaN,1.0)", 35, 0x7FF8000000000123,
          0x3FF0000000000000, 0, 0x7FF8000000000000, 0),
         ("min fo(single qNaN)", 39, 0x7FF8000000000123,
