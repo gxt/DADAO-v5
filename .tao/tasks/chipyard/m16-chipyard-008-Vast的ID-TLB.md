@@ -1,7 +1,7 @@
-# m17-chipyard-003: Kaiwu-Vast 的 I/D TLB（2 组×8 路 + 4 超页）
+# m16-chipyard-008: Kaiwu-Vast 的 I/D TLB（2 组×8 路 + 4 超页）
 
 **模块**：chipyard
-**项目里程碑**：M17
+**项目里程碑**：M16
 **依赖**：`m17-chipyard-002`（PTW 两级步查）
 **可并行分片**：否（改 `dadao-wuming` 核）
 **预估**：1–2 天

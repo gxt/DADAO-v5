@@ -1,7 +1,7 @@
-# m17-chipyard-002: Kaiwu-Vast 的 PTW（两级步查 + A/D）
+# m16-chipyard-007: Kaiwu-Vast 的 PTW（两级步查 + A/D）
 
 **模块**：chipyard
-**项目里程碑**：M17
+**项目里程碑**：M16
 **依赖**：`m17-chipyard-001`（核参数与地址通路、`cfx_ptw` 寄存器面）
 **可并行分片**：否（改 `dadao-wuming` 核 + 新增 PTW 模块）
 **预估**：2–3 天

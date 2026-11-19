@@ -1,7 +1,7 @@
-# m17-gem5-001: gem5 Vast 的 TLB 改造（与 RTL 统一）
+# m16-gem5-014: gem5 Vast 的 TLB 改造（与 RTL 统一）
 
 **模块**：gem5
-**项目里程碑**：M17
+**项目里程碑**：M16
 **依赖**：无（gem5 侧独立）
 **可并行分片**：否（改 `node_cfx.hh`/`node_tlb.cc`/`node_cfx.cc`）
 **预估**：1–2 天

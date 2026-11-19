@@ -19,6 +19,10 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-006 | 2–3 天 | Vast 核参数与地址通路（`useVM`/PTBR·ASID·`ptw_enable`/`cfx_ptw` 寄存器面/地址路由） |
+| m16-chipyard-007 | 2–3 天 | PTW 两级步查（64 KiB 页 + 512 MiB 超页、大端 PTE、HSJU/frags、A/D 本地+回写） |
+| m16-chipyard-008 | 1–2 天 | I/D TLB（2×8 + 4 超页 FA/LRU、I 无 D 位）+ `cfx_ptw_tlb_control` 双表失效 |
+| m16-gem5-014 | 1–2 天 | gem5 Vast TLB 改造：I/D 双表、2 组×8 路、4 超页 FA/LRU、双表失效、A/D OR 合并 |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 

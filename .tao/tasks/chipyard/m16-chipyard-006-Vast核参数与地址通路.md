@@ -1,7 +1,7 @@
-# m17-chipyard-001: Kaiwu-Vast 核参数与地址通路（地基）
+# m16-chipyard-006: Kaiwu-Vast 核参数与地址通路（地基）
 
 **模块**：chipyard
-**项目里程碑**：M17
+**项目里程碑**：M16
 **依赖**：无（本任务先做地基）；后续 `m17-chipyard-002`（PTW）、`003`（TLB）依赖本任务
 **可并行分片**：否（改 `dadao-wuming` generator + `DadaoConfigs.scala`）
 **预估**：2–3 天
