@@ -27,12 +27,12 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m16-chipyard-007 | 2026-11-20 02:29 | 2–3 天 | PTW 两级步查（64 KiB 页 + 512 MiB 超页、大端 PTE、HSJU/frags、A/D 本地+回写） |
-| m16-gem5-018 | 2026-11-20 01:12 | 3–4 h | 块传送 `beats` 按起始相位算（N19；等 `m16-gem5-016` 改同一文档） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-gem5-018 | 2026-11-20 02:47 | 块传送 `beats` 按起始相位（8 B 相位零回归；`ldm.ub` N=8 相位 2 ⇒ 24） |
 | m16-chipyard-012 | 2026-11-20 02:29 | RTL `scmp` 无序改 canonical（四方一致达成；FP 单元台 oracle 同步） |
 | m16-gem5-017 | 2026-11-20 01:10 | 配置命名统一：`se.py` + `--cpu-type`，删 `se_timing.py`（series 106） |
 | m16-gem5-015 | 2026-11-20 00:55 | FS 加 `--cpu-type {atomic,timing}`（tiny/vast 两机型；`functionalFsAccess`；周期 FS==SE） |
