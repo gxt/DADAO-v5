@@ -42,12 +42,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-linux-024 | 2026-11-19 22:32 | 3–5 h | 用户 clone/线程（CLONE_VM/SETTLS/THREAD + TLS 用户面；子 rd8=0+父返 tid） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-024 | 2026-11-20 01:40 | 用户态 clone/线程（CLONE_BACKWARDS+SETTLS+THREAD；三处内核缺陷修复） |
 | m14-linux-023 | 2026-11-19 22:40 | 用户态 syscall 闭环（C′：`__SC_LONG` + 内核 argmask 取参 + 五载体门控；`brk` 实测） |
 | m14-linux-020 | 2026-11-19 17:07 | 内核线程（`kernel_thread` 钩子 + `kthreadd`/`kthread_create`；探针 110/110） |
 | m14-linux-018 | 2026-11-19 15:32 | COW（复制旧内容/改 PTE/失效；W1–W5 86/86、5 路注入、eager-copy 反例纳入证据） |
