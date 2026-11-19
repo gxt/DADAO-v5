@@ -47,12 +47,12 @@
 - **选项**：**A（推荐）** 按原计划改调 `ft_scale`（可观测变化只在该区间：下溢→溢出，= 修 bug + 与 `fosclb` 对齐；`m15-idl-019` 拟好 body）；**B** 保持临时写法（任务撤销），另立任务把「先饱和 `n` 再算指数」写进临时写法。
 - **现状**：`m15-idl-019` 已停在「待裁定」，未改任何代码；引擎侧证据 `PASS=19 FAIL=0`（绿 = 结论成立）、等价性 11875 例失配 78、oracle 对库 0 失配。缺陷登记 `ISS-476`。
 
-## N27. `CLONE_CHILD_CLEARTID` 的唤醒面（`m14-linux-025` 实测，阻塞 `pthread_join`）
+## N27. `m14-linux-025` 的 F7 原型记录有误 ⇒ shared futex 仍未验证（**不阻塞 `pthread_join`**）
 
-- **事实**：`CLONE_CHILD_CLEARTID` 的「清零并唤醒」用的是 **shared** futex；本端口**匿名页上的 shared `FUTEX_WAIT` 返回 `-EFAULT`** ⇒ `pthread_join` 拿不到唤醒（实测 F7 `wait=-14`）。`025` 已把它从探针里排除并记为待裁定。
-- **影响**：`pthread_join` 不可用 ⇒ musl 线程回收路径不通；`029`（K5 收口门控）若含 pthread 用例会被挡；`032`–`034`（K6 busybox shell）多线程命令也会受影响。
-- **选项**：**A（engineer 建议）** 给匿名页补 rmap，让 shared futex 在匿名页可得（改 `mm/` 侧，跨模块、风险较高）；**B** 让 `FUTEX_WAIT` 在匿名页上对 shared 语义降级为「私有语义 + 明确文档」；**C** 内核在 `CLONE_CHILD_CLEARTID` 路径改用内部唤醒通道（不经 shared futex 的用户可见语义）。
-- **待用户裁定**：选 A/B/C；`025` 已按「不影响其它判据」交付，`027` 可与本项并行。
+- **原记录（已作废）**：称「`CLONE_CHILD_CLEARTID` 走 shared futex、本端口匿名页 shared `FUTEX_WAIT` = `-EFAULT` ⇒ `pthread_join` 不可用」。
+- **复核推翻（`025` 第 1 轮 reviewer）**：① 原型把 `CLONE_CHILD_CLEARTID` 写成 `0x02000000`（那是 `CLONE_NEWCGROUP`），正确值 `0x00200000` ⇒ **CLEARTID 根本没打开**；② 原型实际用的是 **private** wait，不是 shared wait ⇒ 「shared wait = -14」的实测不成立，`-14` 根因**未定位**；③ musl `pthread_join` 等的是 `t->detach_state`，`__timedwait_cp(..., 1)` 最后一个参数 `1` = **private** futex，退出线程 `a_store(DT_EXITED)` + `__wake(...,1,1)` 也是 private ⇒ **不经过 CLEARTID**。
+- **当前结论**：`pthread_join` **不受影响**；但**匿名页上的 shared futex（barrier / 进程共享）仍未验证**，须在 `029`（K5 收口）之前用正确 flag **private/shared 两路各贴控制台**补测。
+- **状态**：`025` 已按此判 **Needs Revision**（只改记录/补测，不改代码）；补测结果决定是否需要单独立任务。
 
 ## N7. cfx 待实现范围
 
