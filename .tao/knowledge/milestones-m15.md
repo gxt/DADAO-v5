@@ -26,6 +26,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m15-spec-007 | 0.5–1 h | `contract-fp.md` 与 spec 对齐（scmp 无序结果改 canonical） |
 | m15-testcases-020 | 1–2 h | `scmp` 无序结果向量（canonical；ft/fo × q/s × 双 NaN） |
 | m15-spec-005 | 4–6 h | IDL 块布局改造（节末集中 + 三级标题；等 12 册合入后） |
 
