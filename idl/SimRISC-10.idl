@@ -1,0 +1,334 @@
+# id: add.sb_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位有符号加（SimRISC-10 §1.1）：源取 rdHC[7:0]/rdHD[7:0]，溢出静默丢弃；
+# 结果按 bit7 符号扩展写满 64 位
+Bits<8> src1 = rd[rdHC][7:0];
+Bits<8> src2 = rd[rdHD][7:0];
+Bits<8> sum = $signed(src1) + $signed(src2);
+rd[rdHB] = {{56{sum[7]}}, sum};
+
+# id: add.ub_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位无符号加（SimRISC-10 §1.1）：源取 rdHC[7:0]/rdHD[7:0]，进位静默丢弃；
+# 结果零扩展写满 64 位
+Bits<8> src1 = rd[rdHC][7:0];
+Bits<8> src2 = rd[rdHD][7:0];
+Bits<8> sum = src1 + src2;
+rd[rdHB] = {56'd0, sum};
+
+# id: cmp.sb_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位有符号比较（SimRISC-10 §1.2）：源按 size 截断后有符号比较，
+# 结果（−1/0/+1）按 64 位扩展写满目的寄存器
+Bits<8> src1 = rd[rdHC][7:0];
+Bits<8> src2 = rd[rdHD][7:0];
+if ($signed(src1) < $signed(src2)) {
+  rd[rdHB] = {64{1'b1}};
+} else if (src1 == src2) {
+  rd[rdHB] = 64'd0;
+} else {
+  rd[rdHB] = 64'd1;
+}
+
+# id: cmp.ub_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位无符号比较（SimRISC-10 §1.2）：源按 size 截断后无符号比较，
+# 结果（−1/0/+1）按 64 位扩展写满目的寄存器
+Bits<8> src1 = rd[rdHC][7:0];
+Bits<8> src2 = rd[rdHD][7:0];
+if (src1 < src2) {
+  rd[rdHB] = {64{1'b1}};
+} else if (src1 == src2) {
+  rd[rdHB] = 64'd0;
+} else {
+  rd[rdHB] = 64'd1;
+}
+
+# id: div.sb_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位有符号除（SimRISC-10 §1.3）：除数为零、INT8_MIN ÷ −1 走定值表（SimRISC-04 §1.4，
+# 不触发异常）：除零 ⇒ −1、溢出 ⇒ −128，均符号扩展写满 64 位；其余 truncate-toward-zero
+Bits<8> src1 = rd[rdHC][7:0];
+Bits<8> src2 = rd[rdHD][7:0];
+if (src2 == 8'd0) {
+  rd[rdHB] = {64{1'b1}};
+} else if (src1 == 8'b1000_0000 && src2 == 8'b1111_1111) {
+  rd[rdHB] = {{56{1'b1}}, 8'b1000_0000};
+} else {
+  Bits<8> quot = $signed(src1) / $signed(src2);
+  rd[rdHB] = {{56{quot[7]}}, quot};
+}
+
+# id: div.ub_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位无符号除（SimRISC-10 §1.3）：除数为零走定值表（SimRISC-04 §1.4，不触发异常）
+# ⇒ 0xFF 零扩展写满 64 位；无符号无溢出档
+Bits<8> src1 = rd[rdHC][7:0];
+Bits<8> src2 = rd[rdHD][7:0];
+if (src2 == 8'd0) {
+  rd[rdHB] = {56'd0, 8'hFF};
+} else {
+  Bits<8> quot = src1 / src2;
+  rd[rdHB] = {56'd0, quot};
+}
+
+# id: mul.sb_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位有符号乘（SimRISC-10 §1.3）：源取 rdHC[7:0]/rdHD[7:0]，积只保留 8 位；
+# 结果按 bit7 符号扩展写满 64 位
+Bits<8> src1 = rd[rdHC][7:0];
+Bits<8> src2 = rd[rdHD][7:0];
+Bits<8> prod = $signed(src1) * $signed(src2);
+rd[rdHB] = {{56{prod[7]}}, prod};
+
+# id: mul.ub_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位无符号乘（SimRISC-10 §1.3）：源取 rdHC[7:0]/rdHD[7:0]，积只保留 8 位；
+# 结果零扩展写满 64 位
+Bits<8> src1 = rd[rdHC][7:0];
+Bits<8> src2 = rd[rdHD][7:0];
+Bits<8> prod = src1 * src2;
+rd[rdHB] = {56'd0, prod};
+
+# id: rem.sb_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位有符号余（SimRISC-10 §1.3）：除数为零、INT8_MIN ÷ −1 走定值表（SimRISC-04 §1.4，
+# 不触发异常）：除零 ⇒ 被除数（符号扩展）、溢出 ⇒ 0，均写满 64 位；
+# 其余 truncate-toward-zero，余数符号 = 被除数符号
+Bits<8> src1 = rd[rdHC][7:0];
+Bits<8> src2 = rd[rdHD][7:0];
+if (src2 == 8'd0) {
+  rd[rdHB] = {{56{src1[7]}}, src1};
+} else if (src1 == 8'b1000_0000 && src2 == 8'b1111_1111) {
+  rd[rdHB] = 64'd0;
+} else {
+  Bits<8> rem = $signed(src1) % $signed(src2);
+  rd[rdHB] = {{56{rem[7]}}, rem};
+}
+
+# id: rem.ub_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位无符号余（SimRISC-10 §1.3）：除数为零走定值表（SimRISC-04 §1.4，不触发异常）
+# ⇒ 被除数零扩展写满 64 位；无符号无溢出档
+Bits<8> src1 = rd[rdHC][7:0];
+Bits<8> src2 = rd[rdHD][7:0];
+if (src2 == 8'd0) {
+  rd[rdHB] = {56'd0, src1};
+} else {
+  Bits<8> rem = src1 % src2;
+  rd[rdHB] = {56'd0, rem};
+}
+
+# id: sub.sb_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位有符号减（SimRISC-10 §1.1）：源取 rdHC[7:0]/rdHD[7:0]，借位静默丢弃；
+# 结果按 bit7 符号扩展写满 64 位
+Bits<8> src1 = rd[rdHC][7:0];
+Bits<8> src2 = rd[rdHD][7:0];
+Bits<8> diff = $signed(src1) - $signed(src2);
+rd[rdHB] = {{56{diff[7]}}, diff};
+
+# id: sub.ub_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位无符号减（SimRISC-10 §1.1）：源取 rdHC[7:0]/rdHD[7:0]，借位静默丢弃；
+# 结果零扩展写满 64 位
+Bits<8> src1 = rd[rdHC][7:0];
+Bits<8> src2 = rd[rdHD][7:0];
+Bits<8> diff = src1 - src2;
+rd[rdHB] = {56'd0, diff};
+
+# id: rev.b_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# k 须 one-hot 且 k < S=8（附录 B encode_onehot；k=8 恒等档非法）⇒ 否则 ILLI
+if (immu6 != 6'd1 && immu6 != 6'd2 && immu6 != 6'd4) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 逐块反转（SimRISC-10 §2.1）：整 64 位源按 8 位块切分，每块按 k 位切成 8/k 个单元，
+# 反转单元顺序、单元内部位序不变，八个块同法处理（k=1 只反转块内位序，不是 64 位整体反序）。
+# 等价写法：块内按距离 1/2/4 依次交换单元（k=4 只做距离 4、k=2 做 2 与 4、k=1 三步全做）；
+# 掩码按字节重复 ⇒ 交换不跨块。
+Bits<64> x = rd[rdHC];
+if (immu6 == 6'd1) {
+  x = ((x & 64'hAAAA_AAAA_AAAA_AAAA) >> 1) | ((x & 64'h5555_5555_5555_5555) << 1);
+}
+if (immu6 == 6'd1 || immu6 == 6'd2) {
+  x = ((x & 64'hCCCC_CCCC_CCCC_CCCC) >> 2) | ((x & 64'h3333_3333_3333_3333) << 2);
+}
+x = ((x & 64'hF0F0_F0F0_F0F0_F0F0) >> 4) | ((x & 64'h0F0F_0F0F_0F0F_0F0F) << 4);
+rd[rdHB] = x;
+
+# id: rol.b_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 立即数形式：immu6 > 7 ⇒ ILLI（SimRISC-10 §2.2；附录 B encode_sbz = immu6[5:3] 须为 0）
+if (immu6 > 6'd7) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位逻辑循环左移（§2.2）：shamt = immu6[2:0]，只一个方向，结果零扩展写满 64 位。
+# 按位等价式：val 左移 s 位 与 val 右移 8-s 位 按位或；写成 {val,val} 右移 8-s 后取低 8 位，
+# 使 s=0 时右移量 8 落在 16 位宽内（不出现对 8 位值右移 8 位）
+Bits<8> val = rd[rdHC][7:0];
+Bits<3> shamt = immu6[2:0];
+Bits<16> dup = {2{val}};
+Bits<16> shifted = dup >> (8 - shamt);
+Bits<8> res = shifted[7:0];
+rd[rdHB] = {56'd0, res};
+
+# id: rol.b_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 寄存器形式：shamt = rdHD[2:0]（只有低 3 位参与、天然对 8 取模，高位忽略不抛 ILLI，§2.2）；
+# 8 位逻辑循环左移、只一个方向，结果零扩展写满 64 位（同 orri 形式的算式）
+Bits<8> val = rd[rdHC][7:0];
+Bits<3> shamt = rdHD[2:0];
+Bits<16> dup = {2{val}};
+Bits<16> shifted = dup >> (8 - shamt);
+Bits<8> res = shifted[7:0];
+rd[rdHB] = {56'd0, res};
+
+# id: shl.b_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 立即数形式：immu6 > N=7 ⇒ ILLI（SimRISC-10 §2；附录 B encode_sbz = immu6[5:3] 须为 0）
+if (immu6 > 6'd7) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位左移（§2 公式）：shamt = immu6[2:0]，块内左移、移出位丢弃，结果零扩展写满 64 位
+Bits<3> shamt = immu6[2:0];
+Bits<8> res = rd[rdHC][7:0] << shamt;
+rd[rdHB] = {56'd0, res};
+
+# id: shl.b_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 寄存器形式：shamt = rdHD[2:0]（高位忽略、不抛 ILLI，§2）；
+# 8 位左移、移出位丢弃，结果零扩展写满 64 位
+Bits<3> shamt = rdHD[2:0];
+Bits<8> res = rd[rdHC][7:0] << shamt;
+rd[rdHB] = {56'd0, res};
+
+# id: shr.sb_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 立即数形式：immu6 > N=7 ⇒ ILLI（SimRISC-10 §2；附录 B encode_sbz = immu6[5:3] 须为 0）
+if (immu6 > 6'd7) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位算术右移（§2 公式）：shamt = immu6[2:0]；块内右移、高位补 rdHC[7]，
+# 目的[63:8] = 符号扩展 rdHC[7] ⇒ {56{val[7]}}（shamt 移满时结果全为符号位）
+Bits<8> val = rd[rdHC][7:0];
+Bits<3> shamt = immu6[2:0];
+Bits<8> res = $signed(val) >>> shamt;
+rd[rdHB] = {{56{val[7]}}, res};
+
+# id: shr.sb_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 寄存器形式：shamt = rdHD[2:0]（高位忽略、不抛 ILLI，§2）；
+# 8 位算术右移、高位补 rdHC[7]，目的[63:8] = 符号扩展 rdHC[7]（同 orri 形式的算式）
+Bits<8> val = rd[rdHC][7:0];
+Bits<3> shamt = rdHD[2:0];
+Bits<8> res = $signed(val) >>> shamt;
+rd[rdHB] = {{56{val[7]}}, res};
+
+# id: shr.ub_orri_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 立即数形式：immu6 > N=7 ⇒ ILLI（SimRISC-10 §2；附录 B encode_sbz = immu6[5:3] 须为 0）
+if (immu6 > 6'd7) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 8 位逻辑右移（§2 公式）：shamt = immu6[2:0]，高位补 0，结果零扩展写满 64 位
+Bits<3> shamt = immu6[2:0];
+Bits<8> res = rd[rdHC][7:0] >> shamt;
+rd[rdHB] = {56'd0, res};
+
+# id: shr.ub_orrr_rd
+# 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 寄存器形式：shamt = rdHD[2:0]（高位忽略、不抛 ILLI，§2）；
+# 8 位逻辑右移、高位补 0，结果零扩展写满 64 位
+Bits<3> shamt = rdHD[2:0];
+Bits<8> res = rd[rdHC][7:0] >> shamt;
+rd[rdHB] = {56'd0, res};
