@@ -212,6 +212,17 @@ builtin function reservation_clear_all {
   }
 }
 
+builtin function store_conditional {
+  returns Bits<64>
+  arguments Bits<48> ea, U32 width_bits, Bits<64> value
+  description {
+    原子地完成「检查本 hart 保留标记 → 条件写入 → 清标记」，返回 **0 = 成功、1 = 失败**。
+    保留标记键 = 精确地址 + 访问宽度（同 `reservation_set`）；失败时不写内存，但**同样清除标记**。
+    跨 hart 原子性与「他 hart 对同址的写使标记失效」作为模型不变量，不在此展开。
+    （照 UDB `store_conditional` 先例：判定与写入合成一个原子动作，避免「先查再写」的中间态。）
+  }
+}
+
 builtin function ras_push {
   arguments Bits<48> ret_addr
   description {

@@ -110,6 +110,11 @@
 - **T6 cfx 寄存器访问（已裁定）**：RISC-V 的做法是 `CSR[name]` 直接索引 + 每个 CSR 自带 `sw_read()` / `field.sw_write(csr_value)` 钩子（钩子在 CSR 定义里，不在指令 operation 里）。对应到 DADAO：`cfx_read(cfxha, cg, rc)` / `cfx_write(cfxha, cg, rc, value)` 两个函数（覆盖全部 cfx 寄存器），读写权限（RW/HW/RO/保留）由 spec 寄存器表描述、IDL 只做访问。
 - **T7 `fence`（已裁定）**：UDB **有** `builtin function fence(pi,pr,po,pw,si,sr,so,sw)`（无 body，由实现提供），`fence.yaml` 的 operation 只做 FIOM 覆盖后调用它；但 UDB **没有**一般内存序的形式定义（只有 `memory_model_acquire`/`release` 两个 builtin 供 `lr`/`sc` 的 aq/rl 用）。⇒ 照 UDB 加 `builtin function cfx_fence(cfxha, pred, succ)`（无 body），注释说明「顺序语义由实现提供，IDL v0 不建模」。
 
+## N24. `sc` 的保留标记判定与 `lr` 窄读高位（用户 2026-11-19 裁定）
+
+- **R1 已裁定：用 `store_conditional`，不新增 `reservation_test`**。依据 = UDB 先例（`.cache/refs/riscv-unified-db` 的 `spec/std/isa/isa/globals.isa:2944`）：`store_conditional(N, va, value, aq, rl, encoding) -> Boolean` 把「查标记 + 条件写 + 清标记」做成一个原子函数，指令层只有 `success ? 0 : 1` 两行；配套 `load_reserved(...)` 做 `register_reservation_set`。两段式（先查再写）会引入可被插入的中间态，故不取。DADAO 落为 `builtin function store_conditional(Bits<48> ea, U32 width_bits, Bits<64> value) -> Bits<64>`（0 成功 / 1 失败），已写入 `idl/README.md §4.5`。
+- **R2 已裁定：`lr.b`/`lr.w`/`lr.t` 只写低字节，`rd` 高位保持原值不变**（既非零扩展、也非符号扩展）。与 `ld.ub/uw/ut` 的零扩展口径**不同**，属 DADAO 特有窄读语义（与 `set.ft` 窄写「只写低 32 位」同类）。⇒ 已记入反套用清单；spec 是否补一句待授权（当前散文未写）。
+
 ## N7. cfx 待实现范围
 
 - 已实现：umon / jmon / smon / hmon / ptw / pmem / time / hart / power。
