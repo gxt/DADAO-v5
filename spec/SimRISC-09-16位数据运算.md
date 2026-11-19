@@ -50,7 +50,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 16 位有符号加（SimRISC-09 §1.1）：源取 rdHC[15:0]/rdHD[15:0]，溢出静默丢弃；
+# 16 位有符号加（SimRISC-09 §1.1）：源取 rd[rdHC][15:0]/rd[rdHD][15:0]，溢出静默丢弃；
 # 结果按 bit15 符号扩展写满 64 位
 Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
 Bits<16> src2 = rd[rdHD][15:0];
@@ -68,7 +68,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 16 位无符号加（SimRISC-09 §1.1）：源取 rdHC[15:0]/rdHD[15:0]，进位静默丢弃；
+# 16 位无符号加（SimRISC-09 §1.1）：源取 rd[rdHC][15:0]/rd[rdHD][15:0]，进位静默丢弃；
 # 结果零扩展写满 64 位
 Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
 Bits<16> src2 = rd[rdHD][15:0];
@@ -86,7 +86,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 16 位有符号减（SimRISC-09 §1.1）：源取 rdHC[15:0]/rdHD[15:0]，借位静默丢弃；
+# 16 位有符号减（SimRISC-09 §1.1）：源取 rd[rdHC][15:0]/rd[rdHD][15:0]，借位静默丢弃；
 # 结果按 bit15 符号扩展写满 64 位
 Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
 Bits<16> src2 = rd[rdHD][15:0];
@@ -104,7 +104,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 16 位无符号减（SimRISC-09 §1.1）：源取 rdHC[15:0]/rdHD[15:0]，借位静默丢弃；
+# 16 位无符号减（SimRISC-09 §1.1）：源取 rd[rdHC][15:0]/rd[rdHD][15:0]，借位静默丢弃；
 # 结果零扩展写满 64 位
 Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
 Bits<16> src2 = rd[rdHD][15:0];
@@ -195,7 +195,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 16 位有符号乘（SimRISC-09 §1.3）：源取 rdHC[15:0]/rdHD[15:0]，积只保留低 16 位
+# 16 位有符号乘（SimRISC-09 §1.3）：源取 rd[rdHC][15:0]/rd[rdHD][15:0]，积只保留低 16 位
 # （补码乘法的低 16 位与无符号乘相同）；结果按 bit15 符号扩展写满 64 位
 Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
 Bits<16> src2 = rd[rdHD][15:0];
@@ -213,7 +213,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 16 位无符号乘（SimRISC-09 §1.3）：源取 rdHC[15:0]/rdHD[15:0]，积只保留低 16 位；
+# 16 位无符号乘（SimRISC-09 §1.3）：源取 rd[rdHC][15:0]/rd[rdHD][15:0]，积只保留低 16 位；
 # 结果零扩展写满 64 位
 Bits<16> src1 = rd[rdHC][15:0];                # 先读后写：两个源在任何写入之前捕获
 Bits<16> src2 = rd[rdHD][15:0];
@@ -379,7 +379,7 @@ if (immu6 > 6'd15) {
 }
 
 # 16 位左移（SimRISC-09 §2 公式 shl.w）：shamt = immu6[3:0]，块内左移、移出位丢弃，
-# 结果零扩展写满 64 位（rdHB[63:16] = 0）
+# 结果零扩展写满 64 位（rd[rdHB][63:16] = 0）
 Bits<4> shamt = immu6[3:0];
 Bits<16> res = rd[rdHC][15:0] << shamt;        # 先读后写：源在任何写入之前捕获
 rd[rdHB] = {48'd0, res};
@@ -456,8 +456,8 @@ if (immu6 > 6'd15) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 16 位算术右移（§2 公式 shr.sw）：shamt = immu6[3:0]；块内右移、空位补 rdHC[15]，
-# 目的[63:16] = 符号扩展 rdHC[15] ⇒ {48{val[15]}}
+# 16 位算术右移（§2 公式 shr.sw）：shamt = immu6[3:0]；块内右移、空位补 rd[rdHC][15]，
+# 目的[63:16] = 符号扩展 rd[rdHC][15] ⇒ {48{val[15]}}
 Bits<16> val = rd[rdHC][15:0];                 # 先读后写：源在任何写入之前捕获
 Bits<4> shamt = immu6[3:0];
 Bits<16> res = $signed(val) >>> shamt;
@@ -475,7 +475,7 @@ if (rdHB == 6'd0) {
 }
 
 # 寄存器形式：shamt = rd[rdHD][3:0]（取 rdHD 号寄存器的低 4 位，高位忽略、不抛 ILLI，§2）；
-# 16 位算术右移、空位补 rdHC[15]，目的[63:16] = 符号扩展 rdHC[15]
+# 16 位算术右移、空位补 rd[rdHC][15]，目的[63:16] = 符号扩展 rd[rdHC][15]
 Bits<16> val = rd[rdHC][15:0];                 # 先读后写：源在任何写入之前捕获
 Bits<4> shamt = rd[rdHD][3:0];
 Bits<16> res = $signed(val) >>> shamt;

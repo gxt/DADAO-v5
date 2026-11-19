@@ -13,7 +13,7 @@
 ```text
 python3 idl/render.py            # 生成/更新 spec 册内的块
 python3 idl/render.py --check    # 逐字节校验（漂移 ⇒ 非零）；make check-idl-sync 调它
-python3 idl/render.py --self-test # 临时树内 4 类注入自检（改 spec 块 / 改源不重渲染 / 删一条 id / 调用未声明函数）
+python3 idl/render.py --self-test # 临时树内 5 类注入自检（改 spec 块 / 改源不重渲染 / 删一条 id / 调用未声明函数 / 解码变量当内容用）
 ```
 
 ## 1. 语法基线（UDB IDL 子集）
@@ -33,6 +33,7 @@ python3 idl/render.py --self-test # 临时树内 4 类注入自检（改 spec �
 ## 2. 命名约定（编码字段 ↔ 解码变量）
 
 - operation 内直接用**编码字段名**作解码变量（大小写不敏感于 `contracts/opcodes.yaml` 的 `fields[].name`）：`rdHA`/`rdHB`/`rdHC`/`rdHD`、`rbHA`/`rbHB`/`rbHD`、`cfxHA`、`imms12`（12 位有符号）、`immu18`（18 位无符号）、`immu6`（6 位无符号）。
+- **散文的 `rdHC` 指内容、`.idl` 的 `rdHC` 是寄存器号**：散文（`SimRISC-04 §2.2`、`SimRISC-10 §2`）里 `rdHC`/`rdHD` 表示**该寄存器的内容**；`.idl` 里同名标识符是 **6 位解码变量（寄存器号）**，取内容须写 `rd[rdHC]`。`rdHC[i]` 取到的是**寄存器号的位**（`idlc` 不校验位宽、静默通过），故 `render.py --check` 断言「解码变量不得紧跟 `[`」（docstring 的 F 类）。
 - **汇编层的立即数名比编码层宽 2 位**（字节偏移带 `<< 2`，是命名约定、不是语言扩展）：
 
   | 指令族 | 汇编层写法 | 编码层字段 | 换算 |

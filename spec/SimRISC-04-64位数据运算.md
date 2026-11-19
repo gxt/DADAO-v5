@@ -672,7 +672,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 64 位逻辑左移，低位补零；移位量 = rdHD[5:0]（§2.2 表：N=63、hd[5:0] 全有效）
+# 64 位逻辑左移，低位补零；移位量 = rd[rdHD][5:0]（§2.2 表：N=63、hd[5:0] 全有效）
 # ⇒ 移位量 0..63 全合法，「shamt > N 触发 ILLI」在本册不会发生
 rd[rdHB] = rd[rdHC] << rd[rdHD][5:0];
 ```
@@ -702,7 +702,7 @@ if (rdHB == 6'd0) {
 }
 
 # 64 位逻辑循环左移，按 §2.2.2 的公式：(x << n) | (x >> ((64 - n) & 63))，n = 0 时结果为 x 本身
-# （§2.2.2 给的公式；n = rdHD[5:0] 天然等价于 n mod 64）
+# （§2.2.2 给的公式；n = rd[rdHD][5:0] 天然等价于 n mod 64）
 Bits<64> x = rd[rdHC];
 Bits<6> n = rd[rdHD][5:0];
 Bits<6> m = (6'd0 - n) & 6'd63;              # (64 - n) & 63 = (-n) mod 64
@@ -735,7 +735,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 64 位逻辑右移，高位补零；移位量 = rdHD[5:0]（N=63 ⇒ 0..63 全合法）
+# 64 位逻辑右移，高位补零；移位量 = rd[rdHD][5:0]（N=63 ⇒ 0..63 全合法）
 rd[rdHB] = rd[rdHC] >> rd[rdHD][5:0];
 ```
 <!-- IDL:shr.uo_orrr_rd END -->
@@ -763,7 +763,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 64 位算术右移，高位补 rdHC[63]（符号位）；移位量 = rdHD[5:0]（N=63 ⇒ 0..63 全合法）
+# 64 位算术右移，高位补 rd[rdHC][63]（符号位）；移位量 = rd[rdHD][5:0]（N=63 ⇒ 0..63 全合法）
 rd[rdHB] = $signed(rd[rdHC]) >>> rd[rdHD][5:0];
 ```
 <!-- IDL:shr.so_orrr_rd END -->
@@ -777,7 +777,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 64 位算术右移，高位补 rdHC[63]（符号位）；移位量 = immu6（0..63 全合法）
+# 64 位算术右移，高位补 rd[rdHC][63]（符号位）；移位量 = immu6（0..63 全合法）
 rd[rdHB] = $signed(rd[rdHC]) >>> immu6;
 ```
 <!-- IDL:shr.so_orri_rd END -->
@@ -791,7 +791,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# hd = rdHD[5:0]（§2.2：orrr 形式的 hd 取 rdHD 低 6 位，更高位忽略、不触发异常）
+# hd = rd[rdHD][5:0]（§2.2：orrr 形式的 hd 取 rdHD 低 6 位，更高位忽略、不触发异常）
 # 复制源 [hd:0]，其余位零扩展（N=63 ⇒ 写满 64 位）
 Bits<6> hd = rd[rdHD][5:0];
 Bits<64> mask = {64{1'b1}} >> (6'd63 - hd);   # 低 hd+1 位为 1（hd=63 时为全 1）
@@ -823,7 +823,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# hd = rdHD[5:0]；复制源 [hd:0]，其余位补 rdHC[hd]（符号扩展，N=63 ⇒ 写满 64 位）
+# hd = rd[rdHD][5:0]；复制源 [hd:0]，其余位补 rd[rdHC][hd]（符号扩展，N=63 ⇒ 写满 64 位）
 Bits<6> hd = rd[rdHD][5:0];
 Bits<64> mask = {64{1'b1}} >> (6'd63 - hd);
 Bits<64> low = rd[rdHC] & mask;
@@ -840,7 +840,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# hd = immu6；复制源 [hd:0]，其余位补 rdHC[hd]（符号扩展，N=63 ⇒ 写满 64 位）
+# hd = immu6；复制源 [hd:0]，其余位补 rd[rdHC][hd]（符号扩展，N=63 ⇒ 写满 64 位）
 Bits<64> mask = {64{1'b1}} >> (6'd63 - immu6);
 Bits<64> low = rd[rdHC] & mask;
 rd[rdHB] = (rd[rdHC][immu6] == 1'b1) ? (low | ~mask) : low;

@@ -235,7 +235,7 @@ Boolean go = true;                            # 尚未遇到「1」
 for (Bits<7> k = 7'd0; k != 7'd64; k = k + 7'd1) {
   if (go) {                                   # 散文伪码：从 bit hd 向下数前导零
     if (k <= hi) {
-      if (rdHC[hi - k] == 1'b1) {
+      if (rd[rdHC][hi - k] == 1'b1) {
         go = false;
       } else {
         n = n + 7'd1;
@@ -258,7 +258,7 @@ Boolean go = true;                            # 尚未遇到「1」
 for (Bits<7> i = 7'd0; i != 7'd64; i = i + 7'd1) {
   if (go) {                                   # 散文伪码：从 bit 0 向上数末尾零（到 bit hd 止）
     if (i <= hi) {
-      if (rdHC[i] == 1'b1) {
+      if (rd[rdHC][i] == 1'b1) {
         go = false;
       } else {
         n = n + 7'd1;
@@ -278,7 +278,7 @@ if (rdHB == 6'd0) {                           # 目的 rd0 ⇒ ILLI（沿用 dst
 Bits<7> hi = {1'b0, immu6};                   # 有效位上界 hd = immu6（0..63）
 Bits<7> n = 7'd0;
 for (Bits<7> i = 7'd0; i != 7'd64; i = i + 7'd1) {
-  if (i <= hi && rdHC[i] == 1'b1) {           # 散文伪码：n += rdHC[i]，i 走 0..hd
+  if (i <= hi && rd[rdHC][i] == 1'b1) {       # 散文伪码：n += 源寄存器第 i 位，i 走 0..hd
     n = n + 7'd1;
   }
 }

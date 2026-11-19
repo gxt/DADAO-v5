@@ -50,7 +50,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 8 位有符号加（SimRISC-10 §1.1）：源取 rdHC[7:0]/rdHD[7:0]，溢出静默丢弃；
+# 8 位有符号加（SimRISC-10 §1.1）：源取 rd[rdHC][7:0]/rd[rdHD][7:0]，溢出静默丢弃；
 # 结果按 bit7 符号扩展写满 64 位
 Bits<8> src1 = rd[rdHC][7:0];
 Bits<8> src2 = rd[rdHD][7:0];
@@ -68,7 +68,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 8 位无符号加（SimRISC-10 §1.1）：源取 rdHC[7:0]/rdHD[7:0]，进位静默丢弃；
+# 8 位无符号加（SimRISC-10 §1.1）：源取 rd[rdHC][7:0]/rd[rdHD][7:0]，进位静默丢弃；
 # 结果零扩展写满 64 位
 Bits<8> src1 = rd[rdHC][7:0];
 Bits<8> src2 = rd[rdHD][7:0];
@@ -86,7 +86,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 8 位有符号减（SimRISC-10 §1.1）：源取 rdHC[7:0]/rdHD[7:0]，借位静默丢弃；
+# 8 位有符号减（SimRISC-10 §1.1）：源取 rd[rdHC][7:0]/rd[rdHD][7:0]，借位静默丢弃；
 # 结果按 bit7 符号扩展写满 64 位
 Bits<8> src1 = rd[rdHC][7:0];
 Bits<8> src2 = rd[rdHD][7:0];
@@ -104,7 +104,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 8 位无符号减（SimRISC-10 §1.1）：源取 rdHC[7:0]/rdHD[7:0]，借位静默丢弃；
+# 8 位无符号减（SimRISC-10 §1.1）：源取 rd[rdHC][7:0]/rd[rdHD][7:0]，借位静默丢弃；
 # 结果零扩展写满 64 位
 Bits<8> src1 = rd[rdHC][7:0];
 Bits<8> src2 = rd[rdHD][7:0];
@@ -195,7 +195,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 8 位有符号乘（SimRISC-10 §1.3）：源取 rdHC[7:0]/rdHD[7:0]，积只保留 8 位；
+# 8 位有符号乘（SimRISC-10 §1.3）：源取 rd[rdHC][7:0]/rd[rdHD][7:0]，积只保留 8 位；
 # 结果按 bit7 符号扩展写满 64 位
 Bits<8> src1 = rd[rdHC][7:0];
 Bits<8> src2 = rd[rdHD][7:0];
@@ -213,7 +213,7 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 8 位无符号乘（SimRISC-10 §1.3）：源取 rdHC[7:0]/rdHD[7:0]，积只保留 8 位；
+# 8 位无符号乘（SimRISC-10 §1.3）：源取 rd[rdHC][7:0]/rd[rdHD][7:0]，积只保留 8 位；
 # 结果零扩展写满 64 位
 Bits<8> src1 = rd[rdHC][7:0];
 Bits<8> src2 = rd[rdHD][7:0];
@@ -371,9 +371,9 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 寄存器形式：shamt = rdHD[2:0]（高位忽略、不抛 ILLI，§2）；
+# 寄存器形式：shamt = rd[rdHD][2:0]（取 rdHD 所指寄存器的低 3 位；高位忽略、不抛 ILLI，§2）；
 # 8 位左移、移出位丢弃，结果零扩展写满 64 位
-Bits<3> shamt = rdHD[2:0];
+Bits<3> shamt = rd[rdHD][2:0];
 Bits<8> res = rd[rdHC][7:0] << shamt;
 rd[rdHB] = {56'd0, res};
 ```
@@ -409,9 +409,9 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 寄存器形式：shamt = rdHD[2:0]（高位忽略、不抛 ILLI，§2）；
+# 寄存器形式：shamt = rd[rdHD][2:0]（取 rdHD 所指寄存器的低 3 位；高位忽略、不抛 ILLI，§2）；
 # 8 位逻辑右移、高位补 0，结果零扩展写满 64 位
-Bits<3> shamt = rdHD[2:0];
+Bits<3> shamt = rd[rdHD][2:0];
 Bits<8> res = rd[rdHC][7:0] >> shamt;
 rd[rdHB] = {56'd0, res};
 ```
@@ -431,8 +431,8 @@ if (immu6 > 6'd7) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 8 位算术右移（§2 公式）：shamt = immu6[2:0]；块内右移、高位补 rdHC[7]，
-# 目的[63:8] = 符号扩展 rdHC[7] ⇒ {56{val[7]}}（shamt 移满时结果全为符号位）
+# 8 位算术右移（§2 公式）：shamt = immu6[2:0]；块内右移、高位补 rd[rdHC][7]，
+# 目的[63:8] = 符号扩展 rd[rdHC][7] ⇒ {56{val[7]}}（shamt 移满时结果全为符号位）
 Bits<8> val = rd[rdHC][7:0];
 Bits<3> shamt = immu6[2:0];
 Bits<8> res = $signed(val) >>> shamt;
@@ -449,10 +449,10 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 寄存器形式：shamt = rdHD[2:0]（高位忽略、不抛 ILLI，§2）；
-# 8 位算术右移、高位补 rdHC[7]，目的[63:8] = 符号扩展 rdHC[7]（同 orri 形式的算式）
+# 寄存器形式：shamt = rd[rdHD][2:0]（取 rdHD 所指寄存器的低 3 位；高位忽略、不抛 ILLI，§2）；
+# 8 位算术右移、高位补 rd[rdHC][7]，目的[63:8] = 符号扩展 rd[rdHC][7]（同 orri 形式的算式）
 Bits<8> val = rd[rdHC][7:0];
-Bits<3> shamt = rdHD[2:0];
+Bits<3> shamt = rd[rdHD][2:0];
 Bits<8> res = $signed(val) >>> shamt;
 rd[rdHB] = {{56{val[7]}}, res};
 ```
@@ -554,10 +554,10 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# 寄存器形式：shamt = rdHD[2:0]（只有低 3 位参与、天然对 8 取模，高位忽略不抛 ILLI，§2.2）；
+# 寄存器形式：shamt = rd[rdHD][2:0]（取 rdHD 所指寄存器的低 3 位；天然对 8 取模，高位忽略不抛 ILLI，§2.2）；
 # 8 位逻辑循环左移、只一个方向，结果零扩展写满 64 位（同 orri 形式的算式）
 Bits<8> val = rd[rdHC][7:0];
-Bits<3> shamt = rdHD[2:0];
+Bits<3> shamt = rd[rdHD][2:0];
 Bits<16> dup = {2{val}};
 Bits<16> shifted = dup >> (8 - shamt);
 Bits<8> res = shifted[7:0];

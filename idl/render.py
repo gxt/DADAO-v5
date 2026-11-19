@@ -26,12 +26,15 @@ C. 落点：每个 id 在对应册内**恰好一对**标记（BEGIN 先于 END�
 D. 一致性：重渲染后的整册文本与磁盘**逐字节相同**（``--check``）；两次渲染同结果。
 E. 交叉断言：每条 operation 调用的函数都在 ``idl/README.md §4`` 声明（防「引用了不存在的
    语义库」——语义正确性由编写期 ``idlc`` oracle 另行检查，不动门控）。
+F. 解码变量不得当寄存器内容用：``rdHA``…/``rbH*``/``raH*``/``rfH*`` **紧跟 ``[``** 即 FAIL
+   （散文里 ``rdHC`` 指**内容**，``.idl`` 里它是 **6 位寄存器号**；合法用法只有作下标
+   ``rd[rdHC]``）。``idlc`` 不校验位宽 ⇒ ``rdHC[i]`` 会静默取到寄存器号的位（m15-idl-014）。
 
 用法
 ----
 * ``python3 idl/render.py``              # 生成/更新 spec 册内的标记块
 * ``python3 idl/render.py --check``      # 只校验（漂移 ⇒ 非零退出）
-* ``python3 idl/render.py --self-test``  # 临时树内 4 类注入自检（各自须 FAIL）
+* ``python3 idl/render.py --self-test``  # 临时树内 5 类注入自检（各自须 FAIL）
 * ``--root DIR``：在另一棵树（同布局）内运行，供注入自检使用
 
 退出码：0 = 通过；1 = 任一断言失败。
@@ -59,6 +62,10 @@ END_RE = re.compile(r"^<!--\s*IDL:(\S+)\s+END\s*-->\s*$")
 BOOK_RE = re.compile(r"^SimRISC-(\d{2})\.idl$")
 DECL_RE = re.compile(r"^\s*(?:builtin\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{")
 CALL_RE = re.compile(r"(?<![\w$.])([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+# 解码变量（寄存器号）：rdHA…rdHD / rbH* / raH* / rfH*；它们**不是**内容
+DECODE_VAR = r"(?:rd|rb|ra|rf)H[A-Za-z0-9]*"
+DECODE_VAR_RE = re.compile(r"(?<![\w$])(" + DECODE_VAR + r")\s*\[")
+DECODE_VAR_ANY_RE = re.compile(r"(?<![\w$])(" + DECODE_VAR + r")\b")
 # 关键字/内建转换不算「调用语义库函数」
 NON_CALL = frozenset({"if", "for", "while", "return", "assert", "sizeof", "true", "false"})
 
@@ -199,6 +206,38 @@ def check_calls_declared(ops: dict[str, Op], declared: set[str]) -> int:
     return total
 
 
+def check_decode_vars(root: Path) -> int:
+    """F 类：解码变量不得紧跟 ``[``（即把它当**寄存器内容**用）。
+
+    散文（``spec/SimRISC-04 §2.2``、``spec/SimRISC-10 §2``）里的 ``rdHD`` 指**该寄存器的
+    内容**；``.idl`` 里它是 **6 位解码变量（寄存器号）**，取内容必须写 ``rd[rdHD]``。
+    ``idlc`` 不校验位宽 ⇒ ``rdHD[2:0]`` 会静默取到寄存器号的低 3 位（m15-idl-014）。
+    注释一并扫描：注释紧接渲染进 spec 块，散文记号会重新制造同一歧义。
+    """
+    hits: list[str] = []
+    refs = 0
+    for path in sorted((root / IDL_REL).glob("*.idl")):
+        cur_id = "<文件头>"
+        for lineno, line in enumerate(_split_lines(read_text(path)), 1):
+            m_id = ID_RE.match(line)
+            if m_id:
+                cur_id = m_id.group(1)
+                continue
+            refs += len(DECODE_VAR_ANY_RE.findall(line))
+            for m in DECODE_VAR_RE.finditer(line):
+                var = m.group(1)
+                hits.append(
+                    f"{path.name}:{lineno}: `{cur_id}` 里解码变量 `{var}` 直接当寄存器内容用"
+                    f" —— 应写 `{var[:2]}[{var}]`（{var} 是 6 位寄存器号，取内容须再下标一次）")
+    if hits:
+        raise RenderError("解码变量被当成寄存器内容:\n  " + "\n  ".join(hits))
+    if refs == 0:
+        raise RenderError(
+            f"{IDL_REL}/*.idl: 扫不到任何解码变量（rdH*/rbH*/raH*/rfH*）⇒ 断言空转，拒绝通过")
+    print(f"  [decode-var] 解码变量引用 {refs} 处，全部作寄存器号使用（取内容一律 `rd[<var>]`）")
+    return refs
+
+
 def book_of_spec(path: Path) -> str | None:
     """``SimRISC-01-取数存数.md`` → ``SimRISC-01``。"""
     m = re.match(r"^(SimRISC-\d{2})-", path.name)
@@ -284,6 +323,8 @@ def render_all(root: Path) -> tuple[dict[Path, str], dict[str, Op], int]:
     idl_dir = root / IDL_REL
     ops = load_ops(idl_dir)
     opcode_ids = load_opcodes(root)
+
+    check_decode_vars(root)
 
     missing = sorted(set(ops) - opcode_ids)
     if missing:
@@ -407,7 +448,8 @@ def self_test() -> int:
                 return path, start + 4   # 0 基行号；+4 = 跳过 BEGIN/注释/围栏/`# id:` ⇒ 首条正文行
         raise RenderError("临时树内没有标记块")
 
-    cases = ["baseline", "spec-char", "idl-drift", "drop-id", "undeclared-call", "restored"]
+    cases = ["baseline", "spec-char", "idl-drift", "drop-id", "undeclared-call",
+             "decode-var-as-content", "restored"]
     try:
         for idx, name in enumerate(cases, 1):
             root = tmpdir / f"{idx}-{name}"
@@ -448,6 +490,13 @@ def self_test() -> int:
                 path.write_text(injected, encoding="utf-8")
                 if injected == text:
                     raise RenderError("空注入（undeclared-call）")
+            elif name == "decode-var-as-content":
+                # 把解码变量当寄存器内容用（m15-idl-014 的缺陷类：`rdHC[0]` 取到的是寄存器号的位）
+                path = first_op_file(root)
+                text = read_text(path)
+                path.write_text(text + "Bits<1> probe = rdHC[0];\n", encoding="utf-8")
+                if read_text(path) == text:
+                    raise RenderError("空注入（decode-var-as-content）")
             elif name == "restored":
                 # 重新从真实树拷贝 ⇒ 还原后必须回绿
                 shutil.rmtree(root)

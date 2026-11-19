@@ -370,8 +370,8 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# SimRISC-08 §2 公式（orrr）：rdHB[31:0] = rdHC[31:0] << shamt，rdHB[63:32] = 0
-# 寄存器形式 shamt = rdHD[4:0]（高位忽略，天然对 32 取模，不抛 ILLI）
+# SimRISC-08 §2 公式（orrr）：rd[rdHB][31:0] = rd[rdHC][31:0] << shamt，rd[rdHB][63:32] = 0
+# 寄存器形式 shamt = rd[rdHD][4:0]（高位忽略，天然对 32 取模，不抛 ILLI）
 Bits<32> lo = rd[rdHC][31:0];                 # 先读后写：源在任何写入之前捕获
 Bits<5> sh = rd[rdHD][4:0];
 Bits<32> res = lo << sh;                       # 32 位左移，移出位丢弃
@@ -393,7 +393,7 @@ if (immu6 > 6'd31) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# SimRISC-08 §2 公式（orri）：rdHB[31:0] = rdHC[31:0] << shamt，rdHB[63:32] = 0
+# SimRISC-08 §2 公式（orri）：rd[rdHB][31:0] = rd[rdHC][31:0] << shamt，rd[rdHB][63:32] = 0
 Bits<32> lo = rd[rdHC][31:0];                 # 先读后写：源在任何写入之前捕获
 Bits<5> sh = immu6[4:0];
 Bits<32> res = lo << sh;                       # 32 位左移，移出位丢弃
@@ -410,8 +410,8 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# SimRISC-08 §2 公式（orrr）：rdHB[31:0] = rdHC[31:0] >> shamt（逻辑右移），rdHB[63:32] = 0
-# 寄存器形式 shamt = rdHD[4:0]（高位忽略，天然对 32 取模，不抛 ILLI）
+# SimRISC-08 §2 公式（orrr）：rd[rdHB][31:0] = rd[rdHC][31:0] >> shamt（逻辑右移），rd[rdHB][63:32] = 0
+# 寄存器形式 shamt = rd[rdHD][4:0]（高位忽略，天然对 32 取模，不抛 ILLI）
 Bits<32> lo = rd[rdHC][31:0];                 # 先读后写：源在任何写入之前捕获
 Bits<5> sh = rd[rdHD][4:0];
 Bits<32> res = lo >> sh;                       # 逻辑右移：高位补 0
@@ -433,7 +433,7 @@ if (immu6 > 6'd31) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# SimRISC-08 §2 公式（orri）：rdHB[31:0] = rdHC[31:0] >> shamt（逻辑右移），rdHB[63:32] = 0
+# SimRISC-08 §2 公式（orri）：rd[rdHB][31:0] = rd[rdHC][31:0] >> shamt（逻辑右移），rd[rdHB][63:32] = 0
 Bits<32> lo = rd[rdHC][31:0];                 # 先读后写：源在任何写入之前捕获
 Bits<5> sh = immu6[4:0];
 Bits<32> res = lo >> sh;                       # 逻辑右移：高位补 0
@@ -450,13 +450,13 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# SimRISC-08 §2 公式（orrr）：rdHB[31:0] = rdHC[31:0] >> shamt，高位补符号位 rdHC[31]，
-# rdHB[63:32] = 符号扩展自 rdHC[31] ⇒ 整 64 位 = 低 32 位结果的符号扩展
-# 寄存器形式 shamt = rdHD[4:0]（高位忽略，天然对 32 取模，不抛 ILLI）
+# SimRISC-08 §2 公式（orrr）：rd[rdHB][31:0] = rd[rdHC][31:0] >> shamt，高位补符号位 rd[rdHC][31]，
+# rd[rdHB][63:32] = 符号扩展自 rd[rdHC][31] ⇒ 整 64 位 = 低 32 位结果的符号扩展
+# 寄存器形式 shamt = rd[rdHD][4:0]（高位忽略，天然对 32 取模，不抛 ILLI）
 Bits<32> lo = rd[rdHC][31:0];                 # 先读后写：源在任何写入之前捕获
 Bits<5> sh = rd[rdHD][4:0];
-Bits<32> res = $signed(lo) >>> sh;             # 算术右移：高位补 rdHC[31]
-rd[rdHB] = {{32{res[31]}}, res};                # 算术右移保持 bit31 ⇒ 高 32 位即 rdHC[31] 的符号扩展
+Bits<32> res = $signed(lo) >>> sh;             # 算术右移：高位补 rd[rdHC][31]
+rd[rdHB] = {{32{res[31]}}, res};                # 算术右移保持 bit31 ⇒ 高 32 位即 rd[rdHC][31] 的符号扩展
 ```
 <!-- IDL:shr.st_orrr_rd END -->
 
@@ -474,12 +474,12 @@ if (immu6 > 6'd31) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# SimRISC-08 §2 公式（orri）：rdHB[31:0] = rdHC[31:0] >> shamt，高位补符号位 rdHC[31]，
-# rdHB[63:32] = 符号扩展自 rdHC[31] ⇒ 整 64 位 = 低 32 位结果的符号扩展
+# SimRISC-08 §2 公式（orri）：rd[rdHB][31:0] = rd[rdHC][31:0] >> shamt，高位补符号位 rd[rdHC][31]，
+# rd[rdHB][63:32] = 符号扩展自 rd[rdHC][31] ⇒ 整 64 位 = 低 32 位结果的符号扩展
 Bits<32> lo = rd[rdHC][31:0];                 # 先读后写：源在任何写入之前捕获
 Bits<5> sh = immu6[4:0];
-Bits<32> res = $signed(lo) >>> sh;             # 算术右移：高位补 rdHC[31]
-rd[rdHB] = {{32{res[31]}}, res};                # 算术右移保持 bit31 ⇒ 高 32 位即 rdHC[31] 的符号扩展
+Bits<32> res = $signed(lo) >>> sh;             # 算术右移：高位补 rd[rdHC][31]
+rd[rdHB] = {{32{res[31]}}, res};                # 算术右移保持 bit31 ⇒ 高 32 位即 rd[rdHC][31] 的符号扩展
 ```
 <!-- IDL:shr.st_orri_rd END -->
 
@@ -571,9 +571,9 @@ if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# SimRISC-08 §2.2 公式（orrr）：rdHB[31:0] = 低 32 位循环左移（旋转量 shamt），rdHB[63:32] = 0
+# SimRISC-08 §2.2 公式（orrr）：rd[rdHB][31:0] = 低 32 位循环左移（旋转量 shamt），rd[rdHB][63:32] = 0
 # 循环左移：左移 n 位 与 右移 (32 − n) mod 32 位相或；只有一个方向（左）
-# 寄存器形式 shamt = rdHD[4:0]（高位忽略，天然对 32 取模，不抛 ILLI）
+# 寄存器形式 shamt = rd[rdHD][4:0]（高位忽略，天然对 32 取模，不抛 ILLI）
 Bits<32> lo = rd[rdHC][31:0];                 # 先读后写：源在任何写入之前捕获
 Bits<5> sh = rd[rdHD][4:0];
 Bits<5> inv = 5'd0 - sh;                       # (32 − n) mod 32，n = 0 时亦成立
@@ -596,7 +596,7 @@ if (immu6 > 6'd31) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# SimRISC-08 §2.2 公式（orri）：rdHB[31:0] = 低 32 位循环左移（旋转量 shamt），rdHB[63:32] = 0
+# SimRISC-08 §2.2 公式（orri）：rd[rdHB][31:0] = 低 32 位循环左移（旋转量 shamt），rd[rdHB][63:32] = 0
 # 循环左移：左移 n 位 与 右移 (32 − n) mod 32 位相或；只有一个方向（左）
 Bits<32> lo = rd[rdHC][31:0];                 # 先读后写：源在任何写入之前捕获
 Bits<5> sh = immu6[4:0];
