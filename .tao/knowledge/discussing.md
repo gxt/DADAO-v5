@@ -54,6 +54,12 @@
 - **执行**：立 `m14-linux-035 缺页路径回归 Linux 通用流程`（阶段 1 评估 PTE 兼容性与 `handle_mm_fault` 所需 arch 钩子 → 阶段 2 补 rmap/LRU/page cache）；`025` 的 F7 记录问题按实测修正（不再有「`pthread_join` 不可用」这类错结论）。
 - **原 A/B/C 三选一作废**（那是基于「要不要支持一类新语义」的误解）。
 
+## N28. `m16-chipyard-007` 的地址图改造是否立 ADR-0058（**用户 2026-11-20：暂缓，待专门讨论**）
+
+- **内容**：Vast 的 PA RAM `[0,2 GiB)` 由 AXI4+SimDRAM 改为 **TileLink 从端口**（理由：`+loadmem` 同时喂 fesvr；TL→AXI 单拍写触发 ToAXI4 计数断言）；RISC-V 外设移出/去掉（**Vast 侧已无 debug/UART**）；`+loadmem` 改双窗口装载（实测 9 段、7925/7925 字回读一致）。
+- **用户裁定（原话）**：「这是个大问题，等我有时间了详细讨论」⇒ **暂不立 ADR**，改动本身照现状保留（已随 `m16-chipyard-007` 实施）。
+- **重启条件**：讨论后决定立 ⇒ 编号 `adr-0058`（0057 为现有最大），D1–D3（PA RAM 接入方式 / 外设取舍 / `+loadmem` 双窗口契约）逐条确认后才 `Accepted`。
+
 ## N7. cfx 待实现范围
 
 - 已实现：umon / jmon / smon / hmon / ptw / pmem / time / hart / power。
