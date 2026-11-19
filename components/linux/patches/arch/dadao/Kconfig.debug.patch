@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..e9bb34abe
+index 000000000..561c4b2ba
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,370 @@
+@@ -0,0 +1,393 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -374,3 +374,26 @@ index 000000000..e9bb34abe
 +	  exist) and ends the boot.  This is test scaffolding (the K5 clone gate
 +	  builds a probe image with it); it is not part of the image the later
 +	  milestones boot.
++
++config DADAO_K5_FUTEX_SELFTEST
++	bool "Run the K5 futex/atomic probe from a late_initcall (ends the boot)"
++	default n
++	depends on !DADAO_K4_SELFTEST && !DADAO_K4_SWITCH_SELFTEST && !DADAO_K4_KTHREAD_SELFTEST && !DADAO_K5_SYSCALL_SELFTEST && !DADAO_K5_CLONE_SELFTEST
++	help
++	  Exercise the futex surface and the user atomics of m14-linux-025
++	  (see kernel/k5_futex_selftest.c): one user program of its own issues
++	  the futex calls and the lr/sc pairs, and the probe judges what the
++	  kernel and the scheduler really saw.
++
++	  FUTEX_WAIT's "check the user word, then sleep" is atomic and a wake is
++	  never lost; a word that changed before the call makes the wait return
++	  -EAGAIN (the recheck under the hash-bucket lock); WAKE(n) wakes exactly
++	  n of several waiters; FUTEX_REQUEUE moves a waiter without waking it;
++	  WAIT_BITSET/WAKE_BITSET match on the bitset.  In user mode an `lr`…`sc`
++	  pair succeeds when nothing enters in between and fails after a syscall
++	  (spec/SimRISC-12 §1: an exception entry clears the reservation), and
++	  two threads exchanging the same word have exactly one winner.
++
++	  It runs from a `late_initcall` (the futex hash must exist) and ends the
++	  boot.  This is test scaffolding (the K5 futex gate builds a probe image
++	  with it); it is not part of the image the later milestones boot.

@@ -108,6 +108,7 @@ CONFIG_PINS = {
     # image inherits it from the shared build tree.
     "CONFIG_DADAO_K5_SYSCALL_SELFTEST": "n",
     "CONFIG_DADAO_K5_CLONE_SELFTEST": "n",
+    "CONFIG_DADAO_K5_FUTEX_SELFTEST": "n",
 }
 
 IMAGE = config_pins.config_lines(CONFIG_PINS)

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/trap.S b/arch/dadao/kernel/trap.S
 new file mode 100644
-index 000000000..b209e8717
+index 000000000..90a35291b
 --- /dev/null
 +++ b/arch/dadao/kernel/trap.S
-@@ -0,0 +1,596 @@
+@@ -0,0 +1,1147 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception vector (K2).
@@ -551,6 +551,557 @@ index 000000000..b209e8717
 +.Lk5c_park:
 +	jump	[rb0, .Lk5c_park]	/* no path returns here */
 +dadao_k5c_user_stub_end:
++#endif
++
++	/*
++	 * ---- K5 probe: the user program for futex and user atomics ---------
++	 *      (m14-linux-025) ---------------------------------------------------
++	 *
++	 * Copied into a user-accessible code page and entered at its first
++	 * instruction (kernel/k5_futex_selftest.c), so it must be assembled for
++	 * the probe's fixed window — the addresses below are the same block the
++	 * kernel half defines and the gate compares the two copies:
++	 *
++	 *   data page: the u32 words the futex calls and the lr/sc pairs use;
++	 *   stack i  : one page per user thread (0 = the parent program's own).
++	 *
++	 * The kernel hands the parent nothing but `ip` and `sp`; every other
++	 * value below is either a constant of the program or read from the data
++	 * page, and each result goes to a callee-saved `rd` (21-28) so the
++	 * kernel's trap hook reads what user mode really saw.
++	 *
++	 * Flow (the futex hand-overs are serialized from the kernel side: the
++	 * probe's umon hook parks the parent until a child reached its wait, so
++	 * no case depends on winning a race):
++	 *
++	 *   F4  lr;sc with nothing in between (0), then lr;getpid;sc (1, no
++	 *       store) — a syscall entry clears the reservation
++	 *       (spec/SimRISC-12 §1, contract-syscall §11).
++	 *   F3  parent holds an `lr` and yields; the peer's cmpxchg stores; the
++	 *       parent's `sc` fails and its retry sees the peer's value and
++	 *       stores nothing — exactly one of the two exchanges wins.
++	 *   F1  a waiter sleeps in FUTEX_WAIT and WAKE(1) returns 1 and wakes it.
++	 *   F1A the program reads the word, the hook changes it, and the wait
++	 *       must return -EAGAIN (the recheck is what makes the pair atomic).
++	 *   F2  three waiters; WAKE(2) returns 2, then WAKE(1) takes the third.
++	 *   F5  REQUEUE moves a waiter without waking it; WAKE on the
++	 *       destination reaches it.
++	 *   F6  WAIT_BITSET/WAKE_BITSET match on the bitset.
++	 */
++#ifdef CONFIG_DADAO_K5_FUTEX_SELFTEST
++/* The window (kernel/k5_futex_selftest.c has the same block). */
++#define K5F_PAGE		0x10000
++#define K5F_VA_BASE		0x10000000000
++#define K5F_CODE_VA		(K5F_VA_BASE + 64 * K5F_PAGE)
++#define K5F_DATA_VA		(K5F_VA_BASE + 65 * K5F_PAGE)
++#define K5F_STACK_TOP(i)	(K5F_VA_BASE + (67 + (i)) * K5F_PAGE)
++
++/* The data page's words. */
++#define K5F_W_F4		0
++#define K5F_W_F3		8
++#define K5F_W_F1		16
++#define K5F_W_F1B		20
++#define K5F_W_F2		24
++#define K5F_W_F5A		28
++#define K5F_W_F5B		32
++#define K5F_W_F6		36
++#define K5F_W_F7		40
++#define K5F_W_WAKEOP_A	44
++#define K5F_W_WAKEOP_B	48
++
++/* The values the cases exchange. */
++#define K5F_F4_MARK		0x5a5a5a5a
++#define K5F_F4_STORE		0x77777777
++#define K5F_F3_PVAL		0x3333cafe
++#define K5F_F3_TVAL		0x33330f0f
++#define K5F_F2_WAKE		2
++#define K5F_F6_BITS		0x2
++#define K5F_F6_OTHER		0x1
++
++/* The scripts (carried in `rb3` = `rbtp` by CLONE_SETTLS). */
++#define K5F_SCRIPT_WAIT_F1	1
++#define K5F_SCRIPT_ATOMIC	2
++#define K5F_SCRIPT_REQUEUE	3
++#define K5F_SCRIPT_BITSET	4
++#define K5F_SCRIPT_CMPXCHG	5
++#define K5F_SCRIPT_EXITNOW	6
++
++/* The probe's own umon functions (kernel/k5_futex_selftest.c owns them). */
++#define K5F_TRAP_REG		0x2c01
++#define K5F_TRAP_ARM		0x2c02
++#define K5F_TRAP_F4		0x2c03
++#define K5F_TRAP_F3_YIELD	0x2c04
++#define K5F_TRAP_F3		0x2c05
++#define K5F_TRAP_F1		0x2c06
++#define K5F_TRAP_F1A		0x2c07
++#define K5F_TRAP_F2		0x2c08
++#define K5F_TRAP_F2B		0x2c09
++#define K5F_TRAP_F5A		0x2c0a
++#define K5F_TRAP_F5B		0x2c0b
++#define K5F_TRAP_F6A		0x2c0c
++#define K5F_TRAP_F6B		0x2c0d
++#define K5F_TRAP_F8		0x2c0f
++#define K5F_TRAP_F7		0x2c10
++#define K5F_TRAP_DONE		0x2c0e
++#define K5F_TRAP_PRE_WAIT	0x2c20
++#define K5F_TRAP_REPORT		0x2c21
++
++/* uapi numbers, as `include/uapi/linux/futex.h` / the table define them. */
++#define K5F_SYS_CLONE		220
++#define K5F_SYS_FUTEX		98
++#define K5F_SYS_GETPID		172
++#define K5F_SYS_EXIT		93
++#define K5F_CLONE_FLAGS		0x90f00	/* VM|FS|FILES|SIGHAND|THREAD|SETTLS */
++/* include/uapi/linux/sched.h: CLONE_CHILD_CLEARTID = 0x00200000 (the
++ * gate compares this value with that header, not with a copy here). */
++#define K5F_CLONE_CHILD_CLEARTID 0x00200000
++#define K5F_OP_WAIT_PRIVATE	0x80	/* FUTEX_WAIT | FUTEX_PRIVATE_FLAG */
++#define K5F_OP_WAKE_PRIVATE	0x81	/* FUTEX_WAKE | FUTEX_PRIVATE_FLAG */
++#define K5F_OP_REQUEUE_PRIVATE	0x83	/* FUTEX_REQUEUE | FUTEX_PRIVATE_FLAG */
++#define K5F_OP_WAKE_BITSET_PRIV	0x8a	/* FUTEX_WAKE_BITSET | PRIVATE */
++#define K5F_OP_WAIT_BITSET_PRIV	0x89	/* FUTEX_WAIT_BITSET | PRIVATE */
++#define K5F_OP_WAKE_OP_PRIV	0x85	/* FUTEX_WAKE_OP | PRIVATE */
++/* FUTEX_WAKE_OP's encoded word: op=ADD 1, cmp=EQ 0x10, so the
++ * operation increments the word and the comparison (true) makes
++ * the wake on uaddr1 happen.  The gate derives the same value from
++ * include/uapi/linux/futex.h's FUTEX_OP_* constants. */
++#define K5F_WAKEOP_ARG		0x10001010
++
++	.section .rodata,"a"
++	.p2align 2
++	.globl	dadao_k5f_user_stub
++	.globl	dadao_k5f_user_stub_end
++dadao_k5f_user_stub:
++	/* The data page is touched by a *plain* store first: its first access is
++	 * a fault, and a fault would clear an lr reservation (SimRISC-12 §1). */
++	set.rb	rb10, K5F_DATA_VA
++	st.o	rd0, [rb10, 0]
++
++	/* ---- F4: the reservation and the syscall boundary ------------------ */
++	set.rd	rd6, K5F_F4_MARK
++	st.t	rd6, [rb10, K5F_W_F4]
++	set.rb	rb5, K5F_DATA_VA + K5F_W_F4
++	lr.t.nn	rd2, [rb5]
++	sc.t.nn	rd3, rd2, [rb5]		/* nothing in between: succeeds */
++	rd2rd	rd24, rd3, 1
++	ld.ut	rd4, [rb10, K5F_W_F4]
++	rd2rd	rd25, rd4, 1
++	set.rd	rd6, K5F_F4_MARK
++	st.t	rd6, [rb10, K5F_W_F4]
++	set.rb	rb5, K5F_DATA_VA + K5F_W_F4
++	lr.t.nn	rd2, [rb5]
++	set.rd	rd2, K5F_F4_STORE	/* what a wrongly-successful sc stores */
++	set.rd	rd15, K5F_SYS_GETPID
++	trap	cfx_umon, 0
++	sc.t.nn	rd6, rd2, [rb5]		/* the entry cleared it: fails */
++	rd2rd	rd26, rd6, 1
++	ld.ut	rd4, [rb10, K5F_W_F4]
++	rd2rd	rd27, rd4, 1
++	trap	cfx_umon, K5F_TRAP_F4
++
++	/* ---- F3: two threads, one successful exchange ---------------------- */
++	st.t	rd0, [rb10, K5F_W_F3]
++	set.rd	rd12, K5F_DATA_VA + K5F_W_F3
++	set.rd	rd16, K5F_CLONE_FLAGS
++	set.rd	rd17, K5F_STACK_TOP(1)
++	set.rd	rd18, K5F_SCRIPT_CMPXCHG
++	set.rd	rd14, 0
++	rd2rb	rb16, rd14, 1
++	rd2rb	rb17, rd14, 1
++	set.rd	rd15, K5F_SYS_CLONE
++	trap	cfx_umon, 0
++	br.z	{rd8}?, [rb0, .Lk5f_child]
++	rd2rd	rd21, rd8, 1
++	set.rd	rd22, K5F_SCRIPT_CMPXCHG
++	trap	cfx_umon, K5F_TRAP_REG
++	set.rb	rb5, K5F_DATA_VA + K5F_W_F3
++	lr.t.nn	rd2, [rb5]		/* hold the reservation ... */
++	trap	cfx_umon, K5F_TRAP_F3_YIELD	/* ... while the peer exchanges */
++	set.rd	rd2, K5F_F3_PVAL
++	sc.t.nn	rd7, rd2, [rb5]		/* the entry cleared it: fails */
++	rd2rd	rd21, rd7, 1
++	lr.t.nn	rd2, [rb5]		/* the retry re-reads */
++	rd2rd	rd22, rd2, 1
++	set.rd	rd9, 0
++	cmp.uo	rd8, rd2, rd9
++	br.ne	{rd8, rd9}?, [rb0, .Lk5f_f3_skip]
++	set.rd	rd2, K5F_F3_PVAL
++	sc.t.nn	rd7, rd2, [rb5]		/* must not happen: value differs */
++	set.rd	rd23, 1
++	jump	[rb0, .Lk5f_f3_done]
++.Lk5f_f3_skip:
++	set.rd	rd23, 0			/* no store: the compare failed */
++.Lk5f_f3_done:
++	ld.ut	rd4, [rb10, K5F_W_F3]
++	rd2rd	rd28, rd4, 1
++	trap	cfx_umon, K5F_TRAP_F3
++
++	/* ---- F1: one waiter, one wake -------------------------------------- */
++	st.t	rd0, [rb10, K5F_W_F1]
++	set.rd	rd12, K5F_DATA_VA + K5F_W_F1
++	set.rd	rd16, K5F_CLONE_FLAGS
++	set.rd	rd17, K5F_STACK_TOP(2)
++	set.rd	rd18, K5F_SCRIPT_WAIT_F1
++	set.rd	rd14, 0
++	rd2rb	rb16, rd14, 1
++	rd2rb	rb17, rd14, 1
++	set.rd	rd15, K5F_SYS_CLONE
++	trap	cfx_umon, 0
++	br.z	{rd8}?, [rb0, .Lk5f_child]
++	rd2rd	rd21, rd8, 1
++	set.rd	rd22, K5F_SCRIPT_WAIT_F1
++	trap	cfx_umon, K5F_TRAP_REG
++	trap	cfx_umon, K5F_TRAP_ARM
++	set.rd	rd6, 1
++	st.t	rd6, [rb10, K5F_W_F1]
++	set.rb	rb16, K5F_DATA_VA + K5F_W_F1
++	set.rd	rd16, K5F_OP_WAKE_PRIVATE
++	set.rd	rd17, 1
++	set.rd	rd14, 0
++	rd2rb	rb17, rd14, 1
++	rd2rb	rb18, rd14, 1
++	set.rd	rd18, 0
++	set.rd	rd15, K5F_SYS_FUTEX
++	trap	cfx_umon, 0
++	rd2rd	rd21, rd8, 1
++	trap	cfx_umon, K5F_TRAP_F1
++
++	/* ---- F1A: the word changes before the wait ------------------------- */
++	st.t	rd0, [rb10, K5F_W_F1B]
++	set.rd	rd12, K5F_DATA_VA + K5F_W_F1B
++	set.rd	rd16, K5F_CLONE_FLAGS
++	set.rd	rd17, K5F_STACK_TOP(3)
++	set.rd	rd18, K5F_SCRIPT_ATOMIC
++	set.rd	rd14, 0
++	rd2rb	rb16, rd14, 1
++	rd2rb	rb17, rd14, 1
++	set.rd	rd15, K5F_SYS_CLONE
++	trap	cfx_umon, 0
++	br.z	{rd8}?, [rb0, .Lk5f_child]
++	rd2rd	rd21, rd8, 1
++	set.rd	rd22, K5F_SCRIPT_ATOMIC
++	trap	cfx_umon, K5F_TRAP_REG
++	trap	cfx_umon, K5F_TRAP_ARM
++	trap	cfx_umon, K5F_TRAP_F1A
++
++	/* ---- F2: three waiters, WAKE(2) then WAKE(1) ----------------------- */
++	st.t	rd0, [rb10, K5F_W_F2]
++	set.rd	rd12, K5F_DATA_VA + K5F_W_F2
++	set.rd	rd16, K5F_CLONE_FLAGS
++	set.rd	rd17, K5F_STACK_TOP(4)
++	set.rd	rd18, K5F_SCRIPT_WAIT_F1
++	set.rd	rd14, 0
++	rd2rb	rb16, rd14, 1
++	rd2rb	rb17, rd14, 1
++	set.rd	rd15, K5F_SYS_CLONE
++	trap	cfx_umon, 0
++	br.z	{rd8}?, [rb0, .Lk5f_child]
++	rd2rd	rd21, rd8, 1
++	set.rd	rd22, K5F_SCRIPT_WAIT_F1
++	trap	cfx_umon, K5F_TRAP_REG
++	trap	cfx_umon, K5F_TRAP_ARM
++	set.rd	rd16, K5F_CLONE_FLAGS
++	set.rd	rd17, K5F_STACK_TOP(5)
++	set.rd	rd18, K5F_SCRIPT_WAIT_F1
++	set.rd	rd14, 0
++	rd2rb	rb16, rd14, 1
++	rd2rb	rb17, rd14, 1
++	set.rd	rd15, K5F_SYS_CLONE
++	trap	cfx_umon, 0
++	br.z	{rd8}?, [rb0, .Lk5f_child]
++	rd2rd	rd21, rd8, 1
++	set.rd	rd22, K5F_SCRIPT_WAIT_F1
++	trap	cfx_umon, K5F_TRAP_REG
++	trap	cfx_umon, K5F_TRAP_ARM
++	set.rd	rd16, K5F_CLONE_FLAGS
++	set.rd	rd17, K5F_STACK_TOP(6)
++	set.rd	rd18, K5F_SCRIPT_WAIT_F1
++	set.rd	rd14, 0
++	rd2rb	rb16, rd14, 1
++	rd2rb	rb17, rd14, 1
++	set.rd	rd15, K5F_SYS_CLONE
++	trap	cfx_umon, 0
++	br.z	{rd8}?, [rb0, .Lk5f_child]
++	rd2rd	rd21, rd8, 1
++	set.rd	rd22, K5F_SCRIPT_WAIT_F1
++	trap	cfx_umon, K5F_TRAP_REG
++	trap	cfx_umon, K5F_TRAP_ARM
++	/* all three asleep: the word changes and WAKE(2) runs */
++	set.rd	rd6, 1
++	st.t	rd6, [rb10, K5F_W_F2]
++	set.rb	rb16, K5F_DATA_VA + K5F_W_F2
++	set.rd	rd16, K5F_OP_WAKE_PRIVATE
++	set.rd	rd17, K5F_F2_WAKE
++	set.rd	rd14, 0
++	rd2rb	rb17, rd14, 1
++	rd2rb	rb18, rd14, 1
++	set.rd	rd18, 0
++	set.rd	rd15, K5F_SYS_FUTEX
++	trap	cfx_umon, 0
++	rd2rd	rd21, rd8, 1
++	trap	cfx_umon, K5F_TRAP_F2
++	set.rb	rb16, K5F_DATA_VA + K5F_W_F2
++	set.rd	rd16, K5F_OP_WAKE_PRIVATE
++	set.rd	rd17, 1
++	rd2rb	rb17, rd14, 1
++	rd2rb	rb18, rd14, 1
++	set.rd	rd18, 0
++	set.rd	rd15, K5F_SYS_FUTEX
++	trap	cfx_umon, 0
++	rd2rd	rd22, rd8, 1
++	trap	cfx_umon, K5F_TRAP_F2B
++
++	/* ---- F5: REQUEUE moves a waiter to the second word ----------------- */
++	st.t	rd0, [rb10, K5F_W_F5A]
++	st.t	rd0, [rb10, K5F_W_F5B]
++	set.rd	rd12, K5F_DATA_VA + K5F_W_F5A
++	set.rd	rd16, K5F_CLONE_FLAGS
++	set.rd	rd17, K5F_STACK_TOP(7)
++	set.rd	rd18, K5F_SCRIPT_REQUEUE
++	set.rd	rd14, 0
++	rd2rb	rb16, rd14, 1
++	rd2rb	rb17, rd14, 1
++	set.rd	rd15, K5F_SYS_CLONE
++	trap	cfx_umon, 0
++	br.z	{rd8}?, [rb0, .Lk5f_child]
++	rd2rd	rd21, rd8, 1
++	set.rd	rd22, K5F_SCRIPT_REQUEUE
++	trap	cfx_umon, K5F_TRAP_REG
++	trap	cfx_umon, K5F_TRAP_ARM
++	/* FUTEX_REQUEUE(F5A, nr_wake=0, F5B, nr_requeue=1).
++	 *
++	 * `nr_requeue` travels in the **4th** argument: for the commands that
++	 * take no timespec that slot is `val2`, an integer the kernel casts out
++	 * of the pointer (futex(2): "avoid using this operation" — but musl and
++	 * glibc both pass it this way, e.g. `(void *)INT_MAX`).  The slot is an
++	 * address argument (rb17) by the syscall's argmask, so the integer is
++	 * loaded into the RB bank. */
++	set.rb	rb16, K5F_DATA_VA + K5F_W_F5A
++	set.rd	rd16, K5F_OP_REQUEUE_PRIVATE
++	set.rd	rd17, 0
++	set.rb	rb17, 1
++	set.rb	rb18, K5F_DATA_VA + K5F_W_F5B
++	set.rd	rd18, 0
++	set.rd	rd15, K5F_SYS_FUTEX
++	trap	cfx_umon, 0
++	rd2rd	rd21, rd8, 1
++	trap	cfx_umon, K5F_TRAP_F5A
++	set.rb	rb16, K5F_DATA_VA + K5F_W_F5B
++	set.rd	rd16, K5F_OP_WAKE_PRIVATE
++	set.rd	rd17, 1
++	rd2rb	rb17, rd14, 1
++	rd2rb	rb18, rd14, 1
++	set.rd	rd18, 0
++	set.rd	rd15, K5F_SYS_FUTEX
++	trap	cfx_umon, 0
++	rd2rd	rd22, rd8, 1
++	trap	cfx_umon, K5F_TRAP_F5B
++
++	/* ---- F6: the bitset decides the match ------------------------------ */
++	st.t	rd0, [rb10, K5F_W_F6]
++	set.rd	rd12, K5F_DATA_VA + K5F_W_F6
++	set.rd	rd16, K5F_CLONE_FLAGS
++	set.rd	rd17, K5F_STACK_TOP(8)
++	set.rd	rd18, K5F_SCRIPT_BITSET
++	set.rd	rd14, 0
++	rd2rb	rb16, rd14, 1
++	rd2rb	rb17, rd14, 1
++	set.rd	rd15, K5F_SYS_CLONE
++	trap	cfx_umon, 0
++	br.z	{rd8}?, [rb0, .Lk5f_child]
++	rd2rd	rd21, rd8, 1
++	set.rd	rd22, K5F_SCRIPT_BITSET
++	trap	cfx_umon, K5F_TRAP_REG
++	trap	cfx_umon, K5F_TRAP_ARM
++	/* FUTEX_WAKE_BITSET(F6, 1, a bitset that shares no bit) */
++	set.rb	rb16, K5F_DATA_VA + K5F_W_F6
++	set.rd	rd16, K5F_OP_WAKE_BITSET_PRIV
++	set.rd	rd17, 1
++	set.rd	rd14, 0
++	rd2rb	rb17, rd14, 1
++	rd2rb	rb18, rd14, 1
++	set.rd	rd18, K5F_F6_OTHER
++	set.rd	rd15, K5F_SYS_FUTEX
++	trap	cfx_umon, 0
++	rd2rd	rd21, rd8, 1
++	trap	cfx_umon, K5F_TRAP_F6A
++	/* ... and the matching one */
++	set.rb	rb16, K5F_DATA_VA + K5F_W_F6
++	set.rd	rd16, K5F_OP_WAKE_BITSET_PRIV
++	set.rd	rd17, 1
++	rd2rb	rb17, rd14, 1
++	rd2rb	rb18, rd14, 1
++	set.rd	rd18, K5F_F6_BITS
++	set.rd	rd15, K5F_SYS_FUTEX
++	trap	cfx_umon, 0
++	rd2rd	rd22, rd8, 1
++	trap	cfx_umon, K5F_TRAP_F6B
++
++	/* ---- F8: WAKE_OP — the arch atomic RMW (lr/sc) end to end --------- */
++	st.t	rd0, [rb10, K5F_W_WAKEOP_A]
++	set.rd	rd6, 0x10
++	st.t	rd6, [rb10, K5F_W_WAKEOP_B]
++	set.rd	rd12, K5F_DATA_VA + K5F_W_WAKEOP_A
++	set.rd	rd16, K5F_CLONE_FLAGS
++	set.rd	rd17, K5F_STACK_TOP(9)
++	set.rd	rd18, K5F_SCRIPT_WAIT_F1
++	set.rd	rd14, 0
++	rd2rb	rb16, rd14, 1
++	rd2rb	rb17, rd14, 1
++	set.rd	rd15, K5F_SYS_CLONE
++	trap	cfx_umon, 0
++	br.z	{rd8}?, [rb0, .Lk5f_child]
++	rd2rd	rd21, rd8, 1
++	set.rd	rd22, K5F_SCRIPT_WAIT_F1
++	trap	cfx_umon, K5F_TRAP_REG
++	trap	cfx_umon, K5F_TRAP_ARM
++	/* FUTEX_WAKE_OP(A, nr_wake=1, nr_wake2=0, B, encoded op) */
++	set.rb	rb16, K5F_DATA_VA + K5F_W_WAKEOP_A
++	set.rd	rd16, K5F_OP_WAKE_OP_PRIV
++	set.rd	rd17, 1
++	set.rb	rb17, 0			/* nr_wake2 (4th-argument integer) */
++	set.rb	rb18, K5F_DATA_VA + K5F_W_WAKEOP_B
++	set.rd	rd18, K5F_WAKEOP_ARG
++	set.rd	rd15, K5F_SYS_FUTEX
++	trap	cfx_umon, 0
++	rd2rd	rd21, rd8, 1		/* waiters woken */
++	ld.ut	rd4, [rb10, K5F_W_WAKEOP_B]
++	rd2rd	rd22, rd4, 1		/* the RMW: 0x10 + 1 */
++	trap	cfx_umon, K5F_TRAP_F8
++
++	/* ---- F7: CLONE_CHILD_CLEARTID clears the exiting thread's tid ----- */
++	st.t	rd0, [rb10, K5F_W_F7]
++	set.rd	rd16, K5F_CLONE_FLAGS + K5F_CLONE_CHILD_CLEARTID
++	set.rd	rd17, K5F_STACK_TOP(9)
++	set.rd	rd18, K5F_SCRIPT_EXITNOW
++	set.rd	rd14, 0
++	rd2rb	rb16, rd14, 1
++	set.rb	rb17, K5F_DATA_VA + K5F_W_F7	/* child_tidptr (2nd address arg) */
++	set.rd	rd15, K5F_SYS_CLONE
++	trap	cfx_umon, 0
++	br.z	{rd8}?, [rb0, .Lk5f_child]
++	rd2rd	rd21, rd8, 1			/* the child's tid */
++	set.rd	rd22, K5F_SCRIPT_EXITNOW
++	trap	cfx_umon, K5F_TRAP_REG
++	st.t	rd21, [rb10, K5F_W_F7]		/* the word holds the tid */
++	trap	cfx_umon, K5F_TRAP_F7		/* park till that child exits */
++	trap	cfx_umon, K5F_TRAP_DONE
++	jump	[rb0, .Lk5f_park]
++
++	/* ---- the children ------------------------------------------------- */
++.Lk5f_child:
++	rb2rd	rd5, rb3, 1		/* CLONE_SETTLS put the script here */
++	set.rd	rd9, K5F_SCRIPT_WAIT_F1
++	br.eq	{rd5, rd9}?, [rb0, .Lk5f_s_wait]
++	set.rd	rd9, K5F_SCRIPT_ATOMIC
++	br.eq	{rd5, rd9}?, [rb0, .Lk5f_s_atomic]
++	set.rd	rd9, K5F_SCRIPT_REQUEUE
++	br.eq	{rd5, rd9}?, [rb0, .Lk5f_s_requeue]
++	set.rd	rd9, K5F_SCRIPT_BITSET
++	br.eq	{rd5, rd9}?, [rb0, .Lk5f_s_bitset]
++	set.rd	rd9, K5F_SCRIPT_CMPXCHG
++	br.eq	{rd5, rd9}?, [rb0, .Lk5f_s_cmpxchg]
++	set.rd	rd9, K5F_SCRIPT_EXITNOW
++	br.eq	{rd5, rd9}?, [rb0, .Lk5f_s_exitnow]
++	jump	[rb0, .Lk5f_park]
++
++	/* FUTEX_WAIT(word, 0) — the expected value is the zero the parent
++	 * stored before creating the thread. */
++.Lk5f_s_wait:
++	rd2rb	rb16, rd12, 1
++	set.rd	rd16, K5F_OP_WAIT_PRIVATE
++	set.rd	rd17, 0
++	set.rd	rd14, 0
++	rd2rb	rb17, rd14, 1
++	rd2rb	rb18, rd14, 1
++	set.rd	rd18, 0
++	set.rd	rd15, K5F_SYS_FUTEX
++	trap	cfx_umon, 0
++	rd2rd	rd21, rd8, 1
++	trap	cfx_umon, K5F_TRAP_REPORT
++	jump	[rb0, .Lk5f_child_exit]
++
++	/* read the word, let the hook change it, then WAIT for the value read */
++.Lk5f_s_atomic:
++	rd2rb	rb5, rd12, 1
++	ld.ut	rd5, [rb5, 0]
++	trap	cfx_umon, K5F_TRAP_PRE_WAIT
++	rd2rb	rb16, rd12, 1
++	set.rd	rd16, K5F_OP_WAIT_PRIVATE
++	rd2rd	rd17, rd5, 1
++	set.rd	rd14, 0
++	rd2rb	rb17, rd14, 1
++	rd2rb	rb18, rd14, 1
++	set.rd	rd18, 0
++	set.rd	rd15, K5F_SYS_FUTEX
++	trap	cfx_umon, 0
++	rd2rd	rd21, rd8, 1
++	trap	cfx_umon, K5F_TRAP_REPORT
++	jump	[rb0, .Lk5f_child_exit]
++
++	/* FUTEX_WAIT on the first word; the parent requeues it to the second */
++.Lk5f_s_requeue:
++	rd2rb	rb16, rd12, 1
++	set.rd	rd16, K5F_OP_WAIT_PRIVATE
++	set.rd	rd17, 0
++	set.rd	rd14, 0
++	rd2rb	rb17, rd14, 1
++	rd2rb	rb18, rd14, 1
++	set.rd	rd18, 0
++	set.rd	rd15, K5F_SYS_FUTEX
++	trap	cfx_umon, 0
++	rd2rd	rd21, rd8, 1
++	trap	cfx_umon, K5F_TRAP_REPORT
++	jump	[rb0, .Lk5f_child_exit]
++
++	/* FUTEX_WAIT_BITSET with a bitset the first wake does not match */
++.Lk5f_s_bitset:
++	rd2rb	rb16, rd12, 1
++	set.rd	rd16, K5F_OP_WAIT_BITSET_PRIV
++	set.rd	rd17, 0
++	set.rd	rd14, 0
++	rd2rb	rb17, rd14, 1
++	rd2rb	rb18, rd14, 1
++	set.rd	rd18, K5F_F6_BITS
++	set.rd	rd24, K5F_F6_BITS	/* what it sent, for the report */
++	set.rd	rd15, K5F_SYS_FUTEX
++	trap	cfx_umon, 0
++	rd2rd	rd21, rd8, 1
++	trap	cfx_umon, K5F_TRAP_REPORT
++	jump	[rb0, .Lk5f_child_exit]
++
++	/* the F3 peer: one cmpxchg of the word from 0 to its own value */
++.Lk5f_s_cmpxchg:
++	rd2rb	rb5, rd12, 1
++	lr.t.nn	rd2, [rb5]
++	rd2rd	rd21, rd2, 1		/* the value it saw */
++	set.rd	rd9, 0
++	cmp.uo	rd8, rd2, rd9
++	br.ne	{rd8, rd9}?, [rb0, .Lk5f_cx_skip]
++	set.rd	rd3, K5F_F3_TVAL
++	sc.t.nn	rd7, rd3, [rb5]
++	rd2rd	rd22, rd7, 1		/* 0 = stored */
++	jump	[rb0, .Lk5f_cx_done]
++.Lk5f_cx_skip:
++	set.rd	rd22, 2			/* no store: the compare failed */
++.Lk5f_cx_done:
++	ld.ut	rd4, [rb10, K5F_W_F3]
++	rd2rd	rd23, rd4, 1
++	trap	cfx_umon, K5F_TRAP_REPORT
++	jump	[rb0, .Lk5f_child_exit]
++
++	/* F7's child: report, then exit.  The exit is what runs mm_release(). */
++.Lk5f_s_exitnow:
++	trap	cfx_umon, K5F_TRAP_REPORT
++	jump	[rb0, .Lk5f_child_exit]
++
++.Lk5f_child_exit:
++	set.rd	rd16, 0
++	set.rd	rd15, K5F_SYS_EXIT
++	trap	cfx_umon, 0		/* does not return */
++.Lk5f_park:
++	jump	[rb0, .Lk5f_park]	/* no path returns here */
++dadao_k5f_user_stub_end:
 +#endif
 +
 +	/*

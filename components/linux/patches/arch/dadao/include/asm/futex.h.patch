@@ -1,0 +1,179 @@
+diff --git a/arch/dadao/include/asm/futex.h b/arch/dadao/include/asm/futex.h
+new file mode 100644
+index 000000000..2ccc07224
+--- /dev/null
++++ b/arch/dadao/include/asm/futex.h
+@@ -0,0 +1,173 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * DADAO futex atomics (m14-linux-025, contract-syscall §11).
++ *
++ * These are the architecture's atomic user-memory read-modify-writes for the
++ * generic futex code.  Two facts about the callers decide their shape:
++ *
++ *  - `futex_atomic_cmpxchg_inatomic()` is called with pagefaults disabled and
++ *    the value read back through @uval, so the compare and the store have to be
++ *    **one** atomic step.  In this tree `FUTEX_WAIT`'s "check the user word,
++ *    then sleep" recheck is a plain read under the hash-bucket lock
++ *    (`futex_get_value_locked()`); the compare-and-store hook is what the PI
++ *    and requeue paths use, and `arch_futex_atomic_op_inuser()` is what
++ *    `FUTEX_WAKE_OP` uses.
++ *  - On this machine that step is `lr`/`sc` (spec/SimRISC-12 §1), not the
++ *    uniprocessor get_user/put_user pair `asm-generic/futex.h` uses: the
++ *    contract forbids deriving a weaker order from "there is one hart"
++ *    (contract-syscall §11), and the `lr`/`sc` pair produces the order a
++ *    multi-hart machine would need.
++ *
++ * The reservation rules that shape the code (spec/SimRISC-12 §1):
++ *
++ *  - an `sc` consumes the reservation whether it succeeds or fails, and may
++ *    fail spuriously; a failed `sc` therefore has to be retried *from a fresh
++ *    `lr`* (the value may have changed in between), which is the loop below;
++ *  - an exception or interrupt entry clears the reservation, so a tick that
++ *    lands between `lr` and `sc` turns the `sc` into a failure — that is the
++ *    spurious case the loop exists for, and it is why the retry budget is not
++ *    a deadline but a bail-out: with a live timer the pair would otherwise be
++ *    retried forever;
++ *  - the width is `.t` (32 bits, `futex(2)`'s `int`), and `lr.t` writes only
++ *    the low 32 bits of the destination, so the high half is masked off here
++ *    instead of being read as an extension.
++ *
++ * Retry exhaustion answers `-EAGAIN`, the futex contract's "could not complete
++ * due to contention" (the caller handles it by faulting in and retrying).
++ */
++
++#ifndef _ASM_DADAO_FUTEX_H
++#define _ASM_DADAO_FUTEX_H
++
++#include <linux/futex.h>
++#include <linux/uaccess.h>
++#include <linux/errno.h>
++
++/*: `lr`/`sc` retries before a comparison answers `-EAGAIN`.  A tick landing
++ *  inside the pair is the only expected spurious failure; eight consecutive
++ *  ones mean the machine is not making progress. */
++#define DADAO_FUTEX_SC_RETRIES	8
++
++/*
++ * One `lr.t` of @uaddr into @val (low 32 bits; the instruction leaves the high
++ * half of the destination untouched, so it is masked here).  The address has
++ * to sit in an RB register, which is what the fixed-register variable is for —
++ * the same idiom as asm/cfx.h.
++ */
++static inline void dadao_futex_lr32(u32 __user *uaddr, u32 *val)
++{
++	register unsigned long addr __asm__("rb18") = (unsigned long)uaddr;
++	register unsigned long v __asm__("rd16");
++
++	__asm__ __volatile__("lr.t.nn\t%0, [%1]"
++			     : "=r"(v) : "r"(addr) : "memory");
++	*val = (u32)v;
++}
++
++/*
++ * One `sc.t` of @val to @uaddr.  Returns 0 on success and 1 on failure, the
++ * values spec/SimRISC-12 §1 assigns to `rdHB`; every `sc` consumes the
++ * reservation.
++ */
++static inline int dadao_futex_sc32(u32 __user *uaddr, u32 val)
++{
++	register unsigned long addr __asm__("rb18") = (unsigned long)uaddr;
++	register unsigned long v __asm__("rd18") = (unsigned long)val;
++	register unsigned long st __asm__("rd17");
++
++	__asm__ __volatile__("sc.t.nn\t%0, %1, [%2]"
++			     : "=r"(st) : "r"(v), "r"(addr) : "memory");
++	return (int)st;
++}
++
++/*
++ * Compare *@uaddr with @oldval inside one reservation window; on equality store
++ * @newval.  `*uval` always receives the value the last `lr` read (the futex
++ * caller compares it itself), and the return is 0 for "the operation
++ * completed" — including the "value did not match, nothing stored" outcome,
++ * which is how `futex_atomic_cmpxchg_inatomic()` reports both cases upstream.
++ */
++static inline int
++futex_atomic_cmpxchg_inatomic(u32 *uval, u32 __user *uaddr,
++			      u32 oldval, u32 newval)
++{
++	u32 probe, val;
++	int attempt, ret;
++
++	if (!access_ok(uaddr, sizeof(u32)))
++		return -EFAULT;
++	/*
++	 * Make the page present before the reservation window opens: an `lr` on a
++	 * not-present page would enter the fault handler between `lr` and `sc`
++	 * (clearing the reservation anyway) on top of the fill.  A fault here is
++	 * the caller's `-EFAULT`; with pagefaults disabled (the futex callers'
++	 * contract) it does not oops.
++	 */
++	if (get_user(probe, uaddr))
++		return -EFAULT;
++
++	for (attempt = 0; attempt < DADAO_FUTEX_SC_RETRIES; attempt++) {
++		dadao_futex_lr32(uaddr, &val);
++		if (val != oldval) {
++			*uval = val;
++			return 0;
++		}
++		if (dadao_futex_sc32(uaddr, newval) == 0) {
++			*uval = val;
++			return 0;
++		}
++		/* Spurious failure (an entry cleared the reservation): re-read. */
++	}
++	ret = -EAGAIN;
++	return ret;
++}
++
++/*
++ * `FUTEX_WAKE_OP`'s atomic read-modify-write.  Same reservation loop; the
++ * arithmetic is done between the two instructions (no memory access in
++ * between, so only an entry can break the window).
++ */
++static inline int
++arch_futex_atomic_op_inuser(int op, int oparg, int *oval, u32 __user *uaddr)
++{
++	u32 probe, old;
++	int attempt;
++	int newval;
++	int ret = -EAGAIN;
++
++	if (!access_ok(uaddr, sizeof(u32)))
++		return -EFAULT;
++	if (get_user(probe, uaddr))
++		return -EFAULT;
++
++	for (attempt = 0; attempt < DADAO_FUTEX_SC_RETRIES; attempt++) {
++		dadao_futex_lr32(uaddr, &old);
++		switch (op) {
++		case FUTEX_OP_SET:
++			newval = oparg;
++			break;
++		case FUTEX_OP_ADD:
++			newval = old + oparg;
++			break;
++		case FUTEX_OP_OR:
++			newval = old | oparg;
++			break;
++		case FUTEX_OP_ANDN:
++			newval = old & ~oparg;
++			break;
++		case FUTEX_OP_XOR:
++			newval = old ^ oparg;
++			break;
++		default:
++			return -ENOSYS;
++		}
++		if (dadao_futex_sc32(uaddr, (u32)newval) == 0) {
++			*oval = (int)old;
++			ret = 0;
++			break;
++		}
++	}
++	return ret;
++}
++
++#endif /* _ASM_DADAO_FUTEX_H */

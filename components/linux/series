@@ -14,6 +14,7 @@ arch/dadao/include/asm/current.h.patch
 arch/dadao/include/asm/elf.h.patch
 arch/dadao/include/asm/entry.h.patch
 arch/dadao/include/asm/fixmap.h.patch
+arch/dadao/include/asm/futex.h.patch
 arch/dadao/include/asm/io.h.patch
 arch/dadao/include/asm/irq.h.patch
 arch/dadao/include/asm/irqflags.h.patch
@@ -62,6 +63,7 @@ arch/dadao/kernel/k4_selftest.c.patch
 arch/dadao/kernel/k4_switch_asm.S.patch
 arch/dadao/kernel/k4_switch_selftest.c.patch
 arch/dadao/kernel/k5_clone_selftest.c.patch
+arch/dadao/kernel/k5_futex_selftest.c.patch
 arch/dadao/kernel/k5_syscall_selftest.c.patch
 arch/dadao/kernel/process.c.patch
 arch/dadao/kernel/setup.c.patch

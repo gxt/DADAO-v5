@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/Makefile b/arch/dadao/kernel/Makefile
 new file mode 100644
-index 000000000..adb27360c
+index 000000000..8eaf6b743
 --- /dev/null
 +++ b/arch/dadao/kernel/Makefile
-@@ -0,0 +1,32 @@
+@@ -0,0 +1,35 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-y += head.o setup.o early_console.o syscall_table.o traps.o syscalls.o trap.o
 +# The syscall argument routing table (m14-linux-023): data, read by the
@@ -33,6 +33,9 @@ index 000000000..adb27360c
 +# K5 clone/thread probe (m14-linux-024): probe image only; a late_initcall
 +# whose user program clones a thread and forks from user mode.
 +obj-$(CONFIG_DADAO_K5_CLONE_SELFTEST) += k5_clone_selftest.o
++# K5 futex/atomic probe (m14-linux-025): probe image only; a late_initcall
++# whose user program issues the futex calls and the lr/sc pairs.
++obj-$(CONFIG_DADAO_K5_FUTEX_SELFTEST) += k5_futex_selftest.o
 +
 +# The final link needs arch/dadao/kernel/vmlinux.lds (preprocessed from .S).
 +always-$(KBUILD_BUILTIN) += vmlinux.lds

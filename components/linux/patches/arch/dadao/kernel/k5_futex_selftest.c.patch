@@ -1,0 +1,911 @@
+diff --git a/arch/dadao/kernel/k5_futex_selftest.c b/arch/dadao/kernel/k5_futex_selftest.c
+new file mode 100644
+index 000000000..1a276727e
+--- /dev/null
++++ b/arch/dadao/kernel/k5_futex_selftest.c
+@@ -0,0 +1,905 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * K5 futex and user-atomic probe (CONFIG_DADAO_K5_FUTEX_SELFTEST,
++ * m14-linux-025).
++ *
++ * What this proves, and where every expectation comes from
++ * (contract-syscall §11, spec/SimRISC-12 §1, Linux futex(2)):
++ *
++ *   F1  `FUTEX_WAIT`'s "check the user word, then sleep" is atomic and a
++ *       wake is never lost: a waiter that finds its expected value sleeps, a
++ *       waker that changes the word and calls `FUTEX_WAKE(1)` gets exactly one
++ *       waiter and the waiter returns 0.  The pair is serialized by the
++ *       kernel-side hand-over below, so "asleep" is an observed fact, not a
++ *       race the probe hopes to win.
++ *   F1A the negative half: the program reads the word, the waker changes it
++ *       *before* the `FUTEX_WAIT`, and `FUTEX_WAKE` has already found no
++ *       waiter.  The wait must still return `-EAGAIN` — the recheck under the
++ *       hash-bucket lock is what makes the pair atomic (§11).  A kernel that
++ *       skipped the recheck would sleep; the probe detects that from the
++ *       waker's side (the waiter never reported, and it is asleep).
++ *   F2  `FUTEX_WAKE(n)` wakes exactly n waiters: three waiters sleep on one
++ *       word, `WAKE(2)` returns 2 and exactly two of them leave the sleeping
++ *       state, `WAKE(1)` then takes the third.
++ *   F3  user `cmpxchg` is an `lr`/`sc` loop: two threads raise the same
++ *       compare-and-exchange on one word and exactly one of them stores; the
++ *       other re-reads, sees the new value and stores nothing.  The losing
++ *       thread also shows the *spurious* failure path: its `sc` after an
++ *       exception entry fails, and its loop retries from a fresh `lr`.
++ *   F4  `lr`…`sc` cannot cross a syscall: with nothing in between `sc`
++ *       succeeds, with a `trap` in between it fails and stores nothing
++ *       (spec/SimRISC-12 §1「保留机制」: 异常或中断进入 clears the hart's
++ *       reservation; §11 repeats it for syscalls).
++ *   F5  `FUTEX_REQUEUE` moves a waiter from one word to another without
++ *       waking it, and a later `FUTEX_WAKE` on the destination reaches it.
++ *   F6  `FUTEX_WAIT_BITSET`/`FUTEX_WAKE_BITSET` match on the bitset: a wake
++ *       whose bitset shares no bit does not wake the waiter, one that shares
++ *       does.
++ *
++ * How it runs: like the m14-linux-023/024 probes, a `late_initcall` inside
++ * `kernel_init` starts one user task of its own (`mm_alloc()`, a code page, a
++ * data page and nine stack pages) and blocks.  That user task — the *parent*
++ * program in `kernel/trap.S` (`dadao_k5f_user_stub`) — issues every futex and
++ * `clone` call itself; the children it creates are the waiters and the
++ * cmpxchg peer.
++ *
++ * The judging cannot live in the user program (task states, wake counts and
++ * the word's value after a wake are kernel state), so it lives in
++ * `dadao_k5f_user_trap()`, called by `dadao_user_excp_dispatch()` for every
++ * umon trap *after* the re-entrancy guard is dropped: the parent's hand-over
++ * traps block there, and a child must be free to take its own umon entry while
++ * the parent sleeps.  On this port a *runnable* task never yields (`schedule()`
++ * re-picks it: no sched_clock yet), so every hand-over is a blocking wait and
++ * the ordering of the actors is a consequence of who is blocked, not of the
++ * scheduler's fancy.
++ *
++ * One image, one verdict: every case prints its values (`K5 check <name>
++ * want=… got=… ok|FAIL`), a violated expectation names itself and ends the
++ * boot (spec/Kaiwu §7.1), and a clean run ends with `SYS_EXIT(0)`.
++ */
++#include <linux/completion.h>
++#include <linux/errno.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/mman.h>
++#include <linux/mm.h>
++#include <linux/mm_types.h>
++#include <linux/pid.h>
++#include <linux/sched.h>
++#include <linux/sched/mm.h>
++#include <linux/sched/task.h>
++#include <linux/sched/task_stack.h>
++#include <linux/signal.h>
++#include <linux/string.h>
++#include <linux/types.h>
++#include <linux/uaccess.h>
++#include <linux/wait.h>
++
++#include <asm/mmu_context.h>
++#include <asm/page.h>
++#include <asm/pgalloc.h>
++#include <asm/ptrace.h>
++#include <asm/setup.h>
++#include <asm/syscall.h>
++#include <asm/trap.h>
++#include <asm/unistd.h>
++
++/*
++ * Guest FAIL segment (spec/Kaiwu §7.1, 0x01-0x7f).  kernel/process.c owns
++ * 0x30-0x32, k4_selftest.c 0x33-0x3a, k4_switch_selftest.c 0x40-0x45,
++ * k4_kthread_selftest.c 0x50-0x52, k5_syscall_selftest.c 0x60-0x68 and
++ * k5_clone_selftest.c 0x70-0x77; this probe takes 0x78-0x7f.
++ */
++#define K5F_FAIL_SETUP	0x78	/* mm / page / task setup failed */
++#define K5F_FAIL_F1	0x79	/* WAIT is atomic / the wake is not lost */
++#define K5F_FAIL_F1A	0x7a	/* the check-then-sleep recheck */
++#define K5F_FAIL_F2	0x7b	/* WAKE(n) wakes exactly n */
++#define K5F_FAIL_F3	0x7c	/* the lr/sc cmpxchg competition */
++#define K5F_FAIL_F4	0x7d	/* lr … sc must not cross a syscall */
++#define K5F_FAIL_F5	0x7e	/* FUTEX_REQUEUE */
++#define K5F_FAIL_F6	0x7f	/* WAIT_BITSET / WAKE_BITSET */
++#define K5F_FAIL_F8	0x69	/* WAKE_OP: the arch atomic RMW */
++#define K5F_FAIL_F7	0x6a	/* CLONE_CHILD_CLEARTID's clear */
++
++/*
++ * The probe's memory window (1 TiB: inside user space, outside every kernel
++ * slot).  The user stub is assembled for these addresses: it is copied into
++ * the code page and entered there, so absolute data/stack addresses are legal
++ * and the gate compares this block with the stub's own copy of the numbers.
++ */
++#define K5F_VA_BASE		(1UL << 40)
++#define K5F_CODE_VA		(K5F_VA_BASE + 64 * PAGE_SIZE)
++#define K5F_DATA_VA		(K5F_VA_BASE + 65 * PAGE_SIZE)
++#define K5F_STACK_VA(i)		(K5F_VA_BASE + (66 + (i)) * PAGE_SIZE)
++#define K5F_PARENT_STACK	K5F_STACK_VA(0)
++#define K5F_MAX_THREADS		10
++
++/* The u32 words of the data page (4-byte aligned; four bytes of padding
++ * between cases so a stray `.o` access cannot alias two of them). */
++#define K5F_W_F4		0
++#define K5F_W_F3		8
++#define K5F_W_F1		16
++#define K5F_W_F1B		20
++#define K5F_W_F2		24
++#define K5F_W_F5A		28
++#define K5F_W_F5B		32
++#define K5F_W_F6		36
++#define K5F_W_F7		40
++#define K5F_W_WAKEOP_A	44
++#define K5F_W_WAKEOP_B	48
++
++/*
++ * The constants the user program sends.  They are repeated in
++ * `kernel/trap.S` (the stub cannot include a kernel header) and the gate
++ * cross-checks the two copies against each other and against
++ * `include/uapi/linux/futex.h` — a drift is a FAIL, not a silent agreement.
++ */
++#define K5F_F4_MARK		0x5a5a5a5a	/* the word before the lr/sc pair */
++#define K5F_F4_STORE		0x77777777	/* what a wrongly-successful sc writes */
++#define K5F_F3_PVAL		0x3333cafe	/* the parent's candidate */
++#define K5F_F3_TVAL		0x33330f0f	/* the peer's candidate */
++#define K5F_F2_WAITERS		3		/* waiters that sleep on F2's word */
++#define K5F_F2_WAKE		2		/* how many of them WAKE(2) takes */
++#define K5F_F5_MOVED		1		/* the one waiter F5 requeues */
++#define K5F_F6_BITS		0x2		/* the waiter's bitset */
++#define K5F_F6_OTHER		0x1		/* a bitset that shares no bit */
++
++/* The user program's scripts, carried in `rbtp` (`rb3`) by CLONE_SETTLS. */
++#define K5F_SCRIPT_WAIT_F1	1
++#define K5F_SCRIPT_ATOMIC	2
++#define K5F_SCRIPT_REQUEUE	3
++#define K5F_SCRIPT_BITSET	4
++#define K5F_SCRIPT_CMPXCHG	5
++#define K5F_SCRIPT_EXITNOW	6
++
++/* The probe's own umon functions (the contract defines 0 and 1, DADAO-22 §2). */
++#define K5F_TRAP_REG		0x2c01	/* rd21 = clone tid, rd22 = script */
++#define K5F_TRAP_ARM		0x2c02	/* park until the child reaches its wait */
++#define K5F_TRAP_F4		0x2c03	/* F4's report */
++#define K5F_TRAP_F3_YIELD	0x2c04	/* park: the peer's cmpxchg runs here */
++#define K5F_TRAP_F3		0x2c05	/* F3's report */
++#define K5F_TRAP_F1		0x2c06	/* F1's wake report */
++#define K5F_TRAP_F1A		0x2c07	/* F1A's observation */
++#define K5F_TRAP_F2		0x2c08	/* F2's first wake report */
++#define K5F_TRAP_F2B		0x2c09	/* F2's second wake report */
++#define K5F_TRAP_F5A		0x2c0a	/* F5's requeue report */
++#define K5F_TRAP_F5B		0x2c0b	/* F5's wake report */
++#define K5F_TRAP_F6A		0x2c0c	/* F6's mismatching wake report */
++#define K5F_TRAP_F6B		0x2c0d	/* F6's matching wake report */
++#define K5F_TRAP_F8		0x2c0f	/* F8's report */
++#define K5F_TRAP_F7		0x2c10	/* F7's report */
++#define K5F_TRAP_DONE		0x2c0e	/* every case judged */
++#define K5F_TRAP_PRE_WAIT	0x2c20	/* child: the word changes before WAIT */
++#define K5F_TRAP_REPORT		0x2c21	/* child: my syscall returned */
++
++extern const char dadao_k5f_user_stub[];
++extern const char dadao_k5f_user_stub_end[];
++
++/* -------------------------------------------------------------------------
++ * reporting
++ * ------------------------------------------------------------------------- */
++
++static unsigned int k5f_failed;
++
++static void __noreturn k5f_fail(unsigned int code, const char *what,
++				unsigned long value)
++{
++	dadao_early_printf("K5 futex FAIL: %s=%#lx code=%#x\n", what, value, code);
++	dadao_early_exit(code);
++}
++
++/*
++ * One assertion.  A mismatch names itself and ends the boot: the cases build on
++ * each other (a lost wake would leave the next hand-over without an actor), so
++ * there is no honest "continue and count" here.
++ */
++static void k5f_expect(const char *what, unsigned long expected,
++		       unsigned long actual, unsigned int code)
++{
++	int ok = expected == actual;
++
++	dadao_early_printf("K5 check %s want=%#lx got=%#lx %s\n", what, expected,
++			   actual, ok ? "ok" : "FAIL");
++	if (!ok) {
++		k5f_failed |= code;
++		dadao_early_exit(code);
++	}
++}
++
++/* -------------------------------------------------------------------------
++ * state shared between the probe task and the umon hook
++ * ------------------------------------------------------------------------- */
++
++static struct mm_struct *k5f_mm;
++static struct pt_regs k5f_user_frame;		/* one hart, one program */
++
++static struct task_struct *k5f_parent;
++
++/* One per user thread the program creates: its pid, its script and the two
++ * hand-overs (armed = it reached its first trap; reported = its syscall
++ * returned and it told us). */
++struct k5f_slot {
++	int pid;
++	int script;
++	int armed;
++	int reported;
++	long ret;
++	/* What its first trap carried: the syscall it is about to make.  The
++	 * gate compares these with the uapi numbers; the cases use the bitset
++	 * before the wait returns. */
++	unsigned long first_nr;
++	unsigned long first_op;
++	unsigned long first_val;
++	unsigned long first_uaddr;
++	unsigned long first_bitset;
++	u32 pre_read;		/* F1A: the value it read before its FUTEX_WAIT */
++	/* F7: what the task's `clear_child_tid` held when it reached its exit
++	 * trap, and the address space's user count at that moment. */
++	unsigned long clear_tid;
++	int mm_users;
++	u32 res[8];		/* rd21-rd28 at its report trap (per-script) */
++	struct completion go;
++	struct completion report;
++};
++
++static struct k5f_slot k5f_slots[K5F_MAX_THREADS];
++static int k5f_nslots;
++static int k5f_last_slot;
++
++static struct completion k5f_done;	/* the parent: every case judged */
++static struct completion k5f_park;	/* never completed: parks the parent */
++/* Completed by every child report, in addition to its slot's own: a case that
++ * does not know *which* waiter wakes first waits on this one. */
++static struct completion k5f_any_report;
++/* Completed at the F7 child's exit *trap* (before do_exit() runs): the parent
++ * then reads the tid word, which the exit path has already cleared. */
++static struct completion k5f_child_exit;
++
++static unsigned int k5f_traps;
++
++/* -------------------------------------------------------------------------
++ * the user program's task and address space
++ * ------------------------------------------------------------------------- */
++
++static void k5f_map_window(unsigned long va, unsigned long prot,
++			   struct page *page)
++{
++	struct vm_area_struct *vma;
++	unsigned long addr;
++	unsigned long flags = MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS;
++
++	addr = vm_mmap(NULL, va, PAGE_SIZE, prot, flags, 0);
++	if (addr != va)
++		k5f_fail(K5F_FAIL_SETUP, "vm_mmap", addr);
++	if (!page)
++		return;
++	mmap_write_lock(k5f_mm);
++	vma = find_vma(k5f_mm, va);
++	if (!vma)
++		k5f_fail(K5F_FAIL_SETUP, "find_vma", va);
++	vma->vm_private_data = (void *)page_to_phys(page);
++	mmap_write_unlock(k5f_mm);
++}
++
++static int k5f_user_task(void *arg)
++{
++	struct pt_regs *frame = &k5f_user_frame;
++
++	dadao_early_printf("K5 futex user: enter pid=%d\n", current->pid);
++	get_task_struct(current);
++	k5f_parent = current;
++	current->mm = k5f_mm;
++	current->active_mm = k5f_mm;
++	dadao_switch_mm(NULL, k5f_mm, current);
++
++	memset(frame, 0, sizeof(*frame));
++	frame->ip = K5F_CODE_VA;
++	frame->rb[1] = K5F_PARENT_STACK + PAGE_SIZE;
++	frame->status = 0;
++	dadao_enter_user(frame);		/* never returns */
++}
++
++/* -------------------------------------------------------------------------
++ * helpers the hook uses on the probe's user memory and its tasks
++ * ------------------------------------------------------------------------- */
++
++static u32 __user *k5f_word(unsigned long off)
++{
++	return (u32 __user *)(K5F_DATA_VA + off);
++}
++
++static u32 k5f_read_word(unsigned long off)
++{
++	u32 value = 0;
++
++	if (get_user(value, k5f_word(off)))
++		k5f_fail(K5F_FAIL_SETUP, "get_user", off);
++	return value;
++}
++
++static void k5f_write_word(unsigned long off, u32 value)
++{
++	if (put_user(value, k5f_word(off)))
++		k5f_fail(K5F_FAIL_SETUP, "put_user", off);
++}
++
++/* The task's state, or -1 when it is gone (find_get_task_by_vpid() takes the
++ * reference; the value is the scheduler's own `__state`). */
++static int k5f_task_state(int pid)
++{
++	struct task_struct *task = find_get_task_by_vpid(pid);
++	int state;
++
++	if (!task)
++		return -1;
++	state = READ_ONCE(task->__state);
++	put_task_struct(task);
++	return state;
++}
++
++static struct k5f_slot *k5f_slot_by_pid(int pid)
++{
++	int i;
++
++	for (i = 0; i < k5f_nslots; i++)
++		if (k5f_slots[i].pid == pid)
++			return &k5f_slots[i];
++	return NULL;
++}
++
++static struct k5f_slot *k5f_register(int pid, int script)
++{
++	struct k5f_slot *slot;
++
++	if (k5f_nslots >= K5F_MAX_THREADS)
++		k5f_fail(K5F_FAIL_SETUP, "slots", k5f_nslots);
++	slot = &k5f_slots[k5f_nslots++];
++	slot->pid = pid;
++	slot->script = script;
++	slot->armed = 0;
++	slot->reported = 0;
++	slot->ret = 0;
++	slot->clear_tid = 0;
++	slot->mm_users = 0;
++	memset(slot->res, 0, sizeof(slot->res));
++	init_completion(&slot->go);
++	init_completion(&slot->report);
++	k5f_last_slot = k5f_nslots - 1;
++	dadao_early_printf("K5 futex reg: slot=%d pid=%d script=%d\n",
++			   k5f_last_slot, pid, script);
++	return slot;
++}
++
++/* How many of @n slots sit in the running state (woken) / in a sleeping state
++ * (still waiting).  A task that is neither current nor asleep on this port is
++ * runnable, i.e. `TASK_RUNNING`. */
++static int k5f_count_running(struct k5f_slot **slots, int n)
++{
++	int i, count = 0;
++
++	for (i = 0; i < n; i++)
++		if (k5f_task_state(slots[i]->pid) == TASK_RUNNING)
++			count++;
++	return count;
++}
++
++/* 1 when the task is not runnable: a sleeper (this port has no other
++ * non-running state for a live user task besides the two. */
++static int k5f_sleeping(int pid)
++{
++	return k5f_task_state(pid) != TASK_RUNNING;
++}
++
++static int k5f_count_armed(struct k5f_slot **slots, int n)
++{
++	int i, count = 0;
++
++	for (i = 0; i < n; i++)
++		if (slots[i]->armed)
++			count++;
++	return count;
++}
++
++static int k5f_count_reported(struct k5f_slot **slots, int n)
++{
++	int i, count = 0;
++
++	for (i = 0; i < n; i++)
++		if (slots[i]->reported)
++			count++;
++	return count;
++}
++
++/* -------------------------------------------------------------------------
++ * the cases: the parent's side
++ * ------------------------------------------------------------------------- */
++
++/* F4: the sc result of the control pair, the sc result across the syscall and
++ * the word after that second sc. */
++static void k5f_check_f4(struct pt_regs *regs)
++{
++	k5f_expect("f4_sc_immediate", 0, regs->rd[24], K5F_FAIL_F4);
++	k5f_expect("f4_sc_value", K5F_F4_MARK, regs->rd[25], K5F_FAIL_F4);
++	k5f_expect("f4_sc_after_syscall", 1, regs->rd[26], K5F_FAIL_F4);
++	k5f_expect("f4_word_after_crossing", K5F_F4_MARK, regs->rd[27],
++		   K5F_FAIL_F4);
++}
++
++/*
++ * F3: the parent's lr was cancelled by the entry, the peer's cmpxchg stored,
++ * the parent's retry read the peer's value and stored nothing.
++ */
++static void k5f_check_f3(struct pt_regs *regs)
++{
++	struct k5f_slot *peer = &k5f_slots[k5f_last_slot];
++
++	k5f_expect("f3_parent_sc_after_yield", 1, regs->rd[21], K5F_FAIL_F3);
++	k5f_expect("f3_parent_retry_value", K5F_F3_TVAL, regs->rd[22],
++		   K5F_FAIL_F3);
++	k5f_expect("f3_parent_retry_stored", 0, regs->rd[23], K5F_FAIL_F3);
++	k5f_expect("f3_word", K5F_F3_TVAL, regs->rd[28], K5F_FAIL_F3);
++
++	k5f_expect("f3_peer_success", 0, peer->res[1], K5F_FAIL_F3);
++	k5f_expect("f3_peer_value_seen", 0, peer->res[0], K5F_FAIL_F3);
++	k5f_expect("f3_peer_word", K5F_F3_TVAL, peer->res[2], K5F_FAIL_F3);
++	k5f_expect("f3_peer_script", K5F_SCRIPT_CMPXCHG, peer->script,
++		   K5F_FAIL_F3);
++}
++
++/* F1: the wake found the waiter, woke it, and the waiter's wait returned 0. */
++static void k5f_check_f1(struct pt_regs *regs)
++{
++	struct k5f_slot *waiter = &k5f_slots[k5f_last_slot];
++
++	k5f_expect("f1_wake_count", 1, regs->rd[21], K5F_FAIL_F1);
++	/* The waiter must be runnable *now*: a lost wake leaves it asleep. */
++	k5f_expect("f1_waiter_awake", 1,
++		   (unsigned long)!k5f_sleeping(waiter->pid), K5F_FAIL_F1);
++	k5f_expect("f1_waiter_script", K5F_SCRIPT_WAIT_F1, waiter->script,
++		   K5F_FAIL_F1);
++	k5f_expect("f1_waiter_word", 1, k5f_read_word(K5F_W_F1), K5F_FAIL_F1);
++
++	wait_for_completion(&waiter->report);
++	k5f_expect("f1_waiter_reported", 1, waiter->reported, K5F_FAIL_F1);
++	k5f_expect("f1_waiter_ret", 0, (unsigned long)waiter->ret, K5F_FAIL_F1);
++}
++
++/* F1A: the recheck.  If the waiter never reported, the kernel slept although
++ * the word no longer matched — the check-then-sleep pair is not atomic. */
++static void k5f_check_f1a(struct pt_regs *regs)
++{
++	struct k5f_slot *waiter = &k5f_slots[k5f_last_slot];
++
++	k5f_expect("f1a_waiter_returned", 1, waiter->reported, K5F_FAIL_F1A);
++	k5f_expect("f1a_waiter_script", K5F_SCRIPT_ATOMIC, waiter->script,
++		   K5F_FAIL_F1A);
++	k5f_expect("f1a_word", 1, k5f_read_word(K5F_W_F1B), K5F_FAIL_F1A);
++	k5f_expect("f1a_ret_is_eagain", (unsigned long)-EAGAIN,
++		   (unsigned long)waiter->ret, K5F_FAIL_F1A);
++	k5f_expect("f1a_read_before_change", 0, waiter->pre_read, K5F_FAIL_F1A);
++}
++
++/* F2, first half: WAKE(2) of three waiters. */
++static void k5f_check_f2(struct pt_regs *regs)
++{
++	struct k5f_slot *waiters[K5F_F2_WAITERS];
++	int i, base = k5f_last_slot - (K5F_F2_WAITERS - 1);
++
++	for (i = 0; i < K5F_F2_WAITERS; i++)
++		waiters[i] = &k5f_slots[base + i];
++
++	/* Measured, not assumed: all three reached their FUTEX_WAIT. */
++	k5f_expect("f2_armed", K5F_F2_WAITERS,
++		   k5f_count_armed(waiters, K5F_F2_WAITERS), K5F_FAIL_F2);
++	for (i = 0; i < K5F_F2_WAITERS; i++)
++		k5f_expect("f2_waiter_script", K5F_SCRIPT_WAIT_F1,
++			   waiters[i]->script, K5F_FAIL_F2);
++	k5f_expect("f2_wake_count", K5F_F2_WAKE, regs->rd[21], K5F_FAIL_F2);
++	k5f_expect("f2_awake", K5F_F2_WAKE,
++		   k5f_count_running(waiters, K5F_F2_WAITERS), K5F_FAIL_F2);
++
++	/* Wait for exactly the woken ones (which of them is not known here). */
++	while (k5f_count_reported(waiters, K5F_F2_WAITERS) < K5F_F2_WAKE)
++		wait_for_completion(&k5f_any_report);
++	k5f_expect("f2_reported", K5F_F2_WAKE,
++		   k5f_count_reported(waiters, K5F_F2_WAITERS), K5F_FAIL_F2);
++	for (i = 0; i < K5F_F2_WAITERS; i++) {
++		struct k5f_slot *w = waiters[i];
++
++		if (w->reported)
++			k5f_expect("f2_reported_ret", 0,
++				   (unsigned long)w->ret, K5F_FAIL_F2);
++		else		/* the one left asleep: it must still be asleep */
++			k5f_expect("f2_left_asleep", 1, k5f_sleeping(w->pid),
++				   K5F_FAIL_F2);
++	}
++}
++
++/* F2, second half: WAKE(1) takes the waiter that was left asleep. */
++static void k5f_check_f2b(struct pt_regs *regs)
++{
++	struct k5f_slot *waiters[K5F_F2_WAITERS];
++	struct k5f_slot *left = NULL;
++	int i, base = k5f_last_slot - (K5F_F2_WAITERS - 1);
++
++	for (i = 0; i < K5F_F2_WAITERS; i++) {
++		waiters[i] = &k5f_slots[base + i];
++		if (!waiters[i]->reported)
++			left = waiters[i];
++	}
++
++	/* The two woken in the first half have exited; the third is the one
++	 * that slept through it, and it is the one WAKE(1) must take. */
++	k5f_expect("f2b_left_waiter", 1, left != NULL, K5F_FAIL_F2);
++	k5f_expect("f2b_wake_count", 1, regs->rd[22], K5F_FAIL_F2);
++	k5f_expect("f2b_left_awake", 1, (unsigned long)!k5f_sleeping(left->pid),
++		   K5F_FAIL_F2);
++	while (k5f_count_reported(waiters, K5F_F2_WAITERS) < K5F_F2_WAITERS)
++		wait_for_completion(&k5f_any_report);
++	k5f_expect("f2b_reported", K5F_F2_WAITERS,
++		   k5f_count_reported(waiters, K5F_F2_WAITERS), K5F_FAIL_F2);
++	for (i = 0; i < K5F_F2_WAITERS; i++)
++		k5f_expect("f2b_reported_ret", 0,
++			   (unsigned long)waiters[i]->ret, K5F_FAIL_F2);
++}
++
++/* F5: the requeue woke nobody, the waiter moved to the second word and the
++ * wake there reached it. */
++static void k5f_check_f5a(struct pt_regs *regs)
++{
++	struct k5f_slot *waiter = &k5f_slots[k5f_last_slot];
++
++	/* `futex_requeue()` answers the number of waiters woken *or requeued*
++	 * (futex(2)); this case moves one and wakes none. */
++	k5f_expect("f5_requeue_moved", K5F_F5_MOVED, regs->rd[21], K5F_FAIL_F5);
++	k5f_expect("f5_waiter_still_asleep", 1, k5f_sleeping(waiter->pid),
++		   K5F_FAIL_F5);
++	k5f_expect("f5_waiter_script", K5F_SCRIPT_REQUEUE, waiter->script,
++		   K5F_FAIL_F5);
++}
++
++static void k5f_check_f5b(struct pt_regs *regs)
++{
++	struct k5f_slot *waiter = &k5f_slots[k5f_last_slot];
++
++	k5f_expect("f5_wake_on_destination", 1, regs->rd[22], K5F_FAIL_F5);
++	k5f_expect("f5_waiter_awake", 1,
++		   (unsigned long)!k5f_sleeping(waiter->pid), K5F_FAIL_F5);
++	wait_for_completion(&waiter->report);
++	k5f_expect("f5_waiter_reported", 1, waiter->reported, K5F_FAIL_F5);
++	k5f_expect("f5_waiter_ret", 0, (unsigned long)waiter->ret, K5F_FAIL_F5);
++}
++
++/* F6: the bitset is what the wake matches on. */
++static void k5f_check_f6a(struct pt_regs *regs)
++{
++	struct k5f_slot *waiter = &k5f_slots[k5f_last_slot];
++
++	k5f_expect("f6_other_bitset_wake", 0, regs->rd[21], K5F_FAIL_F6);
++	k5f_expect("f6_waiter_still_asleep", 1, k5f_sleeping(waiter->pid),
++		   K5F_FAIL_F6);
++	k5f_expect("f6_waiter_bitset", K5F_F6_BITS, waiter->first_bitset,
++		   K5F_FAIL_F6);
++}
++
++static void k5f_check_f6b(struct pt_regs *regs)
++{
++	struct k5f_slot *waiter = &k5f_slots[k5f_last_slot];
++
++	k5f_expect("f6_bitset_wake", 1, regs->rd[22], K5F_FAIL_F6);
++	k5f_expect("f6_waiter_awake", 1,
++		   (unsigned long)!k5f_sleeping(waiter->pid), K5F_FAIL_F6);
++	wait_for_completion(&waiter->report);
++	k5f_expect("f6_waiter_reported", 1, waiter->reported, K5F_FAIL_F6);
++	k5f_expect("f6_waiter_ret", 0, (unsigned long)waiter->ret, K5F_FAIL_F6);
++}
++
++/*
++ * F8: `FUTEX_WAKE_OP`.  The operation half is `arch_futex_atomic_op_inuser()`
++ * — the `lr.t`/`sc.t` read-modify-write this task adds — and the wake half is
++ * an ordinary `FUTEX_WAKE` on the first word, gated by the comparison the op
++ * returns.  The word really has to change (0x10 -> 0x11): that is the only
++ * externally visible evidence that the atomic RMW ran.
++ */
++static void k5f_check_f8(struct pt_regs *regs)
++{
++	struct k5f_slot *waiter = &k5f_slots[k5f_last_slot];
++
++	k5f_expect("f8_wakeop_count", 1, regs->rd[21], K5F_FAIL_F8);
++	k5f_expect("f8_op_word", 0x11, regs->rd[22], K5F_FAIL_F8);
++	k5f_expect("f8_waiter_script", K5F_SCRIPT_WAIT_F1, waiter->script,
++		   K5F_FAIL_F8);
++	k5f_expect("f8_waiter_awake", 1,
++		   (unsigned long)!k5f_sleeping(waiter->pid), K5F_FAIL_F8);
++	wait_for_completion(&waiter->report);
++	k5f_expect("f8_waiter_reported", 1, waiter->reported, K5F_FAIL_F8);
++	k5f_expect("f8_waiter_ret", 0, (unsigned long)waiter->ret, K5F_FAIL_F8);
++}
++
++/*
++ * F7: `CLONE_CHILD_CLEARTID`.  musl's `pthread_create()` passes this flag
++ * (`pthread_create.c`: `CLONE_PARENT_SETTID | CLONE_CHILD_CLEARTID`), so the
++ * kernel is required to clear the thread's tid word when the thread exits.  The
++ * case checks the three facts that make the clear real:
++ *
++ *   - the child's `clear_child_tid` *is* the word the program named (the flag
++ *     reached `copy_process()` through the ABI's 5th argument);
++ *   - the address space had another user at that moment (`mm_users > 1`, the
++ *     precondition `mm_release()` puts on the clear);
++ *   - the word is 0 when the parent runs again — the child finished exiting
++ *     before another task got the CPU (a blocked task is the only hand-over on
++ *     this port).
++ *
++ * The *wake* half of CLEARTID is `mm_release()`'s `do_futex(FUTEX_WAKE, …,
++ * flags = 0)`, i.e. a **shared** futex; on this port's anonymous pages a shared
++ * futex key returns `-EFAULT` (`get_futex_key()`'s `!folio->mapping` branch, see
++ * the task book's 「待裁定 2」), so that wake is silent.  It is not asserted
++ * here: nothing in musl waits there (`pthread_join` waits private on
++ * `detach_state`).
++ */
++static void k5f_check_f7(struct pt_regs *regs)
++{
++	struct k5f_slot *child = &k5f_slots[k5f_last_slot];
++	unsigned long word = K5F_DATA_VA + K5F_W_F7;
++
++	k5f_expect("f7_clear_tid_ptr", word, child->clear_tid, K5F_FAIL_F7);
++	k5f_expect("f7_mm_users_gt1", 1, (unsigned long)(child->mm_users > 1),
++		   K5F_FAIL_F7);
++	k5f_expect("f7_tid_cleared", 0, k5f_read_word(K5F_W_F7), K5F_FAIL_F7);
++	k5f_expect("f7_child_script", K5F_SCRIPT_EXITNOW, child->script,
++		   K5F_FAIL_F7);
++	k5f_expect("f7_child_reported", 1, child->reported, K5F_FAIL_F7);
++}
++
++/* -------------------------------------------------------------------------
++ * the umon hook
++ * ------------------------------------------------------------------------- */
++
++/* A child's trap: its first one is the hand-over, a REPORT is its verdict. */
++static int k5f_child_trap(struct pt_regs *regs, unsigned long immu18,
++			  unsigned long *policy)
++{
++	struct task_struct *cur = current;
++	struct k5f_slot *slot = k5f_slot_by_pid(cur->pid);
++
++	if (!slot)
++		k5f_fail(K5F_FAIL_SETUP, "unregistered child", cur->pid);
++
++	if (!slot->armed) {
++		slot->armed = 1;
++		slot->first_nr = regs->rd[15];
++		slot->first_op = regs->rd[16];
++		slot->first_val = regs->rd[17];
++		slot->first_uaddr = regs->rb[16];
++		slot->first_bitset = regs->rd[18];
++		dadao_early_printf("K5 futex child: pid=%d script=%d "
++				   "immu18=%#lx nr=%#lx op=%#lx val=%#lx "
++				   "uaddr=%#lx bitset=%#lx\n", cur->pid,
++				   slot->script, immu18, regs->rd[15],
++				   regs->rd[16], regs->rd[17], regs->rb[16],
++				   regs->rd[18]);
++		/*
++		 * F1A's other half: the child read the word (0) and trapped
++		 * here; the *waker's* store happens now, i.e. after the program
++		 * read it and before its FUTEX_WAIT.  The value the program read
++		 * is in its `rd5`; it will pass it as the expected value.
++		 */
++		if (immu18 == K5F_TRAP_PRE_WAIT) {
++			slot->pre_read = (u32)regs->rd[5];
++			k5f_write_word(K5F_W_F1B, 1);
++		}
++		complete(&slot->go);
++	}
++
++	if (immu18 == K5F_TRAP_PRE_WAIT) {
++		/* A probe function, not a syscall: it has done its work above. */
++		*policy = DADAO_TRAP_RESUME_SKIP;
++		return 1;
++	}
++
++	if (immu18 == K5F_TRAP_REPORT) {
++		int i;
++
++		slot->reported = 1;
++		slot->ret = (long)regs->rd[8];
++		for (i = 0; i < 8; i++)
++			slot->res[i] = (u32)regs->rd[21 + i];
++		dadao_early_printf("K5 futex report: pid=%d script=%d ret=%#lx "
++				   "res=%#x,%#x,%#x,%#x\n", cur->pid,
++				   slot->script, regs->rd[8], slot->res[0],
++				   slot->res[1], slot->res[2], slot->res[3]);
++		complete(&slot->report);
++		complete(&k5f_any_report);
++		*policy = DADAO_TRAP_RESUME_SKIP;
++		return 1;
++	}
++
++	/*
++	 * F7's hand-over: the child's exit trap runs in the kernel before
++	 * do_exit(), so record what `clear_child_tid` holds and let the parent
++	 * go — the child then finishes exiting (mm_release runs) before another
++	 * task can be scheduled on this hart.
++	 */
++	if (immu18 == 0 && regs->rd[15] == __NR_exit &&
++	    slot->script == K5F_SCRIPT_EXITNOW) {
++		slot->clear_tid = (unsigned long)current->clear_child_tid;
++		slot->mm_users = atomic_read(&current->mm->mm_users);
++		complete(&k5f_child_exit);
++	}
++
++	return 0;		/* its futex/clone/exit: dispatch it */
++}
++
++/* The parent's traps.  Returns 1 when the trap was a probe function (the
++ * policy is then set), 0 when it is a real syscall to dispatch. */
++static int k5f_parent_trap(struct pt_regs *regs, unsigned long immu18,
++			   unsigned long *policy)
++{
++	switch (immu18) {
++	case K5F_TRAP_REG:
++		k5f_register((int)regs->rd[21], (int)regs->rd[22]);
++		/* F7 is the last case, but the completion must be fresh for it:
++		 * the earlier cases' children exit too and would complete a
++		 * shared one. */
++		if (regs->rd[22] == K5F_SCRIPT_EXITNOW)
++			reinit_completion(&k5f_child_exit);
++		break;
++	case K5F_TRAP_ARM:
++		/* Park until the child has reached its wait (or its trap). */
++		wait_for_completion(&k5f_slots[k5f_last_slot].go);
++		break;
++	case K5F_TRAP_F4:
++		k5f_check_f4(regs);
++		break;
++	case K5F_TRAP_F3_YIELD:
++		/*
++		 * The peer is runnable and runs the moment this hook blocks;
++		 * its report completes the completion and the parent continues
++		 * with its (now reservation-less) `sc`.
++		 */
++		wait_for_completion(&k5f_slots[k5f_last_slot].report);
++		break;
++	case K5F_TRAP_F3:
++		k5f_check_f3(regs);
++		break;
++	case K5F_TRAP_F1:
++		k5f_check_f1(regs);
++		break;
++	case K5F_TRAP_F1A:
++		k5f_check_f1a(regs);
++		break;
++	case K5F_TRAP_F2:
++		k5f_check_f2(regs);
++		break;
++	case K5F_TRAP_F2B:
++		k5f_check_f2b(regs);
++		break;
++	case K5F_TRAP_F5A:
++		k5f_check_f5a(regs);
++		break;
++	case K5F_TRAP_F5B:
++		k5f_check_f5b(regs);
++		break;
++	case K5F_TRAP_F6A:
++		k5f_check_f6a(regs);
++		break;
++	case K5F_TRAP_F6B:
++		k5f_check_f6b(regs);
++		break;
++	case K5F_TRAP_F8:
++		k5f_check_f8(regs);
++		break;
++	case K5F_TRAP_F7:
++		wait_for_completion(&k5f_child_exit);
++		k5f_check_f7(regs);
++		break;
++	case K5F_TRAP_DONE:
++		dadao_early_printf("K5 futex selftest: cases judged, "
++				   "traps=%u slots=%d\n", k5f_traps, k5f_nslots);
++		complete(&k5f_done);
++		/* Park: the boot task must see a quiescent machine. */
++		wait_for_completion(&k5f_park);
++		break;
++	default:
++		if (immu18 >= 0x2c00)	/* a probe function nobody claimed */
++			k5f_fail(K5F_FAIL_SETUP, "unclaimed probe trap", immu18);
++		return 0;		/* a real syscall: dispatch it */
++	}
++	*policy = DADAO_TRAP_RESUME_SKIP;
++	return 1;
++}
++
++int dadao_k5f_user_trap(struct pt_regs *regs, unsigned long immu18,
++			unsigned long *policy)
++{
++	struct task_struct *cur = current;
++
++	if (k5f_traps++ < 96)
++		dadao_early_printf("K5 futex trap %u: pid=%d nr=%#lx immu18=%#lx "
++				   "ip=%#lx rd8=%#lx rb16=%#lx rd16=%#lx rd17=%#lx\n",
++				   k5f_traps, cur->pid, regs->rd[15], immu18,
++				   regs->ip, regs->rd[8], regs->rb[16],
++				   regs->rd[16], regs->rd[17]);
++
++	if (cur == k5f_parent)
++		return k5f_parent_trap(regs, immu18, policy);
++
++	return k5f_child_trap(regs, immu18, policy);
++}
++
++/* -------------------------------------------------------------------------
++ * the entry point
++ * ------------------------------------------------------------------------- */
++
++void __noreturn dadao_k5_futex_selftest(void)
++{
++	struct kernel_clone_args args = { .flags = 0, .exit_signal = SIGCHLD };
++	struct page *code;
++	unsigned long size;
++	int i, pid;
++
++	dadao_early_printf("K5 futex selftest: begin pid=%d\n", current->pid);
++	dadao_early_printf("K5 futex const: f2_waiters=%d f2_wake=%d bits=%#x "
++			   "other=%#x\n", K5F_F2_WAITERS, K5F_F2_WAKE,
++			   K5F_F6_BITS, K5F_F6_OTHER);
++
++	size = (unsigned long)(dadao_k5f_user_stub_end - dadao_k5f_user_stub);
++	if (size > PAGE_SIZE)
++		k5f_fail(K5F_FAIL_SETUP, "stub size", size);
++
++	code = alloc_page(GFP_KERNEL | __GFP_ZERO);
++	if (!code)
++		k5f_fail(K5F_FAIL_SETUP, "alloc_page", 0);
++	memcpy(page_address(code), dadao_k5f_user_stub, size);
++
++	k5f_mm = mm_alloc();
++	if (!k5f_mm)
++		k5f_fail(K5F_FAIL_SETUP, "mm_alloc", 0);
++	{
++		/* vm_mmap() maps into a task's mm; the probe's own has none. */
++		struct mm_struct *saved = current->mm;
++
++		current->mm = k5f_mm;
++		k5f_map_window(K5F_CODE_VA, PROT_READ | PROT_EXEC, code);
++		k5f_map_window(K5F_DATA_VA, PROT_READ | PROT_WRITE, NULL);
++		for (i = 0; i <= K5F_MAX_THREADS; i++)
++			k5f_map_window(K5F_STACK_VA(i),
++				       PROT_READ | PROT_WRITE, NULL);
++		current->mm = saved;
++	}
++	dadao_early_printf("K5 futex selftest: stub=%lu bytes code=%#lx "
++			   "data=%#lx\n", size, K5F_CODE_VA, K5F_DATA_VA);
++
++	init_completion(&k5f_done);
++	init_completion(&k5f_park);
++	init_completion(&k5f_any_report);
++	init_completion(&k5f_child_exit);
++
++	args.fn = k5f_user_task;
++	args.fn_arg = NULL;
++	pid = kernel_clone(&args);
++	if (pid <= 0)
++		k5f_fail(K5F_FAIL_SETUP, "kernel_clone", (unsigned long)pid);
++
++	/* Off the run queue: the user program (and its threads) can run. */
++	wait_for_completion(&k5f_done);
++
++	if (k5f_failed) {
++		dadao_early_printf("K5 futex selftest: FAIL mask=%#x\n",
++				   k5f_failed);
++		dadao_early_exit(k5f_failed);
++	}
++	dadao_early_printf("K5 futex selftest: done (futex/atomics closed)\n");
++	dadao_early_exit(0);
++}
++
++/*
++ * `late_initcall`: inside `kernel_init`, once the initramfs is unpacked and the
++ * futex hash exists (a clone from a task with an mm sizes it — m14-linux-020's
++ * note).  A milestone image does not compile this.
++ */
++static int __init k5_futex_selftest_init(void)
++{
++	dadao_k5_futex_selftest();
++}
++late_initcall(k5_futex_selftest_init);

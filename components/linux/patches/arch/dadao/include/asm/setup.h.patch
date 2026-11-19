@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..398a4edd3
+index 000000000..b5416c3f4
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,250 @@
+@@ -0,0 +1,261 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -157,6 +157,17 @@ index 000000000..398a4edd3
 + * probe claims the trap (its reporting trap), 0 to let the dispatcher run. */
 +int dadao_k5_user_trap(struct pt_regs *regs, unsigned long immu18,
 +		       unsigned long *policy);
++#endif
++
++#if defined(CONFIG_DADAO_K5_FUTEX_SELFTEST)
++/* The futex/atomic probe image: runs from a late_initcall and ends the boot. */
++void __noreturn dadao_k5_futex_selftest(void);
++/* Its view of every umon trap of the probe's user program and its threads.
++ * Returns 1 when the probe claims the trap, 0 to let the dispatcher run; it may
++ * block (the parent's hand-over traps park here), which is why the dispatcher
++ * calls it with the re-entrancy guard dropped. */
++int dadao_k5f_user_trap(struct pt_regs *regs, unsigned long immu18,
++			unsigned long *policy);
 +#endif
 +
 +#if defined(CONFIG_DADAO_K5_CLONE_SELFTEST)

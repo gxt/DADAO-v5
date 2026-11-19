@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..4ade9eb42
+index 000000000..b68b90b76
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,446 @@
+@@ -0,0 +1,455 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -346,6 +346,15 @@ index 000000000..4ade9eb42
 +	 * program needs the initramfs and the VFS, so it runs from a
 +	 * `late_initcall` inside `kernel_init` (kernel/k5_syscall_selftest.c)
 +	 * and owns the final SYS_EXIT there.
++	 */
++	return;
++#endif
++#ifdef CONFIG_DADAO_K5_FUTEX_SELFTEST
++	/*
++	 * The futex/atomic probe (m14-linux-025) runs where the clone probe
++	 * does — from a `late_initcall` inside `kernel_init`, once the futex
++	 * hash and the initramfs exist (kernel/k5_futex_selftest.c) — and owns
++	 * the final SYS_EXIT.
 +	 */
 +	return;
 +#endif

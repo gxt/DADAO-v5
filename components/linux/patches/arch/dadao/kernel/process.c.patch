@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/process.c b/arch/dadao/kernel/process.c
 new file mode 100644
-index 000000000..f4e2efb8e
+index 000000000..02c31398d
 --- /dev/null
 +++ b/arch/dadao/kernel/process.c
-@@ -0,0 +1,670 @@
+@@ -0,0 +1,685 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO process model (K4, m14-linux-016).
@@ -648,6 +648,21 @@ index 000000000..f4e2efb8e
 +			if (dadao_k5c_user_trap(regs, immu18, &policy))
 +				return policy;
 +			dadao_umon_busy = 1;
++		}
++#endif
++#ifdef CONFIG_DADAO_K5_FUTEX_SELFTEST
++		{
++			unsigned long policy;
++
++			/*
++			 * The futex probe's hook (kernel/k5_futex_selftest.c)
++			 * runs after the guard is dropped for the same reason as
++			 * the clone probe's: its parent parks here waiting for a
++			 * waiter, and that waiter's own umon entry must not look
++			 * nested.
++			 */
++			if (dadao_k5f_user_trap(regs, immu18, &policy))
++				return policy;
 +		}
 +#endif
 +		fn = dadao_user_syscall(regs, immu18);
