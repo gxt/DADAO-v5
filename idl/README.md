@@ -61,11 +61,13 @@ python3 idl/render.py --self-test # 临时树内 4 类注入自检（改 spec �
 
 **写宽度**：`rd`/`rb`/`ra`/`rf` 整 64 位；`ft` 只写低 32 位（`ld.t`/`ldm.t` 走 `ft[]`）；`fo` 整 64 位。`rf` 只用于**整 64 位搬移**（`rf2rf`/`rf2rd`/`rd2rf`）与 FCSR 访问。
 
+**按 wyde 写 = 切片赋值**：`set.w`/`or.w`/`andn.w`/`set.ow`/`set.zw` 只改 `wpN` 选中的那**一个** wyde ⇒ 写成切片赋值 `rf[d][wpN*16+15 : wpN*16] = …`（`rd`/`rb` 同理，换组名即可），其余位保持；`set.ow`/`set.zw` 的「其余 48 位全 1 / 全 0」按整寄存器赋值表达。**不为此新增库函数**。
+
 **零号语义是模型不变量**（与 UDB 把 `X[0]` 硬编 0 同构）：存储视图是数组，0 号的特殊行为由模型保证；operation 只额外写「本条指令对 0 号的非法判定」。
 
 ## 4. 语义库
 
-四个寄存器组、当前指令地址、访存、异常、保留标记、返回地址栈与核芯功能扩展分发，全部用「现有语法 + 本库函数」表达：带 `body` 的给参考定义，`builtin function` 由实现（golden model / ISS / RTL）提供。**本节代码块按 §4.1→§4.6 顺序拼接即一份可编译的 `.idl` 库**（与各册 operation 拼接后交 `idlc` 类型检查）。
+四个寄存器组、当前指令地址、访存、异常（进入与退出）、保留标记、返回地址栈、核芯功能扩展的分发/寄存器访问/屏障，全部用「现有语法 + 本库函数」表达：带 `body` 的给参考定义，`builtin function` 由实现（golden model / ISS / RTL）提供。**本节代码块按 §4.1→§4.6 顺序拼接即一份可编译的 `.idl` 库**（与各册 operation 拼接后交 `idlc` 类型检查）。
 
 ### 4.1 类型与常量
 
@@ -115,9 +117,10 @@ Bits<32> ft[64];
 
 ```idl
 builtin function ip {
-  returns Bits<48>
+  returns Bits<64>
   description {
-    当前正在执行的指令的地址（= `rb0` 的低 48 位）。`IP` 不是「下一条」，也没有 `±4` 偏移。
+    当前正在执行的指令的地址（= `rb0` 读出）。64 位宽，但**高 16 位恒 0**（48 位地址零扩展）。
+    `IP` 不是「下一条」，也没有 `±4` 偏移。
   }
 }
 
@@ -131,11 +134,11 @@ builtin function mode {
 function jump {
   arguments Bits<64> target
   description {
-    置下一个待执行指令的地址：`target` 整 64 位写回 `rb0`，取指时用其低 48 位。
-    这是唯一允许写 `rb0` 的通道（指令正文不得把 `rb0` 当普通目的）。
+    置下一个待执行指令的地址：`target` 的**低 48 位**（`target[47:0]`）写回 `rb0`，其余 16 位恒 0；
+    取指时用其低 48 位。这是唯一允许写 `rb0` 的通道（指令正文不得把 `rb0` 当普通目的）。
   }
   body {
-    rb[6'd0] = target;
+    rb[6'd0] = target[47:0];
   }
 }
 
@@ -257,6 +260,60 @@ builtin function cfx_trap_enter {
     流程为准（本版按「服务号写入 `excp_cause_info`」落，见 §5 的搁置项）。
   }
 }
+
+builtin function inner_cfx_code {
+  returns Bits<6>
+  description {
+    当前正在执行的核芯功能扩展编号（与 SEE 的 `inner_cfx_code` 同名同义）。
+  }
+}
+
+builtin function cfx_frame_valid {
+  returns Boolean
+  arguments Bits<6> cfxha
+  description {
+    该核芯功能扩展当前是否持有**有效异常帧**（`cfx_⟨cfxname⟩_excp_cause_id != 0`）。
+    帧无效时 `escape` 触发当前核芯功能扩展的 `CFXESC`。
+  }
+}
+
+builtin function cfx_escape_enter {
+  arguments Bits<6> cfxha, Bits<64> imm
+  description {
+    异常退出（`escape`）：按 SEE 的异常退出流程恢复中断屏蔽、运行模式（`inner_run_mode`）与
+    当前核芯功能扩展（`inner_cfx_code`），`escape_num` 递增，控制转到
+    `excp_cause_ip + imm`（`imm` 为**字节**偏移，合法值 0 或 4）。
+    目标是否为保留编号、`cfxha == inner_cfx_code`、帧是否有效、SBZ 是否为零，均由 operation
+    先判定再调用本函数。
+  }
+}
+
+builtin function cfx_read {
+  returns Bits<64>
+  arguments Bits<6> cfxha, Bits<6> cg, Bits<6> rc
+  description {
+    读核芯功能扩展寄存器 `cfx_⟨cfxname⟩_cg⟨cg⟩_rc⟨rc⟩`，返回其 64 位值。
+    **本函数只做访问**：寄存器是否存在、读写权限（RW/HW/RO/保留）由 SEE 的寄存器表描述
+    （`DADAO-12 §3`–`§4`），IDL 不在 operation 里判定权限；`CFXREG` 由实现按该表给出。
+  }
+}
+
+builtin function cfx_write {
+  arguments Bits<6> cfxha, Bits<6> cg, Bits<6> rc, Bits<64> value
+  description {
+    写核芯功能扩展寄存器（`value` 整 64 位）。存在性与权限语义同 `cfx_read`（见 SEE 寄存器表）。
+  }
+}
+
+builtin function cfx_fence {
+  arguments Bits<6> cfxha, Bits<6> pred, Bits<6> succ
+  description {
+    核芯功能扩展屏障：约束本 hart 对资源域 `cfxha`（`cfx0` = all cfx）上 `pred` → `succ`
+    所列访问类型的顺序与可见性；`pred`/`succ` 为 6 位访问类型掩码（位含义见 SimRISC-11 §5），
+    零掩码是合法 no-op。
+    照 UDB `fence` 的做法**只给声明、无 body**：顺序语义由实现提供，IDL v0 不建模。
+  }
+}
 ```
 
 ## 5. 语法扩展提案
@@ -308,4 +365,5 @@ builtin function cfx_trap_enter {
 ## 7. 变更记录
 
 - **v0（初版）**：确立「`.idl` 为源、spec 块为渲染结果」的方向；语法基线（§1）、命名约定（§2）、寄存器模型（§3，数组式 + `fo`/`ft` 视图）、语义库（§4，UDB 同名 `read_memory`/`write_memory`/`fetch_memory`/`is_naturally_aligned`、三参 `raise`、`ras_*`、`reservation_*`）、扩展提案（§5，采纳 0 条）与 `idlc` 评估（§6）。
+- **v0.1（语义库 v1）**：`ip()` 改 `Bits<64>`（高 16 位恒 0），`jump` 只写回 `target[47:0]`；§3 补「按 wyde 写 = 切片赋值」；§4.6 补 `inner_cfx_code`/`cfx_frame_valid`/`cfx_escape_enter`（异常退出）、`cfx_read`/`cfx_write`（cfx 寄存器访问，权限由 SEE 寄存器表描述）与 `cfx_fence`（无 body）。
 - 待 M15 收口：`idl/.manifests.toml` 统一补 `sha256`。

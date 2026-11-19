@@ -25,7 +25,7 @@ br.ne    {rdHA, rdHB}?, [rb0, imms14]
 # 汇编层 imms14 = 编码层 imms12 << 2（字节偏移）；IP = 当前正在执行的指令地址
 if (rd[rdHA] == rd[rdHB]) {
   Bits<14> scaled = {imms12, 2'b00};          # 12 位编码层偏移 → 14 位补码字节偏移
-  jump({16'd0, ip()} + $signed(scaled));      # 64 位计算；写回 rb0，下一条取其低 48 位
+  jump(ip() + $signed(scaled));               # ip() 已是 64 位（高 16 位恒 0）；jump 只写回低 48 位
 }
 ```
 <!-- IDL:br.eq_rrii_rd END -->
