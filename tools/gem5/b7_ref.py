@@ -844,17 +844,14 @@ def model(vec):
         _, b = read_float(fmt, src_fields[1].name)
         rel = op_compare(fmt, a, b)
         if rel == "unordered":
+            # Every compare returns the canonical quiet NaN on unordered
+            # (spec/SimRISC-07 §4, IEEE 754-2019 §6.2.1); quiet and signaling
+            # differ only in NV (contract-fp §8).
             ka, kb = classify(fmt, a), classify(fmt, b)
             snan = any(k["kind"] == "nan" and not k["quiet"]
                        for k in (ka, kb))
-            if quiet:
-                # Quiet compare accrues NV only for an sNaN operand
-                # (contract-fp §8); the result is the canonical quiet NaN.
-                out = qnan_bits(fmt)
-                flags = F_NV if snan else 0
-            else:
-                out = snan_bits(fmt)
-                flags = F_NV
+            out = qnan_bits(fmt)
+            flags = F_NV if (snan or not quiet) else 0
         else:
             out = {"gt": 1, "eq": 0, "lt": MASK64}[rel]
         dst = fields[dst_field.name]

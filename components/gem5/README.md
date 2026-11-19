@@ -67,18 +67,19 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   scaleB 指数 `rdHD`（rd 组有符号 64 位，大 `n` 直接判 OF/UF，不迭代）、
   f2i 饱和 + NX/ NV、root 仅 n=2（整数 `isqrt` + 精确中点比较）、
   minmax 为 `minimumNumber`/`maximumNumber` 严格版（−0<+0、单 NaN 返回数、
-  双 NaN canonical、sNaN⇒NV）。
+  双 NaN canonical、sNaN⇒NV）、compare 无序一律 canonical qNaN（quiet 与
+  signaling 只差 `NV`）。
   静态合法性（`dst_rf0`/`dst_rd0`/`mreg_zero`/`mreg_range_overflow`/
   `mreg_range_overlap`/`encode_onehot`/`encode_fp_root_n`）先于任何寄存器读；
   块形式按序号递增逐对先读后写；标志 sticky-OR 进 `rf0[4:0]`，无标志不写 `rf0`。
 - **B7 模型选择**（spec 未规定处，**非 spec 断言**）：① `ft` 结果只写低 32 位、
   保留 `[63:32]`（与 B1 `ld.t` 一致）；
-  ② compare 的 unordered 结果按 ft 为 `0x7FC0_0000`/`0x7F80_0001` **零扩展**到 64 位
-  rd，fo 为 `0x7FF8_...`/`0x7FF0_..._0001`（符号位 0）；③ `ft2it`/`ft2ut` 等 32 位
-  f2i 结果按 SimRISC 约定**符号/零扩展**到 64 位 rd（与 SimRISC-08 的 `.st`/`.ut`
-  一致）；④ signaling compare 的 unordered 置 NV（用户 2026-11-02 裁定 3）。
-  （`rootn(±0,2) = +0` 原为此列第 2 项，`m13-spec-007` 后已由 spec 明文规定，
-  不再是模型选择。）
+  ② `ft2it`/`ft2ut` 等 32 位 f2i 结果按 SimRISC 约定**符号/零扩展**到 64 位 rd
+  （与 SimRISC-08 的 `.st`/`.ut` 一致）；③ signaling compare 的 unordered 置
+  NV（用户 2026-11-02 裁定 3）。
+  （`rootn(±0,2) = +0` 原为此列第 2 项，`m13-spec-007` 后已由 spec 明文规定；
+  compare 的 unordered 结果同理由 `m15-gem5-001` 起由 spec 规定为 canonical
+  qNaN —— 二者都已不再是模型选择。）
 - **B0–B7 全覆盖**：263 条全部有执行核；`inst.cc` 的 `batch<1 || batch>7`
   仅作防御分支（返回 `UnimplementedInstruction`），未匹配/保留编码仍返回
   `IllegalInstruction`（ILLI）。不做跨批混写。

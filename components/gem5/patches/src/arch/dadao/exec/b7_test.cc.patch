@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b7_test.cc b/src/arch/dadao/exec/b7_test.cc
 new file mode 100644
-index 0000000..3ac7153
+index 0000000..3ae9a4f
 --- /dev/null
 +++ b/src/arch/dadao/exec/b7_test.cc
-@@ -0,0 +1,2253 @@
+@@ -0,0 +1,2280 @@
 +/*
 + * DADAO gem5 B7 execution assertions (GEM5-012t).
 + *
@@ -1859,14 +1859,41 @@ index 0000000..3ac7153
 +    ok = runCmp("foqcmp_orrr_rf", kFoSNaN, kFoQNaN, r, f);
 +    check(ok && r == kFoQNaN && f == kFlagNV,
 +          "foqcmp sNaN,qNaN => NV (any sNaN operand)");
++    // Every compare returns the canonical quiet NaN on unordered (spec
++    // §4 / IEEE 754-2019 §6.2.1: a quiet NaN result, never an sNaN); quiet and
++    // signaling differ only in NV.
 +    ok = runCmp("ftscmp_orrr_rf", kFtQNaN, kFtOne, r, f);
-+    check(ok && r == kFtSNaN && f == kFlagNV,
-+          "ftscmp unordered => sNaN + NV (user ruling 3)");
++    check(ok && r == kFtQNaN && f == kFlagNV,
++          "ftscmp qNaN unordered => canonical qNaN + NV (actual 0x%08" PRIx64
++          " flags 0x%" PRIx64 ")", r & 0xFFFFFFFF, f);
 +    ok = runCmp("ftscmp_orrr_rf", kFtSNaN, kFtOne, r, f);
-+    check(ok && r == kFtSNaN && f == kFlagNV,
-+          "ftscmp sNaN => sNaN + NV (unchanged)");
++    check(ok && r == kFtQNaN && f == kFlagNV,
++          "ftscmp sNaN unordered => canonical qNaN + NV (actual 0x%08" PRIx64
++          " flags 0x%" PRIx64 ")", r & 0xFFFFFFFF, f);
++    // Payload and sign of the operands are dropped: the result is canonical.
++    ok = runCmp("ftscmp_orrr_rf", 0xFFC12345ull, kFtOne, r, f);
++    check(ok && r == kFtQNaN && f == kFlagNV,
++          "ftscmp negative qNaN payload => canonical qNaN + NV (actual 0x%08"
++          PRIx64 " flags 0x%" PRIx64 ")", r & 0xFFFFFFFF, f);
++    ok = runCmp("ftscmp_orrr_rf", 0x7FC12345ull, 0xFF800001ull, r, f);
++    check(ok && r == kFtQNaN && f == kFlagNV,
++          "ftscmp double NaN => canonical qNaN + NV (actual 0x%08" PRIx64
++          " flags 0x%" PRIx64 ")", r & 0xFFFFFFFF, f);
 +    ok = runCmp("foqcmp_orrr_rf", kFoQNaN, kFoOne, r, f);
 +    check(ok && r == kFoQNaN && f == 0, "foqcmp unordered => fo qNaN");
++    ok = runCmp("foscmp_orrr_rf", kFoQNaN, kFoOne, r, f);
++    check(ok && r == kFoQNaN && f == kFlagNV,
++          "foscmp qNaN unordered => canonical qNaN + NV (actual 0x%016" PRIx64
++          " flags 0x%" PRIx64 ")", r, f);
++    ok = runCmp("foscmp_orrr_rf", kFoOne, kFoSNaN, r, f);
++    check(ok && r == kFoQNaN && f == kFlagNV,
++          "foscmp sNaN unordered => canonical qNaN + NV (actual 0x%016" PRIx64
++          " flags 0x%" PRIx64 ")", r, f);
++    ok = runCmp("foscmp_orrr_rf", 0xFFF8000000000123ull,
++                0x7FF0000000000001ull, r, f);
++    check(ok && r == kFoQNaN && f == kFlagNV,
++          "foscmp double NaN => canonical qNaN + NV (actual 0x%016" PRIx64
++          " flags 0x%" PRIx64 ")", r, f);
 +    ok = runCmp("foscmp_orrr_rf", kFoInf, kFoOne, r, f);
 +    check(ok && r == 1 && f == 0, "foscmp +Inf > 1 => 1");
 +}

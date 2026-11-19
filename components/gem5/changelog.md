@@ -196,6 +196,12 @@
   - 摘要：**测试机整机名 `Kaiwu`（`ADR-0055`）随全仓改名**：补丁里 `Machine-v5*` → `Kaiwu*`、QEMU 机器串 `dadao-tiny`/`dadao-vast` → `kaiwu-tiny`/`kaiwu-vast`（无旧名别名）、`spec/Kaiwu §…` 注记同步；**只改名不改语义**（编码/几何/契约值零改动）。
   - 执行者：engineer
 
+## M15
+
+- **2026-11-19 m15-gem5-001**
+  - 摘要：**`scmp` 无序结果改 canonical quiet NaN（`SimRISC-07 §4` 改口径的 gem5 侧）**。`exec/b7.cc` 的 `runCompare()` 无序分支不再返回 sNaN 位型：四种比较一律 `fp::qnanBits(fmt)`（ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`），操作数的 payload/符号不再传播；`NV` 规则不变（signaling 无序即置，quiet 仅含 sNaN 操作数时置）。`exec/b7_test.cc` 的 `checkCompare()` 相应改写（ft/fo × qNaN / sNaN / 双 NaN / 负 payload，实际值随断言打印），`tools/gem5/b7_ref.py` 的 `cmp` 模型同口径（独立精确模型侧），`components/gem5/README.md` 的「模型选择」删去已由 spec 规定的 compare 项。补丁 2 份改（`exec/b7.cc`、`exec/b7_test.cc`），`make_patch.py` 重导出。
+  - 执行者：engineer
+
 ## M16
 
 - **2026-11-15 m16-gem5-007**

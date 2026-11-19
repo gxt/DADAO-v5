@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b7.cc b/src/arch/dadao/exec/b7.cc
 new file mode 100644
-index 0000000..cbefca8
+index 0000000..df2d223
 --- /dev/null
 +++ b/src/arch/dadao/exec/b7.cc
-@@ -0,0 +1,623 @@
+@@ -0,0 +1,622 @@
 +// DADAO gem5 B7 execution core -- the 53 floating-point ids.
 +//
 +// Dispatch is by `entry->id` only: `ft*`/`fo*`, `ft2it`/`ft2ut`,
@@ -486,17 +486,16 @@ index 0000000..cbefca8
 +      case fp::Cmp::Equal: result = 0; break;
 +      case fp::Cmp::Less: result = ~uint64_t(0); break;
 +      case fp::Cmp::Unordered:
-+        // Ordering compares are invalid operations (IEEE 754-2019 §5.11): the
-+        // signaling form accrues NV for any unordered result, the quiet form
-+        // only when an operand is an sNaN (contract-fp §8).
-+        if (spec.quietCompare) {
-+            if (fp::isSNaNBits(spec.fmt, a) || fp::isSNaNBits(spec.fmt, b))
-+                flags = fp::NV;
-+            result = fp::qnanBits(spec.fmt);
-+        } else {
-+            result = fp::snanBits(spec.fmt);
++        // Ordering compares are invalid operations (IEEE 754-2019 §5.11).  All
++        // four compares return the canonical quiet NaN (spec/SimRISC-07 §4:
++        // IEEE 754-2019 §6.2.1 requires a quiet NaN result); quiet and
++        // signaling differ only in NV -- the signaling form accrues NV for any
++        // unordered result, the quiet form only for an sNaN operand
++        // (contract-fp §8).
++        result = fp::qnanBits(spec.fmt);
++        if (!spec.quietCompare || fp::isSNaNBits(spec.fmt, a) ||
++            fp::isSNaNBits(spec.fmt, b))
 +            flags = fp::NV;
-+        }
 +        break;
 +      default: internalError("unknown compare result"); break;
 +    }
