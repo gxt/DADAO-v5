@@ -14,6 +14,14 @@ DADAO 的页表是**两级、64 KiB 页**：`L1 索引 = VA[41:29]`、`L2 索引
 
 **可参考**：rocket `PTW.scala` 的状态机骨架与多请求仲裁（`Vec(n, TLBPTWIO)`）——但 PTE 格式、权限位、异常码、A/D 语义**全部要重写**（见任务书模板中的「不能复用」清单，转抄自调研结论见 `discussing.md` 的 Vast 节）。
 
+## 参考实现形态（BOOM/rocket，主会话 2026-11-19 调研）
+
+- **TLB 在核内**、**PTW 在 tile 级（每核一个）**：BOOM 在 `v3/ifu/frontend.scala` 与 `v3/lsu/lsu.scala` 各 `new TLB(...)`；PTW 在 `v3/common/tile.scala` `Module(new PTW(ptwPorts.length)(...))`，`ptwPorts = ListBuffer(lsu.io.ptw, frontend.io.ptw, core.io.ptw_tlb)`。
+- **类跨核复用、实例每核一份**（不是 SoC 共享）。
+- PTW 的页表访存走**数据侧 cache 端口**（`HellaCacheIO` / `heccachePorts`）。
+- ⇒ DADAO 按同构分工：**TLB 核内、PTW tile 级**；接口 = 「多条 PTW 请求端口 + 异常回传」。
+- **待裁定**：PTW 的页表读在 DADAO 是否经 D-Cache（`DADAO-12 §2.2` 只规定用物理地址、不规定是否过 cache）——RTL 与 gem5 必须一致。
+
 ## 目标
 
 1. **两级步查器**：按 `PTBR`（PA）+ 索引读 PTE；页表访问**走物理地址、不经 TLB**，且必须在 RAM/ROM 范围内（否则按 `CFXMEM` 处理，具体按 `§2.2` 核对）；

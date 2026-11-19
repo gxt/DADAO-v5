@@ -16,6 +16,14 @@
 - **无特殊条目**（rocket 的 special entry 是为跨 PMP 区，DADAO 无 PMP）。
 - **gem5 侧保持统一**（含组相联设置与超页个数）⇒ 由 `m17-gem5-001` 同步。
 
+## 参考实现形态（BOOM/rocket，主会话 2026-11-19 调研）
+
+- **TLB 在核内**、**PTW 在 tile 级（每核一个）**：BOOM 在 `v3/ifu/frontend.scala` 与 `v3/lsu/lsu.scala` 各 `new TLB(...)`；PTW 在 `v3/common/tile.scala` `Module(new PTW(ptwPorts.length)(...))`，`ptwPorts = ListBuffer(lsu.io.ptw, frontend.io.ptw, core.io.ptw_tlb)`。
+- **类跨核复用、实例每核一份**（不是 SoC 共享）。
+- PTW 的页表访存走**数据侧 cache 端口**（`HellaCacheIO` / `heccachePorts`）。
+- ⇒ DADAO 按同构分工：**TLB 核内、PTW tile 级**；接口 = 「多条 PTW 请求端口 + 异常回传」。
+- **待裁定**：PTW 的页表读在 DADAO 是否经 D-Cache（`DADAO-12 §2.2` 只规定用物理地址、不规定是否过 cache）——RTL 与 gem5 必须一致。
+
 ## 目标
 
 1. **I-TLB / D-TLB 各一套**：普通页 `2×8`、超页 `4` 条全相联；**I 侧无 dirty 位**；
