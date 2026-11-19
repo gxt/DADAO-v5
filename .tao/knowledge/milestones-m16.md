@@ -28,12 +28,12 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m16-gem5-018 | 2026-11-20 01:12 | 3–4 h | 块传送 `beats` 按起始相位算（N19；等 `m16-gem5-016` 改同一文档） |
-| m16-chipyard-012 | 2026-11-20 00:33 | 1–2 h | RTL `scmp` 无序结果改 canonical quiet NaN（四方对齐的 RTL 缺口；`NV` 规则不变） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-012 | 2026-11-20 02:29 | RTL `scmp` 无序改 canonical（四方一致达成；FP 单元台 oracle 同步） |
 | m16-gem5-017 | 2026-11-20 01:10 | 配置命名统一：`se.py` + `--cpu-type`，删 `se_timing.py`（series 106） |
 | m16-gem5-015 | 2026-11-20 00:55 | FS 加 `--cpu-type {atomic,timing}`（tiny/vast 两机型；`functionalFsAccess`；周期 FS==SE） |
 | m16-gem5-016 | 2026-11-20 00:45 | 周期表 08/09/10 拆行（移位=2；逐册行成为拍数来源；clmul 判 A/2） |
