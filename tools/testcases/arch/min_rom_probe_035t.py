@@ -6,7 +6,7 @@ Spec sources (expectations are derived from these, never from QEMU):
   - spec/SimRISC-00: 浮点寄存器
   - .tao/contracts/contract-fp.md §7 / §8 / §9
 The classify category bits are NOT hand-copied: they are parsed at import time
-from the §7 table of spec/SimRISC-07 (`load_class_bits_from_spec`); a missing
+from the §5 table of spec/SimRISC-07 (`load_class_bits_from_spec`); a missing
 or malformed table is an explicit non-zero FAIL.  `--oracle` prints the parsed
 category↔bit mapping and cross-checks it against all 20 sample values.
 Encodings: contracts/opcodes.yaml.
@@ -23,11 +23,11 @@ Agreed per-format conventions (spec open points, see task §1.4):
     preserved.  This makes rfHD=rf0 -> abs() and rfHC==rfHD -> copy/negate
     fall out with no special case.
   * classify uses the low 32 bits (ft) / all 64 bits (fo) and clears [63:10].
-  * compare writes a full 64-bit rd integer; unordered returns a fixed NaN:
-      quiet compare     -> qNaN  0x7FC00000 (ft) / 0x7FF8000000000000 (fo)
-      signaling compare -> sNaN  0x7F800001 (ft) / 0x7FF0000000000001 (fo)
-    (the sNaN payload follows task §1.4; the qNaN matches the FCSR qNaN
-    fields, both with sign bit 0).
+  * compare writes a full 64-bit rd integer; unordered returns the canonical
+    quiet NaN for all four compares (spec/SimRISC-07 §4): 0x7FC00000 (ft) /
+    0x7FF8000000000000 (fo), sign bit 0, payload zero (no payload propagation).
+    quiet vs signaling compare differs only in NV: signaling raises NV on any
+    unordered, quiet only when an operand is a signaling NaN.
 
 Verification channels (same as min_rom_probe_034t.py):
   * value cases  -> QEMU `-d cpu` dump, parsing the *last* RF[]/RD[] dump.
@@ -419,34 +419,34 @@ class SpecOracleError(RuntimeError):
 
 
 def load_class_bits_from_spec(path=SPEC_FP):
-    """Derive {alias: 1 << bit} from the `| bit | class |` table of spec §7."""
+    """Derive {alias: 1 << bit} from the `| bit | class |` table of spec §5."""
     try:
         with open(path, encoding='utf-8') as f:
             text = f.read()
     except OSError as e:
         raise SpecOracleError("cannot read %s: %s" % (path, e))
-    m = re.search(r'^## 7\. 浮点分类指令\s*$(.*?)(?=^## |\Z)',
+    m = re.search(r'^## 5\. 浮点分类指令\s*$(.*?)(?=^## |\Z)',
                   text, re.M | re.S)
     if not m:
-        raise SpecOracleError("%s: section '## 7. 浮点分类指令' not found" % path)
+        raise SpecOracleError("%s: section '## 5. 浮点分类指令' not found" % path)
     rows = re.findall(r'^\|\s*(\d+)\s*\|\s*([A-Za-z]+)\s*\|',
                       m.group(1), re.M)
     if len(rows) != 10:
         raise SpecOracleError(
-            "%s §7: expected 10 table rows, parsed %d: %r"
+            "%s §5: expected 10 table rows, parsed %d: %r"
             % (path, len(rows), rows))
     by_name = {}
     for bit, name in rows:
         if name in by_name:
-            raise SpecOracleError("%s §7: duplicate class %r" % (path, name))
+            raise SpecOracleError("%s §5: duplicate class %r" % (path, name))
         by_name[name] = int(bit)
     if set(by_name) != set(SPEC_CLASS_NAME.values()):
         raise SpecOracleError(
-            "%s §7: class names %r != expected %r"
+            "%s §5: class names %r != expected %r"
             % (path, sorted(by_name), sorted(SPEC_CLASS_NAME.values())))
     if sorted(by_name.values()) != list(range(10)):
         raise SpecOracleError(
-            "%s §7: bits %r are not exactly 0..9"
+            "%s §5: bits %r are not exactly 0..9"
             % (path, sorted(by_name.values())))
     return {alias: 1 << by_name[spec]
             for alias, spec in SPEC_CLASS_NAME.items()}
@@ -501,7 +501,7 @@ def ieee_class(value, isdbl):
 def check_class_oracle():
     """Cross-check the spec-derived masks against the 20 sample values.
 
-    Two independent halves must agree: (1) the spec §7 table maps category ->
+    Two independent halves must agree: (1) the spec §5 table maps category ->
     bit, (2) IEEE-754 bit-pattern rules map each sample value -> category.
     Because every expectation is a single bit and the 10 masks are pairwise
     distinct/disjoint, a swapped spec row, a swapped implementation bit or a
@@ -545,7 +545,7 @@ def check_class_oracle():
 
 def print_class_oracle():
     """Print the spec -> bit mapping and the oracle cross-check result."""
-    print("classify oracle: %s §7 (parsed, not hand-copied)" % SPEC_FP)
+    print("classify oracle: %s §5 (parsed, not hand-copied)" % SPEC_FP)
     for alias in ("sNaN", "qNaN", "negInf", "negNormal", "negSubnormal",
                   "negZero", "posZero", "posSubnormal", "posNormal", "posInf"):
         print("  %-13s spec=%-17s bit=%d"
@@ -761,13 +761,13 @@ CASES.append(value_case(
     set_rf(10, FT_QNAN) + set_rf(11, FT_P2) + [ftqcmp(4, 10, 11)],
     expect_rd={4: FT_QNAN}))
 CASES.append(value_case(
-    "CM09 ftscmp with qNaN -> ft sNaN (sign 0)",
+    "CM09 ftscmp with qNaN -> ft canonical qNaN (sign 0, payload 0)",
     set_rf(10, FT_QNAN) + set_rf(11, FT_P2) + [ftscmp(4, 10, 11)],
-    expect_rd={4: FT_SNAN}))
+    expect_rd={4: FT_QNAN}))
 CASES.append(value_case(
-    "CM10 ftscmp with sNaN -> ft sNaN",
+    "CM10 ftscmp with sNaN -> ft canonical qNaN (sign 0, payload 0)",
     set_rf(10, FT_SNAN) + set_rf(11, FT_P2) + [ftscmp(4, 10, 11)],
-    expect_rd={4: FT_SNAN}))
+    expect_rd={4: FT_QNAN}))
 CASES.append(value_case(
     "CM11 ftqcmp with sNaN -> ft qNaN",
     set_rf(10, FT_SNAN) + set_rf(11, FT_P2) + [ftqcmp(4, 10, 11)],
@@ -810,13 +810,13 @@ CASES.append(value_case(
     set_rf(10, FO_QNAN) + set_rf(11, 0x4000000000000000) + [foqcmp(4, 10, 11)],
     expect_rd={4: FO_QNAN}))
 CASES.append(value_case(
-    "CM20 foscmp with qNaN -> fo sNaN (sign 0)",
+    "CM20 foscmp with qNaN -> fo canonical qNaN (sign 0, payload 0)",
     set_rf(10, FO_QNAN) + set_rf(11, 0x4000000000000000) + [foscmp(4, 10, 11)],
-    expect_rd={4: FO_SNAN}))
+    expect_rd={4: FO_QNAN}))
 CASES.append(value_case(
-    "CM21 foscmp with sNaN -> fo sNaN",
+    "CM21 foscmp with sNaN -> fo canonical qNaN (sign 0, payload 0)",
     set_rf(10, FO_SNAN) + set_rf(11, 0x4000000000000000) + [foscmp(4, 10, 11)],
-    expect_rd={4: FO_SNAN}))
+    expect_rd={4: FO_QNAN}))
 CASES.append(value_case(
     "CM22 foqcmp with sNaN -> fo qNaN",
     set_rf(10, FO_SNAN) + set_rf(11, 0x4000000000000000) + [foqcmp(4, 10, 11)],

@@ -3,8 +3,8 @@
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐检查点把实测 8 字节写进结果缓冲并逐字节打印 ⇒ 三方比较的是字节流；标志与结果共用一个点号
 @@ 期望值由独立参考模型（精确有理数 + 手写 round-and-pack，见证据脚本）按 `SimRISC-07` 现算，不手写
-@@ 比较（§4）：结果写满 64 位的 -1/0/1；无序时 quiet compare 取 canonical qNaN、signaling compare 取 sNaN（符号位 0、payload 不限 ⇒ 用结构断言）。
-@@ NV：signaling 只要无序即置；quiet 仅在含 sNaN 时置；有序不置。
+@@ 比较（§4）：结果写满 64 位的 -1/0/1；无序（任一操作数 NaN）结果一律 canonical quiet NaN（fo `0x7FF8_0000_0000_0000`，不传播 payload/符号）。
+@@ NV：signaling 只要无序即置；quiet 仅在含 sNaN 时置；有序不置（本册只覆盖 quiet）。
 @@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段址见宏层文件头）
 
 	.include "tests/inst/macros/inst_test.inc"

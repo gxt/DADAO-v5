@@ -192,9 +192,9 @@ __fpchk_\@:
 @@   标志与结果共用一个点号（先断言标志，再比结果）。
 @@ 二、比较（orrr，目的 rd）：结果 −1/0/1 或 NaN 位型（写满 64 位）
 @@   TEST_FPCMP / TEST_FPCMP_ENC(pt, [编码字,] 助记符, 目的, 源C, C值, 源D, D值, 期望, 期望标志)
-@@   TEST_FPCMP_S(pt, 宽度, 助记符, 目的, 源C, C值, 源D, D值, 期望标志)
-@@     —— signaling compare 的无序结果是 sNaN，`contract-fp §8` 只规定「sNaN、符号位 0、
-@@        payload 不限」⇒ 用**结构断言**（指数全 1 / qNaN 位 0 / 尾数非 0 / 符号 0），不钉 payload。
+@@     —— 无序（任一操作数 NaN）结果一律 canonical quiet NaN（ft `0x7FC0_0000` /
+@@        fo `0x7FF8_0000_0000_0000`），直接钉整 64 位、不传播 payload（`SimRISC-07 §4`）；
+@@        标志：signaling 无序恒置 NV、quiet 仅含 sNaN 置 NV。
 @@ 三、分类（orri 块，目的 rd 窗口 ← 源 rf 窗口；结果 [9:0] 掩码，其余位清零）
 @@   TEST_FPCLS1/2/3/4(pt, 助记符, 源值0, 期望0, [源值1, 期望1, ...])
 @@   TEST_FPCLS_ENC1(pt, 助记符, 编码字, 目的, 源值, 期望) / TEST_FPCLS_RF0(pt, 助记符, 期望)
@@ -281,36 +281,6 @@ __fpchk_\@:
 	.endif
 	.dd.t32	\enc
 	__FP_CHECK_RD \pt, \dst, \exp, \flags
-.endm
-
-@@ signaling compare 的无序结果：sNaN 位型、符号 0、payload 不限 ⇒ 结构断言
-.macro TEST_FPCMP_S pt, w, mnem, dst, a, aval, b, bval, flags
-	__FP_ENV 0
-	set.fo	\a, \aval
-	.ifnc	\b, \a
-	set.fo	\b, \bval
-	.endif
-	\mnem	\dst, \a, \b
-	rf2rd	{rd22:rd22}, {rf0:rf0}
-	ext.uo	rd22, rd22, 4
-	__VERIFY_RD \pt, rd22, \flags
-	shr.uo	rd21, \dst, 63		@@ 符号位必须 0
-	__VERIFY_RD \pt, rd21, 0
-	.ifc	\w, ft
-	ext.uo	rd21, \dst, 31
-	shr.uo	rd21, rd21, 22		@@ [9:0] = 指数 << 1 | qNaN 位（ft：8 位指数）
-	__VERIFY_RD \pt, rd21, 0x1FE
-	ext.uo	rd21, \dst, 21		@@ 尾数非 0
-	.else
-	shr.uo	rd21, \dst, 51		@@ [12:0] = 符号 << 12 | 指数 << 1 | qNaN 位
-	ext.uo	rd21, rd21, 11		@@ 取低 12 位（符号位已单测）
-	__VERIFY_RD \pt, rd21, 0xFFE
-	ext.uo	rd21, \dst, 51		@@ 尾数非 0
-	.endif
-	__REC	\dst
-	br.nz	{rd21}?, [rb0, __fps_\@]
-	__EXIT	\pt
-__fps_\@:
 .endm
 
 @@ 分类（源 rf40..，目的 rd8..；[63:10] 必须清零 ⇒ 期望按全 64 位比较）

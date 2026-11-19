@@ -108,7 +108,6 @@ CHAIN_MACROS = {
     "TEST_FPCVT_ENC_F2F": dict(mnem=None, rm=None, flags=7),
     "TEST_FPCMP": dict(mnem=1, rm=None, flags=8),
     "TEST_FPCMP_ENC": dict(mnem=None, rm=None, flags=8),
-    "TEST_FPCMP_S": dict(mnem=2, rm=None, flags=8),
     "TEST_FPSGN": dict(mnem=1, rm=None, flags=8),
     "TEST_FPSGN_ENC": dict(mnem=None, rm=None, flags=8),
     "TEST_FPSCLB": dict(mnem=1, rm=7, flags=9),

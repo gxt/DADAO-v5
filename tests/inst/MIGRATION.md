@@ -682,8 +682,9 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
   + 比较 4（`ftqcmp`/`ftscmp`/`foqcmp`/`foscmp`）；链接布局复用 `inst-tiny-fp.lds`。
 - 宏层新增（`tests/inst/macros/inst_test.inc`）：`TEST_FPCVT_{F2I,I2F,F2F}`（源在 rf/rd、
   目的在 rd/rf 三种几何）、`TEST_FPCVT_ENC_{RD,RF,F2F}`（原始编码字）、
-  `TEST_FPCMP`/`TEST_FPCMP_ENC`/`TEST_FPCMP_S`（signaling 无序结果按 §8 只做**结构断言**：
-  符号 0 / 指数全 1 / qNaN 位 0 / 尾数非 0 —— payload 不限，不钉实现细节）、
+  `TEST_FPCMP`/`TEST_FPCMP_ENC`（比较：无序（任一操作数 NaN）结果一律 canonical quiet NaN，
+  直接钉整 64 位 —— `m15-testcases-020` 起 signaling 与 quiet 的差别只剩 `NV`；原先
+  signaling 专用的「符号/指数/尾数结构断言」宏已随 spec 订正删除）、
   `TEST_FPCLS1..4`/`_ENC1`/`_RF0`/`_IDX`/`_TOP4`、`TEST_FPCOPY1..4`/`_ENC2`/`_TOP4`/`_TOP1`/
   `_31`/`_ADJ`/`_RF0`、`__FP_CHECK_RD`、`__CHECK/_VERIFY_FP_RF`、`__CHECK/_VERIFY_FP_RF_MEM`。
   三个转换宏把「`immu6` 六档方向」与「`rf0[33:32]`」拆成两个参数 ⇒ 可直接断言
