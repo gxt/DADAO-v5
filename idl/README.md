@@ -7,7 +7,7 @@
 | 文件 | 内容 |
 |------|------|
 | `SimRISC-NN.idl` | 该册每条指令的一段 operation（`# id:` 开头，id 与 `contracts/opcodes.yaml` 一致） |
-| `lib/fp.idl` | 浮点语义库（ft/binary32 族，移植 UDB `fp.idl`；适配见 §4.7） |
+| `lib/fp.idl` | 浮点语义库（ft/binary32 族移植 UDB `fp.idl`；fo/binary64 族按 IEEE 754-2019 自写；适配见 §4.7） |
 | `render.py` | 渲染器 + 门控：按 `# id:` 切分 → 填 `spec/` 的 `<!-- IDL:<id> BEGIN/END -->` 标记 → `--check` 逐字节比对 |
 | `.manifests.toml` | 本目录文件集清单（双向集合断言；`sha256` 待 M15 收口统一补） |
 
@@ -333,21 +333,43 @@ builtin function cfx_fence {
 ### 4.7 浮点原语（`idl/lib/fp.idl`）
 
 浮点原语见 `idl/lib/fp.idl`，语义按 IEEE 754-2019（标志/舍入口径见 `SimRISC-00 §2.3.1`、
-`SimRISC-07 §1.3`）。移植自 UDB `spec/std/isa/isa/fp.idl`，**三处适配**：① 异常标志写
-`rf0[4:0]`（sticky）、舍入模式读 `rf0[33:32]`（不是 `CSR[fcsr]`/`CSR[frm]`）；② **删掉
-NaN-boxing**——DADAO 的 ft 结果「只写目的低 32 位、高 32 位保持」（`SimRISC-00 §2.3`），
-`nan_box`/`check_f_ok` 及其高半检查一并删除；③ 函数名指令级统一 `ft_*`
-（`ft_to_i32`/`i32_to_ft`…），`softfloat_*` 原语保留原名。`render.py` 的「已声明函数」
-扫描面 = 本节代码块 **+ `idl/lib/*.idl`**。
+`SimRISC-07 §1.3`）。库内两族：**ft（binary32）** 移植自 UDB `spec/std/isa/isa/fp.idl`；
+**fo（binary64）** 因 UDB 只有 f32（实测 0 个 f64 函数）而按 IEEE 754-2019 自写，命名与
+ft 族同构（`fo_*` 指令级、`is_dp_*` 谓词、`softfloat_*` 原语）。**三处适配**：
+① 异常标志写 `rf0[4:0]`（sticky）、舍入模式读 `rf0[33:32]`（不是 `CSR[fcsr]`/`CSR[frm]`）；
+② **删掉 NaN-boxing**——DADAO 的 ft 结果「只写目的低 32 位、高 32 位保持」
+（`SimRISC-00 §2.3`），`nan_box`/`check_f_ok` 及其高半检查一并删除；③ 函数名指令级统一
+`ft_*`/`fo_*`，`softfloat_*` 原语保留原名。`render.py` 的「已声明函数」扫描面 = 本节代码块
+**+ `idl/lib/*.idl`**。
 
-覆盖范围：分类（`is_sp_*`）、转换（`ft_to_i32`/`ft_to_ui32`/`i32_to_ft`/`ui32_to_ft`）、
-算术（`ft_add`/`ft_sub`/`ft_mul`/`ft_div`/`ft_muladd`/`ft_sqrt`）、取整
-（`round_ft_to_integral`）与 softfloat 位操作原语。**两处实现口径差异**（语义仍按
-IEEE 754-2019）：① `ft_sqrt` 用精确整数平方根（`ft_isqrt64`）而非 softfloat 的
-32 位倒数平方根近似宏（该近似在 C 里依赖 `uint_fast32_t` 的平台宽度）；② `ft_muladd`
-的 `op` 取反口径也贯穿「加数为 ±Inf / 乘积为 ±0」两条早退路径（UDB 只服务 RISC-V 的 addC）。
+覆盖范围：
+
+- **ft 族**：分类（`is_sp_*`）、转换（`ft_to_i32`/`ft_to_ui32`/`i32_to_ft`/`ui32_to_ft`）、
+  算术（`ft_add`/`ft_sub`/`ft_mul`/`ft_div`/`ft_muladd`/`ft_sqrt`）、取整
+  （`round_ft_to_integral`）与 softfloat 位操作原语。
+- **fo 族**（`m15-idl-016`）：位操作底座（`packToF64UI`、`softfloat_roundPackToF64`、
+  `softfloat_normRoundPackToF64` 及其 `_no_flag` 变体、128/192 位右移粘位、128 位整数开方、
+  64 位整型的 `roundToI64`/`roundToUI64` 不置标志版）、分类谓词（`is_dp_*`，与 `is_sp_*`
+  同构）、转换（`fo_to_i64`/`fo_to_ui64`/`i64_to_fo`/`ui64_to_fo` 及 `_no_flag`、
+  `fo_to_ft`/`ft_to_fo`）、算术（`fo_add`/`fo_sub`/`fo_mul`/`fo_div`/`fo_muladd`/`fo_sqrt`）、
+  取整（`round_fo_to_integral`）、缩放（`fo_scale`，scaleB）。64 位前导零复用 ft 族的
+  `ft_clz64`（与格式无关，不另立 `fo_clz64`）。
+- **取余**：`ft_rem`/`fo_rem`（IEEE 754-2019 remainder：`x − n·y`，n = 最近整数商、平局取偶；
+  结果恒精确 ⇒ 不置 NX/OF/UF，`y = ±0`/`x = ±Inf` ⇒ NV 而非 DZ）。
+
+**实现口径差异**（语义仍按 IEEE 754-2019）：① `ft_sqrt` 用精确整数平方根（`ft_isqrt64`）
+而非 softfloat 的 32 位倒数平方根近似宏（该近似在 C 里依赖 `uint_fast32_t` 的平台宽度）；
+② `ft_muladd` 的 `op` 取反口径也贯穿「加数为 ±Inf / 乘积为 ±0」两条早退路径（UDB 只服务
+RISC-V 的 addC）；③ `fo_to_ft` 的位级打包用 `softfloat_roundPackToF32_no_flag`，**标志在
+fo 侧自行判定**（OF 用同一溢出不等式、NX 用「转回 fo 后逐位比较」、UF 取「舍入后结果 tiny
+且 inexact」）——因为 ft 侧的 `softfloat_roundPackToF32` 在「刚好舍入到最小正规数」的平局点
+会多置 UF（详见 `m15-idl-016` 完成区），而 ft 族原语按任务约束不改动；④ `fo_mul` 用
+`Bits<128>` 加宽乘（`` `* ``）求 106 位精确积、`fo_div` 用 128 位整数除求精确商、`fo_sqrt`
+用 128 位整数平方根、`fo_muladd` 在 `Bits<192>` 累加器里精确对齐——都不依赖倒数近似，
+避免平台相关近似与二次舍入。
+
 UDB 本身若干转写错误（溢出判据、无符号比较、qNaN 置 NV、负次正规相加丢符号等）未照抄，
-逐条记在 `idl/lib/fp.idl` 文件头。
+逐条记在 `idl/lib/fp.idl` 文件头；fo 族自写时同类位置逐条避开。
 
 ## 5. 语法扩展提案
 
@@ -399,5 +421,5 @@ UDB 本身若干转写错误（溢出判据、无符号比较、qNaN 置 NV、�
 
 - **v0（初版）**：确立「`.idl` 为源、spec 块为渲染结果」的方向；语法基线（§1）、命名约定（§2）、寄存器模型（§3，数组式 + `fo`/`ft` 视图）、语义库（§4，UDB 同名 `read_memory`/`write_memory`/`fetch_memory`/`is_naturally_aligned`、三参 `raise`、`ras_*`、`reservation_*`）、扩展提案（§5，采纳 0 条）与 `idlc` 评估（§6）。
 - **v0.1（语义库 v1）**：`ip()` 改 `Bits<64>`（高 16 位恒 0），`jump` 只写回 `target[47:0]`；§3 补「按 wyde 写 = 切片赋值」；§4.6 补 `inner_cfx_code`/`cfx_frame_valid`/`cfx_escape_enter`（异常退出）、`cfx_read`/`cfx_write`（cfx 寄存器访问，权限由 SEE 寄存器表描述）与 `cfx_fence`（无 body）。
-- **（未定版）浮点库**：新增 `idl/lib/fp.idl`（ft/binary32 族，§4.7）；`render.py` 的「已声明函数」扫描面加 `idl/lib/*.idl`（含 `?` 后缀的函数名）。
+- **（未定版）浮点库**：新增 `idl/lib/fp.idl`（ft/binary32 族，§4.7）；`render.py` 的「已声明函数」扫描面加 `idl/lib/*.idl`（含 `?` 后缀的函数名）。fo/binary64 族同库追加（`m15-idl-016`：批 1 位操作底座 + 64 位整型转换 + `fo_to_ft`/`ft_to_fo` + `is_dp_*` 谓词；批 2 算术 `fo_add`/`fo_sub`/`fo_mul`/`fo_div`/`fo_muladd`/`fo_sqrt`、取整/缩放、以及 `ft_rem`/`fo_rem` 取余），§4.7 指针同步扩到两族 + 取余。
 - 待 M15 收口：`idl/.manifests.toml` 统一补 `sha256`。

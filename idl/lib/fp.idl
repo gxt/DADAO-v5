@@ -1,6 +1,7 @@
 %version: 0.1
 
-# 浮点语义库（ft = binary32 族）——移植自 riscv-unified-db `spec/std/isa/isa/fp.idl`
+# 浮点语义库：**ft = binary32 族**（移植自 riscv-unified-db `spec/std/isa/isa/fp.idl`）
+# + **fo = binary64 族**（UDB 无 f64 实现，按 IEEE 754-2019 自写；见文件后半的 fo 段）。
 # 版权：RISC-V Unified Database（BSD-3-Clause-Clear）；`softfloat_*` 系列源自
 # berkeley-softfloat-3（BSD-3-Clause，John R. Hauser）。
 #
@@ -719,6 +720,91 @@ function softfloat_roundToI64 {
     }
 
     return z;
+  }
+}
+
+function softfloat_roundToI64_no_flag {
+  returns Bits<64>
+  arguments Bits<1> sign, Bits<64> sig, Bits<64> sigExtra, RoundingMode roundingMode
+  description {
+    `softfloat_roundToI64` 的不置标志版本（供 `fo_to_i64_no_flag` 等不置标志路径使用；
+    饱和值与置标志版相同）。
+  }
+  body {
+    Bits<64> z;
+    Boolean needs_increment = false;
+
+    if ((roundingMode == RoundingMode::RNA) || (roundingMode == RoundingMode::RNE)) {
+      if (64'h8000000000000000 <= sigExtra) {
+        needs_increment = true;
+      }
+    } else {
+      if ((sigExtra != 0) && ((sign != 0) ? (roundingMode == RoundingMode::RDN) : (roundingMode == RoundingMode::RUP))) {
+        needs_increment = true;
+      }
+    }
+
+    if (needs_increment) {
+      sig = sig + 1;
+      if (sig == 0) {
+        return (sign == 1) ? I64_NEG_OVERFLOW : I64_POS_OVERFLOW;
+      }
+      if ((sigExtra == 64'h8000000000000000) && (roundingMode == RoundingMode::RNE)) {
+        sig = sig & ~64'h1;
+      }
+    }
+
+    z = (sign == 1) ? -sig : sig;
+    if ((z != 0) && (((($signed(z) < 0s) ? 1 : 0) ^ sign) == 1)) {
+      return (sign == 1) ? I64_NEG_OVERFLOW : I64_POS_OVERFLOW;
+    }
+    return z;
+  }
+}
+
+function softfloat_roundToUI64_no_flag {
+  returns Bits<64>
+  arguments Bits<1> sign, Bits<64> sig, Bits<64> sigExtra, RoundingMode roundingMode
+  description {
+    `softfloat_roundToUI64` 的不置标志版本（供 `fo_to_ui64_no_flag` 等不置标志路径使用；
+    饱和值与置标志版相同）。
+  }
+  body {
+    Boolean needs_increment = false;
+
+    if ((roundingMode == RoundingMode::RNA) || (roundingMode == RoundingMode::RNE)) {
+      if (64'h8000000000000000 <= sigExtra) {
+        needs_increment = true;
+      }
+    } else {
+      if (sign != 0) {
+        if ((sig | sigExtra) == 0) {
+          return 0;
+        }
+        if (roundingMode == RoundingMode::RDN) {
+          return (sign == 1) ? UI64_NEG_OVERFLOW : UI64_POS_OVERFLOW;
+        }
+      } else {
+        if ((roundingMode == RoundingMode::RUP) && (sigExtra != 0)) {
+          needs_increment = true;
+        }
+      }
+    }
+
+    if (needs_increment) {
+      sig = sig + 1;
+      if (sig == 0) {
+        return (sign == 1) ? UI64_NEG_OVERFLOW : UI64_POS_OVERFLOW;
+      }
+      if ((sigExtra == 64'h8000000000000000) && (roundingMode == RoundingMode::RNE)) {
+        sig = sig & ~64'h1;
+      }
+    }
+
+    if ((sign != 0) && (sig != 0)) {
+      return (sign == 1) ? UI64_NEG_OVERFLOW : UI64_POS_OVERFLOW;
+    }
+    return sig;
   }
 }
 
@@ -1843,5 +1929,1989 @@ function round_ft_to_integral {
       return packToF32UI(signF32UI(a), 8'd0, 32'd0);
     }
     return z;
+  }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# fo（binary64）族 —— 批 1：位操作底座 + 格式转换 + 分类谓词（m15-idl-016 批 1）
+#
+# UDB `spec/std/isa/isa/fp.idl` **只有 f32**（实测 `grep -cE "f64|F64"` = 0，D 扩展未建模）
+# ⇒ 本节按 IEEE 754-2019 binary64 自写，命名与上面的 ft 族同构：指令级 `fo_*`、位域
+# `*F64UI`、`softfloat_*` 原语同名。适配口径与 ft 族完全一致（见文件头）：标志写
+# `rf0[4:0]`、舍入读 `rf0[33:32]`、**无 NaN-boxing**、`fo` 目的整 64 位写。
+#
+# 位宽口径（与 ft 族同构，只是位数不同；务必按这里的约定读代码）：
+#   * `softfloat_roundPackToF64(sign, exp, sig)`：`sig` = 53 位有效数（隐式位在 bit52）
+#     左移 10 位后的 63 位值 + 10 位保护位，即 **值 = sig × 2^(exp − 1084)**；打包时隐式位
+#     进位到指数域（有限值返回的指数域 = `exp + 1`，与 ft 族「pack 隐式位进位」同构）。
+#     溢出判据：`0x7FD < exp` 或舍入使有效数进位越过 bit62（`2^63 ≤ sig + roundIncrement`）。
+#   * `softfloat_normRoundPackToF64(sign, exp, sig)`：`sig` 是整 64 位无符号幅值，先按
+#     `ft_clz64` 规格化。64 位前导零与浮点格式无关 ⇒ **复用 ft 族的 `ft_clz64`，不另立
+#     `fo_clz64`**（避免同名同义两份实现）。
+#   * 转换到整型的 `sig / sigExtra` 是**整数部分 / 小数部分（2^-64 为单位）**，直接交
+#     `softfloat_roundToI64`/`softfloat_roundToUI64` 做最后舍入与越界判定（同 ft 族）。
+#   * UDB f32 版的 5 处转写 bug（见文件头）在 f64 侧同类位置逐条避开：无符号量不用
+#     `x < 0`、指数用 16 位并显式 `$signed(exp)` 判负、qNaN 不置 NV、`Bits<11>` 指数不参与
+#     有符号比较。
+
+# ── fo 常量与位域抽取 ───────────────────────────────────────────────────────
+
+Bits<64> DP_POS_INF = 64'h7FF0_0000_0000_0000;
+Bits<64> DP_NEG_INF = 64'hFFF0_0000_0000_0000;
+Bits<64> DP_POS_ZERO = 64'h0000_0000_0000_0000;
+Bits<64> DP_NEG_ZERO = 64'h8000_0000_0000_0000;
+Bits<64> DP_CANONICAL_NAN = 64'h7FF8_0000_0000_0000;
+
+function signF64UI {
+  returns Bits<1>
+  arguments Bits<64> a
+  description {
+    取 fo 的符号位（bit63）。
+  }
+  body {
+    return a[63];
+  }
+}
+
+function expF64UI {
+  returns Bits<11>
+  arguments Bits<64> a
+  description {
+    取 fo 的指数域（bit62:52）。**11 位无符号**：负指数一律以 16 位两位补码在调用侧表示，
+    不要把它直接当有符号量比较（UDB 的 `Bits<8>` 指数 bug 同类坑）。
+  }
+  body {
+    return a[62:52];
+  }
+}
+
+function fracF64UI {
+  returns Bits<52>
+  arguments Bits<64> a
+  description {
+    取 fo 的尾数域（bit51:0）。
+  }
+  body {
+    return a[51:0];
+  }
+}
+
+# ── fo 分类谓词（与 ft 族 `is_sp_*` 同构）───────────────────────────────────
+
+function is_dp_neg_inf? {
+  returns Boolean
+  arguments Bits<64> dp_value
+  description {
+    `dp_value` 是否为负无穷。
+  }
+  body {
+    return dp_value == DP_NEG_INF;
+  }
+}
+
+function is_dp_pos_inf? {
+  returns Boolean
+  arguments Bits<64> dp_value
+  description {
+    `dp_value` 是否为正无穷。
+  }
+  body {
+    return dp_value == DP_POS_INF;
+  }
+}
+
+function is_dp_neg_norm? {
+  returns Boolean
+  arguments Bits<64> dp_value
+  description {
+    `dp_value` 是否为负正规数。
+  }
+  body {
+    return
+      (dp_value[63] == 1)                 # 负
+      && (dp_value[62:52] != 0b11111111111)  # 非 inf/NaN
+      && (dp_value[62:52] != 0);          # 非零/次正规
+  }
+}
+
+function is_dp_pos_norm? {
+  returns Boolean
+  arguments Bits<64> dp_value
+  description {
+    `dp_value` 是否为正正规数。
+  }
+  body {
+    return
+      (dp_value[63] == 0)                 # 正
+      && (dp_value[62:52] != 0b11111111111)  # 非 inf/NaN
+      && (dp_value[62:52] != 0);          # 非零
+  }
+}
+
+function is_dp_neg_subnorm? {
+  returns Boolean
+  arguments Bits<64> dp_value
+  description {
+    `dp_value` 是否为负次正规数。
+  }
+  body {
+    return
+      (dp_value[63] == 1)        # 负
+      && (dp_value[62:52] == 0)  # 次正规指数
+      && (dp_value[51:0] != 0);  # 非零
+  }
+}
+
+function is_dp_pos_subnorm? {
+  returns Boolean
+  arguments Bits<64> dp_value
+  description {
+    `dp_value` 是否为正次正规数。
+  }
+  body {
+    return
+      (dp_value[63] == 0)        # 正
+      && (dp_value[62:52] == 0)  # 次正规指数
+      && (dp_value[51:0] != 0);  # 非零
+  }
+}
+
+function is_dp_neg_zero? {
+  returns Boolean
+  arguments Bits<64> dp_value
+  description {
+    `dp_value` 是否为负零。
+  }
+  body {
+    return dp_value == DP_NEG_ZERO;
+  }
+}
+
+function is_dp_pos_zero? {
+  returns Boolean
+  arguments Bits<64> dp_value
+  description {
+    `dp_value` 是否为正零。
+  }
+  body {
+    return dp_value == DP_POS_ZERO;
+  }
+}
+
+function is_dp_nan? {
+  returns Boolean
+  arguments Bits<64> dp_value
+  description {
+    `dp_value` 是否为 NaN（quiet 或 signaling）。
+  }
+  body {
+    return
+      (dp_value[62:52] == 0b11111111111)
+      && (dp_value[51:0] != 0);
+  }
+}
+
+function is_dp_signaling_nan? {
+  returns Boolean
+  arguments Bits<64> dp_value
+  description {
+    `dp_value` 是否为 signaling NaN（quiet 位为 0 且尾数非零）。
+  }
+  body {
+    return
+      (dp_value[62:52] == 0b11111111111)
+      && (dp_value[51] == 0)
+      && (dp_value[50:0] != 0);
+  }
+}
+
+function is_dp_quiet_nan? {
+  returns Boolean
+  arguments Bits<64> dp_value
+  description {
+    `dp_value` 是否为 quiet NaN（quiet 位为 1）。
+  }
+  body {
+    return
+      (dp_value[62:52] == 0b11111111111)
+      && (dp_value[51] == 1);
+  }
+}
+
+# ── fo 打包与舍入（softfloat 原语，f64 版）──────────────────────────────────
+
+function packToF64UI {
+  returns Bits<64>
+  arguments Bits<1> sign, Bits<16> exp, Bits<64> sig
+  description {
+    把符号位、指数、尾数打包成一个 64 位 fo 位型（`softfloat` 的 `packToF64UI`）。
+    `exp` 取 16 位：调用侧允许传入「指数域 − 1」（隐式位进位到指数域，见本节位宽口径）。
+  }
+  body {
+    return (sign `<< 63) + (exp `<< 52) + sig;
+  }
+}
+
+function softfloat_roundPackToF64 {
+  returns Bits<64>
+  arguments Bits<1> sign, Bits<16> exp, Bits<64> sig, RoundingMode mode
+  description {
+    按 `mode` 舍入后打包成 fo 位型；置位 NX/OF/UF（sticky，写 rf0[4:0]）。
+    UF 仅在结果 tiny **且** inexact 时置位（tininess 检测点 = 舍入后，SimRISC-07 §1.3）。
+    溢出结果按舍入方向取 ±Inf 或 ±最大有限值（SimRISC-07 §1.3 表），两者都置 OF + NX。
+    输入约定：值 = `sig` × 2^(exp − 1084)，`sig` 为 63 位（隐含位在 bit62）+ 10 位保护位。
+  }
+  body {
+    Bits<16> roundIncrement = 0x200;
+    if ((mode != RoundingMode::RNE) && (mode != RoundingMode::RNA)) {
+      roundIncrement = (mode == ((sign != 0) ? RoundingMode::RDN : RoundingMode::RUP)) ? 0x3FF : 0;
+    }
+    Bits<16> roundBits = sig & 0x3FF;
+    Boolean isTiny = false;
+
+    if (0x7FD <= exp) {
+      if ($signed(exp) < 's0) {
+        isTiny =
+          ($signed(exp) < -16'sd1) || (sig + roundIncrement < 0x8000000000000000);
+        sig = softfloat_shiftRightJam64(sig, -exp);
+        exp = 0;
+        roundBits = sig & 0x3FF;
+      } else if ((0x7FD < exp) || (0x8000000000000000 <= sig + roundIncrement)) {
+        # 溢出判据（IEEE 754-2019 §7.4）：无符号 exp > 0x7FD，或舍入使有效数进位到 2^53。
+        # UDB 的 f32 版写作 `'shFD < $signed(exp)`；省略位宽的 Verilog 字面量按 MXLEN 求值
+        # ⇒ 与本式等价（f64 这里直接写显式无符号比较）
+        set_fp_flag(FpFlag::OF);
+        set_fp_flag(FpFlag::NX);
+        return packToF64UI(sign, 16'h7FF, 64'd0) - ((roundIncrement == 0) ? 1 : 0);
+      }
+    }
+
+    sig = (sig + roundIncrement) >> 10;
+    if (roundBits != 0) {
+      set_fp_flag(FpFlag::NX);
+    }
+    if ((roundBits == 0x200) && (mode == RoundingMode::RNE)) {
+      sig = sig & ~64'h1;
+    }
+    if (sig == 0) {
+      exp = 0;
+    }
+    Bits<64> z = 0;
+    z = packToF64UI(sign, exp, sig);
+    # UF：tininess 检测点 = **舍入后**（SimRISC-07 §1.3）⇒ 用打包结果的指数域判 tiny，
+    # 而不是用舍入前的 `sig + roundIncrement` 预判（后者在「刚好舍入到最小正规数」的平局点
+    # 会多置 UF；ft 族的 f32 原语仍有该口径，见任务完成区记录，ft 原语按约束不改动）
+    if (isTiny && (roundBits != 0) && (z[62:52] == 0)) {
+      set_fp_flag(FpFlag::UF);
+    }
+    return z;
+  }
+}
+
+function softfloat_roundPackToF64_no_flag {
+  returns Bits<64>
+  arguments Bits<1> sign, Bits<16> exp, Bits<64> sig, RoundingMode mode
+  description {
+    `softfloat_roundPackToF64` 的不置标志版本（供不置标志的内部路径使用）。
+  }
+  body {
+    Bits<16> roundIncrement = 0x200;
+    if ((mode != RoundingMode::RNE) && (mode != RoundingMode::RNA)) {
+      roundIncrement = (mode == ((sign != 0) ? RoundingMode::RDN : RoundingMode::RUP)) ? 0x3FF : 0;
+    }
+    Bits<16> roundBits = sig & 0x3FF;
+
+    if (0x7FD <= exp) {
+      if ($signed(exp) < 's0) {
+        sig = softfloat_shiftRightJam64(sig, -exp);
+        exp = 0;
+        roundBits = sig & 0x3FF;
+      } else if ((0x7FD < exp) || (0x8000000000000000 <= sig + roundIncrement)) {
+        return packToF64UI(sign, 16'h7FF, 64'd0) - ((roundIncrement == 0) ? 1 : 0);
+      }
+    }
+
+    sig = (sig + roundIncrement) >> 10;
+    if ((roundBits == 0x200) && (mode == RoundingMode::RNE)) {
+      sig = sig & ~64'h1;
+    }
+    if (sig == 0) {
+      exp = 0;
+    }
+    return packToF64UI(sign, exp, sig);
+  }
+}
+
+function softfloat_normRoundPackToF64 {
+  returns Bits<64>
+  arguments Bits<1> sign, Bits<16> exp, Bits<64> sig, RoundingMode mode
+  description {
+    规格化后按 `mode` 舍入打包成 fo（`sig` 须非零；`sig` 是整 64 位幅值）。
+  }
+  body {
+    # 分两句写：idlc 的 const-eval 对「声明即用函数调用初始化」会缓存静态求值的错误结果
+    # （ft 族实测），拆开可保证逐次求值正确
+    Bits<8> shiftDist = 0;
+    shiftDist = ft_clz64(sig) - 1;
+    exp = exp - shiftDist;
+    if ((10 <= shiftDist) && (exp < 0x7FD)) {
+      return packToF64UI(sign, (sig != 0) ? exp : 0, sig << (shiftDist - 10));
+    } else {
+      return softfloat_roundPackToF64(sign, exp, sig << shiftDist, mode);
+    }
+  }
+}
+
+function softfloat_normRoundPackToF64_no_flag {
+  returns Bits<64>
+  arguments Bits<1> sign, Bits<16> exp, Bits<64> sig, RoundingMode mode
+  description {
+    `softfloat_normRoundPackToF64` 的不置标志版本。
+  }
+  body {
+    Bits<8> shiftDist = 0;
+    shiftDist = ft_clz64(sig) - 1;
+    exp = exp - shiftDist;
+    if ((10 <= shiftDist) && (exp < 0x7FD)) {
+      return packToF64UI(sign, (sig != 0) ? exp : 0, sig << (shiftDist - 10));
+    } else {
+      return softfloat_roundPackToF64_no_flag(sign, exp, sig << shiftDist, mode);
+    }
+  }
+}
+
+# ── fo → 64 位整型（DADAO 指令级入口 fo2io / fo2uo）────────────────────────
+
+function fo_to_i64 {
+  returns Bits<64>
+  arguments Bits<64> a, RoundingMode mode
+  description {
+    fo → 有符号 64 位整数（`fo2io`）。NaN/±Inf/越界 ⇒ 置 NV、饱和（NaN 与 +Inf ⇒
+    0x7FFF_FFFF_FFFF_FFFF，−Inf/负溢出 ⇒ 0x8000_0000_0000_0000），**不置 NX**；有限值
+    inexact ⇒ 置 NX（SimRISC-07 §1.3）。实现：把值拆成「整数部分 `sigInt` + 小数部分
+    `sigExtra`（2^-64 为单位）」，交 `softfloat_roundToI64` 做最后舍入与越界判定。
+  }
+  body {
+    Bits<1> sign = signF64UI(a);
+    Bits<16> exp = expF64UI(a);
+    Bits<64> sig = fracF64UI(a);
+    Bits<16> shiftDist;
+    Bits<64> sigInt;
+    Bits<64> sigExtra;
+
+    # NaN：一律按「正」处理（与符号位无关），置 NV（SimRISC-07 §1.3）
+    if ((exp == 16'h7FF) && (sig != 0)) {
+      sign = 0;
+      set_fp_flag(FpFlag::NV);
+      return I64_POS_OVERFLOW;
+    }
+    if (exp == 16'h7FF) {
+      set_fp_flag(FpFlag::NV);
+      return (sign == 1) ? I64_NEG_OVERFLOW : I64_POS_OVERFLOW;
+    }
+    if ((exp == 16'd0) && (sig == 0)) {
+      return 64'h0;
+    }
+    if (exp != 0) {
+      sig = sig | 64'h0010_0000_0000_0000;
+    }
+
+    # 值 = sig × 2^(exp − 1075)（次正规同式；次正规最大幅值 ≈ 2^-1022，舍入后同为 0/±1）
+    shiftDist = 16'd1075 - exp;
+    if ($signed(shiftDist) <= 0s) {
+      # 值 = sig << (−shiftDist)，整数且无小数位
+      Bits<16> leftShift = 0;
+      leftShift = -shiftDist;
+      if (16'd11 < leftShift) {
+        # sig ≥ 2^52 ⇒ 左移 ≥ 12 位即 |值| ≥ 2^64，必然越界
+        set_fp_flag(FpFlag::NV);
+        return (sign == 1) ? I64_NEG_OVERFLOW : I64_POS_OVERFLOW;
+      }
+      sigInt = sig << leftShift;
+      sigExtra = 0;
+    } else if (16'd64 <= shiftDist) {
+      sigInt = 0;
+      sigExtra = softfloat_shiftRightJam64(sig, shiftDist - 16'd64);
+    } else {
+      sigInt = sig >> shiftDist;
+      sigExtra = sig << (16'd64 - shiftDist);
+    }
+    return softfloat_roundToI64(sign, sigInt, sigExtra, mode);
+  }
+}
+
+function fo_to_i64_no_flag {
+  returns Bits<64>
+  arguments Bits<64> a, RoundingMode mode
+  description {
+    `fo_to_i64` 的不置标志版本（供不置标志的内部路径使用；饱和值与置标志版相同）。
+  }
+  body {
+    Bits<1> sign = signF64UI(a);
+    Bits<16> exp = expF64UI(a);
+    Bits<64> sig = fracF64UI(a);
+    Bits<16> shiftDist;
+    Bits<64> sigInt;
+    Bits<64> sigExtra;
+
+    if ((exp == 16'h7FF) && (sig != 0)) {
+      sign = 0;
+      return I64_POS_OVERFLOW;
+    }
+    if (exp == 16'h7FF) {
+      return (sign == 1) ? I64_NEG_OVERFLOW : I64_POS_OVERFLOW;
+    }
+    if ((exp == 16'd0) && (sig == 0)) {
+      return 64'h0;
+    }
+    if (exp != 0) {
+      sig = sig | 64'h0010_0000_0000_0000;
+    }
+
+    shiftDist = 16'd1075 - exp;
+    if ($signed(shiftDist) <= 0s) {
+      Bits<16> leftShift = 0;
+      leftShift = -shiftDist;
+      if (16'd11 < leftShift) {
+        return (sign == 1) ? I64_NEG_OVERFLOW : I64_POS_OVERFLOW;
+      }
+      sigInt = sig << leftShift;
+      sigExtra = 0;
+    } else if (16'd64 <= shiftDist) {
+      sigInt = 0;
+      sigExtra = softfloat_shiftRightJam64(sig, shiftDist - 16'd64);
+    } else {
+      sigInt = sig >> shiftDist;
+      sigExtra = sig << (16'd64 - shiftDist);
+    }
+    return softfloat_roundToI64_no_flag(sign, sigInt, sigExtra, mode);
+  }
+}
+
+function fo_to_ui64 {
+  returns Bits<64>
+  arguments Bits<64> a, RoundingMode mode
+  description {
+    fo → 无符号 64 位整数（`fo2uo`）。NaN/±Inf/越界 ⇒ 置 NV、饱和（NaN 与 +Inf ⇒
+    0xFFFF_FFFF_FFFF_FFFF，−Inf/负溢出 ⇒ 0），**不置 NX**；有限值 inexact ⇒ 置 NX
+    （SimRISC-07 §1.3）。负值只有舍入结果为 0 时合法（如 −0.3 RTZ ⇒ 0，不置 NV）。
+  }
+  body {
+    Bits<1> sign = signF64UI(a);
+    Bits<16> exp = expF64UI(a);
+    Bits<64> sig = fracF64UI(a);
+    Bits<16> shiftDist;
+    Bits<64> sigInt;
+    Bits<64> sigExtra;
+
+    if ((exp == 16'h7FF) && (sig != 0)) {
+      sign = 0;
+      set_fp_flag(FpFlag::NV);
+      return UI64_POS_OVERFLOW;
+    }
+    if (exp == 16'h7FF) {
+      set_fp_flag(FpFlag::NV);
+      return (sign == 1) ? UI64_NEG_OVERFLOW : UI64_POS_OVERFLOW;
+    }
+    if ((exp == 16'd0) && (sig == 0)) {
+      return 64'h0;
+    }
+    if (exp != 0) {
+      sig = sig | 64'h0010_0000_0000_0000;
+    }
+
+    shiftDist = 16'd1075 - exp;
+    if ($signed(shiftDist) <= 0s) {
+      Bits<16> leftShift = 0;
+      leftShift = -shiftDist;
+      if (16'd11 < leftShift) {
+        set_fp_flag(FpFlag::NV);
+        return (sign == 1) ? UI64_NEG_OVERFLOW : UI64_POS_OVERFLOW;
+      }
+      sigInt = sig << leftShift;
+      sigExtra = 0;
+    } else if (16'd64 <= shiftDist) {
+      sigInt = 0;
+      sigExtra = softfloat_shiftRightJam64(sig, shiftDist - 16'd64);
+    } else {
+      sigInt = sig >> shiftDist;
+      sigExtra = sig << (16'd64 - shiftDist);
+    }
+    return softfloat_roundToUI64(sign, sigInt, sigExtra, mode);
+  }
+}
+
+function fo_to_ui64_no_flag {
+  returns Bits<64>
+  arguments Bits<64> a, RoundingMode mode
+  description {
+    `fo_to_ui64` 的不置标志版本（供不置标志的内部路径使用；饱和值与置标志版相同）。
+  }
+  body {
+    Bits<1> sign = signF64UI(a);
+    Bits<16> exp = expF64UI(a);
+    Bits<64> sig = fracF64UI(a);
+    Bits<16> shiftDist;
+    Bits<64> sigInt;
+    Bits<64> sigExtra;
+
+    if ((exp == 16'h7FF) && (sig != 0)) {
+      sign = 0;
+      return UI64_POS_OVERFLOW;
+    }
+    if (exp == 16'h7FF) {
+      return (sign == 1) ? UI64_NEG_OVERFLOW : UI64_POS_OVERFLOW;
+    }
+    if ((exp == 16'd0) && (sig == 0)) {
+      return 64'h0;
+    }
+    if (exp != 0) {
+      sig = sig | 64'h0010_0000_0000_0000;
+    }
+
+    shiftDist = 16'd1075 - exp;
+    if ($signed(shiftDist) <= 0s) {
+      Bits<16> leftShift = 0;
+      leftShift = -shiftDist;
+      if (16'd11 < leftShift) {
+        return (sign == 1) ? UI64_NEG_OVERFLOW : UI64_POS_OVERFLOW;
+      }
+      sigInt = sig << leftShift;
+      sigExtra = 0;
+    } else if (16'd64 <= shiftDist) {
+      sigInt = 0;
+      sigExtra = softfloat_shiftRightJam64(sig, shiftDist - 16'd64);
+    } else {
+      sigInt = sig >> shiftDist;
+      sigExtra = sig << (16'd64 - shiftDist);
+    }
+    return softfloat_roundToUI64_no_flag(sign, sigInt, sigExtra, mode);
+  }
+}
+
+# ── 64 位整型 → fo（DADAO 指令级入口 io2fo / uo2fo）────────────────────────
+
+function i64_to_fo {
+  returns Bits<64>
+  arguments Bits<64> a, RoundingMode mode
+  description {
+    有符号 64 位整数 → fo（`io2fo`）。精度损失 ⇒ 置 NX（`±0` 与 `−2^63` 精确，不置标志）。
+  }
+  body {
+    Bits<1> sign = a[63];
+    if ((a & 64'h7FFF_FFFF_FFFF_FFFF) == 0) {
+      # ±0 与 −2^63（指数域 0x43E = 1023 + 63，尾数 0）
+      return (sign == 1) ? packToF64UI(1'b1, 16'h43E, 64'd0) : packToF64UI(1'b0, 16'd0, 64'd0);
+    }
+    Bits<64> absA = (sign == 1) ? -a : a;
+    return softfloat_normRoundPackToF64(sign, 16'h43C, absA, mode);
+  }
+}
+
+function i64_to_fo_no_flag {
+  returns Bits<64>
+  arguments Bits<64> a, RoundingMode mode
+  description {
+    `i64_to_fo` 的不置标志版本（供不置标志的内部路径使用）。
+  }
+  body {
+    Bits<1> sign = a[63];
+    if ((a & 64'h7FFF_FFFF_FFFF_FFFF) == 0) {
+      return (sign == 1) ? packToF64UI(1'b1, 16'h43E, 64'd0) : packToF64UI(1'b0, 16'd0, 64'd0);
+    }
+    Bits<64> absA = (sign == 1) ? -a : a;
+    return softfloat_normRoundPackToF64_no_flag(sign, 16'h43C, absA, mode);
+  }
+}
+
+function ui64_to_fo {
+  returns Bits<64>
+  arguments Bits<64> a, RoundingMode mode
+  description {
+    无符号 64 位整数 → fo（`uo2fo`）。精度损失 ⇒ 置 NX（`0` 精确，不置标志）。
+  }
+  body {
+    if (a == 0) {
+      return a;
+    }
+    if (a[63] == 1) {
+      # a ≥ 2^63：值 = (a 右移 1 位并粘位) × 2 ⇒ 指数基准 0x43D
+      return softfloat_roundPackToF64(1'b0, 16'h43D, softfloat_shortShiftRightJam64(a, 8'd1), mode);
+    } else {
+      return softfloat_normRoundPackToF64(1'b0, 16'h43C, a, mode);
+    }
+  }
+}
+
+function ui64_to_fo_no_flag {
+  returns Bits<64>
+  arguments Bits<64> a, RoundingMode mode
+  description {
+    `ui64_to_fo` 的不置标志版本（供不置标志的内部路径使用）。
+  }
+  body {
+    if (a == 0) {
+      return a;
+    }
+    if (a[63] == 1) {
+      return softfloat_roundPackToF64_no_flag(1'b0, 16'h43D, softfloat_shortShiftRightJam64(a, 8'd1), mode);
+    } else {
+      return softfloat_normRoundPackToF64_no_flag(1'b0, 16'h43C, a, mode);
+    }
+  }
+}
+
+# ── ft ↔ fo（fo2ft 舍入六档 / ft2fo 精确）────────────────────────────────────
+
+function fo_to_ft {
+  returns Bits<32>
+  arguments Bits<64> a, RoundingMode mode
+  description {
+    fo → ft（`fo2ft`，六档舍入）。NaN ⇒ canonical ft qNaN（sNaN 作输入置 NV）；±Inf ⇒ ±Inf；
+    溢出按 SimRISC-07 §1.3 表（RTZ/RDN 正溢出 ⇒ +ft_max 等，两者都置 OF + NX；「轻微溢出」
+    —— 无限指数范围的舍入结果仍为 max —— 只置 NX）；下溢仅在**舍入后**结果 tiny 且 inexact
+    时置 UF + NX（SimRISC-07 §1.3 的 tininess 检测点）。
+    **实现口径（不改 ft 族原语）**：位级打包用 `softfloat_roundPackToF32_no_flag`（原语的
+    值路径与 ft 族共用，不重复实现舍入）；标志在**本函数内**判定：
+      ① OF 用与原语相同的溢出不等式；② NX 用「转回 fo 后与原值逐位比较」判无损；
+      ③ UF = 结果 tiny（指数域 0）且 inexact。
+    理由：`softfloat_roundPackToF32` 的 tiny 预判（`sig + roundIncrement < 0x80000000`）
+    在「刚好舍入到最小正规数」的平局点上会多置 UF（见任务 m15-idl-016 完成区记录），
+    ft 族原语按任务约束不改动，故 fo2ft 侧按规范口径自行判定。
+  }
+  body {
+    if (is_dp_signaling_nan?(a)) {
+      set_fp_flag(FpFlag::NV);
+    }
+    if (is_dp_nan?(a)) {
+      return SP_CANONICAL_NAN;
+    }
+    Bits<1> sign = signF64UI(a);
+    Bits<16> exp = expF64UI(a);
+    Bits<64> sig = fracF64UI(a);
+
+    if (exp == 16'h7FF) {
+      return packToF32UI(sign, 8'hFF, 23'h0);          # ±Inf
+    }
+
+    if (exp != 0) {
+      sig = sig | 64'h0010_0000_0000_0000;
+    }
+    # 31 位目标有效数：53 − 31 = 22 位右移（多出的位粘到 bit0）
+    Bits<64> sig31 = 0;
+    sig31 = softfloat_shiftRightJam64(sig, 32'd22);
+    # f32 roundPack 的输入约定：值 = sig × 2^(exp − 156)；同一值的 f32 指数基准 = exp − 897
+    Bits<16> expZ = 0;
+    expZ = exp - 16'd897;
+    Bits<32> sigZ = 0;
+    sigZ = sig31[31:0];
+
+    # ① 溢出：与原语内部同一不等式（§7.4；「轻微溢出」不满足它 ⇒ 只置 NX）
+    Bits<16> roundIncrement = 0x40;
+    if ((mode != RoundingMode::RNE) && (mode != RoundingMode::RNA)) {
+      roundIncrement = (mode == ((sign != 0) ? RoundingMode::RDN : RoundingMode::RUP)) ? 0x7F : 0;
+    }
+    Boolean overflow = false;
+    if ((16'h00FD <= expZ) && ($signed(expZ) >= 0s)) {
+      if ((16'h00FD < expZ) || (0x80000000 <= sigZ + roundIncrement)) {
+        overflow = true;
+      }
+    }
+
+    Bits<32> z = 0;
+    z = softfloat_roundPackToF32_no_flag(sign, expZ, sigZ, mode);
+
+    if (overflow) {
+      set_fp_flag(FpFlag::OF);
+      set_fp_flag(FpFlag::NX);
+      return z;
+    }
+    # ② NX：f32 结果转回 fo 与原值逐位相同 ⇔ 本次转换无损（有限 ⇔ 两端都精确）
+    if (ft_to_fo(z) != a) {
+      set_fp_flag(FpFlag::NX);
+      # ③ UF：tininess 检测点 = 舍入后 ⇒ 结果指数域为 0（次正规或 0）才算 tiny
+      if (z[30:23] == 8'd0) {
+        set_fp_flag(FpFlag::UF);
+      }
+    }
+    return z;
+  }
+}
+
+function ft_to_fo {
+  returns Bits<64>
+  arguments Bits<32> a
+  description {
+    ft → fo（`ft2fo`，**精确转换，不涉舍入、不置 NX/OF/UF**）。NaN ⇒ canonical fo qNaN
+    （sNaN 作输入置 NV）；±Inf ⇒ ±Inf；±0 保留符号；次正规 ft 先规格化后按 64 位有效数
+    精确打包（f32 的 24 位有效数总能被 f64 精确表示，SimRISC-07 §1.2）。
+  }
+  body {
+    if (is_sp_signaling_nan?(a)) {
+      set_fp_flag(FpFlag::NV);
+    }
+    if (is_sp_nan?(a)) {
+      return DP_CANONICAL_NAN;
+    }
+    Bits<1> sign = signF32UI(a);
+    Bits<16> expA = expF32UI(a);
+    Bits<32> fracA = fracF32UI(a);
+
+    if (expA == 16'hFF) {
+      # ±Inf
+      return packToF64UI(sign, 16'h7FF, 64'd0);
+    }
+
+    Bits<64> sig64 = 0;
+    Bits<16> exp64 = 0;
+    if (expA == 0) {
+      if (fracA == 0) {
+        return packToF64UI(sign, 16'd0, 64'd0);
+      }
+      # 次正规 ft：按 clz 规格化（隐式位落到 bit23），值 = S × 2^(e − 150)，
+      # 其中 e = 1 − shiftDist（与 ft 族的 normSubnormal 口径一致）
+      Bits<8> shiftDist = 0;
+      shiftDist = ft_clz32(fracA) - 8;
+      sig64 = {32'h0, fracA};
+      sig64 = sig64 << (shiftDist + 29);
+      exp64 = 16'd897 - shiftDist;
+    } else {
+      # 正规 ft：值 = S × 2^(expA − 150)；f64 指数域 = expA − 127 + 1023 = expA + 896
+      sig64 = {32'h0, fracA | 32'h0080_0000};
+      sig64 = sig64 << 29;
+      exp64 = expA + 16'd896;
+    }
+    # pack 时隐式位（bit52）进位到指数域 ⇒ 传入 exp64 − 1
+    return packToF64UI(sign, exp64 - 16'd1, sig64);
+  }
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# fo（binary64）族 —— 批 2：算术 + 取整 + 缩放 + 取余（m15-idl-016 批 2）
+#
+# 口径与批 1 一致：标志写 `rf0[4:0]`、舍入读 `rf0[33:32]`、无 NaN-boxing、`fo` 目的整 64 位写。
+# 舍入原语统一用**批 1 的 `softfloat_roundPackToF64`**（tininess 检测点在**舍入后**，
+# 不要照抄 ft 族 `softfloat_roundPackToF32` 的舍入前预判口径）。
+#
+# 位宽约定（重要）：`softfloat_roundPackToF64(sign, exp, sig)` 的被舍入值 = `sig × 2^(exp − 1084)`，
+# `sig` 须落在 `[2^62, 2^63)`（53 位有效数在 bit62..10 + 10 位保护位）。各运算传入的 `exp`：
+#   * 同指数加/减：`exp = expA`（对齐后的 sig 已在 [2^62, 2^63)）；
+#   * 乘法：`exp = expA + expB − 0x3FF`；除法：`exp = expA − expB + 1022`；
+#   * 开方：`exp = 1048 + (E − 1075)/2`（E = 输入的指数域，指数先化偶）。
+# `softfloat_normRoundPackToF64(sign, exp, sig)` 的 `sig` 是**整幅值**、值 = `sig × 2^(exp − 1084)`
+# （内部先规格化），运算里用它时按同一约定给 `exp`。
+
+# ── fo 次正规规格化与 NaN 辅助（与 ft 族同构）────────────────────────────────
+
+function softfloat_normSubnormalF64Exp {
+  returns Bits<16>
+  arguments Bits<64> sig
+  description {
+    次正规 fo 的尾数规格化后应加到指数上的值：`1 − (clz64(sig) − 11)`（16 位两位补码，可为负）。
+    对应 ft 族 `softfloat_normSubnormalF32Exp` 的 64 位版。
+  }
+  body {
+    Bits<8> shiftDist = 0;
+    shiftDist = ft_clz64(sig) - 11;
+    Bits<16> d = 0;
+    d = {8'h0, shiftDist};
+    return 16'sd1 - d;
+  }
+}
+
+function softfloat_normSubnormalF64Sig {
+  returns Bits<64>
+  arguments Bits<64> sig
+  description {
+    次正规 fo 的尾数规格化：`sig << (clz64(sig) − 11)`（隐式位落到 bit52）。
+  }
+  body {
+    Bits<8> shiftDist = 0;
+    shiftDist = ft_clz64(sig) - 11;
+    return sig << shiftDist;
+  }
+}
+
+function returnNonSignalingNaNF64 {
+  returns Bits<64>
+  arguments Bits<64> a
+  description {
+    返回 `a` 的 quiet 版本（把 bit51 置 1，其余位保持），不改输入（ft 族 `returnNonSignalingNaN` 的 64 位版）。
+  }
+  body {
+    Bits<64> a_copy = a;
+    a_copy[51] = 1'b1;
+    return a_copy;
+  }
+}
+
+function returnMagF64 {
+  returns Bits<64>
+  arguments Bits<64> a
+  description {
+    返回 `a` 的幅值（清符号位），不改输入。
+  }
+  body {
+    Bits<64> a_copy = a;
+    a_copy[63] = 1'b0;
+    return a_copy;
+  }
+}
+
+# ── 128/192 位右移粘位（fma 用）────────────────────────────────────────────
+
+function softfloat_shiftRightJam128 {
+  returns Bits<64>
+  arguments Bits<128> a, Bits<16> dist
+  description {
+    把 128 位 `a` 右移 `dist` 位，返回结果的低 64 位窗口；被移出的位若不全为 0 则粘到 bit0。
+    `dist` 可任意大（≥128 时结果为 0 或 1）。供 fma 把宽累加器折到 63 位有效数用。
+  }
+  body {
+    if (dist < 64) {
+      Bits<128> z = a >> dist;
+      Bits<128> lost = a & ((128'h1 << dist) - 1);
+      Bits<64> r = z[63:0];
+      if (lost != 0) {
+        r = r | 1;
+      }
+      return r;
+    }
+    if (dist < 128) {
+      Bits<128> z = a >> dist;
+      Bits<64> r = z[63:0];
+      Bits<128> lost = a & ((128'h1 << dist) - 1);
+      if (lost != 0) {
+        r = r | 1;
+      }
+      return r;
+    }
+    return (a != 0) ? 1 : 0;
+  }
+}
+
+function softfloat_shiftRightJam192 {
+  returns Bits<64>
+  arguments Bits<192> a, Bits<16> dist
+  description {
+    `softfloat_shiftRightJam128` 的 192 位版（fma 的对齐累加器用；`dist` ≥ 192 时结果为 0 或 1）。
+  }
+  body {
+    if (dist < 64) {
+      Bits<192> z = a >> dist;
+      Bits<192> lost = a & ((192'h1 << dist) - 1);
+      Bits<64> r = z[63:0];
+      if (lost != 0) {
+        r = r | 1;
+      }
+      return r;
+    }
+    if (dist < 128) {
+      Bits<192> z = a >> dist;
+      Bits<64> r = z[63:0];
+      Bits<192> lost = a & ((192'h1 << dist) - 1);
+      if (lost != 0) {
+        r = r | 1;
+      }
+      return r;
+    }
+    if (dist < 192) {
+      Bits<192> z = a >> dist;
+      Bits<64> r = z[63:0];
+      Bits<192> lost = a & ((192'h1 << dist) - 1);
+      if (lost != 0) {
+        r = r | 1;
+      }
+      return r;
+    }
+    return (a != 0) ? 1 : 0;
+  }
+}
+
+function fo_bitlen128 {
+  returns Bits<16>
+  arguments Bits<128> v
+  description {
+    `v` 的有效位数（0 ⇒ 0）。128 位没有 clz 内建 ⇒ 用两半的 `ft_clz64` 拼。
+  }
+  body {
+    if (v[127:64] != 0) {
+      return 16'd128 - {8'h0, ft_clz64(v[127:64])};
+    }
+    if (v[63:0] != 0) {
+      return 16'd64 - {8'h0, ft_clz64(v[63:0])};
+    }
+    return 16'd0;
+  }
+}
+
+function fo_bitlen192 {
+  returns Bits<16>
+  arguments Bits<192> v
+  description {
+    `v` 的有效位数（0 ⇒ 0）。用 `fo_bitlen128` 拼三段。
+  }
+  body {
+    if (v[191:128] != 0) {
+      return 16'd192 - {8'h0, ft_clz64(v[191:128])};
+    }
+    if (v[127:0] != 0) {
+      return fo_bitlen128(v[127:0]);
+    }
+    return 16'd0;
+  }
+}
+
+# ── fo 幅值加/减（softfloat 核心，f64 版）──────────────────────────────────
+
+function softfloat_addMagsF64 {
+  returns Bits<64>
+  arguments Bits<64> a, Bits<64> b, RoundingMode mode
+  description {
+    同号数的幅值相加（IEEE 754-2019 §6.3 零符号：精确和为零时 RDN ⇒ −0，其余 ⇒ +0）。
+    sNaN 作输入置 NV，NaN 结果取 canonical quiet NaN。位宽映射与 ft 族 `softfloat_addMagsF32`
+    同构：对齐后的 sig 在 `[2^61, 2^62)`（隐式位在 bit61），求和后折到 roundPack 的 `[2^62, 2^63)`。
+  }
+  body {
+    if (is_dp_signaling_nan?(a) || is_dp_signaling_nan?(b)) {
+      set_fp_flag(FpFlag::NV);
+    }
+
+    Bits<16> expA = expF64UI(a);
+    Bits<64> sigA = fracF64UI(a);
+    Bits<16> expB = expF64UI(b);
+    Bits<64> sigB = fracF64UI(b);
+
+    Bits<64> z;
+    Bits<16> expZ;
+    Bits<1> signZ;
+
+    Bits<16> expDiff = expA - expB;
+
+    if (expDiff == 16'd0) {
+      if (expA == 16'd0) {
+        # 两者同为 0/次正规：按幅值相加再补符号（UDB 的 `a + b` 会在两个负次正规求和时丢符号）
+        Bits<64> magA = a & 64'h7FFF_FFFF_FFFF_FFFF;
+        Bits<64> magB = b & 64'h7FFF_FFFF_FFFF_FFFF;
+        z = packToF64UI(signF64UI(a), 16'd0, 64'd0) + magA + magB;
+        return z;
+      }
+
+      if (expA == 16'h7FF) {
+        if ((sigA != 0) || (sigB != 0)) {
+          return DP_CANONICAL_NAN;
+        }
+        return a;
+      }
+
+      signZ = signF64UI(a);
+      expZ = expA;
+      Bits<64> sigZ = 64'h0020_0000_0000_0000 + sigA + sigB;   # 2^53（隐式位）
+
+      if (((sigZ & 1) == 0) && (expZ < 16'h7FE)) {
+        sigZ = sigZ >> 1;
+        return packToF64UI(signZ, expZ, sigZ);
+      }
+
+      sigZ = sigZ << 9;
+      return softfloat_roundPackToF64(signZ, expZ, sigZ, mode);
+    }
+
+    signZ = signF64UI(a);
+    sigA = sigA << 9;
+    sigB = sigB << 9;
+
+    if ($signed(expDiff) < 0s) {
+      if (expB == 16'h7FF) {
+        if (sigB != 0) {
+          return DP_CANONICAL_NAN;
+        }
+        return packToF64UI(signZ, 16'h7FF, 64'd0);
+      }
+      expZ = expB;
+      sigA = (expA == 0) ? 2 * sigA : (sigA + 64'h2000_0000_0000_0000);
+      sigA = softfloat_shiftRightJam64(sigA, -expDiff);
+    } else {
+      if (expA == 16'h7FF) {
+        if (sigA != 0) {
+          return DP_CANONICAL_NAN;
+        }
+        return a;
+      }
+      expZ = expA;
+      sigB = (expB == 0) ? 2 * sigB : (sigB + 64'h2000_0000_0000_0000);
+      sigB = softfloat_shiftRightJam64(sigB, expDiff);
+    }
+
+    Bits<64> sigZ2 = 0;
+    sigZ2 = 64'h2000_0000_0000_0000 + sigA + sigB;
+    if (sigZ2 < 64'h4000_0000_0000_0000) {
+      expZ = expZ - 1;
+      sigZ2 = sigZ2 << 1;
+    }
+    return softfloat_roundPackToF64(signZ, expZ, sigZ2, mode);
+  }
+}
+
+function softfloat_subMagsF64 {
+  returns Bits<64>
+  arguments Bits<64> a, Bits<64> b, RoundingMode mode
+  description {
+    异号数的幅值相减：`|a| − |b|`，符号取绝对值较大者。精确差为零 ⇒ RDN 时 −0，其余 +0；
+    `Inf − Inf` ⇒ NV + canonical qNaN（qNaN 输入不置 NV）。位宽映射：对齐后 sig 在
+    `[2^62, 2^63)`（隐式位 bit62），差交 `softfloat_normRoundPackToF64` 规格化。
+  }
+  body {
+    if (is_dp_signaling_nan?(a) || is_dp_signaling_nan?(b)) {
+      set_fp_flag(FpFlag::NV);
+    }
+
+    Bits<16> expA = expF64UI(a);
+    Bits<64> sigA = fracF64UI(a);
+    Bits<16> expB = expF64UI(b);
+    Bits<64> sigB = fracF64UI(b);
+
+    Bits<1> signZ;
+    Bits<16> expZ;
+    Bits<8> shiftDist;
+    Bits<64> sigX;
+    Bits<64> sigY;
+
+    Bits<16> expDiff = expA - expB;
+
+    if (expDiff == 16'd0) {
+      if (expA == 16'h7FF) {
+        # 两者同为 Inf（或含 NaN）：只有 Inf − Inf 是无效运算；qNaN 输入不置 NV
+        if ((sigA == 0) && (sigB == 0)) {
+          set_fp_flag(FpFlag::NV);
+        }
+        return DP_CANONICAL_NAN;
+      }
+
+      Bits<64> sigDiff = sigA - sigB;
+      if (sigDiff == 0) {
+        return packToF64UI((mode == RoundingMode::RDN) ? 1 : 0, 16'd0, 64'd0);
+      }
+      if (expA != 0) {
+        expA = expA - 1;
+      }
+      signZ = signF64UI(a);
+      if ($signed(sigDiff) < 's0) {
+        signZ = ~signZ;
+        sigDiff = -sigDiff;
+      }
+      # 52 位尾数的差值：左移到隐式位落 bit52 所需的位数 = clz64 − 11
+      shiftDist = ft_clz64(sigDiff) - 11;
+      expZ = expA - shiftDist;
+      if (shiftDist > expA) {
+        shiftDist = expA;
+        expZ = 0;
+      }
+      return packToF64UI(signZ, expZ, sigDiff << shiftDist);
+    }
+
+    signZ = signF64UI(a);
+    sigA = sigA << 10;
+    sigB = sigB << 10;
+    if ($signed(expDiff) < 0s) {
+      signZ = ~signZ;
+      if (expB == 16'h7FF) {
+        if (sigB != 0) {
+          return DP_CANONICAL_NAN;
+        }
+        return packToF64UI(signZ, 16'h7FF, 64'd0);
+      }
+      expZ = expB - 1;
+      sigX = sigB | 64'h4000_0000_0000_0000;
+      sigY = sigA + ((expA != 0) ? 64'h4000_0000_0000_0000 : sigA);
+      expDiff = -expDiff;
+    } else {
+      if (expA == 16'h7FF) {
+        if (sigA != 0) {
+          return DP_CANONICAL_NAN;
+        }
+        return a;
+      }
+      expZ = expA - 1;
+      sigX = sigA | 64'h4000_0000_0000_0000;
+      sigY = sigB + ((expB != 0) ? 64'h4000_0000_0000_0000 : sigB);
+    }
+    Bits<64> sigToSub = 0;
+    sigToSub = softfloat_shiftRightJam64(sigY, expDiff);
+    return softfloat_normRoundPackToF64(signZ, expZ, sigX - sigToSub, mode);
+  }
+}
+
+# ── fo 指令级算术入口（foadd/fosub/fomul/fodiv/fofma/foroot/fosclb）────────
+
+function fo_add {
+  returns Bits<64>
+  arguments Bits<64> a, Bits<64> b, RoundingMode mode
+  description {
+    fo 加法（`foadd`）：IEEE 754-2019 addition。同号走幅值加、异号走幅值减；
+    sNaN 置 NV，NaN 结果恒 canonical quiet NaN；UF 仅在结果 tiny 且 inexact 时置位。
+  }
+  body {
+    Bits<64> a_xor_b = a ^ b;
+    if (signF64UI(a_xor_b) == 1) {
+      return softfloat_subMagsF64(a, b, mode);
+    }
+    return softfloat_addMagsF64(a, b, mode);
+  }
+}
+
+function fo_sub {
+  returns Bits<64>
+  arguments Bits<64> a, Bits<64> b, RoundingMode mode
+  description {
+    fo 减法（`fosub`）：IEEE 754-2019 subtraction（= `a + (−b)`）。
+  }
+  body {
+    Bits<64> a_xor_b = a ^ b;
+    if (signF64UI(a_xor_b) == 1) {
+      return softfloat_addMagsF64(a, b, mode);
+    }
+    return softfloat_subMagsF64(a, b, mode);
+  }
+}
+
+function fo_mul {
+  returns Bits<64>
+  arguments Bits<64> a, Bits<64> b, RoundingMode mode
+  description {
+    fo 乘法（`fomul`）：IEEE 754-2019 multiplication。`0 × ±Inf` ⇒ NV + canonical qNaN。
+    **106 位精确积**：两个 53 位有效数左移后在 `Bits<128>` 里用加宽乘（`` `* ``）求精确积，
+    再折到 roundPack 的 `[2^62, 2^63)` 窗口（低位粘到 bit0）——IDL 的 `*` 不加宽，必须用 `` `* ``。
+  }
+  body {
+    if (is_dp_signaling_nan?(a) || is_dp_signaling_nan?(b)) {
+      set_fp_flag(FpFlag::NV);
+    }
+    Bits<1> signA = signF64UI(a);
+    Bits<16> expA = expF64UI(a);
+    Bits<64> fracA = fracF64UI(a);
+    Bits<1> signB = signF64UI(b);
+    Bits<16> expB = expF64UI(b);
+    Bits<64> fracB = fracF64UI(b);
+    Bits<1> signZ = signA ^ signB;
+
+    Bits<64> sigA = fracA;
+    Bits<64> sigB = fracB;
+    Bits<16> expZ;
+
+    if (expA == 16'h7FF) {
+      if ((fracA != 0) || ((expB == 16'h7FF) && (fracB != 0))) {
+        return DP_CANONICAL_NAN;
+      }
+      if ((expB == 0) && (fracB == 0)) {
+        set_fp_flag(FpFlag::NV);
+        return DP_CANONICAL_NAN;
+      }
+      return packToF64UI(signZ, 16'h7FF, 64'd0);
+    }
+    if (expB == 16'h7FF) {
+      if (fracB != 0) {
+        return DP_CANONICAL_NAN;
+      }
+      if ((expA == 0) && (fracA == 0)) {
+        set_fp_flag(FpFlag::NV);
+        return DP_CANONICAL_NAN;
+      }
+      return packToF64UI(signZ, 16'h7FF, 64'd0);
+    }
+
+    if (expA == 0) {
+      if (fracA == 0) {
+        return packToF64UI(signZ, 16'd0, 64'd0);
+      }
+      Bits<16> e = 0;
+      Bits<64> norm = 0;
+      norm = softfloat_normSubnormalF64Sig(fracA);
+      e = softfloat_normSubnormalF64Exp(fracA);
+      sigA = norm;
+      expA = e;
+    }
+    if (expB == 0) {
+      if (fracB == 0) {
+        return packToF64UI(signZ, 16'd0, 64'd0);
+      }
+      Bits<16> e = 0;
+      Bits<64> norm = 0;
+      norm = softfloat_normSubnormalF64Sig(fracB);
+      e = softfloat_normSubnormalF64Exp(fracB);
+      sigB = norm;
+      expB = e;
+    }
+
+    expZ = expA + expB - 16'h03FF;
+    sigA = (sigA | 64'h0010_0000_0000_0000) << 10;   # 63 位（隐式位 bit62）
+    sigB = (sigB | 64'h0010_0000_0000_0000) << 11;   # 64 位
+    Bits<128> prod = 0;
+    prod = sigA `* sigB;                              # 加宽乘：63+64 = 127 位
+    Bits<64> sigZ = 0;
+    sigZ = prod[127:64];
+    if ((prod & 64'hFFFF_FFFF_FFFF_FFFF) != 0) {
+      sigZ = sigZ | 1;                                # 低位粘位
+    }
+    if (sigZ < 64'h4000_0000_0000_0000) {
+      expZ = expZ - 1;
+      sigZ = sigZ << 1;
+    }
+    return softfloat_roundPackToF64(signZ, expZ, sigZ, mode);
+  }
+}
+
+function fo_div {
+  returns Bits<64>
+  arguments Bits<64> a, Bits<64> b, RoundingMode mode
+  description {
+    fo 除法（`fodiv`）：IEEE 754-2019 division。`0/0` 与 `Inf/Inf` ⇒ NV；`x/0`（x 有限非零）⇒ DZ。
+    **精确商**：`Q = floor(SA × 2^62 / SB)`（128 位整数除），余数非零 ⇒ 粘位；再折到
+    roundPack 窗口 ⇒ 单次舍入、正确舍入（不用倒数近似，避免平台相关近似与二次舍入）。
+  }
+  body {
+    if (is_dp_signaling_nan?(a) || is_dp_signaling_nan?(b)) {
+      set_fp_flag(FpFlag::NV);
+    }
+    Bits<1> signA = signF64UI(a);
+    Bits<16> expA = expF64UI(a);
+    Bits<64> sigA = fracF64UI(a);
+    Bits<1> signB = signF64UI(b);
+    Bits<16> expB = expF64UI(b);
+    Bits<64> sigB = fracF64UI(b);
+    Bits<1> signZ = signA ^ signB;
+
+    Bits<16> expZ;
+
+    if (expA == 16'h7FF) {
+      if (sigA != 0) {
+        return DP_CANONICAL_NAN;
+      }
+      if (expB == 16'h7FF) {
+        if (sigB != 0) {
+          return DP_CANONICAL_NAN;
+        }
+        set_fp_flag(FpFlag::NV);
+        return DP_CANONICAL_NAN;
+      }
+      return packToF64UI(signZ, 16'h7FF, 64'd0);
+    }
+    if (expB == 16'h7FF) {
+      if (sigB != 0) {
+        return DP_CANONICAL_NAN;
+      }
+      return packToF64UI(signZ, 16'd0, 64'd0);
+    }
+
+    if (expB == 0) {
+      if (sigB == 0) {
+        if ((expA == 0) && (sigA == 0)) {
+          set_fp_flag(FpFlag::NV);
+          return DP_CANONICAL_NAN;
+        }
+        set_fp_flag(FpFlag::DZ);
+        return packToF64UI(signZ, 16'h7FF, 64'd0);
+      }
+      Bits<16> e = 0;
+      Bits<64> norm = 0;
+      norm = softfloat_normSubnormalF64Sig(sigB);
+      e = softfloat_normSubnormalF64Exp(sigB);
+      sigB = norm;
+      expB = e;
+    }
+
+    if (expA == 0) {
+      if (sigA == 0) {
+        return packToF64UI(signZ, 16'd0, 64'd0);
+      }
+      Bits<16> e = 0;
+      Bits<64> norm = 0;
+      norm = softfloat_normSubnormalF64Sig(sigA);
+      e = softfloat_normSubnormalF64Exp(sigA);
+      sigA = norm;
+      expA = e;
+    }
+
+    sigA = sigA | 64'h0010_0000_0000_0000;     # 隐式位（次正规已在规格化时置位，此处幂等）
+    sigB = sigB | 64'h0010_0000_0000_0000;
+
+    Bits<128> num = 0;
+    num = {64'h0, sigA} << 62;                 # SA × 2^62 ≤ 2^115
+    Bits<128> den = 0;
+    den = {64'h0, sigB};
+    Bits<128> quot = 0;
+    quot = num / den;
+    Bits<128> prodq = 0;
+    prodq = quot * den;                        # ≤ 2^116，不溢出
+    Bits<64> sigZ = 0;
+    sigZ = quot[63:0];
+    if ((num - prodq) != 0) {
+      sigZ = sigZ | 1;                         # 余数非零 ⇒ 粘位
+    }
+    expZ = expA - expB + 16'd1022;
+    if (sigZ < 64'h4000_0000_0000_0000) {
+      expZ = expZ - 1;
+      sigZ = sigZ << 1;
+    }
+    return softfloat_roundPackToF64(signZ, expZ, sigZ, mode);
+  }
+}
+
+function fo_isqrt128 {
+  returns Bits<128>
+  arguments Bits<128> n
+  description {
+    `floor(√n)`（`n < 2^128`）：初值取 `2^ceil(bitlen(n)/2)`（保证 ≥ √n），8 次牛顿迭代后
+    用**除法**做 ±1 校正（避免 `x*x` 在 `x ≈ 2^64` 时溢出 128 位）。
+  }
+  body {
+    if (n == 0) {
+      return 0;
+    }
+    Bits<16> bits = 0;
+    bits = fo_bitlen128(n);
+    Bits<16> sh = 0;
+    sh = (bits + 16'd1) >> 1;
+    Bits<128> x = 0;
+    x = 128'h1 << sh;
+    Bits<128> q = 0;
+
+    q = n / x;
+    x = (x + q) >> 1;
+    q = n / x;
+    x = (x + q) >> 1;
+    q = n / x;
+    x = (x + q) >> 1;
+    q = n / x;
+    x = (x + q) >> 1;
+    q = n / x;
+    x = (x + q) >> 1;
+    q = n / x;
+    x = (x + q) >> 1;
+    q = n / x;
+    x = (x + q) >> 1;
+    q = n / x;
+    x = (x + q) >> 1;
+
+    for (Bits<8> i = 0; i < 8'd3; i++) {
+      if (x > (n / x)) {
+        x = x - 1;
+      }
+    }
+    for (Bits<8> i = 0; i < 8'd3; i++) {
+      if ((x + 1) <= (n / (x + 1))) {
+        x = x + 1;
+      }
+    }
+    return x;
+  }
+}
+
+function fo_sqrt {
+  returns Bits<64>
+  arguments Bits<64> a, RoundingMode mode
+  description {
+    fo 开方（`foroot`，n = 2 ⇒ `rootn(x,2)` / IEEE 754-2019 squareRoot）。负数（非 −0）⇒
+    NV + canonical qNaN；`rootn(±0, 2) = +0`（IEEE 754-2019 §9.2.1 NOTE；SimRISC-07 §2.2）；
+    `+Inf` 原样返回。实现：把输入规格化为 `S × 2^(E−1075)`，用**精确整数平方根**
+    （`fo_isqrt128`）取 62–63 位有效数再交 `softfloat_roundPackToF64` ⇒ 正确舍入。
+  }
+  body {
+    if (is_dp_signaling_nan?(a)) {
+      set_fp_flag(FpFlag::NV);
+    }
+    Bits<1> signA = signF64UI(a);
+    Bits<16> expA = expF64UI(a);
+    Bits<64> sigA = fracF64UI(a);
+
+    if (expA == 16'h7FF) {
+      if (sigA != 0) {
+        return DP_CANONICAL_NAN;
+      }
+      if (signA == 0) {
+        return a;
+      }
+      set_fp_flag(FpFlag::NV);
+      return DP_CANONICAL_NAN;
+    }
+    if (is_dp_pos_zero?(a) || is_dp_neg_zero?(a)) {
+      return packToF64UI(1'b0, 16'd0, 64'd0);   # rootn(±0, 2) = +0（有意的口径，见 SimRISC-07 §2.2）
+    }
+    if (signA == 1) {
+      set_fp_flag(FpFlag::NV);
+      return DP_CANONICAL_NAN;
+    }
+
+    Bits<64> sigS = 0;
+    Bits<16> expE = 0;
+    if (expA == 0) {
+      sigS = softfloat_normSubnormalF64Sig(sigA);
+      expE = softfloat_normSubnormalF64Exp(sigA);
+    } else {
+      sigS = sigA | 64'h0010_0000_0000_0000;
+      expE = expA;
+    }
+
+    Bits<16> ex = 0;
+    ex = expE - 16'd1075;                        # 2 的幂次（两位补码，可为负）
+    Bits<1> odd = ex[0];
+    Bits<64> m = 0;
+    m = (odd == 1'b1) ? (sigS << 1) : sigS;         # 奇次幂 ⇒ 2S，使幂次变偶
+    Bits<16> ex2 = 0;
+    ex2 = (odd == 1'b1) ? (ex - 16'sd1) : ex;
+    Bits<16> half = 0;
+    half = ex2 >> 1;                          # 逻辑右移 1 位
+    if ((ex2 & 16'h8000) != 0) {
+      half = half | 16'h8000;                 # 负数 ⇒ 补回符号位（两位补码算术右移 1 位）
+    }
+
+    Bits<128> radicand = 0;
+    radicand = {64'h0, m} << 72;              # m < 2^54 ⇒ radicand < 2^126
+    Bits<128> rootQ = 0;
+    rootQ = fo_isqrt128(radicand);
+
+    Bits<64> sigZ = 0;
+    sigZ = rootQ[63:0];                       # rootQ ∈ [2^62, 2^63) ⇒ 截断无损
+    Bits<128> sq = 0;
+    sq = rootQ * rootQ;
+    if (sq != radicand) {
+      sigZ = sigZ | 1;                        # 非精确 ⇒ 粘滞位置 1（供最后舍入）
+    }
+
+    Bits<16> expZ = 0;
+    expZ = 16'sd1048 + half;                  # 满足 value = sigZ × 2^(expZ − 1084)
+    return softfloat_roundPackToF64(1'b0, expZ, sigZ, mode);
+  }
+}
+
+function fo_scale {
+  returns Bits<64>
+  arguments Bits<64> a, Bits<64> n, RoundingMode mode
+  description {
+    fo 缩放（`fosclb`，IEEE 754-2019 scaleB）：计算 `a × 2^n`，`n` 为 `rd` 组的**有符号 64 位
+    整数指数**（`rdHD = rd0` 表示 0）。NaN/Inf/±0 原样返回（不置标志）；其余按 `mode` 舍入，
+    超出范围按 §1.3 置 OF/UF + NX。`n` 极大/极小时饱和到 ±4096：因输入指数域 ≤ 2046、
+    最小次正规 ≈ 2^-1074，|n| > 4096 时任何非零输入都必然溢出/下溢 ⇒ 饱和不改变结论，
+    同时保证 16 位指数和不溢出。
+  }
+  body {
+    if (is_dp_signaling_nan?(a)) {
+      set_fp_flag(FpFlag::NV);
+    }
+    if (is_dp_nan?(a)) {
+      return DP_CANONICAL_NAN;
+    }
+    if (is_dp_pos_inf?(a) || is_dp_neg_inf?(a)) {
+      return a;
+    }
+    if (is_dp_pos_zero?(a) || is_dp_neg_zero?(a)) {
+      return a;
+    }
+
+    Bits<1> sign = signF64UI(a);
+    Bits<16> exp = expF64UI(a);
+    Bits<64> sig = fracF64UI(a);
+    if (exp == 0) {
+      Bits<16> e = 0;
+      Bits<64> norm = 0;
+      norm = softfloat_normSubnormalF64Sig(sig);
+      e = softfloat_normSubnormalF64Exp(sig);
+      sig = norm;
+      exp = e;
+    } else {
+      sig = sig | 64'h0010_0000_0000_0000;
+    }
+
+    Bits<16> offset = 0;
+    if ($signed(n) > 64'sd4096) {
+      offset = 16'sd4096;
+    } else if ($signed(n) < -64'sd4096) {
+      offset = -16'sd4096;
+    } else {
+      offset = n[15:0];
+    }
+
+    # roundPack 的 exp 约定：sig（53 位有效数在 bit52）左移 10 位后，值 = sig × 2^(exp − 1084)
+    # ⇒ 对指数域 E，应传 exp = E − 1（隐式位进位由 pack 负责）
+    Bits<16> expZ = 0;
+    expZ = (exp - 16'd1) + offset;
+    Bits<64> sigZ = 0;
+    sigZ = sig << 10;
+    return softfloat_roundPackToF64(sign, expZ, sigZ, mode);
+  }
+}
+
+function round_fo_to_integral {
+  returns Bits<64>
+  arguments Bits<64> a, RoundingMode mode
+  description {
+    取整（`fornd`，IEEE 754-2019 roundToIntegral）：结果格式不变。NaN ⇒ canonical qNaN
+    （sNaN 置 NV）；±Inf 与 ±0 原样返回；`|x| ≥ 2^52` 时值已是整数 ⇒ 原样返回；
+    结果为 0 时沿用输入的符号位。**本函数不置 NX**：`immu6 = 0x20`（roundToIntegralExact）的
+    「结果 ≠ 输入 ⇒ NX」由 operation 判定（SimRISC-07 §2.3）。
+  }
+  body {
+    if (is_dp_nan?(a)) {
+      if (is_dp_signaling_nan?(a)) {
+        set_fp_flag(FpFlag::NV);
+      }
+      return DP_CANONICAL_NAN;
+    }
+    if (is_dp_neg_inf?(a) || is_dp_pos_inf?(a)) {
+      return a;
+    }
+    if (is_dp_pos_zero?(a) || is_dp_neg_zero?(a)) {
+      return a;
+    }
+    # |x| ≥ 2^52 ⇒ 该 f64 值已是整数（ULP ≥ 1），必须原样返回
+    if (expF64UI(a) >= 16'd1075) {
+      return a;
+    }
+    Bits<64> intermediate = 0;
+    intermediate = fo_to_i64_no_flag(a, mode);
+    Bits<64> z = 0;
+    z = i64_to_fo_no_flag(intermediate, mode);
+    if ((z & 64'h7FFF_FFFF_FFFF_FFFF) == 0) {
+      # 取整结果为 0 ⇒ 沿用输入符号（trunc(−0.5) = −0）
+      return packToF64UI(signF64UI(a), 16'd0, 64'd0);
+    }
+    return z;
+  }
+}
+
+function fo_muladd {
+  returns Bits<64>
+  arguments Bits<64> a, Bits<64> b, Bits<64> c, MulAddOp op, RoundingMode mode
+  description {
+    融合乘加（`fofma`，IEEE 754-2019 fusedMultiplyAdd）：`a × b` 的**精确积**与 `c` 相加、
+    只在最后舍入一次。`op` 选择 `(a×b)+c` / `(a×b)−c` / `−(a×b)+c`。`0 × ±Inf` 即使加数为
+    qNaN 也置 NV（无效运算优先于 NaN 传播）；精确和为零时 RDN ⇒ −0，其余 ⇒ +0。
+    **106 位精确积**用 `Bits<128>` 加宽乘（`` `* ``）求得；与加数的对齐在 `Bits<192>`
+    累加器里做（相距超过 75 位时远操作数只留粘位，间距大时不可能发生相消）。
+  }
+  body {
+    if (is_dp_signaling_nan?(a) || is_dp_signaling_nan?(b) || is_dp_signaling_nan?(c)) {
+      set_fp_flag(FpFlag::NV);
+    }
+    Bits<1> signA = signF64UI(a);
+    Bits<16> expA = expF64UI(a);
+    Bits<64> sigA = fracF64UI(a);
+    Bits<1> signB = signF64UI(b);
+    Bits<16> expB = expF64UI(b);
+    Bits<64> sigB = fracF64UI(b);
+    Bits<1> signC = signF64UI(c) ^ ((op == MulAddOp::SubC) ? 1 : 0);
+    Bits<16> expC = expF64UI(c);
+    Bits<64> sigC = fracF64UI(c);
+    Bits<1> signProd = (signA ^ signB) ^ ((op == MulAddOp::SubProd) ? 1 : 0);
+
+    Bits<64> magBits;
+    Bits<64> magC;
+
+    if (expA == 16'h7FF) {
+      if ((sigA != 0) || ((expB == 16'h7FF) && (sigB != 0))) {
+        return DP_CANONICAL_NAN;
+      }
+      magBits = {48'h0, expB} | sigB;
+      if (magBits != 0) {
+        Bits<64> zA = packToF64UI(signProd, 16'h7FF, 64'd0);
+        if (expC != 16'h7FF) {
+          return zA;
+        }
+        if (sigC != 0) {
+          return DP_CANONICAL_NAN;
+        }
+        if (signProd == signC) {
+          return zA;
+        }
+      }
+      set_fp_flag(FpFlag::NV);
+      return DP_CANONICAL_NAN;
+    }
+
+    if (expB == 16'h7FF) {
+      if (sigB != 0) {
+        return DP_CANONICAL_NAN;
+      }
+      magBits = {48'h0, expA} | sigA;
+      if (magBits != 0) {
+        Bits<64> zB = packToF64UI(signProd, 16'h7FF, 64'd0);
+        if (expC != 16'h7FF) {
+          return zB;
+        }
+        if (sigC != 0) {
+          return DP_CANONICAL_NAN;
+        }
+        if (signProd == signC) {
+          return zB;
+        }
+      }
+      set_fp_flag(FpFlag::NV);
+      return DP_CANONICAL_NAN;
+    }
+
+    if (expC == 16'h7FF) {
+      if (sigC != 0) {
+        return DP_CANONICAL_NAN;
+      }
+      # 加数为 ±Inf：按 `op` 的取反口径返回（`SubC` 时取反）
+      return packToF64UI(signC, 16'h7FF, 64'd0);
+    }
+
+    magC = {48'h0, expC} | sigC;
+
+    if (expA == 0) {
+      if (sigA == 0) {
+        if ((magC == 0) && (signProd != signC)) {
+          return packToF64UI((mode == RoundingMode::RDN) ? 1 : 0, 16'd0, 64'd0);
+        }
+        # 乘积为 ±0 ⇒ 结果就是加数本身，但要按 `op` 的取反口径（`SubC` 时取反）
+        return packToF64UI(signC, expF64UI(c), fracF64UI(c));
+      }
+      Bits<16> e = 0;
+      Bits<64> norm = 0;
+      norm = softfloat_normSubnormalF64Sig(sigA);
+      e = softfloat_normSubnormalF64Exp(sigA);
+      sigA = norm;
+      expA = e;
+    }
+
+    if (expB == 0) {
+      if (sigB == 0) {
+        if ((magC == 0) && (signProd != signC)) {
+          return packToF64UI((mode == RoundingMode::RDN) ? 1 : 0, 16'd0, 64'd0);
+        }
+        return packToF64UI(signC, expF64UI(c), fracF64UI(c));
+      }
+      Bits<16> e = 0;
+      Bits<64> norm = 0;
+      norm = softfloat_normSubnormalF64Sig(sigB);
+      e = softfloat_normSubnormalF64Exp(sigB);
+      sigB = norm;
+      expB = e;
+    }
+
+    if (expC == 0) {
+      if (sigC != 0) {
+        Bits<16> e = 0;
+        Bits<64> norm = 0;
+        norm = softfloat_normSubnormalF64Sig(sigC);
+        e = softfloat_normSubnormalF64Exp(sigC);
+        sigC = norm;
+        expC = e;
+      }
+    } else {
+      sigC = sigC | 64'h0010_0000_0000_0000;
+    }
+
+
+    Bits<16> expProd = 0;
+    expProd = expA + expB - 16'h03FF;
+    sigA = (sigA | 64'h0010_0000_0000_0000) << 10;   # 63 位
+    sigB = (sigB | 64'h0010_0000_0000_0000) << 11;   # 64 位
+    Bits<128> prod = 0;
+    prod = sigA `* sigB;                              # P << 21
+    Bits<128> pInt = 0;
+    pInt = prod >> 21;                                # P ≤ 2^106
+    # 值 = P × 2^eP，加数 = C × 2^eC
+    Bits<16> eP = 0;
+    eP = expProd - 16'd1127;
+    Bits<16> eC = 0;
+    eC = expC - 16'd1075;
+    Bits<16> gap = 0;
+    gap = eC - eP;
+
+    Bits<192> acc = 0;
+    Bits<16> expBase = 0;
+    Bits<1> signZ = signProd;
+    if (magC == 0) {
+      # 加数为 ±0（`SubC` 时其符号已取反）⇒ 结果就是乘积（c 的 eC 无意义，不能参与「远距离」判断）
+      acc = {64'h0, pInt};
+      expBase = eP;
+    } else if (signC == signProd) {
+      # 同号 ⇒ 幅值相加
+      if ($signed(gap) < 0s) {
+        # 加数在更低 scale：右移粘位（乘积 ≥ 2^104 ⇒ 不会相消到需要其低位）
+        Bits<64> shifted = 0;
+        shifted = softfloat_shiftRightJam64(sigC, -gap);
+        acc = {64'h0, pInt} + {128'h0, shifted};
+        expBase = eP;
+      } else if ($signed(gap) <= 16'sd107) {
+        # 乘积占 [eP, eP+106) 位：相距 ≤ 107 位时两个操作数仍有重叠 ⇒ 完整对齐（可能相消）
+        acc = {64'h0, pInt} + ({128'h0, sigC} << gap);
+        expBase = eP;
+      } else {
+        # 加数整体在乘积之上 ⇒ 乘积只贡献粘位（略大一点，方向正确）
+        acc = {128'h0, sigC} << 16'd108;
+        if (pInt != 0) {
+          acc = acc | 1;
+        }
+        expBase = eC - 16'd108;
+      }
+    } else {
+      # 异号 ⇒ 幅值相减，符号取幅值较大者
+      if ($signed(gap) < 0s) {
+        Bits<64> shifted = 0;
+        shifted = softfloat_shiftRightJam64(sigC, -gap);
+        acc = {64'h0, pInt} - {128'h0, shifted};
+        expBase = eP;
+      } else if ($signed(gap) <= 16'sd107) {
+        Bits<192> cAligned = 0;
+        cAligned = {128'h0, sigC} << gap;
+        Bits<192> pWide = 0;
+        pWide = {64'h0, pInt};
+        if (cAligned >= pWide) {
+          acc = cAligned - pWide;
+          signZ = signC;
+        } else {
+          acc = pWide - cAligned;
+        }
+        expBase = eP;
+      } else {
+        # 加数整体在乘积之上且异号 ⇒ 结果比加数略小：用「减 1」表示极小量（粘位方向正确）
+        acc = {128'h0, sigC} << 16'd108;
+        if (pInt != 0) {
+          acc = acc - 1;
+        }
+        signZ = signC;
+        expBase = eC - 16'd108;
+      }
+    }
+
+    if (acc == 0) {
+      return packToF64UI((mode == RoundingMode::RDN) ? 1 : 0, 16'd0, 64'd0);
+    }
+
+    Bits<16> blen = 0;
+    blen = fo_bitlen192(acc);
+    Bits<16> shift = 0;
+    shift = blen - 16'd63;
+    Bits<64> sigZ = 0;
+    Bits<16> expZ = 0;
+    if ($signed(shift) > 0s) {
+      sigZ = softfloat_shiftRightJam192(acc, shift);
+      expZ = expBase + shift + 16'd1084;
+    } else {
+      Bits<192> left = 0;
+      left = acc << (-shift);
+      sigZ = left[63:0];
+      expZ = expBase + shift + 16'd1084;
+    }
+    return softfloat_roundPackToF64(signZ, expZ, sigZ, mode);
+  }
+}
+
+# ── 取余（IEEE 754-2019 remainder：x − n·y，n = 最近整数商、平局取偶）──────────
+
+function ft_rem {
+  returns Bits<32>
+  arguments Bits<32> a, Bits<32> b
+  description {
+    ft 取余（`ftrem`）：IEEE 754-2019 remainder，`x − n × y`，`n` = 最接近 `x/y` 的整数、
+    **平局取偶**；舍入方向不参与本操作。结果恒**精确** ⇒ 不置 NX/OF/UF。`y = ±0` 或
+    `x = ±Inf`（且两者都不是 NaN）⇒ **无效操作 NV**（不是 DZ）+ canonical qNaN；NaN 输入优先
+    于该无效条件（sNaN 仍置 NV）；`y = ±Inf` ⇒ 结果 = `x`；零余数取 **`x` 的符号**。
+    实现：把两者规格化后做整数模（逐位移位 + 条件减，至多 2100 步），取最近并在平局时用
+    商的奇偶取偶，最后交 `softfloat_normRoundPackToF32_no_flag` 精确打包。
+  }
+  body {
+    if (is_sp_signaling_nan?(a) || is_sp_signaling_nan?(b)) {
+      set_fp_flag(FpFlag::NV);
+    }
+    if (is_sp_nan?(a) || is_sp_nan?(b)) {
+      return SP_CANONICAL_NAN;
+    }
+    Bits<1> signX = signF32UI(a);
+    Bits<16> expX = expF32UI(a);
+    Bits<32> sigX = fracF32UI(a);
+    Bits<16> expY = expF32UI(b);
+    Bits<32> sigY = fracF32UI(b);
+
+    if (expX == 16'hFF) {
+      set_fp_flag(FpFlag::NV);                    # x = ±Inf（y 非 NaN）
+      return SP_CANONICAL_NAN;
+    }
+    if ((expY == 0) && (sigY == 0)) {
+      set_fp_flag(FpFlag::NV);                    # y = ±0（x 非 NaN）⇒ 无效操作
+      return SP_CANONICAL_NAN;
+    }
+    if ((expX == 0) && (sigX == 0)) {
+      return a;                                    # ±0 ⇒ 原样（含符号）
+    }
+    if (expY == 16'hFF) {
+      return a;                                    # y = ±Inf ⇒ x
+    }
+
+    if (expX == 0) {
+      Bits<16> e = 0;
+      Bits<32> norm = 0;
+      norm = softfloat_normSubnormalF32Sig(sigX);
+      e = softfloat_normSubnormalF32Exp(sigX);
+      sigX = norm;
+      expX = e;
+    } else {
+      sigX = sigX | 32'h0080_0000;
+    }
+    if (expY == 0) {
+      Bits<16> e = 0;
+      Bits<32> norm = 0;
+      norm = softfloat_normSubnormalF32Sig(sigY);
+      e = softfloat_normSubnormalF32Exp(sigY);
+      sigY = norm;
+      expY = e;
+    } else {
+      sigY = sigY | 32'h0080_0000;
+    }
+
+    Bits<1> signR = signX;
+    Bits<32> r = 0;
+    Bits<16> expR = 0;
+    Bits<16> k = 0;
+    k = expX - expY;
+
+    if ($signed(k) >= 0s) {
+      # |x| ≥ |y|：整数模（r < sigY ≤ 2^24；每步 r<<1 < 2^25，64 位里做不会溢出）
+      r = sigX;
+      Bits<1> qpar = 0;
+      if (r >= sigY) {
+        r = r - sigY;
+        qpar = 1;                                  # 仅在 k == 0 时这个商位是 LSB
+      }
+      for (Bits<16> i = 0; i < k; i++) {
+        r = r << 1;
+        qpar = 0;
+        if (r >= sigY) {
+          r = r - sigY;
+          qpar = 1;
+        }
+      }
+      expR = expY;
+      if ((2 * r) > sigY) {
+        r = sigY - r;
+        signR = ~signX;
+      } else if (((2 * r) == sigY) && (qpar == 1)) {
+        r = sigY - r;                              # 平局：商为奇 ⇒ 取到 n+1（余数反号）
+        signR = ~signX;
+      }
+    } else {
+      expR = expX;
+      if ((expY - expX) >= 16'd2) {
+        r = sigX;                                  # |x| < |y|/2 ⇒ n = 0
+      } else if (sigX <= sigY) {
+        r = sigX;                                  # |x| ≤ |y|/2（含平局，商为偶 0）⇒ n = 0
+      } else {
+        r = (sigY << 1) - sigX;                    # |x| > |y|/2 ⇒ n = ±1，余数反号
+        signR = ~signX;
+      }
+    }
+
+    if (r == 0) {
+      return packToF32UI(signX, 8'd0, 32'd0);      # 零余数取 x 的符号
+    }
+    return softfloat_normRoundPackToF32_no_flag(signR, expR + 16'd6, r, RoundingMode::RNE);
+  }
+}
+
+function fo_rem {
+  returns Bits<64>
+  arguments Bits<64> a, Bits<64> b
+  description {
+    fo 取余（`forem`）：IEEE 754-2019 remainder，语义与 `ft_rem` 完全相同（`x − n × y`、
+    n 最近整数、**平局取偶**、结果精确不置 NX/OF/UF、`y = ±0`/`x = ±Inf` ⇒ NV、
+    `y = ±Inf` ⇒ x、零余数取 x 的符号），位宽换 64 位。
+  }
+  body {
+    if (is_dp_signaling_nan?(a) || is_dp_signaling_nan?(b)) {
+      set_fp_flag(FpFlag::NV);
+    }
+    if (is_dp_nan?(a) || is_dp_nan?(b)) {
+      return DP_CANONICAL_NAN;
+    }
+    Bits<1> signX = signF64UI(a);
+    Bits<16> expX = expF64UI(a);
+    Bits<64> sigX = fracF64UI(a);
+    Bits<16> expY = expF64UI(b);
+    Bits<64> sigY = fracF64UI(b);
+
+    if (expX == 16'h7FF) {
+      set_fp_flag(FpFlag::NV);
+      return DP_CANONICAL_NAN;
+    }
+    if ((expY == 0) && (sigY == 0)) {
+      set_fp_flag(FpFlag::NV);
+      return DP_CANONICAL_NAN;
+    }
+    if ((expX == 0) && (sigX == 0)) {
+      return a;
+    }
+    if (expY == 16'h7FF) {
+      return a;
+    }
+
+    if (expX == 0) {
+      Bits<16> e = 0;
+      Bits<64> norm = 0;
+      norm = softfloat_normSubnormalF64Sig(sigX);
+      e = softfloat_normSubnormalF64Exp(sigX);
+      sigX = norm;
+      expX = e;
+    } else {
+      sigX = sigX | 64'h0010_0000_0000_0000;
+    }
+    if (expY == 0) {
+      Bits<16> e = 0;
+      Bits<64> norm = 0;
+      norm = softfloat_normSubnormalF64Sig(sigY);
+      e = softfloat_normSubnormalF64Exp(sigY);
+      sigY = norm;
+      expY = e;
+    } else {
+      sigY = sigY | 64'h0010_0000_0000_0000;
+    }
+
+    Bits<1> signR = signX;
+    Bits<64> r = 0;
+    Bits<16> expR = 0;
+    Bits<16> k = 0;
+    k = expX - expY;
+
+    if ($signed(k) >= 0s) {
+      r = sigX;
+      Bits<1> qpar = 0;
+      if (r >= sigY) {
+        r = r - sigY;
+        qpar = 1;
+      }
+      for (Bits<16> i = 0; i < k; i++) {
+        r = r << 1;
+        qpar = 0;
+        if (r >= sigY) {
+          r = r - sigY;
+          qpar = 1;
+        }
+      }
+      expR = expY;
+      if ((2 * r) > sigY) {
+        r = sigY - r;
+        signR = ~signX;
+      } else if (((2 * r) == sigY) && (qpar == 1)) {
+        r = sigY - r;
+        signR = ~signX;
+      }
+    } else {
+      expR = expX;
+      if ((expY - expX) >= 16'd2) {
+        r = sigX;
+      } else if (sigX <= sigY) {
+        r = sigX;
+      } else {
+        r = (sigY << 1) - sigX;
+        signR = ~signX;
+      }
+    }
+
+    if (r == 0) {
+      return packToF64UI(signX, 16'd0, 64'd0);
+    }
+    return softfloat_normRoundPackToF64_no_flag(signR, expR + 16'd9, r, RoundingMode::RNE);
   }
 }
