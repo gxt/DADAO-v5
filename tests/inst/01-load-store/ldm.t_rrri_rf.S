@@ -45,7 +45,7 @@
 	@@ semantic：count=8（多拍，元素不跨 8 B 拍）
 	TEST_LDM         4, ldm.t, {rf8:rf15}, rb3, MDATA_T + 0x020, rd19, 0x000, MDUMP + 0x020, 4, 0x8000000880000009, 0x8000000A8000000B, 0x8000000C8000000D, 0x8000000E8000000F
 
-	@@ semantic：宽度/符号扩展逐元素核对（零扩展）
+	@@ semantic：逐元素核对
 	LOAD_ADDR rb3, MDATA_T + 0x030
 	set.rd    rd19, 0x000
 	ldm.t	{rf5:rf7}, [rb3, rd19]
