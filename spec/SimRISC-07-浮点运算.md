@@ -82,7 +82,7 @@
 
 **异常标志口径（IEEE 754-2019 §7.5）**：`UF` 仅在结果 **tiny 且 inexact** 时置位——结果 tiny 但可精确表示时**不置** `UF`（也不置 `NX`）；`NX` 与 `UF` **相互独立**（inexact 但非 tiny ⇒ 只置 `NX`）。**tininess 检测点 = 舍入后**（after rounding：按目标格式舍入后再判结果是否小于最小正规数）。标志为 **sticky**（置位后保持到软件清零，见 `SimRISC-00 §浮点状态寄存器`）。
 
-**NaN 结果的取值（全册适用）**：凡结果应为 quiet NaN 的情形——算术（加/减/乘/除）、缩放（scaleB）、开方（root）、取余（remainder）、融合乘加、取整、最小最大（双 NaN）、格式转换（`fo2ft`/`ft2fo`）、比较的 **quiet** 无序结果，以及任何无效操作产生的 qNaN——一律返回 **canonical quiet NaN**：符号位 0、payload 全零，即 ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`；signaling NaN 作输入仍按各节规则置 `NV`，结果同样取 canonical quiet NaN。**不适用**（须按各自规则处理）：rf 组块复制 `rf2rf`（纯位搬移、不改位、不置标志）；signaling compare（`ftscmp`/`foscmp`）的无序结果（保持 signaling NaN 位型、符号位 0）；`ftmin`/`ftmax`/`fomin`/`fomax` 的**单 NaN** 情形（返回那个数）。IEEE 754-2019 §6.2.3 对 NaN payload 的传播只是 *should*、§6.3 不规定 NaN 结果的符号位，取 canonical 属 IEEE 允许的实现选择，**不是**有意偏离。
+**NaN 结果的取值（全册适用）**：凡结果应为 quiet NaN 的情形——算术（加/减/乘/除）、缩放（scaleB）、开方（root）、取余（remainder）、融合乘加、取整、最小最大（双 NaN）、格式转换（`fo2ft`/`ft2fo`）、比较的 **quiet** 无序结果，以及任何无效操作产生的 qNaN——一律返回 **canonical quiet NaN**：符号位 0、payload 全零，即 ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`；signaling NaN 作输入仍按各节规则置 `NV`，结果同样取 canonical quiet NaN。**不适用**（须按各自规则处理）：rf 组块复制 `rf2rf`（纯位搬移、不改位、不置标志）；`ftmin`/`ftmax`/`fomin`/`fomax` 的**单 NaN** 情形（返回那个数）。IEEE 754-2019 §6.2.3 对 NaN payload 的传播只是 *should*、§6.3 不规定 NaN 结果的符号位，取 canonical 属 IEEE 允许的实现选择，**不是**有意偏离。
 
 ### 1.4 合法性
 
@@ -354,7 +354,7 @@ rdHB中的比较结果有四种情况：
 - 1：`rfHC > rfHD`
 - 0：`rfHC = rfHD`
 - -1：`rfHC < rfHD`
-- NaN：unordered，Quiet Compare 的结果为 **canonical quiet NaN**（符号位 0、payload 全零，见 §异常与标志），Signaling Compare 的结果为 sNaN（符号位为 0）
+- NaN：unordered，**四种比较一律返回 canonical quiet NaN**（符号位 0、payload 全零，见 §异常与标志）；quiet 与 signaling 的差别只体现在 `NV` 标志（signaling 无序即置 `NV`，quiet 仅 sNaN 置 `NV`）
 
 由于qNaN和sNaN的二进制数据按整型看是正数，因此，可以用零和负数的条件立刻判断出Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered六种关系，而当rdHB的结果为正数则需要进一步判断结果数据是否为1，才能得出Unordered和Greater分开进行判断的结果。
 

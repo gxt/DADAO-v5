@@ -417,6 +417,8 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 
 ### 0.5.7-rc（未发布）
 
+- **signaling compare 的无序结果改为 canonical quiet NaN（IEEE 754-2019 §6.2.1 对齐）**：`ftscmp`/`foscmp` 在无序时**不再返回 sNaN 位型**，与 `ftqcmp`/`foqcmp` 一样返回 **canonical quiet NaN**（符号位 0、payload 全零）；quiet 与 signaling 的差别只剩 `NV` 标志（signaling 无序即置 `NV`，quiet 仅 sNaN 置 `NV`）。原「Signaling Compare 的结果为 sNaN」作废——IEEE 754-2019 规定一般计算类操作收到 signaling NaN 时**必须**返回 quiet NaN，返回 sNaN 不符合该 `shall`。「两个 NaN 取哪个 payload」随之自动消解（统一 canonical，不再传播 payload）。版本号不变（用户 2026-11-19 裁定）。
+
 - **`lr` 的窄宽度写入不定高位**：`lr.t`/`lr.w`/`lr.b` 只写目的 `rd` 的低 32/16/8 位、**高位保持原值不变**（既不零扩展也不符号扩展）；`lr.o` 写满 64 位。此口径**不同于** `ld.ub`/`ld.uw`/`ld.ut` 的零扩展，属有意为之的窄读语义。
 
 - **§5 伪指令改为简述 + 实现表**：本册 §5 只留定性说明与「伪指令 × 源形式」8 行表（第三列「可能的实现（硬件指令）」与 `Toolchain-01 §6.1` 的展开列逐字一致）；逐条语义与展开示例迁至 `Toolchain-01 §6.2`，本册不留副本。
@@ -430,7 +432,7 @@ ILLI（illegal instruction，非法指令）异常由**非法操作数、非法�
 - **多元素内存指令的精确性例外**：`ldm.*`/`stm.*`（含 rf 形式，SimRISC-01）**不要求**无副作用——处理多个元素的过程中触发同步异常时，此前已处理的元素允许已经生效，目的寄存器/内存可能已被部分更新；异常原因码仍须与触发元素一致、IP 仍指向该指令。寄存器类多元素指令（`rd2rd`/`rb2rb`/`rb2rd`/`rd2rb`/`ra2rd`/`rd2ra`、`rd2rf`/`rf2rd`/`rf2rf`、`ftcls`/`focls`）**不适用**该例外、仍为精确异常（非法条件在处理任何元素之前判定）；整段预检是**允许的更强行为**、软件不得依赖；单元素 `ld`/`st` 仍须精确。
 - **`ldm` 的地址寄存器不得落入传送范围**：RD 形式的索引寄存器 `rdHC`、RB 形式的基址寄存器 `rbHB` 落在 `[起始, 起始+immu6)` 内 ⇒ `ILLI`（静态）；`stm` **允许**该重叠（只读传送范围、不写寄存器，行为确定）；RA/RF 形式的地址寄存器与传送范围分属不同寄存器组，结构性不可能重叠。原「允许重叠、地址按原始 `rdHC` 计算」口径作废——多元素内存指令的部分生效例外改以「地址寄存器不被传送过程改写」为前提。
 - **`rootn(±0, 2)` 收严为 `+0`**：`ftroot`/`foroot` 与平方根运算相同，唯一例外是零的符号——按 IEEE 754-2019 §9.2.1，`rootn(±0, 2) = +0`（该节 NOTE 明确其与 `squareRoot(−0) = −0` 不同），源为 `+0` 或 `−0` 时结果一律为 `+0`、不置任何标志；原「结果未予规定」的口径作废。
-- **结果 NaN 统一为 canonical**：凡结果应为 quiet NaN 的情形（算术、缩放、开方、取余、融合乘加、取整、最小最大、格式转换，以及比较的 quiet 无序结果与一切无效操作产生的 qNaN）一律返回 **canonical quiet NaN**（符号位 0、payload 全零 ⇒ ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）；复制类（`rf2rf` 等纯位搬移）、signaling compare 的无序结果、最小最大的单 NaN 情形不适用；IEEE 754-2019 §6.2.3 对 payload 传播仅为 *should*、§6.3 不规定结果符号位 ⇒ 取 canonical 属允许的实现选择、**不是**有意偏离。
+- **结果 NaN 统一为 canonical**：凡结果应为 quiet NaN 的情形（算术、缩放、开方、取余、融合乘加、取整、最小最大、格式转换，以及比较的 quiet 无序结果与一切无效操作产生的 qNaN）一律返回 **canonical quiet NaN**（符号位 0、payload 全零 ⇒ ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）；复制类（`rf2rf` 等纯位搬移）、最小最大的单 NaN 情形不适用；IEEE 754-2019 §6.2.3 对 payload 传播仅为 *should*、§6.3 不规定结果符号位 ⇒ 取 canonical 属允许的实现选择、**不是**有意偏离。
 - **浮点比较族的异常标志**：signaling compare 只要无序（sNaN 或 qNaN 操作数）即置 `NV`；quiet compare 仅在含 sNaN 时置 `NV`，只含 qNaN 为安静无序、不置标志；有序比较不置标志。四条比较指令只可能置 `NV`，不置 `DZ`/`OF`/`UF`/`NX`，标志 sticky 写入 `rf0[4:0]`。
 - **`ext.uo`/`ext.so` 的扩展起始位取低 6 位**：`orrr` 形式的起始位 `hd = rdHD[5:0]`——`rdHD` 的更高位一律忽略、**不触发异常**、不置任何标志；`orri` 形式的 `immu6` 天然为 6 位。原「`hd` 大于 `N` ⇒ ILLI」作废。
 - **semihosting 的服务号通道**：`immu18[17:8] == 0x3FF`（`0x3FF00–0x3FFFF`）只作 semihosting 的**固定标记**，`immu18[7:0]` **不**携带服务号；服务号由 `rd16` 给出、参数块指针在 `rb16`、返回值在 `rd8`。
