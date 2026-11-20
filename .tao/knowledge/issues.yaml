@@ -1057,3 +1057,12 @@
   closed_in: null
   resolved_by: null
   title: "【P1】clang 23 DADAO 目标：调用**同节内 weak 定义**时不发重定位（本地固化），外部强定义无法覆盖。最小复现：`a.c` 里 `__attribute__((weak)) void hook(int){}` + `void caller(int x){if(x)hook(x);}`、`b.c` 里强 `hook`；`clang --target=dadao-unknown-elf -O2 -c`（**不加** `-ffunction-sections`）⇒ `a.o` **无** hook 重定位、调用固化为对 4 字节空体的位移；`ld.lld -r` 后符号表只剩强定义但调用仍指向空体。加 `-ffunction-sections`（弱定义独立节）⇒ 发 `R_DADAO_REL26`、lld 正解强符号。对照：x86_64 同场景 `-O0` 发 `R_X86_64_PLT32`。根因候选：`DADAOAsmBackend` 未覆写 `shouldForceRelocation`（对比 X86）。影响：`m14-linux-045` 的 `arch_do_signal_or_restart` 名存实亡（退出循环自旋 22/29）；内核实测：带空桩自旋、删空桩 43/43。"
+- id: ISS-483
+  scope:
+  - testcases
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】证据脚本「固定基线」写法的三个共性坑（`m15-spec-008` 两轮复核实测）：① 基线取「分支分叉点」时，若 `master` 不可见（新 clone 只有 `origin/master`），脚本会静默回退 `HEAD~1` ⇒ 改动面断言假红、正文比对退化为恒真；② `git diff --name-only` 输出依赖 `core.quotepath=false`，新 clone 未配则非 ASCII 路径被 C 转义 ⇒ 改动面假红；③ 任务书里的「当前即 HEAD~1」这类描述会随追加提交过时。处置建议：证据脚本统一 `_git() { git -c core.quotepath=false ...; }`；分叉点解析失败时 `origin/master` 兜底，仍失败则**报错退出**而不是回退 `HEAD~1`；基线写成变量并在输出首行打印。"
