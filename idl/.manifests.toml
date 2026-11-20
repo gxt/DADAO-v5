@@ -9,6 +9,9 @@ lib = "idl"
 [files."README.md"]
 owner = "idl"
 
+[files."diff-vs-udb.md"]
+owner = "idl"
+
 [files."render.py"]
 owner = "idl"
 
