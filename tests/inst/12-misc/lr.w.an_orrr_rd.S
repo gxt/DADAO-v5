@@ -2,6 +2,7 @@
 @@ 大类：12-misc（其它指令 · 原子 `spec/SimRISC-12 §1`）；册目录 `tests/inst/12-misc/`
 @@ id：lr.w.an_orrr_rd　形式：orrr　opc：0x47　mask：0xFFFC0000　value：0x47180000
 @@ 语义：lr 的读宽度 = 2 B；地址须按 2 B 自然对齐（否则 MALIGN）
+@@ 写宽（SimRISC-12 §1.1）：只写 rdHC 低 W 位（.t=32 / .w=16 / .b=8），高位保持原值（既不零扩展也不符号扩展）
 @@ 合法性：lr 的 hb(rdHB) 是 SBZ 固定零字段 ⇒ hb != rd0 时 ILLI（encode_sbz）；数据目的 rdHC 可为 rd0
 @@ 存储序：.an（获取）；单 hart 链例下只约束访存顺序，不改变数值结果
 @@ 保留机制（contract-isa §14.2）：粒度 = 精确地址 + 访问宽度；另一条 lr / 每次 sc（成败）/
@@ -32,7 +33,7 @@
 	.dd.t32 0x47180083
 	__CHECK_RD 1, rd2, 0x0000000000000123
 
-	@@ ---- encoding：lr 装载宽度窗口并零扩展 ----
+	@@ ---- encoding：lr 装载宽度窗口、目的高位保持 ----
 	@@! inputs: kind=lr sym=A0 k=0 init=0x0123456789ABCDEF
 	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, A0
 	__PREP_ST_ADDR	A0
@@ -62,7 +63,7 @@
 	__PREP_LI_ADDR	rd6, 0xFEDCBA9876543210, rb3, A3
 	__PREP_ST_ADDR	A3
 	lr.w.an	rd2, [rb3]
-	__CHECK_RD 5, rd2, 0x000000000000FEDC
+	__CHECK_RD 5, rd2, 0xDEADBEEFCAFEFEDC
 	sc.w.nn	rd5, rd2, [rb3]
 	__VERIFY_RD 5, rd5, 0x0000000000000000
 	__VERIFY_MEM 5, A3, 0, 0xFEDCBA9876543210
@@ -74,7 +75,7 @@
 	__PREP_LI_ADDR	rd6, 0x0F1E2D3C4B5A6978, rb3, B4
 	__PREP_ST_ADDR	A4
 	lr.w.an	rd2, [rb3]
-	__CHECK_RD 6, rd2, 0x0000000000000123
+	__CHECK_RD 6, rd2, 0xDEADBEEFCAFE0123
 	__PREP_LI_ADDR	rd2, 0xDEADBEEFCAFEF00D, rb4, B4
 	sc.w.nn	rd5, rd2, [rb4]
 	__VERIFY_RD 6, rd5, 0x0000000000000001
@@ -88,7 +89,7 @@
 	__PREP_LI_ADDR	rd6, 0xFEDCBA9876543210, rb3, B5
 	__PREP_ST_ADDR	A5
 	lr.w.an	rd2, [rb3]
-	__CHECK_RD 7, rd2, 0x0000000000000123
+	__CHECK_RD 7, rd2, 0xDEADBEEFCAFE0123
 	LOAD_ADDR rb3, B5
 	lr.w.an	rd2, [rb3]
 	LOAD_ADDR rb3, A5
@@ -102,7 +103,7 @@
 	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, A6
 	__PREP_ST_ADDR	A6
 	lr.w.an	rd2, [rb3]
-	__CHECK_RD 8, rd2, 0x0000000000000123
+	__CHECK_RD 8, rd2, 0xDEADBEEFCAFE0123
 	set.rd	rd2, 0x5A5A5A5A5A5A5A5A
 	sc.w.nn	rd5, rd2, [rb3]
 	__VERIFY_RD 8, rd5, 0x0000000000000000
@@ -111,40 +112,40 @@
 	__VERIFY_RD 8, rd5, 0x0000000000000001
 	__VERIFY_MEM 8, A6, 0, 0x5A5A456789ABCDEF
 
-	@@ ---- boundary：宽度窗口全 1 ⇒ 零扩展为 0x00..FF ----
+	@@ ---- boundary：窗口全 1 ⇒ 低 W 位全 1、高位仍保持 ----
 	@@! inputs: kind=lr sym=A7 k=0 init=all1
 	__PREP_LI_ADDR	rd6, 0xFFFFFFFFFFFFFFFF, rb3, A7
 	__PREP_ST_ADDR	A7
 	lr.w.an	rd2, [rb3]
-	__CHECK_RD 9, rd2, 0x000000000000FFFF
+	__CHECK_RD 9, rd2, 0xDEADBEEFCAFEFFFF
 
 	@@ ---- boundary：全 0 拍 ⇒ 读出 0 ----
 	@@! inputs: kind=lr sym=A8 k=0 init=0
 	__PREP_LI_ADDR	rd6, 0x0000000000000000, rb3, A8
 	__PREP_ST_ADDR	A8
 	lr.w.an	rd2, [rb3]
-	__CHECK_RD 10, rd2, 0x0000000000000000
+	__CHECK_RD 10, rd2, 0xDEADBEEFCAFE0000
 
-	@@ ---- boundary：窗口最高位为 1 ⇒ 零扩展（不符号扩展） ----
+	@@ ---- boundary：窗口最高位为 1 ⇒ 既不零扩展也不符号扩展（高位保持） ----
 	@@! inputs: kind=lr sym=A9 k=0 init=msb
 	__PREP_LI_ADDR	rd6, 0x8000000000000000, rb3, A9
 	__PREP_ST_ADDR	A9
 	lr.w.an	rd2, [rb3]
-	__CHECK_RD 11, rd2, 0x0000000000008000
+	__CHECK_RD 11, rd2, 0xDEADBEEFCAFE8000
 
 	@@ ---- boundary：数据区末拍（地址上界）装载 ----
 	@@! inputs: kind=lr sym=L k=0 init=0x1122334455667788
 	__PREP_LI_ADDR	rd6, 0x1122334455667788, rb3, L
 	__PREP_ST_ADDR	L
 	lr.w.an	rd2, [rb3]
-	__CHECK_RD 12, rd2, 0x0000000000001122
+	__CHECK_RD 12, rd2, 0xDEADBEEFCAFE1122
 
 	@@ ---- boundary：窗口贴 8 B 字尾（k 最大） ----
 	@@! inputs: kind=lr sym=A11 k=6 init=0xFEDCBA9876543210
 	__PREP_LI_ADDR	rd6, 0xFEDCBA9876543210, rb3, A11
 	__PREP_ST_ADDR	A11 + 6
 	lr.w.an	rd2, [rb3]
-	__CHECK_RD 13, rd2, 0x0000000000003210
+	__CHECK_RD 13, rd2, 0xDEADBEEFCAFE3210
 
 	@@ ---- overlap/legality：rdHC=rd0 合法，标记照设 ⇒ 后续 sc 成功 ----
 	@@! inputs: kind=lr(rd0)+sc sym=A12 k=0 init=0x0123456789ABCDEF src=0xDEADBEEFCAFEF00D
@@ -174,7 +175,7 @@
 	__PREP_LI_ADDR	rd6, 0x0F1E2D3C4B5A6978, rb3, B14
 	__PREP_ST_ADDR	A14
 	lr.w.an	rd2, [rb3]
-	__CHECK_RD 16, rd2, 0x0000000000000123
+	__CHECK_RD 16, rd2, 0xDEADBEEFCAFE0123
 	__PREP_LI_ADDR	rd2, 0xDEADBEEFCAFEF00D, rb4, B14
 	sc.w.nn	rd5, rd2, [rb4]
 	LOAD_ADDR rb3, A14
@@ -187,7 +188,7 @@
 	__PREP_LI_ADDR	rd6, 0xFEDCBA9876543210, rb3, A15
 	__PREP_ST_ADDR	A15 + 2
 	lr.w.an	rd2, [rb3]
-	__CHECK_RD 17, rd2, 0x000000000000BA98
+	__CHECK_RD 17, rd2, 0xDEADBEEFCAFEBA98
 	sc.w.nn	rd5, rd0, [rb3]
 	__VERIFY_RD 17, rd5, 0x0000000000000000
 	__VERIFY_MEM 17, A15, 0, 0xFEDC000076543210
@@ -197,7 +198,7 @@
 	__PREP_LI_ADDR	rd6, 0x0123456789ABCDEF, rb3, A16
 	__PREP_ST_ADDR	A16 + 6
 	lr.w.an	rd2, [rb3]
-	__CHECK_RD 18, rd2, 0x000000000000CDEF
+	__CHECK_RD 18, rd2, 0xDEADBEEFCAFECDEF
 	set.rd	rd2, 0xDEADBEEFCAFEF00D
 	sc.w.nn	rd5, rd2, [rb3]
 	__VERIFY_RD 18, rd5, 0x0000000000000000

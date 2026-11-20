@@ -1,9 +1,9 @@
 diff --git a/target/dadao/translate.c b/target/dadao/translate.c
 new file mode 100644
-index 0000000..70acde9
+index 0000000..06a1186
 --- /dev/null
 +++ b/target/dadao/translate.c
-@@ -0,0 +1,696 @@
+@@ -0,0 +1,727 @@
 +/*
 + * DADAO translation routines for QEMU (decodetree version)
 + *
@@ -126,6 +126,30 @@ index 0000000..70acde9
 +        return; /* rd0 hardwired to 0, ignore write */
 +    }
 +    tcg_gen_st_i64(val, tcg_env, offsetof(CPUDADAOState, rd[n]));
++}
++
++/* Store the low `width` bytes of val into rd[n] and keep the upper bits
++ * unchanged (new = (old & ~mask) | (val & mask), mask = 2^(8*width) - 1,
++ * width = 1/2/4).  Narrow `lr` (.b/.w/.t) writes only the low 8/16/32 bits of
++ * its destination: the loaded value is neither zero- nor sign-extended into
++ * the upper bits (SimRISC-12 §1.1; IDL lr.{b,w,t}.{nn,an,ar}; user ruling
++ * 2026-11-19, m15-idl-020 D3).  Same shape as store_rf_tetra() for the rf
++ * group.  Writes to rd0 are silently ignored. */
++static void store_rd_narrow(int n, TCGv_i64 val, int width)
++{
++    uint64_t mask = (1ULL << (8 * width)) - 1;
++    TCGv_i64 old, low;
++
++    if (n == 0) {
++        return; /* rd0 hardwired to 0, ignore write */
++    }
++    old = tcg_temp_new_i64();
++    low = tcg_temp_new_i64();
++    tcg_gen_ld_i64(old, tcg_env, offsetof(CPUDADAOState, rd[n]));
++    tcg_gen_andi_i64(old, old, ~mask);
++    tcg_gen_andi_i64(low, val, mask);
++    tcg_gen_or_i64(old, old, low);
++    tcg_gen_st_i64(old, tcg_env, offsetof(CPUDADAOState, rd[n]));
 +}
 +
 +/* ── 128-bit result helpers (rrrr: add/sub/mul) ──────────────────────── */
@@ -493,8 +517,10 @@ index 0000000..70acde9
 +}
 +
 +/* Size + natural-alignment MemOp for an `lr`/`sc` access of `width` bytes.
-+ * `lr` zero-extends the loaded value; the same op serves `sc`'s store (a
-+ * store ignores the unsignedness bits). */
++ * The load zero-extends the loaded value into the 64-bit temp; a narrow `lr`
++ * then writes only the low bits of the destination (see gen_lr /
++ * store_rd_narrow).  The same op serves `sc`'s store (a store ignores the
++ * unsignedness bits). */
 +static MemOp lrsc_memop(int width)
 +{
 +    switch (width) {
@@ -510,8 +536,9 @@ index 0000000..70acde9
 +}
 +
 +/* lr.<width>: read + set the reservation for (exact addr, width).  hb
-+ * (rdHB) must be rd0 => ILLI.  The loaded value is zero-extended to 64 bits
-+ * (LLVM-121t's lr semantics). */
++ * (rdHB) must be rd0 => ILLI.  `.o` writes all 64 bits; narrow widths write
++ * only the low 8/16/32 bits and keep the destination's upper bits
++ * (store_rd_narrow; SimRISC-12 §1.1). */
 +static bool gen_lr(DisasContext *ctx, arg_misc *a, int width)
 +{
 +    TCGv_i64 addr, val;
@@ -527,7 +554,11 @@ index 0000000..70acde9
 +
 +    val = tcg_temp_new_i64();
 +    tcg_gen_qemu_ld_i64(val, addr, ctx->memidx, lrsc_memop(width));
-+    store_rd(a->hc, val);
++    if (width == 8) {
++        store_rd(a->hc, val);
++    } else {
++        store_rd_narrow(a->hc, val, width);
++    }
 +
 +    tcg_gen_st_i64(addr, tcg_env, offsetof(CPUDADAOState, lock_addr));
 +    tcg_gen_st_i32(tcg_constant_i32(width), tcg_env,

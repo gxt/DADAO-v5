@@ -405,3 +405,7 @@
 - **2026-11-19 `m15-qemu-001`**
   - 摘要：**`ftscmp`/`foscmp` 无序结果由 sNaN 位型改为 canonical quiet NaN（`spec/SimRISC-07 §4`，IEEE 754-2019 §6.2.1 的 `shall`；用户 2026-11-19 授权，版本号不变）**。`target/dadao/insn_trans/trans_fp.c.inc`：两条 signaling compare 的 `nan_const` 由 `FP_FT_SNAN`/`FP_FO_SNAN` 改为 `FP_FT_QNAN`(`0x7FC0_0000`)/`FP_FO_QNAN`(`0x7FF8_0000_0000_0000`)，删除两个 sNaN 常量与相应注释；`NV` 置位规则不变（`FP_CMP_NV_UNORDERED` 仍取 `unord` 谓词、`FP_CMP_NV_SNAN` 仍取 sNaN 谓词）⇒ quiet 与 signaling 的差别只剩 `NV`。补丁 1 份改。
   - 执行者：engineer
+
+- **2026-11-20 `m15-qemu-002`**
+  - 摘要：**窄 `lr`（`lr.{t,w,b}.{nn,an,ar}` 共 9 条）写回改为「只写目的低 W 位、高位保持原值」**（`spec/SimRISC-12 §1.1`；用户 2026-11-19 裁定，依据 `m15-idl-020 D3`）：`target/dadao/translate.c` 新增 `store_rd_narrow()`（`new = (old & ~mask) | (val & mask)`，`mask = 2^(8W) − 1`），`gen_lr()` 对 `width == 8`（`lr.o`）保持整 64 位写、窄宽度改走切片写（既不零扩展也不符号扩展）。`tests/inst/12-misc` 的 9 个 `lr` 载体期望值按新语义订正（`tests/case-ledger.tsv` 同步重生成；`check-inst-asm` 272/272）。补丁 1 份改。
+  - 执行者：engineer
