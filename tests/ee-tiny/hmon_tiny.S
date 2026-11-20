@@ -27,7 +27,6 @@
 @@ 退出码与旧的分派策略都不在这里——它们是测试框架（应用）的职责。
 
 	.include "tests/shared/asm/machine-tiny.inc"
-	.include "tests/shared/asm/machine.inc"
 
 	.equ	HMON_SLOT_RD63,       0xD8
 	.equ	HMON_SLOT_CAUSE_ID,   0xE0

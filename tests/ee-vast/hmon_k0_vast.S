@@ -23,7 +23,6 @@
 @@ assembled with SMON_NEG_CASE=0: the block expands to nothing.
 
 	.include "tests/shared/asm/machine-vast.inc"
-	.include "tests/shared/asm/machine.inc"
 
 	.ifndef	SMON_NEG_CASE
 	.equ	SMON_NEG_CASE, 0
@@ -32,52 +31,39 @@
 	.equ	BOOT_INFO_PA, 0x10000
 	.endif
 
-	.macro	LD64 rd, w0, w1, w2, w3
-	set.zw	\rd, wp0, \w0
-	.if \w1 != 0
-	or.w	\rd, wp1, \w1
-	.endif
-	.if \w2 != 0
-	or.w	\rd, wp2, \w2
-	.endif
-	.if \w3 != 0
-	or.w	\rd, wp3, \w3
-	.endif
-	.endm
-
 	.text
 	.globl	_start
 
 _start:
-	LOAD_ADDR rb1, SP
+	set.rb rb1, SP
 
 	@@ --- 1. trap cause / boot magic (CFXTRAP = 1<<0, magic 0x30001) ---
 	cfx2rd	cfx_hmon, cg5, rc2, rd6
-	LD64	rd7, 0x0001, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000001
 	cmp.uo	rd8, rd6, rd7
 	br.nz	{rd8}?, [rb0, hmon_exit_b8]
 	cfx2rd	cfx_hmon, cg5, rc4, rd6
-	LD64	rd7, 0xffff, 0x0003, 0x0000, 0x0000
+	set.rd rd7, 0x000000000003ffff
 	and.o	rd6, rd6, rd7
-	LD64	rd7, 0x0001, 0x0003, 0x0000, 0x0000	@@ 0x0003_0001
+	set.rd rd7, 0x0000000000030001	@@ 0x0003_0001
 	cmp.uo	rd8, rd6, rd7
 	br.nz	{rd8}?, [rb0, hmon_exit_b8]
 
 	@@ --- 2. look up the smon image (type 2) in the BootROM table ---
-	LD64	rd1, 0x0002, 0x0000, 0x0000, 0x0000
-	LOAD_ADDR rb9, RESET_PC + 0x2000	@@ rom_validate_table (shared)
+	set.rd rd1, 0x0000000000000002
+	set.rb rb9, RESET_PC + 0x2000	@@ rom_validate_table (shared)
 	call	[rb9, rd0, 0]
 	br.nz	{rd8}?, [rb0, hmon_exit_rd8]
 
 	@@ --- 3. load the smon ELF into smon SRAM (0x0bff_0000_0000) ---
-	LOAD_ADDR rb2, SMON_BASE
-	LOAD_ADDR rb9, RESET_PC + 0x2400	@@ elf_loader (shared)
+	set.rb rb2, SMON_BASE
+	set.rb rb9, RESET_PC + 0x2400	@@ elf_loader (shared)
 	call	[rb9, rd0, 0]
 	br.nz	{rd8}?, [rb0, hmon_exit_rd8]
 
 	@@ --- 4. cfx_smon: hypv vector = smon e_entry, switch mode = supv (2) ---
 	cfx2rc	cfx_smon, cg3, rc10, rd5
-	LD64	rd6, 0x0002, 0x0000, 0x0000, 0x0000
+	set.rd rd6, 0x0000000000000002
 	cfx2rc	cfx_smon, cg3, rc8, rd6
 
 	@@ --- 5. hand every cfx's supv permissions to smon (hmon itself excluded) ---
@@ -106,7 +92,7 @@ _start:
 	cfx2rd	\cfx, cg2, rc1, rd21		@@ supv cfxmem
 	cfx2rd	\cfx, cg2, rc2, rd22		@@ supv cfxreg
 	cfx2rd	\cfx, cg2, rc3, rd23		@@ supv cfxexe
-	LD64	rd24, 0x7ffb, 0xffff, 0xffff, 0xffff	@@ ~((1 << 2) | (1 << 15))
+	set.rd rd24, 0xffffffffffff7ffb	@@ ~((1 << 2) | (1 << 15))
 	and.o	rd20, rd20, rd24
 	and.o	rd21, rd21, rd24
 	and.o	rd22, rd22, rd24
@@ -115,7 +101,7 @@ _start:
 	cfx2rc	\cfx, cg2, rc1, rd21
 	cfx2rc	\cfx, cg2, rc2, rd22
 	cfx2rc	\cfx, cg2, rc3, rd23
-	LD64	rd24, 0x0008, 0x0000, 0x0000, 0x0000
+	set.rd rd24, 0x0000000000000008
 	cfx2rc	\cfx, cg3, rc12, rd24
 	.endm
 
@@ -171,39 +157,39 @@ _start:
 	@@ The staging word must live in the cfx_pmem SRAM: the DMA's 42-bit cfx
 	@@ view only reaches that window (the hmon/smon SRAM addresses alias it
 	@@ after masking), so staging in hmon SRAM would copy unrelated bytes.
-	LOAD_ADDR rb4, PMEM_BASE + 0x1000	@@ staging word in pmem SRAM
+	set.rb rb4, PMEM_BASE + 0x1000	@@ staging word in pmem SRAM
 	.if SMON_NEG_CASE == 1
-	LD64	rd6, 0x0020, 0x0000, 0x0000, 0x0000	@@ size = 0x20 (field 0x06)
+	set.rd rd6, 0x0000000000000020	@@ size = 0x20 (field 0x06)
 	st.w	rd6, [rb4, 0]
-	LOAD_ADDR rb5, BOOT_INFO_PA + 0x06
-	LD64	rd11, 0x0002, 0x0000, 0x0000, 0x0000	@@ 2 bytes
+	set.rb rb5, BOOT_INFO_PA + 0x06
+	set.rd rd11, 0x0000000000000002	@@ 2 bytes
 	.elseif SMON_NEG_CASE == 2
-	LD64	rd6, 0x0001, 0x0010, 0x0200, 0x0000	@@ kernel_base VA | 1
+	set.rd rd6, 0x0000020000100001	@@ kernel_base VA | 1
 	st.o	rd6, [rb4, 0]
-	LOAD_ADDR rb5, BOOT_INFO_PA + 0x18
-	LD64	rd11, 0x0008, 0x0000, 0x0000, 0x0000	@@ 8 bytes
+	set.rb rb5, BOOT_INFO_PA + 0x18
+	set.rd rd11, 0x0000000000000008	@@ 8 bytes
 	.else
 	@@ hart_id = 5 (field 0x54): zero is the *valid* value here, so this case
 	@@ also proves the injected bytes really reach the boot info page (a
 	@@ zero-filling or mis-addressed DMA would leave smon happy).
-	LD64	rd6, 0x0005, 0x0000, 0x0000, 0x0000
+	set.rd rd6, 0x0000000000000005
 	st.t	rd6, [rb4, 0]
-	LOAD_ADDR rb5, BOOT_INFO_PA + 0x54
-	LD64	rd11, 0x0004, 0x0000, 0x0000, 0x0000	@@ 4 bytes
+	set.rb rb5, BOOT_INFO_PA + 0x54
+	set.rd rd11, 0x0000000000000004	@@ 4 bytes
 	.endif
 	rb2rd	rd10, rb5, 1			@@ dma_dst = boot info field PA
-	LOAD_ADDR rd9, PMEM_BASE + 0x1000
+	set.rd rd9, PMEM_BASE + 0x1000
 	cfx2rc	cfx_pmem, cg15, rc0, rd9	@@ dma_src (pmem staging word)
 	cfx2rc	cfx_pmem, cg15, rc1, rd10	@@ dma_dst
 	cfx2rc	cfx_pmem, cg15, rc2, rd11	@@ dma_size
-	LD64	rd9, 0x0001, 0x0000, 0x0000, 0x0000	@@ START, DIR=0
+	set.rd rd9, 0x0000000000000001	@@ START, DIR=0
 	cfx2rc	cfx_pmem, cg15, rc3, rd9
 hmon_neg_poll:
 	cfx2rd	cfx_pmem, cg15, rc4, rd9
-	LD64	rd7, 0x0001, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000001
 	and.o	rd8, rd9, rd7
 	br.nz	{rd8}?, [rb0, hmon_neg_poll]
-	LD64	rd7, 0x0004, 0x0000, 0x0000, 0x0000	@@ ERROR
+	set.rd rd7, 0x0000000000000004	@@ ERROR
 	and.o	rd8, rd9, rd7
 	br.nz	{rd8}?, [rb0, hmon_exit_b8]
 	.endif
@@ -218,15 +204,15 @@ hmon_exit_rd8:
 	jump	[rb0, hmon_exit]
 
 hmon_exit_b8:
-	LD64	rd9, 0x00b8, 0x0000, 0x0000, 0x0000
+	set.rd rd9, 0x00000000000000b8
 
 hmon_exit:
 	@@ SYS_EXIT block in hmon SRAM (semihosting reads it through the debug
 	@@ identity translation, which covers the monitor SRAM).
-	LOAD_ADDR rb16, HMON_BASE + 0x0d00
-	LD64	rd16, 0x0026, 0x0002, 0x0000, 0x0000
+	set.rb rb16, HMON_BASE + 0x0d00
+	set.rd rd16, 0x0000000000020026
 	st.o	rd16, [rb16, 0]
 	st.o	rd9, [rb16, 8]
-	LD64	rd16, 0x0018, 0x0000, 0x0000, 0x0000
+	set.rd rd16, 0x0000000000000018
 	trap	cfx_umon, 0x3FF00
 	swym	0

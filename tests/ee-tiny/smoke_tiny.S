@@ -17,7 +17,6 @@
 @@ from m12-chipyard-005 on.
 
 	.include "tests/shared/asm/machine-tiny.inc"
-	.include "tests/shared/asm/machine.inc"
 
 	.equ	RESULT, ENTRY + 0x2000
 	.equ	APP_DATA, ENTRY + 0x100
@@ -27,11 +26,11 @@
 	.globl	tiny_smoke_main
 tiny_smoke_main:
 	@@ 1. read the preset .rodata octa (proves the read-only data was loaded)
-	LOAD_ADDR rb4, APP_DATA
+	set.rb rb4, APP_DATA
 	ld.o	rd10, [rb4, 0]
 
 	@@ 2. read the .bss octa (must read zero: loadmem zero-fills p_memsz tail)
-	LOAD_ADDR rb5, APP_BSS
+	set.rb rb5, APP_BSS
 	ld.o	rd11, [rb5, 0]
 
 	@@ 3. build the magic 0x9abc_5678_1234_c0de in rd8 (integer instructions)
@@ -41,7 +40,7 @@ tiny_smoke_main:
 	or.w	rd8, wp0, 0xc0de
 
 	@@ 4. write it to SRAM and read it back
-	LOAD_ADDR rb6, RESULT
+	set.rb rb6, RESULT
 	st.o	rd8, [rb6, 0]
 	ld.o	rd9, [rb6, 0]
 
@@ -50,13 +49,13 @@ tiny_smoke_main:
 	@@ undefined-instruction terminator would be skipped by the handler
 	@@ (`escape +4`) instead of stopping the core.  The parameter block lives in
 	@@ the SRAM scratch octa above RESULT.
-	LOAD_ADDR rb6, RESULT+0x10
-	LOAD_ADDR rd8, 0x20026		@@ ADP_Stopped_ApplicationExit
+	set.rb rb6, RESULT+0x10
+	set.rd rd8, 0x20026		@@ ADP_Stopped_ApplicationExit
 	st.o	rd8, [rb6, 0]
 	set.zw	rd8, wp0, 0x0000	@@ status 0
 	st.o	rd8, [rb6, 8]
 	set.zw	rd16, wp0, 0x0018	@@ SYS_EXIT
-	LOAD_ADDR rb16, RESULT+0x10
+	set.rb rb16, RESULT+0x10
 	trap	cfx_hmon, 0x3FF18
 smoke_spin:
 	br.z	{rd0}?, [rb0, smoke_spin]

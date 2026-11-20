@@ -13,7 +13,7 @@
 
 @@ rd 目的
 .macro TEST_LD pt, mnem, dst, base, baseval, off, exp
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	\mnem	\dst, [\base, \off]
 	__CHECK_RD \pt, \dst, \exp
 .endm
@@ -27,7 +27,7 @@
 @@ rd 源
 .macro TEST_ST pt, mnem, src, base, baseval, off, srcval, beat
 	set.rd	\src, \srcval
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	\mnem	\src, [\base, \off]
 	__CHECK_MEM \pt, \baseval, \off, \beat
 .endm
@@ -36,7 +36,7 @@
 .macro TEST_ST_RF pt, mnem, src, base, baseval, off, srcval, beat
 	set.rd	rd20, \srcval
 	rd2rf	{\src:\src}, {rd20:rd20}
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	\mnem	\src, [\base, \off]
 	__CHECK_MEM \pt, \baseval, \off, \beat
 .endm
@@ -119,9 +119,9 @@
 @@ 多元素装入
 .macro TEST_LDM pt, mnem, grp, base, baseval, offreg, offval, dump, nb, beats:vararg
 	set.rd	\offreg, \offval
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	\mnem	\grp, [\base, \offreg]
-	LOAD_ADDR rb28, \dump
+	set.rb rb28, \dump
 	__DMP_STM \mnem, \grp, rb28, rd0
 	.set	__ne, 0
 	.irp	v, \beats
@@ -132,7 +132,7 @@
 	.endif
 	.set	__b, 0
 	.irp	v, \beats
-	LOAD_ADDR rb21, \dump + (8 * __b)
+	set.rb rb21, \dump + (8 * __b)
 	ld.o	rd21, [rb21, 0]
 	set.rd	rd20, \v
 	br.ne	{rd20, rd21}?, [rb0, __lmbad_\@]
@@ -147,14 +147,14 @@ __lmdone_\@:
 
 @@ 多元素存储
 .macro TEST_STM pt, mnem, bank, grp, base, baseval, offreg, offval, src, beats:vararg
-	LOAD_ADDR rb28, \src
+	set.rb rb28, \src
 	__PRE_LDM \mnem, \bank, \grp, rb28, rd0
 	set.rd	\offreg, \offval
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	\mnem	\grp, [\base, \offreg]
 	.set	__b, 0
 	.irp	v, \beats
-	LOAD_ADDR rb21, (((\baseval) + (\offval) + 8 * __b) / 8) * 8
+	set.rb rb21, (((\baseval) + (\offval) + 8 * __b) / 8) * 8
 	ld.o	rd21, [rb21, 0]
 	set.rd	rd20, \v
 	br.ne	{rd20, rd21}?, [rb0, __smbad_\@]
@@ -170,7 +170,7 @@ __smdone_\@:
 .macro TEST_FAULT pt, mnem, reg, fault, base, baseval, off
 	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	\mnem	\reg, [\base, \off]
 	@@ 走到这里 = 预期故障没有发生 ⇒ 仍按该例检查点号判 guest FAIL
 	__FAULT_BODY_END \pt
@@ -180,7 +180,7 @@ __smdone_\@:
 .macro TEST_FAULT_M pt, mnem, grp, fault, base, baseval, offreg, offval
 	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	set.rd	\offreg, \offval
 	\mnem	\grp, [\base, \offreg]
 	__FAULT_BODY_END \pt

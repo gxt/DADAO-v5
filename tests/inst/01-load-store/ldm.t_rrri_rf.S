@@ -20,7 +20,7 @@
 	@@   64 位**（前一个 `__VERIFY_RD` 不占点号，后一个 `__CHECK_RD` 记本用例 ⇒ 一例一点）。
 	@@   参数：pre0/pre1 = 预置拍偏移，off = 装入的元素偏移（同一基址内）。
 .macro TEST_LDM_RF_FULL2 pt, r0, r1, base, baseval, pre0, pre1, off, exp0, exp1
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	ld.o	\r0, [\base, \pre0]
 	ld.o	\r1, [\base, \pre1]
 	set.rd	rd19, \off
@@ -46,7 +46,7 @@
 	TEST_LDM         4, ldm.t, {rf8:rf15}, rb3, MDATA_T + 0x020, rd19, 0x000, MDUMP + 0x020, 4, 0x8000000880000009, 0x8000000A8000000B, 0x8000000C8000000D, 0x8000000E8000000F
 
 	@@ semantic：逐元素核对
-	LOAD_ADDR rb3, MDATA_T + 0x030
+	set.rb rb3, MDATA_T + 0x030
 	set.rd    rd19, 0x000
 	ldm.t	{rf5:rf7}, [rb3, rd19]
 	rf2rd	{rd21:rd21}, {rf5:rf5}
@@ -74,10 +74,10 @@
 	@@ overlap：**不适用** —— 范围在 RF bank，基址恒在 RB、索引恒在 RD ⇒ 结构上不可能相交
 
 	@@ overlap：同一 RF 连装两次，后到者生效（本用例只比低 32 位；高 32 位保持见点 20）
-	LOAD_ADDR rb3, MDATA_T + 0x090
+	set.rb rb3, MDATA_T + 0x090
 	set.rd    rd19, 0x000
 	ldm.t	{rf9:rf9}, [rb3, rd19]
-	LOAD_ADDR rb3, MDATA_T + 0x018
+	set.rb rb3, MDATA_T + 0x018
 	ldm.t	{rf9:rf9}, [rb3, rd19]
 	rf2rd	{rd21:rd21}, {rf9:rf9}
 	ext.uo	rd21, rd21, 31
@@ -116,7 +116,7 @@ __rb0z_ck:
 	jump	[rb0, __rb0p]
 	.org	0x2180
 __rb0p:
-	LOAD_ADDR rb26, (TEST_DATA + 0x088 - 8)
+	set.rb rb26, (TEST_DATA + 0x088 - 8)
 	aip.si	rb25, 0			@@ rb25 = ENTRY+0x2180
 	sub.o	rd19, rb26, rb25		@@ rd19 = (TEST_DATA+0x080) − 0x2180
 	ldm.t    {rf5:rf5}, [rb0, rd19]	@@ 被测 @0x2188：EA = ENTRY+0x5888
@@ -131,7 +131,7 @@ __rb0p:
 	TEST_LDM_RF_FULL2  19, rf5, rf6, rb3, MDATA_T, 0x008, 0x010, 0x020, 0x8000000280000008, 0x8000000480000009
 	@@ 同一寄存器被多个元素依次写：预置高半 0x80000000（+0x000 拍），先装元素 0x80000025、
 	@@   再装元素 0x80000007 ⇒ 两次窄写都不碰高半，最终仍是 0x8000000080000007
-	LOAD_ADDR rb3, MDATA_T
+	set.rb rb3, MDATA_T
 	ld.o	rf9, [rb3, 0x000]
 	set.rd	rd19, 0x094
 	ldm.t	{rf9:rf9}, [rb3, rd19]
@@ -148,7 +148,7 @@ __rb0p:
 	set.w	rf0, wp2, 0x0003		@@ [33:32]（舍入模式）= 11（写窗口外，须保持）
 	st.o	rf0, [rb27, 0]			@@ 写前快照（rb27 = WSCRATCH）
 	@@ 组内第二个目的读到下一个元素（rf0 ← 元素 0x80000021，rf1 ← 元素 0x80000022）
-	LOAD_ADDR rb3, MDATA_T + 0x084		@@ 元素 0x80000021 ⇒ rf0[4:0] = 0x01
+	set.rb rb3, MDATA_T + 0x084		@@ 元素 0x80000021 ⇒ rf0[4:0] = 0x01
 	set.rd	rd19, 0x000
 	set.fo	rf1, 0xDEADBEEF00000000		@@ 组内第二目的预置高半（窄写须保持）
 	ldm.t	{rf0:rf1}, [rb3, rd19]

@@ -13,11 +13,10 @@
 @@ 入口 `_start` 即 ELF `e_entry`，也是固定入口 `ENTRY`。
 
 	.include "tests/shared/asm/machine-tiny.inc"
-	.include "tests/shared/asm/machine.inc"
 
 	.text
 	.globl	_start
 
 _start:
-	LOAD_ADDR rb1, SP		@@ rb1 = SP（应用栈顶）
+	set.rb rb1, SP		@@ rb1 = SP（应用栈顶）
 	@@ 顺序落入随后链接的应用代码（同段、4 字节对齐、无填充）

@@ -42,14 +42,13 @@
 @@ The expected values live in `expected.yaml`; this program never decides the
 @@ oracle by itself (it only records the architectural values).
 
-	.include "machine.inc"
 	.include "machine-tiny.inc"
 	.include "tiny_hmon_layout.inc"
 
 	.macro	LOAD_ABS reg, sym
 	@@ Absolute symbol address (link-time R_DADAO_ABS48): the linker fills the
-	@@ four 16-bit fields from the symbol value (LOAD_ADDR only masks numeric
-	@@ constants and cannot take a section-relative label).
+	@@ four 16-bit fields from the symbol value (the `set.rb` pseudo-instruction
+	@@ only masks numeric constants and cannot take a section-relative label).
 	set.zw	\reg, wp0, \sym
 	or.w	\reg, wp1, \sym
 	or.w	\reg, wp2, \sym
@@ -75,13 +74,13 @@ _start:
 
 	@@ Initialise the result slot before any check: the application owns the
 	@@ slot pointer (the power stub no longer prepares result memory).
-	LOAD_ADDR rd22, RESULTS
-	LOAD_ADDR rb3, SLOT_PTR
+	set.rd rd22, RESULTS
+	set.rb rb3, SLOT_PTR
 	st.o	rd22, [rb3, 0]
-	LOAD_ADDR rb4, FAILCNT
+	set.rb rb4, FAILCNT
 	st.o	rd0, [rb4, 0]
 	LOAD_ABS rb21, record_cause		@@ append a cause record from the slots
-	LOAD_ADDR rb22, HMON_BASE		@@ hmon data slot base
+	set.rb rb22, HMON_BASE		@@ hmon data slot base
 
 	@@ Record 0: the power -> hmon hand-over.  The shared minimal handler
 	@@ saved the CFXTRAP cause registers to 0xE0/0xE8/0xF0 and escaped to the
@@ -90,7 +89,7 @@ _start:
 
 	.globl	main
 main:
-	LOAD_ADDR rb20, RECORD_CHECK
+	set.rb rb20, RECORD_CHECK
 
 	@@ ---- register checks (ids 1..16) -------------------------------------
 	cfx2rd	cfx_hmon, cg4, rc0, rd10
@@ -104,7 +103,7 @@ main:
 	call	[rb20, rd0, 0]
 
 	cfx2rd	cfx_hmon, cg3, rc10, rd10
-	LOAD_ADDR rd11, HMON_BASE
+	set.rd rd11, HMON_BASE
 	set.zw	rd12, wp0, 3
 	call	[rb20, rd0, 0]
 
@@ -123,13 +122,13 @@ main:
 	set.zw	rd12, wp0, 6
 	call	[rb20, rd0, 0]
 
-	LOAD_ADDR rd11, 0x1122334455667788
+	set.rd rd11, 0x1122334455667788
 	cfx2rc	cfx_hmon, cg6, rc0, rd11
 	cfx2rd	cfx_hmon, cg6, rc0, rd10
 	set.zw	rd12, wp0, 7
 	call	[rb20, rd0, 0]
 
-	LOAD_ADDR rd11, 0x0000000000000F0F
+	set.rd rd11, 0x0000000000000F0F
 	cfx2rc	cfx_hmon, cg3, rc4, rd11
 	cfx2rd	cfx_hmon, cg3, rc4, rd10
 	set.zw	rd12, wp0, 8
@@ -141,12 +140,12 @@ main:
 	call	[rb20, rd0, 0]
 
 	cfx2rd	cfx_hmon, cg7, rc1, rd10
-	LOAD_ADDR rd11, 0x3FF00000000
+	set.rd rd11, 0x3FF00000000
 	set.zw	rd12, wp0, 10
 	call	[rb20, rd0, 0]
 
 	cfx2rd	cfx_hmon, cg7, rc2, rd10
-	LOAD_ADDR rd11, 0x10000
+	set.rd rd11, 0x10000
 	set.zw	rd12, wp0, 11
 	call	[rb20, rd0, 0]
 
@@ -161,12 +160,12 @@ main:
 	call	[rb20, rd0, 0]
 
 	cfx2rd	cfx_power, cg7, rc1, rd10
-	LOAD_ADDR rd11, 0x3FFFFFF0000
+	set.rd rd11, 0x3FFFFFF0000
 	set.zw	rd12, wp0, 14
 	call	[rb20, rd0, 0]
 
 	cfx2rd	cfx_power, cg7, rc2, rd10
-	LOAD_ADDR rd11, 0x10000
+	set.rd rd11, 0x10000
 	set.zw	rd12, wp0, 15
 	call	[rb20, rd0, 0]
 
@@ -178,10 +177,10 @@ main:
 	@@ ---- cg3 rc10 write ignores the low two bits (DADAO-13 §1) -----------
 	@@ Writing HMON_BASE|3 must land as HMON_BASE: no fault, low bits cleared,
 	@@ read-back is the stored value.
-	LOAD_ADDR rd11, HMON_BASE + 3
+	set.rd rd11, HMON_BASE + 3
 	cfx2rc	cfx_hmon, cg3, rc10, rd11
 	cfx2rd	cfx_hmon, cg3, rc10, rd10
-	LOAD_ADDR rd11, HMON_BASE
+	set.rd rd11, HMON_BASE
 	set.zw	rd12, wp0, 41
 	call	[rb20, rd0, 0]
 
@@ -191,7 +190,7 @@ main:
 	@@ data slots (0xE0/0xE8/0xF0/0xF8) into one 32-byte record.
 	LOAD_ABS rb5, land_mem0
 	st.o	rb5, [rb22, 0xF8]
-	LOAD_ADDR rb3, 0x1000000000
+	set.rb rb3, 0x1000000000
 	.globl	f_mem0
 f_mem0:
 	ld.o	rd10, [rb3, 0]
@@ -201,7 +200,7 @@ land_mem0:
 
 	LOAD_ABS rb5, land_mem1
 	st.o	rb5, [rb22, 0xF8]
-	LOAD_ADDR rb3, 0xFFFFFF800000
+	set.rb rb3, 0xFFFFFF800000
 	.globl	f_mem1
 f_mem1:
 	ld.o	rd10, [rb3, 0]
@@ -211,7 +210,7 @@ land_mem1:
 
 	LOAD_ABS rb5, land_mem2
 	st.o	rb5, [rb22, 0xF8]
-	LOAD_ADDR rb3, HMON_BASE + 0x10000
+	set.rb rb3, HMON_BASE + 0x10000
 	.globl	f_mem2
 f_mem2:
 	ld.o	rd10, [rb3, 0]
@@ -278,7 +277,7 @@ land_undi2:
 	@@ ---- MALIGN x 3 (26..28) --------------------------------------------
 	LOAD_ABS rb5, land_malign0
 	st.o	rb5, [rb22, 0xF8]
-	LOAD_ADDR rb3, RAM_BASE + 1
+	set.rb rb3, RAM_BASE + 1
 	.globl	f_malign0
 f_malign0:
 	ld.o	rd10, [rb3, 0]
@@ -288,7 +287,7 @@ land_malign0:
 
 	LOAD_ABS rb5, land_malign1
 	st.o	rb5, [rb22, 0xF8]
-	LOAD_ADDR rb3, RAM_BASE + 4
+	set.rb rb3, RAM_BASE + 4
 	.globl	f_malign1
 f_malign1:
 	st.o	rd10, [rb3, 0]
@@ -298,7 +297,7 @@ land_malign1:
 
 	LOAD_ABS rb5, land_malign2
 	st.o	rb5, [rb22, 0xF8]
-	LOAD_ADDR rb3, RAM_BASE + 2
+	set.rb rb3, RAM_BASE + 2
 	.globl	f_malign2
 f_malign2:
 	ld.ut	rd10, [rb3, 0]
@@ -311,7 +310,7 @@ land_malign2:
 	@@ the fail-and-resume path goes through the framework return slot only.
 	LOAD_ABS rb5, land_ialign0
 	st.o	rb5, [rb22, 0xF8]
-	LOAD_ADDR rb2, IALIGN_TARGET0
+	set.rb rb2, IALIGN_TARGET0
 	.globl	f_ialign0
 f_ialign0:
 	jump	[rb2, rd0, 0]
@@ -321,7 +320,7 @@ land_ialign0:
 
 	LOAD_ABS rb5, land_ialign1
 	st.o	rb5, [rb22, 0xF8]
-	LOAD_ADDR rb2, IALIGN_TARGET1
+	set.rb rb2, IALIGN_TARGET1
 	.globl	f_ialign1
 f_ialign1:
 	jump	[rb2, rd0, 0]
@@ -331,7 +330,7 @@ land_ialign1:
 
 	LOAD_ABS rb5, land_ialign2
 	st.o	rb5, [rb22, 0xF8]
-	LOAD_ADDR rb2, IALIGN_TARGET2
+	set.rb rb2, IALIGN_TARGET2
 	.globl	f_ialign2
 f_ialign2:
 	jump	[rb2, rd0, 0]
@@ -407,7 +406,7 @@ land_reg:
 	@@ in-handler cg3 read belonged to the dispatch fixture and is gone.
 	LOAD_ABS rb5, land_hypv
 	st.o	rb5, [rb22, 0xF8]
-	LOAD_ADDR rb3, HMON_BASE + 0x10000	@@ unmapped => CFXMEM
+	set.rb rb3, HMON_BASE + 0x10000	@@ unmapped => CFXMEM
 	.globl	f_hypv
 f_hypv:
 	ld.o	rd10, [rb3, 0]
@@ -421,7 +420,7 @@ land_hypv:
 	call	[rb20, rd0, 0]
 
 	cfx2rd	cfx_hmon, cg3, rc10, rd10	@@ cg3 still readable after the fault
-	LOAD_ADDR rd11, HMON_BASE
+	set.rd rd11, HMON_BASE
 	set.zw	rd12, wp0, 39
 	call	[rb20, rd0, 0]
 
@@ -431,36 +430,36 @@ land_hypv:
 	call	[rb20, rd0, 0]
 
 	@@ ---- export the result table and stop ------------------------------
-	LOAD_ADDR rb16, MSG
+	set.rb rb16, MSG
 	set.zw	rd16, wp0, 0x0004		@@ SYS_WRITE0
 	trap	cfx_power, 0x3FF00
 
-	LOAD_ADDR rb4, PARAM
-	LOAD_ADDR rb5, FNAME
+	set.rb rb4, PARAM
+	set.rb rb5, FNAME
 	st.o	rb5, [rb4, 0]
 	set.zw	rd6, wp0, 5			@@ "wb"
 	st.o	rd6, [rb4, 8]
 	set.zw	rd6, wp0, 17
 	st.o	rd6, [rb4, 16]
 	set.zw	rd16, wp0, 0x0001		@@ SYS_OPEN
-	LOAD_ADDR rb16, PARAM
+	set.rb rb16, PARAM
 	trap	cfx_hmon, 0x3FF00
 
-	LOAD_ADDR rb4, PARAM
+	set.rb rb4, PARAM
 	st.o	rd8, [rb4, 0]			@@ handle
-	LOAD_ADDR rd6, RESULTS
+	set.rd rd6, RESULTS
 	st.o	rd6, [rb4, 8]
 	set.zw	rd6, wp0, 0x1000
 	st.o	rd6, [rb4, 16]
 	set.zw	rd16, wp0, 0x0005		@@ SYS_WRITE
-	LOAD_ADDR rb16, PARAM
+	set.rb rb16, PARAM
 	trap	cfx_hmon, 0x3FF00
 
-	LOAD_ADDR rb4, PARAM
+	set.rb rb4, PARAM
 	set.zw	rd6, wp1, 0x0002
 	or.w	rd6, wp0, 0x0026		@@ ADP_Stopped_ApplicationExit
 	st.o	rd6, [rb4, 0]
-	LOAD_ADDR rb5, FAILCNT
+	set.rb rb5, FAILCNT
 	ld.o	rd7, [rb5, 0]
 	set.zw	rd8, wp0, 0x0021
 	set.zw	rd9, wp0, 0x0071
@@ -472,7 +471,7 @@ exit_pass:
 	st.o	rd8, [rb4, 8]
 exit_go:
 	set.zw	rd16, wp0, 0x0018		@@ SYS_EXIT
-	LOAD_ADDR rb16, PARAM
+	set.rb rb16, PARAM
 	trap	cfx_hmon, 0x3FF00
 	swym	0
 
@@ -482,7 +481,7 @@ exit_go:
 @@ ---------------------------------------------------------------------------
 	.section .rcheck, "ax"
 record_check:
-	LOAD_ADDR rb4, SLOT_PTR
+	set.rb rb4, SLOT_PTR
 	ld.o	rb5, [rb4, 0]
 	st.o	rd12, [rb5, 0]
 	st.o	rd10, [rb5, 8]
@@ -494,7 +493,7 @@ record_check:
 
 	cmp.so	rd13, rd10, rd11
 	br.z	{rd13}?, [rb0, rc_ok]
-	LOAD_ADDR rb4, FAILCNT
+	set.rb rb4, FAILCNT
 	ld.o	rd14, [rb4, 0]
 	add.si	rd14, 1
 	st.o	rd14, [rb4, 0]
@@ -509,7 +508,7 @@ rc_ok:
 @@ rb22 = HMON_BASE is set once in _start.
 @@ ---------------------------------------------------------------------------
 record_cause:
-	LOAD_ADDR rb4, SLOT_PTR
+	set.rb rb4, SLOT_PTR
 	ld.o	rb5, [rb4, 0]
 	ld.o	rd10, [rb22, 0xE0]		@@ excp_cause_id
 	ld.o	rd11, [rb22, 0xE8]		@@ excp_cause_ip (fault IP)

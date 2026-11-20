@@ -22,13 +22,12 @@
 @@ contract-semihosting.md §3/§5 (SYS_EXIT reaches the host $?).
 
 	.include "tests/shared/asm/machine-tiny.inc"
-	.include "tests/shared/asm/machine.inc"
 
 	.section	.text.start,"ax"
 	.globl	_start
 _start:
 	@@ rb1 = profile SP (48-bit, near the RAM top).
-	LOAD_ADDR rb1, SP
+	set.rb rb1, SP
 
 	@@ Hand control to picolibc's start-up (renamed _picolibc_start).
 	call	[rb0, _picolibc_start]

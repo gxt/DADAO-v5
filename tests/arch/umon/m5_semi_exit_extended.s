@@ -19,13 +19,12 @@
 @@ @m5 console_data=
 @@ @m5 exit=0x14
 
-	.include "machine.inc"
 
 	.text
 	.globl	_start
 _start:
 	@@ argument block at RAM + 0x2000 = {0x20026, 0x14}
-	LOAD_ADDR rb16, ENTRY + 0x2000
+	set.rb rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026		@@ rd8 = 0x0002_0026
 	st.o	rd8, [rb16, 0]

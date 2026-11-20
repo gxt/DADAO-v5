@@ -32,24 +32,24 @@
 	TEST_STM         6, stm.t, rd, {rd5:rd6}, rb4, MSTORE + 0x888, rd19, -0x800, MDATA_T + 0x050, 0x8000001480000015
 
 	@@ boundary：SRAM 尾拍（0xffffff7ffff8）可写，读写逐字节相等
-	LOAD_ADDR rb28, MDATA_T + 0x090
+	set.rb rb28, MDATA_T + 0x090
 	ldm.ut	{rd5:rd6}, [rb28, rd0]
 	set.rd    rd19, 0x000
-	LOAD_ADDR rb4, 0xFFFFFF7FFFF8
+	set.rb rb4, 0xFFFFFF7FFFF8
 	stm.t	{rd5:rd6}, [rb4, rd19]
-	LOAD_ADDR rb21, 0xFFFFFF7FFFF8
+	set.rb rb21, 0xFFFFFF7FFFF8
 	ld.o	rd21, [rb21, 0]
 	__CHECK_RD         7, rd21, 0x8000002480000025
 
 	@@ overlap：索引 rd19 落在源组内（`stm` 允许重叠）⇒ 正常执行，行为确定
-	LOAD_ADDR rb28, MDATA_T + 0x0A0
+	set.rb rb28, MDATA_T + 0x0A0
 	ldm.ut	{rd17:rd21}, [rb28, rd0]
 	set.rd    rd19, 0x0A0
-	LOAD_ADDR rb4, MSTORE
+	set.rb rb4, MSTORE
 	stm.t	{rd17:rd21}, [rb4, rd19]
 
 	@@ overlap：`stm` 只读，源组 rd17..rd21 事后仍是原值
-	LOAD_ADDR rb28, MDUMP + 0x100
+	set.rb rb28, MDUMP + 0x100
 	stm.t	{rd17:rd21}, [rb28, rd0]
 	__CHECK_MEM         8, MDUMP, 0x100, 0x8000002880000029
 	__CHECK_MEM         9, MDUMP, 0x108, 0x000000A08000002B
@@ -59,10 +59,10 @@
 	__CHECK_MEM        13, MSTORE, 0x0B0, 0x8000002C000000B6
 
 	@@ legality：stm 允许 rd0 作源（读出 0），不触发 ILLI
-	LOAD_ADDR rb28, MDATA_T + 0x078
+	set.rb rb28, MDATA_T + 0x078
 	ldm.ut	{rd1:rd2}, [rb28, rd0]
 	set.rd    rd19, 0x000
-	LOAD_ADDR rb4, MSTORE + 0x0C8
+	set.rb rb4, MSTORE + 0x0C8
 	stm.t	{rd0:rd2}, [rb4, rd19]
 	__CHECK_MEM        14, MSTORE, 0x0C8, 0x000000008000001E
 	__CHECK_MEM        15, MSTORE, 0x0D0, 0x8000001F000000BA
@@ -78,7 +78,7 @@
 	@@ ---- rb0 作基址：imm 负 / 零 / 正三档（`spec/SimRISC-00 §2`：rb0 读出 = **当前指令地址**，非「下一条」）----
 	@@   槽与被测指令都由 `.org` 钉住：llvm-mc 把标签差折成 0（ISS-424）⇒ imm 只能写字面常量；
 	@@   负档 EA = ENTRY+0x2000（死的预设数据槽）、零档 EA = 被测指令自身地址、正档 EA = ENTRY+0x2188。
-	LOAD_ADDR rb28, TEST_DATA + 0x088
+	set.rb rb28, TEST_DATA + 0x088
 	ldm.ut   {rd5:rd5}, [rb28, rd0]		@@ 源组 = TEST_DATA + 0x088
 	jump	[rb0, __rb0n_pre]
 	.org	0x2000
@@ -100,12 +100,12 @@ __rb0z:
 	ld.ut	rd21, [rb12, -0x004]		@@ 独立通路：0x20C4 − 4 = 0x20C0
 	__CHECK_RD 20, rd21, 0x0000000011111111
 __rb0z_ck:
-	LOAD_ADDR rb28, TEST_DATA + 0x088
+	set.rb rb28, TEST_DATA + 0x088
 	ldm.ut   {rd5:rd5}, [rb28, rd0]		@@ 源组 = TEST_DATA + 0x088
 	jump	[rb0, __rb0p]
 	.org	0x2180
 __rb0p:
-	LOAD_ADDR rb26, (MSTORE + 0x1C0 + 4 - 8)
+	set.rb rb26, (MSTORE + 0x1C0 + 4 - 8)
 	aip.si	rb25, 0			@@ rb25 = ENTRY+0x2180
 	sub.o	rd19, rb26, rb25
 	stm.t    {rd5:rd5}, [rb0, rd19]	@@ 被测 @0x2188：EA = MSTORE + 0x1C0 + 4

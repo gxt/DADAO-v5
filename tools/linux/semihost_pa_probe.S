@@ -54,27 +54,13 @@
 @@   PA_PTE_INDEX      PAYLOAD_PA >> 29   (L1 index of the data *as a VA*)
 @@   ENTRY_PTE_INDEX   ENTRY_VA   >> 29   (L1 index that must be present)
 
-	.include "tests/shared/asm/machine.inc"
-
-	.macro	LD64 rd, w0, w1, w2, w3
-	set.zw	\rd, wp0, \w0
-	.if \w1 != 0
-	or.w	\rd, wp1, \w1
-	.endif
-	.if \w2 != 0
-	or.w	\rd, wp2, \w2
-	.endif
-	.if \w3 != 0
-	or.w	\rd, wp3, \w3
-	.endif
-	.endm
 
 	.text
 	.globl	_start
 
 _start:
 	@@ ---- self-check A: the data PA, read as a VA, is NOT mapped ---------
-	LOAD_ADDR rb4, PT_VA + PA_PTE_INDEX * 8
+	set.rb rb4, PT_VA + PA_PTE_INDEX * 8
 	ld.o	rd5, [rb4, 0]
 	br.z	{rd5}?, [rb0, sc_a_ok]
 	set.rd	rd1, 0x0E1
@@ -82,7 +68,7 @@ _start:
 sc_a_ok:
 
 	@@ ---- self-check B: the payload's VA *is* mapped (P = bit 0) ---------
-	LOAD_ADDR rb4, PT_VA + ENTRY_PTE_INDEX * 8
+	set.rb rb4, PT_VA + ENTRY_PTE_INDEX * 8
 	ld.o	rd6, [rb4, 0]
 	set.rd	rd2, 0x1
 	and.o	rd7, rd6, rd2
@@ -92,7 +78,7 @@ sc_a_ok:
 sc_b_ok:
 
 	@@ ---- SYS_WRITE0 (0x04): NUL-terminated string, pointer = its PA ------
-	LOAD_ADDR rb16, PAYLOAD_PA
+	set.rb rb16, PAYLOAD_PA
 	set.zw	rd16, wp0, 0x0004
 	trap	cfx_umon, 0x3FF00
 
@@ -101,18 +87,18 @@ sc_b_ok:
 	@@ is longer than the responder's 256-byte block read and starts 48 bytes
 	@@ into such a block, so a page-table walk or a truncated measurement
 	@@ (first block only / window cut short) cannot produce it byte-exactly.
-	LOAD_ADDR rb16, LONG_PA
+	set.rb rb16, LONG_PA
 	set.zw	rd16, wp0, 0x0004
 	trap	cfx_umon, 0x3FF00
 
 	@@ ---- SYS_WRITEC (0x03) x3: one character, pointer = its PA ----------
-	LOAD_ADDR rb16, CHARSET_PA
+	set.rb rb16, CHARSET_PA
 	set.zw	rd16, wp0, 0x0003
 	trap	cfx_umon, 0x3FF00
-	LOAD_ADDR rb16, CHARSET_PA + 1
+	set.rb rb16, CHARSET_PA + 1
 	set.zw	rd16, wp0, 0x0003
 	trap	cfx_umon, 0x3FF00
-	LOAD_ADDR rb16, CHARSET_PA + 2
+	set.rb rb16, CHARSET_PA + 2
 	set.zw	rd16, wp0, 0x0003
 	trap	cfx_umon, 0x3FF00
 
@@ -120,26 +106,26 @@ sc_b_ok:
 	@@ The name pointer, the argument block and the name itself are all PAs;
 	@@ the responder must measure + read the name physically (it is not a
 	@@ mapped VA here), i.e. `lock_user_string` must not walk the page table.
-	LOAD_ADDR rb4, OPEN_BLOCK_VA
-	LOAD_ADDR rb5, PATH_PA
+	set.rb rb4, OPEN_BLOCK_VA
+	set.rb rb5, PATH_PA
 	rb2rd	rd5, rb5, 1
 	st.o	rd5, [rb4, 0]			@@ file name pointer = PA
 	set.rd	rd2, 0
 	st.o	rd2, [rb4, 8]			@@ mode 0 = "r"
 	st.o	rd2, [rb4, 16]			@@ length 0 = "measure it"
-	LOAD_ADDR rb16, OPEN_BLOCK_PA
+	set.rb rb16, OPEN_BLOCK_PA
 	set.zw	rd16, wp0, 0x0001
 	trap	cfx_umon, 0x3FF00
 	@@ rd8 = guest handle (>= 0) on success, -1 (EFAULT) on a bad pointer.
-	LD64	rd3, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF
+	set.rd rd3, 0xffffffffffffffff
 	cmp.uo	rd4, rd8, rd3
 	br.z	{rd4}?, [rb0, sp_open_fail]
-	LOAD_ADDR rb16, MARK_OK_PA
+	set.rb rb16, MARK_OK_PA
 	set.zw	rd16, wp0, 0x0003
 	trap	cfx_umon, 0x3FF00
 	jump	[rb0, sp_open_done]
 sp_open_fail:
-	LOAD_ADDR rb16, MARK_BAD_PA
+	set.rb rb16, MARK_BAD_PA
 	set.zw	rd16, wp0, 0x0003
 	trap	cfx_umon, 0x3FF00
 sp_open_done:
@@ -149,11 +135,11 @@ sp_open_done:
 
 sp_exit:
 	@@ SYS_EXIT (0x18): block {reason, code}, pointer handed over as its PA.
-	LOAD_ADDR rb4, EXIT_BLOCK_VA
-	LD64	rd2, 0x0026, 0x0002, 0x0000, 0x0000	@@ ADP_Stopped_ApplicationExit
+	set.rb rb4, EXIT_BLOCK_VA
+	set.rd rd2, 0x0000000000020026	@@ ADP_Stopped_ApplicationExit
 	st.o	rd2, [rb4, 0]
 	st.o	rd1, [rb4, 8]
-	LOAD_ADDR rb16, EXIT_BLOCK_PA
+	set.rb rb16, EXIT_BLOCK_PA
 	set.zw	rd16, wp0, 0x0018
 	trap	cfx_umon, 0x3FF00
 	swym	0

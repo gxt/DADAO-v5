@@ -89,8 +89,8 @@
 	set.rb	rb37, 0xAAAAAAAAAAAAAAAA
 	set.rb	rb62, 0x0123456789ABCDEF
 	rb2rb	{rb1:rb31}, {rb32:rb62}
-	LOAD_ADDR rb29, SCRATCH
-	LOAD_ADDR rb30, TEST_BUF + (8 * __NCHECK)
+	set.rb rb29, SCRATCH
+	set.rb rb30, TEST_BUF + (8 * __NCHECK)
 	st.o	rb6, [rb29, 0]
 	__VERIFY_MEM       10, SCRATCH, 0, 0xAAAAAAAAAAAAAAAA
 	st.o	rb31, [rb29, 0]

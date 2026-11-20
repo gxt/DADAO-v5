@@ -26,7 +26,7 @@
 	TEST_LDM         4, ldm.ut, {rd8:rd15}, rb3, MDATA_T + 0x020, rd19, 0x000, MDUMP + 0x020, 4, 0x8000000880000009, 0x8000000A8000000B, 0x8000000C8000000D, 0x8000000E8000000F
 
 	@@ semantic：宽度/符号扩展逐元素核对（零扩展）
-	LOAD_ADDR rb3, MDATA_T + 0x030
+	set.rb rb3, MDATA_T + 0x030
 	set.rd    rd19, 0x000
 	ldm.ut	{rd5:rd7}, [rb3, rd19]
 	__CHECK_RD         5, rd5, 0x000000008000000C
@@ -78,7 +78,7 @@ __rb0z_ck:
 	jump	[rb0, __rb0p]
 	.org	0x2180
 __rb0p:
-	LOAD_ADDR rb26, (TEST_DATA + 0x088 - 8)
+	set.rb rb26, (TEST_DATA + 0x088 - 8)
 	aip.si	rb25, 0			@@ rb25 = ENTRY+0x2180
 	sub.o	rd19, rb26, rb25		@@ rd19 = (TEST_DATA+0x080) − 0x2180
 	ldm.ut   {rd5:rd5}, [rb0, rd19]	@@ 被测 @0x2188：EA = ENTRY+0x5888
@@ -89,9 +89,9 @@ __rb0p:
 	@@   MUNI 是 64 拍同值 0x0F1E2D3C4B5A6978（拍内四字节互不相同）⇒ 32 位元素在
 	@@   0x0F1E2D3C / 0x4B5A6978 间交替；MSTORE 是保持区模式，回写后逐拍比「源字节 + 未覆盖字节」。
 	@@   索引用 rd0（rd1..rd63 全在传送范围 ⇒ 用 rd19 会 ILLI）。
-	LOAD_ADDR rb3, MUNI
+	set.rb rb3, MUNI
 	ldm.ut	{rd1:rd63}, [rb3, rd0]
-	LOAD_ADDR rb28, MSTORE
+	set.rb rb28, MSTORE
 	stm.t	{rd1:rd63}, [rb28, rd0]
 	__CHECK_MEM        18, MSTORE, 0x000, 0x0F1E2D3C4B5A6978
 	__VERIFY_MEM       18, MSTORE, 0x078, 0x0F1E2D3C4B5A6978	@@ 中段（同值拍 ⇒ 全拍同期望）

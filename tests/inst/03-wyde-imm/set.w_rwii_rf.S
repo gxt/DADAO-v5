@@ -30,7 +30,7 @@
 	rd2rf	{\dst:\dst}, {rd20:rd20}
 	\mnem	\dst, \wp, \imm
 	st.o	\dst, [rb29, 0]
-	LOAD_ADDR rb21, WDATA + \off
+	set.rb rb21, WDATA + \off
 	ld.o	rd20, [rb21, 0]
 	ld.o	rd21, [rb29, 0]
 	__REC	rd21

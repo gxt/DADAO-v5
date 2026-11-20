@@ -23,8 +23,8 @@
 @@ ---- 本文件局部宏（不改共享宏层）----
 @@ 任何意外异常都落到固件 hmon 的返回槽：先指向 TEST_PAD（故障落点，按监控码退出 = fail-fast）
 	__TEST_BEGIN
-	LOAD_ADDR rb20, HMON_BASE
-	LOAD_ADDR rb21, TEST_PAD
+	set.rb rb20, HMON_BASE
+	set.rb rb21, TEST_PAD
 	st.o	rb21, [rb20, 0xF8]
 
 	@@ ---- encoding（规范编码字直接执行，钉 mask/value 与字段位域）----

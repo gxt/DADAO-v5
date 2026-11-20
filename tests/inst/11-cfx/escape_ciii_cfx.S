@@ -75,10 +75,10 @@
 .endm
 
 	__TEST_BEGIN
-	LOAD_ADDR rb20, HMON_BASE
-	LOAD_ADDR rb22, HMON_BASE              @@ handler 的槽基址（跨 trap 保留）
+	set.rb rb20, HMON_BASE
+	set.rb rb22, HMON_BASE              @@ handler 的槽基址（跨 trap 保留）
 	set.rd	rd11, HMON_BASE                    @@ 固件异常向量值（`spec/DADAO-13 §1` 初值）
-	LOAD_ADDR rb21, TEST_PAD
+	set.rb rb21, TEST_PAD
 	st.o	rb21, [rb20, 0xF8]              @@ 任何意外异常 ⇒ 故障落点（fail-fast）
 
 	@@ ---- encoding：规范编码字 0x7E0C0001（cfx3，imms18 = 1 ⇒ +4）----
@@ -121,14 +121,14 @@ __c7:
 	@@ ---- boundary：目标未 4 字节对齐 ⇒ IALIGN（IP 停在非法地址）----
 	@@   handler 先把向量还原成平台固件再 escape，于是目标侧异常按固件「保存-跳转」落到 0x15A0
 __c8:
-	LOAD_ADDR rb21, (ENTRY + 0x15A0)
+	set.rb rb21, (ENTRY + 0x15A0)
 	st.o	rb21, [rb20, 0xF8]
 	__MON_ENTER (ENTRY + 0x1C00), ((ENTRY + 0x401))
 	__EXIT	8
 
 	@@ ---- boundary：目标地址 0（Tiny 的 addr[47:42]=0 未映射）⇒ CFXMEM ----
 __c9:
-	LOAD_ADDR rb21, (ENTRY + 0x16F0)
+	set.rb rb21, (ENTRY + 0x16F0)
 	st.o	rb21, [rb20, 0xF8]
 	__MON_ENTER (ENTRY + 0x1C00), 0
 	__EXIT	9
@@ -226,7 +226,7 @@ __fail5:
 __t6_ok:
 	cfx2rd	cfx_hmon, cg5, rc3, rd6
 	__VERIFY_RD 6, rd6, (ENTRY + 0x1300)       @@ cause_ip 仍 = handler 写入的返回基址
-	LOAD_ADDR rb21, HMON_BASE
+	set.rb rb21, HMON_BASE
 	ld.o	rd7, [rb21, 0xE0]                  @@ 进入 hmon 时记录的 cause_id
 	cfx2rd	cfx_hmon, cg5, rc2, rd6
 	__VERIFY_EQ_RD 6, rd6, rd7                 @@ escape 前后一致 ⇒ 帧未被消费
@@ -253,7 +253,7 @@ __fail7:
 	.org	0x16F0
 	@@ case 9：CFXMEM 落点（目标地址 0）
 	__VERIFY_MEM 9, HMON_BASE, 0xE8, 0
-	LOAD_ADDR rb21, (HMON_BASE + 0xE0)
+	set.rb rb21, (HMON_BASE + 0xE0)
 	ld.o	rd23, [rb21, 0]
 	set.rd	rd22, 0xFFFF                     @@ 只比大类 cause_id[15:0]
 	and.o	rd23, rd23, rd22                 @@ 依据 ADR-0056 D2 / contract-see
@@ -266,7 +266,7 @@ __fail7:
 	@@ case 10：CFXESC 落点（cause_ip = escape 指令地址，取自 rb25）
 	__VERIFY_MEM 10, HMON_BASE, 0xF0, 0x7EFC0000
 	rb2rd	{rd22:rd22}, {rb25:rb25}            @@ 运行期派生的 escape 地址
-	LOAD_ADDR rb21, ((HMON_BASE + 0xE8) / 8) * 8
+	set.rb rb21, ((HMON_BASE + 0xE8) / 8) * 8
 	ld.o	rd21, [rb21, 0]
 	br.eq	{rd22, rd21}?, [rb0, __t10_ok]
 	__EXIT	10
@@ -278,7 +278,7 @@ __t10_ok:
 	@@ case 11：CFXESC 落点（cfx0，imms18 = 1）
 	__VERIFY_MEM 11, HMON_BASE, 0xF0, 0x7E000001
 	rb2rd	{rd22:rd22}, {rb25:rb25}
-	LOAD_ADDR rb21, ((HMON_BASE + 0xE8) / 8) * 8
+	set.rb rb21, ((HMON_BASE + 0xE8) / 8) * 8
 	ld.o	rd21, [rb21, 0]
 	br.eq	{rd22, rd21}?, [rb0, __t11_ok]
 	__EXIT	11
@@ -333,7 +333,7 @@ __mon_p0:                                      @@ cfx63 侧入口：CFXESC 落�
 	@@   第二次到达 = CFXESC 经 probe 入口 escape 回来的落点 ⇒ 断言 cause_id = 1<<3。
 	@@   到达次数上限 2：旧语义下第二次 escape 会直接成功、cause_id 标记恒 0 ⇒ 第 3 次到达判红
 	@@   （不挂死，可判定失败）。
-	LOAD_ADDR rb21, HMON_BASE
+	set.rb rb21, HMON_BASE
 	ld.o	rd8, [rb21, 0xC8]                  @@ 到达计数
 	add.si	rd8, 1
 	st.o	rd8, [rb21, 0xC8]

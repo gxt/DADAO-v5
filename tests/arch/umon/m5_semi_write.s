@@ -28,13 +28,12 @@
 @@ @m5 file_data=5758595a
 @@ @m5 exit=0x12
 
-	.include "machine.inc"
 
 	.text
 	.globl	_start
 _start:
 	@@ --- path "m5_write.txt\0" at RAM + 0x3200 ---
-	LOAD_ADDR rb16, ENTRY + 0x3200
+	set.rb rb16, ENTRY + 0x3200
 	set.zw	rd8, wp0, 0x006D		@@ 'm'
 	st.b	rd8, [rb16, 0]
 	set.zw	rd8, wp0, 0x0035		@@ '5'
@@ -63,7 +62,7 @@ _start:
 	st.b	rd8, [rb16, 12]
 
 	@@ --- write buffer "WXYZ" at RAM + 0x3300 ---
-	LOAD_ADDR rb16, ENTRY + 0x3300
+	set.rb rb16, ENTRY + 0x3300
 	set.zw	rd8, wp0, 0x0057		@@ 'W'
 	st.b	rd8, [rb16, 0]
 	set.zw	rd8, wp0, 0x0058		@@ 'X'
@@ -74,8 +73,8 @@ _start:
 	st.b	rd8, [rb16, 3]
 
 	@@ --- SYS_OPEN: block at RAM + 0x3000 = {path ptr, mode, len} ---
-	LOAD_ADDR rb16, ENTRY + 0x3000
-	LOAD_ADDR rd8, ENTRY + 0x3200
+	set.rb rb16, ENTRY + 0x3000
+	set.rd rd8, ENTRY + 0x3200
 	st.o	rd8, [rb16, 0]
 	set.zw	rd9, wp0, 0x0004		@@ mode 4 = write
 	st.o	rd9, [rb16, 8]
@@ -85,9 +84,9 @@ _start:
 	trap	cfx_umon, 0x3FF00
 
 	@@ --- SYS_WRITE: block at RAM + 0x3100 = {handle, buf ptr, count} ---
-	LOAD_ADDR rb16, ENTRY + 0x3100
+	set.rb rb16, ENTRY + 0x3100
 	st.o	rd8, [rb16, 0]			@@ handle returned in rd8 (§2/§4)
-	LOAD_ADDR rd8, ENTRY + 0x3300
+	set.rd rd8, ENTRY + 0x3300
 	st.o	rd8, [rb16, 8]
 	set.zw	rd9, wp0, 0x0004
 	st.o	rd9, [rb16, 16]
@@ -100,7 +99,7 @@ _start:
 	br.nz	{rd11}?, [rb0, fail]
 
 	@@ report success via SYS_EXIT (pass token 0x12)
-	LOAD_ADDR rb16, ENTRY + 0x2000
+	set.rb rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
@@ -112,7 +111,7 @@ _start:
 
 fail:
 	@@ SYS_WRITE did not consume the whole buffer -> distinct fail token 0x71
-	LOAD_ADDR rb16, ENTRY + 0x2000
+	set.rb rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]

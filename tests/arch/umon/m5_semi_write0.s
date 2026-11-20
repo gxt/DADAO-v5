@@ -18,13 +18,12 @@
 @@ @m5 console_data=4f4b0a00
 @@ @m5 exit=0x11
 
-	.include "machine.inc"
 
 	.text
 	.globl	_start
 _start:
 	@@ rb16 -> RAM + 0x1000; build "OK\n\0" byte by byte
-	LOAD_ADDR rb16, ENTRY + 0x1000
+	set.rb rb16, ENTRY + 0x1000
 	set.zw	rd8, wp0, 0x004F		@@ 'O'
 	st.b	rd8, [rb16, 0]
 	set.zw	rd8, wp0, 0x004B		@@ 'K'
@@ -37,7 +36,7 @@ _start:
 	set.zw	rd16, wp0, 0x0004
 	trap	cfx_umon, 0x3FF00
 	@@ report success via SYS_EXIT (pass token 0x11)
-	LOAD_ADDR rb16, ENTRY + 0x2000
+	set.rb rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]

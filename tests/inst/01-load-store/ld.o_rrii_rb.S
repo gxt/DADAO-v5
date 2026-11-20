@@ -15,7 +15,7 @@
 @@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
 @@ rb 目的（实测经 rb2rd 搬到 rd21）
 .macro TEST_LD_RB pt, mnem, dst, base, baseval, off, exp
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	\mnem	\dst, [\base, \off]
 	rb2rd	{rd21:rd21}, {\dst:\dst}
 	set.rd	rd20, \exp
@@ -49,7 +49,7 @@ __ck_\@:
 	@@ ---- overlap ----
 	TEST_LD_RB        14, ld.o,   rb5,   rb5,   TEST_DATA + 0x090,  0x000,    0x0000000000000000
 	@@ overlap：同一目的连装两次，后到者生效
-	LOAD_ADDR rb9, TEST_DATA
+	set.rb rb9, TEST_DATA
 	ld.o    rb2, [rb9, 0x000]
 	ld.o    rb2, [rb9, 0x008]
 	rb2rd	{rd21:rd21}, {rb2:rb2}

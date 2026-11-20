@@ -35,7 +35,6 @@
 @@ therefore exercises only services all three engines serve correctly.
 
 	.include "tests/shared/asm/machine-tiny.inc"
-	.include "tests/shared/asm/machine.inc"
 
 @@ Fixed placement (kept in sync by semihost_smoke_tiny.lds ASSERTs):
 @@   .text     ENTRY + 0x000   (<= 0x400)
@@ -54,25 +53,25 @@
 	.globl	_start
 _start:
 	@@ 1. SYS_WRITE0: 64-bit pointer in rb16, service 0x04 in rd16.
-	LOAD_ADDR rb16, MSG
+	set.rb rb16, MSG
 	set.zw	rd16, wp0, 0x0004
 	trap	cfx0, 0x3FF04
 
 	@@ 2. SYS_WRITEC: one character.
-	LOAD_ADDR rb16, EXCL
+	set.rb rb16, EXCL
 	set.zw	rd16, wp0, 0x0003
 	trap	cfx0, 0x3FF03
 
 	@@ 3. SYS_WRITE: parameter block {handle=1, buffer, length=64}.
 	.if SEMIHOST_WRITE
-	LOAD_ADDR rb4, BLOCK
+	set.rb rb4, BLOCK
 	set.zw	rd5, wp0, 0x0001
 	st.o	rd5, [rb4, 0]
-	LOAD_ADDR rd6, BUF
+	set.rd rd6, BUF
 	st.o	rd6, [rb4, 8]
 	set.zw	rd7, wp0, 0x0040
 	st.o	rd7, [rb4, 16]
-	LOAD_ADDR rb16, BLOCK
+	set.rb rb16, BLOCK
 	set.zw	rd16, wp0, 0x0005
 	trap	cfx0, 0x3FF05
 	.endif
@@ -92,7 +91,7 @@ _start:
 	.endif
 
 	@@ 6. SYS_EXIT: {0x20026 ADP_Stopped_ApplicationExit, EXIT_CODE}.
-	LOAD_ADDR rb16, EXITBLK
+	set.rb rb16, EXITBLK
 	set.zw	rd4, wp1, 0x0002
 	or.w	rd4, wp0, 0x0026
 	st.o	rd4, [rb16, 0]

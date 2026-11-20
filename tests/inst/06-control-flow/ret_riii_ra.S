@@ -28,7 +28,7 @@
 	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, RASUF
 	set.rd	rd5, 0
-	LOAD_ADDR rb5, MEMRAS
+	set.rb rb5, MEMRAS
 	st.o	rd5, [rb5, 0]           @@ MemRAS[MRPTR] 的递归计数 = 0
 	set.rd	rd5, MEMRAS              @@ MRPTR = MEMRAS、RACNT = 0（高 16 位 = 0）
 	rd2ra	{ra0}, {rd5}
@@ -140,7 +140,7 @@ __ckR0:
 	@@ ---- boundary：D4b 取 MemRAS 条目（RACNT = 0、MRPTR ≠ 0）----
 	@@ 条目计数 > 1 ⇒ 该条目压入成为栈顶（计数 −1）、MRPTR += 8、RACNT = 1
 	set.rd	rd5, (0x0003000000000000 + ENTRY + 0x1200)
-	LOAD_ADDR rb5, MEMRAS
+	set.rb rb5, MEMRAS
 	st.o	rd5, [rb5, 0]           @@ MemRAS[MRPTR] = {计数 3, 返回地址 0x1200}
 	set.rd	rd5, MEMRAS              @@ ra0 = {RACNT = 0, MRPTR = MEMRAS}
 	rd2ra	{ra0}, {rd5}
@@ -159,7 +159,7 @@ __ckD4b:
 
 	@@ 条目计数 = 1 ⇒ 消费该条目（MRPTR += 8、RACNT 仍 0、RegRAS 不变）
 	set.rd	rd5, (0x0001000000000000 + ENTRY + 0x1400)
-	LOAD_ADDR rb5, MEMRAS
+	set.rb rb5, MEMRAS
 	st.o	rd5, [rb5, 0]
 	set.rd	rd5, MEMRAS
 	rd2ra	{ra0}, {rd5}

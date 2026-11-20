@@ -10,12 +10,11 @@
 @@ hand-written.
 
 	.include "tests/shared/asm/machine-tiny.inc"
-	.include "tests/shared/asm/machine.inc"
 
 	.text
 	.globl	_start
 _start:
-	LOAD_ADDR rb1, SP
-	LOAD_ADDR rb2, ENTRY
+	set.rb rb1, SP
+	set.rb rb2, ENTRY
 	jump	[rb2, rd0, 0]
 	swym	0

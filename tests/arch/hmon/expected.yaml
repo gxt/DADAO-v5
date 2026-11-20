@@ -43,7 +43,7 @@ profile:
 # a `+4` policy or an IALIGN rewrite would land at the wrong place and the
 # record would not match the ELF symbols.  The hand-over record (0) reads the
 # same slots: power's default return address is `boot_magic_trap + 4`.
-shared_bootrom_md5: 514300876ea66ec108396334f3ef2b0f
+shared_bootrom_md5: a5d78816a95469766639fa658b647ef3
 
 # Not yet executable in this task:
 #   * chipyard: regenerate resources/dadao/bootrom/bootrom.tiny.hex from the

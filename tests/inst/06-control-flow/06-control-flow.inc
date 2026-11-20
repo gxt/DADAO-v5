@@ -104,7 +104,7 @@ __bl_\@:
 	@@ D4b：MemRAS 条目 = {计数 1, 返回地址 0xBBBB00000000（cfxha 46，其它 cfxha 段）}
 	@@   ⇒ 消费条目、PC = 该地址；Tiny 只在 cfxha 63/3 映射 ⇒ 取指 CFXMEM（Kaiwu §1.2）
 	set.rd	rd5, 0x0001BBBB00000000
-	LOAD_ADDR rb5, MEMRAS
+	set.rb rb5, MEMRAS
 	st.o	rd5, [rb5, 0]
 	set.rd	rd5, MEMRAS
 	rd2ra	{ra0}, {rd5}

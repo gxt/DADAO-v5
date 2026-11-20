@@ -27,44 +27,30 @@
 @@ The image index table format is the task's interface spec (§1): big-endian
 @@ 16-byte header + 32-byte entries.  ELF checks are §2.  Failure codes are §5.
 
-	.macro	LD64 rd, w0, w1, w2, w3
-	set.zw	\rd, wp0, \w0
-	.if \w1 != 0
-	or.w	\rd, wp1, \w1
-	.endif
-	.if \w2 != 0
-	or.w	\rd, wp2, \w2
-	.endif
-	.if \w3 != 0
-	or.w	\rd, wp3, \w3
-	.endif
-	.endm
-
 	.include "tests/shared/asm/machine-vast.inc"
-	.include "tests/shared/asm/machine.inc"
 
 	.text
 	.globl	_start
 
 _start:
 	@@ power has no stack requirement, but the handoff contract sets rbsp.
-	LOAD_ADDR rb1, SP
+	set.rb rb1, SP
 
 	@@ Validate the table and look up the hmon entry (type 1).
-	LD64	rd1, 0x0001, 0x0000, 0x0000, 0x0000
-	LOAD_ADDR rb9, RESET_PC + 0x2000	@@ rom_validate_table
+	set.rd rd1, 0x0000000000000001
+	set.rb rb9, RESET_PC + 0x2000	@@ rom_validate_table
 	call	[rb9, rd0, 0]
 	br.nz	{rd8}?, [rb0, power_exit_code]
 
 	@@ Load the hmon ELF into hmon SRAM (0x0fff_0000_0000).
-	LOAD_ADDR rb2, HMON_BASE
-	LOAD_ADDR rb9, RESET_PC + 0x2400	@@ elf_loader
+	set.rb rb2, HMON_BASE
+	set.rb rb9, RESET_PC + 0x2400	@@ elf_loader
 	call	[rb9, rd0, 0]
 	br.nz	{rd8}?, [rb0, power_exit_code]
 
 	@@ cfx_hmon.hypv.excp_vector = hmon e_entry; switch_run_mode = hypv.
 	cfx2rc	cfx_hmon, cg3, rc10, rd5
-	LD64	rd6, 0x0003, 0x0000, 0x0000, 0x0000
+	set.rd rd6, 0x0000000000000003
 	cfx2rc	cfx_hmon, cg3, rc8, rd6
 
 	@@ power -> hmon handoff (ADR-0043 D8).  The immediate is <boot_magic>;
@@ -86,11 +72,11 @@ power_exit_code:
 
 power_exit:
 	@@ SYS_EXIT(rd1): argument block in RAM (power may access RAM: cfx63 self).
-	LOAD_ADDR rb16, HMON_BASE + 0x0d00
-	LD64	rd16, 0x0026, 0x0002, 0x0000, 0x0000
+	set.rb rb16, HMON_BASE + 0x0d00
+	set.rd rd16, 0x0000000000020026
 	st.o	rd16, [rb16, 0]
 	st.o	rd1, [rb16, 8]
-	LD64	rd16, 0x0018, 0x0000, 0x0000, 0x0000
+	set.rd rd16, 0x0000000000000018
 	trap	cfx_umon, 0x3FF00
 	swym	0
 
@@ -106,20 +92,20 @@ power_exit:
 	.org	0x2000
 	.globl	rom_validate_table
 rom_validate_table:
-	LOAD_ADDR rb3, BOOTROM_BASE	@@ ROM base
+	set.rb rb3, BOOTROM_BASE	@@ ROM base
 	@@ header.magic
 	ld.ut	rd6, [rb3, 0]
-	LD64	rd7, 0x4f54, 0x4442, 0x0000, 0x0000
+	set.rd rd7, 0x0000000044424f54
 	cmp.uo	rd9, rd6, rd7
 	br.nz	{rd9}?, [rb0, vt_b1]
 	@@ header.version
 	ld.uw	rd6, [rb3, 4]
-	LD64	rd7, 0x0001, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000001
 	cmp.uo	rd9, rd6, rd7
 	br.nz	{rd9}?, [rb0, vt_b1]
 	@@ header.count == 2
 	ld.uw	rd6, [rb3, 6]
-	LD64	rd7, 0x0002, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000002
 	cmp.uo	rd9, rd6, rd7
 	br.nz	{rd9}?, [rb0, vt_b1]
 	@@ header.reserved == 0
@@ -127,19 +113,19 @@ rom_validate_table:
 	br.nz	{rd6}?, [rb0, vt_b1]
 
 	@@ entry pointer = ROM base + 16
-	LD64	rd6, 0x0010, 0x0000, 0x0000, 0x0000
+	set.rd rd6, 0x0000000000000010
 	add.o	rb9, rb3, rd6
-	LD64	rd5, 0x0002, 0x0000, 0x0000, 0x0000	@@ count
-	LD64	rd13, 0x0000, 0x0000, 0x0000, 0x0000	@@ found flag = 0
+	set.rd rd5, 0x0000000000000002	@@ count
+	set.rd rd13, 0x0000000000000000	@@ found flag = 0
 vt_loop:
 	ld.ut	rd10, [rb9, 4]			@@ flags
 	shr.uo	rd11, rd10, 3			@@ bits [31:3] must be 0
 	br.nz	{rd11}?, [rb0, vt_b2]
 	ld.ut	rd11, [rb9, 0]			@@ type
-	LD64	rd7, 0x0001, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000001
 	cmp.uo	rd14, rd11, rd7
 	br.z	{rd14}?, [rb0, vt_type_ok]
-	LD64	rd7, 0x0002, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000002
 	cmp.uo	rd14, rd11, rd7
 	br.nz	{rd14}?, [rb0, vt_b2]		@@ reserved type
 vt_type_ok:
@@ -148,23 +134,23 @@ vt_type_ok:
 	ld.o	rd2, [rb9, 8]			@@ offset
 	ld.o	rd3, [rb9, 16]			@@ size
 	rd2rd	rd4, rd10, 1			@@ flags
-	LD64	rd13, 0x0001, 0x0000, 0x0000, 0x0000
+	set.rd rd13, 0x0000000000000001
 vt_next:
 	add.si	rb9, 32
 	add.si	rd5, -1
 	br.nz	{rd5}?, [rb0, vt_loop]
 	br.z	{rd13}?, [rb0, vt_b6]
-	LD64	rd8, 0x0000, 0x0000, 0x0000, 0x0000
+	set.rd rd8, 0x0000000000000000
 	ret	rd0, 0
 
 vt_b1:
-	LD64	rd8, 0x00b1, 0x0000, 0x0000, 0x0000
+	set.rd rd8, 0x00000000000000b1
 	ret	rd0, 0
 vt_b2:
-	LD64	rd8, 0x00b2, 0x0000, 0x0000, 0x0000
+	set.rd rd8, 0x00000000000000b2
 	ret	rd0, 0
 vt_b6:
-	LD64	rd8, 0x00b6, 0x0000, 0x0000, 0x0000
+	set.rd rd8, 0x00000000000000b6
 	ret	rd0, 0
 
 @@ ===================================================================
@@ -183,11 +169,11 @@ vt_b6:
 	.org	0x2400
 	.globl	elf_loader
 elf_loader:
-	LOAD_ADDR rb3, BOOTROM_BASE	@@ ROM base
-	LD64	rd1, 0x0000, 0x0000, 0x0000, 0x0000	@@ entry-found = 0
+	set.rb rb3, BOOTROM_BASE	@@ ROM base
+	set.rd rd1, 0x0000000000000000	@@ entry-found = 0
 
 	@@ size must be <= 64 KiB (0xB3)
-	LD64	rd7, 0x0000, 0x0001, 0x0000, 0x0000	@@ 0x0001_0000
+	set.rd rd7, 0x0000000000010000	@@ 0x0001_0000
 	cmp.uo	rd9, rd3, rd7
 	br.p	{rd9}?, [rb0, elf_b3]
 
@@ -196,59 +182,59 @@ elf_loader:
 
 	@@ EI_MAG (always)
 	ld.ut	rd6, [rb4, 0]
-	LD64	rd7, 0x4c46, 0x7f45, 0x0000, 0x0000
+	set.rd rd7, 0x000000007f454c46
 	cmp.uo	rd9, rd6, rd7
 	br.nz	{rd9}?, [rb0, elf_b4]
 
 	@@ LOAD flag (flags bit1).  0 means "validate only, do not copy".
-	LD64	rb14, 0x0000, 0x0000, 0x0000, 0x0000
-	LD64	rd6, 0x0002, 0x0000, 0x0000, 0x0000
+	set.rb rb14, 0x0000000000000000
+	set.rd rd6, 0x0000000000000002
 	and.o	rd7, rd4, rd6
 	br.z	{rd7}?, [rb0, elf_load_flag_done]
 	add.si	rb14, 1
 elf_load_flag_done:
 
 	@@ VERIFY flag -> rb13
-	LD64	rd6, 0x0004, 0x0000, 0x0000, 0x0000
+	set.rd rd6, 0x0000000000000004
 	and.o	rd7, rd4, rd6
-	LD64	rb13, 0x0000, 0x0000, 0x0000, 0x0000
+	set.rb rb13, 0x0000000000000000
 	br.z	{rd7}?, [rb0, elf_header_struct]
 	add.si	rb13, 1
 
 	@@ Full ELF header checks (EI_CLASS/EI_DATA/EI_VERSION/e_type/
 	@@ e_machine/e_flags/e_ehsize/e_phentsize).
 	ld.ub	rd6, [rb4, 4]
-	LD64	rd7, 0x0002, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000002
 	cmp.uo	rd9, rd6, rd7
 	br.nz	{rd9}?, [rb0, elf_b4]
 	ld.ub	rd6, [rb4, 5]
 	cmp.uo	rd9, rd6, rd7
 	br.nz	{rd9}?, [rb0, elf_b4]
 	ld.ub	rd6, [rb4, 6]
-	LD64	rd7, 0x0001, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000001
 	cmp.uo	rd9, rd6, rd7
 	br.nz	{rd9}?, [rb0, elf_b4]
 	ld.uw	rd6, [rb4, 16]			@@ e_type == ET_EXEC
-	LD64	rd7, 0x0002, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000002
 	cmp.uo	rd9, rd6, rd7
 	br.nz	{rd9}?, [rb0, elf_b4]
 	ld.uw	rd6, [rb4, 18]			@@ e_machine == 0x0DA0
-	LD64	rd7, 0x0da0, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000da0
 	cmp.uo	rd9, rd6, rd7
 	br.nz	{rd9}?, [rb0, elf_b4]
 	ld.ut	rd6, [rb4, 48]			@@ e_flags == 1
-	LD64	rd7, 0x0001, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000001
 	cmp.uo	rd9, rd6, rd7
 	br.nz	{rd9}?, [rb0, elf_b4]
 	ld.uw	rd6, [rb4, 52]			@@ e_ehsize == 64
-	LD64	rd7, 0x0040, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000040
 	cmp.uo	rd9, rd6, rd7
 	br.nz	{rd9}?, [rb0, elf_b4]
 
 elf_header_struct:
 	@@ e_phentsize == 56, e_phnum >= 1, e_phoff + phnum*56 <= size
 	ld.uw	rd6, [rb4, 54]
-	LD64	rd7, 0x0038, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000038
 	cmp.uo	rd9, rd6, rd7
 	br.nz	{rd9}?, [rb0, elf_b4]
 	ld.uw	rd15, [rb4, 56]
@@ -257,7 +243,7 @@ elf_header_struct:
 	rd2rd	rd11, rd9, 1			@@ keep phoff (rd9 is reused below)
 	rd2rb	rb10, rd9, 1
 	@@ rb9 = phnum * 56 = n*8 + n*16 + n*32
-	LD64	rb9, 0x0000, 0x0000, 0x0000, 0x0000
+	set.rb rb9, 0x0000000000000000
 	shl.o	rd12, rd15, 3
 	shl.o	rd13, rd15, 4
 	shl.o	rd14, rd15, 5
@@ -277,7 +263,7 @@ elf_header_struct:
 	@@ Full path: e_entry % 4 == 0
 	rb2rd	rd7, rb13, 1
 	br.z	{rd7}?, [rb0, elf_ph_loop_entry]
-	LD64	rd6, 0x0003, 0x0000, 0x0000, 0x0000
+	set.rd rd6, 0x0000000000000003
 	and.o	rd7, rd5, rd6
 	br.nz	{rd7}?, [rb0, elf_b5]
 
@@ -286,7 +272,7 @@ elf_ph_loop_entry:
 
 elf_ph_loop:
 	ld.ut	rd6, [rb5, 0]			@@ p_type
-	LD64	rd7, 0x0001, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000001
 	cmp.uo	rd9, rd6, rd7
 	br.nz	{rd9}?, [rb0, elf_ph_next]
 
@@ -319,7 +305,7 @@ elf_ph_loop:
 	cmp.uo	rd14, rd14, rd3
 	br.p	{rd14}?, [rb0, elf_b5]
 	@@ p_vaddr % 4 == 0
-	LD64	rd6, 0x0003, 0x0000, 0x0000, 0x0000
+	set.rd rd6, 0x0000000000000003
 	and.o	rd14, rd11, rd6
 	br.nz	{rd14}?, [rb0, elf_b5]
 	@@ p_memsz != 0
@@ -340,7 +326,7 @@ elf_min_checks:
 	cmp.uo	rd14, rd14, rd3
 	br.p	{rd14}?, [rb0, elf_b5]
 	@@ p_memsz itself must fit the 64 KiB window (no 64-bit wrap)
-	LD64	rd6, 0x0000, 0x0001, 0x0000, 0x0000
+	set.rd rd6, 0x0000000000010000
 	cmp.uo	rd14, rd13, rd6
 	br.p	{rd14}?, [rb0, elf_b5]
 	@@ target window: base <= paddr && paddr + memsz <= base + 64 KiB
@@ -364,7 +350,7 @@ elf_min_checks:
 	br.n	{rd14}?, [rb0, elf_load_seg]
 	cmp.uo	rd14, rd7, rd5
 	br.np	{rd14}?, [rb0, elf_load_seg]
-	LD64	rd1, 0x0001, 0x0000, 0x0000, 0x0000
+	set.rd rd1, 0x0000000000000001
 
 elf_load_seg:
 	@@ LOAD=0: validate but do not copy (task §接口规范 1 flags).
@@ -409,17 +395,17 @@ elf_ph_done:
 	br.z	{rd7}?, [rb0, elf_ok]
 	br.z	{rd1}?, [rb0, elf_b5]
 elf_ok:
-	LD64	rd8, 0x0000, 0x0000, 0x0000, 0x0000
+	set.rd rd8, 0x0000000000000000
 	ret	rd0, 0
 
 elf_b3:
-	LD64	rd8, 0x00b3, 0x0000, 0x0000, 0x0000
+	set.rd rd8, 0x00000000000000b3
 	ret	rd0, 0
 elf_b4:
-	LD64	rd8, 0x00b4, 0x0000, 0x0000, 0x0000
+	set.rd rd8, 0x00000000000000b4
 	ret	rd0, 0
 elf_b5:
-	LD64	rd8, 0x00b5, 0x0000, 0x0000, 0x0000
+	set.rd rd8, 0x00000000000000b5
 	ret	rd0, 0
 
 @@ Power flat image ends here; the linker script asserts <= 64 KiB.

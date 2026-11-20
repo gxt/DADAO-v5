@@ -74,14 +74,14 @@
 @@ ---------------------------------------------------------------------------
 .macro __PT_ST_INIT ea, val
 	set.rd	rd6, \val
-	LOAD_ADDR rb3, \ea
+	set.rb rb3, \ea
 	st.o	rd6, [rb3, 0]
 .endm
 
 .macro __PT_LRSC_PREP lrmnem, ea, init, reload=1, k=0
 	__PT_ST_INIT	\ea, \init
 	.if	\reload
-	LOAD_ADDR rb3, (\ea) + (\k)
+	set.rb rb3, (\ea) + (\k)
 	.endif
 	\lrmnem	rd2, [rb3]
 .endm
@@ -94,7 +94,7 @@
 .macro __PT_LRSC_LD2 lrmnem, srcreg, a, b, inita, initb, src
 	__PT_ST_INIT	\a, \inita
 	__PT_ST_INIT	\b, \initb
-	LOAD_ADDR rb3, \a
+	set.rb rb3, \a
 	\lrmnem	rd2, [rb3]
 	set.rd	\srcreg, \src
 .endm
@@ -102,16 +102,16 @@
 .macro __PT_LRSC_LD2L lrmnem, srcreg, a, b, mbase, inita, initb, src
 	__PT_ST_INIT	\a, \inita
 	__PT_ST_INIT	\b, \initb
-	LOAD_ADDR rb3, \a
+	set.rb rb3, \a
 	\lrmnem	rd2, [rb3]
-	LOAD_ADDR \mbase, \b
+	set.rb \mbase, \b
 	\lrmnem	rd2, [\mbase]
-	LOAD_ADDR rb3, \a
+	set.rb rb3, \a
 	set.rd	\srcreg, \src
 .endm
 
 .macro __PT_LRSC_CLEAR lrmnem, scmnem
-	LOAD_ADDR rb5, SCR
+	set.rb rb5, SCR
 	\lrmnem	rd2, [rb5]
 	\scmnem	rd5, rd2, [rb5]
 .endm
@@ -151,7 +151,7 @@
 .macro __PT_SC_NORESV pt, scmnem, lrmnem, srcreg, ea, init, src, exp
 	__PT_ST_INIT	\ea, \init
 	__PT_LRSC_CLEAR	\lrmnem, \scmnem
-	LOAD_ADDR rb3, \ea
+	set.rb rb3, \ea
 	set.rd	\srcreg, \src
 	\scmnem	rd5, \srcreg, [rb3]
 	__CHECK_RD	\pt, rd5, 0x1
@@ -161,7 +161,7 @@
 @@ sc 写回同值（源 = 刚 `lr` 读到的寄存器，不重新装载）⇒ 成功且字节不变。
 .macro __PT_SC_LOADED pt, scmnem, lrmnem, srcreg, ea, init, exp
 	__PT_ST_INIT	\ea, \init
-	LOAD_ADDR rb3, \ea
+	set.rb rb3, \ea
 	\lrmnem	\srcreg, [rb3]
 	\scmnem	rd5, \srcreg, [rb3]
 	__CHECK_RD	\pt, rd5, 0x0
@@ -171,7 +171,7 @@
 @@ 标记在 a、`sc` 指向 b（不同 8 B 字）⇒ 失败且两处都不写。
 .macro __PT_SC_LD2 pt, scmnem, lrmnem, srcreg, a, b, inita, initb, src, expa, expb
 	__PT_LRSC_LD2	\lrmnem, \srcreg, \a, \b, \inita, \initb, \src
-	LOAD_ADDR rb4, \b
+	set.rb rb4, \b
 	\scmnem	rd5, \srcreg, [rb4]
 	__CHECK_RD	\pt, rd5, 0x1
 	__VERIFY_MEM	\pt, \a, 0, \expa
@@ -181,9 +181,9 @@
 @@ 失败的 `sc` 清全部标记 ⇒ 随后 `sc` 原地址仍失败。
 .macro __PT_SC_LD2_FAIL pt, scmnem, lrmnem, srcreg, a, b, inita, initb, src, exp
 	__PT_LRSC_LD2	\lrmnem, \srcreg, \a, \b, \inita, \initb, \src
-	LOAD_ADDR rb4, \b
+	set.rb rb4, \b
 	\scmnem	rd5, \srcreg, [rb4]
-	LOAD_ADDR rb3, \a
+	set.rb rb3, \a
 	\scmnem	rd5, \srcreg, [rb3]
 	__CHECK_RD	\pt, rd5, 0x1
 	__VERIFY_MEM	\pt, \a, 0, \exp
@@ -242,10 +242,10 @@
 
 .macro __PREP_LI_ADDR rd, imm, base, addr
 	set.rd	\rd, \imm
-	LOAD_ADDR	\base, \addr
+	set.rb \base, \addr
 .endm
 
 .macro __PREP_ST_ADDR addr
 	st.o	rd6, [rb3, 0]
-	LOAD_ADDR	rb3, \addr
+	set.rb rb3, \addr
 .endm

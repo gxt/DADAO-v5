@@ -33,7 +33,7 @@
 @@   `__VERIFY_*` 不占点号，`__CHECK_*` 是最后一条、点号在这里（失败点号 = 用例序号）。
 .macro __VERIFY_MEM_RF pt, baseval, off, rfsrc
 	rf2rd	{rd21:rd21}, {\rfsrc:\rfsrc}
-	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
+	set.rb rb21, (((\baseval) + (\off)) / 8) * 8
 	ld.o	rd20, [rb21, 0]
 	br.eq	{rd20, rd21}?, [rb0, __vmrf_\@]
 	__EXIT	\pt
@@ -42,7 +42,7 @@ __vmrf_\@:
 
 .macro __CHECK_MEM_RF pt, baseval, off, rfsrc
 	rf2rd	{rd21:rd21}, {\rfsrc:\rfsrc}
-	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
+	set.rb rb21, (((\baseval) + (\off)) / 8) * 8
 	ld.o	rd20, [rb21, 0]
 	__REC	rd21
 	br.eq	{rd20, rd21}?, [rb0, __cmrf_\@]
@@ -136,7 +136,7 @@ __cmrf_\@:
 	TEST_MOV1	8, rf2rf, rf63, rf40, 0xC002000000000000
 	@@ 最大可行个数 31（{rf1:rf31} ← {rf32:rf62}；同组不许重叠 ⇒ 2n ≤ 63 ⇒ n ≤ 31），
 	@@   逐元素核「目的 == 源内存」（源从 MSTORE 装入，不引入额外期望常量）
-	LOAD_ADDR rb12, MSTORE
+	set.rb rb12, MSTORE
 	ldm.o	{rf32:rf62}, [rb12, rd0]
 	rf2rf	{rf1:rf31}, {rf32:rf62}
 	__VERIFY_MEM_RF	9, MSTORE, 8, rf2

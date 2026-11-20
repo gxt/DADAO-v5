@@ -318,14 +318,14 @@ def check_positive(kernel: Path, rep: Report) -> None:
 # ---------------------------------------------------------------------------
 
 HNEG_CASE3 = (
-    "\tLD64\trd6, 0x0005, 0x0000, 0x0000, 0x0000\n"
+    "\tset.rd rd6, 0x0000000000000005\n"
     "\tst.t\trd6, [rb4, 0]\n"
-    "\tLOAD_ADDR rb5, BOOT_INFO_PA + 0x54\n"
+    "\tset.rb rb5, BOOT_INFO_PA + 0x54\n"
 )
 HNEG_MAGIC = (
-    "\tLD64\trd6, 0x494f, 0x4442, 0x0000, 0x0000\n"
+    "\tset.rd rd6, 0x000000004442494f\n"
     "\tst.t\trd6, [rb4, 0]\n"
-    "\tLOAD_ADDR rb5, BOOT_INFO_PA + 0x00\n"
+    "\tset.rb rb5, BOOT_INFO_PA + 0x00\n"
 )
 NEG = {
     # name: (hmon field value written, smon --defsym that accepts it, kernel code)

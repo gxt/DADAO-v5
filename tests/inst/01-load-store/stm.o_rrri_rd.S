@@ -32,24 +32,24 @@
 	TEST_STM         6, stm.o, rd, {rd24:rd39}, rb4, MSTORE, rd19, 0x0B8, MDATA_O + 0x068, 0x0102030405060715, 0x0102030405060716, 0x0102030405060717, 0x0102030405060718, 0x0102030405060719, 0x010203040506071A, 0x010203040506071B, 0x010203040506071C, 0x010203040506071D, 0x010203040506071E, 0x010203040506071F, 0x0102030405060720, 0x0102030405060721, 0x0102030405060722, 0x0102030405060723, 0x0102030405060724
 
 	@@ boundary：SRAM 尾拍（0xffffff7ffff8）可写，读写逐字节相等
-	LOAD_ADDR rb28, MDATA_O + 0x090
+	set.rb rb28, MDATA_O + 0x090
 	ldm.o	{rd5:rd5}, [rb28, rd0]
 	set.rd    rd19, 0x000
-	LOAD_ADDR rb4, 0xFFFFFF7FFFF8
+	set.rb rb4, 0xFFFFFF7FFFF8
 	stm.o	{rd5:rd5}, [rb4, rd19]
-	LOAD_ADDR rb21, 0xFFFFFF7FFFF8
+	set.rb rb21, 0xFFFFFF7FFFF8
 	ld.o	rd21, [rb21, 0]
 	__CHECK_RD         7, rd21, 0x010203040506071A
 
 	@@ overlap：索引 rd19 落在源组内（`stm` 允许重叠）⇒ 正常执行，行为确定
-	LOAD_ADDR rb28, MDATA_O + 0x0A0
+	set.rb rb28, MDATA_O + 0x0A0
 	ldm.o	{rd17:rd21}, [rb28, rd0]
 	set.rd    rd19, 0x148
-	LOAD_ADDR rb4, MSTORE
+	set.rb rb4, MSTORE
 	stm.o	{rd17:rd21}, [rb4, rd19]
 
 	@@ overlap：`stm` 只读，源组 rd17..rd21 事后仍是原值
-	LOAD_ADDR rb28, MDUMP + 0x100
+	set.rb rb28, MDUMP + 0x100
 	stm.o	{rd17:rd21}, [rb28, rd0]
 	__CHECK_MEM         8, MDUMP, 0x100, 0x010203040506071C
 	__CHECK_MEM         9, MDUMP, 0x108, 0x010203040506071D
@@ -63,10 +63,10 @@
 	__CHECK_MEM        17, MSTORE, 0x168, 0x0102030405060720
 
 	@@ legality：stm 允许 rd0 作源（读出 0），不触发 ILLI
-	LOAD_ADDR rb28, MDATA_O + 0x078
+	set.rb rb28, MDATA_O + 0x078
 	ldm.o	{rd1:rd2}, [rb28, rd0]
 	set.rd    rd19, 0x000
-	LOAD_ADDR rb4, MSTORE + 0x180
+	set.rb rb4, MSTORE + 0x180
 	stm.o	{rd0:rd2}, [rb4, rd19]
 	__CHECK_MEM        18, MSTORE, 0x180, 0x0000000000000000
 	__CHECK_MEM        19, MSTORE, 0x188, 0x0102030405060717
@@ -83,7 +83,7 @@
 	@@ ---- rb0 作基址：imm 负 / 零 / 正三档（`spec/SimRISC-00 §2`：rb0 读出 = **当前指令地址**，非「下一条」）----
 	@@   槽与被测指令都由 `.org` 钉住：llvm-mc 把标签差折成 0（ISS-424）⇒ imm 只能写字面常量；
 	@@   负档 EA = ENTRY+0x2000（死的预设数据槽）、零档 EA = 被测指令自身地址、正档 EA = ENTRY+0x2188。
-	LOAD_ADDR rb28, TEST_DATA + 0x088
+	set.rb rb28, TEST_DATA + 0x088
 	ldm.o    {rd5:rd5}, [rb28, rd0]		@@ 源组 = TEST_DATA + 0x088
 	jump	[rb0, __rb0n_pre]
 	.org	0x2000
@@ -103,12 +103,12 @@ __rb0z:
 	@@ 被测 @0x20D0：EA = 自身指令地址（宏内预读 8 B 拍、只改高 32 位后写回）
 	__CHECK_RD_STM_IP 25, stm.o, rd5, rd
 __rb0z_ck:
-	LOAD_ADDR rb28, TEST_DATA + 0x088
+	set.rb rb28, TEST_DATA + 0x088
 	ldm.o    {rd5:rd5}, [rb28, rd0]		@@ 源组 = TEST_DATA + 0x088
 	jump	[rb0, __rb0p]
 	.org	0x2180
 __rb0p:
-	LOAD_ADDR rb26, (MSTORE + 0x1C0 + 0 - 8)
+	set.rb rb26, (MSTORE + 0x1C0 + 0 - 8)
 	aip.si	rb25, 0			@@ rb25 = ENTRY+0x2180
 	sub.o	rd19, rb26, rb25
 	stm.o    {rd5:rd5}, [rb0, rd19]	@@ 被测 @0x2188：EA = MSTORE + 0x1C0 + 0

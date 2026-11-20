@@ -49,24 +49,24 @@
 
 	@@ ---- 1：fetch_add 的 lr 返回值 = old（内存初值 0x100） ----
 	set.rd	rd6, 0x0000000000000100
-	LOAD_ADDR rb3, A0
+	set.rb rb3, A0
 	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A0
+	set.rb rb3, A0
 	lr.o.nn	rd2, [rb3]                     @@ old = 0x100
 	__CHECK_RD	1, rd2, 0x0000000000000100
 
 	@@ ---- 2：保留被抢（本 hart 第二条 lr）⇒ sc 失败返回 1 且**不写**内存 ----
 	set.rd	rd6, 0x0000000000000008
 	add.uo	{rd0, rd5}, rd2, rd6           @@ 候选新值 = old + 8 = 0x108
-	LOAD_ADDR rb4, STL
+	set.rb rb4, STL
 	lr.o.nn	rd3, [rb4]                     @@ 清掉 A0 的保留标记（等价"被抢"）
-	LOAD_ADDR rb3, A0
+	set.rb rb3, A0
 	sc.o.nn	rd7, rd5, [rb3]                @@ 未命中 ⇒ rd7 = 1，A0 不变
 	__VERIFY_MEM	2, A0, 0, 0x0000000000000100
 	__CHECK_RD	2, rd7, 0x0000000000000001
 
 	@@ ---- 3：重试（重新 lr）⇒ sc 成功返回 0，A0 = old + 8 ----
-	LOAD_ADDR rb3, A0
+	set.rb rb3, A0
 	lr.o.nn	rd2, [rb3]                     @@ 重读 old = 0x100
 	set.rd	rd6, 0x0000000000000008
 	add.uo	{rd0, rd5}, rd2, rd6           @@ 0x108
@@ -77,9 +77,9 @@
 
 	@@ ---- 4：fetch_sub ⇒ 返回 old(0x200)、内存 = old - 0x30 = 0x1D0 ----
 	set.rd	rd6, 0x0000000000000200
-	LOAD_ADDR rb3, A1
+	set.rb rb3, A1
 	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A1
+	set.rb rb3, A1
 	lr.o.nn	rd2, [rb3]
 	set.rd	rd6, 0x0000000000000030
 	sub.uo	{rd0, rd5}, rd2, rd6           @@ 0x1D0（借位丢弃；fetch_sub 为模 2^64 减）
@@ -90,9 +90,9 @@
 
 	@@ ---- 5：fetch_and ⇒ 内存 = old & val，返回 old ----
 	set.rd	rd6, 0xF0F0F0F0F0F0F0F0
-	LOAD_ADDR rb3, A2
+	set.rb rb3, A2
 	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A2
+	set.rb rb3, A2
 	lr.o.nn	rd2, [rb3]
 	set.rd	rd6, 0x0FF00FF00FF00FF0
 	and.o	rd5, rd2, rd6                  @@ 0x00F000F000F000F0
@@ -103,9 +103,9 @@
 
 	@@ ---- 6：fetch_or ⇒ 内存 = old | val，返回 old ----
 	set.rd	rd6, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, A3
+	set.rb rb3, A3
 	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A3
+	set.rb rb3, A3
 	lr.o.nn	rd2, [rb3]
 	set.rd	rd6, 0xF00000000000000F
 	or.o	rd5, rd2, rd6                  @@ 0xF123456789ABCDEF
@@ -116,9 +116,9 @@
 
 	@@ ---- 7：fetch_xor ⇒ 内存 = old ^ val，返回 old ----
 	set.rd	rd6, 0xFFFFFFFFFFFFFFFF
-	LOAD_ADDR rb3, A4
+	set.rb rb3, A4
 	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A4
+	set.rb rb3, A4
 	lr.o.nn	rd2, [rb3]
 	set.rd	rd6, 0x0F0F0F0F0F0F0F0F
 	xor.o	rd5, rd2, rd6                  @@ 0xF0F0F0F0F0F0F0F0
@@ -129,9 +129,9 @@
 
 	@@ ---- 8：exchange ⇒ 内存 = 新值，返回 old（新值 ≠ old，两值可区分） ----
 	set.rd	rd6, 0x1111111111111111
-	LOAD_ADDR rb3, A5
+	set.rb rb3, A5
 	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A5
+	set.rb rb3, A5
 	lr.o.nn	rd2, [rb3]                     @@ old = 0x1111…
 	set.rd	rd5, 0xDEADBEEFCAFEF00D
 	sc.o.nn	rd7, rd5, [rb3]
@@ -141,9 +141,9 @@
 
 	@@ ---- 9：compare_exchange ①比较相等 ⇒ 执行 sc，内存 = 期望新值 ----
 	set.rd	rd6, 0x0000000000000100
-	LOAD_ADDR rb3, A6
+	set.rb rb3, A6
 	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A6
+	set.rb rb3, A6
 	lr.o.nn	rd2, [rb3]                     @@ old = 0x100
 	set.rd	rd6, 0x0000000000000100        @@ 比较期望 = 0x100（= old）
 	set.rd	rd9, 0x0000000000000000
@@ -158,9 +158,9 @@ __ce_skip9:
 
 	@@ ---- 10：compare_exchange ②比较不等 ⇒ **不执行 sc**（内存不变、结果寄存器不动） ----
 	set.rd	rd6, 0x0000000000000200
-	LOAD_ADDR rb3, A7
+	set.rb rb3, A7
 	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A7
+	set.rb rb3, A7
 	lr.o.nn	rd2, [rb3]                     @@ old = 0x200
 	set.rd	rd7, 0x00000000000000FF        @@ 哨兵：sc 命中会把它覆写成 0
 	set.rd	rd6, 0x0000000000000100        @@ 比较期望 = 0x100（≠ old）
@@ -176,16 +176,16 @@ __ce_skip10:
 
 	@@ ---- 11：重试环的失败点 —— sc 失败返回 1、不写；陈旧候选本身是 0x108 ----
 	set.rd	rd6, 0x0000000000000100
-	LOAD_ADDR rb3, A8
+	set.rb rb3, A8
 	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A8
+	set.rb rb3, A8
 	lr.o.nn	rd2, [rb3]                     @@ old1 = 0x100
 	rd2rd	{rd10:rd10}, {rd2:rd2}         @@ 留一份 old1（后面算"陈旧候选"）
 	set.rd	rd6, 0x0000000000000008
 	add.uo	{rd0, rd5}, rd10, rd6          @@ 陈旧候选 = 0x108
-	LOAD_ADDR rb4, STL
+	set.rb rb4, STL
 	lr.o.nn	rd3, [rb4]                     @@ 抢 ⇒ 清标记
-	LOAD_ADDR rb3, A8
+	set.rb rb3, A8
 	sc.o.nn	rd7, rd5, [rb3]                @@ 失败 ⇒ rd7 = 1
 	__VERIFY_MEM	11, A8, 0, 0x0000000000000100
 	__VERIFY_RD	11, rd5, 0x0000000000000108
@@ -193,9 +193,9 @@ __ce_skip10:
 
 	@@ ---- 12：失败后改内存（普通 st，已在清除之后）⇒ 重试**必须重读**，否则算错 ----
 	set.rd	rd6, 0x0000000000000040
-	LOAD_ADDR rb3, A8
+	set.rb rb3, A8
 	st.o	rd6, [rb3, 0]                  @@ 同 hart 同址同宽 st **不清**标记（此时本就无标记）
-	LOAD_ADDR rb3, A8
+	set.rb rb3, A8
 	lr.o.nn	rd2, [rb3]                     @@ 重读 ⇒ 0x40（不是陈旧的 0x100）
 	set.rd	rd6, 0x0000000000000008
 	add.uo	{rd0, rd5}, rd2, rd6           @@ 0x48（用重读值算）
@@ -206,9 +206,9 @@ __ce_skip10:
 
 	@@ ---- 13：boundary —— fetch_add 回绕（全 1 + 1 ⇒ 低 64 位 0，进位丢弃）----
 	set.rd	rd6, 0xFFFFFFFFFFFFFFFF
-	LOAD_ADDR rb3, A9
+	set.rb rb3, A9
 	st.o	rd6, [rb3, 0]
-	LOAD_ADDR rb3, A9
+	set.rb rb3, A9
 	lr.o.nn	rd2, [rb3]
 	set.rd	rd6, 0x0000000000000001
 	add.uo	{rd0, rd5}, rd2, rd6           @@ 0x0

@@ -17,8 +17,6 @@
 @@ unimplemented cg8 rc1, and the cg3-only-in-hypv pair (case + counter-example).
 
 	.include "tests/shared/asm/machine-tiny.inc"
-	.include "tests/shared/asm/machine.inc"
-	.include "tests/ee-tiny/common_tiny.inc"
 
 	.equ	PARAM,      ENTRY + 0x6000	@@ SYS_EXIT parameter block
 	.equ	SITE0,      ENTRY + 0x4000	@@ IALIGN jump sites
@@ -36,17 +34,17 @@ _start:
 	@@ ---- cfx_hmon cg3 rc10: reset value = the hmon SRAM base -----------
 	set.zw	rd31, wp0, 0x0001
 	cfx2rd	cfx_hmon, cg3, rc10, rd20
-	LOAD_ADDR rd21, HMON_BASE
+	set.rd rd21, HMON_BASE
 	cmp.uo	rd30, rd20, rd21
 	br.nz	{rd30}?, [rb0, fail]
 
 	@@ ---- cg3 rc10 write drops the low two bits (+3 => base) -------------
 	set.zw	rd31, wp0, 0x0002
-	LOAD_ADDR rd21, HMON_BASE
+	set.rd rd21, HMON_BASE
 	add.si	rd21, 3
 	cfx2rc	cfx_hmon, cg3, rc10, rd21
 	cfx2rd	cfx_hmon, cg3, rc10, rd20
-	LOAD_ADDR rd21, HMON_BASE
+	set.rd rd21, HMON_BASE
 	cmp.uo	rd30, rd20, rd21
 	br.nz	{rd30}?, [rb0, fail]
 
@@ -67,23 +65,23 @@ _start:
 	@@ ---- cg3 rc0/rc4 reset values --------------------------------------
 	set.zw	rd31, wp0, 0x0005
 	cfx2rd	cfx_hmon, cg3, rc0, rd20
-	LOAD_ADDR rd21, 0x7ffffffffffffff7
+	set.rd rd21, 0x7ffffffffffffff7
 	cmp.uo	rd30, rd20, rd21
 	br.nz	{rd30}?, [rb0, fail]
 
 	set.zw	rd31, wp0, 0x0006
 	cfx2rd	cfx_hmon, cg3, rc4, rd20
-	LOAD_ADDR rd21, 0xffffffffffffffff
+	set.rd rd21, 0xffffffffffffffff
 	cmp.uo	rd30, rd20, rd21
 	br.nz	{rd30}?, [rb0, fail]
 
 	@@ ---- cg3 rc1 is RW (0xF0F round trip; masks do not gate synchronous
 	@@ exceptions, DADAO-12 §5.2(二), so the stored value is inert here) --
 	set.zw	rd31, wp0, 0x0007
-	LOAD_ADDR rd21, 0x0f0f
+	set.rd rd21, 0x0f0f
 	cfx2rc	cfx_hmon, cg3, rc1, rd21
 	cfx2rd	cfx_hmon, cg3, rc1, rd20
-	LOAD_ADDR rd21, 0x0f0f
+	set.rd rd21, 0x0f0f
 	cmp.uo	rd30, rd20, rd21
 	br.nz	{rd30}?, [rb0, fail]
 
@@ -96,13 +94,13 @@ _start:
 
 	set.zw	rd31, wp0, 0x0009
 	cfx2rd	cfx_hmon, cg7, rc1, rd20
-	LOAD_ADDR rd21, 0x3ff00000000
+	set.rd rd21, 0x3ff00000000
 	cmp.uo	rd30, rd20, rd21
 	br.nz	{rd30}?, [rb0, fail]
 
 	set.zw	rd31, wp0, 0x000a
 	cfx2rd	cfx_hmon, cg7, rc2, rd20
-	LOAD_ADDR rd21, 0x10000
+	set.rd rd21, 0x10000
 	cmp.uo	rd30, rd20, rd21
 	br.nz	{rd30}?, [rb0, fail]
 
@@ -128,13 +126,13 @@ _start:
 
 	set.zw	rd31, wp0, 0x000e
 	cfx2rd	cfx_power, cg7, rc1, rd20
-	LOAD_ADDR rd21, 0x3ffffff0000
+	set.rd rd21, 0x3ffffff0000
 	cmp.uo	rd30, rd20, rd21
 	br.nz	{rd30}?, [rb0, fail]
 
 	set.zw	rd31, wp0, 0x000f
 	cfx2rd	cfx_power, cg7, rc2, rd20
-	LOAD_ADDR rd21, 0x10000
+	set.rd rd21, 0x10000
 	cmp.uo	rd30, rd20, rd21
 	br.nz	{rd30}?, [rb0, fail]
 
@@ -147,13 +145,13 @@ _start:
 	@@ ---- cfx_power cg3 rc10 = the BootROM base; cg3 rc0 reset value ----
 	set.zw	rd31, wp0, 0x0011
 	cfx2rd	cfx_power, cg3, rc10, rd20
-	LOAD_ADDR rd21, BOOTROM_BASE
+	set.rd rd21, BOOTROM_BASE
 	cmp.uo	rd30, rd20, rd21
 	br.nz	{rd30}?, [rb0, fail]
 
 	set.zw	rd31, wp0, 0x0012
 	cfx2rd	cfx_power, cg3, rc0, rd20
-	LOAD_ADDR rd21, 0xfffffffffffffff7
+	set.rd rd21, 0xfffffffffffffff7
 	cmp.uo	rd30, rd20, rd21
 	br.nz	{rd30}?, [rb0, fail]
 
@@ -175,7 +173,7 @@ f_cg8_power:
 
 	@@ ---- MALIGN x 3 (8-byte access, unaligned) ------------------------
 	set.zw	rd15, wp0, 0xbeef		@@ load destination sentinel
-	LOAD_ADDR rb4, RAM_BASE+1
+	set.rb rb4, RAM_BASE+1
 	set.zw	rd31, wp0, 0x0014
 	.globl	f_malign0
 f_malign0:
@@ -184,20 +182,20 @@ f_malign0:
 	cmp.uo	rd30, rd15, rd21
 	br.nz	{rd30}?, [rb0, fail]
 
-	LOAD_ADDR rb4, RAM_BASE
+	set.rb rb4, RAM_BASE
 	ld.o	rd15, [rb4, 0]			@@ reference word (SRAM zero fill)
-	LOAD_ADDR rb5, RAM_BASE+4
+	set.rb rb5, RAM_BASE+4
 	set.zw	rd31, wp0, 0x0015
 	.globl	f_malign1
 f_malign1:
 	st.o	rd15, [rb5, 0]			@@ MALIGN: no store is issued
-	LOAD_ADDR rb4, RAM_BASE
+	set.rb rb4, RAM_BASE
 	ld.o	rd16, [rb4, 0]			@@ still the untouched word
 	cmp.uo	rd30, rd16, rd15
 	br.nz	{rd30}?, [rb0, fail]
 
 	set.zw	rd17, wp0, 0xbeef
-	LOAD_ADDR rb4, RAM_BASE+2
+	set.rb rb4, RAM_BASE+2
 	set.zw	rd31, wp0, 0x0016
 	.globl	f_malign2
 f_malign2:
@@ -239,19 +237,19 @@ f_undi2:
 	.dd.t32	0x58040001
 
 	@@ ---- CFXMEM x 3 (data access to an address no manager backs) ------
-	LOAD_ADDR rb4, 0x1000000000
+	set.rb rb4, 0x1000000000
 	set.zw	rd31, wp0, 0x001d
 	.globl	f_mem0
 f_mem0:
 	ld.o	rd18, [rb4, 0]
 
-	LOAD_ADDR rb4, 0xffffff800000
+	set.rb rb4, 0xffffff800000
 	set.zw	rd31, wp0, 0x001e
 	.globl	f_mem1
 f_mem1:
 	ld.o	rd18, [rb4, 0]
 
-	LOAD_ADDR rb4, HMON_BASE + 0x10000
+	set.rb rb4, HMON_BASE + 0x10000
 	set.zw	rd31, wp0, 0x001f
 	.globl	f_mem2
 f_mem2:
@@ -263,11 +261,11 @@ f_mem2:
 	.org	SITE0 - ENTRY
 	.globl	ialign_go0
 ialign_go0:
-	LOAD_ADDR rd20, TGT0 - SITE0 - 16 + 1
+	set.rd rd20, TGT0 - SITE0 - 16 + 1
 	jump	[rb0, rd20, 0]
 ialign_after0:
 	set.zw	rd31, wp0, 0x0021
-	LOAD_ADDR rd21, TGT0 - SITE0 - 16 + 1
+	set.rd rd21, TGT0 - SITE0 - 16 + 1
 	cmp.uo	rd30, rd20, rd21
 	br.nz	{rd30}?, [rb0, fail]
 	set.zw	rd21, wp0, 0x0001
@@ -279,7 +277,7 @@ ialign_after0:
 	.org	SITE1 - ENTRY
 	.globl	ialign_go1
 ialign_go1:
-	LOAD_ADDR rd20, TGT1 - SITE1 - 16 + 2
+	set.rd rd20, TGT1 - SITE1 - 16 + 2
 	jump	[rb0, rd20, 0]
 ialign_after1:
 	set.zw	rd31, wp0, 0x0023
@@ -292,7 +290,7 @@ ialign_after1:
 	.org	SITE2 - ENTRY
 	.globl	ialign_go2
 ialign_go2:
-	LOAD_ADDR rd20, TGT2 - SITE2 - 16 + 3
+	set.rd rd20, TGT2 - SITE2 - 16 + 3
 	jump	[rb0, rd20, 0]
 ialign_after2:
 	set.zw	rd31, wp0, 0x0025
@@ -310,8 +308,8 @@ ialign_after2:
 forge_after:
 
 	@@ ---- pass ---------------------------------------------------------
-	LOAD_ADDR rb16, PARAM
-	LOAD_ADDR rd20, 0x20026		@@ ADP_Stopped_ApplicationExit
+	set.rb rb16, PARAM
+	set.rd rd20, 0x20026		@@ ADP_Stopped_ApplicationExit
 	set.zw	rd21, wp0, 0x0000		@@ status 0 = pass
 	st.o	rd20, [rb16, 0]
 	st.o	rd21, [rb16, 8]
@@ -322,8 +320,8 @@ pass_spin:
 
 	@@ ---- failure: SYS_EXIT(0x40 + check id) ---------------------------
 fail:
-	LOAD_ADDR rb16, PARAM
-	LOAD_ADDR rd20, 0x20026
+	set.rb rb16, PARAM
+	set.rd rd20, 0x20026
 	add.si	rd31, 0x40
 	st.o	rd20, [rb16, 0]
 	st.o	rd31, [rb16, 8]
@@ -346,7 +344,7 @@ f_cg3_supv:
 land_after:
 	set.zw	rd31, wp0, 0x0027
 	cfx2rd	cfx_hmon, cg3, rc10, rd26	@@ hypv again: succeeds
-	LOAD_ADDR rd27, HMON_BASE
+	set.rd rd27, HMON_BASE
 	cmp.uo	rd30, rd26, rd27
 	br.nz	{rd30}?, [rb0, fail]
 	br.z	{rd0}?, [rb0, forge_after]
@@ -356,7 +354,7 @@ land_after:
 	.globl	forge_site
 	.globl	forge_site
 forge_site:
-	LOAD_ADDR rb21, (FORGE + 16) - (LAND - 4)
+	set.rb rb21, (FORGE + 16) - (LAND - 4)
 	sub.o	rd20, rb0, rb21		@@ rb0 = this instruction's IP
 	cfx2rc	cfx_hmon, cg5, rc3, rd20	@@ excp_cause_ip = LAND - 4
 	set.zw	rd20, wp0, 0x0002

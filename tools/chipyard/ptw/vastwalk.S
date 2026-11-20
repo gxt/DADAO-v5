@@ -54,7 +54,7 @@
 	.include "vastwalk_tables.inc"
 
 	__TEST_BEGIN
-	LOAD_ADDR rb20, HMON_BASE		@@ 固件 hmon 的帧槽（+0xE0/0xF0/0xF8）
+	set.rb rb20, HMON_BASE		@@ 固件 hmon 的帧槽（+0xE0/0xF0/0xF8）
 
 	@@ PTBR = 0（PA 0 的 L1 表），开 PTW
 	set.rd	rd6, 0
@@ -70,7 +70,7 @@
 .if CASE_ADWB == 0
 	@@ ================= A 走查正确性 =================
 	@@ 1 普通页：L1 → L2 → PA，且 VA = PA + 2 TiB
-	LOAD_ADDR rb4, VA_DATA
+	set.rb rb4, VA_DATA
 	ld.o	rd5, [rb4, 0x700]
 	__CHECK_RD	1, rd5, PAYLOAD
 
@@ -86,7 +86,7 @@
 	__CHECK_RD	3, rd5, PTE_DATA_A1D0
 
 	@@ 4 首次 store（A 已是 1）只把 D 本地置位
-	LOAD_ADDR rb5, STORE_VAL
+	set.rb rb5, STORE_VAL
 	st.o	rb5, [rb4, 0x708]
 	ld.o	rd5, [rb4, 8]
 	__CHECK_RD	4, rd5, PTE_DATA_A1D0
@@ -108,16 +108,16 @@
 	__CHECK_RD	7, rd5, STORE_VAL
 
 	@@ 8/9 512 MiB 超页：两个 64 MiB 片段
-	LOAD_ADDR rb4, VA_SUPER
+	set.rb rb4, VA_SUPER
 	ld.o	rd5, [rb4, 0]
 	__CHECK_RD	8, rd5, MAGIC0
-	LOAD_ADDR rb4, VA_SUPER1
+	set.rb rb4, VA_SUPER1
 	ld.o	rd5, [rb4, 0]
 	__CHECK_RD	9, rd5, MAGIC1
 
 	@@ 10 取指走页表：跳到映射页，桩把 rd7 置 STUB_MARK 后跳回
 	@@    （返回地址由 `aip.si` 现场取 + 链接期常量偏移 ⇒ 不写死绝对地址）
-	LOAD_ADDR rb4, VA_CODE
+	set.rb rb4, VA_CODE
 	.globl	vw_jump_site
 vw_jump_site:
 	aip.si	rb6, 0
@@ -129,7 +129,7 @@ vw_back:
 
 	@@ ================= C 故障路径 =================
 	@@ 11 L1 P=0, SP=0 ⇒ CFXMEM + DGPTRAP
-	LOAD_ADDR rb4, VA_L1_NP
+	set.rb rb4, VA_L1_NP
 	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
 	st.o	rd0, [rb20, 0xF0]
 	.globl	f1_aip
@@ -147,7 +147,7 @@ f1_resume:
 	__REC	rd5
 
 	@@ 12 L1 P=0, SP=1 ⇒ CFXMEM + DSPTRAP
-	LOAD_ADDR rb4, VA_L1_SP
+	set.rb rb4, VA_L1_SP
 	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
 	st.o	rd0, [rb20, 0xF0]
 	.globl	f2_aip
@@ -165,7 +165,7 @@ f2_resume:
 	__REC	rd5
 
 	@@ 13 L1 SPF 对应位 = 0 ⇒ CFXMEM + DSPFTRAP
-	LOAD_ADDR rb4, VA_L1_SPF
+	set.rb rb4, VA_L1_SPF
 	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
 	st.o	rd0, [rb20, 0xF0]
 	.globl	f3_aip
@@ -183,7 +183,7 @@ f3_resume:
 	__REC	rd5
 
 	@@ 14 L2 P=0 ⇒ CFXMEM + DGPTRAP
-	LOAD_ADDR rb4, VA_L2B0
+	set.rb rb4, VA_L2B0
 	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
 	st.o	rd0, [rb20, 0xF0]
 	.globl	f4_aip
@@ -201,7 +201,7 @@ f4_resume:
 	__REC	rd5
 
 	@@ 15 L2 GPF 对应位 = 0 ⇒ CFXMEM + DGPFTRAP
-	LOAD_ADDR rb4, VA_L2B1
+	set.rb rb4, VA_L2B1
 	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
 	st.o	rd0, [rb20, 0xF0]
 	.globl	f5_aip
@@ -219,7 +219,7 @@ f5_resume:
 	__REC	rd5
 
 	@@ 16 HSJU 不符（U-only 页、运行在 hypv）⇒ CFXPERM + NHPERM
-	LOAD_ADDR rb4, VA_L2B2
+	set.rb rb4, VA_L2B2
 	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
 	st.o	rd0, [rb20, 0xF0]
 	.globl	f6_aip
@@ -237,8 +237,8 @@ f6_resume:
 	__REC	rd5
 
 	@@ 17 W=0 的页做 st ⇒ CFXPERM + NWPERM
-	LOAD_ADDR rb4, VA_W0
-	LOAD_ADDR rb5, STORE_VAL
+	set.rb rb4, VA_W0
+	set.rb rb5, STORE_VAL
 	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
 	st.o	rd0, [rb20, 0xF0]
 	.globl	f7_aip
@@ -256,7 +256,7 @@ f7_resume:
 	__REC	rd5
 
 	@@ 18 X=0 的页取指 ⇒ CFXPERM + NXPERM
-	LOAD_ADDR rb4, VA_NOX
+	set.rb rb4, VA_NOX
 	st.o	rd0, [rb20, 0xE0]		@@ 清帧槽：故障没发生 ⇒ 判据看到 0 而不是残留
 	st.o	rd0, [rb20, 0xF0]
 	.globl	f8_aip
@@ -300,7 +300,7 @@ f9_resume:
 
 	@@ 20 A/D 回写失败：本机 PA RAM 全可写 ⇒ 机器级不可达（`contract-tlb §11` ⑦），
 	@@    由证据脚本的实现层注入（强制 PTE 写失败）触发；未注入时这里记录到全 0。
-	LOAD_ADDR rb4, VA_FRESH
+	set.rb rb4, VA_FRESH
 	ld.o	rd5, [rb4, 0]			@@ 填充：A 本地置位（PTE.A = 0）
 	__CHECK_RD	20, rd5, FRESH_MAGIC
 	st.o	rd0, [rb20, 0xE0]

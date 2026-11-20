@@ -23,7 +23,7 @@
 @@   （`st.o rb0` 的期望值随链接布局变化，见 `tests/inst/MIGRATION.md §6`）。
 .macro __CHECK_MEM_RB pt, baseval, off, rbsrc
 	rb2rd	{rd22:rd22}, {\rbsrc:\rbsrc}
-	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
+	set.rb rb21, (((\baseval) + (\off)) / 8) * 8
 	ld.o	rd21, [rb21, 0]
 	__REC	rd21
 	br.eq	{rd22, rd21}?, [rb0, __ck_\@]
@@ -34,7 +34,7 @@ __ck_\@:
 @@ rb 源
 .macro TEST_ST_RB pt, mnem, src, base, baseval, off, srcval, beat
 	set.rb	\src, \srcval
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	\mnem	\src, [\base, \off]
 	__CHECK_MEM \pt, \baseval, \off, \beat
 .endm
@@ -68,7 +68,7 @@ __ck_\@:
 	@@ 方式一：`aip.si rbX, 0`（imms30 = 0 合法）⇒ rbX = 该 aip.si **自身**地址；
 	@@   delta = 被测 st.o 地址 − aip.si 地址。本段布局 aip.si(A) / add.si(A+4) / st.o(A+8)
 	@@   ⇒ delta = 8（4 B × 2 条；注释与指令序列逐条对应，改序须同步改 delta）
-	LOAD_ADDR rb3, TEST_DATA
+	set.rb rb3, TEST_DATA
 	aip.si	rb12, 0
 	add.si	rb12, 8
 	st.o	rb0, [rb3, 0x040]

@@ -22,8 +22,8 @@
 	.include "tests/inst/macros/inst_test.inc"
 
 	__TEST_BEGIN
-	LOAD_ADDR rb20, HMON_BASE
-	LOAD_ADDR rb21, TEST_PAD
+	set.rb rb20, HMON_BASE
+	set.rb rb21, TEST_PAD
 	st.o	rb21, [rb20, 0xF8]              @@ 任何意外异常 ⇒ 故障落点（fail-fast）
 
 	@@ ---- encoding：规范编码字 0x79000000（cfx0 = all cfx，pred = succ = 0 = no-op）----

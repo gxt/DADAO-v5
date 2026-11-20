@@ -135,7 +135,7 @@ __ck5:
 	__CHECK_RD         16, rd25, (0x0001000000000000 + ENTRY + 0x1204)
 	ra2rd	{rd26}, {ra0}
 	__CHECK_RD         17, rd26, (0x003F000000000000 + MEMRAS + 0x78)   @@ MRPTR −= 8
-	LOAD_ADDR rb5, (MEMRAS + 0x78)
+	set.rb rb5, (MEMRAS + 0x78)
 	ld.o	rd5, [rb5, 0]
 	__CHECK_RD         18, rd5, 0x0005DDDD00000000       @@ 最旧条目已落 MemRAS
 

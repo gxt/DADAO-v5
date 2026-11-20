@@ -38,7 +38,7 @@
 
 	@@ ---- legality ----
 	@@ legality：st 允许 rd0 作源（读出 0），不是 ILLI
-	LOAD_ADDR rb3, TEST_DATA
+	set.rb rb3, TEST_DATA
 	st.t  	rd0, [rb3, 0x070]
 	__CHECK_MEM 15, TEST_DATA, 0x070, 0x000000005A5A5A5A
 

@@ -17,7 +17,7 @@
 .macro TEST_ST_RA pt, mnem, src, base, baseval, off, srcval, beat
 	set.rd	rd20, \srcval
 	rd2ra	{\src:\src}, {rd20:rd20}
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	\mnem	\src, [\base, \off]
 	__CHECK_MEM \pt, \baseval, \off, \beat
 .endm
@@ -48,7 +48,7 @@
 
 	@@ ---- legality ----
 	@@ legality：ra0 作源合法（读出完整 64 位；本镜像无 call ⇒ RACNT=MRPTR=0）
-	LOAD_ADDR rb3, TEST_DATA
+	set.rb rb3, TEST_DATA
 	st.o	ra0, [rb3, 0x070]
 	__CHECK_MEM 15, TEST_DATA, 0x070, 0x0000000000000000
 

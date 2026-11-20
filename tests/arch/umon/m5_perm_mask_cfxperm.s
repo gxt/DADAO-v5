@@ -23,14 +23,13 @@
 @@ @m5 exit=0x21
 @@ @m5 fail_exit=0x71
 
-	.include "machine.inc"
 
 	.text
 	.globl	_start
 _start:
 	@@ legal cfxha (jmon = 1) but cfxtrap source bit 0 is set -> CFXPERM
 	trap	cfx_jmon, 0
-	LOAD_ADDR rb4, FAULT_RECORD
+	set.rb rb4, FAULT_RECORD
 	ld.o	rd10, [rb4, 0]			@@ fault-record[0] = cause id
 	set.zw	rd13, wp0, 0xFFFF		@@ cause_id[15:0] = one-hot big class
 	and.o	rd10, rd10, rd13
@@ -39,7 +38,7 @@ _start:
 	br.nz	{rd11}?, [rb0, fail]
 
 	@@ pass: SYS_EXIT(0x21)
-	LOAD_ADDR rb16, ENTRY + 0x2000
+	set.rb rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
@@ -50,7 +49,7 @@ _start:
 	swym	0
 
 fail:
-	LOAD_ADDR rb16, ENTRY + 0x2000
+	set.rb rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]

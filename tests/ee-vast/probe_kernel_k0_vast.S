@@ -29,20 +29,6 @@
 @@ (target/dadao/cpu.c), which does not walk the page table.  This is the
 @@ observation channel only, not part of the boot ABI.
 
-	.include "tests/shared/asm/machine.inc"
-
-	.macro	LD64 rd, w0, w1, w2, w3
-	set.zw	\rd, wp0, \w0
-	.if \w1 != 0
-	or.w	\rd, wp1, \w1
-	.endif
-	.if \w2 != 0
-	or.w	\rd, wp2, \w2
-	.endif
-	.if \w3 != 0
-	or.w	\rd, wp3, \w3
-	.endif
-	.endm
 
 	@@ CHK64 idx, reg, exp: compare `reg` with the 64-bit constant `exp` (a
 	@@ --defsym value derived from contracts/linux-boot.yaml) and leave on the
@@ -70,7 +56,7 @@ _start:
 	rb2rd	rd27, rb3, 1			@@ rb3 (rbtp) = 0
 
 	@@ --- boot info fields (§6.3.3 order) ---
-	LOAD_ADDR rb4, BI_VA
+	set.rb rb4, BI_VA
 	ld.ut	rd5, [rb4, 0x00]		@@ magic
 	ld.uw	rd6, [rb4, 0x04]		@@ version
 	ld.uw	rd7, [rb4, 0x06]		@@ size
@@ -88,16 +74,16 @@ _start:
 	ld.o	rd20, [rb4, 0x58]		@@ flags
 
 	@@ --- PTE[PTE_INDEX .. PTE_INDEX+3] through the prebuilt mapping ---
-	LOAD_ADDR rb4, PT_VA + PTE_INDEX * 8
+	set.rb rb4, PT_VA + PTE_INDEX * 8
 	ld.o	rd21, [rb4, 0]
 	ld.o	rd22, [rb4, 8]
 	ld.o	rd23, [rb4, 16]
 	ld.o	rd24, [rb4, 24]
 
 	@@ --- page table page: non-zero 8-byte word count (expect 1) ---
-	LOAD_ADDR rb4, PT_VA
+	set.rb rb4, PT_VA
 	set.rd	rd28, 0
-	LD64	rd2, 0x2000, 0x0000, 0x0000, 0x0000	@@ 8192 entries
+	set.rd rd2, 0x0000000000002000	@@ 8192 entries
 pk_pt_count:
 	ld.o	rd63, [rb4, 0]
 	br.z	{rd63}?, [rb0, pk_pt_next]
@@ -108,9 +94,9 @@ pk_pt_next:
 	br.nz	{rd2}?, [rb0, pk_pt_count]
 
 	@@ --- boot info page tail: non-zero count (expect 0) ---
-	LOAD_ADDR rb4, BI_VA + BI_SIZE
+	set.rb rb4, BI_VA + BI_SIZE
 	set.rd	rd29, 0
-	LD64	rd2, 0x1ff4, 0x0000, 0x0000, 0x0000	@@ (0x10000 - 0x60) / 8
+	set.rd rd2, 0x0000000000001ff4	@@ (0x10000 - 0x60) / 8
 pk_bi_count:
 	ld.o	rd63, [rb4, 0]
 	br.z	{rd63}?, [rb0, pk_bi_next]
@@ -160,12 +146,12 @@ pk_exit:
 	@@ SYS_EXIT (service 0x18): block = {reason, code}.  The block lives in
 	@@ the probe's own RAM page (PA below) and is reached through the mapping
 	@@ by VA; the pointer handed to semihosting is its PA (see file header).
-	LOAD_ADDR rb4, EXIT_BLOCK_VA
-	LD64	rd2, 0x0026, 0x0002, 0x0000, 0x0000	@@ ADP_Stopped_ApplicationExit
+	set.rb rb4, EXIT_BLOCK_VA
+	set.rd rd2, 0x0000000000020026	@@ ADP_Stopped_ApplicationExit
 	st.o	rd2, [rb4, 0]
 	st.o	rd1, [rb4, 8]
-	LOAD_ADDR rb16, EXIT_BLOCK_PA
-	LD64	rd16, 0x0018, 0x0000, 0x0000, 0x0000
+	set.rb rb16, EXIT_BLOCK_PA
+	set.rd rd16, 0x0000000000000018
 	trap	cfx_umon, 0x3FF00
 	swym	0
 	jump	[rb0, pk_exit]

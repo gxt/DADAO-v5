@@ -21,7 +21,6 @@
 @@ 用独立期望值逐值比较。
 
 	.include "machine-tiny.inc"
-	.include "machine.inc"
 
 	.equ	RESULTS, ENTRY + 0x4000
 	.equ	PARAM,   ENTRY + 0x5000
@@ -40,14 +39,14 @@
 	.section .text.start, "ax"
 	.globl	_start
 _start:
-	LOAD_ADDR rb1, SP			@@ crt：入口设 SP（Kaiwu §6）
+	set.rb rb1, SP			@@ crt：入口设 SP（Kaiwu §6）
 	@@ 顺序落入紧随其后的 .text（同段、4 字节对齐、无填充）
 
 	.text
 	.globl	hmon_min_main
 hmon_min_main:
-	LOAD_ADDR rb3, RESULTS
-	LOAD_ADDR rb5, HMON_BASE
+	set.rb rb3, RESULTS
+	set.rb rb5, HMON_BASE
 
 	@@ ---- record 0: power -> hmon 移交现场 + 默认返回地址 ------------------
 	ld.o	rd10, [rb5, 0xE0]		@@ cause_id (CFXTRAP)
@@ -71,9 +70,9 @@ hmon_min_main:
 	@@ ---- 1: CFXMEM -> land_mem -------------------------------------------
 	LOAD_ABS rd5, land_mem
 	st.o	rd5, [rb5, 0xF8]
-	LOAD_ADDR rd63, 0x1111222233334444
+	set.rd rd63, 0x1111222233334444
 	set.zw	rd20, wp0, 0
-	LOAD_ADDR rb2, 0x1000000000
+	set.rb rb2, 0x1000000000
 	.globl	f_mem
 f_mem:
 	ld.o	rd10, [rb2, 0]
@@ -87,7 +86,7 @@ land_mem:
 	@@ ---- 2: ILLI -> land_illi -------------------------------------------
 	LOAD_ABS rd5, land_illi
 	st.o	rd5, [rb5, 0xF8]
-	LOAD_ADDR rd63, 0x2222333344445555
+	set.rd rd63, 0x2222333344445555
 	set.zw	rd20, wp0, 0
 	.globl	f_illi
 f_illi:
@@ -102,7 +101,7 @@ land_illi:
 	@@ ---- 3: UNDI -> land_undi --------------------------------------------
 	LOAD_ABS rd5, land_undi
 	st.o	rd5, [rb5, 0xF8]
-	LOAD_ADDR rd63, 0x3333444455556666
+	set.rd rd63, 0x3333444455556666
 	set.zw	rd20, wp0, 0
 	.globl	f_undi
 f_undi:
@@ -117,9 +116,9 @@ land_undi:
 	@@ ---- 4: MALIGN -> land_malign ----------------------------------------
 	LOAD_ABS rd5, land_malign
 	st.o	rd5, [rb5, 0xF8]
-	LOAD_ADDR rd63, 0x4444555566667777
+	set.rd rd63, 0x4444555566667777
 	set.zw	rd20, wp0, 0
-	LOAD_ADDR rb2, RAM_BASE + 1
+	set.rb rb2, RAM_BASE + 1
 	.globl	f_malign
 f_malign:
 	ld.o	rd10, [rb2, 0]
@@ -133,9 +132,9 @@ land_malign:
 	@@ ---- 5: IALIGN -> land_ialign ----------------------------------------
 	LOAD_ABS rd5, land_ialign
 	st.o	rd5, [rb5, 0xF8]
-	LOAD_ADDR rd63, 0x5555666677778888
+	set.rd rd63, 0x5555666677778888
 	set.zw	rd20, wp0, 0
-	LOAD_ADDR rb2, IALIGN_TARGET
+	set.rb rb2, IALIGN_TARGET
 	.globl	f_ialign
 f_ialign:
 	call	[rb2, rd0, 0]
@@ -147,53 +146,53 @@ land_ialign:
 	call	[rb0, record]
 
 	@@ ---- export the observation table ------------------------------------
-	LOAD_ADDR rb4, MSG
-	LOAD_ADDR rd6, 0x686d6f6e2d6d696e
+	set.rb rb4, MSG
+	set.rd rd6, 0x686d6f6e2d6d696e
 	st.o	rd6, [rb4, 0]
-	LOAD_ADDR rd6, 0x2d6f6b0a00000000
+	set.rd rd6, 0x2d6f6b0a00000000
 	st.o	rd6, [rb4, 8]
 
-	LOAD_ADDR rb4, FNAME
-	LOAD_ADDR rd6, 0x686d6f6e5f6d696e
+	set.rb rb4, FNAME
+	set.rd rd6, 0x686d6f6e5f6d696e
 	st.o	rd6, [rb4, 0]
-	LOAD_ADDR rd6, 0x5f726573756c7473
+	set.rd rd6, 0x5f726573756c7473
 	st.o	rd6, [rb4, 8]
-	LOAD_ADDR rd6, 0x2e62696e00000000
+	set.rd rd6, 0x2e62696e00000000
 	st.o	rd6, [rb4, 16]
 
-	LOAD_ADDR rb16, MSG
+	set.rb rb16, MSG
 	set.zw	rd16, wp0, 0x0004		@@ SYS_WRITE0
 	trap	cfx_hmon, 0x3FF00
 
-	LOAD_ADDR rb4, PARAM
-	LOAD_ADDR rb5, FNAME
+	set.rb rb4, PARAM
+	set.rb rb5, FNAME
 	st.o	rb5, [rb4, 0]
 	set.zw	rd6, wp0, 5			@@ binary + create
 	st.o	rd6, [rb4, 8]
 	set.zw	rd6, wp0, 21			@@ filename length + NUL
 	st.o	rd6, [rb4, 16]
 	set.zw	rd16, wp0, 0x0001		@@ SYS_OPEN
-	LOAD_ADDR rb16, PARAM
+	set.rb rb16, PARAM
 	trap	cfx_hmon, 0x3FF00
 
-	LOAD_ADDR rb4, PARAM
+	set.rb rb4, PARAM
 	st.o	rd8, [rb4, 0]			@@ handle
-	LOAD_ADDR rb5, RESULTS
+	set.rb rb5, RESULTS
 	st.o	rb5, [rb4, 8]			@@ buffer
 	set.zw	rd6, wp0, 0x1000
 	st.o	rd6, [rb4, 16]
 	set.zw	rd16, wp0, 0x0005		@@ SYS_WRITE
-	LOAD_ADDR rb16, PARAM
+	set.rb rb16, PARAM
 	trap	cfx_hmon, 0x3FF00
 
-	LOAD_ADDR rb4, PARAM
+	set.rb rb4, PARAM
 	set.zw	rd6, wp1, 0x0002
 	or.w	rd6, wp0, 0x0026		@@ ADP_Stopped_ApplicationExit
 	st.o	rd6, [rb4, 0]
 	set.zw	rd6, wp0, 0x0021		@@ PASS
 	st.o	rd6, [rb4, 8]
 	set.zw	rd16, wp0, 0x0018		@@ SYS_EXIT
-	LOAD_ADDR rb16, PARAM
+	set.rb rb16, PARAM
 	trap	cfx_hmon, 0x3FF00
 	swym	0
 

@@ -8,13 +8,12 @@
 @@ Geometry comes from tests/shared/asm/machine-tiny.inc.
 
 	.include "tests/shared/asm/machine-tiny.inc"
-	.include "tests/shared/asm/machine.inc"
 
 	.text
 	.globl	_app
 _app:
 	@@ 1. RAM data round-trip at ENTRY + 1 MiB
-	LOAD_ADDR rb4, ENTRY + 0x100000
+	set.rb rb4, ENTRY + 0x100000
 	set.zw	rd8, wp0, 0xBEEF
 	st.o	rd8, [rb4, 0]
 	ld.o	rd9, [rb4, 0]

@@ -36,7 +36,7 @@
 	@@ ---- overlap ----
 	TEST_LD           14, ld.ut,  rd1,   rb1,   TEST_DATA,          0x000,    0x0000000001234567
 	@@ overlap：同一目的连装两次，后到者生效
-	LOAD_ADDR rb9, TEST_DATA
+	set.rb rb9, TEST_DATA
 	ld.ut   rd2, [rb9, 0x000]
 	ld.ut   rd2, [rb9, 0x008]
 	__CHECK_RD 15, rd2, 0x0000000000112233

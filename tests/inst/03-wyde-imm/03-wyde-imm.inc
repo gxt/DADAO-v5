@@ -34,7 +34,7 @@
 .macro TEST_WI_RD_MEM pt, mnem, dst, wp, imm, init, off
 	set.rd	\dst, \init
 	\mnem	\dst, \wp, \imm
-	LOAD_ADDR rb21, WDATA + \off
+	set.rb rb21, WDATA + \off
 	ld.o	rd20, [rb21, 0]
 	__REC	\dst
 	br.eq	{rd20, \dst}?, [rb0, __wrm_\@]
@@ -46,7 +46,7 @@ __wrm_\@:
 	set.rb	\dst, \init
 	\mnem	\dst, \wp, \imm
 	st.o	\dst, [rb29, 0]
-	LOAD_ADDR rb21, WDATA + \off
+	set.rb rb21, WDATA + \off
 	ld.o	rd20, [rb21, 0]
 	ld.o	rd21, [rb29, 0]
 	__REC	rd21

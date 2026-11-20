@@ -23,21 +23,20 @@
 @@ @m5 exit=0x23
 @@ @m5 fail_exit=0x71
 
-	.include "machine.inc"
 
 	.text
 	.globl	_start
 _start:
 	@@ cg6 is the scratch register bank; rc must be < scratch_regs_num (4)
 	cfx2rd	cfx_umon, cg6, rc63, rd10	@@ -> CFXREG into the current-mode monitor
-	LOAD_ADDR rb4, FAULT_RECORD
+	set.rb rb4, FAULT_RECORD
 	ld.o	rd10, [rb4, 0]			@@ fault-record[0] = cause id
 	set.zw	rd12, wp0, 0x0004		@@ CFXREG = 1 << 2
 	cmp.so	rd11, rd10, rd12
 	br.nz	{rd11}?, [rb0, fail]
 
 	@@ pass: SYS_EXIT(0x23)
-	LOAD_ADDR rb16, ENTRY + 0x2000
+	set.rb rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
@@ -48,7 +47,7 @@ _start:
 	swym	0
 
 fail:
-	LOAD_ADDR rb16, ENTRY + 0x2000
+	set.rb rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]

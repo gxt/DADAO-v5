@@ -49,7 +49,6 @@
 @@ No failure escapes into the kernel.
 
 	.include "tests/shared/asm/machine-vast.inc"
-	.include "tests/shared/asm/machine.inc"
 
 	.ifndef	BOOT_INFO_PA
 	.equ	BOOT_INFO_PA, 0x10000
@@ -95,7 +94,7 @@
 	.globl	_start
 
 _start:
-	LOAD_ADDR rb1, SMON_BASE + 0x0ff0	@@ smon rbsp (SYS_EXIT block)
+	set.rb rb1, SMON_BASE + 0x0ff0	@@ smon rbsp (SYS_EXIT block)
 
 	@@ --- 1. trap cause / boot magic (CFXTRAP = 1<<0, magic 0x30001) ---
 	cfx2rd	cfx_smon, cg5, rc2, rd6
@@ -110,10 +109,10 @@ _start:
 	br.nz	{rd2}?, [rb0, smon_exit_b8]
 
 	@@ --- 2. DMA the boot info (PA) into the cfx_pmem staging page ---
-	LOAD_ADDR rb5, BOOT_INFO_PA
+	set.rb rb5, BOOT_INFO_PA
 	rb2rd	rd9, rb5, 1
 	cfx2rc	cfx_pmem, cg15, rc0, rd9	@@ dma_src = PA 0x1_0000
-	LOAD_ADDR rb5, PMEM_BASE
+	set.rb rb5, PMEM_BASE
 	rb2rd	rd9, rb5, 1
 	cfx2rc	cfx_pmem, cg15, rc1, rd9	@@ dma_dst = pmem SRAM
 	set.rd	rd9, 0x60
@@ -121,7 +120,7 @@ _start:
 	set.rd	rd9, 0x3			@@ START, DIR=1 (PA -> cfx)
 	cfx2rc	cfx_pmem, cg15, rc3, rd9
 	call	[rb0, smon_dma_wait]
-	LOAD_ADDR rb4, PMEM_BASE
+	set.rb rb4, PMEM_BASE
 
 	@@ magic / version (0xC1)
 	ld.ut	rd6, [rb4, 0x00]
@@ -235,7 +234,7 @@ _start:
 	set.rd	rd61, 0
 	set.rd	rd62, 0
 	set.rd	rd63, 0
-	LOAD_ADDR rb3, PMEM_BASE
+	set.rb rb3, PMEM_BASE
 	set.rd	rd6, 146
 smon_clear:
 	stm.o	{rd8:rd63}, [rb3, rd0]
@@ -247,14 +246,14 @@ smon_clear:
 	@@ --- 4. one superpage PTE at L1 index PTE_INDEX, page stays zero ---
 	@@ PTE bits (spec/DADAO-12 §2.2.3): HSJU = H|S (0xC), PPN[55:29] = PA(0)>>29,
 	@@ SPF = 0xFF, R=W=X=G=A=D=SP=P = 0xEF.
-	LOAD_ADDR rb3, PMEM_BASE
+	set.rb rb3, PMEM_BASE
 	set.rd	rd6, PTE_INDEX * 8
 	add.o	rb4, rb3, rd6
 	set.rd	rd6, PTE_VALUE
 	st.o	rd6, [rb4, 0]
 
 	@@ --- 5. DMA the page table page to PA 0 and read the PTE back ---
-	LOAD_ADDR rb5, PMEM_BASE
+	set.rb rb5, PMEM_BASE
 	rb2rd	rd9, rb5, 1
 	cfx2rc	cfx_pmem, cg15, rc0, rd9	@@ dma_src = pmem SRAM
 	set.rd	rd9, 0x0
@@ -267,7 +266,7 @@ smon_clear:
 
 	set.rd	rd9, PTE_INDEX * 8
 	cfx2rc	cfx_pmem, cg15, rc0, rd9	@@ dma_src = PA 0x8000 (PTE_INDEX*8)
-	LOAD_ADDR rb5, PMEM_BASE + 0x0e00
+	set.rb rb5, PMEM_BASE + 0x0e00
 	rb2rd	rd9, rb5, 1
 	cfx2rc	cfx_pmem, cg15, rc1, rd9
 	set.rd	rd9, 0x8
@@ -275,7 +274,7 @@ smon_clear:
 	set.rd	rd9, 0x3			@@ START, DIR=1
 	cfx2rc	cfx_pmem, cg15, rc3, rd9
 	call	[rb0, smon_dma_wait]
-	LOAD_ADDR rb4, PMEM_BASE + 0x0e00
+	set.rb rb4, PMEM_BASE + 0x0e00
 	ld.o	rd6, [rb4, 0]
 	set.rd	rd7, PTE_VALUE
 	cmp.uo	rd2, rd6, rd7
@@ -297,7 +296,7 @@ smon_clear:
 
 	@@ --- 6. handover registers (spec §6.3.4) ---
 	rb2rb	rb16, rb7, 1			@@ rb16 = kernel_base (entry VA)
-	LOAD_ADDR rb17, BOOT_INFO_VA		@@ rb17 = boot info VA
+	set.rb rb17, BOOT_INFO_VA		@@ rb17 = boot info VA
 	set.zw	rb3, wp0, 0			@@ rb3 (rbtp) = 0
 
 	@@ --- 7. cfx_smon exception frame: return into supv at the entry VA ---
@@ -352,7 +351,7 @@ smon_exit_b8:
 smon_exit:
 	@@ SYS_EXIT block in smon SRAM (semihosting reads it through the debug
 	@@ identity translation, which covers the monitor SRAM).
-	LOAD_ADDR rb16, SMON_BASE + 0x0ff0
+	set.rb rb16, SMON_BASE + 0x0ff0
 	set.rd	rd16, 0x20026
 	st.o	rd16, [rb16, 0]
 	st.o	rd1, [rb16, 8]

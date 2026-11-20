@@ -26,7 +26,7 @@
 	TEST_LDM         4, ldm.o, {rb8:rb15}, rb3, MDATA_O + 0x020, rd19, 0x000, MDUMP + 0x030, 8, 0x010203040506070C, 0x010203040506070D, 0x010203040506070E, 0x010203040506070F, 0x0102030405060710, 0x0102030405060711, 0x0102030405060712, 0x0102030405060713
 
 	@@ semantic：逐元素核对
-	LOAD_ADDR rb3, MDATA_O + 0x030
+	set.rb rb3, MDATA_O + 0x030
 	set.rd    rd19, 0x000
 	ldm.o	{rb5:rb7}, [rb3, rd19]
 	rb2rd	{rd21:rd21}, {rb5:rb5}
@@ -47,10 +47,10 @@
 	TEST_LDM        10, ldm.o, {rb5:rb7}, rb3, MDATA_O + 0x080, rd19, 0x000, MDUMP + 0x0A0, 3, 0x0102030405060718, 0x0102030405060719, 0x010203040506071A
 
 	@@ boundary：基址恰在传送范围**外一位**（组首 rb4、基址 rb3）⇒ 正常执行（范围内 ⇒ ILLI，见故障例）
-	LOAD_ADDR rb3, MDATA_O + 0x0C0
+	set.rb rb3, MDATA_O + 0x0C0
 	set.rd    rd19, 0x000
 	ldm.o	{rb4:rb7}, [rb3, rd19]
-	LOAD_ADDR rb28, MDUMP + 0x0B8
+	set.rb rb28, MDUMP + 0x0B8
 	stm.o	{rb4:rb7}, [rb28, rd0]
 	__CHECK_MEM        11, MDUMP, 0x0B8, 0x0102030405060720
 	__CHECK_MEM        12, MDUMP, 0x0C0, 0x0102030405060721
@@ -88,7 +88,7 @@ __rb0z_ck:
 	jump	[rb0, __rb0p]
 	.org	0x2180
 __rb0p:
-	LOAD_ADDR rb26, (TEST_DATA + 0x088 - 8)
+	set.rb rb26, (TEST_DATA + 0x088 - 8)
 	aip.si	rb25, 0			@@ rb25 = ENTRY+0x2180
 	sub.o	rd19, rb26, rb25		@@ rd19 = (TEST_DATA+0x080) − 0x2180
 	ldm.o    {rb5:rb5}, [rb0, rd19]	@@ 被测 @0x2188：EA = ENTRY+0x5888

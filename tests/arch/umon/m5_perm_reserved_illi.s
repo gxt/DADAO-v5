@@ -24,7 +24,6 @@
 @@ @m5 exit=0x20
 @@ @m5 fail_exit=0x71
 
-	.include "machine.inc"
 
 	.text
 	.globl	_start
@@ -32,14 +31,14 @@ _start:
 	@@ reserved cfxha (7) -> ILLI, delivered to cfx_hmon (current-mode monitor)
 	trap	cfx7, 0
 	@@ read back the cause the monitor recorded before resuming us
-	LOAD_ADDR rb4, FAULT_RECORD
+	set.rb rb4, FAULT_RECORD
 	ld.o	rd10, [rb4, 0]			@@ fault-record[0] = cause id
 	set.zw	rd12, wp0, 0x0100		@@ ILLI = 1 << 8
 	cmp.so	rd11, rd10, rd12
 	br.nz	{rd11}?, [rb0, fail]
 
 	@@ pass: SYS_EXIT(0x20)
-	LOAD_ADDR rb16, ENTRY + 0x2000
+	set.rb rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]
@@ -51,7 +50,7 @@ _start:
 
 fail:
 	@@ wrong cause -> SYS_EXIT(0x71)
-	LOAD_ADDR rb16, ENTRY + 0x2000
+	set.rb rb16, ENTRY + 0x2000
 	set.zw	rd8, wp1, 0x0002
 	or.w	rd8, wp0, 0x0026
 	st.o	rd8, [rb16, 0]

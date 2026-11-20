@@ -109,7 +109,6 @@
 @@   （+0x1600..+0x1700 与 +0x1708..+0x1800 保持零：控制流用例不使用）
 
 	.include "tests/shared/asm/machine-tiny.inc"
-	.include "tests/shared/asm/machine.inc"
 
 	@@ 机器几何一律取 `machine-tiny.inc`（生成物）里的符号，本节只补本宏层的布局。
 	@@ 布局单一（`m15-testcases-006`）：全部册共用 `tests/ee-tiny/inst_tiny.lds`，
@@ -189,7 +188,7 @@
 	.endif
 	.endif
 .if	__exit_now
-	LOAD_ADDR rb16, TEST_EXITB
+	set.rb rb16, TEST_EXITB
 	set.rd	rd4, ADP_STOPPED_APP_EXIT
 	st.o	rd4, [rb16, 0]
 	set.rd	rd4, \code
@@ -223,7 +222,7 @@ __ck_\@:
 
 @@ 内存实测：以 EA 所在 8 字节 beat（EA/8*8）为单位比较（大端）
 .macro __CHECK_MEM pt, baseval, off, exp
-	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
+	set.rb rb21, (((\baseval) + (\off)) / 8) * 8
 	ld.o	rd21, [rb21, 0]
 	set.rd	rd20, \exp
 	__REC	rd21
@@ -241,7 +240,7 @@ __vr_\@:
 .endm
 
 .macro __VERIFY_MEM pt, baseval, off, exp
-	LOAD_ADDR rb21, (((\baseval) + (\off)) / 8) * 8
+	set.rb rb21, (((\baseval) + (\off)) / 8) * 8
 	ld.o	rd21, [rb21, 0]
 	set.rd	rd20, \exp
 	br.eq	{rd20, rd21}?, [rb0, __vm_\@]
@@ -269,7 +268,7 @@ __ve_\@:
 
 @@ 从 RDATA 装载 8 字节到任意银行（ra/rf 初值的独立通路：内存 → 组）
 .macro __SET_MEM reg, off
-	LOAD_ADDR rb3, RDATA + \off
+	set.rb rb3, RDATA + \off
 	ld.o	\reg, [rb3, 0]
 .endm
 
@@ -340,8 +339,8 @@ __ve_\@:
 
 @@ 把落点写进固件 hmon 的返回地址槽（hmon SRAM + 0xF8；`spec/Kaiwu §6.2`）
 .macro __SET_HMON_RETURN
-	LOAD_ADDR rb20, HMON_BASE
-	LOAD_ADDR rb21, TEST_PAD
+	set.rb rb20, HMON_BASE
+	set.rb rb21, TEST_PAD
 	st.o	rb21, [rb20, 0xF8]
 .endm
 
@@ -377,7 +376,7 @@ __ve_\@:
 	.if	__onehot == 0
 	.error	"unknown fault name"
 	.endif
-	LOAD_ADDR rb11, TEST_FAULTV
+	set.rb rb11, TEST_FAULTV
 	set.rd	rd20, __onehot
 	st.o	rd20, [rb11, 0]
 	set.rd	rd22, \pt
@@ -413,7 +412,7 @@ __fc_\pt:
 .macro TEST_FAULT_ENC pt, fault, enc, base, baseval, offreg, offval
 	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	set.rd	\offreg, \offval
 	.dd.t32	\enc
 	__FAULT_BODY_END \pt
@@ -477,8 +476,8 @@ __fc_\pt:
 @@ 同上，另给条件寄存器初值（riii 条件分支的越界目标例 / `sc` 的原始编码例）
 @@   TEST_FAULT_CF1(pt, 寄存器, 值, 故障名, 编码字)
 @@   寄存器参数**跨银行**（12-misc 传 `rb3`/`rb6`、06 传 `rd1`）：规范伪指令 `set.rd`/`set.rb`
-@@   各自绑定一个银行、没有「任意银行」形态 ⇒ 本宏用硬件指令展开装值（与 `LOAD_ADDR` 同型；
-@@   展开与旧装载宏逐字节相同，不引入新语义）。
+@@   各自绑定一个寄存器组、没有「任意寄存器组」形态 ⇒ 本宏用硬件指令展开装值（与旧装载
+@@   宏同型；展开与旧装载宏逐字节相同，不引入新语义）。
 .macro TEST_FAULT_CF1 pt, r, rval, fault, enc
 	__FAULT_BODY_BEGIN \pt
 	__FAULT_GUARD \pt, \fault
@@ -530,9 +529,9 @@ _start:
 .if CASE_N != 0
 	jump	[rb0, __fault_case]
 .endif
-	LOAD_ADDR rb30, TEST_BUF
-	LOAD_ADDR rb29, SCRATCH
-	LOAD_ADDR rb27, WSCRATCH
+	set.rb rb30, TEST_BUF
+	set.rb rb29, SCRATCH
+	set.rb rb27, WSCRATCH
 .endm
 
 @@ 链例收尾 = **进入故障链**（`m15-testcases-007`）：跳到第一例体；落点按
@@ -550,9 +549,9 @@ _start:
 	.section .faultpad, "ax"
 	.globl	__pad
 __pad:
-	LOAD_ADDR rb11, TEST_FAULTV
+	set.rb rb11, TEST_FAULTV
 	ld.o	rd23, [rb11, 8]			@@ 失败码 = 点号（兼 `.faulttab` 索引）
-	LOAD_ADDR rb21, HMON_BASE + 0xE0	@@ 固件 hmon 的 cause_id 槽
+	set.rb rb21, HMON_BASE + 0xE0	@@ 固件 hmon 的 cause_id 槽
 	ld.o	rd20, [rb21, 0]
 	ld.o	rd21, [rb11, 0]
 	set.rd	rd22, 0xFFFF			@@ 只比大类 cause_id[15:0]
@@ -560,7 +559,7 @@ __pad:
 						@@ 子原因是 wyde2/wyde3 里的独立
 						@@ one-hot 字段，不参与本比较
 	br.ne	{rd20, rd21}?, [rb0, __pad_fail]
-	LOAD_ADDR rb21, FAULTTAB + 8
+	set.rb rb21, FAULTTAB + 8
 	shl.o	rd23, rd23, 3			@@ 点号 × 8 = 表项字节偏移
 	add.o	rb21, rb21, rd23		@@ &tab[点号 + 1]（bbd 形态：rb + rd）
 	ld.o	rb21, [rb21, 0]			@@ 下一例入口；0 = 本例是最后一例
@@ -569,7 +568,7 @@ __pad:
 __pad_done:
 	jump	[rb0, __fault_finish]		@@ 链走完 → 收尾（打印链例缓冲 + PASS）
 __pad_fail:
-	LOAD_ADDR rb16, TEST_EXITB
+	set.rb rb16, TEST_EXITB
 	set.rd	rd4, ADP_STOPPED_APP_EXIT
 	st.o	rd4, [rb16, 0]
 	st.o	rd23, [rb16, 8]

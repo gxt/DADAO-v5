@@ -26,7 +26,7 @@
 	TEST_LDM         4, ldm.sb, {rd24:rd39}, rb3, MDATA_B + 0x020, rd19, 0x000, MDUMP + 0x018, 2, 0xA0A1A2A3A4A5A6A7, 0xA8A9AAABACADAEAF
 
 	@@ semantic：宽度/符号扩展逐元素核对（符号扩展）
-	LOAD_ADDR rb3, MDATA_B + 0x030
+	set.rb rb3, MDATA_B + 0x030
 	set.rd    rd19, 0x000
 	ldm.sb	{rd5:rd7}, [rb3, rd19]
 	__CHECK_RD         5, rd5, 0xFFFFFFFFFFFFFFB0
@@ -78,7 +78,7 @@ __rb0z_ck:
 	jump	[rb0, __rb0p]
 	.org	0x2180
 __rb0p:
-	LOAD_ADDR rb26, (TEST_DATA + 0x088 - 8)
+	set.rb rb26, (TEST_DATA + 0x088 - 8)
 	aip.si	rb25, 0			@@ rb25 = ENTRY+0x2180
 	sub.o	rd19, rb26, rb25		@@ rd19 = (TEST_DATA+0x080) − 0x2180
 	ldm.sb   {rd5:rd5}, [rb0, rd19]	@@ 被测 @0x2188：EA = ENTRY+0x5888

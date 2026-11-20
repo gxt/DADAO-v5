@@ -90,8 +90,8 @@
 	set.rd	rd6, 0xAAAAAAAAAAAAAAAA
 	set.rd	rd63, 0x0123456789ABCDEF
 	rd2rb	{rb1:rb63}, {rd1:rd63}
-	LOAD_ADDR rb29, SCRATCH
-	LOAD_ADDR rb30, TEST_BUF + (8 * __NCHECK)
+	set.rb rb29, SCRATCH
+	set.rb rb30, TEST_BUF + (8 * __NCHECK)
 	st.o	rb6, [rb29, 0]
 	__VERIFY_MEM       11, SCRATCH, 0, 0xAAAAAAAAAAAAAAAA
 	st.o	rb63, [rb29, 0]

@@ -32,10 +32,10 @@
 	__TEST_BEGIN
 
 	@@ 固件 hmon 的返回槽（hmon SRAM +0xF8）：每个用例先写自己的回落点。
-	LOAD_ADDR rb20, HMON_BASE
+	set.rb rb20, HMON_BASE
 
 	@@ ① 数据 CFXMEM：窗口外读（`cause_info` = 访存地址）
-	LOAD_ADDR rb4, 0x1000000000
+	set.rb rb4, 0x1000000000
 	.globl	c1_aip
 c1_aip:
 	aip.si	rb21, 0
@@ -53,7 +53,7 @@ c1_resume:
 	@@ ② 取指 CFXMEM：跳到窗口外取指（`cause_info` = 被取指地址）
 	@@ `jump [rb0, rd, 0]` 的目标 = `rb0`（该 jump 自身地址）+ rd ⇒ 差值在**执行点**
 	@@ 用 `rb4 - rb0` 求，不依赖布局常量（`aip` 只用于取返回槽地址）。
-	LOAD_ADDR rb4, 0x1000000000
+	set.rb rb4, 0x1000000000
 	.globl	c2_aip
 c2_aip:
 	aip.si	rb21, 0
@@ -104,7 +104,7 @@ c4_resume:
 	__REC	rd5
 
 	@@ ⑤ MALIGN：8 字节访问未对齐（`cause_info` = 访存地址）
-	LOAD_ADDR rb4, RAM_BASE+1
+	set.rb rb4, RAM_BASE+1
 	.globl	c5_aip
 c5_aip:
 	aip.si	rb21, 0
@@ -152,7 +152,7 @@ c7_resume:
 	__REC	rd5
 
 	@@ ⑧ IALIGN：跳到 `IP[1:0] != 0`（`cause_info` = 该 IP）
-	LOAD_ADDR rb4, RAM_BASE+2
+	set.rb rb4, RAM_BASE+2
 	.globl	c8_aip
 c8_aip:
 	aip.si	rb21, 0

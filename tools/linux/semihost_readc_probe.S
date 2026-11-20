@@ -43,20 +43,6 @@
 @@   CHAR_PA           PA of that echoed character byte
 @@   EXIT_BLOCK_PA/VA  SYS_EXIT block, addressed by PA
 
-	.include "tests/shared/asm/machine.inc"
-
-	.macro	LD64 rd, w0, w1, w2, w3
-	set.zw	\rd, wp0, \w0
-	.if \w1 != 0
-	or.w	\rd, wp1, \w1
-	.endif
-	.if \w2 != 0
-	or.w	\rd, wp2, \w2
-	.endif
-	.if \w3 != 0
-	or.w	\rd, wp3, \w3
-	.endif
-	.endm
 
 	.text
 	.globl	_start
@@ -64,10 +50,10 @@
 _start:
 	@@ ---- the stack slot: a VA in the kernel window, like the kernel's ---
 	@@ own early stack (its numeric value is NOT a PA -- self-check B).
-	LOAD_ADDR rb1, SCRATCH_VA
+	set.rb rb1, SCRATCH_VA
 
 	@@ ---- self-check A: the slot's VA is mapped (PTE P = 1) --------------
-	LOAD_ADDR rb4, PT_VA + SCRATCH_PTE_INDEX * 8
+	set.rb rb4, PT_VA + SCRATCH_PTE_INDEX * 8
 	ld.o	rd5, [rb4, 0]
 	br.nz	{rd5}?, [rb0, sc_a_ok]
 	set.rd	rd1, 0x0E3
@@ -78,7 +64,7 @@ sc_a_ok:
 	@@ (the gate asserts RAM <= 2 GiB, so bit 32 set => SP as a PA is
 	@@ outside RAM and the pre-fix responder must fault on it).
 	rb2rd	rd6, rb1, 1
-	LD64	rd3, 0x0000, 0x0000, 0xFFFF, 0xFFFF	@@ 0xFFFF_FFFF_0000_0000
+	set.rd rd3, 0xffffffff00000000	@@ 0xFFFF_FFFF_0000_0000
 	and.o	rd7, rd6, rd3
 	br.nz	{rd7}?, [rb0, sc_b_ok]
 	set.rd	rd1, 0x0E5
@@ -100,17 +86,17 @@ readc_ok:
 	set.rd	rd1, 0
 	@@ Echo the character just read, so the gate sees the value on the
 	@@ console as well (rd1 keeps the exit code; SYS_WRITEC returns nothing).
-	LOAD_ADDR rb16, CHAR_PA
+	set.rb rb16, CHAR_PA
 	set.zw	rd16, wp0, 0x0003
 	trap	cfx_umon, 0x3FF00
 
 readc_exit:
 	@@ SYS_EXIT (0x18): block {reason, code}, pointer handed over as its PA.
-	LOAD_ADDR rb4, EXIT_BLOCK_VA
-	LD64	rd2, 0x0026, 0x0002, 0x0000, 0x0000	@@ ADP_Stopped_ApplicationExit
+	set.rb rb4, EXIT_BLOCK_VA
+	set.rd rd2, 0x0000000000020026	@@ ADP_Stopped_ApplicationExit
 	st.o	rd2, [rb4, 0]
 	st.o	rd1, [rb4, 8]
-	LOAD_ADDR rb16, EXIT_BLOCK_PA
+	set.rb rb16, EXIT_BLOCK_PA
 	set.zw	rd16, wp0, 0x0018
 	trap	cfx_umon, 0x3FF00
 	swym	0

@@ -15,7 +15,7 @@
 @@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
 @@ rf 目的，只比低 32 位（ld.t 存单精：高 32 位保持原值，见 `spec/SimRISC-01 §1` 注；本宏只验低 32 位）
 .macro TEST_LD_RF_LO32 pt, mnem, dst, base, baseval, off, exp
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	\mnem	\dst, [\base, \off]
 	rf2rd	{rd21:rd21}, {\dst:\dst}
 	ext.uo	rd21, rd21, 31
@@ -32,7 +32,7 @@ __ck_\@:
 @@   `rf2rd` 读回完整 64 位。期望 = 预置拍的高半 + 该偏移处的字（两半都是数据区字面量，
 @@   独立 oracle，不从实现反推）。**零扩展实现（高半清 0）⇒ 本宏用例必红。**
 .macro TEST_LD_RF_FULL pt, mnem, dst, base, baseval, preoff, off, exp
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	ld.o	\dst, [\base, \preoff]
 	\mnem	\dst, [\base, \off]
 	rf2rd	{rd21:rd21}, {\dst:\dst}
@@ -67,7 +67,7 @@ __ck_\@:
 	@@ ---- overlap ----
 	TEST_LD_RF_LO32   14, ld.t,   rf1,   rb1,   TEST_DATA,          0x000,    0x0000000001234567
 	@@ overlap：同一目的连装两次，后到者生效
-	LOAD_ADDR rb9, TEST_DATA
+	set.rb rb9, TEST_DATA
 	ld.t    rf2, [rb9, 0x000]
 	ld.t    rf2, [rb9, 0x008]
 	rf2rd	{rd21:rd21}, {rf2:rf2}

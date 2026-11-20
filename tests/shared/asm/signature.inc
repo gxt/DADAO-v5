@@ -13,7 +13,7 @@
 @@   * `SIG_DUMP` 的参数块放在签名区**尾部** `buf + SIG_ARG_TAIL`（`0x7F8`；签名区容量
 @@     `0x800`、槽数 ≤127 ⇒ 与槽数据不重叠）。
 @@
-@@ 依赖：`LOAD_ADDR`（`tests/shared/asm/machine.inc`）须先 include；semihosting 常量
+@@ 依赖：`set.rb`（汇编器伪指令，无需 include）；semihosting 常量
 @@ `SEMIHOST_TAG`/`SYS_WRITEC`/`SYS_WRITE` 可由调用方先 `.equ`（本文件只在未定义时补
 @@ 默认值，值取 `contract-semihosting §1/§3`）。
 @@
@@ -41,7 +41,7 @@
 @@ 签名区初始化：`count` 个槽预填 `SIG_UNWRITTEN`，并把 rb30 指到区首。
 @@   `buf` = 签名区首地址（8 字节对齐；`inst_test.inc` 用 TEST_BUF）。
 .macro SIG_BEGIN buf, count
-	LOAD_ADDR rb30, \buf
+	set.rb rb30, \buf
 	set.rd	rd20, SIG_UNWRITTEN
 	.set	__sig_off, 0
 	.rept	\count
@@ -62,7 +62,7 @@
 @@   把 `rd17` 减成负数并永久循环 ⇒ 在宏内判掉（任意调用点都安全）。
 .macro SIG_DUMP_CHARS buf, count
 .if \count > 0
-	LOAD_ADDR rb16, \buf
+	set.rb rb16, \buf
 	set.zw	rd16, wp0, SYS_WRITEC
 	set.zw	rd17, wp0, (SIG_SLOT * (\count))
 __sig_pc_\@:
@@ -79,7 +79,7 @@ __sig_pc_\@:
 @@   `0` ⇒ 完成；`0 < rd8 < 长度`（部分写）⇒ 不重复写，交给 host 侧长度断言判红。
 .macro SIG_DUMP buf, count
 .if \count > 0
-	LOAD_ADDR rb16, ((\buf) + SIG_ARG_TAIL)
+	set.rb rb16, ((\buf) + SIG_ARG_TAIL)
 	set.rd	rd20, 1
 	st.o	rd20, [rb16, 0]			@@ 句柄 1 = 标准输出
 	set.rd	rd20, \buf

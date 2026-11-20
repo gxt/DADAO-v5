@@ -22,8 +22,6 @@
 @@ rb2rd（读当前 IP；chipyard 核若未实现须在跟随清单中补）。
 
 	.include "tests/shared/asm/machine-tiny.inc"
-	.include "tests/shared/asm/machine.inc"
-	.include "tests/ee-tiny/common_tiny.inc"
 
 	.text
 	.globl	_start
@@ -32,14 +30,14 @@ _start:
 	@@ 常量寄存器（rd 组）
 	set.zw	rd20, wp0, 0x0001		@@ 1
 	set.zw	rd21, wp0, 0xffff		@@ 0xffff
-	LD64	rd22, 0xffff, 0xffff, 0x0000, 0x0000	@@ 0x0000_0000_ffff_ffff
+	set.rd rd22, 0x00000000ffffffff	@@ 0x0000_0000_ffff_ffff
 	set.zw	rd23, wp0, 0x0007		@@ 7
-	LD64	rd24, 0x2000, 0x0000, 0x0000, 0x0000	@@ 8 KiB（hmon 段上限）
-	LD64	rd26, 0x4f54, 0x4442, 0x0000, 0x0000	@@ magic "DBOT"
-	LD64	rd27, 0x0001, 0x0003, 0x0000, 0x0000	@@ boot_magic 0x0003_0001
+	set.rd rd24, 0x0000000000002000	@@ 8 KiB（hmon 段上限）
+	set.rd rd26, 0x0000000044424f54	@@ magic "DBOT"
+	set.rd rd27, 0x0000000000030001	@@ boot_magic 0x0003_0001
 
 	@@ ---- 表头（16 字节）：magic(4) version(2) count(2) boot_magic(4) resv(4)
-	LOAD_ADDR rb3, BOOTROM_BASE + 0xe000	@@ image index table 固定偏移 0xE000
+	set.rb rb3, BOOTROM_BASE + 0xe000	@@ image index table 固定偏移 0xE000
 
 	ld.o	rd6, [rb3, 0]			@@ magic | version | count | boot_magic[31:16]
 	shr.uo	rd7, rd6, 32			@@ magic
@@ -82,15 +80,15 @@ _start:
 	br.nz	{rd7}?, [rb0, power_park]
 
 	@@ ---- 段边界：offset + size 落在 64 KiB 镜像内
-	LOAD_ADDR rb6, BOOTROM_BASE
+	set.rb rb6, BOOTROM_BASE
 	add.o	rb6, rb6, rd6			@@ src = BOOTROM_BASE + offset
 	add.o	rb5, rb6, rd3			@@ src_end = src + size
-	LOAD_ADDR rb7, 0x0001000000000000	@@ 2^48（BootROM 之上界）
+	set.rb rb7, 0x0001000000000000	@@ 2^48（BootROM 之上界）
 	sub.o	rd5, rb5, rb7
 	br.p	{rd5}?, [rb0, power_park]	@@ src_end > 2^48
 
 	@@ ---- 逐 8 字节复制 hmon 段：dst = hmon SRAM 起始（§6.2 第 2 步）
-	LOAD_ADDR rb7, HMON_BASE
+	set.rb rb7, HMON_BASE
 	shr.uo	rd5, rd3, 3			@@ 8 字节字数
 power_copy:
 	ld.o	rd6, [rb6, 0]
@@ -105,7 +103,7 @@ power_copy:
 	@@ （应用）可覆盖该槽；hmon 只读该槽写 excp_cause_ip。
 	@@ rb2rd 读当前 IP（= 本指令地址 X）；布局 rb2rd(X)/add.si(X+4)/
 	@@ st.o(X+8)/trap(X+12) ⇒ trap + 4 = X + 16。
-	LOAD_ADDR rb7, HMON_BASE
+	set.rb rb7, HMON_BASE
 	rb2rd	rd4, rb0, 1
 	add.si	rd4, 16
 	st.o	rd4, [rb7, 0xF8]
@@ -117,7 +115,7 @@ boot_magic_trap:
 	trap	cfx_hmon, 0x30001
 
 	@@ ---- hmon escape 回到这里：跳固定应用入口（§6.2 第 8 步）
-	LOAD_ADDR rb2, ENTRY
+	set.rb rb2, ENTRY
 	jump	[rb2, rd0, 0]
 
 power_park:

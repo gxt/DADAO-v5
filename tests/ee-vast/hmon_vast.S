@@ -33,83 +33,69 @@
 @@     * An unmatched cause stays on hmon_exit_b7 (unhandled fault).
 
 	.include "tests/shared/asm/machine-vast.inc"
-	.include "tests/shared/asm/machine.inc"
 
 	.ifndef	HMON_FAULT_POLICY
 	.equ	HMON_FAULT_POLICY, 0
 	.endif
 
-	.macro	LD64 rd, w0, w1, w2, w3
-	set.zw	\rd, wp0, \w0
-	.if \w1 != 0
-	or.w	\rd, wp1, \w1
-	.endif
-	.if \w2 != 0
-	or.w	\rd, wp2, \w2
-	.endif
-	.if \w3 != 0
-	or.w	\rd, wp3, \w3
-	.endif
-	.endm
-
 	.text
 	.globl	_start
 _start:
-	LOAD_ADDR rb1, SP
+	set.rb rb1, SP
 
 	@@ --- 1. trap cause / magic check (CFXTRAP = 1<<0, magic 0x30001) ---
 	cfx2rd	cfx_hmon, cg5, rc2, rd6
-	LD64	rd7, 0x0001, 0x0000, 0x0000, 0x0000
+	set.rd rd7, 0x0000000000000001
 	cmp.uo	rd8, rd6, rd7
 	br.nz	{rd8}?, [rb0, hmon_fault]
 	cfx2rd	cfx_hmon, cg5, rc4, rd6
-	LD64	rd7, 0xffff, 0x0003, 0x0000, 0x0000	@@ 0x0003_ffff
+	set.rd rd7, 0x000000000003ffff	@@ 0x0003_ffff
 	and.o	rd6, rd6, rd7
-	LD64	rd7, 0x0001, 0x0003, 0x0000, 0x0000	@@ 0x0003_0001
+	set.rd rd7, 0x0000000000030001	@@ 0x0003_0001
 	cmp.uo	rd8, rd6, rd7
 	br.nz	{rd8}?, [rb0, hmon_exit_b7]
 
 	@@ --- 2. page-table template in hmon SRAM (16 PTEs reserved, 4 used) ---
-	LOAD_ADDR rb2, HMON_BASE + 0x1000
-	LOAD_ADDR rb3, PMEM_BASE
-	LD64	rd4, 0xffef, 0x0000, 0x0000, 0xc000	@@ PTE0: PPN 0
+	set.rb rb2, HMON_BASE + 0x1000
+	set.rb rb3, PMEM_BASE
+	set.rd rd4, 0xc00000000000ffef	@@ PTE0: PPN 0
 	st.o	rd4, [rb2, 0]
 	st.o	rd4, [rb3, 0]
-	LD64	rd4, 0xffef, 0x2000, 0x0000, 0xc000	@@ PTE1: PPN 0x2000
+	set.rd rd4, 0xc00000002000ffef	@@ PTE1: PPN 0x2000
 	st.o	rd4, [rb2, 8]
 	st.o	rd4, [rb3, 8]
-	LD64	rd4, 0xffef, 0x4000, 0x0000, 0xc000	@@ PTE2: PPN 0x4000
+	set.rd rd4, 0xc00000004000ffef	@@ PTE2: PPN 0x4000
 	st.o	rd4, [rb2, 16]
 	st.o	rd4, [rb3, 16]
-	LD64	rd4, 0xffef, 0x6000, 0x0000, 0xc000	@@ PTE3: PPN 0x6000
+	set.rd rd4, 0xc00000006000ffef	@@ PTE3: PPN 0x6000
 	st.o	rd4, [rb2, 24]
 	st.o	rd4, [rb3, 24]
 
 	@@ --- 3. cfx_pmem DMA: PMEM SRAM -> PA 0, 32 bytes, DIR=0 ---
-	LOAD_ADDR rd9, PMEM_BASE
+	set.rd rd9, PMEM_BASE
 	cfx2rc	cfx_pmem, cg15, rc0, rd9	@@ dma_src
 	cfx2rc	cfx_pmem, cg15, rc1, rd0	@@ dma_dst = PA 0
-	LD64	rd9, 0x0020, 0x0000, 0x0000, 0x0000	@@ dma_size = 32
+	set.rd rd9, 0x0000000000000020	@@ dma_size = 32
 	cfx2rc	cfx_pmem, cg15, rc2, rd9
-	LD64	rd9, 0x0001, 0x0000, 0x0000, 0x0000	@@ START, DIR=0
+	set.rd rd9, 0x0000000000000001	@@ START, DIR=0
 	cfx2rc	cfx_pmem, cg15, rc3, rd9
 hmon_dma_poll:
 	cfx2rd	cfx_pmem, cg15, rc4, rd9	@@ dma_status
-	LD64	rd10, 0x0001, 0x0000, 0x0000, 0x0000
+	set.rd rd10, 0x0000000000000001
 	and.o	rd9, rd9, rd10
 	br.nz	{rd9}?, [rb0, hmon_dma_poll]
 
 	@@ --- 4. invalidate TLB, PTBR=0, ptw_enable=1 ---
-	LD64	rd9, 0x0002, 0x0000, 0x0000, 0x0000	@@ tlb_control = invalid all
+	set.rd rd9, 0x0000000000000002	@@ tlb_control = invalid all
 	cfx2rc	cfx_ptw, cg12, rc0, rd9
 	cfx2rc	cfx_ptw, cg9, rc0, rd0		@@ PTBR PPN = 0 (PA 0)
-	LD64	rd9, 0x0001, 0x0000, 0x0000, 0x0000
+	set.rd rd9, 0x0000000000000001
 	cfx2rc	cfx_ptw, cg8, rc8, rd9		@@ ptw_enable = 1
 
 	@@ --- 5. cfx_umon hypv: vector = ENTRY, switch mode = hypv (3) ---
-	LOAD_ADDR rd5, ENTRY
+	set.rd rd5, ENTRY
 	cfx2rc	cfx_umon, cg3, rc10, rd5
-	LD64	rd6, 0x0003, 0x0000, 0x0000, 0x0000
+	set.rd rd6, 0x0000000000000003
 	cfx2rc	cfx_umon, cg3, rc8, rd6		@@ switch_run_mode = hypv
 
 	@@ --- 6. handoff to the test body in hypv ---
@@ -121,7 +107,7 @@ hmon_dma_poll:
 @@   build-selected policy.  (A fault raised inside hmon's own boot init would
 @@   recurse here; boot init is expected not to fault -- it enables PTW below.)
 hmon_fault:
-	LOAD_ADDR rb4, FAULT_RECORD
+	set.rb rb4, FAULT_RECORD
 	st.o	rd6, [rb4, 0]			@@ fault-record[0] = cause
 	cfx2rd	cfx_hmon, cg5, rc3, rd7		@@ excp_cause_ip
 	st.o	rd7, [rb4, 8]			@@ fault-record[1] = cause ip
@@ -133,10 +119,10 @@ hmon_fault:
 	@@ exit: explicit cause -> spec/Kaiwu §7.1 monitor code.
 	@@ The policy runs in hmon (hypv, bit5:4 = 11): code = 0xF0 | index.
 	.macro	HMON_FAULT_CODE cause, code
-	LD64	rd7, \cause, 0x0000, 0x0000, 0x0000
+	set.rd rd7, \cause
 	cmp.uo	rd8, rd6, rd7
 	br.nz	{rd8}?, [rb0, 1f]
-	LD64	rd9, \code, 0x0000, 0x0000, 0x0000
+	set.rd rd9, \code
 	jump	[rb0, hmon_exit_rd9]
 1:
 	.endm
@@ -154,24 +140,24 @@ hmon_fault:
 	.endif
 
 hmon_exit_rd9:
-	LOAD_ADDR rb16, HMON_BASE + 0x0d00
-	LD64	rd16, 0x0026, 0x0002, 0x0000, 0x0000
+	set.rb rb16, HMON_BASE + 0x0d00
+	set.rd rd16, 0x0000000000020026
 	st.o	rd16, [rb16, 0]
 	st.o	rd9, [rb16, 8]
 	jump	[rb0, hmon_sys_exit]
 
 hmon_sys_exit:
-	LD64	rd16, 0x0018, 0x0000, 0x0000, 0x0000
+	set.rd rd16, 0x0000000000000018
 	trap	cfx_umon, 0x3FF00
 	swym	0
 
 hmon_exit_b7:
 	@@ SYS_EXIT with the argument block in hmon SRAM.
-	LOAD_ADDR rb16, HMON_BASE + 0x0d00
-	LD64	rd16, 0x0026, 0x0002, 0x0000, 0x0000
+	set.rb rb16, HMON_BASE + 0x0d00
+	set.rd rd16, 0x0000000000020026
 	st.o	rd16, [rb16, 0]
-	LD64	rd16, 0x00b7, 0x0000, 0x0000, 0x0000
+	set.rd rd16, 0x00000000000000b7
 	st.o	rd16, [rb16, 8]
-	LD64	rd16, 0x0018, 0x0000, 0x0000, 0x0000
+	set.rd rd16, 0x0000000000000018
 	trap	cfx_umon, 0x3FF00
 	swym	0

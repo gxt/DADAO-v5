@@ -63,7 +63,6 @@ _INPUT_GLOBS = (
     "tests/inst/*/*.inc",
     "tests/inst/macros/inst_test.inc",
     "tests/shared/asm/signature.inc",
-    "tests/shared/asm/machine.inc",
     "tests/shared/asm/machine-tiny.inc",
     DEFAULT_LDS,
 )
@@ -122,7 +121,7 @@ class _Engine:
         self.slots = []
         self.section = None
         self.sections = {}
-        self.regs = {}          # 抽象寄存器值：set.rd/LOAD_ADDR/ld.o
+        self.regs = {}          # 抽象寄存器值：set.rd/set.rb/ld.o
         self.pending = None     # 上一槽的期望（等 `__NCHECK` 加一建槽）
         self.cur_macro = None
         self.depth = 0
@@ -389,9 +388,7 @@ class _Engine:
             return
         mnem = head.lower()
         parts = _split_args(rest)
-        if mnem == "set.rd" and len(parts) >= 2:
-            self.regs[parts[0]] = ("const", parts[1], None)
-        elif mnem == "load_addr" and len(parts) >= 2:
+        if mnem in ("set.rd", "set.rb") and len(parts) >= 2:
             self.regs[parts[0]] = ("const", parts[1], None)
         elif mnem == "ld.o" and len(parts) >= 2:
             m = re.match(r"\[\s*([A-Za-z0-9]+)\s*,\s*(.+)\]$", parts[1])

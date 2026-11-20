@@ -43,8 +43,8 @@
 	.include "tests/inst/macros/inst_test.inc"
 
 	__TEST_BEGIN
-	LOAD_ADDR rb20, HMON_BASE		@@ 固件 hmon 的帧槽（+0xE0/0xE8/0xF0/0xF8）
-	LOAD_ADDR rb22, HMON_BASE		@@ 本探针自己的槽（+0xB0 标记、+0xB8/+0xC0 计数）
+	set.rb rb20, HMON_BASE		@@ 固件 hmon 的帧槽（+0xE0/0xE8/0xF0/0xF8）
+	set.rb rb22, HMON_BASE		@@ 本探针自己的槽（+0xB0 标记、+0xB8/+0xC0 计数）
 	@@ SRAM 上电值不保证为 0 ⇒ 探针自己的槽显式清零（`tests/inst/11-cfx` 的教训）
 	st.o	rd0, [rb22, 0xB0]
 	st.o	rd0, [rb22, 0xB8]
@@ -113,7 +113,7 @@
 	__CHECK_RD	11, rd5, 0x55
 
 	@@ 10：ptw_enable = 1、VA[47:42] = 0 的数据读 ⇒ CFXMEM + 数据缺失类
-	LOAD_ADDR rb4, 0x1000
+	set.rb rb4, 0x1000
 	.globl	d1_aip
 d1_aip:
 	aip.si	rb21, 0
@@ -129,7 +129,7 @@ d1_resume:
 	__REC	rd5
 
 	@@ 11：ptw_enable = 1、VA[47:42] = 0 的取指 ⇒ CFXMEM + 取指缺失类
-	LOAD_ADDR rb4, 0x2000
+	set.rb rb4, 0x2000
 	.globl	d2_aip
 d2_aip:
 	aip.si	rb21, 0
@@ -152,7 +152,7 @@ d2_resume:
 	@@ 12：ptw_enable = 0、VA[47:42] = 0 的数据读 ⇒ CFXMEM + NONPTW（TLB-41）
 	set.rd	rd6, 0
 	cfx2rc	cfx_ptw, cg8, rc8, rd6
-	LOAD_ADDR rb4, 0x1000
+	set.rb rb4, 0x1000
 	.globl	d3_aip
 d3_aip:
 	aip.si	rb21, 0
@@ -168,7 +168,7 @@ d3_resume:
 	__REC	rd5
 
 	@@ 13：ptw_enable = 0、VA[47:42] = 0 的取指 ⇒ CFXMEM + NONPTW
-	LOAD_ADDR rb4, 0x2000
+	set.rb rb4, 0x2000
 	.globl	d4_aip
 d4_aip:
 	aip.si	rb21, 0

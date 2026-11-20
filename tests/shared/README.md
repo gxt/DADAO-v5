@@ -5,7 +5,7 @@
 
 | 子目录 / 文件 | 内容 | 谁用 |
 |---|---|---|
-| `asm/` | `machine.inc`（`LOAD_ADDR` 宏）+ 由 `contracts/machine.yaml` + `tests/ee-<env>/runtime.yaml` 生成的 `machine-{tiny,vast}.inc` | bootrom / crt0 / arch 向量 |
+| `asm/` | `machine-{tiny,vast}.inc`（由 `contracts/machine.yaml` + `tests/ee-<env>/runtime.yaml` 生成的几何符号）+ `signature.inc` | bootrom / crt0 / arch 向量 |
 | `asm/signature.inc` | 签名流机制（`m16-testcases-002`）：`SIG_BEGIN buf,count`（预填 `0xdeadbeef`）/ `SIGUPD reg`（8 字节槽 + 前进）/ `SIG_DUMP buf,count`（`SYS_WRITE` handle 1 块写，失败回退 `SYS_WRITEC`）/ `SIG_DUMP_CHARS`（逐字节） | `tests/inst/macros/inst_test.inc`（`__REC`/收尾）；host 侧解析 `tools/testcases/lib/signature.py`（arch 探针的 word-builder 发射器也在同一个 `.py` 里，机制只此一份） |
 
 > **平台差异（`m16-testcases-002` 复核实测）**：QEMU 与 gem5 的 `SYS_WRITE` handle 1 需先

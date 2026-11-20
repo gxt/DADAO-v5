@@ -32,12 +32,12 @@
 	TEST_STM         6, stm.t, rf, {rf5:rf6}, rb4, MSTORE + 0x888, rd19, -0x800, MDATA_T + 0x050, 0x8000001480000015
 
 	@@ boundary：SRAM 尾拍（0xffffff7ffff8）可写，读写逐字节相等
-	LOAD_ADDR rb28, MDATA_T + 0x090
+	set.rb rb28, MDATA_T + 0x090
 	ldm.t	{rf5:rf6}, [rb28, rd0]
 	set.rd    rd19, 0x000
-	LOAD_ADDR rb4, 0xFFFFFF7FFFF8
+	set.rb rb4, 0xFFFFFF7FFFF8
 	stm.t	{rf5:rf6}, [rb4, rd19]
-	LOAD_ADDR rb21, 0xFFFFFF7FFFF8
+	set.rb rb21, 0xFFFFFF7FFFF8
 	ld.o	rd21, [rb21, 0]
 	__CHECK_RD         7, rd21, 0x8000002480000025
 
@@ -57,7 +57,7 @@
 	@@ ---- rb0 作基址：imm 负 / 零 / 正三档（`spec/SimRISC-00 §2`：rb0 读出 = **当前指令地址**，非「下一条」）----
 	@@   槽与被测指令都由 `.org` 钉住：llvm-mc 把标签差折成 0（ISS-424）⇒ imm 只能写字面常量；
 	@@   负档 EA = ENTRY+0x2000（死的预设数据槽）、零档 EA = 被测指令自身地址、正档 EA = ENTRY+0x2188。
-	LOAD_ADDR rb28, TEST_DATA + 0x088
+	set.rb rb28, TEST_DATA + 0x088
 	ldm.t    {rf5:rf5}, [rb28, rd0]		@@ 源组 = TEST_DATA + 0x088
 	jump	[rb0, __rb0n_pre]
 	.org	0x2000
@@ -79,12 +79,12 @@ __rb0z:
 	ld.ut	rd21, [rb12, -0x004]		@@ 独立通路：0x20C4 − 4 = 0x20C0
 	__CHECK_RD 13, rd21, 0x0000000011111111
 __rb0z_ck:
-	LOAD_ADDR rb28, TEST_DATA + 0x088
+	set.rb rb28, TEST_DATA + 0x088
 	ldm.t    {rf5:rf5}, [rb28, rd0]		@@ 源组 = TEST_DATA + 0x088
 	jump	[rb0, __rb0p]
 	.org	0x2180
 __rb0p:
-	LOAD_ADDR rb26, (MSTORE + 0x1C0 + 4 - 8)
+	set.rb rb26, (MSTORE + 0x1C0 + 4 - 8)
 	aip.si	rb25, 0			@@ rb25 = ENTRY+0x2180
 	sub.o	rd19, rb26, rb25
 	stm.t    {rf5:rf5}, [rb0, rd19]	@@ 被测 @0x2188：EA = MSTORE + 0x1C0 + 4

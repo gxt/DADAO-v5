@@ -15,7 +15,7 @@
 @@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
 @@ rf 目的，64 位全比（ld.o）
 .macro TEST_LD_RF pt, mnem, dst, base, baseval, off, exp
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	\mnem	\dst, [\base, \off]
 	rf2rd	{rd21:rd21}, {\dst:\dst}
 	set.rd	rd20, \exp
@@ -49,7 +49,7 @@ __ck_\@:
 	@@ ---- overlap ----
 	TEST_LD_RF        14, ld.o,   rf1,   rb1,   TEST_DATA,          0x000,    0x0123456789ABCDEF
 	@@ overlap：同一目的连装两次，后到者生效
-	LOAD_ADDR rb9, TEST_DATA
+	set.rb rb9, TEST_DATA
 	ld.o    rf2, [rb9, 0x000]
 	ld.o    rf2, [rb9, 0x008]
 	rf2rd	{rd21:rd21}, {rf2:rf2}

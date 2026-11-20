@@ -21,7 +21,7 @@
 @@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
 @@ ra 目的
 .macro TEST_LD_RA pt, mnem, dst, base, baseval, off, exp
-	LOAD_ADDR \base, \baseval
+	set.rb \base, \baseval
 	\mnem	\dst, [\base, \off]
 	ra2rd	{rd21:rd21}, {\dst:\dst}
 	set.rd	rd20, \exp
@@ -55,7 +55,7 @@ __ck_\@:
 	@@ ---- overlap ----
 	TEST_LD_RA        14, ld.o,   ra1,   rb1,   TEST_DATA,          0x000,    0x0123456789ABCDEF
 	@@ overlap：同一目的连装两次，后到者生效
-	LOAD_ADDR rb9, TEST_DATA
+	set.rb rb9, TEST_DATA
 	ld.o    ra2, [rb9, 0x000]
 	ld.o    ra2, [rb9, 0x008]
 	ra2rd	{rd21:rd21}, {ra2:ra2}
@@ -104,7 +104,7 @@ __r3_ck:
 	@@ R4：RACNT = 0、MRPTR = MEMRAS + 0x78、条目递归计数 = 1 ⇒ `ret` 走 D4b 消费该条目
 	@@   ⇒ MRPTR += 8、RACNT 仍 0；落点由 `.org 0x1000` 钉住（返回地址写绝对常量）
 	set.rd	rd5, (0x0001000000000000 + ENTRY + 0x1000)
-	LOAD_ADDR rb5, (MEMRAS + 0x78)
+	set.rb rb5, (MEMRAS + 0x78)
 	st.o	rd5, [rb5, 0]                @@ MemRAS[MRPTR] = {计数 1, 返回地址 = 落点}
 	set.rd	rd5, (MEMRAS + 0x78)         @@ ra0 = {RACNT = 0, MRPTR = MEMRAS + 0x78}
 	rd2ra	{ra0}, {rd5}
@@ -121,7 +121,7 @@ __r4_land:
 	@@ **三平台分歧点**：chipyard 写入丢弃 `[63:54]`（读回 0）；QEMU/gem5 全 64 位可写
 	@@   （读回保留写入位）⇒ 这三点在 QEMU/gem5 记红并登记 issue（候选号见任务书「遗留问题」）；
 @@   期望**不放宽**。
-	LOAD_ADDR rb5, TEST_DATA
+	set.rb rb5, TEST_DATA
 	set.rd	rd5, 0xFFFF000000000000      @@ [63:54] = 0x3FF（SBZ 全置）、RACNT = 63、MRPTR = 0
 	st.o	rd5, [rb5, 0x040]
 	ld.o	ra0, [rb5, 0x040]

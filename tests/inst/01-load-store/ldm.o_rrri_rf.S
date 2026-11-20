@@ -26,7 +26,7 @@
 	TEST_LDM         4, ldm.o, {rf8:rf15}, rb3, MDATA_O + 0x020, rd19, 0x000, MDUMP + 0x030, 8, 0x010203040506070C, 0x010203040506070D, 0x010203040506070E, 0x010203040506070F, 0x0102030405060710, 0x0102030405060711, 0x0102030405060712, 0x0102030405060713
 
 	@@ semantic：逐元素核对
-	LOAD_ADDR rb3, MDATA_O + 0x030
+	set.rb rb3, MDATA_O + 0x030
 	set.rd    rd19, 0x000
 	ldm.o	{rf5:rf7}, [rb3, rd19]
 	rf2rd	{rd21:rd21}, {rf5:rf5}
@@ -52,17 +52,17 @@
 	@@ overlap：**不适用** —— 范围在 RF bank，基址恒在 RB、索引恒在 RD ⇒ 结构上不可能相交
 
 	@@ boundary：immu6=63（最大合法个数）整组装入 + 回写（MUNI 同值元素）
-	LOAD_ADDR rb3, MUNI
+	set.rb rb3, MUNI
 	set.rd    rd19, 0x000
 	ldm.o	{rf1:rf63}, [rb3, rd19]
-	LOAD_ADDR rb28, MSTORE
+	set.rb rb28, MSTORE
 	stm.o	{rf1:rf63}, [rb28, rd0]
 	__CHECK_MEM        12, MSTORE, 0x000, 0x0F1E2D3C4B5A6978
 	__CHECK_MEM        13, MSTORE, 0x0F8, 0x0F1E2D3C4B5A6978
 	__CHECK_MEM        14, MSTORE, 0x1F0, 0x0F1E2D3C4B5A6978
 
 	@@ legality：rf0 作目的合法（FCSR 写掩码），不触发 ILLI
-	LOAD_ADDR rb3, MDATA_O + 0x088
+	set.rb rb3, MDATA_O + 0x088
 	set.rd    rd19, 0x000
 	ldm.o	{rf0:rf1}, [rb3, rd19]
 	rf2rd	{rd21:rd21}, {rf1:rf1}
@@ -99,7 +99,7 @@ __rb0z_ck:
 	jump	[rb0, __rb0p]
 	.org	0x2180
 __rb0p:
-	LOAD_ADDR rb26, (TEST_DATA + 0x088 - 8)
+	set.rb rb26, (TEST_DATA + 0x088 - 8)
 	aip.si	rb25, 0			@@ rb25 = ENTRY+0x2180
 	sub.o	rd19, rb26, rb25		@@ rd19 = (TEST_DATA+0x080) − 0x2180
 	ldm.o    {rf5:rf5}, [rb0, rd19]	@@ 被测 @0x2188：EA = ENTRY+0x5888

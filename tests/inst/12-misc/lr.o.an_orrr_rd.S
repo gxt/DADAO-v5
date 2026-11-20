@@ -89,9 +89,9 @@
 	__PREP_ST_ADDR	A5
 	lr.o.an	rd2, [rb3]
 	__CHECK_RD 7, rd2, 0x0123456789ABCDEF
-	LOAD_ADDR rb3, B5
+	set.rb rb3, B5
 	lr.o.an	rd2, [rb3]
-	LOAD_ADDR rb3, A5
+	set.rb rb3, A5
 	set.rd	rd2, 0xDEADBEEFCAFEF00D
 	sc.o.nn	rd5, rd2, [rb3]
 	__VERIFY_RD 7, rd5, 0x0000000000000001
@@ -177,7 +177,7 @@
 	__CHECK_RD 16, rd2, 0x0123456789ABCDEF
 	__PREP_LI_ADDR	rd2, 0xDEADBEEFCAFEF00D, rb4, B14
 	sc.o.nn	rd5, rd2, [rb4]
-	LOAD_ADDR rb3, A14
+	set.rb rb3, A14
 	sc.o.nn	rd5, rd2, [rb3]
 	__VERIFY_RD 16, rd5, 0x0000000000000001
 	__VERIFY_MEM 16, A14, 0, 0x0123456789ABCDEF
