@@ -239,7 +239,7 @@ help:
 	@echo "  make build-lld       Build LLD linker (bin/ld.lld); shares the one-shot LLVM config"
 	@echo "  make build-qemu      Compile QEMU (reconfigures only when the stamped config/ccache state changes)"
 	@echo "  make build-qemu-reconfig  Force configure re-run then compile QEMU"
-	@echo "  ccache               $(if $(CCACHE),$(CCACHE) (auto-detected on PATH; pass CCACHE= to disable),off — ccache not on PATH; LLVM uses the cmake compiler launcher, QEMU the CC/CXX prefix)"
+	@echo "  ccache               $(if $(CCACHE),$(CCACHE) (auto-detected on PATH; pass CCACHE= to disable),off — ccache not on PATH; LLVM uses the cmake compiler launcher, QEMU the CC/CXX prefix, Linux the CC wrapper)"
 	@echo "  make build-gem5      Build gem5 with the DADAO arch skeleton (SCons; GEM5_SCONS=... if not on PATH; GEM5-004t)"
 	@echo "  make check-gem5-decode  Regenerate/compare the decode table and run the 264-row decode assertions (GEM5-004t)"
 	@echo "  make check-wuming-cycles Re-parse the cycle model doc and check the 264-id cycle table + generated C++ (m16-gem5-002; the timing model is consumed by 'gem5.opt configs/dadao/se.py --cpu-type timing --cycle-table contracts/wuming-cycles.yaml')"
