@@ -72,7 +72,7 @@
 
 - **帧尺寸 2048 B**（用户强调「我已经裁定过的！！！」）：四组各 64 槽，`rd` 组第 0 槽存 `status`、`rb` 组第 0 槽存 `ip`——因为 `rd[0]` 本来就不是寄存器（`ld` 到它 ILLI）、`rb[0]` 在硬件上就是只读 IP。
 - **C 表达方式**：**匿名 union**（用户 2026-11-20「还是匿名 union 吧，这里没有歧义，无需具名」）——`regs->rd[64]` 与 `regs->status` 两个视图同址，48 处 C 引用与 12 处 asm（`PT_IP`/`PT_STATUS`）**零改动**。
-- **模式位：低 4 位**（不是 2 位）放在 `status`；`spec/DADAO-12 §1` 只定义 2 位编码（0b00 user / 0b01 jail / 0b10 supv / 0b11 hypv），**高 2 位留扩展**；`user_mode = (status & 0xF) <= 1`；**bit 4–63 保留 0**（用户「以后再说」）。
+- **模式位：低 4 位**（不是 2 位）放在 `status`；`spec/DADAO-12 §1` 只定义 2 位编码（0b00 user / 0b01 jail / 0b10 supv / 0b11 hypv），**高 2 位留扩展**；`user_mode(regs) = ((regs->status & 0x3) != 0)`（用户 2026-11-20 二次调整；**注意**：按 `spec/DADAO-12 §1`，jail(0b01) 属用户态，此式把 jail 判为非用户态——因 Linux 下不进 jail，当前等价；将来若支持 jail 需重裁）；**bit 4–63 保留 0**（用户「以后再说」）。
 - **uapi 与 musl 同步更新**（用户原话）：`uapi/asm/ptrace.h` 的 `user_regs_struct` 与 musl 的 `sigcontext`/`mcontext_t` 都按 2048 B 同形状改。
 - **`ra[0]` 的 `{RACNT, MRPTR}` 元数据保持原样**，不参与复用。
 
