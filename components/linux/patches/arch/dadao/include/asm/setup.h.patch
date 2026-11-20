@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..b5416c3f4
+index 000000000..1509d2b5e
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,261 @@
+@@ -0,0 +1,272 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -124,13 +124,24 @@ index 000000000..b5416c3f4
 +void __noreturn dadao_enter_user(struct pt_regs *regs);
 +/* Loads the static frame and `trap cfx_umon` (kernel/trap.S). */
 +void __noreturn dadao_umon_enter(void);
-+/* The C half of the user-mode entry stub. */
++/*
++ * The return-to-user tail of the umon entry (m14-linux-045,
++ * kernel/entry_common.c): the C half of the stub, which runs the dispatch and
++ * then consumes `_TIF_WORK_MASK` on the way back to user mode.  `..._dispatch()`
++ * is the half that only decides what the trap was (kernel/process.c).
++ */
 +unsigned long dadao_user_excp_handler(struct pt_regs *regs, unsigned long cause,
 +				      unsigned long info);
++unsigned long dadao_user_excp_dispatch(struct pt_regs *regs, unsigned long cause,
++				       unsigned long info);
++/* The syscall-entry half of the same loop (kernel/entry_common.c). */
++void dadao_syscall_enter(struct pt_regs *regs);
 +/* The umon entry's two frame helpers (kernel/process.c, called from trap.S):
 + * adopt the staged frame into the task's own `task_pt_regs()` slot, and
 + * re-derive it after the C half (which may sleep). */
 +struct pt_regs *dadao_umon_adopt(void);
++/* The asynchronous entry's adopt (kernel/process.c, called from async_trap.S). */
++struct pt_regs *dadao_async_adopt(void);
 +struct pt_regs *dadao_umon_frame(void);
 +/* A task's first instruction after a context switch (kernel/process.c). */
 +void __noreturn dadao_ret_from_fork(void);

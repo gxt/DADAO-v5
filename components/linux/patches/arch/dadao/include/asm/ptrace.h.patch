@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/ptrace.h b/arch/dadao/include/asm/ptrace.h
 new file mode 100644
-index 000000000..f73754dfd
+index 000000000..e844ac504
 --- /dev/null
 +++ b/arch/dadao/include/asm/ptrace.h
-@@ -0,0 +1,151 @@
+@@ -0,0 +1,167 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PTRACE_H
 +#define __ASM_PTRACE_H
@@ -47,10 +47,14 @@ index 000000000..f73754dfd
 + * that wants to resume elsewhere writes that register, not this field
 + * (contract-see §6.2).
 + *
-+ * `status` has no hardware source on this machine — there is no status
-+ * register and no IE bit (contract-abi, contract-see §6.4) — so the entry
-+ * writes 0.  The field is kept because the generic ptrace/ELF code expects a
-+ * task's saved context to have one place for it.
++ * `status` carries no hardware state — there is no status register and no IE
++ * bit (contract-abi, contract-see §6.4).  Since m14-linux-045 it is the
++ * **software container for the exception's pre-entry run mode** (low 4 bits,
++ * user ruling 2026-11-20 in `discussing.md` N30): every entry stub writes it
++ * with `DADAO_SAVE_STATUS` (asm/entry.h), so `user_mode()` reads it from here
++ * instead of guessing.  It describes the context the frame came *from*; `escape`
++ * restores the same fact from the hardware (`excp_prev_run_mode`), so nothing
++ * has to write it back.
 + */
 +struct pt_regs {
 +	unsigned long rd[64];
@@ -84,37 +88,49 @@ index 000000000..f73754dfd
 +		       offsetof(struct pt_regs, rf) % 8 == 0,
 +	       "pt_regs: block-transferred banks must be 8-byte aligned");
 +
++/*
++ * Mode of the context this frame was taken from (m14-linux-045).
++ *
++ * `status` low 4 bits are written by the entry stubs from the hardware's
++ * `excp_prev_run_mode` (`DADAO_SAVE_STATUS`, asm/entry.h); the verdict uses the
++ * user ruling's criterion `(status & 0x3) != 0` (2026-11-20, `discussing.md`
++ * N30).
++ *
++ * Encoding, and why it is not the raw two-bit mode: `spec/DADAO-12 §1` encodes
++ * run modes as 0b00 user / 0b01 jail / 0b10 supv / 0b11 hypv, so storing the
++ * hardware value verbatim would make the criterion true for supv (0b10) — the
++ * opposite of what it has to answer.  The stubs therefore write
++ * `DADAO_STATUS_USER` (0x1) for a user-mode entry and 0 for every privileged
++ * one; the criterion then means "came from user mode".  The difference against
++ * the spec that the ruling calls out is kept: jail (0b01) is **not** a user mode
++ * here — this port never enters jail, and supporting it later means re-deriving
++ * the encoding, not just widening this test.  Bits 4-63 stay 0.
++ */
 +static inline int user_mode(struct pt_regs *regs)
 +{
-+	/*
-+	 * **The saved frame carries no mode bit** (m14-linux-042 P0): `ip` is
-+	 * `excp_cause_ip`, `status` is written 0 because the machine has no
-+	 * status register (contract-abi), and the hardware's own
-+	 * `excp_prev_mode` (`cfx_smon cg5`) is not copied into `struct pt_regs`.
-+	 * So this cannot answer, and it must not guess from an address range:
-+	 * a `prev_mode` field has to be added to the frame and written by the
-+	 * entry stubs — a frame-layout (contract) change, registered as 待用户裁定
-+	 * in `m14-linux-035`'s task book.
-+	 *
-+	 * Everything that *needs* the mode on this port gets it from the
-+	 * dispatch route instead, which knows the fact: `dadao_user_fault_from_umon()`
-+	 * (the `cfx_umon` hand-over) is a user fault, the supv vector is not
-+	 * (`dadao_do_page_fault(..., from_user)`).
-+	 */
-+	return 0;
++	return (regs->status & 0x3) != 0;
 +}
 +
 +/*
-+ * Interrupt-enable state of the *interrupted* context (m14-linux-044).
++ * Interrupt-enable state of the *interrupted* context (m14-linux-044/045).
 + *
-+ * The frame cannot answer this: contract-abi gives this machine no status
-+ * register, the two entry stubs write `status` = 0 (asm/ptrace.h above), and
-+ * contract-see §6.4 puts the enable state in the running mode's monitor row,
-+ * not in the cg5 frame.  The generic entry code asks the question to decide
-+ * what to restore on the way out; with CONFIG_PREEMPTION=n its preemption half
-+ * is compiled out, so this reports the ordinary case (interrupts were enabled)
-+ * instead of inventing a bit.  m14-linux-045 wires the irqentry_* call sites
-+ * and revisits this if it adds the state to the frame.
++ * The frame cannot answer this — an interface limit, not an omission
++ * (user ruling B of 2026-11-20, `discussing.md` N30): `contract-see §6.4` keeps
++ * the enable state in the running mode's monitor row, the hardware saves the
++ * frame's `global_cfx_intr_mask` in an internal register
++ * (`saved_global_cfx_intr_mask`, `spec/DADAO-12 §3.6`) that software cannot
++ * read, and there is no IE bit in the saved cg5 fields to copy.  Adding a bit to
++ * `status` would therefore be a *software mirror* of a state the hardware
++ * already owns and restores on `escape`, which the ruling rejects.
++ *
++ * `irqs_disabled()` (asm/irqflags.h) keeps reading the hardware row and is
++ * deliberately true inside an exception — that is what lets `might_sleep()`
++ * catch a sleep in interrupt context.  This function answers the other
++ * question ("was the *interrupted* context masked"), and the honest answer for
++ * every frame this port produces is "unknown"; the generic entry code's use of
++ * it (deciding whether the return path may reschedule) is satisfied by
++ * reporting the ordinary case, because the kernel never returns to user mode
++ * with the source masked (the exit path restores the entry's word).
 + */
 +static __always_inline bool regs_irqs_disabled(struct pt_regs *regs)
 +{

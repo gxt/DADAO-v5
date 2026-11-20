@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/kernel/k5_syscall_selftest.c b/arch/dadao/kernel/k5_syscall_selftest.c
 new file mode 100644
-index 000000000..5430e8b2b
+index 000000000..807f2d05a
 --- /dev/null
 +++ b/arch/dadao/kernel/k5_syscall_selftest.c
 @@ -0,0 +1,798 @@
@@ -330,7 +330,7 @@ index 000000000..5430e8b2b
 +	frame->rd[13] = K5_BRK_WANT;		/* U8's target break */
 +	frame->rd[16] = (unsigned long)arg;	/* the fd the probe opened */
 +	frame->rd[17] = K5_MSG_LEN;
-+	frame->status = 0;
++	frame->status = DADAO_STATUS_USER;
 +	dadao_enter_user(frame);		/* never returns */
 +}
 +

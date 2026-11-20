@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/irq.c b/arch/dadao/kernel/irq.c
 new file mode 100644
-index 000000000..311217c30
+index 000000000..9e21c2a32
 --- /dev/null
 +++ b/arch/dadao/kernel/irq.c
-@@ -0,0 +1,146 @@
+@@ -0,0 +1,177 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO supv asynchronous-interrupt entry installation and the two mask axes
@@ -51,6 +51,10 @@ index 000000000..311217c30
 +#define CFX_HART_CG_SUPV		2
 +#define CFX_HART_RC_SUPV_SWITCH_MODE	8
 +#define CFX_HART_RC_SUPV_EXCP_VECTOR	10
++/* The same two rows of cfx_hart's *user* mode row (m14-linux-045). */
++#define CFX_HART_CG_USER		0
++#define CFX_HART_RC_USER_SWITCH_MODE	8
++#define CFX_HART_RC_USER_EXCP_VECTOR	10
 +
 +/* cfx_smon (cfxha 2): the kernel's own cfx — IE knob row and global row. */
 +#define CFX_SMON_CG_SUPV		2
@@ -93,8 +97,8 @@ index 000000000..311217c30
 +void __init init_IRQ(void)
 +{
 +	unsigned long vec = (unsigned long)dadao_async_excp;
-+	unsigned long vread;
-+	unsigned long mode;
++	unsigned long vread, uread;
++	unsigned long mode, umode;
 +	unsigned long cfxha;
 +	unsigned long bit;
 +	unsigned long mask;
@@ -115,6 +119,33 @@ index 000000000..311217c30
 +	if (mode != DADAO_MODE_SUPV)
 +		dadao_k2_fail(K2_FAIL_ASYNC_MODE,
 +			      "cfx_hart supv switch_run_mode");
++
++	/*
++	 * ---- 1b. the *user* row (m14-linux-045) -----------------------------
++	 * The vector is per (cfx, run mode) row: a delivery taken while a task
++	 * runs in user mode reads `cfx_hart`'s **user** row (cg0), not the supv
++	 * one, and the reset vector there is 0 — the machine would jump to
++	 * address 0.  The kernel writes the same stub and the same entry mode
++	 * into that row, which is what makes a tick of a user task enter
++	 * `dadao_async_excp` (in supv, with `excp_prev_run_mode` = user, so the
++	 * stub knows to switch to the task's kernel stack).
++	 */
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_USER,
++			CFX_HART_RC_USER_SWITCH_MODE, DADAO_MODE_SUPV);
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_USER,
++			CFX_HART_RC_USER_EXCP_VECTOR, vec);
++	uread = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_USER,
++			       CFX_HART_RC_USER_EXCP_VECTOR);
++	umode = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_USER,
++			       CFX_HART_RC_USER_SWITCH_MODE) & 0x3;
++	dadao_early_printf("K2 irq: vec cfx_hart_user_excp_vector=%#lx "
++			   "user_mode=%#lx\n", uread, umode);
++	if (uread != vec)
++		dadao_k2_fail(K2_FAIL_ASYNC_VECTOR,
++			      "cfx_hart user vector read-back");
++	if (umode != DADAO_MODE_SUPV)
++		dadao_k2_fail(K2_FAIL_ASYNC_MODE,
++			      "cfx_hart user switch_run_mode");
 +
 +	/*
 +	 * ---- 2. the two axes ------------------------------------------------

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/async_trap.S b/arch/dadao/kernel/async_trap.S
 new file mode 100644
-index 000000000..9cff08873
+index 000000000..82daa1be4
 --- /dev/null
 +++ b/arch/dadao/kernel/async_trap.S
-@@ -0,0 +1,76 @@
+@@ -0,0 +1,127 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO cfx_hart supv asynchronous-interrupt vector (K2).
@@ -30,9 +30,25 @@ index 000000000..9cff08873
 + * `excp_cause_ip` is already the *next* instruction (§5.2), so `+4` would skip
 + * one instruction of the interrupted context (contract-see §6.3).
 + *
++ * Stack switch (m14-linux-045): the hardware does not switch stacks, so a
++ * delivery taken in *user* mode would run this handler on the user's stack —
++ * and a kernel store to a user page is refused (`CFXPERM`: the page's HSJU has
++ * the U bit, not the S one), which turns the first tick of a user task into a
++ * fault inside a frame.  The user-mode path therefore moves to the task's own
++ * kernel stack and adopts the captured frame into its `task_pt_regs()` slot,
++ * exactly like the umon entry (kernel/trap.S); a delivery taken in supv mode
++ * already has a kernel stack and keeps the static frame.  The distinguishing
++ * fact is the hardware's `excp_prev_run_mode` (`cg5 rc0`, spec/DADAO-12 §3.6),
++ * read before anything can overwrite it — and it is also what `status` records
++ * for `user_mode()` (asm/entry.h::DADAO_SAVE_STATUS).
++ *
 + * `escape` restores the `global_cfx_intr_mask` the delivery saved (§6.3) and
 + * the hardware re-kicks anything that accumulated while the frame was live —
 + * the kernel neither has nor needs a software pending bitmap (§6.5 gap 2).
++ *
++ * The frame base travels through `rb40` across the C call: it is a callee-saved
++ * address register (contract-abi §4.5), so the handler preserves it, and the
++ * restore below overwrites it from the frame anyway.
 + */
 +#include <asm/asm-offsets.h>
 +#include <asm/entry.h>
@@ -46,24 +62,59 @@ index 000000000..9cff08873
 +	DADAO_GPR_SAVE cfx_hart, dadao_async_save
 +
 +	/*
-+	 * 2. The cg5 fields and the C half.  Arguments are the ABI's:
++	 * 2. Which context was interrupted?  `cg5 rc0` = `excp_prev_run_mode`,
++	 *    0 for user (spec/DADAO-12 §1).  `status` is written here, into the
++	 *    staging frame, so the adopt below carries it along.
++	 */
++	cfx2rd	cfx_hart, cg5, rc0, rd16	/* excp_prev_run_mode */
++	DADAO_SAVE_STATUS cfx_hart, rb3, .Lstatus_async	/* frame.status = mode */
++	br.z	{rd16}?, [rb0, .Lasync_from_user]
++
++	/* 3. From the kernel: SP already is a kernel stack; use the static frame. */
++	set.rb	rb16, dadao_async_save
++	jump	[rb0, .Lasync_fields]
++
++	/*
++	 * 3b. From user mode: move to this task's kernel stack (the top
++	 *     `__switch_to()` / `dadao_enter_user()` parked) and adopt the
++	 *     captured frame into `task_pt_regs(current)`.  A zero means no task
++	 *     has run yet (early boot): fall back to the static frame, which is
++	 *     sound there because no user context exists to be interrupted.
++	 */
++.Lasync_from_user:
++	set.rb	rb4, dadao_user_stack_top
++	ld.o	rb4, [rb4, 0]
++	br.z	{rb4}?, [rb0, .Lasync_static]
++	rb2rb	{rb1}, {rb4}			/* SP = the kernel-stack top */
++	add.si	rb1, -PT_REGS_SIZE		/* SP = &task_pt_regs(current) */
++	set.rb	rb5, dadao_async_adopt
++	call	[rb5, rd0, 0]			/* rb8 = &task frame (copied) */
++	rb2rb	{rb16}, {rb8}			/* frame argument from here on */
++	jump	[rb0, .Lasync_fields]
++
++.Lasync_static:
++	set.rb	rb16, dadao_async_save
++
++	/*
++	 * 4. The cg5 fields and the C half.  Arguments are the ABI's:
 +	 *    rb16 = &frame (first address argument), rd16 = cause, rd17 = info
 +	 *    (contract-abi §4.1: data arguments count from rd16 in declaration
 +	 *    order).
 +	 */
++.Lasync_fields:
 +	cfx2rd	cfx_hart, cg5, rc2, rd16	/* excp_cause_id */
 +	cfx2rd	cfx_hart, cg5, rc3, rd17	/* excp_cause_ip */
-+	st.o	rd17, [rb3, PT_IP]		/* frame.ip = next instruction */
-+	st.o	rd0, [rb3, PT_STATUS]		/* frame.status = 0 */
++	st.o	rd17, [rb16, PT_IP]		/* frame.ip = next instruction */
 +	cfx2rd	cfx_hart, cg5, rc4, rd17	/* excp_cause_info -> 2nd argument */
-+	set.rb	rb16, dadao_async_save
++	rb2rb	{rb40}, {rb16}			/* frame base across the call */
 +	set.rb	rb5, dadao_async_handler
 +	call	[rb5, rd0, 0]			/* returns only on a handled tick */
 +
 +	/*
-+	 * 3. Resume the interrupted context where it was: `, 0` (see the header).
++	 * 5. Resume the interrupted context where it was: `, 0` (see the header).
 +	 */
-+	DADAO_GPR_RESTORE dadao_async_save
++	rb2rb	{rb3}, {rb40}
++	DADAO_GPR_RESTORE_AT
 +	escape	cfx_hart, [excp_cause_ip, 0]
 +
 +.Lstuck:

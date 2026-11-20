@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/irqflags.h b/arch/dadao/include/asm/irqflags.h
 new file mode 100644
-index 000000000..957d91e0d
+index 000000000..9413e51c5
 --- /dev/null
 +++ b/arch/dadao/include/asm/irqflags.h
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,172 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_IRQFLAGS_H
 +#define __ASM_IRQFLAGS_H
@@ -43,6 +43,16 @@ index 000000000..957d91e0d
 + */
 +#define DADAO_IRQ_CG_SUPV		2	/* supv row, spec/DADAO-12 §3.3 */
 +#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK	4
++/*
++ * The same row of the *user* mode monitor (m14-linux-045).  A delivery is
++ * filtered by the running mode's rows (spec/DADAO-12 §5.2(三) step 3), so while
++ * a task runs in user mode the source mask that matters is `cfx_umon`'s `cg0
++ * rc4`, and the mode-level gate is its `cg8 rc1`.  Both are all-1 at reset.
++ */
++#define DADAO_IRQ_CG_USER		0
++#define DADAO_IRQ_RC_USER_CFX_INTR_MASK	4
++#define DADAO_IRQ_CG_GLOBAL		8
++#define DADAO_IRQ_RC_GLOBAL_CFX_INTR_MASK 1
 +
 +/*
 + * The sources this kernel cares about: one mask bit per *target cfxha*, not per

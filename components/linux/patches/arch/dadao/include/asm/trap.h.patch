@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/trap.h b/arch/dadao/include/asm/trap.h
 new file mode 100644
-index 000000000..4a099b8bd
+index 000000000..d66399c65
 --- /dev/null
 +++ b/arch/dadao/include/asm/trap.h
-@@ -0,0 +1,126 @@
+@@ -0,0 +1,138 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception entry: the contract between the assembly
@@ -40,6 +40,18 @@ index 000000000..4a099b8bd
 + * causes).  It is a kernel-private selector, not a syscall number.
 + */
 +#define DADAO_SMON_FROM_USER	0x2f5
++
++/*
++ * `struct pt_regs.status` low 4 bits: the exception's *pre-entry* run mode as
++ * the entry stubs record it (m14-linux-045).  `user_mode()` is
++ * `(status & 0x3) != 0`, so the stubs write this value for a user-mode entry and
++ * 0 for every privileged one; the raw `spec/DADAO-12 §1` encoding (0b00 user /
++ * 0b01 jail / 0b10 supv / 0b11 hypv) cannot be stored as-is (see the comment on
++ * `user_mode()` in asm/ptrace.h).  Bits 4-63 stay 0.
++ *
++ * Preprocessor-only, because kernel/trap.S and kernel/async_trap.S write it.
++ */
++#define DADAO_STATUS_USER	0x1
 +
 +/*
 + * Cause ids (spec/DADAO-13 §2, contract-see §6.1): one bit each.  A hardware

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k4_switch_selftest.c b/arch/dadao/kernel/k4_switch_selftest.c
 new file mode 100644
-index 000000000..b047ebf76
+index 000000000..ac58b899b
 --- /dev/null
 +++ b/arch/dadao/kernel/k4_switch_selftest.c
-@@ -0,0 +1,1009 @@
+@@ -0,0 +1,1011 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K4 context-switch self-test (CONFIG_DADAO_K4_SWITCH_SELFTEST, m14-linux-017).
@@ -669,7 +669,9 @@ index 000000000..b047ebf76
 +		bad |= 1UL << 1;
 +	if (regs->rb[3] != (K4S_S5_RB3 | (unsigned long)who))
 +		bad |= 1UL << 2;
-+	if (regs->status != 0)
++	/* m14-linux-045: `status` records the pre-entry run mode; a user frame
++	 * carries DADAO_STATUS_USER and it must survive the round trip. */
++	if (regs->status != DADAO_STATUS_USER)
 +		bad |= 1UL << 3;
 +	for (i = 32; i < 64; i++) {
 +		if (regs->rd[i] != k4s_s5_sentinel(K4S_S5_RD32, who, i))
@@ -719,7 +721,7 @@ index 000000000..b047ebf76
 +		frame.rd[i] = k4s_s5_sentinel(K4S_S5_RD32, who, i);
 +		frame.rb[i] = k4s_s5_sentinel(K4S_S5_RB32, who, i);
 +	}
-+	frame.status = 0;
++	frame.status = DADAO_STATUS_USER;
 +	dadao_enter_user(&frame);		/* never returns */
 +}
 +

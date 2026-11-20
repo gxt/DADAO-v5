@@ -113,6 +113,7 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K5_SYSCALL_SELFTEST": "n",
     "CONFIG_DADAO_K5_CLONE_SELFTEST": "n",
     "CONFIG_DADAO_K5_FUTEX_SELFTEST": "y",
+    "CONFIG_DADAO_M45_ENTRY_SELFTEST": "n",
 }
 
 IMAGE = config_pins.config_lines(CONFIG_PINS)
@@ -869,9 +870,13 @@ def run_injection(rep: Report, name: str, rom: str) -> None:
         died = ("K5 futex FAIL" in out or "Kernel panic" in out or
                 "dadao: die mode=" in out)
         rep.info(f"inject {name}: rc={rc} red={red[:5]} died={died}")
+        # A hang (the 180 s boot timeout) is a red too: the injected defect can
+        # leave a waiter blocked for ever, in which case nothing is ever
+        # printed to go red (m14-linux-045's exit loop makes that reachable for
+        # `no-recheck`, where the waiter sleeps through the changed word).
         rep.check(f"INJECT {name}", f"{why} ⇒ {case} 红", True,
                   bool([n for n in red if n.lower().startswith(case.lower())]) or
-                  died)
+                  died or rc == 124)
     finally:
         path.write_bytes(tmp.read_bytes())
         rep.check(f"INJECT {name}", "还原（cp + md5 对账）", before, md5(path))

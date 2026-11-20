@@ -1,0 +1,240 @@
+diff --git a/arch/dadao/kernel/entry_common.c b/arch/dadao/kernel/entry_common.c
+new file mode 100644
+index 000000000..85508b710
+--- /dev/null
++++ b/arch/dadao/kernel/entry_common.c
+@@ -0,0 +1,234 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * The generic entry/exit hooks this port owns (m14-linux-045).
++ *
++ * Three pieces, all of them *call sites and the one missing definition*, not a
++ * second entry framework:
++ *
++ *  1. `arch_do_signal_or_restart()`.  kernel/entry/common.c declares it `__weak`
++ *     with an empty body and calls it from `exit_to_user_mode_loop()` when
++ *     `_TIF_SIGPENDING`/`_TIF_NOTIFY_SIGNAL` is set; without a strong definition
++ *     the loop would consume nothing and signals would be dropped silently.
++ *     m14-linux-046 (the `rt_sigframe`) completes the handler half; this file
++ *     gets the call *made*, which is what the work loop needs.
++ *
++ *  2. The return-to-user tail (`dadao_syscall_exit`/`dadao_trap_exit`).
++ *     `_TIF_WORK_MASK` is consumed by `exit_to_user_mode_loop()` (called
++ *     through `__exit_to_user_mode_prepare()`), the generic per-bit consumer —
++ *     `_TIF_NEED_RESCHED` -> `schedule()`, `_TIF_SIGPENDING`/
++ *     `_TIF_NOTIFY_SIGNAL` -> `arch_do_signal_or_restart()`, `_TIF_NOTIFY_RESUME`
++ *     -> `resume_user_mode_work()` (task_work), plus `_TIF_UPROBE`/
++ *     `_TIF_PATCH_PENDING` where those subsystems are built in.  Reusing it
++ *     instead of a hand-written loop is the point: the bit set, the ordering and
++ *     the "re-read the flags and go again" tail are upstream's.
++ *
++ *     Why not the two *syscall*-named wrappers, `syscall_enter_from_user_mode()`
++ *     / `syscall_exit_to_user_mode()`: they live in `linux/entry-common.h`,
++ *     which is guarded by `CONFIG_GENERIC_ENTRY` (include/linux/thread_info.h
++ *     wraps the whole `SYSCALL_WORK_*` set in it), and that symbol also pulls
++ *     `kernel/entry/syscall-common.o` + `kernel/entry/syscall_user_dispatch.o`
++ *     (`kernel/entry/Makefile: obj-$(CONFIG_GENERIC_SYSCALL)`), i.e. the
++ *     seccomp/tracer/syscall-user-dispatch layer and the arch hooks behind it
++ *     (`arch_syscall_is_vdso_sigreturn`, `syscall_rollback`, the syscall
++ *     tracepoints).  This port implements none of those features, so enabling
++ *     the symbol would compile a subsystem whose every branch is dead on this
++ *     machine.  The port therefore calls the same two generic functions those
++ *     wrappers are made of — `enter_from_user_mode()` at entry and
++ *     `__exit_to_user_mode_prepare()` + `exit_to_user_mode()` at exit — and
++ *     leaves out only the syscall-work step that has nothing to do here.  Both
++ *     live in `linux/irq-entry-common.h`, which is compiled already
++ *     (CONFIG_GENERIC_IRQ_ENTRY).
++ *
++ *     What this port adds around it is the interrupt-enable state.  On this
++ *     machine the IE knob is the running mode monitor's source-mask row
++ *     (asm/irqflags.h), and neither generic function writes arch state back —
++ *     they end with the architecture's job.  The generic tail leaves the row
++ *     the way `local_irq_disable()` put it, while the `escape` that follows does
++ *     not restore the row (it restores the hardware's global mask), so the word
++ *     the entry found is written back here: the user-return path then leaves the
++ *     IE state exactly as it found it, which is what the arch return path is
++ *     responsible for on this machine.  (Removing it was *not* observed to break
++ *     a probe: the mask is re-opened by the next entry too, so this is a
++ *     "state kept honest" measure rather than a demonstrated failure — see the
++ *     task book's 完成区.)
++ *
++ *  3. The trap-entry pair for a user-mode `trap` that is *not* a syscall
++ *     (`dadao_trap_enter`/`dadao_trap_exit`).  Same shape as `arch/riscv`'s
++ *     `do_page_fault()`: `irqentry_enter()` on the way in, `irqentry_exit()` on
++ *     the way out.  A sleep inside `irqentry_exit()` is safe here and *only*
++ *     here: the live hardware frame is `cfx_umon`'s, and the only writer of that
++ *     frame is a user-mode trap — every one of which records the same
++ *     `excp_prev_run_mode` (user) and `excp_prev_cfx_code` (cfx_umon), which is
++ *     the same argument that already lets a blocking syscall sleep in this frame
++ *     (kernel/trap.S `.Lumon_retry`).
++ *
++ * Why the asynchronous vector is *not* in this file (see kernel/time.c for the
++ * call sites): its frame lives in `cfx_hart`, which is also the frame a
++ * kernel-mode TIMER uses.  A `schedule()` inside `irqentry_exit()` would keep
++ * that frame live across a switch, and the hardware state a return needs is the
++ * saved `global_cfx_intr_mask`, which is internal (`spec/DADAO-12 §3.6`) and
++ * cannot be re-established by software; a kernel-mode delivery in the meantime
++ * would overwrite `excp_prev_run_mode`/`prev_cfx_code`/cause ip.  The port
++ * therefore takes the other form the task allows for the asynchronous entry —
++ * `irq_enter_rcu()`/`set_irq_regs()`/`irq_exit_rcu()` — and the return-to-user
++ * work loop runs on the umon path.  A pure user-mode spin loop (no trap at all)
++ * is consequently preempted at its next trap, not by the tick itself; giving the
++ * tick its own switch-safe frame is the per-task frame work (m14-linux-046 and
++ * the follow-up that moves the async frame off the static `.bss`).
++ */
++#include <linux/irq-entry-common.h>
++#include <linux/kernel.h>
++#include <linux/sched/task.h>
++#include <linux/signal.h>
++
++#include <asm/irqflags.h>
++#include <asm/ptrace.h>
++#include <asm/setup.h>
++#include <asm/syscall.h>
++#include <asm/trap.h>
++
++#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
++/* Probe-image hooks (kernel/m45_entry_selftest.c); never in a milestone image. */
++void m45_note_exit_to_user(struct pt_regs *regs, bool syscall);
++/* Records that the signal dispatch point was reached with the bit set. */
++void m45_note_signal(void);
++#endif
++
++/*
++ * Signal delivery, the half that needs no frame.
++ *
++ * `get_signal()` runs the default action itself: a fatal signal terminates the
++ * process (`do_group_exit()`), an ignored one is dropped, and the pending mask /
++ * `TIF_SIGPENDING` are recomputed on the way out — that is why this returns
++ * "nothing left" for both of them and the exit loop terminates.
++ *
++ * What it cannot do without m14-linux-046 is *deliver to a handler*: that needs
++ * the `rt_sigframe` on the user stack and the register file rewound to the
++ * handler.  Returning "handled" without delivering would leave
++ * `_TIF_SIGPENDING` set and `exit_to_user_mode_loop()` would spin in the kernel,
++ * so the honest answer is to end the process by name.
++ */
++void arch_do_signal_or_restart(struct pt_regs *regs)
++{
++	struct ksignal ksig;
++#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
++	/* The probe's evidence that the dispatch point was reached: the bit is
++	 * set *and* a signal is pending right here, before get_signal() runs. */
++	m45_note_signal();
++#endif
++
++	if (!get_signal(&ksig))
++		return;
++
++	dadao_early_printf("dadao: signal %d has a handler but no signal frame "
++			   "yet (m14-linux-046); ending the task\n", ksig.sig);
++	do_group_exit(SIGKILL);
++}
++
++/*
++ * The common tail of both exits: the generic loop, then this port's IE word.
++ *
++ * `__exit_to_user_mode_prepare()` is `lockdep_assert_irqs_disabled()` +
++ * `tick_nohz_user_enter_prepare()` + `exit_to_user_mode_loop()` +
++ * `arch_exit_to_user_mode_prepare()`; `exit_to_user_mode()` is the final
++ * transition (tracing/lockdep/RCU/context tracking, all no-ops on this port).
++ * Both are the exact bodies the upstream syscall/irqentry wrappers use.
++ */
++static void dadao_exit_tail(struct pt_regs *regs, bool syscall)
++{
++	unsigned long flags = arch_local_save_flags();
++
++	local_irq_disable();
++	if (syscall)
++		syscall_exit_to_user_mode_prepare(regs);
++	else
++		irqentry_exit_to_user_mode_prepare(regs);
++	exit_to_user_mode();
++	arch_local_irq_restore(flags);
++#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
++	m45_note_exit_to_user(regs, syscall);
++#endif
++}
++
++static void dadao_syscall_exit(struct pt_regs *regs)
++{
++	dadao_exit_tail(regs, true);
++}
++
++/*
++ * The syscall-entry half: `enter_from_user_mode()` is what
++ * `syscall_enter_from_user_mode()` calls first (before the syscall-work step
++ * this port has none of), and the wrapper enables interrupts after it because
++ * the subsequent C code is instrumentable.
++ */
++void dadao_syscall_enter(struct pt_regs *regs)
++{
++	enter_from_user_mode(regs);
++	local_irq_enable();
++}
++
++/* The `irqentry_*` pair for a user-mode trap that is not a syscall. */
++static irqentry_state_t dadao_trap_enter(struct pt_regs *regs)
++{
++	return irqentry_enter(regs);
++}
++
++static void dadao_trap_exit(struct pt_regs *regs, irqentry_state_t state)
++{
++	unsigned long flags = arch_local_save_flags();
++
++	/*
++	 * `irqentry_exit()` on a user frame *is* `irqentry_exit_to_user_mode()`
++	 * (kernel/entry/common.c branches on `user_mode(regs)`), i.e. exactly the
++	 * three steps below.  They are spelled out instead of calling it because
++	 * this call site only ever takes that arm: the umon entry has no
++	 * kernel-mode return path, and `state` — the only thing the kernel-mode
++	 * arm consumes — is therefore always the "RCU was watching" value the
++	 * `irqentry_enter()` above produced.
++	 */
++	(void)state;
++	local_irq_disable();
++	irqentry_exit_to_user_mode_prepare(regs);
++	exit_to_user_mode();
++	arch_local_irq_restore(flags);
++#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
++	m45_note_exit_to_user(regs, false);
++#endif
++}
++
++/*
++ * The C half of the umon entry (kernel/trap.S calls this with the task's own
++ * frame): dispatch, then the return-to-user tail.
++ *
++ * Which tail it is depends on what the trap was: a syscall
++ * (`trap cfx_umon, 0` = `SBI_UMON_SYSCALL`) has the `syscall_*` pair, everything
++ * else the `irqentry_*` one — the same split `arch/riscv` makes between
++ * `do_trap_ecall_u()` and `do_page_fault()`.  Both tails consume
++ * `_TIF_WORK_MASK` (kernel/entry/common.c::exit_to_user_mode_loop) and both may
++ * sleep: the live hardware frame is `cfx_umon`'s, and this file's header says
++ * why that is the one frame this port may sleep in.
++ *
++ * A probe hook that answered the trap itself returns through the same tails.
++ * It never reached `dadao_user_syscall()`, so no `syscall_enter` is pending for
++ * it; its traps carry an `immu18` that is not `SBI_UMON_SYSCALL`, which is
++ * exactly what the test below keys on.
++ */
++unsigned long dadao_user_excp_handler(struct pt_regs *regs, unsigned long cause,
++				      unsigned long info)
++{
++	bool syscall = DADAO_CAUSE_CLASS(cause) == DADAO_CAUSE_CFXTRAP &&
++		       (info & DADAO_IMMU18_MASK) == SBI_UMON_SYSCALL;
++	irqentry_state_t state = { .exit_rcu = false };
++	unsigned long policy;
++
++	if (!syscall)
++		state = dadao_trap_enter(regs);
++
++	policy = dadao_user_excp_dispatch(regs, cause, info);
++
++	if (syscall)
++		dadao_syscall_exit(regs);
++	else
++		dadao_trap_exit(regs, state);
++	return policy;
++}

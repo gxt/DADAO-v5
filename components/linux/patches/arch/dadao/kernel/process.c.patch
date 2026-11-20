@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/process.c b/arch/dadao/kernel/process.c
 new file mode 100644
-index 000000000..02c31398d
+index 000000000..594b42932
 --- /dev/null
 +++ b/arch/dadao/kernel/process.c
-@@ -0,0 +1,685 @@
+@@ -0,0 +1,757 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO process model (K4, m14-linux-016).
@@ -50,6 +50,7 @@ index 000000000..02c31398d
 + */
 +#include <linux/errno.h>
 +#include <linux/init.h>
++#include <linux/irq-entry-common.h>
 +#include <linux/kernel.h>
 +#include <linux/mm.h>
 +#include <linux/sched.h>
@@ -116,6 +117,20 @@ index 000000000..02c31398d
 +	return frame;
 +}
 +
++/*
++ * The same adopt for the asynchronous entry (m14-linux-045): a delivery taken in
++ * user mode runs on the task's kernel stack, so its frame can live in the same
++ * `task_pt_regs()` slot the umon entry uses.
++ */
++struct pt_regs *dadao_async_adopt(void)
++{
++	struct pt_regs *frame = task_pt_regs(current);
++
++
++	*frame = *(struct pt_regs *)dadao_async_save;
++	return frame;
++}
++
 +/* This task's user frame; re-derived after every C call (the C half may sleep). */
 +struct pt_regs *dadao_umon_frame(void)
 +{
@@ -135,6 +150,11 @@ index 000000000..02c31398d
 +
 +/* The context-switch probe's S5 hook (kernel/k4_switch_selftest.c). */
 +int dadao_k4_s5_syscall(struct pt_regs *regs, unsigned long nr,
++			unsigned long *policy);
++
++/* The entry/exit probe's trap hook (kernel/m45_entry_selftest.c, m14-linux-045):
++ * counts the loop's syscalls and pokes the scheduler; never claims a trap. */
++int dadao_m45_user_trap(struct pt_regs *regs, unsigned long immu18,
 +			unsigned long *policy);
 +
 +
@@ -380,6 +400,39 @@ index 000000000..02c31398d
 +			DADAO_MODE_USER);
 +
 +	/*
++	 * The asynchronous source the kernel delivers in *user* mode
++	 * (m14-linux-045): `TIMER` targets `cfx_hart`, and a delivery is gated by
++	 * the **running mode monitor's** rows (spec/DADAO-12 §5.2(三)) — so with a
++	 * task in user mode the rows consulted are `cfx_umon`'s `user` row and its
++	 * mode-level `global_cfx_intr_mask`, not the supv ones init_IRQ() opened.
++	 * Both are all-1 at reset, which is why a tick never reached user mode
++	 * before this task: the source was open for the kernel's own mode only.
++	 *
++	 * Only the bit of the source this kernel owns is cleared (the mask index is
++	 * the *target cfxha*, contract-see §6.4), and only in the user monitor's
++	 * rows: the jail/hypv monitors are not used by this port.
++	 */
++	{
++		unsigned long bit = DADAO_IRQ_SOURCE_BITS;
++		unsigned long mask;
++
++		mask = DADAO_CFX_READ(cfx_umon, UMON_CG_USER,
++				      DADAO_IRQ_RC_USER_CFX_INTR_MASK);
++		DADAO_CFX_WRITE(cfx_umon, UMON_CG_USER,
++				DADAO_IRQ_RC_USER_CFX_INTR_MASK, mask & ~bit);
++		mask = DADAO_CFX_READ(cfx_umon, DADAO_IRQ_CG_GLOBAL,
++				      DADAO_IRQ_RC_GLOBAL_CFX_INTR_MASK);
++		DADAO_CFX_WRITE(cfx_umon, DADAO_IRQ_CG_GLOBAL,
++				DADAO_IRQ_RC_GLOBAL_CFX_INTR_MASK, mask & ~bit);
++		dadao_early_printf("K4 umon irq: user_mask=%#lx global=%#lx bit=%#lx\n",
++				   DADAO_CFX_READ(cfx_umon, UMON_CG_USER,
++						  DADAO_IRQ_RC_USER_CFX_INTR_MASK),
++				   DADAO_CFX_READ(cfx_umon, DADAO_IRQ_CG_GLOBAL,
++						  DADAO_IRQ_RC_GLOBAL_CFX_INTR_MASK),
++				   bit);
++	}
++
++	/*
 +	 * The kernel's own source bit in cfx_smon's supv row.
 +	 *
 +	 * Once a task is running in user mode the hardware's current cfx is
@@ -519,9 +572,9 @@ index 000000000..02c31398d
 + * `DADAO_TRAP_RESUME_RETRY` (0) re-executes `excp_cause_ip`, `RESUME_SKIP` (1)
 + * continues after it.  Everything that cannot be resumed ends the boot by name.
 + */
-+static unsigned long dadao_user_excp_dispatch(struct pt_regs *regs,
-+					      unsigned long cause,
-+					      unsigned long info)
++static unsigned long dadao_user_excp_dispatch_body(struct pt_regs *regs,
++						   unsigned long cause,
++						   unsigned long info)
 +{
 +	unsigned long cls = DADAO_CAUSE_CLASS(cause);
 +	unsigned long immu18;
@@ -665,6 +718,21 @@ index 000000000..02c31398d
 +				return policy;
 +		}
 +#endif
++#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
++		{
++			unsigned long policy;
++
++			/*
++			 * The entry/exit probe's hook (kernel/m45_entry_selftest.c,
++			 * m14-linux-045).  It runs before the dispatch because
++			 * that is where the loop's own syscall counter lives; it
++			 * never claims a trap (returns 0), so the syscall still
++			 * goes through the table below.
++			 */
++			if (dadao_m45_user_trap(regs, immu18, &policy))
++				return policy;
++		}
++#endif
 +		fn = dadao_user_syscall(regs, immu18);
 +		dadao_umon_busy = 0;
 +		if (fn)
@@ -678,14 +746,18 @@ index 000000000..02c31398d
 +/*
 + * Same shape as the supv channel: the F37 masking is gone with
 + * `m14-spec-009`'s `escape` semantics (see kernel/traps.c).
++ *
++ * This is only the *dispatch* half; the return-to-user tail (the generic
++ * `_TIF_WORK_MASK` work of m14-linux-045) wraps it in kernel/entry_common.c,
++ * next to the very tail it calls.
 + */
-+unsigned long dadao_user_excp_handler(struct pt_regs *regs, unsigned long cause,
-+				      unsigned long info)
++unsigned long dadao_user_excp_dispatch(struct pt_regs *regs, unsigned long cause,
++				       unsigned long info)
 +{
 +	unsigned long policy;
 +
 +	dadao_in_frame = 1;
-+	policy = dadao_user_excp_dispatch(regs, cause, info);
++	policy = dadao_user_excp_dispatch_body(regs, cause, info);
 +	dadao_in_frame = 0;
 +	return policy;
 +}

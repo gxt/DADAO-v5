@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/syscalls.c b/arch/dadao/kernel/syscalls.c
 new file mode 100644
-index 000000000..2cb0dfd57
+index 000000000..cfe09f951
 --- /dev/null
 +++ b/arch/dadao/kernel/syscalls.c
-@@ -0,0 +1,143 @@
+@@ -0,0 +1,160 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO syscalls that the generic table expects from the architecture, plus the
@@ -103,6 +103,20 @@ index 000000000..2cb0dfd57
 +	}
 +
 +	nr = (unsigned long)syscall_get_nr(current, regs);
++
++	/*
++	 * The syscall-entry half of the generic entry work (m14-linux-045).
++	 * `dadao_syscall_enter()` is `enter_from_user_mode()` + the interrupt
++	 * enable — the two things `syscall_enter_from_user_mode()` does before
++	 * the syscall-work step, which this port has nothing for: the
++	 * `syscall_work` layer only exists with `CONFIG_GENERIC_ENTRY`, and
++	 * enabling it would compile seccomp/tracer/syscall-user-dispatch code
++	 * whose every branch is dead here (kernel/entry_common.c has the full
++	 * argument).  The call sits in the dispatcher rather than in assembly
++	 * because the port's `trap cfx_umon` reaches C through the umon stub, not
++	 * through a dedicated syscall vector.
++	 */
++	dadao_syscall_enter(regs);
 +	if (nr >= __NR_syscalls) {
 +		/* contract-syscall §9: an unsupported syscall is -ENOSYS, in
 +		 * `rd8`, and the user continues after the trap. */
@@ -125,10 +139,13 @@ index 000000000..2cb0dfd57
 + *    would read it as errno 512 (contract-syscall §9: 内核内部码不外泄).  The
 + *    honest reduction is `-EINTR`: the call was interrupted, and the process is
 + *    free to retry it.
-+ *  - the TIF_* work of contract-syscall §8 (reschedule / signal) has its hook
-+ *    here; K5 has no signal delivery, and the reschedule flag is already acted
-+ *    on when the kernel returns to user mode elsewhere.  The return value is
-+ *    the stub's resume policy: continue after the trap.
++ *  - the TIF_* work of contract-syscall §8 (reschedule / signal) is *not* here
++ *    (m14-linux-045 moved it to the entry's return path, where the generic
++ *    `syscall_exit_to_user_mode()` consumes `_TIF_WORK_MASK` — one call site
++ *    for the syscall half and for every other trap of the umon entry, see
++ *    kernel/process.c::dadao_user_excp_handler()).  What is left here is the
++ *    syscall's own answer: the return value in `rd8`.
++ *  - the return value is the stub's resume policy: continue after the trap.
 + */
 +unsigned long dadao_user_syscall_post(struct pt_regs *regs)
 +{

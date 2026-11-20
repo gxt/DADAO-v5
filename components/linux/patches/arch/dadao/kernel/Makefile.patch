@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/Makefile b/arch/dadao/kernel/Makefile
 new file mode 100644
-index 000000000..8eaf6b743
+index 000000000..e0d8a1f17
 --- /dev/null
 +++ b/arch/dadao/kernel/Makefile
-@@ -0,0 +1,35 @@
+@@ -0,0 +1,41 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-y += head.o setup.o early_console.o syscall_table.o traps.o syscalls.o trap.o
 +# The syscall argument routing table (m14-linux-023): data, read by the
@@ -15,6 +15,9 @@ index 000000000..8eaf6b743
 +obj-y += entry.o
 +# K2 time base, the cfx_hart asynchronous vector and its installation.
 +obj-y += time.o async_trap.o irq.o
++# Entry/exit work loop (m14-linux-045): the generic `_TIF_WORK_MASK` tail of the
++# umon entry and `arch_do_signal_or_restart()`.
++obj-y += entry_common.o
 +# K2 self-test scaffolding: compiled only into a probe image.
 +obj-$(CONFIG_DADAO_K2_TRAP_SELFTEST) += k2_selftest.o
 +# K2 interrupt-enable knob self-test: probe image only.
@@ -36,6 +39,9 @@ index 000000000..8eaf6b743
 +# K5 futex/atomic probe (m14-linux-025): probe image only; a late_initcall
 +# whose user program issues the futex calls and the lr/sc pairs.
 +obj-$(CONFIG_DADAO_K5_FUTEX_SELFTEST) += k5_futex_selftest.o
++# Entry/exit work-loop probe (m14-linux-045): probe image only; a late_initcall
++# that preempts a user-mode loop and raises a signal at it.
++obj-$(CONFIG_DADAO_M45_ENTRY_SELFTEST) += m45_entry_selftest.o
 +
 +# The final link needs arch/dadao/kernel/vmlinux.lds (preprocessed from .S).
 +always-$(KBUILD_BUILTIN) += vmlinux.lds

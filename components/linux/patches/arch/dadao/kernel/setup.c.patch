@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..b68b90b76
+index 000000000..6b2e52023
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,455 @@
+@@ -0,0 +1,467 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -367,6 +367,16 @@ index 000000000..b68b90b76
 +	 */
 +	return;
 +#endif
++#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
++	/*
++	 * The entry/exit work-loop probe (m14-linux-045) needs the same things
++	 * the K5 probes do — a task model that can switch and an address space
++	 * of its own — and it starts the periodic tick itself, so it also runs
++	 * from a `late_initcall` inside `kernel_init`
++	 * (kernel/m45_entry_selftest.c) and owns the final SYS_EXIT.
++	 */
++	return;
++#endif
 +	dadao_early_printf("K4 done: semihosting SYS_EXIT(0) at the K4 boundary "
 +			   "(process model + fault channel page source; no scheduler, "
 +			   "no initramfs)\n");
@@ -449,7 +459,9 @@ index 000000000..b68b90b76
 +	regs->ip = pc;
 +	regs->rb[1] = sp;
 +	regs->rb[3] = 0;
-+	regs->status = 0;
++	/* m14-linux-045: the frame describes a *user* context; the entry stubs
++	 * refresh it from the hardware on every exception. */
++	regs->status = DADAO_STATUS_USER;
 +}
 +
 +void flush_thread(void)

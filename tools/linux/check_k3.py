@@ -182,6 +182,7 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K5_SYSCALL_SELFTEST": "n",
     "CONFIG_DADAO_K5_CLONE_SELFTEST": "n",
     "CONFIG_DADAO_K5_FUTEX_SELFTEST": "n",
+    "CONFIG_DADAO_M45_ENTRY_SELFTEST": "n",
 }
 
 #: Per-image overrides: the K3 probe this image runs (the other one stays off).

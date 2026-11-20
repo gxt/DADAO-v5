@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/Kbuild b/arch/dadao/include/asm/Kbuild
 new file mode 100644
-index 000000000..de4ad61f6
+index 000000000..af70de618
 --- /dev/null
 +++ b/arch/dadao/include/asm/Kbuild
-@@ -0,0 +1,13 @@
+@@ -0,0 +1,14 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# Mandatory headers that the port does not override are generated as
 +# asm-generic wrappers automatically (scripts/Makefile.asm-headers); only
@@ -14,6 +14,7 @@ index 000000000..de4ad61f6
 +generic-y += kvm_para.h
 +generic-y += spinlock.h
 +generic-y += spinlock_types.h
++generic-y += irq_regs.h
 +generic-y += user.h
 +
 +syscall-y += syscall_table_64.h

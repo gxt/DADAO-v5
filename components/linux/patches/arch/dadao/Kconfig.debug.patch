@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..561c4b2ba
+index 000000000..8929d93c5
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,393 @@
+@@ -0,0 +1,415 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -397,3 +397,25 @@ index 000000000..561c4b2ba
 +	  It runs from a `late_initcall` (the futex hash must exist) and ends the
 +	  boot.  This is test scaffolding (the K5 futex gate builds a probe image
 +	  with it); it is not part of the image the later milestones boot.
++
++config DADAO_M45_ENTRY_SELFTEST
++	bool "Run the entry/exit work-loop probe from a late_initcall (ends the boot)"
++	default n
++	depends on !DADAO_K4_SELFTEST && !DADAO_K4_SWITCH_SELFTEST && !DADAO_K4_KTHREAD_SELFTEST && !DADAO_K5_SYSCALL_SELFTEST && !DADAO_K5_CLONE_SELFTEST && !DADAO_K5_FUTEX_SELFTEST
++	help
++	  Exercise the generic entry/exit work loop of m14-linux-045 (see
++	  kernel/m45_entry_selftest.c).
++
++	  A user program runs a long loop (a user-only spin plus one `getpid` per
++	  outer iteration); the kernel wakes a worker thread and sets
++	  `TIF_NEED_RESCHED` on the looping task, and the verdict is that the
++	  worker ran while the loop still had iterations left — with no consumer
++	  for that bit the task returns to user mode every iteration and, on a
++	  single hart, the worker never runs.  A `SIGTERM` raised at the last
++	  iteration must end the task through `get_signal()`'s default action.
++	  The same run records `in_hardirq()`/`get_irq_regs()` inside every
++	  asynchronous delivery and `user_mode()` for both entry kinds.
++
++	  It runs from a `late_initcall` and ends the boot.  This is test
++	  scaffolding (the m14-linux-045 gate builds a probe image with it); it is
++	  not part of the image the later milestones boot.

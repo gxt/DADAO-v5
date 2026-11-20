@@ -1,0 +1,429 @@
+diff --git a/arch/dadao/kernel/m45_entry_selftest.c b/arch/dadao/kernel/m45_entry_selftest.c
+new file mode 100644
+index 000000000..2ad63e4af
+--- /dev/null
++++ b/arch/dadao/kernel/m45_entry_selftest.c
+@@ -0,0 +1,423 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Entry/exit work-loop probe (CONFIG_DADAO_M45_ENTRY_SELFTEST, m14-linux-045).
++ *
++ * One image, one program, and the four facts the task is about — each of them
++ * only observable from inside a live kernel:
++ *
++ *   E1  a user task that is *not* yielding gets preempted.  The program runs a
++ *       long loop (an inner user-only spin plus one `getpid` per outer
++ *       iteration); at iteration `M45_POKE_AT` the trap hook wakes the *boot*
++ *       task and sets `TIF_NEED_RESCHED` on the caller.  Without a consumer for
++ *       that bit the loop returns to user mode every iteration and the boot task
++ *       is never woken again — the CPU is single-hart, so "never runs" is
++ *       observable, not a timing guess.  The verdict is
++ *       `m45_iters > m45_b_ran_at`: the other task ran while the loop still had
++ *       iterations left.
++ *
++ *   E2  `TIF_SIGPENDING` reaches `get_signal()`.  At iteration `M45_SIGNAL_AT`
++ *       the same hook sends `SIGTERM` to the caller, whose default action is
++ *       `do_group_exit()`.  The boot task observes the child's `exit_code`: a
++ *       task killed by the signal has `exit_code & 0x7f == SIGTERM`; if the bit
++ *       is never consumed the child finishes the loop and exits 0.
++ *
++ *   E3  `in_hardirq()` / `get_irq_regs()` inside the asynchronous handler: every
++ *       delivery notes both, and the verdict is "no delivery saw a false
++ *       `in_hardirq()` and none saw `get_irq_regs() != its own frame`".
++ *
++ *   E4  `user_mode(regs)`: a user-mode `trap cfx_umon` frame is true, a frame
++ *       taken from the kernel (the tick that hits kernel code) is false.  Both
++ *       counters must be non-zero, i.e. the evidence is the *two* entry kinds,
++ *       not one frame judged twice.
++ *
++ * Nothing here is part of a milestone image: the hooks it needs
++ * (`m45_note_irq()`, `m45_note_exit_to_user()`, `dadao_m45_user_trap()`) are
++ * compiled in only when this symbol is set.
++ */
++#include <linux/completion.h>
++#include <linux/init.h>
++#include <linux/irq.h>
++#include <linux/kernel.h>
++#include <linux/mman.h>
++#include <linux/mm.h>
++#include <linux/mm_types.h>
++#include <linux/pid.h>
++#include <linux/sched.h>
++#include <linux/sched/task.h>
++#include <linux/sched/mm.h>
++#include <linux/sched/signal.h>
++#include <linux/sched/task.h>
++#include <linux/sched/task_stack.h>
++#include <linux/signal.h>
++#include <linux/string.h>
++#include <linux/types.h>
++
++#include <asm/cfx.h>
++#include <asm/irqflags.h>
++#include <asm/mmu_context.h>
++#include <asm/page.h>
++#include <asm/ptrace.h>
++#include <asm/setup.h>
++#include <asm/syscall.h>
++#include <asm/time.h>
++#include <asm/trap.h>
++
++/* Guest FAIL segment (spec/Kaiwu §7.1, 0x01-0x7f): this probe owns 0x70-0x72. */
++#define M45_FAIL_SETUP		0x70
++#define M45_FAIL_E1		0x71
++#define M45_FAIL_E2		0x72
++
++/* The probe's address-space windows: one code page and one stack page. */
++#define M45_CODE_VA		(1UL << 37)
++#define M45_STACK_VA		(1UL << 38)
++
++/*
++ * The program's loop: 30 syscalls with a long user-only spin between them.
++ * The spin is what makes the task a *running* one rather than a syscall
++ * ping-pong, and it has to outlast a couple of tick periods (10 ms each) for a
++ * delivery to land in user mode at all.
++ */
++#define M45_OUTER		30
++#define M45_INNER		200000
++/* Wake the boot task at this iteration (well inside the loop). */
++#define M45_POKE_AT		4
++/* Raise SIGTERM at the last iteration: the child dies on that return. */
++#define M45_SIGNAL_AT		M45_OUTER
++
++/* Bounded rounds for the exit-state poll (each one yields: the dying child is
++ * the only task that can make progress, so a plain `schedule()` suffices). */
++#define M45_WAIT_ROUNDS		4000
++
++/* The probe-only umon function number the first trap carries. */
++#define M45_TRAP_PROBE		0x2aac
++
++extern const char dadao_m45_user_stub[];
++extern const char dadao_m45_user_stub_end[];
++
++/* Called from kernel/entry_common.c, kernel/time.c and kernel/process.c. */
++void m45_note_signal(void);
++void m45_note_irq(struct pt_regs *regs);
++void m45_note_exit_to_user(struct pt_regs *regs, bool syscall);
++int dadao_m45_user_trap(struct pt_regs *regs, unsigned long immu18,
++			unsigned long *policy);
++
++static struct mm_struct *m45_mm;
++static struct pt_regs m45_user_frame;	/* one hart, one program: static */
++static int m45_child_pid;
++
++/*
++ * The handshake that makes "the CPU went somewhere else" observable: the boot
++ * task blocks before the child runs, the child's 4th iteration completes
++ * `m45_poke`, and the boot task - woken by that, and therefore *run* - records
++ * how far the loop had got.  A `wait_for_completion()` that has nothing to do
++ * is exactly the "another task ran" evidence the acceptance asks for.
++ */
++static struct completion m45_poke;
++/* Completed by the loop's last iteration, i.e. just before the signal. */
++static struct completion m45_child_dying;
++
++/* What the hooks saw (all of it is what the gate reads back from the log). */
++static unsigned int m45_iters;		/* the loop's `getpid` entries */
++static unsigned int m45_b_ran;		/* the boot task was woken mid-loop */
++static unsigned int m45_b_ran_at;
++static unsigned int m45_signal_sent;
++static unsigned int m45_irq_user;
++static unsigned int m45_irq_kernel;
++static unsigned int m45_irq_bad_hardirq;
++static unsigned int m45_irq_bad_regs;
++static unsigned int m45_exit_user;
++static unsigned int m45_exit_kernel;
++static unsigned int m45_trap_probe_hits;
++static unsigned int m45_sig_calls;
++static unsigned long m45_sig_last_flags;
++static unsigned int m45_sig_last_pending;
++static unsigned int m45_failed;
++
++static void __noreturn m45_fail(unsigned int code, const char *what,
++				unsigned long value)
++{
++	dadao_early_printf("M45 selftest FAIL: %s=%#lx code=%#x\n", what, value,
++			   code);
++	dadao_early_exit(code);
++}
++
++static void m45_expect(const char *what, unsigned long expected,
++		       unsigned long actual, unsigned int code)
++{
++	int ok = expected == actual;
++
++	dadao_early_printf("M45 check %s want=%#lx got=%#lx %s\n", what, expected,
++			   actual, ok ? "ok" : "FAIL");
++	if (!ok)
++		m45_failed |= code;
++}
++
++/* "at least N" as a boolean, so every line keeps the one `want=/got=` shape. */
++static void m45_expect_ge(const char *what, unsigned long floor,
++			  unsigned long actual, unsigned int code)
++{
++	m45_expect(what, 1, actual >= floor, code);
++}
++
++/* -------------------------------------------------------------------------
++ * the hooks the production paths call
++ * ------------------------------------------------------------------------- */
++
++/*
++ * One asynchronous delivery (kernel/time.c).  `in_hardirq()` is checked against
++ * the hard-IRQ accounting `irq_enter_rcu()` added, `get_irq_regs()` against the
++ * frame the handler was handed, and `user_mode()` against the context the frame
++ * came from — both kinds must show up in one run.
++ */
++void m45_note_signal(void)
++{
++	m45_sig_calls++;
++	m45_sig_last_flags = current_thread_info()->flags;
++	m45_sig_last_pending = task_sigpending(current) ? 1u : 0u;
++}
++
++void m45_note_irq(struct pt_regs *regs)
++{
++
++	if (!in_hardirq())
++		m45_irq_bad_hardirq++;
++	if (get_irq_regs() != regs)
++		m45_irq_bad_regs++;
++	if (user_mode(regs))
++		m45_irq_user++;
++	else
++		m45_irq_kernel++;
++}
++
++/* One return to user mode (kernel/entry_common.c). */
++void m45_note_exit_to_user(struct pt_regs *regs, bool syscall)
++{
++	(void)syscall;
++	if (user_mode(regs))
++		m45_exit_user++;
++	else
++		m45_exit_kernel++;
++}
++
++/*
++ * The loop's own traps (kernel/process.c, before the dispatcher).  Never claims
++ * a trap except the probe-only umon function, so every `getpid` still goes
++ * through `sys_call_table`.
++ */
++int dadao_m45_user_trap(struct pt_regs *regs, unsigned long immu18,
++			unsigned long *policy)
++{
++	if (immu18 == M45_TRAP_PROBE) {
++		m45_trap_probe_hits++;
++		*policy = DADAO_TRAP_RESUME_SKIP;
++		return 1;
++	}
++	if (immu18 != SBI_UMON_SYSCALL)
++		return 0;
++	if (syscall_get_nr(current, regs) != __NR_getpid)
++		return 0;
++
++	m45_iters++;
++	if (m45_iters == M45_POKE_AT) {
++		/* Something for the scheduler to switch to, and the bit that
++		 * only the exit loop consumes (the task is runnable). */
++		/*
++		 * Make the boot task runnable and ask for a reschedule.  Only the
++		 * exit work loop consumes `TIF_NEED_RESCHED` from here: the task
++		 * stays runnable and the flag survives every return to user mode
++		 * until something acts on it.
++		 */
++		complete(&m45_poke);
++		set_tsk_need_resched(current);
++	}
++	if (m45_iters == M45_SIGNAL_AT) {
++		complete(&m45_child_dying);
++		/*
++		 * Isolate the signal bit: the clock is stopped and the reschedule
++		 * request dropped, so the exit loop has exactly one work item to
++		 * consume and this case measures `TIF_SIGPENDING` alone.
++		 */
++		dadao_clockevent_stop();
++		clear_tsk_need_resched(current);
++		send_sig(SIGTERM, current, 1);
++		m45_signal_sent = 1;
++	}
++	return 0;
++}
++
++/* -------------------------------------------------------------------------
++ * the two tasks
++ * ------------------------------------------------------------------------- */
++
++static int m45_child_task(void *arg)
++{
++	struct pt_regs *frame = &m45_user_frame;
++
++	(void)arg;
++	current->mm = m45_mm;
++	current->active_mm = m45_mm;
++	dadao_switch_mm(NULL, m45_mm, current);
++
++	memset(frame, 0, sizeof(*frame));
++	frame->ip = M45_CODE_VA;
++	frame->rb[1] = M45_STACK_VA + PAGE_SIZE;
++	frame->status = DADAO_STATUS_USER;
++	frame->rd[9] = M45_INNER;
++	frame->rd[11] = M45_OUTER;
++	dadao_enter_user(frame);		/* never returns */
++}
++
++/* One page of the child's address space (the shape mm/fault.c fills a fetch
++ * from: `vm_insert_page()` on a VM_MIXEDMAP VMA, as m14-linux-023's probe). */
++static void m45_map_code(struct page *page)
++{
++	struct mm_struct *saved = current->mm;
++	struct vm_area_struct *vma;
++	unsigned long addr;
++
++	current->mm = m45_mm;
++	addr = vm_mmap(NULL, M45_CODE_VA, PAGE_SIZE, PROT_READ | PROT_EXEC,
++		       MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, 0);
++	if (addr != M45_CODE_VA)
++		m45_fail(M45_FAIL_SETUP, "vm_mmap code", addr);
++	addr = vm_mmap(NULL, M45_STACK_VA, PAGE_SIZE, PROT_READ | PROT_WRITE,
++		       MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, 0);
++	if (addr != M45_STACK_VA)
++		m45_fail(M45_FAIL_SETUP, "vm_mmap stack", addr);
++
++	mmap_write_lock(m45_mm);
++	vma = find_vma(m45_mm, M45_CODE_VA);
++	if (!vma)
++		m45_fail(M45_FAIL_SETUP, "find_vma", M45_CODE_VA);
++	vm_flags_set(vma, VM_MIXEDMAP);
++	if (vm_insert_page(vma, M45_CODE_VA, page))
++		m45_fail(M45_FAIL_SETUP, "vm_insert_page", M45_CODE_VA);
++	mmap_write_unlock(m45_mm);
++	current->mm = saved;
++}
++
++/* The child's death: its own `exit()`, or the signal that E2 raises. */
++static void m45_wait_child(unsigned long *exit_code, unsigned int *state,
++			   int *rounds)
++{
++	int i;
++
++	for (i = 0; i < M45_WAIT_ROUNDS; i++) {
++		struct pid *pid = find_get_pid(m45_child_pid);
++		struct task_struct *child = pid ? get_pid_task(pid, PIDTYPE_PID)
++						: NULL;
++
++		if (child) {
++			*exit_code = (unsigned long)child->exit_code;
++			*state = child->exit_state;
++			put_task_struct(child);
++		}
++		put_pid(pid);
++		if (*state == EXIT_ZOMBIE)
++			break;
++		schedule();
++	}
++	*rounds = i;
++}
++
++/* -------------------------------------------------------------------------
++ * the probe
++ * ------------------------------------------------------------------------- */
++
++static void __noreturn dadao_m45_entry_selftest(void)
++{
++	struct kernel_clone_args args = { .flags = 0, .exit_signal = SIGCHLD };
++	unsigned long exit_code = ~0UL, size;
++	unsigned int state = 0;
++	struct page *code;
++	int rounds = 0;
++
++	dadao_early_printf("M45 selftest: begin pid=%d mm=%lu\n", current->pid,
++			   (unsigned long)(current->mm ? 1 : 0));
++
++	/* The tick: `sched_tick()` only runs once a periodic clock was started
++	 * (kernel/time.c), and the loop's preemption rides on it as well. */
++	dadao_clockevent_start();
++	code = alloc_page(GFP_KERNEL | __GFP_ZERO);
++	if (!code)
++		m45_fail(M45_FAIL_SETUP, "alloc_page", 0);
++	size = (unsigned long)(dadao_m45_user_stub_end - dadao_m45_user_stub);
++	if (size > PAGE_SIZE)
++		m45_fail(M45_FAIL_SETUP, "stub size", size);
++	memcpy(page_address(code), dadao_m45_user_stub, size);
++
++	m45_mm = mm_alloc();
++	if (!m45_mm)
++		m45_fail(M45_FAIL_SETUP, "mm_alloc", 0);
++	m45_map_code(code);
++
++	init_completion(&m45_poke);
++	init_completion(&m45_child_dying);
++
++	args.fn = m45_child_task;
++	m45_child_pid = kernel_clone(&args);
++	if (m45_child_pid <= 0)
++		m45_fail(M45_FAIL_SETUP, "child clone", 0);
++	dadao_early_printf("M45 selftest: child up pid=%d\n", m45_child_pid);
++
++	/*
++	 * From here this task is off the run queue, so the child is the only
++	 * choice.  The poke is the E1 case: if `TIF_NEED_RESCHED` has no
++	 * consumer, the child keeps returning to user mode with the flag set and
++	 * this task is never woken again — on a single hart the boot would stop
++	 * right here.
++	 */
++	wait_for_completion(&m45_poke);
++	m45_b_ran = 1;
++	m45_b_ran_at = m45_iters;
++
++	/* The child's last iteration takes the signal; it dies on that return. */
++	wait_for_completion(&m45_child_dying);
++	m45_wait_child(&exit_code, &state, &rounds);
++
++	dadao_early_printf("M45 selftest: iters=%u b_ran=%u b_ran_at=%u "
++			   "signal_sent=%u probe_hits=%u\n", m45_iters, m45_b_ran,
++			   m45_b_ran_at, m45_signal_sent, m45_trap_probe_hits);
++	dadao_early_printf("M45 selftest: sig_calls=%u irq_user=%u "
++			   "irq_kernel=%u bad_hardirq=%u bad_regs=%u "
++			   "exit_user=%u exit_kernel=%u sigflags=%#lx sigpend=%u\n", m45_sig_calls,
++			   m45_irq_user, m45_irq_kernel, m45_irq_bad_hardirq,
++			   m45_irq_bad_regs, m45_exit_user, m45_exit_kernel);
++	dadao_early_printf("M45 exit: child=%d state=%u status=%#lx code=%lu "
++			   "rounds=%d\n", m45_child_pid, state, exit_code,
++			   exit_code >> 8, rounds);
++
++	/* E1: the other task ran while the loop still had iterations to go. */
++	m45_expect("e1-other-task-ran", 1, m45_b_ran, M45_FAIL_E1);
++	m45_expect("e1-other-task-ran-mid-loop", 1,
++		   m45_b_ran && m45_iters > m45_b_ran_at, M45_FAIL_E1);
++	/* E2: the signal reached `get_signal()` and its default action ran. */
++	m45_expect("e2-signal-sent", 1, m45_signal_sent, M45_FAIL_E2);
++	m45_expect("e2-died-by-signal", SIGTERM, exit_code & 0x7f, M45_FAIL_E2);
++	m45_expect("e2-no-exit-status", 0, exit_code >> 8, M45_FAIL_E2);
++	/* E3: every delivery was a real hard-IRQ with its own frame published. */
++	m45_expect("e3-bad-hardirq", 0, m45_irq_bad_hardirq, M45_FAIL_E1);
++	m45_expect("e3-bad-irq-regs", 0, m45_irq_bad_regs, M45_FAIL_E1);
++	m45_expect_ge("e3-deliveries", 1, m45_irq_user + m45_irq_kernel,
++		      M45_FAIL_E1);
++	/* E4: the same `user_mode()` answered both ways, from two entry kinds. */
++	m45_expect_ge("e4-irq-from-user", 1, m45_irq_user, M45_FAIL_E1);
++	m45_expect_ge("e4-irq-from-kernel", 1, m45_irq_kernel, M45_FAIL_E1);
++	m45_expect_ge("e4-umon-frame-user", 1, m45_exit_user, M45_FAIL_E1);
++	m45_expect("e4-umon-frame-kernel", 0, m45_exit_kernel, M45_FAIL_E1);
++	/* The non-syscall umon tail (irqentry_*) really ran. */
++	m45_expect("x-trap-probe-tail", 1, m45_trap_probe_hits, M45_FAIL_E1);
++
++	if (m45_failed) {
++		dadao_early_printf("M45 selftest: FAIL mask=%#x\n", m45_failed);
++		dadao_early_exit(m45_failed);
++	}
++	dadao_early_printf("M45 selftest: probe cases done (work loop closed)\n");
++	dadao_early_exit(0);
++}
++
++static int __init m45_entry_selftest_init(void)
++{
++	dadao_m45_entry_selftest();
++}
++late_initcall(m45_entry_selftest_init);

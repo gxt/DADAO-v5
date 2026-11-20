@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/trap.S b/arch/dadao/kernel/trap.S
 new file mode 100644
-index 000000000..90a35291b
+index 000000000..b50d98467
 --- /dev/null
 +++ b/arch/dadao/kernel/trap.S
-@@ -0,0 +1,1147 @@
+@@ -0,0 +1,1192 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception vector (K2).
@@ -91,7 +91,7 @@ index 000000000..90a35291b
 +	cfx2rd	cfx_smon, cg5, rc2, rd16	/* excp_cause_id */
 +	cfx2rd	cfx_smon, cg5, rc3, rd17	/* excp_cause_ip */
 +	st.o	rd17, [rb3, PT_IP]		/* frame.ip = cause_ip */
-+	st.o	rd0, [rb3, PT_STATUS]		/* frame.status = 0 */
++	DADAO_SAVE_STATUS cfx_smon, rb3, .Lstatus_supv	/* frame.status = mode */
 +	cfx2rd	cfx_smon, cg5, rc4, rd17	/* excp_cause_info -> 2nd argument */
 +	set.rb	rb16, dadao_excp_save
 +	set.rb	rb5, dadao_trap_handler
@@ -215,7 +215,7 @@ index 000000000..90a35291b
 +	cfx2rd	cfx_umon, cg5, rc2, rd16	/* excp_cause_id */
 +	cfx2rd	cfx_umon, cg5, rc3, rd17	/* excp_cause_ip */
 +	st.o	rd17, [rb16, PT_IP]		/* into the *task's* frame (rb16) */
-+	st.o	rd0, [rb16, PT_STATUS]
++	DADAO_SAVE_STATUS cfx_umon, rb16, .Lstatus_umon	/* frame.status = mode */
 +
 +	/*
 +	 * 4a. A user *syscall* (`trap cfx_umon, 0`) is handled here, in the umon
@@ -1102,6 +1102,51 @@ index 000000000..90a35291b
 +.Lk5f_park:
 +	jump	[rb0, .Lk5f_park]	/* no path returns here */
 +dadao_k5f_user_stub_end:
++#endif
++
++	/*
++	 * ---- m14-linux-045 probe: the user program (work loop) --------------
++	 *
++	 * Copied into a user-accessible code page and entered at its first
++	 * instruction (kernel/m45_entry_selftest.c), so it must be
++	 * position-independent (labels only) and register-only.  The kernel
++	 * hands it two values in the initial frame: `rd9` = the inner
++	 * (user-only) spin count and `rd11` = the outer iteration count.
++	 *
++	 *   trap cfx_umon, 0x2aac   a probe-only umon function: claimed by the
++	 *                           probe's trap hook, so the entry takes the
++	 *                           non-syscall (`irqentry_*`) return tail
++	 *   loop:                   inner user-only spin (rd10), then one real
++	 *                           syscall (`getpid`) per outer iteration
++	 *   exit(0)                 only reached if the signal case does *not*
++	 *                           end the task — which is the FAIL it reports
++	 */
++#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
++	.section .rodata,"a"
++	.p2align 2
++	.globl	dadao_m45_user_stub
++	.globl	dadao_m45_user_stub_end
++dadao_m45_user_stub:
++	/*  0 */ trap	cfx_umon, 0x2aac	/* the probe's own umon function */
++.Lm45_loop:
++	/*  4 */ rd2rd	rd10, rd9, 1		/* rd10 = the inner spin count */
++.Lm45_inner:
++	/*  8 */ add.si	rd10, -1
++	/*  c */ br.z	{rd10}?, [rb0, .Lm45_next]
++	/* 10 */ jump	[rb0, .Lm45_inner]
++.Lm45_next:
++	/* 14 */ set.rd	rd15, 172		/* __NR_getpid */
++	/* 18 */ trap	cfx_umon, 0		/* the iteration the kernel counts */
++	/* 1c */ add.si	rd11, -1
++	/* 20 */ br.z	{rd11}?, [rb0, .Lm45_done]
++	/* 24 */ jump	[rb0, .Lm45_loop]
++.Lm45_done:
++	/* 28 */ set.rd	rd16, 0
++	/* 2c */ set.rd	rd15, 93		/* __NR_exit */
++	/* 30 */ trap	cfx_umon, 0		/* does not return */
++.Lm45_park:
++	/* 34 */ jump	[rb0, .Lm45_park]
++dadao_m45_user_stub_end:
 +#endif
 +
 +	/*

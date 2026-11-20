@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/kernel/k5_clone_selftest.c b/arch/dadao/kernel/k5_clone_selftest.c
 new file mode 100644
-index 000000000..81e381e9d
+index 000000000..f4ab7a5d7
 --- /dev/null
 +++ b/arch/dadao/kernel/k5_clone_selftest.c
 @@ -0,0 +1,665 @@
@@ -236,7 +236,7 @@ index 000000000..81e381e9d
 +	frame->rb[3] = K5C_RB3_SENTINEL;	/* the parent's rbtp */
 +	frame->rd[11] = K5C_STACK_VA;		/* the page lr/sc work on */
 +	frame->rd[13] = K5C_CHILD_STACK_VA + PAGE_SIZE;	/* the child's newsp */
-+	frame->status = 0;
++	frame->status = DADAO_STATUS_USER;
 +	dadao_enter_user(frame);		/* never returns */
 +}
 +

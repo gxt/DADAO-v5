@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/entry.h b/arch/dadao/include/asm/entry.h
 new file mode 100644
-index 000000000..555f4f696
+index 000000000..e4a643455
 --- /dev/null
 +++ b/arch/dadao/include/asm/entry.h
-@@ -0,0 +1,168 @@
+@@ -0,0 +1,192 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO exception-entry register-file save/restore (assembly only).
@@ -76,6 +76,7 @@ index 000000000..555f4f696
 +#endif
 +
 +#include <asm/asm-offsets.h>
++#include <asm/trap.h>		/* DADAO_STATUS_USER (m14-linux-045) */
 +
 +/*
 + * Capture the complete register file into @frame (a `struct pt_regs`, 8-byte
@@ -137,6 +138,29 @@ index 000000000..555f4f696
 +	stm.o	{rf0:rf62}, [rb3, rd2]
 +	set.rd	rd2, PT_RF_LAST			/* &frame.rf[63] */
 +	stm.o	{rf63:rf63}, [rb3, rd2]
++	.endm
++
++/*
++ * Record the exception's pre-entry run mode in the frame (m14-linux-045).
++ *
++ * `@cfx` is the cfx whose cg5 frame the hardware filled (cfx_smon / cfx_umon /
++ * cfx_hart) and `@base` the RB register that points at the frame; `@tag` names
++ * the branch label (one per expansion, the assembler has no local-label form
++ * here).  `cg5 rc0` is `excp_prev_run_mode` (spec/DADAO-12 §3.6): 0 for a
++ * user-mode entry, 2 for a supv one.
++ *
++ * The stored value is `DADAO_STATUS_USER` for user and 0 otherwise — the shape
++ * `user_mode(regs) = (status & 0x3) != 0` reads; why the raw two-bit mode is not
++ * stored is in asm/ptrace.h.  `rd4`/`rd5` are caller-saved and already in the
++ * frame, so clobbering them here costs nothing (the restore puts them back).
++ */
++	.macro	DADAO_SAVE_STATUS cfx, base, tag
++	cfx2rd	\cfx, cg5, rc0, rd4		/* excp_prev_run_mode */
++	set.rd	rd5, DADAO_STATUS_USER
++	br.z	{rd4}?, [rb0, \tag]
++	set.rd	rd5, 0
++\tag:
++	st.o	rd5, [\base, PT_STATUS]
 +	.endm
 +
 +/*

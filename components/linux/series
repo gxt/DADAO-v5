@@ -56,6 +56,7 @@ arch/dadao/kernel/asm-offsets.c.patch
 arch/dadao/kernel/async_trap.S.patch
 arch/dadao/kernel/early_console.c.patch
 arch/dadao/kernel/entry.S.patch
+arch/dadao/kernel/entry_common.c.patch
 arch/dadao/kernel/head.S.patch
 arch/dadao/kernel/irq.c.patch
 arch/dadao/kernel/k2_irq_test.c.patch
@@ -67,6 +68,7 @@ arch/dadao/kernel/k4_switch_selftest.c.patch
 arch/dadao/kernel/k5_clone_selftest.c.patch
 arch/dadao/kernel/k5_futex_selftest.c.patch
 arch/dadao/kernel/k5_syscall_selftest.c.patch
+arch/dadao/kernel/m45_entry_selftest.c.patch
 arch/dadao/kernel/process.c.patch
 arch/dadao/kernel/setup.c.patch
 arch/dadao/kernel/syscall_argmask.c.patch

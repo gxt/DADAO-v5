@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/time.c b/arch/dadao/kernel/time.c
 new file mode 100644
-index 000000000..5919648a7
+index 000000000..cb803845c
 --- /dev/null
 +++ b/arch/dadao/kernel/time.c
-@@ -0,0 +1,574 @@
+@@ -0,0 +1,598 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO time base and single-hart timer (K2).
@@ -70,6 +70,11 @@ index 000000000..5919648a7
 + */
 +void __noreturn dadao_k2_irq_test(void);
 +void dadao_k2_irq_inframe(void);
++#endif
++
++#if CONFIG_DADAO_M45_ENTRY_SELFTEST
++/* The entry/exit probe's view of one delivery (kernel/m45_entry_selftest.c). */
++void m45_note_irq(struct pt_regs *regs);
 +#endif
 +
 +/*
@@ -309,10 +314,10 @@ index 000000000..5919648a7
 +{
 +	/* m14-linux-017: no semihosting while this frame is live (待裁定 4 / C). */
 +	extern int dadao_in_frame;
++	struct pt_regs *old_regs;
 +	unsigned long flags;
 +
 +	dadao_in_frame = 1;
-+	(void)regs;
 +
 +	/*
 +	 * Hard-IRQ context (m14-linux-044).  `irq_enter_rcu()` adds
@@ -323,6 +328,12 @@ index 000000000..5919648a7
 +	 * all-ones `global_cfx_intr_mask` blocks a nested source
 +	 * (contract-see §6.3), so this is bookkeeping only.
 +	 *
++	 * `set_irq_regs()` publishes this frame as the interrupted context
++	 * (m14-linux-045): `get_irq_regs()` is what the tick's accounting, the
++	 * timer softirq and any handler deeper down read to find out *what* was
++	 * interrupted, and it is NULL outside the handler.  The pair around the
++	 * body is upstream's order (`arch/riscv/kernel/traps.c`, `handle_riscv_irq`).
++	 *
 +	 * `irq_exit_rcu()` masks local IRQs (kernel/softirq.c:__irq_exit_rcu)
 +	 * and leaves the interrupted state to the arch's return path.  On this
 +	 * machine that state is the monitor row, which `escape` does *not*
@@ -330,9 +341,21 @@ index 000000000..5919648a7
 +	 * word would stop the next TIMER: write the saved word back here.
 +	 * `dadao_timer_interrupt()` already saves/restores the same row around
 +	 * its own body, so @flags is the value it returns to as well.
++	 *
++	 * Why not `irqentry_enter()`/`irqentry_exit()` here as well: their exit
++	 * side would run the return-to-user work loop, which can schedule, and
++	 * this frame lives in `cfx_hart` -- the frame a *kernel-mode* TIMER
++	 * delivery also uses, whose saved `global_cfx_intr_mask` is internal and
++	 * cannot be re-established by software (kernel/entry_common.c has the
++	 * full argument).  The work loop therefore runs on the umon return path.
 +	 */
 +	flags = arch_local_save_flags();
 +	irq_enter_rcu();
++	old_regs = set_irq_regs(regs);
++
++#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
++	m45_note_irq(regs);
++#endif
 +
 +	if (cause != DADAO_CAUSE_TIMER)
 +		dadao_async_die(cause, info);
@@ -343,6 +366,7 @@ index 000000000..5919648a7
 +	}
 +
 +	dadao_timer_interrupt();
++	set_irq_regs(old_regs);
 +	irq_exit_rcu();
 +	arch_local_irq_restore(flags);
 +	dadao_in_frame = 0;
