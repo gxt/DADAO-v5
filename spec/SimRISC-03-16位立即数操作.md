@@ -1,6 +1,6 @@
 # SimRISC16位立即数操作指令
 
-> **版本：0.5.7-rc**（与 SimRISC-00 一致）
+> **版本：0.5.7**（与 SimRISC-00 一致）
 > **分类：16位立即数操作** — set.zw/set.ow/set.w/or.w/andn.w（rwii 格式）
 > **伪指令**：`set.rd`/`set.rb`/`set.rf`/`set.ft`/`set.fo` 见 `Toolchain-01 §6.2`。
 
