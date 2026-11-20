@@ -205,6 +205,14 @@
 - **实测依据**：M19 的 Tiny 上板会先给出真实 LUT/FF/BRAM 占用 ⇒ 建议 **M19 资源实测后**再定，或现在按「256 KiB 先落地、512 KiB 作为参数可配」推进（I/D 各半则各 128/256 KiB）。
 - **影响**：不定则 009/010 无法写死参数；但可用「参数化 + 默认值」避开阻塞。
 
+## N36. Vast 的 DDR 怎么接（**未定**；用户 2026-11-20「今天不讨论」）
+
+- **现状**：`m16-chipyard-007` 已把 Vast 的 PA RAM 从 AXI4+`SimDRAM` 改为 **TileLink 从端口**（理由：`+loadmem` 同时喂 fesvr、TL→AXI 单拍写触发 ToAXI4 断言）；仿真侧核心看到的是 TL。
+- **上板约束**：Genesys2 的 DDR3 只能经 **MIG**（AXI4 slave）⇒ 必然要有一段 TL→AXI4。
+- **两条候选（未裁）**：A = 核心保持 TL、桥放 FPGA harness（`TLToAXI4` + 位宽/burst 适配 → MIG），核与仿真同构；B = 核心改回 AXI4（与 007 结论冲突）。
+- **若选 A 还需定**：DDR 映射 PA `[0,1 GiB)`、MIG UI 位宽（32/64）与时钟比、outstanding 深度、DMA 是否共用端口、板上加载通道（UART/JTAG/Flash）。
+- **归属**：M16（接口契约，若需要）与 M21（FPGA-Vast，未立册）；重启讨论时先定接线，再谈桥的参数。
+
 # M14：Linux bring-up
 
 > **M14 issues 处置（用户 2026-11-20「同意」）**：`ISS-444`/`ISS-457`/`ISS-470`（K1 证据、K2 可达 FAIL、门控 `CONFIG` 钉子）**并入 `m14-linux-029`**（它本就同笔改 K0–K4 门控）；`ISS-454`（`contract-see §6.4` 的「当前 cfx = `cfx_smon`」表述）**并入 `m14-linux-046`**（同批改 uapi/musl 与契约表述）。
