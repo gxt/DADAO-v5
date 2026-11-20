@@ -92,7 +92,7 @@
 | W11 | 访存按**大端**：最低地址的字节是最高有效字节（`read_memory`/`write_memory`） | `spec/IDL-ISA语义描述语言与语义库.md` §4.4 |
 | W12 | `read_memory(width, ea)` 返回 64 位、结果**零扩展**至 64；符号扩展由各指令自己做 | `spec/IDL-ISA语义描述语言与语义库.md` §4.4 |
 | W18 | 基础数据类型 8/16/32/64 位：byte / wyde / tetra / octa | `.tao/contracts/contract-isa.md` §1.4 |
-| W19 | 有效虚拟地址 48 位：访存基址取 `rb[47:0]`；控制流地址按 64 位全宽计算、取指取低 48 位 | `.tao/contracts/contract-isa.md` §1.5 |
+| W19 | 有效虚拟地址 48 位：访存基址取 `rb[47:0]`；控制流地址按 64 位全宽计算、取指取低 48 位 | `.tao/contracts/contract-isa.md` §1.5（`rb[47:0]`）；取指取低 48 位另见 `spec/IDL-ISA语义描述语言与语义库.md` §4.3 |
 | W20 | 存储端序：指令字与数据同为**大端序** | `.tao/contracts/contract-isa.md` §1.6 |
 
 - 访存三步：`Bits<64> ea64 = rb[rbHB] + $signed(imms12);` → `Bits<48> ea = ea64[47:0];`
