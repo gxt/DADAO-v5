@@ -38,6 +38,7 @@ struct pt_regs {
 - 尺寸 `4 × 64 × 8 = **2048 B**`（`_Static_assert` 改 2048）；
 - **模式位：`status` 低 4 位**；`spec/DADAO-12 §1` 只定义 2 位（0b00 user / 0b01 jail / 0b10 supv / 0b11 hypv），**高 2 位留扩展**；`user_mode(regs) = ((regs->status & 0x3) != 0)`（用户 2026-11-20 二次调整）。**与 spec 的差异须记录**：`spec/DADAO-12 §1` 把 jail(`0b01`) 归「用户态」，此式判其为**非**用户态；Linux 下不进 jail ⇒ 当前等价，将来支持 jail 须重裁；**bit 4–63 保留 0**（用户「以后再说」）；
 - `asm-offsets.c` 的 `PT_IP`/`PT_STATUS` 保持 `offsetof(pt_regs, ip)`/`offsetof(pt_regs, status)`（匿名 union 成员可直接取）⇒ **12 处 asm 与 48 处 C 引用零改动**；
+- **`status` 只放模式（低 4 位），不放 IE 位**（用户 2026-11-20 裁定，`discussing.md` N30）：中断使能由硬件 `trap`/`escape` 自己保存恢复 `global_cfx_intr_mask`；`saved_global_cfx_intr_mask` 是内部寄存器不暴露 ⇒ 软件帧不重复存、`regs_irqs_disabled()` 保持恒 false；
 - **uapi 与 musl 同步更新**（用户原话）：`uapi/asm/ptrace.h` 的 `user_regs_struct` 与 musl 的 `sigcontext`/`mcontext_t` 按 2048 B 同形状改；**musl 侧作为本任务的连带项**（组件各自提交，不跨写者）。
 
 ## 要做

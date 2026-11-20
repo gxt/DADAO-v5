@@ -25,7 +25,11 @@
 2. **syscall enter/exit**：接上 `syscall_enter_from_user_mode()` / `syscall_exit_to_user_mode()`（或按本端口分发结构给出等价实现，**必须在任务书说明为什么不能直接用通用函数**）；
 3. **`arch_do_signal_or_restart`** 接线：本任务只负责**调用到它**；信号的实际投递与帧由 `m14-linux-046` 实现（未实现前 `get_signal()` 返回无信号即返回）；
 4. **`irqentry_*`**：`044` 选上 `GENERIC_IRQ_ENTRY` 后，在异步入口接 `irqentry_enter_*`/`irqentry_exit_*` 或 `irq_enter_rcu`/`irq_exit_rcu` + `set_irq_regs`；
-5. **`user_mode()`**：根因是 `struct pt_regs` 无模式位（`039`/`042`）。**方案二选一并写清理由**：① 按分发路由事实判定（umon 交接 = 用户态，035 已用此法）；② 新增 `prev_mode` 帧位（**属帧布局/契约变更，须用户裁定后才可做**）。
+5. **`user_mode()`（**已裁定**，用户 2026-11-20，`discussing.md` N30）**：用 **`status` 低 4 位的模式编码**，判据 **`user_mode(regs) = ((regs->status & 0x3) != 0)`**；`trap`/`async_trap` 入口须把**异常前的运行模式**写进该字段（硬件 `excp_prev_run_mode` 可读），`escape` 前不需要恢复它（它描述「进入异常前」，不是当前态）。帧布局见 `m14-linux-046`（2048 B，`rd[0]=status`）。
+   - **注意与 spec 的差异**：`spec/DADAO-12 §1` 把 jail(`0b01`) 归「用户态」，该判据把它判为**非**用户态；Linux 下不进 jail ⇒ 当前等价，将来支持 jail 须重裁。
+6. **`irqs_disabled()` / `regs_irqs_disabled()`（**已裁定**，用户裁定 B）**：
+   - `irqs_disabled()` **保持**「读硬件 `cfx_smon cg8 rc1` + `DADAO_IRQ_SOURCE_BITS` 子集判定」——与 RISC-V `sstatus.SIE` / arm64 `DAIF` 同构，「异常进入后为 true」是特性（让 `might_sleep()` 抓「在中断里睡」）；
+   - `regs_irqs_disabled(regs)` **保持恒 false**——硬件把「异常前 mask」存在内部寄存器 `saved_global_cfx_intr_mask`、**不暴露给软件**（`DADAO-12 §3.6`），帧里拿不到；在任务书注明此接口限制，**不要**为此往帧里加位。
 
 ## 验收（逐条贴真实 rc）
 
