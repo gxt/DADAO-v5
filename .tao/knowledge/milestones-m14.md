@@ -24,7 +24,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-linux-044 | 3–4 h | Kconfig 选型补齐（`GENERIC_SCHED_CLOCK`/`GENERIC_IRQ_ENTRY`/`UACCESS_MEMCPY` + `fixup_exception`） |
 | m14-linux-045 | 4–6 h | 通用 entry/exit 工作循环（`TIF_*` 消费 + syscall enter/exit + `irqentry`） |
 | m14-linux-046 | 6–8 h | 信号帧与投递（`rt_sigframe`/`setup_rt_frame`/`rt_sigreturn`/`force_sig`） |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
@@ -44,6 +43,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-linux-044 | 2026-11-20 11:29 | 3–4 h | Kconfig 选型补齐（`GENERIC_SCHED_CLOCK`/`GENERIC_IRQ_ENTRY`/`UACCESS_MEMCPY` + `fixup_exception`） |
 
 ## 已验证
 
