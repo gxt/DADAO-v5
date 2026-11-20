@@ -16,19 +16,31 @@
 - `sys_rt_sigreturn` 仍是 `-EINVAL` 桩（`kernel/syscalls.c:44-46`）；
 - `force_sig` / `send_signal` / `sigaltstack` 全缺。
 
-## 待裁定（**先裁定再动手**）
+## 已裁定（用户 2026-11-20，**已关闭，不再询问**）
 
-**信号帧布局三处定义不一致**（`037` 号表盘点与 `039` 都指向）：
+**帧 2048 B，四组各 64 槽；`rd` 组第 0 槽存 `status`、`rb` 组第 0 槽存 `ip`；C 用匿名 union 表达。**
 
-| 来源 | 尺寸/形状 |
-| --- | --- |
-| 内核 `struct pt_regs`（`m14-linux-022`） | 四组全量 `rd[64]/rb[64]/ip/status/ra[64]/rf[64]`，2064 B |
-| uapi `user_regs_struct`（`uapi/asm/ptrace.h:6`） | 仍是 K0 旧定义 `rd[32]/rb[32]/ra[8]` |
-| `m14-linux-027` 旧裁定 | 2048 B / `rb[0]`=IP / 无 status |
+```c
+struct pt_regs {
+	union {                                  /* rd 组：第 0 槽不是寄存器（`ld` 到它 ILLI） */
+		unsigned long rd[64];
+		struct { unsigned long status; unsigned long rd_rest[63]; };
+	};
+	union {                                  /* rb 组：第 0 槽在硬件上就是只读 IP */
+		unsigned long rb[64];
+		struct { unsigned long ip;     unsigned long rb_rest[63]; };
+	};
+	unsigned long ra[64];                    /* ra[0] = {RACNT, MRPTR} 元数据，原样保留 */
+	unsigned long rf[64];                    /* rf[0] = FCSR */
+};
+```
 
-**需用户裁定**：以哪一份为准（建议以**内核 `pt_regs` 2064 B** 为准并同步 uapi，`ra[64]` 含 `RACNT`/`MRPTR` 元数据逐位保留）。**未裁定前不得自定布局**。
+- 尺寸 `4 × 64 × 8 = **2048 B**`（`_Static_assert` 改 2048）；
+- **模式位：`status` 低 4 位**；`spec/DADAO-12 §1` 只定义 2 位（0b00 user / 0b01 jail / 0b10 supv / 0b11 hypv），**高 2 位留扩展**；`user_mode(regs) = ((regs->status & 0xF) <= 1)`；**bit 4–63 保留 0**（用户「以后再说」）；
+- `asm-offsets.c` 的 `PT_IP`/`PT_STATUS` 保持 `offsetof(pt_regs, ip)`/`offsetof(pt_regs, status)`（匿名 union 成员可直接取）⇒ **12 处 asm 与 48 处 C 引用零改动**；
+- **uapi 与 musl 同步更新**（用户原话）：`uapi/asm/ptrace.h` 的 `user_regs_struct` 与 musl 的 `sigcontext`/`mcontext_t` 按 2048 B 同形状改；**musl 侧作为本任务的连带项**（组件各自提交，不跨写者）。
 
-## 要做（裁定后）
+## 要做
 
 1. `kernel/signal.c`：`rt_sigframe`/`struct sigcontext` 布局、`setup_rt_frame()`、`restore_sigcontext()`、`handle_signal()`、`get_signal()` 接线；
 2. `sys_rt_sigreturn` 真实现（返回用户态时按帧恢复 4 组寄存器 + `ip`/`status`）；

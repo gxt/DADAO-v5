@@ -68,6 +68,14 @@
 - **第一批**（与在跑/即将任务最相关）：`m14-linux-036` mm/缺页/页表、`037` syscall/ABI、`038` 时间/时钟、`039` 信号/退出、`040` Kconfig 选型。第二批（`D2` 进程/线程、`D3` trap/异常、`D7` 启动）待第一批格式确认后再立。
 - **整改权归用户**：盘点只出清单与建议，**是否整改、何时整改由用户逐项决定**；P0 项若阻塞在跑任务，须先报用户再插队。
 
+## N30. 信号帧布局与模式位（用户 2026-11-20 已裁，关闭）
+
+- **帧尺寸 2048 B**（用户强调「我已经裁定过的！！！」）：四组各 64 槽，`rd` 组第 0 槽存 `status`、`rb` 组第 0 槽存 `ip`——因为 `rd[0]` 本来就不是寄存器（`ld` 到它 ILLI）、`rb[0]` 在硬件上就是只读 IP。
+- **C 表达方式**：**匿名 union**（用户 2026-11-20「还是匿名 union 吧，这里没有歧义，无需具名」）——`regs->rd[64]` 与 `regs->status` 两个视图同址，48 处 C 引用与 12 处 asm（`PT_IP`/`PT_STATUS`）**零改动**。
+- **模式位：低 4 位**（不是 2 位）放在 `status`；`spec/DADAO-12 §1` 只定义 2 位编码（0b00 user / 0b01 jail / 0b10 supv / 0b11 hypv），**高 2 位留扩展**；`user_mode = (status & 0xF) <= 1`；**bit 4–63 保留 0**（用户「以后再说」）。
+- **uapi 与 musl 同步更新**（用户原话）：`uapi/asm/ptrace.h` 的 `user_regs_struct` 与 musl 的 `sigcontext`/`mcontext_t` 都按 2048 B 同形状改。
+- **`ra[0]` 的 `{RACNT, MRPTR}` 元数据保持原样**，不参与复用。
+
 ## N7. cfx 待实现范围
 
 - 已实现：umon / jmon / smon / hmon / ptw / pmem / time / hart / power。
