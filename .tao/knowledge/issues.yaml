@@ -1014,3 +1014,28 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`tools/testcases/arch/min_rom_probe_035t.py` 的执行通道整体失效（`m15-testcases-020` 实测）：该探针按「裸 ROM 直接传 `-bios` + 末尾 ILLI 收尾」建模，但现 QEMU `-bios` 只接受恰 65536 B 的 BootROM 固件（raw `-kernel` 需 ≥256 B 零前缀），且 ILLI 收尾实测会挂起 ⇒ 修好 spec 章节锚点（`## 7.` → `## 5.`）与 canonical 期望后仍不能真跑。要复活须迁移到「BootROM 固件 + raw kernel + `SYS_EXIT` 收尾」模型，甚至重写故障例判据；属独立改造，本任务只落了锚点与 canonical 两项。"
+- id: ISS-478
+  scope:
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】子代理 provider 阻断：`m17-idl-001` 第 1 轮 reviewer session 返回 `Provider blocked the response`（第 1/3 次）。落盘核对：工作树 `git status` 空、任务书未写审阅记录 ⇒ 无残留。按「子代理返回异常处理」重试原 session 并计数；连续 3 次才拆分任务。"
+- id: ISS-479
+  scope:
+  - idl
+  milestone: M17
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`idl/syntax-subset.md` 构造表有缺口（`m17-idl-002` 实施时发现）：`true`/`false`（Boolean 字面量，约 25 处）无独立构造行、`0s`（约 32 处）被并进 S39 正则而不单列 ⇒ 「AST ↔ 构造表一一对应」不完整。处置：`subset_stats.py` 补两行统计并重生成文档（属 `m17-idl-001` 交付物的补齐，随下次触碰 `idl/` 时做）。"
+- id: ISS-480
+  scope:
+  - idl
+  - infra
+  milestone: M17
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`idl/` 的双向目录集合门控与 `__pycache__` 冲突：任何 `import idl.render`/`idl.idl_parser` 都会生成 `__pycache__` 子目录，`check-manifests-guard` 立刻判红（`m15-idl-021` 与 `m17-idl-002` 各踩一次）。处置候选：① 门控忽略 `__pycache__`（与 `.gitignore` 同口径，属白名单收窄需评审）；② Makefile 的 idl 目标统一 `PYTHONDONTWRITEBYTECODE=1`；③ 文档写明「不得 import」。建议 ②+③ 先做、① 另议。"
