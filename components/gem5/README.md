@@ -53,7 +53,9 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   丢弃写不 ILLI）；`fence`（`immu18[17:12]` SBZ、`pred/succ` 六位掩码、
   `cfxha=0` = all cfx、`pred=succ=0` 合法 no-op，`ordering()` 为平台接入点）；
   `lr.*`/`sc.*` 各 12 条（宽度 8/4/2/1 × 存储序 nn/an|nr/ar，按 `entry->id`
-  分派；`lr` 零扩展大端读并置保留、`sc` 精确地址+宽度匹配后条件写并置
+  分派；`lr` 大端读并置保留——`.o` 写满 64 位，`.t/.w/.b` **只写低 32/16/8 位、
+  高位保持原值**（`SimRISC-12 §1.1`，既不零扩展也不符号扩展）；`sc` 精确地址+
+  宽度匹配后条件写并置
   `rdHB=0/1`，无论成败清本 hart 保留；`lr` 的 `hb != rd0` ⇒ ILLI、`sc` 的
   `rdHB = rd0` ⇒ ILLI；非 `.b` 未对齐 ⇒ MALIGN；MALIGN/访存 fault 精确、
   不消费保留）。保留标记由每线程 `ISA` 单槽持有（精确地址 + 宽度，F8.1），
@@ -98,7 +100,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   B5 执行断言 `exec/b5_test.cc`（29/29、non-B5 234/234、块搬移范围/重叠/
   `rf0`/`ra0`、条件边界、64 位地址、RAS C1–C3b/D1–D4b、精确异常）由
   `tools/gem5/check_b5.py`、B6 执行断言 `exec/b6_test.cc`（30/30、non-B6
-  233/233、`rule_refs` 5/14/12、swym/fence 掩码 4096×2/`lr` 零扩展+MALIGN+
+  233/233、`rule_refs` 5/14/12、swym/fence 掩码 4096×2/`lr` 窄写高位保持+MALIGN+
   hb、`sc` 成功失败+宽度截断+精确 fault、CFXREG/CFXESC、保留单槽覆盖与消费）
   由 `tools/gem5/check_b6.py` 编译运行；B7 执行断言 `exec/b7_test.cc`
   （53/53、non-B7 210/210、静态 ILLI 零读写、各族边界/标志/舍入/NaN/Inf/±0/rem/

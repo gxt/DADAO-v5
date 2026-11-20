@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b6.cc b/src/arch/dadao/exec/b6.cc
 new file mode 100644
-index 0000000..2d53bd2
+index 0000000..9b31359
 --- /dev/null
 +++ b/src/arch/dadao/exec/b6.cc
-@@ -0,0 +1,396 @@
+@@ -0,0 +1,409 @@
 +// DADAO gem5 B6 execution core -- implementation.
 +//
 +// The 30 B6 ids are dispatched through the table below, by `entry->id` (never
@@ -165,8 +165,11 @@ index 0000000..2d53bd2
 +    return width <= 1 || (addr & (uint64_t(width) - 1)) == 0;
 +}
 +
-+/** lr.<width>: read a zero-extended big-endian window, then set the
-+ * reservation for the exact address and width (contract-isa §14.2). */
++/** lr.<width>: read a big-endian window, write it back as a narrow write, then
++ * set the reservation for the exact address and width (contract-isa §14.2).
++ * The narrow forms replace only the low `width` bytes of rdHC; the bytes above
++ * keep their old value (spec/SimRISC-12 §1.1: neither zero- nor
++ * sign-extended), which is why the destination must be read first. */
 +Fault
 +executeLr(const decode::DecodedInst &inst, B6Context &ctx, const B6Spec &spec)
 +{
@@ -191,8 +194,18 @@ index 0000000..2d53bd2
 +    const unsigned rd = static_cast<unsigned>(field(inst, spec.dstField));
 +    // rdHC == rd0 reads as 0 and never writes: the data destination is a
 +    // plain value destination, it is not part of the static legality set.
-+    if (rd != 0)
-+        ctx.writeInt(Bank::Rd, rd, value);
++    if (rd != 0) {
++        if (width == 8) {
++            // .o replaces all 64 bits, so the old value is irrelevant.
++            ctx.writeInt(Bank::Rd, rd, value);
++        } else {
++            // .t/.w/.b: read-modify-write of the destination, low bytes only
++            // (spec/SimRISC-12 §1.1 -- not zero-extended, not sign-extended).
++            const uint64_t mask = (uint64_t(1) << (8 * width)) - 1;
++            const uint64_t old = ctx.readInt(Bank::Rd, rd);
++            ctx.writeInt(Bank::Rd, rd, (old & ~mask) | (value & mask));
++        }
++    }
 +    ctx.setReservation(addr, width);
 +    return Fault::None;
 +}

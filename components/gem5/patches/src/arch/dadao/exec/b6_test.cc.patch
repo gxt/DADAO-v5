@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b6_test.cc b/src/arch/dadao/exec/b6_test.cc
 new file mode 100644
-index 0000000..e96becc
+index 0000000..ceee32f
 --- /dev/null
 +++ b/src/arch/dadao/exec/b6_test.cc
-@@ -0,0 +1,1805 @@
+@@ -0,0 +1,1857 @@
 +/*
 + * DADAO gem5 B6 execution assertions (GEM5-011t).
 + *
@@ -814,10 +814,25 @@ index 0000000..e96becc
 +    const exec::Fault fault = runWord(ctx, o.id, w);
 +    check(fault == exec::Fault::None, "%s positive: fault %s", o.id,
 +          faultName(fault));
-+    const uint64_t expected = windowValue(o.width, 0x80);
++    // Narrow-write oracle, built byte by byte (independent of the exec core's
++    // masking): rdHC byte j (LSB = 0) becomes the memory byte at
++    // addr + width - 1 - j for j < width -- DADAO is big-endian -- and keeps
++    // its old value above that (spec/SimRISC-12 §1.1, neither zero- nor
++    // sign-extended); .o replaces all eight bytes.
++    uint64_t expected = ctx.rd[5];
++    for (unsigned j = 0; j < o.width; ++j) {
++        const unsigned shift = 8 * j;
++        const unsigned byte = (0x80 + (o.width - 1 - j)) & 0xFF;
++        expected = (expected & ~(uint64_t(0xFF) << shift)) |
++                   (uint64_t(byte) << shift);
++    }
 +    check(ctx.rd[5] == expected,
-+          "%s positive: zero-extended big-endian value 0x%" PRIx64, o.id,
-+          expected);
++          "%s positive: low %u byte(s) loaded, bytes above kept (0x%" PRIx64
++          ")", o.id, o.width, expected);
++    const uint64_t lowMask =
++        o.width >= 8 ? ~uint64_t(0) : (uint64_t(1) << (8 * o.width)) - 1;
++    check((ctx.rd[5] & lowMask) == windowValue(o.width, 0x80),
++          "%s positive: low window equals the big-endian memory value", o.id);
 +    check(ctx.resSets == 1 && ctx.resValid && ctx.resAddr == kAddr &&
 +              ctx.resWidth == o.width,
 +          "%s positive: reservation set for (0x%" PRIx64 ", %u)", o.id,
@@ -1134,7 +1149,8 @@ index 0000000..e96becc
 +}
 +
 +// ---------------------------------------------------------------------------
-+// 5. lr: width/order, zero extension, MALIGN, hb SBZ, reservation overwrite.
++// 5. lr: width/order, narrow write keeps the high bytes, MALIGN, hb SBZ,
++//    reservation overwrite.
 +// ---------------------------------------------------------------------------
 +
 +void
@@ -1184,19 +1200,53 @@ index 0000000..e96becc
 +        }
 +    }
 +
-+    // Zero extension is observable: a .b load of 0x80 is 0x80, not -128.
++    // Narrow lr keeps the bytes above the load width: every .t/.w/.b row
++    // replaces only its low bytes and never extends (no zero extension, no
++    // sign extension -- spec/SimRISC-12 §1.1); .o replaces all 64 bits.
++    for (size_t i = 0; i < kOracleCount; ++i) {
++        const Oracle &o = kOracle[i];
++        if (o.op != T_LR)
++            continue;
++
++        MockContext ctx;
++        initContext(ctx);
++        // 0xA0..0xA7: the big-endian window differs per width, so a wrong
++        // width or a wrong offset also shows up in the low bytes.
++        for (unsigned j = 0; j < 8; ++j)
++            ctx.mem[kAddr + j] = static_cast<uint8_t>(0xA0 + j);
++        ctx.rb[4] = kAddr;
++        ctx.rd[6] = 0xDEADBEEFDEADBEEFULL;
++        resetCounters(ctx);
++        WordSpec w;
++        w.rdhc = 6;
++        w.rbhd = 4;
++        const exec::Fault fault = runWord(ctx, o.id, w);
++        const uint64_t expect = o.width == 8 ? 0xA0A1A2A3A4A5A6A7ULL
++                             : o.width == 4 ? 0xDEADBEEFA0A1A2A3ULL
++                             : o.width == 2 ? 0xDEADBEEFDEADA0A1ULL
++                                            : 0xDEADBEEFDEADBEA0ULL;
++        check(fault == exec::Fault::None && ctx.rd[6] == expect,
++              "%s: rdHC keeps the bytes above the load width "
++              "(got 0x%016" PRIx64 ", want 0x%016" PRIx64 ")", o.id,
++              ctx.rd[6], expect);
++    }
++
++    // A .b load of 0x80 is 0x80 in the low byte: neither zero-extended (the
++    // high bytes keep the sentinel) nor sign-extended (0x80 is not -128).
 +    {
 +        MockContext ctx;
 +        initContext(ctx);
 +        ctx.mem[kAddr] = 0x80;
 +        ctx.rb[4] = kAddr;
++        ctx.rd[7] = 0xDEADBEEFDEADBEEFULL;
 +        resetCounters(ctx);
 +        WordSpec w;
 +        w.rdhc = 7;
 +        w.rbhd = 4;
 +        const exec::Fault fault = runWord(ctx, "lr.b.nn_orrr_rd", w);
-+        check(fault == exec::Fault::None && ctx.rd[7] == 0x80,
-+              "lr.b: 0x80 is zero-extended to 0x80");
++        check(fault == exec::Fault::None &&
++                  ctx.rd[7] == 0xDEADBEEFDEADBE80ULL,
++              "lr.b: 0x80 replaces rdHC[7:0] only");
 +    }
 +
 +    // .b has no alignment requirement: an odd address is legal.
@@ -1205,12 +1255,14 @@ index 0000000..e96becc
 +        initContext(ctx);
 +        ctx.mem[kAddr + 3] = 0x5A;
 +        ctx.rb[4] = kAddr + 3;
++        ctx.rd[7] = 0x0123456789ABCDEFULL;
 +        resetCounters(ctx);
 +        WordSpec w;
 +        w.rdhc = 7;
 +        w.rbhd = 4;
 +        const exec::Fault fault = runWord(ctx, "lr.b.nn_orrr_rd", w);
-+        check(fault == exec::Fault::None && ctx.rd[7] == 0x5A,
++        check(fault == exec::Fault::None &&
++                  ctx.rd[7] == 0x0123456789ABCD5AULL,
 +              "lr.b: an odd address is legal (no alignment requirement)");
 +        check(ctx.resValid && ctx.resAddr == kAddr + 3 && ctx.resWidth == 1,
 +              "lr.b: reservation key uses the exact odd address + width 1");

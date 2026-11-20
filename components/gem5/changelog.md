@@ -202,6 +202,10 @@
   - 摘要：**`scmp` 无序结果改 canonical quiet NaN（`SimRISC-07 §4` 改口径的 gem5 侧）**。`exec/b7.cc` 的 `runCompare()` 无序分支不再返回 sNaN 位型：四种比较一律 `fp::qnanBits(fmt)`（ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`），操作数的 payload/符号不再传播；`NV` 规则不变（signaling 无序即置，quiet 仅含 sNaN 操作数时置）。`exec/b7_test.cc` 的 `checkCompare()` 相应改写（ft/fo × qNaN / sNaN / 双 NaN / 负 payload，实际值随断言打印），`tools/gem5/b7_ref.py` 的 `cmp` 模型同口径（独立精确模型侧），`components/gem5/README.md` 的「模型选择」删去已由 spec 规定的 compare 项。补丁 2 份改（`exec/b7.cc`、`exec/b7_test.cc`），`make_patch.py` 重导出。
   - 执行者：engineer
 
+- **2026-11-20 m15-gem5-002**
+  - 摘要：**窄 `lr` 9 条改「只写低 W 位、高位保持」（用户 2026-11-19 裁定；`SimRISC-12 §1.1` 口径的 gem5 侧）**。`exec/b6.cc` 的 `executeLr()` 不再把读出的窄窗口零扩展后整 64 位写回：`.t`/`.w`/`.b` 先读 `rdHC` 旧值、只替换低 32/16/8 位再写回，`.o` 仍整字覆盖（不读旧值）。`exec/b6_test.cc` 的 `positiveLr()` 改为逐字节窄写 oracle（低位取大端内存窗、高位保持哨兵），并新增覆盖全部 12 条 `lr` 的「高位哨兵」断言（`.b` 0x80 既非零扩展也非符号扩展）；`checkLr()` 的 MALIGN/SBZ 分支不变。补丁 2 份改（`exec/b6.cc`、`exec/b6_test.cc`），`make_patch.py` 重导出；`components/gem5/README.md` 的 B6 语义描述与测试覆盖行同步改口径。
+  - 执行者：engineer
+
 
 ## M16
 
