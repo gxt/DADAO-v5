@@ -43,12 +43,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-linux-044 | 2026-11-20 11:29 | 3–4 h | Kconfig 选型补齐（`GENERIC_SCHED_CLOCK`/`GENERIC_IRQ_ENTRY`/`UACCESS_MEMCPY` + `fixup_exception`） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-044 | 2026-11-20 15:16 | Kconfig 补齐（`GENERIC_SCHED_CLOCK`/`GENERIC_IRQ_ENTRY`/异常表 uaccess+`fixup_exception`；series 96） |
 | m14-linux-035 | 2026-11-20 11:29 | 缺页路径回归通用 mm 流程（乙：rmap/LRU/filemap/权限闸；N27 与 GUP 修好；series 92） |
 | m14-linux-038 | 2026-11-20 10:23 | 时间/时钟差异盘点（19 条；P0 5：clocksource/clockevent 未注册、tick 记账缺失） |
 | m14-linux-041 | 2026-11-20 10:14 | 进程/线程与上下文切换差异盘点（19 条；`schedule_tail` 拿错 prev） |
