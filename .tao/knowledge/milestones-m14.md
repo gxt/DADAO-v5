@@ -38,12 +38,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-linux-045 | 2026-11-20 15:16 | 4–6 h | 通用 entry/exit 工作循环（`TIF_*` 消费 + syscall enter/exit + `irqentry`） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-045 | 2026-11-21 04:26 | 通用 entry/exit 循环（TIF 消费 + syscall/irqentry；撤通用 hunk；series 98） |
 | m14-llvm-007 | 2026-11-21 01:52 | DADAO `evaluateFixup` 回到 ELFObjectWriter 判据（同节 weak/global 发重定位；9 处改绑） |
 | m14-linux-047 | 2026-11-21 01:32 | `sched_clock` 改绑后 S7 panic 根因修复（k4/k5 探针补 lazy-TLB 引用配对；arch 侧） |
 | m14-linux-044 | 2026-11-20 15:16 | Kconfig 补齐（`GENERIC_SCHED_CLOCK`/`GENERIC_IRQ_ENTRY`/异常表 uaccess+`fixup_exception`；series 96） |
