@@ -26,7 +26,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-chipyard-013 | 2026-11-20 12:03 | 3–4 h | chipyard 实现差异盘点（对照 rocket；gewu/wuming × tiny/vast；只读，可并行） |
 | m16-gem5-019 | 2026-11-20 12:03 | 3–4 h | gem5 实现差异盘点（对照其它 ISA；2 CPU 类型 × 2 机型；只读，可并行） |
 | m16-chipyard-007 | 2026-11-20 02:29 | 2–3 天 | PTW 两级步查（64 KiB 页 + 512 MiB 超页、大端 PTE、HSJU/frags、A/D 本地+回写） |
 
@@ -34,6 +33,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-013 | 2026-11-20 12:29 | chipyard 实现差异盘点（27 条；Vast 无 2 GiB PA RAM、rocket 无硬件 A/D） |
 | m16-gem5-018 | 2026-11-20 02:40 | 块传送 `beats` 按起始相位（8 B 相位零回归；`ldm.ub` N=8 相位 2 ⇒ 24） |
 | m16-chipyard-012 | 2026-11-20 02:29 | RTL `scmp` 无序改 canonical（四方一致达成；FP 单元台 oracle 同步） |
 | m16-gem5-017 | 2026-11-20 01:10 | 配置命名统一：`se.py` + `--cpu-type`，删 `se_timing.py`（series 106） |
