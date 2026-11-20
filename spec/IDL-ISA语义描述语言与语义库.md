@@ -108,7 +108,9 @@ Bits<32> ft[64];
 builtin function ip {
   returns Bits<64>
   description {
-    当前正在执行的指令的地址（= `rb0` 读出）。64 位宽，但**高 16 位恒 0**（48 位地址零扩展）。
+    当前正在执行的指令的地址（= `rb0` 读出）。64 位宽；**不假定高 16 位为 0**——控制转移把完整
+    64 位写回 `rb0`（见 `jump`），跨出 48 位地址空间时 `rb0[63:48]` 保留进位；凡把该值用作地址
+    （取指 / 访存有效地址 / 跳转目标）一律取低 48 位。
     `IP` 不是「下一条」，也没有 `±4` 偏移。
   }
 }
@@ -123,11 +125,11 @@ builtin function mode {
 function jump {
   arguments Bits<64> target
   description {
-    置下一个待执行指令的地址：`target` 的**低 48 位**（`target[47:0]`）写回 `rb0`，其余 16 位恒 0；
-    取指时用其低 48 位。这是唯一允许写 `rb0` 的通道（指令正文不得把 `rb0` 当普通目的）。
+    置下一个待执行指令的地址：`target` 的**完整 64 位**写回 `rb0`（`[63:48]` 保留进位、不强制清 0）；
+    取指时取其低 48 位（`rb0[47:0]`）。这是唯一允许写 `rb0` 的通道（指令正文不得把 `rb0` 当普通目的）。
   }
   body {
-    rb[6'd0] = target[47:0];
+    rb[6'd0] = target;
   }
 }
 
@@ -332,9 +334,9 @@ ft 族同构（`fo_*` 指令级、`is_dp_*` 谓词、`softfloat_*` 原语）。*
 覆盖范围：
 
 - **ft 族**：分类（`is_sp_*`）、转换（`ft_to_i32`/`ft_to_ui32`/`i32_to_ft`/`ui32_to_ft`）、
-  算术（`ft_add`/`ft_sub`/`ft_mul`/`ft_div`/`ft_muladd`/`ft_sqrt`）、缩放（`ft_scale`，scaleB，
-  `m15-idl-017`）、取整（`round_ft_to_integral`）与 softfloat 位操作原语。
-- **fo 族**（`m15-idl-016`）：位操作底座（`packToF64UI`、`softfloat_roundPackToF64`、
+  算术（`ft_add`/`ft_sub`/`ft_mul`/`ft_div`/`ft_muladd`/`ft_sqrt`）、缩放（`ft_scale`，scaleB）、
+  取整（`round_ft_to_integral`）与 softfloat 位操作原语。
+- **fo 族**：位操作底座（`packToF64UI`、`softfloat_roundPackToF64`、
   `softfloat_normRoundPackToF64` 及其 `_no_flag` 变体、128/192 位右移粘位、128 位整数开方、
   64 位整型的 `roundToI64`/`roundToUI64` 不置标志版）、分类谓词（`is_dp_*`，与 `is_sp_*`
   同构）、转换（`fo_to_i64`/`fo_to_ui64`/`i64_to_fo`/`ui64_to_fo` 及 `_no_flag`、
@@ -349,7 +351,7 @@ ft 族同构（`fo_*` 指令级、`is_dp_*` 谓词、`softfloat_*` 原语）。*
 ② `ft_muladd` 的 `op` 取反口径也贯穿「加数为 ±Inf / 乘积为 ±0」两条早退路径（UDB 只服务
 RISC-V 的 addC）；③ 标志的 tininess 口径统一为「**舍入后**检测」（IEEE 754-2019 §7.5、
 `SimRISC-07 §1.3`）：`softfloat_roundPackToF32`/`…F64` 都用打包结果的指数域判 tiny
-（`m15-idl-017` 修正 f32 侧的舍入前预判）；`fo_to_ft` 仍用 `softfloat_roundPackToF32_no_flag`
+（f32 侧的舍入前预判已改为舍入后）；`fo_to_ft` 仍用 `softfloat_roundPackToF32_no_flag`
 再**在 fo 侧自判标志**（OF 用同一溢出不等式、UF 取「舍入后结果 tiny 且 inexact」），因为它的
 NX 口径是「转回 fo 后逐位比较无损」而不是 f32 的 `roundBits` 判据；④ 精确转换 `ft_to_fo`/
 `i32_to_fo`/`ui32_to_fo` 不带 `RoundingMode` 形参、不经置标志原语（值恒精确 ⇒ 不置任何标志，
@@ -413,6 +415,7 @@ UDB 本身若干转写错误（溢出判据、无符号比较、qNaN 置 NV、�
 
 ### 0.1.1-rc（未发布）
 
+- **控制流写回**：`jump` 把 `target` 的**完整 64 位**写回 `rb0`（`[63:48]` 保留进位、不强制清 0），取指取低 48 位；`ip()` 不再假定高 16 位为 0（与 `SimRISC-06 §1/§2` 及三执行机一致）。
 - **浮点库**：新增 `idl/lib/fp.idl`（ft/binary32 族，§4.7）；`render.py` 的「已声明函数」扫描面加 `idl/lib/*.idl`（含 `?` 后缀的函数名）。fo/binary64 族同库追加：位操作底座 + 64 位整型转换 + `fo_to_ft`/`ft_to_fo` + `is_dp_*` 谓词；算术 `fo_add`/`fo_sub`/`fo_mul`/`fo_div`/`fo_muladd`/`fo_sqrt`、取整/缩放、以及 `ft_rem`/`fo_rem` 取余；§4.7 指针同步扩到两族 + 取余。
 - **ft 族补正**：f32 舍入原语的 tininess 改「舍入后」检测（IEEE 754-2019 §7.5）；`ft_sqrt`/`round_ft_to_integral` 的类型层缺陷修掉（函数体 type_check 0 例外）；补 `i32_to_fo`/`ui32_to_fo`（精确转换）与 `ft_scale`（scaleB）。
 

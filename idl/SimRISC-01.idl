@@ -640,10 +640,13 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 }
 
 # id: ld.t_rrii_rf
-# rf0 作目的合法（§4 注）⇒ 不判 ILLI；对齐：本册附录 B 的 excp_malign 未列本族 ⇒ 不判 MALIGN
-# （§4 正文另有「`ld.t` 需 4 字节对齐、未对齐触发 MALIGN」的表述，与附录 B 不一致，两处待统一）
+# rf0 作目的合法（§4 注）⇒ 不判 ILLI；.t 需 4 字节对齐（§4 正文、附录 B excp_malign 与编码表 aligned(4) 三方一致）
 Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+if (!is_naturally_aligned(32, ea)) {          # .t 需 4 字节对齐（§4）
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
 
 # 单精装载只写目的低 32 位、高 32 位保持原值（SimRISC-00 §2.3 总则 + §4 注）⇒ 走 ft 视图；
 # rf0 = FCSR：低 32 位里可写域只有 [4:0]（异常状态），qNaN[31:22] 与 SBZ[21:5] 保持原值
@@ -656,17 +659,25 @@ if (rfHA == 6'd0) {
 }
 
 # id: st.t_rrii_rf
-# rf0 作源合法（§4 注：读出完整 64 位）；对齐：附录 B 未列本族 ⇒ 不判 MALIGN（同 ld.t）
+# rf0 作源合法（§4 注：读出完整 64 位）；.t 需 4 字节对齐（§4 正文、附录 B excp_malign 与编码表 aligned(4) 三方一致）
 Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+if (!is_naturally_aligned(32, ea)) {          # .t 需 4 字节对齐（§4）
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
 
 # 单精存储取源寄存器的低 32 位写存储器（tetra）
 write_memory(32, ea, rf[rfHA]);
 
 # id: ld.o_rrii_rf
-# rf0 作目的合法（§4 注）⇒ 不判 ILLI；对齐：附录 B 未列本族 ⇒ 不判 MALIGN（同 ld.t）
+# rf0 作目的合法（§4 注）⇒ 不判 ILLI；.o 需 8 字节对齐（§4 正文、附录 B excp_malign 与编码表 aligned(8) 三方一致）
 Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+if (!is_naturally_aligned(64, ea)) {          # .o 需 8 字节对齐（§4）
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
 
 # rf0 = FCSR（SimRISC-00 §2.3.1）：写 rf0 只更新 [33:32]（舍入模式）与 [4:0]（异常状态），
 # 其余位（只读 qNaN 位、SBZ）写无效、保持原值；其余项整 64 位写入
@@ -679,9 +690,13 @@ if (rfHA == 6'd0) {
 }
 
 # id: st.o_rrii_rf
-# rf0 作源合法（§4 注：读出完整 64 位）；对齐：附录 B 未列本族 ⇒ 不判 MALIGN（同 ld.t）
+# rf0 作源合法（§4 注：读出完整 64 位）；.o 需 8 字节对齐（§4 正文、附录 B excp_malign 与编码表 aligned(8) 三方一致）
 Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+if (!is_naturally_aligned(64, ea)) {          # .o 需 8 字节对齐（§4）
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
 
 # 源读出整 64 位（rf0 读出 = {qNaN, SBZ, 舍入模式, qNaN, SBZ, 异常状态}）
 write_memory(64, ea, rf[rfHA]);
@@ -701,7 +716,11 @@ if (end_idx > 7'd64) {                        # rfHA + immu6 > 64：不环绕、
 Bits<64> ea64 = rb[rbHB] + rd[rdHC];
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
 
-# 对齐：附录 B 未列本族 ⇒ 不判 MALIGN（§4 正文写「需 4 字节对齐」，与附录 B 不一致）
+# 对齐：.t 需 4 字节对齐（§4 正文、附录 B excp_malign 与编码表 aligned(4) 三方一致）；起始地址对齐 + 步长 = 宽度 ⇒ 每个元素都对齐；循环前判定
+if (!is_naturally_aligned(32, ea)) {
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
 # 第 k 个元素只写逻辑第 rfHA+k 条的低 32 位（高 32 位保持，SimRISC-00 §2.3）；rf0 只写 [4:0]；地址按 4 字节递增
 for (Bits<6> k = 6'd0; k < immu6; k++) {
   Bits<6> idx = rfHA + k;
@@ -730,7 +749,12 @@ if (end_idx > 7'd64) {                        # rfHA + immu6 > 64：不环绕、
 Bits<64> ea64 = rb[rbHB] + rd[rdHC];
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
 
-# 对齐：附录 B 未列本族 ⇒ 不判 MALIGN（同 ldm.t）；第 k 个元素取 rf[rfHA+k] 的低 32 位，地址按 4 字节递增
+# 对齐：.t 需 4 字节对齐（同 ldm.t；§4 正文、附录 B excp_malign 与编码表 aligned(4) 三方一致）
+if (!is_naturally_aligned(32, ea)) {
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 第 k 个元素取 rf[rfHA+k] 的低 32 位，地址按 4 字节递增
 for (Bits<6> k = 6'd0; k < immu6; k++) {
   write_memory(32, ea, rf[rfHA + k]);
   ea = ea + 48'd4;
@@ -751,7 +775,11 @@ if (end_idx > 7'd64) {                        # rfHA + immu6 > 64：不环绕、
 Bits<64> ea64 = rb[rbHB] + rd[rdHC];
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
 
-# 对齐：附录 B 未列本族 ⇒ 不判 MALIGN（§4 正文写「需 8 字节对齐」，与附录 B 不一致）
+# 对齐：.o 需 8 字节对齐（§4 正文、附录 B excp_malign 与编码表 aligned(8) 三方一致）；起始地址对齐 + 步长 = 宽度 ⇒ 每个元素都对齐；循环前判定
+if (!is_naturally_aligned(64, ea)) {
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
 # 第 k 个元素整 64 位写入 rf[rfHA+k]；rf0 只写 [33:32] 与 [4:0]（SimRISC-00 §2.3.1）；地址按 8 字节递增
 for (Bits<6> k = 6'd0; k < immu6; k++) {
   Bits<6> idx = rfHA + k;
@@ -780,7 +808,12 @@ if (end_idx > 7'd64) {                        # rfHA + immu6 > 64：不环绕、
 Bits<64> ea64 = rb[rbHB] + rd[rdHC];
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
 
-# 对齐：附录 B 未列本族 ⇒ 不判 MALIGN（同 ldm.o）；第 k 个元素取 rf[rfHA+k] 的整 64 位，地址按 8 字节递增
+# 对齐：.o 需 8 字节对齐（同 ldm.o；§4 正文、附录 B excp_malign 与编码表 aligned(8) 三方一致）
+if (!is_naturally_aligned(64, ea)) {
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 第 k 个元素取 rf[rfHA+k] 的整 64 位，地址按 8 字节递增
 for (Bits<6> k = 6'd0; k < immu6; k++) {
   write_memory(64, ea, rf[rfHA + k]);
   ea = ea + 48'd8;

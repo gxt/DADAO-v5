@@ -2,28 +2,28 @@
 # 汇编层 imms14 = 编码层 imms12 << 2（字节偏移）；IP = 当前正在执行的指令地址
 if (rd[rdHA] == rd[rdHB]) {
   Bits<14> scaled = {imms12, 2'b00};          # 12 位编码层偏移 → 14 位补码字节偏移
-  jump(ip() + $signed(scaled));               # ip() 已是 64 位（高 16 位恒 0）；jump 只写回低 48 位
+  jump(ip() + $signed(scaled));               # ip() 已是 64 位（rb0 读出，高 16 位不假定为 0）；jump 写回完整 64 位、取指取低 48 位
 }
 
 # id: br.ne_rrii_rd
 # 汇编层 imms14 = 编码层 imms12 << 2（字节偏移）；条件 NE = 至少一位不等（SimRISC-00 §3.2）
 if (rd[rdHA] != rd[rdHB]) {
   Bits<14> scaled = {imms12, 2'b00};          # 12 位编码层偏移 → 14 位补码字节偏移
-  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 只写回低 48 位
+  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 写回完整 64 位、取指取低 48 位
 }
 
 # id: br.n_riii_rd
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 N = 第 63 位为 1（SimRISC-00 §3.2）
 if (rd[rdHA][63] == 1'b1) {
   Bits<20> scaled = {imms18, 2'b00};          # 18 位编码层偏移 → 20 位补码字节偏移
-  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 只写回低 48 位
+  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 写回完整 64 位、取指取低 48 位
 }
 
 # id: br.nn_riii_rd
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 NN = 第 63 位为 0（SimRISC-00 §3.2）
 if (rd[rdHA][63] == 1'b0) {
   Bits<20> scaled = {imms18, 2'b00};          # 18 位编码层偏移 → 20 位补码字节偏移
-  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 只写回低 48 位
+  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 写回完整 64 位、取指取低 48 位
 }
 
 # id: br.z_riii_rd
@@ -31,7 +31,7 @@ if (rd[rdHA][63] == 1'b0) {
 # rdHA 为 rd0 时读出恒 0 ⇒ 条件必为真（SimRISC-06 §1 特例）
 if (rd[rdHA] == 64'd0) {
   Bits<20> scaled = {imms18, 2'b00};          # 18 位编码层偏移 → 20 位补码字节偏移
-  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 只写回低 48 位
+  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 写回完整 64 位、取指取低 48 位
 }
 
 # id: br.nz_riii_rd
@@ -39,42 +39,42 @@ if (rd[rdHA] == 64'd0) {
 # rdHA 为 rd0 时读出恒 0 ⇒ 条件必为假（SimRISC-06 §1 特例）
 if (rd[rdHA] != 64'd0) {
   Bits<20> scaled = {imms18, 2'b00};          # 18 位编码层偏移 → 20 位补码字节偏移
-  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 只写回低 48 位
+  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 写回完整 64 位、取指取低 48 位
 }
 
 # id: br.p_riii_rd
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 P = 第 63 位为 0 且 [62..0] 不全为 0
 if (rd[rdHA][63] == 1'b0 && rd[rdHA][62:0] != 63'd0) {
   Bits<20> scaled = {imms18, 2'b00};          # 18 位编码层偏移 → 20 位补码字节偏移
-  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 只写回低 48 位
+  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 写回完整 64 位、取指取低 48 位
 }
 
 # id: br.np_riii_rd
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 NP = 第 63 位为 1 或 [63..0] 全为 0
 if (rd[rdHA][63] == 1'b1 || rd[rdHA] == 64'd0) {
   Bits<20> scaled = {imms18, 2'b00};          # 18 位编码层偏移 → 20 位补码字节偏移
-  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 只写回低 48 位
+  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 写回完整 64 位、取指取低 48 位
 }
 
 # id: br.z_riii_rb
 # 条件 Z：rbHA 按整 64 位判零（与 -rd 变体的判据一致，区别仅在寄存器组；SimRISC-06 §1 第三类）
-# rb0 读出即 IP（idl/README §3），本指令不特判
+# rb0 读出即 IP（语言规范 §3），本指令不特判
 if (rb[rbHA] == 64'd0) {
   Bits<20> scaled = {imms18, 2'b00};          # 18 位编码层偏移 → 20 位补码字节偏移
-  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 只写回低 48 位
+  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 写回完整 64 位、取指取低 48 位
 }
 
 # id: br.nz_riii_rb
 # 条件 NZ：rbHA 按整 64 位判非零（与 -rd 变体的判据一致，区别仅在寄存器组；SimRISC-06 §1 第三类）
-# rb0 读出即 IP（idl/README §3），本指令不特判
+# rb0 读出即 IP（语言规范 §3），本指令不特判
 if (rb[rbHA] != 64'd0) {
   Bits<20> scaled = {imms18, 2'b00};          # 18 位编码层偏移 → 20 位补码字节偏移
-  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 只写回低 48 位
+  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 写回完整 64 位、取指取低 48 位
 }
 
 # id: jump_iiii_rb
 # 汇编层 imms26 = 编码层 imms24 << 2（字节偏移）；无条件相对跳转：Addr = rb0 + (imms24 << 2)
-# rb0 读出即 IP（idl/README §3）：64 位全宽计算，jump 只写回低 48 位
+# rb0 读出即 IP（语言规范 §3）：64 位全宽计算，jump 写回完整 64 位、取指取低 48 位
 Bits<26> scaled = {imms24, 2'b00};            # 24 位编码层偏移 → 26 位补码字节偏移
 jump(ip() + $signed(scaled));
 
@@ -90,7 +90,7 @@ jump(rb[rbHA] + rd[rdHB] + $signed(offset));
 Bits<64> ret_addr = ip() + 64'd4;
 ras_push(ret_addr[47:0]);
 
-# Addr = rb0 + (imms24 << 2)：rb0 读出即 IP；64 位全宽计算，jump 只写回低 48 位
+# Addr = rb0 + (imms24 << 2)：rb0 读出即 IP；64 位全宽计算，jump 写回完整 64 位、取指取低 48 位
 Bits<26> scaled = {imms24, 2'b00};
 jump(ip() + $signed(scaled));
 
@@ -116,5 +116,5 @@ Bits<48> target = ras_pop();
 # 返回值：imms18 符号扩展至 64 位写 rdHA（rd0 读出恒 0、写入丢弃，模型不变量）
 rd[rdHA] = {{46{imms18[17]}}, imms18};
 
-# 跳到弹出的返回地址（48 位零扩展至 64 位；jump 只写回低 48 位）
+# 跳到弹出的返回地址（48 位零扩展至 64 位后经 jump 写回 rb0；取指取低 48 位）
 jump(target);

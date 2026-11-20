@@ -44,7 +44,7 @@ if (rdHA == 6'd0) {
 }
 
 # wpN 选中的 wyde 整体写 immu16，其余 48 位全 1（SimRISC-03 §1 set.ow）；
-# 「其余 48 位」按整寄存器赋值表达（idl/README §3）
+# 「其余 48 位」按整寄存器赋值表达（语言规范 §3）
 if (wpN == 2'd0) {
   rd[rdHA] = {48'hFFFF_FFFF_FFFF, immu16};
 } else if (wpN == 2'd1) {
@@ -67,7 +67,7 @@ if (rdHA == 6'd0) {
 }
 
 # wpN 选中的 wyde 整体写 immu16，其余 48 位全 0（SimRISC-03 §1 set.zw）；
-# 「其余 48 位」按整寄存器赋值表达（idl/README §3）
+# 「其余 48 位」按整寄存器赋值表达（语言规范 §3）
 if (wpN == 2'd0) {
   rd[rdHA] = {48'd0, immu16};
 } else if (wpN == 2'd1) {
@@ -89,7 +89,7 @@ if (rdHA == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 
-# wpN 选中的 wyde 替换为 (旧 wyde | immu16)，其余 48 位不变；按 wyde 写用切片赋值（idl/README §3）
+# wpN 选中的 wyde 替换为 (旧 wyde | immu16)，其余 48 位不变；按 wyde 写用切片赋值（语言规范 §3）
 Bits<64> old = rd[rdHA];
 if (wpN == 2'd0) {
   rd[rdHA][15:0] = (old[15:0] | immu16);
@@ -113,7 +113,7 @@ if (rdHA == 6'd0) {
 }
 
 # wpN 选中的 wyde（[16*N+15:16*N]，SimRISC-03 §1）替换为 (旧 wyde & ~immu16)，
-# 其余 48 位不变；按 wyde 写用切片赋值（idl/README §3）
+# 其余 48 位不变；按 wyde 写用切片赋值（语言规范 §3）
 Bits<64> old = rd[rdHA];
 if (wpN == 2'd0) {
   rd[rdHA][15:0] = (old[15:0] & ~immu16);
@@ -153,7 +153,7 @@ if (rbHA == 6'd0) {
 }
 
 # wpN 选中的 wyde（[16*N+15:16*N]，SimRISC-03 §1）替换为 (旧 wyde & ~immu16)，
-# 其余 48 位不变；按 wyde 写用切片赋值（idl/README §3）
+# 其余 48 位不变；按 wyde 写用切片赋值（语言规范 §3）
 # （语义见 SimRISC-03 §1 andn.w；§2 把同名指令给 rb 组）
 Bits<64> old = rb[rbHA];
 if (wpN == 2'd0) {
@@ -238,7 +238,7 @@ set.w    rfHA, wpN, immu16
 <!-- 由 idl/render.py 生成，勿手改 -->
 **`set.w_rwii_rf`**
 ```idl
-# wpN 选中的 wyde 整体写 immu16，其余 48 位保持；按 wyde 写用切片赋值（idl/README §3）
+# wpN 选中的 wyde 整体写 immu16，其余 48 位保持；按 wyde 写用切片赋值（语言规范 §3）
 # rf0 = FCSR（SimRISC-00 §2.3.1）：写 rf0 只更新 [33:32]（舍入模式）与 [4:0]（异常状态），
 # 其余位写无效、保持原值 ⇒ wp2 只写 [33:32]、wp0 只写 [4:0]、wp1/wp3 完全写无效（SimRISC-03 §3 注）
 # rf 属「直接赋值/复制类」，不受「专用于浮点类指令」限制（SimRISC-00 §2.3）
