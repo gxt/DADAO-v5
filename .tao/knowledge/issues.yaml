@@ -1048,3 +1048,12 @@
   closed_in: null
   resolved_by: null
   title: "【P3】签名流在 QEMU/gem5 上实际走逐字节 `SYS_WRITEC` 回退：两平台的 `SYS_WRITE` handle 1 需先 `SYS_OPEN(\":tt\")`，未打开时块写返回「整段未写」（`m16-testcases-002` 复核实测；chipyard 预置 handle 1 故块写生效）。当前字节一致、性能可接受（272 例 12 s），但 M17 四方差分若产生大签名块，逐字节路径会成为瓶颈 ⇒ 届时评估：guest 先 `SYS_OPEN(\":tt\")`、或按平台选择块写/逐字节、或压缩后单次写。"
+- id: ISS-482
+  scope:
+  - llvm
+  - linux
+  milestone: M14
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P1】clang 23 DADAO 目标：调用**同节内 weak 定义**时不发重定位（本地固化），外部强定义无法覆盖。最小复现：`a.c` 里 `__attribute__((weak)) void hook(int){}` + `void caller(int x){if(x)hook(x);}`、`b.c` 里强 `hook`；`clang --target=dadao-unknown-elf -O2 -c`（**不加** `-ffunction-sections`）⇒ `a.o` **无** hook 重定位、调用固化为对 4 字节空体的位移；`ld.lld -r` 后符号表只剩强定义但调用仍指向空体。加 `-ffunction-sections`（弱定义独立节）⇒ 发 `R_DADAO_REL26`、lld 正解强符号。对照：x86_64 同场景 `-O0` 发 `R_X86_64_PLT32`。根因候选：`DADAOAsmBackend` 未覆写 `shouldForceRelocation`（对比 X86）。影响：`m14-linux-045` 的 `arch_do_signal_or_restart` 名存实亡（退出循环自旋 22/29）；内核实测：带空桩自旋、删空桩 43/43。"

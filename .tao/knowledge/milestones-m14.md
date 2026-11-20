@@ -38,6 +38,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-llvm-007 | 2026-11-20 20:31 | 3–5 h | DADAO 后端：同节 weak 调用须发重定位（`shouldForceRelocation`；ISS-482） |
 | m14-linux-045 | 2026-11-20 15:16 | 4–6 h | 通用 entry/exit 工作循环（`TIF_*` 消费 + syscall enter/exit + `irqentry`） |
 
 ## 已验证
