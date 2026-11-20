@@ -26,7 +26,7 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
   - BootROM 几何/复位向量/镜像名经 `chipyard.config.WithBootROM`（`address`/`hang`/`contentFileName`）；该 fragment 另把 `appendDTB` 关掉（Tiny 的 BootROM 只有复位/启动 stub，无 DTB、无 image index table）。
   - SRAM 用 testchipip 的 **banked scratchpad**（`BankedScratchpadParams`，`busWhere = MBUS`、`dtsEnabled = true`）替换 chipyard 默认的 64 KiB scratchpad（`0x0800_0000`）；它就是 TileLink 从端口，不再另设内存模型。
   - `ExtMem` / `ExtTLMem` 都置 `None`：不开 AXI/TL 后备内存端口（Tiny 无 DRAM），harness 里的 `SimDRAM` 也随之消失。
-- **BootROM 镜像**：补丁集不能携带二进制，故 Tiny bootrom 以 `generators/dadao-wuming/src/main/resources/dadao/bootrom/bootrom.tiny.hex`（文本 hex）入库，`wuming` 项目的 `resourceGenerators`（根 `build.sbt`）在构建时解码成 classpath 资源 `/dadao/bootrom/bootrom.tiny.img`；镜像内容与 `loadmem` 闭环由 `m12-chipyard-003` 负责。`m12-chipyard-028` 起该 hex 由 `tools/testcases/arch/build_tiny_bootrom.py` 重生成（解码镜像 md5 `514300876e…`，hmon 段 44 B/对齐 48 B），与 QEMU/gem5 的 `bootrom_tiny.bin` 同版。
+- **BootROM 镜像**：补丁集不能携带二进制，故 Tiny bootrom 以 `generators/dadao-wuming/src/main/resources/dadao/bootrom/bootrom.tiny.hex`（文本 hex）入库，`wuming` 项目的 `resourceGenerators`（根 `build.sbt`）在构建时解码成 classpath 资源 `/dadao/bootrom/bootrom.tiny.img`；镜像内容与 `loadmem` 闭环由 `m12-chipyard-003` 负责。`m12-chipyard-028` 起该 hex 由 `tools/testcases/arch/build_tiny_bootrom.py` 重生成；`m16-chipyard-015` 跟随 `m15-testcases-021`（`LD64`/`LOAD_ADDR` 宏改规范伪指令 `set.rd`/`set.rb`）再生成一次 ⇒ 解码镜像 md5 **`a5d78816…`**、power 段 292 B（旧 344 B，宏展开指令数减少）、hmon 段 44 B/对齐 48 B，与 QEMU/gem5 的 `bootrom_tiny.bin` 同版。
   - **改 hex 后必须删 `.classpath_cache/chipyard.jar`**：仿真器只把 Scala/Verilog 源当依赖，资源变更不会让缓存 jar 失效 ⇒ 不删就会拿旧固件重新 elaborate（假绿）。
 - **实测**：`WumingTile` 的 elaboration 行打印协商值，`Generated Address Map` 打印全图。
 
