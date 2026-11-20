@@ -593,13 +593,13 @@ asm	tests/inst/01-load-store/ldm.sw_rrri_rd.S	__CHECK_RD         6, rd7, 0xFFFFF
 asm	tests/inst/01-load-store/ldm.sw_rrri_rd.S	__CHECK_RD 15, rd21, 0xFFFFFFFFFFFF8000	@@ 负向极小	1
 asm	tests/inst/01-load-store/ldm.sw_rrri_rd.S	__CHECK_RD 17, rd21, 0xFFFFFFFFFFFFFFFF	@@ 全 1（正偏移 ⇒ 数据区）	1
 asm	tests/inst/01-load-store/ldm.sw_rrri_rd.S	__CHECK_RD_LDM_IP 16, ldm.sw, rd5, rd13, rd	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_ENC        21, ILLI, 0x2E143040, rb3, MDATA_T, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_ENC        22, ILLI, 0x2EDC304A, rb3, MDATA_T, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_ENC        23, ILLI, 0x2EFC3042, rb3, MDATA_T, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        24, ldm.t, {rf5:rf6}, MALIGN, rb3, MDATA_T, rd19, 0x001	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        25, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        26, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0xFFFFFF7FFFFC, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        27, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_ENC        22, ILLI, 0x2E143040, rb3, MDATA_T, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_ENC        23, ILLI, 0x2EDC304A, rb3, MDATA_T, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_ENC        24, ILLI, 0x2EFC3042, rb3, MDATA_T, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        25, ldm.t, {rf5:rf6}, MALIGN, rb3, MDATA_T, rd19, 0x001	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        26, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        27, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0xFFFFFF7FFFFC, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_FAULT_M        28, ldm.t, {rf5:rf6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_LDM         1, ldm.t, {rf63:rf63}, rb3, MDATA_T + 0x000, rd19, 0x000, MDUMP + 0x000, 1, 0x8000000000000000	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_LDM         2, ldm.t, {rf1:rf2}, rb3, MDATA_T + 0x008, rd19, 0x000, MDUMP + 0x008, 1, 0x8000000280000003	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	TEST_LDM         3, ldm.t, {rf5:rf7}, rb3, MDATA_T + 0x010, rd19, 0x000, MDUMP + 0x010, 2, 0x8000000480000005, 0x8000000600000000	1
@@ -619,6 +619,7 @@ asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	__CHECK_RD        12, rd21, 0x00000
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	__CHECK_RD 16, rd21, 0x0000000080000000	@@ 负向极小	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	__CHECK_RD 18, rd21, 0x00000000FFFFFFFF	@@ 全 1（正偏移 ⇒ 数据区）	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	__CHECK_RD 20, rd21, 0x8000000080000007	1
+asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	__CHECK_RD 21, rd22, 0x0000000000000001	@@ ③ [4:0] = 写入值低 5 位（0x80000021 ⇒ 0x01）	1
 asm	tests/inst/01-load-store/ldm.t_rrri_rf.S	__CHECK_RD_LDM_IP 17, ldm.t, rf5, rf13, rf	1
 asm	tests/inst/01-load-store/ldm.ub_rrri_rd.S	TEST_FAULT_ENC        22, ILLI, 0x28143040, rb3, MDATA_B, rd19, 0x000	1
 asm	tests/inst/01-load-store/ldm.ub_rrri_rd.S	TEST_FAULT_ENC        23, ILLI, 0x28DC304A, rb3, MDATA_B, rd19, 0x000	1
@@ -649,15 +650,15 @@ asm	tests/inst/01-load-store/ldm.ub_rrri_rd.S	__CHECK_RD        15, rd63, 0x0000
 asm	tests/inst/01-load-store/ldm.ub_rrri_rd.S	__CHECK_RD 19, rd21, 0x0000000000000080	@@ 负向极小	1
 asm	tests/inst/01-load-store/ldm.ub_rrri_rd.S	__CHECK_RD 21, rd21, 0x00000000000000FF	@@ 全 1（正偏移 ⇒ 数据区）	1
 asm	tests/inst/01-load-store/ldm.ub_rrri_rd.S	__CHECK_RD_LDM_IP 20, ldm.ub, rd5, rd13, rd	1
-asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_ENC        18, ILLI, 0x2A143040, rb3, MDATA_T, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_ENC        19, ILLI, 0x2ADC304A, rb3, MDATA_T, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_ENC        20, ILLI, 0x2AFC3042, rb3, MDATA_T, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_M        21, ldm.ut, {rd5:rd6}, MALIGN, rb3, MDATA_T, rd19, 0x001	1
-asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_M        22, ldm.ut, {rd5:rd6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_M        23, ldm.ut, {rd5:rd6}, CFXMEM, rb3, 0xFFFFFF7FFFFC, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_M        24, ldm.ut, {rd5:rd6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_M        25, ldm.ut, {rd5:rd8}, ILLI, rb3, MDATA_T, rd7, 0x000	1
-asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_M        26, ldm.ut, {rd0:rd1}, ILLI, rb3, MDATA_T, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_ENC        22, ILLI, 0x2A143040, rb3, MDATA_T, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_ENC        23, ILLI, 0x2ADC304A, rb3, MDATA_T, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_ENC        24, ILLI, 0x2AFC3042, rb3, MDATA_T, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_M        25, ldm.ut, {rd5:rd6}, MALIGN, rb3, MDATA_T, rd19, 0x001	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_M        26, ldm.ut, {rd5:rd6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_M        27, ldm.ut, {rd5:rd6}, CFXMEM, rb3, 0xFFFFFF7FFFFC, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_M        28, ldm.ut, {rd5:rd6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_M        29, ldm.ut, {rd5:rd8}, ILLI, rb3, MDATA_T, rd7, 0x000	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_FAULT_M        30, ldm.ut, {rd0:rd1}, ILLI, rb3, MDATA_T, rd19, 0x000	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_LDM         1, ldm.ut, {rd63:rd63}, rb3, MDATA_T + 0x000, rd19, 0x000, MDUMP + 0x000, 1, 0x8000000000000000	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_LDM         2, ldm.ut, {rd1:rd2}, rb3, MDATA_T + 0x008, rd19, 0x000, MDUMP + 0x008, 1, 0x8000000280000003	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_LDM         3, ldm.ut, {rd5:rd7}, rb3, MDATA_T + 0x010, rd19, 0x000, MDUMP + 0x010, 2, 0x8000000480000005, 0x8000000600000000	1
@@ -670,20 +671,24 @@ asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_LDM        11, ldm.ut, {rd20:
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_LDM  12, ldm.ut,  {rd5:rd5}, rb3, TEST_DATA + 0x028, rd19, 0x000, MDUMP + 0x1C0, 1, 0x7FFFFFFF00000000	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_LDM  13, ldm.ut,  {rd5:rd5}, rb3, TEST_DATA + 0x020, rd19, 0x000, MDUMP + 0x1C8, 1, 0x8000000000000000	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_LDM  14, ldm.ut,  {rd5:rd5}, rb3, TEST_DATA + 0x088, rd19, 0x000, MDUMP + 0x1D0, 1, 0xFFFFFFFF00000000	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_MEM        18, MSTORE, 0x000, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_MEM        19, MSTORE, 0x0F0, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_MEM        20, MSTORE, 0x0F8, 0x0F1E2D3C000000BF	@@ 末元素只覆盖本拍低 4 B	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_RD         21, rd63,  0x000000000F1E2D3C	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_RD         5, rd5, 0x000000008000000C	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_RD         6, rd7, 0x000000008000000E	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_RD 15, rd21, 0x0000000080000000	@@ 负向极小	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_RD 17, rd21, 0x00000000FFFFFFFF	@@ 全 1（正偏移 ⇒ 数据区）	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_RD_LDM_IP 16, ldm.ut, rd5, rd13, rd	1
-asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_ENC        18, ILLI, 0x29143040, rb3, MDATA_W, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_ENC        19, ILLI, 0x29DC304A, rb3, MDATA_W, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_ENC        20, ILLI, 0x29FC3042, rb3, MDATA_W, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_M        21, ldm.uw, {rd5:rd6}, MALIGN, rb3, MDATA_W, rd19, 0x001	1
-asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_M        22, ldm.uw, {rd5:rd6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_M        23, ldm.uw, {rd5:rd6}, CFXMEM, rb3, 0xFFFFFF7FFFFE, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_M        24, ldm.uw, {rd5:rd6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
-asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_M        25, ldm.uw, {rd5:rd8}, ILLI, rb3, MDATA_W, rd7, 0x000	1
-asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_M        26, ldm.uw, {rd0:rd1}, ILLI, rb3, MDATA_W, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_ENC        22, ILLI, 0x29143040, rb3, MDATA_W, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_ENC        23, ILLI, 0x29DC304A, rb3, MDATA_W, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_ENC        24, ILLI, 0x29FC3042, rb3, MDATA_W, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_M        25, ldm.uw, {rd5:rd6}, MALIGN, rb3, MDATA_W, rd19, 0x001	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_M        26, ldm.uw, {rd5:rd6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_M        27, ldm.uw, {rd5:rd6}, CFXMEM, rb3, 0xFFFFFF7FFFFE, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_M        28, ldm.uw, {rd5:rd6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_M        29, ldm.uw, {rd5:rd8}, ILLI, rb3, MDATA_W, rd7, 0x000	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_FAULT_M        30, ldm.uw, {rd0:rd1}, ILLI, rb3, MDATA_W, rd19, 0x000	1
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_LDM         1, ldm.uw, {rd63:rd63}, rb3, MDATA_W + 0x000, rd19, 0x000, MDUMP + 0x000, 1, 0x8000000000000000	1
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_LDM         2, ldm.uw, {rd1:rd2}, rb3, MDATA_W + 0x008, rd19, 0x000, MDUMP + 0x008, 1, 0x8004800500000000	1
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_LDM         3, ldm.uw, {rd5:rd7}, rb3, MDATA_W + 0x010, rd19, 0x000, MDUMP + 0x010, 1, 0x80088009800A0000	1
@@ -696,6 +701,10 @@ asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_LDM        11, ldm.uw, {rd20:
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_LDM  12, ldm.uw,  {rd5:rd5}, rb3, TEST_DATA + 0x028, rd19, 0x000, MDUMP + 0x1C0, 1, 0x7FFF000000000000	1
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_LDM  13, ldm.uw,  {rd5:rd5}, rb3, TEST_DATA + 0x020, rd19, 0x000, MDUMP + 0x1C8, 1, 0x8000000000000000	1
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_LDM  14, ldm.uw,  {rd5:rd5}, rb3, TEST_DATA + 0x088, rd19, 0x000, MDUMP + 0x1D0, 1, 0xFFFF000000000000	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_MEM        18, MSTORE, 0x000, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_MEM        19, MSTORE, 0x070, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_MEM        20, MSTORE, 0x078, 0x0F1E2D3C4B5A00AF	@@ 末元素只覆盖本拍低 6 B	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_RD         21, rd63,  0x0000000000004B5A	1
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_RD         5, rd5, 0x0000000000008018	1
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_RD         6, rd7, 0x000000000000801A	1
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_RD 15, rd21, 0x0000000000008000	@@ 负向极小	1

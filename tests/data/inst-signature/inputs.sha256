@@ -27,10 +27,10 @@ fdfa9c12dc23e175ab15a7e1f91777119c4fd531e3f752add79b3c8655c3f770  tests/inst/01-
 157b4030de2b91eac29fa365b0d0a2e980f7889c65cbc761393c5ab58db738bc  tests/inst/01-load-store/ldm.sb_rrri_rd.S
 38b83593d2a1d7504fe6edeec81f6cd497c13fbd6fd2e43e0241ff2327b53d45  tests/inst/01-load-store/ldm.st_rrri_rd.S
 698aa53b30064c16099fda934b75670d93329fc78fb831ff73b0b6b6fab39553  tests/inst/01-load-store/ldm.sw_rrri_rd.S
-4e11a142e6319c7badf047afbb17290d0e5013e161ffdb2bde0c914444835809  tests/inst/01-load-store/ldm.t_rrri_rf.S
+ab6478557286c4603d18c65507e9fdbe902e9faec7073eb4d852c0e66bf68d9b  tests/inst/01-load-store/ldm.t_rrri_rf.S
 5e8c23e0b201c3b9a81b295e20295748c4d0d3c06f62505a96bb6b8572b78c07  tests/inst/01-load-store/ldm.ub_rrri_rd.S
-e10a8e6e2a71aec5545e0220f8dbe349f1c98234d32615e00134fd2f19f5b879  tests/inst/01-load-store/ldm.ut_rrri_rd.S
-e3a81f4fa087d11422300d8e987343536d06fca8b9c0b798ee2f933de720a66b  tests/inst/01-load-store/ldm.uw_rrri_rd.S
+38b6fe90511d23e2567672a0f92f528f7f5f6f6b8787582142b991cb555cc36c  tests/inst/01-load-store/ldm.ut_rrri_rd.S
+f4d59d3c3eea3616bf98a07f1903f63e9563d874d9fd9af5b371c850c55eaec8  tests/inst/01-load-store/ldm.uw_rrri_rd.S
 b6cd9ef4b8399f25fe468953b975597c0f443f98a04c8f3a53149aa8269bfde0  tests/inst/01-load-store/st.b_rrii_rd.S
 65a01f3fed8bc3a76187d568246513a86debfd5cfa231a5c9577cfb8d2919494  tests/inst/01-load-store/st.o_rrii_ra.S
 120031d2413ac122def91deb4fa8cb8ae7da339af0bab7cef0fa1006ec67a6da  tests/inst/01-load-store/st.o_rrii_rb.S
