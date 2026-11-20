@@ -299,13 +299,6 @@
 - **顺序理由**：cache 会改变 M16 已标定的周期基线（`docs/core-wuming-cycle-model.md` 在 SRAM/无 cache 上标定）⇒ **cache 单独排**，不与功能改动混做。
 - **待定**：① 分片（`frags`）在 RTL 侧与 cache 的交互（64 KiB 页 = 1024 × 64 B block）；② `spike`/gem5 侧的 PTW 延迟是否要建模（当前 atomic，无时序）；③ `ISS-340`（gem5 Vast 仍 identity，而 spec 要求 `VA = PA + 2 TiB` 内核窗口）何时对齐。
 
-## TLB 的 I/D 分表与 `cfx_ptw_tlb_control` 接口（用户 2026-11-20 已定）
-
-- **决策**：I/D **阵列**分开（每核各一，I 无 D 位），但**失效接口不拆**——`cfx_ptw_tlb_control` 仍是**单接口、同时作用于两表**；**不引入 I/D 选择位**（"不做过度设计"）。
-- **依据**：RISC-V `sfence.vma`、ARM `TLBI`、x86 `INVLPG`、PowerPC `tlbie` 都是单一失效接口作用于两侧，分离的只是粒度（VA/ASID/VMID/整表）；拆接口会让内核漏清一侧变成静默正确性 bug，而多清一侧只损失性能。
-- **待补规范（需授权）**：`contract-tlb` 需写明 1) 实现分 I/D 两表；2) 命令对两表生效、无选择位；3) 判序 **I 表先、D 表后**，跨两表仍「条目级 + 遇错即停 + 一条指令最多报一处失败」；4) `scope=VA`/`range` 对两表各自匹配（同一 VA 在 I/D 的 PTE 可不同），`flush` 失败的 `cause_info` 归属按判序。
-- **现状**：`m16-chipyard-008` 的 RTL 已按「I 先 D 后、各 20 条、遇错即停」实现，并在代码注释里标明「spec 无 I/D 选择位」；规范补齐后，`tests/arch` 的「双表失效 2×3 矩阵」才是有据判据（现在是以实现为准）。
-
 ## issues（分诊到本册，2026-11-20）
 
 - `ISS-407`【P3】**覆盖声明与探针状态不一致**（`m13-qemu-004`）：完成区称「另加 sNaN 在右（ft/fo）」两例，但 reviewer 用探针 dump 证明两例机器状态*…
