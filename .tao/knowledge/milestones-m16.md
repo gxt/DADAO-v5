@@ -26,6 +26,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-testcases-002 | 2026-11-20 16:10 | 6–8 h | 签名机制抽取到 `tests/shared`（`tests/inst` 改复用）+ `tests/arch/ptw` 接线（三平台取流） |
 | m16-chipyard-008 | 2026-11-20 15:43 | 1–2 天 | I/D TLB（2×8 + 4 超页 FA/LRU、I 无 D 位）+ `cfx_ptw_tlb_control` 双表失效 |
 
 ## 已验证
