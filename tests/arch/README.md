@@ -14,10 +14,23 @@ per-hart/per-system、TIMER/IPI/UART/power），只跑 **`system`** 平台
 | 目录 | cfx | 内容 |
 |------|-----|------|
 | `umon/` | `cfx_umon`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.s`，10 条）+ `expected.yaml` 清单 |
-| `ptw/` | `cfx_ptw`（TLB/PTW） | 15 条 TLB 探针（`arch-ptw-001`…`015`，含 014「A/D 回写失败条目级遇错即停」与 015「内存窗口 IP 的 `ILLI cause_info`」）的期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 来源 §）；载体是驱动 `tools/testcases/arch/min_rom_probe_tlb.py`（`Makefile` 的 `ARCH_CFX_PROBES` id `tlb`，`--only arch-ptw-0NN` 逐条跑），**不在**本目录放 `.s` 载体 |
+| `ptw/` | `cfx_ptw`（TLB/PTW） | 15 条 TLB 探针（`arch-ptw-001`…`015`，含 014「A/D 回写失败条目级遇错即停」与 015「内存窗口 IP 的 `ILLI cause_info`」）的期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线检查的签名流期望 + 来源 §）；载体是驱动 `tools/testcases/arch/min_rom_probe_tlb.py`（`Makefile` 的 `ARCH_CFX_PROBES` id `tlb`，`--only arch-ptw-0NN` 逐条跑），**不在**本目录放 `.s` 载体 |
 | `hmon/` | `cfx3 hmon` + `cfx_power`（Tiny） | `tiny_hmon.S`（gem5 Tiny FS 应用：读 hmon SRAM 数据槽记录 power→hmon 移交、五类同步异常、IALIGN IP 停留、`trap` 两路、`cfx2rd`/`cfx2rc`、Tiny 恒 `hypv` 与 `cg3` 仅 hypv 可读、`cg3 rc10` 掩低 2 位；hmon 段用共享最小编码 `tests/ee-tiny/hmon_tiny.S`）+ `tiny_hmon_min.S`（QEMU 同契约探针应用）+ `tiny_hmon_layout.inc`（应用数据区布局）+ `expected.yaml`；装载按 `Kaiwu §6.2` 两件（固定 64 KiB BootROM + 仅 SRAM 的应用 ELF） |
 
 其余 cfx（`jmon`/`smon`/`cache`/`hart`/`llc`/`pmem`/`time`/`uart`）按需增建；**不建** `arch/isa`、空壳子目录。`hmon/` 的 Tiny 用例由 gem5 运行（`python3 tools/gem5/check_tiny_hmon.py`），不进 QEMU 探针门控。
+
+## 观测通道
+
+**签名流 = 观测点的判据载体**（`m16-testcases-002`）：每个观测点把实测 8 字节写进
+`tests/shared/asm/signature.inc` 约定的签名区（预填 `0xdeadbeef`；漏跑 ⇒ host 报
+「槽 N 未写」），收尾整段输出，host 侧用 `tools/testcases/lib/signature.py` 按槽比对。
+机制只有一份：汇编侧 `signature.inc`、host 侧 `signature.py`（`tests/arch` 的
+word-builder 探针用同一个 `.py` 的 `Emitter` 产等价指令，不另写解析器）。
+
+退出码（semihosting `SYS_EXIT`：`0x00` 通过、`0x01`–`0x7F` = 镜像内第 N 条断言失败）
+只作**镜像级兜底**：已接线的检查以签名流比对为准，未接线的检查仍以退出码表达断言。
+`ptw` 的 `arch-ptw-002/006/007` 已接线（A/D 回写后的 PTE、`cause_info`、命中/填充观测），
+期望值登记在 `expected.yaml` 的 `signature:` 并由驱动 `--selfcheck` 双向核对。
 
 ## 根级清单
 

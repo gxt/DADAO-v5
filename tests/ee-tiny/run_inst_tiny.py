@@ -8,9 +8,10 @@
 一个 `.S` 产出**一个镜像**（`m15-testcases-007` 起；`CASE_N=0`）：
   全部非故障用例顺序执行、逐检查点把实测 8 字节写进结果缓冲，随后**进入故障链**——
   每个故障例依次执行其触发指令，hmon 落点（`.faultpad` 的 `__pad`）核对 `cause_id`
-  低 16 位 one-hot 后跳下一例，最后一例落到收尾（`SYS_WRITEC` 逐字节打印结果缓冲 +
-  `SYS_EXIT(0)`）。判据 = 三方退出码同为 0 **且** 输出字节流逐字节相同，
-  长度 = `8 × 检查点数`（链例检查点；故障例结果不写入缓冲）。
+  低 16 位 one-hot 后跳下一例，最后一例落到收尾（签名流 dump + `SYS_EXIT(0)`）；
+  签名流机制见 `tests/shared/asm/signature.inc`，host 侧解析/比对见
+  `tools/testcases/lib/signature.py`（本文件不再自带取流/解析实现）。判据 = 三方退出码
+  同为 0 **且** 签名流逐槽相同，长度 = `8 × 检查点数`（链例检查点；故障例不写缓冲）。
 
   故障例的成败由此表达：异常**没有**发生 ⇒ 该例体末尾的 `__EXIT(点号)` ⇒ 该镜像红；
   `cause_id` 大类不符 ⇒ 落点 `__EXIT(点号)` ⇒ 该镜像红（且后续例不再执行）。
@@ -58,7 +59,9 @@ from pathlib import Path
 _HERE = Path(__file__).resolve()
 _REPO = _HERE.parents[2]
 sys.path.insert(0, str(_REPO / "tools" / "infra"))
+sys.path.insert(0, str(_REPO / "tools" / "testcases" / "lib"))
 import paths  # noqa: E402
+import signature  # noqa: E402
 import writer_guard  # noqa: E402
 
 FAULT_CODE = {"CFXMEM": 0xF1, "CFXREG": 0xF2, "ILLI": 0xF8,
@@ -243,52 +246,8 @@ def build(toolbin: Path, src: Path, lds: Path, case_n: int, outdir: Path,
 
 
 # ---------------------------------------------------------------------------
-# 三个平台：返回 (rc, stdout_bytes, log_path)
+# 三个平台：取流/解析统一走 `tools/testcases/lib/signature.py`（不得留第二份）
 # ---------------------------------------------------------------------------
-def run_qemu(qemu: Path, elf: Path, bootrom: Path, out: Path, log: Path,
-             timeout: int):
-    out.unlink(missing_ok=True)
-    cmd = [str(qemu), "-M", "kaiwu-tiny", "-bios", str(bootrom),
-           "-kernel", str(elf),
-           "-semihosting-config", "enable=on,target=native,chardev=semi",
-           "-chardev", "file,id=semi,path=%s" % out,
-           "-nographic"]
-    return _run(cmd, log, timeout, out)
-
-
-def run_gem5(gem5: Path, config: Path, elf: Path, bootrom: Path, out: Path,
-             log: Path, outdir: Path, timeout: int, extra=()):
-    out.unlink(missing_ok=True)
-    cmd = [str(gem5), "--outdir=%s" % outdir, str(config),
-           "--profile", "tiny", "--bootrom", str(bootrom),
-           "--kernel", str(elf), "--semihost", "on", "--console-out", str(out)]
-    cmd += list(extra)
-    return _run(cmd, log, timeout, out)
-
-
-def run_chipyard(sim: Path, elf: Path, out: Path, log: Path, timeout: int,
-                 env_extra: dict):
-    out.unlink(missing_ok=True)
-    cmd = [str(sim), "+permissive", "+loadmem=%s" % elf,
-           "+semiout=%s" % out, "+max-cycles=%s" % MAX_CYCLES,
-           "+permissive-off", "none"]
-    return _run(cmd, log, timeout, out, env_extra)
-
-
-def _run(cmd, log: Path, timeout: int, out: Path, env_extra=None):
-    env = dict(os.environ)
-    if env_extra:
-        env.update(env_extra)
-    with open(log, "wb") as fh:
-        try:
-            proc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT,
-                                  timeout=timeout, env=env,
-                                  stdin=subprocess.DEVNULL)
-            rc = proc.returncode
-        except subprocess.TimeoutExpired:
-            rc = -2                       # 超时 ≠ 任何 guest 退出码
-    data = out.read_bytes() if out.is_file() else b""
-    return rc, data, log
 
 
 # ---------------------------------------------------------------------------
@@ -318,37 +277,51 @@ def check_variant(task, cfg) -> dict:
         log = ldir / (stem + "." + plat + ".log")
         out = outdir / (stem + "." + plat + ".out")
         if plat == "qemu":
-            rc, data, _ = run_qemu(cfg["qemu"], elf, cfg["bootrom"], out, log,
-                                   cfg["timeouts"]["qemu"])
+            rc, data, _ = signature.capture(
+                "qemu", image=elf, bootrom=cfg["bootrom"], out=out, log=log,
+                timeout=cfg["timeouts"]["qemu"], qemu=cfg["qemu"])
         elif plat == "gem5":
             m5dir = outdir / (stem + ".m5out")
-            rc, data, _ = run_gem5(cfg["gem5"], cfg["gem5_config"], elf,
-                                   cfg["bootrom"], out, log, m5dir,
-                                   cfg["timeouts"]["gem5"], cfg["gem5_args"])
+            rc, data, _ = signature.capture(
+                "gem5", image=elf, config=cfg["gem5_config"],
+                bootrom=cfg["bootrom"], out=out, log=log, outdir=m5dir,
+                timeout=cfg["timeouts"]["gem5"], extra=cfg["gem5_args"],
+                gem5=cfg["gem5"])
         else:
-            rc, data, _ = run_chipyard(cfg["chipyard"], elf, out, log,
-                                       cfg["timeouts"]["chipyard"],
-                                       cfg["chipyard_env"])
+            rc, data, _ = signature.capture(
+                "chipyard", image=elf, out=out, log=log,
+                timeout=cfg["timeouts"]["chipyard"],
+                env=cfg["chipyard_env"], max_cycles=MAX_CYCLES,
+                sim=cfg["chipyard"])
         rec["platforms"][plat] = {"rc": rc, "bytes": len(data)}
 
-    # 判据：三方退出码同为 0 + 字节流逐字节一致 + 长度 = 8 × 链例检查点数。
+    # 判据：三方退出码同为 0 + 签名流（8 字节/槽，大端）逐槽一致 + 长度 = 链例检查点数。
+    # 解析/比对统一走 `signature.py`（长度断言、0xdeadbeef 未写槽都在那里判）。
     # 故障例不写结果缓冲 ⇒ 链例字节流不受故障链影响；故障链自身靠 in-guest 断言
     # （落点核 one-hot、每例末尾 `__EXIT 点号` 兜「异常没发生」）。
     rcs = {p: rec["platforms"][p]["rc"] for p in rec["platforms"]}
     good = all(rc == 0 for rc in rcs.values())
     blobs = {p: _read_or_empty(outdir / (stem + "." + p + ".out"))
              for p in rec["platforms"]}
-    if good and len(set(blobs.values())) != 1:
-        good = False
-        rec["notes"].append("字节流不一致: " +
-                            ", ".join("%s=%s" % (p, _md5(b))
-                                      for p, b in blobs.items()))
-    nbytes = 8 * expected
-    got = {p: len(b) for p, b in blobs.items()}
-    if good and any(v != nbytes for v in got.values()):
-        good = False
-        rec["notes"].append("结果字节数 %s ≠ 8×检查点数 %d" % (got, nbytes))
-    rec["bytes"] = got
+    if good:
+        try:
+            slots = {p: signature.parse(b, expected, sentinel=False)
+                     for p, b in blobs.items()}
+        except signature.SignatureError as exc:
+            good = False
+            rec["notes"].append("签名流不可解析: %s" % exc)
+        else:
+            for p, got in slots.items():
+                miss = signature.unwritten(got)
+                if miss:
+                    good = False
+                    rec["notes"].append("%s: %s" % (p, "; ".join(miss)))
+            if good and len({tuple(v) for v in slots.values()}) != 1:
+                good = False
+                rec["notes"].append("签名流不一致: " +
+                                    ", ".join("%s=%s" % (p, _md5(b))
+                                              for p, b in blobs.items()))
+    rec["bytes"] = {p: len(b) for p, b in blobs.items()}
     rec["ok"] = good
     return rec
 

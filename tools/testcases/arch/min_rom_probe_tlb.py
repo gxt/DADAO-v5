@@ -87,11 +87,20 @@ _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 if os.path.join(_REPO, "tools", "testcases", "lib") not in sys.path:
     sys.path.insert(0, os.path.join(_REPO, "tools", "testcases", "lib"))
 import node_probe_prelude as P  # noqa: E402
+import signature  # noqa: E402  (签名流机制：解析/比对/word-builder 发射器，单一实现)
 
 DEFAULT_QEMU = P.default_qemu()
 QEMU = DEFAULT_QEMU
 WORKDIR = os.path.join(P.TMP_ROOT, "min_rom_probe_tlb")
+SIG_OUT = os.path.join(WORKDIR, "signature.out")
 TIMEOUT = 20
+
+# 签名流（m16-testcases-002）：观测点实际值的**唯一载体**（README「观测通道」）。
+# 缓冲区在 prelude 的 L1[3] 恒等超页内（0x6000_0000–0x7FFF_FFFF）⇒ 换 PTBR 前/
+# 恢复后都可读写；预填数 > 每镜像观测点数，删一条观测 ⇒ 槽保持 0xdeadbeef。
+SIG_BUF = 0x7000_0000
+SIG_PREFILL = 8
+SIG = signature.Emitter(P)
 
 ROM_BASE = P.ROM_BASE
 
@@ -316,6 +325,7 @@ class Check:
         self.image_at = None     # ROM image offsets (read-only page tables)
         self.hmon_extra = None   # words run inside the prelude hmon segment
         self.expect = None       # (cause name or None, sub-cause name or None)
+        self.sig_want = []       # 签名流期望（每个 `sig_obs` 一项；空 = 不接线）
 
     def code(self, desc):
         self.fields.append(desc)
@@ -334,13 +344,12 @@ class Check:
                            image_at=self.image_at, hmon_extra=self.hmon_extra)
 
 
-def _fail_exit(chk, seq, code):
-    """Exit with `code` from any guest state.
+def _restore_identity(seq):
+    """Restore the prelude identity table and `ptw_enable = 1` on `seq`.
 
-    Restore the prelude identity table and `ptw_enable = 1` first: a check may
-    be running with PTBR pointing at another (or an all-zero) table, and a
-    failing assertion must still be able to reach the semihosting block
-    instead of turning into an unhandled fault.
+    A check may be running with PTBR pointing at another (or an all-zero) table;
+    both a failing assertion and the signature dump must still be able to reach
+    their blocks instead of turning into an unhandled fault.
     """
     seq.e(*load_rd(CREG, PT_L1 & PPN_MASK))
     seq.e(P.cfx2rc(PTW_HA, PTBR_CG, PTBR_RC, CREG))
@@ -348,6 +357,11 @@ def _fail_exit(chk, seq, code):
     seq.e(P.cfx2rc(PTW_HA, PTW_ENABLE_CG, PTW_ENABLE_RC, CREG))
     seq.e(*load_rd(CREG, 0x12))            # invalid, all, ASID_ANY
     seq.e(P.cfx2rc(PTW_HA, TLB_CG, TLB_CONTROL_RC, CREG))
+
+
+def _fail_exit(chk, seq, code):
+    """Exit with `code` from any guest state (restore the identity map first)."""
+    _restore_identity(seq)
     seq.e(*P.exit_seq(code))
     seq.e(P.jump_rel(0))                   # SYS_EXIT must not fall through
 
@@ -561,9 +575,26 @@ def _new(no, case_id, label, desc):
 
 
 def _finish(chk):
-    """Epilogue: hand the address space back, then pass."""
+    """Epilogue: hand the address space back, dump the signature, then pass."""
+    if chk.sig_want:
+        _restore_identity(chk.s)
+        SIG.dump(chk.s, SIG_BUF, len(chk.sig_want))
+        chk.s.e(*P.exit_seq(0))
+        chk.s.e(P.jump_rel(0))
+        return chk
     _fail_exit(chk, chk.s, 0)
     return chk
+
+
+def sig_begin(chk):
+    """预填签名区（`SIG_BEGIN`）；每镜像调用一次，放在第一次改页表之前。"""
+    SIG.begin(chk.s, SIG_BUF, SIG_PREFILL)
+
+
+def sig_obs(chk, rd, want):
+    """追加一个签名观测点（`SIGUPD rd`）并登记期望值（host 侧 `signature.compare`）。"""
+    SIG.upd(chk.s, rd)
+    chk.sig_want.append(want)
 
 
 # -- 001: fill then hit -----------------------------------------------------
@@ -587,15 +618,20 @@ def _c001(no, cid):
       "editing the PTE without an invalidate is not observed (TLB-07)")
 def _c002(no, cid):
     c = _new(no, cid, "hit_no_reread", "PTE PPN edited between two accesses")
+    sig_begin(c)
     record_baseline(c)
     st64(c, DA, M1)
     st64(c, DB, M2)
     install_table(c, {0: pte_leaf(DA)})
     ld_va(c, VA0, rd=5)
     a_eq(c, c.s, 5, M1, "1st access fills from the PTE (PA_A)")
+    sig_obs(c, 5, M1)                       # 填充：1st 访问读到 PA_A
     st64(c, L2A + 0, pte_leaf(DB))          # a walk would now yield PA_B
     ld_va(c, VA0, rd=6)
     a_eq(c, c.s, 6, M1, "2nd access still reads PA_A: the hit did not re-read the PTE")
+    sig_obs(c, 6, M1)                       # 命中：PTE 已改，2nd 仍读 PA_A
+    ld64(c, L2A + 0, rd=7)
+    sig_obs(c, 7, pte_leaf(DB))             # 页表确已改成 PA_B（命中不是靠表没改）
     assert_no_new_fault(c)
     set_handler(c, unexpected_fault(c))
     return [_finish(c)]
@@ -804,6 +840,7 @@ def _c005(no, cid):
       "clean: A/D OR'd back + entry kept; invalid: no write-back + deleted")
 def _c006(no, cid):
     c = _new(no, cid, "clean_vs_invalid", "page X cleaned, page Y invalidated")
+    sig_begin(c)
     record_baseline(c)
     st64(c, DA, M1)
     st64(c, DB, M2)
@@ -816,10 +853,12 @@ def _c006(no, cid):
     ld64(c, L2A + 0, rd=6)
     a_eq(c, c.s, 6, pte_leaf(DA, a=False, d=False),
          "access alone never writes the PTE back (A/D still 0)")
+    sig_obs(c, 6, pte_leaf(DA, a=False, d=False))   # clean 前的 PTE（A/D=0）
     tlb_cmd(c, OP_CLEAN, SCOPE_VA, asid_any=True, start=VA0)
     ld64(c, L2A + 0, rd=6)
     a_eq(c, c.s, 6, pte_leaf(DA, a=True, d=True),
          "clean OR'd A=1/D=1 into the PTE (other fields kept)")
+    sig_obs(c, 6, pte_leaf(DA, a=True, d=True))     # clean 回写后的 PTE（A/D=1）
     st64(c, L2A + 0, pte_leaf(DC))
     ld_va(c, VA0, rd=5)
     a_eq(c, c.s, 5, M4, "clean kept the entry (still the old PA_A copy)")
@@ -828,6 +867,7 @@ def _c006(no, cid):
     ld64(c, L2A + 8, rd=6)
     a_eq(c, c.s, 6, pte_leaf(DB, a=False, d=False),
          "invalid does not write A/D back")
+    sig_obs(c, 6, pte_leaf(DB, a=False, d=False))   # invalid 不回写（A/D 仍 0）
     st64(c, L2A + 8, pte_leaf(DC))
     ld_va(c, VA1, rd=6)
     a_eq(c, c.s, 6, M3, "invalid deleted the entry -> re-walk to PA_C")
@@ -844,6 +884,7 @@ def _c007(no, cid):
 
     # (a) normal flush
     c = _new(no, cid, "flush_ok", "flush writes A/D back and deletes the entry")
+    sig_begin(c)
     record_baseline(c)
     st64(c, DA, M1)
     st64(c, DB, M2)
@@ -855,15 +896,18 @@ def _c007(no, cid):
     ld64(c, L2A + 0, rd=6)
     a_eq(c, c.s, 6, pte_leaf(DA, a=True, d=True),
          "flush OR'd A=1/D=1 into the PTE")
+    sig_obs(c, 6, pte_leaf(DA, a=True, d=True))     # flush 回写后的 PTE
     st64(c, L2A + 0, pte_leaf(DB))
     ld_va(c, VA0, rd=5)
     a_eq(c, c.s, 5, M2, "flush deleted the entry -> re-walk to PA_B")
+    sig_obs(c, 5, M2)                               # 删除后重走页表读到 PA_B
     assert_no_new_fault(c)
     set_handler(c, unexpected_fault(c))
     out.append(_finish(c))
 
     # (b) write-back failure: the leaf PTE lives in the read-only BootROM
     c = _new(no, cid, "flush_adwbfail", "ROM page table: CFXMEM + [56] ADWBFAIL")
+    sig_begin(c)
     c.words_at = {ROM_PTE_OFF: list(_ROM_PTE_WORDS)}
     set_handler(c, fault_handler(c, "CFXMEM", "ADWBFAIL", info=_ROM_PTE_PA))
     st64(c, 0x40, M1)                          # PA 0x40 (identity table)
@@ -881,6 +925,8 @@ def _c007(no, cid):
     set_ptw(c, True)
     set_ptbr(c, P.PT_PA)
     tlb_cmd(c, OP_INVALID, SCOPE_ALL, asid_any=True)
+    sig_obs(c, RD_INFO, _ROM_PTE_PA)        # cause_info = ROM 里的叶 PTE 物理地址
+    sig_obs(c, RD_FAULTS, 2)                # 两次 flush 都失败（条目未删）
     out.append(_finish(c))
     return out
 
@@ -1270,13 +1316,23 @@ def decode_fail(check, rc):
 
 
 def run_check(check, qemu):
-    rc, _log = P.run(check.rom(), WORKDIR, qemu=qemu, timeout=TIMEOUT,
-                     dump=False)
+    rc, _log, blob = P.run(check.rom(), WORKDIR, qemu=qemu, timeout=TIMEOUT,
+                           dump=False, console_out=SIG_OUT)
     if rc is None:
         return False, "TIMEOUT"
-    if rc == 0:
+    if rc != 0:
+        return False, decode_fail(check, rc)
+    if not check.sig_want:
         return True, "ok"
-    return False, decode_fail(check, rc)
+    # 判据载体 = 签名流（README「观测通道」）：解析/比对统一走 signature.py
+    try:
+        got = signature.parse(blob, len(check.sig_want))
+    except signature.SignatureError as exc:
+        return False, "签名流: %s" % exc
+    problems = signature.compare(got, check.sig_want)
+    if problems:
+        return False, "签名流: " + "; ".join(problems)
+    return True, "ok"
 
 
 def selected(only):
@@ -1334,6 +1390,9 @@ def selfcheck():
                 problems.append("%s/%s has no assertion" % (cid, chk.label))
             if chk.expect is None:
                 problems.append("%s/%s declares no expectation" % (cid, chk.label))
+            if len(chk.sig_want) > SIG_PREFILL:
+                problems.append("%s/%s has %d signature slots > prefill %d"
+                                % (cid, chk.label, len(chk.sig_want), SIG_PREFILL))
 
     # expected.yaml must describe exactly these cases/checks.
     try:
@@ -1373,6 +1432,15 @@ def selfcheck():
             if got != want:
                 problems.append("%s: checks differ (driver %r vs yaml %r)"
                                 % (cid, got, want))
+            # 签名流期望：yaml 只是登记（数值真源仍是驱动里的合约派生值），
+            # 双向核对 ⇒ 驱动接线与清单不许漂移（m16-testcases-002）。
+            sig_decl = {item.get("label"): [int(v) for v in item.get("signature") or []]
+                        for item in entry.get("checks", [])}
+            for c in checks:
+                want_sig = sig_decl.get(c.label, [])
+                if c.sig_want != want_sig:
+                    problems.append("%s/%s: signature differs (driver %r vs yaml %r)"
+                                    % (cid, c.label, c.sig_want, want_sig))
     if problems:
         for p in problems:
             print("selfcheck: FAIL %s" % p)

@@ -31,6 +31,7 @@ This directory contains the QEMU-based ISA semantic test harness for `kaiwu-tiny
 | `run_qemu_test.py` | Main test runner |
 | `verify_harness_dump.py` | Harness dump channel verification (QMP protocol, byte layout, 10a `-device loader` channel) |
 | `fp_spec_arith.py` / `fp_spec_minmax.py` / `fp_spec_rnd.py` | **spec 精确算术原语**（`spec/SimRISC-07`；fma / min·max / roundToIntegral），**不是测试判据**——判据是 `.S` 内联期望；被 `tools/gem5/b7_ref.py` 复用并作三实现互证 |
+| `signature.py` | **签名流机制 host 侧（唯一实现）**：`parse`/`compare`（8 字节槽、大端、`0xdeadbeef` = 未写）+ `capture`（qemu / gem5 / chipyard / qemu-bootrom 取流）+ `Emitter`（arch word-builder 探针的 `SIG_BEGIN`/`SIGUPD`/`SIG_DUMP`）；汇编侧对应 `tests/shared/asm/signature.inc`（`m16-testcases-002`） |
 | `README.md` | This file |
 
 ## Quick Start

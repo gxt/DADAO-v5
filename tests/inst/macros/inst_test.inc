@@ -148,6 +148,12 @@
 	.equ SYS_EXIT,     0x18
 	.equ ADP_STOPPED_APP_EXIT, 0x20026
 
+@@ 签名流机制（写槽 / 整段 dump）由共享层提供（`m16-testcases-002`）：
+@@ `SIGUPD` = 本文件旧 `__REC` 的写入口，`SIG_DUMP_CHARS` = 旧 `__PRINT` 的逐字节打印；
+@@ 两条展开逐字节相同 ⇒ 现有镜像的指令流与输出都不变。`tests/arch` 与 host 侧
+@@ （`tools/testcases/lib/signature.py`）复用同一槽宽/哨兵口径。
+	.include "tests/shared/asm/signature.inc"
+
 @@ 没有 -defsym CASE_N 时按完整镜像（0：链例 + 故障链）处理。
 	.ifndef CASE_N
 	.equ CASE_N, 0
@@ -178,28 +184,12 @@
 	.dd.t32	0
 .endm
 
-@@ 结果缓冲追加 8 字节实测值（rb30 是移动写指针），并记一个检查点
+@@ 结果缓冲追加 8 字节实测值（rb30 是移动写指针），并记一个检查点。
+@@   写槽/前进两份动作在共享层 `SIGUPD`（`tests/shared/asm/signature.inc`），本层只留
+@@   「记一个检查点」——**不留第二份写入口**。
 .macro __REC reg
-	st.o	\reg, [rb30, 0]
-	add.si	rb30, 8
+	SIGUPD	\reg
 	.set	__NCHECK, __NCHECK + 1
-.endm
-
-@@ 逐字节打印 [ptr, ptr+len)（SYS_WRITEC：按长度，不吃 NUL 终止）。
-@@   `len == 0` **直接返回**：下面是 do-while（先发一字节再减一），零长进循环会把
-@@   `rd17` 减成负数并永久循环；零长在**宏内**判掉（任意调用点都安全），`__TEST_END`
-@@   收尾另有 `.if __NCHECK > 0` 兜底 = 双保险。
-.macro __PRINT ptr, len
-.if \len > 0
-	LOAD_ADDR rb16, \ptr
-	set.zw	rd16, wp0, SYS_WRITEC
-	set.zw	rd17, wp0, \len
-__pl_\@:
-	trap	cfx0, (SEMIHOST_TAG + SYS_WRITEC)
-	add.si	rb16, 1
-	add.si	rd17, -1
-	br.nz	{rd17}?, [rb0, __pl_\@]
-.endif
 .endm
 
 @@ ---------------------------------------------------------------------------
@@ -582,7 +572,9 @@ __fault_chain:
 __fault_finish:
 .if CASE_N == 0
 	.if __NCHECK > 0
-	__PRINT	TEST_BUF, (8 * __NCHECK)
+	@@ 逐字节路径：与旧 `__PRINT` 展开逐字节相同 ⇒ 镜像指令流/周期基线不变。
+	@@ 块写路径（`SIG_DUMP`）由 `tests/arch` 探针使用并三方验证（`m16-testcases-002`）。
+	SIG_DUMP_CHARS	TEST_BUF, __NCHECK
 	.endif
 .endif
 	__EXIT	0

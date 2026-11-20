@@ -37,7 +37,6 @@ the semihosting attempt as well and either way the probe stays red.
 
 import os
 import struct
-import subprocess
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -50,6 +49,7 @@ for _sub in (("tools", "testcases", "lib"), ("tools", "infra")):
 
 import machine_profile as _machine_profile  # noqa: E402
 import paths as _paths  # noqa: E402
+import signature  # noqa: E402  (signature 流机制：单一实现)
 
 PROFILE = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "vast")
 if not PROFILE.get("ptw") or not PROFILE.get("hmon"):
@@ -131,6 +131,11 @@ def ld_o(rd, rb, off):
 
 def add_si(rd, imms18):
     return (0x59 << 24) | (rd << 18) | (imms18 & 0x3FFFF)
+
+
+def add_si_rb(rb, imms18):
+    """add.si rb, imms18 (contracts/opcodes.yaml: opc 0x5B, riii/rb)."""
+    return (0x5B << 24) | (rb << 18) | (imms18 & 0x3FFFF)
 
 
 def escape(ha, imms18):
@@ -444,8 +449,9 @@ def build_rom(prog, handlers=None, words_at=None, hmon_extra=None,
 # QEMU runner
 # ---------------------------------------------------------------------------
 
-def run(rom, workdir=None, qemu=None, timeout=TIMEOUT, dump=True):
-    """Run one probe image; returns (exit_code_or_None, cpu_log).
+def run(rom, workdir=None, qemu=None, timeout=TIMEOUT, dump=True,
+        console_out=None):
+    """Run one probe image; returns (exit_code_or_None, cpu_log[, signature]).
 
     Loading: 4 MiB `bootrom-image`, no `-kernel` (task book §2/E3); each case
     is its own QEMU process.
@@ -456,6 +462,11 @@ def run(rom, workdir=None, qemu=None, timeout=TIMEOUT, dump=True):
     would cost gigabytes while a timing case polls the virtual clock.  There
     is no instruction-clock override: timing cases must stay model-neutral
     and comparable on gem5 (TESTCASES-102t).
+
+    ``console_out`` routes the semihosting console (SYS_WRITEC / SYS_WRITE)
+    to a file and returns its bytes as a third item (签名流; m16-testcases-002).
+    The capture primitive is `tools/testcases/lib/signature.py` — the probes
+    do not carry a second stream reader.
     """
     if workdir is None:
         stem = os.path.splitext(os.path.basename(sys.argv[0] or "probe"))[0]
@@ -470,15 +481,20 @@ def run(rom, workdir=None, qemu=None, timeout=TIMEOUT, dump=True):
     cmd = [qemu, "-machine",
            "%s,bootrom-image=%s" % (_machine_profile.machine_name(PROFILE), rp),
            "-nographic", "-semihosting-config", "enable=on,target=native"]
+    if console_out is not None:
+        cmd[-1] += ",chardev=semi"
+        cmd += ["-chardev", "file,id=semi,path=%s" % console_out]
     if dump:
         cmd += ["-d", "cpu", "-D", lp]
-    try:
-        r = subprocess.run(cmd, capture_output=True, timeout=timeout, text=True)
-        rc = r.returncode & 0xFF
-    except subprocess.TimeoutExpired:
-        return None, "TIMEOUT"
+    rc, blob, _ = signature.run(cmd, out=console_out, timeout=timeout)
+    if rc == -2:
+        return (None, "TIMEOUT", b"") if console_out is not None else (None, "TIMEOUT")
+    if rc >= 0:
+        rc &= 0xFF
     log = ""
     if dump and os.path.isfile(lp):
         with open(lp) as f:
             log = f.read()
+    if console_out is not None:
+        return rc, log, blob
     return rc, log
