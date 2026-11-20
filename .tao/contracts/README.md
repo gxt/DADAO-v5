@@ -11,6 +11,7 @@
 | `contract-abi.md` | ABI 合约（M1 最小 ABI + M3 标量调用约定；0.9.2） |
 | `contract-asm-list.md` | DADAO 汇编指令表（**机械生成投影**；生成器 `tools/llvm/gen_asm_list.py`） |
 | `contract-asm.md` | DADAO 汇编语言合约（`spec/Toolchain-01` 归一化；0.5.0） |
+| `contract-cache.md` | Cache 维护接口合约（`cfx_cache`/cfx5：选择/操作/范围控制字、I/D 语义；0.7.1） |
 | `contract-cfx-aliases.md` | cfx 别名表（**机械生成投影**；生成器 `tools/spec/gen_cfx_aliases.py`） |
 | `contract-dynlink.md` | 动态链接 ABI 合约（M8：无内核的 Linux 用户态栈） |
 | `contract-elf.md` | SimRISC M1 ELF 合约（Object ABI） |

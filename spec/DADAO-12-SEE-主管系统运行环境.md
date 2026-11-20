@@ -596,13 +596,38 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 
 ### 4.6 cfx_cache - cache organization
 
+`cfx_cache` 管理本 hart 的指令 cache（I）与数据 cache（D）。cache 以**物理地址（PA）**为键（不是按 VA 索引），故控制字没有 ASID 维度；cache 的容量、行大小、组数与替换策略由实现决定。
+
 **专有寄存器表**
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 8 | 0 | cache exist | cfx_cache_exist | — | RO | 硬件设置，指示对应VA空间是否有cache |
-| 8 | 8 | cache enable | cfx_cache_enable | 同 cache_exist | RW | 软件配置，0=关闭，1=开启。复位后每一位等于对应 cache_exist 位的值（即已存在 I/D-Cache 的集合默认开启） |
-| 8 | 9 | cache ctrl | cfx_cache_ctrl | 0 | WO | bit0=invalid icache；bit1=invalid dcache；bit2=flush dcache |
+| 8 | 0 | cache exist | cfx_cache_exist | — | RO | 硬件设置：bit0 = 有 I-cache；bit1 = 有 D-cache；其余位保留、读 0 |
+| 8 | 8 | cache enable | cfx_cache_enable | 同 cache_exist | RW | 软件配置：bit0 = I、bit1 = D，0 = 关闭、1 = 开启；复位后每一位等于对应的 cache_exist 位（已存在的 I/D cache 默认开启）；cache_exist 位为 0 的位置写 1 无效果、读回 0；其余位保留、读 0 |
+| 8 | 9 | cache ctrl | cfx_cache_ctrl | 0 | WO | `[1:0]` 操作 = `00 = none`、`01 = clean`、`10 = invalidate`、`11 = flush`；`[3:2]` 范围 = `00 = all`、`01 = PA 单行`、`10 = PA 区间`、`11 = reserved`；`[15:14]` 选择（bit15 = I、bit14 = D）；其余位保留、写忽略 |
+| 8 | 10 | cache addr start | cfx_cache_addr_start | 0 | RW | 维护范围的起始物理地址（完整 `PA[55:0]`）；`[63:56]` 保留、读 0、写忽略 |
+| 8 | 11 | cache addr size | cfx_cache_addr_size | 0 | RW | 维护范围的字节数（`PA 区间` 用，其它范围忽略） |
+
+`cg8` 的其余 rc 保留，读写触发 `CFXREG`。
+
+**维护命令语义**
+
+`cfx_cache_ctrl` 是写即执行的命令寄存器（WO，无完成状态位）；该写指令**同步完成**——指令返回即生效，其后的访存必见维护结果。
+
+- **判序**：先判 `[15:14]` 选择位、再判 `[1:0]` 操作，最后才判 `[3:2]` 范围与操作数。
+  - `[15:14] = 00`（两侧都不选）：**无条件 no-op**，不报异常，且**不检查**范围编码与 `addr_size`。
+  - `[1:0] = 00`（`none`）：**无条件 no-op**，不报异常，且**不检查**范围编码与 `addr_size`；`addr_start`/`addr_size`/选择位均被忽略。
+  - 只有「选中至少一侧」且操作不是 `none` 时才校验范围编码与 `addr_size`。
+- **非法编码/操作数**（仅在需要校验时）：`[3:2] = 11`（reserved），或 `[3:2] = 10`（`PA 区间`）且 `addr_size = 0` ⇒ `CFXREG`（`cause_info` = 指令编码）。
+- **三档范围**（仅在被选中且操作非 `none` 时生效）：`all` 忽略 `addr_start`/`addr_size`，作用于被选中一侧的全部 cache；`PA 单行` 只作用于**包含** `addr_start` 的那个 cache 行（忽略 `addr_size`）；`PA 区间` 作用于与 `[addr_start, addr_start + addr_size)` **相交**的 cache 行。三档的范围匹配一律按 **56 位物理地址**逐位比较（`addr_start` 即完整 PA，见下表 `cg8 rc10`）。
+- **两侧的三种操作**：
+  - **I 侧**：`clean` = no-op（I-cache 无 dirty 状态）；`invalidate` = 丢弃；`flush` 等价 `invalidate`。
+  - **D 侧**：`clean` = 写回并清 dirty；`invalidate` = 丢弃（其中的脏数据随之丢失，**不写警告、不报异常**）；`flush` = 写回后丢弃。
+- **两侧全选的判序**：`[15:14] = 11` 时先处理 I 侧、再处理 D 侧；两侧各自按所选范围匹配，互相独立。
+- **使能**：`cfx_cache_enable` 对应位 = 0 时，该侧**不被维护**（`clean`/`invalidate`/`flush` 对该侧都无效果、不改变其内容）；编码与 `addr_size` 的校验**不受使能影响**（仍按上文判序执行，非法即 `CFXREG`）。
+- **不适用地址**：`addr_start`（`PA 区间` 时连同整个区间）落在不可缓存或 MMIO/device 的 PA 上时，命令对该部分**无效果、不报异常**——判定依据是 `cg7` 空间描述（`attr.cacheable = 0`，或空间类型为 MMIO，见 §3.8）；内存窗口（`addr[47:42] = 0`）没有 `cg7` 空间描述，其可缓存性由实现决定。区间跨越可缓存与不可缓存部分时，只作用于可缓存部分。
+- **per-hart**：`cfx_cache` 的寄存器与维护命令都是 per-hart 状态，命令只作用于执行该写指令的 hart；跨 hart 的维护传播与一致性不在本节定义。
+- **正常完成不报异常**：`none`、两侧都不选、`cache_enable` 对应位为 0（该侧不被维护）这几种情形，以及各操作的正常路径，都不产生异常；非法编码仍按上文报 `CFXREG`；`cfx_cache` 自身只报下表的 `CFXTRAP`/`CFXESC`，不新增异常原因，也不因 `invalidate` 丢脏数据报任何异常。
 
 **异常原因表**
 
@@ -1006,6 +1031,8 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.7.3-rc（未发布）
+
+- `cfx_cache`（cfx5）的寄存器与命令语义重定义：`cache_exist`/`cache_enable` 的位定义补为 **bit0 = I、bit1 = D**；`cache_ctrl` 由旧的 bit0/bit1/bit2 数值编码改为 `[1:0]` 操作（`none`/`clean`/`invalidate`/`flush`）+ `[3:2]` 范围（`all`/`PA 单行`/`PA 区间`/reserved）+ `[15:14]` 选择（bit15 = I、bit14 = D）；新增 `cache_addr_start`（完整 56 位物理地址 `PA[55:0]`，`[63:56]` 保留）与 `cache_addr_size`（字节数），范围匹配按 56 位 PA 比较。维护命令同步完成、per-hart；两侧全选时先 I 后 D；I 侧 `clean` 为 no-op；`invalidate` 丢弃脏数据且不写警告、不报异常；`cache_enable` 对应位为 0 时该侧不被维护（编码与 `addr_size` 的校验不受使能影响）；不可缓存/MMIO 的 PA 无效果、不报异常。异常原因表不变。
 
 - `DADAO-13` 的第 1、2 章正文并入本册：`cg3` 寄存器表与 `rc10` 初值/写入口径并入 `§3.4 cg3 - hypv mode 寄存器`，hmon 说明段并入 `§4.4 cfx_hmon - hypervisor monitor`；hmon 异常原因表不再重复，引 `§4.1`/`§3.6`。依据原话：「请把 DADAO-13 的第一章第二章移动至 DADAO-12，DADAO-13 只保留个引用就行。」
 

@@ -103,7 +103,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 - **测试机 cfx 实现范围（按 profile）**：
   - **`Kaiwu-Tiny`**：实现 **`cfx_power`（cfx63，启动移交）** 与 **`cfx3`（`hmon`，同步异常向量）**，提供其 cg0–cg7 共有寄存器与异常向量；`cfx_power`（cfx63）用于启动移交（`power → hmon`）。**不实现 `cfx2`（smon）/`cfx32`（pmem）/`cfx4`（ptw）/`cfx5`（cache）/`cfx33`（llc）/`cfx34`（time）等其它 cfx**。cfx 寄存器访问与 `cfx2rd`/`cfx2rc` 对未实现 cfx ⇒ `CFXREG`；非 semihosting 的 `trap cfx_hmon`（`cfxha=3`，`immu18 < 0x3FF00`）按 `DADAO-12 §5.2` 进入 hmon 向量（`CFXTRAP`）；`trap`/`escape` 到未实现 cfx ⇒ `ILLI`（进入 hmon 向量，见 `§4.4`）。**semihosting 判定只看 `immu18`（`§5.1`），与 `cfxha` 无关**。
-  - **`Kaiwu-Vast`**：实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW/TLB 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`、`cfx_ptw_tlb_*`）、**页表步进**、**TLB 命中/填充/失效**与 **A/D 回写**（`DADAO-12 §2.2`、`§4.5`）；并实现 **`cfx32`（`pmem`）的 64 KiB SRAM 与 `cg15` DMA**（`DADAO-12 §2.1`、`§4.9`）。`cfx5`（`cache`）为已分配未实现，测试机按未实现 cfx 处理（访问其寄存器 ⇒ `CFXREG`）。
+  - **`Kaiwu-Vast`**：实现 **`cfx0`/`cfx1`/`cfx2`/`cfx3`/`cfx63`**（`umon`/`jmon`/`smon`/`hmon`/`power`）以及 **`cfx4`（`ptw`）的 PTW/TLB 寄存器**（`cfx_ptw_ptbr`、`cfx_ptw_enable`、`cfx_ptw_tlb_*`）、**页表步进**、**TLB 命中/填充/失效**与 **A/D 回写**（`DADAO-12 §2.2`、`§4.5`）；并实现 **`cfx32`（`pmem`）的 64 KiB SRAM 与 `cg15` DMA**（`DADAO-12 §2.1`、`§4.9`），以及 **`cfx5`（`cache`）的寄存器与维护命令**（`DADAO-12 §4.6`；本机约定见 `§3.2`）。
   - 上述范围为**测试机约定**（控制首版成本），**不构成对上游 `DADAO-12`/`DADAO-13` 架构的 cfx 数量/编号限制**。[DADAO-12 §1. 运行模式与核芯功能扩展]
 - **测试机 `cfx_pmem` DMA 约定（仅 Vast）**：DMA 只在 `cfx_pmem` SRAM 与物理存储器之间搬运，异步完成（软件须轮询 `dma_status.BUSY` 或使能 `IRQ_EN`）；DMA 可读 RAM 与 boot ROM、只可写 RAM，其余 PA 属 `PA_FAULT`；`PMEM_DMA`（`1 << 8`）直接投递本 hart 的 `cfx_pmem` 异常入口（单 hart）。[DADAO-12 §4.9]
 - 对**不存在**的核芯功能扩展（其 cfx 寄存器）的访问触发 **`CFXREG`**；reserved cfxha（集见 `§1.2`）的 `trap`/`escape`/`cfx2rd`/`cfx2rc` 仍按 `§1.2`/`§5` 触发当前运行模式 monitor 的 `ILLI`（口径见本节「两条互斥口径」）。[DADAO-22 §3. 系统信息（smon）][DADAO-12 §5. 异常进入与异常退出]
@@ -120,6 +120,16 @@ TLB 属 `cfx_ptw`，其匹配键、命中检查、填充条件、A/D 维护与�
 - **per-hart**：TLB 与 `cfx_ptw_tlb_control` 都是 **per-hart** 状态，失效命令只作用于执行该指令的 hart；跨 hart 的失效传播与一致性不在本册范围（多 hart 机型另行规定）。[DADAO-12 §4.5 cfx_ptw - page table walker][spec-decision]（用户 2026-11-16 确认）
 - **I/D 分表与命令作用域**：本机 TLB 的组织为 **I/D 两表**（每核各一；I 表条目无 D 状态，取指命中只置 A）——`DADAO-12 §4.5` 明写「条目数、组织与替换策略由实现决定」，故不构成对上游的偏离。`cfx_ptw_tlb_control` **不引入 I/D 选择位**，一条命令作用于两表：判序 **I 表先、D 表后**；跨两表仍按「条目级 + 首错即停、一条指令最多报一处失败」（`cause_info` 取该失败条目的 PTE 物理地址）；`scope=VA` / `range` 对两表**各自匹配**（同一 VA 在 I/D 的 PTE 可以不同）。[DADAO-12 §4.5 cfx_ptw - page table walker][spec-decision]（用户 2026-11-20 确认）
 - **实现范围**：本机的 TLB 建模由 **QEMU** 机器模型承担；`tests/arch` 的 PTW/TLB 探针是**跨实现判据**，其它实现不在本册验收面。[spec-decision]（用户 2026-11-16 确认）
+
+### 3.2 cache（cfx5）的测试机约定
+
+`cfx_cache` 的寄存器、控制字编码与维护命令语义按 `DADAO-12 §4.6` 执行；下列为本机的**测试机约定**，不改变上游语义。[DADAO-12 §4.6 cfx_cache - cache organization]
+
+- **实现范围（仅 Vast）**：`Kaiwu-Vast` 实现 `cfx5`（`cache`）的寄存器与维护命令——按 `DADAO-12 §4.6` 的位定义，I 侧与 D 侧**均存在** ⇒ `cache_exist` 读回 `0b11`、`cache_enable` 复位值同；cache 的容量、行大小、组数与替换策略**由实现决定**，本册不规定。[DADAO-12 §4.6 cfx_cache - cache organization][spec-decision]（用户 2026-11-20 确认 `cfx5` 由 Vast 实现、Tiny 不实现）
+- **`Kaiwu-Tiny` 不实现 `cfx5`**：访问其寄存器与 `cfx2rd`/`cfx2rc` ⇒ `CFXREG`；`trap`/`escape` 到 `cfx5` ⇒ `ILLI`（口径见 `§3` 的两条互斥口径与 `§4.4`）。[DADAO-12 §4.6 cfx_cache - cache organization][spec-decision]（用户 2026-11-20 确认）
+- **维护命令同步完成**：写 `cfx_cache_ctrl` 的指令**同步完成**——指令返回即生效，其后的访存必见维护结果；无 busy/done 位、无异步完成信号。[DADAO-12 §4.6 cfx_cache - cache organization][spec-decision]（用户 2026-11-20 确认）
+- **per-hart**：`cfx_cache` 的寄存器与维护命令都是 **per-hart** 状态，只作用于执行该写指令的 hart；跨 hart 的维护传播与一致性不在本册范围。[DADAO-12 §4.6 cfx_cache - cache organization][spec-decision]（用户 2026-11-20 确认）
+- **I/D 选择位与两侧判序**：`cfx_cache_ctrl[15:14]` 中 **bit15 = I、bit14 = D**（`11` = 两侧全选、`10` = 只 I、`01` = 只 D、`00` = no-op）；两侧全选时**先 I 后 D**，两侧各自按所选范围匹配，互不影响。[DADAO-12 §4.6 cfx_cache - cache organization][spec-decision]（用户 2026-11-20 确认）
 
 ---
 
@@ -494,6 +504,8 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
 
 ### 0.4.7-rc（未发布）
+
+- **`cfx5`（`cache`）由「已分配未实现」改为 `Kaiwu-Vast` 实现**（用户 2026-11-20 确认 `cfx5` 由 Vast 实现、Tiny 不实现）：Vast 实现其寄存器（`cache_exist` 按 §4.6 位定义 I/D 两侧均存在 ⇒ 读回 `0b11`、`cache_enable`、`cache_ctrl`、`cache_addr_start`、`cache_addr_size`）与维护命令；`Kaiwu-Tiny` 仍不实现（⇒ `CFXREG`/`ILLI`）。新增 `§3.2 cache（cfx5）的测试机约定`：维护命令同步完成、per-hart、`ctrl[15:14]` 的 I/D 选择位（bit15 = I、bit14 = D）与两侧全选「先 I 后 D」；cache 几何由实现决定、本册不规定；`§3` 的实现范围条目同步。版本号不变（0.4.7-rc）。
 
 - **测试机整机名定为 `Kaiwu`（开物），本册随之改名**（用户 2026-11-16 裁定）：册名 `Kaiwu-测试机运行环境.md`，正文整机名 `Kaiwu`、两机型 `Kaiwu-Tiny` / `Kaiwu-Vast`，QEMU 机器串 `kaiwu-tiny` / `kaiwu-vast`（不保留旧名别名）；两机型几何、复位地址、cfx 范围、异常/退出码与 semihosting 语义**逐字不变**，版本号不变。
 
