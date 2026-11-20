@@ -172,12 +172,12 @@
 - `m15-infra-001` 已把机型/引擎/套件的真源迁到 `contracts/machine.yaml` + `exec-envs.yaml` + `tests-matrix.yaml`，但 `tests/inst.yaml` 里 **273 处 `platforms:`** 仍在，与 `exec-envs.yaml` 的 `engines` 语义重叠。
 - 待裁定：① 保留（改名 `engine`/`mode`）还是废弃、用例适用范围统一用 per-case `profiles:`；② `user`（qemu-user / gem5-se）在执行环境契约里已归独立 env，是否还需 per-case 标注。
 
-## N16. M15 语法 v0 的 4 条待定
+## N16. M15 语法 v0 的 4 条待定（**全部已解，关闭**）
 
-- 是否直接采用 UDB `idlc` 作为抽取器（版本/许可证/可离线），还是只借语法、自写抽取器。
-- 是否在 M15 就冻结 `.idl` 语法版本（`idl/README.md`）并进 L1 门控。
-- 渲染形态（spec 里显示格式化伪代码而非原始 IDL）是否需要单独任务。
-- 语料次序：5 条样板 → 6 族各一条 → 全量，是否按此三阶段立册。
+1. **是否采用 `idlc` 作抽取器**：不采用——M17 已定执行器用 **Python**、不依赖 Ruby/`idlc`（`m17-idl-001/002` 已落）；
+2. **是否冻结 `.idl` 语法版本并进 L1**：已达成——`idl/*.idl` + `lib/fp.idl` 全部 sha256 锁（`check-manifests-guard`）+ `check-idl-parse` 在 L1；
+3. **渲染形态（伪代码 vs 原始 IDL）**：**保持原始 IDL 块**，不做格式化伪代码（2026-11-20 定；理由写入 `docs/DDLN/Y-研发流程/DD-Y006 §5`）；
+4. **语料次序（5 样板 → 6 族 → 全量）**：已按此完成。
 
 ## N17. `m15-spec-001` 待返工推进方式
 
