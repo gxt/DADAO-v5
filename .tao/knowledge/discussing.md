@@ -328,6 +328,15 @@
 - **待定**：IDL 未覆盖的 trap/cfx/monitor 语义由 golden 模型额外实现（不在 M15 的 263 条内），范围在 `003` 里按「最小可跑 `tests/inst` 同步异常例」收。
 - **与 M15 的边界**：M15 只结构化、不执行；可执行在此。
 
+## `idl/` 目录与文档结构（2026-11-20 讨论结论；不立任务，暂记）
+
+- **三份文档保持分开**：`diff-vs-udb.md`（UDB 语义差异 263 条）/ `syntax-subset.md`（68 类语法构造统计）/ `width-rules.md`（28 条宽度规则 + 10 条未定义）服务不同读者，并入一份会变杂烩；`syntax-subset` 与 `width-rules` 属同一类（实现口径），合并只省一个文件、要改 16 处引用 ⇒ **收益小，暂不动**。
+- **AST fixture 保留**：`sha256` 锁挡「源被改」（`idl/*.idl` 12 份 + `lib/fp.idl`），`idl_parse_fixture.json` 挡「同样的源、parser 输出被改」（parser 重构时的语义漂移）。二者不可互相替代；等 `m17-idl-003` 执行器成为真正 oracle 后，可降级为只校验构造签名。
+- **目录整理（折中方案，待 `003` 合入后做）**：books 留根目录（`idl/SimRISC-01..12.idl` 被 55 个文件引用），只分三处——
+  `idl/tools/{render.py,subset_stats.py,idl_parser.py}`、`idl/data/{idl_parse_cases.toml,idl_parse_fixture.json}`、`idl/docs/{syntax-subset.md,width-rules.md,diff-vs-udb.md}`。
+  需同时改：`idl_parser.py` 的 4 个路径常量、`subset_stats.py`/`render.py` 扫描面、`manifests/dir-guard-roots.toml` 注册三个子目录、三份 `.manifests.toml`、Makefile 目标与引用清扫（`check-dirs`/`check-knowledge-refs` 兜底）。预估 1–2 h。
+- **新增语义库的固定三步**（`lib/` 以后会加整数/向量库）：① 放文件；② `idl/lib/.manifests.toml` 加一行 `[files."x.idl"]` + sha256（否则门控红）；③ 更新 `syntax-subset.md` 第 1 行与第 11 行的「12 册 + `lib/fp.idl` / 共 13 个文件」。工具侧零改动（三处都是 `glob("lib/*.idl")`）。
+
 ## issues（分诊到本册，2026-11-20）
 
 - `ISS-362`【P1】gem5 SE（dynamic）`MultiSource/Benchmarks/FreeBench/neural` **oracle mismatch**： 输出长度相同（35…
