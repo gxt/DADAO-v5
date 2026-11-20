@@ -1,0 +1,562 @@
+# SimRISC寄存器复制指令
+
+> **版本：0.5.7**（与 SimRISC-00 一致）
+> **分类：寄存器复制** — cs.*/ra2rd/rb2rb/rb2rd/rd2ra/rd2rb/rd2rd/rd2rf/rf2rd/rf2rf
+
+立即数常数赋值（rwii 格式：set.zw/set.ow/set.w/or.w/andn.w 的 rd/rb/rf 形式）详见 SimRISC-03（16位立即数操作）；`set.rd`/`set.rb`/`set.rf`/`set.ft`/`set.fo` 伪指令见 `Toolchain-01 §6.2`。
+
+## 1. 寄存器组之间块赋值
+
+不同寄存器组或相同寄存器组之间，可以互相进行块传输，块传输过程中不进行数据类型的转换，保持64位二进制不变，但是必需是多个连续的寄存器。
+操作数类型为 `orri`，指令如下：
+
+```simrisc
+rd2rd   {rdHB:rdHB+immu6-1}, {rdHC:rdHC+immu6-1}
+
+rb2rd   {rdHB:rdHB+immu6-1}, {rbHC:rbHC+immu6-1}
+rd2rb   {rbHB:rbHB+immu6-1}, {rdHC:rdHC+immu6-1}
+rb2rb   {rbHB:rbHB+immu6-1}, {rbHC:rbHC+immu6-1}
+
+ra2rd   {rdHB:rdHB+immu6-1}, {raHC:raHC+immu6-1}
+rd2ra   {raHB:raHB+immu6-1}, {rdHC:rdHC+immu6-1}
+
+rf2rd   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
+rd2rf   {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}
+rf2rf   {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}
+```
+
+以 `rb2rd` 为例，指令语义为，将rbHC开始的immu6个寄存器复制到rdHB开始的immu6个寄存器中。
+immu6为立即数，存在hd位域中，用来指定寄存器的个数，有效范围为1~63。
+
+限制如下：
+
+- 根据语义，rb/rf/ra之间不能进行直接赋值，ra与ra之间不能进行相互赋值（同组块复制只有 `rd2rd`/`rb2rb`/`rf2rf` 三种）
+- `immu6` = 0 时触发 ILLI 异常
+- 目的寄存器**不可为 `rd0`/`rb0`**时触发 ILLI 异常；`ra0`（`RACNT` + `MRPTR`，见 D7）与 `rf0`（FCSR，见 D6）作目的**合法**（见 SimRISC-01、SimRISC-00）。**例外**：同组块复制 `rf2rf` 的目的范围含 `rf0` ⇒ ILLI（`rf0` 是控制/状态寄存器，不可作该复制族的目的；与 `rd2rf` 允许 `rf0` 作目的不同）。
+- 任一起始寄存器 + immu6 > 64 时触发 ILLI 异常
+- 源范围与目的范围有交集时触发 ILLI 异常（即不允许源和目的寄存器范围有任何重叠）
+
+> **精确性（不适用部分生效例外）**：上述块复制指令在处理多个寄存器时**保持精确**——非法条件（`immu6` = 0、起始 + `immu6` 超界、源/目的范围重叠、`rf2rf` 目的范围含 `rf0`）在**处理任何元素之前**判定，异常进入时目的寄存器**未被修改**、IP 指向该指令、异常原因码正确。多元素**内存**指令（`ldm`/`stm`）允许部分生效的例外见 DADAO-12 §5，本类**不适用**。
+>
+> **禁止重叠的理由**：源范围与目的范围重叠时，后续元素会读到已被前面元素改写的寄存器（中间态即源），结果依赖元素处理顺序；禁止任何重叠（见上条限制）使每个元素的结果只取决于进入该指令时的寄存器内容。
+
+> **注**：`rd2rf` 中 `rf0` 可作目的（含 `{rf0:rf0+immu6-1}`，immu6≥2 允许），写入按 SimRISC-00 写语义（只更新舍入模式与异常状态，其余位写无效）；`rf2rd` 中 `rf0` 可作源，读出完整 64 位。同组块复制 `rf2rf` 按**整 64 位逐位复制**（不做数值换算、不舍入、不置标志），源 `rf0` 读出完整 64 位，目的范围含 `rf0` ⇒ ILLI。
+
+### 1.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-02.idl` 生成，逐条如下：
+
+<!-- IDL:ra2rd_orri_ra BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ra2rd_orri_ra`**
+```idl
+# 目的起始 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# immu6 = 0 ⇒ ILLI（附录 B mreg_zero）
+if (immu6 == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 任一起始 + immu6 > 64 ⇒ ILLI（附录 B mreg_range_overflow）
+Bits<7> dst_end = rdHB `+ immu6;
+Bits<7> src_end = raHC `+ immu6;
+if (dst_end > 7'd64 || src_end > 7'd64) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 上述判定全部先于任何元素（SimRISC-02 §1 精确性）；逐元素整 64 位复制、不做类型转换。
+# ra0 作源合法，读出完整 64 位（SimRISC-00 §2.4）
+for (Bits<6> k = 6'd0; k < immu6; k++) {
+  rd[rdHB + k] = ra[raHC + k];
+}
+```
+<!-- IDL:ra2rd_orri_ra END -->
+
+<!-- IDL:rb2rb_orri_rb BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`rb2rb_orri_rb`**
+```idl
+# 目的起始 rbHB = rb0 ⇒ ILLI（附录 B dst_rb0；rb0 读出为 IP、只读）
+if (rbHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# immu6 = 0 ⇒ ILLI（附录 B mreg_zero）
+if (immu6 == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 任一起始 + immu6 > 64 ⇒ ILLI（附录 B mreg_range_overflow）
+Bits<7> dst_end = rbHB `+ immu6;
+Bits<7> src_end = rbHC `+ immu6;
+if (dst_end > 7'd64 || src_end > 7'd64) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 源/目的范围有交集 ⇒ ILLI（附录 B mreg_range_overlap）：
+# 两段等长升序区间相交 ⟺ 各自起点 < 对方终点（禁止重叠使每个元素只取决于进入时的内容）
+if (rbHB < src_end && rbHC < dst_end) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 上述判定全部先于任何元素（SimRISC-02 §1 精确性）；逐元素整 64 位复制、不做类型转换
+for (Bits<6> k = 6'd0; k < immu6; k++) {
+  rb[rbHB + k] = rb[rbHC + k];
+}
+```
+<!-- IDL:rb2rb_orri_rb END -->
+
+<!-- IDL:rb2rd_orri_rb BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`rb2rd_orri_rb`**
+```idl
+# 目的起始 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# immu6 = 0 ⇒ ILLI（附录 B mreg_zero）
+if (immu6 == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 任一起始 + immu6 > 64 ⇒ ILLI（附录 B mreg_range_overflow）
+Bits<7> dst_end = rdHB `+ immu6;
+Bits<7> src_end = rbHC `+ immu6;
+if (dst_end > 7'd64 || src_end > 7'd64) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 上述判定全部先于任何元素（SimRISC-02 §1 精确性）；逐元素整 64 位复制、不做类型转换
+# （跨组复制 ⇒ 源/目的不可能有交集，无 mreg_range_overlap 检查）
+for (Bits<6> k = 6'd0; k < immu6; k++) {
+  rd[rdHB + k] = rb[rbHC + k];
+}
+```
+<!-- IDL:rb2rd_orri_rb END -->
+
+<!-- IDL:rd2ra_orri_ra BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`rd2ra_orri_ra`**
+```idl
+# 目的 raHB 无 rd0/rb0 限制：ra0（RACNT + MRPTR）作目的合法（SimRISC-02 §1；SimRISC-00 §2.4）
+
+# immu6 = 0 ⇒ ILLI（附录 B mreg_zero）
+if (immu6 == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 任一起始 + immu6 > 64 ⇒ ILLI（附录 B mreg_range_overflow）
+Bits<7> dst_end = raHB `+ immu6;
+Bits<7> src_end = rdHC `+ immu6;
+if (dst_end > 7'd64 || src_end > 7'd64) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 上述判定全部先于任何元素（SimRISC-02 §1 精确性）；逐元素整 64 位复制、不做类型转换。
+# ra0 的 [63:54] 为 SBZ、写无效（SimRISC-00 §2.4）⇒ 只有 [53:0]（RACNT + MRPTR）随复制更新
+for (Bits<6> k = 6'd0; k < immu6; k++) {
+  Bits<6> d = raHB + k;
+  if (d == 6'd0) {
+    ra[6'd0][53:0] = rd[rdHC + k][53:0];
+  } else {
+    ra[d] = rd[rdHC + k];
+  }
+}
+```
+<!-- IDL:rd2ra_orri_ra END -->
+
+<!-- IDL:rd2rb_orri_rb BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`rd2rb_orri_rb`**
+```idl
+# 目的起始 rbHB = rb0 ⇒ ILLI（附录 B dst_rb0）
+if (rbHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# immu6 = 0 ⇒ ILLI（附录 B mreg_zero）
+if (immu6 == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 任一起始 + immu6 > 64 ⇒ ILLI（附录 B mreg_range_overflow）
+Bits<7> dst_end = rbHB `+ immu6;
+Bits<7> src_end = rdHC `+ immu6;
+if (dst_end > 7'd64 || src_end > 7'd64) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 上述判定全部先于任何元素（SimRISC-02 §1 精确性）；逐元素整 64 位复制、不做类型转换
+# （跨组复制 ⇒ 源/目的不可能有交集，无 mreg_range_overlap 检查）
+for (Bits<6> k = 6'd0; k < immu6; k++) {
+  rb[rbHB + k] = rd[rdHC + k];
+}
+```
+<!-- IDL:rd2rb_orri_rb END -->
+
+<!-- IDL:rd2rd_orri_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`rd2rd_orri_rd`**
+```idl
+# 目的起始 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# immu6 = 0 ⇒ ILLI（附录 B mreg_zero）
+if (immu6 == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 任一起始 + immu6 > 64 ⇒ ILLI（附录 B mreg_range_overflow）
+Bits<7> dst_end = rdHB `+ immu6;
+Bits<7> src_end = rdHC `+ immu6;
+if (dst_end > 7'd64 || src_end > 7'd64) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 源/目的范围有交集 ⇒ ILLI（附录 B mreg_range_overlap）：
+# 两段等长升序区间相交 ⟺ 各自起点 < 对方终点
+if (rdHB < src_end && rdHC < dst_end) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 上述判定全部先于任何元素（SimRISC-02 §1 精确性）；逐元素整 64 位复制、不做类型转换
+for (Bits<6> k = 6'd0; k < immu6; k++) {
+  rd[rdHB + k] = rd[rdHC + k];
+}
+```
+<!-- IDL:rd2rd_orri_rd END -->
+
+<!-- IDL:rd2rf_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`rd2rf_orri_rf`**
+```idl
+# 目的起始 rfHB 无 rf0 限制：rf0（FCSR）作目的合法（SimRISC-02 §1 及其注；SimRISC-00 §2.3）
+
+# immu6 = 0 ⇒ ILLI（附录 B mreg_zero）
+if (immu6 == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 任一起始 + immu6 > 64 ⇒ ILLI（附录 B mreg_range_overflow）
+Bits<7> dst_end = rfHB `+ immu6;
+Bits<7> src_end = rdHC `+ immu6;
+if (dst_end > 7'd64 || src_end > 7'd64) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 上述判定全部先于任何元素（SimRISC-02 §1 精确性）；逐元素整 64 位复制、不做类型转换。
+# 目的为 rf0 时按 SimRISC-00 §2.3.1 写语义：只更新 [33:32]（舍入模式）与 [4:0]（异常状态），
+# 其余位写无效、保持原值
+for (Bits<6> k = 6'd0; k < immu6; k++) {
+  Bits<6> d = rfHB + k;
+  if (d == 6'd0) {
+    rf[6'd0][33:32] = rd[rdHC + k][33:32];
+    rf[6'd0][4:0] = rd[rdHC + k][4:0];
+  } else {
+    rf[d] = rd[rdHC + k];
+  }
+}
+```
+<!-- IDL:rd2rf_orri_rf END -->
+
+<!-- IDL:rf2rd_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`rf2rd_orri_rf`**
+```idl
+# 目的起始 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# immu6 = 0 ⇒ ILLI（附录 B mreg_zero）
+if (immu6 == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 任一起始 + immu6 > 64 ⇒ ILLI（附录 B mreg_range_overflow）
+Bits<7> dst_end = rdHB `+ immu6;
+Bits<7> src_end = rfHC `+ immu6;
+if (dst_end > 7'd64 || src_end > 7'd64) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 上述判定全部先于任何元素（SimRISC-02 §1 精确性）；逐元素整 64 位复制、不做类型转换。
+# rf0 作源合法，读出完整 64 位（SimRISC-02 §1 注）；跨组复制无 mreg_range_overlap 检查
+for (Bits<6> k = 6'd0; k < immu6; k++) {
+  rd[rdHB + k] = rf[rfHC + k];
+}
+```
+<!-- IDL:rf2rd_orri_rf END -->
+
+<!-- IDL:rf2rf_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`rf2rf_orri_rf`**
+```idl
+# 目的范围 {rfHB:rfHB+immu6-1} 含 rf0 ⇒ ILLI（附录 B dst_rf0；SimRISC-02 §1 例外）。
+# 范围自 rfHB 升序 ⇒ 含 rf0 ⟺ rfHB = 0
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# immu6 = 0 ⇒ ILLI（附录 B mreg_zero）
+if (immu6 == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 任一起始 + immu6 > 64 ⇒ ILLI（附录 B mreg_range_overflow）
+Bits<7> dst_end = rfHB `+ immu6;
+Bits<7> src_end = rfHC `+ immu6;
+if (dst_end > 7'd64 || src_end > 7'd64) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 源/目的范围有交集 ⇒ ILLI（附录 B mreg_range_overlap）：
+# 两段等长升序区间相交 ⟺ 各自起点 < 对方终点
+if (rfHB < src_end && rfHC < dst_end) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 上述判定全部先于任何元素（SimRISC-02 §1 精确性）；按整 64 位逐位复制（不做数值换算、
+# 不舍入、不置标志，SimRISC-02 §1 注）；源 rf0 读出完整 64 位
+for (Bits<6> k = 6'd0; k < immu6; k++) {
+  rf[rfHB + k] = rf[rfHC + k];
+}
+```
+<!-- IDL:rf2rf_orri_rf END -->
+
+## 2. 条件赋值：Conditional Assignment
+
+第一类条件赋值指令需要先根据`rdHA`的内容进行条件判断，然后分别将`rdHC`或`rdHD`赋值给`rdHB`，即 `if (rdHA is negative/zero/positive) rdHB = rdHC; else rdHB = rdHD`。
+操作数类型为 `rrrr`，指令如下：
+
+```simrisc
+cs.n    {rdHA}?, rdHB, rdHC, rdHD
+cs.z    {rdHA}?, rdHB, rdHC, rdHD
+cs.p    {rdHA}?, rdHB, rdHC, rdHD
+```
+
+第二类条件赋值指令需要先根据`rdHA`与`rdHB`是否相等进行条件判断，如果条件成立则将`rdHD`的值赋值给`rdHC`，即 `if (rdHA ==/!= rdHB) rdHC = rdHD`。
+操作数类型为 `rrrr`，指令如下：
+
+```simrisc
+cs.eq   {rdHA, rdHB}?, rdHC, rdHD
+cs.ne   {rdHA, rdHB}?, rdHC, rdHD
+```
+
+> **注**：rd0 目的寄存器约定见 SimRISC-00。
+
+### 2.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-02.idl` 生成，逐条如下：
+
+<!-- IDL:cs.eq_rrrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.eq_rrrr_rd`**
+```idl
+# 目的 rdHC = rd0 ⇒ ILLI（附录 B dst_rd0；rd0 只读，SimRISC-02 §2 注 → SimRISC-00 §2.1）
+if (rdHC == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 条件成立才写：if (rdHA == rdHB) rdHC = rdHD（SimRISC-02 §2 第二类，无 else ⇒ 不成立时 rdHC 保持）
+if (rd[rdHA] == rd[rdHB]) {
+  rd[rdHC] = rd[rdHD];
+}
+```
+<!-- IDL:cs.eq_rrrr_rd END -->
+
+<!-- IDL:cs.n_rrrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.n_rrrr_rd`**
+```idl
+# 目的 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# if (rdHA is negative) rdHB = rdHC else rdHB = rdHD（SimRISC-02 §2 第一类）；
+# N = 第 63 位为 1（SimRISC-00 §3.2 位级定义）
+if (rd[rdHA][63] == 1'b1) {
+  rd[rdHB] = rd[rdHC];
+} else {
+  rd[rdHB] = rd[rdHD];
+}
+```
+<!-- IDL:cs.n_rrrr_rd END -->
+
+<!-- IDL:cs.ne_rrrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.ne_rrrr_rd`**
+```idl
+# 目的 rdHC = rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHC == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 条件成立才写：if (rdHA != rdHB) rdHC = rdHD（SimRISC-02 §2 第二类，无 else ⇒ 不成立时 rdHC 保持）
+if (rd[rdHA] != rd[rdHB]) {
+  rd[rdHC] = rd[rdHD];
+}
+```
+<!-- IDL:cs.ne_rrrr_rd END -->
+
+<!-- IDL:cs.p_rrrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.p_rrrr_rd`**
+```idl
+# 目的 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# if (rdHA is positive) rdHB = rdHC else rdHB = rdHD（SimRISC-02 §2 第一类）；
+# P = 第 63 位为 0 且 [62:0] 不全为 0（SimRISC-00 §3.2；排除 0）
+if (rd[rdHA][63] == 1'b0 && rd[rdHA][62:0] != 63'd0) {
+  rd[rdHB] = rd[rdHC];
+} else {
+  rd[rdHB] = rd[rdHD];
+}
+```
+<!-- IDL:cs.p_rrrr_rd END -->
+
+<!-- IDL:cs.z_rrrr_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.z_rrrr_rd`**
+```idl
+# 目的 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# if (rdHA is zero) rdHB = rdHC else rdHB = rdHD（SimRISC-02 §2 第一类）；
+# Z = [63..0] 全为 0（SimRISC-00 §3.2；零与符号无关）
+if (rd[rdHA] == 64'd0) {
+  rd[rdHB] = rd[rdHC];
+} else {
+  rd[rdHB] = rd[rdHD];
+}
+```
+<!-- IDL:cs.z_rrrr_rd END -->
+
+## 3. 浮点条件赋值
+
+第一类浮点条件赋值指令需要先根据`rdHA`的内容进行条件判断，然后分别将`rfHC`或`rfHD`赋值给`rfHB`，即 `if (rdHA is negative/zero/positive) rfHB = rfHC; else rfHB = rfHD`。
+操作数类型为 `rrrr`，指令如下：
+
+```simrisc
+cs.n    {rdHA}?, rfHB, rfHC, rfHD
+cs.z    {rdHA}?, rfHB, rfHC, rfHD
+cs.p    {rdHA}?, rfHB, rfHC, rfHD
+```
+
+此类指令与浮点比较指令配合使用（比较结果编码见 SimRISC-07）。浮点比较结果存放在 rd 寄存器中：`1`（大于）、`0`（等于）、`-1`（小于）、NaN（unordered）。浮点比较结果为 NaN 时，其值按整型解读是**正数**，且**不等于 1**。若要检测比较结果是否为 1（大于），先用 `sub` 将比较结果减 1（常数 1 由 `set.*` 物化），再用 `cs.z` 选择；若要检测是否非零（不相等），需分别用 `cs.p`/`cs.n` 处理正负两侧。若在已确认结果为正数（通过 `cs.p` 排除 0 和 -1）的前提下需进一步区分正数 1 与 NaN，检查结果是否为 1（bits[63:1]=0 且 bit0=1），否则为 NaN。
+
+> **注**：`cs.n`/`cs.z`/`cs.p` 的 rf 变体中，**目的**（`rfHB`）为 `rf0` → ILLI；**源**（`rfHC`/`rfHD`）为 `rf0` 合法（`rf0` 作源读出完整 64 位）。
+>
+> **搬移宽度**：条件赋值是**宽度透明的寄存器搬移**——`rd` 形式与 `rf` 形式都按**整 64 位**搬移（源读 64 位、目的写 64 位），不做窄写、不保留目的高半（与 rf 组块复制 `rf2rf` 一致：整 64 位逐位复制）。
+
+### 3.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-02.idl` 生成，逐条如下：
+
+<!-- IDL:cs.n_rrrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.n_rrrr_rf`**
+```idl
+# 目的 rfHB = rf0 ⇒ ILLI（附录 B dst_rf0；SimRISC-02 §3 注）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# if (rdHA is negative) rfHB = rfHC else rfHB = rfHD（SimRISC-02 §3）；
+# N = 第 63 位为 1（SimRISC-00 §3.2）；整 64 位搬移（§3 注「搬移宽度」），源 rf0 读出完整 64 位；
+# rf 属直接赋值/复制类，不受「专用于浮点类指令」限制（SimRISC-00 §2.3）
+if (rd[rdHA][63] == 1'b1) {
+  rf[rfHB] = rf[rfHC];
+} else {
+  rf[rfHB] = rf[rfHD];
+}
+```
+<!-- IDL:cs.n_rrrr_rf END -->
+
+<!-- IDL:cs.p_rrrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.p_rrrr_rf`**
+```idl
+# 目的 rfHB = rf0 ⇒ ILLI（附录 B dst_rf0；SimRISC-02 §3 注）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# if (rdHA is positive) rfHB = rfHC else rfHB = rfHD（SimRISC-02 §3）；
+# P = 第 63 位为 0 且 [62:0] 不全为 0（SimRISC-00 §3.2）；整 64 位搬移、源 rf0 可读完整 64 位
+# （§3 注）；rf 属直接赋值/复制类（SimRISC-00 §2.3）
+if (rd[rdHA][63] == 1'b0 && rd[rdHA][62:0] != 63'd0) {
+  rf[rfHB] = rf[rfHC];
+} else {
+  rf[rfHB] = rf[rfHD];
+}
+```
+<!-- IDL:cs.p_rrrr_rf END -->
+
+<!-- IDL:cs.z_rrrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.z_rrrr_rf`**
+```idl
+# 目的 rfHB = rf0 ⇒ ILLI（附录 B dst_rf0；SimRISC-02 §3 注）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# if (rdHA is zero) rfHB = rfHC else rfHB = rfHD（SimRISC-02 §3）；
+# Z = [63..0] 全为 0（SimRISC-00 §3.2）；整 64 位搬移、源 rf0 可读完整 64 位（§3 注）；
+# rf 属直接赋值/复制类（SimRISC-00 §2.3）
+if (rd[rdHA] == 64'd0) {
+  rf[rfHB] = rf[rfHC];
+} else {
+  rf[rfHB] = rf[rfHD];
+}
+```
+<!-- IDL:cs.z_rrrr_rf END -->
+
+<!-- ASSEMBLY_LIST_START -->
+## 附录 A：汇编指令速查
+
+| 助记符 | format | feature | 汇编形式 | id |
+|---|---|---|---|---|
+| `cs.eq` | `rrrr` | `rd` | `cs.eq {rdHA, rdHB}?, rdHC, rdHD` | `cs.eq_rrrr_rd` |
+| `cs.n` | `rrrr` | `rd` | `cs.n {rdHA}?, rdHB, rdHC, rdHD` | `cs.n_rrrr_rd` |
+| `cs.n` | `rrrr` | `rf` | `cs.n {rdHA}?, rfHB, rfHC, rfHD` | `cs.n_rrrr_rf` |
+| `cs.ne` | `rrrr` | `rd` | `cs.ne {rdHA, rdHB}?, rdHC, rdHD` | `cs.ne_rrrr_rd` |
+| `cs.p` | `rrrr` | `rd` | `cs.p {rdHA}?, rdHB, rdHC, rdHD` | `cs.p_rrrr_rd` |
+| `cs.p` | `rrrr` | `rf` | `cs.p {rdHA}?, rfHB, rfHC, rfHD` | `cs.p_rrrr_rf` |
+| `cs.z` | `rrrr` | `rd` | `cs.z {rdHA}?, rdHB, rdHC, rdHD` | `cs.z_rrrr_rd` |
+| `cs.z` | `rrrr` | `rf` | `cs.z {rdHA}?, rfHB, rfHC, rfHD` | `cs.z_rrrr_rf` |
+| `ra2rd` | `orri` | `ra` | `ra2rd {rdHB:rdHB+immu6-1}, {raHC:raHC+immu6-1}` | `ra2rd_orri_ra` |
+| `rb2rb` | `orri` | `rb` | `rb2rb {rbHB:rbHB+immu6-1}, {rbHC:rbHC+immu6-1}` | `rb2rb_orri_rb` |
+| `rb2rd` | `orri` | `rb` | `rb2rd {rdHB:rdHB+immu6-1}, {rbHC:rbHC+immu6-1}` | `rb2rd_orri_rb` |
+| `rd2ra` | `orri` | `ra` | `rd2ra {raHB:raHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2ra_orri_ra` |
+| `rd2rb` | `orri` | `rb` | `rd2rb {rbHB:rbHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2rb_orri_rb` |
+| `rd2rd` | `orri` | `rd` | `rd2rd {rdHB:rdHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2rd_orri_rd` |
+| `rd2rf` | `orri` | `rf` | `rd2rf {rfHB:rfHB+immu6-1}, {rdHC:rdHC+immu6-1}` | `rd2rf_orri_rf` |
+| `rf2rd` | `orri` | `rf` | `rf2rd {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `rf2rd_orri_rf` |
+| `rf2rf` | `orri` | `rf` | `rf2rf {rfHB:rfHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `rf2rf_orri_rf` |
+
+<!-- ASSEMBLY_LIST_END -->
+
+<!-- LEGALITY_START -->
+## 附录 B：合法性检查
+
+* `dst_rd0`：目的 rd0 → ILLI — `cs.eq_rrrr_rd`, `cs.n_rrrr_rd`, `cs.ne_rrrr_rd`, `cs.p_rrrr_rd`, `cs.z_rrrr_rd`, `ra2rd_orri_ra`, `rb2rd_orri_rb`, `rd2rd_orri_rd`, `rf2rd_orri_rf`（9 条）
+* `dst_rb0`：目的 rb0 → ILLI — `rb2rb_orri_rb`, `rd2rb_orri_rb`（2 条）
+* `dst_rf0`：浮点目的 rf0 → ILLI — `cs.n_rrrr_rf`, `cs.p_rrrr_rf`, `cs.z_rrrr_rf`, `rf2rf_orri_rf`（4 条）
+* `mreg_zero`：immu6=0 → ILLI — `ra2rd_orri_ra`, `rb2rb_orri_rb`, `rb2rd_orri_rb`, `rd2ra_orri_ra`, `rd2rb_orri_rb`, `rd2rd_orri_rd`, `rd2rf_orri_rf`, `rf2rd_orri_rf`, `rf2rf_orri_rf`（9 条）
+* `mreg_range_overflow`：起始+immu6>64 → ILLI — `ra2rd_orri_ra`, `rb2rb_orri_rb`, `rb2rd_orri_rb`, `rd2ra_orri_ra`, `rd2rb_orri_rb`, `rd2rd_orri_rd`, `rd2rf_orri_rf`, `rf2rd_orri_rf`, `rf2rf_orri_rf`（9 条）
+* `mreg_range_overlap`：源/目的范围交集 → ILLI — `rb2rb_orri_rb`, `rd2rd_orri_rd`, `rf2rf_orri_rf`（3 条）
+<!-- LEGALITY_END -->

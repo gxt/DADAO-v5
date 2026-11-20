@@ -1,0 +1,2118 @@
+# SimRISC浮点运算指令
+
+> **版本：0.5.7**（与 SimRISC-00 一致）
+> **分类：浮点运算** — fo/ft 运算、格式转换、比较、符号位操作、条件赋值、分类、取整、最小最大值
+
+**规范性引用**：本册的浮点数据格式、运算结果与异常语义以 **IEEE 754-2019** 为准——本册未写明的行为按 IEEE 754-2019 执行；本册与之冲突时，**以 IEEE 754-2019 为准**，唯一例外是本册**显式标注为有意偏离**并给出理由的条目。
+
+**单精（ft）结果的写入宽度**：凡以 ft 寄存器为目的的指令（算术、取余、开方、取整、缩放、最小最大、转换到 ft 等），**只写目的寄存器低 32 位，高 32 位保持原值**（不符号扩展、不零填）；取数指令 `ld.t`/`ldm.t` 的 rf 形式同理。**例外（宽度透明的整 64 位搬移：源读 64 位、目的写 64 位，不做窄写、不保留目的高半）**：跨组复制 `rd2rf`/`rf2rd`、rf 组块复制 `rf2rf`、浮点条件赋值 `cs.n`/`cs.z`/`cs.p` 的 rf 形式。判据总则见 SimRISC-00 §2.3。
+
+舍入模式由 rf0[33:32] 控制，异常标志在 rf0[4:0]。浮点指令执行后，异常状态位（NV/DZ/OF/UF/NX）由硬件设置，软件可通过读取 rf0 检查异常状态。
+
+## 1. 格式转换指令
+
+格式转换指令在整型与浮点格式之间、以及同格式之间转换数据，操作数类型为 `orri`，每条指令一个目的、一个源。其中 it 表示32位有符号整数，io表示64位有符号整数，ut表示32位无符号整数，uo表示64位无符号整数，ft表示32位单精浮点数，fo表示64位双精浮点数。
+
+低 6 位 `immu6` 的语义按「结果是否依赖舍入」分为两类，两者互斥：
+
+| 类别 | 条数 | 指令 | `immu6` 语义 |
+|---|---|---|---|
+| 舍入方向六档 | 15 | `ft2it`/`ft2io`/`ft2ut`/`ft2uo`、`fo2it`/`fo2io`/`fo2ut`/`fo2uo`、`fo2ft`、`it2ft`/`io2ft`/`ut2ft`/`uo2ft`、`io2fo`/`uo2fo` | 舍入方向（§1.1） |
+| 精确转换 | 3 | `ft2fo`、`it2fo`、`ut2fo` | SBZ，必须为 0（§1.2） |
+
+**读写顺序**：每条指令只访问一个目的与一个源，硬件先读全部源再写目的，源与目的可为同一寄存器，行为确定。
+
+> rf 组内连续寄存器的块复制（`rf2rf`）与跨组复制 `rd2rf`/`rf2rd` 不属本册的格式转换族，见 SimRISC-02。
+
+### 1.1 舍入方向六档
+
+结果依赖舍入的 15 条转换在 `immu6` 中显式携带舍入方向，取值为 6 位 one-hot（恰一位为 1），与取整指令的六档按位序一致：
+
+| `immu6` | 舍入方向 | 读 `rf0[33:32]` |
+|---|---|---|
+| `0x01` | 就近取偶（RNE） | 否 |
+| `0x02` | 就近、平局远离 0（RNA） | 否 |
+| `0x04` | 向 0（RTZ） | 否 |
+| `0x08` | 向 +∞（RUP） | 否 |
+| `0x10` | 向 −∞（RDN） | 否 |
+| `0x20` | 动态：按 `rf0[33:32]`（`00` RNE / `01` RTZ / `10` RDN / `11` RUP） | 是 |
+
+- 5 个静态档**不受** `rf0[33:32]` 影响；**只有** `0x20` 读 `rf0[33:32]`。
+- `immu6` 必须是上述六值之一；其他取值（含 `0x00`）⇒ ILLI。
+- 方向是运算属性而非环境属性：同一指令在任何 `rf0` 取值下结果确定（`0x20` 除外，其语义即「跟随环境」）。
+
+字段与格式：
+
+| 指令 | 目的 | 源 |
+|---|---|---|
+| `ft2it`/`ft2io`/`ft2ut`/`ft2uo` | `rdHB`（ft→32/64 位有符号/无符号整数） | `rfHC`（ft） |
+| `fo2it`/`fo2io`/`fo2ut`/`fo2uo` | `rdHB`（fo→32/64 位有符号/无符号整数） | `rfHC`（fo） |
+| `it2ft`/`io2ft`/`ut2ft`/`uo2ft` | `rfHB`（ft） | `rdHC`（32/64 位有符号/无符号整数） |
+| `io2fo`/`uo2fo` | `rfHB`（fo） | `rdHC`（64 位有符号/无符号整数） |
+| `fo2ft` | `rfHB`（ft） | `rfHC`（fo） |
+
+### 1.2 精确转换（SBZ）
+
+`ft2fo`（f32→f64）、`it2fo`（int32→f64）、`ut2fo`（uint32→f64）的结果总能被目标格式精确表示，因此**不涉舍入**：低 6 位为 SBZ，必须为 0，非 0 ⇒ ILLI；不读 `rf0[33:32]`，不置 NX/OF/UF。字段为 `rfHB`（目的）与源（`ft2fo` 为 `rfHC`，`it2fo`/`ut2fo` 为 `rdHC`）。
+
+### 1.3 异常与标志
+
+转换族只实现「inexact 即报告」的形态：**结果 inexact 一律置 NX**，不提供「舍入但不置标志」的变体。
+
+- **浮点→整数**（8 条）：有限值结果无法精确表示 ⇒ 置 NX；NaN / Inf / 超出目标整型范围 ⇒ 置 **NV**、**不置 NX**，结果按下表饱和：
+  - **有符号目的**：`NaN`、`+Inf`、正溢出 ⇒ **最大正值**；`−Inf`、负溢出 ⇒ **最小负值**；
+  - **无符号目的**：`NaN`、`+Inf`、正溢出 ⇒ **最大无符号值**；`−Inf`、负溢出 ⇒ **0**；
+  - **`NaN` 一律按「正」处理、与 `NaN` 自身符号位无关**（与 hardfloat / RISC-V 一致）；`±Inf` 与有限超范围值按符号方向饱和。
+  - **`*2it`/`*2ut` 的 64 位写宽**：目的 `rdHB` 为 64 位，而 `.it`/`.ut` 的整型结果为 32 位 ⇒ `.it`（有符号）**符号扩展**写满 64 位、`.ut`（无符号）**零扩展**写满 64 位（与 `SimRISC-08` 的 `add.st`/`add.ut` 高位规则同口径）；`.io`/`.uo` 本身为 64 位，直接整 64 位写入。
+- **整数→浮点**（8 条：6 条六档 + 精确的 `it2fo`/`ut2fo`）：精度损失 ⇒ 置 NX；结果超出目标格式范围 ⇒ ±Inf 并置 OF；结果 **tiny 且 inexact** ⇒ 按方向处理并置 UF（同时置 NX）。两条精确转换恒不置标志。
+- **浮点→浮点**（`fo2ft` 六档 / `ft2fo` 精确）：`ft2fo` 为精确转换，不置标志；`fo2ft` 的下溢（结果 **tiny 且 inexact**）按方向处理并置 UF（同时置 NX）；NaN 结果取 canonical quiet NaN、sNaN 作为算术输入置 NV 并返回 qNaN（见下方「NaN 结果的取值」）；`fo2ft` 的**溢出**按下方「溢出」段处理。
+
+**`fo2ft` 溢出（IEEE 754-2019 §7.4）**：溢出指以**无限指数范围**按所选方向舍入后的结果，其绝对值大于 ft 的最大有限值 `ft_max = (2 − 2^−23) × 2^127`（`0x7F7F_FFFF`）。结果形态由**舍入方向**决定；无论结果为 `±Inf` 还是 `±ft_max`，都置 **OF** 且置 **NX**：
+
+| 舍入方向（`immu6` 档） | 正溢出（精确结果 > 0） | 负溢出（精确结果 < 0） |
+|---|---|---|
+| RNE（`0x01`） | `+Inf` | `−Inf` |
+| RNA（`0x02`） | `+Inf` | `−Inf` |
+| RTZ（`0x04`） | `+ft_max` | `−ft_max` |
+| RUP（`0x08`，向 +∞） | `+Inf` | `−ft_max` |
+| RDN（`0x10`，向 −∞） | `+ft_max` | `−Inf` |
+| 动态（`0x20`） | 按 `rf0[33:32]` 取上表对应行（`00` RNE / `01` RTZ / `10` RDN / `11` RUP） | 同左列规则 |
+
+- `+ft_max` = `0x7F7F_FFFF`、`−ft_max` = `0xFF7F_FFFF`；有限结果的**符号恒为精确结果的符号**，由舍入方向决定的是取最大有限值还是取无穷。
+- 溢出与「结果变为 Inf」不等价：只有 RNE/RNA，以及 RUP 的正溢出、RDN 的负溢出，结果才是 `±Inf`；其余情形结果为**最大有限值**。
+
+**异常标志口径（IEEE 754-2019 §7.5）**：`UF` 仅在结果 **tiny 且 inexact** 时置位——结果 tiny 但可精确表示时**不置** `UF`（也不置 `NX`）；`NX` 与 `UF` **相互独立**（inexact 但非 tiny ⇒ 只置 `NX`）。**tininess 检测点 = 舍入后**（after rounding：按目标格式舍入后再判结果是否小于最小正规数）。标志为 **sticky**（置位后保持到软件清零，见 `SimRISC-00 §浮点状态寄存器`）。
+
+**NaN 结果的取值（全册适用）**：凡结果应为 quiet NaN 的情形——算术（加/减/乘/除）、缩放（scaleB）、开方（root）、取余（remainder）、融合乘加、取整、最小最大（双 NaN）、格式转换（`fo2ft`/`ft2fo`）、比较的 **quiet** 无序结果，以及任何无效操作产生的 qNaN——一律返回 **canonical quiet NaN**：符号位 0、payload 全零，即 ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`；signaling NaN 作输入仍按各节规则置 `NV`，结果同样取 canonical quiet NaN。**不适用**（须按各自规则处理）：rf 组块复制 `rf2rf`（纯位搬移、不改位、不置标志）；`ftmin`/`ftmax`/`fomin`/`fomax` 的**单 NaN** 情形（返回那个数）。IEEE 754-2019 §6.2.3 对 NaN payload 的传播只是 *should*、§6.3 不规定 NaN 结果的符号位，取 canonical 属 IEEE 允许的实现选择，**不是**有意偏离。
+
+### 1.4 合法性
+
+- 目的为 `rd` 组的 8 条浮点→整数：`rdHB` = `rd0` ⇒ ILLI（目的不可为 `rd0`）。
+- 目的为 `rf` 组的 10 条（`fo2ft`/`ft2fo`、8 条整数→浮点）：`rfHB` = `rf0` ⇒ ILLI；`rf0` 作**源**合法（`fo2ft`/`ft2fo` 读出 FCSR 中的 qNaN 位型）。
+- 18 条转换（15 条六档 + 3 条精确）**不是**块转换：`immu6` 不是个数 ⇒ 不存在 `immu6` = 0、起始 + `immu6` > 64、源/目的范围重叠三项限制；其 `immu6` 的合法取值分别见 §1.1（六档 one-hot，非 one-hot ⇒ ILLI）与 §1.2（SBZ，非 0 ⇒ ILLI）。
+
+> `附录 A` 的「汇编形式」列按编码几何机械派生，沿用了寄存器窗口记法；18 条转换的第三个域实为 `immu6` 的语义值（§1.1 舍入档 / §1.2 SBZ），不作窗口使用。
+
+### 1.5 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-07.idl` 生成，逐条如下：
+
+<!-- IDL:ft2it_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ft2it_orri_rf`**
+```idl
+# 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot（0x20 = 动态读 rf0[33:32]）；非六值之一 ⇒ ILLI（SimRISC-07 §1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# ft → int32：值语义与标志（NaN/±Inf/越界 ⇒ NV + 饱和、有限 inexact ⇒ NX，NV 时不置 NX）
+# 全在本库 ft_to_i32 内（idl/lib/fp.idl，SimRISC-07 §1.3）
+Bits<32> r = ft_to_i32(ft[rfHC], mode);
+
+# 32 位有符号结果按 SimRISC 约定符号扩展写满 64 位（同 SimRISC-08 add.st/sub.st 口径）
+rd[rdHB] = {{32{r[31]}}, r};
+```
+<!-- IDL:ft2it_orri_rf END -->
+
+<!-- IDL:ft2io_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ft2io_orri_rf`**
+```idl
+# 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# ft → int64：库只提供 32 位目标（ft_to_i32/ft_to_ui32）⇒ 本条按 softfloat 的 f32→i64 结构
+# 用库原语拼装（roundToI64 保留在 idl/lib/fp.idl，见该文件头「64 位整型↔浮点…原语保留」）
+Bits<32> src = ft[rfHC];
+Bits<1> sign = signF32UI(src);
+Bits<8> exp = expF32UI(src);
+Bits<32> sig = fracF32UI(src);
+Bits<16> sd = 16'hBE - {8'd0, exp};                   # 0xBE = 127 + 63：整数部分的移位量
+
+if ($signed(sd) < 0s) {
+  # |值| ≥ 2^64（或 Inf/NaN）⇒ 无效操作：NV + 饱和（§1.3；NaN 一律按「正」处理）
+  set_fp_flag(FpFlag::NV);
+  if ((exp == 8'hFF) && (sig != 0)) {
+    rd[rdHB] = I64_POS_OVERFLOW;
+  } else if (sign == 1) {
+    rd[rdHB] = I64_NEG_OVERFLOW;
+  } else {
+    rd[rdHB] = I64_POS_OVERFLOW;
+  }
+} else {
+  if (exp != 0) {
+    sig = sig | 32'h00800000;                         # 补隐式位（正规数）
+  }
+  Bits<64> whole = sig `<< 40;                        # 尾数对齐到 bit63（整数字段在高端）
+  Bits<64> extra = 64'd0;                             # 小数部分（roundToI64 的 sigExtra 口径）
+  if (sd != 16'd0) {
+    if (sd < 16'd64) {
+      extra = whole << (16'd64 - sd);                 # 被移出的位（最高位 = 「0.5」位）
+      whole = whole >> sd;
+    } else {
+      extra = (sd == 16'd64) ? whole : ((whole != 0) ? 64'd1 : 64'd0);
+      whole = 64'd0;
+    }
+  }
+  rd[rdHB] = softfloat_roundToI64(sign, whole, extra, mode);
+}
+```
+<!-- IDL:ft2io_orri_rf END -->
+
+<!-- IDL:ft2ut_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ft2ut_orri_rf`**
+```idl
+# 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# ft → uint32：值语义与标志在库 ft_to_ui32 内（NaN/+Inf/正溢出 ⇒ 0xFFFF_FFFF、
+# −Inf/负溢出 ⇒ 0、NV 时不置 NX；有限 inexact ⇒ NX，§1.3）
+Bits<32> r = ft_to_ui32(ft[rfHC], mode);
+
+# 32 位无符号结果零扩展写满 64 位（同 SimRISC-08 add.ut/sub.ut 口径）
+rd[rdHB] = {32'd0, r};
+```
+<!-- IDL:ft2ut_orri_rf END -->
+
+<!-- IDL:ft2uo_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ft2uo_orri_rf`**
+```idl
+# 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# ft → uint64：同 ft2io 的拼装方式，目标为无符号 ⇒ 用 roundToUI64（饱和：NaN/+Inf ⇒
+# 0xFFFF_FFFF_FFFF_FFFF、−Inf/负溢出 ⇒ 0，§1.3）
+Bits<32> src = ft[rfHC];
+Bits<1> sign = signF32UI(src);
+Bits<8> exp = expF32UI(src);
+Bits<32> sig = fracF32UI(src);
+Bits<16> sd = 16'hBE - {8'd0, exp};
+
+if ($signed(sd) < 0s) {
+  set_fp_flag(FpFlag::NV);
+  if ((exp == 8'hFF) && (sig != 0)) {
+    rd[rdHB] = UI64_POS_OVERFLOW;
+  } else if (sign == 1) {
+    rd[rdHB] = UI64_NEG_OVERFLOW;
+  } else {
+    rd[rdHB] = UI64_POS_OVERFLOW;
+  }
+} else {
+  if (exp != 0) {
+    sig = sig | 32'h00800000;
+  }
+  Bits<64> whole = sig `<< 40;
+  Bits<64> extra = 64'd0;
+  if (sd != 16'd0) {
+    if (sd < 16'd64) {
+      extra = whole << (16'd64 - sd);
+      whole = whole >> sd;
+    } else {
+      extra = (sd == 16'd64) ? whole : ((whole != 0) ? 64'd1 : 64'd0);
+      whole = 64'd0;
+    }
+  }
+  rd[rdHB] = softfloat_roundToUI64(sign, whole, extra, mode);
+}
+```
+<!-- IDL:ft2uo_orri_rf END -->
+
+<!-- IDL:fo2it_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fo2it_orri_rf`**
+```idl
+# 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# fo → int32：fo 侧暂无库函数 ⇒ 按 IEEE 754-2019 §3.3 拆 binary64 的
+# sign/exp/frac，对齐后用库的 softfloat 舍入原语（roundToI32 的「值×2^12」口径）
+Bits<64> a = rf[rfHC];                                # 源按 fo 视图读整 64 位
+Bits<1> sign = a[63];
+Bits<11> exp = a[62:52];
+Bits<52> frac = a[51:0];
+
+if (exp == 11'h7FF) {
+  # Inf/NaN ⇒ NV + 饱和；NaN 按「正」处理（与符号位无关，§1.3）
+  set_fp_flag(FpFlag::NV);
+  if ((frac != 0) || (sign == 1'b0)) {
+    rd[rdHB] = 64'h0000_0000_7FFF_FFFF;               # NaN / +Inf ⇒ 最大正值（符号扩展写满）
+  } else {
+    rd[rdHB] = 64'hFFFF_FFFF_8000_0000;               # −Inf ⇒ 最小负值
+  }
+} else {
+  Bits<64> sig = {12'd0, frac};
+  if (exp != 11'd0) {
+    sig = sig | (64'h1 << 52);                        # 补隐式位（正规数；次正规无隐式位）
+  }
+  # roundToI32 的口径是「值×2^12」（低 12 位为舍入位）：值×2^12 = sig × 2^(exp−1063)
+  Bits<16> sd = 16'd1063 - {5'd0, exp};
+  if ($signed(sd) <= 0s) {
+    # 值 ≥ 2^40，远出 int32 范围 ⇒ 无效操作（NV + 饱和，不置 NX；NaN/±Inf 已在上面处理）
+    set_fp_flag(FpFlag::NV);
+    rd[rdHB] = (sign == 1) ? 64'hFFFF_FFFF_8000_0000 : 64'h0000_0000_7FFF_FFFF;
+  } else {
+    Bits<64> aligned = softfloat_shiftRightJam64(sig, {16'd0, sd});
+    Bits<32> r = softfloat_roundToI32(sign, aligned, mode);   # 越界 ⇒ NV + 饱和；inexact ⇒ NX
+    rd[rdHB] = {{32{r[31]}}, r};
+  }
+}
+```
+<!-- IDL:fo2it_orri_rf END -->
+
+<!-- IDL:fo2io_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fo2io_orri_rf`**
+```idl
+# 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# fo → int64：整数部分 = sig >> (1086 − exp)，小数部分按 softfloat 的 sigExtra 口径
+Bits<64> a = rf[rfHC];
+Bits<1> sign = a[63];
+Bits<11> exp = a[62:52];
+Bits<52> frac = a[51:0];
+
+if (exp == 11'h7FF) {
+  set_fp_flag(FpFlag::NV);
+  if ((frac != 0) || (sign == 1'b0)) {
+    rd[rdHB] = I64_POS_OVERFLOW;                                # NaN / +Inf ⇒ 最大正值
+  } else {
+    rd[rdHB] = I64_NEG_OVERFLOW;                       # −Inf ⇒ 最小负值
+  }
+} else {
+  Bits<64> sig = {12'd0, frac};
+  if (exp != 11'd0) {
+    sig = sig | (64'h1 << 52);
+  }
+  # 值 = sig × 2^(exp−1075) ⇒ 整数部分 = sig >> (1075−exp)（负的移位量即左移）
+  Bits<16> sd = 16'd1075 - {5'd0, exp};
+  if ($signed(sd) < 0s) {
+    Bits<16> left = 16'd0 - sd;
+    if (left > 16'd11) {
+      set_fp_flag(FpFlag::NV);                         # |值| ≥ 2^64 ⇒ 饱和
+      rd[rdHB] = (sign == 1) ? I64_NEG_OVERFLOW : I64_POS_OVERFLOW;
+    } else {
+      Bits<64> whole = sig << left;                    # 值已为整数（≤ 2^64−1，精确）
+      rd[rdHB] = softfloat_roundToI64(sign, whole, 64'd0, mode);
+    }
+  } else if (sd == 16'd0) {
+    rd[rdHB] = softfloat_roundToI64(sign, sig, 64'd0, mode);
+  } else {
+    Bits<64> whole = 64'd0;
+    Bits<64> extra = 64'd0;
+    if (sd < 16'd64) {
+      extra = sig << (16'd64 - sd);
+      whole = sig >> sd;
+    } else {
+      extra = (sd == 16'd64) ? sig : ((sig != 0) ? 64'd1 : 64'd0);
+      whole = 64'd0;
+    }
+    rd[rdHB] = softfloat_roundToI64(sign, whole, extra, mode);
+  }
+}
+```
+<!-- IDL:fo2io_orri_rf END -->
+
+<!-- IDL:fo2ut_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fo2ut_orri_rf`**
+```idl
+# 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# fo → uint32：NaN/+Inf/正溢出 ⇒ 0xFFFF_FFFF、−Inf/负溢出 ⇒ 0（§1.3）
+Bits<64> a = rf[rfHC];
+Bits<1> sign = a[63];
+Bits<11> exp = a[62:52];
+Bits<52> frac = a[51:0];
+
+if (exp == 11'h7FF) {
+  set_fp_flag(FpFlag::NV);
+  if ((frac != 0) || (sign == 1'b0)) {
+    rd[rdHB] = 64'h0000_0000_FFFF_FFFF;               # NaN / +Inf ⇒ 最大无符号值（零扩展写满）
+  } else {
+    rd[rdHB] = 64'h0000_0000_0000_0000;               # −Inf ⇒ 0
+  }
+} else {
+  Bits<64> sig = {12'd0, frac};
+  if (exp != 11'd0) {
+    sig = sig | (64'h1 << 52);
+  }
+  Bits<16> sd = 16'd1063 - {5'd0, exp};               # 同 fo2it：值×2^12 = sig × 2^(exp−1063)
+  if ($signed(sd) <= 0s) {
+    set_fp_flag(FpFlag::NV);                          # 值 ≥ 2^40 ⇒ 无效操作（NV + 饱和）
+    rd[rdHB] = (sign == 1) ? 64'h0000_0000_0000_0000 : 64'h0000_0000_FFFF_FFFF;
+  } else {
+    Bits<64> aligned = softfloat_shiftRightJam64(sig, {16'd0, sd});
+    Bits<32> r = softfloat_roundToUI32(sign, aligned, mode);
+    rd[rdHB] = {32'd0, r};
+  }
+}
+```
+<!-- IDL:fo2ut_orri_rf END -->
+
+<!-- IDL:fo2uo_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fo2uo_orri_rf`**
+```idl
+# 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# fo → uint64：NaN/+Inf ⇒ 0xFFFF_FFFF_FFFF_FFFF、−Inf ⇒ 0（§1.3）
+Bits<64> a = rf[rfHC];
+Bits<1> sign = a[63];
+Bits<11> exp = a[62:52];
+Bits<52> frac = a[51:0];
+
+if (exp == 11'h7FF) {
+  set_fp_flag(FpFlag::NV);
+  if ((frac != 0) || (sign == 1'b0)) {
+    rd[rdHB] = UI64_POS_OVERFLOW;
+  } else {
+    rd[rdHB] = UI64_NEG_OVERFLOW;
+  }
+} else {
+  Bits<64> sig = {12'd0, frac};
+  if (exp != 11'd0) {
+    sig = sig | (64'h1 << 52);
+  }
+  Bits<16> sd = 16'd1075 - {5'd0, exp};
+  if ($signed(sd) < 0s) {
+    Bits<16> left = 16'd0 - sd;
+    if (left > 16'd11) {
+      set_fp_flag(FpFlag::NV);                         # |值| ≥ 2^64 ⇒ 饱和
+      rd[rdHB] = (sign == 1) ? UI64_NEG_OVERFLOW : UI64_POS_OVERFLOW;
+    } else {
+      Bits<64> whole = sig << left;
+      rd[rdHB] = softfloat_roundToUI64(sign, whole, 64'd0, mode);
+    }
+  } else if (sd == 16'd0) {
+    rd[rdHB] = softfloat_roundToUI64(sign, sig, 64'd0, mode);
+  } else {
+    Bits<64> whole = 64'd0;
+    Bits<64> extra = 64'd0;
+    if (sd < 16'd64) {
+      extra = sig << (16'd64 - sd);
+      whole = sig >> sd;
+    } else {
+      extra = (sd == 16'd64) ? sig : ((sig != 0) ? 64'd1 : 64'd0);
+      whole = 64'd0;
+    }
+    rd[rdHB] = softfloat_roundToUI64(sign, whole, extra, mode);
+  }
+}
+```
+<!-- IDL:fo2uo_orri_rf END -->
+
+<!-- IDL:fo2ft_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fo2ft_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot（含静态 RNA 0x02）；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# fo → ft：结果依赖舍入（§1.3 的三条规则：ft 下溢 tiny 且 inexact ⇒ UF+NX、NaN ⇒ canonical
+# qNaN、sNaN ⇒ NV；溢出按 §1.3 的四象限表）。fo 侧无库函数 ⇒ 拆 binary64 字段后把 53 位尾数
+# 一次性对齐到 ft 的 31 位（隐含位 + 7 个舍入位）交给库的 softfloat_roundPackToF32，
+# 由它按 IEEE 754-2019 §7.4/§7.5 处理溢出四象限、tininess-after-rounding 与 NX/OF/UF。
+Bits<64> a = rf[rfHC];
+Bits<1> sign = a[63];
+Bits<11> exp = a[62:52];
+Bits<52> frac = a[51:0];
+
+if (exp == 11'h7FF) {
+  if (frac == 52'd0) {
+    rf[rfHB][31:0] = {sign, 8'hFF, 23'd0};            # ±Inf：符号位保留
+  } else {
+    # NaN ⇒ canonical quiet NaN（ft 0x7FC0_0000，§1.3）；frac[51] = 0 且 frac ≠ 0 ⇒ sNaN ⇒ NV
+    if (frac[51] == 1'b0) {
+      set_fp_flag(FpFlag::NV);
+    }
+    rf[rfHB][31:0] = 32'h7FC0_0000;
+  }
+} else if ((exp == 11'd0) && (frac == 52'd0)) {
+  rf[rfHB][31:0] = {sign, 31'd0};                     # ±0：符号位保留（IEEE 754-2019 §6.3）
+} else {
+  Bits<64> sig = {12'd0, frac};
+  Bits<16> e16 = 16'd0;
+  if (exp == 11'd0) {
+    # f64 次正规：值 = frac × 2^−1074 ⇒ 先规格化到 bit52，再按 22 位（53→31）截取
+    Bits<8> sh = ft_clz64(sig) - 8'd11;
+    Bits<64> sig53 = sig << sh;
+    Bits<64> aligned = softfloat_shiftRightJam64(sig53, 32'd22);
+    Bits<32> s32 = aligned[31:0];
+    e16 = 16'd156 - 16'd1052 - {{8{sh[7]}}, sh};      # 0x9C − 1052 − sh（见下「指数口径」）
+    rf[rfHB][31:0] = softfloat_roundPackToF32(sign, e16, s32, mode);
+  } else {
+    # f64 正规：值 = sig × 2^(exp − 1075)；截到 31 位后 k = exp − 1053，库口径 exp 参数 = k + 0x9C
+    sig = sig | (64'h1 << 52);
+    Bits<64> aligned = softfloat_shiftRightJam64(sig, 32'd22);
+    Bits<32> s32 = aligned[31:0];
+    e16 = {5'd0, exp} - 16'd897;                      # exp − 897 = (exp − 1053) + 0x9C
+    rf[rfHB][31:0] = softfloat_roundPackToF32(sign, e16, s32, mode);
+  }
+}
+```
+<!-- IDL:fo2ft_orri_rf END -->
+
+<!-- IDL:it2ft_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`it2ft_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# int32 → ft：值语义与标志（精度损失 ⇒ NX；±0 与 −2^31 精确）在库 i32_to_ft 内（§1.3）
+# 源为 32 位有符号整数（§1）⇒ 取 rd 的低 32 位；ft 结果只写目的低 32 位、高 32 位保持
+Bits<32> s = rd[rdHC][31:0];
+rf[rfHB][31:0] = i32_to_ft(s, mode);
+```
+<!-- IDL:it2ft_orri_rf END -->
+
+<!-- IDL:io2ft_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`io2ft_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# int64 → ft：库未提供 i64_to_ft（64 位整型↔浮点只保留 softfloat 原语）
+# ⇒ 按 softfloat 的 i64_to_f32 结构用库原语拼装：|v| < 2^24 精确、否则 53→24 位一次舍入
+Bits<64> a = rd[rdHC];
+Bits<1> sign = a[63];
+Bits<64> mag = (sign == 1) ? -a : a;                  # |v|（−2^63 ⇒ 0x8000_0000_0000_0000）
+Bits<8> sd = ft_clz64(mag) - 8'd40;                   # clz − 40：≥ 0 ⇒ |v| < 2^24
+
+if ($signed(sd) >= 0s) {
+  if (mag == 64'd0) {
+    rf[rfHB][31:0] = 32'd0;                           # 整数 0 ⇒ +0（整数无 −0）
+  } else {
+    Bits<16> e16 = 16'h95 - {{8{sd[7]}}, sd};
+    Bits<64> shifted = mag << sd;                     # 隐含位落到 bit23（24 位尾数，精确）
+    Bits<32> s32 = shifted[31:0];
+    rf[rfHB][31:0] = packToF32UI(sign, e16[7:0], s32);
+  }
+} else {
+  Bits<8> d = sd + 8'd7;                              # 先给 7 个舍入位
+  Bits<32> sig = 32'd0;
+  if ($signed(d) < 0s) {
+    Bits<16> neg = 16'd0 - {{8{d[7]}}, d};
+    Bits<64> jam = softfloat_shiftRightJam64(mag, {16'd0, neg});
+    sig = jam[31:0];
+  } else {
+    Bits<64> shifted = mag << d;
+    sig = shifted[31:0];
+  }
+  Bits<16> e16 = 16'h9C - {{8{d[7]}}, d};
+  rf[rfHB][31:0] = softfloat_roundPackToF32(sign, e16, sig, mode);
+}
+```
+<!-- IDL:io2ft_orri_rf END -->
+
+<!-- IDL:ut2ft_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ut2ft_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# uint32 → ft：值语义与标志（精度损失 ⇒ NX；0 精确）在库 ui32_to_ft 内（§1.3）
+# 源为 32 位无符号整数（§1）⇒ 取 rd 的低 32 位按无符号解释
+Bits<32> s = rd[rdHC][31:0];
+rf[rfHB][31:0] = ui32_to_ft(s, mode);
+```
+<!-- IDL:ut2ft_orri_rf END -->
+
+<!-- IDL:uo2ft_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`uo2ft_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# uint64 → ft：同 io2ft（无符号 ⇒ 符号位恒 0）
+Bits<64> a = rd[rdHC];
+Bits<8> sd = ft_clz64(a) - 8'd40;
+
+if ($signed(sd) >= 0s) {
+  if (a == 64'd0) {
+    rf[rfHB][31:0] = 32'd0;                           # +0
+  } else {
+    Bits<16> e16 = 16'h95 - {{8{sd[7]}}, sd};
+    Bits<64> shifted = a << sd;
+    Bits<32> s32 = shifted[31:0];
+    rf[rfHB][31:0] = packToF32UI(1'b0, e16[7:0], s32);
+  }
+} else {
+  Bits<8> d = sd + 8'd7;
+  Bits<32> sig = 32'd0;
+  if ($signed(d) < 0s) {
+    Bits<16> neg = 16'd0 - {{8{d[7]}}, d};
+    Bits<64> jam = softfloat_shiftRightJam64(a, {16'd0, neg});
+    sig = jam[31:0];
+  } else {
+    Bits<64> shifted = a << d;
+    sig = shifted[31:0];
+  }
+  Bits<16> e16 = 16'h9C - {{8{d[7]}}, d};
+  rf[rfHB][31:0] = softfloat_roundPackToF32(1'b0, e16, sig, mode);
+}
+```
+<!-- IDL:uo2ft_orri_rf END -->
+
+<!-- IDL:io2fo_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`io2fo_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot（**含静态 RNA**，rf0[33:32] 无此档）；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# int64 → fo：53 位有效数一次舍入（IEEE 754-2019 §4.3/§5.3）。int64 值域 ≪ f64 范围 ⇒
+# 不可能 OF/UF；只有「精度损失 ⇒ NX」（§1.3）。fo 侧无库函数 ⇒ 按二进制编码逐位构造。
+Bits<64> a = rd[rdHC];
+Bits<1> sign = a[63];
+Bits<64> mag = (sign == 1) ? -a : a;
+
+if (mag == 64'd0) {
+  fo[rfHB] = 64'd0;                                   # 整数 0 ⇒ +0（整数无 −0）
+} else {
+  Bits<8> p = 8'd63 - ft_clz64(mag);                  # 最高有效位序号 0…63
+  if (p <= 8'd52) {
+    # |v| < 2^53 ⇒ 精确表示（尾数左移；不置任何标志）
+    Bits<8> left = 8'd52 - p;
+    Bits<64> mant = mag << left;
+    Bits<16> biased = {8'd0, p} + 16'd1023;
+    fo[rfHB] = {sign, biased[10:0], mant[51:0]};
+  } else {
+    # 丢弃 d = p − 52 位（1…11）：guard = 最高被弃位、sticky = 其余被弃位
+    Bits<8> d = p - 8'd52;
+    Bits<64> kept = mag >> d;
+    Bits<64> lost = mag & ((64'h1 << d) - 64'h1);
+    Bits<64> half = 64'h1 << (d - 8'd1);
+    Boolean guard = (lost & half) != 0;
+    Boolean sticky = (lost & (half - 64'h1)) != 0;
+    Boolean up = false;
+    if (mode == RoundingMode::RNE) {
+      up = guard && (sticky || (kept[0] == 1'b1));     # 平局取偶
+    } else if (mode == RoundingMode::RNA) {
+      up = guard;                                      # 平局远离 0
+    } else if (mode == RoundingMode::RUP) {
+      up = (sign == 1'b0) && (guard || sticky);        # 向 +∞
+    } else if (mode == RoundingMode::RDN) {
+      up = (sign == 1'b1) && (guard || sticky);        # 向 −∞
+    }
+    if (up) {
+      kept = kept + 64'd1;
+    }
+    Bits<16> biased = {8'd0, p} + 16'd1023;
+    if (kept == (64'h1 << 53)) {                       # 进位到 2^53 ⇒ 尾数归零、指数 +1
+      kept = 64'h1 << 52;
+      biased = biased + 16'd1;
+    }
+    fo[rfHB] = {sign, biased[10:0], kept[51:0]};
+    if (guard || sticky) {
+      set_fp_flag(FpFlag::NX);                         # 精度损失 ⇒ NX（§1.3）
+    }
+  }
+}
+```
+<!-- IDL:io2fo_orri_rf END -->
+
+<!-- IDL:uo2fo_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`uo2fo_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入方向：immu6 六档 one-hot（**含静态 RNA**）；非六值之一 ⇒ ILLI（§1.1）
+RoundingMode mode = rm_to_mode(immu6);
+
+# uint64 → fo：同 io2fo 的 53 位一次舍入，符号位恒 0（无符号 ⇒ 只有向前舍入的 RUP 有意义）
+Bits<64> a = rd[rdHC];
+
+if (a == 64'd0) {
+  fo[rfHB] = 64'd0;                                   # +0
+} else {
+  Bits<8> p = 8'd63 - ft_clz64(a);
+  if (p <= 8'd52) {
+    Bits<8> left = 8'd52 - p;
+    Bits<64> mant = a << left;
+    Bits<16> biased = {8'd0, p} + 16'd1023;
+    fo[rfHB] = {1'b0, biased[10:0], mant[51:0]};
+  } else {
+    Bits<8> d = p - 8'd52;
+    Bits<64> kept = a >> d;
+    Bits<64> lost = a & ((64'h1 << d) - 64'h1);
+    Bits<64> half = 64'h1 << (d - 8'd1);
+    Boolean guard = (lost & half) != 0;
+    Boolean sticky = (lost & (half - 64'h1)) != 0;
+    Boolean up = false;
+    if (mode == RoundingMode::RNE) {
+      up = guard && (sticky || (kept[0] == 1'b1));
+    } else if (mode == RoundingMode::RNA) {
+      up = guard;
+    } else if (mode == RoundingMode::RUP) {
+      up = guard || sticky;                           # 正数向 +∞
+    }
+    if (up) {
+      kept = kept + 64'd1;
+    }
+    Bits<16> biased = {8'd0, p} + 16'd1023;
+    if (kept == (64'h1 << 53)) {
+      kept = 64'h1 << 52;
+      biased = biased + 16'd1;
+    }
+    fo[rfHB] = {1'b0, biased[10:0], kept[51:0]};
+    if (guard || sticky) {
+      set_fp_flag(FpFlag::NX);
+    }
+  }
+}
+```
+<!-- IDL:uo2fo_orri_rf END -->
+
+<!-- IDL:ft2fo_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ft2fo_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §1.2 精确转换：低 6 位为 SBZ，必须为 0，非 0 ⇒ ILLI（附录 B encode_sbz）
+if (immu6 != 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# f32 → f64 结果总能精确表示（binary32 的每个值都是 binary64 的值）⇒ 不涉舍入：
+# 不读 rf0[33:32]、不置 NX/OF/UF（§1.2），也不置任何其它标志（§1.3）
+# 源按 ft 视图读低 32 位（IEEE 754-2019 §3.2 的 binary32 字段）：sign / exp / frac
+Bits<32> src = ft[rfHC];
+Bits<1> sign = src[31];
+Bits<8> exp = src[30:23];
+Bits<23> frac = src[22:0];
+
+if (exp == 8'hFF) {
+  if (frac == 23'd0) {
+    # ±Inf ⇒ 符号位保留、指数全 1、尾数全 0（IEEE 754-2019 §3.3 的 binary64 ±Inf）
+    fo[rfHB] = {sign, 11'h7FF, 52'd0};
+  } else {
+    # NaN ⇒ canonical quiet NaN `fo 0x7FF8_0000_0000_0000`（§1.3「NaN 结果的取值」）；
+    # frac[22] = 0（且 frac ≠ 0）为 signaling NaN ⇒ 置 NV（IEEE 754-2019 §6.2.1 / §7.2 a））
+    if (frac[22] == 1'b0) {
+      rf[6'd0][4:0] = rf[6'd0][4:0] | 5'b00001;      # NV = rf0[0]（SimRISC-00 §2.3.1）
+    }
+    fo[rfHB] = 64'h7FF8_0000_0000_0000;
+  }
+} else if (exp == 8'd0) {
+  if (frac == 23'd0) {
+    # ±0 ⇒ 符号位保留（IEEE 754-2019 §6.3）
+    fo[rfHB] = {sign, 63'd0};
+  } else {
+    # f32 次正规 = frac × 2^-149，在 f64 中一律为正规数：
+    # 最高有效位 p ⇒ 无偏指数 = p − 149 ⇒ 偏置指数 = p − 149 + 1023 = p + 874
+    Bits<6> p = 6'd0;
+    for (Bits<6> k = 6'd0; k < 6'd23; k++) {
+      if (frac[k] == 1'b1) {
+        p = k;
+      }
+    }
+    Bits<12> biased = 12'd874 + {6'd0, p};
+    Bits<6> sh = 6'd52 - p;                           # 30…52（p ≤ 22）
+    Bits<64> wide = {41'd0, frac};                    # 先加宽再移：非加宽移位只保留左操作数位宽
+    Bits<64> shifted = wide << sh;
+    Bits<52> mant = shifted[51:0];                    # 最高有效位落在 bit 52（隐含 1），不在尾数内
+    fo[rfHB] = {sign, biased[10:0], mant};
+  }
+} else {
+  # f32 正规 ⇒ f64 正规：偏置指数 = (exp − 127) + 1023 = exp + 896；尾数左移 29 位（23 + 29 = 52）
+  Bits<12> biased = 12'd896 + {4'd0, exp};
+  fo[rfHB] = {sign, biased[10:0], frac, 29'd0};
+}
+```
+<!-- IDL:ft2fo_orri_rf END -->
+
+<!-- IDL:it2fo_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`it2fo_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §1.2 精确转换：低 6 位为 SBZ，必须为 0，非 0 ⇒ ILLI（附录 B encode_sbz）
+if (immu6 != 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# int32 → f64 结果总能精确表示（|v| ≤ 2^31 < 2^53）⇒ 不涉舍入、恒不置标志（§1.2/§1.3）
+# 源为 32 位有符号整数（§1「it 表示 32 位有符号整数」）⇒ 取 rd 的低 32 位按二进制补码解释
+Bits<32> v = rd[rdHC][31:0];
+Bits<1> sign = v[31];
+Bits<32> mag;
+if (sign == 1'b1) {
+  mag = (~v) + 32'd1;                                 # |v| = −v（−2^31 ⇒ 0x8000_0000，无符号可表示）
+} else {
+  mag = v;
+}
+if (mag == 32'd0) {
+  fo[rfHB] = 64'd0;                                   # 整数 0 ⇒ +0（整数无 −0）
+} else {
+  # 最高有效位 p ⇒ 偏置指数 = p + 1023；尾数 = |v| 左移 (52 − p) 后的低 52 位
+  Bits<6> p = 6'd0;
+  for (Bits<6> k = 6'd0; k < 6'd32; k++) {
+    if (mag[k] == 1'b1) {
+      p = k;
+    }
+  }
+  Bits<12> biased = 12'd1023 + {6'd0, p};
+  Bits<6> sh = 6'd52 - p;                             # 21…52（p ≤ 31）
+  Bits<64> wide = {32'd0, mag};
+  Bits<64> shifted = wide << sh;
+  Bits<52> mant = shifted[51:0];
+  fo[rfHB] = {sign, biased[10:0], mant};
+}
+```
+<!-- IDL:it2fo_orri_rf END -->
+
+<!-- IDL:ut2fo_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ut2fo_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §1.2 精确转换：低 6 位为 SBZ，必须为 0，非 0 ⇒ ILLI（附录 B encode_sbz）
+if (immu6 != 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# uint32 → f64 结果总能精确表示（≤ 2^32 − 1 < 2^53）⇒ 不涉舍入、恒不置标志（§1.2/§1.3）
+# 源为 32 位无符号整数（§1「ut 表示 32 位无符号整数」）⇒ 取 rd 的低 32 位按无符号解释
+Bits<32> u = rd[rdHC][31:0];
+if (u == 32'd0) {
+  fo[rfHB] = 64'd0;                                   # +0
+} else {
+  Bits<6> p = 6'd0;
+  for (Bits<6> k = 6'd0; k < 6'd32; k++) {
+    if (u[k] == 1'b1) {
+      p = k;
+    }
+  }
+  Bits<12> biased = 12'd1023 + {6'd0, p};
+  Bits<6> sh = 6'd52 - p;
+  Bits<64> wide = {32'd0, u};
+  Bits<64> shifted = wide << sh;
+  Bits<52> mant = shifted[51:0];
+  fo[rfHB] = {1'b0, biased[10:0], mant};              # 无符号 ⇒ 符号位为 0
+}
+```
+<!-- IDL:ut2fo_orri_rf END -->
+
+## 2. 浮点运算指令
+
+根据操作数不同，浮点运算类指令可以分为以下几种：
+
+### 2.1 S2D1
+
+一种是两个源操作数，一个目的操作数，即操作数类型为 `orrr`：
+
+```simrisc
+ftadd   rfHB, rfHC, rfHD
+ftsub   rfHB, rfHC, rfHD
+ftmul   rfHB, rfHC, rfHD
+ftdiv   rfHB, rfHC, rfHD
+ftrem   rfHB, rfHC, rfHD
+ftsclb  rfHB, rfHC, rdHD
+
+foadd   rfHB, rfHC, rfHD
+fosub   rfHB, rfHC, rfHD
+fomul   rfHB, rfHC, rfHD
+fodiv   rfHB, rfHC, rfHD
+forem   rfHB, rfHC, rfHD
+fosclb  rfHB, rfHC, rdHD
+```
+
+其中，rfHB为目的操作数，rfHC为第一个源操作数。除 `ftsclb`/`fosclb` 外，rfHD为第二个源操作数；`ftsclb`/`fosclb` 的第三个操作数为 `rdHD`（`rd` 组的**有符号 64 位整数指数**，非浮点寄存器；`rdHD = rd0` 表示指数 0）。硬件先读全部源操作数再写结果，源寄存器被目的覆盖前其值已捕获，行为确定。
+
+`ftrem`/`forem` 为 IEEE 754-2019 remainder 操作：结果 = `rfHC − n × rfHD`，n 为最接近 `rfHC/rfHD` 的整数，平局取偶数；舍入方向（`rf0[33:32]`）不参与本操作。结果恒精确，**不置** NX/OF/UF；除数为 ±0 属**无效操作**（NV）而**不是**除零（DZ）。
+
+**余数符号（IEEE 754-2019 §5.3.1 remainder）**：结果恒为 `rfHC − n × rfHD` 的精确值，`n` 为最接近 `rfHC/rfHD` 的整数（平局取偶）。由于 `n` 取最近整数，**非零余数的符号可与 `rfHC` 相反**（例：`5.5 rem 2 = −0.5`、`−5.5 rem 2 = +0.5`）；**余数为零时取 `rfHC` 的符号**（`4 rem 2 = +0`、`−4 rem 2 = −0`、`−0 rem 2 = −0`）。
+
+**无效操作的条件（IEEE 754-2019 §7.2 f）**：`remainder(x, y)`（`x` = `rfHC` 被除数、`y` = `rfHD` 除数）**仅当**「`y` 为 ±0 **或** `x` 为 ±Inf」**且两个操作数都不是 NaN** 时属无效操作 ⇒ 置 **NV** 并返回 qNaN。**NaN 输入优先于该无效条件**：只要任一操作数为 NaN，即使另一操作数为 ±0 或 ±Inf，也不因 §7.2 f) 置 NV（IEEE 原文以「and neither is a NaN」限定这两条条件）；signaling NaN 仍按 §7.2 a) 置 NV——sNaN 作任一操作数即无效操作，与另一操作数是否为 ±0/±Inf 无关。
+
+逐条期望：
+
+| `rfHC`（`x`） | `rfHD`（`y`） | NV | 结果 |
+|---|---|---|---|
+| qNaN | ±0 | 不置 | qNaN（IEEE 754-2019 §6.2：quiet NaN 输入不触发异常；payload 按 §6.2.3） |
+| sNaN | ±0 | **置** | qNaN（IEEE 754-2019 §7.2 a)） |
+| 有限（含 ±0） | ±0 | **置** | qNaN（IEEE 754-2019 §7.2 f：除数为零） |
+| ±Inf | 有限（含 ±0） | **置** | qNaN（IEEE 754-2019 §7.2 f：被除数为无穷） |
+| ±Inf | ±Inf | **置** | qNaN（IEEE 754-2019 §7.2 f：被除数为无穷） |
+| 有限（含 ±0） | ±Inf | 不置 | 返回 `rfHC`（商为 0 ⇒ n = 0，精确；`±0` 保留符号） |
+| 有限 | 有限非零 | 不置 | 精确余数 `rfHC − n × rfHD`；**符号由该精确值决定**（非零余数可与 `rfHC` 相反），余数为零时取 `rfHC` 的符号 |
+
+`ftsclb`/`fosclb` 为 IEEE 754 scaleB 操作：计算 `rfHC × 2^rdHD`（`rdHD` 为整数指数），舍入模式由 rf0 控制。两种形式使用同一 `orrr` 编码，不新增 opcode；旧写法 `ftsclb rfHB, rfHC, rfHD` / `fosclb rfHB, rfHC, rfHD`（第三操作数为 `rf` 组）不再接受。NaN/Inf/溢出/下溢行为遵循 IEEE 754。
+
+### 2.2 S1D1
+
+还有一种是一个源操作数，一个目的操作数，操作数类型为 `orri`。
+
+```simrisc
+ftroot  rfHB, rfHC, immu6
+
+foroot  rfHB, rfHC, immu6
+```
+
+ftroot和foroot指令用来实现`rootn(x, n)`运算，其中 n 的值存放在 immu6 中。仅支持 n=2（平方根）；其他 n 值触发 ILLI 异常。
+
+> `ftroot`/`foroot` 实现 `rootn(x, 2)`，与 IEEE 754-2019 的 `squareRoot` 运算相同，**唯一例外**是零的符号：IEEE 754-2019 §9.2.1 规定 `rootn(±0, 2) = +0`（该节 NOTE 明确 `rootn(−0, 2)` 与 `squareRoot(−0) = −0` 不同），因此源为 `+0` 或 `−0` 时结果一律为 **`+0`**，不置任何标志。
+
+S1D1 指令硬件先读源操作数再写结果，源被覆盖前其值已捕获，行为确定。
+
+### 2.3 取整（roundToIntegral）
+
+取整指令把浮点值取整为整数值（仍以同格式浮点表示），操作数类型为 `orri`；此处 `immu6`
+**不是**连续寄存器个数，而是**取整模式**（6 位 one-hot：恰一位为 1）：
+
+```simrisc
+ftrnd   rfHB, rfHC, immu6
+fornd   rfHB, rfHC, immu6
+```
+
+`ftrnd` 作用于 ft（32 位）、`fornd` 作用于 fo（64 位）；`rfHB` 为目的操作数、`rfHC` 为源操作数。
+六种操作与 IEEE 754-2019 §5.3.1 的 `roundToIntegral` 六档**按位序一一对应**：
+
+| `immu6` | IEEE 754-2019 操作 | 取整方向 | 置 NX |
+|---|---|---|---|
+| `0x01` | `roundToIntegralTiesToEven` | 就近取偶（静态） | 不置 |
+| `0x02` | `roundToIntegralTiesToAway` | 就近、平局远离 0（静态） | 不置 |
+| `0x04` | `roundToIntegralTowardZero` | 向 0（静态） | 不置 |
+| `0x08` | `roundToIntegralTowardPositive` | 向 +∞（静态） | 不置 |
+| `0x10` | `roundToIntegralTowardNegative` | 向 −∞（静态） | 不置 |
+| `0x20` | `roundToIntegralExact` | 读 `rf0[33:32]`（RNE/RTZ/RDN/RUP） | **结果 ≠ 输入且输入非 NaN 时置 NX** |
+
+共同规则（IEEE 754-2019 §5.9）：
+
+- 5 个静态方向**不受** `rf0[33:32]` 影响；只有 `0x20` 读 `rf0[33:32]`（`00` RNE / `01` RTZ / `10` RDN / `11` RUP）。
+- **只有 `0x20` 置 NX**（且仅当结果 ≠ 输入**且输入不是 NaN**）；其余 5 档**不得**置 NX。**NaN 输入不置 NX**：sNaN/qNaN 的 canonical 化会改变位型，但按 IEEE 754-2019 的 quiet 计算口径不属于 inexact（§5.9），故「结果 ≠ 输入」这一条对 NaN 不适用。
+- sNaN 作输入 ⇒ 置 NV、返回 qNaN；qNaN 作输入 ⇒ 返回 qNaN（canonical 化）。
+- `|x| ≥ 2^p`（ft: p = 24；fo: p = 53）⇒ **原样返回**（此时 x 已为整数；不得用「转整数再转回」实现）。
+- `±0` 的符号位保留：`trunc(-0.5) = -0`、`floor(-0.0) = -0`（取整结果为 0 时沿用输入的符号）。
+- Inf 原样返回；取整**不置** OF/UF。
+- 结果格式与输入相同（不做 ft↔fo 转换）。
+- 目的 `rfHB = rf0` ⇒ ILLI（`dst_rf0`）；源可为 `rf0`（读出 FCSR 中的 qNaN）。
+- `immu6` 必须 one-hot（`0x01`/`0x02`/`0x04`/`0x08`/`0x10`/`0x20` 之一）；其他取值（含 `0x00`）⇒ ILLI。
+
+> **已知偏差（`nearbyint`）**：IEEE 754 的 `nearbyint`（取整但不置 inexact）本 ISA **不提供**硬件变体
+> ⇒ 后端只能落 `0x20`（动态方向）：**值正确**，但结果 ≠ 输入时 **NX 可能被置位**。可接受性依据：本 ISA
+> 浮点指令不产生异常/陷阱，NX 仅为 `rf0[4:0]` 的**状态位**（软件可忽略）；`roundToIntegral` 族与
+> `nearbyint` 的**值**语义一致，差异仅在 inexact 标志。
+> **`rf0[33:32]` 不扩充**：只有 4 档（RNE/RTZ/RDN/RUP），**无** `roundTiesToAway`
+> ⇒ C23 `fesetround(FE_TONEARESTFROMZERO)` **不支持**（可返回失败，符合 C 标准）；
+> 「平局远离 0」仅由静态档 `0x02` 提供。另：请求方向已在 `rf0[33:32]` 内的 `nearbyint`
+> 变体仍落 `0x20`，其 NX 置位与 IEEE 的 `nearbyint`（不置）不同，属同一偏差。
+
+> **范围**：语义按本节冻结。
+
+### 2.4 最小最大值（minimumNumber / maximumNumber）
+
+最小/最大值指令从两个同格式浮点操作数中选出较小/较大者，操作数类型为 `orrr`：
+
+```simrisc
+ftmin   rfHB, rfHC, rfHD
+ftmax   rfHB, rfHC, rfHD
+fomin   rfHB, rfHC, rfHD
+fomax   rfHB, rfHC, rfHD
+```
+
+`ftmin`/`ftmax` 作用于 ft（32 位）、`fomin`/`fomax` 作用于 fo（64 位）；`rfHB` 为目的操作数，
+`rfHC` 为第一个源操作数、`rfHD` 为第二个源操作数。硬件先读全部源操作数再写结果，源被目的覆盖前
+其值已捕获，行为确定（`rfHB` 可与 `rfHC`/`rfHD` 相同）。
+
+语义为 IEEE 754-2019 §9.6 的 **`minimumNumber`/`maximumNumber`**（**严格版**，与 RISC-V
+`FMIN.S`/`FMAX.S` 逐条一致；RISC-V 2.2 起由 754-2008 的 `minNum` 改为 201x 的 `minimumNumber`）。
+六条边界如下（`min` 指 `ftmin`/`fomin`，`max` 指 `ftmax`/`fomax`）：
+
+1. **有序**（`x < y` 或 `x > y`，按数值序比较）：`min` 返回较小者、`max` 返回较大者。
+2. **`−0 < +0`**（IEEE 754-2019 §9.6 对 `±0` 的定序：两者符号不同时 `min` 为 `−0`、`max` 为 `+0`）：
+   `min(+0, −0) = −0`、`max(+0, −0) = +0`——**不得**把 `±0` 视为"相等而任选"，也不得返回 `+0`
+   作为 `min` 的结果。
+3. **相等**（`x == y` 且同号；含 `+0/+0`、`−0/−0`、相同位型）：返回任一操作数（两者位型相同，
+   结果唯一）。
+4. **单 NaN**（一个操作数为 NaN、另一个为数；qNaN 与 **sNaN** 同论）：返回**那个数**（不传播
+   NaN）。qNaN 作输入**不置**标志；**sNaN 作输入置 NV**（即使结果为数字）。
+5. **双 NaN**（两个操作数均为 NaN，任意 qNaN/sNaN 组合）：返回 **canonical quiet NaN**
+   （IEEE 754-2019 §6.2：符号位 0、payload 全零 ⇒ ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`，
+   与 `rf0` 的复位 qNaN 位同源）；任一输入为 sNaN ⇒ 置 NV。
+6. **标志与舍入**：本族**不涉舍入**（结果取某一输入的位型或其 canonical 化，不重新舍入），
+   **不置 NX**；除「sNaN 作输入 ⇒ NV」外**不置**任何标志，也不置 OF/UF。Inf 按数值序参与比较
+   （`min(+Inf, x) = x`、`max(−Inf, x) = x`）。
+
+**禁止的实现（负向约束）**：
+
+- **不得**实现为「返回第二个源操作数」（x86 `minss`/`maxss` 的遗留语义：单 NaN 返回第二源、
+  双 NaN 返回第二源）——本族单 NaN 必须返回**数**、双 NaN 必须返回 **canonical qNaN**。
+- **不得**按 IEEE 754-2008 `minNum`/`maxNum` 的宽松处实现（NaN 传播位置未定、可任选）。
+- 不提供「NaN 传播版」`minimum`/`maximum`（IEEE 754-2019 §9.6 的另一函数）的硬件形态；需要时由
+  软件/编译器以本族加显式 NaN 判断合成。也不提供 `minNumMag` 类变体，
+  也不涉及整数 min/max。
+
+合法性：
+
+- 目的 `rfHB = rf0` ⇒ ILLI（`dst_rf0`）；源可为 `rf0`（读出 FCSR 中的 qNaN，见 §1）。
+- `orrr` 单目的，源与目的允许重叠（先读后写，结果确定）。
+
+> **范围**：语义按本节冻结。
+
+### 2.5 融合乘加（fusedMultiplyAdd）
+
+融合乘加把一次乘法与一次加法合并为**一次**运算，操作数类型为 `rrrr`（四个寄存器槽：一个目的、三个源）。
+书写形式为 `ftfma rfHA, rfHB, rfHC, rfHD` 与 `fofma rfHA, rfHB, rfHC, rfHD`——四个操作数均为普通寄存器，
+**不**使用花括号（本形态只有一个目的，与双目的/条件赋值的 `rrrr` 写法不同）。
+
+`ftfma` 作用于 ft（32 位）、`fofma` 作用于 fo（64 位）；`rfHA` 为目的操作数，
+`rfHB`/`rfHC` 为乘数与被乘数，`rfHD` 为加数。语义为 IEEE 754-2019 的
+`fusedMultiplyAdd(rfHB, rfHC, rfHD)`。
+
+**单次舍入**：`rfHB × rfHC` 的**精确积**（不先舍入）与 `rfHD` 相加，所得精确和
+**只在最后舍入一次**，舍入模式由 `rf0[33:32]` 控制。因此本族**不等价于**「先
+`ftmul`/`fomul` 再 `ftadd`/`foadd`」——后者在乘法结果处多舍入一次，可能给出不同结果。
+
+> **反例（ft）**：`a = 1 + 2⁻²³`（`0x3F80_0001`）、`b = 1 − 2⁻²³`（`0x3F7F_FFFE`）、
+> `c = −1`。精确积 `a × b = 1 − 2⁻⁴⁶`。`ftfma rf1, rf2, rf3, rf4`（`rf2 = a`、`rf3 = b`、
+> `rf4 = c`）得 `−2⁻⁴⁶`（`0xA880_0000`，在 ft 中精确可表示）；而 `ftmul` 先把积舍入为
+> `1`（`0x3F80_0000`），再 `ftadd` 得 `+0`。两者之差即「积被提前舍入」的损失。
+
+**读写在先后**：目的 `rfHA` **允许**与任一源重叠（含与 `rfHB`/`rfHC`/`rfHD` 相同）；
+硬件**先读**全部三个源操作数、再写结果，源被目的覆盖前其值已捕获，行为确定。
+乘法可交换：`rfHB` 与 `rfHC` 互换结果不变；`rfHD` 是加数，**不可**与二者互换。
+
+**特例与标志**（IEEE 754-2019 §7.2）：
+
+- NaN：任一操作数为 qNaN ⇒ 返回 qNaN（canonical 化）；任一操作数为 **sNaN** ⇒ 置 **NV**、返回 qNaN。
+- `0 × ±Inf`：即使加数 `rfHD` 为 qNaN，仍置 **NV**、返回 qNaN（「零乘无穷」无效运算优先于 NaN 传播）。
+- `±Inf × 有限非零数` ⇒ 积为同号 Inf；与加数异号 Inf 相加（`Inf + (−Inf)`）⇒ 置 **NV**、返回 qNaN；同号 ⇒ 该 Inf。
+- `±Inf` 作乘数、另一乘数为 `±0` 的情形按上一条 `0 × ±Inf` 处理；`Inf × Inf` ⇒ 积的符号按乘法符号规则取 `Inf`，再与加数按上一条合成。
+- 精确和为零（积与加数互为相反数、`0 × 有限数 + ±0` 等）⇒ 依 IEEE 754-2019 §6.3 的零符号规则：舍入模式为 RDN 时取 `−0`，其余取 `+0`。
+- 溢出按下方「溢出」段处理；下溢（结果 **tiny 且 inexact**，tininess 检测点 = 舍入后）⇒ 返回次正规数或 `±0` 并置 **UF**（同时置 **NX**）；单次舍入，故 **NX 最多置一次**。
+- 本族**不触发陷阱**，只累积 `rf0[4:0]` 状态位；结果恒为 IEEE 754 值（含 NaN/Inf）。
+
+**溢出（IEEE 754-2019 §7.4，与 §异常与标志 的 `fo2ft` 溢出处理同构）**：溢出指以**无限指数范围**按 `rf0[33:32]` 所选方向舍入后的精确和，其绝对值**大于**该格式的最大有限值 `max`：
+
+- `ftfma`：`ft_max = (2 − 2^−23) × 2^127` = `0x7F7F_FFFF`
+- `fofma`：`fo_max = (2 − 2^−52) × 2^1023` = `0x7FEF_FFFF_FFFF_FFFF`
+
+结果形态由**精确和的符号与舍入方向**共同决定；无论结果为 `±Inf` 还是 `±max`，都置 **OF** 且置 **NX**：
+
+| 舍入方向（`rf0[33:32]`） | 正溢出（精确和 > 0） | 负溢出（精确和 < 0） |
+|---|---|---|
+| RNE（`00`） | `+Inf` | `−Inf` |
+| RTZ（`01`） | `+max` | `−max` |
+| RDN（`10`） | `+max` | `−Inf` |
+| RUP（`11`） | `+Inf` | `−max` |
+
+- 本族舍入方向**只**来自 `rf0[33:32]` 的 4 档，**不存在** RNA（「平局远离 0」）档；表中 `max` 按指令格式取 `ft_max`/`fo_max`，有限结果的**符号恒为精确和的符号**，由舍入方向决定的是取 `±Inf` 还是取 `±max`。
+- 溢出与「结果变为 Inf」不等价：只有 RNE，以及 RUP 的正溢出、RDN 的负溢出，结果才是 `±Inf`；其余情形结果为**最大有限值**。溢出结果非 tiny ⇒ **不置 `UF`**。
+- **轻微溢出只置 `NX`**：精确和已超出 `max`，但「无限指数范围的舍入结果」仍等于该 `max` 时，上述不等式**不成立** ⇒ **不构成溢出**，结果为 `±max`、**只置 `NX`**、**不置 `OF`**。以 ft 的正向轻微溢出（`ft_max < 精确和 < 2^128`）为例：RNE（舍入结果仍为 `ft_max` 时）、RTZ、RDN 舍回 `+ft_max` ⇒ 仅 `NX`；RUP 舍到 `2^128 > ft_max` ⇒ 溢出 ⇒ `+Inf` + `OF|NX`。负向镜像：RNE（舍回时）、RTZ、RUP ⇒ `−ft_max` 仅 `NX`；RDN ⇒ `−Inf` + `OF|NX`。RNE 的分界为 `max` + 半个 ulp（ft 为 `ft_max + 2^103`、fo 为 `fo_max + 2^970`）：达到或超过即舍入到 `2^128`/`2^1024` ⇒ 溢出。
+
+合法性：
+
+- 目的 `rfHA = rf0` ⇒ ILLI（`dst_rf0`）；源可为 `rf0`（读出 FCSR 中的 qNaN）。
+- `rrrr` 单目的，三个源与目的允许重叠（先读后写，结果确定）；本族**不采用**双目的形态。
+
+> **注**：本 ISA 不提供 `fmsub`/`fnmadd`/`fnmsub` 的独立编码；需要 `a × b − c` 等形态时，
+> 先用 `ftsgnn`/`fosgnn` 对 `rfHD` 取负（符号位取反，逐位精确、不涉舍入）再执行本族，
+> 结果与单条融合乘减逐位一致。
+
+> **范围**：语义按本节冻结。
+
+### 2.6 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-07.idl` 生成，逐条如下：
+
+<!-- IDL:ftadd_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftadd_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# S2D1 无 immu6 域 ⇒ 舍入方向来自 rf0[33:32]（§2.1）；用库 rm_to_mode 的动态档入口（0x20）解析
+RoundingMode mode = rm_to_mode(6'h20);
+
+# ft 加法（IEEE 754-2019 addition）：sNaN ⇒ NV、NaN 结果 canonical qNaN、UF 按「舍入后 tiny 且
+# inexact」、NX/OF 全在库 ft_add 内（idl/lib/fp.idl）
+Bits<32> a = ft[rfHC];                                # 先读全部源（目的可与源重叠，§2.1）
+Bits<32> b = ft[rfHD];
+rf[rfHB][31:0] = ft_add(a, b, mode);                  # ft 结果只写低 32 位、高 32 位保持
+```
+<!-- IDL:ftadd_orrr_rf END -->
+
+<!-- IDL:ftsub_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftsub_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+RoundingMode mode = rm_to_mode(6'h20);                 # 舍入方向来自 rf0[33:32]（§2.1）
+
+# ft 减法（= a + (−b)，IEEE 754-2019 subtraction）；值/标志由库 ft_sub 承担
+Bits<32> a = ft[rfHC];
+Bits<32> b = ft[rfHD];
+rf[rfHB][31:0] = ft_sub(a, b, mode);
+```
+<!-- IDL:ftsub_orrr_rf END -->
+
+<!-- IDL:ftmul_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftmul_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+RoundingMode mode = rm_to_mode(6'h20);                 # 舍入方向来自 rf0[33:32]（§2.1）
+
+# ft 乘法（IEEE 754-2019 multiplication）：一次舍入；值/标志由库 ft_mul 承担
+Bits<32> a = ft[rfHC];
+Bits<32> b = ft[rfHD];
+rf[rfHB][31:0] = ft_mul(a, b, mode);
+```
+<!-- IDL:ftmul_orrr_rf END -->
+
+<!-- IDL:ftdiv_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftdiv_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+RoundingMode mode = rm_to_mode(6'h20);                 # 舍入方向来自 rf0[33:32]（§2.1）
+
+# ft 除法（IEEE 754-2019 division）：`0/0`、`Inf/Inf` ⇒ NV；`有限非零/0` ⇒ DZ；
+# 值/标志由库 ft_div 承担
+Bits<32> a = ft[rfHC];
+Bits<32> b = ft[rfHD];
+rf[rfHB][31:0] = ft_div(a, b, mode);
+```
+<!-- IDL:ftdiv_orrr_rf END -->
+
+<!-- IDL:ftrem_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftrem_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# ft 取余（§2.1 = IEEE 754-2019 remainder）：`x − n × y`，n = 最接近 x/y 的整数、平局取偶；
+# **舍入方向不参与**（不解析 rf0[33:32]）；结果恒精确 ⇒ 不置 NX/OF/UF；`y = ±0` 或 `x = ±Inf`
+# （且两者都不是 NaN）⇒ NV（不是 DZ）；NaN 优先；`y = ±Inf` ⇒ 返回 x；零余数取 x 的符号。
+# 全部在库 ft_rem 内（含逐位移位的整数取余与平局奇偶修正）
+Bits<32> r = ft_rem(ft[rfHC], ft[rfHD]);
+rf[rfHB][31:0] = r;
+```
+<!-- IDL:ftrem_orrr_rf END -->
+
+<!-- IDL:ftsclb_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftsclb_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入模式由 rf0 控制（§2.1 末段）⇒ 走库的动态档入口
+RoundingMode mode = rm_to_mode(6'h20);
+
+# ft scaleB：结果 = rfHC × 2^rdHD（rdHD 为 rd 组的**有符号 64 位整数**指数，rd0 读出 0）。
+# 指数饱和（±4096，远超出 f32 可表示区 ⇒ 不改结论）、次正规/溢出四象限、UF/NX 全在库
+# ft_scale 内（NaN/±Inf/±0 原样、不置标志）；与 f64 兄弟 fosclb 的 fo_scale 同构。
+# 注：旧临时写法（把 n 加到指数上再交 softfloat_normRoundPackToF32）在 n 近 INT64_MAX 时
+# `$signed(e64)` 有符号域溢出 ⇒ 误判下溢，已由 ft_scale 修正（m15-idl-019）。
+Bits<32> a = ft[rfHC];
+Bits<64> n = rd[rdHD];                                # 有符号 64 位整数指数
+rf[rfHB][31:0] = ft_scale(a, n, mode);
+```
+<!-- IDL:ftsclb_orrr_rf END -->
+
+<!-- IDL:foadd_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`foadd_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# S2D1 无 immu6 域 ⇒ 舍入方向来自 rf0[33:32]（§2.1）；走库的动态档入口
+RoundingMode mode = rm_to_mode(6'h20);
+
+# fo 加法（IEEE 754-2019 addition）：sNaN ⇒ NV、NaN ⇒ canonical qNaN、OF/UF/NX 全在库 fo_add 内
+Bits<64> a = rf[rfHC];
+Bits<64> b = rf[rfHD];
+fo[rfHB] = fo_add(a, b, mode);
+```
+<!-- IDL:foadd_orrr_rf END -->
+
+<!-- IDL:fosub_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fosub_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+RoundingMode mode = rm_to_mode(6'h20);                 # 舍入方向来自 rf0[33:32]
+
+# fo 减法（= a + (−b)）：值/标志由库 fo_sub 承担
+Bits<64> a = rf[rfHC];
+Bits<64> b = rf[rfHD];
+fo[rfHB] = fo_sub(a, b, mode);
+```
+<!-- IDL:fosub_orrr_rf END -->
+
+<!-- IDL:fomul_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fomul_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+RoundingMode mode = rm_to_mode(6'h20);
+
+# fo 乘法（一次舍入）：值/标志由库 fo_mul 承担
+Bits<64> a = rf[rfHC];
+Bits<64> b = rf[rfHD];
+fo[rfHB] = fo_mul(a, b, mode);
+```
+<!-- IDL:fomul_orrr_rf END -->
+
+<!-- IDL:fodiv_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fodiv_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+RoundingMode mode = rm_to_mode(6'h20);
+
+# fo 除法：`0/0`、`Inf/Inf` ⇒ NV；`有限非零/0` ⇒ DZ；值/标志由库 fo_div 承担
+Bits<64> a = rf[rfHC];
+Bits<64> b = rf[rfHD];
+fo[rfHB] = fo_div(a, b, mode);
+```
+<!-- IDL:fodiv_orrr_rf END -->
+
+<!-- IDL:forem_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`forem_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# fo 取余（§2.1，语义与 ftrem 相同，位宽 64）：舍入方向不参与；精确 ⇒ 不置 NX/OF/UF
+Bits<64> r = fo_rem(rf[rfHC], rf[rfHD]);
+fo[rfHB] = r;
+```
+<!-- IDL:forem_orrr_rf END -->
+
+<!-- IDL:fosclb_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fosclb_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 舍入模式由 rf0 控制（§2.1 末段）
+RoundingMode mode = rm_to_mode(6'h20);
+
+# fo scaleB：结果 = rfHC × 2^rdHD（rdHD 为 rd 组**有符号 64 位整数**指数，rd0 读出 0）。
+# 指数饱和、次正规/溢出四象限、UF/NX 由库 fo_scale 承担（NaN/±Inf/±0 原样、不置标志）
+Bits<64> n = rd[rdHD];
+fo[rfHB] = fo_scale(rf[rfHC], n, mode);
+```
+<!-- IDL:fosclb_orrr_rf END -->
+
+<!-- IDL:ftroot_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftroot_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §2.2：immu6 是 rootn 的 n 值，**仅支持 n = 2**；其他取值 ⇒ ILLI（附录 B encode_fp_root_n）
+if (immu6 != 6'd2) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 平方根的舍入属性 = 当前舍入方向（rf0[33:32]）⇒ 走库的动态档入口
+RoundingMode mode = rm_to_mode(6'h20);
+
+# ft 开方（rootn(x, 2) = IEEE 754-2019 squareRoot）：负数 ⇒ NV + canonical qNaN；
+# `rootn(±0, 2) = +0`（§2.2 的有意偏离，库 ft_sqrt 已按此实现）；+Inf 原样
+Bits<32> a = ft[rfHC];
+rf[rfHB][31:0] = ft_sqrt(a, mode);
+```
+<!-- IDL:ftroot_orri_rf END -->
+
+<!-- IDL:foroot_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`foroot_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §2.2：immu6 是 rootn 的 n 值，仅支持 n = 2；其他取值 ⇒ ILLI（附录 B encode_fp_root_n）
+if (immu6 != 6'd2) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 平方根的舍入属性 = 当前舍入方向（rf0[33:32]）
+RoundingMode mode = rm_to_mode(6'h20);
+
+# fo 开方（rootn(x, 2)）：负数 ⇒ NV + canonical qNaN；rootn(±0,2) = +0（§2.2 的有意偏离）；
+# +Inf 原样 —— 均在库 fo_sqrt 内
+Bits<64> a = rf[rfHC];
+fo[rfHB] = fo_sqrt(a, mode);
+```
+<!-- IDL:foroot_orri_rf END -->
+
+<!-- IDL:ftrnd_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftrnd_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §2.3：immu6 是**取整模式**（六档 one-hot），非六值 ⇒ ILLI；`0x20` 的动态档读 rf0[33:32]
+RoundingMode mode = rm_to_mode(immu6);
+
+# ft 取整（IEEE 754-2019 §5.9 roundToIntegral）：NaN ⇒ canonical qNaN（sNaN ⇒ NV）、±Inf/±0 原样、
+# |x| ≥ 2^24 原样、结果为 0 时沿用输入符号——全部在库 round_ft_to_integral 内；**该函数不置 NX**
+Bits<32> a = ft[rfHC];
+Bits<32> r = round_ft_to_integral(a, mode);
+rf[rfHB][31:0] = r;                                   # ft 结果只写低 32 位、高 32 位保持
+
+# §2.3 表：只有 `0x20`（roundToIntegralExact）在「结果 ≠ 输入」时置 NX；五个静态档不得置 NX。
+# NaN 除外：quiet NaN 只做 canonical 化，属 IEEE 754-2019 §5.9 的 quiet 计算，**不置 inexact**
+if ((immu6 == 6'h20) && (r != a) && (!is_sp_nan?(a))) {
+  set_fp_flag(FpFlag::NX);
+}
+```
+<!-- IDL:ftrnd_orri_rf END -->
+
+<!-- IDL:fornd_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fornd_orri_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+RoundingMode mode = rm_to_mode(immu6);                 # 六档 one-hot；非六值 ⇒ ILLI
+
+# fo 取整：同 §2.3 的共同规则（|x| ≥ 2^53 原样、±0 符号保留、不置 OF/UF），库内不置 NX
+Bits<64> a = rf[rfHC];
+Bits<64> r = round_fo_to_integral(a, mode);
+fo[rfHB] = r;                                         # fo 结果整 64 位写
+
+# 只有动态档且结果 ≠ 输入；NaN 只做 canonical 化 ⇒ 不置 inexact（IEEE 754-2019 §5.9）
+if ((immu6 == 6'h20) && (r != a) && (!is_dp_nan?(a))) {
+  set_fp_flag(FpFlag::NX);
+}
+```
+<!-- IDL:fornd_orri_rf END -->
+
+<!-- IDL:ftmin_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftmin_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# ft 最小（§2.4 = IEEE 754-2019 §9.6 `minimumNumber`）：单 NaN ⇒ 返回那个数；双 NaN ⇒ canonical qNaN；
+# `−0 < +0`；相等返回任一（位型相同）；不涉舍入 ⇒ 不置 NX/OF/UF；sNaN 作输入 ⇒ NV（即使结果为数）
+Bits<32> a = ft[rfHC];                                # 先读全部源（目的可与源重叠）
+Bits<32> b = ft[rfHD];
+Bits<32> res = 32'd0;
+
+if (is_sp_nan?(a) && is_sp_nan?(b)) {
+  res = SP_CANONICAL_NAN;
+} else if (is_sp_nan?(a)) {
+  res = b;                                            # 单 NaN ⇒ 返回那个数（不传播 NaN）
+} else if (is_sp_nan?(b)) {
+  res = a;
+} else if (a[31] != b[31]) {
+  res = (a[31] == 1'b1) ? a : b;                      # 异号：负数更小（含 −0 < +0，IEEE §9.6 定序）
+} else if (a[31] == 1'b1) {
+  res = (returnMag(a) > returnMag(b)) ? a : b;        # 同为负：量值大者更小
+} else {
+  res = (returnMag(a) < returnMag(b)) ? a : b;        # 同为非负：量值小者更小
+}
+
+if (is_sp_signaling_nan?(a) || is_sp_signaling_nan?(b)) {
+  set_fp_flag(FpFlag::NV);                            # sNaN ⇒ NV（与另一操作数/结果无关）
+}
+rf[rfHB][31:0] = res;
+```
+<!-- IDL:ftmin_orrr_rf END -->
+
+<!-- IDL:ftmax_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftmax_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# ft 最大（§2.4 = `maximumNumber`）：同上，只是选序相反
+Bits<32> a = ft[rfHC];
+Bits<32> b = ft[rfHD];
+Bits<32> res = 32'd0;
+
+if (is_sp_nan?(a) && is_sp_nan?(b)) {
+  res = SP_CANONICAL_NAN;
+} else if (is_sp_nan?(a)) {
+  res = b;
+} else if (is_sp_nan?(b)) {
+  res = a;
+} else if (a[31] != b[31]) {
+  res = (a[31] == 1'b1) ? b : a;                      # 异号：非负者更大（max(+0,−0) = +0）
+} else if (a[31] == 1'b1) {
+  res = (returnMag(a) < returnMag(b)) ? a : b;        # 同为负：量值小者更大
+} else {
+  res = (returnMag(a) > returnMag(b)) ? a : b;        # 同为非负：量值大者更大
+}
+
+if (is_sp_signaling_nan?(a) || is_sp_signaling_nan?(b)) {
+  set_fp_flag(FpFlag::NV);
+}
+rf[rfHB][31:0] = res;
+```
+<!-- IDL:ftmax_orrr_rf END -->
+
+<!-- IDL:fomin_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fomin_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# fo 最小（§2.4 `minimumNumber`）：与 `ftmin` 同构，字段为 binary64（符号位 bit63）
+Bits<64> a = rf[rfHC];
+Bits<64> b = rf[rfHD];
+Bits<64> res = 64'd0;
+
+if (is_dp_nan?(a) && is_dp_nan?(b)) {
+  res = DP_CANONICAL_NAN;
+} else if (is_dp_nan?(a)) {
+  res = b;
+} else if (is_dp_nan?(b)) {
+  res = a;
+} else if (a[63] != b[63]) {
+  res = (a[63] == 1'b1) ? a : b;
+} else if (a[63] == 1'b1) {
+  res = (returnMagF64(a) > returnMagF64(b)) ? a : b;
+} else {
+  res = (returnMagF64(a) < returnMagF64(b)) ? a : b;
+}
+
+if (is_dp_signaling_nan?(a) || is_dp_signaling_nan?(b)) {
+  set_fp_flag(FpFlag::NV);
+}
+fo[rfHB] = res;
+```
+<!-- IDL:fomin_orrr_rf END -->
+
+<!-- IDL:fomax_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fomax_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# fo 最大（§2.4 `maximumNumber`）
+Bits<64> a = rf[rfHC];
+Bits<64> b = rf[rfHD];
+Bits<64> res = 64'd0;
+
+if (is_dp_nan?(a) && is_dp_nan?(b)) {
+  res = DP_CANONICAL_NAN;
+} else if (is_dp_nan?(a)) {
+  res = b;
+} else if (is_dp_nan?(b)) {
+  res = a;
+} else if (a[63] != b[63]) {
+  res = (a[63] == 1'b1) ? b : a;
+} else if (a[63] == 1'b1) {
+  res = (returnMagF64(a) < returnMagF64(b)) ? a : b;
+} else {
+  res = (returnMagF64(a) > returnMagF64(b)) ? a : b;
+}
+
+if (is_dp_signaling_nan?(a) || is_dp_signaling_nan?(b)) {
+  set_fp_flag(FpFlag::NV);
+}
+fo[rfHB] = res;
+```
+<!-- IDL:fomax_orrr_rf END -->
+
+<!-- IDL:ftfma_rrrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftfma_rrrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 融合乘加：舍入方向由 rf0[33:32] 控制（§2.5），一次舍入
+RoundingMode mode = rm_to_mode(6'h20);
+
+# `ftfma rfHA, rfHB, rfHC, rfHD` = fusedMultiplyAdd(rfHB, rfHC, rfHD)：精确积 rfHB × rfHC 与
+# 加数 rfHD 相加后**只舍入一次**（§2.5）。本族只有 addC 形态 ⇒ `MulAddOp::AddC`；
+# `0 × ±Inf` 即使加数为 qNaN 也置 NV、`Inf + (−Inf)` ⇒ NV、精确和为零时 RDN ⇒ −0，
+# 溢出四象限与 UF/NX 由库 ft_muladd 承担（§1.3）
+Bits<32> a = ft[rfHB];
+Bits<32> b = ft[rfHC];
+Bits<32> c = ft[rfHD];
+Bits<32> r = ft_muladd(a, b, c, MulAddOp::AddC, mode);
+rf[rfHA][31:0] = r;                                   # ft 结果只写低 32 位、高 32 位保持
+```
+<!-- IDL:ftfma_rrrr_rf END -->
+
+<!-- IDL:fofma_rrrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fofma_rrrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+RoundingMode mode = rm_to_mode(6'h20);                 # 舍入方向来自 rf0[33:32]（§2.5）
+
+# fo 融合乘加（单次舍入；106 位精确积 + 192 位对齐在库 fo_muladd 内）
+Bits<64> a = rf[rfHB];
+Bits<64> b = rf[rfHC];
+Bits<64> c = rf[rfHD];
+Bits<64> r = fo_muladd(a, b, c, MulAddOp::AddC, mode);
+fo[rfHA] = r;                                         # fo 结果整 64 位写
+```
+<!-- IDL:fofma_rrrr_rf END -->
+
+## 3. 浮点符号位操作指令
+
+该类指令实现了浮点sign-injection指令，操作数类型为 `orrr`。
+
+```simrisc
+ftsgnj  rfHB, rfHC, rfHD
+fosgnj  rfHB, rfHC, rfHD
+ftsgnn  rfHB, rfHC, rfHD
+fosgnn  rfHB, rfHC, rfHD
+```
+
+其中，rfHB为目的操作数，rfHC和rfHD为源操作数。
+ftsgnj和fosgnj指令实现`copySign(rfHC, rfHD)`运算：取 rfHC 除符号位之外的位，与 rfHD 的符号位组合，写入 rfHB。
+ftsgnn和fosgnn指令取 rfHC 除符号位之外的位，与 rfHD 的符号位取反后组合，写入 rfHB。
+
+**写宽**：`fo` 形式（`fosgnj`/`fosgnn`）以 rfHD 的 bit 63 为符号位、按整 64 位写入；`ft` 形式（`ftsgnj`/`ftsgnn`）以 rfHD 的 bit 31 为符号位、**只写目的寄存器低 32 位，高 32 位保持原值**（与其他以 ft 寄存器为目的的指令一致，见册首「单精（ft）结果的写入宽度」）。
+
+硬件先读全部源操作数再写结果，源被覆盖前其值已捕获，行为确定。
+
+该类指令的几个特例如下：
+
+- 当rfHD为rf0时，ftsgnj和fosgnj实现了`abs(rfHC)`操作
+- 当rfHD为rf0时，ftsgnn和fosgnn实现了`-abs(rfHC)`操作
+- 当rfHC与rfHD相等时，ftsgnj和fosgnj实现了`copy(rfHC)`操作
+- 当rfHC与rfHD相等时，ftsgnn和fosgnn实现了`negate(rfHC)`操作
+
+### 3.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-07.idl` 生成，逐条如下：
+
+<!-- IDL:ftsgnj_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftsgnj_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §3 sign-injection：`copySign(rfHC, rfHD)` —— 取 rfHC 除符号位之外的位，与 rfHD 的
+# **bit31**（ft 的符号位）组合；逐位操作 ⇒ 不涉舍入、不置任何标志（含 NaN 原样走位）
+Bits<32> a = ft[rfHC];                                # 先读全部源
+Bits<32> b = ft[rfHD];
+rf[rfHB][31:0] = (a & 32'h7FFF_FFFF) | (b & 32'h8000_0000);   # 只写低 32 位、高 32 位保持
+```
+<!-- IDL:ftsgnj_orrr_rf END -->
+
+<!-- IDL:ftsgnn_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftsgnn_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §3：与 ftsgnj 相同，但 rfHD 的符号位**取反**后组合（`−abs` / `negate` 特例见散文）
+Bits<32> a = ft[rfHC];
+Bits<32> b = ft[rfHD];
+rf[rfHB][31:0] = (a & 32'h7FFF_FFFF) | ((~b) & 32'h8000_0000);
+```
+<!-- IDL:ftsgnn_orrr_rf END -->
+
+<!-- IDL:fosgnj_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fosgnj_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §3 fo 形式：符号位取 rfHD 的 **bit63**，按整 64 位写入（不保留目的高半）
+Bits<64> a = rf[rfHC];
+Bits<64> b = rf[rfHD];
+fo[rfHB] = (a & 64'h7FFF_FFFF_FFFF_FFFF) | (b & 64'h8000_0000_0000_0000);
+```
+<!-- IDL:fosgnj_orrr_rf END -->
+
+<!-- IDL:fosgnn_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`fosgnn_orrr_rf`**
+```idl
+# 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
+if (rfHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §3 fo 形式 + 符号位取反
+Bits<64> a = rf[rfHC];
+Bits<64> b = rf[rfHD];
+fo[rfHB] = (a & 64'h7FFF_FFFF_FFFF_FFFF) | ((~b) & 64'h8000_0000_0000_0000);
+```
+<!-- IDL:fosgnn_orrr_rf END -->
+
+## 4. 浮点比较指令
+
+浮点比较运算，参与比较运算的两个浮点数存放在rfHC和rfHD中，比较结果存放在rdHB中。操作数类型为 `orrr`。
+
+```simrisc
+ftqcmp  rdHB, rfHC, rfHD
+ftscmp  rdHB, rfHC, rfHD
+
+foqcmp  rdHB, rfHC, rfHD
+foscmp  rdHB, rfHC, rfHD
+```
+
+rdHB中的比较结果有四种情况：
+
+- 1：`rfHC > rfHD`
+- 0：`rfHC = rfHD`
+- -1：`rfHC < rfHD`
+- NaN：unordered，**四种比较一律返回 canonical quiet NaN**（符号位 0、payload 全零，见 §异常与标志）；quiet 与 signaling 的差别只体现在 `NV` 标志（signaling 无序即置 `NV`，quiet 仅 sNaN 置 `NV`）
+
+由于qNaN和sNaN的二进制数据按整型看是正数，因此，可以用零和负数的条件立刻判断出Equal/NotEqual/Less/NotLess/LessEqual/GreaterUnordered六种关系，而当rdHB的结果为正数则需要进一步判断结果数据是否为1，才能得出Unordered和Greater分开进行判断的结果。
+
+**异常标志**（IEEE 754-2019 §5.6.1 / §5.11）：Signaling Compare（`ftscmp`/`foscmp`）只要比较**无序**（任一操作数为sNaN或qNaN）即置 **`NV`**；Quiet Compare（`ftqcmp`/`foqcmp`）**仅**在操作数含 **sNaN** 时置 **`NV`**，只含 qNaN 时为安静的无序结果、**不置任何标志**；有序比较**不置**标志。四条比较指令只可能置 `NV`，不置 `DZ`/`OF`/`UF`/`NX`，标志按累积（sticky）语义写入 `rf0[4:0]`。
+
+### 4.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-07.idl` 生成，逐条如下：
+
+<!-- IDL:ftqcmp_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftqcmp_orrr_rf`**
+```idl
+# 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §4 quiet compare：结果写 rdHB（−1/0/+1 按 64 位扩展；无序 ⇒ canonical quiet NaN）。
+# 标志：**仅**含 sNaN 置 NV（只含 qNaN 为安静无序、不置任何标志；有序不置）
+Bits<32> a = ft[rfHC];
+Bits<32> b = ft[rfHD];
+Bits<64> res = 64'd0;
+
+if (is_sp_nan?(a) || is_sp_nan?(b)) {
+  if (is_sp_signaling_nan?(a) || is_sp_signaling_nan?(b)) {
+    set_fp_flag(FpFlag::NV);
+  }
+  res = 64'h0000_0000_7FC0_0000;                      # canonical quiet NaN（ft 位型，零扩展）
+} else if (((a & 32'h7FFF_FFFF) == 0) && ((b & 32'h7FFF_FFFF) == 0)) {
+  # ±0：`+0 = −0`（IEEE 754-2019 §5.10 / SimRISC-07 §4「= ⇒ 0」）——异号但相等，
+  # 必须先于「异号 ⇒ 负者小」判定，否则 (±0, ∓0) 会被判成 ±1
+  res = 64'd0;
+} else if (a[31] != b[31]) {
+  # 异号（且两者不同时为零，±0 已在上一分支处理）：负者小
+  res = (a[31] == 1'b1) ? 64'hFFFF_FFFF_FFFF_FFFF : 64'd1;
+} else if (a[31] == 1'b1) {
+  # 同为负：量值大者更小
+  if (returnMag(a) > returnMag(b)) {
+    res = 64'hFFFF_FFFF_FFFF_FFFF;
+  } else if (returnMag(a) < returnMag(b)) {
+    res = 64'd1;
+  }
+} else {
+  # 同为非负：量值小者更小
+  if (returnMag(a) < returnMag(b)) {
+    res = 64'hFFFF_FFFF_FFFF_FFFF;
+  } else if (returnMag(a) > returnMag(b)) {
+    res = 64'd1;
+  }
+}
+rd[rdHB] = res;                                       # 相等（含 +0 与 −0）⇒ res 保持 0
+```
+<!-- IDL:ftqcmp_orrr_rf END -->
+
+<!-- IDL:ftscmp_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftscmp_orrr_rf`**
+```idl
+# 目的 rd0 ⇒ ILLI（§1.4 / 附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §4 signaling compare：**只要无序**（任一操作数为 qNaN 或 sNaN）即置 NV；
+# 无序结果 = **canonical quiet NaN**（§4「四种比较一律返回 canonical quiet NaN」，quiet 与 signaling
+# 的差别只在 NV 规则）
+Bits<32> a = ft[rfHC];
+Bits<32> b = ft[rfHD];
+Bits<64> res = 64'd0;
+
+if (is_sp_nan?(a) || is_sp_nan?(b)) {
+  set_fp_flag(FpFlag::NV);
+  res = 64'h0000_0000_7FC0_0000;                      # canonical quiet NaN（§4：四种比较一律 canonical）
+} else if (((a & 32'h7FFF_FFFF) == 0) && ((b & 32'h7FFF_FFFF) == 0)) {
+  # ±0：`+0 = −0`（IEEE 754-2019 §5.10 / SimRISC-07 §4「= ⇒ 0」）——异号但相等，
+  # 必须先于「异号 ⇒ 负者小」判定，否则 (±0, ∓0) 会被判成 ±1
+  res = 64'd0;
+} else if (a[31] != b[31]) {
+  res = (a[31] == 1'b1) ? 64'hFFFF_FFFF_FFFF_FFFF : 64'd1;
+} else if (a[31] == 1'b1) {
+  if (returnMag(a) > returnMag(b)) {
+    res = 64'hFFFF_FFFF_FFFF_FFFF;
+  } else if (returnMag(a) < returnMag(b)) {
+    res = 64'd1;
+  }
+} else {
+  if (returnMag(a) < returnMag(b)) {
+    res = 64'hFFFF_FFFF_FFFF_FFFF;
+  } else if (returnMag(a) > returnMag(b)) {
+    res = 64'd1;
+  }
+}
+rd[rdHB] = res;
+```
+<!-- IDL:ftscmp_orrr_rf END -->
+
+<!-- IDL:foqcmp_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`foqcmp_orrr_rf`**
+```idl
+# 目的 rd0 ⇒ ILLI（§1.4 / 附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §4 quiet compare（fo）：仅含 sNaN 置 NV；无序 ⇒ canonical quiet NaN（fo 位型）
+Bits<64> a = rf[rfHC];
+Bits<64> b = rf[rfHD];
+Bits<64> res = 64'd0;
+
+if (is_dp_nan?(a) || is_dp_nan?(b)) {
+  if (is_dp_signaling_nan?(a) || is_dp_signaling_nan?(b)) {
+    set_fp_flag(FpFlag::NV);
+  }
+  res = DP_CANONICAL_NAN;
+} else if (((a & 64'h7FFF_FFFF_FFFF_FFFF) == 0) && ((b & 64'h7FFF_FFFF_FFFF_FFFF) == 0)) {
+  # ±0：`+0 = −0`（IEEE 754-2019 §5.10 / SimRISC-07 §4「= ⇒ 0」）——异号但相等，
+  # 必须先于「异号 ⇒ 负者小」判定，否则 (±0, ∓0) 会被判成 ±1
+  res = 64'd0;
+} else if (a[63] != b[63]) {
+  res = (a[63] == 1'b1) ? 64'hFFFF_FFFF_FFFF_FFFF : 64'd1;
+} else if (a[63] == 1'b1) {
+  if (returnMagF64(a) > returnMagF64(b)) {
+    res = 64'hFFFF_FFFF_FFFF_FFFF;
+  } else if (returnMagF64(a) < returnMagF64(b)) {
+    res = 64'd1;
+  }
+} else {
+  if (returnMagF64(a) < returnMagF64(b)) {
+    res = 64'hFFFF_FFFF_FFFF_FFFF;
+  } else if (returnMagF64(a) > returnMagF64(b)) {
+    res = 64'd1;
+  }
+}
+rd[rdHB] = res;
+```
+<!-- IDL:foqcmp_orrr_rf END -->
+
+<!-- IDL:foscmp_orrr_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`foscmp_orrr_rf`**
+```idl
+# 目的 rd0 ⇒ ILLI（§1.4 / 附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §4 signaling compare（fo）：只要无序即置 NV；无序结果 = canonical quiet NaN（§4）
+Bits<64> a = rf[rfHC];
+Bits<64> b = rf[rfHD];
+Bits<64> res = 64'd0;
+
+if (is_dp_nan?(a) || is_dp_nan?(b)) {
+  set_fp_flag(FpFlag::NV);
+  res = DP_CANONICAL_NAN;                             # canonical quiet NaN（§4：四种比较一律 canonical）
+} else if (((a & 64'h7FFF_FFFF_FFFF_FFFF) == 0) && ((b & 64'h7FFF_FFFF_FFFF_FFFF) == 0)) {
+  # ±0：`+0 = −0`（IEEE 754-2019 §5.10 / SimRISC-07 §4「= ⇒ 0」）——异号但相等，
+  # 必须先于「异号 ⇒ 负者小」判定，否则 (±0, ∓0) 会被判成 ±1
+  res = 64'd0;
+} else if (a[63] != b[63]) {
+  res = (a[63] == 1'b1) ? 64'hFFFF_FFFF_FFFF_FFFF : 64'd1;
+} else if (a[63] == 1'b1) {
+  if (returnMagF64(a) > returnMagF64(b)) {
+    res = 64'hFFFF_FFFF_FFFF_FFFF;
+  } else if (returnMagF64(a) < returnMagF64(b)) {
+    res = 64'd1;
+  }
+} else {
+  if (returnMagF64(a) < returnMagF64(b)) {
+    res = 64'hFFFF_FFFF_FFFF_FFFF;
+  } else if (returnMagF64(a) > returnMagF64(b)) {
+    res = 64'd1;
+  }
+}
+rd[rdHB] = res;
+```
+<!-- IDL:foscmp_orrr_rf END -->
+
+## 5. 浮点分类指令
+
+浮点分类指令对浮点数进行判断分类，并将分类结果写入数据寄存器，操作数类型为 `orri`，指令如下：
+
+```simrisc
+ftcls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
+focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
+```
+
+其中 `immu6` 指定连续分类的寄存器数量（1–63），目的寄存器为 rd，源寄存器为 rf。例如 `focls {rd4:rd6}, {rf8:rf10}` 对 rf8、rf9、rf10 分类，结果分别写入 rd4、rd5、rd6。来源为 `rf`、目的为 `rd`，分属不同寄存器组、结构性不可能重叠；分类按序号递增逐对进行，先读后写。
+
+对每个源寄存器的浮点数据，指令设置对应目的寄存器中的相应位，并将其他位清零：[63..10] 全部清零，分类结果仅使用 [9..0]。
+
+| 类别位 | 含义 |
+| ---   | ---               |
+| 0     | signalingNaN      |
+| 1     | quietNaN          |
+| 2     | negativeInfinity  |
+| 3     | negativeNormal    |
+| 4     | negativeSubnormal |
+| 5     | negativeZero      |
+| 6     | positiveZero      |
+| 7     | positiveSubnormal |
+| 8     | positiveNormal    |
+| 9     | positiveInfinity  |
+
+限制如下：
+
+- `immu6` = 0 时触发 ILLI 异常
+- 任一起始寄存器 + immu6 > 64 时触发 ILLI 异常
+
+> **注**：浮点运算指令以 `rf0` 为**目的**操作数 → ILLI；`rf0` 可作**源**操作数（含 `ftsgnj`/`fosgnj` + `rfHD=rf0` 的 `abs()` 特例，见 §浮点符号位操作指令）。写语义见 SimRISC-00。浮点寄存器的读写（ld/st/ldm/stm 的 rf 形式、cs.*-rf、rd2rf/rf2rd、set.w-rf）见 SimRISC-01、SimRISC-02 和 SimRISC-03。
+
+### 5.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-07.idl` 生成，逐条如下：
+
+<!-- IDL:ftcls_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ftcls_orri_rf`**
+```idl
+# 目的起始 rdHB = rd0 ⇒ ILLI（§1.4 / 附录 B dst_rd0：范围自 rdHB 升序 ⇒ 含 rd0 ⟺ rdHB = 0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §5：immu6 是连续分类的**寄存器个数**（1–63）⇒ 0 ⇒ ILLI
+if (immu6 == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 起始 + immu6 > 64 ⇒ ILLI（目的、源各判一次；7 位防溢出）
+Bits<7> dst_end = rdHB `+ immu6;
+Bits<7> src_end = rfHC `+ immu6;
+if ((dst_end > 7'd64) || (src_end > 7'd64)) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 逐对分类（目的 rd、源 rf 分属不同寄存器组 ⇒ 结构性不可能重叠；按序号递增、先读后写）。
+# 每条目的：[63..10] 清零，[9..0] 是 10 类 one-hot（§5 表）
+for (Bits<6> k = 6'd0; k < immu6; k++) {
+  Bits<32> v = rf[rfHC + k][31:0];                    # ftcls 的源按 ft（低 32 位）分类
+  Bits<64> code = 64'd0;
+  if (is_sp_signaling_nan?(v)) {
+    code = 64'h0000_0000_0000_0001;                   # bit0 signalingNaN
+  } else if (is_sp_quiet_nan?(v)) {
+    code = 64'h0000_0000_0000_0002;                   # bit1 quietNaN
+  } else if (is_sp_neg_inf?(v)) {
+    code = 64'h0000_0000_0000_0004;                   # bit2 negativeInfinity
+  } else if (is_sp_neg_norm?(v)) {
+    code = 64'h0000_0000_0000_0008;                   # bit3 negativeNormal
+  } else if (is_sp_neg_subnorm?(v)) {
+    code = 64'h0000_0000_0000_0010;                   # bit4 negativeSubnormal
+  } else if (is_sp_neg_zero?(v)) {
+    code = 64'h0000_0000_0000_0020;                   # bit5 negativeZero
+  } else if (is_sp_pos_zero?(v)) {
+    code = 64'h0000_0000_0000_0040;                   # bit6 positiveZero
+  } else if (is_sp_pos_subnorm?(v)) {
+    code = 64'h0000_0000_0000_0080;                   # bit7 positiveSubnormal
+  } else if (is_sp_pos_norm?(v)) {
+    code = 64'h0000_0000_0000_0100;                   # bit8 positiveNormal
+  } else {
+    code = 64'h0000_0000_0000_0200;                   # bit9 positiveInfinity（十类穷尽）
+  }
+  rd[rdHB + k] = code;
+}
+```
+<!-- IDL:ftcls_orri_rf END -->
+
+<!-- IDL:focls_orri_rf BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`focls_orri_rf`**
+```idl
+# 目的起始 rdHB = rd0 ⇒ ILLI（§1.4 / 附录 B dst_rd0）
+if (rdHB == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# §5：immu6 = 0 ⇒ ILLI
+if (immu6 == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 起始 + immu6 > 64 ⇒ ILLI（目的、源各判一次）
+Bits<7> dst_end = rdHB `+ immu6;
+Bits<7> src_end = rfHC `+ immu6;
+if ((dst_end > 7'd64) || (src_end > 7'd64)) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+# 逐对分类（focls 的源按 fo = 整 64 位分类）
+for (Bits<6> k = 6'd0; k < immu6; k++) {
+  Bits<64> v = rf[rfHC + k];
+  Bits<64> code = 64'd0;
+  if (is_dp_signaling_nan?(v)) {
+    code = 64'h0000_0000_0000_0001;
+  } else if (is_dp_quiet_nan?(v)) {
+    code = 64'h0000_0000_0000_0002;
+  } else if (is_dp_neg_inf?(v)) {
+    code = 64'h0000_0000_0000_0004;
+  } else if (is_dp_neg_norm?(v)) {
+    code = 64'h0000_0000_0000_0008;
+  } else if (is_dp_neg_subnorm?(v)) {
+    code = 64'h0000_0000_0000_0010;
+  } else if (is_dp_neg_zero?(v)) {
+    code = 64'h0000_0000_0000_0020;
+  } else if (is_dp_pos_zero?(v)) {
+    code = 64'h0000_0000_0000_0040;
+  } else if (is_dp_pos_subnorm?(v)) {
+    code = 64'h0000_0000_0000_0080;
+  } else if (is_dp_pos_norm?(v)) {
+    code = 64'h0000_0000_0000_0100;
+  } else {
+    code = 64'h0000_0000_0000_0200;
+  }
+  rd[rdHB + k] = code;
+}
+```
+<!-- IDL:focls_orri_rf END -->
+
+<!-- ASSEMBLY_LIST_START -->
+## 附录 A：汇编指令速查
+
+| 助记符 | format | feature | 汇编形式 | id |
+|---|---|---|---|---|
+| `fo2ft` | `orri` | `rf` | `fo2ft rfHB, rfHC, immu6` | `fo2ft_orri_rf` |
+| `fo2io` | `orri` | `rf` | `fo2io rdHB, rfHC, immu6` | `fo2io_orri_rf` |
+| `fo2it` | `orri` | `rf` | `fo2it rdHB, rfHC, immu6` | `fo2it_orri_rf` |
+| `fo2uo` | `orri` | `rf` | `fo2uo rdHB, rfHC, immu6` | `fo2uo_orri_rf` |
+| `fo2ut` | `orri` | `rf` | `fo2ut rdHB, rfHC, immu6` | `fo2ut_orri_rf` |
+| `foadd` | `orrr` | `rf` | `foadd rfHB, rfHC, rfHD` | `foadd_orrr_rf` |
+| `focls` | `orri` | `rf` | `focls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `focls_orri_rf` |
+| `fodiv` | `orrr` | `rf` | `fodiv rfHB, rfHC, rfHD` | `fodiv_orrr_rf` |
+| `fofma` | `rrrr` | `rf` | `fofma rfHA, rfHB, rfHC, rfHD` | `fofma_rrrr_rf` |
+| `fomax` | `orrr` | `rf` | `fomax rfHB, rfHC, rfHD` | `fomax_orrr_rf` |
+| `fomin` | `orrr` | `rf` | `fomin rfHB, rfHC, rfHD` | `fomin_orrr_rf` |
+| `fomul` | `orrr` | `rf` | `fomul rfHB, rfHC, rfHD` | `fomul_orrr_rf` |
+| `foqcmp` | `orrr` | `rf` | `foqcmp rdHB, rfHC, rfHD` | `foqcmp_orrr_rf` |
+| `forem` | `orrr` | `rf` | `forem rfHB, rfHC, rfHD` | `forem_orrr_rf` |
+| `fornd` | `orri` | `rf` | `fornd rfHB, rfHC, immu6` | `fornd_orri_rf` |
+| `foroot` | `orri` | `rf` | `foroot rfHB, rfHC, immu6` | `foroot_orri_rf` |
+| `fosclb` | `orrr` | `rf` | `fosclb rfHB, rfHC, rdHD` | `fosclb_orrr_rf` |
+| `foscmp` | `orrr` | `rf` | `foscmp rdHB, rfHC, rfHD` | `foscmp_orrr_rf` |
+| `fosgnj` | `orrr` | `rf` | `fosgnj rfHB, rfHC, rfHD` | `fosgnj_orrr_rf` |
+| `fosgnn` | `orrr` | `rf` | `fosgnn rfHB, rfHC, rfHD` | `fosgnn_orrr_rf` |
+| `fosub` | `orrr` | `rf` | `fosub rfHB, rfHC, rfHD` | `fosub_orrr_rf` |
+| `ft2fo` | `orri` | `rf` | `ft2fo rfHB, rfHC, immu6` | `ft2fo_orri_rf` |
+| `ft2io` | `orri` | `rf` | `ft2io rdHB, rfHC, immu6` | `ft2io_orri_rf` |
+| `ft2it` | `orri` | `rf` | `ft2it rdHB, rfHC, immu6` | `ft2it_orri_rf` |
+| `ft2uo` | `orri` | `rf` | `ft2uo rdHB, rfHC, immu6` | `ft2uo_orri_rf` |
+| `ft2ut` | `orri` | `rf` | `ft2ut rdHB, rfHC, immu6` | `ft2ut_orri_rf` |
+| `ftadd` | `orrr` | `rf` | `ftadd rfHB, rfHC, rfHD` | `ftadd_orrr_rf` |
+| `ftcls` | `orri` | `rf` | `ftcls {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}` | `ftcls_orri_rf` |
+| `ftdiv` | `orrr` | `rf` | `ftdiv rfHB, rfHC, rfHD` | `ftdiv_orrr_rf` |
+| `ftfma` | `rrrr` | `rf` | `ftfma rfHA, rfHB, rfHC, rfHD` | `ftfma_rrrr_rf` |
+| `ftmax` | `orrr` | `rf` | `ftmax rfHB, rfHC, rfHD` | `ftmax_orrr_rf` |
+| `ftmin` | `orrr` | `rf` | `ftmin rfHB, rfHC, rfHD` | `ftmin_orrr_rf` |
+| `ftmul` | `orrr` | `rf` | `ftmul rfHB, rfHC, rfHD` | `ftmul_orrr_rf` |
+| `ftqcmp` | `orrr` | `rf` | `ftqcmp rdHB, rfHC, rfHD` | `ftqcmp_orrr_rf` |
+| `ftrem` | `orrr` | `rf` | `ftrem rfHB, rfHC, rfHD` | `ftrem_orrr_rf` |
+| `ftrnd` | `orri` | `rf` | `ftrnd rfHB, rfHC, immu6` | `ftrnd_orri_rf` |
+| `ftroot` | `orri` | `rf` | `ftroot rfHB, rfHC, immu6` | `ftroot_orri_rf` |
+| `ftsclb` | `orrr` | `rf` | `ftsclb rfHB, rfHC, rdHD` | `ftsclb_orrr_rf` |
+| `ftscmp` | `orrr` | `rf` | `ftscmp rdHB, rfHC, rfHD` | `ftscmp_orrr_rf` |
+| `ftsgnj` | `orrr` | `rf` | `ftsgnj rfHB, rfHC, rfHD` | `ftsgnj_orrr_rf` |
+| `ftsgnn` | `orrr` | `rf` | `ftsgnn rfHB, rfHC, rfHD` | `ftsgnn_orrr_rf` |
+| `ftsub` | `orrr` | `rf` | `ftsub rfHB, rfHC, rfHD` | `ftsub_orrr_rf` |
+| `io2fo` | `orri` | `rf` | `io2fo rfHB, rdHC, immu6` | `io2fo_orri_rf` |
+| `io2ft` | `orri` | `rf` | `io2ft rfHB, rdHC, immu6` | `io2ft_orri_rf` |
+| `it2fo` | `orri` | `rf` | `it2fo rfHB, rdHC, immu6` | `it2fo_orri_rf` |
+| `it2ft` | `orri` | `rf` | `it2ft rfHB, rdHC, immu6` | `it2ft_orri_rf` |
+| `uo2fo` | `orri` | `rf` | `uo2fo rfHB, rdHC, immu6` | `uo2fo_orri_rf` |
+| `uo2ft` | `orri` | `rf` | `uo2ft rfHB, rdHC, immu6` | `uo2ft_orri_rf` |
+| `ut2fo` | `orri` | `rf` | `ut2fo rfHB, rdHC, immu6` | `ut2fo_orri_rf` |
+| `ut2ft` | `orri` | `rf` | `ut2ft rfHB, rdHC, immu6` | `ut2ft_orri_rf` |
+
+<!-- ASSEMBLY_LIST_END -->
+
+<!-- LEGALITY_START -->
+## 附录 B：合法性检查
+
+* `dst_rd0`：目的 rd0 → ILLI — `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `focls_orri_rf`, `foqcmp_orrr_rf`, `foscmp_orrr_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftcls_orri_rf`, `ftqcmp_orrr_rf`, `ftscmp_orrr_rf`（14 条）
+* `dst_rf0`：浮点目的 rf0 → ILLI — `fo2ft_orri_rf`, `foadd_orrr_rf`, `fodiv_orrr_rf`, `fofma_rrrr_rf`, `fomax_orrr_rf`, `fomin_orrr_rf`, `fomul_orrr_rf`, `forem_orrr_rf`, `fornd_orri_rf`, `foroot_orri_rf`, `fosclb_orrr_rf`, `fosgnj_orrr_rf`, `fosgnn_orrr_rf`, `fosub_orrr_rf`, `ft2fo_orri_rf`, `ftadd_orrr_rf`, `ftdiv_orrr_rf`, `ftfma_rrrr_rf`, `ftmax_orrr_rf`, `ftmin_orrr_rf`, `ftmul_orrr_rf`, `ftrem_orrr_rf`, `ftrnd_orri_rf`, `ftroot_orri_rf`, `ftsclb_orrr_rf`, `ftsgnj_orrr_rf`, `ftsgnn_orrr_rf`, `ftsub_orrr_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2fo_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2fo_orri_rf`, `ut2ft_orri_rf`（36 条）
+* `mreg_zero`：immu6=0 → ILLI — `focls_orri_rf`, `ftcls_orri_rf`（2 条）
+* `mreg_range_overflow`：起始+immu6>64 → ILLI — `focls_orri_rf`, `ftcls_orri_rf`（2 条）
+* `encode_sbz`：SBZ 非零 → ILLI — `ft2fo_orri_rf`, `it2fo_orri_rf`, `ut2fo_orri_rf`（3 条）
+* `encode_onehot`：immu6 非 one-hot 或 ≥ S → ILLI — `fo2ft_orri_rf`, `fo2io_orri_rf`, `fo2it_orri_rf`, `fo2uo_orri_rf`, `fo2ut_orri_rf`, `fornd_orri_rf`, `ft2io_orri_rf`, `ft2it_orri_rf`, `ft2uo_orri_rf`, `ft2ut_orri_rf`, `ftrnd_orri_rf`, `io2fo_orri_rf`, `io2ft_orri_rf`, `it2ft_orri_rf`, `uo2fo_orri_rf`, `uo2ft_orri_rf`, `ut2ft_orri_rf`（17 条）
+* `encode_fp_root_n`：ftroot/foroot n≠2 → ILLI — `foroot_orri_rf`, `ftroot_orri_rf`（2 条）
+<!-- LEGALITY_END -->

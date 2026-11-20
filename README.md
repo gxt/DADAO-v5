@@ -1,4 +1,4 @@
-# DADAO for SimRISC 0.5.6
+# DADAO for SimRISC 0.5.7
 
 基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Kaiwu`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M13）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m14.md`（M14）**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
 
@@ -6,14 +6,14 @@
 
 | 组件 | 已发布版本 | 在研版本（`-rc`） |
 |------|-----------|------------------|
-| SimRISC | 0.5.6 | 0.5.7-rc |
+| SimRISC | 0.5.7 | — |
 | AEE / ABI | 0.9.2 | 0.9.3-rc |
 | SEE / SBI | 0.7.1 | 0.7.2-rc |
 | HEE / HBI | 0.1.2 | 0.1.3-rc |
 | Toolchain | 0.5.3 | 0.5.3 |
 | Machine | 0.4.0 | 0.4.4-rc |
 
-「**已发布版本**」＝ `spec/` 各册**最近一次正式发布版本**（见各册文末「附录：版本与变更记录」，注意**非**册头在研版本），也是合约（`.tao/contracts/contract-*.md`）投影的版本（`check-spec-drift` 以此列比对）；「**在研版本**」＝ 各册文末「附录：版本与变更记录」顶部累积段（自上次发布后**确有内容改动**者为 `<z+1>-rc`，否则与已发布版本相同；口径见 `spec/README.md`「册维护约定」）。同步要求：AEE ↔ ABI、SEE ↔ SBI、HEE ↔ HBI 组内版本必须一致，全部基于同一 SimRISC 版本号。
+「**已发布版本**」＝ `spec/` 各册**最近一次正式发布版本**（见各册文末「附录：版本与变更记录」，注意**非**册头在研版本），也是合约（`.tao/contracts/contract-*.md`）投影的版本（`check-spec-drift` 以此列比对）；「**在研版本**」＝ 各册文末「附录：版本与变更记录」顶部累积段（自上次发布后**确有内容改动**者为 `<z+1>-rc`，否则与已发布版本相同；口径见 `spec/README.md`「册维护约定」）。同步要求：AEE ↔ ABI、SEE ↔ SBI、HEE ↔ HBI 组内版本必须一致，全部基于同一 SimRISC 版本号。无在研版本时「在研版本」列写 `—`。
 
 ## 项目里程碑
 
