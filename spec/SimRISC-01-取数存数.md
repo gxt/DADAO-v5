@@ -33,215 +33,6 @@ st.o     rdHA, [rbHB, imms12]
 
 限制：`ld` 指令的 `rdHA` 为 `rd0` 时触发 ILLI 异常。（rd0 通用约定见 SimRISC-00）`st` 指令允许 `rdHA` 为 `rd0`（rd0 作为源寄存器读出 0）。
 
-<!-- IDL:ld.o_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: ld.o_rrii_rd
-# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
-if (rdHA == 6'd0) {
-  raise(ExceptionCode::Illegal, mode(), ip());
-}
-
-Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 64 位全宽计算
-Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
-
-if (!is_naturally_aligned(64, ea)) {          # .o 按数据宽度（8 字节）自然对齐
-  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
-}
-
-rd[rdHA] = read_memory(64, ea);               # 大端读：最低地址的字节是最高有效字节
-```
-<!-- IDL:ld.o_rrii_rd END -->
-
-<!-- IDL:ld.sb_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: ld.sb_rrii_rd
-# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
-if (rdHA == 6'd0) {
-  raise(ExceptionCode::Illegal, mode(), ip());
-}
-
-Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
-Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
-
-# .sb 无对齐要求（§1 对齐要求）⇒ 不判 MALIGN；读 8 位后符号扩展至 64 位
-# （s = 有符号、u = 无符号的指令名后缀约定见 SimRISC-00）
-Bits<64> w = read_memory(8, ea);
-Bits<8> v = w[7:0];
-rd[rdHA] = {{56{v[7]}}, v};
-```
-<!-- IDL:ld.sb_rrii_rd END -->
-
-<!-- IDL:ld.ub_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: ld.ub_rrii_rd
-# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
-if (rdHA == 6'd0) {
-  raise(ExceptionCode::Illegal, mode(), ip());
-}
-
-Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
-Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
-
-# .ub 无对齐要求（§1 对齐要求）⇒ 不判 MALIGN；零扩展由 read_memory 的 64 位零扩展给出
-rd[rdHA] = read_memory(8, ea);
-```
-<!-- IDL:ld.ub_rrii_rd END -->
-
-<!-- IDL:ld.sw_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: ld.sw_rrii_rd
-# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
-if (rdHA == 6'd0) {
-  raise(ExceptionCode::Illegal, mode(), ip());
-}
-
-Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
-Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
-
-if (!is_naturally_aligned(16, ea)) {          # .sw 需 2 字节对齐（§1 对齐要求）
-  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
-}
-
-# 读 16 位后符号扩展至 64 位
-Bits<64> w = read_memory(16, ea);
-Bits<16> v = w[15:0];
-rd[rdHA] = {{48{v[15]}}, v};
-```
-<!-- IDL:ld.sw_rrii_rd END -->
-
-<!-- IDL:ld.uw_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: ld.uw_rrii_rd
-# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
-if (rdHA == 6'd0) {
-  raise(ExceptionCode::Illegal, mode(), ip());
-}
-
-Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
-Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
-
-if (!is_naturally_aligned(16, ea)) {          # .uw 需 2 字节对齐（§1 对齐要求）
-  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
-}
-
-# 读 16 位后零扩展至 64 位（read_memory 已零扩展）
-rd[rdHA] = read_memory(16, ea);
-```
-<!-- IDL:ld.uw_rrii_rd END -->
-
-<!-- IDL:ld.st_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: ld.st_rrii_rd
-# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
-if (rdHA == 6'd0) {
-  raise(ExceptionCode::Illegal, mode(), ip());
-}
-
-Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
-Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
-
-if (!is_naturally_aligned(32, ea)) {          # .st 需 4 字节对齐（§1 对齐要求）
-  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
-}
-
-# 读 32 位后符号扩展至 64 位
-Bits<64> w = read_memory(32, ea);
-Bits<32> v = w[31:0];
-rd[rdHA] = {{32{v[31]}}, v};
-```
-<!-- IDL:ld.st_rrii_rd END -->
-
-<!-- IDL:ld.ut_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: ld.ut_rrii_rd
-# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
-if (rdHA == 6'd0) {
-  raise(ExceptionCode::Illegal, mode(), ip());
-}
-
-Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
-Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
-
-if (!is_naturally_aligned(32, ea)) {          # .ut 需 4 字节对齐（§1 对齐要求）
-  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
-}
-
-# 读 32 位后零扩展至 64 位（read_memory 已零扩展）
-rd[rdHA] = read_memory(32, ea);
-```
-<!-- IDL:ld.ut_rrii_rd END -->
-
-<!-- IDL:st.b_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: st.b_rrii_rd
-# st 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0，§1 限制）⇒ 不判 ILLI
-Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
-Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
-
-# .b 无对齐要求（§1 对齐要求）⇒ 不判 MALIGN；只把源寄存器的低 8 位写入存储器
-write_memory(8, ea, rd[rdHA]);
-```
-<!-- IDL:st.b_rrii_rd END -->
-
-<!-- IDL:st.w_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: st.w_rrii_rd
-# st 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0，§1 限制）⇒ 不判 ILLI
-Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
-Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
-
-if (!is_naturally_aligned(16, ea)) {          # .w 需 2 字节对齐（§1 对齐要求）
-  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
-}
-
-# 只把源寄存器的低 16 位写入存储器
-write_memory(16, ea, rd[rdHA]);
-```
-<!-- IDL:st.w_rrii_rd END -->
-
-<!-- IDL:st.t_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: st.t_rrii_rd
-# st 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0，§1 限制）⇒ 不判 ILLI
-Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
-Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
-
-if (!is_naturally_aligned(32, ea)) {          # .t 需 4 字节对齐（§1 对齐要求）
-  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
-}
-
-# 只把源寄存器的低 32 位写入存储器
-write_memory(32, ea, rd[rdHA]);
-```
-<!-- IDL:st.t_rrii_rd END -->
-
-<!-- IDL:st.o_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: st.o_rrii_rd
-# st 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0，§1 限制）⇒ 不判 ILLI
-Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
-Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
-
-if (!is_naturally_aligned(64, ea)) {          # .o 需 8 字节对齐（§1 对齐要求）
-  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
-}
-
-# 把源寄存器的整 64 位写入存储器
-write_memory(64, ea, rd[rdHA]);
-```
-<!-- IDL:st.o_rrii_rd END -->
-
 多load/store类指令如下：
 
 ```simrisc
@@ -278,10 +69,223 @@ stm.o    {rdHA:rdHA+immu6-1}, [rbHB, rdHC]
 >
 > **与部分生效相关的顺序约束**：地址寄存器凡与传送范围同组者，**不得**落入该范围（`ldm`，违反 ⇒ ILLI，见 §1/§2 的 `ldm` 禁令）；`stm` 不写寄存器、RA/RF 形式的地址寄存器与传送范围分属不同寄存器组（不被写入）⇒ 无论异常落在哪个元素，地址都不随已生效元素改变。（寄存器复制类块复制**不适用**本例外、保持精确，其源/目的重叠被禁止，见 SimRISC-02 与 DADAO-12 §5。）
 
+### 1.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-01.idl` 生成，逐条如下：
+
+<!-- IDL:ld.o_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ld.o_rrii_rd`**
+```idl
+# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 64 位全宽计算
+Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+if (!is_naturally_aligned(64, ea)) {          # .o 按数据宽度（8 字节）自然对齐
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+rd[rdHA] = read_memory(64, ea);               # 大端读：最低地址的字节是最高有效字节
+```
+<!-- IDL:ld.o_rrii_rd END -->
+
+<!-- IDL:ld.sb_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ld.sb_rrii_rd`**
+```idl
+# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
+Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+# .sb 无对齐要求（§1 对齐要求）⇒ 不判 MALIGN；读 8 位后符号扩展至 64 位
+# （s = 有符号、u = 无符号的指令名后缀约定见 SimRISC-00）
+Bits<64> w = read_memory(8, ea);
+Bits<8> v = w[7:0];
+rd[rdHA] = {{56{v[7]}}, v};
+```
+<!-- IDL:ld.sb_rrii_rd END -->
+
+<!-- IDL:ld.ub_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ld.ub_rrii_rd`**
+```idl
+# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
+Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+# .ub 无对齐要求（§1 对齐要求）⇒ 不判 MALIGN；零扩展由 read_memory 的 64 位零扩展给出
+rd[rdHA] = read_memory(8, ea);
+```
+<!-- IDL:ld.ub_rrii_rd END -->
+
+<!-- IDL:ld.sw_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ld.sw_rrii_rd`**
+```idl
+# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
+Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+if (!is_naturally_aligned(16, ea)) {          # .sw 需 2 字节对齐（§1 对齐要求）
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 读 16 位后符号扩展至 64 位
+Bits<64> w = read_memory(16, ea);
+Bits<16> v = w[15:0];
+rd[rdHA] = {{48{v[15]}}, v};
+```
+<!-- IDL:ld.sw_rrii_rd END -->
+
+<!-- IDL:ld.uw_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ld.uw_rrii_rd`**
+```idl
+# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
+Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+if (!is_naturally_aligned(16, ea)) {          # .uw 需 2 字节对齐（§1 对齐要求）
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 读 16 位后零扩展至 64 位（read_memory 已零扩展）
+rd[rdHA] = read_memory(16, ea);
+```
+<!-- IDL:ld.uw_rrii_rd END -->
+
+<!-- IDL:ld.st_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ld.st_rrii_rd`**
+```idl
+# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
+Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+if (!is_naturally_aligned(32, ea)) {          # .st 需 4 字节对齐（§1 对齐要求）
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 读 32 位后符号扩展至 64 位
+Bits<64> w = read_memory(32, ea);
+Bits<32> v = w[31:0];
+rd[rdHA] = {{32{v[31]}}, v};
+```
+<!-- IDL:ld.st_rrii_rd END -->
+
+<!-- IDL:ld.ut_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`ld.ut_rrii_rd`**
+```idl
+# 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
+if (rdHA == 6'd0) {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+
+Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
+Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+if (!is_naturally_aligned(32, ea)) {          # .ut 需 4 字节对齐（§1 对齐要求）
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 读 32 位后零扩展至 64 位（read_memory 已零扩展）
+rd[rdHA] = read_memory(32, ea);
+```
+<!-- IDL:ld.ut_rrii_rd END -->
+
+<!-- IDL:st.b_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`st.b_rrii_rd`**
+```idl
+# st 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0，§1 限制）⇒ 不判 ILLI
+Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
+Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+# .b 无对齐要求（§1 对齐要求）⇒ 不判 MALIGN；只把源寄存器的低 8 位写入存储器
+write_memory(8, ea, rd[rdHA]);
+```
+<!-- IDL:st.b_rrii_rd END -->
+
+<!-- IDL:st.w_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`st.w_rrii_rd`**
+```idl
+# st 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0，§1 限制）⇒ 不判 ILLI
+Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
+Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+if (!is_naturally_aligned(16, ea)) {          # .w 需 2 字节对齐（§1 对齐要求）
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 只把源寄存器的低 16 位写入存储器
+write_memory(16, ea, rd[rdHA]);
+```
+<!-- IDL:st.w_rrii_rd END -->
+
+<!-- IDL:st.t_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`st.t_rrii_rd`**
+```idl
+# st 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0，§1 限制）⇒ 不判 ILLI
+Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
+Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+if (!is_naturally_aligned(32, ea)) {          # .t 需 4 字节对齐（§1 对齐要求）
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 只把源寄存器的低 32 位写入存储器
+write_memory(32, ea, rd[rdHA]);
+```
+<!-- IDL:st.t_rrii_rd END -->
+
+<!-- IDL:st.o_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`st.o_rrii_rd`**
+```idl
+# st 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0，§1 限制）⇒ 不判 ILLI
+Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
+Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
+
+if (!is_naturally_aligned(64, ea)) {          # .o 需 8 字节对齐（§1 对齐要求）
+  raise(ExceptionCode::Malign, mode(), {16'd0, ea});
+}
+
+# 把源寄存器的整 64 位写入存储器
+write_memory(64, ea, rd[rdHA]);
+```
+<!-- IDL:st.o_rrii_rd END -->
+
 <!-- IDL:ldm.sb_rrri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ldm.sb_rrri_rd`**
 ```idl
-# id: ldm.sb_rrri_rd
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
 if (rdHA == 6'd0) {                           # ldm 的 rdHA 为 rd0（§1 限制）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -315,8 +319,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:ldm.ub_rrri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ldm.ub_rrri_rd`**
 ```idl
-# id: ldm.ub_rrri_rd
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
 if (rdHA == 6'd0) {                           # ldm 的 rdHA 为 rd0（§1 限制）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -348,8 +352,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:ldm.sw_rrri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ldm.sw_rrri_rd`**
 ```idl
-# id: ldm.sw_rrri_rd
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
 if (rdHA == 6'd0) {                           # ldm 的 rdHA 为 rd0（§1 限制）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -386,8 +390,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:ldm.uw_rrri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ldm.uw_rrri_rd`**
 ```idl
-# id: ldm.uw_rrri_rd
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
 if (rdHA == 6'd0) {                           # ldm 的 rdHA 为 rd0（§1 限制）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -422,8 +426,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:ldm.st_rrri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ldm.st_rrri_rd`**
 ```idl
-# id: ldm.st_rrri_rd
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
 if (rdHA == 6'd0) {                           # ldm 的 rdHA 为 rd0（§1 限制）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -460,8 +464,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:ldm.ut_rrri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ldm.ut_rrri_rd`**
 ```idl
-# id: ldm.ut_rrri_rd
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
 if (rdHA == 6'd0) {                           # ldm 的 rdHA 为 rd0（§1 限制）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -496,8 +500,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:ldm.o_rrri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ldm.o_rrri_rd`**
 ```idl
-# id: ldm.o_rrri_rd
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
 if (rdHA == 6'd0) {                           # ldm 的 rdHA 为 rd0（§1 限制）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -532,8 +536,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:stm.b_rrri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`stm.b_rrri_rd`**
 ```idl
-# id: stm.b_rrri_rd
 # stm 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0）、允许索引寄存器落入传送范围（§1 限制）⇒ 均不判 ILLI
 if (immu6 == 6'd0) {                          # 个数为 0（有效范围 1~63）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -559,8 +563,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:stm.w_rrri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`stm.w_rrri_rd`**
 ```idl
-# id: stm.w_rrri_rd
 # stm 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0）、允许索引寄存器落入传送范围（§1 限制）⇒ 均不判 ILLI
 if (immu6 == 6'd0) {                          # 个数为 0（有效范围 1~63）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -589,8 +593,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:stm.t_rrri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`stm.t_rrri_rd`**
 ```idl
-# id: stm.t_rrri_rd
 # stm 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0）、允许索引寄存器落入传送范围（§1 限制）⇒ 均不判 ILLI
 if (immu6 == 6'd0) {                          # 个数为 0（有效范围 1~63）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -619,8 +623,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:stm.o_rrri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`stm.o_rrri_rd`**
 ```idl
-# id: stm.o_rrri_rd
 # stm 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0）、允许索引寄存器落入传送范围（§1 限制）⇒ 均不判 ILLI
 if (immu6 == 6'd0) {                          # 个数为 0（有效范围 1~63）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -669,10 +673,14 @@ stm.o    {rbHA:rbHA+immu6-1}, [rbHB, rdHC]
 - **`stm.o` 允许基址寄存器落入传送范围**：`stm.o` 只读出传送范围内的寄存器、不写任何寄存器 ⇒ 地址与处理进度无关，行为确定。
 - **索引寄存器不适用**：RB 形式的索引寄存器 `rdHC` 属于 RD 组，而传送范围在 RB 组，结构上不可能落入范围（RD 形式相反，见 §1）。
 
+### 2.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-01.idl` 生成，逐条如下：
+
 <!-- IDL:ld.o_rrii_rb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ld.o_rrii_rb`**
 ```idl
-# id: ld.o_rrii_rb
 # 目的 rb0 ⇒ ILLI（§2 限制：ld.o 的 rbHA 为 rb0；rb0 只读、读出为当前指令地址）
 if (rbHA == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -692,8 +700,8 @@ rb[rbHA] = read_memory(64, ea);
 
 <!-- IDL:st.o_rrii_rb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`st.o_rrii_rb`**
 ```idl
-# id: st.o_rrii_rb
 # st.o 允许 rbHA 为 rb0（rb0 作为源寄存器读出当前指令地址，§2 限制）⇒ 不判 ILLI
 Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位（作访存基址取 rb[47:0]）
@@ -709,8 +717,8 @@ write_memory(64, ea, rb[rbHA]);
 
 <!-- IDL:ldm.o_rrri_rb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ldm.o_rrri_rb`**
 ```idl
-# id: ldm.o_rrri_rb
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rb0 / 个数 0 / 越出 rb63 / 基址落入传送范围
 if (rbHA == 6'd0) {                           # ldm.o 的 rbHA 为 rb0（§2 限制）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -745,8 +753,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:stm.o_rrri_rb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`stm.o_rrri_rb`**
 ```idl
-# id: stm.o_rrri_rb
 # stm.o 允许 rbHA 为 rb0（读出 IP）、允许基址寄存器落入传送范围（§2 限制）⇒ 均不判 ILLI
 if (immu6 == 6'd0) {                          # 个数为 0（有效范围 1~63）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -794,10 +802,14 @@ stm.o    {raHA:raHA+immu6-1}, [rbHB, rdHC]
 - `raHA + immu6 > 64` 时触发 ILLI 异常（超出 ra63）
 - **基址/索引寄存器与传送范围的重叠：不适用**——传送范围在 RA 组，基址寄存器 `rbHB` 在 RB 组、索引寄存器 `rdHC` 在 RD 组，结构上不可能落入范围。
 
+### 3.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-01.idl` 生成，逐条如下：
+
 <!-- IDL:ld.o_rrii_ra BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ld.o_rrii_ra`**
 ```idl
-# id: ld.o_rrii_ra
 # ra0 可读写（§3 限制：raHA 为 ra0 不触发异常）⇒ 无 ILLI 判定
 Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
@@ -820,8 +832,8 @@ if (raHA == 6'd0) {
 
 <!-- IDL:st.o_rrii_ra BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`st.o_rrii_ra`**
 ```idl
-# id: st.o_rrii_ra
 # ra0 可读写（§3 限制）⇒ 无 ILLI 判定
 Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
@@ -837,8 +849,8 @@ write_memory(64, ea, ra[raHA]);
 
 <!-- IDL:ldm.o_rrri_ra BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ldm.o_rrri_ra`**
 ```idl
-# id: ldm.o_rrri_ra
 # 静态检查（都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：个数 0 / 越出 ra63（ra0 可读写 ⇒ 不判目的 0 号）
 if (immu6 == 6'd0) {                          # 个数为 0（有效范围 1~63）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -874,8 +886,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:stm.o_rrri_ra BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`stm.o_rrri_ra`**
 ```idl
-# id: stm.o_rrri_ra
 # 静态检查（都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：个数 0 / 越出 ra63（ra0 可读写 ⇒ 不判目的 0 号）
 if (immu6 == 6'd0) {                          # 个数为 0（有效范围 1~63）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -932,10 +944,14 @@ stm.o   {rfHA:rfHA+immu6-1}, [rbHB, rdHC]
 >
 > **`ld.t`/`ldm.t` 的写入宽度**：单精装载**只写目的寄存器低 32 位，高 32 位保持原值**（不作符号扩展、也不零填）。因此 `ld.t`/`ldm.t` 写入 `rf0` 时，低 32 位中位于可写域的只有 `[4:0]`（异常状态）——只读 qNaN 位 `[31:22]` 与 SBZ `[21:5]` 保持原值，`[33:32]` 因不在写入宽度内同样保持原值。[SimRISC-00 §浮点状态寄存器]
 
+### 4.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-01.idl` 生成，逐条如下：
+
 <!-- IDL:ld.t_rrii_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ld.t_rrii_rf`**
 ```idl
-# id: ld.t_rrii_rf
 # rf0 作目的合法（§4 注）⇒ 不判 ILLI；对齐：本册附录 B 的 excp_malign 未列本族 ⇒ 不判 MALIGN
 # （§4 正文另有「`ld.t` 需 4 字节对齐、未对齐触发 MALIGN」的表述，与附录 B 不一致，两处待统一）
 Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
@@ -955,8 +971,8 @@ if (rfHA == 6'd0) {
 
 <!-- IDL:st.t_rrii_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`st.t_rrii_rf`**
 ```idl
-# id: st.t_rrii_rf
 # rf0 作源合法（§4 注：读出完整 64 位）；对齐：附录 B 未列本族 ⇒ 不判 MALIGN（同 ld.t）
 Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
@@ -968,8 +984,8 @@ write_memory(32, ea, rf[rfHA]);
 
 <!-- IDL:ld.o_rrii_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ld.o_rrii_rf`**
 ```idl
-# id: ld.o_rrii_rf
 # rf0 作目的合法（§4 注）⇒ 不判 ILLI；对齐：附录 B 未列本族 ⇒ 不判 MALIGN（同 ld.t）
 Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
@@ -988,8 +1004,8 @@ if (rfHA == 6'd0) {
 
 <!-- IDL:st.o_rrii_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`st.o_rrii_rf`**
 ```idl
-# id: st.o_rrii_rf
 # rf0 作源合法（§4 注：读出完整 64 位）；对齐：附录 B 未列本族 ⇒ 不判 MALIGN（同 ld.t）
 Bits<64> ea64 = rb[rbHB] + $signed(imms12);   # 地址公式（rrii）= 基址 + 符号扩展的 12 位立即数，64 位全宽
 Bits<48> ea = ea64[47:0];                     # 有效地址 = 低 48 位
@@ -1001,8 +1017,8 @@ write_memory(64, ea, rf[rfHA]);
 
 <!-- IDL:ldm.t_rrri_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ldm.t_rrri_rf`**
 ```idl
-# id: ldm.t_rrri_rf
 # 静态检查（都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：个数 0 / 越出 rf63（rf0 可作目的 ⇒ 不判目的 0 号）
 if (immu6 == 6'd0) {                          # 个数为 0（有效范围 1~63）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -1035,8 +1051,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:stm.t_rrri_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`stm.t_rrri_rf`**
 ```idl
-# id: stm.t_rrri_rf
 # 静态检查（都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：个数 0 / 越出 rf63（rf0 可作源 ⇒ 不判目的 0 号）
 if (immu6 == 6'd0) {                          # 个数为 0（有效范围 1~63）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -1061,8 +1077,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:ldm.o_rrri_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ldm.o_rrri_rf`**
 ```idl
-# id: ldm.o_rrri_rf
 # 静态检查（都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：个数 0 / 越出 rf63（rf0 可作目的 ⇒ 不判目的 0 号）
 if (immu6 == 6'd0) {                          # 个数为 0（有效范围 1~63）
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -1095,8 +1111,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:stm.o_rrri_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`stm.o_rrri_rf`**
 ```idl
-# id: stm.o_rrri_rf
 # 静态检查（都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：个数 0 / 越出 rf63（rf0 可作源 ⇒ 不判目的 0 号）
 if (immu6 == 6'd0) {                          # 个数为 0（有效范围 1~63）
   raise(ExceptionCode::Illegal, mode(), ip());

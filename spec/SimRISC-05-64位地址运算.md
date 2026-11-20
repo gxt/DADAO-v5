@@ -17,10 +17,14 @@ sub.o  rbHB, rbHC, rdHD
 sub.o  rdHB, rbHC, rbHD
 ```
 
+### 1.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-05.idl` 生成，逐条如下：
+
 <!-- IDL:add.o_orrr_bbd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`add.o_orrr_bbd`**
 ```idl
-# id: add.o_orrr_bbd
 # 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
 if (rbHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -33,8 +37,8 @@ rb[rbHB] = rb[rbHC] + rd[rdHD];
 
 <!-- IDL:sub.o_orrr_bbd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sub.o_orrr_bbd`**
 ```idl
-# id: sub.o_orrr_bbd
 # 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
 if (rbHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -47,8 +51,8 @@ rb[rbHB] = rb[rbHC] - rd[rdHD];
 
 <!-- IDL:sub.o_orrr_dbb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sub.o_orrr_dbb`**
 ```idl
-# id: sub.o_orrr_dbb
 # 目的 rd0 ⇒ ILLI
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -73,10 +77,14 @@ add.si  rbHA, imms18
 由于imms18为有符号数，该加法指令也隐含实现了减法指令。
 针对rb寄存器的add.si指令的重要性在于对栈指针的操作，在没有提供专门的push/pop类指令的情况下，栈指针需要通过显式的加减移动其位置。
 
+### 2.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-05.idl` 生成，逐条如下：
+
 <!-- IDL:add.si_riii_rb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`add.si_riii_rb`**
 ```idl
-# id: add.si_riii_rb
 # 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
 if (rbHA == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -100,10 +108,16 @@ rb[rbHA] = rb[rbHA] + imm;
 cmp.uo  rdHB, rbHC, rbHD
 ```
 
+> **注**：rb0 通用约定（rb0 读出为当前指令的地址，只读，显式目的触发 ILLI）和 RB 高 16 位行为见 SimRISC-00。
+
+### 3.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-05.idl` 生成，逐条如下：
+
 <!-- IDL:cmp.uo_orrr_dbb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cmp.uo_orrr_dbb`**
 ```idl
-# id: cmp.uo_orrr_dbb
 # 目的 rd0 ⇒ ILLI
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -119,8 +133,6 @@ if (rb[rbHC] < rb[rbHD]) {
 }
 ```
 <!-- IDL:cmp.uo_orrr_dbb END -->
-
-> **注**：rb0 通用约定（rb0 读出为当前指令的地址，只读，显式目的触发 ILLI）和 RB 高 16 位行为见 SimRISC-00。
 
 ## 4. IP 相对寻址
 
@@ -142,10 +154,14 @@ aip.si rbHA, imms30
 `aip.si` 为全 64 位运算，结果完整保留 64 位（`rbHA[63:0]`）；**仅当以该结果访存时**取 `rbHA[47:0]`（低 48 位）为有效地址，用户可通过 `rbHA` 的高 16 位（bits[63:48]）判断地址溢出。
 目的 `rbHA` 为 `rb0` 时触发 ILLI（`rb0` 读出为当前指令地址、只读，见上「注」与 SimRISC-00）。
 
+### 4.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-05.idl` 生成，逐条如下：
+
 <!-- IDL:aip.si_riii_rb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`aip.si_riii_rb`**
 ```idl
-# id: aip.si_riii_rb
 # 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
 if (rbHA == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());

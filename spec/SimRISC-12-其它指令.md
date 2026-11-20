@@ -55,10 +55,14 @@ sc 指令会先判断 rbHD 内存地址是否有设置保留标记，如果设�
 
 > **保留机制**（参考 RISC-V RV64A）：一条 lr 指令在 hart 上设置保留标记。sc 指令在保留标记仍在时写入内存并返回 0，否则不写入并返回非 0 值。sc 可能偶发性失败（spurious failure），软件应在循环中重试。以下事件清除 hart 上的保留标记：另一 hart 对**同一精确地址、相同访问宽度**的 store、当前 hart 执行另一条 lr 指令、异常或中断进入。如果 hart 在 lr 和 sc 之间执行了异常处理程序，sc 必定失败。**保留标记的粒度 = 精确地址 + 访问宽度**（以 lr 的地址与 `.b`/`.w`/`.t`/`.o` 宽度为键；不按 cache line 扩大，也不因不同地址或不同宽度的访问清除）。
 
+### 1.2 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-12.idl` 生成，逐条如下：
+
 <!-- IDL:lr.o.nn_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`lr.o.nn_orrr_rd`**
 ```idl
-# id: lr.o.nn_orrr_rd
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -79,8 +83,8 @@ rd[rdHC] = value;
 
 <!-- IDL:lr.t.nn_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`lr.t.nn_orrr_rd`**
 ```idl
-# id: lr.t.nn_orrr_rd
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -102,8 +106,8 @@ rd[rdHC][31:0] = value[31:0];                 # 只写低 32 位
 
 <!-- IDL:lr.w.nn_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`lr.w.nn_orrr_rd`**
 ```idl
-# id: lr.w.nn_orrr_rd
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -125,8 +129,8 @@ rd[rdHC][15:0] = value[15:0];                 # 只写低 16 位
 
 <!-- IDL:lr.b.nn_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`lr.b.nn_orrr_rd`**
 ```idl
-# id: lr.b.nn_orrr_rd
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -148,8 +152,8 @@ rd[rdHC][7:0] = value[7:0];                   # 只写低 8 位
 
 <!-- IDL:lr.o.an_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`lr.o.an_orrr_rd`**
 ```idl
-# id: lr.o.an_orrr_rd
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -171,8 +175,8 @@ rd[rdHC] = value;
 
 <!-- IDL:lr.t.an_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`lr.t.an_orrr_rd`**
 ```idl
-# id: lr.t.an_orrr_rd
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -195,8 +199,8 @@ rd[rdHC][31:0] = value[31:0];                 # 只写低 32 位
 
 <!-- IDL:lr.w.an_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`lr.w.an_orrr_rd`**
 ```idl
-# id: lr.w.an_orrr_rd
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -219,8 +223,8 @@ rd[rdHC][15:0] = value[15:0];                 # 只写低 16 位
 
 <!-- IDL:lr.b.an_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`lr.b.an_orrr_rd`**
 ```idl
-# id: lr.b.an_orrr_rd
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -243,8 +247,8 @@ rd[rdHC][7:0] = value[7:0];                   # 只写低 8 位
 
 <!-- IDL:lr.o.ar_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`lr.o.ar_orrr_rd`**
 ```idl
-# id: lr.o.ar_orrr_rd
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -266,8 +270,8 @@ rd[rdHC] = value;
 
 <!-- IDL:lr.t.ar_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`lr.t.ar_orrr_rd`**
 ```idl
-# id: lr.t.ar_orrr_rd
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -290,8 +294,8 @@ rd[rdHC][31:0] = value[31:0];                 # 只写低 32 位
 
 <!-- IDL:lr.w.ar_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`lr.w.ar_orrr_rd`**
 ```idl
-# id: lr.w.ar_orrr_rd
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -314,8 +318,8 @@ rd[rdHC][15:0] = value[15:0];                 # 只写低 16 位
 
 <!-- IDL:lr.b.ar_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`lr.b.ar_orrr_rd`**
 ```idl
-# id: lr.b.ar_orrr_rd
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -338,8 +342,8 @@ rd[rdHC][7:0] = value[7:0];                   # 只写低 8 位
 
 <!-- IDL:sc.o.nn_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sc.o.nn_orrr_rd`**
 ```idl
-# id: sc.o.nn_orrr_rd
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -360,8 +364,8 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 
 <!-- IDL:sc.o.nr_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sc.o.nr_orrr_rd`**
 ```idl
-# id: sc.o.nr_orrr_rd
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -383,8 +387,8 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 
 <!-- IDL:sc.o.ar_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sc.o.ar_orrr_rd`**
 ```idl
-# id: sc.o.ar_orrr_rd
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -406,8 +410,8 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 
 <!-- IDL:sc.t.nn_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sc.t.nn_orrr_rd`**
 ```idl
-# id: sc.t.nn_orrr_rd
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -428,8 +432,8 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 
 <!-- IDL:sc.t.nr_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sc.t.nr_orrr_rd`**
 ```idl
-# id: sc.t.nr_orrr_rd
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -451,8 +455,8 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 
 <!-- IDL:sc.t.ar_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sc.t.ar_orrr_rd`**
 ```idl
-# id: sc.t.ar_orrr_rd
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -474,8 +478,8 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 
 <!-- IDL:sc.w.nn_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sc.w.nn_orrr_rd`**
 ```idl
-# id: sc.w.nn_orrr_rd
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -496,8 +500,8 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 
 <!-- IDL:sc.w.nr_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sc.w.nr_orrr_rd`**
 ```idl
-# id: sc.w.nr_orrr_rd
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -519,8 +523,8 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 
 <!-- IDL:sc.w.ar_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sc.w.ar_orrr_rd`**
 ```idl
-# id: sc.w.ar_orrr_rd
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -542,8 +546,8 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 
 <!-- IDL:sc.b.nn_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sc.b.nn_orrr_rd`**
 ```idl
-# id: sc.b.nn_orrr_rd
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -564,8 +568,8 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 
 <!-- IDL:sc.b.nr_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sc.b.nr_orrr_rd`**
 ```idl
-# id: sc.b.nr_orrr_rd
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -587,8 +591,8 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 
 <!-- IDL:sc.b.ar_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sc.b.ar_orrr_rd`**
 ```idl
-# id: sc.b.ar_orrr_rd
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -625,10 +629,14 @@ swym    immu18
   - 硬件可设时延上限，N 超过阈值后时延不再增加。
   - 无论 N 取何值，指令仍为单条 32 位指令，不占用额外指令带宽。
 
+### 2.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-12.idl` 生成，逐条如下：
+
 <!-- IDL:swym_oiii_imm BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`swym_oiii_imm`**
 ```idl
-# id: swym_oiii_imm
 # 空转指令（§2）：`swym 0` 除 IP 自增外**无任何架构副作用**（IP 自增属取指模型，本 operation 不描述）。
 # `immu18` 只是硬件时延参数（时延 ≈ `swym 0` 的 N+1 倍，实现可设上限），属实现时序，IDL v0 不建模；
 # 散文本节未赋予它访存序/屏障语义（与 `fence` 不同），故不写顺序约束。
@@ -681,10 +689,14 @@ ctpop   rdHB, rdHC, immu6       @@ 1 的个数（immu6=63 → 64 位）
 
 **格式**：三条为 `orri` 格式但**无位宽后缀**，位于 `OPC-MISC` 子表的 `100-101`/`100-110`/`100-111` 格位（见 SimRISC-00 §4.1）；**有效位宽**由立即数 `hd` 在运行时给出。
 
+### 3.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-12.idl` 生成，逐条如下：
+
 <!-- IDL:ctlz_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ctlz_orri_rd`**
 ```idl
-# id: ctlz_orri_rd
 if (rdHB == 6'd0) {                           # 目的 rd0 ⇒ ILLI（沿用 dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -711,8 +723,8 @@ rd[rdHB] = {57'd0, n};                        # 结果 0..64，写满 64 位（�
 
 <!-- IDL:cttz_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cttz_orri_rd`**
 ```idl
-# id: cttz_orri_rd
 if (rdHB == 6'd0) {                           # 目的 rd0 ⇒ ILLI（沿用 dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -739,8 +751,8 @@ rd[rdHB] = {57'd0, n};                        # 结果 0..64，写满 64 位（�
 
 <!-- IDL:ctpop_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ctpop_orri_rd`**
 ```idl
-# id: ctpop_orri_rd
 if (rdHB == 6'd0) {                           # 目的 rd0 ⇒ ILLI（沿用 dst_rd0）
   raise(ExceptionCode::Illegal, mode(), ip());
 }

@@ -41,10 +41,41 @@ shr.sb  rdHB, rdHC, rdHD
 shr.sb  rdHB, rdHC, immu6
 ```
 
+### 1.2 比较操作 — 值语义
+
+OPC-byte 子表中的 `cmp.s`/`cmp.u`（后缀 `.sb`/`.ub`）提供 8 位比较运算。源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
+
+| 指令 | 位宽 | 汇编语法 | 比较范围 |
+|------|------|---------|---------|
+| `cmp.ub`/`cmp.sb` | 8 位 | `cmp.ub rdHB, rdHC, rdHD` | bits[7:0] |
+
+**高位规则**：比较结果（−1/0/+1）**按 64 位扩展**写满目的寄存器——−1 ⇒ `0xFFFF_FFFF_FFFF_FFFF`（64 位全 1）、0 ⇒ `0`、+1 ⇒ `1`；`.sb`/`.ub` 结果相同（符号扩展与 64 位扩展在 −1/0/+1 上同值）。源操作数仍按上述位宽截断后比较。
+
+例如 `cmp.sb rd1, rd2, rd3` 将 rd2 和 rd3 的低 8 位按有符号比较：rd2 < rd3 时 `rd1 = 0xFFFF_FFFF_FFFF_FFFF`，相等时 `rd1 = 0`，rd2 > rd3 时 `rd1 = 1`。
+
+### 1.3 乘除操作
+
+OPC-byte 子表中的 `mul`/`div`/`rem` 提供 8 位乘除余运算。`mul` 后缀为 `.ub`/`.sb`；`div`/`rem` 后缀为 `.ub`/`.sb`。源操作数只取 size 范围内的低位，结果仅保留 size 位宽，高位按有符号（符号扩展）或无符号（零扩展）填充。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
+
+| 指令 | 位宽 | 汇编语法 |
+|------|------|---------|
+| `mul.ub`/`mul.sb`/`div.ub`/`div.sb`/`rem.ub`/`rem.sb` | 8 位 | `mul.ub rdHB, rdHC, rdHD` |
+
+除法指令附加规则（适用于 `div.s`/`div.u`/`rem.s`/`rem.u` 全部格式）：
+
+- **除数为零 → 定值**（不触发异常）：定值表见 SimRISC-04。
+- **截断方向**：`div.s`/`rem.s` 采用 truncate-toward-zero（C99 标准），余数符号 = 被除数符号。
+- **溢出 → 定值**（不触发异常）：`div.s` 中 byte 对应的 −128 ÷ −1 见定值表。`div.u`/`rem.u` 不存在溢出。
+- **定值表**：详见 SimRISC-04。
+
+### 1.4 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-10.idl` 生成，逐条如下：
+
 <!-- IDL:add.sb_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`add.sb_orrr_rd`**
 ```idl
-# id: add.sb_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -61,8 +92,8 @@ rd[rdHB] = {{56{sum[7]}}, sum};
 
 <!-- IDL:add.ub_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`add.ub_orrr_rd`**
 ```idl
-# id: add.ub_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -79,8 +110,8 @@ rd[rdHB] = {56'd0, sum};
 
 <!-- IDL:sub.sb_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sub.sb_orrr_rd`**
 ```idl
-# id: sub.sb_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -97,8 +128,8 @@ rd[rdHB] = {{56{diff[7]}}, diff};
 
 <!-- IDL:sub.ub_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sub.ub_orrr_rd`**
 ```idl
-# id: sub.ub_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -113,22 +144,10 @@ rd[rdHB] = {56'd0, diff};
 ```
 <!-- IDL:sub.ub_orrr_rd END -->
 
-### 1.2 比较操作 — 值语义
-
-OPC-byte 子表中的 `cmp.s`/`cmp.u`（后缀 `.sb`/`.ub`）提供 8 位比较运算。源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
-
-| 指令 | 位宽 | 汇编语法 | 比较范围 |
-|------|------|---------|---------|
-| `cmp.ub`/`cmp.sb` | 8 位 | `cmp.ub rdHB, rdHC, rdHD` | bits[7:0] |
-
-**高位规则**：比较结果（−1/0/+1）**按 64 位扩展**写满目的寄存器——−1 ⇒ `0xFFFF_FFFF_FFFF_FFFF`（64 位全 1）、0 ⇒ `0`、+1 ⇒ `1`；`.sb`/`.ub` 结果相同（符号扩展与 64 位扩展在 −1/0/+1 上同值）。源操作数仍按上述位宽截断后比较。
-
-例如 `cmp.sb rd1, rd2, rd3` 将 rd2 和 rd3 的低 8 位按有符号比较：rd2 < rd3 时 `rd1 = 0xFFFF_FFFF_FFFF_FFFF`，相等时 `rd1 = 0`，rd2 > rd3 时 `rd1 = 1`。
-
 <!-- IDL:cmp.sb_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cmp.sb_orrr_rd`**
 ```idl
-# id: cmp.sb_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -150,8 +169,8 @@ if ($signed(src1) < $signed(src2)) {
 
 <!-- IDL:cmp.ub_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cmp.ub_orrr_rd`**
 ```idl
-# id: cmp.ub_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -171,25 +190,10 @@ if (src1 < src2) {
 ```
 <!-- IDL:cmp.ub_orrr_rd END -->
 
-### 1.3 乘除操作
-
-OPC-byte 子表中的 `mul`/`div`/`rem` 提供 8 位乘除余运算。`mul` 后缀为 `.ub`/`.sb`；`div`/`rem` 后缀为 `.ub`/`.sb`。源操作数只取 size 范围内的低位，结果仅保留 size 位宽，高位按有符号（符号扩展）或无符号（零扩展）填充。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
-
-| 指令 | 位宽 | 汇编语法 |
-|------|------|---------|
-| `mul.ub`/`mul.sb`/`div.ub`/`div.sb`/`rem.ub`/`rem.sb` | 8 位 | `mul.ub rdHB, rdHC, rdHD` |
-
-除法指令附加规则（适用于 `div.s`/`div.u`/`rem.s`/`rem.u` 全部格式）：
-
-- **除数为零 → 定值**（不触发异常）：定值表见 SimRISC-04。
-- **截断方向**：`div.s`/`rem.s` 采用 truncate-toward-zero（C99 标准），余数符号 = 被除数符号。
-- **溢出 → 定值**（不触发异常）：`div.s` 中 byte 对应的 −128 ÷ −1 见定值表。`div.u`/`rem.u` 不存在溢出。
-- **定值表**：详见 SimRISC-04。
-
 <!-- IDL:mul.sb_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`mul.sb_orrr_rd`**
 ```idl
-# id: mul.sb_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -206,8 +210,8 @@ rd[rdHB] = {{56{prod[7]}}, prod};
 
 <!-- IDL:mul.ub_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`mul.ub_orrr_rd`**
 ```idl
-# id: mul.ub_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -224,8 +228,8 @@ rd[rdHB] = {56'd0, prod};
 
 <!-- IDL:div.sb_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`div.sb_orrr_rd`**
 ```idl
-# id: div.sb_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -248,8 +252,8 @@ if (src2 == 8'd0) {
 
 <!-- IDL:div.ub_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`div.ub_orrr_rd`**
 ```idl
-# id: div.ub_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -270,8 +274,8 @@ if (src2 == 8'd0) {
 
 <!-- IDL:rem.sb_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rem.sb_orrr_rd`**
 ```idl
-# id: rem.sb_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -295,8 +299,8 @@ if (src2 == 8'd0) {
 
 <!-- IDL:rem.ub_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rem.ub_orrr_rd`**
 ```idl
-# id: rem.ub_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -341,10 +345,45 @@ shr.sb:  rdHB[7:0]   = (rdHC[7:0] >> shamt) with sign(7),  rdHB[63:8] = sign_ext
 
 > **注**：rd0 目的寄存器约定见 SimRISC-00。
 
+### 2.1 逐块反转 rev.b（orri 格式）
+
+`rev.b` 对 64 位源寄存器**按 8 位块逐块反转**：每块（S = 8）按 `k` 位切成
+`8/k` 个单元，反转单元顺序（单元内部位序不变），八个块一律同样处理。
+操作数格式 `orri`：`rev.b rdHB, rdHC, immu6`。
+
+- 合法 `k` = `{1,2,4}`（one-hot 且 `k < S = 8`）；非 one-hot 或 `k ≥ 8`（含 `k = 8` 恒等档）触发 **ILLI**（规则 `encode_onehot`）。
+- `rev.b` 无 `bswap` 对应档（`k=8` 即恒等，**非法**）；`k=1` 只反转**块内**位序，**不是** 64 位整体位反序。
+- 逐块反转的总述与伪代码见 SimRISC-04。
+
+### 2.2 逻辑循环左移 rol.b（`orrr` / `orri` 格式）
+
+`rol.b` 对源寄存器的 **低 8 位**做逻辑循环左移：`rdHB[7:0] = rol(rdHC[7:0], amount)`；
+结果按值语义零扩展写满 64 位（`rdHB[63:8] = 0`）。符号无关、只有一个方向、不带 `u`/`s`
+。
+
+| 格式 | 旋转量 `amount` | 取值 |
+|------|----------------|------|
+| `orrr` | `rdHD[2:0]` | `0..7`（即对 8 取模） |
+| `orri` | `immu6` | `0..7`；`immu6 > 7` ⇒ **ILLI** |
+
+- `orrr` 的 `rdHD` 只有低 3 位参与（天然取模 8）；`orri` 的 `immu6` 是 6 位，**越界（`8..63`）触发 ILLI**（与 `shl.b` 的 `immu6 <= 7` 同口径）。
+- 目的 `rdHB` 为 `rd0` ⇒ **ILLI**（规则 `dst_rd0`）；源 `rdHC` 可为 `rd0`（结果恒为 0）；`rdHB == rdHC` 允许。
+- 格式：`orrr`（寄存器旋转量）/ `orri`（立即数旋转量），属 `OPC-byte` 子表。
+- 64 位语义与总述见 SimRISC-04。
+
+```simrisc
+rol.b   rdHB, rdHC, rdHD        @@ 8 位循环左移（旋转量 = rdHD[2:0]）
+rol.b   rdHB, rdHC, immu6       @@ 8 位循环左移（immu6 0..7）
+```
+
+### 2.3 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-10.idl` 生成，逐条如下：
+
 <!-- IDL:shl.b_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`shl.b_orri_rd`**
 ```idl
-# id: shl.b_orri_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -364,8 +403,8 @@ rd[rdHB] = {56'd0, res};
 
 <!-- IDL:shl.b_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`shl.b_orrr_rd`**
 ```idl
-# id: shl.b_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -381,8 +420,8 @@ rd[rdHB] = {56'd0, res};
 
 <!-- IDL:shr.ub_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`shr.ub_orri_rd`**
 ```idl
-# id: shr.ub_orri_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -402,8 +441,8 @@ rd[rdHB] = {56'd0, res};
 
 <!-- IDL:shr.ub_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`shr.ub_orrr_rd`**
 ```idl
-# id: shr.ub_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -419,8 +458,8 @@ rd[rdHB] = {56'd0, res};
 
 <!-- IDL:shr.sb_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`shr.sb_orri_rd`**
 ```idl
-# id: shr.sb_orri_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -442,8 +481,8 @@ rd[rdHB] = {{56{val[7]}}, res};
 
 <!-- IDL:shr.sb_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`shr.sb_orrr_rd`**
 ```idl
-# id: shr.sb_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -458,20 +497,10 @@ rd[rdHB] = {{56{val[7]}}, res};
 ```
 <!-- IDL:shr.sb_orrr_rd END -->
 
-### 2.1 逐块反转 rev.b（orri 格式）
-
-`rev.b` 对 64 位源寄存器**按 8 位块逐块反转**：每块（S = 8）按 `k` 位切成
-`8/k` 个单元，反转单元顺序（单元内部位序不变），八个块一律同样处理。
-操作数格式 `orri`：`rev.b rdHB, rdHC, immu6`。
-
-- 合法 `k` = `{1,2,4}`（one-hot 且 `k < S = 8`）；非 one-hot 或 `k ≥ 8`（含 `k = 8` 恒等档）触发 **ILLI**（规则 `encode_onehot`）。
-- `rev.b` 无 `bswap` 对应档（`k=8` 即恒等，**非法**）；`k=1` 只反转**块内**位序，**不是** 64 位整体位反序。
-- 逐块反转的总述与伪代码见 SimRISC-04。
-
 <!-- IDL:rev.b_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rev.b_orri_rd`**
 ```idl
-# id: rev.b_orri_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -498,31 +527,10 @@ rd[rdHB] = x;
 ```
 <!-- IDL:rev.b_orri_rd END -->
 
-### 2.2 逻辑循环左移 rol.b（`orrr` / `orri` 格式）
-
-`rol.b` 对源寄存器的 **低 8 位**做逻辑循环左移：`rdHB[7:0] = rol(rdHC[7:0], amount)`；
-结果按值语义零扩展写满 64 位（`rdHB[63:8] = 0`）。符号无关、只有一个方向、不带 `u`/`s`
-。
-
-| 格式 | 旋转量 `amount` | 取值 |
-|------|----------------|------|
-| `orrr` | `rdHD[2:0]` | `0..7`（即对 8 取模） |
-| `orri` | `immu6` | `0..7`；`immu6 > 7` ⇒ **ILLI** |
-
-- `orrr` 的 `rdHD` 只有低 3 位参与（天然取模 8）；`orri` 的 `immu6` 是 6 位，**越界（`8..63`）触发 ILLI**（与 `shl.b` 的 `immu6 <= 7` 同口径）。
-- 目的 `rdHB` 为 `rd0` ⇒ **ILLI**（规则 `dst_rd0`）；源 `rdHC` 可为 `rd0`（结果恒为 0）；`rdHB == rdHC` 允许。
-- 格式：`orrr`（寄存器旋转量）/ `orri`（立即数旋转量），属 `OPC-byte` 子表。
-- 64 位语义与总述见 SimRISC-04。
-
-```simrisc
-rol.b   rdHB, rdHC, rdHD        @@ 8 位循环左移（旋转量 = rdHD[2:0]）
-rol.b   rdHB, rdHC, immu6       @@ 8 位循环左移（immu6 0..7）
-```
-
 <!-- IDL:rol.b_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rol.b_orri_rd`**
 ```idl
-# id: rol.b_orri_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -547,8 +555,8 @@ rd[rdHB] = {56'd0, res};
 
 <!-- IDL:rol.b_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rol.b_orrr_rd`**
 ```idl
-# id: rol.b_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());

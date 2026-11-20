@@ -41,10 +41,41 @@ shr.st  rdHB, rdHC, rdHD
 shr.st  rdHB, rdHC, immu6
 ```
 
+### 1.2 比较操作 — 值语义
+
+OPC-tetra 子表中的 `cmp.s`/`cmp.u`（后缀 `.st`/`.ut`）提供 32 位比较运算。源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
+
+| 指令 | 位宽 | 汇编语法 | 比较范围 |
+|------|------|---------|---------|
+| `cmp.ut`/`cmp.st` | 32 位 | `cmp.ut rdHB, rdHC, rdHD` | bits[31:0] |
+
+**高位规则**：比较结果（−1/0/+1）**按 64 位扩展**写满目的寄存器——−1 ⇒ `0xFFFF_FFFF_FFFF_FFFF`（64 位全 1）、0 ⇒ `0`、+1 ⇒ `1`；`.st`/`.ut` 结果相同（符号扩展与 64 位扩展在 −1/0/+1 上同值）。源操作数仍按上述位宽截断后比较。
+
+例如 `cmp.st rd1, rd2, rd3` 将 rd2 和 rd3 的低 32 位按有符号比较：rd2 < rd3 时 `rd1 = 0xFFFF_FFFF_FFFF_FFFF`，相等时 `rd1 = 0`，rd2 > rd3 时 `rd1 = 1`。
+
+### 1.3 乘除操作
+
+OPC-tetra 子表中的 `mul`/`div`/`rem` 提供 32 位乘除余运算。`mul` 后缀为 `.ut`/`.st`；`div`/`rem` 后缀为 `.ut`/`.st`。源操作数只取 size 范围内的低位，结果仅保留 size 位宽，高位按有符号（符号扩展）或无符号（零扩展）填充。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
+
+| 指令 | 位宽 | 汇编语法 |
+|------|------|---------|
+| `mul.ut`/`mul.st`/`div.ut`/`div.st`/`rem.ut`/`rem.st` | 32 位 | `mul.ut rdHB, rdHC, rdHD` |
+
+除法指令附加规则（适用于 `div.s`/`div.u`/`rem.s`/`rem.u` 全部格式）：
+
+- **除数为零 → 定值**（不触发异常）：定值表见 SimRISC-04。
+- **截断方向**：`div.s`/`rem.s` 采用 truncate-toward-zero（C99 标准），余数符号 = 被除数符号。
+- **溢出 → 定值**（不触发异常）：`div.s` 中 tetra 对应的 −2147483648 ÷ −1 见定值表。`div.u`/`rem.u` 不存在溢出。
+- **定值表**：详见 SimRISC-04。
+
+### 1.4 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-08.idl` 生成，逐条如下：
+
 <!-- IDL:add.ut_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`add.ut_orrr_rd`**
 ```idl
-# id: add.ut_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -60,8 +91,8 @@ rd[rdHB] = {32'd0, sum};
 
 <!-- IDL:add.st_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`add.st_orrr_rd`**
 ```idl
-# id: add.st_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -77,8 +108,8 @@ rd[rdHB] = {{32{sum[31]}}, sum};              # 按和的 bit31 符号扩展
 
 <!-- IDL:sub.ut_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sub.ut_orrr_rd`**
 ```idl
-# id: sub.ut_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -94,8 +125,8 @@ rd[rdHB] = {32'd0, diff};
 
 <!-- IDL:sub.st_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`sub.st_orrr_rd`**
 ```idl
-# id: sub.st_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -109,22 +140,10 @@ rd[rdHB] = {{32{diff[31]}}, diff};            # 按差的 bit31 符号扩展
 ```
 <!-- IDL:sub.st_orrr_rd END -->
 
-### 1.2 比较操作 — 值语义
-
-OPC-tetra 子表中的 `cmp.s`/`cmp.u`（后缀 `.st`/`.ut`）提供 32 位比较运算。源操作数按 size 截断后比较，结果（-1/0/1）写入目的寄存器全 64 位。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
-
-| 指令 | 位宽 | 汇编语法 | 比较范围 |
-|------|------|---------|---------|
-| `cmp.ut`/`cmp.st` | 32 位 | `cmp.ut rdHB, rdHC, rdHD` | bits[31:0] |
-
-**高位规则**：比较结果（−1/0/+1）**按 64 位扩展**写满目的寄存器——−1 ⇒ `0xFFFF_FFFF_FFFF_FFFF`（64 位全 1）、0 ⇒ `0`、+1 ⇒ `1`；`.st`/`.ut` 结果相同（符号扩展与 64 位扩展在 −1/0/+1 上同值）。源操作数仍按上述位宽截断后比较。
-
-例如 `cmp.st rd1, rd2, rd3` 将 rd2 和 rd3 的低 32 位按有符号比较：rd2 < rd3 时 `rd1 = 0xFFFF_FFFF_FFFF_FFFF`，相等时 `rd1 = 0`，rd2 > rd3 时 `rd1 = 1`。
-
 <!-- IDL:cmp.ut_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cmp.ut_orrr_rd`**
 ```idl
-# id: cmp.ut_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -146,8 +165,8 @@ if (a < b) {
 
 <!-- IDL:cmp.st_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cmp.st_orrr_rd`**
 ```idl
-# id: cmp.st_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -167,25 +186,10 @@ if ($signed(a) < $signed(b)) {
 ```
 <!-- IDL:cmp.st_orrr_rd END -->
 
-### 1.3 乘除操作
-
-OPC-tetra 子表中的 `mul`/`div`/`rem` 提供 32 位乘除余运算。`mul` 后缀为 `.ut`/`.st`；`div`/`rem` 后缀为 `.ut`/`.st`。源操作数只取 size 范围内的低位，结果仅保留 size 位宽，高位按有符号（符号扩展）或无符号（零扩展）填充。操作数格式为 `orrr`，`rdHB` 不能为 `rd0`，否则触发 ILLI 异常。
-
-| 指令 | 位宽 | 汇编语法 |
-|------|------|---------|
-| `mul.ut`/`mul.st`/`div.ut`/`div.st`/`rem.ut`/`rem.st` | 32 位 | `mul.ut rdHB, rdHC, rdHD` |
-
-除法指令附加规则（适用于 `div.s`/`div.u`/`rem.s`/`rem.u` 全部格式）：
-
-- **除数为零 → 定值**（不触发异常）：定值表见 SimRISC-04。
-- **截断方向**：`div.s`/`rem.s` 采用 truncate-toward-zero（C99 标准），余数符号 = 被除数符号。
-- **溢出 → 定值**（不触发异常）：`div.s` 中 tetra 对应的 −2147483648 ÷ −1 见定值表。`div.u`/`rem.u` 不存在溢出。
-- **定值表**：详见 SimRISC-04。
-
 <!-- IDL:mul.ut_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`mul.ut_orrr_rd`**
 ```idl
-# id: mul.ut_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -202,8 +206,8 @@ rd[rdHB] = {32'd0, prod};
 
 <!-- IDL:mul.st_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`mul.st_orrr_rd`**
 ```idl
-# id: mul.st_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -220,8 +224,8 @@ rd[rdHB] = {{32{prod[31]}}, prod};
 
 <!-- IDL:div.ut_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`div.ut_orrr_rd`**
 ```idl
-# id: div.ut_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -242,8 +246,8 @@ if (b == 32'd0) {
 
 <!-- IDL:div.st_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`div.st_orrr_rd`**
 ```idl
-# id: div.st_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -278,8 +282,8 @@ if (b == 32'd0) {
 
 <!-- IDL:rem.ut_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rem.ut_orrr_rd`**
 ```idl
-# id: rem.ut_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -300,8 +304,8 @@ if (b == 32'd0) {
 
 <!-- IDL:rem.st_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rem.st_orrr_rd`**
 ```idl
-# id: rem.st_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -361,10 +365,45 @@ shr.st:  rdHB[31:0]  = (rdHC[31:0] >> shamt) with sign(31),  rdHB[63:32] = sign_
 
 > **注**：rd0 目的寄存器约定见 SimRISC-00。
 
+### 2.1 逐块反转 rev.t（orri 格式）
+
+`rev.t` 对 64 位源寄存器**按 32 位块逐块反转**：每块（S = 32）按 `k` 位切成
+`32/k` 个单元，反转单元顺序（单元内部位序不变），两个块一律同样处理。
+操作数格式 `orri`：`rev.t rdHB, rdHC, immu6`。
+
+- 合法 `k` = `{1,2,4,8,16}`（one-hot 且 `k < S = 32`）；非 one-hot 或 `k ≥ 32` 触发 **ILLI**（规则 `encode_onehot`）。
+- `k=8` 即 `bswap32` 语义（须源高 32 位为 0）；`k=1` 只反转**块内**位序，**不是** 64 位整体位反序。
+- 逐块反转的总述与伪代码见 SimRISC-04。
+
+### 2.2 逻辑循环左移 rol.t（`orrr` / `orri` 格式）
+
+`rol.t` 对源寄存器的 **低 32 位**做逻辑循环左移：`rdHB[31:0] = rol(rdHC[31:0], amount)`；
+结果按值语义零扩展写满 64 位（`rdHB[63:32] = 0`）。符号无关、只有一个方向、不带 `u`/`s`
+。
+
+| 格式 | 旋转量 `amount` | 取值 |
+|------|----------------|------|
+| `orrr` | `rdHD[4:0]` | `0..31`（即对 32 取模） |
+| `orri` | `immu6` | `0..31`；`immu6 > 31` ⇒ **ILLI** |
+
+- `orrr` 的 `rdHD` 只有低 5 位参与（天然取模 32）；`orri` 的 `immu6` 是 6 位，**越界（`32..63`）触发 ILLI**（与 `shl.t` 的 `immu6 <= 31` 同口径）。
+- 目的 `rdHB` 为 `rd0` ⇒ **ILLI**（规则 `dst_rd0`）；源 `rdHC` 可为 `rd0`（结果恒为 0）；`rdHB == rdHC` 允许。
+- 格式：`orrr`（寄存器旋转量）/ `orri`（立即数旋转量），属 `OPC-tetra` 子表。
+- 64 位语义与总述见 SimRISC-04。
+
+```simrisc
+rol.t   rdHB, rdHC, rdHD        @@ 32 位循环左移（旋转量 = rdHD[4:0]）
+rol.t   rdHB, rdHC, immu6       @@ 32 位循环左移（immu6 0..31）
+```
+
+### 2.3 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-08.idl` 生成，逐条如下：
+
 <!-- IDL:shl.t_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`shl.t_orrr_rd`**
 ```idl
-# id: shl.t_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -381,8 +420,8 @@ rd[rdHB] = {32'd0, res};                       # 值语义：零扩展写满 64 
 
 <!-- IDL:shl.t_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`shl.t_orri_rd`**
 ```idl
-# id: shl.t_orri_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -403,8 +442,8 @@ rd[rdHB] = {32'd0, res};                       # 值语义：零扩展写满 64 
 
 <!-- IDL:shr.ut_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`shr.ut_orrr_rd`**
 ```idl
-# id: shr.ut_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -421,8 +460,8 @@ rd[rdHB] = {32'd0, res};                       # 值语义：零扩展写满 64 
 
 <!-- IDL:shr.ut_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`shr.ut_orri_rd`**
 ```idl
-# id: shr.ut_orri_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -443,8 +482,8 @@ rd[rdHB] = {32'd0, res};                       # 值语义：零扩展写满 64 
 
 <!-- IDL:shr.st_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`shr.st_orrr_rd`**
 ```idl
-# id: shr.st_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -462,8 +501,8 @@ rd[rdHB] = {{32{res[31]}}, res};                # 算术右移保持 bit31 ⇒ �
 
 <!-- IDL:shr.st_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`shr.st_orri_rd`**
 ```idl
-# id: shr.st_orri_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -483,20 +522,10 @@ rd[rdHB] = {{32{res[31]}}, res};                # 算术右移保持 bit31 ⇒ �
 ```
 <!-- IDL:shr.st_orri_rd END -->
 
-### 2.1 逐块反转 rev.t（orri 格式）
-
-`rev.t` 对 64 位源寄存器**按 32 位块逐块反转**：每块（S = 32）按 `k` 位切成
-`32/k` 个单元，反转单元顺序（单元内部位序不变），两个块一律同样处理。
-操作数格式 `orri`：`rev.t rdHB, rdHC, immu6`。
-
-- 合法 `k` = `{1,2,4,8,16}`（one-hot 且 `k < S = 32`）；非 one-hot 或 `k ≥ 32` 触发 **ILLI**（规则 `encode_onehot`）。
-- `k=8` 即 `bswap32` 语义（须源高 32 位为 0）；`k=1` 只反转**块内**位序，**不是** 64 位整体位反序。
-- 逐块反转的总述与伪代码见 SimRISC-04。
-
 <!-- IDL:rev.t_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rev.t_orri_rd`**
 ```idl
-# id: rev.t_orri_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -541,31 +570,10 @@ rd[rdHB] = {rh, rl};
 ```
 <!-- IDL:rev.t_orri_rd END -->
 
-### 2.2 逻辑循环左移 rol.t（`orrr` / `orri` 格式）
-
-`rol.t` 对源寄存器的 **低 32 位**做逻辑循环左移：`rdHB[31:0] = rol(rdHC[31:0], amount)`；
-结果按值语义零扩展写满 64 位（`rdHB[63:32] = 0`）。符号无关、只有一个方向、不带 `u`/`s`
-。
-
-| 格式 | 旋转量 `amount` | 取值 |
-|------|----------------|------|
-| `orrr` | `rdHD[4:0]` | `0..31`（即对 32 取模） |
-| `orri` | `immu6` | `0..31`；`immu6 > 31` ⇒ **ILLI** |
-
-- `orrr` 的 `rdHD` 只有低 5 位参与（天然取模 32）；`orri` 的 `immu6` 是 6 位，**越界（`32..63`）触发 ILLI**（与 `shl.t` 的 `immu6 <= 31` 同口径）。
-- 目的 `rdHB` 为 `rd0` ⇒ **ILLI**（规则 `dst_rd0`）；源 `rdHC` 可为 `rd0`（结果恒为 0）；`rdHB == rdHC` 允许。
-- 格式：`orrr`（寄存器旋转量）/ `orri`（立即数旋转量），属 `OPC-tetra` 子表。
-- 64 位语义与总述见 SimRISC-04。
-
-```simrisc
-rol.t   rdHB, rdHC, rdHD        @@ 32 位循环左移（旋转量 = rdHD[4:0]）
-rol.t   rdHB, rdHC, immu6       @@ 32 位循环左移（immu6 0..31）
-```
-
 <!-- IDL:rol.t_orrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rol.t_orrr_rd`**
 ```idl
-# id: rol.t_orrr_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -584,8 +592,8 @@ rd[rdHB] = {32'd0, res};                       # 值语义：零扩展写满 64 
 
 <!-- IDL:rol.t_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rol.t_orri_rd`**
 ```idl
-# id: rol.t_orri_rd
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());

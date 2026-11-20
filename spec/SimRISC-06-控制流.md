@@ -18,31 +18,7 @@ br.ne    {rdHA, rdHB}?, [rb0, imms14]
 
 跳转地址计算公式：`Addr = rb0 + (imms12 << 2)`（64 位计算），结果写回 `rb0`，取低 48 位为下一条地址。
 
-<!-- IDL:br.eq_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: br.eq_rrii_rd
-# 汇编层 imms14 = 编码层 imms12 << 2（字节偏移）；IP = 当前正在执行的指令地址
-if (rd[rdHA] == rd[rdHB]) {
-  Bits<14> scaled = {imms12, 2'b00};          # 12 位编码层偏移 → 14 位补码字节偏移
-  jump(ip() + $signed(scaled));               # ip() 已是 64 位（高 16 位恒 0）；jump 只写回低 48 位
-}
-```
-<!-- IDL:br.eq_rrii_rd END -->
-
 > COD P226页指出，br.ne和br.eq这两条指令的占比为7.4%
-
-<!-- IDL:br.ne_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: br.ne_rrii_rd
-# 汇编层 imms14 = 编码层 imms12 << 2（字节偏移）；条件 NE = 至少一位不等（SimRISC-00 §3.2）
-if (rd[rdHA] != rd[rdHB]) {
-  Bits<14> scaled = {imms12, 2'b00};          # 12 位编码层偏移 → 14 位补码字节偏移
-  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 只写回低 48 位
-}
-```
-<!-- IDL:br.ne_rrii_rd END -->
 
 第二类跳转指令的操作数类型为：`riii`。一个操作数为rd寄存器，根据该寄存器的值进行判断，选择是否跳转。
 
@@ -59,10 +35,47 @@ br.np    {rdHA}?, [rb0, imms20]
 
 一个重要的特例是，当rdHA为rd0时，br.z的条件必为真，br.nz的条件必为假。
 
+第三类跳转指令的操作数类型同样为 `riii`，但操作数为rb寄存器，按**整 64 位**判零（与 `-rd` 变体一致；`-rb`/`-rd` 区别仅在寄存器组）：
+
+```simrisc
+br.z     {rbHA}?, [rb0, imms20]
+br.nz    {rbHA}?, [rb0, imms20]
+```
+
+跳转地址计算方式与第二类一致。
+
+### 1.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-06.idl` 生成，逐条如下：
+
+<!-- IDL:br.eq_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`br.eq_rrii_rd`**
+```idl
+# 汇编层 imms14 = 编码层 imms12 << 2（字节偏移）；IP = 当前正在执行的指令地址
+if (rd[rdHA] == rd[rdHB]) {
+  Bits<14> scaled = {imms12, 2'b00};          # 12 位编码层偏移 → 14 位补码字节偏移
+  jump(ip() + $signed(scaled));               # ip() 已是 64 位（高 16 位恒 0）；jump 只写回低 48 位
+}
+```
+<!-- IDL:br.eq_rrii_rd END -->
+
+<!-- IDL:br.ne_rrii_rd BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`br.ne_rrii_rd`**
+```idl
+# 汇编层 imms14 = 编码层 imms12 << 2（字节偏移）；条件 NE = 至少一位不等（SimRISC-00 §3.2）
+if (rd[rdHA] != rd[rdHB]) {
+  Bits<14> scaled = {imms12, 2'b00};          # 12 位编码层偏移 → 14 位补码字节偏移
+  jump(ip() + $signed(scaled));               # 64 位全宽计算；jump 只写回低 48 位
+}
+```
+<!-- IDL:br.ne_rrii_rd END -->
+
 <!-- IDL:br.n_riii_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`br.n_riii_rd`**
 ```idl
-# id: br.n_riii_rd
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 N = 第 63 位为 1（SimRISC-00 §3.2）
 if (rd[rdHA][63] == 1'b1) {
   Bits<20> scaled = {imms18, 2'b00};          # 18 位编码层偏移 → 20 位补码字节偏移
@@ -73,8 +86,8 @@ if (rd[rdHA][63] == 1'b1) {
 
 <!-- IDL:br.nn_riii_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`br.nn_riii_rd`**
 ```idl
-# id: br.nn_riii_rd
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 NN = 第 63 位为 0（SimRISC-00 §3.2）
 if (rd[rdHA][63] == 1'b0) {
   Bits<20> scaled = {imms18, 2'b00};          # 18 位编码层偏移 → 20 位补码字节偏移
@@ -85,8 +98,8 @@ if (rd[rdHA][63] == 1'b0) {
 
 <!-- IDL:br.z_riii_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`br.z_riii_rd`**
 ```idl
-# id: br.z_riii_rd
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 Z = [63..0] 全为 0（SimRISC-00 §3.2）
 # rdHA 为 rd0 时读出恒 0 ⇒ 条件必为真（SimRISC-06 §1 特例）
 if (rd[rdHA] == 64'd0) {
@@ -98,8 +111,8 @@ if (rd[rdHA] == 64'd0) {
 
 <!-- IDL:br.nz_riii_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`br.nz_riii_rd`**
 ```idl
-# id: br.nz_riii_rd
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 NZ = [63..0] 不全为 0（SimRISC-00 §3.2）
 # rdHA 为 rd0 时读出恒 0 ⇒ 条件必为假（SimRISC-06 §1 特例）
 if (rd[rdHA] != 64'd0) {
@@ -111,8 +124,8 @@ if (rd[rdHA] != 64'd0) {
 
 <!-- IDL:br.p_riii_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`br.p_riii_rd`**
 ```idl
-# id: br.p_riii_rd
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 P = 第 63 位为 0 且 [62..0] 不全为 0
 if (rd[rdHA][63] == 1'b0 && rd[rdHA][62:0] != 63'd0) {
   Bits<20> scaled = {imms18, 2'b00};          # 18 位编码层偏移 → 20 位补码字节偏移
@@ -123,8 +136,8 @@ if (rd[rdHA][63] == 1'b0 && rd[rdHA][62:0] != 63'd0) {
 
 <!-- IDL:br.np_riii_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`br.np_riii_rd`**
 ```idl
-# id: br.np_riii_rd
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 NP = 第 63 位为 1 或 [63..0] 全为 0
 if (rd[rdHA][63] == 1'b1 || rd[rdHA] == 64'd0) {
   Bits<20> scaled = {imms18, 2'b00};          # 18 位编码层偏移 → 20 位补码字节偏移
@@ -133,19 +146,10 @@ if (rd[rdHA][63] == 1'b1 || rd[rdHA] == 64'd0) {
 ```
 <!-- IDL:br.np_riii_rd END -->
 
-第三类跳转指令的操作数类型同样为 `riii`，但操作数为rb寄存器，按**整 64 位**判零（与 `-rd` 变体一致；`-rb`/`-rd` 区别仅在寄存器组）：
-
-```simrisc
-br.z     {rbHA}?, [rb0, imms20]
-br.nz    {rbHA}?, [rb0, imms20]
-```
-
-跳转地址计算方式与第二类一致。
-
 <!-- IDL:br.z_riii_rb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`br.z_riii_rb`**
 ```idl
-# id: br.z_riii_rb
 # 条件 Z：rbHA 按整 64 位判零（与 -rd 变体的判据一致，区别仅在寄存器组；SimRISC-06 §1 第三类）
 # rb0 读出即 IP（idl/README §3），本指令不特判
 if (rb[rbHA] == 64'd0) {
@@ -157,8 +161,8 @@ if (rb[rbHA] == 64'd0) {
 
 <!-- IDL:br.nz_riii_rb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`br.nz_riii_rb`**
 ```idl
-# id: br.nz_riii_rb
 # 条件 NZ：rbHA 按整 64 位判非零（与 -rd 变体的判据一致，区别仅在寄存器组；SimRISC-06 §1 第三类）
 # rb0 读出即 IP（idl/README §3），本指令不特判
 if (rb[rbHA] != 64'd0) {
@@ -180,17 +184,6 @@ jump    [rb0, imms26]
 
 跳转地址计算公式：`Addr = rb0 + (imms24 << 2)`（64 位计算），结果写回 `rb0`，取低 48 位为下一条地址。
 
-<!-- IDL:jump_iiii_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: jump_iiii_rb
-# 汇编层 imms26 = 编码层 imms24 << 2（字节偏移）；无条件相对跳转：Addr = rb0 + (imms24 << 2)
-# rb0 读出即 IP（idl/README §3）：64 位全宽计算，jump 只写回低 48 位
-Bits<26> scaled = {imms24, 2'b00};            # 24 位编码层偏移 → 26 位补码字节偏移
-jump(ip() + $signed(scaled));
-```
-<!-- IDL:jump_iiii_rb END -->
-
 支持绝对地址的操作数类型为：`rrii`
 
 ```simrisc
@@ -202,10 +195,25 @@ jump    [rbHA, rdHB, imms14]
 
 一个重要的特例是：当ha为rb0时，rdHB + (imms12 << 2)仍然是相对地址跳转。
 
+### 2.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-06.idl` 生成，逐条如下：
+
+<!-- IDL:jump_iiii_rb BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`jump_iiii_rb`**
+```idl
+# 汇编层 imms26 = 编码层 imms24 << 2（字节偏移）；无条件相对跳转：Addr = rb0 + (imms24 << 2)
+# rb0 读出即 IP（idl/README §3）：64 位全宽计算，jump 只写回低 48 位
+Bits<26> scaled = {imms24, 2'b00};            # 24 位编码层偏移 → 26 位补码字节偏移
+jump(ip() + $signed(scaled));
+```
+<!-- IDL:jump_iiii_rb END -->
+
 <!-- IDL:jump_rrii_rb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`jump_rrii_rb`**
 ```idl
-# id: jump_rrii_rb
 # 无条件绝对跳转：Addr = rbHA + rdHB + (imms12 << 2)（64 位全宽计算）
 # rbHA 为基址（rb 组，仅读、不修改）、rdHB 为偏移地址（rd 组）；ha 为 rb0 时仍是相对跳转
 Bits<14> offset = {imms12, 2'b00};            # 12 位编码层偏移 → 14 位补码字节偏移
@@ -225,21 +233,6 @@ call    [rb0, imms26]
 
 跳转地址计算公式： `Addr = rb0 + (imms24 << 2)`（64 位计算），结果写回 `rb0`，取低 48 位为下一条地址。
 
-<!-- IDL:call_iiii_ra BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
-```idl
-# id: call_iiii_ra
-# 汇编层 imms26 = 编码层 imms24 << 2（字节偏移）；返回地址 = 当前 call 指令地址 + 4（两种形式一致）
-# 先压栈：C1–C3b（递归折叠 / RASOF / MemRAS 溢出）见 SimRISC-00 §2.4.1，由 ras_push 承担
-Bits<64> ret_addr = ip() + 64'd4;
-ras_push(ret_addr[47:0]);
-
-# Addr = rb0 + (imms24 << 2)：rb0 读出即 IP；64 位全宽计算，jump 只写回低 48 位
-Bits<26> scaled = {imms24, 2'b00};
-jump(ip() + $signed(scaled));
-```
-<!-- IDL:call_iiii_ra END -->
-
 支持绝对地址的操作数类型为： `rrii`
 
 ```simrisc
@@ -251,10 +244,29 @@ call    [rbHA, rdHB, imms14]
 
 一个重要的特例是：当ha为rb0时，rdHB + (imms12 << 2)实际上也是相对地址跳转。
 
+### 3.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-06.idl` 生成，逐条如下：
+
+<!-- IDL:call_iiii_ra BEGIN -->
+<!-- 由 idl/render.py 生成，勿手改 -->
+**`call_iiii_ra`**
+```idl
+# 汇编层 imms26 = 编码层 imms24 << 2（字节偏移）；返回地址 = 当前 call 指令地址 + 4（两种形式一致）
+# 先压栈：C1–C3b（递归折叠 / RASOF / MemRAS 溢出）见 SimRISC-00 §2.4.1，由 ras_push 承担
+Bits<64> ret_addr = ip() + 64'd4;
+ras_push(ret_addr[47:0]);
+
+# Addr = rb0 + (imms24 << 2)：rb0 读出即 IP；64 位全宽计算，jump 只写回低 48 位
+Bits<26> scaled = {imms24, 2'b00};
+jump(ip() + $signed(scaled));
+```
+<!-- IDL:call_iiii_ra END -->
+
 <!-- IDL:call_rrii_ra BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`call_rrii_ra`**
 ```idl
-# id: call_rrii_ra
 # 返回地址 = 当前 call 指令地址 + 4（绝对形式同样如此）；压栈流程见 SimRISC-00 §2.4.1
 Bits<64> ret_addr = ip() + 64'd4;
 ras_push(ret_addr[47:0]);
@@ -281,10 +293,14 @@ ret指令增加了返回值的赋值功能，操作数类型为 `riii` ，即在
 ret     rdHA, imms18
 ```
 
+### 4.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-06.idl` 生成，逐条如下：
+
 <!-- IDL:ret_riii_ra BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ret_riii_ra`**
 ```idl
-# id: ret_riii_ra
 # 目的 rd0 且 imms18 ≠ 0 ⇒ ILLI（SimRISC-06 §4 硬约束 / 附录 B dst_rd0_nonzero）
 if (rdHA == 6'd0 && imms18 != 18'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());

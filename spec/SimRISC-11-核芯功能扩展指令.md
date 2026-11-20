@@ -31,10 +31,14 @@ trap    cfxHA, immu18
 
 其中，cfx_<cfxname> 指定核芯功能扩展名称；immu18指定具体功能编号。
 
+### 2.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-11.idl` 生成，逐条如下：
+
 <!-- IDL:trap_ciii_cfx BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`trap_ciii_cfx`**
 ```idl
-# id: trap_ciii_cfx
 if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ 进当前运行模式 monitor
   raise(ExceptionCode::Illegal, mode(), ip());
 } else if (cfx_trap_denied(cfxHA)) {          # 目标 cfx 的 cfxtrap 掩码拒绝源 cfx
@@ -57,10 +61,14 @@ escape  cfxHA, [excp_cause_ip, imms20]
 
 其中，cfx_\<cfxname\> 指定核芯功能扩展名称；imms20 指定目标地址偏移（字节，**只允许 0 或 4**；实际地址 = excp_cause_ip + imms20；编码层 `imms18 = imms20 >> 2 ∈ {0, 1}`，`imms18[0]` 即字节偏移 bit2，`imms18[17:1]` 为 SBZ、手工编码非零 ⇒ ILLI；`Addr = excp_cause_ip + (imms18 << 2)`）。
 
+### 3.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-11.idl` 生成，逐条如下：
+
 <!-- IDL:escape_ciii_cfx BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`escape_ciii_cfx`**
 ```idl
-# id: escape_ciii_cfx
 # 步骤 0（DADAO-12 §5.3）：SBZ 非零 / 保留 cfx ⇒ ILLI（进当前运行模式 monitor）；
 # 目标错或帧无效 ⇒ 当前 cfx 的 CFXESC（切换任何状态之前）
 if (imms18[17:1] != 17'd0) {                  # imms18[17:1] 为 SBZ，非零 ⇒ ILLI
@@ -117,10 +125,14 @@ cfx2rc  cfx_power, cg8, rc1, rd2
 
 这种简化写法使代码更具可读性，程序员无需记忆每个寄存器的cg和rc编号，直接通过寄存器名称即可定位目标寄存器。
 
+### 4.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-11.idl` 生成，逐条如下：
+
 <!-- IDL:cfx2rd_crrr_cfx BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cfx2rd_crrr_cfx`**
 ```idl
-# id: cfx2rd_crrr_cfx
 if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -133,8 +145,8 @@ rd[rdHD] = cfx_read(cfxHA, cgHB, rcHC);
 
 <!-- IDL:cfx2rc_crrr_cfx BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cfx2rc_crrr_cfx`**
 ```idl
-# id: cfx2rc_crrr_cfx
 if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
@@ -209,10 +221,14 @@ fence   cfxHA, immu18
 - `cfxHA` 为保留核芯功能扩展 ⇒ ILLI（保留 cfxha 的分配由 SEE/DADAO-12 定义）；
 - 正常屏障不产生异常。
 
+### 5.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-11.idl` 生成，逐条如下：
+
 <!-- IDL:fence_ciii_cfx BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`fence_ciii_cfx`**
 ```idl
-# id: fence_ciii_cfx
 if (immu18[17:12] != 6'd0) {                  # hb = immu18[17:12] 为 SBZ，非零 ⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }

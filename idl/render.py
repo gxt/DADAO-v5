@@ -16,6 +16,25 @@ Why
     ...（本脚本生成，勿手改）...
     <!-- IDL:<instr-id> END -->
 
+布局（m15-spec-005）
+--------------------
+每个带编号的 ``## N.`` 节末尾**集中**该节全部 operation，配一个三级标题
+``### N.M 形式化语义（IDL）``（M = 该节已有子节号 +1）、一句导语，随后是块序列::
+
+    ### 1.2 形式化语义（IDL）
+
+    本节各指令的形式化语义由 `idl/SimRISC-03.idl` 生成，逐条如下：
+
+    <!-- IDL:<instr-id> BEGIN -->
+    <!-- 由 idl/render.py 生成，勿手改 -->
+    **`<instr-id>`**                    ← 替代块内原有的 `# id:` 行
+    ```idl
+    ...
+    ```
+    <!-- IDL:<instr-id> END -->
+
+散文一行不动：重渲染只移动/重建「标记块 + 生成标题 + 导语」，其余行逐字节保持。
+
 断言（全部 fail-closed）
 ------------------------
 A. 源：``idl/*.idl`` 的文件名形如 ``SimRISC-NN.idl``；文件头（首个 ``# id:`` 之前）
@@ -30,12 +49,15 @@ E. 交叉断言：每条 operation 调用的函数都在语义库声明（``idl/
 F. 解码变量不得当寄存器内容用：``rdHA``…/``rbH*``/``raH*``/``rfH*`` **紧跟 ``[``** 即 FAIL
    （散文里 ``rdHC`` 指**内容**，``.idl`` 里它是 **6 位寄存器号**；合法用法只有作下标
    ``rd[rdHC]``）。``idlc`` 不校验位宽 ⇒ ``rdHC[i]`` 会静默取到寄存器号的位（m15-idl-014）。
+G. 布局：每个块必须落在带编号 ``## N.`` 节内；节末生成区（三级标题 + 导语 + 块序列）
+   里不得混入手写内容（防「把散文塞进生成区」被静默吞掉）。
 
 用法
 ----
 * ``python3 idl/render.py``              # 生成/更新 spec 册内的标记块
 * ``python3 idl/render.py --check``      # 只校验（漂移 ⇒ 非零退出）
-* ``python3 idl/render.py --self-test``  # 临时树内 6 类注入自检（各自须 FAIL）
+* ``python3 idl/render.py --self-test``  # 临时树内多类注入自检（各自须 FAIL）
+* ``python3 idl/render.py --prose-hash`` # 打印各册「剥掉生成内容后」的散文哈希
 * ``--root DIR``：在另一棵树（同布局）内运行，供注入自检使用
 
 退出码：0 = 通过；1 = 任一断言失败。
@@ -44,6 +66,7 @@ from __future__ import annotations
 
 import argparse
 import difflib
+import hashlib
 import re
 import shutil
 import sys
@@ -61,6 +84,13 @@ ID_RE = re.compile(r"^#\s*id:\s*(\S+)\s*$")
 BEGIN_RE = re.compile(r"^<!--\s*IDL:(\S+)\s+BEGIN\s*-->\s*$")
 END_RE = re.compile(r"^<!--\s*IDL:(\S+)\s+END\s*-->\s*$")
 BOOK_RE = re.compile(r"^SimRISC-(\d{2})\.idl$")
+# 节末生成区：`## N.` 节 → 三级标题 `### N.M 形式化语义（IDL）`
+HEADING_RE = re.compile(r"^###\s+(\d+)\.(\d+)\s+形式化语义（IDL）\s*$")
+H3_ANY_RE = re.compile(r"^###\s+(\d+)\.(\d+)\s+\S")
+SECTION_RE = re.compile(r"^##\s+(\d+)\.\s+\S")
+# 其它生成区的起点（`check-asm-list` / `check-legality-drift` 维护）：节末插入须让位
+GEN_START_RE = re.compile(r"^<!--\s*(?:ASSEMBLY_LIST|LEGALITY)_START\s*-->\s*$")
+LEAD_RE = re.compile(r"^本节各指令的形式化语义由 `idl/SimRISC-\d{2}\.idl` 生成，逐条如下：$")
 DECL_RE = re.compile(r"^\s*(?:builtin\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*\??)\s*\{")
 CALL_RE = re.compile(r"(?<![\w$.])([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 # 以 `?` 结尾的函数名（如 `is_sp_nan?`）：上面 CALL_RE 要求标识符后紧跟 `(`，捕不到 `?`，
@@ -314,30 +344,203 @@ def marker_spans(lines: list[str], path: Path) -> dict[str, tuple[int, int]]:
     return spans
 
 
+def lead_line(book: str) -> str:
+    """节末生成区的导语（逐册指明源文件）。"""
+    return f"本节各指令的形式化语义由 `idl/{book}.idl` 生成，逐条如下："
+
+
+def op_body_lines(op: Op) -> list[str]:
+    """块正文：去掉首行 ``# id: <id>``（HTML 侧改用一行粗体 id 标注）。"""
+    lines = op.text.split("\n")
+    m = ID_RE.match(lines[0])
+    if m is None or m.group(1) != op.id:
+        raise RenderError(f"{op.source.name}: operation `{op.id}` 的首行不是 `# id: {op.id}`")
+    if len(lines) < 2:
+        raise RenderError(f"{op.source.name}: operation `{op.id}` 只有 `# id:` 行、没有正文")
+    return lines[1:]
+
+
+def strip_generated(text: str) -> str:
+    """剥掉「标记块 + 生成标题 + 导语」，并把连续空行压成一行。
+
+    用于「散文零改动」核对：对改造前后的同一册分别调用，结果须逐字节相同。
+    """
+    lines = _split_lines(text)
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if BEGIN_RE.match(line):
+            i += 1
+            while i < len(lines) and not END_RE.match(lines[i]):
+                i += 1
+            i += 1                                   # 跳过 END
+            continue
+        if HEADING_RE.match(line) or LEAD_RE.match(line):
+            i += 1
+            continue
+        out.append(line)
+        i += 1
+    collapsed: list[str] = []
+    for line in out:
+        if not line.strip() and collapsed and not collapsed[-1].strip():
+            continue
+        collapsed.append(line)
+    return "\n".join(collapsed)
+
+
+def generated_regions(lines: list[str], path: Path) -> list[tuple[int, int, str]]:
+    """找节末生成区：``### N.M 形式化语义（IDL）`` 起、到下一个 ``##``/其它生成区/EOF 止。
+
+    返回 ``[(start, end, section_num)]``（0 基半开区间）。区内只允许空行、导语、块，
+    混入其它内容即 FAIL（防「把散文塞进生成区」被重渲染静默吞掉）。
+    """
+    regions: list[tuple[int, int, str]] = []
+    for i, line in enumerate(lines):
+        m = HEADING_RE.match(line)
+        if m is None:
+            continue
+        enclosing = None
+        for t in range(i):
+            sm = SECTION_RE.match(lines[t])
+            if sm:
+                enclosing = sm.group(1)
+        if enclosing != m.group(1):
+            raise RenderError(
+                f"{path.name}:{i + 1}: 生成标题 `### {m.group(1)}.{m.group(2)} 形式化语义（IDL）` "
+                f"不在 `## {m.group(1)}.` 节内（当前节 `## {enclosing}.`）")
+        j = i + 1
+        while j < len(lines) and not lines[j].startswith("## ") and not GEN_START_RE.match(lines[j]):
+            j += 1
+        in_block = False
+        leads = 0
+        blocks = 0
+        for k in range(i + 1, j):
+            body = lines[k]
+            if in_block:
+                if END_RE.match(body):
+                    in_block = False
+                continue
+            if BEGIN_RE.match(body):
+                in_block = True
+                blocks += 1
+                continue
+            if not body.strip():
+                continue
+            if LEAD_RE.match(body):
+                leads += 1
+                continue
+            raise RenderError(
+                f"{path.name}:{k + 1}: 生成区（`### {m.group(1)}.{m.group(2)} 形式化语义（IDL）` "
+                f"之后、下一 `##` 之前）混入了非生成内容: {body[:60]!r}")
+        if leads != 1:
+            raise RenderError(
+                f"{path.name}:{i + 1}: 生成区应有且仅有 1 行导语，实得 {leads} 行")
+        if blocks == 0:
+            raise RenderError(f"{path.name}:{i + 1}: 生成区没有任何 IDL 块")
+        regions.append((i, j, m.group(1)))
+    return regions
+
+
+def section_index(lines: list[str], idx: int) -> tuple[int, str] | None:
+    """``idx`` 之前最近一个带编号 ``## N.`` 节（返回 (行号, 编号)）。"""
+    found: tuple[int, str] | None = None
+    for i in range(idx):
+        m = SECTION_RE.match(lines[i])
+        if m:
+            found = (i, m.group(1))
+    return found
+
+
+def section_end(lines: list[str], start: int) -> int:
+    """节末插入点：下一个 ``##``/其它生成区/EOF 的行号。"""
+    for j in range(start + 1, len(lines)):
+        if lines[j].startswith("## ") or GEN_START_RE.match(lines[j]):
+            return j
+    return len(lines)
+
+
+def build_region(section: str, child: int, book: str,
+                 op_ids: list[str], ops: dict[str, Op]) -> list[str]:
+    """节末生成区（标题 + 导语 + 块序列）；末尾留一个空行。"""
+    region = [f"### {section}.{child} 形式化语义（IDL）", "", lead_line(book), ""]
+    for op_id in op_ids:
+        region.append(f"<!-- IDL:{op_id} BEGIN -->")
+        region.append(GENERATED_NOTE)
+        region.append(f"**`{op_id}`**")
+        region.append(FENCE_OPEN)
+        region.extend(op_body_lines(ops[op_id]))
+        region.append(FENCE_CLOSE)
+        region.append(f"<!-- IDL:{op_id} END -->")
+        region.append("")
+    return region
+
+
 def render_file(path: Path, ops: dict[str, Op], book: str) -> tuple[str, int]:
-    """渲染一册；返回（新文本, 替换的块数）。"""
+    """渲染一册（节末集中布局）；返回（新文本, 块数）。"""
     lines = _split_lines(read_text(path))
     spans = marker_spans(lines, path)
 
-    out: list[str] = []
-    cursor = 0
-    for op_id, (start, end) in sorted(spans.items(), key=lambda kv: kv[1][0]):
+    for op_id in spans:
         if op_id not in ops:
             raise RenderError(f"{path.name}: 标记 `{op_id}` 没有对应的 `# id:` 源（空标记）")
         if ops[op_id].book != book:
             raise RenderError(
                 f"{path.name}: 标记 `{op_id}` 的源在 {ops[op_id].source.name}（{ops[op_id].book}），"
                 f"与落点册 `{book}` 不符")
-        out.extend(lines[cursor:start])          # BEGIN 行之前的原文
-        out.append(lines[start])                 # BEGIN 行原样保留
-        out.append(GENERATED_NOTE)
-        out.append(FENCE_OPEN)
-        out.extend(ops[op_id].text.split("\n"))
-        out.append(FENCE_CLOSE)
-        out.append(lines[end])                   # END 行原样保留
-        cursor = end + 1
-    out.extend(lines[cursor:])
-    return "\n".join(out), len(spans)
+
+    regions = generated_regions(lines, path)
+    # 块的目标节：生成区内以标题号为序；散文内（旧布局）按所在 `## N.` 节
+    grouped: dict[str, list[str]] = {}
+    for op_id, (start, _end) in sorted(spans.items(), key=lambda kv: kv[1][0]):
+        target = None
+        for rstart, rend, num in regions:
+            if rstart <= start < rend:
+                target = num
+                break
+        if target is None:
+            found = section_index(lines, start)
+            if found is None:
+                raise RenderError(
+                    f"{path.name}:{start + 1}: 块 `{op_id}` 不在带编号 `## N.` 节内（不能生成节号）")
+            target = found[1]
+        grouped.setdefault(target, []).append(op_id)
+
+    # 删掉旧生成区（整段）与散文里的旧块；倒序删除保持下标有效
+    deletions: list[tuple[int, int, bool]] = [
+        (rstart, rend - 1, False) for rstart, rend, _num in regions]
+    for start, end in spans.values():
+        if not any(rstart <= start < rend for rstart, rend, _num in regions):
+            deletions.append((start, end, True))
+    for start, end, cleanup in sorted(deletions, reverse=True):
+        del lines[start:end + 1]
+        if cleanup and 0 < start < len(lines) \
+                and not lines[start - 1].strip() and not lines[start].strip():
+            del lines[start]
+
+    # 节末插入（倒序，保持下标有效）
+    section_pos: dict[str, int] = {}
+    for i, line in enumerate(lines):
+        m = SECTION_RE.match(line)
+        if m and m.group(1) not in section_pos:
+            section_pos[m.group(1)] = i
+    insertions: list[tuple[int, list[str]]] = []
+    for num, op_ids in grouped.items():
+        if num not in section_pos:
+            raise RenderError(f"{path.name}: 找不到 `## {num}.` 节（块的目标节缺失）")
+        idx = section_end(lines, section_pos[num])
+        child = 1
+        for k in range(section_pos[num] + 1, idx):
+            m = H3_ANY_RE.match(lines[k])
+            if m and m.group(1) == num:
+                child = max(child, int(m.group(2)) + 1)
+        region = build_region(num, child, book, op_ids, ops)
+        if idx == 0 or lines[idx - 1].strip():
+            region = [""] + region
+        insertions.append((idx, region))
+    for idx, region in sorted(insertions, key=lambda kv: kv[0], reverse=True):
+        lines[idx:idx] = region
+    return "\n".join(lines), sum(len(v) for v in grouped.values())
 
 
 def render_all(root: Path) -> tuple[dict[Path, str], dict[str, Op], int]:
@@ -444,8 +647,20 @@ def run_rc(root: Path) -> int:
         return 1
 
 
+def prose_hash(root: Path) -> int:
+    """逐册打印「剥掉生成内容后」的散文 sha256（核对『散文零改动』）。"""
+    paths = sorted((root / SPEC_REL).glob("SimRISC-*.md"))
+    if not paths:
+        print(f"idl-render: FAIL — {root / SPEC_REL}: 没有 SimRISC-*.md", file=sys.stderr)
+        return 1
+    for path in paths:
+        digest = hashlib.sha256(strip_generated(read_text(path)).encode("utf-8")).hexdigest()
+        print(f"{path.name}\t{digest}")
+    return 0
+
+
 def self_test() -> int:
-    """临时树内注入自检：基线 PASS、6 类注入各自 FAIL、还原后 PASS。"""
+    """临时树内注入自检：基线 PASS、各类注入 FAIL、还原后 PASS。"""
     repo = REPO
     tmp_parent = Path(tempfile.gettempdir()) / "opencode"
     tmp_parent.mkdir(parents=True, exist_ok=True)
@@ -467,11 +682,33 @@ def self_test() -> int:
             spans = marker_spans(lines, path)
             if spans:
                 start, end = sorted(spans.values())[0]
-                return path, start + 4   # 0 基行号；+4 = 跳过 BEGIN/注释/围栏/`# id:` ⇒ 首条正文行
+                k = start + 1                      # 跳过 BEGIN/注释/粗体 id/围栏 ⇒ 首条正文行
+                while k < end and (not lines[k].strip() or lines[k] == GENERATED_NOTE
+                                   or lines[k] == FENCE_OPEN
+                                   or (lines[k].startswith("**`") and lines[k].endswith("`**"))):
+                    k += 1
+                if k >= end:
+                    raise RenderError(f"{path.name}: 首个标记块内没有正文行")
+                return path, k
         raise RenderError("临时树内没有标记块")
 
-    cases = ["baseline", "spec-char", "idl-drift", "drop-id", "undeclared-call",
-             "decode-var-as-content", "qbang-undeclared-call", "restored"]
+    def first_heading(root: Path) -> tuple[Path, int]:
+        for path in sorted((root / SPEC_REL).glob("SimRISC-*.md")):
+            for i, line in enumerate(read_text(path).split("\n")):
+                if HEADING_RE.match(line):
+                    return path, i
+        raise RenderError("临时树内没有生成标题")
+
+    def first_lead(root: Path) -> tuple[Path, int]:
+        for path in sorted((root / SPEC_REL).glob("SimRISC-*.md")):
+            for i, line in enumerate(read_text(path).split("\n")):
+                if LEAD_RE.match(line):
+                    return path, i
+        raise RenderError("临时树内没有导语")
+
+    cases = ["baseline", "spec-char", "heading-drift", "drop-lead", "region-section-mismatch",
+             "idl-drift", "drop-id", "undeclared-call", "decode-var-as-content",
+             "qbang-undeclared-call", "restored"]
     try:
         for idx, name in enumerate(cases, 1):
             root = tmpdir / f"{idx}-{name}"
@@ -485,6 +722,30 @@ def self_test() -> int:
                 lines[lineno] = orig + " "        # 行尾加一个空格 ⇒ 字节不同
                 if lines[lineno] == orig:
                     raise RenderError("空注入（spec-char）")
+                path.write_text("\n".join(lines), encoding="utf-8")
+            elif name == "heading-drift":
+                # 改节末生成标题（模拟手改生成段）⇒ --check 须红
+                path, lineno = first_heading(root)
+                lines = read_text(path).split("\n")
+                orig = lines[lineno]
+                lines[lineno] = orig.replace("形式化语义", "形式语义")
+                if lines[lineno] == orig:
+                    raise RenderError("空注入（heading-drift）")
+                path.write_text("\n".join(lines), encoding="utf-8")
+            elif name == "drop-lead":
+                # 删掉节末导语（模拟误删生成段）⇒ --check 须红
+                path, lineno = first_lead(root)
+                lines = read_text(path).split("\n")
+                del lines[lineno]
+                path.write_text("\n".join(lines), encoding="utf-8")
+            elif name == "region-section-mismatch":
+                # 把生成标题的节号改错（模拟整段被搬到别的节）⇒ 必须 FAIL（防止块被静默搬回错误节）
+                path, lineno = first_heading(root)
+                lines = read_text(path).split("\n")
+                orig = lines[lineno]
+                lines[lineno] = re.sub(r"^### (\d+)\.", lambda m: f"### {int(m.group(1)) + 1}.", orig)
+                if lines[lineno] == orig:
+                    raise RenderError("空注入（region-section-mismatch）")
                 path.write_text("\n".join(lines), encoding="utf-8")
             elif name == "idl-drift":
                 # 改源但不重渲染
@@ -553,11 +814,18 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Render idl/*.idl into spec/ marker blocks")
     ap.add_argument("--check", action="store_true", help="只校验，不写盘")
     ap.add_argument("--self-test", action="store_true", help="临时树内注入自检")
+    ap.add_argument("--prose-hash", action="store_true", help="打印各册剥掉生成内容后的散文哈希")
     ap.add_argument("--root", type=Path, default=REPO, help="另一棵同布局的树（默认仓库根）")
     args = ap.parse_args(argv)
 
     if args.self_test:
         return self_test()
+    if args.prose_hash:
+        try:
+            return prose_hash(args.root)
+        except RenderError as exc:
+            print(f"idl-render: FAIL — {exc}", file=sys.stderr)
+            return 1
     try:
         return run(args.root) if args.check else write(args.root)
     except RenderError as exc:

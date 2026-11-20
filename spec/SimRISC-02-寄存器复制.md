@@ -42,10 +42,14 @@ immu6为立即数，存在hd位域中，用来指定寄存器的个数，有效�
 
 > **注**：`rd2rf` 中 `rf0` 可作目的（含 `{rf0:rf0+immu6-1}`，immu6≥2 允许），写入按 SimRISC-00 写语义（只更新舍入模式与异常状态，其余位写无效）；`rf2rd` 中 `rf0` 可作源，读出完整 64 位。同组块复制 `rf2rf` 按**整 64 位逐位复制**（不做数值换算、不舍入、不置标志），源 `rf0` 读出完整 64 位，目的范围含 `rf0` ⇒ ILLI。
 
+### 1.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-02.idl` 生成，逐条如下：
+
 <!-- IDL:ra2rd_orri_ra BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`ra2rd_orri_ra`**
 ```idl
-# id: ra2rd_orri_ra
 # 目的起始 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -73,8 +77,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:rb2rb_orri_rb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rb2rb_orri_rb`**
 ```idl
-# id: rb2rb_orri_rb
 # 目的起始 rbHB = rb0 ⇒ ILLI（附录 B dst_rb0；rb0 读出为 IP、只读）
 if (rbHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -107,8 +111,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:rb2rd_orri_rb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rb2rd_orri_rb`**
 ```idl
-# id: rb2rd_orri_rb
 # 目的起始 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -136,8 +140,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:rd2ra_orri_ra BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rd2ra_orri_ra`**
 ```idl
-# id: rd2ra_orri_ra
 # 目的 raHB 无 rd0/rb0 限制：ra0（RACNT + MRPTR）作目的合法（SimRISC-02 §1；SimRISC-00 §2.4）
 
 # immu6 = 0 ⇒ ILLI（附录 B mreg_zero）
@@ -167,8 +171,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:rd2rb_orri_rb BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rd2rb_orri_rb`**
 ```idl
-# id: rd2rb_orri_rb
 # 目的起始 rbHB = rb0 ⇒ ILLI（附录 B dst_rb0）
 if (rbHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -196,8 +200,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:rd2rd_orri_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rd2rd_orri_rd`**
 ```idl
-# id: rd2rd_orri_rd
 # 目的起始 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -230,8 +234,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:rd2rf_orri_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rd2rf_orri_rf`**
 ```idl
-# id: rd2rf_orri_rf
 # 目的起始 rfHB 无 rf0 限制：rf0（FCSR）作目的合法（SimRISC-02 §1 及其注；SimRISC-00 §2.3）
 
 # immu6 = 0 ⇒ ILLI（附录 B mreg_zero）
@@ -263,8 +267,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:rf2rd_orri_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rf2rd_orri_rf`**
 ```idl
-# id: rf2rd_orri_rf
 # 目的起始 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -292,8 +296,8 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 
 <!-- IDL:rf2rf_orri_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`rf2rf_orri_rf`**
 ```idl
-# id: rf2rf_orri_rf
 # 目的范围 {rfHB:rfHB+immu6-1} 含 rf0 ⇒ ILLI（附录 B dst_rf0；SimRISC-02 §1 例外）。
 # 范围自 rfHB 升序 ⇒ 含 rf0 ⟺ rfHB = 0
 if (rfHB == 6'd0) {
@@ -347,10 +351,14 @@ cs.ne   {rdHA, rdHB}?, rdHC, rdHD
 
 > **注**：rd0 目的寄存器约定见 SimRISC-00。
 
+### 2.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-02.idl` 生成，逐条如下：
+
 <!-- IDL:cs.eq_rrrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.eq_rrrr_rd`**
 ```idl
-# id: cs.eq_rrrr_rd
 # 目的 rdHC = rd0 ⇒ ILLI（附录 B dst_rd0；rd0 只读，SimRISC-02 §2 注 → SimRISC-00 §2.1）
 if (rdHC == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -365,8 +373,8 @@ if (rd[rdHA] == rd[rdHB]) {
 
 <!-- IDL:cs.n_rrrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.n_rrrr_rd`**
 ```idl
-# id: cs.n_rrrr_rd
 # 目的 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -384,8 +392,8 @@ if (rd[rdHA][63] == 1'b1) {
 
 <!-- IDL:cs.ne_rrrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.ne_rrrr_rd`**
 ```idl
-# id: cs.ne_rrrr_rd
 # 目的 rdHC = rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHC == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -400,8 +408,8 @@ if (rd[rdHA] != rd[rdHB]) {
 
 <!-- IDL:cs.p_rrrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.p_rrrr_rd`**
 ```idl
-# id: cs.p_rrrr_rd
 # 目的 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -419,8 +427,8 @@ if (rd[rdHA][63] == 1'b0 && rd[rdHA][62:0] != 63'd0) {
 
 <!-- IDL:cs.z_rrrr_rd BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.z_rrrr_rd`**
 ```idl
-# id: cs.z_rrrr_rd
 # 目的 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
 if (rdHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -453,10 +461,14 @@ cs.p    {rdHA}?, rfHB, rfHC, rfHD
 >
 > **搬移宽度**：条件赋值是**宽度透明的寄存器搬移**——`rd` 形式与 `rf` 形式都按**整 64 位**搬移（源读 64 位、目的写 64 位），不做窄写、不保留目的高半（与 rf 组块复制 `rf2rf` 一致：整 64 位逐位复制）。
 
+### 3.1 形式化语义（IDL）
+
+本节各指令的形式化语义由 `idl/SimRISC-02.idl` 生成，逐条如下：
+
 <!-- IDL:cs.n_rrrr_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.n_rrrr_rf`**
 ```idl
-# id: cs.n_rrrr_rf
 # 目的 rfHB = rf0 ⇒ ILLI（附录 B dst_rf0；SimRISC-02 §3 注）
 if (rfHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -475,8 +487,8 @@ if (rd[rdHA][63] == 1'b1) {
 
 <!-- IDL:cs.p_rrrr_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.p_rrrr_rf`**
 ```idl
-# id: cs.p_rrrr_rf
 # 目的 rfHB = rf0 ⇒ ILLI（附录 B dst_rf0；SimRISC-02 §3 注）
 if (rfHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
@@ -495,8 +507,8 @@ if (rd[rdHA][63] == 1'b0 && rd[rdHA][62:0] != 63'd0) {
 
 <!-- IDL:cs.z_rrrr_rf BEGIN -->
 <!-- 由 idl/render.py 生成，勿手改 -->
+**`cs.z_rrrr_rf`**
 ```idl
-# id: cs.z_rrrr_rf
 # 目的 rfHB = rf0 ⇒ ILLI（附录 B dst_rf0；SimRISC-02 §3 注）
 if (rfHB == 6'd0) {
   raise(ExceptionCode::Illegal, mode(), ip());
