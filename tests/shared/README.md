@@ -8,6 +8,11 @@
 | `asm/` | `machine.inc`（`LOAD_ADDR` 宏）+ 由 `contracts/machine.yaml` + `tests/ee-<env>/runtime.yaml` 生成的 `machine-{tiny,vast}.inc` | bootrom / crt0 / arch 向量 |
 | `asm/signature.inc` | 签名流机制（`m16-testcases-002`）：`SIG_BEGIN buf,count`（预填 `0xdeadbeef`）/ `SIGUPD reg`（8 字节槽 + 前进）/ `SIG_DUMP buf,count`（`SYS_WRITE` handle 1 块写，失败回退 `SYS_WRITEC`）/ `SIG_DUMP_CHARS`（逐字节） | `tests/inst/macros/inst_test.inc`（`__REC`/收尾）；host 侧解析 `tools/testcases/lib/signature.py`（arch 探针的 word-builder 发射器也在同一个 `.py` 里，机制只此一份） |
 
+> **平台差异（`m16-testcases-002` 复核实测）**：QEMU 与 gem5 的 `SYS_WRITE` handle 1 需先
+> `SYS_OPEN(":tt")`，未打开时块写会返回「整段未写」⇒ 这两个平台的签名流实际走 `SIG_DUMP_CHARS`
+> 式的 `SYS_WRITEC` 回退（逐字节）；chipyard 预置 handle 1，块写直接生效。两条路径**字节一致**
+> （三平台 224 B 同 md5 已验）。大签名块（M17 四方差分）要留意逐字节回退的开销。
+
 > **机器几何真源已迁出本目录**（`m15-infra-001`）：几何/能力在 `contracts/machine.yaml`，
 > 执行环境在 `contracts/exec-envs.yaml`，套件开关在 `contracts/tests-matrix.yaml`，
 > 测试侧运行布局在 `tests/ee-{tiny,vast}/runtime.yaml`；读取统一走

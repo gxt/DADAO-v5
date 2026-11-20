@@ -1039,3 +1039,12 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`idl/` 的双向目录集合门控与 `__pycache__` 冲突：任何 `import idl.render`/`idl.idl_parser` 都会生成 `__pycache__` 子目录，`check-manifests-guard` 立刻判红（`m15-idl-021` 与 `m17-idl-002` 各踩一次）。处置候选：① 门控忽略 `__pycache__`（与 `.gitignore` 同口径，属白名单收窄需评审）；② Makefile 的 idl 目标统一 `PYTHONDONTWRITEBYTECODE=1`；③ 文档写明「不得 import」。建议 ②+③ 先做、① 另议。"
+- id: ISS-481
+  scope:
+  - testcases
+  - gem5
+  milestone: M17
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】签名流在 QEMU/gem5 上实际走逐字节 `SYS_WRITEC` 回退：两平台的 `SYS_WRITE` handle 1 需先 `SYS_OPEN(\":tt\")`，未打开时块写返回「整段未写」（`m16-testcases-002` 复核实测；chipyard 预置 handle 1 故块写生效）。当前字节一致、性能可接受（272 例 12 s），但 M17 四方差分若产生大签名块，逐字节路径会成为瓶颈 ⇒ 届时评估：guest 先 `SYS_OPEN(\":tt\")`、或按平台选择块写/逐字节、或压缩后单次写。"
