@@ -19,6 +19,22 @@ DADAO 特有事实（`contract-see §3/§6.5`，**不得偏离**）：
 - `TIMER` 异步入口 = `cfx_hart` supv 行（`contract-see §6.3`）；`escape` 后补投由**硬件**完成，内核不得软件代投（`§6.5`）。
 - 放行前提：`cfx_time` 需 `cg10`、`cfx_hart` 需 `cg8` 的 `hypv_cg_reg_deleg` 放开（K2 已放行）。
 
+## 盘点输入（`m14-linux-038 时间/时钟 与主流 ISA 差异盘点`，用户 2026-11-20 授权引用）
+
+`m14-linux-038` 给出 19 条差异，其中 **5 条 P0 正是本任务的范围**，按它的证据直接落：
+
+1. **`clocksource` 未注册**：`cfx_time` 可读却无 `struct clocksource`（对照 `drivers/clocksource/timer-riscv.c:95`/`:177`）⇒ `timekeeper` 只剩 `jiffies` 后备源（`kernel/time/jiffies.c:32`，rating 1、10 ms）；
+2. **`clockevent` 未注册**：无 `struct clock_event_device`、无 `clockevents_config_and_register`（`arch/dadao/include/asm/time.h:67` 注释明写 "deliberately absent"）；
+3. **tick 记账只有 `jiffies_64 += 1` + `sched_tick()`**（`kernel/time.c:238`/`:259`）：墙钟不推进（`update_wall_time()` 全树只在 tick 框架内调用）、定时器轮不跑、用户/系统时间不记账；
+4. **tick 唯一启动点是探针**（`k4_switch_selftest.c:955`）⇒ 生产路径无 tick；
+5. **`GENERIC_SCHED_CLOCK` 未选**（`m14-linux-044` 已补 select 并注册 `sched_clock`；本任务确认它与 `cfx_time` 同源即可）。
+
+**P1 两条与本任务相关**：`sched_clock` 缺（jiffies 弱默认 10 ms）、`HIGH_RES_TIMERS` 未开。
+
+**不作为本任务范围**（038 判 P2 或需另立）：`__delay` 循环计数与 `lpj_fine` 维度错配、jiffies 无锁、tick 状态全局非 per-CPU（SMP 潜伏）、无 vDSO、broadcast 等。
+
+**跨任务约束（`m14-linux-044` 实测推翻）**：`CONFIG_GENERIC_IRQ_ENTRY` **不是** `in_hardirq()` 的开关（`irq_enter_rcu()` 在 `kernel/softirq.c:662` 无条件定义），别把「tick 不跑」归因到那个 select。
+
 ## 目标
 
 1. **`clocksource`（cfx_time）**：`dadao_clocksource` 注册（`read` = `cfx_time_value`、`freq` = 现场读 `cg10 rc0`、`rating` 自定但须说明理由）；`sched_clock` 走 `cfx_time`；`timekeeping` 由 clocksource 驱动。
