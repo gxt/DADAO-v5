@@ -1066,3 +1066,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】证据脚本「固定基线」写法的三个共性坑（`m15-spec-008` 两轮复核实测）：① 基线取「分支分叉点」时，若 `master` 不可见（新 clone 只有 `origin/master`），脚本会静默回退 `HEAD~1` ⇒ 改动面断言假红、正文比对退化为恒真；② `git diff --name-only` 输出依赖 `core.quotepath=false`，新 clone 未配则非 ASCII 路径被 C 转义 ⇒ 改动面假红；③ 任务书里的「当前即 HEAD~1」这类描述会随追加提交过时。处置建议：证据脚本统一 `_git() { git -c core.quotepath=false ...; }`；分叉点解析失败时 `origin/master` 兜底，仍失败则**报错退出**而不是回退 `HEAD~1`；基线写成变量并在输出首行打印。"
+- id: ISS-484
+  scope:
+  - spec
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】契约索引/引用两处陈旧（`m15-spec-009` 复核查出）：① `contract-see.md:5` 引 `spec/SimRISC-11-其它.md`（0.5.4）——该**文件名只存在于 ≤0.5.4**，0.5.6 起改名 `SimRISC-11-核芯功能扩展指令.md` ⇒ 只改版本号会变成「死路径配活版本」，须连文件名口径一起裁（且旧名在多处 ADR/归档属历史层）；② `contracts/README.md` fp 行写「60 条」而 `contract-fp.md` 正文为 65 条。处置：随下一次契约维护一并修，不改历史层。"
