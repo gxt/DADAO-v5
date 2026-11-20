@@ -19,6 +19,17 @@ DADAO 特有事实（**不得偏离**）：
 - ELF `LOAD` 段按页对齐（`ELF_EXEC_PAGESIZE = PAGE_SIZE` 已在 `asm/elf.h`，K0 即有）；`AT_PHDR`/`AT_ENTRY` 等 auxv 条目随之。
 - `brk`/`mmap`/`munmap`/`mprotect` 是用户堆/映射的 syscall 面；`mmap` 走 asm-generic 的 byte-offset 形式（`016` 的 `syscalls.c` 已 shift，`mmap2` 无 legacy 分裂）。
 
+## `ARCH_FORCE_MAX_ORDER` = 13（用户 2026-11-20 裁定，并入本任务）
+
+**理由（用户原话）**：「改成 13，这样最大可分配的页恰好是一个超页，512 MiB」——`2^13 × 64 KiB = 512 MiB`，与超页（`SPF=0xFF`）**同尺寸**，buddy 的最大阶与超页对齐。
+
+- 现状：我们取 **10**（`2^10 × 64 KiB = 64 MiB`），arm64 取 **13**（`036` 盘点发现）；
+- 要做：把 `ARCH_FORCE_MAX_ORDER` 改 **13**，并核连带影响：
+  1. **Tiny（8 MiB SRAM）**：buddy 会按 `MAX_ORDER` 初始化 14 个阶，实际最大块受 zone 大小限制 ⇒ **必须实测不回归**（K0–K4 全绿）；
+  2. `pageblock_order`/compaction/CMA 的连带（`pageblock_order = min(MAX_ORDER-1, …)`）；
+  3. `min_order`/`free_area_init` 的内存开销（14 个 list head，可忽略但要给数）；
+- 验收：Tiny/Vast 都不回归；`/proc/buddyinfo` 显示最大阶 **13**；**Vast 上 512 MiB 超页粒度分配成功**（给实测）；`check-config-pins` 不因新增符号而红。
+
 ## 目标
 
 1. **`AT_PAGESZ = 65536`**：auxv 的 `AT_PAGESZ` 条目 = `PAGE_SIZE`（现场派生，不写死 65536）；`AT_MINSIGSTKSZ` 等页相关条目同步核对。

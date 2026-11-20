@@ -24,12 +24,17 @@ DADAO 特有事实（沿 K0–K3 门控口径，**不得偏离**）：
 2. **检查组（现场派生，不写死项数；打印 PASS/FAIL 计数）**
    - **S 用户态闭环**（023）：`init` 跑起来 → `write`/`exit` 往返、errno 形态（`rd8` 负值 `[-4095,-1]`）、TLS `rb3` 保持、帧字段 `excp_cause_id==1<<0`/`immu18` 推导。
    - **C clone/线程**（024）：`CLONE_VM` 共享 mm/asid、`CLONE_SETTLS` 子 rbtp、子 `rd8=0`+父返 tid、`CLONE_THREAD` tgid。
-   - **F futex/原子**（025）：`FUTEX_WAIT` 原子、`WAKE` 不丢唤醒、用户 `lr/sc` 不跨 syscall。
+   - **F futex/原子**（025）：`FUTEX_WAIT` 原子、`WAKE` 不丢唤醒、用户 `lr/sc` 不跨 syscall；**shared futex 在匿名页上可用**（`035` 修好的 rmap 成果，即 N27 的关闭判据——`K5 futex shared: wake=0 wait=-11 mapping` 带 `PAGE_MAPPING_ANON`）。
    - **T 时钟**（026）：`clocksource` 单调、`clockevent` next-event、tick 驱动、稳定性判据。
-   - **G 信号**（027）：`SIGSEGV` 投递（非 `DADAO_PF_FATAL`）、`rt_sigreturn` 4 组往返、`exit`、`setrlimit` 继承。
+   - **G 信号**（027 + 046）：`SIGSEGV` 投递（非 `DADAO_PF_FATAL`）、`exit`、`setrlimit` 继承（027）；**信号帧往返**（`rt_sigreturn` 恢复 4 组寄存器、`ra` 栈逐位、`rf0` 架构值）与「无 handler ⇒ 默认动作终止」（046）。**用户 2026-11-20 裁定范围 B**：K5 收口**必须含 shared futex 与基本信号投递**，不含 pthread create/join（那是 K6）。
    - **P 64 KiB ABI**（028）：`AT_PAGESZ==65536`、`mmap` 对齐、ELF 段对齐、`brk`。
    - **R 反向断言**：用户态各面「不多不少」（无 monitor 段具名终止痕迹、无 `unknown cause`、无 `-d` 逐指令日志）。
 3. **§4a 退役**：审计 K4 门控/探针里「用户态尚未闭环」时的过时断言（如 `016` 的「不跑用户 init」、`017` 的「内核侧双任务交替」等），逐条三态处置（保留/改限定语/删除）+ 替代判据来源，机械断言「新文案在 / 旧文案不在」。
+4. **K3 整体退役（用户 2026-11-20 裁定：「内核开发不像其它模块，每进展一个阶段，原有阶段的测试可能无法再保留，随时都可以把已过时的测试退役」）**：
+   - 删除 `make check-linux-k3` 目标与 `check_k3.py`、`k3_page_probe.py`、`k3_pf_selftest.c`、`k3_pt_selftest.c` 及其补丁条目（`series` 相应减少）；
+   - **连带删除 `035` 为 K3 保留的 `current->mm == NULL` PA 直通窗口臂**（`arch/dadao/mm/fault.c` 的 window/frag/superpage 分支）——K3 已无判据依赖它；
+   - 在 `Process-07 §4a` 记录退役（判据 → 替代 = K5 收口判据）；
+   - 机械断言：退役的符号/目标在树中 0 命中；`check-patch-tree` linux 段 0 问题；K0/K1/K2/K4/K5 全绿。
 4. **一键证据脚本**：一条命令跑「构建 → 门控 → selfcheck → 注入 → K0–K3 回归」，退出码如实传播。
 
 ## 验收（逐条贴真实 rc，每条须能 FAIL）
