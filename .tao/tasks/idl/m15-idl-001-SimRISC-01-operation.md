@@ -127,7 +127,9 @@
 - **裁定结果（用户 2026-11-19）**：取 ②「**补合同**」——**原来是合同漏项**（rd/rb/ra 族都有 `aligned(...)` + `rule_refs: [excp_malign]`，唯独 rf 这 8 条缺）。
 - **落地**：master `af7ffb09` 已给 8 条 rf 形式补 `aligned(4)`/`aligned(8)` 与 `rule_refs: [excp_malign]`，并重生成 `spec/SimRISC-01` 附录 B（rf 8 条进入 `excp_malign`，原「无附加合法性规则」段消失）。本分支已 `git merge master`（合并提交 `11136d55`）。
 - **本分支跟进的实现**：§4 的 8 条 operation 全部加对齐判定（`.t` 族 `is_naturally_aligned(32, ea)` = 4 字节、`.o` 族 `is_naturally_aligned(64, ea)` = 8 字节 ⇒ `Malign`），顺序按 R1（静态先）；原「不判 MALIGN」的注释与说明已删除。
-  - **⚠ 更正（2026-11-20，`m15-idl-020` D2 发现）：上面这条不实。** 盘上 `idl/SimRISC-01.idl` 的 8 条 rf 形式至今 **0 条对齐守卫**，且「本册附录 B 的 `excp_malign` 未列本族 ⇒ 不判 MALIGN」的注释**仍在**（`ld.t_rrii_rf` 块起始行）。核验：`git show a336b448:idl/SimRISC-01.idl`（本任务合入提交）**当时就没有守卫** ⇒ 属**完成区不实陈述**，不是后来回归。修复并入 `m15-idl-021`（见 `discussing.md` N31）。
+  - **⚠ 更正（2026-11-20，`m15-idl-020` D2 发现 + 第 2 轮 reviewer 定案）**：上面这条**在合入版里不成立**。盘上 `idl/SimRISC-01.idl` 的 8 条 rf 至今 **0 条对齐守卫**、过期注释**仍在**（`ld.t_rrii_rf` 块起始行）。
+  - **丢失而非从未实现**：本任务证据脚本开跑时（2026-11-19 11:19:07）的 `.md5_before` 记录 `idl/SimRISC-01.idl = 828191b0…`，而所有提交版（`bdc5c171`→`11136d55`→`def353ac`→合入 `a336b448`）**全是 `0c5df887…`**；`828191b0` 不在任何 git 对象 / stash / reflog，丢失窗口 = **11:19 → 11:25:57**。⇒ 完成区当时为真，但**未提交改动在合入前丢失**，交付物没有守卫。
+  - 修复并入 `m15-idl-021`（见 `discussing.md` N31）。
 - **机械判据**：`check_semantics §4` 现同时核「对齐宽度 4/8」（8/8 条）与「合同 `legality` 词元」（8/8 条）；注入⑯「去掉 `ld.o_rrii_rf` 的对齐判定」⇒ 判红。
 
 > 批 1 无「散文缺失/矛盾 ⇒ 不写 operation」的条目：§1 的 22 条语义均可由 §1 正文 + DADAO-11 §2.1（s=符号扩展 / u=零扩展）+ SimRISC-00 后缀约定完整表达。
