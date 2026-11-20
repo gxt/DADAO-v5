@@ -1457,9 +1457,12 @@ MILESTONES_M14 := .tao/knowledge/milestones-m14.md
 MILESTONES_M15 := .tao/knowledge/milestones-m15.md
 MILESTONES_M16 := .tao/knowledge/milestones-m16.md
 MILESTONES_M18 := .tao/knowledge/milestones-m18.md
+MILESTONES_M17 := .tao/knowledge/milestones-m17.md
+MILESTONES_M19 := .tao/knowledge/milestones-m19.md
+MILESTONES_M20 := .tao/knowledge/milestones-m20.md
 
 check-milestones-fresh:
-	@for f in "$(MILESTONES_M14)" "$(MILESTONES_M15)" "$(MILESTONES_M16)" "$(MILESTONES_M18)"; do \
+	@for f in "$(MILESTONES_M14)" "$(MILESTONES_M15)" "$(MILESTONES_M16)" "$(MILESTONES_M17)" "$(MILESTONES_M18)" "$(MILESTONES_M19)" "$(MILESTONES_M20)"; do \
 	  if [ -f "$$f" ]; then \
 	    $(PYTHON) tools/infra/check_milestones_fresh.py --file "$$f"; rc=$$?; \
 	    [ $$rc -eq 0 ] || exit $$rc; \

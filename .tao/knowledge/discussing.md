@@ -273,8 +273,11 @@
 
 把 M15 的 `.idl` 跑起来，作**第四方差分参照**（不追求全量第四实现）。
 
-- **候选任务**：`m17-idl-001` lexer/parser/AST/类型检查（12–16 天）；`m17-idl-002` 解释器：加载 ELF、四 bank 状态、48 位地址/大端、异常与 monitor、trace（10–14 天）；`m17-idl-003` 差分接入：273（整数）+ 167（访存）+ 67（控制流）逐例与 QEMU 一致、纳入 L2（8–10 天）；`m17-idl-004` 向量「算期望」派生（输入仍人挑，期望由 IDL 算，**不做输入自动生成**，8–10 天）；`m17-idl-005` FP 特殊值语义（NaN/Inf/次正规/五类标志，15–20 天）。
-- **出口**：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个向量走到；`make check-idl` 进 L2；分歧归因落 spec 裁定（**不是「IDL 一定对」**）。
+- **已定（用户 2026-11-20）**：册已建（`milestones-m17.md`），**执行器用 Python**，**不依赖 Ruby/`idlc`**（`idlc` 前端 ≈2.6 万行 Ruby、本机 gem 环境不可用）；**golden = IDL**（QEMU/gem5/RTL 均为被测方）。
+- **首三件（已立任务书）**：`m17-idl-001` 语法子集盘点 + 宽度规则表（2–3 天）；`002` Python 解析器（3–5 天，13 个 `.idl` 全量 + `check-idl-parse`）；`003` 执行器（5–7 天：四寄存器组/ELF/trace/最小 trap，与 QEMU 比 ≥20 例）。
+- **后续（未立）**：QEMU 差分接入 + `make check-idl` 进 L2；四方差分接入（gem5/RTL 抽样 + `expected-divergences`，由 `components/*-diff-*` 与 `idl/diff-vs-udb.md` 派生）；FP 语义批（`ISS-397/399/403/409/420/476`）。
+- **Rust 的触发条件**：若随机指令流差分规模上到 >10⁷ 步/例或需并行 fuzz，再把**执行核**换 Rust（边界用 JSON/子进程隔离，前端不动）；否则不引入 Rust 工具链。
+- **待定**：IDL 未覆盖的 trap/cfx/monitor 语义由 golden 模型额外实现（不在 M15 的 263 条内），范围在 `003` 里按「最小可跑 `tests/inst` 同步异常例」收。
 - **与 M15 的边界**：M15 只结构化、不执行；可执行在此。
 
 ## Linux 测试集（选择与修复）
@@ -289,8 +292,10 @@
 
 ## 流水线处理器核（gem5-minor / chipyard-wuqing）
 
-- **当前状态**：gem5 侧只用 `TimingSimpleCPU`（加每指令延迟的钩子），Minor 尚未接入；chipyard 侧**只有 `WumingTinyConfig`**（SRAM + cfx 测试机、无 MMU/TLB），`wuqing` 的 RTL 尚未出现。
-- **开启条件**：`wuqing` RTL 可用（用户 2026-11-13：等其 RTL 出现后再开）。
+- **已定（用户 2026-11-20）**：册已建（`milestones-m20.md`），Minor 与 wuqing **一起开发、对比验证**；**golden = wuming RTL**（两边各自先对齐 wuming，都稳了再做直接对比）。首两件：`m20-gem5-001` Minor 接入、`m20-chipyard-001` wuqing 规格 + 骨架（规格先行）。
+- **前置**：`m17-idl-003` 的逐指令 trace 格式；`m16-chipyard-010`；`m19-chipyard-001` 的资源实测（反推 wuqing 参数）。
+- **当前状态**：gem5 侧只用 `TimingSimpleCPU`（加每指令延迟的钩子），Minor 尚未接入；chipyard 侧**只有 `WumingTinyConfig`**（SRAM + cfx 测试机、无 MMU/TLB），**`wuqing` 的 RTL 为零**。
+- **周期**：Minor 与 wuqing 的周期表**必须重标**——现有 264 行是按 `TimingSimpleCPU` + Wuming SRAM 实测标定的，不能搬。
 - **前置条件（用户 2026-11-19 追加）：随机指令流差分测试**，参考 RISC-V 的 `riscv-dv` 思路——在接入 Minor / `wuqing` **之前**先具备「随机生成合法指令流 + 多模型逐指令比对」的能力，否则流水线核的时序/功能差异会被定向向量掩盖（定向用例只覆盖已知路径）。
   - **TestRIG**（**RISC-V International 官方项目**，比 `riscv-dv` 更接近我们要的形态）：用 **QuickCheck**（Haskell 属性测试）**生成随机指令流**，经 **DII 接口**（Design-Under-Test Interface）喂给**两个实现**，比对两侧 **RVFI trace**（RISC-V Formal Interface：逐指令的寄存器/内存读写与提交记录），不一致时**自动收缩（shrink）出最小反例**。两条可借的东西：① **RVFI 式逐指令 trace** 作为比对载体（比「比对最终内存」强得多，能定位到哪一条指令、哪个字段）；② **属性测试 + 自动收缩**（反例从几千条缩到十几条，才可能人工归因）。
   - 待定：生成器的合法性约束来源（`contracts/opcodes.yaml` + `legality_rules.yaml` 派生，**不照抄 riscv-dv / TestRIG 的 RISC-V 约束**）；比对模型组合（QEMU / gem5 / RTL / IDL 参考模型取哪几方）；失败归因判据（谁是 golden）；**DADAO 侧要不要先定义「DII 等价接口 + 逐指令 trace 格式」**（没有它，RVFI 这套方法论落不了地——可能要先为此立一个 infra 任务）。
@@ -304,6 +309,8 @@
 
 ## Vivado
 
+- **已定（用户 2026-11-20）**：**FPGA-Tiny 提前到 Minor+wuqing 之前**，独自成册 **M19**（`milestones-m19.md`）；**M21（FPGA-Vast）暂缓**。Vivado 装**部分节点**，装完更新 `nodes.md`，派单按 `remote.py status` 选机；版本须锁进 `manifests/`。
+- **漏项（已核）**：chipyard 的 `fpga/fpga-shells/xilinx/` **没有 Genesys2**（只有 vc707/arty/arty_a7_100/nexys_video/vcu118/zcu102/alinx_axku040）⇒ M19 要新写 shell。
 - **当前状态**：尚无内容（**尚无一次综合实测**）；以下是用户 2026-11-19 的初步方向与手头数据。
 - **目标板卡 / 器件**：**Genesys2**（Digilent），`XC7K325T-2FFG900C`（Kintex-7，-2 速度等级）（厂商参考手册，运行期下载、未入库）。
 - **器件资源（手册原文）**：**50,950 logic slices**（≈203,800 LUT6 / 407,600 FF）、**块 RAM「close to 16 Mbits」= 16,020 Kb = 445 × RAMB36 ≈ 1.91 MiB**、840 DSP、板载 **1 GiB DDR3**（32-bit/1800 Mbps）、32 MiB 配置 Flash。
@@ -341,3 +348,10 @@
 - **候选用途（主会话整理 2026-11-19，未裁定）**：① 密码/PQC（已定主目标；PQC 的 NTT 蝶形要 32/64 位模乘模加）；② 内存搬移（`memcpy`/`memset`/页清零/`uaccess`，内核与 libc 立刻收益，且能顺带验证向量状态保存）；③ 窄整数点积（覆盖量化推理、DSP、媒体 SAD/DCT）；④ 字符串与位操作（`shuffle`/`permute`/位扫描/压缩解包）；⑤ 端序转换（本核**大端**，与网络序/小端数据交换频繁，向量化 byte 置换收益明显）；⑥ 数据库类过滤与 compress；⑦ 浮点向量（收益大但代价大：精度口径/时序/上下文，建议二期）。
 - **立项时必须同时定的三件（主会话整理，未裁定）**：① **状态保存**——向量寄存器组进入 `switch_to` 与信号帧，是否惰性保存要早定（`m14-linux-017` 刚打通内核帧往返，再叠加会显著抬高切换成本）；② **ABI**——caller/callee-saved 划分直接影响所有库的调用约定（需立 ADR）；③ **异常语义**——部分生效、越界 lane、非对齐访问的 fault 口径必须逐条进 spec，否则三方模拟器必然分叉。
 - **评价要点（待定）**：两类来源都只覆盖**算法结果**，不覆盖**向量 ISA 自身**（编码/掩码/越界/原子性）——编码层与执行层向量仍需自建（`docs/Process-05` 一能力一向量），两来源只作算法正确性的 oracle；另需明确「跨实现差分」在国密算法上的口径统一（填充、端序、参数缺省）。**Wycheproof 的向量多落在「算法 API 的输入校验语义」层**（如 AEAD 标签校验、签名编码合法性），不是向量指令本身能直接吃的东西 ⇒ 它的用处是：等密码库在 DADAO 上跑起来后验证「拒绝路径」是否与规范一致，以及为向量指令的**边界/非法输入分支**提供用例素材。
+
+## issues 分诊与 `milestone:` 字段（2026-11-20）
+
+- **口径**：`issues.yaml` 的每条 `open` issue 增加 `milestone:` 字段——`M16`/`M17`/`M18`/`M19`/`M20`，或 `null` = backlog。字段只是分诊结论，不改变 `status`；`check_issues.py` 目前只校验 `status`/`resolved_by`/`closed_in`，暂不校验该字段（后续可加「open ⇒ `milestone` 必填」）。
+- **分布（72 条 open）**：M16 13 / M17 11 / M18 4 / M19 4 / M20 5 / backlog 35。
+- **backlog 判据**（三类，逐条见 `issues.yaml`）：① 已被现行规则覆盖（并发/对账/证据基线类，规则在 `AGENTS.md` 与 `Process-07 §5b`）；② 无当前消费者（LLVM 工具链、部分 testcases 工具）；③ 需用户裁定后再动（如 `ISS-384` 的 ADR 活正文）。**backlog 不是「不修」**：进入对应里程碑或再次被触发时重新分诊。
+- **文档级 P3**：随下一次触碰该文件的收口一并修（写明 `resolved_by`），不单独立项。
