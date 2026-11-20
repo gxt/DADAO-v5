@@ -1,4 +1,4 @@
-# m15-spec-006: IDL 语言规范与语义库迁入 `spec/`（新册 `IDL-01-DADAO-ISA语义描述语言与语义库`）
+# m15-spec-006: IDL 语言规范与语义库迁入 `spec/`（新册 `IDL-01-SimRISC-ISA语义描述语言与语义库`）
 
 **模块**：spec
 **项目里程碑**：M15
@@ -18,11 +18,11 @@
 
 **用户裁定**：
 1. **就一册**（语言 + 语义库同册）；
-2. 文件名**要写清是什么语言**——即 **DADAO ISA 语义描述语言**（`IDL-01-DADAO-ISA语义描述语言与语义库.md`）。
+2. 文件名**要写清是什么语言**——即 **SimRISC ISA 语义描述语言**（`IDL-01-SimRISC-ISA语义描述语言与语义库.md`）。
 
 ## 要做
 
-1. **新建** `spec/IDL-01-DADAO-ISA语义描述语言与语义库.md`：
+1. **新建** `spec/IDL-01-SimRISC-ISA语义描述语言与语义库.md`：
    - 正文 = 现 `idl/README.md` 的 §1–§6（保持内容，可重排编号适配 spec 体例）；
    - §7 变更记录迁入本册的**变更记录附录**（`check-spec-numbering` 对非 `SimRISC-` 册要求「变更记录附录为最后一个 `##`」）；
    - 册内 `## N.` 编号连续、不跳级（`check-spec-numbering`）。
