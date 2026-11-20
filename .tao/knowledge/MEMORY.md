@@ -75,7 +75,7 @@
 | chipyard RTL | `WumingTinyConfig` | `WumingVastConfig`（`m16-chipyard-006`） | —（RTL 不跑 SE） |
 
 - **QEMU**：**编译期注册 QOM 机器类型**，每个类型固定一份 `DadaoMachineDesc`（走 `class_data`）。`kaiwu-tiny`/`kaiwu-vast` 不接受运行期 `profile=`；`-M dadao-m1` 报 machine not found（别名 M12 后已删，`-M help` 只有两台）。
-- **gem5**：`PROFILES` 字典给地址与容量，两个分支给内存对象与 **MMU/TLB 类**（tiny → `DadaoFsMMU`/`DadaoFs*CPU`，vast → `DadaoNodeMMU`/`DadaoNode*CPU`）；CPU 类型由 `--cpu-type {atomic,timing,minor,o3}` 正交选择（`se_timing.py` 正在并入 `--cpu-type`，`m16-gem5-015/017`）。
+- **gem5**：`PROFILES` 字典给地址与容量，两个分支给内存对象与 **MMU/TLB 类**（tiny → `DadaoFsMMU`/`DadaoFs*CPU`，vast → `DadaoNodeMMU`/`DadaoNode*CPU`）；CPU 类型由 `--cpu-type {atomic,timing}` 正交选择（`se.py`/`fs.py` 的 `choices` 实为这两个；`minor`/`o3` 待 wuqing/wuxing RTL 到位后再扩，2026-11-20 按 `m16-gem5-019` 盘点订正）。
 - **chipyard**：Scala config 类（`DadaoConfigs.scala`），**编译期**生成 RTL；`user` 机型无 RTL 形态。
 
 
