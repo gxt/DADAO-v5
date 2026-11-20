@@ -1,13 +1,13 @@
 # 项目里程碑
 
-> **项目里程碑 = M20**（M20 台账的唯一断言；`check-milestones-fresh` 按本断言把任务号路由到本页；M12–M19 各另有分册；M21 暂缓）
+> **项目里程碑 = M20**（M20 台账的唯一断言；`check-milestones-fresh` 按本断言把任务号路由到本页；M12–M19 各另有分册）
 
 > **本页只维护 M20 任务台账**：历史任务见 `.tao/archive/`；当前讨论/规划见 `.tao/knowledge/discussing.md`。
 
 > **M20 定位（用户 2026-11-20）**：**gem5 Minor 与 chipyard wuqing 一起开发、对比验证**。**golden = wuming RTL**——Minor 与 wuqing 各自先对齐 wuming，两边都稳了再做直接对比（否则谁都不成熟时无法归因）。
 > **前置**：`m17-idl-003` 的逐指令 trace 格式可用；`m16-chipyard-010`（I-Cache）完成；`m19-chipyard-001` 的资源实测反推 wuqing 参数。
 > **收口判据（草案）**：Minor 与 wuqing 各 ≥20 例与 wuming trace 逐指令一致；wuqing 规格与资源预算对账；Minor 周期重标后 `check-wuming-cycles` 仍绿。
-> **后续（未拆，见 `discussing.md`）**：Minor 周期表重标（不搬 Timing 的 264 行）；wuqing 上板（M20 尾段或 M21）；随机指令流生成器（TestRIG 式，属 M17 侧产物）。
+> **后续（未拆，见 `discussing.md`）**：Minor 周期表重标（不搬 Timing 的 264 行）；wuqing 上板（未立册方向）；随机指令流生成器（TestRIG 式，属 M17 侧产物）。
 
 本页分三张**任务表**，**表位置 = 任务状态**（不另设状态列）：
 

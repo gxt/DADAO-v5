@@ -4,10 +4,10 @@
 
 > **本页只维护 M19 任务台账**：历史任务见 `.tao/archive/`；当前讨论/规划见 `.tao/knowledge/discussing.md`。
 
-> **M19 定位（用户 2026-11-20）**：**FPGA-Tiny**（Genesys2 `XC7K325T`，无 DDR、裸机）——先把 **Vivado 流程 + 板上签名流回传 + 真实周期/资源实测** 打通；**第一次只上 wuming**（wuqing 归 M20 之后的机型）。**M21（FPGA-Vast）暂缓**。
+> **M19 定位（用户 2026-11-20）**：**FPGA-Tiny**（Genesys2 `XC7K325T`，无 DDR、裸机）——先把 **Vivado 流程 + 板上签名流回传 + 真实周期/资源实测** 打通；**第一次只上 wuming**（wuqing 归 M20 之后的机型）。**FPGA-Vast 归「未立册方向」，不预留里程碑号**。
 > **前置**：`m16-chipyard-010`（I-Cache）完成；Vivado 装在部分节点（用户 2026-11-20，`nodes.md` 更新后按 `remote.py status` 选机；版本须锁进 `manifests/`）。
 > **收口判据（草案）**：板上跑通 `tests/inst` 代表例 ≥10 且签名流与 QEMU 逐字节相等；资源（LUT/FF/BRAM/DSP）与周期实测报告落盘并回喂 gem5 周期表。
-> **后续（未拆，见 `discussing.md`）**：板上周期/资源实测与 gem5 对照；wuqing 上 Tiny 的排期；FPGA-Vast（M21）的前置清单。
+> **后续（未拆，见 `discussing.md`）**：板上周期/资源实测与 gem5 对照；wuqing 上 Tiny 的排期；FPGA-Vast 的前置清单（未立册方向）。
 
 本页分三张**任务表**，**表位置 = 任务状态**（不另设状态列）：
 
