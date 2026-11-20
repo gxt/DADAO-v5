@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
 new file mode 100644
-index 000000000..9639828ca
+index 000000000..1d1b287c4
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/MCTargetDesc/DADAOAsmBackend.cpp
-@@ -0,0 +1,495 @@
+@@ -0,0 +1,517 @@
 +//===-- DADAOAsmBackend.cpp - DADAO Assembler Backend ----------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -17,11 +17,15 @@ index 000000000..9639828ca
 +// No +4 pipeline offset (contract-isa.md §8.2–§8.4); rb0 reads the PC of the
 +// current instruction, so the displacement is measured from the instruction
 +// itself (contract-isa.md §1.3.2).
-+// Section-local labels are still resolved in place, including STB_GLOBAL
-+// functions (M1 self-contained TU, contract-elf.md §6).  References to another
-+// section or to undefined symbols are left unresolved and recorded as
-+// relocations (M4, contract-elf.md §2–§3): the correct criterion is whether the
-+// target symbol lives in the same section as the fixup, not isUndefined().
++// Section-local *local* labels are resolved in place: they cannot be
++// interposed, so folding their displacement is exact and produces no
++// relocation.  A same-section symbol that is still linker-visible (STB_GLOBAL
++// / STB_WEAK / ...) is a different case -- it is interposable at link time (a
++// strong definition in another object overrides a weak one), so its PC-relative
++// displacement must be recorded as a relocation and left to the linker
++// (contract-elf.md §2–§3, §3.3; ISS-482).  References to another section or to
++// undefined symbols are likewise left unresolved and recorded as relocations:
++// the criterion is the symbol's link-time visibility, not isUndefined().
 +//
 +//===----------------------------------------------------------------------===//
 +
@@ -148,20 +152,30 @@ index 000000000..9639828ca
 +                            .str());
 +  }
 +
-+  // M1 self-contained TU: section-local labels are resolved in place.
++  // Section-local labels are resolved in place; linker-visible ones are not.
 +  //
-+  // The shared ELF writer (ELFObjectWriter::isSymbolRefDifferenceFullyResolved-
-+  // Impl) conservatively refuses to fold a PC-relative reference to an
-+  // STB_GLOBAL symbol, because such a symbol is interposable at link time in
-+  // general. M1 has no linker and requires the single translation unit to be
-+  // self-contained (contract-elf.md §6), so any symbol *defined in the same
-+  // section* — including globally-visible functions such as `callee` — must be
-+  // folded here. Otherwise the immediate stays 0 and `call`/`br` targets
-+  // address 0.
++  // The default handling in MCAssembler::evaluateFixup asks the object writer
++  // (ELFObjectWriter::isSymbolRefDifferenceFullyResolvedImpl) whether a
++  // PC-relative reference can be folded: "same section AND STB_LOCAL AND not
++  // STT_GNU_IFUNC".  That conservative answer is the right one here too -- a
++  // globally/weakly defined symbol in the same section is still interposable
++  // at link time, exactly as on any other ELF target (X86 keeps a same-section
++  // `call foo` as an R_X86_64_PLT32 relocation rather than an immediate).
++  //
++  // A previous version of this hook bypassed that predicate and folded *every*
++  // same-section symbol, including STB_GLOBAL/STB_WEAK functions, to keep the
++  // M1 single-TU/raw-bin pipeline link-free.  That made an external strong
++  // definition unable to override a same-section weak one (ISS-482: the kernel
++  // generic stub kept the call site, so arch_do_signal_or_restart was never
++  // reached).  Local labels and temporary symbols keep the in-place fast path,
++  // so ordinary loops/branches are unchanged and gain no relocation.
 +  //
 +  // Returning a value from this hook tells MCAssembler::evaluateFixup to treat
-+  // the fixup as resolved and to skip the writer's conservatism; the hook must
++  // the fixup as resolved and to skip the writer's answer; the hook must then
 +  // compute Value itself, mirroring the default (target - PC) computation.
++  // For linker-visible symbols it returns std::nullopt instead, i.e. "use the
++  // default handling": the writer's predicate then reports the reference as
++  // unresolved and applyFixup() records the relocation.
 +  std::optional<bool> evaluateFixup(const MCFragment &F, MCFixup &Fixup,
 +                                    MCValue &Target,
 +                                    uint64_t &Value) override {
@@ -238,6 +252,14 @@ index 000000000..9639828ca
 +    // Resolve only same-section labels; a reference to another section (or an
 +    // undefined symbol) is the M4 cross-symbol case and is left unresolved.
 +    if (&Add->getSection() != F.getParent())
++      return std::nullopt;
++
++    // A linker-visible definition in the same section is still interposable
++    // (STB_WEAK/STB_GLOBAL/STT_GNU_IFUNC): record a relocation, never fold
++    // (ISS-482).  Ask the object writer -- the same predicate the default
++    // MCAssembler path uses -- instead of inventing a binding test here.
++    if (!Asm->getWriter().isSymbolRefDifferenceFullyResolvedImpl(
++            *Add, F, /*InSet=*/false, /*IsPCRel=*/true))
 +      return std::nullopt;
 +
 +    // (target - PC): the symbol's section offset minus the fixup's own address.

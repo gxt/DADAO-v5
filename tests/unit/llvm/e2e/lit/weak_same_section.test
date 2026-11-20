@@ -1,0 +1,23 @@
+# weak_same_section (ISS-482): clang-level reproduction of the same-section
+# weak call.  Without -ffunction-sections the weak definition and its caller
+# share `.text`; the call must still be a relocation, otherwise a strong
+# definition in another object can never take over.
+#
+# RUN: %clang -target dadao-unknown-elf -O2 -c %e2e_dir/weak_same_section_a.c -o %t.a.o
+# RUN: %llvm_objdump -r %t.a.o | %FileCheck %s --check-prefix=RELOC
+# RUN: %clang -target dadao-unknown-elf -O2 -c %e2e_dir/weak_same_section_b.c -o %t.b.o
+# RUN: %ld -r %t.a.o %t.b.o -o %t.r.o
+# RUN: %llvm_objdump -t %t.r.o | %FileCheck %s --check-prefix=SYM
+# RUN: %llvm_objdump -r %t.r.o | %FileCheck %s --check-prefix=LINKED
+
+# The weak call is a link-time value: one REL26 against `hook`.
+# RELOC: RELOCATION RECORDS FOR [.text]
+# RELOC: R_DADAO_REL26 hook
+# RELOC-NOT: R_DADAO_REL26 local_helper
+
+# After `ld.lld -r` the relocation is still owed (a relocatable link does not
+# fix the layout), and the only `hook` left in the symbol table is the *strong*
+# definition from the second object -- the weak one did not win the merge.
+# SYM-NOT: w {{.*}} hook
+# SYM: g {{.*}} hook
+# LINKED: R_DADAO_REL26 hook
