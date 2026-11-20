@@ -202,9 +202,6 @@
   - 摘要：**`scmp` 无序结果改 canonical quiet NaN（`SimRISC-07 §4` 改口径的 gem5 侧）**。`exec/b7.cc` 的 `runCompare()` 无序分支不再返回 sNaN 位型：四种比较一律 `fp::qnanBits(fmt)`（ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`），操作数的 payload/符号不再传播；`NV` 规则不变（signaling 无序即置，quiet 仅含 sNaN 操作数时置）。`exec/b7_test.cc` 的 `checkCompare()` 相应改写（ft/fo × qNaN / sNaN / 双 NaN / 负 payload，实际值随断言打印），`tools/gem5/b7_ref.py` 的 `cmp` 模型同口径（独立精确模型侧），`components/gem5/README.md` 的「模型选择」删去已由 spec 规定的 compare 项。补丁 2 份改（`exec/b7.cc`、`exec/b7_test.cc`），`make_patch.py` 重导出。
   - 执行者：engineer
 
-- **2026-11-20 m16-gem5-019**
-  - 摘要：**更正 2026-11-19 `m16-gem5-017` 摘要里的参照路径**：本版 gem5 的 `configs/example/{se,fs}.py` 已是 29 行 `fatal()` 存根，真实脚本迁到 `configs/deprecated/example/`；「与上游 `configs/example/se.py --cpu-type` 同构」应读作 `configs/deprecated/example/se.py`。据 `m16-gem5-019 gem5 实现差异盘点`（D23）；实现本身不变。
-  - 执行者：architect
 
 ## M16
 
@@ -248,3 +245,6 @@
   - 摘要：**块传送 `beats` 按起始相位算（用户 2026-11-19 裁定改，配对 `m16-chipyard-004` 的 N19）**。`wuming_latency.hh` 的 `multiElementCycles()` 由 `beats = ceil(N*w/8)` 改为 `beats = ceil((addr%8 + N*w)/8)`：总线 beat 从**该组起址**起算，非 8 B 对齐起址的 `ldm`/`stm` 每跨一个 beat 多付 8 拍（`ldm.ub` N=8 相位 2 ⇒ 24，原 16）；8 B 相位（`addr%8 == 0`）下公式与旧式逐字相同，§5 全部实测点、同一 ELF 的 `numCycles` 一分不差，`nBase`（`stm` 的 +1）不动。`wuming::DynamicState` 加 `addr`（D 类起址），`fillDynamicState()` 的 `N`/`beats` 分支用 `rb[rbhb] + rd[rdhc]` 填它（与 `exec/b1.cc` 的 EA 同式；`ldm` 的目的块不与地址寄存器重叠、`stm` 不写寄存器，故 hook 时点读寄存器仍是指令前值；`rb0` = 当前 IP，由 `DadaoInst::execute()` 新记的 `ISA::wumingInstAddr` 还原——hook 仍在 `timing.cc` 的 `advanceInst`，时点与 `simInsts` 口径不变）；D′ 寄存器复制不读该字段、无内存拍。`docs/core-wuming-cycle-model.md` §5 块传送段写清相位公式并注明「N=8 = 16 是 8 B 相位值」，`contracts/wuming-cycles.yaml` 重生成（拍数 0 变化，`source_doc_sha256` 更新）。补丁 4 份改（`inst.cc`、`isa.{hh,cc}`、`wuming_latency.hh`）。验收：策略探针 1310 条（含全 D 行 N=1..63 × 相位 0..7 的「相位至多 +1 beat」与 D′ 地址惰性）、gem5 FS tiny + Timing 逐指令拍数（Exec 轨迹 on/off 差值）相位 0..7 逐项、同一 ELF 相位 0 的 `numCycles` 与改前相等、chipyard-004 的 362 样本（相位式 98% 命中，6 个不符全是 §5 已登记的 `stm.o` N=1 地址特例）、公式回退注入 ⇒ 相位用例红。
   - 执行者：engineer
 
+- **2026-11-20 m16-gem5-019**
+  - 摘要：**更正 2026-11-19 `m16-gem5-017` 摘要里的参照路径**：本版 gem5 的 `configs/example/{se,fs}.py` 已是 29 行 `fatal()` 存根，真实脚本迁到 `configs/deprecated/example/`；「与上游 `configs/example/se.py --cpu-type` 同构」应读作 `configs/deprecated/example/se.py`。据 `m16-gem5-019 gem5 实现差异盘点`（D23）；实现本身不变。
+  - 执行者：architect
