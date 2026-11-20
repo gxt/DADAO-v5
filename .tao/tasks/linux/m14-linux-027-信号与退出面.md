@@ -1,8 +1,16 @@
-# m14-linux-027: 信号与退出面（SIGSEGV 投递 + 信号帧 4 组 + exit + setrlimit/RLIMIT_STACK）
+# m14-linux-027: 信号与退出面（SIGSEGV 投递 + exit + setrlimit/RLIMIT_STACK）
+
+> **本任务已按用户 2026-11-20 裁定拆分**（依据 `m14-linux-039 信号/退出 与主流 ISA 差异盘点`）：信号机制整体缺失（29 条差异 / P0 18），2–3 h 不成立。拆分后：
+>
+> - **`m14-linux-045 通用 entry/exit 工作循环`** —— `TIF_*` 消费 + syscall enter/exit + `irqentry_*` 接线（基础设施）；
+> - **`m14-linux-046 信号帧与投递`** —— `rt_sigframe`/`setup_rt_frame`/`rt_sigreturn`/`force_sig`（信号本体）；
+> - **本任务（027）只保留行为面** —— SIGSEGV 投递、`exit`/`exit_group`、`setrlimit(RLIMIT_STACK)` 继承。
+>
+> 原「信号帧 4 组」那条验收（S2）**已移入 046**；本任务不再实现帧。
 
 **模块**：linux
 **项目里程碑**：M14
-**依赖**：`m14-linux-023`（syscall 闭环）、`m14-linux-019`（用户栈增长，SIGSEGV 来源）、`m14-linux-022`（异常帧四组）
+**依赖**：`m14-linux-045`（工作循环：`TIF_SIGPENDING` 能被消费）、`m14-linux-046`（信号帧与投递）、`m14-linux-019`（用户栈增长，SIGSEGV 来源）、`m14-linux-022`（异常帧四组）
 **可并行分片**：否（`components/linux` 单写者；共享 `kernel/trap.S`/`mm/fault.c`/`kernel/signal.c`）
 **并行组**：与 K5 其余任务**串行**（同组件同写者）
 **预估**：4–6 h（信号帧布局 + SIGSEGV 升级 + setrlimit；风险在 uapi 面）
