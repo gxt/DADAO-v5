@@ -42,7 +42,7 @@ Prerequisites (missing ones are hard errors, never silent fallbacks)
 
 Runtime checks (``busybox --version`` / ``--list`` under ``qemu-dadao``) are
 *not* done here: they belong to the K6 evidence (the runtime gate is
-``m14-linux-034``).  ``.work/evidence/m14-linux-030/run.sh`` runs them.
+``m18-linux-003``).  ``.work/evidence/m14-linux-030/run.sh`` runs them.
 """
 from __future__ import annotations
 

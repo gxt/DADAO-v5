@@ -1456,9 +1456,10 @@ check-install-tools:
 MILESTONES_M14 := .tao/knowledge/milestones-m14.md
 MILESTONES_M15 := .tao/knowledge/milestones-m15.md
 MILESTONES_M16 := .tao/knowledge/milestones-m16.md
+MILESTONES_M18 := .tao/knowledge/milestones-m18.md
 
 check-milestones-fresh:
-	@for f in "$(MILESTONES_M14)" "$(MILESTONES_M15)" "$(MILESTONES_M16)"; do \
+	@for f in "$(MILESTONES_M14)" "$(MILESTONES_M15)" "$(MILESTONES_M16)" "$(MILESTONES_M18)"; do \
 	  if [ -f "$$f" ]; then \
 	    $(PYTHON) tools/infra/check_milestones_fresh.py --file "$$f"; rc=$$?; \
 	    [ $$rc -eq 0 ] || exit $$rc; \

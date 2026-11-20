@@ -4,6 +4,8 @@
 
 > **本页只维护 M14 任务台账**：M11 及以前已归档（`.tao/archive/M11/`）；历史任务见 `.tao/archive/`；当前讨论/规划见 `.tao/knowledge/discussing.md`。
 
+> **收口判据（用户 2026-11-20 修订）**：M14 到 **K5 用户态闭环（`m14-linux-029`）+ K3 退役** 即收口；**K6（shell / 命令回归 / K6 门控）已移入 M18**（`m18-linux-001`–`003`），M14 不再声称「能当 Linux 用」。
+
 > **M14 定位（用户 2026-11-13）**：**Linux bring-up**。基线 Linux `7.2.10`；平台 = QEMU system 模式**单核**；控制台 = **semihosting**（不引入 UART、不新增 cfx）；initramfs = 静态 musl `init`；启动传参 = **固定 boot info 结构**（不引入设备树）；TLB 规范在 K3、K0 不定义；不引入 cache/LLC。参考实现（`DADAO` / `DADAO-0628`）只借鉴阶段划分与踩坑，`arch/dadao` 按当前冻结契约重写。
 
 本页分三张**任务表**，**表位置 = 任务状态**（不另设状态列）：
@@ -27,12 +29,6 @@
 | m14-linux-046 | 6–8 h | 信号帧与投递（`rt_sigframe`/`setup_rt_frame`/`rt_sigreturn`/`force_sig`） |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 
-
-| m14-linux-032 | 3–4 h | K6 shell 启动（busybox sh + semihosting + 前台执行，无作业控制） |
-
-| m14-linux-033 | 2–3 h | K6 基础命令回归（sh 内 5 条命令 + 退出码） |
-
-| m14-linux-034 | 3–4 h | K6 收口门控 `check-linux-k6`（代表例 + §4a 退役） |
 | m14-linux-026 | 3–4 h | clocksource(cfx_time)+clockevent(cfx_hart) 通用框架（原 021 后移） |
 | m14-linux-027 | 4–6 h | 信号与退出（SIGSEGV 投递+信号帧 4 组+exit+setrlimit/RLIMIT_STACK 继承） |
 | m14-linux-028 | 2–3 h | 用户态 64 KiB ABI（AT_PAGESZ=65536/mmap 对齐/ELF 段对齐/brk+mmap） |

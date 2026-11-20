@@ -36,6 +36,6 @@ make build-busybox                                    # = tools/linux/build_busy
 
 ## 已知边界
 
-- **`ps`**：首版无 `/proc` 语义；在 `qemu-dadao`（宿主 FS 直通）下会列出**宿主** `/proc`，进内核后（K6）按任务书退化为自身/空表——口径由 `m14-linux-032` 收口。
+- **`ps`**：首版无 `/proc` 语义；在 `qemu-dadao`（宿主 FS 直通）下会列出**宿主** `/proc`，进内核后（K6）按任务书退化为自身/空表——口径由 `m18-linux-001` 收口。
 - **无作业控制 / 无行编辑 / 无 `/proc` applet**：见 `config.min` 的取舍；交互体验不是 K6 出口条件。
 - **K6 的运行验收**（内核 + initramfs + semihosting 控制台）不在本组件内，属 `m14-linux-031/032/033/034`。
