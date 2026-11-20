@@ -5,7 +5,7 @@
 ------
 M17 的执行器用 Python 重写 IDL 前端（用户 2026-11-20：不用 Ruby/`idlc`）。UDB 的
 `idl.treetop` 有 652 行语法，本仓只用到其中一小部分——**实现口径的唯一依据**是
-[`idl/syntax-subset.md`](syntax-subset.md)（66 类构造，逐类现场计数 + 首个出处）。
+[`idl/syntax-subset.md`](syntax-subset.md)（68 类构造，逐类现场计数 + 首个出处）。
 本模块只实现该册 §10「必须覆盖」列出的构造；§8 的未使用构造（`while`/`assert`/
 `sizeof`/`struct`/`bitfield`/`tuple`/`include`/`fetch`/`X[]`/`CSR[]`/`$encoding`/
 复合赋值/变量作复制次数）与 UDB 其余语法**一律显式报错**（`UnsupportedConstruct`），

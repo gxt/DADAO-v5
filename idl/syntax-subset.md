@@ -129,7 +129,9 @@
 | S36 | 双重下标 `x[i][j]`（数组 + 切片/取位） | 221 | `idl/SimRISC-01.idl:567` |
 | S37 | `$signed(...)` 有符号视图 | 119 | `idl/SimRISC-01.idl:7` |
 | S38 | Verilog 定宽字面量（`6'd0`/`32'h…`/`1'b0`，含下划线分组） | 1580 | `idl/SimRISC-01.idl:3` |
-| S39 | 有符号字面量 `0s` / `16'sd1` | 48 | `idl/SimRISC-07.idl:34` |
+| S39 | 有符号定宽字面量 `N'sd` / `N'sh` | 16 | `idl/lib/fp.idl:1095` |
+| S67 | 有符号短字面量 `0s` | 32 | `idl/SimRISC-07.idl:34` |
+| S68 | Boolean 字面量 `true` / `false` | 24 | `idl/SimRISC-07.idl:498` |
 | S40 | C 风格十六进制字面量 `0x…` | 74 | `idl/lib/fp.idl:439` |
 
 - 加宽运算写成「反引号 + 运算符」：`` `+ ``（24 处：`SimRISC-02`/`SimRISC-07` 的

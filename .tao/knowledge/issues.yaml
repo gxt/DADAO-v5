@@ -1026,9 +1026,9 @@
   scope:
   - idl
   milestone: M17
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M17
+  resolved_by: architect 收尾（`m17-idl-002` 合入后补 S67/S68 行：`0s` 32 处、`true`/`false` 24 处；S39 拆为 `N'sd` 16 处）
   title: "【P3】`idl/syntax-subset.md` 构造表有缺口（`m17-idl-002` 实施时发现）：`true`/`false`（Boolean 字面量，约 25 处）无独立构造行、`0s`（约 32 处）被并进 S39 正则而不单列 ⇒ 「AST ↔ 构造表一一对应」不完整。处置：`subset_stats.py` 补两行统计并重生成文档（属 `m17-idl-001` 交付物的补齐，随下次触碰 `idl/` 时做）。"
 - id: ISS-480
   scope:
