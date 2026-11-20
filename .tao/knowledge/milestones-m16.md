@@ -20,6 +20,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-015 | 1 h | 重生成签入的 `bootrom.tiny.hex`（跟随 `m15-testcases-021` 的 bootrom md5，`51430087…`→`a5d78816…`） |
 | m16-chipyard-009 | 2–3 天 | Vast D-Cache（8 路 × 128 组 × 64 B = 64 KiB；写回+dirty；PTW 页表读端口） |
 | m16-chipyard-010 | 1–2 天 | Vast I-Cache（同类 8 路 × 128 组 = 64 KiB；无 dirty；Tiny 零增益） |
 | m16-testcases-003 | 3–4 h | `lr`/`sc` 保留语义三平台对齐（ISS-443 异常清保留 + ISS-435 精确粒度；ISS-440 记 GAP） |
