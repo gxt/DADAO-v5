@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/mmu_context.h b/arch/dadao/include/asm/mmu_context.h
 new file mode 100644
-index 000000000..8bb5673c3
+index 000000000..7eb662a72
 --- /dev/null
 +++ b/arch/dadao/include/asm/mmu_context.h
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,112 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_MMU_CONTEXT_H
 +#define __ASM_MMU_CONTEXT_H
@@ -65,20 +65,18 @@ index 000000000..8bb5673c3
 + * dup_mm() -> dup_mmap() -> arch_dup_mmap(): the arch half of a fork's address
 + * space clone.
 + *
-+ * Generic `copy_page_range()` write-protects every private writable PTE and
-+ * leaves both processes pointing at the *same* page — the classic copy-on-write
-+ * contract.  This port resolves the write half itself (its page-fault channel
-+ * reads CFXPERM + NWPERM, mm/fault.c) in `dadao_do_wp_page()` (mm/cow.c,
-+ * m14-linux-018).
++ * Nothing is left for the arch.  The *sharing* (write-protect both PTEs, point
++ * them at the same page, take the second reference) is generic
++ * `copy_page_range()`; the *write* half is generic `do_wp_page()`, reached
++ * through `handle_mm_fault()` (m14-linux-035, mm/fault.c); and the parent's
++ * stale writable translations are dropped by generic `dup_mmap()` itself, which
++ * ends with `flush_tlb_mm(oldmm)` (mm/mmap.c) — the one thing this port cannot
++ * leave implicit (contract-tlb TLB-07/-11: a TLB hit is not re-walked, so a
++ * write-protect that is not followed by an invalidation would let the parent
++ * keep writing through its old entry).
 + *
-+ * What is left for the arch is the TLB: the fork rewrites the forking hart's own
-+ * PTEs, and a hit is not re-walked, so `dadao_dup_mmap_cow()` drops this mm's
-+ * stale translations (`invalid | all`, ASID_ANY = 0) after checking that every
-+ * page the two address spaces now share is read-only on the child's side
-+ * (m14-linux-016's eager private copy is gone with this task).
++ * m14-linux-018's `dadao_dup_mmap_cow()` hook is gone with the port-side COW.
 + */
-+int dadao_dup_mmap_cow(struct mm_struct *oldmm, struct mm_struct *mm);
-+
 +#include <asm-generic/mmu_context.h>
 +
 +/*
@@ -88,7 +86,9 @@ index 000000000..8bb5673c3
 + */
 +static inline int arch_dup_mmap(struct mm_struct *oldmm, struct mm_struct *mm)
 +{
-+	return dadao_dup_mmap_cow(oldmm, mm);
++	(void)oldmm;
++	(void)mm;
++	return 0;
 +}
 +
 +static inline void arch_exit_mmap(struct mm_struct *mm)
@@ -99,8 +99,19 @@ index 000000000..8bb5673c3
 +					     bool write, bool execute,
 +					     bool foreign)
 +{
-+	/* No MPK/domains on this machine: the page-table bits are the whole
-+	 * permission model (spec/DADAO-12 §2.2.5). */
++	/*
++	 * No MPK/domains on this machine: the page-table bits are the whole
++	 * permission model (spec/DADAO-12 §2.2.5), so there is nothing to add
++	 * here and this hook answers "no extra denial".
++	 *
++	 * The *VMA* half of the model is not generic and must stay in the fault
++	 * entry: DADAO reports a write to a read-only PTE as CFXPERM + NWPERM
++	 * whatever the VMA says, and `handle_mm_fault()` alone would turn a
++	 * genuine violation of a read-only VMA into a copy (->
++	 * `do_wp_page()`/`maybe_mkwrite()` leaves the PTE read-only because the
++	 * VMA is not writable, so the store would fault forever).  mm/fault.c's
++	 * `dadao_pf_vma_perm_denied()` is that gate.
++	 */
 +	return true;
 +}
 +

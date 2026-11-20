@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k4_switch_selftest.c b/arch/dadao/kernel/k4_switch_selftest.c
 new file mode 100644
-index 000000000..c6df5e6c2
+index 000000000..0a1cff4a1
 --- /dev/null
 +++ b/arch/dadao/kernel/k4_switch_selftest.c
-@@ -0,0 +1,957 @@
+@@ -0,0 +1,964 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K4 context-switch self-test (CONFIG_DADAO_K4_SWITCH_SELFTEST, m14-linux-017).
@@ -752,7 +752,7 @@ index 000000000..c6df5e6c2
 +}
 +
 +static void k4s_s5_build_mm(int who, unsigned long stack_va,
-+			    unsigned long code_pa)
++			    struct page *code_page)
 +{
 +	struct mm_struct *mm = mm_alloc();
 +	struct vm_area_struct *vma;
@@ -777,11 +777,18 @@ index 000000000..c6df5e6c2
 +		k4s_fail(K4S_FAIL_S3, "s5 stack vma", addr);
 +	current->mm = saved;
 +
++	/* `vm_insert_page()`: the code page is the probe's, the PTE is generic
++	 * code's (m14-linux-035 — a task's mappings no longer use the fault
++	 * channel's `vm_private_data` PA hand-off). */
 +	mmap_write_lock(mm);
 +	vma = find_vma(mm, K4S_S5_CODE_VA);
 +	if (!vma)
 +		k4s_fail(K4S_FAIL_S3, "s5 find_vma", 0);
-+	vma->vm_private_data = (void *)code_pa;
++	/* vm_insert_page() wants VM_MIXEDMAP set by the caller and the mmap lock
++	 * already held (it BUGs on a lock it had to take itself). */
++	vm_flags_set(vma, VM_MIXEDMAP);
++	if (vm_insert_page(vma, K4S_S5_CODE_VA, code_page))
++		k4s_fail(K4S_FAIL_S3, "s5 vm_insert_page", K4S_S5_CODE_VA);
 +	mmap_write_unlock(mm);
 +
 +	k4s_s5_mm[who] = mm;
@@ -799,8 +806,8 @@ index 000000000..c6df5e6c2
 +		k4s_fail(K4S_FAIL_S3, "s5 code page", 0);
 +	memcpy(page_address(page), dadao_k4_user_stub,
 +	       (unsigned long)(dadao_k4_user_stub_end - dadao_k4_user_stub));
-+	k4s_s5_build_mm(0, K4S_S5_STACK_A, page_to_phys(page));
-+	k4s_s5_build_mm(1, K4S_S5_STACK_B, page_to_phys(page));
++	k4s_s5_build_mm(0, K4S_S5_STACK_A, page);
++	k4s_s5_build_mm(1, K4S_S5_STACK_B, page);
 +
 +	for (i = 0; i < 2; i++)
 +		init_completion(&k4s_s5_reported[i]);

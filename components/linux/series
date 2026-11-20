@@ -77,7 +77,6 @@ arch/dadao/kernel/vmlinux.lds.S.patch
 arch/dadao/lib/Makefile.patch
 arch/dadao/lib/delay.c.patch
 arch/dadao/mm/Makefile.patch
-arch/dadao/mm/cow.c.patch
 arch/dadao/mm/fault.c.patch
 arch/dadao/mm/init.c.patch
 arch/dadao/mm/k1_pt.c.patch

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/fault.c b/arch/dadao/mm/fault.c
 new file mode 100644
-index 000000000..8c5eafa2f
+index 000000000..d68777ee7
 --- /dev/null
 +++ b/arch/dadao/mm/fault.c
-@@ -0,0 +1,832 @@
+@@ -0,0 +1,1094 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO demand paging: the CFXMEM / CFXPERM fault channel (K3, m14-linux-012).
@@ -258,7 +258,7 @@ index 000000000..8c5eafa2f
 + * Called for the missing class only: a permission fault must never become a new
 + * mapping (019 S5), which is why the caller tests the class before asking.
 + */
-+static struct vm_area_struct *dadao_pf_grow_stack(unsigned long addr)
++static struct vm_area_struct *dadao_pf_grow_stack(unsigned long addr, bool count)
 +{
 +	struct mm_struct *mm = current->mm;
 +	struct vm_area_struct *vma;
@@ -283,7 +283,8 @@ index 000000000..8c5eafa2f
 +	mmap_write_unlock(mm);
 +	if (ret)
 +		return NULL;
-+	dadao_pf_grows++;
++	if (count)
++		dadao_pf_grows++;
 +	return vma;
 +}
 +
@@ -416,43 +417,6 @@ index 000000000..8c5eafa2f
 +	return pmd_off_k(addr);
 +}
 +
-+/*
-+ * A code page for a *file-backed* VMA (what `execve` builds: `elf_map()` maps an
-+ * ELF segment with `vm_file` + `vm_pgoff`).  The loader leaves the pages to this
-+ * channel — the port has no page cache on the fault path — so the page is read
-+ * straight from the file at `vm_pgoff << PAGE_SHIFT` plus the in-page offset,
-+ * into a fresh zeroed page (a short read leaves the tail zero).  Returns the
-+ * page's physical address, or 0 when it cannot be served.
-+ */
-+static unsigned long dadao_pf_fill_from_file(struct vm_area_struct *vma,
-+					     unsigned long addr)
-+{
-+	struct file *file = vma->vm_file;
-+	loff_t pos;
-+	unsigned long pa;
-+	ssize_t n;
-+
-+	if (!file)
-+		return 0;
-+	/*
-+	 * The page, not the byte: the first byte of the mapped page is the first
-+	 * byte of the file page `elf_map()` chose — `vm_pgoff` already carries
-+	 * the in-page offset out of the file offset (`off = p_offset -
-+	 * ELF_PAGEOFFSET(p_vaddr)`), so adding `addr & ~PAGE_MASK` here would
-+	 * shift the whole page (measured: a page shifted by 0x11c8 executed
-+	 * garbage and entered the syscall stub at addresses the ELF does not
-+	 * have a `trap` at).
-+	 */
-+	pos = (loff_t)vma->vm_pgoff << PAGE_SHIFT;
-+	pa = dadao_pf_alloc_page();
-+	if (!pa)
-+		return 0;
-+	n = kernel_read(file, __va(pa), PAGE_SIZE, &pos);
-+	if (n < 0)
-+		return 0;
-+	return pa;
-+}
-+
 +static const char *dadao_pf_fill(struct vm_area_struct *vma, unsigned long addr,
 +				 unsigned int pos)
 +{
@@ -541,29 +505,18 @@ index 000000000..8c5eafa2f
 +		 * the same page the loader would have brought in, without a page
 +		 * cache.  A probe window keeps the single-page `vm_private_data`
 +		 * form. */
++		/*
++		 * Content for a probe window comes from `vm_private_data`; a
++		 * *process* VMA never comes through here any more (its pages are
++		 * the page cache's, m14-linux-035).  With no page there is
++		 * nothing to install — refuse instead of mapping PA 0.
++		 */
 +		pa = (unsigned long)vma->vm_private_data;
-+		if (!pa && vma->vm_file)
-+			pa = dadao_pf_fill_from_file(vma, addr);
++		if (!pa)
++			return NULL;
 +		set_pte(ptep, __pte(dadao_pf_pte(vma, pa, false, true)));
 +		dadao_pf_publish(vma, addr, ptep);
 +		return "fill-code";
-+	}
-+
-+	/*
-+	 * A *file-backed* data VMA (`.rodata`, `.data`, the startup jump tables
-+	 * musl indexes by syscall number) must serve the file's bytes, not zeros:
-+	 * mapping the shared zero page here made `sccp`'s jump table all-NULL and
-+	 * the first indirect jump went to 0 (measured: `jump [rb4,rd0,0]` with
-+	 * rb4 = 0 right after the table was read).
-+	 */
-+	if (vma->vm_file) {
-+		pa = dadao_pf_fill_from_file(vma, addr);
-+		if (pa) {
-+			set_pte(ptep, __pte(dadao_pf_pte(vma, pa, false,
-+							!!(vma->vm_flags & VM_EXEC))));
-+			dadao_pf_publish(vma, addr, ptep);
-+			return "fill-file";
-+		}
 +	}
 +
 +	/* Data (read or write): map the shared zero page read-only.  A store
@@ -587,11 +540,11 @@ index 000000000..8c5eafa2f
 +}
 +
 +/*
-+ * A write to a mapping that points at the shared zero page: give it a private
-+ * zeroed page.  This is *not* a copy-on-write of the zero page — the source is
-+ * all zero, so copying a page would be pure waste (user ruling 2026-11-16).
-+ * Returns true when the mapping was replaced; any other read-only page is
-+ * mm/cow.c's `dadao_do_wp_page()` (m14-linux-018).
++ * A write to a *probe window* that points at the shared zero page: give it a
++ * private zeroed page.  This is *not* a copy-on-write of the zero page — the
++ * source is all zero, so copying a page would be pure waste (user ruling
++ * 2026-11-16).  A process VMA never comes here: the generic arm's
++ * `do_wp_page()` already knows the zero page (m14-linux-035).
 + */
 +static bool dadao_pf_unshare_zero(struct vm_area_struct *vma, unsigned long addr)
 +{
@@ -617,14 +570,8 @@ index 000000000..8c5eafa2f
 +		return true;
 +	}
 +
-+	/*
-+	 * Any *other* read-only page is not this function's business from
-+	 * m14-linux-018 on: it has content, so the write is a copy-on-write (or a
-+	 * plain upgrade when the page is not shared) and mm/cow.c owns it —
-+	 * `dadao_do_wp_page()`.  Copying it here would be a second implementation
-+	 * of the same rule, without the reference accounting the COW path owes
-+	 * the fork.
-+	 */
++	/* Any other read-only page has content, so it is not this window helper's
++	 * business: there is no folio here to copy or to account for. */
 +	return false;
 +}
 +
@@ -690,13 +637,322 @@ index 000000000..8c5eafa2f
 +	return pte_val(*pte_offset_kernel(pmd, addr));
 +}
 +
++/* -------------------------------------------------------------------------
++ * The generic arm (m14-linux-035): a fault on the running processes's own
++ * address space is resolved by mm/, like any other architecture
++ * ------------------------------------------------------------------------- */
++
++/*
++ * Copy-on-write reporting (the probe surface of m14-linux-018, kept when the
++ * write half moved to the generic `do_wp_page()`).
++ *
++ * The values are *measurements* of what the generic path did: the PTE before
++ * and after the fault, and the page's reference count around it.  Nothing here
++ * decides anything — a wrong PTE or a wrong count is what the probe then fails
++ * on.
++ */
++unsigned long dadao_cow_stats[DADAO_COW_NR_STATS];
++unsigned long dadao_cow_last_flush[4];
++unsigned long dadao_cow_last_page[4];
++
++/* The leaf PTE of @addr in @mm, or 0 when there is no table / no entry. */
++static unsigned long dadao_pf_peek(struct mm_struct *mm, unsigned long addr)
++{
++	pmd_t *pmd;
++
++	if (!mm || !mm->pgd)
++		return 0;
++	pmd = pmd_off(mm, addr);
++	if (pmd_none(*pmd) || (pmd_val(*pmd) & _PAGE_SUPER))
++		return 0;
++	return pte_val(*pte_offset_kernel(pmd, addr));
++}
++
++/*
++ * The VMA's own verdict on a *permission*-class fault — the check that must not
++ * be left to `handle_mm_fault()`.
++ *
++ * DADAO reports "write of a page with W = 0" as CFXPERM + NWPERM whether the
++ * mapping is meant to be writable or not (spec/DADAO-12 §2.2.6), so the class
++ * alone does not say "copy-on-write"; only the VMA does.  Letting a genuine
++ * violation through would not even fail loudly: `do_wp_page()` would copy,
++ * `maybe_mkwrite()` would leave the PTE read-only because the VMA is not
++ * writable (mm/memory.c), and the retried store would fault again for ever.
++ *
++ * Missing-class faults are not checked here: whether the page may be mapped at
++ * all is the generic code's decision (`vma_is_accessible()` + `vm_flags`).
++ */
++static bool dadao_pf_vma_perm_denied(unsigned int pos, struct vm_area_struct *vma)
++{
++	if (!dadao_subcause_is_perm(pos))
++		return false;
++	if (!vma_is_accessible(vma))
++		return true;
++	switch (pos) {
++	case DADAO_SUB_NWPERM:
++		return !(vma->vm_flags & VM_WRITE);
++	case DADAO_SUB_NXPERM:
++		return !(vma->vm_flags & VM_EXEC);
++	default:
++		/* NUPERM/NJPERM/NSPERM/NHPERM/NRPERM/NCFXPERM: no generic
++		 * reading can make a page reachable here. */
++		return true;
++	}
++}
++
++/* Fault flags from the sub-reason (contract-see §6.1.1: the class does not say
++ * read or write, the sub-reason does). */
++static unsigned int dadao_pf_flags(unsigned int pos, bool from_user)
++{
++	unsigned int flags = FAULT_FLAG_ALLOW_RETRY | FAULT_FLAG_KILLABLE;
++
++	if (from_user)
++		flags |= FAULT_FLAG_USER;
++	if (pos == DADAO_SUB_NWPERM)
++		flags |= FAULT_FLAG_WRITE;
++	if (dadao_subcause_is_fetch(pos))
++		flags |= FAULT_FLAG_INSTRUCTION;
++	return flags;
++}
++
++/*
++ * Serve one fault of the running process through the generic page-fault path.
++ * Returns the name of what was done (`fill-*`, `replace-zero`, `cow-*` — the
++ * caller re-executes the instruction for those) or the named verdict
++ * (`die-*`) when it cannot be served.
++ *
++ * The mmap lock, the VMA lookup, stack growth, the page source (anonymous
++ * pages with rmap + LRU, file pages through the page cache) and COW are all
++ * generic now; what stays here is the machine's half of the interface: which
++ * sub-reason means what, the VMA permission gate above, and the one-line report.
++ */
++/*
++ * Is @mm the address space the *walker* is using?  A fault on a process VMA is
++ * only resolved through mm/ when it is (m14-linux-035): `handle_mm_fault()`
++ * fills `mm->pgd`, and a fill into a table the walker is not using would be
++ * invisible — the K1-K4 probe shape runs user code on the kernel's table with
++ * `current->mm` merely attached, and `dadao_pf_table()` (the window arm) is what
++ * selects the table there.
++ */
++static bool dadao_pf_mm_active(struct mm_struct *mm)
++{
++	return mm && mm->pgd && __pa(mm->pgd) == dadao_ptbr_read();
++}
++
++static const char *dadao_pf_generic(struct pt_regs *regs, unsigned int pos,
++				    unsigned long addr, bool from_user,
++				    unsigned long *rep_start,
++				    unsigned long *rep_end, unsigned long *rep_pte)
++{
++	struct mm_struct *mm = current->mm;
++	struct vm_area_struct *vma;
++	vm_fault_t fault;
++	unsigned int flags = dadao_pf_flags(pos, from_user);
++	const bool is_write = (pos == DADAO_SUB_NWPERM);
++	unsigned long old_pte, new_pte = 0, old_pa = 0, new_pa = 0;
++	unsigned int refs_before = 0, refs_after = 0;
++	struct page *old_page = NULL, *new_page = NULL;
++	bool will_grow = false;
++	int attempt;
++
++	/*
++	 * A user superpage has no generic representation: generic code reads the
++	 * L1 entry as a page-table pointer (`pmd_page_vaddr()`), which is only
++	 * right for the non-leaf form (spec/DADAO-12 §2.2.3).  This port never
++	 * creates one for a process, so it is a named refusal rather than a
++	 * silent misinterpretation.
++	 */
++	if (pmd_leaf(*pmd_off(mm, addr)))
++		return "die-super";
++
++	for (attempt = 0; attempt < 3; attempt++) {
++#if CONFIG_DADAO_K4_STACK_SELFTEST
++		/*
++		 * The probe reads "did this fault grow the stack" as a counter
++		 * (S1/S2/S5/S6).  The growth itself is generic; the counter is
++		 * derived here, and only for the probe image: the condition is
++		 * the same one the growth path uses ("the VMA found for @addr
++		 * starts above it and is growable"), and it is accounted as a
++		 * growth only if the fault was then served.
++		 */
++		{
++			struct vm_area_struct *gv;
++
++			mmap_read_lock(mm);
++			gv = find_vma(mm, addr);
++			will_grow |= gv && addr < gv->vm_start &&
++				    (gv->vm_flags & VM_GROWSDOWN);
++			mmap_read_unlock(mm);
++		}
++#endif
++
++		/*
++		 * `lock_mm_and_find_vma()` takes the mmap lock (read, upgraded
++		 * for a stack expansion) and drops it again when it fails; on
++		 * success the lock is held and must be released here.
++		 */
++		vma = lock_mm_and_find_vma(mm, addr, regs);
++		if (!vma) {
++			/*
++			 * Two reasons the helper can fail although a process VMA
++			 * exists, both from this port's gaps and neither a
++			 * verdict:
++			 *
++			 *  - a stack expansion: our uaccess has no exception
++			 *    tables (CONFIG_UACCESS_MEMCPY) and `user_mode()`
++			 *    has no frame bit yet, so the helper's upgrade path
++			 *    cannot be used.  Do the expansion with the same
++			 *    generic call it would have made, then let the
++			 *    helper find the (now covering) VMA.
++			 *  - mmap-lock contention: the helper reports "no VMA"
++			 *    when it cannot take the lock.  Re-do the lookup
++			 *    under a plain read lock, which is what it would
++			 *    have done with the lock free.
++			 */
++			if (dadao_subcause_is_missing(pos) &&
++			    dadao_pf_grow_stack(addr, false))
++				continue;
++			mmap_read_lock(mm);
++			vma = find_vma(mm, addr);
++			if (vma && addr < vma->vm_start)
++				vma = NULL;
++			if (!vma) {
++				mmap_read_unlock(mm);
++				return "die-no-vma";
++			}
++			/* the lock is held from here, exactly like the
++			 * helper's success path */
++		}
++
++		*rep_start = vma->vm_start;
++		*rep_end = vma->vm_end;
++
++		if (dadao_pf_vma_perm_denied(pos, vma)) {
++			if (is_write)
++				dadao_cow_stats[DADAO_COW_REFUSED]++;
++			mmap_read_unlock(mm);
++			return "die-perm";
++		}
++
++			old_pte = dadao_pf_peek(mm, addr);
++		if (pte_present(__pte(old_pte))) {
++			old_pa = old_pte & _PAGE_PFN_MASK;
++			if (!is_zero_pfn(old_pa >> PAGE_SHIFT)) {
++				old_page = pfn_to_page(old_pa >> PAGE_SHIFT);
++				refs_before = page_count(old_page);
++			}
++		}
++
++		fault = handle_mm_fault(vma, addr, flags, regs);
++
++		if (fault & VM_FAULT_RETRY) {
++			/* The lock was dropped for us; redo the lookup. */
++			flags |= FAULT_FLAG_TRIED;
++			continue;
++		}
++		if (fault & VM_FAULT_ERROR) {
++			mmap_read_unlock(mm);
++			return (fault & VM_FAULT_OOM) ? "die-oom" : "die-fault";
++		}
++		if (fault & VM_FAULT_NOPAGE) {
++			/* "Present but I made no progress": never retried here —
++			 * the fault would come back for ever (mm/gup.c's retry
++			 * loop is the same trap). */
++			mmap_read_unlock(mm);
++			return "die-nopage";
++		}
++
++		new_pte = dadao_pf_peek(mm, addr);
++		mmap_read_unlock(mm);
++		*rep_pte = new_pte;
++#if CONFIG_DADAO_K4_STACK_SELFTEST
++		if (will_grow)
++			dadao_pf_grows++;
++#endif
++		break;
++	}
++	if (attempt == 3)
++		return "die-retry";
++
++	if (!pte_present(__pte(new_pte)))
++		return "die-no-pte";
++	new_pa = new_pte & _PAGE_PFN_MASK;
++	if (is_zero_pfn(new_pa >> PAGE_SHIFT))
++		new_page = NULL;
++	else
++		new_page = pfn_to_page(new_pa >> PAGE_SHIFT);
++
++	/* ---- what just happened (reporting + the probe's counters) -------- */
++	if (is_write) {
++		if (old_pa && is_zero_pfn(old_pa >> PAGE_SHIFT)) {
++			/* the shared zero page: nothing to copy, a private
++			 * zeroed page replaces it (m14-linux-012's rule) */
++			return "replace-zero";
++		}
++		if (new_pa == old_pa) {
++			dadao_cow_stats[DADAO_COW_INPLACE]++;
++			dadao_cow_last_page[0] = old_pa;
++			dadao_cow_last_page[1] = new_pa;
++			dadao_cow_last_page[2] = refs_before;
++			dadao_cow_last_page[3] = refs_before;
++#if CONFIG_DADAO_K4_COW_SELFTEST
++			dadao_early_printf("K4 cow: kind=in-place va=%#lx "
++					   "page=%lu old_pa=%#lx new_pa=%#lx "
++					   "count=%lu after=%lu ctrl=%#lx "
++					   "asid=%lu any=%lu copies=%lu "
++					   "inplace=%lu puts=%lu\n", addr,
++					   (unsigned long)PAGE_SIZE, old_pa,
++					   new_pa, refs_before, refs_before,
++					   dadao_cow_last_flush[0],
++					   dadao_cow_last_flush[1],
++					   dadao_cow_last_flush[2],
++					   dadao_cow_stats[DADAO_COW_COPY],
++					   dadao_cow_stats[DADAO_COW_INPLACE],
++					   dadao_cow_stats[DADAO_COW_PUT]);
++#endif
++			return "cow-write";
++		}
++		refs_after = new_page ? page_count(new_page) : 0;
++		if (old_page)
++			refs_after = page_count(old_page);
++		dadao_cow_stats[DADAO_COW_COPY]++;
++		dadao_cow_stats[DADAO_COW_PUT]++;
++		dadao_cow_last_page[0] = old_pa;
++		dadao_cow_last_page[1] = new_pa;
++		dadao_cow_last_page[2] = refs_before;
++		dadao_cow_last_page[3] = refs_after;
++#if CONFIG_DADAO_K4_COW_SELFTEST
++		dadao_early_printf("K4 cow: kind=copy va=%#lx page=%lu old_pa=%#lx "
++				   "new_pa=%#lx count=%lu after=%lu ctrl=%#lx "
++				   "asid=%lu any=%lu copies=%lu inplace=%lu "
++				   "puts=%lu\n", addr, (unsigned long)PAGE_SIZE,
++				   old_pa, new_pa, refs_before, refs_after,
++				   dadao_cow_last_flush[0],
++				   dadao_cow_last_flush[1],
++				   dadao_cow_last_flush[2],
++				   dadao_cow_stats[DADAO_COW_COPY],
++				   dadao_cow_stats[DADAO_COW_INPLACE],
++				   dadao_cow_stats[DADAO_COW_PUT]);
++#endif
++		return "cow-copy";
++	}
++
++	if (dadao_subcause_is_fetch(pos))
++		return "fill-code";
++	if (is_zero_pfn(new_pa >> PAGE_SHIFT))
++		return "fill-zero";
++	if (vma->vm_file)
++		return "fill-file";
++	return "fill-anon";
++}
++
 +/*
 + * One page-fault entry.  kernel/traps.c calls this for CFXMEM and CFXPERM only,
 + * after the class has been named and the sub-reason shape checked; the id is
 + * passed raw so this file owns the sub-reason decoding (asm/cause-sub.h).
 + */
 +unsigned long dadao_do_page_fault(struct pt_regs *regs, unsigned long cause,
-+				  unsigned long info)
++				  unsigned long info, bool from_user)
 +{
 +#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
 +	k4s_pf_dump(info);
@@ -706,6 +962,9 @@ index 000000000..8c5eafa2f
 +	struct vm_area_struct *vma = NULL;
 +	const char *result = NULL;
 +	unsigned long policy = DADAO_PF_FATAL;
++	/* What the one-line report prints (`vma` is not valid after the mmap
++	 * lock is dropped, so the generic arm hands the numbers over). */
++	unsigned long rep_start = 0, rep_end = 0, rep_pte = 0;
 +
 +	dadao_pf_entries++;
 +
@@ -722,6 +981,11 @@ index 000000000..8c5eafa2f
 +	 * `cause_info` is not a virtual address the walker rejected but the PTE's
 +	 * physical address (contract-see §6.1) or a cfx-space address, so there is
 +	 * no window to look up and nothing a fill could make accessible.
++	 *
++	 * A fault of the running process goes to the generic arm (m14-linux-035);
++	 * the window arm below is what is left for an address space that is not a
++	 * task's — the K3 probe images run with `current->mm == NULL` (they are
++	 * registered windows + hand-built tables, spec/DADAO-12 §2.2.3/§2.2.4).
 +	 */
 +	if (dadao_pf_streak > DADAO_PF_RETRY_BUDGET) {
 +		result = "die-budget";
@@ -729,13 +993,16 @@ index 000000000..8c5eafa2f
 +		result = "die-adwb";
 +	} else if (pos == DADAO_SUB_NONPTW) {
 +		result = "die-nonptw";
++	} else if (dadao_pf_mm_active(current->mm)) {
++		result = dadao_pf_generic(regs, pos, info, from_user, &rep_start,
++					  &rep_end, &rep_pte);
 +	} else if (!(vma = dadao_pf_find_vma(info))) {
 +		/*
 +		 * The one way a hole becomes a window: a missing-class fault
 +		 * below a VM_GROWSDOWN VMA grows the stack (m14-linux-019).
 +		 */
 +		if (dadao_subcause_is_missing(pos) &&
-+		    (vma = dadao_pf_grow_stack(info)))
++		    (vma = dadao_pf_grow_stack(info, true)))
 +			result = dadao_pf_fill(vma, info, pos);
 +		else
 +			result = "die-no-vma";
@@ -749,30 +1016,16 @@ index 000000000..8c5eafa2f
 +		 * that is not a verdict: the PTE is read-only *because* the mapping
 +		 * is shared, so the handler gives the writer its own page.
 +		 *
-+		 * From m14-linux-018 a write to any *other* read-only page is one
-+		 * too, as long as the page is private: a page shared by a fork is
-+		 * copied (the writer gets the old contents), a page it alone maps is
-+		 * upgraded in place.  mm/cow.c owns that decision; a refusal there
-+		 * means the mapping really is not writable, and the fault stands.
++		 * A *process* VMA never reaches this arm any more: its writes are
++		 * resolved by the generic `do_wp_page()` through the generic arm
++		 * above (copy when shared, upgrade in place when it is the only
++		 * reference).  A probe window has no address space and no folio
++		 * behind it, so a non-zero read-only page there is a verdict.
 +		 */
-+		if (pos == DADAO_SUB_NWPERM && dadao_pf_unshare_zero(vma, info)) {
++		if (pos == DADAO_SUB_NWPERM && dadao_pf_unshare_zero(vma, info))
 +			result = "replace-zero";
-+		} else if (pos == DADAO_SUB_NWPERM) {
-+			switch (dadao_do_wp_page(vma, info,
-+						 dadao_pf_ptep(vma, info))) {
-+			case DADAO_WP_COPY:
-+				result = "cow-copy";
-+				break;
-+			case DADAO_WP_INPLACE:
-+				result = "cow-write";
-+				break;
-+			default:
-+				result = "die-perm";
-+				break;
-+			}
-+		} else {
++		else
 +			result = "die-perm";
-+		}
 +	} else if (dadao_subcause_is_missing(pos)) {
 +		result = dadao_pf_fill(vma, info, pos);
 +		if (!result)
@@ -780,9 +1033,19 @@ index 000000000..8c5eafa2f
 +	} else {
 +		result = "die-sub";
 +	}
++	if (!current->mm) {
++		rep_start = vma ? vma->vm_start : 0UL;
++		rep_end = vma ? vma->vm_end : 0UL;
++		rep_pte = vma ? dadao_pf_show_pte(info) : 0UL;
++	}
 +
++	/*
++	 * The names that mean "a mapping was installed, re-execute": the window
++	 * arm's and the generic arm's (`fill-anon`/`cow-*` are the generic
++	 * path's; the window arm has no folio to copy, so it cannot spell those).
++	 */
 +	if (!strcmp(result, "fill-zero") || !strcmp(result, "fill-code") ||
-+	    !strcmp(result, "fill-file") ||
++	    !strcmp(result, "fill-file") || !strcmp(result, "fill-anon") ||
 +	    !strcmp(result, "fill-super") || !strcmp(result, "frag-set") ||
 +	    !strcmp(result, "replace-zero") || !strcmp(result, "cow-copy") ||
 +	    !strcmp(result, "cow-write"))
@@ -829,9 +1092,8 @@ index 000000000..8c5eafa2f
 +			   dadao_pf_entries, cause,
 +			   dadao_cause_name(cause) ?: "unknown",
 +			   dadao_subcause_name(pos) ?: "none",
-+			   regs ? regs->ip : 0UL, info,
-+			   vma ? vma->vm_start : 0UL, vma ? vma->vm_end : 0UL,
-+			   vma ? dadao_pf_show_pte(info) : 0UL,
++			   regs ? regs->ip : 0UL, info, rep_start, rep_end,
++			   rep_pte,
 +			   dadao_pf_pages,
 +			   dadao_pf_streak, result);
 +	return policy;

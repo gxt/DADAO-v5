@@ -146,7 +146,8 @@ CASES = {
     "F8": ("f8_wakeop_count", "f8_op_word", "f8_waiter_script",
            "f8_waiter_awake", "f8_waiter_reported", "f8_waiter_ret"),
     "F7": ("f7_clear_tid_ptr", "f7_mm_users_gt1", "f7_tid_cleared",
-           "f7_child_script", "f7_child_reported"),
+           "f7_child_script", "f7_child_reported", "shared_futex_wake",
+           "shared_futex_wait_eagain", "shared_futex_page_mapped"),
 }
 
 #: Names that must appear more than once (F2's three waiters).
@@ -496,6 +497,12 @@ def judge(rep: Report, text: str, rc: int, suffix: str = "") -> None:
     expect_group("F3", "f3_parent_sc_after_yield", sc_bad)
     expect_group("F1A", "f1a_ret_is_eagain", (1 << 64) - eagain())
     expect_group("F1", "f1_wake_count", 1)
+    # m14-linux-035 / N27: a shared futex on an anonymous page resolves its key
+    # (WAKE returns 0, a mismatching WAIT reaches the compare and returns
+    # -EAGAIN) instead of failing with -EFAULT on a page with no `mapping`.
+    expect_group("F7", "shared_futex_wake", 0)
+    expect_group("F7", "shared_futex_wait_eagain", (1 << 64) - eagain())
+    expect_group("F7", "shared_futex_page_mapped", 1)
     expect_group("F2", "f2_wake_count", stub_constant("K5F_F2_WAKE"))
     expect_group("F2", "f2_armed", f2_n)
     expect_group("F2", "f2_awake", stub_constant("K5F_F2_WAKE"))

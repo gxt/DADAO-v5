@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/init.c b/arch/dadao/mm/init.c
 new file mode 100644
-index 000000000..ee4a5f5b6
+index 000000000..a40d4aa5d
 --- /dev/null
 +++ b/arch/dadao/mm/init.c
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,55 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO memory initialisation (K0: compiles and links; K1 fills the map).
@@ -23,10 +23,13 @@ index 000000000..ee4a5f5b6
 +#include <asm/setup.h>
 +
 +/*
-+ * Protection map: index = (VM_READ | VM_WRITE | VM_EXEC) bits of a VMA.
-+ * DADAO PTE bits are per-permission (contract: spec/DADAO-12 §2.2.5), so
-+ * supervisor pages are always readable and execute permission is what the
-+ * VMA asks for.
++ * Protection map: index = (VM_READ | VM_WRITE | VM_EXEC | VM_SHARED) bits of a
++ * VMA (m14-linux-035, as arm64/riscv do it).  The `__P*` half is the private
++ * mapping's protection and a writable private mapping is read-only there (the
++ * first store takes a fault and generic `do_wp_page()` copies); the `__S*` half
++ * is the shared mapping's.  DADAO PTE bits are per-permission (contract:
++ * spec/DADAO-12 §2.2.5), so supervisor pages are always readable and execute
++ * permission is what the VMA asks for.
 + */
 +const pgprot_t protection_map[16] = {
 +	__P000, __P001, __P010, __P011,
@@ -42,10 +45,9 @@ index 000000000..ee4a5f5b6
 +	max_zone_pfns[ZONE_NORMAL] = PFN_DOWN(dadao_ram_base + dadao_ram_size);
 +}
 +
-+pgprot_t vm_get_page_prot(vm_flags_t vm_flags)
-+{
-+	return protection_map[vm_flags & (VM_READ | VM_WRITE | VM_EXEC)];
-+}
++/* The generic declaration (include/linux/pgtable.h): indexes the map with
++ * VM_SHARED included, which is the whole point of the __P/__S split. */
++DECLARE_VM_GET_PAGE_PROT
 +
 +void __init paging_init(void)
 +{

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/pgtable.h b/arch/dadao/include/asm/pgtable.h
 new file mode 100644
-index 000000000..01df34f79
+index 000000000..d931cb3b7
 --- /dev/null
 +++ b/arch/dadao/include/asm/pgtable.h
-@@ -0,0 +1,342 @@
+@@ -0,0 +1,394 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PGTABLE_H
 +#define __ASM_PGTABLE_H
@@ -118,15 +118,29 @@ index 000000000..01df34f79
 +#define _PAGE_USER_RX	(_PAGE_USER_R | _PAGE_EXEC)
 +#define _PAGE_USER_RWX	(_PAGE_USER_RW | _PAGE_EXEC)
 +
-+/* PROT_NONE stays kernel-only: "no user access" is exactly "no U". */
++/*
++ * Private vs shared (m14-linux-035): `protection_map[]` is indexed with
++ * `VM_SHARED` included, exactly like arm64/riscv — the `__P*` half is the
++ * private mapping's protection and a writable private mapping is mapped
++ * **read-only** (`PAGE_COPY` semantics, §2.2.5 R/W/X are per-page bits): the
++ * first write then faults (NWPERM) and the generic `do_wp_page()` makes the
++ * copy.  Mapping it writable would let a store reach the page the mapping was
++ * filled from (an anonymous page shared by fork, or a page-cache page) and
++ * silently break both COW and "private means no write-back".
++ *
++ * The `__S*` half is the shared mapping's protection: writable stays writable
++ * (§2.2.5 — sharing is what the mapping is for).
++ *
++ * PROT_NONE stays kernel-only: "no user access" is exactly "no U".
++ */
 +#define __P000	PAGE_KERNEL_RO
 +#define __P001	__pgprot(_PAGE_USER_R)
-+#define __P010	__pgprot(_PAGE_USER_RW)
-+#define __P011	__pgprot(_PAGE_USER_RW)
++#define __P010	__pgprot(_PAGE_USER_R)		/* private writable: copy */
++#define __P011	__pgprot(_PAGE_USER_R)
 +#define __P100	__pgprot(_PAGE_USER_RX)
 +#define __P101	__pgprot(_PAGE_USER_RX)
-+#define __P110	__pgprot(_PAGE_USER_RWX)
-+#define __P111	__pgprot(_PAGE_USER_RWX)
++#define __P110	__pgprot(_PAGE_USER_RX)		/* private W|X: copy */
++#define __P111	__pgprot(_PAGE_USER_RX)
 +#define __S000	PAGE_KERNEL_RO
 +#define __S001	__pgprot(_PAGE_USER_R)
 +#define __S010	__pgprot(_PAGE_USER_RW)
@@ -182,11 +196,23 @@ index 000000000..01df34f79
 +	return __pte(pte_val(pte) & ~_PAGE_ACCESSED);
 +}
 +
++/*
++ * Change only the permission bits, keeping everything that describes *which*
++ * page and *how it has been used*.  Masking with `_PAGE_PFN_MASK` alone (the
++ * pre-m14-linux-035 form) dropped `D` on every `mprotect()`: a page that had
++ * been written became "clean", so a MAP_SHARED file page would never be
++ * written back and an anonymous page would look unmodified to reclaim.
++ *
++ * `A` and `D` are the walker's to maintain (spec/DADAO-12 §2.2.5), so the ones
++ * already in the entry are carried over as they are; `G` is a property of the
++ * mapping the PTE already had, not of the protection being applied.
++ */
++#define _PAGE_CHG_MASK	(_PAGE_PFN_MASK | _PAGE_DIRTY | _PAGE_ACCESSED | \
++			 _PAGE_GLOBAL)
++
 +static inline pte_t pte_modify(pte_t pte, pgprot_t newprot)
 +{
-+	unsigned long val = pte_val(pte) & _PAGE_PFN_MASK;
-+
-+	return __pte(val | pgprot_val(newprot));
++	return __pte((pte_val(pte) & _PAGE_CHG_MASK) | pgprot_val(newprot));
 +}
 +
 +static inline void set_pte(pte_t *ptep, pte_t pte)	{ *ptep = pte; }
@@ -194,6 +220,44 @@ index 000000000..01df34f79
 +{
 +	*ptep = __pte(0);
 +}
++
++/*
++ * The walker keeps A/D in the *TLB entry* and only writes them back on
++ * CLEAN/FLUSH/replacement (spec/DADAO-12 §2.2.5, contract-tlb TLB-12/-17); a
++ * plain `invalid` drops the pending bits.  Generic `mm/` reads the PTE right
++ * before it clears it (`ptep_get_and_clear()` in `try_to_unmap_one()`, which is
++ * what decides "the page was dirty / was referenced"), so the write-back has to
++ * happen *before* that read — and before the PTE is overwritten, because a
++ * write-back into a slot that software already cleared would OR A/D into a
++ * non-present entry.  Hence: CLEAN the translation, then read and clear.
++ *
++ * `flush_tlb_*()` itself stays `invalid` for the same reason: it runs *after*
++ * software has written the new entry, and `invalid` is the one command that
++ * never writes A/D back over it (asm/tlbflush.h; mm/mmu.c has the CLEAN).
++ */
++extern void dadao_tlb_clean_addr(struct mm_struct *mm, unsigned long addr);
++
++static inline pte_t ptep_get_and_clear(struct mm_struct *mm, unsigned long addr,
++				       pte_t *ptep)
++{
++	pte_t pte;
++
++	dadao_tlb_clean_addr(mm, addr);
++	pte = *ptep;
++	*ptep = __pte(0);
++	return pte;
++}
++
++/*
++ * Same as above for the access bit, and out of line for the same reason as
++ * `dadao_tlb_clean_addr()`: `struct vm_area_struct` is only forward-declared
++ * here, and the address space has to be read out of it (mm/mmu.c).
++ */
++extern int dadao_ptep_test_and_clear_young(struct vm_area_struct *vma,
++					   unsigned long addr, pte_t *ptep);
++#define ptep_test_and_clear_young	dadao_ptep_test_and_clear_young
++#define __HAVE_ARCH_PTEP_TEST_AND_CLEAR_YOUNG
++#define __HAVE_ARCH_PTEP_GET_AND_CLEAR
 +
 +/*
 + * Swap entries.  CONFIG_SWAP is off in K0, but the generic headers still
@@ -308,41 +372,29 @@ index 000000000..01df34f79
 +#define pmd_page_vaddr	pmd_page_vaddr
 +
 +/*
-+ * Copy-on-write (m14-linux-018, mm/cow.c).
++ * Copy-on-write reporting (m14-linux-018's probe surface, m14-linux-035).
 + *
-+ * The *sharing* half of the contract is the generic `copy_page_range()`: it
-+ * write-protects a private writable PTE on both sides and takes the second
-+ * reference.  The *write* half is this port's own — the fault channel reads
-+ * CFXPERM + NWPERM itself (mm/fault.c), so there is no generic `do_wp_page()`
-+ * to call.  It lives here (rather than in asm/setup.h, where the boot/probe
-+ * hooks are) because the interface is about a PTE: the caller has already
-+ * resolved the leaf and hands it over.
++ * The *write* half of COW is the generic `do_wp_page()` now: the fault channel
++ * hands USER faults to `handle_mm_fault()` (mm/fault.c), so there is no
++ * port-side COW to call.  What stays here is only the vocabulary the probe
++ * image (mm/k4_cow_selftest.c) and its gate use: the channel classifies the
++ * write it just served from the PTE it replaced (zero page -> private, same PA
++ * -> upgraded in place, different PA -> copied) and keeps these counters, so
++ * the probe can print "what happened" without reaching into generic code.
 + */
-+#define DADAO_WP_NONE		0	/* not a COW fault: the caller decides */
-+#define DADAO_WP_COPY		1	/* a page was copied (shared) */
-+#define DADAO_WP_INPLACE	2	/* the mapping was made writable (sole ref) */
-+
-+/* Counter slots of `dadao_cow_stats[]`: what the probe image reports. */
 +#define DADAO_COW_COPY		0	/* writes resolved by copying */
 +#define DADAO_COW_INPLACE	1	/* writes resolved in place */
 +#define DADAO_COW_PUT		2	/* old references dropped */
-+#define DADAO_COW_REFUSED	3	/* not a COW fault (VM_SHARED / no W) */
-+#define DADAO_COW_NO_PAGE	4	/* alloc_page() failed */
++#define DADAO_COW_REFUSED	3	/* permission fault refused (no COW) */
++#define DADAO_COW_NO_PAGE	4	/* allocation failed */
 +#define DADAO_COW_NR_STATS	5
 +
-+/* `pte_t` and `struct vm_area_struct` are already in scope here (the folding
-+ * headers above and the forward declaration near the top). */
-+unsigned int dadao_do_wp_page(struct vm_area_struct *vma, unsigned long addr,
-+			      pte_t *ptep);
-+
++/* Defined in mm/fault.c; zeroed unless the COW probe image is built. */
 +extern unsigned long dadao_cow_stats[DADAO_COW_NR_STATS];
 +/* `{control value, ASID, ASID_ANY, address}` of the last invalidation. */
 +extern unsigned long dadao_cow_last_flush[4];
 +/* `{old PA, new PA, references before, references after}`. */
 +extern unsigned long dadao_cow_last_page[4];
-+/* Fork side (mm/mmu.c): pages found shared, and how many were still writable. */
-+extern unsigned long dadao_cow_dup_pages;
-+extern unsigned long dadao_cow_dup_writable;
 +
 +#endif /* !__ASSEMBLY__ */
 +#endif /* __ASM_PGTABLE_H */

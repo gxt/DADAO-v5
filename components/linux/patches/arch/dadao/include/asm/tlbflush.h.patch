@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/tlbflush.h b/arch/dadao/include/asm/tlbflush.h
 new file mode 100644
-index 000000000..040f89b90
+index 000000000..0d5496392
 --- /dev/null
 +++ b/arch/dadao/include/asm/tlbflush.h
-@@ -0,0 +1,181 @@
+@@ -0,0 +1,209 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_TLBFLUSH_H
 +#define __ASM_TLBFLUSH_H
@@ -40,6 +40,14 @@ index 000000000..040f89b90
 + *
 + * The hardware is not software-managed (the walker fills the TLB itself), so
 + * there is no `update_mmu_cache` work: see asm/pgtable.h.
++ *
++ * Every function here issues `invalid` (drop the entry, no write-back).  That
++ * is deliberate: they all run *after* software has written the new PTE, and
++ * `invalid` is the one command that cannot OR a stale A/D back into it
++ * (contract-tlb TLB-17).  Where the pending A/D bits are still wanted — generic
++ * `mm/` reads them right before clearing the PTE — mm/mmu.c's
++ * `dadao_tlb_clean_addr()` issues the `clean` *first*
++ * (asm/pgtable.h:`ptep_get_and_clear()`).
 + */
 +
 +/*
@@ -66,6 +74,26 @@ index 000000000..040f89b90
 +		if (scope == DADAO_TLB_SCOPE_RANGE)
 +			dadao_tlb_addr_size_write(size);
 +	}
++
++#if CONFIG_DADAO_K4_COW_SELFTEST
++	/*
++	 * Probe images read back *which* command the kernel issued, with the
++	 * operands it was issued with (m14-linux-018's W5, kept by
++	 * m14-linux-035 after the port-side COW was replaced by the generic
++	 * one).  Recording here — not at the call site — is what makes the
++	 * record honest: a path that flushes without going through this
++	 * function cannot leave a truthful-looking record behind.
++	 */
++	{
++		extern unsigned long dadao_cow_last_flush[4];
++
++		dadao_cow_last_flush[0] =
++			dadao_tlb_control_value(op, scope, asid_any);
++		dadao_cow_last_flush[1] = asid;
++		dadao_cow_last_flush[2] = asid_any ? 1 : 0;
++		dadao_cow_last_flush[3] = start;
++	}
++#endif
 +
 +	if (asid_any) {
 +		dadao_tlb_control(op, scope, true);

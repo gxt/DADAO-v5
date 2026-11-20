@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k5_futex_selftest.c b/arch/dadao/kernel/k5_futex_selftest.c
 new file mode 100644
-index 000000000..1a276727e
+index 000000000..da8ea06cf
 --- /dev/null
 +++ b/arch/dadao/kernel/k5_futex_selftest.c
-@@ -0,0 +1,905 @@
+@@ -0,0 +1,964 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K5 futex and user-atomic probe (CONFIG_DADAO_K5_FUTEX_SELFTEST,
@@ -65,6 +65,8 @@ index 000000000..1a276727e
 + */
 +#include <linux/completion.h>
 +#include <linux/errno.h>
++#include <linux/futex.h>
++#include <linux/ktime.h>
 +#include <linux/init.h>
 +#include <linux/kernel.h>
 +#include <linux/mman.h>
@@ -106,6 +108,7 @@ index 000000000..1a276727e
 +#define K5F_FAIL_F6	0x7f	/* WAIT_BITSET / WAKE_BITSET */
 +#define K5F_FAIL_F8	0x69	/* WAKE_OP: the arch atomic RMW */
 +#define K5F_FAIL_F7	0x6a	/* CLONE_CHILD_CLEARTID's clear */
++#define K5F_FAIL_F9	0x6b	/* a shared futex on an anonymous page */
 +
 +/*
 + * The probe's memory window (1 TiB: inside user space, outside every kernel
@@ -133,6 +136,9 @@ index 000000000..1a276727e
 +#define K5F_W_F7		40
 +#define K5F_W_WAKEOP_A	44
 +#define K5F_W_WAKEOP_B	48
++/* m14-linux-035: the word the shared (non-PRIVATE) futex case uses.  Inside the
++ * stub's data page, past every word the stub itself stores. */
++#define K5F_W_SHARED	56
 +
 +/*
 + * The constants the user program sends.  They are repeated in
@@ -279,11 +285,21 @@ index 000000000..1a276727e
 +		k5f_fail(K5F_FAIL_SETUP, "vm_mmap", addr);
 +	if (!page)
 +		return;
++	/*
++	 * Map the page with `vm_insert_page()` (m14-linux-035): the page and its
++	 * content are the probe's, but the *PTE* is built by generic code.  The
++	 * old `vm_private_data = PA` hand-off was the fault channel's own
++	 * convention, and a task's mappings no longer go through that channel.
++	 */
 +	mmap_write_lock(k5f_mm);
 +	vma = find_vma(k5f_mm, va);
 +	if (!vma)
 +		k5f_fail(K5F_FAIL_SETUP, "find_vma", va);
-+	vma->vm_private_data = (void *)page_to_phys(page);
++	/* vm_insert_page() wants VM_MIXEDMAP set by the caller and the mmap
++	 * lock already held (it BUGs on a lock it had to take itself). */
++	vm_flags_set(vma, VM_MIXEDMAP);
++	if (vm_insert_page(vma, va, page))
++		k5f_fail(K5F_FAIL_SETUP, "vm_insert_page", va);
 +	mmap_write_unlock(k5f_mm);
 +}
 +
@@ -453,6 +469,45 @@ index 000000000..1a276727e
 +}
 +
 +/* F1: the wake found the waiter, woke it, and the waiter's wait returned 0. */
++/*
++ * m14-linux-035: a *shared* futex on an anonymous page.
++ *
++ * Before the page fault path went through `handle_mm_fault()`, such a page had
++ * no `folio->mapping`, so `get_futex_key()` took its `!mapping` branch and every
++ * shared futex on it returned -EFAULT (m14-linux-025's N27).  The port's own
++ * futex entry is used (the same `do_futex()` the syscall calls): the kernel
++ * still has `current->mm` == this probe's address space here, and the futex
++ * hash table is up because this runs from the user stub's trap, not from the
++ * K4 boundary.
++ */
++extern long do_futex(u32 __user *uaddr, int op, u32 val, ktime_t *timeout,
++		     u32 __user *uaddr2, u32 val2, u32 val3);
++
++static void k5f_check_shared_futex(void)
++{
++	u32 __user *p = k5f_word(K5F_W_SHARED);
++	struct page *page = NULL;
++	unsigned long mapping = 0;
++	long wake, wait;
++
++	/* A value the WAIT cannot match, so the call reaches the comparison and
++	 * returns -EAGAIN instead of sleeping. */
++	k5f_write_word(K5F_W_SHARED, 0x5a5a5a5a);
++	wake = do_futex(p, FUTEX_WAKE, 1, NULL, NULL, 0, 0);
++	wait = do_futex(p, FUTEX_WAIT, 0x11111111, NULL, NULL, 0, 0);
++	if (get_user_pages_fast((unsigned long)p, 1, 0, &page) == 1) {
++		mapping = (unsigned long)page_folio(page)->mapping;
++		put_page(page);
++	}
++	dadao_early_printf("K5 futex shared: wake=%ld wait=%ld mapping=%#lx\n",
++			   wake, wait, mapping);
++	k5f_expect("shared_futex_wake", 0, (unsigned long)wake, K5F_FAIL_F9);
++	k5f_expect("shared_futex_wait_eagain", (unsigned long)-EAGAIN,
++		   (unsigned long)wait, K5F_FAIL_F9);
++	k5f_expect("shared_futex_page_mapped", 1, mapping ? 1UL : 0UL,
++		   K5F_FAIL_F9);
++}
++
 +static void k5f_check_f1(struct pt_regs *regs)
 +{
 +	struct k5f_slot *waiter = &k5f_slots[k5f_last_slot];
@@ -652,6 +707,10 @@ index 000000000..1a276727e
 +	k5f_expect("f7_mm_users_gt1", 1, (unsigned long)(child->mm_users > 1),
 +		   K5F_FAIL_F7);
 +	k5f_expect("f7_tid_cleared", 0, k5f_read_word(K5F_W_F7), K5F_FAIL_F7);
++	/* The shared-futex case runs from the *last* case's handler: a FUTEX_WAIT
++	 * whose comparison was injected away (`no-recheck`) blocks for ever, and a
++	 * check placed earlier would swallow that injection's own verdict. */
++	k5f_check_shared_futex();
 +	k5f_expect("f7_child_script", K5F_SCRIPT_EXITNOW, child->script,
 +		   K5F_FAIL_F7);
 +	k5f_expect("f7_child_reported", 1, child->reported, K5F_FAIL_F7);

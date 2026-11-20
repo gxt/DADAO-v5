@@ -503,8 +503,12 @@ def judge_shared(rep: Report, text: str, rc: int, d: dict) -> None:
                   num(w5.get("flush_any")))
         rep.check("W5", "失效的 ASID == 写侧 mm 的 ASID", num(w5.get("mm_asid")),
                   num(w5.get("flush_asid")))
-        rep.check("W5", "失效的 VA == 故障地址", va + d["consts"]["COW_OFF_PARENT"],
-                  num(w5.get("flush_va")))
+        # The kernel invalidates the *page* the fault belongs to: a TLB entry
+        # covers a page and `invalid|VA` matches the entries containing the
+        # address it names (contract-tlb TLB-23), so a page-aligned start is
+        # the correct operand.  The check still fails on a wrong page.
+        rep.check("W5", "失效的 VA 落在故障页（TLB-23：页内偏移不参与匹配）", va,
+                  num(w5.get("flush_va")) & ~(d["page"] - 1))
     if cov and child:
         # The copy's own invalidation names the *child's* ASID: the copy is the
         # child's, so its stale translation is the child's to drop.

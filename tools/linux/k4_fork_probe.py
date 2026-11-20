@@ -444,16 +444,19 @@ def check_static(rep: Report, rc_build: int, snap: dict | None, d: dict) -> None
     rep.check("S4", "copy_thread() 设子 rd8 = 0（fork 返回值）", True,
               "childregs->rd[8] = 0" in process)
     mmu_ctx = kernel_text("arch/dadao/include/asm/mmu_context.h")
-    rep.check("S4", "dup_mm 的 arch 钩子 arch_dup_mmap 接到 dadao_dup_mmap_cow",
-              True, "static inline int arch_dup_mmap(struct mm_struct *oldmm,"
-              in mmu_ctx and "return dadao_dup_mmap_cow(oldmm, mm);" in mmu_ctx)
-    mmu = kernel_text("arch/dadao/mm/mmu.c")
-    # m14-linux-018: the child's PTE is the parent's, write-protected, with the
-    # reference the second mapping owns — sharing, not an eager private copy.
-    rep.check("S4", "COW 共享在 mm/mmu.c 实现（同一个 PA + 取引用 + 写保护）", True,
-              "int dadao_dup_mmap_cow(struct mm_struct *oldmm, struct mm_struct *mm)"
-              in mmu and "get_page(pte_page(entry));" in mmu
-              and "ptep_set_wrprotect(src_mm, addr, src_pte);" in mmu)
+    # m14-linux-035: the port-side COW is gone.  The fork's sharing is generic
+    # `copy_page_range()` (write-protect both PTEs, same page, second reference),
+    # the write half is generic `do_wp_page()` reached through
+    # `handle_mm_fault()`, and `dup_mmap()` itself drops the parent's stale
+    # translations with `flush_tlb_mm(oldmm)`.
+    rep.check("S4", "arch_dup_mmap 不再做 COW（返回 0，无 port-side 钩子）", True,
+              "static inline int arch_dup_mmap(struct mm_struct *oldmm,"
+              in mmu_ctx and "return 0;" in mmu_ctx
+              and "return dadao_dup_mmap_cow(" not in mmu_ctx)
+    rep.check("S4", "写半交给 generic handle_mm_fault（mm/cow.c 已删）", True,
+              "handle_mm_fault(" in faults
+              and not (SOURCE / "arch" / "dadao" / "mm" / "cow.c").exists()
+              and "dadao_do_wp_page" not in faults)
 
     # The callee-saved set the task must carry (contract-abi §4.5).
     fields = thread_struct_fields()
@@ -469,7 +472,7 @@ def check_static(rep: Report, rc_build: int, snap: dict | None, d: dict) -> None
     # The probe image carries the symbols the run must show.
     syms = snap["syms"]
     for name in ("dadao_k4_selftest", "dadao_k4_boundary", "copy_thread",
-                 "dadao_dup_mmap_cow", "dadao_pf_alloc_page",
+                 "handle_mm_fault", "dadao_pf_alloc_page",
                  "dadao_user_excp_handler"):
         rep.check("S6", f"镜像含符号 {name}", True, name in syms)
 

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..2ada52a49
+index 000000000..9b20eadb4
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,633 @@
+@@ -0,0 +1,634 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -380,7 +380,7 @@ index 000000000..2ada52a49
 +		dadao_early_exit(0xc0UL | ((DADAO_MODE_USER & 0x3) << 4) | 0x0);
 +	}
 +
-+	policy = dadao_do_page_fault(frame, cause, info);
++	policy = dadao_do_page_fault(frame, cause, info, true);
 +	if (policy != DADAO_PF_RETRY) {
 +		dadao_early_printf("K4 umon->smon: the channel did not install a "
 +				   "mapping (policy=%lu)\n", policy);
@@ -516,7 +516,8 @@ index 000000000..2ada52a49
 +	 * which keeps the K2 exit-code segmentation and the one-line report.
 +	 */
 +	if (cause == DADAO_CAUSE_CFXMEM || cause == DADAO_CAUSE_CFXPERM) {
-+		unsigned long policy = dadao_do_page_fault(regs, raw_cause, info);
++		unsigned long policy = dadao_do_page_fault(regs, raw_cause,
++							  info, false);
 +
 +		if (policy == DADAO_PF_RETRY) {
 +			dadao_trap_busy = 0;

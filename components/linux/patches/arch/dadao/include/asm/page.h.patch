@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/page.h b/arch/dadao/include/asm/page.h
 new file mode 100644
-index 000000000..d402bd99a
+index 000000000..2b33ce816
 --- /dev/null
 +++ b/arch/dadao/include/asm/page.h
-@@ -0,0 +1,76 @@
+@@ -0,0 +1,82 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PAGE_H
 +#define __ASM_PAGE_H
@@ -72,9 +72,15 @@ index 000000000..d402bd99a
 +#define copy_from_user_page(vma, page, vaddr, dst, src, len)		\
 +	memcpy(dst, src, len)
 +
-+#define __HAVE_ARCH_COPY_USER_HIGHPAGE
-+#define copy_user_highpage(to, from, vaddr, vma)			\
-+	copy_user_page(to, from, vaddr, vma)
++/*
++ * `copy_user_highpage()` is deliberately *not* overloaded (m14-linux-035).
++ * Its arguments are `struct page *`, while `copy_user_page()`/`copy_page()`
++ * take kernel-virtual addresses; the generic definition (include/linux/highmem.h)
++ * does the `kmap_local_page()` around them.  Mapping the page-based call
++ * straight onto the address-based one compiles, and silently copies from the
++ * page-structure array instead of the page (measured: a memcpy off the end of
++ * the mapped window the first time the generic COW path used it).
++ */
 +
 +#endif /* !__ASSEMBLY__ */
 +#endif /* __KERNEL__ */

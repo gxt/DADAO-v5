@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/k4_cow_selftest.c b/arch/dadao/mm/k4_cow_selftest.c
 new file mode 100644
-index 000000000..7130f2d39
+index 000000000..4f38b6f15
 --- /dev/null
 +++ b/arch/dadao/mm/k4_cow_selftest.c
-@@ -0,0 +1,471 @@
+@@ -0,0 +1,709 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K4 copy-on-write self-test (m14-linux-018's W1-W5, probe image only).
@@ -54,10 +54,14 @@ index 000000000..7130f2d39
 + * (spec/Kaiwu §7.1) naming the case.
 + */
 +#include <linux/completion.h>
++#include <linux/fs.h>
++#include <linux/futex.h>
++#include <linux/ktime.h>
 +#include <linux/init.h>
 +#include <linux/kernel.h>
 +#include <linux/mman.h>
 +#include <linux/mm.h>
++#include <linux/rmap.h>
 +#include <linux/mm_types.h>
 +#include <linux/sched.h>
 +#include <linux/sched/mm.h>
@@ -65,10 +69,13 @@ index 000000000..7130f2d39
 +#include <linux/sched/task_stack.h>
 +#include <linux/signal.h>
 +#include <linux/string.h>
++#include <linux/swap.h>
 +#include <linux/types.h>
 +
 +#include <asm/mmu_context.h>
 +#include <asm/page.h>
++#include <asm/syscall.h>
++#include <asm/unistd.h>
 +#include <asm/pgalloc.h>
 +#include <asm/pgtable.h>
 +#include <asm/setup.h>
@@ -183,6 +190,166 @@ index 000000000..7130f2d39
 +}
 +
 +/* -------------------------------------------------------------------------
++ * The generic path's own acceptance (m14-linux-035)
++ *
++ * The process's pages are no longer the channel's: they are the generic
++ * anonymous/file pages, with rmap and LRU behind them.  These checks are what
++ * "generic" has to mean here — a shared futex key that exists, an rmap walk
++ * that finds the mappings, and a GUP on a page-cache page that returns instead
++ * of spinning (all three were impossible before, m14-linux-025's record).
++ * ------------------------------------------------------------------------- */
++
++#define COW_FILE_VA	(COW_VA_BASE + 2 * PAGE_SIZE)
++#define COW_FILE_NAME	"/k4cow.gup"
++
++/* How many PTEs the folio is mapped into (the walk `try_to_unmap()` uses). */
++static bool cow_rmap_one(struct folio *folio, struct vm_area_struct *vma,
++			 unsigned long addr, void *arg)
++{
++	struct page_vma_mapped_walk pvmw = {
++		.pfn = page_to_pfn(folio_page(folio, 0)),
++		.nr_pages = 1,
++		.pgoff = folio->index,
++		.vma = vma,
++		.address = addr,
++	};
++
++	/* Count the mappings that really exist: `rmap_walk()` visits every VMA
++	 * on the anon_vma chain, and a VMA that no longer maps this folio (the
++	 * child after its copy) must not be counted. */
++	if (page_vma_mapped_walk(&pvmw))
++		(*(unsigned long *)arg)++;
++	page_vma_mapped_walk_done(&pvmw);
++	return true;
++}
++
++static unsigned long cow_rmap_count(struct folio *folio)
++{
++	struct rmap_walk_control rwc = {
++		.rmap_one = cow_rmap_one,
++	};
++	unsigned long n = 0;
++
++	rwc.arg = &n;
++	rmap_walk(folio, &rwc);
++	return n;
++}
++
++/*
++ * The A/D fixes (m14-linux-035): a write through an already-writable PTE leaves
++ * the dirty bit *pending in the TLB*, so software only learns about it when the
++ * entry is written back.  `ptep_test_and_clear_young()` must issue that
++ * write-back before it reads the PTE, and `pte_modify()` must keep D when it
++ * changes only the protection.
++ */
++static void cow_ad_and_modify(struct vm_area_struct *vma, unsigned long addr)
++{
++	unsigned long pte = cow_pte(cow_mm, addr);
++	unsigned long young, after, d_before, d_after;
++	pte_t *ptep = pte_offset_kernel(pmd_off(cow_mm, addr), addr);
++	pte_t modified;
++
++	d_before = pte_dirty(__pte(pte)) ? 1UL : 0UL;
++	/* A store through the writable PTE: no fault, A/D stay in the TLB. */
++	cow_store(addr + 24, COW_PARENT_MARK);
++	young = ptep_test_and_clear_young(vma, addr, ptep) ? 1UL : 0UL;
++	after = cow_pte(cow_mm, addr);
++	d_after = pte_dirty(__pte(after)) ? 1UL : 0UL;
++	dadao_early_printf("K4 cow ad: d_before=%lu young=%lu d_after=%lu a=%lu\n",
++			   d_before, young, d_after,
++			   pte_young(__pte(after)) ? 1UL : 0UL);
++	cow_expect("ad-write-back-dirty", 1, d_after, COW_FAIL_W5);
++	cow_expect("ad-young-cleared", 0,
++		   pte_young(__pte(after)) ? 1UL : 0UL, COW_FAIL_W5);
++
++	modified = pte_modify(__pte(pte | _PAGE_DIRTY),
++			      __pgprot(_PAGE_USER_R));
++	dadao_early_printf("K4 cow modify: in=%#lx out=%#lx d=%lu w=%lu\n", pte,
++			   pte_val(modified), pte_dirty(modified) ? 1UL : 0UL,
++			   pte_write(modified) ? 1UL : 0UL);
++	cow_expect("modify-keeps-dirty", 1, pte_dirty(modified) ? 1UL : 0UL,
++		   COW_FAIL_W5);
++	cow_expect("modify-clears-write", 0, pte_write(modified) ? 1UL : 0UL,
++		   COW_FAIL_W5);
++}
++
++/*
++ * A file page must be the page cache's: a read fault fills from
++ * `mapping->a_ops->read_folio()` (ramfs: the page cache), and GUP — with and
++ * without FOLL_WRITE — returns at once.  Before m14-linux-035 the channel
++ * `kernel_read()` a private copy, so `follow_page_pte()` saw a page outside
++ * every mapping and `filemap_page_mkwrite()` answered VM_FAULT_NOPAGE for ever:
++ * `__get_user_pages()` retried until the host's timeout (m14-linux-025).
++ */
++static void cow_file_gup(void)
++{
++	struct file *file;
++	struct page *page;
++	struct folio *folio;
++	loff_t pos = 0;
++	unsigned long buf[4];
++	unsigned long rd, rw;
++	int ret;
++
++	for (ret = 0; ret < 4; ret++)
++		buf[ret] = COW_MAGIC + ret;
++
++	file = filp_open(COW_FILE_NAME, O_CREAT | O_RDWR | O_TRUNC, 0600);
++	if (IS_ERR(file))
++		cow_fail(COW_FAIL_SETUP, "file-open", (unsigned long)PTR_ERR(file));
++	if (kernel_write(file, buf, sizeof(buf), &pos) != sizeof(buf))
++		cow_fail(COW_FAIL_SETUP, "file-write", 0);
++	pos = 0;
++
++	if (vm_mmap(file, COW_FILE_VA, PAGE_SIZE, PROT_READ | PROT_WRITE,
++		    MAP_SHARED | MAP_FIXED, 0) != COW_FILE_VA)
++		cow_fail(COW_FAIL_SETUP, "file-mmap", COW_FILE_VA);
++
++	/* The read fault: the page comes from the page cache. */
++	rd = cow_load(COW_FILE_VA);
++	cow_expect("file-content", COW_MAGIC, rd, COW_FAIL_SETUP);
++
++	page = NULL;
++	ret = get_user_pages_fast(COW_FILE_VA, 1, 0, &page);
++	if (ret != 1)
++		cow_fail(COW_FAIL_SETUP, "gup-read", (unsigned long)ret);
++	folio = page_folio(page);
++	dadao_early_printf("K4 cow gup: va=%#lx read=%ld mapping_ok=%lu "
++			   "refs=%lu\n", COW_FILE_VA, (long)ret,
++			   folio->mapping == file->f_mapping ? 1UL : 0UL,
++			   (unsigned long)folio_ref_count(folio));
++	cow_expect("gup-page-in-cache", 1,
++		   folio->mapping == file->f_mapping ? 1UL : 0UL,
++		   COW_FAIL_SETUP);
++	put_page(page);
++
++	/* The call that used to hang: FOLL_WRITE on a shared file mapping. */
++	page = NULL;
++	rw = (unsigned long)get_user_pages_fast(COW_FILE_VA, 1, FOLL_WRITE, &page);
++	if (rw != 1)
++		cow_fail(COW_FAIL_SETUP, "gup-write", rw);
++	put_page(page);
++	dadao_early_printf("K4 cow gup-rw: va=%#lx ret=%lu\n", COW_FILE_VA, rw);
++	cow_expect("gup-write-returns", 1, rw, COW_FAIL_SETUP);
++
++	/* A store through the PTE (page_mkwrite -> writable), then the file's
++	 * own bytes must show it: a shared page is the page cache's page. */
++	cow_store(COW_FILE_VA + 8, COW_CHILD_MARK);
++	cow_expect("file-shared-store", COW_CHILD_MARK,
++		   cow_load(COW_FILE_VA + 8), COW_FAIL_SETUP);
++	pos = 0;
++	if (kernel_read(file, buf, sizeof(buf), &pos) != sizeof(buf))
++		cow_fail(COW_FAIL_SETUP, "file-readback", 0);
++	dadao_early_printf("K4 cow file: readback=%#lx want=%#lx\n", buf[1],
++			   (unsigned long)COW_CHILD_MARK);
++	cow_expect("file-write-back", COW_CHILD_MARK, buf[1], COW_FAIL_SETUP);
++
++	filp_close(file, NULL);
++	if (vm_munmap(COW_FILE_VA, PAGE_SIZE))
++		cow_fail(COW_FAIL_SETUP, "file-munmap", COW_FILE_VA);
++}
++
++/* -------------------------------------------------------------------------
 + * Case 1: W1 + W2 + W4 + W5 (all recoverable, one boot)
 + * ------------------------------------------------------------------------- */
 +
@@ -207,7 +374,7 @@ index 000000000..7130f2d39
 +	 * must not fault, and it must see the parent's sentinel. */
 +	cow_child_read = cow_load(COW_VA_BASE);
 +
-+	/* The write that must resolve through mm/cow.c. */
++	/* The write that must resolve through the generic do_wp_page(). */
 +	cow_store(COW_VA_BASE + COW_OFF_CHILD, COW_CHILD_MARK);
 +	cow_child_store_ok =
 +		cow_load(COW_VA_BASE + COW_OFF_CHILD) == COW_CHILD_MARK;
@@ -235,6 +402,7 @@ index 000000000..7130f2d39
 +	struct task_struct *child;
 +	unsigned long orig_pa, child_pa, child_new_pa, content0, content1;
 +	unsigned long spins = 0, entries0, copies0, inplaces0, puts0, refs;
++	unsigned long dup_pages = 0, dup_writable = 0, rmap;
 +	struct page *page, *new_page;
 +	pid_t pid;
 +
@@ -250,17 +418,28 @@ index 000000000..7130f2d39
 +		MAP_PRIVATE | MAP_ANONYMOUS);
 +	cow_store(COW_VA_BASE, COW_MAGIC);
 +	content0 = cow_load(COW_VA_BASE);
++	/*
++	 * The generic path puts the page on the LRU, and the per-CPU LRU batch
++	 * holds its own reference until it is drained — so the reference-count
++	 * checks below drain it first (m14-linux-035: these counts used to be
++	 * stable because the channel never registered a page anywhere).
++	 */
++	lru_add_drain();
 +	orig_pa = cow_pfn_of(cow_mm, COW_VA_BASE);
 +	if (!orig_pa)
 +		cow_fail(COW_FAIL_SETUP, "parent-pa", COW_VA_BASE);
 +	page = pfn_to_page(orig_pa >> PAGE_SHIFT);
 +	dadao_early_printf("K4 cow setup: va=%#lx pa=%#lx content=%#lx count=%lu "
-+			   "w=%lu copies=%lu inplace=%lu puts=%lu\n",
++			   "w=%lu copies=%lu inplace=%lu puts=%lu mapcount=%d "
++			   "lru=%d anon=%d\n",
 +			   COW_VA_BASE, orig_pa, content0, page_count(page),
 +			   (cow_pte(cow_mm, COW_VA_BASE) & _PAGE_WRITE) ? 1UL : 0UL,
 +			   dadao_cow_stats[DADAO_COW_COPY],
 +			   dadao_cow_stats[DADAO_COW_INPLACE],
-+			   dadao_cow_stats[DADAO_COW_PUT]);
++			   dadao_cow_stats[DADAO_COW_PUT],
++			   folio_mapcount(page_folio(page)),
++			   folio_test_lru(page_folio(page)) ? 1 : 0,
++			   folio_test_anon(page_folio(page)) ? 1 : 0);
 +	cow_expect("setup-content", COW_MAGIC, content0, COW_FAIL_SETUP);
 +	cow_expect("setup-one-ref", 1, page_count(page), COW_FAIL_SETUP);
 +
@@ -275,15 +454,34 @@ index 000000000..7130f2d39
 +	if (!child || !child->mm)
 +		cow_fail(COW_FAIL_CHILD, "child", child ? 0UL : 1UL);
 +
++	lru_add_drain();
 +	child_pa = cow_pfn_of(child->mm, COW_VA_BASE);
++	/*
++	 * The fork's share is generic `copy_page_range()` now, so what it did is
++	 * read back from the *child's* PTEs instead of from an arch-side counter
++	 * (m14-linux-035 removed the hook that kept one).
++	 */
++	{
++		unsigned long a;
++
++		for (a = COW_VA_BASE; a < COW_VA_BASE + 2 * PAGE_SIZE;
++		     a += PAGE_SIZE) {
++			unsigned long cpte = cow_pte(child->mm, a);
++
++			if (!(cpte & _PAGE_PRESENT))
++				continue;
++			dup_pages++;
++			if (cpte & _PAGE_WRITE)
++				dup_writable++;
++		}
++	}
 +	dadao_early_printf("K4 cow fork: pid=%d parent_pa=%#lx child_pa=%#lx "
 +			   "same=%lu w_parent=%lu w_child=%lu count=%lu "
 +			   "dup_pages=%lu dup_writable=%lu\n", (int)pid, orig_pa,
 +			   child_pa, child_pa == orig_pa ? 1UL : 0UL,
 +			   (cow_pte(cow_mm, COW_VA_BASE) & _PAGE_WRITE) ? 1UL : 0UL,
 +			   (cow_pte(child->mm, COW_VA_BASE) & _PAGE_WRITE) ? 1UL : 0UL,
-+			   page_count(page), dadao_cow_dup_pages,
-+			   dadao_cow_dup_writable);
++			   page_count(page), dup_pages, dup_writable);
 +	cow_expect("w1-fork-shares-pa", 1, child_pa == orig_pa, COW_FAIL_W1);
 +	cow_expect("w1-fork-child-readonly", 0,
 +		   (cow_pte(child->mm, COW_VA_BASE) & _PAGE_WRITE) ? 1UL : 0UL,
@@ -292,7 +490,16 @@ index 000000000..7130f2d39
 +		   (cow_pte(cow_mm, COW_VA_BASE) & _PAGE_WRITE) ? 1UL : 0UL,
 +		   COW_FAIL_W2);
 +	cow_expect("w4-refs-after-fork", 2, page_count(page), COW_FAIL_W4);
-+	cow_expect("fork-dup-writable", 0, dadao_cow_dup_writable, COW_FAIL_W1);
++	cow_expect("fork-dup-writable", 0, dup_writable, COW_FAIL_W1);
++
++	/* rmap: the same folio is mapped twice now — the walk `try_to_unmap()`
++	 * runs must find both, and `mapcount` must agree. */
++	rmap = cow_rmap_count(page_folio(page));
++	dadao_early_printf("K4 cow rmap: after_fork=%lu mapcount=%d\n", rmap,
++			   folio_mapcount(page_folio(page)));
++	cow_expect("rmap-after-fork", 2, rmap, COW_FAIL_W4);
++	cow_expect("rmap-mapcount-fork", 2,
++		   (unsigned long)folio_mapcount(page_folio(page)), COW_FAIL_W4);
 +
 +	/* ---- let the child run: its write is the COW ---------------------- */
 +	while (!cow_child_done && spins < 200000UL) {
@@ -304,6 +511,7 @@ index 000000000..7130f2d39
 +	cow_expect("w1-child-ran", 1, cow_child_done, COW_FAIL_CHILD);
 +
 +	/* ---- W1: the write side owns a *copy of the old contents* --------- */
++	lru_add_drain();
 +	child_new_pa = cow_pfn_of(child->mm, COW_VA_BASE);
 +	new_page = pfn_to_page(child_new_pa >> PAGE_SHIFT);
 +	content0 = *(unsigned long *)__va(child_new_pa);
@@ -324,6 +532,12 @@ index 000000000..7130f2d39
 +		   COW_FAIL_W1);
 +	cow_expect("w4-refs-after-copy", 1, page_count(page), COW_FAIL_W4);
 +	cow_expect("w4-copy-one-ref", 1, page_count(new_page), COW_FAIL_W4);
++	rmap = cow_rmap_count(page_folio(page));
++	dadao_early_printf("K4 cow rmap2: after_copy=%lu mapcount=%d\n", rmap,
++			   folio_mapcount(page_folio(page)));
++	cow_expect("rmap-after-copy", 1, rmap, COW_FAIL_W4);
++	cow_expect("rmap-mapcount-copy", 1,
++		   (unsigned long)folio_mapcount(page_folio(page)), COW_FAIL_W4);
 +
 +	/* ---- W2: the parent's page and contents are untouched ------------- */
 +	content0 = *(unsigned long *)__va(orig_pa);
@@ -368,14 +582,30 @@ index 000000000..7130f2d39
 +	cow_expect("w5-content", COW_PARENT_MARK, content0, COW_FAIL_W5);
 +	/* The invalidation: ASID_ANY must be off and the ASID must be this
 +	 * mm's (contract-tlb TLB-19/-25); the encoding itself is judged from
-+	 * the operands the gate derives, not from the kernel's own helper. */
++	 * the operands the gate derives, not from the kernel's own helper.
++	 * The address operand is the *page*: a TLB entry covers a page and
++	 * `invalid|VA` matches the entries containing the address it names
++	 * (TLB-23), which is what the generic flush passes. */
 +	cow_expect("w5-flush-asid-any", 0, dadao_cow_last_flush[2], COW_FAIL_W5);
 +	cow_expect("w5-flush-asid", (unsigned long)cow_mm->context.asid,
 +		   dadao_cow_last_flush[1], COW_FAIL_W5);
-+	cow_expect("w5-flush-va", COW_VA_BASE + COW_OFF_PARENT,
-+		   dadao_cow_last_flush[3], COW_FAIL_W5);
++	cow_expect("w5-flush-va", COW_VA_BASE,
++		   dadao_cow_last_flush[3] & ~(PAGE_SIZE - 1), COW_FAIL_W5);
++
++	/* ---- the generic path's acceptance (m14-linux-035) --------------- */
++	{
++		struct vm_area_struct *vma;
++
++		mmap_read_lock(cow_mm);
++		vma = find_vma(cow_mm, COW_VA_BASE);
++		mmap_read_unlock(cow_mm);
++		if (!vma)
++			cow_fail(COW_FAIL_SETUP, "vma", COW_VA_BASE);
++		cow_ad_and_modify(vma, COW_VA_BASE);
++	}
 +
 +	/* ---- W4: the last reference is released by the unmap -------------- */
++	lru_add_drain();
 +	refs = page_count(page);
 +	cow_expect("w4-last-ref-before-unmap", 1, refs, COW_FAIL_W4);
 +	if (vm_munmap(COW_VA_BASE, 2 * PAGE_SIZE))
@@ -385,6 +615,7 @@ index 000000000..7130f2d39
 +			   dadao_cow_stats[DADAO_COW_PUT], COW_VA_BASE,
 +			   cow_pte(cow_mm, COW_VA_BASE));
 +	cow_expect("w4-last-ref-released", 0, page_count(page), COW_FAIL_W4);
++	cow_file_gup();
 +
 +	dadao_early_printf("K4 cow done: copies=%lu inplace=%lu puts=%lu "
 +			   "refused=%lu entries=%lu\n",
@@ -421,7 +652,14 @@ index 000000000..7130f2d39
 +	 * The page is built by hand because the point is the mapping's flags, not
 +	 * how the page got there.
 +	 */
-+	cow_map(COW_VA_BASE, PAGE_SIZE, PROT_READ | PROT_WRITE,
++	/*
++	 * A *read-only* mapping (m14-linux-035): the generic arm's job is to
++	 * refuse a write the VMA does not allow, not to copy it.  Without that
++	 * gate `do_wp_page()` would copy, `maybe_mkwrite()` would leave the PTE
++	 * read-only because the VMA is not writable, and the retried store would
++	 * fault for ever (the shape m14-linux-027's SIGSEGV would inherit).
++	 */
++	cow_map(COW_VA_BASE, PAGE_SIZE, PROT_READ,
 +		MAP_SHARED | MAP_ANONYMOUS);
 +	page = alloc_page(GFP_KERNEL | __GFP_ZERO);
 +	if (!page)

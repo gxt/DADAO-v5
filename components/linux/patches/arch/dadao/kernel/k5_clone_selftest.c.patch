@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k5_clone_selftest.c b/arch/dadao/kernel/k5_clone_selftest.c
 new file mode 100644
-index 000000000..3c0036d5f
+index 000000000..81e381e9d
 --- /dev/null
 +++ b/arch/dadao/kernel/k5_clone_selftest.c
-@@ -0,0 +1,659 @@
+@@ -0,0 +1,665 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K5 user clone/thread probe (CONFIG_DADAO_K5_CLONE_SELFTEST, m14-linux-024).
@@ -204,11 +204,17 @@ index 000000000..3c0036d5f
 +		k5c_fail(K5C_FAIL_SETUP, "vm_mmap", addr);
 +	if (!page)
 +		return;
++	/* `vm_insert_page()` — the PTE is generic code's to build now
++	 * (m14-linux-035); the old `vm_private_data` PA hand-off is gone. */
 +	mmap_write_lock(k5c_mm);
 +	vma = find_vma(k5c_mm, va);
 +	if (!vma)
 +		k5c_fail(K5C_FAIL_SETUP, "find_vma", va);
-+	vma->vm_private_data = (void *)page_to_phys(page);
++	/* vm_insert_page() wants VM_MIXEDMAP set by the caller and the mmap
++	 * lock already held (it BUGs on a lock it had to take itself). */
++	vm_flags_set(vma, VM_MIXEDMAP);
++	if (vm_insert_page(vma, va, page))
++		k5c_fail(K5C_FAIL_SETUP, "vm_insert_page", va);
 +	mmap_write_unlock(k5c_mm);
 +}
 +

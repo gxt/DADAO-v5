@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/ptrace.h b/arch/dadao/include/asm/ptrace.h
 new file mode 100644
-index 000000000..5027e36a2
+index 000000000..a2d6d5693
 --- /dev/null
 +++ b/arch/dadao/include/asm/ptrace.h
-@@ -0,0 +1,123 @@
+@@ -0,0 +1,134 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PTRACE_H
 +#define __ASM_PTRACE_H
@@ -87,8 +87,19 @@ index 000000000..5027e36a2
 +static inline int user_mode(struct pt_regs *regs)
 +{
 +	/*
-+	 * K2 only takes supv exceptions; a user-mode entry (cfx_umon) is K4/K5
-+	 * and will decide this from the frame's run mode.
++	 * **The saved frame carries no mode bit** (m14-linux-042 P0): `ip` is
++	 * `excp_cause_ip`, `status` is written 0 because the machine has no
++	 * status register (contract-abi), and the hardware's own
++	 * `excp_prev_mode` (`cfx_smon cg5`) is not copied into `struct pt_regs`.
++	 * So this cannot answer, and it must not guess from an address range:
++	 * a `prev_mode` field has to be added to the frame and written by the
++	 * entry stubs — a frame-layout (contract) change, registered as 待用户裁定
++	 * in `m14-linux-035`'s task book.
++	 *
++	 * Everything that *needs* the mode on this port gets it from the
++	 * dispatch route instead, which knows the fact: `dadao_user_fault_from_umon()`
++	 * (the `cfx_umon` hand-over) is a user fault, the supv vector is not
++	 * (`dadao_do_page_fault(..., from_user)`).
 +	 */
 +	return 0;
 +}
@@ -112,7 +123,7 @@ index 000000000..5027e36a2
 +#define DADAO_PF_RETRY		0
 +#define DADAO_PF_FATAL		1
 +unsigned long dadao_do_page_fault(struct pt_regs *regs, unsigned long cause,
-+				  unsigned long info);
++				  unsigned long info, bool from_user);
 +
 +#define instruction_pointer(regs)	((regs)->ip)
 +#define user_stack_pointer(regs)	((regs)->rb[1])

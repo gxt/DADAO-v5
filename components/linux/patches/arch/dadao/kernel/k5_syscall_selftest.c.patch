@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k5_syscall_selftest.c b/arch/dadao/kernel/k5_syscall_selftest.c
 new file mode 100644
-index 000000000..83196d0ea
+index 000000000..5430e8b2b
 --- /dev/null
 +++ b/arch/dadao/kernel/k5_syscall_selftest.c
-@@ -0,0 +1,791 @@
+@@ -0,0 +1,798 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K5 user-syscall probe (CONFIG_DADAO_K5_SYSCALL_SELFTEST, m14-linux-023).
@@ -284,11 +284,18 @@ index 000000000..83196d0ea
 +
 +	if (!page)
 +		return;
++	/* `vm_insert_page()` — generic code builds the PTE (m14-linux-035); the
++	 * old `vm_private_data` PA hand-off only existed for the fault channel,
++	 * which no longer serves a task's mappings. */
 +	mmap_write_lock(k5_mm);
 +	vma = find_vma(k5_mm, va);
 +	if (!vma)
 +		k5_fail(K5_FAIL_SETUP, "find_vma", va);
-+	vma->vm_private_data = (void *)page_to_phys(page);
++	/* vm_insert_page() wants VM_MIXEDMAP set by the caller and the mmap
++	 * lock already held (it BUGs on a lock it had to take itself). */
++	vm_flags_set(vma, VM_MIXEDMAP);
++	if (vm_insert_page(vma, va, page))
++		k5_fail(K5_FAIL_SETUP, "vm_insert_page", va);
 +	mmap_write_unlock(k5_mm);
 +}
 +

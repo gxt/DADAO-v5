@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig b/arch/dadao/Kconfig
 new file mode 100644
-index 000000000..7ff889beb
+index 000000000..7193e872a
 --- /dev/null
 +++ b/arch/dadao/Kconfig
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,106 @@
 +# SPDX-License-Identifier: GPL-2.0
 +#
 +# DADAO (v5 test machine "Vast") architecture.
@@ -19,6 +19,10 @@ index 000000000..7ff889beb
 +	select ARCH_HAS_DMA_PREP_COHERENT if DMA
 +	select MMU_GATHER_NO_RANGE if MMU
 +	select UACCESS_MEMCPY
++	# The page-fault entry uses the generic "lock, find (and maybe grow) the
++	# VMA" helper, which is what makes stack growth / the hole-vs-VMA verdict
++	# generic (m14-linux-035).
++	select LOCK_MM_AND_FIND_VMA
 +	# The syscall ABI splits arguments by type; see asm/syscall_wrapper.h.
 +	select ARCH_HAS_SYSCALL_WRAPPER
 +	# clone(2) carries `tls` as its *4th* argument (flags, newsp, parent_tidptr,

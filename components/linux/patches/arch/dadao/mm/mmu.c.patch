@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/mmu.c b/arch/dadao/mm/mmu.c
 new file mode 100644
-index 000000000..c142abf2a
+index 000000000..4101c4730
 --- /dev/null
 +++ b/arch/dadao/mm/mmu.c
-@@ -0,0 +1,293 @@
+@@ -0,0 +1,202 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO MMU context (K3, m14-linux-011): ASID allocation.
@@ -153,147 +153,56 @@ index 000000000..c142abf2a
 +}
 +
 +/* -------------------------------------------------------------------------
-+ * The arch half of dup_mm(): the COW hook
++ * A/D write-back (m14-linux-035)
 + * ------------------------------------------------------------------------- */
 +
 +/*
-+ * The arch half of dup_mm() (K4, m14-linux-018: the COW hook).
++ * Write the walker's *pending* A/D bits for @addr back into its PTE, keeping
++ * the translation (spec/DADAO-12 §2.2.5, contract-tlb TLB-17: `clean` writes
++ * back and keeps the entry).
 + *
-+ * A fork's address space is *shared*, not copied: both processes keep pointing
-+ * at the same physical pages and both PTEs are made read-only, so the first
-+ * write on either side is what makes a private copy (mm/cow.c's
-+ * `dadao_do_wp_page()`).  Two things have to happen for that, and only one of
-+ * them is generic:
++ * Why it is needed at all: A/D live in the TLB entry, not in the PTE, so the
++ * PTE only learns "this page was read/written" when something CLEANs, FLUSHes or
++ * replaces the entry (TLB-12).  Generic `mm/` reads the PTE immediately before
++ * clearing it to decide whether the page was dirty (`try_to_unmap_one()`) or
++ * referenced (`folio_referenced_one()`); issuing the CLEAN *before* that read is
++ * what makes those decisions see the truth (asm/pgtable.h's
++ * `ptep_get_and_clear()`/`ptep_test_and_clear_young()`).
 + *
-+ *  - **the sharing**, per present PTE of a private writable VMA
-+ *    (`is_cow_mapping()`): install the parent's PTE in the child with W clear,
-+ *    clear W in the parent's, and take the reference the second mapping owns.
-+ *    Generic `copy_page_range()` does exactly that *when* `vma_needs_copy()`
-+ *    lets it run — and it does not for this port's pages: that test asks for an
-+ *    `anon_vma` (a page table "which naturally cannot be reconstituted on page
-+ *    fault"), and the fault channel's pages are not anonymous-folio pages with
-+ *    an anon_vma behind them — they are ordinary pages the channel mapped
-+ *    itself (mm/fault.c), with nothing to reconstitute them from.  A VMA that
-+ *    says `VM_MIXEDMAP`/`VM_PFNMAP` takes the other arm and *is* copied by the
-+ *    generic code, so the walk below finds the child's PTE already present and
-+ *    leaves it alone (no second reference, no second write-protect).
++ * `invalid` must NOT be used for this: it drops the pending bits (TLB-17), and
++ * it is the right command for `flush_tlb_*()` precisely because those run after
++ * software has written a *new* PTE — writing A/D back over it would resurrect
++ * bits in an entry that was just repurposed.
 + *
-+ *  - **the invalidation** (nobody else can do it): the parent's PTE was
-+ *    rewritten while its address space is the one the walker is using, and a
-+ *    TLB hit is not re-walked (contract-tlb TLB-07/-11) — without a flush the
-+ *    parent would keep writing through its stale writable entry and silently
-+ *    modify the child's page.  `local_flush_tlb_mm()` issues `invalid | all`
-+ *    for this mm's ASID with `ASID_ANY = 0`, which drops exactly the G = 0
-+ *    entries the rewrite affects and leaves the kernel's G = 1 mappings alone
-+ *    (contract-tlb TLB-19/-25).  The child has never run, so it has no entries
-+ *    of its own to drop.
-+ *
-+ * The shared zero page stays *shared*: every anonymous mapping points at it,
-+ * it is read-only by construction, and no reference is taken for it (generic
-+ * `copy_present_pte()` does not take one either: it is a special mapping, not a
-+ * page the address spaces own).
++ * A kernel address (or no mm) is mapped `G = 1` in every address space, so it
++ * is CLEANed with ASID_ANY (contract-tlb TLB-25/-26).
 + */
-+static int dadao_dup_one_pte(struct vm_area_struct *src,
-+			     struct vm_area_struct *dst, unsigned long addr)
++void dadao_tlb_clean_addr(struct mm_struct *mm, unsigned long addr)
 +{
-+	struct mm_struct *src_mm = src->vm_mm;
-+	pmd_t *src_pmd = pmd_off(src_mm, addr);
-+	pmd_t *dst_pmd = pmd_off(dst->vm_mm, addr);
-+	pte_t entry, child;
-+	pte_t *src_pte, *dst_pte;
-+
-+	if (pmd_none(*src_pmd) || (pmd_val(*src_pmd) & _PAGE_SUPER))
-+		return 0;
-+	src_pte = pte_offset_kernel(src_pmd, addr);
-+	entry = ptep_get(src_pte);
-+	if (!pte_present(entry))
-+		return 0;
-+
-+	if (pmd_none(*dst_pmd)) {
-+		pte_t *tbl = (pte_t *)__get_free_page(GFP_KERNEL | __GFP_ZERO);
-+
-+		if (!tbl)
-+			return -ENOMEM;
-+		pmd_populate_kernel(dst->vm_mm, dst_pmd, tbl);
-+	}
-+	dst_pte = pte_offset_kernel(dst_pmd, addr);
-+	if (pte_present(ptep_get(dst_pte))) {
-+		/*
-+		 * The generic path shared this one already (a VM_MIXEDMAP VMA):
-+		 * its write-protect and its reference are in place.
-+		 */
-+		dadao_cow_dup_pages++;
-+		if (pte_write(ptep_get(dst_pte)))
-+			dadao_cow_dup_writable++;
-+		return 0;
-+	}
-+
-+	child = pte_wrprotect(entry);
-+	if (!is_zero_pfn(pte_pfn(entry))) {
-+		/*
-+		 * The second mapping owns a reference: without it the last
-+		 * unmap on either side would free a page the other still maps.
-+		 */
-+		get_page(pte_page(entry));
-+		/* The parent's side becomes read-only too: its stale writable
-+		 * translation is dropped by the flush below. */
-+		ptep_set_wrprotect(src_mm, addr, src_pte);
-+	}
-+	set_pte(dst_pte, child);
-+	dadao_cow_dup_pages++;
-+	if (pte_write(child))
-+		dadao_cow_dup_writable++;
-+	return 0;
++	if (dadao_addr_is_kernel(addr) || !mm)
++		__dadao_tlb_flush(DADAO_TLB_CLEAN, DADAO_TLB_SCOPE_VA, addr, 0,
++				  0, true);
++	else
++		__dadao_tlb_flush(DADAO_TLB_CLEAN, DADAO_TLB_SCOPE_VA, addr, 0,
++				  mm->context.asid, false);
 +}
 +
-+int dadao_dup_mmap_cow(struct mm_struct *oldmm, struct mm_struct *mm)
++/*
++ * Clear the access bit, but only after the walker's pending A/D bits have been
++ * written back: `folio_referenced_one()` reads this answer to decide whether a
++ * page was used, and an `invalid`-style clear would throw the "yes" away
++ * (spec/DADAO-12 §2.2.5; contract-tlb TLB-17).  The caller
++ * (`ptep_clear_flush_young()`) invalidates the entry when the answer was "yes".
++ */
++int dadao_ptep_test_and_clear_young(struct vm_area_struct *vma,
++				    unsigned long addr, pte_t *ptep)
 +{
-+	struct vm_area_struct *dst;
-+	VMA_ITERATOR(vmi, mm, 0);
-+	unsigned long addr;
-+	int ret = 0;
++	pte_t pte;
 +
-+	if (!mm || !oldmm)
-+		return -EINVAL;
-+
-+	/*
-+	 * The child's VMA tree is a copy of the parent's (dup_mmap() built it
-+	 * with the same edges and the same order), so the parent's VMA for each
-+	 * child VMA is the one covering its start address.
-+	 */
-+	for_each_vma(vmi, dst) {
-+		struct vm_area_struct *src;
-+
-+		if (!is_cow_mapping(dst->vm_flags))
-+			continue;
-+		/*
-+		 * `VM_PFNMAP` PTEs are raw device/IO physical addresses with no
-+		 * `struct page` behind them (`vm_normal_page()` answers NULL for
-+		 * them, and generic `copy_present_pte()` takes no reference):
-+		 * sharing them would mean calling `get_page()` on a pfn that
-+		 * names no page, so they are left to the generic path, which
-+		 * copies the entries without accounting.
-+		 */
-+		if (dst->vm_flags & VM_PFNMAP)
-+			continue;
-+		src = find_vma(oldmm, dst->vm_start);
-+		if (!src || src->vm_start != dst->vm_start ||
-+		    src->vm_end != dst->vm_end)
-+			continue;
-+		for (addr = dst->vm_start; addr < dst->vm_end; addr += PAGE_SIZE) {
-+			ret = dadao_dup_one_pte(src, dst, addr);
-+			if (ret)
-+				return ret;
-+		}
-+	}
-+
-+	/*
-+	 * Drop the forking hart's stale translations for this address space: the
-+	 * parent's PTEs were just write-protected while its table is the one the
-+	 * walker uses (contract-tlb TLB-07/-11, TLB-19).
-+	 */
-+	if (dadao_cow_dup_pages)
-+		local_flush_tlb_mm(oldmm);
-+
-+	return dadao_cow_dup_writable ? -EBUSY : 0;
++	dadao_tlb_clean_addr(vma->vm_mm, addr);
++	pte = *ptep;
++	if (!pte_young(pte))
++		return 0;
++	*ptep = pte_mkold(pte);
++	return 1;
 +}
