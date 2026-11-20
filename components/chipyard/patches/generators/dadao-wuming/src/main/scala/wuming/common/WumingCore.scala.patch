@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..d2c35f9
+index 0000000..f1d35fd
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,1905 @@
+@@ -0,0 +1,1916 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -89,7 +89,8 @@ index 0000000..d2c35f9
 +//
 +// m12-chipyard-010 adds the rest of the non-cfx set:
 +//
-+//   * `lr`/`sc` reuse the single-element memory path.  `lr` writes rdHC and
++//   * `lr`/`sc` reuse the single-element memory path.  `lr` writes rdHC (the
++//     narrow forms only replace the low W bits, `memLdElemNarrow`) and
 +//     takes a reservation keyed by the exact address + access width
 +//     (spec/SimRISC-12 §1.1 "保留标记的粒度 = 精确地址 + 访问宽度"); `sc`
 +//     stores only when the reservation is still held and its key matches,
@@ -724,8 +725,18 @@ index 0000000..d2c35f9
 +  val memElemRead = state === sMreq && memStore && !memPacked && memElemInBeat
 +  val memElemWrite = state === sMwait && !memStore && memBeatValid && memElemInBeat &&
 +    rasMemKind === 0.U && (memAux === 0.U || memAux === 1.U)
-+  rf.io.r2Idx := Mux(memElemRead, (memStart + memElem)(5, 0), d.srcCIdx)
-+  rf.io.r2Bank := Mux(memElemRead, memBank, d.srcCBank)
++  // A narrow `lr` (.b/.w/.t) only replaces the destination's low W bits and
++  // keeps the upper bits: the loaded window is neither zero- nor sign-extended
++  // into them (spec/SimRISC-12 §1.1; IDL `lr.{b,w,t}.{nn,an,ar}`; user ruling
++  // 2026-11-19).  The merge reads the old destination on the r2 port in the
++  // very cycle the beat is unpacked, so one register update writes
++  // `(old & ~mask) | (elem & mask)`.  `lr.o` (memWidthLat 3) stays a plain
++  // 64-bit write.
++  val lrNarrowW0 = memElemWrite && memAux === 1.U && memWidthLat =/= 3.U
++  val memLdElemNarrow =
++    (rf.io.r2Data & ~memElemValueMask) | (memLdElem & memElemValueMask)
++  rf.io.r2Idx := Mux(memElemRead || lrNarrowW0, (memStart + memElem)(5, 0), d.srcCIdx)
++  rf.io.r2Bank := Mux(memElemRead || lrNarrowW0, memBank, d.srcCBank)
 +
 +  // ---- block classify (m12-chipyard-011) ---------------------------------
 +  // One element per cycle, exactly like the register-block copy: the source is
@@ -878,7 +889,7 @@ index 0000000..d2c35f9
 +      Mux(scFailExec, 1.U(64.W),              // reservation miss
 +        Mux(scStoreDone, 0.U(64.W),           // `sc` succeeded
 +          Mux(rasRetW0, retRdVal,
-+            Mux(memElemWrite, memLdElem,
++            Mux(memElemWrite, Mux(lrNarrowW0, memLdElemNarrow, memLdElem),
 +              Mux(semiW0, io.semi.resp.value,
 +                Mux(d.isCfx2, cfxRdata,
 +                  Mux(d.isCvt, fpConvert.io.out,
@@ -1492,7 +1503,7 @@ index 0000000..d2c35f9
 +          memStore := false.B
 +          memMulti := false.B
 +          memWidthLat := d.memWidth
-+          memSignedLat := false.B // `lr` zero-extends the loaded window
++          memSignedLat := false.B // narrow `lr` merges on write-back (memLdElemNarrow)
 +          memBase := lrscAddr
 +          memCount := 1.U
 +          memBank := WumingBank.RD
