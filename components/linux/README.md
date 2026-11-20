@@ -4,6 +4,10 @@ DADAO 的 **Linux 内核移植目标**（M14 起；`arch/dadao/**`）+ **syscall
 
 M13 及以前本组件只是**参考输入**（`ADR-0025 D2`：无内核目标），故带 `patchless`、无补丁集；M14 起转为**受补丁组件**（`m14-linux-001`），基线不变。
 
+## 与主流 ISA 的差异盘点（参考）
+
+`kernel-diff-vs-mainstream-isa.md`：八份只读盘点（`m14-linux-036`–`043`）的汇总索引——按 `arch/riscv`（主）/`arch/arm64`（参照）逐子系统对比，195 条差异、七个跨子系统根因、分流建议。**只读分析的结论汇总，不是实现判据**（判据在 `spec/` 与 `.tao/contracts/`）。
+
 ## 补丁集
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），清单见 `series`。

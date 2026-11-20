@@ -26,6 +26,3 @@ owner = "infra"
 
 [files."nodes.md"]
 owner = "infra"
-
-[files."m14-kernel-diff-summary.md"]
-owner = "main-session"

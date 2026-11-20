@@ -58,7 +58,7 @@
 | 构建 / 测试节点（机型 / 组网 / 软件包 / 就绪判据） | `.tao/knowledge/nodes.md` |
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
 | issue / 待裁定口径 | `.tao/knowledge/issues.yaml` / `discussing.md` |
-| M14 内核与主流 ISA 差异盘点（八份 / 195 条 / 七根因） | `.tao/knowledge/m14-kernel-diff-summary.md`（索引）→ 各任务书「盘点结论」段 |
+| M14 内核与主流 ISA 差异盘点（八份 / 195 条 / 七根因） | `components/linux/kernel-diff-vs-mainstream-isa.md`（索引）→ 各任务书「盘点结论」段 |
 | 历史归档 | `.tao/archive/M*/`（M1–M11） |
 | 临时 / 一次性产物 | `/tmp/opencode/<任务ID>/` |
 
