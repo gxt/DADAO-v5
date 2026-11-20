@@ -173,7 +173,22 @@
 @@   是**窄写**（只写低 32、高 32 保持）⇒ **只用于被测指令本身的窄写场景**，不得当装载器。
 
 @@ SYS_EXIT(code)（参数块 {ADP_Stopped_ApplicationExit, code}，`contract-semihosting` §3/§5）
+@@   **诊断构建开关**（`m17-testcases-001`）：`llvm-mc --defsym SIG_CONTINUE=1` 时本宏
+@@   的**非 0 退出**不产码 ⇒ 判红点继续跑到收尾，host 侧仍能拿到完整签名流做
+@@   「槽 N 期望/实际」诊断（`make check-inst-sig` 只在正常镜像失败时另编一份诊断
+@@   镜像）；`SYS_EXIT(0)` 仍照常退出。未定义 `SIG_CONTINUE` 时展开与旧版逐字节相同
+@@   （M16 周期基线不变；`m17-testcases-001` 全量 272 镜像 `.text` md5 对账）。
 .macro __EXIT code
+	.ifndef	SIG_CONTINUE
+	.set	__exit_now, 1
+	.else
+	.if	\code == 0
+	.set	__exit_now, 1
+	.else
+	.set	__exit_now, 0
+	.endif
+	.endif
+.if	__exit_now
 	LOAD_ADDR rb16, TEST_EXITB
 	set.rd	rd4, ADP_STOPPED_APP_EXIT
 	st.o	rd4, [rb16, 0]
@@ -182,6 +197,7 @@
 	set.zw	rd16, wp0, SYS_EXIT
 	trap	cfx0, (SEMIHOST_TAG + SYS_EXIT)
 	.dd.t32	0
+.endif
 .endm
 
 @@ 结果缓冲追加 8 字节实测值（rb30 是移动写指针），并记一个检查点。

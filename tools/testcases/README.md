@@ -24,6 +24,16 @@
 
 ## 共享工具登记（路径 / 用途 / 入口 / 调用者）
 
+- **路径**：`tools/testcases/lib/inst_expected.py`
+  **用途**：从 `tests/inst/**/*.S` + 宏层派生「槽 → 期望值」（`__CHECK_*` 内联常量 / `WDATA` 数据区 / 运行期关系），并生成 `tests/data/inst-signature/{expected.tsv,inputs.sha256}`
+  **入口**：`python3 tools/testcases/inst/check_inst_sig.py --write`（库 API：`derive`/`render_expected`/`render_inputs`）
+  **调用者**：L2 `check-inst-sig`；期望值变更后重生成数据
+
+- **路径**：`tools/testcases/inst/check_inst_sig.py`
+  **用途**：签名区槽级门控（数据漂移 + 输入 sha256 + `case-ledger` 对账 + QEMU 逐槽比对；失败给「槽 N 期望/实际 + 来源 `.S:行`」；流缺失 ⇒ BLOCKED）
+  **入口**：`make check-inst-sig`（L2）/ `python3 tools/testcases/inst/check_inst_sig.py --data-only`
+  **调用者**：L2 `check-modules` / 任务收尾
+
 - **路径**：`tools/testcases/tset/embench/progress.py`
   **用途**：跑批进度看板（只读节点日志的逐例完成行 + `ps` 的 `+loadmem=`，给 done / 在跑 + ETA / 未开始，末尾 `done/total` 与 `cycles/s`）
   **入口**：`python3 tools/testcases/tset/embench/progress.py --hosts <csv> [--expect-done N]`
