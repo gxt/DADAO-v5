@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k5_futex_selftest.c b/arch/dadao/kernel/k5_futex_selftest.c
 new file mode 100644
-index 000000000..da8ea06cf
+index 000000000..6e60097e5
 --- /dev/null
 +++ b/arch/dadao/kernel/k5_futex_selftest.c
-@@ -0,0 +1,964 @@
+@@ -0,0 +1,987 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K5 futex and user-atomic probe (CONFIG_DADAO_K5_FUTEX_SELFTEST,
@@ -706,6 +706,29 @@ index 000000000..da8ea06cf
 +	k5f_expect("f7_clear_tid_ptr", word, child->clear_tid, K5F_FAIL_F7);
 +	k5f_expect("f7_mm_users_gt1", 1, (unsigned long)(child->mm_users > 1),
 +		   K5F_FAIL_F7);
++	/*
++	 * m14-linux-047: the child's exit trap — which completes
++	 * `k5f_child_exit` — runs *before* `do_exit()` reaches `mm_release()`,
++	 * so that completion is not a scheduling barrier: with voluntary
++	 * preemption (`CONFIG_PREEMPT_VOLUNTARY=y`) the parent can be resumed in
++	 * between and read the word before it is cleared.  The order became
++	 * reachable once `sched_clock()` stopped being the jiffies stub — it
++	 * moves the wakeup/vruntime decisions, and the boot then fails this check
++	 * roughly one time in three.  Wait (bounded, yielding) for the clear
++	 * instead of assuming the order; the assertion is unchanged, so a kernel
++	 * that never clears still reads the stale word and fails here.
++	 */
++	{
++		unsigned long spins = 0, w = k5f_read_word(K5F_W_F7);
++
++		while (w && spins < 1000UL) {
++			spins++;
++			schedule();
++			w = k5f_read_word(K5F_W_F7);
++		}
++		dadao_early_printf("K5 futex f7: clear waited spins=%lu word=%#lx\n",
++				   spins, w);
++	}
 +	k5f_expect("f7_tid_cleared", 0, k5f_read_word(K5F_W_F7), K5F_FAIL_F7);
 +	/* The shared-futex case runs from the *last* case's handler: a FUTEX_WAIT
 +	 * whose comparison was injected away (`no-recheck`) blocks for ever, and a

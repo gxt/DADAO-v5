@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k4_switch_selftest.c b/arch/dadao/kernel/k4_switch_selftest.c
 new file mode 100644
-index 000000000..0a1cff4a1
+index 000000000..b047ebf76
 --- /dev/null
 +++ b/arch/dadao/kernel/k4_switch_selftest.c
-@@ -0,0 +1,964 @@
+@@ -0,0 +1,1009 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K4 context-switch self-test (CONFIG_DADAO_K4_SWITCH_SELFTEST, m14-linux-017).
@@ -686,6 +686,24 @@ index 000000000..0a1cff4a1
 +	struct pt_regs frame;
 +	int i;
 +
++	/*
++	 * m14-linux-047: starting to use an address space from a kernel thread
++	 * moves the lazy-TLB reference *with* the pointer — `mmgrab_lazy_tlb()`
++	 * on the new one, `mmdrop_lazy_tlb()` on the one being given up
++	 * (Documentation/mm/active_mm.rst: "Taking and releasing these lazy
++	 * references must be done with mmgrab_lazy_tlb() and mmdrop_lazy_tlb()").
++	 *
++	 * Assigning `current->active_mm` directly leaves init_mm's `mm_count`
++	 * one short as soon as the scheduler switches this task out with its own
++	 * mm in place (the switch drops the inherited reference), and the
++	 * deficit surfaces later in `exec_mmap()`'s `mmdrop_lazy_tlb(&init_mm)`
++	 * as `BUG_ON(mm == &init_mm)` in `__mmdrop()`.  m14-linux-017 ran this
++	 * sequence only because the task was never scheduled out at that moment;
++	 * one real `sched_clock` and the preemption point moved (m14-linux-047).
++	 */
++	mmgrab_lazy_tlb(k4s_s5_mm[who]);
++	if (current->active_mm)
++		mmdrop_lazy_tlb(current->active_mm);
 +	current->mm = k4s_s5_mm[who];
 +	current->active_mm = k4s_s5_mm[who];
 +	dadao_switch_mm(NULL, k4s_s5_mm[who], current);
@@ -741,8 +759,16 @@ index 000000000..0a1cff4a1
 +		 * `/init` chain).
 +		 */
 +		dadao_switch_mm(current->mm, &init_mm, current);
++		/*
++		 * ... and the reverse bookkeeping: take the reference on
++		 * init_mm *before* publishing it as the borrowed mm, give the
++		 * one this task took at entry back (m14-linux-047; the pair is
++		 * what keeps `__mmdrop(&init_mm)` out of the exec path).
++		 */
++		mmgrab_lazy_tlb(&init_mm);
 +		current->mm = NULL;
 +		current->active_mm = &init_mm;
++		mmdrop_lazy_tlb(k4s_s5_mm[who]);
 +		wait_for_completion(&k4s_s5_park);	/* never completed */
 +		return 0;
 +
@@ -846,6 +872,25 @@ index 000000000..0a1cff4a1
 +	 */
 +	k4s_expect("s5-no-recursion", 2, k4s_s5_entries,
 +		   K4S_FAIL_S3);
++	/*
++	 * The lazy-TLB bookkeeping balances: init_mm's `mm_count` is one for
++	 * the boot address space plus one for every lazy user; the task reading
++	 * this line is the only one (it borrowed init_mm for its kernel work), so
++	 * the want is 2 — or 1 when the port is configured without lazy-TLB
++	 * refcounts (arch/Kconfig: `MMU_LAZY_TLB_REFCOUNT`).  The A/B round trip
++	 * must have left it exactly there: m14-linux-047's round trip used to
++	 * consume the borrowed reference, and the first exec after it dropped
++	 * init_mm to zero.
++	 */
++	{
++		unsigned long want = IS_ENABLED(CONFIG_MMU_LAZY_TLB_REFCOUNT) ? 2 : 1;
++
++		dadao_early_printf("K4 switch s5: init_mm_count=%d lazy_ref_want=%lu\n",
++				   atomic_read(&init_mm.mm_count), want);
++		k4s_expect("s5-init-mm-lazy-ref", want,
++			   (unsigned long)atomic_read(&init_mm.mm_count),
++			   K4S_FAIL_S3);
++	}
 +}
 +
 +/* -------------------------------------------------------------------------
