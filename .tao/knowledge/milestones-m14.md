@@ -41,13 +41,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-linux-038 | 2026-11-20 09:06 | 2 h | 时间/时钟 与主流 ISA 差异盘点（只读，可并行） |
 | m14-linux-035 | 2026-11-20 07:49 | 2–3 h | 缺页路径回归 Linux 通用流程（`handle_mm_fault` + rmap/LRU/page cache；用户 2026-11-20 裁定） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-038 | 2026-11-20 10:23 | 时间/时钟差异盘点（19 条；P0 5：clocksource/clockevent 未注册、tick 记账缺失） |
 | m14-linux-041 | 2026-11-20 10:14 | 进程/线程与上下文切换差异盘点（19 条；`schedule_tail` 拿错 prev） |
 | m14-linux-042 | 2026-11-20 10:03 | trap/异常/中断差异盘点（27 条；P0 1：user_mode 恒 0 威胁 035） |
 | m14-linux-040 | 2026-11-20 09:53 | Kconfig/选型差异盘点（30 条；缺 select 16，含 TRACEHOOK/SECCOMP_FILTER/GENERIC_SCHED_CLOCK） |
