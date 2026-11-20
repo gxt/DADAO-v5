@@ -41,24 +41,24 @@ DADAO 特有事实（**不得偏离**）：
 1. `python3 tools/linux/k5_signal_probe.py` rc=0，逐 case 打印；期望值现场派生（信号帧布局 ← `contract-abi §4.5` + `SimRISC-00 §2.3/§2.4`、退码段 ← `spec/Kaiwu §7.1`）。
 2. **探针 case（各一条可达 FAIL 断言）**：
    - `S1 SIGSEGV 投递`：用户态访问无映射地址 ⇒ 收到 `SIGSEGV`（默认动作终止、退码正确）；**不再**走 `DADAO_PF_FATAL` 的 monitor 段具名终止。
-   - `S2 信号帧往返`：安装 handler → 触发信号 → `rt_sigreturn` 恢复 4 组寄存器（`ra` 栈逐位、`rf0` 架构值、`ip`/`rb1`/callee-saved 哨兵值一致）。
+   - ~~`S2 信号帧往返`~~ **已移入 `m14-linux-046 信号帧与投递`**（本任务不再做帧）。
    - `S3 exit/exit_group`：`exit(0)` ⇒ 进程退出、宿主 rc=0；`exit_group` 终止线程组。
    - `S4 setrlimit/RLIMIT_STACK 继承`：`setrlimit(RLIMIT_STACK, 新值)` 后 `getrlimit` 读回；`fork` 子进程继承父值；`019` 的扩栈上限用继承值。
-3. **≥4 路注入**（`cp`+md5 还原 + 重建回绿）：① 页故障仍 `DADAO_PF_FATAL` 不投 SIGSEGV ⇒ `S1` 红；② `rt_sigreturn` 不恢复 `ra` 栈 ⇒ `S2` 红；③ `exit` 不退出 ⇒ `S3` 红；④ `fork` 不继承 `RLIMIT_STACK` ⇒ `S4` 红。
+3. **≥3 路注入**（`cp`+md5 还原 + 重建回绿）：① 页故障仍 `DADAO_PF_FATAL` 不投 SIGSEGV ⇒ `S1` 红；② `exit` 不退出 ⇒ `S3` 红；③ `fork` 不继承 `RLIMIT_STACK` ⇒ `S4` 红。（原 ②「`rt_sigreturn` 不恢复 `ra` 栈」随 S2 移入 046。）
 4. **不回归**：`make check-linux-k0/-k1/-k2/-k3` rc=0；`k5_syscall_probe.py`（023）、`k4_fork_probe.py`（016）rc=0；`make check-patch-tree` rc=0。
 5. 完成区 ≤30 行、无运行期路径；`**状态**` → `待验收`。
 
 ## 硬约束
 
 1. 独立 `git worktree`（分支 = 任务号）；`git rev-parse --show-toplevel` 自证；禁改主工作树；临时文件放 `/tmp/opencode/m14-linux-027/`。
-2. **预计改动文件**：`components/linux/patches/arch/dadao/kernel/{signal.c,signal.S?}.patch`（signal.c 新建）、`components/linux/patches/arch/dadao/include/uapi/asm/{sigcontext,ptrace}.h.patch`（4 组）、`components/linux/patches/arch/dadao/mm/fault.c.patch`（SIGSEGV 升级）、`components/linux/patches/arch/dadao/kernel/{syscalls.c,Makefile,Kconfig.debug}.patch`、`components/linux/changelog.md`、`tools/linux/k5_signal_probe.py`（新）。**不改** `spec/**`、`.tao/contracts/**`、`tests/**`、`components/qemu/**`、`Makefile`。
+2. **预计改动文件**（收窄后）：`components/linux/patches/arch/dadao/mm/fault.c.patch`（用户态页故障升级 SIGSEGV）、`components/linux/patches/arch/dadao/kernel/{syscalls.c,Kconfig.debug}.patch`（setrlimit/exit 面）、`components/linux/changelog.md`、`tools/linux/k5_signal_probe.py`（新）。**信号帧与 `signal.c` 已归 `046`**，本任务不建。**不改** `spec/**`、`.tao/contracts/**`、`tests/**`、`components/qemu/**`、`Makefile`。
 3. 不提交 git；注入还原 `cp`+md5；注入后重建；禁 `checkout/restore/stash/reset --hard`。
 4. 语义以 `contract-abi §4.5`（callee-saved/CSR）+ `SimRISC-00 §2.3/§2.4`（rf0/ra 栈）+ `spec/Kaiwu §7.1`（退码段）为准；信号帧的寄存器保存集**不得**套 RISC-V/x86。
 5. 内核态页故障仍具名终止（只升级**用户态**为 SIGSEGV）；`ra` 栈保存须逐位（含 `ra0` 元数据字）。
 
 ## 待裁定（本任务不得自决；主会话转达用户后回填）
 
-1. ~~**信号帧的 uapi 布局**~~ **已裁定（用户 2026-11-17，选 A 且精简）**：`user_regs_struct` = **`rd[64]` / `rb[64]` / `ra[64]` / `rf[64]`**，共 **2048 B**；**删除 `status`**（DADAO 无 status 寄存器）；**`rb[0]` 充当 IP**（只读寄存器的数据副本），不另设 `ip` 字段；`sigcontext` 直接引用。落地三条硬断言：① 帧内 `rb[0] == 异常时的 ip`（内核组装时不能沿用 `pt_regs.rb[0]=0` 的占位）；② `rt_sigreturn` 用 `rb[0]` 决定返回 IP、`rb1..63` 写回寄存器，**不得写 `rb0` 寄存器**（只读，写 ⇒ `ILLI`）；③ 编译期断言 `sizeof==2048` 与各段偏移（`rb=512`、`ra=1024`、`rf=1536`）。musl 侧 `mcontext_t`/`MC_PC` 按 `rb[0]` 槽对齐。术语一律用 IP，不用 PC。
+1. ~~**信号帧的 uapi 布局**~~ **已移交 `m14-linux-046 信号帧与投递`**（本任务不再定义帧）。**帧定义以 046 为准，且被用户 2026-11-20 的后续裁定更新**：2048 B、`rd[0]` = `status`（软件容器，低 4 位模式；**不是**硬件 status 寄存器）、`rb[0]` = `ip`、`ra[64]`/`rf[64]` 全量、匿名 union 表达；**11-17 那句「删除 `status`」已被 11-20 的「`status` 替代 `rd[0]`」取代**（见 `discussing.md` N30）。以下为 11-17 原文，仅作沿革留存：`user_regs_struct` = **`rd[64]` / `rb[64]` / `ra[64]` / `rf[64]`**，共 **2048 B**；**删除 `status`**（DADAO 无 status 寄存器）；**`rb[0]` 充当 IP**（只读寄存器的数据副本），不另设 `ip` 字段；`sigcontext` 直接引用。落地三条硬断言：① 帧内 `rb[0] == 异常时的 ip`（内核组装时不能沿用 `pt_regs.rb[0]=0` 的占位）；② `rt_sigreturn` 用 `rb[0]` 决定返回 IP、`rb1..63` 写回寄存器，**不得写 `rb0` 寄存器**（只读，写 ⇒ `ILLI`）；③ 编译期断言 `sizeof==2048` 与各段偏移（`rb=512`、`ra=1024`、`rf=1536`）。musl 侧 `mcontext_t`/`MC_PC` 按 `rb[0]` 槽对齐。术语一律用 IP，不用 PC。
 
 ## 审阅记录
 
