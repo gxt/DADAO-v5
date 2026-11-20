@@ -419,7 +419,7 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 ## SE Timing 平台（m16-gem5-006，m16-gem5-017 并入 `se.py`）
 
 - **入口**：`configs/dadao/se.py --cpu-type timing`（与上游
-  `configs/example/se.py --cpu-type` 同构；脚本按**模式**命名，CPU 类型是参数）。
+  `configs/deprecated/example/se.py --cpu-type` 同构（本版 gem5 的 `configs/example/{se,fs}.py` 已是 29 行 `fatal` 存根，真身迁到 `configs/deprecated/example/`；据 `m16-gem5-019` 盘点）；脚本按**模式**命名，CPU 类型是参数）。
   `--cpu-type atomic`（默认）就是上面的 SE 参考配置，行为逐字节不变。
 - **构成**：`DadaoTimingSimpleCPU`（`BaseTimingSimpleCPU` + `DadaoCPU`，
   `mmu = DadaoMMU()`）→ `NoncoherentXBar` → 单个 `SimpleMemory`，1 GHz。
