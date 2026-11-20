@@ -76,6 +76,13 @@
 - **uapi 与 musl 同步更新**（用户原话）：`uapi/asm/ptrace.h` 的 `user_regs_struct` 与 musl 的 `sigcontext`/`mcontext_t` 都按 2048 B 同形状改。
 - **`ra[0]` 的 `{RACNT, MRPTR}` 元数据保持原样**，不参与复用。
 
+## N30 追加（用户 2026-11-20 二轮裁定，全部关闭）
+
+- **`status` 不加 IE 位**：`trap` 进入硬件保存 `cfx_<monitor>_global_cfx_intr_mask` 并置全 1、`escape` 自动恢复（`spec/DADAO-12:876/823/954`）⇒ 软件帧不重复存；`saved_global_cfx_intr_mask` 是**内部寄存器、不暴露**（`§3.6`）⇒ `regs_irqs_disabled(regs)` **保持恒 false**，`045` 注明此接口限制即可。
+- **`irqs_disabled()` 保持「读硬件 mask + `DADAO_IRQ_SOURCE_BITS` 子集判定」（用户裁定 B，2026-11-20）**：与 RISC-V `sstatus.SIE` / arm64 `DAIF` 同构——异常进入让其为 true 是**特性**（使 `might_sleep()` 能抓住「在中断里睡」），不是副作用。不采用「软件镜像 + 入口/出口同步」（两处状态易失步）。
+- **`DGPTRAP` 不补读写区分**（此前我判断有误）：`DGPTRAP` = **缺页（P=0）**，填充路径与访问方向无关；**`NWPERM` = 违反写权限（P=1 且 W 不符）**，这就是明确的「写」信号（COW/`mprotect` 后写都走它）⇒ 「先只读填充、写由 `NWPERM` 判」信息完整，与 Linux `do_anonymous_page`/`do_wp_page` 分工一致。`m14-linux-035` 拒绝该推断正确。
+- **K3 窗口臂保留**：主流 Linux 在 `mm == NULL` 下无缺页路径（启动期用 fixmap/`early_ioremap`），K3 的「无进程靠缺页装页」是 bring-up 特有形态 ⇒ 原样保留到 K3 退役，不为其做任何新设计。
+
 ## N31. `m15-idl-001` 完成区不实 + IDL 两处待修（`m15-idl-020` 盘点发现，用户 2026-11-20 待定整改）
 
 - **真相（`m15-idl-020` 第 2 轮 reviewer 定案）**：**不是凭空不实，是「实现过、未提交即丢失」**——该任务证据脚本开跑时（2026-11-19 11:19:07）的 `.md5_before` 记录 `idl/SimRISC-01.idl = 828191b0…`，而所有提交版（`bdc5c171`→`11136d55`→`def353ac`→合入 `a336b448`）**全是 `0c5df887…`**；`828191b0` 不在任何 git 对象、无 stash、无 reflog，丢失窗口 = **11:19 → 11:25:57（6 分钟）**。用同一 `check_semantics.py --section 4` 对现树实测：`Malign 判定 实际 0`、8 条逐个「缺构造」、`FAIL（16 处）`。⇒ **对外事实 = 合入版没有守卫**（完成区当时为真，但交付物没有）。任务书已加「⚠ 更正」注（保留原文）。
