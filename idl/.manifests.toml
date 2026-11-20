@@ -15,6 +15,15 @@ owner = "idl"
 [files."render.py"]
 owner = "idl"
 
+[files."subset_stats.py"]
+owner = "idl"
+
+[files."syntax-subset.md"]
+owner = "idl"
+
+[files."width-rules.md"]
+owner = "idl"
+
 [files."SimRISC-01.idl"]
 owner = "idl"
 
