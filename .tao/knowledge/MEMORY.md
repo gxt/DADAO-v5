@@ -10,7 +10,7 @@
   - **M15 12 册 IDL**：已收尾 11 册（001/002/003/004/005/006/008/009/010/011/012/013 中除 007 外全部）；`007`（浮点 50 条）**拆分**为 `015`（浮点语义库移植 ft 族，A2 全量移植 UDB `fp.idl`，先 ft）——批 1 已交 36 函数、oracle 2978 例失配 0，批 2 算术族在跑；`fo` 族另立任务。
   - **`m15-idl-014`**（解码变量当内容用）：修 010×4/012×3 代码 + 04/09/08 全部注释记号，加 `render.py` 机械门控；第 2 轮 Accepted，第三轮仅处理「合并态」08 注释 34 处。
   - **`m14-linux-017` 第 31 轮 S5 转绿**（51/51）：F59/F60 根因 = cfx 掩码**按源 cfx 索引**（`DADAO-12 §3.3`），内核须清所需来源位（`contract-syscall:117`）；pgd 复制 `VA≥2TiB` 逐项断言 `items=4096 mismatches=0`；大改档复核中。
-  - **chipyard sim md5 `df16728e…`**（`.conda-env` 重建，`11-cfx` 5/5）；构建**必须**用 `.conda-env` 的 `PATH`+`RISCV`（`ISS-474`）。
+  - **chipyard sim md5 `25c1d3f4…`**（`m16-chipyard-015` 换签入 bootrom hex 后重建，Tiny `semihost_smoke` 1136 B 与 QEMU 同；旧 `df16728e…` 作废）；构建**必须**用 `.conda-env` 的 `PATH`+`RISCV`（`ISS-474`）。
   - **流程新增**：`docs/Process-07 §5a` 验收必验「合并态」（清单 sha256 按 master 重算；扫全仓/全文门控须在合并态跑）；`discussing.md` 只记未裁决项。
   - **待开始**：`m15-spec-005`（IDL 块布局改造：节末集中 + 三级标题，等 12 册合入后）；`m15-infra-008`（CONFIG 钉子门控，等 017 收口）；`m14-linux-018`/`023`/`032`–`034`。
 - **已定口径（2026-11-18）**：`escape` 恢复 `inner_cfx_code ← excp_prev_cfx_code`（`cg5 rc1`；spec+DADAO-12/Kaiwu+QEMU 已落，版本号未动）；`spec/Kaiwu` 三处已对齐；IDL 寄存器模型 = 方案 C（四组数组 + `fo`/`ft` 视图、`ra` 逻辑栈序 + `ras_*`）；`read_memory`/`write_memory`（无 `_be`）/`fetch_memory`/`raise(code,mode,addr)`/`is_naturally_aligned`；`idlc` 不进门控；`.idl` sha256 锁延后到 M15 收口（N21）。
@@ -31,7 +31,7 @@
 - **2026-11-15（晚）**：**M13 已收口并归档**（107 件全已验证、台账已删）；**M15 `m15-testcases-001` 已收口**（`tests/inst` 10 宏下沉共享层、镜像 904/904 与 md5 22/22 均不变）；M12 已收口且已归档；M14 K1 收口（19）、**K2 待授权立册**；M16 已验证 9 / 待开始 1（`chipyard-001`，等 M13 收口→现已解锁）；M15 `m15-spec-001` 待返工（WIP `0584a64b`，用户要求先摊开文件 + 逐条语句分析）。
 - **M13 收口事实**：矩阵冻结 `docs/TestReports/M13-三平台差分-矩阵.md`（整数 637 + FP 227 = **864 镜像三平台逐例一致、差异 0、未归因 0**）；报告记 `input commit`；新增链例字节级断言；`tests/data/m13-005-acceptance.*`（`m15-infra-004` 迁出落点）。
 - **rf2rf 批（全部合入）**：`spec-010`（264→263 id）+ llvm/qemu/gem5/chipyard 四实现 + 向量 `02-reg-copy/rf2rf_orri_rf.S`；伪指令体系迁入 `SimRISC-00 §5`（现行位置 `Toolchain-01 §6.2`）、`SimRISC-03` 按 rd/rb/rf 拆三章；7 个伪指令载体（`pseudo_set.*`，113 点）；RMW 合成序 `atomic_rmw.S`；`atomics` 5 探针退役改执行型 `atomics_e2e`；`set.fo` 最小指令数展开。
-- **sim md5 / qemu md5**：chipyard **`df16728e…`**（2026-11-19 `.conda-env` 重建；旧 `9b6928e0…`（`m16-chipyard-005`）、`eb5220f9…`、`71574df4…`、`bd5e75b3…` 作废）；qemu **`50752f5feeda4e15fe35de6a6a260a4e`**（`m14-infra-004`：机器串 `kaiwu-tiny`/`kaiwu-vast`；旧 `9750c139…` 作废）；**两者都只在同一构建环境/时段内可比**（`ISS-451`/`ISS-453`）。
+- **sim md5 / qemu md5**：chipyard **`25c1d3f4…`**（`m16-chipyard-015`，签入 bootrom hex `a5d78816…` 后重建；旧 `df16728e…`（2026-11-19 `.conda-env` 重建）、`9b6928e0…`（`m16-chipyard-005`）、`eb5220f9…`、`71574df4…`、`bd5e75b3…` 作废）；qemu **`50752f5feeda4e15fe35de6a6a260a4e`**（`m14-infra-004`：机器串 `kaiwu-tiny`/`kaiwu-vast`；旧 `9750c139…` 作废）；**两者都只在同一构建环境/时段内可比**（`ISS-451`/`ISS-453`）。
 - **L1 全绿**（`check-inst-asm` 904/904、`check-lit` 177/177、`check-interface` 89/89、`check-musl-freshness` PASS）。
 - **规则新增（2026-11-15）**：派单顺序（先提交任务书再建 worktree，R2 机械校验）、台账时间戳取 `date`/`git log`、复核分档（小改 1 路注入 ≤15 min）、脚本入仓判据=会不会再跑。
 - 队列：M13 收口完成 → **`refs/` 清空**（用户已定，方式待选）+ **M13 归档**；M16 `chipyard-001` 已解锁；M14 K2 待授权。
