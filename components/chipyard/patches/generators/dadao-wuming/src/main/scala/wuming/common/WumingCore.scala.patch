@@ -1,6 +1,6 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..4daa0c4
+index 0000000..d2c35f9
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 @@ -0,0 +1,1905 @@
@@ -962,7 +962,7 @@ index 0000000..4daa0c4
 +  val fetchResp = imemFire && imemD.source === FETCH_SRC
 +  val imemFirePrefetch = imemFire && imemD.source =/= FETCH_SRC
 +
-+  val atDemand = state === sFreq
++  val atDemand = if (params.useVM) state === sFreq && (!vastFetchNow || vx.get.fetchDone) else state === sFreq  // address must be final (m16-008)
 +  val dataBusy = state === sMreq || state === sMwait
 +  // The stream is live when the queue holds a beat or when the core is waiting
 +  // for one that is already in flight (`waitBeat`).  In the latter case the

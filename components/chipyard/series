@@ -22,3 +22,4 @@ generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala.patch
 generators/dadao-wuming/src/main/scala/wuming/common/WumingRegFile.scala.patch
 generators/dadao-wuming/src/main/scala/wuming/common/WumingSemi.scala.patch
 generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala.patch
+generators/dadao-wuming/src/main/scala/wuming/common/WumingTlb.scala.patch

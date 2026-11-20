@@ -1,0 +1,445 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingTlb.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTlb.scala
+new file mode 100644
+index 0000000..5a59b2b
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTlb.scala
+@@ -0,0 +1,439 @@
++// See LICENSE for license details.
++//
++// DADAO "wuming" first-level TLB (m16-chipyard-008).
++//
++// The TLB belongs to `cfx_ptw` (`contract-tlb` TLB-01) and is per-hart
++// (TLB-38); the class is instantiated once per access side, so fetch and data
++// each own a table ("I/D 分离是设计", user ruling 2026-11-19):
++//
++//   * normal pages: 2 sets x 8 ways, set index = VA[16] (the 64 KiB page
++//     number's LSB), no sectors;
++//   * superpages: 4 fully associative entries;
++//   * both arrays replace by LRU (an invalid entry is always taken first);
++//   * no special entries (rocket's special entry exists for PMP, DADAO has
++//     no PMP).
++//
++// The instruction table has **no D state at all**: its entry bundle carries
++// only the local A bit, and the D registers are not created on that instance
++// (`instruction = true`).  The data table adds `dLocal`/`dPend`.
++//
++// A lookup is combinational on `io.look` (the walker parks the core, so one
++// request at a time).  The walker owns the bus; this module only exposes
++// victim selection and command probing, and the walker performs the A/D
++// read-modify-write and then asks for `fillCommit` / `cmdClear` / `cmdKill`.
++// A hit never reads a PTE (TLB-07).
++//
++// Geometry and replacement mirror the gem5 model (`DadaoNodeTlb`), which is
++// the cross-implementation contract for the TLB shape.
++
++package wuming.common
++
++import chisel3._
++import chisel3.util._
++import gewu.GewuCauseId
++
++/** TLB geometry (user ruling 2026-11-19; mirrored by the gem5 model). */
++case class WumingTlbParams(
++  /** Normal-page groups (sets).  Must be a power of two: the set index masks
++    * a contiguous field of the page number starting at `setShift`. */
++  sets: Int = 2,
++  ways: Int = 8,
++  superEntries: Int = 4,
++  /** `true` = instruction table: no dirty bit anywhere in the entry. */
++  instruction: Boolean = false
++) {
++  require(sets > 0 && (sets & (sets - 1)) == 0,
++    "WumingTlb: the group count must be a power of two (VA[16] masks it)")
++  require(ways > 0 && superEntries > 0)
++  /** LSB of the page-number field used as the group index: the 64 KiB page
++    * number's least significant bit, i.e. VA[16]. */
++  val setShift: Int = 16
++  val normalEntries: Int = sets * ways
++  val totalEntries: Int = normalEntries + superEntries
++  val idxBits: Int = log2Ceil(totalEntries)
++  val ageBits: Int = math.max(1, math.max(log2Ceil(ways), log2Ceil(superEntries)))
++  val hasD: Boolean = !instruction
++}
++
++/** One entry's cached leaf.  The instruction table never creates D state. */
++class WumingTlbEntry extends Bundle {
++  val valid = Bool()
++  val superpage = Bool()
++  /** Page-aligned `VA[41:0]`; the bits above the page size are the match tag. */
++  val vaTag = UInt(42.W)
++  /** Page-aligned physical base (`PTE[55:29]` superpage / `PTE[55:16]`). */
++  val pageBase = UInt(64.W)
++  /** Physical address of the leaf PTE (the `ADWBFAIL` `cause_info`). */
++  val ptePa = UInt(64.W)
++  /** The leaf PTE as read (big endian), the base of the atomic A/D OR. */
++  val pte = UInt(64.W)
++  val g = Bool()
++  val asid = UInt(16.W)
++  val aLocal = Bool()
++  val aPend = Bool()
++}
++
++/** Lookup request: one access's virtual address (and, on the data side, its
++  * kind; the instruction side always fetches). */
++class WumingTlbLookReq extends Bundle {
++  val va = UInt(64.W)
++  val isWrite = Bool()
++}
++
++/** Combinational hit answer (the walker responds from it directly). */
++class WumingTlbHit extends Bundle {
++  val hit = Bool()
++  val idx = UInt(8.W)
++  val superpage = Bool()
++  val pa = UInt(64.W)
++  val fault = Bool()
++  val perm = Bool()
++  val sub = UInt(GewuCauseId.WYDE_BITS.W)
++}
++
++/** Commit one successful hit's local A/D update (`§2.2.5` TLB-14). */
++class WumingTlbTouch extends Bundle {
++  val idx = UInt(8.W)
++  val isWrite = Bool()
++}
++
++class WumingTlbFillQuery extends Bundle {
++  val va = UInt(64.W)
++  val superpage = Bool()
++}
++
++/** Victim a miss would replace: invalid-first, else LRU.  A dirty victim is
++  * written back by the walker before the fill (TLB-12/TLB-15). */
++class WumingTlbVictim extends Bundle {
++  val valid = Bool()
++  val dirty = Bool()
++  val idx = UInt(8.W)
++  val superpage = Bool()
++  val vaTag = UInt(42.W)
++  val pte = UInt(64.W)
++  val ptePa = UInt(64.W)
++  val aPend = Bool()
++  val dPend = Bool()
++}
++
++/** Fill after a successful walk; the access that triggered it also sets A/D
++  * (TLB-14 applies to a fill-triggered access too). */
++class WumingTlbFill extends Bundle {
++  val idx = UInt(8.W)
++  val superpage = Bool()
++  val va = UInt(64.W)
++  val pte = UInt(64.W)
++  val ptePa = UInt(64.W)
++  val asid = UInt(16.W)
++  val aPend = Bool()
++  val dPend = Bool()
++}
++
++class WumingTlbCmdProbe extends Bundle {
++  val idx = UInt(8.W)
++  val op = UInt(2.W)
++  val scope = UInt(2.W)
++  val asidAny = Bool()
++  val start = UInt(42.W)
++  val size = UInt(64.W)
++}
++
++class WumingTlbCmdResult extends Bundle {
++  val match_ = Bool()
++  val dirty = Bool()
++  val pte = UInt(64.W)
++  val ptePa = UInt(64.W)
++  val aPend = Bool()
++  val dPend = Bool()
++}
++
++class WumingTlbCmdClear extends Bundle {
++  val idx = UInt(8.W)
++  val pte = UInt(64.W)
++}
++
++/** Page-table rules the TLB and the walker share (one copy, so a hit and a
++  * fill can never disagree). */
++object WumingTlbRules {
++  def fragBit(superpage: Bool, va: UInt): UInt =
++    Mux(superpage, 8.U + va(28, 26), 8.U + va(15, 13))
++
++  /** Missing-page class (spec order step 2 / step 4). */
++  def missPageSub(isFetch: Bool, superpage: Bool): UInt =
++    Mux(superpage,
++      Mux(isFetch, GewuCauseId.MEM_ISPTRAP.U, GewuCauseId.MEM_DSPTRAP.U),
++      Mux(isFetch, GewuCauseId.MEM_IGPTRAP.U, GewuCauseId.MEM_DGPTRAP.U))
++
++  /** Missing-fragment class (step 3 / step 5). */
++  def missFragSub(isFetch: Bool, superpage: Bool): UInt =
++    Mux(superpage,
++      Mux(isFetch, GewuCauseId.MEM_ISPFTRAP.U, GewuCauseId.MEM_DSPFTRAP.U),
++      Mux(isFetch, GewuCauseId.MEM_IGPFTRAP.U, GewuCauseId.MEM_DGPFTRAP.U))
++
++  def pageBaseOf(pte: UInt, superpage: Bool): UInt =
++    Mux(superpage, Cat(pte(55, 29), 0.U(29.W)), Cat(pte(55, 16), 0.U(16.W)))
++
++  def pageOffset(superpage: Bool, va: UInt): UInt =
++    Mux(superpage, va(28, 0).pad(64), va(15, 0).pad(64))
++
++  def pageTag(superpage: Bool, va: UInt): UInt =
++    Mux(superpage, Cat(va(41, 29), 0.U(29.W)), Cat(va(41, 16), 0.U(16.W)))
++
++  def pageMask(superpage: Bool): UInt =
++    Mux(superpage, "h1fffffff".U(42.W), "hffff".U(42.W))
++
++  /** `pte | pending A/D` — the atomic OR of TLB-15 (only bits 3/2 change). */
++  def orValue(pte: UInt, aPend: Bool, dPend: Bool): UInt =
++    // `Cat` is most-significant first: bit 3 is A, bit 2 is D (`§2.2.3`).
++    Cat(pte(63, 4), aPend || pte(3), dPend || pte(2), pte(1, 0))
++}
++
++class WumingTlb(params: WumingTlbParams) extends Module {
++  val p = params
++  private val nNormal = p.normalEntries
++  private val nTotal = p.totalEntries
++  private val idxW = math.max(1, p.idxBits)
++
++  val io = IO(new Bundle {
++    val runMode = Input(UInt(2.W))
++    /** `cfx_ptw_tlb_asid` (`§4.5`). */
++    val asid = Input(UInt(16.W))
++
++    // ---- lookup (combinational; a hit promotes the entry to MRU) ----
++    val look = Input(Valid(new WumingTlbLookReq))
++    val hit = Output(new WumingTlbHit)
++
++    // ---- local A/D update of a successful hit ----
++    val touch = Input(Valid(new WumingTlbTouch))
++
++    // ---- fill (miss path) ----
++    val fillQuery = Input(Valid(new WumingTlbFillQuery))
++    val victim = Output(new WumingTlbVictim)
++    val fillCommit = Input(Valid(new WumingTlbFill))
++
++    // ---- `cfx_ptw_tlb_control` probing / actions ----
++    val cmdProbe = Input(Valid(new WumingTlbCmdProbe))
++    val cmdResult = Output(new WumingTlbCmdResult)
++    val cmdClear = Input(Valid(new WumingTlbCmdClear))
++    val cmdKill = Input(Valid(UInt(idxW.W)))
++  })
++
++  // ---- entry storage: normal groups first, then the superpage array ----
++  private val entries = RegInit(VecInit(
++    Seq.fill(nTotal)(0.U.asTypeOf(new WumingTlbEntry))))
++  // LRU age per entry (0 = most recently used, `ways - 1` = victim).  The
++  // superpage array uses the low `log2(superEntries)` bits.
++  private val ages = RegInit(VecInit(Seq.fill(nTotal)(0.U(p.ageBits.W))))
++  // D state exists only on the data-side instance (`instruction = false`).
++  private val dLocal =
++    if (p.hasD) Some(RegInit(VecInit(Seq.fill(nTotal)(false.B)).suggestName("dLocal")))
++    else None
++  private val dPend =
++    if (p.hasD) Some(RegInit(VecInit(Seq.fill(nTotal)(false.B)).suggestName("dPend")))
++    else None
++  private def dL(i: UInt): Bool = dLocal.map(_(i)).getOrElse(false.B)
++  private def dP(i: UInt): Bool = dPend.map(_(i)).getOrElse(false.B)
++
++  // ---- lookup --------------------------------------------------------
++  private val la = io.look.bits.va
++  private def normalTag(va: UInt): UInt = Cat(va(41, 16), 0.U(16.W))
++  private def superTag(va: UInt): UInt = Cat(va(41, 29), 0.U(29.W))
++  private def asidMatch(e: WumingTlbEntry): Bool = e.g || e.asid === io.asid
++
++  private val normalMatch = (0 until nNormal).map { i =>
++    val e = entries(i)
++    e.valid && !e.superpage && e.vaTag === normalTag(la) && asidMatch(e)
++  }
++  private val superMatch = (0 until p.superEntries).map { i =>
++    val e = entries(nNormal + i)
++    e.valid && e.superpage && e.vaTag === superTag(la) && asidMatch(e)
++  }
++  private val normalHit = normalMatch.reduce(_ || _)
++  private val superHit = superMatch.reduce(_ || _)
++  private val hitAny = normalHit || superHit
++  private val hitIdx = Mux(normalHit,
++    PriorityMux(normalMatch.zipWithIndex.map { case (m, i) => (m, i.U) }),
++    PriorityMux(superMatch.zipWithIndex.map { case (m, i) => (m, (nNormal + i).U) }))
++
++  // ---- LRU age column (0 = MRU) ---------------------------------------
++  //
++  // The ages of the valid entries of one group are always a permutation of
++  // 0..(validCount-1): a hit becomes 0 and every entry younger than it moves
++  // one step older; a fill becomes 0 and every valid entry moves one step
++  // older; a kill removes its age and closes the gap.  With that invariant an
++  // age register of `log2(ways)` bits never overflows.
++  private def sameGroup(i: Int, tIdx: UInt): Bool =
++    if (i < nNormal) {
++      tIdx < nNormal.U && (i.U >> log2Ceil(p.ways)) === (tIdx >> log2Ceil(p.ways))
++    } else {
++      tIdx >= nNormal.U
++    }
++
++  /** Promote the probed entry to MRU (the access happened even if the
++    * permission check then fails). */
++  private def touchAge(tIdx: UInt): Unit = {
++    val tAge = ages(tIdx)
++    for (i <- 0 until nTotal) {
++      when(i.U === tIdx) {
++        ages(i) := 0.U
++      }.elsewhen(entries(i).valid && sameGroup(i, tIdx) && ages(i) < tAge) {
++        ages(i) := ages(i) + 1.U
++      }
++    }
++  }
++  when(io.look.valid && hitAny) { touchAge(hitIdx) }
++
++  /** A newly filled entry enters as MRU; every valid peer moves one step
++    * older.  This is *not* `touchAge`: the victim's stale age must not be
++    * used, or the first fills all keep age 0 and the LRU order is lost. */
++  private def fillAge(tIdx: UInt): Unit = {
++    for (i <- 0 until nTotal) {
++      when(i.U === tIdx) {
++        ages(i) := 0.U
++      }.elsewhen(entries(i).valid && sameGroup(i, tIdx)) {
++        ages(i) := ages(i) + 1.U
++      }
++    }
++  }
++
++  /** Removing an entry closes the age gap so the permutation invariant
++    * survives an `invalid`/`flush`. */
++  private def killAge(tIdx: UInt): Unit = {
++    val tAge = ages(tIdx)
++    for (i <- 0 until nTotal) {
++      when(i.U =/= tIdx && entries(i).valid && sameGroup(i, tIdx) && ages(i) > tAge) {
++        ages(i) := ages(i) - 1.U
++      }
++    }
++  }
++
++  private val sel = entries(hitIdx)
++  private val hitSuper = sel.superpage
++  private val hitFragOk = sel.pte(WumingTlbRules.fragBit(hitSuper, la))
++  private val hitHsjuOk = (sel.pte >> (60.U + io.runMode))(0)
++  private val hitRwxOk =
++    if (p.instruction) sel.pte(5)
++    else Mux(io.look.bits.isWrite, sel.pte(6), sel.pte(7))
++  private val hsjuSub = GewuCauseId.PERM_NUPERM.U + io.runMode
++  private val rwxSub =
++    if (p.instruction) GewuCauseId.PERM_NXPERM.U
++    else Mux(io.look.bits.isWrite,
++      GewuCauseId.PERM_NWPERM.U, GewuCauseId.PERM_NRPERM.U)
++
++  io.hit.hit := io.look.valid && hitAny
++  io.hit.idx := hitIdx
++  io.hit.superpage := hitSuper
++  io.hit.pa := sel.pageBase | WumingTlbRules.pageOffset(hitSuper, la)
++  io.hit.fault := io.look.valid && hitAny &&
++    !(hitFragOk && hitHsjuOk && hitRwxOk)
++  // Spec order: a missing fragment is `CFXMEM`, HSJU/R/W/X are `CFXPERM`.
++  io.hit.perm := Mux(!hitFragOk, false.B, !(hitHsjuOk && hitRwxOk))
++  io.hit.sub := Mux(!hitFragOk,
++    WumingTlbRules.missFragSub(if (p.instruction) true.B else false.B, hitSuper),
++    Mux(!hitHsjuOk, hsjuSub, rwxSub))
++
++  // ---- a successful hit's A/D update (the access happened) -----------
++  when(io.touch.valid) {
++    val i = io.touch.bits.idx
++    when(!entries(i).aLocal) {
++      entries(i).aLocal := true.B
++      entries(i).aPend := true.B
++    }
++    if (p.hasD) {
++      when(io.touch.bits.isWrite && !dLocal.get(i)) {
++        dLocal.get(i) := true.B
++        dPend.get(i) := true.B
++      }
++    }
++  }
++
++  // ---- victim selection (invalid first, else LRU) --------------------
++  private val fqSuper = io.fillQuery.bits.superpage
++  private val fqSet = io.fillQuery.bits.va(p.setShift + log2Ceil(p.sets) - 1, p.setShift)
++  private val setBase = fqSet * p.ways.U
++  private val normalCand = (0 until p.ways).map(w => setBase + w.U)
++  private val superCand = (0 until p.superEntries).map(w => (nNormal + w).U)
++  private def pickVictim(cand: Seq[UInt]): (Bool, Bool, UInt) = {
++    // anyInvalid: an invalid entry is always used before evicting a valid one.
++    val invalidSel = PriorityMux(cand.map(c => (!entries(c).valid, c)))
++    val anyInvalid = cand.map(c => !entries(c).valid).reduce(_ || _)
++    val lru = cand.tail.foldLeft(cand.head) { case (best, c) =>
++      Mux(ages(c) > ages(best), c, best)
++    }
++    val idx = Mux(anyInvalid, invalidSel, lru)
++    val valid = entries(idx).valid
++    val dirty = valid && (entries(idx).aPend || dP(idx))
++    (valid, dirty, idx)
++  }
++  private val nVic = pickVictim(normalCand)
++  private val sVic = pickVictim(superCand)
++  private val (vicValid, vicDirty, vicIdx) = (
++    Mux(fqSuper, sVic._1, nVic._1),
++    Mux(fqSuper, sVic._2, nVic._2),
++    Mux(fqSuper, sVic._3, nVic._3))
++
++  io.victim.valid := io.fillQuery.valid && vicValid
++  io.victim.dirty := io.fillQuery.valid && vicDirty
++  io.victim.idx := vicIdx
++  io.victim.superpage := entries(vicIdx).superpage
++  io.victim.vaTag := entries(vicIdx).vaTag
++  io.victim.pte := entries(vicIdx).pte
++  io.victim.ptePa := entries(vicIdx).ptePa
++  io.victim.aPend := entries(vicIdx).aPend
++  io.victim.dPend := dP(vicIdx)
++
++  // ---- fill ----------------------------------------------------------
++  when(io.fillCommit.valid) {
++    val f = io.fillCommit.bits
++    val i = f.idx
++    val e = entries(i)
++    e.valid := true.B
++    e.superpage := f.superpage
++    e.vaTag := WumingTlbRules.pageTag(f.superpage, f.va)
++    e.pageBase := WumingTlbRules.pageBaseOf(f.pte, f.superpage)
++    e.ptePa := f.ptePa
++    e.pte := f.pte
++    e.g := f.pte(4)
++    e.asid := f.asid
++    e.aLocal := f.pte(3) || f.aPend
++    e.aPend := f.aPend
++    if (p.hasD) {
++      dLocal.get(i) := f.pte(2) || f.dPend
++      dPend.get(i) := f.dPend
++    }
++    fillAge(i)
++  }
++
++  // ---- command probe / actions --------------------------------------
++  private val cp = io.cmdProbe.bits
++  private val ce = entries(cp.idx)
++  private val pageSize: UInt = Mux(ce.superpage, (BigInt(1) << 29).U(64.W), (BigInt(1) << 16).U(64.W))
++  private val startLo: UInt = Cat(0.U(22.W), cp.start)
++  private val pageEnd: UInt = Cat(0.U(22.W), ce.vaTag) + pageSize
++  private val rangeEnd: UInt = startLo + cp.size
++  private val inScope: Bool = MuxLookup(cp.scope, false.B)(Seq(
++    0.U -> true.B,
++    // `VA`: the entry must *contain* `tlb_addr_start` (scope 1).
++    1.U -> (ce.vaTag === Mux(ce.superpage,
++      Cat(cp.start(41, 29), 0.U(29.W)), Cat(cp.start(41, 16), 0.U(16.W)))),
++    // `range`: the entry must intersect `[start, start + size)` (scope 2).
++    2.U -> (Cat(0.U(22.W), ce.vaTag) < rangeEnd && startLo < pageEnd)))
++  private val asidOk: Bool = cp.asidAny || (!ce.g && ce.asid === io.asid)
++  io.cmdResult.match_ := io.cmdProbe.valid && ce.valid && inScope && asidOk
++  io.cmdResult.dirty := ce.aPend || dP(cp.idx)
++  io.cmdResult.pte := ce.pte
++  io.cmdResult.ptePa := ce.ptePa
++  io.cmdResult.aPend := ce.aPend
++  io.cmdResult.dPend := dP(cp.idx)
++
++  when(io.cmdClear.valid) {
++    val i = io.cmdClear.bits.idx
++    entries(i).aPend := false.B
++    entries(i).pte := io.cmdClear.bits.pte
++    if (p.hasD) { dPend.get(i) := false.B }
++  }
++  when(io.cmdKill.valid) {
++    entries(io.cmdKill.bits).valid := false.B
++    killAge(io.cmdKill.bits)
++  }
++}
