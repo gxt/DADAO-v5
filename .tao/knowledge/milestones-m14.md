@@ -38,7 +38,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-linux-047 | 2026-11-20 21:41 | 4–6 h | 工具链修复后 `k4_switch` S7 panic（`__mmdrop(&init_mm)`）：`sched_clock`/`release_thread` 改绑暴露的内核缺陷 |
 | m14-llvm-007 | 2026-11-20 20:31 | 3–5 h | DADAO 后端：同节 weak 调用须发重定位（`shouldForceRelocation`；ISS-482） |
 | m14-linux-045 | 2026-11-20 15:16 | 4–6 h | 通用 entry/exit 工作循环（`TIF_*` 消费 + syscall enter/exit + `irqentry`） |
 
@@ -46,6 +45,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-047 | 2026-11-21 01:32 | `sched_clock` 改绑后 S7 panic 根因修复（k4/k5 探针补 lazy-TLB 引用配对；arch 侧） |
 | m14-linux-044 | 2026-11-20 15:16 | Kconfig 补齐（`GENERIC_SCHED_CLOCK`/`GENERIC_IRQ_ENTRY`/异常表 uaccess+`fixup_exception`；series 96） |
 | m14-linux-035 | 2026-11-20 11:29 | 缺页路径回归通用 mm 流程（乙：rmap/LRU/filemap/权限闸；N27 与 GUP 修好；series 92） |
 | m14-linux-038 | 2026-11-20 10:23 | 时间/时钟差异盘点（19 条；P0 5：clocksource/clockevent 未注册、tick 记账缺失） |
