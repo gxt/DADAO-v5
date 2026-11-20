@@ -30,12 +30,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-chipyard-008 | 2026-11-20 15:43 | 1–2 天 | I/D TLB（2×8 + 4 超页 FA/LRU、I 无 D 位）+ `cfx_ptw_tlb_control` 双表失效 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-008 | 2026-11-21 00:07 | I/D TLB（2×8 + 4 超页 FA/LRU、I 无 D 位、双表失效 I→D；验收 1 登记缺口） |
 | m16-spec-001 | 2026-11-20 22:20 | `cfx_cache`（cfx5）寄存器与语义（重定义 `cg8 rc9`；`addr_start` `PA[55:0]`；新建 cache 契约；Kaiwu §3.2） |
 | m16-testcases-002 | 2026-11-20 18:01 | 签名机制抽到 `tests/shared`（inst 委托 + `signature.py`；ptw 3 例接线；272 流 md5 全同） |
 | m16-chipyard-007 | 2026-11-20 15:43 | Vast PTW 两级步查（L1/L2/超页/大端 PTE/A-D 回写；第 7 条移入 011） |
