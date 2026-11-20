@@ -1,13 +1,15 @@
 diff --git a/arch/dadao/mm/Makefile b/arch/dadao/mm/Makefile
 new file mode 100644
-index 000000000..0d3095f61
+index 000000000..f9d1a5423
 --- /dev/null
 +++ b/arch/dadao/mm/Makefile
-@@ -0,0 +1,22 @@
+@@ -0,0 +1,24 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-y += init.o k1_pt.o mmu.o
 +# K3 demand paging: the CFXMEM/CFXPERM page-fault channel (m14-linux-012).
 +obj-y += fault.o
++# Exception-table fixups: a bad user pointer becomes -EFAULT (m14-linux-044).
++obj-y += extable.o
 +# K3 page-table/TLB self-test: probe image only.
 +obj-$(CONFIG_DADAO_K3_PT_SELFTEST) += k3_pt_selftest.o
 +# K3 page-fault self-test: probe image only.  The symbol is an int (0 = off,

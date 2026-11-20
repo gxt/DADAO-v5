@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig b/arch/dadao/Kconfig
 new file mode 100644
-index 000000000..7193e872a
+index 000000000..c7e59517a
 --- /dev/null
 +++ b/arch/dadao/Kconfig
-@@ -0,0 +1,106 @@
+@@ -0,0 +1,122 @@
 +# SPDX-License-Identifier: GPL-2.0
 +#
 +# DADAO (v5 test machine "Vast") architecture.
@@ -18,7 +18,23 @@ index 000000000..7193e872a
 +	select HAVE_PAGE_SIZE_64KB
 +	select ARCH_HAS_DMA_PREP_COHERENT if DMA
 +	select MMU_GATHER_NO_RANGE if MMU
-+	select UACCESS_MEMCPY
++	# The generic interrupt-entry helpers (kernel/entry/common.o):
++	# `irqentry_enter`/`irqentry_exit` and the user-mode wrappers live behind
++	# this symbol (kernel/entry/Makefile:15).  The asynchronous vector already
++	# enters/leaves the hard-IRQ context through irq_enter_rcu()/irq_exit_rcu()
++	# (kernel/time.c), which is what makes in_hardirq() true; wiring the
++	# irqentry_* call sites is the entry/exit work loop (m14-linux-045).
++	select GENERIC_IRQ_ENTRY
++	# sched_clock_register() is an empty `static inline` without this symbol
++	# (include/linux/sched_clock.h:43-50), so registering the time base would
++	# silently do nothing; time_init() registers cfx_time as the source
++	# (m14-linux-044).  The tick chain stays with m14-linux-026.
++	select GENERIC_SCHED_CLOCK
++	# User copies are exception-table backed (lib/copy_user.S + mm/extable.c):
++	# a bad user pointer is fixed up to "bytes not copied" (-EFAULT).  The
++	# generic memcpy accessors cannot do that -- they have no __ex_table entry
++	# -- and upstream riscv selects them only `if !MMU` (arch/riscv/Kconfig:229).
++	# This port has an MMU, so it does not select UACCESS_MEMCPY (m14-linux-044).
 +	# The page-fault entry uses the generic "lock, find (and maybe grow) the
 +	# VMA" helper, which is what makes stack growth / the hole-vs-VMA verdict
 +	# generic (m14-linux-035).

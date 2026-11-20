@@ -35,7 +35,10 @@ self-consistent) /
 P2 masked window + merged re-delivery / P3 nested saves / P4 no nesting inside a
 live frame and delivery right after `escape` / P5 `arch_irqs_disabled()` versus
 the live register and the enable-granularity anchor (ISS-457: enable == disable
-with only the source bits cleared) / C9 totals (masked exit).
+with only the source bits cleared) / U1 hard-IRQ context inside the handler
+(`in_hardirq()` == 1; m14-linux-044) / U2 `sched_clock()` vs `cfx_time` (same
+source, monotone) / U3 a bad user pointer through copy_from_user/copy_to_user is
+fixed up to -EFAULT instead of ending the boot / C9 totals (masked exit).
 
 `--selfcheck` mutates the captured run and shows every group flips.
 `--inject` corrupts the kernel source, rebuilds, asserts the expected FAIL and
@@ -49,6 +52,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import errno
 import hashlib
 import io
 import os
@@ -81,6 +85,8 @@ SCRATCH = (Path(os.environ.get("K2I_TMP")
 SOURCE = linux_paths.linux_source_dir()
 IRQFLAGS = "arch/dadao/include/asm/irqflags.h"
 IRQ_TEST = "arch/dadao/kernel/k2_irq_test.c"
+TIME_C = "arch/dadao/kernel/time.c"
+TRAPS_C = "arch/dadao/kernel/traps.c"
 
 #: Every milestone symbol is pinned (complete set, `make check-config-pins`,
 #: ISS-470) so the shared build tree cannot leak one image's configuration into
@@ -343,6 +349,15 @@ P4_FRAME = re.compile(r"^K2 irq P4: frame tick=(\d+) waited_ticks=(\d+) "
 P4_AFTER = re.compile(r"^K2 irq P4: afterframe tick=(\d+) gap=(\d+) "
                       r"period=(\d+)$", re.MULTILINE)
 DONE = re.compile(r"^K2 irq: done ticks=(\d+) mask=(\S+)$", re.MULTILINE)
+
+#: m14-linux-044: the three "only a select / only a call site" gaps.
+U1 = re.compile(r"^K2 irq U1: inframe=(\d+) in_hardirq=(\d+) "
+                r"in_interrupt=(\d+) irq_regs=(\d+)$", re.MULTILINE)
+U2 = re.compile(r"^K2 sched: t0=(\d+) s0=(\d+) t1=(\d+) s1=(\d+) t2=(\d+) "
+                r"s2=(\d+) dcfx1=(\d+) dsc1=(\d+) dcfx2=(\d+) dsc2=(\d+)$",
+                re.MULTILINE)
+U3 = re.compile(r"^K2 uaccess: bad=(\S+) size=(\d+) from=(\d+) to=(\d+) "
+                r"errno=(-?\d+)$", re.MULTILINE)
 
 #: One anchor per stage, in the order the boot must produce them.  The vector is
 #: installed before any mask is opened (spec/DADAO-12 §5.2 step 7), the arm
@@ -663,6 +678,70 @@ def check_totals(rep: Report, text: str, d: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# U1/U2/U3: hard-IRQ context, sched_clock and exception-table uaccess
+# (m14-linux-044)
+# ---------------------------------------------------------------------------
+
+def check_u(rep: Report, text: str) -> None:
+    m = U1.search(text)
+    if not m:
+        rep.check("U1", "U1（帧内）行存在", "存在", "缺失")
+    else:
+        inframe, hardirq, interrupt, irq_regs = ints(m.groups())
+        rep.check("U1", "U1 是从中断 handler 的帧内测的", 1, inframe)
+        # The gap 042 found: no entry point ever added HARDIRQ_OFFSET, so
+        # in_hardirq() was 0 for ever.  CONFIG_GENERIC_IRQ_ENTRY alone is not
+        # the switch -- the call site (irq_enter_rcu) is.
+        rep.check("U1", "in_hardirq() 在中断 handler 内为 1（不再恒 0）", 1,
+                  hardirq)
+        rep.check("U1", "in_interrupt() 的硬中断分量已计入", True,
+                  interrupt >= 1)
+        rep.stat(f"U1 in_hardirq={hardirq} in_interrupt={interrupt} "
+                 f"irq_regs={irq_regs}")
+
+    m = U2.search(text)
+    if not m:
+        rep.check("U2", "sched_clock 采样行存在", "存在", "缺失")
+    else:
+        t0, s0, t1, s1, t2, s2, dcfx1, dsc1, dcfx2, dsc2 = ints(m.groups())
+        # cfx_time counts nanoseconds (contract-see §3), so the generic scaling
+        # the registered source gets is 1 count = 1 ns.  The two reads of one
+        # sample are not atomic, so the increments agree up to the skew between
+        # them; over a 50 ms window a jiffies-based clock (HZ=100) would be off
+        # by a whole 10 ms period, i.e. ~20 %.  1 % is a source-identity bound
+        # that still leaves the sampling skew order-of-magnitude room.
+        skew1 = abs(dsc1 - dcfx1)
+        skew2 = abs(dsc2 - dcfx2)
+        rep.check("U2", "sched_clock 与 cfx_time 同源（增量差 < 1 %，段 1）", True,
+                  skew1 * 100 <= dcfx1)
+        rep.check("U2", "sched_clock 与 cfx_time 同源（增量差 < 1 %，段 2）", True,
+                  skew2 * 100 <= dcfx2)
+        rep.check("U2", "两段测量都有推进（不是零增量自证）", True,
+                  dcfx1 > 0 and dcfx2 > 0)
+        rep.check("U2", "sched_clock 单调递增", True,
+                  s1 > s0 and s2 > s1)
+        rep.check("U2", "cfx_time 单调递增", True, t1 > t0 and t2 > t1)
+        rep.stat(f"U2 t0={t0} s0={s0} t1={t1} s1={s1} t2={t2} s2={s2} "
+                 f"dcfx={dcfx1}/{dcfx2} dsc={dsc1}/{dsc2} "
+                 f"skew={skew1}/{skew2}")
+
+    m = U3.search(text)
+    if not m:
+        rep.check("U3", "uaccess 行存在", "存在", "缺失")
+    else:
+        bad, size, frm, to, err = ints(m.groups())
+        rep.check("U3", "坏地址在用户窗口内（不是被 access_ok 挡掉的）", True,
+                  0 < bad < (1 << 41))
+        rep.check("U3", "copy_from_user 返回未拷贝字节数 == 长度（-EFAULT）", size,
+                  frm)
+        rep.check("U3", "copy_to_user 返回未写字节数 == 长度（-EFAULT）", size, to)
+        rep.check("U3", "调用点看到的 errno == -EFAULT", -errno.EFAULT, err)
+        rep.check("U3", "本次启动没有因此停机（done 行仍在）", True,
+                  bool(DONE.search(text)))
+        rep.stat(f"U3 bad={bad:#x} size={size} from={frm} to={to} errno={err}")
+
+
+# ---------------------------------------------------------------------------
 # the gate
 # ---------------------------------------------------------------------------
 
@@ -680,6 +759,7 @@ def run_checks(rc: int, text: str, cmd: list[str], spec: dict, *,
     check_p5(rep, text, d)
     check_p2(rep, text, d)
     check_p4(rep, text, d)
+    check_u(rep, text)
     check_totals(rep, text, d)
     return rep
 
@@ -725,6 +805,13 @@ def run_selfcheck(result: dict, spec: dict) -> int:
          "退出时掩码已被放开"),
         ("C1", lambda t: re.sub(r"^K2 irq: done ticks=\d+ mask=\S+\n", "", t,
                                 flags=re.MULTILINE), "删掉退出标记行"),
+        # m14-linux-044: the three gaps this probe now covers.
+        ("U1", lambda t: re.sub(r"(in_hardirq=)1", r"\g<1>0", t),
+         "没有进硬中断记账（in_hardirq 恒 0）"),
+        ("U2", lambda t: re.sub(r"(dcfx1=\d+ dsc1=)\d+", r"\g<1>0", t),
+         "sched_clock 不与 cfx_time 同源"),
+        ("U3", lambda t: re.sub(r"(size=8 from=)8", r"\g<1>0", t),
+         "坏用户指针没有被修复成 EFAULT"),
     ]
     for cid, mutate, why in mutations:
         rep = run_checks(rc, mutate(text), cmd, spec, static=False,
@@ -887,6 +974,32 @@ INJECTIONS: dict[str, tuple] = {
     #    injected the other way round — k2_time_probe's C10 `two-row` mutation
     #    adds the write back and requires a red.  A mutation without a reachable
     #    FAIL path does not belong in this table.
+    # ⑧ m14-linux-044: the hard-IRQ bookkeeping is the *call site*, not the
+    #    Kconfig symbol.  Drop irq_enter_rcu()/irq_exit_rcu() and the handler
+    #    stops being hard-IRQ context: U1's in_hardirq() goes back to 0 while
+    #    the rest of the probe (and the boot) still passes — the mutation has a
+    #    reachable FAIL and touches nothing else.
+    "no-irq-enter": (
+        TIME_C,
+        [(("\tflags = arch_local_save_flags();\n\tirq_enter_rcu();\n"),
+          ("\tflags = arch_local_save_flags();\t"
+           "/* injected: no irq_enter_rcu */\n")),
+         (("\tdadao_timer_interrupt();\n\tirq_exit_rcu();\n"),
+          ("\tdadao_timer_interrupt();\t"
+           "/* injected: no irq_exit_rcu */\n"))],
+        0, r"^K2 irq U1: inframe=1 in_hardirq=0 ", None, ("U1",),
+    ),
+    # ⑨ m14-linux-044: without the exception-table fixup the bad user pointer is
+    #    still a fault the page-fault channel cannot serve, so the boot ends in
+    #    dadao_die() before the uaccess case can report -EFAULT — the "改前停机"
+    #    the task asks to demonstrate.
+    "no-fixup": (
+        TRAPS_C,
+        [(("\t\tif (fixup_exception(regs)) {\n"),
+          ("\t\tif (0) {\t/* injected: no fixup_exception */\n"))],
+        None, r"^dadao: unrecoverable supv exception", r"^K2 uaccess: ",
+        ("U3",),
+    ),
 }
 
 

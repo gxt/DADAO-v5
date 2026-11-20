@@ -12,6 +12,7 @@ arch/dadao/include/asm/cause-sub.h.patch
 arch/dadao/include/asm/cfx.h.patch
 arch/dadao/include/asm/current.h.patch
 arch/dadao/include/asm/elf.h.patch
+arch/dadao/include/asm/entry-common.h.patch
 arch/dadao/include/asm/entry.h.patch
 arch/dadao/include/asm/fixmap.h.patch
 arch/dadao/include/asm/futex.h.patch
@@ -29,6 +30,7 @@ arch/dadao/include/asm/ptw.h.patch
 arch/dadao/include/asm/sections.h.patch
 arch/dadao/include/asm/setup.h.patch
 arch/dadao/include/asm/smp.h.patch
+arch/dadao/include/asm/stacktrace.h.patch
 arch/dadao/include/asm/string.h.patch
 arch/dadao/include/asm/switch_to.h.patch
 arch/dadao/include/asm/syscall.h.patch
@@ -75,8 +77,10 @@ arch/dadao/kernel/trap.S.patch
 arch/dadao/kernel/traps.c.patch
 arch/dadao/kernel/vmlinux.lds.S.patch
 arch/dadao/lib/Makefile.patch
+arch/dadao/lib/copy_user.S.patch
 arch/dadao/lib/delay.c.patch
 arch/dadao/mm/Makefile.patch
+arch/dadao/mm/extable.c.patch
 arch/dadao/mm/fault.c.patch
 arch/dadao/mm/init.c.patch
 arch/dadao/mm/k1_pt.c.patch

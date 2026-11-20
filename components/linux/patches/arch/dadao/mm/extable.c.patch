@@ -1,0 +1,39 @@
+diff --git a/arch/dadao/mm/extable.c b/arch/dadao/mm/extable.c
+new file mode 100644
+index 000000000..d9848a845
+--- /dev/null
++++ b/arch/dadao/mm/extable.c
+@@ -0,0 +1,33 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Exception-table fixups (m14-linux-044).
++ *
++ * The page-fault channel (mm/fault.c) serves faults it can make progress on.
++ * A fault on a bad user pointer cannot be served: there is no VMA and nothing
++ * to map.  `dadao_trap_dispatch()` (kernel/traps.c) then calls this before
++ * giving the boot a verdict, exactly like `no_context()` on riscv
++ * (arch/riscv/mm/fault.c:93-99).  The instruction that faulted is looked up in
++ * __ex_table (filled by lib/copy_user.S, sorted at boot by lib/extable.c); on a
++ * hit the frame resumes at the fixup label, whose code leaves the "bytes not
++ * copied" count in the return register, and copy_from_user() turns that into
++ * -EFAULT.
++ *
++ * The table is the generic `struct exception_table_entry { insn, fixup; }`
++ * pair (include/asm-generic/extable.h, absolute addresses) -- this port does
++ * not use the relative form, so `ex_to_insn()` in lib/extable.c is the plain
++ * `insn` field.
++ */
++#include <linux/extable.h>
++#include <linux/ptrace.h>
++
++int fixup_exception(struct pt_regs *regs)
++{
++	const struct exception_table_entry *fixup;
++
++	fixup = search_exception_tables(regs->ip);
++	if (!fixup)
++		return 0;
++
++	regs->ip = fixup->fixup;
++	return 1;
++}

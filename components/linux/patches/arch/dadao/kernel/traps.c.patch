@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..9b20eadb4
+index 000000000..54a5a58e9
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,634 @@
+@@ -0,0 +1,661 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -28,6 +28,7 @@ index 000000000..9b20eadb4
 +#include <linux/kernel.h>
 +#include <linux/init.h>
 +#include <linux/bitops.h>
++#include <linux/extable.h>
 +#include <linux/ptrace.h>
 +#include <linux/interrupt.h>
 +#include <linux/reboot.h>
@@ -520,6 +521,32 @@ index 000000000..9b20eadb4
 +							  info, false);
 +
 +		if (policy == DADAO_PF_RETRY) {
++			dadao_trap_busy = 0;
++			return DADAO_TRAP_RESUME_RETRY;
++		}
++
++		/*
++		 * The access came from the kernel: a user's own page fault was
++		 * handed over by kernel/trap.S `.Lumon_delegate` and never
++		 * reaches here (dadao_user_fault_from_umon() ends the boot by
++		 * name).  So this is a kernel access -- get_user/copy_from_user
++		 * and friends -- and a fault the channel cannot serve may still
++		 * be one the exception table knows how to recover.  This is the
++		 * DADAO counterpart of riscv's `no_context()` ->
++		 * fixup_exception() (arch/riscv/mm/fault.c:93-99): the fixup
++		 * label leaves "bytes not copied" in the return register, which
++		 * the uaccess caller turns into -EFAULT (m14-linux-044).
++		 */
++		if (fixup_exception(regs)) {
++			/*
++			 * `escape ..., 0` resumes at the *hardware*
++			 * excp_cause_ip (trap.S:6, spec/DADAO-12 §5.3); the
++			 * frame's ip field is only a memory copy.  Publish the
++			 * fixup address the same way the probe redirect does
++			 * above, then re-enter with offset 0.
++			 */
++			DADAO_CFX_WRITE(cfx_smon, SMON_CG_FRAME,
++					SMON_RC_FRAME_CAUSE_IP, regs->ip);
 +			dadao_trap_busy = 0;
 +			return DADAO_TRAP_RESUME_RETRY;
 +		}

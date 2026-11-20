@@ -1,0 +1,28 @@
+diff --git a/arch/dadao/include/asm/entry-common.h b/arch/dadao/include/asm/entry-common.h
+new file mode 100644
+index 000000000..9ccde7874
+--- /dev/null
++++ b/arch/dadao/include/asm/entry-common.h
+@@ -0,0 +1,22 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef _ASM_DADAO_ENTRY_COMMON_H
++#define _ASM_DADAO_ENTRY_COMMON_H
++
++/*
++ * Architecture-specific entry/exit work (m14-linux-044).
++ *
++ * CONFIG_GENERIC_IRQ_ENTRY compiles kernel/entry/common.o, and its header
++ * (include/linux/irq-entry-common.h) needs this file to exist even when the
++ * architecture has nothing to add: every hook has a generic default
++ * (arch_enter_from_user_mode / arch_exit_to_user_mode_work /
++ * arch_exit_to_user_mode_prepare / arch_irqentry_exit_need_resched).
++ *
++ * This port has no FPU state, no deferrable user work and no IRQ priority
++ * masking, so all defaults apply.  Wiring the irqentry_* call sites themselves
++ * is the entry/exit work loop (m14-linux-045); the asynchronous vector already
++ * enters the hard-IRQ context through irq_enter_rcu() (kernel/time.c).
++ */
++
++#include <asm/stacktrace.h>	/* on_thread_stack(), used by the exit path */
++
++#endif /* _ASM_DADAO_ENTRY_COMMON_H */

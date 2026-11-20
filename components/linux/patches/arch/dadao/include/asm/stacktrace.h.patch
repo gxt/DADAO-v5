@@ -1,0 +1,31 @@
+diff --git a/arch/dadao/include/asm/stacktrace.h b/arch/dadao/include/asm/stacktrace.h
+new file mode 100644
+index 000000000..014579ccb
+--- /dev/null
++++ b/arch/dadao/include/asm/stacktrace.h
+@@ -0,0 +1,25 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef _ASM_DADAO_STACKTRACE_H
++#define _ASM_DADAO_STACKTRACE_H
++
++#include <linux/sched.h>
++#include <linux/sched/task_stack.h>
++
++#include <asm/thread_info.h>
++
++/*
++ * Is the live stack pointer on the current task's kernel stack?
++ *
++ * Required as soon as CONFIG_GENERIC_IRQ_ENTRY builds kernel/entry/common.o
++ * (its exit path asks this under CONFIG_DEBUG_ENTRY), m14-linux-044.  SP is
++ * rb1 on this machine (asm/thread_info.h:dadao_stack_pointer()), so the test
++ * is the usual "same page frame as the task stack" one — the stack IS the
++ * thread_info here (THREAD_SIZE = PAGE_SIZE).
++ */
++static inline bool on_thread_stack(void)
++{
++	return !(((unsigned long)task_stack_page(current) ^
++		  dadao_stack_pointer()) & ~(THREAD_SIZE - 1));
++}
++
++#endif /* _ASM_DADAO_STACKTRACE_H */

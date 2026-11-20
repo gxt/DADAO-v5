@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k2_irq_test.c b/arch/dadao/kernel/k2_irq_test.c
 new file mode 100644
-index 000000000..bc4d6e83f
+index 000000000..0591cfcd1
 --- /dev/null
 +++ b/arch/dadao/kernel/k2_irq_test.c
-@@ -0,0 +1,527 @@
+@@ -0,0 +1,623 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K2 interrupt-enable knob self-test (CONFIG_DADAO_K2_IRQ_TEST, m14-linux-008).
@@ -38,10 +38,15 @@ index 000000000..bc4d6e83f
 + * frame is live, which only the frame itself can do.
 + */
 +#include <linux/init.h>
++#include <linux/hardirq.h>
++#include <linux/irq.h>
 +#include <linux/irqflags.h>
 +#include <linux/jiffies.h>
 +#include <linux/kernel.h>
++#include <linux/sched/clock.h>
++#include <linux/sched_clock.h>
 +#include <linux/types.h>
++#include <linux/uaccess.h>
 +
 +#include <asm/cfx.h>
 +#include <asm/irqflags.h>
@@ -451,6 +456,31 @@ index 000000000..bc4d6e83f
 +void dadao_k2_irq_inframe(void)
 +{
 +	unsigned long period = k2_irq_period();
++	static unsigned int u1_reported;
++
++	/*
++	 * U1 (m14-linux-044): this runs inside the TIMER handler, i.e. inside
++	 * the asynchronous frame, after irq_enter_rcu().  `in_hardirq()` must
++	 * therefore be 1 -- it used to be 0 for ever because no entry point
++	 * ever added HARDIRQ_OFFSET to preempt_count, regardless of
++	 * CONFIG_GENERIC_IRQ_ENTRY (that symbol only supplies
++	 * kernel/entry/common.o; the *call site* is what counts).  `irq_regs`
++	 * is only non-NULL once a generic handle_irq() path calls
++	 * set_irq_regs(); this vector is not one, which is the finding handed
++	 * to m14-linux-045.
++	 */
++	if (!u1_reported) {
++		u1_reported = 1;
++		/*
++		 * `in_hardirq()` / `in_interrupt()` are the masked
++		 * preempt_count words (HARDIRQ_OFFSET = 1 << 16), not 0/1; the
++		 * probe reports the boolean the kernel itself tests.
++		 */
++		dadao_early_printf("K2 irq U1: inframe=1 in_hardirq=%d "
++				   "in_interrupt=%d irq_regs=%d\n",
++				   in_hardirq() != 0, in_interrupt() != 0,
++				   get_irq_regs() != NULL);
++	}
 +
 +	if (k2_p4_stage == 1) {
 +		unsigned long tick = READ_ONCE(jiffies_64);
@@ -486,6 +516,63 @@ index 000000000..bc4d6e83f
 +}
 +
 +/* -------------------------------------------------------------------------
++ * U2/U3: sched_clock and the exception-table uaccess (m14-linux-044)
++ * ------------------------------------------------------------------------- */
++
++/*
++ * U2: `sched_clock()` must be the cfx_time clock, not jiffies.  The two are
++ * sampled back to back, so their *increments* over a long window agree apart
++ * from the (tiny) skew between the two reads; a jiffies-based clock would move
++ * in HZ-sized steps and be off by a whole period.  Values are printed so the
++ * gate can judge them, not restated here.
++ */
++static void __init k2_irq_case_u2(void)
++{
++	unsigned long t0, t1, t2;
++	u64 s0, s1, s2;
++
++	t0 = dadao_read_time();
++	s0 = sched_clock();
++	k2_irq_wait_counts(5 * k2_irq_period());
++	t1 = dadao_read_time();
++	s1 = sched_clock();
++	k2_irq_wait_counts(5 * k2_irq_period());
++	t2 = dadao_read_time();
++	s2 = sched_clock();
++
++	dadao_early_printf("K2 sched: t0=%lu s0=%llu t1=%lu s1=%llu t2=%lu "
++			   "s2=%llu dcfx1=%lu dsc1=%llu dcfx2=%lu dsc2=%llu\n",
++			   t0, s0, t1, s1, t2, s2,
++			   t1 - t0, s1 - s0, t2 - t1, s2 - s1);
++}
++
++/*
++ * U3: a bad user pointer through copy_from_user()/copy_to_user().  The
++ * address is inside the user window (TASK_SIZE = 1<<41) but has no VMA and no
++ * mapping, so it is exactly the "kernel access the page-fault channel cannot
++ * serve" case: lib/copy_user.S has the __ex_table entry, mm/extable.c resumes
++ * at its fixup label, and the count comes back as "nothing was transferred"
++ * (-EFAULT).  Before m14-linux-044 this ended the boot in dadao_die().
++ */
++static void __init k2_irq_case_u3(void)
++{
++	char buf[8];
++	const unsigned long bad = 0x1000;	/* user window, never mapped */
++	unsigned long from, to;
++	unsigned int i;
++
++	for (i = 0; i < sizeof(buf); i++)
++		buf[i] = (char)(0x40 + i);
++
++	from = copy_from_user(buf, (const void __user *)bad, sizeof(buf));
++	to = copy_to_user((void __user *)bad, buf, sizeof(buf));
++
++	dadao_early_printf("K2 uaccess: bad=%#lx size=%lu from=%lu to=%lu "
++			   "errno=%d\n", bad, (unsigned long)sizeof(buf), from,
++			   to, (from || to) ? -EFAULT : 0);
++}
++
++/* -------------------------------------------------------------------------
 + * the probe image's boot
 + * ------------------------------------------------------------------------- */
 +
@@ -518,6 +605,15 @@ index 000000000..bc4d6e83f
 +	k2_p4_stage = 1;
 +	if (k2_irq_wait_stage(3, (DADAO_K2_TIME_TICKS + 8) * period))
 +		dadao_k2_fail(K2_FAIL_IRQ_SEQUENCE, "irq test: P4 sequence");
++
++	/*
++	 * U2/U3 (m14-linux-044) run in the ordinary (unmasked) context: the
++	 * earlier cases leave the knob in whatever state they tested, and both
++	 * measurements are about the normal path.
++	 */
++	local_irq_enable();
++	k2_irq_case_u2();
++	k2_irq_case_u3();
 +
 +	/*
 +	 * The exit sequence runs masked (task §2) and is never restored, so the

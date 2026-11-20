@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/time.c b/arch/dadao/kernel/time.c
 new file mode 100644
-index 000000000..57d81d229
+index 000000000..5919648a7
 --- /dev/null
 +++ b/arch/dadao/kernel/time.c
-@@ -0,0 +1,530 @@
+@@ -0,0 +1,574 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO time base and single-hart timer (K2).
@@ -32,10 +32,12 @@ index 000000000..57d81d229
 + */
 +#include <linux/bitops.h>
 +#include <linux/init.h>
++#include <linux/hardirq.h>
 +#include <linux/irqflags.h>
 +#include <linux/delay.h>
 +#include <linux/jiffies.h>
 +#include <linux/kernel.h>
++#include <linux/sched_clock.h>
 +#include <linux/types.h>
 +
 +#include <asm/cfx.h>
@@ -307,9 +309,30 @@ index 000000000..57d81d229
 +{
 +	/* m14-linux-017: no semihosting while this frame is live (待裁定 4 / C). */
 +	extern int dadao_in_frame;
++	unsigned long flags;
 +
 +	dadao_in_frame = 1;
 +	(void)regs;
++
++	/*
++	 * Hard-IRQ context (m14-linux-044).  `irq_enter_rcu()` adds
++	 * HARDIRQ_OFFSET to preempt_count -- what `in_hardirq()` and the
++	 * hard-IRQ half of `in_interrupt()` read -- and `irq_exit_rcu()` runs
++	 * the softirq backlog (the tick's timer softirq included) on the way
++	 * out.  Delivery/nesting is still the hardware's business: the frame's
++	 * all-ones `global_cfx_intr_mask` blocks a nested source
++	 * (contract-see §6.3), so this is bookkeeping only.
++	 *
++	 * `irq_exit_rcu()` masks local IRQs (kernel/softirq.c:__irq_exit_rcu)
++	 * and leaves the interrupted state to the arch's return path.  On this
++	 * machine that state is the monitor row, which `escape` does *not*
++	 * restore (it restores the hardware global mask), so a stale "masked"
++	 * word would stop the next TIMER: write the saved word back here.
++	 * `dadao_timer_interrupt()` already saves/restores the same row around
++	 * its own body, so @flags is the value it returns to as well.
++	 */
++	flags = arch_local_save_flags();
++	irq_enter_rcu();
 +
 +	if (cause != DADAO_CAUSE_TIMER)
 +		dadao_async_die(cause, info);
@@ -320,12 +343,23 @@ index 000000000..57d81d229
 +	}
 +
 +	dadao_timer_interrupt();
++	irq_exit_rcu();
++	arch_local_irq_restore(flags);
 +	dadao_in_frame = 0;
 +}
 +
 +/* -------------------------------------------------------------------------
 + * The K2 boundary
 + * ------------------------------------------------------------------------- */
++
++/*
++ * The source registered with sched_clock (m14-linux-044): cfx_time, which
++ * counts nanoseconds directly (contract-see §3).
++ */
++static u64 dadao_sched_clock_read(void)
++{
++	return dadao_read_time();
++}
 +
 +void __init time_init(void)
 +{
@@ -338,6 +372,16 @@ index 000000000..57d81d229
 +	dadao_period = freq / HZ;
 +	if (!dadao_period)
 +		dadao_k2_fail(K2_FAIL_TIME_GEOMETRY, "period = freq / HZ");
++
++	/*
++	 * sched_clock() gets a real source (m14-linux-044).  Without
++	 * CONFIG_GENERIC_SCHED_CLOCK the call is an empty static inline
++	 * (include/linux/sched_clock.h:43-50) and the function silently keeps
++	 * jiffies resolution; with it, `bits = 64` and `rate = freq` make the
++	 * generic scaling 1 count = 1 ns, so sched_clock() and cfx_time are the
++	 * same clock.  The tick chain (clocksource/clockevent) is m14-linux-026.
++	 */
++	sched_clock_register(dadao_sched_clock_read, 64, freq);
 +
 +	/*
 +	 * The delay loop needs no measurement: the frequency is known exactly,

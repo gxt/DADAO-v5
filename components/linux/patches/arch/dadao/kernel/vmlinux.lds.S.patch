@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/vmlinux.lds.S b/arch/dadao/kernel/vmlinux.lds.S
 new file mode 100644
-index 000000000..57760e673
+index 000000000..8dc2c3ae4
 --- /dev/null
 +++ b/arch/dadao/kernel/vmlinux.lds.S
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,164 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO kernel linker script (K0).
@@ -150,6 +150,20 @@ index 000000000..57760e673
 +
 +	STABS_DEBUG
 +	DWARF_DEBUG
++	/*
++	 * `.modinfo` has no input-section rule of its own in this script (the
++	 * generic MODINFO macro is not part of RO_DATA/BSS_SECTION), so without
++	 * this it is an *orphan* and the linker drops it wherever the section
++	 * flags fit -- measured: after `__ex_table`, i.e. between `__init_end`
++	 * and `__bss_start` once the exception table is non-empty
++	 * (m14-linux-044).  It must stay at the end: `make vmlinux` removes the
++	 * section when CONFIG_MODULES=n (scripts/Makefile.vmlinux), and removing
++	 * anything before `__bss_start` would shift that symbol, which
++	 * llvm-objcopy cannot express for the port's R_DADAO_ABS48 relocations
++	 * (the --emit-relocs relink of the code-range guard then fails).  Same
++	 * placement as riscv/arm64.
++	 */
++	MODINFO
 +	ELF_DETAILS
 +
 +	DISCARDS

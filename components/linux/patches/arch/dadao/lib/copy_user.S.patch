@@ -1,0 +1,109 @@
+diff --git a/arch/dadao/lib/copy_user.S b/arch/dadao/lib/copy_user.S
+new file mode 100644
+index 000000000..8cb0008b9
+--- /dev/null
++++ b/arch/dadao/lib/copy_user.S
+@@ -0,0 +1,103 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++/*
++ * Exception-table backed user copies (m14-linux-044).
++ *
++ * `raw_copy_from_user()` / `raw_copy_to_user()` / `__clear_user()` return the
++ * number of bytes **not** transferred.  Each user-side access carries an
++ * __ex_table entry: if the access faults, the synchronous channel ends in
++ * mm/extable.c::fixup_exception(), which resumes at the fixup label with the
++ * remaining count already in `rd8`.  The caller (copy_from_user et al.) then
++ * reports -EFAULT; the boot no longer stops.
++ *
++ * Byte-wise on purpose: this machine requires 8-byte alignment for 8-byte
++ * accesses (spec/SimRISC-01), so a word loop would have to carry an alignment
++ * prologue/epilogue for no benefit at this stage.  The count register is
++ * decremented only after a successful store, so on a fault `rd8` is exactly
++ * "bytes not copied" (including the byte that faulted).
++ *
++ * ABI (contract-abi §4.1): address arguments in rb16+, data arguments from
++ * rd16, scalar return in rd8.  Everything touched here is caller-saved
++ * (rd4/rd8/rd16, rb16/rb17), so no prologue is needed.
++ */
++	.section .text,"ax"
++	.p2align 2
++	.globl	raw_copy_from_user
++/*
++ * unsigned long raw_copy_from_user(void *to, const void __user *from,
++ *                                  unsigned long n)
++ *   rb16 = to, rb17 = from, rd16 = n
++ */
++raw_copy_from_user:
++	set.rd	rd8, rd16
++	br.z	{rd8}?, [rb0, .Lcf_done]
++.Lcf_loop:
++1:	ld.ub	rd4, [rb17, 0]		/* the only user-side access */
++	st.b	rd4, [rb16, 0]
++	add.si	rb16, 1
++	add.si	rb17, 1
++	add.si	rd8, -1
++	br.nz	{rd8}?, [rb0, .Lcf_loop]
++.Lcf_done:
++	ret	rd0, 0
++.Lcf_fault:
++	ret	rd0, 0
++
++	.pushsection __ex_table,"a"
++	.p2align 3
++	.dd.o64	1b
++	.dd.o64	.Lcf_fault
++	.popsection
++
++	.p2align 2
++	.globl	raw_copy_to_user
++/*
++ * unsigned long raw_copy_to_user(void __user *to, const void *from,
++ *                                unsigned long n)
++ *   rb16 = to, rb17 = from, rd16 = n
++ */
++raw_copy_to_user:
++	set.rd	rd8, rd16
++	br.z	{rd8}?, [rb0, .Lct_done]
++.Lct_loop:
++	ld.ub	rd4, [rb17, 0]
++2:	st.b	rd4, [rb16, 0]		/* the only user-side access */
++	add.si	rb16, 1
++	add.si	rb17, 1
++	add.si	rd8, -1
++	br.nz	{rd8}?, [rb0, .Lct_loop]
++.Lct_done:
++	ret	rd0, 0
++.Lct_fault:
++	ret	rd0, 0
++
++	.pushsection __ex_table,"a"
++	.p2align 3
++	.dd.o64	2b
++	.dd.o64	.Lct_fault
++	.popsection
++
++	.p2align 2
++	.globl	__clear_user
++/*
++ * unsigned long __clear_user(void __user *to, unsigned long n)
++ *   rb16 = to, rd16 = n
++ */
++__clear_user:
++	set.rd	rd8, rd16
++	br.z	{rd8}?, [rb0, .Lcu_done]
++	set.rd	rd4, 0
++.Lcu_loop:
++3:	st.b	rd4, [rb16, 0]		/* the only user-side access */
++	add.si	rb16, 1
++	add.si	rd8, -1
++	br.nz	{rd8}?, [rb0, .Lcu_loop]
++.Lcu_done:
++	ret	rd0, 0
++.Lcu_fault:
++	ret	rd0, 0
++
++	.pushsection __ex_table,"a"
++	.p2align 3
++	.dd.o64	3b
++	.dd.o64	.Lcu_fault
++	.popsection

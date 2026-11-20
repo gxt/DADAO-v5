@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/ptrace.h b/arch/dadao/include/asm/ptrace.h
 new file mode 100644
-index 000000000..a2d6d5693
+index 000000000..f73754dfd
 --- /dev/null
 +++ b/arch/dadao/include/asm/ptrace.h
-@@ -0,0 +1,134 @@
+@@ -0,0 +1,151 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PTRACE_H
 +#define __ASM_PTRACE_H
@@ -102,6 +102,23 @@ index 000000000..a2d6d5693
 +	 * (`dadao_do_page_fault(..., from_user)`).
 +	 */
 +	return 0;
++}
++
++/*
++ * Interrupt-enable state of the *interrupted* context (m14-linux-044).
++ *
++ * The frame cannot answer this: contract-abi gives this machine no status
++ * register, the two entry stubs write `status` = 0 (asm/ptrace.h above), and
++ * contract-see §6.4 puts the enable state in the running mode's monitor row,
++ * not in the cg5 frame.  The generic entry code asks the question to decide
++ * what to restore on the way out; with CONFIG_PREEMPTION=n its preemption half
++ * is compiled out, so this reports the ordinary case (interrupts were enabled)
++ * instead of inventing a bit.  m14-linux-045 wires the irqentry_* call sites
++ * and revisits this if it adds the state to the frame.
++ */
++static __always_inline bool regs_irqs_disabled(struct pt_regs *regs)
++{
++	return false;
 +}
 +
 +/*

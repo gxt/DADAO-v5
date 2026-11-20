@@ -1,8 +1,11 @@
 diff --git a/arch/dadao/lib/Makefile b/arch/dadao/lib/Makefile
 new file mode 100644
-index 000000000..d15a03920
+index 000000000..60b04c993
 --- /dev/null
 +++ b/arch/dadao/lib/Makefile
-@@ -0,0 +1,2 @@
+@@ -0,0 +1,5 @@
 +# SPDX-License-Identifier: GPL-2.0
 +lib-y += delay.o
++# Exception-table backed user copies (m14-linux-044): raw_copy_{from,to}_user()
++# and __clear_user(); the fixup side is mm/extable.c.
++lib-y += copy_user.o
