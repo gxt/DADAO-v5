@@ -76,6 +76,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-manifests-guard check-cfx-aliases check-asm-prose check-lit \
+        check-idl-parse \
         check-cfx-alias-table check-cfx-alias-install check-cfx-vectors \
         check-lit-full \
         check-run-artifacts \
@@ -296,6 +297,7 @@ help:
 	@echo "  make check-contracts-dir  Whitelist gate for .tao/contracts/ + contracts/ top level (L1; INFRA-071t)"
 	@echo "  make check-manifests-guard  Directory manifests (.manifests.toml) gate: bidirectional file/subdir sets + sha256, recursive option (L1; m15-infra-005)"
 	@echo "  make check-idl-sync  idl/*.idl rendered into spec/ IDL markers, byte-exact (L1; m15-spec-001)"
+	@echo "  make check-idl-parse  IDL subset parser: 13 sources -> AST + frozen construct signatures + reject/accept sets (L1; m17-idl-002)"
 	@echo "  make check-component-changelog  Component changelog list-form/milestone-section gate (L1; INFRA-084t)"
 	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
@@ -1179,7 +1181,7 @@ _locked-clean-work:
 # 两条排在 `check-temp-dirs` **之前**：它们在 `$DADAO_TMP`（`check_toolchain.py`
 # 默认建任务临时目录）下跑探针，先跑可让该目录 mtime 保持新鲜，避免陈旧临时
 # 目录误报；`check_k0.py`（L2）另行把 DADAO_TMP 指到自己的 scratch。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-manifests-guard check-idl-sync check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-config-pins check-writer-guards check-temp-dirs
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-manifests-guard check-idl-sync check-idl-parse check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-config-pins check-writer-guards check-temp-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1399,6 +1401,17 @@ _locked-check-manifests-guard:
 # 规则见 docs/Process-06 §9 + docs/Process-07。
 check-idl-sync:
 	@$(PYTHON) idl/render.py --check
+
+# IDL 子集解析门控 (m17-idl-002, **L1 成员**): `idl/idl_parser.py` 用 Python 标准库把 13 个源
+# （12 册 + `idl/lib/fp.idl`）解析成 AST，并按 `idl/syntax-subset.md` 的口径**只实现实际用到的
+# 构造**（§8 的 while/assert/sizeof/struct/bitfield/tuple/include/fetch/X[]/CSR[]/复合赋值/
+# 变量作复制次数一律显式报错）。判据：① 全量解析（operation 条数与 `contracts/opcodes.yaml` 的
+# `- id:` 独立对账）；② 每个 operation/function/enum/常量的构造签名与 `idl/idl_parse_fixture.json`
+# 逐条一致（改 `.idl` 或改 AST 形状须显式 `--update`）；③ 拒绝集每条必须按预期报错（静默跳过 = FAIL）；
+# ④ 接受集合法样例必须通过且含预期节点（防过度拒绝）。**不做语义**（求值在 m17-idl-003）。
+# 规则见 docs/Process-07 §1.1/§7。
+check-idl-parse:
+	@$(PYTHON) idl/idl_parser.py --check
 
 # 契约目录顶层白名单门控 (INFRA-071t, L1 成员; 守两处): `.tao/contracts/` 顶层只允许
 # `contract-*.md` / `README.md` / 子目录; `contracts/` 顶层只允许 `*.yaml` / `README.md` /

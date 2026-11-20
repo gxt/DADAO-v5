@@ -1,0 +1,241 @@
+# 解析器拒绝集 / 接受集（m17-idl-002）
+#
+# 为什么单独成册：门控只断言「13 个源能解析」是**单向**的——一个「见错就跳过」或
+# 「什么都拒」的解析器也能让门控变绿。本册补两条反向验证：
+#
+#   * `[[reject]]`：语法错误 / 子集外构造**必须报错**，且**错误类别相符**
+#     （`expect` 正则逐条钉住报错理由——防「碰巧报了个别的错」也算过）。
+#   * `[[accept]]`：合法样例必须解析通过，且 AST 里含**预期节点**（`must_kinds`）。
+#     防「过度拒绝」（把合法构造当错误）与「解析成空树」。
+#
+# 口径：
+#   * 样例内联在 `code`（TOML 多行字面量，逐字保留）——它们是门控输入，**不落成
+#     `.idl` 文件**：`idl/render.py` 按 `idl/*.idl` 取源，多一个文件会改变渲染面。
+#   * `why` 写明该样例对应 `syntax-subset.md` 的哪一类缺口。
+#   * 不做字节码缓存、不 import Python 模块（本册是数据，不是代码）——`idl/` 由
+#     `check-manifests-guard` 做双向目录集合断言，落 `__pycache__` 会直接判红。
+
+[[reject]]
+name = "unsupported-while"
+expect = "不在子集内"
+why = "`while` 是 §8 明列的不使用构造（S60 计数 0）⇒ 必须显式报错"
+code = '''
+# id: probe_while
+Bits<8> i = 8'd0;
+while (i < 8'd4) {
+  i = i + 8'd1;
+}
+'''
+
+[[reject]]
+name = "unbalanced-paren"
+expect = "期望 `\\)`"
+why = "`if` 条件缺右括号 ⇒ 括号不配对必须报错（不得跳过该语句）"
+code = '''
+# id: probe_paren
+if (rdHA == 6'd0 {
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+'''
+
+[[reject]]
+name = "unbalanced-brace"
+expect = "期望 `\\}`"
+why = "块缺右花括号 ⇒ 必须报错（不得按 EOF 静默截断）"
+code = '''
+# id: probe_brace
+if (1'b1) {
+  rd[rdHA] = 1'b0;
+'''
+
+[[reject]]
+name = "missing-type-annotation"
+expect = "需要类型标注"
+why = "形参只有名字、没有类型标注 ⇒ 必须报错（不得把关键字 `body` 当类型）"
+code = '''
+function probe_args {
+  arguments body { }
+}
+'''
+
+[[reject]]
+name = "bits-without-width"
+expect = "期望 `<`"
+why = "`Bits` 缺 `<N>` 位宽标注 ⇒ 类型标注不完整，必须报错"
+code = '''
+# id: probe_bits
+Bits a = 1'b0;
+'''
+
+[[reject]]
+name = "missing-semicolon"
+expect = "期望 `;`"
+why = "语句缺 `;` ⇒ 语句边界不可判定，必须报错"
+code = '''
+# id: probe_semicolon
+Bits<8> a = 8'd0
+'''
+
+[[reject]]
+name = "compound-assign"
+expect = "复合赋值"
+why = "复合赋值 `+=`（§5：本仓 0 次）⇒ 不在子集内，必须显式报错"
+code = '''
+# id: probe_compound
+Bits<8> a = 8'd0;
+a += 8'd1;
+'''
+
+[[reject]]
+name = "var-replication-count"
+expect = "变量作复制次数"
+why = "`{N{a}}` 的 N 必须是字面常量（S65 计数 0）⇒ 变量作次数必须报错"
+code = '''
+# id: probe_repl
+Bits<2> n = 2'd2;
+Bits<8> a = {n{4'd1}};
+'''
+
+[[reject]]
+name = "riscv-csr-scope"
+expect = "RISC-V"
+why = "RISC-V 式 `CSR[…]`（S64 计数 0）⇒ 不在子集内，必须显式报错"
+code = '''
+# id: probe_csr
+Bits<64> a = CSR[fcsr];
+'''
+
+[[reject]]
+name = "struct-decl"
+expect = "不在子集内"
+why = "`struct`（S62 计数 0）⇒ 文件级声明必须显式拒绝"
+code = '''
+struct probe_s {
+  Bits<8> a
+}
+'''
+
+[[reject]]
+name = "sizeof"
+expect = "`sizeof`"
+why = "`sizeof`（S61 计数 0）⇒ 不在子集内，必须显式报错"
+code = '''
+# id: probe_sizeof
+Bits<8> a = sizeof(Bits<8>);
+'''
+
+[[reject]]
+name = "post-decrement"
+expect = "自减"
+why = "`i--`（S17 只有 `++`）⇒ 不在子集内，必须显式报错"
+code = '''
+# id: probe_decr
+for (Bits<4> i = 4'd0; i < 4'd4; i--) { }
+'''
+
+[[reject]]
+name = "duplicate-function-section"
+expect = "段重复"
+why = "`returns` 段重复 ⇒ 段序不合法，必须报错（不得让后者静默覆盖前者）"
+code = '''
+function probe_dup {
+  returns Bits<8>
+  returns Bits<16>
+  arguments Bits<8> a
+  body {
+    return a;
+  }
+}
+'''
+
+[[accept]]
+name = "decl-and-expressions"
+must_kinds = [
+  "Assign", "Binary", "BitsType", "BoolLit", "BooleanType", "Call", "Concat",
+  "EnumRef", "Ident", "Index", "IntLit", "Replicate", "SignedCast", "Slice",
+  "Ternary", "U32Type", "Unary", "VarDecl",
+]
+code = '''
+# id: probe_exprs
+Bits<8> a;                                              # 无初值声明（S66）
+Bits<8> b = 8'd3;                                       # 带初值（S09）
+Boolean p = (a[3] == 1'b1) && !(b[5]);
+Boolean q = true;                                       # Boolean 字面量
+Bits<16> c = {a[3:0], b[3:0]};                          # 拼接（S32）
+Bits<8> d = {2{b[3:0]}};                                # 复制（S33）
+Bits<16> e = $signed(a) + $signed(b);                   # $signed（S37）+ 普通加
+Bits<17> f = $signed(a) `+ $signed(b);                  # 加宽加（S21）
+Bits<8> g = a > b ? a[7:0] : b[7:0];                    # 三目（S31）+ 切片（S34）
+Bits<8> h = ~a & b | (a ^ b);                           # 位运算（S30）
+Bits<8> i = a << 8'd1 >> 8'd1 >>> 8'd1;                 # 移位（S24–S26）
+U32 j = 32'hDEAD_BEEF;                                  # U32（S07）+ 定宽字面量（S38）
+U32 k = 0x7F;                                           # C 风格十六进制（S40）
+Bits<8> l = 8'sd1;                                      # 有符号字面量（S39），原文留档
+Bits<8> m = ExceptionCode::Illegal[7:0];                # 枚举引用（S05）
+Bits<8> n = probe_pred?(a) ? a : b;                     # `?` 后缀谓词（S11）
+a = b;                                                  # 整变量赋值（S18）
+'''
+
+[[accept]]
+name = "control-flow"
+must_kinds = [
+  "Assign", "Block", "Call", "Concat", "For", "If", "Incr", "Index", "Return", "Slice",
+]
+code = '''
+# id: probe_flow
+Bits<8> acc = 8'd0;
+if (rdHA == 6'd0) {                                     # if（S12）
+  acc = 8'd1;
+} else if (rdHB == 6'd0) {                               # else if（S13）
+  acc = 8'd2;
+} else {                                                 # else（S14）
+  acc = 8'd3;
+}
+for (Bits<6> k = 6'd0; k < immu6; k++) {                 # for + ++（S15/S17）
+  acc = acc + rd[k][7:0];                                # 数组下标 + 切片（S36）
+}
+for (Bits<7> i = 7'd0; i != 7'd64; i = i + 7'd1) {       # 步进写成赋值
+  acc = acc | fo[6'd0][i];                               # 双重下标（S36）
+}
+rd[rdHA] = acc;                                          # 整寄存器赋值（S18）
+rd[rdHB][15:0] = acc[15:0];                              # 切片赋值（S19）
+raise(ExceptionCode::Illegal, mode(), {16'd0, ip()});    # 语句位置的调用（S41）
+return;                                                  # 无值 return（S16）
+'''
+
+[[accept]]
+name = "library-shape"
+must_kinds = [
+  "BitsType", "Description", "EnumDecl", "EnumMember", "FunctionDecl", "If",
+  "NamedType", "Param", "Return", "VarDecl",
+]
+code = '''
+%version: 0.1
+enum ProbeMode {
+  A 0b000
+  B 0b001
+}
+Bits<8> PROBE_CONST = 8'hFF;
+function probe_pred? {
+  returns Boolean
+  arguments Bits<8> a, ProbeMode mode
+  description {
+    自由文本：会引述伪码 `floor(x)`、`+Inf`、`GF(2)`，不是语法。
+  }
+  body {
+    if (a == 8'd0) {
+      return 1'b1;
+    }
+    return a[0] == 1'b0;
+  }
+}
+function probe_plain {
+  arguments Bits<8> a
+  description {
+    无 returns 段的函数（本仓 0 次，但语法上可选）。
+  }
+  body {
+    Bits<8> t = a;
+  }
+}
+'''

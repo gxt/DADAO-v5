@@ -12,6 +12,15 @@ owner = "idl"
 [files."diff-vs-udb.md"]
 owner = "idl"
 
+[files."idl_parser.py"]
+owner = "idl"
+
+[files."idl_parse_cases.toml"]
+owner = "idl"
+
+[files."idl_parse_fixture.json"]
+owner = "idl"
+
 [files."render.py"]
 owner = "idl"
 
