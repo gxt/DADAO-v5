@@ -4,6 +4,10 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 `manifests/components.lock.toml` 锁定；工作树由 `make fetch` +
 `make apply-series` 在 `.work/source/gem5` 建立。
 
+## 与其它 ISA 的差异盘点（参考）
+
+`gem5-diff-vs-other-isas.md`：`m16-gem5-019` 只读盘点的结论索引——按 `src/arch/riscv`（主）/`arm`（强）/`x86` 等逐机制对比，**覆盖 `--cpu-type {atomic,timing}` × `--profile {tiny,vast}` 四组**。**只读分析的结论汇总，不是实现判据**（判据在 `spec/` 与 `.tao/contracts/`）。
+
 ## 当前状态（GEM5-004t / B0 + GEM5-005t + GEM5-006t / B1 + GEM5-007t / B2 + GEM5-008t / B3 + GEM5-009t / B4 + GEM5-010t / B5 + GEM5-011t / B6 + GEM5-012t / B7）
 
 - **解码核心**：`src/arch/dadao/**` 骨架 + 契约驱动的解码表

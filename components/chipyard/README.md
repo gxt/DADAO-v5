@@ -2,6 +2,10 @@
 
 Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1`，2026-11-08 就地修订：不再 `patchless`）。上游基线与补丁序列由 `manifests/components.lock.toml` 锁定（主仓 commit + `manifests/chipyard-submodules.lock.toml` 子模块快照，`ADR-0024 D2`）；工作树由 `make fetch` + `make apply-series` 在运行期组件源目录建立。
 
+## 与其它 generator 的差异盘点（参考）
+
+`chipyard-diff-vs-rocket.md`：`m16-chipyard-013` 只读盘点的结论索引——`dadao-gewu`/`dadao-wuming` 对照 **`rocket`**，**覆盖 tiny / vast 两机型**；`wuqing` 仓内未实现，将来到位按同一口径补。**只读分析的结论汇总，不是实现判据**。
+
 ## 补丁集
 
 - 形态：**树形补丁集**（`patches/<上游相对路径>.patch`，一文件一补丁），清单见 `series`；规范见 `docs/Process-01-组件补丁组织与构建编排.md`。
