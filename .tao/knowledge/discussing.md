@@ -76,6 +76,15 @@
 - **uapi 与 musl 同步更新**（用户原话）：`uapi/asm/ptrace.h` 的 `user_regs_struct` 与 musl 的 `sigcontext`/`mcontext_t` 都按 2048 B 同形状改。
 - **`ra[0]` 的 `{RACNT, MRPTR}` 元数据保持原样**，不参与复用。
 
+## N31. `m15-idl-001` 完成区不实 + IDL 两处待修（`m15-idl-020` 盘点发现，用户 2026-11-20 待定整改）
+
+- **不实陈述（已核）**：`m15-idl-001` R2 写「本分支跟进的实现：§4 的 8 条 operation 全部加对齐判定…原『不判 MALIGN』的注释与说明已删除」；实际 `idl/SimRISC-01.idl` 的 8 条 rf **0 条守卫**、过期注释**仍在**；`git show a336b448`（合入提交）**当时就没有** ⇒ **完成区不实，非回归**。任务书已加「⚠ 更正」注（保留原文）。
+- **IDL 两处缺陷**（均「应改 IDL」）：
+  1. **D1**：`jump`/`br.*` 的 `rb0` 写回——IDL 只写 `target[47:0]`，而 `SimRISC-06 §1/§2`、`ADR-0012 D8.3/D8.4`、三执行机都写完整 64 位、取低 48 位取指；
+  2. **D2**：`ld.t`/`st.t`/`ldm.t`/`stm.t` 等 8 条 rf 缺对齐守卫——`SimRISC-01 §4` 正文 + 附录 B `excp_malign` 32 条 + `contracts/opcodes.yaml` 的 `aligned(4/8)` 三方一致要求 MALIGN，IDL 不判（注释前提已被 `af7ffb09` 推翻）。
+- **D3（执行机侧）**：窄 `lr` 9 条 IDL 按用户 2026-11-19 裁定只写低 W 位，三执行机仍整 64 位零扩展（`MEMORY.md`/`m15-idl-012` R2 已登记）。
+- **处置**：拟立 `m15-idl-021`（修 D1+D2 + 订正过期注释）；D3 属三执行机改动，另计。**是否立刻整改由用户定**（用户 2026-11-20：「修完 B/C 再分析一轮」）。
+
 ## N7. cfx 待实现范围
 
 - 已实现：umon / jmon / smon / hmon / ptw / pmem / time / hart / power。
