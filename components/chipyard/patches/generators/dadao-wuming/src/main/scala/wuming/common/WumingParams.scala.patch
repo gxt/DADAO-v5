@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..199658b
+index 0000000..1dbe323
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,291 @@
+@@ -0,0 +1,302 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -75,7 +75,14 @@ index 0000000..199658b
 +  // This is *our* field with the DADAO meaning.  The same-named rocket-chip
 +  // field in `WumingCompatCoreParams` is a RISC-V-MMU wiring flag and stays
 +  // `false` on both profiles (see the note there).
-+  useVM: Boolean = false
++  useVM: Boolean = false,
++  // m16-chipyard-007: the physical memory window the page tables live in
++  // (`spec/Kaiwu §1.1` PA RAM, `DADAO-12 §2.2.1`: PTBR, table pages and the
++  // mapping targets must be in physical memory).  Required on a translating
++  // machine: an absent window is an elaboration error, not a walk that reads
++  // nowhere.
++  paRamBase: Option[BigInt] = None,
++  paRamSize: Option[BigInt] = None
 +)
 +
 +/** `cfxha` values of the cfx this machine can implement (`DADAO-12` §3.8). */
@@ -177,7 +184,9 @@ index 0000000..199658b
 +    hmonBase: BigInt,
 +    hmonSize: BigInt,
 +    bootromBase: BigInt,
-+    bootromSize: BigInt
++    bootromSize: BigInt,
++    paRamBase: BigInt,
++    paRamSize: BigInt
 +  ): WumingCoreParams = WumingCoreParams(
 +    loadMemBase = Some(loadMemBase),
 +    loadMemSize = Some(loadMemSize),
@@ -186,7 +195,9 @@ index 0000000..199658b
 +    hmonSize = Some(hmonSize),
 +    bootromBase = Some(bootromBase),
 +    bootromSize = Some(bootromSize),
-+    useVM = true)
++    useVM = true,
++    paRamBase = Some(paRamBase),
++    paRamSize = Some(paRamSize))
 +}
 +
 +/** Wiring-only adapter: `TileParams.core` is typed `CoreParams`. */

@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..5a9ada6
+index 0000000..4daa0c4
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,1590 @@
+@@ -0,0 +1,1905 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -207,6 +207,50 @@ index 0000000..5a9ada6
 +  // compile-time false and no address can enter the walker.
 +  private val ptwEnable = gewu.io.ptw.map(_.enable).getOrElse(false.B)
 +
++  // ---- page-table walker (`m16-chipyard-007`) ----------------------------
++  //
++  // The walker borrows the data port (`io.dmem`): the core is parked in
++  // `sXlate` while a translation — or a `cfx_ptw_tlb_control` command — runs,
++  // so no data request is outstanding and no third TileLink client is needed.
++  // Only a translating machine instantiates it (Tiny keeps zero `ptw` in its
++  // RTL: its address path never leaves the core-internal windows).
++  private val ptw = if (params.useVM) Some(Module(new WumingPtw(
++    WumingPtwParams(
++      paRamBase = requiredValue(params.paRamBase, "paRamBase"),
++      paRamSize = requiredValue(params.paRamSize, "paRamSize"),
++      romBase = requiredValue(params.bootromBase, "bootromBase"),
++      romSize = requiredValue(params.bootromSize, "bootromSize")),
++    dataEdge, srcBits))) else None
++
++  private val ptwReqValid = WireDefault(false.B)
++  private val ptwReqVa = WireDefault(0.U(64.W))
++  private val ptwReqFetch = WireDefault(false.B)
++  private val ptwReqWrite = WireDefault(false.B)
++  private val ptwCmdValid = WireDefault(false.B)
++  private val ptwCmdBits = WireDefault(0.U.asTypeOf(new WumingPtwCommand))
++  for (m <- ptw) {
++    m.io.runMode := gewu.io.runMode
++    m.io.ptbr := gewu.io.ptw.get.ptbr
++    m.io.asid := gewu.io.ptw.get.tlbAsid
++    m.io.req.valid := ptwReqValid
++    m.io.req.bits.va := ptwReqVa
++    m.io.req.bits.isFetch := ptwReqFetch
++    m.io.req.bits.isWrite := ptwReqWrite
++    m.io.cmd.valid := ptwCmdValid
++    m.io.cmd.bits := ptwCmdBits
++  }
++  // Translation context (Vast only): what the parked state is waiting for, the
++  // PA of the translated fetch, and the PA of the current data beat.
++  private class WumingXlateState extends Bundle {
++    val kind = UInt(2.W)        // 0 = fetch, 1 = data (first beat), 2 = data (page cross)
++    val fetchDone = Bool()      // `ip`'s demand fetch has been translated
++    val fetchPa = UInt(64.W)
++    val memPaBeat = UInt(64.W)
++    val va = UInt(64.W)         // address the event refers to
++    val write = Bool()
++  }
++  private val vx = if (params.useVM) Some(RegInit(0.U.asTypeOf(new WumingXlateState))) else None
++
 +  // Exception entry: the cause triple is driven by `enterHmon` below, which is
 +  // called from every faulting branch (and from the `trap` handoff).
 +  private val excpValid = WireDefault(false.B)
@@ -232,7 +276,7 @@ index 0000000..5a9ada6
 +  val MALIGN_BIT  = 12
 +  val IALIGN_BIT  = 13
 +
-+  val sIdle :: sFreq :: sFwait :: sExec :: sTrap :: sSemi :: sExc :: sMreq :: sMwait :: sSlow :: sCopy :: sCls :: sFpSlow :: sFault :: sHalt :: Nil = Enum(15)
++  val sIdle :: sFreq :: sFwait :: sExec :: sTrap :: sSemi :: sExc :: sMreq :: sMwait :: sSlow :: sCopy :: sCls :: sFpSlow :: sXlate :: sFault :: sHalt :: Nil = Enum(16)
 +  val state = RegInit(sIdle)
 +
 +  // Simulation-time cycle stamp for the timing evidence (`+verbose`).
@@ -464,6 +508,22 @@ index 0000000..5a9ada6
 +  private def specBacked(x: UInt): Bool =
 +    if (params.useVM) !memWindow(x) && inSpecWindow(x) else inSpecWindow(x)
 +
++  // m16-chipyard-007: a *translated* access carries a physical address, so the
++  // architectural backing test is the physical window a mapping may target
++  // (PA RAM / BootROM, `spec/Kaiwu §1.1`) plus the negotiated manager
++  // capability.  Manager support alone is not enough: chipyard also maps debug
++  // devices the DADAO address space does not have.
++  private def paBacked(x: UInt): Bool =
++    if (params.useVM) {
++      inWindow(x, requiredValue(params.paRamBase, "paRamBase"),
++        requiredValue(params.paRamSize, "paRamSize")) ||
++        inWindow(x, bootromBaseValue, bootromSizeValue)
++    } else false.B
++  def paDataGetLegal(x: UInt): Bool =
++    paBacked(x) && dataEdge.manager.supportsGetSafe(x(addrBits - 1, 0), lgSize)
++  def paDataPutLegal(x: UInt): Bool =
++    paBacked(x) && dataEdge.manager.supportsPutPartialSafe(x(addrBits - 1, 0), lgSize)
++
 +  // The bus always moves whole 8-byte beats; check the managers that carry the
 +  // first and last beat (the safe variants probe every manager, unlike the
 +  // fast ones which presume a legal address).
@@ -491,12 +551,51 @@ index 0000000..5a9ada6
 +  // held).
 +  val lrscAlignFail = (d.isLr || d.isSc) && memAlignFail
 +  val lrscOk = !d.ill && !d.undi && !cfxFault
-+  val lrFailNow = d.isLr && lrscOk && !lrscAlignFail && !lrscGetLegal
++  // A memory-window address on a translating machine reaches a bus only
++  // through the walker, so the VA-level backing test is skipped there (the
++  // walk's own answer decides the fault).
++  private def xlateRoute(addr: UInt): Bool =
++    if (params.useVM) memWindow(addr) && ptwEnable else false.B
++  val lrFailNow = d.isLr && lrscOk && !lrscAlignFail && !lrscGetLegal &&
++    !xlateRoute(lrscAddr)
 +  // `sc` only touches memory when the reservation matches, so an unbacked
 +  // address is only a CFXMEM on that path.
 +  val scFailNow = d.isSc && lrscOk && !lrscAlignFail && !scHit
 +  val scMemFail = d.isSc && lrscOk && !lrscAlignFail && scHit &&
-+    !(lrscGetLegal && lrscPutLegal)
++    !(lrscGetLegal && lrscPutLegal) && !xlateRoute(lrscAddr)
++
++  // ---- next beat of a multi-beat transfer --------------------------------
++  /**
++    * Move to the next 8-byte beat of the current transfer.
++    *
++    * On a translating machine the PA of the next beat is only `+8` while it
++    * stays inside the walked page; a 64 KiB page boundary needs a fresh walk
++    * (the next page may map anywhere).  For a superpage the boundary is a
++    * 64 KiB sub-page, where the walker hits its own translation — correct, just
++    * one extra lookup.
++    */
++  private def advanceBeat(): Unit = {
++    if (params.useVM) {
++      when(memBeat(15, 3) === "h1fff".U(13.W)) {
++        memBeat := memBeat + 8.U
++        ptwReqValid := true.B
++        ptwReqVa := memBeat + 8.U
++        ptwReqFetch := false.B
++        ptwReqWrite := memStore
++        vx.get.kind := 2.U
++        vx.get.va := memBeat + 8.U
++        vx.get.write := memStore
++        state := sXlate
++      }.otherwise {
++        memBeat := memBeat + 8.U
++        vx.get.memPaBeat := vx.get.memPaBeat + 8.U
++        state := sMreq
++      }
++    } else {
++      memBeat := memBeat + 8.U
++      state := sMreq
++    }
++  }
 +
 +  // ---- control flow + return address stack (m12-009) ----------------------
 +  //
@@ -587,12 +686,35 @@ index 0000000..5a9ada6
 +
 +  // The data port: one outstanding request, held on the A channel until the
 +  // handshake, then waited on in `MWAIT`.
-+  val (_, memGetBits) = dataEdge.Get(DATA_SRC, memBeat(addrBits - 1, 0), lgSize)
-+  val (_, memPutBits) = dataEdge.Put(DATA_SRC, memBeat(addrBits - 1, 0), lgSize,
++  // The beat that goes on the bus: a translated access (memory window on a
++  // Vast machine) uses its physical beat, a core-internal access its own
++  // address (`addr[47:42] ≠ 0` is never translated, `contract-tlb` TLB-40).
++  private val memBusBeat: UInt =
++    if (params.useVM) Mux(memWindow(memBeat), vx.get.memPaBeat, memBeat) else memBeat
++
++  val (_, memGetBits) = dataEdge.Get(DATA_SRC, memBusBeat(addrBits - 1, 0), lgSize)
++  val (_, memPutBits) = dataEdge.Put(DATA_SRC, memBusBeat(addrBits - 1, 0), lgSize,
 +    laneOrder(memData), memMask)
-+  io.dmem.a.valid := state === sMreq && (!memStore || memPacked)
-+  io.dmem.a.bits := Mux(memStore, memPutBits, memGetBits)
-+  io.dmem.d.ready := state === sMwait
++  // `sXlate` parks the core while the walker (or a `cfx_ptw_tlb_control`
++  // command) owns the port, so the two drivers never overlap.
++  if (params.useVM) {
++    val ptwOwnsBus: Bool = state === sXlate
++    io.dmem.a.valid := Mux(ptwOwnsBus, ptw.get.io.tl.a.valid,
++      state === sMreq && (!memStore || memPacked))
++    io.dmem.a.bits := Mux(ptwOwnsBus, ptw.get.io.tl.a.bits,
++      Mux(memStore, memPutBits, memGetBits))
++    io.dmem.d.ready := Mux(ptwOwnsBus, ptw.get.io.tl.d.ready, state === sMwait)
++  } else {
++    // No walker on this machine: the data port belongs to the memory unit.
++    io.dmem.a.valid := state === sMreq && (!memStore || memPacked)
++    io.dmem.a.bits := Mux(memStore, memPutBits, memGetBits)
++    io.dmem.d.ready := state === sMwait
++  }
++  for (m <- ptw) {
++    m.io.tl.a.ready := io.dmem.a.ready
++    m.io.tl.d.valid := io.dmem.d.valid
++    m.io.tl.d.bits := io.dmem.d.bits
++  }
 +
 +  // The element source for a store beat is read combinationally on the r2
 +  // port while the beat is being packed; the element destination for a load
@@ -786,14 +908,24 @@ index 0000000..5a9ada6
 +  val waitBeat = RegInit(false.B)
 +
 +  val fetchAddr = Cat(0.U((64 - addrBits).W), ip(addrBits - 1, 3), 0.U(3.W))
-+  val (_, fetchBits) = fetchEdge.Get(FETCH_SRC, fetchAddr(addrBits - 1, 0), lgSize)
++  // On a translating machine the demand fetch of a memory-window address goes
++  // to the physical beat the walker produced (`vx.fetchPa`); a core-internal
++  // address keeps its own (`contract-tlb` TLB-40).
++  private val vastFetchNow: Bool =
++    if (params.useVM) memWindow(ip) else false.B
++  private val fetchBusAddr: UInt =
++    if (params.useVM) Mux(vastFetchNow, vx.get.fetchPa, fetchAddr) else fetchAddr
++  val (_, fetchBits) = fetchEdge.Get(FETCH_SRC, fetchBusAddr(addrBits - 1, 0), lgSize)
 +  // m12-019: `TLEdge.Get` returns the *fast* legality, which decodes only the
 +  // supported ranges and therefore presumes a legal address; an unbacked
 +  // address can come back "legal" and reach the bus (where the monitor rejects
 +  // it).  The safe variants check every manager, which is what the
 +  // architectural CFXMEM test needs (spec/Kaiwu §4.4).
-+  val fetchLegal = specBacked(fetchAddr) &&
-+    fetchEdge.manager.supportsGetSafe(fetchAddr(addrBits - 1, 0), lgSize)
++  private val fetchBacked: Bool =
++    if (params.useVM) Mux(vastFetchNow, paBacked(fetchBusAddr), specBacked(fetchBusAddr))
++    else specBacked(fetchBusAddr)
++  val fetchLegal = fetchBacked &&
++    fetchEdge.manager.supportsGetSafe(fetchBusAddr(addrBits - 1, 0), lgSize)
 +
 +  // Four prefetch slots keep the queue walking forward (m12-020).  Every live
 +  // prefetch is for a beat after the newest queued one, and replies are matched
@@ -847,8 +979,12 @@ index 0000000..5a9ada6
 +  private val pfNextAddr = Cat(0.U((64 - addrBits).W), pfBeat, 0.U(3.W))
 +  private val pfAddrLegal = specBacked(pfNextAddr) &&
 +    fetchEdge.manager.supportsGetSafe(pfNextAddr(addrBits - 1, 0), lgSize)
++  // A speculative prefetch would have to be translated as well, and a
++  // speculative walk must not fault.  This milestone is functional (the walk is
++  // exercised per beat), so a translating machine runs demand-fetch only; the
++  // cycle model for Vast comes with the TLB/caches (`m16-chipyard-008`…`010`).
 +  val pfWanted = pfStreamLive && pfRoom && !atDemand && !dataBusy && !fifoFlush &&
-+    !pfReqValid && pfAddrLegal
++    !pfReqValid && pfAddrLegal && !params.useVM.B
 +  when(pfWanted) {
 +    val freeSlot = PriorityEncoder(pfValid.map(!_))
 +    pfReqValid := true.B
@@ -968,6 +1104,7 @@ index 0000000..5a9ada6
 +    // `sc` after an exception handler must fail.
 +    resvValid := false.B
 +    ip := gewu.io.entryVector
++    if (params.useVM) { vx.get.fetchDone := false.B }
 +    continueAt(gewu.io.entryVector)
 +  }
 +
@@ -982,6 +1119,33 @@ index 0000000..5a9ada6
 +  def enterHmonMem(causeIpValue: UInt, info: UInt,
 +                   sub: Int = GewuCauseId.MEM_NONPTW): Unit =
 +    enterHmon(causeIpValue, (1.U << CFXMEM_BIT).pad(64), info, sub)
++
++  /**
++    * Page-table fault whose sub-cause the walker computes at run time
++    * (`m16-chipyard-007`; wyde-local one-hot index from `GewuCauseId`, so the
++    * wyde is still chosen by the cause class here — `contract-see` §6.1.1).
++    *
++    * `perm` selects `CFXPERM` (wyde2) versus `CFXMEM` (wyde3), and `info` is
++    * the access address — or the PTE physical address for `ADWBFAIL`
++    * (`contract-tlb` TLB-33).
++    */
++  def enterHmonSub(causeIpValue: UInt, perm: Bool, info: UInt, sub: UInt): Unit = {
++    val causeOneHot = Mux(perm, (1.U << CFXPERM_BIT).pad(64),
++      (1.U << CFXMEM_BIT).pad(64))
++    // `sub` is a wyde-local *index*; `encode` takes the wyde as a one-hot
++    // (`contract-see` §6.1.1).
++    val causeId = GewuCauseId.encode(causeOneHot, (1.U << sub)(GewuCauseId.WYDE_BITS - 1, 0))
++    printf(p"WumingCore: excp cause=0x${Hexadecimal(causeId)} cause_ip=0x${Hexadecimal(causeIpValue(47, 0))} info=0x${Hexadecimal(info)} vector=0x${Hexadecimal(gewu.io.entryVector(47, 0))} cycle=${cycles}\n")
++    excpValid := true.B
++    excpToCurrent := false.B
++    excpCause := causeId
++    excpCauseIp := causeIpValue
++    excpInfo := info
++    resvValid := false.B
++    ip := gewu.io.entryVector
++    if (params.useVM) { vx.get.fetchDone := false.B }
++    continueAt(gewu.io.entryVector)
++  }
 +
 +  /**
 +    * `CFXMEM` for an address the *route* rejects (`contract-tlb` §10).
@@ -1012,6 +1176,8 @@ index 0000000..5a9ada6
 +
 +  def finish(nextIp: UInt): Unit = {
 +    ip := nextIp
++    // The translated demand-fetch address belongs to the previous `ip`.
++    if (params.useVM) { vx.get.fetchDone := false.B }
 +    when(nextIp(1, 0) =/= 0.U) {
 +      // IALIGN: precise exception, IP stays at the illegal address and
 +      // `excp_cause_ip`/`excp_cause_info` carry it (spec/Kaiwu §4.4).
@@ -1037,13 +1203,42 @@ index 0000000..5a9ada6
 +    }
 +    is(sFreq) {
 +      waitBeat := false.B
-+      when(!fetchLegal) {
-+        // No manager backs this address: CFXMEM with the fetch address as
-+        // `cause_info` (spec/Kaiwu §4.4).
-+        enterMemFault(ip, isFetch = true)
-+      }.elsewhen(io.imem.a.fire) {
-+        demandBeat := ip(addrBits - 1, 3)
-+        state := sFwait
++      if (params.useVM) {
++        when(vastFetchNow && !vx.get.fetchDone) {
++          // Memory window: translate before the fetch may reach a bus
++          // (`contract-tlb` TLB-42).  `ptw_enable = 0` has no mapping at all
++          // (TLB-41: CFXMEM `[57] NONPTW`, never a pass-through).
++          when(!ptwEnable) {
++            enterMemFault(ip, isFetch = true)
++          }.otherwise {
++            ptwReqValid := true.B
++            ptwReqVa := ip
++            ptwReqFetch := true.B
++            ptwReqWrite := false.B
++            vx.get.kind := 0.U
++            vx.get.va := ip
++            vx.get.write := false.B
++            state := sXlate
++          }
++        }.elsewhen(!fetchLegal) {
++          // The translated address is not backed physically, or a
++          // core-internal address has no window: CFXMEM with the fetch
++          // address as `cause_info` (spec/Kaiwu §4.4).
++          enterMemFault(ip, isFetch = true)
++        }.elsewhen(io.imem.a.fire) {
++          demandBeat := ip(addrBits - 1, 3)
++          vx.get.fetchDone := false.B
++          state := sFwait
++        }
++      } else {
++        when(!fetchLegal) {
++          // No manager backs this address: CFXMEM with the fetch address as
++          // `cause_info` (spec/Kaiwu §4.4).
++          enterMemFault(ip, isFetch = true)
++        }.elsewhen(io.imem.a.fire) {
++          demandBeat := ip(addrBits - 1, 3)
++          state := sFwait
++        }
 +      }
 +    }
 +    is(sFwait) {
@@ -1120,7 +1315,7 @@ index 0000000..5a9ada6
 +          // C3b with MRPTR == 0: no MemRAS to spill into (precise: no push).
 +          enterHmon(ip, (1.U << RASOF_BIT).pad(64), callRetAddr.pad(64))
 +        }.elsewhen(callNeedsSpill) {
-+          when(!callSpillLegal) {
++          when(!callSpillLegal && !xlateRoute((mrptr - 8.U).pad(64))) {
 +            // C3b spill target is not backed: precise CFXMEM, no push.
 +            enterMemFault((mrptr - 8.U).pad(64), isFetch = false)
 +          }.otherwise {
@@ -1143,7 +1338,18 @@ index 0000000..5a9ada6
 +            rasMemKind := 1.U
 +            memAux := 0.U
 +            rasNextIp := jumpTarget
-+            state := sMreq
++            if (params.useVM) {
++              when(xlateRoute((mrptr - 8.U).pad(64))) {
++                ptwReqValid := true.B
++                ptwReqVa := (mrptr - 8.U).pad(64)
++                ptwReqFetch := false.B
++                ptwReqWrite := true.B
++                vx.get.kind := 1.U
++                vx.get.va := (mrptr - 8.U).pad(64)
++                vx.get.write := true.B
++                state := sXlate
++              }.otherwise { state := sMreq }
++            } else { state := sMreq }
 +          }
 +        }.otherwise {
 +          rasOp := Mux(callFold, WumingRasOp.FOLD, WumingRasOp.PUSH)
@@ -1166,7 +1372,7 @@ index 0000000..5a9ada6
 +        }.otherwise {
 +          // D4b: RACNT == 0 and MemRAS enabled — read the entry at MRPTR first
 +          // (the RASUF/consume/refill decision is taken when it arrives).
-+          when(!retMemLegal) {
++          when(!retMemLegal && !xlateRoute(mrptr.pad(64))) {
 +            enterMemFault(mrptr.pad(64), isFetch = false)
 +          }.otherwise {
 +            memStore := false.B
@@ -1187,7 +1393,18 @@ index 0000000..5a9ada6
 +            memAux := 0.U
 +            retRdIdx := d.w0Idx
 +            retRdVal := d.imm
-+            state := sMreq
++            if (params.useVM) {
++              when(xlateRoute(mrptr.pad(64))) {
++                ptwReqValid := true.B
++                ptwReqVa := mrptr.pad(64)
++                ptwReqFetch := false.B
++                ptwReqWrite := false.B
++                vx.get.kind := 1.U
++                vx.get.va := mrptr.pad(64)
++                vx.get.write := false.B
++                state := sXlate
++              }.otherwise { state := sMreq }
++            } else { state := sMreq }
 +          }
 +        }
 +      }.elsewhen(d.isBr) {
@@ -1224,13 +1441,44 @@ index 0000000..5a9ada6
 +      }.elsewhen(d.isCfx2) {
 +        // cfx2rd writes rd through the normal write-back path (the decoder
 +        // sets w0En); cfx2rc is committed by the write strobe below.
-+        finish(ip + 4.U)
++        if (params.useVM) {
++          // `cfx_ptw_tlb_control` (`cg12 rc0`, WO, write-executes): the
++          // encoding check of `contract-tlb` TLB-19…TLB-24 happens here, before
++          // the command reaches the walker.  `none` is an unconditional no-op
++          // (TLB-22: neither scope nor `size` is even looked at).
++          val isTlbControl = d.cfxHa === WumingCfxHa.ptw.U(6.W) &&
++            d.cfxCg === 12.U && d.cfxRc === 0.U && d.cfxWrite
++          val ctl = srcA
++          val ctlOp = ctl(1, 0)
++          val ctlScope = ctl(3, 2)
++          val rangeSizeZero = gewu.io.ptw.get.tlbAddrSize === 0.U
++          when(isTlbControl && ctlOp =/= 0.U &&
++            (ctlScope === 3.U || (ctlScope === 2.U && rangeSizeZero))) {
++            // Illegal scope encoding, or `range` with `size = 0`: CFXREG with
++            // the instruction encoding as `cause_info` (TLB-24), no command.
++            enterHmon(ip, (1.U << CFXREG_BIT).pad(64), inst.pad(64))
++          }.elsewhen(isTlbControl && ctlOp =/= 0.U) {
++            ptwCmdValid := true.B
++            ptwCmdBits.op := ctlOp
++            ptwCmdBits.scope := ctlScope
++            ptwCmdBits.asidAny := ctl(4)
++            ptwCmdBits.start := gewu.io.ptw.get.tlbAddrStart
++            ptwCmdBits.size := gewu.io.ptw.get.tlbAddrSize
++            vx.get.kind := 3.U
++            vx.get.va := ip
++            state := sXlate
++          }.otherwise {
++            finish(ip + 4.U)
++          }
++        } else {
++          finish(ip + 4.U)
++        }
 +      }.elsewhen(d.isLr || d.isSc) {
 +        when(lrscAlignFail) {
 +          // Natural alignment by access width, checked before any access
 +          // (spec/SimRISC-12 §1.1: .b=1 / .w=2 / .t=4 / .o=8).
 +          enterHmon(ip, (1.U << MALIGN_BIT).pad(64), lrscAddr)
-+        }.elsewhen(d.isLr && !lrscGetLegal) {
++        }.elsewhen(d.isLr && !lrscGetLegal && !xlateRoute(lrscAddr)) {
 +          enterMemFault(lrscAddr, isFetch = false)
 +        }.elsewhen(d.isSc && scFailNow) {
 +          // Reservation miss: rdHB = 1, no memory access, and the reservation
@@ -1260,7 +1508,18 @@ index 0000000..5a9ada6
 +          rasMemKind := 0.U
 +          // 1 = lr load, 2 = sc pre-store beat read (value not compared).
 +          memAux := Mux(d.isLr, 1.U, 2.U)
-+          state := sMreq
++          if (params.useVM) {
++            when(xlateRoute(lrscAddr)) {
++              ptwReqValid := true.B
++              ptwReqVa := lrscAddr
++              ptwReqFetch := false.B
++              ptwReqWrite := !d.isLr
++              vx.get.kind := 1.U
++              vx.get.va := lrscAddr
++              vx.get.write := !d.isLr
++              state := sXlate
++            }.otherwise { state := sMreq }
++          } else { state := sMreq }
 +        }
 +      }.elsewhen(d.isFpSlow) {
 +        // Divide / root / remainder (spec/SimRISC-07 §2.1/§2.2): the unit was
@@ -1291,9 +1550,11 @@ index 0000000..5a9ada6
 +          // MALIGN: address generated and checked before any bus request;
 +          // `cause_info` is the access address (spec/Kaiwu §4.4).
 +          enterHmon(ip, (1.U << MALIGN_BIT).pad(64), memAddrNow)
-+        }.elsewhen(!memRangeLegalNow) {
++        }.elsewhen(!xlateRoute(memAddrNow) && !memRangeLegalNow) {
 +          // CFXMEM: no manager backs the access (whole `ldm`/`stm` range is
 +          // checked here, before the first beat, so the fault is precise).
++          // A memory-window access on a translating machine is judged by the
++          // walk instead (it runs before the first beat as well).
 +          enterMemFault(memAddrNow, isFetch = false)
 +        }.otherwise {
 +          memStore := d.isSt || d.isStm
@@ -1312,7 +1573,18 @@ index 0000000..5a9ada6
 +          memBeatValid := false.B
 +          rasMemKind := 0.U
 +          memAux := 0.U
-+          state := sMreq
++          if (params.useVM) {
++            when(xlateRoute(memAddrNow)) {
++              ptwReqValid := true.B
++              ptwReqVa := memAddrNow
++              ptwReqFetch := false.B
++              ptwReqWrite := d.isSt || d.isStm
++              vx.get.kind := 1.U
++              vx.get.va := memAddrNow
++              vx.get.write := d.isSt || d.isStm
++              state := sXlate
++            }.otherwise { state := sMreq }
++          } else { state := sMreq }
 +        }
 +      }.otherwise {
 +        finish(Mux(d.isJump, jumpTarget, ip + 4.U))
@@ -1412,11 +1684,10 @@ index 0000000..5a9ada6
 +            when(memAux === 3.U) { resvValid := false.B }
 +            finish(ip + 4.U)
 +          }.otherwise {
-+            memBeat := memBeat + 8.U
 +            memData := 0.U
 +            memMask := 0.U
 +            memPacked := false.B
-+            state := sMreq
++            advanceBeat()
 +          }
 +        }.otherwise {
 +          memData := addressOrder(io.dmem.d.bits.data)
@@ -1438,8 +1709,43 @@ index 0000000..5a9ada6
 +          }
 +        }.otherwise {
 +          memBeatValid := false.B
-+          memBeat := memBeat + 8.U
-+          state := sMreq
++          advanceBeat()
++        }
++      }
++    }
++    is(sXlate) {
++      if (params.useVM) {
++        when(vx.get.kind === 3.U) {
++          // `cfx_ptw_tlb_control`: the write instruction completes
++          // synchronously with the command (`contract-tlb` TLB-37), and a
++          // write-back failure is reported on it (`TLB-16`).
++          when(ptw.get.io.cmdDone.valid) {
++            when(ptw.get.io.cmdDone.bits.fault) {
++              enterHmonSub(ip, false.B, ptw.get.io.cmdDone.bits.info,
++                GewuCauseId.MEM_ADWBFAIL.U)
++            }.otherwise { finish(ip + 4.U) }
++          }
++        }.elsewhen(ptw.get.io.resp.valid) {
++          val r = ptw.get.io.resp.bits
++          when(r.fault) {
++            enterHmonSub(ip, r.perm, r.info, r.sub)
++          }.elsewhen(vx.get.kind === 0.U) {
++            // Fetch: the walk's answer is the physical beat, and `sFreq`
++            // issues the request from it (`fetchDone` skips a second walk).
++            vx.get.fetchPa := r.pa
++            vx.get.fetchDone := true.B
++            state := sFreq
++          }.otherwise {
++            val paBeat = Cat(r.pa(63, 3), 0.U(3.W))
++            when(Mux(vx.get.write, !paDataPutLegal(paBeat), !paDataGetLegal(paBeat))) {
++              // The page maps to physical memory this machine does not back:
++              // a storage fault, `CFXMEM [57] NONPTW` (`DADAO-12` §3.6 (四)).
++              enterMemFault(vx.get.va, isFetch = false)
++            }.otherwise {
++              vx.get.memPaBeat := paBeat
++              state := sMreq
++            }
++          }
 +        }
 +      }
 +    }
@@ -1490,8 +1796,17 @@ index 0000000..5a9ada6
 +  // ---- legality assertions ------------------------------------------------
 +  // Only a backed beat ever reaches the data A channel: the EXEC precheck
 +  // covers the whole transfer, so this is the belt-and-braces form.
-+  assert(!(state === sMreq) ||
-+    Mux(memStore, dataPutLegal(memBeat), dataGetLegal(memBeat)),
++  // A translated beat carries a physical address, so the backing test follows
++  // the route: a memory-window beat is judged in the physical window, a
++  // core-internal beat against its own window (`contract-tlb` TLB-40).
++  private val beatBacked: Bool =
++    if (params.useVM) Mux(memWindow(memBeat), paBacked(memBusBeat), specBacked(memBeat))
++    else specBacked(memBeat)
++  private val beatManagerOk: Bool =
++    Mux(memStore,
++      dataEdge.manager.supportsPutPartialSafe(memBusBeat(addrBits - 1, 0), lgSize),
++      dataEdge.manager.supportsGetSafe(memBusBeat(addrBits - 1, 0), lgSize))
++  assert(!(state === sMreq) || (beatBacked && beatManagerOk),
 +    "WumingCore: load/store beat is not backed by a capable manager")
 +
 +  // ---- cfx register write commit (m12-019, ADR-0053) ----------------------

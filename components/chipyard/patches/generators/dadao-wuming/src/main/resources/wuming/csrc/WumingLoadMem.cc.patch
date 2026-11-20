@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingLoadMem.cc b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingLoadMem.cc
 new file mode 100644
-index 0000000..15c6bb1
+index 0000000..52f92a1
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/resources/wuming/csrc/WumingLoadMem.cc
-@@ -0,0 +1,332 @@
+@@ -0,0 +1,364 @@
 +// WumingLoadMem.cc — host model behind `WumingLoadMem.v` (m12-chipyard-003).
 +//
 +// The model owns the whole `+loadmem=<elf>` flow for Kaiwu-Tiny:
@@ -55,6 +55,9 @@ index 0000000..15c6bb1
 +uint64_t bootrom_size = 0;
 +uint64_t hmon_base = 0;
 +uint64_t hmon_size = 0;
++// m16-chipyard-007: physical-memory window of a translating machine (PA RAM).
++uint64_t pa_base = 0;
++uint64_t pa_size = 0;
 +uint64_t image_bytes = 0;
 +uint64_t verify_words = 0;
 +uint64_t verify_mismatch = 0;
@@ -169,9 +172,18 @@ index 0000000..15c6bb1
 +      fail("PT_LOAD " + hex(paddr) + "+" + hex(memsz) +
 +           " targets the hmon SRAM window " + hex(hmon_base) + "+" + hex(hmon_size) +
 +           " (hmon is copied from the BootROM by the power stub): " + path);
-+    if (paddr < mem_base || memsz > mem_size || paddr - mem_base > mem_size - memsz)
-+      fail("PT_LOAD " + hex(paddr) + "+" + hex(memsz) + " is outside the writable window " +
-+           hex(mem_base) + "+" + hex(mem_size) + ": " + path);
++    // A segment must land in one of the machine's writable memories: the
++    // core-internal window (`MEM_BASE`) or, on a translating machine, the
++    // physical-memory window (`PA_BASE`; page tables and mapping targets,
++    // `spec/Kaiwu §1.1`).
++    const bool in_mem = paddr >= mem_base && memsz <= mem_size &&
++      paddr - mem_base <= mem_size - memsz;
++    const bool in_pa = pa_size != 0 && paddr >= pa_base && memsz <= pa_size &&
++      paddr - pa_base <= pa_size - memsz;
++    if (!in_mem && !in_pa)
++      fail("PT_LOAD " + hex(paddr) + "+" + hex(memsz) + " is outside the writable windows " +
++           hex(mem_base) + "+" + hex(mem_size) + " / " + hex(pa_base) + "+" + hex(pa_size) +
++           ": " + path);
 +    for (uint64_t b = 0; b < filesz; b++) image[paddr + b] = file[off + b];
 +    for (uint64_t b = filesz; b < memsz; b++) image[paddr + b] = 0;
 +    segments++;
@@ -220,7 +232,8 @@ index 0000000..15c6bb1
 +
 +extern "C" void wuming_loadmem_init(long long base, long long size, long long entry,
 +                                   long long bootrom_lo, long long bootrom_len,
-+                                   long long hmon_lo, long long hmon_len) {
++                                   long long hmon_lo, long long hmon_len,
++                                   long long pa_lo, long long pa_len) {
 +  if (initialised) return;
 +  initialised = true;
 +  mem_base = static_cast<uint64_t>(base);
@@ -230,12 +243,21 @@ index 0000000..15c6bb1
 +  bootrom_size = static_cast<uint64_t>(bootrom_len);
 +  hmon_base = static_cast<uint64_t>(hmon_lo);
 +  hmon_size = static_cast<uint64_t>(hmon_len);
++  pa_base = static_cast<uint64_t>(pa_lo);
++  pa_size = static_cast<uint64_t>(pa_len);
 +
 +  s_vpi_vlog_info info;
 +  if (!vpi_get_vlog_info(&info)) fail("vpi_get_vlog_info() failed");
 +  for (int i = 1; i < info.argc; i++) {
 +    std::string arg(info.argv[i]);
-+    if (arg.rfind("+loadmem=", 0) == 0) {
++    // `+wuming_loadmem=` takes precedence over `+loadmem=`: on a machine with
++    // a harness `SimDRAM` (Kaiwu-Vast) the stock plusarg also reaches
++    // `SimDRAM.cc`'s fesvr loader, which asserts on a non-RISC-V ELF — the
++    // DADAO image is streamed by this loader only.
++    if (arg.rfind("+wuming_loadmem=", 0) == 0) {
++      have_loadmem = true;
++      loadmem_file = arg.substr(std::strlen("+wuming_loadmem="));
++    } else if (arg.rfind("+loadmem=", 0) == 0 && !have_loadmem) {
 +      have_loadmem = true;
 +      loadmem_file = arg.substr(std::strlen("+loadmem="));
 +    }
@@ -260,6 +282,16 @@ index 0000000..15c6bb1
 +}
 +
 +extern "C" int wuming_loadmem_is_read(int i) {
++  /* Debug aid (`WUMING_LOADMEM_DEBUG=1`): one line per streamed request. */
++  {
++    static const bool dbg = std::getenv("WUMING_LOADMEM_DEBUG") != nullptr;
++    if (dbg && i >= 0 && static_cast<size_t>(i) < ops.size()) {
++      std::printf("[WumingLoadMem] op %d %s 0x%llx mask=0x%02x\n", i,
++                  ops[i].is_read ? "rd" : "wr",
++                  (unsigned long long)ops[i].addr, ops[i].mask);
++      std::fflush(stdout);
++    }
++  }
 +  if (i < 0 || static_cast<size_t>(i) >= ops.size()) return 0;
 +  return ops[i].is_read ? 1 : 0;
 +}

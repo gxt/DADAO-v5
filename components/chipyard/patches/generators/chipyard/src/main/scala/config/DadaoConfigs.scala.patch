@@ -1,9 +1,9 @@
 diff --git a/generators/chipyard/src/main/scala/config/DadaoConfigs.scala b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
 new file mode 100644
-index 0000000..eb5cf75
+index 0000000..22e2250
 --- /dev/null
 +++ b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
-@@ -0,0 +1,225 @@
+@@ -0,0 +1,315 @@
 +// See LICENSE for license details.
 +//
 +// DADAO SoC configurations.
@@ -37,7 +37,11 @@ index 0000000..eb5cf75
 +
 +import org.chipsalliance.cde.config.Config
 +import freechips.rocketchip.devices.tilelink.BootROMLocated
-+import freechips.rocketchip.subsystem.{ExtMem, MBUS}
++import freechips.rocketchip.subsystem.{ExtMem, MBUS, MasterPortParams, MemoryPortParams}
++import freechips.rocketchip.devices.tilelink.{CLINTKey, PLICKey}
++import testchipip.boot.TileResetCtrlKey
++import chipyard.clocking.ChipyardPRCIControlKey
++import freechips.rocketchip.util.ClockGateModelFile
 +import testchipip.soc.{BankedScratchpadKey, BankedScratchpadParams}
 +
 +/** `spec/Kaiwu §1.1` — Kaiwu-Tiny core-internal address map. */
@@ -164,7 +168,7 @@ index 0000000..eb5cf75
 +// *groundwork* map, and the two `BankedScratchpad` device names are distinct so
 +// a DTS/log cannot confuse one profile with the other.
 +
-+/** Kaiwu-Vast core-internal address map (groundwork: `m16-chipyard-006`). */
++/** Kaiwu-Vast address map (`m16-chipyard-006`, PA RAM `m16-chipyard-007`). */
 +object WumingVastAddressMap {
 +  val bootROMBase: BigInt = WumingTinyAddressMap.bootROMBase
 +  val bootROMSize: Int = WumingTinyAddressMap.bootROMSize
@@ -174,6 +178,27 @@ index 0000000..eb5cf75
 +  val hmonSize: BigInt = WumingTinyAddressMap.hmonSize
 +  val appEntry: BigInt = WumingTinyAddressMap.appEntry
 +  val bootROMImage: String = WumingTinyAddressMap.bootROMImage
++
++  /**
++   * Physical memory behind the page tables (`spec/Kaiwu §1.1`: PA RAM
++   * `[0, 2 GiB)`, reachable only through the translated memory window).
++   *
++   * m16-chipyard-007 lands it as the SoC's AXI4 memory port (`ExtMem`) backed
++   * by the harness `SimDRAM` black box: the host model maps the window lazily,
++   * so the 2 GiB *address* space costs nothing until a page is touched.  The
++   * walker's page-table accesses and every translated data/fetch access land
++   * here; it is also the window the host loader streams PT_LOAD segments
++   * into.
++   */
++  val paRamBase: BigInt = 0
++  val paRamSize: BigInt = 2L << 30
++
++  /** RISC-V CLINT/PLIC, kept for the SoC interrupt bus but parked outside PA
++    * RAM (the DADAO machine does not use them). */
++  val clintBase: BigInt = BigInt("ff0000000000", 16)
++  val tileResetCtrlBase: BigInt = BigInt("ff0200000000", 16)
++  val prciCtrlBase: BigInt = BigInt("ff0300000000", 16)
++  val plicBase: BigInt = BigInt("ff0100000000", 16)
 +}
 +
 +/**
@@ -186,8 +211,37 @@ index 0000000..eb5cf75
 +class WithDadaoVastAddressMap extends Config((site, here, up) => {
 +  case BootROMLocated(x) => up(BootROMLocated(x), site).map(_.copy(appendDTB = false))
 +
++  // m16-chipyard-007: PA RAM behind the page tables (`spec/Kaiwu §1.1`).
++  //
++  // It is a TileLink slave port on the memory bus, like the core-internal
++  // SRAMs — *not* an AXI4 `ExtMem` + harness `SimDRAM`.  Reasons: the DADAO
++  // machine has no host-side DRAM loader (its images are streamed by the tile's
++  // own loader, and fesvr's `load_elf` refuses a non-RISC-V ELF), and the
++  // TL slave keeps the whole machine on one bus with one address space (the
++  // walker, the loader and the core all reach PA RAM the same way).
 +  case ExtMem => None
 +  case ExtTLMem => None
++
++  // The RISC-V CLINT/PLIC and the inclusive LLC's control device sit inside PA
++  // RAM at their stock addresses (0x0200_0000 / 0x0c00_0000 / 0x0201_0000).
++  // The DADAO machine never accesses them (only its own windows reach a bus),
++  // but their address sets must not overlap the physical memory window, so
++  // they move to the core-internal part of the 48-bit space.
++  case CLINTKey => up(CLINTKey, site).map(_.copy(baseAddress = WumingVastAddressMap.clintBase))
++  case PLICKey => up(PLICKey, site).map(_.copy(baseAddress = WumingVastAddressMap.plicBase))
++
++  // testchipip's tile-reset control and the PRCI control block default to
++  // 0x0010_0000, inside PA RAM.  The DADAO machine never uses them (the tile
++  // comes out of reset through the loader handshake), so they move out of the
++  // way instead of being disabled — the SoC clock/reset plumbing still needs
++  // them present.
++  case TileResetCtrlKey => up(TileResetCtrlKey, site).copy(
++    address = WumingVastAddressMap.tileResetCtrlBase)
++  case ChipyardPRCIControlKey => up(ChipyardPRCIControlKey, site).copy(
++    baseAddress = WumingVastAddressMap.prciCtrlBase)
++  // The EICG clock-gate model is a simulation-only register block whose control
++  // sits at 0x0010_0000 as well; this profile does no clock gating.
++  case ClockGateModelFile => None
 +
 +  case BankedScratchpadKey => Seq(
 +    BankedScratchpadParams(
@@ -205,6 +259,17 @@ index 0000000..eb5cf75
 +      banks = 1,
 +      subBanks = 1,
 +      name = "kaiwu-vast-hmon-sram",
++      dtsEnabled = false),
++    // PA RAM: the translated memory window (`[0, 2 GiB)`, `spec/Kaiwu §1.1`).
++    // A TLRAM slave is 2 GiB of *address* space; the backing store is the
++    // simulator's sparse heap, so untouched pages cost nothing.
++    BankedScratchpadParams(
++      base = WumingVastAddressMap.paRamBase,
++      size = WumingVastAddressMap.paRamSize,
++      busWhere = MBUS,
++      banks = 1,
++      subBanks = 1,
++      name = "kaiwu-vast-pa-ram",
 +      dtsEnabled = false))
 +})
 +
@@ -218,6 +283,29 @@ index 0000000..eb5cf75
 +  new chipyard.iobinders.WithWumingCeaseSuccess ++
 +  new chipyard.harness.WithTraceGenSuccess ++
 +  new WithDadaoVastAddressMap ++
++  // No inclusive LLC: the DADAO machine keeps no coherence state (its only
++  // client is the core, no caches yet) and the LLC's control device would sit
++  // at 0x0201_0000, inside PA RAM.  A broadcast manager keeps the TileLink
++  // subsystem legal without adding a coherence cache (`m16-chipyard-009/010`
++  // bring the DADAO's own caches).
++  new chipyard.config.WithBroadcastManager ++
++  // testchipip's boot-address register (0x1000) has no meaning on a machine
++  // with a fixed entry, and it would sit inside PA RAM.
++  new testchipip.boot.WithNoBootAddrReg ++
++  new testchipip.boot.WithNoCustomBootPin ++
++  // No RISC-V MMIO peripherals: the DADAO machine's console is semihosting
++  // (`spec/Kaiwu §5`) and their stock addresses are inside PA RAM.
++  new chipyard.config.WithNoUART ++
++  // The DADAO machine has no RISC-V debug module; chipyard's would sit at
++  // address 0 and collide with PA RAM (`spec/Kaiwu §1.1`: PA RAM starts at 0).
++  new chipyard.config.WithNoDebug ++
++  // The buses' built-in error devices sit at 0x3000, inside PA RAM.  The DADAO
++  // address map denies unbacked accesses in the core itself (`CFXMEM`), so the
++  // simulation-only error devices have nothing to catch.
++  new chipyard.config.WithNoBusErrorDevices ++
++  // No host debug transport: the DADAO machine is loaded through the tile's own
++  // loader (`+loadmem=`), and the stock TSI has no target on this machine.
++  new chipyard.harness.WithSerialTLTiedOff ++
 +  // `WumingVastParams` supplies the same address-map values plus
 +  // `useVM = true` (no defaults: an absent base is an elaboration error).
 +  new wuming.common.WithNWumingTiles(1, wuming.common.WumingVastParams(
@@ -227,5 +315,7 @@ index 0000000..eb5cf75
 +    hmonBase = WumingVastAddressMap.hmonBase,
 +    hmonSize = WumingVastAddressMap.hmonSize,
 +    bootromBase = WumingVastAddressMap.bootROMBase,
-+    bootromSize = WumingVastAddressMap.bootROMSize)) ++
++    bootromSize = WumingVastAddressMap.bootROMSize,
++    paRamBase = WumingVastAddressMap.paRamBase,
++    paRamSize = WumingVastAddressMap.paRamSize)) ++
 +  new chipyard.config.AbstractConfig)

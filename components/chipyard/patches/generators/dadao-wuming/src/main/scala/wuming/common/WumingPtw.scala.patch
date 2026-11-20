@@ -1,0 +1,560 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala
+new file mode 100644
+index 0000000..e993953
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala
+@@ -0,0 +1,554 @@
++// See LICENSE for license details.
++//
++// DADAO "wuming" page-table walker (m16-chipyard-007).
++//
++// The walk is the two-level DADAO table of `DADAO-12` §2.2.1/§2.2.2:
++//
++//   L1 index  VA[41:29]  (8192 entries x 8 B = 64 KiB table, 512 MiB coverage)
++//   L2 index  VA[28:16]  (8192 entries x 8 B = 64 KiB table, 64 KiB coverage)
++//   offset    VA[28:0]   (superpage, 512 MiB) / VA[15:0] (normal page, 64 KiB)
++//
++// A leaf L1 entry with `SP = 1` is a 512 MiB superpage and ends the walk; the
++// `SPF` bit selected by `VA[28:26]` says whether that 64 MiB fragment is in
++// memory (§2.2.3).  A normal page is reached through the L2 table; its `GPF`
++// bit selected by `VA[15:13]` covers an 8 KiB fragment (§2.2.4).  PTEs are
++// **big endian** (§2.2.1) and every page-table access uses a physical address.
++//
++// Sub-cause selection follows `DADAO-12` §2.2.6 in spec order (missing page →
++// missing fragment → HSJU → R/W/X); the bit numbers come from
++// `gewu.GewuCauseId` (the single copy of the table, `ADR-0056`), never from
++// literals here.
++//
++// A/D is *local* (`DADAO-12` §2.2.5, `contract-tlb` TLB-13…TLB-16): a fill
++// copies the PTE's A/D into the local copy and clears the pending bits; an
++// access that finds A (or, for a store, D) clear sets the local bit **and** the
++// pending bit; a pending bit reaches memory only as an atomic OR on
++// clean/flush/replacement.  A write-back the bus refuses is
++// `CFXMEM [56] ADWBFAIL` with `cause_info` = the PTE physical address, and the
++// entry (with its pending bits) is kept — never silently dropped.
++//
++// Scope (task `m16-chipyard-007`): this is the *walker*, not the TLB.  It
++// carries one translation slot per access side (I/D) so a 64 KiB page is walked
++// once instead of once per 8-byte beat; `m16-chipyard-008` replaces that
++// placeholder with the specified 2x8 + 4-superpage I/D tables.
++//
++// The walker borrows the core's data port: the core is parked in `sXlate`
++// while a translation (or a `cfx_ptw_tlb_control` command) runs, so the port is
++// free and no third TileLink client is needed (`io.tl` is driven by the core's
++// `dmem` mux).
++
++package wuming.common
++
++import chisel3._
++import chisel3.util._
++import freechips.rocketchip.tilelink.{TLBundle, TLEdgeOut}
++import gewu.GewuCauseId
++
++/** Page-table walker parameters, all taken from the machine address map. */
++case class WumingPtwParams(
++  /** Physical memory window a page table may live in (§2.2.1: PTBR, table
++    * pages and mapping targets must be in physical memory). */
++  paRamBase: BigInt,
++  paRamSize: BigInt,
++  /** Read-only BootROM window: a page table may be *read* there, so a
++    * clean/flush write-back to it fails as `CFXMEM [56] ADWBFAIL`
++    * (`DADAO-12` §4.5, `contract-tlb` TLB-16). */
++  romBase: BigInt,
++  romSize: BigInt
++)
++
++/** One translation request from the core's address path. */
++class WumingPtwRequest extends Bundle {
++  /** Access address (`VA[41:0]` valid; `addr[47:42] = 0` — the core has
++    * already routed the memory window here, `contract-tlb` TLB-42). */
++  val va = UInt(64.W)
++  val isFetch = Bool()
++  val isWrite = Bool()
++}
++
++/** The walk's answer: either a physical address or a page-table fault. */
++class WumingPtwResponse extends Bundle {
++  /** `PA` formed from the leaf PTE page base and the access's page offset
++    * (§2.2.1/§2.2.2 step 4).  Only meaningful when `fault = 0`. */
++  val pa = UInt(64.W)
++  val fault = Bool()
++  /** `true` = `CFXPERM` (wyde2), `false` = `CFXMEM` (wyde3). */
++  val perm = Bool()
++  /** Wyde-local one-hot sub-cause (`GewuCauseId` index). */
++  val sub = UInt(GewuCauseId.WYDE_BITS.W)
++  /** `excp_cause_info`: the access address, or the PTE physical address for
++    * `ADWBFAIL` (`contract-tlb` TLB-33). */
++  val info = UInt(64.W)
++}
++
++/** One `cfx_ptw_tlb_control` command, already encoding-checked by the core. */
++class WumingPtwCommand extends Bundle {
++  val op = UInt(2.W)      // 1 = clean, 2 = invalid, 3 = flush (`none` never sent)
++  val scope = UInt(2.W)   // 0 = all, 1 = VA, 2 = range
++  val asidAny = Bool()
++  val start = UInt(42.W)
++  val size = UInt(64.W)
++}
++
++/** Local translation slot + its A/D shadow. */
++private class WumingPtwEntry extends Bundle {
++  val valid = Bool()
++  val superpage = Bool()
++  /** Page-aligned `VA[41:0]` (bits above the page size are the match tag). */
++  val vaTag = UInt(42.W)
++  /** `PA` page base: `PTE[55:29]` for a superpage, `PTE[55:16]` otherwise. */
++  val pageBase = UInt(64.W)
++  /** Physical address of the leaf PTE (the `ADWBFAIL` `cause_info`). */
++  val ptePa = UInt(64.W)
++  /** The leaf PTE as read (big-endian), the base for the atomic OR. */
++  val pte = UInt(64.W)
++  val g = Bool()
++  val asid = UInt(16.W)
++  val aLocal = Bool()
++  val dLocal = Bool()
++  val aPend = Bool()
++  val dPend = Bool()
++}
++
++class WumingPtw(
++  ptwParams: WumingPtwParams,
++  dataEdge: TLEdgeOut,
++  srcBits: Int
++) extends Module {
++  require(dataEdge.bundle.dataBits == 64, "WumingPtw: expected a 64-bit TileLink beat")
++  require(dataEdge.bundle.addressBits >= 48, "WumingPtw: 48-bit physical addresses")
++
++  val io = IO(new Bundle {
++    val tl = new TLBundle(dataEdge.bundle)
++    /** `inner_run_mode` selects the HSJU bit (§2.2.5). */
++    val runMode = Input(UInt(2.W))
++    /** `cfx_ptw_ptbr`: the stored `PPN[55:16]` (§4.5). */
++    val ptbr = Input(UInt(40.W))
++    /** `cfx_ptw_tlb_asid` (§4.5). */
++    val asid = Input(UInt(16.W))
++    val req = Input(Valid(new WumingPtwRequest))
++    val resp = Output(Valid(new WumingPtwResponse))
++    val cmd = Input(Valid(new WumingPtwCommand))
++    val cmdDone = Output(Valid(new Bundle {
++      val fault = Bool()
++      val info = UInt(64.W)
++    }))
++  })
++
++  private val p = ptwParams
++  private val lgSize = 3.U // 8-byte beat
++
++  // ---- physical windows a page table may live in -------------------------
++  private def inWindow(x: UInt, base: BigInt, size: BigInt): Bool =
++    x >= base.U(64.W) && x < (base + size).U(64.W)
++  private def inPtwMemory(pa: UInt): Bool =
++    inWindow(pa, p.paRamBase, p.paRamSize) || inWindow(pa, p.romBase, p.romSize)
++
++  // ---- local translation slots (one per side: 0 = I, 1 = D) --------------
++  private val ent = Reg(Vec(2, new WumingPtwEntry))
++
++  // ---- walk / command FSM -----------------------------------------------
++  private val sIdle :: sHit :: sL1Req :: sL1Wait :: sLeafL1 :: sL2Req :: sL2Wait :: sLeafL2 :: sWbReq :: sWbWait :: sCmdTurn :: sCmdWbReq :: sCmdWbWait :: sCmdDone :: Nil = Enum(14)
++  private val state = RegInit(sIdle)
++  // Simulation-time stamp for the A/D evidence (the core's own counter is not
++  // visible here; the host only needs the event order and its association with
++  // the PTE address).
++  private val dbgCycles = RegInit(0.U(64.W))
++  dbgCycles := dbgCycles + 1.U
++
++  // request context
++  private val reqVa = RegInit(0.U(64.W))
++  private val reqFetch = RegInit(false.B)
++  private val reqWrite = RegInit(false.B)
++  private val side = Mux(reqFetch, 0.U, 1.U)
++  private val reqAsid = RegInit(0.U(16.W))
++
++  // leaf context
++  private val leafPte = RegInit(0.U(64.W))
++  private val leafPtePa = RegInit(0.U(64.W))
++  private val l2PaReg = RegInit(0.U(64.W))
++
++  // response registers (single-cycle valid, emitted from `sIdle`'s predecessor)
++  private val respValid = RegInit(false.B)
++  private val respPa = RegInit(0.U(64.W))
++  private val respFault = RegInit(false.B)
++  private val respPerm = RegInit(false.B)
++  private val respSub = RegInit(0.U(GewuCauseId.WYDE_BITS.W))
++  private val respInfo = RegInit(0.U(64.W))
++  io.resp.valid := respValid
++  io.resp.bits.pa := respPa
++  io.resp.bits.fault := respFault
++  io.resp.bits.perm := respPerm
++  io.resp.bits.sub := respSub
++  io.resp.bits.info := respInfo
++
++  // write-back context
++  private val wbPa = RegInit(0.U(64.W))
++  private val wbValue = RegInit(0.U(64.W))
++  private val wbKind = RegInit(0.U(1.W)) // 0 = eviction before fill, 1 = command
++  private val wbSide = RegInit(0.U(1.W))
++
++  // command context
++  private val cmdOp = RegInit(0.U(2.W))
++  private val cmdScope = RegInit(0.U(2.W))
++  private val cmdAsidAny = RegInit(false.B)
++  private val cmdStart = RegInit(0.U(42.W))
++  private val cmdSize = RegInit(0.U(64.W))
++  private val cmdSide = RegInit(0.U(1.W))
++  private val cmdDoneValid = RegInit(false.B)
++  private val cmdDoneFault = RegInit(false.B)
++  private val cmdDoneInfo = RegInit(0.U(64.W))
++  io.cmdDone.valid := cmdDoneValid
++  io.cmdDone.bits.fault := cmdDoneFault
++  io.cmdDone.bits.info := cmdDoneInfo
++
++  // ---- TileLink access of one 8-byte beat --------------------------------
++  // The A channel is driven *combinationally* from the requesting state (which
++  // is held until `a.ready`), so a request is never retracted and never carries
++  // a stale address: a register latched in the same cycle would put the
++  // previous request's address on the bus for one beat.
++  private def addressOrder(value: UInt): UInt =
++    Cat((0 until 8).map(i => value(8 * i + 7, 8 * i)))
++  private def laneOrder(value: UInt): UInt =
++    Cat((0 until 8).reverse.map(i => value(63 - 8 * i, 56 - 8 * i)))
++
++  private val l1PaNow = Cat(io.ptbr, 0.U(16.W)) +
++    Cat(0.U(53.W), reqVa(41, 29), 0.U(3.W))
++  private val drivingWrite = state === sWbReq || state === sCmdWbReq
++  private val aPa = Mux(state === sL1Req, l1PaNow,
++    Mux(state === sL2Req, l2PaReg,
++      Mux(drivingWrite, wbPa, 0.U)))
++  private val aData = wbValue
++  private val (_, getBits) =
++    dataEdge.Get(0.U(srcBits.W), aPa(dataEdge.bundle.addressBits - 1, 0), lgSize)
++  private val (_, putBits) = dataEdge.Put(0.U(srcBits.W),
++    aPa(dataEdge.bundle.addressBits - 1, 0), lgSize, laneOrder(aData), "hff".U(8.W))
++  private val drivingA = state === sL1Req || state === sL2Req ||
++    state === sWbReq || state === sCmdWbReq
++  io.tl.a.valid := drivingA
++  io.tl.a.bits := Mux(drivingWrite, putBits, getBits)
++  // Address of the request actually accepted, for the PTE's own PA (the
++  // `ADWBFAIL` `cause_info` and the self-consistent A/D base).
++  private val sentPa = RegInit(0.U(64.W))
++  when(io.tl.a.fire) { sentPa := aPa }
++  private val tlListening = state === sL1Wait || state === sL2Wait ||
++    state === sWbWait || state === sCmdWbWait
++  io.tl.d.ready := tlListening
++  private val tlFire = io.tl.d.valid && io.tl.d.ready
++  private val tlFail = tlFire && (io.tl.d.bits.denied || io.tl.d.bits.corrupt)
++
++  // ---- leaf helpers ------------------------------------------------------
++  private def fragBit(superpage: Bool, va: UInt): UInt =
++    Mux(superpage, 8.U + va(28, 26), 8.U + va(15, 13))
++
++  /** Missing-page class (spec order step 2 / step 4). */
++  private def missPageSub(isFetch: Bool, superpage: Bool): UInt =
++    Mux(superpage,
++      Mux(isFetch, GewuCauseId.MEM_ISPTRAP.U, GewuCauseId.MEM_DSPTRAP.U),
++      Mux(isFetch, GewuCauseId.MEM_IGPTRAP.U, GewuCauseId.MEM_DGPTRAP.U))
++
++  /** Missing-fragment class (step 3 / step 5). */
++  private def missFragSub(isFetch: Bool, superpage: Bool): UInt =
++    Mux(superpage,
++      Mux(isFetch, GewuCauseId.MEM_ISPFTRAP.U, GewuCauseId.MEM_DSPFTRAP.U),
++      Mux(isFetch, GewuCauseId.MEM_IGPFTRAP.U, GewuCauseId.MEM_DGPFTRAP.U))
++
++  private def pageBaseOf(pte: UInt, superpage: Bool): UInt =
++    Mux(superpage, Cat(pte(55, 29), 0.U(29.W)), Cat(pte(55, 16), 0.U(16.W)))
++
++  private def pageOffset(superpage: Bool, va: UInt): UInt =
++    Mux(superpage, va(28, 0).pad(64), va(15, 0).pad(64))
++
++  private def pageTag(superpage: Bool, va: UInt): UInt =
++    Mux(superpage, Cat(va(41, 29), 0.U(29.W)), Cat(va(41, 16), 0.U(16.W)))
++
++  private def entryMatch(e: WumingPtwEntry, va: UInt): Bool =
++    e.valid && pageTag(e.superpage, va) === e.vaTag
++
++  /** `pte | pending A/D` — the atomic OR of TLB-15 (only bits 3/2 change). */
++  private def orValue(pte: UInt, aPend: Bool, dPend: Bool): UInt =
++    // `Cat` is most-significant first: bit 3 is A, bit 2 is D (`§2.2.3`).
++    Cat(pte(63, 4), aPend || pte(3), dPend || pte(2), pte(1, 0))
++
++  private def respond(pa: UInt, fault: Bool, perm: Bool, sub: UInt, info: UInt): Unit = {
++    respValid := true.B
++    respPa := pa
++    respFault := fault
++    respPerm := perm
++    respSub := sub
++    respInfo := info
++    state := sIdle
++  }
++
++  // ---- leaf decision (shared by the L1-superpage and L2 paths) -----------
++  /**
++    * Check the leaf in spec order and either answer or start the fill.
++    *
++    * The access that triggers the fill also updates A/D (`§2.2.5`: "该规则对
++    * 「命中」与「本次访问触发填充」同样适用"), so `aPend/dPend` are the
++    * pending bits produced by *this* access.
++    */
++  private def decideLeaf(pte: UInt, superpage: Bool): Unit = {
++    val sup = superpage
++    val v = reqVa
++    val fragOk = pte(fragBit(sup, v))
++    val hsjuOk = (pte >> (60.U + io.runMode))(0)
++    val rwxOk = Mux(reqFetch, pte(5), Mux(reqWrite, pte(6), pte(7)))
++    val hsjuSub = GewuCauseId.PERM_NUPERM.U + io.runMode
++    val rwxSub = Mux(reqFetch, GewuCauseId.PERM_NXPERM.U,
++      Mux(reqWrite, GewuCauseId.PERM_NWPERM.U, GewuCauseId.PERM_NRPERM.U))
++    val aPend = !pte(3)
++    val dPend = reqWrite && !reqFetch && !pte(2)
++
++    when(!fragOk) {
++      respond(0.U, true.B, false.B, missFragSub(reqFetch, sup), v)
++    }.elsewhen(!hsjuOk) {
++      respond(0.U, true.B, true.B, hsjuSub, v)
++    }.elsewhen(!rwxOk) {
++      respond(0.U, true.B, true.B, rwxSub, v)
++    }.otherwise {
++      val pageBase = pageBaseOf(pte, sup)
++      val e = ent(side)
++      when(e.valid && (e.aPend || e.dPend)) {
++        // Replacement writes the old entry's A/D back first (§2.2.5,
++        // `contract-tlb` TLB-12/TLB-15).
++        wbPa := e.ptePa
++        wbValue := orValue(e.pte, e.aPend, e.dPend)
++        wbKind := 0.U
++        wbSide := side
++        state := sWbReq
++        // The leaf being installed is already latched in `leafPte`/`leafPtePa`;
++        // only its level has to survive the write-back.
++        leafSuperReg := sup
++      }.otherwise {
++        installLeaf(pte, sup, pageBase, aPend, dPend)
++      }
++    }
++  }
++
++  private val leafSuperReg = RegInit(false.B)
++
++  private def installLeaf(pte: UInt, sup: Bool, pageBase: UInt, aPend: Bool, dPend: Bool): Unit = {
++    val e = ent(side)
++    val v = reqVa
++    e.valid := true.B
++    e.superpage := sup
++    e.vaTag := pageTag(sup, v)
++    e.pageBase := pageBase
++    e.ptePa := leafPtePa
++    e.pte := pte
++    e.g := pte(4)
++    e.asid := reqAsid
++    e.aLocal := pte(3) || aPend
++    e.dLocal := pte(2) || (dPend && !reqFetch)
++    e.aPend := aPend
++    e.dPend := dPend && !reqFetch
++    respond(pageBase | pageOffset(sup, v), false.B, false.B, 0.U, v)
++  }
++
++  // ---- command matching --------------------------------------------------
++  private def pageMask(superpage: Bool): UInt =
++    Mux(superpage, "h1fffffff".U(42.W), "hffff".U(42.W))
++
++  private def cmdMatch(e: WumingPtwEntry): Bool = {
++    val inScope = MuxLookup(cmdScope, false.B)(Seq(
++      0.U -> true.B,
++      1.U -> (e.vaTag <= cmdStart && (e.vaTag + pageMask(e.superpage)) >= cmdStart),
++      2.U -> ((e.vaTag < (cmdStart + cmdSize)) &&
++        ((e.vaTag + pageMask(e.superpage)) >= cmdStart))))
++    val asidOk = cmdAsidAny || e.g || (e.asid === io.asid)
++    e.valid && inScope && asidOk
++  }
++
++  private def cmdAdvance(): Unit = {
++    when(cmdSide === 0.U) { cmdSide := 1.U; state := sCmdTurn }
++      .otherwise { state := sCmdDone }
++  }
++
++  // ---- main FSM ----------------------------------------------------------
++  when(state === sIdle) {
++    respValid := false.B
++    cmdDoneValid := false.B
++    when(io.req.valid) {
++      // The core is parked while a translation runs, so a request always
++      // arrives with the walker idle.
++      reqVa := io.req.bits.va
++      reqFetch := io.req.bits.isFetch
++      reqWrite := io.req.bits.isWrite
++      reqAsid := io.asid
++      state := sHit
++    }.elsewhen(io.cmd.valid) {
++      cmdOp := io.cmd.bits.op
++      cmdScope := io.cmd.bits.scope
++      cmdAsidAny := io.cmd.bits.asidAny
++      cmdStart := io.cmd.bits.start
++      cmdSize := io.cmd.bits.size
++      cmdSide := 0.U
++      cmdDoneFault := false.B
++      cmdDoneInfo := 0.U
++      state := sCmdTurn
++    }
++  }
++
++  when(state === sHit) {
++    val e = ent(side)
++    when(!entryMatch(e, reqVa)) {
++      state := sL1Req
++    }.otherwise {
++      val fragOk = e.pte(fragBit(e.superpage, reqVa))
++      val hsjuOk = (e.pte >> (60.U + io.runMode))(0)
++      val rwxOk = Mux(reqFetch, e.pte(5), Mux(reqWrite, e.pte(6), e.pte(7)))
++      val hsjuSub = GewuCauseId.PERM_NUPERM.U + io.runMode
++      val rwxSub = Mux(reqFetch, GewuCauseId.PERM_NXPERM.U,
++        Mux(reqWrite, GewuCauseId.PERM_NWPERM.U, GewuCauseId.PERM_NRPERM.U))
++      when(!fragOk) {
++        respond(0.U, true.B, false.B, missFragSub(reqFetch, e.superpage), reqVa)
++      }.elsewhen(!hsjuOk) {
++        respond(0.U, true.B, true.B, hsjuSub, reqVa)
++      }.elsewhen(!rwxOk) {
++        respond(0.U, true.B, true.B, rwxSub, reqVa)
++      }.otherwise {
++        // Hit: update the local A/D and mark what must be written back
++        // (`§2.2.5` step 2, `contract-tlb` TLB-14).
++        when(!e.aLocal) { e.aLocal := true.B; e.aPend := true.B }
++        when(!reqFetch && reqWrite && !e.dLocal) {
++          e.dLocal := true.B; e.dPend := true.B
++        }
++        respond(e.pageBase | pageOffset(e.superpage, reqVa), false.B, false.B, 0.U, reqVa)
++      }
++    }
++  }
++
++  // L1: `PTBR` holds `PPN[55:16]`; the entry address is `PTBR + VA[41:29]*8`.
++  when(state === sL1Req) {
++    when(!inPtwMemory(l1PaNow)) {
++      respond(0.U, true.B, false.B, GewuCauseId.MEM_NONPTW.U, reqVa)
++    }.otherwise {
++      // The read is on the A channel (combinationally) until it is accepted.
++      when(io.tl.a.ready) { state := sL1Wait }
++    }
++  }
++  when(state === sL1Wait) {
++    when(tlFail) {
++      respond(0.U, true.B, false.B, GewuCauseId.MEM_NONPTW.U, reqVa)
++    }.elsewhen(tlFire) {
++      leafPte := addressOrder(io.tl.d.bits.data)
++      leafPtePa := sentPa
++      state := sLeafL1
++    }
++  }
++
++  when(state === sLeafL1) {
++    val pte = leafPte
++    when(!pte(0)) {
++      // `P = 0`: `SP = 1` is a missing superpage, `SP = 0` a missing page
++      // (`§2.2.1` step 3 / `§2.2.2` step 3).
++      respond(0.U, true.B, false.B, missPageSub(reqFetch, pte(1)), reqVa)
++    }.elsewhen(pte(1)) {
++      // Superpage: the walk ends here, `SPF` decides the fragment.
++      decideLeaf(pte, true.B)
++    }.otherwise {
++      // L2 address = `PTE[55:16]` page + VA[28:16]*8 (§2.2.2 step 3).
++      l2PaReg := Cat(pte(55, 16), 0.U(16.W)) + Cat(0.U(53.W), reqVa(28, 16), 0.U(3.W))
++      state := sL2Req
++    }
++  }
++
++  when(state === sL2Req) {
++    when(!inPtwMemory(l2PaReg)) {
++      respond(0.U, true.B, false.B, GewuCauseId.MEM_NONPTW.U, reqVa)
++    }.otherwise {
++      when(io.tl.a.ready) { state := sL2Wait }
++    }
++  }
++  when(state === sL2Wait) {
++    when(tlFail) {
++      respond(0.U, true.B, false.B, GewuCauseId.MEM_NONPTW.U, reqVa)
++    }.elsewhen(tlFire) {
++      leafPte := addressOrder(io.tl.d.bits.data)
++      leafPtePa := sentPa
++      state := sLeafL2
++    }
++  }
++  when(state === sLeafL2) {
++    val pte = leafPte
++    when(!pte(0)) {
++      respond(0.U, true.B, false.B, missPageSub(reqFetch, false.B), reqVa)
++    }.otherwise {
++      decideLeaf(pte, false.B)
++    }
++  }
++
++  // ---- write-back --------------------------------------------------------
++  when(state === sWbReq) {
++    printf(p"WumingPtw: ad-wb kind=replace pte=0x${Hexadecimal(wbPa)} value=0x${Hexadecimal(wbValue)} cycle=${dbgCycles}\n")
++    when(io.tl.a.ready) { state := sWbWait }
++  }
++  when(state === sWbWait) {
++    when(tlFail) {
++      // The bus refused the write (a read-only page table): `CFXMEM [56]
++      // ADWBFAIL`, `cause_info` = the PTE physical address, entry kept
++      // (`DADAO-12` §4.5, `contract-tlb` TLB-16).
++      printf(p"WumingPtw: ad-fail kind=replace pte=0x${Hexadecimal(wbPa)} cycle=${dbgCycles}\n")
++      respond(0.U, true.B, false.B, GewuCauseId.MEM_ADWBFAIL.U, wbPa)
++    }.elsewhen(tlFire) {
++      // Replacement write-back succeeded: fill the slot with the leaf stashed
++      // when the walk decided to evict.
++      installLeaf(leafPte, leafSuperReg,
++        pageBaseOf(leafPte, leafSuperReg),
++        !leafPte(3), reqWrite && !reqFetch && !leafPte(2))
++    }
++  }
++
++  // ---- commands (`cfx_ptw_tlb_control`, `contract-tlb` TLB-17/TLB-37) ----
++  when(state === sCmdTurn) {
++    val e = ent(cmdSide)
++    val match_ = cmdMatch(e)
++    val dirty = e.aPend || e.dPend
++    when(match_ && dirty && cmdOp =/= 2.U) {
++      wbPa := e.ptePa
++      wbValue := orValue(e.pte, e.aPend, e.dPend)
++      wbKind := 1.U
++      wbSide := cmdSide
++      state := sCmdWbReq
++    }.elsewhen(match_ && cmdOp === 2.U) {
++      // `invalid` does not write back (`§4.5`).
++      e.valid := false.B
++      cmdAdvance()
++    }.elsewhen(match_ && !dirty && cmdOp === 3.U) {
++      // `flush` of a clean entry: nothing to write, just delete it.
++      e.valid := false.B
++      cmdAdvance()
++    }.otherwise {
++      cmdAdvance()
++    }
++  }
++  when(state === sCmdWbReq) {
++    printf(p"WumingPtw: ad-wb kind=cmd op=${cmdOp} pte=0x${Hexadecimal(wbPa)} value=0x${Hexadecimal(wbValue)} cycle=${dbgCycles}\n")
++    when(io.tl.a.ready) { state := sCmdWbWait }
++  }
++  when(state === sCmdWbWait) {
++    when(tlFail) {
++      // Entry-level, stop at the first failure: keep the entry untouched and
++      // report once (`contract-tlb` TLB-37).
++      printf(p"WumingPtw: ad-fail kind=cmd pte=0x${Hexadecimal(wbPa)} cycle=${dbgCycles}\n")
++      cmdDoneFault := true.B
++      cmdDoneInfo := wbPa
++      state := sCmdDone
++    }.elsewhen(tlFire) {
++      val e = ent(wbSide)
++      e.aPend := false.B
++      e.dPend := false.B
++      e.pte := wbValue
++      when(cmdOp === 3.U) { e.valid := false.B }
++      // `clean` keeps the entry; continue with the other side, or finish when
++      // this was the data side (`contract-tlb` TLB-37: entry order I then D).
++      when(wbSide === 0.U) { cmdSide := 1.U; state := sCmdTurn }
++        .otherwise { state := sCmdDone }
++    }
++  }
++  when(state === sCmdDone) {
++    cmdDoneValid := true.B
++    state := sIdle
++  }
++}

@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
 new file mode 100644
-index 0000000..c88ad0f
+index 0000000..46a30cc
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingTile.scala
-@@ -0,0 +1,178 @@
+@@ -0,0 +1,185 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile skeleton (m12-chipyard-001).
@@ -97,6 +97,11 @@ index 0000000..c88ad0f
 +  private val hmonSize = required(wumingTileParams.wumingParams.hmonSize, "hmonSize")
 +  private val bootromBase = required(wumingTileParams.wumingParams.bootromBase, "bootromBase")
 +  private val bootromSize = required(wumingTileParams.wumingParams.bootromSize, "bootromSize")
++  // m16-chipyard-007: the physical-memory window a translating machine loads
++  // page tables and mapping targets into (`spec/Kaiwu §1.1` PA RAM); zero on a
++  // machine without one.
++  private val paBase = wumingTileParams.wumingParams.paRamBase.getOrElse(BigInt(0))
++  private val paSize = wumingTileParams.wumingParams.paRamSize.getOrElse(BigInt(0))
 +  val loadMem: WumingLoadMem = LazyModule(new WumingLoadMem(WumingLoadMemParams(
 +    base = loadMemBase,
 +    size = loadMemSize,
@@ -104,7 +109,9 @@ index 0000000..c88ad0f
 +    bootromBase = bootromBase,
 +    bootromSize = bootromSize,
 +    hmonBase = hmonBase,
-+    hmonSize = hmonSize)))
++    hmonSize = hmonSize,
++    paBase = paBase,
++    paSize = paSize)))
 +
 +  // m12-004: the semihosting responder is a host model (DPI) that reads guest
 +  // memory over its own TL client port.  It shares the tile's port xbar with

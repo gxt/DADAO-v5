@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala
 new file mode 100644
-index 0000000..412f2b4
+index 0000000..3dc735a
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingLoadMem.scala
-@@ -0,0 +1,139 @@
+@@ -0,0 +1,146 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" loadmem boot loader (m12-chipyard-003).
@@ -58,7 +58,12 @@ index 0000000..412f2b4
 +  bootromBase: BigInt,
 +  bootromSize: BigInt,
 +  hmonBase: BigInt,
-+  hmonSize: BigInt
++  hmonSize: BigInt,
++  /** Physical-memory window a translating machine's page tables and mapping
++    * targets live in (`spec/Kaiwu §1.1` PA RAM).  Zero on a machine without
++    * one: only the core-internal window above is loadable then. */
++  paBase: BigInt = 0,
++  paSize: BigInt = 0
 +) {
 +  require(base > 0, "WumingLoadMem: MEM_BASE must come from the machine address map")
 +  require(size > 0, "WumingLoadMem: MEM_SIZE must come from the machine address map")
@@ -75,7 +80,9 @@ index 0000000..412f2b4
 +  "BOOTROM_BASE" -> IntParam(p.bootromBase),
 +  "BOOTROM_SIZE" -> IntParam(p.bootromSize),
 +  "HMON_BASE" -> IntParam(p.hmonBase),
-+  "HMON_SIZE" -> IntParam(p.hmonSize)
++  "HMON_SIZE" -> IntParam(p.hmonSize),
++  "PA_BASE" -> IntParam(p.paBase),
++  "PA_SIZE" -> IntParam(p.paSize)
 +)) with HasBlackBoxResource {
 +  val io = IO(new Bundle {
 +    val clock = Input(Clock())
