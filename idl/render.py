@@ -43,9 +43,9 @@ B. id 存在于 ``contracts/opcodes.yaml``（防与编码表脱节）。
 C. 落点：每个 id 在对应册内**恰好一对**标记（BEGIN 先于 END、期间无其它 BEGIN）；
    每个 ``# id:`` 都有落点；**每个落点都有源**（防空标记）；落点所在册 == 源文件册。
 D. 一致性：重渲染后的整册文本与磁盘**逐字节相同**（``--check``）；两次渲染同结果。
-E. 交叉断言：每条 operation 调用的函数都在语义库声明（``idl/README.md §4`` 的代码块
-   **加 ``idl/lib/*.idl``**；含 ``?`` 后缀函数名；防「引用了不存在的语义库」——语义正确性
-   由编写期 ``idlc`` oracle 另行检查，不动门控）。
+E. 交叉断言：每条 operation 调用的函数都在语义库声明（``spec/IDL-ISA语义描述语言与语义库.md``
+   §4 的代码块 **加 ``idl/lib/*.idl``**；含 ``?`` 后缀函数名；防「引用了不存在的语义库」——
+   语义正确性由编写期 ``idlc`` oracle 另行检查，不动门控）。
 F. 解码变量不得当寄存器内容用：``rdHA``…/``rbH*``/``raH*``/``rfH*`` **紧跟 ``[``** 即 FAIL
    （散文里 ``rdHC`` 指**内容**，``.idl`` 里它是 **6 位寄存器号**；合法用法只有作下标
    ``rd[rdHC]``）。``idlc`` 不校验位宽 ⇒ ``rdHC[i]`` 会静默取到寄存器号的位（m15-idl-014）。
@@ -79,6 +79,8 @@ REPO = Path(__file__).resolve().parents[1]
 IDL_REL = "idl"
 SPEC_REL = "spec"
 OPCODES_REL = "contracts/opcodes.yaml"
+# 语义库正文所在册（断言 E 的扫描面之一；另一半是 `idl/lib/*.idl`）
+SEMANTICS_REL = "spec/IDL-ISA语义描述语言与语义库.md"
 
 ID_RE = re.compile(r"^#\s*id:\s*(\S+)\s*$")
 BEGIN_RE = re.compile(r"^<!--\s*IDL:(\S+)\s+BEGIN\s*-->\s*$")
@@ -207,13 +209,13 @@ LIB_SUBDIR = "lib"
 def load_declared(root: Path) -> set[str]:
     """语义库声明的函数名（``function X {`` / ``builtin function X {``）。
 
-    扫描面 = ``idl/README.md §4`` 的代码块 **+ ``idl/lib/*.idl``**（m15-idl-015 起浮点族
-    等大库拆到 ``idl/lib/``）。
+    扫描面 = ``spec/IDL-ISA语义描述语言与语义库.md`` §4 的代码块
+    **+ ``idl/lib/*.idl``**（m15-idl-015 起浮点族等大库拆到 ``idl/lib/``）。
     """
-    readme = root / IDL_REL / "README.md"
-    text = read_text(readme)
+    book = root / SEMANTICS_REL
+    text = read_text(book)
     if "## 4." not in text or "## 5." not in text:
-        raise RenderError(f"{readme.name}: 找不到 §4 语义库小节（约定见该文件）")
+        raise RenderError(f"{SEMANTICS_REL}: 找不到 §4 语义库小节（约定见该册）")
     section = text.split("## 4.", 1)[1].split("## 5.", 1)[0]
     declared = {m.group(1) for m in (DECL_RE.match(line) for line in section.split("\n")) if m}
     for path in sorted((root / IDL_REL / LIB_SUBDIR).glob("*.idl")):
@@ -222,7 +224,7 @@ def load_declared(root: Path) -> set[str]:
             if m:
                 declared.add(m.group(1))
     if not declared:
-        raise RenderError(f"{readme.name} §4: 没有解析到任何函数声明")
+        raise RenderError(f"{SEMANTICS_REL} §4: 没有解析到任何函数声明")
     return declared
 
 
