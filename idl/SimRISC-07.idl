@@ -776,49 +776,13 @@ if (rfHB == 6'd0) {
 RoundingMode mode = rm_to_mode(6'h20);
 
 # ft scaleB：结果 = rfHC × 2^rdHD（rdHD 为 rd 组的**有符号 64 位整数**指数，rd0 读出 0）。
-# 库无 scaleB 原语 ⇒ 只把指数加上 n、尾数保持 24 位（<<7 成 31 位有效数 + 7 个舍入位），
-# 舍入/次正规/溢出四象限/UF 交给库的 softfloat_roundPackToF32（与 §1.3 同口径）。
-Bits<32> src = ft[rfHC];
-Bits<1> sign = signF32UI(src);
-Bits<8> exp = expF32UI(src);
-Bits<32> sig = fracF32UI(src);
+# 指数饱和（±4096，远超出 f32 可表示区 ⇒ 不改结论）、次正规/溢出四象限、UF/NX 全在库
+# ft_scale 内（NaN/±Inf/±0 原样、不置标志）；与 f64 兄弟 fosclb 的 fo_scale 同构。
+# 注：旧临时写法（把 n 加到指数上再交 softfloat_normRoundPackToF32）在 n 近 INT64_MAX 时
+# `$signed(e64)` 有符号域溢出 ⇒ 误判下溢，已由 ft_scale 修正（m15-idl-019）。
+Bits<32> a = ft[rfHC];
 Bits<64> n = rd[rdHD];                                # 有符号 64 位整数指数
-
-if (exp == 8'hFF) {
-  if (sig != 0) {
-    # NaN ⇒ canonical qNaN；sNaN ⇒ NV（IEEE 754-2019 §6.2 / §7.2 a））
-    if (is_sp_signaling_nan?(src)) {
-      set_fp_flag(FpFlag::NV);
-    }
-    rf[rfHB][31:0] = SP_CANONICAL_NAN;
-  } else {
-    rf[rfHB][31:0] = {sign, 8'hFF, 23'd0};            # ±Inf 原样
-  }
-} else if ((exp == 8'd0) && (sig == 0)) {
-  rf[rfHB][31:0] = {sign, 31'd0};                     # ±0 原样（符号保留）
-} else {
-  # 有效数保持 24 位（正规补隐式位；次正规不补），指数加上 n 后交库的
-  # softfloat_normRoundPackToF32：先规整（clz32）再按 mode 一次舍入 ⇒ NX/UF/OF 与次正规结果
-  # 全部由库按 IEEE 754-2019（tininess = 舍入后）判定。
-  #   值 = sig24 × 2^(exp − 150)（正规）/ frac × 2^−149（次正规）；乘 2^n 后
-  #   库口径 exp 参数 = 0x9C + k（k = 该 2 的幂次）⇒ 正规 exp + n + 6、次正规 n + 7。
-  Bits<32> sig24 = sig;
-  Bits<64> e64 = n + 64'd7;                           # 次正规（exp = 0）
-  if (exp != 8'd0) {
-    sig24 = sig | 32'h0080_0000;
-    e64 = {56'd0, exp} + n + 64'd6;                   # 正规
-  }
-  # 饱和到 16 位（±2000 已足以让库走溢出/下溢分支），避免 16 位截断翻转符号
-  Bits<16> e16 = 16'd0;
-  if ($signed(e64) > 64'sd2000) {
-    e16 = 16'd2000;
-  } else if ($signed(e64) < -64'sd2000) {
-    e16 = 16'shF830;                                  # −2000
-  } else {
-    e16 = e64[15:0];
-  }
-  rf[rfHB][31:0] = softfloat_normRoundPackToF32(sign, e16, sig24, mode);
-}
+rf[rfHB][31:0] = ft_scale(a, n, mode);
 
 # id: foadd_orrr_rf
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
