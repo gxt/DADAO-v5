@@ -21,6 +21,18 @@ owner = "main-session"
 [files."milestones-m16.md"]
 owner = "main-session"
 
+[files."milestones-m17.md"]
+owner = "main-session"
+
+[files."milestones-m18.md"]
+owner = "main-session"
+
+[files."milestones-m19.md"]
+owner = "main-session"
+
+[files."milestones-m20.md"]
+owner = "main-session"
+
 [files."mirrors.md"]
 owner = "infra"
 
