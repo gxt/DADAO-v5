@@ -277,6 +277,14 @@
 - **出口**：507 例与 QEMU 逐例一致；每个 operation 分支至少被一个向量走到；`make check-idl` 进 L2；分歧归因落 spec 裁定（**不是「IDL 一定对」**）。
 - **与 M15 的边界**：M15 只结构化、不执行；可执行在此。
 
+## Linux 测试集（选择与修复）
+
+- **候选来源（用户 2026-11-20 提出）**：M14/M15 收尾后的里程碑候选——给 linux 模块**选一套测试集并做修复**。
+- **当前状态**：M14 验证靠 `check-linux-k5`/`check-linux-k6` 的**代表例**（"能启动、能跑几条命令"），**没有套件级回归**；没有套件，就说不清"Linux 在 DADAO 上可用"。
+- **开启条件**：M14 收口（linux 单写者释放）；**不早于** K6 门控落地。
+- **待定**：① 套件选型（LTP 子集 / kselftest / 两者分工）；② 运行环境（QEMU `kaiwu-vast` 用户态 / 节点上的 RTL Linux）；③ 失败分诊口径（内核缺陷 / 用例假设不适配 DADAO 的 64 KiB 页与大端 / 用例本身不支持）；④ 基线与增量（首轮目标通过率、按子系统分片）。
+- **候选任务（未拆细）**：选型与跑通骨架 → 按子系统分片修复（mm / 信号 / futex / 时间 / timerfd…）→ 收口门控 `check-linux-suite`。
+
 ## 流水线处理器核（gem5-minor / chipyard-wuqing）
 
 - **当前状态**：gem5 侧只用 `TimingSimpleCPU`（加每指令延迟的钩子），Minor 尚未接入；chipyard 侧**只有 `WumingTinyConfig`**（SRAM + cfx 测试机、无 MMU/TLB），`wuqing` 的 RTL 尚未出现。
