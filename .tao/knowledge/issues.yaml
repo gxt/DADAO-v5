@@ -729,7 +729,7 @@
   scope:
   - linux
   - infra
-  milestone: M18
+  milestone: M14
   status: open
   closed_in: null
   resolved_by: null
@@ -815,7 +815,7 @@
   scope:
   - spec
   - linux
-  milestone: M18
+  milestone: M14
   status: open
   closed_in: null
   resolved_by: null
@@ -842,7 +842,7 @@
   scope:
   - linux
   - testcases
-  milestone: M18
+  milestone: M14
   status: open
   closed_in: null
   resolved_by: null
@@ -950,7 +950,7 @@
   scope:
   - linux
   - infra
-  milestone: M18
+  milestone: M14
   status: open
   closed_in: null
   resolved_by: null
