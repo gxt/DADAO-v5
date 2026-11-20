@@ -1,4 +1,4 @@
-# m15-spec-006: IDL 语言规范与语义库迁入 `spec/`（新册 `IDL-01-SimRISC-ISA语义描述语言与语义库`）
+# m15-spec-006: IDL 语言规范与语义库迁入 `spec/`（新册 `IDL-SimRISC-ISA语义描述语言与语义库`）
 
 **模块**：spec
 **项目里程碑**：M15
@@ -18,16 +18,16 @@
 
 **用户裁定**：
 1. **就一册**（语言 + 语义库同册）；
-2. 文件名**要写清是什么语言**——即 **SimRISC ISA 语义描述语言**（`IDL-01-SimRISC-ISA语义描述语言与语义库.md`）。
+2. 文件名**要写清是什么语言**——即 **SimRISC ISA 语义描述语言**（`IDL-SimRISC-ISA语义描述语言与语义库.md`）。
 
 ## 要做
 
-1. **新建** `spec/IDL-01-SimRISC-ISA语义描述语言与语义库.md`：
+1. **新建** `spec/IDL-SimRISC-ISA语义描述语言与语义库.md`：
    - 正文 = 现 `idl/README.md` 的 §1–§6（保持内容，可重排编号适配 spec 体例）；
    - §7 变更记录迁入本册的**变更记录附录**（`check-spec-numbering` 对非 `SimRISC-` 册要求「变更记录附录为最后一个 `##`」）；
    - 册内 `## N.` 编号连续、不跳级（`check-spec-numbering`）。
-2. **`idl/README.md` 精简**为**目录导航 + 用法**（≤60 行）：12 册 `SimRISC-NN.idl`、`lib/fp.idl`、`render.py` 的三条用法、`.manifests.toml`；语言与语义库的正文**指向** `spec/IDL-01-…`。
-3. **`idl/render.py` 的扫描面改指新册**：现 `render.py:210-213` 解析 `idl/README.md §4` 的代码块，作为「每条 operation 调用的函数都在语义库声明」这条断言（E 组）的扫描面；改为解析 `spec/IDL-01-…` 的语义库章节。**保持「+ `idl/lib/*.idl`」那一半不变**。
+2. **`idl/README.md` 精简**为**目录导航 + 用法**（≤60 行）：12 册 `SimRISC-NN.idl`、`lib/fp.idl`、`render.py` 的三条用法、`.manifests.toml`；语言与语义库的正文**指向** `spec/IDL-SimRISC-ISA语义描述语言与语义库.md`。
+3. **`idl/render.py` 的扫描面改指新册**：现 `render.py:210-213` 解析 `idl/README.md §4` 的代码块，作为「每条 operation 调用的函数都在语义库声明」这条断言（E 组）的扫描面；改为解析 `spec/IDL-SimRISC-ISA语义描述语言与语义库.md` 的语义库章节。**保持「+ `idl/lib/*.idl`」那一半不变**。
 4. **`spec/README.md`**：「ISA 语义（IDL）」节的指针改指新册；「分册清单」加一行（可按现有分组，或新开「ISA 语义（IDL）」组内列入本册）。
 5. **`spec/.manifests.toml`**：加本册条目 + `sha256`；`spec/README.md` 的 `sha256` 同笔重算。
 
