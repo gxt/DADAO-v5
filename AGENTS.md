@@ -230,3 +230,4 @@ DADAO-v5/
 14. **改动落盘自证**：动手前先 `git rev-parse --show-toplevel` 确认等于自己的 worktree；收尾必须贴**该 worktree** 的 `git status -uall` + `git diff --stat` 证明改动真实存在。
 15. **禁 `reset --hard`/`checkout -- .`**：需要干净树重放就另建 `-verify` 临时树；注入还原只用 `cp`+md5（`ISS-402`）。
 16. **architect 合入前三查**：`git show --stat <branch>` 必须含实现文件（不只任务书）；**禁 `git add -A`/`git add .`**，逐项 staging；删 worktree 前先核其 `git status -uall` 干净（`ISS-402`/`ISS-405`）。
+17. **派单标签写全名（用户 2026-11-20）**：`task` 的 `description` = 任务号 + 任务书标题全名（整行复制 H1，冒号换空格）；**禁缩写代号**（`tc1`/`llvm-007`/`id l-001`），不得为"短一点"自行压缩。
