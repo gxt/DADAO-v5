@@ -26,7 +26,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-linux-046 | 6–8 h | 信号帧与投递（`rt_sigframe`/`setup_rt_frame`/`rt_sigreturn`/`force_sig`） |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 
 | m14-linux-026 | 3–4 h | clocksource(cfx_time)+clockevent(cfx_hart) 通用框架（原 021 后移） |
@@ -38,6 +37,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-linux-046 | 2026-11-21 04:26 | 6–8 h | 信号帧与投递（`rt_sigframe`/`setup_rt_frame`/`rt_sigreturn`/`force_sig`） |
 
 ## 已验证
 
