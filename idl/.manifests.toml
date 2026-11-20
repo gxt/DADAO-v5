@@ -35,36 +35,48 @@ owner = "idl"
 
 [files."SimRISC-01.idl"]
 owner = "idl"
+sha256 = "e4303be579f9a7199c06f807909c6c0e9cac5630cdf0463382ad1bbf5bd257ac"
 
 [files."SimRISC-02.idl"]
 owner = "idl"
+sha256 = "77fb92f36866ed996c28575206af7ab9ca4a9e9ac4c612797828d4e58383f7b7"
 
 [files."SimRISC-03.idl"]
 owner = "idl"
+sha256 = "f7558b5b63c50a7662183db21848ba63f41fe9f6e6d0e4ba5766716114365c95"
 
 [files."SimRISC-04.idl"]
 owner = "idl"
+sha256 = "0dfec6fbb12753ea13ebdbe7f57a6d189dcc258572fe41014c75a1386abc972b"
 
 [files."SimRISC-05.idl"]
 owner = "idl"
+sha256 = "2c4dce6354f70a08244609b8c940132228574a89abaf4c06616af067629c4d4d"
 
 [files."SimRISC-06.idl"]
 owner = "idl"
+sha256 = "523f0979b4dfa61b78420ecd3eaef194b81584bb6f3a42d0677263e9523d2edc"
 
 [files."SimRISC-07.idl"]
 owner = "idl"
+sha256 = "9859328268cd22f3b586931c0895a8a5c2be6dabe980791105726c7acdd4dfd0"
 
 [files."SimRISC-08.idl"]
 owner = "idl"
+sha256 = "fce33e26475344e7180a7036bfa46b20c29e6c9f58e1cdd1765b3677663227d6"
 
 [files."SimRISC-09.idl"]
 owner = "idl"
+sha256 = "0e700ea9b878ae83932100d974ee761cd8eefa56aef5c95fdda04e226ec1ef72"
 
 [files."SimRISC-10.idl"]
 owner = "idl"
+sha256 = "18ac0bab4b527779af7189958c44923b2f683d6987c237decaf719ab44caa234"
 
 [files."SimRISC-11.idl"]
 owner = "idl"
+sha256 = "d647f67a84b8a082da98ce7acb482729f5b9b3d48c39553a2168fe123dad817a"
 
 [files."SimRISC-12.idl"]
 owner = "idl"
+sha256 = "db2e09bdd01064fc06cc0912d242b8e7a8f6987da7e553a2bdc2197bd0726b13"

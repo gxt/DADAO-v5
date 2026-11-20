@@ -45,11 +45,10 @@
 - 已核事实：`configs/dadao/` 只有 `se.py`/`se_timing.py`/`fs.py`，都只用 `SimpleMemory`（`se_timing` 另有 `NoncoherentXBar`）；chipyard 侧只有 `WumingTinyConfig`（SRAM 主存、`icache/dcache = None`），**无 Vast 配置**。
 - 用户已指出：`Kaiwu-Tiny` 跑在 SRAM 上**不需要** cache；`Kaiwu-Vast` 需要 cache 但 RTL 尚未增加。
 
-## N21. M15 收口时补 `idl/*.idl` 的 sha256 锁
+## N21. `idl` 清单的 sha256 锁（**已于 2026-11-20 收口**）
 
-- 用户 2026-11-18 裁定：`idl/` 目录的 `.manifests.toml` **先只列文件名**（双向集合断言），`sha256` **等 M15 完成后统一补**。
-- 原因：M15 期间 `.idl` 会大量增改，逐次重算锁的成本高于收益。
-- 收口检查项：M15 收尾时把 `idl/*.idl` 逐文件 sha256 写入 `idl/.manifests.toml`，并确认 `check-manifests-guard` 会校验它（schema 已支持条目级 `sha256`）。
+- 已做：`idl/*.idl` **12 个**逐文件 `sha256` 写入 `idl/.manifests.toml`；
+- 顺带补了一个真缺口：`idl/lib/`（`fp.idl`，浮点语义库）**原先没有任何清单守护**——实测往里加游离文件门控仍 PASS。已新建 `idl/lib/.manifests.toml`（含 `fp.idl` 的 sha256）并在 `manifests/dir-guard-roots.toml` 注册 `idl/lib`；现门控 6 册 / 6 目录 / 59 文件 / 36 sha256，**游离文件与内容篡改各验证一次 FAIL**。
 
 ## N26. `ftsclb` 的临时写法 vs 库 `ft_scale`（`m15-idl-019`，先验等价未通过）
 

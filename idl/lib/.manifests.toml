@@ -1,0 +1,8 @@
+schema = 1
+owner = "idl"
+subdirs = []
+recursive = false
+
+[files."fp.idl"]
+owner = "idl"
+sha256 = "b0a0a717c09edb7fb03b99dcb235c8bac19ace9c8266fbfb62e8cc0ab066ef0d"
