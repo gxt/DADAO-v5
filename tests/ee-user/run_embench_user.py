@@ -124,9 +124,8 @@ DEFAULT_TIMEOUT = 60
 DEFAULT_GEM5_TIMEOUT = 120
 DYNAMIC_LINKER = "/lib/ld-musl-dadao.so.1"
 
-# musl port include set -- identical to tools/infra/build_musl.py and
-# tools/testcases/run_suite.py (the esoteric include dirs are required with
-# -nostdinc).
+# musl port include set -- identical to tools/infra/build_musl.py (the
+# esoteric include dirs are required with -nostdinc).
 MUSL_INCLUDE_DIRS = ("arch/dadao", "arch/generic", "obj/src/internal",
                      "src/include", "src/internal", "obj/include", "include")
 

@@ -1,7 +1,7 @@
 /*
  * prevcfx.lds — `tools/chipyard/excp/prevcfx.S` 的链接布局（`m16-chipyard-005`）。
  *
- * 与 `tests/ee-tiny/inst_tiny.lds` 同一套固定地址（同一宏层
+ * 与 `tests/ee-tiny/tests_inst_tiny.lds` 同一套固定地址（同一宏层
  * `tests/inst/macros/inst_test.inc` 的 `.equ`：TEST_BUF / TEST_EXITB）。
  * 本文件只加一条 ASSERT：被 CFXESC 拦下的 `escape` 地址必须等于运行期
  * `aip.si` 取到的地址 + 8（`aip` 4 B + `add.si` 4 B ⇒ `escape` 在 aip+8），

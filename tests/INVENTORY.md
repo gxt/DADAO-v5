@@ -174,7 +174,7 @@
 | L2 `make check-modules` | 四 scope **smoke**：`check-inst-smoke`、`check-arch-smoke`、`check-unit`、`check-tset-{libc,llvm,embench}-smoke`（**不含** FP 探针） |
 | L3 `make check-full` | 全量（inst/arch/unit）+ 集成链：`check-inst`、`check-arch`、`check-unit-full`（= `check-unit` + `check-lit-full`）、4 个 **FP 探针**、`test-m6`；**tset 不直接列出**（smoke 仅在 L2、full 仅在回归运行；`test-m6` 的 Embench E2E 属集成步骤） |
 | 回归运行（小时级） | `night-run`（tset full×3 + 长 arch；独立 `night.lock`，不阻断门控）→ 报告 `.dadao/tests/night/<date>/`；`check-night-report` 按需诊断（观测，不阻断收口） |
-| 按需 / opt-in | `check-lit-full`、`check-picolibc-tests-full`、`check-testcases-suites(-full)`、`test-picolibc-smoke`、`build-bootrom`、`check-milestone`、`check-install-tools`、`clean-tests`、`test-repro` |
+| 按需 / opt-in | `check-lit-full`、`check-picolibc-tests-full`、`test-picolibc-smoke`、`build-bootrom`、`check-milestone`、`check-install-tools`、`clean-tests`、`test-repro` |
 
 ### 5.2 逐目标（跑什么 / 产物去哪 / 日志）
 
@@ -195,10 +195,8 @@
 | （`clmul` 探针目标） | — | **已退役**（`m15-testcases-008`；历史 627 例 × O0/O2）；承接方见 §6 | — | — |
 | `check-picolibc-tests` | L2 | fast 档 20（18 pass / 2 excluded） | `.work/build/picolibc*` | stdout |
 | `check-picolibc-tests-full` | opt | full 档 235（209 pass / 1 fail / 22 excluded / 3 blocked，最近日志） | 同上 | stdout |
-| `check-testcases-suites` | opt | libc-test + llvm-test-suite fast 子集 | `.work/log/testcases/runs/fast.json` | stdout |
-| `check-testcases-suites-full` | opt | 两套件全量可枚举 C 用例 | `runs/full.json` | stdout |
 | `test-picolibc-smoke` | opt | `printf("hi")` 端到端 | `.work/build/picolibc-smoke` | stdout |
-| `build-bootrom` | 前置 | `tests/ee-tiny/` 的 `bootrom.S`/`bootrom_app.S`/`power`/`hmon` + `tests/ee-vast/` 的 step5 `power/hmon/smon` 汇编链接与 256 KiB 镜像打包 | `.dadao/tests/bootrom`（含 `step5/`） | stdout |
+| `build-bootrom` | 前置 | `tests/ee-tiny/` 的 `cfx_power_tiny.S`/`cfx_hmon_tiny.S` + `tests/ee-vast/` 的 step5 `power/hmon/smon` 汇编链接与 256 KiB 镜像打包 | `.dadao/tests/bootrom`（含 `step5/`） | stdout |
 
 （表中「最近」数字取自各目标最近一次日志，非本次重跑；`make` 本册未执行任何被测语义。）
 

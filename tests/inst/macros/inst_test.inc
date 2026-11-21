@@ -59,7 +59,7 @@
 @@ rd24/rb24=控制流（06）用例的「跳转标记 / 落点 IP」与 RAS 实测临时。
 @@
 @@ 固定地址（Tiny；`.lds` 的 ASSERT 与本节 `.equ` 共同钉住）——全部册（00 + 01–12）**同一份**布局
-@@ `tests/ee-tiny/inst_tiny.lds`（`m15-testcases-006` 统一，见该文件头）：
+@@ `tests/ee-tiny/tests_inst_tiny.lds`（`m15-testcases-006` 统一，见该文件头）：
 @@   ENTRY+0x0000 .. +0x4000  .text          链例 + 故障例体 + 收尾代码（16 KiB 窗口）
 @@   ENTRY+0x4000 .. +0x4200  .faultpad      故障落点 `__pad`（≤512 B）
 @@   ENTRY+0x4200             TEST_FAULTV    故障期望槽：+0 one-hot、+8 失败码（=点号）
@@ -111,7 +111,7 @@
 	.include "tests/shared/asm/machine-tiny.inc"
 
 	@@ 机器几何一律取 `machine-tiny.inc`（生成物）里的符号，本节只补本宏层的布局。
-	@@ 布局单一（`m15-testcases-006`）：全部册共用 `tests/ee-tiny/inst_tiny.lds`，
+	@@ 布局单一（`m15-testcases-006`）：全部册共用 `tests/ee-tiny/tests_inst_tiny.lds`，
 	@@ `.text` 窗口 16 KiB（原 01 册 0x1E00 / 07 册 0x4000 两份布局合并为一份）。
 	.equ TEST_PAD,    ENTRY + 0x4000
 	.equ TEST_DATA,   ENTRY + 0x5800

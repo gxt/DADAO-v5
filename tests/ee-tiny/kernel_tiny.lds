@@ -13,7 +13,7 @@
  *     (RAM + 0x10100); the first 0x100 bytes of the raw -kernel window are
  *     reserved/zero, not part of the ELF sections.
  *   * __bss_start/__bss_end bracket .bss (minimal_crt0 clears it itself).
- *   * common sections/symbols live in common_user.lds (INCLUDE below).
+ *   * common sections/symbols are inlined below.
  */
 
 ENTRY(_start)
@@ -45,7 +45,31 @@ SECTIONS
     *(.text .text.*)
   } > RAM :text
 
-  INCLUDE common_user.lds
+  .rodata : ALIGN(8) {
+    *(.rodata .rodata.*)
+    *(.srodata .srodata.*)
+  } > RAM :data
+
+  .data : ALIGN(8) {
+    *(.data .data.*)
+    *(.sdata .sdata.*)
+  } > RAM :data
+
+  .bss : ALIGN(8) {
+    __bss_start = .;
+    *(.bss .bss.*)
+    *(.sbss .sbss.*)
+    *(COMMON)
+    __bss_end = .;
+  } > RAM :data
+
+  PROVIDE(__end = .);
+  PROVIDE(__heap_start = __end);
+  PROVIDE(__heap_size = __heap_end - __heap_start);
+
+  /DISCARD/ : {
+    *(.note.GNU-stack)
+  }
 
   /* Test assets (minimal_crt0/picolibc) put _start in .text.start at ROM.
    * Legacy musl crt1.o keeps _start in .text at the application entry; it is

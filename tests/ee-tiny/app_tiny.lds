@@ -43,7 +43,31 @@ SECTIONS
     *(.text .text.*)
   } > RAM :image
 
-  INCLUDE common_user.lds
+  .rodata : ALIGN(8) {
+    *(.rodata .rodata.*)
+    *(.srodata .srodata.*)
+  } > RAM :data
+
+  .data : ALIGN(8) {
+    *(.data .data.*)
+    *(.sdata .sdata.*)
+  } > RAM :data
+
+  .bss : ALIGN(8) {
+    __bss_start = .;
+    *(.bss .bss.*)
+    *(.sbss .sbss.*)
+    *(COMMON)
+    __bss_end = .;
+  } > RAM :data
+
+  PROVIDE(__end = .);
+  PROVIDE(__heap_start = __end);
+  PROVIDE(__heap_size = __heap_end - __heap_start);
+
+  /DISCARD/ : {
+    *(.note.GNU-stack)
+  }
 
   ASSERT(SIZEOF(.text.start) == 0 || _start == 0xffffff010100,
          "tiny app: _start must be the fixed entry")

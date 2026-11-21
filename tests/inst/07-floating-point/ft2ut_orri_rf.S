@@ -6,7 +6,7 @@
 @@ 转换族（§1）：immu6 三套语义（六档 one-hot / SBZ / 复制个数）互斥。
 @@ 浮点→整数：有限且取整在范围内 ⇒ inexact 置 NX；NaN/Inf/越界 ⇒ 饱和（按精确值符号取 max/min；NaN 取 max）并置 NV，不置 NX。
 @@ 整数→浮点：精度损失 ⇒ NX；本任务的值域不产生 OF/UF（2^64 < ft_max、整数 ≥ 1）。
-@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段址见宏层文件头）
+@@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段址见宏层文件头）
 
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/07-floating-point/07-floating-point.inc"

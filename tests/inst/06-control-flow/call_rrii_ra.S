@@ -8,7 +8,7 @@
 @@   4 字节对齐 ⇒ 不会触发 IALIGN；基址可为 0 ⇒ 目标地址 0 ⇒ 取指 CFXMEM
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：rrii = opc | rbha[23:18] | rdhb[17:12] | imms12[11:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rb`/`set.rd` 拼基址与偏移寄存器）
-@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
+@@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；ENTRY 由 `machine-tiny.inc` 固定）
 @@ 用例：encoding 1 / semantic 11 / overlap 2（链例 14 + 故障例 2）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流

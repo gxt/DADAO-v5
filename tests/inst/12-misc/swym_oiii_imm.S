@@ -12,7 +12,7 @@
 @@   两条 `aip.si` 之间只放被测 swym（或 `.dd.t32` 原始编码字），差值里再减 4 B（后一条 aip 自身）
 @@   ⇒ 期望一律写成字面量（不依赖链接布局，不用标签算术）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 零区（S0/S1 = TEST_DATA+0x500/0x508，例间不共享）
-@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
+@@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 5 / legality 0（无规则）/ overlap 1（oiii 无寄存器操作数
 @@   ⇒ 以「插入访存序列中间」与「rb 银行哨兵」两类等价观测替代）（链例 13，无故障例）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）

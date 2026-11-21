@@ -9,7 +9,8 @@ flat-bin pipeline and compares the observed result against the manifest:
 
     llvm-mc --triple=dadao-unknown-elf -filetype=obj <prog.s> -> <prog>.o
     llvm-objcopy -O binary --only-section=.text  <prog>.o    -> <prog>.bin
-    qemu-system-dadao -M kaiwu-tiny -bios <bootrom.bin> -kernel <prog>.bin \
+    qemu-system-dadao -machine kaiwu-vast,bootrom-image=<step5/bootrom_step5.bin> \
+        -kernel <prog>.bin \
         -semihosting-config enable=on,target=native,chardev=semi \
         -chardev file,id=semi,path=<console> -d cpu -D <log>
                                                              -> host exit code
@@ -88,9 +89,8 @@ FAULT_NAMES.update({code: "CFX%d" % (code & 0x3F)
 DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
 DEFAULT_LLVM_OBJCOPY = os.path.join(_TOOLCHAIN_BIN, "llvm-objcopy")
 DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
-# Bootrom is produced by `make build-bootrom` into the test-artifacts root
-# (QEMU-047t); never hardcode the path.
-DEFAULT_BOOTROM = str(_TEST_ARTIFACTS / "bootrom" / "bootrom.bin")  # tiny
+# Vast step5 BootROM, produced by `make build-bootrom` into the test-artifacts
+# root; never hardcode the path.
 DEFAULT_BOOTROM_VAST = str(_TEST_ARTIFACTS / "bootrom" / "step5" / "bootrom_step5.bin")
 DEFAULT_VECTORS_DIR = "tests/arch/umon"
 DEFAULT_EXPECTED = "tests/arch/umon/expected.yaml"
@@ -291,17 +291,13 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
         return res
 
     # 3. qemu: bootrom + -kernel bin + semihosting (-chardev capture).
-    #    Vast supplies the 4 MiB step5 BootROM through the `bootrom-image`
-    #    property; its power -> hmon -> hypv chain enables the PTW identity map
-    #    before the body runs.  Tiny keeps the flat `-bios` trampoline path.
+    #    The arch suite is Vast-only: the step5 BootROM goes through
+    #    `bootrom-image`; its power -> hmon -> hypv chain enables the PTW
+    #    identity map before the body runs.
     for stale in (console_path, cpu_log):
         if os.path.exists(stale):
             os.remove(stale)
-    if PROFILE.name == "vast":
-        machine_args = ["-machine",
-                        "kaiwu-vast,bootrom-image=" + tools["bootrom"]]
-    else:
-        machine_args = ["-M", "kaiwu-tiny", "-bios", tools["bootrom"]]
+    machine_args = ["-machine", "kaiwu-vast,bootrom-image=" + tools["bootrom"]]
     cmd = [
         tools["qemu"],
         *machine_args,
@@ -478,8 +474,7 @@ def main():
             "ERROR: profile %r does not run the arch suite "
             "(contracts/tests-matrix.yaml; Tiny has no cfx)\n" % prof.name)
         return 2
-    bootrom = args.bootrom or (
-        DEFAULT_BOOTROM if prof.name == "tiny" else DEFAULT_BOOTROM_VAST)
+    bootrom = args.bootrom or DEFAULT_BOOTROM_VAST
 
     tools = {
         "llvm_mc": _abspath(args.llvm_mc),

@@ -13,7 +13,7 @@
 @@   `rf` 组唯一的同组块复制（`SimRISC-07` 侧不再有分宽度的同组复制载体）。
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 SCRATCH（rf 目的实测落点，rb29 指）/
 @@   MSTORE（最大个数例的源；判据「目的 == 源内存」，与宏层既有 31 元口径一致）
-@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
+@@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 4 / boundary 3 / overlap 1 / rf0 1（链例 11 + 故障例 6）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流

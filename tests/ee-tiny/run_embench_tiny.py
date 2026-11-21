@@ -113,11 +113,8 @@ DEFAULT_RUNTIME = "tests/tset/embench/embench_runtime.c"
 # 资产归属（m15-testcases-011/012）：`mem_runtime_user.ll`/`crt0_user.s` 在
 # `tests/ee-user/`；Tiny 的 lds 在 `tests/ee-tiny/`。
 DEFAULT_MEM_RUNTIME = "tests/ee-user/mem_runtime_user.ll"
-DEFAULT_CRT0 = "tests/ee-user/crt0_user.s"
+DEFAULT_CRT0 = "tests/ee-tiny/tests_embench_crt0.S"
 DEFAULT_LDS = "tests/ee-tiny/app_tiny.lds"
-# `INCLUDE common_user.lds` resolves through -L (ld.lld searches cwd + -L only);
-# the common fragment lives in `tests/ee-user/`.
-COMMON_LDS_DIR = "tests/ee-user"
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir()
                       / "bootrom" / "tiny" / "bootrom_tiny.bin")
 DEFAULT_BOARDSUPPORT = "examples/dadao/boardsupport.c"
@@ -325,7 +322,6 @@ def build_and_run(bench, opt, tools, work_dir, timeout, verbose=False):
     elf = os.path.join(outdir, bench + ".elf")
     objs = sorted(glob.glob(os.path.join(outdir, "*.o")))
     rc, _o, err, timed = _run([tools["ldlld"], "-L", os.path.dirname(tools["lds"]),
-                              "-L", _abspath(COMMON_LDS_DIR),
                               "-T", tools["lds"]] + objs + ["-o", elf])
     if timed or rc != 0:
         res.reason = f"ld.lld failed (rc={rc}): {err.strip()[:200]}"

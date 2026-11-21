@@ -32,7 +32,7 @@ FAIL 并点名第一条漂移行；输入 sha256 不符亦 FAIL。
 
 `inputs.sha256` 由生成命令现场写出（`tests/inst/*/*.S`、各册 `<册>.inc`、
 `tests/inst/macros/inst_test.inc`、`tests/shared/asm/signature.inc`、
-`tests/shared/asm/machine*.inc`、`tests/ee-tiny/inst_tiny.lds`）。核对：
+`tests/shared/asm/machine*.inc`、`tests/ee-tiny/tests_inst_tiny.lds`）。核对：
 
 ```sh
 cd "$(git rev-parse --show-toplevel)" && sha256sum -c tests/data/inst-signature/inputs.sha256

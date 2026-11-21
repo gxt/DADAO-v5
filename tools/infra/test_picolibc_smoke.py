@@ -66,10 +66,9 @@ REPO_ROOT = paths.repo_root()
 TOOLCHAIN_BIN = paths.host_toolchain_bin()
 SYSROOT = paths.target_sysroot_dir()
 # 资产归属（m15-testcases-011/012）：crt0 在 `tests/ee-user/`，Tiny lds 在
-# `tests/ee-tiny/`；`common_user.lds` 在 `tests/ee-user/`（`INCLUDE` 经 -L 解析）。
+# `tests/ee-tiny/`；公共段已内联进 lds。
 CRT0 = REPO_ROOT / "tests" / "ee-user" / "crt0_user.s"
 LDS = REPO_ROOT / "tests" / "ee-tiny" / "kernel_tiny.lds"
-COMMON_LDS_DIR = REPO_ROOT / "tests" / "ee-user"
 
 PROG_C = """\
 #include <stdio.h>
@@ -239,7 +238,7 @@ def main() -> int:
             return 1
 
         res = run([str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(LDS.parent),
-                   "-L", str(COMMON_LDS_DIR), "-T", str(LDS),
+                   "-T", str(LDS),
          str(work / "crt0.o"), str(obj),
                    str(SYSROOT / "lib" / "libc.a"), str(SYSROOT / "lib" / "libm.a"),
                    str(SYSROOT / "lib" / "libsemihost.a"), "-o", str(elf)])

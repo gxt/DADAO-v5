@@ -128,9 +128,7 @@ REPO_ROOT = paths.repo_root()
 TOOLCHAIN_BIN = paths.host_toolchain_bin()
 MUSL_SRC = REPO_ROOT / ".work" / "source" / "musl"
 LDS = REPO_ROOT / "tests" / "ee-tiny" / "kernel_tiny.lds"
-# 资产归属（m15-testcases-011/012）：Tiny lds 在 `tests/ee-tiny/`，被它
-# `INCLUDE` 的 `common_user.lds` 在 `tests/ee-user/`（ld.lld 只搜 cwd + -L）。
-COMMON_LDS_DIR = REPO_ROOT / "tests" / "ee-user"
+# 资产归属（m15-testcases-011/012）：Tiny lds 在 `tests/ee-tiny/`；公共段已内联。
 
 TARGET = "dadao-unknown-elf"
 EM_DADAO = 0x0DA0
@@ -594,7 +592,7 @@ def compile_program(work: Path) -> Path:
 def link_program(work: Path, obj: Path) -> Path:
     elf = work / "musl_smoke.elf"
     cmd = [str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(LDS.parent),
-           "-L", str(COMMON_LDS_DIR), "-T", str(LDS),
+           "-T", str(LDS),
            str(MUSL_SRC / "lib" / "crt1.o"), str(obj), str(MUSL_SRC / "lib" / "libc.a"),
            "-o", str(elf)]
     res = run(cmd, cwd=REPO_ROOT)

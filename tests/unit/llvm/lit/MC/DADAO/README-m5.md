@@ -63,6 +63,9 @@ M5 的 L1 向量由**前置的 `LLVM-060t` 自带并已接入 `make check-lit`**
 
 ### 2.1 L3 实际 qemu 命令行
 
+> **历史记录**：M5 当时用 `-M kaiwu-tiny -bios bootrom.bin`；该 Tiny `-bios` 路径已随
+> `bootrom_tiny` 资产退役，现行 `check-arch` 走 Vast + step5 BootROM（见下一段）。
+
 逐例一致（`run_m5_e2e.py` 逐例打印真实命令）：
 
 ```

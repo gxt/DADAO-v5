@@ -47,8 +47,7 @@ import paths  # noqa: E402
 TINY_FW = os.path.join(REPO_ROOT, "tests", "ee-tiny")
 APP_SRC = os.path.join(REPO_ROOT, "tests", "arch", "hmon", "tiny_hmon_min.S")
 APP_LDS = os.path.join(REPO_ROOT, "tests", "ee-tiny", "app_tiny.lds")
-# `INCLUDE common_user.lds` 由 `tests/ee-user/` 提供（ld.lld 只搜 cwd + -L）。
-COMMON_LDS_DIR = os.path.join(REPO_ROOT, "tests", "ee-user")
+# 公共段已内联进 lds。
 SHARED_ASM = os.path.join(REPO_ROOT, "tests", "shared", "asm")
 BUILDER = os.path.join(REPO_ROOT, "tools", "testcases", "arch",
                        "build_tiny_bootrom.py")
@@ -133,7 +132,6 @@ def assemble(tc, src, obj, includes):
 
 def link(tc, lds, objs, out):
     cmd = [os.path.join(tc, "ld.lld"), "-L", os.path.dirname(lds),
-           "-L", COMMON_LDS_DIR,
            "-T", lds] + objs + ["-o", out]
     r = run(cmd)
     if r.returncode != 0:

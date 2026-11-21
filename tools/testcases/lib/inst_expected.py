@@ -41,7 +41,7 @@ from pathlib import Path
 UNWRITTEN = 0xDEADBEEF
 
 DEFAULT_BOOKS = "tests/inst"
-DEFAULT_LDS = "tests/ee-tiny/inst_tiny.lds"
+DEFAULT_LDS = "tests/ee-tiny/tests_inst_tiny.lds"
 DATA_DIR = "tests/data/inst-signature"
 EXPECTED_NAME = "expected.tsv"
 INPUTS_NAME = "inputs.sha256"

@@ -73,8 +73,8 @@
 | `tset/embench/` | T | Embench 套件说明 + 套件独有 glue（runtime/boardsupport/头） | `make check-tset-embench-smoke` |
 | `unit/llvm/e2e/lit/*.test` | U | 工具链端到端 smoke/FP/clmul/weak/CM（14）；`TESTCASES-084t` 由顶层 `e2e/` 归入 | `make check-lit` |
 | `unit/llvm/e2e/*.c|*.s|*.lds` | U | 上述 `.test` 的源（9 个已无 runner，见 `INVENTORY §7.4`） | 经 `.test` |
-| `ee-tiny/` | S 载体 | Kaiwu-Tiny 执行环境资产（平铺，`m15-testcases-011`；`m15-testcases-015` 补齐）：4 个驱动（`run_inst_tiny.py` / `run_picolibc_tiny.py` / `run_embench_tiny.py` / `run_semihosting_tiny.py`）+ Tiny bootrom/lds/公共宏（`bootrom_tiny{,_app}.S`、`bootrom_tiny.lds`、`semihost_smoke_tiny.{S,lds}`、`cfx_power_tiny/cfx_hmon_tiny.{S,lds}`、`smoke_tiny.{S,lds}`、`crt0_tiny.S`、`semihost_msg_tiny.inc`、`kernel_tiny.lds`/`app_tiny.lds`、`picolibc_tiny.ld`） | `make build-bootrom`；`check-inst-asm` / `check-picolibc-tests` / `test-m6` / `linux-semihosting-smoke` |
-| `ee-user/` | T 执行环境 | qemu-user / gem5 SE 资产平铺（`m15-testcases-012`）：12 个脚本（三套件全量驱动 + 代表集 + gem5 SE 基线/池 + `tset_matrix_user`）与 `crt0_user.s`/`mem_runtime_user.ll`/`dyn_probe_user.c`/`common_user.lds`/`dyn_user.lds` | `make check-tset-{libc,llvm,embench}-{smoke,full}`、`test-codegen`/`test-elf`/lit/e2e、`test-m6` |
+| `ee-tiny/` | S 载体 | Kaiwu-Tiny 执行环境资产（平铺，`m15-testcases-011`；`m15-testcases-015` 补齐）：4 个驱动（`run_inst_tiny.py` / `run_picolibc_tiny.py` / `run_embench_tiny.py` / `run_semihosting_tiny.py`）+ Tiny bootrom/lds/公共宏（`semihost_smoke_tiny.{S,lds}`、`cfx_power_tiny/cfx_hmon_tiny.{S,lds}`、`semihost_msg_tiny.inc`、`tests_embench_crt0.S`、`kernel_tiny.lds`/`app_tiny.lds`） | `make build-bootrom`；`check-inst-asm` / `check-picolibc-tests` / `test-m6` / `linux-semihosting-smoke` |
+| `ee-user/` | T 执行环境 | qemu-user / gem5 SE 资产平铺（`m15-testcases-012`）：12 个脚本（三套件全量驱动 + 代表集 + gem5 SE 基线/池 + `tset_matrix_user`）与 `crt0_user.s`/`mem_runtime_user.ll`/`dyn_probe_user.c`/`dyn_user.lds` | `make check-tset-{libc,llvm,embench}-{smoke,full}`、`test-codegen`/`test-elf`/lit/e2e、`test-m6` |
 | `ee-vast/` | S 载体 | Vast 执行环境资产平铺（`m15-testcases-013`；`m15-testcases-015` 补 K1 boot 链）：step5 BootROM 固件 7 件（`power_vast/hmon_vast/smon_vast.{S,lds}` + `README.md`）+ `kernel_vast.lds` + K1 boot 链固件（`hmon_k0_vast`/`smon_k0_vast`/`probe_kernel_k0_vast` 的 `.S`/`.lds`） | `make build-bootrom` → `check-arch{,-smoke}`；`check-interface` / `run_parity`（vast）；`check-linux-k0{,-k1}` / `k0_boot_probe`（K1 链） |
 | `case-ledger.tsv` | — | 逐条身份清单（1,962 行含表头；生成物） | `make check-case-ledger`（L1） |
 
@@ -176,8 +176,6 @@ make check-lit-full                 # 生成档全量（L3）
 make check-tset-libc-smoke         # libc-test user-mode 代表集（L2：每顶层类别 1 例）
 make check-tset-llvm-smoke         # llvm-test-suite user-mode 代表集（L2：每棵树 1 例）
 make check-tset-embench-smoke      # Embench 全量 benchmark × -O0/-O2（L2）
-make check-testcases-suites        # libc-test + llvm-test-suite fast 子集（另用 path-B 驱动）
-make check-testcases-suites-full   # 两套件全量可枚举 C 用例
 make check-picolibc-tests          # picolibc 自测代表集（fast）
 make check-picolibc-tests-full     # 全量（235，最近 1 fail / 3 blocked）
 ```

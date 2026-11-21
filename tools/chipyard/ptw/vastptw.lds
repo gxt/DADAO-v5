@@ -1,7 +1,7 @@
 /*
  * vastptw.lds — `tools/chipyard/ptw/vastptw.S` 的链接布局（`m16-chipyard-006`）。
  *
- * 与 `tests/ee-tiny/inst_tiny.lds` 同一套固定地址（同一宏层
+ * 与 `tests/ee-tiny/tests_inst_tiny.lds` 同一套固定地址（同一宏层
  * `tests/inst/macros/inst_test.inc` 的 `.equ`：TEST_BUF / TEST_EXITB）。本文件末尾的
  * ASSERT 把每个故障用例的「回落点相对 `aip.si` 的偏移」与「jump 相对 sub.o 的偏移」
  * 由**链接器回读校验**——手写立即数（4/16/24）错一位即链接失败。

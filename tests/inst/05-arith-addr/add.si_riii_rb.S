@@ -8,7 +8,7 @@
 @@ 合法性：目的 rbHA 为 rb0 ⇒ ILLI（`dst_rb0`）；imms18 无「零立即数」禁令（`immu6_zero` 不适用）
 @@ 编码：字段位域见 `contracts/opcodes.yaml`：riii = opc | rbha[23:18] | imms18[17:0]
 @@ 数据块：`tests/inst/macros/inst_test.inc`（`set.rb` 拼初值；本册复用 04 的数据块）
-@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
+@@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 3 / boundary 5 / overlap 2（链例 12 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流

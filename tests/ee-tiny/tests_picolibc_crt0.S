@@ -1,4 +1,4 @@
-@@ picolibc_test_crt0.s — stack-setup wrapper for the picolibc self-test harness
+@@ tests_picolibc_crt0.S — stack-setup wrapper for the picolibc self-test harness
 @@ (TESTCASES-042t).
 @@
 @@ QEMU's kaiwu-tiny "path A" (ELF over -kernel, components/qemu/patches/hw/dadao/

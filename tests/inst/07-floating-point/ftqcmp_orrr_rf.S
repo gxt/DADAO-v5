@@ -5,7 +5,7 @@
 @@ 期望值由独立参考模型（精确有理数 + 手写 round-and-pack，见证据脚本）按 `SimRISC-07` 现算，不手写
 @@ 比较（§4）：结果写满 64 位的 -1/0/1；无序（任一操作数 NaN）结果一律 canonical quiet NaN（ft `0x7FC0_0000`，不传播 payload/符号）。
 @@ NV：signaling 只要无序即置；quiet 仅在含 sNaN 时置；有序不置（本册只覆盖 quiet）。
-@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段址见宏层文件头）
+@@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段址见宏层文件头）
 
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/07-floating-point/07-floating-point.inc"

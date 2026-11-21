@@ -66,7 +66,6 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-linux-k0 check-linux-k1 \
         check-linux-k2 check-linux-k3 \
         check-picolibc-tests check-picolibc-tests-full \
-        check-testcases-suites check-testcases-suites-full \
         check-modules check-full check-components check-knowledge-refs \
         check-inst-asm check-inst-sig inst-signature-data check-tests-index check-inst-macro-scope check-arch check-arch-smoke \
         check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
@@ -175,7 +174,6 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
                       clean-tests test-repro \
                       check-picolibc-tests check-picolibc-tests-full \
-                      check-testcases-suites check-testcases-suites-full \
                       check-manifests-guard \
                       check check-modules check-full
 
@@ -263,8 +261,6 @@ help:
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
-	@echo "  make check-testcases-suites  Run the two upstream reference suites (libc-test + llvm-test-suite) fast subset (opt-in, not L2; TESTCASES-045t)"
-	@echo "  make check-testcases-suites-full  Run every enumerable C case with main() from both suites (opt-in/L3-like; TESTCASES-045t)"
 	@echo "  make check-tset-libc-smoke  libc-test user-mode smoke representative set (L2; TESTCASES-075t)"
 	@echo "  make check-tset-llvm-smoke  llvm-test-suite user-mode smoke representative set (L2; TESTCASES-075t)"
 	@echo "  make check-tset-embench-smoke  Embench-IoT user-mode full set -O0/-O2 (L2; TESTCASES-075t)"
@@ -775,15 +771,12 @@ _locked-install-cfx-aliases:
 	@echo "install-cfx-aliases: PASS"
 
 # build-bootrom (QEMU-047t / ADR-0020 D12): assemble and link the SEE bootrom
-# firmware with the project toolchain (llvm-mc + ld.lld + tests/ee-tiny/ sources and
-# tests/ee-tiny/bootrom_tiny.lds; ADR-0003 / ADR-0019 / contract-elf §6.1.2) and emit the flat
-# `-bios` image, plus the sample user application loaded by `-kernel`
-# (ADR-0004 D2.3 path B: raw-bin dual image).  Tools come from the install root
+# firmware with the project toolchain (llvm-mc + ld.lld + tests/ee-tiny/ sources;
+# ADR-0003 / ADR-0019 / contract-elf §6.1.2), plus the sample user application
+# loaded by `-kernel`.  Tools come from the install root
 # (ADR-0016 D9); run `make install-host` first.  Outputs live under the SDK
 # test-artifacts root (ADR-0016 D6, resolved via paths.py):
-#   $(BOOTROM_DIR)/{bootrom.o,bootrom.elf,bootrom.bin,bootrom_app.o,bootrom_app.bin,
-#                     tiny_crt.o,tiny_smoke.o,tiny_smoke.elf,
-#                     tiny/{power,hmon}.{o,elf},tiny/bootrom_tiny.bin,
+#   $(BOOTROM_DIR)/{tiny/{power,hmon}.{o,elf},tiny/bootrom_tiny.bin,
 #                     semihost_{smoke,fail,unimpl,write}.o/.elf}
 BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
 STEP5_BOOTROM_DIR = $(BOOTROM_DIR)/step5
@@ -806,17 +799,6 @@ _locked-build-bootrom:
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "build-bootrom: ERROR: $(LLVM_OBJCOPY_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -x $(LLVM_NM_BIN) || { echo "build-bootrom: ERROR: $(LLVM_NM_BIN) not found — run 'make install-host' first"; exit 1; }
 	@mkdir -p $(BOOTROM_DIR) $(STEP5_BOOTROM_DIR)
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/bootrom_tiny.S -o $(BOOTROM_DIR)/bootrom.o
-	$(LLD_BIN) -T tests/ee-tiny/bootrom_tiny.lds $(BOOTROM_DIR)/bootrom.o -o $(BOOTROM_DIR)/bootrom.elf
-	$(LLVM_OBJCOPY_BIN) -O binary $(BOOTROM_DIR)/bootrom.elf $(BOOTROM_DIR)/bootrom.bin
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/bootrom_app_tiny.S -o $(BOOTROM_DIR)/bootrom_app.o
-	$(LLVM_OBJCOPY_BIN) -O binary --only-section=.text $(BOOTROM_DIR)/bootrom_app.o $(BOOTROM_DIR)/bootrom_app.bin
-	@# m12-chipyard-003/007: ELF smoke application for the chipyard `+loadmem=`
-	@# closed loop.  The application is `tiny_crt.o` (SP setup at the fixed
-	@# entry, spec/Kaiwu §6) + the smoke body, linked into one ELF.
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/crt0_tiny.S -o $(BOOTROM_DIR)/tiny_crt.o
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/smoke_tiny.S -o $(BOOTROM_DIR)/tiny_smoke.o
-	$(LLD_BIN) -T tests/ee-tiny/smoke_tiny.lds $(BOOTROM_DIR)/tiny_crt.o $(BOOTROM_DIR)/tiny_smoke.o -o $(BOOTROM_DIR)/tiny_smoke.elf
 	@# m12-chipyard-007: Tiny fixed BootROM — power stub (8 KiB segment at the
 	@# reset vector) + minimal hmon handler (8 KiB segment at hmon SRAM) packed
 	@# into one 64 KiB image with the §6.1 image index table.  Every layout
@@ -913,38 +895,6 @@ _locked-check-picolibc-tests: build-picolibc build-bootrom
 # (opt-in; L3-like — hundreds of compile/link/QEMU runs, several minutes).
 _locked-check-picolibc-tests-full: build-picolibc build-bootrom
 	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-tiny/run_picolibc_tiny.py --stage full --jobs $(TEST_JOBS)
-
-# check-testcases-suites (TESTCASES-045t stage 1): drive the two upstream
-# *reference* suites -- libc-test and llvm-test-suite -- through the static musl
-# flow (compile -> ld.lld -T kernel_tiny.lds -> flat image -> qemu-system-dadao
-# -machine kaiwu-tiny, "path B").  Upstream's own harnesses are unusable here
-# (libc-test's runtest.exe needs fork/waitpid/signals; llvm-test-suite's
-# CMake/lit driver assumes a hosted OS), so tools/testcases/run_suite.py drives
-# the corpora directly and classifies every case live.
-#
-# OPT-IN LEVEL: this target is deliberately NOT listed in L1/L2/L3.  The stage-1
-# case list is a *curated* stratified subset (each entry records its tier and
-# why), and docs/Process-07 §3 requires an L2 "representative set" to be
-# *mechanically* derived; assigning a curated list to L2 would violate that.  It
-# stays an on-demand target ("按需" level) until stage 3 replaces the curation
-# with a mechanical derivation and the cost/FAIL story has been measured.
-#
-# Exit status follows tools/testcases/run_suite.py: non-zero on any `fail` or
-# `timeout` (a genuine wrong result / hang).  `enosys`, `compile-error` and
-# `unsupported` are counted and listed, never silently skipped, and do not turn
-# the target red -- they are the documented state of an unfinished port.
-_locked-check-testcases-suites:
-	@$(PYTHON) tools/testcases/run_suite.py --stage fast \
-		--json-out .work/log/testcases/runs/fast.json
-
-# check-testcases-suites-full (TESTCASES-045t): every enumerable C case with
-# main() in both suites (upstream `External/`, C++/Fortran/ObjC sources and
-# helper TUs without main() are counted as `unsupported` with their reason).
-# Opt-in, L3-like: hundreds of compile/link/QEMU runs; `--timeout` is raised for
-# the benchmarks whose default problem size exceeds the fast-stage budget.
-_locked-check-testcases-suites-full:
-	@$(PYTHON) tools/testcases/run_suite.py --stage full --timeout 300 \
-		--json-out .work/log/testcases/runs/full.json
 
 # ── tset smoke（TESTCASES-075t，L2）──────────────────────────────────────────
 # 三个 user-mode 上游套件驱动已迁 `tests/ee-user/`（旧 `tools/testcases/tset/` 路径

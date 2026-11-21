@@ -97,10 +97,9 @@ DEFAULT_LLVM_MC = os.path.join(_TOOLCHAIN_BIN, "llvm-mc")
 DEFAULT_LDLLD = os.path.join(_TOOLCHAIN_BIN, "ld.lld")
 DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
 # 资产归属（m15-testcases-011/012）：crt0 在 `tests/ee-user/`，Tiny lds 在
-# `tests/ee-tiny/`；`common_user.lds` 在 `tests/ee-user/`（`INCLUDE` 经 -L 解析）。
+# `tests/ee-tiny/`；公共段已内联进各自 lds。
 DEFAULT_CRT0 = "tests/ee-user/crt0_user.s"
 DEFAULT_LDS = "tests/ee-tiny/app_tiny.lds"
-COMMON_LDS_DIR = "tests/ee-user"
 # Fixed Kaiwu-Tiny BootROM firmware (make build-bootrom).
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir()
                       / "bootrom" / "tiny" / "bootrom_tiny.bin")
@@ -234,7 +233,6 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
     elf = os.path.join(work_dir, stem + ".elf")
     rc, _out, err, timed = _run(
         [tools["ldlld"], "-L", os.path.dirname(tools["lds"]),
-         "-L", _abspath(COMMON_LDS_DIR),
          "-T", tools["lds"], crt0_o] + objs + ["-o", elf]
     )
     if timed or rc != 0:

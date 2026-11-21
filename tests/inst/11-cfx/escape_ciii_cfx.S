@@ -17,7 +17,7 @@
 @@   回到应用；结束前把自建入口撤掉，把 `cfx_hmon` / `cfx_power` 的向量还原成各自的初值
 @@   （`spec/DADAO-13 §1`：= 该 cfx 的 SRAM 起始；hmon = hmon SRAM、power = BootROM）。
 @@ 编码：ciii = opc[31:24] | cfxha[23:18] | imms18[17:0]；`[excp_cause_ip, 4]` ⇒ imms18 = 1
-@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
+@@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 3 / legality 2（链例 12 + 故障例 8）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流

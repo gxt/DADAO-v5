@@ -5,7 +5,7 @@
 @@ 合法性：目的 rf0 **合法**（FCSR 写掩码只动 [33:32]/[4:0]，`SimRISC-00 §2.3`；含 immu6≥2 的
 @@   `{rf0:…}` 组）；immu6=0 ⇒ ILLI；起始+immu6>64 ⇒ ILLI（两侧）；跨组无重叠规则
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 RDATA（装载源）/ SCRATCH（组实测落点，rb29 指）
-@@ 链接布局：`tests/ee-tiny/inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
+@@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
 @@ 用例：encoding 2 / semantic 5 / boundary 4 / overlap 1（链例 12 + 故障例 3）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流

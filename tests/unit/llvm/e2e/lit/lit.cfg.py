@@ -83,8 +83,7 @@ config.substitutions.append(("%qemu", os.path.abspath(qemu_bin)))
 # (llvm-mc -> ld.lld -T kernel_tiny.lds -> qemu -kernel <elf>).  It sits in the same
 # host toolchain bin as llvm-mc (ADR-0016 D9).
 config.substitutions.append(("%ld", os.path.abspath(os.path.join(tools_dir, "ld.lld"))
-                             + " -L " + os.path.join(root, "tests", "ee-tiny")
-                             + " -L " + os.path.join(root, "tests", "ee-user")))
+                             + " -L " + os.path.join(root, "tests", "ee-tiny")))
 
 # Locate the fixed 64 KiB Kaiwu-Tiny BootROM firmware produced by
 # `make build-bootrom` (m13-qemu-002): the contract ELF tests boot through the
@@ -100,8 +99,7 @@ config.substitutions.append(("%bootrom", bootrom))
 # e_entry = 0xffff_ff01_0100, spec/Kaiwu §6); `kernel_tiny.lds` remains the
 # pre-contract crt-in-ROM layout for legacy harnesses.
 # 资产归属（m15-testcases-011/012）：crt0 在 `tests/ee-user/`，Tiny lds 在
-# `tests/ee-tiny/`；`common_user.lds` 在 `tests/ee-user/`，故 `%ld` 同时带
-# 两个 `-L`（ee-tiny 供 `app_tiny.lds`，ee-user 供其 `INCLUDE`）。
+# `tests/ee-tiny/`；公共段已内联进 lds，`%ld` 只需带 ee-tiny 的 `-L`。
 config.substitutions.append(("%crt0", os.path.join(root, "tests", "ee-user", "crt0_user.s")))
 config.substitutions.append(("%linker_script", os.path.join(root, "tests", "ee-tiny", "app_tiny.lds")))
 

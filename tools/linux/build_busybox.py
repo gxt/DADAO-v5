@@ -19,7 +19,7 @@ What it does
    ``clang/lib/Driver/ToolChains/DADAO.cpp``), so the wrapper appends musl's
    ``lib/crt1.o`` + ``lib/libc.a`` to the **final** link only (``-c/-E/-S/-M``
    and the relocatable ``-r`` links stay untouched).  Headers come from the
-   musl source tree, exactly like ``tools/testcases/run_suite.py``: the target
+   musl source tree, exactly like the project static user-space flow: the target
    sysroot under ``.dadao/dadao-unknown-elf`` is the picolibc install and does
    **not** carry musl's ``features.h``.
 3. **Provenance** -- ``SOURCE_DATE_EPOCH`` = the component commit's committer
@@ -72,8 +72,8 @@ from tools.infra import build_musl  # noqa: E402
 TOOLCHAIN_BIN = build_musl.TOOLCHAIN_BIN
 MUSL_SRC = build_musl.MUSL_SRC
 
-# Headers as the *project's* static user-space flow uses them (run_suite.py
-# MUSL_INCLUDE_DIRS, same order).
+# Headers as the *project's* static user-space flow uses them (same order as
+# build_musl.py's MUSL_INCLUDE_DIRS).
 MUSL_INCLUDE_DIRS = ("arch/dadao", "arch/generic", "obj/src/internal",
                      "src/include", "src/internal", "obj/include", "include")
 
