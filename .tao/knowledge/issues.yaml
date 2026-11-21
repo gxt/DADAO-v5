@@ -1175,3 +1175,28 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`m18-linux-001` 复核的非阻断 finding：F3 的 applet 计数派生式 `enabled - infra` 依赖 `SH_IS_ASH` 与无独立符号的 `sh` applet 恰好抵消；未来新增非 applet `CONFIG_*` 会使期望虚高而假红（方向安全）。处置：随下次触碰 busybox 计数判据时改为按 applet 白名单/符号表派生。"
+- id: ISS-497
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P1】K6 长脚本在 ash fork+exec 处确定性崩溃：约 17 条命令后 `die-no-vma`（`va=0x0`，`m18-linux-002` 实测 5/5 复现；`m18-linux-001` 已合入产物同样复现）⇒ 单次启动跑全部命令必红，002 只能拆 3 段短启动。处置：修 fork/exec 路径（重点：exec 后用户栈/`current->mm` 交接、fork 预复制与缺页在静态 supv 帧上的重入），修好前 `m18-linux-003` 收口门控须按已知红登记，不得用短脚本冒充单次通过。"
+- id: ISS-498
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】K6 间歇启动未进用户态（`Run /init` 后无输出、QEMU rc=124 或 1；`m18-linux-002` 观测若干次）⇒ 脚本按 `check_k5.py` 先例做 1 次打印重试，第二次仍红。处置：定位启动竞态（入口帧/栈顶/调度）后去掉重试。"
+- id: ISS-499
+  scope:
+  - linux
+  - busybox
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】guest `grep` 每次 SIGSEGV（rc=139，含无匹配 `grep -q`）⇒ 12 个 applet 中 `grep` 实际不可用；`m18-linux-002` 断言改用 `$?` + 标记区间绕开。处置：查 busybox grep 的 DADAO 代码路径（可能为未实现的 syscall/内存访问），修或从 `config.min` 移除并披露。"
