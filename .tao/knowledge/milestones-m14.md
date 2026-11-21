@@ -26,11 +26,9 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m14-infra-005 | 3–4 h | musl 信号帧与 `SA_RESTORER`（2048 B 四组布局；`MINSIGSTKSZ` 2376；`__restore_rt`） |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 
 | m14-linux-026 | 3–4 h | clocksource(cfx_time)+clockevent(cfx_hart) 通用框架（原 021 后移） |
-| m14-linux-027 | 4–6 h | 信号与退出（SIGSEGV 投递+信号帧 4 组+exit+setrlimit/RLIMIT_STACK 继承） |
 | m14-linux-028 | 2–3 h | 用户态 64 KiB ABI（AT_PAGESZ=65536/mmap 对齐/ELF 段对齐/brk+mmap） |
 | m14-linux-029 | 5–6 h | K5 收口门控 check-linux-k5（用户态闭环代表例+§4a 退役） |
 
@@ -38,6 +36,8 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-infra-005 | 2026-11-21 15:30 | 3–4 h | musl 信号帧与 `SA_RESTORER`（2048 B 四组布局；`MINSIGSTKSZ` 2376；`__restore_rt`） |
+| m14-linux-027 | 2026-11-21 15:30 | 4–6 h | 信号与退出行为面（SIGSEGV 投递 + exit/exit_group + setrlimit/RLIMIT_STACK 继承） |
 
 ## 已验证
 
