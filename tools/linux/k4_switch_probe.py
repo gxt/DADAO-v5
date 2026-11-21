@@ -108,6 +108,7 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K5_FUTEX_SELFTEST": "n",
     "CONFIG_DADAO_M45_ENTRY_SELFTEST": "n",
     "CONFIG_DADAO_K5_SIGNAL_SELFTEST": "n",
+    "CONFIG_DADAO_K5_CLOCK_SELFTEST": "n",
 }
 
 IMAGE = config_pins.config_lines(CONFIG_PINS)
@@ -467,9 +468,17 @@ def static_recon(rep: Report, snap: dict | None) -> None:
               "dadao_timer_arm" in time_src and "dadao_tick_on" in time_src)
     rep.check("S6", "tick 调用 sched_tick（调度记账）", True,
               "sched_tick()" in time_src)
-    rep.check("S6", "未注册 clock_event_device/clocksource", False,
-              "clockevents_register_device" in time_src or
-              "clocksource_register" in time_src)
+    # m14-linux-026 upgraded this boundary: `time_init()` now registers a
+    # clocksource/clockevent pair and the generic tick owns jiffies.  The K4
+    # image therefore takes the *generic* path, and the static half asserts
+    # exactly that: the registration is present, and the raw K2 tick is
+    # compile-time isolated to CONFIG_DADAO_K2_TIME_STOP.  The registration
+    # itself is judged end-to-end by `tools/linux/k5_clocksource_probe.py`
+    # (T1-T4), so this file does not restate it.
+    rep.check("S6", "生产镜像走通用 clockevent；K2 裸 tick 只剩边界镜像",
+              True,
+              "clockevents_config_and_register" in time_src and
+              "#ifdef CONFIG_DADAO_K2_TIME_STOP" in time_src)
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,258 @@
+diff --git a/arch/dadao/kernel/k5_clock_selftest.c b/arch/dadao/kernel/k5_clock_selftest.c
+new file mode 100644
+index 000000000..965dd4958
+--- /dev/null
++++ b/arch/dadao/kernel/k5_clock_selftest.c
+@@ -0,0 +1,252 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * K5 clocksource / clockevent probe (CONFIG_DADAO_K5_CLOCK_SELFTEST,
++ * m14-linux-026).
++ *
++ * The closure: `time_init()` has registered `dadao_clocksource` (cfx_time) and
++ * `dadao_clock_event_device` (cfx_hart's absolute compare register) with the
++ * generic time subsystem, and the kernel's accounting now comes from them —
++ * `timekeeping`/`ktime`, `sched_clock`, `jiffies_64` via `do_timer(1)`, the
++ * timer wheel and `sched_tick()`.  This image reads the *registered objects*
++ * back; nothing here is a restatement of the kernel's own report.
++ *
++ * Cases (the gate parses the `K5 clock:` lines):
++ *
++ *   T1  clocksource / sched_clock: read the registered clocksource twice
++ *       (non-decreasing, and moving at all) and compare each read with
++ *       `sched_clock()`.  Both must be the same counter, so the offset
++ *       `raw - sched_clock` stays constant within the derived tolerance.
++ *   T2  next-event: stop the running tick, program an 8-period deadline and
++ *       immediately a 1-period one through `set_next_event()`, read `timer_cmp`
++ *       back after each write, and measure where the delivery lands.  The
++ *       second write must have replaced the first (cmp moved, delivery lands
++ *       near one period — not near eight), which is contract-see §3's "writing
++ *       cmp cancels the old deadline".
++ *   T3  tick drive: sample `jiffies_64`, the delivered-tick counter and
++ *       `current->se.sum_exec_runtime` (updated by `sched_tick()` ->
++ *       `task_tick`) around DADAO_K5_CLOCK_TICKS consecutive deliveries.
++ *       jiffies must advance one per delivery and the scheduler's clock must
++ *       move — i.e. `do_timer(1)` and `sched_tick()` both ran, not just an
++ *       arch counter.
++ *   T4  stability / timekeeping source: sample the registered clocksource over
++ *       a window (monotone, moving) and `ktime_get()` across a sub-period
++ *       window.  ktime must advance by a positive amount smaller than half a
++ *       period and track the clocksource — a timekeeper still on the 10 ms
++ *       jiffies fallback, or a frozen read, fails here.
++ *
++ * One image, one verdict: the probe prints its values and the boot ends with
++ * SYS_EXIT(0).  The only hard failure is "the framework is not usable at all"
++ * (no event handler installed / no clocksource registered), which ends the boot
++ * with the guest-code 0x47.
++ */
++#include <linux/clockchips.h>
++#include <linux/clocksource.h>
++#include <linux/init.h>
++#include <linux/jiffies.h>
++#include <linux/kernel.h>
++#include <linux/ktime.h>
++#include <linux/sched.h>
++#include <linux/sched/clock.h>
++#include <linux/types.h>
++
++#include <asm/cfx.h>
++#include <asm/setup.h>
++#include <asm/time.h>
++
++#define K5T_FAIL_SETUP		0x47	/* framework not registered / no handler */
++
++/* Samples kept for T1; the gate derives the tolerance from the period. */
++#define K5T_PAIRS	3
++#define K5T_STABILITY	8
++
++/* Delivery recorder for T2 (installed while the tick is stopped). */
++static volatile unsigned long k5t_event_at;
++
++/* The tick period, derived live in k5t_run() (freq / HZ). */
++static unsigned long k5t_period;
++
++static void k5t_probe_handler(struct clock_event_device *dev)
++{
++	k5t_event_at = dadao_read_time();
++}
++
++/* Burn @counts of the raw time base (never the clocksource under test). */
++static void k5t_burn(unsigned long counts)
++{
++	unsigned long start = dadao_read_time();
++
++	while (dadao_read_time() - start <= counts)
++		;
++}
++
++static void k5t_case_t1(void)
++{
++	unsigned long raw[K5T_PAIRS];
++	unsigned long sched[K5T_PAIRS];
++	unsigned int i;
++
++	for (i = 0; i < K5T_PAIRS; i++) {
++		sched[i] = sched_clock();
++		raw[i] = dadao_clocksource.read(&dadao_clocksource);
++		if (i + 1 < K5T_PAIRS)
++			k5t_burn(k5t_period / 8);
++	}
++	for (i = 0; i < K5T_PAIRS; i++)
++		dadao_early_printf("K5 clock: t1 i=%u sched=%lu raw=%lu\n", i,
++				   sched[i], raw[i]);
++}
++
++static void k5t_case_t3(void)
++{
++	unsigned long flags;
++	unsigned long j0, j1, tk0, tk1, se0, se1, ut0, ut1;
++	unsigned long start, window;
++	unsigned int want = DADAO_K5_CLOCK_TICKS;
++
++	local_irq_save(flags);
++	j0 = (unsigned long)jiffies_64;
++	tk0 = dadao_tick_count();
++	se0 = (unsigned long)current->se.sum_exec_runtime;
++	ut0 = (unsigned long)current->utime;
++	local_irq_restore(flags);
++
++	start = dadao_read_time();
++	window = (want + 4) * k5t_period;
++	while ((unsigned long)jiffies_64 - j0 < want &&
++	       dadao_read_time() - start < window)
++		;
++
++	local_irq_save(flags);
++	j1 = (unsigned long)jiffies_64;
++	tk1 = dadao_tick_count();
++	se1 = (unsigned long)current->se.sum_exec_runtime;
++	ut1 = (unsigned long)current->utime;
++	local_irq_restore(flags);
++
++	dadao_early_printf("K5 clock: t3 want=%u j0=%lu j1=%lu ticks=%lu "
++			   "se0=%lu se1=%lu ut0=%lu ut1=%lu window=%lu\n",
++			   want, j0, j1, tk1 - tk0, se0, se1, ut0, ut1,
++			   window);
++}
++
++static void k5t_case_t2(void)
++{
++	struct clock_event_device *dev = &dadao_clock_event_device;
++	void (*saved)(struct clock_event_device *);
++	unsigned long period = k5t_period;
++	unsigned long arm_long, cmp_long, arm_short, cmp_short;
++	unsigned long deadline, interval = 0, event;
++	unsigned long flags;
++
++	/*
++	 * The running tick programs the same compare register from its own
++	 * oneshot loop; stop the hardware and take the handler over so the
++	 * measurement sees exactly the two writes below.  The clockevents core's
++	 * own switch entry is private to kernel/time, hence the device callback.
++	 * Local IRQs are closed across the takeover and both writes: a delivery
++	 * between them would let `tick_handle_periodic()` re-program the register
++	 * behind the measurement.
++	 */
++	local_irq_save(flags);
++	saved = dev->event_handler;
++	dev->set_state_shutdown(dev);
++	dev->event_handler = k5t_probe_handler;
++	k5t_event_at = 0;
++
++	arm_long = dadao_read_time();
++	dev->set_next_event(8 * period, dev);
++	cmp_long = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_TIMER,
++				  CFX_HART_RC_TIMER_CMP);
++
++	arm_short = dadao_read_time();
++	dev->set_next_event(period, dev);
++	cmp_short = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_TIMER,
++				   CFX_HART_RC_TIMER_CMP);
++	local_irq_restore(flags);
++
++	/* Four periods: enough for the short deadline, far below the long one. */
++	deadline = dadao_read_time() + 4 * period;
++	while (!k5t_event_at && dadao_read_time() < deadline)
++		;
++	event = k5t_event_at;
++	if (event)
++		interval = event - arm_short;
++
++	dadao_early_printf("K5 clock: t2 period=%lu arm_long=%lu cmp_long=%lu "
++			   "arm_short=%lu cmp_short=%lu event=%lu interval=%lu\n",
++			   period, arm_long, cmp_long, arm_short, cmp_short,
++			   event, interval);
++
++	/* Give the tick back: handler, then the first deadline. */
++	dev->event_handler = saved;
++	dev->next_event = ktime_get() + TICK_NSEC;
++	dev->set_next_event(TICK_NSEC, dev);
++}
++
++static void k5t_case_t4(void)
++{
++	unsigned long samples[K5T_STABILITY];
++	unsigned long cs0, cs1, wait = k5t_period / 4;
++	unsigned long long k0, k1;
++	unsigned int i;
++
++	for (i = 0; i < K5T_STABILITY; i++) {
++		samples[i] = dadao_clocksource.read(&dadao_clocksource);
++		k5t_burn(wait / K5T_STABILITY);
++	}
++
++	cs0 = dadao_clocksource.read(&dadao_clocksource);
++	k0 = ktime_to_ns(ktime_get());
++	k5t_burn(wait);
++	cs1 = dadao_clocksource.read(&dadao_clocksource);
++	k1 = ktime_to_ns(ktime_get());
++
++	for (i = 0; i < K5T_STABILITY; i++)
++		dadao_early_printf("K5 clock: t4 s=%u value=%lu\n", i, samples[i]);
++	dadao_early_printf("K5 clock: t4 cs0=%lu cs1=%lu k0=%llu k1=%llu "
++			   "window=%lu\n", cs0, cs1, k0, k1, wait);
++}
++
++static void __noreturn k5t_run(void)
++{
++	struct clock_event_device *dev = &dadao_clock_event_device;
++	struct clocksource *cs = &dadao_clocksource;
++
++	k5t_period = dadao_time_freq() / HZ;
++
++	dadao_early_printf("K5 clock: begin cs=%s rating=%d mask=%#lx ce=%s "
++			   "rating=%d features=%#lx handler=%d freq=%lu hz=%u "
++			   "period=%lu\n", cs->name, cs->rating,
++			   (unsigned long)cs->mask, dev->name, dev->rating,
++			   (unsigned long)dev->features,
++			   dev->event_handler != NULL, dadao_time_freq(),
++			   (unsigned int)HZ, k5t_period);
++
++	if (!dev->event_handler || !cs->read) {
++		dadao_early_printf("K5 clock: framework missing handler=%d "
++				   "read=%d\n", dev->event_handler != NULL,
++				   cs->read != NULL);
++		dadao_early_printf("K5 clock: fail code=%#x\n", K5T_FAIL_SETUP);
++		dadao_early_exit(K5T_FAIL_SETUP);
++	}
++
++	/* T1 and T3 first: both need the tick running (T2 stops it). */
++	k5t_case_t1();
++	k5t_case_t3();
++	k5t_case_t2();
++	k5t_case_t4();
++
++	dadao_early_printf("K5 clock: done\n");
++	dadao_early_exit(0);
++}
++
++/*
++ * `late_initcall`: inside `kernel_init`, after the initcalls.  The boot has
++ * been running on the generic tick since `time_init()` (start_kernel), the
++ * scheduler and the timer wheel exist, and `current` is a real CFS task.
++ */
++static int __init k5_clock_selftest_init(void)
++{
++	k5t_run();
++}
++late_initcall(k5_clock_selftest_init);

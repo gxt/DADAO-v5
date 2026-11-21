@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..42a58a916
+index 000000000..82f061f20
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,447 @@
+@@ -0,0 +1,474 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -450,4 +450,31 @@ index 000000000..42a58a916
 +
 +	  It runs from a `late_initcall` and ends the boot.  This is test
 +	  scaffolding (the m14-linux-046 gate builds a probe image with it); it is
++	  not part of the image the later milestones boot.
++
++config DADAO_K5_CLOCK_SELFTEST
++	bool "Run the K5 clocksource/clockevent probe from a late_initcall (ends the boot)"
++	default n
++	depends on !DADAO_K4_SELFTEST && !DADAO_K4_SWITCH_SELFTEST && !DADAO_K4_KTHREAD_SELFTEST && !DADAO_K5_SYSCALL_SELFTEST && !DADAO_K5_CLONE_SELFTEST && !DADAO_K5_FUTEX_SELFTEST && !DADAO_M45_ENTRY_SELFTEST && !DADAO_K5_SIGNAL_SELFTEST
++	help
++	  Exercise the generic time subsystem of m14-linux-026 (see
++	  kernel/k5_clock_selftest.c).
++
++	  The image boots with `time_init()` having registered `dadao_clocksource`
++	  over `cfx_time` and `dadao_clock_event_device` over `cfx_hart`'s compare
++	  register, and the probe reads the *registered* objects back:
++
++	  T1 read `cfx_time` twice through the clocksource and compare it with
++	  `sched_clock()` (same source, constant offset within tolerance);
++	  T2 stop the tick, program an 8-period deadline and then a 1-period one
++	  through `set_next_event()`, read `timer_cmp` back and measure where the
++	  delivery actually lands (the old deadline must be cancelled);
++	  T3 sample `jiffies_64`, the delivered-tick counter and
++	  `current->se.sum_exec_runtime` around N consecutive ticks: `do_timer(1)`
++	  and `sched_tick()` must both have run;
++	  T4 the clocksource is monotone and `ktime_get()` advances at sub-period
++	  resolution (i.e. timekeeping is no longer on the jiffies fallback).
++
++	  It runs from a `late_initcall` and ends the boot.  This is test
++	  scaffolding (the m14-linux-026 gate builds a probe image with it); it is
 +	  not part of the image the later milestones boot.

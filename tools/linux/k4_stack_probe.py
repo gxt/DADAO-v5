@@ -87,6 +87,7 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K5_FUTEX_SELFTEST": "n",
     "CONFIG_DADAO_M45_ENTRY_SELFTEST": "n",
     "CONFIG_DADAO_K5_SIGNAL_SELFTEST": "n",
+    "CONFIG_DADAO_K5_CLOCK_SELFTEST": "n",
 }
 
 #: The stack case each image carries (0 = off is not an image here: the gate

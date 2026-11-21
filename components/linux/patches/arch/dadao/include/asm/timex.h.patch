@@ -1,17 +1,36 @@
 diff --git a/arch/dadao/include/asm/timex.h b/arch/dadao/include/asm/timex.h
 new file mode 100644
-index 000000000..42be32d60
+index 000000000..e59375e33
 --- /dev/null
 +++ b/arch/dadao/include/asm/timex.h
-@@ -0,0 +1,11 @@
+@@ -0,0 +1,30 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_TIMEX_H
 +#define __ASM_TIMEX_H
 +
 +/*
-+ * K0 has no timer.  The constant is what the generic time code needs to
-+ * compile; K1 replaces it with the semihosting tick frequency.
++ * The legacy platform tick constant (include/linux/jiffies.h:LATCH).  The
++ * kernel's tick comes from `cfx_hart` at `HZ` (clockevents), so the constant
++ * only has to exist; it keeps the 1 MHz value the generic code was written
++ * against.
 + */
 +#define CLOCK_TICK_RATE		1000000
++
++#ifndef __ASSEMBLY__
++typedef unsigned long cycles_t;
++
++/*
++ * The cycle counter is `cfx_time` (contract-see §3): free running since reset,
++ * 1 count = 1 ns, 64-bit.  `random_get_entropy()` in include/linux/timex.h
++ * uses this when the arch defines `get_cycles`.
++ */
++extern unsigned long dadao_read_time(void);
++
++static inline cycles_t get_cycles(void)
++{
++	return dadao_read_time();
++}
++#define get_cycles get_cycles
++#endif /* !__ASSEMBLY__ */
 +
 +#endif

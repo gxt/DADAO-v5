@@ -1,12 +1,12 @@
 diff --git a/arch/dadao/include/asm/time.h b/arch/dadao/include/asm/time.h
 new file mode 100644
-index 000000000..6591d2896
+index 000000000..db199ac56
 --- /dev/null
 +++ b/arch/dadao/include/asm/time.h
-@@ -0,0 +1,92 @@
+@@ -0,0 +1,100 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
-+ * DADAO time base and single-hart timer — the K2 interface.
++ * DADAO time base and single-hart timer.
 + *
 + * contract-see §3 freezes the register semantics (1 GHz, 1 count = 1 ns;
 + * `cfx_hart` one-shot absolute compare); §6.5 only adds the *kernel-side*
@@ -16,9 +16,11 @@ index 000000000..6591d2896
 + *   program  `dadao_timer_arm()` / `dadao_timer_stop()`       (`cfx_hart` cg8)
 + *   confirm  `dadao_timer_status()`                           (`cfx_hart` cg8)
 + *
-+ * K4 (processes / context) replaces the *implementation* behind these five
-+ * functions with a `clocksource`/`clockevent` pair; the call sites — and the
-+ * asynchronous entry that calls `dadao_timer_interrupt()` — stay.
++ * K5 (m14-linux-026) puts the generic time subsystem on top of it: the
++ * `clocksource`/`clockevent` pair below is what `time_init()` registers, and
++ * the asynchronous entry still calls `dadao_timer_interrupt()` — only what
++ * that function does changed (it forwards the delivery to the registered
++ * device instead of accounting by hand).
 + */
 +#ifndef __ASM_DADAO_TIME_H
 +#define __ASM_DADAO_TIME_H
@@ -61,21 +63,24 @@ index 000000000..6591d2896
 +void dadao_timer_interrupt(void);
 +
 +/*
-+ * The minimal clockevent of m14-linux-017 — *not* the generic framework.
++ * The kernel's clock source and clock event device (m14-linux-026).
 + *
-+ * The kernel needs exactly one thing from a clock: a tick that advances
-+ * `jiffies` and lets the scheduler account time.  `cfx_hart`'s one-shot compare
-+ * register already provides it (`contract-see §3`), so the whole layer is "arm
-+ * one period, re-arm from each delivery" — the body of `dadao_timer_interrupt()`
-+ * — plus the two functions below to start and stop it and a counter to observe
-+ * it with.
-+ *
-+ * What is deliberately absent: no `struct clock_event_device`, no
-+ * `clocksource`, no `clockevents_register_device()` / `tick_check_new_device()`
-+ * registration.  That upgrade — reading time from `cfx_time` as a clocksource
-+ * and driving `clock_event_device` from `cfx_hart`, with the guest's own
-+ * `sched_clock` — belongs to K5 (m14-linux-021, deferred by the 2026-11-17
-+ * ruling).  The probe asserts the absence, so the boundary is checkable.
++ * `dadao_clocksource` reads `cfx_time` (1 count = 1 ns, contract-see §3) and
++ * drives `timekeeping`/`sched_clock`; `dadao_clock_event_device` programs
++ * `cfx_hart`'s absolute `timer_cmp` and is driven by the generic tick.  Both
++ * are registered by `time_init()`; the probe (kernel/k5_clock_selftest.c)
++ * reads them back, so they are not static.
++ */
++struct clocksource;
++struct clock_event_device;
++extern struct clocksource dadao_clocksource;
++extern struct clock_event_device dadao_clock_event_device;
++
++/*
++ * Start/stop the tick.  After registration these go through the clock event
++ * device's state machine; K2-boundary images (CONFIG_DADAO_K2_TIME_STOP) keep
++ * the raw compare-register arm, because `time_init()` runs there before the
++ * generic tick core exists.
 + */
 +void dadao_clockevent_start(void);
 +void dadao_clockevent_stop(void);
@@ -84,6 +89,9 @@ index 000000000..6591d2896
 +
 +/* The K2 tick target: printed by time_init(), parsed by tools/linux/k2_time_probe.py. */
 +#define DADAO_K2_TIME_TICKS		3
++
++/* The K5 clock gate's consecutive-tick target (kernel/k5_clock_selftest.c). */
++#define DADAO_K5_CLOCK_TICKS		4
 +
 +/* Named boot verdicts (guest segment, spec/Kaiwu §7.1). */
 +void __noreturn dadao_k2_fail(unsigned int checkpoint, const char *what);

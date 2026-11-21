@@ -1,12 +1,12 @@
 diff --git a/arch/dadao/kernel/time.c b/arch/dadao/kernel/time.c
 new file mode 100644
-index 000000000..cb803845c
+index 000000000..f3de9815a
 --- /dev/null
 +++ b/arch/dadao/kernel/time.c
-@@ -0,0 +1,598 @@
+@@ -0,0 +1,859 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
-+ * DADAO time base and single-hart timer (K2).
++ * DADAO time base and single-hart timer.
 + *
 + * Register semantics are frozen by contract-see §3 (from spec/DADAO-12 §4.7 and
 + * §4.10); §6.5 only adds the kernel-side gaps:
@@ -18,25 +18,47 @@ index 000000000..cb803845c
 + *   - after a delivery the hardware re-kicks pending events itself (mask
 + *     write / escape / new event), so the kernel keeps no software bitmap.
 + *
-+ * The framework is deliberately the *minimal* one (task m14-linux-007 ruling
-+ * 1): the read / program / confirm surface lives in the five functions declared
-+ * by asm/time.h and one tick point, `dadao_timer_interrupt()`.  K4 replaces
-+ * their bodies with clocksource/clockevent; the entry and the call sites do not
-+ * change.
++ * The K2 gate (m14-linux-007) measured a minimal clock: `cfx_time` read as a
++ * free-running count, `cfx_hart`'s compare register re-armed by hand and
++ * `jiffies_64 += 1` written by the arch handler.  This file keeps that surface
++ * (the five accessor functions plus `dadao_timer_interrupt()`) and now feeds
++ * the generic time subsystem through it (m14-linux-026):
 + *
-+ * Why jiffies and nothing else: the K2 exit criterion is "clock interrupt ->
-+ * jiffies advances".  Updating the wall clock needs a registered clocksource
-+ * (the `update_wall_time()` half of do_timer() in this kernel), which is the
-+ * K4 work; the jiffies half is what the tick owes the kernel today, so this
-+ * file performs exactly that half.
++ *   clocksource  `dadao_clocksource` over `cfx_time` (rating 300: above the
++ *                HZ-resolution jiffies fallback, below the architected
++ *                per-CPU cycle counters such as RISC-V's 400 — `cfx_time` is a
++ *                shared system-register counter, not a per-hart cycle clock).
++ *                Registering it is what makes `timekeeping` leave the 10 ms
++ *                jiffies clock and what makes `update_wall_time()` advance.
++ *   clockevent   `dadao_clock_event_device` over the `cfx_hart` one-shot
++ *                compare register: `set_next_event(delta)` writes the
++ *                *absolute* deadline `cfx_time + delta` (contract-see §3),
++ *                `set_state_*` writes `timer_ctrl` (ENABLE/IMASK).  Only
++ *                ONESHOT is advertised: the compare register has no periodic
++ *                reload, so the tick's oneshot loop re-programs every delivery.
++ *
++ * `time_init()` registers both; the generic tick then owns `jiffies_64`
++ * (`do_timer(1)` inside `tick_periodic`), the wall clock
++ * (`update_wall_time()`), the timer wheel and `sched_tick()`.  The arch
++ * handler only forwards the delivery.
++ *
++ * K2-boundary images (`CONFIG_DADAO_K2_TIME_STOP`) are the one exception: the
++ * K2 gate calls `time_init()` from `setup_arch()`, before the generic tick core
++ * exists and before `init_IRQ()` installs the asynchronous vector, so those
++ * images keep the raw arming/hand accounting that K2 measured.  The legacy
++ * half is compiled out everywhere else — no milestone image runs it.
 + */
 +#include <linux/bitops.h>
++#include <linux/clockchips.h>
++#include <linux/clocksource.h>
++#include <linux/cpumask.h>
 +#include <linux/init.h>
 +#include <linux/hardirq.h>
 +#include <linux/irqflags.h>
 +#include <linux/delay.h>
 +#include <linux/jiffies.h>
 +#include <linux/kernel.h>
++#include <linux/ktime.h>
 +#include <linux/sched_clock.h>
 +#include <linux/types.h>
 +
@@ -80,39 +102,190 @@ index 000000000..cb803845c
 +/*
 + * The period and the tick bookkeeping.  `period` is derived once in
 + * time_init() from the *live* frequency and the configured HZ — never from a
-+ * hardcoded count — and the handler re-arms with it.
++ * hardcoded count.  Both the K2 raw path and the generic clock event device
++ * program deadlines from it.
 + */
 +static unsigned long dadao_period;
 +
-+/* Delivered ticks since reset (volatile: the waiting context polls it). */
++/* Delivered ticks since reset (volatile: the waiting context polls it).  The
++ * generic path increments it as the probe's observation counter; it takes no
++ * part in the accounting (that is `do_timer()`'s job). */
 +static volatile unsigned int dadao_ticks;
 +
++#ifdef CONFIG_DADAO_K2_TIME_STOP
 +/*
-+ * The minimal clockevent of m14-linux-017 (asm/time.h explains why it is not the
-+ * generic framework): `dadao_tick_on` says whether the periodic clock has been
-+ * started, which is also the only condition under which the handler calls into
-+ * the scheduler.
++ * K2-boundary images only (file comment): `dadao_tick_on` says whether the raw
++ * periodic clock has been started, which is also the only condition under which
++ * the handler calls into the scheduler.
 + */
 +static int dadao_tick_on;
-+
++#endif
 +
 +/* Per-tick samples, printed after the series (printing inside the handler
-+ * would push the next deadline and distort the very intervals it reports). */
++ * would push the next deadline and distort the very intervals it reports).
++ * The K2 boundary cases stay compiled (they are the gate's case switch), so the
++ * arrays exist in every image. */
 +static int dadao_sample_on;
 +static unsigned int dadao_sample_n;
 +static unsigned long dadao_sample_time[K2_TIME_SLOTS];
 +static unsigned long dadao_sample_jiffies[K2_TIME_SLOTS];
 +
++/* -------------------------------------------------------------------------
++ * clocksource: cfx_time (contract-see §3: 1 GHz, 1 count = 1 ns, 64-bit)
++ * ------------------------------------------------------------------------- */
++
++/*
++ * `cfx2rd` returns the whole 64-bit count in one instruction (§4.10), so the
++ * clocksource read has no high/low tear and needs no seqcount of its own.  The
++ * counter is continuous (monotone since reset), hence CLOCK_SOURCE_IS_CONTINUOUS
++ * and no wrap handling.
++ */
++static u64 notrace dadao_clocksource_read(struct clocksource *cs)
++{
++	return dadao_read_time();
++}
++
++/*
++ * Rating: 300.  It has to beat the jiffies fallback (kernel/time/jiffies.c,
++ * rating 1, HZ-resolution steps), which is what makes `timekeeping` switch to
++ * this clock in `clocksource_select()`.  It deliberately does not reach the
++ * 400+ band: those are architected per-CPU cycle counters (arch/riscv's is 400)
++ * read from a CPU register, while `cfx_time` is a shared system-register
++ * counter read with `cfx2rd` — good enough for timekeeping, not a hart-local
++ * cycle clock.
++ */
++struct clocksource dadao_clocksource = {
++	.name	= "dadao_cfx_time",
++	.rating	= 300,
++	.mask	= CLOCKSOURCE_MASK(64),
++	.flags	= CLOCK_SOURCE_IS_CONTINUOUS,
++	.read	= dadao_clocksource_read,
++};
++
++/* -------------------------------------------------------------------------
++ * clockevent: cfx_hart's one-shot compare register (contract-see §3)
++ * ------------------------------------------------------------------------- */
++
++/*
++ * `set_next_event()` takes a *delta* in counts; the hardware `timer_cmp` is an
++ * absolute `cfx_time` value, so the conversion happens here.  Writing `cmp`
++ * cancels the previous deadline and clears the pending bit (§3), which is what
++ * lets the tick replace a deadline that has not fired yet.
++ */
++static int dadao_clockevent_next_event(unsigned long delta,
++				       struct clock_event_device *dev)
++{
++	unsigned long deadline = dadao_read_time() + delta;
++
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
++			deadline);
++	/*
++	 * ENABLE with IMASK open.  The order is the K2 one: the compare write
++	 * already cancelled the old deadline, opening ENABLE last makes the new
++	 * one deliverable.
++	 */
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
++			DADAO_TIMER_ENABLE);
++	return 0;
++}
++
++/* Cancel the deadline: ENABLE off (ISTATUS is gated by it, §4.7), then the
++ * "never" compare value, which also clears whatever pending bit is left. */
++static int dadao_clockevent_shutdown(struct clock_event_device *dev)
++{
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL, 0);
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
++			~0UL);
++	return 0;
++}
++
++/* Oneshot state: the deadline is programmed by `set_next_event()`; just make
++ * sure the source is enabled with its interrupt mask open. */
++static int dadao_clockevent_set_oneshot(struct clock_event_device *dev)
++{
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
++			DADAO_TIMER_ENABLE);
++	return 0;
++}
++
++/* Parked: keep ENABLE but close IMASK, so an expiry stays pending in hardware
++ * (contract-see §3) instead of being delivered while the tick is stopped. */
++static int dadao_clockevent_set_oneshot_stopped(struct clock_event_device *dev)
++{
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
++			DADAO_TIMER_ENABLE | DADAO_TIMER_IMASK);
++	return 0;
++}
++
++/*
++ * Not advertised (`CLOCK_EVT_FEAT_PERIODIC` is absent): `cfx_hart` has no
++ * periodic reload — it delivers once per programmed compare value.  The state
++ * callback exists because the clockevents API defines it; it arms exactly one
++ * period, which is what a periodic caller would have to keep doing anyway.
++ */
++static int dadao_clockevent_set_periodic(struct clock_event_device *dev)
++{
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
++			dadao_read_time() + dadao_period);
++	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
++			DADAO_TIMER_ENABLE);
++	return 0;
++}
++
++struct clock_event_device dadao_clock_event_device = {
++	.name			= "dadao_cfx_hart_timer",
++	.features		= CLOCK_EVT_FEAT_ONESHOT,
++	.rating			= 300,
++	.set_next_event		= dadao_clockevent_next_event,
++	.set_state_shutdown	= dadao_clockevent_shutdown,
++	.set_state_oneshot	= dadao_clockevent_set_oneshot,
++	.set_state_oneshot_stopped = dadao_clockevent_set_oneshot_stopped,
++	.set_state_periodic	= dadao_clockevent_set_periodic,
++};
++
 +void dadao_clockevent_start(void)
 +{
++#ifdef CONFIG_DADAO_K2_TIME_STOP
++	/* K2-boundary image: no registered device; the raw path is the tick. */
 +	dadao_tick_on = 1;
 +	dadao_timer_arm(dadao_period);
++#else
++	struct clock_event_device *dev = &dadao_clock_event_device;
++
++	/*
++	 * Restart the generic tick after `dadao_clockevent_stop()`.  The tick
++	 * framework's own re-arm entry is private to kernel/time, so restart
++	 * through the device callbacks: put the state predicate back to ONESHOT,
++	 * publish the deadline the tick's oneshot loop will continue from
++	 * (`next_event`) and program it.  The delivery then reaches
++	 * `tick_handle_periodic()` again and the loop takes over.
++	 */
++	dev->state_use_accessors = CLOCK_EVT_STATE_ONESHOT;
++	dev->next_event = ktime_get() + TICK_NSEC;
++	dev->set_next_event(TICK_NSEC, dev);
++#endif
 +}
 +
 +void dadao_clockevent_stop(void)
 +{
++#ifdef CONFIG_DADAO_K2_TIME_STOP
 +	dadao_tick_on = 0;
 +	dadao_timer_stop();
++#else
++	struct clock_event_device *dev = &dadao_clock_event_device;
++
++	/*
++	 * Cancel the hardware deadline and move the core state out of ONESHOT:
++	 * `tick_handle_periodic()` re-arms whenever the device is in ONESHOT,
++	 * and a caller may stop the clock from *inside* the handler (the m45
++	 * entry/exit probe does).  The clockevents core's own switch entry is
++	 * private to kernel/time, so set the state its predicates read;
++	 * ONESHOT_STOPPED is exactly "programmed but not running" and is what
++	 * `dadao_clockevent_start()` leaves again.
++	 */
++	dev->set_state_shutdown(dev);
++	dev->state_use_accessors = CLOCK_EVT_STATE_ONESHOT_STOPPED;
++#endif
 +}
 +
 +unsigned long dadao_tick_count(void)
@@ -220,9 +393,16 @@ index 000000000..cb803845c
 +/*
 + * One delivered TIMER.  `cause_info` is 0 for this source (§4.7), checked by
 + * the caller.
++ *
++ * Two implementations, selected at compile time by the image, never at run
++ * time: K2-boundary images keep the raw accounting they measured (the K2 gate
++ * calls `time_init()` from `setup_arch()`, before the generic tick core and
++ * before `init_IRQ()`), every other image forwards the delivery to the
++ * registered clock event device.
 + */
 +void dadao_timer_interrupt(void)
 +{
++#ifdef CONFIG_DADAO_K2_TIME_STOP
 +	unsigned long flags;
 +	unsigned long now;
 +	unsigned int slot;
@@ -300,6 +480,45 @@ index 000000000..cb803845c
 +	 * releases the frame's global mask.
 +	 */
 +	dadao_k2_irq_inframe();
++#endif
++#else
++	struct clock_event_device *dev = &dadao_clock_event_device;
++	unsigned long flags;
++
++	/*
++	 * The generic tick runs in hardirq context: `update_process_times()`
++	 * calls `irq_work_tick()`, whose `irq_work_run_list()` asserts
++	 * `irqs_disabled()`.  Other architectures get that from the exception
++	 * entry; here the IE state is the source-mask row and the frame's all-1
++	 * `global_cfx_intr_mask` is hardware bookkeeping software cannot
++	 * express, so the handler closes the knob for its body and restores the
++	 * interrupted state afterwards (what `irqentry_enter()`/`irq_exit()`
++	 * do elsewhere).  Nested delivery stays impossible either way: the live
++	 * frame's global mask blocks it (contract-see §6.3).
++	 */
++	flags = arch_local_save_flags();
++	arch_local_irq_disable();
++
++	/*
++	 * The generic tick owns the accounting: `tick_handle_periodic()` (the
++	 * handler `tick_setup_device()` installs at registration) runs
++	 * `do_timer(1)` — i.e. `jiffies_64 += 1` — then `update_wall_time()`,
++	 * and `update_process_times()` drives the timer wheel, `sched_tick()`
++	 * and POSIX CPU timers.  The arch neither writes `jiffies_64` nor
++	 * re-arms: the handler's oneshot loop programs the next deadline through
++	 * `set_next_event()`.
++	 *
++	 * A delivery without a handler would mean `clockevents_config_and_register()`
++	 * failed in `time_init()`; there is no valid hand-accounting fallback in
++	 * this configuration, so report it instead of inventing one.
++	 */
++	if (WARN_ON_ONCE(!dev->event_handler)) {
++		arch_local_irq_restore(flags);
++		return;
++	}
++	dadao_ticks++;
++	dev->event_handler(dev);
++	arch_local_irq_restore(flags);
 +#endif
 +}
 +
@@ -403,7 +622,8 @@ index 000000000..cb803845c
 +	 * (include/linux/sched_clock.h:43-50) and the function silently keeps
 +	 * jiffies resolution; with it, `bits = 64` and `rate = freq` make the
 +	 * generic scaling 1 count = 1 ns, so sched_clock() and cfx_time are the
-+	 * same clock.  The tick chain (clocksource/clockevent) is m14-linux-026.
++	 * same clock — which is what m14-linux-026 requires of the clocksource
++	 * pair (T1 of the K5 clock gate compares the two).
 +	 */
 +	sched_clock_register(dadao_sched_clock_read, 64, freq);
 +
@@ -418,6 +638,47 @@ index 000000000..cb803845c
 +	dadao_early_printf("K2 time_init: freq=%lu hz=%u period=%lu n_ticks=%u "
 +			   "first=%lu\n", freq, (unsigned int)HZ, dadao_period,
 +			   (unsigned int)DADAO_K2_TIME_TICKS, first);
++
++#ifndef CONFIG_DADAO_K2_TIME_STOP
++	/*
++	 * K5 (m14-linux-026): hand the same two registers to the generic time
++	 * subsystem.  `timekeeping_init()` ran just before this arch hook and is
++	 * still on the jiffies fallback; a better rated clocksource switches it
++	 * in `clocksource_select()` -> `timekeeping_notify()`, after which every
++	 * ktime/wall-clock read is `cfx_time`.  The clock event device then
++	 * takes the tick over: `clockevents_config_and_register()` runs
++	 * `tick_setup_device()`, which installs `tick_handle_periodic()` as the
++	 * handler and arms the first period — this is what replaces the K2
++	 * `dadao_timer_arm(dadao_period)` call.
++	 *
++	 * min_delta = 100 counts (100 ns at 1 GHz): comfortably above the
++	 * `cfx2rd` read cost and the delivery granularity of the machine
++	 * (`spec/DADAO-12 §5` checks delivery at instruction boundaries), while
++	 * far below one period.  max_delta is the whole 64-bit range: the
++	 * compare register is 64-bit and absolute.
++	 */
++	{
++		int rc = clocksource_register_hz(&dadao_clocksource, freq);
++
++		if (rc)
++			dadao_early_printf("K5 time: clocksource register rc=%d\n",
++					   rc);
++	}
++	dadao_clock_event_device.cpumask = cpumask_of(smp_processor_id());
++	clockevents_config_and_register(&dadao_clock_event_device, freq, 100,
++					~0UL);
++	dadao_early_printf("K5 time: cs=%s rating=%d mask=%#lx freq=%lu hz=%u "
++			   "period=%lu\n", dadao_clocksource.name,
++			   dadao_clocksource.rating,
++			   (unsigned long)dadao_clocksource.mask, freq,
++			   (unsigned int)HZ, dadao_period);
++	dadao_early_printf("K5 time: ce=%s rating=%d features=%#lx handler=%d "
++			   "min_delta=%lu\n", dadao_clock_event_device.name,
++			   dadao_clock_event_device.rating,
++			   (unsigned long)dadao_clock_event_device.features,
++			   dadao_clock_event_device.event_handler != NULL,
++			   dadao_clock_event_device.min_delta_ticks);
++#endif
 +}
 +
 +/* Wait until @want ticks have been delivered or @window counts have passed. */
