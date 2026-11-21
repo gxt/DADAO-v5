@@ -1133,3 +1133,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`m17-idl-004` 复核的四条非阻断 finding：① `probe_red` 只断言 rc=1、不断言输出含 `[FAIL]`；② trace 的 `id`/`mn` 两侧同源于 `contracts/opcodes.yaml`，非独立证据；③ `dst`/`val` 派生函数两侧共用（输入分别来自 QEMU dump 与执行器状态，非同源自比）；④ `rd8_skip` 15283/24790、`ra_skip` 39173 覆盖率偏大，M20 复用时在格式文档补覆盖率。处置：随下次触碰 idl 证据/格式文档时修。"
+- id: ISS-492
+  scope:
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`m16-testcases-003` 复核的非阻断 finding：证据脚本的 `bin.qemu.install_eq_build` 在 `QEMU=` 覆盖时两侧取同一路径、退化为恒真（默认态「安装根 vs 构建树」才有效）；注入脚本 `mode_inject` 已正确覆盖，故只影响该行显示。处置：随下次触碰该证据脚本时改成「覆盖时跳过/标注 N/A」。"
