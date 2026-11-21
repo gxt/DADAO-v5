@@ -1,3 +1,8 @@
+# issue 台账（活）：保留未关闭项与已关闭项（溯源用 `resolved_by` / `closed_in`）。
+# 里程碑阶段的关闭项快照见 `.tao/archive/<M>/issues-closed.md`（按 `closed_in` 取集；
+# M14 已于 2026-11-22 归档：`.tao/archive/M14/issues-closed.md`，10 条，
+# `python3 tools/infra/archive_issues.py --milestone M14 --check <快照>` 可复核）。
+
 - id: ISS-345
   scope:
   - gem5
@@ -729,7 +734,7 @@
   scope:
   - linux
   - infra
-  milestone: M14
+  milestone: M18
   status: open
   closed_in: null
   resolved_by: null
@@ -815,7 +820,6 @@
   scope:
   - spec
   - linux
-  milestone: M14
   status: closed
   closed_in: M14
   resolved_by: 用户 2026-11-21 裁定 A（维持 ISS-455：monitor 由运行模式定，supv ⇒ cfx_smon；原命题不成立，§6.4 不改，irqflags 写死 smon 正确）
@@ -842,7 +846,7 @@
   scope:
   - linux
   - testcases
-  milestone: M14
+  milestone: M18
   status: open
   closed_in: null
   resolved_by: null
@@ -950,10 +954,9 @@
   scope:
   - linux
   - infra
-  milestone: M14
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M14
+  resolved_by: m14-linux-017（门控/探针镜像成对钉住兄弟 CONFIG 符号）
   title: "【P2】门控切片未钉住兄弟 `CONFIG` 符号 ⇒ 探针镜像继承开发期开关、产生假红（`m14-linux-017` F30 实测）：k3 突然 227/247 红（`exit_task_stack_account+0x4`、`rb16=0x28`），真因是新加的 `CONFIG_DADAO_K4_SWITCH_SELFTEST` 在各门控切片里**未显式关闭**，pf1 镜像继承 `y` 后跑了 `rdinit=/init.musl` 覆盖。已修：`check_k0/k1/k2/k3.py` 与 `k4_fork_probe.py` 的 IMAGE 成对钉住兄弟符号。可复用判据：**任何新增的开发期 `CONFIG_*`，都必须在所有门控切片的 IMAGE 里显式设为 `n`**；否则门控会随开关漂移而假红/假绿。"
 - id: ISS-471
   scope:
@@ -1052,10 +1055,9 @@
   scope:
   - llvm
   - linux
-  milestone: M14
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M14
+  resolved_by: m14-llvm-007（同节 weak 发重定位；9 处改绑）
   title: "【P1】clang 23 DADAO 目标：调用**同节内 weak 定义**时不发重定位（本地固化），外部强定义无法覆盖。最小复现：`a.c` 里 `__attribute__((weak)) void hook(int){}` + `void caller(int x){if(x)hook(x);}`、`b.c` 里强 `hook`；`clang --target=dadao-unknown-elf -O2 -c`（**不加** `-ffunction-sections`）⇒ `a.o` **无** hook 重定位、调用固化为对 4 字节空体的位移；`ld.lld -r` 后符号表只剩强定义但调用仍指向空体。加 `-ffunction-sections`（弱定义独立节）⇒ 发 `R_DADAO_REL26`、lld 正解强符号。对照：x86_64 同场景 `-O0` 发 `R_X86_64_PLT32`。根因候选：`DADAOAsmBackend` 未覆写 `shouldForceRelocation`（对比 X86）。影响：`m14-linux-045` 的 `arch_do_signal_or_restart` 名存实亡（退出循环自旋 22/29）；内核实测：带空桩自旋、删空桩 43/43。"
 - id: ISS-483
   scope:
@@ -1087,7 +1089,7 @@
   scope:
   - linux
   - infra
-  milestone: M14
+  milestone: M18
   status: open
   closed_in: null
   resolved_by: null
@@ -1096,7 +1098,7 @@
   scope:
   - linux
   - infra
-  milestone: M14
+  milestone: M18
   status: open
   closed_in: null
   resolved_by: null
@@ -1104,7 +1106,7 @@
 - id: ISS-488
   scope:
   - linux
-  milestone: M14
+  milestone: M18
   status: open
   closed_in: null
   resolved_by: null
@@ -1144,7 +1146,7 @@
 - id: ISS-493
   scope:
   - linux
-  milestone: M14
+  milestone: M18
   status: open
   closed_in: null
   resolved_by: null
@@ -1152,7 +1154,7 @@
 - id: ISS-494
   scope:
   - linux
-  milestone: M14
+  milestone: M18
   status: open
   closed_in: null
   resolved_by: null

@@ -1,6 +1,6 @@
 # DADAO for SimRISC 0.5.7
 
-基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Kaiwu`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M13）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m14.md`（M14）**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
+基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Kaiwu`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M14）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m15.md`（M15）**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
 
 ## 当前版本号
 
@@ -17,7 +17,7 @@
 
 ## 项目里程碑
 
-> 已完成里程碑（M1–M13）；**进行中**：M14（Linux bring-up，见 `milestones-m14.md`）。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
+> 已完成里程碑（M1–M14 已归档；M15 收口判据已于 2026-11-20 成立、归档待做）；**进行中**：M16（gem5 Timing + chipyard wuming）、M17（IDL 可执行参考模型 + 四方差分）、M18（Linux 测试集 + K6）。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
 
 | 里程碑 | 达成日 | 主题 |
 | --- | --- | --- |
@@ -34,6 +34,7 @@
 | M11 | 2026-11-09 | gem5 SE/FS 收口：完整 tset 双向一致 + SimRISC 0.5.6 发布 |
 | M12 | 2026-11-15 | Chipyard 上跑通 `Kaiwu-Tiny`：非 cfx 指令全实现 + 启动链/semihosting 闭环 + embench/picolibc engine parity |
 | M13 | 2026-11-15 | 三平台差分对齐（QEMU/gem5/chipyard，含浮点）：864 镜像逐例一致、差异 0 + `rf2rf` 批 + 伪指令体系迁章 |
+| M14 | 2026-11-22 | Linux bring-up（K0–K5）：`arch/dadao` 用户态闭环 + 启动 ABI/时钟/信号面 + K3 退役 |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -138,3 +139,12 @@
 - **门控与判据演进**：engine parity 口径、单二进制纪律、`timeout` 退出码口径、脚本入仓判据（会不会再跑）、复核分档（小改/中改/大改）；新增/加严 `check-inst-asm`、`check-archive`、`check-milestones-fresh`（R1/R2）。
 - **遗留（要点）**：① `ISS-433`（`trap cfx_power` 三平台不一致）；② `ISS-440`/`ISS-443`（多 hart 的保留清除，已由 `ADR-0054` 定为"单 hart 不可观测、暂不实现"）；③ `ISS-446`/`ISS-447`/`ISS-448`；④ `07-floating-point` 的 10 个空白格。
 - **归档**：`.tao/archive/M13/`（`README.md` 五节 / `m13-retrospective.md` / `issues-closed.md` 17 条；**107 册已迁入**，`check-archive` PASS）；`milestones-m13.md` 已合并进归档并删除。
+
+### M14（2026-11-22）Linux bring-up（K0–K5）
+
+- **定位**：基线 Linux `7.2.10`，平台 = QEMU system **单核 Vast**，控制台 = **semihosting**，启动传参 = 固定 **boot info 15 字段**（不引入设备树、UART、cache/LLC）；`arch/dadao` 按冻结契约重写，补丁系列 103 条。
+- **阶段**：K0 工具链与启动契约（缺口矩阵 + 补丁组件化）→ K1 骨架出 vmlinux + 自建页表写 PTBR → K2 异常入口/cause 分派/时钟中断 → K3 页表与缺页（COW、栈增长按裁定移交 K4，K3 阶段**整体退役**）→ K4 进程/线程/上下文切换/futex → K5 用户态闭环（syscall、四组异常帧、`clocksource`/`clockevent`、信号面、**64 KiB ABI**）。
+- **契约**：内核 VA 窗口 `[2TiB,3TiB)`（`ADR-0051`）；`cause_id` 18 位子原因；`escape` 恢复 `inner_cfx_code`；`contract-syscall` 内核侧扩展 §8–§11。
+- **收口**：`make check-linux-k5` **280/280**（S/C/F/T/G/P/R 七组）；K0–K2、K4 探针全 rc=0；**K3 阶段整体退役**（`Process-07 §4a.2`）；**K6 移 M18**，pthread create/join 归 K6。
+- **遗留（要点）**：`ISS-444`/`457`/`486`/`487`/`488`/`493`/`494` 转 M18（探针断言与既有偶发红）；`ISS-470`（门控 `CONFIG` 钉子）、`ISS-482`（同节 weak 重定位）已关闭；内核 vs 主流 ISA 差异盘点 195 条见 `components/linux/kernel-diff-vs-mainstream-isa.md`。
+- **归档**：`.tao/archive/M14/`（`README.md` 五节 / `m14-retrospective.md` / `issues-closed.md` 10 条；**76 册已迁入**（含 1 册 `已退役`），`check-archive` PASS）；`milestones-m14.md` 已合并进归档并删除。
