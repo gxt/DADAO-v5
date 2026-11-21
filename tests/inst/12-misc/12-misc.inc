@@ -234,6 +234,45 @@
 	__VERIFY_MEM	\pt, \ea, 0, \exp
 .endm
 
+@@ 异常进入（`spec/SimRISC-12 §1`「保留机制」：异常或中断进入清本 hart 全部标记）：
+@@   `lr` 建标记 → 触发一次异常/陷阱 → 固件 hmon 按 `HMON_BASE + 0xF8` 的返回槽返回到
+@@   `slot` 处的落点 → `sc` 必须失败（1）、拍不变。`kind` 选进入路径：
+@@     malign = `ld.o` @ `maladdr`（该宽度不对齐 ⇒ MALIGN）
+@@     mem    = `ld.o` @ 0（CFXMEM）
+@@     illi   = 原始编码 `enc`（rdHB = rd0 的 sc ⇒ ILLI）
+@@     trap   = `trap cfx_hmon, 0`（CFXTRAP）
+@@   `slot` = `.text` 内偏移（落点地址 = `ENTRY + slot`），必须单调递增并避开既有代码；
+@@   `maladdr` 只有 malign 用、`enc` 只有 illi 用（其余路径传什么都行）。
+.macro __PT_SC_EXC_ENTRY pt, scmnem, lrmnem, srcreg, ea, init, src, kind, slot, maladdr, enc
+	__PT_ST_INIT	\ea, \init
+	set.rb	rb3, \ea
+	\lrmnem	rd2, [rb3]
+	set.rb	rb20, HMON_BASE
+	set.rb	rb21, (ENTRY + \slot)
+	st.o	rb21, [rb20, 0xF8]
+	.ifc	\kind, malign
+	set.rb	rb22, \maladdr
+	ld.o	rd7, [rb22, 0]
+	.endif
+	.ifc	\kind, mem
+	set.rb	rb22, 0
+	ld.o	rd7, [rb22, 0]
+	.endif
+	.ifc	\kind, illi
+	.dd.t32	\enc
+	.endif
+	.ifc	\kind, trap
+	trap	cfx_hmon, 0
+	.endif
+	.org	\slot
+__lx_\@:
+	set.rb	rb3, \ea
+	set.rd	\srcreg, \src
+	\scmnem	rd5, \srcreg, [rb3]
+	__CHECK_RD	\pt, rd5, 0x1
+	__VERIFY_MEM	\pt, \ea, 0, \init
+.endm
+
 @@ ---------------------------------------------------------------------------
 @@ 2 行级结构重复宏（m15-testcases-005；判据 = 净收益 k×n−(n+2+k) > 0，
 @@ 宏体只含准备段、0 个检查点 ⇒ 用非用例前缀 `__PREP_*`，`__PT_*` 只留给

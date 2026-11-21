@@ -252,3 +252,7 @@
 - **2026-11-20 m16-gem5-019**
   - 摘要：**更正 2026-11-19 `m16-gem5-017` 摘要里的参照路径**：本版 gem5 的 `configs/example/{se,fs}.py` 已是 29 行 `fatal()` 存根，真实脚本迁到 `configs/deprecated/example/`；「与上游 `configs/example/se.py --cpu-type` 同构」应读作 `configs/deprecated/example/se.py`。据 `m16-gem5-019 gem5 实现差异盘点`（D23）；实现本身不变。
   - 执行者：architect
+
+- **2026-11-21 `m16-testcases-003`**
+  - 摘要：**LR/SC 保留标记在异常/中断进入向量时清除（`ISS-443`；`spec/SimRISC-12 §1`「保留机制」）**。`src/arch/dadao/tiny_cfx.cc`：新增 `clearReservationOnEntry()`，`tinyCfxRaise()` 在真正进入 hmon/cfx 向量前清本 hart 的保留（同步故障、`trap`、cfx 访问故障都经此）；`src/arch/dadao/node_cfx.cc`：同助手 + `nodeCfxRaise()`（`entered` 时）、`nodeTrap()` 的 CFXTRAP 直接入向量、`nodeDeliverAsync()` 投递成功三处调用（Node 帧与异步源）。改前 MALIGN/CFXMEM/ILLI/CFXTRAP 四条路径后 `sc` 全成功（0）；改后全失败（1），与 chipyard/QEMU 同一 ELF 逐字节一致。补丁 2 份改（`tiny_cfx.cc`、`node_cfx.cc`）。
+  - 执行者：engineer

@@ -651,9 +651,9 @@
   - gem5
   - testcases
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: m13-qemu-014 + m13-chipyard-002（三平台实现改为精确地址 + 宽度；gem5 原已合规）；m13-testcases-037 / m16-testcases-003（向量：sc.b.nn 点 17-21 + 本任务 sc.{w,t,o}.nn 点 17 + sc.b.nn 点 26 同址异宽）
   title: "【P2】`sc` 保留（reservation）粒度三平台不一致：`spec/SimRISC-12 §1`/`ADR-0034 D6` 是**精确地址+宽度**（同字异址写入不应清标记），实测 **QEMU 按 8 B 整字判成功**（与 spec 相反）；**chipyard 按整字值比较**（同 hart 改同字另一字节即清标记，spec 未列该清除事件）；gem5 与 spec 一致（3 点全过）。`m13-testcases-028` 的 `probe_gran.S` 同 ELF 实测 `chipyard=2 / qemu=1 / gem5=0`。需裁定：改实现对齐 spec，或改 spec 允许字粒度/字值失效。"
 - id: ISS-436
   scope:
@@ -697,7 +697,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2】`lr`/`sc` 的「另一 hart 对同一精确地址+相同宽度 store ⇒ 清保留」**三平台均无实现路径**：`m13-qemu-014` 删掉整字值 CAS 后，QEMU 只剩「记录键 + 另一条 lr/异常/sc 自身」三种清除；旧实现靠整字值变化间接覆盖了「同址写」这一半（但并不精确）；chipyard 同样只按 `resvValid/resvAddr/resvWidth` 判、无 store 侧失效钩子。单 hart（`WumingTinyConfig`）无观测载体，故不阻断当前里程碑；**上多 hart 之前必须补**：store 提交路径按 `(PA, 宽度)` 失效匹配的保留标记（或引入一致性事件），并补多 hart 用例。评审时请连带判断是否需要 ADR（跨三平台 + 语义固化）。"
+  title: "【P2】`lr`/`sc` 的「另一 hart 对同一精确地址+相同宽度 store ⇒ 清保留」**三平台均无实现路径**：`m13-qemu-014` 删掉整字值 CAS 后，QEMU 只剩「记录键 + 另一条 lr/异常/sc 自身」三种清除；旧实现靠整字值变化间接覆盖了「同址写」这一半（但并不精确）；chipyard 同样只按 `resvValid/resvAddr/resvWidth` 判、无 store 侧失效钩子。单 hart（`WumingTinyConfig`）无观测载体，故不阻断当前里程碑；**上多 hart 之前必须补**：store 提交路径按 `(PA, 宽度)` 失效匹配的保留标记（或引入一致性事件），并补多 hart 用例。评审时请连带判断是否需要 ADR（跨三平台 + 语义固化）。**GAP（m16-testcases-003 复核）**：仍保持 open —— 三平台均无 store 侧失效钩子，且单 hart 的 WumingTinyConfig 无观测载体（另一 hart 无法在正式向量中构造）；四路径「异常/中断进入」已由 m16-testcases-003 实现并做成向量，与本条的「另一 hart 同址同宽 store」无关。上多 hart 前必须补（含 ADR 判定），不得以单 hart 用例冒充覆盖。"
 - id: ISS-441
   scope:
   - testcases
@@ -721,9 +721,9 @@
   - gem5
   - testcases
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: m16-testcases-003（qemu：清除点收敛到 cfx_enter 进入向量处，补 CFXTRAP；gem5：tinyCfxRaise/nodeCfxRaise/nodeTrap/nodeDeliverAsync 进入向量时清保留；向量：sc.b.nn 点 22-25 四路径；chipyard 自 m12-chipyard-010 起已清）
   title: "【P1】`sc` 的「异常/中断进入 ⇒ 清保留」**三平台均不实现**（`spec/SimRISC-12 §1` 明列为清除事件）：`m13-testcases-037` 四条路径实测 —— `MALIGN`/`CFXMEM`/`ILLI` 进入后 `sc` = chipyard `1` / qemu `1` / **gem5 `0`**；`CFXTRAP` = `1` / **`0`** / **`0`**（spec 全为 1 = 清除）。后果：该清除事件**无法写成正式向量**（写 1 ⇒ gem5+qemu 恒红挡 L2；写 0 或写平台值 = 以实现反推，任务书明禁）⇒ 037 只能记 GAP。处置：① gem5 与 qemu 补「异常/中断进入清保留」（qemu 至少补 `CFXTRAP` 路径）；② 修完后在 `sc.b.nn_orrr_rd.S` 补故障/链例 1 点；③ 与 `ISS-440`（多 hart 清除无路径）同源，建议同批处理。"
 - id: ISS-444
   scope:

@@ -8,12 +8,16 @@
 @@   异常或中断进入 清本 hart 全部标记；sc 失败不写内存并返回 1、成功返回 0（本文件一律内联期望）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA 零区；每例独立 8 B 拍（运行时置初值）
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 用例：encoding 2 / semantic 7 / boundary 5 / overlap 2（链例 16 + 故障例 2）
+@@ 用例：encoding 2 / semantic 7 / boundary 5 / overlap 2 / 粒度 1 / 异常进入 1
+@@   （链例 18 + 故障例 2）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 期望来自 spec/SimRISC-12 §1 + contract-isa §14.2 + ADR-0034 D6（不从实现反推）
 @@ 配对：链例里设置/消费标记用同宽度 nn 形式的 lr/sc（存储序提示不改变数值结果）
-@@ GAP（不可测，见 MIGRATION §6/028）：多 hart 同址写清标记 / 异常或中断进入清标记 /
-@@   保留粒度平台分歧 / 存储序强度 / sc 偶发失败 —— 均不写用例、不伪造
+@@ 保留粒度（点 17，`ISS-435`）：键 = lr 的精确地址 + 访问宽度；同 hart 对同字另一地址的
+@@   普通 store 不清标记 ⇒ 该点 sc 必须成功（0）。
+@@ 异常进入（点 18，`ISS-443`）：lr 后经 MALIGN 进 hmon 向量再返回 ⇒ sc 必须失败（1）。
+@@ GAP（不可测，见 MIGRATION §6/028）：多 hart 同址写清标记 / 存储序强度 / sc 偶发失败
+@@   —— 均不写用例、不伪造；多 hart 清除事件见 `ISS-440`（上多 hart 前必须补）。
 
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/12-misc/12-misc.inc"
@@ -91,13 +95,22 @@
 	@@! inputs: kind=sc sym=A13 k=2 init=0xFEDCBA9876543210 src=0xDEADBEEFCAFEF00D
 	__PT_SC_LD	16, sc.w.nn, lr.w.nn, rd2, A13, 0xFEDCBA9876543210, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0xFEDCF00D76543210, 2
 
+	@@ ---- 保留粒度（`ISS-435`）：键 = 精确地址 + 访问宽度 ----
+	@@ 同字异址：lr.w[A14] 后写 [A14+1]（同 8 B 字、不同精确地址）⇒ 标记仍在、sc 成功
+	@@! inputs: kind=lr.w;st.b@A14+1;sc.w sym=A14 k=0 init=0x0123456789ABCDEF src=0x5A5A5A5A5A5A5A5A
+	__PT_SC_STORE_PREP	17, sc.w.nn, lr.w.nn, rd2, A14, 0x0123456789ABCDEF, st.b, 0xAA, 1, 0x5A5A5A5A5A5A5A5A, 0x5A5A456789ABCDEF
+
+	@@ ---- 异常进入（`ISS-443`）：MALIGN 后 sc 必失败（spec/SimRISC-12 §1）----
+	@@! inputs: kind=lr.w;ld.o@LMAL;sc.w sym=B7 k=0 init=0x0F1E2D3C4B5A6978 src=0x5A
+	__PT_SC_EXC_ENTRY	18, sc.w.nn, lr.w.nn, rd2, B7, 0x0F1E2D3C4B5A6978, 0x5A, malign, 0x3000, LMAL, 0
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链；原始编码）----
-	@@ fault 17：sc 的 rdHB = rd0 ⇒ ILLI（成功/失败结果不可丢弃，原始编码）
-	TEST_FAULT_CF1 17, rb3, A0, ILLI, 0x47480083
+	@@ fault 19：sc 的 rdHB = rd0 ⇒ ILLI（成功/失败结果不可丢弃，原始编码）
+	TEST_FAULT_CF1 19, rb3, A0, ILLI, 0x47480083
 
-	@@ fault 18：sc 地址未按 2 B 自然对齐 ⇒ MALIGN（原始编码，rb6 = LMAL）
-	TEST_FAULT_CF1 18, rb6, LMAL, MALIGN, 0x47485086
+	@@ fault 20：sc 地址未按 2 B 自然对齐 ⇒ MALIGN（原始编码，rb6 = LMAL）
+	TEST_FAULT_CF1 20, rb6, LMAL, MALIGN, 0x47485086
 
 	__TEST_SECTIONS

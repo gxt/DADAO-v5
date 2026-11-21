@@ -1,12 +1,13 @@
 diff --git a/src/arch/dadao/tiny_cfx.cc b/src/arch/dadao/tiny_cfx.cc
 new file mode 100644
-index 0000000..07ac9fe
+index 0000000..b47dca0
 --- /dev/null
 +++ b/src/arch/dadao/tiny_cfx.cc
-@@ -0,0 +1,499 @@
+@@ -0,0 +1,515 @@
 +// DADAO Tiny machine model: cfx_power (cfx63) + cfx3 hmon.
 +#include "arch/dadao/tiny_cfx.hh"
 +
++#include "arch/dadao/isa.hh"
 +#include "arch/dadao/fs_machine.hh"
 +#include "arch/dadao/pcstate.hh"
 +#include "cpu/thread_context.hh"
@@ -39,6 +40,18 @@ index 0000000..07ac9fe
 +currentPc(ThreadContext *tc)
 +{
 +    return tc->pcState().instAddr();
++}
++
++/** Exception/interrupt entry clears this hart's LR/SC reservation
++ *  (spec/SimRISC-12 §1「保留机制」): an `sc` after a handler must fail, so the
++ *  reservation is dropped at the one place that actually enters a vector --
++ *  prior to this, a `trap`/fault entry left it live and the following `sc`
++ *  succeeded (ISS-443). */
++void
++clearReservationOnEntry(ThreadContext *tc)
++{
++    if (auto *isa = dynamic_cast<ISA *>(tc->getIsaPtr()))
++        isa->clearReservations();
 +}
 +
 +bool
@@ -335,6 +348,9 @@ index 0000000..07ac9fe
 +        return false;
 +
 +    s.depth++;
++    // Entering a handler is a clearing event for the LR/SC reservation
++    // (spec/SimRISC-12 §1; ISS-443).
++    clearReservationOnEntry(tc);
 +    setPc(tc, vec, fromFault);
 +    return true;
 +}

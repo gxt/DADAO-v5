@@ -11,14 +11,16 @@
 @@   **都不清标记**（清除侧只列「另一 hart 同址同宽 store」）⇒ 这些点上的 sc 必须成功（0）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA 零区；每例独立 8 B 拍（运行时置初值）
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
-@@ 用例：encoding 2 / semantic 12 / boundary 5 / overlap 2（链例 21 + 故障例 1）
+@@ 用例：encoding 2 / semantic 12 / boundary 5 / overlap 2 / exception 4 / 粒度 1
+@@   （链例 26 + 故障例 1）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 期望来自 spec/SimRISC-12 §1 + contract-isa §14.2 + ADR-0034 D6（不从实现反推）
 @@ 配对：链例里设置/消费标记用同宽度 nn 形式的 lr/sc（存储序提示不改变数值结果）
-@@ GAP（不可测，见 MIGRATION §6/028）：多 hart 同址写清标记 / 异常或中断进入清标记 /
-@@   存储序强度 / sc 偶发失败 —— 均不写用例、不伪造。其中「异常或中断进入」在链例可构造，
-@@   但三方实测分歧（chipyard 清、qemu 仅同步异常清、gem5 不清）⇒ 只留 GAP 与实测值，
-@@   不把任一平台的行为写成期望（依据与实测值见 `m13-testcases-037` 任务书）
+@@ 异常进入（点 22-25，`spec/SimRISC-12 §1`「保留机制」）：`lr` 后分别经 MALIGN / CFXMEM /
+@@   ILLI / CFXTRAP 进入 hmon 向量，返回后 `sc` **必须失败（1）**；四条路径的期望全来自
+@@   spec（「异常或中断进入」是清除事件），不取任一平台输出（`ISS-443`）。
+@@ GAP（不可测，见 MIGRATION §6/028）：多 hart 同址写清标记 / 存储序强度 / sc 偶发失败
+@@   —— 均不写用例、不伪造；多 hart 清除事件见 `ISS-440`（上多 hart 前必须补）。
 
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/12-misc/12-misc.inc"
@@ -27,6 +29,18 @@
 @@   A0..A17 / B0..B17 / L / SCR 在册宏层 `tests/inst/12-misc/12-misc.inc`（单源）；
 @@   本文件只补**宽度专属**的「故意不对齐」地址 LMAL（.w/.t/.o 的 MALIGN 例）。
 	.equ LMAL, TEST_DATA + 0x7f1     @@ 故意不对齐（.w/.t/.o 的 MALIGN 例）
+
+@@ 本文件专用宏（只 sc.b.nn 用）：保留键的宽度维 —— `lr` 与 `sc` 同**精确地址**、
+@@   **不同访问宽度** ⇒ 键不匹配 ⇒ `sc` 失败（1）且不写内存。
+.macro __PT_SC_LR_WIDTH pt, scmnem, lrmnem, srcreg, ea, init, src
+	__PT_ST_INIT	\ea, \init
+	set.rb	rb3, \ea
+	\lrmnem	rd2, [rb3]
+	set.rd	\srcreg, \src
+	\scmnem	rd5, \srcreg, [rb3]
+	__CHECK_RD	\pt, rd5, 0x1
+	__VERIFY_MEM	\pt, \ea, 0, \init
+.endm
 
 	__TEST_BEGIN
 
@@ -128,10 +142,34 @@
 	@@ reload=0：rb3 仍指向该拍（中间是普通 store 例）
 	__PT_SC_2SC_SELF	21, sc.b.nn, lr.b.nn, rd2, B2, 0x0F1E2D3C4B5A6978, 0x5A5A5A5A5A5A5A5A, 0x9999999999999999, 0x5A1E2D3C4B5A6978
 
+	@@ ---- 异常进入（`ISS-443`）：四路径后 sc 必失败（spec/SimRISC-12 §1）----
+	@@ 落点由 `.org` 钉在 .text 的 0x3000/0x3100/0x3200/0x3300；hmon 返回槽指向落点。
+	@@ 期望全为 1（清除事件），拍保持初值（失败不写内存）。
+
+	@@ 点 22：MALIGN —— lr.b[B7] → ld.o @TEST_DATA+0x7f1（未按 8 B 对齐）→ sc.b[B7]
+	@@! inputs: kind=lr.b;ld.o@LMAL;sc.b sym=B7 k=0 init=0x0F1E2D3C4B5A6978 src=0x5A
+	__PT_SC_EXC_ENTRY	22, sc.b.nn, lr.b.nn, rd2, B7, 0x0F1E2D3C4B5A6978, 0x5A, malign, 0x3000, LMAL, 0
+
+	@@ 点 23：CFXMEM —— lr.b[B8] → ld.o @0 → sc.b[B8]
+	@@! inputs: kind=lr.b;ld.o@0;sc.b sym=B8 k=0 init=0x1122334455667788 src=0x5B
+	__PT_SC_EXC_ENTRY	23, sc.b.nn, lr.b.nn, rd2, B8, 0x1122334455667788, 0x5B, mem, 0x3100, 0, 0
+
+	@@ 点 24：ILLI —— lr.b[B9] → 原始编码 sc.b 且 rdHB=rd0 → sc.b[B9]
+	@@! inputs: kind=lr.b;sc.b(rd0);sc.b sym=B9 k=0 init=0xFEDCBA9876543210 src=0x5C
+	__PT_SC_EXC_ENTRY	24, sc.b.nn, lr.b.nn, rd2, B9, 0xFEDCBA9876543210, 0x5C, illi, 0x3200, 0, 0x474C0083
+
+	@@ 点 25：CFXTRAP —— lr.b[B10] → trap cfx_hmon,0 → sc.b[B10]
+	@@! inputs: kind=lr.b;trap;sc.b sym=B10 k=0 init=0x0123456789ABCDEF src=0x5D
+	__PT_SC_EXC_ENTRY	25, sc.b.nn, lr.b.nn, rd2, B10, 0x0123456789ABCDEF, 0x5D, trap, 0x3300, 0, 0
+
+	@@ ---- 粒度：键的宽度维（同址异宽）—— lr.b[B11] 后 sc.t[B11] ⇒ 键不匹配、失败 ----
+	@@! inputs: kind=lr.b;sc.t sym=B11 k=0 init=0x0F1E2D3C4B5A6978 src=0xDEADBEEF
+	__PT_SC_LR_WIDTH	26, sc.t.nn, lr.b.nn, rd2, B11, 0x0F1E2D3C4B5A6978, 0xDEADBEEF
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链；原始编码）----
-	@@ fault 22：sc 的 rdHB = rd0 ⇒ ILLI（成功/失败结果不可丢弃，原始编码）
-	TEST_FAULT_CF1 22, rb3, A0, ILLI, 0x474C0083
+	@@ fault 27：sc 的 rdHB = rd0 ⇒ ILLI（成功/失败结果不可丢弃，原始编码）
+	TEST_FAULT_CF1 27, rb3, A0, ILLI, 0x474C0083
 
 	__TEST_SECTIONS

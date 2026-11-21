@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..bd04952
+index 0000000..7308493
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,3169 @@
+@@ -0,0 +1,3179 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -363,12 +363,12 @@ index 0000000..bd04952
 +    CPUDADAOState *env = cpu_env(cs);
 +
 +    /*
-+     * Exception/interrupt entry clears this hart's LR/SC reservation
-+     * (SimRISC-12 §1「保留机制」: "异常或中断进入" is one of the clearing
-+     * events, so an sc executed after a handler ran can never succeed --
-+     * QEMU-067t).
++     * Exception/interrupt entry clears this hart's LR/SC reservation.  The
++     * clearing point is cfx_enter() (the one place that actually enters a
++     * vector), not here: this hook also serves the semihosting short-circuit,
++     * which advances PC without entering any handler and therefore is not a
++     * clearing event (SimRISC-12 §1「保留机制」).
 +     */
-+    env->lock_valid = 0;
 +
 +    /*
 +     * Semihosting short-circuit (ADR-0038 D1/D4; Machine-01 §5): the trap
@@ -2187,7 +2187,17 @@ index 0000000..bd04952
 +    env->cfx[ci].cause_ip = cause_ip;
 +    env->cfx[ci].cause_id = cause;
 +    env->cfx[ci].cause_info = cause_info;
-+    /* step 7: jump to the exception vector */
++    /* step 7: jump to the exception vector.
++     *
++     * Exception/interrupt entry clears this hart's LR/SC reservation
++     * (SimRISC-12 §1「保留机制」: "异常或中断进入" is a clearing event, so an
++     * `sc` after a handler ran can never succeed).  This is the single
++     * clearing point: every sync fault, `trap` and async delivery enters its
++     * vector here, while a masked async source (above) and the semihosting
++     * short-circuit never reach it.  `sc` after a handler -- including the
++     * `trap cfx_hmon` path, which does not pass through
++     * dadao_cpu_do_interrupt -- therefore fails (ISS-443). */
++    env->lock_valid = 0;
 +    *entered = true;
 +    return vec;
 +}

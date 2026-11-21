@@ -409,3 +409,9 @@
 - **2026-11-20 `m15-qemu-002`**
   - 摘要：**窄 `lr`（`lr.{t,w,b}.{nn,an,ar}` 共 9 条）写回改为「只写目的低 W 位、高位保持原值」**（`spec/SimRISC-12 §1.1`；用户 2026-11-19 裁定，依据 `m15-idl-020 D3`）：`target/dadao/translate.c` 新增 `store_rd_narrow()`（`new = (old & ~mask) | (val & mask)`，`mask = 2^(8W) − 1`），`gen_lr()` 对 `width == 8`（`lr.o`）保持整 64 位写、窄宽度改走切片写（既不零扩展也不符号扩展）。`tests/inst/12-misc` 的 9 个 `lr` 载体期望值按新语义订正（`tests/case-ledger.tsv` 同步重生成；`check-inst-asm` 272/272）。补丁 1 份改。
   - 执行者：engineer
+
+## M16
+
+- **2026-11-21 `m16-testcases-003`**
+  - 摘要：**`sc` 保留标记的清除点收敛到「异常/中断进入向量」这一处（`ISS-443`；`spec/SimRISC-12 §1`「保留机制」）**。`target/dadao/helper.c`：`cfx_enter()` 第 7 步真正进入向量时置 `env->lock_valid = 0`（覆盖同步异常、`trap` 与异步投递；被 mask 而未投递的异步源不经过此处）；`dadao_cpu_do_interrupt()` 顶部的原清除删除——该钩子也服务 semihosting 短接（只推进 PC、不进入任何处理器），按 spec 不属清除事件。修复 `trap cfx_hmon` 后 `sc` 仍成功的问题（原只有经 `cpu_do_interrupt` 的同步异常清）。补丁 1 份改（`target/dadao/helper.c`）。
+  - 执行者：engineer
