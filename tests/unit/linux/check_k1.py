@@ -106,14 +106,14 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-_REPO = Path(__file__).resolve().parents[2]
+_REPO = Path(__file__).resolve().parents[3]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
 from tools.linux import config_pins  # noqa: E402  (CONFIG_DADAO_* pins)
-from tools.linux import k1_boot_probe as k1boot    # noqa: E402  (ELF/symbols)
+from tests.unit.linux import k1_boot_probe as k1boot    # noqa: E402  (ELF/symbols)
 from tools.linux import make_defconfig as defconfig  # noqa: E402  (config slice)
-from tools.linux import k1_pt_probe as k1pt       # noqa: E402  (ptw parsers)
+from tests.unit.linux import k1_pt_probe as k1pt       # noqa: E402  (ptw parsers)
 from tools.linux import make_vmlinux as vmlinux   # noqa: E402  (build driver)
 from tools.linux import paths as linux_paths      # noqa: E402
 # `.ascii` oracle helper: `tests/ee-tiny/` 不是合法模块名（`-`），按文件路径加载

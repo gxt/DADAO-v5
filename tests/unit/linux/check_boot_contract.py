@@ -50,7 +50,7 @@ from pathlib import Path
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 SPEC_REL = Path("spec/Kaiwu-测试机运行环境.md")
 CONTRACT_REL = Path(".tao/contracts/contract-linux-boot.md")

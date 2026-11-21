@@ -86,7 +86,7 @@ from pathlib import Path
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -1073,7 +1073,7 @@ def inject(env: Env, scratch: Path) -> int:
 
     # ── I3: matrix copy with one row declared `absent` ───────────────────
     def case_matrix_row() -> tuple[int, str, str]:
-        from tools.linux import check_toolchain as tc
+        from tests.unit.linux import check_toolchain as tc
         data = json.loads(env.matrix.read_text(encoding="utf-8"))
         row = data["rows"][0]
         original = row["declared"]

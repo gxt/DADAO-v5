@@ -1076,29 +1076,29 @@ _locked-build-busybox:
 	@JOBS=$(JOBS) $(PYTHON) tools/linux/build_busybox.py --jobs $(JOBS)
 
 _locked-check-linux-k0:
-	@JOBS=$(JOBS) $(PYTHON) tools/linux/check_k0.py
+	@JOBS=$(JOBS) $(PYTHON) tests/unit/linux/check_k0.py
 
 _locked-check-linux-k1:
-	@JOBS=$(JOBS) $(PYTHON) tools/linux/check_k1.py
+	@JOBS=$(JOBS) $(PYTHON) tests/unit/linux/check_k1.py
 
 _locked-check-linux-k2:
-	@JOBS=$(JOBS) $(PYTHON) tools/linux/check_k2.py
+	@JOBS=$(JOBS) $(PYTHON) tests/unit/linux/check_k2.py
 
 _locked-check-linux-k3:
-	@JOBS=$(JOBS) $(PYTHON) tools/linux/check_k3.py
+	@JOBS=$(JOBS) $(PYTHON) tests/unit/linux/check_k3.py
 
 check-linux-toolchain:
-	@$(PYTHON) tools/linux/check_toolchain.py
+	@$(PYTHON) tests/unit/linux/check_toolchain.py
 
 check-linux-boot-contract:
-	@$(PYTHON) tools/linux/check_boot_contract.py
+	@$(PYTHON) tests/unit/linux/check_boot_contract.py
 
 # CONFIG_DADAO_* 钉子全集（ISS-470；F30/F41 两次复发）：每个切片脚本的模块级
 # CONFIG_PINS 键集合必须 == Kconfig 真源全集，且切片由 config_pins.config_lines()
 # 派生（无手写字面量），int 钉 "n" 须依赖确实不满足；Kconfig 解析不到符号 ⇒ 红
 # （fail-closed）。`--self-test` 6 类注入。只读静态（不建、不跑）⇒ L1。
 check-config-pins:
-	@$(PYTHON) tools/linux/check_config_pins.py
+	@$(PYTHON) tests/unit/linux/check_config_pins.py
 
 docker-image:
 	docker build -t $(DOCKER_TAG) containers/dev

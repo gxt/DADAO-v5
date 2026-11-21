@@ -61,13 +61,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from tools.linux import config_pins                     # noqa: E402  (pins)
-from tools.linux import k2_time_probe as k2time         # noqa: E402  (derivations)
-from tools.linux import k2_trap_probe as k2trap        # noqa: E402  (§7.1 parser)
+from tests.unit.linux import k2_time_probe as k2time         # noqa: E402  (derivations)
+from tests.unit.linux import k2_trap_probe as k2trap        # noqa: E402  (§7.1 parser)
 from tools.linux import make_defconfig as defconfig    # noqa: E402  (config slice)
 from tools.linux import paths as linux_paths           # noqa: E402
 from tools.qemu import k0_boot_probe as k0             # noqa: E402  (firmware)

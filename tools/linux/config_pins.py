@@ -11,7 +11,7 @@ So every script that slices the kernel config carries a module-level
 ``CONFIG_PINS`` dict that names **every** ``CONFIG_DADAO_*`` symbol of the
 Kconfig for the image it builds, and its slice is produced from that dict by
 :func:`config_lines` -- never by hand-written ``"CONFIG_X=y"`` literals.
-``tools/linux/check_config_pins.py`` (L1 ``make check-config-pins``) asserts the
+``tests/unit/linux/check_config_pins.py`` (L1 ``make check-config-pins``) asserts the
 key set equals the Kconfig set and that no script hand-writes a slice.
 
 Shape of ``CONFIG_PINS`` (checked mechanically, keep it a plain literal so the

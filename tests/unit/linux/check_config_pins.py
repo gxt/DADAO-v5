@@ -36,7 +36,7 @@ Counts (scripts / symbols / images) are derived on the spot, never written down.
 (missing key, unknown key, hand-written slice, int pinned unset while visible,
 script without pins, empty Kconfig), restoring each time.
 
-Usage:  python3 tools/linux/check_config_pins.py [--self-test]
+Usage:  python3 tests/unit/linux/check_config_pins.py [--self-test]
 Exit:   0 = PASS, 1 = FAIL.
 """
 from __future__ import annotations
@@ -49,13 +49,13 @@ import sys
 import tempfile
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[2]
+REPO = Path(__file__).resolve().parents[3]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from tools.linux import config_pins  # noqa: E402
 
-SCRIPTS_DIR = Path("tools") / "linux"
+SCRIPTS_DIRS = (Path("tests") / "unit" / "linux", Path("tools") / "linux")
 _ASSIGN_RE = re.compile(r"^(CONFIG_DADAO_[A-Za-z0-9_]+)=")
 _SYMBOL_RE = re.compile(r"^CONFIG_DADAO_[A-Za-z0-9_]+$")
 _DEP_TOKEN_RE = re.compile(r"[A-Za-z0-9_]+|&&|\|\||!|\(|\)")
@@ -263,10 +263,12 @@ def audit_scripts(root: Path, rep: Report) -> tuple[int, int, int]:
     """Return (scripts with pins, images, symbols)."""
     symbols = config_pins.parse_kconfig(config_pins.kconfig_path(root))
     expected = set(symbols)
-    scripts_dir = root / SCRIPTS_DIR
     pinned, images_seen = 0, 0
-    for path in sorted(scripts_dir.glob("*.py")):
-        rel = f"{SCRIPTS_DIR.as_posix()}/{path.name}"
+    script_paths = []
+    for scripts_dir in SCRIPTS_DIRS:
+        script_paths += [(scripts_dir, p) for p in sorted((root / scripts_dir).glob("*.py"))]
+    for scripts_dir, path in script_paths:
+        rel = f"{scripts_dir.as_posix()}/{path.name}"
         try:
             tree = ast.parse(path.read_text(encoding="utf-8"))
         except SyntaxError as exc:
@@ -430,8 +432,9 @@ def _self_test() -> int:
     try:
         (tmp / config_pins.KCONFIG_REL).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(config_pins.kconfig_path(REPO), tmp / config_pins.KCONFIG_REL)
-        shutil.copytree(REPO / SCRIPTS_DIR, tmp / SCRIPTS_DIR,
-                        ignore=shutil.ignore_patterns("__pycache__"))
+        for scripts_dir in SCRIPTS_DIRS:
+            shutil.copytree(REPO / scripts_dir, tmp / scripts_dir,
+                            ignore=shutil.ignore_patterns("__pycache__"))
 
         print("── self-test 基线（未注入应 PASS）──")
         rc, _ = run_checks(tmp)
@@ -439,8 +442,8 @@ def _self_test() -> int:
             print(f"self-test: 基线未通过（rc={rc}）", file=sys.stderr)
             return 1
 
-        k0 = tmp / SCRIPTS_DIR / "check_k0.py"
-        k3 = tmp / SCRIPTS_DIR / "check_k3.py"
+        k0 = tmp / SCRIPTS_DIRS[0] / "check_k0.py"
+        k3 = tmp / SCRIPTS_DIRS[0] / "check_k3.py"
         kconfig = tmp / config_pins.KCONFIG_REL
         originals = {path: path.read_text(encoding="utf-8")
                      for path in (k0, k3, kconfig)}
@@ -489,7 +492,7 @@ def _self_test() -> int:
             if rc_good != 0:
                 failures += 1
 
-        escape = tmp / SCRIPTS_DIR / "check_k9.py"
+        escape = tmp / SCRIPTS_DIRS[0] / "check_k9.py"
         escape.write_text(
             "from tools.linux import make_defconfig as defconfig\n"
             "def go():\n"

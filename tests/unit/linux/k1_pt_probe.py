@@ -86,12 +86,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-_REPO = Path(__file__).resolve().parents[2]
+_REPO = Path(__file__).resolve().parents[3]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
 from tools.linux import config_pins               # noqa: E402  (pins)
-from tools.linux import k1_boot_probe as k1     # noqa: E402
+from tests.unit.linux import k1_boot_probe as k1     # noqa: E402
 from tools.linux import make_defconfig as defconfig  # noqa: E402  (config slice)
 from tools.linux import make_vmlinux as vmlinux  # noqa: E402
 from tools.linux import paths as _paths          # noqa: E402

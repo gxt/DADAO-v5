@@ -33,7 +33,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 
 # 派单基线 commit（**常量**；M14 派单时 master tip）。不得改成 `HEAD`。
 BASELINE = "174298eb"
