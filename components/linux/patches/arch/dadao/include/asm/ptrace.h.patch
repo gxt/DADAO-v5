@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/ptrace.h b/arch/dadao/include/asm/ptrace.h
 new file mode 100644
-index 000000000..327c8a1b4
+index 000000000..bc6d8f80e
 --- /dev/null
 +++ b/arch/dadao/include/asm/ptrace.h
-@@ -0,0 +1,194 @@
+@@ -0,0 +1,201 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PTRACE_H
 +#define __ASM_PTRACE_H
@@ -173,15 +173,22 @@ index 000000000..327c8a1b4
 + *   DADAO_PF_RETRY  re-execute the faulting instruction (`escape …, 0`): the
 + *                   handler installed the mapping (or set the missing fragment
 + *                   bit) and invalidated the TLB;
-+ *   DADAO_PF_FATAL  nothing was installed; traps.c names the cause and stops
-+ *                   with spec/Kaiwu §7.1's monitor code.
++ *   DADAO_PF_FATAL  nothing was installed, and the fault belongs to the
++ *                   *kernel*: traps.c names the cause and stops with
++ *                   spec/Kaiwu §7.1's monitor code;
++ *   DADAO_PF_SEGV   nothing was installed, and the fault belongs to a *user*
++ *                   process: SIGSEGV was raised on it and is delivered on the
++ *                   way back to user mode (m14-linux-027, mm/fault.c).  The
++ *                   process's own default action or handler decides what
++ *                   happens; the kernel never names it.
 + *
 + * The handler never returns a "skip": a page fault either makes the access
-+ * possible or ends the boot — the instruction it belongs to has no meaningful
-+ * value to skip to.
++ * possible, hands the process its SIGSEGV, or ends the boot — the instruction
++ * it belongs to has no meaningful value to skip to.
 + */
 +#define DADAO_PF_RETRY		0
 +#define DADAO_PF_FATAL		1
++#define DADAO_PF_SEGV		2
 +unsigned long dadao_do_page_fault(struct pt_regs *regs, unsigned long cause,
 +				  unsigned long info, bool from_user);
 +

@@ -29,6 +29,26 @@ What each case proves, and where its expectation comes from:
       built inside the alternate stack while the handler still sees the
       interrupted context (the `sigsp()` branch of `get_sigframe`).
 
+m14-linux-027 adds the *behaviour* half of the same image (its task book's
+cases S1/S3/S4; 046 already uses the letters s2/s3/s4 here, so the new ones are
+s5 and s6 and no case name is shared):
+
+  s1  a user access the channel cannot serve is the process's SIGSEGV, not a
+      boot-ending monitor code.  Two readings: an address no VMA covers
+      (`die-no-vma`) and a store into a read-only mapping (`die-perm`); both
+      must kill the task through the default action (`exit_code & 0x7f ==
+      SIGSEGV`) and leave the boot running.
+  s5  exit/exit_group: `exit(0)` ends the process with status 0, and a thread
+      group leader's `exit_group(0)` ends the whole group — the `CLONE_THREAD`
+      sibling it cloned (a user `clone`) stops heart-beating and its tid
+      disappears, which is exactly what a leader-only exit would not do.
+  s6  `setrlimit(RLIMIT_STACK)` and its inheritance: `getrlimit` reads the
+      value back, a `fork` child reads the same value with its own
+      `signal_struct`, and m14-linux-019's expansion limit uses it — the
+      child's stack grows one page inside the inherited value and gets SIGSEGV
+      (reported through `wait4`, so the status is host-visible) beyond it,
+      with the growth counter standing still for the refused fault.
+
 The expectations that are facts about the *source* (the 2048-byte layout, the
 `SA_RESTORER` convention, the RA push rules, the data-page contract between the
 C probe and the assembly) are asserted statically in `static_recon()`; a boot
@@ -57,9 +77,10 @@ from tools.linux import make_vmlinux as make_vmlinux         # noqa: E402
 from tools.linux import paths as linux_paths                 # noqa: E402
 from tools.qemu import k0_boot_probe as k0                   # noqa: E402
 
-SCRATCH = (Path(os.environ.get("M46_TMP")
+SCRATCH = (Path(os.environ.get("M27_TMP")
+                or os.environ.get("M46_TMP")
                 or os.environ.get("DADAO_TMP")
-                or "/tmp/opencode/m14-linux-046") / "check-linux-k46")
+                or "/tmp/opencode/m14-linux-027") / "check-linux-k46")
 SOURCE = linux_paths.linux_source_dir()
 
 #: Every milestone boundary pinned off, and only this probe compiled in
@@ -114,15 +135,39 @@ CASES = {
         "snapshot-mrptr", "fcsr-snapshot-arch", "rd-bank", "rb-bank", "ra-bank",
         "rf-bank", "resume-ip", "altframe-seen", "exited-cleanly",
     ),
+    # m14-linux-027: the behaviour cases (task book S1/S3/S4).
+    "s1": (
+        "novma-fault", "novma-died-by-sigsegv", "novma-no-exit-status",
+        "perm-fault", "perm-died-by-sigsegv", "perm-no-exit-status",
+    ),
+    "s5": (
+        "exit-code", "exit-zombie",
+        "group-exit-code", "group-exit-zombie", "group-tid-nonzero",
+        "group-sibling-entered", "group-heartbeats", "group-sibling-gone",
+        "group-sibling-stopped",
+    ),
+    "s6": (
+        "setrlimit-ret", "getrlimit-ret", "limit-cur", "limit-max",
+        "fork-ret-nonzero", "child-gets-ret", "child-inherited-cur",
+        "child-inherited-max", "wait-reported-the-child",
+        "wait-status-sigsegv", "wait-status-no-exit", "in-limit-growth",
+        "over-limit-refused",
+    ),
 }
 
-#: The three phases the program runs, in order, and the exit status each must
-#: leave behind (`exit_code` low 7 bits / high bits, `wait_task_zombie`'s shape).
+#: The exit-status phases the program runs, in order, and what each must leave
+#: behind (`exit_code` low 7 bits / high bits, `wait_task_zombie`'s shape).
+#: A task killed by a signal carries the signal number in the low 7 bits.
 PHASES = (
     # script, state, status, code
     ("0", 32, 0x0, 0),
     ("1", 32, 0xF, 0),
     ("2", 32, 0x0, 0),
+    ("3", 32, 0xB, 0),      # s1: no VMA -> SIGSEGV (11)
+    ("4", 32, 0xB, 0),      # s1: read-only store -> SIGSEGV
+    ("5", 32, 0x0, 0),      # s5: exit(0)
+    ("6", 32, 0x0, 0),      # s5: exit_group(0)
+    ("7", 32, 0x0, 0),      # s6: the parent waited and exited 0
 )
 
 
@@ -272,7 +317,7 @@ def judge(rep: Report, text: str, rc: int, suffix: str = "") -> None:
                       True, f"{case}-{name}" in seen)
 
     got = phase_lines(text)
-    rep.check(f"B{s}", "三个阶段各跑了一次（script 0/1/2）", [p[0] for p in PHASES],
+    rep.check(f"B{s}", "每个阶段各跑了一次（脚本号齐全）", [p[0] for p in PHASES],
               [p[0] for p in got])
     for want, actual in zip(PHASES, got):
         script, state, status, code = want
@@ -413,6 +458,46 @@ def static_recon(rep: Report, snap: dict | None) -> None:
     rep.check("B", "补丁集不含通用 kernel/signal.c、kernel/entry/common.c hunk",
               [], generic)
 
+    # m14-linux-027: the user arm of the fault channel raises SIGSEGV, the
+    # kernel arm keeps its named verdict, and the hand-over path has the
+    # return-to-user tail that delivers it.  These are source facts.
+    fault_c = kernel_text("arch/dadao/mm/fault.c")
+    rep.check("B", "用户态页故障的 verdict 改成投 SIGSEGV", True,
+              "if (policy == DADAO_PF_FATAL && from_user) {" in fault_c
+              and "force_sig_fault(SIGSEGV," in fault_c
+              and "policy = DADAO_PF_SEGV;" in fault_c)
+    rep.check("B", "内核态页故障仍走 DADAO_PF_FATAL（只有 from_user 被改写）",
+              True, "DADAO_PF_FATAL" in
+              kernel_text("arch/dadao/include/asm/ptrace.h")
+              and "policy == DADAO_PF_FATAL && from_user" in fault_c)
+    traps_c = kernel_text("arch/dadao/kernel/traps.c")
+    segv_arm = traps_c.split("if (policy == DADAO_PF_SEGV) {", 1)
+    segv_body = segv_arm[1].split("\n\t}", 1)[0] if len(segv_arm) == 2 else ""
+    rep.check("B", "traps.c 的 SEGV 分支只把控制交回 stub（不具名退出）", True,
+              "policy == DADAO_PF_SEGV" in traps_c
+              and "return DADAO_TRAP_RESUME_SKIP;" in segv_body
+              and "dadao_early_exit" not in segv_body
+              # ... and the non-SEGV arm still names the boot-ending verdict.
+              and "policy != DADAO_PF_RETRY" in traps_c)
+    common_c = kernel_text("arch/dadao/kernel/entry_common.c")
+    rep.check("B", "交接路径有回用户态的工作循环收尾", True,
+              "void dadao_user_fault_return(struct pt_regs *regs)" in common_c
+              and "enter_from_user_mode(regs);" in common_c
+              and "irqentry_exit_to_user_mode_prepare(regs);" in common_c)
+    rep.check("B", "umon stub 在交接返回处调用该收尾且用帧里的 ip 作向量", True,
+              "dadao_user_fault_return" in
+              kernel_text("arch/dadao/kernel/trap.S")
+              and "UMON_RC_EXCP_VECTOR, regs->ip" in common_c)
+    sel_c = kernel_text("arch/dadao/kernel/k5_signal_selftest.c")
+    rep.check("B", "s6 的扩栈窗口按 MAP_GROWSDOWN 建立", True,
+              "MAP_GROWSDOWN" in sel_c and "M46_STACK2_VA" in sel_c)
+    rep.check("B", "s6 装的上限是 5 页（与默认 8 MiB 可区分）", True,
+              "#define M46_ST_LIMIT\t\t(5 * PAGE_SIZE)" in sel_c)
+    rep.check("B", "fork 的 RLIMIT_STACK 继承点仍在通用 copy_signal（未被改）",
+              True,
+              "memcpy(sig->rlim, current->signal->rlim, sizeof sig->rlim);"
+              in kernel_text("kernel/fork.c"))
+
 
 # ---------------------------------------------------------------------------
 # injections
@@ -450,6 +535,35 @@ INJECTIONS = {
         "\tregs->ip = (unsigned long)ksig->ka.sa.sa_handler;\n",
         "\t/* injected: the frame never reaches the handler */\n",
         "s2", "setup_rt_frame 不把 ip 指向 handler"),
+    # m14-linux-027's three: the behaviour cases have to go red on their own
+    # fault, not on a neighbour's.
+    "pf-stays-fatal": (
+        "arch/dadao/mm/fault.c",
+        "\tif (policy == DADAO_PF_FATAL && from_user) {\n",
+        "\tif (policy == DADAO_PF_FATAL && from_user && 0) {\n",
+        "s1", "用户态页故障仍留在 DADAO_PF_FATAL（不投 SIGSEGV）"),
+    "exit-noop": (
+        "arch/dadao/kernel/syscalls.c",
+        "\tnr = array_index_nospec(nr, __NR_syscalls);\n"
+        "\n"
+        "\treturn (unsigned long)sys_call_table[nr];\n",
+        "\tnr = array_index_nospec(nr, __NR_syscalls);\n"
+        "\n"
+        "\t/* injected: `exit` answers instead of ending the task */\n"
+        "\tif (nr == __NR_exit)\n"
+        "\t\treturn 0;\n"
+        "\n"
+        "\treturn (unsigned long)sys_call_table[nr];\n",
+        "s5", "exit 不退出（返回用户态继续跑）"),
+    "fork-keeps-rlimit": (
+        "kernel/fork.c",
+        "\tmemcpy(sig->rlim, current->signal->rlim, sizeof sig->rlim);\n"
+        "\ttask_unlock(current->group_leader);\n",
+        "\tmemcpy(sig->rlim, current->signal->rlim, sizeof sig->rlim);\n"
+        "\tsig->rlim[RLIMIT_STACK].rlim_cur = RLIM_INFINITY;"
+        " /* injected */\n"
+        "\ttask_unlock(current->group_leader);\n",
+        "s6", "fork 子进程不继承父的 RLIMIT_STACK"),
 }
 
 

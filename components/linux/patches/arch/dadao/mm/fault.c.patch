@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/fault.c b/arch/dadao/mm/fault.c
 new file mode 100644
-index 000000000..d68777ee7
+index 000000000..77c8336a9
 --- /dev/null
 +++ b/arch/dadao/mm/fault.c
-@@ -0,0 +1,1094 @@
+@@ -0,0 +1,1167 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO demand paging: the CFXMEM / CFXPERM fault channel (K3, m14-linux-012).
@@ -16,8 +16,8 @@ index 000000000..d68777ee7
 + * (user ruling 2026-11-16):
 + *
 + *   missing class, inside an anonymous window  -> demand fill and re-execute;
-+ *   missing class, outside every window        -> named termination;
-+ *   R/W/X permission class                     -> named termination, *except* a
++ *   missing class, outside every window        -> a verdict (below);
++ *   R/W/X permission class                     -> a verdict, *except* a
 + *                                                 write to a read-only private
 + *                                                 page: the shared zero page
 + *                                                 becomes a private zeroed page
@@ -27,12 +27,24 @@ index 000000000..d68777ee7
 + *                                                 shared, upgraded in place when
 + *                                                 the writer is the only user
 + *                                                 (m14-linux-018);
-+ *   HSJU / cfx-mask permission class           -> named termination;
-+ *   ADWBFAIL                                   -> named termination (a retry
++ *   HSJU / cfx-mask permission class           -> a verdict;
++ *   ADWBFAIL                                   -> a verdict (a retry
 + *                                                 would loop: nothing about the
 + *                                                 access can change);
-+ *   NONPTW                                     -> named termination (the fault
-+ *                                                 is not a page-table one).
++ *   NONPTW                                     -> a verdict (the fault is not a
++ *                                                 page-table one).
++ *
++ * "A verdict" depends on *whose* access it was (m14-linux-027):
++ *
++ *   - the kernel's own access (get_user/copy_from_user, or a probe reading a
++ *     user VA) is a kernel matter: it ends the boot by name, with
++ *     spec/Kaiwu §7.1's monitor code, after `fixup_exception()` had its chance;
++ *   - a user process's access is that process's business: the channel raises
++ *     SIGSEGV on it (`force_sig_fault()`), and the fault is delivered on the
++ *     way back to user mode — the default action ends the task, a handler gets
++ *     the frame.  What is *not* allowed is the K3/K4 shape this task replaces:
++ *     a user access ending the whole boot with a monitor code (user ruling
++ *     2026-11-20, m14-linux-039's P0 item).
 + *
 + * Two properties of this machine shape the code:
 + *
@@ -65,6 +77,7 @@ index 000000000..d68777ee7
 +#include <linux/kernel.h>
 +#include <linux/mm.h>
 +#include <linux/pgtable.h>
++#include <linux/sched/signal.h>
 +#include <linux/string.h>
 +#include <linux/types.h>
 +
@@ -88,6 +101,19 @@ index 000000000..d68777ee7
 + * so 4 leaves room for a legitimate second visit and still catches a loop.
 + */
 +#define DADAO_PF_RETRY_BUDGET	4
++
++/*
++ * The stack-growth counter is probe scaffolding, not kernel state: K4's stack
++ * probe (m14-linux-019) asserts on it, and the signal probe's rlimit case
++ * (m14-linux-027) reads it to show that the *inherited* `RLIMIT_STACK` — not
++ * the default — is what refused the growth.  No milestone image compiles the
++ * accounting in.
++ */
++#if CONFIG_DADAO_K4_STACK_SELFTEST || defined(CONFIG_DADAO_K5_SIGNAL_SELFTEST)
++#define DADAO_PF_COUNT_GROWTH	1
++#else
++#define DADAO_PF_COUNT_GROWTH	0
++#endif
 +
 +/* -------------------------------------------------------------------------
 + * Page source and the shared zero page
@@ -307,6 +333,23 @@ index 000000000..d68777ee7
 +unsigned long dadao_pf_zero_page_pa(void)
 +{
 +	return dadao_zero_pa;
++}
++
++/*
++ * The result name of the *last* fault's reading (`fill-zero`, `die-perm`, …).
++ *
++ * The channel already prints it on the one line it emits, but a probe has to
++ * ask the question in C rather than parse its own console: m14-linux-027's S1
++ * case asserts *which* reading produced the SIGSEGV (`die-no-vma` for an
++ * address with no VMA, `die-perm` for a store into a read-only window), and a
++ * regression to the old named termination has to show up as a different name,
++ * not as a programme that half passed.  Static storage, one hart.
++ */
++static const char *dadao_pf_last_name;
++
++const char *dadao_pf_last_result(void)
++{
++	return dadao_pf_last_name ?: "none";
 +}
 +
 +/* -------------------------------------------------------------------------
@@ -766,7 +809,7 @@ index 000000000..d68777ee7
 +		return "die-super";
 +
 +	for (attempt = 0; attempt < 3; attempt++) {
-+#if CONFIG_DADAO_K4_STACK_SELFTEST
++#if DADAO_PF_COUNT_GROWTH
 +		/*
 +		 * The probe reads "did this fault grow the stack" as a counter
 +		 * (S1/S2/S5/S6).  The growth itself is generic; the counter is
@@ -865,7 +908,7 @@ index 000000000..d68777ee7
 +		new_pte = dadao_pf_peek(mm, addr);
 +		mmap_read_unlock(mm);
 +		*rep_pte = new_pte;
-+#if CONFIG_DADAO_K4_STACK_SELFTEST
++#if DADAO_PF_COUNT_GROWTH
 +		if (will_grow)
 +			dadao_pf_grows++;
 +#endif
@@ -1050,6 +1093,36 @@ index 000000000..d68777ee7
 +	    !strcmp(result, "replace-zero") || !strcmp(result, "cow-copy") ||
 +	    !strcmp(result, "cow-write"))
 +		policy = DADAO_PF_RETRY;
++
++	/*
++	 * A fault the channel cannot serve (m14-linux-027).  *Whose* access it
++	 * was decides what it means:
++	 *
++	 *  - the kernel's own access is a kernel matter.  `traps.c` names it and
++	 *    stops the boot with spec/Kaiwu §7.1's monitor code — after
++	 *    `fixup_exception()` had the chance to turn it into `-EFAULT` for a
++	 *    `copy_from_user()` (m14-linux-044);
++	 *  - a user process's access is that process's business.  The machine's
++	 *    readings ("no VMA", "no permission") have exactly one Linux
++	 *    meaning, and it is SIGSEGV — the process's default action or its
++	 *    handler decides.  The boot must *not* end here: that was the
++	 *    K3/K4 shape this task replaces (user ruling 2026-11-20).
++	 *
++	 * The `si_code` follows the reading the same way Linux does: "this
++	 * address is not mapped" (SEGV_MAPERR) versus "the mapping does not
++	 * permit this access" (SEGV_ACCERR), with the faulting address in
++	 * `si_addr`.  The signal itself is delivered on the way back to user
++	 * mode (kernel/entry_common.c: `dadao_user_fault_return()`), which is
++	 * the only place in this port that may sleep in `do_exit()`.
++	 */
++	if (policy == DADAO_PF_FATAL && from_user) {
++		force_sig_fault(SIGSEGV,
++				!strcmp(result, "die-perm") ? SEGV_ACCERR
++							    : SEGV_MAPERR,
++				(void __user *)info);
++		policy = DADAO_PF_SEGV;
++	}
++	dadao_pf_last_name = result;
 +
 +#ifdef CONFIG_DADAO_K4_SWITCH_SELFTEST
 +	dadao_flog_last[0] = dadao_pf_entries;

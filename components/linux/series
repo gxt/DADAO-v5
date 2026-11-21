@@ -54,6 +54,7 @@ arch/dadao/include/uapi/asm/signal.h.patch
 arch/dadao/include/uapi/asm/ucontext.h.patch
 arch/dadao/include/uapi/asm/unistd.h.patch
 arch/dadao/kernel/Makefile.patch
+arch/dadao/kernel/Makefile.syscalls.patch
 arch/dadao/kernel/asm-offsets.c.patch
 arch/dadao/kernel/async_trap.S.patch
 arch/dadao/kernel/early_console.c.patch

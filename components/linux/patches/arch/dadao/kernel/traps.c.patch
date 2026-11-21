@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..52c78fdf9
+index 000000000..2205c6808
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,666 @@
+@@ -0,0 +1,683 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -357,8 +357,13 @@ index 000000000..52c78fdf9
 + * what its `ip`/`sp` reporting and its zero-page replacement need.
 + *
 + * Returns the supv vector's resume policy: SKIP, i.e. "continue after the
-+ * trap", which lands back in the user entry stub.  A page fault that cannot be
-+ * served never comes back — the channel ends the boot by name.
++ * trap", which lands back in the user entry stub.  A fault of the *user*
++ * process that the channel cannot serve raises SIGSEGV (mm/fault.c) and comes
++ * back here all the same: the umon stub's hand-over return runs the
++ * return-to-user tail, and *that* is where the signal is delivered (and where
++ * a fatal one may sleep in `do_exit()`).  Only a fault the channel could not
++ * even turn into a signal — a non-page-table cause, or a policy the channel
++ * does not define — still ends the boot by name.
 + */
 +static unsigned long dadao_user_fault_from_umon(struct pt_regs *smon_regs,
 +						struct pt_regs *frame,
@@ -383,6 +388,18 @@ index 000000000..52c78fdf9
 +	}
 +
 +	policy = dadao_do_page_fault(frame, cause, info, true);
++	if (policy == DADAO_PF_SEGV) {
++		/*
++		 * The process has been sent SIGSEGV.  Delivering it here would
++		 * call `do_exit()` inside the supv channel, whose frame
++		 * (`dadao_excp_save`) is static and may not be live across a
++		 * sleep; the umon stub's hand-over return runs the generic
++		 * work loop instead (kernel/entry_common.c:
++		 * `dadao_user_fault_return()`), where sleeping is legal.
++		 */
++		dadao_in_frame = 0;
++		return DADAO_TRAP_RESUME_SKIP;
++	}
 +	if (policy != DADAO_PF_RETRY) {
 +		dadao_early_printf("K4 umon->smon: the channel did not install a "
 +				   "mapping (policy=%lu)\n", policy);
@@ -390,12 +407,12 @@ index 000000000..52c78fdf9
 +	}
 +
 +	/*
-+	 * The user resumes at the instruction that faulted: point the umon
-+	 * supv row at it.  (This runs with the kernel's current cfx = cfx_smon,
-+	 * which the firmware opened for source cfx 2; the umon rows themselves
-+	 * are opened for the kernel by dadao_user_entry_install().)
++	 * The user resumes where its frame says: the instruction that faulted
++	 * for a served fault, the handler for a delivered signal.  The vector is
++	 * published by `dadao_user_fault_return()` after the work loop — a
++	 * signal frame rewinds `frame->ip` there, and `trap cfx_umon, 0` takes
++	 * its target from this row.
 +	 */
-+	DADAO_CFX_WRITE(cfx_umon, UMON_CG_SUPV, UMON_RC_EXCP_VECTOR, frame->ip);
 +	dadao_in_frame = 0;
 +	return DADAO_TRAP_RESUME_SKIP;
 +}

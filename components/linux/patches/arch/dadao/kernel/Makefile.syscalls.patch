@@ -1,0 +1,15 @@
+diff --git a/arch/dadao/kernel/Makefile.syscalls b/arch/dadao/kernel/Makefile.syscalls
+new file mode 100644
+index 000000000..f6d0235ac
+--- /dev/null
++++ b/arch/dadao/kernel/Makefile.syscalls
+@@ -0,0 +1,9 @@
++# SPDX-License-Identifier: GPL-2.0
++#
++# Syscall ABI groups this port implements on top of the asm-generic `common`
++# numbering (scripts/syscall.tbl): the RISC-V numbering keeps the legacy
++# `getrlimit`/`setrlimit` pair for 64-bit (arch/riscv/kernel/Makefile.syscalls),
++# and m14-linux-027's `RLIMIT_STACK` case needs the pair to answer instead of
++# `sys_ni_syscall`.  No new numbers are introduced -- only the entries the
++# locked table already carries.
++syscall_abis_64 += rlimit

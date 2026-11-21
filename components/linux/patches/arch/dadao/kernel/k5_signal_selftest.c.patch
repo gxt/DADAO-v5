@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k5_signal_selftest.c b/arch/dadao/kernel/k5_signal_selftest.c
 new file mode 100644
-index 000000000..5a18ff202
+index 000000000..7aba2ca8d
 --- /dev/null
 +++ b/arch/dadao/kernel/k5_signal_selftest.c
-@@ -0,0 +1,665 @@
+@@ -0,0 +1,988 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Signal-frame probe (CONFIG_DADAO_K5_SIGNAL_SELFTEST, m14-linux-046).
@@ -29,6 +29,27 @@ index 000000000..5a18ff202
 + *       SA_ONSTACK: the frame must be built on the alternate stack, and the
 + *       handler must still see the interrupted context.
 + *
++ * m14-linux-027 adds the *behaviour* cases around the same frame machinery
++ * (the task's S1/S3/S4; the 046 cases keep their letters, and the two new
++ * numbers are s5/s6 so no case name is shared):
++ *
++ *   s1  a user access the fault channel cannot serve is a SIGSEGV, not a
++ *       boot-ending monitor code: an address with no VMA at all (`die-no-vma`)
++ *       and a store into a read-only window (`die-perm`).  Both must kill the
++ *       task with the default action (`exit_code & 0x7f == SIGSEGV`) and leave
++ *       the boot running.
++ *   s5  exit/exit_group: `exit(0)` ends the process with status 0, and
++ *       `exit_group(0)` issued by a thread group leader ends the whole group —
++ *       the sibling it cloned with `CLONE_THREAD` (a user `clone`) stops
++ *       heart-beating and its tid disappears, which no single-threaded
++ *       `exit(0)` could show.
++ *   s6  `setrlimit(RLIMIT_STACK)` and its inheritance: the value is read back
++ *       through `getrlimit`, a `fork` child reads the *same* value back (and
++ *       the kernel reads it out of the child's own `signal_struct`), and
++ *       m14-linux-019's expansion limit uses it: the child's stack grows one
++ *       page when the growth is inside the inherited limit and gets SIGSEGV
++ *       when it is not, with the growth counter standing still for the second.
++ *
 + * What each side observes, and why that is not self-comparison:
 + *
 + *   - the *program* stores the values it put in the registers (and the `ra0`
@@ -43,15 +64,17 @@ index 000000000..5a18ff202
 + * The console is what the gate reads: one `M46 check <name> want=.. got=..`
 + * line per assertion (with a `ok`/`FAIL` verdict), plus the raw numbers as
 + * `M46 ...` lines.  The exit only ever uses this probe's own segment
-+ * (spec/Kaiwu §7.1: 0x01-0x7f; m45 owns 0x70-0x72, this probe takes 0x73-0x75).
++ * (spec/Kaiwu §7.1: 0x01-0x7f; m45 owns 0x70-0x72, this probe takes 0x73-0x78).
 + *
 + * Nothing here is part of a milestone image: the hook it needs
 + * (`dadao_m46_user_trap()`) is compiled in only when this symbol is set.
 + */
++#include <linux/completion.h>
 +#include <linux/init.h>
 +#include <linux/kernel.h>
 +#include <linux/mman.h>
 +#include <linux/mm.h>
++#include <linux/pid.h>
 +#include <linux/sched.h>
 +#include <linux/sched/mm.h>
 +#include <linux/sched/signal.h>
@@ -61,6 +84,7 @@ index 000000000..5a18ff202
 +#include <linux/string.h>
 +#include <linux/types.h>
 +#include <linux/uaccess.h>
++#include <linux/wait.h>
 +
 +#include <asm/mmu_context.h>
 +#include <asm/page.h>
@@ -70,17 +94,42 @@ index 000000000..5a18ff202
 +#include <asm/time.h>
 +#include <asm/trap.h>
 +
-+/* Guest FAIL segment (spec/Kaiwu §7.1, 0x01-0x7f): this probe owns 0x73-0x75. */
++/* Guest FAIL segment (spec/Kaiwu §7.1, 0x01-0x7f): this probe owns 0x73-0x78
++ * (046 took 0x73-0x75, 027 adds the three behaviour cases below it). */
 +#define M46_FAIL_SETUP		0x73
 +#define M46_FAIL_S2		0x74
 +#define M46_FAIL_S3		0x75
 +#define M46_FAIL_S4		0x75
++#define M46_FAIL_S1		0x76	/* the fault is not a SIGSEGV (027) */
++#define M46_FAIL_S5		0x77	/* exit / exit_group (027) */
++#define M46_FAIL_S6		0x78	/* setrlimit / RLIMIT_STACK (027) */
 +
 +/* The three windows: code, the program's stack, the data page, the altstack. */
 +#define M46_CODE_VA		(1UL << 37)
 +#define M46_STACK_VA		(1UL << 38)
 +#define M46_DATA_VA		(1UL << 39)
 +#define M46_ALT_VA		(1UL << 40)
++
++/*
++ * 027's own windows, all inside the user VA range [0, 2 TiB):
++ *
++ *  - the growable stack (m14-linux-019's `VM_GROWSDOWN` shape): two pages at
++ *    `M46_STACK2_VA`, so the control fault one page below `vm_start` is inside
++ *    `RLIMIT_STACK` and the one `ST_LIMIT + 2` pages below it is not;
++ *  - a plain page for the `CLONE_THREAD` sibling's stack;
++ *  - an address with no VMA at all (above every window, below 2 TiB), and the
++ *    code window itself for the "store into a read-only mapping" fault.
++ */
++#define M46_STACK2_BASE		((1UL << 37) + (1UL << 36))
++#define M46_STACK2_VA		(M46_STACK2_BASE + 4 * PAGE_SIZE)
++#define M46_SIB_STACK_VA	(M46_STACK2_BASE + 8 * PAGE_SIZE)
++#define M46_S1_HOLE_VA		((1UL << 40) + (1UL << 33))
++#define M46_S1_PERM_VA		(M46_CODE_VA + 8)
++
++/* `RLIMIT_STACK` the s6 case installs: five 64 KiB pages.  Deliberately far
++ * from the 8 MiB default, so a value that was *not* inherited and a value that
++ * was cannot be confused. */
++#define M46_ST_LIMIT		(5 * PAGE_SIZE)
 +
 +/*
 + * Every offset of the data-page contract with the user program.  The program's
@@ -118,6 +167,24 @@ index 000000000..5a18ff202
 +#define M46_K_H_RAS		328	/* did the handler see the program's */
 +					/* own `call` entry?               */
 +#define M46_K_H_RA62		336	/* what the handler read at ra[62] */
++/* 027's report slots: the clone/thread group, and the rlimit round trip. */
++#define M46_K_S5_TID		344	/* the leader's clone return (tid) */
++#define M46_K_S5_HB		352	/* the sibling's heartbeat count */
++#define M46_K_S5_SIB_ENTER	360	/* did the sibling take its own arm */
++#define M46_K_S6_SET_RET	368	/* setrlimit's answer */
++#define M46_K_S6_GET_RET	376	/* getrlimit's answer */
++#define M46_K_S6_GET_CUR	384	/* ... and the value it read back */
++#define M46_K_S6_GET_MAX	392
++#define M46_K_S6_FORK_RET	400	/* the fork child's pid (parent side) */
++#define M46_K_S6_CHILD_RET	408	/* the child's own getrlimit answer */
++#define M46_K_S6_CHILD_CUR	416	/* ... and the value it read back */
++#define M46_K_S6_CHILD_MAX	424
++#define M46_K_S6_GROW_OK	432	/* 1: the in-limit page read returned 0 */
++#define M46_K_S6_WAIT_RET	440	/* wait4's answer (the child's pid) */
++#define M46_K_S6_WAIT_STATUS	448	/* ... and the status it reported */
++#define M46_K_S6_REQ		456	/* struct rlimit: what setrlimit gets */
++#define M46_K_S6_GET		472	/* struct rlimit: the parent's read */
++#define M46_K_S6_CHILD_GET	488	/* struct rlimit: the child's read */
 +#define M46_K_RAS_ADDR		512	/* the MemRAS buffer (never spilled) */
 +/* The first report slot: everything from here is cleared before each phase. */
 +#define M46_K_REPORT_FIRST	M46_K_H_RUNS
@@ -125,14 +192,24 @@ index 000000000..5a18ff202
 +/* The probe's own umon functions (kernel/trap.S). */
 +#define M46_TRAP_RAISE		0x2d01
 +#define M46_TRAP_VERIFY		0x2d02
++/* 027: the exit_group sibling's heartbeat ("I am still in user mode"), and the
++ * leader's park until that sibling has really run (a runnable task does not
++ * yield on this port, so the hand-over has to be a blocking wait). */
++#define M46_TRAP_HB		0x2d03
++#define M46_TRAP_WAIT_SIB	0x2d04
 +
 +/* SIGUSR1 for the handled round trip; SIGTERM is the default action. */
 +#define M46_SIG			SIGUSR1
 +
-+/* The three scripts the program runs. */
++/* The scripts the program runs (046's three, then 027's five). */
 +#define M46_SCRIPT_RT		0
 +#define M46_SCRIPT_DEFAULT	1
 +#define M46_SCRIPT_ALTSTACK	2
++#define M46_SCRIPT_SEGV_NOVMA	3
++#define M46_SCRIPT_SEGV_PERM	4
++#define M46_SCRIPT_EXIT		5
++#define M46_SCRIPT_EXIT_GROUP	6
++#define M46_SCRIPT_RLIMIT	7
 +
 +/* The sentinels the kernel seeds and the handler must not be able to keep. */
 +#define M46_RD_SENTINEL		0x4d46524400000000UL	/* "MFRD" */
@@ -177,6 +254,10 @@ index 000000000..5a18ff202
 +static unsigned int m46_verify_seen;
 +static unsigned int m46_altframe_seen;
 +
++/* 027: the `CLONE_THREAD` sibling's hand-over and heartbeat. */
++static struct completion m46_sib_started;
++static unsigned long m46_hb;
++
 +/* -------------------------------------------------------------------------
 + * reporting
 + * ------------------------------------------------------------------------- */
@@ -196,6 +277,24 @@ index 000000000..5a18ff202
 +
 +	dadao_early_printf("M46 check %s-%s want=%#lx got=%#lx %s\n", tag, name,
 +			   want, got, ok ? "ok" : "FAIL");
++	if (!ok)
++		m46_failed |= code;
++}
++
++/*
++ * The same verdict for a *string* fact (027): which reading of the fault
++ * channel produced the SIGSEGV.  `dadao_pf_last_result()` is the channel's own
++ * answer, so the case cannot pass on the exit code alone (a SIGSEGV raised for
++ * the wrong reason would be just as dead).
++ */
++static void m46_expect_name(const char *tag, const char *name, const char *want,
++			    unsigned int code)
++{
++	const char *got = dadao_pf_last_result();
++	int ok = !strcmp(want, got);
++
++	dadao_early_printf("M46 check %s-%s want=%s got=%s %s\n", tag, name, want,
++			   got, ok ? "ok" : "FAIL");
 +	if (!ok)
 +		m46_failed |= code;
 +}
@@ -296,6 +395,21 @@ index 000000000..5a18ff202
 +	return __get_user(*value,
 +			  (unsigned long __user *)(M46_DATA_VA + off)) ? -EFAULT
 +								       : 0;
++}
++
++/*
++ * The 32-bit sibling of `m46_read_report()`: `wait4(2)` writes an `int` status,
++ * and this machine is big-endian, so a 64-bit read of the same slot would put
++ * the value in the high half (`0x5500` would read as `0x5500_0000_0000`).
++ */
++static int m46_read_report32(unsigned int off, unsigned long *value)
++{
++	unsigned int word;
++
++	if (__get_user(word, (unsigned int __user *)(M46_DATA_VA + off)))
++		return -EFAULT;
++	*value = word;
++	return 0;
 +}
 +
 +/* -------------------------------------------------------------------------
@@ -442,6 +556,46 @@ index 000000000..5a18ff202
 +		*policy = DADAO_TRAP_RESUME_SKIP;
 +		return 1;
 +	}
++	/*
++	 * 027's two services.  The heartbeat is the `CLONE_THREAD` sibling's only
++	 * activity: it is in user mode between traps, so it is exactly the shape
++	 * `exit_group` has to reach (a task that never traps again could not be
++	 * killed by the group exit on this port — the tick does not preempt a
++	 * pure user spin loop, kernel/entry_common.c's header).  The wait parks
++	 * the leader, which is the only hand-over that works here: a runnable task
++	 * keeps being re-picked by `schedule()`.
++	 */
++	if (immu18 == M46_TRAP_HB) {
++		m46_hb++;
++		if (m46_hb == 1)
++			dadao_early_printf("M46 s5 sibling: first heartbeat pid=%d\n",
++					   current->pid);
++		if (m46_data_page)
++			m46_put64_offset(page_address(m46_data_page), M46_K_S5_HB,
++					 m46_hb);
++		if (m46_hb == 1)
++			complete(&m46_sib_started);
++		/*
++		 * Hand the hart over.  This port has no tick for a user loop (the
++		 * probe stopped the clock, and the asynchronous frame cannot be
++		 * live across a switch), so a task that only traps the way this
++		 * sibling does would keep the CPU until something asks it to
++		 * yield: `complete()` above makes the leader runnable, and this
++		 * `schedule()` is what actually switches to it.  The hook runs
++		 * after the entry dropped `dadao_umon_busy`, i.e. where a
++		 * blocking syscall of the same entry would sleep.
++		 */
++		schedule();
++		*policy = DADAO_TRAP_RESUME_SKIP;
++		return 1;
++	}
++	if (immu18 == M46_TRAP_WAIT_SIB) {
++		dadao_early_printf("M46 s5 leader: clone=%#lx hb=%lu\n",
++				   regs->rd[8], m46_hb);
++		wait_for_completion(&m46_sib_started);
++		*policy = DADAO_TRAP_RESUME_SKIP;
++		return 1;
++	}
 +	return 0;
 +}
 +
@@ -500,6 +654,19 @@ index 000000000..5a18ff202
 +	 * (spec/SimRISC-00 §2.4), so the `ra0` word the round trip carries is a
 +	 * real pointer and not a zero that compares equal to itself. */
 +	frame->ra[0] = M46_DATA_VA + M46_K_RAS_ADDR;
++	/*
++	 * 027's addresses.  The program cannot form them itself without a
++	 * second copy of every constant (and a chance for the two copies to
++	 * drift), so the kernel hands them over in registers the 046 cases
++	 * never touch: the hole with no VMA, the read-only code address, the
++	 * sibling's stack top (a `clone` argument), and the two stack-growth
++	 * target addresses.
++	 */
++	frame->rb[24] = M46_S1_HOLE_VA;
++	frame->rb[25] = M46_S1_PERM_VA;
++	frame->rb[26] = M46_SIB_STACK_VA + PAGE_SIZE;
++	frame->rb[27] = M46_STACK2_VA - PAGE_SIZE;			/* in limit */
++	frame->rb[28] = M46_STACK2_VA - M46_ST_LIMIT - 2 * PAGE_SIZE;	/* over */
 +
 +	dadao_enter_user(frame);		/* never returns */
 +}
@@ -513,7 +680,7 @@ index 000000000..5a18ff202
 + * back as the old value through the user VA.
 + */
 +static void m46_map(struct page *page, unsigned long va, unsigned long prot,
-+		    bool shared)
++		    bool shared, bool growdown)
 +{
 +	struct mm_struct *saved = current->mm;
 +	struct vm_area_struct *vma;
@@ -524,6 +691,8 @@ index 000000000..5a18ff202
 +		flags |= MAP_SHARED;
 +	else
 +		flags |= MAP_PRIVATE;
++	if (growdown)
++		flags |= MAP_GROWSDOWN;
 +
 +	current->mm = m46_mm;
 +	addr = vm_mmap(NULL, va, PAGE_SIZE, prot, flags, 0);
@@ -618,10 +787,17 @@ index 000000000..5a18ff202
 +	m46_mm = mm_alloc();
 +	if (!m46_mm)
 +		m46_fail(M46_FAIL_SETUP, "mm_alloc", 0);
-+	m46_map(m46_code_page, M46_CODE_VA, PROT_READ | PROT_EXEC, false);
-+	m46_map(NULL, M46_STACK_VA, PROT_READ | PROT_WRITE, false);
-+	m46_map(m46_data_page, M46_DATA_VA, PROT_READ | PROT_WRITE, true);
-+	m46_map(NULL, M46_ALT_VA, PROT_READ | PROT_WRITE, false);
++	m46_map(m46_code_page, M46_CODE_VA, PROT_READ | PROT_EXEC, false, false);
++	m46_map(NULL, M46_STACK_VA, PROT_READ | PROT_WRITE, false, false);
++	m46_map(m46_data_page, M46_DATA_VA, PROT_READ | PROT_WRITE, true, false);
++	m46_map(NULL, M46_ALT_VA, PROT_READ | PROT_WRITE, false, false);
++	/*
++	 * 027's windows: the growable stack (two pages; the fault cases below
++	 * press one page under it and `M46_ST_LIMIT + 2` pages under it), the
++	 * thread sibling's own stack, and nothing at all at `M46_S1_HOLE_VA`.
++	 */
++	m46_map(NULL, M46_STACK2_VA, PROT_READ | PROT_WRITE, false, true);
++	m46_map(NULL, M46_SIB_STACK_VA, PROT_READ | PROT_WRITE, false, false);
 +
 +	/* S2: the handled round trip. */
 +	m46_run_phase(M46_SCRIPT_RT, &exit_code, &state);
@@ -651,6 +827,153 @@ index 000000000..5a18ff202
 +			   exit_code >> 8);
 +	m46_expect("s4", "altframe-seen", 1, m46_altframe_seen, M46_FAIL_S4);
 +	m46_expect("s4", "exited-cleanly", 0, exit_code, M46_FAIL_S4);
++
++	/*
++	 * s1 (027): a user access the channel cannot serve is the process's
++	 * SIGSEGV, not a boot-ending monitor code.  Both readings are shown: an
++	 * address with no VMA at all, and a store into a read-only mapping.
++	 */
++	m46_run_phase(M46_SCRIPT_SEGV_NOVMA, &exit_code, &state);
++	dadao_early_printf("M46 phase: script=%u state=%u status=%#lx code=%lu\n",
++			   M46_SCRIPT_SEGV_NOVMA, state, exit_code,
++			   exit_code >> 8);
++	m46_expect_name("s1", "novma-fault", "die-no-vma", M46_FAIL_S1);
++	m46_expect("s1", "novma-died-by-sigsegv", SIGSEGV, exit_code & 0x7f,
++		   M46_FAIL_S1);
++	m46_expect("s1", "novma-no-exit-status", 0, exit_code >> 8, M46_FAIL_S1);
++
++	m46_run_phase(M46_SCRIPT_SEGV_PERM, &exit_code, &state);
++	dadao_early_printf("M46 phase: script=%u state=%u status=%#lx code=%lu\n",
++			   M46_SCRIPT_SEGV_PERM, state, exit_code,
++			   exit_code >> 8);
++	m46_expect_name("s1", "perm-fault", "die-perm", M46_FAIL_S1);
++	m46_expect("s1", "perm-died-by-sigsegv", SIGSEGV, exit_code & 0x7f,
++		   M46_FAIL_S1);
++	m46_expect("s1", "perm-no-exit-status", 0, exit_code >> 8, M46_FAIL_S1);
++
++	/* s5 (027): `exit(0)` ends the process with status 0. */
++	m46_run_phase(M46_SCRIPT_EXIT, &exit_code, &state);
++	dadao_early_printf("M46 phase: script=%u state=%u status=%#lx code=%lu\n",
++			   M46_SCRIPT_EXIT, state, exit_code, exit_code >> 8);
++	m46_expect("s5", "exit-code", 0, exit_code, M46_FAIL_S5);
++	m46_expect("s5", "exit-zombie", EXIT_ZOMBIE, state, M46_FAIL_S5);
++
++	/*
++	 * s5 (027): `exit_group(0)` ends the *whole* thread group.  The program
++	 * clones a sibling with `CLONE_THREAD` and parks the leader until that
++	 * sibling has really run; the sibling then does nothing but heartbeat
++	 * through its own `trap cfx_umon` service, so "it is gone and stopped"
++	 * cannot be satisfied by the leader having exited alone.
++	 */
++	init_completion(&m46_sib_started);
++	m46_hb = 0;
++	m46_run_phase(M46_SCRIPT_EXIT_GROUP, &exit_code, &state);
++	dadao_early_printf("M46 phase: script=%u state=%u status=%#lx code=%lu\n",
++			   M46_SCRIPT_EXIT_GROUP, state, exit_code,
++			   exit_code >> 8);
++	{
++		unsigned long tid = 0, sib_enter = 0, hb = 0, hb0, gone = 0;
++		unsigned int round;
++
++		m46_read_report(M46_K_S5_TID, &tid);
++		m46_read_report(M46_K_S5_SIB_ENTER, &sib_enter);
++		m46_read_report(M46_K_S5_HB, &hb);
++		dadao_early_printf("M46 s5 group: tid=%lu sib=%#lx hb=%lu\n",
++				   tid, sib_enter, hb);
++		m46_expect("s5", "group-exit-code", 0, exit_code, M46_FAIL_S5);
++		m46_expect("s5", "group-exit-zombie", EXIT_ZOMBIE, state,
++			   M46_FAIL_S5);
++		m46_expect("s5", "group-tid-nonzero", 1, tid != 0, M46_FAIL_S5);
++		m46_expect("s5", "group-sibling-entered", 1, sib_enter,
++			   M46_FAIL_S5);
++		m46_expect("s5", "group-heartbeats", 1, hb != 0, M46_FAIL_S5);
++
++		/* A non-leader thread is released at exit (not left as a
++		 * zombie), so "the tid is no longer a task" is the fact. */
++		for (round = 0; round < M46_WAIT_ROUNDS; round++) {
++			struct task_struct *t = find_get_task_by_vpid((pid_t)tid);
++
++			if (!t) {
++				gone = 1;
++				break;
++			}
++			put_task_struct(t);
++			schedule();
++		}
++		m46_expect("s5", "group-sibling-gone", 1, gone, M46_FAIL_S5);
++		/* ... and it stopped: the group exit reached a task that was
++		 * still in user mode, so nothing heartbeats any more. */
++		hb0 = m46_hb;
++		for (round = 0; round < 256; round++)
++			schedule();
++		m46_expect("s5", "group-sibling-stopped", hb0, m46_hb,
++			   M46_FAIL_S5);
++	}
++
++	/*
++	 * s6 (027): `setrlimit(RLIMIT_STACK)` — the value comes back through
++	 * `getrlimit`, a `fork` child reads the same value back, and
++	 * m14-linux-019's expansion limit is the *inherited* one: the child's
++	 * stack grows one page when the fault is inside that value and gets
++	 * SIGSEGV (reported through `wait4`, so the status really is
++	 * host-visible) when it is not.
++	 */
++	{
++		unsigned long grows0 = dadao_pf_grow_count();
++		unsigned long set_ret, get_ret, cur, mx, fork_ret, child_ret;
++		unsigned long child_cur, child_mx, grow_ok, wait_ret, wstatus;
++
++		m46_run_phase(M46_SCRIPT_RLIMIT, &exit_code, &state);
++		dadao_early_printf("M46 phase: script=%u state=%u status=%#lx "
++				   "code=%lu\n", M46_SCRIPT_RLIMIT, state,
++				   exit_code, exit_code >> 8);
++		m46_read_report(M46_K_S6_SET_RET, &set_ret);
++		m46_read_report(M46_K_S6_GET_RET, &get_ret);
++		m46_read_report(M46_K_S6_GET_CUR, &cur);
++		m46_read_report(M46_K_S6_GET_MAX, &mx);
++		m46_read_report(M46_K_S6_FORK_RET, &fork_ret);
++		m46_read_report(M46_K_S6_CHILD_RET, &child_ret);
++		m46_read_report(M46_K_S6_CHILD_CUR, &child_cur);
++		m46_read_report(M46_K_S6_CHILD_MAX, &child_mx);
++		m46_read_report(M46_K_S6_GROW_OK, &grow_ok);
++		m46_read_report(M46_K_S6_WAIT_RET, &wait_ret);
++		m46_read_report32(M46_K_S6_WAIT_STATUS, &wstatus);
++		dadao_early_printf("M46 s6: set=%ld get=%ld cur=%#lx max=%#lx "
++				   "fork=%ld child=%ld child_cur=%#lx "
++				   "child_max=%#lx grow=%lu wait=%ld "
++				   "status=%#lx grows=%lu->%lu\n",
++				   (long)set_ret, (long)get_ret, cur, mx,
++				   (long)fork_ret, (long)child_ret, child_cur,
++				   child_mx, grow_ok, (long)wait_ret, wstatus,
++				   grows0, dadao_pf_grow_count());
++
++		m46_expect("s6", "setrlimit-ret", 0, set_ret, M46_FAIL_S6);
++		m46_expect("s6", "getrlimit-ret", 0, get_ret, M46_FAIL_S6);
++		m46_expect("s6", "limit-cur", M46_ST_LIMIT, cur, M46_FAIL_S6);
++		m46_expect("s6", "limit-max", M46_ST_LIMIT, mx, M46_FAIL_S6);
++		m46_expect("s6", "fork-ret-nonzero", 1, fork_ret != 0,
++			   M46_FAIL_S6);
++		m46_expect("s6", "child-gets-ret", 0, child_ret, M46_FAIL_S6);
++		m46_expect("s6", "child-inherited-cur", M46_ST_LIMIT, child_cur,
++			   M46_FAIL_S6);
++		m46_expect("s6", "child-inherited-max", M46_ST_LIMIT, child_mx,
++			   M46_FAIL_S6);
++		m46_expect("s6", "wait-reported-the-child", fork_ret, wait_ret,
++			   M46_FAIL_S6);
++		m46_expect("s6", "wait-status-sigsegv", SIGSEGV, wstatus & 0x7f,
++			   M46_FAIL_S6);
++		m46_expect("s6", "wait-status-no-exit", 0,
++			   (wstatus >> 8) & 0xff, M46_FAIL_S6);
++		m46_expect("s6", "in-limit-growth", 1, grow_ok, M46_FAIL_S6);
++		/*
++		 * The counter stands still for the refused fault: exactly one
++		 * growth happened (the in-limit control read), so the limit the
++		 * growth *used* was the inherited one — a child that had kept
++		 * the 8 MiB default would have grown for the second target too.
++		 */
++		m46_expect("s6", "over-limit-refused", grows0 + 1,
++			   dadao_pf_grow_count(), M46_FAIL_S6);
++	}
 +
 +	dadao_early_printf("M46 selftest: raises=%u verifies=%u alt=%u\n",
 +			   m46_raise_seen, m46_verify_seen, m46_altframe_seen);

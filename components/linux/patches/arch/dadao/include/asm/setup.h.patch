@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..bafc593f9
+index 000000000..12bd5aaab
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,279 @@
+@@ -0,0 +1,282 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -113,6 +113,9 @@ index 000000000..bafc593f9
 +/* Stack-growth counter (VM_GROWSDOWN, m14-linux-019): how many times a fault
 + * below a growable VMA actually extended it. */
 +unsigned long dadao_pf_grow_count(void);
++/* The result name of the last fault's reading (`die-perm`, `fill-zero`, …);
++ * m14-linux-027's S1 case asserts which reading produced the SIGSEGV. */
++const char *dadao_pf_last_result(void);
 +
 +/*
 + * K4 (m14-linux-016): the user-mode entry rows and the boundary the process

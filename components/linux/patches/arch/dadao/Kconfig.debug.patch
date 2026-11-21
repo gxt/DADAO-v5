@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..5b7126c21
+index 000000000..42a58a916
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,440 @@
+@@ -0,0 +1,447 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -421,12 +421,12 @@ index 000000000..5b7126c21
 +	  not part of the image the later milestones boot.
 +
 +config DADAO_K5_SIGNAL_SELFTEST
-+	bool "Run the K5 signal-frame probe from a late_initcall (ends the boot)"
++	bool "Run the K5 signal/exit probe from a late_initcall (ends the boot)"
 +	default n
 +	depends on !DADAO_K4_SELFTEST && !DADAO_K4_SWITCH_SELFTEST && !DADAO_K4_KTHREAD_SELFTEST && !DADAO_K5_SYSCALL_SELFTEST && !DADAO_K5_CLONE_SELFTEST && !DADAO_K5_FUTEX_SELFTEST && !DADAO_M45_ENTRY_SELFTEST
 +	help
-+	  Exercise signal delivery and the `rt_sigframe` of m14-linux-046 (see
-+	  kernel/k5_signal_selftest.c).
++	  Exercise signal delivery, the `rt_sigframe` of m14-linux-046 and the
++	  signal/exit surface of m14-linux-027 (see kernel/k5_signal_selftest.c).
 +
 +	  A user program installs a handler with `rt_sigaction` (SA_RESTORER, the
 +	  only restorer a vDSO-less port has), raises SIGUSR1 and, once the
@@ -440,6 +440,13 @@ index 000000000..5b7126c21
 +	  program set.  The same run raises SIGTERM with no handler (the default
 +	  action must end the task) and repeats the round trip on an alternate
 +	  stack (`sigaltstack` + SA_ONSTACK).
++
++	  m14-linux-027's behaviour cases run in the same image: a user access the
++	  page-fault channel cannot serve must become the process's SIGSEGV (not a
++	  boot-ending monitor code), `exit(0)` and a thread group leader's
++	  `exit_group(0)` must end the process/group with the right status, and
++	  `setrlimit(RLIMIT_STACK)` must be readable through `getrlimit`,
++	  inherited by a `fork` child and used as that child's stack-growth limit.
 +
 +	  It runs from a `late_initcall` and ends the boot.  This is test
 +	  scaffolding (the m14-linux-046 gate builds a probe image with it); it is

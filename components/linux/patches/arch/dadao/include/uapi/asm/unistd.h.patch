@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/uapi/asm/unistd.h b/arch/dadao/include/uapi/asm/unistd.h
 new file mode 100644
-index 000000000..de3235542
+index 000000000..fc4c40d0a
 --- /dev/null
 +++ b/arch/dadao/include/uapi/asm/unistd.h
-@@ -0,0 +1,10 @@
+@@ -0,0 +1,18 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef __ASM_UNISTD_H
 +#define __ASM_UNISTD_H
@@ -11,6 +11,14 @@ index 000000000..de3235542
 +/* DADAO uses the asm-generic syscall numbering (contract-syscall §1). */
 +#define __ARCH_WANT_NEW_STAT		/* fstat/newfstatat: 64-bit struct stat */
 +#define __ARCH_WANT_SYS_CLONE		/* clone() with the DADAO argument order */
++/*
++ * `getrlimit`/`setrlimit` (163/164) are part of the numbering the port inherits
++ * from RISC-V Linux, which enables the `rlimit` ABI group for 64-bit
++ * (`arch/riscv/kernel/Makefile.syscalls`).  Without this the numbers exist in
++ * `syscall.tbl` but the table answers `sys_ni_syscall`, and a process cannot
++ * install a limit at all (m14-linux-027's `setrlimit(RLIMIT_STACK)` case).
++ */
++#define __ARCH_WANT_SET_GET_RLIMIT
 +#include <asm-generic/unistd.h>
 +
 +#endif
