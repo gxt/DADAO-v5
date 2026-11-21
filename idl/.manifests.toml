@@ -21,6 +21,12 @@ owner = "idl"
 [files."idl_parse_fixture.json"]
 owner = "idl"
 
+[files."idl_exec.py"]
+owner = "idl"
+
+[files."idl_exec_cases.toml"]
+owner = "idl"
+
 [files."render.py"]
 owner = "idl"
 

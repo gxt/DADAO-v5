@@ -11,6 +11,8 @@
 | `idl_parser.py` | IDL 子集解析器（Python 标准库）：`.idl` → AST + 构造签名门控（`--check`/`--update`/`--self-test`） |
 | `idl_parse_cases.toml` | 解析器拒绝集（语法错误必须报错）+ 接受集（合法样例必须通过） |
 | `idl_parse_fixture.json` | 每个 operation/function/enum/常量的**构造签名**冻结（`idl_parser.py --update` 生成） |
+| `idl_exec.py` | 执行器核心（`m17-idl-003`）：四寄存器组 / 48 位地址 / 大端存储 / ELF 加载 / 最小 `trap`·`escape`；编码取 `contracts/opcodes.yaml`，语义按各 `.idl` 的 operation 正文 |
+| `idl_exec_cases.toml` | 执行器差分用例清单（`tests/inst` 已有载体；`tools/idl/check_exec_parity.py` 读它） |
 | `syntax-subset.md` | 语法子集盘点：13 个源文件用到的构造、现场次数、首个出处（`m17-idl-001`） |
 | `width-rules.md` | 宽度/符号派生规则表（每条标出处）+ 未定义清单（`m17-idl-001`） |
 | `.manifests.toml` | 本目录文件集清单（双向集合断言） |
@@ -28,11 +30,16 @@ python3 idl/idl_parser.py --update # 改 .idl 后重生成构造签名 fixture�
 python3 idl/idl_parser.py --stats  # 现场统计（每册 operation/function/enum/节点种类）
 python3 idl/idl_parser.py --ast <id>  # 打印某条 operation 的 AST（S 表达式）
 python3 idl/idl_parser.py --self-test # 临时树内注入自检（删括号 / 改 AST / 子集外构造）
+python3 idl/idl_exec.py --self-test  # 执行器自检（寄存器组/48 位地址/大端/RAS/异常/semihosting）
+python3 idl/idl_exec.py --elf <elf> [--bootrom <img>] [--init <json>] [--state-out <json>]
+                                     # 运行一个镜像；--init = 初始架构状态（QEMU 观测面）
 ```
 
 **M17 前端实现前先读** [`syntax-subset.md`](syntax-subset.md)（用到哪些语法构造）与 [`width-rules.md`](width-rules.md)（宽度/符号规则 + 10 条「未定义」）。
 
 **M17 解析器**（`idl_parser.py`，`m17-idl-002`）只实现 `syntax-subset.md` §10 的「必须覆盖」；§8 的未使用构造一律显式报错。它**不做语义**（不求值、不推导宽度）：字面量的位宽标注与原文留档，`U04`–`U10` 的裁定留给 `m17-idl-003` 之前取得。
+
+**M17 执行器核心**（`idl_exec.py`，`m17-idl-003`）只有两处外部真源：编码读 `contracts/opcodes.yaml`（opc/mask/字段位域），机器几何与运行布局读 `tools/testcases/lib/machine_profile.py`；每条 operation 的语义按 `.idl` 正文实现（函数上方注明 id 与出处册）。驱动与判据在 `tools/idl/`：`qemu_final_state.py`（QEMU 入口态/末态观测面）与 `check_exec_parity.py`（`tests/inst` 载体的最终架构状态/退出码差分）。
 
 > **import 本模块前设 `PYTHONDONTWRITEBYTECODE=1`**：`idl/` 由 `check-manifests-guard` 做**双向目录集合断言**，落 `__pycache__` 会直接判红（`idl_parse_cases.toml` 是数据文件而非模块，正是为此）。
 

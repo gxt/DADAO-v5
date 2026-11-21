@@ -1,0 +1,118 @@
+# idl_exec_cases.toml — `m17-idl-003` 最终状态差分用例（`tests/inst` 已有载体）
+#
+# 每条 = 一个 `tests/inst/<册>/<id>.S` 镜像；`run_inst_tiny.py` 建镜像（每 .S
+# 一个），`tools/idl/check_exec_parity.py` 比较「执行器末态 vs QEMU 末态」。
+# 覆盖类别（goal 5）：arith / mem / ctrl / exc / regcopy / wyde。
+# 新增用例 = 加一条 [[case]]，不改脚本。
+
+[[case]]
+id = "ld.o_rrii_rd"
+category = "mem"
+
+[[case]]
+id = "st.o_rrii_rd"
+category = "mem"
+
+[[case]]
+id = "ld.ub_rrii_rd"
+category = "mem"
+
+[[case]]
+id = "ldm.o_rrri_rd"
+category = "mem"
+
+[[case]]
+id = "stm.o_rrri_rd"
+category = "mem"
+
+[[case]]
+id = "rd2rd_orri_rd"
+category = "regcopy"
+
+[[case]]
+id = "rf2rf_orri_rf"
+category = "regcopy"
+
+[[case]]
+id = "cs.eq_rrrr_rd"
+category = "regcopy"
+
+[[case]]
+id = "set.zw_rwii_rb"
+category = "wyde"
+
+[[case]]
+id = "or.w_rwii_rb"
+category = "wyde"
+
+[[case]]
+id = "add.si_riii_rd"
+category = "arith"
+
+[[case]]
+id = "add.so_rrrr_rd"
+category = "arith"
+
+[[case]]
+id = "cmp.so_orrr_rd"
+category = "arith"
+
+[[case]]
+id = "and.o_orrr_rd"
+category = "arith"
+
+[[case]]
+id = "shl.o_orrr_rd"
+category = "arith"
+
+[[case]]
+id = "mul.so_rrrr_rd"
+category = "arith"
+
+[[case]]
+id = "div.so_orrr_rd"
+category = "arith"
+
+[[case]]
+id = "add.o_orrr_bbd"
+category = "arith"
+
+[[case]]
+id = "add.st_orrr_rd"
+category = "arith"
+
+[[case]]
+id = "add.ub_orrr_rd"
+category = "arith"
+
+[[case]]
+id = "ctlz_orri_rd"
+category = "arith"
+
+[[case]]
+id = "br.eq_rrii_rd"
+category = "ctrl"
+
+[[case]]
+id = "jump_iiii_rb"
+category = "ctrl"
+
+[[case]]
+id = "call_iiii_ra"
+category = "ctrl"
+
+[[case]]
+id = "ret_riii_ra"
+category = "ctrl"
+
+[[case]]
+id = "trap_ciii_cfx"
+category = "exc"
+
+[[case]]
+id = "escape_ciii_cfx"
+category = "exc"
+
+[[case]]
+id = "cfx2rd_crrr_cfx"
+category = "exc"
