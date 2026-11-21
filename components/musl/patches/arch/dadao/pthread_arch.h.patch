@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/pthread_arch.h b/arch/dadao/pthread_arch.h
 new file mode 100644
-index 0000000..984cf47
+index 0000000..605ba47
 --- /dev/null
 +++ b/arch/dadao/pthread_arch.h
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,63 @@
 +/*
 + * DADAO thread pointer.
 + *
@@ -46,9 +46,11 @@ index 0000000..984cf47
 + *   * TPOFF_K 0 (reloc.h) -- consistent with the above: TPOFF is not measured
 + *     from the end of the block.
 + *
-+ * MC_PC names the program-counter slot of mcontext_t; see
-+ * arch/dadao/bits/signal.h (provisional, compile-only -- there is no DADAO
-+ * signal-frame ABI yet).
++ * MC_PC names the program-counter slot of mcontext_t.  DADAO keeps the saved
++ * `ip` in `rb[0]` (offset 512) of the 2048-byte register file, not in a
++ * gregs[0]-style slot: the hardware's rb0 *is* the live IP and is read-only,
++ * so the frame stores the interrupted address in the slot that would hold it
++ * (kernel uapi asm/ptrace.h; arch/dadao/bits/signal.h).
 + */
 +
 +static inline uintptr_t __get_tp()
@@ -64,4 +66,4 @@ index 0000000..984cf47
 +#define TP_OFFSET 0
 +#define DTP_OFFSET 0
 +
-+#define MC_PC __gregs[0]
++#define MC_PC rb[0]

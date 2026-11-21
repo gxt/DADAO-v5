@@ -18,6 +18,7 @@ src/misc/getrlimit.c.patch
 src/misc/syscall.c.patch
 src/setjmp/dadao/longjmp.S.patch
 src/setjmp/dadao/setjmp.S.patch
+src/signal/dadao/restore.s.patch
 src/signal/dadao/sigsetjmp.s.patch
 src/thread/clone.c.patch
 src/thread/dadao/__set_thread_area.s.patch

@@ -1,67 +1,106 @@
 diff --git a/arch/dadao/bits/signal.h b/arch/dadao/bits/signal.h
 new file mode 100644
-index 0000000..fd520af
+index 0000000..797af17
 --- /dev/null
 +++ b/arch/dadao/bits/signal.h
-@@ -0,0 +1,122 @@
+@@ -0,0 +1,162 @@
 +/*
-+ * DADAO signal numbers, SA_* flags and _NSIG.
++ * DADAO signal numbers, SA_* flags, the saved register file and _NSIG.
 + *
-+ * The numbers below are the standard Linux numbering shared verbatim by every
-+ * modern 64-bit musl port (a quick check: arch/riscv64/bits/signal.h and
-+ * arch/aarch64/bits/signal.h agree on every value here).  They are a Linux ABI
-+ * constant, not a DADAO register/ABI decision, so the same values apply to a
-+ * port that follows the RISC-V/asm-generic syscall table (see
++ * The signal *numbers* below are the standard Linux numbering shared verbatim
++ * by every modern 64-bit musl port (a quick check: arch/riscv64/bits/signal.h
++ * and arch/aarch64/bits/signal.h agree on every value here).  They are a Linux
++ * ABI constant, not a DADAO register/ABI decision, so the same values apply to
++ * a port that follows the RISC-V/asm-generic syscall table (see
 + * arch/dadao/bits/syscall.h.in and .tao/contracts/contract-syscall.md §1).
 + *
-+ * [OPEN] mcontext_t / gregset_t / struct sigcontext below are a PROVISIONAL,
-+ * COMPILE-ONLY definition.  There is no DADAO signal-frame ABI yet: the test
-+ * machine has no kernel and delivers no signals (ADR-0025 D2, "no kernel
-+ * target (VFS / MM / scheduling / signals are not done)"), and no v5 contract
-+ * defines a saved-register layout or a sigreturn sequence.  What is defined
-+ * here is exactly enough for <signal.h> and musl's generic signal sources to
-+ * compile:
++ * The saved register file (m14-infra-005) follows the kernel uapi that
++ * m14-linux-046 froze, so a handler, libc and the kernel all read one image:
 + *
-+ *   * __gregs[0] is the program counter slot, which is what MC_PC names and
-+ *     the only slot any upstream source actually reads today
-+ *     (src/thread/pthread_cancel.c reads uc_mcontext.MC_PC);
-+ *   * __gregs[1 .. 64] / [65 .. 128] hold the RD and RB banks respectively.
++ *     struct user_regs_struct      2048 B, four 64-slot 寄存器组:
++ *         rd  offset    0   [0] = status (software container, not a register)
++ *         rb  offset  512   [0] = ip     (the machine's rb0 is the live IP)
++ *         ra  offset 1024   return-address stack, ra[0] = {RACNT, MRPTR}
++ *         rf  offset 1536   floating-point file, rf0 = FCSR
 + *
-+ * NO field offset or array size below is load-bearing: whoever specifies real
-+ * DADAO signal delivery (a later phase) MUST define the frame layout from the
-+ * register model and replace this file.  Do not size anything against it.
++ * [DADAO kernel uapi asm/ptrace.h; .tao/contracts/contract-abi.md §4.5 lists
++ * the callee-saved sets rd32–rd63 / rb32–rb63 / rf32–rf63 — the frame saves
++ * *all* 64 slots of every group, caller-saved included, because rt_sigreturn
++ * restores the interrupted context bit for bit.]
++ *
++ * A handler sees the image as `ucontext_t.uc_mcontext` (mcontext_t = the
++ * 2048-byte register file, the same field layout as the kernel's
++ * `user_regs_struct`); `struct sigcontext` is the kernel uapi's spelling — the
++ * register file plus its four reserved words — so the two type names cannot
++ * drift apart.  `uc_mcontext` sits at offset 168 of `ucontext_t` in both
++ * worlds (`uc_flags, uc_link, uc_stack, uc_sigmask(128 B), uc_mcontext`),
++ * which is what lets the kernel build the frame and musl read it.
++ *
++ * SA_RESTORER (0x04000000) is mandatory on this port: there is no vDSO, so
++ * the return address pushed for a handler can only come from the caller's
++ * `sa_restorer`; `sigaction()` fills it with __restore_rt
++ * (src/signal/dadao/restore.s), and the kernel refuses a frame without the
++ * flag (-EFAULT -> force_sigsegv).  [.tao/contracts/contract-abi.md §4.5;
++ * kernel arch/dadao/{include/uapi/asm/signal.h,kernel/signal.c}]
++ *
++ * MINSIGSTKSZ 2376 is the kernel's rt_sigframe: 128 B siginfo + 2248 B
++ * ucontext (168 B header + 2080 B sigcontext).  The kernel's sigaltstack()
++ * refuses anything shorter with ENOMEM (the compiled floor observed on K5 is
++ * 2376: 2375 refused, 2376 accepted), and get_sigframe() only checks that the
++ * frame fits when the interrupted SP is *already* on the alternate stack —
++ * a smaller-but-accepted stack is overwritten below its buffer, so the libc
++ * minimum has to cover the real frame.  SIGSTKSZ keeps the 8 KiB default of
++ * the other 64-bit ports, which is 5816 B above the new minimum.
 + */
 +
 +#if defined(_POSIX_SOURCE) || defined(_POSIX_C_SOURCE) \
 + || defined(_XOPEN_SOURCE) || defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
 +
 +#if defined(_XOPEN_SOURCE) || defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
-+# define MINSIGSTKSZ 2048
++# define MINSIGSTKSZ 2376
 +# define SIGSTKSZ 8192
 +#endif
 +
-+typedef unsigned long __dadao_mc_gp_state[129]; /* [OPEN]: see file header */
-+
-+typedef struct mcontext_t {
-+	__dadao_mc_gp_state __gregs;
++/* The register file, field for field the kernel's `user_regs_struct`.  The
++ * anonymous unions keep both readings legal: `mcontext->rd[i]` / `->rb[i]`
++ * for a handler walking a group, `->status` / `->ip` for the two words that
++ * are not registers (uapi/asm/ptrace.h uses the same shape). */
++typedef struct __dadao_user_regs {
++	union {
++		unsigned long rd[64];
++		struct {
++			unsigned long status;
++			unsigned long __rd_rest[63];
++		};
++	};
++	union {
++		unsigned long rb[64];
++		struct {
++			unsigned long ip;
++			unsigned long __rb_rest[63];
++		};
++	};
++	unsigned long ra[64];
++	unsigned long rf[64];
 +} mcontext_t;
 +
 +/* MC_PC (the program-counter slot referenced by musl's own sources) is defined
 + * in arch/dadao/pthread_arch.h, where musl's ports conventionally put it: the
 + * only in-tree user is src/thread/pthread_cancel.c, which reaches mcontext_t
-+ * through pthread_impl.h. */
-+
-+#if defined(_GNU_SOURCE)
-+#define REG_PC 0
-+#endif
++ * through pthread_impl.h.  It names rb[0] -- offset 512. */
 +
 +#if defined(_GNU_SOURCE) || defined(_BSD_SOURCE)
 +typedef unsigned long greg_t;
-+typedef unsigned long gregset_t[64]; /* [OPEN]: see file header */
-+typedef unsigned long fpregset_t[64]; /* [OPEN]: see file header */
++typedef unsigned long gregset_t[64];
++typedef unsigned long fpregset_t[64];
++
++/* The kernel uapi's `struct sigcontext`: the register file plus four reserved
++ * words (uapi/asm/sigcontext.h).  mcontext_t above is the same 2048-byte
++ * image without the reservation, which is what `uc_mcontext` holds; keep the
++ * two in step by defining one in terms of the other. */
 +struct sigcontext {
-+	gregset_t gregs;
-+	fpregset_t fpregs;
++	mcontext_t regs;
++	unsigned long __unused[4];
 +};
 +#endif
 +
@@ -85,6 +124,7 @@ index 0000000..fd520af
 +#define SA_SIGINFO   4
 +#define SA_ONSTACK   0x08000000
 +#define SA_RESTART   0x10000000
++#define SA_RESTORER  0x04000000
 +#define SA_NODEFER   0x40000000
 +#define SA_RESETHAND 0x80000000
 +

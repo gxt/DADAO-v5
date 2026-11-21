@@ -89,6 +89,12 @@
   - 摘要：**`arch/dadao/atomic_arch.h` 的 `a_barrier` 跟随 `fence ciii`**（`ADR-0044 D7`）：内联汇编由 `fence 975`（旧 `fm/pred/succ`）改为 `fence cfx_umon, 4095`（`cfx0` = all cfx，`pred = succ = 0xFFF` 六类全置）；文件头与 README 同步。语义仍为全屏障，与后端 acquire-release/seq-cst 的 `fence cfx_umon, 4095` 一致。补丁 **1 份改**（`series` 25）；`build-musl-shared`/`check-musl-freshness` rc=0（安装根已按新工具链重建）。
   - 执行者：engineer
 
+## M14
+
+- **2026-11-21 `m14-infra-005`**
+  - 摘要：**信号帧与 `SA_RESTORER`（2048 B 四组布局）**。`arch/dadao/bits/signal.h` 去掉 `[OPEN]`/COMPILE-ONLY 占位，按 `m14-linux-046` 的 uapi 定真帧：`mcontext_t` = 内核 `user_regs_struct`（四组各 64 槽，`rd`/`rb`/`ra`/`rf` 偏移 0/512/1024/1536，匿名 union 暴露 `status`/`ip`，共 2048 B）；`struct sigcontext` = 同形 + uapi 的 4 个保留字；`uc_mcontext` 168、`uc_sigmask` 128 B 不动；`MINSIGSTKSZ` 2048→**2376**（= 内核 `rt_sigframe` = 128 + 2248；`SIGSTKSZ` 保持 8192，比新下限多 5816 B）；新增 `SA_RESTORER 0x04000000` 与 arch 汇编 `src/signal/dadao/restore.s`（`__restore`/`__restore_rt` 同址：`set.zw rd15, 139` + `trap cfx_umon, 0`），`sigaction()` 经上游 `#ifdef SA_RESTORER` 自动填 `sa_restorer`；`pthread_arch.h` 的 `MC_PC` 由 `__gregs[0]` 改 `rb[0]`（偏移 512）。**K5 端到端**（musl 程序装 `SIGUSR1` handler，走生产 syscall 表）：四组哨兵 `rd32`/`rb32`/`rf32` 与 `status`/`ra0` 全部命中、`ip` == raise trap 后 4 B 的标签、`rt_sigreturn` 后主流程继续；plain handler 走 `__restore`；`SA_ONSTACK` 的帧与 handler SP 都在备栈内；内核 `sigaltstack` 下限实测 2375 拒 / 2376 收（与 `MINSIGSTKSZ` 同位）。可达 FAIL：rd 组少一槽 ⇒ SIGSEGV，不填 `sa_restorer` ⇒ handler 返回跳空。
+  - 执行者：engineer
+
 ## M16
 
 - **2026-11-19 —**

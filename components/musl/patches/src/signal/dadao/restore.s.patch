@@ -1,0 +1,46 @@
+diff --git a/src/signal/dadao/restore.s b/src/signal/dadao/restore.s
+new file mode 100644
+index 0000000..5f746bf
+--- /dev/null
++++ b/src/signal/dadao/restore.s
+@@ -0,0 +1,40 @@
++@@ DADAO signal return trampoline (m14-infra-005).
++@@
++@@ The kernel enters a handler with the return address it pushed on the
++@@ hardware return-address stack (spec/SimRISC-00 §2.4: the OS owns the RA
++@@ save/restore of a signal, "规则与进程切换一致").  That address is the
++@@ caller's `sa_restorer`, because this port has no vDSO to supply a trampoline
++@@ (kernel arch/dadao/kernel/signal.c, "why SA_RESTORER is mandatory").
++@@ musl's src/signal/sigaction.c fills it from the arch, exactly as on
++@@ x86-64/i386/riscv: `__restore_rt` for SA_SIGINFO handlers, `__restore`
++@@ otherwise -- both names must exist, and both must issue the same syscall.
++@@
++@@ The frame is at the handler's entry SP (rb1): setup_rt_frame() sets
++@@ `regs->rb[1] = frame`, a C handler restores SP on return, and
++@@ sys_rt_sigreturn() reads the frame from rb[1].  So this stub needs no
++@@ argument at all -- it writes only the syscall number, in rd15 per
++@@ contract-syscall.md §3, and traps.
++@@
++@@ rt_sigreturn does not return here: the kernel restores the interrupted
++@@ context (all four 寄存器组 + ip) and resumes at the saved ip.  There is
++@@ therefore no `ret` and no result handling -- and no fall-through code.
++@@
++@@ SYS_rt_sigreturn = 139 (arch/dadao/bits/syscall.h.in; kernel
++@@ scripts/syscall.tbl:139 common rt_sigreturn).
++@@
++@@ Assembly syntax: `@@` starts a comment ('#' is reserved for cpp,
++@@ Toolchain-01 §2.2); `.s` is assembled without the preprocessor, so the
++@@ syscall number is a literal with its header line cited above.
++
++	.text
++	.global __restore
++	.hidden __restore
++	.type __restore, %function
++__restore:
++	.global __restore_rt
++	.hidden __restore_rt
++	.type __restore_rt, %function
++__restore_rt:
++	set.zw	rd15, wp0, 139
++	trap	cfx_umon, 0
++	.size __restore_rt, . - __restore_rt

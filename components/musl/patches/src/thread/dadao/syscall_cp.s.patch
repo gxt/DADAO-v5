@@ -1,9 +1,9 @@
 diff --git a/src/thread/dadao/syscall_cp.s b/src/thread/dadao/syscall_cp.s
 new file mode 100644
-index 0000000..1b6a6e4
+index 0000000..8e0fe1a
 --- /dev/null
 +++ b/src/thread/dadao/syscall_cp.s
-@@ -0,0 +1,323 @@
+@@ -0,0 +1,322 @@
 +@@ DADAO cancellable-syscall entry (musl cancellation protocol).
 +@@
 +@@ long __syscall_cp_asm(volatile void *ptr, long nr,
@@ -77,14 +77,13 @@ index 0000000..1b6a6e4
 +@@ (contract-abi.md
 +@@ §4.5 saves only rd32-rd63).
 +@@
-+@@ ## Known boundary (registered in INFRA-085t / ISS-242)
++@@ ## Cancellation path
 +@@
 +@@ The redirect above is only observable if the cancellation signal path works
-+@@ (signal delivery + ucontext PC rewrite).  The DADAO port's signal frame is
-+@@ still [OPEN] (arch/dadao/bits/signal.h), so today this stub is reachable and
-+@@ correct but cancellation cannot actually fire: __cp_begin/__cp_end exist for
-+@@ the handler that will use them, and __cancel() is still reached through
-+@@ __syscall_cp_c()'s -EINTR path.
++@@ (signal delivery + ucontext PC rewrite).  The signal frame is now defined
++@@ (m14-infra-005: arch/dadao/bits/signal.h, MC_PC = rb[0] = the saved ip), so
++@@ this stub is the one pthread_cancel.c's handler checks against __cp_begin /
++@@ __cp_end; cancellation is no longer blocked on a missing frame ABI.
 +@@
 +@@ musl builds `.s` through its plain CC_CMD path (cc treats `.s` as assembler
 +@@ input; ADD_CFI is off for dadao -- there is no tools/add-cfi.dadao.awk), and

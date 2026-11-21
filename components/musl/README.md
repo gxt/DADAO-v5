@@ -22,7 +22,7 @@ DADAO 的 Linux 用户态 C 库底座（**M8**：无内核的 Linux 用户态栈
 
 ### 已知边界（`P1` 静态最小集之外；均显式失败或已登记）
 
-动态链接 / `ldso`（`P2`：阶段 A1 已可编出 `libc.so`；`B`–`E` 未完成 → 动态 ELF 的运行仍属 `P3`）、`QEMU linux-user`（`P3`）、信号（无 DADAO 信号帧 ABI；`bits/signal.h` 的 `mcontext_t` 仅够编译，标 `[OPEN]`）、静态 `__thread`（未提供 `AT_PHDR/PHNUM/PHENT` ⇒ `tls_cnt = 0`；`errno`/TCB 正常）。**已实现、不再列为边界**：`sigsetjmp`/`siglongjmp`（`INFRA-089t`：`src/signal/dadao/sigsetjmp.s` 按 `savemask` 存/恢复 `jb->__ss`；`siglongjmp` 仍是 musl 通用 C 文件）；线程 / `__clone`（`INFRA-095t`：`src/thread/dadao/clone.s` 真实现，经 `REPLACED_OBJS` 替换通用 `-ENOSYS` 桩）。
+动态链接 / `ldso`（`P2`：阶段 A1 已可编出 `libc.so`；`B`–`E` 未完成 → 动态 ELF 的运行仍属 `P3`）、`QEMU linux-user`（`P3`）、静态 `__thread`（未提供 `AT_PHDR/PHNUM/PHENT` ⇒ `tls_cnt = 0`；`errno`/TCB 正常）。**已实现、不再列为边界**：信号（`m14-infra-005`：`bits/signal.h` = 内核 uapi 的 2048 B 四组帧 + `SA_RESTORER`，`src/signal/dadao/restore.s` 提供 `__restore`/`__restore_rt`；K5 上 handler 往返已跑通）、`sigsetjmp`/`siglongjmp`（`INFRA-089t`：`src/signal/dadao/sigsetjmp.s` 按 `savemask` 存/恢复 `jb->__ss`；`siglongjmp` 仍是 musl 通用 C 文件）；线程 / `__clone`（`INFRA-095t`：`src/thread/dadao/clone.s` 真实现，经 `REPLACED_OBJS` 替换通用 `-ENOSYS` 桩）。
 
 ## 构建与验证
 
