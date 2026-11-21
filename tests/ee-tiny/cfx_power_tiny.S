@@ -1,4 +1,5 @@
-@@ power_tiny.S — Kaiwu-Tiny power 启动 stub（m12-chipyard-007）
+@@ cfx_power_tiny.S — Kaiwu-Tiny cfx_power 启动 stub：校验镜像表、把 cfx_hmon_tiny
+@@ 装入 hmon SRAM 并移交，从而构建最初可用的执行环境（m12-chipyard-007）
 @@
 @@ 规范：spec/Kaiwu §6.1（image index table）/ §6.2（Tiny 的 hmon 装载契约）。
 @@ 位置：BootROM 镜像偏移 0x0000–0x1FFF（上限 8 KiB），链接在复位向量

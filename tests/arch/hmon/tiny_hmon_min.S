@@ -2,7 +2,7 @@
 @@ （m13-integ-007；算法见 .tao/archive/M13/integ/m13-integ-007-hmon最小保存跳转算法.md）
 @@
 @@ 加载契约：宿主只装本应用 ELF（crt + 本文件，SRAM-only，固定入口 ENTRY）；
-@@ 固定 64 KiB BootROM（共享 power stub + hmon_tiny.S）由 `bootrom-image` 提供。
+@@ 固定 64 KiB BootROM（共享 power stub + cfx_hmon_tiny.S）由 `bootrom-image` 提供。
 @@
 @@ 用例职责（测试框架 = 本程序）：
 @@   1. 移交闭环：应用能运行、hmon 槽 0xE0/0xE8/0xF0 保存的是 power 的

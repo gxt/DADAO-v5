@@ -35,6 +35,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m15-testcases-022 | 2026-11-21 10:56 | 0.5 h | Tiny 执行环境命名：`power_tiny`/`hmon_tiny` → `cfx_power_tiny`/`cfx_hmon_tiny`（4 文件 + 引用；镜像字节不变） |
 
 
 ## 已验证

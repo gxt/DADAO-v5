@@ -2,7 +2,7 @@
 @@
 @@ `tiny_hmon.S`（应用）使用本布局：应用在 SRAM 里放结果表与固定数据区，
 @@ 并以符号调用自己的记录例程（`.rcheck`）。hmon 段是**共享最小 handler**
-@@ （`tests/ee-tiny/hmon_tiny.S`，m13-integ-007；m15-testcases-011 迁至 `tests/ee-tiny/`），它只读写 hmon SRAM
+@@ （`tests/ee-tiny/cfx_hmon_tiny.S`，m13-integ-007；m15-testcases-011 迁至 `tests/ee-tiny/`），它只读写 hmon SRAM
 @@ 的数据槽（0xD8–0xFF），不引用应用侧的任何符号。
 @@
 @@ 数据区（DATA_BASE = ENTRY + 0x3100）内的字节偏移：

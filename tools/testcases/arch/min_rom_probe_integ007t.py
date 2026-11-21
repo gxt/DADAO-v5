@@ -160,13 +160,13 @@ def symbols(tc, elf):
 def build_firmware(bld, tc, work):
     power_elf = os.path.join(work, "power.elf")
     hmon_elf = os.path.join(work, "hmon.elf")
-    assemble(tc, os.path.join(TINY_FW, "power_tiny.S"), os.path.join(work, "power.o"),
+    assemble(tc, os.path.join(TINY_FW, "cfx_power_tiny.S"), os.path.join(work, "power.o"),
              [REPO_ROOT])
-    link(tc, os.path.join(TINY_FW, "power_tiny.lds"),
+    link(tc, os.path.join(TINY_FW, "cfx_power_tiny.lds"),
          [os.path.join(work, "power.o")], power_elf)
-    assemble(tc, os.path.join(TINY_FW, "hmon_tiny.S"), os.path.join(work, "hmon.o"),
+    assemble(tc, os.path.join(TINY_FW, "cfx_hmon_tiny.S"), os.path.join(work, "hmon.o"),
              [REPO_ROOT])
-    link(tc, os.path.join(TINY_FW, "hmon_tiny.lds"),
+    link(tc, os.path.join(TINY_FW, "cfx_hmon_tiny.lds"),
          [os.path.join(work, "hmon.o")], hmon_elf)
 
     out_dir = os.path.join(work, "img")

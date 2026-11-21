@@ -1,4 +1,5 @@
-@@ hmon.S — Kaiwu-Tiny cfx3 hmon handler：最小「保存-跳转」算法
+@@ cfx_hmon_tiny.S — Kaiwu-Tiny cfx3 hmon handler：最小「保存-跳转」算法
+@@ （由 cfx_power_tiny 装入 hmon SRAM；两者共同构成最初可用的执行环境）
 @@ （m13-integ-007；用户 2026-11-11 第二次修正，见
 @@   .tao/archive/M13/integ/m13-integ-007-hmon最小保存跳转算法.md）
 @@

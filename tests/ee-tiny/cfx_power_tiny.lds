@@ -1,5 +1,5 @@
 /*
- * power.lds — Kaiwu-Tiny BootROM power 启动 stub（m12-chipyard-007）
+ * cfx_power_tiny.lds — Kaiwu-Tiny BootROM cfx_power 启动 stub（m12-chipyard-007）
  *
  * 规范：spec/Kaiwu §6.2「镜像布局」。power 段链接在复位向量
  * 0xffff_ffff_0000（镜像偏移 0x0000），上限 8 KiB（0x2000）；超限是链接期

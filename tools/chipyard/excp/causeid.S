@@ -6,7 +6,7 @@
 @@ 并作三方（chipyard / QEMU / gem5）**字节流全宽**比较（不再掩码低 16 位）。
 @@
 @@ 载体约定（与 `tests/inst/**` 同源）：一个 ELF 在三个平台上跑同一条硬件路径 ——
-@@ 异常向量 → 固件 hmon（`tests/ee-tiny/hmon_tiny.S`：最小保存-跳转）→
+@@ 异常向量 → 固件 hmon（`tests/ee-tiny/cfx_hmon_tiny.S`：最小保存-跳转）→
 @@ `escape` 回框架写在 hmon SRAM `+0xF8` 的回落点。固件把 `cg5 rc2/rc3/rc4`
 @@ 存进 hmon SRAM `+0xE0/+0xE8/+0xF0`，探针在回落点读 `+0xE0`（cause_id）与
 @@ `+0xF0`（cause_info）各记 8 字节 ⇒ 每个用例 16 字节，按 `__PRINT` 逐字节打印。

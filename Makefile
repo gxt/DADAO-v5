@@ -794,7 +794,7 @@ TINY_BOOTROM_DIR = $(BOOTROM_DIR)/tiny
 TINY_BOOTROM = $(TINY_BOOTROM_DIR)/bootrom_tiny.bin
 # Kaiwu-Vast 4 MiB BootROM (QEMU-080t): supplied through the
 # `bootrom-image` machine property; the flat 64 KiB `-bios` window stays Tiny.
-# TESTCASES-092t: two hmon fault-policy variants from the same hmon_tiny.S:
+# TESTCASES-092t: two hmon fault-policy variants from the same hmon_vast.S:
 #   bootrom_step5.bin      HMON_FAULT_POLICY=0 (resume: arch / check-arch*)
 #   bootrom_step5_inst.bin HMON_FAULT_POLICY=1 (exit: inst harness observes
 #                          the machine-fault exit code instead of 0xB7)
@@ -822,10 +822,10 @@ _locked-build-bootrom:
 	@# into one 64 KiB image with the §6.1 image index table.  Every layout
 	@# limit is a build-time failure (builder + linker asserts).
 	@mkdir -p $(TINY_BOOTROM_DIR)
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/power_tiny.S -o $(TINY_BOOTROM_DIR)/power.o
-	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-tiny/power_tiny.lds $(TINY_BOOTROM_DIR)/power.o -o $(TINY_BOOTROM_DIR)/power.elf
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/hmon_tiny.S -o $(TINY_BOOTROM_DIR)/hmon.o
-	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-tiny/hmon_tiny.lds $(TINY_BOOTROM_DIR)/hmon.o -o $(TINY_BOOTROM_DIR)/hmon.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/cfx_power_tiny.S -o $(TINY_BOOTROM_DIR)/power.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-tiny/cfx_power_tiny.lds $(TINY_BOOTROM_DIR)/power.o -o $(TINY_BOOTROM_DIR)/power.elf
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj tests/ee-tiny/cfx_hmon_tiny.S -o $(TINY_BOOTROM_DIR)/hmon.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-tiny/cfx_hmon_tiny.lds $(TINY_BOOTROM_DIR)/hmon.o -o $(TINY_BOOTROM_DIR)/hmon.elf
 	$(PYTHON) tools/testcases/arch/build_tiny_bootrom.py \
 	  --out-dir $(TINY_BOOTROM_DIR) \
 	  --power-elf $(TINY_BOOTROM_DIR)/power.elf \
