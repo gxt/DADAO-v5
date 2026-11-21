@@ -14,8 +14,8 @@ DADAO executable:
    ``--disable-shared`` is deliberate (the dynamic linker is P2, ADR-0025 D6);
    the fp-contract flag is musl's own accuracy requirement (ISS-332).
 2. **smoke link** -- compile a minimal program (``write(1, "hi\\n", 3)`` +
-   ``return 0``) against that library and link it with ``lib/crt1.o`` and the
-   project ELF script ``tests/ee-tiny/app_tiny.lds``.
+   ``return 0``) against that library and link it with ``lib/crt1.o`` using
+   lld's default layout (musl provides no linker script for this target).
 3. **verify** -- the ELF is parsed here (ELF64 / big-endian / ET_EXEC /
    e_machine = EM_DADAO 0x0DA0 / no PT_INTERP / no PT_DYNAMIC, entry inside the
    first PT_LOAD) and cross-checked against ``file(1)``; the disassembly must
@@ -127,7 +127,6 @@ import toolchain_id as tid  # noqa: E402
 REPO_ROOT = paths.repo_root()
 TOOLCHAIN_BIN = paths.host_toolchain_bin()
 MUSL_SRC = REPO_ROOT / ".work" / "source" / "musl"
-LDS = REPO_ROOT / "tests" / "ee-tiny" / "app_tiny.lds"
 # 资产归属（m15-testcases-011/012）：Tiny lds 在 `tests/ee-tiny/`；公共段已内联。
 
 TARGET = "dadao-unknown-elf"
@@ -591,8 +590,7 @@ def compile_program(work: Path) -> Path:
 
 def link_program(work: Path, obj: Path) -> Path:
     elf = work / "musl_smoke.elf"
-    cmd = [str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(LDS.parent),
-           "-T", str(LDS),
+    cmd = [str(TOOLCHAIN_BIN / "ld.lld"),
            str(MUSL_SRC / "lib" / "crt1.o"), str(obj), str(MUSL_SRC / "lib" / "libc.a"),
            "-o", str(elf)]
     res = run(cmd, cwd=REPO_ROOT)
@@ -610,7 +608,8 @@ def link_dynamic_program(work: Path, obj: Path, so: Path) -> Path:
 
     No linker script is used here, and that is a deliberate, measured decision:
 
-    * ``tests/ee-tiny/app_tiny.lds`` (the static/M4 layout) declares its own PHDRS.
+    * a linker script with its own PHDRS (e.g. the retired Tiny kernel layout)
+      takes over the whole program-header set and suppresses ``.interp``;
       lld then takes the *whole* program-header set from the script
       (``LinkerScript::createPhdrs``), i.e. ``.interp``/PT_INTERP and
       PT_DYNAMIC are never emitted -- and the link still succeeds (rc=0), so
@@ -824,11 +823,11 @@ def check_elf(elf: Path, inject: bool) -> list[tuple[str, str, str, bool]]:
         ("no PT_DYNAMIC (static)", "absent", "absent" if 2 not in types else "present",
          2 not in types),
         ("PT_LOAD segments", ">=1", str(len(loads)), len(loads) >= 1),
-        ("entry in first PT_LOAD",
-         f"0x{RAM_BASE:x}..0x{RAM_BASE + loads[0]['memsz']:x}" if loads else "n/a",
+        ("entry in a PT_LOAD",
+         "any loadable segment",
          f"0x{info['e_entry']:x}",
-         bool(loads) and loads[0]["vaddr"] <= info["e_entry"]
-         < loads[0]["vaddr"] + loads[0]["memsz"]),
+         any(l["vaddr"] <= info["e_entry"] < l["vaddr"] + l["memsz"]
+             for l in loads)),
     ]
     return checks
 

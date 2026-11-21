@@ -67,8 +67,9 @@ TOOLCHAIN_BIN = paths.host_toolchain_bin()
 SYSROOT = paths.target_sysroot_dir()
 # 资产归属（m15-testcases-011/012）：crt0 在 `tests/ee-user/`，Tiny lds 在
 # `tests/ee-tiny/`；公共段已内联进 lds。
-CRT0 = REPO_ROOT / "tests" / "ee-user" / "crt0_user.s"
-LDS = REPO_ROOT / "tests" / "ee-tiny" / "app_tiny.lds"
+CRT0 = REPO_ROOT / "tests" / "ee-tiny" / "tests_picolibc_crt0.S"
+PICOLIBC_CRT0 = SYSROOT / "lib" / "crt0-semihost.o"
+LDS = SYSROOT / "lib" / "picolibc_noflash.ld"
 BOOTROM = paths.test_artifacts_dir() / "bootrom" / "tiny" / "bootrom_tiny.bin"
 
 PROG_C = """\
@@ -207,9 +208,14 @@ def main() -> int:
     clang = str(TOOLCHAIN_BIN / "clang")
 
     res = run([str(TOOLCHAIN_BIN / "llvm-mc"), "--triple=dadao-unknown-elf", "-filetype=obj",
-               str(CRT0), "-o", str(work / "crt0.o")])
+               "-I", str(REPO_ROOT), str(CRT0), "-o", str(work / "crt0.o")])
     if res.returncode != 0:
         print(f"test-picolibc-smoke: FAIL (assemble crt0 rc={res.returncode})\n{res.stderr}", file=sys.stderr)
+        return 1
+    res = run([str(TOOLCHAIN_BIN / "llvm-objcopy"), "--redefine-sym",
+               "_start=_picolibc_start", str(PICOLIBC_CRT0), str(work / "crt0-semihost.o")])
+    if res.returncode != 0:
+        print(f"test-picolibc-smoke: FAIL (rename picolibc crt0 rc={res.returncode})\n{res.stderr}", file=sys.stderr)
         return 1
 
     for stage in STAGES:
@@ -240,7 +246,7 @@ def main() -> int:
 
         res = run([str(TOOLCHAIN_BIN / "ld.lld"), "-L", str(LDS.parent),
                    "-T", str(LDS),
-         str(work / "crt0.o"), str(obj),
+                   str(work / "crt0.o"), str(work / "crt0-semihost.o"), str(obj),
                    str(SYSROOT / "lib" / "libc.a"), str(SYSROOT / "lib" / "libm.a"),
                    str(SYSROOT / "lib" / "libsemihost.a"), "-o", str(elf)])
         if res.returncode != 0:
