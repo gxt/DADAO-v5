@@ -816,9 +816,9 @@
   - spec
   - linux
   milestone: M14
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M14
+  resolved_by: 用户 2026-11-21 裁定 A（维持 ISS-455：monitor 由运行模式定，supv ⇒ cfx_smon；原命题不成立，§6.4 不改，irqflags 写死 smon 正确）
   title: "【P2】`contract-see §6.4` 的实例表述「当前 cfx = `cfx_smon`」在**首投之后不成立**：`spec/DADAO-12 §5.3` 的 `escape` 只恢复 `global_cfx_intr_mask`/`excp_prev_run_mode`/IP，**不恢复 `inner_cfx_code`**（QEMU 与 `min_rom_probe_integ051t` 同口径，`m14-linux-007` 实测）⇒ 某 cfx 投递过异常后，内核的「当前 cfx」= 该 cfx（如 `cfx_hart`），此后 `cfx_smon cg2 rc4` 的 mask 不再单点有效，源轴 mask 必须**同时写 `cfx_smon` 与当前 cfx 两行**（固件源位也须放行两者）。处置：契约 §6.4 改为「IE 旋钮 = 按**当前 cfx** 选行；正常运行期 = `cfx_smon`，首投后 = 该投递 cfx」，并让 `m14-linux-008` 按此实现；`m14-spec-005` 的该句需同笔修订（属口径纠正，需用户确认）。"
 - id: ISS-455
   scope:
