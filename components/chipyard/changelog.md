@@ -129,6 +129,10 @@
 
 ## M16
 
+- **2026-11-21 `m16-chipyard-010`**
+  - 摘要：**Kaiwu-Vast 的 I-Cache（8 路 × 128 组 × 64 B = 64 KiB，只读、无 dirty）**（用户口径 2026-11-20）。`WumingDcache.scala` 泛化为 **`WumingCache.scala`**（`WumingCache`/`WumingCacheParams(sets/ways/lineBytes/writeBack/withDirty/readOnly/label)`）：I/D 共用同一份实现，核内两处实例化参数不同（D：`writeBack = true, withDirty = true`；I：`writeBack = false, withDirty = false, readOnly = true`）。`readOnly` 在**展开期**去掉 dirty 位（tag bundle 无该字段）、淘汰回写、clean 回写与写穿 Put（A 通道只剩 `Get`），对只读实例的写请求显式报错；`label` 让两个实例的日志可分辨（`WumingCache[icache]` / `WumingCache[dcache]`）。`WumingCore` 的取指端口改由 I-Cache 拥有（`io.imem`），**翻译后**的取指走缓存、核内窗口仍直连总线；PTW 的端口类型随类改名同步。**验证**：`tools/chipyard/icache/{vasticache.S,vasticache.lds,gen_vasticache_tables.py,check_vasticache.py}` —— 十段各一行（64 B）的代码块覆盖「1 缺失 + 7 命中」「同组 8 路共存 + 第 9 行按 LRU 淘汰」「另一个组的行不得淘汰 A 组行」「组索引 PA[12:6]」；命中不访存以核自己的 `fetchresp latency=` 为独立观测量（命中 ≤ 4 拍、缺失 ≥ 10 拍）；`check_vasticache.py --structure` 判 Vast FIRRTL 里 I 实例 0 dirty 寄存器 / 0 写回路径（D 实例两者都有，防恒真）；注入「I 侧带 dirty + 写回」⇒ 结构红，注入「组索引 6 位（PA[11:6]）」⇒ 组冲突/A3 重填红，`cp`+md5 还原并强制重建后回绿；Tiny 首册 38 镜像不回归。
+  - 执行者：engineer
+
 - **2026-11-21 `m16-chipyard-015`**
   - 摘要：**签入的 Tiny BootROM hex 跟随 `m15-testcases-021` 重生成**（固件字节落后于测试资产，`ISS-410` 同类缺口）。`power_tiny.S` 的 `LD64`/`LOAD_ADDR` 宏改规范伪指令 `set.rd`/`set.rb` 后 power 段 344 B → **292 B**（宏展开条数减少），hmon 段不变（44 B/对齐 48 B）；签入 hex 解码镜像 md5 `514300876e…` → **`a5d78816a95469766639fa658b647ef3`**（hex 文本 md5 `9334a87e05340044ab3ee2dd665591d2`），与 `make build-bootrom` 运行期产物、`tests/arch/hmon/expected.yaml` 同版。`resourceGenerators` 产出的 `/dadao/bootrom/bootrom.tiny.img` md5 同值；重 elaborate 的 `gen-collateral/TLROM.sv`（firtool 按末字在前、字内小端）反解镜像逐字节相同（旧 hex 解码即 `51430087…`，可作可达 FAIL）。补丁集只重导该 1 份（`make_patch`：1 written / 24 unchanged；复跑 0 written / 25 unchanged）。sim 重建（删 `.classpath_cache/chipyard.jar` + `generated-src/<cfg>`；`make verilog` + `make`，`JOBS=32`，`.conda-env` 下）后二进制 md5 `25c1d3f4b84816c2b42e1ebc34f17ab7`（旧 `91133204…`；`ISS-453`：md5 只作记录）；Tiny 代表例 `semihost_smoke.elf` 在 chipyard 与 QEMU `kaiwu-tiny` 上退出码同为 0、semihosting 输出 1136 B 逐字节相同。
   - 执行者：engineer

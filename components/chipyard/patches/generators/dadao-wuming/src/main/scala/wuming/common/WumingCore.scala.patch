@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..470eaad
+index 0000000..ddfba87
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,1968 @@
+@@ -0,0 +1,2042 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -235,8 +235,12 @@ index 0000000..470eaad
 +  // machine's architectural memory (PA RAM) is reached only through the
 +  // translated window, so the cache covers exactly that memory; a page mapped
 +  // to the BootROM is cached like any other physical target (read-only).
-+  private val dcache = if (params.useVM) Some(Module(new WumingDcache(
-+    WumingDcacheParams(), dataEdge, srcBits))) else None
++  //
++  // The data and instruction sides share the `WumingCache` class; only the
++  // parameters differ (`m16-chipyard-010`).
++  private val dcache = if (params.useVM) Some(Module(new WumingCache(
++    WumingCacheParams(writeBack = true, withDirty = true, label = "dcache"),
++    dataEdge, srcBits))) else None
 +
 +  private val ptwReqValid = WireDefault(false.B)
 +  private val ptwReqVa = WireDefault(0.U(64.W))
@@ -743,7 +747,7 @@ index 0000000..470eaad
 +    // The clean/invalidate port is internal for now: `cfx5` wiring is a
 +    // separate task (`m16-chipyard-009` scope).
 +    dc.io.cmd.valid := false.B
-+    dc.io.cmd.bits := 0.U.asTypeOf(new WumingDcacheCmd)
++    dc.io.cmd.bits := 0.U.asTypeOf(new WumingCacheCmd)
 +  } else {
 +    // No cache on this machine: the data port belongs to the memory unit.
 +    io.dmem.a.valid := directValid
@@ -1022,10 +1026,84 @@ index 0000000..470eaad
 +
 +  val imemFire = io.imem.d.valid && io.imem.d.ready
 +  val imemD = io.imem.d.bits
-+  val fetchResp = imemFire && imemD.source === FETCH_SRC
 +  val imemFirePrefetch = imemFire && imemD.source =/= FETCH_SRC
 +
 +  val atDemand = if (params.useVM) state === sFreq && (!vastFetchNow || vx.get.fetchDone) else state === sFreq  // address must be final (m16-008)
++
++  // ---- instruction cache (`m16-chipyard-010`) ----------------------------
++  // The same `WumingCache` class as the data side, with `readOnly = true`
++  // (8 ways x 128 groups x 64 B = 64 KiB): one 8-beat line fill on a miss, no
++  // dirty bit, no write-back and no Put on the bus — the fetch path never
++  // writes, the same choice as the I-TLB having no D bit (`m16-chipyard-008`).
++  // The cache owns the fetch TileLink master; the core's demand beat becomes a
++  // cache request.  Prefetch stays switched off on a translating machine (a
++  // speculative walk could fault), so one request is outstanding at a time.
++  private val icache = if (params.useVM) Some(Module(new WumingCache(
++    WumingCacheParams(writeBack = false, withDirty = false, readOnly = true,
++      label = "icache"),
++    fetchEdge, srcBits))) else None
++  /** A translated demand fetch: the instruction cache answers it. */
++  private val fetchCacheRoute: Bool = if (params.useVM) vastFetchNow else false.B
++  /** The core itself drives the fetch port only for a core-internal beat. */
++  private val directFetch: Bool =
++    ((atDemand && fetchLegal) || pfReqValid) && !fetchCacheRoute
++  /** Route of this cycle's fetch handshake, latched for the response. */
++  private val fetchRouteReg = if (params.useVM) Some(RegInit(false.B)) else None
++
++  for (ic <- icache) {
++    ic.io.core.req.valid := ((atDemand && fetchLegal) || pfReqValid) && fetchCacheRoute
++    ic.io.core.req.bits.addr := Mux(atDemand, fetchBusAddr, pfReqAddr)
++    ic.io.core.req.bits.write := false.B
++    ic.io.core.req.bits.wdata := 0.U
++    ic.io.core.req.bits.wmask := 0.U
++    // The instruction cache has no second requester and no maintenance port:
++    // `cfx5` clean/invalidate talks to the data cache only.
++    ic.io.ptw.req.valid := false.B
++    ic.io.ptw.req.bits := 0.U.asTypeOf(new WumingCacheRequest)
++    ic.io.cmd.valid := false.B
++    ic.io.cmd.bits := 0.U.asTypeOf(new WumingCacheCmd)
++  }
++
++  // One driver for the fetch port: the cache whenever the core has no
++  // *core-internal* beat to send, the core itself otherwise (never both in one
++  // cycle — the core parks in `sFreq`/`sFwait` while one beat is in flight).
++  if (params.useVM) {
++    val ic = icache.get
++    io.imem.a.valid := Mux(directFetch, true.B, ic.io.tl.a.valid)
++    io.imem.a.bits := Mux(directFetch,
++      Mux(atDemand, fetchBits, pfReqBits(pfReqSlot)), ic.io.tl.a.bits)
++    ic.io.tl.a.ready := io.imem.a.ready
++    io.imem.d.ready := Mux(directFetch || !fetchRouteReg.get, true.B, ic.io.tl.d.ready)
++    ic.io.tl.d.valid := io.imem.d.valid
++    ic.io.tl.d.bits := io.imem.d.bits
++  } else {
++    io.imem.a.valid := (atDemand && fetchLegal) || pfReqValid
++    io.imem.a.bits := Mux(atDemand, fetchBits, pfReqBits(pfReqSlot))
++    io.imem.d.ready := true.B
++  }
++
++  /** Fetch request handshake: the cache for a translated beat, the bus
++    * otherwise. */
++  val fetchFire: Bool =
++    if (params.useVM) Mux(fetchCacheRoute, icache.get.io.core.req.fire, io.imem.a.fire)
++    else io.imem.a.fire
++  if (params.useVM) { when(fetchFire) { fetchRouteReg.get := fetchCacheRoute } }
++
++  // One response view for both routes: a cached fetch is answered by the
++  // instruction cache (address-ordered data), a direct beat by the bus (byte
++  // reversal).  `fetchRouteReg` is the route of the outstanding request.
++  val fetchResp: Bool =
++    if (params.useVM) Mux(fetchRouteReg.get, icache.get.io.core.resp.valid, imemFire)
++    else imemFire && imemD.source === FETCH_SRC
++  val fetchRespData: UInt =
++    if (params.useVM) Mux(fetchRouteReg.get, icache.get.io.core.resp.bits.data,
++      addressOrder(imemD.data))
++    else addressOrder(imemD.data)
++  val fetchRespError: Bool =
++    if (params.useVM) Mux(fetchRouteReg.get, icache.get.io.core.resp.bits.error,
++      imemD.denied || imemD.corrupt)
++    else imemD.denied || imemD.corrupt
++
 +  val dataBusy = state === sMreq || state === sMwait
 +  // The stream is live when the queue holds a beat or when the core is waiting
 +  // for one that is already in flight (`waitBeat`).  In the latter case the
@@ -1057,11 +1135,7 @@ index 0000000..470eaad
 +    pfBeatV(freeSlot) := pfBeat
 +    pfStale(freeSlot) := false.B
 +  }
-+  when(io.imem.a.fire && !atDemand) { pfReqValid := false.B }
-+
-+  io.imem.a.valid := (atDemand && fetchLegal) || pfReqValid
-+  io.imem.a.bits := Mux(atDemand, fetchBits, pfReqBits(pfReqSlot))
-+  io.imem.d.ready := true.B
++  when(fetchFire && !atDemand) { pfReqValid := false.B }
 +
 +  // Replies are matched by source ID (slot i owns source i + 1), so the slots do
 +  // not depend on the order in which the manager answers.
@@ -1094,7 +1168,7 @@ index 0000000..470eaad
 +  // m12-020: SRAM round-trip latency of the demand fetch, in cycles.
 +  val demandSentCycle = RegInit(0.U(64.W))
 +  val fetchLatency = RegInit(0.U(64.W))
-+  when(atDemand && io.imem.a.fire) { demandSentCycle := cycles }
++  when(atDemand && fetchFire) { demandSentCycle := cycles }
 +  when(fetchResp) { fetchLatency := cycles - demandSentCycle }
 +
 +  // ---- semihosting request (boundary lift, no host call in the core) -----
@@ -1288,7 +1362,7 @@ index 0000000..470eaad
 +          // core-internal address has no window: CFXMEM with the fetch
 +          // address as `cause_info` (spec/Kaiwu §4.4).
 +          enterMemFault(ip, isFetch = true)
-+        }.elsewhen(io.imem.a.fire) {
++        }.elsewhen(fetchFire) {
 +          demandBeat := ip(addrBits - 1, 3)
 +          vx.get.fetchDone := false.B
 +          state := sFwait
@@ -1298,7 +1372,7 @@ index 0000000..470eaad
 +          // No manager backs this address: CFXMEM with the fetch address as
 +          // `cause_info` (spec/Kaiwu §4.4).
 +          enterMemFault(ip, isFetch = true)
-+        }.elsewhen(io.imem.a.fire) {
++        }.elsewhen(fetchFire) {
 +          demandBeat := ip(addrBits - 1, 3)
 +          state := sFwait
 +        }
@@ -1318,12 +1392,12 @@ index 0000000..470eaad
 +          state := sFreq
 +        }
 +      }.elsewhen(fetchResp) {
-+        when(imemD.denied) {
++        when(fetchRespError) {
 +          enterHmonMem(ip, ip)
 +        }.otherwise {
 +          fifoPush := true.B
 +          pushBeat := demandBeat
-+          pushData := addressOrder(imemD.data)
++          pushData := fetchRespData
 +          state := sExec
 +        }
 +      }
@@ -1854,7 +1928,7 @@ index 0000000..470eaad
 +    nextBeatReg := pushBeat + 1.U
 +  }
 +  // A demand fetch re-bases the stream on the current instruction's beat.
-+  when(state === sFreq && io.imem.a.fire) { nextBeatReg := ip(addrBits - 1, 3) }
++  when(state === sFreq && fetchFire) { nextBeatReg := ip(addrBits - 1, 3) }
 +
 +  // ---- legality assertions ------------------------------------------------
 +  // Only a backed beat ever reaches the data A channel: the EXEC precheck
@@ -1882,10 +1956,10 @@ index 0000000..470eaad
 +  when(state === sIdle && io.bootEnable) {
 +    printf(p"WumingCore: boot hartid=${io.hartid} reset_vector=0x${Hexadecimal(io.resetVector)} cycle=${cycles}\n")
 +  }
-+  when(pfReqValid && io.imem.a.fire) {
++  when(pfReqValid && fetchFire) {
 +    printf(p"WumingCore: prefetch 0x${Hexadecimal(pfReqAddr)} count=${qCount} live=${pfLive} busy=${pfBusy} lat=${fetchLatency} cycle=${cycles}\n")
 +  }
-+  when(state === sFreq && io.imem.a.fire) {
++  when(state === sFreq && fetchFire) {
 +    printf(p"WumingCore: fetch 0x${Hexadecimal(fetchAddr)} cycle=${cycles}\n")
 +  }
 +  when(fetchResp) {

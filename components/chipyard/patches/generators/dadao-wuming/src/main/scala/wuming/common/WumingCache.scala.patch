@@ -1,12 +1,13 @@
-diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDcache.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDcache.scala
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCache.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCache.scala
 new file mode 100644
-index 0000000..bbf31ad
+index 0000000..ddc4a2f
 --- /dev/null
-+++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDcache.scala
-@@ -0,0 +1,607 @@
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCache.scala
+@@ -0,0 +1,701 @@
 +// See LICENSE for license details.
 +//
-+// DADAO "wuming" first-level data cache (m16-chipyard-009).
++// DADAO "wuming" first-level cache, **one class for both sides**
++// (`m16-chipyard-010`; data side `m16-chipyard-009`).
 +//
 +// Geometry (user ruling 2026-11-20, mirrored by the gem5 model):
 +//
@@ -14,17 +15,29 @@ index 0000000..bbf31ad
 +//   index = PA[12:6], line offset = PA[5:0]  => 6 + 7 = 13 bits < 16 bits of a
 +//   64 KiB page, so the cache is VIPT with no aliasing (8 KiB per way).
 +//
-+// The cache is **write-back + write-allocate**, one dirty bit per line: a
-+// store hit only updates the line, a store miss fetches the line first and
-+// then merges the beat; a dirty victim is written back before its line is
-+// reused, and the internal `clean` command does the same without invalidating.
-+// `writeBack = false` switches the same datapath to write-through (the beat is
-+// put on the bus right after the merge); the evidence injection gate uses it.
++// The two instances differ only in their parameters, never in their code:
++//
++//   data side      `writeBack = true,  withDirty = true`   write-back and
++//                  write-allocate, one dirty bit per line: a store hit only
++//                  updates the line, a store miss fetches the line first and
++//                  then merges the beat; a dirty victim is written back before
++//                  its line is reused, and the internal `clean` command does
++//                  the same without invalidating.
++//   instruction    `readOnly = true` (hence `writeBack = false,
++//                  withDirty = false`)   line fills only: no dirty state, no
++//                  write-back, no write-through and no Put on the bus.  This
++//                  is the same choice as the I-TLB having no D bit
++//                  (`m16-chipyard-008`): the fetch path never writes.
++//
++// `writeBack = false, withDirty = true` is the write-through form; it keeps the
++// same datapath (the beat is put on the bus right after the merge) and no line
++// is ever dirty.  The evidence injection gate uses it.
 +//
 +// The walker's page-table reads and A/D read-modify-writes go through the
 +// second request port (`io.ptw`), so a PTE write made by the core through the
 +// data path is immediately visible to the walker and vice versa (one cached
-+// copy of every physical line).
++// copy of every physical line).  The instruction side has no second requester
++// and leaves the port idle.
 +//
 +// A request is one 8-byte beat.  `addr` is a physical byte address; a write
 +// carries the address-ordered beat (`wdata`, byte 0 = lowest address, the
@@ -37,10 +50,11 @@ index 0000000..bbf31ad
 +// dirty line, keep it), `invalidate` (drop the line) and `flush` (write back
 +// and drop every line).  A command is accepted when the cache is idle and
 +// answered with a one-cycle `cmdDone` pulse; `cmdError` reports a write-back
-+// the bus refused (the line is kept, never silently dropped).
++// the bus refused (the line is kept, never silently dropped).  A read-only
++// cache has no dirty line, so `clean`/`flush` only drop lines.
 +//
 +// Only a translating machine instantiates this class (`WumingCore`), so a
-+// Tiny machine keeps zero `WumingDcache` instances in its RTL.
++// Tiny machine keeps zero `WumingCache` instances in its RTL.
 +
 +package wuming.common
 +
@@ -48,8 +62,8 @@ index 0000000..bbf31ad
 +import chisel3.util._
 +import freechips.rocketchip.tilelink.{TLBundle, TLEdgeOut}
 +
-+/** Data-cache geometry (user ruling 2026-11-20). */
-+case class WumingDcacheParams(
++/** Cache geometry and write policy (user ruling 2026-11-20). */
++case class WumingCacheParams(
 +  /** Groups (sets).  The group index masks a contiguous address field that
 +    * starts at the line offset; `indexBits + offsetBits < 16` keeps every
 +    * index *and* the line offset inside one 64 KiB page (no VIPT alias). */
@@ -61,11 +75,20 @@ index 0000000..bbf31ad
 +    * immediately and no line is ever dirty). */
 +  writeBack: Boolean = true,
 +  /** `true` = maintain a dirty bit per line (user ruling). */
-+  withDirty: Boolean = true
++  withDirty: Boolean = true,
++  /** `true` = the instruction side: no dirty bit, no write-back, no
++    * write-through and no Put on the bus (a write request is refused). */
++  readOnly: Boolean = false,
++  /** Log tag: the two per-core instances must be distinguishable in the
++    * `printf` stream (`WumingCache[icache]` vs `WumingCache[dcache]`). */
++  label: String = "cache"
 +) {
-+  require(sets > 0 && isPow2(sets), "WumingDcache: sets must be a power of two")
-+  require(ways > 0 && isPow2(ways), "WumingDcache: ways must be a power of two")
-+  require(lineBytes == 64, "WumingDcache: line = 8 x 64-bit beats")
++  require(sets > 0 && isPow2(sets), "WumingCache: sets must be a power of two")
++  require(ways > 0 && isPow2(ways), "WumingCache: ways must be a power of two")
++  require(lineBytes == 64, "WumingCache: line = 8 x 64-bit beats")
++  require(withDirty || !writeBack, "WumingCache: a write-back cache needs a dirty bit")
++  require(!readOnly || (!writeBack && !withDirty),
++    "WumingCache: a read-only cache has no dirty bit and no write-back")
 +  val beatBytes: Int = 8
 +  val beats: Int = lineBytes / beatBytes
 +  val indexBits: Int = log2Ceil(sets)
@@ -74,18 +97,20 @@ index 0000000..bbf31ad
 +  val tagBits: Int = 48 - indexBits - offsetBits
 +  val ageBits: Int = math.max(1, log2Ceil(ways))
 +  require(indexBits + offsetBits < 16,
-+    "WumingDcache: line offset + group index must fit inside a 64 KiB page")
++    "WumingCache: line offset + group index must fit inside a 64 KiB page")
 +}
 +
-+/** One cache line's tag half (the data array is a synchronous RAM). */
-+class WumingDcacheTag(tagBits: Int) extends Bundle {
++/** One cache line's tag half (the data array is a synchronous RAM).  The dirty
++  * bit exists only on a write-back cache; a read-only cache has no such
++  * register at all. */
++class WumingCacheTag(tagBits: Int, withDirty: Boolean) extends Bundle {
 +  val valid = Bool()
-+  val dirty = Bool()
++  val dirty = if (withDirty) Some(Bool()) else None
 +  val tag = UInt(tagBits.W)
 +}
 +
 +/** One 8-byte-beat cache request (physical address). */
-+class WumingDcacheRequest extends Bundle {
++class WumingCacheRequest extends Bundle {
 +  val addr = UInt(64.W)
 +  val write = Bool()
 +  /** Address-ordered beat (byte 0 of the address is the most significant
@@ -95,26 +120,26 @@ index 0000000..bbf31ad
 +  val wmask = UInt(8.W)
 +}
 +
-+class WumingDcacheResponse extends Bundle {
++class WumingCacheResponse extends Bundle {
 +  val data = UInt(64.W)
 +  val error = Bool()
 +}
 +
 +/** Internal maintenance command.  `op`: 1 = clean, 2 = invalidate, 3 = flush
 +  * (whole table; `addr` ignored). */
-+class WumingDcacheCmd extends Bundle {
++class WumingCacheCmd extends Bundle {
 +  val op = UInt(2.W)
 +  val addr = UInt(64.W)
 +}
 +
-+class WumingDcache(
-+  params: WumingDcacheParams,
++class WumingCache(
++  params: WumingCacheParams,
 +  edge: TLEdgeOut,
 +  srcBits: Int
 +) extends Module {
 +  val p = params
-+  require(edge.bundle.dataBits == 64, "WumingDcache: expected a 64-bit TileLink beat")
-+  require(edge.bundle.addressBits >= 48, "WumingDcache: 48-bit physical addresses")
++  require(edge.bundle.dataBits == 64, "WumingCache: expected a 64-bit TileLink beat")
++  require(edge.bundle.addressBits >= 48, "WumingCache: 48-bit physical addresses")
 +
 +  private val addrBits = edge.bundle.addressBits
 +  private val lgSize = 3.U
@@ -122,16 +147,16 @@ index 0000000..bbf31ad
 +  val io = IO(new Bundle {
 +    /** Core data path (translated physical address). */
 +    val core = new Bundle {
-+      val req = Flipped(Decoupled(new WumingDcacheRequest))
-+      val resp = Valid(new WumingDcacheResponse)
++      val req = Flipped(Decoupled(new WumingCacheRequest))
++      val resp = Valid(new WumingCacheResponse)
 +    }
 +    /** Page-table walker port: PTE reads and A/D read-modify-writes. */
 +    val ptw = new Bundle {
-+      val req = Flipped(Decoupled(new WumingDcacheRequest))
-+      val resp = Valid(new WumingDcacheResponse)
++      val req = Flipped(Decoupled(new WumingCacheRequest))
++      val resp = Valid(new WumingCacheResponse)
 +    }
 +    /** Internal clean/invalidate interface (`cfx5` wiring is a later task). */
-+    val cmd = Flipped(Decoupled(new WumingDcacheCmd))
++    val cmd = Flipped(Decoupled(new WumingCacheCmd))
 +    val cmdDone = Output(Bool())
 +    val cmdError = Output(Bool())
 +    /** The memory-side TileLink master. */
@@ -140,7 +165,7 @@ index 0000000..bbf31ad
 +
 +  // ---- storage -----------------------------------------------------------
 +  private val tagStore = RegInit(VecInit(Seq.fill(p.sets)(
-+    VecInit(Seq.fill(p.ways)(0.U.asTypeOf(new WumingDcacheTag(p.tagBits)))))))
++    VecInit(Seq.fill(p.ways)(0.U.asTypeOf(new WumingCacheTag(p.tagBits, p.withDirty)))))))
 +  // One synchronous RAM per way (a line-wide read port, per-beat write mask).
 +  // Every way is read for the looked-up group; the next cycle compares tags.
 +  private val lineStore = Seq.fill(p.ways)(SyncReadMem(p.sets, Vec(p.beats, UInt(64.W))))
@@ -156,6 +181,13 @@ index 0000000..bbf31ad
 +  for (w <- 0 until p.ways) {
 +    lineRd(w) := lineStore(w).read(readSet, readEn)
 +  }
++
++  /** A write-back cache keeps a dirty bit per line; a read-only cache has no
++    * such register and the accessor is a compile-time constant. */
++  private def setDirty(group: UInt, way: UInt, value: Bool): Unit =
++    if (p.withDirty) { tagStore(group)(way).dirty.get := value }
++  private def dirtyOf(group: UInt, way: UInt): Bool =
++    if (p.withDirty) tagStore(group)(way).dirty.get else false.B
 +
 +  // ---- request context ---------------------------------------------------
 +  private val reqAddr = RegInit(0.U(64.W))
@@ -204,6 +236,8 @@ index 0000000..bbf31ad
 +  // the order of the events, not the core's cycle counter).
 +  private val dbgCycles = RegInit(0.U(64.W))
 +  dbgCycles := dbgCycles + 1.U
++  /** `printf` tag: `WumingCache[icache]` / `WumingCache[dcache]`. */
++  private val tag = s"WumingCache[${p.label}]"
 +
 +  // ---- LRU ---------------------------------------------------------------
 +  private def touchAge(group: UInt, way: UInt): Unit = {
@@ -239,13 +273,15 @@ index 0000000..bbf31ad
 +  // ---- TileLink ----------------------------------------------------------
 +  private val lineGet = edge.Get(0.U(srcBits.W),
 +    (reqLineBase + (fillCount << 3))(addrBits - 1, 0), lgSize)._2
-+  private val linePut = edge.Put(0.U(srcBits.W),
++  // A read-only cache never puts anything on the bus: neither the victim
++  // write-back nor the write-through beat is generated for it.
++  private val linePut = if (!p.readOnly) Some(edge.Put(0.U(srcBits.W),
 +    (wbBase + (wbCount << 3))(addrBits - 1, 0), lgSize,
-+    laneOrder(fillBuf(wbCount)), "hff".U(8.W))._2
++    laneOrder(fillBuf(wbCount)), "hff".U(8.W))._2) else None
 +  /** Write-through: put exactly the bytes the store wrote. */
-+  private val wtPut = edge.Put(0.U(srcBits.W),
++  private val wtPut = if (!p.readOnly && !p.writeBack) Some(edge.Put(0.U(srcBits.W),
 +    (reqLineBase + (reqBeat << 3))(addrBits - 1, 0), lgSize,
-+    laneOrder(wtBeat), reqMask)._2
++    laneOrder(wtBeat), reqMask)._2) else None
 +
 +  // ---- support of the memory manager -------------------------------------
 +  // A beat request is only issued when the manager can answer it (the safe
@@ -262,9 +298,9 @@ index 0000000..bbf31ad
 +
 +  // ---- response plumbing -------------------------------------------------
 +  io.core.resp.valid := false.B
-+  io.core.resp.bits := 0.U.asTypeOf(new WumingDcacheResponse)
++  io.core.resp.bits := 0.U.asTypeOf(new WumingCacheResponse)
 +  io.ptw.resp.valid := false.B
-+  io.ptw.resp.bits := 0.U.asTypeOf(new WumingDcacheResponse)
++  io.ptw.resp.bits := 0.U.asTypeOf(new WumingCacheResponse)
 +  private def respond(data: UInt, error: Bool): Unit = {
 +    io.core.resp.valid := !reqPtw
 +    io.core.resp.bits.error := error
@@ -331,7 +367,7 @@ index 0000000..bbf31ad
 +  private val maxAge = victimAge.reduce((a, b) => Mux(a > b, a, b))
 +  private val victim = Mux(anyInvalid,
 +    PriorityEncoder(invalidWays), PriorityEncoder(victimAge.map(a => a === maxAge)))
-+  private val victimDirty = tagStore(reqIdx)(victim).dirty
++  private val victimDirty = dirtyOf(reqIdx, victim)
 +  private val victimLine = Cat(tagStore(reqIdx)(victim).tag, reqIdx,
 +    0.U(p.offsetBits.W))
 +
@@ -339,80 +375,109 @@ index 0000000..bbf31ad
 +  private def mergeBeat(old: UInt): UInt =
 +    (old & ~reqByteMask) | (reqWdata & reqByteMask)
 +
++  /** Answer a read hit: no bus traffic at all (this is the point of the cache). */
++  private def readHit(): Unit = {
++    printf(p"$tag: hit line=0x${Hexadecimal(reqLineBase)} idx=${reqIdx} way=${hitWay} beat=${reqBeat} write=0 req=${Mux(reqPtw, 1.U, 0.U)} cycle=${dbgCycles}\n")
++    respond(hitBeat, false.B)
++    touchAge(reqIdx, hitWay)
++    state := sIdle
++  }
++
++  /** A miss that needs no victim write-back: start fetching the line. */
++  private def startFill(): Unit = {
++    printf(p"$tag: miss line=0x${Hexadecimal(reqLineBase)} idx=${reqIdx} victim=${victim} victimLine=0x${Hexadecimal(victimLine)} invalid=${anyInvalid} write=${reqWrite} req=${Mux(reqPtw, 1.U, 0.U)} cycle=${dbgCycles}\n")
++    when(!getOk || (reqWrite && !putOk)) {
++      respond(0.U, true.B)
++      state := sIdle
++    }.otherwise {
++      fillCount := 0.U
++      state := sFillReq
++    }
++  }
++
 +  when(state === sLook) {
 +    when(anyHit) {
-+      when(!reqWrite) {
-+        printf(p"WumingDcache: hit line=0x${Hexadecimal(reqLineBase)} idx=${reqIdx} way=${hitWay} beat=${reqBeat} write=0 req=${Mux(reqPtw, 1.U, 0.U)} cycle=${dbgCycles}\n")
-+        respond(hitBeat, false.B)
-+        touchAge(reqIdx, hitWay)
-+        state := sIdle
-+      }.elsewhen(!putOk) {
-+        respond(0.U, true.B)
-+        state := sIdle
-+      }.otherwise {
-+        val merged = mergeBeat(hitBeat)
-+        val upd = WireDefault(hitLine)
-+        upd(reqBeat) := merged
-+        for (w <- 0 until p.ways) {
-+          when(hitWay === w.U) {
-+            lineStore(w).write(reqIdx, upd,
-+              (0 until p.beats).map(b => b.U === reqBeat))
-+          }
-+        }
-+        touchAge(reqIdx, hitWay)
-+        printf(p"WumingDcache: hit line=0x${Hexadecimal(reqLineBase)} idx=${reqIdx} way=${hitWay} beat=${reqBeat} write=${reqWrite} req=${Mux(reqPtw, 1.U, 0.U)} cycle=${dbgCycles}\n")
-+        if (p.writeBack) {
-+          if (p.withDirty) { tagStore(reqIdx)(hitWay).dirty := true.B }
-+          respond(0.U, false.B)
++      if (p.readOnly) {
++        // The instruction side is never written: a write cannot be honoured,
++        // and it is refused instead of being silently treated as a read.
++        when(reqWrite) {
++          respond(0.U, true.B)
 +          state := sIdle
-+        } else {
-+          tagStore(reqIdx)(hitWay).dirty := false.B
-+          wtBeat := merged
-+          state := sWtPut
++        }.otherwise {
++          readHit()
++        }
++      } else {
++        when(!reqWrite) {
++          readHit()
++        }.elsewhen(!putOk) {
++          respond(0.U, true.B)
++          state := sIdle
++        }.otherwise {
++          val merged = mergeBeat(hitBeat)
++          val upd = WireDefault(hitLine)
++          upd(reqBeat) := merged
++          for (w <- 0 until p.ways) {
++            when(hitWay === w.U) {
++              lineStore(w).write(reqIdx, upd,
++                (0 until p.beats).map(b => b.U === reqBeat))
++            }
++          }
++          touchAge(reqIdx, hitWay)
++          printf(p"$tag: hit line=0x${Hexadecimal(reqLineBase)} idx=${reqIdx} way=${hitWay} beat=${reqBeat} write=${reqWrite} req=${Mux(reqPtw, 1.U, 0.U)} cycle=${dbgCycles}\n")
++          if (p.writeBack) {
++            setDirty(reqIdx, hitWay, true.B)
++            respond(0.U, false.B)
++            state := sIdle
++          } else {
++            setDirty(reqIdx, hitWay, false.B)
++            wtBeat := merged
++            state := sWtPut
++          }
 +        }
 +      }
 +    }.otherwise {
 +      victimWay := victim
-+      val needWb = if (p.writeBack && p.withDirty) victimDirty else false.B
-+      when(needWb) {
-+        printf(p"WumingDcache: miss line=0x${Hexadecimal(reqLineBase)} idx=${reqIdx} victim=${victim} victimLine=0x${Hexadecimal(victimLine)} dirty=1 write=${reqWrite} req=${Mux(reqPtw, 1.U, 0.U)} cycle=${dbgCycles}\n")
-+        // Capture the victim line while the read result is still on the port.
-+        for (b <- 0 until p.beats) { fillBuf(b) := lineRd(victim)(b) }
-+        wbBase := Cat(tagStore(reqIdx)(victim).tag, reqIdx, 0.U(p.offsetBits.W))
-+        wbCount := 0.U
-+        state := sEvictReq
-+      }.otherwise {
-+        printf(p"WumingDcache: miss line=0x${Hexadecimal(reqLineBase)} idx=${reqIdx} victim=${victim} victimLine=0x${Hexadecimal(victimLine)} invalid=${anyInvalid} write=${reqWrite} req=${Mux(reqPtw, 1.U, 0.U)} cycle=${dbgCycles}\n")
-+        when(!getOk || (reqWrite && !putOk)) {
-+          respond(0.U, true.B)
-+          state := sIdle
++      if (p.writeBack && p.withDirty) {
++        when(victimDirty) {
++          printf(p"$tag: miss line=0x${Hexadecimal(reqLineBase)} idx=${reqIdx} victim=${victim} victimLine=0x${Hexadecimal(victimLine)} dirty=1 write=${reqWrite} req=${Mux(reqPtw, 1.U, 0.U)} cycle=${dbgCycles}\n")
++          // Capture the victim line while the read result is still on the port.
++          for (b <- 0 until p.beats) { fillBuf(b) := lineRd(victim)(b) }
++          wbBase := Cat(tagStore(reqIdx)(victim).tag, reqIdx, 0.U(p.offsetBits.W))
++          wbCount := 0.U
++          state := sEvictReq
 +        }.otherwise {
-+          fillCount := 0.U
-+          state := sFillReq
++          startFill()
 +        }
++      } else {
++        // No dirty state (read-only / write-through): never a write-back, so
++        // the write-back datapath is not even generated for this instance.
++        startFill()
 +      }
 +    }
 +  }
 +
 +  // ---- dirty victim write-back ------------------------------------------
-+  when(state === sEvictReq) {
-+    when(io.tl.a.ready) { state := sEvictWait }
-+  }
-+  when(state === sEvictWait && io.tl.d.valid) {
-+    when(io.tl.d.bits.denied || io.tl.d.bits.corrupt) {
-+      // The dirty line is the only copy: keep it and report the failure.
-+      printf(p"WumingDcache: wb-fail kind=evict line=0x${Hexadecimal(wbBase)} cycle=${dbgCycles}\n")
-+      respond(0.U, true.B)
-+      state := sIdle
-+    }.elsewhen(wbCount === (p.beats - 1).U) {
-+      tagStore(reqIdx)(victimWay).valid := false.B
-+      tagStore(reqIdx)(victimWay).dirty := false.B
-+      printf(p"WumingDcache: wb line=0x${Hexadecimal(wbBase)} idx=${reqIdx} way=${victimWay} beats=${p.beats.U} cycle=${dbgCycles}\n")
-+      fillCount := 0.U
-+      state := sFillReq
-+    }.otherwise {
-+      wbCount := wbCount + 1.U
-+      state := sEvictReq
++  // Only a write-back cache with a dirty bit has this datapath.
++  if (p.writeBack && p.withDirty) {
++    when(state === sEvictReq) {
++      when(io.tl.a.ready) { state := sEvictWait }
++    }
++    when(state === sEvictWait && io.tl.d.valid) {
++      when(io.tl.d.bits.denied || io.tl.d.bits.corrupt) {
++        // The dirty line is the only copy: keep it and report the failure.
++        printf(p"$tag: wb-fail kind=evict line=0x${Hexadecimal(wbBase)} cycle=${dbgCycles}\n")
++        respond(0.U, true.B)
++        state := sIdle
++      }.elsewhen(wbCount === (p.beats - 1).U) {
++        tagStore(reqIdx)(victimWay).valid := false.B
++        setDirty(reqIdx, victimWay, false.B)
++        printf(p"$tag: wb line=0x${Hexadecimal(wbBase)} idx=${reqIdx} way=${victimWay} beats=${p.beats.U} cycle=${dbgCycles}\n")
++        fillCount := 0.U
++        state := sFillReq
++      }.otherwise {
++        wbCount := wbCount + 1.U
++        state := sEvictReq
++      }
 +    }
 +  }
 +
@@ -424,7 +489,7 @@ index 0000000..bbf31ad
 +    when(io.tl.d.bits.denied || io.tl.d.bits.corrupt) {
 +      // No allocation: the victim (if any) was already dropped, so a later
 +      // access refetches.  A store reports the failure.
-+      printf(p"WumingDcache: fill-fail line=0x${Hexadecimal(reqLineBase)} cycle=${dbgCycles}\n")
++      printf(p"$tag: fill-fail line=0x${Hexadecimal(reqLineBase)} cycle=${dbgCycles}\n")
 +      respond(0.U, true.B)
 +      state := sIdle
 +    }.elsewhen(fillCount === (p.beats - 1).U) {
@@ -445,11 +510,14 @@ index 0000000..bbf31ad
 +      }
 +      tagStore(reqIdx)(victimWay).valid := true.B
 +      tagStore(reqIdx)(victimWay).tag := reqTag
-+      if (p.writeBack) { tagStore(reqIdx)(victimWay).dirty := reqWrite }
-+      else { tagStore(reqIdx)(victimWay).dirty := false.B }
++      if (p.writeBack) setDirty(reqIdx, victimWay, reqWrite)
++      else setDirty(reqIdx, victimWay, false.B)
 +      fillAge(reqIdx, victimWay)
-+      printf(p"WumingDcache: fill-done line=0x${Hexadecimal(reqLineBase)} idx=${reqIdx} way=${victimWay} write=${reqWrite} req=${Mux(reqPtw, 1.U, 0.U)} cycle=${dbgCycles}\n")
-+      if (p.writeBack) {
++      printf(p"$tag: fill-done line=0x${Hexadecimal(reqLineBase)} idx=${reqIdx} way=${victimWay} write=${reqWrite} req=${Mux(reqPtw, 1.U, 0.U)} cycle=${dbgCycles}\n")
++      if (p.readOnly) {
++        respond(finalBuf(reqBeat), false.B)
++        state := sIdle
++      } else if (p.writeBack) {
 +        respond(Mux(reqWrite, 0.U, finalBuf(reqBeat)), false.B)
 +        state := sIdle
 +      } else {
@@ -469,17 +537,20 @@ index 0000000..bbf31ad
 +  }
 +
 +  // ---- write-through put -------------------------------------------------
-+  when(state === sWtPut) {
-+    when(io.tl.a.ready) { state := sWtWait }
-+  }
-+  when(state === sWtWait && io.tl.d.valid) {
-+    when(io.tl.d.bits.denied || io.tl.d.bits.corrupt) {
-+      printf(p"WumingDcache: wt-fail line=0x${Hexadecimal(reqLineBase)} cycle=${dbgCycles}\n")
-+      respond(0.U, true.B)
-+    }.otherwise {
-+      respond(0.U, false.B)
++  // Write-through only (`writeBack = false`); a read-only cache has no Put.
++  if (!p.readOnly && !p.writeBack) {
++    when(state === sWtPut) {
++      when(io.tl.a.ready) { state := sWtWait }
 +    }
-+    state := sIdle
++    when(state === sWtWait && io.tl.d.valid) {
++      when(io.tl.d.bits.denied || io.tl.d.bits.corrupt) {
++        printf(p"$tag: wt-fail line=0x${Hexadecimal(reqLineBase)} cycle=${dbgCycles}\n")
++        respond(0.U, true.B)
++      }.otherwise {
++        respond(0.U, false.B)
++      }
++      state := sIdle
++    }
 +  }
 +
 +  // ---- internal clean / invalidate (single line) -------------------------
@@ -494,45 +565,56 @@ index 0000000..bbf31ad
 +  when(state === sCmdLook) { state := sCmdDecide }
 +  when(state === sCmdDecide) {
 +    when(!cmdHit) {
-+      printf(p"WumingDcache: cmd op=${cmdOp} line=0x${Hexadecimal(cmdLineBase)} miss=1 cycle=${dbgCycles}\n")
++      printf(p"$tag: cmd op=${cmdOp} line=0x${Hexadecimal(cmdLineBase)} miss=1 cycle=${dbgCycles}\n")
 +      doneReg := true.B
 +      state := sIdle
 +    }.elsewhen(cmdOp === 2.U) {
 +      // invalidate: no write-back.
 +      tagStore(cmdIdxOf)(cmdWay).valid := false.B
-+      tagStore(cmdIdxOf)(cmdWay).dirty := false.B
++      setDirty(cmdIdxOf, cmdWay, false.B)
 +      killAge(cmdIdxOf, cmdWay)
-+      printf(p"WumingDcache: cmd op=2 line=0x${Hexadecimal(cmdLineBase)} idx=${cmdIdxOf} way=${cmdWay} cycle=${dbgCycles}\n")
++      printf(p"$tag: cmd op=2 line=0x${Hexadecimal(cmdLineBase)} idx=${cmdIdxOf} way=${cmdWay} cycle=${dbgCycles}\n")
 +      doneReg := true.B
 +      state := sIdle
-+    }.elsewhen(tagStore(cmdIdxOf)(cmdWay).dirty) {
-+      for (b <- 0 until p.beats) { fillBuf(b) := lineRd(cmdWay)(b) }
-+      wbBase := cmdLineBase
-+      wbCount := 0.U
-+      state := sCmdWbReq
 +    }.otherwise {
-+      printf(p"WumingDcache: cmd op=1 line=0x${Hexadecimal(cmdLineBase)} clean=1 cycle=${dbgCycles}\n")
-+      doneReg := true.B
-+      state := sIdle
++      if (p.withDirty) {
++        when(dirtyOf(cmdIdxOf, cmdWay)) {
++          for (b <- 0 until p.beats) { fillBuf(b) := lineRd(cmdWay)(b) }
++          wbBase := cmdLineBase
++          wbCount := 0.U
++          state := sCmdWbReq
++        }.otherwise {
++          printf(p"$tag: cmd op=1 line=0x${Hexadecimal(cmdLineBase)} clean=1 cycle=${dbgCycles}\n")
++          doneReg := true.B
++          state := sIdle
++        }
++      } else {
++        // No dirty state: a clean has nothing to write and keeps the line.
++        printf(p"$tag: cmd op=1 line=0x${Hexadecimal(cmdLineBase)} clean=1 cycle=${dbgCycles}\n")
++        doneReg := true.B
++        state := sIdle
++      }
 +    }
 +  }
-+  when(state === sCmdWbReq) {
-+    when(io.tl.a.ready) { state := sCmdWbWait }
-+  }
-+  when(state === sCmdWbWait && io.tl.d.valid) {
-+    when(io.tl.d.bits.denied || io.tl.d.bits.corrupt) {
-+      printf(p"WumingDcache: cmd op=1 line=0x${Hexadecimal(cmdLineBase)} fail cycle=${dbgCycles}\n")
-+      errReg := true.B
-+      doneReg := true.B
-+      state := sIdle
-+    }.elsewhen(wbCount === (p.beats - 1).U) {
-+      tagStore(cmdIdxOf)(cmdWay).dirty := false.B
-+      printf(p"WumingDcache: cmd op=1 line=0x${Hexadecimal(cmdLineBase)} wb=1 cycle=${dbgCycles}\n")
-+      doneReg := true.B
-+      state := sIdle
-+    }.otherwise {
-+      wbCount := wbCount + 1.U
-+      state := sCmdWbReq
++  if (p.withDirty) {
++    when(state === sCmdWbReq) {
++      when(io.tl.a.ready) { state := sCmdWbWait }
++    }
++    when(state === sCmdWbWait && io.tl.d.valid) {
++      when(io.tl.d.bits.denied || io.tl.d.bits.corrupt) {
++        printf(p"$tag: cmd op=1 line=0x${Hexadecimal(cmdLineBase)} fail cycle=${dbgCycles}\n")
++        errReg := true.B
++        doneReg := true.B
++        state := sIdle
++      }.elsewhen(wbCount === (p.beats - 1).U) {
++        setDirty(cmdIdxOf, cmdWay, false.B)
++        printf(p"$tag: cmd op=1 line=0x${Hexadecimal(cmdLineBase)} wb=1 cycle=${dbgCycles}\n")
++        doneReg := true.B
++        state := sIdle
++      }.otherwise {
++        wbCount := wbCount + 1.U
++        state := sCmdWbReq
++      }
 +    }
 +  }
 +
@@ -547,58 +629,59 @@ index 0000000..bbf31ad
 +    readEn := true.B
 +    state := sFlushDecide
 +  }
++  /** Next flushed line (the whole table is scanned once). */
++  private def flushAdvance(): Unit = {
++    when(cmdIdx === (flushTotal - 1).U) {
++      printf(p"$tag: flush done cycle=${dbgCycles}\n")
++      doneReg := true.B
++      state := sIdle
++    }.otherwise {
++      cmdIdx := cmdIdx + 1.U
++      state := sFlushScan
++    }
++  }
 +  when(state === sFlushDecide) {
 +    when(!flushTag.valid) {
-+      when(cmdIdx === (flushTotal - 1).U) {
-+        printf(p"WumingDcache: flush done cycle=${dbgCycles}\n")
-+        doneReg := true.B
-+        state := sIdle
-+      }.otherwise {
-+        cmdIdx := cmdIdx + 1.U
-+        state := sFlushScan
-+      }
-+    }.elsewhen(flushTag.dirty) {
-+      for (b <- 0 until p.beats) { fillBuf(b) := lineRd(flushWay)(b) }
-+      wbBase := Cat(flushTag.tag, flushSet, 0.U(p.offsetBits.W))
-+      wbCount := 0.U
-+      state := sFlushWbReq
++      flushAdvance()
 +    }.otherwise {
-+      tagStore(flushSet)(flushWay).valid := false.B
-+      killAge(flushSet, flushWay)
-+      when(cmdIdx === (flushTotal - 1).U) {
-+        printf(p"WumingDcache: flush done cycle=${dbgCycles}\n")
-+        doneReg := true.B
-+        state := sIdle
-+      }.otherwise {
-+        cmdIdx := cmdIdx + 1.U
-+        state := sFlushScan
++      if (p.withDirty) {
++        when(flushTag.dirty.get) {
++          for (b <- 0 until p.beats) { fillBuf(b) := lineRd(flushWay)(b) }
++          wbBase := Cat(flushTag.tag, flushSet, 0.U(p.offsetBits.W))
++          wbCount := 0.U
++          state := sFlushWbReq
++        }.otherwise {
++          tagStore(flushSet)(flushWay).valid := false.B
++          killAge(flushSet, flushWay)
++          flushAdvance()
++        }
++      } else {
++        // No dirty state: every line is simply dropped.
++        tagStore(flushSet)(flushWay).valid := false.B
++        killAge(flushSet, flushWay)
++        flushAdvance()
 +      }
 +    }
 +  }
-+  when(state === sFlushWbReq) {
-+    when(io.tl.a.ready) { state := sFlushWbWait }
-+  }
-+  when(state === sFlushWbWait && io.tl.d.valid) {
-+    when(io.tl.d.bits.denied || io.tl.d.bits.corrupt) {
-+      printf(p"WumingDcache: flush fail line=0x${Hexadecimal(wbBase)} way=${flushWay} cycle=${dbgCycles}\n")
-+      errReg := true.B
-+      doneReg := true.B
-+      state := sIdle
-+    }.elsewhen(wbCount === (p.beats - 1).U) {
-+      tagStore(flushSet)(flushWay).valid := false.B
-+      tagStore(flushSet)(flushWay).dirty := false.B
-+      killAge(flushSet, flushWay)
-+      when(cmdIdx === (flushTotal - 1).U) {
-+        printf(p"WumingDcache: flush done cycle=${dbgCycles}\n")
++  if (p.withDirty) {
++    when(state === sFlushWbReq) {
++      when(io.tl.a.ready) { state := sFlushWbWait }
++    }
++    when(state === sFlushWbWait && io.tl.d.valid) {
++      when(io.tl.d.bits.denied || io.tl.d.bits.corrupt) {
++        printf(p"$tag: flush fail line=0x${Hexadecimal(wbBase)} way=${flushWay} cycle=${dbgCycles}\n")
++        errReg := true.B
 +        doneReg := true.B
 +        state := sIdle
++      }.elsewhen(wbCount === (p.beats - 1).U) {
++        tagStore(flushSet)(flushWay).valid := false.B
++        setDirty(flushSet, flushWay, false.B)
++        killAge(flushSet, flushWay)
++        flushAdvance()
 +      }.otherwise {
-+        cmdIdx := cmdIdx + 1.U
-+        state := sFlushScan
++        wbCount := wbCount + 1.U
++        state := sFlushWbReq
 +      }
-+    }.otherwise {
-+      wbCount := wbCount + 1.U
-+      state := sFlushWbReq
 +    }
 +  }
 +
@@ -606,8 +689,19 @@ index 0000000..bbf31ad
 +  private val issuingGet = state === sFillReq
 +  private val issuingPut = state === sEvictReq || state === sCmdWbReq ||
 +    state === sFlushWbReq || state === sWtPut
-+  io.tl.a.valid := issuingGet || issuingPut
-+  io.tl.a.bits := Mux(state === sWtPut, wtPut, Mux(issuingPut, linePut, lineGet))
 +  io.tl.d.ready := state === sEvictWait || state === sFillWait ||
 +    state === sCmdWbWait || state === sFlushWbWait || state === sWtWait
++  if (p.readOnly) {
++    // Read-only: a line fill is the only bus request this instance can make.
++    io.tl.a.valid := issuingGet
++    io.tl.a.bits := lineGet
++  } else if (wtPut.isDefined) {
++    // Write-through (a dirty bit may still be kept): fills plus the store beat.
++    io.tl.a.valid := issuingGet || state === sWtPut
++    io.tl.a.bits := Mux(state === sWtPut, wtPut.get, lineGet)
++  } else {
++    // Write-back: fills plus the victim/maintenance write-backs.
++    io.tl.a.valid := issuingGet || issuingPut
++    io.tl.a.bits := Mux(issuingPut, linePut.get, lineGet)
++  }
 +}

@@ -65,6 +65,14 @@ PA_PAGE_NEW = 0x9_0000      # 64 KiB-aligned normal page (PTE[55:16] = 9)
 PA_CODE_PAGE = 0x8_0000
 PA_CODE = PA_CODE_PAGE + 0x1000
 
+# m16-chipyard-010: the instruction cache is now real, so the probe has to evict
+# the code line from it explicitly before the fetch can observe the write-back.
+# Eight one-line "return" blocks in the *same* instruction-cache group as the
+# code line (PA[12:6] = 64) and with distinct tags do that by LRU.
+PA_EVICT_PAGES = [2, 3, 10, 11, 12, 13, 14, 15]
+PA_EVICT = [(p << 16) | 0x1000 for p in PA_EVICT_PAGES]
+VA_EVICT = [VA_BASE + pa for pa in PA_EVICT]
+
 VA_A = VA_BASE + PA_A
 VA_B = [VA_BASE + pa for pa in PA_B]
 VA_L9 = VA_BASE + PA_L9
@@ -121,14 +129,17 @@ PTE_DATA2 = pte(0x6_0000)                   # VA 0x6_0000 page (fresh 6..8)
 PTE_PAGE_OLD = pte(PA_PAGE_OLD)             # VA 0x7_0000 -> 0x7_8000
 PTE_PAGE_NEW = pte(PA_PAGE_NEW)             # after the in-core rewrite
 PTE_CODE = pte(PA_CODE_PAGE)                # VA 0x8_0000 (X=1)
+PTE_EVICT = {p: pte(p << 16) for p in PA_EVICT_PAGES}
 
-L2 = [0] * 9
+L2 = [0] * 16
 L2[1] = PTE_SELF
 L2[4] = PTE_DATA
 L2[5] = PTE_DATA1
 L2[6] = PTE_DATA2
 L2[7] = PTE_PAGE_OLD
 L2[8] = PTE_CODE
+for p, v in PTE_EVICT.items():
+    L2[p] = v
 
 
 def cause_one_hots(root: pathlib.Path) -> tuple[int, int]:
@@ -157,6 +168,19 @@ def check_geometry() -> None:
         raise SystemExit("gen_vastdcache: a page-table line is not in group 0")
     if (PA_CODE >> 6) & 0x7F != 64:
         raise SystemExit("gen_vastdcache: the code line is not in group 64")
+    # m16-chipyard-010: every evictor line shares the code line's group and its
+    # tag is distinct from the code line and from its siblings.
+    if any(((pa >> 6) & 0x7F) != 64 for pa in PA_EVICT):
+        raise SystemExit("gen_vastdcache: an evictor line is outside group 64")
+    ev_tags = {(pa >> 13) for pa in PA_EVICT} | {(PA_CODE >> 13)}
+    if len(ev_tags) != len(PA_EVICT) + 1:
+        raise SystemExit("gen_vastdcache: evictor/code tags collide")
+    # L2[page] must map VA page `page` to that page itself (an off-by-one here
+    # sends a jump to a different line and the eviction never happens).
+    for pnum in PA_EVICT_PAGES + [PA_CODE_PAGE >> 16]:
+        if L2[pnum] != pte(pnum << 16):
+            raise SystemExit("gen_vastdcache: L2[%d] does not map VA page %d"
+                             % (pnum, pnum))
 
 
 def emit_inc(out, undi: int, cfxtrap: int) -> None:
@@ -172,6 +196,11 @@ def emit_inc(out, undi: int, cfxtrap: int) -> None:
         w("VA_F%d" % (i + 1), va)
     w("VA_PAGE", VA_PAGE)
     w("VA_CODE", VA_CODE)
+    for i, (pa, va) in enumerate(zip(PA_EVICT, VA_EVICT)):
+        w("PA_EV%d" % i, pa)
+        w("VA_EV%d" % i, va)
+    for i, pnum in enumerate(PA_EVICT_PAGES):
+        w("PTE_EV%d" % i, PTE_EVICT[pnum])
     w("PA_L1E", PA_L1E)
     w("PA_L2", PA_L2)
     w("PA_A", PA_A)

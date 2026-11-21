@@ -9,7 +9,7 @@
 两层断言：
   * **结果缓冲**：35 条 8 字节记录逐条等于生成器算出的期望值
     （命中/8 路/LRU 重填/写回前后/PTW 新旧映射）；
-  * **仿真日志**（`WumingDcache:` 事件）：
+  * **仿真日志**（`WumingCache[dcache]:` 事件）：
       - 同址 1 次缺失填充 + 4 次命中（计数不写死，按段内期望数比对）；
       - 所有数据行/新填行的事件 `idx` 恒为 64（同组；6 位索引注入即红）；
       - L9/L10 的受害者序列 = B1、B2（LRU；替换策略注入即红）；
@@ -26,6 +26,7 @@ import importlib.util
 import pathlib
 import re
 import sys
+import tempfile
 
 HERE = pathlib.Path(__file__).resolve().parent
 DEFAULT_ROOT = HERE.parents[2]
@@ -58,7 +59,7 @@ N_BYTES = 35 * 8
 
 # ---- 日志事件 -------------------------------------------------------------
 EV = re.compile(
-    r"^WumingDcache: (?P<kind>hit|fill-done|miss|wb|wb-fail|fill-fail|cmd|flush|wt-fail)"
+    r"^WumingCache\[dcache\]: (?P<kind>hit|fill-done|miss|wb|wb-fail|fill-fail|cmd|flush|wt-fail)"
     r"(?P<rest>.*)$")
 KV = re.compile(r"(\w+)=\s*(0x[0-9a-f]+|\d+)")
 
@@ -66,7 +67,7 @@ KV = re.compile(r"(\w+)=\s*(0x[0-9a-f]+|\d+)")
 def parse_events(path: pathlib.Path) -> list:
     events = []
     for line in path.read_text(errors="replace").splitlines():
-        i = line.find("WumingDcache: ")
+        i = line.find("WumingCache[dcache]: ")
         if i < 0:
             continue
         m = EV.match(line[i:])
@@ -192,35 +193,34 @@ def self_test(g, root: pathlib.Path) -> int:
         lines.append(text + " cycle=%d" % cyc)
 
     # 合成一段"好"日志：事件顺序与探针一致（只覆盖判据读取的事件面）。
-    ev("WumingDcache: miss line=0x%x idx=64 victim=0 victimLine=0x0 invalid=1 write=0 req=0" % g.PA_A)
-    ev("WumingDcache: fill-done line=0x%x idx=64 way=0 write=0 req=0" % g.PA_A)
+    ev("WumingCache[dcache]: miss line=0x%x idx=64 victim=0 victimLine=0x0 invalid=1 write=0 req=0" % g.PA_A)
+    ev("WumingCache[dcache]: fill-done line=0x%x idx=64 way=0 write=0 req=0" % g.PA_A)
     for _ in range(4):
-        ev("WumingDcache: hit line=0x%x idx=64 way=0 beat=0 write=0 req=0" % g.PA_A)
+        ev("WumingCache[dcache]: hit line=0x%x idx=64 way=0 beat=0 write=0 req=0" % g.PA_A)
     for i, pa in enumerate(g.PA_B):
-        ev("WumingDcache: fill-done line=0x%x idx=64 way=%d write=0 req=0" % (pa, i))
-    ev("WumingDcache: hit line=0x%x idx=64 way=0 beat=0 write=0 req=0" % g.PA_B[0])
-    ev("WumingDcache: miss line=0x%x idx=64 victim=1 victimLine=0x%x invalid=0 write=0 req=0"
+        ev("WumingCache[dcache]: fill-done line=0x%x idx=64 way=%d write=0 req=0" % (pa, i))
+    ev("WumingCache[dcache]: hit line=0x%x idx=64 way=0 beat=0 write=0 req=0" % g.PA_B[0])
+    ev("WumingCache[dcache]: miss line=0x%x idx=64 victim=1 victimLine=0x%x invalid=0 write=0 req=0"
        % (g.PA_L9, g.PA_B[1]))
-    ev("WumingDcache: fill-done line=0x%x idx=64 way=1 write=0 req=0" % g.PA_L9)
-    ev("WumingDcache: hit line=0x%x idx=64 way=7 beat=0 write=0 req=0" % g.PA_B[7])
-    ev("WumingDcache: miss line=0x%x idx=64 victim=2 victimLine=0x%x invalid=0 write=0 req=0"
+    ev("WumingCache[dcache]: fill-done line=0x%x idx=64 way=1 write=0 req=0" % g.PA_L9)
+    ev("WumingCache[dcache]: hit line=0x%x idx=64 way=7 beat=0 write=0 req=0" % g.PA_B[7])
+    ev("WumingCache[dcache]: miss line=0x%x idx=64 victim=2 victimLine=0x%x invalid=0 write=0 req=0"
        % (g.PA_L10, g.PA_B[2]))
-    ev("WumingDcache: fill-done line=0x%x idx=64 way=2 write=0 req=0" % g.PA_L10)
-    ev("WumingDcache: fill-done line=0x%x idx=64 way=2 write=0 req=0" % g.PA_B[1])
-    ev("WumingDcache: fill-done line=0x%x idx=64 way=3 write=1 req=0" % g.PA_CODE)
-    ev("WumingDcache: hit line=0x%x idx=64 way=3 beat=0 write=1 req=0" % g.PA_CODE)
-    ev("WumingDcache: hit line=0x%x idx=64 way=3 beat=0 write=0 req=0" % g.PA_CODE)
+    ev("WumingCache[dcache]: fill-done line=0x%x idx=64 way=2 write=0 req=0" % g.PA_L10)
+    ev("WumingCache[dcache]: fill-done line=0x%x idx=64 way=2 write=0 req=0" % g.PA_B[1])
+    ev("WumingCache[dcache]: fill-done line=0x%x idx=64 way=3 write=1 req=0" % g.PA_CODE)
+    ev("WumingCache[dcache]: hit line=0x%x idx=64 way=3 beat=0 write=1 req=0" % g.PA_CODE)
+    ev("WumingCache[dcache]: hit line=0x%x idx=64 way=3 beat=0 write=0 req=0" % g.PA_CODE)
     for i, pa in enumerate(g.PA_FRESH):
-        ev("WumingDcache: fill-done line=0x%x idx=64 way=%d write=0 req=0" % (pa, i % 8))
-    ev("WumingDcache: wb line=0x%x idx=64 way=3 beats=8" % g.PA_CODE)
-    ev("WumingDcache: fill-done line=0x%x idx=64 way=4 write=0 req=0" % g.PA_CODE)
-    ev("WumingDcache: fill-done line=0x%x idx=0 way=4 write=0 req=1" % g.PA_L2)
-    ev("WumingDcache: hit line=0x%x idx=0 way=4 beat=7 write=1 req=0" % g.PA_L2)
-    ev("WumingDcache: hit line=0x%x idx=0 way=4 beat=7 write=0 req=1" % g.PA_L2)
-    ev("WumingDcache: fill-done line=0x%x idx=0 way=5 write=0 req=0" % g.PA_PAGE_NEW)
+        ev("WumingCache[dcache]: fill-done line=0x%x idx=64 way=%d write=0 req=0" % (pa, i % 8))
+    ev("WumingCache[dcache]: wb line=0x%x idx=64 way=3 beats=8" % g.PA_CODE)
+    ev("WumingCache[dcache]: fill-done line=0x%x idx=64 way=4 write=0 req=0" % g.PA_CODE)
+    ev("WumingCache[dcache]: fill-done line=0x%x idx=0 way=4 write=0 req=1" % g.PA_L2)
+    ev("WumingCache[dcache]: hit line=0x%x idx=0 way=4 beat=7 write=1 req=0" % g.PA_L2)
+    ev("WumingCache[dcache]: hit line=0x%x idx=0 way=4 beat=7 write=0 req=1" % g.PA_L2)
+    ev("WumingCache[dcache]: fill-done line=0x%x idx=0 way=5 write=0 req=0" % g.PA_PAGE_NEW)
 
-    log = pathlib.Path("/tmp/opencode/check-vastdcache/selftest.log")
-    log.parent.mkdir(parents=True, exist_ok=True)
+    log = pathlib.Path(tempfile.mkdtemp(prefix="check-vastdcache-selftest-")) / "selftest.log"
     log.write_text("\n".join(lines) + "\n")
 
     good = expected_records(g, stub)
@@ -271,7 +271,7 @@ def self_test(g, root: pathlib.Path) -> int:
     cases.append(("PTW read hit removed", run(good, e), True))
 
     e = clone(base)
-    e.append(("WumingDcache: wb-fail kind=evict line=0x0", {"kind": "wb-fail"}))
+    e.append(("WumingCache[dcache]: wb-fail kind=evict line=0x0", {"kind": "wb-fail"}))
     cases.append(("bus failure event", run(good, e), True))
 
     e = clone(base)

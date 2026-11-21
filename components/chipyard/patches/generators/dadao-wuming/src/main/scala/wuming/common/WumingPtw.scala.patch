@@ -1,6 +1,6 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala
 new file mode 100644
-index 0000000..0dad853
+index 0000000..e1ced03
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala
 @@ -0,0 +1,592 @@
@@ -110,8 +110,8 @@ index 0000000..0dad853
 +      * (`m16-chipyard-009`); the cache answers in address-ordered beats, so
 +      * the walker never sees the bus byte order. */
 +    val mem = new Bundle {
-+      val req = Decoupled(new WumingDcacheRequest)
-+      val resp = Flipped(Valid(new WumingDcacheResponse))
++      val req = Decoupled(new WumingCacheRequest)
++      val resp = Flipped(Valid(new WumingCacheResponse))
 +    }
 +    /** `inner_run_mode` selects the HSJU bit (§2.2.5). */
 +    val runMode = Input(UInt(2.W))

@@ -26,6 +26,14 @@ PHDRS
   l10     PT_LOAD FLAGS(6);
   page    PT_LOAD FLAGS(6);
   code    PT_LOAD FLAGS(6);
+  ev0     PT_LOAD FLAGS(6);
+  ev1     PT_LOAD FLAGS(6);
+  ev2     PT_LOAD FLAGS(6);
+  ev3     PT_LOAD FLAGS(6);
+  ev4     PT_LOAD FLAGS(6);
+  ev5     PT_LOAD FLAGS(6);
+  ev6     PT_LOAD FLAGS(6);
+  ev7     PT_LOAD FLAGS(6);
 }
 
 SECTIONS
@@ -74,6 +82,31 @@ SECTIONS
   . = 0x81000;
   .code_old : { *(.code_old) } : code
 
+  /* m16-chipyard-010：I-Cache 淘汰块（页 2、3、10..15 偏移 0x1000，组 64） */
+  . = 0x21000;
+  .ev_ev0 : { *(.ev_EV0) } : ev0
+
+  . = 0x31000;
+  .ev_ev1 : { *(.ev_EV1) } : ev1
+
+  . = 0xA1000;
+  .ev_ev2 : { *(.ev_EV2) } : ev2
+
+  . = 0xB1000;
+  .ev_ev3 : { *(.ev_EV3) } : ev3
+
+  . = 0xC1000;
+  .ev_ev4 : { *(.ev_EV4) } : ev4
+
+  . = 0xD1000;
+  .ev_ev5 : { *(.ev_EV5) } : ev5
+
+  . = 0xE1000;
+  .ev_ev6 : { *(.ev_EV6) } : ev6
+
+  . = 0xF1000;
+  .ev_ev7 : { *(.ev_EV7) } : ev7
+
   /DISCARD/ : {
     *(.note.GNU-stack)
     *(.comment)
@@ -90,3 +123,12 @@ ASSERT(ADDR(.l10) == 0x61000, "vastdcache: fresh lines must start at PA 0x6_1000
 ASSERT(ADDR(.page_old) == 0x70000, "vastdcache: old page must be at PA 0x7_0000")
 ASSERT(ADDR(.page_new) == 0x90000, "vastdcache: new page must be at PA 0x9_0000")
 ASSERT(ADDR(.code_old) == 0x81000, "vastdcache: old code word must be at PA 0x8_1000")
+ASSERT(ADDR(.ev_ev0) == 0x21000, "vastdcache: evictor 0 must be at PA 0x2_1000")
+ASSERT(ADDR(.ev_ev1) == 0x31000, "vastdcache: evictor 1 must be at PA 0x3_1000")
+ASSERT(ADDR(.ev_ev2) == 0xA1000, "vastdcache: evictor 2 must be at PA 0xA_1000")
+ASSERT(ADDR(.ev_ev3) == 0xB1000, "vastdcache: evictor 3 must be at PA 0xB_1000")
+ASSERT(ADDR(.ev_ev4) == 0xC1000, "vastdcache: evictor 4 must be at PA 0xC_1000")
+ASSERT(ADDR(.ev_ev5) == 0xD1000, "vastdcache: evictor 5 must be at PA 0xD_1000")
+ASSERT(ADDR(.ev_ev6) == 0xE1000, "vastdcache: evictor 6 must be at PA 0xE_1000")
+ASSERT(ADDR(.ev_ev7) == 0xF1000, "vastdcache: evictor 7 must be at PA 0xF_1000")
+ASSERT(SIZEOF(.ev_ev0) == 4, "vastdcache: evictor block must be one instruction")

@@ -14,14 +14,18 @@
 @@     r15：re-touch B7 → r16：L10 填表（淘汰 LRU = B2）
 @@     r17：再读 B1 ⇒ 已被淘汰、重填（数据仍是自己的 magic）
 @@
-@@   C 写回 + 写穿时机（独立观测量 = 取指端口，`m16-chipyard-009` 时无 I-Cache）
+@@   C 写回 + 写穿时机（独立观测量 = 取指端口；`m16-chipyard-010` 起取指侧有
+@@     I-Cache，因此把写回落地后要先按 LRU 把那条取指行挤出去再跳）
 @@     r18：从核内 SRAM 读 8 B 指令字（`trap cfx_hmon, 0` + 占位指令）
 @@     r19：把指令字**经 D-Cache 写**到代码页后，跳过去 —— 内存里仍是旧值 0
-@@          ⇒ 取指读到 0（UNDI）→ hmon → `__pad` 按期望 cause 回到 `dc_resume1`
+@@          ⇒ 取指（I-Cache 缺失、读到内存旧值）读到 0（UNDI）→ hmon →
+@@          `__pad` 按期望 cause 回到 `dc_resume1`
 @@     r20：核内再读同一行 ⇒ 命中、返回**新**值（写后读命中不回内存）
-@@     r21：淘汰前再跳一次 —— 仍读到旧值（UNDI）⇒ 写回尚未发生
+@@     r21：淘汰前再跳一次 —— I-Cache 命中那条旧行，仍读到旧值（UNDI）
 @@     r22..r29：同组再填 8 条新行（把代码行按 LRU 淘汰并写回）
-@@     r30：淘汰后再跳 —— 内存已是 `trap cfx_hmon`（CFXTRAP）⇒ 写回已落地
+@@     IC_EVICT ×8：八条同组、不同 tag 的一行块把**代码行从 I-Cache 里挤出去**
+@@     r30：淘汰后再跳 —— I-Cache 缺失、读到内存的 `trap cfx_hmon`（CFXTRAP）
+@@          ⇒ 写回已落地
 @@     r31：核内再读该行 ⇒ 缺失重填、读回新值
 @@
 @@   D PTW 端口（页表读经 D-Cache）
@@ -55,6 +59,18 @@
 	st.o	rb22, [rb21, 0]
 	set.rb	rb4, VA_CODE
 	jump	[rb4, rd0, 0]
+.endm
+
+@@ m16-chipyard-010：把代码行从 **I-Cache** 里按 LRU 挤出去。
+@@   每个淘汰块 = 一行（64 B），首条指令 `jump [rb10, rd0, 0]` 直接返回；
+@@   八块同组（PA[12:6] = 64）、tag 互不相同 ⇒ 第 8 块淘汰最久未用的代码行。
+@@   有了 I-Cache 之后，写回是否已落到内存不再能由「取指仍读到旧值」单独观测，
+@@   必须先让取指行失效，再跳过去（`m16-chipyard-010`）。
+.macro IC_EVICT va
+	set.rb	rb9, \va
+	set.rb	rb10, 1f
+	jump	[rb9, rd0, 0]
+1:
 .endm
 
 	__TEST_BEGIN
@@ -175,6 +191,15 @@ dc_resume2:
 	set.rb	rb4, VA_F8
 	ld.o	rd5, [rb4, 0]
 	__CHECK_RD 26, rd5, M_F8
+	@@ I-Cache：把代码行挤出去（8 条同组、不同 tag 的行）
+	IC_EVICT VA_EV0
+	IC_EVICT VA_EV1
+	IC_EVICT VA_EV2
+	IC_EVICT VA_EV3
+	IC_EVICT VA_EV4
+	IC_EVICT VA_EV5
+	IC_EVICT VA_EV6
+	IC_EVICT VA_EV7
 	@@ 淘汰后再跳：内存已写回 ⇒ 取指读到 trap（CFXTRAP）
 	EXPECT_FAULT CFXTRAP_ONEHOT, FAIL_POINT_1, dc_resume3
 dc_resume3:
@@ -228,13 +253,20 @@ STUB_WORD:
 	.p2align 3
 	.dd.o64	0				@@ L2[0]
 	.dd.o64	PTE_SELF			@@ L2[1]
-	.dd.o64	0				@@ L2[2]
-	.dd.o64	0				@@ L2[3]
+	.dd.o64	PTE_EV0				@@ L2[2]（I-Cache 淘汰块，m16-chipyard-010）
+	.dd.o64	PTE_EV1				@@ L2[3]
 	.dd.o64	PTE_DATA			@@ L2[4]
 	.dd.o64	PTE_DATA1			@@ L2[5]
 	.dd.o64	PTE_DATA2			@@ L2[6]
 	.dd.o64	PTE_PAGE_OLD			@@ L2[7]
 	.dd.o64	PTE_CODE			@@ L2[8]
+	.dd.o64	0				@@ L2[9]（页 9 = 新目标页，无代码）
+	.dd.o64	PTE_EV2				@@ L2[10]（页 10 = 0xA_0000）
+	.dd.o64	PTE_EV3				@@ L2[11]
+	.dd.o64	PTE_EV4				@@ L2[12]
+	.dd.o64	PTE_EV5				@@ L2[13]
+	.dd.o64	PTE_EV6				@@ L2[14]
+	.dd.o64	PTE_EV7				@@ L2[15]
 
 	.section .l_a, "aw"
 	.p2align 3
@@ -289,6 +321,23 @@ STUB_WORD:
 	.section .page_new, "aw"
 	.p2align 3
 	.dd.o64	M_PAGE_NEW
+
+	@@ ---- I-Cache 淘汰块（每块一条 `jump [rb10, rd0, 0]`，占一行）----
+	.macro IC_EVICTOR name
+	.section .ev_\name, "ax"
+	.p2align 6
+\name:
+	jump	[rb10, rd0, 0]
+	.endm
+
+	IC_EVICTOR EV0
+	IC_EVICTOR EV1
+	IC_EVICTOR EV2
+	IC_EVICTOR EV3
+	IC_EVICTOR EV4
+	IC_EVICTOR EV5
+	IC_EVICTOR EV6
+	IC_EVICTOR EV7
 
 	@@ 代码页初值 = 0（非法指令/UNDI）。PA RAM 上电不是 0（TLRAM 随机），
 	@@ 必须显式装入，否则第一次取指会执行随机字。
