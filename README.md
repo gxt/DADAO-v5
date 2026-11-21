@@ -147,4 +147,4 @@
 - **契约**：内核 VA 窗口 `[2TiB,3TiB)`（`ADR-0051`）；`cause_id` 18 位子原因；`escape` 恢复 `inner_cfx_code`；`contract-syscall` 内核侧扩展 §8–§11。
 - **收口**：`make check-linux-k5` **280/280**（S/C/F/T/G/P/R 七组）；K0–K2、K4 探针全 rc=0；**K3 阶段整体退役**（`Process-07 §4a.2`）；**K6 移 M18**，pthread create/join 归 K6。
 - **遗留（要点）**：`ISS-444`/`457`/`486`/`487`/`488`/`493`/`494` 转 M18（探针断言与既有偶发红）；`ISS-470`（门控 `CONFIG` 钉子）、`ISS-482`（同节 weak 重定位）已关闭；内核 vs 主流 ISA 差异盘点 195 条见 `components/linux/kernel-diff-vs-mainstream-isa.md`。
-- **归档**：`.tao/archive/M14/`（`README.md` 五节 / `m14-retrospective.md` / `issues-closed.md` 10 条；**76 册已迁入**（含 1 册 `已退役`），`check-archive` PASS）；`milestones-m14.md` 已合并进归档并删除。
+- **归档**：`.tao/archive/M14/`（`README.md` 五节 / `m14-retrospective.md` / `issues-closed.md` 10 条；**76 册已迁入**（1 册带 `> **已退役**` 注记），`check-archive` PASS）；`milestones-m14.md` 已合并进归档并删除。
