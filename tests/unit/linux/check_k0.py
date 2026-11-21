@@ -134,10 +134,6 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
     "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
     "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
-    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
-    # m14-linux-012: the K3 page-fault probe is an int (0 = off); pin it so an
-    # image that reaches setup_arch() never inherits another gate's case.
-    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
     # m14-linux-017/019: the stack-growth probe is an int too; pin it
     # so no image inherits another gate's case (F30 class, twice seen).
     "CONFIG_DADAO_K4_STACK_SELFTEST": "0",

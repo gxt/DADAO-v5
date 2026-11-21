@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..975b46323
+index 000000000..041f325c0
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,502 @@
+@@ -0,0 +1,441 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -144,23 +144,6 @@ index 000000000..975b46323
 +	  kernel/traps.c; it exists only for the K2 gate's P4 probe image and
 +	  must never be set in an image that boots anything.
 +
-+config DADAO_K3_PT_SELFTEST
-+	bool "Run the K3 page-table/TLB self-test at the end of setup_arch()"
-+	default n
-+	help
-+	  Exercise the page-table and TLB primitives from inside the kernel
-+	  (see mm/k3_pt_selftest.c): build an L2 table through
-+	  pmd_populate_kernel(), map pages and check that a changed PTE only
-+	  takes effect after an explicit invalidation, run every
-+	  (op, scope) combination of cfx_ptw_tlb_control, check the ASID
-+	  register/allocation and the ASID_ANY-vs-G rule, show that writing
-+	  PTBR does not invalidate, and prove that a P = 0 entry built by these
-+	  primitives faults through the real supv entry.
-+
-+	  The boot ends after the self-test.  This is test scaffolding (the K3
-+	  page-table gate builds a probe image with it); it is not part of the
-+	  image the later milestones boot.
-+
 +config DADAO_K4_STACK_SELFTEST
 +	int "K4 user-stack growth self-test case (0 = off)"
 +	default 0
@@ -184,54 +167,10 @@ index 000000000..975b46323
 +	       termination (the neighbour is placed so the gap binds first).
 +
 +	  The fault is raised in supv mode (a kernel load/store to a user VA).
-+	  A real user process pressing on its stack needs the U-mode closure of
-+	  m14-linux-016/017 and is recorded in that task book, not faked here.
++	  A real user process pressing on its stack is the K5 closure's (s1/s6
++	  of check-linux-k5); a non-growing case still ends the boot by name here.
 +
 +	  This is test scaffolding (the K4 stack gate builds these probe
-+	  images); it is not part of the image the later milestones boot.
-+
-+config DADAO_K3_PF_SELFTEST
-+	int "K3 page-fault self-test case (0 = off)"
-+	default 0
-+	range 0 9
-+	help
-+	  Exercise the page-fault channel from inside the kernel
-+	  (see mm/k3_pf_selftest.c): demand-fill an anonymous window, prove
-+	  that a fill is only visible after the explicit invalidation, walk the
-+	  shared read-only zero page and turn a write to it into a private
-+	  page, drive each missing and permission sub-reason (contract-see
-+	  §6.1.1) through the real supv entry, and exercise a code window that
-+	  only becomes executable after the handler installs its page.
-+
-+	  Each value builds one image, because a case whose verdict is a named
-+	  termination ends the boot:
-+
-+	    0  off — this is the only value a milestone image ever carries;
-+	    1  the recoverable cases (fills, zero page, code page, the
-+	       sub-reason shape check, the VMA edge lookups), SYS_EXIT(0);
-+	    2  a read of an R = 0 page: CFXPERM + NRPERM, named termination;
-+	    3  a wild jump outside every VMA: CFXMEM + IGPTRAP, termination;
-+	    4  a data access outside every VMA, one page either side of the
-+	       window edge: named termination;
-+	    5  a synthetic ADWBFAIL dispatch (the machine cannot raise one on
-+	       demand): no fill, no retry, the PTE address is printed, and the
-+	       boot ends;
-+	    6  a read of a present, R/W/X-allowed page whose HSJU.S bit is 0:
-+	       CFXPERM + NSPERM (the one HSJU class K3 can raise — it has no
-+	       user/jail/hypv mode), named termination;
-+	    7  a malformed id whose reserved [31:16] is set (plus one valid
-+	       sub-reason bit, so a dispatcher that let it through would fill the
-+	       window): the dispatcher must refuse it by name;
-+	    8  a malformed id with two bits in the class's own wyde (not
-+	       one-hot): the same verdict;
-+	    9  a malformed id that carries a sub-reason in the *other* class's
-+	       wyde: the same verdict.
-+
-+	  Cases 7-9 inject the dispatch *input* for the same reason P6 does: no
-+	  raise site of this machine can produce such an id, because every one of
-+	  them checks the shape (contract-see §6.1).
-+
-+	  This is test scaffolding (the K3 page-fault gate builds these probe
 +	  images); it is not part of the image the later milestones boot.
 +
 +config DADAO_K4_COW_SELFTEST

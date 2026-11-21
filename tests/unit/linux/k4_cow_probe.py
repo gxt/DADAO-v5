@@ -61,7 +61,7 @@ _REPO = Path(__file__).resolve().parents[3]
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
-from tests.unit.linux import k3_page_probe as k3page               # noqa: E402
+from tests.unit.linux import k2_trap_probe as k2trap          # noqa: E402  (§2/§7.1)
 from tools.linux import config_pins                          # noqa: E402  (pins)
 from tools.linux import make_defconfig as defconfig          # noqa: E402
 from tools.linux import paths as linux_paths                 # noqa: E402
@@ -77,6 +77,7 @@ COW_C = "arch/dadao/mm/cow.c"
 FAULT_C = "arch/dadao/mm/fault.c"
 PTW_H = "arch/dadao/include/asm/ptw.h"
 CAUSE_SUB_H = "arch/dadao/include/asm/cause-sub.h"
+CONTRACT_SEE = _REPO / ".tao" / "contracts" / "contract-see.md"
 
 #: Every ``CONFIG_DADAO_*`` symbol of the Kconfig (`make check-config-pins`,
 #: ISS-470): the COW image has no stop inside setup_arch() and no other
@@ -95,8 +96,6 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
     "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
     "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
-    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
-    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
     "CONFIG_DADAO_K4_SELFTEST": "n",
     "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
     # m14-linux-020: the kernel-thread probe is an image of its own; pin it
@@ -123,6 +122,62 @@ IMAGE_PINS = {
 }
 
 CASES = (1, 3)
+
+
+# ---------------------------------------------------------------------------
+# fault-channel expectations (the K3 stage's parsers, kept where they are used:
+# `m14-linux-029` retired the K3 probes, and this probe is the remaining reader
+# of `contract-see §6.1.1` and `spec/Kaiwu §7.1`)
+# ---------------------------------------------------------------------------
+
+def _contract_section(start: str, end: str, what: str) -> str:
+    text = CONTRACT_SEE.read_text(encoding="utf-8")
+    cut = text.split(start, 1)
+    if len(cut) != 2:
+        raise SystemExit(f"k4_cow_probe: '{start}' not found in {what}")
+    return cut[1].split(end, 1)[0]
+
+
+def contract_subcauses() -> dict[str, dict]:
+    """``{name: {bit, wyde, cause}}`` from ``contract-see §6.1.1``."""
+    body = _contract_section("### §6.1.1", "\n### ", "contract-see §6.1.1")
+    rows: dict[str, dict] = {}
+    for line in body.splitlines():
+        m = re.match(r"^\|\s*`\[(\d+)\]`\s*\|\s*wyde(\d)\s*\|\s*`(\w+)`\s*\|"
+                     r"\s*`(\w+)`\s*\|", line)
+        if not m:
+            continue
+        rows[m.group(3)] = {"bit": int(m.group(1)), "wyde": int(m.group(2)),
+                            "cause": m.group(4)}
+    if len(rows) != 18:
+        raise SystemExit(f"k4_cow_probe: §6.1.1 parsed {len(rows)} sub-causes, "
+                         f"expected 18: {sorted(rows)}")
+    return rows
+
+
+def header_subcauses() -> dict[str, int]:
+    """``{NAME: bit}`` from the kernel's own ``asm/cause-sub.h``."""
+    if not (SOURCE / CAUSE_SUB_H).is_file():
+        raise SystemExit(f"k4_cow_probe: {CAUSE_SUB_H} missing; run "
+                         f"`make fetch apply-series`")
+    return {name: int(value, 0) for name, value in re.findall(
+        r"^#define\s+DADAO_SUB_(\w+)\s+(0x[0-9a-fA-F]+|\d+)\b",
+        kernel_text(CAUSE_SUB_H), re.MULTILINE)}
+
+
+def causes() -> dict[str, int]:
+    """``{name: id}`` from ``spec/DADAO-13 §2`` (via the K2 probe's parser)."""
+    table = k2trap.spec_cause_table()
+    if len(table) != 11:
+        raise SystemExit(f"k4_cow_probe: §2 cause table has {len(table)} rows")
+    return {name: cid for cid, name in table}
+
+
+def monitor_code(mode: str, cause: str) -> int:
+    """``spec/Kaiwu §7.1``: the monitor-segment code of a named termination."""
+    specs = k2trap.spec_exit_segments()
+    low, _high = specs["ranges"]["monitor"]
+    return low | (specs["modes"][mode] << 4) | specs["indices"][cause]
 
 TIMEOUT_BUILD = int(os.environ.get("K4COW_BUILD_TIMEOUT", "2400"))
 TIMEOUT_QEMU = int(os.environ.get("K4COW_QEMU_TIMEOUT", "180"))
@@ -221,8 +276,8 @@ def base_va() -> int:
 
 def subcauses() -> dict[str, dict]:
     """`contract-see §6.1.1` (ADR-0056 D3), cross-checked with the header."""
-    subs = k3page.contract_subcauses()
-    header = k3page.header_subcauses()
+    subs = contract_subcauses()
+    header = header_subcauses()
     if subs["NWPERM"]["bit"] not in header.values():
         raise SystemExit("k4_cow_probe: asm/cause-sub.h disagrees with §6.1.1")
     return subs
@@ -231,7 +286,7 @@ def subcauses() -> dict[str, dict]:
 def perm_cause_id(subs: dict[str, dict]) -> int:
     """`CFXPERM | (1 << NWPERM)` — the raw id the write fault must report."""
     row = subs["NWPERM"]
-    return k3page.causes()["CFXPERM"] | (1 << row["bit"])
+    return causes()["CFXPERM"] | (1 << row["bit"])
 
 
 def tlb_expectation() -> dict[str, int]:
@@ -276,7 +331,7 @@ def write_bit() -> int:
 
 def terminal_code(cause: str) -> int:
     """`spec/Kaiwu §7.1` monitor segment for a supv-mode termination."""
-    return k3page.monitor_code("supv", cause)
+    return monitor_code("supv", cause)
 
 
 # ---------------------------------------------------------------------------
@@ -332,7 +387,12 @@ def die_row(text: str) -> dict[str, str] | None:
 
 def die_name_row(text: str) -> dict[str, str] | None:
     """The named termination line: `dadao: <why> cause=NAME(0x..) ip=.. info=..`."""
-    return k3page.die_line(text)
+    m = re.search(r"^dadao: .*? cause=(\w+)\((0x[0-9a-f]+)\) ip=(\S+) "
+                  r"info=(\S+) ptbr=(\S+) sp=(\S+)$", text, re.MULTILINE)
+    if not m:
+        return None
+    return {"cause": m.group(1), "id": m.group(2), "ip": m.group(3),
+            "info": m.group(4)}
 
 
 # ---------------------------------------------------------------------------

@@ -92,8 +92,6 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
     "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
     "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
-    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
-    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
     "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
     "CONFIG_DADAO_K4_COW_SELFTEST": "0",
     "CONFIG_DADAO_K4_SELFTEST": "n",
@@ -471,8 +469,13 @@ def judge(rep: Report, text: str, rc: int, suffix: str = "") -> None:
                   forkc.get("mm") != forkc.get("parent_mm"))
         rep.check(f"C1{s}", "fork 子的 asid != 父 asid", True,
                   forkc.get("asid") != forkc.get("parent_asid"))
-        rep.check(f"C1{s}", "fork 不动父 mm_users", "1",
-                  forkc.get("parent_mm_users"))
+        # The thread child may still hold its own reference when the fork is
+        # taken (its exit is dispatched from the trap handler), so the
+        # invariant is "the fork added no reference".
+        pre_users = int(fork_pre.get("mm_users", "-1")) if fork_pre else -2
+        users = int(forkc.get("parent_mm_users", "-9"))
+        rep.check(f"C1{s}", "fork 不新增父 mm 的引用（<= fork 前的值）", True,
+                  1 <= users <= pre_users)
         rep.check(f"C3{s}", "fork 子入口 rd8 == 0", "0x0",
                   forkc.get("rd8_at_entry"))
         rep.check(f"C2{s}", "fork 子继承父的 rb3（无 SETTLS）", hex(sentinel),

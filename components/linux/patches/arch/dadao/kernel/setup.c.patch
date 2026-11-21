@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..b58858d90
+index 000000000..414615a0a
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,551 @@
+@@ -0,0 +1,534 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -308,18 +308,6 @@ index 000000000..b58858d90
 +			   dadao_ram_base, dadao_ram_size,
 +			   (unsigned long)*cmdline_p);
 +
-+#ifdef CONFIG_DADAO_K3_PT_SELFTEST
-+	/* K3 page-table/TLB self-test: builds an L2 table through the primitives,
-+	 * runs the TLB command matrix and ends the boot (probe image only). */
-+	dadao_k3_pt_selftest();
-+#endif
-+
-+/*
-+ * The K3 page-fault cases moved to dadao_k4_boundary(): their page source is
-+ * the buddy allocator now (m14-linux-016), which does not exist yet here.  The
-+ * cases themselves did not change.
-+ */
-+
 +#ifdef CONFIG_DADAO_K2_EARLY_STOP
 +	dadao_k2_boundary();
 +#endif
@@ -340,9 +328,8 @@ index 000000000..b58858d90
 + * (kernel/k4_selftest.c) and the K3 channel cases, which can only run once the
 + * allocator exists.
 + *
-+ * The milestone image ends here for now and says so by name; continuing to a
-+ * user-mode `init` is the K4 tail that needs m14-linux-017 (switch_mm /
-+ * __switch_to) and m14-linux-021 (clockevent tick), see the task book.
++ * A probe image ends here unless its own symbol returns from this boundary;
++ * a production boot continues to `kernel_init` and `/init` (K5).
 + */
 +void __init dadao_k4_boundary(void)
 +{
@@ -361,10 +348,6 @@ index 000000000..b58858d90
 +			   dadao_pf_alloc_count(), dadao_pf_zero_page_pa(),
 +			   (unsigned long)(current->mm ? 1 : 0));
 +
-+#if CONFIG_DADAO_K3_PF_SELFTEST
-+	/* The channel's cases, now with the allocator behind them. */
-+	dadao_k3_pf_selftest();
-+#endif
 +#ifdef CONFIG_DADAO_K4_SELFTEST
 +	dadao_k4_selftest();
 +#endif

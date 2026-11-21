@@ -2,10 +2,10 @@
 
 # M14 K0 工具链缺口矩阵
 
-- **生成时间**：2026-11-14 03:27:58 +0800（UTC 2026-11-13T19:27:58Z）
+- **生成时间**：2026-11-21 22:22:55 +0800（UTC 2026-11-21T14:22:55Z）
 - **数据来源**：`tools/linux/toolchain_matrix.json`（format 1）+ 现场探针（本册由生成器按矩阵重跑探针后写出）
-- **机器指纹**：CPU `AMD EPYC 7773X 64-Core Processor`；target `dadao-unknown-elf`；clang `clang version 23.1.3 (53b40870777e)`；llvm-mc `LLVM version 23.1.3`；工具版本摘要 md5 `6b897fdaa2b8`
-- **复现**：`make check-linux-toolchain`（门控）；`python3 tools/linux/check_toolchain.py --report`（重新生成本册）；`python3 tools/linux/check_toolchain.py --inject`（自检）
+- **机器指纹**：CPU `AMD EPYC 7773X 64-Core Processor`；target `dadao-unknown-elf`；clang `clang version 23.1.3 (3959957ed7e6)`；llvm-mc `LLVM version 23.1.3`；工具版本摘要 md5 `d94940f82446`
+- **复现**：`make check-linux-toolchain`（门控）；`python3 tests/unit/linux/check_toolchain.py --report`（重新生成本册）；`python3 tests/unit/linux/check_toolchain.py --inject`（自检）
 
 ## 1. 结论
 
@@ -105,7 +105,7 @@
 
 ```
 make check-linux-toolchain
-python3 tools/linux/check_toolchain.py --report
-python3 tools/linux/check_toolchain.py --report --check
-python3 tools/linux/check_toolchain.py --inject
+python3 tests/unit/linux/check_toolchain.py --report
+python3 tests/unit/linux/check_toolchain.py --report --check
+python3 tests/unit/linux/check_toolchain.py --inject
 ```

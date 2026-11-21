@@ -6,8 +6,8 @@ The port grows a `VM_GROWSDOWN` stack inside the page-fault channel
 through the generic `expand_stack_locked()`, which is where Linux's own
 `stack_guard_gap` and `RLIMIT_STACK` rules apply.  The kernel side of this gate is
 `arch/dadao/mm/k4_stack_selftest.c` (`CONFIG_DADAO_K4_STACK_SELFTEST`), which
-raises the faults from supv mode, the vehicle the task book allows while the
-U-mode closure of `m14-linux-016/017` is still open.
+raises the faults from supv mode, the vehicle every "did not grow" case needs
+(it ends the boot by name; the user-mode vehicle is K5's s1/s6).
 
 Cases (one image per value, because "did not grow" is a named termination):
 
@@ -69,8 +69,6 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
     "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
     "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
-    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
-    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
     "CONFIG_DADAO_K4_SELFTEST": "n",
     "CONFIG_DADAO_K4_SWITCH_SELFTEST": "n",
     # m14-linux-020: the kernel-thread probe is an image of its own; pin it

@@ -87,8 +87,6 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
     "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
     "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
-    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
-    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
     "CONFIG_DADAO_K4_SELFTEST": "n",
     "CONFIG_DADAO_K4_SWITCH_SELFTEST": "y",
     # m14-linux-020: the kernel-thread probe is an image of its own; pin it
@@ -514,13 +512,19 @@ INJECTIONS = {
         "",
         "S5", "用户态帧不保存 rb3(rbtp) ⇒ A/B 往返后帧校验红"),
     "no-timer-arm": (
+        # Since m14-linux-026 this image's events come from the generic
+        # clockevent device (`time_init()`), so the injection targets its
+        # `set_next_event`: a deadline that is never written means no tick.
         "arch/dadao/kernel/time.c",
+        "\tunsigned long deadline = dadao_read_time() + delta;\n"
+        "\n"
         "\tDADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,\n"
-        "\t\t\tdeadline);\n"
-        "\tDADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,\n"
-        "\t\t\tDADAO_TIMER_ENABLE);\n",
-        "\n",
-        "S6", "arm 不下发（cmp 与 ctrl 都不写）⇒ 没有 tick，S6 红"),
+        "\t\t\tdeadline);\n",
+        "\tunsigned long deadline = dadao_read_time() + delta;\n"
+        "\n"
+        "\t/* injected: the compare register is never written */\n"
+        "\t(void)deadline;\n",
+        "S6", "set_next_event 不写 timer_cmp ⇒ 没有 tick，S6 红"),
 }
 
 

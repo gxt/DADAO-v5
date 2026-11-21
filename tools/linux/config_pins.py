@@ -25,7 +25,7 @@ gate can read it with ``ast.literal_eval`` -- no comprehensions, no calls)::
 
     #: optional, per-image overrides; every key must also be in CONFIG_PINS
     IMAGE_PINS = {
-        "pf1": {"CONFIG_DADAO_K3_PF_SELFTEST": "1"},
+        "cow": {"CONFIG_DADAO_K4_COW_SELFTEST": "1"},
     }
 
 Values are ``y``/``n`` for bool symbols and the literal value for int symbols.

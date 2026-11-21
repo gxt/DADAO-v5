@@ -102,8 +102,6 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
     "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
     "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
-    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
-    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
     "CONFIG_DADAO_K4_SELFTEST": "y",
     # m14-linux-017: the context-switch probe is the mutually exclusive sibling
     # of this one (Kconfig: `depends on !DADAO_K4_SELFTEST`); pin it off so the
@@ -417,10 +415,6 @@ def check_static(rep: Report, rc_build: int, snap: dict | None, d: dict) -> None
         rep.check("S1", f"镜像配置：{line}", line,
                   next((ln for ln in config.splitlines()
                         if ln.startswith(symbol + "=")), "<unset>"))
-    rep.check("S1", "K3 页故障自检符号未开（本镜像只有 K4 的自检）", [],
-              [s for s in ("CONFIG_DADAO_K3_PF_SELFTEST",
-                           "CONFIG_DADAO_K3_PT_SELFTEST")
-               if config_enabled(config, s)])
     off = [f"{s}={config_value(config, s)}" for s in ALWAYS_OFF
            if config_enabled(config, s)]
     rep.check("S1", "早期里程碑边界全关（镜像走完 setup_arch）", [], off)
@@ -651,19 +645,20 @@ def check_f5(rep: Report, rc: int, text: str, d: dict) -> None:
 
 
 def check_f3_scope(rep: Report, text: str, rc: int) -> None:
-    """F3's scope: `execve`'s `VM_GROWSDOWN` stack and a real `init` moved to
-    m14-linux-017 (user 2026-11-17 ruling), because they need `kernel_init()`,
-    i.e. the context switch.  What this image must *not* do is pretend: it stops
-    at the K4 boundary, by name, before any task is scheduled."""
+    """F3's scope: `execve`'s `VM_GROWSDOWN` stack and a real `init` are the K5
+    closure's (F3 的替代判据 = check-linux-k5 S 组, user 2026-11-17 ruling);
+    they need `kernel_init()`, i.e. the context switch.  What this image must
+    *not* do is pretend: it stops at the K4 boundary, by name, on its own exit
+    criterion (the boundary line), before any task is scheduled."""
     boundary = [line for line in text.splitlines()
                 if line.startswith("K4 boundary:")]
     rep.check("F3", "镜像在 K4 边界运行（边界行存在，vacuous ⇒ FAIL）", 1,
               len(boundary))
-    rep.check("F3", "镜像没有走到内核 init / initramfs（F3 已移 017）", [],
+    rep.check("F3", "镜像没有走到内核 init / initramfs（F3 的判据在 K5）", [],
               [line for line in text.splitlines()
                if (("Run /init" in line) or
                    ("initramfs" in line and not line.startswith("K1 bootinfo")))])
-    rep.check("F3", "边界之外没有第二个任务被调度（无 017 的 switch_to）", 0, rc)
+    rep.check("F3", "本镜像按 K4 自己的边界判据停在 K4 边界", 0, rc)
 
 
 def check_f4(rep: Report, text: str, d: dict) -> None:

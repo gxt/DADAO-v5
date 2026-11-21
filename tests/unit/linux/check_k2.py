@@ -123,8 +123,6 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
     "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
     "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
-    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
-    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
     # m14-linux-017/019: the stack-growth probe is an int too; pin it
     # so no image inherits another gate's case (F30 class, twice seen).
     "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
@@ -149,8 +147,8 @@ CONFIG_PINS = {
 
 #: Per-image overrides (every key is also in CONFIG_PINS).  `k2` names the base
 #: image for the expectation table below (an empty override = "no change");
-#: `trap` stops at the early K2 boundary (`m14-linux-011/012`: neither K3 probe
-#: may leak in from whichever image configured the shared build tree last);
+#: `trap` stops at the early K2 boundary (no milestone probe may leak in from
+#: whichever image configured the shared build tree last);
 #: `irq` keeps the time boundary and adds the mask-knob self-test.
 IMAGE_PINS = {
     "k2": {},
@@ -179,9 +177,10 @@ IMAGE_CONFIG = {
 #: milestone boundaries), asserted as "no ``CONFIG_X=`` line at all".
 IMAGE_UNSET = {
     "k2": ("CONFIG_DADAO_K1_EARLY_STOP", "CONFIG_DADAO_K2_EARLY_STOP"),
-    "trap": ("CONFIG_DADAO_K1_EARLY_STOP", "CONFIG_DADAO_K3_PT_SELFTEST"),
+    "trap": ("CONFIG_DADAO_K1_EARLY_STOP", "CONFIG_DADAO_K5_SYSCALL_SELFTEST"),
     "irq": ("CONFIG_DADAO_K1_EARLY_STOP", "CONFIG_DADAO_K2_EARLY_STOP",
-            "CONFIG_DADAO_K2_TRAP_SELFTEST", "CONFIG_DADAO_K3_PT_SELFTEST"),
+            "CONFIG_DADAO_K2_TRAP_SELFTEST",
+            "CONFIG_DADAO_K5_SYSCALL_SELFTEST"),
 }
 
 KERNEL_BUILD = "vmlinux"
@@ -497,12 +496,13 @@ def check_clock(rep: Report, rc: int, text: str, snap: dict, d: dict) -> None:
 # ---------------------------------------------------------------------------
 # E: the synchronous exception channel (declared vs undeclared CFXMEM)
 # ---------------------------------------------------------------------------
-# §4a disposition (`m14-linux-015`): from K3 on, an unregistered CFXMEM at an
-# address the page-fault channel owns is *handled* rather than terminated, so
-# E8's expectation is only true for this gate's own image — the trap image pins
-# `CONFIG_DADAO_K3_PF_SELFTEST=0`, i.e. it has no mm subsystem.  The criterion
-# for the K3 stage lives in `check-linux-k3`'s F group; the doc record is in
-# `docs/Process-07 §4a`.
+# §4a disposition (`m14-linux-015`, re-pointed by `m14-linux-029`): from the
+# page-fault channel on, an unregistered CFXMEM at an address the channel owns is
+# *handled* rather than terminated, so E8's expectation is only true for this
+# gate's own image — the trap image pins the later probes' symbols off, i.e. it
+# has no mm subsystem.  The criterion now lives in `check-linux-k5`'s S and G
+# groups (K3's closure gate was retired with the stage); the record is in
+# `docs/Process-07 §4a.2`.
 
 def check_exception(rep: Report, rc: int, text: str, d: dict) -> None:
     specs = d["specs"]
@@ -536,7 +536,7 @@ def check_exception(rep: Report, rc: int, text: str, d: dict) -> None:
 
     die = k2trap.die_line(text)
     want = k2time.monitor_code(specs, "supv", "CFXMEM")
-    rep.check("E8", "本镜像内（无 mm 子系统）未声明的 CFXMEM：退出码 == §7.1 supv+CFXMEM；K3 起同址由页故障通道接住，替代判据 = check-linux-k3 F 组", hex(want),
+    rep.check("E8", "本镜像内（无 mm 子系统）未声明的 CFXMEM：退出码 == §7.1 supv+CFXMEM；K3 起同址由页故障通道接住，替代判据 = check-linux-k5 S/G 组", hex(want),
               hex(rc))
     rep.check("E9", "未声明：终止行的原因名", cause_name,
               die["cause"] if die else "<missing>")

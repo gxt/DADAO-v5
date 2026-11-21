@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/fault.c b/arch/dadao/mm/fault.c
 new file mode 100644
-index 000000000..77c8336a9
+index 000000000..88b40590c
 --- /dev/null
 +++ b/arch/dadao/mm/fault.c
-@@ -0,0 +1,1167 @@
+@@ -0,0 +1,1045 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO demand paging: the CFXMEM / CFXPERM fault channel (K3, m14-linux-012).
@@ -15,8 +15,8 @@ index 000000000..77c8336a9
 + * operating-system readings and this file is where the reading happens
 + * (user ruling 2026-11-16):
 + *
-+ *   missing class, inside an anonymous window  -> demand fill and re-execute;
-+ *   missing class, outside every window        -> a verdict (below);
++ *   missing class, inside a VMA               -> demand fill and re-execute;
++ *   missing class, outside every VMA           -> a verdict (below);
 + *   R/W/X permission class                     -> a verdict, *except* a
 + *                                                 write to a read-only private
 + *                                                 page: the shared zero page
@@ -42,22 +42,18 @@ index 000000000..77c8336a9
 + *   - a user process's access is that process's business: the channel raises
 + *     SIGSEGV on it (`force_sig_fault()`), and the fault is delivered on the
 + *     way back to user mode — the default action ends the task, a handler gets
-+ *     the frame.  What is *not* allowed is the K3/K4 shape this task replaces:
-+ *     a user access ending the whole boot with a monitor code (user ruling
-+ *     2026-11-20, m14-linux-039's P0 item).
++ *     the frame.  What is *not* allowed is the K3/K4 shape m14-linux-027
++ *     replaced: a user access ending the whole boot with a monitor code (user
++ *     ruling 2026-11-20, m14-linux-039's P0 item).
 + *
 + * Two properties of this machine shape the code:
 + *
-+ *  - **The page source is the buddy allocator (K4).**  K3 had neither a slab nor
-+ *    a buddy allocator (it stopped before mm_core_init()), so it took pages off
-+ *    the top of RAM; K4's `dadao_pf_alloc_page()` is `alloc_page(GFP_KERNEL |
-+ *    __GFP_ZERO)` and the shared zero page comes from the same allocator
-+ *    (`dadao_pf_init()`, called once mm_core_init() has run).  K4 also replaces
-+ *    the window lookup: a task with an address space goes through
-+ *    `find_vma(current->mm, addr)`.  The static window array stays as the
-+ *    probe-image path (K3's cases run with `current->mm == NULL`, and a K4 probe
-+ *    can point at it deliberately) - it is a *test* registry, not a page
-+ *    source.
++ *  - **The page source is the buddy allocator (K4).**  The port's page source
++ *    is `alloc_page(GFP_KERNEL | __GFP_ZERO)` (`dadao_pf_alloc_page()`) and the
++ *    shared zero page comes from the same allocator (`dadao_pf_init()`, called
++ *    once mm_core_init() has run).  A task with an address space goes through
++ *    `find_vma(current->mm, addr)`; the K3 static window registry that stood in
++ *    for the VMA tree is retired (m14-linux-029).
 + *
 + *  - **The missing classes do not say read or write.**  DGPTRAP covers a load
 + *    and a store alike (contract-see §6.1.1), so a missing fill maps the
@@ -92,8 +88,6 @@ index 000000000..77c8336a9
 +#include <asm/tlbflush.h>
 +#include <asm/trap.h>
 +
-+/* How many windows a probe may register (static storage, see below). */
-+#define DADAO_PF_WINDOWS	12
 +/*
 + * Retry budget: the same (address, cause id) may come back this many times
 + * before the handler decides it is not making progress.  A correct sequence
@@ -168,96 +162,35 @@ index 000000000..77c8336a9
 +}
 +
 +/* -------------------------------------------------------------------------
-+ * Windows: the K3 stand-in for the VMA tree
++ * The VMA covering a faulting address
 + * ------------------------------------------------------------------------- */
-+
-+static struct vm_area_struct dadao_pf_window[DADAO_PF_WINDOWS];
-+static bool dadao_pf_window_used[DADAO_PF_WINDOWS];
-+
-+/*
-+ * One anonymous window.  @backing_pa is what a *fetch* fault installs (the
-+ * window's code page: demand paging of text needs a page whose content is
-+ * already there), @superpage_pa the 512 MiB base a superpage-missing fault maps
-+ * (`ISPTRAP`/`DSPTRAP` cannot be served page by page — the walker stopped at the
-+ * first level).  Both are K3 backing choices; a file/anonymous mapping supplies
-+ * the same information through vm_ops->fault in K4.
-+ */
-+struct vm_area_struct *dadao_pf_window_add(unsigned long start,
-+					   unsigned long end,
-+					   unsigned long vm_flags,
-+					   unsigned long backing_pa,
-+					   unsigned long superpage_pa)
-+{
-+	unsigned int i;
-+
-+	/* A window may start anywhere (a text mapping starts at the function, not
-+	 * at a page boundary); only the order has to be sane. */
-+	if (start >= end)
-+		return NULL;
-+	for (i = 0; i < DADAO_PF_WINDOWS; i++) {
-+		struct vm_area_struct *vma = &dadao_pf_window[i];
-+
-+		if (dadao_pf_window_used[i])
-+			continue;
-+		memset(vma, 0, sizeof(*vma));
-+		vm_flags_init(vma, vm_flags);
-+		vma->vm_start = start;
-+		vma->vm_end = end;
-+		/* A probe window belongs to no mm: the probe path is the only
-+		 * one that looks these up (see dadao_pf_find_vma()). */
-+		vma->vm_mm = NULL;
-+		vma->vm_page_prot = vm_get_page_prot(vm_flags);
-+		vma->vm_private_data = (void *)backing_pa;
-+		/* `vm_pgoff` is the superpage base for an `ISPTRAP`/`DSPTRAP`
-+		 * fill; +1 so that base 0 (RAM starts at PA 0 on this machine)
-+		 * stays distinguishable from "this window has no superpage". */
-+		vma->vm_pgoff = superpage_pa == DADAO_PF_NO_SUPERPAGE ? 0 :
-+				(superpage_pa >> PAGE_SHIFT) + 1;
-+		dadao_pf_window_used[i] = true;
-+		return vma;
-+	}
-+	return NULL;
-+}
 +
 +/*
 + * The VMA covering @addr, or NULL.
 + *
-+ * With an address space (K4: every task that has one) this is the generic
++ * With an address space (every task that has one) this is the generic
 + * `find_vma()` on `current->mm` — the handler's only source of "is this address
-+ * part of something the process owns".  Without one (init_task, and the K3 probe
-+ * images whose cases run before any process exists) the registered probe
-+ * windows are the whole "address space"; that arm is test scaffolding, never a
-+ * production path: it answers from a static array, exactly what a real task must
-+ * not do.
-+ *
-+ * Exposed (asm/setup.h) so the probe can assert the window edges — the same
-+ * question the handler asks, answered without taking a fault.
++ * part of something the process owns".  A task without one has no mapping the
++ * channel could serve, so the answer is NULL (the caller names it
++ * `die-no-vma`).  The K3 static window registry that used to stand in for the
++ * VMA tree here was retired with the K3 stage (m14-linux-029): from K5 on a
++ * fault comes from a real task's address space.
 + */
 +struct vm_area_struct *dadao_pf_find_vma(unsigned long addr)
 +{
 +	struct mm_struct *mm = current->mm;
-+	unsigned int i;
++	struct vm_area_struct *vma;
 +
-+	if (mm) {
-+		struct vm_area_struct *vma;
++	if (!mm)
++		return NULL;
 +
-+		mmap_read_lock(mm);
-+		vma = find_vma(mm, addr);
-+		/* find_vma() returns the *next* VMA when @addr sits in a hole. */
-+		if (vma && addr < vma->vm_start)
-+			vma = NULL;
-+		mmap_read_unlock(mm);
-+		return vma;
-+	}
-+
-+	for (i = 0; i < DADAO_PF_WINDOWS; i++) {
-+		struct vm_area_struct *vma = &dadao_pf_window[i];
-+
-+		if (dadao_pf_window_used[i] && addr >= vma->vm_start &&
-+		    addr < vma->vm_end)
-+			return vma;
-+	}
-+	return NULL;
++	mmap_read_lock(mm);
++	vma = find_vma(mm, addr);
++	/* find_vma() returns the *next* VMA when @addr sits in a hole. */
++	if (vma && addr < vma->vm_start)
++		vma = NULL;
++	mmap_read_unlock(mm);
++	return vma;
 +}
 +
 +/* -------------------------------------------------------------------------
@@ -279,7 +212,7 @@ index 000000000..77c8336a9
 + * `stack_guard_gap` against the previous VMA and `RLIMIT_STACK` through
 + * `acct_stack_growth()`.  This function only decides *whether* that is the right
 + * reading of the fault — a VMA with VM_GROWSDOWN, a hole below it, and an
-+ * address space of its own (the K3 probe windows have none and never grow).
++ * address space of its own (a kernel-only mapping has none and never grows).
 + *
 + * Called for the missing class only: a permission fault must never become a new
 + * mapping (019 S5), which is why the caller tests the class before asking.
@@ -356,15 +289,6 @@ index 000000000..77c8336a9
 + * PTE construction (spec/DADAO-12 §2.2.3/§2.2.4, contract-tlb)
 + * ------------------------------------------------------------------------- */
 +
-+/* The fragment bit of @addr: SPF for a superpage (index VA[28:26]), GPF for a
-+ * normal page (index VA[15:13]) — both live in the PTE's [15:8]. */
-+static unsigned long dadao_pf_frag(unsigned long addr, bool superpage)
-+{
-+	unsigned int idx = superpage ? ((addr >> 26) & 0x7) : ((addr >> 13) & 0x7);
-+
-+	return 1UL << (_PAGE_FRAG_SHIFT + idx);
-+}
-+
 +/*
 + * Kernel-window leaf: supervisor, global (single PTBR, the kernel's own
 + * mappings are reachable from every ASID), every fragment resident, and the
@@ -383,8 +307,8 @@ index 000000000..77c8336a9
 +	 * needs **both** bits from K4 on: U for the task itself, S for the kernel
 +	 * servicing it — `write(2)` and `brk(2)` must read the user's buffer and
 +	 * `copy_from_user()` walks the user VA, so a U-only page would turn every
-+	 * syscall that takes a pointer into CFXPERM/NSPERM.  A probe window has no
-+	 * mm and stays a kernel-only mapping (S).
++		 * syscall that takes a pointer into CFXPERM/NSPERM.  A mapping with no
++	 * address space (the kernel's own) stays a kernel-only mapping (S).
 +	 */
 +	return vma && vma->vm_mm ? (_PAGE_U | _PAGE_S) : _PAGE_S;
 +}
@@ -449,8 +373,8 @@ index 000000000..77c8336a9
 +/*
 + * The table the walker reads for @addr: once `switch_mm()` has put the faulting
 + * task's own table in PTBR, that is where a fill has to land; before that (the
-+ * K1-K4 shape, where PTBR is the kernel's table) and for a VMA that is not the
-+ * running task's, the kernel table is the right one.
++ * K1-K4 probe shape, where PTBR is the kernel's table) and for a VMA that is
++ * not the running task's, the kernel table is the right one.
 + */
 +static pmd_t *dadao_pf_table(struct mm_struct *mm, unsigned long addr)
 +{
@@ -463,8 +387,6 @@ index 000000000..77c8336a9
 +static const char *dadao_pf_fill(struct vm_area_struct *vma, unsigned long addr,
 +				 unsigned int pos)
 +{
-+	bool fetch = dadao_subcause_is_fetch(pos);
-+
 +	/*
 +	 * Which table this fault belongs to: the *VMA's* address space.  A user
 +	 * VMA lives in the process's own table, which is also what PTBR points
@@ -472,7 +394,7 @@ index 000000000..77c8336a9
 +	 * table instead would leave the walker looking at an empty slot forever
 +	 * (measured: `fill-zero` then the same fault again, `l1 = 0` through
 +	 * PTBR while the channel's own `pmd_off_k` copy was present).  A probe
-+	 * window (`vm_mm == NULL`) is a kernel window and keeps the kernel
++	 * mapping with no address space is a kernel mapping and keeps the kernel
 +	 * table, which is the K1-K4 shape this channel was built on.
 +	 */
 +	struct mm_struct *mm = vma->vm_mm;
@@ -482,39 +404,14 @@ index 000000000..77c8336a9
 +	unsigned long pa;
 +
 +	/*
-+	 * A superpage state is decided by the L1 entry alone: present with a
-+	 * fragment bit clear (SPF, §2.2.3), or absent as a superpage
-+	 * (`ISPTRAP`/`DSPTRAP`, §2.2.6 step 2).
++	 * A superpage has no page the handler could install page by page: the
++	 * walker stopped at the first level (`ISPTRAP`/`DSPTRAP`, §2.2.6 step 2).
++	 * A process's superpage is refused by the generic arm (`die-super`); this
++	 * arm only ever serves a normal page, so any superpage entry here is not
++	 * this channel's to fix.
 +	 */
-+	if (entry & _PAGE_SUPER) {
-+		if (!(entry & _PAGE_PRESENT)) {
-+			unsigned long base;
-+
-+			if (!vma->vm_pgoff)
-+				return NULL;
-+			base = (vma->vm_pgoff - 1) << PAGE_SHIFT;
-+			if (base & ~SUPERPAGE_MASK)
-+				return NULL;
-+			entry = (base & SUPERPAGE_PA_MASK) | _PAGE_SUPER |
-+				_PAGE_PRESENT | _PAGE_S | _PAGE_GLOBAL |
-+				_PAGE_FRAG_ALL | _PAGE_READ;
-+			/* A superpage is coarse: the VMA's own rights decide. */
-+			if (vma->vm_flags & VM_WRITE)
-+				entry |= _PAGE_WRITE;
-+			if (vma->vm_flags & VM_EXEC)
-+				entry |= _PAGE_EXEC;
-+			set_pmd(pmd, __pmd(entry));
-+			dadao_pf_publish(vma, addr, NULL);
-+			return "fill-super";
-+		}
-+		if (!(entry & dadao_pf_frag(addr, true))) {
-+			set_pmd(pmd, __pmd(entry | dadao_pf_frag(addr, true)));
-+			dadao_pf_publish(vma, addr, NULL);
-+			return "frag-set";
-+		}
-+		/* Present and complete, yet reported missing: not this channel. */
++	if (entry & _PAGE_SUPER)
 +		return NULL;
-+	}
 +
 +	if (pmd_none(*pmd)) {
 +		/* IGPTRAP/DGPTRAP at the first level: the page's second-level
@@ -529,37 +426,24 @@ index 000000000..77c8336a9
 +	ptep = pte_offset_kernel(pmd, addr);
 +	entry = pte_val(*ptep);
 +	if (entry & _PAGE_PRESENT) {
-+		if (!(entry & dadao_pf_frag(addr, false))) {
-+			set_pte(ptep, __pte(entry | dadao_pf_frag(addr, false)));
-+			dadao_pf_publish(vma, addr, ptep);
-+			return "frag-set";
-+		}
++		/* Present yet reported missing: not this channel's to fix (the
++		 * K3 fragment-bit repair that used to run here went with the
++		 * stage: nothing creates a partial-fragment leaf any more). */
 +		return NULL;
 +	}
 +
-+	if (fetch) {
-+		/* The faulting access was an instruction fetch ("I" prefix):
-+		 * the page must become executable and its content has to be the
-+		 * window's code page.
-+		 *
-+		 * A *file-backed* text VMA (what `execve` builds: `elf_map()` maps
-+		 * the ELF segment with `vm_file` + `vm_pgoff`) has no
-+		 * `vm_private_data`; its content is read from the file on demand —
-+		 * the same page the loader would have brought in, without a page
-+		 * cache.  A probe window keeps the single-page `vm_private_data`
-+		 * form. */
++	if (dadao_subcause_is_fetch(pos)) {
 +		/*
-+		 * Content for a probe window comes from `vm_private_data`; a
-+		 * *process* VMA never comes through here any more (its pages are
-+		 * the page cache's, m14-linux-035).  With no page there is
-+		 * nothing to install — refuse instead of mapping PA 0.
++		 * The faulting access was an instruction fetch ("I" prefix).  A
++		 * *process* VMA's text is the page cache's (m14-linux-035) and
++		 * is served by the generic arm; this arm only ever sees the
++		 * K1-K4 probe shape, whose code page is mapped before the
++		 * segment runs (m14-linux-017's `m14_map_active()` /
++		 * `vm_insert_page()`).  With no page to install here, refuse
++		 * instead of mapping PA 0 (the `vm_private_data` PA hand-off
++		 * was K3's and is retired).
 +		 */
-+		pa = (unsigned long)vma->vm_private_data;
-+		if (!pa)
-+			return NULL;
-+		set_pte(ptep, __pte(dadao_pf_pte(vma, pa, false, true)));
-+		dadao_pf_publish(vma, addr, ptep);
-+		return "fill-code";
++		return NULL;
 +	}
 +
 +	/* Data (read or write): map the shared zero page read-only.  A store
@@ -583,11 +467,12 @@ index 000000000..77c8336a9
 +}
 +
 +/*
-+ * A write to a *probe window* that points at the shared zero page: give it a
-+ * private zeroed page.  This is *not* a copy-on-write of the zero page — the
-+ * source is all zero, so copying a page would be pure waste (user ruling
-+ * 2026-11-16).  A process VMA never comes here: the generic arm's
-+ * `do_wp_page()` already knows the zero page (m14-linux-035).
++ * A write to the shared zero page in the K1-K4 shape (a process VMA whose table
++ * is not the walker's yet): give it a private zeroed page.  This is *not* a
++ * copy-on-write of the zero page — the source is all zero, so copying a page
++ * would be pure waste (user ruling 2026-11-16).  A running process VMA never
++ * comes here: the generic arm's `do_wp_page()` already knows the zero page
++ * (m14-linux-035).
 + */
 +static bool dadao_pf_unshare_zero(struct vm_area_struct *vma, unsigned long addr)
 +{
@@ -774,8 +659,8 @@ index 000000000..77c8336a9
 + * only resolved through mm/ when it is (m14-linux-035): `handle_mm_fault()`
 + * fills `mm->pgd`, and a fill into a table the walker is not using would be
 + * invisible — the K1-K4 probe shape runs user code on the kernel's table with
-+ * `current->mm` merely attached, and `dadao_pf_table()` (the window arm) is what
-+ * selects the table there.
++ * `current->mm` merely attached, and `dadao_pf_table()` is what selects the
++ * table there.
 + */
 +static bool dadao_pf_mm_active(struct mm_struct *mm)
 +{
@@ -1020,15 +905,15 @@ index 000000000..77c8336a9
 +	}
 +
 +	/*
-+	 * ADWBFAIL and NONPTW are checked *before* the window lookup: their
++	 * ADWBFAIL and NONPTW are checked *before* the VMA lookup: their
 +	 * `cause_info` is not a virtual address the walker rejected but the PTE's
 +	 * physical address (contract-see §6.1) or a cfx-space address, so there is
-+	 * no window to look up and nothing a fill could make accessible.
++	 * no VMA to look up and nothing a fill could make accessible.
 +	 *
 +	 * A fault of the running process goes to the generic arm (m14-linux-035);
-+	 * the window arm below is what is left for an address space that is not a
-+	 * task's — the K3 probe images run with `current->mm == NULL` (they are
-+	 * registered windows + hand-built tables, spec/DADAO-12 §2.2.3/§2.2.4).
++	 * the arm below is what is left for the K1-K4 probe shape (a task's mm is
++	 * attached but PTBR still points at the kernel's table, so the walker
++	 * reads hand-built tables).
 +	 */
 +	if (dadao_pf_streak > DADAO_PF_RETRY_BUDGET) {
 +		result = "die-budget";
@@ -1041,7 +926,7 @@ index 000000000..77c8336a9
 +					  &rep_end, &rep_pte);
 +	} else if (!(vma = dadao_pf_find_vma(info))) {
 +		/*
-+		 * The one way a hole becomes a window: a missing-class fault
++		 * The one way a hole becomes a mapping: a missing-class fault
 +		 * below a VM_GROWSDOWN VMA grows the stack (m14-linux-019).
 +		 */
 +		if (dadao_subcause_is_missing(pos) &&
@@ -1059,11 +944,11 @@ index 000000000..77c8336a9
 +		 * that is not a verdict: the PTE is read-only *because* the mapping
 +		 * is shared, so the handler gives the writer its own page.
 +		 *
-+		 * A *process* VMA never reaches this arm any more: its writes are
-+		 * resolved by the generic `do_wp_page()` through the generic arm
-+		 * above (copy when shared, upgrade in place when it is the only
-+		 * reference).  A probe window has no address space and no folio
-+		 * behind it, so a non-zero read-only page there is a verdict.
++		 * A *running process* VMA never reaches this arm any more: its
++		 * writes are resolved by the generic `do_wp_page()` through the
++		 * generic arm above (copy when shared, upgrade in place when it is
++		 * the only reference).  The K1-K4 shape has no folio behind the
++		 * page here, so a non-zero read-only page there is a verdict.
 +		 */
 +		if (pos == DADAO_SUB_NWPERM && dadao_pf_unshare_zero(vma, info))
 +			result = "replace-zero";
@@ -1076,20 +961,13 @@ index 000000000..77c8336a9
 +	} else {
 +		result = "die-sub";
 +	}
-+	if (!current->mm) {
-+		rep_start = vma ? vma->vm_start : 0UL;
-+		rep_end = vma ? vma->vm_end : 0UL;
-+		rep_pte = vma ? dadao_pf_show_pte(info) : 0UL;
-+	}
-+
 +	/*
-+	 * The names that mean "a mapping was installed, re-execute": the window
-+	 * arm's and the generic arm's (`fill-anon`/`cow-*` are the generic
-+	 * path's; the window arm has no folio to copy, so it cannot spell those).
++	 * The names that mean "a mapping was installed, re-execute": both arms'
++	 * (`fill-anon`/`cow-*` are the generic path's; the K1-K4 arm has no folio
++	 * to copy, so it cannot spell those).
 +	 */
 +	if (!strcmp(result, "fill-zero") || !strcmp(result, "fill-code") ||
 +	    !strcmp(result, "fill-file") || !strcmp(result, "fill-anon") ||
-+	    !strcmp(result, "fill-super") || !strcmp(result, "frag-set") ||
 +	    !strcmp(result, "replace-zero") || !strcmp(result, "cow-copy") ||
 +	    !strcmp(result, "cow-write"))
 +		policy = DADAO_PF_RETRY;

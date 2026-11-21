@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k5_clone_selftest.c b/arch/dadao/kernel/k5_clone_selftest.c
 new file mode 100644
-index 000000000..f4ab7a5d7
+index 000000000..d602ec3dc
 --- /dev/null
 +++ b/arch/dadao/kernel/k5_clone_selftest.c
-@@ -0,0 +1,665 @@
+@@ -0,0 +1,673 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K5 user clone/thread probe (CONFIG_DADAO_K5_CLONE_SELFTEST, m14-linux-024).
@@ -338,9 +338,17 @@ index 000000000..f4ab7a5d7
 +	k5c_expect("c1_fork_asid_differs", 1,
 +		   (child->mm && child->mm->context.asid != k5c_parent_asid) ? 1 : 0,
 +		   K5C_FAIL_C1);
-+	/* The fork took no reference on the parent's address space. */
-+	k5c_expect("c1_fork_parent_mm_users", (unsigned long)k5c_fork_mm_users_pre,
-+		   (unsigned long)atomic_read(&k5c_parent->mm->mm_users),
++	/*
++	 * The fork took no reference on the parent's address space.  The value is
++	 * recorded at the fork trap and compared here; the *thread* child may
++	 * still hold its own reference at that moment (its `exit` is dispatched
++	 * from the trap handler, the mm is dropped later), so the invariant is
++	 * "no new reference" rather than "the same number".
++	 */
++	k5c_expect("c1_fork_parent_mm_users", 1,
++		   (atomic_read(&k5c_parent->mm->mm_users) >= 1 &&
++		    atomic_read(&k5c_parent->mm->mm_users) <=
++			    k5c_fork_mm_users_pre) ? 1 : 0,
 +		   K5C_FAIL_C1);
 +	/* No CLONE_THREAD: its own thread group, its own tables. */
 +	k5c_expect("c4_fork_tgid_own", (unsigned long)child->pid,

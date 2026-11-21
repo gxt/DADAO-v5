@@ -27,9 +27,9 @@ It is mechanically decidable: the Kconfig fragment is the source of truth for
       pin would be a silent no-op;
   C4  no list/tuple element carries a hand-written ``CONFIG_DADAO_X=v`` entry:
       slices come from the pins (this is what makes C3 hold for the real image);
-  C5  a module-level expectation table ``{image: {SYMBOL: value}}`` (``check_k2``
-      ``IMAGE_CONFIG``, ``check_k3`` ``IMAGE_ON``) agrees with the pins, so the
-      slice and the image assertions cannot drift apart.
+  C5  a module-level expectation table ``{image: {SYMBOL: value}}`` (e.g.
+      ``check_k2``'s ``IMAGE_CONFIG``) agrees with the pins, so the slice and
+      the image assertions cannot drift apart.
 
 Counts (scripts / symbols / images) are derived on the spot, never written down.
 ``--self-test`` builds a throw-away tree and proves six reachable FAIL paths
@@ -443,19 +443,19 @@ def _self_test() -> int:
             return 1
 
         k0 = tmp / SCRIPTS_DIRS[0] / "check_k0.py"
-        k3 = tmp / SCRIPTS_DIRS[0] / "check_k3.py"
+        k2 = tmp / SCRIPTS_DIRS[0] / "check_k2.py"
         kconfig = tmp / config_pins.KCONFIG_REL
         originals = {path: path.read_text(encoding="utf-8")
-                     for path in (k0, k3, kconfig)}
+                     for path in (k0, k2, kconfig)}
 
         def mentions(rep: Report, *needles: str) -> bool:
             return any(all(needle in line for needle in needles)
                        for line in rep.fails)
 
         cases = [
-            ("缺一个符号", k3,
+            ("缺一个符号", k2,
              '    "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",\n', "",
-             lambda rep: mentions(rep, "check_k3.py", "CONFIG_DADAO_K2_SELFTEST_CFXESC", "缺")),
+             lambda rep: mentions(rep, "check_k2.py", "CONFIG_DADAO_K2_SELFTEST_CFXESC", "缺")),
             ("多一个不存在的符号", k0, "CONFIG_PINS = {\n",
              'CONFIG_PINS = {\n    "CONFIG_DADAO_FAKE_SELFTEST": "n",\n',
              lambda rep: mentions(rep, "CONFIG_DADAO_FAKE_SELFTEST", "多出")),
@@ -464,9 +464,9 @@ def _self_test() -> int:
              "K0_CONFIG = config_pins.config_lines(CONFIG_PINS)\n"
              'EXTRA = ["CONFIG_DADAO_K1_EARLY_STOP=y"]\n',
              lambda rep: mentions(rep, "手写切片", "CONFIG_DADAO_K1_EARLY_STOP=y")),
-            ("int 钉 n 但依赖满足", k3,
-             '    "CONFIG_DADAO_K2_TIME_STOP": "n",\n',
-             '    "CONFIG_DADAO_K2_TIME_STOP": "y",\n',
+            ("int 钉 n 但依赖满足", k2,
+             '    "CONFIG_DADAO_K2_TIME_CASE": "0",\n',
+             '    "CONFIG_DADAO_K2_TIME_CASE": "n",\n',
              lambda rep: mentions(rep, "CONFIG_DADAO_K2_TIME_CASE", "必须给具体值")),
         ]
         failures = 0

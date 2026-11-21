@@ -64,7 +64,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         linux-defconfig linux-vmlinux linux-initramfs \
         check-linux-toolchain check-linux-boot-contract check-config-pins \
         check-linux-k0 check-linux-k1 \
-        check-linux-k2 check-linux-k3 \
+        check-linux-k2 check-linux-k5 \
         check-picolibc-tests check-picolibc-tests-full \
         check-modules check-full check-components check-knowledge-refs \
         check-inst-asm check-inst-sig inst-signature-data check-tests-index check-inst-macro-scope check-arch check-arch-smoke \
@@ -166,7 +166,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       build-builtins build-bootrom build-picolibc build-musl build-musl-shared \
                       build-busybox \
                       linux-defconfig linux-vmlinux linux-initramfs \
-                      check-linux-k0 check-linux-k1 check-linux-k2 check-linux-k3 \
+                      check-linux-k0 check-linux-k1 check-linux-k2 check-linux-k5 \
                       test-codegen test-elf test-m6 test-picolibc-smoke \
                       check-lit check-lit-full \
                       check-inst-asm check-inst-sig check-arch check-arch-smoke \
@@ -256,7 +256,7 @@ help:
 	@echo "  make check-linux-k0  K0 closure gate: vmlinux ELF/boot-ABI + initramfs (reproducible, /init) + toolchain matrix + boot contract + apply-series idempotence (L2; m14-infra-003)"
 	@echo "  make check-linux-k1  K1 closure gate: Vast end-to-end power->hmon->smon->kernel->start_kernel->SYS_EXIT(0) before any clock; boot info + kernel-built PTBR (L2; m14-linux-005)"
 	@echo "  make check-linux-k2  K2 closure gate: supv exception channel (declared vs undeclared CFXMEM) + clock (freq/time/interval) + IE masking (+1 release) + K0/K1 no regression (L2; m14-linux-009)"
-	@echo "  make check-linux-k3  K3 closure gate: page-table primitives (L1 entry PA/SPF/G + tlb_control command values from spec §4.5 + ASID) + fault channel (fill/retry, no-VMA, ADWBFAIL, sub-reason wyde) + zero page + TLB kernel side (static recon of the arch probes) + exit codes + §4a retirement (L2; m14-linux-015)"
+	@echo "  make check-linux-k5  K5 closure gate: user-mode closure (/init runs, syscall round trip, errno/TLS/frame) + clone/thread + futex/atomics (incl. shared futex on an anon page) + clock + signals/frame round trip + 64 KiB ABI + reverse assertions + §4a/K3 retirement (L2; m14-linux-029)"
 	@echo "  make test-picolibc-smoke  Compile/link/run a minimal picolibc printf program (QEMU semihosting; INFRA-057t)"
 	@echo "  make check-picolibc-tests  Run the picolibc self-test representative set (L2; TESTCASES-042t)"
 	@echo "  make check-picolibc-tests-full  Run the full picolibc self-test set (opt-in/L3-like; TESTCASES-042t)"
@@ -1026,24 +1026,25 @@ _locked-build-musl-shared:
 # 本块只声明目标，脚本随各任务落地（m14-linux-002..006 / m14-infra-00x）；以后
 # 加目标才改这里。路径解析唯一来源 = tools/linux/paths.py（脚本不得各自拼路径）。
 # 写者（defconfig/vmlinux/initramfs/semihosting-smoke）与会**增量构建**的
-# check-linux-k0 / check-linux-k1 / check-linux-k2 / check-linux-k3 列入 $(GATE_LOCKED_TARGETS)
+# check-linux-k0 / check-linux-k1 / check-linux-k2 / check-linux-k5 列入 $(GATE_LOCKED_TARGETS)
 # （docs/Process-07 §2）；三个只读门控（check-linux-toolchain /
 # check-linux-boot-contract / check-config-pins）不占锁。
-# L1/L2 成员接线（m14-infra-003 / m14-linux-005 / m14-linux-009 / m14-linux-015）：
+# L1/L2 成员接线（m14-infra-003 / m14-linux-005 / m14-linux-009 / m14-linux-029）：
 # L1 `_locked-check` 含 check-linux-toolchain + check-linux-boot-contract +
 # check-config-pins；
 # L2 `_locked-check-modules` 含 check-linux-k0（K0 收口）、check-linux-k1（K1 收口）、
-# check-linux-k2（K2 收口）与 check-linux-k3（K3 收口）。
-# check-linux-k3 的成员 = B/M/F/C/T/X/R 七组：B 构建与配置、M 页表原语
-# （tlb_control 命令值按 spec/DADAO-12 §4.5 现场重建）、F 故障通道（含子原因
-# wyde 逐位对账）、C 零页（P8–P10）、T TLB 内核侧 + 硬件侧静态对账（TLB 语义本身
-# 由 L3 `check-arch` 判，本门控不重跑 tests/arch）、X 退出码与静止性、R 反向断言
-# 与 §4a 退役机械断言。COW 组随 m14-linux-013、栈组随 m14-linux-014 退役（归 K4）。
+# check-linux-k2（K2 收口）与 check-linux-k5（K5 收口）。
+# check-linux-k5 的成员 = S/C/F/T/G/P/R 七组：S 用户态闭环（/init 真跑、syscall/
+# errno/TLS/cg5 帧）、C clone/线程、F futex/原子（含匿名页上的 shared futex）、
+# T 时钟（clocksource/clockevent/tick）、G 信号（SIGSEGV/exit/rlimit/帧往返/
+# 默认动作）、P 64 KiB ABI、R 反向断言 + §4a 退役 + K3 整体退役机械断言。
+# K3 收口门控随 K3 阶段整体退役（用户 2026-11-20 裁定；替代 = 本门控 + 各探针，
+# 记录见 docs/Process-07 §4a.2）。
 # 并行度经环境变量 JOBS 传给脚本；check-linux-k0 的增量构建/apply-series 超时可用
 # K0_{VMLINUX,INITRAMFS,TOOLCHAIN,BOOT_CONTRACT,SERIES}_TIMEOUT 调（`timeout` ⇒ rc 124 判 FAIL）。
 # check-linux-k1 的 QEMU/构建超时用 K1_{QEMU,BUILD}_TIMEOUT 调（同上判 FAIL）。
 # check-linux-k2 的 QEMU/构建/回归超时用 K2G_{QEMU,BUILD,REGRESS}_TIMEOUT 调（同上判 FAIL）。
-# check-linux-k3 的 QEMU/构建超时用 K3G_{QEMU,BUILD}_TIMEOUT 调（同上判 FAIL）。
+# check-linux-k5 的 QEMU/构建超时用 K5G_{QEMU,BUILD}_TIMEOUT 调（同上判 FAIL）。
 _locked-linux-defconfig:
 	@JOBS=$(JOBS) $(PYTHON) tools/linux/make_defconfig.py
 
@@ -1069,8 +1070,8 @@ _locked-check-linux-k1:
 _locked-check-linux-k2:
 	@JOBS=$(JOBS) $(PYTHON) tests/unit/linux/check_k2.py
 
-_locked-check-linux-k3:
-	@JOBS=$(JOBS) $(PYTHON) tests/unit/linux/check_k3.py
+_locked-check-linux-k5:
+	@JOBS=$(JOBS) $(PYTHON) tests/unit/linux/check_k5.py
 
 check-linux-toolchain:
 	@$(PYTHON) tests/unit/linux/check_toolchain.py
@@ -1133,10 +1134,11 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 #   linux: check-linux-k0（K0 收口：vmlinux + initramfs + 矩阵 + 启动契约 + 补丁集幂等；
 #         m14-infra-003）、check-linux-k1（K1 收口：Vast 端到端启动到 start_kernel 并在
 #         开时钟前 SYS_EXIT(0)；m14-linux-005）、check-linux-k2（K2 收口：异常通道 +
-#         时钟 + 屏蔽，并回归 K0/K1；m14-linux-009）与 check-linux-k3（K3 收口：页表
-#         原语 + 故障通道 + 零页 + TLB 内核侧 + 退出码 + §4a 退役；m14-linux-015）。
+#         时钟 + 屏蔽，并回归 K0/K1；m14-linux-009）与 check-linux-k5（K5 收口：用户态
+#         闭环 + clone/futex/时钟/信号/64 KiB ABI 代表例 + 反向断言 + §4a 退役；
+#         m14-linux-029）。K3 收口随阶段整体退役（用户 2026-11-20 裁定）。
 #         只读产物 + 增量构建（秒级），不跑被测语义的全量套件）
-_locked-check-modules: check-inst-asm check-inst-sig check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-linux-k0 check-linux-k1 check-linux-k2 check-linux-k3
+_locked-check-modules: check-inst-asm check-inst-sig check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-linux-k0 check-linux-k1 check-linux-k2 check-linux-k5
 	@echo "module checks (L2): PASS"
 
 # L3 = 全量（TESTCASES-076t；2026-10-27 用户裁定「一个检查只在一层」严格化；TESTCASES-082t 去 tset smoke）。

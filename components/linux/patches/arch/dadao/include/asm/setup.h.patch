@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..36b853b74
+index 000000000..330dbd654
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,291 @@
+@@ -0,0 +1,262 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -68,41 +68,12 @@ index 000000000..36b853b74
 +/* K2 self-test scaffolding (kernel/k2_selftest.c, probe images only). */
 +void dadao_k2_selftest(void);
 +
-+/*
-+ * K3 page-table / TLB self-test (mm/k3_pt_selftest.c, probe images only,
-+ * CONFIG_DADAO_K3_PT_SELFTEST): builds an L2 table with the primitives, runs
-+ * the TLB command matrix and ends the boot from the end of setup_arch().
-+ */
-+void __noreturn dadao_k3_pt_selftest(void);
-+
-+/*
-+ * K3 page-fault channel (mm/fault.c, m14-linux-012) and its probe image
-+ * (mm/k3_pf_selftest.c, CONFIG_DADAO_K3_PF_SELFTEST: 0 = off, 1..5 = one case
-+ * per image, so every value but 1 ends the boot).  The declarations below are
-+ * the probe's *view* of the channel; the channel itself is entered from
-+ * kernel/traps.c through asm/ptrace.h's dadao_do_page_fault().
-+ */
-+struct vm_area_struct;
-+
-+void __noreturn dadao_k3_pf_selftest(void);
 +/* Idempotent; `__init` because it must run once, from the boot path, after the
 + * buddy allocator exists (mm_core_init()): it allocates the shared zero page. */
 +void __init dadao_pf_init(void);
-+/*
-+ * Register one anonymous window (the K3 stand-in for an mmap'd VMA: there is no
-+ * process and no slab allocator before mm_core_init()).  @backing_pa is the page
-+ * a *fetch* fault installs (0 = this window has no code); @superpage_pa is the
-+ * 512 MiB base a superpage-missing fault (`ISPTRAP`/`DSPTRAP`) maps, or
-+ * DADAO_PF_NO_SUPERPAGE.
-+ */
-+#define DADAO_PF_NO_SUPERPAGE	(~0UL)
-+struct vm_area_struct *dadao_pf_window_add(unsigned long start,
-+					   unsigned long end,
-+					   unsigned long vm_flags,
-+					   unsigned long backing_pa,
-+					   unsigned long superpage_pa);
-+/* The covering window for @addr (the channel's lookup; the probe asserts the
-+ * window edges with it instead of taking a fault for every edge). */
++/* The VMA covering @addr, as the channel looks it up (`current->mm`'s tree);
++ * NULL when the task has no address space.  The K4 probes assert the mapping
++ * they built with it instead of taking a fault for every edge. */
 +struct vm_area_struct *dadao_pf_find_vma(unsigned long addr);
 +/* One zeroed page from the channel's page pool (same source the handler uses). */
 +unsigned long dadao_pf_alloc_page(void);

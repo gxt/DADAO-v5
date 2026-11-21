@@ -93,8 +93,6 @@ arch/dadao/mm/extable.c.patch
 arch/dadao/mm/fault.c.patch
 arch/dadao/mm/init.c.patch
 arch/dadao/mm/k1_pt.c.patch
-arch/dadao/mm/k3_pf_selftest.c.patch
-arch/dadao/mm/k3_pt_selftest.c.patch
 arch/dadao/mm/k4_cow_selftest.c.patch
 arch/dadao/mm/k4_stack_selftest.c.patch
 arch/dadao/mm/mmu.c.patch

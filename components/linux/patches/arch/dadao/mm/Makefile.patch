@@ -1,25 +1,17 @@
 diff --git a/arch/dadao/mm/Makefile b/arch/dadao/mm/Makefile
 new file mode 100644
-index 000000000..f9d1a5423
+index 000000000..9bb6b7c56
 --- /dev/null
 +++ b/arch/dadao/mm/Makefile
-@@ -0,0 +1,24 @@
+@@ -0,0 +1,16 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-y += init.o k1_pt.o mmu.o
 +# K3 demand paging: the CFXMEM/CFXPERM page-fault channel (m14-linux-012).
 +obj-y += fault.o
 +# Exception-table fixups: a bad user pointer becomes -EFAULT (m14-linux-044).
 +obj-y += extable.o
-+# K3 page-table/TLB self-test: probe image only.
-+obj-$(CONFIG_DADAO_K3_PT_SELFTEST) += k3_pt_selftest.o
-+# K3 page-fault self-test: probe image only.  The symbol is an int (0 = off,
-+# 1..5 = one case per image), so `obj-$(CONFIG_...)` cannot be used: it would
-+# spell `obj-3` and kbuild only knows y/m.
-+ifneq ($(CONFIG_DADAO_K3_PF_SELFTEST),0)
-+obj-y += k3_pf_selftest.o
-+endif
 +# K4 user-stack growth self-test: probe image only, one case per image (the int
-+# symbol has no y/m spelling, so this is a make-level test like the K3 one).
++# symbol has no y/m spelling, so this is a make-level test).
 +ifneq ($(CONFIG_DADAO_K4_STACK_SELFTEST),0)
 +obj-y += k4_stack_selftest.o
 +endif

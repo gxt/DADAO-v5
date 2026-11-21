@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/include/asm/cause-sub.h b/arch/dadao/include/asm/cause-sub.h
 new file mode 100644
-index 000000000..19bde3428
+index 000000000..5fef1f8d2
 --- /dev/null
 +++ b/arch/dadao/include/asm/cause-sub.h
 @@ -0,0 +1,209 @@
@@ -21,9 +21,9 @@ index 000000000..19bde3428
 + *   other class carries no sub-reason at all (contract-see §6.1).
 + *
 + * Every number below is a projection of `contract-see §6.1.1`; the gate
-+ * `tools/linux/k3_page_probe.py` parses that table and that contract text and
-+ * refuses to run when this header disagrees with it, so the two can never drift
-+ * apart silently.  Adding a bit is a contract change first.
++ * `tests/unit/linux/k4_cow_probe.py` parses that table and that contract text
++ * and refuses to run when this header disagrees with it, so the two can never
++ * drift apart silently.  Adding a bit is a contract change first.
 + */
 +#ifndef __ASM_DADAO_CAUSE_SUB_H
 +#define __ASM_DADAO_CAUSE_SUB_H

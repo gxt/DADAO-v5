@@ -1141,3 +1141,19 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`m16-testcases-003` 复核的非阻断 finding：证据脚本的 `bin.qemu.install_eq_build` 在 `QEMU=` 覆盖时两侧取同一路径、退化为恒真（默认态「安装根 vs 构建树」才有效）；注入脚本 `mode_inject` 已正确覆盖，故只影响该行显示。处置：随下次触碰该证据脚本时改成「覆盖时跳过/标注 N/A」。"
+- id: ISS-493
+  scope:
+  - linux
+  milestone: M14
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P1】`k4_fork_probe` 的 F5 用户段偶发挂死（既有缺陷，非 `m14-linux-029` 引入）：`arch/dadao/kernel/k4_selftest.c` 用**本地** `struct pt_regs` 调 `dadao_enter_user()`，第一次 umon `SKIP` 后 `escape` 的目标取自 `task_pt_regs(current)->ip`，取到垃圾地址（实测恒为 `0xbef0`）⇒ `IGPTRAP` 在 0xbef0 → `die-no-vma` → `panic: Attempted to kill init`；探针报 F1/F5/F3 `got=124`。A/B（各 5 跑，同签名）：**master `1792ebf9`（无 029）4/5 红**（72/76×3、69/74×1，1 绿 104/104）；**029 分支 4/5 红**（71/75×4，1 绿 103/103）⇒ 属既有偶发（复核者另测 7/7 红），与 029 删除 `current->mm == NULL` 窗口臂无因果。修法方向：F5 改用 `task_pt_regs(current)` 作为入口帧（与 `k5_syscall_selftest` 的同类调用一致），并补「F5 用户段必到 SYS_EXIT(0)」的稳定复现门控；`m14-linux-029` 的证据脚本按「已登记既有红」处置，替代判据 = `check-linux-k5` 的 C/G 组。"
+- id: ISS-494
+  scope:
+  - linux
+  milestone: M14
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】K4 探针在 K5 已开 tick 的镜像上偶发时序红（既有，非 `m14-linux-029` 引入）：`k4_kthread_probe` 的 `k2-task-dead` 在 `kthread_stop()` 后立即读任务态，偶见 `state=0 on_rq=1 frozen=1`（探针 59/68、`K4 kthread FAIL: k2-task-dead=0x0 code=0x51`），同一镜像随后连跑 2 次均 112/112 ⇒ 探针轮询与调度交接的竞态；同类脆弱性也见于 `k4_fork_probe` 的 F5（ISS-493）。建议：K4 探针的完成判据改为「事件 + 有界等待」并补 `sched_yield`/`cond_resched` 让出点；`m14-linux-029` 的证据脚本对其余 K4 探针保持严格判据，出现该类红时按运行期日志披露并重采一次全量。"

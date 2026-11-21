@@ -121,8 +121,6 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K2_SELFTEST_CFXTRAP": "n",
     "CONFIG_DADAO_K2_SELFTEST_CFXESC": "n",
     "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
-    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
-    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
     "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
     "CONFIG_DADAO_K4_COW_SELFTEST": "0",
     "CONFIG_DADAO_K4_SELFTEST": "n",
@@ -653,7 +651,7 @@ def check_k2(rep: Report, text: str, d: dict) -> None:
                       num(dead.get("ticks_now")))
 
 
-def check_k3(rep: Report, text: str, d: dict) -> None:
+def check_case_k3(rep: Report, text: str, d: dict) -> None:
     k3 = line_with(text, "K4 kthread k3: parent_pid=")
     rep.check("K3", "K3 父任务行存在（vacuous ⇒ FAIL）", True, k3 is not None)
     if not k3:
@@ -746,7 +744,7 @@ def run_selfcheck(rc: int, text: str, d: dict) -> int:
             elif group == "K2":
                 check_k2(rep, mutate(text, "K2"), d)
             else:
-                check_k3(rep, mutate(text, "K3"), d)
+                check_case_k3(rep, mutate(text, "K3"), d)
         if not rep.failed:
             problems.append(f"mutating {group} did not turn any check red")
         else:
@@ -818,7 +816,7 @@ def run_inject(name: str, d: dict) -> int:
             elif spec["group"] == "K2":
                 check_k2(rep, run, d)
             else:
-                check_k3(rep, run, d)
+                check_case_k3(rep, run, d)
         print(f"[INJECT] {name}: {spec['group']} red checks = {len(rep.failed)}"
               f" (rc={rc})")
         for item in rep.failed[:4]:
@@ -848,7 +846,7 @@ def run_inject(name: str, d: dict) -> int:
         check_static(green, rc_build, snap, d)
         check_k1(green, rc, run, d)
         check_k2(green, run, d)
-        check_k3(green, run, d)
+        check_case_k3(green, run, d)
     print(f"[INJECT] {name}: back to green rc={rc} failures={len(green.failed)}")
     return 0 if not green.failed else 1
 
@@ -920,7 +918,7 @@ def main() -> int:
     check_static(rep, rc_build, snap, d)
     check_k1(rep, rc, text, d)
     check_k2(rep, text, d)
-    check_k3(rep, text, d)
+    check_case_k3(rep, text, d)
 
     # A K4 FAIL line (the kernel's own verdict) is never a pass.
     rep.check("K1", "内核没有自报 FAIL 行", [],

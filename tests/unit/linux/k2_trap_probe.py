@@ -119,8 +119,6 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K2_SELFTEST_UNKNOWN": "n",
     # m14-linux-011/012 images must not leak in either (the shared build
     # tree is configured by whichever gate ran last).
-    "CONFIG_DADAO_K3_PT_SELFTEST": "n",
-    "CONFIG_DADAO_K3_PF_SELFTEST": "0",
     "CONFIG_DADAO_K4_STACK_SELFTEST": "0",
     # m14-linux-018: the copy-on-write probe is an int with no `depends on`,
     # so it has no "unset" spelling: pin the concrete 0.
