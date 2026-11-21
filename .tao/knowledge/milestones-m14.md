@@ -26,6 +26,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m14-integ-001 | 1–2 h | M14 归档（K5 收口后执行；任务书迁 `.tao/archive/M14/` + 台账/MEMORY/issues/README 收口） |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 
 
