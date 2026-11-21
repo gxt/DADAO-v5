@@ -35,12 +35,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-linux-026 | 2026-11-21 17:13 | 3–4 h | clocksource(`cfx_time`) + clockevent(`cfx_hart`) 通用框架（原 021 后移） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-026 | 2026-11-21 18:51 | clocksource(`cfx_time`) + clockevent(`cfx_hart`) 通用框架（`time_init` 接线；探针 52/52；K2 time 组不退役） |
 | m14-linux-027 | 2026-11-21 17:13 | 信号与退出面（SIGSEGV 投递 + `exit`/`exit_group` + `setrlimit(RLIMIT_STACK)` 继承；探针 157/157） |
 | m14-infra-005 | 2026-11-21 16:32 | musl 信号帧 2048 B 四组 + `SA_RESTORER`/`__restore_rt` + `MINSIGSTKSZ` 2376（端到端 36/36） |
 | m14-linux-046 | 2026-11-21 15:29 | 信号帧与投递（2048 B 四组/匿名 union；`rt_sigframe`/`rt_sigreturn`/`force_sig`；`SA_RESTORER`；探针 101；契约未改） |
