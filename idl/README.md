@@ -33,13 +33,19 @@ python3 idl/idl_parser.py --self-test # 临时树内注入自检（删括号 / �
 python3 idl/idl_exec.py --self-test  # 执行器自检（寄存器组/48 位地址/大端/RAS/异常/semihosting）
 python3 idl/idl_exec.py --elf <elf> [--bootrom <img>] [--init <json>] [--state-out <json>]
                                      # 运行一个镜像；--init = 初始架构状态（QEMU 观测面）
+python3 tools/idl/exec_trace.py --elf <elf> --bootrom <img> --init <entry.json> --out <trace.jsonl>
+                                     # 逐指令 trace（格式见 docs/idl-trace-format.md）
+python3 tools/idl/qemu_trace.py --elf <elf> --bootrom <img> --entry-out <json> --trace-out <jsonl>
+                                     # QEMU 观测面 → 同格式 trace（-d cpu + one-insn-per-tb）
+python3 tools/idl/check_trace_parity.py --images <dir> --bootrom <img>
+                                     # `tests/inst` 载体的逐指令 trace 差分（≥20 例）
 ```
 
 **M17 前端实现前先读** [`syntax-subset.md`](syntax-subset.md)（用到哪些语法构造）与 [`width-rules.md`](width-rules.md)（宽度/符号规则 + 10 条「未定义」）。
 
 **M17 解析器**（`idl_parser.py`，`m17-idl-002`）只实现 `syntax-subset.md` §10 的「必须覆盖」；§8 的未使用构造一律显式报错。它**不做语义**（不求值、不推导宽度）：字面量的位宽标注与原文留档，`U04`–`U10` 的裁定留给 `m17-idl-003` 之前取得。
 
-**M17 执行器核心**（`idl_exec.py`，`m17-idl-003`）只有两处外部真源：编码读 `contracts/opcodes.yaml`（opc/mask/字段位域），机器几何与运行布局读 `tools/testcases/lib/machine_profile.py`；每条 operation 的语义按 `.idl` 正文实现（函数上方注明 id 与出处册）。驱动与判据在 `tools/idl/`：`qemu_final_state.py`（QEMU 入口态/末态观测面）与 `check_exec_parity.py`（`tests/inst` 载体的最终架构状态/退出码差分）。
+**M17 执行器核心**（`idl_exec.py`，`m17-idl-003`）只有两处外部真源：编码读 `contracts/opcodes.yaml`（opc/mask/字段位域），机器几何与运行布局读 `tools/testcases/lib/machine_profile.py`；每条 operation 的语义按 `.idl` 正文实现（函数上方注明 id 与出处册）。驱动与判据在 `tools/idl/`：`qemu_final_state.py`（QEMU 入口态/末态观测面）、`check_exec_parity.py`（`tests/inst` 载体的最终架构状态/退出码差分）、`exec_trace.py` / `qemu_trace.py` / `check_trace_parity.py`（逐指令 trace 与 QEMU 按 PC 对齐差分，格式见 [`docs/idl-trace-format.md`](../docs/idl-trace-format.md)）。
 
 > **import 本模块前设 `PYTHONDONTWRITEBYTECODE=1`**：`idl/` 由 `check-manifests-guard` 做**双向目录集合断言**，落 `__pycache__` 会直接判红（`idl_parse_cases.toml` 是数据文件而非模块，正是为此）。
 

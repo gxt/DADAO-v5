@@ -71,6 +71,9 @@ CG7_DESC, CG7_START, CG7_SIZE, CG7_ATTR = 0, 1, 2, 3
 SYNC_MASK_POWER = 0xFFFF_FFFF_FFFF_FFF7
 SYNC_MASK_HMON = 0x7FFF_FFFF_FFFF_FFF7
 
+# spec/DADAO-12 §3.6（四）wyde3：CFXMEM 的非页表来源子原因 = `[57] NONPTW`。
+NONPTW_SUBCAUSE = 1 << 57
+
 MODE_USER, MODE_JAIL, MODE_SUPV, MODE_HYPV = 0, 1, 2, 3
 MODE_MONITOR = {MODE_USER: 0, MODE_JAIL: 1, MODE_SUPV: 2, MODE_HYPV: 3}
 
@@ -359,6 +362,8 @@ class Machine:
         self.rd8_defined = True
         self.jumped = False
         self.cur_word = 0
+        self.last_step = None
+        self.semihost_service = None
         self.cfx = {}
         hmon_base = profile["hmon_base"]
         self.cfx[3] = Cfx(3, hmon_base, MODE_HYPV, SYNC_MASK_HMON)
@@ -532,7 +537,9 @@ class Machine:
         cfx.cg5[CG5_PREV_CFX] = self.cfx_code
         cause_val = onehot
         if cause == "CfxMem":
-            cause_val |= (info & 0xFFFF) << 48       # §3.6 wyde3 = CFXMEM 子原因
+            # spec/DADAO-12 §3.6 wyde3：CFXMEM 子原因。Tiny 执行器不实现 PTW，
+            # 所有 CFXMEM 都是非页表类 ⇒ `[57] NONPTW`（不是地址低位）。
+            cause_val |= NONPTW_SUBCAUSE
         cfx.cg5[CG5_CAUSE_ID] = cause_val & MASK64
         cfx.cg5[CG5_CAUSE_IP] = cause_ip & MASK64
         cfx.cg5[CG5_CAUSE_INFO] = info & MASK64
@@ -573,6 +580,7 @@ class Machine:
     # -- semihosting（contract-semihosting §1/§4/§5） ----------------------
     def _semihost(self, immu18):
         service = self.get("rd", 16) & 0xFF
+        self.semihost_service = service
         if service == SYS_WRITEC:
             ptr = self.get("rb", 16) & MASK48
             self.output.append(self.mem.read_memory(8, ptr) & 0xFF)
@@ -602,12 +610,21 @@ class Machine:
 
     # -- 主循环 ------------------------------------------------------------
     def step(self, pc_log=None):
-        """执行一条指令（含异常进入）；返回 False = 已停机。"""
+        """执行一条指令（含异常进入）；返回 False = 已停机。
+
+        执行观察面（`m17-idl-004` 的逐指令 trace 消费方）：每步结束后
+        `self.last_step` = `{pc, word, id, exc, fetch_fault}`——`word`/`id` 为
+        `None` 表示没取到指令（取指异常），`exc` 为本步触发的异常三元组或
+        `None`。`self.semihost_service` 记录本步执行的 semihosting 服务号。
+        """
         if self.halted:
             return False
         self.steps += 1
         cur = self.ip
         self.jumped = False
+        self.semihost_service = None
+        obs = {"pc": cur, "word": None, "id": None, "exc": None,
+               "fetch_fault": False}
         if pc_log is not None:
             pc_log.append(cur)
         try:
@@ -615,9 +632,12 @@ class Machine:
                 raise Fault("IAlign", info=cur, cause_ip=cur)
             word = self.mem.fetch(cur)
             self.cur_word = word
+            obs["word"] = word
+            obs["fetch_fault"] = False
             insn = self.dec.decode(word)
             if insn is None:
                 raise Fault("Undi", info=word, cause_ip=cur)
+            obs["id"] = insn.id
             fn = SEMANTICS.get(insn.id)
             if fn is None:
                 raise ExecError("operation %s 未实现（m17-idl-003 范围）"
@@ -635,8 +655,12 @@ class Machine:
                     info = self.cur_word
                 elif exc.cause == "CfxPerm":
                     info = cause_ip
+            obs["exc"] = {"cause": exc.cause, "info": info,
+                          "ip": cause_ip}
+            obs["fetch_fault"] = obs["word"] is None
             self.ip = cur
             self.take_exception(exc.cause, cause_ip, info)
+        self.last_step = obs
         return not self.halted
 
     def run(self, max_steps=2_000_000, pc_log=None):

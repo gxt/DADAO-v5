@@ -1,0 +1,6 @@
+{"seq": 37, "pc": "0x0000ffffff0101e8", "insn": "0x5a640000", "id": "aip.si_riii_rb", "mn": "aip.si", "dst": ["rb25"], "val": ["0x0000ffffff0101e8"], "exc": null}
+{"seq": 38, "pc": "0x0000ffffff0101ec", "insn": "0x5b640008", "id": "add.si_riii_rb", "mn": "add.si", "dst": ["rb25"], "val": ["0x0000ffffff0101f0"], "exc": null}
+{"seq": 39, "pc": "0x0000ffffff0101f0", "insn": "0x7f0c0000", "id": "trap_ciii_cfx", "mn": "trap", "dst": [], "val": [], "exc": {"cfx": 3, "cause": "0x0000000000000001", "ip": "0x0000ffffff0101f0", "info": "0x000000007f0c0000"}}
+{"seq": 40, "pc": "0x00000fff00000000", "insn": "0x21fc00d8", "id": "st.o_rrii_rd", "mn": "st.o", "dst": [], "val": [], "exc": null}
+{"seq": 41, "pc": "0x00000fff00000004", "insn": "0x7a0c50bf", "id": "cfx2rd_crrr_cfx", "mn": "cfx2rd", "dst": ["rd63"], "val": ["0x0000000000000001"], "exc": null}
+{"seq": 42, "pc": "0x00000fff00000008", "insn": "0x21fc00d8", "id": "st.o_rrii_rd", "mn": "st.o", "dst": [], "val": [], "exc": null}
