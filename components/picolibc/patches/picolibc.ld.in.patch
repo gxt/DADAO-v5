@@ -1,0 +1,23 @@
+diff --git a/picolibc.ld.in b/picolibc.ld.in
+index 416eeeb..9eaf963 100644
+--- a/picolibc.ld.in
++++ b/picolibc.ld.in
+@@ -415,10 +415,16 @@ SECTIONS
+ 
+ @LINUX@	PROVIDE ( @PREFIX@__stack_bottom = ORIGIN(ram) + LENGTH(ram) - (DEFINED(@PREFIX@@STACK@_size) ? @PREFIX@@STACK@_size : @DEFAULT_STACK_SIZE@) );
+ @LINUX@
+-@LINUX@	/* Define a stack region to make sure it fits in memory */
++@LINUX@	/* Define a stack region to make sure it fits in memory.
++@LINUX@	 *
++@LINUX@	 * dadao: keep it out of every PT_LOAD (`:NONE`).  With `:ram` the single
++@LINUX@	 * loadable segment spans the whole RAM window (memsz == region length), so
++@LINUX@	 * a loader that streams the image word by word has to push megabytes of
++@LINUX@	 * zeroes.  RAM starts zeroed on dadao targets, so the stack needs no
++@LINUX@	 * segment. */
+ @LINUX@	.stack @PREFIX@__stack_bottom (NOLOAD) : {
+ @LINUX@		. += (DEFINED(@PREFIX@@STACK@_size) ? @PREFIX@@STACK@_size : @DEFAULT_STACK_SIZE@);
+-@LINUX@	} >ram :ram
++@LINUX@	} >ram :NONE
+ 
+ @C@	/* Throw away C++ exception handling information */
+ @C@

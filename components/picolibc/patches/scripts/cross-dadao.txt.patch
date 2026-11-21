@@ -1,9 +1,9 @@
 diff --git a/scripts/cross-dadao.txt b/scripts/cross-dadao.txt
 new file mode 100644
-index 0000000..8e66561
+index 0000000..401da7e
 --- /dev/null
 +++ b/scripts/cross-dadao.txt
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,44 @@
 +# Meson cross-compilation file for the DADAO-v5 bare-metal target
 +# (dadao-unknown-elf).  Consumed through `meson --cross-file`
 +# (see the DADAO-v5 top-level `build-picolibc` target).
@@ -38,10 +38,13 @@ index 0000000..8e66561
 +# (the guest programs are executed later by qemu-system-dadao, not by meson).
 +skip_sanity_check = true
 +needs_exe_wrapper = true
-+# Single RAM segment at the DADAO-v5 memory map RAM base (ADR-0004 R3 +
-+# rev. 2026-10-11, contract-elf.md §5).  These feed the generated linker
-+# scripts (picolibc.ld / picolibc_noflash.ld).
-+default_flash_addr = '0xfc0000000000'
-+default_flash_size = '0x01000000'
-+default_ram_addr   = '0xfc0000000000'
-+default_ram_size   = '0x01000000'
++# Kaiwu-Tiny address map (spec/Kaiwu §1.1, profile `tiny`): BootROM window
++# (unused by the noflash script) and the SRAM application window starting at the
++# fixed entry.  The RAM length stops at the stack top (0xffffff7eff00) so the
++# generated `__stack` matches the profile; top 0x100 bytes stay outside the
++# region.  These feed the generated linker scripts (picolibc.ld /
++# picolibc_noflash.ld).
++default_flash_addr = '0xffffffff0000'
++default_flash_size = '0x00010000'
++default_ram_addr   = '0xffffff010100'
++default_ram_size   = '0x007dfe00'

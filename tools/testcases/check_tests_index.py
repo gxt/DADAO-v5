@@ -246,19 +246,14 @@ def check_profile_lds(root: Path):
         elif int(mheap.group(1).replace("_", ""), 16) != expected_heap:
             errors.append(f"LDS: {rel} __heap_end {mheap.group(1)} != "
                           f"sp-0x1000 {expected_heap:#x}")
-    common = root / "tests/ee-user/common_user.lds"
-    if not common.is_file():
-        errors.append("LDS MISSING: tests/ee-user/common_user.lds")
-    else:
-        ctext = common.read_text(encoding="utf-8")
-        for sym in ("__bss_start = .;", "__bss_end = .;",
-                    "PROVIDE(__heap_start = __end);"):
-            if sym not in ctext:
-                errors.append(f"LDS COMMON: missing {sym!r}")
-        for rel in lds_map.values():
-            if "INCLUDE common_user.lds" not in (root / rel).read_text(encoding="utf-8"):
-                errors.append(f"LDS: {rel} does not INCLUDE common_user.lds")
-    print(f"  profile↔lds: {len(lds_map)} 份链接脚本 + common 逐项核对")
+    common_syms = ("__bss_start = .;", "__bss_end = .;",
+                   "PROVIDE(__heap_start = __end);")
+    for rel in lds_map.values():
+        text = (root / rel).read_text(encoding="utf-8")
+        for sym in common_syms:
+            if sym not in text:
+                errors.append(f"LDS: {rel} missing inline common symbol {sym!r}")
+    print(f"  profile↔lds: {len(lds_map)} 份链接脚本 + 内联公共段逐项核对")
 
     # BootROM 复位窗口：power.lds ORIGIN == vast reset_pc。
     power_lds = root / "tests/ee-vast/power_vast.lds"
@@ -291,16 +286,14 @@ def check_profile_lds(root: Path):
                 errors.append(f"ASM HEADER DRIFT: {inc.relative_to(root)} "
                               f"missing {expected!r}")
 
-    # picolibc Tiny layout (A scheme): crt stub ROM / app SRAM / e_entry ROM.
-    pico = root / "tests/ee-tiny/picolibc_tiny.ld"
-    if pico.is_file():
-        ptext = pico.read_text(encoding="utf-8")
-        for needle in ("ORIGIN = 0xffffffff0000", "ORIGIN = 0xffffff010100",
-                       "__stack = 0xffffff7eff00", ".text.start"):
-            if needle not in ptext:
-                errors.append(f"PICOLIBC LDS: missing {needle!r}")
-    else:
-        errors.append("PICOLIBC LDS MISSING: tests/ee-tiny/picolibc_tiny.ld")
+    # picolibc Tiny layout: the harness must use the installed
+    # `lib/picolibc_noflash.ld` (cross-file defaults carry the Tiny map), never a
+    # checked-in copy.
+    pico_harness = root / "tests/ee-tiny/run_picolibc_tiny.py"
+    if pico_harness.is_file():
+        htext = pico_harness.read_text(encoding="utf-8")
+        if '"picolibc_noflash.ld"' not in htext:
+            errors.append("PICOLIBC LDS: harness does not use lib/picolibc_noflash.ld")
 
     # Harness must not carry a RAM base literal (profile-derived only).
     harness = root / "tools/testcases/lib/build_test_binary.py"
@@ -702,8 +695,11 @@ def _write_profile_lds(root: Path, tamper: str | None = None) -> None:
             f"  RAM (rwx) : ORIGIN = 0x{origin:X}, LENGTH = 0x{length:X}\n"
             f"  ROM (rx)  : ORIGIN = 0x{rom_origin:X}, LENGTH = 0x{rom_len:X}\n"
             "}\nSECTIONS\n{\n  .text : ALIGN(4) { *(.text) } > RAM\n"
-            f"  INCLUDE common_user.lds\n"
+            "  .rodata : ALIGN(8) { *(.rodata) } > RAM\n"
+            "  .data : ALIGN(8) { *(.data) } > RAM\n"
+            "  .bss : ALIGN(8) { __bss_start = .; *(.bss) __bss_end = .; } > RAM\n"
             f"  .rom : ALIGN(4) {{ *(.rom) }} > ROM\n}}\n"
+            f"PROVIDE(__heap_start = __end);\n"
             f"__heap_end = 0x{prof.sp - 0x1000:X};\n")
         path = root / TESTS_REL / rel
         path.parent.mkdir(parents=True, exist_ok=True)

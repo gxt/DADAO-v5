@@ -41,6 +41,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-infra-005 | 2026-11-21 20:44 | picolibc Tiny 地址图 + `.stack :NONE`（删 513 行 lds 副本；PT_LOAD memsz 0x7dfe00→0xa70） |
 | m15-testcases-022 | 2026-11-21 11:03 | Tiny 执行环境命名：`power_tiny`/`hmon_tiny` → `cfx_power_tiny`/`cfx_hmon_tiny`（4 文件 + 引用；镜像字节不变 `a5d78816…`） |
 | m15-testcases-021 | 2026-11-20 23:29 | 伪指令收口（`LOAD_ADDR`→`set.rb/set.rd` 528 处、`LD64` 168 处；删两个 `.inc`；bootrom `a5d78816…`） |
 | m15-spec-009 | 2026-11-20 23:12 | SimRISC 0.5.7 发布投影（README 版本表、契约版本头与引用、`archive/SimRISC-0.5.7` 快照） |

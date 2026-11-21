@@ -12,4 +12,5 @@ libc/string/flsll.c.patch
 libos/semihost/machine/dadao/meson.build.patch
 libos/semihost/machine/dadao/semihost-dadao.S.patch
 meson.build.patch
+picolibc.ld.in.patch
 scripts/cross-dadao.txt.patch

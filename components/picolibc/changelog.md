@@ -54,3 +54,9 @@
 - **2026-10-26 `QEMU-076t`**
   - 摘要：**semihosting tag 迁移（ADR-0038 D4，architect 授权扩围）**：`libos/semihost/machine/dadao/semihost-dadao.S` 的 semihosting 调用点由旧 tag 迁至 `0x3FF00`，注释判据同步为 `immu18[17:8] == 0x3FF`；`README.md` 同步。**语义/服务号不变**，`series` 15 不变（同一补丁重写）。真值：`make check-picolibc-tests` total=20 pass=18 excluded=2 fail=0 blocked=0（改前 20 blocked / `CFXMEM 0x81`）。
   - 执行者：engineer
+
+## M15
+
+- **2026-11-21 `m15-infra-005`**
+  - 摘要：**Tiny 地址图与栈段（删掉仓库里的 lds 副本）**：cross 文件默认值由移植期占位 `0xfc0000000000`/16 MiB 改为 Tiny（flash `0xffffffff0000`/64 KiB、ram `0xffffff010100`/`0x7dfe00` ⇒ `__stack = 0xffffff7eff00`）；`picolibc.ld.in` 的 `.stack` 由 `:ram` 改 `:NONE`，单个 `PT_LOAD` 的 `memsz` 从 `0x7dfe00`（整段 RAM）降到 `0xa70`；`series` **15 → 16**（新增 `picolibc.ld.in.patch`）。删 `tests/ee-tiny/tests_picolibc_tiny.lds`（491 行上游 + 22 行改动），`run_picolibc_tiny.py` 直接用安装版 `lib/picolibc_noflash.ld`。真值：`make build-picolibc` rc=0；安装版脚本直链 `_start=0xffffff010100`、`__stack_bottom=0xffffff7eef00`、QEMU rc=0；`check-picolibc-tests` fast `pass=6 fail=0 blocked=0`。
+  - 执行者：主会话
