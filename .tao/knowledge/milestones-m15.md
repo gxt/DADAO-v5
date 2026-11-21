@@ -35,13 +35,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m15-testcases-022 | 2026-11-21 10:56 | 0.5 h | Tiny 执行环境命名：`power_tiny`/`hmon_tiny` → `cfx_power_tiny`/`cfx_hmon_tiny`（4 文件 + 引用；镜像字节不变） |
 
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-testcases-022 | 2026-11-21 11:03 | Tiny 执行环境命名：`power_tiny`/`hmon_tiny` → `cfx_power_tiny`/`cfx_hmon_tiny`（4 文件 + 引用；镜像字节不变 `a5d78816…`） |
 | m15-testcases-021 | 2026-11-20 23:29 | 伪指令收口（`LOAD_ADDR`→`set.rb/set.rd` 528 处、`LD64` 168 处；删两个 `.inc`；bootrom `a5d78816…`） |
 | m15-spec-009 | 2026-11-20 23:12 | SimRISC 0.5.7 发布投影（README 版本表、契约版本头与引用、`archive/SimRISC-0.5.7` 快照） |
 | m15-spec-008 | 2026-11-20 22:44 | SimRISC 0.5.7 发布（13 册去 `-rc`；变更记录按主题重排 21→5 组；清单 sha256） |
