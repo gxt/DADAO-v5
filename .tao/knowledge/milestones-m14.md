@@ -34,12 +34,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m14-linux-028 | 2026-11-21 18:51 | 2–3 h | 用户态 64 KiB ABI（AT_PAGESZ/mmap 对齐/ELF 段/brk；`ARCH_FORCE_MAX_ORDER=13`） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m14-linux-028 | 2026-11-21 21:39 | 用户态 64 KiB ABI（`AT_PAGESZ`/`mmap` 对齐/ELF 段/`brk`；`mmap_base`+`mmap_min_addr` 页对齐；`ARCH_FORCE_MAX_ORDER=13`） |
 | m14-testcases-007 | 2026-11-21 20:57 | M14 测试归位 `tests/unit/linux/`（26 个 probe/gate + 3 资产；构建工具留 `tools/linux`） |
 | m14-linux-026 | 2026-11-21 18:51 | clocksource(`cfx_time`) + clockevent(`cfx_hart`) 通用框架（`time_init` 接线；探针 52/52；K2 time 组不退役） |
 | m14-linux-027 | 2026-11-21 17:13 | 信号与退出面（SIGSEGV 投递 + `exit`/`exit_group` + `setrlimit(RLIMIT_STACK)` 继承；探针 157/157） |

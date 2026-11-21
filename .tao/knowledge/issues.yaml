@@ -1101,3 +1101,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`m14-linux-026` 复核的三条非阻断 finding：F-a `tools/linux/k4_switch_probe.py` 的 S6 正向断言只钉调用字面量 `clockevents_config_and_register(&dadao`，删掉注册行后仍能命中注释 ⇒ 应改钉调用形态并补 `clocksource_register_hz` 同判（现 clocksource 半边无静态断言，靠 K5 探针 C1+T1 覆盖）；F-b 旧断言「未注册 clocksource/clockevent」被翻转，按 `docs/Process-07 §4a` 应补退役台账（替代 = `k5_clocksource_probe` C1+T1–T4，先例 = k3 R4）；F-c 两条 WARNING 白名单按 `file:line` 写死，本轮输出 0 条 WARNING（空转），应改按告警文本匹配。处置：随下次触碰这些门控脚本时一并修。"
+- id: ISS-488
+  scope:
+  - linux
+  milestone: M14
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`m14-linux-028` 复核的三条非阻断 finding：R1 `TASK_UNMAPPED_BASE` 页对齐这半个修复无断言覆盖（A2 用 `mm_alloc()` 的 mm、不经 exec，只覆盖 `mmap_min_addr` 那半）⇒ 应补「exec 后 `mm->mmap_base` 页对齐」断言；R2 完成区遗留①「18 条 musl」计数/归属不准（实为 musl 8 + 其它 11），且全局 `check-patch-tree` rc=1 属在途/基线；R3 证据脚本的补丁树判据只 grep `linux: assertion`、不打印问题总数 ⇒ 补一行现场统计。处置：随下次触碰这些门控/任务书时修。"
