@@ -26,6 +26,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m14-infra-005 | 3–4 h | musl 信号帧与 `SA_RESTORER`（2048 B 四组布局；`MINSIGSTKSZ` 2376；`__restore_rt`） |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 
 | m14-linux-026 | 3–4 h | clocksource(cfx_time)+clockevent(cfx_hart) 通用框架（原 021 后移） |

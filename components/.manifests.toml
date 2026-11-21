@@ -19,7 +19,7 @@ chipyard = "chipyard"
 gem5 = "gem5"
 linux = "linux"
 llvm-project = "llvm"
-musl = "llvm"
+musl = "infra"
 picolibc = "testcases"
 qemu = "qemu"
 
