@@ -215,6 +215,8 @@
 
 # M14：Linux bring-up
 
+> **`ISS-454` / `ISS-455` 读法冲突（用户 2026-11-21 裁定 A）**：**维持 `ISS-455`**——异步过滤的 monitor 由**运行模式**选定（supv ⇒ `cfx_smon`），与 `inner_cfx_code` 无关；`contract-see §6.4` 的现有表述**正确、不改**，`arch/dadao/.../irqflags.h` 写死 `cfx_smon` **是对的**。`m14-linux-046` 曾把它改成「monitor = 当前 cfx / 首投后 `cfx_umon`」，属**语义改动**，已要求撤回（`ISS-454` 据此关闭：原命题不成立）。
+
 > **M14 issues 处置（用户 2026-11-20「同意」）**：`ISS-444`/`ISS-457`/`ISS-470`（K1 证据、K2 可达 FAIL、门控 `CONFIG` 钉子）**并入 `m14-linux-029`**（它本就同笔改 K0–K4 门控）；`ISS-454`（`contract-see §6.4` 的「当前 cfx = `cfx_smon`」表述）**并入 `m14-linux-046`**（同批改 uapi/musl 与契约表述）。
 
 
