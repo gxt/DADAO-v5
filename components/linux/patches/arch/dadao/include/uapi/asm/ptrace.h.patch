@@ -1,19 +1,53 @@
 diff --git a/arch/dadao/include/uapi/asm/ptrace.h b/arch/dadao/include/uapi/asm/ptrace.h
 new file mode 100644
-index 000000000..c5c1687aa
+index 000000000..dc1da1f0f
 --- /dev/null
 +++ b/arch/dadao/include/uapi/asm/ptrace.h
-@@ -0,0 +1,17 @@
+@@ -0,0 +1,51 @@
 +/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 +#ifndef __ASM_UAPI_PTRACE_H
 +#define __ASM_UAPI_PTRACE_H
 +
++/*
++ * The user-visible register file: the same four 64-slot banks as the kernel's
++ * `struct pt_regs` (asm/ptrace.h), 2048 bytes in the same order, because the
++ * signal frame carries exactly that image (m14-linux-046; user ruling
++ * 2026-11-20):
++ *
++ *   rd[0..63]  `rd[0]` is the frame's `status` word — a software container for
++ *              the mode the context came from (low 4 bits), not a register:
++ *              `ld` to `rd0` is ILLI on the machine;
++ *   rb[0..63]  `rb[0]` is the frame's `ip`: the hardware's `rb0` *is* the
++ *              current IP, read-only, so the slot that would hold it holds the
++ *              saved address instead;
++ *   ra[0..63]  the return-address stack including `ra0` = {RACNT, MRPTR}
++ *              (spec/SimRISC-00 §2.4): bit-identical round trips;
++ *   rf[0..63]  the floating-point file with the FCSR at `rf0` (§2.3); a value
++ *              read back is the architectural one (its write port masks the
++ *              non-writable fields).
++ *
++ * The anonymous unions keep both readings legal — `regs.rd[i]`/`regs.rb[i]` for
++ * a programmer walking the file, `regs.status`/`regs.ip` for the two words that
++ * are not registers.  The kernel's own copy of the frame uses the same shape,
++ * so `kernel/signal.c` writes the whole 2048-byte image with one copy.
++ */
 +struct user_regs_struct {
-+	unsigned long rd[32];
-+	unsigned long rb[32];
-+	unsigned long ra[8];
-+	unsigned long ip;
-+	unsigned long status;
++	union {
++		unsigned long rd[64];
++		struct {
++			unsigned long status;
++			unsigned long rd_rest[63];
++		};
++	};
++	union {
++		unsigned long rb[64];
++		struct {
++			unsigned long ip;
++			unsigned long rb_rest[63];
++		};
++	};
++	unsigned long ra[64];
++	unsigned long rf[64];
 +};
 +
 +/* No system-call emulation support: the numbers stay reserved. */

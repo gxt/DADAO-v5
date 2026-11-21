@@ -142,6 +142,7 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K5_CLONE_SELFTEST": "n",
     "CONFIG_DADAO_K5_FUTEX_SELFTEST": "n",
     "CONFIG_DADAO_M45_ENTRY_SELFTEST": "n",
+    "CONFIG_DADAO_K5_SIGNAL_SELFTEST": "n",
 }
 
 #: Per-image overrides (every key is also in CONFIG_PINS).  `k2` names the base
@@ -680,22 +681,33 @@ def check_four_banks_sync(rep: Report, text: str, d: dict) -> None:
                   row.get("sent", "<missing>"))
 
     # The frame the stub reports covers four banks; its size follows from the
-    # bank count and the per-bank register count.
+    # bank count and the per-bank register count.  Since m14-linux-046 (user
+    # ruling 2026-11-20) there is no word outside the banks: `status` owns the
+    # rd[0] slot and `ip` the rb[0] slot, so the frame is exactly 4 x 64 x 8.
     m = re.search(r"^K2 trap: entry=\S+ frame=\S+ frame_bytes=(\d+) "
                   r"banks=(\S+) ", text, re.MULTILINE)
     fields = m.group(2).split(",") if m else []
     rep.check("G11", "帧覆盖四组寄存器（rd,rb,ra,rf）",
               ["rd", "rb", "ra", "rf"], fields)
-    rep.check("G11", "frame_bytes == 组数×寄存器数×8 + ip/status",
-              (len(fields) * regs + 2) * 8, int(m.group(1)) if m else -1)
+    rep.check("G11", "frame_bytes == 组数×寄存器数×8（ip/status 在组内）",
+              len(fields) * regs * 8, int(m.group(1)) if m else -1)
 
     # The layout assertions are compile-time (ptrace.h); a stub that cannot see
     # them must not pass this group either.
     asserts = re.findall(r"_Static_assert\((.*?),\s*\n?\s*\"", _source(SRC_PTRACE),
                          re.DOTALL)
     rep.check("G12", "ptrace.h 带编译期布局断言（>=4 条）", True, len(asserts) >= 4)
-    rep.check("G12", "ptrace.h 断言钉住 ip/status 的 12 位立即数窗口（2048）",
-              True, any("2048" in a for a in asserts))
+    # What those assertions have to pin is the ruling's layout: four 64-slot
+    # banks with `status` at rd[0] (= 0) and `ip` at rb[0] (= 512), then ra at
+    # 1024 and rf at 1536 -- the offsets the signal frame writes and the asm
+    # offsets are derived from.
+    pinned = ("status)==0", "ip)==512", "ra)==1024", "rf)==1536")
+    squeezed = [a.replace(" ", "").replace("\n", "").replace("\t", "")
+                for a in asserts]
+    rep.check("G12", "ptrace.h 断言钉住裁定的帧偏移（status 0 / ip 512 / "
+              "ra 1024 / rf 1536）", [],
+              [needle for needle in pinned
+               if not any(needle in a for a in squeezed)])
 
 
 def check_four_banks_async(rep: Report, text: str, d: dict) -> None:

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/Makefile b/arch/dadao/kernel/Makefile
 new file mode 100644
-index 000000000..e0d8a1f17
+index 000000000..62e867c16
 --- /dev/null
 +++ b/arch/dadao/kernel/Makefile
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,47 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-y += head.o setup.o early_console.o syscall_table.o traps.o syscalls.o trap.o
 +# The syscall argument routing table (m14-linux-023): data, read by the
@@ -18,6 +18,9 @@ index 000000000..e0d8a1f17
 +# Entry/exit work loop (m14-linux-045): the generic `_TIF_WORK_MASK` tail of the
 +# umon entry and `arch_do_signal_or_restart()`.
 +obj-y += entry_common.o
++# Signal delivery (m14-linux-046): the rt_sigframe, the handler entry and
++# rt_sigreturn.
++obj-y += signal.o
 +# K2 self-test scaffolding: compiled only into a probe image.
 +obj-$(CONFIG_DADAO_K2_TRAP_SELFTEST) += k2_selftest.o
 +# K2 interrupt-enable knob self-test: probe image only.
@@ -42,6 +45,9 @@ index 000000000..e0d8a1f17
 +# Entry/exit work-loop probe (m14-linux-045): probe image only; a late_initcall
 +# that preempts a user-mode loop and raises a signal at it.
 +obj-$(CONFIG_DADAO_M45_ENTRY_SELFTEST) += m45_entry_selftest.o
++# Signal-frame probe (m14-linux-046): probe image only; a late_initcall that
++# raises signals at a user program and checks what `rt_sigreturn` restored.
++obj-$(CONFIG_DADAO_K5_SIGNAL_SELFTEST) += k5_signal_selftest.o
 +
 +# The final link needs arch/dadao/kernel/vmlinux.lds (preprocessed from .S).
 +always-$(KBUILD_BUILTIN) += vmlinux.lds

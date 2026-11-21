@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/trap.S b/arch/dadao/kernel/trap.S
 new file mode 100644
-index 000000000..b50d98467
+index 000000000..9c0713f53
 --- /dev/null
 +++ b/arch/dadao/kernel/trap.S
-@@ -0,0 +1,1192 @@
+@@ -0,0 +1,1474 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception vector (K2).
@@ -1147,6 +1147,288 @@ index 000000000..b50d98467
 +.Lm45_park:
 +	/* 34 */ jump	[rb0, .Lm45_park]
 +dadao_m45_user_stub_end:
++#endif
++
++	/*
++	 * ---- K5 signal probe: the user program (m14-linux-046) --------------
++	 *
++	 * Copied into a user-accessible code page and entered at its first
++	 * instruction (kernel/k5_signal_selftest.c), so it is position-independent
++	 * (labels only) and register-only.  Three scripts, selected by the kernel
++	 * in `rd11`, share the same prologue and the same trigger:
++	 *
++	 *   0  install a handler with `rt_sigaction` (no SA_ONSTACK), raise
++	 *      SIGUSR1, and after `rt_sigreturn` report the restored frame;
++	 *   1  raise SIGTERM with no handler: the default action must end the
++	 *      task (it never reaches the report);
++	 *   2  the same as 0 on an alternate stack (`sigaltstack` +
++	 *      SA_ONSTACK), so the handler reports where its frame really is.
++	 *
++	 * The kernel hands the program:
++	 *   rd11 = the script        rd12 = the handler     rd13 = the restorer
++	 *   rd14 = the trigger helper rd10 = a no-op callee  rb32 = the data page
++	 * and seeds the *callee-saved* banks (`rd32`-`rd63`, `rb32`-`rb63`,
++	 * `rf32`-`rf63`), `rd1` (rdernno) and `ra0` (`MRPTR` != 0, so the frame
++	 * carries a real MemRAS pointer — spec/SimRISC-00 §2.4).  The handler
++	 * deliberately scribbles over all of those, so "the handler saw what the
++	 * interrupted context had" and "the kernel put it back" are two separate
++	 * observations.
++	 *
++	 * The program's own checks that need the kernel's view of the frame are
++	 * the two probe-only umon functions the helper traps with: `0x2d01`
++	 * (raise: the kernel snapshots the frame and sends the signal) and
++	 * `0x2d02` (verify: the kernel compares the frame `rt_sigreturn` restored
++	 * with the snapshot).  Both are 4 bytes apart on purpose: the raise's
++	 * resume address is the verify itself, which is what makes "the restored
++	 * `ip` is where the task continues" observable.
++	 *
++	 * Data page layout (`M46_K_*` in kernel/k5_signal_selftest.c; the gate
++	 * cross-checks the two copies of every offset).
++	 */
++#ifdef CONFIG_DADAO_K5_SIGNAL_SELFTEST
++/* The three mapped windows the program touches (kernel C has the same set). */
++#define M46_CODE_VA		0x2000000000	/* 1 << 37 */
++#define M46_DATA_VA		0x8000000000	/* 1 << 39 */
++
++/* Data page: the objects the kernel pre-fills, the reports it reads back. */
++#define M46_K_ACT		0		/* struct sigaction, SA_RESTORER */
++#define M46_K_ACT_ALT		32		/* ... with SA_ONSTACK */
++#define M46_K_SS		64		/* stack_t for sigaltstack */
++#define M46_K_RF0		128		/* the FCSR word to write */
++#define M46_K_RF32		136
++#define M46_K_RF33		144
++#define M46_K_RF34		152
++#define M46_K_CLOBBER		160		/* what the handler scribbles */
++#define M46_K_CLOBBER_FCSR	168
++#define M46_K_FCSR_ARCH		176		/* user's read-back of rf0 */
++#define M46_K_EXP_RD33		184		/* expectations for the handler */
++#define M46_K_EXP_RD34		192
++#define M46_K_EXP_RD35		200
++#define M46_K_EXP_RB33		208
++#define M46_K_EXP_RB34		216
++#define M46_K_EXP_RB35		224
++#define M46_K_EXP_RA0		232
++#define M46_K_SAVED_SP		240
++#define M46_K_H_RUNS		248		/* the handler's reports */
++#define M46_K_H_SIG		256
++#define M46_K_H_INFO		264
++#define M46_K_H_UC		272
++#define M46_K_H_SP		280
++#define M46_K_H_UC_OFF		288		/* &uc - the frame */
++#define M46_K_H_INFO_OFF	296		/* &siginfo - the frame */
++#define M46_K_H_MISMATCH	304
++#define M46_K_SETUP_RET		312		/* rt_sigaction's answer */
++#define M46_K_SS_RET		320		/* sigaltstack's answer */
++#define M46_K_H_RAS		328		/* the entry below the pushed one */
++#define M46_K_H_RA62		336		/* ... and what the handler read there */
++#define M46_K_RAS_ADDR		512		/* the MemRAS buffer */
++
++/*
++ * `struct ucontext` member offsets, derived from uapi/asm/ucontext.h:
++ * uc_flags 8 + uc_link 8 + stack_t 24 + the 1024-bit mask area 128 = 168.
++ * kernel/signal.c pins the same number with a _Static_assert.
++ */
++#define M46_UC_MC		168
++#define M46_UC_RD(n)		(M46_UC_MC + (n) * 8)
++#define M46_UC_RB(n)		(M46_UC_MC + 512 + (n) * 8)
++#define M46_UC_RA(n)		(M46_UC_MC + 1024 + (n) * 8)
++#define M46_UC_RF(n)		(M46_UC_MC + 1536 + (n) * 8)
++
++/* uapi numbers (asm-generic table) and the probe's own umon functions. */
++#define M46_SIG			10		/* SIGUSR1 */
++#define M46_SYS_EXIT		93
++#define M46_SYS_SIGALTSTACK	132
++#define M46_SYS_RT_SIGACTION	134
++#define M46_SYS_RT_SIGRETURN	139
++#define M46_TRAP_RAISE		0x2d01
++#define M46_TRAP_VERIFY		0x2d02
++
++	.section .rodata,"a"
++	.p2align 2
++	.globl	dadao_m46_user_stub
++	.globl	dadao_m46_user_stub_end
++	.globl	dadao_m46_user_helper
++	.globl	dadao_m46_user_noop
++	.globl	dadao_m46_user_handler
++	.globl	dadao_m46_user_restorer
++dadao_m46_user_stub:
++	/* The banks the handler will scribble over (all callee-saved). */
++	/* (`rd7` is the kernel's: the instruction after the trigger's `call`, i.e.
++	 * the return address that call pushes — what the handler must still find
++	 * one slot below the restorer the frame pushed.  Not `rd9`: the script
++	 * dispatch below uses it.) */
++	set.rd	rd33, 0x3333
++	set.rd	rd34, 0x3434
++	set.rd	rd35, 0x3535
++	set.rb	rb33, 0x4343
++	set.rb	rb34, 0x4444
++	set.rb	rb35, 0x4545
++	/* The FP sentinels, then the FCSR: written through its masking write
++	 * port, so the value read back is the architectural one. */
++	ld.o	rf32, [rb32, M46_K_RF32]
++	ld.o	rf33, [rb32, M46_K_RF33]
++	ld.o	rf34, [rb32, M46_K_RF34]
++	ld.o	rf0,  [rb32, M46_K_RF0]
++	st.o	rf0,  [rb32, M46_K_FCSR_ARCH]
++	/* What the handler has to find in the frame image. */
++	st.o	rd33, [rb32, M46_K_EXP_RD33]
++	st.o	rd34, [rb32, M46_K_EXP_RD34]
++	st.o	rd35, [rb32, M46_K_EXP_RD35]
++	st.o	rb33, [rb32, M46_K_EXP_RB33]
++	st.o	rb34, [rb32, M46_K_EXP_RB34]
++	st.o	rb35, [rb32, M46_K_EXP_RB35]
++	st.o	rb1,  [rb32, M46_K_SAVED_SP]
++	/* Script dispatch. */
++	set.rd	rd9, 1
++	br.eq	{rd11, rd9}?, [rb0, .Lm46_trigger]	/* 1: default action */
++	set.rd	rd9, 2
++	br.eq	{rd11, rd9}?, [rb0, .Lm46_alt]		/* 2: altstack */
++	/* 0 (and anything else): the handler, on the normal stack. */
++	set.rd	rd16, M46_SIG
++	set.rb	rb16, M46_DATA_VA + M46_K_ACT
++	set.rb	rb17, 0
++	set.rd	rd17, 8
++	set.rd	rd15, M46_SYS_RT_SIGACTION
++	trap	cfx_umon, 0
++	rd2rd	rd31, rd8, 1
++	st.o	rd31, [rb32, M46_K_SETUP_RET]
++	jump	[rb0, .Lm46_trigger]
++.Lm46_alt:
++	set.rb	rb16, M46_DATA_VA + M46_K_SS
++	set.rb	rb17, 0
++	set.rd	rd15, M46_SYS_SIGALTSTACK
++	trap	cfx_umon, 0
++	rd2rd	rd31, rd8, 1
++	st.o	rd31, [rb32, M46_K_SS_RET]
++	set.rd	rd16, M46_SIG
++	set.rb	rb16, M46_DATA_VA + M46_K_ACT_ALT
++	set.rb	rb17, 0
++	set.rd	rd17, 8
++	set.rd	rd15, M46_SYS_RT_SIGACTION
++	trap	cfx_umon, 0
++	rd2rd	rd31, rd8, 1
++	st.o	rd31, [rb32, M46_K_SETUP_RET]
++.Lm46_trigger:
++	/* A real call, so the frame the signal arrives in has a live RAS entry
++	 * (RACNT = 1) and a return address of its own to preserve. */
++	rd2rb	rb5, rd14, 1
++	call	[rb5, rd0, 0]
++	.globl	dadao_m46_user_back
++dadao_m46_user_back:
++	set.rd	rd16, 0
++	set.rd	rd15, M46_SYS_EXIT
++	trap	cfx_umon, 0			/* does not return */
++.Lm46_park:
++	jump	[rb0, .Lm46_park]
++
++	/*
++	 * The callee the program's trigger `call`s: raise, then (once the signal
++	 * handler has returned through `rt_sigreturn`) verify.
++	 */
++	.globl	dadao_m46_user_helper
++	.globl	dadao_m46_user_back
++	.p2align 2
++dadao_m46_user_helper:
++	/* The `ra0` word as the raise trap will save it: the program's own `call`
++	 * into this helper has already pushed its entry (RACNT = 1), and the
++	 * frame has to carry exactly this word. */
++	ra2rd	rd30, ra0, 1
++	st.o	rd30, [rb32, M46_K_EXP_RA0]
++	trap	cfx_umon, M46_TRAP_RAISE
++	trap	cfx_umon, M46_TRAP_VERIFY
++	ret	rd0, 0
++
++	/* A balanced callee for the handler: the RAS must come back as it was
++	 * (spec/SimRISC-00 §2.4: a handler may use call/ret). */
++	.globl	dadao_m46_user_noop
++	.p2align 2
++dadao_m46_user_noop:
++	ret	rd0, 0
++
++	/*
++	 * The handler.  Arguments: rd16 = the signal, rb16 = &siginfo,
++	 * rb17 = &uc (contract-abi §4.1).  It (a) checks the frame image it was
++	 * handed against what the program put in the registers, (b) makes one
++	 * balanced call, and (c) scribbles over every callee-saved bank, so the
++	 * post-`rt_sigreturn` comparison in the kernel cannot be satisfied by
++	 * the handler having been polite.
++	 */
++	.macro	M46_CMP_CASE ctxoff, dataoff, tag
++	ld.o	rd21, [rb17, \ctxoff]
++	ld.o	rd22, [rb32, \dataoff]
++	xor.o	rd23, rd21, rd22
++	br.z	{rd23}?, [rb0, \tag]
++	add.si	rd20, 1
++\tag:
++	.endm
++
++	.globl	dadao_m46_user_handler
++	.p2align 2
++dadao_m46_user_handler:
++	set.rd	rd19, 1
++	st.o	rd19, [rb32, M46_K_H_RUNS]
++	st.o	rd16, [rb32, M46_K_H_SIG]
++	st.o	rb16, [rb32, M46_K_H_INFO]
++	st.o	rb17, [rb32, M46_K_H_UC]
++	st.o	rb1,  [rb32, M46_K_H_SP]
++	sub.o	rd23, rb16, rb1			/* &siginfo is the frame itself */
++	st.o	rd23, [rb32, M46_K_H_INFO_OFF]
++	sub.o	rd23, rb17, rb1			/* &uc is `sizeof(siginfo)` in */
++	st.o	rd23, [rb32, M46_K_H_UC_OFF]
++	set.rd	rd20, 0				/* mismatch count */
++	M46_CMP_CASE M46_UC_RD(33), M46_K_EXP_RD33, .Lm46_c1
++	M46_CMP_CASE M46_UC_RD(34), M46_K_EXP_RD34, .Lm46_c2
++	M46_CMP_CASE M46_UC_RD(35), M46_K_EXP_RD35, .Lm46_c3
++	M46_CMP_CASE M46_UC_RB(33), M46_K_EXP_RB33, .Lm46_c4
++	M46_CMP_CASE M46_UC_RB(34), M46_K_EXP_RB34, .Lm46_c5
++	M46_CMP_CASE M46_UC_RB(35), M46_K_EXP_RB35, .Lm46_c6
++	M46_CMP_CASE M46_UC_RB(1),  M46_K_SAVED_SP, .Lm46_c7
++	M46_CMP_CASE M46_UC_RA(0),  M46_K_EXP_RA0, .Lm46_c8
++	M46_CMP_CASE M46_UC_RF(0),  M46_K_FCSR_ARCH, .Lm46_c9
++	M46_CMP_CASE M46_UC_RF(32), M46_K_RF32, .Lm46_c10
++	M46_CMP_CASE M46_UC_RF(33), M46_K_RF33, .Lm46_c11
++	M46_CMP_CASE M46_UC_RF(34), M46_K_RF34, .Lm46_c12
++	/* ... and the signal number came in the data bank's first slot. */
++	set.rd	rd24, M46_SIG
++	xor.o	rd23, rd16, rd24
++	br.z	{rd23}?, [rb0, .Lm46_c13]
++	add.si	rd20, 1
++.Lm46_c13:
++	/* The RAS the handler inherits: ours (the restorer) on top, the program's
++	 * own `call` right below it (spec/SimRISC-00 §2.4: 第 k 新 = ra[64-k]). */
++	ra2rd	rd21, ra62, 1
++	st.o	rd21, [rb32, M46_K_H_RA62]
++	xor.o	rd23, rd21, rd7
++	set.rd	rd19, 1
++	br.z	{rd23}?, [rb0, .Lm46_ras_ok]
++	set.rd	rd19, 0
++.Lm46_ras_ok:
++	st.o	rd19, [rb32, M46_K_H_RAS]
++	st.o	rd20, [rb32, M46_K_H_MISMATCH]
++	rd2rb	rb5, rd10, 1
++	call	[rb5, rd0, 0]			/* a balanced RAS use */
++	/* Now be a badly-behaved handler: the kernel must not care. */
++	set.rd	rd33, 0xdead1
++	set.rd	rd34, 0xdead2
++	set.rd	rd35, 0xdead3
++	set.rb	rb33, 0xdead4
++	set.rb	rb34, 0xdead5
++	set.rb	rb35, 0xdead6
++	set.rb	rb2,  0xdead7
++	set.rd	rd1,  0xdead8
++	ld.o	rf32, [rb32, M46_K_CLOBBER]
++	ld.o	rf33, [rb32, M46_K_CLOBBER]
++	ld.o	rf0,  [rb32, M46_K_CLOBBER_FCSR]
++	ret	rd0, 0				/* -> the restorer (SA_RESTORER) */
++
++	/* The trampoline the frame's pushed return address points at. */
++	.globl	dadao_m46_user_restorer
++	.p2align 2
++dadao_m46_user_restorer:
++	set.rd	rd15, M46_SYS_RT_SIGRETURN
++	trap	cfx_umon, 0
++	jump	[rb0, .Lm46_park]		/* does not return */
++dadao_m46_user_stub_end:
 +#endif
 +
 +	/*

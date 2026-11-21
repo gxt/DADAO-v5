@@ -1,0 +1,671 @@
+diff --git a/arch/dadao/kernel/k5_signal_selftest.c b/arch/dadao/kernel/k5_signal_selftest.c
+new file mode 100644
+index 000000000..5a18ff202
+--- /dev/null
++++ b/arch/dadao/kernel/k5_signal_selftest.c
+@@ -0,0 +1,665 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Signal-frame probe (CONFIG_DADAO_K5_SIGNAL_SELFTEST, m14-linux-046).
++ *
++ * One image, one user program (`kernel/trap.S`, three scripts), and the facts
++ * the task is about — none of which a static reading of the source can show:
++ *
++ *   S2  the frame round trip.  A handler installed with `rt_sigaction`
++ *       (SA_RESTORER, no SA_ONSTACK) runs with SIGUSR1; it checks the frame
++ *       image it was handed against what the program put in the registers, makes
++ *       one balanced `call`, and then scribbles over every callee-saved bank
++ *       (`rd32`-`rd63`, `rb32`-`rb63`, `rf32`-`rf63`, `rb2`, `rd1`, the FCSR).
++ *       When it returns, the restorer's `rt_sigreturn` must put the interrupted
++ *       context back **bit for bit**: the `ra` stack (RACNT and MRPTR
++ *       included), the FCSR, every register, and `ip` — which is the raise
++ *       trap's own `+4`, i.e. the instruction after it.
++ *
++ *   S3  the default action.  The same program raises SIGTERM with no handler
++ *       (a fresh sighand, so SIG_DFL): the task must die from the signal, and
++ *       the boot task must see that in its exit status.
++ *
++ *   S4  the alternate stack.  The same round trip with `sigaltstack(2)` +
++ *       SA_ONSTACK: the frame must be built on the alternate stack, and the
++ *       handler must still see the interrupted context.
++ *
++ * What each side observes, and why that is not self-comparison:
++ *
++ *   - the *program* stores the values it put in the registers (and the `ra0`
++ *     word it read out of the hardware) into the data page, so the handler's
++ *     comparison is "the frame the kernel built" vs "the registers the program
++ *     set" — two independent facts;
++ *   - the *kernel* snapshots `struct pt_regs` at the raise trap and compares it
++ *     with the frame the verify trap captured after `rt_sigreturn`, so the
++ *     round trip is judged on the hardware-visible context, not on the frame
++ *     image the kernel itself wrote.
++ *
++ * The console is what the gate reads: one `M46 check <name> want=.. got=..`
++ * line per assertion (with a `ok`/`FAIL` verdict), plus the raw numbers as
++ * `M46 ...` lines.  The exit only ever uses this probe's own segment
++ * (spec/Kaiwu §7.1: 0x01-0x7f; m45 owns 0x70-0x72, this probe takes 0x73-0x75).
++ *
++ * Nothing here is part of a milestone image: the hook it needs
++ * (`dadao_m46_user_trap()`) is compiled in only when this symbol is set.
++ */
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/mman.h>
++#include <linux/mm.h>
++#include <linux/sched.h>
++#include <linux/sched/mm.h>
++#include <linux/sched/signal.h>
++#include <linux/sched/task.h>
++#include <linux/sched/task_stack.h>
++#include <linux/signal.h>
++#include <linux/string.h>
++#include <linux/types.h>
++#include <linux/uaccess.h>
++
++#include <asm/mmu_context.h>
++#include <asm/page.h>
++#include <asm/ptrace.h>
++#include <asm/setup.h>
++#include <asm/syscall.h>
++#include <asm/time.h>
++#include <asm/trap.h>
++
++/* Guest FAIL segment (spec/Kaiwu §7.1, 0x01-0x7f): this probe owns 0x73-0x75. */
++#define M46_FAIL_SETUP		0x73
++#define M46_FAIL_S2		0x74
++#define M46_FAIL_S3		0x75
++#define M46_FAIL_S4		0x75
++
++/* The three windows: code, the program's stack, the data page, the altstack. */
++#define M46_CODE_VA		(1UL << 37)
++#define M46_STACK_VA		(1UL << 38)
++#define M46_DATA_VA		(1UL << 39)
++#define M46_ALT_VA		(1UL << 40)
++
++/*
++ * Every offset of the data-page contract with the user program.  The program's
++ * copy is in `kernel/trap.S` (`M46_K_*`); the gate cross-checks the two, so a
++ * drift is a FAIL rather than a silent disagreement.
++ */
++#define M46_K_ACT		0	/* struct sigaction (SA_RESTORER) */
++#define M46_K_ACT_ALT		32	/* struct sigaction (SA_ONSTACK too) */
++#define M46_K_SS		64	/* stack_t for sigaltstack(2) */
++#define M46_K_RF0		128	/* the FCSR word the program writes */
++#define M46_K_RF32		136
++#define M46_K_RF33		144
++#define M46_K_RF34		152
++#define M46_K_CLOBBER		160	/* what the handler scribbles */
++#define M46_K_CLOBBER_FCSR	168
++#define M46_K_FCSR_ARCH		176	/* the program's read-back of rf0 */
++#define M46_K_EXP_RD33		184
++#define M46_K_EXP_RD34		192
++#define M46_K_EXP_RD35		200
++#define M46_K_EXP_RB33		208
++#define M46_K_EXP_RB34		216
++#define M46_K_EXP_RB35		224
++#define M46_K_EXP_RA0		232
++#define M46_K_SAVED_SP		240
++#define M46_K_H_RUNS		248
++#define M46_K_H_SIG		256
++#define M46_K_H_INFO		264
++#define M46_K_H_UC		272
++#define M46_K_H_SP		280
++#define M46_K_H_UC_OFF		288
++#define M46_K_H_INFO_OFF	296
++#define M46_K_H_MISMATCH	304
++#define M46_K_SETUP_RET		312
++#define M46_K_SS_RET		320
++#define M46_K_H_RAS		328	/* did the handler see the program's */
++					/* own `call` entry?               */
++#define M46_K_H_RA62		336	/* what the handler read at ra[62] */
++#define M46_K_RAS_ADDR		512	/* the MemRAS buffer (never spilled) */
++/* The first report slot: everything from here is cleared before each phase. */
++#define M46_K_REPORT_FIRST	M46_K_H_RUNS
++
++/* The probe's own umon functions (kernel/trap.S). */
++#define M46_TRAP_RAISE		0x2d01
++#define M46_TRAP_VERIFY		0x2d02
++
++/* SIGUSR1 for the handled round trip; SIGTERM is the default action. */
++#define M46_SIG			SIGUSR1
++
++/* The three scripts the program runs. */
++#define M46_SCRIPT_RT		0
++#define M46_SCRIPT_DEFAULT	1
++#define M46_SCRIPT_ALTSTACK	2
++
++/* The sentinels the kernel seeds and the handler must not be able to keep. */
++#define M46_RD_SENTINEL		0x4d46524400000000UL	/* "MFRD" */
++#define M46_RB_SENTINEL		0x4d46524200000000UL	/* "MFRB" */
++#define M46_RF_SENTINEL		0x4d46524600000000UL	/* "MFRF" */
++#define M46_RD1_SENTINEL	0x4d46524400000001UL
++#define M46_RF0_WRITE		0xffffffffffffffffUL	/* every writable bit set */
++#define M46_RF32_SENTINEL	0x4d46524633320000UL
++#define M46_RF33_SENTINEL	0x4d46524633330000UL
++#define M46_RF34_SENTINEL	0x4d46524633340000UL
++#define M46_CLOBBER		0x5a5a5a5a5a5a5a5aUL
++
++/* The program's RAS depth at the raise trap: its own `call` into the helper. */
++#define M46_RACNT_EXPECT	1
++
++/* Bounded rounds for the exit-state poll (each yields: the child must run). */
++#define M46_WAIT_ROUNDS		4000
++
++extern const char dadao_m46_user_stub[];
++extern const char dadao_m46_user_stub_end[];
++extern const char dadao_m46_user_helper[];
++extern const char dadao_m46_user_noop[];
++extern const char dadao_m46_user_back[];
++extern const char dadao_m46_user_handler[];
++extern const char dadao_m46_user_restorer[];
++
++/* Called from kernel/process.c (kernel/trap.S's dispatcher). */
++int dadao_m46_user_trap(struct pt_regs *regs, unsigned long immu18,
++			unsigned long *policy);
++
++static struct mm_struct *m46_mm;
++static struct page *m46_code_page;
++static struct page *m46_data_page;
++static struct pt_regs m46_user_frame;		/* one hart, one program */
++static struct pt_regs m46_snapshot;		/* the raise trap's frame */
++static unsigned int m46_snapshot_script;
++static unsigned int m46_snapshot_valid;
++static unsigned int m46_script;
++static int m46_child_pid;
++static unsigned int m46_failed;
++static unsigned int m46_raise_seen;
++static unsigned int m46_verify_seen;
++static unsigned int m46_altframe_seen;
++
++/* -------------------------------------------------------------------------
++ * reporting
++ * ------------------------------------------------------------------------- */
++
++static void __noreturn m46_fail(unsigned int code, const char *what,
++				unsigned long value)
++{
++	dadao_early_printf("M46 selftest FAIL: %s=%#lx code=%#x\n", what, value,
++			   code);
++	dadao_early_exit(code);
++}
++
++static void m46_expect(const char *tag, const char *name, unsigned long want,
++		       unsigned long got, unsigned int code)
++{
++	int ok = want == got;
++
++	dadao_early_printf("M46 check %s-%s want=%#lx got=%#lx %s\n", tag, name,
++			   want, got, ok ? "ok" : "FAIL");
++	if (!ok)
++		m46_failed |= code;
++}
++
++/* The first differing slot of one bank, printed before the verdict. */
++static void m46_bank_check(const char *tag, const char *bank,
++			   const unsigned long *got_arr,
++			   const unsigned long *want_arr, unsigned int from,
++			   unsigned int code)
++{
++	unsigned long mismatches = 0, first = 0, want = 0, got = 0;
++	unsigned int i;
++
++	for (i = from; i < 64; i++) {
++		if (got_arr[i] == want_arr[i])
++			continue;
++		if (!mismatches) {
++			first = i;
++			want = want_arr[i];
++			got = got_arr[i];
++		}
++		mismatches++;
++	}
++	dadao_early_printf("M46 frame %s bank=%s from=%u mismatches=%lu "
++			   "first=%lu want=%#lx got=%#lx\n", tag, bank, from,
++			   mismatches, first, want, got);
++	m46_expect(tag, bank, 0, mismatches, code);
++}
++
++/* -------------------------------------------------------------------------
++ * the data page: the objects the program uses, and the reports it leaves
++ * ------------------------------------------------------------------------- */
++
++static unsigned long m46_code_addr(const char *sym)
++{
++	return M46_CODE_VA +
++	       (unsigned long)(sym - dadao_m46_user_stub);
++}
++
++static void m46_put64_offset(void *page, unsigned int off, unsigned long value)
++{
++	memcpy((char *)page + off, &value, sizeof(value));
++}
++
++static void m46_fill_data_page(void)
++{
++	void *page = page_address(m46_data_page);
++	struct sigaction act;
++	stack_t ss;
++
++	memset(page, 0, PAGE_SIZE);
++
++	/* The handled round trip: a restorer (SA_RESTORER) and nothing else. */
++	memset(&act, 0, sizeof(act));
++	act.sa_handler = (__sighandler_t)m46_code_addr(dadao_m46_user_handler);
++	act.sa_flags = SA_RESTORER;
++	act.sa_restorer = (__sigrestore_t)m46_code_addr(dadao_m46_user_restorer);
++	memcpy((char *)page + M46_K_ACT, &act, sizeof(act));
++
++	/* The same handler, on the alternate stack this time. */
++	memset(&act, 0, sizeof(act));
++	act.sa_handler = (__sighandler_t)m46_code_addr(dadao_m46_user_handler);
++	act.sa_flags = SA_RESTORER | SA_ONSTACK;
++	act.sa_restorer = (__sigrestore_t)m46_code_addr(dadao_m46_user_restorer);
++	memcpy((char *)page + M46_K_ACT_ALT, &act, sizeof(act));
++
++	memset(&ss, 0, sizeof(ss));
++	ss.ss_sp = (void __user *)M46_ALT_VA;
++	ss.ss_flags = 0;
++	ss.ss_size = PAGE_SIZE;
++	memcpy((char *)page + M46_K_SS, &ss, sizeof(ss));
++
++	/* The floating-point words: the FCSR's raw write value (the write port
++	 * keeps the read-only qNaN bits and takes [33:32]+[4:0]) and three
++	 * ordinary rf registers, plus what a badly-behaved handler scribbles. */
++	m46_put64_offset(page, M46_K_RF0, M46_RF0_WRITE);
++	m46_put64_offset(page, M46_K_RF32, M46_RF32_SENTINEL);
++	m46_put64_offset(page, M46_K_RF33, M46_RF33_SENTINEL);
++	m46_put64_offset(page, M46_K_RF34, M46_RF34_SENTINEL);
++	m46_put64_offset(page, M46_K_CLOBBER, M46_CLOBBER);
++	m46_put64_offset(page, M46_K_CLOBBER_FCSR, 0);
++
++	/* The MemRAS the frame's `ra0` points at (`MRPTR != 0`).  The program's
++	 * RAS depth never reaches a spill, so the buffer stays untouched — what
++	 * the round trip proves is that the *pointer* survives bit for bit. */
++	m46_put64_offset(page, M46_K_RAS_ADDR, 0);
++}
++
++/* Clear only the report half, so the pre-filled objects survive. */
++static void m46_clear_reports(void)
++{
++	memset((char *)page_address(m46_data_page) + M46_K_REPORT_FIRST, 0,
++	       PAGE_SIZE - M46_K_REPORT_FIRST);
++}
++
++static int m46_read_report(unsigned int off, unsigned long *value)
++{
++	return __get_user(*value,
++			  (unsigned long __user *)(M46_DATA_VA + off)) ? -EFAULT
++								       : 0;
++}
++
++/* -------------------------------------------------------------------------
++ * the two frames the kernel judges: the snapshot and the one sigreturn restored
++ * ------------------------------------------------------------------------- */
++
++static void m46_compare_frame(const char *tag, struct pt_regs *regs)
++{
++	unsigned int code = strcmp(tag, "s4") == 0 ? M46_FAIL_S4 : M46_FAIL_S2;
++
++	m46_bank_check(tag, "rd-bank", regs->rd, m46_snapshot.rd, 0, code);
++	m46_bank_check(tag, "rb-bank", regs->rb, m46_snapshot.rb, 1, code);
++	m46_bank_check(tag, "ra-bank", regs->ra, m46_snapshot.ra, 0, code);
++	m46_bank_check(tag, "rf-bank", regs->rf, m46_snapshot.rf, 0, code);
++	/*
++	 * `ip` (the frame's `rb[0]`): the interrupted context resumes four bytes
++	 * past the trap it was taken at, which is exactly the instruction the
++	 * program put after it.
++	 */
++	m46_expect(tag, "resume-ip", m46_snapshot.ip + DADAO_INSN_BYTES, regs->ip,
++		   code);
++}
++
++static void m46_verify(struct pt_regs *regs)
++{
++	unsigned long runs = 0, sig = 0, info_off = 0, uc_off = 0, sp = 0;
++	unsigned long mismatch = 0, setup_ret = 0, ss_ret = 0, fcsr_arch = 0;
++	unsigned long h_ras = 0, h_ra62 = 0;
++	unsigned long raw_ra0, racnt, mrptr;
++	const char *tag;
++	unsigned int code;
++
++	m46_verify_seen++;
++
++	/* The phase is the script the *snapshot* was taken with: the frame the
++	 * program carried across the handler is the restored one, so its own
++	 * `rd11` is the same value again. */
++	if (!m46_snapshot_valid)
++		m46_fail(M46_FAIL_SETUP, "verify without snapshot", 0);
++	tag = m46_snapshot_script == M46_SCRIPT_ALTSTACK ? "s4" : "s2";
++	code = m46_snapshot_script == M46_SCRIPT_ALTSTACK ? M46_FAIL_S4
++							 : M46_FAIL_S2;
++
++	m46_read_report(M46_K_H_RUNS, &runs);
++	m46_read_report(M46_K_H_SIG, &sig);
++	m46_read_report(M46_K_H_INFO_OFF, &info_off);
++	m46_read_report(M46_K_H_UC_OFF, &uc_off);
++	m46_read_report(M46_K_H_SP, &sp);
++	m46_read_report(M46_K_H_MISMATCH, &mismatch);
++	m46_read_report(M46_K_SETUP_RET, &setup_ret);
++	m46_read_report(M46_K_SS_RET, &ss_ret);
++	m46_read_report(M46_K_FCSR_ARCH, &fcsr_arch);
++	m46_read_report(M46_K_H_RAS, &h_ras);
++	m46_read_report(M46_K_H_RA62, &h_ra62);
++
++	raw_ra0 = m46_snapshot.ra[0];
++	racnt = (raw_ra0 >> 48) & 0x3fUL;
++	mrptr = raw_ra0 & 0x0000ffffffffffffUL;
++
++	dadao_early_printf("M46 %s: handler=%lu sig=#%lu info_off=%#lx "
++			   "uc_off=%#lx sp=%#lx mismatch=%lu setup=%ld ss=%ld "
++			   "fcsr=%#lx ra0=%#lx ras_below=%lu ra62=%#lx "
++			   "want=%#lx\n", tag, runs, sig, info_off, uc_off, sp,
++			   mismatch, (long)setup_ret, (long)ss_ret, fcsr_arch,
++			   raw_ra0, h_ras, h_ra62, m46_snapshot.rd[7]);
++
++	/* The handler ran, was entered the way the frame layout says, and the
++	 * image it read is the interrupted context the program set up. */
++	m46_expect(tag, "handler-runs", 1, runs, code);
++	m46_expect(tag, "handler-sig", M46_SIG, sig, code);
++	m46_expect(tag, "handler-info-off", 0, info_off, code);
++	m46_expect(tag, "handler-uc-off", sizeof(struct siginfo), uc_off, code);
++	m46_expect(tag, "handler-frame-image", 0, mismatch, code);
++	/*
++	 * The pushed restorer is the RAS *top*, so the program's own `call` entry
++	 * must still be the slot below it: the push moves the window down, it does
++	 * not overwrite the entries it inherits (spec/SimRISC-00 §2.4.1 C3a).
++	 */
++	m46_expect(tag, "handler-ras-below", 1, h_ras, code);
++	m46_expect(tag, "setup-ret", 0, (unsigned long)(long)setup_ret, code);
++
++	/* The frame's own facts: a live RAS depth, a real MemRAS pointer, and a
++	 * status word that says "this frame came from user mode". */
++	m46_expect(tag, "snapshot-racnt", M46_RACNT_EXPECT, racnt, code);
++	m46_expect(tag, "snapshot-mrptr", M46_K_RAS_ADDR + M46_DATA_VA, mrptr,
++		   code);
++	m46_expect(tag, "snapshot-status", DADAO_STATUS_USER,
++		   m46_snapshot.rd[0], code);
++
++	/* The FCSR really was written through its masking port: what the program
++	 * read back is the architectural value (and not the raw word), and that
++	 * is what both the snapshot and the restored frame carry. */
++	m46_expect(tag, "fcsr-masked", 1, fcsr_arch != M46_RF0_WRITE, code);
++	m46_expect(tag, "fcsr-snapshot-arch", fcsr_arch, m46_snapshot.rf[0], code);
++
++	/* Where the handler ran: below the interrupted SP (and 16-aligned) on the
++	 * normal stack, or inside the alternate stack when SA_ONSTACK asked. */
++	if (m46_snapshot_script == M46_SCRIPT_ALTSTACK) {
++		unsigned long alt_top = M46_ALT_VA + PAGE_SIZE;
++
++		m46_altframe_seen++;
++		m46_expect(tag, "ss-ret", 0, (unsigned long)(long)ss_ret, code);
++		m46_expect(tag, "handler-sp-in-altstack", 1,
++			   sp >= M46_ALT_VA && sp < alt_top, code);
++	} else {
++		unsigned long user_sp = m46_snapshot.rb[1];
++
++		m46_expect(tag, "handler-sp-below-user-sp", 1,
++			   sp <= user_sp && sp >= user_sp - 4096, code);
++	}
++	m46_expect(tag, "handler-sp-aligned", 0, sp & 0xfUL, code);
++
++	/* ... and the whole context came back: banks, FCSR, `ip`. */
++	m46_compare_frame(tag, regs);
++}
++
++/* -------------------------------------------------------------------------
++ * the hook kernel/process.c calls for every umon trap
++ * ------------------------------------------------------------------------- */
++
++int dadao_m46_user_trap(struct pt_regs *regs, unsigned long immu18,
++			unsigned long *policy)
++{
++	if (immu18 == M46_TRAP_RAISE) {
++		m46_raise_seen++;
++		if (regs->rd[11] == M46_SCRIPT_DEFAULT) {
++			/* No handler in this phase's sighand: SIG_DFL must end
++			 * the task on the way back to user mode. */
++			force_sig(SIGTERM);
++			*policy = DADAO_TRAP_RESUME_SKIP;
++			return 1;
++		}
++		/* The frame the interrupted context is interrupted *in*: this is
++		 * what `rt_sigreturn` has to reproduce. */
++		m46_snapshot = *regs;
++		m46_snapshot_script = (unsigned int)regs->rd[11];
++		m46_snapshot_valid = 1;
++		force_sig(M46_SIG);
++		*policy = DADAO_TRAP_RESUME_SKIP;
++		return 1;
++	}
++	if (immu18 == M46_TRAP_VERIFY) {
++		m46_verify(regs);
++		*policy = DADAO_TRAP_RESUME_SKIP;
++		return 1;
++	}
++	return 0;
++}
++
++/* -------------------------------------------------------------------------
++ * the program, its address space and its exit
++ * ------------------------------------------------------------------------- */
++
++static int m46_child_task(void *arg)
++{
++	struct pt_regs *frame = &m46_user_frame;
++	unsigned int i;
++
++	(void)arg;
++	/*
++	 * The child adopts the probe's address space: `mmget()` first, so the
++	 * reference it drops when it exits (`exit_mm()` -> `mmput()`) is its own
++	 * and the probes' three phases keep seeing the same, live `mm` — without
++	 * it the first child's exit tears the VMAs down and the next phase dies
++	 * in the fault channel ("die-no-vma", measured).
++	 */
++	mmget(m46_mm);
++	current->mm = m46_mm;
++	current->active_mm = m46_mm;
++	dadao_switch_mm(NULL, m46_mm, current);
++
++	memset(frame, 0, sizeof(*frame));
++	frame->ip = M46_CODE_VA;
++	frame->rb[1] = M46_STACK_VA + PAGE_SIZE;
++	frame->status = DADAO_STATUS_USER;
++	/* What the program uses: the script, the three code addresses it cannot
++	 * form itself (the image is copy-relocated), the data page, and a
++	 * sentinel in the reserved `rderrno`. */
++	/*
++	 * The entry the program's own `call` pushed: recursion count 1 in
++	 * [63:48] and the return address in [47:0] (spec/SimRISC-00 §2.4.1: C1
++	 * and every ordinary push write count = 1).  The handler compares the
++	 * whole word, so the count is checked too.
++	 */
++	frame->rd[7] = 0x0001000000000000UL | m46_code_addr(dadao_m46_user_back);
++	frame->rd[10] = m46_code_addr(dadao_m46_user_noop);
++	frame->rd[11] = m46_script;
++	frame->rd[12] = m46_code_addr(dadao_m46_user_handler);
++	frame->rd[13] = m46_code_addr(dadao_m46_user_restorer);
++	frame->rd[14] = m46_code_addr(dadao_m46_user_helper);
++	frame->rd[1] = M46_RD1_SENTINEL;
++	/* The callee-saved banks: the handler will scribble over them, so they
++	 * are what "the kernel put the interrupted context back" is measured on.
++	 * `rb32` is the data-page pointer the program needs. */
++	for (i = 32; i < 64; i++) {
++		frame->rd[i] = M46_RD_SENTINEL | i;
++		frame->rb[i] = i == 32 ? M46_DATA_VA : (M46_RB_SENTINEL | i);
++		frame->rf[i] = M46_RF_SENTINEL | i;
++	}
++	frame->rf[0] = M46_RF0_WRITE;
++	/* `MRPTR != 0` with `RACNT = 0`: the process allocated a MemRAS
++	 * (spec/SimRISC-00 §2.4), so the `ra0` word the round trip carries is a
++	 * real pointer and not a zero that compares equal to itself. */
++	frame->ra[0] = M46_DATA_VA + M46_K_RAS_ADDR;
++
++	dadao_enter_user(frame);		/* never returns */
++}
++
++/*
++ * @shared: the page is filled by the kernel and written by the program, so it
++ * must be mapped **shared**.  A MAP_PRIVATE mapping copy-on-writes it on the
++ * program's first write, and from then on the kernel's own view of the page
++ * (the direct map, used to clear the report area between phases) and the
++ * program's are two different pages — measured: a cleared report still read
++ * back as the old value through the user VA.
++ */
++static void m46_map(struct page *page, unsigned long va, unsigned long prot,
++		    bool shared)
++{
++	struct mm_struct *saved = current->mm;
++	struct vm_area_struct *vma;
++	unsigned long flags = MAP_FIXED | MAP_ANONYMOUS;
++	unsigned long addr;
++
++	if (shared)
++		flags |= MAP_SHARED;
++	else
++		flags |= MAP_PRIVATE;
++
++	current->mm = m46_mm;
++	addr = vm_mmap(NULL, va, PAGE_SIZE, prot, flags, 0);
++	if (addr != va)
++		m46_fail(M46_FAIL_SETUP, "vm_mmap", addr);
++
++	if (page) {
++		mmap_write_lock(m46_mm);
++		vma = find_vma(m46_mm, va);
++		if (!vma)
++			m46_fail(M46_FAIL_SETUP, "find_vma", va);
++		vm_flags_set(vma, VM_MIXEDMAP);
++		if (vm_insert_page(vma, va, page))
++			m46_fail(M46_FAIL_SETUP, "vm_insert_page", va);
++		mmap_write_unlock(m46_mm);
++	}
++	current->mm = saved;
++}
++
++static void m46_wait_child(unsigned long *exit_code, unsigned int *state)
++{
++	int i;
++
++	for (i = 0; i < M46_WAIT_ROUNDS; i++) {
++		struct pid *pid = find_get_pid(m46_child_pid);
++		struct task_struct *child = pid ? get_pid_task(pid, PIDTYPE_PID)
++						: NULL;
++
++		if (child) {
++			*exit_code = (unsigned long)child->exit_code;
++			*state = child->exit_state;
++			put_task_struct(child);
++		}
++		put_pid(pid);
++		if (*state == EXIT_ZOMBIE)
++			break;
++		schedule();
++	}
++}
++
++static int m46_run_phase(unsigned int script, unsigned long *exit_code,
++			 unsigned int *state)
++{
++	struct kernel_clone_args args = { .flags = 0, .exit_signal = SIGCHLD };
++	int pid;
++
++	m46_snapshot_valid = 0;
++	m46_clear_reports();
++	m46_script = script;
++	m46_child_pid = 0;
++
++	args.fn = m46_child_task;
++	pid = kernel_clone(&args);
++	if (pid <= 0)
++		m46_fail(M46_FAIL_SETUP, "child clone", (unsigned long)pid);
++	m46_child_pid = pid;
++
++	*exit_code = ~0UL;
++	*state = 0;
++	m46_wait_child(exit_code, state);
++	return 0;
++}
++
++/* -------------------------------------------------------------------------
++ * the probe
++ * ------------------------------------------------------------------------- */
++
++static void __noreturn dadao_m46_signal_selftest(void)
++{
++	unsigned long exit_code;
++	unsigned int state;
++	unsigned long size;
++
++	dadao_early_printf("M46 selftest: begin pid=%d mm=%lu\n", current->pid,
++			   (unsigned long)(current->mm ? 1 : 0));
++
++	/* No tick during the probe: this is about signal delivery, and a
++	 * preemption in the middle of a phase would only add noise. */
++	dadao_clockevent_stop();
++
++	size = (unsigned long)(dadao_m46_user_stub_end - dadao_m46_user_stub);
++	if (size > PAGE_SIZE)
++		m46_fail(M46_FAIL_SETUP, "stub size", size);
++
++	m46_code_page = alloc_page(GFP_KERNEL | __GFP_ZERO);
++	m46_data_page = alloc_page(GFP_KERNEL | __GFP_ZERO);
++	if (!m46_code_page || !m46_data_page)
++		m46_fail(M46_FAIL_SETUP, "alloc_page", 0);
++	memcpy(page_address(m46_code_page), dadao_m46_user_stub, size);
++	m46_fill_data_page();
++
++	m46_mm = mm_alloc();
++	if (!m46_mm)
++		m46_fail(M46_FAIL_SETUP, "mm_alloc", 0);
++	m46_map(m46_code_page, M46_CODE_VA, PROT_READ | PROT_EXEC, false);
++	m46_map(NULL, M46_STACK_VA, PROT_READ | PROT_WRITE, false);
++	m46_map(m46_data_page, M46_DATA_VA, PROT_READ | PROT_WRITE, true);
++	m46_map(NULL, M46_ALT_VA, PROT_READ | PROT_WRITE, false);
++
++	/* S2: the handled round trip. */
++	m46_run_phase(M46_SCRIPT_RT, &exit_code, &state);
++	dadao_early_printf("M46 phase: script=%u state=%u status=%#lx code=%lu\n",
++			   M46_SCRIPT_RT, state, exit_code, exit_code >> 8);
++	m46_expect("s2", "raise-seen", 1, m46_raise_seen, M46_FAIL_S2);
++	m46_expect("s2", "verify-seen", 1, m46_verify_seen, M46_FAIL_S2);
++	m46_expect("s2", "exited-cleanly", 0, exit_code, M46_FAIL_S2);
++
++	/* S3: the default action — no handler, so the task dies from SIGTERM. */
++	m46_run_phase(M46_SCRIPT_DEFAULT, &exit_code, &state);
++	dadao_early_printf("M46 phase: script=%u state=%u status=%#lx code=%lu\n",
++			   M46_SCRIPT_DEFAULT, state, exit_code, exit_code >> 8);
++	m46_expect("s3", "died-by-signal", SIGTERM, exit_code & 0x7f, M46_FAIL_S3);
++	m46_expect("s3", "no-exit-status", 0, exit_code >> 8, M46_FAIL_S3);
++	{
++		unsigned long runs = ~0UL;
++
++		m46_read_report(M46_K_H_RUNS, &runs);
++		m46_expect("s3", "no-handler-ran", 0, runs, M46_FAIL_S3);
++	}
++
++	/* S4: the same round trip on the alternate stack. */
++	m46_run_phase(M46_SCRIPT_ALTSTACK, &exit_code, &state);
++	dadao_early_printf("M46 phase: script=%u state=%u status=%#lx code=%lu\n",
++			   M46_SCRIPT_ALTSTACK, state, exit_code,
++			   exit_code >> 8);
++	m46_expect("s4", "altframe-seen", 1, m46_altframe_seen, M46_FAIL_S4);
++	m46_expect("s4", "exited-cleanly", 0, exit_code, M46_FAIL_S4);
++
++	dadao_early_printf("M46 selftest: raises=%u verifies=%u alt=%u\n",
++			   m46_raise_seen, m46_verify_seen, m46_altframe_seen);
++
++	if (m46_failed) {
++		dadao_early_printf("M46 selftest: FAIL mask=%#x\n", m46_failed);
++		dadao_early_exit(m46_failed);
++	}
++	dadao_early_printf("M46 selftest: probe cases done (signal frame "
++			   "closed)\n");
++	dadao_early_exit(0);
++}
++
++static int __init m46_signal_selftest_init(void)
++{
++	dadao_m46_signal_selftest();
++}
++late_initcall(m46_signal_selftest_init);

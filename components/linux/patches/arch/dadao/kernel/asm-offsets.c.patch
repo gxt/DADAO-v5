@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/asm-offsets.c b/arch/dadao/kernel/asm-offsets.c
 new file mode 100644
-index 000000000..4dcc6b1f0
+index 000000000..ae51708d4
 --- /dev/null
 +++ b/arch/dadao/kernel/asm-offsets.c
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,59 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Generate the assembler offsets used by head.S / entry code.
@@ -21,6 +21,14 @@ index 000000000..4dcc6b1f0
 +{
 +	DEFINE(THREAD_SIZE_ASM, THREAD_SIZE);
 +	DEFINE(PT_REGS_SIZE, sizeof(struct pt_regs));
++	/*
++	 * `ip`/`status` are the two words with no hardware register behind them:
++	 * since m14-linux-046 they are members of the anonymous unions over the
++	 * `rb`/`rd` banks (the user ruling's 2048-byte layout), so `PT_IP ==
++	 * PT_RB_BASE` and `PT_STATUS == PT_RD_BASE`.  Taking the offsets from
++	 * these very members is what keeps every `st.o`/`ld.o` in kernel/trap.S,
++	 * kernel/async_trap.S and asm/entry.h unchanged.
++	 */
 +	DEFINE(PT_IP, offsetof(struct pt_regs, ip));
 +	DEFINE(PT_STATUS, offsetof(struct pt_regs, status));
 +	DEFINE(PT_RD_BASE, offsetof(struct pt_regs, rd));

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/syscalls.c b/arch/dadao/kernel/syscalls.c
 new file mode 100644
-index 000000000..cfe09f951
+index 000000000..b841a93b5
 --- /dev/null
 +++ b/arch/dadao/kernel/syscalls.c
-@@ -0,0 +1,160 @@
+@@ -0,0 +1,143 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO syscalls that the generic table expects from the architecture, plus the
@@ -33,23 +33,6 @@ index 000000000..cfe09f951
 +		return -EINVAL;
 +
 +	return ksys_mmap_pgoff(addr, len, prot, flags, fd, off >> PAGE_SHIFT);
-+}
-+
-+/*
-+ * Signal delivery/restore needs the signal frame, which K0 does not define.
-+ * The syscall exists so the table is coherent; with no signal frame format a
-+ * return here is the only honest answer until signals exist (m14-linux-027).
-+ *
-+ * Spelled without `SYSCALL_DEFINE0`, and with the prototype
-+ * `asm-generic/syscalls.h` gives it: that header is what the table's own
-+ * translation unit sees, and a `(void)` definition would contradict it there.
-+ * The argument is the entry's `rb16`, which a signal-return path does not use
-+ * (the frame it needs is `current_pt_regs()`).
-+ */
-+asmlinkage long sys_rt_sigreturn(struct pt_regs *regs);
-+asmlinkage long sys_rt_sigreturn(struct pt_regs *regs)
-+{
-+	return -EINVAL;
 +}
 +
 +/*

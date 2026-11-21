@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..6b2e52023
+index 000000000..436360064
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,467 @@
+@@ -0,0 +1,476 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -374,6 +374,15 @@ index 000000000..6b2e52023
 +	 * of its own — and it starts the periodic tick itself, so it also runs
 +	 * from a `late_initcall` inside `kernel_init`
 +	 * (kernel/m45_entry_selftest.c) and owns the final SYS_EXIT.
++	 */
++	return;
++#endif
++#ifdef CONFIG_DADAO_K5_SIGNAL_SELFTEST
++	/*
++	 * The signal-frame probe (m14-linux-046) is the same shape: its user
++	 * program needs a task, an address space and the umon entry, so it runs
++	 * from a `late_initcall` inside `kernel_init`
++	 * (kernel/k5_signal_selftest.c) and owns the final SYS_EXIT.
 +	 */
 +	return;
 +#endif

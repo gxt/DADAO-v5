@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..1509d2b5e
+index 000000000..bafc593f9
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,272 @@
+@@ -0,0 +1,279 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -136,6 +136,13 @@ index 000000000..1509d2b5e
 +				       unsigned long info);
 +/* The syscall-entry half of the same loop (kernel/entry_common.c). */
 +void dadao_syscall_enter(struct pt_regs *regs);
++/*
++ * The arch half of signal delivery (kernel/signal.c, m14-linux-046): build the
++ * `rt_sigframe` and rewind the frame onto the handler.  Called by
++ * `arch_do_signal_or_restart()` once `get_signal()` picked a signal to handle.
++ */
++struct ksignal;
++void dadao_handle_signal(struct ksignal *ksig, struct pt_regs *regs);
 +/* The umon entry's two frame helpers (kernel/process.c, called from trap.S):
 + * adopt the staged frame into the task's own `task_pt_regs()` slot, and
 + * re-derive it after the C half (which may sleep). */

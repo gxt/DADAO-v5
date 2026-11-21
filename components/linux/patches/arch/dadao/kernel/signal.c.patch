@@ -1,0 +1,370 @@
+diff --git a/arch/dadao/kernel/signal.c b/arch/dadao/kernel/signal.c
+new file mode 100644
+index 000000000..b2bb335d4
+--- /dev/null
++++ b/arch/dadao/kernel/signal.c
+@@ -0,0 +1,364 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * DADAO signal delivery: the `rt_sigframe`, its handler entry and
++ * `rt_sigreturn` (m14-linux-046).
++ *
++ * What is generic and what is not
++ * -------------------------------
++ * The *policy* is generic and lives in `kernel/signal.c`: which signal is next
++ * (`get_signal()`), the default action, the ignored-signal and `SIGKILL`/
++ * `SIGSTOP` rules, the `sa_mask`/`SA_NODEFER` bookkeeping (`signal_setup_done()`
++ * -> `signal_delivered()`), and `sigaltstack(2)` itself
++ * (`SYSCALL_DEFINE2(sigaltstack)`).  What no generic file can know is **where a
++ * user context lives on this machine** and **how control is handed to a
++ * handler**, and that is this file:
++ *
++ *   - `struct rt_sigframe` / `setup_rt_frame()`: build the frame on the user
++ *     stack and rewind the register file onto the handler;
++ *   - `restore_sigcontext()` / `sys_rt_sigreturn()`: put the file back;
++ *   - `dadao_handle_signal()`: the arch half `arch_do_signal_or_restart()`
++ *     (kernel/entry_common.c) calls once `get_signal()` has picked a signal.
++ *
++ * The frame
++ * ---------
++ *     struct rt_sigframe {
++ *             struct siginfo  info;      128 B, `copy_siginfo_to_user()`
++ *             struct ucontext uc;        uapi/asm/ucontext.h
++ *     };
++ *
++ * `uc.uc_mcontext` is a `struct sigcontext` = `struct user_regs_struct` (2048 B,
++ * uapi/asm/ptrace.h) + four reserved words.  That 2048-byte image is the
++ * kernel's `struct pt_regs` field for field — the user ruling of 2026-11-20's
++ * layout, four 64-slot banks with `rd[0]` = `status` and `rb[0]` = `ip` — so
++ * both directions are a single `copy_{to,from}_user()` of the register file.
++ * Two compile-time assertions below keep the two structures from drifting
++ * apart; the `offsetof`s are the ruling's (512/1024/1536).
++ *
++ * `uapi/asm/ucontext.h` puts `uc_mcontext` **last** (riscv64/arm64 shape)
++ * instead of the asm-generic order: musl's DADAO `bits/signal.h` already has
++ * `uc_flags, uc_link, uc_stack, uc_sigmask, uc_mcontext`, and the generic
++ * header's 1024-bit mask reservation is what makes the two coincide.
++ *
++ * How a handler is entered — and why `SA_RESTORER` is mandatory
++ * ------------------------------------------------------------
++ * A handler is an ordinary function: control reaches it through the `ip` and
++ * returns through the hardware return-address stack (`ret` pops the RAS,
++ * spec/SimRISC-00 §2.4).  Nothing in the machine turns "return from a handler"
++ * into `rt_sigreturn`, so the frame pushes a **user** address that does: that is
++ * exactly the `SA_RESTORER` contract (x86-64/i386/s390), and this port has no
++ * vDSO to provide a kernel-side trampoline for it (`HAVE_GENERIC_VDSO` is not
++ * selected, and nothing maps a syscall stub page).  So:
++ *
++ *   - `sa_restorer` (the libc's `__restore_rt`) becomes the pushed return
++ *     address; `SA_RESTORER` must be set, otherwise the frame cannot name a
++ *     return path and `setup_rt_frame()` answers -EFAULT, which
++ *     `signal_setup_done()` turns into `force_sigsegv()` — the same outcome the
++ *     other no-vDSO ports have;
++ *   - the restorer runs `set.rd rd15, __NR_rt_sigreturn; trap cfx_umon, 0`, and
++ *     `sys_rt_sigreturn()` reads the frame at `regs->rb[1]` (the handler was
++ *     entered with SP = frame and a C function's epilogue restores SP).
++ *
++ * The push itself is `dadao_ra_push()`.  spec/SimRISC-00 §2.4 says whose job it
++ * is — "信号处理时的 RA 保存恢复由操作系统负责，规则与进程切换一致" — and the
++ * rules for a `call` are §2.4.1's C1-C3b, so the helper applies them to the
++ * frame's `ra` bank rather than inventing a shortcut: recursion folding (C2),
++ * the ordinary push (C3a), and the MemRAS spill (C3b, `MRPTR != 0`) with its
++ * own user-memory write.  `RACNT == 63 && MRPTR == 0` is RASOF: the frame
++ * reports it instead of silently losing an entry.
++ *
++ * Resume address and `rt_sigreturn`'s return value
++ * ------------------------------------------------
++ * `dadao_user_excp_handler()` (kernel/entry_common.c) turns the dispatch's
++ * "continue after the trap" policy into `regs->ip += 4` + `RESUME_RETRY`, so the
++ * frame's `ip` is always the address the task resumes at.  The signal frame
++ * therefore saves it verbatim (no +4 here), and `sys_rt_sigreturn()` answers
++ * `DADAO_TRAP_RESUME_RETRY`: the restored `ip` *is* the resume address, and the
++ * stub's `escape ..., 0` returns to it.  A frame that cannot be restored has no
++ * address to return to, so it answers `RESUME_SKIP` ("after this trap") and the
++ * `SIGSEGV` raised on the way out decides what happens next.
++ *
++ * Syscall restart is not this file's business: `-ERESTARTSYS` and friends are
++ * already reduced to `-EINTR` in `dadao_user_syscall_post()` (kernel/syscalls.c,
++ * m14-linux-023), so there is no "restart the syscall under the signal frame"
++ * transition to resolve here.
++ */
++#include <linux/errno.h>
++#include <linux/kernel.h>
++#include <linux/sched.h>
++#include <linux/sched/signal.h>
++#include <linux/signal.h>
++#include <linux/string.h>
++#include <linux/syscalls.h>
++#include <linux/uaccess.h>
++
++#include <asm/ptrace.h>
++#include <asm/setup.h>
++#include <asm/trap.h>
++#include <asm/uaccess.h>
++#include <asm/ucontext.h>
++
++struct rt_sigframe {
++	struct siginfo info;
++	struct ucontext uc;
++};
++
++/*
++ * The two directions are one memcpy, so the structures must be one image.
++ * `pt_regs` is the kernel's frame (asm/ptrace.h), `user_regs_struct` the uapi
++ * one; the offsets are the user ruling's.
++ */
++_Static_assert(sizeof(struct user_regs_struct) == sizeof(struct pt_regs),
++	       "sigframe: the uapi register file is the kernel frame's size");
++_Static_assert(offsetof(struct user_regs_struct, rd) == 0 &&
++		       offsetof(struct user_regs_struct, status) == 0 &&
++		       offsetof(struct user_regs_struct, rb) == 512 &&
++		       offsetof(struct user_regs_struct, ip) == 512 &&
++		       offsetof(struct user_regs_struct, ra) == 1024 &&
++		       offsetof(struct user_regs_struct, rf) == 1536,
++	       "sigframe: the uapi register file is the ruling's layout");
++/*
++ * ... and the frame's own offsets, which user code reads with plain immediates
++ * (the handler in a probe, a libc's `ucontext_t`): `siginfo` is 128 bytes and
++ * `ucontext` puts the machine context behind flags+link+stack+mask,
++ * 8 + 8 + 24 + (1024 / 8) = 168.
++ */
++_Static_assert(sizeof(struct siginfo) == 128 && sizeof(struct ucontext) == 2248,
++	       "sigframe: siginfo/ucontext sizes");
++_Static_assert(offsetof(struct ucontext, uc_mcontext) == 168,
++	       "sigframe: uc_mcontext offset");
++_Static_assert(sizeof(struct sigcontext) ==
++		       sizeof(struct user_regs_struct) + 4 * sizeof(unsigned long),
++	       "sigframe: sigcontext = the register file plus four words");
++
++/* spec/SimRISC-00 §2.4: `ra0` = [63:54] SBZ | [53:48] RACNT | MRPTR. */
++#define DADAO_RAS_ENTRIES	63
++#define DADAO_RAS_RACNT_MASK	0x3fUL
++#define DADAO_RAS_MRPTR_MASK	0x0000ffffffffffffUL
++#define DADAO_RAS_RECUR_ONE	0x0001000000000000UL
++#define DADAO_RAS_RECUR_MAX	0xffffUL
++
++/*
++ * Push @addr on the frame's return-address stack, exactly as `call` would
++ * (spec/SimRISC-00 §2.4.1):
++ *
++ *   C2   the top entry already is @addr and its recursion count is not
++ *        saturated -> fold (count += 1, RACNT unchanged);
++ *   C3a  RACNT < 63 -> new entry on top (recursion count 1), RACNT += 1;
++ *   C3b  RACNT == 63 -> the oldest entry moves to MemRAS (`MRPTR -= 8`) and the
++ *        new one takes the top slot, RACNT stays 63.  `MRPTR == 0` means there
++ *        is no MemRAS, and a real `call` would raise RASOF here — reported as an
++ *        error instead of dropping the entry.
++ *
++ * The valid window is "newest at ra[63], k-th newest at ra[64-k]" (§2.4), so a
++ * push shifts the window one slot *down* (lower index) and writes the new entry
++ * at the top.  The metadata word is rewritten last, with bits [63:54] (SBZ) zero.
++ *
++ * The C3b spill writes *user* memory (the MemRAS a process allocated), which is
++ * why this returns an error and why `setup_rt_frame()` propagates it.
++ */
++static int dadao_ra_push(struct pt_regs *regs, unsigned long addr)
++{
++	unsigned long *ra = regs->ra;
++	unsigned long racnt = (ra[0] >> 48) & DADAO_RAS_RACNT_MASK;
++	unsigned long mrptr = ra[0] & DADAO_RAS_MRPTR_MASK;
++	unsigned long entry = DADAO_RAS_RECUR_ONE |
++			      (addr & DADAO_RAS_MRPTR_MASK);
++	int i;
++
++	if (!addr)
++		return -EINVAL;
++
++	/* C2: recursion folding. */
++	if (racnt > 0 && (ra[DADAO_RAS_ENTRIES] & DADAO_RAS_MRPTR_MASK) ==
++				 (addr & DADAO_RAS_MRPTR_MASK) &&
++	    (ra[DADAO_RAS_ENTRIES] >> 48) < DADAO_RAS_RECUR_MAX) {
++		ra[DADAO_RAS_ENTRIES] += DADAO_RAS_RECUR_ONE;
++		return 0;
++	}
++
++	if (racnt < DADAO_RAS_ENTRIES) {
++		/*
++		 * C3a: the window (ra[64-RACNT] .. ra[63]) slides down one slot and
++		 * the new entry takes the top.  Only the *valid* slots move: the
++		 * oldest entry must survive as the new ra[64-RACNT-1].
++		 */
++		for (i = DADAO_RAS_ENTRIES + 1 - racnt;
++		     i <= DADAO_RAS_ENTRIES; i++)
++			ra[i - 1] = ra[i];
++		ra[DADAO_RAS_ENTRIES] = entry;
++		racnt++;
++	} else {
++		/* C3b: spill the oldest entry (ra[64-RACNT] = ra[1]) to MemRAS. */
++		unsigned long at;
++
++		if (!mrptr)
++			return -EFAULT;		/* RASOF: no MemRAS */
++		at = mrptr - sizeof(unsigned long);
++		if (put_user(ra[1], (unsigned long __user *)at))
++			return -EFAULT;
++		for (i = 2; i <= DADAO_RAS_ENTRIES; i++)
++			ra[i - 1] = ra[i];
++		ra[DADAO_RAS_ENTRIES] = entry;
++		mrptr = at;
++	}
++
++	ra[0] = (racnt << 48) | mrptr;
++	return 0;
++}
++
++/* The frame's register file -> user space: one image, one copy. */
++static int setup_sigcontext(struct user_regs_struct __user *sc,
++			    struct pt_regs *regs)
++{
++	return copy_to_user(sc, regs, sizeof(*regs)) ? -EFAULT : 0;
++}
++
++/* ... and back.  The restored context is a *user* context by construction. */
++static int restore_sigcontext(struct pt_regs *regs,
++			      struct user_regs_struct __user *sc)
++{
++	/*
++	 * Straight into the task's frame: `regs` *is* `task_pt_regs(current)`,
++	 * the one thing left to restore, so a local copy would only double the
++	 * 2048-byte frame on a 16 KiB kernel stack.  A short copy zero-pads (the
++	 * usual `copy_from_user()` contract) and is reported as a bad frame,
++	 * which ends the task rather than resuming it with a half-restored
++	 * context.
++	 */
++	if (copy_from_user(regs, sc, sizeof(*regs)))
++		return -EFAULT;
++
++	/*
++	 * `status` is the mode the frame describes; a signal frame is only ever
++	 * built for a user context, and the ruling keeps bits 4-63 zero.  The
++	 * field is a software container (the machine has no status register), so
++	 * this is the one place that has to stop a frame from claiming anything
++	 * else — the entry stubs will write the real value on the next exception
++	 * anyway.
++	 */
++	regs->status = DADAO_STATUS_USER;
++	return 0;
++}
++
++/*
++ * Where the frame goes: below the user's SP, or on the alternate stack when
++ * `SA_ONSTACK` asked for it (`sigsp()`, generic).  A frame that would not fit
++ * on the alternate stack is refused rather than written off its end — the
++ * caller turns -EFAULT into `force_sigsegv()` (the same rule riscv64/arm64
++ * apply).
++ */
++static __user struct rt_sigframe *get_sigframe(struct ksignal *ksig,
++					       struct pt_regs *regs,
++					       size_t framesize)
++{
++	unsigned long sp = regs->rb[1];
++
++	if (on_sig_stack(sp) && !likely(on_sig_stack(sp - framesize)))
++		return (struct rt_sigframe __user __force *)(-1UL);
++
++	sp = sigsp(sp, ksig) - framesize;
++	return (struct rt_sigframe __user *)(sp & ~0xfUL);
++}
++
++static int setup_rt_frame(struct ksignal *ksig, sigset_t *set,
++			  struct pt_regs *regs)
++{
++	struct rt_sigframe __user *frame;
++	unsigned long sp = regs->rb[1];
++	long err = 0;
++
++	frame = get_sigframe(ksig, regs, sizeof(*frame));
++	if (!access_ok(frame, sizeof(*frame)))
++		return -EFAULT;
++
++	err |= copy_siginfo_to_user(&frame->info, &ksig->info);
++	err |= __put_user(0, &frame->uc.uc_flags);
++	err |= __put_user(NULL, &frame->uc.uc_link);
++	err |= __save_altstack(&frame->uc.uc_stack, sp);
++	err |= setup_sigcontext(&frame->uc.uc_mcontext.regs, regs);
++	err |= __copy_to_user(&frame->uc.uc_sigmask, set, sizeof(*set));
++	if (err)
++		return -EFAULT;
++
++	/*
++	 * The return path: the user's own `__restore_rt`, pushed on the RAS the
++	 * way `call` would push it (see the file header for why SA_RESTORER is
++	 * the only source of that address on this port).
++	 */
++	if (!(ksig->ka.sa.sa_flags & SA_RESTORER))
++		return -EFAULT;
++	if (dadao_ra_push(regs, (unsigned long)ksig->ka.sa.sa_restorer))
++		return -EFAULT;
++
++	/*
++	 * The handler's context.  contract-abi §4.1: the first data argument is
++	 * `rd16`, the first address argument `rb16` — so a
++	 * `void handler(int sig, siginfo_t *info, void *uc)` finds `sig` in
++	 * rd16 and the two pointers in rb16/rb17.  The extra two are passed even
++	 * without `SA_SIGINFO`, exactly as the other ports do (a handler that
++	 * only declares `int` simply ignores them).
++	 */
++	regs->ip = (unsigned long)ksig->ka.sa.sa_handler;
++	regs->rb[1] = (unsigned long)frame;
++	regs->rd[16] = (unsigned long)ksig->sig;
++	regs->rb[16] = (unsigned long)&frame->info;
++	regs->rb[17] = (unsigned long)&frame->uc;
++	return 0;
++}
++
++/*
++ * Called by `arch_do_signal_or_restart()` (kernel/entry_common.c) for a signal
++ * `get_signal()` chose to handle.  All the bookkeeping — blocking masks,
++ * `SA_NODEFER`, `*_ONSTACK` and the `force_sigsegv()` on a refused frame — is
++ * `signal_setup_done()`'s.
++ */
++void dadao_handle_signal(struct ksignal *ksig, struct pt_regs *regs)
++{
++	int ret;
++
++	ret = setup_rt_frame(ksig, sigmask_to_save(), regs);
++	signal_setup_done(ret, ksig, 0);
++}
++
++/*
++ * `rt_sigreturn(2)` — the restorer's trap.  The frame is at the user SP; restore
++ * the mask, the register file (the `ra` stack and the FCSR included) and the
++ * alternate-stack state, then answer the resume policy (file header).
++ */
++SYSCALL_DEFINE0(rt_sigreturn)
++{
++	struct pt_regs *regs = current_pt_regs();
++	struct rt_sigframe __user *frame;
++	sigset_t set;
++
++	/* A restarted system call must not survive the frame it belongs to. */
++	current->restart_block.fn = do_no_restart_syscall;
++
++	frame = (struct rt_sigframe __user *)regs->rb[1];
++
++	if (!access_ok(frame, sizeof(*frame)))
++		goto badframe;
++
++	if (__copy_from_user(&set, &frame->uc.uc_sigmask, sizeof(set)))
++		goto badframe;
++	set_current_blocked(&set);
++
++	if (restore_sigcontext(regs, &frame->uc.uc_mcontext.regs))
++		goto badframe;
++
++	if (restore_altstack(&frame->uc.uc_stack))
++		goto badframe;
++
++	return DADAO_TRAP_RESUME_RETRY;
++
++badframe:
++	/*
++	 * The frame is unusable, so there is no context to return to: report the
++	 * SEGV (delivered on the way back to user mode, where a handler for it
++	 * would be the process's own business) and let the stub resume after the
++	 * trap, which is the only address left that still belongs to the
++	 * program.
++	 */
++	force_sig(SIGSEGV);
++	return DADAO_TRAP_RESUME_SKIP;
++}

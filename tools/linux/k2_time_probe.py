@@ -132,6 +132,7 @@ CONFIG_PINS = {
     "CONFIG_DADAO_K5_CLONE_SELFTEST": "n",
     "CONFIG_DADAO_K5_FUTEX_SELFTEST": "n",
     "CONFIG_DADAO_M45_ENTRY_SELFTEST": "n",
+    "CONFIG_DADAO_K5_SIGNAL_SELFTEST": "n",
 }
 
 #: The exercised case per image: 0 production, 1 IMASK, 2 source axis, 3 global.

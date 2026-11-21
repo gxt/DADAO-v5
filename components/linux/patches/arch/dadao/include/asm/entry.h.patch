@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/entry.h b/arch/dadao/include/asm/entry.h
 new file mode 100644
-index 000000000..e4a643455
+index 000000000..1c30e740a
 --- /dev/null
 +++ b/arch/dadao/include/asm/entry.h
-@@ -0,0 +1,192 @@
+@@ -0,0 +1,200 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO exception-entry register-file save/restore (assembly only).
@@ -109,9 +109,17 @@ index 000000000..e4a643455
 +	cfx2rc	\cfx, cg6, rc1, rd3		/* scratch[1] = rd3 */
 +
 +	/* The two slots with no hardware register behind them; `rb3` (rbtp) was
-+	 * already stored by DADAO_GPR_SAVE, before the base was repurposed. */
-+	st.o	rd0, [rb3, PT_RD_BASE]		/* frame.rd[0] = 0 (rd0 reads 0) */
-+	st.o	rd0, [rb3, PT_RB_BASE]		/* frame.rb[0] = 0 (rb0 is the IP) */
++	 * already stored by DADAO_GPR_SAVE, before the base was repurposed.
++	 *
++	 * Since m14-linux-046 these two slots *are* the frame's `status` and
++	 * `ip` words (the union layout of asm/ptrace.h): the zero written here
++	 * is the placeholder the stub overwrites with the real values right
++	 * after the capture — `DADAO_SAVE_STATUS` for the mode, and the
++	 * `st.o rd17, [.., PT_IP]` of each stub for the cause ip.  Neither slot
++	 * is ever loaded back into a register (rd0/rb0 are the read-only ones);
++	 * DADAO_GPR_RESTORE stops before them. */
++	st.o	rd0, [rb3, PT_RD_BASE]		/* frame.status = 0 (filled below) */
++	st.o	rd0, [rb3, PT_RB_BASE]		/* frame.ip = 0 (filled by the stub) */
 +
 +	/* The staging registers and rd1, then the {rd4:rd63} block. */
 +	cfx2rd	\cfx, cg6, rc0, rd2		/* the faulting context's rd2 */

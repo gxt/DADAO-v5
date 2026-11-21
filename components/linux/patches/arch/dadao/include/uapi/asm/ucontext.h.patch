@@ -1,0 +1,37 @@
+diff --git a/arch/dadao/include/uapi/asm/ucontext.h b/arch/dadao/include/uapi/asm/ucontext.h
+new file mode 100644
+index 000000000..6ad269952
+--- /dev/null
++++ b/arch/dadao/include/uapi/asm/ucontext.h
+@@ -0,0 +1,31 @@
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
++#ifndef _UAPI_ASM_DADAO_UCONTEXT_H
++#define _UAPI_ASM_DADAO_UCONTEXT_H
++
++#include <linux/types.h>
++
++/*
++ * The signal-frame context (m14-linux-046).
++ *
++ * The shape follows the ports whose `mcontext_t` is extensible (riscv64 /
++ * arm64) rather than `<asm-generic/ucontext.h>`: the register file comes **last**
++ * so an ISA extension can grow `struct sigcontext` without moving anything a
++ * handler already reads.  `uc_sigmask` therefore carries the generic header's
++ * "reserve 1024 bits of mask space" padding itself (`__unused`), which makes the
++ * members sit at the offsets a libc's `ucontext_t`
++ * (`uc_flags, uc_link, uc_stack, uc_sigmask, uc_mcontext`) already expects —
++ * musl's DADAO `bits/signal.h` uses exactly that order.
++ */
++struct ucontext {
++	unsigned long	  uc_flags;
++	struct ucontext	 *uc_link;
++	stack_t		  uc_stack;
++	sigset_t	  uc_sigmask;
++	/* The generic header's 1024-bit mask reservation, spelled here so
++	 * `uc_mcontext` can stay last.  musl's sigset_t is already 1024 bits,
++	 * so the padding is empty for the libc and the two layouts coincide. */
++	__u8		  __unused[1024 / 8 - sizeof(sigset_t)];
++	struct sigcontext uc_mcontext;
++};
++
++#endif /* _UAPI_ASM_DADAO_UCONTEXT_H */

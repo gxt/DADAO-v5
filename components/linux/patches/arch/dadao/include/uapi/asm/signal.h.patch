@@ -1,0 +1,37 @@
+diff --git a/arch/dadao/include/uapi/asm/signal.h b/arch/dadao/include/uapi/asm/signal.h
+new file mode 100644
+index 000000000..2b49f5c89
+--- /dev/null
++++ b/arch/dadao/include/uapi/asm/signal.h
+@@ -0,0 +1,31 @@
++/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
++#ifndef __ASM_UAPI_DADAO_SIGNAL_H
++#define __ASM_UAPI_DADAO_SIGNAL_H
++
++/*
++ * Signal numbers, `sigset_t`, `stack_t`, `struct sigaction` and the `SA_*`
++ * flags are the asm-generic ones (`<asm-generic/signal.h>` includes
++ * `<asm-generic/signal-defs.h>`); this port only adds the one knob the machine
++ * needs, `SA_RESTORER` (m14-linux-046).
++ *
++ * Why it is needed: a handler is entered by pointing the frame's `ip` at it and
++ * pushing the return address on the hardware return-address stack
++ * (spec/SimRISC-00 §2.4: the OS owns the RA save/restore of a signal, "规则与
++ * 进程切换一致").  The address that is pushed has to be *user* code that issues
++ * `rt_sigreturn` — and this port has **no vDSO** (`HAVE_GENERIC_VDSO` is not
++ * selected, nothing maps a syscall trampoline), which is the case the
++ * `SA_RESTORER` convention exists for: the caller (libc) names the trampoline
++ * in `sa_restorer` and sets this flag; `struct sigaction` grows exactly that
++ * member (see the `#ifdef SA_RESTORER` in `<asm-generic/signal.h>`).
++ *
++ * A `sigaction` without the flag cannot name a return path, so `setup_rt_frame`
++ * refuses it (-EFAULT -> `force_sigsegv`), the same outcome x86-64 gets when its
++ * vDSO-less fallback is unavailable.  Value 0x04000000 is the one i386/x86-64/
++ * s390 use; on this 64-bit big-endian port it is free (asm-generic assigns no
++ * bit there — see the table in `signal-defs.h`).
++ */
++#define SA_RESTORER	0x04000000
++
++#include <asm-generic/signal.h>
++
++#endif /* __ASM_UAPI_DADAO_SIGNAL_H */

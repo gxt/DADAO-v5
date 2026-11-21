@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/process.c b/arch/dadao/kernel/process.c
 new file mode 100644
-index 000000000..594b42932
+index 000000000..e777b29a8
 --- /dev/null
 +++ b/arch/dadao/kernel/process.c
-@@ -0,0 +1,757 @@
+@@ -0,0 +1,797 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO process model (K4, m14-linux-016).
@@ -157,12 +157,19 @@ index 000000000..594b42932
 +int dadao_m45_user_trap(struct pt_regs *regs, unsigned long immu18,
 +			unsigned long *policy);
 +
++/* The signal-frame probe's trap hook (kernel/k5_signal_selftest.c,
++ * m14-linux-046): snapshots the frame at the raise, compares it after
++ * `rt_sigreturn`; claims only its own two umon functions. */
++int dadao_m46_user_trap(struct pt_regs *regs, unsigned long immu18,
++			unsigned long *policy);
++
 +
 +/*
 + * One instruction, in bytes: the only step `escape` offers past a `trap`
-+ * (`[excp_cause_ip, +4]`, spec/DADAO-12 §5.3).
++ * (`[excp_cause_ip, +4]`, spec/DADAO-12 §5.3).  The constant itself lives in
++ * asm/trap.h, next to the resume policies it belongs to (m14-linux-046, where
++ * the umon entry turns "skip" into `ip += DADAO_INSN_BYTES`).
 + */
-+#define DADAO_INSN_BYTES	4
 +
 +/*
 + * A second umon entry while one is live is a kernel bug in the K4 shape (one
@@ -554,9 +561,14 @@ index 000000000..594b42932
 +	((struct thread_info *)dadao_umon_stack)->task = current;
 +	dadao_user_stack_top = (unsigned long)task_stack_page(current) +
 +			       THREAD_SIZE;
++	/*
++	 * The whole frame is the register file.  `rd[0]`/`rb[0]` are the two
++	 * words with no hardware register behind them (`status` and `ip`, the
++	 * union layout of asm/ptrace.h since m14-linux-046) — and they are *not*
++	 * zeroed here any more: `ip` is this task's entry address, and `status`
++	 * is the mode the frame describes, both of which the caller set.
++	 */
 +	dadao_user_frame = *regs;
-+	dadao_user_frame.rb[0] = 0;		/* rb0 is the read-only IP */
-+	dadao_user_frame.rd[0] = 0;		/* rd0 reads as zero */
 +	DADAO_CFX_WRITE(cfx_umon, UMON_CG_SUPV, UMON_RC_EXCP_VECTOR,
 +			regs->ip);
 +	dadao_umon_busy = 0;
@@ -733,8 +745,36 @@ index 000000000..594b42932
 +				return policy;
 +		}
 +#endif
++#ifdef CONFIG_DADAO_K5_SIGNAL_SELFTEST
++		{
++			unsigned long policy;
++
++			/*
++			 * The signal-frame probe's hook
++			 * (kernel/k5_signal_selftest.c, m14-linux-046).  It
++			 * claims only its two probe-only umon functions.
++			 */
++			if (dadao_m46_user_trap(regs, immu18, &policy))
++				return policy;
++		}
++#endif
 +		fn = dadao_user_syscall(regs, immu18);
 +		dadao_umon_busy = 0;
++		if (fn && syscall_get_nr(current, regs) == __NR_rt_sigreturn) {
++			/*
++			 * The frame-restoring syscall (kernel/signal.c,
++			 * m14-linux-046) is the one entry whose answer is the
++			 * frame itself: `regs` already holds the interrupted
++			 * context again, so there is no return value to write
++			 * back into `rd8` (that would clobber the user's), and
++			 * the resume address it restored is where the task must
++			 * continue — `RESUME_RETRY`, not the usual "+4 after the
++			 * trap" (kernel/entry_common.c's normalisation leaves a
++			 * RETRY untouched).
++			 */
++			return (unsigned long)dadao_call_syscall(regs,
++								 (void *)fn);
++		}
 +		if (fn)
 +			regs->rd[8] = (unsigned long)dadao_call_syscall(regs,
 +								       (void *)fn);

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/ptrace.h b/arch/dadao/include/asm/ptrace.h
 new file mode 100644
-index 000000000..e844ac504
+index 000000000..327c8a1b4
 --- /dev/null
 +++ b/arch/dadao/include/asm/ptrace.h
-@@ -0,0 +1,167 @@
+@@ -0,0 +1,194 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PTRACE_H
 +#define __ASM_PTRACE_H
@@ -17,15 +17,20 @@ index 000000000..e844ac504
 +
 +/*
 + * The complete saved context of a supv exception — synchronous (kernel/trap.S)
-+ * or asynchronous (kernel/async_trap.S), the two frames are the same shape.
++ * or asynchronous (kernel/async_trap.S) — and the unit the signal frame
++ * carries (kernel/signal.c, m14-linux-046).
 + *
 + * spec/DADAO-12 §3.6: the hardware saves *no* general register, only the cg5
 + * frame fields, so the kernel entry saves the register file itself
 + * (contract-syscall §8).  The frame mirrors the file one slot per register, all
-+ * four banks (§2.1/§2.4 of spec/SimRISC-00):
++ * four banks (§2.1/§2.4 of spec/SimRISC-00), **2048 bytes** in total (user
++ * ruling 2026-11-20):
 + *
-+ *   rd[0..63]  rd0 stays 0 (it is not a register: `ld` to it is ILLI);
-+ *   rb[0..63]  rb0 stays 0 (it is the read-only IP, mirrored into `ip`);
++ *   rd[0..63]  rd[0] is **not** a register (`ld` to rd0 is ILLI) but the
++ *              software container for the frame's `status` word; rd[1..63] are
++ *              the real registers;
++ *   rb[0..63]  rb[0] is the read-only IP mirror: the hardware's `rb0` *is* the
++ *              IP, so the slot holds `ip`; rb[1..63] are the real registers;
 + *   ra[0..63]  the return-address stack, *including* ra0 — the {RACNT, MRPTR}
 + *              metadata word (spec/SimRISC-00 §2.4) — so that a round trip
 + *              through this frame leaves `ra0-ra63` bit-identical
@@ -34,18 +39,24 @@ index 000000000..e844ac504
 + *              masks the non-writable fields (§2.3), so a value read back out
 + *              of this frame is the architectural one, not the raw input.
 + *
-+ * Field order is not free: `st.o`/`ld.o` form their address as
-+ * `[rbHB, imms12]` (signed 12-bit ⇒ at most 2048 bytes from the base,
-+ * spec/SimRISC-01 §1), while `stm.o`/`ldm.o` address their transfer with a
-+ * *register* index (rdHC) and are therefore unlimited.  The two scalar slots
-+ * the stub writes with a plain immediate (`ip`, `status`) sit inside that
-+ * window; the two banks that need 64 slots each (`ra`, `rf`) follow it and are
-+ * moved in block transfers (asm/entry.h).
++ * Why the two fields ride in the banks (user ruling 2026-11-20): the frame is
++ * exactly four 64-slot banks, 2048 B, and the two words that have no register
++ * behind them take the two slots that have no register behind them.  The
++ * anonymous unions let C keep reading `regs->rd[i]`/`regs->rb[i]` — and
++ * `status`/`ip` — while `asm-offsets.c` derives `PT_IP`/`PT_STATUS` from the
++ * same members, so no assembly offset (and no C array reference) had to change:
++ * `rb` stays at 512, `ra` at 1024, `rf` at 1536, `PT_IP == 512 == PT_RB_BASE`,
++ * `PT_STATUS == 0 == PT_RD_BASE`.
 + *
-+ * `ip` is `excp_cause_ip` (spec/DADAO-12 §3.6) and is the software copy: an
-+ * `escape` returns to the *hardware* `cfx_smon.excp_cause_ip`, so a handler
-+ * that wants to resume elsewhere writes that register, not this field
-+ * (contract-see §6.2).
++ * Neither slot is ever *loaded back into a register*: `DADAO_GPR_RESTORE`
++ * (asm/entry.h) writes rb1/rb2, rb4-rb63, rb3, rd1, rd4-rd63, rd2 and rd3 and
++ * stops there — writing `rd0`/`rb0` would be `ILLI` (they are the read-only
++ * ones).  So the two words are pure software state inside the frame.
++ *
++ * `ip` is `excp_cause_ip` (spec/DADAO-12 §3.6) and is the software copy.  Since
++ * m14-linux-046 it is the frame's **resume address**: the umon entry applies the
++ * `escape +4` step that used to live in the stub's offset to `ip` itself
++ * (kernel/process.c), so signal delivery can save one address.
 + *
 + * `status` carries no hardware state — there is no status register and no IE
 + * bit (contract-abi, contract-see §6.4).  Since m14-linux-045 it is the
@@ -57,10 +68,20 @@ index 000000000..e844ac504
 + * has to write it back.
 + */
 +struct pt_regs {
-+	unsigned long rd[64];
-+	unsigned long rb[64];
-+	unsigned long ip;
-+	unsigned long status;
++	union {
++		unsigned long rd[64];
++		struct {
++			unsigned long status;
++			unsigned long rd_rest[63];
++		};
++	};
++	union {
++		unsigned long rb[64];
++		struct {
++			unsigned long ip;
++			unsigned long rb_rest[63];
++		};
++	};
 +	unsigned long ra[64];
 +	unsigned long rf[64];
 +};
@@ -69,21 +90,27 @@ index 000000000..e844ac504
 + * The layout is pinned here once: every offset the assembly uses comes from
 + * asm-offsets (PT_* macros, derived from these very fields), so a mismatch
 + * between this struct and the stubs' expectations has to fail the build rather
-+ * than corrupt a context at run time.  The 2048 bound is `imms12`'s positive
-+ * reach (spec/SimRISC-01 §1), the reason `ip`/`status` precede the two banks.
++ * than corrupt a context at run time.  The numbers are the user ruling's:
++ * 2048 B, `rb` at 512, `ra` at 1024, `rf` at 1536 — and every offset the stubs
++ * reach with `st.o`'s immediate stays inside `imms12`'s 2048-byte window
++ * (spec/SimRISC-01 §1), which is why `status`/`ip` own slot 0 of their banks.
 + */
-+_Static_assert(sizeof(struct pt_regs) ==
-+		       (4 * 64 + 2) * sizeof(unsigned long),
-+	       "pt_regs: four 64-slot banks plus ip/status");
++_Static_assert(sizeof(struct pt_regs) == 4 * 64 * sizeof(unsigned long),
++	       "pt_regs: four 64-slot banks, 2048 bytes");
++_Static_assert(offsetof(struct pt_regs, status) == 0 &&
++		       offsetof(struct pt_regs, rd) == 0,
++	       "pt_regs: rd[0] is the status word");
++_Static_assert(offsetof(struct pt_regs, ip) == 512 &&
++		       offsetof(struct pt_regs, rb) == 512,
++	       "pt_regs: rb[0] is the ip word");
++_Static_assert(offsetof(struct pt_regs, ra) == 1024,
++	       "pt_regs: ra bank at 1024");
++_Static_assert(offsetof(struct pt_regs, rf) == 1536,
++	       "pt_regs: rf bank at 1536");
 +_Static_assert(sizeof(((struct pt_regs *)0)->ra) == 64 * sizeof(unsigned long),
 +	       "pt_regs: ra holds all 64 return-address slots");
 +_Static_assert(sizeof(((struct pt_regs *)0)->rf) == 64 * sizeof(unsigned long),
 +	       "pt_regs: rf holds all 64 floating-point slots");
-+_Static_assert(offsetof(struct pt_regs, ip) % 8 == 0 &&
-+		       offsetof(struct pt_regs, status) % 8 == 0,
-+	       "pt_regs: ip/status must be 8-byte aligned");
-+_Static_assert(offsetof(struct pt_regs, status) + sizeof(unsigned long) <= 2048,
-+	       "pt_regs: ip/status must stay inside st.o's imms12 window");
 +_Static_assert(offsetof(struct pt_regs, ra) % 8 == 0 &&
 +		       offsetof(struct pt_regs, rf) % 8 == 0,
 +	       "pt_regs: block-transferred banks must be 8-byte aligned");

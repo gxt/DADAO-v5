@@ -50,6 +50,8 @@ arch/dadao/include/uapi/asm/byteorder.h.patch
 arch/dadao/include/uapi/asm/ptrace.h.patch
 arch/dadao/include/uapi/asm/setup.h.patch
 arch/dadao/include/uapi/asm/sigcontext.h.patch
+arch/dadao/include/uapi/asm/signal.h.patch
+arch/dadao/include/uapi/asm/ucontext.h.patch
 arch/dadao/include/uapi/asm/unistd.h.patch
 arch/dadao/kernel/Makefile.patch
 arch/dadao/kernel/asm-offsets.c.patch
@@ -67,10 +69,12 @@ arch/dadao/kernel/k4_switch_asm.S.patch
 arch/dadao/kernel/k4_switch_selftest.c.patch
 arch/dadao/kernel/k5_clone_selftest.c.patch
 arch/dadao/kernel/k5_futex_selftest.c.patch
+arch/dadao/kernel/k5_signal_selftest.c.patch
 arch/dadao/kernel/k5_syscall_selftest.c.patch
 arch/dadao/kernel/m45_entry_selftest.c.patch
 arch/dadao/kernel/process.c.patch
 arch/dadao/kernel/setup.c.patch
+arch/dadao/kernel/signal.c.patch
 arch/dadao/kernel/syscall_argmask.c.patch
 arch/dadao/kernel/syscall_table.c.patch
 arch/dadao/kernel/syscalls.c.patch

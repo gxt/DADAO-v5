@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..8929d93c5
+index 000000000..5b7126c21
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,415 @@
+@@ -0,0 +1,440 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -418,4 +418,29 @@ index 000000000..8929d93c5
 +
 +	  It runs from a `late_initcall` and ends the boot.  This is test
 +	  scaffolding (the m14-linux-045 gate builds a probe image with it); it is
++	  not part of the image the later milestones boot.
++
++config DADAO_K5_SIGNAL_SELFTEST
++	bool "Run the K5 signal-frame probe from a late_initcall (ends the boot)"
++	default n
++	depends on !DADAO_K4_SELFTEST && !DADAO_K4_SWITCH_SELFTEST && !DADAO_K4_KTHREAD_SELFTEST && !DADAO_K5_SYSCALL_SELFTEST && !DADAO_K5_CLONE_SELFTEST && !DADAO_K5_FUTEX_SELFTEST && !DADAO_M45_ENTRY_SELFTEST
++	help
++	  Exercise signal delivery and the `rt_sigframe` of m14-linux-046 (see
++	  kernel/k5_signal_selftest.c).
++
++	  A user program installs a handler with `rt_sigaction` (SA_RESTORER, the
++	  only restorer a vDSO-less port has), raises SIGUSR1 and, once the
++	  handler has returned through `rt_sigreturn`, has the kernel compare the
++	  restored frame with the one it snapshotted at the raise: the whole
++	  register file must be bit-identical — the `ra` stack (RACNT and MRPTR
++	  included), the FCSR at its architectural value, every callee-saved
++	  register the handler deliberately scribbled over — with `ip` four bytes
++	  on, because the interrupted context resumes after the trap.  The handler
++	  itself checks the frame image it was handed against the registers the
++	  program set.  The same run raises SIGTERM with no handler (the default
++	  action must end the task) and repeats the round trip on an alternate
++	  stack (`sigaltstack` + SA_ONSTACK).
++
++	  It runs from a `late_initcall` and ends the boot.  This is test
++	  scaffolding (the m14-linux-046 gate builds a probe image with it); it is
 +	  not part of the image the later milestones boot.

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..54a5a58e9
+index 000000000..52c78fdf9
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,661 @@
+@@ -0,0 +1,666 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -341,8 +341,9 @@ index 000000000..54a5a58e9
 + * `excp_cause_info`.  Returns one of DADAO_TRAP_RESUME_{RETRY,SKIP} — the only
 + * two offsets `escape` accepts (spec/DADAO-12 §5.3) — or never returns.
 + *
-+ * `regs->rb[0]` is filled here: rb0 is the read-only IP register, so it has no
-+ * frame slot of its own, and its value at the fault *is* `regs->ip`.
++ * The frame's `ip` is the read-only register `rb0` mirrored into the slot rb0
++ * would otherwise occupy (the union layout of asm/ptrace.h, m14-linux-046), so
++ * nothing has to copy it here.
 + */
 +/*
 + * A U-mode synchronous exception handed over by the user entry
@@ -406,7 +407,11 @@ index 000000000..54a5a58e9
 +	struct dadao_fault_probe *probe;
 +	unsigned long raw_cause;
 +
-+	regs->rb[0] = regs->ip;
++	/*
++	 * `regs->ip` *is* the frame's `rb[0]` slot since m14-linux-046 (the union
++	 * layout: rb0 is the read-only IP register and has no slot of its own), so
++	 * the copy this line used to make is now the field itself.
++	 */
 +
 +#ifdef CONFIG_DADAO_K2_SELFTEST_UNKNOWN
 +	/*

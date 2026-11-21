@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/entry_common.c b/arch/dadao/kernel/entry_common.c
 new file mode 100644
-index 000000000..85508b710
+index 000000000..b67657721
 --- /dev/null
 +++ b/arch/dadao/kernel/entry_common.c
-@@ -0,0 +1,234 @@
+@@ -0,0 +1,248 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * The generic entry/exit hooks this port owns (m14-linux-045).
@@ -15,8 +15,8 @@ index 000000000..85508b710
 + *     with an empty body and calls it from `exit_to_user_mode_loop()` when
 + *     `_TIF_SIGPENDING`/`_TIF_NOTIFY_SIGNAL` is set; without a strong definition
 + *     the loop would consume nothing and signals would be dropped silently.
-+ *     m14-linux-046 (the `rt_sigframe`) completes the handler half; this file
-+ *     gets the call *made*, which is what the work loop needs.
++ *     This file gets the call *made*; the handler half (`rt_sigframe`,
++ *     `rt_sigreturn`) is kernel/signal.c (m14-linux-046).
 + *
 + *  2. The return-to-user tail (`dadao_syscall_exit`/`dadao_trap_exit`).
 + *     `_TIF_WORK_MASK` is consumed by `exit_to_user_mode_loop()` (called
@@ -101,18 +101,17 @@ index 000000000..85508b710
 +#endif
 +
 +/*
-+ * Signal delivery, the half that needs no frame.
++ * Signal delivery.
 + *
-+ * `get_signal()` runs the default action itself: a fatal signal terminates the
-+ * process (`do_group_exit()`), an ignored one is dropped, and the pending mask /
-+ * `TIF_SIGPENDING` are recomputed on the way out — that is why this returns
-+ * "nothing left" for both of them and the exit loop terminates.
++ * `get_signal()` runs the generic half: it picks the next signal, applies the
++ * default action itself (a fatal signal terminates the process, an ignored one
++ * is dropped) and recomputes the pending mask / `TIF_SIGPENDING` on the way out
++ * — that is why "nothing left" and "handled by default action" both come back
++ * as `false` and the exit loop terminates.
 + *
-+ * What it cannot do without m14-linux-046 is *deliver to a handler*: that needs
-+ * the `rt_sigframe` on the user stack and the register file rewound to the
-+ * handler.  Returning "handled" without delivering would leave
-+ * `_TIF_SIGPENDING` set and `exit_to_user_mode_loop()` would spin in the kernel,
-+ * so the honest answer is to end the process by name.
++ * A signal with a handler comes back as `true`; `dadao_handle_signal()`
++ * (kernel/signal.c, m14-linux-046) then builds the `rt_sigframe`, pushes the
++ * restorer on the return-address stack and rewinds the frame onto the handler.
 + */
 +void arch_do_signal_or_restart(struct pt_regs *regs)
 +{
@@ -126,9 +125,7 @@ index 000000000..85508b710
 +	if (!get_signal(&ksig))
 +		return;
 +
-+	dadao_early_printf("dadao: signal %d has a handler but no signal frame "
-+			   "yet (m14-linux-046); ending the task\n", ksig.sig);
-+	do_group_exit(SIGKILL);
++	dadao_handle_signal(&ksig, regs);
 +}
 +
 +/*
@@ -231,6 +228,23 @@ index 000000000..85508b710
 +		state = dadao_trap_enter(regs);
 +
 +	policy = dadao_user_excp_dispatch(regs, cause, info);
++
++	/*
++	 * Normalise "continue after this trap" into the frame: the signal frame
++	 * (kernel/signal.c, m14-linux-046) has to save the address the task will
++	 * resume at, and until this task the `+4` lived only in the stub's
++	 * `escape` offset — invisible to C.  Applying it to `ip` here, once,
++	 * before the return-to-user tail can build a frame, makes `regs->ip`
++	 * always mean "where this task returns to": a `RETRY` (page-fault retry,
++	 * a frame-restoring `rt_sigreturn`) keeps its address untouched, a
++	 * `SKIP` gets its +4 now and resumes at offset 0 — the two are the same
++	 * instruction stream (spec/DADAO-12 §5.3: the offsets differ only in the
++	 * address they form from `excp_cause_ip`).
++	 */
++	if (policy == DADAO_TRAP_RESUME_SKIP) {
++		regs->ip += DADAO_INSN_BYTES;
++		policy = DADAO_TRAP_RESUME_RETRY;
++	}
 +
 +	if (syscall)
 +		dadao_syscall_exit(regs);

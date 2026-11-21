@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/trap.h b/arch/dadao/include/asm/trap.h
 new file mode 100644
-index 000000000..d66399c65
+index 000000000..26f885022
 --- /dev/null
 +++ b/arch/dadao/include/asm/trap.h
-@@ -0,0 +1,138 @@
+@@ -0,0 +1,141 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception entry: the contract between the assembly
@@ -22,6 +22,9 @@ index 000000000..d66399c65
 + */
 +#define DADAO_TRAP_RESUME_RETRY	0	/* escape +0: re-execute the faulting insn */
 +#define DADAO_TRAP_RESUME_SKIP	1	/* escape +4: continue after it */
++
++/* Every instruction is four bytes (spec/SimRISC-00 §3). */
++#define DADAO_INSN_BYTES	4
 +
 +/*
 + * Kernel self-check point the stub reports when the handler returns a policy
