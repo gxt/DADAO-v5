@@ -1092,3 +1092,12 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`m14-infra-005` 两处措辞把 libc 行为归给内核（复核 Accepted 时登记，非阻断）：① 任务书完成区「新发现①」写「`sigaltstack` 运行时下限实测 2376 … 建议内核侧确认 `do_sigaltstack` 的 `min_ss_size`」——实际是 musl `src/signal/sigaltstack.c` 的 `sysconf(_SC_MINSIGSTKSZ)` 在用户态先拦（本次 `MINSIGSTKSZ=2376` 生效），内核那条轮不到，engineer 建议已撤销；② `components/musl/patches/arch/dadao/bits/signal.h.patch` 与 `tools/infra/musl_sigframe_probe*.{py,c}` 头注释里「kernel refuses / kernel's bounds rules」同源措辞。处置：随下次触碰这两处源码时一并改成「libc 侧检查」，不动判据与实现。"
+- id: ISS-487
+  scope:
+  - linux
+  - infra
+  milestone: M14
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`m14-linux-026` 复核的三条非阻断 finding：F-a `tools/linux/k4_switch_probe.py` 的 S6 正向断言只钉调用字面量 `clockevents_config_and_register(&dadao`，删掉注册行后仍能命中注释 ⇒ 应改钉调用形态并补 `clocksource_register_hz` 同判（现 clocksource 半边无静态断言，靠 K5 探针 C1+T1 覆盖）；F-b 旧断言「未注册 clocksource/clockevent」被翻转，按 `docs/Process-07 §4a` 应补退役台账（替代 = `k5_clocksource_probe` C1+T1–T4，先例 = k3 R4）；F-c 两条 WARNING 白名单按 `file:line` 写死，本轮输出 0 条 WARNING（空转），应改按告警文本匹配。处置：随下次触碰这些门控脚本时一并修。"
