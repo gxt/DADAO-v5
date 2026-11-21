@@ -26,12 +26,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-chipyard-010 | 2026-11-21 14:22 | 1–2 天 | Vast I-Cache（8 路 × 128 组 × 64 B = 64 KiB，无 dirty；与 D-Cache 共用类） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-010 | 2026-11-21 22:08 | Vast I-Cache（8 路×128 组×64 B，readOnly；`WumingCache` 单一实现；Tiny 零增益） |
 | m16-chipyard-009 | 2026-11-21 14:21 | Vast D-Cache（8 路 × 128 组 × 64 B = 64 KiB；写回+dirty+写分配；PTW 页表读走缓存端口；Tiny 零增益） |
 | m16-chipyard-015 | 2026-11-21 02:37 | 重生成签入 `bootrom.tiny.hex` 至 `a5d78816…`（跟随 `m15-testcases-021`；power 段 344→292 B） |
 | m16-chipyard-014 | 2026-11-21 02:19 | 窄 `lr` 高位保持（写回拍同拍合并；9 条实测、`.o` 不回归、拍数不变） |

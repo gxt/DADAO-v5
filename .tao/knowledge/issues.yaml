@@ -1109,3 +1109,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`m14-linux-028` 复核的三条非阻断 finding：R1 `TASK_UNMAPPED_BASE` 页对齐这半个修复无断言覆盖（A2 用 `mm_alloc()` 的 mm、不经 exec，只覆盖 `mmap_min_addr` 那半）⇒ 应补「exec 后 `mm->mmap_base` 页对齐」断言；R2 完成区遗留①「18 条 musl」计数/归属不准（实为 musl 8 + 其它 11），且全局 `check-patch-tree` rc=1 属在途/基线；R3 证据脚本的补丁树判据只 grep `linux: assertion`、不打印问题总数 ⇒ 补一行现场统计。处置：随下次触碰这些门控/任务书时修。"
+- id: ISS-489
+  scope:
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`m16-chipyard-010` 复核的六条非阻断 finding：f1 无提交时 `merge-tree` 判据恒真（应以改动集 ∩ `HEAD..master` 兜底）；f2 B 段 Tiny FIRRTL 计数在文件缺失时默认 0、E 段缺 before/after 静默跳过；f3 自检日志写到任务 ID 之外的共享临时目录且不清理；f4 任务书档位（中改）与派单（组件+大改）不一致；f5 changelog 遗留「银行」措辞（非本任务行）；f6 证据脚本退回共享 `.conda-env`（并行会话改动会波及工具链身份）。处置：随下次触碰 chipyard 门控/文档时修。"
