@@ -17,8 +17,8 @@
   7. `[spec-decision]` 所在小节在 §7 有对应行；附录 A 覆盖 §8–§11。
 
 用法：
-  python3 tools/linux/check_syscall_contract.py [--root DIR] [--contracts-dir DIR]
-  python3 tools/linux/check_syscall_contract.py --self-test   # 5 类注入（临时树；不碰真实文件）
+  python3 tests/unit/linux/check_syscall_contract.py [--root DIR] [--contracts-dir DIR]
+  python3 tests/unit/linux/check_syscall_contract.py --self-test   # 5 类注入（临时树；不碰真实文件）
 
 退出码：0 = 全部一致；1 = 有不一致 / 自检失败；2 = 输入缺失或无法解析。
 """

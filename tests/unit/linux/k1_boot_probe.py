@@ -48,11 +48,11 @@ kernel to prove it):
 
 Usage::
 
-  python3 tools/linux/k1_boot_probe.py                # positive run
-  python3 tools/linux/k1_boot_probe.py --neg size     # kernel-side rejection
-  python3 tools/linux/k1_boot_probe.py --neg magic
-  python3 tools/linux/k1_boot_probe.py --list
-  python3 tools/linux/k1_boot_probe.py --kernel <vmlinux> --qemu <binary>
+  python3 tests/unit/linux/k1_boot_probe.py                # positive run
+  python3 tests/unit/linux/k1_boot_probe.py --neg size     # kernel-side rejection
+  python3 tests/unit/linux/k1_boot_probe.py --neg magic
+  python3 tests/unit/linux/k1_boot_probe.py --list
+  python3 tests/unit/linux/k1_boot_probe.py --kernel <vmlinux> --qemu <binary>
 
 The negative cases corrupt the **firmware**, not the kernel: a test-only hmon
 variant DMAs one wrong field into the boot info page and a ``--defsym`` makes

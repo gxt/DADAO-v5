@@ -943,7 +943,7 @@ def run_closure_gate(script: str, tag: str) -> tuple[int, str]:
     env = dict(os.environ, JOBS=str(JOBS),
                K0_TMP=str(SCRATCH / f"regress-k0-{tag}"),
                K1_TMP=str(SCRATCH / f"regress-k1-{tag}"))
-    cmd = [sys.executable, str(_REPO / "tools" / "linux" / script)]
+    cmd = [sys.executable, str(_REPO / "tests" / "unit" / "linux" / script)]
     try:
         proc = subprocess.run(cmd, cwd=str(_REPO), capture_output=True,
                               text=True, timeout=TIMEOUT_REGRESS, env=env)

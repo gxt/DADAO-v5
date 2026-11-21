@@ -69,7 +69,7 @@ restoring it: ``cp`` + md5):
       image; the K3 criterion for a page fault (handled, retried, no second
       entry) is `check-linux-k3` F group (record: `docs/Process-07 §4a`).
   K14 semihosting pointers are PAs (`ISS-450`): a second run on the same Vast
-      firmware (PTW already on) executes ``tools/linux/semihost_pa_probe.S``,
+      firmware (PTW already on) executes ``tests/unit/linux/semihost_pa_probe.S``,
       which hands `SYS_WRITE0` (a short string and a 640-byte long string that
       spans the responder's 256-byte block reads), `SYS_WRITEC` (character) and
       `SYS_OPEN` (file name, length field 0) the **PA** of data whose PA, read
@@ -80,7 +80,7 @@ restoring it: ``cp`` + md5):
       "unmapped as a VA" premise against the live page table before it prints
       anything.
   K15 the same rule reaches `SYS_READC`'s internal scratch slot (`ISS-452`): a
-      third run executes ``tools/linux/semihost_readc_probe.S``, which installs
+      third run executes ``tests/unit/linux/semihost_readc_probe.S``, which installs
       a kernel-window **VA** as `rb1` (like the kernel's own early stack) and
       asks for one character; the gate feeds that character on the semihosting
       console chardev and the guest must get exactly that byte back, twice (the
@@ -116,12 +116,8 @@ from tools.linux import make_defconfig as defconfig  # noqa: E402  (config slice
 from tests.unit.linux import k1_pt_probe as k1pt       # noqa: E402  (ptw parsers)
 from tools.linux import make_vmlinux as vmlinux   # noqa: E402  (build driver)
 from tools.linux import paths as linux_paths      # noqa: E402
-# `.ascii` oracle helper: `tests/ee-tiny/` 不是合法模块名（`-`），按文件路径加载
-# （m15-testcases-011：脚本迁出 `tools/linux/`）。
-_SEMI_SMOKE = _REPO / "tests" / "ee-tiny" / "run_semihosting_tiny.py"
-_spec = importlib.util.spec_from_file_location("tiny_run_semihosting_smoke", _SEMI_SMOKE)
-run_semihosting_smoke = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(run_semihosting_smoke)
+# `.ascii` oracle helper（原裸机 semihosting 冒烟退役后抽到本目录）。
+from tests.unit.linux.asm_strings import ascii_payloads  # noqa: E402
 from tools.qemu import k0_boot_probe as k0         # noqa: E402  (contract, firmware)
 
 sys.path.insert(0, str(_REPO / "tools" / "testcases" / "lib"))
@@ -349,8 +345,8 @@ def run_kernel(ctx: Ctx, tag: str) -> tuple[int, str, list[str]]:
 #: The probe and the fixed offsets of its data blocks inside the image.  Every
 #: datum sits at ``ENTRY_VA + <offset>``: its VA is mapped, its PA — read as a
 #: VA — is not (all of them are below one 512 MiB superpage).
-SEMI_PROBE_S = _REPO / "tools" / "linux" / "semihost_pa_probe.S"
-SEMI_PROBE_LDS = _REPO / "tools" / "linux" / "semihost_pa_probe.lds"
+SEMI_PROBE_S = _REPO / "tests" / "unit" / "linux" / "semihost_pa_probe.S"
+SEMI_PROBE_LDS = _REPO / "tests" / "unit" / "linux" / "semihost_pa_probe.lds"
 SEMI_DATA_OFF = {
     "sp_payload": 0x800,        # SYS_WRITE0 string + NUL
     "sp_chars": 0x810,          # SYS_WRITEC characters ("XYZ")
@@ -379,7 +375,7 @@ def semi_console_oracle() -> tuple[bytes, bytes, bytes, bytes, bytes, bytes]:
     SYS_OPEN name, so it can be written as several readable lines.
     """
     payloads = [part for line in SEMI_PROBE_S.read_text(encoding="utf-8").splitlines()
-                for part in run_semihosting_smoke._ascii_payloads(line)]
+                for part in ascii_payloads(line)]
     if len(payloads) < 6:
         raise SystemExit(
             f"check_k1: {SEMI_PROBE_S.name}: expected >= 6 .ascii payloads "
@@ -532,7 +528,7 @@ def check_semihost_pa(rep: Report, rc: int, console: bytes) -> None:
 # K15: SYS_READC's internal scratch slot is named as a PA (ISS-452)
 # ---------------------------------------------------------------------------
 
-READC_PROBE_S = _REPO / "tools" / "linux" / "semihost_readc_probe.S"
+READC_PROBE_S = _REPO / "tests" / "unit" / "linux" / "semihost_readc_probe.S"
 #: The probe sets rb1 to this VA (inside the mapped kernel-window superpage,
 #: one 64 KiB image above the entry: the probe image is <= 64 KiB).
 READC_SCRATCH_OFF = 0x20000

@@ -61,7 +61,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         clean-work build-mc build-mc-lite build-mc-reconfig build-lld \
         build-builtins build-qemu build-qemu-reconfig build-gem5 check-gem5-decode check-wuming-cycles build-bootrom build-picolibc \
         build-musl build-musl-shared test-picolibc-smoke install-host install-cfx-aliases docker-image docker-shell check \
-        linux-defconfig linux-vmlinux linux-initramfs linux-semihosting-smoke \
+        linux-defconfig linux-vmlinux linux-initramfs \
         check-linux-toolchain check-linux-boot-contract check-config-pins \
         check-linux-k0 check-linux-k1 \
         check-linux-k2 check-linux-k3 \
@@ -165,7 +165,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       build-gem5 check-gem5-decode \
                       build-builtins build-bootrom build-picolibc build-musl build-musl-shared \
                       build-busybox \
-                      linux-defconfig linux-vmlinux linux-initramfs linux-semihosting-smoke \
+                      linux-defconfig linux-vmlinux linux-initramfs \
                       check-linux-k0 check-linux-k1 check-linux-k2 check-linux-k3 \
                       test-codegen test-elf test-m6 test-picolibc-smoke \
                       check-lit check-lit-full \
@@ -250,7 +250,6 @@ help:
 	@echo "  make linux-defconfig  Configure the Linux kernel for dadao (M14; glibc-free defconfig; script lands in a later m14-linux task)"
 	@echo "  make linux-vmlinux   Build the Linux kernel image (M14; JOBS= parallel make; script lands later)"
 	@echo "  make linux-initramfs Build the initramfs image (M14; script lands later)"
-	@echo "  make linux-semihosting-smoke  Boot the kernel under QEMU semihosting (smoke; M14; script lands later)"
 	@echo "  make check-linux-toolchain  Check the dadao cross toolchain can build the kernel (L1; M14)"
 	@echo "  make check-linux-boot-contract  Check the boot ABI contract against spec/Kaiwu (L1; M14)"
 	@echo "  make check-config-pins  Every gate's CONFIG_PINS == all config DADAO_* of Kconfig.debug (slice derived from it, fail-closed; L1; ISS-470/m15-infra-008)"
@@ -777,7 +776,7 @@ _locked-install-cfx-aliases:
 # (ADR-0016 D9); run `make install-host` first.  Outputs live under the SDK
 # test-artifacts root (ADR-0016 D6, resolved via paths.py):
 #   $(BOOTROM_DIR)/{tiny/{power,hmon}.{o,elf},tiny/bootrom_tiny.bin,
-#                     semihost_{smoke,fail,unimpl,write}.o/.elf}
+#                     }
 BOOTROM_DIR = $(TEST_ARTIFACTS_DIR)/bootrom
 STEP5_BOOTROM_DIR = $(BOOTROM_DIR)/step5
 # m12-chipyard-007: Kaiwu-Tiny fixed BootROM firmware image
@@ -814,17 +813,6 @@ _locked-build-bootrom:
 	  --hmon-elf $(TINY_BOOTROM_DIR)/hmon.elf \
 	  --llvm-objcopy $(LLVM_OBJCOPY_BIN) --llvm-nm $(LLVM_NM_BIN) \
 	  --hex-out $(TINY_BOOTROM_DIR)/bootrom.tiny.hex
-	@# m12-chipyard-004: semihosting responder probes.  One source, four images:
-	@#   3-platform smoke (SYS_WRITE0/WRITEC/CLOCK/EXIT), guest-FAIL status,
-	@#   unimplemented SYS_OPEN (must be a loud harness error), SYS_WRITE.
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=0 --defsym EXIT_CODE=0x00 --defsym SEMIHOST_UNIMPL=0 tests/ee-tiny/semihost_smoke_tiny.S -o $(BOOTROM_DIR)/semihost_smoke.o
-	$(LLD_BIN) -T tests/ee-tiny/semihost_smoke_tiny.lds $(BOOTROM_DIR)/semihost_smoke.o -o $(BOOTROM_DIR)/semihost_smoke.elf
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=0 --defsym EXIT_CODE=0x40 --defsym SEMIHOST_UNIMPL=0 tests/ee-tiny/semihost_smoke_tiny.S -o $(BOOTROM_DIR)/semihost_fail.o
-	$(LLD_BIN) -T tests/ee-tiny/semihost_smoke_tiny.lds $(BOOTROM_DIR)/semihost_fail.o -o $(BOOTROM_DIR)/semihost_fail.elf
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=0 --defsym EXIT_CODE=0x00 --defsym SEMIHOST_UNIMPL=1 tests/ee-tiny/semihost_smoke_tiny.S -o $(BOOTROM_DIR)/semihost_unimpl.o
-	$(LLD_BIN) -T tests/ee-tiny/semihost_smoke_tiny.lds $(BOOTROM_DIR)/semihost_unimpl.o -o $(BOOTROM_DIR)/semihost_unimpl.elf
-	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym SEMIHOST_WRITE=1 --defsym EXIT_CODE=0x00 --defsym SEMIHOST_UNIMPL=0 tests/ee-tiny/semihost_smoke_tiny.S -o $(BOOTROM_DIR)/semihost_write.o
-	$(LLD_BIN) -T tests/ee-tiny/semihost_smoke_tiny.lds $(BOOTROM_DIR)/semihost_write.o -o $(BOOTROM_DIR)/semihost_write.elf
 	@# INTEG-046t step5: 256 KiB BootROM (power flat + hmon/smon ELFs) and the
 	@# image index table builder.  -z max-page-size keeps the small images inside
 	@# the 64 KiB per-image limit (the default 64 KiB page padding would not).
@@ -1064,9 +1052,6 @@ _locked-linux-vmlinux:
 
 _locked-linux-initramfs:
 	@JOBS=$(JOBS) $(PYTHON) tools/linux/make_initramfs.py
-
-_locked-linux-semihosting-smoke:
-	@JOBS=$(JOBS) $(PYTHON) tests/ee-tiny/run_semihosting_tiny.py
 
 # build-busybox（m14-linux-030）：K6 的静态 musl busybox（最小 applet 集，真源
 # = components/busybox/config.min）。前置：install-host 工具链 + build-musl 的

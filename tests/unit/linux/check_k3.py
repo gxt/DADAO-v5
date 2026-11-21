@@ -1264,7 +1264,7 @@ def check_exit(rep: Report, runs: dict, d: dict) -> None:
 #: unnoticed and the record cannot drift away from the code.
 RETIREMENTS = (
     {
-        "file": "tools/linux/check_k1.py",
+        "file": "tests/unit/linux/check_k1.py",
         "anchor": "K13 CFXMEM 计数",
         "old": "CFXMEM 只出现 1 次（唯一一次预先声明的探针）",
         "new": "本镜像内（CONFIG_DADAO_K1_EARLY_STOP=y、无 mm 子系统）CFXMEM "
@@ -1273,7 +1273,7 @@ RETIREMENTS = (
         "alt": "check-linux-k3 F 组",
     },
     {
-        "file": "tools/linux/check_k1.py",
+        "file": "tests/unit/linux/check_k1.py",
         "anchor": "K13 CFXMEM resumed",
         "old": "该 CFXMEM 是被处理过的探针（resumed）",
         "new": "本镜像内（无 mm 子系统）该 CFXMEM 是被处理过的探针（resumed）；"
@@ -1281,7 +1281,7 @@ RETIREMENTS = (
         "alt": "check-linux-k3 F 组",
     },
     {
-        "file": "tools/linux/check_k1.py",
+        "file": "tests/unit/linux/check_k1.py",
         "anchor": "K13 后置子系统痕迹",
         "old": "无 K1 之后的子系统痕迹（init/syscall/IRQ/timer/tick）",
         "new": "本镜像内（CONFIG_DADAO_K1_EARLY_STOP=y、无 mm 子系统 ⇒ 无页故障"
@@ -1290,7 +1290,7 @@ RETIREMENTS = (
         "alt": "check-linux-k3 F 组",
     },
     {
-        "file": "tools/linux/check_k2.py",
+        "file": "tests/unit/linux/check_k2.py",
         "anchor": "E8 未声明 CFXMEM 退出码",
         "old": "未声明的 CFXMEM：退出码 == §7.1 supv+CFXMEM",
         "new": "本镜像内（无 mm 子系统）未声明的 CFXMEM：退出码 == §7.1 "
@@ -1503,8 +1503,8 @@ def run_selfcheck(qemu: str) -> int:
         rep, dict(runs, pf1=(prc, re.sub(r"(K3 pfc P1 .*?\bentries=)\d+",
                                          r"\g<1>2", ptext, count=1))), d))
     flip("R", "R 旧文案回潮", lambda rep: check_retirement(
-        rep, {"tools/linux/check_k1.py": (
-            _REPO / "tools/linux/check_k1.py").read_text(encoding="utf-8")
+        rep, {"tests/unit/linux/check_k1.py": (
+            _REPO / "tests/unit/linux/check_k1.py").read_text(encoding="utf-8")
             + f'\n    rep.check("K13", "{RETIREMENTS[0]["old"]}", 1, 1)\n'}))
 
     missing = [group for group in GROUPS if not flipped.get(group)]
@@ -1577,7 +1577,7 @@ INJECTIONS = {
     # ⑥ a retired wording comes back into the K1 gate: the §4a ledger is the
     #    only thing that notices, and it must.
     "retired-back": {
-        "file": "tools/linux/check_k1.py", "root": "repo",
+        "file": "tests/unit/linux/check_k1.py", "root": "repo",
         "old": "# ── K13: reverse assertions ─────────────────────────────────────────\n",
         "new": "# ── K13: reverse assertions ─────────────────────────────────────────\n"
                "    rep.check(\"K13\", \"CFXMEM 只出现 1 次（唯一一次预先声明的探针）\", 1, 1)\n",

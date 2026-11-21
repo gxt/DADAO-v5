@@ -22,10 +22,10 @@
               现场实测重渲染出的正文（`--report --check`）；改矩阵不重生成 ⇒ FAIL。
 
 用法：
-  python3 tools/linux/check_toolchain.py                  # 门控（R1-R6，`make check-linux-toolchain`）
-  python3 tools/linux/check_toolchain.py --report          # 重写人读报告（报告是生成物）
-  python3 tools/linux/check_toolchain.py --report --check  # 只断言报告与矩阵同源
-  python3 tools/linux/check_toolchain.py --inject          # 自检：临时副本注入 6 类反例
+  python3 tests/unit/linux/check_toolchain.py                  # 门控（R1-R6，`make check-linux-toolchain`）
+  python3 tests/unit/linux/check_toolchain.py --report          # 重写人读报告（报告是生成物）
+  python3 tests/unit/linux/check_toolchain.py --report --check  # 只断言报告与矩阵同源
+  python3 tests/unit/linux/check_toolchain.py --inject          # 自检：临时副本注入 6 类反例
 
 退出码：0 = 通过；1 = 有 FAIL；2 = 输入缺失 / 无法解析（矩阵或安装根）。
 """
@@ -725,8 +725,8 @@ def render(matrix: dict, live: dict, stamp: str) -> str:
         f"clang `{_tool_version(clang)}`；llvm-mc `{_tool_version(llvm_mc)}`；"
         f"工具版本摘要 md5 `{_version_md5([clang, llvm_mc])}`",
         "- **复现**：`make check-linux-toolchain`（门控）；"
-        "`python3 tools/linux/check_toolchain.py --report`（重新生成本册）；"
-        "`python3 tools/linux/check_toolchain.py --inject`（自检）",
+        "`python3 tests/unit/linux/check_toolchain.py --report`（重新生成本册）；"
+        "`python3 tests/unit/linux/check_toolchain.py --inject`（自检）",
         "",
         "## 1. 结论",
         "",
@@ -818,9 +818,9 @@ def render(matrix: dict, live: dict, stamp: str) -> str:
         "",
         "```",
         "make check-linux-toolchain",
-        "python3 tools/linux/check_toolchain.py --report",
-        "python3 tools/linux/check_toolchain.py --report --check",
-        "python3 tools/linux/check_toolchain.py --inject",
+        "python3 tests/unit/linux/check_toolchain.py --report",
+        "python3 tests/unit/linux/check_toolchain.py --report --check",
+        "python3 tests/unit/linux/check_toolchain.py --inject",
         "```",
         "",
     ]

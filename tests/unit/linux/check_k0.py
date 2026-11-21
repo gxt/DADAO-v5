@@ -54,9 +54,9 @@ the `make` target to run.  There is **no SKIP** anywhere in this file.
 
 Usage:
 
-  python3 tools/linux/check_k0.py                 # gate (`make check-linux-k0`)
-  python3 tools/linux/check_k0.py --no-build      # assert only, never build
-  python3 tools/linux/check_k0.py --inject        # self-check on tampered copies
+  python3 tests/unit/linux/check_k0.py                 # gate (`make check-linux-k0`)
+  python3 tests/unit/linux/check_k0.py --no-build      # assert only, never build
+  python3 tests/unit/linux/check_k0.py --inject        # self-check on tampered copies
 
 `--inject` copies the products / projection / matrix into a scratch directory,
 tampers with the copy and asserts the *target* judgement fails; the real
@@ -98,8 +98,8 @@ from tools.linux import paths as linux_paths  # noqa: E402
 CONTRACT_REL = Path("contracts/linux-boot.yaml")
 MATRIX_REL = Path("tools/linux/toolchain_matrix.json")
 COMPONENTS_LOCK_REL = Path("manifests/components.lock.toml")
-TOOLCHAIN_SCRIPT_REL = Path("tools/linux/check_toolchain.py")
-BOOT_CONTRACT_SCRIPT_REL = Path("tools/linux/check_boot_contract.py")
+TOOLCHAIN_SCRIPT_REL = Path("tests/unit/linux/check_toolchain.py")
+BOOT_CONTRACT_SCRIPT_REL = Path("tests/unit/linux/check_boot_contract.py")
 APPLY_SERIES_SCRIPT_REL = Path("tools/infra/apply_series.py")
 INITRAMFS_SCRIPT_REL = Path("tools/linux/make_initramfs.py")
 

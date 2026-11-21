@@ -64,11 +64,11 @@ kernel with the corruption in place):
 
 Usage::
 
-  python3 tools/linux/k1_pt_probe.py                # positive run
-  python3 tools/linux/k1_pt_probe.py --selfcheck    # per-check reachable FAIL
-  python3 tools/linux/k1_pt_probe.py --inject       # four real injections
-  python3 tools/linux/k1_pt_probe.py --list
-  python3 tools/linux/k1_pt_probe.py --kernel <vmlinux> --qemu <binary>
+  python3 tests/unit/linux/k1_pt_probe.py                # positive run
+  python3 tests/unit/linux/k1_pt_probe.py --selfcheck    # per-check reachable FAIL
+  python3 tests/unit/linux/k1_pt_probe.py --inject       # four real injections
+  python3 tests/unit/linux/k1_pt_probe.py --list
+  python3 tests/unit/linux/k1_pt_probe.py --kernel <vmlinux> --qemu <binary>
 
 Exit status: 0 = every requested check passed; 1 = at least one FAIL; 2 = the
 inputs could not be derived (contract/image/symbols missing).

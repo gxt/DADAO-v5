@@ -34,8 +34,8 @@
   9. YAML 的 `display` 与 `value` 回读一致（dev 值不得与 `value` 脱钩）。
 
 用法：
-  python3 tools/linux/check_boot_contract.py [--root DIR]
-  python3 tools/linux/check_boot_contract.py --self-test     # 注入自检（临时树；不碰真实文件）
+  python3 tests/unit/linux/check_boot_contract.py [--root DIR]
+  python3 tests/unit/linux/check_boot_contract.py --self-test     # 注入自检（临时树；不碰真实文件）
 
 退出码：0 = 全部一致；1 = 有不一致 / 自检失败；2 = 输入缺失或无法解析。
 """

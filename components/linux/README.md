@@ -23,7 +23,6 @@ M13 及以前本组件只是**参考输入**（`ADR-0025 D2`：无内核目标�
 make linux-defconfig        # 生成 DADAO defconfig（写者，持 gate.lock）
 make linux-vmlinux          # 构建 vmlinux + 产物断言 + 代码跨度护栏（写者）
 make linux-initramfs        # 构建 initramfs（写者）
-make linux-semihosting-smoke  # 半主机启动冒烟（写者）
 make check-linux-toolchain  # 交叉工具链可用性（只读）
 make check-linux-boot-contract  # 启动 ABI 契约（只读）
 make check-linux-k0         # K0 收口门控（只读，会增量构建）

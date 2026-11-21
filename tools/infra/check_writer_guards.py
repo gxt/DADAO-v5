@@ -79,7 +79,6 @@ READER_ENTRIES = [
     "tools/qemu/user_mode_smoke.py",
     "tools/qemu/semantics_gate.py",
     "tools/qemu/k0_boot_probe.py",
-    "tests/ee-tiny/run_semihosting_tiny.py",
 ]
 
 

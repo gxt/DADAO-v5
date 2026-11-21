@@ -473,7 +473,7 @@ def static_recon(rep: Report, snap: dict | None) -> None:
     # image therefore takes the *generic* path, and the static half asserts
     # exactly that: the registration is present, and the raw K2 tick is
     # compile-time isolated to CONFIG_DADAO_K2_TIME_STOP.  The registration
-    # itself is judged end-to-end by `tools/linux/k5_clocksource_probe.py`
+    # itself is judged end-to-end by `tests/unit/linux/k5_clocksource_probe.py`
     # (T1-T4), so this file does not restate it.
     rep.check("S6", "生产镜像走通用 clockevent；K2 裸 tick 只剩边界镜像",
               True,
