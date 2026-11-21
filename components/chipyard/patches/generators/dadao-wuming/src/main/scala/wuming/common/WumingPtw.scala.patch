@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala
 new file mode 100644
-index 0000000..f471feb
+index 0000000..0dad853
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala
-@@ -0,0 +1,603 @@
+@@ -0,0 +1,592 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" page-table walker + first-level TLB (m16-chipyard-007/008).
@@ -41,16 +41,16 @@ index 0000000..f471feb
 +// walks and fills the side's table (normal pages 2x8, superpages 4, LRU).  The
 +// TLB class has no D state on the instruction side.
 +//
-+// The walker borrows the core's data port: the core is parked in `sXlate`
-+// while a translation (or a `cfx_ptw_tlb_control` command) runs, so the port is
-+// free and no third TileLink client is needed (`io.tl` is driven by the core's
-+// `dmem` mux).
++// The walker reaches memory through the D-cache's page-table port: the core is
++// parked in `sXlate` while a translation (or a `cfx_ptw_tlb_control` command)
++// runs, and the cache holds one copy of every physical line, so a PTE write the
++// core made through the data path is immediately visible to the walk (and the
++// walk's A/D write-back is immediately visible to the core).
 +
 +package wuming.common
 +
 +import chisel3._
 +import chisel3.util._
-+import freechips.rocketchip.tilelink.{TLBundle, TLEdgeOut}
 +import gewu.GewuCauseId
 +
 +/** Page-table walker parameters, all taken from the machine address map. */
@@ -103,16 +103,16 @@ index 0000000..f471feb
 +  val size = UInt(64.W)
 +}
 +
-+class WumingPtw(
-+  ptwParams: WumingPtwParams,
-+  dataEdge: TLEdgeOut,
-+  srcBits: Int
-+) extends Module {
-+  require(dataEdge.bundle.dataBits == 64, "WumingPtw: expected a 64-bit TileLink beat")
-+  require(dataEdge.bundle.addressBits >= 48, "WumingPtw: 48-bit physical addresses")
++class WumingPtw(ptwParams: WumingPtwParams) extends Module {
 +
 +  val io = IO(new Bundle {
-+    val tl = new TLBundle(dataEdge.bundle)
++    /** Page-table reads and A/D read-modify-writes go through the D-cache
++      * (`m16-chipyard-009`); the cache answers in address-ordered beats, so
++      * the walker never sees the bus byte order. */
++    val mem = new Bundle {
++      val req = Decoupled(new WumingDcacheRequest)
++      val resp = Flipped(Valid(new WumingDcacheResponse))
++    }
 +    /** `inner_run_mode` selects the HSJU bit (§2.2.5). */
 +    val runMode = Input(UInt(2.W))
 +    /** `cfx_ptw_ptbr`: the stored `PPN[55:16]` (§4.5). */
@@ -129,7 +129,6 @@ index 0000000..f471feb
 +  })
 +
 +  private val p = ptwParams
-+  private val lgSize = 3.U // 8-byte beat
 +  private val tlbParams = WumingTlbParams(
 +    sets = p.tlbSets, ways = p.tlbWays, superEntries = p.tlbSuperEntries)
 +  private val tlbEntries = tlbParams.totalEntries
@@ -226,16 +225,11 @@ index 0000000..f471feb
 +  io.cmdDone.bits.fault := cmdDoneFault
 +  io.cmdDone.bits.info := cmdDoneInfo
 +
-+  // ---- TileLink access of one 8-byte beat --------------------------------
-+  // The A channel is driven *combinationally* from the requesting state (which
-+  // is held until `a.ready`), so a request is never retracted and never carries
-+  // a stale address: a register latched in the same cycle would put the
-+  // previous request's address on the bus for one beat.
-+  private def addressOrder(value: UInt): UInt =
-+    Cat((0 until 8).map(i => value(8 * i + 7, 8 * i)))
-+  private def laneOrder(value: UInt): UInt =
-+    Cat((0 until 8).reverse.map(i => value(63 - 8 * i, 56 - 8 * i)))
-+
++  // ---- cache-port access of one 8-byte beat ------------------------------
++  // The request is driven *combinationally* from the requesting state (which
++  // is held until `req.ready`), so it is never retracted and never carries a
++  // stale address: a register latched in the same cycle would put the
++  // previous request's address on the port for one beat.
 +  private val l1PaNow = Cat(io.ptbr, 0.U(16.W)) +
 +    Cat(0.U(53.W), reqVa(41, 29), 0.U(3.W))
 +  private val drivingGet = state === sL1Req || state === sL2Req ||
@@ -246,22 +240,17 @@ index 0000000..f471feb
 +    Mux(state === sL2Req, l2PaReg,
 +      Mux(drivingA, wbPa, 0.U)))
 +  private val putValue = WumingTlbRules.orValue(wbCur, wbAPend, wbDPend)
-+  private val (_, getBits) =
-+    dataEdge.Get(0.U(srcBits.W), aPa(dataEdge.bundle.addressBits - 1, 0), lgSize)
-+  private val (_, putBits) = dataEdge.Put(0.U(srcBits.W),
-+    aPa(dataEdge.bundle.addressBits - 1, 0), lgSize, laneOrder(putValue), "hff".U(8.W))
-+  io.tl.a.valid := drivingA
-+  io.tl.a.bits := Mux(drivingPut, putBits, getBits)
++  io.mem.req.valid := drivingA
++  io.mem.req.bits.addr := aPa
++  io.mem.req.bits.write := drivingPut
++  io.mem.req.bits.wdata := putValue
++  io.mem.req.bits.wmask := "hff".U(8.W)
 +  // Address of the request actually accepted, for the PTE's own PA (the
 +  // `ADWBFAIL` `cause_info` and the self-consistent A/D base).
 +  private val sentPa = RegInit(0.U(64.W))
-+  when(io.tl.a.fire) { sentPa := aPa }
-+  private val tlListening = state === sL1Wait || state === sL2Wait ||
-+    state === sEvGetWait || state === sEvPutWait ||
-+    state === sCmdGetWait || state === sCmdPutWait
-+  io.tl.d.ready := tlListening
-+  private val tlFire = io.tl.d.valid && io.tl.d.ready
-+  private val tlFail = tlFire && (io.tl.d.bits.denied || io.tl.d.bits.corrupt)
++  when(io.mem.req.fire) { sentPa := aPa }
++  private val tlFire = io.mem.resp.valid
++  private val tlFail = tlFire && io.mem.resp.bits.error
 +
 +  // ---- leaf helpers ------------------------------------------------------
 +  private def respond(pa: UInt, fault: Bool, perm: Bool, sub: UInt, info: UInt): Unit = {
@@ -428,14 +417,14 @@ index 0000000..f471feb
 +      respond(0.U, true.B, false.B, GewuCauseId.MEM_NONPTW.U, reqVa)
 +    }.otherwise {
 +      // The read is on the A channel (combinationally) until it is accepted.
-+      when(io.tl.a.ready) { state := sL1Wait }
++      when(io.mem.req.ready) { state := sL1Wait }
 +    }
 +  }
 +  when(state === sL1Wait) {
 +    when(tlFail) {
 +      respond(0.U, true.B, false.B, GewuCauseId.MEM_NONPTW.U, reqVa)
 +    }.elsewhen(tlFire) {
-+      leafPte := addressOrder(io.tl.d.bits.data)
++      leafPte := io.mem.resp.bits.data
 +      leafPtePa := sentPa
 +      state := sLeafL1
 +    }
@@ -461,14 +450,14 @@ index 0000000..f471feb
 +    when(!inPtwMemory(l2PaReg)) {
 +      respond(0.U, true.B, false.B, GewuCauseId.MEM_NONPTW.U, reqVa)
 +    }.otherwise {
-+      when(io.tl.a.ready) { state := sL2Wait }
++      when(io.mem.req.ready) { state := sL2Wait }
 +    }
 +  }
 +  when(state === sL2Wait) {
 +    when(tlFail) {
 +      respond(0.U, true.B, false.B, GewuCauseId.MEM_NONPTW.U, reqVa)
 +    }.elsewhen(tlFire) {
-+      leafPte := addressOrder(io.tl.d.bits.data)
++      leafPte := io.mem.resp.bits.data
 +      leafPtePa := sentPa
 +      state := sLeafL2
 +    }
@@ -495,7 +484,7 @@ index 0000000..f471feb
 +  // ---- eviction write-back (read-modify-write OR, TLB-15) ----------------
 +  when(state === sEvGet) {
 +    printf(p"WumingPtw: tlb-evict side=${Mux(reqFetch, 0.U, 1.U)} super=${leafSuperReg} idx=${evIdx} va=0x${Hexadecimal(evVaTag)} pte=0x${Hexadecimal(evPte)}\n")
-+    when(io.tl.a.ready) { state := sEvGetWait }
++    when(io.mem.req.ready) { state := sEvGetWait }
 +  }
 +  when(state === sEvGetWait) {
 +    when(tlFail) {
@@ -504,13 +493,13 @@ index 0000000..f471feb
 +      printf(p"WumingPtw: ad-fail kind=replace pte=0x${Hexadecimal(wbPa)} cycle=${dbgCycles}\n")
 +      respond(0.U, true.B, false.B, GewuCauseId.MEM_ADWBFAIL.U, wbPa)
 +    }.elsewhen(tlFire) {
-+      wbCur := addressOrder(io.tl.d.bits.data)
++      wbCur := io.mem.resp.bits.data
 +      state := sEvPut
 +    }
 +  }
 +  when(state === sEvPut) {
 +    printf(p"WumingPtw: ad-wb kind=replace pte=0x${Hexadecimal(wbPa)} value=0x${Hexadecimal(putValue)} cycle=${dbgCycles}\n")
-+    when(io.tl.a.ready) { state := sEvPutWait }
++    when(io.mem.req.ready) { state := sEvPutWait }
 +  }
 +  when(state === sEvPutWait) {
 +    when(tlFail) {
@@ -560,7 +549,7 @@ index 0000000..f471feb
 +    }
 +  }
 +  when(state === sCmdGet) {
-+    when(io.tl.a.ready) { state := sCmdGetWait }
++    when(io.mem.req.ready) { state := sCmdGetWait }
 +  }
 +  when(state === sCmdGetWait) {
 +    when(tlFail) {
@@ -569,13 +558,13 @@ index 0000000..f471feb
 +      cmdDoneInfo := wbPa
 +      state := sCmdDone
 +    }.elsewhen(tlFire) {
-+      wbCur := addressOrder(io.tl.d.bits.data)
++      wbCur := io.mem.resp.bits.data
 +      state := sCmdPut
 +    }
 +  }
 +  when(state === sCmdPut) {
 +    printf(p"WumingPtw: ad-wb kind=cmd op=${cmdOp} pte=0x${Hexadecimal(wbPa)} value=0x${Hexadecimal(putValue)} cycle=${dbgCycles}\n")
-+    when(io.tl.a.ready) { state := sCmdPutWait }
++    when(io.mem.req.ready) { state := sCmdPutWait }
 +  }
 +  when(state === sCmdPutWait) {
 +    when(tlFail) {

@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..f1d35fd
+index 0000000..470eaad
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,1916 @@
+@@ -0,0 +1,1968 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -210,18 +210,33 @@ index 0000000..f1d35fd
 +
 +  // ---- page-table walker (`m16-chipyard-007`) ----------------------------
 +  //
-+  // The walker borrows the data port (`io.dmem`): the core is parked in
-+  // `sXlate` while a translation — or a `cfx_ptw_tlb_control` command — runs,
-+  // so no data request is outstanding and no third TileLink client is needed.
-+  // Only a translating machine instantiates it (Tiny keeps zero `ptw` in its
-+  // RTL: its address path never leaves the core-internal windows).
++  // The walker reaches memory through the D-cache's page-table port
++  // (`m16-chipyard-009`): the core is parked in `sXlate` while a translation —
++  // or a `cfx_ptw_tlb_control` command — runs, so no data request is
++  // outstanding.  Only a translating machine instantiates it (Tiny keeps zero
++  // `ptw` in its RTL: its address path never leaves the core-internal windows).
 +  private val ptw = if (params.useVM) Some(Module(new WumingPtw(
 +    WumingPtwParams(
 +      paRamBase = requiredValue(params.paRamBase, "paRamBase"),
 +      paRamSize = requiredValue(params.paRamSize, "paRamSize"),
 +      romBase = requiredValue(params.bootromBase, "bootromBase"),
-+      romSize = requiredValue(params.bootromSize, "bootromSize")),
-+    dataEdge, srcBits))) else None
++      romSize = requiredValue(params.bootromSize, "bootromSize"))))) else None
++
++  // ---- data cache (`m16-chipyard-009`) -----------------------------------
++  // 8 ways x 128 groups x 64 B = 64 KiB, write-back + write-allocate with one
++  // dirty bit per line (user ruling 2026-11-20).  The walker's page-table
++  // reads and A/D read-modify-writes use the cache's second port, so there is
++  // exactly one cached copy of every physical line.
++  //
++  // Only the *translated* beats go through the cache.  The core-internal
++  // windows (`addr[47:42] != 0`: SRAM, hmon, BootROM) are the machine's
++  // scratch/MMIO space and the semihosting responder reads them with its own
++  // bus master, so caching them would make host reads stale.  The Vast
++  // machine's architectural memory (PA RAM) is reached only through the
++  // translated window, so the cache covers exactly that memory; a page mapped
++  // to the BootROM is cached like any other physical target (read-only).
++  private val dcache = if (params.useVM) Some(Module(new WumingDcache(
++    WumingDcacheParams(), dataEdge, srcBits))) else None
 +
 +  private val ptwReqValid = WireDefault(false.B)
 +  private val ptwReqVa = WireDefault(0.U(64.W))
@@ -696,25 +711,63 @@ index 0000000..f1d35fd
 +  val (_, memGetBits) = dataEdge.Get(DATA_SRC, memBusBeat(addrBits - 1, 0), lgSize)
 +  val (_, memPutBits) = dataEdge.Put(DATA_SRC, memBusBeat(addrBits - 1, 0), lgSize,
 +    laneOrder(memData), memMask)
-+  // `sXlate` parks the core while the walker (or a `cfx_ptw_tlb_control`
-+  // command) owns the port, so the two drivers never overlap.
++  // A translated beat is served by the cache; a core-internal beat goes to the
++  // bus directly (see the `dcache` comment above).  The core parks in `MWAIT`
++  // while either is in flight, so no two drivers can overlap.
++  private val memCacheRoute: Bool =
++    if (params.useVM) memWindow(memBeat) else false.B
++  private val directAccess = state === sMreq && !memCacheRoute
++  private val directWait = state === sMwait && !memCacheRoute
++  private val directValid = state === sMreq && (!memStore || memPacked)
++  private val dataReqReady: Bool =
++    if (params.useVM) Mux(memCacheRoute, dcache.get.io.core.req.ready, io.dmem.a.ready)
++    else io.dmem.a.ready
 +  if (params.useVM) {
-+    val ptwOwnsBus: Bool = state === sXlate
-+    io.dmem.a.valid := Mux(ptwOwnsBus, ptw.get.io.tl.a.valid,
-+      state === sMreq && (!memStore || memPacked))
-+    io.dmem.a.bits := Mux(ptwOwnsBus, ptw.get.io.tl.a.bits,
-+      Mux(memStore, memPutBits, memGetBits))
-+    io.dmem.d.ready := Mux(ptwOwnsBus, ptw.get.io.tl.d.ready, state === sMwait)
++    val dc = dcache.get
++    dc.io.core.req.valid := directValid && memCacheRoute
++    dc.io.core.req.bits.addr := memBusBeat
++    dc.io.core.req.bits.write := memStore
++    dc.io.core.req.bits.wdata := memData
++    dc.io.core.req.bits.wmask := memMask
++    // The cache's TileLink master (fills, dirty write-backs) owns the port;
++    // a core-internal request drives it directly.  The cache is idle whenever
++    // the core is not waiting on it (requests are serialised).
++    io.dmem.a.valid := Mux(directAccess, directValid, dc.io.tl.a.valid)
++    io.dmem.a.bits := Mux(directAccess, Mux(memStore, memPutBits, memGetBits),
++      dc.io.tl.a.bits)
++    dc.io.tl.a.ready := io.dmem.a.ready
++    io.dmem.d.ready := Mux(directAccess || directWait,
++      state === sMwait, dc.io.tl.d.ready)
++    dc.io.tl.d.valid := io.dmem.d.valid
++    dc.io.tl.d.bits := io.dmem.d.bits
++    // The clean/invalidate port is internal for now: `cfx5` wiring is a
++    // separate task (`m16-chipyard-009` scope).
++    dc.io.cmd.valid := false.B
++    dc.io.cmd.bits := 0.U.asTypeOf(new WumingDcacheCmd)
 +  } else {
-+    // No walker on this machine: the data port belongs to the memory unit.
-+    io.dmem.a.valid := state === sMreq && (!memStore || memPacked)
++    // No cache on this machine: the data port belongs to the memory unit.
++    io.dmem.a.valid := directValid
 +    io.dmem.a.bits := Mux(memStore, memPutBits, memGetBits)
 +    io.dmem.d.ready := state === sMwait
 +  }
++  // One response view for both routes: a translated beat is answered by the
++  // cache (address-ordered data), a core-internal beat by the bus (byte
++  // reversal).  `memCacheRoute` is latched on the beat address and stable
++  // through `sMwait`, so the view selects the route of the outstanding access.
++  private val dataRespFire: Bool =
++    if (params.useVM) Mux(memCacheRoute, dcache.get.io.core.resp.valid, io.dmem.d.fire)
++    else io.dmem.d.fire
++  private val dataRespError: Bool =
++    if (params.useVM) Mux(memCacheRoute, dcache.get.io.core.resp.bits.error,
++      io.dmem.d.bits.denied || io.dmem.d.bits.corrupt)
++    else io.dmem.d.bits.denied || io.dmem.d.bits.corrupt
++  private val dataRespBeat: UInt =
++    if (params.useVM) Mux(memCacheRoute, dcache.get.io.core.resp.bits.data,
++      addressOrder(io.dmem.d.bits.data))
++    else addressOrder(io.dmem.d.bits.data)
 +  for (m <- ptw) {
-+    m.io.tl.a.ready := io.dmem.a.ready
-+    m.io.tl.d.valid := io.dmem.d.valid
-+    m.io.tl.d.bits := io.dmem.d.bits
++    m.io.mem.req <> dcache.get.io.ptw.req
++    m.io.mem.resp <> dcache.get.io.ptw.resp
 +  }
 +
 +  // The element source for a store beat is read combinationally on the r2
@@ -848,7 +901,7 @@ index 0000000..f1d35fd
 +  val w0Copy     = state === sCopy
 +  val w0Cls      = state === sCls
 +  val scFailExec = state === sExec && scFailNow
-+  val scStoreDone = state === sMwait && memStore && io.dmem.d.fire && memAux === 3.U &&
++  val scStoreDone = state === sMwait && memStore && dataRespFire && memAux === 3.U &&
 +    memElem === memCount
 +
 +  val execW0 = state === sExec && !execFault && !cfxFault && !aluIsSlow && d.w0En &&
@@ -861,9 +914,8 @@ index 0000000..f1d35fd
 +
 +  // `ret rdHA, imms18` on the D4b path writes rd only after the MemRAS entry
 +  // has been read and accepted (precise: a RASUF there leaves rd untouched).
-+  val rasRetW0 = state === sMwait && rasMemKind === 2.U && io.dmem.d.fire &&
-+    !io.dmem.d.bits.denied && !io.dmem.d.bits.corrupt &&
-+    addressOrder(io.dmem.d.bits.data)(63, 48) =/= 0.U
++  val rasRetW0 = state === sMwait && rasMemKind === 2.U && dataRespFire &&
++    !dataRespError && dataRespBeat(63, 48) =/= 0.U
 +
 +  rf.io.w0En := execW0 || slowW0 || memElemWrite || semiW0 || rasRetW0 ||
 +    w0Copy || w0Cls || fpSlowW0 || scFailExec || scStoreDone
@@ -1638,16 +1690,16 @@ index 0000000..f1d35fd
 +          }.otherwise {
 +            memPacked := true.B
 +          }
-+        }.elsewhen(io.dmem.a.ready) {
++        }.elsewhen(dataReqReady) {
 +          state := sMwait
 +        }
-+      }.elsewhen(io.dmem.a.ready) {
++      }.elsewhen(dataReqReady) {
 +        state := sMwait
 +      }
 +    }
 +    is(sMwait) {
-+      when(io.dmem.d.fire) {
-+        when(io.dmem.d.bits.denied || io.dmem.d.bits.corrupt) {
++      when(dataRespFire) {
++        when(dataRespError) {
 +          // The address passed the EXEC precheck but the manager still denies
 +          // (or corrupts) the transfer.  A failure in the middle of an
 +          // `ldm`/`stm` cannot be made precise, so it is reported as CFXMEM
@@ -1664,7 +1716,7 @@ index 0000000..f1d35fd
 +        }.elsewhen(rasMemKind === 2.U) {
 +          // D4b: the entry decides between RASUF, consume (count 1) and
 +          // refill (count > 1).  `MRPTR` is only advanced on success.
-+          val entry = addressOrder(io.dmem.d.bits.data)
++          val entry = dataRespBeat
 +          when(entry(63, 48) === 0.U) {
 +            enterHmon(ip, (1.U << RASUF_BIT).pad(64), 0.U)
 +          }.elsewhen(entry(63, 48) === 1.U) {
@@ -1701,7 +1753,7 @@ index 0000000..f1d35fd
 +            advanceBeat()
 +          }
 +        }.otherwise {
-+          memData := addressOrder(io.dmem.d.bits.data)
++          memData := dataRespBeat
 +          memBeatValid := true.B
 +        }
 +      }
@@ -1855,16 +1907,16 @@ index 0000000..f1d35fd
 +    val kind = Mux(d.isSt, 1.U, Mux(d.isLdm, 2.U, Mux(d.isStm, 3.U, 0.U)))
 +    printf(p"WumingCore: memop ip=0x${Hexadecimal(ip(47, 0))} kind=${kind} addr=0x${Hexadecimal(memAddrNow(47, 0))} width=${d.memWidth} count=${memCountNow} cycle=${cycles}\n")
 +  }
-+  when(state === sMwait && io.dmem.d.fire && memStore) {
++  when(state === sMwait && dataRespFire && memStore) {
 +    printf(p"WumingCore: beat st 0x${Hexadecimal(memBeat(47, 0))} mask=0x${Hexadecimal(memMask)} data=0x${Hexadecimal(memData)} cycle=${cycles}\n")
 +  }
-+  when(state === sMwait && io.dmem.d.fire && !memStore) {
-+    printf(p"WumingCore: beat ld 0x${Hexadecimal(memBeat(47, 0))} -> 0x${Hexadecimal(addressOrder(io.dmem.d.bits.data))} cycle=${cycles}\n")
++  when(state === sMwait && dataRespFire && !memStore) {
++    printf(p"WumingCore: beat ld 0x${Hexadecimal(memBeat(47, 0))} -> 0x${Hexadecimal(dataRespBeat)} cycle=${cycles}\n")
 +  }
 +  when(memElemWrite && memElem + 1.U === memCount) {
 +    printf(p"WumingCore: ld 0x${Hexadecimal(memElemAddr(47, 0))} -> 0x${Hexadecimal(memLdElem)} last count=${memCount} cycle=${cycles}\n")
 +  }
-+  when(memStore && state === sMwait && io.dmem.d.fire && memElem === memCount) {
++  when(memStore && state === sMwait && dataRespFire && memElem === memCount) {
 +    printf(p"WumingCore: st... done beat=0x${Hexadecimal(memBeat(47, 0))} count=${memCount} cycle=${cycles}\n")
 +  }
 +  when(state === sExec && d.isBr) {
