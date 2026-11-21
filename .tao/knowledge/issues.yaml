@@ -1117,3 +1117,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`m16-chipyard-010` 复核的六条非阻断 finding：f1 无提交时 `merge-tree` 判据恒真（应以改动集 ∩ `HEAD..master` 兜底）；f2 B 段 Tiny FIRRTL 计数在文件缺失时默认 0、E 段缺 before/after 静默跳过；f3 自检日志写到任务 ID 之外的共享临时目录且不清理；f4 任务书档位（中改）与派单（组件+大改）不一致；f5 changelog 遗留「银行」措辞（非本任务行）；f6 证据脚本退回共享 `.conda-env`（并行会话改动会波及工具链身份）。处置：随下次触碰 chipyard 门控/文档时修。"
+- id: ISS-490
+  scope:
+  - idl
+  milestone: M17
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`m17-idl-003` 复核的四条非阻断 finding：① 自检 `addr48_truncate` 是 Python 常量表达式（近乎恒真），真实覆盖在 `addr48_zero_window_faults`；② 证据脚本把 self-test 期望写死 28（应现场统计，只可能多红不假绿）；③ `Cfx.access()` 未实现 `cfxreg` 掩码 ⇒ `CFXPERM`（`CG3_REG` 已定义未用），用例不触发；④ `check-temp-dirs` 红为他任务陈旧目录（只报告不删）。处置：随下次触碰 idl 执行器/证据脚本时修。"
