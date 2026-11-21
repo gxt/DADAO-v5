@@ -28,13 +28,13 @@
 | --- | --- | --- |
 | m14-linux-021 | 3–4 h | clocksource/clockevent 通用框架（**已后移 K5**，不派单，保留作交接材料） |
 
-| m14-linux-028 | 2–3 h | 用户态 64 KiB ABI（AT_PAGESZ=65536/mmap 对齐/ELF 段对齐/brk+mmap） |
 | m14-linux-029 | 5–6 h | K5 收口门控 check-linux-k5（用户态闭环代表例+§4a 退役） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m14-linux-028 | 2026-11-21 18:51 | 2–3 h | 用户态 64 KiB ABI（AT_PAGESZ/mmap 对齐/ELF 段/brk；`ARCH_FORCE_MAX_ORDER=13`） |
 
 ## 已验证
 
