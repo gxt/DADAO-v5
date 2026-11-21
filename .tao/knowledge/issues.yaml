@@ -1159,3 +1159,11 @@
   closed_in: null
   resolved_by: null
   title: "【P2】K4 探针在 K5 已开 tick 的镜像上偶发时序红（既有，非 `m14-linux-029` 引入）：`k4_kthread_probe` 的 `k2-task-dead` 在 `kthread_stop()` 后立即读任务态，偶见 `state=0 on_rq=1 frozen=1`（探针 59/68、`K4 kthread FAIL: k2-task-dead=0x0 code=0x51`），同一镜像随后连跑 2 次均 112/112 ⇒ 探针轮询与调度交接的竞态；同类脆弱性也见于 `k4_fork_probe` 的 F5（ISS-493）。建议：K4 探针的完成判据改为「事件 + 有界等待」并补 `sched_yield`/`cond_resched` 让出点；`m14-linux-029` 的证据脚本对其余 K4 探针保持严格判据，出现该类红时按运行期日志披露并重采一次全量。"
+- id: ISS-495
+  scope:
+  - infra
+  milestone: M14
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`m14-integ-001` 归档收尾遗漏两处簿记：① `.tao/knowledge/.manifests.toml` 仍登记已删除的 `milestones-m14.md` ⇒ `check-manifests-guard` 红（主会话已补删条目）；② 根 `README.md` 归档行曾写「含 1 册 `已退役`」，回退第三态后措辞不符（已改为「1 册带 `> **已退役**` 注记」）。处置：归档检查清单（`Process-04`）补一条「manifest/README 指针随归档同笔更新」，避免下次里程碑重犯。"
