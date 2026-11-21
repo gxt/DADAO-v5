@@ -1,0 +1,22 @@
+diff --git a/shell/ash.c b/shell/ash.c
+index fb887f3..cf1db11 100644
+--- a/shell/ash.c
++++ b/shell/ash.c
+@@ -14848,7 +14848,17 @@ init(void)
+ 	basepf.linno = 1;
+ 
+ 	sigmode[SIGCHLD - 1] = S_DFL; /* ensure we install handler even if it is SIG_IGNed */
++#if 0
+ 	setsignal(SIGCHLD);
++#else
++	/*
++	 * K6 (m18-linux-001, DADAO): a synchronous foreground `wait4()` is all
++	 * the shell needs; the handler's signal-frame round trip is not
++	 * available yet.  SIG_DFL (ignore) keeps the zombie until wait4 and
++	 * does not auto-reap.
++	 */
++	signal(SIGCHLD, SIG_DFL);
++#endif
+ 
+ 	{
+ 		char **envp;

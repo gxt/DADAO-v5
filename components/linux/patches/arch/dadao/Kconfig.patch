@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig b/arch/dadao/Kconfig
 new file mode 100644
-index 000000000..c734cf358
+index 000000000..7e3eea877
 --- /dev/null
 +++ b/arch/dadao/Kconfig
-@@ -0,0 +1,129 @@
+@@ -0,0 +1,141 @@
 +# SPDX-License-Identifier: GPL-2.0
 +#
 +# DADAO (v5 test machine "Vast") architecture.
@@ -117,6 +117,18 @@ index 000000000..c734cf358
 +	  Register a printk console that writes through the semihosting
 +	  SYS_WRITE0 trap.  K0 only needs this to link; no output is
 +	  claimed until the K1 boot path runs.
++
++config DADAO_K6_SHELL
++	bool "K6: continue past the K4 boundary into /init (busybox sh)"
++	default n
++	depends on ARCH_SEMIHOSTING_CONSOLE
++	help
++	  The K4 boundary normally ends the boot unless a probe symbol owns
++	  the continuation.  K6 (m18-linux-001) is the first production
++	  image: it lets the generic boot continue to `kernel_init` and the
++	  initramfs `/init`, which hands PID 1 to busybox `sh` on the
++	  semihosting console (SYS_WRITEC/SYS_READC).  Off by default so no
++	  K0-K5 image changes behaviour.
 +
 +menu "Kernel features"
 +source "kernel/Kconfig.hz"

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/mmu_context.h b/arch/dadao/include/asm/mmu_context.h
 new file mode 100644
-index 000000000..7eb662a72
+index 000000000..dc72e17e0
 --- /dev/null
 +++ b/arch/dadao/include/asm/mmu_context.h
-@@ -0,0 +1,112 @@
+@@ -0,0 +1,114 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_MMU_CONTEXT_H
 +#define __ASM_MMU_CONTEXT_H
@@ -65,17 +65,17 @@ index 000000000..7eb662a72
 + * dup_mm() -> dup_mmap() -> arch_dup_mmap(): the arch half of a fork's address
 + * space clone.
 + *
-+ * Nothing is left for the arch.  The *sharing* (write-protect both PTEs, point
-+ * them at the same page, take the second reference) is generic
-+ * `copy_page_range()`; the *write* half is generic `do_wp_page()`, reached
-+ * through `handle_mm_fault()` (m14-linux-035, mm/fault.c); and the parent's
-+ * stale writable translations are dropped by generic `dup_mmap()` itself, which
-+ * ends with `flush_tlb_mm(oldmm)` (mm/mmap.c) — the one thing this port cannot
-+ * leave implicit (contract-tlb TLB-07/-11: a TLB hit is not re-walked, so a
-+ * write-protect that is not followed by an invalidation would let the parent
-+ * keep writing through its old entry).
++ * The generic half still does the work: `copy_page_range()` write-protects both
++ * sides and `do_wp_page()` (through `handle_mm_fault()`, m14-linux-035) makes
++ * the private copy on the first write; `dup_mmap()` ends with
++ * `flush_tlb_mm(oldmm)` (contract-tlb TLB-07/-11: a TLB hit is not re-walked).
 + *
-+ * m14-linux-018's `dadao_dup_mmap_cow()` hook is gone with the port-side COW.
++ * K6 (m18-linux-001) adds one hook on top: `dadao_fork_stack()` eagerly copies
++ * the private writable user pages into the child and re-enables the parent's
++ * PTEs once the PFNs differ.  Why: the user-fault hand-over runs on the static
++ * supv frame and may not sleep, while a generic COW allocation can; eager copy
++ * keeps both sides from taking a post-fork COW fault.  It is an extra step, not
++ * a replacement for the generic COW path (which still serves other mappings).
 + */
 +#include <asm-generic/mmu_context.h>
 +
@@ -84,10 +84,12 @@ index 000000000..7eb662a72
 + * this port replaces one of them, and the header defines all three as static
 + * inlines — same shape as arch/arm64's asm/mmu_context.h).
 + */
++void dadao_fork_stack(struct mm_struct *oldmm, struct mm_struct *mm);
++
 +static inline int arch_dup_mmap(struct mm_struct *oldmm, struct mm_struct *mm)
 +{
-+	(void)oldmm;
-+	(void)mm;
++	/* K6 (m18-linux-001): eager COW for the private writable map. */
++	dadao_fork_stack(oldmm, mm);
 +	return 0;
 +}
 +

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/early_console.c b/arch/dadao/kernel/early_console.c
 new file mode 100644
-index 000000000..df9ec7df2
+index 000000000..d60620f57
 --- /dev/null
 +++ b/arch/dadao/kernel/early_console.c
-@@ -0,0 +1,229 @@
+@@ -0,0 +1,265 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO semihosting console — K1 early console (contract-semihosting §1-§4).
@@ -20,7 +20,9 @@ index 000000000..df9ec7df2
 + * pointer below is converted with __pa().
 + *
 + * Output uses SYS_WRITEC (0x03), one byte per call; see dadao_early_write()
-+ * for why SYS_WRITE0/SYS_WRITE cannot be used here.
++ * for why SYS_WRITE0/SYS_WRITE cannot be used here.  Input uses SYS_READC
++ * (0x07), which the responder blocks on until a character arrives
++ * (m18-linux-001, K6 console).
 + */
 +#include <linux/console.h>
 +#include <linux/init.h>
@@ -34,6 +36,7 @@ index 000000000..df9ec7df2
 +
 +#define SEMIHOST_TAG		0x3ff00
 +#define SEMIHOST_SYS_WRITEC	0x03
++#define SEMIHOST_SYS_READC	0x07
 +#define SEMIHOST_SYS_EXIT	0x18
 +#define ADP_STOPPED_APP_EXIT	0x20026
 +
@@ -75,6 +78,27 @@ index 000000000..df9ec7df2
 +{
 +	while (*s)
 +		semihost_call(SEMIHOST_SYS_WRITEC, DADAO_SEMIHOST_PA(s++));
++}
++
++/*
++ * One character from the semihosting console (SYS_READC, 0x07).
++ *
++ * The service takes no argument block; the responder places the byte in its
++ * internal scratch slot below the caller's stack pointer (QEMU converts that
++ * VA to a PA, ISS-452) and returns it in rd8.  When no input is pending the
++ * responder halts the vCPU until the chardev delivers a byte, so this call
++ * is only made from the console's read path -- never from a polling loop that
++ * would freeze a command the shell is running (m18-linux-001).
++ *
++ * Returns 0..255, or -1 when the responder rejects the read.
++ */
++int dadao_semihost_readc(void)
++{
++	long ret = (long)semihost_call(SEMIHOST_SYS_READC, NULL);
++
++	if (ret < 0)
++		return -1;
++	return (int)(ret & 0xff);
 +}
 +
 +/*
@@ -190,6 +214,18 @@ index 000000000..df9ec7df2
 +	semihost_call(SEMIHOST_SYS_EXIT, DADAO_SEMIHOST_PA(block));
 +	for (;;)
 +		;
++}
++
++/*
++ * PID 1 ended (K6, m18-linux-001).  The generic exit path would `panic()` on
++ * "Attempted to kill init"; with a shell as PID 1 that is the *normal* end of
++ * the session (`exit`), so hand the machine back to the semihosting host with
++ * the exit status instead.  `do_exit`'s code is the wait(2) status word
++ * (exit code << 8), which is what the host process sees.
++ */
++void __noreturn dadao_init_exit(int status)
++{
++	dadao_early_exit((status >> 8) & 0xff);
 +}
 +
 +void __init __noreturn dadao_bootinfo_reject(unsigned int code,

@@ -16,7 +16,8 @@ directory; the *record* is the manifest, never a host path):
 
 Image layout (`.tao/tasks/linux/m14-linux-031`; lexicographic entry order):
 
-  .  bin/  bin/busybox  bin/{cat,cp,echo,grep,ls,mkdir,mv,ps,rm,sh}
+  .  bin/  bin/busybox  bin/{cat,cp,echo,grep,kill,ls,mkdir,mv,ps,rm,sh}
+  dev/  dev/console (c 240 0, the semihosting console)
   init  init.musl  TRAILER!!!
 
 `/init` is a **script**, not a symlink to busybox: applet dispatch is by
@@ -93,14 +94,22 @@ ALLOWED_IMPORTS = {"_Exit", "___errno_location", "getpid", "syscall", "write"}
 #: their presence in the built busybox is re-checked against `applets.txt`
 #: (the build product of `tools/linux/build_busybox.py`) so a shrunken
 #: `config.min` fails here instead of shipping a dangling link.
-APPLETS = ("cat", "cp", "echo", "grep", "ls", "mkdir", "mv", "ps", "rm", "sh")
+APPLETS = ("cat", "cp", "echo", "grep", "kill", "ls", "mkdir", "mv", "ps",
+           "rm", "sh")
 BUSYBOX_LINK = "busybox"
+
+#: `/dev/console` (K6, m18-linux-001): the semihosting console char device
+#: registered by `arch/dadao/kernel/semihost_tty.c` at major 240, minor 0.
+CONSOLE_DEVICE = ("dev/console", 240, 0)
 
 #: `/init` payload: a script, not a symlink (see the module docstring).
 INIT_SCRIPT = (
     b"#!/bin/sh\n"
-    b"# DADAO initramfs /init (m14-linux-031): the kernel execs this file via\n"
-    b"# binfmt_script; hand PID 1 to busybox's `sh` applet.\n"
+    b"# DADAO initramfs /init (m14-linux-031; K6 console m18-linux-001): the\n"
+    b"# kernel execs this file via binfmt_script; hand PID 1 to busybox's `sh`.\n"
+    b"export PATH=/bin\n"
+    b"PS1='dadao# '\n"
+    b"export PS1\n"
     b"echo \"DADAO initramfs: /init -> busybox sh\"\n"
     b"exec /bin/sh\n"
 )
@@ -111,10 +120,12 @@ MUSL_INIT_NAME = "init.musl"
 CPIO_MAGIC = b"070701"
 CPIO_TRAILER = "TRAILER!!!"
 
-#: mode bits per cpio entry kind (S_IFDIR | 0755, S_IFREG | 0755, S_IFLNK | 0777)
+#: mode bits per cpio entry kind (S_IFDIR | 0755, S_IFREG | 0755, S_IFLNK | 0777,
+#: S_IFCHR | 0600)
 MODE_DIR = 0o040755
 MODE_FILE = 0o100755
 MODE_SYMLINK = 0o120777
+MODE_CHARDEV = 0o020600
 
 
 class SetupError(RuntimeError):
@@ -330,8 +341,10 @@ class Entry(NamedTuple):
 
     name: str
     mode: int
-    kind: str                    # "dir" | "file" | "symlink"
+    kind: str                    # "dir" | "file" | "symlink" | "chardev"
     data: bytes
+    rdevmajor: int = 0
+    rdevminor: int = 0
 
 
 def image_entries(init_elf: bytes, *, inject: str | None = None) -> list[Entry]:
@@ -340,10 +353,14 @@ def image_entries(init_elf: bytes, *, inject: str | None = None) -> list[Entry]:
     `--inject applet` drops the `bin/sh` link the `/init` script execs, so the
     verification below has a reachable FAIL (evidence only).
     """
+    console_name, console_major, console_minor = CONSOLE_DEVICE
     items: list[Entry] = [
         Entry(".", MODE_DIR, "dir", b""),
         Entry("bin", MODE_DIR, "dir", b""),
         Entry("bin/busybox", MODE_FILE, "file", busybox_product().read_bytes()),
+        Entry("dev", MODE_DIR, "dir", b""),
+        Entry(console_name, MODE_CHARDEV, "chardev", b"",
+              console_major, console_minor),
         Entry("init", MODE_FILE, "file", INIT_SCRIPT),
         Entry(MUSL_INIT_NAME, MODE_FILE, "file", init_elf),
     ]
@@ -369,11 +386,13 @@ def _dir_nlink(entries: list[Entry], name: str) -> int:
 
 
 def _newc_entry(name: str, ino: int, mode: int, data: bytes, *,
-                nlink: int, mtime: int = 0) -> bytes:
+                nlink: int, mtime: int = 0, rdevmajor: int = 0,
+                rdevminor: int = 0) -> bytes:
     encoded = name.encode() + b"\0"
     header = CPIO_MAGIC + b"".join(
         f"{value:08X}".encode() for value in (
-            ino, mode, 0, 0, nlink, mtime, len(data), 0, 0, 0, 0, len(encoded), 0
+            ino, mode, 0, 0, nlink, mtime, len(data), 0, 0,
+            rdevmajor, rdevminor, len(encoded), 0
         ))
     out = bytearray(header)
     out += encoded
@@ -392,7 +411,8 @@ def build_cpio(init_elf: bytes, *, inject: str | None = None) -> bytes:
         _newc_entry(entry.name, index + 1, entry.mode, entry.data,
                     nlink=(_dir_nlink(entries, entry.name)
                            if entry.kind == "dir" else 1),
-                    mtime=mtime)
+                    mtime=mtime, rdevmajor=entry.rdevmajor,
+                    rdevminor=entry.rdevminor)
         for index, entry in enumerate(entries)
     ]
     encoded.append(_newc_entry(CPIO_TRAILER, 0, 0, b"", nlink=1, mtime=mtime))
@@ -416,6 +436,7 @@ def parse_newc(data: bytes) -> list[dict]:
         except ValueError as exc:
             raise CheckError(f"newc header 字段非十六进制：{exc}") from exc
         _ino, mode, uid, gid, nlink, mtime, size = fields[:7]
+        rdevmajor, rdevminor = fields[9], fields[10]
         namesize, _check = fields[11], fields[12]
         name_start = offset + 110
         name = data[name_start:name_start + namesize - 1].decode("utf-8", "replace")
@@ -425,7 +446,8 @@ def parse_newc(data: bytes) -> list[dict]:
         if len(body) != size:
             raise CheckError(f"条目 {name!r} 的载荷被截断（{len(body)} != {size}）")
         parsed.append({"name": name, "mode": mode, "uid": uid, "gid": gid,
-                       "nlink": nlink, "mtime": mtime, "body": body})
+                       "nlink": nlink, "mtime": mtime, "body": body,
+                       "rdevmajor": rdevmajor, "rdevminor": rdevminor})
         offset = body_start + size + (-(body_start + size) % 4)
         if name == CPIO_TRAILER:
             return parsed
@@ -454,6 +476,7 @@ def verify_archive(data: bytes, init_elf: bytes, busybox: bytes) -> list[dict]:
                 f"uid={entry['uid']} gid={entry['gid']}")
 
     expected = {".": MODE_DIR, "bin": MODE_DIR, "bin/busybox": MODE_FILE,
+                "dev": MODE_DIR, CONSOLE_DEVICE[0]: MODE_CHARDEV,
                 "init": MODE_FILE, MUSL_INIT_NAME: MODE_FILE}
     expected.update({f"bin/{applet}": MODE_SYMLINK for applet in APPLETS})
     present = {entry["name"]: entry for entry in entries[:-1]}
@@ -468,6 +491,13 @@ def verify_archive(data: bytes, init_elf: bytes, busybox: bytes) -> list[dict]:
             raise CheckError(f"条目 {name!r} 的 mode 为 {present[name]['mode']:o}，"
                              f"应为 {mode:o}")
 
+    console = present[CONSOLE_DEVICE[0]]
+    if (console["rdevmajor"], console["rdevminor"]) != CONSOLE_DEVICE[1:]:
+        raise CheckError(
+            f"{CONSOLE_DEVICE[0]!r} 的设备号为 "
+            f"{console['rdevmajor']}:{console['rdevminor']}，"
+            f"应为 {CONSOLE_DEVICE[1]}:{CONSOLE_DEVICE[2]}")
+
     for applet in APPLETS:
         target = present[f"bin/{applet}"]["body"]
         if target != BUSYBOX_LINK.encode():
@@ -481,7 +511,8 @@ def verify_archive(data: bytes, init_elf: bytes, busybox: bytes) -> list[dict]:
     if present["bin/busybox"]["body"] != busybox:
         raise CheckError("/bin/busybox 载荷与 build-busybox 产物不一致")
 
-    kind_of = {MODE_DIR: "dir", MODE_SYMLINK: "symlink"}
+    kind_of = {MODE_DIR: "dir", MODE_SYMLINK: "symlink",
+               MODE_CHARDEV: "chardev"}
     ordered = [Entry(entry["name"], entry["mode"],
                      kind_of.get(entry["mode"], "file"), entry["body"])
                for entry in entries[:-1]]
@@ -529,12 +560,16 @@ def main() -> int:
             record = {"name": entry["name"], "nlink": entry["nlink"],
                       "mode": f"{entry['mode']:07o}",
                       "kind": ("dir" if entry["mode"] == MODE_DIR else
-                               "symlink" if entry["mode"] == MODE_SYMLINK else "file")}
+                               "symlink" if entry["mode"] == MODE_SYMLINK else
+                               "chardev" if entry["mode"] == MODE_CHARDEV else
+                               "file")}
             if record["kind"] != "dir":
                 record["size"] = len(entry["body"])
                 record["sha256"] = _sha256(entry["body"])
             if record["kind"] == "symlink":
                 record["target"] = entry["body"].decode()
+            if record["kind"] == "chardev":
+                record["rdev"] = [entry["rdevmajor"], entry["rdevminor"]]
             manifest_entries.append(record)
 
         manifest = {

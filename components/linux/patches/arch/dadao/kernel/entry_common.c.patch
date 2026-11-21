@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/entry_common.c b/arch/dadao/kernel/entry_common.c
 new file mode 100644
-index 000000000..0d66a8c94
+index 000000000..785958293
 --- /dev/null
 +++ b/arch/dadao/kernel/entry_common.c
-@@ -0,0 +1,291 @@
+@@ -0,0 +1,306 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * The generic entry/exit hooks this port owns (m14-linux-045).
@@ -266,11 +266,25 @@ index 000000000..0d66a8c94
 +		       (info & DADAO_IMMU18_MASK) == SBI_UMON_SYSCALL;
 +	irqentry_state_t state = { .exit_rcu = false };
 +	unsigned long policy;
++	unsigned long entry_ip;
 +
 +	if (!syscall)
 +		state = dadao_trap_enter(regs);
 +
-+	policy = dadao_user_excp_dispatch(regs, cause, info);
++	{
++		entry_ip = regs->ip;
++
++		policy = dadao_user_excp_dispatch(regs, cause, info);
++		/*
++		 * A successful execve() has `start_thread()` rewrite the frame (entry
++		 * IP and SP).  `regs->ip` is then no longer the trapping instruction,
++		 * so the syscall's own +4 must not be applied to the new entry
++		 * address (m18-linux-001: `_start`'s first instruction was skipped,
++		 * leaving busybox with SP=0).
++		 */
++		if (policy == DADAO_TRAP_RESUME_SKIP && regs->ip == entry_ip)
++			regs->ip += DADAO_INSN_BYTES;
++	}
 +
 +	/*
 +	 * Normalise "continue after this trap" into the frame: the signal frame
@@ -285,7 +299,8 @@ index 000000000..0d66a8c94
 +	 * address they form from `excp_cause_ip`).
 +	 */
 +	if (policy == DADAO_TRAP_RESUME_SKIP) {
-+		regs->ip += DADAO_INSN_BYTES;
++		if (regs->ip == entry_ip)
++			regs->ip += DADAO_INSN_BYTES;
 +		policy = DADAO_TRAP_RESUME_RETRY;
 +	}
 +

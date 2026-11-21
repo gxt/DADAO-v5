@@ -1,0 +1,218 @@
+diff --git a/arch/dadao/kernel/semihost_tty.c b/arch/dadao/kernel/semihost_tty.c
+new file mode 100644
+index 000000000..64436906c
+--- /dev/null
++++ b/arch/dadao/kernel/semihost_tty.c
+@@ -0,0 +1,212 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Semihosting console character device (m18-linux-001, K6).
++ *
++ * The K6 boot path hands PID 1 to busybox `sh`, which needs a character
++ * device for stdin/stdout/stderr.  There is no UART and no VT on this
++ * machine: the console *is* the semihosting channel (contract-semihosting
++ * §2/§4), so `/dev/console` is a plain char device whose read/write are the
++ * SYS_READC / SYS_WRITEC traps.
++ *
++ * Why not a `struct tty_driver`?  TTY input is push-based: a driver feeds
++ * `tty_insert_flip_char()` from an interrupt or a kthread.  SYS_READC blocks
++ * the vCPU until a byte arrives (QEMU's semihosting console halts the CPU),
++ * so a polling kthread would freeze the very command the shell is running.
++ * Reading on demand -- inside the reader's `read(2)` -- keeps the machine
++ * runnable while a child (`ls`, ...) executes: the shell only calls read()
++ * when it is waiting for the next command line.
++ *
++ * Canonical-mode behaviour (the only mode this device implements) is done
++ * here: echo input, translate CR to NL, handle backspace/Ctrl-D, and return
++ * at the first newline.  The line discipline is deliberately not involved
++ * (`isatty(0)` is still true: TCGETS succeeds with a sane termios).
++ *
++ * Device node: `/dev/console` in the initramfs is `c 240 0`; the initramfs
++ * generator (`tools/linux/make_initramfs.py`) writes that node.
++ */
++#include <linux/fs.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/mutex.h>
++#include <linux/sched/signal.h>
++#include <linux/signal.h>
++#include <linux/termios.h>
++#include <linux/tty.h>
++#include <linux/uaccess.h>
++
++#include <asm/setup.h>
++
++#define SEMIHOST_CONSOLE_MAJOR	240
++#define SEMIHOST_CONSOLE_MINOR	0
++#define SEMIHOST_CONSOLE_NAME	"semihost-console"
++
++/* Ctrl-C has no line discipline to interpret it, so read() does. */
++#define CH_CTRL_C	0x03
++#define CH_CTRL_D	0x04
++#define CH_BS		0x08
++#define CH_DEL		0x7f
++
++static DEFINE_MUTEX(semihost_console_lock);
++
++/*
++ * One semihosting write.  `dadao_early_write()` walks a NUL-terminated kernel
++ * string and converts each byte's VA to a PA for the responder, so callers
++ * hand it a bounded, terminated chunk.
++ */
++static void emit(const char *s, size_t len)
++{
++	char buf[128];
++
++	while (len) {
++		size_t chunk = min(len, sizeof(buf) - 1);
++
++		memcpy(buf, s, chunk);
++		buf[chunk] = '\0';
++		dadao_early_write(buf);
++		s += chunk;
++		len -= chunk;
++	}
++}
++
++static void emit_char(char c)
++{
++	emit(&c, 1);
++}
++
++static ssize_t semihost_console_read(struct file *file, char __user *ubuf,
++				     size_t count, loff_t *ppos)
++{
++	char ch;
++	int c;
++
++	if (!count)
++		return 0;
++	if (mutex_lock_interruptible(&semihost_console_lock))
++		return -ERESTARTSYS;
++
++	c = dadao_semihost_readc();
++	mutex_unlock(&semihost_console_lock);
++	if (c < 0)
++		return -EIO;
++	if (c == CH_CTRL_D)
++		return 0;
++	if (c == CH_CTRL_C) {
++		emit("^C\n", 3);
++		kill_pgrp(task_pgrp(current), SIGINT, 1);
++		return -ERESTARTSYS;
++	}
++	if (c == CH_BS || c == CH_DEL)
++		c = '\b';
++	if (c == '\r')
++		c = '\n';
++	ch = (char)c;
++	emit_char(ch);
++	if (copy_to_user(ubuf, &ch, 1))
++		return -EFAULT;
++	return 1;
++}
++
++static ssize_t semihost_console_write(struct file *file,
++				      const char __user *ubuf, size_t count,
++				      loff_t *ppos)
++{
++	char buf[128];
++	size_t done = 0;
++
++	while (done < count) {
++		size_t chunk = min(count - done, sizeof(buf) - 1);
++
++		if (copy_from_user(buf, ubuf + done, chunk))
++			return done ? (ssize_t)done : -EFAULT;
++		buf[chunk] = '\0';
++		dadao_early_write(buf);
++		done += chunk;
++	}
++	return done;
++}
++
++static long semihost_console_ioctl(struct file *file, unsigned int cmd,
++				   unsigned long arg)
++{
++	struct termios t;
++	struct winsize ws;
++	int pgrp;
++
++	switch (cmd) {
++	case TCGETS:
++		memset(&t, 0, sizeof(t));
++		t.c_iflag = ICRNL | IXON;
++		t.c_oflag = OPOST | ONLCR;
++		t.c_cflag = CS8 | CREAD | B9600;
++		t.c_lflag = ISIG | ICANON | ECHO | ECHOE | ECHOK |
++			    ECHOCTL | ECHOKE | IEXTEN;
++		t.c_cc[VMIN] = 1;
++		t.c_cc[VTIME] = 0;
++		if (copy_to_user((void __user *)arg, &t, sizeof(t)))
++			return -EFAULT;
++		return 0;
++	case TCSETS:
++	case TCSETSW:
++	case TCSETSF:
++		/* One fixed mode; accept the user's copy silently. */
++		return 0;
++	case TIOCGWINSZ:
++		ws.ws_row = 24;
++		ws.ws_col = 80;
++		ws.ws_xpixel = 0;
++		ws.ws_ypixel = 0;
++		if (copy_to_user((void __user *)arg, &ws, sizeof(ws)))
++			return -EFAULT;
++		return 0;
++	case TIOCGPGRP:
++		pgrp = pid_vnr(task_pgrp(current));
++		if (put_user(pgrp, (int __user *)arg))
++			return -EFAULT;
++		return 0;
++	case TIOCSPGRP:
++		/* No job control: accept and ignore (K6 is foreground-only). */
++		return 0;
++	case FIONREAD:
++		if (put_user(0, (int __user *)arg))
++			return -EFAULT;
++		return 0;
++	case TCFLSH:
++		return 0;
++	default:
++		return -ENOTTY;
++	}
++}
++
++static int semihost_console_open(struct inode *inode, struct file *file)
++{
++	return 0;
++}
++
++static int semihost_console_release(struct inode *inode, struct file *file)
++{
++	return 0;
++}
++
++static const struct file_operations semihost_console_fops = {
++	.owner		= THIS_MODULE,
++	.llseek		= noop_llseek,
++	.read		= semihost_console_read,
++	.write		= semihost_console_write,
++	.unlocked_ioctl	= semihost_console_ioctl,
++	.open		= semihost_console_open,
++	.release	= semihost_console_release,
++};
++
++static int __init semihost_console_dev_init(void)
++{
++	int ret = register_chrdev(SEMIHOST_CONSOLE_MAJOR, SEMIHOST_CONSOLE_NAME,
++				  &semihost_console_fops);
++
++	if (ret < 0) {
++		pr_err("semihost-console: register_chrdev(%d) failed: %d\n",
++		       SEMIHOST_CONSOLE_MAJOR, ret);
++		return ret;
++	}
++	return 0;
++}
++device_initcall(semihost_console_dev_init);

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..414615a0a
+index 000000000..e260a00a0
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,534 @@
+@@ -0,0 +1,550 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -348,6 +348,14 @@ index 000000000..414615a0a
 +			   dadao_pf_alloc_count(), dadao_pf_zero_page_pa(),
 +			   (unsigned long)(current->mm ? 1 : 0));
 +
++#ifdef CONFIG_DADAO_K6_SHELL
++	/*
++	 * K6 production boot (m18-linux-001): no probe owns the continuation,
++	 * so fall through to `kernel_init()` and the initramfs `/init`.
++	 */
++	return;
++#endif
++
 +#ifdef CONFIG_DADAO_K4_SELFTEST
 +	dadao_k4_selftest();
 +#endif
@@ -529,6 +537,14 @@ index 000000000..414615a0a
 +	/* m14-linux-045: the frame describes a *user* context; the entry stubs
 +	 * refresh it from the hardware on every exception. */
 +	regs->status = DADAO_STATUS_USER;
++	/*
++	 * K6 (m18-linux-001): an exec from a kernel thread returns to user
++	 * without a context switch, so the umon entry would otherwise pick the
++	 * previous task's (or the boot) stack top.  Park this task's own stack
++	 * top here, exactly as `__switch_to()`/`dadao_enter_user()` do.
++	 */
++	dadao_user_stack_top = (unsigned long)task_stack_page(current) +
++			       THREAD_SIZE;
 +}
 +
 +void flush_thread(void)

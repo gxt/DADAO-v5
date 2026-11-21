@@ -1,0 +1,36 @@
+diff --git a/kernel/exit.c b/kernel/exit.c
+index 27e5cf81e..1ae2c1b22 100644
+--- a/kernel/exit.c
++++ b/kernel/exit.c
+@@ -43,6 +43,10 @@
+ #include <linux/posix-timers.h>
+ #include <linux/cn_proc.h>
+ #include <linux/mutex.h>
++
++#ifdef CONFIG_DADAO
++#include <asm/setup.h>		/* dadao_init_exit(): PID 1 exit (K6, m18-linux-001) */
++#endif
+ #include <linux/futex.h>
+ #include <linux/pipe_fs_i.h>
+ #include <linux/audit.h> /* for audit_free() */
+@@ -937,9 +941,19 @@ void __noreturn do_exit(long code)
+ 		 * If the last thread of global init has exited, panic
+ 		 * immediately to get a useable coredump.
+ 		 */
+-		if (unlikely(is_global_init(tsk)))
++		if (unlikely(is_global_init(tsk))) {
++#ifdef CONFIG_DADAO
++			/*
++			 * On Vast, PID 1 is the busybox shell (K6, m18-linux-001):
++			 * `exit` is the normal end of the session, so return the
++			 * status to the semihosting host instead of panicking.
++			 */
++			dadao_init_exit(tsk->signal->group_exit_code ?: (int)code);
++#else
+ 			panic("Attempted to kill init! exitcode=0x%08x\n",
+ 				tsk->signal->group_exit_code ?: (int)code);
++#endif
++		}
+ 
+ #ifdef CONFIG_POSIX_TIMERS
+ 		hrtimer_cancel(&tsk->signal->real_timer);

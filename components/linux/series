@@ -76,6 +76,7 @@ arch/dadao/kernel/k5_signal_selftest.c.patch
 arch/dadao/kernel/k5_syscall_selftest.c.patch
 arch/dadao/kernel/m45_entry_selftest.c.patch
 arch/dadao/kernel/process.c.patch
+arch/dadao/kernel/semihost_tty.c.patch
 arch/dadao/kernel/setup.c.patch
 arch/dadao/kernel/signal.c.patch
 arch/dadao/kernel/syscall_argmask.c.patch
@@ -99,5 +100,6 @@ arch/dadao/mm/mmu.c.patch
 fs/exec.c.patch
 init/do_mounts.c.patch
 init/main.c.patch
+kernel/exit.c.patch
 kernel/workqueue.c.patch
 usr/initramfs_data.S.patch

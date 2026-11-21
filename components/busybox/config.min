@@ -32,3 +32,6 @@ CONFIG_CP=y
 CONFIG_MV=y
 CONFIG_GREP=y
 CONFIG_PS=y
+# K6 验收 4：`kill -TERM/-INT` 由 shell 投递给子进程（m18-linux-001）。
+# 不是 ASH_JOB_CONTROL（作业控制仍关，kill 以内建形式拿不到）。
+CONFIG_KILL=y

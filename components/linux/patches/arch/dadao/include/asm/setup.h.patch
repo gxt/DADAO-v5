@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..330dbd654
+index 000000000..12ff45f90
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,262 @@
+@@ -0,0 +1,268 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -234,6 +234,12 @@ index 000000000..330dbd654
 +void dadao_early_write_pa(unsigned long pa);
 +void dadao_early_printf(const char *fmt, ...);
 +void __noreturn dadao_early_exit(unsigned long code);
++/* Console input (m18-linux-001): SYS_READC, blocks until a byte arrives. */
++int dadao_semihost_readc(void);
++/* PID 1 exit (K6): end the machine with the wait(2) status instead of panic. */
++void __noreturn dadao_init_exit(int status);
++/* Kernel-stack top the user entry reads before it has a stack (process.c). */
++extern unsigned long dadao_user_stack_top;
 +
 +/*
 + * K2 supv exception entry (kernel/trap.S): the kernel owns the vector from the

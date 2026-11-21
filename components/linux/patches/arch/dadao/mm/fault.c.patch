@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/fault.c b/arch/dadao/mm/fault.c
 new file mode 100644
-index 000000000..88b40590c
+index 000000000..0cdf51714
 --- /dev/null
 +++ b/arch/dadao/mm/fault.c
-@@ -0,0 +1,1045 @@
+@@ -0,0 +1,1110 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO demand paging: the CFXMEM / CFXPERM fault channel (K3, m14-linux-012).
@@ -1049,3 +1049,68 @@ index 000000000..88b40590c
 +			   dadao_pf_streak, result);
 +	return policy;
 +}
++
++
++/*
++ * K6 (m18-linux-001): eager COW across fork.
++ *
++ * A user-fault hand-over runs on the static supv frame and must not sleep; the
++ * generic COW may allocate.  Copy every present private writable user page into
++ * the child here (kernel context, where sleeping is legal) and re-enable the
++ * parent's PTE once the child owns a different PFN, so neither side takes a COW
++ * fault after the fork.
++ */
++void dadao_fork_stack(struct mm_struct *oldmm, struct mm_struct *mm)
++{
++	struct vm_area_struct *vma;
++	unsigned long addr;
++	pte_t *ptep;
++
++	VMA_ITERATOR(vmi, mm, 0);
++
++	/* Only user VMAs that are private and writable participate. */
++	for_each_vma(vmi, vma) {
++		if (!(vma->vm_flags & VM_WRITE) || (vma->vm_flags & VM_SHARED))
++			continue;
++		if (vma->vm_start >= TASK_SIZE)
++			continue;
++		for (addr = vma->vm_start; addr < vma->vm_end;
++		     addr += PAGE_SIZE) {
++			ptep = pte_offset_kernel(pmd_off(mm, addr), addr);
++			if (!pte_present(*ptep))
++				continue;
++			handle_mm_fault(vma, addr, FAULT_FLAG_WRITE, NULL);
++		}
++	}
++	flush_tlb_mm(mm);
++
++	if (!oldmm)
++		return;
++	VMA_ITERATOR(ovmi, oldmm, 0);
++	for_each_vma(ovmi, vma) {
++		if (!(vma->vm_flags & VM_WRITE) || (vma->vm_flags & VM_SHARED))
++			continue;
++		if (vma->vm_start >= TASK_SIZE)
++			continue;
++		for (addr = vma->vm_start; addr < vma->vm_end;
++		     addr += PAGE_SIZE) {
++			pte_t *cptep = pte_offset_kernel(pmd_off(mm, addr), addr);
++
++			/*
++			 * Only drop the parent's COW when the child really got its
++			 * own page; otherwise both sides would keep writing the same
++			 * physical page (measured: the shell corrupted its heap and
++			 * died with SIGSEGV after wait4).
++			 */
++			if (!pte_present(*cptep) || !pte_write(*cptep))
++				continue;
++			ptep = pte_offset_kernel(pmd_off(oldmm, addr), addr);
++			if (pte_present(*ptep) && !pte_write(*ptep) &&
++			    pte_pfn(*ptep) != pte_pfn(*cptep))
++				set_pte_at(oldmm, addr, ptep,
++					   pte_mkwrite_novma(pte_mkdirty(*ptep)));
++		}
++	}
++	flush_tlb_mm(oldmm);
++}
++

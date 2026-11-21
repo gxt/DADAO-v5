@@ -1,11 +1,13 @@
 diff --git a/arch/dadao/kernel/Makefile b/arch/dadao/kernel/Makefile
 new file mode 100644
-index 000000000..be64c72ef
+index 000000000..e0e31b7c8
 --- /dev/null
 +++ b/arch/dadao/kernel/Makefile
-@@ -0,0 +1,54 @@
+@@ -0,0 +1,56 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-y += head.o setup.o early_console.o syscall_table.o traps.o syscalls.o trap.o
++# K6 semihosting console device (m18-linux-001): /dev/console c 240 0.
++obj-y += semihost_tty.o
 +# The syscall argument routing table (m14-linux-023): data, read by the
 +# SYSCALL_DEFINE entry wrappers.
 +obj-y += syscall_argmask.o
