@@ -1167,3 +1167,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`m14-integ-001` 归档收尾遗漏两处簿记：① `.tao/knowledge/.manifests.toml` 仍登记已删除的 `milestones-m14.md` ⇒ `check-manifests-guard` 红（主会话已补删条目）；② 根 `README.md` 归档行曾写「含 1 册 `已退役`」，回退第三态后措辞不符（已改为「1 册带 `> **已退役**` 注记」）。处置：归档检查清单（`Process-04`）补一条「manifest/README 指针随归档同笔更新」，避免下次里程碑重犯。"
+- id: ISS-496
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`m18-linux-001` 复核的非阻断 finding：F3 的 applet 计数派生式 `enabled - infra` 依赖 `SH_IS_ASH` 与无独立符号的 `sh` applet 恰好抵消；未来新增非 applet `CONFIG_*` 会使期望虚高而假红（方向安全）。处置：随下次触碰 busybox 计数判据时改为按 applet 白名单/符号表派生。"
