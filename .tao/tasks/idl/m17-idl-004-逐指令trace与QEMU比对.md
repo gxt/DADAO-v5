@@ -29,3 +29,10 @@
 ## 约束
 
 独立 `git worktree`；不提交 git；不改 QEMU/gem5/RTL；术语「寄存器组」；完成区 ≤30 行。
+
+## 从 `m17-idl-003` 交接的坑（2026-11-21，实测）
+
+1. QEMU `-accel tcg,one-insn-per-tb=on -d cpu` 记录的是「指令执行前」状态，且会在部分 `br.nz` 处**重复一条记录**、**不为取指异常（IALIGN/CFXMEM fetch）出记录** ⇒ 逐指令比对必须按 **PC 对齐**，不能逐行（escape 例 QEMU 1160 记录 vs 执行器 295 条指令）。
+2. QEMU 对「无返回」semihosting 服务写 `rd8=0xdeadbeef`（`common_semi_dead_cb`），非架构语义；`ra1..ra63` 在 `RACNT` 有效区外未定义（`SimRISC-00 §2.4`）——这两处只能**文档化等价**。
+3. QEMU 11 system 模式没有 `-singlestep`，只能用 `-accel tcg,one-insn-per-tb=on`。
+4. 执行器是「按 `.idl` 正文逐 id 手写」而非通用 AST 求值器；28 例实际执行 54 个 id，未注册 id 一律显式 `ExecError`（`add.ut`/`ld.t` 等模型不确定的刻意不注册）；`U04`–`U10` 宽度裁定仍未取。
