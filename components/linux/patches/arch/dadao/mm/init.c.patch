@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/init.c b/arch/dadao/mm/init.c
 new file mode 100644
-index 000000000..a40d4aa5d
+index 000000000..9c7982f44
 --- /dev/null
 +++ b/arch/dadao/mm/init.c
-@@ -0,0 +1,55 @@
+@@ -0,0 +1,70 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO memory initialisation (K0: compiles and links; K1 fills the map).
@@ -17,6 +17,7 @@ index 000000000..a40d4aa5d
 +#include <linux/memblock.h>
 +#include <linux/mm.h>
 +#include <linux/pgtable.h>
++#include <linux/security.h>
 +
 +#include <asm/page.h>
 +#include <asm/pgtable.h>
@@ -58,4 +59,18 @@ index 000000000..a40d4aa5d
 +	 * pointer for the generic MM code to link and initialise correctly.
 +	 */
 +	init_mm.pgd = swapper_pg_dir;
++
++	/*
++	 * `CONFIG_DEFAULT_MMAP_MIN_ADDR` is a byte count whose generic default
++	 * (4096) is not a page boundary here: `unmapped_area()` clamps its
++	 * `low_limit` to `mmap_min_addr`, and `__get_unmapped_area()` then
++	 * rejects the resulting non-page address with `-EINVAL`, so every
++	 * non-`MAP_FIXED` `mmap` would fail (measured: m14-linux-028's A2).
++	 * Round the minimum up to the machine's page size - the policy value is
++	 * a floor, and the sysctl can still raise it later.
++	 */
++	if (mmap_min_addr & ~PAGE_MASK)
++		mmap_min_addr = PAGE_ALIGN(mmap_min_addr);
++	if (dac_mmap_min_addr & ~PAGE_MASK)
++		dac_mmap_min_addr = PAGE_ALIGN(dac_mmap_min_addr);
 +}

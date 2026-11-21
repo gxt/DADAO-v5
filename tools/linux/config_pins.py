@@ -141,6 +141,22 @@ def is_int(symbol: str, root: Path | str | None = None) -> bool:
     return spec is not None and spec.type == "int"
 
 
+#: ``PAGE_BLOCK_MAX_ORDER`` cap for every image of this port.
+#:
+#: It is not a ``CONFIG_DADAO_*`` symbol, so it is not part of the per-script
+#: pins; the slice builder states it once instead.  ``m14-linux-028`` raised
+#: ``ARCH_FORCE_MAX_ORDER`` to 13 (512 MiB, one superpage) and generic
+#: ``mm/Kconfig`` then defaults the *pageblock* order to the same value, i.e.
+#: one pageblock per 512 MiB of RAM.  On the 2 GiB Vast zone that makes every
+#: migratetype fallback and every direct-compaction round operate on a whole
+#: 512 MiB region, and the K5 probe images stop making progress (measured: the
+#: m14-linux-023 image never returns from its first user trap).  The generic
+#: pageblock size (64 MiB, the order generic ``mm/Kconfig`` uses when
+#: ``ARCH_FORCE_MAX_ORDER`` is unset) is kept.
+PAGE_BLOCK_MAX_ORDER = 10
+PAGE_BLOCK_SYMBOL = "CONFIG_PAGE_BLOCK_MAX_ORDER"
+
+
 def config_lines(pins: dict[str, str], overrides: dict[str, str] | None = None,
                  root: Path | str | None = None) -> list[str]:
     """``SYMBOL=value`` lines for @pins (+@overrides), in dict order.
@@ -148,6 +164,9 @@ def config_lines(pins: dict[str, str], overrides: dict[str, str] | None = None,
     An int symbol pinned ``"n"`` means "this image leaves it unset" and yields no
     line: Kconfig drops invisible ints from ``.config`` and has no ``n`` value
     for them (see the module docstring).
+
+    The slice also carries :data:`PAGE_BLOCK_SYMBOL` (a port-wide invariant, not
+    a per-image pin); a caller that says otherwise in @overrides wins.
     """
     merged = dict(pins)
     merged.update(overrides or {})
@@ -158,4 +177,6 @@ def config_lines(pins: dict[str, str], overrides: dict[str, str] | None = None,
         if value == "n" and spec is not None and spec.type == "int":
             continue
         lines.append(f"{symbol}={value}")
+    if PAGE_BLOCK_SYMBOL not in merged:
+        lines.append(f"{PAGE_BLOCK_SYMBOL}={PAGE_BLOCK_MAX_ORDER}")
     return lines

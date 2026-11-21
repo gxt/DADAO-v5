@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/process.c b/arch/dadao/kernel/process.c
 new file mode 100644
-index 000000000..e777b29a8
+index 000000000..6e1e5dab4
 --- /dev/null
 +++ b/arch/dadao/kernel/process.c
-@@ -0,0 +1,797 @@
+@@ -0,0 +1,820 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO process model (K4, m14-linux-016).
@@ -161,6 +161,11 @@ index 000000000..e777b29a8
 + * m14-linux-046): snapshots the frame at the raise, compares it after
 + * `rt_sigreturn`; claims only its own two umon functions. */
 +int dadao_m46_user_trap(struct pt_regs *regs, unsigned long immu18,
++			unsigned long *policy);
++
++/* The user 64 KiB ABI probe's trap hook (kernel/k5_pagesz_selftest.c,
++ * m14-linux-028): records every trap's immediate and claims its report trap. */
++int dadao_k5p_user_trap(struct pt_regs *regs, unsigned long immu18,
 +			unsigned long *policy);
 +
 +
@@ -673,6 +678,24 @@ index 000000000..e777b29a8
 +		 * see dispatched, so it observes and returns 0.
 +		 */
 +		if (dadao_k5_user_trap(regs, immu18, &policy)) {
++			dadao_umon_busy = 0;
++			dadao_in_frame = 0;
++			return policy;
++		}
++	}
++#endif
++
++#if defined(CONFIG_DADAO_K5_PAGESZ_SELFTEST)
++	{
++		unsigned long policy;
++
++		/*
++		 * The user 64 KiB ABI probe's view of the same trap
++		 * (m14-linux-028, kernel/k5_pagesz_selftest.c).  It claims only
++		 * its own report trap; the `mmap`/`munmap`/`mprotect`/`brk`
++		 * traps are real syscalls it wants dispatched.
++		 */
++		if (dadao_k5p_user_trap(regs, immu18, &policy)) {
 +			dadao_umon_busy = 0;
 +			dadao_in_frame = 0;
 +			return policy;

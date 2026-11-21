@@ -1,0 +1,870 @@
+diff --git a/arch/dadao/kernel/k5_pagesz_selftest.c b/arch/dadao/kernel/k5_pagesz_selftest.c
+new file mode 100644
+index 000000000..141688a00
+--- /dev/null
++++ b/arch/dadao/kernel/k5_pagesz_selftest.c
+@@ -0,0 +1,864 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * K5 user-visible 64 KiB page ABI probe (CONFIG_DADAO_K5_PAGESZ_SELFTEST,
++ * m14-linux-028).
++ *
++ * The page size is a property of the machine (spec/DADAO-12 §2.2.2: 64 KiB).
++ * What this probe proves is that the *user-visible* ABI carries it everywhere
++ * a program can observe it, and that the allocator's largest order is the
++ * superpage:
++ *
++ *   A1  the auxv `create_elf_tables()` puts on the stack of an `execve`d
++ *       program carries `AT_PAGESZ == PAGE_SIZE` (read back from that stack,
++ *       not from the kernel's own copy), and `AT_ENTRY`/`AT_PHDR`/`AT_PHENT`/
++ *       `AT_PHNUM` agree with the ELF file and with the mapped image.
++ *   A2  a non-`MAP_FIXED` `mmap` returns a page-aligned address, the mapping
++ *       is rounded up to whole pages, `munmap` releases it and `mprotect`
++ *       replaces the protection - all issued from user mode through the umon
++ *       entry (`trap cfx_umon, 0`), so the argument routing of contract-syscall
++ *       §3 is exercised as well.
++ *   A3  every `PT_LOAD` of the exec'd program is mapped page-aligned at its
++ *       `p_vaddr`, its size is page-rounded, the file's bytes really are at
++ *       that address, and its `p_align` is at least one page.
++ *   A4  `brk(0)` reads the page-aligned break, an aligned growth maps whole
++ *       pages, an unaligned growth still maps whole pages, and an access one
++ *       page past the break reaches the page-fault channel and ends the task
++ *       in SIGSEGV (m14-linux-027's path).
++ *   A5  `/proc/buddyinfo` reports one column per buddy order, so the largest
++ *       order is `ARCH_FORCE_MAX_ORDER`, and an allocation of exactly that
++ *       order succeeds - 2^13 x 64 KiB = 512 MiB, one `SPF` superpage.
++ *
++ * Everything printed is derived from `PAGE_SIZE`, `MAX_PAGE_ORDER`, the ELF
++ * file, or a live kernel structure; no page size or order is spelled out here.
++ *
++ * How A1-A4 run: a child task of the probe gets an address space built with
++ * `vm_mmap()` and executes `dadao_k5p_user_stub` (the `.rodata` program at the
++ * bottom of the program half of this file) through the umon entry.  The
++ * probe's trap hook (kernel/process.c) records every trap's immediate and
++ * judges A2/A4 at the program's report trap; the child then touches one page
++ * past its break and dies of SIGSEGV, which the boot task observes.  A1/A3
++ * then `execve` the image's `/init.musl` on the boot task and judge the auxv
++ * and the mapping it left behind.
++ */
++#include <linux/binfmts.h>
++#include <linux/elf.h>
++#include <linux/errno.h>
++#include <linux/fcntl.h>
++#include <linux/file.h>
++#include <linux/fs.h>
++#include <linux/init.h>
++#include <linux/kernel.h>
++#include <linux/mman.h>
++#include <linux/mm.h>
++#include <linux/mm_types.h>
++#include <linux/namei.h>
++#include <linux/mount.h>
++#include <linux/pid.h>
++#include <linux/sched.h>
++#include <linux/security.h>
++#include <linux/sched/mm.h>
++#include <linux/sched/task.h>
++#include <linux/sched/task_stack.h>
++#include <linux/signal.h>
++#include <linux/string.h>
++#include <linux/types.h>
++#include <linux/uaccess.h>
++#include <linux/wait.h>
++#include <uapi/linux/wait.h>
++
++#include <asm/mmu_context.h>
++#include <asm/page.h>
++#include <asm/pgalloc.h>
++#include <asm/ptrace.h>
++#include <asm/setup.h>
++#include <asm/syscall.h>
++#include <asm/time.h>
++
++/*
++ * Guest FAIL segment (spec/Kaiwu §7.1, 0x01-0x7f).  kernel/process.c owns
++ * 0x30-0x32, the K4 probes 0x33-0x52, the K5 probes 0x60-0x7f; this probe
++ * takes 0x70-0x77.
++ */
++#define K5P_FAIL_SETUP		0x70	/* a probe-side resource was missing */
++#define K5P_FAIL_A1		0x71	/* the auxv page-size entry is wrong */
++#define K5P_FAIL_A2		0x72	/* mmap/munmap/mprotect are not page-based */
++#define K5P_FAIL_A3		0x73	/* a PT_LOAD is not mapped page-aligned */
++#define K5P_FAIL_A4		0x74	/* brk is not page-based */
++#define K5P_FAIL_A5		0x75	/* the allocator's largest order is wrong */
++
++/*
++ * fs/namespace.c's kernel-side mount (init/do_mounts.c uses it too).  It takes
++ * kernel strings and an already-resolved `struct path`, which is what a probe
++ * needs; `ksys_mount()` wants __user pointers.  No header declares it.
++ */
++extern int path_mount(const char *dev_name, const struct path *path,
++		      const char *type_page, unsigned long flags,
++		      void *data_page);
++
++/*
++ * The umon function number of the program's report trap (spec/DADAO-22 §2
++ * defines 0 and 1; a probe may claim its own, kernel/process.c).
++ */
++#define K5P_TRAP_REPORT		0x2c01UL
++
++/* The ELF paging helpers fs/binfmt_elf.c keeps to itself. */
++#define K5P_PAGESTART(v)	((v) & PAGE_MASK)
++#define K5P_PAGEOFFSET(v)	((v) & ~PAGE_MASK)
++#define K5P_PAGEALIGN(v)	(((v) + PAGE_SIZE - 1) & PAGE_MASK)
++
++static unsigned int k5p_failed;
++
++static void __noreturn k5p_fail(unsigned int code, const char *what,
++				unsigned long value)
++{
++	dadao_early_printf("K5P selftest FAIL: %s=%#lx code=%#x\n", what, value,
++			   code);
++	dadao_early_exit(code);
++}
++
++static void k5p_expect(const char *what, unsigned long expected,
++		       unsigned long actual, unsigned int code)
++{
++	int ok = expected == actual;
++
++	dadao_early_printf("K5P check %s want=%#lx got=%#lx %s\n", what, expected,
++			   actual, ok ? "ok" : "FAIL");
++	if (!ok)
++		k5p_failed |= code;
++}
++
++/* A 64-bit value read from user memory; returns non-zero on a fault. */
++static int k5p_get64(unsigned long addr, unsigned long *value)
++{
++	u64 v;
++
++	if (get_user(v, (u64 __user *)addr))
++		return -EFAULT;
++	*value = (unsigned long)v;
++	return 0;
++}
++
++/* -------------------------------------------------------------------------
++ * A5: the allocator's largest order, read back through /proc/buddyinfo
++ * ------------------------------------------------------------------------- */
++
++/*
++ * `/proc/buddyinfo` prints one number per buddy order (`NR_PAGE_ORDERS` =
++ * `MAX_PAGE_ORDER + 1`), so the file is the live record of the order the image
++ * was built with.  The initramfs ships no `/proc` mount point, so procfs is
++ * mounted over an existing directory (`/bin`) - mounting on `/` itself is not
++ * seen by lookups that start at the root - and the probe ends the boot right
++ * after, so nothing else uses `/bin`.
++ */
++static int k5p_mount_proc(const char *dir)
++{
++	struct path root;
++	int rc;
++
++	rc = kern_path(dir, LOOKUP_FOLLOW | LOOKUP_DIRECTORY, &root);
++	if (rc)
++		return rc;
++	rc = path_mount("proc", &root, "proc", 0, NULL);
++	path_put(&root);
++	return rc;
++}
++
++/* Open @path and read it (NUL terminated); returns the byte count or -errno. */
++static int k5p_read_path(const char *path, void *buf, int size)
++{
++	struct file *file;
++	loff_t pos = 0;
++	ssize_t n;
++
++	file = filp_open(path, O_RDONLY, 0);
++	if (IS_ERR(file))
++		return PTR_ERR(file);
++	n = kernel_read(file, buf, size - 1, &pos);
++	filp_close(file, NULL);
++	if (n < 0)
++		return (int)n;
++	((char *)buf)[n] = '\0';
++	return (int)n;
++}
++
++/*
++ * The first `Node ..., zone <name>` line: its numbers are the free block count
++ * per buddy order, so the line length *is* the image's `NR_PAGE_ORDERS`.
++ */
++static unsigned int k5p_count_orders(const char *line)
++{
++	const char *p = strstr(line, "zone");
++	unsigned int count = 0;
++
++	if (!p)
++		return 0;
++	p += 4;
++	while (*p == ' ')
++		p++;
++	while (*p && *p != ' ' && *p != '\n')
++		p++;			/* the zone name */
++	while (*p && *p != '\n') {
++		if (*p >= '0' && *p <= '9') {
++			count++;
++			while (*p >= '0' && *p <= '9')
++				p++;
++		} else {
++			p++;
++		}
++	}
++	return count;
++}
++
++/*
++ * Hand the chunk `setup_arch()` kept out of the buddy allocator back, one page
++ * at a time (`free_reserved_page()` is the documented path for a reserved
++ * page: clear PageReserved, refcount 1, free, count it as managed).  Freeing in
++ * ascending order lets the buddy merge them into one `MAX_PAGE_ORDER` block.
++ */
++static void k5p_release_reserved(unsigned long base, unsigned long size)
++{
++	unsigned long pfn, end = PFN_DOWN(base + size);
++
++	for (pfn = PFN_DOWN(base); pfn < end; pfn++)
++		free_reserved_page(pfn_to_page(pfn));
++}
++
++static char k5p_text[PAGE_SIZE];
++
++static void k5p_order_case(void)
++{
++	char *text = k5p_text;
++	unsigned long base = dadao_pagesz_reserved_base;
++	unsigned long size = PAGE_SIZE << MAX_PAGE_ORDER;
++	struct zone *zone;
++	unsigned long pa;
++	struct page *page;
++	unsigned int cols;
++	int rc;
++
++	dadao_early_printf("K5P allocator: max_order=%lu orders=%u "
++			   "pageblock_order=%u pageblock_pages=%lu "
++			   "zone_bytes=%lu chunk=%#lx+%#lx\n",
++			   (unsigned long)MAX_PAGE_ORDER, NR_PAGE_ORDERS,
++			   pageblock_order, pageblock_nr_pages,
++			   sizeof(struct zone), base, size);
++	k5p_expect("a5_reserved_chunk", 1, base != 0, K5P_FAIL_A5);
++	if (!base)
++		return;
++	/* The chunk `setup_arch()` reserved must be one whole top-order block. */
++	k5p_expect("a5_chunk_aligned", 0, base & (size - 1), K5P_FAIL_A5);
++
++	/*
++	 * Procfs first: mounting it allocates (superblock, seq buffers), and any
++	 * allocation would split the block the release is about to create.
++	 */
++	rc = k5p_mount_proc("/bin");
++	k5p_expect("a5_proc_mount", 0, (unsigned long)(rc < 0 ? -rc : rc),
++		   K5P_FAIL_A5);
++	if (rc)
++		return;
++
++	zone = page_zone(pfn_to_page(PFN_DOWN(base)));
++	k5p_release_reserved(base, size);
++	/* The released chunk is one free block of exactly `MAX_PAGE_ORDER`. */
++	k5p_expect("a5_top_order_free", 1,
++		   zone->free_area[MAX_PAGE_ORDER].nr_free > 0, K5P_FAIL_A5);
++
++	/*
++	 * The same order really can be allocated: 2^MAX_PAGE_ORDER pages in one
++	 * buddy request, i.e. one `SPF` superpage's worth of memory.
++	 */
++	page = alloc_pages(GFP_KERNEL | __GFP_NOWARN | __GFP_NORETRY,
++			   MAX_PAGE_ORDER);
++	k5p_expect("a5_alloc_largest", 1, page != NULL, K5P_FAIL_A5);
++	if (!page)
++		return;
++	pa = page_to_pfn(page) << PAGE_SHIFT;
++	dadao_early_printf("K5P alloc: order=%lu pages=%lu bytes=%lu pa=%#lx\n",
++			   (unsigned long)MAX_PAGE_ORDER, 1UL << MAX_PAGE_ORDER,
++			   size, pa);
++	k5p_expect("a5_alloc_aligned", 0, pa & (size - 1), K5P_FAIL_A5);
++	k5p_expect("a5_alloc_bytes", size, (1UL << MAX_PAGE_ORDER) * PAGE_SIZE,
++		   K5P_FAIL_A5);
++	__free_pages(page, MAX_PAGE_ORDER);
++
++	/* `/proc/buddyinfo` shows one column per order: that is the image's max. */
++	rc = k5p_read_path("/bin/buddyinfo", text, sizeof(k5p_text));
++	k5p_expect("a5_buddyinfo_read", 1, rc > 0, K5P_FAIL_A5);
++	if (rc <= 0)
++		return;
++	dadao_early_printf("K5P buddyinfo: %s\n", text);
++	cols = k5p_count_orders(text);
++	k5p_expect("a5_buddyinfo_orders", NR_PAGE_ORDERS, cols, K5P_FAIL_A5);
++}
++
++/* -------------------------------------------------------------------------
++ * A2/A4: the user program, its address space and its run
++ * ------------------------------------------------------------------------- */
++
++/*
++ * The program, built into `.rodata` and copied into a user code page.  It is
++ * register-only and position independent.  The boot task hands it, in the
++ * initial frame (all derived from `PAGE_SIZE` in C):
++ *
++ *   rd11 = mapping A's length  (2 pages + half a page, released again)
++ *   rd12 = mapping B's length  (3 pages + half a page, kept)
++ *   rd13 = an unaligned break target   (the page-aligned break + 3.5 pages)
++ *   rd14 = an aligned break target     (the page-aligned break + 5 pages)
++ *   rd7  = page-aligned end of the heap after `rd13` (the faulting address)
++ *
++ * Every syscall result is copied into a callee-saved `rd` (`rd21`-`rd29`) so
++ * the trap hook reads back what user mode really saw.  The numbers are the
++ * locked table's (contract-syscall §1.2): 222 `mmap`, 215 `munmap`, 226
++ * `mprotect`, 214 `brk`; `brk`'s address, and `mmap`/`munmap`/`mprotect`'s
++ * first argument, travel in the address bank `rb16` (mask 0x01), everything
++ * else in the data bank from `rd16` on (contract-syscall §3).
++ */
++__asm__(
++"	.section .rodata,\"a\"\n"
++"	.p2align 2\n"
++"	.globl	dadao_k5p_user_stub\n"
++"	.globl	dadao_k5p_user_stub_end\n"
++"dadao_k5p_user_stub:\n"
++/* ---- A2: mmap B (lenB, kept), mmap A (lenA), munmap A, mprotect B ---- */
++"	set.rd	rd20, 0\n"
++"	rd2rb	rb16, rd20, 1\n"
++"	rd2rd	rd16, rd12, 1\n"
++"	set.rd	rd17, 3\n"
++"	set.rd	rd18, 0x22\n"
++"	set.rd	rd19, 0\n"
++"	set.rd	rd20, 0\n"
++"	set.rd	rd15, 222\n"
++"	trap	cfx_umon, 0\n"
++"	rd2rd	rd28, rd8, 1\n"
++"	set.rd	rd20, 0\n"
++"	rd2rb	rb16, rd20, 1\n"
++"	rd2rd	rd16, rd11, 1\n"
++"	set.rd	rd17, 3\n"
++"	set.rd	rd18, 0x22\n"
++"	set.rd	rd19, 0\n"
++"	set.rd	rd20, 0\n"
++"	set.rd	rd15, 222\n"
++"	trap	cfx_umon, 0\n"
++"	rd2rd	rd26, rd8, 1\n"
++"	rd2rb	rb16, rd26, 1\n"
++"	rd2rd	rd16, rd11, 1\n"
++"	set.rd	rd15, 215\n"
++"	trap	cfx_umon, 0\n"
++"	rd2rd	rd27, rd8, 1\n"
++"	rd2rb	rb16, rd28, 1\n"
++"	rd2rd	rd16, rd12, 1\n"
++"	set.rd	rd17, 1\n"
++"	set.rd	rd15, 226\n"
++"	trap	cfx_umon, 0\n"
++"	rd2rd	rd29, rd8, 1\n"
++/* ---- A4: read, grow (aligned), re-read, grow (unaligned), re-read ---- */
++"	set.rd	rd20, 0\n"
++"	rd2rb	rb16, rd20, 1\n"
++"	set.rd	rd15, 214\n"
++"	trap	cfx_umon, 0\n"
++"	rd2rd	rd21, rd8, 1\n"
++"	rd2rb	rb16, rd14, 1\n"
++"	set.rd	rd15, 214\n"
++"	trap	cfx_umon, 0\n"
++"	rd2rd	rd22, rd8, 1\n"
++"	set.rd	rd20, 0\n"
++"	rd2rb	rb16, rd20, 1\n"
++"	set.rd	rd15, 214\n"
++"	trap	cfx_umon, 0\n"
++"	rd2rd	rd23, rd8, 1\n"
++"	rd2rb	rb16, rd13, 1\n"
++"	set.rd	rd15, 214\n"
++"	trap	cfx_umon, 0\n"
++"	rd2rd	rd24, rd8, 1\n"
++"	set.rd	rd20, 0\n"
++"	rd2rb	rb16, rd20, 1\n"
++"	set.rd	rd15, 214\n"
++"	trap	cfx_umon, 0\n"
++"	rd2rd	rd25, rd8, 1\n"
++/* ---- the report, then one page past the break: the channel's SIGSEGV ---- */
++"	trap	cfx_umon, 0x2c01\n"
++"	rd2rb	rb5, rd7, 1\n"
++"	ld.o	rd2, [rb5, 0]\n"
++".Lk5p_park:\n"
++"	jump	[rb0, .Lk5p_park]\n"
++"dadao_k5p_user_stub_end:\n"
++);
++extern const char dadao_k5p_user_stub[];
++extern const char dadao_k5p_user_stub_end[];
++
++/* The probe's address space: 1 TiB, inside user space and outside every slot
++ * the kernel maps (the window m14-linux-016/017/023 use). */
++#define K5P_VA_BASE		(1UL << 40)
++#define K5P_CODE_VA		(K5P_VA_BASE + 64 * PAGE_SIZE)
++#define K5P_STACK_VA		(K5P_VA_BASE + 65 * PAGE_SIZE)
++#define K5P_BRK_VA		(K5P_VA_BASE + 80 * PAGE_SIZE)
++
++#define K5P_WAIT_ROUNDS		10000
++
++/* What the probe hands the program and judges afterwards (one hart). */
++static struct mm_struct *k5p_mm;
++static int k5p_child_pid;
++static struct pt_regs k5p_user_frame;
++
++static unsigned long k5p_len_a;
++static unsigned long k5p_len_b;
++static unsigned long k5p_brk_want;
++static unsigned long k5p_brk_target;
++static unsigned long k5p_brk_initial;
++static unsigned long k5p_heap_end;
++
++/* What the hook saw: the immediate of every trap (the stub's sequence). */
++static unsigned int k5p_entries;
++static unsigned long k5p_immu[32];
++static unsigned int k5p_report_seen;
++static struct pt_regs k5p_report_regs;
++
++static void k5p_map_window(unsigned long va, unsigned long prot,
++			   struct page *page)
++{
++	struct mm_struct *saved = current->mm;
++	struct vm_area_struct *vma;
++	unsigned long addr;
++
++	current->mm = k5p_mm;
++	addr = vm_mmap(NULL, va, PAGE_SIZE, prot,
++		       MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS, 0);
++	if (addr != va)
++		k5p_fail(K5P_FAIL_SETUP, "vm_mmap", addr);
++	if (page) {
++		mmap_write_lock(k5p_mm);
++		vma = find_vma(k5p_mm, va);
++		if (!vma)
++			k5p_fail(K5P_FAIL_SETUP, "find_vma", va);
++		vm_flags_set(vma, VM_MIXEDMAP);
++		if (vm_insert_page(vma, va, page))
++			k5p_fail(K5P_FAIL_SETUP, "vm_insert_page", va);
++		mmap_write_unlock(k5p_mm);
++	}
++	current->mm = saved;
++}
++
++static int k5p_user_task(void *arg)
++{
++	struct pt_regs *frame = &k5p_user_frame;
++
++	(void)arg;
++	/*
++	 * The child adopts the probe's address space.  `mmget()` first: the
++	 * reference its exit drops (`exit_mm()` -> `mmput()`) is its own, so the
++	 * boot task's later exec is not handed a torn-down mm (measured in
++	 * m14-linux-046).
++	 */
++	mmget(k5p_mm);
++	current->mm = k5p_mm;
++	current->active_mm = k5p_mm;
++	dadao_switch_mm(NULL, k5p_mm, current);
++	dadao_early_printf("K5P user: enter pid=%d ptbr=%#lx\n", current->pid,
++			   dadao_ptbr_read());
++
++	memset(frame, 0, sizeof(*frame));
++	frame->ip = K5P_CODE_VA;
++	frame->rb[1] = K5P_STACK_VA + PAGE_SIZE;
++	frame->status = DADAO_STATUS_USER;
++	frame->rd[7] = k5p_heap_end;
++	frame->rd[11] = k5p_len_a;
++	frame->rd[12] = k5p_len_b;
++	frame->rd[13] = k5p_brk_want;
++	frame->rd[14] = k5p_brk_target;
++	dadao_enter_user(frame);		/* never returns */
++}
++
++/* Judge A2 and A4 in the frame the report trap left behind. */
++static void k5p_judge_report(struct pt_regs *regs)
++{
++	struct vm_area_struct *vma;
++	unsigned long addr_a = regs->rd[26];
++	unsigned long addr_b = regs->rd[28];
++
++	/* A2: the *minimum* mappable address is a page boundary, otherwise
++	 * `unmapped_area()`'s low limit (and so the first address it offers)
++	 * is not one. */
++	dadao_early_printf("K5P mmap_min_addr=%#lx\n", mmap_min_addr);
++	k5p_expect("a2_mmap_min_addr_aligned", 0,
++		   mmap_min_addr & (PAGE_SIZE - 1), K5P_FAIL_A2);
++	/* A2: the returned addresses are page-aligned. */
++	k5p_expect("a2_mmap_a_aligned", 0, addr_a & (PAGE_SIZE - 1),
++		   K5P_FAIL_A2);
++	k5p_expect("a2_mmap_b_aligned", 0, addr_b & (PAGE_SIZE - 1),
++		   K5P_FAIL_A2);
++	/* A2: `munmap` released A (nothing maps it any more) and answered 0. */
++	k5p_expect("a2_mmap_distinct", 1,
++		   (unsigned long)(addr_a && addr_b && addr_a != addr_b),
++		   K5P_FAIL_A2);
++	k5p_expect("a2_munmap_rc", 0, regs->rd[27], K5P_FAIL_A2);
++	k5p_expect("a2_munmap_released", 0,
++		   (unsigned long)!!find_vma_intersection(k5p_mm, addr_a,
++							  addr_a + k5p_len_a),
++		   K5P_FAIL_A2);
++	/* A2: B is still mapped, its length is page-rounded, and `mprotect`
++	 * replaced the protection (the mapping is no longer writable). */
++	vma = find_vma(k5p_mm, addr_b);
++	k5p_expect("a2_mmap_b_mapped", 1,
++		   (unsigned long)(vma && vma->vm_start == addr_b),
++		   K5P_FAIL_A2);
++	if (vma && vma->vm_start == addr_b) {
++		k5p_expect("a2_mmap_b_len", K5P_PAGEALIGN(k5p_len_b),
++			   vma->vm_end - vma->vm_start, K5P_FAIL_A2);
++		k5p_expect("a2_mprotect_ro", 0,
++			   (unsigned long)!!(vma->vm_flags & VM_WRITE),
++			   K5P_FAIL_A2);
++	}
++	k5p_expect("a2_mprotect_rc", 0, regs->rd[29], K5P_FAIL_A2);
++
++	/* A4: the break reads page-aligned and tracks what was requested. */
++	k5p_expect("a4_brk_initial", k5p_brk_initial, regs->rd[21],
++		   K5P_FAIL_A4);
++	k5p_expect("a4_brk_initial_aligned", 0, regs->rd[21] & (PAGE_SIZE - 1),
++		   K5P_FAIL_A4);
++	k5p_expect("a4_brk_grow", k5p_brk_target, regs->rd[22], K5P_FAIL_A4);
++	k5p_expect("a4_brk_reread", k5p_brk_target, regs->rd[23], K5P_FAIL_A4);
++	k5p_expect("a4_brk_reread_aligned", 0,
++		   regs->rd[23] & (PAGE_SIZE - 1), K5P_FAIL_A4);
++	k5p_expect("a4_brk_unaligned", k5p_brk_want, regs->rd[24],
++		   K5P_FAIL_A4);
++	k5p_expect("a4_brk_recheck", k5p_brk_want, regs->rd[25], K5P_FAIL_A4);
++	k5p_expect("a4_mm_brk", k5p_brk_want, k5p_mm->brk, K5P_FAIL_A4);
++	/* The growth of [target, want) is mapped up to the next page boundary,
++	 * i.e. the heap is page-based even for an unaligned break. */
++	vma = find_vma(k5p_mm, k5p_brk_target);
++	k5p_expect("a4_heap_vma", K5P_PAGEALIGN(k5p_brk_want),
++		   vma ? vma->vm_end : 0, K5P_FAIL_A4);
++}
++
++/*
++ * The umon entry's view of one trap (called from kernel/process.c before the
++ * dispatch).  It records the immediate of every trap (the stub's sequence),
++ * judges at the program's report trap and claims that trap; every other trap
++ * is a real syscall it wants dispatched.
++ */
++int dadao_k5p_user_trap(struct pt_regs *regs, unsigned long immu18,
++			unsigned long *policy);
++
++int dadao_k5p_user_trap(struct pt_regs *regs, unsigned long immu18,
++			unsigned long *policy)
++{
++	unsigned int i;
++
++	if (k5p_entries < ARRAY_SIZE(k5p_immu))
++		k5p_immu[k5p_entries] = immu18;
++	k5p_entries++;
++
++	if (immu18 != K5P_TRAP_REPORT)
++		return 0;
++
++	/*
++	 * Record the frame and claim the trap.  The verdict is reached in the
++	 * boot task after the child has exited: the child's `mm` is kept alive
++	 * by the probe's own reference, so its VMAs are still there to look at,
++	 * and no lock is taken from inside the trap handling path.
++	 */
++	k5p_report_regs = *regs;
++	k5p_report_seen = 1;
++	dadao_early_printf("K5P report: traps=%u immu=", k5p_entries);
++	for (i = 0; i < k5p_entries && i < ARRAY_SIZE(k5p_immu); i++)
++		dadao_early_printf("%s%#lx", i ? "," : "", k5p_immu[i]);
++	dadao_early_printf("\n");
++	*policy = DADAO_TRAP_RESUME_SKIP;
++	return 1;
++}
++
++static void k5p_wait_child(unsigned long *exit_code, unsigned int *state)
++{
++	int i;
++
++	for (i = 0; i < K5P_WAIT_ROUNDS; i++) {
++		struct pid *pid = find_get_pid(k5p_child_pid);
++		struct task_struct *child = pid ? get_pid_task(pid, PIDTYPE_PID)
++						: NULL;
++
++		if (child) {
++			*exit_code = (unsigned long)child->exit_code;
++			*state = child->exit_state;
++			put_task_struct(child);
++		}
++		put_pid(pid);
++		if (*state == EXIT_ZOMBIE)
++			break;
++		schedule();
++	}
++}
++
++static void k5p_abi_cases(void)
++{
++	struct kernel_clone_args args = { .flags = 0, .exit_signal = SIGCHLD };
++	struct page *code;
++	const char *last;
++	unsigned long size, exit_code = ~0UL;
++	unsigned int state = 0;
++	int rc;
++
++	k5p_brk_initial = K5P_BRK_VA;
++	k5p_len_a = 2 * PAGE_SIZE + PAGE_SIZE / 2;
++	k5p_len_b = 3 * PAGE_SIZE + PAGE_SIZE / 2;
++	k5p_brk_target = k5p_brk_initial + 5 * PAGE_SIZE;
++	k5p_brk_want = k5p_brk_target + 3 * PAGE_SIZE + PAGE_SIZE / 2;
++	k5p_heap_end = K5P_PAGEALIGN(k5p_brk_want);
++
++	size = (unsigned long)(dadao_k5p_user_stub_end - dadao_k5p_user_stub);
++	if (size > PAGE_SIZE)
++		k5p_fail(K5P_FAIL_SETUP, "stub size", size);
++	code = alloc_page(GFP_KERNEL | __GFP_ZERO);
++	if (!code)
++		k5p_fail(K5P_FAIL_SETUP, "alloc_page", 0);
++	memcpy(page_address(code), dadao_k5p_user_stub, size);
++
++	k5p_mm = mm_alloc();
++	if (!k5p_mm)
++		k5p_fail(K5P_FAIL_SETUP, "mm_alloc", 0);
++	k5p_map_window(K5P_CODE_VA, PROT_READ | PROT_EXEC, code);
++	k5p_map_window(K5P_STACK_VA, PROT_READ | PROT_WRITE, NULL);
++	/* The heap's first page ends at the initial break, so `sys_brk()` really
++	 * grows (a VMA already covering the added range takes its early exit). */
++	k5p_map_window(k5p_brk_initial - PAGE_SIZE, PROT_READ | PROT_WRITE,
++		       NULL);
++	k5p_mm->start_brk = k5p_brk_initial - PAGE_SIZE;
++	k5p_mm->end_data = k5p_brk_initial - PAGE_SIZE;
++	k5p_mm->brk = k5p_brk_initial;
++	dadao_early_printf("K5P setup: stub=%lu bytes code=%#lx brk=%#lx "
++			   "len_a=%#lx len_b=%#lx\n", size, K5P_CODE_VA,
++			   k5p_brk_initial, k5p_len_a, k5p_len_b);
++
++	args.fn = k5p_user_task;
++	k5p_child_pid = kernel_clone(&args);
++	if (k5p_child_pid <= 0)
++		k5p_fail(K5P_FAIL_SETUP, "kernel_clone",
++			 (unsigned long)k5p_child_pid);
++
++	k5p_wait_child(&exit_code, &state);
++	dadao_early_printf("K5P child: pid=%d state=%u status=%#lx code=%lu "
++			   "traps=%u report=%u\n", k5p_child_pid, state,
++			   exit_code, exit_code >> 8, k5p_entries,
++			   k5p_report_seen);
++	k5p_expect("a4_report_seen", 1, k5p_report_seen, K5P_FAIL_A4);
++	k5p_expect("a4_child_zombie", EXIT_ZOMBIE, state, K5P_FAIL_A4);
++	k5p_expect("a4_child_sigsegv", SIGSEGV, exit_code & 0x7f, K5P_FAIL_A4);
++	k5p_expect("a4_child_no_status", 0, exit_code >> 8, K5P_FAIL_A4);
++	/* The fault channel produced the SIGSEGV from an address with no VMA. */
++	last = dadao_pf_last_result();
++	dadao_early_printf("K5P fault: last=%s va=%#lx\n", last, k5p_heap_end);
++	k5p_expect("a4_fault_novma", 1, (unsigned long)!strcmp(last, "die-no-vma"),
++		   K5P_FAIL_A4);
++
++	if (k5p_report_seen) {
++		if (mmap_read_lock_killable(k5p_mm))
++			k5p_fail(K5P_FAIL_SETUP, "mmap_read_lock", 0);
++		k5p_judge_report(&k5p_report_regs);
++		mmap_read_unlock(k5p_mm);
++	}
++}
++
++/* -------------------------------------------------------------------------
++ * A1/A3: the auxv and the ELF mapping of an `execve`d program
++ * ------------------------------------------------------------------------- */
++
++/* The image's static program: the `execve` target (it ships in the initramfs). */
++#define K5P_INIT_ELF		"/init.musl"
++
++/* One page holds the ELF header and the program headers of this program. */
++static unsigned char k5p_elf[PAGE_SIZE];
++
++static void k5p_elf_cases(void)
++{
++	static const char *argv[] = { K5P_INIT_ELF, NULL };
++	static const char *envp[] = { NULL };
++	struct elfhdr *eh = (struct elfhdr *)k5p_elf;
++	struct elf_phdr *ph;
++	unsigned long sp, argc, p, v, want;
++	unsigned long at_pagesz = 0, at_entry = 0, at_phdr = 0;
++	unsigned long at_phent = 0, at_phnum = 0;
++	unsigned int i, n, pagesz_n = 0;
++	int rc;
++
++	rc = k5p_read_path(K5P_INIT_ELF, k5p_elf, sizeof(k5p_elf));
++	k5p_expect("a3_elf_read", 1, rc > 0, K5P_FAIL_A3);
++	if (rc <= 0)
++		return;
++	k5p_expect("a3_elf_magic", 1,
++		   (unsigned long)!memcmp(eh->e_ident, ELFMAG, SELFMAG),
++		   K5P_FAIL_A3);
++	k5p_expect("a3_elf_type", ET_EXEC, eh->e_type, K5P_FAIL_A3);
++	n = eh->e_phnum;
++	k5p_expect("a3_elf_phdrs", 1,
++		   (unsigned long)(eh->e_phentsize == sizeof(struct elf_phdr) &&
++		   (unsigned long)eh->e_phoff + n * eh->e_phentsize <= rc),
++		   K5P_FAIL_A3);
++	if (eh->e_phentsize != sizeof(struct elf_phdr) ||
++	    (unsigned long)eh->e_phoff + n * eh->e_phentsize > rc)
++		return;
++	ph = (struct elf_phdr *)(k5p_elf + eh->e_phoff);
++
++	/* ---- A1: exec it and read the auxv off the stack it got ---- */
++	rc = kernel_execve(K5P_INIT_ELF, argv, envp);
++	k5p_expect("a1_exec_ok", 0, (unsigned long)(rc < 0 ? -rc : 0),
++		   K5P_FAIL_A1);
++	if (rc)
++		return;
++	k5p_expect("a1_entry_ip", eh->e_entry, task_pt_regs(current)->ip,
++		   K5P_FAIL_A1);
++	sp = task_pt_regs(current)->rb[1];
++	k5p_expect("a1_sp_aligned", 0, sp & (sizeof(unsigned long) - 1),
++		   K5P_FAIL_A1);
++	if (k5p_get64(sp, &argc))
++		k5p_fail(K5P_FAIL_A1, "argc", sp);
++	/* sp: argc, then argc argv pointers, then their NULL, then envp[]. */
++	p = sp + sizeof(unsigned long) * (argc + 2);
++	/* envp: a NULL-terminated vector of pointers. */
++	for (i = 0; i < 1024; i++, p += sizeof(unsigned long)) {
++		if (k5p_get64(p, &v))
++			k5p_fail(K5P_FAIL_A1, "envp", p);
++		if (!v)
++			break;
++	}
++	p += sizeof(unsigned long);
++	/* auxv: (type, value) pairs until AT_NULL. */
++	for (i = 0; i < 128; i++, p += 2 * sizeof(unsigned long)) {
++		unsigned long type;
++
++		if (k5p_get64(p, &type) ||
++		    k5p_get64(p + sizeof(unsigned long), &v))
++			k5p_fail(K5P_FAIL_A1, "auxv", p);
++		if (!type)
++			break;
++		switch (type) {
++		case AT_PAGESZ:
++			at_pagesz = v;
++			pagesz_n++;
++			break;
++		case AT_ENTRY:	at_entry = v;	break;
++		case AT_PHDR:	at_phdr = v;	break;
++		case AT_PHENT:	at_phent = v;	break;
++		case AT_PHNUM:	at_phnum = v;	break;
++		}
++	}
++	dadao_early_printf("K5P auxv: pagesz=%#lx (x%u) entry=%#lx phdr=%#lx "
++			   "phent=%#lx phnum=%#lx\n", at_pagesz, pagesz_n,
++			   at_entry, at_phdr, at_phent, at_phnum);
++	/* A1: the page size in the auxv is the machine's page size (read back
++	 * from the stack, not from the kernel's own copy). */
++	k5p_expect("a1_pagesz", PAGE_SIZE, at_pagesz, K5P_FAIL_A1);
++	k5p_expect("a1_pagesz_once", 1, pagesz_n, K5P_FAIL_A1);
++	k5p_expect("a1_entry", eh->e_entry, at_entry, K5P_FAIL_A1);
++	k5p_expect("a1_phent", sizeof(struct elf_phdr), at_phent, K5P_FAIL_A1);
++	k5p_expect("a1_phnum", n, at_phnum, K5P_FAIL_A1);
++	/* AT_PHDR points at the program headers, and they read back as the file's
++	 * (the loader's own address, checked through user memory). */
++	want = 0;
++	for (i = 0; i < n; i++) {
++		struct elf_phdr *q = ph + i;
++
++		if (q->p_type == PT_LOAD && q->p_offset <= eh->e_phoff &&
++		    eh->e_phoff < q->p_offset + q->p_filesz)
++			want = eh->e_phoff - q->p_offset + q->p_vaddr;
++	}
++	k5p_expect("a1_phdr_addr", want, at_phdr, K5P_FAIL_A1);
++	{
++		struct elf_phdr here;
++
++		if (at_phdr && copy_from_user(&here, (const void __user *)at_phdr,
++					      sizeof(here)))
++			k5p_fail(K5P_FAIL_A1, "phdr read", at_phdr);
++		k5p_expect("a1_phdr_content", 0,
++			   (unsigned long)!!memcmp(&here, k5p_elf + eh->e_phoff,
++						   sizeof(here)),
++			   K5P_FAIL_A1);
++	}
++
++	/* ---- A3: every PT_LOAD is page-aligned, page-sized and in place ---- */
++	mmap_read_lock(current->mm);
++	for (i = 0; i < n; i++, ph++) {
++		struct vm_area_struct *vma;
++		unsigned long va = ph->p_vaddr;
++		unsigned long first;
++		unsigned long want_len;
++		unsigned int k, m;
++		unsigned int mismatch = 0;
++		unsigned char buf[16];
++
++		if (ph->p_type != PT_LOAD)
++			continue;
++		/* The file's own alignment claim: at least one page, and the
++		 * segment's offset and address congruent modulo it. */
++		k5p_expect("a3_load_align", 1,
++			   (unsigned long)(ph->p_align >= PAGE_SIZE &&
++			   ph->p_vaddr % ph->p_align ==
++			   ph->p_offset % ph->p_align),
++			   K5P_FAIL_A3);
++		first = K5P_PAGESTART(va);
++		want_len = K5P_PAGEALIGN(ph->p_filesz + K5P_PAGEOFFSET(va));
++		vma = find_vma(current->mm, first);
++		k5p_expect("a3_load_vma", first,
++			   vma ? vma->vm_start : 0, K5P_FAIL_A3);
++		if (!vma || vma->vm_start != first)
++			continue;
++		k5p_expect("a3_load_vma_page_aligned", 0,
++			   vma->vm_start & (PAGE_SIZE - 1), K5P_FAIL_A3);
++		k5p_expect("a3_load_vma_len", 1,
++			   (unsigned long)(vma->vm_end - vma->vm_start >=
++					   want_len), K5P_FAIL_A3);
++		/* The file's bytes are at p_vaddr (the first 16, or the whole
++		 * segment when it is shorter). */
++		m = ph->p_filesz < sizeof(buf) ? (unsigned int)ph->p_filesz
++					       : sizeof(buf);
++		if (!m)
++			continue;
++		if (copy_from_user(buf, (const void __user *)va, m))
++			k5p_fail(K5P_FAIL_A3, "copy_from_user", va);
++		for (k = 0; k < m; k++)
++			if (buf[k] != k5p_elf[ph->p_offset + k])
++				mismatch |= 1U << k;
++		k5p_expect("a3_load_bytes", 0, mismatch, K5P_FAIL_A3);
++	}
++	mmap_read_unlock(current->mm);
++}
++
++/* -------------------------------------------------------------------------
++ * the entry point
++ * ------------------------------------------------------------------------- */
++
++void __noreturn dadao_k5p_pagesz_selftest(void);
++
++void __noreturn dadao_k5p_pagesz_selftest(void)
++{
++	dadao_early_printf("K5P selftest: begin pid=%d page_size=%lu "
++			   "page_shift=%u max_order=%lu\n", current->pid,
++			   (unsigned long)PAGE_SIZE, PAGE_SHIFT,
++			   (unsigned long)MAX_PAGE_ORDER);
++
++	/* The tick is not part of this probe: a delivery in the middle of a
++	 * case would only add noise (and the tick's workqueue traffic would
++	 * compete with the fault/SIGSEGV path being observed). */
++	dadao_clockevent_stop();
++
++	k5p_order_case();
++	k5p_abi_cases();
++	k5p_elf_cases();
++
++	if (k5p_failed) {
++		dadao_early_printf("K5P selftest: FAIL mask=%#x\n", k5p_failed);
++		dadao_early_exit(k5p_failed);
++	}
++	dadao_early_printf("K5P selftest: probe cases done\n");
++	dadao_early_exit(0);
++}
++
++/*
++ * `late_initcall`: inside `kernel_init` after the initcalls — the buddy
++ * allocator, procfs, the initramfs and the VFS are up.  A milestone image does
++ * not compile this.
++ */
++static int __init k5p_pagesz_selftest_init(void)
++{
++	dadao_k5p_pagesz_selftest();
++}
++late_initcall(k5p_pagesz_selftest_init);

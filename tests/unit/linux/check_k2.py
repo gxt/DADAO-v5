@@ -144,6 +144,7 @@ CONFIG_PINS = {
     "CONFIG_DADAO_M45_ENTRY_SELFTEST": "n",
     "CONFIG_DADAO_K5_SIGNAL_SELFTEST": "n",
     "CONFIG_DADAO_K5_CLOCK_SELFTEST": "n",
+    "CONFIG_DADAO_K5_PAGESZ_SELFTEST": "n",
 }
 
 #: Per-image overrides (every key is also in CONFIG_PINS).  `k2` names the base

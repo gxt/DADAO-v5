@@ -71,6 +71,7 @@ arch/dadao/kernel/k4_switch_selftest.c.patch
 arch/dadao/kernel/k5_clock_selftest.c.patch
 arch/dadao/kernel/k5_clone_selftest.c.patch
 arch/dadao/kernel/k5_futex_selftest.c.patch
+arch/dadao/kernel/k5_pagesz_selftest.c.patch
 arch/dadao/kernel/k5_signal_selftest.c.patch
 arch/dadao/kernel/k5_syscall_selftest.c.patch
 arch/dadao/kernel/m45_entry_selftest.c.patch

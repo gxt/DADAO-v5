@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig b/arch/dadao/Kconfig
 new file mode 100644
-index 000000000..c7e59517a
+index 000000000..c734cf358
 --- /dev/null
 +++ b/arch/dadao/Kconfig
-@@ -0,0 +1,122 @@
+@@ -0,0 +1,129 @@
 +# SPDX-License-Identifier: GPL-2.0
 +#
 +# DADAO (v5 test machine "Vast") architecture.
@@ -84,10 +84,17 @@ index 000000000..c7e59517a
 +
 +config ARCH_FORCE_MAX_ORDER
 +	int "Order of maximal physically contiguous allocations"
-+	default 10
++	default 13
 +	help
-+	  Left at the kernel default; kept arch-visible because the generic
-+	  page allocator expects the symbol to exist on 64 KiB-page targets.
++	  The largest buddy order equals one superpage: 2^13 x 64 KiB = 512 MiB,
++	  the size of the `SPF` superpage (spec/DADAO-12 §2.2.2), so the
++	  allocator's biggest block and the machine's biggest leaf mapping are
++	  the same object (user ruling 2026-11-20, m14-linux-028).  arm64 makes
++	  the same choice for its 64 KiB pages.
++
++	  The cost is bounded by the zone size: `pageblock_order` follows this
++	  value, and a zone smaller than one pageblock clamps its `usemap_size`
++	  to a single bitmap word (m14-linux-028 measures the Tiny image).
 +
 +config PAGE_OFFSET
 +	hex

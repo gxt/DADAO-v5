@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/Makefile b/arch/dadao/kernel/Makefile
 new file mode 100644
-index 000000000..4ec6fdbbf
+index 000000000..be64c72ef
 --- /dev/null
 +++ b/arch/dadao/kernel/Makefile
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,54 @@
 +# SPDX-License-Identifier: GPL-2.0
 +obj-y += head.o setup.o early_console.o syscall_table.o traps.o syscalls.o trap.o
 +# The syscall argument routing table (m14-linux-023): data, read by the
@@ -51,6 +51,10 @@ index 000000000..4ec6fdbbf
 +# K5 clocksource/clockevent probe (m14-linux-026): probe image only; a
 +# late_initcall that reads the registered devices back and ends the boot.
 +obj-$(CONFIG_DADAO_K5_CLOCK_SELFTEST) += k5_clock_selftest.o
++# K5 user 64 KiB ABI probe (m14-linux-028): probe image only; a late_initcall
++# that reads the auxv it exec'd with, the ELF mapping, mmap/brk and the
++# allocator's largest order back, then ends the boot.
++obj-$(CONFIG_DADAO_K5_PAGESZ_SELFTEST) += k5_pagesz_selftest.o
 +
 +# The final link needs arch/dadao/kernel/vmlinux.lds (preprocessed from .S).
 +always-$(KBUILD_BUILTIN) += vmlinux.lds

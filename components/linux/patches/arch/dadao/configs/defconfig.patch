@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/configs/defconfig b/arch/dadao/configs/defconfig
 new file mode 100644
-index 000000000..2c1923407
+index 000000000..728690258
 --- /dev/null
 +++ b/arch/dadao/configs/defconfig
-@@ -0,0 +1,51 @@
+@@ -0,0 +1,58 @@
 +# K0 minimal defconfig: single hart, big endian, 64 KiB pages, no SMP,
 +# no device tree, no UART/PCI, semihosting console stub.
 +CONFIG_DADAO=y
@@ -12,6 +12,13 @@ index 000000000..2c1923407
 +CONFIG_MMU=y
 +CONFIG_PAGE_SIZE_64KB=y
 +CONFIG_NR_CPUS=1
++# The buddy's largest order is one 512 MiB superpage (ARCH_FORCE_MAX_ORDER=13,
++# m14-linux-028), but the *pageblock* order stays at the generic 64 MiB: with
++# one pageblock per 512 MiB, every migratetype fallback and compaction round
++# scans a whole 512 MiB region and the K5 probe images stop making progress
++# (measured on m14-linux-023).  `config_pins.config_lines()` states it for the
++# gate images; this line is the same value for a fresh `linux-defconfig`.
++CONFIG_PAGE_BLOCK_MAX_ORDER=10
 +CONFIG_SMP=n
 +CONFIG_ARCH_SEMIHOSTING_CONSOLE=y
 +# 100 Hz: the K2 tick period is 10 ms, which leaves the K2 gate's

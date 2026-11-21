@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/processor.h b/arch/dadao/include/asm/processor.h
 new file mode 100644
-index 000000000..9b7c53df7
+index 000000000..ccea1ca21
 --- /dev/null
 +++ b/arch/dadao/include/asm/processor.h
-@@ -0,0 +1,110 @@
+@@ -0,0 +1,118 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PROCESSOR_H
 +#define __ASM_PROCESSOR_H
@@ -94,8 +94,16 @@ index 000000000..9b7c53df7
 +#define STACK_TOP		TASK_SIZE
 +#define STACK_TOP_MAX		TASK_SIZE
 +
-+/* mmap layout: user space [0, 2 TiB), K0 has no ASLR. */
-+#define TASK_UNMAPPED_BASE	(TASK_SIZE / 3)
++/*
++ * mmap layout: user space [0, 2 TiB), no ASLR in K0.
++ *
++ * The generic layout code (`mm/util.c`) uses this value **verbatim** as the
++ * legacy mmap base, and `generic_get_unmapped_area()` can return it as the
++ * address of a fresh mapping.  `TASK_SIZE / 3` is not page-aligned, and
++ * `__get_unmapped_area()` rejects a non-page address with `-EINVAL`, so an
++ * unaligned base makes every non-`MAP_FIXED` `mmap` fail (m14-linux-028).
++ */
++#define TASK_UNMAPPED_BASE	PAGE_ALIGN(TASK_SIZE / 3)
 +
 +/* No unwinder in K0: the scheduler asks for a task's PC, which we do not have. */
 +#define __get_wchan(p)		(0)

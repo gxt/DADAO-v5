@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/Kconfig.debug b/arch/dadao/Kconfig.debug
 new file mode 100644
-index 000000000..82f061f20
+index 000000000..975b46323
 --- /dev/null
 +++ b/arch/dadao/Kconfig.debug
-@@ -0,0 +1,474 @@
+@@ -0,0 +1,502 @@
 +# SPDX-License-Identifier: GPL-2.0
 +# DADAO debug options.
 +#
@@ -477,4 +477,32 @@ index 000000000..82f061f20
 +
 +	  It runs from a `late_initcall` and ends the boot.  This is test
 +	  scaffolding (the m14-linux-026 gate builds a probe image with it); it is
++	  not part of the image the later milestones boot.
++
++config DADAO_K5_PAGESZ_SELFTEST
++	bool "Run the K5 user 64 KiB ABI probe from a late_initcall (ends the boot)"
++	default n
++	depends on !DADAO_K4_SELFTEST && !DADAO_K4_SWITCH_SELFTEST && !DADAO_K4_KTHREAD_SELFTEST && !DADAO_K5_SYSCALL_SELFTEST && !DADAO_K5_CLONE_SELFTEST && !DADAO_K5_FUTEX_SELFTEST && !DADAO_M45_ENTRY_SELFTEST && !DADAO_K5_SIGNAL_SELFTEST && !DADAO_K5_CLOCK_SELFTEST
++	help
++	  Exercise the user-visible 64 KiB page ABI of m14-linux-028 (see
++	  kernel/k5_pagesz_selftest.c): the auxv the kernel writes for an
++	  `execve`d program, the ELF `PT_LOAD` mapping, `mmap`/`munmap`/
++	  `mprotect`, `brk` and the allocator's largest order.
++
++	  A1 the auxv on the stack `create_elf_tables()` built carries
++	  `AT_PAGESZ == PAGE_SIZE` (read back from the user stack, not from
++	  the kernel's copy) and `AT_ENTRY`/`AT_PHDR` agree with the ELF file
++	  and with the mapped image; A2 a non-`MAP_FIXED` `mmap` returns a
++	  page-aligned address, its length is rounded up to the page, `munmap`
++	  releases it and `mprotect` replaces the protection; A3 every `PT_LOAD`
++	  of the exec'd program is mapped page-aligned at its `p_vaddr` with
++	  the file's bytes in place (`p_align >= PAGE_SIZE`); A4 `brk(0)`
++	  reads a page-aligned break, growth maps whole pages, and an access
++	  one page past the break reaches the fault channel and ends the task
++	  in SIGSEGV; A5 `/proc/buddyinfo` has one column per buddy order
++	  (`MAX_PAGE_ORDER + 1`, i.e. the largest order is `ARCH_FORCE_MAX_ORDER`)
++	  and an allocation of exactly that order succeeds on this machine.
++
++	  It runs from a `late_initcall` and ends the boot.  This is test
++	  scaffolding (the m14-linux-028 gate builds a probe image with it); it is
 +	  not part of the image the later milestones boot.

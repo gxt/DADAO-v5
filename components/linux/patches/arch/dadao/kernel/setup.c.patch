@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/setup.c b/arch/dadao/kernel/setup.c
 new file mode 100644
-index 000000000..b4e08e3b6
+index 000000000..b58858d90
 --- /dev/null
 +++ b/arch/dadao/kernel/setup.c
-@@ -0,0 +1,485 @@
+@@ -0,0 +1,551 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO kernel setup — K1: parse the fixed boot info block and enter
@@ -212,6 +212,47 @@ index 000000000..b4e08e3b6
 +	dadao_early_exit(0);
 +}
 +
++#ifdef CONFIG_DADAO_K5_PAGESZ_SELFTEST
++/* The chunk the page-size probe image keeps out of the buddy allocator (0 =
++ * none found).  kernel/k5_pagesz_selftest.c releases it and measures the
++ * allocator's largest order with it. */
++unsigned long dadao_pagesz_reserved_base;
++
++/*
++ * Reserve the highest `MAX_PAGE_ORDER`-aligned chunk of RAM that touches no
++ * existing reservation, so the probe image can free it as one block later.
++ * The firmware-built page tables live at the top of RAM (memblock-reserved),
++ * which is why the search cannot simply take the last chunk.
++ */
++static void __init dadao_pagesz_reserve_max_order(void)
++{
++	unsigned long size = PAGE_SIZE << MAX_PAGE_ORDER;
++	unsigned long base, limit;
++
++	if (dadao_ram_size < 2 * size)
++		return;
++	/*
++	 * Start below the top of RAM: the boot path keeps its own metadata
++	 * there (measured on Vast: memblock reservations at 2 GiB - 5 MiB,
++	 * added after setup_arch()), and freeing a chunk that holds any of it
++	 * would hand live kernel memory to the allocator.
++	 */
++	limit = dadao_ram_base + dadao_ram_size - dadao_ram_size / 8;
++	for (base = (limit - size) & ~(size - 1);
++	     base >= dadao_ram_base; base -= size) {
++		if (base + size > dadao_ram_base + dadao_ram_size ||
++		    memblock_is_region_reserved(base, size))
++			continue;
++		if (memblock_reserve(base, size))
++			return;
++		dadao_pagesz_reserved_base = base;
++		dadao_early_printf("K5P reserve: max-order chunk %#lx-%#lx\n",
++				   base, base + size);
++		return;
++	}
++}
++#endif
++
 +void __init setup_arch(char **cmdline_p)
 +{
 +	/* start_kernel() calls this after K1's stop; the parse is idempotent. */
@@ -230,6 +271,22 @@ index 000000000..b4e08e3b6
 +	 */
 +	memblock_reserve((unsigned long)__pa(_start),
 +			 (unsigned long)(__pa(_end) - __pa(_start)));
++
++#ifdef CONFIG_DADAO_K5_PAGESZ_SELFTEST
++	/*
++	 * The user 64 KiB ABI probe (m14-linux-028) has to *measure* the buddy
++	 * allocator's largest order.  A boot-time order-`ARCH_FORCE_MAX_ORDER`
++	 * request only succeeds if some 2^order-aligned chunk of RAM is still
++	 * completely free, and the generic boot does not leave one: the slab
++	 * bootstrap's migratetype fallbacks take one page at the start of every
++	 * large free block (measured on Vast: the chunks at 512 MiB, 1 GiB and
++	 * 1.5 GiB each lose their first page before the first initcall runs).
++	 * So this image keeps one such chunk out of the allocator; the probe
++	 * releases it, reads /proc/buddyinfo and allocates the chunk back.  A
++	 * milestone image does not compile this.
++	 */
++	dadao_pagesz_reserve_max_order();
++#endif
 +
 +	/*
 +	 * Hand the same window to the generic page allocator: memblock knows the
@@ -392,6 +449,15 @@ index 000000000..b4e08e3b6
 +	 * `time_init()` registered and the tick they drive; it needs the initcall
 +	 * machinery to be up, so it runs from a `late_initcall` inside
 +	 * `kernel_init` (kernel/k5_clock_selftest.c) and owns the final SYS_EXIT.
++	 */
++	return;
++#endif
++#ifdef CONFIG_DADAO_K5_PAGESZ_SELFTEST
++	/*
++	 * The user 64 KiB ABI probe (m14-linux-028) needs the initramfs, the VFS
++	 * and procfs (its allocator case reads /proc/buddyinfo), so it runs from
++	 * a `late_initcall` inside `kernel_init`
++	 * (kernel/k5_pagesz_selftest.c) and owns the final SYS_EXIT.
 +	 */
 +	return;
 +#endif

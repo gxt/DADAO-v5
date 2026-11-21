@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/setup.h b/arch/dadao/include/asm/setup.h
 new file mode 100644
-index 000000000..12bd5aaab
+index 000000000..36b853b74
 --- /dev/null
 +++ b/arch/dadao/include/asm/setup.h
-@@ -0,0 +1,282 @@
+@@ -0,0 +1,291 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_SETUP_H
 +#define __ASM_SETUP_H
@@ -170,6 +170,15 @@ index 000000000..12bd5aaab
 +unsigned long dadao_user_syscall(struct pt_regs *regs, unsigned long immu18);
 +long dadao_call_syscall(struct pt_regs *regs, void *fn);
 +unsigned long dadao_user_syscall_post(struct pt_regs *regs);
++
++#if defined(CONFIG_DADAO_K5_PAGESZ_SELFTEST)
++/* The user 64 KiB ABI probe image (kernel/k5_pagesz_selftest.c): runs from a
++ * late_initcall and ends the boot. */
++void __noreturn dadao_k5p_pagesz_selftest(void);
++/* The MAX_PAGE_ORDER-aligned RAM chunk setup_arch() kept out of the buddy
++ * allocator for that probe, 0 when there was none. */
++extern unsigned long dadao_pagesz_reserved_base;
++#endif
 +
 +#if defined(CONFIG_DADAO_K5_SYSCALL_SELFTEST)
 +/* The syscall-probe image: runs from a late_initcall and ends the boot. */
