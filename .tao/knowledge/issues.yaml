@@ -1125,3 +1125,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`m17-idl-003` 复核的四条非阻断 finding：① 自检 `addr48_truncate` 是 Python 常量表达式（近乎恒真），真实覆盖在 `addr48_zero_window_faults`；② 证据脚本把 self-test 期望写死 28（应现场统计，只可能多红不假绿）；③ `Cfx.access()` 未实现 `cfxreg` 掩码 ⇒ `CFXPERM`（`CG3_REG` 已定义未用），用例不触发；④ `check-temp-dirs` 红为他任务陈旧目录（只报告不删）。处置：随下次触碰 idl 执行器/证据脚本时修。"
+- id: ISS-491
+  scope:
+  - idl
+  milestone: M17
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`m17-idl-004` 复核的四条非阻断 finding：① `probe_red` 只断言 rc=1、不断言输出含 `[FAIL]`；② trace 的 `id`/`mn` 两侧同源于 `contracts/opcodes.yaml`，非独立证据；③ `dst`/`val` 派生函数两侧共用（输入分别来自 QEMU dump 与执行器状态，非同源自比）；④ `rd8_skip` 15283/24790、`ra_skip` 39173 覆盖率偏大，M20 复用时在格式文档补覆盖率。处置：随下次触碰 idl 证据/格式文档时修。"
