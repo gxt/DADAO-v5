@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/page_size.hh b/src/arch/dadao/page_size.hh
 new file mode 100644
-index 0000000..532ab1c
+index 0000000..e9801db
 --- /dev/null
 +++ b/src/arch/dadao/page_size.hh
 @@ -0,0 +1,24 @@
@@ -8,8 +8,8 @@ index 0000000..532ab1c
 +//
 +// The architecture page is 64 KiB, so syscall emulation uses the same number:
 +// the guest-visible AT_PAGESZ and the host-proxy page table are both 64 KiB.
-+// (qemu-dadao's current TARGET_PAGE_BITS = 12 is a QEMU defect tracked by a
-+// separate QEMU task; it is not a reference value.)
++// qemu-dadao uses TARGET_PAGE_BITS = 16 as well; this constant is the
++// architecture value, not a ported reference.
 +#ifndef __ARCH_DADAO_PAGE_SIZE_HH__
 +#define __ARCH_DADAO_PAGE_SIZE_HH__
 +

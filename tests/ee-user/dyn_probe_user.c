@@ -6,7 +6,7 @@
  * with the ELF headers it parses itself:
  *
  *   AT_ENTRY == e_entry, AT_PHNUM == e_phnum, AT_PHENT == e_phentsize,
- *   AT_PHDR != 0, AT_BASE != 0 and page aligned (interpreter load bias),
+ *   AT_PHDR != 0, AT_BASE != 0 and 64 KiB page aligned (interpreter load bias),
  *   a maps line naming the interpreter.
  *
  * Exit 0 when the auxv entries are present and a maps line matches, 3 otherwise
@@ -51,7 +51,7 @@ int main(void)
 	}
 	fclose(fp);
 
-	if (base == 0 || base % 4096 || phdr == 0 || entry == 0 || !maps_found)
+	if (base == 0 || base % 65536 || phdr == 0 || entry == 0 || !maps_found)
 		return 3;
 	return 0;
 }
