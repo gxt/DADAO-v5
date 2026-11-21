@@ -229,7 +229,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
             return res
         objs.append(obj)
 
-    # 2. ld.lld -T kernel_tiny.lds crt0.o <objs> -o <prog>.elf
+    # 2. ld.lld -T app_tiny.lds crt0.o <objs> -o <prog>.elf
     elf = os.path.join(work_dir, stem + ".elf")
     rc, _out, err, timed = _run(
         [tools["ldlld"], "-L", os.path.dirname(tools["lds"]),

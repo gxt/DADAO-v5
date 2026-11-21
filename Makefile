@@ -866,7 +866,7 @@ _locked-build-picolibc:
 # program is compiled against the installed picolibc, linked with the project
 # crt0/linker script and run under QEMU via semihosting; the guest must print
 # "hi" and exit 0.  Needs 'make build-picolibc' + 'make install-host' first.
-_locked-test-picolibc-smoke: build-picolibc
+_locked-test-picolibc-smoke: build-picolibc build-bootrom
 	@DADAO_TEST_PROFILE=tiny $(PYTHON) tools/infra/test_picolibc_smoke.py
 
 # check-picolibc-tests (TESTCASES-042t, L2): the picolibc upstream self-test
@@ -1597,7 +1597,7 @@ _locked-test-codegen: install-host
 # build trees.  Pipeline (multi-object, per contract-elf.md §6.1.2):
 #   llvm-mc --triple=dadao -filetype=obj tests/ee-user/crt0_user.s -> crt0.o;
 #   per TU llc -march=dadao -filetype=obj                            -> <tu>.o;
-#   ld.lld -T tests/ee-tiny/kernel_tiny.lds crt0.o <tu>.o ... -o <prog>.elf;
+#   ld.lld -T tests/ee-tiny/app_tiny.lds crt0.o <tu>.o ... -o <prog>.elf;
 #   qemu-system-dadao -M kaiwu-tiny -kernel <prog>.elf ...
 # The guest process exit code is compared against the independent M4 manifest
 # tests/unit/llvm/codegen/m4/expected.yaml (TESTCASES-030t/032t).

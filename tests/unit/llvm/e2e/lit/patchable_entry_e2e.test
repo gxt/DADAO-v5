@@ -7,7 +7,7 @@
 #        __patchable_function_entries entry)
 #   llvm-mc patchable_entry_e2e.s                   -> main.o (hand-written main:
 #       main() { return patched(41); }, and patched(41) == 0)
-#   ld.lld -T kaiwu-tiny-app.lds crt0.o main.o patched.o -> prog.elf
+#   ld.lld -T app_tiny.lds crt0.o main.o patched.o -> prog.elf
 #   qemu-system-dadao -M kaiwu-tiny -kernel prog.elf ...
 #
 # Exit code 0 therefore requires the sled to be executed for real: an illegal

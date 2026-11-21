@@ -1,4 +1,4 @@
-/* kaiwu-tiny-app.lds — Kaiwu-Tiny contract application ELF (m13-qemu-002).
+/* app_tiny.lds — Kaiwu-Tiny contract application ELF (m13-qemu-002).
  *
  * Spec: spec/Kaiwu §6 "装载语义 — Kaiwu-Tiny" (0.4.4-rc): the crt is
  * linked together with the test program, the whole application lives in SRAM,
@@ -10,8 +10,10 @@
  * (profile `tiny`):
  *   RAM : 0xffff_ff00_0000 .. 0xffff_ff7f_ffff  (8 MiB, rwx)
  *
- * `kaiwu-tiny.lds` is kept as the pre-contract (crt-in-ROM) layout for the
- * legacy harness; new ELF applications must use this script.
+ * The crt and the application share this one SRAM image; e_entry is the fixed
+ * entry.  (The old crt-in-ROM variant `kernel_tiny.lds` was retired once all
+ * its consumers — static-musl smoke, picolibc smoke, ELF e2e — were verified
+ * against this script.)
  */
 
 ENTRY(_start)

@@ -80,7 +80,7 @@ if not os.path.isfile(qemu_bin):
 config.substitutions.append(("%qemu", os.path.abspath(qemu_bin)))
 
 # Locate the target linker (ld.lld) for the linked-ELF E2E pipeline
-# (llvm-mc -> ld.lld -T kernel_tiny.lds -> qemu -kernel <elf>).  It sits in the same
+# (llvm-mc -> ld.lld -T app_tiny.lds -> qemu -kernel <elf>).  It sits in the same
 # host toolchain bin as llvm-mc (ADR-0016 D9).
 config.substitutions.append(("%ld", os.path.abspath(os.path.join(tools_dir, "ld.lld"))
                              + " -L " + os.path.join(root, "tests", "ee-tiny")))
@@ -96,7 +96,7 @@ config.substitutions.append(("%bootrom", bootrom))
 
 # Locate the freestanding crt0 + linker script used by the linked-ELF E2E
 # pipeline.  The Tiny script is the contract layout (crt + program in SRAM,
-# e_entry = 0xffff_ff01_0100, spec/Kaiwu §6); `kernel_tiny.lds` remains the
+# e_entry = 0xffff_ff01_0100, spec/Kaiwu §6); `app_tiny.lds` is the
 # pre-contract crt-in-ROM layout for legacy harnesses.
 # 资产归属（m15-testcases-011/012）：crt0 在 `tests/ee-user/`，Tiny lds 在
 # `tests/ee-tiny/`；公共段已内联进 lds，`%ld` 只需带 ee-tiny 的 `-L`。

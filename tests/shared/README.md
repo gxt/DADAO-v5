@@ -19,7 +19,7 @@
 > `tools/testcases/lib/machine_profile.py`。本目录不再有测试侧 profile 表。
 
 > **2026-11-17（`m15-testcases-011` / `m15-testcases-012`）**：Tiny 专属 bootrom 与
-> `kernel_tiny.lds`/`app_tiny.lds` 集中到 `tests/ee-tiny/`；qemu-user / gem5 SE 的
+> `app_tiny.lds` 集中到 `tests/ee-tiny/`；qemu-user / gem5 SE 的
 > `crt0/minimal_crt0.s`、`runtime/*`、`linker/dadao-common.lds`、`linker/dadao-dyn.lds` 集中到
 > `tests/ee-user/`（均平铺）；本目录只留共用 BootROM 与 Vast 布局脚本。
 > **2026-11-18（`m15-testcases-013`）**：Vast 的 step5 BootROM 固件与 `linker/kaiwu-vast.lds`

@@ -68,7 +68,8 @@ SYSROOT = paths.target_sysroot_dir()
 # 资产归属（m15-testcases-011/012）：crt0 在 `tests/ee-user/`，Tiny lds 在
 # `tests/ee-tiny/`；公共段已内联进 lds。
 CRT0 = REPO_ROOT / "tests" / "ee-user" / "crt0_user.s"
-LDS = REPO_ROOT / "tests" / "ee-tiny" / "kernel_tiny.lds"
+LDS = REPO_ROOT / "tests" / "ee-tiny" / "app_tiny.lds"
+BOOTROM = paths.test_artifacts_dir() / "bootrom" / "tiny" / "bootrom_tiny.bin"
 
 PROG_C = """\
 #include <stdio.h>
@@ -246,7 +247,8 @@ def main() -> int:
             print(f"test-picolibc-smoke: FAIL ({tag}: link rc={res.returncode})\n{res.stderr}", file=sys.stderr)
             return 1
 
-        qemu = [str(TOOLCHAIN_BIN / "qemu-system-dadao"), "-M", "kaiwu-tiny", "-kernel", str(elf),
+        qemu = [str(TOOLCHAIN_BIN / "qemu-system-dadao"), "-M",
+                "kaiwu-tiny,bootrom-image=" + str(BOOTROM), "-kernel", str(elf),
                 "-semihosting-config", "enable=on,target=native", "-display", "none", "-nographic", "-monitor", "none"]
         try:
             res = run(qemu, timeout=args.qemu_timeout, merge=True)
