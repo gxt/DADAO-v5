@@ -33,11 +33,10 @@ What each case proves, and where its expectation comes from:
       **script** (`#!/bin/sh` + `exec /bin/sh`) that starts busybox's `sh`; the
       static musl ELF of the original MVP init ships as `init.musl` and is not
       what the kernel execs.  The target is therefore "script -> sh -> busybox
-      runs and prints", and `init.musl` is only the recorded fallback (its
-      trigger: busybox cannot start for want of K5's `fork`/`execve`/`wait`/
-      `read` — record the evidence, then switch `/init` to `exec /init.musl`).
-      Reaching it needs F16 (the boot stops inside `kernel_init_freeable()`,
-      before the first `*_initcall`) and the syscall surface K5 owns.
+      runs and prints".  K6 (`check-linux-k6`) is the vehicle that starts
+      busybox's `sh`; this probe image keeps its own `/init.musl` target, since
+      its hook answers only the MVP init's four calls.  `init.musl` is the
+      recorded fallback of this image, not a pending capability.
 
 S5 and S7 are reported as FAIL with their own names when the image does not get
 there: the gate must not silently drop an acceptance item.
