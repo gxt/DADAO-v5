@@ -12,7 +12,7 @@
   - **picolibc 安装根**：17 patches（含 `times()` 缩放 + lds `.text.start` 段首）。合入组件补丁后增量 `build-<c>` 不重放补丁：删源树 → `make fetch` → `apply_series.py --component picolibc` → rebuild。
   - **已知基线红**：`check-patch-tree` musl 10 + gem5 5（`ISS-507`）；`check-milestones-fresh` 台账「预估：中」（`ISS-508`）；picolibc harness `.done` 无库指纹（`ISS-504`，跑前删 `picolibc-tests-run`）。
   - **chipyard sim md5 `25c1d3f4…`**（构建必须用 `.conda-env` 的 `PATH`+`RISCV`，`ISS-474`）；qemu md5 `50752f5f…`（同环境同时段才可比，`ISS-451`/`453`）。
-  - **队列**：M18-A 在跑（`m18-linux-005` 套件骨架/kselftest 试点；`m18-infra-002` ldso 待其释放 linux 写者）；M19（2 件，需硬件在场）、M20（2 件，未开工）；`open` issue 93。
+  - **队列**：M18-A 在跑（`m18-linux-005` 骨架/试点）；M18 待开始 10 件：`m18-infra-002` 与 `m18-linux-006`–`013`（共 9 件，按 linux 组件写者串行）、`m18-qemu-001`（qemu 组件，待 005 结束后派，避免替换安装根）；M19（2 件，需硬件在场）、M20（2 件，未开工）；`open` issue 93。
 
 ## 入口指针
 
