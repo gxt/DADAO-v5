@@ -33,7 +33,7 @@
 | m16-testcases-013 | 2–3 h | cfx15 timer 中断（单独测试；单 hart，mask/pending/清除） |
 | m16-testcases-016 | 2–3 h | cfx63 power 基础用例（寄存器面 + power→hmon 移交，三方） |
 | m16-testcases-017 | 2–3 h | env 权限准备（H/S/U 下按用例声明打开 cfx 掩码） |
-| m16-gem5-024 | 2–3 h | gem5 cfx5 两轴权限/trap/escape（进 kCfxhaMap） |
+
 | m16-testcases-018 | 2–3 h | `tests/arch` 命名规范化整理（env-* 目录、`.S`、check/gen 前缀、引用同步） |
 
 | m16-testcases-014 | 2–3 h | cfx32 pmem DMA 完成中断（单独测试；单 hart，mask/pending/清除） |
@@ -44,6 +44,7 @@
 | --- | --- | --- | --- |
 | m16-chipyard-017 | 2026-11-22 18:25 | 3–5 h | RTL cfx5 命令接线（D/I cache cmd 口） |
 | m16-qemu-004 | 2026-11-22 21:26 | 1–2 h | QEMU `fence` 保留 cfx 集对齐（ISS-432） |
+| m16-gem5-024 | 2026-11-22 22:04 | 2–3 h | gem5 cfx5 两轴权限/trap/escape（进 kCfxhaMap） |
 | m16-testcases-015 | 2026-11-22 20:47 | 4–6 h | `tests/arch` 运行模式环境（hmon/smon/umon；body 与 env 分离；代表迁移） |
 
 ## 已验证
