@@ -20,6 +20,8 @@
 4. **三方预留**：RTL 后端未接时显式 fail-closed（不静默），由 `m16-chipyard-018` 接。
 5. **覆盖**：每条 case 的检查点映射到 `contract-tlb` 条款，回填 `tests/arch/data/vast-arch-inventory.md` 的 cfx4 行。
 
+6. **HSU 覆盖**（用户 2026-11-22：HSU 纳入、J 不纳入）：PTE 的 `H`/`S`/`U` 与 `R/W/X` 组合（正常页/超页、允许/拒绝）；J 位不测，未覆盖的 J 组合写入清单。
+
 ## 不做
 
 - 不新增语义用例（先迁现有 15 条）；

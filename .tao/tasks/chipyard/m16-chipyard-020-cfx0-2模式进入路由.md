@@ -23,6 +23,8 @@
 4. **异步中断**：单 hart 的 timer/pmem 中断按当前模式进入对应 monitor（与 M16 的中断源范围一致；不含 UART/IPI/多核）。
 5. **用例**：U-mode/S-mode 同步异常进入、帧字段、`switch_run_mode`、`trap`/`escape` 三方（QEMU/gem5/RTL）签名一致。
 
+6. **HSU（运行模式）**（用户 2026-11-22：HSU 纳入、J 不纳入）：U/S/H 三种模式的进入与权限检查；J-mode 不测，写入未覆盖项。
+
 ## 不做
 
 - 不改 cfx0/2 的寄存器行/权限（019）；
