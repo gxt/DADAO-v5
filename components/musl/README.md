@@ -22,7 +22,7 @@ DADAO 的 Linux 用户态 C 库底座（**M8**：无内核的 Linux 用户态栈
 
 ### 已知边界（`P1` 静态最小集之外；均显式失败或已登记）
 
-动态链接 / `ldso`（`P2`：阶段 A1 已可编出 `libc.so`；`B`–`E` 未完成 → 动态 ELF 的运行仍属 `P3`）、`QEMU linux-user`（`P3`）、静态 `__thread`（未提供 `AT_PHDR/PHNUM/PHENT` ⇒ `tls_cnt = 0`；`errno`/TCB 正常）。**已实现、不再列为边界**：信号（`m14-infra-005`：`bits/signal.h` = 内核 uapi 的 2048 B 四组帧 + `SA_RESTORER`，`src/signal/dadao/restore.s` 提供 `__restore`/`__restore_rt`；K5 上 handler 往返已跑通）、`sigsetjmp`/`siglongjmp`（`INFRA-089t`：`src/signal/dadao/sigsetjmp.s` 按 `savemask` 存/恢复 `jb->__ss`；`siglongjmp` 仍是 musl 通用 C 文件）；线程 / `__clone`（`INFRA-095t`：`src/thread/dadao/clone.s` 真实现，经 `REPLACED_OBJS` 替换通用 `-ENOSYS` 桩）。
+动态链接 / `ldso`：`P2` 阶段 A1 已可编出 `libc.so`；**运行闭环（`P3`）已由 `m18-infra-002` 打通**——system Linux（QEMU `-M kaiwu-vast`）上 `PT_INTERP=/lib/ld-musl-dadao.so.1` → ldso 自举 → `libc.so` 重定位 → TLS/errno → 返回用户态全链实测，`printf`/`malloc`/`free`/`write`、`pthread_create/join`、`dlopen`（独立 DSO）均通过，`qemu-dadao` 上同一 ELF 输出与退出码一致；按契约 §5 不发射符号版本段 / `DT_RELR` / `RPATH`·`RUNPATH`（`DT_NEEDED=libc.so` 经默认 `/lib` 解析）。`QEMU linux-user`（`P3`）已具备本闭环所需能力、边界逐项记录于 `tools/linux/make_ldso_image.py`；静态 `__thread`（未提供 `AT_PHDR/PHNUM/PHENT` ⇒ `tls_cnt = 0`；`errno`/TCB 正常）。**已实现、不再列为边界**：信号（`m14-infra-005`：`bits/signal.h` = 内核 uapi 的 2048 B 四组帧 + `SA_RESTORER`，`src/signal/dadao/restore.s` 提供 `__restore`/`__restore_rt`；K5 上 handler 往返已跑通）、`sigsetjmp`/`siglongjmp`（`INFRA-089t`：`src/signal/dadao/sigsetjmp.s` 按 `savemask` 存/恢复 `jb->__ss`；`siglongjmp` 仍是 musl 通用 C 文件）；线程 / `__clone`（`INFRA-095t`：`src/thread/dadao/clone.s` 真实现，经 `REPLACED_OBJS` 替换通用 `-ENOSYS` 桩）。
 
 ## 构建与验证
 
@@ -30,10 +30,11 @@ DADAO 的 Linux 用户态 C 库底座（**M8**：无内核的 Linux 用户态栈
 make fetch apply-series                 # 建工作树 + 应用补丁集
 tools/infra/build_musl.py               # configure + make（幂等）+ 链一个静态最小程序并核 ELF
 make build-musl-shared                  # 共享/PIC libc.so + lib/libc_pic.a（静态 PIE 用），并安装到 sysroot lib/
+tools/linux/make_ldso_image.py          # 动态运行闭环：镜像 + 内核切片 + QEMU system 启动判据（`--case probes` 跑能力探针）
 make check-patch-tree                   # 补丁集机械校验（含 musl）
 ```
 
-`tools/infra/build_musl.py` 用交叉工具链（`.dadao/cross-toolchain/bin`）配置 `--target=dadao-unknown-elf --disable-shared` 并 `make`，产出 `.work/source/musl/lib/{libc.a,crt1.o}`；随后用 lld 默认布局（musl 不提供目标 lds）把 `crt1.o` + 最小程序 + `libc.a` 链成静态 `ET_EXEC`，核对 `ELF64 / MSB / machine 0xDA0 / statically linked`。`--shared` 档改为不带 `--disable-shared` 的配置（`.lo` 走 `-fPIC`），并用 `-Wl,-shared -Wl,--hash-style=gnu -Wl,-soname,libc.so` 约束动态段；链接还经 musl 的 `LIBCC` 钩子取 compiler-rt builtins（`__muldc3`/`__mulsc3`）。运行（`P3` = `qemu-user`）不在本组件的构建脚本内。
+`tools/infra/build_musl.py` 用交叉工具链（`.dadao/cross-toolchain/bin`）配置 `--target=dadao-unknown-elf --disable-shared` 并 `make`，产出 `.work/source/musl/lib/{libc.a,crt1.o}`；随后用 lld 默认布局（musl 不提供目标 lds）把 `crt1.o` + 最小程序 + `libc.a` 链成静态 `ET_EXEC`，核对 `ELF64 / MSB / machine 0xDA0 / statically linked`。`--shared` 档改为不带 `--disable-shared` 的配置（`.lo` 走 `-fPIC`），并用 `-Wl,-shared -Wl,--hash-style=gnu -Wl,-soname,libc.so` 约束动态段；链接还经 musl 的 `LIBCC` 钩子取 compiler-rt builtins（`__muldc3`/`__mulsc3`）。动态运行（`P3`）由 `tools/linux/make_ldso_image.py` 承担：把动态 `/init`（`PT_INTERP` + `DT_NEEDED=libc.so`）与 `/lib/libc.so`、`/lib/ld-musl-dadao.so.1` 一起装进 initramfs，在 QEMU `-M kaiwu-vast` 上判定输出与退出码；`--inject interp|symbol` 提供两条真实失败路径（装不上解释器 / ldso 符号解析失败），`--qemu-user` 顺带跑 `qemu-dadao`。
 
 ### 静态 PIE 与 `libc_pic.a`（`INFRA-108t`，`ISS-303`）
 

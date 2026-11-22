@@ -106,3 +106,7 @@
 - **2026-11-22 `m18-infra-001`（`ISS-497` / `ISS-499`）**
   - 摘要：**`int` 的 `a_cas` 改为「含该 `int` 的 8 字节字 CAS」**（`arch/dadao/atomic_arch.h`；同文件既有补丁，`series` 26 不变）。原 `a_cas` 用 4 字节 `lr.t.an`/`sc.t.ar` 直接 CAS `int`；在参考机器（`qemu-dadao`/`qemu-system-dadao`）上，**同一 8 字节字里另有 `int`（mallocng 的 `avail_mask`/`freed_mask`）时该 `sc.t` 的写会静默丢失**（命令仍报成功），`a_or(&meta->freed_mask, …)` 因此不生效 ⇒ 组状态与掩码失配 ⇒ `malloc.c: try_avail` 的 `assert(mask)` → `glue.h` 的 `a_crash()` 写 NULL ⇒ 内核 `die-no-vma va=0x0`（`ISS-497`）与 guest `grep` 恒 `rc=139`（`ISS-499`）。改为 `lr.o.an`/`sc.o.ar` 在 8 字节对齐字上做 CAS、把目标 32 位半字就地合并：邻居半字变化只会使 CAS 失败并重读（不丢更新），大端下半字选择 = 字偏移 0 取高半（移位 32）/偏移 4 取低半（移位 0）。该口径同时与本机「保留粒度 = 自然对齐 8 字节字」一致，不再依赖窄宽度保留的行为。新增 `a_cas_word()` 供复用；`a_cas_p` 仍为 `.o` 直接 CAS。实测：`make build-musl`/`build-musl-shared` rc=0、`check-musl-freshness` PASS；guest `grep` 有/无匹配 `rc=0/1`（修前 139）、1000 轮 `a_cas`/`a_or` 压力（含邻居半字校验）全对；K6 单次启动 17 条命令与 27 条长脚本跑通、200/200 启动进用户态、`check-linux-k5` 280/280、K0 146/146。窄 `sc.t` 丢写属平台实现面（**新登记 issue，交 qemu 模块**），musl 侧修的是移植的原子原语。
   - 执行者：engineer
+
+- **2026-11-23 `m18-infra-002`**
+  - 摘要：**动态链接运行闭环打通（无补丁改动，`series` 26 不变）**。system Linux（QEMU `-M kaiwu-vast`）上 `PT_INTERP=/lib/ld-musl-dadao.so.1` → ldso 自举 → `libc.so` 重定位 → TLS/errno → 返回用户态全链跑通：动态 `/init` 的 `printf`/`malloc`/`free`/`write` 输出逐字匹配、退出码 42；`pthread_create/join`、`dlopen`（独立 DSO）、`__thread` 均实测通过；`qemu-dadao` 同一 ELF 输出/退出码一致。新增运行工具 `tools/linux/make_ldso_image.py`（镜像 + `CONFIG_DADAO_*` 全量钉子 + QEMU 启动判据；`--inject interp|symbol` 给两条真实失败路径）。静态 `lib/libc.a` md5 不变（`c9c3eb51…`）。
+  - 执行者：engineer
