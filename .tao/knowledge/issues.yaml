@@ -1362,3 +1362,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`m16-chipyard-017` 的 cfx5 维护探针缺「I+D 同选 + 合法操作」用例（`CTRL_ID_*` 只有 none/非法）⇒ `CACHE-21` 先 I 后 D 只有静态核验。建议在 cfx5 用例（`m16-testcases-009`/`017`）补一条双侧同选用例。"
+- id: ISS-518
+  scope:
+  - idl
+  milestone: M17
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`idl/tools/idl_check_trace.py --cases` 期望清单键 `id`，而 `idl/data/idl_exec_cases.toml` 用 `image` ⇒ 直接传主清单会报缺键；阶段一/二门控走 `idl_four_way.py` 不触发，属潜伏缺陷（`m17-idl-012` 复核发现；修复随下次触碰 trace 驱动）。"
