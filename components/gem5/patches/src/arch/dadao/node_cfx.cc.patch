@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..90b5911
+index 0000000..ff2b123
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1462 @@
+@@ -0,0 +1,1477 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -36,7 +36,13 @@ index 0000000..90b5911
 +namespace
 +{
 +
-+constexpr int kCfxhaMap[9] = {0, 1, 2, 3, 4, 15, 32, 34, 63};
++/** cfxha values with a register row (DADAO-12 §3).  `cfx_cache` (5) is
++ *  appended last on purpose: the first nine entries keep the index order the
++ *  fixed trace/dump uses (`kTraceCfxha` in isa.cc), and lookups are by value
++ *  (`nodeCfxIndex`), never by position.  cfx5's generic cg0-cg7 rows carry
++ *  its trap vector, frame and both-axis masks (contract-see §3); its cg8
++ *  register face is decoded separately (contract-cache CACHE-03/04). */
++constexpr int kCfxhaMap[NodeNumCfx] = {0, 1, 2, 3, 4, 15, 32, 34, 63, 5};
 +
 +/** cfx_pmem SRAM internal offset (DADAO-12 §2.1/§4.9). */
 +constexpr uint64_t kPmemCfxOffset = 0x3FF00000000ULL;
@@ -177,7 +183,7 @@ index 0000000..90b5911
 +int
 +nodeCfxIndex(int cfxha)
 +{
-+    for (int i = 0; i < 9; ++i)
++    for (int i = 0; i < NodeNumCfx; ++i)
 +        if (kCfxhaMap[i] == cfxha)
 +            return i;
 +    return -1;
@@ -277,7 +283,7 @@ index 0000000..90b5911
 +    constexpr uint64_t kMaskDefault = 0xFFFFFFFFFFFFFFF7ULL;
 +    constexpr uint64_t kMaskHmon = 0x7FFFFFFFFFFFFFF7ULL;
 +
-+    for (int i = 0; i < 9; ++i) {
++    for (int i = 0; i < NodeNumCfx; ++i) {
 +        NodeCfxRegs &r = s.cfx[i];
 +        const uint64_t cfxha = kCfxhaMap[i];
 +        const uint64_t maskInit = (cfxha == 3) ? kMaskHmon : kMaskDefault;
@@ -1035,8 +1041,11 @@ index 0000000..90b5911
 +    return 0;
 +}
 +
-+/** cfx5 register read (CACHE-03/06/07/18, CACHE-27 `cache-model` dimension).
-+ *  The five contract registers exist whether or not a cache model is present:
++/** cfx5 cg8 register read (CACHE-03/06/07/18, CACHE-27 `cache-model`
++ *  dimension).  Only called after `nodeCfxRead` has applied the cfxreg mask
++ *  and the supv cg delegation (m16-gem5-024), so the two-axis permission
++ *  model gates cfx5 exactly like every other cfx.  The five contract
++ *  registers exist whether or not a cache model is present:
 + *  `cache_exist` simply reads 0 when `cache-model=off` (m16-gem5-023), so the
 + *  access never raises CFXREG.  Everything outside them is reserved, and a
 + *  reserved rc (including the write-only rc9) still raises CFXREG here
@@ -1060,8 +1069,10 @@ index 0000000..90b5911
 +    nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +}
 +
-+/** cfx5 register write (CACHE-03/07/09/18/24, CACHE-27 `cache-model`
-+ *  dimension).  Writable registers stay writable with no cache model; the
++/** cfx5 cg8 register write (CACHE-03/07/09/18/24, CACHE-27 `cache-model`
++ *  dimension).  Called only after the same permission + delegation checks as
++ *  every other cfx write (m16-gem5-024).  Writable registers stay writable
++ *  with no cache model; the
 + *  writes are accepted and have no effect beyond the register value
 + *  (`cache_enable` reads back 0 because it is masked with `cache_exist`). */
 +void
@@ -1310,13 +1321,6 @@ index 0000000..90b5911
 +        nodeCfxRaise(tc, s, CauseIlli, s.runMode, pc, info);
 +        return true;
 +    }
-+    // cfx_cache (cfx5) is register-only: it is not in kCfxhaMap, so its five
-+    // contract registers are decoded here and every other cfx5 combination
-+    // stays CFXREG (m16-gem5-021; contract-cache.md).
-+    if (cfxha == CfxhaCache) {
-+        cacheRegRead(tc, s, cg, rc, out, info);
-+        return true;
-+    }
 +    const int ci = nodeCfxIndex(cfxha);
 +    if (ci < 0) {
 +        nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
@@ -1330,6 +1334,15 @@ index 0000000..90b5911
 +    if (delegDenied(s, ci, cg)) {
 +        nodeCfxRaise(tc, s, CauseCfxPerm | SubNcfxPerm, s.runMode, pc,
 +                     info);
++        return true;
++    }
++    // cfx_cache (cfx5) keeps the generic cg0-cg7 rows (trap vector, frame,
++    // both-axis masks; contract-see §3) and adds its own cg8 register face.
++    // The permission and delegation checks above therefore run *before*
++    // cfx5's register decode (m16-gem5-024); every other cg8 rc is still
++    // CFXREG inside cacheRegRead (CACHE-04).
++    if (cfxha == CfxhaCache && cg == 8) {
++        cacheRegRead(tc, s, cg, rc, out, info);
 +        return true;
 +    }
 +
@@ -1385,10 +1398,6 @@ index 0000000..90b5911
 +        nodeCfxRaise(tc, s, CauseIlli, s.runMode, pc, info);
 +        return true;
 +    }
-+    if (cfxha == CfxhaCache) {
-+        cacheRegWrite(tc, s, cg, rc, val, info);
-+        return true;
-+    }
 +    const int ci = nodeCfxIndex(cfxha);
 +    if (ci < 0) {
 +        nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
@@ -1402,6 +1411,12 @@ index 0000000..90b5911
 +    if (delegDenied(s, ci, cg)) {
 +        nodeCfxRaise(tc, s, CauseCfxPerm | SubNcfxPerm, s.runMode, pc,
 +                     info);
++        return true;
++    }
++    // cfx_cache (cfx5) cg8 register face, after the two-axis checks; other cg
++    // values keep the generic rows (m16-gem5-024, contract-see §3).
++    if (cfxha == CfxhaCache && cg == 8) {
++        cacheRegWrite(tc, s, cg, rc, val, info);
 +        return true;
 +    }
 +

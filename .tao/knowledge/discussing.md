@@ -302,6 +302,7 @@
 - **cfx5 用例覆盖**（用户 2026-11-22 确认）：`m16-testcases-009` 必须覆盖寄存器面、D 侧 clean/invalidate/flush（all/单行/区间、I/D）、DMA 直读可见性、使能门控、I 侧 clean no-op + invalidate 取指重取（**gem5 必须**）；QEMU 时序/替换、gem5 I-Cache 命中/缺失、RTL 预取/I-D 一致性只登记差异；不穷举替换矩阵。
 - **HSU**（用户 2026-11-22 选 A）：拆到已有任务，不单独立件——PTE 的 `H/S/U × R/W/X` 进 cfx4 用例（`m16-testcases-010` / `m16-chipyard-018`），运行模式 U/S/H 进 cfx0/2 模式路由（`m16-chipyard-020`）；**J 不测**，未覆盖项写入各任务书。
 - **cfx63 power**（用户 2026-11-22 选 A）：单独一件基础用例 `m16-testcases-016`（寄存器面 + power→hmon 移交，三方；复用 step5 与 `prevcfx.S` 检查点）；不把 step5 启动链当作 cfx63 的完整覆盖。
+- **cfx5 的 reset 向量**（2026-11-23，`m16-gem5-024` 复核）：gem5/QEMU 为 `(5<<42)+2^42-64K`、RTL 为 0；`DADAO-12 §3.4` 规定“无内部 SRAM 的 cfx 由平台/实现定义”，且各平台 trap 前都必须写向量 ⇒ **不登记差异**，当前用例显式写向量。
 - **cfx5 `cache_enable=0` 口径**（2026-11-22，`m16-chipyard-017` 复核）：只门控维护命令、不旁路正常访存；`DADAO-12 §4.6`/`CACHE-07/08/23/30` 只规定“该侧不被维护”，不要求旁路，与任务书/009 口径一致。命令级 `ADWBFAIL` 不可达登记 `ISS-516`；`CACHE-21` 双侧同选用例缺失登记 `ISS-517`。
 - **gem5 cfx5 两轴权限/trap/escape**（用户 2026-11-22 选 A）：补 `m16-gem5-024`——cfx5 进 `kCfxhaMap`，接 `<mode>_cfxtrap/cfxreg/cfxmem/cfxexe`、`trap`/`escape cfx_cache`，与 QEMU/RTL 对齐；H/S/U 下默认仅 hmon，env 打开后允许。
 - **`tests/arch` 命名规范**（用户 2026-11-22）：env 目录用 `common/env-{hmon,smon,umon}/`（共享 `common/env.lds`）；汇编统一 `.S`、驱动 `check_*`、生成器 `gen_*`、载体 `<cfx>_<name>.py`、body `<prefix>_<name>.body.S`；不建 `data/`、不在 `tools/` 加 arch 专用脚本、不乱起名。规范已写 `tests/arch/README.md`；现有文件由 `m16-testcases-018` 整理。

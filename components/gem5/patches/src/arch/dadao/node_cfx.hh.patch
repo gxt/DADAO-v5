@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..8769540
+index 0000000..ce9596e
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
-@@ -0,0 +1,437 @@
+@@ -0,0 +1,440 @@
 +// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
 +// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
 +//
@@ -43,17 +43,20 @@ index 0000000..8769540
 +enum NodeCfxha : uint8_t
 +{
 +    CfxhaPtw = 4,
-+    /** cfx_cache (cfx5).  Its register file is register-only: the I/D state
-+     *  it maintains lives in the classic L1 caches, not in NodeState
-+     *  (contract-cache.md; m16-gem5-021).  It is **not** part of
-+     *  NodeState::cfx / kCfxhaMap: only the five contract registers exist,
-+     *  so every other cfx5 combination stays CFXREG exactly as before. */
++    /** cfx_cache (cfx5).  It has the generic cg0-cg7 rows in NodeState::cfx
++     *  (trap vector, frame, both-axis masks; contract-see §3), plus its cg8
++     *  register face (contract-cache CACHE-03/04).  The I/D state it maintains
++     *  lives in the classic L1 caches, not in NodeState (m16-gem5-021/024). */
 +    CfxhaCache = 5,
 +    CfxhaHart = 15,
 +    CfxhaPmem = 32,
 +    CfxhaTime = 34,
 +    CfxhaPower = 63,
 +};
++
++/** Number of cfx rows in NodeState::cfx / kCfxhaMap (one per implemented
++ *  cfxha; cfx_cache included since m16-gem5-024). */
++inline constexpr int NodeNumCfx = 10;
 +
 +/** Exception causes (spec/DADAO-12 §4; one-hot). */
 +enum NodeCause : uint64_t
@@ -126,7 +129,7 @@ index 0000000..8769540
 +    uint64_t cgRegDeleg = 0;
 +};
 +
-+/** One implemented cfx (cfx0/1/2/3/4/15/32/34/63). */
++/** One implemented cfx (cfx0/1/2/3/4/5/15/32/34/63). */
 +struct NodeCfxRegs
 +{
 +    NodeCfxMode mode[4];
@@ -303,7 +306,7 @@ index 0000000..8769540
 +    Addr ramSize = 0;
 +    Addr pmemBase = 0;
 +
-+    NodeCfxRegs cfx[9];
++    NodeCfxRegs cfx[NodeNumCfx];
 +
 +    uint8_t runMode = NodeHypv;
 +    uint8_t cfxCode = CfxhaPower;

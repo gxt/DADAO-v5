@@ -37,7 +37,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-gem5-024 | 2026-11-22 22:04 | 2–3 h | gem5 cfx5 两轴权限/trap/escape（进 kCfxhaMap） |
 | m16-testcases-017 | 2026-11-22 21:32 | 2–3 h | env 权限准备（H/S/U 下按用例声明打开 cfx 掩码） |
 | m16-chipyard-020 | 2026-11-23 00:51 | 6–8 h | RTL cfx0/2 模式进入路由（B；U/S 进入、switch_run_mode、异常帧、两轴 CFXPERM） |
 
@@ -45,6 +44,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-gem5-024 | 2026-11-23 07:24 | cfx5 进 kCfxhaMap（9→10），通用 cg0–cg7 + cg8 专属、两轴权限/trap/escape；25/25 + 43/43 |
 | m16-chipyard-019 | 2026-11-23 00:51 | RTL cfx0/2 寄存器面（A；47 记录、Tiny 38/38 不回归；CFXPERM 判定留 020） |
 | m16-qemu-005 | 2026-11-23 00:46 | cfx5 通用 `cg0–cg7`（含 `cg3 rc12` deleg；supv 可访问；16/16 + 29/29） |
 | m16-qemu-003 | 2026-11-23 00:12 | cfx5 命令接线（D clean/invalidate/flush、all/单行/区间；I 侧由 RAM 写自动失效；26/26 + 46/46） |

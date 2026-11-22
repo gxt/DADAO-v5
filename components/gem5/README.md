@@ -525,10 +525,13 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 - **cfx/monitor**：cfx0/1/2/3/4/15/17/18/63 寄存器面（cg0–cg7，cg3 仅 hypv，
   cg6 scratch=4，cg7 只读空间描述符）、`trap`/`escape`/`cfx2rd`/`cfx2rc` 与
   `switch_run_mode`/`excp_vector`/mask/deleg（`cg0`–`cg3` `rc9`/`rc11` 与
-  `cg5` `rc1`/`rc63` 为 reserved，访问 ⇒ `CFXREG`）；`cfx5`
-  （cache）未实现 ⇒ `CFXREG`；保留 cfxha ⇒ `ILLI`；CFXPERM/CFXREG 均进
-  当前模式 monitor（DADAO-12 §5.2，与 QEMU-083t 一致）。smon（cfx2）
-  SRAM/寄存器保留。
+  `cg5` `rc1`/`rc63` 为 reserved，访问 ⇒ `CFXREG`）。**`cfx5`（cache）在
+  cfxha 表内（`m16-gem5-024`）**：通用 cg0–cg7 行（两轴 mask、`trap`/`escape`
+  向量与帧字段，`contract-see §3`）加 `cg8` 的五个 cache 寄存器
+  （`contract-cache` CACHE-03/04）；复位 mask 按 ADR-0045 D4 **只允许 hmon**，
+  smon/umon 使用须由固件打开对应 mode 行 + `cg3 rc12` 委托。保留 cfxha ⇒
+  `ILLI`；CFXPERM/CFXREG 均进当前模式 monitor（DADAO-12 §5.2，与 QEMU-083t
+  一致）。smon（cfx2）SRAM/寄存器保留。
 - **cfx_pmem DMA**：cg15 rc0–rc4（`src`/`dst`/`size`/`ctrl`/`status`），
   DIR 0=CFX→PA / 1=PA→CFX，BUSY 期间写被忽略、DONE/ERROR W1C；
   ERR_CODE 一组一热 `status[15:3]`（SIZE/CFX_RANGE/PA_RANGE/PA_FAULT）；

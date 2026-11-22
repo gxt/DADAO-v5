@@ -4,7 +4,7 @@
 # 每条写：kind（permanent / temporary）、scope、impact（影响面）、reason、user_ruling（裁定日期）、status。
 # temporary 项在对应任务合入后删除；permanent 项长期保留。
 schema: 1
-updated: "2026-11-22"
+updated: "2026-11-23"
 
 divergences:
   - id: DIV-01
