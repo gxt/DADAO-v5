@@ -33,4 +33,4 @@ make test-picolibc-smoke    # 最小 E2E：printf("hi") + libm 8 符号，编/�
 make check                  # 含 check-patch-tree（9 断言）+ check-index-blobs
 ```
 
-`test-picolibc-smoke` 用 picolibc 自己的 `lib/crt0-semihost.o` + `tests/ee-tiny/tests_picolibc_crt0.S` 栈桩 + 安装版 `lib/picolibc_noflash.ld` 链接（与 `run_picolibc_tests_tiny.py` 同一契约）；`picolibc_noflash.ld` 是单 RAM 目标的正解（`picolibc.ld` 的 flash/ram 段在本目标同址重叠、不可用）。
+`test-picolibc-smoke` 用 picolibc 自己的 `lib/crt0-semihost.o` + `tests/ee-tiny/crt0_tiny_picolibc.S` 栈桩 + 安装版 `lib/picolibc_noflash.ld` 链接（与 `run_picolibc_tests_tiny.py` 同一契约）；`picolibc_noflash.ld` 是单 RAM 目标的正解（`picolibc.ld` 的 flash/ram 段在本目标同址重叠、不可用）。

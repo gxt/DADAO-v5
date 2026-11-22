@@ -31,7 +31,7 @@ Design
   picolibc's own
   ``crt0-semihost.o`` assumes the architecture start-up code already set the
   stack, so the harness links it with ``--redefine-sym _start=_picolibc_start``
-  behind ``tests/ee-tiny/tests_picolibc_crt0.S`` (the stack-setup stub).  The
+  behind ``tests/ee-tiny/crt0_tiny_picolibc.S`` (the stack-setup stub).  The
   image uses the installed ``lib/picolibc_noflash.ld`` directly (its defaults
   are the Tiny address map; ``.stack`` is kept out of every PT_LOAD), so
   ``malloc``/``sbrk`` link and the loadable image stays a few KiB.  ``--engine chipyard`` runs the identical image on
@@ -84,7 +84,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-# `tests/ee-tiny/run_picolibc_tiny.py`（m15-testcases-011 从 `tools/testcases/` 迁入）
+# `tests/ee-tiny/run_picolibc_tests_tiny.py`（m15-testcases-011 从 `tools/testcases/` 迁入）
 # ⇒ 仓库根在 2 层之上；驱动仍复用 `tools/{infra,testcases/lib}` 的共享件。
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT / "tools" / "infra"))
@@ -100,7 +100,7 @@ SYSROOT = paths.target_sysroot_dir()
 PICOLIBC_SRC = REPO_ROOT / ".work" / "source" / "picolibc"
 CROSS_FILE = PICOLIBC_SRC / "scripts" / "cross-dadao.txt"
 TEST_BUILD = REPO_ROOT / ".work" / "build" / "picolibc-tests"
-CRT0_STUB = REPO_ROOT / "tests" / "ee-tiny" / "tests_picolibc_crt0.S"
+CRT0_STUB = REPO_ROOT / "tests" / "ee-tiny" / "crt0_tiny_picolibc.S"
 PICOLIBC_LDS = SYSROOT / "lib" / "picolibc_noflash.ld"
 
 CLANG = TOOLCHAIN_BIN / "clang"

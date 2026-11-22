@@ -202,7 +202,7 @@ def parse_ps(text):
                 "elf": elf, "semiout": semi.group(1) if semi else None,
                 "kind": None, "name": None, "opt": None,
             })
-        elif "run_embench_tiny.py" in cmd or "run_picolibc_tiny.py" in cmd:
+        elif "run_embench_tiny.py" in cmd or "run_picolibc_tests_tiny.py" in cmd:
             mo = RE_ONLY.search(cmd)
             mr = RE_REDIRECT.search(cmd)
             drivers.append({
@@ -350,7 +350,7 @@ def _driver_alive(batch, drivers):
     stem = batch["path"].rsplit("/", 1)[-1][:-4]
     for drv in drivers:
         kind = ("embench" if "run_embench_tiny.py" in drv["cmd"]
-                else "picolibc" if "run_picolibc_tiny.py" in drv["cmd"] else None)
+                else "picolibc" if "run_picolibc_tests_tiny.py" in drv["cmd"] else None)
         if kind != batch["kind"]:
             continue
         hint = drv.get("log")

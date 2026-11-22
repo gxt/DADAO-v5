@@ -14,7 +14,7 @@ Pipeline per (benchmark, optimisation level)::
           -DWARMUP_HEAT=1 -DGLOBAL_SCALE_FACTOR=1 \
           -c <support/{main,beebsc}.c> <src>/<b>/*.c <hosted board shim>  -> *.o
 
-    # static line: P1 musl products, lld DEFAULT base (never -T app_tiny.lds)
+    # static line: P1 musl products, lld DEFAULT base (never -T tests_freestanding_tiny.lds)
     ld.lld -o <b>.elf <musl>/lib/crt1.o <objs> <musl>/lib/libc.a
     qemu-dadao <b>.elf
 
@@ -25,7 +25,7 @@ Pipeline per (benchmark, optimisation level)::
     qemu-dadao -L <guest-root> <b>.elf
 
 Base address (ISS-247): the link line carries **no** ``-T``/linker script, so
-lld's default base is used.  ``tests/ee-tiny/app_tiny.lds`` (``RAM ORIGIN =
+lld's default base is used.  ``tests/ee-tiny/tests_freestanding_tiny.lds`` (``RAM ORIGIN =
 the old high RAM base``) cannot be loaded by ``qemu-user`` on this 47-bit host VA
 (``Unable to find a guest_base ...``).  The driver records the link command and
 the minimum ``PT_LOAD`` virtual address of every produced ELF and refuses an
@@ -155,7 +155,7 @@ FAULT_NAMES = {0xC0 | (mode << 4) | idx: name
 FAULT_NAMES.update({code: "CFX%d" % (code & 0x3F)
                     for code in range(0x80, 0xC0)})
 
-# The scripted base of tests/ee-tiny/app_tiny.lds (ISS-247) -- an image linked
+# The scripted base of tests/ee-tiny/tests_freestanding_tiny.lds (ISS-247) -- an image linked
 # there cannot be loaded by qemu-user on this host and is rejected here.
 SCRIPTED_BASE = 0xFC0000000000
 
@@ -381,7 +381,7 @@ def build_and_run(bench, opt, cfg, work_dir):
         return res
     if res.min_pt_load == SCRIPTED_BASE:
         res.klass = "blocked"
-        res.reason = (f"ELF min PT_LOAD is the scripted app_tiny.lds base "
+        res.reason = (f"ELF min PT_LOAD is the scripted tests_freestanding_tiny.lds base "
                       f"0x{SCRIPTED_BASE:x} (ISS-247: qemu-user cannot load it)")
         return res
     if cfg["mode"] == "static" and res.interp:

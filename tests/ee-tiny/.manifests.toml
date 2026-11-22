@@ -1,0 +1,40 @@
+schema = 1
+owner = "testcases"
+subdirs = []
+recursive = false
+
+[files."cfx_hmon_tiny.S"]
+owner = "testcases"
+
+[files."cfx_hmon_tiny.lds"]
+owner = "testcases"
+
+[files."cfx_power_tiny.S"]
+owner = "testcases"
+
+[files."cfx_power_tiny.lds"]
+owner = "testcases"
+
+[files."crt0_tiny_freestanding.S"]
+owner = "testcases"
+
+[files."crt0_tiny_picolibc.S"]
+owner = "testcases"
+
+[files."run_embench_tiny.py"]
+owner = "testcases"
+
+[files."run_inst_tiny.py"]
+owner = "testcases"
+
+[files."run_picolibc_tests_tiny.py"]
+owner = "testcases"
+
+[files."runtime.yaml"]
+owner = "testcases"
+
+[files."tests_freestanding_tiny.lds"]
+owner = "testcases"
+
+[files."tests_inst_tiny.lds"]
+owner = "testcases"

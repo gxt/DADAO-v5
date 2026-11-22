@@ -8,7 +8,7 @@ expected value (it does NOT rely on lit exit codes):
     per TU:  llc -march=dadao -filetype=obj  <tu>.ll     -> <tu>.o
     once:    llvm-mc --triple=dadao -filetype=obj \
                  tests/ee-user/crt0_user.s               -> crt0.o
-    link:    ld.lld -T tests/ee-tiny/app_tiny.lds \
+    link:    ld.lld -T tests/ee-tiny/tests_freestanding_tiny.lds \
                  crt0.o <tu>.o ... -o <prog>.elf          (ET_EXEC, SRAM-only)
     run:     timeout N qemu-system-dadao \
                  -machine kaiwu-tiny,bootrom-image=<fixed 64 KiB firmware> \
@@ -99,7 +99,7 @@ DEFAULT_QEMU = os.path.join(_TOOLCHAIN_BIN, "qemu-system-dadao")
 # 资产归属（m15-testcases-011/012）：crt0 在 `tests/ee-user/`，Tiny lds 在
 # `tests/ee-tiny/`；公共段已内联进各自 lds。
 DEFAULT_CRT0 = "tests/ee-user/crt0_user.s"
-DEFAULT_LDS = "tests/ee-tiny/app_tiny.lds"
+DEFAULT_LDS = "tests/ee-tiny/tests_freestanding_tiny.lds"
 # Fixed Kaiwu-Tiny BootROM firmware (make build-bootrom).
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir()
                       / "bootrom" / "tiny" / "bootrom_tiny.bin")
@@ -229,7 +229,7 @@ def build_and_run(prog, tools, work_dir, timeout, verbose=False):
             return res
         objs.append(obj)
 
-    # 2. ld.lld -T app_tiny.lds crt0.o <objs> -o <prog>.elf
+    # 2. ld.lld -T tests_freestanding_tiny.lds crt0.o <objs> -o <prog>.elf
     elf = os.path.join(work_dir, stem + ".elf")
     rc, _out, err, timed = _run(
         [tools["ldlld"], "-L", os.path.dirname(tools["lds"]),

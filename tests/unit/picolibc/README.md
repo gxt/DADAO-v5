@@ -4,7 +4,7 @@ picolibc 自测**仍在 picolibc 自己的 Meson 构建下运行**（`TESTCASES-
 测试集合由上游 `meson-info/intro-tests.json` / `intro-targets.json` **现场派生**，
 本目录**不复制**测试源码或测试清单（避免与上游漂移）。
 
-- 驱动：`tests/ee-tiny/run_picolibc_tiny.py`（编译/链接/QEMU 运行 + 独立判据：
+- 驱动：`tests/ee-tiny/run_picolibc_tests_tiny.py`（编译/链接/QEMU 运行 + 独立判据：
   测试自身退出码；`fail=0` 且 `blocked=0` 才 PASS）。
 - 构建/运行树：`.work/build/picolibc`（被测库）+ `.work/build/picolibc-tests-run`
   （自测构建，`--stage fast` 与 `full` 共用）。

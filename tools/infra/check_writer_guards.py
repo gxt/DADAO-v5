@@ -75,7 +75,7 @@ READER_ENTRIES = [
     "tools/testcases/l3_run.py",
     "tools/testcases/night_run.py",
     "tools/gem5/check_tiny_hmon.py",
-    "tests/ee-tiny/run_picolibc_tiny.py",
+    "tests/ee-tiny/run_picolibc_tests_tiny.py",
     "tools/qemu/user_mode_smoke.py",
     "tools/qemu/semantics_gate.py",
     "tools/qemu/k0_boot_probe.py",

@@ -209,7 +209,7 @@ def check_profile_lds(root: Path):
     if not hits:
         print(f"  地址扫描: {checked} 个文本文件，旧几何残留 0")
 
-    lds_map = {"tiny": "tests/ee-tiny/app_tiny.lds",
+    lds_map = {"tiny": "tests/ee-tiny/tests_freestanding_tiny.lds",
                "vast": "tests/ee-vast/kernel_vast.lds"}
     for name, rel in lds_map.items():
         path = root / rel
@@ -289,7 +289,7 @@ def check_profile_lds(root: Path):
     # picolibc Tiny layout: the harness must use the installed
     # `lib/picolibc_noflash.ld` (cross-file defaults carry the Tiny map), never a
     # checked-in copy.
-    pico_harness = root / "tests/ee-tiny/run_picolibc_tiny.py"
+    pico_harness = root / "tests/ee-tiny/run_picolibc_tests_tiny.py"
     if pico_harness.is_file():
         htext = pico_harness.read_text(encoding="utf-8")
         if '"picolibc_noflash.ld"' not in htext:
@@ -683,7 +683,7 @@ def audit(root: Path, registry: dict[str, str] | None = None) -> int:
 def _write_profile_lds(root: Path, tamper: str | None = None) -> None:
     """Write minimal, profile-consistent linker scripts for the self-test tree."""
     profs = machine_profile.all_profiles()
-    for name, rel in (("tiny", "ee-tiny/app_tiny.lds"),
+    for name, rel in (("tiny", "ee-tiny/tests_freestanding_tiny.lds"),
                       ("vast", "ee-vast/kernel_vast.lds")):
         prof = profs[name]
         origin, length = prof.ram_base, prof["ram_size"]
@@ -927,7 +927,7 @@ def self_test() -> int:
         case_no += 1
         work = tmpdir / f"case{case_no}"
         _write_tree(work, _empty_indexes())
-        _write_profile_lds(work, tamper="ee-tiny/app_tiny.lds")
+        _write_profile_lds(work, tamper="ee-tiny/tests_freestanding_tiny.lds")
         rc, out = _run(work)
         good_lds = rc == 1 and "RAM ORIGIN" in out
         ok = ok and good_lds

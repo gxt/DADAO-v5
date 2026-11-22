@@ -877,12 +877,12 @@ _locked-test-picolibc-smoke: build-picolibc build-bootrom
 # representative reports a genuine test failure (fail=0); backend/library gaps
 # are reported separately as `blocked`, never as silent skips.
 _locked-check-picolibc-tests: build-picolibc build-bootrom
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-tiny/run_picolibc_tiny.py --stage fast --jobs $(TEST_JOBS)
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-tiny/run_picolibc_tests_tiny.py --stage fast --jobs $(TEST_JOBS)
 
 # check-picolibc-tests-full (TESTCASES-042t): the full picolibc self-test set
 # (opt-in; L3-like — hundreds of compile/link/QEMU runs, several minutes).
 _locked-check-picolibc-tests-full: build-picolibc build-bootrom
-	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-tiny/run_picolibc_tiny.py --stage full --jobs $(TEST_JOBS)
+	@DADAO_TEST_PROFILE=tiny $(PYTHON) tests/ee-tiny/run_picolibc_tests_tiny.py --stage full --jobs $(TEST_JOBS)
 
 # ── tset smoke（TESTCASES-075t，L2）──────────────────────────────────────────
 # 三个 user-mode 上游套件驱动已迁 `tests/ee-user/`（旧 `tools/testcases/tset/` 路径
@@ -1598,7 +1598,7 @@ _locked-test-codegen: install-host
 # build trees.  Pipeline (multi-object, per contract-elf.md §6.1.2):
 #   llvm-mc --triple=dadao -filetype=obj tests/ee-user/crt0_user.s -> crt0.o;
 #   per TU llc -march=dadao -filetype=obj                            -> <tu>.o;
-#   ld.lld -T tests/ee-tiny/app_tiny.lds crt0.o <tu>.o ... -o <prog>.elf;
+#   ld.lld -T tests/ee-tiny/tests_freestanding_tiny.lds crt0.o <tu>.o ... -o <prog>.elf;
 #   qemu-system-dadao -M kaiwu-tiny -kernel <prog>.elf ...
 # The guest process exit code is compared against the independent M4 manifest
 # tests/unit/llvm/codegen/m4/expected.yaml (TESTCASES-030t/032t).
@@ -1619,7 +1619,7 @@ _locked-test-elf: install-host build-bootrom
 	  DADAO_TEST_PROFILE=tiny $(PYTHON) tools/testcases/unit/run_elf_e2e.py \
 	    --llc $(LLC_BIN) --llvm-mc $(LLVM_MC_BIN) --ldlld $(LLD_BIN) \
 	    --qemu $(QEMU_BIN) --crt0 tests/ee-user/crt0_user.s \
-	    --lds tests/ee-tiny/app_tiny.lds \
+	    --lds tests/ee-tiny/tests_freestanding_tiny.lds \
 	    --bootrom $(TINY_BOOTROM) \
 	    --vectors-dir tests/unit/llvm/codegen/m4 \
 	    --expected tests/unit/llvm/codegen/m4/expected.yaml \

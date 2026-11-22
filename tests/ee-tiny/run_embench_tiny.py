@@ -28,7 +28,7 @@ Pipeline per (benchmark, optimisation level):
     clang ... -c tests/tset/embench/embench_runtime.c                    -> *.o
     llc  -march=dadao -O0 -filetype=obj mem_runtime_user.ll            -> *.o
     llvm-mc --triple=dadao -filetype=obj crt0_user.s                   -> crt0.o
-    ld.lld -T tests/ee-tiny/app_tiny.lds *.o                        -> <b>.elf
+    ld.lld -T tests/ee-tiny/tests_freestanding_tiny.lds *.o                        -> <b>.elf
     timeout N qemu-system-dadao \
             -machine kaiwu-tiny,bootrom-image=<fixed 64 KiB firmware> \
             -kernel <b>.elf -semihosting-config enable=on,target=native -> guest exit
@@ -113,8 +113,8 @@ DEFAULT_RUNTIME = "tests/tset/embench/embench_runtime.c"
 # 资产归属（m15-testcases-011/012）：`mem_runtime_user.ll`/`crt0_user.s` 在
 # `tests/ee-user/`；Tiny 的 lds 在 `tests/ee-tiny/`。
 DEFAULT_MEM_RUNTIME = "tests/ee-user/mem_runtime_user.ll"
-DEFAULT_CRT0 = "tests/ee-tiny/tests_embench_crt0.S"
-DEFAULT_LDS = "tests/ee-tiny/app_tiny.lds"
+DEFAULT_CRT0 = "tests/ee-tiny/crt0_tiny_freestanding.S"
+DEFAULT_LDS = "tests/ee-tiny/tests_freestanding_tiny.lds"
 DEFAULT_BOOTROM = str(_dadao_paths.test_artifacts_dir()
                       / "bootrom" / "tiny" / "bootrom_tiny.bin")
 DEFAULT_BOARDSUPPORT = "examples/dadao/boardsupport.c"
@@ -634,7 +634,7 @@ def main():
                          "(contracts/tests-matrix.yaml)\n" % prof.name)
         return 2
     if args.lds == DEFAULT_LDS:
-        args.lds = ("tests/ee-tiny/app_tiny.lds"
+        args.lds = ("tests/ee-tiny/tests_freestanding_tiny.lds"
                     if prof.name == "tiny"
                     else "tests/shared/linker/dadao-%s.lds" % prof.name)
 

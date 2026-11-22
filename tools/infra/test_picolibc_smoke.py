@@ -67,7 +67,7 @@ TOOLCHAIN_BIN = paths.host_toolchain_bin()
 SYSROOT = paths.target_sysroot_dir()
 # 资产归属（m15-testcases-011/012）：crt0 在 `tests/ee-user/`，Tiny lds 在
 # `tests/ee-tiny/`；公共段已内联进 lds。
-CRT0 = REPO_ROOT / "tests" / "ee-tiny" / "tests_picolibc_crt0.S"
+CRT0 = REPO_ROOT / "tests" / "ee-tiny" / "crt0_tiny_picolibc.S"
 PICOLIBC_CRT0 = SYSROOT / "lib" / "crt0-semihost.o"
 LDS = SYSROOT / "lib" / "picolibc_noflash.ld"
 BOOTROM = paths.test_artifacts_dir() / "bootrom" / "tiny" / "bootrom_tiny.bin"

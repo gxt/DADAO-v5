@@ -46,7 +46,7 @@ import paths  # noqa: E402
 
 TINY_FW = os.path.join(REPO_ROOT, "tests", "ee-tiny")
 APP_SRC = os.path.join(REPO_ROOT, "tests", "arch", "hmon", "tiny_hmon_min.S")
-APP_LDS = os.path.join(REPO_ROOT, "tests", "ee-tiny", "app_tiny.lds")
+APP_LDS = os.path.join(REPO_ROOT, "tests", "ee-tiny", "tests_freestanding_tiny.lds")
 # 公共段已内联进 lds。
 SHARED_ASM = os.path.join(REPO_ROOT, "tests", "shared", "asm")
 BUILDER = os.path.join(REPO_ROOT, "tools", "testcases", "arch",

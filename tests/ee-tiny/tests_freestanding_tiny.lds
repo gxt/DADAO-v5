@@ -1,4 +1,4 @@
-/* app_tiny.lds — Kaiwu-Tiny contract application ELF (m13-qemu-002).
+/* tests_freestanding_tiny.lds — Kaiwu-Tiny contract application ELF (m13-qemu-002).
  *
  * Spec: spec/Kaiwu §6 "装载语义 — Kaiwu-Tiny" (0.4.4-rc): the crt is
  * linked together with the test program, the whole application lives in SRAM,

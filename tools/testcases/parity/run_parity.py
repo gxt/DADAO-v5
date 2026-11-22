@@ -24,7 +24,7 @@ The driver reuses the existing engines instead of re-implementing them:
   arch      tools/testcases/arch/run_m5_e2e.py --json-out  (10 smoke) plus the
             13 ``ARCH_CFX_PROBES`` + ``min_rom_probe_046t`` run per check
   embench   tests/ee-tiny/run_embench_tiny.py --json-out
-  picolibc  tests/ee-tiny/run_picolibc_tiny.py --stage fast (Tiny only; the
+  picolibc  tests/ee-tiny/run_picolibc_tests_tiny.py --stage fast (Tiny only; the
             produced ELF is re-run on gem5 with the same argv)
 
 Usage:
@@ -80,7 +80,7 @@ SHIM = os.path.join(_HERE, "qemu_gem5_shim.py")
 SEMANTICS_GATE = os.path.join(_REPO_ROOT, "tools", "qemu", "semantics_gate.py")
 RUN_M5 = os.path.join(_REPO_ROOT, "tools", "testcases", "arch", "run_m5_e2e.py")
 RUN_EMBENCH = os.path.join(_REPO_ROOT, "tests", "ee-tiny", "run_embench_tiny.py")
-PICOLIBC_TESTS = os.path.join(_REPO_ROOT, "tests", "ee-tiny", "run_picolibc_tiny.py")
+PICOLIBC_TESTS = os.path.join(_REPO_ROOT, "tests", "ee-tiny", "run_picolibc_tests_tiny.py")
 ARCH_DIR = os.path.join(_REPO_ROOT, "tools", "testcases", "arch")
 
 SCOPES = ("inst", "arch", "embench", "picolibc")
