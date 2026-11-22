@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..e7cbc41
+index 0000000..ae5c233
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,3779 @@
+@@ -0,0 +1,3766 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -2854,8 +2854,9 @@ index 0000000..e7cbc41
 + *   cg8 rc9  cache_ctrl       WO   write-executes a command (CACHE-03/09)
 + *   cg8 rc10 cache_addr_start RW   PA[55:0]; [63:56] read 0 (CACHE-03/18)
 + *   cg8 rc11 cache_addr_size  RW   byte count (CACHE-03)
-+ * Any other rc of cg8 is reserved => CFXREG (CACHE-04), and cfx5 implements
-+ * no cg other than cg8 (the shared cg0-cg6 rows and cg7 stay reserved).
++ * Any other rc of cg8 is reserved => CFXREG (CACHE-04).  The shared cg0-cg7
++ * rows are contract-required for every cfx (contract-see §3) and are served
++ * by the generic cfx_reg_ptr path; cfx5 does not special-case them.
 + *
 + * `cache-model` only decides *effects* (user ruling 2026-11-22): with `on`
 + * the machine reports I+D (`cache_exist` = 0b11, CACHE-27) and with `off` it
@@ -3524,13 +3525,6 @@ index 0000000..e7cbc41
 +        cfx_raise_perm(env, info, pc);
 +        return;
 +    }
-+    /* cfx_cache implements only the cg8 register face (contract-cache
-+     * CACHE-03/04): every other cg -- including the shared cg0-cg6 rows and
-+     * cg7 -- is reserved for cfx5 => CFXREG. */
-+    if (dadao_cfxha_map[ci] == DADAO_CFXHA_CACHE && cg != 8) {
-+        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
-+        return;
-+    }
 +    /* cfx_pmem cg15: DMA registers (DADAO-12 §4.9; ADR-0042 D7.3). */
 +    if (cg == 15 && dadao_cfxha_map[ci] == DADAO_CFXHA_PMEM) {
 +        uint64_t v;
@@ -3643,13 +3637,6 @@ index 0000000..e7cbc41
 +     * is hardware-fixed 1, so a supv cg3 access is always CFXPERM. */
 +    if (cfx_deleg_denied(env, ci, cg)) {
 +        cfx_raise_perm(env, info, pc);
-+        return;
-+    }
-+    /* cfx_cache implements only the cg8 register face (contract-cache
-+     * CACHE-03/04): every other cg -- including the shared cg0-cg6 rows and
-+     * cg7 -- is reserved for cfx5 => CFXREG. */
-+    if (dadao_cfxha_map[ci] == DADAO_CFXHA_CACHE && cg != 8) {
-+        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
 +        return;
 +    }
 +    /* cfx_pmem cg15: DMA registers (DADAO-12 §4.9; ADR-0042 D7.3). */

@@ -41,13 +41,14 @@
 | --- | --- | --- | --- |
 | m16-gem5-024 | 2026-11-22 22:04 | 2–3 h | gem5 cfx5 两轴权限/trap/escape（进 kCfxhaMap） |
 | m16-chipyard-019 | 2026-11-22 22:09 | 3–4 h | RTL cfx0/2 寄存器面与权限（A；不改主控制流） |
-| m16-qemu-005 | 2026-11-23 00:12 | 2–3 h | cfx5 通用 `cg0–cg7`（含 `cg3 rc12` deleg；契约 `contract-see §3`） |
+
 | m16-testcases-015 | 2026-11-22 20:47 | 4–6 h | `tests/arch` 运行模式环境（hmon/smon/umon；body 与 env 分离；代表迁移） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-qemu-005 | 2026-11-23 00:46 | cfx5 通用 `cg0–cg7`（含 `cg3 rc12` deleg；supv 可访问；16/16 + 29/29） |
 | m16-qemu-003 | 2026-11-23 00:12 | cfx5 命令接线（D clean/invalidate/flush、all/单行/区间；I 侧由 RAM 写自动失效；26/26 + 46/46） |
 | m16-qemu-002 | 2026-11-22 23:16 | 影子 D-Cache 数据通路（8×128×64 B；DMA/装载直连；10/10 + 29/29） |
 | m16-chipyard-017 | 2026-11-22 22:08 | RTL cfx5 命令接线（D/I clean/invalidate/flush、all/单行/区间、I 先 D；探针 29 记录/118 事件） |

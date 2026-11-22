@@ -1388,3 +1388,12 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`m16-qemu-003` 复核：① QEMU 系统模式下 I 侧 `tb_invalidate_phys_range` 在功能模型上不可独立观测（写 RAM 自动失效 TB），`on_i_invalidate_refetch` 例在“clean 不写回”等注入下仍绿、不能充当 I 侧失效的正向证据；I 侧仅 `on_i_leaves_d` 可达 FAIL。建议 `m16-testcases-009` 的 I 侧口径登记为“由 RAM 写自动失效保证”。② `m16-qemu-001` 探针的 `SEL_I/SEL_D` 写反（`cache_ctrl[15:14]` 是 2=I/1=D），该处只验合法/非法故未暴露，后续补正。"
+- id: ISS-520
+  scope:
+  - qemu
+  - infra
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P1】共享 `.work/source/qemu` 停在 002/003 之前的旧态（`helper.c` 3322 行、无 dcache/无 003 维护代码），与 master 补丁集差 +476/-19 行 ⇒ master 侧 `check-patch-tree` qemu 段 8 条 ⑥⑨，且 `make_patch.py qemu` 会静默导出旧内容、删掉 002/003。处置（`docs/Process-01`，禁 `reset --hard`）：确认写者空闲后删共享源树 → `make fetch` → `apply_series.py --component qemu` → `make build-qemu` → 判据 `check_patch_tree.py` qemu 段 0 problem + `--source-state` E1。"
