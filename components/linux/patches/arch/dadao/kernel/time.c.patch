@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/time.c b/arch/dadao/kernel/time.c
 new file mode 100644
-index 000000000..f3de9815a
+index 000000000..32c3a8bc1
 --- /dev/null
 +++ b/arch/dadao/kernel/time.c
-@@ -0,0 +1,859 @@
+@@ -0,0 +1,867 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO time base and single-hart timer.
@@ -536,6 +536,14 @@ index 000000000..f3de9815a
 +	struct pt_regs *old_regs;
 +	unsigned long flags;
 +
++	/*
++	 * Re-open this kernel's async source (m18-linux-004, ISS-498): the user
++	 * entry masks it across the mode switch, and a tick taken *in* user mode
++	 * is the third kernel entry a task can take.  Before `flags` is read, so
++	 * the row this handler writes back on the way out is the enabled one it
++	 * inherits here.
++	 */
++	local_irq_enable();
 +	dadao_in_frame = 1;
 +
 +	/*

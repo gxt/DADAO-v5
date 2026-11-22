@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/semihost_tty.c b/arch/dadao/kernel/semihost_tty.c
 new file mode 100644
-index 000000000..64436906c
+index 000000000..04b760d71
 --- /dev/null
 +++ b/arch/dadao/kernel/semihost_tty.c
-@@ -0,0 +1,212 @@
+@@ -0,0 +1,272 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * Semihosting console character device (m18-linux-001, K6).
@@ -79,37 +79,97 @@ index 000000000..64436906c
 +	emit(&c, 1);
 +}
 +
++/*
++ * The line being assembled (m18-linux-004, ISS-497).
++ *
++ * Canonical mode means read() delivers at *least* one line and at most what
++ * the caller asked for: the driver keeps the unconsumed tail, so a caller with
++ * a one-byte buffer (`read_key`, a tty line editor) still gets one byte per
++ * call while the shell's 1 KiB `read()` gets the whole line.
++ *
++ * Why the driver and not the caller: `sh` reads its script with a 1 KiB
++ * `read()`; delivering the input one byte at a time made every command line a
++ * sequence of hundreds of separate read() returns, and that interleaving drove
++ * busybox's `_`-variable update into a mallocng double free (measured:
++ * `die-no-vma` inside `free()` after ~180 characters; the same command
++ * sequence read from a script file or a pipe — i.e. in line-sized returns —
++ * runs clean).  A tty never delivers a line that way, so the driver assembles
++ * it and hands it over whole.
++ */
++#define SEMIHOST_LINE_MAX	256
++
++static char semihost_line[SEMIHOST_LINE_MAX];
++static size_t semihost_line_len;
++static bool semihost_eof;
++
 +static ssize_t semihost_console_read(struct file *file, char __user *ubuf,
 +				     size_t count, loff_t *ppos)
 +{
-+	char ch;
++	size_t n;
 +	int c;
++	ssize_t ret;
 +
 +	if (!count)
 +		return 0;
 +	if (mutex_lock_interruptible(&semihost_console_lock))
 +		return -ERESTARTSYS;
 +
-+	c = dadao_semihost_readc();
-+	mutex_unlock(&semihost_console_lock);
-+	if (c < 0)
-+		return -EIO;
-+	if (c == CH_CTRL_D)
-+		return 0;
-+	if (c == CH_CTRL_C) {
-+		emit("^C\n", 3);
-+		kill_pgrp(task_pgrp(current), SIGINT, 1);
-+		return -ERESTARTSYS;
++	/* Assemble one line unless a previous read left part of one behind. */
++	if (!semihost_line_len) {
++		while (!semihost_eof) {
++			c = dadao_semihost_readc();
++			if (c < 0) {
++				ret = -EIO;
++				goto out;
++			}
++			if (c == CH_CTRL_D) {
++				/* End of input: deliver what is pending, then EOF. */
++				semihost_eof = true;
++				break;
++			}
++			if (c == CH_CTRL_C) {
++				/* ^C discards the pending line, exactly like a tty. */
++				semihost_line_len = 0;
++				emit("^C\n", 3);
++				kill_pgrp(task_pgrp(current), SIGINT, 1);
++				ret = -ERESTARTSYS;
++				goto out;
++			}
++			if (c == CH_BS || c == CH_DEL) {
++				/* Editing is the line discipline's job here, not the
++				 * reader's: erase the last byte and echo the erase. */
++				if (semihost_line_len) {
++					semihost_line_len--;
++					emit("\b \b", 3);
++				}
++				continue;
++			}
++			if (c == '\r')
++				c = '\n';
++			emit_char((char)c);
++			semihost_line[semihost_line_len++] = (char)c;
++			if (c == '\n' || semihost_line_len == sizeof(semihost_line))
++				break;
++		}
 +	}
-+	if (c == CH_BS || c == CH_DEL)
-+		c = '\b';
-+	if (c == '\r')
-+		c = '\n';
-+	ch = (char)c;
-+	emit_char(ch);
-+	if (copy_to_user(ubuf, &ch, 1))
-+		return -EFAULT;
-+	return 1;
++
++	if (!semihost_line_len) {
++		ret = 0;			/* EOF (or a bare ^C/^D) */
++		goto out;
++	}
++	n = min(count, semihost_line_len);
++	if (copy_to_user(ubuf, semihost_line, n)) {
++		ret = -EFAULT;
++		goto out;
++	}
++	if (n < semihost_line_len)
++		memmove(semihost_line, semihost_line + n,
++			semihost_line_len - n);
++	semihost_line_len -= n;
++	ret = (ssize_t)n;
++out:
++	mutex_unlock(&semihost_console_lock);
++	return ret;
 +}
 +
 +static ssize_t semihost_console_write(struct file *file,

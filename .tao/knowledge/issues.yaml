@@ -1182,15 +1182,15 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P1】K6 长脚本在 ash fork+exec 处确定性崩溃：约 17 条命令后 `die-no-vma`（`va=0x0`，`m18-linux-002` 实测 5/5 复现；`m18-linux-001` 已合入产物同样复现）⇒ 单次启动跑全部命令必红，002 只能拆 3 段短启动。处置：修 fork/exec 路径（重点：exec 后用户栈/`current->mm` 交接、fork 预复制与缺页在静态 supv 帧上的重入），修好前 `m18-linux-003` 收口门控须按已知红登记，不得用短脚本冒充单次通过。"
+  title: "【m18-linux-004 定位：根因在 musl mallocng/glue.h::assert，与 ISS-499 同根，已移交 m18-infra-001】崩溃是 musl mallocng 的内部一致性断言（glue.h::assert → a_crash() = 写 NULL，内核按 die-no-vma 记；grep 的 rc=139 是同一处）在 alloc_slot/free 里被触发；cp 级探针（fork+exec 12 轮堆校验、64 个 mmap 区间别名与 churn、console 逐字节读 + 堆校验）全绿 ⇒ 内核不改写用户内存。触发面是堆布局：去掉 ash 的 setvar0(_…, lastarg) 即消失（3/3）；同一命令序列用脚本文件/管道喂给子 shell 不崩、控制台逐行喂则崩；行缓冲、去回显、非 tty、屏蔽 tick 均不消除。待办移到 musl：查 mallocng 在本机 64 KiB 页/ mmap 语义下的 alloc_slot 断言。原描述：【P1】K6 长脚本在 ash fork+exec 处确定性崩溃：约 17 条命令后 `die-no-vma`（`va=0x0`，`m18-linux-002` 实测 5/5 复现；`m18-linux-001` 已合入产物同样复现）⇒ 单次启动跑全部命令必红，002 只能拆 3 段短启动。处置：修 fork/exec 路径（重点：exec 后用户栈/`current->mm` 交接、fork 预复制与缺页在静态 supv 帧上的重入），修好前 `m18-linux-003` 收口门控须按已知红登记，不得用短脚本冒充单次通过。"
 - id: ISS-498
   scope:
   - linux
   milestone: M18
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P2】K6 间歇启动未进用户态（`Run /init` 后无输出、QEMU rc=124 或 1；`m18-linux-002` 观测若干次）⇒ 脚本按 `check_k5.py` 先例做 1 次打印重试，第二次仍红。处置：定位启动竞态（入口帧/栈顶/调度）后去掉重试。"
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-004（用户入口跨模式切换屏蔽异步源；四个内核入口重开）
+  title: "【P2】K6 间歇启动未进用户态（`Run /init` 后无输出、QEMU rc=124 或 1；`m18-linux-002` 观测若干次）⇒ 脚本按 `check_k5.py` 先例做 1 次打印重试，第二次仍红。处置：定位启动竞态（入口帧/栈顶/调度）后去掉重试。**已修（m18-linux-004）**：根因是 `dadao_enter_user()` 恢复用户寄存器（含 SP）后到 `trap cfx_umon` 之间（以及任务已在用户态时）的 TIMER 投递——`async_trap.S` 的 supv 臂不换栈，处理器落回用户栈，`dadao_async_die()`/递归 supv 异常随后把启动打死；现入口同时屏蔽 `cfx_smon` supv 行与 `cfx_umon` user 行，`dadao_syscall_enter`/`dadao_trap_enter`/`dadao_user_fault_return`/`dadao_async_handler` 四个内核入口重开（事件在源端 pending、下次进内核补投）。实测 0/200 未进用户态（修前 6/200；去掉屏蔽注入 2/150）。"
 - id: ISS-499
   scope:
   - linux

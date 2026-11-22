@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/entry_common.c b/arch/dadao/kernel/entry_common.c
 new file mode 100644
-index 000000000..785958293
+index 000000000..57e753362
 --- /dev/null
 +++ b/arch/dadao/kernel/entry_common.c
-@@ -0,0 +1,306 @@
+@@ -0,0 +1,325 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * The generic entry/exit hooks this port owns (m14-linux-045).
@@ -180,7 +180,17 @@ index 000000000..785958293
 +/* The `irqentry_*` pair for a user-mode trap that is not a syscall. */
 +static irqentry_state_t dadao_trap_enter(struct pt_regs *regs)
 +{
-+	return irqentry_enter(regs);
++	irqentry_state_t state = irqentry_enter(regs);
++
++	/*
++	 * Re-open this kernel's async source: `dadao_enter_user()` masks it
++	 * across the mode switch (m18-linux-004, ISS-498), and every kernel
++	 * entry taken from user mode restores the kernel-side state.  The
++	 * syscall half has done the same since m14-linux-045
++	 * (`dadao_syscall_enter()`).
++	 */
++	local_irq_enable();
++	return state;
 +}
 +
 +static void dadao_trap_exit(struct pt_regs *regs, irqentry_state_t state)
@@ -231,7 +241,16 @@ index 000000000..785958293
 + */
 +void dadao_user_fault_return(struct pt_regs *regs)
 +{
-+	unsigned long flags = arch_local_save_flags();
++	unsigned long flags;
++
++	/*
++	 * Re-open this kernel's async source first: the user entry masked it
++	 * across the mode switch (m18-linux-004, ISS-498) and this is one of
++	 * the kernel entries a user fault can take.  Before `flags` is read, so
++	 * the exit tail restores the enabled row it inherited.
++	 */
++	local_irq_enable();
++	flags = arch_local_save_flags();
 +
 +	enter_from_user_mode(regs);
 +	local_irq_disable();

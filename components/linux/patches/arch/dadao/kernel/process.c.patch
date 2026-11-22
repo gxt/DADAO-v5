@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/process.c b/arch/dadao/kernel/process.c
 new file mode 100644
-index 000000000..6e1e5dab4
+index 000000000..0fb6a60d9
 --- /dev/null
 +++ b/arch/dadao/kernel/process.c
-@@ -0,0 +1,820 @@
+@@ -0,0 +1,849 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO process model (K4, m14-linux-016).
@@ -576,6 +576,35 @@ index 000000000..6e1e5dab4
 +	dadao_user_frame = *regs;
 +	DADAO_CFX_WRITE(cfx_umon, UMON_CG_SUPV, UMON_RC_EXCP_VECTOR,
 +			regs->ip);
++	/*
++	 * Mask the async source across the mode switch (m18-linux-004, ISS-498).
++	 *
++	 * `dadao_umon_enter()` restores the user's register file — including SP —
++	 * and only then executes the `trap`, so the last few instructions of the
++	 * entry run *in supv mode on the user's stack*.  A delivery taken there is
++	 * not survivable: the supv-mode arm of kernel/async_trap.S keeps the
++	 * interrupted SP (switching stacks is the user-mode arm's job), so the
++	 * handler, its console output and its `escape` all run on a user stack
++	 * (measured: `die-no-vma` from a garbled `dadao_async_die()`, and boots
++	 * that stop right after `K4 fork: kernel thread exec'd`).
++	 *
++	 * Both rows have to be closed, because they gate different deliveries:
++	 * the supv one (`cfx_smon` cg2 rc4) filters what is taken in the window
++	 * above, and `cfx_umon`'s own (cg0 rc4) filters what is taken *while the
++	 * task is in user mode* — also unsurvivable here (measured: 6/200 boots
++	 * lost with only the supv row masked, 0/200 with both).
++	 *
++	 * Nothing is lost: an event that arrives while masked stays pending in
++	 * its source and the hardware re-kicks it as soon as a kernel entry opens
++	 * the supv row (`dadao_syscall_enter()`, `dadao_trap_enter()`,
++	 * `dadao_user_fault_return()`, `dadao_async_handler()` all re-open it).
++	 * That is the preemption model kernel/entry_common.c's header already
++	 * states — a user-mode context is preempted at its next trap, never by
++	 * the tick itself.
++	 */
++	arch_local_irq_disable();
++	DADAO_CFX_WRITE(cfx_umon, DADAO_IRQ_CG_USER,
++			DADAO_IRQ_RC_USER_CFX_INTR_MASK, ~0UL);
 +	dadao_umon_busy = 0;
 +	dadao_umon_enter();
 +}
