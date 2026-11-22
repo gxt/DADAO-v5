@@ -1,6 +1,6 @@
 # DADAO Supervisor Execution Environment（SEE）
 
-> **版本：0.7.3-rc**（与 SBI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
+> **版本：0.8.0-rc**（与 SBI 版本号一致，同步更新。基于 SimRISC 0.5.5 指令系统设计）
 
 本文档定义DADAO主管系统运行环境（Supervisor Execution Environment, SEE）的体系结构规范，涵盖地址空间组织、处理器资源管理、核芯功能扩展设计、外设资源抽象及运行模式定义等内容。
 
@@ -1030,9 +1030,9 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
-### 0.7.3-rc（未发布）
+### 0.8.0-rc（未发布）
 
-- 异步中断 cause 号由 `[15:0]`（`TIMER = 1<<10`、`PMEM_DMA = 1<<8`）改为**宏 cause 空间 `[31:16]`**（`TIMER = 1<<17`、`PMEM_DMA = 1<<18`），解决 monitor-first（异步先入当前运行模式 monitor）下与同步 cause（`RASOF = 1<<10`、`ILLI = 1<<8`）撞号；`[31:16]` 宏 cause 与 `[15:0]` 同步 one-hot 互斥、跨 cfx 全局编号。`§3.6`/`§4.7`/`§4.9`/`§5.2` 同步；`cause_info` 语义不变（TIMER=0、PMEM_DMA=`dma_status`）。
+- 异步中断投递改为 **monitor-first**（`§5.2`：异步先入当前运行模式 monitor、两级 mask 与 pending 都归 monitor、处理期间不嵌套、monitor 可自行处理或 `trap` 到源 cfx），并把异步 cause 号由 `[15:0]`（`TIMER = 1<<10`、`PMEM_DMA = 1<<8`）改为**宏 cause 空间 `[31:16]`**（`TIMER = 1<<17`、`PMEM_DMA = 1<<18`），解决与同步 cause（`RASOF = 1<<10`、`ILLI = 1<<8`）撞号；`[31:16]` 宏 cause 与 `[15:0]` 同步 one-hot 互斥、跨 cfx 全局编号。`§3.6`/`§4.7`/`§4.9`/`§5.2` 同步；`cause_info` 语义不变（TIMER=0、PMEM_DMA=`dma_status`）。不兼容语义变更，版本升 **0.8.0**。
 
 - `cfx_cache`（cfx5）的寄存器与命令语义重定义：`cache_exist`/`cache_enable` 的位定义补为 **bit0 = I、bit1 = D**；`cache_ctrl` 由旧的 bit0/bit1/bit2 数值编码改为 `[1:0]` 操作（`none`/`clean`/`invalidate`/`flush`）+ `[3:2]` 范围（`all`/`PA 单行`/`PA 区间`/reserved）+ `[15:14]` 选择（bit15 = I、bit14 = D）；新增 `cache_addr_start`（完整 56 位物理地址 `PA[55:0]`，`[63:56]` 保留）与 `cache_addr_size`（字节数），范围匹配按 56 位 PA 比较。维护命令同步完成、per-hart；两侧全选时先 I 后 D；I 侧 `clean` 为 no-op；`invalidate` 丢弃脏数据且不写警告、不报异常；`cache_enable` 对应位为 0 时该侧不被维护（编码与 `addr_size` 的校验不受使能影响）；不可缓存/MMIO 的 PA 无效果、不报异常。异常原因表不变。
 

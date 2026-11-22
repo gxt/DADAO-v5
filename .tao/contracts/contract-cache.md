@@ -2,7 +2,7 @@
 
 > **版本：0.7.1** [DADAO-12 §4.6 cfx_cache - cache organization]
 >
-> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.7.3-rc）的 `§1`/`§3.8`/`§4.6`/`§5.2`；测试机运行环境正文 `spec/Kaiwu-测试机运行环境.md`（0.4.7-rc，`§3`/`§3.2`）；寄存器位定义、控制字编码、命令语义与本合约的测试机约定为用户 2026-11-20 与 2026-11-22 的问答结论（句末标 `[spec-decision]`）。版本取 `README.md` 版本表的 SEE / SBI 已发布版，与 `contract-see.md`/`contract-tlb.md` 同法。
+> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.8.0-rc）的 `§1`/`§3.8`/`§4.6`/`§5.2`；测试机运行环境正文 `spec/Kaiwu-测试机运行环境.md`（0.4.7-rc，`§3`/`§3.2`）；寄存器位定义、控制字编码、命令语义与本合约的测试机约定为用户 2026-11-20 与 2026-11-22 的问答结论（句末标 `[spec-decision]`）。版本取 `README.md` 版本表的 SEE / SBI 已发布版，与 `contract-see.md`/`contract-tlb.md` 同法。
 >
 > **范围**：`cfx_cache` 的寄存器面（`cache_exist`/`cache_enable`/`cache_ctrl`/`cache_addr_start`/`cache_addr_size`）、存在与使能语义、控制字的选择/操作/范围三维与判序、三档范围匹配、I/D 两侧的 `clean`/`invalidate`/`flush` 作用、同步完成与失败语义、per-hart 与测试机实现范围（含 `cache-model=off|on` 的机器配置维度）；消费方 = 各实现的 `cfx5` 落地与 `tests/arch` 的 cache 探针。cache 组织（容量、行大小、组数、替换策略）由实现决定，不在本合约内。
 >

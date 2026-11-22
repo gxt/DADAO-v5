@@ -1,8 +1,8 @@
 # SEE/HEE 运行环境合约（M5）
 
-> **版本：0.7.3-rc** [DADAO-12 §1. 运行模式与核芯功能扩展][DADAO-22 §1. 调用约定]
+> **版本：0.8.0-rc** [DADAO-12 §1. 运行模式与核芯功能扩展][DADAO-22 §1. 调用约定]
 >
-> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.7.3-rc）、`spec/DADAO-13-HEE-超管系统运行环境.md`（0.1.4-rc）、`spec/DADAO-22-SBI-主管系统二进制接口.md`（0.7.3-rc）、`spec/DADAO-23-HBI-超管系统二进制接口.md`（0.1.4-rc）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/SimRISC-11-其它.md`（0.5.4）；测试机运行环境正文 `spec/Kaiwu-测试机运行环境.md`（v5 自定）；决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted）与 `.tao/adr/adr-0004-test-machine.md`（`ADR-0004`，Accepted，rev. 2026-10-07 `R1`/`R3`）。
+> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.8.0-rc）、`spec/DADAO-13-HEE-超管系统运行环境.md`（0.1.4-rc）、`spec/DADAO-22-SBI-主管系统二进制接口.md`（0.8.0-rc）、`spec/DADAO-23-HBI-超管系统二进制接口.md`（0.1.4-rc）、`spec/DADAO-21-ABI-应用程序二进制接口.md`（0.9.2）、`spec/SimRISC-11-其它.md`（0.5.4）；测试机运行环境正文 `spec/Kaiwu-测试机运行环境.md`（v5 自定）；决策 `.tao/adr/adr-0020-see-semihosting.md`（`ADR-0020`，Accepted）与 `.tao/adr/adr-0004-test-machine.md`（`ADR-0004`，Accepted，rev. 2026-10-07 `R1`/`R3`）。
 >
 > **范围**：M5 SEE/HEE 运行环境——运行模式、核内地址空间与复位、cfx 与权限、`trap`/`escape` 与异常进入/退出、SBI 调用约定；**M14 K2 起**增内核侧异常/中断口径（§6）。semihosting 的服务表/调用约定见 `contract-semihosting.md`。
 >
@@ -196,3 +196,4 @@
 - **追加方式**：此后按「日期 + 改动摘要 + 落点（§）/ 关联 ADR / ISS」追加；上游 spec 正文变更仍走 `docs/Process-02` 的同步流程，本记录只记 v5 扩展口径。[contract-syscall §12]
 - **0.7.3-rc + monitor-first 异步口径同步（2026-11-22，用户裁定，`ADR-0059 R2`）**：`spec/DADAO-12 §5.2（三）（四）（五）` 已是 **monitor-first**（异步先入当前运行模式 monitor、mask/pending 都在 monitor、处理期间不嵌套、monitor 可自行处理或 `trap` 到源 cfx），本合约 §3/§6.3/§6.4 原「目标 cfx 直接投递、pending 只记目标 cfx、`TIMER` 进 `cfx_hart` 行」与 spec 不一致，本次**内容对齐**：§3 的「统一异步中断仲裁」「异步边界」「`cfx_pmem` DMA 投递」「`cfx_hart` timer 投递」与 §6.3（异步入口 = monitor 的 `<mode>_excp_vector`、与同步同向量同帧、cause 编号同号不同义）、§6.4（mask 位索引 = 来源 cfxha、pending 归 monitor）改为 monitor-first；**版本号未升**（`check-spec-drift` 不变量：spec-sourced 合约版本 == 上游册版本，内容同步待用户认可后另议）。[DADAO-12 §5. 异常进入与异常退出][ADR-0045 D3/D9][ADR-0042 D7.4]
 - **0.7.3-rc + 异步 cause 号改 17/18（2026-11-23，用户裁定）**：异步源 cause 号由 `[15:0]`（`TIMER=1<<10`、`PMEM_DMA=1<<8`）改为**宏 cause 空间 `[31:16]`**（`TIMER=1<<17`、`PMEM_DMA=1<<18`），解决 monitor-first 下与同步 cause（`RASOF=1<<10`、`ILLI=1<<8`）撞号；§3/§6.1/§6.3/§6.4 的 cause 编号同步，删除「待 spec 明文化」悬空句；mask 位索引不变（仍来源 cfxha 15/32）。**版本号未升**（内容同步 17/18，版本号待用户认可）。[DADAO-12 §3.6 cg5 - 异常现场寄存器][DADAO-12 §5.2 异常进入流程]
+- **0.8.0-rc + 版本升号（2026-11-23，用户裁定）**：monitor-first 异步投递 + 异步 cause 17/18 为**不兼容语义变更**，`spec/DADAO-12`（SEE）与 `spec/DADAO-22`（SBI）册头版本同升 **0.8.0-rc**（`y+1`；SEE↔SBI 互锁）。本合约版本与来源行、`contract-cache.md`/`contract-tlb.md` 的来源行同步改 `0.8.0-rc`；`spec/.manifests.toml` 的 SEE/SBI 锁哈希同笔重算。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3.6 cg5 - 异常现场寄存器]

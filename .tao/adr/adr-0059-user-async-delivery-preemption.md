@@ -1,7 +1,7 @@
 # ADR-0059: 用户态异步投递与抢占完整修复（monitor-first 对齐 + 内核路径）
 
-**状态**：Proposed
-**日期**：2026-11-22（R2：monitor-first 重写）／2026-11-23（R3：异步 cause 号 17/18）
+**状态**：Accepted
+**日期**：2026-11-22（R2：monitor-first 重写）／2026-11-23（R3：异步 cause 号 17/18；R4：版本 0.8.0-rc + 逐条裁定落地）
 **关联**：`ISS-500`、`ISS-498`（`m18-linux-004`）；`m18-linux-013`、`m18-qemu-002`；`spec/DADAO-12 §5.2（三）（四）（五）`、`§3.6`（cg5）、`§3.1/§3.3`（mask 行）、`§4.7/§4.9`（TIMER/PMEM_DMA）；`contract-see §3/§6.3/§6.4`；`ADR-0045 D3/D9`、`ADR-0042 D7.4`；`m14-spec-009`
 
 ## Context（背景）
@@ -60,13 +60,13 @@ R1 曾以「early escape」为主路径，根源是 target-first 下异步帧落
 
 - **QEMU（`m18-qemu-002`）**：仲裁改为投递当前 mode monitor、pending 迁 monitor `cg5 rc5`、两级 mask 按 monitor（位 = 源 cfxha）、同源 OR/补投、单层投递；更新 `min_rom_probe_integ051t`、K2/K5 异步探针、`tests/arch/vast-arch-inventory.md`、QEMU changelog。
 - **kernel（`m18-linux-013`）**：umon 异步入口（D1）、user 行策略（D2）、irqentry exit 工作循环 + 抢占/信号（D3）；去掉 `~0` 写、去掉 `cfx_hart` 向量依赖。
-- **RTL（chipyard `GewuFile`）/ gem5（`node_cfx`）**：monitor-first 的仲裁/pending 迁移为后续任务（本 ADR 只列影响面，不立任务；见 D8）。
+- **RTL（chipyard `GewuFile`）/ gem5（`node_cfx`）**：**QEMU 先行，RTL/gem5 等 M16 当前批次收口后另立任务**（本 ADR 只列影响面，不立任务）。
 - **contract**：`contract-see §3/§6.3/§6.4` 已按 monitor-first 对齐（本 ADR 同笔）；`ADR-0042 D7.4`、`ADR-0045 D3/D9` 已加修订记。
 - **排队（不得与 M16 写者冲突）**：`m16-qemu-002`（影子 D-Cache，正在跑，同改 `helper.c/cpu.c/cpu.h`）→ `m18-qemu-002` → `m16-qemu-003`（cfx5 命令，依赖 `m18-qemu-002`）→ `m16-testcases-009`。`m18-qemu-002` **必须在 `m16-qemu-003` 之前合入**，且**不得与 `m16-qemu-002` 并发写 `components/qemu`**；M16 的 003/009 基于新模型重跑。
 
 ### D6 门控/探针
 
-1. **时间可见**：用户态忙循环（无 syscall）期间 jiffies 推进（`/proc/uptime` 或等价内核导出/第二任务观测）。
+1. **时间可见（A+B）**：父进程采样 `/proc/uptime` + 子进程忙循环（无 syscall），观测 jiffies 推进；另用 `alarm()`/`SIGALRM` 交叉证据。
 2. **抢占**：两个 CPU 密集用户任务按 tick 轮转（记录切换次数/进度）；单任务忙循环 + `alarm()`/`SIGALRM` handler 不靠 syscall 投递。
 3. **`ISS-498` 不回归**：连续 500 次启动全进用户态（无 rc=124/1、无 die-no-vma），两独立批次；去 supv 行作对照。
 4. **可达 FAIL ≥3**：① 去 user 行 ⇒ ①红；② 去 `irqentry_exit` 工作循环 ⇒ ②红；③ 去 supv 屏蔽 ⇒ ③红（按频率披露）。
@@ -75,7 +75,7 @@ R1 曾以「early escape」为主路径，根源是 target-first 下异步帧落
 
 ### D7 版本号/契约同步
 
-**内容已改、版本待用户认可**：`contract-see`、`ADR-0042`、`ADR-0045` 已按 monitor-first 对齐**内容**，但**不改任何版本号**（`check-spec-drift` 不变量：spec-sourced 合约版本 == 上游册版本）。spec 本身不改（已 monitor-first）。待用户认可后另议是否升号。
+**版本 0.8.0-rc 已定（2026-11-23 用户裁定）**：monitor-first + 异步 cause 17/18 为**不兼容语义变更**，`spec/DADAO-12`（SEE）/`DADAO-22`（SBI）同升 **0.8.0-rc**（`y+1`，SEE↔SBI 互锁）；`contract-see` 版本/来源行、`contract-cache`/`contract-tlb` 来源行、`spec/.manifests.toml` 锁哈希同笔同步。
 
 ### D8 分阶段
 
@@ -83,7 +83,7 @@ R1 曾以「early escape」为主路径，根源是 target-first 下异步帧落
 
 - **阶段 1（QEMU）**：`m18-qemu-002` 落地 monitor-first 仲裁/pending（先行，解除 M16 003/009 的前置）。
 - **阶段 2（kernel）**：`m18-linux-013` 落地 umon 异步入口 + user 行 + irqentry work loop（抢占/信号）；可再拆「先时间可见（只开 user 行，复用现有 umon 捕获）、再做抢占/信号」两小步。
-- **阶段 3（后续，不立任务）**：RTL/gem5 的 monitor-first 同步、H1（帧软件可管）可选改进。
+- **阶段 3（后续，另立任务）**：RTL/gem5 的 monitor-first 同步 + cause 17/18、H1（帧软件可管）可选改进——等 M16 当前批次（`m16-qemu-003`、`m16-testcases-009`）收口后另立。
 
 ## Rationale（理由）
 
@@ -99,15 +99,19 @@ R1 曾以「early escape」为主路径，根源是 target-first 下异步帧落
 - kernel 侧 `irq.c`/`async_trap.S` 的 `cfx_hart` 向量安装与独立异步入口被移除/折叠。
 - RTL/gem5 同步与 H1 为后续（不立任务）。
 
-## 待确认（≤6，返回主会话）
+## 裁定记录（用户 2026-11-23 逐条确认，转 Accepted）
 
-1. **D0 确认**：monitor-first 作为唯一投递模型（否 target-first/H3），spec 为真源。
-2. **cause 编号（已定，2026-11-23 用户裁定）**：异步源 cause 号 = **`1<<17`（TIMER）/`1<<18`（PMEM_DMA）**，落在 `[31:16]` 宏 cause 空间，与 `[15:0]` 同步 cause（`RASOF=1<<10`、`ILLI=1<<8`）不撞号——本项已由用户裁定落地，不再待确认。
-3. **内核态不调度**：确认 supv 异步 handler 用非调度的 `irq_enter_rcu`/`irq_exit_rcu`，抢占/信号只在返回用户态时消费（D2/D3）。
-4. **D6 探针观测机制**：单核 + 忙循环无 syscall 时 jiffies 可见的观测手段（`/proc/uptime` 由第二任务/harness 读，或 tick handler semihosting 导出）需工程师细化。
-5. **版本号**：contract/adr/spec 内容已对齐 monitor-first + 17/18，版本号是否升号（`check-spec-drift` 约束）待用户认可。
-6. **排队/时序**：确认 `m16-qemu-002 → m18-qemu-002 → m16-qemu-003 → m16-testcases-009`，`m18-qemu-002` 在 003 前合入。
+- **D0**：monitor-first 作为唯一投递模型（否 target-first/H3），spec 为真源 —— ✅ 确认。
+- **D3**：内核态异步不调度（supv 异步 handler 用非调度的 `irq_enter_rcu`/`irq_exit_rcu`，抢占/信号只在返回用户态时消费）—— ✅ 确认。
+- **D6**：门控/探针 = **A+B**（父进程采样 `/proc/uptime` + 子进程忙循环，另用 `alarm()`/`SIGALRM` 交叉证据）—— ✅ 确认。
+- **cause 号**：`1<<17`（TIMER）/`1<<18`（PMEM_DMA），`[31:16]` 宏 cause 空间 —— ✅ 确认。
+- **版本**：**0.8.0-rc**（SEE/SBI 互锁同升，`y+1`，不兼容语义变更）—— ✅ 确认。
+- **RTL/gem5 节奏**：**QEMU 先行，RTL/gem5 等 M16 当前批次收口后另立任务** —— ✅ 确认。
+
+## 实施注记
+
+- **RTL/gem5 后续任务**：chipyard `GewuFile`、gem5 `node_cfx` 的 monitor-first 仲裁/pending 迁移与 cause 17/18 同步，待 M16 当前批次（`m16-qemu-003`、`m16-testcases-009`）收口后另立任务；本 ADR 不立任务，只列影响面（D5/D8）。
 
 ## 状态说明
 
-2026-11-22 R2：用户裁定 spec 已是 monitor-first、contract/adr 未及时同步，按 monitor-first 重写本 ADR（R1 的 early-escape 方案作废）。2026-11-23 R3：用户裁定异步 cause 号改 **17/18**（`[31:16]` 宏 cause 空间），解决与同步 cause 撞号，spec/contract/adr/tasks 已同步。状态 **Proposed**：D0–D8 + 待确认（#2 已定）待用户逐条确认，确认后转 **Accepted**，随后派 `m18-qemu-002`（QEMU）与 `m18-linux-013`（kernel）。
+2026-11-22 R2：用户裁定 spec 已是 monitor-first、contract/adr 未及时同步，按 monitor-first 重写本 ADR（R1 的 early-escape 方案作废）。2026-11-23 R3：用户裁定异步 cause 号改 **17/18**。2026-11-23 R4：用户逐条确认 D0/D3/D6/cause/版本/RTL 节奏，状态转 **Accepted**；版本 **0.8.0-rc**（SEE/SBI 互锁）随本 ADR 提交。随后派 `m18-qemu-002`（QEMU，先行）与 `m18-linux-013`（kernel）。

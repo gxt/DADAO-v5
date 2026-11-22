@@ -7,7 +7,7 @@ recursive = false
 sha256 = "40c9e910ba71a2b2a40ef07f5b4cf73fe0eb3d739eaccdcbdfd460989341699b"
 
 [files."DADAO-12-SEE-主管系统运行环境.md"]
-sha256 = "1541af88cf65aea8725481e5f782eaebe2b6ebd642e73bf58531faa16d8fc550"
+sha256 = "aa42394b30b871b93976cd59d181e661457494783d414e43dceca5b24d91c13c"
 
 [files."DADAO-13-HEE-超管系统运行环境.md"]
 sha256 = "6a39d00370600cbf3bc56ebb8e0d2f4b5d20b484e1579ab26ea328763fdf9f96"
@@ -16,7 +16,7 @@ sha256 = "6a39d00370600cbf3bc56ebb8e0d2f4b5d20b484e1579ab26ea328763fdf9f96"
 sha256 = "68e72e8f4ac462a1c1b8f693b5f4580adef9b7a8d1822f3b1369ab6c17c4fc58"
 
 [files."DADAO-22-SBI-主管系统二进制接口.md"]
-sha256 = "f1ce0c61df939003eed15fcf4893bb3f36e130a42e087a58bed1ab519b0163d4"
+sha256 = "77f2551a73eb9462148f899d526dd110608794df7a11dedd79863bf479fa4a69"
 
 [files."DADAO-23-HBI-超管系统二进制接口.md"]
 sha256 = "efcb7d428923520fd4bcd70ba19b4760ea289c1369b561977734b05382b57e56"

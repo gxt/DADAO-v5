@@ -11,7 +11,7 @@
 2. 附录内的三级标题形态：顶部 = `### <X.Y.Z>-rc（未发布）`（若有未发布改动），
    其余 = `### <X.Y.Z>（<日期或说明>）`；
 3. **逆序**：所有三级标题的版本号（去掉 `-rc` 后）自顶向下**严格递减**；`-rc` 段必须在
-   首位，且其数值版本 = 下一个（首个非 `-rc` 段）版本 +1（z 位）；
+   首位，且其数值版本 = 下一个（首个非 `-rc` 段）版本 +1（z 位，小改）或 y+1（大改，z 归 0）；
 4. **册头一致**：附录顶部段版本 == 册头版本（`> **版本：V**`；v5 自定册取「状态」行
    `生效（V，`）；册头若为 `-rc`，则附录顶部段须为同值 `-rc`；
 5. **无表格**：附录段内不得含表格行（`|`）；
@@ -150,13 +150,15 @@ def main():
                 errors.append(f"{rel}:L{j}: `-rc` 段出现在非首位（第 {k+1} 段）")
         if segs[0][2]:
             stats["rc_segments"] += 1
-            # `-rc` 数值 = 下一段 +1（z 位）
+            # `-rc` 数值 = 下一段 +1（z 位，小改）或 y+1（大改，z 归 0）
             if len(segs) >= 2:
                 rc = vtuple(segs[0][1])
                 nx = vtuple(segs[1][1])
-                if not (rc[0] == nx[0] and rc[1] == nx[1] and rc[2] == nx[2] + 1):
+                z_bump = rc[0] == nx[0] and rc[1] == nx[1] and rc[2] == nx[2] + 1
+                y_bump = rc[0] == nx[0] and rc[1] == nx[1] + 1 and rc[2] == 0
+                if not (z_bump or y_bump):
                     errors.append(
-                        f"{rel}: `-rc` 段 {segs[0][1]} 不是下一段 {segs[1][1]} 的 z+1")
+                        f"{rel}: `-rc` 段 {segs[0][1]} 不是下一段 {segs[1][1]} 的 z+1 或 y+1")
 
         # 严格递减（去 -rc）
         vers = [vtuple(v) for (_j, v, _r, _d) in segs]
