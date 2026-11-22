@@ -20,6 +20,8 @@
 4. **探针**：RTL 探针读 hart_id/cycle/insn、写/读 timer_cmp/timer_ctrl、触发一次 timer 中断并观察进入 monitor。
 5. **不回归**：Tiny 无 cfx15（保持现状）；cfx3/4/5 既有语义不变。
 
+6. **三方用例（B）**：cfx15 的 case 定义/期望只写一份；RTL 探针与 QEMU/gem5 后端复用同一 case（非必要不为每个平台写三份载体），由 `check-arch-vast` 按需跑三方。
+
 ## 不做
 
 - 不做 cfx32/34（另两件）；

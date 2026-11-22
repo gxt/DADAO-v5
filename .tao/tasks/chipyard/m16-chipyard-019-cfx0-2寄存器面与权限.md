@@ -22,6 +22,8 @@
 4. **探针**：RTL 探针读 cfx0/2 寄存器、写读回、保留 rc ⇒ `CFXREG`；只测寄存器面，不测 U/S 模式进入。
 5. **不回归**：Tiny 的 cfx 序列不变；cfx3/4/5/63 现有行为不变。
 
+6. **三方用例（B）**：cfx0/2 的 case 定义/期望只写一份；RTL 探针与 QEMU/gem5 后端复用同一 case（非必要不为每个平台写三份载体），由 `check-arch-vast` 按需跑三方。
+
 ## 不做
 
 - 不补 U/S 模式进入路由（`monitor` 仍固定 hmon）——留给 `m16-chipyard-020`；

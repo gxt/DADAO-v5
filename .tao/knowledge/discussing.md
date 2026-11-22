@@ -316,6 +316,7 @@
 - **cfx5 用例覆盖**（用户 2026-11-22 确认）：`m16-testcases-009` 必须覆盖寄存器面、D 侧 clean/invalidate/flush（all/单行/区间、I/D）、DMA 直读可见性、使能门控、I 侧 clean no-op + invalidate 取指重取（**gem5 必须**）；QEMU 时序/替换、gem5 I-Cache 命中/缺失、RTL 预取/I-D 一致性只登记差异；不穷举替换矩阵。
 - **HSU**（用户 2026-11-22 选 A）：拆到已有任务，不单独立件——PTE 的 `H/S/U × R/W/X` 进 cfx4 用例（`m16-testcases-010` / `m16-chipyard-018`），运行模式 U/S/H 进 cfx0/2 模式路由（`m16-chipyard-020`）；**J 不测**，未覆盖项写入各任务书。
 - **cfx63 power**（用户 2026-11-22 选 A）：单独一件基础用例 `m16-testcases-016`（寄存器面 + power→hmon 移交，三方；复用 step5 与 `prevcfx.S` 检查点）；不把 step5 启动链当作 cfx63 的完整覆盖。
+- **cfx0/2/15/32/34 的三方用例归属**（用户 2026-11-22 选 B）：不另立 5 件 testcases，写进各 RTL 补实现任务（019/020/021/022/023）；**同一 case 定义/期望只写一份**，RTL 与 QEMU/gem5 复用载体，非必要不为每个平台写三份；由 `check-arch-vast` 按需跑三方。
 - **M16 关键路径**（用户 2026-11-22 确认）：QEMU 链 `qemu-001 → qemu-004 → qemu-002 → qemu-003 → testcases-009`；RTL 链 `chipyard-017 → 018 → 019 → 020 → 021 → 022 → 023`；testcases 链 `015 → 016`，`013/014` 等 `021/022` 合入后升三方，`012` 等 `qemu-004`。两条主链并行，同组件串行。
 - **M16 收口判据**（用户 2026-11-22）：**三方一致**（QEMU/gem5/RTL）为准；**有差异必须由用户裁定**，登记 `tests/arch/expected-divergences.yaml`；**不作逐位/逐组合穷举**，但各功能面应尽量覆盖；**任务清完后由用户定何时归档**（不自动立归档任务）。**issue 要求（用户 2026-11-22 选 A）**：M16 引入的 issue 必须关闭或转 GAP 登记（如 `ISS-432` 由 `qemu-004` 关闭、`ISS-515` 保留 GAP）；基线红（`ISS-507`/`ISS-509` 等）保留 open，不作为 M16 收口阻断。
 - **tests/arch 运行模式环境**（用户 2026-11-22）：增加 `hmon`/`smon`/`umon` 构建环境，把测试 body 与运行模式分离（进入模式、栈、异常向量、退出、签名区由 env 负责）；`run_arch.py --mode` 选择；每用例标 `modes` 允许集；先迁移 1 个代表用例，其余逐件迁。`m16-testcases-015`。
