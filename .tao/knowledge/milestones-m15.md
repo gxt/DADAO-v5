@@ -35,6 +35,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m15-infra-010 | 2026-11-22 10:51 | 1–2 h | 修 picolibc `times()` 按 `SYS_TICKFREQ` 缩放（ISS-502；`clock()` 1000× 单位错） |
 | m15-testcases-023 | 2026-11-22 10:27 | 3–5 h | ansibench 四件（coremark/dhrystone/linpack/whetstone）在 Tiny 上用 picolibc 跑通（实际应用验证） |
 
 
