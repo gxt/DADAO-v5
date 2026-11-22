@@ -57,7 +57,7 @@ python3 tools/idl/check_trace_parity.py --images <dir> --bootrom <img>
 
 阶段一 = 非 FP 的 `tests/inst` 镜像在 IDL / QEMU / gem5 / chipyard 四方一致。判据 = **签名槽流逐槽全等 + 退出码全等**，且每方槽值再对独立 oracle `tests/data/inst-signature/expected.tsv` 逐槽比对（四方一致但全错仍红）；口径正文见 [`docs/idl-four-way.md`](../docs/idl-four-way.md)。
 
-用例清单 `idl_exec_cases.toml`：`[[case]]` = 主清单，`[[pending]]` = 暂缓镜像 + `reason`。门控在 `tools/idl/check_four_way.py` 内**现场派生**并断言 `{主清单} == {tests/inst/*/*.S} − {07-floating-point} − {pending}`：主清单少/多一条、`pending` 越界或与主清单相交 ⇒ rc=2（一致地暂缓一条等价于「主清单 == 派生 − pending」，阶段一收口后不应再出现，由 `m17-idl-010` 加硬断言）；计数不写死。**当前 `pending` 为空、主清单 == 现场派生（222 条）**；`07-floating-point` 的 50 个镜像属阶段二，其 id 在 `idl_exec.py` 仍显式 `ExecError`（不静默通过）。
+用例清单 `idl_exec_cases.toml`：`[[case]]` = 主清单，`[[pending]]` = **必须为空**（阶段一已收口；能力缺口另立任务）。门控在 `tools/idl/check_four_way.py` 内**现场派生**并断言 `{主清单} == {tests/inst/*/*.S} − {07-floating-point} − {pending}` 且 `pending` 必须为空：主清单少/多一条、`pending` 非空（含「一致地把一条移进 pending」）、越界或与主清单相交 ⇒ rc=2，文案「pending 必须为空」；计数不写死。**当前 `pending` 为空、主清单 == 现场派生（222 条）**；`07-floating-point` 的 50 个镜像属阶段二，其 id 在 `idl_exec.py` 仍显式 `ExecError`（不静默通过）。
 
 ```text
 make check-idl                                                      # L2：IDL + QEMU（不依赖 gem5/Verilator 构建）

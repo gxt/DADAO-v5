@@ -3,10 +3,12 @@
 # schema 口径：
 #   * `[[case]]`   = 主清单（进 `make check-idl`）：`image` = `tests/inst` 下的
 #                   `.S` 载体（相对仓库根），`category` = 覆盖类别；
-#   * `[[pending]]` = 尚未纳入主清单的镜像：`image` + `reason`（必填，说明为何暂缓）。
+#   * `[[pending]]` = **阶段一收口后必须为空**（段缺失或空数组；`m17-idl-010`）。
 #
 # 门控断言（`tools/idl/check_four_way.py` 现场派生，不写死计数）：
 #   {[[case]].image} == {tests/inst/*/*.S} − {07-floating-point} − {[[pending]].image}
+#   **且 `[[pending]]` 必须为空**——非空 ⇒ `check_four_way` rc=2（能力缺口另立任务，
+#   不得用 pending 静默降覆盖）；当前主清单 222 == 现场派生 222（pending 0）。
 # `m17-idl-006` 已迁入 `00`/`01`/`02`/`05`/`06`/`11` 六册全部镜像（`00` 册为已登记的
 # `pseudo_set.*` 与 `undi_reserved`）；`m17-idl-007` 已迁入 `04` 整册、`12-misc` 整册与
 # 00 册 `atomic_rmw`（其被测 id 属 12 册）；`m17-idl-008` 已迁入 `03`/`08`/`09`/`10`

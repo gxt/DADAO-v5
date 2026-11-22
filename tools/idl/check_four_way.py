@@ -17,9 +17,11 @@
 用例清单机制（`idl/idl_exec_cases.toml`）：
 
   * `[[case]]`（主清单）= `image` + `category`；
-  * `[[pending]]` = 尚未纳入的镜像 + `reason`（每条必填）；
+  * `[[pending]]` = 阶段一收口后**必须为空**（段缺失或空数组）；非空 ⇒ rc=2
+    （能力缺口另立任务，不得用 pending 静默降覆盖，`m17-idl-010`）；
   * 门控断言 **主清单集合 == 现场派生集合（`tests/inst/*/*.S` 去掉
-    `07-floating-point`）− pending 集合**；集合按现场 glob 派生，不写死计数。
+    `07-floating-point`）− pending 集合**，且 pending 必须为空；集合按现场
+    glob 派生，不写死计数。
 
 平台集：
 
@@ -109,7 +111,8 @@ def load_manifest(path=MANIFEST):
 def check_manifest(cases, pending, derived):
     """集合断言（fail-closed）。
 
-    主清单 == 现场派生 − pending；pending ⊆ 派生且与主清单不交。
+    主清单 == 现场派生 − pending；pending ⊆ 派生且与主清单不交；且 `pending` 必须
+    为空（阶段一已收口，`m17-idl-010`）。
     """
     problems = []
     main = [c["image"] for c in cases]
@@ -139,6 +142,13 @@ def check_manifest(cases, pending, derived):
     if surplus:
         problems.append("主清单多 %d 个不在「派生−pending」内的镜像：%s"
                         % (len(surplus), ", ".join(sorted(surplus)[:8])))
+    # 硬断言（`m17-idl-010`）：阶段一已收口，非空 pending 一律 rc=2。与集合断言
+    # 并列收集（不早退），使「一致地把一条移进 pending」也命中本口径文案。
+    if pend:
+        problems.append(
+            "pending 必须为空（当前 %d 条：%s）；阶段一已收口：能力缺口另立任务，"
+            "不得用 pending 静默降覆盖"
+            % (len(pend), ", ".join(sorted(pend_set)[:8])))
     if problems:
         raise ManifestError("；".join(problems))
     return {"main": len(main_set), "pending": len(pend_set),

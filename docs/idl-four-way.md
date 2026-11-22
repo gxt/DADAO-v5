@@ -56,7 +56,8 @@
 
 - `[[case]]` = **主清单**（进 `make check-idl`）：`image`（相对仓库根的 `.S`）+
   `category`；
-- `[[pending]]` = 尚未纳入主清单的镜像：`image` + `reason`（每条必填）。
+- `[[pending]]` = 阶段一收口后**必须为空**（段缺失或空数组）——能力缺口另立任务，
+  不得用 `pending` 静默降低覆盖（`m17-idl-010` 加硬断言）。
 
 门控在 `check_four_way.py` 内**现场派生**并断言：
 
@@ -64,9 +65,9 @@
 {[[case]].image} == {tests/inst/*/*.S} − {07-floating-point} − {[[pending]].image}
 ```
 
-即「主清单集合 == 现场派生集合减去 pending」；pending 必须 ⊆ 现场派生且与主清单
-不交。集合按 glob 现场统计，不写死镜像数；FP 册（`07-floating-point`）属阶段二，
-不在本口径内。
+即「主清单集合 == 现场派生集合减去 pending」；`pending` 非空 ⇒ rc=2（文案「pending
+必须为空」），不再接受「一致地把一条移进 pending」。集合按 glob 现场统计，不写死
+镜像数；FP 册（`07-floating-point`）属阶段二，不在本口径内。
 
 ## 5. 用法与退出码
 
