@@ -1319,3 +1319,11 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`check-linux-toolchain` 的「宿主 x86 对照」行依赖宿主 `clang`，却参与报告逐字比对（`VOLATILE_RE` 只豁免「生成时间/机器指纹」）⇒ 宿主无 `clang` 的节点（`zzx-NF5280` 实测）在报告行写成「宿主 clang 不可用」后该门控恒红，与节点环境无关。临时处置：节点 `apt install clang`（18.1.3）后即 PASS。建议：把该行并入 `VOLATILE_RE`，或让比较只针对 target 侧矩阵行。"
+- id: ISS-513
+  scope:
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`Makefile` 的 `_locked-build-builtins` 前置只有 `manifest-check build-mc`，recipe 却断言 `.work/build/llvm/bin/ld.lld` 存在 ⇒ 冷树上 `make -jN install-host`（其前置含 `build-builtins` 与 `build-lld`，`-jN` 下并发）会先跑 builtins 再报 `ld.lld not found`（`zzx-NF5280` 首次引导实测，`m16-infra-001`）。已在 `bootstrap_node.sh` 里按「先 build-lld 再 build-builtins」显式排序绕开；建议把 `build-lld` 加入该目标前置，或在 recipe 里显式构建。"

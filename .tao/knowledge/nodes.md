@@ -157,7 +157,7 @@
 - **`make check-inst` 已退役**（`m13-testcases-043`，YAML 载体全退役）：现行 inst 执行门控是 L2 的 `make check-inst-asm`（`.S` 载体全量、单平台 QEMU）与 `make check-inst-sig`（签名槽逐位比对）；本表上面那行是 207/208 引导当时的历史判据，**新节点不要再照抄目标名**。
 - `zzx-NF5280`（2026-11-22，`m16-infra-001`；节点 commit `69d248ed`，主控机同期 `21c9d7e0`，差集只有 `.tao` 两册）：
   - `make install-host` **PASS**；`clang 23.1.3`、`qemu-dadao 11.1.1`。
-  - `make -k -j14 check`（L1）**rc=2，L1 用时 27 s**；红集与主控机**逐项相同**的 5 项：`check-cfx-aliases`、`check-cfx-alias-table`（`ISS-511`，主控机同红）、`check-knowledge-refs`（`milestones-m18.md` 引用缺 `ADR-0059`）、`check-manifests-guard`、`check-milestones-fresh`（含 `m16-qemu-001` 台账行的 `\|` 转义被计成 5 格）。主控机多出的 3 项（`check-patch-tree`、`check-musl-freshness`、`check-run-artifacts`）是本机源树/日志的历史残留（`ISS-507` 等），节点**不复现**。
+  - `make -k -j14 check`（L1）**rc=2，节点 L1 用时 37 s**（主控机同命令 28 s）；红集与主控机**逐项相同**的 5 项：`check-cfx-aliases`、`check-cfx-alias-table`（`ISS-511`，主控机同红）、`check-knowledge-refs`（`milestones-m18.md:39` 引用了尚不存在的 ADR 文件）、`check-manifests-guard`、`check-milestones-fresh`（含 `m16-qemu-001` 台账行的 `\|` 转义被计成 5 格）。主控机多出的 4 项（`check-patch-tree`、`check-musl-freshness`、`check-run-artifacts`、`check-temp-dirs`）是本机源树/日志/临时目录的历史残留（`ISS-507` 等，`check-temp-dirs` 随他人会话清理而变），节点**不复现**。
   - `make build-bootrom` PASS；`make check-inst-asm` **PASS**、`make check-inst-sig` **PASS**（三件合计 51 s）。
   - 工作树 `dirty=0`；`.work` 59 G / `.cache` 4.6 G / `.dadao` 13 G；`/home` 用 74 %。
   - **未建**：chipyard conda 环境与 `simulator-*`（与 207/208 首日一致，派 chipyard 任务前按 §11.6 建）。
