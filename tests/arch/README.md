@@ -23,7 +23,7 @@ per-hart/per-system、TIMER/IPI/UART/power），只跑 **`system`** 平台
 
 **签名流 = 观测点的判据载体**（`m16-testcases-002`）：每个观测点把实测 8 字节写进
 `tests/shared/asm/signature.inc` 约定的签名区（预填 `0xdeadbeef`；漏跑 ⇒ host 报
-「槽 N 未写」），收尾整段输出，host 侧用 `tools/testcases/lib/signature.py` 按槽比对。
+「槽 N 未写」），收尾整段输出，host 侧用 `tests/shared/signature.py` 按槽比对。
 机制只有一份：汇编侧 `signature.inc`、host 侧 `signature.py`（`tests/arch` 的
 word-builder 探针用同一个 `.py` 的 `Emitter` 产等价指令，不另写解析器）。
 

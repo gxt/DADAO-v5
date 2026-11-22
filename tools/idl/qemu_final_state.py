@@ -3,7 +3,7 @@
 
 口径（与 `tests/ee-tiny/run_inst_tiny.py` 的 QEMU 平台一致）：
 
-  * 命令 = `tools/testcases/lib/signature.py` 的 `_capture_qemu` 同一组参数
+  * 命令 = `tests/shared/signature.py` 的 `_capture_qemu` 同一组参数
     （`-M kaiwu-tiny -bios … -kernel … -semihosting-config … -chardev file`），
     只额外加 `-accel tcg,one-insn-per-tb=on -d cpu -D <log>`：每个 TB 一条
     `cpu_dump_state` 记录（TB = 一条指令）；

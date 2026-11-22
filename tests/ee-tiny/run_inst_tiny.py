@@ -10,7 +10,7 @@
   每个故障例依次执行其触发指令，hmon 落点（`.faultpad` 的 `__pad`）核对 `cause_id`
   低 16 位 one-hot 后跳下一例，最后一例落到收尾（签名流 dump + `SYS_EXIT(0)`）；
   签名流机制见 `tests/shared/asm/signature.inc`，host 侧解析/比对见
-  `tools/testcases/lib/signature.py`（本文件不再自带取流/解析实现）。判据 = 三方退出码
+  `tests/shared/signature.py`（本文件不再自带取流/解析实现）。判据 = 三方退出码
   同为 0 **且** 签名流逐槽相同，长度 = `8 × 检查点数`（链例检查点；故障例不写缓冲）。
 
   故障例的成败由此表达：异常**没有**发生 ⇒ 该例体末尾的 `__EXIT(点号)` ⇒ 该镜像红；
@@ -60,6 +60,7 @@ _HERE = Path(__file__).resolve()
 _REPO = _HERE.parents[2]
 sys.path.insert(0, str(_REPO / "tools" / "infra"))
 sys.path.insert(0, str(_REPO / "tools" / "testcases" / "lib"))
+sys.path.insert(0, str(_REPO / "tests" / "shared"))
 import paths  # noqa: E402
 import signature  # noqa: E402
 import writer_guard  # noqa: E402
@@ -246,7 +247,7 @@ def build(toolbin: Path, src: Path, lds: Path, case_n: int, outdir: Path,
 
 
 # ---------------------------------------------------------------------------
-# 三个平台：取流/解析统一走 `tools/testcases/lib/signature.py`（不得留第二份）
+# 三个平台：取流/解析统一走 `tests/shared/signature.py`（不得留第二份）
 # ---------------------------------------------------------------------------
 
 

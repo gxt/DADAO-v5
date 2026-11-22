@@ -37,7 +37,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# 与 `tests/shared/asm/signature.inc` / `tools/testcases/lib/signature.py` 同一口径
+# 与 `tests/shared/asm/signature.inc` / `tests/shared/signature.py` 同一口径
 UNWRITTEN = 0xDEADBEEF
 
 DEFAULT_BOOKS = "tests/inst"

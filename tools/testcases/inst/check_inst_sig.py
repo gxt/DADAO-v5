@@ -7,7 +7,7 @@
      「槽 → 期望常量」（`__CHECK_*` 内联常量 / `WDATA` 数据区），逐字节比对入库数据
      `tests/data/inst-signature/expected.tsv`（漂移 ⇒ 红，提示重生成）；
   2. **实测流路径**：同一批 `.S` 编译成镜像，QEMU `kaiwu-tiny` 跑出签名流，
-     `tools/testcases/lib/signature.py` 解析成槽后**逐槽**与 1 的期望比对。
+     `tests/shared/signature.py` 解析成槽后**逐槽**与 1 的期望比对。
 
 诊断：每处失败写「槽 N 期望 0x… 实际 0x…（来源 `<.S>:<行>`）”；漏写（`0xdeadbeef`）
 写「槽 N 未写」。签名流缺失/长度不符/构建失败 ⇒ 该镜像 **BLOCKED**（不是 PASS）。
@@ -34,6 +34,7 @@ from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[3]
 for _p in (_ROOT / "tools" / "testcases" / "lib",
+           _ROOT / "tests" / "shared",
            _ROOT / "tests" / "ee-tiny",
            _ROOT / "tools" / "infra"):
     sys.path.insert(0, str(_p))

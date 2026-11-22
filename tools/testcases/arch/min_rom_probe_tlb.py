@@ -86,6 +86,8 @@ _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__)))))
 if os.path.join(_REPO, "tools", "testcases", "lib") not in sys.path:
     sys.path.insert(0, os.path.join(_REPO, "tools", "testcases", "lib"))
+if os.path.join(_REPO, "tests", "shared") not in sys.path:
+    sys.path.insert(0, os.path.join(_REPO, "tests", "shared"))
 import node_probe_prelude as P  # noqa: E402
 import signature  # noqa: E402  (签名流机制：解析/比对/word-builder 发射器，单一实现)
 

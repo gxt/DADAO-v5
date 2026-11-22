@@ -42,7 +42,7 @@ cd "$(git rev-parse --show-toplevel)" && sha256sum -c tests/data/inst-signature/
 
 - 纯文本、按镜像/槽排序、逐行带来源 `文件:行` ⇒ 变更可在 diff 里逐条审阅；
 - **不含任何实测值**：期望来自 `.S` 内联常量（spec 派生、已复核）与 `WDATA` 数据区字面量，
-  不从 QEMU/LLVM 输出反推；QEMU 流只用于比对（`tools/testcases/lib/signature.py`）；
+  不从 QEMU/LLVM 输出反推；QEMU 流只用于比对（`tests/shared/signature.py`）；
 - 无法静态定值的 `relation` 槽显式标 `-`（不冻结实测值当 golden）。
 
 **数据不可入库的原因**：无 —— 本表是纯文本、可按上面的生成命令现场重算（判据 = **可复核**：

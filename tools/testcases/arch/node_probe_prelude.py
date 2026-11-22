@@ -42,7 +42,8 @@ import sys
 _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(_HERE)))
 
-for _sub in (("tools", "testcases", "lib"), ("tools", "infra")):
+for _sub in (("tools", "testcases", "lib"), ("tools", "infra"),
+             ("tests", "shared")):
     _p = os.path.join(_REPO, *_sub)
     if _p not in sys.path:
         sys.path.insert(0, _p)
@@ -465,7 +466,7 @@ def run(rom, workdir=None, qemu=None, timeout=TIMEOUT, dump=True,
 
     ``console_out`` routes the semihosting console (SYS_WRITEC / SYS_WRITE)
     to a file and returns its bytes as a third item (签名流; m16-testcases-002).
-    The capture primitive is `tools/testcases/lib/signature.py` — the probes
+    The capture primitive is `tests/shared/signature.py` — the probes
     do not carry a second stream reader.
     """
     if workdir is None:

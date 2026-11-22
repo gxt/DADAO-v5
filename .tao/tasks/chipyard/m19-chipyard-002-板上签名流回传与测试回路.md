@@ -10,12 +10,12 @@
 
 ## 背景
 
-仿真侧的观测通道是 `+semiout`（`tools/testcases/lib/chipyard_engine.py:14-25`）；**板上没有这层**。签名机制（`tests/shared/asm/signature.inc` + `tools/testcases/lib/signature.py`）必须能原样在板上工作，否则 M19 会退化成手工验证，M20 的对比也失去载体。
+仿真侧的观测通道是 `+semiout`（`tools/testcases/lib/chipyard_engine.py:14-25`）；**板上没有这层**。签名机制（`tests/shared/asm/signature.inc` + `tests/shared/signature.py`）必须能原样在板上工作，否则 M19 会退化成手工验证，M20 的对比也失去载体。
 
 ## 目标
 
 1. 板上通过 **UART** 把签名流回传给宿主，字节格式与仿真**完全一致**（`SIGUPD` 8 字节一条、末尾块写）；
-2. 宿主侧复用 `tools/testcases/lib/signature.py`，**不另写解析器**；
+2. 宿主侧复用 `tests/shared/signature.py`，**不另写解析器**；
 3. 板上跑 `tests/inst` 代表例 ≥10，与 QEMU 流逐字节比对。
 
 ## 验收（逐条贴真实 rc）

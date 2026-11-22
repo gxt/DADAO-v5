@@ -2,7 +2,7 @@
 
 **模块**：testcases
 **项目里程碑**：M17
-**依赖**：`m16-testcases-002`（签名机制已抽到 `tests/shared/asm/signature.inc` + `tools/testcases/lib/signature.py`）
+**依赖**：`m16-testcases-002`（签名机制已抽到 `tests/shared/asm/signature.inc` + `tests/shared/signature.py`）
 **可并行分片**：否
 **预估**：4–6 h
 **档位**：中改
@@ -21,7 +21,7 @@ M15 已收口（58/58），且签名区不是「ISA 语义结构化」；它的*
 ## 目标
 
 1. **期望值从 `.S` 派生到数据**（不跑实现、不拿实测当真值）：写一个解析脚本，从 `__CHECK_RD`/`__CHECK_MEM` 等宏的内联期望常量派生每个镜像的「槽 → 期望值」序列，落 `tests/data/inst-signature/`（带来源：`文件:行` + 生成命令，按「入库产物三件套」）；
-2. **host 侧槽级比对**：复用 `tools/testcases/lib/signature.py`（`parse`/`compare`/`unwritten`），不另写解析器；新增 `make check-inst-sig`（L2），对 272 镜像逐槽比对；
+2. **host 侧槽级比对**：复用 `tests/shared/signature.py`（`parse`/`compare`/`unwritten`），不另写解析器；新增 `make check-inst-sig`（L2），对 272 镜像逐槽比对；
 3. **诊断能力**：失败输出必须给「槽 N 期望 X 实际 Y + 该槽来自哪个 `.S` 的哪一行」；
 4. 现有 `check-inst-asm`（退出码判据）保持不变。
 
