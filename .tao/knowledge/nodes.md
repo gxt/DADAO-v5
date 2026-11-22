@@ -154,11 +154,11 @@
 | `make install-host` | 两机 PASS（含 `check-cfx-alias-install` 6 项） |
 | 工作树 | 干净（`dirty=0`），同一 commit |
 
-- **`make check-inst` 已退役**（`m13-testcases-043`，YAML 载体全退役）：现行 inst 执行门控是 L2 的 `make check-inst-asm`（`.S` 载体全量、单平台 QEMU）与 `make check-inst-sig`（签名槽逐位比对）；本表上面那行是 207/208 引导当时的历史判据，**新节点不要再照抄目标名**。
+- **`make check-inst` 已退役**（`m13-testcases-043`，YAML 载体全退役）：现行 inst 执行门控是 L2 的 `make check-inst-asm`（`.S` 载体全量、单平台 QEMU）与 `make check-idl`（签名槽 + 四方差分；`check-inst-sig` 已于 `m17-testcases-003` 退役）；本表上面那行是 207/208 引导当时的历史判据，**新节点不要再照抄目标名**。
 - `zzx-NF5280`（2026-11-22，`m16-infra-001`；节点 commit `69d248ed`，主控机同期 `21c9d7e0`，差集只有 `.tao` 两册）：
   - `make install-host` **PASS**；`clang 23.1.3`、`qemu-dadao 11.1.1`。
   - `make -k -j14 check`（L1）**rc=2，节点 L1 用时 37 s**（主控机同命令 28 s）；红集与主控机**逐项相同**的 5 项：`check-cfx-aliases`、`check-cfx-alias-table`（`ISS-511`，主控机同红）、`check-knowledge-refs`（`milestones-m18.md:39` 引用了尚不存在的 ADR 文件）、`check-manifests-guard`、`check-milestones-fresh`（含 `m16-qemu-001` 台账行的 `\|` 转义被计成 5 格）。主控机多出的 4 项（`check-patch-tree`、`check-musl-freshness`、`check-run-artifacts`、`check-temp-dirs`）是本机源树/日志/临时目录的历史残留（`ISS-507` 等，`check-temp-dirs` 随他人会话清理而变），节点**不复现**。
-  - `make build-bootrom` PASS；`make check-inst-asm` **PASS**、`make check-inst-sig` **PASS**（三件合计 51 s）。
+  - `make build-bootrom` PASS；`make check-inst-asm` **PASS**、`make check-idl` **PASS**。
   - 工作树 `dirty=0`；`.work` 59 G / `.cache` 4.6 G / `.dadao` 13 G；`/home` 用 74 %。
   - **未建**：chipyard conda 环境与 `simulator-*`（与 207/208 首日一致，派 chipyard 任务前按 §11.6 建）。
   - **环境前提**：本机自带的 `verilator 4.226` 不是 chipyard 口径（§11.1 用 conda 的 5.022）；系统 `clang 18.1.3` 必须装，否则 `check-linux-toolchain` 因报告里「宿主 x86 对照」行而红（`ISS-512`）。
@@ -192,7 +192,7 @@
    - **无外网节点还要带 QEMU 的 meson subprojects**：从主控机 `rsync` 整个 `.work/source/qemu/subprojects/`（约 6.5 MB）到节点同路径，否则 `install-host` 会逐个去 gitlab 拉（先 `keycodemapdb`、再 `berkeley-softfloat-3`），在无网环境必然失败。详见 §1.1「网络」末条。
 4. `tools/infra/bootstrap_node.sh`：`fetch → apply-series → compiler-rt configure → install-host → make check`。
    - **补丁集变更后必须先 reset**：`apply-series` 只接受「base」或「base+1 且内容等于补丁集」；上游 v5 的补丁集更新后，节点源树仍是旧的 base+1 ⇒ 它会拒绝并退出非零。做法：`git -C .work/source/<组件> reset --hard <manifests 里的 commit>`，再 `make apply-series`。
-5. 验收：`make -k -j14 check`（L1）与主控机**同 commit 同红集**（基线红按逐行同集判，不要求 rc=0）、`make check-inst-asm`/`check-inst-sig` PASS（`check-inst` 已退役）；用 `tools/infra/remote.py status/preflight` 确认。
+5. 验收：`make -k -j14 check`（L1）与主控机**同 commit 同红集**（基线红按逐行同集判，不要求 rc=0）、`make check-inst-asm`/`check-idl` PASS（`check-inst`/`check-inst-sig` 已退役）；用 `tools/infra/remote.py status/preflight` 确认。
    - **先装系统 `clang`**：`check-linux-toolchain` 的报告含「宿主 x86 对照」一行，宿主没有 `clang` 时该行变成「不可用」而与仓内报告不符 ⇒ 门控红（`ISS-512`）。
    - 首次引导若 step 6 报 `Error 75`：是 `build-mc`/`build-lld` 并发抢 `gate.lock`（§6 第 5 条），重跑即补齐；脚本已改为顺序调用。
 6. 在本文件「1. 当前清单」与「5. 就绪判据」补一行实测值。

@@ -67,7 +67,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-linux-k2 check-linux-k5 check-linux-k6 \
         check-picolibc-tests check-picolibc-tests-full \
         check-modules check-full check-components check-knowledge-refs \
-        check-inst-asm check-inst-sig inst-signature-data check-tests-index check-inst-macro-scope check-arch check-arch-smoke \
+        check-inst-asm inst-signature-data check-tests-index check-inst-macro-scope check-arch check-arch-smoke \
         check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
         check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
         clean-tests test-repro night-run check-night-report check-l3-report \
@@ -169,7 +169,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       check-linux-k0 check-linux-k1 check-linux-k2 check-linux-k5 check-linux-k6 \
                       test-codegen test-elf test-m6 test-picolibc-smoke \
                       check-lit check-lit-full \
-                      check-inst-asm check-inst-sig check-idl check-arch check-arch-smoke \
+                      check-inst-asm check-idl check-arch check-arch-smoke \
                       check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
                       check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
                       clean-tests test-repro \
@@ -282,8 +282,7 @@ help:
 	@echo "  make test-repro      Prove build products regenerate byte-identically (SCOPE=...; TESTCASES-076t)"
 	@echo "  make check-components  Component availability smoke (llc/clang --print-targets/qemu; L1)"
 	@echo "  make check-inst-asm    inst .S carriers (all ids, QEMU only; L2; m13-testcases-030)"
-	@echo "  make check-inst-sig    inst signature slots: derived expectation vs QEMU stream, per-slot diagnostics (L2; m17-testcases-001)"
-	@echo "  make inst-signature-data  Regenerate tests/data/inst-signature/ from tests/inst/**/*.S (m17-testcases-001)"
+	@echo "  make inst-signature-data  Regenerate tests/data/inst-signature/ from tests/inst/**/*.S (generator only; slot criteria are in check-idl)"
 	@echo "  make check-inst-macro-scope  Assembly macro scope: shared=跨册 / 册 .inc=本册 / .S 内=本文件 / 死宏 0 (L1; m15-testcases-002)"
 	@echo "  make check-knowledge-refs  Dangling .work/** reference gate (L1; INFRA-058t)"
 	@echo "  make check-run-artifacts  Run-directory three-piece set + .work/log new-name gate (L1; INFRA-093t)"
@@ -1151,7 +1150,7 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 #         m14-linux-029）与 check-linux-k6（K6 收口：busybox sh + 五条代表命令 +
 #         退出码；m18-linux-003）。K3 收口随阶段整体退役（用户 2026-11-20 裁定）。
 #         只读产物 + 增量构建（秒级），不跑被测语义的全量套件）
-_locked-check-modules: check-inst-asm check-inst-sig check-idl check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-linux-k0 check-linux-k1 check-linux-k2 check-linux-k5 check-linux-k6
+_locked-check-modules: check-inst-asm check-idl check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-linux-k0 check-linux-k1 check-linux-k2 check-linux-k5 check-linux-k6
 	@echo "module checks (L2): PASS"
 
 # L3 = 全量（TESTCASES-076t；2026-10-27 用户裁定「一个检查只在一层」严格化；TESTCASES-082t 去 tset smoke）。
@@ -1955,27 +1954,9 @@ _locked-check-inst-asm:
 	  if [ $$rc -ne 0 ]; then echo "check-inst-asm: FAIL (rc=$$rc)"; exit $$rc; fi; \
 	  echo "check-inst-asm: PASS"
 
-# 签名区**槽级**门控 (m17-testcases-001, L2)：同一批 `tests/inst/<册>/*.S` 的一行一个
-# 检查点在收尾打印 8 字节/槽的签名流；本目标把 `.S` 的 `__CHECK_*` 内联期望（及
-# `WDATA` 数据区）派生为「槽 → 期望值」（入库 `tests/data/inst-signature/`），与 QEMU
-# 流**逐槽**比对，失败给「槽 N 期望 X 实际 Y（来源 .S:行）」。正常镜像判红时另编
-# `-defsym SIG_CONTINUE=1` 的诊断镜像取完整流定位；签名流缺失 ⇒ BLOCKED。
-# 期望值**不从实测反推**（数据漂移 / 输入 sha256 漂移即红）。计数（镜像/槽）现场派生，
-# 并与 `tests/case-ledger.tsv` 另一条扫描路径对账。前置同 `check-inst-asm`。
-INST_SIG_LOG = .work/log/qemu/check-inst-sig.log
-_locked-check-inst-sig:
-	@mkdir -p .work/log/qemu
-	@test -x $(QEMU_BIN) || { echo "check-inst-sig: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
-	@test -f $(TINY_BOOTROM) || { echo "check-inst-sig: ERROR: $(TINY_BOOTROM) not found — run 'make build-bootrom' first"; exit 1; }
-	@$(PYTHON) tools/testcases/inst/check_inst_sig.py --jobs $(TEST_JOBS) \
-	    > $(INST_SIG_LOG) 2>&1; \
-	  rc=$$?; \
-	  grep -E "^(check-inst-sig|  \[(FAIL|BLOCKED)\])" $(INST_SIG_LOG) || true; \
-	  tail -3 $(INST_SIG_LOG); \
-	  if [ $$rc -ne 0 ]; then echo "check-inst-sig: FAIL (rc=$$rc)"; exit $$rc; fi; \
-	  echo "check-inst-sig: PASS"
-
-# 重新生成 `tests/data/inst-signature/`（期望值 + 输入 sha256；不跑 QEMU）。
+# 签名区「槽 → 期望值」生成器（`m17-testcases-001`；执行门控 `check-inst-sig` 已退役，
+# `m17-testcases-003`）：同一份 `tests/data/inst-signature/` 的槽级判据由 L2 `check-idl`
+# 承担（每方对 `expected.tsv` 逐槽 + 互比）。本目标只重生成数据，不跑 QEMU。
 inst-signature-data:
 	@$(PYTHON) tools/testcases/inst/check_inst_sig.py --write
 

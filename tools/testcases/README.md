@@ -27,12 +27,12 @@
 - **路径**：`tools/testcases/lib/inst_expected.py`
   **用途**：从 `tests/inst/**/*.S` + 宏层派生「槽 → 期望值」（`__CHECK_*` 内联常量 / `WDATA` 数据区 / 运行期关系），并生成 `tests/data/inst-signature/{expected.tsv,inputs.sha256}`
   **入口**：`python3 tools/testcases/inst/check_inst_sig.py --write`（库 API：`derive`/`render_expected`/`render_inputs`）
-  **调用者**：L2 `check-inst-sig`；期望值变更后重生成数据
+  **调用者**：`make inst-signature-data`；输入变更后重生成（执行判据见 `check-idl`）
 
 - **路径**：`tools/testcases/inst/check_inst_sig.py`
-  **用途**：签名区槽级门控（数据漂移 + 输入 sha256 + `case-ledger` 对账 + QEMU 逐槽比对；失败给「槽 N 期望/实际 + 来源 `.S:行`」；流缺失 ⇒ BLOCKED）
-  **入口**：`make check-inst-sig`（L2）/ `python3 tools/testcases/inst/check_inst_sig.py --data-only`
-  **调用者**：L2 `check-modules` / 任务收尾
+  **用途**：签名区「槽 → 期望值」**生成器**（`--write` 是 `tests/data/inst-signature/{expected.tsv,inputs.sha256}` 的唯一生成入口）；原执行门控 `check-inst-sig` 已退役（`m17-testcases-003`），槽级执行判据并入 L2 `check-idl`；`--data-only` 仍可核对入库数据与现场派生一致（漂移/输入 sha256）
+  **入口**：`make inst-signature-data` / `python3 tools/testcases/inst/check_inst_sig.py --data-only`
+  **调用者**：`make inst-signature-data`（生成）与不带参数的诊断路径（非门控）；`expected.tsv` 由 L2 `check-idl` 消费
 
 - **路径**：`tools/testcases/tset/embench/progress.py`
   **用途**：跑批进度看板（只读节点日志的逐例完成行 + `ps` 的 `+loadmem=`，给 done / 在跑 + ETA / 未开始，末尾 `done/total` 与 `cycles/s`）

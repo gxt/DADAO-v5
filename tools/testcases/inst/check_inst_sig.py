@@ -1,26 +1,26 @@
 #!/usr/bin/env python3
-"""check_inst_sig.py — `tests/inst` 签名区**槽级**门控（L2，m17-testcases-001）。
+"""check_inst_sig.py — `tests/inst` 签名区「槽 → 期望值」**生成器**（`m17-testcases-001`）。
 
-判据（两条独立路径，期望不从实现反推）
---------------------------------------
-  1. **期望值路径**：`tools/testcases/lib/inst_expected.py` 从 `.S` + 宏层派生
-     「槽 → 期望常量」（`__CHECK_*` 内联常量 / `WDATA` 数据区），逐字节比对入库数据
-     `tests/data/inst-signature/expected.tsv`（漂移 ⇒ 红，提示重生成）；
-  2. **实测流路径**：同一批 `.S` 编译成镜像，QEMU `kaiwu-tiny` 跑出签名流，
-     `tests/shared/signature.py` 解析成槽后**逐槽**与 1 的期望比对。
+**执行判据已并入 L2 `check-idl`**（`m17-testcases-003`）：每方签名槽流对入库
+`tests/data/inst-signature/expected.tsv` 逐槽比对并互比；本脚本不再作为门控成员。
 
-诊断：每处失败写「槽 N 期望 0x… 实际 0x…（来源 `<.S>:<行>`）”；漏写（`0xdeadbeef`）
-写「槽 N 未写」。签名流缺失/长度不符/构建失败 ⇒ 该镜像 **BLOCKED**（不是 PASS）。
+职责
+----
+  1. **生成**（`--write`）：`tools/testcases/lib/inst_expected.py` 从 `.S` + 宏层派生
+     「槽 → 期望常量」（`__CHECK_*` 内联常量 / `WDATA` 数据区），写
+     `tests/data/inst-signature/{expected.tsv,inputs.sha256}` —— 唯一生成入口；
+  2. **数据核对**（`--data-only`）：入库数据与现场重新派生逐字节比对
+     （漂移 / 输入 sha256 不符 ⇒ FAIL 并点名第一条漂移行）；
+  3. 不带参数时保留旧的 QEMU 逐槽比对路径，仅供一次性诊断（**不是**门控）。
 
 计数一律现场派生：镜像集 = `tests/inst/` 下含 `.S` 的册目录；槽数 = `__NCHECK` 累加；
 并与 `tests/case-ledger.tsv`（另一条扫描器路径）现场对账（镜像数 + 每镜像槽数）。
 
 用法：
-  python3 tools/testcases/inst/check_inst_sig.py            # 门控（L2）
-  python3 tools/testcases/inst/check_inst_sig.py --write    # 重生成 tests/data/inst-signature/
-  python3 tools/testcases/inst/check_inst_sig.py --data-only  # 只核对数据产物（不跑 QEMU）
-  python3 tools/testcases/inst/check_inst_sig.py --id <stem>  # 只跑指定镜像
-退出码：0 = 全绿；1 = 有 FAIL/BLOCKED 或数据漂移；2 = setup（缺工具/固件/0 载体）。
+  python3 tools/testcases/inst/check_inst_sig.py --write      # 重生成 tests/data/inst-signature/
+  python3 tools/testcases/inst/check_inst_sig.py --data-only  # 核对入库数据与现场派生一致
+  python3 tools/testcases/inst/check_inst_sig.py --id <stem>  # 旧诊断路径：只跑指定镜像
+退出码：0 = 全绿；1 = 有 FAIL 或数据漂移；2 = setup（缺工具/固件/0 载体）。
 """
 from __future__ import annotations
 
@@ -227,7 +227,7 @@ def main() -> int:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--write", action="store_true",
-                    help="重生成 tests/data/inst-signature/（不跑 QEMU）")
+                    help="重生成 tests/data/inst-signature/（唯一生成入口；不跑 QEMU）")
     ap.add_argument("--data-only", action="store_true",
                     help="只核对入库数据与现场派生一致（不跑 QEMU）")
     ap.add_argument("--id", action="append", default=None,
