@@ -23,7 +23,7 @@ M17 的四方差分底座 = `tests/inst` 272 个 `.S` 镜像（Kaiwu-Tiny）；*
 1. **四方驱动**（新增 `tools/idl/check_four_way.py`）：同一 ELF 取 IDL/QEMU/gem5/chipyard 的**签名槽流 + 退出码**并四方比对；平台启动与装载复用 `run_inst_tiny.py` 的既有路径，签名取流/解析复用 `tools/testcases/lib/signature.py`，不新建第二套。
 2. **IDL 侧签名流**：`SYS_WRITE` 按「未实现 ⇒ 不可用」处理，使 guest 走 `SYS_WRITEC` 回退，与 QEMU/gem5 实测路径一致；字节写进既有 `output` 观测面。口径写 `docs/idl-four-way.md`。
 3. **用例清单机制**：`idl/idl_exec_cases.toml` 扩为「镜像 → 类别」清单并新增 `pending` 段；门控断言 **主清单集合 == 现场派生集合（`tests/inst` 去掉 `07-floating-point`）减去 `pending`**；`pending` 每条写镜像名 + 原因。
-4. **门控**：新增 `check-idl` 进 L2（`GATE_LOCKED_TARGETS` + `_locked-check-modules`）；缺 QEMU 安装根或 bootrom 即 ERROR，不静默跳过；帮助行与 L2 注释同步。
+4. **门控**：新增 `check-idl` 进 L2（`GATE_LOCKED_TARGETS` + `_locked-check-modules`）；L2 默认平台集 = **IDL + QEMU**（主控机可跑，不依赖 gem5/Verilator 构建），`--platforms gem5,chipyard` 由节点/收口调用；缺 QEMU 安装根或 bootrom 即 ERROR，不静默跳过；帮助行与 L2 注释同步。
 5. 本任务只用**现有 28 例**跑通四方（`pending` = 其余非 FP 镜像），不扩语义。
 
 ## 不做
