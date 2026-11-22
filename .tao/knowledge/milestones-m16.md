@@ -29,6 +29,8 @@
 | m16-chipyard-021 | 3–4 h | RTL cfx15 hart（寄存器 + cycle/insn + timer 中断） |
 | m16-chipyard-022 | 4–5 h | RTL cfx32 pmem（寄存器 + DMA + 完成中断） |
 | m16-chipyard-023 | 2–3 h | RTL cfx34 time（全局时间，无中断） |
+| m16-qemu-004 | 1–2 h | QEMU `fence` 保留 cfx 集对齐（ISS-432） |
+| m16-testcases-012 | 2–3 h | fence 基础验证（三方；完整覆盖不作验收要求） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
