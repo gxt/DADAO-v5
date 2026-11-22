@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..8e8f54a
+index 0000000..7c283fb
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1157 @@
+@@ -0,0 +1,1416 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -15,8 +15,14 @@ index 0000000..8e8f54a
 +#include "arch/dadao/pcstate.hh"
 +#include "base/cprintf.hh"
 +#include "base/logging.hh"
++#include "cpu/base.hh"
 +#include "cpu/thread_context.hh"
++#include "mem/cache/cache_blk.hh"
++#include "mem/cache/tags/base.hh"
++#include "mem/packet.hh"
++#include "mem/port.hh"
 +#include "mem/port_proxy.hh"
++#include "mem/request.hh"
 +#include "sim/cur_tick.hh"
 +#include "sim/eventq.hh"
 +#include "sim/system.hh"
@@ -56,6 +62,26 @@ index 0000000..8e8f54a
 +constexpr uint64_t kHartIstatus = 1ULL << 2;
 +
 +constexpr uint64_t kTimeFreq = 1000000000ULL;
++
++/** cfx_cache_ctrl command encoding (contract CACHE-09). */
++constexpr unsigned kCacheOpNone = 0x0;
++constexpr unsigned kCacheOpClean = 0x1;
++constexpr unsigned kCacheOpInvalidate = 0x2;
++constexpr unsigned kCacheOpFlush = 0x3;
++
++constexpr unsigned kCacheScopeAll = 0x0;
++constexpr unsigned kCacheScopeLine = 0x1;
++constexpr unsigned kCacheScopeRange = 0x2;
++constexpr unsigned kCacheScopeReserved = 0x3;
++
++/** cfx_cache address mask: the whole 56-bit physical address space
++ *  (CACHE-18: `addr_start` carries PA[55:0] and [63:56] read 0).  This is
++ *  *not* NodeAddrMask (48 bits), which the vector/VA checks use. */
++constexpr uint64_t kCachePaMask = (1ULL << 56) - 1;
++
++/** Selection bits [15:14] of cfx_cache_ctrl (CACHE-09: bit15 = I, bit14 = D). */
++constexpr uint64_t kCacheSelInst = 1ULL << 15;
++constexpr uint64_t kCacheSelData = 1ULL << 14;
 +
 +/** Install a redirect target.  `sequentialNext` = the redirect comes from a
 + *  gem5 `Fault`: `BaseSimpleCPU::advancePC()` invokes the fault and does not
@@ -183,7 +209,7 @@ index 0000000..8e8f54a
 +
 +void
 +nodeResetState(NodeState &s, ThreadContext *tc, Addr romBase, Addr romSize,
-+               Addr ramBase, Addr ramSize, Addr pmemBase)
++               Addr ramBase, Addr ramSize, Addr pmemBase, uint8_t cacheExist)
 +{
 +    s.active = true;
 +    s.tc = tc;
@@ -195,6 +221,13 @@ index 0000000..8e8f54a
 +
 +    s.runMode = NodeHypv;
 +    s.cfxCode = CfxhaPower;
++
++    // cfx_cache: reset enable = exist (CACHE-07); the address registers reset
++    // to 0.  With no L1 wired (cache-model=off) exist is 0 and cfx5 does not
++    // exist at all (register access => CFXREG).
++    s.cache = NodeCacheState();
++    s.cache.exist = cacheExist & 0x3;
++    s.cache.enable = s.cache.exist;
 +
 +    s.ptbr = 0;
 +    s.ptwEnable = 0;
@@ -838,6 +871,221 @@ index 0000000..8e8f54a
 +    return tlbTableExec(s, s.dtlbSp, op, scope, asidAny, start, size, errPa);
 +}
 +
++/** Issue one classic-L1 maintenance request for one line (m16-gem5-021).
++ *
++ * This is the standard gem5 cache-maintenance request that Arm's
++ * `dc cvac/civac/ivac` build (src/arch/arm/isa/insts/data64.isa) and x86's
++ * `clflushopt/clwb` build (src/arch/x86/isa/microops/ldstop.isa):
++ * `Request::CLEAN` / `Request::INVALIDATE` / `DST_POC` on a line-sized
++ * access, which `Packet::makeWriteCmd()` turns into `MemCmd::CleanSharedReq`
++ * / `InvalidateReq` / `CleanInvalidReq`.  The cache itself then performs the
++ * writeback and/or the discard (`BaseCache::access` forwards a maintenance
++ * request, `BaseCache::recvAtomic` writes a dirty line back for a clean and
++ * `Cache::recvAtomic` drops an invalidated line), so `src/mem/cache` is
++ * untouched.
++ *
++ * The D side uses the CPU's data port and the I side its instruction port --
++ * the I cache sits only on the latter, and INVALIDATE there is exactly "drop
++ * the line" (the I side never holds dirty data, so flush == invalidate,
++ * CACHE-19).  Both sends are atomic: the command completes synchronously
++ * (CACHE-24) and the DADAO exec cores are one-shot, so there is no two-phase
++ * initiateAcc/completeAcc flow to hand the packet to.
++ *
++ * The address is the architecturally supplied **physical** address
++ * (CACHE-02/16/17): the request carries Request::PHYSICAL, is never
++ * translated, and the cache matches it against its PA tags.
++ */
++void
++cacheMaintainLine(NodeState &s, bool inst, Addr line, Request::Flags flags)
++{
++    BaseCPU *cpu = s.tc->getCpuPtr();
++    auto *port = dynamic_cast<RequestPort *>(
++        inst ? &cpu->getInstPort() : &cpu->getDataPort());
++    panic_if(port == nullptr,
++             "DADAO cfx_cache: CPU %s has no classic %s port to maintain",
++             cpu->name(), inst ? "instruction" : "data");
++    System *system = s.tc->getSystemPtr();
++    const unsigned lineSize = system->cacheLineSize();
++
++    // CACHE-22: a line that is not backed by memory in this machine (an
++    // address outside every RAM/ROM/device window) has no cache effect and
++    // raises nothing -- there is nothing to maintain and nothing to route.
++    if (!system->isMemAddr(line))
++        return;
++
++    RequestPtr req = std::make_shared<Request>(
++            line, lineSize, flags | Request::PHYSICAL,
++            inst ? cpu->instRequestorId() : cpu->dataRequestorId());
++    req->setContext(s.tc->contextId());
++    req->taskId(cpu->taskId());
++
++    Packet pkt(req, Packet::makeWriteCmd(req));
++    port->sendAtomic(&pkt);
++}
++
++/** Run one cfx_cache_ctrl operation over one side (CACHE-15..22).
++ *
++ * "PA 单行" and "PA 区间" name their lines directly, so the request is built
++ * from the command operands.  "all" has no operand: the lines are the ones
++ * that side currently holds, which is what the tag store lists (a maintenance
++ * command only ever has an observable effect on a line that is present, so
++ * that is equivalent to sweeping the address space and its cost is bounded by
++ * the cache geometry instead of by the PA space). */
++void
++cacheSideExec(NodeState &s, bool inst, unsigned op, unsigned scope,
++              uint64_t start, uint64_t size, BaseTags *tags)
++{
++    // CACHE-19: I has no dirty state -- `clean` is a no-op there.
++    if (inst && op == kCacheOpClean)
++        return;
++    if (tags == nullptr)
++        return;
++
++    Request::Flags flags;
++    switch (op) {
++      case kCacheOpClean:
++        flags = Request::CLEAN | Request::DST_POC;
++        break;
++      case kCacheOpInvalidate:
++        // Dirty data is dropped, never written back (CACHE-20).
++        flags = Request::INVALIDATE | Request::DST_POC;
++        break;
++      default:  // kCacheOpFlush: write back, then drop (CACHE-20)
++        flags = Request::CLEAN | Request::INVALIDATE | Request::DST_POC;
++        break;
++    }
++
++    const unsigned lineSize = s.tc->getSystemPtr()->cacheLineSize();
++    const Addr lineMask = Addr(lineSize) - 1;
++    const Addr first = start & kCachePaMask;
++
++    // CACHE-16: "PA 单行" is one line, named by addr_start; whether it is
++    // present is the cache's business (a miss forwards the request and
++    // nothing happens, CACHE-22).
++    if (scope == kCacheScopeLine) {
++        cacheMaintainLine(s, inst, first & ~lineMask, flags);
++        return;
++    }
++
++    // CACHE-15/17: "all" is every line the side holds, "PA 区间" the held
++    // lines that intersect [start, start + size).  A maintenance command only
++    // has an observable effect on a line that is present, so enumerating the
++    // tag store is equivalent to sweeping the address space and keeps the
++    // cost bounded by the cache geometry (a huge addr_size cannot hang the
++    // simulation).
++    const Addr rangeEnd = (size > kCachePaMask - first) ? kCachePaMask + 1
++                                                        : first + size;
++    std::vector<Addr> lines;
++    tags->forEachBlk([&](CacheBlk &blk) {
++        if (blk.isValid())
++            lines.push_back(tags->regenerateBlkAddr(&blk));
++    });
++    for (Addr line : lines) {
++        if (scope == kCacheScopeRange &&
++            !(line < rangeEnd && first < line + lineSize))
++            continue;
++        cacheMaintainLine(s, inst, line, flags);
++    }
++}
++
++/** cfx_cache_ctrl write (CACHE-09..25).  Returns 0 (ok) or 1 (CFXREG).
++ *  The judgement order is the contract's: selection, then operation, then
++ *  the range encoding and its operand (CACHE-11); the CFXREG of an illegal
++ *  encoding therefore happens before any maintenance action (CACHE-25). */
++int
++cacheControlExec(NodeState &s, uint64_t val)
++{
++    const unsigned op = val & 0x3;
++    const unsigned scope = (val >> 2) & 0x3;
++    const bool selI = (val & kCacheSelInst) != 0;
++    const bool selD = (val & kCacheSelData) != 0;
++
++    // CACHE-12/13: no side selected, or `none`, is an unconditional no-op
++    // that does not even look at the range encoding or addr_size.
++    if (!selI && !selD)
++        return 0;
++    if (op == kCacheOpNone)
++        return 0;
++    // CACHE-14: only a command that actually selects something validates.
++    if (scope == kCacheScopeReserved)
++        return 1;
++    if (scope == kCacheScopeRange && s.cache.addrSize == 0)
++        return 1;
++
++    auto *isa = dynamic_cast<ISA *>(s.tc->getIsaPtr());
++    BaseTags *itags = (isa != nullptr) ? isa->cfxItags() : nullptr;
++    BaseTags *dtags = (isa != nullptr) ? isa->cfxDtags() : nullptr;
++
++    // CACHE-21: I first, then D; CACHE-08: a side whose enable bit is 0 is
++    // not maintained (the encoding checks above are unaffected by enable).
++    if (selI && (s.cache.enable & 0x1))
++        cacheSideExec(s, true, op, scope, s.cache.addrStart,
++                      s.cache.addrSize, itags);
++    if (selD && (s.cache.enable & 0x2))
++        cacheSideExec(s, false, op, scope, s.cache.addrStart,
++                      s.cache.addrSize, dtags);
++    return 0;
++}
++
++/** cfx5 register read (CACHE-03/06/07/18).  Always consumes the access: a
++ *  missing register raises CFXREG here, like every other cfx read. */
++void
++cacheRegRead(ThreadContext *tc, NodeState &s, uint8_t cg, uint8_t rc,
++             uint64_t &out, uint64_t info)
++{
++    const Addr pc = currentPc(tc);
++
++    if (s.cache.exist != 0 && cg == 8) {
++        switch (rc) {
++          case 0:  out = s.cache.exist; return;
++          case 8:  out = s.cache.enable; return;
++          // rc9 (`cache_ctrl`) is write-only: it executes on the write.
++          case 10: out = s.cache.addrStart; return;
++          case 11: out = s.cache.addrSize; return;
++          default: break;
++        }
++    }
++    // No L1 wired (cache-model=off) => cfx5 is not implemented; any other
++    // cfx5 register combination is reserved (CACHE-04).
++    nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
++}
++
++/** cfx5 register write (CACHE-03/07/09/18/24). */
++void
++cacheRegWrite(ThreadContext *tc, NodeState &s, uint8_t cg, uint8_t rc,
++              uint64_t val, uint64_t info)
++{
++    const Addr pc = currentPc(tc);
++
++    if (s.cache.exist != 0 && cg == 8) {
++        switch (rc) {
++          case 0:
++            // `cache_exist` is read-only (hardware-set).
++            break;
++          case 8:
++            // CACHE-07: a bit whose exist bit is 0 reads back 0; the other
++            // bits are reserved and read 0.
++            s.cache.enable = val & s.cache.exist & 0x3;
++            return;
++          case 9:
++            // CACHE-24: the write itself is the command; it completes
++            // synchronously, so the next access already sees the effect.
++            if (cacheControlExec(s, val) != 0)
++                nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
++            return;
++          case 10:
++            s.cache.addrStart = val & kCachePaMask;
++            return;
++          case 11:
++            s.cache.addrSize = val;
++            return;
++          default:
++            break;
++        }
++    }
++    nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
++}
++
 +} // anonymous namespace
 +
 +void
@@ -1016,6 +1264,13 @@ index 0000000..8e8f54a
 +        nodeCfxRaise(tc, s, CauseIlli, s.runMode, pc, info);
 +        return true;
 +    }
++    // cfx_cache (cfx5) is register-only: it is not in kCfxhaMap, so its five
++    // contract registers are decoded here and every other cfx5 combination
++    // stays CFXREG (m16-gem5-021; contract-cache.md).
++    if (cfxha == CfxhaCache) {
++        cacheRegRead(tc, s, cg, rc, out, info);
++        return true;
++    }
 +    const int ci = nodeCfxIndex(cfxha);
 +    if (ci < 0) {
 +        nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
@@ -1082,6 +1337,10 @@ index 0000000..8e8f54a
 +
 +    if (nodeCfxReserved(cfxha)) {
 +        nodeCfxRaise(tc, s, CauseIlli, s.runMode, pc, info);
++        return true;
++    }
++    if (cfxha == CfxhaCache) {
++        cacheRegWrite(tc, s, cg, rc, val, info);
 +        return true;
 +    }
 +    const int ci = nodeCfxIndex(cfxha);

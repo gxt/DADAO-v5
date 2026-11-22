@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/DadaoISA.py b/src/arch/dadao/DadaoISA.py
 new file mode 100644
-index 0000000..3a2c2d7
+index 0000000..1506973
 --- /dev/null
 +++ b/src/arch/dadao/DadaoISA.py
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,44 @@
 +from m5.objects.BaseISA import BaseISA
 +from m5.params import *
 +
@@ -38,3 +38,13 @@ index 0000000..3a2c2d7
 +    # m16-gem5-004 exercises TimingExprLiteral for the 1/2/3 configurations.
 +    wuming_mul_expr = Param.TimingExpr(
 +        NULL, "B1/B2 multiplier latency as a gem5 TimingExpr (NULL = table default)")
++
++    # cfx_cache (cfx5) maintenance targets (m16-gem5-021): the tag stores of
++    # the classic L1 I/D caches this hart drives.  fs.py wires them only
++    # together with `--caches`; NULL (the default, and the whole
++    # cache-model=off path) means cfx5 does not exist on this hart and every
++    # cfx5 register access raises CFXREG, exactly as before the task.
++    cfx_itags = Param.BaseTags(
++        NULL, "I-cache tag store driven by cfx_cache_ctrl (NULL = no L1)")
++    cfx_dtags = Param.BaseTags(
++        NULL, "D-cache tag store driven by cfx_cache_ctrl (NULL = no L1)")

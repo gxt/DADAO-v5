@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..70893d8
+index 0000000..d15224f
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,480 @@
+@@ -0,0 +1,487 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
@@ -141,7 +141,9 @@ index 0000000..70893d8
 +      ADD_STAT(dataMemWrites,
 +               "guest data-memory writes retired by the exec cores"),
 +      wumingCycles(p.enable_wuming_cycles),
-+      wumingMulExpr(p.wuming_mul_expr)
++      wumingMulExpr(p.wuming_mul_expr),
++      cfxITagsStore(p.cfx_itags),
++      cfxDTagsStore(p.cfx_dtags)
 +{
 +    _regClasses = {&intRegClass, &floatRegClass, &vecRegClass,
 +        &vecElemClass, &vecPredRegClass, &matRegClass, &ccRegClass,
@@ -455,8 +457,13 @@ index 0000000..70893d8
 +    clearReservations();
 +
 +    if (fs->nodeProfile()) {
++        // cfx_cache exists exactly when the classic L1 caches are wired in
++        // (fs.py sets the tag stores with --caches): bit0 = I, bit1 = D
++        // (contract CACHE-06; m16-gem5-021).
++        const uint8_t cacheExist = (cfxITagsStore != nullptr ? 0x1 : 0x0) |
++                                   (cfxDTagsStore != nullptr ? 0x2 : 0x0);
 +        nodeResetState(node, tc, fs->romBase(), fs->romSize(), fs->ramBase(),
-+                       fs->ramSize(), fs->pmemBase());
++                       fs->ramSize(), fs->pmemBase(), cacheExist);
 +        tiny = TinyState();
 +    } else {
 +        node.active = false;

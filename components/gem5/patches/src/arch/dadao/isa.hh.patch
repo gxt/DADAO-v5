@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
 new file mode 100644
-index 0000000..3b110ad
+index 0000000..07e748f
 --- /dev/null
 +++ b/src/arch/dadao/isa.hh
-@@ -0,0 +1,172 @@
+@@ -0,0 +1,188 @@
 +// DADAO ISA object (B0 skeleton + B6 LR/SC reservation state).
 +#ifndef __ARCH_DADAO_ISA_HH__
 +#define __ARCH_DADAO_ISA_HH__
@@ -24,6 +24,7 @@ index 0000000..3b110ad
 +
 +struct DadaoISAParams;
 +class TimingExpr;
++class BaseTags;
 +
 +namespace DadaoISA
 +{
@@ -72,6 +73,17 @@ index 0000000..3b110ad
 +     *  when tinyActive(); the SE and Vast paths never read it. */
 +    TinyState &tinyState() { return tiny; }
 +    const TinyState &tinyState() const { return tiny; }
++
++    /** cfx_cache (cfx5) maintenance targets (m16-gem5-021).
++     *
++     *  The tag stores of the classic L1 I/D caches this hart drives, or
++     *  nullptr when `cache-model` is off (fs.py wires them only together
++     *  with `--caches`).  A null store means cfx5 does not exist on this
++     *  hart: register access is CFXREG, exactly as before the task.  Non-null
++     *  stores make `cfx_cache_exist` = 0b11 and are the line directory that
++     *  `all`/`PA 区间` maintenance selects from. */
++    BaseTags *cfxItags() const { return cfxITagsStore; }
++    BaseTags *cfxDtags() const { return cfxDTagsStore; }
 +
 +    /** QEMU `-d cpu`-compatible trace channel (`--trace-cpu`).  A dump is
 +     *  emitted at QEMU translation-block boundaries: the first instruction,
@@ -159,6 +171,10 @@ index 0000000..3b110ad
 +    static std::vector<ISA *> holders;
 +
 +    bool pendingSignal = false;
++
++    /** cfx_cache (cfx5) maintenance targets; null = no L1 wired (m16-gem5-021). */
++    BaseTags *cfxITagsStore = nullptr;
++    BaseTags *cfxDTagsStore = nullptr;
 +
 +    NodeState node;
 +    TinyState tiny;
