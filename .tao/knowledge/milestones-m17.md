@@ -8,7 +8,7 @@
 > **收口判据（2026-11-22 用户定，替代原「507 例」草案）**：
 > - **底座** = `tests/inst` 272 镜像（Kaiwu-Tiny）；不含 Linux、`ee-user`（musl）、`ee-vast`/arch probes；
 > - **判据** = **签名槽 + 退出码**四方一致（IDL/QEMU/gem5/chipyard）；逐指令 trace 只在红后归因；
-> - **分两阶段**：阶段一非 FP **222 镜像**（`005`–`009`）；阶段二 FP **50 镜像**（等 FP 语义批 + `N26` 裁定）；
+> - **分两阶段**：阶段一非 FP **222 镜像**（`005`–`009`）；阶段二 FP **50 镜像**（等 FP 语义批 `ISS-397/399/403/409/420` 裁定）；
 > - `make check-idl` 进 L2；picolibc(fast)/embench **只作抽样，不进判据**；
 > - 差异一律归因，清单外差异零红。
 > **后续（未立，见 `discussing.md`）**：阶段二 FP（50 镜像 + FP 语义批）；四方期望清单的机器化派生（`components/*-diff-*` + `idl/diff-vs-udb.md`，阶段一后再议）。

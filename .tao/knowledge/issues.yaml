@@ -1006,9 +1006,9 @@
   scope:
   - idl
   milestone: M17
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M15
+  resolved_by: m15-idl-019（裁定 A：改调 ft_scale）
   title: "【P2】`ftsclb_orrr_rf` 的临时写法在指数极值处会下溢（合 §2.1/IEEE 应为溢出）：`e64 = off + n` 以 64 位有符号视图越过 2^63 变负 ⇒ 命中 `< -2000` 饱和。分叉区间 = `n ∈ [2^63-260, 2^63-1]`（src 有限非零、5 档舍入全中）：临时写法给 `±0`/`±1` + `UF|NX`，库 `ft_scale` 给 `±Inf`/`±最大有限` + `OF|NX`。仓内 spec-exact oracle `tools/chipyard/fp_ref.py::sclb_exact` 与库侧 0 失配、与临时写法全反；f64 兄弟 `fosclb` 早已直调 `fo_scale` ⇒ f32/f64 口径不一致。修法见 `m15-idl-019`（待裁定 A/B）。"
 - id: ISS-477
   scope:
