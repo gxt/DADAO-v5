@@ -18,7 +18,8 @@
 
 ## 目标
 
-1. **组件接入**：在 `manifests/components.lock.toml` 锁 LTP 基线（commit，不以 tag/分支作身份），新增 `components/ltp/`（`series` + `patches/`，首态可空），走 `make fetch` / `apply_series.py --component ltp`。**下载源须执行前由用户确认**（见「待裁定」）。
+1. **组件接入**：在 `manifests/components.lock.toml` 锁 LTP 基线（commit，不以 tag/分支作身份），新增 `components/ltp/`（`series` + `patches/`，首态可空），走 `make fetch` / `apply_series.py --component ltp`。
+   - **已定（用户 2026-11-22）**：源 = `https://github.com/linux-test-project/ltp`；版本 = tag **`20260930`**（annotated tag object `a6bade7fde883afac61429197a28a643de239f6b`，peel commit **`2279d708c817db657611a30c427c7d06c4360049`**，锁 commit 不锁 tag）；浅克隆（`--depth 1 --branch 20260930`），不另测镜像。
 2. **子集选型**：给出首轮子集清单（按文件/用例），覆盖系统调用 ABI 广度：文件 I/O、`mmap/mprotect/munmap`、`brk`、`clone/futex`、`execve/wait4`、基本信号、`clock_*`/`timerfd`。每条注明选它的理由与预期 `TCONF` 条件。
 3. **构建**：用既有交叉工具链静态构建首轮子集（musl `-static`），产物逐项记录 `readelf`（`ELF64/MSB/EM_DADAO/静态`）；构建失败项逐条记录原因（缺头文件/依赖/工具）。
 4. **运行**：接入 `m18-linux-005` 的 runner，在 QEMU `-M kaiwu-vast` 上逐例执行，采集 stdout/退出码/用例判定（PASS/FAIL/TCONF/TBROK），每例可独立超时。
@@ -47,7 +48,15 @@
 
 ## 待裁定
 
-- **LTP 下载源**：执行前由用户确认（先测教育网镜像与 GitHub 候选速度，给建议；未确认不得下载）。
+无。
+
+## Kirk 评估（用户 2026-11-22 要求核查）
+
+- 上游：`https://github.com/linux-test-project/kirk`（LTP 官方测试执行器，`runltp-ng` 的 fork；本机浅克隆 HEAD `fc28d0b5`，`libkirk.__version__ = 4.2.0`；GPL-2.0-or-later）。
+- 能力：SSH / QEMU / LTX 通道、suite 选择、并行 worker、shard、JSON/HTML 结果导出、插件式 ComChannel。
+- **结论：不直接采用**。其 QEMU 通道要求 `qemu-system-<arch>` + 串口 console 上的登录/`#` 提示符，并执行 `stty`/`dmesg -D`/`export PS1=''`；我们的 guest 是 semihosting console、无 login、无 `stty`/`dmesg`，且 LTP 以静态 musl 进 initramfs，不是 qcow2 镜像。直接接 Kirk 需要新写 DADAO ComChannel + 在 guest 补工具，收益不抵成本。
+- **可借用的是方法，不是代码**（GPL 不复制进本仓）：LTP suite/用例目录的选取方式、结果分类（pass/fail/broken/skip）、worker/shard 的组织、JSON 导出字段。首轮由 `m18-linux-005` 的 `run_suite.py` 扩展即可；若后续要跨机并行，再评估自写轻量调度器。
+- 不在本任务引入 `kirk` 依赖；若未来要用，另立任务并先解决 GPL/许可与 ComChannel 适配。
 
 ## 完成区
 

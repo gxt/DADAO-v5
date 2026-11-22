@@ -29,7 +29,7 @@
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
 | m18-infra-002 | 3–5 h | musl ldso 动态链接运行闭环（P3：system Linux 动态 ELF + qemu-user 尽力）；下一个 linux 写者窗口派单 |
-| m18-linux-006 | 3–5 h | LTP 子集接入（组件锁 + 静态构建 + 分诊）；复用 005 骨架，依赖 005/002 |
+| m18-linux-006 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架，依赖 005/002 |
 | m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
 | m18-linux-008 | 2–3 h | K1–K4 门控断言补强（ISS-444/457/487/488；可达 FAIL + §4a 退役） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
