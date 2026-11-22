@@ -5,8 +5,13 @@
 > **本页只维护 M17 任务台账**：历史任务见 `.tao/archive/`；当前讨论/规划见 `.tao/knowledge/discussing.md`。
 
 > **M17 定位（用户 2026-11-20）**：**IDL 可执行参考模型 + 四方差分**（IDL / QEMU / gem5 / RTL），**golden = IDL**。执行器用 **Python**（用户 2026-11-20 定：不用 Ruby/`idlc`；Rust 只在随机流规模到 >10⁷ 步/例时再评估，记 `discussing.md`）。
-> **收口判据（草案）**：IDL vs QEMU 逐例一致（507 例口径）；`make check-idl` 进 L2；四方差分的「清单外差异」零红——期望清单由 `components/{linux,gem5,chipyard}/*-diff-*` + `idl/diff-vs-udb.md` 派生。
-> **后续（未拆，见 `discussing.md`）**：QEMU 差分接入 + `check-idl`；四方差分接入（gem5/RTL 抽样 + `expected-divergences`）；FP 语义批（`ISS-397/399/403/409/420/476`）。
+> **收口判据（2026-11-22 用户定，替代原「507 例」草案）**：
+> - **底座** = `tests/inst` 272 镜像（Kaiwu-Tiny）；不含 Linux、`ee-user`（musl）、`ee-vast`/arch probes；
+> - **判据** = **签名槽 + 退出码**四方一致（IDL/QEMU/gem5/chipyard）；逐指令 trace 只在红后归因；
+> - **分两阶段**：阶段一非 FP **222 镜像**（`005`–`009`）；阶段二 FP **50 镜像**（等 FP 语义批 + `N26` 裁定）；
+> - `make check-idl` 进 L2；picolibc(fast)/embench **只作抽样，不进判据**；
+> - 差异一律归因，清单外差异零红。
+> **后续（未立，见 `discussing.md`）**：阶段二 FP（50 镜像 + FP 语义批）；四方期望清单的机器化派生（`components/*-diff-*` + `idl/diff-vs-udb.md`，阶段一后再议）。
 
 本页分三张**任务表**，**表位置 = 任务状态**（不另设状态列）：
 
@@ -20,6 +25,11 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m17-idl-005 | 3–4 天 | 四方差分驱动（签名槽+退出码）与 `check-idl` 进 L2（28 例基线） |
+| m17-idl-006 | 3–4 天 | 执行器补齐：访存/寄存器复制/控制流/异常（01/02/05/06/11 + `pseudo_set`/`undi`，41 个 id） |
+| m17-idl-007 | 4–5 天 | 执行器补齐：八元算术与杂项（04/12 册 + `atomic_rmw`，50 个 id） |
+| m17-idl-008 | 4–5 天 | 执行器补齐：窄位宽 ALU（08/09/10 册，61 个 id） |
+| m17-idl-009 | 1–2 天 | 阶段一收口：`pending` 清零、222 镜像四方零红、L2 门控真跑 |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
