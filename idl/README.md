@@ -53,6 +53,22 @@ python3 tools/idl/check_trace_parity.py --images <dir> --bootrom <img>
 
 **M17 执行器补齐（窄位宽 ALU）**（`m17-idl-008`）：`08`/`09`/`10` 三册（32/16/8 位算术、比较、乘除余、移位/循环/反转）与 `03` 剩余 6 个镜像全部纳入主清单，`pending` 清零（主清单 222）；窄位宽按 `.idl` 正文的 size 截断 + `.s`/`.u` 符号/零扩展实现，orri/orrr 共用参数化路径（移位量取 `immu6` 或 `rdHD` 低位）。
 
+## 四方差分与门控（阶段一收口，`m17-idl-009`）
+
+阶段一 = 非 FP 的 `tests/inst` 镜像在 IDL / QEMU / gem5 / chipyard 四方一致。判据 = **签名槽流逐槽全等 + 退出码全等**，且每方槽值再对独立 oracle `tests/data/inst-signature/expected.tsv` 逐槽比对（四方一致但全错仍红）；口径正文见 [`docs/idl-four-way.md`](../docs/idl-four-way.md)。
+
+用例清单 `idl_exec_cases.toml`：`[[case]]` = 主清单，`[[pending]]` = 暂缓镜像 + `reason`。门控在 `tools/idl/check_four_way.py` 内**现场派生**并断言 `{主清单} == {tests/inst/*/*.S} − {07-floating-point} − {pending}`：主清单少/多一条、`pending` 越界或与主清单相交 ⇒ rc=2（一致地暂缓一条等价于「主清单 == 派生 − pending」，阶段一收口后不应再出现，由 `m17-idl-010` 加硬断言）；计数不写死。**当前 `pending` 为空、主清单 == 现场派生（222 条）**；`07-floating-point` 的 50 个镜像属阶段二，其 id 在 `idl_exec.py` 仍显式 `ExecError`（不静默通过）。
+
+```text
+make check-idl                                                      # L2：IDL + QEMU（不依赖 gem5/Verilator 构建）
+python3 tools/idl/check_four_way.py --platforms qemu,gem5,chipyard  # 全四方（收口 / 节点）
+python3 tools/idl/check_four_way.py --only ld.o_rrii_rd             # 单例诊断
+```
+
+`make check-idl` 在 `GATE_LOCKED_TARGETS` 内（与 L2/L3 串行）；缺 QEMU 安装根或 BootROM 固件即 ERROR。退出码：`0` 全一致 / `1` 有 FAIL / `2` setup·清单·输入错误 / `75` 共享构建树有活跃写者（writer-guard 拒绝，见 `docs/Process-07 §2.1`）。
+
+逐指令 trace（`tools/idl/check_trace_parity.py`，格式 [`docs/idl-trace-format.md`](../docs/idl-trace-format.md)）**不进判据**：只在四方红例后用于归因（定位首个分叉指令/异常），不做逐指令全量门控。
+
 > **import 本模块前设 `PYTHONDONTWRITEBYTECODE=1`**：`idl/` 由 `check-manifests-guard` 做**双向目录集合断言**，落 `__pycache__` 会直接判红（`idl_parse_cases.toml` 是数据文件而非模块，正是为此）。
 
 **语言与语义库正文见 [`spec/IDL-ISA语义描述语言与语义库.md`](../spec/IDL-ISA语义描述语言与语义库.md)**：§1 语法基线、§2 命名约定、§3 寄存器模型、§4 语义库（含 §4.7 浮点原语）、§5 语法扩展提案、§6 `idlc` 复用评估；变更记录见该册文末附录。原 README 的 §1–§7 已整段迁入该册（§1–§6 节号一一对应；§7 → 附录），本文件只保留目录导航与用法——旧文里的 `idl/README §N` 记号对应新册 §N。
