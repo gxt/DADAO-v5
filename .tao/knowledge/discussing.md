@@ -422,6 +422,7 @@
 - **批次授权 M18-A（2026-11-22）**：`m18-linux-005`（测试集运行骨架 + kselftest 试点首轮分诊）、`m18-infra-002`（musl ldso 动态链接闭环）；停止点按 `AGENTS.md §1`。
 - **未决**：① 首轮基线通过率目标（首轮分诊后再定）；② LTP 子集清单与按子系统分片；③ 测试适配补丁的长期承载（试点先落 `tests/unit/linux/suite/patches/`，收口前评估是否并入组件补丁集）；④ 节点 RTL Linux 的前置（需 MMU/TLB，非本册）。
 - **已知缺口**：`pthread` create/join（`m14-linux-029` 判为 K6 范围）尚无任务书；用户 2026-11-20 定「建册时再定」⇒ 待后续批次补立。
+- **cfx5 维护（Linux，待 M16 前置）**：`arch/dadao/include/asm/cacheflush.h` 现在是空宏（`flush_dcache_page`/`flush_icache_range`/`flush_icache_user_page` 全为 `do {} while (0)`）；要补成 cfx5 的 clean/invalidate/flush，DMA API 加 clean/invalidate。**前置：M16 的 QEMU `cache-model=off|on` 语义稳定**（off = cfx5 存在但 no-op、on = 真维护，见 M16 节裁定）；M16 QEMU 准备好后再拆任务，不提前立。
 - **当前状态**：K6 五件已验证；套件级回归为空白，M18 主体未拆解。
 
 ## issues（分诊到本册，2026-11-20）
