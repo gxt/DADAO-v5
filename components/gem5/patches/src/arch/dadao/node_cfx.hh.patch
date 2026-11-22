@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..c2f7065
+index 0000000..8769540
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
-@@ -0,0 +1,434 @@
+@@ -0,0 +1,437 @@
 +// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
 +// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
 +//
@@ -273,10 +273,11 @@ index 0000000..c2f7065
 +/** cfx_cache (cfx5) manager state: the two software-visible controls only.
 + *  The cache organisation and its contents belong to the gem5 classic L1
 + *  caches (contract CACHE-05); `cfx_cache_ctrl` drives them through the
-+ *  standard maintenance requests.  `exist` doubles as the "cfx5 is
-+ *  implemented" flag: `cache-model=off` wires no L1 (`cfx_itags`/`cfx_dtags`
-+ *  are NULL), so `exist` stays 0 and every cfx5 register access is CFXREG
-+ *  (the pre-m16-gem5-021 behaviour, which the existing arch vectors pin). */
++ *  standard maintenance requests.  cfx5 itself is implemented on both
++ *  `cache-model` settings (CACHE-27 `cache-model` dimension): `exist` is
++ *  `0b11` when the classic L1s are wired in (`cache-model=on`) and 0 when
++ *  they are not (`cache-model=off`), where the registers stay accessible but
++ *  a command has no effect (m16-gem5-023). */
 +struct NodeCacheState
 +{
 +    /** `cfx_cache_exist`: bit0 = I cache, bit1 = D cache (CACHE-06). */
@@ -365,8 +366,10 @@ index 0000000..c2f7065
 +
 +/** Apply the Node reset values (spec/DADAO-12 §2.1/§3, DADAO-13 §1).
 + *  `cacheExist` is the cfx_cache_exist value of this hart (bit0 I, bit1 D);
-+ *  it is non-zero exactly when the classic L1 caches are wired in
-+ *  (m16-gem5-021), and it becomes the reset value of cache_enable. */
++ *  it is `0b11` exactly when the classic L1 caches are wired in
++ *  (m16-gem5-021) and 0 otherwise -- cfx5 is implemented either way, only
++ *  its effect differs (m16-gem5-023) -- and it becomes the reset value of
++ *  cache_enable. */
 +void nodeResetState(NodeState &s, ThreadContext *tc, Addr romBase,
 +                    Addr romSize, Addr ramBase, Addr ramSize, Addr pmemBase,
 +                    uint8_t cacheExist);

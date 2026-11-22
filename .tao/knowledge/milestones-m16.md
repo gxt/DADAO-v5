@@ -45,12 +45,12 @@
 | m16-chipyard-017 | 2026-11-22 18:25 | 3–5 h | RTL cfx5 命令接线（D/I cache cmd 口） |
 | m16-qemu-004 | 2026-11-22 21:26 | 1–2 h | QEMU `fence` 保留 cfx 集对齐（ISS-432） |
 | m16-testcases-015 | 2026-11-22 20:47 | 4–6 h | `tests/arch` 运行模式环境（hmon/smon/umon；body 与 env 分离；代表迁移） |
-| m16-gem5-023 | 2026-11-22 20:05 | 2–3 h | gem5 `cache-model=off` 下 cfx5 存在但 no-op（不再 `CFXREG`） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-gem5-023 | 2026-11-22 22:04 | off 下 cfx5 no-op（exist=0、五寄存器可访问、合法命令无效果、非法 CFXREG；on 不回归） |
 | m16-testcases-015 | 2026-11-22 21:29 | `tests/arch` hmon/smon/umon 运行模式环境（三模式签名一致；26 条未迁移清单） |
 | m16-qemu-001 | 2026-11-22 21:26 | QEMU `cache-model=off\|on` + cfx5 寄存器面（off 合法 no-op/非法 CFXREG；32/32 + 51/51） |
 | m16-spec-002 | 2026-11-22 20:20 | CACHE-27 补 `cache-model` 维度（off=存在/no-op、非法仍 CFXREG；on=0b11/真维护）；版本不升 |

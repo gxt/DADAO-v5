@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.hh b/src/arch/dadao/isa.hh
 new file mode 100644
-index 0000000..07e748f
+index 0000000..8ee09ea
 --- /dev/null
 +++ b/src/arch/dadao/isa.hh
-@@ -0,0 +1,188 @@
+@@ -0,0 +1,189 @@
 +// DADAO ISA object (B0 skeleton + B6 LR/SC reservation state).
 +#ifndef __ARCH_DADAO_ISA_HH__
 +#define __ARCH_DADAO_ISA_HH__
@@ -78,10 +78,11 @@ index 0000000..07e748f
 +     *
 +     *  The tag stores of the classic L1 I/D caches this hart drives, or
 +     *  nullptr when `cache-model` is off (fs.py wires them only together
-+     *  with `--caches`).  A null store means cfx5 does not exist on this
-+     *  hart: register access is CFXREG, exactly as before the task.  Non-null
-+     *  stores make `cfx_cache_exist` = 0b11 and are the line directory that
-+     *  `all`/`PA 区间` maintenance selects from. */
++     *  with `--caches`).  Non-null stores make `cfx_cache_exist` = 0b11 and
++     *  are the line directory that `all`/`PA 区间` maintenance selects from.
++     *  A null store means there is nothing to maintain: cfx5 still exists
++     *  and its registers stay accessible, but a command has no effect
++     *  (CACHE-27 `cache-model` dimension; m16-gem5-023). */
 +    BaseTags *cfxItags() const { return cfxITagsStore; }
 +    BaseTags *cfxDtags() const { return cfxDTagsStore; }
 +

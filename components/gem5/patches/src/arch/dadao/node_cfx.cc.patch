@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..4dc64cf
+index 0000000..90b5911
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1449 @@
+@@ -0,0 +1,1462 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -1012,6 +1012,14 @@ index 0000000..4dc64cf
 +    if (scope == kCacheScopeRange && s.cache.addrSize == 0)
 +        return 1;
 +
++    // m16-gem5-023 / CACHE-27 (`cache-model` dimension): with no cache model
++    // this machine still implements cfx5, but `cache_exist` reads 0 and a
++    // legal command has no effect -- it is accepted (no CFXREG) and performs
++    // no maintenance.  The encoding checks above are not gated by it
++    // (CACHE-14 still raises, exactly as with `cache_enable` = 0, CACHE-08).
++    if (s.cache.exist == 0)
++        return 0;
++
 +    auto *isa = dynamic_cast<ISA *>(s.tc->getIsaPtr());
 +    BaseTags *itags = (isa != nullptr) ? isa->cfxItags() : nullptr;
 +    BaseTags *dtags = (isa != nullptr) ? isa->cfxDtags() : nullptr;
@@ -1027,15 +1035,19 @@ index 0000000..4dc64cf
 +    return 0;
 +}
 +
-+/** cfx5 register read (CACHE-03/06/07/18).  Always consumes the access: a
-+ *  missing register raises CFXREG here, like every other cfx read. */
++/** cfx5 register read (CACHE-03/06/07/18, CACHE-27 `cache-model` dimension).
++ *  The five contract registers exist whether or not a cache model is present:
++ *  `cache_exist` simply reads 0 when `cache-model=off` (m16-gem5-023), so the
++ *  access never raises CFXREG.  Everything outside them is reserved, and a
++ *  reserved rc (including the write-only rc9) still raises CFXREG here
++ *  (CACHE-04). */
 +void
 +cacheRegRead(ThreadContext *tc, NodeState &s, uint8_t cg, uint8_t rc,
 +             uint64_t &out, uint64_t info)
 +{
 +    const Addr pc = currentPc(tc);
 +
-+    if (s.cache.exist != 0 && cg == 8) {
++    if (cg == 8) {
 +        switch (rc) {
 +          case 0:  out = s.cache.exist; return;
 +          case 8:  out = s.cache.enable; return;
@@ -1045,19 +1057,20 @@ index 0000000..4dc64cf
 +          default: break;
 +        }
 +    }
-+    // No L1 wired (cache-model=off) => cfx5 is not implemented; any other
-+    // cfx5 register combination is reserved (CACHE-04).
 +    nodeCfxRaise(tc, s, CauseCfxReg, s.runMode, pc, info);
 +}
 +
-+/** cfx5 register write (CACHE-03/07/09/18/24). */
++/** cfx5 register write (CACHE-03/07/09/18/24, CACHE-27 `cache-model`
++ *  dimension).  Writable registers stay writable with no cache model; the
++ *  writes are accepted and have no effect beyond the register value
++ *  (`cache_enable` reads back 0 because it is masked with `cache_exist`). */
 +void
 +cacheRegWrite(ThreadContext *tc, NodeState &s, uint8_t cg, uint8_t rc,
 +              uint64_t val, uint64_t info)
 +{
 +    const Addr pc = currentPc(tc);
 +
-+    if (s.cache.exist != 0 && cg == 8) {
++    if (cg == 8) {
 +        switch (rc) {
 +          case 0:
 +            // `cache_exist` is read-only (hardware-set).

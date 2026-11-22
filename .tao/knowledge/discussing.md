@@ -314,7 +314,7 @@
 - **中断源**（用户 2026-11-22）：两个 cfx **分开测试**——`m16-testcases-013`（cfx15 timer）与 `m16-testcases-014`（cfx32 pmem DMA 完成）；只测单 hart 的触发/进入、mask/pending/补投、清除；不测跨 cfx 仲裁、uart、多核、嵌套。
 - **fence**（用户 2026-11-22 选 A）：先 `m16-qemu-004` 修 `ISS-432`（QEMU 保留集改为 `6–14, 16–31, 35–61`），再由 `m16-testcases-012` 做**基础验证**（all/指定 cfx/六位/保留集采样/`hb≠0`）；**完整覆盖（全部 cfx × 六位）不作验收要求**，未覆盖项登记。
 - **RTL cfx15/32/34**（用户 2026-11-22）：三个都补、每个 cfx 一件（`021`/`022`/`023`），串行。**中断源只有 cfx15 的 timer 与 cfx32 的 pmem DMA 完成；cfx34（time）与 cfx63（power）没有中断**（用户 2026-11-22 说明）。
-- **gem5 I 侧自修改**（用户 2026-11-22 选 B，但先证伪）：现有 `cfx5_selfmod.s` 是 base probe（无 cfx5、无 `D|clean`），不能证明 cfx5 I 侧不可用；RTL 是 VIPT 但索引在 64 KiB 页内（`PA[15:0]==VA[15:0]`，无别名），021 用 PA 索引/标签正确。先由 `m16-gem5-022` 补「写码 → D clean → I invalidate → 跳转」的正确用例并修 020 的 monitor 脏行；只有该用例仍失败才立 `m16-gem5-023` 改取指侧模型。
+- **gem5 I 侧自修改**（用户 2026-11-22 选 B，但先证伪）：现有 `cfx5_selfmod.s` 是 base probe（无 cfx5、无 `D|clean`），不能证明 cfx5 I 侧不可用；RTL 是 VIPT 但索引在 64 KiB 页内（`PA[15:0]==VA[15:0]`，无别名），021 用 PA 索引/标签正确。先由 `m16-gem5-022` 补「写码 → D clean → I invalidate → 跳转」的正确用例并修 020 的 monitor 脏行；022 已证伪（正确构造下 I 侧可用），**不需要改取指侧模型**；`m16-gem5-023` 号已用于「off 下 cfx5 no-op」，不再表示取指侧修复。
 
 ### 落点
 

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/isa.cc b/src/arch/dadao/isa.cc
 new file mode 100644
-index 0000000..d15224f
+index 0000000..3000875
 --- /dev/null
 +++ b/src/arch/dadao/isa.cc
-@@ -0,0 +1,487 @@
+@@ -0,0 +1,488 @@
 +// DADAO ISA object (B0 skeleton) -- implementation.
 +#include "arch/dadao/isa.hh"
 +
@@ -457,9 +457,10 @@ index 0000000..d15224f
 +    clearReservations();
 +
 +    if (fs->nodeProfile()) {
-+        // cfx_cache exists exactly when the classic L1 caches are wired in
-+        // (fs.py sets the tag stores with --caches): bit0 = I, bit1 = D
-+        // (contract CACHE-06; m16-gem5-021).
++        // cfx_cache (cfx5) reports the classic L1 caches: bit0 = I, bit1 = D
++        // (contract CACHE-06).  fs.py sets the tag stores only with --caches,
++        // so `cache-model=off` makes cache_exist read 0 while cfx5 itself
++        // stays implemented (CACHE-27 `cache-model` dimension; m16-gem5-023).
 +        const uint8_t cacheExist = (cfxITagsStore != nullptr ? 0x1 : 0x0) |
 +                                   (cfxDTagsStore != nullptr ? 0x2 : 0x0);
 +        nodeResetState(node, tc, fs->romBase(), fs->romSize(), fs->ramBase(),

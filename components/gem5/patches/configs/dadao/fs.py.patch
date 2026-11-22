@@ -1,9 +1,9 @@
 diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
 new file mode 100644
-index 0000000..9299cc0
+index 0000000..aec1bdd
 --- /dev/null
 +++ b/configs/dadao/fs.py
-@@ -0,0 +1,546 @@
+@@ -0,0 +1,548 @@
 +#!/usr/bin/env python3
 +# DADAO FS configuration (GEM5-015t Tiny, GEM5-016t Vast).
 +#
@@ -455,9 +455,11 @@ index 0000000..9299cc0
 +
 +    if args.caches:
 +        # cfx_cache (cfx5) maintains exactly the two L1s built above; with no
-+        # cache wired the ISA sees no tag store and every cfx5 register access
-+        # is CFXREG (m16-gem5-021).  Set before m5.instantiate(), like the
-+        # wuming switch below (createThreads() is what builds `cpu.isa`).
++        # cache wired the ISA sees no tag store, cache_exist reads 0 and a
++        # legal command has no effect -- cfx5 itself stays implemented
++        # (m16-gem5-021, CACHE-27 `cache-model` dimension / m16-gem5-023).
++        # Set before m5.instantiate(), like the wuming switch below
++        # (createThreads() is what builds `cpu.isa`).
 +        for isa in system.cpu.isa:
 +            isa.cfx_itags = icache.tags
 +            isa.cfx_dtags = dcache.tags
