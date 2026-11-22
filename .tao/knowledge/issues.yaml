@@ -1200,3 +1200,11 @@
   closed_in: null
   resolved_by: null
   title: "【P2】guest `grep` 每次 SIGSEGV（rc=139，含无匹配 `grep -q`）⇒ 12 个 applet 中 `grep` 实际不可用；`m18-linux-002` 断言改用 `$?` + 标记区间绕开。处置：查 busybox grep 的 DADAO 代码路径（可能为未实现的 syscall/内存访问），修或从 `config.min` 移除并披露。"
+- id: ISS-500
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】K6 之后用户态不再接收任何异步中断（`dadao_enter_user()` 把 `cfx_umon` user 行写 `~0`，全仓无第二处写回）：长用户态窗口内同源事件按契约合并为一次补投 ⇒ `jiffies` 滞后；K6 无用户态可观测面（busybox 无 date/sleep/time、无 /proc），故当次可接受但属**行为变化待追认**。另 `dadao_user_entry_install()` 注释仍称「用户态投递」已成死代码；`dadao_user_fault_return` 在 `enter_from_user_mode()` 前开中断（与上游顺序相反，本配置无断言）。处置：K6 之后若需用户态抢占/时间可见（K7+ 或 SMP），改为「用户态可投递 + 入口安全栈」，或至少修正注释与顺序。另 F2/F3：changelog `12/12` 应为 `checks=11`、`2/150`/`4/150`/实测 `3/150` 数字不一致。"
