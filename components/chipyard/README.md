@@ -246,6 +246,25 @@ make check-patch-tree
 - **零增益**：`WumingTlb`/`WumingPtw` 都只在 `useVM` 时实例化，Tiny 的 FIRRTL 里两者出现 **0** 次；首册 38 个镜像在改前/改后 Tiny 二进制上仍逐字节相同。
 - **验证**：`tools/chipyard/tlb/vasttlb.S`（+ `vasttlb.lds`）以 PA 固定地址放页表与数据，`gen_vasttlb_tables.py` 是几何、PTE 与数据 magic 的**单一真源**，`check_vasttlb.py` 比对 42 条 8 字节记录 + 日志（淘汰受害者序列、OR 回写次数与值、ADWBFAIL 帧结构；`--self-test` 21 条可达 FAIL）。覆盖：命中不重读 PTE（改内存 PTE 后仍读旧数据）、`invalid`+VA 后重步查、同 set 8 条共存 / 第 9 条淘汰 LRU、超页 4 条 + LRU（5 个超页交替 ⇒ 淘汰 S2 并重步查）、I 侧取指只置 A（clean 后 D 仍为 0）、I/D 双表 OR 合并（两次写回）、`invalid`/`clean`/`flush` × I/D 的 2×3 矩阵。注入：改全相联 / 去 I 侧 A 置位 / flush 只清 D 表，均判据红；ADWBFAIL 注入（D 侧命令回写不落地）⇒ 两次 `clean` 各报一次、PTE 停在 A=1/D=0、条目保留。
 
+## Kaiwu-Vast 的 cfx5 寄存器面（`m16-chipyard-016`）
+
+- **范围**：只接 `cfx_cache`（cfx5）的**寄存器文件**（`contract-cache` CACHE-03…CACHE-18/27），
+  命令到 I/D 阵列的接线是下一件任务；`WumingCache` 阵列/维护端口不改。
+- **寄存器**：`cg8 rc0 cache_exist`（RO，I/D 两位，Vast 读 `0b11`）、`rc8 cache_enable`
+  （RW，复位 = exist、写按 exist 掩码）、`rc9 cache_ctrl`（WO，写即执行；
+  `[15:14]` 选侧 / `[1:0]` 操作 / `[3:2]` 范围，判序与 no-op 按 CACHE-11…14，
+  非法编码 ⇒ `writeOk=false` ⇒ `CFXREG`）、`rc10 cache_addr_start`（RW，只存
+  `PA[55:0]`）、`rc11 cache_addr_size`（RW，整 64 位）。
+- **归属**：寄存器状态在 `gewu`（`GewuCacheParams`）；`WumingParams` 只在 `useVM`
+  的 Kaiwu-Vast 上把 cfx5 加入 cfx 序列，Tiny 保持 `cache = None` ⇒ 行未实现、
+  `cfx2rd`/`cfx2rc` 报 `CFXREG`（CACHE-28）。`GewuFile.io.cache` 只把 enable/
+  addr_start/addr_size/命令脉冲交给核，本任务无人消费（阵列接线下一件）。
+- **验证**：`tests/arch/cache/cfx5_regs.S` + `check_cfx5_regs.py`（22 条记录，期望
+  现场取自 `contract-cache`/`contract-see §6.1`/`contracts/opcodes.yaml`；`--self-test`
+  对每条记录做可达 FAIL 证明）；注入「Vast 去掉 cfx5」/「addr_start 只存 42 位」
+  均判据红，`cp`+md5 还原重建后回绿；Tiny 的 `11-cfx`（含 cfx5 ⇒ `CFXREG`）与
+  `01-load-store` 改前/改后逐镜像字节相同。
+
 ## Kaiwu-Vast 的 I-Cache（`m16-chipyard-010`）
 
 - **口径**（用户 2026-11-20）：I/D 各 **8 路 × 128 组 × 64 B = 64 KiB**（本任务是 I 侧，D 侧是 `009`）；**只读、无 dirty、无写回、无写穿**（与 `008` 的 I-TLB 无 D 位同构）；**索引位在 64 KiB 页内**（line offset 6 + 组索引 7 = 13 < 16 ⇒ VIPT 无别名、每路 8 KiB）；缺失按 **8 个 64 位 beat** 填充；阻塞式（单未决缺失）。

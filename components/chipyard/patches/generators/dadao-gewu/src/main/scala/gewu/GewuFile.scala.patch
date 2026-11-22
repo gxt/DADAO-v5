@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..04eda25
+index 0000000..8433743
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
-@@ -0,0 +1,741 @@
+@@ -0,0 +1,925 @@
 +// See LICENSE for license details.
 +//
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
@@ -65,6 +65,16 @@ index 0000000..04eda25
 +//                                           core as a one-cycle event)
 +//   cg12 rc1     cfx_ptw_tlb_asid          (RW; [15:0], [63:16] read 0)
 +//   cg12 rc2/3   cfx_ptw_tlb_addr_start/size (RW; VA[41:0] / byte count)
++//
++// `cfx_cache` (cfx5 on `Kaiwu-Vast`; absent on `Kaiwu-Tiny`, where those rows
++// are CFXREG) contributes its register face only — the I/D arrays and the
++// maintenance effects are core state (`m16-chipyard-009`/`010`, wired later):
++//
++//   cg8 rc0      cfx_cache_exist            (RO; bit0 = I, bit1 = D)
++//   cg8 rc8      cfx_cache_enable           (RW; reset = exist, masked by it)
++//   cg8 rc9      cfx_cache_ctrl             (WO; the write is the command)
++//   cg8 rc10     cfx_cache_addr_start       (RW; PA[55:0], [63:56] read 0)
++//   cg8 rc11     cfx_cache_addr_size        (RW; byte count)
 +//
 +// Every other (cg, rc) of an implemented cfx is not on this profile and
 +// reads/writes as CFXREG — never as a silent zero.  A `cfxha` that names no
@@ -225,6 +235,26 @@ index 0000000..04eda25
 +case class GewuPtwParams(cfxId: Int)
 +
 +/**
++  * The `cfx_cache` register face (`DADAO-12` §4.6, `contract-cache` §1
++  * CACHE-03…CACHE-18).
++  *
++  * Only the *registers* are here; the I/D arrays and the maintenance effects
++  * stay in the core (`WumingCache`, wired by the next task).  The row numbers
++  * (`cg8 rc0/8/9/10/11`) are the spec's, so like `GewuCauseId` they are fixed
++  * here rather than injected; only the `cfxha` and the machine's `cache_exist`
++  * value are machine choices.
++  *
++  * `exists` is the value `cfx_cache_exist` reads back: bit0 = I-cache,
++  * bit1 = D-cache (`contract-cache` CACHE-06), other bits are reserved and read
++  * 0.  `Kaiwu-Vast` has both sides, so it passes `0b11` (CACHE-27); Tiny does
++  * not instantiate this parameter at all (CACHE-28).
++  */
++case class GewuCacheParams(cfxId: Int, exists: Int = 0x3) {
++  require(exists >= 0 && exists < 4,
++    "Gewu: `cache_exist` defines only bit0 (I) and bit1 (D)")
++}
++
++/**
 +  * `Gewu` parameters (ADR-0053 D5).
 +  *
 +  * The calling core injects the implemented cfx set and every machine-specific
@@ -250,7 +280,10 @@ index 0000000..04eda25
 +  *                         and keep one mode, or supply a real mode register);
 +  *   - `ptw`             — `Some` when this machine implements `cfx_ptw`
 +  *                         (`Kaiwu-Vast`); `None` leaves those rows undefined,
-+  *                         i.e. CFXREG (`Kaiwu-Tiny`, `contract-see §3`).
++  *                         i.e. CFXREG (`Kaiwu-Tiny`, `contract-see §3`);
++  *   - `cache`           — `Some` when this machine implements `cfx_cache`
++  *                         (`Kaiwu-Vast`); `None` leaves those rows undefined,
++  *                         i.e. CFXREG (`Kaiwu-Tiny`, `contract-cache` CACHE-28).
 +  */
 +case class GewuParams(
 +  cfx: Seq[GewuCfxParams],
@@ -262,7 +295,8 @@ index 0000000..04eda25
 +  runCfxReset: Int,
 +  hypvMode: Int,
 +  switchModeValue: Int,
-+  ptw: Option[GewuPtwParams] = None
++  ptw: Option[GewuPtwParams] = None,
++  cache: Option[GewuCacheParams] = None
 +) {
 +  require(cfx.nonEmpty, "Gewu: at least one cfx must be implemented")
 +  require(cfx.map(_.id).distinct.length == cfx.length,
@@ -286,6 +320,9 @@ index 0000000..04eda25
 +  // every access would be a CFXREG and the register face would be dead code.
 +  require(ptw.forall(p => cfx.exists(_.id == p.cfxId)),
 +    "Gewu: `ptw.cfxId` must name an implemented cfx")
++  // Same rule for `cfx_cache`: its rows must belong to an implemented cfxha.
++  require(cache.forall(c => cfx.exists(_.id == c.cfxId)),
++    "Gewu: `cache.cfxId` must name an implemented cfx")
 +}
 +
 +/**
@@ -374,6 +411,29 @@ index 0000000..04eda25
 +  // (`gp.ptw = None`): such a profile must neither see the ports nor pay for
 +  // them, and its `cfx_ptw` rows are CFXREG (`contract-see §3`).
 +  val ptw: Option[PtwState] = gp.ptw.map(_ => new PtwState(gp.dataBits))
++
++  // ---- `cfx_cache` state the core's maintenance path consumes (`§4.6`) ----
++  //
++  // The registers only: the effect (I/D arrays) is the core's.  The whole
++  // group is **absent** when the machine does not implement `cfx_cache`
++  // (`gp.cache = None`, Kaiwu-Tiny): such a profile must neither see the ports
++  // nor pay for flops from a feature it reports as CFXREG (CACHE-28).
++  val cache: Option[CacheState] = gp.cache.map(_ => new CacheState(gp.dataBits))
++}
++
++/** The `cfx_cache` state a core's maintenance path consumes (`DADAO-12` §4.6). */
++class CacheState(dataBits: Int) extends Bundle {
++  /** `cg8 rc8 cfx_cache_enable`: bit0 = I, bit1 = D (`contract-cache` CACHE-07). */
++  val enable = Output(UInt(2.W))
++  /** `cg8 rc10 cfx_cache_addr_start`: full 56-bit PA `PA[55:0]` (CACHE-18). */
++  val addrStart = Output(UInt(56.W))
++  /** `cg8 rc11 cfx_cache_addr_size`: byte count (CACHE-03). */
++  val addrSize = Output(UInt(dataBits.W))
++  /** `cg8 rc9 cfx_cache_ctrl` write-commit pulse (WO, write-executes). */
++  val control = Output(Bool())
++  /** Data of that `cache_ctrl` write (`[1:0]` op, `[3:2]` scope, `[15:14]` side
++    * select; `contract-cache` §3 CACHE-09). */
++  val controlData = Output(UInt(dataBits.W))
 +}
 +
 +/** The `cfx_ptw` state a core's address path consumes (`DADAO-12` §4.5). */
@@ -463,6 +523,29 @@ index 0000000..04eda25
 +
 +  private val ptwRegs: Option[PtwRegs] = ptwId.map(_ => new PtwRegs)
 +
++  // ---- `cfx_cache` architectural state (`DADAO-12` §4.6) -------------------
++  // Reset values are the spec's (`contract-cache` CACHE-07/CACHE-08): every
++  // existing side starts enabled, `addr_start`/`addr_size` start at 0.  Like
++  // `cfx_ptw`, the state exists only on a machine that implements the cfx, so
++  // Kaiwu-Tiny gains no flops and no muxing (CACHE-28).
++  private val cacheId = gp.cache.map(_.cfxId)
++
++  /** `cfx_cache`'s registers; created only when `gp.cache` is set. */
++  private class CacheRegs(exists: Int) {
++    val enable = RegInit(exists.U(2.W))
++    val addrStart = RegInit(0.U(56.W))       // `PA[55:0]`
++    val addrSize = RegInit(0.U(gp.dataBits.W))
++    // `cache_ctrl` is write-only with no completion state: the *write* is the
++    // command.  The value is latched one cycle for the execute event; no read
++    // path exists (a read of a WO register is CFXREG, `§4.6`).
++    val control = RegInit(false.B)
++    val controlData = RegInit(0.U(gp.dataBits.W))
++  }
++
++  private val cacheRegs: Option[CacheRegs] =
++    gp.cache.map(c => new CacheRegs(c.exists))
++  private val cacheExists: Int = gp.cache.map(_.exists).getOrElse(0)
++
 +  // ---- register access ----------------------------------------------------
 +  private val isCg3 = io.addr.cg === 3.U
 +  // `DADAO-13` §1: the whole cg3 row is hypv-only.
@@ -502,6 +585,32 @@ index 0000000..04eda25
 +    val isCfx = isEnable || isPtbr || isControl || isAsid || isStart || isSize
 +  }
 +
++  // `cfx_cache` rows (`DADAO-12` §4.6), decoded only when the machine implements
++  // the cfx: on any other profile these rows stay CFXREG and add no hardware.
++  private val cacheRows: Option[CacheRows] = cacheId.map { id =>
++    val isCfx = io.addr.ha === id.U(6.W)
++    val isCg8 = isCfx && io.addr.cg === 8.U
++    new CacheRows(
++      isExist = isCg8 && io.addr.rc === 0.U,
++      isEnable = isCg8 && io.addr.rc === 8.U,
++      isControl = isCg8 && io.addr.rc === 9.U,
++      isStart = isCg8 && io.addr.rc === 10.U,
++      isSize = isCg8 && io.addr.rc === 11.U)
++  }
++
++  /** The five `cfx_cache` row decoders (one-hot by cg/rc construction). */
++  private class CacheRows(
++    val isExist: Bool,
++    val isEnable: Bool,
++    val isControl: Bool,
++    val isStart: Bool,
++    val isSize: Bool) {
++    // `cache_exist` is RO and `cache_ctrl` is WO (CACHE-03).
++    val anyRead = isExist || isEnable || isStart || isSize
++    val anyWrite = isEnable || isControl || isStart || isSize
++    val isCfx = isExist || isEnable || isControl || isStart || isSize
++  }
++
 +  // Base rows of every implemented cfx (`DADAO-13` §1, `DADAO-12` §3).
 +  private val readBase = isMask || isSwitchMode || isVector || isPrevMode ||
 +    isPrevCfx || isCauseId || isCauseIp || isCauseInfo || isSpace
@@ -510,12 +619,31 @@ index 0000000..04eda25
 +  // CFXREG (`DADAO-12` §5.2).
 +  private val writeBase = isMask || isSwitchMode || isVector || isPrevMode ||
 +    isPrevCfx || isCauseIp
++  // `cfx_cache_ctrl` encoding check (`contract-cache` §3 CACHE-11…CACHE-14):
++  // selection first, then the operation, then the range encoding and operand.
++  // Only a selected side with a non-`none` operation is checked; `[15:14] = 00`
++  // and `op = none` are unconditional no-ops (CACHE-12/13).  A rejected write
++  // is a precise CFXREG (CACHE-14), so it must fail `writeOk` before any state
++  // changes.
++  private val cacheCtrlLegal: Bool =
++    (for { rows <- cacheRows; regs <- cacheRegs } yield {
++      val sel = io.wdata(15, 14)
++      val op = io.wdata(1, 0)
++      val scope = io.wdata(3, 2)
++      Mux(rows.isControl,
++        !(sel =/= 0.U && op =/= 0.U &&
++          (scope === 3.U || (scope === 2.U && regs.addrSize === 0.U))),
++        true.B)
++    }).getOrElse(true.B)
++
 +  io.readOk := implemented && cg3Allowed &&
-+    (readBase || ptwRows.map(_.anyRead).getOrElse(false.B))
-+  // `tlb_control` is WO: writing it is legal, reading it is not (it is not in
-+  // the read set above).
-+  io.writeOk := implemented && cg3Allowed &&
-+    (writeBase || ptwRows.map(_.anyWrite).getOrElse(false.B))
++    (readBase || ptwRows.map(_.anyRead).getOrElse(false.B) ||
++      cacheRows.map(_.anyRead).getOrElse(false.B))
++  // `tlb_control` and `cache_ctrl` are WO: writing them is legal, reading them
++  // is not (they are not in the read sets above).
++  io.writeOk := implemented && cg3Allowed && cacheCtrlLegal &&
++    (writeBase || ptwRows.map(_.anyWrite).getOrElse(false.B) ||
++      cacheRows.map(_.anyWrite).getOrElse(false.B))
 +
 +  /** Per-cfx constant, selected by the addressed instance. */
 +  private def perCfx(f: GewuCfxParams => BigInt): UInt =
@@ -574,8 +702,23 @@ index 0000000..04eda25
 +        Mux(rows.isStart, regs.addrStart.pad(gp.dataBits),
 +          Mux(rows.isSize, regs.addrSize, 0.U(gp.dataBits.W))))))
 +
-+  io.rdata := ptwRdata.map(d => Mux(ptwRows.get.isCfx, d, baseRdata))
-+    .getOrElse(baseRdata)
++  // `cfx_cache` read data (`DADAO-12` §4.6): `cache_exist` is the machine's
++  // constant; `cache_enable` reads the two existing-side bits; `addr_start`
++  // reads `PA[55:0]` with `[63:56] = 0` (CACHE-18); `addr_size` is the full
++  // 64-bit byte count.  `cache_ctrl` is WO and reads as CFXREG, so it never
++  // appears here.
++  private val cacheRdata = for {
++    rows <- cacheRows
++    regs <- cacheRegs
++  } yield Mux(rows.isExist, cacheExists.U(gp.dataBits.W),
++    Mux(rows.isEnable, regs.enable.pad(gp.dataBits),
++      Mux(rows.isStart, regs.addrStart.pad(gp.dataBits),
++        Mux(rows.isSize, regs.addrSize, 0.U(gp.dataBits.W)))))
++
++  private val baseAndPtw =
++    ptwRdata.map(d => Mux(ptwRows.get.isCfx, d, baseRdata)).getOrElse(baseRdata)
++  io.rdata := cacheRdata.map(d => Mux(cacheRows.get.isCfx, d, baseAndPtw))
++    .getOrElse(baseAndPtw)
 +
 +  when(io.wEn && io.writeOk) {
 +    when(isMask) {
@@ -628,6 +771,35 @@ index 0000000..04eda25
 +    }
 +  }
 +
++  // `cfx_cache` writes (`DADAO-12` §4.6): disjoint from the base and
++  // `cfx_ptw` rows by construction (different cfxha/cg/rc).  A rejected
++  // `cache_ctrl` encoding never reaches this block (`writeOk` is false), so no
++  // command event is produced for a CFXREG write (CACHE-14/CACHE-25).
++  for {
++    rows <- cacheRows
++    regs <- cacheRegs
++  } {
++    // `cache_ctrl` is a one-cycle pulse: low every cycle, raised by the write.
++    regs.control := false.B
++    when(io.wEn && io.writeOk) {
++      when(rows.isEnable) {
++        // Only existing sides are writable; a write of 1 to an absent side has
++        // no effect and reads back 0 (CACHE-07).
++        regs.enable := io.wdata(1, 0) & cacheExists.U(2.W)
++      }.elsewhen(rows.isStart) {
++        // Full 56-bit PA; `[63:56]` is reserved and writes are ignored
++        // (CACHE-18).
++        regs.addrStart := io.wdata(55, 0)
++      }.elsewhen(rows.isSize) {
++        regs.addrSize := io.wdata
++      }.elsewhen(rows.isControl) {
++        // Write-executes; the encoding was checked in `writeOk`.
++        regs.control := true.B
++        regs.controlData := io.wdata
++      }
++    }
++  }
++
 +  // ---- observable state ---------------------------------------------------
 +  // Entry target (`DADAO-12` §5.2): the monitor, or the current cfx when the
 +  // entry asks for it (`CFXESC` goes to the current cfx, §5.3 step 0).  A
@@ -673,6 +845,18 @@ index 0000000..04eda25
 +    b.tlbAddrSize := r.addrSize
 +    b.tlbControl := r.control
 +    b.tlbControlData := r.controlData
++  }
++
++  // ---- `cfx_cache` state to the core's maintenance path (D3: outputs) ------
++  // On a machine without `cfx_cache` no row can be written, so these keep their
++  // reset values (`contract-cache` CACHE-07/CACHE-08) and the core must not
++  // treat them as a feature.
++  for (b <- io.cache; r <- cacheRegs) {
++    b.enable := r.enable
++    b.addrStart := r.addrStart
++    b.addrSize := r.addrSize
++    b.control := r.control
++    b.controlData := r.controlData
 +  }
 +
 +  // ---- events and redirect request (D4) -----------------------------------

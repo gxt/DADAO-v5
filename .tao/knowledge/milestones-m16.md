@@ -31,7 +31,6 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m16-qemu-001 | 2026-11-22 13:34 | 2–3 h | QEMU `cache-model=off\|on` 属性 + cfx5 寄存器面（不含影子数据通路） |
-| m16-chipyard-016 | 2026-11-22 13:34 | 3–4 h | RTL cfx5 寄存器面（GewuFile 行 + Vast 序列 + 探针） |
 | m16-infra-001 | 2026-11-22 15:31 | 3–5 h | 新增评测节点 `zzx-NF5280` 并引导到就绪（16 vCPU，测试 `--jobs` 14） |
 | m16-gem5-022 | 2026-11-22 16:59 | 4–6 h | I 侧自修改证伪（写码→D clean→I invalidate→跳转）+ monitor 脏行修复 |
 
@@ -39,6 +38,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-016 | 2026-11-22 17:09 | RTL cfx5 寄存器面（`cache_exist=0b11`、enable/start/size、ctrl WO；22 条记录；Tiny 不回归） |
 | m16-gem5-021 | 2026-11-22 16:59 | gem5 cfx5 命令（D 侧 clean/invalidate/flush、范围/使能/异常；I 侧发令 44→46，取指重取留 022） |
 | m16-testcases-011 | 2026-11-22 16:36 | picolibc clock 探针归位（`picolibc_clock_probe.c` + 单独驱动；ansibench 只留四件） |
 | m16-testcases-007 | 2026-11-22 16:13 | `check-arch` 与 `check-arch-smoke` 同一代表集（10 smoke + 25 服务 + carrier 15 条 29/29） |

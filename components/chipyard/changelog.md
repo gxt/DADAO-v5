@@ -129,6 +129,10 @@
 
 ## M16
 
+- **2026-11-22 `m16-chipyard-016`**
+  - 摘要：**cfx5 寄存器面接入 Vast**（`contract-cache` CACHE-03…CACHE-18/27，`m16-spec-001`）。`WumingCfxHa` 新增 `cache = 5`；`WumingGewuParams` 在 `useVM`（Kaiwu-Vast）时把 `cfx5` 加入 cfx 序列并给 `GewuCacheParams(cfxId, exists = 0b11)`，Tiny 保持 `cache = None`（行未实现 ⇒ `CFXREG`，CACHE-28）。`GewuFile` 新增五行：`cg8 rc0 cache_exist`（RO，I/D 两位）、`rc8 cache_enable`（RW，复位 = exist、写按 exist 掩码）、`rc9 cache_ctrl`（WO、写即执行；按 CACHE-11…14 判序，`[15:14]=00` 或 `op=none` 无条件 no-op，非法范围/`addr_size=0` ⇒ `writeOk=false` ⇒ `CFXREG`）、`rc10 cache_addr_start`（RW，只存 `PA[55:0]`）、`rc11 cache_addr_size`（RW，整 64 位）。`io.cache` 只输出寄存器状态与命令脉冲；**不接 D/I 阵列**（下件任务）。**验证**：`tests/arch/cache/cfx5_regs.S` 在 `WumingVastConfig` 上 22 条记录（exist/enable/start/size、5 个 no-op/合法见证、四类 `CFXREG` 的 cause_id + 指令编码）逐条等于 `check_cfx5_regs.py` 从合约现场派生的期望；注入「cfx5 从 Vast 序列去掉」⇒ 首条访问 `CFXREG`、探针红；注入「`addr_start` 只存 42 位」⇒ 记录 6/7 红，`cp`+md5 还原重建后回绿；Tiny `11-cfx`（含 cfx5 ⇒ `CFXREG`）与 `01-load-store` 在改前/改后二进制上逐镜像字节相同。
+  - 执行者：engineer
+
 - **2026-11-21 `m16-chipyard-010`**
   - 摘要：**Kaiwu-Vast 的 I-Cache（8 路 × 128 组 × 64 B = 64 KiB，只读、无 dirty）**（用户口径 2026-11-20）。`WumingDcache.scala` 泛化为 **`WumingCache.scala`**（`WumingCache`/`WumingCacheParams(sets/ways/lineBytes/writeBack/withDirty/readOnly/label)`）：I/D 共用同一份实现，核内两处实例化参数不同（D：`writeBack = true, withDirty = true`；I：`writeBack = false, withDirty = false, readOnly = true`）。`readOnly` 在**展开期**去掉 dirty 位（tag bundle 无该字段）、淘汰回写、clean 回写与写穿 Put（A 通道只剩 `Get`），对只读实例的写请求显式报错；`label` 让两个实例的日志可分辨（`WumingCache[icache]` / `WumingCache[dcache]`）。`WumingCore` 的取指端口改由 I-Cache 拥有（`io.imem`），**翻译后**的取指走缓存、核内窗口仍直连总线；PTW 的端口类型随类改名同步。**验证**：`tools/chipyard/icache/{vasticache.S,vasticache.lds,gen_vasticache_tables.py,check_vasticache.py}` —— 十段各一行（64 B）的代码块覆盖「1 缺失 + 7 命中」「同组 8 路共存 + 第 9 行按 LRU 淘汰」「另一个组的行不得淘汰 A 组行」「组索引 PA[12:6]」；命中不访存以核自己的 `fetchresp latency=` 为独立观测量（命中 ≤ 4 拍、缺失 ≥ 10 拍）；`check_vasticache.py --structure` 判 Vast FIRRTL 里 I 实例 0 dirty 寄存器 / 0 写回路径（D 实例两者都有，防恒真）；注入「I 侧带 dirty + 写回」⇒ 结构红，注入「组索引 6 位（PA[11:6]）」⇒ 组冲突/A3 重填红，`cp`+md5 还原并强制重建后回绿；Tiny 首册 38 镜像不回归。
   - 执行者：engineer
