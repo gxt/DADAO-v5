@@ -24,6 +24,8 @@
 | m16-qemu-003 | 3–4 h | QEMU cfx5 命令接线（clean/invalidate/flush + I 侧 tb invalidate） |
 | m16-testcases-009 | 3–4 h | cfx5 用例三方跑（寄存器面 + 命令 + 数据语义） |
 | m16-chipyard-018 | 3–4 h | cfx4 RTL PTW/TLB 探针纳管并三方对齐 |
+| m16-chipyard-019 | 3–4 h | RTL cfx0/2 寄存器面与权限（A；不改主控制流） |
+| m16-chipyard-020 | 6–8 h | RTL cfx0/2 模式进入路由（B；U/S 进入、switch_run_mode、异常帧、单 hart 中断） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
