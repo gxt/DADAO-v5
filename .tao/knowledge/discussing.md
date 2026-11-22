@@ -389,6 +389,7 @@
 - **四方差分口径（用户 2026-11-22 定）**：底座 = `tests/inst` 272 镜像（Kaiwu-Tiny），不含 Linux/`ee-user`（musl）/`ee-vast`/arch probes；判据 = **签名槽 + 退出码**四方一致，trace 仅红后归因；阶段一非 FP 222 镜像（`m17-idl-005`–`009`），阶段二 FP 50 镜像（等 FP 语义批）；`make check-idl` 进 L2；picolibc(fast)/embench 只抽样。
 - **阶段一（2026-11-22 收口）**：`m17-idl-005`–`010` 已验证；`check-idl` 进 L2（默认 IDL+QEMU，实测 19–33 s）；**222/222** 四方零红（gem5/chipyard 全四方 3 次独立复核，3552 槽）；`pending` 硬断言为空（`010`）；picolibc fast / embench 各 3 例抽样通过（不进判据）。
 - **N34（2026-11-22 裁定 A + `m17-idl-011` 落地）**：U04–U09 按 UDB 原文重述进语言规范册 §1.1；U10 = 赋值取低 N 位（UDB §626 同结果，本版固化）；未定义只剩 U01–U03（`.idl` 不使用）。
+- **gem5/chipyard 常驻门控（2026-11-22 裁 B）**：全四方进 `night-run`（新成员 `idl:four-way` → `make check-idl-full`）；L1/L2/L3 不变（L2 仍 IDL+QEMU）；缺引擎该成员 rc=2 可见、不静默跳过；`m17-idl-014` 落地。
 - **阶段二（未立）**：FP 50 镜像 + FP 语义批（`ISS-397/399/403/409/420`；`ISS-476` 已随 `m15-idl-019` 裁定 A 关闭）。
 - **Rust 的触发条件**：若随机指令流差分规模上到 >10⁷ 步/例或需并行 fuzz，再把**执行核**换 Rust（边界用 JSON/子进程隔离，前端不动）；否则不引入 Rust 工具链。
 - **待定**：IDL 未覆盖的 trap/cfx/monitor 语义由 golden 模型额外实现（不在 M15 的 263 条内）——`003` 已按「最小可跑 `tests/inst` 同步异常例」收，扩展随 `006`–`008`。
