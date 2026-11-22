@@ -25,7 +25,10 @@
 | m16-testcases-009 | 3–4 h | cfx5 用例三方跑（寄存器面 + 命令 + 数据语义） |
 | m16-chipyard-018 | 3–4 h | cfx4 RTL PTW/TLB 探针纳管并三方对齐 |
 | m16-chipyard-019 | 3–4 h | RTL cfx0/2 寄存器面与权限（A；不改主控制流） |
-| m16-chipyard-020 | 6–8 h | RTL cfx0/2 模式进入路由（B；U/S 进入、switch_run_mode、异常帧、单 hart 中断） |
+| m16-chipyard-020 | 6–8 h | RTL cfx0/2 模式进入路由（B；U/S 进入、switch_run_mode、异常帧） |
+| m16-chipyard-021 | 3–4 h | RTL cfx15 hart（寄存器 + cycle/insn + timer 中断） |
+| m16-chipyard-022 | 4–5 h | RTL cfx32 pmem（寄存器 + DMA + 完成中断） |
+| m16-chipyard-023 | 2–3 h | RTL cfx34 time（全局时间，无中断） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
