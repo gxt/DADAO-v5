@@ -1300,3 +1300,22 @@
   closed_in: null
   resolved_by: null
   title: "【P3】主仓 `.git/hooks/pre-commit`（prek 生成）把 `--cd=\".cache/refs/riscv-unified-db\"` 写成**相对路径**，而该缓存只存在于主工作树、fresh worktree 没有 ⇒ 在独立 worktree 里任何 commit 都被钩子以 `No such file or directory` 拒绝（`m18-linux-013` 的 ADR 提交实测）。处置：改为绝对路径、去掉 `--cd`（该 hook 本应在 DADAO 仓内跑）、或在工作树创建时提供 `.cache/refs` 符号链接；临时绕行 = `git commit --no-verify` 并在审阅记录披露（ADR 为 markdown 规划件，真门控在 `make check`/`check-knowledge-refs`）。"
+- id: ISS-511
+  scope:
+  - spec
+  - llvm
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`contracts/cfx-aliases.txt` 未随 `m16-spec-001` 重生成 ⇒ **L1 基线红**：`check-cfx-aliases` `MISMATCH (140 actual vs 142 expected lines)`（首差 `cfx_cache_exist` 的 spec 行号 `DADAO-12:603` vs `605`），`check-cfx-alias-table` `# scalars=12 regs=1320` vs `1322`。主仓与节点 `zzx-NF5280` 逐行相同（2026-11-22 实测，非节点问题）。处置：跑 `python3 tools/llvm/gen_cfx_alias_table.py` 重生成 `contracts/cfx-aliases.txt` 并同步 cfx5 别名落点，恢复两门控绿。"
+- id: ISS-512
+  scope:
+  - linux
+  - infra
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`check-linux-toolchain` 的「宿主 x86 对照」行依赖宿主 `clang`，却参与报告逐字比对（`VOLATILE_RE` 只豁免「生成时间/机器指纹」）⇒ 宿主无 `clang` 的节点（`zzx-NF5280` 实测）在报告行写成「宿主 clang 不可用」后该门控恒红，与节点环境无关。临时处置：节点 `apt install clang`（18.1.3）后即 PASS。建议：把该行并入 `VOLATILE_RE`，或让比较只针对 target 侧矩阵行。"

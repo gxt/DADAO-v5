@@ -14,7 +14,7 @@
 | `ics160` | 40 | 125 G | 38 | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
 | `ics170` | 40 | 125 G | 38 | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
 | `ics180` | 40 | 125 G | 38 | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
-| `zzx-NF5280` | 16 | 62 G | 14 | 评测节点（纯执行；**反向隧道**访问，用户 `ubuntu`；2026-11-22 新增，`m16-infra-001` 引导中） | 引导中 |
+| `zzx-NF5280` | 16 | 62 G | 14 | 评测节点（纯执行；**反向隧道**访问，用户 `ubuntu`；2026-11-22 `m16-infra-001` 引导：仓库+自制工具链就绪，L1 红集与主控机相同；**未建** chipyard conda 环境） | **就绪** |
 
 - **看板**：`python3 tools/infra/nodetop.py`（**2×3 分屏**、默认 5 s 刷新；每栏 = 单行指标 + **按窗格高度自适应**的最热进程（每行：`CPU% ｜ 虚存(VSZ) ｜ 已运行 ｜ 进程名`，**不造缩写**；名字超宽只保留**尾段**（如 `…WumingTinyConfig`），窗口够宽时整名+ELF 都显示；`--procs N` 可显式限流）；`server207`/`server208` 固定同一列）。字段：`L`=1 分钟负载（括号内为占核数 %）、`M`=**可用**内存、`D`=磁盘使用率、`T`=测试进程数、`ssh`=采样往返延迟。`q` 退出、`p` 暂停、`+/-` 调刷新；`--once`/`--procs`/`--hosts`/`--layout list` 可调。
 - **并行度（用户 2026-11-14）**：构建一律 **32**；测试 = **全量核 − 2**（本表「测试 `--jobs`」列）。工具默认已按此实现（`Makefile` 的 `JOBS`/`TEST_JOBS`、`run_asm_suite.py`、`picolibc_tests.py`），**不要手写** 8/16/20/32 之类经验值。
@@ -154,6 +154,15 @@
 | `make install-host` | 两机 PASS（含 `check-cfx-alias-install` 6 项） |
 | 工作树 | 干净（`dirty=0`），同一 commit |
 
+- **`make check-inst` 已退役**（`m13-testcases-043`，YAML 载体全退役）：现行 inst 执行门控是 L2 的 `make check-inst-asm`（`.S` 载体全量、单平台 QEMU）与 `make check-inst-sig`（签名槽逐位比对）；本表上面那行是 207/208 引导当时的历史判据，**新节点不要再照抄目标名**。
+- `zzx-NF5280`（2026-11-22，`m16-infra-001`；节点 commit `69d248ed`，主控机同期 `21c9d7e0`，差集只有 `.tao` 两册）：
+  - `make install-host` **PASS**；`clang 23.1.3`、`qemu-dadao 11.1.1`。
+  - `make -k -j14 check`（L1）**rc=2，L1 用时 27 s**；红集与主控机**逐项相同**的 5 项：`check-cfx-aliases`、`check-cfx-alias-table`（`ISS-511`，主控机同红）、`check-knowledge-refs`（`milestones-m18.md` 引用缺 `ADR-0059`）、`check-manifests-guard`、`check-milestones-fresh`（含 `m16-qemu-001` 台账行的 `\|` 转义被计成 5 格）。主控机多出的 3 项（`check-patch-tree`、`check-musl-freshness`、`check-run-artifacts`）是本机源树/日志的历史残留（`ISS-507` 等），节点**不复现**。
+  - `make build-bootrom` PASS；`make check-inst-asm` **PASS**、`make check-inst-sig` **PASS**（三件合计 51 s）。
+  - 工作树 `dirty=0`；`.work` 59 G / `.cache` 4.6 G / `.dadao` 13 G；`/home` 用 74 %。
+  - **未建**：chipyard conda 环境与 `simulator-*`（与 207/208 首日一致，派 chipyard 任务前按 §11.6 建）。
+  - **环境前提**：本机自带的 `verilator 4.226` 不是 chipyard 口径（§11.1 用 conda 的 5.022）；系统 `clang 18.1.3` 必须装，否则 `check-linux-toolchain` 因报告里「宿主 x86 对照」行而红（`ISS-512`）。
+
 判据口径：**「同 commit + 同门控 + 结果一致」才算就绪**；只跑通构建不算。
 
 ## 6. 已知坑（四类，均已固化进脚本）
@@ -183,7 +192,9 @@
    - **无外网节点还要带 QEMU 的 meson subprojects**：从主控机 `rsync` 整个 `.work/source/qemu/subprojects/`（约 6.5 MB）到节点同路径，否则 `install-host` 会逐个去 gitlab 拉（先 `keycodemapdb`、再 `berkeley-softfloat-3`），在无网环境必然失败。详见 §1.1「网络」末条。
 4. `tools/infra/bootstrap_node.sh`：`fetch → apply-series → compiler-rt configure → install-host → make check`。
    - **补丁集变更后必须先 reset**：`apply-series` 只接受「base」或「base+1 且内容等于补丁集」；上游 v5 的补丁集更新后，节点源树仍是旧的 base+1 ⇒ 它会拒绝并退出非零。做法：`git -C .work/source/<组件> reset --hard <manifests 里的 commit>`，再 `make apply-series`。
-5. 验收：`make check` rc=0、`make check-inst` 与本机同 commit 结果一致；用 `tools/infra/remote.py status/preflight` 确认。
+5. 验收：`make -k -j14 check`（L1）与主控机**同 commit 同红集**（基线红按逐行同集判，不要求 rc=0）、`make check-inst-asm`/`check-inst-sig` PASS（`check-inst` 已退役）；用 `tools/infra/remote.py status/preflight` 确认。
+   - **先装系统 `clang`**：`check-linux-toolchain` 的报告含「宿主 x86 对照」一行，宿主没有 `clang` 时该行变成「不可用」而与仓内报告不符 ⇒ 门控红（`ISS-512`）。
+   - 首次引导若 step 6 报 `Error 75`：是 `build-mc`/`build-lld` 并发抢 `gate.lock`（§6 第 5 条），重跑即补齐；脚本已改为顺序调用。
 6. 在本文件「1. 当前清单」与「5. 就绪判据」补一行实测值。
 
 ## 9. 缓存维护（主控机 → 节点 `.cache`）
