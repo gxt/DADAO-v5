@@ -47,16 +47,16 @@ M16 的三方差分收敛为 **Vast arch scope**，裁定见 `.tao/knowledge/dis
 - 迁移清单：`tools/chipyard/{ptw,tlb,dcache,icache,excp}/**`、`tools/testcases/arch/min_rom_probe_tlb.py`、`tests/arch/hmon/`（Tiny，移出 arch）的去向；
 - 与 `m16-testcases-005` 的接口：签名脚本落 `tests/shared/signature.py`，arch 通过 `tests/arch/common/` 薄壳调用。
 
-### 3. Process-09 修订草案
+### 3. 直接修订 `docs/Process-09-测试组织规范.md`
 
-在 `tests/arch/PLAN.md` 内给逐条替换文本（**不改正文**）：
+用户 2026-11-22 裁定：Process-09 **可以直接修订**。按以下四条改正文：
 
 - §3 scope→目录映射：arch 专用脚本/数据随 `tests/arch/`；
 - §5 根级清单：支持驱动型 case 与 `machine` 字段；
 - §6 落点：scope 专用脚本随 scope，`tools/` 只放跨 scope 共享；
 - §7 目录结构：`tests/arch/` 增加 `run_arch.py`/`common/`/`data/`，`tools/testcases/arch/` 标待迁。
 
-每条写「原文位置 → 新文」，便于后续任务直接落地。
+同时在 `tests/arch/PLAN.md` 记录「原文 → 新文」对照，便于复核与后续任务引用。只改 `docs/Process-09`，不改 `tests/arch.yaml` 与校验器实现（留给落点实施任务）。
 
 ### 4. Tiny hmon 迁出方案
 
@@ -65,12 +65,12 @@ M16 的三方差分收敛为 **Vast arch scope**，裁定见 `.tao/knowledge/dis
 ## 不做
 
 - 不改 QEMU/gem5/chipyard 源码或补丁；
-- 不改 `docs/Process-09` 正文、不改 `tests/arch.yaml`；
+- 不改 `tests/arch.yaml` 与 `check-tests-index` 校验器（留给落点实施任务）；
 - 不建 `run_arch.py` 实现、不写新用例、不跑仿真/不重建。
 
 ## 约束
 
-- 独立 `git worktree`；**不提交 git**；只写 `tests/arch/PLAN.md` 与 `tests/arch/data/vast-arch-inventory.md`（外加运行期证据目录）；
+- 独立 `git worktree`；**不提交 git**；只写 `tests/arch/PLAN.md`、`tests/arch/data/vast-arch-inventory.md` 与 `docs/Process-09-测试组织规范.md`（外加运行期证据目录）；
 - 不写运行期路径（`.work/**`、家目录、临时目录）到入库文件；
 - 术语用「寄存器组」「核芯功能扩展」；
 - 每条结论可回溯到真实 `path:line` 或现场 grep 输出，禁止凭记忆。
@@ -81,8 +81,8 @@ M16 的三方差分收敛为 **Vast arch scope**，裁定见 `.tao/knowledge/dis
 
 1. 矩阵 9 cfx × 3 平台 = 27 格全部有值（缺也要写「缺」），现场统计并与文中声明对账；
 2. 矩阵内所有 `path:line` 落在文件行数内；
-3. `tests/arch/PLAN.md` 的四节（目录/接口/迁移/Process-09 草案）齐全，Process-09 每条有「原文 → 新文」；
-4. 不改代码：变更集 ⊆ {本任务书, `tests/arch/PLAN.md`, `tests/arch/data/vast-arch-inventory.md`} ∪ `.tao/**`；
+3. `docs/Process-09` 的 §3/§5/§6/§7 四条已落正文，`git diff` 可逐条复核；`tests/arch/PLAN.md` 保留「原文 → 新文」对照；
+4. 不改代码：变更集 ⊆ {本任务书, `tests/arch/PLAN.md`, `tests/arch/data/vast-arch-inventory.md`, `docs/Process-09-测试组织规范.md`} ∪ `.tao/**`；
 5. `--inject` 至少 2 路（删一格矩阵 / 伪造一条引用）⇒ FAIL，`cp`+md5 还原后回绿；
 6. `make check-knowledge-refs` 与 `make check-tasks` 只读跑，记录 rc。
 
