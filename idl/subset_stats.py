@@ -493,37 +493,36 @@ RULES: dict[str, tuple[str, str, str]] = {
 
 @dataclass(frozen=True)
 class Undefined:
-    """一条「本仓规范未定义」：文档行须写明 anchor；probe 文件的相关节（散文，剥掉代码块）
-    必须**不出现** absent；`repo_wide` 时还要求 `spec/`+`.tao/contracts/` 全文（散文）都不出现；
-    usage 非空时，该用法还须在 `.idl` 里真实出现（证明缺口有实际影响）。"""
+    """一条「本仓规范未定义」：文档行须写明 anchor；`spec/` 与 `.tao/contracts/` 的散文
+    （剥掉代码块）全文都**不出现** absent（出现 ⇒ 已有出处，不该再列「未定义」）。"""
     anchor: str
-    probe: str
-    section: str | None
     absent: str
-    usage: str | None
-    repo_wide: bool = True
 
 
 # 未定义项：凡本仓 `spec/` 与 `.tao/contracts/` 都查不到定义的，一律列这里，不自行裁定。
+# 只剩 3 个本仓 `.idl` 不使用的 UDB 内建转换；语言语义 U04–U10 已由语言规范 §1.1 定义，
+# 对应探测随之删除（否则会反转成「已有出处却仍列未定义」）。
 UNDEFINED: dict[str, Undefined] = {
-    "U01": Undefined("bits_cast", SEMANTICS_REL, None, r"bits_cast", None),
-    "U02": Undefined("sign_cast", SEMANTICS_REL, None, r"sign_cast", None),
-    "U03": Undefined("bits_width_cast", SEMANTICS_REL, None, r"bits_width_cast", None),
-    "U04": Undefined("0s", SEMANTICS_REL, "1", r"\d*'s[dh]|(?<![\w.])0s\b", r"\b0s\b|'s[dh]",
-                     repo_wide=False),
-    "U05": Undefined("拼接", SEMANTICS_REL, "1", r"(拼接|复制)[^。\n]{0,30}宽",
-                     r"\{[^{}\n]*,[^{}\n]*\}", repo_wide=False),
-    "U06": Undefined("`*", SEMANTICS_REL, "4.7", r"结果宽", r"`\*", repo_wide=False),
-    "U07": Undefined("MXLEN", SEMANTICS_REL, None, r"MXLEN", None),
-    "U08": Undefined("除零", SEMANTICS_REL, None, r"除零", r"(?<![/*])/(?![/*])|%",
-                     repo_wide=False),
-    "U09": Undefined("迭代", SEMANTICS_REL, "1", r"迭代", r"\bfor\s*\(", repo_wide=False),
-    "U10": Undefined("结果宽度", SEMANTICS_REL, "1", r"结果宽度|两侧取较宽|截断|同宽",
-                     r"Bits<(?:8|16|32)>\s+\w+\s*=[^;\n]*[+\-*/]", repo_wide=False),
+    "U01": Undefined("bits_cast", r"bits_cast"),
+    "U02": Undefined("sign_cast", r"sign_cast"),
+    "U03": Undefined("bits_width_cast", r"bits_width_cast"),
+}
+
+# 已定义项（原「未定义」清单的 U04–U10）：补进语言规范后，出处同样钉到「节号 + 该节正文锚点」，
+# 换错节号、删掉该条规则、或把行改回三列未定义表，`--check` 都会红。
+DEFINED: dict[str, tuple[str, str, str]] = {
+    "U04": (SEMANTICS_REL, "1.1", r"1 位符号位"),
+    "U05": (SEMANTICS_REL, "1.1", r"结果宽 = 各操作数位宽之"),
+    "U06": (SEMANTICS_REL, "1.1", r"结果宽 = `L\(i\) \+ L\(j\)`"),
+    "U07": (SEMANTICS_REL, "1.1", r"`MXLEN`，C 风格按最小位宽"),
+    "U08": (SEMANTICS_REL, "1.1", r"除零未定义"),
+    "U09": (SEMANTICS_REL, "1.1", r"新建嵌套作用域"),
+    "U10": (SEMANTICS_REL, "1.1", r"赋值到更窄的 `Bits<N>` 时取低 N 位"),
 }
 
 RULE_ROW_RE = re.compile(r"^\|\s*(W\d{2})\s*\|([^|]*)\|([^|]*)\|\s*$")
 UNDEF_ROW_RE = re.compile(r"^\|\s*(U\d{2})\s*\|([^|]*)\|([^|]*)\|\s*$")
+DEFINED_ROW_RE = re.compile(r"^\|\s*(U\d{2})\s*\|([^|]*)\|([^|]*)\|([^|]*)\|\s*$")
 SECTION_HEAD_RE = re.compile(r"^(#{2,4})\s+§?(\d+(?:\.\d+)*)\.?\s")
 
 
@@ -566,10 +565,15 @@ def check_width_doc(root: Path) -> str:
 
     rules: dict[str, str] = {}
     undefined: dict[str, str] = {}
+    defined: dict[str, str] = {}
     for line in text.split("\n"):
         m = RULE_ROW_RE.match(line)
         if m:
             rules[m.group(1)] = m.group(3).strip()
+            continue
+        m = DEFINED_ROW_RE.match(line)
+        if m:
+            defined[m.group(1)] = m.group(3).strip()
             continue
         m = UNDEF_ROW_RE.match(line)
         if m:
@@ -581,10 +585,13 @@ def check_width_doc(root: Path) -> str:
     if set(undefined) != set(UNDEFINED):
         raise CheckError(f"{WIDTH_DOC}: 未定义项 ID 集合不符: 缺 {sorted(set(UNDEFINED) - set(undefined))}、"
                          f"多 {sorted(set(undefined) - set(UNDEFINED))}")
+    if set(defined) != set(DEFINED):
+        raise CheckError(f"{WIDTH_DOC}: 已定义项 ID 集合不符: 缺 {sorted(set(DEFINED) - set(defined))}、"
+                         f"多 {sorted(set(defined) - set(DEFINED))}")
 
     bad: list[str] = []
-    for rid, (rel, number, anchor) in sorted(RULES.items()):
-        cite = rules[rid]
+    for rid, (rel, number, anchor) in sorted({**RULES, **DEFINED}.items()):
+        cite = rules[rid] if rid in rules else defined[rid]
         m = re.search(r"`([^`]+\.md)`\s*§([0-9.]+)", cite)
         if not m:
             bad.append(f"{rid}: 出处须形如 `` `path.md` §N ``，实得 {cite!r}")
@@ -605,39 +612,20 @@ def check_width_doc(root: Path) -> str:
         raise CheckError(f"{WIDTH_DOC}: 规则出处不一致:\n  " + "\n  ".join(bad))
 
     spec_files = sorted((root / "spec").glob("*.md")) + sorted((root / ".tao/contracts").glob("*.md"))
-    idl_text = "\n".join(s.code for s in load_sources(root))
     for uid, spec in sorted(UNDEFINED.items()):
         if spec.anchor not in undefined[uid]:
             bad.append(f"{uid}: 文档行未写明 {spec.anchor!r}")
             continue
-        probe = root / spec.probe
-        if not probe.is_file():
-            bad.append(f"{uid}: 探测文件不存在: {spec.probe}")
-            continue
-        body = probe.read_text(encoding="utf-8")
-        if spec.section is not None:
-            scoped = section_body(body, spec.section)
-            if scoped is None:
-                bad.append(f"{uid}: {spec.probe} 里找不到 §{spec.section}")
-                continue
-            body = scoped
-        body = strip_fences(body)
-        if re.search(spec.absent, body):
-            bad.append(f"{uid}: {spec.probe}"
-                       f"{' §' + spec.section if spec.section else ''} 的散文里出现了 /{spec.absent}/ "
-                       f"⇒ 该构造已有出处，不应列「未定义」")
-        if spec.usage is not None and not re.search(spec.usage, idl_text):
-            bad.append(f"{uid}: `.idl` 里并没有 /{spec.usage}/ 的用法 ⇒ 该「未定义」项与本仓无关")
-        if spec.repo_wide:
-            hits = 0
-            for path in spec_files:
-                hits += len(re.findall(spec.absent, strip_fences(path.read_text(encoding="utf-8"))))
-            if hits:
-                bad.append(f"{uid}: spec/ 或 .tao/contracts/ 散文里出现 {hits} 次 /{spec.absent}/ "
-                           f"⇒ 已定义，不从「未定义」")
+        hits = 0
+        for path in spec_files:
+            hits += len(re.findall(spec.absent, strip_fences(path.read_text(encoding="utf-8"))))
+        if hits:
+            bad.append(f"{uid}: spec/ 或 .tao/contracts/ 散文里出现 {hits} 次 /{spec.absent}/ "
+                       f"⇒ 已定义，不从「未定义」")
     if bad:
         raise CheckError(f"{WIDTH_DOC}: 未定义清单不自洽:\n  " + "\n  ".join(bad))
-    return f"规则 {len(RULES)} 条出处逐条命中、未定义 {len(UNDEFINED)} 条探测通过"
+    return (f"规则 {len(RULES)} 条出处逐条命中、已定义 {len(DEFINED)} 条出处逐条命中、"
+            f"未定义 {len(UNDEFINED)} 条探测通过")
 
 
 # ── 入口 ────────────────────────────────────────────────────────────────────

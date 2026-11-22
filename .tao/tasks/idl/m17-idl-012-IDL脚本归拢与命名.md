@@ -56,6 +56,7 @@ idl/
 5. 引用清扫（operational 面）：`docs/README.md`、`idl/README.md`（全部用法示例）、`components/chipyard/README.md` 与 `docs/fp-oracle-design.md` 的 `fp_ref` 指路、`tools/chipyard/**` 里 `import`/路径、`spec/IDL-ISA语义描述语言与语义库.md` 若有示例路径；历史任务书与 `.tao/archive/**` 不改。
 6. 顺带订正 `m17-idl-011` 披露的 4 处旧措辞（`idl/syntax-subset.md`、`idl_parser.py` docstring、`idl/README.md`、`idl_exec.py`）：「`U04`–`U10` 未定义」→「见语言规范册 §1.1」。
 7. `.idl` 源、语义、清单内容、执行行为**零改动**。
+8. `docs/Process-07` 补登 `check-idl`（L2 行 + §7 表行）——阶段一漏登记。
 
 ## 不做
 
