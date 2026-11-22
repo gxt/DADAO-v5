@@ -25,8 +25,10 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-qemu-001 | 2026-11-22 13:34 | 中 | QEMU `cache-model=off\|on` 属性 + cfx5 寄存器面（不含影子数据通路） |
-| m16-chipyard-016 | 2026-11-22 13:34 | 中 | RTL cfx5 寄存器面（GewuFile 行 + Vast 序列 + 探针） |
+| m16-qemu-001 | 2026-11-22 13:34 | 2–3 h | QEMU `cache-model=off\|on` 属性 + cfx5 寄存器面（不含影子数据通路） |
+| m16-chipyard-016 | 2026-11-22 13:34 | 3–4 h | RTL cfx5 寄存器面（GewuFile 行 + Vast 序列 + 探针） |
+| m16-testcases-007 | 2026-11-22 14:10 | 2–3 h | `check-arch` / `check-arch-smoke` 按新 `tests/arch` 重写，二者一致 |
+| m16-testcases-008 | 2026-11-22 14:10 | 1–2 h | `unit` 允许 `system` 并登记 `unit-gem5-hmon-001` |
 
 ## 已验证
 

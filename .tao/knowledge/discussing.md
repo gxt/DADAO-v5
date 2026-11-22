@@ -315,7 +315,8 @@
 - arch 用例/脚本/数据集中 `tests/arch/<cfx>/`；驱动 `tests/arch/run_arch.py`；矩阵/数据 `tests/arch/data/`。
 - 签名机制（`tests/shared/asm/signature.inc` + host 侧 `signature.py`）集中 `tests/shared/`。
 - `tools/` 只放跨 scope 共享；修订 `docs/Process-09` §3/§5/§6/§7：scope 专用脚本随 scope、`arch.yaml` 支持驱动型 case 与 `machine` 字段。
-- Tiny 的 `arch-hmon-001` 与 `tests/arch/hmon/` 移出 arch（建议 `tests/unit/gem5/`）。
+- Tiny 的 `arch-hmon-001` 与 `tests/arch/hmon/` 移出 arch，落 **`tests/unit/gem5/`**（用户 2026-11-22 选 A）；`unit` scope 的 `platforms` 增加 `system`，并登记 `unit-gem5-hmon-001`。
+- **门控**（用户 2026-11-22）：`check-arch-smoke` 按新的 `tests/arch` 重写；**`check-arch` 与 `check-arch-smoke` 一致**（同一代表集），L3 的 arch 成员保留，不另跑旧 15 个 min-ROM 探针。
 
 ### 阶段与任务（短任务）
 
