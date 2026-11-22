@@ -1336,3 +1336,12 @@
   closed_in: M16
   resolved_by: m16-gem5-022
   title: "【P2】`m16-gem5-021` 的 I 侧结论「invalidate 后取指重取不可观测」**作废**：其 base probe `cfx5_selfmod.s` 用 16 位 `ld.uw`/`st.w` 只改指令字的 opcode 半，立即数未变，补丁是空操作 ⇒ 0x92 恒真，与 I 侧行为无关。`m16-gem5-022` 用正确构造（写码 → `D|clean` → `I|invalidate` → 跳转）证伪：单行/区间均执行新立即数（guest 0x10），去掉 clean D 才 0x92。不改写 021 既有完成区/审阅记录，仅记此笔。"
+- id: ISS-515
+  scope:
+  - testcases
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2·GAP】`ADWBFAIL`（`CFXMEM` 子原因 `[56]`）在正常路径**不可达**：PA RAM 全可写，三平台只能靠故障注入；RTL 有 `CASE_ADWB` 手工镜像，QEMU/gem5 无测试专用注入钩子。用户 2026-11-22 裁定 **C：不单列 M16 用例，登记 GAP**；保留 RTL 手工证据，不在 `tests/arch` 做三方签名。若将来要三方覆盖，需给 QEMU/gem5 加注入开关（独立任务）。"
