@@ -300,6 +300,14 @@
 - **同一节点不要并发起两轮解包**：`rm -rf` 与 `tar` 竞态会留下半残 env（实测缺 `verilator`），只能整包重解。
 - **六台环境就绪（2026-11-13 实测）**：`gem5`（`.work/source/gem5/build/DADAO/gem5.opt`）、`musl`（`.work/source/musl/lib/libc.a`）、chipyard conda env + `simulator-chipyard.harness-WumingTinyConfig` 六台齐全；`+loadmem` 冒烟六台输出与主控机逐字一致；`server207` 上 `tests/inst/02-reg-copy` 三平台 **58/58** 与主控机相同 ⇒ 节点可承担 chipyard/qemu/gem5 评测。
 
+### 11.7 现成的 Vivado（仅 `zzx-NF5280`，2026-11-22 核查）
+
+- **装在哪**：`/tools/Xilinx/2025.1/`（`Vivado`/`Vitis`/`Model_Composer`/`DocNav`/`xic`），属 `root:root`，整棵 **133 G**；`/tools/Xilinx_lic/` 放许可。
+- **版本**：`source /tools/Xilinx/2025.1/Vivado/settings64.sh && vivado -version` ⇒ `vivado v2025.1 (64-bit)`，Build 2025-05-21，rc=0；`vivado` 不在 PATH。
+- **许可**：`Vivado_System_Edition`/`VIVADO_HLS` = `permanent`、`HOSTID=ANY`（2037.05）⇒ 不绑机器；`/etc/profile.d`/`~/.bashrc` 均无 `XILINX_LICENSE_FILE`，`~/.Xilinx/*.lic` 只在 `root` 家目录 ⇒ 用 `ubuntu` 时须先 `export XILINX_LICENSE_FILE=/tools/Xilinx_lic/vivado_lic2037.lic`（或把 lic 复制到自己的 `~/.Xilinx/`）。
+- **可用性**：用户 2026-11-22 告知**本机已跑过完整综合**（即实现/bitstream 流程可用）；证据面仅限 `vivado -version` rc=0 与我未做综合，故不另立「已验证」。
+- 用途：M19（Genesys2 shell + Vivado 流程）需要综合时优先这台，不必装第二份。
+
 ## 12. 主控机 `/tmp`（待切回磁盘，用户自理）
 
 - 现状：主控机 `/tmp` 由 `/etc/fstab` 配成 16G tmpfs；节点 `/tmp` 已在 ext4 磁盘上（无需改）。
