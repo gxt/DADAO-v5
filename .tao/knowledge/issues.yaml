@@ -1218,3 +1218,12 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`lr`/`sc` 的**窄宽度条件写会被静默丢弃**（参考机器 `qemu-dadao`/`qemu-system-dadao`，`target/dadao/translate.c` 的 `gen_sc`）：`sc.t`/`sc.o` 在「同一 TB 内先有同址窄加载（`ld.ut`）再 `lr`/`sc`，且该地址的 8 字节字里另有被写过的 `int`」时，`sc` 报成功（`rdHB=0`）、内存却保持旧值；`a_or`/`a_cas` 型 RMW 因此丢更新。最小复现：`m18-infra-001` 运行期证据的 `probe/narrow_cas_probe.c`（两次 `st.o` + `ld.ut` + `lr.t`/`sc.t` ⇒ 写丢失；去掉该 `ld.ut` 即正常），`word_cas_probe.c` 的 `lr.o`/`sc.o` 同场景正常。后果：`m18-infra-001` 前 musl `mallocng` 的 `avail_mask`/`freed_mask` 记账被破坏 ⇒ K6 `die-no-vma` 与 guest `grep` rc=139（`ISS-497`/`ISS-499`，已由 musl 侧改用字 CAS 规避）。处置：查 `gen_sc` 的 `MO_ALIGN`/窄宽度 BE 存储路径与 TCG 的 load/store 交互，补一条 `lr.t`+`sc.t` 同址 CAS 的向量（覆盖「同 TB 内前置窄加载」），修后 `ISS-497` 的窄 CAS 口径可作为回归向量。"
+- id: ISS-502
+  scope:
+  - picolibc
+  - testcases
+  milestone: M15
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】picolibc 的 `clock()` 在 dadao/qemu 上单位错 1000×：`clock()` → `times()`（`libos/semihost/common/times.c` 直接返回 `sys_semihost_elapsed()`，未按 tick 频率缩放）→ `SYS_ELAPSED`（0x30）；QEMU 的 `TARGET_SYS_ELAPSED` 返回**纳秒**、`SYS_TICKFREQ`=1e9（`semihosting/arm-compat-semi.c`），而 picolibc `time.h` 的 `CLOCKS_PER_SEC` 写死 **1,000,000**（µs）⇒ `clock()/CLOCKS_PER_SEC` 报出的秒数大 1000×。`gettimeofday` 正确按 `SYS_TICKFREQ` 缩放，可用作计时。处置：ansibench 计时改用 `gettimeofday` 或提供 `clock()` shim（按 tickfreq 缩放）；若修 picolibc，应在 `times()` 里按 `sys_semihost_tickfreq()/CLOCKS_PER_SEC` 缩放并同步 `_CLOCKS_PER_SEC_` 口径。"
