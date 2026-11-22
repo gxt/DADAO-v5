@@ -2,7 +2,7 @@
 
 > **版本：0.1.1-rc**
 
-本册规定 SimRISC 指令系统的**语义描述语言**（IDL）与**语义库**。语言以 `riscv-unified-db`（UDB）的 ISA Description Language 为基线——`doc/idl.adoc` 是语言说明书，`tools/ruby-gems/idlc/lib/idlc/idl.treetop` 是语法真源；只在 UDB 不合适处用**现有语法 + 新函数**扩展，不改语言。`idl/` 目录的 `.idl` 是**机器可读语义源**；`spec/SimRISC-*` 里围栏语言标记为 `idl` 的代码块是它的**渲染结果**（`idl/render.py` 生成，禁手改）。本版只要求**可解析**；语义的**执行**不在本版范围。
+本册规定 SimRISC 指令系统的**语义描述语言**（IDL）与**语义库**。语言以 `riscv-unified-db`（UDB）的 ISA Description Language 为基线——`doc/idl.adoc` 是语言说明书，`tools/ruby-gems/idlc/lib/idlc/idl.treetop` 是语法真源；只在 UDB 不合适处用**现有语法 + 新函数**扩展，不改语言。`idl/` 目录的 `.idl` 是**机器可读语义源**；`spec/SimRISC-*` 里围栏语言标记为 `idl` 的代码块是它的**渲染结果**（`idl/tools/idl_render.py` 生成，禁手改）。本版只要求**可解析**；语义的**执行**不在本版范围。
 
 ## 1. 语法基线（UDB IDL 子集）
 

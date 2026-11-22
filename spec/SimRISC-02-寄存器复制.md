@@ -47,7 +47,7 @@ immu6为立即数，存在hd位域中，用来指定寄存器的个数，有效�
 本节各指令的形式化语义由 `idl/SimRISC-02.idl` 生成，逐条如下：
 
 <!-- IDL:ra2rd_orri_ra BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ra2rd_orri_ra`**
 ```idl
 # 目的起始 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -76,7 +76,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:ra2rd_orri_ra END -->
 
 <!-- IDL:rb2rb_orri_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rb2rb_orri_rb`**
 ```idl
 # 目的起始 rbHB = rb0 ⇒ ILLI（附录 B dst_rb0；rb0 读出为 IP、只读）
@@ -110,7 +110,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:rb2rb_orri_rb END -->
 
 <!-- IDL:rb2rd_orri_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rb2rd_orri_rb`**
 ```idl
 # 目的起始 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -139,7 +139,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:rb2rd_orri_rb END -->
 
 <!-- IDL:rd2ra_orri_ra BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rd2ra_orri_ra`**
 ```idl
 # 目的 raHB 无 rd0/rb0 限制：ra0（RACNT + MRPTR）作目的合法（SimRISC-02 §1；SimRISC-00 §2.4）
@@ -170,7 +170,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:rd2ra_orri_ra END -->
 
 <!-- IDL:rd2rb_orri_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rd2rb_orri_rb`**
 ```idl
 # 目的起始 rbHB = rb0 ⇒ ILLI（附录 B dst_rb0）
@@ -199,7 +199,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:rd2rb_orri_rb END -->
 
 <!-- IDL:rd2rd_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rd2rd_orri_rd`**
 ```idl
 # 目的起始 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -233,7 +233,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:rd2rd_orri_rd END -->
 
 <!-- IDL:rd2rf_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rd2rf_orri_rf`**
 ```idl
 # 目的起始 rfHB 无 rf0 限制：rf0（FCSR）作目的合法（SimRISC-02 §1 及其注；SimRISC-00 §2.3）
@@ -266,7 +266,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:rd2rf_orri_rf END -->
 
 <!-- IDL:rf2rd_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rf2rd_orri_rf`**
 ```idl
 # 目的起始 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -295,7 +295,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:rf2rd_orri_rf END -->
 
 <!-- IDL:rf2rf_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rf2rf_orri_rf`**
 ```idl
 # 目的范围 {rfHB:rfHB+immu6-1} 含 rf0 ⇒ ILLI（附录 B dst_rf0；SimRISC-02 §1 例外）。
@@ -356,7 +356,7 @@ cs.ne   {rdHA, rdHB}?, rdHC, rdHD
 本节各指令的形式化语义由 `idl/SimRISC-02.idl` 生成，逐条如下：
 
 <!-- IDL:cs.eq_rrrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cs.eq_rrrr_rd`**
 ```idl
 # 目的 rdHC = rd0 ⇒ ILLI（附录 B dst_rd0；rd0 只读，SimRISC-02 §2 注 → SimRISC-00 §2.1）
@@ -372,7 +372,7 @@ if (rd[rdHA] == rd[rdHB]) {
 <!-- IDL:cs.eq_rrrr_rd END -->
 
 <!-- IDL:cs.n_rrrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cs.n_rrrr_rd`**
 ```idl
 # 目的 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -391,7 +391,7 @@ if (rd[rdHA][63] == 1'b1) {
 <!-- IDL:cs.n_rrrr_rd END -->
 
 <!-- IDL:cs.ne_rrrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cs.ne_rrrr_rd`**
 ```idl
 # 目的 rdHC = rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -407,7 +407,7 @@ if (rd[rdHA] != rd[rdHB]) {
 <!-- IDL:cs.ne_rrrr_rd END -->
 
 <!-- IDL:cs.p_rrrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cs.p_rrrr_rd`**
 ```idl
 # 目的 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -426,7 +426,7 @@ if (rd[rdHA][63] == 1'b0 && rd[rdHA][62:0] != 63'd0) {
 <!-- IDL:cs.p_rrrr_rd END -->
 
 <!-- IDL:cs.z_rrrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cs.z_rrrr_rd`**
 ```idl
 # 目的 rdHB = rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -466,7 +466,7 @@ cs.p    {rdHA}?, rfHB, rfHC, rfHD
 本节各指令的形式化语义由 `idl/SimRISC-02.idl` 生成，逐条如下：
 
 <!-- IDL:cs.n_rrrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cs.n_rrrr_rf`**
 ```idl
 # 目的 rfHB = rf0 ⇒ ILLI（附录 B dst_rf0；SimRISC-02 §3 注）
@@ -486,7 +486,7 @@ if (rd[rdHA][63] == 1'b1) {
 <!-- IDL:cs.n_rrrr_rf END -->
 
 <!-- IDL:cs.p_rrrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cs.p_rrrr_rf`**
 ```idl
 # 目的 rfHB = rf0 ⇒ ILLI（附录 B dst_rf0；SimRISC-02 §3 注）
@@ -506,7 +506,7 @@ if (rd[rdHA][63] == 1'b0 && rd[rdHA][62:0] != 63'd0) {
 <!-- IDL:cs.p_rrrr_rf END -->
 
 <!-- IDL:cs.z_rrrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cs.z_rrrr_rf`**
 ```idl
 # 目的 rfHB = rf0 ⇒ ILLI（附录 B dst_rf0；SimRISC-02 §3 注）

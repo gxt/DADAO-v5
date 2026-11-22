@@ -22,7 +22,7 @@ sub.o  rdHB, rbHC, rbHD
 本节各指令的形式化语义由 `idl/SimRISC-05.idl` 生成，逐条如下：
 
 <!-- IDL:add.o_orrr_bbd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`add.o_orrr_bbd`**
 ```idl
 # 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
@@ -36,7 +36,7 @@ rb[rbHB] = rb[rbHC] + rd[rdHD];
 <!-- IDL:add.o_orrr_bbd END -->
 
 <!-- IDL:sub.o_orrr_bbd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sub.o_orrr_bbd`**
 ```idl
 # 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
@@ -50,7 +50,7 @@ rb[rbHB] = rb[rbHC] - rd[rdHD];
 <!-- IDL:sub.o_orrr_bbd END -->
 
 <!-- IDL:sub.o_orrr_dbb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sub.o_orrr_dbb`**
 ```idl
 # 目的 rd0 ⇒ ILLI
@@ -82,7 +82,7 @@ add.si  rbHA, imms18
 本节各指令的形式化语义由 `idl/SimRISC-05.idl` 生成，逐条如下：
 
 <!-- IDL:add.si_riii_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`add.si_riii_rb`**
 ```idl
 # 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）
@@ -115,7 +115,7 @@ cmp.uo  rdHB, rbHC, rbHD
 本节各指令的形式化语义由 `idl/SimRISC-05.idl` 生成，逐条如下：
 
 <!-- IDL:cmp.uo_orrr_dbb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cmp.uo_orrr_dbb`**
 ```idl
 # 目的 rd0 ⇒ ILLI
@@ -159,7 +159,7 @@ aip.si rbHA, imms30
 本节各指令的形式化语义由 `idl/SimRISC-05.idl` 生成，逐条如下：
 
 <!-- IDL:aip.si_riii_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`aip.si_riii_rb`**
 ```idl
 # 目的 rb0 ⇒ ILLI（rb0 读出为 IP、只读）

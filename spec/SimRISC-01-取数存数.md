@@ -74,7 +74,7 @@ stm.o    {rdHA:rdHA+immu6-1}, [rbHB, rdHC]
 本节各指令的形式化语义由 `idl/SimRISC-01.idl` 生成，逐条如下：
 
 <!-- IDL:ld.o_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ld.o_rrii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
@@ -94,7 +94,7 @@ rd[rdHA] = read_memory(64, ea);               # 大端读：最低地址的字�
 <!-- IDL:ld.o_rrii_rd END -->
 
 <!-- IDL:ld.sb_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ld.sb_rrii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
@@ -114,7 +114,7 @@ rd[rdHA] = {{56{v[7]}}, v};
 <!-- IDL:ld.sb_rrii_rd END -->
 
 <!-- IDL:ld.ub_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ld.ub_rrii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
@@ -131,7 +131,7 @@ rd[rdHA] = read_memory(8, ea);
 <!-- IDL:ld.ub_rrii_rd END -->
 
 <!-- IDL:ld.sw_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ld.sw_rrii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
@@ -154,7 +154,7 @@ rd[rdHA] = {{48{v[15]}}, v};
 <!-- IDL:ld.sw_rrii_rd END -->
 
 <!-- IDL:ld.uw_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ld.uw_rrii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
@@ -175,7 +175,7 @@ rd[rdHA] = read_memory(16, ea);
 <!-- IDL:ld.uw_rrii_rd END -->
 
 <!-- IDL:ld.st_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ld.st_rrii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
@@ -198,7 +198,7 @@ rd[rdHA] = {{32{v[31]}}, v};
 <!-- IDL:ld.st_rrii_rd END -->
 
 <!-- IDL:ld.ut_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ld.ut_rrii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（§1 限制：ld 的 rdHA 为 rd0；先于地址计算）
@@ -219,7 +219,7 @@ rd[rdHA] = read_memory(32, ea);
 <!-- IDL:ld.ut_rrii_rd END -->
 
 <!-- IDL:st.b_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`st.b_rrii_rd`**
 ```idl
 # st 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0，§1 限制）⇒ 不判 ILLI
@@ -232,7 +232,7 @@ write_memory(8, ea, rd[rdHA]);
 <!-- IDL:st.b_rrii_rd END -->
 
 <!-- IDL:st.w_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`st.w_rrii_rd`**
 ```idl
 # st 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0，§1 限制）⇒ 不判 ILLI
@@ -249,7 +249,7 @@ write_memory(16, ea, rd[rdHA]);
 <!-- IDL:st.w_rrii_rd END -->
 
 <!-- IDL:st.t_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`st.t_rrii_rd`**
 ```idl
 # st 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0，§1 限制）⇒ 不判 ILLI
@@ -266,7 +266,7 @@ write_memory(32, ea, rd[rdHA]);
 <!-- IDL:st.t_rrii_rd END -->
 
 <!-- IDL:st.o_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`st.o_rrii_rd`**
 ```idl
 # st 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0，§1 限制）⇒ 不判 ILLI
@@ -283,7 +283,7 @@ write_memory(64, ea, rd[rdHA]);
 <!-- IDL:st.o_rrii_rd END -->
 
 <!-- IDL:ldm.sb_rrri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ldm.sb_rrri_rd`**
 ```idl
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
@@ -318,7 +318,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:ldm.sb_rrri_rd END -->
 
 <!-- IDL:ldm.ub_rrri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ldm.ub_rrri_rd`**
 ```idl
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
@@ -351,7 +351,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:ldm.ub_rrri_rd END -->
 
 <!-- IDL:ldm.sw_rrri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ldm.sw_rrri_rd`**
 ```idl
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
@@ -389,7 +389,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:ldm.sw_rrri_rd END -->
 
 <!-- IDL:ldm.uw_rrri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ldm.uw_rrri_rd`**
 ```idl
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
@@ -425,7 +425,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:ldm.uw_rrri_rd END -->
 
 <!-- IDL:ldm.st_rrri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ldm.st_rrri_rd`**
 ```idl
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
@@ -463,7 +463,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:ldm.st_rrri_rd END -->
 
 <!-- IDL:ldm.ut_rrri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ldm.ut_rrri_rd`**
 ```idl
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
@@ -499,7 +499,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:ldm.ut_rrri_rd END -->
 
 <!-- IDL:ldm.o_rrri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ldm.o_rrri_rd`**
 ```idl
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rd0 / 个数 0 / 越出 rd63 / 索引落入传送范围
@@ -535,7 +535,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:ldm.o_rrri_rd END -->
 
 <!-- IDL:stm.b_rrri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`stm.b_rrri_rd`**
 ```idl
 # stm 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0）、允许索引寄存器落入传送范围（§1 限制）⇒ 均不判 ILLI
@@ -562,7 +562,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:stm.b_rrri_rd END -->
 
 <!-- IDL:stm.w_rrri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`stm.w_rrri_rd`**
 ```idl
 # stm 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0）、允许索引寄存器落入传送范围（§1 限制）⇒ 均不判 ILLI
@@ -592,7 +592,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:stm.w_rrri_rd END -->
 
 <!-- IDL:stm.t_rrri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`stm.t_rrri_rd`**
 ```idl
 # stm 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0）、允许索引寄存器落入传送范围（§1 限制）⇒ 均不判 ILLI
@@ -622,7 +622,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:stm.t_rrri_rd END -->
 
 <!-- IDL:stm.o_rrri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`stm.o_rrri_rd`**
 ```idl
 # stm 允许 rdHA 为 rd0（rd0 作为源寄存器读出 0）、允许索引寄存器落入传送范围（§1 限制）⇒ 均不判 ILLI
@@ -678,7 +678,7 @@ stm.o    {rbHA:rbHA+immu6-1}, [rbHB, rdHC]
 本节各指令的形式化语义由 `idl/SimRISC-01.idl` 生成，逐条如下：
 
 <!-- IDL:ld.o_rrii_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ld.o_rrii_rb`**
 ```idl
 # 目的 rb0 ⇒ ILLI（§2 限制：ld.o 的 rbHA 为 rb0；rb0 只读、读出为当前指令地址）
@@ -699,7 +699,7 @@ rb[rbHA] = read_memory(64, ea);
 <!-- IDL:ld.o_rrii_rb END -->
 
 <!-- IDL:st.o_rrii_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`st.o_rrii_rb`**
 ```idl
 # st.o 允许 rbHA 为 rb0（rb0 作为源寄存器读出当前指令地址，§2 限制）⇒ 不判 ILLI
@@ -716,7 +716,7 @@ write_memory(64, ea, rb[rbHA]);
 <!-- IDL:st.o_rrii_rb END -->
 
 <!-- IDL:ldm.o_rrri_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ldm.o_rrri_rb`**
 ```idl
 # 静态检查（每项都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：目的 rb0 / 个数 0 / 越出 rb63 / 基址落入传送范围
@@ -752,7 +752,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:ldm.o_rrri_rb END -->
 
 <!-- IDL:stm.o_rrri_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`stm.o_rrri_rb`**
 ```idl
 # stm.o 允许 rbHA 为 rb0（读出 IP）、允许基址寄存器落入传送范围（§2 限制）⇒ 均不判 ILLI
@@ -807,7 +807,7 @@ stm.o    {raHA:raHA+immu6-1}, [rbHB, rdHC]
 本节各指令的形式化语义由 `idl/SimRISC-01.idl` 生成，逐条如下：
 
 <!-- IDL:ld.o_rrii_ra BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ld.o_rrii_ra`**
 ```idl
 # ra0 可读写（§3 限制：raHA 为 ra0 不触发异常）⇒ 无 ILLI 判定
@@ -831,7 +831,7 @@ if (raHA == 6'd0) {
 <!-- IDL:ld.o_rrii_ra END -->
 
 <!-- IDL:st.o_rrii_ra BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`st.o_rrii_ra`**
 ```idl
 # ra0 可读写（§3 限制）⇒ 无 ILLI 判定
@@ -848,7 +848,7 @@ write_memory(64, ea, ra[raHA]);
 <!-- IDL:st.o_rrii_ra END -->
 
 <!-- IDL:ldm.o_rrri_ra BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ldm.o_rrri_ra`**
 ```idl
 # 静态检查（都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：个数 0 / 越出 ra63（ra0 可读写 ⇒ 不判目的 0 号）
@@ -885,7 +885,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:ldm.o_rrri_ra END -->
 
 <!-- IDL:stm.o_rrri_ra BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`stm.o_rrri_ra`**
 ```idl
 # 静态检查（都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：个数 0 / 越出 ra63（ra0 可读写 ⇒ 不判目的 0 号）
@@ -949,7 +949,7 @@ stm.o   {rfHA:rfHA+immu6-1}, [rbHB, rdHC]
 本节各指令的形式化语义由 `idl/SimRISC-01.idl` 生成，逐条如下：
 
 <!-- IDL:ld.t_rrii_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ld.t_rrii_rf`**
 ```idl
 # rf0 作目的合法（§4 注）⇒ 不判 ILLI；.t 需 4 字节对齐（§4 正文、附录 B excp_malign 与编码表 aligned(4) 三方一致）
@@ -973,7 +973,7 @@ if (rfHA == 6'd0) {
 <!-- IDL:ld.t_rrii_rf END -->
 
 <!-- IDL:st.t_rrii_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`st.t_rrii_rf`**
 ```idl
 # rf0 作源合法（§4 注：读出完整 64 位）；.t 需 4 字节对齐（§4 正文、附录 B excp_malign 与编码表 aligned(4) 三方一致）
@@ -990,7 +990,7 @@ write_memory(32, ea, rf[rfHA]);
 <!-- IDL:st.t_rrii_rf END -->
 
 <!-- IDL:ld.o_rrii_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ld.o_rrii_rf`**
 ```idl
 # rf0 作目的合法（§4 注）⇒ 不判 ILLI；.o 需 8 字节对齐（§4 正文、附录 B excp_malign 与编码表 aligned(8) 三方一致）
@@ -1014,7 +1014,7 @@ if (rfHA == 6'd0) {
 <!-- IDL:ld.o_rrii_rf END -->
 
 <!-- IDL:st.o_rrii_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`st.o_rrii_rf`**
 ```idl
 # rf0 作源合法（§4 注：读出完整 64 位）；.o 需 8 字节对齐（§4 正文、附录 B excp_malign 与编码表 aligned(8) 三方一致）
@@ -1031,7 +1031,7 @@ write_memory(64, ea, rf[rfHA]);
 <!-- IDL:st.o_rrii_rf END -->
 
 <!-- IDL:ldm.t_rrri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ldm.t_rrri_rf`**
 ```idl
 # 静态检查（都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：个数 0 / 越出 rf63（rf0 可作目的 ⇒ 不判目的 0 号）
@@ -1069,7 +1069,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:ldm.t_rrri_rf END -->
 
 <!-- IDL:stm.t_rrri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`stm.t_rrri_rf`**
 ```idl
 # 静态检查（都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：个数 0 / 越出 rf63（rf0 可作源 ⇒ 不判目的 0 号）
@@ -1100,7 +1100,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:stm.t_rrri_rf END -->
 
 <!-- IDL:ldm.o_rrri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ldm.o_rrri_rf`**
 ```idl
 # 静态检查（都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：个数 0 / 越出 rf63（rf0 可作目的 ⇒ 不判目的 0 号）
@@ -1138,7 +1138,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:ldm.o_rrri_rf END -->
 
 <!-- IDL:stm.o_rrri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`stm.o_rrri_rf`**
 ```idl
 # 静态检查（都 ⇒ ILLI，码相同 ⇒ 彼此先后不可观测）：个数 0 / 越出 rf63（rf0 可作源 ⇒ 不判目的 0 号）

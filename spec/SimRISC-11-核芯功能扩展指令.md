@@ -36,7 +36,7 @@ trap    cfxHA, immu18
 本节各指令的形式化语义由 `idl/SimRISC-11.idl` 生成，逐条如下：
 
 <!-- IDL:trap_ciii_cfx BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`trap_ciii_cfx`**
 ```idl
 if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ 进当前运行模式 monitor
@@ -66,7 +66,7 @@ escape  cfxHA, [excp_cause_ip, imms20]
 本节各指令的形式化语义由 `idl/SimRISC-11.idl` 生成，逐条如下：
 
 <!-- IDL:escape_ciii_cfx BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`escape_ciii_cfx`**
 ```idl
 # 步骤 0（DADAO-12 §5.3）：SBZ 非零 / 保留 cfx ⇒ ILLI（进当前运行模式 monitor）；
@@ -130,7 +130,7 @@ cfx2rc  cfx_power, cg8, rc1, rd2
 本节各指令的形式化语义由 `idl/SimRISC-11.idl` 生成，逐条如下：
 
 <!-- IDL:cfx2rd_crrr_cfx BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cfx2rd_crrr_cfx`**
 ```idl
 if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ ILLI
@@ -144,7 +144,7 @@ rd[rdHD] = cfx_read(cfxHA, cgHB, rcHC);
 <!-- IDL:cfx2rd_crrr_cfx END -->
 
 <!-- IDL:cfx2rc_crrr_cfx BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cfx2rc_crrr_cfx`**
 ```idl
 if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ ILLI
@@ -226,7 +226,7 @@ fence   cfxHA, immu18
 本节各指令的形式化语义由 `idl/SimRISC-11.idl` 生成，逐条如下：
 
 <!-- IDL:fence_ciii_cfx BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fence_ciii_cfx`**
 ```idl
 if (immu18[17:12] != 6'd0) {                  # hb = immu18[17:12] 为 SBZ，非零 ⇒ ILLI

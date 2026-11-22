@@ -98,7 +98,7 @@
 本节各指令的形式化语义由 `idl/SimRISC-07.idl` 生成，逐条如下：
 
 <!-- IDL:ft2it_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ft2it_orri_rf`**
 ```idl
 # 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
@@ -119,7 +119,7 @@ rd[rdHB] = {{32{r[31]}}, r};
 <!-- IDL:ft2it_orri_rf END -->
 
 <!-- IDL:ft2io_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ft2io_orri_rf`**
 ```idl
 # 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
@@ -169,7 +169,7 @@ if ($signed(sd) < 0s) {
 <!-- IDL:ft2io_orri_rf END -->
 
 <!-- IDL:ft2ut_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ft2ut_orri_rf`**
 ```idl
 # 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
@@ -190,7 +190,7 @@ rd[rdHB] = {32'd0, r};
 <!-- IDL:ft2ut_orri_rf END -->
 
 <!-- IDL:ft2uo_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ft2uo_orri_rf`**
 ```idl
 # 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
@@ -239,7 +239,7 @@ if ($signed(sd) < 0s) {
 <!-- IDL:ft2uo_orri_rf END -->
 
 <!-- IDL:fo2it_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fo2it_orri_rf`**
 ```idl
 # 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
@@ -286,7 +286,7 @@ if (exp == 11'h7FF) {
 <!-- IDL:fo2it_orri_rf END -->
 
 <!-- IDL:fo2io_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fo2io_orri_rf`**
 ```idl
 # 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
@@ -345,7 +345,7 @@ if (exp == 11'h7FF) {
 <!-- IDL:fo2io_orri_rf END -->
 
 <!-- IDL:fo2ut_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fo2ut_orri_rf`**
 ```idl
 # 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
@@ -388,7 +388,7 @@ if (exp == 11'h7FF) {
 <!-- IDL:fo2ut_orri_rf END -->
 
 <!-- IDL:fo2uo_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fo2uo_orri_rf`**
 ```idl
 # 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
@@ -446,7 +446,7 @@ if (exp == 11'h7FF) {
 <!-- IDL:fo2uo_orri_rf END -->
 
 <!-- IDL:fo2ft_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fo2ft_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
@@ -502,7 +502,7 @@ if (exp == 11'h7FF) {
 <!-- IDL:fo2ft_orri_rf END -->
 
 <!-- IDL:it2ft_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`it2ft_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
@@ -521,7 +521,7 @@ rf[rfHB][31:0] = i32_to_ft(s, mode);
 <!-- IDL:it2ft_orri_rf END -->
 
 <!-- IDL:io2ft_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`io2ft_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
@@ -566,7 +566,7 @@ if ($signed(sd) >= 0s) {
 <!-- IDL:io2ft_orri_rf END -->
 
 <!-- IDL:ut2ft_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ut2ft_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
@@ -585,7 +585,7 @@ rf[rfHB][31:0] = ui32_to_ft(s, mode);
 <!-- IDL:ut2ft_orri_rf END -->
 
 <!-- IDL:uo2ft_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`uo2ft_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
@@ -627,7 +627,7 @@ if ($signed(sd) >= 0s) {
 <!-- IDL:uo2ft_orri_rf END -->
 
 <!-- IDL:io2fo_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`io2fo_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
@@ -690,7 +690,7 @@ if (mag == 64'd0) {
 <!-- IDL:io2fo_orri_rf END -->
 
 <!-- IDL:uo2fo_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`uo2fo_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
@@ -746,7 +746,7 @@ if (a == 64'd0) {
 <!-- IDL:uo2fo_orri_rf END -->
 
 <!-- IDL:ft2fo_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ft2fo_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
@@ -808,7 +808,7 @@ if (exp == 8'hFF) {
 <!-- IDL:ft2fo_orri_rf END -->
 
 <!-- IDL:it2fo_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`it2fo_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
@@ -852,7 +852,7 @@ if (mag == 32'd0) {
 <!-- IDL:it2fo_orri_rf END -->
 
 <!-- IDL:ut2fo_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ut2fo_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
@@ -1111,7 +1111,7 @@ fomax   rfHB, rfHC, rfHD
 本节各指令的形式化语义由 `idl/SimRISC-07.idl` 生成，逐条如下：
 
 <!-- IDL:ftadd_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftadd_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
@@ -1131,7 +1131,7 @@ rf[rfHB][31:0] = ft_add(a, b, mode);                  # ft 结果只写低 32 �
 <!-- IDL:ftadd_orrr_rf END -->
 
 <!-- IDL:ftsub_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftsub_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1149,7 +1149,7 @@ rf[rfHB][31:0] = ft_sub(a, b, mode);
 <!-- IDL:ftsub_orrr_rf END -->
 
 <!-- IDL:ftmul_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftmul_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1167,7 +1167,7 @@ rf[rfHB][31:0] = ft_mul(a, b, mode);
 <!-- IDL:ftmul_orrr_rf END -->
 
 <!-- IDL:ftdiv_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftdiv_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1186,7 +1186,7 @@ rf[rfHB][31:0] = ft_div(a, b, mode);
 <!-- IDL:ftdiv_orrr_rf END -->
 
 <!-- IDL:ftrem_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftrem_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
@@ -1204,7 +1204,7 @@ rf[rfHB][31:0] = r;
 <!-- IDL:ftrem_orrr_rf END -->
 
 <!-- IDL:ftsclb_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftsclb_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1227,7 +1227,7 @@ rf[rfHB][31:0] = ft_scale(a, n, mode);
 <!-- IDL:ftsclb_orrr_rf END -->
 
 <!-- IDL:foadd_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`foadd_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1246,7 +1246,7 @@ fo[rfHB] = fo_add(a, b, mode);
 <!-- IDL:foadd_orrr_rf END -->
 
 <!-- IDL:fosub_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fosub_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1264,7 +1264,7 @@ fo[rfHB] = fo_sub(a, b, mode);
 <!-- IDL:fosub_orrr_rf END -->
 
 <!-- IDL:fomul_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fomul_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1282,7 +1282,7 @@ fo[rfHB] = fo_mul(a, b, mode);
 <!-- IDL:fomul_orrr_rf END -->
 
 <!-- IDL:fodiv_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fodiv_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1300,7 +1300,7 @@ fo[rfHB] = fo_div(a, b, mode);
 <!-- IDL:fodiv_orrr_rf END -->
 
 <!-- IDL:forem_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`forem_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1315,7 +1315,7 @@ fo[rfHB] = r;
 <!-- IDL:forem_orrr_rf END -->
 
 <!-- IDL:fosclb_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fosclb_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1334,7 +1334,7 @@ fo[rfHB] = fo_scale(rf[rfHC], n, mode);
 <!-- IDL:fosclb_orrr_rf END -->
 
 <!-- IDL:ftroot_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftroot_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1358,7 +1358,7 @@ rf[rfHB][31:0] = ft_sqrt(a, mode);
 <!-- IDL:ftroot_orri_rf END -->
 
 <!-- IDL:foroot_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`foroot_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1382,7 +1382,7 @@ fo[rfHB] = fo_sqrt(a, mode);
 <!-- IDL:foroot_orri_rf END -->
 
 <!-- IDL:ftrnd_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftrnd_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rf0）
@@ -1408,7 +1408,7 @@ if ((immu6 == 6'h20) && (r != a) && (!is_sp_nan?(a))) {
 <!-- IDL:ftrnd_orri_rf END -->
 
 <!-- IDL:fornd_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fornd_orri_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1431,7 +1431,7 @@ if ((immu6 == 6'h20) && (r != a) && (!is_dp_nan?(a))) {
 <!-- IDL:fornd_orri_rf END -->
 
 <!-- IDL:ftmin_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftmin_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1467,7 +1467,7 @@ rf[rfHB][31:0] = res;
 <!-- IDL:ftmin_orrr_rf END -->
 
 <!-- IDL:ftmax_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftmax_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1502,7 +1502,7 @@ rf[rfHB][31:0] = res;
 <!-- IDL:ftmax_orrr_rf END -->
 
 <!-- IDL:fomin_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fomin_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1537,7 +1537,7 @@ fo[rfHB] = res;
 <!-- IDL:fomin_orrr_rf END -->
 
 <!-- IDL:fomax_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fomax_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1572,7 +1572,7 @@ fo[rfHB] = res;
 <!-- IDL:fomax_orrr_rf END -->
 
 <!-- IDL:ftfma_rrrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftfma_rrrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1596,7 +1596,7 @@ rf[rfHA][31:0] = r;                                   # ft 结果只写低 32 �
 <!-- IDL:ftfma_rrrr_rf END -->
 
 <!-- IDL:fofma_rrrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fofma_rrrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1646,7 +1646,7 @@ ftsgnn和fosgnn指令取 rfHC 除符号位之外的位，与 rfHD 的符号位�
 本节各指令的形式化语义由 `idl/SimRISC-07.idl` 生成，逐条如下：
 
 <!-- IDL:ftsgnj_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftsgnj_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1663,7 +1663,7 @@ rf[rfHB][31:0] = (a & 32'h7FFF_FFFF) | (b & 32'h8000_0000);   # 只写低 32 位
 <!-- IDL:ftsgnj_orrr_rf END -->
 
 <!-- IDL:ftsgnn_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftsgnn_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1679,7 +1679,7 @@ rf[rfHB][31:0] = (a & 32'h7FFF_FFFF) | ((~b) & 32'h8000_0000);
 <!-- IDL:ftsgnn_orrr_rf END -->
 
 <!-- IDL:fosgnj_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fosgnj_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1695,7 +1695,7 @@ fo[rfHB] = (a & 64'h7FFF_FFFF_FFFF_FFFF) | (b & 64'h8000_0000_0000_0000);
 <!-- IDL:fosgnj_orrr_rf END -->
 
 <!-- IDL:fosgnn_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`fosgnn_orrr_rf`**
 ```idl
 # 目的 rf0 ⇒ ILLI（§1.4 / 附录 B dst_rf0）
@@ -1738,7 +1738,7 @@ rdHB中的比较结果有四种情况：
 本节各指令的形式化语义由 `idl/SimRISC-07.idl` 生成，逐条如下：
 
 <!-- IDL:ftqcmp_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftqcmp_orrr_rf`**
 ```idl
 # 目的 rd0 ⇒ ILLI（SimRISC-07 §1.4 / 附录 B dst_rd0）
@@ -1784,7 +1784,7 @@ rd[rdHB] = res;                                       # 相等（含 +0 与 −0
 <!-- IDL:ftqcmp_orrr_rf END -->
 
 <!-- IDL:ftscmp_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftscmp_orrr_rf`**
 ```idl
 # 目的 rd0 ⇒ ILLI（§1.4 / 附录 B dst_rd0）
@@ -1826,7 +1826,7 @@ rd[rdHB] = res;
 <!-- IDL:ftscmp_orrr_rf END -->
 
 <!-- IDL:foqcmp_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`foqcmp_orrr_rf`**
 ```idl
 # 目的 rd0 ⇒ ILLI（§1.4 / 附录 B dst_rd0）
@@ -1868,7 +1868,7 @@ rd[rdHB] = res;
 <!-- IDL:foqcmp_orrr_rf END -->
 
 <!-- IDL:foscmp_orrr_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`foscmp_orrr_rf`**
 ```idl
 # 目的 rd0 ⇒ ILLI（§1.4 / 附录 B dst_rd0）
@@ -1945,7 +1945,7 @@ focls   {rdHB:rdHB+immu6-1}, {rfHC:rfHC+immu6-1}
 本节各指令的形式化语义由 `idl/SimRISC-07.idl` 生成，逐条如下：
 
 <!-- IDL:ftcls_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ftcls_orri_rf`**
 ```idl
 # 目的起始 rdHB = rd0 ⇒ ILLI（§1.4 / 附录 B dst_rd0：范围自 rdHB 升序 ⇒ 含 rd0 ⟺ rdHB = 0）
@@ -1997,7 +1997,7 @@ for (Bits<6> k = 6'd0; k < immu6; k++) {
 <!-- IDL:ftcls_orri_rf END -->
 
 <!-- IDL:focls_orri_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`focls_orri_rf`**
 ```idl
 # 目的起始 rdHB = rd0 ⇒ ILLI（§1.4 / 附录 B dst_rd0）

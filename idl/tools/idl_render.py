@@ -26,7 +26,7 @@ Why
     本节各指令的形式化语义由 `idl/SimRISC-03.idl` 生成，逐条如下：
 
     <!-- IDL:<instr-id> BEGIN -->
-    <!-- 由 idl/render.py 生成，勿手改 -->   ← 历史串，随 spec sha256 锁冻结
+    <!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->   ← 故意不含生成器文件名
     **`<instr-id>`**                    ← 替代块内原有的 `# id:` 行
     ```idl
     ...
@@ -106,8 +106,9 @@ DECODE_VAR_ANY_RE = re.compile(r"(?<![\w$])(" + DECODE_VAR + r")\b")
 # 关键字/内建转换不算「调用语义库函数」
 NON_CALL = frozenset({"if", "for", "while", "return", "assert", "sizeof", "true", "false"})
 
-# 注：该串已写进 `spec/` 的 sha256 锁内，改名须同步重渲染 spec（另立任务）。
-GENERATED_NOTE = "<!-- 由 idl/render.py 生成，勿手改 -->"
+# 注：该串渲染进 `spec/`（各册 sha256 锁）；**故意不含生成器文件名**——生成器再改名只改
+# `idl/tools/` 这一级，无需全量重渲染。改注记措辞本身仍须重渲染 spec 并同步清单。
+GENERATED_NOTE = "<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->"
 FENCE_OPEN = "```idl"
 FENCE_CLOSE = "```"
 

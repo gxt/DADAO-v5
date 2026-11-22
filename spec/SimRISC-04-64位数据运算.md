@@ -128,7 +128,7 @@ clmul.o  {rdHA, rdHB}, rdHC, rdHD
 本节各指令的形式化语义由 `idl/SimRISC-04.idl` 生成，逐条如下：
 
 <!-- IDL:add.uo_rrrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`add.uo_rrrr_rd`**
 ```idl
 # 双目的：rdHA = 进位（0 或 1）、rdHB = 结果低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
@@ -146,7 +146,7 @@ rd[rdHB] = sum[63:0];                         # rdHB 为 rd0 时写入丢弃
 <!-- IDL:add.uo_rrrr_rd END -->
 
 <!-- IDL:add.so_rrrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`add.so_rrrr_rd`**
 ```idl
 # 双目的 rdHA/rdHB 分别为结果的高/低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
@@ -164,7 +164,7 @@ rd[rdHB] = wide[63:0];                        # rdHB 为 rd0 时写入丢弃
 <!-- IDL:add.so_rrrr_rd END -->
 
 <!-- IDL:sub.uo_rrrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sub.uo_rrrr_rd`**
 ```idl
 # 双目的：rdHA = 借位（0 或 1）、rdHB = 结果低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
@@ -184,7 +184,7 @@ rd[rdHB] = diff[63:0];                        # rdHB 为 rd0 时写入丢弃
 <!-- IDL:sub.uo_rrrr_rd END -->
 
 <!-- IDL:sub.so_rrrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sub.so_rrrr_rd`**
 ```idl
 # 双目的 rdHA/rdHB 分别为结果的高/低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
@@ -204,7 +204,7 @@ rd[rdHB] = wide[63:0];                        # rdHB 为 rd0 时写入丢弃
 <!-- IDL:sub.so_rrrr_rd END -->
 
 <!-- IDL:add.si_riii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`add.si_riii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -219,7 +219,7 @@ rd[rdHA] = rd[rdHA] + imm;
 <!-- IDL:add.si_riii_rd END -->
 
 <!-- IDL:cmp.si_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cmp.si_rrii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -241,7 +241,7 @@ if ($signed(rd[rdHB]) < $signed(imm)) {
 <!-- IDL:cmp.si_rrii_rd END -->
 
 <!-- IDL:cmp.ui_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cmp.ui_rrii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -263,7 +263,7 @@ if (rd[rdHB] < imm) {
 <!-- IDL:cmp.ui_rrii_rd END -->
 
 <!-- IDL:cmp.uo_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cmp.uo_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -283,7 +283,7 @@ if (rd[rdHC] < rd[rdHD]) {
 <!-- IDL:cmp.uo_orrr_rd END -->
 
 <!-- IDL:cmp.so_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cmp.so_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -303,7 +303,7 @@ if ($signed(rd[rdHC]) < $signed(rd[rdHD])) {
 <!-- IDL:cmp.so_orrr_rd END -->
 
 <!-- IDL:mul.so_rrrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`mul.so_rrrr_rd`**
 ```idl
 # 双目的 rdHA/rdHB 分别为 128 位乘积的高/低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
@@ -323,7 +323,7 @@ rd[rdHB] = product[63:0];                     # rdHB 为 rd0 时写入丢弃
 <!-- IDL:mul.so_rrrr_rd END -->
 
 <!-- IDL:mul.uo_rrrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`mul.uo_rrrr_rd`**
 ```idl
 # 双目的 rdHA/rdHB 分别为 128 位乘积的高/低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
@@ -342,7 +342,7 @@ rd[rdHB] = product[63:0];                     # rdHB 为 rd0 时写入丢弃
 <!-- IDL:mul.uo_rrrr_rd END -->
 
 <!-- IDL:div.uo_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`div.uo_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -360,7 +360,7 @@ if (rd[rdHD] == 64'd0) {
 <!-- IDL:div.uo_orrr_rd END -->
 
 <!-- IDL:div.so_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`div.so_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -386,7 +386,7 @@ if (b == 64'd0) {
 <!-- IDL:div.so_orrr_rd END -->
 
 <!-- IDL:rem.uo_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rem.uo_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -404,7 +404,7 @@ if (rd[rdHD] == 64'd0) {
 <!-- IDL:rem.uo_orrr_rd END -->
 
 <!-- IDL:rem.so_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rem.so_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -430,7 +430,7 @@ if (b == 64'd0) {
 <!-- IDL:rem.so_orrr_rd END -->
 
 <!-- IDL:clmul.o_rrrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`clmul.o_rrrr_rd`**
 ```idl
 # 双目的 rdHA/rdHB 分别为 128 位积的高/低 64 位；同一寄存器（含同时为 rd0）⇒ ILLI
@@ -616,7 +616,7 @@ rol.o   rdHB, rdHC, immu6       @@ 循环左移（旋转量 = immu6，0..63）
 本节各指令的形式化语义由 `idl/SimRISC-04.idl` 生成，逐条如下：
 
 <!-- IDL:and.o_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`and.o_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -630,7 +630,7 @@ rd[rdHB] = rd[rdHC] & rd[rdHD];
 <!-- IDL:and.o_orrr_rd END -->
 
 <!-- IDL:or.o_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`or.o_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -644,7 +644,7 @@ rd[rdHB] = rd[rdHC] | rd[rdHD];
 <!-- IDL:or.o_orrr_rd END -->
 
 <!-- IDL:xor.o_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`xor.o_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -658,7 +658,7 @@ rd[rdHB] = rd[rdHC] ^ rd[rdHD];
 <!-- IDL:xor.o_orrr_rd END -->
 
 <!-- IDL:xnor.o_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`xnor.o_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -672,7 +672,7 @@ rd[rdHB] = ~(rd[rdHC] ^ rd[rdHD]);
 <!-- IDL:xnor.o_orrr_rd END -->
 
 <!-- IDL:shl.o_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shl.o_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -687,7 +687,7 @@ rd[rdHB] = rd[rdHC] << rd[rdHD][5:0];
 <!-- IDL:shl.o_orrr_rd END -->
 
 <!-- IDL:shl.o_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shl.o_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -701,7 +701,7 @@ rd[rdHB] = rd[rdHC] << immu6;
 <!-- IDL:shl.o_orri_rd END -->
 
 <!-- IDL:rol.o_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rol.o_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -719,7 +719,7 @@ rd[rdHB] = (x << n) | (x >> m);
 <!-- IDL:rol.o_orrr_rd END -->
 
 <!-- IDL:rol.o_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rol.o_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -735,7 +735,7 @@ rd[rdHB] = (x << immu6) | (x >> m);
 <!-- IDL:rol.o_orri_rd END -->
 
 <!-- IDL:shr.uo_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shr.uo_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -749,7 +749,7 @@ rd[rdHB] = rd[rdHC] >> rd[rdHD][5:0];
 <!-- IDL:shr.uo_orrr_rd END -->
 
 <!-- IDL:shr.uo_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shr.uo_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -763,7 +763,7 @@ rd[rdHB] = rd[rdHC] >> immu6;
 <!-- IDL:shr.uo_orri_rd END -->
 
 <!-- IDL:shr.so_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shr.so_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -777,7 +777,7 @@ rd[rdHB] = $signed(rd[rdHC]) >>> rd[rdHD][5:0];
 <!-- IDL:shr.so_orrr_rd END -->
 
 <!-- IDL:shr.so_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shr.so_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -791,7 +791,7 @@ rd[rdHB] = $signed(rd[rdHC]) >>> immu6;
 <!-- IDL:shr.so_orri_rd END -->
 
 <!-- IDL:ext.uo_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ext.uo_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -808,7 +808,7 @@ rd[rdHB] = rd[rdHC] & mask;
 <!-- IDL:ext.uo_orrr_rd END -->
 
 <!-- IDL:ext.uo_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ext.uo_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -823,7 +823,7 @@ rd[rdHB] = rd[rdHC] & mask;
 <!-- IDL:ext.uo_orri_rd END -->
 
 <!-- IDL:ext.so_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ext.so_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -840,7 +840,7 @@ rd[rdHB] = (rd[rdHC][hd] == 1'b1) ? (low | ~mask) : low;
 <!-- IDL:ext.so_orrr_rd END -->
 
 <!-- IDL:ext.so_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ext.so_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -856,7 +856,7 @@ rd[rdHB] = (rd[rdHC][immu6] == 1'b1) ? (low | ~mask) : low;
 <!-- IDL:ext.so_orri_rd END -->
 
 <!-- IDL:rev.o_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rev.o_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）

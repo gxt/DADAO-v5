@@ -37,7 +37,7 @@
 
 **源在仓库根 `idl/`**：每册一个 `idl/SimRISC-NN.idl`，每条指令一段以 `# id: <指令 id>` 开头的 operation（id 与汇编速查表一致），只描述**单条指令**对架构状态的作用，语法取 UDB IDL（不另造方言）。
 
-各册的 `idl` 代码块是**渲染结果**：落在 `<!-- IDL:<id> BEGIN -->` 与 `<!-- IDL:<id> END -->` 之间，由 `idl/render.py` 从源生成，**不得手改**。语法基线、寄存器模型与语义库见 [`IDL-ISA语义描述语言与语义库.md`](IDL-ISA语义描述语言与语义库.md)。
+各册的 `idl` 代码块是**渲染结果**：落在 `<!-- IDL:<id> BEGIN -->` 与 `<!-- IDL:<id> END -->` 之间，由 `idl/tools/idl_render.py` 从源生成，**不得手改**。语法基线、寄存器模型与语义库见 [`IDL-ISA语义描述语言与语义库.md`](IDL-ISA语义描述语言与语义库.md)。
 
 ### 环境
 

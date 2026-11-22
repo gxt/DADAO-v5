@@ -73,7 +73,7 @@ OPC-wyde 子表中的 `mul`/`div`/`rem` 提供 16 位乘除余运算。`mul` 后
 本节各指令的形式化语义由 `idl/SimRISC-09.idl` 生成，逐条如下：
 
 <!-- IDL:add.sw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`add.sw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -91,7 +91,7 @@ rd[rdHB] = {{48{sum[15]}}, sum};
 <!-- IDL:add.sw_orrr_rd END -->
 
 <!-- IDL:add.uw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`add.uw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -109,7 +109,7 @@ rd[rdHB] = {48'd0, sum};
 <!-- IDL:add.uw_orrr_rd END -->
 
 <!-- IDL:sub.sw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sub.sw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -127,7 +127,7 @@ rd[rdHB] = {{48{diff[15]}}, diff};
 <!-- IDL:sub.sw_orrr_rd END -->
 
 <!-- IDL:sub.uw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sub.uw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -145,7 +145,7 @@ rd[rdHB] = {48'd0, diff};
 <!-- IDL:sub.uw_orrr_rd END -->
 
 <!-- IDL:cmp.sw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cmp.sw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -168,7 +168,7 @@ if ($signed(src1) < $signed(src2)) {
 <!-- IDL:cmp.sw_orrr_rd END -->
 
 <!-- IDL:cmp.uw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cmp.uw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -191,7 +191,7 @@ if (src1 < src2) {
 <!-- IDL:cmp.uw_orrr_rd END -->
 
 <!-- IDL:mul.sw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`mul.sw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -209,7 +209,7 @@ rd[rdHB] = {{48{prod[15]}}, prod};
 <!-- IDL:mul.sw_orrr_rd END -->
 
 <!-- IDL:mul.uw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`mul.uw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -227,7 +227,7 @@ rd[rdHB] = {48'd0, prod};
 <!-- IDL:mul.uw_orrr_rd END -->
 
 <!-- IDL:div.sw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`div.sw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -263,7 +263,7 @@ if (src2 == 16'd0) {
 <!-- IDL:div.sw_orrr_rd END -->
 
 <!-- IDL:div.uw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`div.uw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -285,7 +285,7 @@ if (src2 == 16'd0) {
 <!-- IDL:div.uw_orrr_rd END -->
 
 <!-- IDL:rem.sw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rem.sw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -321,7 +321,7 @@ if (src2 == 16'd0) {
 <!-- IDL:rem.sw_orrr_rd END -->
 
 <!-- IDL:rem.uw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rem.uw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -404,7 +404,7 @@ rol.w   rdHB, rdHC, immu6       @@ 16 位循环左移（immu6 0..15）
 本节各指令的形式化语义由 `idl/SimRISC-09.idl` 生成，逐条如下：
 
 <!-- IDL:shl.w_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shl.w_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -426,7 +426,7 @@ rd[rdHB] = {48'd0, res};
 <!-- IDL:shl.w_orri_rd END -->
 
 <!-- IDL:shl.w_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shl.w_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -444,7 +444,7 @@ rd[rdHB] = {48'd0, res};
 <!-- IDL:shl.w_orrr_rd END -->
 
 <!-- IDL:shr.uw_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shr.uw_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -465,7 +465,7 @@ rd[rdHB] = {48'd0, res};
 <!-- IDL:shr.uw_orri_rd END -->
 
 <!-- IDL:shr.uw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shr.uw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -482,7 +482,7 @@ rd[rdHB] = {48'd0, res};
 <!-- IDL:shr.uw_orrr_rd END -->
 
 <!-- IDL:shr.sw_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shr.sw_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -505,7 +505,7 @@ rd[rdHB] = {{48{val[15]}}, res};
 <!-- IDL:shr.sw_orri_rd END -->
 
 <!-- IDL:shr.sw_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shr.sw_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -523,7 +523,7 @@ rd[rdHB] = {{48{val[15]}}, res};
 <!-- IDL:shr.sw_orrr_rd END -->
 
 <!-- IDL:rev.w_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rev.w_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -557,7 +557,7 @@ rd[rdHB] = x;
 <!-- IDL:rev.w_orri_rd END -->
 
 <!-- IDL:rol.w_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rol.w_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -583,7 +583,7 @@ rd[rdHB] = {48'd0, res};
 <!-- IDL:rol.w_orri_rd END -->
 
 <!-- IDL:rol.w_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rol.w_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）

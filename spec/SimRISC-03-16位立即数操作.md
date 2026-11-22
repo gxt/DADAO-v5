@@ -35,7 +35,7 @@ andn.w   rdHA, wpN, immu16
 本节各指令的形式化语义由 `idl/SimRISC-03.idl` 生成，逐条如下：
 
 <!-- IDL:set.ow_rwii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`set.ow_rwii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -58,7 +58,7 @@ if (wpN == 2'd0) {
 <!-- IDL:set.ow_rwii_rd END -->
 
 <!-- IDL:set.zw_rwii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`set.zw_rwii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -81,7 +81,7 @@ if (wpN == 2'd0) {
 <!-- IDL:set.zw_rwii_rd END -->
 
 <!-- IDL:or.w_rwii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`or.w_rwii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -104,7 +104,7 @@ if (wpN == 2'd0) {
 <!-- IDL:or.w_rwii_rd END -->
 
 <!-- IDL:andn.w_rwii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`andn.w_rwii_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -144,7 +144,7 @@ andn.w  rbHA, wpN, immu16
 本节各指令的形式化语义由 `idl/SimRISC-03.idl` 生成，逐条如下：
 
 <!-- IDL:andn.w_rwii_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`andn.w_rwii_rb`**
 ```idl
 # 目的 rb0 ⇒ ILLI（附录 B dst_rb0；rb0 读出为 IP，不得作普通目的）
@@ -169,7 +169,7 @@ if (wpN == 2'd0) {
 <!-- IDL:andn.w_rwii_rb END -->
 
 <!-- IDL:or.w_rwii_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`or.w_rwii_rb`**
 ```idl
 # 目的 rb0 ⇒ ILLI（附录 B dst_rb0）
@@ -193,7 +193,7 @@ if (wpN == 2'd0) {
 <!-- IDL:or.w_rwii_rb END -->
 
 <!-- IDL:set.zw_rwii_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`set.zw_rwii_rb`**
 ```idl
 # 目的 rb0 ⇒ ILLI（附录 B dst_rb0）
@@ -235,7 +235,7 @@ set.w    rfHA, wpN, immu16
 本节各指令的形式化语义由 `idl/SimRISC-03.idl` 生成，逐条如下：
 
 <!-- IDL:set.w_rwii_rf BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`set.w_rwii_rf`**
 ```idl
 # wpN 选中的 wyde 整体写 immu16，其余 48 位保持；按 wyde 写用切片赋值（语言规范 §3）

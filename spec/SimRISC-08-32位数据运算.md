@@ -73,7 +73,7 @@ OPC-tetra 子表中的 `mul`/`div`/`rem` 提供 32 位乘除余运算。`mul` �
 本节各指令的形式化语义由 `idl/SimRISC-08.idl` 生成，逐条如下：
 
 <!-- IDL:add.ut_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`add.ut_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -90,7 +90,7 @@ rd[rdHB] = {32'd0, sum};
 <!-- IDL:add.ut_orrr_rd END -->
 
 <!-- IDL:add.st_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`add.st_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -107,7 +107,7 @@ rd[rdHB] = {{32{sum[31]}}, sum};              # 按和的 bit31 符号扩展
 <!-- IDL:add.st_orrr_rd END -->
 
 <!-- IDL:sub.ut_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sub.ut_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -124,7 +124,7 @@ rd[rdHB] = {32'd0, diff};
 <!-- IDL:sub.ut_orrr_rd END -->
 
 <!-- IDL:sub.st_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sub.st_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -141,7 +141,7 @@ rd[rdHB] = {{32{diff[31]}}, diff};            # 按差的 bit31 符号扩展
 <!-- IDL:sub.st_orrr_rd END -->
 
 <!-- IDL:cmp.ut_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cmp.ut_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -164,7 +164,7 @@ if (a < b) {
 <!-- IDL:cmp.ut_orrr_rd END -->
 
 <!-- IDL:cmp.st_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cmp.st_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -187,7 +187,7 @@ if ($signed(a) < $signed(b)) {
 <!-- IDL:cmp.st_orrr_rd END -->
 
 <!-- IDL:mul.ut_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`mul.ut_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -205,7 +205,7 @@ rd[rdHB] = {32'd0, prod};
 <!-- IDL:mul.ut_orrr_rd END -->
 
 <!-- IDL:mul.st_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`mul.st_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -223,7 +223,7 @@ rd[rdHB] = {{32{prod[31]}}, prod};
 <!-- IDL:mul.st_orrr_rd END -->
 
 <!-- IDL:div.ut_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`div.ut_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -245,7 +245,7 @@ if (b == 32'd0) {
 <!-- IDL:div.ut_orrr_rd END -->
 
 <!-- IDL:div.st_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`div.st_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -281,7 +281,7 @@ if (b == 32'd0) {
 <!-- IDL:div.st_orrr_rd END -->
 
 <!-- IDL:rem.ut_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rem.ut_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -303,7 +303,7 @@ if (b == 32'd0) {
 <!-- IDL:rem.ut_orrr_rd END -->
 
 <!-- IDL:rem.st_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rem.st_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -401,7 +401,7 @@ rol.t   rdHB, rdHC, immu6       @@ 32 位循环左移（immu6 0..31）
 本节各指令的形式化语义由 `idl/SimRISC-08.idl` 生成，逐条如下：
 
 <!-- IDL:shl.t_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shl.t_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -419,7 +419,7 @@ rd[rdHB] = {32'd0, res};                       # 值语义：零扩展写满 64 
 <!-- IDL:shl.t_orrr_rd END -->
 
 <!-- IDL:shl.t_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shl.t_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -441,7 +441,7 @@ rd[rdHB] = {32'd0, res};                       # 值语义：零扩展写满 64 
 <!-- IDL:shl.t_orri_rd END -->
 
 <!-- IDL:shr.ut_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shr.ut_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -459,7 +459,7 @@ rd[rdHB] = {32'd0, res};                       # 值语义：零扩展写满 64 
 <!-- IDL:shr.ut_orrr_rd END -->
 
 <!-- IDL:shr.ut_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shr.ut_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -481,7 +481,7 @@ rd[rdHB] = {32'd0, res};                       # 值语义：零扩展写满 64 
 <!-- IDL:shr.ut_orri_rd END -->
 
 <!-- IDL:shr.st_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shr.st_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -500,7 +500,7 @@ rd[rdHB] = {{32{res[31]}}, res};                # 算术右移保持 bit31 ⇒ �
 <!-- IDL:shr.st_orrr_rd END -->
 
 <!-- IDL:shr.st_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`shr.st_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -523,7 +523,7 @@ rd[rdHB] = {{32{res[31]}}, res};                # 算术右移保持 bit31 ⇒ �
 <!-- IDL:shr.st_orri_rd END -->
 
 <!-- IDL:rev.t_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rev.t_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -571,7 +571,7 @@ rd[rdHB] = {rh, rl};
 <!-- IDL:rev.t_orri_rd END -->
 
 <!-- IDL:rol.t_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rol.t_orrr_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）
@@ -591,7 +591,7 @@ rd[rdHB] = {32'd0, res};                       # 值语义：零扩展写满 64 
 <!-- IDL:rol.t_orrr_rd END -->
 
 <!-- IDL:rol.t_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`rol.t_orri_rd`**
 ```idl
 # 目的 rd0 ⇒ ILLI（附录 B dst_rd0）

@@ -49,7 +49,7 @@ br.nz    {rbHA}?, [rb0, imms20]
 本节各指令的形式化语义由 `idl/SimRISC-06.idl` 生成，逐条如下：
 
 <!-- IDL:br.eq_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`br.eq_rrii_rd`**
 ```idl
 # 汇编层 imms14 = 编码层 imms12 << 2（字节偏移）；IP = 当前正在执行的指令地址
@@ -61,7 +61,7 @@ if (rd[rdHA] == rd[rdHB]) {
 <!-- IDL:br.eq_rrii_rd END -->
 
 <!-- IDL:br.ne_rrii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`br.ne_rrii_rd`**
 ```idl
 # 汇编层 imms14 = 编码层 imms12 << 2（字节偏移）；条件 NE = 至少一位不等（SimRISC-00 §3.2）
@@ -73,7 +73,7 @@ if (rd[rdHA] != rd[rdHB]) {
 <!-- IDL:br.ne_rrii_rd END -->
 
 <!-- IDL:br.n_riii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`br.n_riii_rd`**
 ```idl
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 N = 第 63 位为 1（SimRISC-00 §3.2）
@@ -85,7 +85,7 @@ if (rd[rdHA][63] == 1'b1) {
 <!-- IDL:br.n_riii_rd END -->
 
 <!-- IDL:br.nn_riii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`br.nn_riii_rd`**
 ```idl
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 NN = 第 63 位为 0（SimRISC-00 §3.2）
@@ -97,7 +97,7 @@ if (rd[rdHA][63] == 1'b0) {
 <!-- IDL:br.nn_riii_rd END -->
 
 <!-- IDL:br.z_riii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`br.z_riii_rd`**
 ```idl
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 Z = [63..0] 全为 0（SimRISC-00 §3.2）
@@ -110,7 +110,7 @@ if (rd[rdHA] == 64'd0) {
 <!-- IDL:br.z_riii_rd END -->
 
 <!-- IDL:br.nz_riii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`br.nz_riii_rd`**
 ```idl
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 NZ = [63..0] 不全为 0（SimRISC-00 §3.2）
@@ -123,7 +123,7 @@ if (rd[rdHA] != 64'd0) {
 <!-- IDL:br.nz_riii_rd END -->
 
 <!-- IDL:br.p_riii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`br.p_riii_rd`**
 ```idl
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 P = 第 63 位为 0 且 [62..0] 不全为 0
@@ -135,7 +135,7 @@ if (rd[rdHA][63] == 1'b0 && rd[rdHA][62:0] != 63'd0) {
 <!-- IDL:br.p_riii_rd END -->
 
 <!-- IDL:br.np_riii_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`br.np_riii_rd`**
 ```idl
 # 汇编层 imms20 = 编码层 imms18 << 2（字节偏移）；条件 NP = 第 63 位为 1 或 [63..0] 全为 0
@@ -147,7 +147,7 @@ if (rd[rdHA][63] == 1'b1 || rd[rdHA] == 64'd0) {
 <!-- IDL:br.np_riii_rd END -->
 
 <!-- IDL:br.z_riii_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`br.z_riii_rb`**
 ```idl
 # 条件 Z：rbHA 按整 64 位判零（与 -rd 变体的判据一致，区别仅在寄存器组；SimRISC-06 §1 第三类）
@@ -160,7 +160,7 @@ if (rb[rbHA] == 64'd0) {
 <!-- IDL:br.z_riii_rb END -->
 
 <!-- IDL:br.nz_riii_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`br.nz_riii_rb`**
 ```idl
 # 条件 NZ：rbHA 按整 64 位判非零（与 -rd 变体的判据一致，区别仅在寄存器组；SimRISC-06 §1 第三类）
@@ -200,7 +200,7 @@ jump    [rbHA, rdHB, imms14]
 本节各指令的形式化语义由 `idl/SimRISC-06.idl` 生成，逐条如下：
 
 <!-- IDL:jump_iiii_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`jump_iiii_rb`**
 ```idl
 # 汇编层 imms26 = 编码层 imms24 << 2（字节偏移）；无条件相对跳转：Addr = rb0 + (imms24 << 2)
@@ -211,7 +211,7 @@ jump(ip() + $signed(scaled));
 <!-- IDL:jump_iiii_rb END -->
 
 <!-- IDL:jump_rrii_rb BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`jump_rrii_rb`**
 ```idl
 # 无条件绝对跳转：Addr = rbHA + rdHB + (imms12 << 2)（64 位全宽计算）
@@ -249,7 +249,7 @@ call    [rbHA, rdHB, imms14]
 本节各指令的形式化语义由 `idl/SimRISC-06.idl` 生成，逐条如下：
 
 <!-- IDL:call_iiii_ra BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`call_iiii_ra`**
 ```idl
 # 汇编层 imms26 = 编码层 imms24 << 2（字节偏移）；返回地址 = 当前 call 指令地址 + 4（两种形式一致）
@@ -264,7 +264,7 @@ jump(ip() + $signed(scaled));
 <!-- IDL:call_iiii_ra END -->
 
 <!-- IDL:call_rrii_ra BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`call_rrii_ra`**
 ```idl
 # 返回地址 = 当前 call 指令地址 + 4（绝对形式同样如此）；压栈流程见 SimRISC-00 §2.4.1
@@ -298,7 +298,7 @@ ret     rdHA, imms18
 本节各指令的形式化语义由 `idl/SimRISC-06.idl` 生成，逐条如下：
 
 <!-- IDL:ret_riii_ra BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ret_riii_ra`**
 ```idl
 # 目的 rd0 且 imms18 ≠ 0 ⇒ ILLI（SimRISC-06 §4 硬约束 / 附录 B dst_rd0_nonzero）

@@ -60,7 +60,7 @@ sc 指令会先判断 rbHD 内存地址是否有设置保留标记，如果设�
 本节各指令的形式化语义由 `idl/SimRISC-12.idl` 生成，逐条如下：
 
 <!-- IDL:lr.o.nn_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`lr.o.nn_orrr_rd`**
 ```idl
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
@@ -82,7 +82,7 @@ rd[rdHC] = value;
 <!-- IDL:lr.o.nn_orrr_rd END -->
 
 <!-- IDL:lr.t.nn_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`lr.t.nn_orrr_rd`**
 ```idl
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
@@ -105,7 +105,7 @@ rd[rdHC][31:0] = value[31:0];                 # 只写低 32 位
 <!-- IDL:lr.t.nn_orrr_rd END -->
 
 <!-- IDL:lr.w.nn_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`lr.w.nn_orrr_rd`**
 ```idl
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
@@ -128,7 +128,7 @@ rd[rdHC][15:0] = value[15:0];                 # 只写低 16 位
 <!-- IDL:lr.w.nn_orrr_rd END -->
 
 <!-- IDL:lr.b.nn_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`lr.b.nn_orrr_rd`**
 ```idl
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
@@ -151,7 +151,7 @@ rd[rdHC][7:0] = value[7:0];                   # 只写低 8 位
 <!-- IDL:lr.b.nn_orrr_rd END -->
 
 <!-- IDL:lr.o.an_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`lr.o.an_orrr_rd`**
 ```idl
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
@@ -174,7 +174,7 @@ rd[rdHC] = value;
 <!-- IDL:lr.o.an_orrr_rd END -->
 
 <!-- IDL:lr.t.an_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`lr.t.an_orrr_rd`**
 ```idl
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
@@ -198,7 +198,7 @@ rd[rdHC][31:0] = value[31:0];                 # 只写低 32 位
 <!-- IDL:lr.t.an_orrr_rd END -->
 
 <!-- IDL:lr.w.an_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`lr.w.an_orrr_rd`**
 ```idl
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
@@ -222,7 +222,7 @@ rd[rdHC][15:0] = value[15:0];                 # 只写低 16 位
 <!-- IDL:lr.w.an_orrr_rd END -->
 
 <!-- IDL:lr.b.an_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`lr.b.an_orrr_rd`**
 ```idl
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
@@ -246,7 +246,7 @@ rd[rdHC][7:0] = value[7:0];                   # 只写低 8 位
 <!-- IDL:lr.b.an_orrr_rd END -->
 
 <!-- IDL:lr.o.ar_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`lr.o.ar_orrr_rd`**
 ```idl
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
@@ -269,7 +269,7 @@ rd[rdHC] = value;
 <!-- IDL:lr.o.ar_orrr_rd END -->
 
 <!-- IDL:lr.t.ar_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`lr.t.ar_orrr_rd`**
 ```idl
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
@@ -293,7 +293,7 @@ rd[rdHC][31:0] = value[31:0];                 # 只写低 32 位
 <!-- IDL:lr.t.ar_orrr_rd END -->
 
 <!-- IDL:lr.w.ar_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`lr.w.ar_orrr_rd`**
 ```idl
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
@@ -317,7 +317,7 @@ rd[rdHC][15:0] = value[15:0];                 # 只写低 16 位
 <!-- IDL:lr.w.ar_orrr_rd END -->
 
 <!-- IDL:lr.b.ar_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`lr.b.ar_orrr_rd`**
 ```idl
 if (rdHB != 6'd0) {                           # hb 为 SBZ，非零 ⇒ ILLI
@@ -341,7 +341,7 @@ rd[rdHC][7:0] = value[7:0];                   # 只写低 8 位
 <!-- IDL:lr.b.ar_orrr_rd END -->
 
 <!-- IDL:sc.o.nn_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sc.o.nn_orrr_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
@@ -363,7 +363,7 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 <!-- IDL:sc.o.nn_orrr_rd END -->
 
 <!-- IDL:sc.o.nr_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sc.o.nr_orrr_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
@@ -386,7 +386,7 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 <!-- IDL:sc.o.nr_orrr_rd END -->
 
 <!-- IDL:sc.o.ar_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sc.o.ar_orrr_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
@@ -409,7 +409,7 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 <!-- IDL:sc.o.ar_orrr_rd END -->
 
 <!-- IDL:sc.t.nn_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sc.t.nn_orrr_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
@@ -431,7 +431,7 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 <!-- IDL:sc.t.nn_orrr_rd END -->
 
 <!-- IDL:sc.t.nr_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sc.t.nr_orrr_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
@@ -454,7 +454,7 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 <!-- IDL:sc.t.nr_orrr_rd END -->
 
 <!-- IDL:sc.t.ar_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sc.t.ar_orrr_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
@@ -477,7 +477,7 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 <!-- IDL:sc.t.ar_orrr_rd END -->
 
 <!-- IDL:sc.w.nn_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sc.w.nn_orrr_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
@@ -499,7 +499,7 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 <!-- IDL:sc.w.nn_orrr_rd END -->
 
 <!-- IDL:sc.w.nr_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sc.w.nr_orrr_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
@@ -522,7 +522,7 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 <!-- IDL:sc.w.nr_orrr_rd END -->
 
 <!-- IDL:sc.w.ar_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sc.w.ar_orrr_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
@@ -545,7 +545,7 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 <!-- IDL:sc.w.ar_orrr_rd END -->
 
 <!-- IDL:sc.b.nn_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sc.b.nn_orrr_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
@@ -567,7 +567,7 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 <!-- IDL:sc.b.nn_orrr_rd END -->
 
 <!-- IDL:sc.b.nr_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sc.b.nr_orrr_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
@@ -590,7 +590,7 @@ rd[rdHB] = ok;                                # 结果写目的 rdHB（rdHB = rd
 <!-- IDL:sc.b.nr_orrr_rd END -->
 
 <!-- IDL:sc.b.ar_orrr_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`sc.b.ar_orrr_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 成功/失败结果不可丢弃 ⇒ rd0 为非法（dst_rd0）
@@ -634,7 +634,7 @@ swym    immu18
 本节各指令的形式化语义由 `idl/SimRISC-12.idl` 生成，逐条如下：
 
 <!-- IDL:swym_oiii_imm BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`swym_oiii_imm`**
 ```idl
 # 空转指令（§2）：`swym 0` 除 IP 自增外**无任何架构副作用**（IP 自增属取指模型，本 operation 不描述）。
@@ -694,7 +694,7 @@ ctpop   rdHB, rdHC, immu6       @@ 1 的个数（immu6=63 → 64 位）
 本节各指令的形式化语义由 `idl/SimRISC-12.idl` 生成，逐条如下：
 
 <!-- IDL:ctlz_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ctlz_orri_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 目的 rd0 ⇒ ILLI（沿用 dst_rd0）
@@ -722,7 +722,7 @@ rd[rdHB] = {57'd0, n};                        # 结果 0..64，写满 64 位（�
 <!-- IDL:ctlz_orri_rd END -->
 
 <!-- IDL:cttz_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`cttz_orri_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 目的 rd0 ⇒ ILLI（沿用 dst_rd0）
@@ -750,7 +750,7 @@ rd[rdHB] = {57'd0, n};                        # 结果 0..64，写满 64 位（�
 <!-- IDL:cttz_orri_rd END -->
 
 <!-- IDL:ctpop_orri_rd BEGIN -->
-<!-- 由 idl/render.py 生成，勿手改 -->
+<!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`ctpop_orri_rd`**
 ```idl
 if (rdHB == 6'd0) {                           # 目的 rd0 ⇒ ILLI（沿用 dst_rd0）
