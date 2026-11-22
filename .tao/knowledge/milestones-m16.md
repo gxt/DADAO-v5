@@ -41,13 +41,13 @@
 | --- | --- | --- | --- |
 | m16-gem5-024 | 2026-11-22 22:04 | 2–3 h | gem5 cfx5 两轴权限/trap/escape（进 kCfxhaMap） |
 | m16-chipyard-019 | 2026-11-22 22:09 | 3–4 h | RTL cfx0/2 寄存器面与权限（A；不改主控制流） |
-| m16-qemu-003 | 2026-11-22 23:16 | 3–4 h | QEMU cfx5 命令接线（clean/invalidate/flush + I 侧 tb invalidate） |
 | m16-testcases-015 | 2026-11-22 20:47 | 4–6 h | `tests/arch` 运行模式环境（hmon/smon/umon；body 与 env 分离；代表迁移） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-qemu-003 | 2026-11-23 00:12 | cfx5 命令接线（D clean/invalidate/flush、all/单行/区间；I 侧由 RAM 写自动失效；26/26 + 46/46） |
 | m16-qemu-002 | 2026-11-22 23:16 | 影子 D-Cache 数据通路（8×128×64 B；DMA/装载直连；10/10 + 29/29） |
 | m16-chipyard-017 | 2026-11-22 22:08 | RTL cfx5 命令接线（D/I clean/invalidate/flush、all/单行/区间、I 先 D；探针 29 记录/118 事件） |
 | m16-qemu-004 | 2026-11-22 22:06 | QEMU fence 保留集对齐（`6–14, 16–31, 35–61`；三载体 56 B 签名同；ISS-432 关闭） |

@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..a4f6af9
+index 0000000..697fcae
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,770 @@
+@@ -0,0 +1,768 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -295,12 +295,10 @@ index 0000000..a4f6af9
 + * cfx15/cfx34 (single-hart timer + global time, INTEG-050t).  Every other
 + * cfxha either is reserved (6-14, 16-31, 35-61 => ILLI) or
 + * allocated-but-unimplemented here (=> CFXREG). */
-+/* cfx_cache (cfx5) has a row for the register face but is a *runtime*
-+ * capability: it answers only when the machine is started with
-+ * `-machine kaiwu-vast,cache-model=on` (contract-cache CACHE-27;
-+ * m16-qemu-001).  With the model off the row is inert and every access takes
-+ * the allocated-but-unimplemented path (CFXREG), the same口径 as Tiny
-+ * (CACHE-28). */
++/* cfx_cache (cfx5) has a row for both cache models on a cache-capable core
++ * and answers with `cache_exist` = 0 while `cache-model=off` (user ruling
++ * 2026-11-22: the model decides whether the cache has *effects*, never
++ * whether cfx5 exists; contract-cache CACHE-27; m16-qemu-001/003). */
 +#define DADAO_NUM_CFX 10
 +extern const int dadao_cfxha_map[DADAO_NUM_CFX]; /* defined in helper.c */
 +

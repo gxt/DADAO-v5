@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..2a29408
+index 0000000..e7cbc41
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,3588 @@
+@@ -0,0 +1,3779 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -32,6 +32,8 @@ index 0000000..2a29408
 +#ifndef CONFIG_USER_ONLY
 +#include "system/runstate.h"
 +#include "system/address-spaces.h"
++#include "system/memory.h"
++#include "exec/translation-block.h"
 +#endif
 +#include "accel/tcg/cpu-ops.h"
 +#include "accel/tcg/cpu-loop.h"
@@ -2858,10 +2860,10 @@ index 0000000..2a29408
 + * `cache-model` only decides *effects* (user ruling 2026-11-22): with `on`
 + * the machine reports I+D (`cache_exist` = 0b11, CACHE-27) and with `off` it
 + * reports no cache (`cache_exist` = 0) -- but the register face answers in
-+ * both settings, and a legal `cache_ctrl` write is accepted, completes
-+ * synchronously (CACHE-24/CACHE-25) and has no effect while the shadow
-+ * D-cache is absent (later task).  An illegal encoding still raises CFXREG
-+ * before any maintenance action.
++ * both settings, and a legal `cache_ctrl` write is accepted and completes
++ * synchronously (CACHE-24/CACHE-25); with the shadow D-cache absent (`off`)
++ * the maintenance action itself has no effect (CACHE-27).  An illegal
++ * encoding still raises CFXREG before any maintenance action.
 + */
 +/* cache_ctrl fields (CACHE-09): [1:0] op, [3:2] range, [15:14] selection
 + * (bit15 = I, bit14 = D).  Unused bits are reserved and ignored. */
@@ -2870,9 +2872,183 @@ index 0000000..2a29408
 +#define DADAO_CACHE_CTRL_SEL_SHIFT   14
 +#define DADAO_CACHE_CTRL_FIELD_MASK   0x3ULL
 +#define DADAO_CACHE_OP_NONE           0x0
++#define DADAO_CACHE_OP_CLEAN          0x1
++#define DADAO_CACHE_OP_INVALIDATE     0x2
++#define DADAO_CACHE_OP_FLUSH          0x3
++#define DADAO_CACHE_RANGE_ALL         0x0
++#define DADAO_CACHE_RANGE_LINE        0x1
 +#define DADAO_CACHE_RANGE_SPAN        0x2
 +#define DADAO_CACHE_RANGE_RESERVED    0x3
 +#define DADAO_CACHE_SEL_NONE          0x0
++#define DADAO_CACHE_SEL_D             0x1   /* bit14 */
++#define DADAO_CACHE_SEL_I             0x2   /* bit15 */
++
++/* ── cache_ctrl maintenance effects (m16-qemu-003) ──────────────────────
++ *
++ * The D side is the shadow array from m16-qemu-002: a line is written back
++ * with address_space_write() to its real PA, which is also the channel the
++ * cfx_pmem DMA uses, so a later DMA read observes exactly what the contract
++ * promises (CACHE-20/CACHE-30).  Only lines of the shadow's RAM window can
++ * exist, which is what makes MMIO/uncacheable PAs a natural no-op
++ * (CACHE-22): such a PA never has a line to match.
++ *
++ * The I side keeps no array (m16-qemu-002 §4: instruction fetch is not
++ * redirected).  Its only modelled state is QEMU's translated-code cache, so
++ * `invalidate`/`flush` drop the translations covering the selected PA range
++ * -- the same effect ARM's `IC IVAU` asks of `tb_invalidate_phys_range()` --
++ * and `clean` is a no-op (CACHE-19).  Guest code on this machine executes
++ * from RAM, so `all` folds onto the shadow's RAM window.
++ */
++#ifndef CONFIG_USER_ONLY
++static bool dadao_cache_line_matches(uint64_t line_pa, unsigned range,
++                                     uint64_t start, uint64_t size)
++{
++    uint64_t end;
++
++    switch (range) {
++    case DADAO_CACHE_RANGE_ALL:
++        return true;                    /* CACHE-15: every line */
++    case DADAO_CACHE_RANGE_LINE:
++        /* CACHE-16: the line that contains addr_start, compared as a
++         * 56-bit PA (no truncation). */
++        return line_pa <= start && start - line_pa < DADAO_DCACHE_LINE_SIZE;
++    case DADAO_CACHE_RANGE_SPAN:
++        /* CACHE-17: [start, start + size) intersects [line_pa, line_pa +
++         * line).  Saturate instead of wrapping on a 64-bit overflow. */
++        end = start + size;
++        if (end < start) {
++            end = UINT64_MAX;
++        }
++        return line_pa < end && start < line_pa + DADAO_DCACHE_LINE_SIZE;
++    default:
++        return false;                   /* reserved: rejected before here */
++    }
++}
++#endif
++
++/* Apply a legal command to the shadow D-cache (CACHE-20/CACHE-24). */
++#ifndef CONFIG_USER_ONLY
++static void dadao_cache_d_maintain(CPUDADAOState *env, unsigned op,
++                                   unsigned range, uint64_t start,
++                                   uint64_t size)
++{
++    DadaoDCache *c = env->dcache;
++    unsigned set, way;
++
++    if (!c) {
++        return;                         /* CACHE-27 off: accepted, no effect */
++    }
++    for (set = 0; set < DADAO_DCACHE_SETS; set++) {
++        for (way = 0; way < DADAO_DCACHE_WAYS; way++) {
++            DadaoDCacheLine *line = &c->line[set][way];
++            uint64_t line_pa;
++
++            if (!line->valid) {
++                continue;
++            }
++            line_pa = dadao_dcache_line_pa(c, set, line->tag);
++            if (!dadao_cache_line_matches(line_pa, range, start, size)) {
++                continue;
++            }
++            if ((op == DADAO_CACHE_OP_CLEAN ||
++                 op == DADAO_CACHE_OP_FLUSH) && line->dirty) {
++                /* clean = write back + clear dirty; flush additionally drops
++                 * the line below.  `invalidate` never takes this branch: its
++                 * dirty data is discarded without a write-back (CACHE-20). */
++                address_space_write(&address_space_memory, line_pa,
++                                    MEMTXATTRS_UNSPECIFIED, line->data,
++                                    DADAO_DCACHE_LINE_SIZE);
++                line->dirty = 0;
++            }
++            if (op == DADAO_CACHE_OP_INVALIDATE ||
++                op == DADAO_CACHE_OP_FLUSH) {
++                line->valid = 0;
++                line->dirty = 0;
++            }
++        }
++    }
++}
++#else
++static void dadao_cache_d_maintain(CPUDADAOState *env, unsigned op,
++                                   unsigned range, uint64_t start,
++                                   uint64_t size)
++{
++    /* User mode has no shadow array (cfx5 is not implemented there). */
++}
++#endif
++
++/* Drop QEMU's translated code for [start, end) (CACHE-19/CACHE-24). */
++static void dadao_cache_i_drop_translations(CPUDADAOState *env,
++                                            uint64_t start, uint64_t end)
++{
++#ifndef CONFIG_USER_ONLY
++    CPUState *cs = env_cpu(env);
++    uint64_t pa = start;
++
++    while (pa < end) {
++        hwaddr xlat = 0, len = end - pa;
++        MemoryRegion *mr;
++
++        mr = address_space_translate(&address_space_memory, pa, &xlat, &len,
++                                     false, MEMTXATTRS_UNSPECIFIED);
++        if (len == 0) {
++            break;                      /* unassigned window: no code there */
++        }
++        len = MIN(len, end - pa);
++        if (memory_region_is_ram(mr)) {
++            /* tb_page_addr_t is a RAMBlock offset, not a guest PA: the
++             * translation supplies both (invalidate_and_set_dirty() does the
++             * same conversion after a plain RAM write). */
++            ram_addr_t ra = memory_region_get_ram_addr(mr) + xlat;
++
++            tb_invalidate_phys_range(cs, ra, ra + len - 1);
++        }
++        pa += len;
++    }
++#endif
++}
++
++/* Apply a legal command to the I side (CACHE-19/CACHE-21). */
++static void dadao_cache_i_maintain(CPUDADAOState *env, unsigned op,
++                                   unsigned range, uint64_t start,
++                                   uint64_t size)
++{
++    DadaoDCache *c = env->dcache;
++    uint64_t first, last;
++
++    if (!c) {
++        return;                         /* CACHE-27 off: accepted, no effect */
++    }
++    if (op == DADAO_CACHE_OP_CLEAN) {
++        return;                         /* CACHE-19: no dirty state on I */
++    }
++    /* The only executable memory that can change under this model is RAM in
++     * the shadow window, so fold `all` (and any part of a request outside
++     * the window) onto that window. */
++    if (range == DADAO_CACHE_RANGE_ALL) {
++        first = c->pa_base;
++        last = c->pa_base + c->size;
++    } else if (range == DADAO_CACHE_RANGE_LINE) {
++        first = start;
++        last = start + DADAO_DCACHE_LINE_SIZE;
++    } else {
++        first = start;
++        last = start + size;
++        if (last < first) {
++            last = UINT64_MAX;          /* saturate like CACHE-17 */
++        }
++    }
++    if (first < c->pa_base) {
++        first = c->pa_base;
++    }
++    if (last > c->pa_base + c->size) {
++        last = c->pa_base + c->size;
++    }
++    if (first >= last) {
++        return;
++    }
++    dadao_cache_i_drop_translations(env, first, last);
++}
 +
 +static bool dadao_cache_reg_read(CPUDADAOState *env, uint32_t rc, uint64_t *val)
 +{
@@ -2920,7 +3096,22 @@ index 0000000..2a29408
 +    if (range == DADAO_CACHE_RANGE_SPAN && env->cache_addr_size == 0) {
 +        return false;                   /* CACHE-14: PA span needs size != 0 */
 +    }
-+    /* Legal command: the array effect is a later task; complete silently. */
++    /* Legal command.  CACHE-21: with both sides selected the I side is
++     * handled first, then the D side; each side matches the range on its own.
++     * CACHE-08: an enable bit of 0 makes that side's command a no-op, but the
++     * validation above already ran regardless of the enable bits.  With
++     * cache-model=off, cache_enable is 0 (exist = 0, CACHE-07), so both sides
++     * fall through and the command is a legal no-op (CACHE-27). */
++    if ((sel & DADAO_CACHE_SEL_I) &&
++        (env->cache_enable & (1ULL << DADAO_CACHE_BIT_I))) {
++        dadao_cache_i_maintain(env, op, range, env->cache_addr_start &
++                               DADAO_CACHE_PA_MASK, env->cache_addr_size);
++    }
++    if ((sel & DADAO_CACHE_SEL_D) &&
++        (env->cache_enable & (1ULL << DADAO_CACHE_BIT_D))) {
++        dadao_cache_d_maintain(env, op, range, env->cache_addr_start &
++                               DADAO_CACHE_PA_MASK, env->cache_addr_size);
++    }
 +    return true;
 +}
 +
