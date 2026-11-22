@@ -31,7 +31,6 @@
 | m16-chipyard-023 | 2–3 h | RTL cfx34 time（全局时间，无中断） |
 | m16-testcases-012 | 2–3 h | fence 基础验证（三方；完整覆盖不作验收要求） |
 | m16-testcases-013 | 2–3 h | cfx15 timer 中断（单独测试；单 hart，mask/pending/清除） |
-| m16-testcases-015 | 4–6 h | `tests/arch` 运行模式环境（hmon/smon/umon；body 与 env 分离；代表迁移） |
 | m16-testcases-016 | 2–3 h | cfx63 power 基础用例（寄存器面 + power→hmon 移交，三方） |
 
 | m16-testcases-014 | 2–3 h | cfx32 pmem DMA 完成中断（单独测试；单 hart，mask/pending/清除） |
@@ -42,12 +41,14 @@
 | --- | --- | --- | --- |
 | m16-chipyard-017 | 2026-11-22 18:25 | 3–5 h | RTL cfx5 命令接线（D/I cache cmd 口） |
 | m16-qemu-004 | 2026-11-22 21:26 | 1–2 h | QEMU `fence` 保留 cfx 集对齐（ISS-432） |
+| m16-testcases-015 | 2026-11-22 20:47 | 4–6 h | `tests/arch` 运行模式环境（hmon/smon/umon；body 与 env 分离；代表迁移） |
 | m16-gem5-023 | 2026-11-22 20:05 | 2–3 h | gem5 `cache-model=off` 下 cfx5 存在但 no-op（不再 `CFXREG`） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-testcases-015 | 2026-11-22 21:29 | `tests/arch` hmon/smon/umon 运行模式环境（三模式签名一致；26 条未迁移清单） |
 | m16-qemu-001 | 2026-11-22 21:26 | QEMU `cache-model=off\|on` + cfx5 寄存器面（off 合法 no-op/非法 CFXREG；32/32 + 51/51） |
 | m16-spec-002 | 2026-11-22 20:20 | CACHE-27 补 `cache-model` 维度（off=存在/no-op、非法仍 CFXREG；on=0b11/真维护）；版本不升 |
 | m16-gem5-022 | 2026-11-22 18:25 | I 侧自修改证伪成功（正确构造单行/区间均 0x10，去 clean D 才 0x92）+ monitor 交接 flush；021 结论作废记 ISS-514 |

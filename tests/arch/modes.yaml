@@ -1,0 +1,167 @@
+# tests/arch/modes.yaml — arch 用例的运行模式允许集（m16-testcases-015）
+#
+# 为什么不写在 `tests/arch.yaml`：该文件字段受 `check-tests-index` 白名单
+# 约束（未知字段即红），而运行模式元数据属于「用例旁」的驱动参数。本文件与
+# `tests/arch.yaml` 的 id 集合**双向**核对（缺项/多项/非法模式/缺原因 ⇒ 红），
+# 由 `run_arch.py`（含 `--self-test`）现场校验。
+#
+# 字段：
+#   cases.<id>.modes   非空列表，取值 hmon|smon|umon（每条必须显式给出，无缺省）
+#   cases.<id>.reasons 被排除模式 -> 非空原因（显式标注；不得静默不可运行）
+#
+# 模式语义（hmon/smon/umon = hypv/supv/user 的当前模式监视器）与环境实现见
+# `tests/arch/common/env/README.md`；迁移清单见 `common/env/MIGRATION.md`。
+
+cases:
+  arch-umon-001:
+    modes: [hmon]
+    reasons:
+      smon: "step5 BootROM 只在 hypv 交付 body；判据依赖 cfx_hmon 的故障记录槽，supv 故障走未装载的 cfx_smon ⇒ 未迁移到 common/env"
+      umon: "body 需读写 RAM（签名区/故障记录槽）；step5 页表 HSJU=0xC（U=0）⇒ user 不可访存；未迁移到 common/env"
+
+  arch-umon-002:
+    modes: [hmon]
+    reasons:
+      smon: "step5 BootROM 只在 hypv 交付 body；判据依赖 cfx_hmon 的故障记录槽，supv 故障走未装载的 cfx_smon ⇒ 未迁移到 common/env"
+      umon: "body 需读写 RAM（签名区/故障记录槽）；step5 页表 HSJU=0xC（U=0）⇒ user 不可访存；未迁移到 common/env"
+
+  arch-umon-003:
+    modes: [hmon]
+    reasons:
+      smon: "step5 BootROM 只在 hypv 交付 body；判据依赖 cfx_hmon 的故障记录槽，supv 故障走未装载的 cfx_smon ⇒ 未迁移到 common/env"
+      umon: "body 需读写 RAM（签名区/故障记录槽）；step5 页表 HSJU=0xC（U=0）⇒ user 不可访存；未迁移到 common/env"
+
+  arch-umon-004:
+    modes: [hmon]
+    reasons:
+      smon: "step5 BootROM 只在 hypv 交付 body；判据依赖 cfx_hmon 的故障记录槽，supv 故障走未装载的 cfx_smon ⇒ 未迁移到 common/env"
+      umon: "body 需读写 RAM（签名区/故障记录槽）；step5 页表 HSJU=0xC（U=0）⇒ user 不可访存；未迁移到 common/env"
+
+  arch-umon-005:
+    modes: [hmon]
+    reasons:
+      smon: "step5 BootROM 只在 hypv 交付 body；判据依赖 cfx_hmon 的故障记录槽，supv 故障走未装载的 cfx_smon ⇒ 未迁移到 common/env"
+      umon: "body 需读写 RAM（签名区/故障记录槽）；step5 页表 HSJU=0xC（U=0）⇒ user 不可访存；未迁移到 common/env"
+
+  arch-umon-006:
+    modes: [hmon]
+    reasons:
+      smon: "step5 BootROM 只在 hypv 交付 body；判据依赖 cfx_hmon 的故障记录槽，supv 故障走未装载的 cfx_smon ⇒ 未迁移到 common/env"
+      umon: "body 需读写 RAM（签名区/故障记录槽）；step5 页表 HSJU=0xC（U=0）⇒ user 不可访存；未迁移到 common/env"
+
+  arch-umon-007:
+    modes: [hmon]
+    reasons:
+      smon: "step5 BootROM 只在 hypv 交付 body；判据依赖 cfx_hmon 的故障记录槽，supv 故障走未装载的 cfx_smon ⇒ 未迁移到 common/env"
+      umon: "body 需读写 RAM（签名区/故障记录槽）；step5 页表 HSJU=0xC（U=0）⇒ user 不可访存；未迁移到 common/env"
+
+  arch-umon-008:
+    modes: [hmon]
+    reasons:
+      smon: "step5 BootROM 只在 hypv 交付 body；判据依赖 cfx_hmon 的故障记录槽，supv 故障走未装载的 cfx_smon ⇒ 未迁移到 common/env"
+      umon: "body 需读写 RAM（签名区/故障记录槽）；step5 页表 HSJU=0xC（U=0）⇒ user 不可访存；未迁移到 common/env"
+
+  arch-umon-009:
+    modes: [hmon]
+    reasons:
+      smon: "step5 BootROM 只在 hypv 交付 body；判据依赖 cfx_hmon 的故障记录槽，supv 故障走未装载的 cfx_smon ⇒ 未迁移到 common/env"
+      umon: "body 需读写 RAM（签名区/故障记录槽）；step5 页表 HSJU=0xC（U=0）⇒ user 不可访存；未迁移到 common/env"
+
+  arch-umon-010:
+    modes: [hmon]
+    reasons:
+      smon: "step5 BootROM 只在 hypv 交付 body；判据依赖 cfx_hmon 的故障记录槽，supv 故障走未装载的 cfx_smon ⇒ 未迁移到 common/env"
+      umon: "body 需读写 RAM（签名区/故障记录槽）；step5 页表 HSJU=0xC（U=0）⇒ user 不可访存；未迁移到 common/env"
+
+  arch-ptw-001:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-002:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-003:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-004:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-005:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-006:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-007:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-008:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-009:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-010:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-011:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-012:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-013:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-014:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-ptw-015:
+    modes: [hmon]
+    reasons:
+      smon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；换模式须按目标模式重配 cfx_ptw 寄存器面权限 ⇒ 未迁移到 common/env"
+      umon: "载体自带 BootROM、body 固定在 cfx_hmon/hypv；user 另需重配页表 U 位 ⇒ 未迁移到 common/env"
+
+  arch-umon-011:
+    modes: [hmon, smon, umon]

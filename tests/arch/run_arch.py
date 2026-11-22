@@ -10,6 +10,7 @@
 接口：
     python3 tests/arch/run_arch.py --cfx 4 --platforms qemu --cache-model on
     python3 tests/arch/run_arch.py --level smoke --platforms qemu --cache-model off
+    python3 tests/arch/run_arch.py --mode hmon|smon|umon
     python3 tests/arch/run_arch.py --self-test
     python3 tests/arch/run_arch.py --list
 
@@ -45,6 +46,9 @@ PLATFORMS = arch_platform.BACKENDS
 CACHE_MODELS = ("on", "off")
 KINDS = ("asm", "driver")
 LEVELS = ("smoke", "full", "all")
+# 运行模式（m16-testcases-015）：hmon/smon/umon = hypv/supv/user 的当前模式监视器。
+MODES = ("hmon", "smon", "umon")
+DEFAULT_MODE = "hmon"
 
 
 class ConfigError(RuntimeError):
@@ -54,8 +58,9 @@ class ConfigError(RuntimeError):
 # ---------------------------------------------------------------------------
 # 索引 / 与索引门控同口径的静态校验
 # ---------------------------------------------------------------------------
-def load_index(path=None):
+def load_index(path=None, modes_path=None):
     path = Path(path) if path else ARCH.parent / "arch.yaml"
+    modes_path = Path(modes_path) if modes_path else ARCH / "modes.yaml"
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError) as exc:
@@ -100,7 +105,81 @@ def load_index(path=None):
         })
     if problems:
         raise ConfigError("\n".join(problems))
+    modes = load_modes(modes_path, [case["id"] for case in cases])
+    for case in cases:
+        case.update(modes[case["id"]])
     return cases
+
+
+def load_modes(path, case_ids):
+    """读取 `tests/arch/modes.yaml` 并做双向校验（缺项/多项/非法模式/缺原因）。
+
+    返回 `{case_id: {modes, mode_reasons}}`；任何不一致都记 ConfigError，不做
+    「缺省按 hmon」之外的静默补全（`modes` 缺省语义只对旧用例成立，这里要求
+    每条 arch 用例都显式登记）。
+    """
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise ConfigError("无法读取模式清单 %s: %s" % (path, exc))
+    if not isinstance(data, dict) or not isinstance(data.get("cases"), dict):
+        raise ConfigError("%s: 顶层必须是 {cases: {<id>: {...}}}" % path)
+    cases = data["cases"]
+    ids = set(case_ids)
+    problems = []
+    missing = sorted(ids - set(cases))
+    orphan = sorted(set(cases) - ids)
+    if missing:
+        problems.append("%s: 缺 arch 用例条目: %s" % (path, ", ".join(missing)))
+    if orphan:
+        problems.append("%s: 条目不在 tests/arch.yaml: %s"
+                        % (path, ", ".join(orphan)))
+    out = {}
+    for cid in case_ids:
+        entry = cases.get(cid)
+        if entry is None:
+            continue
+        where = "%s: %s" % (path, cid)
+        if not isinstance(entry, dict):
+            problems.append("%s: 条目必须是映射" % where)
+            continue
+        unknown = sorted(set(entry) - {"modes", "reasons"})
+        if unknown:
+            problems.append("%s: 未知字段 %s（允许: ['modes', 'reasons']）"
+                            % (where, unknown))
+        raw = entry.get("modes")
+        if not isinstance(raw, list) or not raw:
+            problems.append("%s: `modes` 必须是非空列表" % where)
+            continue
+        modes = []
+        for mode in raw:
+            if mode not in MODES:
+                problems.append("%s: 非法模式 %r（允许 %s）"
+                                % (where, mode, list(MODES)))
+            elif mode in modes:
+                problems.append("%s: `modes` 重复 %r" % (where, mode))
+            else:
+                modes.append(mode)
+        reasons = entry.get("reasons") or {}
+        if not isinstance(reasons, dict):
+            problems.append("%s: `reasons` 必须是映射" % where)
+            reasons = {}
+        for mode in MODES:
+            reason = reasons.get(mode)
+            if mode in modes:
+                if reason is not None:
+                    problems.append("%s: `reasons.%s` 给了原因，但该模式已允许"
+                                    % (where, mode))
+            elif not isinstance(reason, str) or not reason.strip():
+                problems.append("%s: 模式 %r 不允许却缺 `reasons.%s` 原因"
+                                % (where, mode, mode))
+        for mode in reasons:
+            if mode not in MODES:
+                problems.append("%s: `reasons` 含非法模式 %r" % (where, mode))
+        out[cid] = {"modes": modes, "mode_reasons": reasons}
+    if problems:
+        raise ConfigError("\n".join(problems))
+    return out
 
 
 def select_level(cases, level):
@@ -134,6 +213,10 @@ def self_test() -> int:
         return 1
     print("  PASS  索引: %d 条 arch case，machine 全 vast，kind ∈ %s"
           % (len(cases), list(KINDS)))
+    per_mode = {mode: sum(1 for c in cases if mode in c["modes"])
+                for mode in MODES}
+    print("  PASS  modes 元数据: 每用例允许集 + 被排除模式的原因齐全（%s）"
+          % ", ".join("%s=%d" % (m, n) for m, n in per_mode.items()))
 
     by_dir = {}
     for case in cases:
@@ -233,6 +316,31 @@ def _default_paths(args):
             gem5, gem5_config, gem5_shim)
 
 
+def _select_mode(cases, mode):
+    """按 `--mode` 过滤；不允许的用例显式打印原因，全被排除 ⇒ 配置错误。
+
+    不静默丢用例：每条不允许的用例都打印 `N/A <id> --mode <mode>: <原因>`；
+    `--case` 指定的单条不允许时由调用方（`run`）在 `--case` 分支后仍走本函数，
+    这里的「全空 ⇒ ConfigError」就是 fail-closed。
+    """
+    allowed, blocked = [], []
+    for case in cases:
+        if mode in case["modes"]:
+            allowed.append(case)
+        else:
+            blocked.append(case)
+    for case in blocked:
+        print("  N/A   %-10s %-22s --mode %s: %s"
+              % (case["kind"], case["id"], mode,
+                 case["mode_reasons"].get(mode, "（未登记原因）")))
+    if not allowed:
+        raise ConfigError(
+            "--mode %s 下无用例可跑（%d 条被排除：%s）；不得静默跳过"
+            % (mode, len(blocked),
+               ", ".join(c["id"] for c in blocked) or "无"))
+    return allowed
+
+
 def run(args) -> int:
     cfx = (_split_csv(args.cfx, [str(v) for v in VALID_CFX], "--cfx")
            if args.cfx else [str(v) for v in VALID_CFX])
@@ -245,10 +353,16 @@ def run(args) -> int:
         if not cases:
             raise ConfigError("--case %r 不在 level=%r 的 tests/arch.yaml 集合"
                               % (args.case, args.level))
+        if args.mode not in cases[0]["modes"]:
+            raise ConfigError(
+                "--case %s 不允许 --mode %s：%s"
+                % (args.case, args.mode,
+                   cases[0]["mode_reasons"].get(args.mode, "（未登记原因）")))
     else:
         cases = [c for c in cases if c["cfx"] in cfx]
     if not cases:
         raise ConfigError("所选 cfx 无用例（cfx=%s）" % cfx)
+    cases = _select_mode(cases, args.mode)
 
     (qemu, llvm_mc, llvm_objcopy, bootrom, work,
      gem5, gem5_config, gem5_shim) = _default_paths(args)
@@ -260,6 +374,7 @@ def run(args) -> int:
                              gem5_shim=gem5_shim,
                              m5_runner=ROOT / "tools" / "testcases" / "arch"
                              / "run_m5_e2e.py",
+                             mode=args.mode,
                              timeout=args.timeout)
     work.mkdir(parents=True, exist_ok=True)
 
@@ -275,8 +390,10 @@ def run(args) -> int:
                 raise ConfigError("%s 不存在: %s（asm 载体需要）" % (label, value))
 
     print("=" * 72)
-    print("run_arch: level=%s cfx=%s platforms=%s cache-model=%s cases=%d"
-          % (args.level, cfx, platforms, args.cache_model, len(cases)))
+    print("run_arch: level=%s cfx=%s platforms=%s cache-model=%s mode=%s "
+          "cases=%d"
+          % (args.level, cfx, platforms, args.cache_model, args.mode,
+             len(cases)))
     print("work=%s" % work)
     print("=" * 72)
 
@@ -355,7 +472,7 @@ def run(args) -> int:
     summary = work / "run.json"
     summary.write_text(json.dumps(
         {"level": args.level, "cfx": cfx, "platforms": platforms,
-         "cache_model": args.cache_model,
+         "cache_model": args.cache_model, "mode": args.mode,
          "cases": [c["id"] for c in cases], "results": results,
          "cross_platform": cross, "failures": failures},
         ensure_ascii=False, indent=2),
@@ -377,13 +494,14 @@ def list_plan(args) -> int:
     platforms = (_split_csv(args.platforms, PLATFORMS, "--platforms")
                  if args.platforms else list(PLATFORMS))
     cases = [c for c in select_level(load_index(), args.level)
-             if str(c["cfx"]) in cfx]
-    print("%-4s %-12s %-22s %-7s %-5s %s"
-          % ("cfx", "dir", "case", "kind", "level", "platforms"))
+             if str(c["cfx"]) in cfx and args.mode in c["modes"]]
+    print("%-4s %-12s %-22s %-7s %-5s %-14s %s"
+          % ("cfx", "dir", "case", "kind", "level", "modes", "platforms"))
     for case in cases:
-        print("%-4d %-12s %-22s %-7s %-5s %s"
+        print("%-4d %-12s %-22s %-7s %-5s %-14s %s"
               % (case["cfx"], PurePosixPath(case["file"]).parts[1],
-                 case["id"], case["kind"], case["level"], ",".join(platforms)))
+                 case["id"], case["kind"], case["level"],
+                 ",".join(case["modes"]), ",".join(platforms)))
     print("%d case × %d 平台" % (len(cases), len(platforms)))
     return 0
 
@@ -399,6 +517,10 @@ def main(argv=None) -> int:
                     help="smoke 用 off（不测 cache）；cfx5 用例用 on")
     ap.add_argument("--level", default="all", choices=LEVELS,
                     help="只跑该 level 的代表集（smoke/full；all = 不过滤）")
+    ap.add_argument("--mode", default=DEFAULT_MODE, choices=MODES,
+                    help="运行模式环境（hmon/smon/umon；缺省 hmon）；"
+                         "用例的 `modes` 不含该模式时显式 N/A + 原因，全被"
+                         "排除则退出 2（fail-closed）")
     ap.add_argument("--case", default=None, help="只跑指定 case id")
     ap.add_argument("--work-dir", default=None, help="运行期证据目录")
     ap.add_argument("--qemu", default=None)

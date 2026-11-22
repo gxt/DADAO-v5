@@ -249,3 +249,20 @@
   level: full
   requires:
   - qemu
+
+# 运行模式环境代表用例（m16-testcases-015）：同一份 body
+# （`tests/arch/umon/mode_regs.body.S`）在 hmon/smon/umon 三种模式下各跑一次；
+# 驱动 `arch/umon/check_mode_env.py` 现场派生期望签名，并从 QEMU `-d cpu` 的
+# `MODE:` 核对 body 实际运行模式（不由 body 自述）。运行模式允许集与被排除
+# 模式的原因登记在 `tests/arch/modes.yaml`（`tests/arch.yaml` 的字段由
+# `check-tests-index` 白名单约束，故不放这里）。
+- id: arch-umon-011
+  file: arch/umon/check_mode_env.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - bootrom
+  - semihosting

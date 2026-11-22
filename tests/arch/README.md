@@ -15,6 +15,7 @@
 ```sh
 python3 tests/arch/run_arch.py --cfx 4 --platforms qemu --cache-model off
 python3 tests/arch/run_arch.py --level smoke --platforms qemu --cache-model off
+python3 tests/arch/run_arch.py --case arch-umon-011 --mode smon --platforms qemu
 # smoke 不测 cache（off）；cfx5 的 on 用例进按需的 check-arch-vast
 python3 tests/arch/run_arch.py --self-test
 python3 tests/arch/run_arch.py --list
@@ -29,6 +30,10 @@ python3 tests/arch/run_arch.py --list
   降级为「其余平台通过」。
 - `--cache-model`：arch 固定 `on`；传 `off` 退出 2。
 - `--case`：只跑 `tests/arch.yaml` 里的一个 id，用于单点复现。
+- `--mode`：`hmon` / `smon` / `umon`（缺省 `hmon`），选择运行模式环境
+  （hypv/supv/user）。用例的允许集（`tests/arch/modes.yaml`）不含该模式 ⇒ 打印 `N/A` + 原因；
+  全部被排除 ⇒ 退出 2（fail-closed）。只有声明多模式的 `kind: driver` 才接
+  `--mode`；`kind: asm` 收到非 `hmon` 时**显式**报错，不静默按 hmon 跑。
 - `--self-test`：不启动模拟器，只校验索引的 `machine/kind`、各 `expected.yaml` 的
   签名流结构、驱动的 `--selfcheck`，以及 gem5/chipyard 的 fail-closed 探针。
 - `--list`：打印 `cfx × case × platform` 计划表，不执行。
@@ -43,8 +48,9 @@ python3 tests/arch/run_arch.py --list
 |------|-----|------|
 | `run_arch.py` | — | 唯一驱动（`--cfx/--platforms/--cache-model/--level/--self-test/--list`） |
 | `common/` | — | arch 内共享薄壳：`signature.py` 转调 `tests/shared/signature.py`；`platform.py` 的 qemu/gem5（driver 经 shim）/chipyard（fail-closed）后端 |
+| `common/env/` | — | **运行模式环境**（`hmon/`、`smon/`、`umon/`、`env.lds`）：进入模式、栈、异常向量、退出与签名区；body 与模式解耦（`m16-testcases-015`，见其 `README.md` / `MIGRATION.md`） |
 | `data/` | — | scope 内入库数据（三平台 cfx 盘点矩阵），不成册、不进 `tests/arch.yaml` |
-| `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.s`，10 条）+ `expected.yaml` |
+| `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.s`，10 条）+ `expected.yaml`；代表迁移用例 `mode_regs.body.S` + 驱动 `check_mode_env.py`（`arch-umon-011`，三模式） |
 | `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针：载体/生成器 `carrier_tlb.py`（`m16-testcases-010` 由 `tools/testcases/arch/` 迁入）、期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §）、驱动型入口 `check_tlb.py`（`kind: driver`）；QEMU 与 gem5（shim）逐条跑，RTL 由 `m16-chipyard-018` |
 | `cache/` | `cfx5`（cache） | 寄存器面 RTL 探针 `cfx5_regs.S` + `check_cfx5_regs.py`（`m16-chipyard-016`）；只测寄存器，不测阵列/维护命令效果；暂未登记 `tests/arch.yaml`（chipyard 后端仍 fail-closed） |
 
@@ -59,6 +65,11 @@ python3 tests/arch/run_arch.py --list
 - `kind: asm | driver`（arch 条目**必填**）。`asm` 的 `file` 是 `.s`/`.S` 执行向量；
   `driver` 的 `file` 是本目录内的驱动（如 `arch/ptw/check_tlb.py`），由
   `run_arch.py` 调起。
+- 运行模式允许集登记在**并列清单** `tests/arch/modes.yaml`（`m16-testcases-015`）：
+  `cases.<id>.modes`（`hmon`/`smon`/`umon`）与 `cases.<id>.reasons`（被排除模式的
+  **显式原因**）。与 `tests/arch.yaml` 的 id 集合**双向**核对；缺项/多项/非法
+  模式/缺原因由 `run_arch.py`（含 `--self-test`）报红。不写进 `tests/arch.yaml`
+  是因为该文件的字段受 `check-tests-index` 白名单约束（未知字段即红）。
 - 门控：`make check-tests-index`（L1，静态）校验字段、`machine/kind` 取值与
   `file` 存在；条数现场统计，不写死。
 

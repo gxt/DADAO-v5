@@ -163,7 +163,12 @@ def _gem5_env(ctx, case_id) -> dict:
 
 
 def _run_driver(case, ctx, platform, engine, extra_env=None) -> dict:
-    """driver 型 case：调 scope 内驱动，产物与签名流按平台分目录。"""
+    """driver 型 case：调 scope 内驱动，产物与签名流按平台分目录。
+
+    运行模式（m16-testcases-015）：只有**声明了多个允许模式**的 driver 才收
+    `--mode`，这样既有单模式驱动（如 ptw 的 `check_tlb.py`）的命令行不变；
+    单模式用例仍按 `hmon` 语义运行。
+    """
     case_dir = Path(ctx.work) / case["id"] / platform
     driver_dir = case_dir / "driver"
     case_dir.mkdir(parents=True, exist_ok=True)
@@ -172,12 +177,21 @@ def _run_driver(case, ctx, platform, engine, extra_env=None) -> dict:
            "--only", case["id"], "--qemu", str(engine),
            "--work-dir", str(driver_dir),
            "--signature-out", str(signature)]
+    modes = case.get("modes") or ["hmon"]
+    if len(modes) > 1:
+        cmd += ["--mode", getattr(ctx, "mode", "hmon")]
     return _finish(case, ctx, case_dir, cmd, signature,
                    "driver(%s): %s" % (platform, case["file"]),
                    platform=platform, extra_env=extra_env)
 
 
 def _run_qemu_asm(case, ctx) -> dict:
+    mode = getattr(ctx, "mode", "hmon")
+    if mode != "hmon":
+        raise PlatformError(
+            "qemu: kind=asm 载体尚未接运行模式环境（--mode %s，case=%s）；"
+            "只有 kind=driver 且声明多模式的用例支持 --mode。不得静默按 hmon 跑。"
+            % (mode, case["id"]))
     case_dir = Path(ctx.work) / case["id"] / "qemu"
     runner_dir = case_dir / "runner"
     case_dir.mkdir(parents=True, exist_ok=True)
