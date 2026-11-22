@@ -34,6 +34,7 @@
 | m16-chipyard-016 | 2026-11-22 13:34 | 3–4 h | RTL cfx5 寄存器面（GewuFile 行 + Vast 序列 + 探针） |
 | m16-testcases-007 | 2026-11-22 14:10 | 2–3 h | `check-arch` / `check-arch-smoke` 按新 `tests/arch` 重写，二者一致 |
 | m16-gem5-021 | 2026-11-22 14:14 | 3–4 h | gem5 cfx5 命令（复用 ARM `dc` maintenance 请求） |
+| m16-testcases-011 | 2026-11-22 16:12 | 1–2 h | picolibc clock 探针归位：改名 + 单独 `run_picolibc_clock_probe.py`；ansibench 驱动只留四件 |
 
 ## 已验证
 
