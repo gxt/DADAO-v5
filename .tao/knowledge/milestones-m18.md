@@ -28,13 +28,18 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m18-infra-002 | 2–3 天 | musl ldso 动态链接运行闭环（P3：system Linux 动态 ELF + qemu-user 尽力）；等 `m18-linux-005` 释放 linux 写者后派单 |
+| m18-infra-002 | 3–5 h | musl ldso 动态链接运行闭环（P3：system Linux 动态 ELF + qemu-user 尽力）；等 `m18-linux-005` 释放 linux 写者 |
+| m18-linux-006 | 3–5 h | LTP 子集接入（组件锁 + 静态构建 + 分诊）；复用 005 骨架，依赖 005/002 |
+| m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
+| m18-linux-008 | 2–3 h | K1–K4 门控断言补强（ISS-444/457/487/488；可达 FAIL + §4a 退役） |
+| m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
+| m18-linux-010 | 30 min | ISS-486 措辞订正（libc 侧检查；3 处注释/文档，产物不变） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-linux-005 | 2026-11-22 16:22 | 2–3 天 | 测试集运行骨架（独立 suite initramfs + 逐例超时/采集）+ kselftest 试点首轮分诊（基线与 kselftest 同源） |
+| m18-linux-005 | 2026-11-22 16:22 | 3–5 h | 测试集运行骨架（独立 suite initramfs + 逐例超时/采集）+ kselftest 试点首轮分诊（基线与 kselftest 同源） |
 
 ## 已验证
 
