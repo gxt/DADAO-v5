@@ -38,17 +38,22 @@
 | m18-linux-012 | 1–2 h | ISS-503 K6 门控五条 finding（恒真断言并入 region、计数/标签/符号名订正） |
 | m18-linux-013 | 6–8 h | ISS-500 用户态异步投递与抢占完整修复（参考其它 ISA：早退帧 + 软件帧 + `irqentry_enter/exit`；前置 `ADR-0059`） |
 | m18-qemu-001 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
+| m18-linux-014 | 3–4 h | `mm-map-populate` COW/rwsem 警告与整机停摆（`rwsem.h:81`；KERNEL_BUG） |
+| m18-linux-015 | 2–3 h | `mlock2`/`MLOCK_ONFAULT` 路径 SIGSEGV（KERNEL_BUG） |
+| m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |
+| m18-linux-017 | 3–4 h | `clock_nanosleep(TIMER_ABSTIME)` 整机停摆（KERNEL_BUG） |
+| m18-linux-018 | 2–3 h | 套件环境补齐（TMPFS/MEMFD、非 root uid、`/proc/iomem`；SUITE_ENV） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-linux-005 | 2026-11-22 16:22 | 3–5 h | 测试集运行骨架（独立 suite initramfs + 逐例超时/采集）+ kselftest 试点首轮分诊（基线与 kselftest 同源） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-linux-005 | 2026-11-22 19:37 | 测试集运行骨架 + kselftest 试点（8 例：PASS1/FAIL2/SKIP2/SIGNAL1/TIMEOUT2；套件校验 23/23；补丁 manifest 双向+逐补丁增量校验） |
 | m18-linux-003 | 2026-11-22 10:34 | K6 收口门控 `check-linux-k6`（71/71；§4a.3 退役审计；L2） |
 | m18-infra-001 | 2026-11-22 09:32 | musl mallocng 根因修复（`a_cas` 改 8 字节字 CAS；ISS-497/499 关闭；K6 长脚本单次跑通） |
 | m18-linux-004 | 2026-11-22 08:33 | K6 用户入口异步投递修复（ISS-498）+ 控制台行缓冲；200/200 启动、长脚本 27 条 |
