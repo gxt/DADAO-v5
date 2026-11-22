@@ -7,12 +7,12 @@
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
 - **2026-11-22 基线**：
-  - **已归档**：M14（76 册）、M15（66 册，达成 2026-11-22）→ `.tao/archive/M14/`、`M15/`。**M16/M17/M18 台账已清零、未归档**；M16 批次 3 在跑（`m16-qemu-001`/`m16-chipyard-016`）。
+  - **已归档**：M14（76 册）、M15（66 册，达成 2026-11-22）→ `.tao/archive/M14/`、`M15/`。**M16/M17 台账已清零、未归档**；M16 批次 3 在跑（`m16-qemu-001`/`m16-chipyard-016`）；**M18 重新开工（M18-A）**。
   - **时间口径（ADR-0058 Accepted）**：guest 性能/超时只用 `cfx_time`（或 gem5 cycles）；semihosting elapsed/`gettimeofday` 只作宿主 liveness。picolibc `times()` 已按 `SYS_TICKFREQ` 缩放（`ISS-502` 闭合）；`sysconf(_SC_CLK_TCK)` 未同步（`ISS-506`）。
   - **picolibc 安装根**：17 patches（含 `times()` 缩放 + lds `.text.start` 段首）。合入组件补丁后增量 `build-<c>` 不重放补丁：删源树 → `make fetch` → `apply_series.py --component picolibc` → rebuild。
   - **已知基线红**：`check-patch-tree` musl 10 + gem5 5（`ISS-507`）；`check-milestones-fresh` 台账「预估：中」（`ISS-508`）；picolibc harness `.done` 无库指纹（`ISS-504`，跑前删 `picolibc-tests-run`）。
   - **chipyard sim md5 `25c1d3f4…`**（构建必须用 `.conda-env` 的 `PATH`+`RISCV`，`ISS-474`）；qemu md5 `50752f5f…`（同环境同时段才可比，`ISS-451`/`453`）。
-  - **队列**：M19（2 件，需硬件在场）、M20（2 件，未开工）；`open` issue 93。
+  - **队列**：M18-A 在跑（`m18-linux-005` 套件骨架/kselftest 试点；`m18-infra-002` ldso 待其释放 linux 写者）；M19（2 件，需硬件在场）、M20（2 件，未开工）；`open` issue 93。
 
 ## 入口指针
 
