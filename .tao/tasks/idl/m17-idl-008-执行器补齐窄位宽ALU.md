@@ -17,6 +17,8 @@
 - `tests/inst/09-arith-logic-wyde`：21 个；
 - `tests/inst/10-arith-logic-byte`：20 个。
 
+**覆盖口径 = 上述三册的全部镜像**（含其 id 已注册但尚未进主清单的）；本组 `pending` 必须清零。
+
 ## 要做
 
 1. 按 `.idl` 正文逐 id 实现；函数上方注明 id 与出处册；
