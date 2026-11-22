@@ -18,7 +18,7 @@
 
 1. `Makefile` 新增目标 `check-idl-full`（**不进** `GATE_LOCKED_TARGETS`）：
    - `$(PYTHON) idl/tools/idl_four_way.py --platforms qemu,gem5,chipyard --jobs $(TEST_JOBS)`；
-   - 日志落 `.work/log/idl/check-idl-full.log`；缺任一引擎/固件 ⇒ rc=2（可见，不静默跳过）；
+   - 日志落运行期日志目录内的 `check-idl-full.log`；缺任一引擎/固件 ⇒ rc=2（可见，不静默跳过）；
    - help 行注明「nightly 成员；全四方」。
 2. `tools/testcases/night_run.py`：`DEFAULT_MEMBERS` 追加 `idl:four-way=make check-idl-full`；`MEMBER_TIMEOUTS` 加 `("idl","four-way"): 1800`；模块 docstring 的成员清单同步。
 3. `tools/testcases/check_night_report.py`：`REQUIRED_MEMBERS` 加 `("idl","four-way")`；docstring 的「四 scope / 八成员」改为现场口径（不写死数）。
