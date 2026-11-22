@@ -32,6 +32,7 @@
 | m16-qemu-004 | 1–2 h | QEMU `fence` 保留 cfx 集对齐（ISS-432） |
 | m16-testcases-012 | 2–3 h | fence 基础验证（三方；完整覆盖不作验收要求） |
 | m16-testcases-013 | 2–3 h | cfx15 timer 中断（单独测试；单 hart，mask/pending/清除） |
+| m16-testcases-015 | 4–6 h | `tests/arch` 运行模式环境（hmon/smon/umon；body 与 env 分离；代表迁移） |
 | m16-testcases-014 | 2–3 h | cfx32 pmem DMA 完成中断（单独测试；单 hart，mask/pending/清除） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
