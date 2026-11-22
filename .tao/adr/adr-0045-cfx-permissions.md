@@ -46,3 +46,12 @@ DADAO 的资源按 cfx 划分，运行模式与 cfx 资源是两套正交权限�
 本 ADR 只冻结权限模型和异常归属；`frame_active`、异步重入、jmon 代码/用户态测试不在本 ADR。
 
 **接受记录**：用户 2026-10-31 确认 D1–D10 已讨论，ADR 转 `Accepted`；范围外项仍按上句后置。
+
+## 修订
+
+**rev. 2026-11-22（monitor-first，`ADR-0059 R2`，用户裁定）**：`spec/DADAO-12 §5.2（三）（四）（五）` 已改 **monitor-first**——异步先入**当前运行模式 monitor**、mask/pending 都在 monitor、处理期间不嵌套、monitor 可自行处理或 `trap` 到源 cfx。本 ADR 历史 `D3`/`D9` 的 target-first 措辞**不改原文**，以本修订记覆盖：
+
+- **`D3`（中断权限）覆盖**：两级 mask（`<mode>_cfx_intr_mask` + `global_cfx_intr_mask`）仍按**当前运行模式 monitor** 过滤、位索引 = **来源 cfxha**（非「目标」），`0=允许`、`1=屏蔽`；但**投递目标 = 当前运行模式 monitor**（不再是源 cfx），被屏蔽时 pending 记 **monitor** 的 `cg5 rc5`（非源 cfx）。
+- **`D9`（trap 自动屏蔽）覆盖**：异步帧与 trap 帧一样，建立时保存**当前 mode monitor** 的 `global_cfx_intr_mask` 并置全 1、`escape` 恢复；异步帧的载体是 **monitor 的 `cg5`**（不再落在源 cfx 的帧）。
+
+历史 `D3`/`D9` 原文、QEMU/gem5/chipyard 实现、`contract-see §3/§6.3/§6.4` 依本修订记与 `ADR-0059` 对齐；版本号不升（待用户认可后另议）。
