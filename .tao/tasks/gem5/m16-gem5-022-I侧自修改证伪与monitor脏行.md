@@ -28,7 +28,7 @@
 2. **判定**：
    - 若用例 PASS ⇒ 记录“021 不缺命令层，只是缺正确用例”，不立 023；
    - 若用例 FAIL（已 clean D）⇒ 保留现场、写清证据，交给 `m16-gem5-023`（改 `src/cpu/simple/**` 或取指缓冲），本任务不改模型。
-3. **修 020 的 monitor 脏行隐患**：`cache-model=on` 的 Vast BootROM 把 monitor 段经 D-Cache 拷入且不写回；`D|invalidate|all`（或对 monitor 行单行 invalidate）会打掉 monitor，下一次异常进入即 `UNDI` 死循环。修法二选一：
+3. **修 020 的 monitor 脏行隐患**：`cache-model=on` 的 Vast BootROM 交接阶段写入的页表/monitor 数据留在 L1 脏行；`D|invalidate|all`（或覆盖这些脏行的单行/区间）会丢弃它们，下一次异常进入 monitor 失败直至 `UNDI` 死循环。**reviewer 订正**：现象已复现（去掉绕行后 `simulate() limit reached`），但“monitor 段经 D-Cache 拷入且不写回、内存旧内容”的机制未复现（drop 体 invalidate 后仍存活）；先定位具体致命脏行，再修。修法二选一：
    - monitor/BootROM 段写入走直连/写穿（不进 D-Cache）；
    - 或启动移交后对 monitor 行 `D|clean`（写回），并在文档写明。
    验收：`D|invalidate|all` 后触发一次异常，monitor 仍能处理（不死循环）。
@@ -53,7 +53,7 @@
 1. 新 I 侧用例（单行、区间）在 `on` 下 PASS；若 FAIL，给出“已 clean D 仍旧字”的完整现场并标记 023；
 2. `D|invalidate|all` 后异常进入 monitor 不死循环（修复前复现、修复后通过）；
 3. `off` 下 01 册 38/38、vast 10/10；021 的 D 侧用例不回归；
-4. **可达 FAIL**：注入「不 clean D」⇒ 新用例应按预期失败（证明用例确实依赖 clean）；注入「monitor 段仍走 D-Cache」⇒ invalidate 后死循环复现；`cp`+md5 还原并重建回绿；
+4. **可达 FAIL**：注入「不 clean D」⇒ 新用例应按预期失败（证明用例确实依赖 clean）；注入「monitor 交接脏行不写回」⇒ invalidate 后死循环复现；`cp`+md5 还原并重建回绿；
 5. `check-gem5-decode`、`check-patch-tree` gem5 段、`check-index-blobs`、`check-tasks` 记录 rc；`--inject` ≥2 路。
 
 ## 完成区
