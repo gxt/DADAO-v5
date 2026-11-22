@@ -15,9 +15,10 @@
 范围（2026-11-22 实测缺失数；执行时脚本重算，不采信本文数字）：
 - `tests/inst/08-arith-logic-tetra`：20 个缺失 id；
 - `tests/inst/09-arith-logic-wyde`：21 个；
-- `tests/inst/10-arith-logic-byte`：20 个。
+- `tests/inst/10-arith-logic-byte`：20 个；
+- `tests/inst/03-wyde-imm` 剩余 6 个镜像（id 均已注册，只加清单并跑绿，不补语义）。
 
-**覆盖口径 = 上述三册的全部镜像**（含其 id 已注册但尚未进主清单的）；本组 `pending` 必须清零。
+**覆盖口径 = 上述四册的全部镜像**（含其 id 已注册但尚未进主清单的）；本组 `pending` 必须清零。
 
 ## 要做
 
