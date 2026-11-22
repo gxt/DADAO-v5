@@ -285,6 +285,45 @@
 
 # M16：gem5 时序模型对齐 chipyard-wuming
 
+## M16 三方差分（Vast arch）批次裁定（用户 2026-11-22，已定；随任务书落地后迁出本文件）
+
+> 用户指示：本轮裁定先集中记在这里，任务书引用本节，避免跑完一两个任务后重复询问。
+
+### 范围与判据
+
+- `tests/arch` **只测 Kaiwu-Vast**：不含 Tiny、不含 linux-user（QEMU user-mode）；U-mode 仍要测（cfx0 umon）。
+- cfx 范围：**0/2/3/4/5/15/32/34/63**（umon/smon/hmon/ptw/cache/hart/pmem/time/power）；不含 1 jmon、33 llc、62 uart。
+- **中断源、fence、HSU 纳入**；**J 和多核不纳入**。
+- 判据：**三方（QEMU/gem5/RTL）签名逐槽一致**；期望值独立派生自 `spec/`/`contract`；不一致由用户裁定（用户是 oracle）。
+- 仿真**不进常规门控**（L2/L3）；只作按需/里程碑收口命令。
+
+### 载体
+
+- 优先**同一 ELF** 三方跑（入口在 PA RAM）；做不到的 cfx 用各自载体、签名对齐。
+- **不预先造通用启动链**；按 cfx 选最小载体，功能覆盖优先；RTL 侧启动改造按需，不为统一改 BootROM。
+
+### cache
+
+- QEMU 与 gem5 **都补 cache 模型**，复用各自已有其它 ISA 的实现。
+- QEMU：`-machine kaiwu-vast,cache-model=off|on`，默认 **off**；`off` = 现有直通（Linux/K0/inst 不变）；`on` = 完整**影子写回 D-Cache** + cfx5 命令面，只给 arch；I 侧只做命令语义（`tb_invalidate_phys_range`），不做 I 阵列；DMA/装载直连底层。
+- **Linux 内核现在没有 cache，以后会加**：M16 期间固定 `off`；将来内核加 cache 支持后再接 `on`（登记 backlog）。
+- gem5：`cache-model=on` 映射 `--caches`；前置补 `IsLoad/IsStore/IsAtomic`；cfx5 命令复用 ARM `dc cvac/civac/ivac` 的 `Request::CLEAN|INVALIDATE` 机制。
+- `cache-model=off` 时 cfx5 口径（**待裁**）：建议 `cache_exist` 读 0、命令访问报 `CFXREG`。
+
+### 落点
+
+- arch 用例/脚本/数据集中 `tests/arch/<cfx>/`；驱动 `tests/arch/run_arch.py`；矩阵/数据 `tests/arch/data/`。
+- 签名机制（`tests/shared/asm/signature.inc` + host 侧 `signature.py`）集中 `tests/shared/`。
+- `tools/` 只放跨 scope 共享；修订 `docs/Process-09` §3/§5/§6/§7：scope 专用脚本随 scope、`arch.yaml` 支持驱动型 case 与 `machine` 字段。
+- Tiny 的 `arch-hmon-001` 与 `tests/arch/hmon/` 移出 arch（建议 `tests/unit/gem5/`）。
+
+### 阶段与任务（短任务）
+
+- 批次 1：`m16-testcases-004`（三平台 cfx 盘点 + 落点/规范方案，只读）、`m16-testcases-005`（签名脚本迁 `tests/shared/`）。
+- 批次 2：`m16-qemu-001`（cache-model + 影子 D-Cache + cfx5）、`m16-gem5-020`（`--caches` + flags + cfx5）、`m16-chipyard-016`（RTL cfx5 补实现）。
+- 批次 3 起：cfx4 ptw → cfx5 用例 → cfx0/2/3/63 → cfx15/32/34/中断/fence → 收口（`m16-integ-001`）。
+- `m16-chipyard-011` 空号留给总收口或废弃。
+
 > **定位（用户 2026-11-13）**：范围只做 **Timing**（`Minor`/`O3` 对应 `wuqing`/`wuxing`，等其 RTL 出现后再开，见「Milestone 候选」）。设计取向：**保留 gem5 `TimingSimpleCPU` 原汁原味**，只加「每指令延迟」——钩子默认 0、`timing.cc` 仅 1 行、延迟表由周期模型文档现场生成；块传送用微操作展开；访存交给 `NoncoherentXBar` + `SimpleMemory`。`AtomicSimpleCPU` 不动，只作零成本基线。
 
 ## 现场：gem5/chipyard 比值 3.1–4.0×，主因是 gem5 取指无 icache

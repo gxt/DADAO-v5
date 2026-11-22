@@ -25,6 +25,8 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-testcases-004 | 2026-11-22 11:57 | 中 | Vast arch 三平台盘点（9 cfx × 3）+ `tests/arch` 落点/Process-09 修订方案 |
+| m16-testcases-005 | 2026-11-22 11:57 | 小 | 签名脚本 `signature.py` 迁 `tests/shared/`，更新 6 处引用 |
 
 ## 已验证
 
