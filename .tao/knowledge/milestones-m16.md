@@ -29,7 +29,6 @@
 | m16-chipyard-021 | 3–4 h | RTL cfx15 hart（寄存器 + cycle/insn + timer 中断） |
 | m16-chipyard-022 | 4–5 h | RTL cfx32 pmem（寄存器 + DMA + 完成中断） |
 | m16-chipyard-023 | 2–3 h | RTL cfx34 time（全局时间，无中断） |
-| m16-qemu-004 | 1–2 h | QEMU `fence` 保留 cfx 集对齐（ISS-432） |
 | m16-testcases-012 | 2–3 h | fence 基础验证（三方；完整覆盖不作验收要求） |
 | m16-testcases-013 | 2–3 h | cfx15 timer 中断（单独测试；单 hart，mask/pending/清除） |
 | m16-testcases-015 | 4–6 h | `tests/arch` 运行模式环境（hmon/smon/umon；body 与 env 分离；代表迁移） |
@@ -42,6 +41,7 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m16-chipyard-017 | 2026-11-22 18:25 | 3–5 h | RTL cfx5 命令接线（D/I cache cmd 口） |
+| m16-qemu-004 | 2026-11-22 21:26 | 1–2 h | QEMU `fence` 保留 cfx 集对齐（ISS-432） |
 | m16-gem5-023 | 2026-11-22 20:05 | 2–3 h | gem5 `cache-model=off` 下 cfx5 存在但 no-op（不再 `CFXREG`） |
 
 ## 已验证
