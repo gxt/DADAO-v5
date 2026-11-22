@@ -21,6 +21,18 @@
 5. **三方签名**：QEMU/gem5/RTL 同一 ELF 逐槽一致；不一致登记 `expected-divergences.yaml` 并由用户裁。
 6. **覆盖点**：每条用例映射到 `m16-spec-001` 条款，写入 `tests/arch/data/vast-arch-inventory.md` 的 cfx5 行。
 
+## 覆盖范围（用户 2026-11-22 确认）
+
+**必须覆盖（三方）**：
+
+1. 寄存器面：`cache_exist`（on=`0b11`）、`cache_enable`/`cache_ctrl`/`cache_addr_start`/`cache_addr_size`；非法编码 ⇒ `CFXREG`；
+2. D 侧：`clean`（写回保留）、`invalidate`（丢弃不写回）、`flush`（写回+删除）；范围 all/PA 单行/PA 区间；选择 I/D/双；
+3. 数据可见性：用 DMA 直读内存，验证 clean 后新值、invalidate 后旧值、flush 后新值且行失效；
+4. 使能门控：`cache_enable` 对应位为 0 时不维护；编码校验不受使能影响；
+5. I 侧：`clean` no-op；`invalidate`/`flush` 后取指重取（**gem5 必须**，022 已证明可行；RTL 017、QEMU 003 补齐）。
+
+**可选 / 差异**（登记 `expected-divergences.yaml`）：QEMU 的 cache 时序/替换策略（功能模型不建模）；gem5 的 I-Cache 命中/缺失（性能，不测）；RTL 的预取/I-D 一致性（未实现）。
+
 ## 不做
 
 - 不改平台实现；不改 cache 几何；
