@@ -35,13 +35,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m15-testcases-023 | 2026-11-22 10:27 | 3–5 h | ansibench 四件（coremark/dhrystone/linpack/whetstone）在 Tiny 上用 picolibc 跑通（实际应用验证） |
 
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m15-testcases-023 | 2026-11-22 12:41 | ansibench 四件（coremark/dhrystone/linpack/whetstone）Tiny+picolibc 5/5；clock 修后 probe 差 0.1% |
 | m15-infra-010 | 2026-11-22 11:37 | `times()` 按 `SYS_TICKFREQ` 缩放（ISS-502 闭合）；补 lds `.text.start` 段首（009 漏项） |
 | m15-infra-009 | 2026-11-21 20:44 | picolibc Tiny 地址图 + `.stack :NONE`（删 513 行 lds 副本；PT_LOAD memsz 0x7dfe00→0xa70） |
 | m15-testcases-022 | 2026-11-21 11:03 | Tiny 执行环境命名：`power_tiny`/`hmon_tiny` → `cfx_power_tiny`/`cfx_hmon_tiny`（4 文件 + 引用；镜像字节不变 `a5d78816…`） |
