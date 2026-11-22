@@ -1,9 +1,9 @@
 diff --git a/generators/chipyard/src/main/scala/config/DadaoConfigs.scala b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
 new file mode 100644
-index 0000000..22e2250
+index 0000000..a0a5b55
 --- /dev/null
 +++ b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
-@@ -0,0 +1,315 @@
+@@ -0,0 +1,329 @@
 +// See LICENSE for license details.
 +//
 +// DADAO SoC configurations.
@@ -176,6 +176,9 @@ index 0000000..22e2250
 +  val sramSize: BigInt = WumingTinyAddressMap.sramSize
 +  val hmonBase: BigInt = WumingTinyAddressMap.hmonBase
 +  val hmonSize: BigInt = WumingTinyAddressMap.hmonSize
++  /** `cfx_smon`'s 64 KiB SRAM (`contract-see §3`; `m16-chipyard-019`). */
++  val smonBase: BigInt = BigInt("bff00000000", 16)
++  val smonSize: BigInt = BigInt(0x10000)
 +  val appEntry: BigInt = WumingTinyAddressMap.appEntry
 +  val bootROMImage: String = WumingTinyAddressMap.bootROMImage
 +
@@ -260,6 +263,15 @@ index 0000000..22e2250
 +      subBanks = 1,
 +      name = "kaiwu-vast-hmon-sram",
 +      dtsEnabled = false),
++    // cfx_smon's 64 KiB SRAM (`m16-chipyard-019`, `contract-see §3`).
++    BankedScratchpadParams(
++      base = WumingVastAddressMap.smonBase,
++      size = WumingVastAddressMap.smonSize,
++      busWhere = MBUS,
++      banks = 1,
++      subBanks = 1,
++      name = "kaiwu-vast-smon-sram",
++      dtsEnabled = false),
 +    // PA RAM: the translated memory window (`[0, 2 GiB)`, `spec/Kaiwu §1.1`).
 +    // A TLRAM slave is 2 GiB of *address* space; the backing store is the
 +    // simulator's sparse heap, so untouched pages cost nothing.
@@ -314,6 +326,8 @@ index 0000000..22e2250
 +    loadMemEntry = WumingVastAddressMap.appEntry,
 +    hmonBase = WumingVastAddressMap.hmonBase,
 +    hmonSize = WumingVastAddressMap.hmonSize,
++    smonBase = WumingVastAddressMap.smonBase,
++    smonSize = WumingVastAddressMap.smonSize,
 +    bootromBase = WumingVastAddressMap.bootROMBase,
 +    bootromSize = WumingVastAddressMap.bootROMSize,
 +    paRamBase = WumingVastAddressMap.paRamBase,

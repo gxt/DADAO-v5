@@ -246,6 +246,33 @@ make check-patch-tree
 - **零增益**：`WumingTlb`/`WumingPtw` 都只在 `useVM` 时实例化，Tiny 的 FIRRTL 里两者出现 **0** 次；首册 38 个镜像在改前/改后 Tiny 二进制上仍逐字节相同。
 - **验证**：`tools/chipyard/tlb/vasttlb.S`（+ `vasttlb.lds`）以 PA 固定地址放页表与数据，`gen_vasttlb_tables.py` 是几何、PTE 与数据 magic 的**单一真源**，`check_vasttlb.py` 比对 42 条 8 字节记录 + 日志（淘汰受害者序列、OR 回写次数与值、ADWBFAIL 帧结构；`--self-test` 21 条可达 FAIL）。覆盖：命中不重读 PTE（改内存 PTE 后仍读旧数据）、`invalid`+VA 后重步查、同 set 8 条共存 / 第 9 条淘汰 LRU、超页 4 条 + LRU（5 个超页交替 ⇒ 淘汰 S2 并重步查）、I 侧取指只置 A（clean 后 D 仍为 0）、I/D 双表 OR 合并（两次写回）、`invalid`/`clean`/`flush` × I/D 的 2×3 矩阵。注入：改全相联 / 去 I 侧 A 置位 / flush 只清 D 表，均判据红；ADWBFAIL 注入（D 侧命令回写不落地）⇒ 两次 `clean` 各报一次、PTE 停在 A=1/D=0、条目保留。
 
+## Kaiwu-Vast 的 cfx0/cfx2 寄存器面（`m16-chipyard-019`）
+
+- **范围**：只做 cfx0（umon）/ cfx2（smon）的**寄存器面**；U/S 模式进入路由
+  与异常进入主控制流留给 `m16-chipyard-020`。
+- **cfx 序列**：`WumingCfxHa` 新增 `umon = 0`、`smon = 2`；`WumingGewuParams` 只在
+  `useVM`（Vast）时加入这两个 cfx（Tiny 不变）。cfx2 的空间块按
+  `contract-see §3` 落为 64 KiB SRAM（地址图新增 `0x0bff_0000_0000` 的
+  `kaiwu-vast-smon-sram`；`WumingCore.inSpecWindow` 同步放行该窗口）。
+- **公共面**：`GewuCfxParams` 新增 `commonRows`（仅 cfx0/cfx2 打开）——
+  `cg0`–`cg2` 的模式行（rc0–4 四个独立同步 mask + intr mask、rc8
+  `switch_run_mode`、rc10 `excp_vector`，写丢低 2 位）、`cg3 rc12`
+  `hypv_cg_reg_deleg`（复位全 1、bit3 恒 1）、`cg4` 的 id/version/计数/
+  `scratch_regs_num`、`cg5 rc5 pending`、`cg6` 四个暂存寄存器、`cg8 rc1
+  global_cfx_intr_mask`；保留 rc 与写 RO ⇒ `CFXREG`。cfx3/63 仍走原寄存器子集，
+  行为不变。
+- **两轴权限**：`cg0`–`cg3` 的四个同步 mask 由「四个名字共用一个向量」改为
+  **四个独立寄存器**（`DADAO-12 §3`；`cfxreg` = rc2）。`cfx2rd`/`cfx2rc` 的
+  `cfxreg` 轴**强制判定（`CFXPERM`）本任务未启用**：chipyard 的 BootROM 链以
+  `cfx_power` 运行测试体，规范复位掩码只允许 `cfx_hmon`（bit3），启用后
+  cfx0/cfx2（以及既有 cfx4/cfx5）全部不可达；判定随 `m16-chipyard-020` 的
+  进入链/环境准备落地（见任务书「遗留问题」）。
+- **验证**：`tests/arch/umon/cfx02_regs.S` + `check_cfx02_regs.py`（47 条记录，
+  期望现场取自 `spec/DADAO-12` §2.1/§3.1/§3.3/§3.4/§3.6–§3.8 与
+  `contract-see §3/§6.1`）；注入「Vast 去掉 cfx0」「Vast 去掉 cfx2」均判红，
+  `cp`+md5 还原重建后回绿；Tiny `11-cfx`/`01-load-store` 与 016/017 的 cfx5
+  探针不回归。
+
 ## Kaiwu-Vast 的 cfx5 寄存器面（`m16-chipyard-016`）
 
 - **范围**：只接 `cfx_cache`（cfx5）的**寄存器文件**（`contract-cache` CACHE-03…CACHE-18/27），

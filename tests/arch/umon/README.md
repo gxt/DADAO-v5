@@ -49,3 +49,26 @@ python3 tools/testcases/arch/run_m5_e2e.py --inject   # counter-example self-tes
 
 The full vector ↔ capability ↔ expected-value table and the exact qemu command
 line are in `tests/unit/llvm/lit/MC/DADAO/README-m5.md`.
+
+## `cfx02_regs` — cfx0/cfx2 寄存器面 RTL 探针（`m16-chipyard-019`）
+
+`cfx02_regs.S` / `cfx02_regs.lds` / `check_cfx02_regs.py` 是 **Kaiwu-Vast RTL
+（chipyard `WumingVastConfig`）** 的寄存器面探针：cfx0（umon）与 cfx2（smon）的
+模式行、`cg_reg_deleg`、`cg4` 配置/计数、`cg5 rc5`、`cg6` 暂存、`cg8 rc1`、`cg7`
+空间块，以及保留 rc / 写 RO ⇒ `CFXREG`。判据现场从 `spec/DADAO-12` 与
+`.tao/contracts/contract-see.md` 派生，模板与 `cache/cfx5_regs.*` 相同。
+
+**运行模式（显式排除 smon/umon）**：本探针当前只跑 **hmon（hypv）**。原因：
+chipyard 的 BootROM 链以 `cfx_power`（cfx63）运行测试体，`m16-chipyard-020` 的
+U/S 模式进入路由（以及打开 `cfx0`/`cfx2` 的 `<mode>_cfx*` 掩码的环境准备）尚未
+合入；`smon`（supv）/`umon`（user）在本 RTL 上不可进入，故不声明这两个模式。
+020 合入后须用 `tests/arch/common/env-{smon,umon}` 的三模式载体补跑。
+
+**两轴权限**：探针覆盖掩码的**存储面**（cg0–cg3 的四个独立同步 mask 与
+`cg3 rc12`）；`cfxreg` 轴的**强制判定**（`CFXPERM`）未在本任务启用——同一原因：
+测试体以 `cfx_power` 运行，规范复位掩码只允许 `cfx_hmon`（bit3），启用判定会让
+cfx0/cfx2（以及既有 cfx4/cfx5）整体不可达。判定随 020 的进入链落地。
+
+本探针**未登记** `tests/arch.yaml`：`run_arch.py` 的 chipyard 后端仍 fail-closed，
+且探针依赖 chipyard 的 `+loadmem`/hmon 返回槽固件；若登记会让 qemu/gem5 后端
+产生不可执行的 case。运行方式见任务书的运行期证据脚本。

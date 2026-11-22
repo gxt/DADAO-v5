@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..40eddef
+index 0000000..184a185
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,316 @@
+@@ -0,0 +1,355 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -59,6 +59,11 @@ index 0000000..40eddef
 +  loadMemEntry: Option[BigInt] = None,
 +  hmonBase: Option[BigInt] = None,
 +  hmonSize: Option[BigInt] = None,
++  // m16-chipyard-019: the smon SRAM base/size — reset of `cfx_smon`'s
++  // `hypv_excp_vector` and the anchor of its cg7 block 0 (`DADAO-12 §2.1`,
++  // `contract-see §3`).  Vast-only; Tiny has no smon and leaves these None.
++  smonBase: Option[BigInt] = None,
++  smonSize: Option[BigInt] = None,
 +  bootromBase: Option[BigInt] = None,
 +  bootromSize: Option[BigInt] = None,
 +  // m16-chipyard-006: does the memory window (`addr[47:42] = 0`) translate?
@@ -87,6 +92,9 @@ index 0000000..40eddef
 +
 +/** `cfxha` values of the cfx this machine can implement (`DADAO-12` §3.8). */
 +object WumingCfxHa {
++  /** User monitor (`DADAO-12` §4.1); `Kaiwu-Vast` only (`m16-chipyard-019`). */
++  val umon: Int = 0
++  val smon: Int = 2
 +  val hmon: Int = 3
 +  val power: Int = 63
 +  /** Page-table walker + TLB (`DADAO-12` §4.5); `Kaiwu-Vast` only. */
@@ -124,8 +132,10 @@ index 0000000..40eddef
 +
 +  /**
 +    * The implemented cfx set: `cfx_hmon` (monitor), `cfx_power` (BootROM), plus
++    * `cfx_umon`/`cfx_smon` (the two monitors added by `m16-chipyard-019`),
 +    * `cfx_ptw` and `cfx_cache` when the machine translates the memory window
-+    * (`useVM`, i.e. Kaiwu-Vast).  `cfx_ptw` has no internal space (`cg7` blocks
++    * (`useVM`, i.e. Kaiwu-Vast).  `cfx_umon` has no internal space; `cfx_smon`
++    * describes its 64 KiB SRAM.  `cfx_ptw` has no internal space (`cg7` blocks
 +    * all `exists = 0`) and no own vector, so its `vectorBase`/space fields are
 +    * zero: the walk reports into the current mode's monitor, never into
 +    * `cfx_ptw` (`contract-tlb` TLB-31).  `cfx_cache` likewise has no internal
@@ -148,6 +158,30 @@ index 0000000..40eddef
 +        spaceAttr = 0x5,
 +        sourceMaskReset = maskInitCfx)) ++
 +      (if (p.useVM) Seq(
++        // cfx0 umon (`m16-chipyard-019`): no internal space, so cg7 block 0
++        // stays `exists = 0` and `hypv_excp_vector` is platform-defined (we
++        // keep 0).  The full common face is on: mode rows cg0-cg2, cg4, cg5
++        // rc5, cg6 scratch and cg8 rc1.
++        GewuCfxParams(
++          id = WumingCfxHa.umon,
++          vectorBase = 0,
++          spaceDesc = 0,
++          spaceSize = 0,
++          spaceAttr = 0,
++          sourceMaskReset = maskInitCfx,
++          commonRows = true),
++        // cfx2 smon: 64 KiB SRAM (`contract-see §3` test-machine block), so its
++        // cg7 block 0 is `exists|SRAM`, start = internal offset
++        // 0x3ff_0000_0000, size 64 KiB, R|W|X; the hypv vector resets to the
++        // SRAM start (`DADAO-12 §3.4`).
++        GewuCfxParams(
++          id = WumingCfxHa.smon,
++          vectorBase = required(p.smonBase, "smonBase"),
++          spaceDesc = 0x3,
++          spaceSize = required(p.smonSize, "smonSize"),
++          spaceAttr = 0x7,
++          sourceMaskReset = maskInitCfx,
++          commonRows = true),
 +        GewuCfxParams(
 +          id = WumingCfxHa.ptw,
 +          vectorBase = 0,
@@ -197,6 +231,9 @@ index 0000000..40eddef
 +    loadMemEntry: BigInt,
 +    hmonBase: BigInt,
 +    hmonSize: BigInt,
++    // m16-chipyard-019: cfx_smon's 64 KiB SRAM (`contract-see §3`).
++    smonBase: BigInt,
++    smonSize: BigInt,
 +    bootromBase: BigInt,
 +    bootromSize: BigInt,
 +    paRamBase: BigInt,
@@ -207,6 +244,8 @@ index 0000000..40eddef
 +    loadMemEntry = Some(loadMemEntry),
 +    hmonBase = Some(hmonBase),
 +    hmonSize = Some(hmonSize),
++    smonBase = Some(smonBase),
++    smonSize = Some(smonSize),
 +    bootromBase = Some(bootromBase),
 +    bootromSize = Some(bootromSize),
 +    useVM = true,

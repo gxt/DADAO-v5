@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..d023c10
+index 0000000..b872b3a
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,2153 @@
+@@ -0,0 +1,2160 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -525,6 +525,12 @@ index 0000000..d023c10
 +  private val sramSizeValue = requiredValue(params.loadMemSize, "loadMemSize")
 +  private val hmonBaseValue = requiredValue(params.hmonBase, "hmonBase")
 +  private val hmonSizeValue = requiredValue(params.hmonSize, "hmonSize")
++  // m16-chipyard-019: cfx_smon's 64 KiB SRAM is a fourth architectural window
++  // on a translating machine (`contract-see §3`); Tiny has no smon.
++  private val smonBaseValue =
++    if (params.useVM) requiredValue(params.smonBase, "smonBase") else BigInt(0)
++  private val smonSizeValue =
++    if (params.useVM) requiredValue(params.smonSize, "smonSize") else BigInt(0)
 +  private val bootromBaseValue = requiredValue(params.bootromBase, "bootromBase")
 +  private val bootromSizeValue = requiredValue(params.bootromSize, "bootromSize")
 +  private def inWindow(x: UInt, base: BigInt, size: BigInt): Bool = {
@@ -535,6 +541,7 @@ index 0000000..d023c10
 +  private def inSpecWindow(x: UInt): Bool =
 +    inWindow(x, sramBaseValue, sramSizeValue) ||
 +      inWindow(x, hmonBaseValue, hmonSizeValue) ||
++      (if (params.useVM) inWindow(x, smonBaseValue, smonSizeValue) else false.B) ||
 +      inWindow(x, bootromBaseValue, bootromSizeValue)
 +
 +  // m16-chipyard-006: address routing (`contract-tlb` §10 TLB-40…TLB-43).

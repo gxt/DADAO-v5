@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..8433743
+index 0000000..571d9a8
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
-@@ -0,0 +1,925 @@
+@@ -0,0 +1,1121 @@
 +// See LICENSE for license details.
 +//
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
@@ -76,9 +76,33 @@ index 0000000..8433743
 +//   cg8 rc10     cfx_cache_addr_start       (RW; PA[55:0], [63:56] read 0)
 +//   cg8 rc11     cfx_cache_addr_size        (RW; byte count)
 +//
++// The **monitor common face** (`m16-chipyard-019`) is enabled per cfx with
++// `GewuCfxParams.commonRows`; `Kaiwu-Vast` turns it on for `cfx_umon` (cfx0)
++// and `cfx_smon` (cfx2), the two profiles this task adds.  cfx3/cfx63 keep the
++// legacy subset above so their observable behaviour does not move:
++//
++//   cg0-cg2 rc0-3 four sync source masks, rc4 intr mask (RW)
++//   cg0-cg2 rc8    switch_run_mode (reset 2 = supv)
++//   cg0-cg2 rc10   excp_vector (reset 0; writes drop the low two bits)
++//   cg3 rc12       hypv_cg_reg_deleg (reset all ones, bit3 fixed 1)
++//   cg4 rc0-rc6    cfx_id / version / trap·sync·async·escape counts /
++//                  scratch_regs_num (all RO)
++//   cg5 rc5        excp_pending (RW; no async source is modelled yet)
++//   cg6 rc0..N-1   scratch registers (RW, N = `GewuCfxParams.scratchRegs`)
++//   cg8 rc1        global_cfx_intr_mask (RW, reset all ones; cfx0-cfx3 only)
++//
 +// Every other (cg, rc) of an implemented cfx is not on this profile and
 +// reads/writes as CFXREG — never as a silent zero.  A `cfxha` that names no
 +// implemented cfx is CFXREG as well.
++//
++// The two-axis `cfxreg` mask (`cg0`-`cg3` rc2) is **stored** here for cfx0/cfx2
++// (`DADAO-12` §3, `ADR-0045` D1/D2), but its enforcement is not switched on in
++// this profile yet: the chipyard boot chain runs the test body as `cfx_power`
++// (cfx63), and the spec's reset masks allow only `cfx_hmon` (bit3), so enforcing
++// the check would deny the body every cfx0/cfx2 (and existing cfx4/cfx5) access.
++// `m16-chipyard-020` brings the U/S entry chain that runs the body inside its
++// monitor; enforcement lands with that routing (recorded in the task's
++// completion section).
 +//
 +// `excp_cause_id` is a *layered* encoding (`DADAO-12` §3.6, `contract-see`
 +// §6.1/§6.1.1, `ADR-0056` D1–D4): `[15:0]` is the one-hot cause class,
@@ -216,7 +240,19 @@ index 0000000..8433743
 +  spaceDesc: BigInt,
 +  spaceSize: BigInt,
 +  spaceAttr: BigInt,
-+  sourceMaskReset: BigInt
++  sourceMaskReset: BigInt,
++  /**
++    * Expose the full common register face of `DADAO-12 §3` (mode rows cg0-cg2,
++    * cg3 rc12, cg4, cg5 rc5, cg6, cg8 rc1).  Off by default so a profile that
++    * only ever had the partial subset (`Kaiwu-Tiny` cfx3/cfx63, cfx4/cfx5)
++    * keeps its observable register map unchanged; `m16-chipyard-019` enables it
++    * for the Vast monitors cfx0/cfx2.
++    */
++  commonRows: Boolean = false,
++  /** `cfx_⟨cfxname⟩_scratch_regs_num` (cg4 rc6) when `commonRows` is set. */
++  scratchRegs: Int = 4,
++  /** `cfx_⟨cfxname⟩_version` (cg4 rc1) — test-machine value, spec leaves it HW. */
++  version: BigInt = BigInt("10000", 16)
 +)
 +
 +/**
@@ -323,6 +359,12 @@ index 0000000..8433743
 +  // Same rule for `cfx_cache`: its rows must belong to an implemented cfxha.
 +  require(cache.forall(c => cfx.exists(_.id == c.cfxId)),
 +    "Gewu: `cache.cfxId` must name an implemented cfx")
++  // The monitor common face carries `cg8 rc1 global_cfx_intr_mask`, which the
++  // spec defines for cfx0-cfx3 only (`DADAO-12 §3.1`/§3.4, `contract-see §3`).
++  require(cfx.filter(_.commonRows).forall(c => c.id >= 0 && c.id <= 3),
++    "Gewu: `commonRows` is defined for the cfx0-cfx3 monitors only")
++  require(cfx.filter(_.commonRows).forall(c => c.scratchRegs >= 2 && c.scratchRegs <= 64),
++    "Gewu: `scratchRegs` must be 2..64 (`DADAO-12 §3.7`)")
 +}
 +
 +/**
@@ -476,9 +518,11 @@ index 0000000..8433743
 +  private val sel = PriorityEncoder(hit)
 +
 +  // ---- architectural state ------------------------------------------------
-+  // cg3 rc0-rc3 share one mask vector (four names for one register file row).
-+  val sourceMask = RegInit(VecInit(
-+    gp.cfx.map(c => c.sourceMaskReset.U(gp.sourceMaskBits.W))))
++  // cg3 rc0-rc3: four independent sync source masks (`DADAO-12 §3.4`:
++  // cfxtrap / cfxmem / cfxreg / cfxexe).  They happen to share one reset value
++  // but are separate RW registers, and the two-axis `cfxreg` check reads rc2.
++  val sourceMask = RegInit(VecInit(gp.cfx.map(c =>
++    VecInit(Seq.fill(4)(c.sourceMaskReset.U(gp.sourceMaskBits.W))))))
 +  // cg3 rc4: no asynchronous source on this profile -> all ones.
 +  val intrMask = RegInit(VecInit(gp.cfx.map(_ => allOnes)))
 +  // cg3 rc10: the cfx's own base (`DADAO-13` §1).
@@ -546,6 +590,66 @@ index 0000000..8433743
 +    gp.cache.map(c => new CacheRegs(c.exists))
 +  private val cacheExists: Int = gp.cache.map(_.exists).getOrElse(0)
 +
++  // ---- monitor common register face (`m16-chipyard-019`) -------------------
++  // `DADAO-12 §3`: cg0-cg2 are the three lower run-mode rows, cg3 is hypv (the
++  // legacy rows above already cover its rc0-rc4/rc8/rc10), cg4 is the config
++  // block, cg5 rc5 is the pending bitmap, cg6 the scratch registers and cg8
++  // rc1 the monitor's global interrupt mask.  The state is created only for a
++  // cfx whose `commonRows` flag is set, so a profile that does not opt in
++  // (Kaiwu-Tiny, cfx3/cfx63 here) gains no flops and no muxing.
++  private class CommonRegs(c: GewuCfxParams) {
++    /** cg0-cg2: rc0-rc3 sync source masks, rc4 `cfx_intr_mask`. */
++    val mask = RegInit(VecInit(Seq.fill(3)(VecInit(
++      Seq.tabulate(5) { rc =>
++        (if (rc == 4) allOnes else c.sourceMaskReset.U(gp.sourceMaskBits.W))
++      }))))
++    /** cg0-cg2 rc8: `switch_run_mode` resets to supv (`§3.1`-`§3.3`). */
++    val switchMode = RegInit(VecInit(Seq.fill(3)(2.U(gp.dataBits.W))))
++    /** cg0-cg2 rc10: `excp_vector` resets to 0 (`§3.1`-`§3.3`). */
++    val vector = RegInit(VecInit(Seq.fill(3)(0.U(gp.dataBits.W))))
++
++    /** cg3 rc12 `hypv_cg_reg_deleg`; bit3 is hardware-fixed 1 (`§3.4`). */
++    val deleg = RegInit(Fill(gp.dataBits, 1.U(1.W)))
++
++    /** cg4 counters (`§3.5`), reset 0; `trap_num` counts `trap` entries. */
++    val trapNum = RegInit(0.U(gp.dataBits.W))
++    val syncNum = RegInit(0.U(gp.dataBits.W))
++    val asyncNum = RegInit(0.U(gp.dataBits.W))
++    val escapeNum = RegInit(0.U(gp.dataBits.W))
++
++    /** cg5 rc5 `excp_pending` (RW; no async source is modelled yet). */
++    val pending = RegInit(0.U(gp.dataBits.W))
++
++    /** cg6: `N` scratch registers, `rc >= N` is CFXREG (`§3.7`). */
++    val scratch = RegInit(VecInit(Seq.fill(c.scratchRegs)(0.U(gp.dataBits.W))))
++
++    /** cg8 rc1 `global_cfx_intr_mask` (cfx0-cfx3 only, reset all ones). */
++    val globalIntrMask = RegInit(Fill(gp.dataBits, 1.U(1.W)))
++  }
++
++  /** One entry per cfx that opts into the monitor common face. */
++  private class CommonEntry(val c: GewuCfxParams) {
++    val regs = new CommonRegs(c)
++    val hit: Bool = io.addr.ha === c.id.U(6.W)
++    /** `cg0-cg2` address decode (the mode row is `io.addr.cg`). */
++    val isMode = hit && io.addr.cg <= 2.U
++    val isMask = isMode && io.addr.rc <= 4.U
++    val isSwitch = isMode && io.addr.rc === 8.U
++    val isVector = isMode && io.addr.rc === 10.U
++    val isDeleg = hit && io.addr.cg === 3.U && io.addr.rc === 12.U
++    val isCfg = hit && io.addr.cg === 4.U
++    val isPending = hit && io.addr.cg === 5.U && io.addr.rc === 5.U
++    val isScratch = hit && io.addr.cg === 6.U &&
++      io.addr.rc < c.scratchRegs.U
++    val isGlobal = hit && io.addr.cg === 8.U && io.addr.rc === 1.U
++    /** Mode-row index (0/1/2); `cg3` uses the legacy rows, not this matrix. */
++    val mode = Mux(io.addr.cg <= 2.U, io.addr.cg(1, 0), 0.U)
++  }
++
++  private val commonEntries: Seq[CommonEntry] =
++    gp.cfx.filter(_.commonRows).map(c => new CommonEntry(c))
++  private val commonHits: Seq[Bool] = commonEntries.map(_.hit)
++
 +  // ---- register access ----------------------------------------------------
 +  private val isCg3 = io.addr.cg === 3.U
 +  // `DADAO-13` §1: the whole cg3 row is hypv-only.
@@ -611,6 +715,19 @@ index 0000000..8433743
 +    val isCfx = isExist || isEnable || isControl || isStart || isSize
 +  }
 +
++  // Monitor common face rows (`m16-chipyard-019`): only the enabled cfx decode
++  // them, so an opted-out profile adds no terms (all `CommonEntry`s absent).
++  private def anyCommon(f: CommonEntry => Bool): Bool =
++    if (commonEntries.isEmpty) false.B
++    else commonEntries.map(f).reduce(_ || _)
++  private val commonRead = anyCommon(e =>
++    e.isMask || e.isSwitch || e.isVector || e.isDeleg ||
++      (e.isCfg && io.addr.rc <= 6.U) || e.isPending || e.isScratch || e.isGlobal)
++  // cg4 is read-only (`DADAO-12 §3.5`); every other common row is RW.
++  private val commonWrite = anyCommon(e =>
++    e.isMask || e.isSwitch || e.isVector || e.isDeleg ||
++      e.isPending || e.isScratch || e.isGlobal)
++
 +  // Base rows of every implemented cfx (`DADAO-13` §1, `DADAO-12` §3).
 +  private val readBase = isMask || isSwitchMode || isVector || isPrevMode ||
 +    isPrevCfx || isCauseId || isCauseIp || isCauseInfo || isSpace
@@ -637,12 +754,14 @@ index 0000000..8433743
 +    }).getOrElse(true.B)
 +
 +  io.readOk := implemented && cg3Allowed &&
-+    (readBase || ptwRows.map(_.anyRead).getOrElse(false.B) ||
++    (readBase || commonRead ||
++      ptwRows.map(_.anyRead).getOrElse(false.B) ||
 +      cacheRows.map(_.anyRead).getOrElse(false.B))
 +  // `tlb_control` and `cache_ctrl` are WO: writing them is legal, reading them
 +  // is not (they are not in the read sets above).
 +  io.writeOk := implemented && cg3Allowed && cacheCtrlLegal &&
-+    (writeBase || ptwRows.map(_.anyWrite).getOrElse(false.B) ||
++    (writeBase || commonWrite ||
++      ptwRows.map(_.anyWrite).getOrElse(false.B) ||
 +      cacheRows.map(_.anyWrite).getOrElse(false.B))
 +
 +  /** Per-cfx constant, selected by the addressed instance. */
@@ -678,7 +797,9 @@ index 0000000..8433743
 +
 +  // The read data is defined for every address (the permission outputs say
 +  // whether it may be used): a rejected access must not leak a stale value.
-+  private val maskData = Mux(io.addr.rc === 4.U, intrMask(sel), sourceMask(sel))
++  private val rcMaskIndex = Mux(io.addr.rc <= 3.U, io.addr.rc(1, 0), 0.U)
++  private val maskData =
++    Mux(io.addr.rc === 4.U, intrMask(sel), sourceMask(sel)(rcMaskIndex))
 +  // Base read data (every implemented cfx, `DADAO-13` §1 / `DADAO-12` §3).
 +  private val baseRdata = Mux(isMask, maskData,
 +    Mux(isSwitchMode, gp.switchModeValue.U(gp.dataBits.W),
@@ -717,13 +838,44 @@ index 0000000..8433743
 +
 +  private val baseAndPtw =
 +    ptwRdata.map(d => Mux(ptwRows.get.isCfx, d, baseRdata)).getOrElse(baseRdata)
-+  io.rdata := cacheRdata.map(d => Mux(cacheRows.get.isCfx, d, baseAndPtw))
-+    .getOrElse(baseAndPtw)
++  private val basePtwCache =
++    cacheRdata.map(d => Mux(cacheRows.get.isCfx, d, baseAndPtw)).getOrElse(baseAndPtw)
++
++  // Monitor common face read data (`m16-chipyard-019`, `DADAO-12 §3`).  The
++  // mode-row index is `cg` (0/1/2); `cg3` rows stay in `baseRdata` above.
++  private val commonRdata =
++    if (commonEntries.isEmpty) 0.U(gp.dataBits.W)
++    else Mux1H(commonHits, commonEntries.map { e =>
++      val r = e.regs
++      // `cg0-cg2`: rc0-rc3 are the four sync masks, rc4 the intr mask.
++      val rcIdx = Mux(io.addr.rc <= 4.U, io.addr.rc(2, 0), 0.U)
++      val scratchIdx = Mux(io.addr.rc < e.c.scratchRegs.U,
++        io.addr.rc(log2Ceil(e.c.scratchRegs) - 1, 0), 0.U)
++      Mux(e.isMask, Mux(io.addr.rc === 4.U, r.mask(e.mode)(4),
++          r.mask(e.mode)(rcIdx)),
++        Mux(e.isSwitch, r.switchMode(e.mode),
++          Mux(e.isVector, r.vector(e.mode),
++            Mux(e.isDeleg, r.deleg,
++              Mux(e.isCfg, MuxLookup(io.addr.rc, 0.U(gp.dataBits.W))(Seq(
++                0.U -> e.c.id.U(gp.dataBits.W),
++                1.U -> e.c.version.U(gp.dataBits.W),
++                2.U -> r.trapNum,
++                3.U -> r.syncNum,
++                4.U -> r.asyncNum,
++                5.U -> r.escapeNum,
++                6.U -> e.c.scratchRegs.U(gp.dataBits.W))),
++                Mux(e.isPending, r.pending,
++                  Mux(e.isGlobal, r.globalIntrMask,
++                    Mux(e.isScratch, r.scratch(scratchIdx),
++                      0.U(gp.dataBits.W)))))))))
++    })
++
++  io.rdata := Mux(commonRead, commonRdata, basePtwCache)
 +
 +  when(io.wEn && io.writeOk) {
 +    when(isMask) {
 +      when(io.addr.rc === 4.U) { intrMask(sel) := io.wdata }
-+        .otherwise { sourceMask(sel) := io.wdata }
++        .otherwise { sourceMask(sel)(rcMaskIndex) := io.wdata }
 +    }.elsewhen(isVector) {
 +      // `DADAO-13` §1: the vector is 4-byte aligned, writes drop the low bits.
 +      vector(sel) := Cat(io.wdata(gp.dataBits - 1, 2), 0.U(2.W))
@@ -737,6 +889,35 @@ index 0000000..8433743
 +      causeIp(sel) := io.wdata
 +    }
 +    // cg3 rc8 is accepted and ignored: no run-mode register to write.
++  }
++
++  // Monitor common face writes (`m16-chipyard-019`).  Rows are disjoint from
++  // the base/PTW/cache rows by construction (different cg/rc, or a cfx that
++  // opted out), so each enabled cfx gets its own block.
++  for (e <- commonEntries) {
++    when(io.wEn && io.writeOk && e.hit) {
++      val r = e.regs
++      val rcIdx = Mux(io.addr.rc <= 4.U, io.addr.rc(2, 0), 0.U)
++      val scratchIdx = Mux(io.addr.rc < e.c.scratchRegs.U,
++        io.addr.rc(log2Ceil(e.c.scratchRegs) - 1, 0), 0.U)
++      when(e.isMask) {
++        r.mask(e.mode)(rcIdx) := io.wdata
++      }.elsewhen(e.isSwitch) {
++        r.switchMode(e.mode) := io.wdata
++      }.elsewhen(e.isVector) {
++        // Same alignment rule as cg3 rc10 (`DADAO-12 §3.4`).
++        r.vector(e.mode) := Cat(io.wdata(gp.dataBits - 1, 2), 0.U(2.W))
++      }.elsewhen(e.isDeleg) {
++        // `cg_reg_deleg` bit3 is hardware-fixed 1 (`DADAO-12 §3.4`).
++        r.deleg := io.wdata | 8.U
++      }.elsewhen(e.isPending) {
++        r.pending := io.wdata
++      }.elsewhen(e.isScratch) {
++        r.scratch(scratchIdx) := io.wdata
++      }.elsewhen(e.isGlobal) {
++        r.globalIntrMask := io.wdata
++      }
++    }
 +  }
 +
 +  // cfx_ptw writes (`DADAO-12` §4.5): a separate block because the rows are
@@ -910,6 +1091,21 @@ index 0000000..8433743
 +    runMode := prevMode(viewIdx)
 +    // §5.3 step 2: restore the current cfx of the frame being returned from.
 +    curCfx := prevCfx(viewIdx)(5, 0)
++  }
++
++  // ---- cfx config counters (`DADAO-12 §3.5`) ------------------------------
++  // `trap_num` counts `trap` entries (cause bit0 = CFXTRAP), `excp_sync_num`
++  // every other synchronous entry, `escape_num` legal `escape` returns from
++  // this cfx.  `excp_async_num` stays 0: this milestone models no asynchronous
++  // source for the monitors (`m16-chipyard-020` brings the routing).
++  for (e <- commonEntries) {
++    when(io.excp.valid && entryHa === e.c.id.U(6.W)) {
++      when(io.excp.cause(0)) { e.regs.trapNum := e.regs.trapNum + 1.U }
++        .otherwise { e.regs.syncNum := e.regs.syncNum + 1.U }
++    }
++    when(escapeOk && curCfx === e.c.id.U(6.W)) {
++      e.regs.escapeNum := e.regs.escapeNum + 1.U
++    }
 +  }
 +
 +  // ---- `excp_cause_id` structure at the frame-write point ------------------

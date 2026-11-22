@@ -29,6 +29,8 @@
 
 **H/S/U 三模式**（用户 2026-11-22）：本任务本身就是把 U/S 路由做稳；验收必须覆盖 `hmon`/`smon`/`umon` 三种模式下的异常进入、`switch_run_mode`、异常帧，不能只验 hypv/hmon。
 
+**两轴 `cfxreg` 强制判定**（承接 019 遗留①）：019 只落存储面与 `readOk/writeOk` 行判；本任务必须补上 `CFXPERM` 强制——U/S 下访问 cfx0/2 时按目标 cfx 的 `<mode>_cfxreg` 掩码 + `cg3 rc12` deleg 判权；未写 deleg/未开放掩码 ⇒ `CFXPERM|NCFXPERM`。与 `m16-testcases-017` 的 env 掩码准备配合，不能留成两任务互指的空档。
+
 ## 不做
 
 - 不改 cfx0/2 的寄存器行/权限（019）；
