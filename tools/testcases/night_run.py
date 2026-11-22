@@ -3,8 +3,10 @@
 
 回归运行（Make 目标仍名 `night-run`、本脚本仍名 `night_run.py`；历史名，
 语义 = 全量回归成员集）= **tset full（libc-test / llvm-ts / Embench）+
-长 arch（QEMU system cfx + gem5 FS inst/arch）+ gem5 SE tset（static）**，由调用者
+长 arch（QEMU system cfx + gem5 FS inst/arch）+ gem5 SE tset（static）+
+IDL 全四方（IDL/QEMU/gem5/chipyard）**，由调用者
 ``setsid nohup make night-run > log 2>&1 &`` 脱离会话（不自带 `nohup`，避免嵌套）。
+成员清单真源 = :data:`DEFAULT_MEMBERS`（条数现场派生，不在文档写死）。
 
 成员可用性证据（`TESTCASES-105t`；**不重跑全量**）：
 * gem5 SE static  —— `tests/data/GEM5-021t-baseline-summary.json`
@@ -53,7 +55,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "tools" / "infra"))
 import writer_guard  # noqa: E402
 
-# 默认成员：scope:suite=命令（tset full + 长 arch + gem5 SE/FS）
+# 默认成员：scope:suite=命令（tset full + 长 arch + gem5 SE/FS + IDL 全四方）
 GEM5_SE_DIR = ".work/tests/night-gem5-se"
 
 
@@ -104,6 +106,9 @@ DEFAULT_MEMBERS = [
     " --work-dir .work/tests/night-gem5-fs/run"
     " --json .work/tests/night-gem5-fs/matrix.json"
     " --markdown .work/tests/night-gem5-fs/matrix.md --allow-repo-write",
+    # IDL 全四方（m17-idl-014）：L2 `check-idl` 只有 IDL+QEMU，gem5/RTL 侧漂移由本成员
+    # 常驻守；缺任一引擎/固件 ⇒ 该目标 rc=2（不静默跳过）。
+    "idl:four-way=make check-idl-full",
 ]
 
 # 每成员整轮墙钟预算（秒）；缺省 = 无超时（QEMU 四个成员保持既有语义/预算）。
@@ -113,6 +118,7 @@ MEMBER_TIMEOUTS = {
     ("tset", "gem5-se-llvm"): 10800,
     ("tset", "gem5-se-embench"): 3600,
     ("arch", "gem5-fs"): 14400,
+    ("idl", "four-way"): 1800,
 }
 TIMEOUT_RC = 124
 
@@ -296,6 +302,7 @@ def cmd_selftest(args: argparse.Namespace) -> int:
         ("tset", "gem5-se-llvm", "echo ok"),
         ("tset", "gem5-se-embench", "echo ok"),
         ("arch", "gem5-fs", "echo ok"),
+        ("idl", "four-way", "echo ok"),
     ]
     red = [m for m in green]
     red[2] = ("tset", "embench", "echo fail; false")
@@ -354,7 +361,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--root", default=str(REPO_ROOT / ".dadao" / "tests"))
     ap.add_argument("--date", default=None, help="报告日期（默认 UTC 今天）")
     ap.add_argument("--member", action="append", default=None,
-                    help="scope:suite=cmd（可重复；默认 tset full ×3 + arch + gem5 SE ×3 + gem5 FS）")
+                    help="scope:suite=cmd（可重复；默认见 DEFAULT_MEMBERS = tset full ×3"
+                         " + arch + gem5 SE ×3 + gem5 FS + IDL 全四方）")
     ap.add_argument("--allow-overwrite", action="store_true")
     ap.add_argument("--log-dir", default=None)
     ap.add_argument("--machine", default=None,

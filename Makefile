@@ -75,7 +75,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-manifests-guard check-cfx-aliases check-asm-prose check-lit \
-        check-idl-parse check-idl \
+        check-idl-parse check-idl check-idl-full \
         check-cfx-alias-table check-cfx-alias-install check-cfx-vectors \
         check-lit-full \
         check-run-artifacts \
@@ -297,6 +297,7 @@ help:
 	@echo "  make check-idl-sync  idl/*.idl rendered into spec/ IDL markers, byte-exact (L1; m15-spec-001)"
 	@echo "  make check-idl-parse  IDL subset parser: 13 sources -> AST + frozen construct signatures + reject/accept sets (L1; m17-idl-002)"
 	@echo "  make check-idl      IDL four-way differential (IDL+QEMU in L2; signature slots + exit codes vs expected.tsv; m17-idl-005)"
+	@echo "  make check-idl-full  IDL full four-way differential (IDL/QEMU/gem5/chipyard; nightly member; not in L1/L2/L3; m17-idl-014)"
 	@echo "  make check-component-changelog  Component changelog list-form/milestone-section gate (L1; INFRA-084t)"
 	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
@@ -1368,8 +1369,8 @@ check-idl-parse:
 # 判据 = 签名槽流（8 B/槽，逐槽）与退出码全等，且每方槽值再对独立 oracle
 # `tests/data/inst-signature/expected.tsv` 逐槽比对（四方一致但全错仍红）。
 # 清单集合断言：主清单 == `tests/inst/*/*.S` − `07-floating-point` − `[[pending]]`
-# （现场派生，脚本内 fail-closed）。全四方（+gem5/chipyard）由节点/收口调用：
-#   python3 idl/tools/idl_four_way.py --platforms qemu,gem5,chipyard
+# （现场派生，脚本内 fail-closed）。全四方（+gem5/chipyard）走 nightly 成员
+# `make check-idl-full`（本文件下方；不进 L1/L2/L3）。
 # 缺 QEMU 安装根/固件 ⇒ ERROR（不静默跳过）。读方护栏：登记 qemu/bootrom/llvm。
 # 规则见 idl/docs/four-way.md + docs/Process-07。
 IDL_FOUR_WAY_LOG = .work/log/idl/check-idl.log
@@ -1384,6 +1385,23 @@ _locked-check-idl:
 	  tail -3 $(IDL_FOUR_WAY_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "check-idl: FAIL (rc=$$rc)"; exit $$rc; fi; \
 	  echo "check-idl: PASS"
+
+# IDL 全四方门控 (m17-idl-014, **nightly 成员**；**不进** L1/L2/L3): 同一主清单镜像跑
+# IDL + QEMU + gem5 + chipyard 四方（判据同 check-idl：签名槽流 + 退出码全等，且每方对
+# `tests/data/inst-signature/expected.tsv` 逐槽）。L2 的 `check-idl` 仍只有 IDL+QEMU
+# （主控机不依赖 gem5/Verilator），gem5/RTL 侧漂移由此处常驻守。
+# 缺任一引擎/固件 ⇒ rc=2（`idl_four_way.py` 打印缺项，**不静默跳过**）。
+# 只读构建产物 ⇒ **不在** `GATE_LOCKED_TARGETS`、不占 `gate.lock`；日志落运行期日志目录。
+IDL_FOUR_WAY_FULL_LOG = .work/log/idl/check-idl-full.log
+check-idl-full:
+	@mkdir -p .work/log/idl
+	@$(PYTHON) idl/tools/idl_four_way.py --platforms qemu,gem5,chipyard --jobs $(TEST_JOBS) \
+	    > $(IDL_FOUR_WAY_FULL_LOG) 2>&1; \
+	  rc=$$?; \
+	  grep -E "^(check_four_way|  \[FAIL\])" $(IDL_FOUR_WAY_FULL_LOG) || true; \
+	  tail -3 $(IDL_FOUR_WAY_FULL_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "check-idl-full: FAIL (rc=$$rc)"; exit $$rc; fi; \
+	  echo "check-idl-full: PASS"
 
 # 契约目录顶层白名单门控 (INFRA-071t, L1 成员; 守两处): `.tao/contracts/` 顶层只允许
 # `contract-*.md` / `README.md` / 子目录; `contracts/` 顶层只允许 `*.yaml` / `README.md` /

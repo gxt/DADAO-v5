@@ -11,11 +11,10 @@
    ``meta.json`` 的 ``command`` / ``started_utc`` / ``finished_utc`` 非空。
 3. **结构**：``manifest.tsv`` 表头 = ``scope\tsuite\trc\tlog``，数据行 ≥1、四列、
    ``rc`` 为整数（计数现场统计）。
-4. **覆盖**：必须含默认成员全集 —— ``tset`` 的 ``libc-test`` / ``llvm-ts`` /
-   ``embench`` / ``gem5-se-libc`` / ``gem5-se-llvm`` / ``gem5-se-embench``，以及
-   ``arch:cfx`` / ``arch:gem5-fs`` —— 缺任一 ``scope:suite`` ⇒ FAIL（防"只跑了
-   半个回归运行"也绿）。``--members`` 仅供**单成员接入验证**显式收窄（默认全集）；
-   105t 之前的历史报告不含 gem5 成员，默认口径会 FAIL，直到按新成员集跑过一轮。
+4. **覆盖**：必须含 :data:`REQUIRED_MEMBERS` 全集（与 ``night_run.DEFAULT_MEMBERS``
+   对应；**成员条数与 scope 数一律现场统计、本文不写死**）——缺任一 ``scope:suite``
+   ⇒ FAIL（防"只跑了半个回归运行"也绿）。``--members`` 仅供**单成员接入验证**显式
+   收窄（默认全集）；历史报告不含新成员时默认口径会 FAIL，直到按当前成员集跑过一轮。
 5. **结果**：任一 ``rc != 0`` ⇒ FAIL（报告存在但回归运行红）；``rc == 124``（超时）
    单列 "超时"，不并成普通失败。回归运行红仅作观测记录，不阻断里程碑收口。
 
@@ -36,8 +35,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-\d{2}$")
 HEADER = ["scope", "suite", "rc", "log"]
 
-# 默认成员全集（与 tools/testcases/night_run.py:DEFAULT_MEMBERS 对应）：
-# QEMU tset full ×3 + 长 arch（cfx）+ gem5 SE static ×3 + gem5 FS inst/arch。
+# 默认成员全集（与 tools/testcases/night_run.py:DEFAULT_MEMBERS 逐项对应；条数以列表
+# 现场统计，不在文档写死）：QEMU tset full ×3 + 长 arch（cfx）+ gem5 SE static ×3 +
+# gem5 FS inst/arch + IDL 全四方（gem5/chipyard，m17-idl-014）。
 REQUIRED_MEMBERS = [
     ("tset", "libc-test"),
     ("tset", "llvm-ts"),
@@ -47,6 +47,7 @@ REQUIRED_MEMBERS = [
     ("tset", "gem5-se-embench"),
     ("arch", "cfx"),
     ("arch", "gem5-fs"),
+    ("idl", "four-way"),
 ]
 TIMEOUT_RC = 124
 
@@ -155,7 +156,7 @@ def check(root: Path, date: str | None,
         missing = [f"{s}:{u}" for s, u in required if (s, u) not in present]
         if missing:
             rep.fail("manifest 缺成员行：" + ", ".join(missing) +
-                     "（回归运行 = tset full×3 + 长 arch + gem5 SE×3 + gem5 FS）")
+                     "（回归运行成员全集 = REQUIRED_MEMBERS，见 night_run.DEFAULT_MEMBERS）")
 
     # 5. 结果（超时单列，不并成普通失败）
     timeouts = [(r["scope"], r["suite"]) for r in rep.rows
@@ -200,7 +201,8 @@ def _write_report(dirp: Path, rows: list[tuple[str, str, int]], *, meta: bool = 
 GREEN_ROWS = [("tset", "libc-test", 0), ("tset", "llvm-ts", 0),
               ("tset", "embench", 0), ("arch", "cfx", 0),
               ("tset", "gem5-se-libc", 0), ("tset", "gem5-se-llvm", 0),
-              ("tset", "gem5-se-embench", 0), ("arch", "gem5-fs", 0)]
+              ("tset", "gem5-se-embench", 0), ("arch", "gem5-fs", 0),
+              ("idl", "four-way", 0)]
 
 
 def cmd_selftest(args: argparse.Namespace) -> int:
@@ -236,6 +238,11 @@ def cmd_selftest(args: argparse.Namespace) -> int:
     _write_report(r4b / "night" / "2026-10-27-00",
                   [row for row in GREEN_ROWS if row[1] != "gem5-se-embench"])
     expect("missing gem5 SE member => FAIL", r4b, False)
+
+    r4d = base / "d4"
+    _write_report(r4d / "night" / "2026-10-27-00",
+                  [row for row in GREEN_ROWS if row[0] != "idl"])
+    expect("missing idl four-way member => FAIL", r4d, False)
 
     r4c = base / "d3"
     _write_report(r4c / "night" / "2026-10-27-00", GREEN_ROWS,

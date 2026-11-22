@@ -14,9 +14,9 @@
 | 层 | 目标（真源：`Makefile`） | 各层组成 | 目标耗时 |
 |---|---|---|---|
 | **L1 完整性 / 可用性** | `make check`（**默认**） | **仓库完整性静态检查**（不跑被测语义：patch-tree / spec-drift / 索引卫生 / 编码·合法性·scope·fp 一致性 / ISA 覆盖矩阵漂移 / 引用审计 / 目录·残留·只读 / 测试报告目录卫生（`check-test-reports`） / **组件 changelog 形态**（`check-component-changelog`：列表式 + 按里程碑分节）等）**+ 组件可用性冒烟**（`llc` / `clang --print-targets` / `qemu-system-dadao` 可执行且认识 `dadao`；**不跑被测语义**）**+ issue 台账校验 / `compileall tools`** | 秒 ~ 几十秒 |
-| **L2 四 scope smoke** | `make check-modules` | 四个固定 scope 的 **smoke** 集（`Process-09 §8`）：`check-inst-asm`（`.S` 载体全量，单平台 QEMU）+ `check-inst-sig`（签名区逐槽比对，同一批 `.S`、单平台 QEMU）+ `check-idl`（IDL + QEMU 两方差分，`m17-idl-005`）+ `check-arch-smoke` + `check-unit` + `check-tset-{libc,llvm,embench}-smoke`。**不含** FP 探针（2026-10-27 用户裁定「L2 只保留四 scope smoke」）。**inst 的 YAML 代表集门控（`check-inst-smoke`）已删**（`m13-testcases-043`：YAML 全退役；`.S` 全量执行已覆盖同一语料） | 几十 ~ 几百秒 |
+| **L2 四 scope smoke** | `make check-modules` | 四个固定 scope 的 **smoke** 集（`Process-09 §8`）：`check-inst-asm`（`.S` 载体全量，单平台 QEMU）+ `check-inst-sig`（签名区逐槽比对，同一批 `.S`、单平台 QEMU）+ `check-idl`（**仅 IDL + QEMU 两方**差分，`m17-idl-005`；全四方是 nightly 成员 `check-idl-full`）+ `check-arch-smoke` + `check-unit` + `check-tset-{libc,llvm,embench}-smoke`。**不含** FP 探针（2026-10-27 用户裁定「L2 只保留四 scope smoke」）。**inst 的 YAML 代表集门控（`check-inst-smoke`）已删**（`m13-testcases-043`：YAML 全退役；`.S` 全量执行已覆盖同一语料） | 几十 ~ 几百秒 |
 | **L3 全量** | `make check-full` | **arch/unit 全量 + 集成链**：`check-arch`（与 `check-arch-smoke` 同一代表集）+ `check-unit-full`（= `check-unit` + `check-lit-full`，见下）+ `test-m6`（全量 lit 生成档 + ir-lli + Embench E2E）。**FP 探针已全部退役**：`rnd`/`minmax`/`fma` 由 `m13-testcases-044`、`clmul` 由 `m15-testcases-008`；FP 语义由 `tests/inst/07-floating-point/` 的 `.S` 载体（L2 `check-inst-asm`）+ `tests/unit/llvm/lit` + `e2e/lit` 承担（L3 = `check-arch` + `check-unit-full` + `test-m6` 三成员）。**inst 不在 L3 列**：`.S` 载体的执行门控是 L2 `check-inst-asm`（§4「一个检查只在一层」）；原 L3 `check-inst`（Vast 全量 + Tiny 子集）随 YAML 退役删除（`m13-testcases-043`，用户 2026-11-14 裁定「Vast 明确放弃 ISA 级执行覆盖」）。**tset 不直接列出**：smoke 只在 L2、full 只在回归运行；`test-m6` 的 Embench E2E 属集成步骤，**不算** tset smoke 重复（§4；`TESTCASES-082t`）。运行由 `tools/testcases/l3_run.py` 逐成员执行（成员清单真源 = `l3_run.DEFAULT_MEMBERS`），并写只读报告 `<test-artifacts>/l3/<YYYYMMDDTHHMMSSZ>/`（`manifest.tsv`/`meta.json`/`run.log`，与回归运行同格式）| 几百 ~ 几千秒 |
-| **回归运行（非三层之一）** | `make night-run` | `tset` full ×3（各 static+dynamic）+ `check-arch`（同一代表集 + carrier）；结果只落只读报告 `.dadao/tests/night/<date>/`，按需消费（`check-night-report`，**观测口径，不阻断收口**）；**独立锁 `night.lock`**（不占 `gate.lock`，不阻断 L1/L2/L3，`NIGHT_LOCK`）；触发点 = 队列空档，`setsid nohup`（`Process-09 §8`） | 小时级 |
+| **回归运行（非三层之一）** | `make night-run` | `tset` full ×3（各 static+dynamic）+ `check-arch`（同一代表集 + carrier）+ **`check-idl-full`（IDL 全四方：IDL/QEMU/gem5/chipyard，`m17-idl-014`）**；成员清单真源 = `tools/testcases/night_run.py:DEFAULT_MEMBERS`（条数现场派生）。结果只落只读报告 `.dadao/tests/night/<date>/`，按需消费（`check-night-report`，**观测口径，不阻断收口**）；**独立锁 `night.lock`**（不占 `gate.lock`，不阻断 L1/L2/L3，`NIGHT_LOCK`）；触发点 = 队列空档，`setsid nohup`（`Process-09 §8`） | 小时级 |
 | **按需（模块完整）** | 各 `test-*`/`check-*` **单独调** | 模块**全量**、profiling | 不定 |
 
 - **L1 判据**：**只看"仓库是否完整 + 组件是否可用"**，**不得**依赖被测语义的执行结果（那是 L2/L3）。
@@ -236,13 +236,13 @@ K6 门控 `check-linux-k6` 落地后，「用户态应用尚未跑通 / busybox 
 
 ## 7. 文件防护门控清单（防新增 / 防修改）
 
-> 本节的定位：盘点 `Makefile` 里全部 `^check-[a-z0-9-]*:` 目标（现场 `grep -c "^check-[a-z0-9-]*:" Makefile` = **64** 个，另加 1 个经 `gate-locked-rule` 生成的 `check-manifests-guard`），回答三个问题——① 是否扫描文件系统、扫描面是什么；② 是否**防新增**（白名单 / 许可集 / 命名规则 / 覆盖要求）；③ 是否**防修改**（sha256 锁 / git blob / 逐字节比对 / 生成物一致性）。判据一律**读脚本源码或本规范 §1.1**，不凭门控名猜。
+> 本节的定位：盘点 `Makefile` 里全部 `^check-[a-z0-9-]*:` 目标（**条数现场 `grep -c "^check-[a-z0-9-]*:" Makefile` 派生、不写死**），另加经 `gate-locked-rule` 生成、不匹配该模式的 `check-idl` / `check-manifests-guard` 两个包装目标，回答三个问题——① 是否扫描文件系统、扫描面是什么；② 是否**防新增**（白名单 / 许可集 / 命名规则 / 覆盖要求）；③ 是否**防修改**（sha256 锁 / git blob / 逐字节比对 / 生成物一致性）。判据一律**读脚本源码或本规范 §1.1**，不凭门控名猜。
 >
 > **防新增 / 防修改**两列的取值口径（简写，详见各脚本）：
 > - 防新增：`白名单`（顶层只允许既定模式）｜`命名规则`（新文件名须匹配）｜`覆盖`（新文件/载体须被某清单双向覆盖，删/漏即红）｜`结构`（目录封闭集合）｜`—`（不防新增）。
 > - 防修改：`sha256 锁`（锁文件重算比对）｜`git blob`（补丁 index/内容 blob 重算）｜`逐字节`（重生成产物字节级比对）｜`一致性`（跨文件/跨载体机械核对，非哈希）｜`git 状态`（clean + base+N）｜`—`（不防修改）。
 >
-> 清单行数 = 现场 `grep -c` 值 **64** + `gate-locked-rule` 生成的 `check-manifests-guard` **1** = **65** 行；删/增门控时两处同笔更新。不在此列的还有：`check`/`check-modules`/`check-full`/`check-lit*`/`check-inst-asm`/`check-arch*`/`check-unit*`/`check-tset-*`/`test-*`/`check-linux-k0..k3` 等 —— 它们是 `GATE_LOCKED_TARGETS` 经 `gate-locked-rule` 生成的 `_locked-*` 包装目标（真源在 `_locked-check`/`_locked-check-modules`/`_locked-check-full`），**不匹配** `^check-*:`，故不在本清单；其防新增/防修改语义由成员门控承担。
+> 清单行数 = 现场 `grep -c` 值 + 上述 2 个包装目标（**现场派生，不写死**）；删/增门控时本表同笔更新。不在此列的还有：`check`/`check-modules`/`check-full`/`check-lit*`/`check-inst-asm`/`check-arch*`/`check-unit*`/`check-tset-*`/`test-*`/`check-linux-k0..k3` 等 —— 它们是 `GATE_LOCKED_TARGETS` 经 `gate-locked-rule` 生成的 `_locked-*` 包装目标（真源在 `_locked-check`/`_locked-check-modules`/`_locked-check-full`），**不匹配** `^check-*:`，故不在本清单；其防新增/防修改语义由成员门控承担。
 
 | 门控 | 层级 | 扫描面 | 防新增 | 防修改 | 判据出处 | 缺口 |
 |---|---|---|---|---|---|---|
@@ -273,7 +273,8 @@ K6 门控 `check-linux-k6` 落地后，「用户态应用尚未跑通 / busybox 
 | `check-manifests-guard` | L1 | 全仓 `.manifests.toml` 所在目录（`manifests/dir-guard-roots.toml` 登记：`spec/`、`idl/`、`.tao/`、`.tao/knowledge/`、`components/`） | 双向白名单（直接子文件 == `files`、直接子目录 == `subdirs`） | sha256 锁（条目可带）+ 递归（`recursive=true` 单向 ⊆） | `tools/infra/check_manifests_guard.py:89-236` | 清单自身可被改（加/删条目不红）⇒ 变更依据看 `git log`；`owner` 只打印 |
 | `check-idl-sync` | L1 | `idl/*.idl` + `spec/SimRISC-*` 的 IDL 标记段 | 覆盖（源 operation ↔ 落点双向）+ 命名规则（`SimRISC-NN.idl`、id ∈ `opcodes.yaml`） | 逐字节（重渲染比对） | `idl/tools/idl_render.py`（`render_all`/`run`） | 只核标记段内的块；标记外的散文不核 |
 | `check-idl-parse` | L1 | `idl/*.idl` + `idl/lib/*.idl`（13 个源） | 覆盖（每条 operation 都有构造签名）+ 命名规则（`# id:` 全局唯一、与 `opcodes.yaml` 对账）+ 拒绝集（子集外构造必须报错） | 一致性（AST 签名 ⇔ fixture）+ 接受集（合法样例必须通过） | `idl/tools/idl_parser.py:check` | 只核语法，不核语义；fixture 可被 `--update` 改（变更依据看 `git log`） |
-| `check-idl` | L2 | `idl/data/idl_exec_cases.toml` 主清单镜像 + `tests/inst/**` 现场派生集 | —（主清单须 == 现场派生 − `07-floating-point` − `pending`） | 一致性（IDL/QEMU 签名槽流逐槽 + 退出码；每方再对 `tests/data/inst-signature/expected.tsv` 逐槽） | `idl/tools/idl_four_way.py` | 默认两方（`--platforms qemu`）；全四方需 gem5/chipyard 构建 |
+| `check-idl` | L2 | `idl/data/idl_exec_cases.toml` 主清单镜像 + `tests/inst/**` 现场派生集 | —（主清单须 == 现场派生 − `07-floating-point` − `pending`） | 一致性（IDL/QEMU 签名槽流逐槽 + 退出码；每方再对 `tests/data/inst-signature/expected.tsv` 逐槽） | `idl/tools/idl_four_way.py` | 默认两方（`--platforms qemu`）；全四方是 nightly 成员 `check-idl-full` |
+| `check-idl-full` | **nightly**（`night-run` 成员；**不入** L1/L2/L3） | 同 `check-idl` 的主清单 + 现场派生集 | —（同 `check-idl`；缺主清单/派生不一致 ⇒ rc=2） | 一致性（IDL/QEMU/gem5/chipyard 四方签名槽流逐槽 + 退出码；每方再对 `expected.tsv` 逐槽） | `idl/tools/idl_four_way.py --platforms qemu,gem5,chipyard` | 缺任一引擎/固件 ⇒ rc=2（不静默跳过）；只读产物 ⇒ 不在 `GATE_LOCKED_TARGETS`；源 = `m17-idl-014` |
 | `check-contracts-dir` | L1 | `.tao/contracts/` + `contracts/` 顶层 | 白名单（glob + 显式名） | — | `tools/infra/check_contracts_dir.py:41-50` | **子目录不限** |
 | `check-syscall-abi` | L1 | musl/QEMU/gem5 参数寄存器组表 + `syscall.tbl` | — | sha256 锁（syscall.tbl）+ 一致性（四载体逐项） | `tools/qemu/check_syscall_abi.py:6-40` | 无 |
 | `check-musl-freshness` | L1 | musl 构建树 + 安装根 | — | sha256 锁 + 戳记（源/toolchain/builtins） | `tools/infra/check_musl_freshness.py:16-36,159` | 无 |
