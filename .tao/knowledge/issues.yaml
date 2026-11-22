@@ -1327,3 +1327,12 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`Makefile` 的 `_locked-build-builtins` 前置只有 `manifest-check build-mc`，recipe 却断言 `.work/build/llvm/bin/ld.lld` 存在 ⇒ 冷树上 `make -jN install-host`（其前置含 `build-builtins` 与 `build-lld`，`-jN` 下并发）会先跑 builtins 再报 `ld.lld not found`（`zzx-NF5280` 首次引导实测，`m16-infra-001`）。已在 `bootstrap_node.sh` 里按「先 build-lld 再 build-builtins」显式排序绕开；建议把 `build-lld` 加入该目标前置，或在 recipe 里显式构建。"
+- id: ISS-514
+  scope:
+  - gem5
+  - testcases
+  milestone: M16
+  status: closed
+  closed_in: M16
+  resolved_by: m16-gem5-022
+  title: "【P2】`m16-gem5-021` 的 I 侧结论「invalidate 后取指重取不可观测」**作废**：其 base probe `cfx5_selfmod.s` 用 16 位 `ld.uw`/`st.w` 只改指令字的 opcode 半，立即数未变，补丁是空操作 ⇒ 0x92 恒真，与 I 侧行为无关。`m16-gem5-022` 用正确构造（写码 → `D|clean` → `I|invalidate` → 跳转）证伪：单行/区间均执行新立即数（guest 0x10），去掉 clean D 才 0x92。不改写 021 既有完成区/审阅记录，仅记此笔。"

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..7c283fb
+index 0000000..4dc64cf
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1416 @@
+@@ -0,0 +1,1449 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -1173,6 +1173,31 @@ index 0000000..7c283fb
 +    return false;
 +}
 +
++/** Write the L1 D-cache back at a monitor hand-off (m16-gem5-022).
++ *
++ * With the classic write-back L1 D cache wired in (cache-model=on), the Vast
++ * power stage loads the hmon image into HMON SRAM with ordinary stores and
++ * hmon primes the cfx_pmem SRAM for cfx_pmem the same way.  Those lines stay
++ * dirty, so the monitor's own segment and its page-table template are not in
++ * memory; an architectural `D | invalidate | all` (or any invalidate covering
++ * them, CACHE-20) drops them and a later monitor entry cannot be fetched.
++ * The contract leaves cache organisation to the implementation and the RTL
++ * keeps the monitor in internal SRAM, so the test machine hands the monitor
++ * segment over in memory: flush D exactly at the two hand-off traps
++ * (power -> hmon, hmon -> test body).  `cache_exist` bit1 = 0 (no L1) makes
++ * this a no-op, so cache-model=off is byte-identical. */
++void
++nodeFlushDAtHandoff(NodeState &s)
++{
++    if ((s.cache.exist & 0x2) == 0)
++        return;
++    auto *isa = dynamic_cast<ISA *>(s.tc->getIsaPtr());
++    if (isa == nullptr)
++        return;
++    cacheSideExec(s, false, kCacheOpFlush, kCacheScopeAll, 0, 0,
++                  isa->cfxDtags());
++}
++
 +void
 +nodeTrap(ThreadContext *tc, NodeState &s, uint8_t cfxha, uint32_t immu18)
 +{
@@ -1201,6 +1226,14 @@ index 0000000..7c283fb
 +    }
 +
 +    const uint8_t entryMode = s.runMode;
++    // m16-gem5-022: hand the monitor segment over in memory (see the helper).
++    // The hmon cfx is 3; cfx_umon is 0 and its semihosting trap is >= 0x3FF00
++    // (handled above), so only a real mode hand-off matches here.
++    const bool powerToHmon = (s.cfxCode == CfxhaPower && cfxha == 3);
++    const bool hmonToBody = (s.cfxCode == 3 && cfxha == 0);
++    if (powerToHmon || hmonToBody)
++        nodeFlushDAtHandoff(s);
++
 +    bool entered = false;
 +    const uint64_t vec =
 +        nodeCfxEnter(s, CauseCfxTrap, cfxha, pc, info, true, &entered);
