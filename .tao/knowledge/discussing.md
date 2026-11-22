@@ -382,6 +382,7 @@
 - **已定（用户 2026-11-20）**：册已建（`milestones-m17.md`），**执行器用 Python**，**不依赖 Ruby/`idlc`**（`idlc` 前端 ≈2.6 万行 Ruby、本机 gem 环境不可用）；**golden = IDL**（QEMU/gem5/RTL 均为被测方）。
 - **首批四件（已立、已验证）**：`m17-idl-001` 语法子集 + 宽度规则表；`002` Python 解析器（`check-idl-parse` 进 L1）；`003` 执行器核心；`004` 逐指令 trace 与 QEMU 比对。
 - **四方差分口径（用户 2026-11-22 定）**：底座 = `tests/inst` 272 镜像（Kaiwu-Tiny），不含 Linux/`ee-user`（musl）/`ee-vast`/arch probes；判据 = **签名槽 + 退出码**四方一致，trace 仅红后归因；阶段一非 FP 222 镜像（`m17-idl-005`–`009`），阶段二 FP 50 镜像（等 FP 语义批 + `N26`）；`make check-idl` 进 L2；picolibc(fast)/embench 只抽样。
+- **阶段一（2026-11-22 收口）**：`m17-idl-005`–`010` 已验证；`check-idl` 进 L2（默认 IDL+QEMU，实测 19–33 s）；**222/222** 四方零红（gem5/chipyard 全四方 3 次独立复核，3552 槽）；`pending` 硬断言为空（`010`）；picolibc fast / embench 各 3 例抽样通过（不进判据）。
 - **阶段二（未立）**：FP 50 镜像 + FP 语义批（`ISS-397/399/403/409/420/476`），前置 `N26` 裁定。
 - **Rust 的触发条件**：若随机指令流差分规模上到 >10⁷ 步/例或需并行 fuzz，再把**执行核**换 Rust（边界用 JSON/子进程隔离，前端不动）；否则不引入 Rust 工具链。
 - **待定**：IDL 未覆盖的 trap/cfx/monitor 语义由 golden 模型额外实现（不在 M15 的 263 条内）——`003` 已按「最小可跑 `tests/inst` 同步异常例」收，扩展随 `006`–`008`。
