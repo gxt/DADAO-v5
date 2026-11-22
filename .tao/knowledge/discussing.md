@@ -310,6 +310,7 @@
 - gem5：`cache-model=on` 映射 `--caches`；前置补 `IsLoad/IsStore/IsAtomic`；cfx5 命令复用 ARM `dc cvac/civac/ivac` 的 `Request::CLEAN|INVALIDATE` 机制。
 - `cache-model` 与 cfx5 口径（用户 2026-11-22 已定）：**off = cfx5 存在但 no-op**——`cache_exist` 读 0，`cache_ctrl` 写被接受、不报 `CFXREG`、不产生效果；`on` = `cache_exist=0b11`，命令真维护。理由：Linux 内核缺省带 cache 维护逻辑（其它 ISA 不会为“无 cache”单独编译内核），机器配置只决定 cfx5 有没有效果，不决定它是否存在。**off 下非法编码仍报 `CFXREG`**（编码校验不受机器维度影响，用户 2026-11-22 已定）。RTL Vast 始终有 cfx5、Tiny 无（不跑 Linux）。需同步 `integ042t` 期望与 CACHE-27 契约（`m16-spec-002`）。
 - **RTL cfx0/2 分两件**（用户 2026-11-22）：先 **A**=`m16-chipyard-019`（寄存器面 + 权限，不改主控制流），再 **B**=`m16-chipyard-020`（U/S 模式进入路由、`switch_run_mode`、异常帧）；A 合入后才派 B。
+- **M16 收口判据**（用户 2026-11-22）：**三方一致**（QEMU/gem5/RTL）为准；**有差异必须由用户裁定**，登记 `tests/arch/data/expected-divergences.yaml`；**不作逐位/逐组合穷举**，但各功能面应尽量覆盖；**任务清完后由用户定何时归档**（不自动立归档任务）。
 - **tests/arch 运行模式环境**（用户 2026-11-22）：增加 `hmon`/`smon`/`umon` 构建环境，把测试 body 与运行模式分离（进入模式、栈、异常向量、退出、签名区由 env 负责）；`run_arch.py --mode` 选择；每用例标 `modes` 允许集；先迁移 1 个代表用例，其余逐件迁。`m16-testcases-015`。
 - **中断源**（用户 2026-11-22）：两个 cfx **分开测试**——`m16-testcases-013`（cfx15 timer）与 `m16-testcases-014`（cfx32 pmem DMA 完成）；只测单 hart 的触发/进入、mask/pending/补投、清除；不测跨 cfx 仲裁、uart、多核、嵌套。
 - **fence**（用户 2026-11-22 选 A）：先 `m16-qemu-004` 修 `ISS-432`（QEMU 保留集改为 `6–14, 16–31, 35–61`），再由 `m16-testcases-012` 做**基础验证**（all/指定 cfx/六位/保留集采样/`hb≠0`）；**完整覆盖（全部 cfx × 六位）不作验收要求**，未覆盖项登记。
