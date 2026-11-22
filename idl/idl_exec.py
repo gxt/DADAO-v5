@@ -934,7 +934,21 @@ def _op_ctlz(m, insn):
     m.set("rd", dst, n)
 
 
-# --- 05-arith-addr -------------------------------------------------------
+# --- 04（跨册依赖）/ 05-arith-addr ---------------------------------------
+@sem("ext.uo_orri_rd")
+def _op_ext_uo_orri(m, insn):
+    # SimRISC-04 §2：复制源 [immu6:0]、其余位零扩展（immu6 = 63 ⇒ 写满 64 位）。
+    # 跨册依赖（04 册正文语义归 `m17-idl-007`，此处只补 006 载体必需的这一条）：
+    # 01 册 `ld.t`/`ldm.t` 的载体重用 `ext.uo rd, rd, 31` 读回低 32 位
+    # （tests/inst/01-load-store/ld.t_rrii_rf.S 的 TEST_LD_RF_LO32）；
+    # 不补这条，01 册这 2 个镜像无法进主清单。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    mask = MASK64 >> (63 - insn["immu6"])
+    m.set("rd", dst, m.get("rd", insn["rdhc"]) & mask)
+
+
 @sem("aip.si_riii_rb")
 def _op_aip_si(m, insn):
     dst = insn["rbha"]
@@ -943,94 +957,219 @@ def _op_aip_si(m, insn):
     m.set("rb", dst, m.ip + (insn["imms18"] << 12))
 
 
-# --- 01-load-store -------------------------------------------------------
-@sem("ld.o_rrii_rd", "ld.o_rrii_rb")
-def _op_ld_o(m, insn):
-    if insn.id.endswith("_rd"):
-        bank, dst = "rd", insn["rdha"]
-        if dst == 0:
-            raise Fault("Illegal")
-    else:
-        bank, dst = "rb", insn["rbha"]
-        if dst == 0:
-            raise Fault("Illegal")
-    ea = (m.get("rb", insn["rbhb"]) + insn["imms12"]) & MASK48
-    if not is_naturally_aligned(64, ea):
-        raise Fault("Malign", info=ea)
-    m.set(bank, dst, m.mem.read_memory(64, ea))
-
-
-@sem("ld.ub_rrii_rd", "ld.uw_rrii_rd")
-def _op_ld_narrow(m, insn):
-    # SimRISC-01：.ub/.uw 零扩展；.uw 需 2 字节自然对齐（.ub 无对齐要求）。
-    dst = insn["rdha"]
+@sem("sub.o_orrr_bbd")
+def _op_sub_o_bbd(m, insn):
+    # SimRISC-05：rb[HB] = rb[HC] - rd[HD]，全 64 位补码减法（不做地址截断）。
+    dst = insn["rbhb"]
     if dst == 0:
         raise Fault("Illegal")
+    m.set("rb", dst, (m.get("rb", insn["rbhc"])
+                      - m.get("rd", insn["rdhd"])) & MASK64)
+
+
+@sem("cmp.uo_orrr_dbb")
+def _op_cmp_uo_dbb(m, insn):
+    # SimRISC-05：整 64 位无符号比较 → 小于 -1 / 等于 0 / 大于 1，写满 64 位。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    a, b = m.get("rb", insn["rbhc"]), m.get("rb", insn["rbhd"])
+    m.set("rd", dst, MASK64 if a < b else (0 if a == b else 1))
+
+
+# --- 01-load-store -------------------------------------------------------
+# rrii/rrri 的 ha 字段随目的寄存器组改名（rdha/rbha/rfha/raha，contracts/opcodes.yaml）。
+_BANK_HA = {"rd": "rdha", "rb": "rbha", "rf": "rfha", "ra": "raha"}
+_LD_WIDTH = {mn + suf: bits
+             for mn in ("ld", "ldm")
+             for suf, bits in ((".sb", 8), (".sw", 16), (".st", 32),
+                               (".ub", 8), (".uw", 16), (".ut", 32))}
+_ST_WIDTH = {mn + suf: bits
+             for mn in ("st", "stm")
+             for suf, bits in ((".b", 8), (".w", 16), (".t", 32))}
+
+
+def _narrow_write(m, bank, idx, bits, value):
+    """窄写：只写目的的低 bits 位、高位保持原值（SimRISC-00 §2.3）。
+
+    `ld.t`/`ldm.t` 的 rf 目的只写低 32 位（SimRISC-01 §4）；ra0/rf0 的只读位由
+    `Machine.set` 的写语义再收一次（ra0 只写 [53:0]、rf0 只写 [33:32]/[4:0]）。
+    """
+    mask = (1 << bits) - 1
+    m.set(bank, idx, (m.get(bank, idx) & ~mask) | (value & mask))
+
+
+def _load_one(m, insn, bank, bits, signed, narrow=False):
+    """单元素装载（SimRISC-01 §1–§4）：rd/rb 目的 0 号 ⇒ ILLI；对齐按宽度。"""
+    dst = insn[_BANK_HA[bank]]
+    if bank in ("rd", "rb") and dst == 0:
+        raise Fault("Illegal")
     ea = (m.get("rb", insn["rbhb"]) + insn["imms12"]) & MASK48
-    bits = 8 if insn.id.startswith("ld.ub") else 16
     if not is_naturally_aligned(bits, ea):
         raise Fault("Malign", info=ea)
-    m.set("rd", dst, m.mem.read_memory(bits, ea))
+    value = m.mem.read_memory(bits, ea)
+    if signed and bits < 64:
+        value = _sext(value, bits)
+    if narrow:
+        _narrow_write(m, bank, dst, bits, value)
+    else:
+        m.set(bank, dst, value)
 
 
-@sem("st.o_rrii_rd", "st.o_rrii_rb", "st.o_rrii_rf")
-def _op_st_o(m, insn):
-    bank = {"rd": "rd", "rb": "rb", "rf": "rf"}[insn.id[-2:]]
-    src = insn[bank + "ha"]
+def _store_one(m, insn, bank, bits):
+    """单元素存储（SimRISC-01 §1–§4）：st 允许 0 号作源（读出 0/IP/ra0 位型）。"""
+    src = insn[_BANK_HA[bank]]
     ea = (m.get("rb", insn["rbhb"]) + insn["imms12"]) & MASK48
-    if not is_naturally_aligned(64, ea):
+    if not is_naturally_aligned(bits, ea):
         raise Fault("Malign", info=ea)
-    m.mem.write_memory(64, ea, m.get(bank, src))
+    m.mem.write_memory(bits, ea, m.get(bank, src))
+
+
+@sem("ld.o_rrii_rd", "ld.o_rrii_rb", "ld.o_rrii_ra", "ld.o_rrii_rf")
+def _op_ld_o(m, insn):
+    _load_one(m, insn, insn.id[-2:], 64, False)
+
+
+@sem("ld.sb_rrii_rd", "ld.sw_rrii_rd", "ld.st_rrii_rd")
+def _op_ld_signed(m, insn):
+    # SimRISC-01 §1：.sb/.sw/.st 读 8/16/32 位后符号扩展写满 64 位。
+    _load_one(m, insn, "rd", _LD_WIDTH[insn.id.split("_")[0]], True)
+
+
+@sem("ld.ub_rrii_rd", "ld.uw_rrii_rd", "ld.ut_rrii_rd")
+def _op_ld_unsigned(m, insn):
+    # SimRISC-01 §1：.ub/.uw/.ut 零扩展（.ub 无对齐要求，.uw/.ut 需 2/4 字节对齐）。
+    _load_one(m, insn, "rd", _LD_WIDTH[insn.id.split("_")[0]], False)
+
+
+@sem("ld.t_rrii_rf")
+def _op_ld_t_rf(m, insn):
+    # SimRISC-01 §4：单精装载只写 rf 低 32 位、高 32 位保持原值；rf0 可作目的。
+    _load_one(m, insn, "rf", 32, False, narrow=True)
+
+
+@sem("st.o_rrii_rd", "st.o_rrii_rb", "st.o_rrii_rf", "st.o_rrii_ra")
+def _op_st_o(m, insn):
+    _store_one(m, insn, insn.id[-2:], 64)
+
+
+@sem("st.b_rrii_rd", "st.w_rrii_rd", "st.t_rrii_rd")
+def _op_st_narrow(m, insn):
+    # SimRISC-01 §1：只把源寄存器的低 8/16/32 位写入存储器。
+    _store_one(m, insn, "rd", _ST_WIDTH[insn.id.split("_")[0]])
+
+
+@sem("st.t_rrii_rf")
+def _op_st_t_rf(m, insn):
+    # SimRISC-01 §4：单精存储取 rf 源的低 32 位。
+    _store_one(m, insn, "rf", 32)
+
+
+def _ldm(m, insn, bank, bits, signed, idx_overlap=False, base_overlap=False):
+    """多元素装载（SimRISC-01 §1–§4）：静态检查全部先于任何元素（精确异常）。"""
+    dst, count = insn[_BANK_HA[bank]], insn["immu6"]
+    if bank in ("rd", "rb") and dst == 0:
+        raise Fault("Illegal")
+    if count == 0 or dst + count > 64:
+        raise Fault("Illegal")
+    # 索引/基址落入同组传送范围 ⇒ ILLI（跨组结构上不可能 ⇒ 不判）。
+    if idx_overlap and dst <= insn["rdhc"] < dst + count:
+        raise Fault("Illegal")
+    if base_overlap and dst <= insn["rbhb"] < dst + count:
+        raise Fault("Illegal")
+    ea = (m.get("rb", insn["rbhb"]) + m.get("rd", insn["rdhc"])) & MASK48
+    if not is_naturally_aligned(bits, ea):
+        raise Fault("Malign", info=ea)
+    step = bits // 8
+    for k in range(count):
+        value = m.mem.read_memory(bits, ea)
+        if signed and bits < 64:
+            value = _sext(value, bits)
+        if bank == "rf" and bits == 32:
+            _narrow_write(m, "rf", dst + k, 32, value)
+        else:
+            m.set(bank, dst + k, value)
+        ea = (ea + step) & MASK48
 
 
 @sem("ldm.o_rrri_rd")
 def _op_ldm_o_rd(m, insn):
-    dst, count, idx = insn["rdha"], insn["immu6"], insn["rdhc"]
-    if dst == 0:
-        raise Fault("Illegal")
-    if count == 0:
-        raise Fault("Illegal")
-    end = dst + count
-    if end > 64:
-        raise Fault("Illegal")
-    if dst <= idx < end:
-        raise Fault("Illegal")
-    ea = (m.get("rb", insn["rbhb"]) + m.get("rd", idx)) & MASK48
-    if not is_naturally_aligned(64, ea):
-        raise Fault("Malign", info=ea)
-    for k in range(count):
-        m.set("rd", dst + k, m.mem.read_memory(64, ea))
-        ea = (ea + 8) & MASK48
+    _ldm(m, insn, "rd", 64, False, idx_overlap=True)
+
+
+@sem("ldm.o_rrri_rb")
+def _op_ldm_o_rb(m, insn):
+    _ldm(m, insn, "rb", 64, False, base_overlap=True)
+
+
+@sem("ldm.o_rrri_ra")
+def _op_ldm_o_ra(m, insn):
+    _ldm(m, insn, "ra", 64, False)
 
 
 @sem("ldm.o_rrri_rf")
 def _op_ldm_o_rf(m, insn):
-    dst, count = insn["rfha"], insn["immu6"]
-    if count == 0:
-        raise Fault("Illegal")
-    if dst + count > 64:
+    _ldm(m, insn, "rf", 64, False)
+
+
+@sem("ldm.sb_rrri_rd", "ldm.sw_rrri_rd", "ldm.st_rrri_rd")
+def _op_ldm_signed(m, insn):
+    _ldm(m, insn, "rd", _LD_WIDTH[insn.id.split("_")[0]], True, idx_overlap=True)
+
+
+@sem("ldm.ub_rrri_rd", "ldm.uw_rrri_rd", "ldm.ut_rrri_rd")
+def _op_ldm_unsigned(m, insn):
+    _ldm(m, insn, "rd", _LD_WIDTH[insn.id.split("_")[0]], False, idx_overlap=True)
+
+
+@sem("ldm.t_rrri_rf")
+def _op_ldm_t_rf(m, insn):
+    # SimRISC-01 §4：每个元素只写 rf 低 32 位、高 32 位保持；rf0 只写 [4:0]。
+    _ldm(m, insn, "rf", 32, False)
+
+
+def _stm(m, insn, bank, bits):
+    """多元素存储（SimRISC-01 §1–§4）：stm 不判 0 号/重叠，只判个数与越界。"""
+    src, count = insn[_BANK_HA[bank]], insn["immu6"]
+    if count == 0 or src + count > 64:
         raise Fault("Illegal")
     ea = (m.get("rb", insn["rbhb"]) + m.get("rd", insn["rdhc"])) & MASK48
-    if not is_naturally_aligned(64, ea):
+    if not is_naturally_aligned(bits, ea):
         raise Fault("Malign", info=ea)
+    step = bits // 8
     for k in range(count):
-        m.set("rf", dst + k, m.mem.read_memory(64, ea))
-        ea = (ea + 8) & MASK48
+        m.mem.write_memory(bits, ea, m.get(bank, src + k))
+        ea = (ea + step) & MASK48
 
 
 @sem("stm.o_rrri_rd")
 def _op_stm_o_rd(m, insn):
-    src, count = insn["rdha"], insn["immu6"]
-    if count == 0:
-        raise Fault("Illegal")
-    if src + count > 64:
-        raise Fault("Illegal")
-    ea = (m.get("rb", insn["rbhb"]) + m.get("rd", insn["rdhc"])) & MASK48
-    if not is_naturally_aligned(64, ea):
-        raise Fault("Malign", info=ea)
-    for k in range(count):
-        m.mem.write_memory(64, ea, m.get("rd", src + k))
-        ea = (ea + 8) & MASK48
+    _stm(m, insn, "rd", 64)
+
+
+@sem("stm.o_rrri_rb")
+def _op_stm_o_rb(m, insn):
+    _stm(m, insn, "rb", 64)
+
+
+@sem("stm.o_rrri_ra")
+def _op_stm_o_ra(m, insn):
+    _stm(m, insn, "ra", 64)
+
+
+@sem("stm.o_rrri_rf")
+def _op_stm_o_rf(m, insn):
+    _stm(m, insn, "rf", 64)
+
+
+@sem("stm.b_rrri_rd", "stm.w_rrri_rd", "stm.t_rrri_rd")
+def _op_stm_narrow(m, insn):
+    _stm(m, insn, "rd", _ST_WIDTH[insn.id.split("_")[0]])
+
+
+@sem("stm.t_rrri_rf")
+def _op_stm_t_rf(m, insn):
+    _stm(m, insn, "rf", 32)
 
 
 # --- 02-reg-copy ---------------------------------------------------------
@@ -1059,6 +1198,19 @@ def _op_rd2rd(m, insn):
 @sem("rb2rd_orri_rb")
 def _op_rb2rd(m, insn):
     _block_copy(m, "rd", insn["rdhb"], "rb", insn["rbhc"], insn["immu6"])
+
+
+@sem("rb2rb_orri_rb")
+def _op_rb2rb(m, insn):
+    # SimRISC-02 §1：同组复制禁任何交集（含完全重合）⇒ mreg_range_overlap。
+    _block_copy(m, "rb", insn["rbhb"], "rb", insn["rbhc"], insn["immu6"],
+                overlap=True)
+
+
+@sem("rd2rb_orri_rb")
+def _op_rd2rb(m, insn):
+    # 跨组复制 ⇒ 源/目的结构上不可能交集，无 mreg_range_overlap 检查。
+    _block_copy(m, "rb", insn["rbhb"], "rd", insn["rdhc"], insn["immu6"])
 
 
 @sem("rf2rd_orri_rf")
@@ -1095,6 +1247,66 @@ def _op_cs_eq(m, insn):
     if dst == 0:
         raise Fault("Illegal")
     if m.get("rd", insn["rdha"]) == m.get("rd", insn["rdhb"]):
+        m.set("rd", dst, m.get("rd", insn["rdhd"]))
+
+
+# SimRISC-02 §2 第一类（有 else）：条件成立 → 目的 = 第二源，否则 = 第三源；
+# 条件与两个候选源都在写之前读（「先比较、再赋值」）。
+def _cs_select(m, insn, taken, dst_bank, dst_field, then_field, else_field):
+    dst = insn[dst_field]
+    if dst == 0:
+        raise Fault("Illegal")
+    src = insn[then_field] if taken else insn[else_field]
+    m.set(dst_bank, dst, m.get(dst_bank, src))
+
+
+def _cs_is_p(v):
+    return (v >> 63) == 0 and (v & ((1 << 63) - 1)) != 0
+
+
+@sem("cs.z_rrrr_rd")
+def _op_cs_z_rd(m, insn):
+    _cs_select(m, insn, m.get("rd", insn["rdha"]) == 0, "rd",
+               "rdhb", "rdhc", "rdhd")
+
+
+@sem("cs.n_rrrr_rd")
+def _op_cs_n_rd(m, insn):
+    _cs_select(m, insn, (m.get("rd", insn["rdha"]) >> 63) == 1, "rd",
+               "rdhb", "rdhc", "rdhd")
+
+
+@sem("cs.p_rrrr_rd")
+def _op_cs_p_rd(m, insn):
+    _cs_select(m, insn, _cs_is_p(m.get("rd", insn["rdha"])), "rd",
+               "rdhb", "rdhc", "rdhd")
+
+
+@sem("cs.z_rrrr_rf")
+def _op_cs_z_rf(m, insn):
+    _cs_select(m, insn, m.get("rd", insn["rdha"]) == 0, "rf",
+               "rfhb", "rfhc", "rfhd")
+
+
+@sem("cs.n_rrrr_rf")
+def _op_cs_n_rf(m, insn):
+    _cs_select(m, insn, (m.get("rd", insn["rdha"]) >> 63) == 1, "rf",
+               "rfhb", "rfhc", "rfhd")
+
+
+@sem("cs.p_rrrr_rf")
+def _op_cs_p_rf(m, insn):
+    _cs_select(m, insn, _cs_is_p(m.get("rd", insn["rdha"])), "rf",
+               "rfhb", "rfhc", "rfhd")
+
+
+@sem("cs.ne_rrrr_rd")
+def _op_cs_ne_rd(m, insn):
+    # SimRISC-02 §2 第二类（无 else）：目的在第三个操作数，不成立时保持原值。
+    dst = insn["rdhc"]
+    if dst == 0:
+        raise Fault("Illegal")
+    if m.get("rd", insn["rdha"]) != m.get("rd", insn["rdhb"]):
         m.set("rd", dst, m.get("rd", insn["rdhd"]))
 
 
@@ -1170,6 +1382,16 @@ def _op_call(m, insn):
     m.jump(target)
 
 
+@sem("call_rrii_ra")
+def _op_call_rrii(m, insn):
+    # SimRISC-06 §3：返回地址 = call 自身 + 4（两种形式一致）；目标 = rbHA + rdHB
+    # + (SX(imms12) << 2)；rbHA 仅读（为 rb0 时是相对跳转）。
+    m.ras_push(m.ip + 4)
+    target = (m.get("rb", insn["rbha"]) + m.get("rd", insn["rdhb"])
+              + (insn["imms12"] << 2))
+    m.jump(target)
+
+
 @sem("ret_riii_ra")
 def _op_ret(m, insn):
     if insn["rdha"] == 0 and insn["imms18"] != 0:
@@ -1231,6 +1453,17 @@ def _op_escape(m, insn):
     if cfxha in RESERVED_CFX:
         raise Fault("Illegal")
     m.escape(cfxha, (imm & 1) << 2)
+
+
+@sem("fence_ciii_cfx")
+def _op_fence(m, insn):
+    # SimRISC-11 §5：hb = immu18[17:12] 为 SBZ，非零 ⇒ ILLI；保留 cfx ⇒ ILLI；
+    # 合法屏障只约束顺序/可见性（Tiny 单 hart、无 DMA/异步观测点 ⇒ IDL v0 不建模），
+    # 不改架构状态的 no-op（零掩码是合法 no-op）。
+    if (insn["immu18"] >> 12) & 0x3F:
+        raise Fault("Illegal")
+    if insn["cfxha"] in RESERVED_CFX:
+        raise Fault("Illegal")
 
 
 # ---------------------------------------------------------------------------

@@ -7,8 +7,9 @@
 #
 # 门控断言（`tools/idl/check_four_way.py` 现场派生，不写死计数）：
 #   {[[case]].image} == {tests/inst/*/*.S} − {07-floating-point} − {[[pending]].image}
-# 阶段一基线 = 28 例（`m17-idl-003` 末态差分的既有集合）；其余 194 例随
-# `m17-idl-006`–`008` 扩语义后逐批迁入主清单，`m17-idl-009` 收口时 `pending` 清零。
+# `m17-idl-006` 已迁入 `00`/`01`/`02`/`05`/`06`/`11` 六册全部镜像（`00` 册为已登记的
+# `pseudo_set.*` 与 `undi_reserved`；`atomic_rmw` 的 id 属 12 册，归 `m17-idl-007`）；
+# 其余册随 `007`/`008` 扩语义后逐批迁入，`m17-idl-009` 收口时 `pending` 清零。
 # FP 册（`07-floating-point`）不在阶段一范围（阶段二 + FP 语义批）。
 
 # ── 主清单：镜像 → 类别 ────────────────────────────────────────────────────
@@ -125,231 +126,317 @@ category = "exc"
 image = "tests/inst/11-cfx/cfx2rd_crrr_cfx.S"
 category = "exc"
 
+# ── `m17-idl-006`：00/01/02/05/06/11 六册整册迁入 ──────────────────────────
+
+# 00-isa-design（8 个镜像）
+
+[[case]]
+image = "tests/inst/00-isa-design/pseudo_set.fo_imm64.S"
+category = "pseudo"
+
+[[case]]
+image = "tests/inst/00-isa-design/pseudo_set.ft_imm32.S"
+category = "pseudo"
+
+[[case]]
+image = "tests/inst/00-isa-design/pseudo_set.rb_imm.S"
+category = "pseudo"
+
+[[case]]
+image = "tests/inst/00-isa-design/pseudo_set.rb_reg.S"
+category = "pseudo"
+
+[[case]]
+image = "tests/inst/00-isa-design/pseudo_set.rd_imm.S"
+category = "pseudo"
+
+[[case]]
+image = "tests/inst/00-isa-design/pseudo_set.rd_reg.S"
+category = "pseudo"
+
+[[case]]
+image = "tests/inst/00-isa-design/pseudo_set.rf_reg.S"
+category = "pseudo"
+
+[[case]]
+image = "tests/inst/00-isa-design/undi_reserved.S"
+category = "exc"
+
+# 01-load-store（33 个镜像）
+
+[[case]]
+image = "tests/inst/01-load-store/ld.o_rrii_ra.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ld.o_rrii_rb.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ld.o_rrii_rf.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ld.sb_rrii_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ld.st_rrii_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ld.sw_rrii_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ld.t_rrii_rf.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ld.ut_rrii_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ld.uw_rrii_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ldm.o_rrri_ra.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ldm.o_rrri_rb.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ldm.o_rrri_rf.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ldm.sb_rrri_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ldm.st_rrri_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ldm.sw_rrri_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ldm.t_rrri_rf.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ldm.ub_rrri_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ldm.ut_rrri_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/ldm.uw_rrri_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/st.b_rrii_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/st.o_rrii_ra.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/st.o_rrii_rb.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/st.o_rrii_rf.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/st.t_rrii_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/st.t_rrii_rf.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/st.w_rrii_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/stm.b_rrri_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/stm.o_rrri_ra.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/stm.o_rrri_rb.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/stm.o_rrri_rf.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/stm.t_rrri_rd.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/stm.t_rrri_rf.S"
+category = "mem"
+
+[[case]]
+image = "tests/inst/01-load-store/stm.w_rrri_rd.S"
+category = "mem"
+
+# 02-reg-copy（14 个镜像）
+
+[[case]]
+image = "tests/inst/02-reg-copy/cs.n_rrrr_rd.S"
+category = "regcopy"
+
+[[case]]
+image = "tests/inst/02-reg-copy/cs.n_rrrr_rf.S"
+category = "regcopy"
+
+[[case]]
+image = "tests/inst/02-reg-copy/cs.ne_rrrr_rd.S"
+category = "regcopy"
+
+[[case]]
+image = "tests/inst/02-reg-copy/cs.p_rrrr_rd.S"
+category = "regcopy"
+
+[[case]]
+image = "tests/inst/02-reg-copy/cs.p_rrrr_rf.S"
+category = "regcopy"
+
+[[case]]
+image = "tests/inst/02-reg-copy/cs.z_rrrr_rd.S"
+category = "regcopy"
+
+[[case]]
+image = "tests/inst/02-reg-copy/cs.z_rrrr_rf.S"
+category = "regcopy"
+
+[[case]]
+image = "tests/inst/02-reg-copy/ra2rd_orri_ra.S"
+category = "regcopy"
+
+[[case]]
+image = "tests/inst/02-reg-copy/rb2rb_orri_rb.S"
+category = "regcopy"
+
+[[case]]
+image = "tests/inst/02-reg-copy/rb2rd_orri_rb.S"
+category = "regcopy"
+
+[[case]]
+image = "tests/inst/02-reg-copy/rd2ra_orri_ra.S"
+category = "regcopy"
+
+[[case]]
+image = "tests/inst/02-reg-copy/rd2rb_orri_rb.S"
+category = "regcopy"
+
+[[case]]
+image = "tests/inst/02-reg-copy/rd2rf_orri_rf.S"
+category = "regcopy"
+
+[[case]]
+image = "tests/inst/02-reg-copy/rf2rd_orri_rf.S"
+category = "regcopy"
+
+# 05-arith-addr（5 个镜像）
+
+[[case]]
+image = "tests/inst/05-arith-addr/add.si_riii_rb.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/05-arith-addr/aip.si_riii_rb.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/05-arith-addr/cmp.uo_orrr_dbb.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/05-arith-addr/sub.o_orrr_bbd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/05-arith-addr/sub.o_orrr_dbb.S"
+category = "arith"
+
+# 06-control-flow（11 个镜像）
+
+[[case]]
+image = "tests/inst/06-control-flow/br.n_riii_rd.S"
+category = "ctrl"
+
+[[case]]
+image = "tests/inst/06-control-flow/br.ne_rrii_rd.S"
+category = "ctrl"
+
+[[case]]
+image = "tests/inst/06-control-flow/br.nn_riii_rd.S"
+category = "ctrl"
+
+[[case]]
+image = "tests/inst/06-control-flow/br.np_riii_rd.S"
+category = "ctrl"
+
+[[case]]
+image = "tests/inst/06-control-flow/br.nz_riii_rb.S"
+category = "ctrl"
+
+[[case]]
+image = "tests/inst/06-control-flow/br.nz_riii_rd.S"
+category = "ctrl"
+
+[[case]]
+image = "tests/inst/06-control-flow/br.p_riii_rd.S"
+category = "ctrl"
+
+[[case]]
+image = "tests/inst/06-control-flow/br.z_riii_rb.S"
+category = "ctrl"
+
+[[case]]
+image = "tests/inst/06-control-flow/br.z_riii_rd.S"
+category = "ctrl"
+
+[[case]]
+image = "tests/inst/06-control-flow/call_rrii_ra.S"
+category = "ctrl"
+
+[[case]]
+image = "tests/inst/06-control-flow/jump_rrii_rb.S"
+category = "ctrl"
+
+# 11-cfx（2 个镜像）
+
+[[case]]
+image = "tests/inst/11-cfx/cfx2rc_crrr_cfx.S"
+category = "exc"
+
+[[case]]
+image = "tests/inst/11-cfx/fence_ciii_cfx.S"
+category = "exc"
+
 # ── pending：暂缓镜像（每条写明镜像 + 原因）────────────────────────────────
 
 [[pending]]
 image = "tests/inst/00-isa-design/atomic_rmw.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/00-isa-design/pseudo_set.fo_imm64.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/00-isa-design/pseudo_set.ft_imm32.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/00-isa-design/pseudo_set.rb_imm.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/00-isa-design/pseudo_set.rb_reg.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/00-isa-design/pseudo_set.rd_imm.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/00-isa-design/pseudo_set.rd_reg.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/00-isa-design/pseudo_set.rf_reg.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/00-isa-design/undi_reserved.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ld.o_rrii_ra.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ld.o_rrii_rb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ld.o_rrii_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ld.sb_rrii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ld.st_rrii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ld.sw_rrii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ld.t_rrii_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ld.ut_rrii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ld.uw_rrii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ldm.o_rrri_ra.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ldm.o_rrri_rb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ldm.o_rrri_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ldm.sb_rrri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ldm.st_rrri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ldm.sw_rrri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ldm.t_rrri_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ldm.ub_rrri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ldm.ut_rrri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/ldm.uw_rrri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/st.b_rrii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/st.o_rrii_ra.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/st.o_rrii_rb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/st.o_rrii_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/st.t_rrii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/st.t_rrii_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/st.w_rrii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/stm.b_rrri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/stm.o_rrri_ra.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/stm.o_rrri_rb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/stm.o_rrri_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/stm.t_rrri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/stm.t_rrri_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/01-load-store/stm.w_rrri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/cs.n_rrrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/cs.n_rrrr_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/cs.ne_rrrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/cs.p_rrrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/cs.p_rrrr_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/cs.z_rrrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/cs.z_rrrr_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/ra2rd_orri_ra.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/rb2rb_orri_rb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/rb2rd_orri_rb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/rd2ra_orri_ra.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/rd2rb_orri_rb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/rd2rf_orri_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/02-reg-copy/rf2rd_orri_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+reason = "载体在 00 册，但被测 id `lr.o.nn_orrr_rd`/`sc.o.nn_orrr_rd` 属 12 册（`m17-idl-007` 范围）；本任务不做 12 册语义"
 
 [[pending]]
 image = "tests/inst/03-wyde-imm/andn.w_rwii_rb.S"
@@ -477,70 +564,6 @@ reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-id
 
 [[pending]]
 image = "tests/inst/04-arith-logic-octa/xor.o_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/05-arith-addr/add.si_riii_rb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/05-arith-addr/aip.si_riii_rb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/05-arith-addr/cmp.uo_orrr_dbb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/05-arith-addr/sub.o_orrr_bbd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/05-arith-addr/sub.o_orrr_dbb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/06-control-flow/br.n_riii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/06-control-flow/br.ne_rrii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/06-control-flow/br.nn_riii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/06-control-flow/br.np_riii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/06-control-flow/br.nz_riii_rb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/06-control-flow/br.nz_riii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/06-control-flow/br.p_riii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/06-control-flow/br.z_riii_rb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/06-control-flow/br.z_riii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/06-control-flow/call_rrii_ra.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/06-control-flow/jump_rrii_rb.S"
 reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
 [[pending]]
@@ -785,14 +808,6 @@ reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-id
 
 [[pending]]
 image = "tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/11-cfx/cfx2rc_crrr_cfx.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
-
-[[pending]]
-image = "tests/inst/11-cfx/fence_ciii_cfx.S"
 reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
 [[pending]]

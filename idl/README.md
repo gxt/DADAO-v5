@@ -47,6 +47,8 @@ python3 tools/idl/check_trace_parity.py --images <dir> --bootrom <img>
 
 **M17 执行器核心**（`idl_exec.py`，`m17-idl-003`）只有两处外部真源：编码读 `contracts/opcodes.yaml`（opc/mask/字段位域），机器几何与运行布局读 `tools/testcases/lib/machine_profile.py`；每条 operation 的语义按 `.idl` 正文实现（函数上方注明 id 与出处册）。驱动与判据在 `tools/idl/`：`qemu_final_state.py`（QEMU 入口态/末态观测面）、`check_exec_parity.py`（`tests/inst` 载体的最终架构状态/退出码差分）、`exec_trace.py` / `qemu_trace.py` / `check_trace_parity.py`（逐指令 trace 与 QEMU 按 PC 对齐差分，格式见 [`docs/idl-trace-format.md`](../docs/idl-trace-format.md)）。
 
+**M17 执行器补齐**（`m17-idl-006`）：`idl_exec.py` 现覆盖 `tests/inst` 的 `00`/`01`/`02`/`05`/`06`/`11` 六册全部镜像（访存四组与多元素、条件赋值、RAS 压弹栈、`call` 寄存器形式、`fence`）；未注册的 id 仍显式 `ExecError`，其余册随 `m17-idl-007`/`008` 扩、`m17-idl-009` 收口。
+
 > **import 本模块前设 `PYTHONDONTWRITEBYTECODE=1`**：`idl/` 由 `check-manifests-guard` 做**双向目录集合断言**，落 `__pycache__` 会直接判红（`idl_parse_cases.toml` 是数据文件而非模块，正是为此）。
 
 **语言与语义库正文见 [`spec/IDL-ISA语义描述语言与语义库.md`](../spec/IDL-ISA语义描述语言与语义库.md)**：§1 语法基线、§2 命名约定、§3 寄存器模型、§4 语义库（含 §4.7 浮点原语）、§5 语法扩展提案、§6 `idlc` 复用评估；变更记录见该册文末附录。原 README 的 §1–§7 已整段迁入该册（§1–§6 节号一一对应；§7 → 附录），本文件只保留目录导航与用法——旧文里的 `idl/README §N` 记号对应新册 §N。
