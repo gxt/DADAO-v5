@@ -5,13 +5,13 @@
 ------
 M17 的执行器用 Python 重写 IDL 前端（用户 2026-11-20 定，不用 Ruby/`idlc`）。UDB 的
 `idl.treetop` 有 652 行语法，但本仓只用到其中一小部分；本脚本**现场统计**这部分，
-供 `idl/syntax-subset.md`（构造清单）与 `idl/width-rules.md`（宽度规则）引用，
+供 `idl/docs/syntax-subset.md`（构造清单）与 `idl/docs/width-rules.md`（宽度规则）引用，
 并机械校验两份文档的数字与出处没有漂移。
 
 计数口径
 --------
 * 扫描面 = `idl/SimRISC-*.idl` + `idl/lib/*.idl`（**不含** `spec/` 里的渲染结果，
-  两者逐字节相等由 `idl/render.py --check` 保证）。
+  两者逐字节相等由 `idl/tools/idl_render.py --check` 保证）。
 * 「次数」= 出现次数；一律先抹掉两处自然语言（`#` 行尾注释、`description { … }` 自由文本块）
   再统计——它们会引述伪码；只有 `S01`–`S03` 按原文统计（`S01`/`S02` 是注释、`S03` 是文件头）。
 * 运算符统计前把 `Bits<N>` 与字面量归一化，避免 `<`/`>` 被 `Bits<64>`、`32'h…` 误计。
@@ -21,9 +21,9 @@ M17 的执行器用 Python 重写 IDL 前端（用户 2026-11-20 定，不用 Ru
 
 用法
 ----
-* ``python3 idl/subset_stats.py``            # 打印构造计数（人读 / 给文档抄数）
-* ``python3 idl/subset_stats.py --json``     # 机器可读
-* ``python3 idl/subset_stats.py --check``    # 校验 syntax-subset.md / width-rules.md
+* ``python3 idl/tools/idl_subset_stats.py``            # 打印构造计数（人读 / 给文档抄数）
+* ``python3 idl/tools/idl_subset_stats.py --json``     # 机器可读
+* ``python3 idl/tools/idl_subset_stats.py --check``    # 校验 syntax-subset.md / width-rules.md
 * ``--root DIR``：在另一棵树（同布局）里运行，供注入自检使用
 
 退出码：0 = 通过；1 = 统计或文档校验失败。
@@ -37,11 +37,12 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+sys.dont_write_bytecode = True       # idl/ 由 check-manifests-guard 做目录断言
+from idl_paths import REPO
 IDL_REL = "idl"
 LIB_REL = "idl/lib"
-SUBSET_DOC = "idl/syntax-subset.md"
-WIDTH_DOC = "idl/width-rules.md"
+SUBSET_DOC = "idl/docs/syntax-subset.md"
+WIDTH_DOC = "idl/docs/width-rules.md"
 OPCODES_REL = "contracts/opcodes.yaml"
 SEMANTICS_REL = "spec/IDL-ISA语义描述语言与语义库.md"
 CONTRACT_ISA_REL = ".tao/contracts/contract-isa.md"

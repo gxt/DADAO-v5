@@ -10,7 +10,7 @@
 #
 # 口径：
 #   * 样例内联在 `code`（TOML 多行字面量，逐字保留）——它们是门控输入，**不落成
-#     `.idl` 文件**：`idl/render.py` 按 `idl/*.idl` 取源，多一个文件会改变渲染面。
+#     `.idl` 文件**：`idl/tools/idl_render.py` 按 `idl/*.idl` 取源，多一个文件会改变渲染面。
 #   * `why` 写明该样例对应 `syntax-subset.md` 的哪一类缺口。
 #   * 不做字节码缓存、不 import Python 模块（本册是数据，不是代码）——`idl/` 由
 #     `check-manifests-guard` 做双向目录集合断言，落 `__pycache__` 会直接判红。

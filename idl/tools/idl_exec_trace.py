@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""exec_trace.py — 用 `idl/idl_exec.py` 生成逐指令 trace（`m17-idl-004`）。
+"""idl_exec_trace.py — 用 `idl/tools/idl_exec.py` 生成逐指令 trace（`m17-idl-004`）。
 
-格式与字段口径见 `docs/idl-trace-format.md`；每条 JSONL 记录 = 一条**退休指令**
+格式与字段口径见 `idl/docs/trace-format.md`；每条 JSONL 记录 = 一条**退休指令**
 （取指异常没有自己的指令记录，其异常归并到前一条指令——与 QEMU `-d cpu` 的
 记录边界一致）。
 
-入口状态用 QEMU 的观测面（`--init <json>`，由 `tools/idl/qemu_trace.py` 产出），
-与 `tools/idl/check_trace_parity.py` 的口径相同。
+入口状态用 QEMU 的观测面（`--init <json>`，由 `idl/tools/idl_qemu_trace.py` 产出），
+与 `idl/tools/idl_check_trace.py` 的口径相同。
 
 用法：
 
-    python3 tools/idl/exec_trace.py --elf <elf> --bootrom <img> \
+    python3 idl/tools/idl_exec_trace.py --elf <elf> --bootrom <img> \
         --init <entry.json> --out <trace.jsonl> [--max-records N]
-    python3 tools/idl/exec_trace.py --self-test
+    python3 idl/tools/idl_exec_trace.py --self-test
 
 退出码：0 = 正常；1 = 执行器/输入错误；2 = 参数问题。
 """
@@ -24,14 +24,12 @@ import os
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "idl"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.dont_write_bytecode = True       # idl/ 由 check-manifests-guard 做目录断言
 os.environ.setdefault("PYTHONDONTWRITEBYTECODE", "1")
 
 import idl_exec  # noqa: E402
-import trace_common as tc  # noqa: E402
+import idl_trace_common as tc  # noqa: E402
 
 CFX_WATCH = (3, 63)
 _EXIT_SERVICES = (idl_exec.SYS_EXIT, idl_exec.SYS_EXIT_EXTENDED)
@@ -213,7 +211,7 @@ def main(argv=None):
     if args.summary_out:
         Path(args.summary_out).write_text(json.dumps(summary) + "\n",
                                           encoding="utf-8")
-    print("exec_trace: %s instructions=%d steps=%d fetch_faults=%d "
+    print("idl_exec_trace: %s instructions=%d steps=%d fetch_faults=%d "
           "bytes=%d parts=%d" % (Path(args.elf).name, len(trace["records"]),
                                  trace["steps"], trace["fetch_faults"],
                                  writer.bytes, len(parts)))

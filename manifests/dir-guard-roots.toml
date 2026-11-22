@@ -1,2 +1,2 @@
 schema = 1
-roots = ["spec", "idl", "idl/lib", ".tao", ".tao/knowledge", "components", "tests/ee-tiny"]
+roots = ["spec", "idl", "idl/lib", "idl/tools", "idl/data", "idl/docs", ".tao", ".tao/knowledge", "components", "tests/ee-tiny"]

@@ -5,7 +5,7 @@
 ------
 M17 的执行器用 Python 重写 IDL 前端（用户 2026-11-20：不用 Ruby/`idlc`）。UDB 的
 `idl.treetop` 有 652 行语法，本仓只用到其中一小部分——**实现口径的唯一依据**是
-[`idl/syntax-subset.md`](syntax-subset.md)（68 类构造，逐类现场计数 + 首个出处）。
+[`idl/docs/syntax-subset.md`](../docs/syntax-subset.md)（68 类构造，逐类现场计数 + 首个出处）。
 本模块只实现该册 §10「必须覆盖」列出的构造；§8 的未使用构造（`while`/`assert`/
 `sizeof`/`struct`/`bitfield`/`tuple`/`include`/`fetch`/`X[]`/`CSR[]`/`$encoding`/
 复合赋值/变量作复制次数）与 UDB 其余语法**一律显式报错**（`UnsupportedConstruct`），
@@ -13,9 +13,8 @@ M17 的执行器用 Python 重写 IDL 前端（用户 2026-11-20：不用 Ruby/`
 
 本模块**不做语义**：不求值、不做类型推导（那是 `m17-idl-003`）。字面量**原样保留
 文本与位宽标注**（`width`/`signed`/`base`/`digits` 逐字留档，不转成整数）——有符号
-字面量与无位宽字面量的位宽在 `width-rules.md` §7 里是 `U04`/`U07`（本仓规范未定义），
-解析器不得内置假设。同理 `` `* `` 结果宽度（`U06`）、普通二元运算结果宽度与截断（`U10`）
-只由 AST 形状表达，不推进任何宽度推导。
+字面量与无位宽字面量的位宽（原 `U04`/`U07`）、`` `* `` 结果宽度（原 `U06`）与普通二元
+运算结果宽度/截断（原 `U10`）均见语言规范册 §1.1；解析器只按 AST 形状表达，不推进任何宽度推导。
 
 AST 节点 ↔ 构造表（`syntax-subset.md`，逐个 S-ID 对齐）
 -------------------------------------------------------
@@ -42,7 +41,7 @@ AST 节点 ↔ 构造表（`syntax-subset.md`，逐个 S-ID 对齐）
 | S18 赋值 | `Assign(lhs, rhs)` |
 | S19 切片赋值 | 左值为 `Slice` |
 | S20 单比特赋值 | 左值为 `Index` |
-| S21–S23 加宽运算 | `Binary(op="`+"/"`<<"/"`*")`（宽度公式 `U06`/`U10` 未定义 ⇒ 不推导） |
+| S21–S23 加宽运算 | `Binary(op="`+"/"`<<"/"`*")`（宽度公式见语言规范册 §1.1 ⇒ 解析器不推导） |
 | S24–S30 二元运算 | `Binary(op=原文)` |
 | S31 三目 | `Ternary` |
 | S32 拼接 | `Concat` |
@@ -50,7 +49,7 @@ AST 节点 ↔ 构造表（`syntax-subset.md`，逐个 S-ID 对齐）
 | S34 位切片 | `Slice(base, msb, lsb)` |
 | S35/S36 取位/链式下标 | `Index`（可嵌套：`rd[x][31:0]` = `Slice(Index(…))`） |
 | S37 `$signed(x)` | `SignedCast` |
-| S38–S40 字面量 | `IntLit(raw/width/signed/base/digits)`——**原文留档，不求值**（`U04`/`U07` 未定义） |
+| S38–S40 字面量 | `IntLit(raw/width/signed/base/digits)`——**原文留档，不求值**（见语言规范册 §1.1） |
 | S41/S48–S59 调用 | `Call(name, args)`；语句位置的调用 = `ExprStmt` |
 | S42–S47 寄存器组访问 | `Index(Ident("rd"/"rb"/"rf"/"ra"/"fo"/"ft"), …)` |
 | S60–S65 不使用构造 | **显式报错**（`UnsupportedConstruct`，绝不静默跳过） |
@@ -58,18 +57,18 @@ AST 节点 ↔ 构造表（`syntax-subset.md`，逐个 S-ID 对齐）
 漂移防护
 --------
 每个 operation / function / enum / 全局常量的 AST 冻结成构造签名（AST 规范化
-S 表达式的 sha256 + 节点数 + 各节点种类计数），落在 `idl/idl_parse_fixture.json`。
+S 表达式的 sha256 + 节点数 + 各节点种类计数），落在 `idl/data/idl_parse_fixture.json`。
 `--check` 现场重算逐条比对；改了 `.idl` 或改了本解析器的 AST 形状 ⇒ 红，必须显式
 `--update` 并评审 diff。**fixture 是冻结物，不是判据真源**：判据真源是 `.idl` +
 `syntax-subset.md`。
 
 用法
 ----
-* `python3 idl/idl_parser.py --check`    # 全量解析 + fixture + 拒绝/接受集（`make check-idl-parse`）
-* `python3 idl/idl_parser.py --update`   # 重新生成 fixture（改 `.idl` 后显式执行）
-* `python3 idl/idl_parser.py --stats`    # 打印现场统计（文件/operation/function/enum）
-* `python3 idl/idl_parser.py --ast <id>` # 打印某条 operation 的 AST（S 表达式）
-* `python3 idl/idl_parser.py --self-test`# 临时树注入自检（各类注入须 FAIL，还原须回绿）
+* `python3 idl/tools/idl_parser.py --check`    # 全量解析 + fixture + 拒绝/接受集（`make check-idl-parse`）
+* `python3 idl/tools/idl_parser.py --update`   # 重新生成 fixture（改 `.idl` 后显式执行）
+* `python3 idl/tools/idl_parser.py --stats`    # 打印现场统计（文件/operation/function/enum）
+* `python3 idl/tools/idl_parser.py --ast <id>` # 打印某条 operation 的 AST（S 表达式）
+* `python3 idl/tools/idl_parser.py --self-test`# 临时树注入自检（各类注入须 FAIL，还原须回绿）
 * `--root DIR`：在另一棵同布局的树内运行（自检/注入用）
 
 退出码：0 = 通过；1 = 任一检查失败。
@@ -86,12 +85,13 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-_HERE = Path(__file__).resolve().parent
-REPO = _HERE.parent
+sys.dont_write_bytecode = True       # idl/ 由 check-manifests-guard 做目录断言
+from idl_paths import REPO
+
 IDL_REL = "idl"
 LIB_REL = "idl/lib"
-FIXTURE_REL = "idl/idl_parse_fixture.json"
-CASES_REL = "idl/idl_parse_cases.toml"
+FIXTURE_REL = "idl/data/idl_parse_fixture.json"
+CASES_REL = "idl/data/idl_parse_cases.toml"
 OPCODES_REL = "contracts/opcodes.yaml"
 
 ID_LINE_RE = re.compile(r"^#\s*id:\s*(\S+)\s*$")
@@ -180,7 +180,7 @@ COMPOUND_ASSIGN = frozenset({"+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=",
                              "<<=", ">>=", ">>>="})
 
 # 词法：Verilog 定宽/不定宽字面量（`6'd0`/`'shFD`/`'s0`）、C 风格十六进制/二进制、十进制。
-# 一律只切 token，**不判值、不补位宽**（U04/U07 未定义，见模块 docstring）。
+# 一律只切 token，**不判值、不补位宽**（见语言规范册 §1.1，模块 docstring 有述）。
 RE_VERILOG = re.compile(r"\d*'[sS]?[dhboDHBO]?[0-9a-fA-F_]+")
 RE_SIGNED_ZERO = re.compile(r"\d+s\b")        # `0s`：无撇号的有符号字面量（U04，原文留档）
 RE_HEX = re.compile(r"0[xX][0-9a-fA-F_]+")
@@ -204,7 +204,7 @@ def literal_fields(raw: str) -> dict:
     if m:
         return {"raw": raw, "width": m.group(1) or None, "signed": bool(m.group(2)),
                 "base": (m.group(3) or "d").lower(), "digits": m.group(4)}
-    m = re.match(r"(\d+)s$", raw)                       # `0s`（U04：位宽未定义，不猜）
+    m = re.match(r"(\d+)s$", raw)                       # `0s`（U04：位宽见语言规范册 §1.1，不猜）
     if m:
         return {"raw": raw, "width": None, "signed": True, "base": "d", "digits": m.group(1)}
     low = raw[:2].lower()
@@ -399,7 +399,7 @@ class Parser:
         label = why or UNSUPPORTED.get(tok.text, f"`{tok.text}`")
         raise UnsupportedConstruct(
             f"{self.path}:{tok.line}:{tok.col}: 构造不在子集内：{label}"
-            f"——`idl/syntax-subset.md` §8 断言该构造在 13 个源里 0 次，"
+            f"——`idl/docs/syntax-subset.md` §8 断言该构造在 13 个源里 0 次，"
             f"解析器不实现（不得静默跳过）")
 
     def expect(self, text: str) -> Tok:
@@ -918,7 +918,7 @@ def build_fixture(units: list[SourceUnit]) -> dict:
         files[unit.path] = entry
     return {
         "schema": 1,
-        "note": "idl/idl_parser.py --update 生成；改 .idl 或改 AST 形状后须显式重生成并评审 diff。"
+        "note": "idl/tools/idl_parser.py --update 生成；改 .idl 或改 AST 形状后须显式重生成并评审 diff。"
                 "sha256 = 该 operation/function/enum/常量的 AST 规范化 S 表达式摘要；kinds = 节点种类计数。",
         "files": files,
     }
@@ -1146,7 +1146,7 @@ def check(root: Path, quiet: bool = False) -> int:
     # 2) 构造签名 fixture（漂移防护）
     fixture_path = root / FIXTURE_REL
     if not fixture_path.is_file():
-        problems.append(f"{FIXTURE_REL}: 不存在（先跑 `python3 idl/idl_parser.py --update`）")
+        problems.append(f"{FIXTURE_REL}: 不存在（先跑 `python3 idl/tools/idl_parser.py --update`）")
     else:
         try:
             want = json.loads(fixture_path.read_text(encoding="utf-8"))

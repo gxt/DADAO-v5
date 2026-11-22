@@ -3,9 +3,9 @@
 
 判据（`m17-idl-003` 验收 1）：
 
-  1. 用 `tools/idl/qemu_final_state.py` 取 QEMU 的**入口态**（ELF `e_entry`
+  1. 用 `idl/tools/idl_qemu_state.py` 取 QEMU 的**入口态**（ELF `e_entry`
      执行前）与**末态**（收尾 semihosting trap 执行前）；
-  2. 把入口态装进 `idl/idl_exec.py`，跑同一 ELF 到停机；
+  2. 把入口态装进 `idl/tools/idl_exec.py`，跑同一 ELF 到停机；
   3. 比较末态：四寄存器组（`rd`/`rb`/`rf`/`ra`）、`ip`、`mode`、`cfx`、
      `SYS_WRITEC` 字节流、退出码。
 
@@ -20,7 +20,7 @@
 
 用法：
 
-    python3 tools/idl/check_exec_parity.py --cases idl/idl_exec_cases.toml \
+    python3 idl/tools/idl_exec_parity.py --cases idl/data/idl_exec_cases.toml \
         --images <run_inst_tiny 的 --work-dir> --bootrom <bootrom_tiny.bin>
 
 退出码：0 = 全部用例通过；1 = 有用例不一致；2 = 环境/输入问题。
@@ -36,8 +36,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
-EXEC = REPO_ROOT / "idl" / "idl_exec.py"
-ORACLE = HERE / "qemu_final_state.py"
+EXEC = REPO_ROOT / "idl" / "tools" / "idl_exec.py"
+ORACLE = HERE / "idl_qemu_state.py"
 
 BANKS = ("rd", "rb", "rf", "ra")
 
@@ -80,7 +80,7 @@ def run_case(case, images, bootrom, qemu, tmp, python):
         capture_output=True, text=True)
     if proc.returncode != 0:
         return {"id": cid, "ok": False,
-                "detail": "qemu_final_state rc=%d: %s"
+                "detail": "idl_qemu_state rc=%d: %s"
                           % (proc.returncode, proc.stderr.strip()[:400])}
     oracle = json.loads(oracle_json.read_text(encoding="utf-8"))
 
@@ -157,7 +157,7 @@ def run_case(case, images, bootrom, qemu, tmp, python):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--cases", default=str(REPO_ROOT / "idl"
+    ap.add_argument("--cases", default=str(REPO_ROOT / "idl" / "data"
                                            / "idl_exec_cases.toml"))
     ap.add_argument("--images", required=True,
                     help="run_inst_tiny.py 的 --work-dir（内含 <id>/<id>.elf）")
@@ -172,7 +172,7 @@ def main(argv=None):
     qemu = args.qemu or str(REPO_ROOT / ".dadao" / "cross-toolchain" / "bin"
                             / "qemu-system-dadao")
     for what, path in (("qemu", qemu), ("bootrom", args.bootrom),
-                       ("idl_exec.py", EXEC), ("qemu_final_state.py", ORACLE)):
+                       ("idl_exec.py", EXEC), ("idl_qemu_state.py", ORACLE)):
         if not Path(path).is_file():
             print("check_exec_parity: %s not found: %s" % (what, path),
                   file=sys.stderr)

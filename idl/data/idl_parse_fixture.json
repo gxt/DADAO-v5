@@ -7771,6 +7771,6 @@
       "version": "0.1"
     }
   },
-  "note": "idl/idl_parser.py --update 生成；改 .idl 或改 AST 形状后须显式重生成并评审 diff。sha256 = 该 operation/function/enum/常量的 AST 规范化 S 表达式摘要；kinds = 节点种类计数。",
+  "note": "idl/tools/idl_parser.py --update 生成；改 .idl 或改 AST 形状后须显式重生成并评审 diff。sha256 = 该 operation/function/enum/常量的 AST 规范化 S 表达式摘要；kinds = 节点种类计数。",
   "schema": 1
 }

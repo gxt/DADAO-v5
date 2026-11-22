@@ -1,42 +1,15 @@
 schema = 1
 owner = "idl"
-subdirs = ["lib"]
+subdirs = ["lib", "tools", "data", "docs"]
 recursive = false
 
 [subdir_owners]
 lib = "idl"
+tools = "idl"
+data = "idl"
+docs = "idl"
 
 [files."README.md"]
-owner = "idl"
-
-[files."diff-vs-udb.md"]
-owner = "idl"
-
-[files."idl_parser.py"]
-owner = "idl"
-
-[files."idl_parse_cases.toml"]
-owner = "idl"
-
-[files."idl_parse_fixture.json"]
-owner = "idl"
-
-[files."idl_exec.py"]
-owner = "idl"
-
-[files."idl_exec_cases.toml"]
-owner = "idl"
-
-[files."render.py"]
-owner = "idl"
-
-[files."subset_stats.py"]
-owner = "idl"
-
-[files."syntax-subset.md"]
-owner = "idl"
-
-[files."width-rules.md"]
 owner = "idl"
 
 [files."SimRISC-01.idl"]

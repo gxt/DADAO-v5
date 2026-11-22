@@ -153,8 +153,8 @@
 ### M15（2026-11-22）ISA 语义结构化（IDL v0 + 12 册 operation + 渲染/门控）
 
 - **定位**：把 `spec/` 升级为「每条指令一段**可解析的 operation**」，**不执行**（执行归 M17）；以 `riscv-unified-db` 的 IDL 为准、只在不合适处扩展，不自造新语言。
-- **语义源**：`idl/` 为源——`SimRISC-01`–`12.idl` 全量 **263** 条 operation + 语义库 v1 + 浮点库 `idl/lib/fp.idl`；`idl/render.py` 生成 `spec/` 内 IDL 块，`check-idl-sync` 逐字节守护；`.idl` 12 份 + `fp.idl` 全部 sha256 锁。
-- **语言与布局**：语言规范迁 `spec/IDL-ISA语义描述语言与语义库.md`；IDL 块布局改造（节末集中 + 三级标题）；与 UDB 差异 263 条逐条判定（一致 100 / 偏离 68 / 特有 95，`idl/diff-vs-udb.md`）。
+- **语义源**：`idl/` 为源——`SimRISC-01`–`12.idl` 全量 **263** 条 operation + 语义库 v1 + 浮点库 `idl/lib/fp.idl`；`idl/tools/idl_render.py` 生成 `spec/` 内 IDL 块，`check-idl-sync` 逐字节守护；`.idl` 12 份 + `fp.idl` 全部 sha256 锁。
+- **语言与布局**：语言规范迁 `spec/IDL-ISA语义描述语言与语义库.md`；IDL 块布局改造（节末集中 + 三级标题）；与 UDB 差异 263 条逐条判定（一致 100 / 偏离 68 / 特有 95，`idl/docs/diff-vs-udb.md`）。
 - **发布**：SimRISC **0.5.7**（13 册去 `-rc`、变更记录按主题重排 21→5 组、清单 sha256）+ 发布投影。
 - **测试资产与基础设施**：每 `.S` 一镜像（904→**272**）、`tests/ee-tiny`/`ee-user`/`ee-vast` 资产集中、装载统一 `set.rd`/`set.rb`/`set.fo`→`set.rf`、picolibc Tiny 地址图与 `times()` 缩放、`refs/` 清空（数据源迁 `tests/data/`）、`CONFIG_DADAO_*` 钉子门控。
 - **遗留（要点）**：`ISS-502`（picolibc `clock()` 单位错 1000×）已关闭；`ISS-504/505/506`（picolibc harness 缓存假绿、`_SC_CLK_TCK` 口径）转 M16；`ISS-507` 属非里程碑项。

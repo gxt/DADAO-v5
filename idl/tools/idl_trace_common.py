@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""trace_common.py — 逐指令 trace 的公共口径（`m17-idl-004`）。
+"""idl_trace_common.py — 逐指令 trace 的公共口径（`m17-idl-004`）。
 
 只放「格式与比较口径」，不放任何模型语义：
 
-  * 记录字段与 JSONL 写法（真源说明见 `docs/idl-trace-format.md`）；
+  * 记录字段与 JSONL 写法（真源说明见 `idl/docs/trace-format.md`）；
   * 寄存器写回集合的派生（四寄存器组 + RA 有效区/未定义来源规则）；
   * 大文件保护：单文件超过 `--max-bytes` 时按 `<stem>.part-NNN.jsonl` 滚动。
 

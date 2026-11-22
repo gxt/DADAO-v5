@@ -98,7 +98,7 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **分类与符号**：`ftcls`/`focls`（块形式，一拍一个元素，新增 `sCls` 状态：13 → 14 态；`SimRISC-07 §5` 位序 bit0 sNaN … bit9 +Inf，`[63:10]` 清零）；`ftsgnj`/`ftsgnn`/`fosgnj`/`fosgnn`（`copySign`/取反符号，`hd = rf0` 即 `abs`/`-abs`）。
 - **rf 寄存器组的形式**：`ld/st/ldm/stm` 的 `rf` 变体（`ld.t rf` 只写低 32 位、高 32 位保持原值——不符号扩展也不零填，`m13-chipyard-001` 前是符号扩展）、`set.w rf`（只替换所选 wyde；`rf0` 上 `wp2` = 舍入模式、`wp0` = 标志、`wp1`/`wp3` 写无效）、`cs.* rf`、`rd2rf`/`rf2rd`（`rf0` 作源或目的均合法，目的侧走 FCSR 掩码；64 位二进制搬移）。其余 FP 形式（算术/转换/取整/最小最大/FMA/除开方）仍 ILLI，归 `012`–`015`。
 - **周期（trace 实测）**：`ftcls`/`focls` = 1 + 元素个数；`ftsgnj`/`ftsgnn`/`fosgnj`/`fosgnn`、`set.w rf`、`cs.* rf` 1 拍；`rd2rf`/`rf2rd` = 1 + 个数；`ld.o rf` 13 拍（单拍数据往返）。
-- **验证**：`tools/chipyard/fp_ref.py`（独立模型 + 精确有理数 oracle）、`tools/chipyard/fp_sweep.py`（分类/符号/rf 访存/FCSR/故障 5 组镜像）、`tools/chipyard/fp_unit/`（Verilator 单元台：同一组向量同时喂本实现与 hardfloat 实例，逐例比对值 + 标志）。
+- **验证**：`idl/tools/idl_fp.py`（独立模型 + 精确有理数 oracle）、`tools/chipyard/fp_sweep.py`（分类/符号/rf 访存/FCSR/故障 5 组镜像）、`tools/chipyard/fp_unit/`（Verilator 单元台：同一组向量同时喂本实现与 hardfloat 实例，逐例比对值 + 标志）。
 
 ## FP 转换族（`m12-chipyard-012`）
 
@@ -106,7 +106,7 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **解码**（`WumingDecoder`）：20 条转换 = 15 条舍入六档（`immu6` one-hot，`0x20` 动态读 `rf0[33:32]`，其他值 ⇒ ILLI）+ 3 条 SBZ（`ft2fo`/`it2fo`/`ut2fo`，非 0 ⇒ ILLI）+ 2 条窗口复制（`ft2ft`/`fo2fo`，复用 `sCopy` 计数形式，`dst_rf0`/`mreg_zero`/两处范围/重叠均 ILLI）。f2i 目的为 `rd`（`dst_rd0`），其余目的为 `rf`（`dst_rf0`）。
 - **标志**：`WumingCore` 在 `EXEC` 把转换单元的 5 位标志接到 `rf.io.fflags`，`WumingFcsr` 累积（sticky），软件写 `rf0` 清零 —— **`NV` 的硬件抬升路径自本任务起真实存在**；`DZ` 的通道（舍入原语的 `infiniteExc`）在单元台单独比对，其真实生产者是除法（`m12-chipyard-014`）。
 - **周期（trace 实测）**：单寄存器转换 1 拍；`ft2ft`/`fo2fo` = 1 + 个数（与其它块复制一致）。
-- **验证**：`tools/chipyard/fp_ref.py` 的 `f2i_exact`/`i2f_exact`/`f2f_exact`（精确值 + 一次舍入 + 饱和/标志判定，独立于 RTL）、`fp_unit/`（同一组向量喂本实现与 hardfloat `RecFNToIN`/`INToRecFN`，逐例比值与 5 位标志；另含 `infiniteExc`/DZ 通道）、`fp_sweep.py` 的 9 个 `cvt_*` 组（整核上跑并回读 `rf0`）、`inst_case_run.py`（把 `tests/inst/fp/convert.yaml` 驱动到本核，并与 QEMU 同镜像逐字节比对）。
+- **验证**：`idl/tools/idl_fp.py` 的 `f2i_exact`/`i2f_exact`/`f2f_exact`（精确值 + 一次舍入 + 饱和/标志判定，独立于 RTL）、`fp_unit/`（同一组向量喂本实现与 hardfloat `RecFNToIN`/`INToRecFN`，逐例比值与 5 位标志；另含 `infiniteExc`/DZ 通道）、`fp_sweep.py` 的 9 个 `cvt_*` 组（整核上跑并回读 `rf0`）、`inst_case_run.py`（把 `tests/inst/fp/convert.yaml` 驱动到本核，并与 QEMU 同镜像逐字节比对）。
 - **与 QEMU 的一处已知差异**：sNaN 作 `ft2fo` 输入时本核（同 hardfloat / gem5）返回**规范 qNaN**，QEMU/softfloat 保留输入的 payload；spec 只要求「返回 qNaN」，故该组不进 QEMU 对照（`cvt_snan`）。
 
 ## FP 算术族（`m12-chipyard-013`）
@@ -116,7 +116,7 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **解码**（`WumingDecoder`）：`orrr` 的 `ftadd/ftsub/ftmul`、`foadd/fosub/fomul`、`ftmin/ftmax/fomin/fomax`、`ftqcmp/ftscmp/foqcmp/foscmp`（目的 `rf0`/`rd0` ⇒ ILLI），以及 `rrrr` 单目的 `ftfma/fofma`（`opc 0x5E/0x5F`，`rfHA` 目的、三个源可与其重叠）。舍入方向恒取 `rf0[33:32]`。
 - **标志**：`WumingCore` 把算术单元的 5 位标志接到 `rf.io.fflags` —— **`OF`/`UF`/`NX` 首次由算术指令抬起**（`NV` 的算术路径随 sNaN/无效运算一并到位），sticky 累积与软件清零沿用 `WumingFcsr`。
 - **周期（trace 实测）**：`foadd`/`fomul`/`fofma`/`foqcmp`/`fomin`/`fomax` 各 **1 拍**。
-- **验证**：`fp_unit/` 把同一组向量同时喂本实现与 hardfloat 的 `AddRecFN`/`MulRecFN`/`MulAddRecFN`/`CompareRecFN`（值 + 5 位标志逐例比对；hardfloat 的 signaling 比较对无序给 sNaN，`m16-chipyard-012` 起本核给 canonical quiet NaN，故比较的**值**按 `lt/eq/gt` + canonical 常数比对照、**标志**严格比）并比对 `fp_ref` 的精确 oracle（加/乘/FMA 用**精确整数尾数 + 指数**、比较/最小最大用单调键）；`fp_sweep.py` 的 12 个 `arith_*` 组（含 FMA 特殊值组）+ `cmp_nan` 组在整核上跑并回读 `rf0`，同一镜像在 QEMU 上逐字节比对（仅 `arith_nan` 因 sNaN payload 口径为模型only）；`tests/inst/fp/arith.yaml` 28 例（含 3 条 ILLI）在本核与 QEMU 上逐字节一致。
+- **验证**：`fp_unit/` 把同一组向量同时喂本实现与 hardfloat 的 `AddRecFN`/`MulRecFN`/`MulAddRecFN`/`CompareRecFN`（值 + 5 位标志逐例比对；hardfloat 的 signaling 比较对无序给 sNaN，`m16-chipyard-012` 起本核给 canonical quiet NaN，故比较的**值**按 `lt/eq/gt` + canonical 常数比对照、**标志**严格比）并比对 `idl_fp` 的精确 oracle（加/乘/FMA 用**精确整数尾数 + 指数**、比较/最小最大用单调键）；`fp_sweep.py` 的 12 个 `arith_*` 组（含 FMA 特殊值组）+ `cmp_nan` 组在整核上跑并回读 `rf0`，同一镜像在 QEMU 上逐字节比对（仅 `arith_nan` 因 sNaN payload 口径为模型only）；`tests/inst/fp/arith.yaml` 28 例（含 3 条 ILLI）在本核与 QEMU 上逐字节一致。
 
 ## FP 除法 / 开方 / 取余（`m12-chipyard-014`）
 
@@ -126,13 +126,13 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 - **解码**（`WumingDecoder`）：`orrr` 的 `ftdiv/ftrem/fodiv/forem`、`orri` 的 `ftroot/foroot`（`immu6` = n，**仅 n = 2**，其他 ⇒ ILLI）；六条都禁止 `rf0` 作目的（ILLI）。
 - **核**（`WumingCore`）：新增第 14 个状态 `sFpSlow`；`EXEC` 一拍发 `start`、`sFpSlow` 等 `done`，`done` 那一拍写回 `rf` 并把 5 位标志送 `rf.io.fflags`（`nv`/`dz`/`of`/`uf`/`nx` 都由此族在指令级到达）。
 - **周期（trace 实测）**：fo 的 `fodiv`/`foroot` **56 拍** = `sigWidth + 3`，与操作数无关（4 组除法 + 3 组开方逐例相同；ft 为 27）；`forem` = `sigWidth + (ea − eb) + 1` 拍（`ea − eb` = 1/10/100/1000 时实测 55/64/154/1054；余数提前为 0 时早退，但那是精确整除路径）。单元台自测的 tick 数同量级（div ft 26 / fo 55、rem 最长 1866）。
-- **验证**：`fp_unit/` 把 div/sqrt 的三方对照（本实现 / hardfloat `DivSqrtRecFN_small` / `fp_ref` 精确 oracle）跑满（值 + 标志），`forem` 只有 oracle（hardfloat 无 remainder 模块）；`fp_sweep.py` 增 `div_ft/div_fo/sqrt_ft/sqrt_fo/rem_ft/rem_fo/divrem_special` 七组（均入 QEMU 三方对照）+ `divrem_nan` 组（模型only）+ 10 条合法性镜像；`tests/inst/fp/divrem.yaml` 32 例（26 语义 + 6 ILLI）在本核与 QEMU 上逐字节一致（sNaN payload 一例模型only）。
+- **验证**：`fp_unit/` 把 div/sqrt 的三方对照（本实现 / hardfloat `DivSqrtRecFN_small` / `idl_fp` 精确 oracle）跑满（值 + 标志），`forem` 只有 oracle（hardfloat 无 remainder 模块）；`fp_sweep.py` 增 `div_ft/div_fo/sqrt_ft/sqrt_fo/rem_ft/rem_fo/divrem_special` 七组（均入 QEMU 三方对照）+ `divrem_nan` 组（模型only）+ 10 条合法性镜像；`tests/inst/fp/divrem.yaml` 32 例（26 语义 + 6 ILLI）在本核与 QEMU 上逐字节一致（sNaN payload 一例模型only）。
 
 ## `fo2ft` 溢出按舍入方向（`m12-chipyard-025` / `m12-chipyard-026`）
 
 - **条款**（`spec/SimRISC-07 §1.4` = IEEE 754-2019 §7.4）：溢出 = **以无限指数范围**按所选方向舍入后的幅值大于 `ft_max = (2 − 2^−23) × 2^127`；结果形态由方向决定 —— RNE/RNA、正向 RUP、负向 RDN ⇒ `±Inf`，其余三格（RTZ 双向、正向 RDN、负向 RUP）⇒ `±ft_max`；两种情况都置 `OF|NX`。**因此「结果变成 Inf」与「溢出」不等价**：轻微溢出（`ft_max` 之上、`2^128` 中点之下）在把幅值舍下来的方向上只置 `NX`、不置 `OF`。
 - **RTL**（`WumingF2F` → 舍入原语 `WumingRoundAnyRawFNToRecFN`）：`common_overflow = sRoundedExp >> (outExpWidth − 1) >= 3`（进位后的无界指数），`val pegMaxFiniteMagOut = overflow && !overflow_roundMagUp` 把方向决定落到「Inf 还是最大有限幅值」；旧的 `forceInfOnOverflow` 覆写已删除。
-- **模型**（`tools/chipyard/fp_ref.py`）：`round_dyadic`/`_round_mag` 就是该条款的唯一实现，`f2f_exact` 不再有「恒 ±Inf」覆写参数（`m12-chipyard-026` 补回）。
+- **模型**（`idl/tools/idl_fp.py`）：`round_dyadic`/`_round_mag` 就是该条款的唯一实现，`f2f_exact` 不再有「恒 ±Inf」覆写参数（`m12-chipyard-026` 补回）。
 - **向量**：单元台 `f2f fo2ft ovf` 40 例 = 8 形状（最大 double / 中点上方 1 ulp / 中点 tie / 恰为 `ft_max`，各双符号）× 5 档，期望值是从条款**逐格抄写**的常量表（不取自 oracle），与 RTL、hardfloat 三方对照；核上 `fp_sweep.py` 的 `cvt_ff_ovf` 38 例（severe 10 + mild 10 + 中点 10 + 动态 `0x20` 四码双向 8）逐例比 `rd` 与 `rf0`。
 - **验证**：`make_patch chipyard` 从源树重导补丁（`m12-chipyard-026`，此前只合入了任务书 ⇒ 仓库补丁仍是旧行为，`ISS-405`）；`make check-patch-tree` / `check-source-state` / `apply-series` 幂等、L2 全绿。
 
@@ -140,15 +140,15 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
 
 - **条款**（`spec/SimRISC-07 §2.5` = IEEE 754-2019 §7.4，`m13-spec-006` 定稿）：溢出 = 以**无限指数范围**按 `rf0[33:32]` 所选方向舍入后的**精确和**幅值大于该格式最大有限值（`ft_max = (2 − 2^−23) × 2^127`、`fo_max = (2 − 2^−52) × 2^1023`）。形态由「精确和的符号 × 方向」共同决定 —— RNE、正向 RUP、负向 RDN ⇒ `±Inf`；RTZ 双向、正向 RDN、负向 RUP ⇒ `±max`；两种情况都置 `OF|NX`。轻微溢出（方向把幅值舍回 `max`）**不是溢出**，给 `±max` 且**只置 `NX`**；RNE 分界为 `max + ulp/2`（ft `2^103`、fo `2^970`）。融加族无 RNA 档。
 - **RTL**（`WumingMulAddRecFN` → 舍入原语 `WumingRoundAnyRawFNToRecFN`）：精确积与加数在同一 `2*sigWidth+guard` 位窗口内求和后**一次**舍入，溢出由原语的 `common_overflow = sRoundedExp >> (outExpWidth − 1) >= 3`（进位后）与 `pegMaxFiniteMagOut = overflow && !overflow_roundMagUp` 决定 —— **RTL 不另设 Inf 覆写**（`fo2ft` 那套 `forceInfOnOverflow` 从未出现在本族），因此本任务**无需改行为**；实测 96 格（两格式 × 12 形状 × 双符号 × 四档）与条款逐格一致。模块注释已写明该条款并禁止再加 Inf 覆写（防回退）。
-- **模型**（`tools/chipyard/fp_ref.py`）：`fma_exact` 走 `round_dyadic`/`_round_mag` 的同一套方向规则（无「恒 ±Inf」分支），`fma_exact` 文档注明轻微溢出只置 `NX`。
-- **向量**：单元台新增 `fma ovf` 96 例 = 12 形状（最大乘 2 的严重溢出、`max` 上方 1/4 ulp 的轻微溢出、RNE 中点上下、恰为 `max`、精确 `2^128`/`2^1024`；各双符号）× 四档，期望值从条款**逐格抄写**成常量表（不取自 oracle），与 RTL、hardfloat、`fp_ref` 四方对照；核上 `fp_sweep.py` 的 `arith_fma_ft`/`arith_fma_fo` 各增 12 个溢出三元组（同形状、四档 × 双符号），逐例比 `rd` 与 `rf0`（各 92 例）。
+- **模型**（`idl/tools/idl_fp.py`）：`fma_exact` 走 `round_dyadic`/`_round_mag` 的同一套方向规则（无「恒 ±Inf」分支），`fma_exact` 文档注明轻微溢出只置 `NX`。
+- **向量**：单元台新增 `fma ovf` 96 例 = 12 形状（最大乘 2 的严重溢出、`max` 上方 1/4 ulp 的轻微溢出、RNE 中点上下、恰为 `max`、精确 `2^128`/`2^1024`；各双符号）× 四档，期望值从条款**逐格抄写**成常量表（不取自 oracle），与 RTL、hardfloat、`idl_fp` 四方对照；核上 `fp_sweep.py` 的 `arith_fma_ft`/`arith_fma_fo` 各增 12 个溢出三元组（同形状、四档 × 双符号），逐例比 `rd` 与 `rf0`（各 92 例）。
 - **验证**：单元台 `fma ovf` table/hf-value/hf-flag/oracle 四差 0；核上 `arith_fma_ft`/`arith_fma_fo` 逐字节一致；注入「溢出恒 ±Inf」与「轻微溢出也置 `OF`」两路 ⇒ 对应格红、模型注入 ⇒ oracle 红。
 
 ## 结果 NaN 统一 canonical 与 `rootn(±0,2)=+0`（`m12-chipyard-030`）
 
 - **条款**（`spec/SimRISC-07 §1.4` / §2.2，用户 2026-11-13 裁定 R1/R2）：凡结果应为 quiet NaN 的情形一律 **canonical quiet NaN** —— 符号位 0、payload 全零（ft `0x7FC0_0000`、fo `0x7FF8_0000_0000_0000`）；`rootn(±0, 2)` 收严为 IEEE **`+0`**（§9.2.1 的 NOTE 明确它与 `squareRoot(−0) = −0` 不同）。IEEE §6.2.3 的 payload 传播只是 *should*、§6.3 不规定结果符号 ⇒ canonical 是允许的实现选择，不是偏离。
 - **RTL**（`WumingFP.scala`）：舍入原语 `WumingRoundAnyRawFNToRecFN` 的 NaN 尾数只置 quiet 位（删掉 payload 计算）；`WumingAddRecFN`/`WumingMulRecFN`/`WumingRemRecFN`/`WumingDivSqrtRecFN` 不再向原语注入首 NaN 的 payload（`nanSrc`/`nanSig`/`nanSigZ` 全删）；`WumingDivSqrtRecFN` 的 root 零结果 `sign = rawA.sign && !rawA.isZero`。**不适用**（保持原状）：`ft2ft`/`fo2fo` 复制、min/max 单 NaN 返回数。比较的 signaling 形式当时仍是 sNaN 位型，`m16-chipyard-012` 起也改为 canonical quiet NaN（`spec/SimRISC-07 §4`）。
-- **模型**（`tools/chipyard/fp_ref.py`）：`round_bits` 的 `nan_fract = quiet_bit`、`round_exact` 的 NaN 分支取 `_canon_qnan`、`add/mul/div/rem/sqrt_exact` 的 qNaN 分支取 canonical、`sqrt_exact` 的零分支返回 `+0`；自检 `selfcheck` 增「NaN 编码就是 canonical」的位级断言。
+- **模型**（`idl/tools/idl_fp.py`）：`round_bits` 的 `nan_fract = quiet_bit`、`round_exact` 的 NaN 分支取 `_canon_qnan`、`add/mul/div/rem/sqrt_exact` 的 qNaN 分支取 canonical、`sqrt_exact` 的零分支返回 `+0`；自检 `selfcheck` 增「NaN 编码就是 canonical」的位级断言。
 - **验证**：单元台新增 `spec points` 20 例（期望值**逐条从条款抄写**、不取自 oracle）：root ±0（四档方向）、root(负数) ⇒ canonical + `NV`、`ftadd(0x7FC1_2345,1.0)=0x7FC0_0000`、fo 侧带 payload 且负号 qNaN 的 `foadd`、`fo2ft(0xFFF8_0000_0000_0123)=0x7FC0_0000`、`ft2fo(qNaN payload)`、`foscmp(qNaN,1.0)=canonical`+`NV`（`m16-chipyard-012` 起；此前为 sNaN）、`foqcmp` 无序 canonical、min 单 NaN 返回数/双 NaN canonical；核上 `fp_sweep.py` 新增 `cvt_nan` 组 18 例并扩 `arith_nan`（ft+负号 qNaN）与 `divrem_nan`（root ±0 四档 × 双格式 × 双符号、qNaN payload 各类）。
 
 ## 边界

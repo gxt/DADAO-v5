@@ -1,14 +1,14 @@
 # 逐指令 trace 格式（`m17-idl-004`）
 
-> **定位**：一个**机器可读、模型无关**的逐指令 trace 格式，当前真源实现是 `tools/idl/exec_trace.py`（IDL 执行器）与 `tools/idl/qemu_trace.py`（QEMU 观测面派生）。**消费方**：`m17-idl-004` 的 QEMU 逐指令差分；`m20-gem5-001`（gem5 Minor）与 `m20-chipyard-001`（wuqing）复用同一字段口径（M20 的 golden = wuming RTL）。
-> **样例**：[`idl-trace-sample.jsonl`](idl-trace-sample.jsonl) 由脚本生成（禁止手改），生成/校验命令见 §5。
+> **定位**：一个**机器可读、模型无关**的逐指令 trace 格式，当前真源实现是 `idl/tools/idl_exec_trace.py`（IDL 执行器）与 `idl/tools/idl_qemu_trace.py`（QEMU 观测面派生）。**消费方**：`m17-idl-004` 的 QEMU 逐指令差分；`m20-gem5-001`（gem5 Minor）与 `m20-chipyard-001`（wuqing）复用同一字段口径（M20 的 golden = wuming RTL）。
+> **样例**：[`trace-sample.jsonl`](trace-sample.jsonl) 由脚本生成（禁止手改），生成/校验命令见 §5。
 > **不引入 ISA 语义**：本文只定义「观测到的架构变化」如何记录与比较；指令语义仍以 `spec/SimRISC-*` + `idl/*.idl` 为准。
 
 ## 1. 记录与文件
 
 - 一行一个 JSON 对象（JSONL，UTF-8），按**退休顺序**排列。
 - 一条记录 = 一条**退休指令**（取指异常见 §3 E2）。
-- 记录按**退休顺序**排列，`seq` 用本次 trace 内的 1-based 序号；`docs/idl-trace-sample.jsonl` 是**异常前后窗口**（`seq` 保留原序号，故不从 1 开始）。
+- 记录按**退休顺序**排列，`seq` 用本次 trace 内的 1-based 序号；`idl/docs/trace-sample.jsonl` 是**异常前后窗口**（`seq` 保留原序号，故不从 1 开始）。
 - 单文件超过 **1 MiB** 时由 `TraceWriter` 滚动成 `<stem>.part-001.jsonl`、`<stem>.part-002.jsonl`……（任务约束：不得逐条落盘成巨文件）。
 
 字段（实现的固定顺序）：
@@ -35,7 +35,7 @@
 - `pc`/`insn`：来自**同一份镜像**（ELF `PT_LOAD` 段 + BootROM 的 hmon 段）；`id`/`mn` 由 `contracts/opcodes.yaml` 的编码表译码，不解释语义。
 - `dst`/`val`：指令执行前后四寄存器组的差；异常进入不改寄存器组，故异常指令的写回集合通常为空。
 - `exc`：执行器取本条指令的异常帧（`cfx3`/`cfx63` 的 `cg5`）；QEMU 侧取「记录间 `cfx3`/`cfx63` 的 `TRAPN/SYNCN/ASYNCN` 计数增量 + 新帧 `CG5`」。两侧都要求 `cfx` 的大类计数确实增长，避免「帧值陈旧」误判。
-- **运行模式/cfx code**：不放进记录（字段面只到「寄存器组 + 异常」），但 QEMU 逐指令差分**逐条比较**每条指令后的 `mode` 与 `cfx`（`tools/idl/check_trace_parity.py`）。
+- **运行模式/cfx code**：不放进记录（字段面只到「寄存器组 + 异常」），但 QEMU 逐指令差分**逐条比较**每条指令后的 `mode` 与 `cfx`（`idl/tools/idl_check_trace.py`）。
 - **内存**：`-d cpu` 不提供内存观测，本格式暂不含内存写回字段。M20 的两个模型都能观测内存时按「新增可选字段 `mem`，缺省 = 未观测」扩展，不改既有字段语义。
 
 ## 3. QEMU 逐指令比对口径与文档化等价
@@ -65,24 +65,24 @@ QEMU 侧命令固定为 `-accel tcg,one-insn-per-tb=on -d cpu -D <log>`（QEMU 1
 
 ```text
 # QEMU 侧 trace（同时写出入口态）
-python3 tools/idl/qemu_trace.py --elf <elf> --bootrom <bootrom> \
+python3 idl/tools/idl_qemu_trace.py --elf <elf> --bootrom <bootrom> \
     --entry-out <entry.json> --trace-out <qemu.jsonl>
 
 # 执行器侧 trace（用同一入口态）
-python3 tools/idl/exec_trace.py --elf <elf> --bootrom <bootrom> \
+python3 idl/tools/idl_exec_trace.py --elf <elf> --bootrom <bootrom> \
     --init <entry.json> --out <exec.jsonl>
 
 # 逐指令差分（≥20 例；--trace-dir 落两侧 trace，--json-out 落汇总）
-python3 tools/idl/check_trace_parity.py --images <镜像目录> \
+python3 idl/tools/idl_check_trace.py --images <镜像目录> \
     --bootrom <bootrom> [--trace-dir <dir>] [--json-out <f>]
 
 # 样例：重新生成 / 校验（样例由脚本产出，禁止手改）
-python3 tools/idl/check_trace_parity.py --images <镜像目录> \
+python3 idl/tools/idl_check_trace.py --images <镜像目录> \
     --bootrom <bootrom> --sample-case trap_ciii_cfx --sample-around-exc \
-    --sample-records 6 --sample-out docs/idl-trace-sample.jsonl
-python3 tools/idl/check_trace_parity.py --images <镜像目录> \
+    --sample-records 6 --sample-out idl/docs/trace-sample.jsonl
+python3 idl/tools/idl_check_trace.py --images <镜像目录> \
     --bootrom <bootrom> --sample-case trap_ciii_cfx --sample-around-exc \
-    --sample-records 6 --sample-check docs/idl-trace-sample.jsonl
+    --sample-records 6 --sample-check idl/docs/trace-sample.jsonl
 ```
 
-自检：`python3 tools/idl/exec_trace.py --self-test`（RA 有效区、`rb0`/`rd0`、写回集合、异常对象）。
+自检：`python3 idl/tools/idl_exec_trace.py --self-test`（RA 有效区、`rb0`/`rd0`、写回集合、异常对象）。

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""check_four_way.py — 四方差分驱动（IDL / QEMU / gem5 / chipyard，`m17-idl-005`）。
+"""idl_four_way.py — 四方差分驱动（IDL / QEMU / gem5 / chipyard，`m17-idl-005`）。
 
 判据（`m17-idl-005` 验收 1；用户 2026-11-22 定口径）：
 
   1. 同一份 ELF 交给三方既有平台（`tests/ee-tiny/run_inst_tiny.py` 的构建/启动
-     路径，不另建第二套）与 IDL 执行器（`idl/idl_exec.py`）；
+     路径，不另建第二套）与 IDL 执行器（`idl/tools/idl_exec.py`）；
   2. 取每方的**签名槽流 + 退出码**：三方流由 `tests/shared/signature.py` 的
      `capture` 落到 `<work>/<id>/<id>.<platform>.out`，IDL 流由 `idl_exec.py`
      `--image-out` 落盘；
@@ -14,7 +14,7 @@
      内联常量派生）比对（`kind=value/table` 逐槽；`relation` 无数值；
      `unwritten` ⇒ 红）——四方一致但全错时仍红，**不从实测反填期望**。
 
-用例清单机制（`idl/idl_exec_cases.toml`）：
+用例清单机制（`idl/data/idl_exec_cases.toml`）：
 
   * `[[case]]`（主清单）= `image` + `category`；
   * `[[pending]]` = 阶段一收口后**必须为空**（段缺失或空数组）；非空 ⇒ rc=2
@@ -31,10 +31,10 @@
 
 用法：
 
-    python3 tools/idl/check_four_way.py                       # IDL + QEMU（L2）
-    python3 tools/idl/check_four_way.py --platforms qemu,gem5,chipyard
-    python3 tools/idl/check_four_way.py --only ld.o_rrii_rd    # 单例诊断
-    python3 tools/idl/check_four_way.py --json-out <f>
+    python3 idl/tools/idl_four_way.py                       # IDL + QEMU（L2）
+    python3 idl/tools/idl_four_way.py --platforms qemu,gem5,chipyard
+    python3 idl/tools/idl_four_way.py --only ld.o_rrii_rd    # 单例诊断
+    python3 idl/tools/idl_four_way.py --json-out <f>
 
 退出码：0 = 全部一致；1 = 有 FAIL；2 = setup/清单/输入错误。
 """
@@ -59,9 +59,9 @@ import signature  # noqa: E402
 import writer_guard  # noqa: E402
 
 RUN_INST = _R / "tests" / "ee-tiny" / "run_inst_tiny.py"
-IDL_EXEC = _R / "idl" / "idl_exec.py"
+IDL_EXEC = _R / "idl" / "tools" / "idl_exec.py"
 EXPECTED = _R / "tests" / "data" / "inst-signature" / "expected.tsv"
-MANIFEST = _R / "idl" / "idl_exec_cases.toml"
+MANIFEST = _R / "idl" / "data" / "idl_exec_cases.toml"
 BOOKS = _R / "tests" / "inst"
 FP_BOOK = "07-floating-point"
 PLATFORMS = ("qemu", "gem5", "chipyard")
@@ -334,7 +334,7 @@ def main(argv=None):
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--cases", default=str(MANIFEST),
-                    help="用例清单（默认 idl/idl_exec_cases.toml）")
+                    help="用例清单（默认 idl/data/idl_exec_cases.toml）")
     ap.add_argument("--platforms", default="qemu",
                     help="IDL 之外的三方（逗号分隔，默认 qemu；"
                          "全四方用 qemu,gem5,chipyard）")

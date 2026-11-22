@@ -1,0 +1,21 @@
+schema = 1
+owner = "idl"
+recursive = false
+
+[files."diff-vs-udb.md"]
+owner = "idl"
+
+[files."four-way.md"]
+owner = "idl"
+
+[files."syntax-subset.md"]
+owner = "idl"
+
+[files."trace-format.md"]
+owner = "idl"
+
+[files."trace-sample.jsonl"]
+owner = "idl"
+
+[files."width-rules.md"]
+owner = "idl"

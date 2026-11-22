@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""qemu_final_state.py — 取 QEMU 的「入口态 / 末态」观测面（m17-idl-003 判据）。
+"""idl_qemu_state.py — 取 QEMU 的「入口态 / 末态」观测面（m17-idl-003 判据）。
 
 口径（与 `tests/ee-tiny/run_inst_tiny.py` 的 QEMU 平台一致）：
 
@@ -112,20 +112,20 @@ def main(argv=None):
                               stderr=subprocess.PIPE, timeout=args.timeout)
         rc = proc.returncode
         if rc != 0:
-            sys.stderr.write("qemu_final_state: qemu rc=%d stderr=%s\n"
+            sys.stderr.write("idl_qemu_state: qemu rc=%d stderr=%s\n"
                              % (rc, proc.stderr.decode("utf-8", "replace")))
         entry_state, last_state, n = parse_dumps(log_path, entry)
         if entry_state is None:
-            raise SystemExit("qemu_final_state: entry state %#x not in dump"
+            raise SystemExit("idl_qemu_state: entry state %#x not in dump"
                              % entry)
         if last_state is None:
-            raise SystemExit("qemu_final_state: no cpu dump records")
+            raise SystemExit("idl_qemu_state: no cpu dump records")
         blob = guest_out.read_bytes() if guest_out.exists() else b""
         out = {"elf": str(args.elf), "entry_ip": entry, "n_records": n,
                "qemu_rc": rc, "guest_out_hex": blob.hex(),
                "entry": entry_state, "last": last_state}
         Path(args.json_out).write_text(json.dumps(out), encoding="utf-8")
-        print("qemu_final_state: %s records=%d rc=%d entry=%#x last=%#x out=%dB"
+        print("idl_qemu_state: %s records=%d rc=%d entry=%#x last=%#x out=%dB"
               % (Path(args.elf).name, n, rc, entry_state["ip"],
                  last_state["ip"], len(blob)))
         return 0

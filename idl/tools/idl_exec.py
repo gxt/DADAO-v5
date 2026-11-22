@@ -21,8 +21,8 @@
 
 CLI：
 
-    python3 idl/idl_exec.py --self-test
-    python3 idl/idl_exec.py --elf <elf> [--bootrom <img>] [--init <json>]
+    python3 idl/tools/idl_exec.py --self-test
+    python3 idl/tools/idl_exec.py --elf <elf> [--bootrom <img>] [--init <json>]
         [--max-steps N] [--image-out <file>] [--json-out <file>]
 
 `--self-test` 覆盖寄存器组初值/写回、48 位地址截断、大端读写、RAS 压弹栈、
@@ -39,7 +39,9 @@ import struct
 import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+sys.dont_write_bytecode = True       # idl/ 由 check-manifests-guard 做目录断言
+from idl_paths import REPO as REPO_ROOT
+
 OPCODES = REPO_ROOT / "contracts" / "opcodes.yaml"
 
 MASK48 = (1 << 48) - 1
@@ -366,7 +368,7 @@ class Machine:
         self.output = bytearray()
         # rd8 的「是否有定义」：contract-semihosting §3 里「无返回」的服务
         # 不规定 rd8；QEMU 用 0xdeadbeef 占位（实现约定，不是架构语义），
-        # 故运行结果比对时按本标记忽略 rd8（见 tools/idl/check_exec_parity.py）。
+        # 故运行结果比对时按本标记忽略 rd8（见 idl/tools/idl_exec_parity.py）。
         self.rd8_defined = True
         self.jumped = False
         self.cur_word = 0
@@ -635,7 +637,7 @@ class Machine:
             # contract-semihosting §3：SYS_WRITE 返回**未写字节数**。本执行器不提供
             # 块写通道 ⇒ 报「全部未写」（返回请求长度），guest 的 `SIG_DUMP`
             # （tests/shared/asm/signature.inc）据此回退 `SYS_WRITEC` 逐字节路径，
-            # 与 QEMU/gem5 实测路径一致（docs/idl-four-way.md）。
+            # 与 QEMU/gem5 实测路径一致（idl/docs/four-way.md）。
             block = self.get("rb", 16) & MASK48
             nbytes = self.mem.read_memory(64, block + 16)
             self.set("rd", 8, nbytes)
@@ -1252,7 +1254,7 @@ def _op_ctpop(m, insn):
 
 # --- 08/09/10 窄位宽 ALU（SimRISC-08/09/10；m17-idl-008） ------------------
 # 语义逐条取自 `idl/SimRISC-08.idl`/`09`/`10` 对应 `# id:` 段；宽度以 `Bits<N>`
-# 声明与 `contracts/opcodes.yaml` 字段位域为准（U10 未裁：正文已明示「结果宽 =
+# 声明与 `contracts/opcodes.yaml` 字段位域为准（宽度见语言规范册 §1.1；正文已明示「结果宽 =
 # 操作数最大宽、高半丢弃」的按正文执行，不按 UDB/RISC-V 补全）。
 # orri/orrr 两种形式共用一条实现路径，仅「移位量来源」不同。
 _NARROW_MASK = {8: 0xFF, 16: 0xFFFF, 32: 0xFFFF_FFFF}

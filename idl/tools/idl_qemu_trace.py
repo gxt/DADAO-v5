@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""qemu_trace.py — 从 QEMU 观测面派生逐指令 trace（`m17-idl-004`）。
+"""idl_qemu_trace.py — 从 QEMU 观测面派生逐指令 trace（`m17-idl-004`）。
 
-口径（与 `tools/idl/qemu_final_state.py` 同一组 QEMU 参数）：
+口径（与 `idl/tools/idl_qemu_state.py` 同一组 QEMU 参数）：
 
   * `-accel tcg,one-insn-per-tb=on -d cpu -D <log>`：每个 TB 一条 `cpu_dump_state`
     记录，记录的是**该指令执行前**的架构状态；
@@ -18,7 +18,7 @@
 `contracts/opcodes.yaml` 的编码表译码；不使用 QEMU 反汇编、不解释语义。
 
 `-d cpu` 不提供内存观测，因此 trace 不含内存写回（`m20-gem5-001` 的两个模型各自
-可观测内存时再扩展；字段口径见 `docs/idl-trace-format.md`）。
+可观测内存时再扩展；字段口径见 `idl/docs/trace-format.md`）。
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.dont_write_bytecode = True       # `idl/`/`tools/` 不留字节码残渣
-import trace_common as tc  # noqa: E402
+import idl_trace_common as tc  # noqa: E402
 
 DEFAULT_QEMU = REPO_ROOT / ".dadao" / "cross-toolchain" / "bin" / "qemu-system-dadao"
 
@@ -114,7 +114,7 @@ def entry_index(records, entry):
     for i, rec in enumerate(records):
         if rec["pc"] == entry:
             return i
-    raise SystemExit("qemu_trace: entry %#x not in cpu dump" % entry)
+    raise SystemExit("idl_qemu_trace: entry %#x not in cpu dump" % entry)
 
 
 def collapse(records):
@@ -156,7 +156,7 @@ def run_qemu(elf, bootrom, qemu=None, log_path=None, guest_out=None,
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           timeout=timeout)
     if proc.returncode != 0:
-        sys.stderr.write("qemu_trace: qemu rc=%d stderr=%s\n"
+        sys.stderr.write("idl_qemu_trace: qemu rc=%d stderr=%s\n"
                          % (proc.returncode,
                             proc.stderr.decode("utf-8", "replace")[:400]))
     return {"log": str(log_path), "guest_out": str(guest_out),
@@ -372,7 +372,7 @@ def main(argv=None):
     if args.summary_out:
         Path(args.summary_out).write_text(json.dumps(summary) + "\n",
                                           encoding="utf-8")
-    print("qemu_trace: %s instructions=%d duplicates=%d unresolved=%d "
+    print("idl_qemu_trace: %s instructions=%d duplicates=%d unresolved=%d "
           "bytes=%d parts=%d" % (Path(args.elf).name, len(trace["records"]),
                                  obs["duplicates"], trace["unresolved"],
                                  writer.bytes, len(parts)))

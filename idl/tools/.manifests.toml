@@ -1,0 +1,42 @@
+schema = 1
+owner = "idl"
+recursive = false
+
+[files."idl_check_trace.py"]
+owner = "idl"
+
+[files."idl_exec.py"]
+owner = "idl"
+
+[files."idl_exec_parity.py"]
+owner = "idl"
+
+[files."idl_exec_trace.py"]
+owner = "idl"
+
+[files."idl_four_way.py"]
+owner = "idl"
+
+[files."idl_fp.py"]
+owner = "idl"
+
+[files."idl_parser.py"]
+owner = "idl"
+
+[files."idl_paths.py"]
+owner = "idl"
+
+[files."idl_qemu_state.py"]
+owner = "idl"
+
+[files."idl_qemu_trace.py"]
+owner = "idl"
+
+[files."idl_render.py"]
+owner = "idl"
+
+[files."idl_subset_stats.py"]
+owner = "idl"
+
+[files."idl_trace_common.py"]
+owner = "idl"

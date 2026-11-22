@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""check_trace_parity.py — 逐指令 trace 与 QEMU 的按 PC 对齐比对（`m17-idl-004`）。
+"""idl_check_trace.py — 逐指令 trace 与 QEMU 的按 PC 对齐比对（`m17-idl-004`）。
 
-对每个用例（`idl/idl_exec_cases.toml` 的 `tests/inst` 载体）：
+对每个用例（`idl/data/idl_exec_cases.toml` 的 `tests/inst` 载体）：
 
-  1. `tools/idl/qemu_trace.py` 跑 QEMU（`one-insn-per-tb` + `-d cpu`），取入口态、
+  1. `idl/tools/idl_qemu_trace.py` 跑 QEMU（`one-insn-per-tb` + `-d cpu`），取入口态、
      折叠连续重复记录、按「记录间差分」派生 QEMU 侧 trace；
-  2. `tools/idl/exec_trace.py` 用同一入口态跑执行器，生成执行器侧 trace（取指异常
+  2. `idl/tools/idl_exec_trace.py` 用同一入口态跑执行器，生成执行器侧 trace（取指异常
      归并到前一条指令）；
   3. **逐条记录**比较 `pc/insn/id/mn/dst/val/exc`，并比较每条指令后的运行模式与
      cfx code、最终退出码与 semihosting 字节流。
 
-四类文档化等价（逐条计数见输出；口径见 `docs/idl-trace-format.md`）：
+四类文档化等价（逐条计数见输出；口径见 `idl/docs/trace-format.md`）：
 
   E1 QEMU TB 日志的**连续重复记录**（同 PC 且状态逐字段相同）折叠；
   E2 取指异常 QEMU **不出记录**，其异常归并到前一条指令（区间边界一致）；
@@ -21,11 +21,11 @@
 
 用法：
 
-    python3 tools/idl/check_trace_parity.py --images <run_inst_tiny --work-dir> \
+    python3 idl/tools/idl_check_trace.py --images <run_inst_tiny --work-dir> \
         --bootrom <bootrom_tiny.bin> [--only <id>] [--trace-dir <dir>] \
         [--json-out <f>]
-    python3 tools/idl/check_trace_parity.py ... --sample-out docs/idl-trace-sample.jsonl
-    python3 tools/idl/check_trace_parity.py ... --sample-check docs/idl-trace-sample.jsonl
+    python3 idl/tools/idl_check_trace.py ... --sample-out idl/docs/trace-sample.jsonl
+    python3 idl/tools/idl_check_trace.py ... --sample-check idl/docs/trace-sample.jsonl
 
 退出码：0 = 全部一致；1 = 有差异；2 = 环境/输入问题。
 """
@@ -40,12 +40,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-sys.path.insert(0, str(REPO_ROOT / "idl"))
 sys.dont_write_bytecode = True       # idl/ 由 check-manifests-guard 做目录断言
 
-import exec_trace  # noqa: E402
-import qemu_trace  # noqa: E402
-import trace_common as tc  # noqa: E402
+import idl_exec_trace  # noqa: E402
+import idl_qemu_trace  # noqa: E402
+import idl_trace_common as tc  # noqa: E402
 
 FIELDS = ("seq", "pc", "insn", "id", "mn", "dst", "val", "exc")
 SAMPLE_CASE = "add.st_orrr_rd"
@@ -56,16 +55,16 @@ def load_cases(path):
     try:
         import tomllib
     except ImportError:  # pragma: no cover
-        raise SystemExit("check_trace_parity: Python 3.11+ (tomllib) required")
+        raise SystemExit("idl_check_trace: Python 3.11+ (tomllib) required")
     with open(path, "rb") as fh:
         doc = tomllib.load(fh)
     cases = doc.get("case")
     if not isinstance(cases, list) or not cases:
-        raise SystemExit("check_trace_parity: %s: no [[case]] entries" % path)
+        raise SystemExit("idl_check_trace: %s: no [[case]] entries" % path)
     for case in cases:
         for key in ("id", "category"):
             if key not in case:
-                raise SystemExit("check_trace_parity: case missing %r: %r"
+                raise SystemExit("idl_check_trace: case missing %r: %r"
                                  % (key, case))
     return cases
 
@@ -97,11 +96,11 @@ def run_case(case, cfg):
     elf = Path(cfg["images"]) / cid / (cid + ".elf")
     if not elf.is_file():
         return {"id": cid, "ok": False, "detail": "missing image %s" % elf}
-    obs = qemu_trace.observe(elf, cfg["bootrom"], qemu=cfg["qemu"])
-    image = qemu_trace.ImageMap(elf, cfg["bootrom"], cfg["hmon_base"])
-    qtrace = qemu_trace.derive_trace(obs["records"], image, cfg["decoder"])
+    obs = idl_qemu_trace.observe(elf, cfg["bootrom"], qemu=cfg["qemu"])
+    image = idl_qemu_trace.ImageMap(elf, cfg["bootrom"], cfg["hmon_base"])
+    qtrace = idl_qemu_trace.derive_trace(obs["records"], image, cfg["decoder"])
     try:
-        etrace = exec_trace.build_trace(elf, cfg["bootrom"], obs["entry"])
+        etrace = idl_exec_trace.build_trace(elf, cfg["bootrom"], obs["entry"])
     except Exception as exc:  # ExecError/IO：保留现场，判 FAIL
         return {"id": cid, "category": case["category"], "ok": False,
                 "detail": "exec: %s: %s" % (type(exc).__name__, exc)}
@@ -117,7 +116,7 @@ def run_case(case, cfg):
     if cfg["trace_dir"] and detail is None:
         outdir = Path(cfg["trace_dir"]) / cid
         outdir.mkdir(parents=True, exist_ok=True)
-        exec_trace.write_trace(etrace["records"],
+        idl_exec_trace.write_trace(etrace["records"],
                                outdir / "exec.jsonl").close()
         writer = tc.TraceWriter(outdir / "qemu.jsonl")
         for rec in qtrace["records"]:
@@ -138,50 +137,50 @@ def run_case(case, cfg):
 
 
 def make_cfg(args):
-    qemu = args.qemu or str(qemu_trace.DEFAULT_QEMU)
+    qemu = args.qemu or str(idl_qemu_trace.DEFAULT_QEMU)
     for what, path in (("qemu", qemu), ("bootrom", args.bootrom),
-                       ("idl_exec.py", REPO_ROOT / "idl" / "idl_exec.py")):
+                       ("idl_exec.py", REPO_ROOT / "idl" / "tools" / "idl_exec.py")):
         if not Path(path).is_file():
-            print("check_trace_parity: %s not found: %s" % (what, path),
+            print("idl_check_trace: %s not found: %s" % (what, path),
                   file=sys.stderr)
             return None
-    prof = qemu_trace._machine_profile()
+    prof = idl_qemu_trace._machine_profile()
     return {"images": str(args.images), "bootrom": str(args.bootrom),
             "qemu": qemu, "hmon_base": prof.HMON_BASE,
-            "decoder": qemu_trace.Decoder(),
+            "decoder": idl_qemu_trace.Decoder(),
             "trace_dir": args.trace_dir}
 
 
 def build_sample(cases, cfg, cid, count, around_exc=False):
     case = next((c for c in cases if c["id"] == cid), None)
     if case is None:
-        raise SystemExit("check_trace_parity: sample case %r not in --cases"
+        raise SystemExit("idl_check_trace: sample case %r not in --cases"
                          % cid)
     elf = Path(cfg["images"]) / cid / (cid + ".elf")
-    obs = qemu_trace.observe(elf, cfg["bootrom"], qemu=cfg["qemu"])
-    image = qemu_trace.ImageMap(elf, cfg["bootrom"], cfg["hmon_base"])
-    qtrace = qemu_trace.derive_trace(obs["records"], image, cfg["decoder"])
-    etrace = exec_trace.build_trace(elf, cfg["bootrom"], obs["entry"])
+    obs = idl_qemu_trace.observe(elf, cfg["bootrom"], qemu=cfg["qemu"])
+    image = idl_qemu_trace.ImageMap(elf, cfg["bootrom"], cfg["hmon_base"])
+    qtrace = idl_qemu_trace.derive_trace(obs["records"], image, cfg["decoder"])
+    etrace = idl_exec_trace.build_trace(elf, cfg["bootrom"], obs["entry"])
     start = 0
     if around_exc:
         start = next((i for i, rec in enumerate(etrace["records"])
                       if rec["exc"] is not None), None)
         if start is None:
-            raise SystemExit("check_trace_parity: %s has no exception record"
+            raise SystemExit("idl_check_trace: %s has no exception record"
                              % cid)
         start = max(0, start - 2)
     window_q = qtrace["records"][start:start + count]
     window_e = etrace["records"][start:start + count]
     err = compare_records(window_q, window_e)
     if err:
-        raise SystemExit("check_trace_parity: sample window mismatch: %s" % err)
+        raise SystemExit("idl_check_trace: sample window mismatch: %s" % err)
     return window_e
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--cases", default=str(REPO_ROOT / "idl"
+    ap.add_argument("--cases", default=str(REPO_ROOT / "idl" / "data"
                                            / "idl_exec_cases.toml"))
     ap.add_argument("--images", required=True,
                     help="run_inst_tiny.py 的 --work-dir（内含 <id>/<id>.elf）")
@@ -209,7 +208,7 @@ def main(argv=None):
         cases = [c for c in cases if c["id"] in wanted]
         missing = wanted - {c["id"] for c in cases}
         if missing:
-            print("check_trace_parity: unknown --only id: %s"
+            print("idl_check_trace: unknown --only id: %s"
                   % ", ".join(sorted(missing)), file=sys.stderr)
             return 2
     if args.sample_out or args.sample_check:
@@ -232,7 +231,7 @@ def main(argv=None):
         for rec in recs:
             writer.write(rec)
         writer.close()
-        print("check_trace_parity: sample -> %s（%d 条记录）"
+        print("idl_check_trace: sample -> %s（%d 条记录）"
               % (args.sample_out, len(recs)))
         return 0
 
@@ -249,12 +248,12 @@ def main(argv=None):
                  rec["detail"]))
     npass = sum(1 for r in records if r["ok"])
     if not args.only and len(records) < 20:
-        print("check_trace_parity: 用例数 %d < 20（验收下限）" % len(records),
+        print("idl_check_trace: 用例数 %d < 20（验收下限）" % len(records),
               file=sys.stderr)
         return 2
     print("-" * 78)
     total = sum(r.get("records", 0) for r in records)
-    print("check_trace_parity: %d/%d 用例逐指令 trace 与 QEMU 按 PC 对齐后全等"
+    print("idl_check_trace: %d/%d 用例逐指令 trace 与 QEMU 按 PC 对齐后全等"
           "（共 %d 条指令记录）" % (npass, len(records), total))
     if args.json_out:
         Path(args.json_out).write_text(

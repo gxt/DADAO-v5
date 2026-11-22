@@ -1,0 +1,12 @@
+schema = 1
+owner = "idl"
+recursive = false
+
+[files."idl_exec_cases.toml"]
+owner = "idl"
+
+[files."idl_parse_cases.toml"]
+owner = "idl"
+
+[files."idl_parse_fixture.json"]
+owner = "idl"

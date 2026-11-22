@@ -7,11 +7,11 @@
 #   * mine      -- the DADAO RTL (`WumingFP.scala`)
 #   * hardfloat -- berkeley-hardfloat's `RoundAnyRawFNToRecFN`, instantiated
 #                  next to mine inside the bench (ops 4-7 only)
-#   * oracle    -- `fp_ref.round_exact`, the exact rational model derived from
+#   * oracle    -- `idl_fp.round_exact`, the exact rational model derived from
 #                  the IEEE definitions in spec/SimRISC-07
 #
 # The recoded outputs are compared by the IEEE value they denote
-# (`fp_ref.recfn_value`): the recoding of zero has several equivalent spellings
+# (`idl_fp.recfn_value`): the recoding of zero has several equivalent spellings
 # and both implementations pick different ones, so comparing raw bits there
 # would be a false alarm.  Flags are compared exactly (the bench prints
 # hardfloat's in its own order, which is reversed here).
@@ -26,8 +26,10 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
-import fp_ref as F  # noqa: E402
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
+sys.path.insert(0, os.path.join(REPO_ROOT, "idl", "tools"))
+sys.dont_write_bytecode = True       # idl/ 由 check-manifests-guard 做目录断言
+import idl_fp as F  # noqa: E402
 
 # rounding configurations: op -> (ie, isig, oe, osig)
 CONFIGS = {
@@ -153,7 +155,7 @@ FMA_OVF_ROWS = (
 # IEEE 754-2019 §7.4; m12-chipyard-029) ────────────────────────────────
 # The expectations are transcribed from the clause, *not* taken from the
 # oracle, so the table is an independent opinion next to hardfloat and
-# `fp_ref`: round the EXACT fused sum with an UNBOUNDED exponent in the
+# `idl_fp`: round the EXACT fused sum with an UNBOUNDED exponent in the
 # selected direction, and only if that magnitude exceeds `max` replace it
 # by `±Inf` (RNE, RUP on a positive sum, RDN on a negative one) or by
 # `±max` (the other directions), raising `OF|NX`.  A magnitude that the
@@ -454,7 +456,7 @@ def check(args):
     # that magnitude exceeds `ft_max` replace it by `±Inf` (RNE/RNA, RUP on a
     # positive overflow, RDN on a negative one) or by `±ft_max` (the other
     # three cells), raising `OF|NX` -- **not** taken from the oracle, so the
-    # table is an independent opinion next to hardfloat and `fp_ref`.
+    # table is an independent opinion next to hardfloat and `idl_fp`.
     #
     # `sev` = the largest double (overflow in every direction), `mild` = one
     # double ulp above the midpoint between `ft_max` and 2^128, `mid` = that
@@ -854,7 +856,7 @@ def check(args):
     # ── the two rules closed by m12-chipyard-030, point by point ──────────
     # The expected values below are transcribed from the clause, *not* taken
     # from the oracle, so this table is an independent opinion next to
-    # `fp_ref` and hardfloat:
+    # `idl_fp` and hardfloat:
     #   * `rootn(+-0, 2) = +0`, no flags (spec/SimRISC-07 §2.2 = IEEE
     #     754-2019 §9.2.1; the sign is cleared, the direction is irrelevant);
     #   * every NaN result is the canonical quiet NaN -- sign 0, payload all
@@ -921,7 +923,7 @@ def check(args):
     # ── roundToIntegral / scaleB (m12-chipyard-015) ───────────────────────
     # `rnd` (47/48): `inHi[5:0]` = the one-hot `immu6` code, `mode` =
     # `rf0[33:32]`.  berkeley-hardfloat has no `roundToIntegral`, so the
-    # reference is the exact oracle (`fp_ref.rnd_exact`, cross-checked against
+    # reference is the exact oracle (`idl_fp.rnd_exact`, cross-checked against
     # the shared spec-exact primitive `tools/testcases/lib/fp_spec_rnd.py` in the
     # evidence script).
     # The five static codes are driven under every `rf0[33:32]` setting too:

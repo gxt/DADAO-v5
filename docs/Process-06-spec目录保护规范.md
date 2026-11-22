@@ -73,10 +73,10 @@
 
   | 生成段 | 标记 | 源 | 生成器 | 门控 |
   |--------|------|----|--------|------|
-  | 指令执行语义（IDL） | `<!-- IDL:<instr-id> BEGIN -->` … `<!-- IDL:<instr-id> END -->` | 仓库根 `idl/SimRISC-NN.idl`（`# id:` 分段） | `idl/render.py` | `make check-idl-sync`（L1） |
+  | 指令执行语义（IDL） | `<!-- IDL:<instr-id> BEGIN -->` … `<!-- IDL:<instr-id> END -->` | 仓库根 `idl/SimRISC-NN.idl`（`# id:` 分段） | `idl/tools/idl_render.py` | `make check-idl-sync`（L1） |
   | 汇编速查表 | `<!-- ASSEMBLY_LIST_START -->` … `<!-- ASSEMBLY_LIST_END -->` | `contracts/opcodes.yaml` | `tools/llvm/gen_asm_list.py` | `make check-asm-list`（L1） |
   | 合法性清单 | `<!-- LEGALITY_START -->` … `<!-- LEGALITY_END -->` | `contracts/legality_rules.yaml` | `tools/spec/gen_legality_list.py` | `make check-legality-drift`（L1） |
 
 - **IDL 段的约定**：一条指令一个标记对；标记名 = 该指令在 `contracts/opcodes.yaml` 的 id；**每个源 operation 必有落点、每个落点必有源**（空标记 ⇒ FAIL）；落点册必须与源文件册（`idl/SimRISC-NN.idl` ↔ `spec/SimRISC-NN-*.md`）一致；标记之间不得放其它标记（禁嵌套）。
-- **改字的正确姿势**：改语义 ⇒ 改 `idl/*.idl` 后跑 `python3 idl/render.py`；只想让门控变绿而改 `spec/` 里的块 ⇒ 下一次 `check-idl-sync` 必红（该门控是**逐字节**比对，不是「格式检查」）。
+- **改字的正确姿势**：改语义 ⇒ 改 `idl/*.idl` 后跑 `python3 idl/tools/idl_render.py`；只想让门控变绿而改 `spec/` 里的块 ⇒ 下一次 `check-idl-sync` 必红（该门控是**逐字节**比对，不是「格式检查」）。
 - **审计口径**：`spec/` 的任何改动仍须用户事先允许（§2）并同笔更新 `spec/.manifests.toml`（§5）；本节的附加要求是「生成段的改动必须能追到源」。

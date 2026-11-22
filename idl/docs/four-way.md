@@ -1,7 +1,7 @@
 # IDL 四方差分口径（`m17-idl-005`）
 
 > **定位**：M17 四方差分（IDL / QEMU / gem5 / chipyard）的判据、平台集与用例清单
-> 机制。驱动 = `tools/idl/check_four_way.py`；门控 = `make check-idl`（L2）。
+> 机制。驱动 = `idl/tools/idl_four_way.py`；门控 = `make check-idl`（L2）。
 > **不做 ISA 语义**：语义仍以 `spec/SimRISC-*` + `idl/*.idl` 为准；本文只定义
 > 「同一份 ELF 在四方之间比较什么、怎么比」。
 
@@ -20,8 +20,8 @@
    `kind=relation` 无数值（运行期关系由 guest 断言），`kind=unwritten` 判红。
    四方一致但**全错**时仍红——**期望不从实测反推**。
 
-逐指令 trace 不参与判据（红后归因用 `tools/idl/check_trace_parity.py`，
-`docs/idl-trace-format.md`）。
+逐指令 trace 不参与判据（红后归因用 `idl/tools/idl_check_trace.py`，
+`idl/docs/trace-format.md`）。
 
 ## 2. 平台集
 
@@ -52,7 +52,7 @@
 
 ## 4. 用例清单机制
 
-`idl/idl_exec_cases.toml`：
+`idl/data/idl_exec_cases.toml`：
 
 - `[[case]]` = **主清单**（进 `make check-idl`）：`image`（相对仓库根的 `.S`）+
   `category`；
@@ -72,9 +72,9 @@
 ## 5. 用法与退出码
 
 ```
-python3 tools/idl/check_four_way.py                                   # IDL + QEMU（L2）
-python3 tools/idl/check_four_way.py --platforms qemu,gem5,chipyard    # 全四方
-python3 tools/idl/check_four_way.py --only ld.o_rrii_rd               # 单例诊断
+python3 idl/tools/idl_four_way.py                                   # IDL + QEMU（L2）
+python3 idl/tools/idl_four_way.py --platforms qemu,gem5,chipyard    # 全四方
+python3 idl/tools/idl_four_way.py --only ld.o_rrii_rd               # 单例诊断
 make check-idl                                                         # L2 门控
 ```
 

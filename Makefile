@@ -1350,34 +1350,34 @@ _locked-check-manifests-guard:
 # 比对；源 id 不在 `contracts/opcodes.yaml`、落点缺标记/空标记/串册、块被手改 ⇒ FAIL。
 # 规则见 docs/Process-06 §9 + docs/Process-07。
 check-idl-sync:
-	@$(PYTHON) idl/render.py --check
+	@$(PYTHON) idl/tools/idl_render.py --check
 
-# IDL 子集解析门控 (m17-idl-002, **L1 成员**): `idl/idl_parser.py` 用 Python 标准库把 13 个源
-# （12 册 + `idl/lib/fp.idl`）解析成 AST，并按 `idl/syntax-subset.md` 的口径**只实现实际用到的
+# IDL 子集解析门控 (m17-idl-002, **L1 成员**): `idl/tools/idl_parser.py` 用 Python 标准库把 13 个源
+# （12 册 + `idl/lib/fp.idl`）解析成 AST，并按 `idl/docs/syntax-subset.md` 的口径**只实现实际用到的
 # 构造**（§8 的 while/assert/sizeof/struct/bitfield/tuple/include/fetch/X[]/CSR[]/复合赋值/
 # 变量作复制次数一律显式报错）。判据：① 全量解析（operation 条数与 `contracts/opcodes.yaml` 的
-# `- id:` 独立对账）；② 每个 operation/function/enum/常量的构造签名与 `idl/idl_parse_fixture.json`
+# `- id:` 独立对账）；② 每个 operation/function/enum/常量的构造签名与 `idl/data/idl_parse_fixture.json`
 # 逐条一致（改 `.idl` 或改 AST 形状须显式 `--update`）；③ 拒绝集每条必须按预期报错（静默跳过 = FAIL）；
 # ④ 接受集合法样例必须通过且含预期节点（防过度拒绝）。**不做语义**（求值在 m17-idl-003）。
 # 规则见 docs/Process-07 §1.1/§7。
 check-idl-parse:
-	@$(PYTHON) idl/idl_parser.py --check
+	@$(PYTHON) idl/tools/idl_parser.py --check
 
-# IDL 四方差分门控 (m17-idl-005, **L2 成员**): 主清单 `idl/idl_exec_cases.toml`
+# IDL 四方差分门控 (m17-idl-005, **L2 成员**): 主清单 `idl/data/idl_exec_cases.toml`
 # `[[case]]` 的镜像逐例跑 IDL + QEMU（L2 只两方：主控机不依赖 gem5/Verilator 构建），
 # 判据 = 签名槽流（8 B/槽，逐槽）与退出码全等，且每方槽值再对独立 oracle
 # `tests/data/inst-signature/expected.tsv` 逐槽比对（四方一致但全错仍红）。
 # 清单集合断言：主清单 == `tests/inst/*/*.S` − `07-floating-point` − `[[pending]]`
 # （现场派生，脚本内 fail-closed）。全四方（+gem5/chipyard）由节点/收口调用：
-#   python3 tools/idl/check_four_way.py --platforms qemu,gem5,chipyard
+#   python3 idl/tools/idl_four_way.py --platforms qemu,gem5,chipyard
 # 缺 QEMU 安装根/固件 ⇒ ERROR（不静默跳过）。读方护栏：登记 qemu/bootrom/llvm。
-# 规则见 docs/idl-four-way.md + docs/Process-07。
+# 规则见 idl/docs/four-way.md + docs/Process-07。
 IDL_FOUR_WAY_LOG = .work/log/idl/check-idl.log
 _locked-check-idl:
 	@mkdir -p .work/log/idl
 	@test -x $(QEMU_BIN) || { echo "check-idl: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
 	@test -f $(TINY_BOOTROM) || { echo "check-idl: ERROR: $(TINY_BOOTROM) not found — run 'make build-bootrom' first"; exit 1; }
-	@$(PYTHON) tools/idl/check_four_way.py --jobs $(TEST_JOBS) \
+	@$(PYTHON) idl/tools/idl_four_way.py --jobs $(TEST_JOBS) \
 	    > $(IDL_FOUR_WAY_LOG) 2>&1; \
 	  rc=$$?; \
 	  grep -E "^(check_four_way|  \[FAIL\])" $(IDL_FOUR_WAY_LOG) || true; \

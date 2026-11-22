@@ -3,14 +3,14 @@
 > **本册回答**：`idl/*.idl` **实际用到**了 UDB IDL 的哪些语法构造、各用多少次、首次出现在哪。
 > M17 的 Python 前端（`m17-idl-002`）只按本册的口径实现；UDB 的 652 行 `idl.treetop` 全量语法
 > **不**重写。宽度/符号派生规则见 [`width-rules.md`](width-rules.md)。
-> **数字全部现场派生**：统计脚本 `idl/subset_stats.py`（`python3 idl/subset_stats.py` 打印，
+> **数字全部现场派生**：统计脚本 `idl/tools/idl_subset_stats.py`（`python3 idl/tools/idl_subset_stats.py` 打印，
 > `--check` 校验本册）。改 `.idl` 后本册不同步 ⇒ `--check` 红。
 
 ## 1. 口径
 
 - **扫描面**：`idl/SimRISC-01.idl`…`idl/SimRISC-12.idl` + `idl/lib/fp.idl` 共 13 个文件。
   `spec/SimRISC-*` 里围栏语言标记为 `idl` 的代码块是这 13 个文件的渲染结果
-  （`render.py --check` 保证逐字节相等），故不重复统计。
+  （`idl/tools/idl_render.py --check` 保证逐字节相等），故不重复统计。
 - **「次数」= 出现次数**（不是「行数」也不是「不同位置数」）：同一行出现两次算两次。
 - **先抹「散文」再统计**：源码里有两处自然语言——`#` 到行尾的注释、以及 `description { … }`
   块（自由文本）。两者都会引述伪码（`` `+Inf` ``、`floor(…)`、`GF(2)`），按字面统计会把散文
@@ -143,8 +143,7 @@
 - 三目只用于「选值」，两支同类型同宽（如 `(a[63] == 1'b1) ? -a : a`）；没有把三目当语句用。
 - 字面量三族并用：Verilog 定宽（1580 处，占绝对多数）、C 十六进制（74 处，
   `idl/lib/fp.idl`）、有符号字面量 `0s`/`16'sd1`（48 处，`SimRISC-07` 与
-  `idl/lib/fp.idl` 的有符号比较/常量）。有符号字面量的语义**本仓规范未定义**，见
-  `width-rules.md` 的 `U04`。
+  `idl/lib/fp.idl` 的有符号比较/常量）。有符号字面量的语义见语言规范册 §1.1（`width-rules.md` 的 `U04`）。
 
 ## 7. 数组访问、函数调用与语义库
 
@@ -224,5 +223,5 @@
 - **不需要**：`while`/`assert`/`sizeof`/`struct`/`bitfield`/`tuple`/`include`/`fetch` 块/
   `$encoding`/`X[]`/`CSR[]`/复合赋值/变量作复制次数/多返回值/递归函数（库内不递归）。
 - **宽度与符号**：不要按「64 位一把梭」实现，按 `width-rules.md` 的每条规则做类型推导；
-  其中 10 条在本仓规范里**未定义**（`U01`–`U10`，清单见 `width-rules.md` §7），
-  实现前须先取得裁定，不得自行按 UDB/RISC-V 语义补全。
+  其中原 10 条「未定义」已由语言规范册 §1.1 定义（清单见 `width-rules.md` §8），
+  实现按该节执行，不得自行按 UDB/RISC-V 语义补全。

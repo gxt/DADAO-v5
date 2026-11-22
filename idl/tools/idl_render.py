@@ -26,7 +26,7 @@ Why
     本节各指令的形式化语义由 `idl/SimRISC-03.idl` 生成，逐条如下：
 
     <!-- IDL:<instr-id> BEGIN -->
-    <!-- 由 idl/render.py 生成，勿手改 -->
+    <!-- 由 idl/render.py 生成，勿手改 -->   ← 历史串，随 spec sha256 锁冻结
     **`<instr-id>`**                    ← 替代块内原有的 `# id:` 行
     ```idl
     ...
@@ -54,10 +54,10 @@ G. 布局：每个块必须落在带编号 ``## N.`` 节内；节末生成区（
 
 用法
 ----
-* ``python3 idl/render.py``              # 生成/更新 spec 册内的标记块
-* ``python3 idl/render.py --check``      # 只校验（漂移 ⇒ 非零退出）
-* ``python3 idl/render.py --self-test``  # 临时树内多类注入自检（各自须 FAIL）
-* ``python3 idl/render.py --prose-hash`` # 打印各册「剥掉生成内容后」的散文哈希
+* ``python3 idl/tools/idl_render.py``              # 生成/更新 spec 册内的标记块
+* ``python3 idl/tools/idl_render.py --check``      # 只校验（漂移 ⇒ 非零退出）
+* ``python3 idl/tools/idl_render.py --self-test``  # 临时树内多类注入自检（各自须 FAIL）
+* ``python3 idl/tools/idl_render.py --prose-hash`` # 打印各册「剥掉生成内容后」的散文哈希
 * ``--root DIR``：在另一棵树（同布局）内运行，供注入自检使用
 
 退出码：0 = 通过；1 = 任一断言失败。
@@ -74,7 +74,8 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+sys.dont_write_bytecode = True       # idl/ 由 check-manifests-guard 做目录断言
+from idl_paths import REPO
 
 IDL_REL = "idl"
 SPEC_REL = "spec"
@@ -105,6 +106,7 @@ DECODE_VAR_ANY_RE = re.compile(r"(?<![\w$])(" + DECODE_VAR + r")\b")
 # 关键字/内建转换不算「调用语义库函数」
 NON_CALL = frozenset({"if", "for", "while", "return", "assert", "sizeof", "true", "false"})
 
+# 注：该串已写进 `spec/` 的 sha256 锁内，改名须同步重渲染 spec（另立任务）。
 GENERATED_NOTE = "<!-- 由 idl/render.py 生成，勿手改 -->"
 FENCE_OPEN = "```idl"
 FENCE_CLOSE = "```"
