@@ -402,17 +402,17 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 |----|----|---------|---------|--------|------|------|
 | 5 | 0 | excp prev run mode | cfx_⟨cfxname⟩_excp_prev_run_mode | 0 | RW | 异常前运行模式，硬件陷入时保存，软件可写 |
 | 5 | 1 | excp prev cfx code | cfx_⟨cfxname⟩_excp_prev_cfx_code | 0 | RW | 异常前当前核芯功能扩展编号，硬件陷入时保存，软件可写 |
-| 5 | 2 | excp cause id | cfx_⟨cfxname⟩_excp_cause_id | 0 | HW | 异常原因编号（分层：`[15:0]` 为 cause；wyde2 `[47:32]`/wyde3 `[63:48]` 为子原因；`[31:16]` 保留，见下），硬件在异常进入时写入 |
+| 5 | 2 | excp cause id | cfx_⟨cfxname⟩_excp_cause_id | 0 | HW | 异常原因编号（分层：`[15:0]` 为同步 cause one-hot；`[31:16]` 为宏 cause 空间（`1<<17`=`TIMER`、`1<<18`=`PMEM_DMA` 异步源）；wyde2 `[47:32]`/wyde3 `[63:48]` 为子原因，见下），硬件在异常进入时写入 |
 | 5 | 3 | excp cause ip | cfx_⟨cfxname⟩_excp_cause_ip | 0 | RW | 异常发生前的指令指针，硬件陷入时保存，软件可写 |
 | 5 | 4 | excp cause info | cfx_⟨cfxname⟩_excp_cause_info | 0 | HW | 发生异常的辅助信息（`CFXMEM`/`CFXPERM` 恒为地址，见下） |
 | 5 | 5 | excp pending | cfx_⟨cfxname⟩_excp_pending | 0 | RW | 待处理异常/中断位图（one-hot，OR语义），写0清位 |
 | 5 | 63 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 
-异常原因编号 `cfx_⟨cfxname⟩_excp_cause_id` 为**分层编码**（64 位）：低 16 位是 cause one-hot；`[31:16]` 保留给未来新的大类 cause；子原因按 16 位 **wyde**（双字节）分段——**wyde2 `[47:32]` 专供 `CFXPERM`、wyde3 `[63:48]` 专供 `CFXMEM`**，每个 cause 独占一个 wyde。各核芯功能扩展的异常原因表只定义该核芯功能扩展可处理的 cause 位。
+异常原因编号 `cfx_⟨cfxname⟩_excp_cause_id` 为**分层编码**（64 位）：低 16 位是**同步 cause one-hot**；`[31:16]` 为**宏 cause 空间**（异步中断 bitmap：`1<<17` = `TIMER`、`1<<18` = `PMEM_DMA`，可多源同时置位/OR）；子原因按 16 位 **wyde**（双字节）分段——**wyde2 `[47:32]` 专供 `CFXPERM`、wyde3 `[63:48]` 专供 `CFXMEM`**，每个同步 cause 独占一个 wyde。各核芯功能扩展的异常原因表只定义该核芯功能扩展可处理的**同步** cause 位；宏 cause 跨 cfx 全局编号。
 
-**（一）`[15:0]`：cause one-hot**。表中未列出的位属于保留或未使用，若硬件错误触发此类位，表示该核芯功能扩展出现不可恢复的错误。`1 << 3` 为 `CFXESC`（escape 帧/目标错误，每个 cfx）；`1 << 4` 至 `1 << 6` 保留用于未来扩展（debug 异常等）；`1 << 7` 在 `cfx0`–`cfx3` 为 `CFXPERM`（两轴权限拒绝），在 `cfx_ptw` 保留（见 §4.5）；`1 << 8` 由 `cfx_pmem` 用作 `PMEM_DMA`（§4.9），其余核芯功能扩展保留。
+**（一）`[15:0]`：同步 cause one-hot**。表中未列出的位属于保留或未使用，若硬件错误触发此类位，表示该核芯功能扩展出现不可恢复的错误。`1 << 3` 为 `CFXESC`（escape 帧/目标错误，每个 cfx）；`1 << 4` 至 `1 << 6` 保留用于未来扩展（debug 异常等）；`1 << 7` 在 `cfx0`–`cfx3` 为 `CFXPERM`（两轴权限拒绝），在 `cfx_ptw` 保留（见 §4.5）。`[15:0]` 为**同步** one-hot，与 `[31:16]` 宏 cause 空间互斥（异步源不占 `[15:0]`）。
 
-**（二）`[31:16]`：保留**。留给未来新的大类 cause（本段 `1 << 16`–`1 << 31`；连同低 16 位内尚未分配的 `1 << 14`/`1 << 15`，未来大类 cause 可用 `1 << 14`–`1 << 31`）。**当前必须全 0**，子原因编码**不得占用**本段。
+**（二）`[31:16]`：宏 cause 空间（异步中断）**。`1 << 17` = `TIMER`（`cfx_hart`，§4.7）、`1 << 18` = `PMEM_DMA`（`cfx_pmem`，§4.9）；其余位（`1 << 16`、`1 << 19`–`1 << 31`）保留给未来大类 cause。异步 cause 按 **bit 编号**（非 `[15:0]` 同步 one-hot），可多源同时置位/OR；子原因编码**不得占用**本段。`[15:0]` 同步 one-hot 与 `[31:16]` 宏 cause 空间**互斥**（同一 `excp_cause_id` 不同时携带同步与异步 cause）。
 
 **（三）wyde2 `[47:32]`：`CFXPERM` 的子原因**。低字节 `[39:32]`（8 位，字节对齐）为 one-hot 权限原因；高字节 `[47:40]` **保留（必须 0）**。
 
@@ -666,7 +666,7 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 | `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 | `1 << 3`   | CFXESC   | escape 帧或目标错误 | 否 | 指令编码         |
 | `1 << 8`   | IPI       | 核间中断      | 可 | 中断源 hart ID（低 6 位有效，高 58 位保留为 0） |
-| `1 << 10`  | TIMER     | 本地定时器比较匹配 | 可 | 全零 |
+| `1 << 17`  | TIMER     | 本地定时器比较匹配 | 可 | 全零 |
 
 ### 4.8 cfx_llc - last level cache
 
@@ -739,9 +739,9 @@ cg15 其余 rc 保留，读写触发 CFXREG。`dma_ctrl` 写入时 START 自清�
 | `1 << 1`   | CFXMEM   | 访问核内地址空间或内部存储块故障 | 否 | 访存地址         |
 | `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 | `1 << 3`   | CFXESC   | escape 帧或目标错误 | 否 | 指令编码         |
-| `1 << 8`   | PMEM_DMA | DMA 完成（DONE）或出错（ERROR） | 可 | `dma_status`（含 `ERR_CODE`） |
+| `1 << 18`  | PMEM_DMA | DMA 完成（DONE）或出错（ERROR） | 可 | `dma_status`（含 `ERR_CODE`） |
 
-`PMEM_DMA` 为异步异常：`dma_ctrl.IRQ_EN=1` 时 `DONE` 或 `ERROR` 置位触发；被掩码屏蔽时对应位置入 `cfx_pmem_excp_pending`（`1 << 8`）。`cause_info` 携带触发时的 `dma_status` 值。
+`PMEM_DMA` 为异步异常（宏 cause `1 << 18`）：`dma_ctrl.IRQ_EN=1` 时 `DONE` 或 `ERROR` 置位触发；被掩码屏蔽时对应位置入当前运行模式 monitor 的 `excp_pending`（`1 << 18`）。`cause_info` 携带触发时的 `dma_status` 值。
 
 > shareability、inner/outer cacheability 等进阶属性留待多核 SMP 阶段再定义。当前单核 MVP 仅需 prefetchable 和 coherent 位即可满足。
 
@@ -816,7 +816,7 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 
 ## 5. 异常进入与异常退出
 
-**重要**：异常原因编码（`excp cause id`，即 `1 << n` 中的位索引 `n`）在各核芯功能扩展间 **独立编址**，不存在跨 cfx 冲突。例如 `1<<8` 在 cfx_umon 中为 ILLI，在 cfx_hart 中为 IPI——它们属于不同 cfx 的异常表，互不干扰。每个 cfx 的异常原因编码空间为 0-63，硬件通过 cfxha 区分目标。
+**重要**：异常原因编码（`excp cause id`）分层——`[15:0]` **同步 cause one-hot** 在各核芯功能扩展间 **独立编址**（例如 `1<<8` 在 cfx_umon 中为 ILLI、在 cfx_hart 中为 IPI，互不干扰）；`[31:16]` **宏 cause 空间**承载**异步源**（`1<<17` = TIMER、`1<<18` = PMEM_DMA），**跨 cfx 全局编号**、与 `[15:0]` 同步 cause 互斥。每个 cfx 的同步 cause 空间为 0-15，硬件通过 cfxha 区分目标。
 
 **精确异常**：除下段的**多元素内存指令例外**外，所有同步异常和异步中断均为精确异常——IP 指向触发指令（同步）或下一条指令边界（异步），指令未完成，目标寄存器/内存/RA 未更新（无副作用）。页表步进异常（页表未映射 `CFXMEM`、权限拒绝 `CFXPERM`）同为精确——访存未执行。IALIGN 为精确异常——取指前检测 IP[1:0] ≠ 00，IP 停留在非法地址。浮点指令不触发异常，始终按 IEEE 754 标准返回结果，异常状态记录在 rf0[4:0] 中。
 
@@ -1031,6 +1031,8 @@ inner_inst_pointer           <= cfx_⟨cfxname⟩_excp_cause_ip + (imms18 << 2)
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.7.3-rc（未发布）
+
+- 异步中断 cause 号由 `[15:0]`（`TIMER = 1<<10`、`PMEM_DMA = 1<<8`）改为**宏 cause 空间 `[31:16]`**（`TIMER = 1<<17`、`PMEM_DMA = 1<<18`），解决 monitor-first（异步先入当前运行模式 monitor）下与同步 cause（`RASOF = 1<<10`、`ILLI = 1<<8`）撞号；`[31:16]` 宏 cause 与 `[15:0]` 同步 one-hot 互斥、跨 cfx 全局编号。`§3.6`/`§4.7`/`§4.9`/`§5.2` 同步；`cause_info` 语义不变（TIMER=0、PMEM_DMA=`dma_status`）。
 
 - `cfx_cache`（cfx5）的寄存器与命令语义重定义：`cache_exist`/`cache_enable` 的位定义补为 **bit0 = I、bit1 = D**；`cache_ctrl` 由旧的 bit0/bit1/bit2 数值编码改为 `[1:0]` 操作（`none`/`clean`/`invalidate`/`flush`）+ `[3:2]` 范围（`all`/`PA 单行`/`PA 区间`/reserved）+ `[15:14]` 选择（bit15 = I、bit14 = D）；新增 `cache_addr_start`（完整 56 位物理地址 `PA[55:0]`，`[63:56]` 保留）与 `cache_addr_size`（字节数），范围匹配按 56 位 PA 比较。维护命令同步完成、per-hart；两侧全选时先 I 后 D；I 侧 `clean` 为 no-op；`invalidate` 丢弃脏数据且不写警告、不报异常；`cache_enable` 对应位为 0 时该侧不被维护（编码与 `addr_size` 的校验不受使能影响）；不可缓存/MMIO 的 PA 无效果、不报异常。异常原因表不变。
 

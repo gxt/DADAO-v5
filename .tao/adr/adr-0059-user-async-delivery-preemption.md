@@ -1,7 +1,7 @@
 # ADR-0059: 用户态异步投递与抢占完整修复（monitor-first 对齐 + 内核路径）
 
 **状态**：Proposed
-**日期**：2026-11-22（R2：按 monitor-first 重写）
+**日期**：2026-11-22（R2：monitor-first 重写）／2026-11-23（R3：异步 cause 号 17/18）
 **关联**：`ISS-500`、`ISS-498`（`m18-linux-004`）；`m18-linux-013`、`m18-qemu-002`；`spec/DADAO-12 §5.2（三）（四）（五）`、`§3.6`（cg5）、`§3.1/§3.3`（mask 行）、`§4.7/§4.9`（TIMER/PMEM_DMA）；`contract-see §3/§6.3/§6.4`；`ADR-0045 D3/D9`、`ADR-0042 D7.4`；`m14-spec-009`
 
 ## Context（背景）
@@ -23,14 +23,14 @@
 **事实**：
 
 - spec `§5.2`（三）（四）（五）为 monitor-first（如上）；`§3.6` `cg5 rc5 excp_pending` RW、`rc0/rc1/rc3` RW、`rc2/rc4` HW（软件不可写）。
-- monitor 自身同步原因表（`§4.1 cfx_umon`，`§4.3 cfx_smon` 同构）**不含** TIMER/PMEM_DMA：`1<<8 = ILLI`、`1<<10 = RASOF`；而源 cfx 的 `1<<10 = TIMER`（`§4.7`）、`1<<8 = PMEM_DMA`（`§4.9`）。
+- monitor 自身同步原因表（`§4.1 cfx_umon`，`§4.3 cfx_smon` 同构）只含 `[15:0]` 同步 cause（`1<<8 = ILLI`、`1<<10 = RASOF`）；**异步源 cause 号已定（用户 2026-11-23）**：`1<<17` = TIMER（`§4.7`）、`1<<18` = PMEM_DMA（`§4.9`），落在 `[31:16]` 宏 cause 空间、跨 cfx 全局编号，与 `[15:0]` 同步 cause 不撞号。
 - `m18-linux-004` 注入：只去 user 行屏蔽 ⇒ 200/200 绿；两行都去 ⇒ 4/200 未进用户态。supv 窗口屏蔽被证明必要；user 行屏蔽必要性未复现。
 - 现有 umon 入口（kernel `trap.S`/`process.c`/`entry_common.c`）已具备：捕获进 `task_pt_regs(current)`（`dadao_umon_adopt`）、阻塞 syscall 可 sleep、return-to-user 工作循环（`dadao_trap_exit` 走 `irqentry_exit_to_user_mode_prepare`）。
 
 **推断**：
 
 - 「jiffies 滞后」是从 mask 状态 + 契约推出，未端到端实测（D6 门控补）。
-- monitor-first 下「同步/异步共享 monitor 向量、按 `excp_cause_id` 区分」是 `§5.2` 步骤 1/7 的直接推论，但 cause 编号碰撞（下）spec 未明文。
+- monitor-first 下「同步/异步共享 monitor 向量、按 `excp_cause_id` 区分」依赖 `[31:16]` 宏 cause（17/18）与 `[15:0]` 同步 one-hot 的互斥，已由 17/18 裁定成立。
 
 ## Decision（决策）
 
@@ -44,7 +44,7 @@
 
 ### D2 mask/pending 在 monitor；user 行策略；supv 窗口屏蔽保留；内核态不调度
 
-- 两级 mask（`<mode>_cfx_intr_mask` + `global_cfx_intr_mask`）与 delivery pending（`cg5 rc5`）都按**当前运行模式 monitor**；mask 位索引 = **来源 cfxha**（TIMER=15、PMEM_DMA=32），pending 位 = 源 cause id（`1<<10`/`1<<8`）。
+- 两级 mask（`<mode>_cfx_intr_mask` + `global_cfx_intr_mask`）与 delivery pending（`cg5 rc5`）都按**当前运行模式 monitor**；mask 位索引 = **来源 cfxha**（TIMER=15、PMEM_DMA=32），pending 位 = 源 cause id（**`1<<17`/`1<<18`**，`[31:16]` 宏 cause 空间，与 `[15:0]` 同步 cause 不撞号）。
 - **user 行策略**：`cfx_umon cg0 rc4` 按源位（bit15 TIMER）打开，`dadao_enter_user()` **永不写 `~0`**（去掉该行屏蔽）；supv 窗口屏蔽（`cfx_smon cg2 rc4`，经 `arch_local_irq_disable`）**保留**，覆盖「用户寄存器已恢复、`trap` 未执行」的窗口。
 - **内核态（supv）不调度**：supv 异步 handler 走非调度的 `irq_enter_rcu`/`irq_exit_rcu` + `dadao_timer_interrupt()`，不在 monitor 帧内 `schedule()`；抢占/信号只在返回用户态时消费（D3）。
 
@@ -102,12 +102,12 @@ R1 曾以「early escape」为主路径，根源是 target-first 下异步帧落
 ## 待确认（≤6，返回主会话）
 
 1. **D0 确认**：monitor-first 作为唯一投递模型（否 target-first/H3），spec 为真源。
-2. **cause 编号碰撞**：异步投递时 monitor 帧 `excp_cause_id` = 源 cfx 的 cause 号（`TIMER=1<<10` 撞 monitor 的 `RASOF`、`PMEM_DMA=1<<8` 撞 `ILLI`），spec 未明文「软件如何区分异步源」——确认按「异步入口 + monitor `cg5 rc5` pending 位」区分，或需 spec 补明文化（本 ADR/任务不改 spec）。
+2. **cause 编号（已定，2026-11-23 用户裁定）**：异步源 cause 号 = **`1<<17`（TIMER）/`1<<18`（PMEM_DMA）**，落在 `[31:16]` 宏 cause 空间，与 `[15:0]` 同步 cause（`RASOF=1<<10`、`ILLI=1<<8`）不撞号——本项已由用户裁定落地，不再待确认。
 3. **内核态不调度**：确认 supv 异步 handler 用非调度的 `irq_enter_rcu`/`irq_exit_rcu`，抢占/信号只在返回用户态时消费（D2/D3）。
 4. **D6 探针观测机制**：单核 + 忙循环无 syscall 时 jiffies 可见的观测手段（`/proc/uptime` 由第二任务/harness 读，或 tick handler semihosting 导出）需工程师细化。
-5. **版本号**：contract/adr 内容已对齐 monitor-first，版本号是否升号（`check-spec-drift` 约束）待用户认可。
+5. **版本号**：contract/adr/spec 内容已对齐 monitor-first + 17/18，版本号是否升号（`check-spec-drift` 约束）待用户认可。
 6. **排队/时序**：确认 `m16-qemu-002 → m18-qemu-002 → m16-qemu-003 → m16-testcases-009`，`m18-qemu-002` 在 003 前合入。
 
 ## 状态说明
 
-2026-11-22 R2：用户裁定 spec 已是 monitor-first、contract/adr 未及时同步，按 monitor-first 重写本 ADR（R1 的 early-escape 方案作废）。状态 **Proposed**：D0–D8 + 待确认 6 条待用户逐条确认，确认后转 **Accepted**，随后派 `m18-qemu-002`（QEMU）与 `m18-linux-013`（kernel）。
+2026-11-22 R2：用户裁定 spec 已是 monitor-first、contract/adr 未及时同步，按 monitor-first 重写本 ADR（R1 的 early-escape 方案作废）。2026-11-23 R3：用户裁定异步 cause 号改 **17/18**（`[31:16]` 宏 cause 空间），解决与同步 cause 撞号，spec/contract/adr/tasks 已同步。状态 **Proposed**：D0–D8 + 待确认（#2 已定）待用户逐条确认，确认后转 **Accepted**，随后派 `m18-qemu-002`（QEMU）与 `m18-linux-013`（kernel）。

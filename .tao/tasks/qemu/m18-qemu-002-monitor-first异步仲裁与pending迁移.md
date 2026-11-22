@@ -17,11 +17,11 @@
 
 ## 目标
 
-1. **仲裁改为当前 mode monitor**：`dadao_async_arbitrate()` 投递目标 = 当前运行模式 monitor（`inner_run_mode` → umon/jmon/smon/hmon），`cfx_enter(async)` 的 `target` 传 monitor、`cause` 传源 cause id。
-2. **pending 迁到 monitor `cg5 rc5`**：被 mask 屏蔽时置 monitor 的 `excp_pending`（位 = 源 cause id `1<<10`/`1<<8`），不再记源 cfx；投递成功清位、软件写 0 取消（只有 monitor 这一份 delivery 记录）。
-3. **两级 mask 仍按 monitor**：`<mode>_cfx_intr_mask` 与 `global_cfx_intr_mask` 都查当前 mode monitor，位索引 = 来源 cfxha（TIMER=15、PMEM_DMA=32）。
+1. **仲裁改为当前 mode monitor**：`dadao_async_arbitrate()` 投递目标 = 当前运行模式 monitor（`inner_run_mode` → umon/jmon/smon/hmon），`cfx_enter(async)` 的 `target` 传 monitor、`cause` 传源 cause id（宏 cause **`1<<17`（TIMER）/`1<<18`（PMEM_DMA）**）。
+2. **pending 迁到 monitor `cg5 rc5`**：被 mask 屏蔽时置 monitor 的 `excp_pending`（位 = 源 cause id **`1<<17`/`1<<18`**），不再记源 cfx；投递成功清位、软件写 0 取消（只有 monitor 这一份 delivery 记录）。
+3. **两级 mask 仍按 monitor**：`<mode>_cfx_intr_mask` 与 `global_cfx_intr_mask` 都查当前 mode monitor，位索引 = 来源 cfxha（TIMER=15、PMEM_DMA=32；**不是** cause 位 17/18）。
 4. **同源 OR/补投/单层投递**：同源屏蔽期重复事件按单 bit OR 合并；mask 写/`escape`/新源事件后重踢补投；每次至多投递一个源（按源 cfxha 升序），不嵌套。
-5. **更新探针/归档**：`min_rom_probe_integ051t`、K2/K5 异步探针、`tests/arch/vast-arch-inventory.md`、QEMU changelog 对齐 monitor-first。
+5. **cause 号 17/18 落地**：`DADAO_CAUSE_TIMER` 由 `1<<10` 改 `1<<17`、`DADAO_CAUSE_PMEM_DMA` 由 `1<<8` 改 `1<<18`（`cpu.h`）；`dadao_cause_check` 的「`[31:16]` 必须全 0」放行 17/18；同步更新 `min_rom_probe_integ051t` 的 cause 常量、K2/K5 异步探针、`tests/arch/vast-arch-inventory.md` 的 cause 条目、QEMU changelog（**只改 cause 语义处，不动 mask 位索引 15/32**）。
 
 ## 验收（逐条贴真实 rc）
 
@@ -29,19 +29,19 @@
 2. **可达 FAIL ≥3 路**（`cp`+md5 还原 + 重建）：① 仲裁目标仍传源 cfx ⇒ 探针红；② pending 仍记源 cfx ⇒ 探针红；③ 两级 mask 未按 monitor（按源 cfx 行）⇒ 探针红。
 3. **既有 M16 cfx5/cache 代表集不回归**：`check-qemu-*` 既有 qemu 门控 rc=0；异步 pending 迁移后 K2/K5 异步探针更新且可达 FAIL。
 4. 不回归：`check-patch-tree` qemu 段与基线**逐行相同**（0 problem）；`check-component-changelog`、`check-knowledge-refs` rc=0；`make check` 与基线逐行相同。
-5. `min_rom_probe_integ051t`、`tests/arch/vast-arch-inventory.md` 更新为 monitor-first 表述；完成区 ≤30 行；状态 → `待验收`。
+5. `min_rom_probe_integ051t`、`tests/arch/vast-arch-inventory.md` 更新为 monitor-first + cause 17/18 表述（只改 cause 语义，不动 mask 位索引 15/32）；完成区 ≤30 行；状态 → `待验收`。
 
 ## 硬约束
 
 1. 独立 worktree；不提交 git；证据脚本 = 运行期证据目录内 `run.sh`。
 2. 只动：`components/qemu/**`（补丁 + changelog）、`tests/arch/**`（探针与归档）、`tests/unit/qemu/**`、`.tao/knowledge/issues.yaml`、本任务书。
-3. **不改** `spec/`、`.tao/contracts/`（monitor-first 对齐已由架构师同笔完成，本任务不改）、`Makefile`、`components/linux/**`、`components/musl/**`；不改版本号。
+3. **不改** `spec/`、`.tao/contracts/`（monitor-first + cause 17/18 对齐已由架构师同笔完成，本任务不改）、`Makefile`、`components/linux/**`、`components/musl/**`；不改版本号。
 4. **排队**：`m16-qemu-002 → m18-qemu-002 → m16-qemu-003 → m16-testcases-009`；本任务**必须在 `m16-qemu-003` 之前合入**，且**不得与 `m16-qemu-002` 并发写 `components/qemu`**。合入后 M16 的 003/009 基于新模型重跑（其依赖/背景已由主会话标注，本任务不改那两份 M16 任务书）。
 5. 源码还原一律 `cp`+md5；禁 `git checkout`/`restore`/`stash`；还原后重建。
 
 ## 待裁定
 
-- `ADR-0059` 待确认 2（异步投递时 monitor 帧 `excp_cause_id` = 源 cause 号，与 monitor 自身 `RASOF`/`ILLI` 同号不同义）；QEMU 侧如何记录/暴露「异步源身份」须与该裁定一致，确认后才派单。
+- `ADR-0059` 已定：异步 cause 号 = `1<<17`（TIMER）/`1<<18`（PMEM_DMA），落在 `[31:16]` 宏 cause 空间，与 monitor 同步 cause（`RASOF`/`ILLI`）不撞号（用户 2026-11-23 裁定）；QEMU 侧 `DADAO_CAUSE_TIMER`/`DADAO_CAUSE_PMEM_DMA` 常量与 `dadao_cause_check` 的 `[31:16]` 放行相应落地。无未决项阻塞派单。
 
 ## 完成区
 

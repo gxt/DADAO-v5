@@ -19,7 +19,7 @@ monitor-first 使异步帧天然落在 monitor 的 switch-safe 帧上：用户�
 
 ## 方案（按 ADR-0059 D1–D3）
 
-1. **umon 异步入口**（D1）：用户态异步投递进 `cfx_umon`（user 行 `cg0 rc10`），与用户 `trap cfx_umon, 0` 同向量同帧；`dadao_umon_excp` 入口按 `excp_cause_id` 区分异步（`1 << 10` = TIMER）与同步（CFXTRAP=syscall / CFXMEM 等 fault），异步走本任务的 handler。内核态投递进 `cfx_smon`（supv 行 `cg2 rc10`），supv handler 非调度。
+1. **umon 异步入口**（D1）：用户态异步投递进 `cfx_umon`（user 行 `cg0 rc10`），与用户 `trap cfx_umon, 0` 同向量同帧；`dadao_umon_excp` 入口按 `excp_cause_id` 区分异步（`1 << 17` = TIMER，`[31:16]` 宏 cause）与同步（CFXTRAP=syscall / CFXMEM 等 fault），异步走本任务的 handler。内核态投递进 `cfx_smon`（supv 行 `cg2 rc10`），supv handler 非调度。
 2. **user 行策略 + supv 窗口屏蔽**（D2）：`cfx_umon cg0 rc4` 按源位（bit15 TIMER）打开，`dadao_enter_user()` **去掉 `~0` 写**（保留 `dadao_user_entry_install()` 的开源位或按源位重写）；supv 窗口屏蔽（`cfx_smon cg2 rc4` 经 `arch_local_irq_disable`）**保留**。
 3. **irqentry 退出工作循环 + 抢占/信号**（D3）：用户态异步 handler 走 `irqentry_enter(regs)` → `dadao_timer_interrupt()`（`tick_handle_periodic`）→ `irqentry_exit(regs, state)`；`regs->status = user` ⇒ `irqentry_exit` 走 `irqentry_exit_to_user_mode_prepare()` + `exit_to_user_mode()` 消费 `_TIF_NEED_RESCHED`/`_TIF_SIGPENDING`，复用 `entry_common.c` 的 `dadao_exit_tail`。supv 异步 handler 用非调度的 `irq_enter_rcu`/`irq_exit_rcu` + `dadao_timer_interrupt()`。
 4. **移除 `cfx_hart` 向量依赖**：`irq.c` 不再装 `cfx_hart` 的 supv/user 向量；`dadao_async_excp`（`cfx_hart` 独立入口）移除或折叠进 monitor 入口。
@@ -38,14 +38,14 @@ monitor-first 使异步帧天然落在 monitor 的 switch-safe 帧上：用户�
 
 1. 独立 worktree；不提交 git；证据脚本 = 运行期证据目录内 `run.sh`。
 2. 只动：`components/linux/patches/**`（`process.c`/`async_trap.S`/`time.c`/`entry_common.c`/`irq.c`/`trap.S` 及必要头）、`components/linux/changelog.md`、`tests/unit/linux/**`、`tools/linux/**`、`.tao/knowledge/issues.yaml`、本任务书。
-3. **不改** `spec/`、`.tao/contracts/`（monitor-first 内容对齐已由架构师同笔完成，本任务不改）、`Makefile`、`components/qemu/**`、`components/musl/**`；语义/契约变更须先经用户确认。
+3. **不改** `spec/`、`.tao/contracts/`（monitor-first + cause 17/18 内容对齐已由架构师同笔完成，本任务不改）、`Makefile`、`components/qemu/**`、`components/musl/**`；语义/契约变更须先经用户确认。
 4. 组件补丁经 `make_patch.py linux` 重导；不改版本号；术语「bank = 寄存器组」；大端/64 KiB 页/`IP=当前指令` 口径按 `MEMORY.md`。
 5. 禁以「重试直到绿」掩盖竞态；启动稳定性按批次统计并披露频率。
 6. 源码还原一律 `cp`+md5；禁 `git checkout`/`restore`/`stash`；还原后重建。
 
 ## 待裁定
 
-- `ADR-0059` 待确认 2（异步投递时 monitor 帧 `excp_cause_id` = 源 cause 号，与 monitor 自身 `RASOF`/`ILLI` 同号不同义——软件区分方式须用户确认或 spec 明文化）；确认后才派单。
+- `ADR-0059` 已定：异步 cause 号 = `1<<17`（TIMER）/`1<<18`（PMEM_DMA），落在 `[31:16]` 宏 cause 空间，与 monitor 同步 cause（`RASOF`/`ILLI`）不撞号（用户 2026-11-23 裁定）；kernel 侧 `DADAO_CAUSE_TIMER` 常量相应改 `1<<17`。无未决项阻塞派单。
 
 ## 完成区
 
