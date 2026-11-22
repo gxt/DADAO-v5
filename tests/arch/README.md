@@ -48,14 +48,24 @@ python3 tests/arch/run_arch.py --list
 |------|-----|------|
 | `run_arch.py` | — | 唯一驱动（`--cfx/--platforms/--cache-model/--level/--self-test/--list`） |
 | `common/` | — | arch 内共享薄壳：`signature.py` 转调 `tests/shared/signature.py`；`platform.py` 的 qemu/gem5（driver 经 shim）/chipyard（fail-closed）后端 |
-| `common/env/` | — | **运行模式环境**（`hmon/`、`smon/`、`umon/`、`env.lds`）：进入模式、栈、异常向量、退出与签名区；body 与模式解耦（`m16-testcases-015`，见其 `README.md` / `MIGRATION.md`） |
-| `data/` | — | scope 内入库数据（三平台 cfx 盘点矩阵），不成册、不进 `tests/arch.yaml` |
+| `common/env-{hmon,smon,umon}/` | — | **运行模式环境**（每个模式一个目录，`env.S`；共享 `common/env.lds`）：进入模式、栈、异常向量、退出与签名区；body 与模式解耦（`m16-testcases-015`，见 `common/env-README.md` / `MIGRATION.md`） |
 | `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.s`，10 条）+ `expected.yaml`；代表迁移用例 `mode_regs.body.S` + 驱动 `check_mode_env.py`（`arch-umon-011`，三模式） |
 | `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针：载体/生成器 `carrier_tlb.py`（`m16-testcases-010` 由 `tools/testcases/arch/` 迁入）、期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §）、驱动型入口 `check_tlb.py`（`kind: driver`）；QEMU 与 gem5（shim）逐条跑，RTL 由 `m16-chipyard-018` |
 | `cache/` | `cfx5`（cache） | 寄存器面 RTL 探针 `cfx5_regs.S` + `check_cfx5_regs.py`（`m16-chipyard-016`）；只测寄存器，不测阵列/维护命令效果；暂未登记 `tests/arch.yaml`（chipyard 后端仍 fail-closed） |
 
 其余 cfx 按已有用例增建（`smon/`、`hmon/`、`cache/`、`hart/`、`pmem/`、`time/`、
 `power/`）；**不建**空壳子目录。Tiny 的 hmon 用例已迁出 arch（见下）。
+
+## 命名规范
+
+- 目录：`tests/arch/<cfx>/`，cfx 名用 `DADAO-12 §3`（`umon/smon/hmon/ptw/cache/hart/pmem/time/power`）；**不建** `data/` 子目录。
+- 汇编载体：`<prefix>_<name>.S`（统一大写 `.S`，即使不预处理）；历史 `m5_*` 前缀保留。
+- 链接脚本：`<prefix>_<name>.lds`。
+- 驱动：`check_<prefix>_<name>.py`；生成器：`gen_<prefix>_<name>.py`；载体：`<cfx>_<name>.py`。
+- body：`<prefix>_<name>.body.S`；env：`common/env-{hmon,smon,umon}/env.S`，共享 `common/env.lds`。
+- 期望：`<cfx>/expected.yaml`；全局差异：`tests/arch/expected-divergences.yaml`；模式/权限元数据：`tests/arch/modes.yaml`。
+- **禁止**：`data/` 子目录；`tools/` 下新增 arch 专用脚本；随意名（`carrier_*`、`mode_regs.body.S` 等）；新增用例必须登记 `tests/arch.yaml`。
+- 根 `tests/arch/README.md` 维护本目录总表；每个 cfx 目录可选一份说明。
 
 ## 索引字段
 
