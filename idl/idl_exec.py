@@ -1250,6 +1250,235 @@ def _op_ctpop(m, insn):
     m.set("rd", dst, bin(src).count("1"))
 
 
+# --- 08/09/10 窄位宽 ALU（SimRISC-08/09/10；m17-idl-008） ------------------
+# 语义逐条取自 `idl/SimRISC-08.idl`/`09`/`10` 对应 `# id:` 段；宽度以 `Bits<N>`
+# 声明与 `contracts/opcodes.yaml` 字段位域为准（U10 未裁：正文已明示「结果宽 =
+# 操作数最大宽、高半丢弃」的按正文执行，不按 UDB/RISC-V 补全）。
+# orri/orrr 两种形式共用一条实现路径，仅「移位量来源」不同。
+_NARROW_MASK = {8: 0xFF, 16: 0xFFFF, 32: 0xFFFF_FFFF}
+
+
+def _narrow_dst(insn):
+    # 附录 B dst_rd0：目的 rdHB = rd0 ⇒ ILLI。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    return dst
+
+
+def _narrow_src(m, insn, bits):
+    # 源取低 bits 位；rd0 读出 0（先读后写：两源在任何写回之前捕获）。
+    mask = _NARROW_MASK[bits]
+    return (m.get("rd", insn["rdhc"]) & mask,
+            m.get("rd", insn["rdhd"]) & mask)
+
+
+def _narrow_ext(value, bits, signed):
+    # .s 变体按 bit(bits−1) 符号扩展到 64 位；.u 变体零扩展。
+    return _sext(value, bits) & MASK64 if signed else value & _NARROW_MASK[bits]
+
+
+def _narrow_addsub(m, insn, bits, signed, sub):
+    # SimRISC-08 §1.1 / 09 §1.1 / 10 §1.1：按 size 运算，溢出/借位静默丢弃。
+    dst = _narrow_dst(insn)
+    a, b = _narrow_src(m, insn, bits)
+    r = (a - b if sub else a + b) & _NARROW_MASK[bits]
+    m.set("rd", dst, _narrow_ext(r, bits, signed))
+
+
+def _narrow_cmp(m, insn, bits, signed):
+    # SimRISC-08 §1.2 / 09 §1.2 / 10 §1.2：结果 −1/0/+1 写满 64 位。
+    dst = _narrow_dst(insn)
+    a, b = _narrow_src(m, insn, bits)
+    if signed:
+        a, b = _sext(a, bits), _sext(b, bits)
+    m.set("rd", dst, MASK64 if a < b else (0 if a == b else 1))
+
+
+def _narrow_mul(m, insn, bits, signed):
+    # SimRISC-08 §1.3 / 09 §1.3 / 10 §1.3：积只保留低 bits 位，再按 .s/.u 扩展。
+    dst = _narrow_dst(insn)
+    a, b = _narrow_src(m, insn, bits)
+    r = (a * b) & _NARROW_MASK[bits]
+    m.set("rd", dst, _narrow_ext(r, bits, signed))
+
+
+def _narrow_div(m, insn, bits, signed):
+    # SimRISC-08/09/10 §1.3 + SimRISC-04 §1.4 定值表：
+    # 除零 .u ⇒ 全 1（低位宽全 1）；.s ⇒ −1，INT_MIN ÷ −1 ⇒ INT_MIN；均不抛异常。
+    dst = _narrow_dst(insn)
+    mask = _NARROW_MASK[bits]
+    a, b = _narrow_src(m, insn, bits)
+    if b == 0:
+        m.set("rd", dst, MASK64 if signed else mask)
+        return
+    if signed and a == 1 << (bits - 1) and b == mask:
+        m.set("rd", dst, _sext(a, bits) & MASK64)
+        return
+    if signed:
+        sa, sb = _sext(a, bits), _sext(b, bits)
+        q = abs(sa) // abs(sb)              # 向零截断
+        r = -q if (sa < 0) != (sb < 0) else q
+    else:
+        r = a // b
+    m.set("rd", dst, _narrow_ext(r & mask, bits, signed))
+
+
+def _narrow_rem(m, insn, bits, signed):
+    # 除零 .u ⇒ 被除数（零扩展）；.s ⇒ 被除数（符号扩展），INT_MIN % −1 ⇒ 0；
+    # 其余向零截断，余数符号 = 被除数符号（C99）。
+    dst = _narrow_dst(insn)
+    mask = _NARROW_MASK[bits]
+    a, b = _narrow_src(m, insn, bits)
+    if b == 0:
+        m.set("rd", dst, _narrow_ext(a, bits, signed))
+        return
+    if signed and a == 1 << (bits - 1) and b == mask:
+        m.set("rd", dst, 0)
+        return
+    if signed:
+        sa, sb = _sext(a, bits), _sext(b, bits)
+        r = abs(sa) % abs(sb)
+        if sa < 0:
+            r = -r
+    else:
+        r = a % b
+    m.set("rd", dst, _narrow_ext(r & mask, bits, signed))
+
+
+def _narrow_shift(m, insn, bits, kind):
+    # SimRISC-08 §2 / 09 §2 / 10 §2：orri 立即数（immu6 > N ⇒ ILLI）与 orrr
+    # 寄存器（取 rdHD 低 log2(bits) 位，高位忽略、不抛 ILLI）共用本路径。
+    dst = _narrow_dst(insn)
+    mask = _NARROW_MASK[bits]
+    if "immu6" in insn.fields:
+        sh = insn["immu6"]
+        if sh > bits - 1:                  # N = size − 1；immu6 高位为 SBZ
+            raise Fault("Illegal")
+    else:
+        sh = m.get("rd", insn["rdhd"]) & (bits - 1)
+    v = m.get("rd", insn["rdhc"]) & mask
+    if kind == "shl":
+        m.set("rd", dst, (v << sh) & mask)
+    elif kind == "shr.u":
+        m.set("rd", dst, v >> sh)
+    else:  # shr.s：块内算术右移，目的高半同样符号扩展 bit(bits−1)
+        m.set("rd", dst, _narrow_ext((_sext(v, bits) >> sh) & mask,
+                                     bits, True))
+
+
+def _narrow_rol(m, insn, bits):
+    # SimRISC-08 §2.2 / 09 §2.2 / 10 §2.2：块内循环左移，只一个方向；
+    # dup 右移 bits−shamt 取低 bits（shamt = 0 时右移量 = bits，不越界）。
+    dst = _narrow_dst(insn)
+    mask = _NARROW_MASK[bits]
+    if "immu6" in insn.fields:
+        sh = insn["immu6"]
+        if sh > bits - 1:                  # N = size − 1；immu6 高位为 SBZ
+            raise Fault("Illegal")
+    else:
+        sh = m.get("rd", insn["rdhd"]) & (bits - 1)
+    v = m.get("rd", insn["rdhc"]) & mask
+    dup = v | (v << bits)
+    m.set("rd", dst, (dup >> (bits - sh)) & mask)
+
+
+def _rev_units(x, block, unit):
+    """64 位源按 block 位分块，块内按 unit 位反转单元顺序（单元内位序不变）。"""
+    out = 0
+    per_block = block // unit
+    for base in range(0, 64, block):
+        for i in range(block):
+            unit_no, off = divmod(i, unit)
+            pos = base + (per_block - 1 - unit_no) * unit + off
+            if (x >> (base + i)) & 1:
+                out |= 1 << pos
+    return out
+
+
+def _narrow_rev(m, insn, block, legal):
+    # SimRISC-08 §2.1 / 09 §2.1 / 10 §2.1：k 须 one-hot 且 k < S（否则 ILLI）；
+    # 各块同法处理（不是 64 位整体反序）。
+    dst = _narrow_dst(insn)
+    k = insn["immu6"]
+    if k not in legal:
+        raise Fault("Illegal")
+    m.set("rd", dst, _rev_units(m.get("rd", insn["rdhc"]), block, k))
+
+
+def _sem_params(ids, fn, **kw):
+    """按族参数化注册：同一实现路径，仅宽度/符号/形式不同（重复注册仍报错）。"""
+    def op(m, insn):
+        fn(m, insn, **kw)
+    for op_id in ids:
+        if op_id in SEMANTICS:
+            raise ExecError("duplicate semantics for %s" % op_id)
+        SEMANTICS[op_id] = op
+    return op
+
+
+# 08-arith-logic-tetra（32 位；add.st 已在上面单独实现）
+_sem_params(("add.ut_orrr_rd",), _narrow_addsub, bits=32, signed=False, sub=False)
+_sem_params(("sub.ut_orrr_rd",), _narrow_addsub, bits=32, signed=False, sub=True)
+_sem_params(("sub.st_orrr_rd",), _narrow_addsub, bits=32, signed=True, sub=True)
+_sem_params(("cmp.ut_orrr_rd",), _narrow_cmp, bits=32, signed=False)
+_sem_params(("cmp.st_orrr_rd",), _narrow_cmp, bits=32, signed=True)
+_sem_params(("mul.ut_orrr_rd",), _narrow_mul, bits=32, signed=False)
+_sem_params(("mul.st_orrr_rd",), _narrow_mul, bits=32, signed=True)
+_sem_params(("div.ut_orrr_rd",), _narrow_div, bits=32, signed=False)
+_sem_params(("div.st_orrr_rd",), _narrow_div, bits=32, signed=True)
+_sem_params(("rem.ut_orrr_rd",), _narrow_rem, bits=32, signed=False)
+_sem_params(("rem.st_orrr_rd",), _narrow_rem, bits=32, signed=True)
+_sem_params(("shl.t_orri_rd", "shl.t_orrr_rd"), _narrow_shift, bits=32, kind="shl")
+_sem_params(("shr.ut_orri_rd", "shr.ut_orrr_rd"), _narrow_shift, bits=32,
+            kind="shr.u")
+_sem_params(("shr.st_orri_rd", "shr.st_orrr_rd"), _narrow_shift, bits=32,
+            kind="shr.s")
+_sem_params(("rol.t_orri_rd", "rol.t_orrr_rd"), _narrow_rol, bits=32)
+_sem_params(("rev.t_orri_rd",), _narrow_rev, block=32, legal=(1, 2, 4, 8, 16))
+
+# 09-arith-logic-wyde（16 位）
+_sem_params(("add.sw_orrr_rd",), _narrow_addsub, bits=16, signed=True, sub=False)
+_sem_params(("add.uw_orrr_rd",), _narrow_addsub, bits=16, signed=False, sub=False)
+_sem_params(("sub.sw_orrr_rd",), _narrow_addsub, bits=16, signed=True, sub=True)
+_sem_params(("sub.uw_orrr_rd",), _narrow_addsub, bits=16, signed=False, sub=True)
+_sem_params(("cmp.sw_orrr_rd",), _narrow_cmp, bits=16, signed=True)
+_sem_params(("cmp.uw_orrr_rd",), _narrow_cmp, bits=16, signed=False)
+_sem_params(("mul.sw_orrr_rd",), _narrow_mul, bits=16, signed=True)
+_sem_params(("mul.uw_orrr_rd",), _narrow_mul, bits=16, signed=False)
+_sem_params(("div.sw_orrr_rd",), _narrow_div, bits=16, signed=True)
+_sem_params(("div.uw_orrr_rd",), _narrow_div, bits=16, signed=False)
+_sem_params(("rem.sw_orrr_rd",), _narrow_rem, bits=16, signed=True)
+_sem_params(("rem.uw_orrr_rd",), _narrow_rem, bits=16, signed=False)
+_sem_params(("shl.w_orri_rd", "shl.w_orrr_rd"), _narrow_shift, bits=16, kind="shl")
+_sem_params(("shr.uw_orri_rd", "shr.uw_orrr_rd"), _narrow_shift, bits=16,
+            kind="shr.u")
+_sem_params(("shr.sw_orri_rd", "shr.sw_orrr_rd"), _narrow_shift, bits=16,
+            kind="shr.s")
+_sem_params(("rol.w_orri_rd", "rol.w_orrr_rd"), _narrow_rol, bits=16)
+_sem_params(("rev.w_orri_rd",), _narrow_rev, block=16, legal=(1, 2, 4, 8))
+
+# 10-arith-logic-byte（8 位；add.ub 已在上面单独实现）
+_sem_params(("add.sb_orrr_rd",), _narrow_addsub, bits=8, signed=True, sub=False)
+_sem_params(("sub.sb_orrr_rd",), _narrow_addsub, bits=8, signed=True, sub=True)
+_sem_params(("sub.ub_orrr_rd",), _narrow_addsub, bits=8, signed=False, sub=True)
+_sem_params(("cmp.sb_orrr_rd",), _narrow_cmp, bits=8, signed=True)
+_sem_params(("cmp.ub_orrr_rd",), _narrow_cmp, bits=8, signed=False)
+_sem_params(("mul.sb_orrr_rd",), _narrow_mul, bits=8, signed=True)
+_sem_params(("mul.ub_orrr_rd",), _narrow_mul, bits=8, signed=False)
+_sem_params(("div.sb_orrr_rd",), _narrow_div, bits=8, signed=True)
+_sem_params(("div.ub_orrr_rd",), _narrow_div, bits=8, signed=False)
+_sem_params(("rem.sb_orrr_rd",), _narrow_rem, bits=8, signed=True)
+_sem_params(("rem.ub_orrr_rd",), _narrow_rem, bits=8, signed=False)
+_sem_params(("shl.b_orri_rd", "shl.b_orrr_rd"), _narrow_shift, bits=8, kind="shl")
+_sem_params(("shr.ub_orri_rd", "shr.ub_orrr_rd"), _narrow_shift, bits=8,
+            kind="shr.u")
+_sem_params(("shr.sb_orri_rd", "shr.sb_orrr_rd"), _narrow_shift, bits=8,
+            kind="shr.s")
+_sem_params(("rol.b_orri_rd", "rol.b_orrr_rd"), _narrow_rol, bits=8)
+_sem_params(("rev.b_orri_rd",), _narrow_rev, block=8, legal=(1, 2, 4))
+
+
 # --- 04（跨册依赖）/ 05-arith-addr ---------------------------------------
 @sem("ext.uo_orri_rd")
 def _op_ext_uo_orri(m, insn):

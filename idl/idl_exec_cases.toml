@@ -9,8 +9,8 @@
 #   {[[case]].image} == {tests/inst/*/*.S} − {07-floating-point} − {[[pending]].image}
 # `m17-idl-006` 已迁入 `00`/`01`/`02`/`05`/`06`/`11` 六册全部镜像（`00` 册为已登记的
 # `pseudo_set.*` 与 `undi_reserved`）；`m17-idl-007` 已迁入 `04` 整册、`12-misc` 整册与
-# 00 册 `atomic_rmw`（其被测 id 属 12 册）；其余册随 `008` 扩语义后迁入，
-# `m17-idl-009` 收口时 `pending` 清零。
+# 00 册 `atomic_rmw`（其被测 id 属 12 册）；`m17-idl-008` 已迁入 `03`/`08`/`09`/`10`
+# 四册全部镜像（`03` 为剩余 6 个已注册 id 的镜像），`pending` 清零。
 # FP 册（`07-floating-point`）不在阶段一范围（阶段二 + FP 语义批）。
 
 # ── 主清单：镜像 → 类别 ────────────────────────────────────────────────────
@@ -662,326 +662,275 @@ category = "arith"
 image = "tests/inst/00-isa-design/atomic_rmw.S"
 category = "atomic"
 
-# ── pending：暂缓镜像（每条写明镜像 + 原因）────────────────────────────────
-
-
-[[pending]]
+# 03/08/09/10 四册全部镜像（m17-idl-008 迁入；同一 id 一个镜像）
+[[case]]
 image = "tests/inst/03-wyde-imm/andn.w_rwii_rb.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "wyde"
 
-[[pending]]
+[[case]]
 image = "tests/inst/03-wyde-imm/andn.w_rwii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "wyde"
 
-[[pending]]
+[[case]]
 image = "tests/inst/03-wyde-imm/or.w_rwii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "wyde"
 
-[[pending]]
+[[case]]
 image = "tests/inst/03-wyde-imm/set.ow_rwii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "wyde"
 
-[[pending]]
+[[case]]
 image = "tests/inst/03-wyde-imm/set.w_rwii_rf.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "wyde"
 
-[[pending]]
+[[case]]
 image = "tests/inst/03-wyde-imm/set.zw_rwii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "wyde"
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/add.ut_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/cmp.st_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/cmp.ut_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/div.st_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/div.ut_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/mul.st_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/mul.ut_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/rem.st_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/rem.ut_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/rev.t_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/rol.t_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/rol.t_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/shl.t_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/shl.t_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/shr.st_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/shr.st_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/shr.ut_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/shr.ut_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/sub.st_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/08-arith-logic-tetra/sub.ut_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/add.sw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/add.uw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/cmp.sw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/cmp.uw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/div.sw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/div.uw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/mul.sw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/mul.uw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/rem.sw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/rem.uw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/rev.w_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/rol.w_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/rol.w_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/shl.w_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/shl.w_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/shr.sw_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/shr.sw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/shr.uw_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/shr.uw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/sub.sw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/09-arith-logic-wyde/sub.uw_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/add.sb_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/cmp.sb_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/cmp.ub_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/div.sb_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/div.ub_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/mul.sb_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/mul.ub_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/rem.sb_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/rem.ub_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/rev.b_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/rol.b_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/rol.b_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/shl.b_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/shl.b_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/shr.sb_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/shr.sb_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/shr.ub_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/shr.ub_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/sub.sb_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-[[pending]]
+[[case]]
 image = "tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
+category = "arith"
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# ── pending：暂缓镜像（当前为空）────────────────────────────────────────
+# m17-idl-008 已把 03/08/09/10 四册全部镜像迁入主清单；除 `07-floating-point`
+# 外无暂缓镜像，`pending` 段清零（m17-idl-009 收口复核不需再迁清单）。
