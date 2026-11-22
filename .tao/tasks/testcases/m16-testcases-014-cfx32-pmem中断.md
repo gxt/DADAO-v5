@@ -22,6 +22,8 @@
 6. **三方**：QEMU + gem5 先跑；`m16-chipyard-022` 合入后升 RTL 三方，签名逐槽一致。
 7. **未覆盖登记**：跨 cfx 仲裁（timer vs pmem）、uart、多核、嵌套不测。
 
+**H/S/U 三模式**（用户 2026-11-22）：DMA 完成中断的触发/进入/清除应在 `hmon`/`smon`/`umon` 三种运行模式下各跑一次（`run_arch.py --mode`）；权限不允许的模式显式标注 `modes` 排除原因。
+
 ## 不做
 
 - 不做 cfx15 timer（013）；

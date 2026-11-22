@@ -24,6 +24,8 @@
 
 6. **三方用例（B）**：cfx0/2 的 case 定义/期望只写一份；RTL 探针与 QEMU/gem5 后端复用同一 case（非必要不为每个平台写三份载体），由 `check-arch-vast` 按需跑三方。
 
+**H/S/U 三模式**（用户 2026-11-22）：cfx0/2 的寄存器面与权限应在 `hmon`/`smon`/`umon` 三种运行模式下各跑一次（复用 `tests/arch/common/env/`）；020 未合入前，U/S 模式若不可用必须显式标注 `modes` 排除原因，合入后补跑。
+
 ## 不做
 
 - 不补 U/S 模式进入路由（`monitor` 仍固定 hmon）——留给 `m16-chipyard-020`；

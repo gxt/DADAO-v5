@@ -24,6 +24,8 @@
 3. **未覆盖项登记**：在 `tests/arch/` 或任务书列明“未做的完整组合”，不假装全覆盖。
 4. **不回归**：cfx3/4/5 现有语义与 `check-arch` 不回归。
 
+**H/S/U 三模式**（用户 2026-11-22）：fence 用例应经 `tests/arch/common/env/` 在 `hmon`/`smon`/`umon` 三种运行模式下各跑一次（`run_arch.py --mode`）；权限不允许的模式必须显式标注 `modes` 排除原因并 fail-closed。
+
 ## 不做
 
 - 不做全部 cfx × 六位组合的穷举；

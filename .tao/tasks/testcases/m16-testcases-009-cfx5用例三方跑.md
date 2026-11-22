@@ -33,6 +33,8 @@
 
 **可选 / 差异**（登记 `expected-divergences.yaml`）：QEMU 的 cache 时序/替换策略（功能模型不建模）；gem5 的 I-Cache 命中/缺失（性能，不测）；RTL 的预取/I-D 一致性（未实现）。
 
+**H/S/U 三模式**（用户 2026-11-22）：本任务的用例应经 `tests/arch/common/env/` 在 `hmon`/`smon`/`umon` 三种运行模式下各跑一次（`run_arch.py --mode`）；权限不允许的模式必须显式标注 `modes` 排除原因并 fail-closed，不得静默只跑 hmon。
+
 ## 不做
 
 - 不改平台实现；不改 cache 几何；

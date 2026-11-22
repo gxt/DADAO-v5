@@ -20,6 +20,8 @@
 4. **三方**：QEMU + gem5 先跑；RTL 侧可直接接（power 已实现），签名逐槽一致；不一致登记 `expected-divergences.yaml`。
 5. **不回归**：step5 启动链（`integ046t`）、Tiny 的 power/hmon、cfx3/4/5 现有用例不变。
 
+**H/S/U 三模式**（用户 2026-11-22）：cfx63 的寄存器面/移交应在 `hmon`/`smon`/`umon` 三种运行模式下各跑一次（`run_arch.py --mode`）；权限不允许的模式显式标注 `modes` 排除原因。
+
 ## 不做
 
 - 不做 cfx63 的电源域/时钟等平台功能（只做 cfx 寄存器 + 移交）；
