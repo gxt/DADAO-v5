@@ -1370,3 +1370,12 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`idl/tools/idl_check_trace.py --cases` 期望清单键 `id`，而 `idl/data/idl_exec_cases.toml` 用 `image` ⇒ 直接传主清单会报缺键；阶段一/二门控走 `idl_four_way.py` 不触发，属潜伏缺陷（`m17-idl-012` 复核发现；修复随下次触碰 trace 驱动）。"
+- id: ISS-518
+  scope:
+  - qemu
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`m16-qemu-002` 的证据脚本 `patch_tree_judge` 把 `qemu: source worktree absent; skipping…` 这类信息行也计为问题 ⇒ 源树缺失时假红（保守方向，且 build 已先失败）；后续与 `check_patch_tree.py` 的信息行清单对齐。另：`integ042t` 的 `_MACH` 默认 tiny、`node_probe_prelude` 默认 vast，漏设 `DADAO_TEST_PROFILE` 会对称假红（13/25），建议统一默认 profile。"

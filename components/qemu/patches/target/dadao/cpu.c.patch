@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..0698861
+index 0000000..4c50cf3
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,668 @@
+@@ -0,0 +1,677 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -534,7 +534,16 @@ index 0000000..0698861
 +
 +    if ((addr >= prof->ram_base && addr < prof->ram_base + prof->ram_size) ||
 +        (addr >= prof->rom_base && addr < prof->rom_base + prof->rom_size)) {
-+        result->physaddr = addr;
++        /* cache-model=on: the debug/semihosting view of RAM must be coherent
++         * with the shadow D-cache, exactly like a real debug access would be
++         * (a guest store may still be a dirty line only).  The RAM half is
++         * therefore redirected to the proxy window; the ROM half and the
++         * cache-model=off case keep the raw PA (m16-qemu-002). */
++        if (addr < prof->ram_base + prof->ram_size) {
++            result->physaddr = dadao_dcache_redirect(env, addr);
++        } else {
++            result->physaddr = addr;
++        }
 +        result->attrs = MEMTXATTRS_UNSPECIFIED;
 +        result->attrs.debug = 1;
 +        result->lg_page_size = TARGET_PAGE_BITS;

@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..f989857
+index 0000000..2a29408
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,3335 @@
+@@ -0,0 +1,3588 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -475,18 +475,248 @@ index 0000000..f989857
 +
 +#define DADAO_SIZE_MASK(log2)    ((1ULL << (log2)) - 1)
 +
++/* ── shadow D-cache data path (m16-qemu-002; contract-cache CACHE-05/27/30) ──
++ *
++ * `-machine kaiwu-vast,cache-model=on` makes the machine map a proxy
++ * MemoryRegion over the RAM window at DADAO_DCACHE_HOST_BASE and have
++ * tlb_fill redirect guest *data* accesses into it.  This file owns the model:
++ * an 8-way x 128-set x 64 B write-back cache with write-allocate.  Reads hit
++ * the line or fill it from the raw RAM, writes hit the line (dirty) or
++ * allocate it first, and a dirty victim is written back on eviction.  The
++ * DMA and the image loader never take this path: they call
++ * address_space_memory at the real PA, which still resolves to `dadao-ram`.
++ *
++ * Page-table reads and the A/D write-back go through dadao_dcache_read()/
++ * dadao_dcache_write() so the walker sees dirty lines (a PTE the guest just
++ * stored is still only in the cache) and its A/D updates stay coherent with
++ * later guest loads.  With cache-model=off (env->dcache == NULL) both fall
++ * through to the plain address-space access, i.e. the pre-existing path.
++ */
++#define DADAO_DCACHE_LINE_MASK (DADAO_DCACHE_LINE_SIZE - 1)
++
++/* Exit-time statistics sink: one machine per process. */
++static DadaoDCache *dadao_dcache_stats;
++
++static void dadao_dcache_report(void)
++{
++    const DadaoDCache *c = dadao_dcache_stats;
++
++    if (!c) {
++        return;
++    }
++    fprintf(stderr,
++            "dadao-dcache: ways=%u sets=%u line=%u read_hit=%" PRIu64
++            " read_miss=%" PRIu64 " write_hit=%" PRIu64
++            " write_miss=%" PRIu64 " writeback=%" PRIu64 "\n",
++            DADAO_DCACHE_WAYS, DADAO_DCACHE_SETS, DADAO_DCACHE_LINE_SIZE,
++            c->read_hit, c->read_miss, c->write_hit, c->write_miss,
++            c->writeback);
++}
++
++void dadao_dcache_create(CPUDADAOState *env, uint64_t pa_base, uint64_t size)
++{
++    DadaoDCache *c;
++
++    g_assert(!env->dcache);
++    g_assert((pa_base & DADAO_DCACHE_LINE_MASK) == 0);
++    g_assert((size & DADAO_DCACHE_LINE_MASK) == 0);
++    c = g_new0(DadaoDCache, 1);
++    c->pa_base = pa_base;
++    c->size = size;
++    env->dcache = c;
++    dadao_dcache_stats = c;
++    atexit(dadao_dcache_report);
++}
++
++/* PA of the line (set, tag) names inside the shadow window. */
++static hwaddr dadao_dcache_line_pa(const DadaoDCache *c, unsigned set,
++                                   uint64_t tag)
++{
++    uint64_t line_no = (tag << DADAO_DCACHE_INDEX_BITS) | set;
++
++    return c->pa_base + (line_no << DADAO_DCACHE_LINE_SHIFT);
++}
++
++/* Look up the line holding @pa; on a miss evict (write back when dirty) and
++ * fill the whole line from the raw RAM.  *hit reports the lookup result. */
++static DadaoDCacheLine *dadao_dcache_line(DadaoDCache *c, hwaddr pa, bool *hit)
++{
++    uint64_t line_no = (pa - c->pa_base) >> DADAO_DCACHE_LINE_SHIFT;
++    unsigned set = line_no & DADAO_DCACHE_SET_MASK;
++    uint64_t tag = line_no >> DADAO_DCACHE_INDEX_BITS;
++    DadaoDCacheLine *lines = c->line[set];
++    unsigned way;
++
++    for (way = 0; way < DADAO_DCACHE_WAYS; way++) {
++        if (lines[way].valid && lines[way].tag == tag) {
++            *hit = true;
++            return &lines[way];
++        }
++    }
++
++    *hit = false;
++    way = c->next_way[set];
++    c->next_way[set] = (way + 1) % DADAO_DCACHE_WAYS;
++    if (lines[way].valid && lines[way].dirty) {
++        /* Write-back: this line is the only current copy of those bytes, a
++         * DMA (which bypasses the shadow) must see them after the eviction. */
++        address_space_write(&address_space_memory,
++                            dadao_dcache_line_pa(c, set, lines[way].tag),
++                            MEMTXATTRS_UNSPECIFIED, lines[way].data,
++                            DADAO_DCACHE_LINE_SIZE);
++        c->writeback++;
++    }
++    lines[way].tag = tag;
++    lines[way].valid = 1;
++    lines[way].dirty = 0;
++    address_space_read(&address_space_memory, dadao_dcache_line_pa(c, set, tag),
++                       MEMTXATTRS_UNSPECIFIED, lines[way].data,
++                       DADAO_DCACHE_LINE_SIZE);
++    return &lines[way];
++}
++
++MemTxResult dadao_dcache_read(CPUDADAOState *env, hwaddr pa, void *buf,
++                              unsigned len)
++{
++    DadaoDCache *c = env->dcache;
++    uint8_t *p = buf;
++
++    if (!c) {
++        return address_space_read(&address_space_memory, pa,
++                                  MEMTXATTRS_UNSPECIFIED, buf, len);
++    }
++    while (len) {
++        DadaoDCacheLine *line;
++        bool hit;
++        unsigned in_line, n;
++
++        if (pa < c->pa_base || pa - c->pa_base >= c->size) {
++            /* A request straddling the window end: the tail is not cached. */
++            return address_space_read(&address_space_memory, pa,
++                                      MEMTXATTRS_UNSPECIFIED, p, len);
++        }
++        in_line = (pa - c->pa_base) & DADAO_DCACHE_LINE_MASK;
++        n = MIN(len, DADAO_DCACHE_LINE_SIZE - in_line);
++        line = dadao_dcache_line(c, pa, &hit);
++        if (hit) {
++            c->read_hit++;
++        } else {
++            c->read_miss++;
++        }
++        memcpy(p, line->data + in_line, n);
++        p += n;
++        pa += n;
++        len -= n;
++    }
++    return MEMTX_OK;
++}
++
++MemTxResult dadao_dcache_write(CPUDADAOState *env, hwaddr pa, const void *buf,
++                               unsigned len)
++{
++    DadaoDCache *c = env->dcache;
++    const uint8_t *p = buf;
++
++    if (!c) {
++        return address_space_write(&address_space_memory, pa,
++                                   MEMTXATTRS_UNSPECIFIED, buf, len);
++    }
++    while (len) {
++        DadaoDCacheLine *line;
++        bool hit;
++        unsigned in_line, n;
++
++        if (pa < c->pa_base || pa - c->pa_base >= c->size) {
++            return address_space_write(&address_space_memory, pa,
++                                       MEMTXATTRS_UNSPECIFIED, p, len);
++        }
++        in_line = (pa - c->pa_base) & DADAO_DCACHE_LINE_MASK;
++        n = MIN(len, DADAO_DCACHE_LINE_SIZE - in_line);
++        /* Write-allocate: a miss fills the line before the merge. */
++        line = dadao_dcache_line(c, pa, &hit);
++        if (hit) {
++            c->write_hit++;
++        } else {
++            c->write_miss++;
++        }
++        memcpy(line->data + in_line, p, n);
++        line->dirty = 1;
++        p += n;
++        pa += n;
++        len -= n;
++    }
++    return MEMTX_OK;
++}
++
++/* MemoryRegionOps of the proxy window (mapped by hw/dadao/dadao-machine.c).
++ * The window is byte-addressed in big-endian guest order (DADAO is
++ * big-endian), and the memory core splits larger guest accesses per
++ * impl.max_access_size; the byte order of a callback value therefore follows
++ * DEVICE_BIG_ENDIAN. */
++static uint64_t dadao_dcache_mem_read(void *opaque, hwaddr addr, unsigned size)
++{
++    CPUDADAOState *env = opaque;
++    uint8_t buf[8];
++    uint64_t value = 0;
++    unsigned i;
++
++    g_assert(size <= sizeof(buf));
++    dadao_dcache_read(env, env->dcache->pa_base + addr, buf, size);
++    for (i = 0; i < size; i++) {
++        value = (value << 8) | buf[i];
++    }
++    return value;
++}
++
++static void dadao_dcache_mem_write(void *opaque, hwaddr addr, uint64_t value,
++                                   unsigned size)
++{
++    CPUDADAOState *env = opaque;
++    uint8_t buf[8];
++    unsigned i;
++
++    g_assert(size <= sizeof(buf));
++    for (i = 0; i < size; i++) {
++        buf[i] = (uint8_t)(value >> (8 * (size - 1 - i)));
++    }
++    dadao_dcache_write(env, env->dcache->pa_base + addr, buf, size);
++}
++
++const MemoryRegionOps dadao_dcache_ops = {
++    .read = dadao_dcache_mem_read,
++    .write = dadao_dcache_mem_write,
++    .endianness = DEVICE_BIG_ENDIAN,
++    .impl = {
++        .min_access_size = 1,
++        .max_access_size = 8,
++    },
++    .valid = {
++        .min_access_size = 1,
++        .max_access_size = 8,
++    },
++};
++
 +/* Page-table walk result: 1 = mapped, 0 = fault (*cause set), -1 = the PTE
 + * itself could not be read from memory (outside pmem; undefined by the
 + * architecture, so the caller fails explicitly rather than inventing a cause).
 + */
-+static int dadao_ptw_read_pte(hwaddr pa, uint64_t *pte)
++static int dadao_ptw_read_pte(CPUDADAOState *env, hwaddr pa, uint64_t *pte)
 +{
 +    MemTxResult res = MEMTX_OK;
 +
 +    /* Physical memory (pmem) is the system address space; reading it here
-+     * bypasses the PTW/TLB by construction (ADR-0040 D2/§2.2.1 step 3). */
-+    *pte = address_space_ldq_be(&address_space_memory, pa,
-+                                MEMTXATTRS_UNSPECIFIED, &res);
++     * bypasses the PTW/TLB by construction (ADR-0040 D2/§2.2.1 step 3).
++     * cache-model=on routes the read through the shadow so a PTE the guest
++     * stored is seen from the dirty line, not from stale raw RAM. */
++    if (env->dcache) {
++        uint8_t buf[8];
++
++        res = dadao_dcache_read(env, pa, buf, sizeof(buf));
++        *pte = ldq_be_p(buf);
++    } else {
++        *pte = address_space_ldq_be(&address_space_memory, pa,
++                                    MEMTXATTRS_UNSPECIFIED, &res);
++    }
 +    return res == MEMTX_OK ? 0 : -1;
 +}
 +
@@ -495,9 +725,13 @@ index 0000000..f989857
 + * leaf PTE, keeping every other field.  The model is single-threaded, so a
 + * read-modify-write through the system address space is atomic with respect
 + * to guest accesses (page tables are only accessed by this path).
++ * cache-model=on: the same read-modify-write goes through the shadow, so the
++ * update lands in the cached line (and marks it dirty) instead of leaving a
++ * stale copy for a later guest load; a PTE line that is not cached is read
++ * from raw RAM and written back there, exactly as before.
 + * Returns 0, or -1 when the PTE cannot be written (readonly ROM / no memory).
 + */
-+static int dadao_ptw_or_ad(hwaddr pte_pa, bool a, bool d)
++static int dadao_ptw_or_ad(CPUDADAOState *env, hwaddr pte_pa, bool a, bool d)
 +{
 +    MemTxResult res = MEMTX_OK;
 +    uint64_t bits = (a ? DADAO_PTE_A : 0) | (d ? DADAO_PTE_D : 0);
@@ -505,6 +739,17 @@ index 0000000..f989857
 +
 +    if (bits == 0) {
 +        return 0;
++    }
++    if (env->dcache) {
++        uint8_t buf[8];
++
++        res = dadao_dcache_read(env, pte_pa, buf, sizeof(buf));
++        if (res != MEMTX_OK) {
++            return -1;
++        }
++        stq_be_p(buf, ldq_be_p(buf) | bits);
++        res = dadao_dcache_write(env, pte_pa, buf, sizeof(buf));
++        return res == MEMTX_OK ? 0 : -1;
 +    }
 +    old = address_space_ldq_be(&address_space_memory, pte_pa,
 +                               MEMTXATTRS_UNSPECIFIED, &res);
@@ -616,12 +861,12 @@ index 0000000..f989857
 +}
 +
 +/* Write the pending A/D bits back (CLEAN/FLUSH/evict).  0 = ok, -1 = failed. */
-+static int dadao_tlb_writeback(DADAOTlbEntry *e)
++static int dadao_tlb_writeback(CPUDADAOState *env, DADAOTlbEntry *e)
 +{
 +    if (!e->a_dirty && !e->d_dirty) {
 +        return 0;
 +    }
-+    if (dadao_ptw_or_ad(e->pte_pa, e->a_dirty, e->d_dirty) < 0) {
++    if (dadao_ptw_or_ad(env, e->pte_pa, e->a_dirty, e->d_dirty) < 0) {
 +        return -1;
 +    }
 +    e->a_dirty = false;
@@ -641,7 +886,7 @@ index 0000000..f989857
 +{
 +    DADAOTlbEntry *e = &env->tlb[env->tlb_next];
 +
-+    if (e->valid && dadao_tlb_writeback(e) < 0) {
++    if (e->valid && dadao_tlb_writeback(env, e) < 0) {
 +        *err_pa = e->pte_pa;
 +        return -1;
 +    }
@@ -754,7 +999,7 @@ index 0000000..f989857
 +            }
 +        }
 +        if (op & 0x1) {                     /* clean / flush: write back */
-+            if (dadao_tlb_writeback(e) < 0) {
++            if (dadao_tlb_writeback(env, e) < 0) {
 +                *err_pa = e->pte_pa;        /* entry kept (FLUSH failure) */
 +                /* Entry-granular stop (TLB-37): this entry and every entry
 +                 * after it are left as they are. */
@@ -779,7 +1024,7 @@ index 0000000..f989857
 +    uint64_t pte;
 +    int frag;
 +
-+    if (dadao_ptw_read_pte(l1pa, &pte) < 0) {
++    if (dadao_ptw_read_pte(env, l1pa, &pte) < 0) {
 +        return -1;
 +    }
 +
@@ -810,7 +1055,7 @@ index 0000000..f989857
 +        uint64_t l2pa = (pte & DADAO_PTE_PPN_MASK) +
 +                        (((va >> 16) & 0x1FFF) << 3);
 +
-+        if (dadao_ptw_read_pte(l2pa, &pte) < 0) {
++        if (dadao_ptw_read_pte(env, l2pa, &pte) < 0) {
 +            return -1;
 +        }
 +        if (!(pte & DADAO_PTE_P)) {
@@ -1164,6 +1409,14 @@ index 0000000..f989857
 +    return false;
 +
 +map:
++    /* Shadow D-cache (m16-qemu-002): a guest *data* access whose PA falls in
++     * the RAM window is routed to the proxy MemoryRegion, so the softmmu slow
++     * path reaches the cache model.  Fetches keep the raw RAM PA (the I side
++     * is not modelled here), and with cache-model=off (dcache == NULL) the
++     * redirect is the identity, i.e. the pre-existing direct path. */
++    if (access_type != MMU_INST_FETCH) {
++        paddr = dadao_dcache_redirect(env, paddr);
++    }
 +    tlb_set_page(cs, address, paddr, prot, mmu_idx, TARGET_PAGE_SIZE);
 +    return true;
 +}

@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..dff8858
+index 0000000..044a66d
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,1385 @@
+@@ -0,0 +1,1410 @@
 +/*
 + * DADAO Kaiwu bare-metal test machines for QEMU
 + *
@@ -99,6 +99,9 @@ index 0000000..dff8858
 +#include "system/runstate.h"
 +#include "qom/object.h"
 +#include "target/dadao/cpu.h"
++
++/* Shadow D-cache proxy ops (target/dadao/helper.c; m16-qemu-002). */
++extern const MemoryRegionOps dadao_dcache_ops;
 +
 +/* ---------------------------------------------------------------------------
 + * Image loading
@@ -465,9 +468,11 @@ index 0000000..dff8858
 + * The model decides whether the cache has *effects*, never whether cfx5
 + * exists (user ruling 2026-11-22: a Linux kernel runs its cache maintenance
 + * unconditionally).  OFF is the historical direct-map test machine
-+ * (Linux/K0/inst unchanged): `cache_exist` reads 0 and every maintenance
-+ * command completes as a no-op.  ON reports I and D (`cache_exist` = 0b11)
-+ * for the arch test scope; the shadow D-cache data path is still absent.
++ * (Linux/K0/inst unchanged): `cache_exist` reads 0, every maintenance
++ * command completes as a no-op, and no shadow proxy is built.  ON reports I
++ * and D (`cache_exist` = 0b11) for the arch test scope and installs the
++ * shadow D-cache data path over the RAM window (m16-qemu-002; the cfx5
++ * maintenance commands themselves are wired in a later task).
 + * The enum is zero-initialised like every other QOM field, so OFF is the
 + * default. */
 +typedef enum DadaoCacheModel {
@@ -1151,6 +1156,25 @@ index 0000000..dff8858
 +                           &error_fatal);
 +    memory_region_add_subregion(system_memory, prof->ram_base, ram);
 +
++    /* Shadow D-cache (m16-qemu-002; contract-cache CACHE-05/27/30).  With
++     * cache-model=on the guest's data accesses are redirected by tlb_fill to
++     * this proxy window, which models an 8-way x 128-set x 64 B write-back
++     * cache over the RAM window.  The proxy sits at a host address outside the
++     * 56-bit guest PA space, so `dadao-ram` remains the direct channel: the
++     * cfx_pmem DMA and the image loader address RAM at its real PA and thus
++     * bypass the shadow.  cache-model=off allocates nothing (env.dcache stays
++     * NULL) and no proxy is mapped, so every access keeps the pre-existing
++     * direct path. */
++    if (ms->cache_model == DADAO_CACHE_MODEL_ON) {
++        MemoryRegion *dcache = g_new(MemoryRegion, 1);
++
++        dadao_dcache_create(&cpu->env, prof->ram_base, prof->ram_size);
++        memory_region_init_io(dcache, NULL, &dadao_dcache_ops, &cpu->env,
++                              "dadao-dcache", prof->ram_size);
++        memory_region_add_subregion(system_memory, DADAO_DCACHE_HOST_BASE,
++                                    dcache);
++    }
++
 +    /* A profile whose RAM is not already at PA 0 would need an alias for the
 +     * first page table (PTBR=0).  Vast and Tiny both set this false. */
 +    if (prof->ram_alias) {
@@ -1347,14 +1371,15 @@ index 0000000..dff8858
 +
 +    /* cfx5 cache model property (m16-qemu-001; contract-cache CACHE-27):
 +     * a machine property so every existing command line keeps working.
-+     * Default off; "on" is Kaiwu-Vast only and enables the cfx5 register
-+     * face (shadow D-cache data path is a later task). */
++     * Default off; "on" is Kaiwu-Vast only and installs the cfx5 register
++     * face plus the shadow D-cache data path (m16-qemu-002). */
 +    object_class_property_add_str(oc, "cache-model",
 +                                  dadao_machine_get_cache_model,
 +                                  dadao_machine_set_cache_model);
 +    object_class_property_set_description(oc, "cache-model",
-+        "cfx5 cache model: 'off' (default; cache_exist 0, commands no-op) or "
-+        "'on' (Kaiwu-Vast I+D, cache_exist 0b11)");
++        "cfx5 cache model: 'off' (default; cache_exist 0, commands no-op, "
++        "direct RAM) or 'on' (Kaiwu-Vast I+D, cache_exist 0b11, shadow "
++        "write-back D-cache)");
 +}
 +
 +/*

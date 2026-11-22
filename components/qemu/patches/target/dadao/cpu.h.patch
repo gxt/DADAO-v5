@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..fedadfb
+index 0000000..a4f6af9
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,694 @@
+@@ -0,0 +1,770 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -373,6 +373,51 @@ index 0000000..fedadfb
 +                                  (1ULL << DADAO_CACHE_BIT_D))   /* 0b11 */
 +#define DADAO_CACHE_PA_MASK      ((1ULL << 56) - 1)   /* PA[55:0] (CACHE-18) */
 +
++/* ── shadow D-cache geometry and storage (m16-qemu-002) ───────────────────
++ * The test machine's `cache-model=on` models the Wuming RTL D-cache:
++ * 8 ways x 128 sets x 64 B = 64 KiB, write-back with write-allocate.  The
++ * contract leaves the organization to the implementation (CACHE-05) and only
++ * fixes the software-visible effects (CACHE-30); this geometry is the test
++ * machine's, shared with the RTL so the arch probes compare like for like.
++ * Set index = line[6:0], tag = line[13:7], line = PA[12:6] of the RAM window.
++ * Replacement is a deterministic per-set round-robin cursor (CACHE-05 again:
++ * policy is free, and a cursor keeps the probes reproducible). */
++#define DADAO_DCACHE_WAYS          8
++#define DADAO_DCACHE_SETS          128
++#define DADAO_DCACHE_LINE_SHIFT    6
++#define DADAO_DCACHE_LINE_SIZE     (1u << DADAO_DCACHE_LINE_SHIFT)
++#define DADAO_DCACHE_INDEX_BITS    7   /* log2(DADAO_DCACHE_SETS) */
++#define DADAO_DCACHE_SET_MASK      (DADAO_DCACHE_SETS - 1)
++#define DADAO_DCACHE_SIZE          (DADAO_DCACHE_WAYS * DADAO_DCACHE_SETS * \
++                                    DADAO_DCACHE_LINE_SIZE)
++/* Host address of the proxy window: outside the 56-bit guest PA space (like
++ * the SRAM windows), so no guest PA can alias it. */
++#define DADAO_DCACHE_HOST_BASE     0x0100000010000000ULL
++
++/* One line: tag plus the valid/dirty state and the 64-byte data array. */
++typedef struct DadaoDCacheLine {
++    uint64_t tag;        /* (PA - pa_base) >> (line_shift + index_bits) */
++    uint8_t  valid;
++    uint8_t  dirty;      /* written since the last fill / write-back */
++    uint8_t  data[DADAO_DCACHE_LINE_SIZE];
++} DadaoDCacheLine;
++
++/* Per-hart shadow state (CACHE-29).  Allocated only for cache-model=on; when
++ * off the pointer stays NULL and every data path falls through unchanged. */
++typedef struct DadaoDCache {
++    DadaoDCacheLine line[DADAO_DCACHE_SETS][DADAO_DCACHE_WAYS];
++    uint8_t  next_way[DADAO_DCACHE_SETS];
++    uint64_t pa_base;            /* RAM base the window covers */
++    uint64_t size;               /* window size (profile RAM size) */
++    /* Observability for the arch probes: one count per line access.  Printed
++     * once at process exit when the shadow is on (m16-qemu-002 evidence). */
++    uint64_t read_hit;
++    uint64_t read_miss;
++    uint64_t write_hit;
++    uint64_t write_miss;
++    uint64_t writeback;          /* dirty lines written back on eviction */
++} DadaoDCache;
++
 +/* ── cfx_hart timer + cfx_time (DADAO-12 §4.7/§4.10; INTEG-050t) ─────────
 + * Single hart only: the timer is one-shot, deadline in the cfx_time domain
 + * (1 count = 1 ns on the test machine).  TIMER is maskable (1 << 10) with
@@ -623,7 +668,38 @@ index 0000000..fedadfb
 +    uint64_t cache_enable;     /* cg8 rc8  (RW; bit0 = I, bit1 = D) */
 +    uint64_t cache_addr_start; /* cg8 rc10 (RW; PA[55:0], [63:56] read 0) */
 +    uint64_t cache_addr_size;  /* cg8 rc11 (RW; byte count) */
++    /* Shadow D-cache storage (m16-qemu-002): NULL with cache-model=off, i.e.
++     * no proxy is built and every data access keeps the direct RAM path. */
++    DadaoDCache *dcache;
 +} CPUDADAOState;
++
++#ifndef CONFIG_USER_ONLY
++/* Shadow D-cache data path (target/dadao/helper.c; m16-qemu-002).  The
++ * machine allocates the array for cache-model=on and maps the proxy
++ * MemoryRegion that guest data accesses reach; the DMA and the image loader
++ * keep using address_space_memory at the real PA (the raw RAM region) and so
++ * bypass the shadow by construction. */
++void dadao_dcache_create(CPUDADAOState *env, uint64_t pa_base, uint64_t size);
++MemTxResult dadao_dcache_read(CPUDADAOState *env, hwaddr pa, void *buf,
++                              unsigned len);
++MemTxResult dadao_dcache_write(CPUDADAOState *env, hwaddr pa, const void *buf,
++                               unsigned len);
++#endif
++
++/* Redirect a data-access PA into the shadow proxy window when the shadow is
++ * on and the PA falls in the RAM window; every other PA (and the whole
++ * cache-model=off case, dcache == NULL) is returned unchanged.  Instruction
++ * fetches never call this: the I side keeps the raw fetch path in this task
++ * (m16-qemu-002 §4). */
++static inline hwaddr dadao_dcache_redirect(const CPUDADAOState *env,
++                                           hwaddr pa)
++{
++    if (!env->dcache || pa < env->dcache->pa_base ||
++        pa - env->dcache->pa_base >= env->dcache->size) {
++        return pa;
++    }
++    return DADAO_DCACHE_HOST_BASE + (pa - env->dcache->pa_base);
++}
 +
 +/* Resolve the active profile; an unset pointer means the Vast profile (the
 + * linux-user build never has a machine to set one). */

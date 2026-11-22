@@ -6,7 +6,8 @@ DADAO 的 QEMU 目标（CPU 模型 + 解码 + 标量执行 + 裸机测试机）�
 
 - 两台机器类型（M12 起，`spec/Kaiwu §1`）：`-M kaiwu-tiny`（64 KiB BootROM + 8 MiB SRAM，无 cfx/PTW）与 `-M kaiwu-vast`（4 MiB BootROM + 2 GiB PA RAM，完整 cfx/PTW）。几何与能力在注册时按机器类型固定（`DadaoProfile`），**不再有运行期 `profile=` 选择器**。
 - 过渡别名已移除（`m12-integ-001`）：旧机器名与旧 profile 名不再接受，`-M help` 只列 `kaiwu-tiny`/`kaiwu-vast`；用旧名字启动得到明确的 machine not found / invalid choice 错误，不再静默映射。
-- `cfx5`（`cfx_cache`）在 Vast 上**始终存在**（`kaiwu-tiny` 无）：`-machine kaiwu-vast,cache-model=off`（默认）时 `cache_exist` 读 0、`cache_ctrl` 合法编码被接受但无效果、非法编码仍 `CFXREG`；`on` 时 `cache_exist` 读 `0b11`。两种模型下 `cache_enable`/`cache_addr_start`/`cache_addr_size` 都可读写，`cache_ctrl` 为 WO，其余 cg/rc 按 `contract-cache.md` 报 `CFXREG`；`cache-model` 非法值或 Tiny 上给 `on` 均在启动期报错退出。影子 D-Cache 数据通路与维护命令效果不在本版（`m16-qemu-001`）。
+- `cfx5`（`cfx_cache`）在 Vast 上**始终存在**（`kaiwu-tiny` 无）：`-machine kaiwu-vast,cache-model=off`（默认）时 `cache_exist` 读 0、`cache_ctrl` 合法编码被接受但无效果、非法编码仍 `CFXREG`；`on` 时 `cache_exist` 读 `0b11`。两种模型下 `cache_enable`/`cache_addr_start`/`cache_addr_size` 都可读写，`cache_ctrl` 为 WO，其余 cg/rc 按 `contract-cache.md` 报 `CFXREG`；`cache-model` 非法值或 Tiny 上给 `on` 均在启动期报错退出。
+- **影子 D-Cache 数据通路（`cache-model=on`；`m16-qemu-002`）**：8 路 × 128 组 × 64 B 写回 D-Cache（`contract-cache` CACHE-05/27/30，几何与 Wuming RTL 一致），读命中读影子、读缺失整行填充、写命中只改影子并置 dirty、写缺失写分配、脏行淘汰整行写回；数据侧由 `tlb_fill` 重定向到代理 `MemoryRegion`，**DMA（`cfx_pmem`）与镜像装载直连底层 RAM、绕过影子**，`off` 不建代理（行为与直通现状一致）；页表读取与 A/D 回写走同一影子路径以保持一致性。cfx5 维护命令（clean/invalidate/flush、I 侧效果）仍为合法 no-op，留 `m16-qemu-003`。
 - 安装根 `qemu-system-dadao` 由 `make install-host` 写入（ADR-0016 D9）。
 
 ## 补丁集
