@@ -2,11 +2,11 @@
 
 > **版本：0.7.1** [DADAO-12 §4.6 cfx_cache - cache organization]
 >
-> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.7.3-rc）的 `§1`/`§3.8`/`§4.6`/`§5.2`；测试机运行环境正文 `spec/Kaiwu-测试机运行环境.md`（0.4.7-rc，`§3`/`§3.2`）；寄存器位定义、控制字编码、命令语义与本合约的测试机约定为用户 2026-11-20 问答结论（句末标 `[spec-decision]`）。版本取 `README.md` 版本表的 SEE / SBI 已发布版，与 `contract-see.md`/`contract-tlb.md` 同法。
+> **来源**：`spec/DADAO-12-SEE-主管系统运行环境.md`（0.7.3-rc）的 `§1`/`§3.8`/`§4.6`/`§5.2`；测试机运行环境正文 `spec/Kaiwu-测试机运行环境.md`（0.4.7-rc，`§3`/`§3.2`）；寄存器位定义、控制字编码、命令语义与本合约的测试机约定为用户 2026-11-20 与 2026-11-22 的问答结论（句末标 `[spec-decision]`）。版本取 `README.md` 版本表的 SEE / SBI 已发布版，与 `contract-see.md`/`contract-tlb.md` 同法。
 >
-> **范围**：`cfx_cache` 的寄存器面（`cache_exist`/`cache_enable`/`cache_ctrl`/`cache_addr_start`/`cache_addr_size`）、存在与使能语义、控制字的选择/操作/范围三维与判序、三档范围匹配、I/D 两侧的 `clean`/`invalidate`/`flush` 作用、同步完成与失败语义、per-hart 与测试机实现范围；消费方 = 各实现的 `cfx5` 落地与 `tests/arch` 的 cache 探针。cache 组织（容量、行大小、组数、替换策略）由实现决定，不在本合约内。
+> **范围**：`cfx_cache` 的寄存器面（`cache_exist`/`cache_enable`/`cache_ctrl`/`cache_addr_start`/`cache_addr_size`）、存在与使能语义、控制字的选择/操作/范围三维与判序、三档范围匹配、I/D 两侧的 `clean`/`invalidate`/`flush` 作用、同步完成与失败语义、per-hart 与测试机实现范围（含 `cache-model=off|on` 的机器配置维度）；消费方 = 各实现的 `cfx5` 落地与 `tests/arch` 的 cache 探针。cache 组织（容量、行大小、组数、替换策略）由实现决定，不在本合约内。
 >
-> **来源标注**：每条规范性断言句末以方括号标注来源——上游册写 `DADAO-12` + `§` + 章节名，测试机正文写 `Machine-01` + `§N`；上游未规定、由用户 2026-11-20 逐条确认的口径，句末另标 `[spec-decision]`。不写行号。
+> **来源标注**：每条规范性断言句末以方括号标注来源——上游册写 `DADAO-12` + `§` + 章节名，测试机正文写 `Machine-01` + `§N`；上游未规定、由用户逐条确认的口径（2026-11-20 起，含 2026-11-22 的 `cache-model` 补记），句末另标 `[spec-decision]`。不写行号。
 >
 > **说明**：本合约由 spec/ 归一化投影而来，只做归一化 + 指针、不复制上游正文；面向实现与探针，与 spec/ 冲突时阻断实现，走变更流程（见 `docs/Process-02-合约编写规范.md`）。
 
@@ -58,7 +58,10 @@
 
 ## §7 测试机约定（per-hart 与实现范围）
 
-- CACHE-27 **实现范围（Vast）**：`Kaiwu-Vast` 实现 `cfx5` 的寄存器与维护命令，I 与 D 两侧均存在（`cache_exist` 读回 `0b11`、`cache_enable` 复位值同）；cache 几何由实现决定、本册不规定。[Machine-01 §3.2 cache（cfx5）的测试机约定][spec-decision]
+- CACHE-27 **实现范围（Vast）与 `cache-model` 维度**：`Kaiwu-Vast` 实现 `cfx5` 的寄存器与维护命令，I 与 D 两侧均存在；cache 几何由实现决定、本册不规定。机器配置的 `cache-model` 只决定这些寄存器与命令**有没有效果**，不决定 `cfx5` 是否存在（Vast 的寄存器面恒在）：
+  - **`cache-model=off`**：`cfx5` 存在；CACHE-03 的五个寄存器均可访问、不报 `CFXREG`（其余 rc 仍按 CACHE-04 处理）；`cache_exist` 读 0（存在位为 0 ⇒ `cache_enable` 写 1 也读回 0，CACHE-07）；`cache_ctrl`（WO，只写）/`cache_addr_start`/`cache_addr_size` 可访问，但维护命令**无效果**——`cache_ctrl` 的**合法编码不报异常、不产生维护动作**；`cache_ctrl` 的**编码与 `addr_size` 校验不受 `cache-model` 影响**，非法编码（`[3:2] = 11`、PA 区间且 `size = 0` 等）仍 ⇒ `CFXREG`。[Machine-01 §3.2 cache（cfx5）的测试机约定][spec-decision]
+  - **`cache-model=on`**：`cache_exist` 读回 `0b11`、`cache_enable` 复位值同；寄存器与命令按 CACHE-03…CACHE-27 生效。[Machine-01 §3.2 cache（cfx5）的测试机约定][spec-decision]
+  - 各实现是否暴露该配置开关、缺省取何值，由实现与测试机约定另行规定；本合约只固定两种取值的效果。[Machine-01 §3.2 cache（cfx5）的测试机约定][spec-decision]
 - CACHE-28 **实现范围（Tiny）**：`Kaiwu-Tiny` 不实现 `cfx5`——寄存器访问与 `cfx2rd`/`cfx2rc` ⇒ `CFXREG`，`trap`/`escape` ⇒ `ILLI`。[Machine-01 §3.2 cache（cfx5）的测试机约定][spec-decision]
 - CACHE-29 **per-hart**：寄存器与维护命令都是 per-hart 状态，命令只作用于执行该写指令的 hart；跨 hart 的维护传播与一致性**不在本版范围**。[Machine-01 §3.2 cache（cfx5）的测试机约定][DADAO-12 §4.6 cfx_cache - cache organization][spec-decision]
 - CACHE-30 **可观测判据**：实现可自由选择组织，但必须满足本合约的可观测量——`cache_exist`/`cache_enable` 的位值、命令生效后的访存结果（I 侧重取指、D 侧写回/丢弃）、非法编码的 `CFXREG`；探针与门控只按这些观测量断言。[Machine-01 §3.2 cache（cfx5）的测试机约定][DADAO-12 §4.6 cfx_cache - cache organization]
@@ -66,3 +69,4 @@
 ## §8 变更记录
 
 - **0.7.1（2026-11-20）**：首版。收编 `DADAO-12 §4.6` 的 `cfx_cache` 寄存器面与语义（CACHE-01…CACHE-26）与 `Kaiwu §3.2` 的测试机约定（CACHE-27…CACHE-30）。旧的「bit0 = 无效 I-cache / bit1 = 无效 D-cache / bit2 = 刷新 D-cache」数值编码作废，改为选择/操作/范围三维控制字；`cache_exist`/`cache_enable` 位定义补为 bit0 = I、bit1 = D；`cache_addr_start` 承载**完整 56 位物理地址** `PA[55:0]`（`[63:56]` 读 0），范围匹配按 56 位 PA 比较。版本取 `README.md` 版本表的 SEE / SBI 已发布版（与 `contract-see.md`/`contract-tlb.md` 同法），上游正文为 0.7.3-rc 在研。
+- **2026-11-22（`m16-spec-002`，版本不变）**：CACHE-27 增补机器配置维度 `cache-model=off|on`——`off` = `cfx5` 存在但寄存器/命令无效果（`cache_exist` 读 0、合法命令不报异常且不生效，编码与 `addr_size` 校验不受该维度影响、非法仍 ⇒ `CFXREG`），`on` = `cache_exist=0b11` 且命令生效。授权：用户 2026-11-22 裁定「机器配置只决定 cfx5 有没有效果，不决定它是否存在」（渠道 = 经主会话问答）。版本号仍为 `0.7.1`（`docs/Process-02-合约编写规范.md` §版本管理：合约版本号与对应 `spec/` 文档一致；本次不改上游 `spec/` 正文）。
