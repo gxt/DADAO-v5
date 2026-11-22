@@ -19,9 +19,8 @@
   * `[[case]]`（主清单）= `image` + `category`；
   * `[[pending]]` = 阶段一收口后**必须为空**（段缺失或空数组）；非空 ⇒ rc=2
     （能力缺口另立任务，不得用 pending 静默降覆盖，`m17-idl-010`）；
-  * 门控断言 **主清单集合 == 现场派生集合（`tests/inst/*/*.S` 去掉
-    `07-floating-point`）− pending 集合**，且 pending 必须为空；集合按现场
-    glob 派生，不写死计数。
+  * 门控断言 **主清单集合 == 现场派生集合（`tests/inst/*/*.S`）− pending
+    集合**，且 pending 必须为空；集合按现场 glob 派生，不写死计数。
 
 平台集：
 
@@ -63,7 +62,6 @@ IDL_EXEC = _R / "idl" / "tools" / "idl_exec.py"
 EXPECTED = _R / "tests" / "data" / "inst-signature" / "expected.tsv"
 MANIFEST = _R / "idl" / "data" / "idl_exec_cases.toml"
 BOOKS = _R / "tests" / "inst"
-FP_BOOK = "07-floating-point"
 PLATFORMS = ("qemu", "gem5", "chipyard")
 VALUE_KINDS = ("value", "table")
 
@@ -76,11 +74,9 @@ class ManifestError(Exception):
 # 清单：主集合 == 现场派生 − pending
 # ---------------------------------------------------------------------------
 def derived_images(books=BOOKS) -> dict:
-    """`tests/inst/*/*.S` 去掉 FP 册；返回 `{stem: 相对路径}`（现场派生）。"""
+    """`tests/inst/*/*.S` 全集；返回 `{stem: 相对路径}`（现场派生）。"""
     out = {}
     for path in sorted(Path(books).glob("*/*.S")):
-        if path.parent.name == FP_BOOK:
-            continue
         rel = path.relative_to(_R).as_posix()
         if path.stem in out:
             raise ManifestError("镜像 stem 重复（清单按 stem 索引）：%s / %s"

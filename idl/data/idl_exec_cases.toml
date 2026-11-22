@@ -6,14 +6,15 @@
 #   * `[[pending]]` = **阶段一收口后必须为空**（段缺失或空数组；`m17-idl-010`）。
 #
 # 门控断言（`idl/tools/idl_four_way.py` 现场派生，不写死计数）：
-#   {[[case]].image} == {tests/inst/*/*.S} − {07-floating-point} − {[[pending]].image}
+#   {[[case]].image} == {tests/inst/*/*.S} − {[[pending]].image}
 #   **且 `[[pending]]` 必须为空**——非空 ⇒ `check_four_way` rc=2（能力缺口另立任务，
-#   不得用 pending 静默降覆盖）；当前主清单 222 == 现场派生 222（pending 0）。
+#   不得用 pending 静默降覆盖）；当前主清单 272 == 现场派生 272（pending 0）。
 # `m17-idl-006` 已迁入 `00`/`01`/`02`/`05`/`06`/`11` 六册全部镜像（`00` 册为已登记的
 # `pseudo_set.*` 与 `undi_reserved`）；`m17-idl-007` 已迁入 `04` 整册、`12-misc` 整册与
 # 00 册 `atomic_rmw`（其被测 id 属 12 册）；`m17-idl-008` 已迁入 `03`/`08`/`09`/`10`
 # 四册全部镜像（`03` 为剩余 6 个已注册 id 的镜像），`pending` 清零。
-# FP 册（`07-floating-point`）不在阶段一范围（阶段二 + FP 语义批）。
+# `m17-idl-013`（阶段二）已迁入 FP 册（`07-floating-point`）全部 50 个镜像，
+# 现场派生不再排除该册。
 
 # ── 主清单：镜像 → 类别 ────────────────────────────────────────────────────
 
@@ -933,6 +934,208 @@ category = "arith"
 image = "tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S"
 category = "arith"
 
+# ── 07-floating-point（阶段二，`m17-idl-013`；50 例）──────────────────────────
+
+[[case]]
+image = "tests/inst/07-floating-point/fo2ft_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/fo2io_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/fo2it_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/fo2uo_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/fo2ut_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/foadd_orrr_rf.S"
+category = "fp-arith"
+
+[[case]]
+image = "tests/inst/07-floating-point/focls_orri_rf.S"
+category = "fp-classify"
+
+[[case]]
+image = "tests/inst/07-floating-point/fodiv_orrr_rf.S"
+category = "fp-arith"
+
+[[case]]
+image = "tests/inst/07-floating-point/fofma_rrrr_rf.S"
+category = "fp-fma"
+
+[[case]]
+image = "tests/inst/07-floating-point/fomax_orrr_rf.S"
+category = "fp-minmax"
+
+[[case]]
+image = "tests/inst/07-floating-point/fomin_orrr_rf.S"
+category = "fp-minmax"
+
+[[case]]
+image = "tests/inst/07-floating-point/fomul_orrr_rf.S"
+category = "fp-arith"
+
+[[case]]
+image = "tests/inst/07-floating-point/foqcmp_orrr_rf.S"
+category = "fp-compare"
+
+[[case]]
+image = "tests/inst/07-floating-point/forem_orrr_rf.S"
+category = "fp-arith"
+
+[[case]]
+image = "tests/inst/07-floating-point/fornd_orri_rf.S"
+category = "fp-round"
+
+[[case]]
+image = "tests/inst/07-floating-point/foroot_orri_rf.S"
+category = "fp-root"
+
+[[case]]
+image = "tests/inst/07-floating-point/fosclb_orrr_rf.S"
+category = "fp-arith"
+
+[[case]]
+image = "tests/inst/07-floating-point/foscmp_orrr_rf.S"
+category = "fp-compare"
+
+[[case]]
+image = "tests/inst/07-floating-point/fosgnj_orrr_rf.S"
+category = "fp-sign"
+
+[[case]]
+image = "tests/inst/07-floating-point/fosgnn_orrr_rf.S"
+category = "fp-sign"
+
+[[case]]
+image = "tests/inst/07-floating-point/fosub_orrr_rf.S"
+category = "fp-arith"
+
+[[case]]
+image = "tests/inst/07-floating-point/ft2fo_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/ft2io_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/ft2it_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/ft2uo_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/ft2ut_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftadd_orrr_rf.S"
+category = "fp-arith"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftcls_orri_rf.S"
+category = "fp-classify"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftdiv_orrr_rf.S"
+category = "fp-arith"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftfma_rrrr_rf.S"
+category = "fp-fma"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftmax_orrr_rf.S"
+category = "fp-minmax"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftmin_orrr_rf.S"
+category = "fp-minmax"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftmul_orrr_rf.S"
+category = "fp-arith"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftqcmp_orrr_rf.S"
+category = "fp-compare"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftrem_orrr_rf.S"
+category = "fp-arith"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftrnd_orri_rf.S"
+category = "fp-round"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftroot_orri_rf.S"
+category = "fp-root"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftsclb_orrr_rf.S"
+category = "fp-arith"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftscmp_orrr_rf.S"
+category = "fp-compare"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftsgnj_orrr_rf.S"
+category = "fp-sign"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftsgnn_orrr_rf.S"
+category = "fp-sign"
+
+[[case]]
+image = "tests/inst/07-floating-point/ftsub_orrr_rf.S"
+category = "fp-arith"
+
+[[case]]
+image = "tests/inst/07-floating-point/io2fo_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/io2ft_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/it2fo_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/it2ft_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/uo2fo_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/uo2ft_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/ut2fo_orri_rf.S"
+category = "fp-convert"
+
+[[case]]
+image = "tests/inst/07-floating-point/ut2ft_orri_rf.S"
+category = "fp-convert"
+
 # ── pending：暂缓镜像（当前为空）────────────────────────────────────────
-# m17-idl-008 已把 03/08/09/10 四册全部镜像迁入主清单；除 `07-floating-point`
-# 外无暂缓镜像，`pending` 段清零（m17-idl-009 收口复核不需再迁清单）。
+# m17-idl-008 已把 03/08/09/10 四册全部镜像迁入主清单、m17-idl-013 迁入
+# 07-floating-point 整册 ⇒ 无暂缓镜像，`pending` 段清零。

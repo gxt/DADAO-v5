@@ -10,7 +10,7 @@
 | `tools/idl_subset_stats.py` | 语法构造现场统计 + 两份盘点文档的校验（`--check`）：M17 前端实现口径的机械真源 |
 | `tools/idl_parser.py` | IDL 子集解析器（Python 标准库）：`.idl` → AST + 构造签名门控（`--check`/`--update`/`--self-test`） |
 | `tools/idl_exec.py` | 执行器核心（`m17-idl-003`）：四寄存器组 / 48 位地址 / 大端存储 / ELF 加载 / 最小 `trap`·`escape`；编码取 `contracts/opcodes.yaml`，语义按各 `.idl` 的 operation 正文 |
-| `tools/idl_fp.py` | FP 独立参考模型 + 精确有理数 oracle（原 `chipyard/fp_ref.py`；阶段二用） |
+| `tools/idl_fp.py` | FP 独立 spec-exact 参考模型（精确值一次舍入 + `rf0[4:0]` 标志；原 `chipyard/fp_ref.py`）：`07-floating-point` 的 50 个 op 由 `idl_exec.py` 薄封装调用它（`m17-idl-013`） |
 | `tools/idl_four_way.py` | 四方差分驱动（IDL / QEMU / gem5 / chipyard；`make check-idl` 的 L2 入口） |
 | `tools/idl_exec_parity.py` | `tests/inst` 载体的最终架构状态/退出码差分 |
 | `tools/idl_qemu_state.py` | QEMU 入口态/末态观测面 |
@@ -66,11 +66,13 @@ python3 idl/tools/idl_check_trace.py --images <dir> --bootrom <img>
 
 **M17 执行器补齐（窄位宽 ALU）**（`m17-idl-008`）：`08`/`09`/`10` 三册（32/16/8 位算术、比较、乘除余、移位/循环/反转）与 `03` 剩余 6 个镜像全部纳入主清单，`pending` 清零（主清单 222）；窄位宽按 `.idl` 正文的 size 截断 + `.s`/`.u` 符号/零扩展实现，orri/orrr 共用参数化路径（移位量取 `immu6` 或 `rdHD` 低位）。
 
+**M17 执行器补齐（浮点，阶段二）**（`m17-idl-013`）：`07-floating-point` 整册 **50 个 op**（转换 18 / 算术 12 / 比较 4 / 符号 4 / minmax 4 / 分类 2 / 取整 2 / 开方 2 / fma 2）纳入主清单；执行器只做薄封装（合法性、`rf0[33:32]` 或 `immu6` 六档取舍入方向、ft 窄写/fo 整写、标志 sticky 并入 FCSR），值与标志由 `tools/idl_fp.py` 给出 ⇒ `SEMANTICS` **263/263**（`contracts/opcodes.yaml` 全覆盖）、主清单 **272**。
+
 ## 四方差分与门控（阶段一收口，`m17-idl-009`）
 
 阶段一 = 非 FP 的 `tests/inst` 镜像在 IDL / QEMU / gem5 / chipyard 四方一致。判据 = **签名槽流逐槽全等 + 退出码全等**，且每方槽值再对独立 oracle `tests/data/inst-signature/expected.tsv` 逐槽比对（四方一致但全错仍红）；口径正文见 [`docs/four-way.md`](docs/four-way.md)。
 
-用例清单 `data/idl_exec_cases.toml`：`[[case]]` = 主清单，`[[pending]]` = **必须为空**（阶段一已收口；能力缺口另立任务）。门控在 `tools/idl_four_way.py` 内**现场派生**并断言 `{主清单} == {tests/inst/*/*.S} − {07-floating-point} − {pending}` 且 `pending` 必须为空：主清单少/多一条、`pending` 非空（含「一致地把一条移进 pending」）、越界或与主清单相交 ⇒ rc=2，文案「pending 必须为空」；计数不写死。**当前 `pending` 为空、主清单 == 现场派生（222 条）**；`07-floating-point` 的 50 个镜像属阶段二，其 id 在 `tools/idl_exec.py` 仍显式 `ExecError`（不静默通过）。
+用例清单 `data/idl_exec_cases.toml`：`[[case]]` = 主清单，`[[pending]]` = **必须为空**（阶段二已收口；能力缺口另立任务）。门控在 `tools/idl_four_way.py` 内**现场派生**并断言 `{主清单} == {tests/inst/*/*.S} − {pending}` 且 `pending` 必须为空：主清单少/多一条、`pending` 非空（含「一致地把一条移进 pending」）、越界或与主清单相交 ⇒ rc=2，文案「pending 必须为空」；计数不写死。**当前 `pending` 为空、主清单 == 现场派生（272 条，含 `07-floating-point` 整册 50 例）**。
 
 ```text
 make check-idl                                                      # L2：IDL + QEMU（不依赖 gem5/Verilator 构建）

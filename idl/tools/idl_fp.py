@@ -18,11 +18,13 @@
 # exponent re-basing are the ones documented in WumingFP.scala (and verified
 # against the hardfloat RTL by the unit bench, see `fp_unit`).
 #
-# **生成期工具，不作判据**（用户 2026-11-14 裁定；`m13-testcases-043`）：本模型生成
-# `tests/inst/fp/*.yaml` 的 case 级期望值 —— 那些 YAML 已随 YAML 全退役删除；现行
-# FP 判据是 `tests/inst/07-floating-point/*.S` 的**内联期望**（独立派生、直接执行，
-# 由 `check-inst-asm` 与三平台跑批逐字节比对），以及 `fp_unit` 单元台的
-# hardfloat 对照。`idl_fp` 保留用于**生成/交叉核对**向量与单元台对照，本身不作判据。
+# **角色 = FP 数值实现 + 生成/交叉核对工具**（用户 2026-11-22 裁定；`m17-idl-013`）：
+# `m17-idl-013` 起 `idl_exec.py` 的 50 条 FP op 以本文件为**数值来源**（值 + `rf0[4:0]`
+# 标志），执行器只做合法性/写宽/FCSR 归并的薄封装；**判据仍是四方签名槽 + 退出码**
+# （`tests/inst/07-floating-point/*.S` 的内联期望 + 四平台跑批），本文件不自判。
+# 本文件同时保留生成/交叉核对用途（`selfcheck` / `vectors` 与 `fp_unit` 单元台的
+# hardfloat 对照）；原 `tests/inst/fp/*.yaml` 期望值已随 YAML 全退役删除
+# （用户 2026-11-14 裁定，`m13-testcases-043`）。
 #
 # Usage:
 #   python3 idl/tools/idl_fp.py selfcheck     # bits model == exact model

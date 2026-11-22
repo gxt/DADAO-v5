@@ -62,12 +62,12 @@
 门控在 `check_four_way.py` 内**现场派生**并断言：
 
 ```
-{[[case]].image} == {tests/inst/*/*.S} − {07-floating-point} − {[[pending]].image}
+{[[case]].image} == {tests/inst/*/*.S} − {[[pending]].image}
 ```
 
 即「主清单集合 == 现场派生集合减去 pending」；`pending` 非空 ⇒ rc=2（文案「pending
 必须为空」），不再接受「一致地把一条移进 pending」。集合按 glob 现场统计，不写死
-镜像数；FP 册（`07-floating-point`）属阶段二，不在本口径内。
+镜像数；FP 册（`07-floating-point`）自 `m17-idl-013` 起已整册（50 例）纳入主清单。
 
 ## 5. 用法与退出码
 

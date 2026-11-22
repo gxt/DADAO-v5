@@ -41,6 +41,7 @@ from pathlib import Path
 
 sys.dont_write_bytecode = True       # idl/ 由 check-manifests-guard 做目录断言
 from idl_paths import REPO as REPO_ROOT
+import idl_fp as _fp                 # FP 独立参考模型（`m17-idl-013` 的 07 册封装）
 
 OPCODES = REPO_ROOT / "contracts" / "opcodes.yaml"
 
@@ -2177,6 +2178,281 @@ def load_elf(machine, elf_path):
             machine.mem.load(seg["paddr"] + seg["filesz"], zero)
     machine.ip = elf.e_entry
     return elf
+
+
+# --- 07-floating-point：SimRISC-07（m17-idl-013） ---------------------------
+# 语义逐条取自 `idl/SimRISC-07.idl` 的 operation 正文；**值 + `rf0[4:0]` 标志**由
+# 独立 spec-exact 参考模型 `idl/tools/idl_fp.py` 给出（精确值一次舍入 + IEEE
+# 754-2019 §7.4/§7.5 的 OF/UF/NX 判据），本层只做薄封装：
+#
+#   * 合法性：目的 `rf0`（`dst_rf0`）/ `rd0`（`dst_rd0`）⇒ ILLI；`immu6` 六档
+#     one-hot 或 SBZ、`root` 的 n=2、分类窗口 —— 均由本层显式判（不静默通过）；
+#   * 舍入方向：`orrr` 族取 `rf0[33:32]`，`orri` 族取 `immu6` 六档（0x20 = 动态）；
+#   * 写宽：ft 族只写低 32 位、高 32 位保持；fo 族整 64 位（contract-fp §1）；
+#   * 标志：返回的 `rf0[4:0]` 按 IEEE sticky 语义**并入** FCSR（只置位、不清零、
+#     不覆盖 SBZ/只读 qNaN 位）。
+#
+# `idl_fp` 只作被调用方：本任务不改其语义（缺陷另立任务）。
+_FP_MODE_RF0 = (_fp.RNE, _fp.RTZ, _fp.RDN, _fp.RUP)   # rf0[33:32]
+_FP_FMT = {32: _fp.FT, 64: _fp.FO}
+_FP_MASK = {32: 0xFFFF_FFFF, 64: MASK64}
+
+
+def _fp_src(m, insn, width, field="rfhc"):
+    """读浮点源（ft 只取低 32 位；rf0 作源合法）。"""
+    return m.get("rf", insn[field]) & _FP_MASK[width]
+
+
+def _fp_mode(m):
+    """S2D1/S1D1/符号等 `orrr` 族：舍入方向取 rf0[33:32] 四档。"""
+    return _FP_MODE_RF0[(m.get("rf", 0) >> 32) & 0x3]
+
+
+def _fp_mode_imm(m, insn):
+    """`orri` 族：immu6 六档 one-hot；0x20 = 动态读 rf0[33:32]；其余 ⇒ ILLI。"""
+    legal, mode = _fp.mode_from_onehot(insn["immu6"],
+                                       (m.get("rf", 0) >> 32) & 0x3)
+    if not legal:
+        raise Fault("Illegal")
+    return mode
+
+
+def _fp_dst(insn, field):
+    """浮点运算目的：rf 组不得为 rf0（dst_rf0），rd 组不得为 rd0（dst_rd0）。"""
+    dst = insn[field]
+    if dst == 0:
+        raise Fault("Illegal")
+    return dst
+
+
+def _fp_set_flags(m, flags):
+    """把本次运算的 rf0[4:0] 并入 FCSR（sticky：只置位、不清零；其它位保持）。"""
+    if flags:
+        m.set("rf", 0, m.get("rf", 0) | flags)
+
+
+def _fp_write_rf(m, dst, width, value):
+    """ft 族只写低 32 位（高 32 位保持）、fo 族整 64 位（contract-fp §1）。"""
+    if width == 32:
+        _narrow_write(m, "rf", dst, 32, value)
+    else:
+        m.set("rf", dst, value)
+
+
+def _fp_arith(m, insn, width, op):
+    """`arith`（§5）：add/sub/mul/div 取 rf0 舍入方向，rem 恒精确且不看舍入。"""
+    dst = _fp_dst(insn, "rfhb")
+    ew, sw = _FP_FMT[width]
+    a = _fp_src(m, insn, width, "rfhc")
+    b = _fp_src(m, insn, width, "rfhd")
+    if op == "rem":
+        res, flags = _fp.rem_exact(ew, sw, a, b)
+    elif op == "add":
+        res, flags = _fp.add_exact(ew, sw, a, b, False, _fp_mode(m))
+    elif op == "sub":
+        res, flags = _fp.add_exact(ew, sw, a, b, True, _fp_mode(m))
+    elif op == "mul":
+        res, flags = _fp.mul_exact(ew, sw, a, b, _fp_mode(m))
+    else:
+        res, flags = _fp.div_exact(ew, sw, a, b, _fp_mode(m))
+    _fp_write_rf(m, dst, width, res)
+    _fp_set_flags(m, flags)
+
+
+def _fp_sclb(m, insn, width):
+    """`ftsclb`/`fosclb`（§5）：rfHC × 2^rdHD，指数是 rd 组有符号 64 位整数。"""
+    dst = _fp_dst(insn, "rfhb")
+    ew, sw = _FP_FMT[width]
+    n = _sext(m.get("rd", insn["rdhd"]), 64)
+    res, flags = _fp.sclb_exact(ew, sw, _fp_src(m, insn, width), n, _fp_mode(m))
+    _fp_write_rf(m, dst, width, res)
+    _fp_set_flags(m, flags)
+
+
+def _fp_root(m, insn, width):
+    """`ftroot`/`foroot`（§6）：rootn(x, n)，仅 n=2；舍入方向取 rf0[33:32]。"""
+    dst = _fp_dst(insn, "rfhb")
+    if insn["immu6"] != 2:
+        raise Fault("Illegal")
+    ew, sw = _FP_FMT[width]
+    res, flags = _fp.sqrt_exact(ew, sw, _fp_src(m, insn, width), _fp_mode(m))
+    _fp_write_rf(m, dst, width, res)
+    _fp_set_flags(m, flags)
+
+
+def _fp_sign(m, insn, width, invert):
+    """`sign`（§7）：copySign / negate-copySign，纯位操作、不置标志。"""
+    dst = _fp_dst(insn, "rfhb")
+    hc = _fp_src(m, insn, width, "rfhc")
+    hd = _fp_src(m, insn, width, "rfhd")
+    _fp_write_rf(m, dst, width, _fp.sign_inject(hc, hd, width - 1, invert))
+
+
+def _fp_cmp(m, insn, width, signaling):
+    """`compare`（§8）：结果 −1/0/+1 或 canonical qNaN 写 rd（整 64 位）。"""
+    dst = _fp_dst(insn, "rdhb")
+    ew, sw = _FP_FMT[width]
+    a = _fp_src(m, insn, width, "rfhc")
+    b = _fp_src(m, insn, width, "rfhd")
+    res, flags = _fp.cmp_exact(ew, sw, a, b, signaling)
+    m.set("rd", dst, res)
+    _fp_set_flags(m, flags)
+
+
+def _fp_minmax(m, insn, width, is_max):
+    """`minmax`（§19）：单 NaN 返回那个数、双 NaN 取 canonical qNaN；sNaN ⇒ NV。"""
+    dst = _fp_dst(insn, "rfhb")
+    ew, sw = _FP_FMT[width]
+    a = _fp_src(m, insn, width, "rfhc")
+    b = _fp_src(m, insn, width, "rfhd")
+    res, flags = _fp.minmax_exact(ew, sw, a, b, is_max)
+    _fp_write_rf(m, dst, width, res)
+    _fp_set_flags(m, flags)
+
+
+def _fp_classify(m, insn, width):
+    """`classify`（§9）：rd 窗口 ← rf 窗口，[9:0] 十类 one-hot、[63:10] 清零。"""
+    dst, count, src = insn["rdhb"], insn["immu6"], insn["rfhc"]
+    if dst == 0 or count == 0 or dst + count > 64 or src + count > 64:
+        raise Fault("Illegal")
+    ew, sw = _FP_FMT[width]
+    for k in range(count):
+        m.set("rd", dst + k,
+              _fp.classify_fn(ew, sw, m.get("rf", src + k) & _FP_MASK[width]))
+
+
+def _fp_rnd(m, insn, width):
+    """`roundint`（§18）：六档 one-hot；只有 `0x20` 在结果 ≠ 输入时置 NX。"""
+    dst = _fp_dst(insn, "rfhb")
+    mode = _fp_mode_imm(m, insn)
+    ew, sw = _FP_FMT[width]
+    res, flags = _fp.rnd_exact(ew, sw, _fp_src(m, insn, width), mode,
+                               insn["immu6"] == 0x20)
+    _fp_write_rf(m, dst, width, res)
+    _fp_set_flags(m, flags)
+
+
+def _fp_f2i(m, insn, width, int_width, signed):
+    """`convert_f2i`（§3）：目的 rd 整 64 位；六档 one-hot。"""
+    dst = _fp_dst(insn, "rdhb")
+    mode = _fp_mode_imm(m, insn)
+    ew, sw = _FP_FMT[width]
+    res, flags = _fp.f2i_exact(ew, sw, _fp_src(m, insn, width),
+                               int_width, signed, mode)
+    m.set("rd", dst, res)
+    _fp_set_flags(m, flags)
+
+
+def _fp_i2f(m, insn, width, int_width, signed, exact):
+    """`convert_i2f`（§4）：`exact` = 低 6 位为 SBZ（非 0 ⇒ ILLI、不涉舍入）。"""
+    dst = _fp_dst(insn, "rfhb")
+    if exact:
+        if insn["immu6"] != 0:
+            raise Fault("Illegal")
+        mode = _fp.RNE
+    else:
+        mode = _fp_mode_imm(m, insn)
+    ew, sw = _FP_FMT[width]
+    rec, flags = _fp.i2f_exact(int_width, ew, sw, m.get("rd", insn["rdhc"]),
+                               signed, mode)
+    _fp_write_rf(m, dst, width, _fp.fn_from_recfn(ew, sw, rec))
+    _fp_set_flags(m, flags)
+
+
+def _fp_f2f(m, insn, src_width, exact):
+    """`convert_ff`（§2）：`ft2fo`（SBZ、恒精确）/ `fo2ft`（六档、可溢出/下溢）。"""
+    dst = _fp_dst(insn, "rfhb")
+    dst_width = 64 if src_width == 32 else 32
+    if exact:
+        if insn["immu6"] != 0:
+            raise Fault("Illegal")
+        mode = _fp.RNE
+    else:
+        mode = _fp_mode_imm(m, insn)
+    sew, ssw = _FP_FMT[src_width]
+    dew, dsw = _FP_FMT[dst_width]
+    rec, flags = _fp.f2f_exact(sew, ssw, dew, dsw,
+                               _fp_src(m, insn, src_width), mode)
+    _fp_write_rf(m, dst, dst_width, _fp.fn_from_recfn(dew, dsw, rec))
+    _fp_set_flags(m, flags)
+
+
+def _fp_fma(m, insn, width):
+    """`fma`（§20）：rfHB × rfHC + rfHD，精确和只舍入一次；舍入方向取 rf0。"""
+    dst = _fp_dst(insn, "rfha")
+    ew, sw = _FP_FMT[width]
+    a = _fp_src(m, insn, width, "rfhb")
+    b = _fp_src(m, insn, width, "rfhc")
+    c = _fp_src(m, insn, width, "rfhd")
+    res, flags = _fp.fma_exact(ew, sw, a, b, c, _fp_mode(m))
+    _fp_write_rf(m, dst, width, res)
+    _fp_set_flags(m, flags)
+
+
+# arith（§5）：12 条（ft/fo × add/sub/mul/div/rem/sclb）
+_sem_params(("ftadd_orrr_rf",), _fp_arith, width=32, op="add")
+_sem_params(("ftsub_orrr_rf",), _fp_arith, width=32, op="sub")
+_sem_params(("ftmul_orrr_rf",), _fp_arith, width=32, op="mul")
+_sem_params(("ftdiv_orrr_rf",), _fp_arith, width=32, op="div")
+_sem_params(("ftrem_orrr_rf",), _fp_arith, width=32, op="rem")
+_sem_params(("foadd_orrr_rf",), _fp_arith, width=64, op="add")
+_sem_params(("fosub_orrr_rf",), _fp_arith, width=64, op="sub")
+_sem_params(("fomul_orrr_rf",), _fp_arith, width=64, op="mul")
+_sem_params(("fodiv_orrr_rf",), _fp_arith, width=64, op="div")
+_sem_params(("forem_orrr_rf",), _fp_arith, width=64, op="rem")
+_sem_params(("ftsclb_orrr_rf",), _fp_sclb, width=32)
+_sem_params(("fosclb_orrr_rf",), _fp_sclb, width=64)
+# root（§6）/ sign（§7）/ minmax（§19）/ fma（§20）
+_sem_params(("ftroot_orri_rf",), _fp_root, width=32)
+_sem_params(("foroot_orri_rf",), _fp_root, width=64)
+_sem_params(("ftsgnj_orrr_rf",), _fp_sign, width=32, invert=False)
+_sem_params(("ftsgnn_orrr_rf",), _fp_sign, width=32, invert=True)
+_sem_params(("fosgnj_orrr_rf",), _fp_sign, width=64, invert=False)
+_sem_params(("fosgnn_orrr_rf",), _fp_sign, width=64, invert=True)
+_sem_params(("ftmin_orrr_rf",), _fp_minmax, width=32, is_max=False)
+_sem_params(("ftmax_orrr_rf",), _fp_minmax, width=32, is_max=True)
+_sem_params(("fomin_orrr_rf",), _fp_minmax, width=64, is_max=False)
+_sem_params(("fomax_orrr_rf",), _fp_minmax, width=64, is_max=True)
+_sem_params(("ftfma_rrrr_rf",), _fp_fma, width=32)
+_sem_params(("fofma_rrrr_rf",), _fp_fma, width=64)
+# compare（§8）/ classify（§9）/ roundint（§18）
+_sem_params(("ftqcmp_orrr_rf",), _fp_cmp, width=32, signaling=False)
+_sem_params(("ftscmp_orrr_rf",), _fp_cmp, width=32, signaling=True)
+_sem_params(("foqcmp_orrr_rf",), _fp_cmp, width=64, signaling=False)
+_sem_params(("foscmp_orrr_rf",), _fp_cmp, width=64, signaling=True)
+_sem_params(("ftcls_orri_rf",), _fp_classify, width=32)
+_sem_params(("focls_orri_rf",), _fp_classify, width=64)
+_sem_params(("ftrnd_orri_rf",), _fp_rnd, width=32)
+_sem_params(("fornd_orri_rf",), _fp_rnd, width=64)
+# convert_f2i（§3）：8 条
+_sem_params(("ft2it_orri_rf",), _fp_f2i, width=32, int_width=32, signed=True)
+_sem_params(("ft2io_orri_rf",), _fp_f2i, width=32, int_width=64, signed=True)
+_sem_params(("ft2ut_orri_rf",), _fp_f2i, width=32, int_width=32, signed=False)
+_sem_params(("ft2uo_orri_rf",), _fp_f2i, width=32, int_width=64, signed=False)
+_sem_params(("fo2it_orri_rf",), _fp_f2i, width=64, int_width=32, signed=True)
+_sem_params(("fo2io_orri_rf",), _fp_f2i, width=64, int_width=64, signed=True)
+_sem_params(("fo2ut_orri_rf",), _fp_f2i, width=64, int_width=32, signed=False)
+_sem_params(("fo2uo_orri_rf",), _fp_f2i, width=64, int_width=64, signed=False)
+# convert_i2f（§4）：8 条（it/io/ut/uo 为源整型，ft/fo 为目的格式）
+_sem_params(("it2ft_orri_rf",), _fp_i2f, width=32, int_width=32, signed=True,
+            exact=False)
+_sem_params(("io2ft_orri_rf",), _fp_i2f, width=32, int_width=64, signed=True,
+            exact=False)
+_sem_params(("ut2ft_orri_rf",), _fp_i2f, width=32, int_width=32, signed=False,
+            exact=False)
+_sem_params(("uo2ft_orri_rf",), _fp_i2f, width=32, int_width=64, signed=False,
+            exact=False)
+_sem_params(("it2fo_orri_rf",), _fp_i2f, width=64, int_width=32, signed=True,
+            exact=True)
+_sem_params(("io2fo_orri_rf",), _fp_i2f, width=64, int_width=64, signed=True,
+            exact=False)
+_sem_params(("ut2fo_orri_rf",), _fp_i2f, width=64, int_width=32, signed=False,
+            exact=True)
+_sem_params(("uo2fo_orri_rf",), _fp_i2f, width=64, int_width=64, signed=False,
+            exact=False)
+# convert_ff（§2）：2 条
+_sem_params(("ft2fo_orri_rf",), _fp_f2f, src_width=32, exact=True)
+_sem_params(("fo2ft_orri_rf",), _fp_f2f, src_width=64, exact=False)
 
 
 # ---------------------------------------------------------------------------
