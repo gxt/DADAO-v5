@@ -22,7 +22,6 @@
 | --- | --- | --- |
 | m16-qemu-002 | 4–6 h | QEMU 影子 D-Cache 数据通路（8×128×64 B；DMA/装载直连） |
 | m16-qemu-003 | 3–4 h | QEMU cfx5 命令接线（clean/invalidate/flush + I 侧 tb invalidate） |
-| m16-chipyard-017 | 3–5 h | RTL cfx5 命令接线（D/I cache cmd 口） |
 | m16-testcases-009 | 3–4 h | cfx5 用例三方跑（寄存器面 + 命令 + 数据语义） |
 | m16-chipyard-018 | 3–4 h | cfx4 RTL PTW/TLB 探针纳管并三方对齐 |
 
@@ -31,6 +30,7 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m16-qemu-001 | 2026-11-22 13:34 | 2–3 h | QEMU `cache-model=off\|on` 属性 + cfx5 寄存器面（不含影子数据通路） |
+| m16-chipyard-017 | 2026-11-22 18:25 | 3–5 h | RTL cfx5 命令接线（D/I cache cmd 口） |
 
 ## 已验证
 
