@@ -41,6 +41,7 @@
 | --- | --- | --- | --- |
 | m16-gem5-024 | 2026-11-22 22:04 | 2–3 h | gem5 cfx5 两轴权限/trap/escape（进 kCfxhaMap） |
 | m16-chipyard-019 | 2026-11-22 22:09 | 3–4 h | RTL cfx0/2 寄存器面与权限（A；不改主控制流） |
+| m16-qemu-005 | 2026-11-23 00:12 | 2–3 h | cfx5 通用 `cg0–cg7`（含 `cg3 rc12` deleg；契约 `contract-see §3`） |
 | m16-testcases-015 | 2026-11-22 20:47 | 4–6 h | `tests/arch` 运行模式环境（hmon/smon/umon；body 与 env 分离；代表迁移） |
 
 ## 已验证
