@@ -7,7 +7,7 @@
 |---|---|---|
 | `asm/` | `machine-{tiny,vast}.inc`（由 `contracts/machine.yaml` + `tests/ee-<env>/runtime.yaml` 生成的几何符号）+ `signature.inc` | bootrom / crt0 / arch 向量 |
 | `asm/signature.inc` | 签名流机制（`m16-testcases-002`）：`SIG_BEGIN buf,count`（预填 `0xdeadbeef`）/ `SIGUPD reg`（8 字节槽 + 前进）/ `SIG_DUMP buf,count`（`SYS_WRITE` handle 1 块写，失败回退 `SYS_WRITEC`）/ `SIG_DUMP_CHARS`（逐字节） | `tests/inst/macros/inst_test.inc`（`__REC`/收尾）；host 侧解析 `tests/shared/signature.py`（arch 探针的 word-builder 发射器也在同一个 `.py` 里，机制只此一份） |
-| `signature.py` | 签名流机制 **host 侧（唯一实现）**（`m16-testcases-005` 由 `tools/testcases/lib/` 迁入）：`parse`/`compare`/`unwritten`（8 字节槽、大端、`0xdeadbeef` = 未写）+ `capture`（qemu / gem5 / chipyard / qemu-bootrom 取流）+ `Emitter`（arch word-builder 探针的 `SIG_BEGIN`/`SIGUPD`/`SIG_DUMP` 等价指令） | `tests/ee-tiny/run_inst_tiny.py`、`tools/testcases/arch/{node_probe_prelude,min_rom_probe_tlb}.py`、`tools/testcases/inst/check_inst_sig.py`、`tools/idl/qemu_final_state.py`（仅按 `_capture_qemu` 参数口径取流） |
+| `signature.py` | 签名流机制 **host 侧（唯一实现）**（`m16-testcases-005` 由 `tools/testcases/lib/` 迁入）：`parse`/`compare`/`unwritten`（8 字节槽、大端、`0xdeadbeef` = 未写）+ `capture`（qemu / gem5 / chipyard / qemu-bootrom 取流）+ `Emitter`（arch word-builder 探针的 `SIG_BEGIN`/`SIGUPD`/`SIG_DUMP` 等价指令） | `tests/ee-tiny/run_inst_tiny.py`、`tools/testcases/arch/node_probe_prelude.py`、`tests/arch/ptw/carrier_tlb.py`、`tools/testcases/inst/check_inst_sig.py`、`tools/idl/qemu_final_state.py`（仅按 `_capture_qemu` 参数口径取流） |
 
 > **平台差异（`m16-testcases-002` 复核实测）**：QEMU 与 gem5 的 `SYS_WRITE` handle 1 需先
 > `SYS_OPEN(":tt")`，未打开时块写会返回「整段未写」⇒ 这两个平台的签名流实际走 `SIG_DUMP_CHARS`

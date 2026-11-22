@@ -1,10 +1,11 @@
 # tests/arch/ptw/expected.yaml — `arch-ptw-001`…`arch-ptw-015`（TLB/PTW 探针清单）
 #
-# 载体：`tools/testcases/arch/min_rom_probe_tlb.py`（一个驱动、15 个 case、一 ROM 一检查），
-#   由 `make check-arch` 经 `Makefile` 的 `ARCH_CFX_PROBES` 逐条调用（`--only <case>`）。
+# 载体：`tests/arch/ptw/carrier_tlb.py`（一个驱动、15 个 case、一 ROM 一检查；
+#   `m16-testcases-010` 由 `tools/testcases/arch/min_rom_probe_tlb.py` 迁入），
+#   由 `tests/arch/run_arch.py --cfx 4` 经 `check_tlb.py` 逐条调用（`--only <case>`）。
 #   本文件不是第二套判据：**位号与 cause 值由驱动现场从合约解析**（见下「来源」列），
 #   本文件只登记「每条 case 期望的大类 + 子原因符号 + info 语义 + 来源 §」，并由
-#   `min_rom_probe_tlb.py --selfcheck` 与驱动双向核对（缺项/多项/名不符即 FAIL）。
+#   `carrier_tlb.py --selfcheck` 与驱动双向核对（缺项/多项/名不符即 FAIL）。
 #
 # 判据来源（不写魔数）：
 #   * cause 值与大类归属：`.tao/contracts/contract-see.md` §6.1；
@@ -21,6 +22,9 @@
 #   `inst` = 触发指令编码；`none` = 无异常）。
 # checks[].signature = 已接线检查的签名流期望（每观测点一个值，16 进制；`m16-testcases-002`）。
 #   数值真源仍是驱动里由合约派生的值，本清单只登记并由 `--selfcheck` 双向核对。
+#   同一 case 由多个检查组成时，驱动按 checks 顺序把各检查的流**聚合**成一个
+#   产物；`run_arch.py` 按本清单顺序逐槽比较（`m16-testcases-010`）。未写
+#   `signature:` 的检查仍由 guest 内断言判（rc=0），跨平台比较按 0 槽空流登记。
 
 schema: 1
 cases:

@@ -18,8 +18,10 @@ python3 tests/arch/run_arch.py --list
 ```
 
 - `--cfx`：0/2/3/4/5/15/32/34/63，可逗号分隔；非法值退出 2。
-- `--platforms`：`qemu` / `gem5` / `chipyard` 逗号列表。**未实现的后端 fail-closed**：
-  记 `SKIP` 并**非零退出**，禁止静默降级为「其余平台通过」。
+- `--platforms`：`qemu` / `gem5` / `chipyard` 逗号列表。`qemu` 与 `gem5`（driver 经
+  `tools/testcases/parity/qemu_gem5_shim.py`，`-machine kaiwu-vast`）已接；
+  **未实现的 `chipyard`（RTL）fail-closed**：记 `SKIP` 并**非零退出**，禁止静默
+  降级为「其余平台通过」。
 - `--cache-model`：arch 固定 `on`；传 `off` 退出 2。
 - `--case`：只跑 `tests/arch.yaml` 里的一个 id，用于单点复现。
 - `--self-test`：不启动模拟器，只校验索引的 `machine/kind`、各 `expected.yaml` 的
@@ -35,10 +37,10 @@ python3 tests/arch/run_arch.py --list
 | 目录/文件 | cfx | 内容 |
 |------|-----|------|
 | `run_arch.py` | — | 唯一驱动（`--cfx/--platforms/--cache-model/--self-test/--list`） |
-| `common/` | — | arch 内共享薄壳：`signature.py` 转调 `tests/shared/signature.py`；`platform.py` 的 qemu/gem5/chipyard 后端骨架 |
+| `common/` | — | arch 内共享薄壳：`signature.py` 转调 `tests/shared/signature.py`；`platform.py` 的 qemu/gem5（driver 经 shim）/chipyard（fail-closed）后端 |
 | `data/` | — | scope 内入库数据（三平台 cfx 盘点矩阵），不成册、不进 `tests/arch.yaml` |
 | `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.s`，10 条）+ `expected.yaml` |
-| `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针的期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §）；驱动型入口 `check_tlb.py`（`kind: driver`），转调既有 `tools/testcases/arch/min_rom_probe_tlb.py`（判据未变） |
+| `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针：载体/生成器 `carrier_tlb.py`（`m16-testcases-010` 由 `tools/testcases/arch/` 迁入）、期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §）、驱动型入口 `check_tlb.py`（`kind: driver`）；QEMU 与 gem5（shim）逐条跑，RTL 由 `m16-chipyard-018` |
 
 其余 cfx 按已有用例增建（`smon/`、`hmon/`、`cache/`、`hart/`、`pmem/`、`time/`、
 `power/`）；**不建**空壳子目录。Tiny 的 hmon 用例已迁出 arch（见下）。

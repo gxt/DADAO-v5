@@ -109,11 +109,138 @@
   level: smoke
   requires:
   - bootrom
-# 驱动型 case 的骨架验证（m16-testcases-006）：`arch-ptw-002` 已带签名流
-# （`tests/arch/ptw/expected.yaml` 的 `signature:`），由 `run_arch.py --cfx 4`
-# 经 scope 内驱动 `arch/ptw/check_tlb.py` 调起。其余 14 条 `arch-ptw-*`
-# 随 cfx4 迁移任务登记，不在本任务新增。
+# cfx4 ptw/tlb（m16-testcases-010）：15 条 `arch-ptw-*`，载体/驱动/期望都在
+# `tests/arch/ptw/`。每条 = 一个 scope 内驱动 `arch/ptw/check_tlb.py`，由
+# `run_arch.py --cfx 4 --platforms qemu,gem5` 调起；`--only <id>` 选定 case。
+# 判据来源与检查点映射见 `tests/arch/ptw/expected.yaml` 与
+# `tests/arch/data/vast-arch-inventory.md` 的 cfx4 行。
+- id: arch-ptw-001
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
 - id: arch-ptw-002
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-ptw-003
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-ptw-004
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-ptw-005
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-ptw-006
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-ptw-007
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-ptw-008
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-ptw-009
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-ptw-010
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-ptw-011
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-ptw-012
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-ptw-013
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-ptw-014
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-ptw-015
   file: arch/ptw/check_tlb.py
   kind: driver
   machine: vast

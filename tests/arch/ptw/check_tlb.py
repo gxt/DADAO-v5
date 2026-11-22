@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """`tests/arch/ptw/check_tlb.py` — arch ptw 的 scope 内驱动入口（kind: driver）。
 
-判据与实现仍是既有的 `tools/testcases/arch/min_rom_probe_tlb.py`
-（`m14-testcases-005`；15 条 `arch-ptw-*`、contract-tlb §11）。本文件只把
-「用例 id → `--only`」、QEMU 路径、运行期工作目录与签名流产物路径接到
+判据与载体都在本目录：`carrier_tlb.py`（`m14-testcases-005` 的 15 条
+`arch-ptw-*`、contract-tlb §11；`m16-testcases-010` 由
+`tools/testcases/arch/min_rom_probe_tlb.py` 迁入）。本文件只把
+「用例 id → `--only`」、引擎路径、运行期工作目录与签名流产物路径接到
 `tests/arch/run_arch.py` 的驱动契约：
 
     check_tlb.py --only arch-ptw-002 --qemu PATH \
         [--work-dir DIR] [--signature-out PATH] [--selfcheck] [--list]
 
-不复制判据，也不另写签名流解析器（真源 `tests/shared/signature.py`）。
+`--qemu` 可以是 `qemu-system-dadao`，也可以是 `qemu_gem5_shim.py`
+（gem5 承载，`-machine kaiwu-vast` 由载体发出）。本文件不复制判据，
+也不另写签名流解析器（真源 `tests/shared/signature.py`）。
 """
 from __future__ import annotations
 
@@ -18,21 +21,20 @@ import importlib.util
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]      # 仓库根
-PROBE = ROOT / "tools" / "testcases" / "arch" / "min_rom_probe_tlb.py"
+PROBE = Path(__file__).resolve().with_name("carrier_tlb.py")
 
 
 def _load_probe():
     if not PROBE.is_file():
-        raise SystemExit("check_tlb: 缺件 %s（min-ROM TLB 探针）" % PROBE)
-    spec = importlib.util.spec_from_file_location("_arch_min_rom_probe_tlb",
+        raise SystemExit("check_tlb: 缺件 %s（PTW/TLB 载体）" % PROBE)
+    spec = importlib.util.spec_from_file_location("_arch_ptw_carrier_tlb",
                                                   PROBE)
     if spec is None or spec.loader is None:
         raise SystemExit("check_tlb: 无法加载 %s" % PROBE)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
-    # 作为脚本运行时脚本目录在 sys.path；importlib 加载时要自己补上探针目录
-    # （`node_probe_prelude` 与探针同目录）。
+    # 载体自己会把 `tools/testcases/arch`（node_probe_prelude）加入 sys.path；
+    # 这里补脚本目录，保证以任意 cwd 调起时相对导入路径一致。
     probe_dir = str(PROBE.parent)
     if probe_dir not in sys.path:
         sys.path.insert(0, probe_dir)

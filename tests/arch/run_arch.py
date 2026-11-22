@@ -157,9 +157,10 @@ def self_test() -> int:
     if backend_problems:
         problems.extend(backend_problems)
         for problem in backend_problems:
-            print("  FAIL  后端 fail-closed: %s" % problem)
+            print("  FAIL  后端接线/fail-closed: %s" % problem)
     else:
-        print("  PASS  后端 fail-closed: gem5 / chipyard 均显式拒绝")
+        print("  PASS  后端接线: gem5 driver 承载已接（qemu_gem5_shim）；"
+              "chipyard 显式 fail-closed")
 
     print("-" * 72)
     if problems:
@@ -203,7 +204,15 @@ def _default_paths(args):
                / "bootrom_step5.bin")
     work = (Path(args.work_dir) if args.work_dir
             else paths.test_artifacts_dir() / "arch" / "run_arch")
-    return qemu, llvm_mc, llvm_objcopy, bootrom, work
+    gem5 = (Path(args.gem5) if args.gem5
+            else Path(os.environ.get("PARITY_GEM5")
+                      or ROOT / ".work/source/gem5/build/DADAO/gem5.opt"))
+    gem5_config = (Path(args.gem5_config) if args.gem5_config
+                   else Path(os.environ.get("PARITY_GEM5_CONFIG")
+                             or ROOT / ".work/source/gem5/configs/dadao/fs.py"))
+    gem5_shim = ROOT / "tools" / "testcases" / "parity" / "qemu_gem5_shim.py"
+    return (qemu, llvm_mc, llvm_objcopy, bootrom, work,
+            gem5, gem5_config, gem5_shim)
 
 
 def run(args) -> int:
@@ -224,11 +233,14 @@ def run(args) -> int:
     if not cases:
         raise ConfigError("所选 cfx 无用例（cfx=%s）" % cfx)
 
-    qemu, llvm_mc, llvm_objcopy, bootrom, work = _default_paths(args)
+    (qemu, llvm_mc, llvm_objcopy, bootrom, work,
+     gem5, gem5_config, gem5_shim) = _default_paths(args)
     ctx = argparse.Namespace(arch_root=str(ARCH), repo_root=str(ROOT),
                              work=str(work), qemu=qemu,
                              llvm_mc=llvm_mc, llvm_objcopy=llvm_objcopy,
                              bootrom=bootrom,
+                             gem5=gem5, gem5_config=gem5_config,
+                             gem5_shim=gem5_shim,
                              m5_runner=ROOT / "tools" / "testcases" / "arch"
                              / "run_m5_e2e.py",
                              timeout=args.timeout)
@@ -276,11 +288,59 @@ def run(args) -> int:
                                 % (res["platform"], res["case"],
                                    res.get("reason", "")))
 
+    # 跨平台一致性：同一 case 的逐槽签名字节与 verdict 必须相同（多平台时）。
+    # 已接线的签名流逐字节比较；未接线的 case 是两份 0 槽空流（显式登记，
+    # 不把空流当成已验证的「签名一致」）。
+    def _observed_checks(res):
+        """驱动日志里逐检查的 PASS/FAIL 行（同一驱动 → 跨引擎可比）。"""
+        try:
+            text = Path(res["log"]).read_text(encoding="utf-8",
+                                              errors="replace")
+        except OSError:
+            return []
+        return sorted(line.strip() for line in text.splitlines()
+                      if line.startswith(("PASS ", "FAIL ")))
+
+    by_case = {}
+    for res in results:
+        by_case.setdefault(res["case"], {})[res["platform"]] = res
+    cross = {}
+    for case_id, per in sorted(by_case.items()):
+        if len(per) < 2:
+            continue
+        verdicts = {res["verdict"] for res in per.values()}
+        sigs = {}
+        checks = {}
+        for name, res in per.items():
+            path = Path(res["signature"])
+            sigs[name] = path.read_bytes() if path.is_file() else b""
+            checks[name] = _observed_checks(res)
+        entry = {
+            "platforms": sorted(per),
+            "verdict_equal": len(verdicts) == 1,
+            "signature_equal": len(set(sigs.values())) == 1,
+            "checks_equal": len({tuple(v) for v in checks.values()}) == 1,
+            "signature_slots": {name: len(blob) // 8
+                                for name, blob in sigs.items()},
+            "check_count": {name: len(v) for name, v in checks.items()},
+        }
+        entry["ok"] = (entry["verdict_equal"] and entry["signature_equal"]
+                       and entry["checks_equal"])
+        cross[case_id] = entry
+        if entry["ok"]:
+            continue
+        msg = ("跨平台不一致 %s: verdict=%r signature_slots=%r check_count=%r"
+               % (case_id, {name: res["verdict"] for name, res in per.items()},
+                  entry["signature_slots"], entry["check_count"]))
+        print("  FAIL  %s" % msg)
+        failures.append(msg)
+
     summary = work / "run.json"
     summary.write_text(json.dumps(
         {"cfx": cfx, "platforms": platforms, "cache_model": "on",
          "cases": [c["id"] for c in cases], "results": results,
-         "failures": failures}, ensure_ascii=False, indent=2),
+         "cross_platform": cross, "failures": failures},
+        ensure_ascii=False, indent=2),
         encoding="utf-8")
     print("-" * 72)
     if failures:
@@ -323,6 +383,12 @@ def main(argv=None) -> int:
     ap.add_argument("--case", default=None, help="只跑指定 case id")
     ap.add_argument("--work-dir", default=None, help="运行期证据目录")
     ap.add_argument("--qemu", default=None)
+    ap.add_argument("--gem5", default=None,
+                    help="gem5.opt（缺省 = $PARITY_GEM5 或 .work/source/gem5/"
+                         "build/DADAO/gem5.opt）")
+    ap.add_argument("--gem5-config", default=None,
+                    help="gem5 fs.py（缺省 = $PARITY_GEM5_CONFIG 或 "
+                         ".work/source/gem5/configs/dadao/fs.py）")
     ap.add_argument("--llvm-mc", default=None)
     ap.add_argument("--llvm-objcopy", default=None)
     ap.add_argument("--bootrom", default=None)

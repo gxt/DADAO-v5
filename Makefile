@@ -1700,9 +1700,12 @@ ARCH_PROBE_LOG = .work/log/arch/check-arch-smoke-svc.log
 # `integ050t` = cfx_time 1 GHz/64 位 + 单 hart cfx_hart 的 cycle/insn 64 位与 TIMER/IMASK/pending。
 # `integ051t` = 统一异步中断仲裁（pending 归目标 cfx、低目标 cfxha 优先、单层、mask 保留/补投）。
 # `integ007t` = Tiny hmon「最小保存-跳转」算法（m13-integ-007；QEMU 先行契约）。
-# `tlb` = `tests/arch/ptw` 的 15 条 TLB/PTW 探针（m14-testcases-005；判据 = contract-tlb §11 + TLB-37，
+# `tests/arch/ptw/carrier_tlb.py` = 15 条 TLB/PTW 探针（m16-testcases-010 由
+#        `tools/testcases/arch/min_rom_probe_tlb.py` 迁入；判据 = contract-tlb §11 + TLB-37，
 #        子原因位号现场解析自 contract-see §6.1.1；`--only` 逐 case、`--selfcheck` 校合约面）。
-ARCH_CFX_PROBES = 044t 045t 049t integ039t integ040t integ042t integ044t integ046t integ047t integ048t integ049t integ050t integ051t integ007t tlb
+#        迁移后不在 `tools/testcases/arch/`，单独在循环后调起（`ARCH_PTW_CARRIER`）。
+ARCH_CFX_PROBES = 044t 045t 049t integ039t integ040t integ042t integ044t integ046t integ047t integ048t integ049t integ050t integ051t integ007t
+ARCH_PTW_CARRIER = tests/arch/ptw/carrier_tlb.py
 
 _locked-check-arch-smoke: install-host build-bootrom
 	@test -x $(LLVM_MC_BIN) || { echo "check-arch-smoke: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
@@ -1738,8 +1741,13 @@ _locked-check-arch: check-arch-smoke
 	  tail -n 3 .work/log/arch/check-arch-probe-$$p.log; \
 	  if [ $$rc -ne 0 ]; then echo "check-arch: FAIL (min_rom_probe_$$p rc=$$rc)"; fail=1; fi; \
 	done; \
+	echo "check-arch: [tlb] cfx4 PTW/TLB carrier"; \
+	DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_PTW_CARRIER) --qemu $(QEMU_BIN) > .work/log/arch/check-arch-probe-tlb.log 2>&1; \
+	rc=$$?; \
+	tail -n 3 .work/log/arch/check-arch-probe-tlb.log; \
+	if [ $$rc -ne 0 ]; then echo "check-arch: FAIL (carrier_tlb rc=$$rc)"; fail=1; fi; \
 	if [ $$fail -ne 0 ]; then exit 1; fi; \
-	echo "check-arch: PASS (arch-smoke + cfx probes: $(ARCH_CFX_PROBES))"
+	echo "check-arch: PASS (arch-smoke + cfx probes: $(ARCH_CFX_PROBES) + ptw/tlb)"
 
 # M6 end-to-end gate (INTEG-025t).  Three components, all fail-closed:
 #   1. value-level differential: the same LLVM IR runs on the host `lli` (X86)

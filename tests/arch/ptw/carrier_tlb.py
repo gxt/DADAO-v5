@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""arch-ptw-001…013 — TLB / page-table-walk probes (`contract-tlb §11`, K3).
+"""arch-ptw-001…015 — TLB / page-table-walk probes (`contract-tlb §11`, K3).
+
+本文件是 `tests/arch/ptw/` 的**载体/生成器**（`m16-testcases-010` 由
+`tools/testcases/arch/min_rom_probe_tlb.py` 迁入）：一个驱动、15 个 case、
+每个检查一个 BootROM 镜像。期望清单在 `tests/arch/ptw/expected.yaml`；
+`check_tlb.py` 是 `run_arch.py` 的驱动入口（`kind: driver`）。
 
 Expectations are derived **at run time from the contracts**, never from the
 QEMU implementation (AGENTS.md "Independent oracle"):
@@ -69,11 +74,11 @@ which is one of the injected counter-examples used to prove the assertion is
 reachable.
 
 Usage:
-  min_rom_probe_tlb.py                 # all 15 cases, all checks
-  min_rom_probe_tlb.py --only arch-ptw-005
-  min_rom_probe_tlb.py --list
-  min_rom_probe_tlb.py --selfcheck     # contract tables + expected.yaml
-  min_rom_probe_tlb.py --qemu PATH
+  carrier_tlb.py                 # all 15 cases, all checks
+  carrier_tlb.py --only arch-ptw-005
+  carrier_tlb.py --list
+  carrier_tlb.py --selfcheck     # contract tables + expected.yaml
+  carrier_tlb.py --qemu PATH     # QEMU 或 qemu_gem5_shim.py（gem5 承载）
 Exit code: 0 iff every requested check passed.
 """
 
@@ -83,7 +88,10 @@ import re
 import sys
 
 _REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
-    os.path.abspath(__file__)))))
+    os.path.abspath(__file__)))))         # tests/arch/ptw -> repo root
+_ARCH_SHARED = os.path.join(_REPO, "tools", "testcases", "arch")
+if _ARCH_SHARED not in sys.path:
+    sys.path.insert(0, _ARCH_SHARED)      # `node_probe_prelude.py`（跨 scope 共享）
 if os.path.join(_REPO, "tools", "testcases", "lib") not in sys.path:
     sys.path.insert(0, os.path.join(_REPO, "tools", "testcases", "lib"))
 if os.path.join(_REPO, "tests", "shared") not in sys.path:
@@ -93,7 +101,7 @@ import signature  # noqa: E402  (签名流机制：解析/比对/word-builder �
 
 DEFAULT_QEMU = P.default_qemu()
 QEMU = DEFAULT_QEMU
-WORKDIR = os.path.join(P.TMP_ROOT, "min_rom_probe_tlb")
+WORKDIR = os.path.join(P.TMP_ROOT, "arch_ptw_tlb")
 SIG_OUT = os.path.join(WORKDIR, "signature.out")
 TIMEOUT = 20
 
@@ -141,21 +149,21 @@ def parse_contract():
             bit, wyde, name, target = (int(m.group(1)), int(m.group(2)),
                                        m.group(3), m.group(4))
             if name in sub_bits:
-                raise SystemExit("min_rom_probe_tlb: duplicate sub-cause %r"
+                raise SystemExit("carrier_tlb: duplicate sub-cause %r"
                                  % name)
             sub_bits[name], sub_wyde[name], sub_cause[name] = bit, wyde, target
     if not causes or not sub_bits:
-        raise SystemExit("min_rom_probe_tlb: cannot parse the contract tables "
+        raise SystemExit("carrier_tlb: cannot parse the contract tables "
                          "(%s §6.1/§6.1.1)" % CONTRACT_SEE)
     # §6.1.1 is the authority; DADAO-12 §3.6 must agree bit by bit.
     spec_bits = {m.group(2): int(m.group(1))
                  for m in (_RE_SPEC_SUB.match(x)
                            for x in _read(SPEC_SEE).splitlines()) if m}
     if not spec_bits:
-        raise SystemExit("min_rom_probe_tlb: cannot parse spec/DADAO-12 §3.6")
+        raise SystemExit("carrier_tlb: cannot parse spec/DADAO-12 §3.6")
     diff = sorted(set(spec_bits.items()) ^ set(sub_bits.items()))
     if diff:
-        raise SystemExit("min_rom_probe_tlb: contract-see §6.1.1 and "
+        raise SystemExit("carrier_tlb: contract-see §6.1.1 and "
                          "spec/DADAO-12 §3.6 disagree: %r" % (diff,))
     return causes, sub_bits, sub_wyde, sub_cause
 
@@ -177,7 +185,7 @@ def sub_one_hot(name):
     64-bit mask (`WYDE2`/`WYDE3`), so the value has to stay absolute as well.
     """
     if name not in SUB_BIT:
-        raise SystemExit("min_rom_probe_tlb: %r is not in contract-see §6.1.1"
+        raise SystemExit("carrier_tlb: %r is not in contract-see §6.1.1"
                          % (name,))
     return 1 << SUB_BIT[name]
 
@@ -332,7 +340,7 @@ class Check:
     def code(self, desc):
         self.fields.append(desc)
         if len(self.fields) > MAX_FAIL_CODE:
-            raise SystemExit("min_rom_probe_tlb: case %d/%s has more than %d "
+            raise SystemExit("carrier_tlb: case %d/%s has more than %d "
                              "assertions; extend the fail-code scheme"
                              % (self.case_no, self.label, MAX_FAIL_CODE))
         return len(self.fields)
@@ -531,7 +539,7 @@ def fault_handler(chk, cls, sub, info=None, resume=True, post=None):
     from `contract-see §6.1.1` or `None` (`CFXREG` carries no sub-cause).
     """
     if sub is not None and SUB_CAUSE.get(sub) != cls:
-        raise SystemExit("min_rom_probe_tlb: %s belongs to %s, not %s "
+        raise SystemExit("carrier_tlb: %s belongs to %s, not %s "
                          "(contract-see §6.1.1)"
                          % (sub, SUB_CAUSE.get(sub), cls))
     chk.expect = (cls, sub) if cls else None
@@ -1321,20 +1329,20 @@ def run_check(check, qemu):
     rc, _log, blob = P.run(check.rom(), WORKDIR, qemu=qemu, timeout=TIMEOUT,
                            dump=False, console_out=SIG_OUT)
     if rc is None:
-        return False, "TIMEOUT"
+        return False, "TIMEOUT", b""
     if rc != 0:
-        return False, decode_fail(check, rc)
+        return False, decode_fail(check, rc), b""
     if not check.sig_want:
-        return True, "ok"
+        return True, "ok", b""
     # 判据载体 = 签名流（README「观测通道」）：解析/比对统一走 signature.py
     try:
         got = signature.parse(blob, len(check.sig_want))
     except signature.SignatureError as exc:
-        return False, "签名流: %s" % exc
+        return False, "签名流: %s" % exc, b""
     problems = signature.compare(got, check.sig_want)
     if problems:
-        return False, "签名流: " + "; ".join(problems)
-    return True, "ok"
+        return False, "签名流: " + "; ".join(problems), b""
+    return True, "ok", blob
 
 
 def selected(only):
@@ -1480,24 +1488,32 @@ def main():
 
     QEMU = args.qemu or DEFAULT_QEMU
     if not os.access(QEMU, os.X_OK):
-        print("min_rom_probe_tlb: ERROR: qemu not executable: %s" % QEMU)
+        print("carrier_tlb: ERROR: qemu not executable: %s" % QEMU)
         return 2
 
     results = selected(args.only)
     npass = nfail = 0
+    sig_blobs = []
     for no, cid, name, chk in results:
-        ok, detail = run_check(chk, QEMU)
+        ok, detail, blob = run_check(chk, QEMU)
         print("%s %s/%-22s rc=%s %s"
               % ("PASS" if ok else "FAIL", cid, chk.label,
                  "0x00" if ok else detail, chk.desc if ok else ""))
         if ok:
             npass += 1
+            if blob:
+                sig_blobs.append(blob)
         else:
             nfail += 1
     total = npass + nfail
     if total == 0:
-        print("min_rom_probe_tlb: no check matched --only %r" % (args.only,))
+        print("carrier_tlb: no check matched --only %r" % (args.only,))
         return 2
+    # `run_arch` 按 expected.yaml 的 checks 顺序拼接比较；每个检查是独立镜像，
+    # 这里把同一 case 的全部已接线签名流按检查顺序聚合到同一个产物。
+    if sig_blobs:
+        with open(SIG_OUT, "wb") as f:
+            f.write(b"".join(sig_blobs))
     print("%d/%d checks passed" % (npass, total))
     return 0 if nfail == 0 else 1
 

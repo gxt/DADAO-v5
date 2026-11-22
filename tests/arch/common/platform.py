@@ -7,9 +7,13 @@ scope。本文件只定义统一入口与 fail-closed 约定：
   * `qemu`：已实现。`kind: driver` 调 scope 内驱动（`--only/--qemu/--work-dir/
     --signature-out`），`kind: asm` 转调既有 `tools/testcases/arch/run_m5_e2e.py`
     （迁移期保持门控不变）。
-  * `gem5` / `chipyard`：**骨架，未实现**。Vast 载体落地前（`m16-gem5-020` /
-    `m16-chipyard-016` 之后）一律抛 `PlatformError`；调用方必须记 SKIP 并以非零
-    退出，禁止静默降级为「其余平台通过」。
+  * `gem5`：**已实现 driver 承载**（`m16-testcases-010`）。同一 scope 内驱动经
+    `tools/testcases/parity/qemu_gem5_shim.py` 跑（`-machine kaiwu-vast`、
+    `--profile vast`；shim 支持 `cache-model=on` → `--caches`，当前 ptw 载体不依赖
+    cache）；`kind: asm` 仍未接，显式抛 `PlatformError`（不静默跳过）。
+  * `chipyard`：**未实现**（RTL cfx4 由 `m16-chipyard-018` 接）。一律抛
+    `PlatformError`；调用方必须记 SKIP 并以非零退出，禁止静默降级为「其余平台
+    通过」。
 
 产物：每 case × 平台一份 `run.json`（进程命令、rc、日志路径、签名流路径）；
 有签名流期望的 case 另有一份 `signature.bin`。
@@ -17,6 +21,7 @@ scope。本文件只定义统一入口与 fail-closed 约定：
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
@@ -25,7 +30,9 @@ BACKENDS = ("qemu", "gem5", "chipyard")
 
 # fail-closed 开关：未实现的后端不得假绿。`--self-test` 会探测这两个开关，
 # 若被改成 True 而实际没有载体，自检必须失败（证据脚本的注入点）。
-GEM5_IMPLEMENTED = False
+# gem5 的 driver 承载由 `m16-testcases-010` 接入（qemu_gem5_shim）；asm 载体仍未接，
+# 由 `_run_gem5` 显式抛 PlatformError。RTL 由 `m16-chipyard-018` 接入。
+GEM5_IMPLEMENTED = True
 CHIPYARD_IMPLEMENTED = False
 
 
@@ -56,28 +63,31 @@ def ensure_implemented(platform: str) -> None:
     if platform == "chipyard":
         if not CHIPYARD_IMPLEMENTED:
             raise PlatformError(
-                "chipyard: Vast arch 载体未实现（RTL 侧缺 cfx0/2/15/32/34，"
-                "cfx5 只有阵列；m16-chipyard-016 之后接入）。不得静默跳过或降级。")
+                "chipyard: Vast arch 载体未实现（RTL cfx4 PTW/TLB 由 "
+                "m16-chipyard-018 接入；cfx5 只有阵列，由 m16-chipyard-016；"
+                "cfx0/2/15/32/34 仍缺）。不得静默跳过或降级。")
         return
     raise PlatformError("未知载体 %r（允许 %s）" % (platform, list(BACKENDS)))
 
 
 def self_test_fail_closed() -> list:
-    """`--self-test` 用：未实现的后端必须以 `PlatformError` 拒绝。
+    """`--self-test` 用：后端接线与 fail-closed 探针。
 
-    返回问题列表；空 = 两个未实现后端都 fail-closed。
+    返回问题列表；空 = gem5 driver 承载已接、chipyard 仍以 `PlatformError` 拒绝。
     """
     problems = []
-    for platform in ("gem5", "chipyard"):
-        try:
-            run(platform, [], None)
-        except PlatformError:
-            continue
-        except Exception as exc:  # 任何静默成功/其它异常都不是 fail-closed
-            problems.append("%s: 探针得到非 PlatformError 异常 %s: %s"
-                            % (platform, type(exc).__name__, exc))
-        else:
-            problems.append("%s: 未实现后端未 fail-closed（假绿）" % platform)
+    if not implemented("gem5"):
+        problems.append("gem5: GEM5_IMPLEMENTED=False，但 cfx4 driver 承载应由 "
+                        "qemu_gem5_shim 提供（m16-testcases-010）")
+    try:
+        run("chipyard", [], None)
+    except PlatformError:
+        pass
+    except Exception as exc:  # 任何静默成功/其它异常都不是 fail-closed
+        problems.append("chipyard: 探针得到非 PlatformError 异常 %s: %s"
+                        % (type(exc).__name__, exc))
+    else:
+        problems.append("chipyard: 未实现后端未 fail-closed（假绿）")
     return problems
 
 
@@ -89,15 +99,28 @@ def run(platform: str, cases, ctx):
     if platform == "qemu":
         return [_run_qemu(case, ctx) for case in cases]
     if platform == "gem5":
-        # 骨架：接入 Vast FS 载体前不产出任何结果；run_arch 会把「0 结果」判红。
-        return []
+        _ensure_gem5_ready(ctx)
+        return [_run_gem5(case, ctx) for case in cases]
     if platform == "chipyard":
         return []
     raise PlatformError("未知载体 %r" % platform)
 
 
+def _ensure_gem5_ready(ctx) -> None:
+    """gem5 承载前置（shim + gem5.opt + fs.py）；缺失时显式 fail-closed。"""
+    for path, what in ((getattr(ctx, "gem5_shim", None), "qemu_gem5_shim.py"),
+                       (getattr(ctx, "gem5", None), "gem5.opt"),
+                       (getattr(ctx, "gem5_config", None), "configs/dadao/fs.py")):
+        if path is None or not Path(path).is_file():
+            raise PlatformError(
+                "gem5: 缺件 %s = %r（driver 承载经 qemu_gem5_shim 跑；"
+                "不得静默跳过或降级）" % (what, path))
+    if not os.access(str(ctx.gem5), os.X_OK):
+        raise PlatformError("gem5: gem5.opt 不可执行: %s" % ctx.gem5)
+
+
 # ---------------------------------------------------------------------------
-# qemu 后端
+# 载体路径（qemu / gem5 共用）
 # ---------------------------------------------------------------------------
 def _carrier_path(ctx, case) -> Path:
     """`tests/arch.yaml` 的 `file` 相对 `tests/`：返回仓库内绝对路径。"""
@@ -112,21 +135,46 @@ def _expected_yaml(ctx, case) -> Path:
 
 def _run_qemu(case, ctx) -> dict:
     if case.get("kind", "asm") == "driver":
-        return _run_qemu_driver(case, ctx)
+        return _run_driver(case, ctx, "qemu", ctx.qemu)
     return _run_qemu_asm(case, ctx)
 
 
-def _run_qemu_driver(case, ctx) -> dict:
-    case_dir = Path(ctx.work) / case["id"] / "qemu"
+def _run_gem5(case, ctx) -> dict:
+    """gem5 承载：同一 scope 内驱动经 qemu_gem5_shim（`-machine kaiwu-vast`）。"""
+    if case.get("kind", "asm") != "driver":
+        # 每个 cfx 的 gem5 asm 载体另行接入；这里显式失败，不静默漏跑。
+        raise PlatformError(
+            "gem5: kind=asm 载体未实现（cfx=%s case=%s）；driver 承载经 "
+            "qemu_gem5_shim，asm 请另行接线。不得静默跳过或降级。"
+            % (case.get("cfx"), case["id"]))
+    return _run_driver(case, ctx, "gem5", ctx.gem5_shim,
+                       _gem5_env(ctx, case["id"]))
+
+
+def _gem5_env(ctx, case_id) -> dict:
+    """shim 的环境（gem5.opt / fs.py / profile / 运行期目录）。"""
+    return {
+        "DADAO_TEST_PROFILE": "vast",
+        "PARITY_GEM5": str(ctx.gem5),
+        "PARITY_GEM5_CONFIG": str(ctx.gem5_config),
+        "PARITY_GEM5_PROFILE": "vast",
+        "PARITY_WORK_ROOT": str(Path(ctx.work) / case_id / "gem5" / "shim"),
+    }
+
+
+def _run_driver(case, ctx, platform, engine, extra_env=None) -> dict:
+    """driver 型 case：调 scope 内驱动，产物与签名流按平台分目录。"""
+    case_dir = Path(ctx.work) / case["id"] / platform
     driver_dir = case_dir / "driver"
     case_dir.mkdir(parents=True, exist_ok=True)
     signature = case_dir / "signature.bin"
     cmd = [sys.executable, str(_carrier_path(ctx, case)),
-           "--only", case["id"], "--qemu", str(ctx.qemu),
+           "--only", case["id"], "--qemu", str(engine),
            "--work-dir", str(driver_dir),
            "--signature-out", str(signature)]
     return _finish(case, ctx, case_dir, cmd, signature,
-                   "driver: %s" % case["file"])
+                   "driver(%s): %s" % (platform, case["file"]),
+                   platform=platform, extra_env=extra_env)
 
 
 def _run_qemu_asm(case, ctx) -> dict:
@@ -153,23 +201,27 @@ def _run_qemu_asm(case, ctx) -> dict:
     # 0 槽空流，`run.json` 里记 signature_count=0，避免把 console 误当签名。
     signature.write_bytes(b"")
     return _finish(case, ctx, case_dir, cmd, signature,
-                   "asm: %s" % case["file"], signature_count=0)
+                   "asm: %s" % case["file"], signature_count=0,
+                   platform="qemu")
 
 
 def _finish(case, ctx, case_dir, cmd, signature, note,
-            signature_count=None) -> dict:
+            signature_count=None, platform="qemu", extra_env=None) -> dict:
     log = case_dir / "run.log"
+    env = dict(os.environ)
+    if extra_env:
+        env.update(extra_env)
     try:
         proc = subprocess.run(cmd, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, timeout=ctx.timeout,
-                              stdin=subprocess.DEVNULL)
+                              stdin=subprocess.DEVNULL, env=env)
         rc, output = proc.returncode, proc.stdout
     except subprocess.TimeoutExpired as exc:
         rc, output = -2, exc.stdout or b""
     log.write_bytes(output)
     result = {
         "case": case["id"],
-        "platform": "qemu",
+        "platform": platform,
         "kind": case.get("kind", "asm"),
         "carrier": note,
         "command": cmd,
@@ -186,7 +238,12 @@ def _finish(case, ctx, case_dir, cmd, signature, note,
 
         want = arch_sig.load_expected_signature(_expected_yaml(ctx, case),
                                                 case["id"])
-        if want is not None and rc == 0:
+        if want is None:
+            # 未接线的检查：显式写 0 槽空流，跨平台比较按「空流 == 空流」。
+            if not signature.is_file():
+                signature.write_bytes(b"")
+            result["signature_count"] = 0
+        elif rc == 0:
             result["signature_count"] = len(want)
             try:
                 got = arch_sig.parse(signature.read_bytes(), len(want))
