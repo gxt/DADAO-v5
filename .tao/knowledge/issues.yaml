@@ -1,7 +1,9 @@
 # issue 台账（活）：保留未关闭项与已关闭项（溯源用 `resolved_by` / `closed_in`）。
 # 里程碑阶段的关闭项快照见 `.tao/archive/<M>/issues-closed.md`（按 `closed_in` 取集；
 # M14 已于 2026-11-22 归档：`.tao/archive/M14/issues-closed.md`，10 条，
-# `python3 tools/infra/archive_issues.py --milestone M14 --check <快照>` 可复核）。
+# `python3 tools/infra/archive_issues.py --milestone M14 --check <快照>` 可复核；
+# M15 已于 2026-11-22 归档：`.tao/archive/M15/issues-closed.md`，1 条，
+# 同上 `--milestone M15 --check` 可复核；M15 期 open 项（ISS-504/505/506）已转 `milestone: M16`。
 
 - id: ISS-345
   scope:
@@ -1239,7 +1241,7 @@
   scope:
   - testcases
   - picolibc
-  milestone: M15
+  milestone: M16
   status: open
   closed_in: null
   resolved_by: null
@@ -1248,7 +1250,7 @@
   scope:
   - testcases
   - picolibc
-  milestone: M15
+  milestone: M16
   status: open
   closed_in: null
   resolved_by: null
@@ -1256,7 +1258,7 @@
 - id: ISS-506
   scope:
   - picolibc
-  milestone: M15
+  milestone: M16
   status: open
   closed_in: null
   resolved_by: null
@@ -1271,3 +1273,13 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`check-patch-tree` 在 master 上**基线红**（13 条，非任务引入）：musl 10 条（`assertion ⑨/⑥`：`arch/dadao/{atomic_arch.h,bits/signal.h,pthread_arch.h}`、`src/thread/dadao/syscall_cp.s`、`src/signal/dadao/restore.s` 的源树本地 commit 与补丁集不一致）+ gem5 5 条（`configs/dadao/fs.py`、`src/arch/dadao/inst.cc` 在源树有未提交改动）。`m15-testcases-023` 证据按「错误集与主仓基线逐行相同」判 KNOWN-RED。处置：按 `docs/Process-01` 从源树重导 musl/gem5 补丁（或还原源树到补丁集），重导后跑 `check-patch-tree` 回绿。"
+- id: ISS-508
+  scope:
+  - testcases
+  - gem5
+  - infra
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`f88c726a` 立 M16 批次时台账写 `预估时间：中`，不符合 `check-milestones-fresh` 的 `N h` / `N–M h` / `N 天` / `N–M 天` / `min` 格式 ⇒ `make check-milestones-fresh` rc=2（`m16-testcases-006`、`m16-gem5-020` 两条）；两册任务书 `**预估**` 同为「中」。处置：M16 批次收尾时按档位（中改）改台账与任务书为具体时长，恢复 L1 绿。"

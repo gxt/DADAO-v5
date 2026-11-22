@@ -6,37 +6,33 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
-- **2026-11-19 11:55（M15 IDL 收官在即）**：
-  - **M15 12 册 IDL**：已收尾 11 册（001/002/003/004/005/006/008/009/010/011/012/013 中除 007 外全部）；`007`（浮点 50 条）**拆分**为 `015`（浮点语义库移植 ft 族，A2 全量移植 UDB `fp.idl`，先 ft）——批 1 已交 36 函数、oracle 2978 例失配 0，批 2 算术族在跑；`fo` 族另立任务。
-  - **`m15-idl-014`**（解码变量当内容用）：修 010×4/012×3 代码 + 04/09/08 全部注释记号，加 `render.py` 机械门控；第 2 轮 Accepted，第三轮仅处理「合并态」08 注释 34 处。
+- **2026-11-19（基线 / 口径）**：
   - **chipyard sim md5 `25c1d3f4…`**（`m16-chipyard-015` 换签入 bootrom hex 后重建，Tiny `semihost_smoke` 1136 B 与 QEMU 同；旧 `df16728e…` 作废）；构建**必须**用 `.conda-env` 的 `PATH`+`RISCV`（`ISS-474`）。
   - **流程新增**：`docs/Process-07 §5a` 验收必验「合并态」（清单 sha256 按 master 重算；扫全仓/全文门控须在合并态跑）；`discussing.md` 只记未裁决项。
-  - **待开始**：`m15-spec-005`（IDL 块布局改造：节末集中 + 三级标题，等 12 册合入后）；`m15-infra-008`（CONFIG 钉子门控）；K6 = `m18-linux-001`–`003`（M18）。
+- **待开始**：K6 = `m18-linux-001`–`003`（M18）。
 - **已定口径（2026-11-18）**：`escape` 恢复 `inner_cfx_code ← excp_prev_cfx_code`（`cg5 rc1`；spec+DADAO-12/Kaiwu+QEMU 已落，版本号未动）；`spec/Kaiwu` 三处已对齐；IDL 寄存器模型 = 方案 C（四组数组 + `fo`/`ft` 视图、`ra` 逻辑栈序 + `ras_*`）；`read_memory`/`write_memory`（无 `_be`）/`fetch_memory`/`raise(code,mode,addr)`/`is_naturally_aligned`；`idlc` 不进门控；`.idl` sha256 锁延后到 M15 收口（N21）。
 - **目录防护第一波已收尾**：`spec/`、`.tao/`、`.tao/knowledge`、`components/` 各有 `.manifests.toml` + `check-manifests-guard`（缺清单/缺注册表/游离清单均红）；`check-spec-readonly`/`check-knowledge-dir` 已删并入。
 - **磁盘/负载**：`/mnt/tao` 29%；125G 内存 available 115G；load 13（64 核）。
 - **待用户裁定**：无阻塞项（队列已续满）。
 
-- **2026-11-18 00:20（夜间续跑）**：**`m15-testcases-012` 仍待合入**（与 011 16 处链接冲突，明早按「crt0/runtime/dadao-* → ee-user；kaiwu-tiny*.lds → ee-tiny；`-L` 并存」解）。
-- **2026-11-17 23:40（夜间交接）**：`m15-testcases-011` 已收尾（tiny 资产 → `tests/ee-tiny/`）；**`m15-testcases-012` 复核 Accepted 但未合入**——与 011 在 16 个链接点冲突（`-L` 需并存 `ee-tiny`+`ee-user`，`crt0/runtime/dadao-*` 走 `ee-user`，`kaiwu-tiny*.lds` 走 `ee-tiny`），明早解冲突后合入并跑 `check-tests-index`+链接冒烟。`m14-linux-016` 复核判 Needs Revision（`--selfcheck` 循环迭代单字符），修复中；提交时必须显式 stage `components/linux/patches/init/main.c.patch`。
-- **待开始/待返工**：`m15-spec-001`（待返工，等用户定推进方式）。**待裁定**：chipyard 补 TLB、`cg3 rc0–rc3` 合并、gem5 SE `--semihost` 开关、心跳方案、`tools/` 孤儿清理、`refs/` 清空方式。
 - **磁盘**：`/mnt/tao` 29%（333G）；今夜两次 ENOSPC（`ISS-464`/`ISS-465`）已登记；`check-temp-dirs`/`check-run-artifacts`/`check-knowledge-refs` 已回绿。
 
-- **2026-11-15（晚）**：**M13 已收口并归档**（107 件全已验证、台账已删）；**M15 `m15-testcases-001` 已收口**（`tests/inst` 10 宏下沉共享层、镜像 904/904 与 md5 22/22 均不变）；M12 已收口且已归档；M16 已验证 9 / 待开始 1（`chipyard-001`，等 M13 收口→现已解锁）；M15 `m15-spec-001` 待返工（WIP `0584a64b`，用户要求先摊开文件 + 逐条语句分析）。
+- **2026-11-15（晚）**：**M13 已收口并归档**（107 件全已验证、台账已删）；M12 已收口且已归档；M16 已验证 9 / 待开始 1（`chipyard-001`，等 M13 收口→现已解锁）。
 - **M13 收口事实**：矩阵冻结 `docs/TestReports/M13-三平台差分-矩阵.md`（整数 637 + FP 227 = **864 镜像三平台逐例一致、差异 0、未归因 0**）；报告记 `input commit`；新增链例字节级断言；`tests/data/m13-005-acceptance.*`（`m15-infra-004` 迁出落点）。
 - **rf2rf 批（全部合入）**：`spec-010`（264→263 id）+ llvm/qemu/gem5/chipyard 四实现 + 向量 `02-reg-copy/rf2rf_orri_rf.S`；伪指令体系迁入 `SimRISC-00 §5`（现行位置 `Toolchain-01 §6.2`）、`SimRISC-03` 按 rd/rb/rf 拆三章；7 个伪指令载体（`pseudo_set.*`，113 点）；RMW 合成序 `atomic_rmw.S`；`atomics` 5 探针退役改执行型 `atomics_e2e`；`set.fo` 最小指令数展开。
 - **sim md5 / qemu md5**：chipyard **`25c1d3f4…`**（`m16-chipyard-015`，签入 bootrom hex `a5d78816…` 后重建；旧 `df16728e…`（2026-11-19 `.conda-env` 重建）、`9b6928e0…`（`m16-chipyard-005`）、`eb5220f9…`、`71574df4…`、`bd5e75b3…` 作废）；qemu **`50752f5feeda4e15fe35de6a6a260a4e`**（`m14-infra-004`：机器串 `kaiwu-tiny`/`kaiwu-vast`；旧 `9750c139…` 作废）；**两者都只在同一构建环境/时段内可比**（`ISS-451`/`ISS-453`）。
 - **L1 全绿**（`check-inst-asm` 904/904、`check-lit` 177/177、`check-interface` 89/89、`check-musl-freshness` PASS）。
 - **规则新增（2026-11-15）**：派单顺序（先提交任务书再建 worktree，R2 机械校验）、台账时间戳取 `date`/`git log`、复核分档（小改 1 路注入 ≤15 min）、脚本入仓判据=会不会再跑。
 - 队列：M13 收口完成 → **`refs/` 清空**（用户已定，方式待选）+ **M13 归档**；M16 `chipyard-001` 已解锁；M14 K2 待授权。
-- **待用户裁定**：① `refs/` 清空方式（直接删 / 归档到 `archive/<M>/refs/`）；② 平台×机型×用例 6 问；③ gem5 SE `--semihost` 开关；④ `ISS-440`/`ISS-443`/`ISS-433` 是否合批做 ADR；⑤ K2 立册范围；⑥ `m15-spec-001` 的推进方式（先摊开文件 + 逐条语句分析）。
+- **待用户裁定**：① `refs/` 清空方式（直接删 / 归档到 `archive/<M>/refs/`）；② 平台×机型×用例 6 问；③ gem5 SE `--semihost` 开关；④ `ISS-440`/`ISS-443`/`ISS-433` 是否合批做 ADR；⑤ K2 立册范围。
 
 ## 入口指针
 
 | 主题 | 真源 |
 | --- | --- |
 | 项目总览 / 里程碑 / 版本号 | 根 `README.md` |
-| 当前进度 / 任务台账（待开始·进行中·已验证） / 裁定 | `.tao/knowledge/milestones-m15.md`（M15）等活册（M15–M20）；M14 及以前已归档（`.tao/archive/M14/`…`M11/`） |
+| 当前进度 / 任务台账（待开始·进行中·已验证） / 裁定 | `.tao/knowledge/milestones-m16.md`（M16）等活册（M16–M20）；M15 及以前已归档（`.tao/archive/M15/`…`M11/`） |
+| M15 归档 / 回顾 / 关闭 issue（ISA 语义结构化：IDL v0 + 12 册 operation + 渲染/门控） | `.tao/archive/M15/`（`README.md` / `m15-retrospective.md` / `issues-closed.md`） |
 | M14 归档 / 回顾 / 关闭 issue（Linux bring-up K0–K5） | `.tao/archive/M14/`（`README.md` / `m14-retrospective.md` / `issues-closed.md`） |
 | M11 归档 / 回顾 / 关闭 issue | `.tao/archive/M11/`（`README.md` / `m11-retrospective.md` / `issues-closed.md`） |
 | M10 及以前归档 | `.tao/archive/M10/` … `.tao/archive/M1/` |
@@ -54,7 +50,7 @@
 | 参考仓库（只读工作树 / 锁文件） | `.cache/refs/` + `manifests/` |
 | issue / 待裁定口径 | `.tao/knowledge/issues.yaml` / `discussing.md` |
 | M14 内核与主流 ISA 差异盘点（八份 / 195 条 / 七根因） | `components/linux/kernel-diff-vs-mainstream-isa.md`（索引）→ 各任务书「盘点结论」段 |
-| 历史归档 | `.tao/archive/M*/`（M1–M14） |
+| 历史归档 | `.tao/archive/M*/`（M1–M15） |
 | 临时 / 一次性产物 | `/tmp/opencode/<任务ID>/` |
 
 ### 机型 × 平台承载方式（tiny / vast / user）
@@ -131,7 +127,7 @@
 
 ## 历史与归档
 
-- 任务台账：`.tao/knowledge/milestones-m15.md`（M15）等活册（三分表：待开始 / 进行中 / 已验证；按任务书 `**项目里程碑**` 分派）；**M12–M14 台账已合并进 `.tao/archive/M12/`、`M13/`、`M14/`（M14：2026-11-22，`m14-integ-001`）并删除**，M11 及以前同。
+- 任务台账：`.tao/knowledge/milestones-m16.md`（M16）等活册（三分表：待开始 / 进行中 / 已验证；按任务书 `**项目里程碑**` 分派）；**M12–M15 台账已合并进 `.tao/archive/M12/`、`M13/`、`M14/`、`M15/`（M15：2026-11-22，`m15-integ-001`）并删除**，M11 及以前同。
 - M10 完成任务书与 issue 快照：`.tao/archive/M10/`。
 - 已归档 issue：`.tao/archive/M*/issues-closed.md`（按 `closed_in` 取集）；活 `issues.yaml` 保留全部条目（关闭项留作溯源，`archive_issues.py --check` 依此复核快照）。
 - 一次性过程与长日志：运行期日志目录（可删、未归档）；临时产物：`/tmp/opencode/<任务ID>/`。

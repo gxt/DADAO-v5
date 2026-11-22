@@ -12,9 +12,6 @@ owner = "main-session"
 [files."issues.yaml"]
 owner = "main-session"
 
-[files."milestones-m15.md"]
-owner = "main-session"
-
 [files."milestones-m16.md"]
 owner = "main-session"
 

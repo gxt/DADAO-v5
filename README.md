@@ -1,6 +1,6 @@
 # DADAO for SimRISC 0.5.7
 
-基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Kaiwu`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M14）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m15.md`（M15）**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
+基于 `spec/` 目录下的 19 份上游规范文档（SimRISC-00~12 + DADAO-11~23）与 v5 自定技术规范（`Toolchain-01`、`Kaiwu`，索引见 `spec/README.md`；工程流程规范 `Process-0x` 见 `docs/`），目标是覆盖 LLVM 编译器、QEMU 模拟器、Chipyard 仿真器和 Linux 内核的全栈支持（**已完成里程碑（M1–M15）见 `.tao/archive/`**；**当前进度见 `.tao/knowledge/milestones-m16.md`（M16）**；**上游↔v5 偏离台账见 `.tao/knowledge/MEMORY.md`**）。
 
 ## 当前版本号
 
@@ -17,7 +17,7 @@
 
 ## 项目里程碑
 
-> 已完成里程碑（M1–M14 已归档；M15 收口判据已于 2026-11-20 成立、归档待做）；**进行中**：M16（gem5 Timing + chipyard wuming）、M17（IDL 可执行参考模型 + 四方差分）、M18（Linux 测试集 + K6）。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
+> 已完成里程碑（M1–M15 已归档）；**进行中**：M16（gem5 Timing + chipyard wuming）、M17（IDL 可执行参考模型 + 四方差分）、M18（Linux 测试集 + K6）。成就事实取自 `.tao/archive/M*/m*-retrospective.md`。
 
 | 里程碑 | 达成日 | 主题 |
 | --- | --- | --- |
@@ -35,6 +35,7 @@
 | M12 | 2026-11-15 | Chipyard 上跑通 `Kaiwu-Tiny`：非 cfx 指令全实现 + 启动链/semihosting 闭环 + embench/picolibc engine parity |
 | M13 | 2026-11-15 | 三平台差分对齐（QEMU/gem5/chipyard，含浮点）：864 镜像逐例一致、差异 0 + `rf2rf` 批 + 伪指令体系迁章 |
 | M14 | 2026-11-22 | Linux bring-up（K0–K5）：`arch/dadao` 用户态闭环 + 启动 ABI/时钟/信号面 + K3 退役 |
+| M15 | 2026-11-20 | ISA 语义结构化：IDL v0 + 12 册 operation（263 条）+ 渲染/门控 + SimRISC 0.5.7 |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -148,3 +149,13 @@
 - **收口**：`make check-linux-k5` **280/280**（S/C/F/T/G/P/R 七组）；K0–K2、K4 探针全 rc=0；**K3 阶段整体退役**（`Process-07 §4a.2`）；**K6 移 M18**，pthread create/join 归 K6。
 - **遗留（要点）**：`ISS-444`/`457`/`486`/`487`/`488`/`493`/`494` 转 M18（探针断言与既有偶发红）；`ISS-470`（门控 `CONFIG` 钉子）、`ISS-482`（同节 weak 重定位）已关闭；内核 vs 主流 ISA 差异盘点 195 条见 `components/linux/kernel-diff-vs-mainstream-isa.md`。
 - **归档**：`.tao/archive/M14/`（`README.md` 五节 / `m14-retrospective.md` / `issues-closed.md` 10 条；**76 册已迁入**（1 册带 `> **已退役**` 注记），`check-archive` PASS）；`milestones-m14.md` 已合并进归档并删除。
+
+### M15（2026-11-20）ISA 语义结构化（IDL v0 + 12 册 operation + 渲染/门控）
+
+- **定位**：把 `spec/` 升级为「每条指令一段**可解析的 operation**」，**不执行**（执行归 M17）；以 `riscv-unified-db` 的 IDL 为准、只在不合适处扩展，不自造新语言。
+- **语义源**：`idl/` 为源——`SimRISC-01`–`12.idl` 全量 **263** 条 operation + 语义库 v1 + 浮点库 `idl/lib/fp.idl`；`idl/render.py` 生成 `spec/` 内 IDL 块，`check-idl-sync` 逐字节守护；`.idl` 12 份 + `fp.idl` 全部 sha256 锁。
+- **语言与布局**：语言规范迁 `spec/IDL-ISA语义描述语言与语义库.md`；IDL 块布局改造（节末集中 + 三级标题）；与 UDB 差异 263 条逐条判定（一致 100 / 偏离 68 / 特有 95，`idl/diff-vs-udb.md`）。
+- **发布**：SimRISC **0.5.7**（13 册去 `-rc`、变更记录按主题重排 21→5 组、清单 sha256）+ 发布投影。
+- **测试资产与基础设施**：每 `.S` 一镜像（904→**272**）、`tests/ee-tiny`/`ee-user`/`ee-vast` 资产集中、装载统一 `set.rd`/`set.rb`/`set.fo`→`set.rf`、picolibc Tiny 地址图与 `times()` 缩放、`refs/` 清空（数据源迁 `tests/data/`）、`CONFIG_DADAO_*` 钉子门控。
+- **遗留（要点）**：`ISS-502`（picolibc `clock()` 单位错 1000×）已关闭；`ISS-504/505/506`（picolibc harness 缓存假绿、`_SC_CLK_TCK` 口径）转 M16；`ISS-507` 属非里程碑项。
+- **归档**：`.tao/archive/M15/`（`README.md` 五节 / `m15-retrospective.md` / `issues-closed.md` 1 条；**66 册已迁入**，`check-archive` PASS）；`milestones-m15.md` 已合并进归档并删除。

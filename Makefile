@@ -1291,8 +1291,8 @@ check-disk:
 # 里程碑收尾门控 (2026-10-17, A2; 归 **L2 层 / 里程碑收尾专项**，**不入** `check-modules`):
 # ⓪ SimRISC 归档：结构（`check-spec-archive`）+ 内容 sha256（`check-spec-archive-verify`）
 #    ——归档只在发布/里程碑边界变化，故不入 L1（INFRA-109t；用户 2026-10-25 裁定）；
-# ① 里程碑台账（自动发现 `.tao/knowledge/milestones*.md`：M15 起
-#    `milestones-m15.md`/`milestones-m16.md`…；亦可 `--file` 指定）逐本须有
+# ① 里程碑台账（自动发现 `.tao/knowledge/milestones*.md`：M16 起
+#    `milestones-m16.md`…；亦可 `--file` 指定）逐本须有
 #    `项目里程碑 = M<n>` 断言（否则 vacuous FAIL）；
 # ② 台账列出的全部任务号须在 `.tao/tasks/**`（或 `.tao/archive/**`，已完成并归档）
 #    有对应任务书；台账零任务号 ⇒ vacuous FAIL（防「漏立任务」）；
@@ -1410,10 +1410,9 @@ check-install-tools:
 # 三表各 3 格且无状态列 / 预估时间格式 / 完成时间不带 `（登记）`；规则见 docs/Process-07 §1.1。
 # R1 台账一致性 (INFRA-145t)：`git worktree list` 检出的任务分支或**未合并**本地任务分支
 # ⇒ 该任务号不得在「待开始」，须在「进行中」（册已 `已验证` 则须在「已验证」表），逐条指名。
-# 台账分册（m12-infra-001 / 2026-11-15 收口后）：M1–M14 的台账均已合并进 `.tao/archive/<M>/` 并删除
-# （M14 于 2026-11-22 归档，`m14-integ-001`），现只剩 M15 起的分册；**存在则校验**
+# 台账分册（m12-infra-001 / 2026-11-15 收口后）：M1–M15 的台账均已合并进 `.tao/archive/<M>/` 并删除
+# （M15 于 2026-11-22 归档，`m15-integ-001`），现只剩 M16 起的分册；**存在则校验**
 # （一本都没有 ⇒ 本目标 vacuous，由 `check_archive` 承担归档校验）；`--file` 选台账，任一红即红。
-MILESTONES_M15 := .tao/knowledge/milestones-m15.md
 MILESTONES_M16 := .tao/knowledge/milestones-m16.md
 MILESTONES_M18 := .tao/knowledge/milestones-m18.md
 MILESTONES_M17 := .tao/knowledge/milestones-m17.md
@@ -1421,7 +1420,7 @@ MILESTONES_M19 := .tao/knowledge/milestones-m19.md
 MILESTONES_M20 := .tao/knowledge/milestones-m20.md
 
 check-milestones-fresh:
-	@for f in "$(MILESTONES_M15)" "$(MILESTONES_M16)" "$(MILESTONES_M17)" "$(MILESTONES_M18)" "$(MILESTONES_M19)" "$(MILESTONES_M20)"; do \
+	@for f in "$(MILESTONES_M16)" "$(MILESTONES_M17)" "$(MILESTONES_M18)" "$(MILESTONES_M19)" "$(MILESTONES_M20)"; do \
 	  if [ -f "$$f" ]; then \
 	    $(PYTHON) tools/infra/check_milestones_fresh.py --file "$$f"; rc=$$?; \
 	    [ $$rc -eq 0 ] || exit $$rc; \
