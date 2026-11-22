@@ -15,13 +15,14 @@
 | scope | 测什么 | 平台 |
 |---|---|---|
 | **inst** | **每条指令/短序列**在平台上的执行语义 | **`system`（`qemu-system-dadao`）**；`user` 后置（`platforms` 字段预留） |
-| **arch** | **cfx 资源管理与权限控制**：trap/escape/cfx2rd/cfx2rc、inner/global/switch/instruction 掩码、异常 cause、per-hart/per-system、TIMER/IPI/UART/power | 仅 `system` |
+| **arch** | **cfx 资源管理与权限控制**：trap/escape/cfx2rd/cfx2rc、inner/global/switch/instruction 掩码、异常 cause、per-hart/per-system、TIMER/power（UART / J / 多核不在本 scope，见 §1 注记） | 仅 `system` |
 | **unit** | **各模块自身功能**：LLVM（MC/CodeGen）、lld、QEMU、picolibc（仅 picolibc 下跑）、仓库工具 | host / toolchain |
 | **tset** | **外部套件**（third-party test suites）在成品系统上的运行：libc-test、llvm-test-suite、Embench | `user`（成品系统） |
 
 - **boot**（Linux/busybox）**预留**：整系统启动到用户态；下一里程碑再建，本册不排。原顶层 `e2e/` 已归 **unit**（`tests/unit/llvm/e2e/`，工具链编译/链接/运行用例），不构成 `boot` scope。
 - 判据：**上游/组件自己的测试套件 → `unit/<组件>`**；**跑在成品系统上的外部套件 → `tset`**。
 - 本册只定**组织与门控**；运行目录/日志细节仍按 `Process-08`。
+- **arch 的 cfx 范围与机型**（2026-11-22，`m16-testcases-004`）：只测 Kaiwu-Vast 的 cfx0/2/3/4/5/15/32/34/63；UART / J / 多核不在本 scope，具体落点见 `tests/arch/PLAN.md`。
 
 ---
 
@@ -93,8 +94,12 @@
 tests/
   inst/                     # 指令用例（无 isa 子层）
     base/ atomics/ clmul/ rev/ bitcnt/ ...   # fma/minmax/roundint 已于 testcases-044 退役
-  arch/                     # cfx/权限
-    umon/ jmon/ smon/ hmon/ ptw/ tlb/ cache/ hart/ llc/ pmem/ time/ uart/ power/
+  arch/                     # cfx/权限（只测 Kaiwu-Vast；范围 0/2/3/4/5/15/32/34/63）
+    umon/ smon/ hmon/ ptw/ cache/ hart/ pmem/ time/ power/
+                            # 每 cfx 一目录：用例、.lds、生成器、check_*.py、expected.yaml
+    run_arch.py             # arch 驱动（--cfx / --platforms / --cache-model / --self-test）
+    common/                 # arch 内共享薄壳（签名流等，转调 tests/shared/）
+    data/                   # arch 盘点/矩阵等入库数据（不成册、不进索引）
   unit/                     # 模块自身
     llvm/ lld/ qemu/ picolibc/ infra/
   tset/                     # 外部套件（套件独有 glue 就近）
@@ -116,6 +121,14 @@ tests/
 - 工具链 E2E：`tests/unit/llvm/e2e/`（`check-lit` 跑其 `lit/`）。原顶层 `e2e/`
   已由 `TESTCASES-084t` 归入 **unit**——它测的是工具链编译/链接/运行整链，
   不是整系统启动（`boot` scope 仍预留）。
+- **scope 专用脚本/数据随 scope**（2026-11-22，`m16-testcases-004`）：arch 的驱动
+  `tests/arch/run_arch.py`、共享薄壳 `tests/arch/common/`、盘点/矩阵 `tests/arch/data/`
+  都在 `tests/arch/` 内；`tools/testcases/arch/` 只保留跨 scope 共享部分，arch 专属探针
+  按 `tests/arch/PLAN.md` 的迁移清单**待迁**（迁移完成前门控不变）。
+- `tests/arch/data/` 是 scope 内的入库数据（如三平台 cfx 盘点矩阵），与 `tests/data/`
+  同性质：不被 `tests/arch.yaml` 当载体、不进 §5 的 case 清单。
+- `tests/arch` **只测 Kaiwu-Vast**；Tiny 的 hmon 用例移出 arch（`tests/unit/gem5/`，
+  见 `tests/arch/PLAN.md`）。
 
 ---
 
@@ -181,6 +194,24 @@ tests/
   requires: []                   # 如 [user-mode]
 ```
 
+驱动型 case（`kind: driver`）与 `machine` 字段（2026-11-22）：
+
+```yaml
+# tests/arch.yaml
+- id: arch-ptw-001
+  file: arch/ptw/check_tlb.py    # 载体 = scope 内驱动（kind: driver）
+  kind: driver                   # asm | driver；asm = .s/.S 执行向量
+  machine: vast                  # arch 固定 Kaiwu-Vast（tiny/user 由其它 scope 负责）
+  platforms: [system]            # 运行模式，不是机型；arch 只有 system
+  level: full                    # smoke | full
+  requires: [bootrom]
+```
+
+> **驱动型 case 与 `machine` 字段**（2026-11-22，`m16-testcases-004`）：`kind: asm|driver`
+> （缺省 `asm`）；`driver` 的 `file` 指向 scope 内驱动（arch = `tests/arch/<cfx>/check_*.py`），
+> 由 `run_arch.py` 调起。`machine: vast` 固定机型；`platforms` 仍是 `system|user|hw`
+> 运行模式，不由机型推导。
+
 > **非 id 载体**（`m13-testcases-043`）：`inst/00-isa-design/undi_reserved.S` 的文件名不是
 > opcode id（保留编码 ⇒ UNDI），须在 `check_tests_index.NON_ID_CARRIERS` 与
 > `validate_vectors.NON_ID_CARRIERS` **逐文件**登记并由本索引覆盖 —— 不做目录级豁免。
@@ -194,13 +225,15 @@ tests/
 
 ## 6. 工具与 runner（先分解，再整理）
 
-目标：**runner/driver/generator 全部收拢到 `tools/testcases/`**，`tests/` 只放用例与 `shared/`：
+目标：**跨 scope 共享的 runner/driver/generator 收拢到 `tools/testcases/`；scope 专用
+脚本随 scope**（`tests/<scope>/`）。`tools/` 只放跨 scope 共享，`tests/` 放用例、
+scope 专用驱动与 `shared/`：
 
 ```text
 tools/testcases/
   lib/          # 共享 harness：构建、运行 qemu、超时/信号、run.json、md5
   inst/         # ISA 向量构建/运行（原薄 wrapper 区主体）
-  arch/         # bootrom/min-ROM/CFX 场景（原 min_rom_probe）
+  arch/         # 【待迁】arch 专属探针原址；迁往 tests/arch/<cfx>/（m16-testcases-004 清单）
   unit/         # codegen/elf 端到端驱动（原集成驱动目录）、lit/codegen/ir-lli 校验、picolibc
   tset/         # 外部套件驱动（TESTCASES-075t 已落）
     libc-test/  # run_libc_test_user.py + run_libc_test_smoke_user.py（L2 代表集）
@@ -214,6 +247,11 @@ tools/testcases/
   check_l3_report.py    # L3 报告存在性/结构/覆盖/结果门控（里程碑层）
   report_io.py          # night/l3 报告 manifest/meta 格式单一真源
 ```
+
+- **scope 专用脚本随 scope**（2026-11-22，`m16-testcases-004`）：只服务一个 scope 的
+  驱动/生成器/判据放该 scope 内（arch → `tests/arch/<cfx>/`、`tests/arch/run_arch.py`、
+  `tests/arch/common/`）；`tools/testcases/` 保留被 ≥2 scope 复用的 `lib/` 与跨 scope
+  套件驱动。判据：**第二个 scope 也开始用**才上移 `tools/`。
 
 - 仓库级**静态**一致性检查（`check_interface_alignment.py`）归 `tools/infra/`，不属测试驱动。
 
@@ -253,6 +291,22 @@ tools/testcases/
 - **guest**：`qemu-system-dadao`（system）与 `qemu-dadao`（user）；**无硬件在环**。
 - `inst` 首期**只 `system`**；`platforms` 字段预留 `user`/`hw`，runner 只在交集上跑。
 - 将来硬件在环：`platforms` 增 `hw`，不改用例 ID。
+
+### 7.1 arch scope 的平台与目录（2026-11-22）
+
+arch 只测 Kaiwu-Vast（`system` 平台）；QEMU/gem5/chipyard 是同一 ELF 的三种承载，
+不是三个 scope。目录固定为：
+
+```text
+tests/arch/
+  <cfx>/        # 用例（.s/.S）、.lds、生成器、check_*.py、expected.yaml
+  run_arch.py   # --cfx / --platforms / --cache-model / --self-test
+  common/       # 签名等薄壳（转调 tests/shared/）
+  data/         # 盘点矩阵等入库数据
+```
+
+- `tools/testcases/arch/` 的 arch 专属探针**待迁**到 `tests/arch/<cfx>/`
+  （清单见 `tests/arch/PLAN.md`）；迁移完成前不改门控。
 
 ---
 

@@ -25,12 +25,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-testcases-004 | 2026-11-22 11:57 | 中 | Vast arch 三平台盘点（9 cfx × 3）+ `tests/arch` 落点/Process-09 修订方案 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-testcases-004 | 2026-11-22 12:22 | Vast arch 三平台盘点（9 cfx × 3、151 条引用；RTL 仅 cfx3/4/63，cfx5 无命令面）+ `tests/arch/PLAN.md` + Process-09 §1/§3/§5/§6/§7.1 修订 |
 | m16-testcases-005 | 2026-11-22 12:10 | 签名脚本 `signature.py` 迁 `tests/shared/`（6 处引用；`check-inst-asm` 38/38、`check-arch-smoke` PASS） |
 | m16-testcases-003 | 2026-11-22 00:45 | `lr`/`sc` 保留语义三平台对齐（ISS-443 异常清保留 + ISS-435 精确粒度；ISS-440 记 GAP） |
 | m16-chipyard-010 | 2026-11-21 22:08 | Vast I-Cache（8 路×128 组×64 B，readOnly；`WumingCache` 单一实现；Tiny 零增益） |
