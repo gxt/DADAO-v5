@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/atomic_arch.h b/arch/dadao/atomic_arch.h
 new file mode 100644
-index 0000000..f46a6c9
+index 0000000..7c53050
 --- /dev/null
 +++ b/arch/dadao/atomic_arch.h
-@@ -0,0 +1,136 @@
+@@ -0,0 +1,161 @@
 +/*
 + * DADAO atomic primitives -- real atomics built from lr/sc + fence.
 + *
@@ -54,10 +54,10 @@ index 0000000..f46a6c9
 + * ---------------------------------------------------------------------------
 + * 1. Alignment: lr/sc require natural alignment for the access width (user
 + *    ruling 2026-10-21, ADR-0034 D6: .b=1/.w=2/.t=4/.o=8), otherwise MALIGN.
-+ *    a_cas uses .t on an `int` (4-byte object => 4-byte aligned); a_cas_p uses
-+ *    .o on a pointer slot (8-byte aligned).  No masked 8-byte synthesis is
-+ *    done: a misaligned pointer slot faults instead of silently working,
-+ *    which is the intended explicit failure.
++ *    Every a_cas* below operates on a naturally aligned 8-byte word: a_cas_p
++ *    on the pointer slot itself (8-byte aligned), a_cas on the word that
++ *    *contains* the `int` (see point 6).  A misaligned pointer slot faults
++ *    instead of silently working, which is the intended explicit failure.
 + * 2. Reservation granularity is the exact naturally aligned 8-byte word
 + *    (QEMU-067t; the spec leaves granularity to the platform).  Two `int`s in
 + *    the same 8-byte word can invalidate each other's reservation => spurious
@@ -71,38 +71,63 @@ index 0000000..f46a6c9
 + *    for acquire-release/seq-cst (the backend emits `fence cfx_umon, 4095`
 + *    for them), keeping inline asm and compiler-generated barriers identical.
 + *    Device I/O ordering has no execution surface on this machine.
-+ * 5. `lr.t` zero-extends the loaded 32-bit value, so the compare value is
-+ *    canonicalized to the same representation (ext.uo ..., 31) before the
-+ *    branch.  Measured with the current backend, an `int` argument is already
-+ *    materialized zero-extended, so this is a guard rather than a fix -- but
-+ *    contract-abi.md §4.2 tells the caller to sign-extend narrow arguments to
-+ *    canonical 64-bit, and a sign-extended compare value would never match a
-+ *    zero-extended `lr.t` result (silently losing the store).  The single
-+ *    instruction keeps the CAS correct under either convention.
++ * 5. `int` CAS uses the containing 8-byte word (m18-infra-001).  The machine's
++ *    reservation is per naturally aligned 8-byte word (see point 2), and a
++ *    *narrow* 4-byte `lr.t`/`sc.t` pair is not a dependable CAS for an `int`
++ *    that shares its word with a neighbour: on the reference machine the
++ *    `sc.t` store is silently dropped for the `avail_mask`/`freed_mask` pair,
++ *    which is exactly the mallocng bookkeeping corruption that killed `ash`
++ *    and `grep` (ISS-497/ISS-499; standalone reproducer, no kernel involved).
++ *    a_cas therefore reads the aligned word with `lr.o`, compares/merges the
++ *    32-bit half in place, and writes it back with `sc.o`: a change of the
++ *    sibling half makes the CAS fail (never a lost update) and the loop
++ *    re-reads, so the operation stays a correct compare-and-swap on the
++ *    `int` and is independent of narrow-reservation behaviour.  Big-endian
++ *    half selection: the int at word offset 0 is the high half (shift 32),
++ *    the one at offset 4 the low half (shift 0).
 + */
++
++/* 8-byte word CAS: the one primitive every lr/sc user in this port needs.
++ * Operands follow a_cas_p's style (see the comment there). */
++#define a_cas_word a_cas_word
++static inline long a_cas_word(volatile long *p, long t, long s)
++{
++	register long *addr __asm__("rb9") = (long *)p;
++	register long old __asm__("rd10");
++	register long want __asm__("rd11") = t;
++	register long new __asm__("rd12") = s;
++	register long fail __asm__("rd13");
++
++	__asm__ __volatile__(
++		"1:\n\t"
++		"lr.o.an {rd10}, {rb9}\n\t"
++		"br.ne {rd10, rd11}?, [rb0, 2f]\n\t"
++		"sc.o.ar {rd13}, {rd12}, {rb9}\n\t"
++		"br.nz {rd13}?, [rb0, 1b]\n\t"
++		"2:"
++		: "=r"(old), "=r"(fail)
++		: "r"(addr), "r"(want), "r"(new)
++		: "memory");
++	(void)fail;
++	return old;
++}
 +
 +#define a_cas a_cas
 +static inline int a_cas(volatile int *p, int t, int s)
 +{
-+	register int *addr __asm__("rb9") = (int *)p;
-+	register int old __asm__("rd10");
-+	register int want __asm__("rd11") = t;
-+	register int new __asm__("rd12") = s;
-+	register long fail __asm__("rd13");
++	volatile long *word = (volatile long *)((uintptr_t)p & ~(uintptr_t)7);
++	unsigned shift = ((uintptr_t)p & 4) ? 0 : 32;
++	unsigned long mask = (unsigned long)0xffffffff << shift;
 +
-+	__asm__ __volatile__(
-+		"ext.uo {rd11}, {rd11}, 31\n\t"	/* canonical zero-extended t */
-+		"1:\n\t"
-+		"lr.t.an {rd10}, {rb9}\n\t"
-+		"br.ne {rd10, rd11}?, [rb0, 2f]\n\t"
-+		"sc.t.ar {rd13}, {rd12}, {rb9}\n\t"
-+		"br.nz {rd13}?, [rb0, 1b]\n\t"
-+		"2:"
-+		: "=r"(old), "=r"(fail), "+r"(want)
-+		: "r"(addr), "r"(new)
-+		: "memory");
-+	(void)fail;
-+	return old;
++	for (;;) {
++		unsigned long w = (unsigned long)*word;
++		int cur = (int)((w & mask) >> shift);
++		if (cur != t) return cur;
++		unsigned long nw = (w & ~mask)
++			| (((unsigned long)(unsigned)s << shift) & mask);
++		if ((unsigned long)a_cas_word(word, (long)w, (long)nw) == w)
++			return t;
++	}
 +}
 +
 +#define a_cas_p a_cas_p

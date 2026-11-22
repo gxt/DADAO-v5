@@ -1178,11 +1178,12 @@
 - id: ISS-497
   scope:
   - linux
+  - musl
   milestone: M18
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【m18-linux-004 定位：根因在 musl mallocng/glue.h::assert，与 ISS-499 同根，已移交 m18-infra-001】崩溃是 musl mallocng 的内部一致性断言（glue.h::assert → a_crash() = 写 NULL，内核按 die-no-vma 记；grep 的 rc=139 是同一处）在 alloc_slot/free 里被触发；cp 级探针（fork+exec 12 轮堆校验、64 个 mmap 区间别名与 churn、console 逐字节读 + 堆校验）全绿 ⇒ 内核不改写用户内存。触发面是堆布局：去掉 ash 的 setvar0(_…, lastarg) 即消失（3/3）；同一命令序列用脚本文件/管道喂给子 shell 不崩、控制台逐行喂则崩；行缓冲、去回显、非 tty、屏蔽 tick 均不消除。待办移到 musl：查 mallocng 在本机 64 KiB 页/ mmap 语义下的 alloc_slot 断言。原描述：【P1】K6 长脚本在 ash fork+exec 处确定性崩溃：约 17 条命令后 `die-no-vma`（`va=0x0`，`m18-linux-002` 实测 5/5 复现；`m18-linux-001` 已合入产物同样复现）⇒ 单次启动跑全部命令必红，002 只能拆 3 段短启动。处置：修 fork/exec 路径（重点：exec 后用户栈/`current->mm` 交接、fork 预复制与缺页在静态 supv 帧上的重入），修好前 `m18-linux-003` 收口门控须按已知红登记，不得用短脚本冒充单次通过。"
+  status: closed
+  closed_in: M18
+  resolved_by: m18-infra-001
+  title: "【P1】K6 长脚本在 ash fork+exec 处确定性崩溃：约 17 条命令后 `die-no-vma`（`va=0x0`，`m18-linux-002` 实测 5/5 复现；`m18-linux-001` 已合入产物同样复现）⇒ 单次启动跑全部命令必红，002 只能拆 3 段短启动。**已定位并修复（`m18-infra-001`）**：根因不在 fork/exec，而在 musl `mallocng` —— `free.c: nontrivial_free()` 的 `a_or(&meta->freed_mask, self)` 未生效（4 字节 `lr.t`/`sc.t` 条件写在参考机器上静默丢写），组状态与掩码失配，下一次 `try_avail()` 在 `malloc.c:164` 的 `assert(mask)` 触发 `glue.h` 的 `a_crash()`（写 NULL）⇒ `die-no-vma`。修法与证据见 `m18-infra-001`（`a_cas` 改为 8 字节字 CAS）；平台侧窄 `sc` 丢写另登记 `ISS-501`。"
 - id: ISS-498
   scope:
   - linux
@@ -1195,11 +1196,12 @@
   scope:
   - linux
   - busybox
+  - musl
   milestone: M18
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P2】guest `grep` 每次 SIGSEGV（rc=139，含无匹配 `grep -q`）⇒ 12 个 applet 中 `grep` 实际不可用；`m18-linux-002` 断言改用 `$?` + 标记区间绕开。处置：查 busybox grep 的 DADAO 代码路径（可能为未实现的 syscall/内存访问），修或从 `config.min` 移除并披露。"
+  status: closed
+  closed_in: M18
+  resolved_by: m18-infra-001
+  title: "【P2】guest `grep` 每次 SIGSEGV（rc=139，含无匹配 `grep -q`）⇒ 12 个 applet 中 `grep` 实际不可用；`m18-linux-002` 断言改用 `$?` + 标记区间绕开。**与 `ISS-497` 同一根因，`m18-infra-001` 一并修复**：`qemu-dadao`（无 DADAO 内核）即可 100% 复现，断言落在 `malloc.c: try_avail`（`assert(mask)`）；busybox 只是受害者。修后 `grep` 有匹配 `rc=0`、无匹配（含 `-q`）`rc=1`。"
 - id: ISS-500
   scope:
   - linux
@@ -1208,3 +1210,11 @@
   closed_in: null
   resolved_by: null
   title: "【P2】K6 之后用户态不再接收任何异步中断（`dadao_enter_user()` 把 `cfx_umon` user 行写 `~0`，全仓无第二处写回）：长用户态窗口内同源事件按契约合并为一次补投 ⇒ `jiffies` 滞后；K6 无用户态可观测面（busybox 无 date/sleep/time、无 /proc），故当次可接受但属**行为变化待追认**。另 `dadao_user_entry_install()` 注释仍称「用户态投递」已成死代码；`dadao_user_fault_return` 在 `enter_from_user_mode()` 前开中断（与上游顺序相反，本配置无断言）。处置：K6 之后若需用户态抢占/时间可见（K7+ 或 SMP），改为「用户态可投递 + 入口安全栈」，或至少修正注释与顺序。另 F2/F3：changelog `12/12` 应为 `checks=11`、`2/150`/`4/150`/实测 `3/150` 数字不一致。"
+- id: ISS-501
+  scope:
+  - qemu
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`lr`/`sc` 的**窄宽度条件写会被静默丢弃**（参考机器 `qemu-dadao`/`qemu-system-dadao`，`target/dadao/translate.c` 的 `gen_sc`）：`sc.t`/`sc.o` 在「同一 TB 内先有同址窄加载（`ld.ut`）再 `lr`/`sc`，且该地址的 8 字节字里另有被写过的 `int`」时，`sc` 报成功（`rdHB=0`）、内存却保持旧值；`a_or`/`a_cas` 型 RMW 因此丢更新。最小复现：`m18-infra-001` 运行期证据的 `probe/narrow_cas_probe.c`（两次 `st.o` + `ld.ut` + `lr.t`/`sc.t` ⇒ 写丢失；去掉该 `ld.ut` 即正常），`word_cas_probe.c` 的 `lr.o`/`sc.o` 同场景正常。后果：`m18-infra-001` 前 musl `mallocng` 的 `avail_mask`/`freed_mask` 记账被破坏 ⇒ K6 `die-no-vma` 与 guest `grep` rc=139（`ISS-497`/`ISS-499`，已由 musl 侧改用字 CAS 规避）。处置：查 `gen_sc` 的 `MO_ALIGN`/窄宽度 BE 存储路径与 TCG 的 load/store 交互，补一条 `lr.t`+`sc.t` 同址 CAS 的向量（覆盖「同 TB 内前置窄加载」），修后 `ISS-497` 的窄 CAS 口径可作为回归向量。"
