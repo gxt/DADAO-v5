@@ -49,12 +49,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-linux-014 | 2026-11-22 19:37 | 3–4 h | `mm-map-populate` COW/rwsem 警告与整机停摆（`rwsem.h:81`；KERNEL_BUG） |
+| m18-infra-002 | 2026-11-23 01:23 | 3–5 h | musl ldso 动态链接运行闭环（P3：system Linux 动态 ELF + qemu-user 尽力） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-linux-014 | 2026-11-23 01:23 | COW 共享文件页 `VM_FAULT_COMPLETED` 双重解锁修复（`fault.c`；5/5 PASS，无 rwsem 警告/停摆；53+14/15 证据项） |
 | m18-linux-005 | 2026-11-22 19:37 | 测试集运行骨架 + kselftest 试点（8 例：PASS1/FAIL2/SKIP2/SIGNAL1/TIMEOUT2；套件校验 23/23；补丁 manifest 双向+逐补丁增量校验） |
 | m18-linux-003 | 2026-11-22 10:34 | K6 收口门控 `check-linux-k6`（71/71；§4a.3 退役审计；L2） |
 | m18-infra-001 | 2026-11-22 09:32 | musl mallocng 根因修复（`a_cas` 改 8 字节字 CAS；ISS-497/499 关闭；K6 长脚本单次跑通） |
