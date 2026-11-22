@@ -308,7 +308,7 @@
 - QEMU：`-machine kaiwu-vast,cache-model=off|on`，默认 **off**；`off` = 现有直通（Linux/K0/inst 不变）；`on` = 完整**影子写回 D-Cache** + cfx5 命令面，只给 arch；I 侧只做命令语义（`tb_invalidate_phys_range`），不做 I 阵列；DMA/装载直连底层。
 - **Linux 内核现在没有 cache，以后会加**：M16 期间固定 `off`；将来内核加 cache 支持后再接 `on`（登记 backlog）。
 - gem5：`cache-model=on` 映射 `--caches`；前置补 `IsLoad/IsStore/IsAtomic`；cfx5 命令复用 ARM `dc cvac/civac/ivac` 的 `Request::CLEAN|INVALIDATE` 机制。
-- `cache-model=off` 时 cfx5 口径（**待裁**）：建议 `cache_exist` 读 0、命令访问报 `CFXREG`。
+- `cache-model` 与 cfx5 口径（用户 2026-11-22 已定）：**off = cfx5 存在但 no-op**——`cache_exist` 读 0，`cache_ctrl` 写被接受、不报 `CFXREG`、不产生效果；`on` = `cache_exist=0b11`，命令真维护。理由：Linux 内核缺省带 cache 维护逻辑（其它 ISA 不会为“无 cache”单独编译内核），机器配置只决定 cfx5 有没有效果，不决定它是否存在。RTL Vast 始终有 cfx5、Tiny 无（不跑 Linux）。需同步 `integ042t` 期望与 CACHE-27 契约（`m16-spec-002`）。
 - **gem5 I 侧自修改**（用户 2026-11-22 选 B，但先证伪）：现有 `cfx5_selfmod.s` 是 base probe（无 cfx5、无 `D|clean`），不能证明 cfx5 I 侧不可用；RTL 是 VIPT 但索引在 64 KiB 页内（`PA[15:0]==VA[15:0]`，无别名），021 用 PA 索引/标签正确。先由 `m16-gem5-022` 补「写码 → D clean → I invalidate → 跳转」的正确用例并修 020 的 monitor 脏行；只有该用例仍失败才立 `m16-gem5-023` 改取指侧模型。
 
 ### 落点

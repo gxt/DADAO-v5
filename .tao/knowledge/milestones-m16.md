@@ -31,6 +31,8 @@
 | --- | --- | --- | --- |
 | m16-qemu-001 | 2026-11-22 13:34 | 2–3 h | QEMU `cache-model=off\|on` 属性 + cfx5 寄存器面（不含影子数据通路） |
 | m16-chipyard-017 | 2026-11-22 18:25 | 3–5 h | RTL cfx5 命令接线（D/I cache cmd 口） |
+| m16-spec-002 | 2026-11-22 20:05 | 1–2 h | CACHE-27 补 `cache-model` 维度（off=存在/no-op、on=0b11/真维护） |
+| m16-gem5-023 | 2026-11-22 20:05 | 2–3 h | gem5 `cache-model=off` 下 cfx5 存在但 no-op（不再 `CFXREG`） |
 
 ## 已验证
 
