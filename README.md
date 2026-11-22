@@ -35,7 +35,7 @@
 | M12 | 2026-11-15 | Chipyard 上跑通 `Kaiwu-Tiny`：非 cfx 指令全实现 + 启动链/semihosting 闭环 + embench/picolibc engine parity |
 | M13 | 2026-11-15 | 三平台差分对齐（QEMU/gem5/chipyard，含浮点）：864 镜像逐例一致、差异 0 + `rf2rf` 批 + 伪指令体系迁章 |
 | M14 | 2026-11-22 | Linux bring-up（K0–K5）：`arch/dadao` 用户态闭环 + 启动 ABI/时钟/信号面 + K3 退役 |
-| M15 | 2026-11-20 | ISA 语义结构化：IDL v0 + 12 册 operation（263 条）+ 渲染/门控 + SimRISC 0.5.7 |
+| M15 | 2026-11-22 | ISA 语义结构化：IDL v0 + 12 册 operation（263 条）+ 渲染/门控 + SimRISC 0.5.7 |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -150,7 +150,7 @@
 - **遗留（要点）**：`ISS-444`/`457`/`486`/`487`/`488`/`493`/`494` 转 M18（探针断言与既有偶发红）；`ISS-470`（门控 `CONFIG` 钉子）、`ISS-482`（同节 weak 重定位）已关闭；内核 vs 主流 ISA 差异盘点 195 条见 `components/linux/kernel-diff-vs-mainstream-isa.md`。
 - **归档**：`.tao/archive/M14/`（`README.md` 五节 / `m14-retrospective.md` / `issues-closed.md` 10 条；**76 册已迁入**（1 册带 `> **已退役**` 注记），`check-archive` PASS）；`milestones-m14.md` 已合并进归档并删除。
 
-### M15（2026-11-20）ISA 语义结构化（IDL v0 + 12 册 operation + 渲染/门控）
+### M15（2026-11-22）ISA 语义结构化（IDL v0 + 12 册 operation + 渲染/门控）
 
 - **定位**：把 `spec/` 升级为「每条指令一段**可解析的 operation**」，**不执行**（执行归 M17）；以 `riscv-unified-db` 的 IDL 为准、只在不合适处扩展，不自造新语言。
 - **语义源**：`idl/` 为源——`SimRISC-01`–`12.idl` 全量 **263** 条 operation + 语义库 v1 + 浮点库 `idl/lib/fp.idl`；`idl/render.py` 生成 `spec/` 内 IDL 块，`check-idl-sync` 逐字节守护；`.idl` 12 份 + `fp.idl` 全部 sha256 锁。

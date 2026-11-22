@@ -26,7 +26,7 @@ DADAO-v5 在上游规范（SimRISC 0.5.x + AEE/SEE/HEE + ABI/SBI/HBI）之上，
 | M12 | 2026-11-15 | Chipyard 上跑通 `Kaiwu-Tiny`：非 cfx 指令全实现 + 启动链/semihosting 闭环 + engine parity |
 | M13 | 2026-11-15 | 三平台差分对齐（QEMU/gem5/chipyard，含浮点）：864 镜像逐例一致、差异 0 + `rf2rf` 批 + 伪指令体系迁章 |
 | M14 | 2026-11-22 | Linux bring-up（K0–K5） |
-| M15 | 2026-11-20 | ISA 语义结构化（IDL v0 + 12 册 operation + 渲染/门控） |
+| M15 | 2026-11-22 | ISA 语义结构化（IDL v0 + 12 册 operation + 渲染/门控） |
 
 ### M1（2026-09-22）MC + QEMU 标量核心 + MC↔QEMU 集成
 
@@ -108,5 +108,5 @@ DADAO-v5 在上游规范（SimRISC 0.5.x + AEE/SEE/HEE + ABI/SBI/HBI）之上，
 - **M12（2026-11-15）Chipyard 上跑通 `Kaiwu-Tiny`**：非 cfx 指令全实现（解码/ALU/访存/控制流/RAS/位操作/原子/FP/`cfx`），启动链（`power → hmon`）+ semihosting 闭环；`embench` 与 `picolibc-full` 与 QEMU **逐例状态一致**。
 - **M13（2026-11-15）三平台差分对齐**：链例比 `semi.out` **字节流**、故障例比 monitor 退出码；整数 637 + FP 227 = **864 镜像三平台逐例一致、差异 0**；同批完成 `rf2rf`（删 `ft2ft`/`fo2fo`）、伪指令体系迁章、`set.fo` 最小指令数展开、原子三层（指令/执行型 e2e/争用 GAP）。判据演进：**「不允许把两个实现一致当正确」**成为差分铁律。
 - **M14（2026-11-22）Linux bring-up（K0–K5）**：基线 Linux `7.2.10` 在 QEMU system **单核 Vast** 上跑到**用户态闭环（K5）**——固定 boot info 15 字段、semihosting 控制台、内核 VA 窗口 `[2TiB,3TiB)`、64 KiB 页 ABI、`clocksource`/`clockevent` 通用框架、四组异常帧与信号面；K5 收口门控 **280/280**。**K3 阶段整体退役**（「每推进一阶段即退役过时判据」成文为 `Process-07 §4a`）；K6（shell/命令回归）与 pthread 移 M18，本期不声称「能当 Linux 用」。
-- **M15（2026-11-20）ISA 语义结构化**：把 `spec/` 升级为「每条指令一段可解析的 operation」——`idl/` 为源（`SimRISC-01`–`12.idl` 全量 **263** 条 + 语义库 v1 + 浮点库 `idl/lib/fp.idl`），`render.py` 生成 `spec/` 内 IDL 块且 `check-idl-sync` 逐字节守护，`.idl` 全部 sha256 锁；发布 SimRISC **0.5.7**；与 `riscv-unified-db` 263 条逐条差异判定（一致 100 / 偏离 68 / 特有 95）。同批收口测试资产（每 `.S` 一镜像 272、`ee-tiny`/`ee-user`/`ee-vast` 集中、装载统一伪指令）与基础设施（`refs/` 清空、清单锁、`CONFIG` 钉子门控）。**不执行**语义（执行归 M17）。
+- **M15（2026-11-22）ISA 语义结构化**：把 `spec/` 升级为「每条指令一段可解析的 operation」——`idl/` 为源（`SimRISC-01`–`12.idl` 全量 **263** 条 + 语义库 v1 + 浮点库 `idl/lib/fp.idl`），`render.py` 生成 `spec/` 内 IDL 块且 `check-idl-sync` 逐字节守护，`.idl` 全部 sha256 锁；发布 SimRISC **0.5.7**；与 `riscv-unified-db` 263 条逐条差异判定（一致 100 / 偏离 68 / 特有 95）。同批收口测试资产（每 `.S` 一镜像 272、`ee-tiny`/`ee-user`/`ee-vast` 集中、装载统一伪指令）与基础设施（`refs/` 清空、清单锁、`CONFIG` 钉子门控）。**不执行**语义（执行归 M17）。
 

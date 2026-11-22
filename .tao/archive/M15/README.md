@@ -1,6 +1,6 @@
 # M15 归档（Archive）
 
-> **归档日期**：2026-11-22 ｜ **范围**：M15 里程碑（2026-11-12 起，**2026-11-20 达成**）的全部任务书与相关记录 —— **ISA 语义结构化（IDL v0 + 12 册 operation + 渲染/门控）**
+> **归档日期**：2026-11-22 ｜ **范围**：M15 里程碑（2026-11-12 起，**2026-11-22 达成**）的全部任务书与相关记录 —— **ISA 语义结构化（IDL v0 + 12 册 operation + 渲染/门控）**
 > **归档判据**：任务书字段 `**项目里程碑**：M15` 且状态 ∈ {`已验证`,`里程碑`}（**66** 册 = gem5 2 / idl 20 / infra 10 / integ 1 / qemu 2 / spec 8 / testcases 23；全部 `已验证`）；任务流水冻结 **66** 条；`issues.yaml` `closed_in: M15` 关闭项 **1** 条（见 `issues-closed.md`，`tools/infra/archive_issues.py --check` 可复核）；`MEMORY.md` 纯 M15 行移除、摘要见 §4。
 > **自归档说明**：`m15-integ-001`（本归档任务自身）按 `docs/Process-04 §4.1` 迁入 `integ/`；§1 `integ` 计数（1）与 §2 流水（66 行）均已含它。
 > **说明**：本目录是**历史归档**，不再活跃；权威摘要见 `m15-retrospective.md`，后续路线见 `.tao/knowledge/milestones-m16.md`（M16）、`milestones-m17.md`（M17，IDL 执行）、`milestones-m18.md`。
