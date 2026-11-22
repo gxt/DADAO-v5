@@ -1,8 +1,23 @@
 diff --git a/picolibc.ld.in b/picolibc.ld.in
-index 416eeeb..9eaf963 100644
+index 416eeeb..836a124 100644
 --- a/picolibc.ld.in
 +++ b/picolibc.ld.in
-@@ -415,10 +415,16 @@ SECTIONS
+@@ -66,6 +66,14 @@ SECTIONS
+ 	.text : {
+ 
+ 		/* code */
++
++		/* dadao: the stack-setup stub linked as the ELF entry
++		 * (`.text.start`, e.g. the Tiny crt0 wrapper) must be the very
++		 * first code byte, so that `e_entry` equals the profile's fixed
++		 * application entry.  Any earlier-sorted input (for instance
++		 * `.text.unlikely.*` from assert) would otherwise shift it. */
++		KEEP (*(.text.start))
++		KEEP (*(.text.start.*))
+ 		*(.literal.unlikely .text.unlikely .literal.unlikely.* .text.unlikely.*)
+ 		*(.literal.startup .text.startup .literal.startup.* .text.startup.*)
+ 		*(SORT(.text.sorted.*))
+@@ -415,10 +423,16 @@ SECTIONS
  
  @LINUX@	PROVIDE ( @PREFIX@__stack_bottom = ORIGIN(ram) + LENGTH(ram) - (DEFINED(@PREFIX@@STACK@_size) ? @PREFIX@@STACK@_size : @DEFAULT_STACK_SIZE@) );
  @LINUX@

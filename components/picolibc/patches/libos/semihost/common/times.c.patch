@@ -1,0 +1,41 @@
+diff --git a/libos/semihost/common/times.c b/libos/semihost/common/times.c
+index 59af505..c921965 100644
+--- a/libos/semihost/common/times.c
++++ b/libos/semihost/common/times.c
+@@ -33,13 +33,35 @@
+  * OF THE POSSIBILITY OF SUCH DAMAGE.
+  */
+ 
++#include <stdint.h>
++#include <time.h>
+ #include <sys/times.h>
+ #include <sys/time.h>
+ #include "semihost.h"
+ 
++/*
++ * SYS_ELAPSED counts at sys_semihost_tickfreq() ticks per second (Arm
++ * semihosting SYS_TICKFREQ), whereas `clock_t` and `struct tms` are expressed
++ * in CLOCKS_PER_SEC units -- clock() sums the tms fields unchanged.  Scale the
++ * elapsed count before returning it; otherwise clock() / CLOCKS_PER_SEC is off
++ * by tickfreq / CLOCKS_PER_SEC (1000x for a nanosecond tick, ISS-502).
++ */
+ clock_t
+ times(struct tms *buf)
+ {
++    uint64_t        elapsed;
++    uintptr_t       freq;
++    unsigned __int128 ticks;
++
+     buf->tms_stime = buf->tms_cstime = buf->tms_cutime = 0;
+-    return buf->tms_utime = (clock_t)sys_semihost_elapsed();
++    elapsed = sys_semihost_elapsed();
++    freq = sys_semihost_tickfreq();
++    /* Semihosting reports a missing frequency as 0 or -1: fail, do not guess. */
++    if (freq == 0 || freq == (uintptr_t)-1)
++        return (clock_t)-1;
++    /* 128-bit intermediate: elapsed * CLOCKS_PER_SEC cannot wrap. */
++    ticks = (unsigned __int128)elapsed * CLOCKS_PER_SEC / freq;
++    if (ticks > UINT64_MAX)     /* clock_t is 64-bit unsigned on this target */
++        return (clock_t)-1;
++    return buf->tms_utime = (clock_t)ticks;
+ }
