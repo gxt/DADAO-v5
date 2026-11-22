@@ -160,8 +160,7 @@ if [ "$DRY_RUN" -eq 1 ]; then
   say "[step 5] make -C $REPO_DIR -j $JOBS apply-series"
   say '[step 5] rc=0 (dry-run)'
   step_header 6 "configure the compiler-rt builtins build tree when absent"
-  say '[step 6] configure only when build.ninja is absent; build-tree clang is created first when missing'
-  say "[step 6] fallback when $LLVM_BUILD/bin/clang is absent: make -C $REPO_DIR -j $JOBS build-mc build-lld"
+  say '[step 6] build-mc then build-lld (separate calls; both are gate-locked), configure compiler-rt when absent, then build-builtins'
   printf '[step 6] cmake-command:'
   printf ' %q' "${COMPILER_RT_CMAKE[@]}"
   printf '\n'
@@ -308,17 +307,24 @@ run_logged 5 apply-series make -C "$REPO_DIR" -j "$JOBS" apply-series || exit $?
 
 # ---------------------------------------------------------------- step 6: compiler-rt
 step_header 6 "compiler-rt builtins build tree"
+# build-mc/build-lld are both GATE_LOCKED_TARGETS and build-builtins needs
+# their products (bin/clang, bin/ld.lld).  Pass them as separate `make` calls:
+# with one `make -jN build-mc build-lld` the two goals run concurrently and the
+# loser waits GATE_LOCK_WAIT (3600 s) before failing with rc=75.  Both calls
+# are cheap no-ops when the tools are already up to date.
+run_logged 6 llvm-mc make -C "$REPO_DIR" -j "$JOBS" build-mc || exit $?
+run_logged 6 llvm-lld make -C "$REPO_DIR" -j "$JOBS" build-lld || exit $?
 if [ -f "$COMPILER_RT_BUILD/build.ninja" ]; then
   say "[step 6] already configured at $COMPILER_RT_BUILD"
   say '[step 6] rc=0'
 else
-  if [ ! -x "$LLVM_BUILD/bin/clang" ] || [ ! -x "$LLVM_BUILD/bin/clang++" ]; then
-    say '[step 6] build-tree clang is absent; building the host LLVM first'
-    say '[step 6] (install-host cannot bootstrap its own compiler-rt dependency)'
-    run_logged 6 llvm make -C "$REPO_DIR" -j "$JOBS" build-mc build-lld || exit $?
-  fi
   run_logged 6 compiler-rt "${COMPILER_RT_CMAKE[@]}" || exit $?
 fi
+# `install-host` runs its prerequisites in parallel under `-jN`, so its
+# build-builtins prerequisite can start before build-lld has produced
+# bin/ld.lld ("build-builtins: ERROR: .../ld.lld not found").  Build the
+# builtins here instead, where the order is explicit.
+run_logged 6 builtins make -C "$REPO_DIR" -j "$JOBS" build-builtins || exit $?
 
 # ---------------------------------------------------------------- step 7: install-host
 step_header 7 "install the host toolchain"

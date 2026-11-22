@@ -14,6 +14,7 @@
 | `ics160` | 40 | 125 G | 38 | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
 | `ics170` | 40 | 125 G | 38 | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
 | `ics180` | 40 | 125 G | 38 | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
+| `zzx-NF5280` | 16 | 62 G | 14 | 评测节点（纯执行；**反向隧道**访问，用户 `ubuntu`；2026-11-22 新增，`m16-infra-001` 引导中） | 引导中 |
 
 - **看板**：`python3 tools/infra/nodetop.py`（**2×3 分屏**、默认 5 s 刷新；每栏 = 单行指标 + **按窗格高度自适应**的最热进程（每行：`CPU% ｜ 虚存(VSZ) ｜ 已运行 ｜ 进程名`，**不造缩写**；名字超宽只保留**尾段**（如 `…WumingTinyConfig`），窗口够宽时整名+ELF 都显示；`--procs N` 可显式限流）；`server207`/`server208` 固定同一列）。字段：`L`=1 分钟负载（括号内为占核数 %）、`M`=**可用**内存、`D`=磁盘使用率、`T`=测试进程数、`ssh`=采样往返延迟。`q` 退出、`p` 暂停、`+/-` 调刷新；`--once`/`--procs`/`--hosts`/`--layout list` 可调。
 - **并行度（用户 2026-11-14）**：构建一律 **32**；测试 = **全量核 − 2**（本表「测试 `--jobs`」列）。工具默认已按此实现（`Makefile` 的 `JOBS`/`TEST_JOBS`、`run_asm_suite.py`、`picolibc_tests.py`），**不要手写** 8/16/20/32 之类经验值。
@@ -162,6 +163,7 @@
 2. **`install-host` 不会自动 `apply-series`**：跳过时 CMake 报 `The target 'DADAO' is not a core tier target`（源树是未打补丁的上游 commit）。顺序必须 `fetch → apply-series → install-host`。
 3. **compiler-rt builtins 需一次性手工 configure**：`COMPILER_RT_DEFAULT_TARGET_ONLY=ON` 时缺 `CMAKE_C_COMPILER_TARGET` / `CMAKE_CXX_COMPILER_TARGET` 会直接报错；两值都须为 `dadao-unknown-elf`。
 4. **公网不可达**：GitHub 大传输会 `curl 28` / `GnuTLS recv error` ⇒ 仓库走 bundle、组件走本地 `.cache/*.git`，不把「直连公网」当唯一路径。
+5. **`make -jN` 把两个 `GATE_LOCKED_TARGETS` 一起传会互等**（2026-11-22 `zzx-NF5280` 实测）：`build-mc`/`build-lld` 都是锁内目标，`-j` 下并发起跑，先拿到锁的那个建多久，另一个就等多久；超过 `GATE_LOCK_WAIT=3600` 即以 `Error 75` 退出（`§3.2` 第 2 条的根因）。`bootstrap_node.sh` step 6 已改为**顺序调用**两个目标；手跑时同样不要一行写「`build-mc build-lld`」。
 
 ## 7. 用途与并发约定
 
