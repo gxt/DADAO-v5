@@ -632,9 +632,9 @@
   scope:
   - qemu
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: m16-qemu-004
   title: "【P2】`fence` 的保留 cfx 集三平台不一致：保留集真源是 `Kaiwu §1.2` + `DADAO-12 §1` 的编号表 = `6–14, 16–31, 35–61`（`hb≠0` ⇒ ILLI）；`19–61` 是 `DADAO-12` 0.7.3-rc / `Kaiwu` 附录 0.4.0 的**残留口径**（疑 QEMU 根因）。探针只采样 16/17/18 与 32/33/34，下界 19 属**推断**，实测 **QEMU 的保留集是 `6–14, 19–61`** ⇒ cfx16/17/18 QEMU 放行、cfx32/33/34 QEMU 报异常（chipyard/gem5 与 spec 一致）。由 `m13-testcases-027` 的 `probe_gap.py` 钉住。"
 - id: ISS-433
   scope:
