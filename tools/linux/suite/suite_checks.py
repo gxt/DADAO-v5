@@ -241,14 +241,32 @@ def check_patches(rep: Report) -> None:
 # S5/S6 — image and counts
 # ---------------------------------------------------------------------------
 
-def check_image(rep: Report, results: dict) -> None:
-    manifest_path = suite_paths.image_manifest()
+def check_image(rep: Report, results: dict,
+                manifest_path: Path | None = None) -> None:
+    """S5: the manifest of *this run* describes the archive the run booted.
+
+    ``manifest_path`` is the per-run snapshot written by ``run_suite.py``
+    (``<run>/image-manifest.json``).  The live ``image/manifest.json`` is
+    rewritten by every later image build, so a stored run checked against it
+    goes red after an unrelated ``--only`` run rebuilt the image (F-R1/F-R2);
+    the snapshot is the faithful record of what the run recorded.  Without a
+    snapshot (runs made before snapshots existed) the live file is used, as
+    before.
+    """
+    live = suite_paths.image_manifest()
+    manifest_path = manifest_path or live
     if not manifest_path.is_file():
         rep.check("S5a", "镜像 manifest 存在", False, "manifest.json", "missing")
         return
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    same_archive = results["image"]["cpio_sha256"] == manifest["cpio"]["sha256"]
+    if manifest_path != live:
+        # The snapshot must be the very manifest the run recorded; otherwise the
+        # cpio match would be against a file the run never saw.
+        same_archive = same_archive and \
+            _sha256(manifest_path) == results["image"]["manifest_sha256"]
     rep.check("S5a", "结果记录的 cpio sha256 == 镜像 manifest",
-              results["image"]["cpio_sha256"] == manifest["cpio"]["sha256"],
+              same_archive,
               results["image"]["cpio_sha256"], manifest["cpio"]["sha256"])
 
     entries = {entry["name"]: entry for entry in manifest["entries"]}
@@ -294,7 +312,10 @@ def run_checks(results: dict, results_path: Path | None = None) -> list[str]:
     check_baseline(rep, results, cases)
     check_ledger(rep, results, cases, ledger)
     check_patches(rep)
-    check_image(rep, results)
+    snapshot = (results_path.parent / "image-manifest.json"
+                if results_path is not None else None)
+    check_image(rep, results,
+                snapshot if snapshot is not None and snapshot.is_file() else None)
     check_counts(rep, results)
     print(f"[INFO] suite checks: {rep.checked - len(rep.failures)}/{rep.checked} passed")
     return rep.failures

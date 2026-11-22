@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/fault.c b/arch/dadao/mm/fault.c
 new file mode 100644
-index 000000000..0cdf51714
+index 000000000..72ee5e3d8
 --- /dev/null
 +++ b/arch/dadao/mm/fault.c
-@@ -0,0 +1,1110 @@
+@@ -0,0 +1,1135 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO demand paging: the CFXMEM / CFXPERM fault channel (K3, m14-linux-012).
@@ -777,6 +777,31 @@ index 000000000..0cdf51714
 +			/* The lock was dropped for us; redo the lookup. */
 +			flags |= FAULT_FLAG_TRIED;
 +			continue;
++		}
++		if (fault & VM_FAULT_COMPLETED) {
++			/*
++			 * The generic path finished the fault *and released the
++			 * mmap lock itself*: `fault_dirty_shared_page()` calls
++			 * `maybe_unlock_mmap_for_io()`, which is allowed to drop
++			 * the lock precisely because `FAULT_FLAG_ALLOW_RETRY`
++			 * told it the caller can cope (m18-linux-014).  Unlocking
++			 * here as well drives the rwsem count below zero, and the
++			 * next reader's trylock then "succeeds" at count 0 --
++			 * WARNING at include/linux/rwsem.h:81 -- while the next
++			 * writer waits for ever on the corrupted count (the whole
++			 * machine stops printing).
++			 *
++			 * So: no unlock.  arch/riscv and arch/x86 spell the same
++			 * rule ("The fault is fully completed (including releasing
++			 * mmap lock): return").  The page is the one the fault
++			 * found (the completed path is `wp_page_reuse()`, which
++			 * keeps it and only makes the PTE writable), so the PTE
++			 * recorded before the fault is what to report; re-reading
++			 * the page table here would be a read without the lock.
++			 */
++			new_pte = old_pte;
++			*rep_pte = new_pte;
++			break;
 +		}
 +		if (fault & VM_FAULT_ERROR) {
 +			mmap_read_unlock(mm);

@@ -13,24 +13,21 @@ format: 1
 #                 silently skipped)
 #   SUITE_ENV     the environment cannot run it yet (image/loader/libc), with the
 #                 dependency and the re-run condition named
+#
+# Resolved (row removed; a PASS case must not stay in the ledger — S3c):
+#   mm-map-populate (m18-linux-014).  Was KERNEL_BUG / HOST_TIMEOUT, with
+#   "WARNING: include/linux/rwsem.h:81 ... Comm: map_populate".  Root cause: the
+#   port's generic fault arm ignored VM_FAULT_COMPLETED, so after
+#   `fault_dirty_shared_page()` -> `maybe_unlock_mmap_for_io()` had already
+#   released the mmap lock (a MAP_SHARED file page write in the test's main), the
+#   handler unlocked a second time; the count underflowed, the next reader's
+#   trylock "succeeded" at count 0 (the rwsem.h:81 warning) and the next writer
+#   slept for ever (host idle timeout, no guest alarm).  Fixed in
+#   arch/dadao/mm/fault.c: COMPLETED owns the lock release, exactly as
+#   arch/riscv and arch/x86 spell it.  Re-run condition met: five consecutive
+#   `run_suite.py --only mm-map-populate` runs are PASS with SUITE CASE END and
+#   no rwsem warning; suite.yaml's baseline for this case is PASS again.
 rows:
-  - id: mm-map-populate
-    class: KERNEL_BUG
-    verdict: HOST_TIMEOUT
-    case_output: "WARNING: include/linux/rwsem.h:81 at 0x0000000000000000, CPU#0: map_populate/16"
-    evidence: >-
-      With the 64 KiB adaptation applied (patches/kselftest/0001, 0002) the case
-      gets past tmpfile/ftruncate/mmap/msync/fork and into the child's
-      MAP_POPULATE COW fault; there the kernel warns at include/linux/rwsem.h:81
-      and the machine stops printing (no further kernel or test output, so the
-      guest-side alarm cannot fire and the host labels the case HOST_TIMEOUT).
-      Without patch 0001 the case wedges earlier, inside the same child, on the
-      sub-page (4096 B) mapping — the adaptation is what makes this a kernel
-      finding instead of a test-assumption artefact.
-    recheck: >-
-      Rerun `run_suite.py --only mm-map-populate` when the rwsem usage on the
-      fork/mmap-populate path is fixed; the case then either passes or fails on
-      its COW assertion, and this row is replaced by the new evidence.
   - id: mm-mlock2-tests
     class: KERNEL_BUG
     verdict: SIGNAL

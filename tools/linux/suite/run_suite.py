@@ -396,6 +396,16 @@ def main() -> int:
             "counts": counts,
         }
         results_path = run_dir / "results.json"
+        # Snapshot the image manifest this run was checked against.  The live
+        # ``image/manifest.json`` is rewritten by *every* later image build (the
+        # ``--only`` fault-path runs rebuild a one-case image), so comparing a
+        # stored run with the live file later turns a correct run red for a
+        # reason that has nothing to do with it (F-R1).  ``suite_checks`` uses
+        # this snapshot when it exists; the live file stays the fallback for
+        # runs made before snapshots existed.
+        (run_dir / "image-manifest.json").write_text(
+            suite_paths.image_manifest().read_text(encoding="utf-8"),
+            encoding="utf-8")
         results_path.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n",
                                 encoding="utf-8")
 

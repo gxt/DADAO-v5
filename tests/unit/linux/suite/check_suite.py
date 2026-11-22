@@ -15,7 +15,7 @@ Two jobs, both pointing at in-repo records rather than at a live run:
 Usage:
   python3 tests/unit/linux/suite/check_suite.py --results <results.json>
   python3 tests/unit/linux/suite/check_suite.py --patches-only
-  python3 tests/unit/linux/suite/check_suite.py --latest     # newest run
+  python3 tests/unit/linux/suite/check_suite.py --latest     # newest full-suite run
 
 Exit: 0 = all checks pass, 1 = a check failed, 2 = setup error.
 """
@@ -36,11 +36,26 @@ from tools.linux.suite import suite_paths   # noqa: E402
 
 
 def latest_results() -> Path:
+    """Newest run that covers every case of ``suite.yaml``.
+
+    ``run_suite.py --only`` writes single-case runs (the fault-path evidence of
+    m18-linux-014 makes nine of them per invocation).  A single-case run cannot
+    satisfy S1/S3f -- the coverage checks describe the *suite*, not that run --
+    so landing on one would report five failures that say nothing about the
+    suite (F-R2).  ``--latest`` therefore skips those and picks the newest full
+    run; ``--results <path>`` still takes any run on request.
+    """
+    wanted = {case.id for case in suite_cases.load_cases()}
     runs = sorted(suite_paths.runs_dir().glob("*/results.json"))
-    if not runs:
-        raise SystemExit(f"check_suite: no results.json under {suite_paths.runs_dir()} "
-                         f"(run tools/linux/suite/run_suite.py first)")
-    return runs[-1]
+    full = [path for path in runs
+            if wanted <= {case["id"]
+                          for case in json.loads(path.read_text(encoding="utf-8"))["cases"]}]
+    if not full:
+        raise SystemExit(f"check_suite: no full-suite results.json under "
+                         f"{suite_paths.runs_dir()} (only single-case runs: "
+                         f"{len(runs)}); run tools/linux/suite/run_suite.py "
+                         f"without --only first")
+    return full[-1]
 
 
 def main() -> int:
@@ -48,7 +63,8 @@ def main() -> int:
     parser.add_argument("--results", type=Path, default=None,
                         help="results.json of the run to check")
     parser.add_argument("--latest", action="store_true",
-                        help="use the newest run under the suite run directory")
+                        help="use the newest run that covers every suite.yaml case "
+                             "(single-case --only runs are skipped)")
     parser.add_argument("--patches-only", action="store_true",
                         help="only check the adaptation patch manifest/applicability")
     args = parser.parse_args()

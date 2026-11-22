@@ -13,15 +13,15 @@ cases:
   # Adapted by patches/kselftest/0001-...: the test's 4 KiB MMAP_SZ is a page
   # size on x86 but one sixteenth of a page on DADAO, so the file it maps is
   # shorter than the faulted-in page and the MAP_POPULATE/COW handover it tests
-  # never happens.  Patched it runs to the child's COW fault and then wedges on
-  # a kernel rwsem warning (KERNEL_BUG in triage.yaml), so it runs in its own
-  # boot: a wedged run must not take the other cases with it.
+  # never happens.  It used to wedge on the write to its MAP_SHARED file page
+  # (KERNEL_BUG: the fault handler unlocked the mmap lock that
+  # VM_FAULT_COMPLETED had already released); m18-linux-014 fixed the handler
+  # and the case runs to completion, so it no longer needs a boot of its own.
   - id: mm-map-populate
     dir: mm
     prog: map_populate
     timeout: 60
-    expect: HOST_TIMEOUT
-    stall: true
+    expect: PASS
   - id: mm-mlock2-tests
     dir: mm
     prog: mlock2-tests
