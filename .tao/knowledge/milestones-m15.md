@@ -35,7 +35,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m15-testcases-022 | 2026-11-22 10:27 | 3–5 h | ansibench 四件（coremark/dhrystone/linpack/whetstone）在 Tiny 上用 picolibc 跑通（实际应用验证） |
+| m15-testcases-023 | 2026-11-22 10:27 | 3–5 h | ansibench 四件（coremark/dhrystone/linpack/whetstone）在 Tiny 上用 picolibc 跑通（实际应用验证） |
 
 
 ## 已验证
