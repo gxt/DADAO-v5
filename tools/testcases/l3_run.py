@@ -16,7 +16,7 @@
   ``.S`` + lit + e2e 承担；``.S`` 载体的执行门控是 L2 ``check-inst-asm``
   （``m13-testcases-043``：YAML 退役后 ``check-inst`` 删除，「一个检查只在一层」
   ⇒ L3 不重复列 inst 执行）
-* ``arch``：``check-arch``（全 cfx）
+* ``arch``：``check-arch``（与 ``check-arch-smoke`` 同一代表集）
 * ``unit``：``check-unit-full``（= ``check-unit`` + ``check-lit-full``）
 * ``tset``：``test-m6`` 的**集成**步骤（全量 lit + ir-lli + Embench E2E）；082t 后
   L3 不直接列任何 tset smoke/full，此行取 test-m6 的独有内容（Embench E2E）作

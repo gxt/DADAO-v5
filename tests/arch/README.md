@@ -7,17 +7,21 @@
   不含 Tiny、linux-user、jmon/llc/uart。
 - 判据：**同一用例在三平台逐槽签名一致**；期望值独立派生自 `spec/` 与
   `.tao/contracts/`，不从实现反推。
-- 仿真**不进常规门控**（L2/L3）；按需/里程碑收口时跑 `run_arch.py`。
+- 门控：`tests/arch.yaml` 的 `level: smoke` 代表集由 `run_arch.py` 在 L2/L3
+  （`check-arch-smoke` / `check-arch`）现场派生并执行；full 与三平台差分按需/里程碑收口。
 
 ## 驱动
 
 ```sh
 python3 tests/arch/run_arch.py --cfx 4 --platforms qemu --cache-model on
+python3 tests/arch/run_arch.py --level smoke --platforms qemu --cache-model on
 python3 tests/arch/run_arch.py --self-test
 python3 tests/arch/run_arch.py --list
 ```
 
 - `--cfx`：0/2/3/4/5/15/32/34/63，可逗号分隔；非法值退出 2。
+- `--level`：`smoke` / `full` / `all`（缺省）。按 `tests/arch.yaml` 的 `level`
+  **现场派生**代表集；所选集合为空 ⇒ 退出 2（fail-closed，不当作 vacuous 通过）。
 - `--platforms`：`qemu` / `gem5` / `chipyard` 逗号列表。`qemu` 与 `gem5`（driver 经
   `tools/testcases/parity/qemu_gem5_shim.py`，`-machine kaiwu-vast`）已接；
   **未实现的 `chipyard`（RTL）fail-closed**：记 `SKIP` 并**非零退出**，禁止静默
@@ -36,7 +40,7 @@ python3 tests/arch/run_arch.py --list
 
 | 目录/文件 | cfx | 内容 |
 |------|-----|------|
-| `run_arch.py` | — | 唯一驱动（`--cfx/--platforms/--cache-model/--self-test/--list`） |
+| `run_arch.py` | — | 唯一驱动（`--cfx/--platforms/--cache-model/--level/--self-test/--list`） |
 | `common/` | — | arch 内共享薄壳：`signature.py` 转调 `tests/shared/signature.py`；`platform.py` 的 qemu/gem5（driver 经 shim）/chipyard（fail-closed）后端 |
 | `data/` | — | scope 内入库数据（三平台 cfx 盘点矩阵），不成册、不进 `tests/arch.yaml` |
 | `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.s`，10 条）+ `expected.yaml` |
@@ -72,18 +76,26 @@ word-builder 探针用同一个 `.py` 的 `Emitter`，`common/signature.py` 只�
 ## 门控
 
 ```sh
-make check-arch-smoke   # L2：arch 代表集（SEE/semihosting + cfx 权限 + 25 服务覆盖）
-make check-arch         # L3：check-arch-smoke + cfx min-ROM 场景探针（含 ptw 的 15 条）
+make check-arch-smoke   # L2：level=smoke 代表集（run_arch.py 现场派生）+ 25 服务 + ptw/tlb carrier
+make check-arch         # L3：与 check-arch-smoke 同一套检查（用户 2026-11-22 裁定）
 ```
 
-`run_arch.py` **不在** L2/L3 内（仿真按需/里程碑收口跑）。
+- 代表集条数由 `tests/arch.yaml` 的 `level: smoke` **现场派生**，不写死；代表集为空 /
+  `run_arch.py` 或索引缺失 / 任一 case 失败 ⇒ 非零（fail-closed，不得 `|| true`）。
+- cfx4 PTW/TLB carrier（`ARCH_PTW_CARRIER = tests/arch/ptw/carrier_tlb.py`，15 条）
+  **并入 `check-arch-smoke`**；`check-arch` 只依赖 smoke + echo，两目标同跑。
+- 旧 `ARCH_CFX_PROBES`（010 后 14 项、无 `tlb`）**不再被 `check-arch` 调用**；
+  文件与变量保留，**待 cfx4 迁移任务处理**（`m16-testcases-007`）。
+- 25 服务覆盖（`min_rom_probe_046t`）仍是 `check-arch-smoke` 的一部分。
+- full 集（`run_arch.py --level full` 的 `arch-ptw-*` 跨平台逐槽比对）**不进** L2/L3，
+  按需/里程碑收口跑 `run_arch.py`；L2/L3 的 ptw 面由 carrier 的 15 条 QEMU 探针承担。
 
 ## Tiny hmon 已迁出
 
 `arch-hmon-001` 与 `tests/arch/hmon/` 已迁到 `tests/unit/gem5/tiny_hmon/`
 （驱动 `tests/unit/gem5/check_tiny_hmon.py`；`m16-testcases-006`）。Tiny hmon 的
-**QEMU 同契约探针** `tools/testcases/arch/min_rom_probe_integ007t.py` 仍在
-`check-arch` 的 `ARCH_CFX_PROBES` 内——本次只移用例与 gem5 驱动，不改门控集合。
+**QEMU 同契约探针** `tools/testcases/arch/min_rom_probe_integ007t.py` 仍保留在
+`ARCH_CFX_PROBES` 变量内，但该变量**不再被 `check-arch` 调用**——待 cfx4 迁移任务处理。
 
 ## 前置
 

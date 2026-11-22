@@ -9,6 +9,7 @@
 
 接口：
     python3 tests/arch/run_arch.py --cfx 4 --platforms qemu --cache-model on
+    python3 tests/arch/run_arch.py --level smoke --platforms qemu --cache-model on
     python3 tests/arch/run_arch.py --self-test
     python3 tests/arch/run_arch.py --list
 
@@ -43,6 +44,7 @@ VALID_CFX = tuple(sorted(DIR_CFX.values()))
 PLATFORMS = arch_platform.BACKENDS
 CACHE_MODELS = ("on", "off")
 KINDS = ("asm", "driver")
+LEVELS = ("smoke", "full", "all")
 
 
 class ConfigError(RuntimeError):
@@ -99,6 +101,22 @@ def load_index(path=None):
     if problems:
         raise ConfigError("\n".join(problems))
     return cases
+
+
+def select_level(cases, level):
+    """按 `tests/arch.yaml` 的 `level` 现场派生代表集（不写死条数）。
+
+    `level == "all"` 表示不过滤；所选集合为空时**显式失败**（fail-closed），
+    不得把空代表集当成 vacuous 绿灯。
+    """
+    if level == "all":
+        return cases
+    selected = [case for case in cases if case["level"] == level]
+    if not selected:
+        raise ConfigError(
+            "tests/arch.yaml 中 level=%r 的代表集为空（现场派生；"
+            "不得静默当作通过）" % level)
+    return selected
 
 
 # ---------------------------------------------------------------------------
@@ -223,11 +241,12 @@ def run(args) -> int:
     cfx = [int(v) for v in cfx]
     platforms = (_split_csv(args.platforms, PLATFORMS, "--platforms")
                  if args.platforms else list(PLATFORMS))
-    cases = load_index()
+    cases = select_level(load_index(), args.level)
     if args.case:
         cases = [c for c in cases if c["id"] == args.case]
         if not cases:
-            raise ConfigError("--case %r 不在 tests/arch.yaml" % args.case)
+            raise ConfigError("--case %r 不在 level=%r 的 tests/arch.yaml 集合"
+                              % (args.case, args.level))
     else:
         cases = [c for c in cases if c["cfx"] in cfx]
     if not cases:
@@ -258,8 +277,8 @@ def run(args) -> int:
                 raise ConfigError("%s 不存在: %s（asm 载体需要）" % (label, value))
 
     print("=" * 72)
-    print("run_arch: cfx=%s platforms=%s cache-model=on cases=%d"
-          % (cfx, platforms, len(cases)))
+    print("run_arch: level=%s cfx=%s platforms=%s cache-model=on cases=%d"
+          % (args.level, cfx, platforms, len(cases)))
     print("work=%s" % work)
     print("=" * 72)
 
@@ -337,7 +356,8 @@ def run(args) -> int:
 
     summary = work / "run.json"
     summary.write_text(json.dumps(
-        {"cfx": cfx, "platforms": platforms, "cache_model": "on",
+        {"level": args.level, "cfx": cfx, "platforms": platforms,
+         "cache_model": "on",
          "cases": [c["id"] for c in cases], "results": results,
          "cross_platform": cross, "failures": failures},
         ensure_ascii=False, indent=2),
@@ -360,13 +380,14 @@ def list_plan(args) -> int:
            if args.cfx else [str(v) for v in VALID_CFX])
     platforms = (_split_csv(args.platforms, PLATFORMS, "--platforms")
                  if args.platforms else list(PLATFORMS))
-    cases = [c for c in load_index() if str(c["cfx"]) in cfx]
-    print("%-4s %-12s %-22s %-7s %s"
-          % ("cfx", "dir", "case", "kind", "platforms"))
+    cases = [c for c in select_level(load_index(), args.level)
+             if str(c["cfx"]) in cfx]
+    print("%-4s %-12s %-22s %-7s %-5s %s"
+          % ("cfx", "dir", "case", "kind", "level", "platforms"))
     for case in cases:
-        print("%-4d %-12s %-22s %-7s %s"
+        print("%-4d %-12s %-22s %-7s %-5s %s"
               % (case["cfx"], PurePosixPath(case["file"]).parts[1],
-                 case["id"], case["kind"], ",".join(platforms)))
+                 case["id"], case["kind"], case["level"], ",".join(platforms)))
     print("%d case × %d 平台" % (len(cases), len(platforms)))
     return 0
 
@@ -380,6 +401,8 @@ def main(argv=None) -> int:
                     help="qemu/gem5/chipyard 逗号列表；缺省 = 三者全跑")
     ap.add_argument("--cache-model", default="on", choices=CACHE_MODELS,
                     help="arch 固定 on；off 退出 2")
+    ap.add_argument("--level", default="all", choices=LEVELS,
+                    help="只跑该 level 的代表集（smoke/full；all = 不过滤）")
     ap.add_argument("--case", default=None, help="只跑指定 case id")
     ap.add_argument("--work-dir", default=None, help="运行期证据目录")
     ap.add_argument("--qemu", default=None)

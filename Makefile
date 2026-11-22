@@ -325,8 +325,8 @@ help:
 	@echo "  make check-lit-full   Run full generated lit MC suite from contracts/opcodes.yaml (opt-in; TESTCASES-037t)"
 	@echo "  make test-codegen     Run M3 CodeGen E2E gate (llc->llvm-mc->objcopy->qemu; INTEG-012t; check-unit member)"
 	@echo "  make test-elf         Run M4 multi-TU/multi-section ELF E2E gate (llc->ld.lld->qemu; INTEG-016t; check-unit member)"
-	@echo "  make check-arch-smoke  arch smoke: SEE/semihosting + cfx permission + 25 svc (L2; TESTCASES-073t; probe root under TEST_ARTIFACTS_DIR — INFRA-146t)"
-	@echo "  make check-arch      arch full cfx set: arch-smoke + cfx min-ROM probes (L3; TESTCASES-073t)"
+	@echo "  make check-arch-smoke  arch smoke: tests/arch.yaml level=smoke rep set (run_arch.py) + 25 svc + ptw/tlb carrier (L2; m16-testcases-007; probe root under TEST_ARTIFACTS_DIR — INFRA-146t)"
+	@echo "  make check-arch      arch L3 member: same checks as check-arch-smoke (m16-testcases-007; old cfx probes retained for cfx4 migration)"
 	@echo "  make test-m6          Run M6 E2E gate (lli value-level diff + Embench all benches -O0/-O2 + full lit MC suite; opt-in, INTEG-025t)"
 	@echo "  make check-patch-tree  Check component + submodule patch sets (docs/Process-01, 10 assertions)"
 	@echo "  make check-index-blobs  Check new-file patch index blob hashes (INFRA-038t/ISS-119)"
@@ -1105,7 +1105,7 @@ _locked-clean-work:
 # ── 门控分层 (INFRA-058t；用户 2026-10-09 裁定，落 milestones「规划中」) ─────────
 # L1 `make check`（默认，秒~几十秒）   = 仓库完整性（静态检查）+ 组件可用性冒烟
 # L2 `make check-modules`（几十~几百秒）= **四 scope 代表集**（inst/arch/unit + tset×3）
-# L3 `make check-full`（几百~几千秒）   = **全量**（check-arch + check-unit-full）
+# L3 `make check-full`（几百~几千秒）   = **全部 L3 成员**（check-arch + check-unit-full）
 #                                        + test-m6（全量 lit + ir-lli + Embench E2E）
 # inst 全量执行**不在 L3**：`.S` 载体由 L2 `check-inst-asm` 全量跑（m13-testcases-043）。
 # 回归运行 `make night-run`（小时级）     = tset full×3 + 长 arch + gem5 SE×3 + gem5 FS；报告 `.dadao/tests/night/<date>/`
@@ -1153,7 +1153,7 @@ _locked-check-modules: check-inst-asm check-inst-sig check-arch-smoke check-unit
 #   inst       : **不在 L3 列**（L2 `check-inst-asm` 已是唯一 inst 执行门控；`check-inst`
 #               随 YAML 退役删除 ⇒ Process-07 §4「一个检查只在一层」）。Vast 的 ISA 执行
 #               覆盖明确放弃（用户 2026-11-14），由 spec + 三平台差分矩阵承担。
-#   arch 全量 : check-arch
+#   arch 成员 : check-arch（与 check-arch-smoke 同一套检查；m16-testcases-007）
 #   unit 全量 : check-unit-full（= check-unit + check-lit-full）；`check-unit` 只在 L2 **直接**列出，
 #               此处经**前置依赖**间接跑到 ⇒ 符合 Process-07 §4「被上层前置依赖不算重复」
 #   tset      : **不直接列出**（L2 已有 smoke；tset full 只在回归运行 night-run）；
@@ -1667,87 +1667,81 @@ _locked-check-unit-full: check-unit check-lit-full
 	@echo "check-unit-full: PASS (check-unit + check-lit-full)" > $(UNIT_FULL_LOG)
 	@cat $(UNIT_FULL_LOG)
 
-# arch scope 端到端门控（TESTCASES-073t；Process-09 §6/§8 分层）
-# 用例资产：`tests/arch/umon/`（m5 SEE/semihosting + cfx 权限向量，条数由 manifest 现场统计）
-# 驱动：`tools/testcases/arch/run_m5_e2e.py`（flat-bin 流水线）+
-#       `tools/testcases/arch/min_rom_probe_*.py`（min-ROM 场景探针，原 `tools/qemu/`）
-# 判据与原 `test-semihost`（INTEG-020t）**逐条未改**，只搬家 + 接线：
-#   1. forward: SEE bootrom (`-bios`) + flat bin (`-kernel`) + `-semihosting`；
-#      console / host 文件 / SYS_EXIT 退出码逐条比对，bootrom 生效性由 `-d cpu` 观测。
-#   2. cfx-level permission counter-examples（4 例随同一驱动：reserved cfxha / masked
-#      trap => ILLI；unimplemented cfx / RO-write => CFXREG；ADR-0020 D9）。
-#   3. 25 服务表覆盖（`min_rom_probe_046t`，>=1/id）。
-#   `check-arch-smoke` = **L2 代表集**（上述 1–3；= 原 test-semihost 的测试面）；
-#   `check-arch` = **L3**（= smoke + cfx 场景探针 044/045/049）。
+# arch scope 端到端门控（TESTCASES-073t；Process-09 §6/§8 分层；m16-testcases-007 重写）
+# 用例资产：`tests/arch/` 按 cfx 分目录；根级清单 `tests/arch.yaml`。
+# 驱动：`tests/arch/run_arch.py`（arch scope 唯一驱动）。
+# 代表集（用户 2026-11-22 裁定）：
+#   * `check-arch-smoke` = `tests/arch.yaml` 中 `level: smoke` 的条目，由
+#     `run_arch.py --level smoke --platforms qemu --cache-model on` **现场派生**
+#     （条数不写死），并**保留** 25 服务覆盖（`min_rom_probe_046t`）作为 smoke 一部分；
+#   * `check-arch` 与 `check-arch-smoke` **一致**：本目标只「依赖 smoke + echo」；
+#   * cfx4 PTW/TLB carrier（`ARCH_PTW_CARRIER`）**并入 smoke**，两目标同跑 15 条。
+# 旧 `ARCH_CFX_PROBES`（010 后 14 项、无 `tlb`）**不再被 check-arch 调用**；文件与变量
+# 保留，**待 cfx4 迁移任务处理**（m16-testcases-007）。
+# fail-closed：代表集为空 / 驱动或索引缺失 / 任一 case 失败 ⇒ 非零（不得 `|| true`）。
 # 工具/LD 从安装根取（ADR-0016 D9），bootrom 由 `make build-bootrom` 产出。
-ARCH_M5_DIR = tests/arch/umon
-ARCH_M5_RUNNER = tools/testcases/arch/run_m5_e2e.py
+ARCH_DRIVER = tests/arch/run_arch.py
+ARCH_INDEX = tests/arch.yaml
 ARCH_MIN_ROM_DIR = tools/testcases/arch
-ARCH_E2E_WORK = $(TEST_ARTIFACTS_DIR)/arch/m5-e2e
+ARCH_RUN_WORK = $(TEST_ARTIFACTS_DIR)/arch/run_arch
 # Probe scratch root (INFRA-146t): persistent, git-ignored artifact tree.  It must
 # **not** live under `/tmp`: `check-temp-dirs` (L1) flags non-active `/tmp/opencode`
 # dirs older than 2 h, and this root is refreshed by L2/L3 only ⇒ self-triggered red.
 ARCH_PROBE_WORK = $(TEST_ARTIFACTS_DIR)/arch/probes
 ARCH_SMOKE_LOG = .work/log/arch/check-arch-smoke.log
 ARCH_PROBE_LOG = .work/log/arch/check-arch-smoke-svc.log
-# L3 追加的 cfx 场景探针（原 min_rom_probe_*）：SEE/trap/escape 语义面 + RAM 映射/CFXMEM。
-# `045t` = trap/escape/cfx2* 全寄存器面；`049t` = RAM 映射 + 越界 cause；
+ARCH_CARRIER_LOG = .work/log/arch/check-arch-smoke-carrier.log
+# L3 旧 cfx 场景探针清单（**保留但不再被 check-arch 调用**；待 cfx4 迁移任务处理）：
+# `044t` = SEE 基础；`045t` = trap/escape/cfx2* 全寄存器面；`049t` = RAM 映射 + 越界 cause；
 # `integ039t` = 地址空间 Step 2 页表步进/页权限（ADR-0040）；
-# `integ040t` = 地址空间 Step 3 TLB/G/A-D/PTWERR（ADR-0041）；
+# `integ040t` = 地址空间 Step 3 TLB/G-A-D/PTWERR（ADR-0041）；
 # `integ042t` = Step 4 cfx_pmem 64 KiB SRAM + SRAM<->PA DMA + PMEM_DMA（ADR-0042）；
-# `integ044t` = cfx 两轴权限模型（四类同步 mask / 两类中断 mask / CFXPERM/CFXESC）。
-# `integ049t` = cg7 内部空间描述（16×4 静态表 / 全部只读 / 写任意 rc ⇒ CFXREG）。
-# `integ050t` = cfx_time 1 GHz/64 位 + 单 hart cfx_hart 的 cycle/insn 64 位与 TIMER/IMASK/pending。
-# `integ051t` = 统一异步中断仲裁（pending 归目标 cfx、低目标 cfxha 优先、单层、mask 保留/补投）。
-# `integ007t` = Tiny hmon「最小保存-跳转」算法（m13-integ-007；QEMU 先行契约）。
-# `tests/arch/ptw/carrier_tlb.py` = 15 条 TLB/PTW 探针（m16-testcases-010 由
-#        `tools/testcases/arch/min_rom_probe_tlb.py` 迁入；判据 = contract-tlb §11 + TLB-37，
-#        子原因位号现场解析自 contract-see §6.1.1；`--only` 逐 case、`--selfcheck` 校合约面）。
-#        迁移后不在 `tools/testcases/arch/`，单独在循环后调起（`ARCH_PTW_CARRIER`）。
+# `integ044t` = cfx 两轴权限模型（四类同步 mask / 两类中断 mask / CFXPERM/CFXESC）；
+# `integ046t` = power->hmon->hypv 链 + hmon 帧（25 服务覆盖另由 046t 在 smoke 内跑）；
+# `integ047t` = cg7/power 面；`integ048t` = cfx_time/hart；`integ049t` = cg7 内部空间描述；
+# `integ050t` = cfx_time 1 GHz/64 位 + 单 hart cfx_hart；`integ051t` = 统一异步中断仲裁；
+# `integ007t` = Tiny hmon「最小保存-跳转」算法（QEMU 先行契约）。
+# `tlb` 已由 m16-testcases-010 从本清单拆出，成为 `ARCH_PTW_CARRIER`
+# （`tests/arch/ptw/carrier_tlb.py`，15 条 TLB/PTW 探针）。
 ARCH_CFX_PROBES = 044t 045t 049t integ039t integ040t integ042t integ044t integ046t integ047t integ048t integ049t integ050t integ051t integ007t
 ARCH_PTW_CARRIER = tests/arch/ptw/carrier_tlb.py
 
 _locked-check-arch-smoke: install-host build-bootrom
+	@test -f $(ARCH_DRIVER) || { echo "check-arch-smoke: ERROR: $(ARCH_DRIVER) not found"; exit 1; }
+	@test -f $(ARCH_INDEX) || { echo "check-arch-smoke: ERROR: $(ARCH_INDEX) not found"; exit 1; }
+	@test -f $(ARCH_PTW_CARRIER) || { echo "check-arch-smoke: ERROR: $(ARCH_PTW_CARRIER) not found"; exit 1; }
 	@test -x $(LLVM_MC_BIN) || { echo "check-arch-smoke: ERROR: $(LLVM_MC_BIN) not found"; exit 1; }
 	@test -x $(LLVM_OBJCOPY_BIN) || { echo "check-arch-smoke: ERROR: $(LLVM_OBJCOPY_BIN) not found"; exit 1; }
 	@test -x $(QEMU_BIN) || { echo "check-arch-smoke: ERROR: $(QEMU_BIN) not found"; exit 1; }
 	@test -f $(ARCH_MIN_ROM_DIR)/min_rom_probe_046t.py || { echo "check-arch-smoke: ERROR: min_rom_probe_046t.py not found"; exit 1; }
 	@test -f $(BOOTROM_DIR)/step5/bootrom_step5.bin || { echo "check-arch-smoke: ERROR: $(BOOTROM_DIR)/step5/bootrom_step5.bin not found (run 'make build-bootrom')"; exit 1; }
 	@mkdir -p .work/log/arch
-	@rm -rf $(ARCH_E2E_WORK) $(ARCH_PROBE_WORK)
-	@echo "check-arch-smoke: [1/2] forward semihosting + cfx-level permission counter-examples (Vast)"; \
-	  DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_M5_RUNNER) \
-	    --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
-	    --qemu $(QEMU_BIN) --bootrom $(BOOTROM_DIR)/step5/bootrom_step5.bin \
-	    --vectors-dir $(ARCH_M5_DIR) --expected $(ARCH_M5_DIR)/expected.yaml \
-	    --work-dir $(ARCH_E2E_WORK) > $(ARCH_SMOKE_LOG) 2>&1; \
+	@rm -rf $(ARCH_RUN_WORK) $(ARCH_PROBE_WORK)
+	@echo "check-arch-smoke: [1/3] tests/arch.yaml level=smoke representative set (run_arch.py; derived)"; \
+	  DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_DRIVER) --level smoke --platforms qemu --cache-model on \
+	    --qemu $(QEMU_BIN) --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
+	    --bootrom $(BOOTROM_DIR)/step5/bootrom_step5.bin --work-dir $(ARCH_RUN_WORK) \
+	    > $(ARCH_SMOKE_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -n 30 $(ARCH_SMOKE_LOG); \
-	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (forward/permission rc=$$rc)"; exit $$rc; fi
-	@echo "check-arch-smoke: [2/2] 25-service table coverage (min_rom_probe_046t; Vast profile)"; \
+	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (run_arch rc=$$rc)"; exit $$rc; fi
+	@echo "check-arch-smoke: [2/3] 25-service table coverage (min_rom_probe_046t; Vast profile)"; \
 	  DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_046t.py --qemu $(QEMU_BIN) > $(ARCH_PROBE_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -n 4 $(ARCH_PROBE_LOG); \
 	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (service coverage rc=$$rc)"; exit $$rc; fi
-	@echo "check-arch-smoke: PASS (forward + permission + 25-service)"
-
-# L3：arch 全 cfx 场景（smoke + cfx min-ROM 探针）。任一探针非零 ⇒ 整体红。
-_locked-check-arch: check-arch-smoke
-	@mkdir -p .work/log/arch
-	@fail=0; for p in $(ARCH_CFX_PROBES); do \
-	  echo "check-arch: [$$p] cfx min-ROM probe"; \
-	  DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_MIN_ROM_DIR)/min_rom_probe_$$p.py --qemu $(QEMU_BIN) > .work/log/arch/check-arch-probe-$$p.log 2>&1; \
+	@echo "check-arch-smoke: [3/3] cfx4 PTW/TLB carrier (15 cases; Vast profile)"; \
+	  DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_PTW_CARRIER) --qemu $(QEMU_BIN) > $(ARCH_CARRIER_LOG) 2>&1; \
 	  rc=$$?; \
-	  tail -n 3 .work/log/arch/check-arch-probe-$$p.log; \
-	  if [ $$rc -ne 0 ]; then echo "check-arch: FAIL (min_rom_probe_$$p rc=$$rc)"; fail=1; fi; \
-	done; \
-	echo "check-arch: [tlb] cfx4 PTW/TLB carrier"; \
-	DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_PTW_CARRIER) --qemu $(QEMU_BIN) > .work/log/arch/check-arch-probe-tlb.log 2>&1; \
-	rc=$$?; \
-	tail -n 3 .work/log/arch/check-arch-probe-tlb.log; \
-	if [ $$rc -ne 0 ]; then echo "check-arch: FAIL (carrier_tlb rc=$$rc)"; fail=1; fi; \
-	if [ $$fail -ne 0 ]; then exit 1; fi; \
-	echo "check-arch: PASS (arch-smoke + cfx probes: $(ARCH_CFX_PROBES) + ptw/tlb)"
+	  tail -n 4 $(ARCH_CARRIER_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (carrier_tlb rc=$$rc)"; exit $$rc; fi
+	@echo "check-arch-smoke: PASS (level=smoke representative set + 25-service + ptw/tlb carrier)"
+
+# L3：与 check-arch-smoke **同一代表集**（用户 2026-11-22 裁定）。
+# **结构约束**：本目标只有「依赖 check-arch-smoke + echo」两行，carrier 与探针都在
+# smoke 内跑；不得再遍历 `ARCH_CFX_PROBES`（m16-testcases-007）。
+_locked-check-arch: check-arch-smoke
+	@echo "check-arch: PASS (same checks as check-arch-smoke)"
 
 # M6 end-to-end gate (INTEG-025t).  Three components, all fail-closed:
 #   1. value-level differential: the same LLVM IR runs on the host `lli` (X86)

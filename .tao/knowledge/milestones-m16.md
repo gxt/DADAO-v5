@@ -32,7 +32,6 @@
 | --- | --- | --- | --- |
 | m16-qemu-001 | 2026-11-22 13:34 | 2–3 h | QEMU `cache-model=off\|on` 属性 + cfx5 寄存器面（不含影子数据通路） |
 | m16-chipyard-016 | 2026-11-22 13:34 | 3–4 h | RTL cfx5 寄存器面（GewuFile 行 + Vast 序列 + 探针） |
-| m16-testcases-007 | 2026-11-22 14:10 | 2–3 h | `check-arch` / `check-arch-smoke` 按新 `tests/arch` 重写，二者一致 |
 | m16-gem5-021 | 2026-11-22 14:14 | 3–4 h | gem5 cfx5 命令（复用 ARM `dc` maintenance 请求） |
 | m16-testcases-011 | 2026-11-22 16:12 | 1–2 h | picolibc clock 探针归位：改名 + 单独 `run_picolibc_clock_probe.py`；ansibench 驱动只留四件 |
 
@@ -40,6 +39,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-testcases-007 | 2026-11-22 16:13 | `check-arch` 与 `check-arch-smoke` 同一代表集（10 smoke + 25 服务 + carrier 15 条 29/29） |
 | m16-testcases-008 | 2026-11-22 14:47 | `unit` 允许 `system` 并登记 `unit-gem5-hmon-001`（473 条索引；KNOWN-RED 记 ISS-509） |
 | m16-testcases-010 | 2026-11-22 14:45 | cfx4 PTW/TLB 15 条纳管（QEMU/gem5 各 29/29；`arch-ptw-001..015`） |
 | m16-testcases-006 | 2026-11-22 13:33 | `tests/arch` 落点与驱动骨架（`run_arch.py`、`machine: vast`、驱动型 case、Tiny hmon 迁出；24 PASS + 1 SKIP） |
