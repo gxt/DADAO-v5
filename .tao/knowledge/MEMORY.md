@@ -6,25 +6,13 @@
 
 ## 当前交接（滚动；每次会话切换时更新，≤12 行）
 
-- **2026-11-19（基线 / 口径）**：
-  - **chipyard sim md5 `25c1d3f4…`**（`m16-chipyard-015` 换签入 bootrom hex 后重建，Tiny `semihost_smoke` 1136 B 与 QEMU 同；旧 `df16728e…` 作废）；构建**必须**用 `.conda-env` 的 `PATH`+`RISCV`（`ISS-474`）。
-  - **流程新增**：`docs/Process-07 §5a` 验收必验「合并态」（清单 sha256 按 master 重算；扫全仓/全文门控须在合并态跑）；`discussing.md` 只记未裁决项。
-- **待开始**：K6 = `m18-linux-001`–`003`（M18）。
-- **已定口径（2026-11-18）**：`escape` 恢复 `inner_cfx_code ← excp_prev_cfx_code`（`cg5 rc1`；spec+DADAO-12/Kaiwu+QEMU 已落，版本号未动）；`spec/Kaiwu` 三处已对齐；IDL 寄存器模型 = 方案 C（四组数组 + `fo`/`ft` 视图、`ra` 逻辑栈序 + `ras_*`）；`read_memory`/`write_memory`（无 `_be`）/`fetch_memory`/`raise(code,mode,addr)`/`is_naturally_aligned`；`idlc` 不进门控；`.idl` sha256 锁延后到 M15 收口（N21）。
-- **目录防护第一波已收尾**：`spec/`、`.tao/`、`.tao/knowledge`、`components/` 各有 `.manifests.toml` + `check-manifests-guard`（缺清单/缺注册表/游离清单均红）；`check-spec-readonly`/`check-knowledge-dir` 已删并入。
-- **磁盘/负载**：`/mnt/tao` 29%；125G 内存 available 115G；load 13（64 核）。
-- **待用户裁定**：无阻塞项（队列已续满）。
-
-- **磁盘**：`/mnt/tao` 29%（333G）；今夜两次 ENOSPC（`ISS-464`/`ISS-465`）已登记；`check-temp-dirs`/`check-run-artifacts`/`check-knowledge-refs` 已回绿。
-
-- **2026-11-15（晚）**：**M13 已收口并归档**（107 件全已验证、台账已删）；M12 已收口且已归档；M16 已验证 9 / 待开始 1（`chipyard-001`，等 M13 收口→现已解锁）。
-- **M13 收口事实**：矩阵冻结 `docs/TestReports/M13-三平台差分-矩阵.md`（整数 637 + FP 227 = **864 镜像三平台逐例一致、差异 0、未归因 0**）；报告记 `input commit`；新增链例字节级断言；`tests/data/m13-005-acceptance.*`（`m15-infra-004` 迁出落点）。
-- **rf2rf 批（全部合入）**：`spec-010`（264→263 id）+ llvm/qemu/gem5/chipyard 四实现 + 向量 `02-reg-copy/rf2rf_orri_rf.S`；伪指令体系迁入 `SimRISC-00 §5`（现行位置 `Toolchain-01 §6.2`）、`SimRISC-03` 按 rd/rb/rf 拆三章；7 个伪指令载体（`pseudo_set.*`，113 点）；RMW 合成序 `atomic_rmw.S`；`atomics` 5 探针退役改执行型 `atomics_e2e`；`set.fo` 最小指令数展开。
-- **sim md5 / qemu md5**：chipyard **`25c1d3f4…`**（`m16-chipyard-015`，签入 bootrom hex `a5d78816…` 后重建；旧 `df16728e…`（2026-11-19 `.conda-env` 重建）、`9b6928e0…`（`m16-chipyard-005`）、`eb5220f9…`、`71574df4…`、`bd5e75b3…` 作废）；qemu **`50752f5feeda4e15fe35de6a6a260a4e`**（`m14-infra-004`：机器串 `kaiwu-tiny`/`kaiwu-vast`；旧 `9750c139…` 作废）；**两者都只在同一构建环境/时段内可比**（`ISS-451`/`ISS-453`）。
-- **L1 全绿**（`check-inst-asm` 904/904、`check-lit` 177/177、`check-interface` 89/89、`check-musl-freshness` PASS）。
-- **规则新增（2026-11-15）**：派单顺序（先提交任务书再建 worktree，R2 机械校验）、台账时间戳取 `date`/`git log`、复核分档（小改 1 路注入 ≤15 min）、脚本入仓判据=会不会再跑。
-- 队列：M13 收口完成 → **`refs/` 清空**（用户已定，方式待选）+ **M13 归档**；M16 `chipyard-001` 已解锁；M14 K2 待授权。
-- **待用户裁定**：① `refs/` 清空方式（直接删 / 归档到 `archive/<M>/refs/`）；② 平台×机型×用例 6 问；③ gem5 SE `--semihost` 开关；④ `ISS-440`/`ISS-443`/`ISS-433` 是否合批做 ADR；⑤ K2 立册范围。
+- **2026-11-22 基线**：
+  - **已归档**：M14（76 册）、M15（66 册，达成 2026-11-22）→ `.tao/archive/M14/`、`M15/`。**M16/M17/M18 台账已清零、未归档**；M16 批次 3 在跑（`m16-qemu-001`/`m16-chipyard-016`）。
+  - **时间口径（ADR-0058 Accepted）**：guest 性能/超时只用 `cfx_time`（或 gem5 cycles）；semihosting elapsed/`gettimeofday` 只作宿主 liveness。picolibc `times()` 已按 `SYS_TICKFREQ` 缩放（`ISS-502` 闭合）；`sysconf(_SC_CLK_TCK)` 未同步（`ISS-506`）。
+  - **picolibc 安装根**：17 patches（含 `times()` 缩放 + lds `.text.start` 段首）。合入组件补丁后增量 `build-<c>` 不重放补丁：删源树 → `make fetch` → `apply_series.py --component picolibc` → rebuild。
+  - **已知基线红**：`check-patch-tree` musl 10 + gem5 5（`ISS-507`）；`check-milestones-fresh` 台账「预估：中」（`ISS-508`）；picolibc harness `.done` 无库指纹（`ISS-504`，跑前删 `picolibc-tests-run`）。
+  - **chipyard sim md5 `25c1d3f4…`**（构建必须用 `.conda-env` 的 `PATH`+`RISCV`，`ISS-474`）；qemu md5 `50752f5f…`（同环境同时段才可比，`ISS-451`/`453`）。
+  - **队列**：M19（2 件，需硬件在场）、M20（2 件，未开工）；`open` issue 93。
 
 ## 入口指针
 
