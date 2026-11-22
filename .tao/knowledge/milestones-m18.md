@@ -36,7 +36,7 @@
 | m18-linux-010 | 30 min | ISS-486 措辞订正（libc 侧检查；3 处注释/文档，产物不变） |
 | m18-linux-011 | 30 min | ISS-496 applet 计数改按白名单/符号表派生（去 `enabled - infra` 抵消假设） |
 | m18-linux-012 | 1–2 h | ISS-503 K6 门控五条 finding（恒真断言并入 region、计数/标签/符号名订正） |
-| m18-linux-013 | 2–3 h | ISS-500 用户态异步中断裁定与落地（**待裁定 A 追认 / B 恢复投递**；F2/F3 数字订正） |
+| m18-linux-013 | 6–8 h | ISS-500 用户态异步投递与抢占完整修复（参考其它 ISA：早退帧 + 软件帧 + `irqentry_enter/exit`；前置 `ADR-0059`） |
 | m18-qemu-001 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
