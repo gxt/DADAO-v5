@@ -9,7 +9,7 @@
 
 接口：
     python3 tests/arch/run_arch.py --cfx 4 --platforms qemu --cache-model on
-    python3 tests/arch/run_arch.py --level smoke --platforms qemu --cache-model on
+    python3 tests/arch/run_arch.py --level smoke --platforms qemu --cache-model off
     python3 tests/arch/run_arch.py --self-test
     python3 tests/arch/run_arch.py --list
 
@@ -234,8 +234,6 @@ def _default_paths(args):
 
 
 def run(args) -> int:
-    if args.cache_model != "on":
-        raise ConfigError("--cache-model 只支持 on；arch 不测直通模式（off）")
     cfx = (_split_csv(args.cfx, [str(v) for v in VALID_CFX], "--cfx")
            if args.cfx else [str(v) for v in VALID_CFX])
     cfx = [int(v) for v in cfx]
@@ -277,8 +275,8 @@ def run(args) -> int:
                 raise ConfigError("%s 不存在: %s（asm 载体需要）" % (label, value))
 
     print("=" * 72)
-    print("run_arch: level=%s cfx=%s platforms=%s cache-model=on cases=%d"
-          % (args.level, cfx, platforms, len(cases)))
+    print("run_arch: level=%s cfx=%s platforms=%s cache-model=%s cases=%d"
+          % (args.level, cfx, platforms, args.cache_model, len(cases)))
     print("work=%s" % work)
     print("=" * 72)
 
@@ -357,7 +355,7 @@ def run(args) -> int:
     summary = work / "run.json"
     summary.write_text(json.dumps(
         {"level": args.level, "cfx": cfx, "platforms": platforms,
-         "cache_model": "on",
+         "cache_model": args.cache_model,
          "cases": [c["id"] for c in cases], "results": results,
          "cross_platform": cross, "failures": failures},
         ensure_ascii=False, indent=2),
@@ -374,8 +372,6 @@ def run(args) -> int:
 
 
 def list_plan(args) -> int:
-    if args.cache_model != "on":
-        raise ConfigError("--cache-model 只支持 on；arch 不测直通模式（off）")
     cfx = (_split_csv(args.cfx, [str(v) for v in VALID_CFX], "--cfx")
            if args.cfx else [str(v) for v in VALID_CFX])
     platforms = (_split_csv(args.platforms, PLATFORMS, "--platforms")
@@ -400,7 +396,7 @@ def main(argv=None) -> int:
     ap.add_argument("--platforms", action="append",
                     help="qemu/gem5/chipyard 逗号列表；缺省 = 三者全跑")
     ap.add_argument("--cache-model", default="on", choices=CACHE_MODELS,
-                    help="arch 固定 on；off 退出 2")
+                    help="smoke 用 off（不测 cache）；cfx5 用例用 on")
     ap.add_argument("--level", default="all", choices=LEVELS,
                     help="只跑该 level 的代表集（smoke/full；all = 不过滤）")
     ap.add_argument("--case", default=None, help="只跑指定 case id")
