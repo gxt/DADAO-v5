@@ -21,6 +21,9 @@
     subdirs   = ["a", "b"]        允许的**直接**子目录；空 = 禁止建子目录
     recursive = false             可选；true ⇒ 对每个 `subdirs` 子目录**递归**套用本清单的
                                   `files`/`subdirs` 规则（第一批无使用者；`--self-test` 覆盖）
+    ignore    = ["__pycache__"]   可选；**只忽略直接子项**（按名字精确匹配，不按路径/通配），
+                                  且条目必须被 `git check-ignore` 判为忽略（生成物），
+                                  不得与 `files`/`subdirs` 同名、不得重复（`ISS-480`）
 
     [files."<name>"]
     sha256 = "<64 hex>"           可选；有则逐字节校验
@@ -35,8 +38,9 @@
   A0 **注册表 fail-closed**：注册表缺失 / 不可解析 / `roots` 空 ⇒ FAIL；登记目录不存在、
      或该目录缺 `.manifests.toml` ⇒ FAIL（点名目录）；游离清单 ⇒ FAIL；
   A1 清单可解析、`schema == 1`、未知键 ⇒ FAIL（拼写错误不得静默通过）；
-  A2 **双向文件集合**：目录的**直接子文件**（**清单自身不计**）== `files` 的键；
-  A3 **双向子目录集合**：直接子目录 == `subdirs`；
+  A2 **双向文件集合**：目录的**直接子文件**（**清单自身不计**、`ignore` 中的名字不计）
+     == `files` 的键；
+  A3 **双向子目录集合**：直接子目录（`ignore` 中的名字不计）== `subdirs`；
   A4 `files` 的键必须是**直接子文件名**（不含 `/`），且**不得**为 `.manifests.toml`；
   A5 带 `sha256` 的条目逐字节校验（不符 ⇒ 打印期望/实际）；
   A6 `recursive = true` ⇒ 对每个子目录递归套用 A2/A4/A5（**单向 ⊆**：只禁多出，
@@ -45,6 +49,10 @@
   A7 **fail-closed**：某清单 `files`/`subdirs` 皆空 ⇒ FAIL；
   A8 `[subdir_owners]`（可选）：值须为非空字符串；**键必须属于 `subdirs`**——
      悬空 owner（拼错/子目录已删）⇒ FAIL，防止声明性与实际脱钩后静默失效。
+  A9 `ignore`（可选，数据面声明）：条目只能是**直接子项名**（无 `/`/`\\`、非 `.`/`..`、
+     非空、无重复）；不得与 `files`/`subdirs` 同名（不得借 ignore 藏内容项）；且必须被
+     `git check-ignore` 判为忽略（只放行生成物；`git` 不可用 / 不在 git 树 ⇒ FAIL，
+     **不静默跳过**）。
 
 **实际集合**：目录内容一律取**磁盘**（遍历时剪掉 `.git`、`.work`、`.cache` 三个目录）——
 新增册即使未提交也红（`spec/` 新增逃逸正是要堵的缺口）。
@@ -62,6 +70,7 @@ import hashlib
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import tomllib
@@ -70,7 +79,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ".manifests.toml"
 REGISTRY = Path("manifests") / "dir-guard-roots.toml"
-ALLOWED_TOP = frozenset({"schema", "owner", "subdirs", "recursive", "files", "subdir_owners"})
+ALLOWED_TOP = frozenset({"schema", "owner", "subdirs", "recursive", "ignore", "files",
+                         "subdir_owners"})
 ALLOWED_REGISTRY = frozenset({"schema", "roots"})
 ALLOWED_ENTRY = frozenset({"sha256", "owner"})
 SHA_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -200,6 +210,24 @@ def load_manifest(path: Path, errors: list[str]) -> dict | None:
         errors.append(f"{where}: files 须为表（实际 {type(files).__name__}）")
         files = {}
 
+    # A9 结构面：ignore 只能是「生成物」直接子项名，且不得遮蔽已登记内容项
+    ignore = doc.get("ignore", [])
+    if not isinstance(ignore, list) or any(not isinstance(s, str) or not s for s in ignore):
+        errors.append(f"{where}: ignore 须为非空字符串列表（实际 {ignore!r}）")
+        ignore = []
+    else:
+        dup = sorted({s for s in ignore if ignore.count(s) > 1})
+        if dup:
+            errors.append(f"{where}: ignore 有重复项 {dup}")
+        bad = sorted(s for s in ignore if "/" in s or "\\" in s or s in (".", ".."))
+        if bad:
+            errors.append(f"{where}: ignore 只允许直接子项名（非法项 {bad}）")
+        clash = sorted(set(ignore) & (set(files) | set(subdirs)))
+        if clash:
+            errors.append(
+                f"{where}: ignore 不得与 files/subdirs 同名（{clash}）"
+                f"——否则会遮蔽已登记内容项")
+
     subdir_owners = doc.get("subdir_owners", {})
     if not isinstance(subdir_owners, dict):
         errors.append(f"{where}: subdir_owners 须为表（实际 {type(subdir_owners).__name__}）")
@@ -235,8 +263,8 @@ def load_manifest(path: Path, errors: list[str]) -> dict | None:
         errors.append(f"{where}: 清单为空（files 与 subdirs 皆空）⇒ vacuous")
 
     return {"schema": doc.get("schema"), "owner": doc.get("owner"),
-            "subdirs": subdirs, "recursive": recursive, "files": files,
-            "subdir_owners": subdir_owners}
+            "subdirs": subdirs, "recursive": recursive, "ignore": ignore,
+            "files": files, "subdir_owners": subdir_owners}
 
 
 def check_tree(manifest_dir: Path, doc: dict, rel_dir: str,
@@ -249,12 +277,15 @@ def check_tree(manifest_dir: Path, doc: dict, rel_dir: str,
     """
     files = doc["files"]
     subdirs = doc["subdirs"]
+    ignored = set(doc.get("ignore") or [])
 
     entries = sorted(manifest_dir.iterdir(), key=lambda p: p.name)
-    actual_files = {p.name for p in entries if p.is_file() and p.name != MANIFEST}
-    actual_dirs = {p.name for p in entries if p.is_dir()}
+    actual_files = ({p.name for p in entries if p.is_file() and p.name != MANIFEST}
+                    - ignored)
+    actual_dirs = {p.name for p in entries if p.is_dir()} - ignored
 
     stats["dirs_checked"] += 1
+    stats["ignored_skipped"] += len({p.name for p in entries if p.name in ignored})
     for name in sorted(actual_files - set(files)):
         errors.append(f"{rel_dir}: 多出文件 {name}（未在 files 中登记）")
     for name in sorted(actual_dirs - set(subdirs)):
@@ -291,9 +322,58 @@ def check_tree(manifest_dir: Path, doc: dict, rel_dir: str,
                            nested=True, verbose=verbose)
 
 
+def _git_check_ignore(root: Path, spec: str) -> bool | None:
+    """True = 被忽略；False = 未被忽略；None = git 不可用 / 非 git 树（调用方须判红）。"""
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(root), "check-ignore", "-q", "--", spec],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        return None
+    if proc.returncode == 0:
+        return True
+    if proc.returncode == 1:
+        return False
+    return None
+
+
+def _ignored_by_git(root: Path, target: Path) -> bool | None:
+    """条目可能尚未创建；目录型规则（`__pycache__/`）只匹配目录形态。
+
+    存在 ⇒ 只按真实类型判；不存在 ⇒ 先按文件、再按目录各判一次（否则声明在前、
+    目录后建的情形会被误判为「未被忽略」）。
+    """
+    if target.exists():
+        spec = str(target) + os.sep if target.is_dir() else str(target)
+        return _git_check_ignore(root, spec)
+    verdict = _git_check_ignore(root, str(target))
+    if verdict is None or verdict:
+        return verdict
+    return _git_check_ignore(root, str(target) + os.sep)
+
+
+def check_ignores(manifest_dir: Path, doc: dict, rel_dir: str, root: Path,
+                  errors: list[str]) -> None:
+    """A9 现实面：`ignore` 条目必须被 git 判为忽略（只放行生成物）。"""
+    for name in doc.get("ignore") or []:
+        verdict = _ignored_by_git(root, manifest_dir / name)
+        if verdict is True:
+            continue
+        if verdict is None:
+            errors.append(
+                f"{rel_dir}: ignore 条目 {name!r} 无法判定——`git check-ignore` 不可用"
+                f"（git 缺失或不在 git 仓库内）；本门控不静默跳过")
+            continue
+        errors.append(
+            f"{rel_dir}: ignore 条目 {name!r} 未被 git 忽略"
+            f"（{_rel(root, manifest_dir / name)}）——只有生成物可 ignore；"
+            f"游离残留须登记或删除")
+
+
 def audit(root: Path, quiet: bool = False, collect: list[str] | None = None) -> int:
     errors: list[str] = []
-    stats = {"manifests": 0, "files_checked": 0, "hashes_checked": 0, "dirs_checked": 0}
+    stats = {"manifests": 0, "files_checked": 0, "hashes_checked": 0, "dirs_checked": 0,
+             "ignored_skipped": 0}
 
     if not quiet:
         print("=" * 78)
@@ -311,9 +391,11 @@ def audit(root: Path, quiet: bool = False, collect: list[str] | None = None) -> 
             continue
         owner = doc.get("owner") or "-"
         if not quiet:
-            print(f"清单 {rel}  owner={owner}  recursive={doc['recursive']}")
+            print(f"清单 {rel}  owner={owner}  recursive={doc['recursive']}  "
+                  f"ignore={doc['ignore']}")
         check_tree(path.parent, doc, str(Path(rel).parent), errors, stats,
                    verbose=not quiet)
+        check_ignores(path.parent, doc, str(Path(rel).parent), root, errors)
         if not quiet:
             rel_dir = str(Path(rel).parent)
             for name in sorted(doc["subdir_owners"]):
@@ -325,7 +407,8 @@ def audit(root: Path, quiet: bool = False, collect: list[str] | None = None) -> 
     if not quiet:
         print("-" * 78)
         print(f"清单 {stats['manifests']}；受检目录 {stats['dirs_checked']}；"
-              f"文件 {stats['files_checked']}；sha256 {stats['hashes_checked']}")
+              f"文件 {stats['files_checked']}；sha256 {stats['hashes_checked']}；"
+              f"ignore 跳过 {stats['ignored_skipped']}")
     if errors:
         if collect is not None:
             collect.extend(errors)
@@ -340,7 +423,7 @@ def audit(root: Path, quiet: bool = False, collect: list[str] | None = None) -> 
     return 0
 
 
-# ── 自检：六类注入各自可达 FAIL ────────────────────────────────────────────────
+# ── 自检：每类注入各自可达 FAIL ────────────────────────────────────────────────
 BASE_A = """schema = 1
 owner = "selftest"
 subdirs = ["sub"]
@@ -364,6 +447,10 @@ recursive = true
 sha256 = "{sha_f}"
 """
 
+# F1（reviewer）：`ignore` 在 `recursive` 模式下须每层生效
+BASE_B_IGNORE = BASE_B.replace("recursive = true",
+                               'recursive = true\nignore = ["__pycache__"]')
+
 SELF_LISTED = """schema = 1
 subdirs = ["sub"]
 recursive = false
@@ -382,10 +469,19 @@ def _write(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _with_ignore(text: str, names: str = '["__pycache__"]') -> str:
+    """在清单文本的 `recursive = false` 行后插一条 `ignore = ...`。"""
+    return text.replace("recursive = false", f"recursive = false\nignore = {names}")
+
+
 REGISTRY_TEXT = 'schema = 1\nroots = ["a", "b"]\n'
 
 
 def _build_tree(root: Path, *, self_listed: bool = False) -> None:
+    # A9 依赖 `git check-ignore`：自检树必须是**真 git 仓库**（不造假判定）
+    subprocess.run(["git", "-C", str(root), "init", "-q"], check=True,
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    _write(root / ".gitignore", "__pycache__/\n")
     _write(root / REGISTRY, REGISTRY_TEXT)
     _write(root / "a" / "x.txt", "alpha\n")
     _write(root / "a" / "y.txt", "beta\n")
@@ -435,9 +531,42 @@ def self_test() -> int:
              sha_x=hashlib.sha256(b"alpha\n").hexdigest()).replace(
                  'sub = "mod"', "sub = 1")),
          1, "subdir_owners['sub'] 须为非空字符串"),
+        # ── ignore（A9：数据面声明，仅 git 忽略的生成物可跳过）──
+        ("ignore 声明 + 建同名目录 ⇒ 跳过（PASS）",
+         lambda r: (_write(r / "a" / "__pycache__" / "x.pyc", "pyc\n"),
+                    _write(r / "a" / MANIFEST, _with_ignore(BASE_A).format(
+                        sha_x=hashlib.sha256(b"alpha\n").hexdigest()))),
+         0, ""),
+        ("ignore 未声明 + 建同名目录 ⇒ FAIL",
+         lambda r: _write(r / "a" / "__pycache__" / "x.pyc", "pyc\n"),
+         1, "多出子目录 __pycache__"),
+        ("ignore 与已登记子目录同名 ⇒ FAIL（配置错）",
+         lambda r: _write(r / "a" / MANIFEST, _with_ignore(BASE_A, '["sub"]').format(
+             sha_x=hashlib.sha256(b"alpha\n").hexdigest())),
+         1, "ignore 不得与 files/subdirs 同名"),
+        ("ignore 条目未被 git 忽略 ⇒ FAIL",
+         lambda r: ((r / "a" / "keepme").mkdir(),
+                    _write(r / "a" / MANIFEST, _with_ignore(BASE_A, '["keepme"]').format(
+                        sha_x=hashlib.sha256(b"alpha\n").hexdigest()))),
+         1, "未被 git 忽略"),
+        # ── ignore × recursive：每层按名跳过（F1）──
+        ("ignore 在 recursive 每层生效（根 + 子目录各一个 __pycache__）",
+         lambda r: (_write(r / "b" / "__pycache__" / "r.pyc", "pyc\n"),
+                    _write(r / "b" / "s" / "__pycache__" / "n.pyc", "pyc\n"),
+                    _write(r / "b" / MANIFEST, BASE_B_IGNORE.format(
+                        sha_f=hashlib.sha256(b"rec\n").hexdigest()))),
+         0, ""),
+        ("ignore 只按名精确匹配（__pycache__2 干扰项仍红）",
+         lambda r: (_write(r / "b" / "__pycache__" / "r.pyc", "pyc\n"),
+                    _write(r / "b" / "s" / "__pycache__" / "n.pyc", "pyc\n"),
+                    _write(r / "b" / "s" / "__pycache__2" / "x.pyc", "pyc\n"),
+                    _write(r / "b" / MANIFEST, BASE_B_IGNORE.format(
+                        sha_f=hashlib.sha256(b"rec\n").hexdigest()))),
+         1, "多出子目录 __pycache__2"),
     ]
     print("=" * 78)
-    print(f"check-manifests-guard --self-test（目录/文件注入 + 注册表 + subdir_owners，共 {len(cases)} 例）")
+    print(f"check-manifests-guard --self-test（目录/文件注入 + 注册表 + subdir_owners + "
+          f"ignore，共 {len(cases)} 例）")
     print("=" * 78)
     bad = 0
     for name, mutate, want_rc, needle in cases:
@@ -447,6 +576,8 @@ def self_test() -> int:
             _build_tree(tmp)
             mutate(tmp)
             rc = audit(tmp, quiet=True, collect=errs)
+        except subprocess.CalledProcessError as exc:
+            rc, errs = None, [f"自检树准备失败（{exc}）"]
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
         if want_rc == 0:
@@ -468,7 +599,7 @@ def self_test() -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description="`.manifests.toml` 目录清单门控")
     ap.add_argument("--root", default=str(ROOT), help="仓库根（默认脚本所在仓库）")
-    ap.add_argument("--self-test", action="store_true", help="用临时树跑六类注入自检")
+    ap.add_argument("--self-test", action="store_true", help="用临时树跑各类注入自检")
     args = ap.parse_args()
 
     if args.self_test:

@@ -2,6 +2,7 @@ schema = 1
 owner = "testcases"
 subdirs = []
 recursive = false
+ignore = ["__pycache__"]   # Python 生成物（`.gitignore` 同口径；ISS-480）
 
 [files."cfx_hmon_tiny.S"]
 owner = "testcases"

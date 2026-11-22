@@ -1040,9 +1040,9 @@
   - idl
   - infra
   milestone: M17
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M17
+  resolved_by: m17-idl-015（清单 ignore 字段 + git check-ignore 校验）
   title: "【P2】`idl/` 的双向目录集合门控与 `__pycache__` 冲突：任何 `import idl.render`/`idl.idl_parser` 都会生成 `__pycache__` 子目录，`check-manifests-guard` 立刻判红（`m15-idl-021` 与 `m17-idl-002` 各踩一次）。处置候选：① 门控忽略 `__pycache__`（与 `.gitignore` 同口径，属白名单收窄需评审）；② Makefile 的 idl 目标统一 `PYTHONDONTWRITEBYTECODE=1`；③ 文档写明「不得 import」。建议 ②+③ 先做、① 另议。"
 - id: ISS-481
   scope:

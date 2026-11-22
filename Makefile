@@ -1341,7 +1341,7 @@ check-knowledge-refs:
 # `recursive = true` 时对子目录递归套用（单向 ⊆）。`owner` 只打印。**能力并入**原「spec
 # 只读册 sha256 锁」门控（spec 册新增/删除/改哈希）与原「`.tao/knowledge/` 顶层白名单」门控
 # ⇒ 两者脚本与目标已删。fail-closed：注册表缺失 / 登记目录缺清单或不存在 / 游离清单 ⇒ FAIL
-# （删某份清单不关闭约束）。`--self-test` 覆盖六类目录注入 + 注册表 4 例。
+# （删某份清单不关闭约束）。`--self-test` 覆盖结构/集合/递归/`ignore` 等类注入（条数现场统计）。
 # 规则见 docs/Process-06 §5 + docs/Process-07。
 _locked-check-manifests-guard:
 	@$(PYTHON) tools/infra/check_manifests_guard.py
