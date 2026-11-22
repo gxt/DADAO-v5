@@ -20,6 +20,13 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m16-qemu-002 | 4–6 h | QEMU 影子 D-Cache 数据通路（8×128×64 B；DMA/装载直连） |
+| m16-qemu-003 | 3–4 h | QEMU cfx5 命令接线（clean/invalidate/flush + I 侧 tb invalidate） |
+| m16-chipyard-017 | 3–5 h | RTL cfx5 命令接线（D/I cache cmd 口） |
+| m16-gem5-021 | 3–4 h | gem5 cfx5 命令（复用 ARM `dc` maintenance 请求） |
+| m16-testcases-009 | 3–4 h | cfx5 用例三方跑（寄存器面 + 命令 + 数据语义） |
+| m16-testcases-010 | 3–4 h | cfx4 PTW/TLB 15 条纳管 + QEMU/gem5 跑通 |
+| m16-chipyard-018 | 3–4 h | cfx4 RTL PTW/TLB 探针纳管并三方对齐 |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 

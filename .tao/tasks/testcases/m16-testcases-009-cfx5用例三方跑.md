@@ -1,0 +1,47 @@
+# m16-testcases-009: cfx5 用例三方跑
+
+**模块**：testcases
+**项目里程碑**：M16
+**依赖**：`m16-qemu-003`、`m16-chipyard-017`、`m16-gem5-021` 全部合入
+**可并行分片**：否（共享 `tests/arch/cache/`）
+**预估**：3–4 h
+**档位**：中改（复核 ≤40 min）
+**状态**：待开始
+
+## 背景
+
+三个平台的 cfx5 寄存器面/命令已就位后，用同一组用例做三方签名比对。用例落 `tests/arch/cache/`，由 `tests/arch/run_arch.py --cfx 5` 驱动。
+
+## 要做
+
+1. **寄存器面用例**：`cache_exist`=0b11、`cache_enable`/`cache_ctrl`/`cache_addr_start`/`cache_addr_size` 写读回、保留位/非法编码 `CFXREG`。
+2. **命令用例**（D 侧）：脏行 `invalidate` 后内存旧值、`clean` 后新值、`flush` 后失效；范围 all/单行/区间；`cache_enable=0` 不维护。
+3. **命令用例**（I 侧）：改写代码后 invalidate，取指执行新代码；clean no-op。
+4. **使能/异常**：`cache-model=off` 时 cfx5 按 `CFXREG`（QEMU/gem5）；RTL Tiny 无 cfx5。
+5. **三方签名**：QEMU/gem5/RTL 同一 ELF 逐槽一致；不一致登记 `expected-divergences.yaml` 并由用户裁。
+6. **覆盖点**：每条用例映射到 `m16-spec-001` 条款，写入 `tests/arch/data/vast-arch-inventory.md` 的 cfx5 行。
+
+## 不做
+
+- 不改平台实现；不改 cache 几何；
+- 不做性能/周期判据。
+
+## 约束
+
+- 独立 `git worktree`；**不提交 git**；
+- 用例/期望/驱动脚本集中 `tests/arch/cache/`；不写运行期路径；术语「寄存器组」；
+- 仿真不进 L2/L3（`check-arch-vast` 按需）。
+
+## 验证
+
+运行期证据目录内的 `run.sh`：
+
+1. `run_arch.py --cfx 5 --platforms qemu,gem5,chipyard --cache-model on` 三方签名逐槽一致；
+2. 覆盖点与 `m16-spec-001` 条款逐条对应，现场统计条数；
+3. **可达 FAIL**：改一个期望槽 ⇒ 红；`cp`+md5 还原回绿；
+4. `check-tests-index`、`check-tasks`、`check-knowledge-refs` 记录 rc；
+5. `--inject` ≥2 路。
+
+## 完成区
+
+（待填：测试结果 / 修改文件 / 验收结果 / 新发现/坑 / 遗留问题）
