@@ -34,6 +34,10 @@
 | m18-linux-008 | 2–3 h | K1–K4 门控断言补强（ISS-444/457/487/488；可达 FAIL + §4a 退役） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
 | m18-linux-010 | 30 min | ISS-486 措辞订正（libc 侧检查；3 处注释/文档，产物不变） |
+| m18-linux-011 | 30 min | ISS-496 applet 计数改按白名单/符号表派生（去 `enabled - infra` 抵消假设） |
+| m18-linux-012 | 1–2 h | ISS-503 K6 门控五条 finding（恒真断言并入 region、计数/标签/符号名订正） |
+| m18-linux-013 | 2–3 h | ISS-500 用户态异步中断裁定与落地（**待裁定 A 追认 / B 恢复投递**；F2/F3 数字订正） |
+| m18-qemu-001 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
