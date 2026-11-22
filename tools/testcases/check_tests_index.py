@@ -9,7 +9,10 @@
      `tests/<scope>/` 目录必须存在；`tests/` 根下**任何** `*.yaml` 的 stem
      必须是合法 scope（禁止 `tests/index/`、`tests/manifest/` 之类旁路）。
   2. 顶层必须是 list（空文件视作空列表，`[]` 亦合法）。
-  3. 每条目字段**恰好** `id/file/platforms/level/requires`（无缺字段/未知字段）。
+  3. 每条目字段**至少** `id/file/platforms/level/requires`（无缺字段）；可选
+     `kind`（asm|driver）与 `machine`（tiny|vast|user）。arch 条目两者必填且
+     `machine: vast`；`kind: asm` 的 `file` 须是 .s/.S，`kind: driver` 的 `file`
+     是驱动（存在即可，不限定后缀）。未知字段一律 FAIL。
   4. `id` 形如 `<scope>-<name>[-<name>...]-<nnn>`（三段以上），且前缀 scope
      必须等于所在索引的 scope。
   5. `file` 是 `tests/` 下的相对路径、位于 `<scope>/` 下、且实际存在（且为文件）。
@@ -65,7 +68,15 @@ SCOPE_PLATFORMS = {
     "tset": ("user", "hw"),
 }
 FIELDS = ("id", "file", "platforms", "level", "requires")
+# `kind`/`machine` 为可选字段（`m16-testcases-006`）：arch 条目两者必填，
+# 其余 scope 可缺省（具体由各自门控/驱动解释）。
+OPTIONAL_FIELDS = ("kind", "machine")
+ALLOWED_FIELDS = FIELDS + OPTIONAL_FIELDS
 LEVELS = ("smoke", "full")
+KINDS = ("asm", "driver")
+MACHINES = ("tiny", "vast", "user")
+ARCH_MACHINE = "vast"
+ASM_SUFFIXES = (".s", ".S")
 ID_RE = re.compile(r"^(?P<scope>[a-z]+)-(?P<name>[a-z0-9]+(?:-[a-z0-9]+)*)-(?P<num>\d{3})$")
 
 # ---------------------------------------------------------------------------
@@ -513,11 +524,11 @@ def _check_entry(
 
     keys = set(entry)
     missing = [f for f in FIELDS if f not in keys]
-    unknown = sorted(keys - set(FIELDS))
+    unknown = sorted(keys - set(ALLOWED_FIELDS))
     if missing:
         errors.append(f"{where}: 缺字段 {missing}")
     if unknown:
-        errors.append(f"{where}: 未知字段 {unknown}（允许: {list(FIELDS)}）")
+        errors.append(f"{where}: 未知字段 {unknown}（允许: {list(ALLOWED_FIELDS)}）")
 
     cid = entry.get("id")
     if not isinstance(cid, str) or not cid:
@@ -584,6 +595,31 @@ def _check_entry(
         reqs = [r for r in requires if isinstance(r, str)]
         if len(set(reqs)) != len(reqs):
             errors.append(f"{where}: `requires` 有重复: {reqs}")
+
+    # `kind` / `machine`（`m16-testcases-006`）：arch 条目两者必填，machine 只能 vast；
+    # `kind: asm` 的 `file` 是执行向量（.s/.S），`kind: driver` 的 `file` 是驱动
+    # （存在即可，不限定后缀）。其余 scope 只在字段出现时校验取值。
+    kind = entry.get("kind", "asm")
+    if "kind" in entry and kind not in KINDS:
+        errors.append(f"{where}: `kind`=`{kind!r}` 须为 {list(KINDS)}")
+    machine = entry.get("machine")
+    if "machine" in entry and machine not in MACHINES:
+        errors.append(f"{where}: `machine`=`{machine!r}` 须为 {list(MACHINES)}")
+    if scope == "arch":
+        if "machine" not in entry:
+            errors.append(f"{where}: arch 条目必须写 `machine: {ARCH_MACHINE}`")
+        elif machine != ARCH_MACHINE:
+            errors.append(
+                f"{where}: arch 条目 `machine`=`{machine!r}` 只能 "
+                f"`{ARCH_MACHINE}`（Tiny/user 由其它 scope 负责）")
+        if "kind" not in entry:
+            errors.append(f"{where}: arch 条目必须写 `kind: asm|driver`")
+        elif kind == "asm" and isinstance(rel, str) and rel:
+            suffix = PurePosixPath(rel).suffix
+            if suffix not in ASM_SUFFIXES:
+                errors.append(
+                    f"{where}: `kind: asm` 的 `file` 须是 .s/.S 执行向量，"
+                    f"实为 `{rel}`（驱动请用 `kind: driver`）")
 
     return cid
 
@@ -759,6 +795,26 @@ VALID_ASM_ENTRY = """\
   requires: []
 """
 
+VALID_ARCH_ASM_ENTRY = """\
+- id: arch-umon-001
+  file: arch/umon/x.s
+  kind: asm
+  machine: vast
+  platforms: [system]
+  level: smoke
+  requires: []
+"""
+
+VALID_ARCH_DRIVER_ENTRY = """\
+- id: arch-ptw-002
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
+  platforms: [system]
+  level: full
+  requires: [qemu]
+"""
+
 
 def _run(root: Path, registry: dict[str, str] | None = None) -> tuple[int, str]:
     """跑一次 audit。合成树默认**空登记表**（仓库自带的非 id 载体不在临时树里）。"""
@@ -831,12 +887,46 @@ def self_test() -> int:
              "重复引用（多）: inst/01-load-store/add.S",
              extra_files={"inst/01-load-store/add.S": "nop\n"})
 
+        # `kind`/`machine`（m16-testcases-006）：arch 条目两者必填、machine 只能
+        # vast；asm 的 file 须是 .s/.S；driver 的 file 可以是 .py。
+        arch_asm = _empty_indexes()
+        arch_asm["arch"] = VALID_ARCH_ASM_ENTRY
+        case("干净基线·arch asm 条目", arch_asm, None,
+             extra_files={"arch/umon/x.s": "nop\n"}, expect_rc=0)
+
+        arch_driver = _empty_indexes()
+        arch_driver["arch"] = VALID_ARCH_DRIVER_ENTRY
+        case("干净基线·arch driver 条目", arch_driver, None,
+             extra_files={"arch/ptw/check_tlb.py": "#!/usr/bin/env python3\n"},
+             expect_rc=0)
+
+        bad = dict(arch_asm)
+        bad["arch"] = VALID_ARCH_ASM_ENTRY.replace("machine: vast",
+                                                   "machine: tiny")
+        case("注入·arch machine 非 vast", bad, "只能 `vast`",
+             extra_files={"arch/umon/x.s": "nop\n"})
+
+        bad = dict(arch_asm)
+        bad["arch"] = VALID_ARCH_ASM_ENTRY.replace("  machine: vast\n", "")
+        case("注入·arch 缺 machine", bad, "必须写 `machine",
+             extra_files={"arch/umon/x.s": "nop\n"})
+
+        bad = dict(arch_asm)
+        bad["arch"] = VALID_ARCH_ASM_ENTRY.replace("arch/umon/x.s",
+                                                   "arch/umon/x.py")
+        case("注入·arch asm 指向 .py", bad, "须是 .s/.S",
+             extra_files={"arch/umon/x.py": "nop\n"})
+
+        bad = dict(arch_asm)
+        bad["arch"] = VALID_ARCH_ASM_ENTRY.replace("kind: asm", "kind: harness")
+        case("注入·kind 非法", bad, "`kind`",
+             extra_files={"arch/umon/x.s": "nop\n"})
+
         # 注入①：ID 重复
         dup = dict(good)
         dup["inst"] = VALID_ENTRY + VALID_ENTRY
         case("注入① ID 重复", dup, "重复",
              extra_files={"inst/base/add.c": "/* demo */\n"})
-
         # 注入②：file 不存在
         bad = dict(_empty_indexes())
         bad["inst"] = VALID_ENTRY.replace("inst/base/add.c", "inst/base/nope.c")

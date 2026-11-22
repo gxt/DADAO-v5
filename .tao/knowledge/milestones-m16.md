@@ -25,12 +25,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-testcases-006 | 2026-11-22 12:23 | 中 | `tests/arch` 落点与驱动骨架（`run_arch.py`、`machine: vast`、Tiny hmon 迁出） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-testcases-006 | 2026-11-22 13:33 | `tests/arch` 落点与驱动骨架（`run_arch.py`、`machine: vast`、驱动型 case、Tiny hmon 迁出；24 PASS + 1 SKIP） |
 | m16-gem5-020 | 2026-11-22 13:31 | gem5 cache 前置：flags + `initiateAcc` + `--caches`/L1（64 KiB）；off 38/38+10/10、on dcache 93/17 且签名同 |
 | m16-testcases-004 | 2026-11-22 12:22 | Vast arch 三平台盘点（9 cfx × 3、151 条引用；RTL 仅 cfx3/4/63，cfx5 无命令面）+ `tests/arch/PLAN.md` + Process-09 §1/§3/§5/§6/§7.1 修订 |
 | m16-testcases-005 | 2026-11-22 12:10 | 签名脚本 `signature.py` 迁 `tests/shared/`（6 处引用；`check-inst-asm` 38/38、`check-arch-smoke` PASS） |

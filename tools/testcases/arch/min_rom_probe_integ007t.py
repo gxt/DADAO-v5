@@ -14,7 +14,7 @@ Oracle for the user ruling of 2026-11-11 (algorithm:
   * no magic check, no IALIGN rewrite, no ``+4`` policy, no park loop.
 
 The probe builds the 64 KiB BootROM from the current sources with the shared
-builder, links ``tests/arch/hmon/tiny_hmon_min.S`` as an SRAM-only application
+builder, links ``tests/unit/gem5/tiny_hmon/tiny_hmon_min.S`` as an SRAM-only application
 at the fixed entry, runs QEMU ``kaiwu-tiny`` and compares the guest-exported
 observation table against spec-derived values (one-hot cause ids from
 ``spec/DADAO-12 §5.2``, fault IPs from ELF symbols, and the instruction word
@@ -45,7 +45,7 @@ import machine_profile  # noqa: E402
 import paths  # noqa: E402
 
 TINY_FW = os.path.join(REPO_ROOT, "tests", "ee-tiny")
-APP_SRC = os.path.join(REPO_ROOT, "tests", "arch", "hmon", "tiny_hmon_min.S")
+APP_SRC = os.path.join(REPO_ROOT, "tests", "unit", "gem5", "tiny_hmon", "tiny_hmon_min.S")
 APP_LDS = os.path.join(REPO_ROOT, "tests", "ee-tiny", "tests_freestanding_tiny.lds")
 # 公共段已内联进 lds。
 SHARED_ASM = os.path.join(REPO_ROOT, "tests", "shared", "asm")

@@ -1,4 +1,4 @@
-# expected.yaml — independent oracle for tests/arch/hmon/tiny_hmon.S.
+# expected.yaml — independent oracle for tests/unit/gem5/tiny_hmon/tiny_hmon.S.
 #
 # Every expected value is derived from spec/Kaiwu §1.1/§2/§3/§4.4/§5 and
 # spec/DADAO-12 §3/§5, never from a gem5 run:

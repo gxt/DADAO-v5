@@ -1,5 +1,9 @@
-# arch/hmon — Kaiwu-Tiny `cfx_power` + `cfx3 hmon`
+# gem5/tiny_hmon — Kaiwu-Tiny `cfx_power` + `cfx3 hmon`
 
+
+> 2026-11-22（`m16-testcases-006`）：本目录由 `tests/arch/hmon/` 迁入
+> `tests/unit/gem5/tiny_hmon/`（arch 只测 Kaiwu-Vast；Tiny 用例归 unit），
+> 驱动同步迁到 `tests/unit/gem5/check_tiny_hmon.py`；判据未改。
 `TESTCASES`-style execution case for the Tiny machine's cfx set
 (`m13-gem5-001`): `cfx_power` (cfx63, boot handover) and `cfx3 hmon` (the hypv
 monitor).  Source: `spec/Kaiwu §1.1/§2/§3/§4.4/§5`, `spec/DADAO-12 §5`,
@@ -64,7 +68,7 @@ same contract is `tools/testcases/arch/min_rom_probe_integ007t.py` on
 
 ```sh
 # prerequisites: make build-gem5
-python3 tools/gem5/check_tiny_hmon.py
+python3 tests/unit/gem5/check_tiny_hmon.py
 ```
 
 The runner assembles/links the shared firmware and the case, runs gem5 Tiny

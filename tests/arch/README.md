@@ -1,50 +1,89 @@
-# arch scope — cfx 资源管理与权限控制用例（`tests/arch/`）
+# arch scope — Kaiwu-Vast cfx 用例（`tests/arch/`）
 
-本目录是 **arch scope**（`docs/Process-09` §3/§5）：测 **cfx 资源管理与权限控制**
-（trap/escape/cfx2rd/cfx2rc、inner/global/switch/instruction 掩码、异常 cause、
-per-hart/per-system、TIMER/IPI/UART/power），只跑 **`system`** 平台
-（`qemu-system-dadao` + SEE bootrom）。
+本目录**只测 Kaiwu-Vast**（`system` 平台）。QEMU / gem5 / chipyard 是同一 scope 的
+三种**承载**，不是三个 scope；用例、驱动、签名薄壳与盘点数据都在本目录内。
 
-> `TESTCASES-073t`（2026-10-27）落第一批用例（P3 arch 迁移）：`tests/unit/llvm/codegen/m5/`
-> → `arch/umon/`。执行驱动在 `tools/testcases/arch/`（`run_m5_e2e.py` +
-> `min_rom_probe_*.py`，由集成驱动目录在 P3 迁入）。
+- cfx 范围：**0/2/3/4/5/15/32/34/63**（umon/smon/hmon/ptw/cache/hart/pmem/time/power）；
+  不含 Tiny、linux-user、jmon/llc/uart。
+- 判据：**同一用例在三平台逐槽签名一致**；期望值独立派生自 `spec/` 与
+  `.tao/contracts/`，不从实现反推。
+- 仿真**不进常规门控**（L2/L3）；按需/里程碑收口时跑 `run_arch.py`。
 
-## 目录（按 cfx 划分，`<cfx>` 取自 `spec/DADAO-12 §3` 的 cfx 名）
+## 驱动
 
-| 目录 | cfx | 内容 |
+```sh
+python3 tests/arch/run_arch.py --cfx 4 --platforms qemu --cache-model on
+python3 tests/arch/run_arch.py --self-test
+python3 tests/arch/run_arch.py --list
+```
+
+- `--cfx`：0/2/3/4/5/15/32/34/63，可逗号分隔；非法值退出 2。
+- `--platforms`：`qemu` / `gem5` / `chipyard` 逗号列表。**未实现的后端 fail-closed**：
+  记 `SKIP` 并**非零退出**，禁止静默降级为「其余平台通过」。
+- `--cache-model`：arch 固定 `on`；传 `off` 退出 2。
+- `--case`：只跑 `tests/arch.yaml` 里的一个 id，用于单点复现。
+- `--self-test`：不启动模拟器，只校验索引的 `machine/kind`、各 `expected.yaml` 的
+  签名流结构、驱动的 `--selfcheck`，以及 gem5/chipyard 的 fail-closed 探针。
+- `--list`：打印 `cfx × case × platform` 计划表，不执行。
+- 产物：运行期证据目录下每 case × 平台一份 `signature.bin` + `run.json`
+  （进程命令、rc、stdout/stderr 日志路径）；不写固定绝对路径。
+
+退出码：`0` 全通过；`1` 任一用例/平台失败或 SKIP；`2` 用法/配置错误。
+
+## 目录
+
+| 目录/文件 | cfx | 内容 |
 |------|-----|------|
-| `umon/` | `cfx_umon`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.s`，10 条）+ `expected.yaml` 清单 |
-| `ptw/` | `cfx_ptw`（TLB/PTW） | 15 条 TLB 探针（`arch-ptw-001`…`015`，含 014「A/D 回写失败条目级遇错即停」与 015「内存窗口 IP 的 `ILLI cause_info`」）的期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线检查的签名流期望 + 来源 §）；载体是驱动 `tools/testcases/arch/min_rom_probe_tlb.py`（`Makefile` 的 `ARCH_CFX_PROBES` id `tlb`，`--only arch-ptw-0NN` 逐条跑），**不在**本目录放 `.s` 载体 |
-| `hmon/` | `cfx3 hmon` + `cfx_power`（Tiny） | `tiny_hmon.S`（gem5 Tiny FS 应用：读 hmon SRAM 数据槽记录 power→hmon 移交、五类同步异常、IALIGN IP 停留、`trap` 两路、`cfx2rd`/`cfx2rc`、Tiny 恒 `hypv` 与 `cg3` 仅 hypv 可读、`cg3 rc10` 掩低 2 位；hmon 段用共享最小编码 `tests/ee-tiny/cfx_hmon_tiny.S`）+ `tiny_hmon_min.S`（QEMU 同契约探针应用）+ `tiny_hmon_layout.inc`（应用数据区布局）+ `expected.yaml`；装载按 `Kaiwu §6.2` 两件（固定 64 KiB BootROM + 仅 SRAM 的应用 ELF） |
+| `run_arch.py` | — | 唯一驱动（`--cfx/--platforms/--cache-model/--self-test/--list`） |
+| `common/` | — | arch 内共享薄壳：`signature.py` 转调 `tests/shared/signature.py`；`platform.py` 的 qemu/gem5/chipyard 后端骨架 |
+| `data/` | — | scope 内入库数据（三平台 cfx 盘点矩阵），不成册、不进 `tests/arch.yaml` |
+| `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.s`，10 条）+ `expected.yaml` |
+| `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针的期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §）；驱动型入口 `check_tlb.py`（`kind: driver`），转调既有 `tools/testcases/arch/min_rom_probe_tlb.py`（判据未变） |
 
-其余 cfx（`jmon`/`smon`/`cache`/`hart`/`llc`/`pmem`/`time`/`uart`）按需增建；**不建** `arch/isa`、空壳子目录。`hmon/` 的 Tiny 用例由 gem5 运行（`python3 tools/gem5/check_tiny_hmon.py`），不进 QEMU 探针门控。
+其余 cfx 按已有用例增建（`smon/`、`hmon/`、`cache/`、`hart/`、`pmem/`、`time/`、
+`power/`）；**不建**空壳子目录。Tiny 的 hmon 用例已迁出 arch（见下）。
+
+## 索引字段
+
+`tests/arch.yaml`（`id` / `file` / `platforms: [system]` / `level` / `requires`，外加）：
+
+- `machine: vast`（arch 条目**必填**，只能 `vast`；Tiny/user 由其它 scope 负责）；
+- `kind: asm | driver`（arch 条目**必填**）。`asm` 的 `file` 是 `.s`/`.S` 执行向量；
+  `driver` 的 `file` 是本目录内的驱动（如 `arch/ptw/check_tlb.py`），由
+  `run_arch.py` 调起。
+- 门控：`make check-tests-index`（L1，静态）校验字段、`machine/kind` 取值与
+  `file` 存在；条数现场统计，不写死。
 
 ## 观测通道
 
-**签名流 = 观测点的判据载体**（`m16-testcases-002`）：每个观测点把实测 8 字节写进
+**签名流 = 观测点的判据载体**：每个观测点把实测 8 字节写进
 `tests/shared/asm/signature.inc` 约定的签名区（预填 `0xdeadbeef`；漏跑 ⇒ host 报
 「槽 N 未写」），收尾整段输出，host 侧用 `tests/shared/signature.py` 按槽比对。
-机制只有一份：汇编侧 `signature.inc`、host 侧 `signature.py`（`tests/arch` 的
-word-builder 探针用同一个 `.py` 的 `Emitter` 产等价指令，不另写解析器）。
+机制只有一份：汇编侧 `signature.inc`、host 侧 `signature.py`；`tests/arch` 的
+word-builder 探针用同一个 `.py` 的 `Emitter`，`common/signature.py` 只做薄壳重导出。
 
 退出码（semihosting `SYS_EXIT`：`0x00` 通过、`0x01`–`0x7F` = 镜像内第 N 条断言失败）
-只作**镜像级兜底**：已接线的检查以签名流比对为准，未接线的检查仍以退出码表达断言。
-`ptw` 的 `arch-ptw-002/006/007` 已接线（A/D 回写后的 PTE、`cause_info`、命中/填充观测），
-期望值登记在 `expected.yaml` 的 `signature:` 并由驱动 `--selfcheck` 双向核对。
-
-## 根级清单
-
-`tests/arch.yaml`（`id` = `arch-<cfx>-nnn`、`file`、`platforms: [system]`、`level`、`requires`），
-由 `make check-tests-index`（L1，静态）守护。`level: smoke` = 由 L2 `check-arch-smoke` 覆盖。
+只作**镜像级兜底**：已接线的检查以签名流比对为准。`ptw` 的
+`arch-ptw-002/006/007` 已接线，期望值登记在 `expected.yaml` 的 `signature:` 并由
+驱动 `--selfcheck` 双向核对。
 
 ## 门控
 
 ```sh
 make check-arch-smoke   # L2：arch 代表集（SEE/semihosting + cfx 权限 + 25 服务覆盖）
-make check-arch         # L3：check-arch-smoke + cfx min-ROM 场景探针（ARCH_CFX_PROBES，含 ptw 的 15 条）
-make test-semihost      # 旧名别名 → check-arch-smoke（判据未改；TESTCASES-076t 删除）
-python3 tools/gem5/check_tiny_hmon.py   # Tiny 两件装载契约 + cfx_power/cfx3 hmon（gem5 FS；m13-gem5-005）
+make check-arch         # L3：check-arch-smoke + cfx min-ROM 场景探针（含 ptw 的 15 条）
 ```
 
-前置：`make install-host`（工具链 + QEMU 取自安装根，ADR-0016 D9）与
-`make build-bootrom`（Tiny bootrom 源与 lds 全在 `tests/ee-tiny/`，Vast step5 固件与 K1 boot 链 `k0_*` 在 `tests/ee-vast/`）。
+`run_arch.py` **不在** L2/L3 内（仿真按需/里程碑收口跑）。
+
+## Tiny hmon 已迁出
+
+`arch-hmon-001` 与 `tests/arch/hmon/` 已迁到 `tests/unit/gem5/tiny_hmon/`
+（驱动 `tests/unit/gem5/check_tiny_hmon.py`；`m16-testcases-006`）。Tiny hmon 的
+**QEMU 同契约探针** `tools/testcases/arch/min_rom_probe_integ007t.py` 仍在
+`check-arch` 的 `ARCH_CFX_PROBES` 内——本次只移用例与 gem5 驱动，不改门控集合。
+
+## 前置
+
+`make install-host`（工具链 + QEMU 取自安装根，ADR-0016 D9）与
+`make build-bootrom`（Vast step5 固件与 K1 boot 链在 `tests/ee-vast/`）。

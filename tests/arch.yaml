@@ -1,18 +1,23 @@
 # tests/arch.yaml — arch scope 根级用例清单（Process-09 §5）
 #
-# 字段（每条目恰好五项）：
+# 字段（五项必填 + 两项可选；arch 条目两项都必填）：
 #   id         arch-<cfx>-nnn（如 arch-umon-001；四份索引内全局唯一）
-#   file       tests/arch/ 下的相对路径（必须存在）
+#   file       tests/arch/ 下的相对路径（必须存在）；`kind: driver` 时指向驱动
 #   platforms  非空列表；arch: system（hw 预留）
 #   level      smoke | full（smoke = 由 L2 覆盖：`check-arch-smoke` 代表集）
 #   requires   依赖项列表（可为空）
+#   kind       可选：asm | driver（缺省 asm）；driver = `file` 是 scope 内驱动
+#   machine    可选（arch 条目**必填**）：tiny | vast | user；arch 固定 vast
 #
-# 门控：make check-tests-index（L1，静态）；`TESTCASES-073t` 首次填入实际 case。
-# 本清单逐文件一条（`tests/arch/<cfx>/*.s` 执行向量）；条数由 `check-tests-index` 现场统计。
-# cfx 划分按 `spec/DADAO-12 §3` 与 bootrom 行为：m5 向量由 SEE bootrom 装入 cfx_umon
-# 用户向量后以 user 模式运行 ⇒ `umon`。
+# 门控：make check-tests-index（L1，静态）；检查 machine/kind 取值与
+# 「arch 条目只能 vast」。条数由 `check-tests-index` 现场统计。
+# 本清单逐文件一条（`tests/arch/<cfx>/*.s` 执行向量）；驱动型条目指向
+# `tests/arch/<cfx>/check_*.py`。cfx 划分按 `spec/DADAO-12 §3` 与 bootrom 行为：
+# m5 向量由 SEE bootrom 装入 cfx_umon 用户向量后以 user 模式运行 ⇒ `umon`。
 - id: arch-umon-001
   file: arch/umon/m5_perm_badcombo_cfxreg.s
+  kind: asm
+  machine: vast
   platforms:
   - system
   level: smoke
@@ -20,6 +25,8 @@
   - bootrom
 - id: arch-umon-002
   file: arch/umon/m5_perm_mask_cfxperm.s
+  kind: asm
+  machine: vast
   platforms:
   - system
   level: smoke
@@ -27,6 +34,8 @@
   - bootrom
 - id: arch-umon-003
   file: arch/umon/m5_perm_reserved_illi.s
+  kind: asm
+  machine: vast
   platforms:
   - system
   level: smoke
@@ -34,6 +43,8 @@
   - bootrom
 - id: arch-umon-004
   file: arch/umon/m5_perm_unimpl_cfxreg.s
+  kind: asm
+  machine: vast
   platforms:
   - system
   level: smoke
@@ -41,6 +52,8 @@
   - bootrom
 - id: arch-umon-005
   file: arch/umon/m5_semi_exit.s
+  kind: asm
+  machine: vast
   platforms:
   - system
   level: smoke
@@ -49,6 +62,8 @@
   - semihosting
 - id: arch-umon-006
   file: arch/umon/m5_semi_exit_extended.s
+  kind: asm
+  machine: vast
   platforms:
   - system
   level: smoke
@@ -57,6 +72,8 @@
   - semihosting
 - id: arch-umon-007
   file: arch/umon/m5_semi_write.s
+  kind: asm
+  machine: vast
   platforms:
   - system
   level: smoke
@@ -65,6 +82,8 @@
   - semihosting
 - id: arch-umon-008
   file: arch/umon/m5_semi_write0.s
+  kind: asm
+  machine: vast
   platforms:
   - system
   level: smoke
@@ -73,6 +92,8 @@
   - semihosting
 - id: arch-umon-009
   file: arch/umon/m5_semi_writec.s
+  kind: asm
+  machine: vast
   platforms:
   - system
   level: smoke
@@ -81,16 +102,23 @@
   - semihosting
 - id: arch-umon-010
   file: arch/umon/m5_trap_escape.s
+  kind: asm
+  machine: vast
   platforms:
   - system
   level: smoke
   requires:
   - bootrom
-- id: arch-hmon-001
-  file: arch/hmon/tiny_hmon.S
+# 驱动型 case 的骨架验证（m16-testcases-006）：`arch-ptw-002` 已带签名流
+# （`tests/arch/ptw/expected.yaml` 的 `signature:`），由 `run_arch.py --cfx 4`
+# 经 scope 内驱动 `arch/ptw/check_tlb.py` 调起。其余 14 条 `arch-ptw-*`
+# 随 cfx4 迁移任务登记，不在本任务新增。
+- id: arch-ptw-002
+  file: arch/ptw/check_tlb.py
+  kind: driver
+  machine: vast
   platforms:
   - system
   level: full
   requires:
-  - gem5-fs
-  - toolchain
+  - qemu
