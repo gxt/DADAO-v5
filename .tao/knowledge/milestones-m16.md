@@ -23,7 +23,6 @@
 | m16-qemu-003 | 3–4 h | QEMU cfx5 命令接线（clean/invalidate/flush + I 侧 tb invalidate） |
 | m16-testcases-009 | 3–4 h | cfx5 用例三方跑（寄存器面 + 命令 + 数据语义） |
 | m16-chipyard-018 | 3–4 h | cfx4 RTL PTW/TLB 探针纳管并三方对齐 |
-| m16-chipyard-019 | 3–4 h | RTL cfx0/2 寄存器面与权限（A；不改主控制流） |
 | m16-chipyard-020 | 6–8 h | RTL cfx0/2 模式进入路由（B；U/S 进入、switch_run_mode、异常帧） |
 | m16-chipyard-021 | 3–4 h | RTL cfx15 hart（寄存器 + cycle/insn + timer 中断） |
 | m16-chipyard-022 | 4–5 h | RTL cfx32 pmem（寄存器 + DMA + 完成中断） |
@@ -43,6 +42,7 @@
 | --- | --- | --- | --- |
 | m16-gem5-024 | 2026-11-22 22:04 | 2–3 h | gem5 cfx5 两轴权限/trap/escape（进 kCfxhaMap） |
 | m16-qemu-002 | 2026-11-22 22:06 | 4–6 h | QEMU 影子 D-Cache 数据通路（8×128×64 B；DMA/装载直连） |
+| m16-chipyard-019 | 2026-11-22 22:09 | 3–4 h | RTL cfx0/2 寄存器面与权限（A；不改主控制流） |
 | m16-testcases-015 | 2026-11-22 20:47 | 4–6 h | `tests/arch` 运行模式环境（hmon/smon/umon；body 与 env 分离；代表迁移） |
 
 ## 已验证
