@@ -309,6 +309,7 @@
 - **Linux 内核现在没有 cache，以后会加**：M16 期间固定 `off`；将来内核加 cache 支持后再接 `on`（登记 backlog）。
 - gem5：`cache-model=on` 映射 `--caches`；前置补 `IsLoad/IsStore/IsAtomic`；cfx5 命令复用 ARM `dc cvac/civac/ivac` 的 `Request::CLEAN|INVALIDATE` 机制。
 - `cache-model=off` 时 cfx5 口径（**待裁**）：建议 `cache_exist` 读 0、命令访问报 `CFXREG`。
+- **gem5 I 侧自修改**（用户 2026-11-22 选 B，但先证伪）：现有 `cfx5_selfmod.s` 是 base probe（无 cfx5、无 `D|clean`），不能证明 cfx5 I 侧不可用；RTL 是 VIPT 但索引在 64 KiB 页内（`PA[15:0]==VA[15:0]`，无别名），021 用 PA 索引/标签正确。先由 `m16-gem5-022` 补「写码 → D clean → I invalidate → 跳转」的正确用例并修 020 的 monitor 脏行；只有该用例仍失败才立 `m16-gem5-023` 改取指侧模型。
 
 ### 落点
 

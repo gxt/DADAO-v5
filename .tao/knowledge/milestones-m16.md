@@ -25,6 +25,7 @@
 | m16-chipyard-017 | 3–5 h | RTL cfx5 命令接线（D/I cache cmd 口） |
 | m16-testcases-009 | 3–4 h | cfx5 用例三方跑（寄存器面 + 命令 + 数据语义） |
 | m16-chipyard-018 | 3–4 h | cfx4 RTL PTW/TLB 探针纳管并三方对齐 |
+| m16-gem5-022 | 4–6 h | I 侧自修改证伪（写码→D clean→I invalidate→跳转）+ monitor 脏行修复 |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
