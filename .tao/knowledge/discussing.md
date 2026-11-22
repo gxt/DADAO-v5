@@ -316,6 +316,7 @@
 - **cfx5 用例覆盖**（用户 2026-11-22 确认）：`m16-testcases-009` 必须覆盖寄存器面、D 侧 clean/invalidate/flush（all/单行/区间、I/D）、DMA 直读可见性、使能门控、I 侧 clean no-op + invalidate 取指重取（**gem5 必须**）；QEMU 时序/替换、gem5 I-Cache 命中/缺失、RTL 预取/I-D 一致性只登记差异；不穷举替换矩阵。
 - **HSU**（用户 2026-11-22 选 A）：拆到已有任务，不单独立件——PTE 的 `H/S/U × R/W/X` 进 cfx4 用例（`m16-testcases-010` / `m16-chipyard-018`），运行模式 U/S/H 进 cfx0/2 模式路由（`m16-chipyard-020`）；**J 不测**，未覆盖项写入各任务书。
 - **cfx63 power**（用户 2026-11-22 选 A）：单独一件基础用例 `m16-testcases-016`（寄存器面 + power→hmon 移交，三方；复用 step5 与 `prevcfx.S` 检查点）；不把 step5 启动链当作 cfx63 的完整覆盖。
+- **gem5 cfx5 两轴权限/trap/escape**（用户 2026-11-22 选 A）：补 `m16-gem5-024`——cfx5 进 `kCfxhaMap`，接 `<mode>_cfxtrap/cfxreg/cfxmem/cfxexe`、`trap`/`escape cfx_cache`，与 QEMU/RTL 对齐；H/S/U 下默认仅 hmon，env 打开后允许。
 - **H/S/U 三模式的 cfx 访问权限**（用户 2026-11-22 选 A）：由 env 负责“权限准备”——用例在 `modes.yaml` 声明 `cfx_access`，env 在降模式前由 hmon 打开该 cfx 的 `<mode>_cfxreg/cfxmem/cfxtrap/cfxexe` 掩码，退出时还原；不放宽默认掩码。`m16-testcases-017`。
 - **cfx0/2/15/32/34 的三方用例归属**（用户 2026-11-22 选 B）：不另立 5 件 testcases，写进各 RTL 补实现任务（019/020/021/022/023）；**同一 case 定义/期望只写一份**，RTL 与 QEMU/gem5 复用载体，非必要不为每个平台写三份；由 `check-arch-vast` 按需跑三方。
 - **M16 关键路径**（用户 2026-11-22 确认）：QEMU 链 `qemu-001 → qemu-004 → qemu-002 → qemu-003 → testcases-009`；RTL 链 `chipyard-017 → 018 → 019 → 020 → 021 → 022 → 023`；testcases 链 `015 → 016`，`013/014` 等 `021/022` 合入后升三方，`012` 等 `qemu-004`。两条主链并行，同组件串行。

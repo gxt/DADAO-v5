@@ -33,6 +33,7 @@
 | m16-testcases-013 | 2–3 h | cfx15 timer 中断（单独测试；单 hart，mask/pending/清除） |
 | m16-testcases-016 | 2–3 h | cfx63 power 基础用例（寄存器面 + power→hmon 移交，三方） |
 | m16-testcases-017 | 2–3 h | env 权限准备（H/S/U 下按用例声明打开 cfx 掩码） |
+| m16-gem5-024 | 2–3 h | gem5 cfx5 两轴权限/trap/escape（进 kCfxhaMap） |
 
 | m16-testcases-014 | 2–3 h | cfx32 pmem DMA 完成中断（单独测试；单 hart，mask/pending/清除） |
 
