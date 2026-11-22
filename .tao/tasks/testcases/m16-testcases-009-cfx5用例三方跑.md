@@ -19,7 +19,7 @@
 3. **命令用例**（I 侧）：改写代码后 invalidate，取指执行新代码；clean no-op。
 4. **使能/异常**：`cache-model=off` 时 cfx5 按 `CFXREG`（QEMU/gem5）；RTL Tiny 无 cfx5。
 5. **三方签名**：QEMU/gem5/RTL 同一 ELF 逐槽一致；不一致登记 `expected-divergences.yaml` 并由用户裁。
-6. **覆盖点**：每条用例映射到 `m16-spec-001` 条款，写入 `tests/arch/data/vast-arch-inventory.md` 的 cfx5 行。
+6. **覆盖点**：每条用例映射到 `m16-spec-001` 条款，写入 `tests/arch/vast-arch-inventory.md` 的 cfx5 行。
 
 ## 覆盖范围（用户 2026-11-22 确认）
 

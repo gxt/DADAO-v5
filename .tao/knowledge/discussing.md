@@ -310,13 +310,13 @@
 - gem5：`cache-model=on` 映射 `--caches`；前置补 `IsLoad/IsStore/IsAtomic`；cfx5 命令复用 ARM `dc cvac/civac/ivac` 的 `Request::CLEAN|INVALIDATE` 机制。
 - `cache-model` 与 cfx5 口径（用户 2026-11-22 已定）：**off = cfx5 存在但 no-op**——`cache_exist` 读 0，`cache_ctrl` 写被接受、不报 `CFXREG`、不产生效果；`on` = `cache_exist=0b11`，命令真维护。理由：Linux 内核缺省带 cache 维护逻辑（其它 ISA 不会为“无 cache”单独编译内核），机器配置只决定 cfx5 有没有效果，不决定它是否存在。**off 下非法编码仍报 `CFXREG`**（编码校验不受机器维度影响，用户 2026-11-22 已定）。RTL Vast 始终有 cfx5、Tiny 无（不跑 Linux）。需同步 `integ042t` 期望与 CACHE-27 契约（`m16-spec-002`）。
 - **RTL cfx0/2 分两件**（用户 2026-11-22）：先 **A**=`m16-chipyard-019`（寄存器面 + 权限，不改主控制流），再 **B**=`m16-chipyard-020`（U/S 模式进入路由、`switch_run_mode`、异常帧）；A 合入后才派 B。
-- **`expected-divergences.yaml`**（用户 2026-11-22 同意）：已建 `tests/arch/data/expected-divergences.yaml`，永久 3 条（QEMU 时序/替换、gem5 I-Cache 性能、RTL 预取/I-D 一致性）+ 临时 3 条（ADWBFAIL、cfx0/2 U/S 进入、cfx15/32/34 缺口）；每条写影响面 + 裁定日期；临时项在对应任务合入后删除。
+- **`expected-divergences.yaml`**（用户 2026-11-22 同意）：已建 `tests/arch/expected-divergences.yaml`，永久 3 条（QEMU 时序/替换、gem5 I-Cache 性能、RTL 预取/I-D 一致性）+ 临时 3 条（ADWBFAIL、cfx0/2 U/S 进入、cfx15/32/34 缺口）；每条写影响面 + 裁定日期；临时项在对应任务合入后删除。
 - **ADWBFAIL**（用户 2026-11-22 选 C）：正常路径不可达（PA RAM 全可写），**不单列 M16 用例**，登记 GAP（`ISS-515`）；保留 RTL `CASE_ADWB` 手工证据，QEMU/gem5 不加测试专用注入。
 - **check-arch-smoke 模式与代表集**（用户 2026-11-22 选 A）：smoke/arch 用 `cache-model=off`（不测 cache，cfx5 的 on 用例进按需 `check-arch-vast`）；`tests/arch` 成型后再重选 smoke 代表集——不需要多、覆盖面稍广、**三个平台分开**（QEMU/gem5/RTL 各自代表），并控制测试时间（QEMU smoke 目标 ≤5 min；RTL 仿真不塞进 L2/L3）。**现在不提前立任务/不选用例**，等 `tests/arch` 成型后由用户确认再排。
 - **cfx5 用例覆盖**（用户 2026-11-22 确认）：`m16-testcases-009` 必须覆盖寄存器面、D 侧 clean/invalidate/flush（all/单行/区间、I/D）、DMA 直读可见性、使能门控、I 侧 clean no-op + invalidate 取指重取（**gem5 必须**）；QEMU 时序/替换、gem5 I-Cache 命中/缺失、RTL 预取/I-D 一致性只登记差异；不穷举替换矩阵。
 - **HSU**（用户 2026-11-22 选 A）：拆到已有任务，不单独立件——PTE 的 `H/S/U × R/W/X` 进 cfx4 用例（`m16-testcases-010` / `m16-chipyard-018`），运行模式 U/S/H 进 cfx0/2 模式路由（`m16-chipyard-020`）；**J 不测**，未覆盖项写入各任务书。
 - **cfx63 power**（用户 2026-11-22 选 A）：单独一件基础用例 `m16-testcases-016`（寄存器面 + power→hmon 移交，三方；复用 step5 与 `prevcfx.S` 检查点）；不把 step5 启动链当作 cfx63 的完整覆盖。
-- **M16 收口判据**（用户 2026-11-22）：**三方一致**（QEMU/gem5/RTL）为准；**有差异必须由用户裁定**，登记 `tests/arch/data/expected-divergences.yaml`；**不作逐位/逐组合穷举**，但各功能面应尽量覆盖；**任务清完后由用户定何时归档**（不自动立归档任务）。
+- **M16 收口判据**（用户 2026-11-22）：**三方一致**（QEMU/gem5/RTL）为准；**有差异必须由用户裁定**，登记 `tests/arch/expected-divergences.yaml`；**不作逐位/逐组合穷举**，但各功能面应尽量覆盖；**任务清完后由用户定何时归档**（不自动立归档任务）。
 - **tests/arch 运行模式环境**（用户 2026-11-22）：增加 `hmon`/`smon`/`umon` 构建环境，把测试 body 与运行模式分离（进入模式、栈、异常向量、退出、签名区由 env 负责）；`run_arch.py --mode` 选择；每用例标 `modes` 允许集；先迁移 1 个代表用例，其余逐件迁。`m16-testcases-015`。
 - **中断源**（用户 2026-11-22）：两个 cfx **分开测试**——`m16-testcases-013`（cfx15 timer）与 `m16-testcases-014`（cfx32 pmem DMA 完成）；只测单 hart 的触发/进入、mask/pending/补投、清除；不测跨 cfx 仲裁、uart、多核、嵌套。
 - **fence**（用户 2026-11-22 选 A）：先 `m16-qemu-004` 修 `ISS-432`（QEMU 保留集改为 `6–14, 16–31, 35–61`），再由 `m16-testcases-012` 做**基础验证**（all/指定 cfx/六位/保留集采样/`hb≠0`）；**完整覆盖（全部 cfx × 六位）不作验收要求**，未覆盖项登记。
@@ -325,7 +325,7 @@
 
 ### 落点
 
-- arch 用例/脚本/数据集中 `tests/arch/<cfx>/`；驱动 `tests/arch/run_arch.py`；矩阵/数据 `tests/arch/data/`。
+- arch 用例/脚本/数据集中 `tests/arch/<cfx>/`；驱动 `tests/arch/run_arch.py`；矩阵/数据 `tests/arch/`。
 - 签名机制（`tests/shared/asm/signature.inc` + host 侧 `signature.py`）集中 `tests/shared/`。
 - `tools/` 只放跨 scope 共享；修订 `docs/Process-09` §3/§5/§6/§7：scope 专用脚本随 scope、`arch.yaml` 支持驱动型 case 与 `machine` 字段。
 - Tiny 的 `arch-hmon-001` 与 `tests/arch/hmon/` 移出 arch，落 **`tests/unit/gem5/`**（用户 2026-11-22 选 A）；`unit` scope 的 `platforms` 增加 `system`，并登记 `unit-gem5-hmon-001`。

@@ -122,11 +122,11 @@ tests/
   已由 `TESTCASES-084t` 归入 **unit**——它测的是工具链编译/链接/运行整链，
   不是整系统启动（`boot` scope 仍预留）。
 - **scope 专用脚本/数据随 scope**（2026-11-22，`m16-testcases-004`）：arch 的驱动
-  `tests/arch/run_arch.py`、共享薄壳 `tests/arch/common/`、盘点/矩阵 `tests/arch/data/`
+  `tests/arch/run_arch.py`、共享薄壳 `tests/arch/common/`、盘点/矩阵 `tests/arch/`
   都在 `tests/arch/` 内；`tools/testcases/arch/` 只保留跨 scope 共享部分，arch 专属探针
   按 `tests/arch/PLAN.md` 的迁移清单**待迁**（迁移完成前门控不变）。
-- `tests/arch/data/` 是 scope 内的入库数据（如三平台 cfx 盘点矩阵），与 `tests/data/`
-  同性质：不被 `tests/arch.yaml` 当载体、不进 §5 的 case 清单。
+- `tests/arch/` 下的盘点/矩阵文件（如 `vast-arch-inventory.md`、`expected-divergences.yaml`）
+  是 scope 内的入库数据，与 `tests/data/` 同性质：不被 `tests/arch.yaml` 当载体、不进 §5 的 case 清单。
 - `tests/arch` **只测 Kaiwu-Vast**；Tiny 的 hmon 用例移出 arch（`tests/unit/gem5/`，
   见 `tests/arch/PLAN.md`）。
 

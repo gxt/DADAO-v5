@@ -113,7 +113,7 @@
 # `tests/arch/ptw/`。每条 = 一个 scope 内驱动 `arch/ptw/check_tlb.py`，由
 # `run_arch.py --cfx 4 --platforms qemu,gem5` 调起；`--only <id>` 选定 case。
 # 判据来源与检查点映射见 `tests/arch/ptw/expected.yaml` 与
-# `tests/arch/data/vast-arch-inventory.md` 的 cfx4 行。
+# `tests/arch/vast-arch-inventory.md` 的 cfx4 行。
 - id: arch-ptw-001
   file: arch/ptw/check_tlb.py
   kind: driver

@@ -10,7 +10,7 @@
 
 ## 背景
 
-`m16-testcases-004` 已产出 `tests/arch/PLAN.md`（目录/接口/字段/Process-09 草案）与 `tests/arch/data/vast-arch-inventory.md`（9 cfx × 3 平台）。本任务把 PLAN 的**落点与骨架**落地，让后续 cfx 用例有统一挂载点。
+`m16-testcases-004` 已产出 `tests/arch/PLAN.md`（目录/接口/字段/Process-09 草案）与 `tests/arch/vast-arch-inventory.md`（9 cfx × 3 平台）。本任务把 PLAN 的**落点与骨架**落地，让后续 cfx 用例有统一挂载点。
 
 裁定见 `.tao/knowledge/discussing.md`「M16 三方差分（Vast arch）批次裁定」：只 Vast、三方签名一致、仿真不进常规门控、脚本/数据集中 `tests/arch/`。
 
@@ -56,7 +56,7 @@
 
 **测试结果**：24 PASS + 1 显式 SKIP（`checks=24`，不假 PASS）。`run_arch.py --self-test` PASS；坏输入（cfx 99 / cache off / gem5 未实现）分别 rc=2/2/1；`arch-ptw-002` QEMU 跑通，签名流 3 槽逐值全等；`make check-tests-index` PASS 且 arch=11 == yaml=11（现场派生）；结构注入 2 路（arch 条目 machine=tiny / 后端假绿）均 FAIL，`cp`+md5 还原后回绿；`--inject` 12 路逐检查证明全部 `PROOF PASS`（注入红>0 / 还原绿=0）。SKIP = Tiny hmon gem5 迁移后测试：reviewer 现场日志为 `gem5.opt` 被并发 `m16-gem5-020` 重建替换（md5 `27c30421…` → 空文件 `d41d8cd9…`），writer-guard 判「跑批期间二进制被替换」；baseline 证据已被脚本 `rm -rf` 覆盖、无法复核，故首轮「同二进制失败集 33 条」的表述**订正**为替换事件，保留显式 SKIP、不假 PASS。
 
-**修改文件**：新增 `tests/arch/run_arch.py`、`tests/arch/common/{__init__,signature,platform}.py`、`tests/arch/ptw/check_tlb.py`；`tests/arch.yaml`（+machine/kind、删 arch-hmon-001、+arch-ptw-002）、`tests/arch/README.md`、`tests/arch/data/vast-arch-inventory.md`（迁移注）；迁移 `tests/arch/hmon/*` → `tests/unit/gem5/tiny_hmon/*`、`tools/gem5/check_tiny_hmon.py` → `tests/unit/gem5/check_tiny_hmon.py`；`tools/testcases/check_tests_index.py`（machine/kind 校验 + 4 条注入自检）；引用同步 `tools/testcases/arch/min_rom_probe_integ007t.py`、`tools/infra/check_writer_guards.py`、`docs/Process-07-门控分层规范.md`；运行期证据目录的 `run.sh`（不入库）。越界披露：索引校验器实际在 `tools/testcases/check_tests_index.py`（任务书写「tools/testcases/inst 或 arch」）；后三个引用文件不在任务书变更集，属 item 4「相关门控/引用」同步。
+**修改文件**：新增 `tests/arch/run_arch.py`、`tests/arch/common/{__init__,signature,platform}.py`、`tests/arch/ptw/check_tlb.py`；`tests/arch.yaml`（+machine/kind、删 arch-hmon-001、+arch-ptw-002）、`tests/arch/README.md`、`tests/arch/vast-arch-inventory.md`（迁移注）；迁移 `tests/arch/hmon/*` → `tests/unit/gem5/tiny_hmon/*`、`tools/gem5/check_tiny_hmon.py` → `tests/unit/gem5/check_tiny_hmon.py`；`tools/testcases/check_tests_index.py`（machine/kind 校验 + 4 条注入自检）；引用同步 `tools/testcases/arch/min_rom_probe_integ007t.py`、`tools/infra/check_writer_guards.py`、`docs/Process-07-门控分层规范.md`；运行期证据目录的 `run.sh`（不入库）。越界披露：索引校验器实际在 `tools/testcases/check_tests_index.py`（任务书写「tools/testcases/inst 或 arch」）；后三个引用文件不在任务书变更集，属 item 4「相关门控/引用」同步。
 
 **验收结果**：`run.sh` → `summary: checks=24 fails=0 skips=1` / `RESULT: PASS（含 1 项显式 SKIP）` rc=0；`run.sh --inject` → `injection: proofs=12 fails=0` + 同一 summary，rc=0。`make check-tests-index` 472 条 PASS；`make check-case-ledger` / `check-knowledge-refs` / `check-tasks` / `check-dirs` / `check-no-residue` rc=0；`check-writer-guards` 27/27 PASS；`integ007t` PASS 64 checks；`arch-ptw-002` signature.bin = `1122334455667788 1122334455667788 800000006100ffe1`。<br>**注入真实 rc（红/绿）**：ptw-qemu 1/0、signature 2/0、tests-index 1/0、hmon-tree 1/0、hmon-app 1/0、knowledge 1/0、tasks 1/0、ledger 1/0、writer-guards 1/0、gem5-skip 1/0、backend-flag 1/0、restore-md5 1/0。
 

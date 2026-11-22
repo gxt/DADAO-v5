@@ -35,13 +35,13 @@ M16 的三方差分收敛为 **Vast arch scope**，裁定见 `.tao/knowledge/dis
 - 载体：写清是「QEMU bootrom 探针 / RTL ELF+loadmem / gem5 FS / 无」；
 - 门控：写清在 `check-arch`、`check-arch-smoke`、手工脚本、无 中的哪一种。
 
-矩阵落 `tests/arch/data/vast-arch-inventory.md`（新文件）。**27 格（9 cfx × 3 平台）必须全覆盖**，不许留空。
+矩阵落 `tests/arch/vast-arch-inventory.md`（新文件）。**27 格（9 cfx × 3 平台）必须全覆盖**，不许留空。
 
 ### 2. `tests/arch` 落点方案
 
 落 `tests/arch/PLAN.md`（新文件），至少包含：
 
-- 目录结构：`tests/arch/<cfx>/`（用例、`.lds`、生成器、`check_*.py`、`expected.yaml`）、`tests/arch/run_arch.py`、`tests/arch/common/`、`tests/arch/data/`；
+- 目录结构：`tests/arch/<cfx>/`（用例、`.lds`、生成器、`check_*.py`、`expected.yaml`）、`tests/arch/run_arch.py`、`tests/arch/common/`、`tests/arch/`；
 - `run_arch.py` 的接口：`--cfx <0|2|3|4|5|15|32|34|63>`、`--platforms qemu,gem5,chipyard`、`--cache-model on|off`（arch 固定 on）、`--self-test`；
 - `tests/arch.yaml` 字段方案：`machine: vast`（固定）、载体类型（`asm` / `driver`）、`platforms: [system]`；
 - 迁移清单：`tools/chipyard/{ptw,tlb,dcache,icache,excp}/**`、`tools/testcases/arch/min_rom_probe_tlb.py`、`tests/arch/hmon/`（Tiny，移出 arch）的去向；
@@ -70,7 +70,7 @@ M16 的三方差分收敛为 **Vast arch scope**，裁定见 `.tao/knowledge/dis
 
 ## 约束
 
-- 独立 `git worktree`；**不提交 git**；只写 `tests/arch/PLAN.md`、`tests/arch/data/vast-arch-inventory.md` 与 `docs/Process-09-测试组织规范.md`（外加运行期证据目录）；
+- 独立 `git worktree`；**不提交 git**；只写 `tests/arch/PLAN.md`、`tests/arch/vast-arch-inventory.md` 与 `docs/Process-09-测试组织规范.md`（外加运行期证据目录）；
 - 不写运行期路径（`.work/**`、家目录、临时目录）到入库文件；
 - 术语用「寄存器组」「核芯功能扩展」；
 - 每条结论可回溯到真实 `path:line` 或现场 grep 输出，禁止凭记忆。
@@ -82,14 +82,14 @@ M16 的三方差分收敛为 **Vast arch scope**，裁定见 `.tao/knowledge/dis
 1. 矩阵 9 cfx × 3 平台 = 27 格全部有值（缺也要写「缺」），现场统计并与文中声明对账；
 2. 矩阵内所有 `path:line` 落在文件行数内；
 3. `docs/Process-09` 的 §3/§5/§6/§7 四条已落正文，`git diff` 可逐条复核；`tests/arch/PLAN.md` 保留「原文 → 新文」对照；
-4. 不改代码：变更集 ⊆ {本任务书, `tests/arch/PLAN.md`, `tests/arch/data/vast-arch-inventory.md`, `docs/Process-09-测试组织规范.md`} ∪ `.tao/**`；
+4. 不改代码：变更集 ⊆ {本任务书, `tests/arch/PLAN.md`, `tests/arch/vast-arch-inventory.md`, `docs/Process-09-测试组织规范.md`} ∪ `.tao/**`；
 5. `--inject` 至少 2 路（删一格矩阵 / 伪造一条引用）⇒ FAIL，`cp`+md5 还原后回绿；
 6. `make check-knowledge-refs` 与 `make check-tasks` 只读跑，记录 rc。
 
 ## 完成区
 
 **测试结果**：`run.sh` 7/7 PASS（rc=0）；`run.sh --inject` 9/9 PASS（rc=0，含注入 A/B）。`make check-knowledge-refs` rc=0、`make check-tasks` rc=0（另跑 `check-dirs`/`check-tests-index` 各 rc=0，未改索引）。
-**修改文件**：`.tao/tasks/testcases/m16-testcases-004-Vast-arch三平台盘点与落点方案.md`（同步主工作树 `1c50f253` 新范围 + 状态/完成区）、`tests/arch/PLAN.md`（新）、`tests/arch/data/vast-arch-inventory.md`（新）、`docs/Process-09-测试组织规范.md`（§1 范围注记 + §3/§5/§6/§7.1）。
+**修改文件**：`.tao/tasks/testcases/m16-testcases-004-Vast-arch三平台盘点与落点方案.md`（同步主工作树 `1c50f253` 新范围 + 状态/完成区）、`tests/arch/PLAN.md`（新）、`tests/arch/vast-arch-inventory.md`（新）、`docs/Process-09-测试组织规范.md`（§1 范围注记 + §3/§5/§6/§7.1）。
 **验收结果**：矩阵现场统计 `blocks=27 expected=27`；`path:line` 151 条全部在文件行内；PLAN 四节齐全且「原文/新文」各 4；Process-09 diff 新增行 50、§1 注记与 §3/§5/§6/§7.1 要素全含；变更集 4 文件全在允许范围。注入 A（删 cfx5 RTL 块）⇒ `FAIL missing block`、还原 md5 相同后回绿；注入 B（伪造 `helper.c.patch:999999`）⇒ `FAIL out-of-range`、还原后回绿。
 **新发现/坑**：① QEMU/gem5 实现集合含 cfx1 jmon，本范围不含它，后续 arch 不得把它算入覆盖；② RTL 只有 cfx3/4/63（`WumingCfxHa` 三常量），cfx0/2/15/32/34 全缺、cfx5 只有阵列无命令面，是三方差分最大缺口；③ gem5 无任何 Vast cfx 载体（仅 Tiny hmon），需先建 gem5 FS 载体；④ 未跟踪文件不能用 `git diff` 判「空注入」，改用 md5 前后对账；⑤ 本册「§7」是平台，任务书所称「§7 目录结构」实为 §3 树，已在 PLAN §8 记录并另加 §7.1。
 **遗留问题**：`tests/arch.yaml` 与 `check-tests-index` 未改（按范围留落点任务）；Tiny hmon 迁出只给方案未执行；`platforms` 与 engine 词汇是否合并待裁定；gem5/RTL 缺口见 §10。
@@ -98,7 +98,7 @@ M16 的三方差分收敛为 **Vast arch scope**，裁定见 `.tao/knowledge/dis
 
 ### 第 1 轮 engineer 自审
 
-审查范围：`tests/arch/PLAN.md`、`tests/arch/data/vast-arch-inventory.md`、`docs/Process-09` 改动、`run.sh` 与两个检查脚本；逐条核对引用行号与现场 grep。
+审查范围：`tests/arch/PLAN.md`、`tests/arch/vast-arch-inventory.md`、`docs/Process-09` 改动、`run.sh` 与两个检查脚本；逐条核对引用行号与现场 grep。
 
 | finding | 处置 | 改了什么 | 复验证据 |
 |---|---|---|---|

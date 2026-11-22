@@ -18,7 +18,7 @@
 2. **索引**：`tests/arch.yaml` 登记 15 条（`kind: driver`，`machine: vast`，`platforms: [system]`）。
 3. **驱动**：`run_arch.py --cfx 4 --platforms qemu,gem5` 能逐条跑并取签名；gem5 经 `qemu_gem5_shim.py`（`-machine kaiwu-vast`）。
 4. **三方预留**：RTL 后端未接时显式 fail-closed（不静默），由 `m16-chipyard-018` 接。
-5. **覆盖**：每条 case 的检查点映射到 `contract-tlb` 条款，回填 `tests/arch/data/vast-arch-inventory.md` 的 cfx4 行。
+5. **覆盖**：每条 case 的检查点映射到 `contract-tlb` 条款，回填 `tests/arch/vast-arch-inventory.md` 的 cfx4 行。
 
 6. **HSU 覆盖**（用户 2026-11-22：HSU 纳入、J 不纳入）：PTE 的 `H`/`S`/`U` 与 `R/W/X` 组合（正常页/超页、允许/拒绝）；J 位不测，未覆盖的 J 组合写入清单。
 
@@ -47,7 +47,7 @@
 
 **测试结果**：运行期证据目录内的 `run.sh` → **18/18 PASS，rc=0**；`run.sh --inject` → **32/32 PASS，rc=0**（3 路注入：改期望槽 / 删 arch 条 / 后端假绿，均「注入红 → `cp`+md5 还原 → 回绿」）。`run_arch.py --cfx 4 --platforms qemu,gem5`：**15 case × 2 平台全 PASS**，QEMU 与 gem5 各 **29/29** 检查；`arch-ptw-002/006/007` 的签名槽 **3/3/4** 逐槽等于 `expected.yaml`，QEMU 与 gem5 **逐字节相同**；其余 12 条按既有设计无签名槽（0 槽空流），以「同驱动同检查集 + verdict」跨引擎一致（`run.json` 的 `cross_platform[*].checks_equal`）。**无 gem5 差异**，无待裁差异项。
 
-**修改文件**：`tests/arch/ptw/carrier_tlb.py`（新增，由 `tools/testcases/arch/min_rom_probe_tlb.py` 迁入并改路径/聚合签名）、`tests/arch/ptw/check_tlb.py`（改指向本地载体）、`tests/arch/ptw/expected.yaml`（注释：新载体 + 聚合口径）、`tests/arch/common/platform.py`（gem5 driver 承载经 shim；chipyard 仍 fail-closed；跨平台签名/检查集字段）、`tests/arch/run_arch.py`（`--gem5/--gem5-config`、后端自检、跨平台一致性）、`tests/arch.yaml`（登记 15 条 `arch-ptw-*`）、`Makefile`（`ARCH_PTW_CARRIER` 路径同步）、`tests/arch/README.md`、`tests/arch/PLAN.md`、`tests/arch/data/vast-arch-inventory.md`（cfx4 行 + 检查点映射）、`tests/shared/README.md`（签名消费者路径）、`tools/testcases/arch/min_rom_probe_tlb.py`（删除，已迁出）；运行期证据目录内的 `run.sh`（不入库）。
+**修改文件**：`tests/arch/ptw/carrier_tlb.py`（新增，由 `tools/testcases/arch/min_rom_probe_tlb.py` 迁入并改路径/聚合签名）、`tests/arch/ptw/check_tlb.py`（改指向本地载体）、`tests/arch/ptw/expected.yaml`（注释：新载体 + 聚合口径）、`tests/arch/common/platform.py`（gem5 driver 承载经 shim；chipyard 仍 fail-closed；跨平台签名/检查集字段）、`tests/arch/run_arch.py`（`--gem5/--gem5-config`、后端自检、跨平台一致性）、`tests/arch.yaml`（登记 15 条 `arch-ptw-*`）、`Makefile`（`ARCH_PTW_CARRIER` 路径同步）、`tests/arch/README.md`、`tests/arch/PLAN.md`、`tests/arch/vast-arch-inventory.md`（cfx4 行 + 检查点映射）、`tests/shared/README.md`（签名消费者路径）、`tools/testcases/arch/min_rom_probe_tlb.py`（删除，已迁出）；运行期证据目录内的 `run.sh`（不入库）。
 
 **验收结果**：① `run.sh` rc=0（18/18）：`--self-test`、carrier/driver `--selfcheck`、`check-tests-index`（arch=25 == yaml=25；ptw 15 == expected 15 == carrier 15；checks 29 == 29）、`check-tasks`（rc=0，报告型；本任务转 `待验收` 后计①，属预期）、`check-knowledge-refs`、QEMU+gem5 30 PASS、chipyard SKIP+rc1、gem5 缺件 SKIP+rc1。② `run.sh --inject` rc=0（32/32）：改 `expected.yaml` 首槽 ⇒ `run_arch --case arch-ptw-002` rc=1 且含「签名流」⇒ 还原 md5 `3c16f1a5…` 回绿；删 `arch-ptw-015` ⇒ 独立计数 14≠15 红 ⇒ 还原 md5 `01b5bd94…` 回绿；`CHIPYARD_IMPLEMENTED=True` ⇒ `--self-test` rc=1 且报「未实现后端未 fail-closed」⇒ 还原 md5 `4d9c9f8b…` 回绿。③ 跨平台：`run.json` 15 条 `cross_platform` 全 `ok`，`check_count` 两侧相等（共 29），002/006/007 签名 md5 两侧相同。④ `check-case-ledger`、`check-dirs`、`check-no-residue` 均 rc=0（附加）。
 

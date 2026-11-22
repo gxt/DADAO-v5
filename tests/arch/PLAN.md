@@ -2,7 +2,7 @@
 
 > 任务：`m16-testcases-004`（盘点与方案；不建 `run_arch.py` 实现、不写新用例、不跑仿真）。
 > 上位裁定：`.tao/knowledge/discussing.md`「M16 三方差分（Vast arch）批次裁定」（用户 2026-11-22）。
-> 盘点证据：`tests/arch/data/vast-arch-inventory.md`（9 cfx × 3 平台 = 27 格）。
+> 盘点证据：`tests/arch/vast-arch-inventory.md`（9 cfx × 3 平台 = 27 格）。
 > 本文件只定**落点与接口**；具体实现按批次 2 起拆任务。
 
 ## 1. 目标与边界
@@ -25,8 +25,8 @@ tests/arch/
     signature.py                #   转调 tests/shared/signature.py（见 §6）
     bootrom.py                  #   step5 BootROM 构建/定位（现 tools/testcases/arch 迁入）
     platform.py                 #   qemu/gem5/chipyard 命令行与产物路径
-  data/
-    vast-arch-inventory.md      #   27 格盘点矩阵（本任务产出）
+  vast-arch-inventory.md        #   27 格盘点矩阵（本任务产出）
+  expected-divergences.yaml     #   允许差异清单
   umon/                         # cfx0：执行向量 + expected.yaml
   smon/                         # cfx2
   hmon/                         # cfx3（仅 Vast；Tiny 用例迁出，见 §7）
@@ -42,7 +42,7 @@ tests/arch/
   判据（`check_*.py`）、`expected.yaml`。
 - 驱动型用例（`kind: driver`）的 `file` 指向本目录 `check_*.py`，由 `run_arch.py` 调起；
   不再把 arch 专属判据放 `tools/testcases/arch/`。
-- `tests/arch/data/` 只放 scope 内入库数据（盘点矩阵、矩阵快照），不被
+- `tests/arch/` 只放 scope 内入库数据（盘点矩阵、矩阵快照），不被
   `tests/arch.yaml` 当载体、不进 case 清单。
 
 ## 3. `run_arch.py` 接口
@@ -185,18 +185,17 @@ python3 tests/arch/run_arch.py \
                               # 每 cfx 一目录：用例、.lds、生成器、check_*.py、expected.yaml
       run_arch.py             # arch 驱动（--cfx / --platforms / --cache-model / --self-test）
       common/                 # arch 内共享薄壳（签名流等，转调 tests/shared/）
-      data/                   # arch 盘点/矩阵等入库数据（不成册、不进索引）
   ```
 
   并在 §3 末追加三条：
 
   ```text
   - **scope 专用脚本/数据随 scope**（2026-11-22，`m16-testcases-004`）：arch 的驱动
-    `tests/arch/run_arch.py`、共享薄壳 `tests/arch/common/`、盘点/矩阵 `tests/arch/data/`
+    `tests/arch/run_arch.py`、共享薄壳 `tests/arch/common/`、盘点/矩阵 `tests/arch/`
     都在 `tests/arch/` 内；`tools/testcases/arch/` 只保留跨 scope 共享部分，arch 专属探针
     按 `tests/arch/PLAN.md` 的迁移清单**待迁**（迁移完成前门控不变）。
-  - `tests/arch/data/` 是 scope 内的入库数据（如三平台 cfx 盘点矩阵），与 `tests/data/`
-    同性质：不被 `tests/arch.yaml` 当载体、不进 §5 的 case 清单。
+  - `tests/arch/` 下的盘点/矩阵文件（如 `vast-arch-inventory.md`、`expected-divergences.yaml`）
+    是 scope 内的入库数据，与 `tests/data/` 同性质：不被 `tests/arch.yaml` 当载体、不进 §5 的 case 清单。
   - `tests/arch` **只测 Kaiwu-Vast**；Tiny 的 hmon 用例移出 arch（`tests/unit/gem5/`，
     见 `tests/arch/PLAN.md`）。
   ```
@@ -286,7 +285,7 @@ python3 tests/arch/run_arch.py \
     <cfx>/        # 用例（.s/.S）、.lds、生成器、check_*.py、expected.yaml
     run_arch.py   # --cfx / --platforms / --cache-model / --self-test
     common/       # 签名等薄壳（转调 tests/shared/）
-    data/         # 盘点矩阵等入库数据
+    vast-arch-inventory.md  # 盘点矩阵等入库数据
   ```
 
   - `tools/testcases/arch/` 的 arch 专属探针**待迁**到 `tests/arch/<cfx>/`
