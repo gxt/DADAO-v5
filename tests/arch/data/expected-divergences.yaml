@@ -1,0 +1,59 @@
+# expected-divergences.yaml — 三方（QEMU/gem5/RTL）差分允许的差异清单
+#
+# 用户 2026-11-22 裁定：三方一致为准；有差异必须由用户裁定并登记在此。
+# 每条写：kind（permanent / temporary）、scope、impact（影响面）、reason、user_ruling（裁定日期）、status。
+# temporary 项在对应任务合入后删除；permanent 项长期保留。
+schema: 1
+updated: "2026-11-22"
+
+divergences:
+  - id: DIV-01
+    kind: permanent
+    scope: [qemu]
+    impact: "QEMU 的 cfx5 时序/替换策略不作为判据；只比功能语义与签名。"
+    reason: "QEMU 是功能模型，cache 时序/替换策略不建模（用户 2026-11-22 同意）。"
+    user_ruling: "2026-11-22"
+    status: active
+
+  - id: DIV-02
+    kind: permanent
+    scope: [gem5]
+    impact: "gem5 的 I-Cache 命中/缺失计数不作为 arch 功能判据。"
+    reason: "I-Cache 命中/缺失属性能观测，arch 功能只比命令与数据效果（用户 2026-11-22 同意）。"
+    user_ruling: "2026-11-22"
+    status: active
+
+  - id: DIV-03
+    kind: permanent
+    scope: [chipyard]
+    impact: "RTL 的预取/I-D 一致性不在 M16 用例范围内。"
+    reason: "RTL 当前未实现投机预取与 I/D 一致性；相关交互另立任务（用户 2026-11-22 同意）。"
+    user_ruling: "2026-11-22"
+    status: active
+
+  - id: DIV-04
+    kind: temporary
+    scope: [qemu, gem5, chipyard]
+    impact: "ADWBFAIL（CFXMEM [56]）不做三方用例；保留 RTL 的 CASE_ADWB 手工证据。"
+    reason: "正常路径不可达（PA RAM 全可写），三平台都只能注入；QEMU/gem5 无测试专用注入钩子（ISS-515）。"
+    user_ruling: "2026-11-22"
+    status: active
+    close_when: "用户决定给 QEMU/gem5 加测试专用注入并立任务"
+
+  - id: DIV-05
+    kind: temporary
+    scope: [chipyard]
+    impact: "cfx0/2 的 U/S 模式进入暂不参与三方；A 阶段只比寄存器面与权限。"
+    reason: "RTL 的 U/S 路由尚未补（m16-chipyard-019 只做 A；B 为 m16-chipyard-020）。"
+    user_ruling: "2026-11-22"
+    status: active
+    close_when: "m16-chipyard-020 合入"
+
+  - id: DIV-06
+    kind: temporary
+    scope: [chipyard]
+    impact: "cfx15/32/34 的 RTL 功能暂不参与三方。"
+    reason: "RTL 尚未补这三个 cfx（m16-chipyard-021/022/023）。"
+    user_ruling: "2026-11-22"
+    status: active
+    close_when: "m16-chipyard-021/022/023 全部合入"

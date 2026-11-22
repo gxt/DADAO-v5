@@ -310,6 +310,7 @@
 - gem5：`cache-model=on` 映射 `--caches`；前置补 `IsLoad/IsStore/IsAtomic`；cfx5 命令复用 ARM `dc cvac/civac/ivac` 的 `Request::CLEAN|INVALIDATE` 机制。
 - `cache-model` 与 cfx5 口径（用户 2026-11-22 已定）：**off = cfx5 存在但 no-op**——`cache_exist` 读 0，`cache_ctrl` 写被接受、不报 `CFXREG`、不产生效果；`on` = `cache_exist=0b11`，命令真维护。理由：Linux 内核缺省带 cache 维护逻辑（其它 ISA 不会为“无 cache”单独编译内核），机器配置只决定 cfx5 有没有效果，不决定它是否存在。**off 下非法编码仍报 `CFXREG`**（编码校验不受机器维度影响，用户 2026-11-22 已定）。RTL Vast 始终有 cfx5、Tiny 无（不跑 Linux）。需同步 `integ042t` 期望与 CACHE-27 契约（`m16-spec-002`）。
 - **RTL cfx0/2 分两件**（用户 2026-11-22）：先 **A**=`m16-chipyard-019`（寄存器面 + 权限，不改主控制流），再 **B**=`m16-chipyard-020`（U/S 模式进入路由、`switch_run_mode`、异常帧）；A 合入后才派 B。
+- **`expected-divergences.yaml`**（用户 2026-11-22 同意）：已建 `tests/arch/data/expected-divergences.yaml`，永久 3 条（QEMU 时序/替换、gem5 I-Cache 性能、RTL 预取/I-D 一致性）+ 临时 3 条（ADWBFAIL、cfx0/2 U/S 进入、cfx15/32/34 缺口）；每条写影响面 + 裁定日期；临时项在对应任务合入后删除。
 - **ADWBFAIL**（用户 2026-11-22 选 C）：正常路径不可达（PA RAM 全可写），**不单列 M16 用例**，登记 GAP（`ISS-515`）；保留 RTL `CASE_ADWB` 手工证据，QEMU/gem5 不加测试专用注入。
 - **check-arch-smoke 模式与代表集**（用户 2026-11-22 选 A）：smoke/arch 用 `cache-model=off`（不测 cache，cfx5 的 on 用例进按需 `check-arch-vast`）；`tests/arch` 成型后再重选 smoke 代表集——不需要多、覆盖面稍广、**三个平台分开**（QEMU/gem5/RTL 各自代表），并控制测试时间（QEMU smoke 目标 ≤5 min；RTL 仿真不塞进 L2/L3）。**现在不提前立任务/不选用例**，等 `tests/arch` 成型后由用户确认再排。
 - **cfx5 用例覆盖**（用户 2026-11-22 确认）：`m16-testcases-009` 必须覆盖寄存器面、D 侧 clean/invalidate/flush（all/单行/区间、I/D）、DMA 直读可见性、使能门控、I 侧 clean no-op + invalidate 取指重取（**gem5 必须**）；QEMU 时序/替换、gem5 I-Cache 命中/缺失、RTL 预取/I-D 一致性只登记差异；不穷举替换矩阵。
