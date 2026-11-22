@@ -1,0 +1,1586 @@
+schema = 1
+# 本文件由 `idl/tools/idl_check_anchor.py --update` 生成，禁手改。
+# op.sha256 = operation 正文（`# id:` 行起、至下一条 `# id:` 之前；切分口径同 idl_render.py）。
+# lib.sha256 = `idl/lib/*.idl` 文件全文。改 `.idl` 后必须 `--update`，并在评审说明实现是否跟改。
+
+[[op]]
+id = "add.o_orrr_bbd"
+book = "SimRISC-05.idl"
+impl = "_op_add_o_bbd"
+sha256 = "dc6522d476152d221c47564b0618c22618feb0d7052edfff00ae4cef244cbeb2"
+
+[[op]]
+id = "add.sb_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_addsub"
+sha256 = "bb066571b6b6c948c6ceb15477ac2f00aba4f8d4e4ff4b3b6883ad051bfb1f4b"
+
+[[op]]
+id = "add.si_riii_rb"
+book = "SimRISC-05.idl"
+impl = "_op_add_si"
+sha256 = "3e610576996c8ff66db2c4c24190c0ab315479627888ff95fb2c358d8042ae0f"
+
+[[op]]
+id = "add.si_riii_rd"
+book = "SimRISC-04.idl"
+impl = "_op_add_si"
+sha256 = "1b5634deccdc8b4521538d259afa3e6bc775a00e143d6db2880919eb90d0f27f"
+
+[[op]]
+id = "add.so_rrrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_add_so"
+sha256 = "532eced70eab549b686d255775cbbe62ed21c6d5b20112789782518ca7d86f36"
+
+[[op]]
+id = "add.st_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_op_add_st"
+sha256 = "41fc80a773b471259ba17ef64f124c59892fc576aa9ca220be588eecf354f1b6"
+
+[[op]]
+id = "add.sw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_addsub"
+sha256 = "d1036924b4010631ff94337c8258f25ab3e89d55c153ee9b3c00d4376693e5cf"
+
+[[op]]
+id = "add.ub_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_op_add_ub"
+sha256 = "ef162c0450bfa6ccbaeec0fec1d479270253d481b30ebbbe56dfe0d546a07c4a"
+
+[[op]]
+id = "add.uo_rrrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_add_uo"
+sha256 = "e637cc9b38655ab96e903a004920a79a3442ea6550ddf6cdb377547094ab014a"
+
+[[op]]
+id = "add.ut_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_addsub"
+sha256 = "2b11eb7e0921f9aa4d3f8727b78be4c3d3025a567ceae63667ca6b22e72a9567"
+
+[[op]]
+id = "add.uw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_addsub"
+sha256 = "b6826df81548893dfccbe9e3355991ecf9e2873cf80587ee67a87da5aee4082b"
+
+[[op]]
+id = "aip.si_riii_rb"
+book = "SimRISC-05.idl"
+impl = "_op_aip_si"
+sha256 = "5c68089e38302237716a5fc4613e761ca4b08540b35a167c7ca217158a11326c"
+
+[[op]]
+id = "and.o_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_and_o"
+sha256 = "9d43711912215c1ff78a2a05ff96b4c57a091507a3160bff79066a33ee2d2a81"
+
+[[op]]
+id = "andn.w_rwii_rb"
+book = "SimRISC-03.idl"
+impl = "_op_andn_w"
+sha256 = "1fec1eecc647baf71de8091a48697bf155c8f06229d922cac5ce7f6682be2559"
+
+[[op]]
+id = "andn.w_rwii_rd"
+book = "SimRISC-03.idl"
+impl = "_op_andn_w"
+sha256 = "f7022e1722e6456c984fd82361573d2f16a820aef1de8ee977251652925b0206"
+
+[[op]]
+id = "br.eq_rrii_rd"
+book = "SimRISC-06.idl"
+impl = "_op_br_eq"
+sha256 = "bec2e8a51832c1a96c97cc36582af83c53d92e139524b8a0ac2506314681a16e"
+
+[[op]]
+id = "br.n_riii_rd"
+book = "SimRISC-06.idl"
+impl = "_op_br_n"
+sha256 = "fd1555eb4c758422489617ea406905667e30bdf523f5733353590af68289ee46"
+
+[[op]]
+id = "br.ne_rrii_rd"
+book = "SimRISC-06.idl"
+impl = "_op_br_ne"
+sha256 = "8881e638f39fb6c976def31dfdf302092e13f2b5702f363e461c2f9f3e7fbace"
+
+[[op]]
+id = "br.nn_riii_rd"
+book = "SimRISC-06.idl"
+impl = "_op_br_nn"
+sha256 = "83efec8229d866741264194ecfe5eecb4f985ee0dcab4db018e134b84c6b9203"
+
+[[op]]
+id = "br.np_riii_rd"
+book = "SimRISC-06.idl"
+impl = "_op_br_np"
+sha256 = "400b65c107ff5c8595914bd66648a162ea5f37abf75aa32fb61dea22f9dd289e"
+
+[[op]]
+id = "br.nz_riii_rb"
+book = "SimRISC-06.idl"
+impl = "_op_br_nz"
+sha256 = "216801c63d0e0572e7e594fea9624a29e27f0bc3bf3edab31bb8dd5befbe8161"
+
+[[op]]
+id = "br.nz_riii_rd"
+book = "SimRISC-06.idl"
+impl = "_op_br_nz"
+sha256 = "82c2b750d082cd2d436f46d919f2e6cb45350349c1995e4c189a9851e07f5226"
+
+[[op]]
+id = "br.p_riii_rd"
+book = "SimRISC-06.idl"
+impl = "_op_br_p"
+sha256 = "7a77a4c3924b9058c6edb267be670f048349090742617de61b211a54e629202b"
+
+[[op]]
+id = "br.z_riii_rb"
+book = "SimRISC-06.idl"
+impl = "_op_br_z"
+sha256 = "833bb917cdac55932333fe61af50f21cef8f4133288d3c6842eb6e4d36a7942a"
+
+[[op]]
+id = "br.z_riii_rd"
+book = "SimRISC-06.idl"
+impl = "_op_br_z"
+sha256 = "163b7ea6c50f36d620a5491dfc9df33125c8ba7cbece780ffe4e63e67800f3ac"
+
+[[op]]
+id = "call_iiii_ra"
+book = "SimRISC-06.idl"
+impl = "_op_call"
+sha256 = "9f1f12d797bc3779cf4dd775bd68b0e8e8725fc75e5d22688f4b52d413dc3884"
+
+[[op]]
+id = "call_rrii_ra"
+book = "SimRISC-06.idl"
+impl = "_op_call_rrii"
+sha256 = "81996ad52d428418b7f4387d6a8901ebbef3f528e015b36f3fa9fbf314671c65"
+
+[[op]]
+id = "cfx2rc_crrr_cfx"
+book = "SimRISC-11.idl"
+impl = "_op_cfx2r"
+sha256 = "28acf360d013943e8908105ae32b7f929c5e5d614b8d271c29aad36973aff377"
+
+[[op]]
+id = "cfx2rd_crrr_cfx"
+book = "SimRISC-11.idl"
+impl = "_op_cfx2r"
+sha256 = "06d34dd8958c646e6cb4bd9fdad57ae6b0fd76b3d08efa853e55a6f601a13d48"
+
+[[op]]
+id = "clmul.o_rrrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_clmul"
+sha256 = "dbb38a158eefc4a6c53852b2748404ca81d0af688449215f8fefe085ccdae1cb"
+
+[[op]]
+id = "cmp.sb_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_cmp"
+sha256 = "1c6971352692f1311fd8b50b344fbfc9391987a8f39365c95abd66aefb54ae2a"
+
+[[op]]
+id = "cmp.si_rrii_rd"
+book = "SimRISC-04.idl"
+impl = "_op_cmp_si"
+sha256 = "5044480aff0457fad6c82d3829ed6bcff9b146230e83ee6520c1440542791fc4"
+
+[[op]]
+id = "cmp.so_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_cmp_o"
+sha256 = "ec860b39f57ed53a68bedd90482afe78f1755f0aa28d678a85f503fcc360e2ec"
+
+[[op]]
+id = "cmp.st_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_cmp"
+sha256 = "4ade4ac1d71e461cbe10b7e9fd0f1ce7c355af06760c807f70fe318de8fa4277"
+
+[[op]]
+id = "cmp.sw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_cmp"
+sha256 = "9f762f51eaeb9e9701ecde7b340a7a29877cbe4d093657bc60325accc3d2ae3f"
+
+[[op]]
+id = "cmp.ub_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_cmp"
+sha256 = "f7043a2eb22d1820de95772d468a11fe6c88cc7721e1eaeea990285707bfc7c3"
+
+[[op]]
+id = "cmp.ui_rrii_rd"
+book = "SimRISC-04.idl"
+impl = "_op_cmp_ui"
+sha256 = "cdff513532f6942e31e2d53d6962e113b5169d997a8ff8bd31dee6843fa58ee8"
+
+[[op]]
+id = "cmp.uo_orrr_dbb"
+book = "SimRISC-05.idl"
+impl = "_op_cmp_uo_dbb"
+sha256 = "b65f79a143396450d2506882db641443ab706caae4d94284fa059ac0d8c719ac"
+
+[[op]]
+id = "cmp.uo_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_cmp_o"
+sha256 = "3d6e8cb2bfcf1b115c74b6b33712ab4d944900273b8faa58ebc8d6a97eb14f9d"
+
+[[op]]
+id = "cmp.ut_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_cmp"
+sha256 = "78b087394bf0e64f148ed0a0c8e82a8b3655aa26d57061ac7bbc92fe8b9619a3"
+
+[[op]]
+id = "cmp.uw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_cmp"
+sha256 = "036cf99bb9e62a8534e020f4cfde3898277347b2e05f60fded89e783d0968af5"
+
+[[op]]
+id = "cs.eq_rrrr_rd"
+book = "SimRISC-02.idl"
+impl = "_op_cs_eq"
+sha256 = "77121255c04ceed7ba794c9ecb6ba808e1caf875322e138728ae1da99f93a442"
+
+[[op]]
+id = "cs.n_rrrr_rd"
+book = "SimRISC-02.idl"
+impl = "_op_cs_n_rd"
+sha256 = "2f383f634c89e7cfae1cfa86e017118edf8ae9d2050eb5bd6930ee65933b8ba4"
+
+[[op]]
+id = "cs.n_rrrr_rf"
+book = "SimRISC-02.idl"
+impl = "_op_cs_n_rf"
+sha256 = "6c713e7e2ee7fc9056999e080a0a1116dd45cc55f58315489fabef1b9588f089"
+
+[[op]]
+id = "cs.ne_rrrr_rd"
+book = "SimRISC-02.idl"
+impl = "_op_cs_ne_rd"
+sha256 = "6ae4caa8558369ec1531cc926aec4919ac802b3563f83e1c920e6fb17391c006"
+
+[[op]]
+id = "cs.p_rrrr_rd"
+book = "SimRISC-02.idl"
+impl = "_op_cs_p_rd"
+sha256 = "ad13d58578c5f106b9bfc882cf4db3eba81fcbf60760732f8aa12997981b6162"
+
+[[op]]
+id = "cs.p_rrrr_rf"
+book = "SimRISC-02.idl"
+impl = "_op_cs_p_rf"
+sha256 = "2b70f2de601b6faded5cc3ef1fca2edca596a63b9719b06ccc6ffe572e139d56"
+
+[[op]]
+id = "cs.z_rrrr_rd"
+book = "SimRISC-02.idl"
+impl = "_op_cs_z_rd"
+sha256 = "54aef1f45642e0d4dd48147a1ba3d45cef0b2af66cf45c242d4455f2015eeb19"
+
+[[op]]
+id = "cs.z_rrrr_rf"
+book = "SimRISC-02.idl"
+impl = "_op_cs_z_rf"
+sha256 = "3a16707c05480b11ef45b9255733c571058523f25f41ff952e4c3c60935eaada"
+
+[[op]]
+id = "ctlz_orri_rd"
+book = "SimRISC-12.idl"
+impl = "_op_ctlz"
+sha256 = "e80f51609c811ae31893707f341ced0a806931458cfbec2bfe6fe1c4b4c1456e"
+
+[[op]]
+id = "ctpop_orri_rd"
+book = "SimRISC-12.idl"
+impl = "_op_ctpop"
+sha256 = "8d10daf49d2345626c5c241f21b0052ded32b34191c447ef449e7d3fa4920bee"
+
+[[op]]
+id = "cttz_orri_rd"
+book = "SimRISC-12.idl"
+impl = "_op_cttz"
+sha256 = "2ec47138a830c0c3eaf133153d1b4f6b0956a327e18c483a5719ffd99d9f5b78"
+
+[[op]]
+id = "div.sb_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_div"
+sha256 = "c649e8f0689c9340641ba26a08c11016b64aae85fe3b51f9407ddad9f39a0975"
+
+[[op]]
+id = "div.so_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_div_so"
+sha256 = "d5841ea38307687e40acc0bd1864a7e050750f2816421d06698bbd2a6ddbf74a"
+
+[[op]]
+id = "div.st_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_div"
+sha256 = "f6dd6b622f0269db78cac8c8b047f7fb53be7802de72307f781d14008995f018"
+
+[[op]]
+id = "div.sw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_div"
+sha256 = "0984d9026231d70755449f853ce4e559f5b8f3b2f6d7fb6c144c8aa6c3d2100f"
+
+[[op]]
+id = "div.ub_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_div"
+sha256 = "edbbf119205197a0660f73566015e1635149849032cb4ff107cc1228da2adb3b"
+
+[[op]]
+id = "div.uo_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_div_uo"
+sha256 = "8f37887f57cd00ba318a497c7f3b1f55bc2f070d1f0501b8b16d09d22d3f91a4"
+
+[[op]]
+id = "div.ut_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_div"
+sha256 = "f21e3c02985d24728d8dfd96fae73d7b4447c91ba752c36696e73aa4d6c05ade"
+
+[[op]]
+id = "div.uw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_div"
+sha256 = "8a31e0e8d84db5cee0fb6db122de0e92a1da1a3c50cb769eebdfaf751fc39921"
+
+[[op]]
+id = "escape_ciii_cfx"
+book = "SimRISC-11.idl"
+impl = "_op_escape"
+sha256 = "4df2de9f06d6c3df94d7015be9274834910090394f43f50d2bb64a4477386ee6"
+
+[[op]]
+id = "ext.so_orri_rd"
+book = "SimRISC-04.idl"
+impl = "_op_ext_so_orri"
+sha256 = "faa85d7108f761a9e6fa941f0aa2d6eeca60e95537a1cd01e64d7e2350ab03f7"
+
+[[op]]
+id = "ext.so_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_ext_so_orrr"
+sha256 = "c8ad0a5b92b329f9ef45b69bd553848a46cb7f8b739a9e0e78a0a6089731e028"
+
+[[op]]
+id = "ext.uo_orri_rd"
+book = "SimRISC-04.idl"
+impl = "_op_ext_uo_orri"
+sha256 = "52f868b0f2a357ebea4e914cb950997d31e18a8a3f5360ca5f02cee925abce9c"
+
+[[op]]
+id = "ext.uo_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_ext_uo_orrr"
+sha256 = "fec7de3e54d61ea2b9521584505521e8c7d6a499d6bea9c7112aaad519f5ae8d"
+
+[[op]]
+id = "fence_ciii_cfx"
+book = "SimRISC-11.idl"
+impl = "_op_fence"
+sha256 = "33892e1f53f525c25d18289890b5e6455f61b2d4276a0935620b91704c894e3e"
+
+[[op]]
+id = "fo2ft_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_f2f"
+sha256 = "f616f5a3c30f54a8fd06fb999abfe698d8052ca89be6f9c7aef7f9ee8de497c7"
+
+[[op]]
+id = "fo2io_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_f2i"
+sha256 = "6004c2e7cd3bc61d507af2da886c96ced12dcc5c6251561b17dd01c75254ddfb"
+
+[[op]]
+id = "fo2it_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_f2i"
+sha256 = "ca4464370ca38fac41513a21b128a8e7835a7a69647f823253494a2c0ba6f3ad"
+
+[[op]]
+id = "fo2uo_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_f2i"
+sha256 = "8056efb276a215ef21d7ed7ea17f0b59a4da34a2453f141e1d131cec3342b523"
+
+[[op]]
+id = "fo2ut_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_f2i"
+sha256 = "43b094c324df4c5e0b07462d8a639229aee98a6b93b58941e1923562b2b79205"
+
+[[op]]
+id = "foadd_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_arith"
+sha256 = "90e4c13413f22b1362c08cd6db860a011ef9ba3716d71a28cccde9ef04cfdd2f"
+
+[[op]]
+id = "focls_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_classify"
+sha256 = "2b7da3ecceac2f9bb2a51445e1fbf38c70bd62bd5429aa012dba3dc35a88dc42"
+
+[[op]]
+id = "fodiv_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_arith"
+sha256 = "f15751d4bc3fb8a8623ab43d62e90b304faf3157c045401f2b57e988da6c6637"
+
+[[op]]
+id = "fofma_rrrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_fma"
+sha256 = "52bdebadcec26ebdb2987d0adbe2cb83fb71e5a043416bb339a958bb56cc88f9"
+
+[[op]]
+id = "fomax_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_minmax"
+sha256 = "f65556570ff46393e0317d42398154ef8d6212b3c34501184289cbdd2e17b04d"
+
+[[op]]
+id = "fomin_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_minmax"
+sha256 = "0f92aa2c17a38b39624562e1dce1b826615587ae512c8b812faaf256efef0e87"
+
+[[op]]
+id = "fomul_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_arith"
+sha256 = "187ae71e93be3db1cd149356df7a9404434eeabdce9308bdcb04f75cd3e10f44"
+
+[[op]]
+id = "foqcmp_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_cmp"
+sha256 = "86d407d026742f0ff65bdfe307d14844b30a6251757d34f4ecc45c9d21066b0e"
+
+[[op]]
+id = "forem_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_arith"
+sha256 = "6e1ca89594fec1544020080d3e2997b41fb79eddb08260b2af06cd3d2e2c794c"
+
+[[op]]
+id = "fornd_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_rnd"
+sha256 = "2ee043a9c1943b620813de7606290b33148a68e5904fab2964f79453dc51c189"
+
+[[op]]
+id = "foroot_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_root"
+sha256 = "8ee32e9f2983315b2cdb2fd3521926e1190d806fd8cedb89effede423a2ef607"
+
+[[op]]
+id = "fosclb_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_sclb"
+sha256 = "5c58e2eb64998f62b8dfa361148a19d7cefe3e213144c91f7b2c1081b30f7567"
+
+[[op]]
+id = "foscmp_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_cmp"
+sha256 = "726b8fca33a6103d4039cc398bb4f8f9227e2562a45b8734ea7221c159e99158"
+
+[[op]]
+id = "fosgnj_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_sign"
+sha256 = "3256fec8a44e4a78d14d7d0f7fab854df54c359da6d7ce496f9f23117ac97a48"
+
+[[op]]
+id = "fosgnn_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_sign"
+sha256 = "482b80be287dfbb39a767e59bc5826bdb99f2e2014077a03f0d0ca7a78710ca5"
+
+[[op]]
+id = "fosub_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_arith"
+sha256 = "318b8bc3edd8560e20c313f31f52ce013e93bd4e90052b6f5142d9bfe5182131"
+
+[[op]]
+id = "ft2fo_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_f2f"
+sha256 = "308367318d9ae06cf4498ed54cb629efbb4d2d18c7d9435393b1d9004596eeca"
+
+[[op]]
+id = "ft2io_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_f2i"
+sha256 = "5a5bfafe160fc9308aae437d725786ef6d48b1fb03e102e3101119076f1de451"
+
+[[op]]
+id = "ft2it_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_f2i"
+sha256 = "21424d396188b654d2e0658745a4c2ff562eff7e6c49a140b0acf7789db6b9ee"
+
+[[op]]
+id = "ft2uo_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_f2i"
+sha256 = "b3104c4c8e49481fca1635a06d8e6f8ddd2afaf5adca9a6b720f4a21981ce156"
+
+[[op]]
+id = "ft2ut_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_f2i"
+sha256 = "2a562e960fed551d74e821e06233539f0aed6e30fdd242fbbd00aa904c61967c"
+
+[[op]]
+id = "ftadd_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_arith"
+sha256 = "106acb980cd7b95c62e316c250a08bae4d35062a9574f48200b38b6d9b8286d8"
+
+[[op]]
+id = "ftcls_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_classify"
+sha256 = "2841dd78e68efd3235c80c57b67138c42541af569d8f3cf49cecaaa2f97c3f3c"
+
+[[op]]
+id = "ftdiv_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_arith"
+sha256 = "e7895c3b5d0d45572915ee8a084dc0c6411edc1b8b15ca8d7fd77ed4792f014d"
+
+[[op]]
+id = "ftfma_rrrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_fma"
+sha256 = "02c518f7427c5ece7aa49b785bef1e493fcf4d6495ce965e499ce16ec9c57a36"
+
+[[op]]
+id = "ftmax_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_minmax"
+sha256 = "d48881e1d24d00bfa8e7da5467f34c6067a7365fc5f8960e6b529bb8193dc75c"
+
+[[op]]
+id = "ftmin_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_minmax"
+sha256 = "190f6a2bfaf75b57f1e0ad327527c4d46742aec508be70f28e33148c1ebeb6d8"
+
+[[op]]
+id = "ftmul_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_arith"
+sha256 = "334ae208af09de525179a5df2bbb91ddd93d4c571c1b18e99a4624fb6578ad4a"
+
+[[op]]
+id = "ftqcmp_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_cmp"
+sha256 = "1a89e0e2d84700ecef15920f83856afb87ba546062f61c055183d3864cdb3efc"
+
+[[op]]
+id = "ftrem_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_arith"
+sha256 = "21af5fd7b2553a051ff178a9babd9c9017d6bea14fa5e3f29650b0d66c9bc0f2"
+
+[[op]]
+id = "ftrnd_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_rnd"
+sha256 = "9515983f3307273af207f06ea0d0a49da66e8f52e56cd0feda107707f5a7da87"
+
+[[op]]
+id = "ftroot_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_root"
+sha256 = "7ee579d15012c0d46cffe8f737eaad59f8a0d62f48fce0dc07f01d9889ea0d28"
+
+[[op]]
+id = "ftsclb_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_sclb"
+sha256 = "cd7a8d713b5f005f516632686c17e3063efc420f3cdd010a95cbbc25294546e7"
+
+[[op]]
+id = "ftscmp_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_cmp"
+sha256 = "7b8f229c835214d94c4df5ce82bb8579e763c2f43970e0f69dc0313ada4062b0"
+
+[[op]]
+id = "ftsgnj_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_sign"
+sha256 = "630b9f6eab3a817694f635309b89230e0dd62c501971e7af5dee422479bf8afd"
+
+[[op]]
+id = "ftsgnn_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_sign"
+sha256 = "9b084606da6c91530646891f9f61daeb311bf1dac822b5c5cc1d20a003009bf3"
+
+[[op]]
+id = "ftsub_orrr_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_arith"
+sha256 = "29d86b2ef3c1bef0d0e083699ea0de18a6a22b777fec1c79b3ecb416f27fe990"
+
+[[op]]
+id = "io2fo_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_i2f"
+sha256 = "e7097409ce934a5f6f8c1dd8c0dbeb4c56df4584c2639c9cd10452c17ff7e1ed"
+
+[[op]]
+id = "io2ft_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_i2f"
+sha256 = "04d6e291a4aab44cc4d7f9ec48cc6eeb39e4cb642501b94c3ca56577aa6ba790"
+
+[[op]]
+id = "it2fo_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_i2f"
+sha256 = "79f16ca1f03cd602f8b5fe2da624cecb8fedaa47ef06239468bab5308982fe7a"
+
+[[op]]
+id = "it2ft_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_i2f"
+sha256 = "59fd05c2381ce5997de2f17ea1be33a84326450d15a2b29f6ebf36295f9361cf"
+
+[[op]]
+id = "jump_iiii_rb"
+book = "SimRISC-06.idl"
+impl = "_op_jump_iiii"
+sha256 = "97b495ea0ee2fac444f4d6324ccd96a7160c9cb5488ed6d6cfdda64648789a18"
+
+[[op]]
+id = "jump_rrii_rb"
+book = "SimRISC-06.idl"
+impl = "_op_jump_rrii"
+sha256 = "8e15e350a2746f081a0f41c7e341da0e4fe445beb3fda7a7c17a5afeb4d6dc44"
+
+[[op]]
+id = "ld.o_rrii_ra"
+book = "SimRISC-01.idl"
+impl = "_op_ld_o"
+sha256 = "427f2f760be91f1771dd623e548931102f0b800790cbb050263d95529ba3a561"
+
+[[op]]
+id = "ld.o_rrii_rb"
+book = "SimRISC-01.idl"
+impl = "_op_ld_o"
+sha256 = "60d87c59c2d8ae87ba6cd3ea9e211f48c9185d2caadec690f495e862babd8d21"
+
+[[op]]
+id = "ld.o_rrii_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ld_o"
+sha256 = "6ec2485105ec769a48ac92f0541d0036afb1b6f5322270cdd1352884db27a8c9"
+
+[[op]]
+id = "ld.o_rrii_rf"
+book = "SimRISC-01.idl"
+impl = "_op_ld_o"
+sha256 = "835825f726252e3bf3bb524be43fe2a224f1d7860b1ae6330934433d899a3360"
+
+[[op]]
+id = "ld.sb_rrii_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ld_signed"
+sha256 = "2757a8e041376ae9dd092a4c6e23a11c63f4c7785850a44bbc87efbe0ea3c0a8"
+
+[[op]]
+id = "ld.st_rrii_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ld_signed"
+sha256 = "c87f5d71c9ef55221e0dee76331009de96b305385c7da1d4fa91ba319daae271"
+
+[[op]]
+id = "ld.sw_rrii_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ld_signed"
+sha256 = "5676b09b6c4c2b3e7192af03b03ea66c28bb5d76c5b3cbad1822e0ed9e8363ef"
+
+[[op]]
+id = "ld.t_rrii_rf"
+book = "SimRISC-01.idl"
+impl = "_op_ld_t_rf"
+sha256 = "c0e07a7c68451b718a5c58bdb88060abc8227ddd89347b08110a8c362f9af8a2"
+
+[[op]]
+id = "ld.ub_rrii_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ld_unsigned"
+sha256 = "e0e2f3fc23292fb8f9047e73b677c24af6ac5d8dfd1552d49f57bd8e2bcf3aae"
+
+[[op]]
+id = "ld.ut_rrii_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ld_unsigned"
+sha256 = "b4dfcb4892fdd64e9063e6179c32e098b0a9a570f2d5f6cf22e9284181f0ed5b"
+
+[[op]]
+id = "ld.uw_rrii_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ld_unsigned"
+sha256 = "6c0ab62f064b0d5115890c7be9e2ce10593ee90cef7532b810ea90f7dc0b14a1"
+
+[[op]]
+id = "ldm.o_rrri_ra"
+book = "SimRISC-01.idl"
+impl = "_op_ldm_o_ra"
+sha256 = "0eab3d0c0c11a332763e8e3e1840ce1b196c981b83919b97882ad7f2e7ab73e7"
+
+[[op]]
+id = "ldm.o_rrri_rb"
+book = "SimRISC-01.idl"
+impl = "_op_ldm_o_rb"
+sha256 = "6dea66a4d4b33fec9157e3ab1e0ce0f6e3aee1ee94b4d6e54839df0fc2090d77"
+
+[[op]]
+id = "ldm.o_rrri_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ldm_o_rd"
+sha256 = "59add6526448cd165ee8757d89e08107592b445c192f5791032bd4a54f6fee6a"
+
+[[op]]
+id = "ldm.o_rrri_rf"
+book = "SimRISC-01.idl"
+impl = "_op_ldm_o_rf"
+sha256 = "27f3adb6fa70b6d77ed133c8712957b8c5c9db392f072c759779c656272ac6dc"
+
+[[op]]
+id = "ldm.sb_rrri_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ldm_signed"
+sha256 = "950f2d8f77d82bae9892fb24b0fad107039b4dd7ffff5237cdffdffe59961750"
+
+[[op]]
+id = "ldm.st_rrri_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ldm_signed"
+sha256 = "d64755131e63d6ebc402090b6d170568403d825c14a9cf5b3f489431f8b6047e"
+
+[[op]]
+id = "ldm.sw_rrri_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ldm_signed"
+sha256 = "5b3f24bba3279ad111f041c4fc342f22fc0207d0eafd42da3f94fabc3ab198ce"
+
+[[op]]
+id = "ldm.t_rrri_rf"
+book = "SimRISC-01.idl"
+impl = "_op_ldm_t_rf"
+sha256 = "2d258e41ccea9b5497126b992c0efd3d10038594e6d233b39aa566aadfe46293"
+
+[[op]]
+id = "ldm.ub_rrri_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ldm_unsigned"
+sha256 = "4393bd8667ab9f386e8b93a587e1fcee03d6786e055b839b4c2a3e5b8655f88b"
+
+[[op]]
+id = "ldm.ut_rrri_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ldm_unsigned"
+sha256 = "fed697bf0e7aade59a9120db1784429df484903820a4ee1ebfda4cd531fe26e2"
+
+[[op]]
+id = "ldm.uw_rrri_rd"
+book = "SimRISC-01.idl"
+impl = "_op_ldm_unsigned"
+sha256 = "8edd981e852a4c7085a4d7cc9c32990dc2d318e29c59095b33dea2404268d8ae"
+
+[[op]]
+id = "lr.b.an_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_lr"
+sha256 = "7c77f3bcb304782e5e4d54902bf2ec51b110b0310bec50bb1610ab59be90624a"
+
+[[op]]
+id = "lr.b.ar_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_lr"
+sha256 = "b09c0266041fbd05f2868e9a6aa13e7676ca656f527560e799d8278e9938f996"
+
+[[op]]
+id = "lr.b.nn_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_lr"
+sha256 = "f0e1bc13333f13c66bd67cfc182b4333fb623c5daf871b7c4b070c7fd84a357a"
+
+[[op]]
+id = "lr.o.an_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_lr"
+sha256 = "a4ddf853378dc6a53622b1d901e6db6402c037c8e1882165a3121fcf7688828b"
+
+[[op]]
+id = "lr.o.ar_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_lr"
+sha256 = "ec2aaf501d1f88f66eed6d482a6e8a3b12de5bd2ef083894bcf8ddb6b0d768d1"
+
+[[op]]
+id = "lr.o.nn_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_lr"
+sha256 = "08894d646c2cb1c663ef182b7cc02a667ad6e95306a8168274b831d5103c78e0"
+
+[[op]]
+id = "lr.t.an_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_lr"
+sha256 = "9217eb25ca9caea9022f704f516fafa08754942f5f9f1e8ae68253288c3f9430"
+
+[[op]]
+id = "lr.t.ar_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_lr"
+sha256 = "e1576ce59674ec496eb57cbe383b26f6c8e0d3e796cf1182d2abffff859a6ad8"
+
+[[op]]
+id = "lr.t.nn_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_lr"
+sha256 = "de490fea3cccab47a4902bbb46afc4123d2cc5334290a698ebe7a7795c317ec2"
+
+[[op]]
+id = "lr.w.an_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_lr"
+sha256 = "625fd129923b7e7497d72141160389d4ad816d5fa248c62c51cf408ff8a31971"
+
+[[op]]
+id = "lr.w.ar_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_lr"
+sha256 = "ed5e3f804e0a0c61e2703ab333ddb57dbb599c8e7c28196be65f7d6a55836b44"
+
+[[op]]
+id = "lr.w.nn_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_lr"
+sha256 = "d04cf85affa8d56118583eff4b205faf75c93a037493d16779b9e88016593e3f"
+
+[[op]]
+id = "mul.sb_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_mul"
+sha256 = "59291c5e37cd41a667e439b328a503cd64dad0a5f2ef5d864a22ff7cba45ce24"
+
+[[op]]
+id = "mul.so_rrrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_mul_so"
+sha256 = "9c233f2a1b0159ea7d99597d870fb4529bab5aa53d08ea395b59ce4c24e7c031"
+
+[[op]]
+id = "mul.st_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_mul"
+sha256 = "517f829b15aceee74266d1ba92014facce25d691f9e293cf43e4331534b56abd"
+
+[[op]]
+id = "mul.sw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_mul"
+sha256 = "b824729b53e777598d75386542396084757a6e6050792414ce5823c2bdb8ff8f"
+
+[[op]]
+id = "mul.ub_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_mul"
+sha256 = "88ec0e4d88025f0a61d28bf30f4b4ee5df039a671bf145c1ee7cf2891c2a7b18"
+
+[[op]]
+id = "mul.uo_rrrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_mul_uo"
+sha256 = "9289ed87464118695bbfa42b901226cff253b0c39daf85a37e0dd03572ad852b"
+
+[[op]]
+id = "mul.ut_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_mul"
+sha256 = "41da9132633b5c719379a98f0ff577e8c12f6a05aaf1db38ce29492cf09ad9ae"
+
+[[op]]
+id = "mul.uw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_mul"
+sha256 = "94fe4b131dae1b30b4d3d115845365f33c2f632c872b5143883fc8fa6aae08a4"
+
+[[op]]
+id = "or.o_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_or_o"
+sha256 = "43fc519a910d607b21fb84d0dbae03e974e25e79b2d45486966ef5cfd0a672ba"
+
+[[op]]
+id = "or.w_rwii_rb"
+book = "SimRISC-03.idl"
+impl = "_op_or_w"
+sha256 = "860b4f4b1805892bffce10c5b51d7098defffe17c0f3cb075d335c6f4221ffaf"
+
+[[op]]
+id = "or.w_rwii_rd"
+book = "SimRISC-03.idl"
+impl = "_op_or_w"
+sha256 = "62732965db7fd13e0742739df7f8eef0b395d528e098bf322f9339b43c718e28"
+
+[[op]]
+id = "ra2rd_orri_ra"
+book = "SimRISC-02.idl"
+impl = "_op_ra2rd"
+sha256 = "ed1d39be7e165560f3e1d76a7d7274761ee9940a242a45f451f71fbc15fc9452"
+
+[[op]]
+id = "rb2rb_orri_rb"
+book = "SimRISC-02.idl"
+impl = "_op_rb2rb"
+sha256 = "d2c35be271178c1f08d81c7205728470121d5c1af783b5f60964660637d46726"
+
+[[op]]
+id = "rb2rd_orri_rb"
+book = "SimRISC-02.idl"
+impl = "_op_rb2rd"
+sha256 = "ccc6d0ee1df6a539d7828563424b44cc70bf310cdffba1f2baf6ea2c682916db"
+
+[[op]]
+id = "rd2ra_orri_ra"
+book = "SimRISC-02.idl"
+impl = "_op_rd2ra"
+sha256 = "fa62e1c7544c75cf9de664954c650b960bde160dd78244777e2c7a11b280f5ce"
+
+[[op]]
+id = "rd2rb_orri_rb"
+book = "SimRISC-02.idl"
+impl = "_op_rd2rb"
+sha256 = "2997e01ae85913b383daa1dc99d8b2f7baed75c0eb844a5baaf603260cdf4d7c"
+
+[[op]]
+id = "rd2rd_orri_rd"
+book = "SimRISC-02.idl"
+impl = "_op_rd2rd"
+sha256 = "18067a2b01aba773bcead541c4ab29349250e24ccb91f98cc587cacd285bccf5"
+
+[[op]]
+id = "rd2rf_orri_rf"
+book = "SimRISC-02.idl"
+impl = "_op_rd2rf"
+sha256 = "3cd15c82a6d2c079f92fb3cb774b9c10fd838bb1cf4799903a5d7842f48b0060"
+
+[[op]]
+id = "rem.sb_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_rem"
+sha256 = "74179524c18215b68470ab2a48ae80b60e0704a3655414170750004bc5da35b3"
+
+[[op]]
+id = "rem.so_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_rem_so"
+sha256 = "ef4862a156896b9f07d4d3708b0b355c0c4be0cd3f7aebf24b2515e3950e219f"
+
+[[op]]
+id = "rem.st_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_rem"
+sha256 = "d018ce23a8ac88425417a9695cb84b63814b549993e39aa079d7bf0c281b4c4e"
+
+[[op]]
+id = "rem.sw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_rem"
+sha256 = "b545f9cbf8fa7d396621a8c15f98a1659282bbb00616c490da8955dabbd0e2dc"
+
+[[op]]
+id = "rem.ub_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_rem"
+sha256 = "841475e98db72176b7ebc3299de27adb5ee4f3d6ca094781e95f5846de513d26"
+
+[[op]]
+id = "rem.uo_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_rem_uo"
+sha256 = "94304b97950b79e5d0c70d78ef3b539f34b553ad654833492f073b377b3062a9"
+
+[[op]]
+id = "rem.ut_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_rem"
+sha256 = "2c7dafe61af439e9fe8c513fb1fefc3196e2a69f246e2ca7a86be9ce9e91d4f9"
+
+[[op]]
+id = "rem.uw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_rem"
+sha256 = "716e8f2994208159a432342236b7d6cce9980762d01103d25edefa69cdf3d8cc"
+
+[[op]]
+id = "ret_riii_ra"
+book = "SimRISC-06.idl"
+impl = "_op_ret"
+sha256 = "b5970b6102b37eeaa2ac45084f10741a6feb38b726a903338cb48b5e382545c3"
+
+[[op]]
+id = "rev.b_orri_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_rev"
+sha256 = "1f4fa05964106e678be91b951fed37d29b211d775814aec5f91f5247983651a1"
+
+[[op]]
+id = "rev.o_orri_rd"
+book = "SimRISC-04.idl"
+impl = "_op_rev"
+sha256 = "3090e07fb9fd37a00f69cc27c2876bb4f7b93adb5e0c57042877d574ae05a288"
+
+[[op]]
+id = "rev.t_orri_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_rev"
+sha256 = "c542768e79b082c0ab2f18f0d5d0066e21398ea241ccc83937ffccf45845e935"
+
+[[op]]
+id = "rev.w_orri_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_rev"
+sha256 = "892385c268020edc4de8a9b05693eb66da02fe38c05dadab240e4deb3920bc41"
+
+[[op]]
+id = "rf2rd_orri_rf"
+book = "SimRISC-02.idl"
+impl = "_op_rf2rd"
+sha256 = "7158244fbf6e19a46919847fdf8922c672c32c68da8ad746c767ce289cd58460"
+
+[[op]]
+id = "rf2rf_orri_rf"
+book = "SimRISC-02.idl"
+impl = "_op_rf2rf"
+sha256 = "792116fbc8ea5a603afd2a34c38da946403e212b6fc3fef697d065cf6195d77c"
+
+[[op]]
+id = "rol.b_orri_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_rol"
+sha256 = "c9291618feba85b2e9625254e54197d50b1b97c84c4355a0ace8d79bfcb40df1"
+
+[[op]]
+id = "rol.b_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_rol"
+sha256 = "8279df4fa56ea7ebf0d542ddf6bb2f9a8dfca82be9601a8fdf6b0321efc1d0e6"
+
+[[op]]
+id = "rol.o_orri_rd"
+book = "SimRISC-04.idl"
+impl = "_op_rol_orri"
+sha256 = "0986c6494c23e17e44579b083ff73818b1c17bd5554f2554cd3ec1b666ee3942"
+
+[[op]]
+id = "rol.o_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_rol_orrr"
+sha256 = "aa753193824f685986871feb36ea6b7f4a9f0159dfc362e4cf407458d55b823c"
+
+[[op]]
+id = "rol.t_orri_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_rol"
+sha256 = "ff7ce5a0187bcd9656792cd5312ef88a600e8fde89d9c8c1c83e245fcac10095"
+
+[[op]]
+id = "rol.t_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_rol"
+sha256 = "9b1dc472e455b50aea276dc547de137c87dc025ab99cb695d5d504cb9e7e1ae0"
+
+[[op]]
+id = "rol.w_orri_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_rol"
+sha256 = "ae9df4503686065ed7e9fbadeea8e913a62fd8ec64ea3000b0e8088f2907d758"
+
+[[op]]
+id = "rol.w_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_rol"
+sha256 = "7bbca6cb6a4883127de108c139266a5fa9aa8eda6b002e307498128261189da7"
+
+[[op]]
+id = "sc.b.ar_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_sc"
+sha256 = "4d99137b89df8075e2ca597a1f9c78e366b6fbe6020b2a30bd4e44a0da5e79ab"
+
+[[op]]
+id = "sc.b.nn_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_sc"
+sha256 = "6654e71c1f454d931ae6ece4efd7cadc105bef55abf300f14fe39ceea5423de0"
+
+[[op]]
+id = "sc.b.nr_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_sc"
+sha256 = "d66ea91fa3a8d86892a4e3017d08cb45c2855a3ebc27f67cbecbbc9c4ca5dbab"
+
+[[op]]
+id = "sc.o.ar_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_sc"
+sha256 = "f511dfd410a1c70931430ef91db4c591b2b6254538c464b287d2ee75db1ad7c9"
+
+[[op]]
+id = "sc.o.nn_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_sc"
+sha256 = "add2749a4ee586a128893d7ebf770cb61285b48c52be51b270a1275548a89a09"
+
+[[op]]
+id = "sc.o.nr_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_sc"
+sha256 = "a873aa4a7f221ddd57b8bfdf14eae2928a92ea6ecbef2639f46b5dc30e440e2c"
+
+[[op]]
+id = "sc.t.ar_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_sc"
+sha256 = "de8caf09d1786ffa376cb1e6923e6f23fbda46e57b32ddacc55a866caac24ea8"
+
+[[op]]
+id = "sc.t.nn_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_sc"
+sha256 = "c102ff4177bce862dc63df5a3b7505310ba2fcd5b6f5e53756381fe7735d4783"
+
+[[op]]
+id = "sc.t.nr_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_sc"
+sha256 = "cbe1f140868efe538414b8c1cf4b5ec426d5dd2f4b494e89b19781cc5bf697d7"
+
+[[op]]
+id = "sc.w.ar_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_sc"
+sha256 = "c16a76654f14f0497a065c6064705cbab474a34f92a29b743ce9bdf2b3b843b3"
+
+[[op]]
+id = "sc.w.nn_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_sc"
+sha256 = "1f02077656c9daac4dcc4add2b5b928f40a265eb4f33cc812027b90ec78a4901"
+
+[[op]]
+id = "sc.w.nr_orrr_rd"
+book = "SimRISC-12.idl"
+impl = "_op_sc"
+sha256 = "6130e7a9f1d6bc8803fa57676287ebe60a452e33b8df0e4c2a43b19f3198ca9b"
+
+[[op]]
+id = "set.ow_rwii_rd"
+book = "SimRISC-03.idl"
+impl = "_op_set_ow"
+sha256 = "d1e53465f2a6357e584b355bf91793b31d37d0475188b6f893cf6ef4f52927ce"
+
+[[op]]
+id = "set.w_rwii_rf"
+book = "SimRISC-03.idl"
+impl = "_op_set_w"
+sha256 = "fe615841ac0e15862596376effc2b1c09e30c36b29f1f8e6018aa8b0198e2047"
+
+[[op]]
+id = "set.zw_rwii_rb"
+book = "SimRISC-03.idl"
+impl = "_op_set_zw"
+sha256 = "09ffa8f36bf0f2a4336e7cd93b4818c9f1d7ac8f8ca4ee3581d4307a4b916185"
+
+[[op]]
+id = "set.zw_rwii_rd"
+book = "SimRISC-03.idl"
+impl = "_op_set_zw"
+sha256 = "2876e9c85c4008ba9fdc5dde3485496bbc5570285b8504910cffc2b052e1ed94"
+
+[[op]]
+id = "shl.b_orri_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_shift"
+sha256 = "64354cf261224bd57f3020cc8f5ad1c5bb2704f2e01f84c6dc1e931d9dcc0c39"
+
+[[op]]
+id = "shl.b_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_shift"
+sha256 = "74900152a4820e32a973559787d2d9c52b59573358935574897027c868a4705e"
+
+[[op]]
+id = "shl.o_orri_rd"
+book = "SimRISC-04.idl"
+impl = "_op_shl_o"
+sha256 = "74f54ab9452dc01392252f3c328199e7c9f347e66bf44f231d131072e4eb7694"
+
+[[op]]
+id = "shl.o_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_shl_o"
+sha256 = "48763a5544f0039665acaa4f12ce5f2c7588c4c43e90a855c3a18fbc063eab7d"
+
+[[op]]
+id = "shl.t_orri_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_shift"
+sha256 = "abea0beaf126a4b49a855086ff8e363c5e83f7272675814e29a19091a65398ca"
+
+[[op]]
+id = "shl.t_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_shift"
+sha256 = "db8599c724c005e02291bb45ba4845184c5a406eab1d15a432c4796a9ad7d242"
+
+[[op]]
+id = "shl.w_orri_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_shift"
+sha256 = "9e6de1fd0ff52ed886b339f99ec187349095f81548944a80e67505f03a08ad71"
+
+[[op]]
+id = "shl.w_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_shift"
+sha256 = "c790a4678b90cec9a405fb2900f43418afbce2b3f18b3bd01e242921604707cf"
+
+[[op]]
+id = "shr.sb_orri_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_shift"
+sha256 = "8c4dda7e828f9265fce0a65546e01edb620ef5d97edf508d708962a424f82f08"
+
+[[op]]
+id = "shr.sb_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_shift"
+sha256 = "0a585552e4e63b381443537b1d2215538e5849dc075290f8c01a7133a4bf7c39"
+
+[[op]]
+id = "shr.so_orri_rd"
+book = "SimRISC-04.idl"
+impl = "_op_shr_so_orri"
+sha256 = "bf94706a8fb8f353a5dcf1fe1df4fa7f170dab33f4ad7c04ed544b1e8c912db6"
+
+[[op]]
+id = "shr.so_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_shr_so_orrr"
+sha256 = "24a3647c46ca38f8f68228bd7b3cf9ddea219fb590b9b945fea9764500af7517"
+
+[[op]]
+id = "shr.st_orri_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_shift"
+sha256 = "e1b42fafcda696776f3ebf6bbfdbce037c64fd4aff0c8ba299e0b04e0afb68f7"
+
+[[op]]
+id = "shr.st_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_shift"
+sha256 = "d459c53b0c88b099a2da2b27ca8c7814d11a1b40379d9b44bf7ce9be114916ed"
+
+[[op]]
+id = "shr.sw_orri_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_shift"
+sha256 = "6398ac1b7d16dd73550394e91979ab944e5994ef3873d85be4d98a99d51198f5"
+
+[[op]]
+id = "shr.sw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_shift"
+sha256 = "b759bf831ad1aae61f4fb2d986b4f84e063534b6383750ea7ee1f6c03ad388d7"
+
+[[op]]
+id = "shr.ub_orri_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_shift"
+sha256 = "8d238da4c844a71194c0acdb4d591bdf28aa7b93ba7a43aaddba5c8ad4785b36"
+
+[[op]]
+id = "shr.ub_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_shift"
+sha256 = "7f7a96a54d96eaaf6b46f97a5de1a8d746059381324af0645873aed643b82cdd"
+
+[[op]]
+id = "shr.uo_orri_rd"
+book = "SimRISC-04.idl"
+impl = "_op_shr_o"
+sha256 = "1297522c56f146ad7a45a39f55ba932950455541ccd31d8a1c3ff893a35d3d71"
+
+[[op]]
+id = "shr.uo_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_shr_uo_orrr"
+sha256 = "11ee8a6e98b260c01ee76b680ca34ca04c797f39ffa2bebb60402c0498eeec93"
+
+[[op]]
+id = "shr.ut_orri_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_shift"
+sha256 = "b83fc55a7b1a2d83d53f99817147403fd10c0d0582d1a86a57e2dc68136e0b54"
+
+[[op]]
+id = "shr.ut_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_shift"
+sha256 = "24160b5fe2b36eb0369ddc46bf22fc4fbb0ff4a989a719d0592910bf31970d31"
+
+[[op]]
+id = "shr.uw_orri_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_shift"
+sha256 = "ca1ef18dc231ccf8d0886a54d6b878884445f75b27be0505bdf7436348b74e5a"
+
+[[op]]
+id = "shr.uw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_shift"
+sha256 = "ce991554489bd5966911dde0d24af02e329d51a96ed1fe600337a4fddcb50765"
+
+[[op]]
+id = "st.b_rrii_rd"
+book = "SimRISC-01.idl"
+impl = "_op_st_narrow"
+sha256 = "eb6ece4e206ac0d9dea29908024633f0376cccbe362c1d73524b43a28796c967"
+
+[[op]]
+id = "st.o_rrii_ra"
+book = "SimRISC-01.idl"
+impl = "_op_st_o"
+sha256 = "507b5abf34162498fae03c41dd4809b066f43430125aa45d77aab45e6ea9a0ae"
+
+[[op]]
+id = "st.o_rrii_rb"
+book = "SimRISC-01.idl"
+impl = "_op_st_o"
+sha256 = "42d1f393e9e98fc3a1b69427fa5e2cff67fa4ba9e7ffdcac828c3afa7dda45a2"
+
+[[op]]
+id = "st.o_rrii_rd"
+book = "SimRISC-01.idl"
+impl = "_op_st_o"
+sha256 = "fbc0a8fc5c9724863802a7286d0e3b7267cbf1694190f24183dcaf67acfbe27f"
+
+[[op]]
+id = "st.o_rrii_rf"
+book = "SimRISC-01.idl"
+impl = "_op_st_o"
+sha256 = "2e565988a74980d47592a0c879276671629b795f822d915049a62bb6dc75d5a2"
+
+[[op]]
+id = "st.t_rrii_rd"
+book = "SimRISC-01.idl"
+impl = "_op_st_narrow"
+sha256 = "11c2ecd46322936b0427d0dace84c262d45b9cd471d54c9a53b462737b2f4df0"
+
+[[op]]
+id = "st.t_rrii_rf"
+book = "SimRISC-01.idl"
+impl = "_op_st_t_rf"
+sha256 = "c766051e2839a209d0a3161d3267ec7aee132d80c7466b71a46c79ffde4c88ba"
+
+[[op]]
+id = "st.w_rrii_rd"
+book = "SimRISC-01.idl"
+impl = "_op_st_narrow"
+sha256 = "889551feb1dc006039853a280ebd2143cbcfbc73886604a9a0d452af901dcae7"
+
+[[op]]
+id = "stm.b_rrri_rd"
+book = "SimRISC-01.idl"
+impl = "_op_stm_narrow"
+sha256 = "c2e06194a8c037539eafa342ac8ab43fbd5f02e1c3f1ab005760275707e72d0c"
+
+[[op]]
+id = "stm.o_rrri_ra"
+book = "SimRISC-01.idl"
+impl = "_op_stm_o_ra"
+sha256 = "bc992aaedaa0686210717b339f270438aea324ad524ef93c2a3620821bf325a5"
+
+[[op]]
+id = "stm.o_rrri_rb"
+book = "SimRISC-01.idl"
+impl = "_op_stm_o_rb"
+sha256 = "a61a5248e08a4ba2f6c69c1263d1c050c283751658dd52f87bc734fbc533f4cc"
+
+[[op]]
+id = "stm.o_rrri_rd"
+book = "SimRISC-01.idl"
+impl = "_op_stm_o_rd"
+sha256 = "ca7d544889fa44237f4b8a495025cd0d44bccdc429925c4c6b4eb26cddf0f40b"
+
+[[op]]
+id = "stm.o_rrri_rf"
+book = "SimRISC-01.idl"
+impl = "_op_stm_o_rf"
+sha256 = "fb2a57c8e3797afe4dac4a171673442f2de326e9725aa933435d8bfdc0297cac"
+
+[[op]]
+id = "stm.t_rrri_rd"
+book = "SimRISC-01.idl"
+impl = "_op_stm_narrow"
+sha256 = "a2d491abae94f09570cfb47eee47e0ff1e6c9a4baf721404e6e512d7a3ee59cb"
+
+[[op]]
+id = "stm.t_rrri_rf"
+book = "SimRISC-01.idl"
+impl = "_op_stm_t_rf"
+sha256 = "4eb31dd67dcbd58e534f8318fd72ee0252ba7ba2061c2beeb8efb09b12ac75b5"
+
+[[op]]
+id = "stm.w_rrri_rd"
+book = "SimRISC-01.idl"
+impl = "_op_stm_narrow"
+sha256 = "310062828469bd17318ab23c575c5b38d2e0130c60a2fbb3c42d1aef004595f4"
+
+[[op]]
+id = "sub.o_orrr_bbd"
+book = "SimRISC-05.idl"
+impl = "_op_sub_o_bbd"
+sha256 = "54c582ae5bff8b55f4654744bbfba882c3a77b0728a20e7d779780132d2812ed"
+
+[[op]]
+id = "sub.o_orrr_dbb"
+book = "SimRISC-05.idl"
+impl = "_op_sub_o_dbb"
+sha256 = "a5b61cd7940ffe990370154de1492985a32e46a5ed4537b3aadfd9cc1e95fe3a"
+
+[[op]]
+id = "sub.sb_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_addsub"
+sha256 = "ab3882271e4107f516bd728446afc162717ddc612948e438c7735d98590eec25"
+
+[[op]]
+id = "sub.so_rrrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_sub_so"
+sha256 = "beec6434d2455a700c8e410b8b50af0bd70b34c0f0105b8e98e35c4d0b3a8e97"
+
+[[op]]
+id = "sub.st_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_addsub"
+sha256 = "229de59c5b3a048c13bee1f1cda42b2403c97f96e60d698bae310b4a11e302c2"
+
+[[op]]
+id = "sub.sw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_addsub"
+sha256 = "b3548df84e0c1005a7c86997532a22662557cb52bd15a93ee8235e911a95b9f8"
+
+[[op]]
+id = "sub.ub_orrr_rd"
+book = "SimRISC-10.idl"
+impl = "_narrow_addsub"
+sha256 = "f7083f2c1eb8ac18a5d268f3056a2cf468e483208e738d0b07380c85e3368e42"
+
+[[op]]
+id = "sub.uo_rrrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_sub_uo"
+sha256 = "c09e8716c14e74789e1870e9bb9e2d40acbc19e649c0f4f1ce3d91f24132741a"
+
+[[op]]
+id = "sub.ut_orrr_rd"
+book = "SimRISC-08.idl"
+impl = "_narrow_addsub"
+sha256 = "aed907b45fd3d03528328bca4a7d4afa3b6cef3a73618e95426e5010c01100fd"
+
+[[op]]
+id = "sub.uw_orrr_rd"
+book = "SimRISC-09.idl"
+impl = "_narrow_addsub"
+sha256 = "cd6c70b7cc01af1309e852be1af337df773b4aa0f809de319fde56857b9b4cb2"
+
+[[op]]
+id = "swym_oiii_imm"
+book = "SimRISC-12.idl"
+impl = "_op_swym"
+sha256 = "e32c4e3a5e34057a4e8b2eb51cceed9876d0f01563816fa60682d756a8a7d137"
+
+[[op]]
+id = "trap_ciii_cfx"
+book = "SimRISC-11.idl"
+impl = "_op_trap"
+sha256 = "7602b547ec4c8466faece8130b61a81ee2bef626f6aa2038dc573f960ad1cfe4"
+
+[[op]]
+id = "uo2fo_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_i2f"
+sha256 = "f3c268b0d1936ba2626b3301e97f9048b98027817e02044dccdc696f8c3cfd35"
+
+[[op]]
+id = "uo2ft_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_i2f"
+sha256 = "1b9ef78d7137d6589f4c6a54888fe98ff99685859b5962cb9fe8e564ff6dc78b"
+
+[[op]]
+id = "ut2fo_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_i2f"
+sha256 = "b2bd3e50043bf6284f94e45983b79ebc30fbb5dfb7a3bcff58631a02e9dd1ea8"
+
+[[op]]
+id = "ut2ft_orri_rf"
+book = "SimRISC-07.idl"
+impl = "_fp_i2f"
+sha256 = "21dae90726ec88d23ebb98ff34ec303c5cd58272507bfc093b412c1d9e9147da"
+
+[[op]]
+id = "xnor.o_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_xnor_o"
+sha256 = "3cb919c3fac5ea25a5e8e902d04b09d94ad6cf43fe32306077e5ad4320e97484"
+
+[[op]]
+id = "xor.o_orrr_rd"
+book = "SimRISC-04.idl"
+impl = "_op_xor_o"
+sha256 = "dd30e11c5561804f2a9271bf69c3a614b6b86208eff25bf62164a8d452fd4801"
+
+[[lib]]
+file = "lib/fp.idl"
+sha256 = "b0a0a717c09edb7fb03b99dcb235c8bac19ace9c8266fbfb62e8cc0ab066ef0d"

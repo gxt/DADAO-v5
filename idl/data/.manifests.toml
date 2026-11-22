@@ -2,6 +2,9 @@ schema = 1
 owner = "idl"
 recursive = false
 
+[files."exec_anchor.toml"]
+owner = "idl"
+
 [files."idl_exec_cases.toml"]
 owner = "idl"
 

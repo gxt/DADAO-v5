@@ -296,6 +296,7 @@ help:
 	@echo "  make check-manifests-guard  Directory manifests (.manifests.toml) gate: bidirectional file/subdir sets + sha256, recursive option (L1; m15-infra-005)"
 	@echo "  make check-idl-sync  idl/*.idl rendered into spec/ IDL markers, byte-exact (L1; m15-spec-001)"
 	@echo "  make check-idl-parse  IDL subset parser: 13 sources -> AST + frozen construct signatures + reject/accept sets (L1; m17-idl-002)"
+	@echo "  make check-idl-exec-anchor  Executor provenance lock: per-op body + idl/lib/*.idl sha256 vs @sem impls (L1; m17-idl-017)"
 	@echo "  make check-idl      IDL four-way differential (IDL+QEMU in L2; signature slots + exit codes vs expected.tsv; m17-idl-005)"
 	@echo "  make check-idl-full  IDL full four-way differential (IDL/QEMU/gem5/chipyard; nightly member; not in L1/L2/L3; m17-idl-014)"
 	@echo "  make check-component-changelog  Component changelog list-form/milestone-section gate (L1; INFRA-084t)"
@@ -1128,7 +1129,7 @@ _locked-clean-work:
 # 两条排在 `check-temp-dirs` **之前**：它们在 `$DADAO_TMP`（`check_toolchain.py`
 # 默认建任务临时目录）下跑探针，先跑可让该目录 mtime 保持新鲜，避免陈旧临时
 # 目录误报；`check_k0.py`（L2）另行把 DADAO_TMP 指到自己的 scratch。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-manifests-guard check-idl-sync check-idl-parse check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-config-pins check-writer-guards check-temp-dirs
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-manifests-guard check-idl-sync check-idl-parse check-idl-exec-anchor check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-config-pins check-writer-guards check-temp-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1363,6 +1364,15 @@ check-idl-sync:
 # 规则见 docs/Process-07 §1.1/§7。
 check-idl-parse:
 	@$(PYTHON) idl/tools/idl_parser.py --check
+
+# IDL 执行器「依据锁」门控 (m17-idl-017, **L1 成员**): `idl/data/exec_anchor.toml` 锁住执行器
+# 实现所依据的正文——`[[op]]` 逐条 operation（`# id:` 行起、至下一条之前，切分复用
+# `idl_render.py`）+ `impl`（`@sem` 注册的实现函数名）+ `[[lib]]` 逐 `idl/lib/*.idl` 文件 sha256。
+# 判据：集合相等（现场派生、无重复）+ 每条 sha 命中 + `impl` 在 `@sem` 注册里；sha 差异 rc=1、
+# 集合/结构错 rc=2，逐条打印 id/book/expected/actual。改 `.idl`（含库文件）⇒ 必须 `--update`
+# 并在评审说明实现是否跟改。纯静态、无需安装根。规则见 docs/Process-07 §1.1/§7。
+check-idl-exec-anchor:
+	@$(PYTHON) idl/tools/idl_check_anchor.py --check
 
 # IDL 四方差分门控 (m17-idl-005, **L2 成员**): 主清单 `idl/data/idl_exec_cases.toml`
 # `[[case]]` 的镜像逐例跑 IDL + QEMU（L2 只两方：主控机不依赖 gem5/Verilator 构建），

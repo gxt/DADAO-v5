@@ -9,6 +9,7 @@
 | `tools/idl_render.py` | 渲染器 + 门控：按 `# id:` 切分 → 填 `spec/` 的 `<!-- IDL:<id> BEGIN/END -->` 标记 → `--check` 逐字节比对 |
 | `tools/idl_subset_stats.py` | 语法构造现场统计 + 两份盘点文档的校验（`--check`）：M17 前端实现口径的机械真源 |
 | `tools/idl_parser.py` | IDL 子集解析器（Python 标准库）：`.idl` → AST + 构造签名门控（`--check`/`--update`/`--self-test`） |
+| `tools/idl_check_anchor.py` | 执行器「依据锁」门控（`m17-idl-017`）：`.idl` operation 正文 + `lib/*.idl` 文件 sha256 + `@sem` 实现函数名 ↔ `data/exec_anchor.toml`（`--check`/`--update`/`--self-test`） |
 | `tools/idl_exec.py` | 执行器核心（`m17-idl-003`）：四寄存器组 / 48 位地址 / 大端存储 / ELF 加载 / 最小 `trap`·`escape`；编码取 `contracts/opcodes.yaml`，语义按各 `.idl` 的 operation 正文 |
 | `tools/idl_fp.py` | FP 独立 spec-exact 参考模型（精确值一次舍入 + `rf0[4:0]` 标志；原 `chipyard/fp_ref.py`）：`07-floating-point` 的 50 个 op 由 `idl_exec.py` 薄封装调用它（`m17-idl-013`） |
 | `tools/idl_four_way.py` | 四方差分驱动（IDL / QEMU / gem5 / chipyard；`make check-idl` 的 L2 入口） |
@@ -22,6 +23,7 @@
 | `data/idl_parse_cases.toml` | 解析器拒绝集（语法错误必须报错）+ 接受集（合法样例必须通过） |
 | `data/idl_parse_fixture.json` | 每个 operation/function/enum/常量的**构造签名**冻结（`tools/idl_parser.py --update` 生成） |
 | `data/idl_exec_cases.toml` | 执行器差分用例清单（`tests/inst` 已有载体；`tools/idl_four_way.py` 读它） |
+| `data/exec_anchor.toml` | 执行器「依据锁」：逐 operation 正文 sha256 + `book`/`impl` + `lib/*.idl` 逐文件 sha256（`tools/idl_check_anchor.py --update` 生成，禁手改） |
 | `docs/syntax-subset.md` | 语法子集盘点：13 个源文件用到的构造、现场次数、首个出处（`m17-idl-001`） |
 | `docs/width-rules.md` | 宽度/符号派生规则表（每条标出处）+ 已定义语义清单（`m17-idl-001`） |
 | `docs/diff-vs-udb.md` | 与 UDB 的差异盘点（结论索引） |
@@ -43,6 +45,9 @@ python3 idl/tools/idl_parser.py --update # 改 .idl 后重生成构造签名 fix
 python3 idl/tools/idl_parser.py --stats  # 现场统计（每册 operation/function/enum/节点种类）
 python3 idl/tools/idl_parser.py --ast <id>  # 打印某条 operation 的 AST（S 表达式）
 python3 idl/tools/idl_parser.py --self-test # 临时树内注入自检（删括号 / 改 AST / 子集外构造）
+python3 idl/tools/idl_check_anchor.py --check  # 执行器依据锁校验（make check-idl-exec-anchor 调它）
+python3 idl/tools/idl_check_anchor.py --update # 改 .idl（含 lib/*.idl）后重生成；评审 diff 并说明实现是否跟改
+python3 idl/tools/idl_check_anchor.py --self-test # 临时树内注入自检（改正文 / 删 id / 删表条 / 改库文件）
 python3 idl/tools/idl_exec.py --self-test  # 执行器自检（寄存器组/48 位地址/大端/RAS/异常/semihosting）
 python3 idl/tools/idl_exec.py --elf <elf> [--bootrom <img>] [--init <json>] [--state-out <json>]
                                      # 运行一个镜像；--init = 初始架构状态（QEMU 观测面）
@@ -67,6 +72,8 @@ python3 idl/tools/idl_check_trace.py --images <dir> --bootrom <img>
 **M17 执行器补齐（窄位宽 ALU）**（`m17-idl-008`）：`08`/`09`/`10` 三册（32/16/8 位算术、比较、乘除余、移位/循环/反转）与 `03` 剩余 6 个镜像全部纳入主清单，`pending` 清零（主清单 222）；窄位宽按 `.idl` 正文的 size 截断 + `.s`/`.u` 符号/零扩展实现，orri/orrr 共用参数化路径（移位量取 `immu6` 或 `rdHD` 低位）。
 
 **M17 执行器补齐（浮点，阶段二）**（`m17-idl-013`）：`07-floating-point` 整册 **50 个 op**（转换 18 / 算术 12 / 比较 4 / 符号 4 / minmax 4 / 分类 2 / 取整 2 / 开方 2 / fma 2）纳入主清单；执行器只做薄封装（合法性、`rf0[33:32]` 或 `immu6` 六档取舍入方向、ft 窄写/fo 整写、标志 sticky 并入 FCSR），值与标志由 `tools/idl_fp.py` 给出 ⇒ `SEMANTICS` **263/263**（`contracts/opcodes.yaml` 全覆盖）、主清单 **272**。
+
+**执行器「依据锁」**（`m17-idl-017`）：`data/exec_anchor.toml` 锁住 `tools/idl_exec.py` 每条 `@sem` 实现所依据的 operation 正文（`# id:` 行起、至下一条之前，切分复用 `tools/idl_render.py`）与 `idl/lib/*.idl` 文件全文；判据 = 集合相等（条数现场派生）+ sha 逐条命中 + `impl` 在 `@sem` 注册里。**改 `.idl`（含 `lib/*.idl`，FP 语义在库里）⇒ 必须 `--update`**，并在评审里说明对应实现是否跟改；不跟改也要显式更新，让「正文变了、实现没动」在 diff 里可见。
 
 ## 四方差分与门控（阶段一收口，`m17-idl-009`）
 
