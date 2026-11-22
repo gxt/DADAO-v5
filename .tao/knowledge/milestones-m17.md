@@ -31,6 +31,7 @@
 | m17-idl-015 | 30–60 min | manifest 增 `ignore` 字段（只弃 `git check-ignore` 判定的直接子项；`ISS-480`） |
 | m17-idl-016 | 30–60 min | spec 263 块生成注记改为不含路径的稳定写法（`idl/render.py` 已不存在） |
 | m17-idl-017 | 1–2 h | 执行器「依据锁」：`.idl` 正文/库 sha 锁 + `check-idl-exec-anchor`（L1） |
+| m17-testcases-003 | 1–2 h | 退役 `check-inst-sig`（`check-idl` 已是超集；保留期望值派生） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
