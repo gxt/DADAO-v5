@@ -29,6 +29,7 @@
 | `docs/execution-environment-tiers.md` | **执行环境分层**（Draft）：C 库 / syscall 接口 / 内核行为 / 平台四层的分工与选择、平台 × 能力矩阵、测试与基准矩阵（M7 快照，M14 后复审） |
 | `docs/cfx-register-usage.md` | **CFX 寄存器 usage profile**：Linux/代表性负载实际使用的 cfx cg/rc 统计表（供实现裁剪 optional 寄存器；原则见 `ADR-0046`） |
 | `docs/idl-trace-format.md` | **逐指令 trace 格式**（`m17-idl-004`）：JSONL 记录字段、写回/异常口径、与 QEMU `-d cpu` 的比对与四类文档化等价、M20 Minor/wuqing 复用约定；样例 `docs/idl-trace-sample.jsonl` 由脚本生成 |
+| `docs/idl-four-way.md` | **IDL 四方差分口径**（`m17-idl-005`）：签名槽 + 退出码判据、平台集（L2 = IDL+QEMU）、`SYS_WRITE` 不可用回退口径、`[[case]]`/`[[pending]]` 清单集合断言 |
 
 ## 测试报告（`TestReports/`）
 

@@ -75,7 +75,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-legality-drift check-interface validate-encoding check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-manifests-guard check-cfx-aliases check-asm-prose check-lit \
-        check-idl-parse \
+        check-idl-parse check-idl \
         check-cfx-alias-table check-cfx-alias-install check-cfx-vectors \
         check-lit-full \
         check-run-artifacts \
@@ -169,7 +169,7 @@ GATE_LOCKED_TARGETS = install-host install-cfx-aliases clean-work \
                       check-linux-k0 check-linux-k1 check-linux-k2 check-linux-k5 check-linux-k6 \
                       test-codegen test-elf test-m6 test-picolibc-smoke \
                       check-lit check-lit-full \
-                      check-inst-asm check-inst-sig check-arch check-arch-smoke \
+                      check-inst-asm check-inst-sig check-idl check-arch check-arch-smoke \
                       check-unit check-unit-full check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke \
                       check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
                       clean-tests test-repro \
@@ -296,6 +296,7 @@ help:
 	@echo "  make check-manifests-guard  Directory manifests (.manifests.toml) gate: bidirectional file/subdir sets + sha256, recursive option (L1; m15-infra-005)"
 	@echo "  make check-idl-sync  idl/*.idl rendered into spec/ IDL markers, byte-exact (L1; m15-spec-001)"
 	@echo "  make check-idl-parse  IDL subset parser: 13 sources -> AST + frozen construct signatures + reject/accept sets (L1; m17-idl-002)"
+	@echo "  make check-idl      IDL four-way differential (IDL+QEMU in L2; signature slots + exit codes vs expected.tsv; m17-idl-005)"
 	@echo "  make check-component-changelog  Component changelog list-form/milestone-section gate (L1; INFRA-084t)"
 	@echo "  make check-syscall-abi  syscall argument-bank tables agree across musl C stub / cancellable asm / QEMU host, and cover every syscall musl can issue (L1; ISS-249)"
 	@echo "  make check-contracts-pending  Contract pending markers (待定/待裁定/TODO/TBD) must carry an ADR-/ISS- pointer (L1; 2026-10-17)"
@@ -1135,6 +1136,8 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 # smoke」⇒ FP 探针**移出** L2，只在 L3；四类探针 rnd/minmax/fma/clmul 此后已**全部退役**
 # ——前三类 `m13-testcases-044`、clmul `m15-testcases-008`）
 #   inst : check-inst-asm（`.S` 载体全量 265 id，单平台 QEMU；YAML 载体已全退役）
+#   idl  : check-idl（IDL + QEMU 两方基线；签名槽 + 退出码，`m17-idl-005`。全四方
+#          `--platforms qemu,gem5,chipyard` 由节点/收口调用，不在 L2 依赖 gem5/Verilator）
 #   arch : check-arch-smoke
 #   unit : check-unit（= check-lit + test-codegen + test-elf + ir-lli + picolibc fast）
 #   tset : check-tset-{libc,llvm,embench}-smoke
@@ -1146,7 +1149,7 @@ _locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree
 #         m14-linux-029）与 check-linux-k6（K6 收口：busybox sh + 五条代表命令 +
 #         退出码；m18-linux-003）。K3 收口随阶段整体退役（用户 2026-11-20 裁定）。
 #         只读产物 + 增量构建（秒级），不跑被测语义的全量套件）
-_locked-check-modules: check-inst-asm check-inst-sig check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-linux-k0 check-linux-k1 check-linux-k2 check-linux-k5 check-linux-k6
+_locked-check-modules: check-inst-asm check-inst-sig check-idl check-arch-smoke check-unit check-tset-libc-smoke check-tset-llvm-smoke check-tset-embench-smoke check-linux-k0 check-linux-k1 check-linux-k2 check-linux-k5 check-linux-k6
 	@echo "module checks (L2): PASS"
 
 # L3 = 全量（TESTCASES-076t；2026-10-27 用户裁定「一个检查只在一层」严格化；TESTCASES-082t 去 tset smoke）。
@@ -1359,6 +1362,28 @@ check-idl-sync:
 # 规则见 docs/Process-07 §1.1/§7。
 check-idl-parse:
 	@$(PYTHON) idl/idl_parser.py --check
+
+# IDL 四方差分门控 (m17-idl-005, **L2 成员**): 主清单 `idl/idl_exec_cases.toml`
+# `[[case]]` 的镜像逐例跑 IDL + QEMU（L2 只两方：主控机不依赖 gem5/Verilator 构建），
+# 判据 = 签名槽流（8 B/槽，逐槽）与退出码全等，且每方槽值再对独立 oracle
+# `tests/data/inst-signature/expected.tsv` 逐槽比对（四方一致但全错仍红）。
+# 清单集合断言：主清单 == `tests/inst/*/*.S` − `07-floating-point` − `[[pending]]`
+# （现场派生，脚本内 fail-closed）。全四方（+gem5/chipyard）由节点/收口调用：
+#   python3 tools/idl/check_four_way.py --platforms qemu,gem5,chipyard
+# 缺 QEMU 安装根/固件 ⇒ ERROR（不静默跳过）。读方护栏：登记 qemu/bootrom/llvm。
+# 规则见 docs/idl-four-way.md + docs/Process-07。
+IDL_FOUR_WAY_LOG = .work/log/idl/check-idl.log
+_locked-check-idl:
+	@mkdir -p .work/log/idl
+	@test -x $(QEMU_BIN) || { echo "check-idl: ERROR: $(QEMU_BIN) not found — run 'make install-host' first"; exit 1; }
+	@test -f $(TINY_BOOTROM) || { echo "check-idl: ERROR: $(TINY_BOOTROM) not found — run 'make build-bootrom' first"; exit 1; }
+	@$(PYTHON) tools/idl/check_four_way.py --jobs $(TEST_JOBS) \
+	    > $(IDL_FOUR_WAY_LOG) 2>&1; \
+	  rc=$$?; \
+	  grep -E "^(check_four_way|  \[FAIL\])" $(IDL_FOUR_WAY_LOG) || true; \
+	  tail -3 $(IDL_FOUR_WAY_LOG); \
+	  if [ $$rc -ne 0 ]; then echo "check-idl: FAIL (rc=$$rc)"; exit $$rc; fi; \
+	  echo "check-idl: PASS"
 
 # 契约目录顶层白名单门控 (INFRA-071t, L1 成员; 守两处): `.tao/contracts/` 顶层只允许
 # `contract-*.md` / `README.md` / 子目录; `contracts/` 顶层只允许 `*.yaml` / `README.md` /

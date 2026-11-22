@@ -53,6 +53,10 @@ def load_cases(path):
     if not isinstance(cases, list) or not cases:
         raise SystemExit("check_exec_parity: %s: no [[case]] entries" % path)
     for c in cases:
+        # m17-idl-005 起清单是「镜像 → 类别」：`image` 是主键，`id` 由 stem 派生
+        # （旧清单只有 `id`，保留兼容）。
+        if "image" in c:
+            c.setdefault("id", Path(c["image"]).stem)
         for key in ("id", "category"):
             if key not in c:
                 raise SystemExit("check_exec_parity: case missing %r: %r"

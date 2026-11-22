@@ -77,9 +77,16 @@ NONPTW_SUBCAUSE = 1 << 57
 MODE_USER, MODE_JAIL, MODE_SUPV, MODE_HYPV = 0, 1, 2, 3
 MODE_MONITOR = {MODE_USER: 0, MODE_JAIL: 1, MODE_SUPV: 2, MODE_HYPV: 3}
 
+# spec/SimRISC-00 §2.3.1：rf0 的只读 Quiet NaN 字段（[63:51] 双精 qNaN 位、
+# [31:22] 单精 qNaN 位）；复位值由规范位域直接给出，舍入模式/异常状态为 0。
+RF0_QNAN_FO = 0b0111111111111 << 51
+RF0_QNAN_FT = 0b0111111111 << 22
+RF0_RESET = RF0_QNAN_FO | RF0_QNAN_FT
+
 # contract-semihosting §1/§3。
 SEMIHOST_TAG = 0x3FF00
 SYS_WRITEC, SYS_CLOCK, SYS_EXIT, SYS_EXIT_EXTENDED = 0x03, 0x10, 0x18, 0x20
+SYS_WRITE = 0x05
 ADP_STOPPED_APP_EXIT = 0x20026
 
 
@@ -349,6 +356,7 @@ class Machine:
         self.mem = mem
         self.dec = Decoder()
         self.banks = {b: [0] * 64 for b in ("rd", "rb", "rf", "ra")}
+        self.banks["rf"][0] = RF0_RESET      # spec/SimRISC-00 §2.3.1 只读 qNaN 位
         self.ip = 0
         self.mode = MODE_HYPV
         self.cfx_code = 63
@@ -589,6 +597,17 @@ class Machine:
             return
         if service == SYS_CLOCK:
             self.set("rd", 8, 0)
+            self.rd8_defined = True
+            self.jumped = False
+            return
+        if service == SYS_WRITE:
+            # contract-semihosting §3：SYS_WRITE 返回**未写字节数**。本执行器不提供
+            # 块写通道 ⇒ 报「全部未写」（返回请求长度），guest 的 `SIG_DUMP`
+            # （tests/shared/asm/signature.inc）据此回退 `SYS_WRITEC` 逐字节路径，
+            # 与 QEMU/gem5 实测路径一致（docs/idl-four-way.md）。
+            block = self.get("rb", 16) & MASK48
+            nbytes = self.mem.read_memory(64, block + 16)
+            self.set("rd", 8, nbytes)
             self.rd8_defined = True
             self.jumped = False
             return
@@ -1332,6 +1351,7 @@ def self_test():
     m.set("ra", 8, 0xDEF0)
     eq("bank_writeback", [m.get("rd", 5), m.get("rb", 6), m.get("rf", 7),
                           m.get("ra", 8)], [0x1234, 0x5678, 0x9ABC, 0xDEF0])
+    eq("rf0_reset_qnan", m.get("rf", 0), 0x7FF800007FC00000)
     m.set("rd", 0, 0xFFFF)
     eq("rd0_read_zero", m.get("rd", 0), 0)
     m.ip = 0xFFFF_FF01_0100
@@ -1409,6 +1429,18 @@ def self_test():
     m4.set("rd", 16, SYS_EXIT)
     m4._semihost(SEMIHOST_TAG)
     eq("semihost_exit", (m4.halted, m4.exit_code), (True, 7))
+
+    # 7. SYS_WRITE 不可用 ⇒ 返回「全部未写」（guest 走 SYS_WRITEC 回退）
+    m5 = _mk_machine()
+    wblock = 0xFFFF_FF01_7800
+    m5.mem.write_memory(64, wblock, 1)
+    m5.mem.write_memory(64, wblock + 8, 0xFFFF_FF01_7000)
+    m5.mem.write_memory(64, wblock + 16, 16)
+    m5.set("rb", 16, wblock)
+    m5.set("rd", 16, SYS_WRITE)
+    m5._semihost(SEMIHOST_TAG)
+    eq("semihost_write_unavailable",
+       (m5.get("rd", 8), m5.rd8_defined, len(m5.output)), (16, True, 0))
 
     failed = [c for c in checks if not c[1]]
     for name, ok, got, want in checks:
