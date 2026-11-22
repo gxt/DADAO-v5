@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..ddfba87
+index 0000000..d023c10
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,2042 @@
+@@ -0,0 +1,2153 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -242,6 +242,33 @@ index 0000000..ddfba87
 +    WumingCacheParams(writeBack = true, withDirty = true, label = "dcache"),
 +    dataEdge, srcBits))) else None
 +
++  // ---- `cfx_cache` maintenance sequencer (`m16-chipyard-017`) -------------
++  // The `cache_ctrl` write is a write-executes register: the instruction
++  // completes only after every selected side has run the command
++  // (`contract-cache` CACHE-24).  `gewu` owns the register and the encoding
++  // check (an illegal encoding fails `writeOk`, so the core takes the
++  // `CFXREG` path before any command is produced), so this sequencer only
++  // orders the per-side commands: I first, then D when both are selected
++  // (CACHE-21), and a side whose `cache_enable` bit is 0 is skipped
++  // (CACHE-08).  `clean` on the instruction side is a no-op (CACHE-19) and is
++  // not issued at all.  A machine without `cfx_cache` (Kaiwu-Tiny) creates
++  // none of these registers.
++  private class CacheMaint {
++    val ctl = RegInit(0.U(64.W))
++    val start = RegInit(0.U(56.W))
++    val size = RegInit(0.U(64.W))
++    val pendI = RegInit(false.B)
++    val pendD = RegInit(false.B)
++    val toI = RegInit(false.B)
++    /** Sub-FSM phase: 0 = wait for the registered write pulse, 1 = pick the
++      * next side, 2 = hold the command until the cache accepts it, 3 = wait
++      * for `cmdDone`. */
++    val phase = RegInit(0.U(2.W))
++    val cmdValid = WireDefault(false.B)
++    val cmdBits = WireDefault(0.U.asTypeOf(new WumingCacheCmd))
++  }
++  private val cm = if (params.useVM) Some(new CacheMaint) else None
++
 +  private val ptwReqValid = WireDefault(false.B)
 +  private val ptwReqVa = WireDefault(0.U(64.W))
 +  private val ptwReqFetch = WireDefault(false.B)
@@ -262,7 +289,7 @@ index 0000000..ddfba87
 +  // Translation context (Vast only): what the parked state is waiting for, the
 +  // PA of the translated fetch, and the PA of the current data beat.
 +  private class WumingXlateState extends Bundle {
-+    val kind = UInt(2.W)        // 0 = fetch, 1 = data (first beat), 2 = data (page cross)
++    val kind = UInt(3.W)        // 0 = fetch, 1 = data (first beat), 2 = data (page cross), 3 = tlb command, 4 = cache maintenance
 +    val fetchDone = Bool()      // `ip`'s demand fetch has been translated
 +    val fetchPa = UInt(64.W)
 +    val memPaBeat = UInt(64.W)
@@ -744,10 +771,10 @@ index 0000000..ddfba87
 +      state === sMwait, dc.io.tl.d.ready)
 +    dc.io.tl.d.valid := io.dmem.d.valid
 +    dc.io.tl.d.bits := io.dmem.d.bits
-+    // The clean/invalidate port is internal for now: `cfx5` wiring is a
-+    // separate task (`m16-chipyard-009` scope).
-+    dc.io.cmd.valid := false.B
-+    dc.io.cmd.bits := 0.U.asTypeOf(new WumingCacheCmd)
++    // The clean/invalidate port is driven by the `cfx5` sequencer above
++    // (`m16-chipyard-017`); nothing else may use it.
++    dc.io.cmd.valid := cm.get.cmdValid && !cm.get.toI
++    dc.io.cmd.bits := cm.get.cmdBits
 +  } else {
 +    // No cache on this machine: the data port belongs to the memory unit.
 +    io.dmem.a.valid := directValid
@@ -1056,12 +1083,12 @@ index 0000000..ddfba87
 +    ic.io.core.req.bits.write := false.B
 +    ic.io.core.req.bits.wdata := 0.U
 +    ic.io.core.req.bits.wmask := 0.U
-+    // The instruction cache has no second requester and no maintenance port:
-+    // `cfx5` clean/invalidate talks to the data cache only.
++    // The instruction cache has no second requester; its maintenance port is
++    // the other half of the `cfx5` sequencer (`m16-chipyard-017`).
 +    ic.io.ptw.req.valid := false.B
 +    ic.io.ptw.req.bits := 0.U.asTypeOf(new WumingCacheRequest)
-+    ic.io.cmd.valid := false.B
-+    ic.io.cmd.bits := 0.U.asTypeOf(new WumingCacheCmd)
++    ic.io.cmd.valid := cm.get.cmdValid && cm.get.toI
++    ic.io.cmd.bits := cm.get.cmdBits
 +  }
 +
 +  // One driver for the fetch port: the cache whenever the core has no
@@ -1585,6 +1612,14 @@ index 0000000..ddfba87
 +          // (TLB-22: neither scope nor `size` is even looked at).
 +          val isTlbControl = d.cfxHa === WumingCfxHa.ptw.U(6.W) &&
 +            d.cfxCg === 12.U && d.cfxRc === 0.U && d.cfxWrite
++          // `cfx_cache_ctrl` (`cg8 rc9`, WO, write-executes): the encoding was
++          // checked by `gewu` (`writeOk`, CACHE-11…CACHE-14), so an illegal
++          // one already took the `cfxFault` path above and never reaches this
++          // branch.  The command itself runs in the `sXlate` maintenance
++          // sub-FSM (`kind = 4`), which consumes the registered write pulse and
++          // orders the per-side commands (CACHE-24).
++          val isCacheControl = d.cfxHa === WumingCfxHa.cache.U(6.W) &&
++            d.cfxCg === 8.U && d.cfxRc === 9.U && d.cfxWrite
 +          val ctl = srcA
 +          val ctlOp = ctl(1, 0)
 +          val ctlScope = ctl(3, 2)
@@ -1602,6 +1637,14 @@ index 0000000..ddfba87
 +            ptwCmdBits.start := gewu.io.ptw.get.tlbAddrStart
 +            ptwCmdBits.size := gewu.io.ptw.get.tlbAddrSize
 +            vx.get.kind := 3.U
++            vx.get.va := ip
++            state := sXlate
++          }.elsewhen(isCacheControl) {
++            // The cache maintenance sub-FSM runs parked in `sXlate` (like a
++            // TLB command), so the core's state enum and Kaiwu-Tiny's FSM are
++            // untouched (`m16-chipyard-017`).
++            cm.get.phase := 0.U
++            vx.get.kind := 4.U
 +            vx.get.va := ip
 +            state := sXlate
 +          }.otherwise {
@@ -1861,6 +1904,74 @@ index 0000000..ddfba87
 +              enterHmonSub(ip, false.B, ptw.get.io.cmdDone.bits.info,
 +                GewuCauseId.MEM_ADWBFAIL.U)
 +            }.otherwise { finish(ip + 4.U) }
++          }
++        }.elsewhen(vx.get.kind === 4.U) {
++          // `cfx_cache_ctrl` (`m16-chipyard-017`): the write instruction
++          // completes only after every selected side has run the command
++          // (`contract-cache` CACHE-24).  The registered `control` pulse from
++          // `gewu` is consumed in phase 0, so an encoding that failed
++          // `writeOk` (CFXREG, taken in `sExec`) never produces a command.
++          val c = cm.get
++          val cs = gewu.io.cache.get
++          when(c.phase === 0.U) {
++            when(cs.control) {
++              c.ctl := cs.controlData
++              c.start := cs.addrStart
++              c.size := cs.addrSize
++              // Sides to visit, I before D (CACHE-21).  A disabled side is not
++              // maintained (CACHE-08); `clean` on I is a no-op (CACHE-19).
++              val op = cs.controlData(1, 0)
++              val sel = cs.controlData(15, 14)
++              val pendI = sel(1) && cs.enable(0) && op =/= 1.U
++              val pendD = sel(0) && cs.enable(1)
++              c.pendI := pendI
++              c.pendD := pendD
++              when(op === 0.U || sel === 0.U || (!pendI && !pendD)) {
++                // `[15:14] = 00` and `op = none` are unconditional no-ops that
++                // do not look at the range or `size` (CACHE-12/13).
++                finish(ip + 4.U)
++              }.otherwise {
++                c.phase := 1.U
++              }
++            }
++          }.elsewhen(c.phase === 1.U) {
++            when(c.pendI) {
++              c.pendI := false.B
++              c.toI := true.B
++              c.phase := 2.U
++            }.elsewhen(c.pendD) {
++              c.pendD := false.B
++              c.toI := false.B
++              c.phase := 2.U
++            }.otherwise {
++              finish(ip + 4.U)
++            }
++          }.elsewhen(c.phase === 2.U) {
++            c.cmdValid := true.B
++            c.cmdBits.op := c.ctl(1, 0)
++            c.cmdBits.scope := c.ctl(3, 2)
++            c.cmdBits.addr := c.start.pad(64)
++            c.cmdBits.size := c.size
++            val ready = Mux(c.toI, icache.get.io.cmd.ready, dcache.get.io.cmd.ready)
++            when(ready) { c.phase := 3.U }
++          }.otherwise {
++            val done = Mux(c.toI, icache.get.io.cmdDone, dcache.get.io.cmdDone)
++            val err = Mux(c.toI, icache.get.io.cmdError, dcache.get.io.cmdError)
++            when(done) {
++              when(err) {
++                // A maintenance write-back the bus refused.  `contract-cache`
++                // CACHE-25 knows no command-level failure state, but a refused
++                // write-back is a storage fault on this machine (all cacheable
++                // memory is writable PA RAM, so it is unreachable here); report
++                // it explicitly instead of pretending the line was cleaned.
++                enterHmonSub(ip, false.B,
++                  Mux(c.toI, icache.get.io.cmdErrorAddr,
++                    dcache.get.io.cmdErrorAddr),
++                  GewuCauseId.MEM_ADWBFAIL.U)
++              }.otherwise {
++                c.phase := 1.U
++              }
++            }
 +          }
 +        }.elsewhen(ptw.get.io.resp.valid) {
 +          val r = ptw.get.io.resp.bits

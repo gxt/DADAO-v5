@@ -265,6 +265,42 @@ make check-patch-tree
   均判据红，`cp`+md5 还原重建后回绿；Tiny 的 `11-cfx`（含 cfx5 ⇒ `CFXREG`）与
   `01-load-store` 改前/改后逐镜像字节相同。
 
+## Kaiwu-Vast 的 cfx5 维护命令（`m16-chipyard-017`）
+
+- **范围**：把 `cache_ctrl`（`cg8 rc9`，写即执行）接到 `WumingCache` 的 I/D
+  `cmd` 端口；**不改**填充/替换算法，**不改** 016 的寄存器位域。
+- **控制字**（`contract-cache` §3，`CACHE-09`…`CACHE-14`）：`[1:0]` 操作
+  （none/clean/invalidate/flush）、`[3:2]` 范围（all/PA 单行/PA 区间/reserved）、
+  `[15:14]` 选择（bit15 = I、bit14 = D）；非法编码仍由 `gewu` 的 `writeOk`
+  拒绝 ⇒ `CFXREG`，核在 `sExec` 的 `cfxFault` 路径先走掉，命令不会产生。
+- **执行**：核在 `sXlate` 里用一个子状态机（`kind = 4`）执行：消费 `gewu` 的
+  写脉冲 → 按判序选侧（先 I 后 D，`CACHE-21`）→ 等 `cmdDone` → 下一条侧，
+  全部完成才 `finish(ip+4)`（同步完成，`CACHE-24`）。`cache_enable` 对应位为 0
+  的侧**不发出命令**（`CACHE-08`），I 侧 `clean` 是 no-op、根本不发（`CACHE-19`）。
+  不新增核 FSM 状态（`Enum(16)` 不变 ⇒ Tiny 的 FSM 宽度不变）。
+- **缓存侧**：`WumingCacheCmd` 增加 `scope`/`size`（`op` 语义不变）；
+  `scope = 1` 按 set/tag 直接查一行；`scope = 0/2` **枚举全表**并按行的
+  重建 PA 过滤（`all` 全收；区间按 `[addr, addr+size)` 相交，与 gem5 的
+  tag-store 枚举同法，不随操作数大小扫地址空间）；`invalidate` 只丢不写回，
+  `clean` 写回并保留，`flush` 写回后丢（`CACHE-19`/`CACHE-20`）。写回被总线
+  拒绝时保留脏行并抬 `cmdError`/`cmdErrorAddr`，核报 `CFXMEM [56] ADWBFAIL`
+  （本机全部可缓存内存都是可写 PA RAM，该路径不可达）。
+- **维护丢弃不重排 age 列**：`dropLine` 只清 `valid`/`dirty`；被丢的 way 是下一次
+  填充的首选，`fillAge` 在分配时重置它的 age。这样避免了「按动态 set/way 索引
+  重排 1024 条 age」把生成的 age 更新逻辑放大一个数量级（实测 D 实例的
+  `WumingCache.sv` 由 2.2 GB/2176 万行降到 12 MB/9.5 万行，Verilator 不再 OOM）；
+  替换策略由实现决定（`CACHE-05`），`fill`/淘汰路径的 LRU 语义未改。
+- **不可缓存/MMIO**（`CACHE-22`）：只有翻译后的内存窗口 beat 进缓存，
+  核内窗口（SRAM/hmon/BootROM）从不成行；命令按 PA 枚举现有行，落在
+  这些 PA 上自然无效果、不报异常。
+- **验证**：`tests/arch/cache/cfx5_maint.S`（+ `gen_cfx5_maint_tables.py`
+  单一真源、`check_cfx5_maint.py` 判据）。29 条记录 + 缓存日志时序；D 侧
+  「是否写回」以**取指端口**为独立观测量（改代码行 → 命令 → `I|invalidate` →
+  跳转执行到的立即数即内存内容），日志另断言 invalidate 无 `wb`、flush 后
+  重新缺失、I|clean 不进 I 侧且 I 行仍在、`enable=0` 的命令未发出。注入
+  「invalidate 先写回」与「I 侧不维护」各判红，`cp`+md5 还原并强制重建后回绿；
+  Tiny 的 `11-cfx`/`01-load-store` 改前/改后逐镜像字节相同。
+
 ## Kaiwu-Vast 的 I-Cache（`m16-chipyard-010`）
 
 - **口径**（用户 2026-11-20）：I/D 各 **8 路 × 128 组 × 64 B = 64 KiB**（本任务是 I 侧，D 侧是 `009`）；**只读、无 dirty、无写回、无写穿**（与 `008` 的 I-TLB 无 D 位同构）；**索引位在 64 KiB 页内**（line offset 6 + 组索引 7 = 13 < 16 ⇒ VIPT 无别名、每路 8 KiB）；缺失按 **8 个 64 位 beat** 填充；阻塞式（单未决缺失）。

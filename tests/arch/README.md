@@ -51,7 +51,7 @@ python3 tests/arch/run_arch.py --list
 | `common/env-{hmon,smon,umon}/` | — | **运行模式环境**（每个模式一个目录，`env.S`；共享 `common/env.lds`）：进入模式、栈、异常向量、退出与签名区；body 与模式解耦（`m16-testcases-015`，见 `common/env-README.md` / `MIGRATION.md`） |
 | `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.s`，10 条）+ `expected.yaml`；代表迁移用例 `mode_regs.body.S` + 驱动 `check_mode_env.py`（`arch-umon-011`，三模式） |
 | `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针：载体/生成器 `carrier_tlb.py`（`m16-testcases-010` 由 `tools/testcases/arch/` 迁入）、期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §）、驱动型入口 `check_tlb.py`（`kind: driver`）；QEMU 与 gem5（shim）逐条跑，RTL 由 `m16-chipyard-018` |
-| `cache/` | `cfx5`（cache） | 寄存器面 RTL 探针 `cfx5_regs.S` + `check_cfx5_regs.py`（`m16-chipyard-016`）；只测寄存器，不测阵列/维护命令效果；暂未登记 `tests/arch.yaml`（chipyard 后端仍 fail-closed） |
+| `cache/` | `cfx5`（cache） | 寄存器面 RTL 探针 `cfx5_regs.S` + `check_cfx5_regs.py`（`m16-chipyard-016`）；I/D 维护命令 RTL 探针 `cfx5_maint.S` + `gen_cfx5_maint_tables.py` + `check_cfx5_maint.py`（`m16-chipyard-017`，记录 + 缓存日志时序）；暂未登记 `tests/arch.yaml`（chipyard 后端仍 fail-closed） |
 
 其余 cfx 按已有用例增建（`smon/`、`hmon/`、`cache/`、`hart/`、`pmem/`、`time/`、
 `power/`）；**不建**空壳子目录。Tiny 的 hmon 用例已迁出 arch（见下）。

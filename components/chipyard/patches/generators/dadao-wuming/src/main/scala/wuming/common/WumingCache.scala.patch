@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCache.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCache.scala
 new file mode 100644
-index 0000000..ddc4a2f
+index 0000000..dcab913
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCache.scala
-@@ -0,0 +1,701 @@
+@@ -0,0 +1,781 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" first-level cache, **one class for both sides**
@@ -45,13 +45,15 @@ index 0000000..ddc4a2f
 +// Responses are single-cycle pulses: both requesters park while a request is
 +// in flight (blocking cache, one outstanding miss in this first version).
 +//
-+// The maintenance port is the internal clean/invalidate interface the
-+// `cfx5` wiring will drive later (a separate task): `clean` (write back a
-+// dirty line, keep it), `invalidate` (drop the line) and `flush` (write back
-+// and drop every line).  A command is accepted when the cache is idle and
-+// answered with a one-cycle `cmdDone` pulse; `cmdError` reports a write-back
-+// the bus refused (the line is kept, never silently dropped).  A read-only
-+// cache has no dirty line, so `clean`/`flush` only drop lines.
++// The maintenance port is the internal clean/invalidate interface `cfx5`
++// drives (`m16-chipyard-017`): `clean` (write back a dirty line, keep it),
++// `invalidate` (drop the line) and `flush` (write back and drop), each over
++// one line, a PA range or the whole table (`contract-cache` §3/§4).  A command
++// is accepted when the cache is idle and answered with a one-cycle `cmdDone`
++// pulse; `cmdError` reports a write-back the bus refused (the line is kept,
++// never silently dropped) and `cmdErrorAddr` names that line.  A read-only
++// cache has no dirty line, so `clean` keeps every line and `invalidate`/`flush`
++// just drop them.
 +//
 +// Only a translating machine instantiates this class (`WumingCore`), so a
 +// Tiny machine keeps zero `WumingCache` instances in its RTL.
@@ -125,11 +127,20 @@ index 0000000..ddc4a2f
 +  val error = Bool()
 +}
 +
-+/** Internal maintenance command.  `op`: 1 = clean, 2 = invalidate, 3 = flush
-+  * (whole table; `addr` ignored). */
++/** Internal maintenance command (`cfx5`; `contract-cache` §3 CACHE-09).
++  *
++  * `op`: 1 = clean (write back a dirty line, keep it), 2 = invalidate (drop
++  * it), 3 = flush (write back and drop).  `scope`: 0 = every line, 1 = the
++  * line containing `addr`, 2 = every line intersecting `[addr, addr + size)`.
++  * `addr` carries a 56-bit PA in its low bits (`CACHE-18`), `size` a byte
++  * count.  A reserved `scope = 3` never reaches this port: the core rejects
++  * the encoding as `CFXREG` before issuing (`CACHE-14`).
++  */
 +class WumingCacheCmd extends Bundle {
 +  val op = UInt(2.W)
++  val scope = UInt(2.W)
 +  val addr = UInt(64.W)
++  val size = UInt(64.W)
 +}
 +
 +class WumingCache(
@@ -155,10 +166,13 @@ index 0000000..ddc4a2f
 +      val req = Flipped(Decoupled(new WumingCacheRequest))
 +      val resp = Valid(new WumingCacheResponse)
 +    }
-+    /** Internal clean/invalidate interface (`cfx5` wiring is a later task). */
++    /** Internal clean/invalidate interface driven by `cfx5` (`m16-chipyard-017`). */
 +    val cmd = Flipped(Decoupled(new WumingCacheCmd))
 +    val cmdDone = Output(Bool())
 +    val cmdError = Output(Bool())
++    /** Line base of the write-back the last `cmdError` refused (diagnostics
++      * for the caller's storage fault); reset value 0. */
++    val cmdErrorAddr = Output(UInt(64.W))
 +    /** The memory-side TileLink master. */
 +    val tl = new TLBundle(edge.bundle)
 +  })
@@ -170,8 +184,11 @@ index 0000000..ddc4a2f
 +  // Every way is read for the looked-up group; the next cycle compares tags.
 +  private val lineStore = Seq.fill(p.ways)(SyncReadMem(p.sets, Vec(p.beats, UInt(64.W))))
 +  // LRU age per way of a group: 0 = most recently used, ways-1 = victim.
-+  // Invalid entries are always the first choice, so a group's ages only need
-+  // the permutation invariant over its valid entries (as in `WumingTlb`).
++  // Invalid entries are always the first choice, so the ages only need the
++  // permutation invariant over the *valid* entries; a maintenance drop clears
++  // `valid` without renumbering the column (the dropped way is the next fill
++  // target and `fillAge` resets its age then — see `dropLine`), which keeps
++  // the age update logic linear instead of a dynamic-index mux over the table.
 +  private val ages = RegInit(VecInit(Seq.fill(p.sets)(
 +    VecInit(Seq.fill(p.ways)(0.U(p.ageBits.W))))))
 +
@@ -225,12 +242,16 @@ index 0000000..ddc4a2f
 +    * request's line: a replacement writes back the *old* line). */
 +  private val wbBase = RegInit(0.U(64.W))
 +  private val cmdOp = RegInit(0.U(2.W))
++  private val cmdScope = RegInit(0.U(2.W))
 +  private val cmdAddr = RegInit(0.U(64.W))
++  private val cmdSize = RegInit(0.U(64.W))
 +  private val cmdIdx = RegInit(0.U(log2Ceil(p.sets * p.ways).W))
 +  private val doneReg = RegInit(false.B)
 +  private val errReg = RegInit(false.B)
++  private val errAddrReg = RegInit(0.U(64.W))
 +  io.cmdDone := doneReg
 +  io.cmdError := errReg
++  io.cmdErrorAddr := errAddrReg
 +
 +  // Elaboration-time simulation stamp for the evidence log (the host needs
 +  // the order of the events, not the core's cycle counter).
@@ -259,17 +280,6 @@ index 0000000..ddc4a2f
 +      }
 +    }
 +  }
-+  private def killAge(group: UInt, way: UInt): Unit = {
-+    val old = ages(group)(way)
-+    for (w <- 0 until p.ways) {
-+      when(w.U === way) {
-+        ages(group)(w) := 0.U
-+      }.elsewhen(ages(group)(w) > old) {
-+        ages(group)(w) := ages(group)(w) - 1.U
-+      }
-+    }
-+  }
-+
 +  // ---- TileLink ----------------------------------------------------------
 +  private val lineGet = edge.Get(0.U(srcBits.W),
 +    (reqLineBase + (fillCount << 3))(addrBits - 1, 0), lgSize)._2
@@ -311,7 +321,7 @@ index 0000000..ddc4a2f
 +  }
 +
 +  // ---- FSM ---------------------------------------------------------------
-+  private val sIdle :: sLook :: sEvictReq :: sEvictWait :: sFillReq :: sFillWait :: sWtPut :: sWtWait :: sCmdLook :: sCmdDecide :: sCmdWbReq :: sCmdWbWait :: sFlushScan :: sFlushDecide :: sFlushWbReq :: sFlushWbWait :: Nil = Enum(16)
++  private val sIdle :: sLook :: sEvictReq :: sEvictWait :: sFillReq :: sFillWait :: sWtPut :: sWtWait :: sCmdLook :: sCmdDecide :: sCmdWbReq :: sCmdWbWait :: sScanRead :: sScanDecide :: sScanWbReq :: sScanWbWait :: Nil = Enum(16)
 +  private val state = RegInit(sIdle)
 +
 +  doneReg := false.B
@@ -341,14 +351,25 @@ index 0000000..ddc4a2f
 +  // ---- command acceptance ------------------------------------------------
 +  when(takeCmd) {
 +    cmdOp := io.cmd.bits.op
++    cmdScope := io.cmd.bits.scope
 +    cmdAddr := io.cmd.bits.addr
++    cmdSize := io.cmd.bits.size
 +    cmdIdx := 0.U
-+    when(io.cmd.bits.op === 3.U) {
-+      state := sFlushScan
-+    }.otherwise {
++    // A reserved scope is a caller bug: the core rejects `[3:2] = 11` as
++    // `CFXREG` before the command is issued (CACHE-14).  Fail loudly here
++    // instead of silently treating it as one of the legal scopes.
++    assert(io.cmd.bits.scope =/= 3.U,
++      "WumingCache: reserved command scope reached the maintenance port")
++    when(io.cmd.bits.scope === 1.U) {
++      // One line: look it up directly by set/tag.
 +      readSet := indexOf(io.cmd.bits.addr)
 +      readEn := true.B
 +      state := sCmdLook
++    }.otherwise {
++      // `all` and the PA range enumerate the table and filter by the line's
++      // reconstructed PA (the same construction as gem5's range handling:
++      // only existing lines can be affected).
++      state := sScanRead
 +    }
 +  }
 +
@@ -553,7 +574,12 @@ index 0000000..ddc4a2f
 +    }
 +  }
 +
-+  // ---- internal clean / invalidate (single line) -------------------------
++  // ---- maintenance: one line (`scope = 1`) --------------------------------
++  // The line is found by set/tag (a direct lookup, no table scan); a missing
++  // line is a successful no-op (`CACHE-16`: only the line that *contains*
++  // `addr` is affected, and there is none).  `clean` writes a dirty line back
++  // and keeps it; `invalidate` drops it without a write-back; `flush` does
++  // both (`CACHE-19`/`CACHE-20`).
 +  private val cmdIdxOf = indexOf(cmdAddr)
 +  private val cmdTagOf = tagOf(cmdAddr)
 +  private val cmdHits = (0 until p.ways).map(w =>
@@ -562,21 +588,33 @@ index 0000000..ddc4a2f
 +  private val cmdWay = PriorityEncoder(cmdHits)
 +  private val cmdLineBase = lineBaseOf(cmdAddr)
 +
++  /** Drop one line (invalidate / the drop half of flush): clear `valid` (and
++    * `dirty`).  The age column is deliberately **not** renumbered: an invalid
++    * way is always the first fill target, and `fillAge` re-establishes its age
++    * when the line is allocated again (the alternative — shifting every age
++    * through the dynamic set/way index — multiplied the generated age update
++    * logic by an order of magnitude for no architectural gain; replacement is
++    * implementation-defined, CACHE-05). */
++  private def dropLine(group: UInt, way: UInt): Unit = {
++    tagStore(group)(way).valid := false.B
++    setDirty(group, way, false.B)
++  }
++
 +  when(state === sCmdLook) { state := sCmdDecide }
 +  when(state === sCmdDecide) {
 +    when(!cmdHit) {
-+      printf(p"$tag: cmd op=${cmdOp} line=0x${Hexadecimal(cmdLineBase)} miss=1 cycle=${dbgCycles}\n")
++      printf(p"$tag: cmd op=${cmdOp} scope=1 line=0x${Hexadecimal(cmdLineBase)} miss=1 cycle=${dbgCycles}\n")
 +      doneReg := true.B
 +      state := sIdle
 +    }.elsewhen(cmdOp === 2.U) {
-+      // invalidate: no write-back.
-+      tagStore(cmdIdxOf)(cmdWay).valid := false.B
-+      setDirty(cmdIdxOf, cmdWay, false.B)
-+      killAge(cmdIdxOf, cmdWay)
-+      printf(p"$tag: cmd op=2 line=0x${Hexadecimal(cmdLineBase)} idx=${cmdIdxOf} way=${cmdWay} cycle=${dbgCycles}\n")
++      // invalidate: no write-back (a dirty copy is discarded, CACHE-20).
++      dropLine(cmdIdxOf, cmdWay)
++      printf(p"$tag: cmd op=2 scope=1 line=0x${Hexadecimal(cmdLineBase)} idx=${cmdIdxOf} way=${cmdWay} cycle=${dbgCycles}\n")
 +      doneReg := true.B
 +      state := sIdle
-+    }.otherwise {
++    }.elsewhen(cmdOp === 1.U) {
++      // clean: write a dirty line back, keep it.  A read-only cache has no
++      // dirty state, so there is nothing to write and the line stays.
 +      if (p.withDirty) {
 +        when(dirtyOf(cmdIdxOf, cmdWay)) {
 +          for (b <- 0 until p.beats) { fillBuf(b) := lineRd(cmdWay)(b) }
@@ -584,13 +622,33 @@ index 0000000..ddc4a2f
 +          wbCount := 0.U
 +          state := sCmdWbReq
 +        }.otherwise {
-+          printf(p"$tag: cmd op=1 line=0x${Hexadecimal(cmdLineBase)} clean=1 cycle=${dbgCycles}\n")
++          printf(p"$tag: cmd op=1 scope=1 line=0x${Hexadecimal(cmdLineBase)} clean=1 cycle=${dbgCycles}\n")
 +          doneReg := true.B
 +          state := sIdle
 +        }
 +      } else {
-+        // No dirty state: a clean has nothing to write and keeps the line.
-+        printf(p"$tag: cmd op=1 line=0x${Hexadecimal(cmdLineBase)} clean=1 cycle=${dbgCycles}\n")
++        printf(p"$tag: cmd op=1 scope=1 line=0x${Hexadecimal(cmdLineBase)} clean=1 cycle=${dbgCycles}\n")
++        doneReg := true.B
++        state := sIdle
++      }
++    }.otherwise {
++      // flush, one line: write a dirty line back and then drop it
++      // (CACHE-20); an already clean line is dropped without bus traffic.
++      if (p.withDirty) {
++        when(dirtyOf(cmdIdxOf, cmdWay)) {
++          for (b <- 0 until p.beats) { fillBuf(b) := lineRd(cmdWay)(b) }
++          wbBase := cmdLineBase
++          wbCount := 0.U
++          state := sCmdWbReq
++        }.otherwise {
++          dropLine(cmdIdxOf, cmdWay)
++          printf(p"$tag: cmd op=3 scope=1 line=0x${Hexadecimal(cmdLineBase)} idx=${cmdIdxOf} way=${cmdWay} cycle=${dbgCycles}\n")
++          doneReg := true.B
++          state := sIdle
++        }
++      } else {
++        dropLine(cmdIdxOf, cmdWay)
++        printf(p"$tag: cmd op=3 scope=1 line=0x${Hexadecimal(cmdLineBase)} idx=${cmdIdxOf} way=${cmdWay} cycle=${dbgCycles}\n")
 +        doneReg := true.B
 +        state := sIdle
 +      }
@@ -602,13 +660,18 @@ index 0000000..ddc4a2f
 +    }
 +    when(state === sCmdWbWait && io.tl.d.valid) {
 +      when(io.tl.d.bits.denied || io.tl.d.bits.corrupt) {
-+        printf(p"$tag: cmd op=1 line=0x${Hexadecimal(cmdLineBase)} fail cycle=${dbgCycles}\n")
++        // The dirty line is the only copy: keep it (and its dirty bit) and
++        // report the refused write-back to the caller.
++        printf(p"$tag: cmd op=${cmdOp} scope=1 line=0x${Hexadecimal(cmdLineBase)} fail cycle=${dbgCycles}\n")
 +        errReg := true.B
++        errAddrReg := cmdLineBase
 +        doneReg := true.B
 +        state := sIdle
 +      }.elsewhen(wbCount === (p.beats - 1).U) {
 +        setDirty(cmdIdxOf, cmdWay, false.B)
-+        printf(p"$tag: cmd op=1 line=0x${Hexadecimal(cmdLineBase)} wb=1 cycle=${dbgCycles}\n")
++        // `flush` drops the line after the write-back; `clean` keeps it.
++        when(cmdOp === 3.U) { dropLine(cmdIdxOf, cmdWay) }
++        printf(p"$tag: cmd op=${cmdOp} scope=1 line=0x${Hexadecimal(cmdLineBase)} wb=1 cycle=${dbgCycles}\n")
 +        doneReg := true.B
 +        state := sIdle
 +      }.otherwise {
@@ -618,69 +681,86 @@ index 0000000..ddc4a2f
 +    }
 +  }
 +
-+  // ---- flush (whole table) ----------------------------------------------
-+  private val flushTotal = p.sets * p.ways
-+  private val flushSet = cmdIdx >> log2Ceil(p.ways)
-+  private val flushWay = cmdIdx(log2Ceil(p.ways) - 1, 0)
-+  private val flushTag = tagStore(flushSet)(flushWay)
++  // ---- maintenance: all / PA range (`scope = 0/2`) -----------------------
++  // Both scopes enumerate the table once and filter by each line's
++  // reconstructed PA: `all` accepts every valid line, the range accepts the
++  // lines intersecting `[addr, addr + size)` (CACHE-15/17).  Only lines that
++  // exist can be affected, exactly like gem5's tag-store enumeration; the
++  // scan therefore never depends on the size of the address operand.
++  private val scanTotal = p.sets * p.ways
++  private val scanSet = cmdIdx >> log2Ceil(p.ways)
++  private val scanWay = cmdIdx(log2Ceil(p.ways) - 1, 0)
++  private val scanTag = tagStore(scanSet)(scanWay)
++  private val scanBase = Cat(scanTag.tag, scanSet, 0.U(p.offsetBits.W))
++  /** End of the operand range.  A 64-bit `addr + size` that wraps is clamped
++    * to the top of the 56-bit PA space instead of silently starting over. */
++  private val rawRangeEnd = cmdAddr + cmdSize
++  private val rangeEnd = Mux(rawRangeEnd < cmdAddr, "h00ffffffffffffff".U(64.W), rawRangeEnd)
++  private val inScope = cmdScope === 0.U ||
++    (scanBase < rangeEnd && (scanBase + p.lineBytes.U) > cmdAddr)
 +
-+  when(state === sFlushScan) {
-+    readSet := flushSet
++  when(state === sScanRead) {
++    readSet := scanSet
 +    readEn := true.B
-+    state := sFlushDecide
++    state := sScanDecide
 +  }
-+  /** Next flushed line (the whole table is scanned once). */
-+  private def flushAdvance(): Unit = {
-+    when(cmdIdx === (flushTotal - 1).U) {
-+      printf(p"$tag: flush done cycle=${dbgCycles}\n")
++  /** Next entry of the one-pass table scan. */
++  private def scanAdvance(): Unit = {
++    when(cmdIdx === (scanTotal - 1).U) {
++      printf(p"$tag: cmd op=${cmdOp} scope=${cmdScope} done cycle=${dbgCycles}\n")
 +      doneReg := true.B
 +      state := sIdle
 +    }.otherwise {
 +      cmdIdx := cmdIdx + 1.U
-+      state := sFlushScan
++      state := sScanRead
 +    }
 +  }
-+  when(state === sFlushDecide) {
-+    when(!flushTag.valid) {
-+      flushAdvance()
++  when(state === sScanDecide) {
++    when(!scanTag.valid || !inScope) {
++      scanAdvance()
++    }.elsewhen(cmdOp === 2.U) {
++      dropLine(scanSet, scanWay)
++      printf(p"$tag: cmd op=2 scope=${cmdScope} line=0x${Hexadecimal(scanBase)} idx=${scanSet} way=${scanWay} cycle=${dbgCycles}\n")
++      scanAdvance()
 +    }.otherwise {
 +      if (p.withDirty) {
-+        when(flushTag.dirty.get) {
-+          for (b <- 0 until p.beats) { fillBuf(b) := lineRd(flushWay)(b) }
-+          wbBase := Cat(flushTag.tag, flushSet, 0.U(p.offsetBits.W))
++        when(scanTag.dirty.get) {
++          for (b <- 0 until p.beats) { fillBuf(b) := lineRd(scanWay)(b) }
++          wbBase := scanBase
 +          wbCount := 0.U
-+          state := sFlushWbReq
++          state := sScanWbReq
 +        }.otherwise {
-+          tagStore(flushSet)(flushWay).valid := false.B
-+          killAge(flushSet, flushWay)
-+          flushAdvance()
++          when(cmdOp === 3.U) { dropLine(scanSet, scanWay) }
++          printf(p"$tag: cmd op=${cmdOp} scope=${cmdScope} line=0x${Hexadecimal(scanBase)} clean=1 cycle=${dbgCycles}\n")
++          scanAdvance()
 +        }
 +      } else {
-+        // No dirty state: every line is simply dropped.
-+        tagStore(flushSet)(flushWay).valid := false.B
-+        killAge(flushSet, flushWay)
-+        flushAdvance()
++        // No dirty state: `clean` keeps the line, `invalidate`/`flush` drop it.
++        when(cmdOp === 3.U) { dropLine(scanSet, scanWay) }
++        printf(p"$tag: cmd op=${cmdOp} scope=${cmdScope} line=0x${Hexadecimal(scanBase)} clean=1 cycle=${dbgCycles}\n")
++        scanAdvance()
 +      }
 +    }
 +  }
 +  if (p.withDirty) {
-+    when(state === sFlushWbReq) {
-+      when(io.tl.a.ready) { state := sFlushWbWait }
++    when(state === sScanWbReq) {
++      when(io.tl.a.ready) { state := sScanWbWait }
 +    }
-+    when(state === sFlushWbWait && io.tl.d.valid) {
++    when(state === sScanWbWait && io.tl.d.valid) {
 +      when(io.tl.d.bits.denied || io.tl.d.bits.corrupt) {
-+        printf(p"$tag: flush fail line=0x${Hexadecimal(wbBase)} way=${flushWay} cycle=${dbgCycles}\n")
++        printf(p"$tag: cmd op=${cmdOp} scope=${cmdScope} fail line=0x${Hexadecimal(wbBase)} way=${scanWay} cycle=${dbgCycles}\n")
 +        errReg := true.B
++        errAddrReg := wbBase
 +        doneReg := true.B
 +        state := sIdle
 +      }.elsewhen(wbCount === (p.beats - 1).U) {
-+        tagStore(flushSet)(flushWay).valid := false.B
-+        setDirty(flushSet, flushWay, false.B)
-+        killAge(flushSet, flushWay)
-+        flushAdvance()
++        setDirty(scanSet, scanWay, false.B)
++        when(cmdOp === 3.U) { dropLine(scanSet, scanWay) }
++        printf(p"$tag: cmd op=${cmdOp} scope=${cmdScope} line=0x${Hexadecimal(wbBase)} wb=1 cycle=${dbgCycles}\n")
++        scanAdvance()
 +      }.otherwise {
 +        wbCount := wbCount + 1.U
-+        state := sFlushWbReq
++        state := sScanWbReq
 +      }
 +    }
 +  }
@@ -688,9 +768,9 @@ index 0000000..ddc4a2f
 +  // ---- TileLink A/D channels --------------------------------------------
 +  private val issuingGet = state === sFillReq
 +  private val issuingPut = state === sEvictReq || state === sCmdWbReq ||
-+    state === sFlushWbReq || state === sWtPut
++    state === sScanWbReq || state === sWtPut
 +  io.tl.d.ready := state === sEvictWait || state === sFillWait ||
-+    state === sCmdWbWait || state === sFlushWbWait || state === sWtWait
++    state === sCmdWbWait || state === sScanWbWait || state === sWtWait
 +  if (p.readOnly) {
 +    // Read-only: a line fill is the only bus request this instance can make.
 +    io.tl.a.valid := issuingGet

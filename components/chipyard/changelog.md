@@ -129,6 +129,10 @@
 
 ## M16
 
+- **2026-11-22 `m16-chipyard-017`**
+  - 摘要：**cfx5 维护命令接到 I/D 阵列**（`contract-cache` §3–§5，`m16-spec-001`）。`WumingCacheCmd` 增加 `scope`/`size`，`WumingCache` 的维护 FSM 支持三档范围：`scope = 1` 按 set/tag 查一行，`scope = 0/2` 枚举全表并按行的重建 PA 过滤（区间 = 与 `[addr, addr+size)` 相交的行，与 gem5 同法；`invalidate` 只丢、`clean` 写回保留、`flush` 写回后丢）。**维护丢弃不重排 age 列**（`dropLine` 只清 `valid`/`dirty`，下一次填充由 `fillAge` 重置；否则按动态 set/way 索引重排 1024 条 age 会把生成的 age 更新逻辑放大一个数量级——实测 D 实例 `WumingCache.sv` 从 2.2 GB/2176 万行降到 12 MB/9.5 万行，Verilator 由 OOM 恢复；填充/淘汰的 LRU 语义未改，替换策略本由实现决定 `CACHE-05`）。`WumingCore` 在 `sXlate` 增加 `kind = 4` 的维护子状态机：消费 `gewu` 的 `cache_ctrl` 写脉冲，先 I 后 D（`CACHE-21`）、使能位为 0 的侧不发命令（`CACHE-08`）、I 侧 `clean` 不发（`CACHE-19`），两侧都 `cmdDone` 后才 `finish(ip+4)`（`CACHE-24`）；**核 FSM 仍 `Enum(16)`**，Tiny 不加状态、不加寄存器。写回被总线拒绝 ⇒ 保留脏行 + `CFXMEM [56] ADWBFAIL`（本机不可达，显式失败不静默）。**验证**：`tests/arch/cache/cfx5_maint.S`（+ `gen_cfx5_maint_tables.py`、`check_cfx5_maint.py`）在 `WumingVastConfig` 上 29 条记录 + 缓存日志时序全绿；D 侧写回以**取指端口**独立观测；注入「invalidate 先写回」「I 侧不维护」各判红，`cp`+md5 还原并强制重建后回绿；Tiny `11-cfx`/`01-load-store` 改前/改后逐镜像字节相同。
+  - 执行者：engineer
+
 - **2026-11-22 `m16-chipyard-016`**
   - 摘要：**cfx5 寄存器面接入 Vast**（`contract-cache` CACHE-03…CACHE-18/27，`m16-spec-001`）。`WumingCfxHa` 新增 `cache = 5`；`WumingGewuParams` 在 `useVM`（Kaiwu-Vast）时把 `cfx5` 加入 cfx 序列并给 `GewuCacheParams(cfxId, exists = 0b11)`，Tiny 保持 `cache = None`（行未实现 ⇒ `CFXREG`，CACHE-28）。`GewuFile` 新增五行：`cg8 rc0 cache_exist`（RO，I/D 两位）、`rc8 cache_enable`（RW，复位 = exist、写按 exist 掩码）、`rc9 cache_ctrl`（WO、写即执行；按 CACHE-11…14 判序，`[15:14]=00` 或 `op=none` 无条件 no-op，非法范围/`addr_size=0` ⇒ `writeOk=false` ⇒ `CFXREG`）、`rc10 cache_addr_start`（RW，只存 `PA[55:0]`）、`rc11 cache_addr_size`（RW，整 64 位）。`io.cache` 只输出寄存器状态与命令脉冲；**不接 D/I 阵列**（下件任务）。**验证**：`tests/arch/cache/cfx5_regs.S` 在 `WumingVastConfig` 上 22 条记录（exist/enable/start/size、5 个 no-op/合法见证、四类 `CFXREG` 的 cause_id + 指令编码）逐条等于 `check_cfx5_regs.py` 从合约现场派生的期望；注入「cfx5 从 Vast 序列去掉」⇒ 首条访问 `CFXREG`、探针红；注入「`addr_start` 只存 42 位」⇒ 记录 6/7 红，`cp`+md5 还原重建后回绿；Tiny `11-cfx`（含 cfx5 ⇒ `CFXREG`）与 `01-load-store` 在改前/改后二进制上逐镜像字节相同。
   - 执行者：engineer
