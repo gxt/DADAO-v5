@@ -43,6 +43,7 @@
 | m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |
 | m18-linux-017 | 3–4 h | `clock_nanosleep(TIMER_ABSTIME)` 整机停摆（KERNEL_BUG） |
 | m18-linux-018 | 2–3 h | 套件环境补齐（TMPFS/MEMFD、非 root uid、`/proc/iomem`；SUITE_ENV） |
+| m18-linux-019 | 1–2 h | `k5_syscall_selftest` 锁外 `find_vma` 触发 rwsem 警告（014 复核发现） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
