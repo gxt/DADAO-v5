@@ -1697,7 +1697,7 @@ _locked-check-unit-full: check-unit check-lit-full
 # 驱动：`tests/arch/run_arch.py`（arch scope 唯一驱动）。
 # 代表集（用户 2026-11-22 裁定）：
 #   * `check-arch-smoke` = `tests/arch.yaml` 中 `level: smoke` 的条目，由
-#     `run_arch.py --level smoke --platforms qemu --cache-model on` **现场派生**
+#     `run_arch.py --level smoke --platforms qemu --cache-model off` **现场派生**
 #     （条数不写死），并**保留** 25 服务覆盖（`min_rom_probe_046t`）作为 smoke 一部分；
 #   * `check-arch` 与 `check-arch-smoke` **一致**：本目标只「依赖 smoke + echo」；
 #   * cfx4 PTW/TLB carrier（`ARCH_PTW_CARRIER`）**并入 smoke**，两目标同跑 15 条。
@@ -1743,7 +1743,7 @@ _locked-check-arch-smoke: install-host build-bootrom
 	@mkdir -p .work/log/arch
 	@rm -rf $(ARCH_RUN_WORK) $(ARCH_PROBE_WORK)
 	@echo "check-arch-smoke: [1/3] tests/arch.yaml level=smoke representative set (run_arch.py; derived)"; \
-	  DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_DRIVER) --level smoke --platforms qemu --cache-model on \
+	  DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_DRIVER) --level smoke --platforms qemu --cache-model off \
 	    --qemu $(QEMU_BIN) --llvm-mc $(LLVM_MC_BIN) --llvm-objcopy $(LLVM_OBJCOPY_BIN) \
 	    --bootrom $(BOOTROM_DIR)/step5/bootrom_step5.bin --work-dir $(ARCH_RUN_WORK) \
 	    > $(ARCH_SMOKE_LOG) 2>&1; \

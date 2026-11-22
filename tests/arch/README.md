@@ -13,8 +13,9 @@
 ## 驱动
 
 ```sh
-python3 tests/arch/run_arch.py --cfx 4 --platforms qemu --cache-model on
-python3 tests/arch/run_arch.py --level smoke --platforms qemu --cache-model on
+python3 tests/arch/run_arch.py --cfx 4 --platforms qemu --cache-model off
+python3 tests/arch/run_arch.py --level smoke --platforms qemu --cache-model off
+# smoke 不测 cache（off）；cfx5 的 on 用例进按需的 check-arch-vast
 python3 tests/arch/run_arch.py --self-test
 python3 tests/arch/run_arch.py --list
 ```
