@@ -49,6 +49,8 @@ python3 tools/idl/check_trace_parity.py --images <dir> --bootrom <img>
 
 **M17 执行器补齐**（`m17-idl-006`）：`idl_exec.py` 现覆盖 `tests/inst` 的 `00`/`01`/`02`/`05`/`06`/`11` 六册全部镜像（访存四组与多元素、条件赋值、RAS 压弹栈、`call` 寄存器形式、`fence`）；未注册的 id 仍显式 `ExecError`，其余册随 `m17-idl-007`/`008` 扩、`m17-idl-009` 收口。
 
+**M17 执行器补齐（续）**（`m17-idl-007`）：`04` 整册（八元算术/位操作）、`12-misc` 整册（`lr`/`sc` 原子、`swym`、`ctlz`/`cttz`/`ctpop`）与 00 册 `atomic_rmw` 载体全部纳入主清单；原子按 `SimRISC-12 §1` 实现「精确地址 + 访问宽度」保留键、窄读保高位、异常进入清标记（单 hart 口径，`ISS-440` 的多 hart 清除不建模），`swym` 为 no-op。
+
 > **import 本模块前设 `PYTHONDONTWRITEBYTECODE=1`**：`idl/` 由 `check-manifests-guard` 做**双向目录集合断言**，落 `__pycache__` 会直接判红（`idl_parse_cases.toml` 是数据文件而非模块，正是为此）。
 
 **语言与语义库正文见 [`spec/IDL-ISA语义描述语言与语义库.md`](../spec/IDL-ISA语义描述语言与语义库.md)**：§1 语法基线、§2 命名约定、§3 寄存器模型、§4 语义库（含 §4.7 浮点原语）、§5 语法扩展提案、§6 `idlc` 复用评估；变更记录见该册文末附录。原 README 的 §1–§7 已整段迁入该册（§1–§6 节号一一对应；§7 → 附录），本文件只保留目录导航与用法——旧文里的 `idl/README §N` 记号对应新册 §N。

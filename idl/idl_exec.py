@@ -372,6 +372,9 @@ class Machine:
         self.cur_word = 0
         self.last_step = None
         self.semihost_service = None
+        # 保留标记：键 = 精确地址 + 访问宽度（spec/SimRISC-12 §1「保留机制」）。
+        # 单 hart：`None` = 未设；异常/中断进入与每次 sc 都清（`ISS-443` 已三平台收敛）。
+        self.reservation = None
         self.cfx = {}
         hmon_base = profile["hmon_base"]
         self.cfx[3] = Cfx(3, hmon_base, MODE_HYPV, SYNC_MASK_HMON)
@@ -520,6 +523,31 @@ class Machine:
         self._ras_store(entries)
         return target
 
+    # -- 保留标记（spec/SimRISC-12 §1「保留机制」） ------------------------
+    def reservation_set(self, ea, width):
+        """设本 hart 的保留标记：键 = 精确地址 + 访问宽度（不按 cache line 扩大）。"""
+        self.reservation = (ea & MASK48, width)
+
+    def reservation_clear_all(self):
+        """清本 hart 的全部保留标记。"""
+        self.reservation = None
+
+    def store_conditional(self, ea, width, value):
+        """原子「查标记 → 条件写 → 清标记」；返回 0 = 成功 / 1 = 失败。
+
+        spec/SimRISC-12 §1：标记仍在 ⇒ 写内存并返回 0；否则不写内存、返回 1；
+        **成败都清**本 hart 全部标记。照 UDB 先例不拆成「先查再写」。
+        单 hart 口径（`ISS-440`）：清除侧只列「**另一 hart** 对同址同宽 store」，
+        故本 hart 的普通 store 不清标记；异常/中断进入的清理由 `take_exception` 做。
+        """
+        ea &= MASK48
+        if self.reservation != (ea, width):
+            self.reservation = None
+            return 1
+        self.mem.write_memory(width, ea, value)   # 可能精确异常（异常进入清标记）
+        self.reservation = None
+        return 0
+
     # -- 控制流 ------------------------------------------------------------
     def jump(self, addr):
         self.ip = addr & MASK64
@@ -532,6 +560,9 @@ class Machine:
         return self.cfx[cfxha]
 
     def take_exception(self, cause, cause_ip, info=0, target=None):
+        # spec/SimRISC-12 §1「保留机制」：异常/中断进入清本 hart 全部保留标记
+        # （`ISS-443` 已由 qemu/gem5/chipyard 三平台收敛；单 hart 无异步中断）。
+        self.reservation = None
         if target is None:
             # spec/DADAO-12 §5.2(一)：CFXESC 的目标 = **当前 cfx**（不属于 monitor 路由）；
             # 其余同步异常进当前运行模式的 monitor。
@@ -932,6 +963,291 @@ def _op_ctlz(m, insn):
             break
         n += 1
     m.set("rd", dst, n)
+
+
+# --- 04-arith-logic-octa（SimRISC-04 §1/§2；m17-idl-007） -----------------
+# 说明：本节各 operation 的语义逐条取自 `idl/SimRISC-04.idl` 对应 `# id:` 段；
+# 双目的 rrrr 形式（rdHA/rdHB = 结果高/低 64 位）**同一寄存器（含同时为 rd0）⇒ ILLI**。
+def _dual_dst(insn):
+    ha, hb = insn["rdha"], insn["rdhb"]
+    if ha == hb:
+        raise Fault("Illegal")
+    return ha, hb
+
+
+@sem("add.uo_rrrr_rd")
+def _op_add_uo(m, insn):
+    # SimRISC-04 §1：rdHA = 进位（0/1），rdHB = 低 64 位；源先读后写（65 位零扩展加）。
+    ha, hb = _dual_dst(insn)
+    total = m.get("rd", insn["rdhc"]) + m.get("rd", insn["rdhd"])
+    m.set("rd", ha, total >> 64)
+    m.set("rd", hb, total & MASK64)
+
+
+@sem("sub.uo_rrrr_rd")
+def _op_sub_uo(m, insn):
+    # SimRISC-04 §1：rdHA = 借位（被减数 < 减数 ⇒ 1），rdHB = 低 64 位差。
+    ha, hb = _dual_dst(insn)
+    a, b = m.get("rd", insn["rdhc"]), m.get("rd", insn["rdhd"])
+    m.set("rd", ha, 1 if a < b else 0)
+    m.set("rd", hb, (a - b) & MASK64)
+
+
+@sem("sub.so_rrrr_rd")
+def _op_sub_so(m, insn):
+    # SimRISC-04 §1：源符号扩展成 65 位相减；高半 = 结果符号扩展（负数 ⇒ 全 1）。
+    ha, hb = _dual_dst(insn)
+    diff = (_sext(m.get("rd", insn["rdhc"]), 64)
+            - _sext(m.get("rd", insn["rdhd"]), 64))
+    m.set("rd", ha, MASK64 if diff < 0 else 0)
+    m.set("rd", hb, diff & MASK64)
+
+
+@sem("mul.uo_rrrr_rd")
+def _op_mul_uo(m, insn):
+    # SimRISC-04 §1：零扩展 64×64 → 128 位精确积；rdHA/rdHB = 高/低 64 位。
+    ha, hb = _dual_dst(insn)
+    product = m.get("rd", insn["rdhc"]) * m.get("rd", insn["rdhd"])
+    m.set("rd", ha, (product >> 64) & MASK64)
+    m.set("rd", hb, product & MASK64)
+
+
+@sem("clmul.o_rrrr_rd")
+def _op_clmul(m, insn):
+    # SimRISC-04 §2：GF(2) 多项式乘（位间无进位），rdHA/rdHB = 128 位积高/低 64 位。
+    ha, hb = _dual_dst(insn)
+    a = m.get("rd", insn["rdhc"])
+    b = m.get("rd", insn["rdhd"])
+    product = 0
+    for i in range(64):
+        if (b >> i) & 1:
+            product ^= a << i
+    m.set("rd", ha, (product >> 64) & MASK64)
+    m.set("rd", hb, product & MASK64)
+
+
+@sem("cmp.si_rrii_rd")
+def _op_cmp_si(m, insn):
+    # SimRISC-04 §1.3：rdHB 与符号扩展的 imms12 有符号比较 → -1/0/1（写满 64 位）。
+    dst = insn["rdha"]
+    if dst == 0:
+        raise Fault("Illegal")
+    a = _sext(m.get("rd", insn["rdhb"]), 64)
+    b = insn["imms12"]
+    m.set("rd", dst, MASK64 if a < b else (0 if a == b else 1))
+
+
+@sem("cmp.ui_rrii_rd")
+def _op_cmp_ui(m, insn):
+    # SimRISC-04 §1.3：rdHB 与零扩展的 immu12 无符号比较 → -1/0/1（写满 64 位）。
+    dst = insn["rdha"]
+    if dst == 0:
+        raise Fault("Illegal")
+    a = m.get("rd", insn["rdhb"])
+    b = insn["immu12"]
+    m.set("rd", dst, MASK64 if a < b else (0 if a == b else 1))
+
+
+@sem("div.uo_orrr_rd")
+def _op_div_uo(m, insn):
+    # SimRISC-04 §1.4：64 位无符号除法；除零 ⇒ 定值全 1。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    a, b = m.get("rd", insn["rdhc"]), m.get("rd", insn["rdhd"])
+    m.set("rd", dst, MASK64 if b == 0 else a // b)
+
+
+@sem("rem.uo_orrr_rd")
+def _op_rem_uo(m, insn):
+    # SimRISC-04 §1.4：64 位无符号取余；除零 ⇒ 被除数（零扩展 = 原值）。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    a, b = m.get("rd", insn["rdhc"]), m.get("rd", insn["rdhd"])
+    m.set("rd", dst, a if b == 0 else a % b)
+
+
+@sem("rem.so_orrr_rd")
+def _op_rem_so(m, insn):
+    # SimRISC-04 §1.4：有符号取余（余数符号 = 被除数）；除零 ⇒ 被除数，INT64_MIN%-1 ⇒ 0。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    a, b = m.get("rd", insn["rdhc"]), m.get("rd", insn["rdhd"])
+    if b == 0:
+        m.set("rd", dst, a)
+    elif a == 0x8000_0000_0000_0000 and b == MASK64:
+        m.set("rd", dst, 0)
+    else:
+        sa, sb = _sext(a, 64), _sext(b, 64)
+        r = abs(sa) % abs(sb)
+        m.set("rd", dst, (-r if sa < 0 else r) & MASK64)
+
+
+@sem("or.o_orrr_rd")
+def _op_or_o(m, insn):
+    # SimRISC-04 §2.1：64 位逐位或（全 64 位参与）。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    m.set("rd", dst, m.get("rd", insn["rdhc"]) | m.get("rd", insn["rdhd"]))
+
+
+@sem("xor.o_orrr_rd")
+def _op_xor_o(m, insn):
+    # SimRISC-04 §2.1：64 位逐位异或（全 64 位参与）。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    m.set("rd", dst, m.get("rd", insn["rdhc"]) ^ m.get("rd", insn["rdhd"]))
+
+
+@sem("xnor.o_orrr_rd")
+def _op_xnor_o(m, insn):
+    # SimRISC-04 §2.1：64 位逐位同或 = 异或取反（源为 rd0 时即另一操作数取反）。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    m.set("rd", dst, ~(m.get("rd", insn["rdhc"]) ^ m.get("rd", insn["rdhd"]))
+          & MASK64)
+
+
+@sem("shr.uo_orrr_rd")
+def _op_shr_uo_orrr(m, insn):
+    # SimRISC-04 §2.2：64 位逻辑右移，移位量 = rdHD[5:0]（0..63 全合法）。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    sh = m.get("rd", insn["rdhd"]) & 0x3F
+    m.set("rd", dst, m.get("rd", insn["rdhc"]) >> sh)
+
+
+@sem("shr.so_orri_rd")
+def _op_shr_so_orri(m, insn):
+    # SimRISC-04 §2.2：64 位算术右移，高位补符号位，移位量 = immu6。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    m.set("rd", dst, (_sext(m.get("rd", insn["rdhc"]), 64) >> insn["immu6"])
+          & MASK64)
+
+
+@sem("shr.so_orrr_rd")
+def _op_shr_so_orrr(m, insn):
+    # SimRISC-04 §2.2：64 位算术右移，移位量 = rdHD[5:0]（0..63 全合法）。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    sh = m.get("rd", insn["rdhd"]) & 0x3F
+    m.set("rd", dst, (_sext(m.get("rd", insn["rdhc"]), 64) >> sh) & MASK64)
+
+
+def _rol(x, n):
+    """SimRISC-04 §2.2.2：(x << n) | (x >> ((64 - n) & 63))；n = 0 时为 x 本身。"""
+    return ((x << n) | (x >> ((64 - n) & 63))) & MASK64
+
+
+@sem("rol.o_orri_rd")
+def _op_rol_orri(m, insn):
+    # SimRISC-04 §2.2：64 位循环左移，旋转量 = immu6（0..63 全合法）。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    m.set("rd", dst, _rol(m.get("rd", insn["rdhc"]), insn["immu6"]))
+
+
+@sem("rol.o_orrr_rd")
+def _op_rol_orrr(m, insn):
+    # SimRISC-04 §2.2：64 位循环左移，旋转量 = rdHD[5:0]（天然 = n mod 64）。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    n = m.get("rd", insn["rdhd"]) & 0x3F
+    m.set("rd", dst, _rol(m.get("rd", insn["rdhc"]), n))
+
+
+@sem("rev.o_orri_rd")
+def _op_rev(m, insn):
+    # SimRISC-04 §2.2.1：k 须 one-hot（immu6 ∈ 1..63 且 2 的幂，否则 ILLI）；
+    # 把 64 位切成 64/k 个 k 位单元，反转单元顺序（单元内位序不变）。
+    dst = insn["rdhb"]
+    k = insn["immu6"]
+    if dst == 0 or k == 0 or (k & (k - 1)) != 0:
+        raise Fault("Illegal")
+    n_units = 64 // k
+    x = m.get("rd", insn["rdhc"])
+    out = 0
+    for i in range(64):
+        unit, off = divmod(i, k)
+        pos = (n_units - 1 - unit) * k + off
+        if (x >> i) & 1:
+            out |= 1 << pos
+    m.set("rd", dst, out)
+
+
+def _ext_sign(src, hd):
+    """SimRISC-04 §2：复制 src[hd:0]、其余位补 src[hd]（符号扩展，hd=63 ⇒ 原值）。"""
+    mask = MASK64 >> (63 - hd)
+    low = src & mask
+    return (low | ~mask) & MASK64 if (src >> hd) & 1 else low
+
+
+@sem("ext.so_orri_rd")
+def _op_ext_so_orri(m, insn):
+    # SimRISC-04 §2：hd = immu6，复制源 [hd:0]、其余位符号扩展。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    m.set("rd", dst, _ext_sign(m.get("rd", insn["rdhc"]), insn["immu6"]))
+
+
+@sem("ext.so_orrr_rd")
+def _op_ext_so_orrr(m, insn):
+    # SimRISC-04 §2：hd = rdHD[5:0]（更高位忽略、不触发异常），其余同上。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    hd = m.get("rd", insn["rdhd"]) & 0x3F
+    m.set("rd", dst, _ext_sign(m.get("rd", insn["rdhc"]), hd))
+
+
+@sem("ext.uo_orrr_rd")
+def _op_ext_uo_orrr(m, insn):
+    # SimRISC-04 §2：hd = rdHD[5:0]，复制源 [hd:0]、其余位零扩展。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    hd = m.get("rd", insn["rdhd"]) & 0x3F
+    mask = MASK64 >> (63 - hd)
+    m.set("rd", dst, m.get("rd", insn["rdhc"]) & mask)
+
+
+@sem("cttz_orri_rd")
+def _op_cttz(m, insn):
+    # SimRISC-12 §3：有效位 rdHC[hd:0] 内从 bit 0 向上数末尾零；全 0 ⇒ hd + 1。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    hi = insn["immu6"]
+    src = m.get("rd", insn["rdhc"])
+    n = 0
+    for bit in range(0, hi + 1):
+        if (src >> bit) & 1:
+            break
+        n += 1
+    m.set("rd", dst, n)
+
+
+@sem("ctpop_orri_rd")
+def _op_ctpop(m, insn):
+    # SimRISC-12 §3：有效位 rdHC[hd:0] 内 1 的个数；全 0 ⇒ 0。
+    dst = insn["rdhb"]
+    if dst == 0:
+        raise Fault("Illegal")
+    hi = insn["immu6"]
+    src = m.get("rd", insn["rdhc"]) & ((1 << (hi + 1)) - 1)
+    m.set("rd", dst, bin(src).count("1"))
 
 
 # --- 04（跨册依赖）/ 05-arith-addr ---------------------------------------
@@ -1464,6 +1780,82 @@ def _op_fence(m, insn):
         raise Fault("Illegal")
     if insn["cfxha"] in RESERVED_CFX:
         raise Fault("Illegal")
+
+
+# --- 12-misc：原子 lr/sc（SimRISC-12 §1）/ 空转 swym（§2）-----------------
+# 宽度由助记符的数据宽度后缀给出（.b=8 / .w=16 / .t=32 / .o=64，contract-isa §2.5）。
+_ATOMIC_BITS = {"b": 8, "w": 16, "t": 32, "o": 64}
+
+
+def _atomic_width(insn):
+    return _ATOMIC_BITS[insn.mnemonic.split(".")[1]]
+
+
+def _lr(m, insn):
+    """lr（SimRISC-12 §1.1）：先读内存，再清/设保留标记，最后写 rd。"""
+    if insn["rdhb"] != 0:                 # hb 为 SBZ，非零 ⇒ ILLI（encode_sbz）
+        raise Fault("Illegal")
+    bits = _atomic_width(insn)
+    ea = m.get("rb", insn["rbhd"]) & MASK48
+    if not is_naturally_aligned(bits, ea):
+        raise Fault("Malign", info=ea)
+    value = m.mem.read_memory(bits, ea)    # 先读：故障时不得改动任何架构状态
+    m.reservation_clear_all()              # 本 hart 执行另一条 lr ⇒ 清既有标记
+    m.reservation_set(ea, bits)            # 键 = 精确地址 + 访问宽度
+    if bits == 64:
+        m.set("rd", insn["rdhc"], value)
+    else:
+        # 窄读只写低 8/16/32 位、rd 高位保持原值（W27：既不零扩展也不符号扩展）。
+        _narrow_write(m, "rd", insn["rdhc"], bits, value)
+
+
+_LR_IDS = (
+    "lr.o.nn_orrr_rd", "lr.o.an_orrr_rd", "lr.o.ar_orrr_rd",
+    "lr.t.nn_orrr_rd", "lr.t.an_orrr_rd", "lr.t.ar_orrr_rd",
+    "lr.w.nn_orrr_rd", "lr.w.an_orrr_rd", "lr.w.ar_orrr_rd",
+    "lr.b.nn_orrr_rd", "lr.b.an_orrr_rd", "lr.b.ar_orrr_rd",
+)
+
+
+@sem(*_LR_IDS)
+def _op_lr(m, insn):
+    _lr(m, insn)
+
+
+def _sc(m, insn):
+    """sc（SimRISC-12 §1.1）：原子「查标记 → 条件写 → 清标记」；0 = 成功、1 = 失败。"""
+    dst = insn["rdhb"]                    # 成功/失败结果不可丢弃 ⇒ rd0 为非法
+    if dst == 0:
+        raise Fault("Illegal")
+    bits = _atomic_width(insn)
+    ea = m.get("rb", insn["rbhd"]) & MASK48
+    if not is_naturally_aligned(bits, ea):
+        raise Fault("Malign", info=ea)
+    # 源值先读（rdHB == rdHC 时「源先读、结果后写」），成败都返回给 rdHB。
+    ok = m.store_conditional(ea, bits, m.get("rd", insn["rdhc"]))
+    m.set("rd", dst, ok)
+
+
+_SC_IDS = (
+    "sc.o.nn_orrr_rd", "sc.o.nr_orrr_rd", "sc.o.ar_orrr_rd",
+    "sc.t.nn_orrr_rd", "sc.t.nr_orrr_rd", "sc.t.ar_orrr_rd",
+    "sc.w.nn_orrr_rd", "sc.w.nr_orrr_rd", "sc.w.ar_orrr_rd",
+    "sc.b.nn_orrr_rd", "sc.b.nr_orrr_rd", "sc.b.ar_orrr_rd",
+)
+
+
+@sem(*_SC_IDS)
+def _op_sc(m, insn):
+    _sc(m, insn)
+
+
+@sem("swym_oiii_imm")
+def _op_swym(m, insn):
+    """swym（SimRISC-12 §2）：除 IP 自增外无任何架构副作用。
+
+    `immu18` 只是硬件时延参数（实现时序），散文本节未赋予它访存序/屏障语义，
+    故 IDL v0 只做 no-op（IP 自增属取指模型，`Machine.step` 负责）。
+    """
 
 
 # ---------------------------------------------------------------------------

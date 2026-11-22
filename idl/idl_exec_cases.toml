@@ -8,8 +8,9 @@
 # 门控断言（`tools/idl/check_four_way.py` 现场派生，不写死计数）：
 #   {[[case]].image} == {tests/inst/*/*.S} − {07-floating-point} − {[[pending]].image}
 # `m17-idl-006` 已迁入 `00`/`01`/`02`/`05`/`06`/`11` 六册全部镜像（`00` 册为已登记的
-# `pseudo_set.*` 与 `undi_reserved`；`atomic_rmw` 的 id 属 12 册，归 `m17-idl-007`）；
-# 其余册随 `007`/`008` 扩语义后逐批迁入，`m17-idl-009` 收口时 `pending` 清零。
+# `pseudo_set.*` 与 `undi_reserved`）；`m17-idl-007` 已迁入 `04` 整册、`12-misc` 整册与
+# 00 册 `atomic_rmw`（其被测 id 属 12 册）；其余册随 `008` 扩语义后迁入，
+# `m17-idl-009` 收口时 `pending` 清零。
 # FP 册（`07-floating-point`）不在阶段一范围（阶段二 + FP 语义批）。
 
 # ── 主清单：镜像 → 类别 ────────────────────────────────────────────────────
@@ -432,11 +433,237 @@ category = "exc"
 image = "tests/inst/11-cfx/fence_ciii_cfx.S"
 category = "exc"
 
+# ── `m17-idl-007`：04 整册 + 12-misc 整册 + 00 册 atomic_rmw 迁入 ──────────
+#
+# 本组语义面：`SimRISC-04`（八元算术/位操作）+ `SimRISC-12`（原子 lr/sc、
+# swym、位计数）。`atomic_rmw` 的载体在 00 册、被测 id 属 12 册。
+
+# 04-arith-logic-octa
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/cmp.si_rrii_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/cmp.ui_rrii_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/cmp.uo_orrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/ext.so_orri_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/ext.so_orrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/ext.uo_orri_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/ext.uo_orrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/or.o_orrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/rev.o_orri_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/rol.o_orri_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/shl.o_orri_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/shr.so_orri_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/shr.uo_orri_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/sub.so_rrrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/sub.uo_rrrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/xnor.o_orrr_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/04-arith-logic-octa/xor.o_orrr_rd.S"
+category = "arith"
+
+
+# 12-misc（原子 lr/sc、swym、位计数）
+
+[[case]]
+image = "tests/inst/12-misc/ctpop_orri_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/12-misc/cttz_orri_rd.S"
+category = "arith"
+
+[[case]]
+image = "tests/inst/12-misc/lr.b.an_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/lr.b.ar_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/lr.b.nn_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/lr.o.an_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/lr.o.ar_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/lr.o.nn_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/lr.t.an_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/lr.t.ar_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/lr.t.nn_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/lr.w.an_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/lr.w.ar_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/lr.w.nn_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/sc.b.ar_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/sc.b.nn_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/sc.b.nr_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/sc.o.ar_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/sc.o.nn_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/sc.o.nr_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/sc.t.ar_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/sc.t.nn_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/sc.t.nr_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/sc.w.ar_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/sc.w.nn_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/sc.w.nr_orrr_rd.S"
+category = "atomic"
+
+[[case]]
+image = "tests/inst/12-misc/swym_oiii_imm.S"
+category = "arith"
+
+
+# 00-isa-design（原子读写改写载体）
+
+[[case]]
+image = "tests/inst/00-isa-design/atomic_rmw.S"
+category = "atomic"
+
 # ── pending：暂缓镜像（每条写明镜像 + 原因）────────────────────────────────
 
-[[pending]]
-image = "tests/inst/00-isa-design/atomic_rmw.S"
-reason = "载体在 00 册，但被测 id `lr.o.nn_orrr_rd`/`sc.o.nn_orrr_rd` 属 12 册（`m17-idl-007` 范围）；本任务不做 12 册语义"
 
 [[pending]]
 image = "tests/inst/03-wyde-imm/andn.w_rwii_rb.S"
@@ -462,109 +689,31 @@ reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-id
 image = "tests/inst/03-wyde-imm/set.zw_rwii_rd.S"
 reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/add.uo_rrrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/clmul.o_rrrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/cmp.si_rrii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/cmp.ui_rrii_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/cmp.uo_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/div.uo_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/ext.so_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/ext.so_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/ext.uo_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/ext.uo_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/mul.uo_rrrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/or.o_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/rem.so_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/rem.uo_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/rev.o_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/rol.o_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/rol.o_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/shl.o_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/shr.so_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/shr.so_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/shr.uo_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/shr.uo_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/sub.so_rrrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/sub.uo_rrrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/xnor.o_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/04-arith-logic-octa/xor.o_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
 [[pending]]
 image = "tests/inst/08-arith-logic-tetra/add.ut_orrr_rd.S"
@@ -810,110 +959,29 @@ reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-id
 image = "tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S"
 reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/ctpop_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/cttz_orri_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/lr.b.an_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/lr.b.ar_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/lr.b.nn_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/lr.o.an_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/lr.o.ar_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/lr.o.nn_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/lr.t.an_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/lr.t.ar_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/lr.t.nn_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/lr.w.an_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/lr.w.ar_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/lr.w.nn_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/sc.b.ar_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/sc.b.nn_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/sc.b.nr_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/sc.o.ar_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/sc.o.nn_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/sc.o.nr_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/sc.t.ar_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/sc.t.nn_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/sc.t.nr_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/sc.w.ar_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/sc.w.nn_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/sc.w.nr_orrr_rd.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
 
-[[pending]]
-image = "tests/inst/12-misc/swym_oiii_imm.S"
-reason = "阶段一基线外（m17-idl-003 末态差分只覆盖 28 例；m17-idl-006–008 扩执行器语义后逐批迁入，m17-idl-009 收口清零）"
