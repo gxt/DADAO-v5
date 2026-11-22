@@ -2,7 +2,7 @@
 
 **模块**：qemu
 **项目里程碑**：M16
-**依赖**：`m16-qemu-002`（影子 D-Cache 数据通路）
+**依赖**：`m16-qemu-002`（影子 D-Cache 数据通路）、`m18-qemu-002`（monitor-first 异步仲裁与 pending 迁移；**必须先合入**，否则本任务会基于 target-first 的 QEMU 异步路径，与 `spec/DADAO-12 §5.2` 不一致）
 **可并行分片**：否
 **预估**：3–4 h
 **档位**：中改（复核 ≤40 min）
