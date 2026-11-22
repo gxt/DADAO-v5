@@ -395,6 +395,7 @@
 - **执行器依据锁（2026-11-22 裁 B）**：`idl/data/exec_anchor.toml` 锁 263 个 op 正文 + `idl/lib/*.idl` 的 sha256；`check-idl-exec-anchor` 进 L1；改 `.idl` ⇒ 必须 `--update` 并在评审里说明实现是否跟改。**不**声称语义等价（`m17-idl-017`）。
 - **`check-inst-sig` 退役（2026-11-22 裁 A）**：`check-idl` 在 272 例上对每一方都比同一份 `expected.tsv`，且含四方互比 ⇒ `check-inst-sig` 退出 L2 并删除 target；保留 `inst-signature-data`（期望值生成）、`signature.py` 与脚本 `--write`（`m17-testcases-003`）。
 - **gem5/chipyard 常驻门控（2026-11-22 裁 B）**：全四方进 `night-run`（新成员 `idl:four-way` → `make check-idl-full`）；L1/L2/L3 不变（L2 仍 IDL+QEMU）；缺引擎该成员 rc=2 可见、不静默跳过；`m17-idl-014` 落地。
+- **阶段二完成（2026-11-23）**：`m17-idl-013` 把 FP 50 纳入四方，**272/272**；016 后 master 复跑 `check-idl-full` 272/272（122 s，四方聚合 md5 同值）；`check-idl-exec-anchor` 进 L1、`check-inst-sig` 退役；台账 20 件已验证。**收口/归档等用户安排**。
 - **阶段二（`m17-idl-013`，A 路线）**：FP 50 镜像复用 `idl_fp`；`ISS-397/399/403/409/420` 经核为**过期**（spec 已由 `m13-spec-002/006` 改、覆盖已落 `m13-testcases-011/021/022`），按证据逐条关闭，不另立语义裁定；`ISS-476` 已随 `m15-idl-019` 关闭。
 - **Rust 的触发条件**：若随机指令流差分规模上到 >10⁷ 步/例或需并行 fuzz，再把**执行核**换 Rust（边界用 JSON/子进程隔离，前端不动）；否则不引入 Rust 工具链。
 - **trap/cfx/monitor 语义**：由 golden 模型按「最小可跑 `tests/inst` 同步异常例」实现——`003` + `006`–`008` 已覆盖；平台差异按 issue 登记，不另立机制。
