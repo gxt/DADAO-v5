@@ -3,9 +3,6 @@ owner = "testcases"
 subdirs = []
 recursive = false
 
-[files."ansibench_clock_probe.c"]
-owner = "testcases"
-
 [files."cfx_hmon_tiny.S"]
 owner = "testcases"
 
@@ -24,6 +21,9 @@ owner = "testcases"
 [files."crt0_tiny_picolibc.S"]
 owner = "testcases"
 
+[files."picolibc_clock_probe.c"]
+owner = "testcases"
+
 [files."run_ansibench_tiny.py"]
 owner = "testcases"
 
@@ -31,6 +31,9 @@ owner = "testcases"
 owner = "testcases"
 
 [files."run_inst_tiny.py"]
+owner = "testcases"
+
+[files."run_picolibc_clock_probe.py"]
 owner = "testcases"
 
 [files."run_picolibc_tests_tiny.py"]

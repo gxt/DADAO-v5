@@ -1,5 +1,6 @@
-/* ansibench_clock_probe.c — clock() 与 gettimeofday 一致性探针
- * （m15-testcases-023，ANSIBENCH 四件的 picolibc 能力验证之一）。
+/* picolibc_clock_probe.c — picolibc clock() 与 gettimeofday 一致性探针
+ * （m16-testcases-011 从 `ansibench_clock_probe.c` 改名归位：它只验证
+ * picolibc 的 times()/clock() 口径，与 ansibench 四件无依赖）。
  *
  * 判据（ADR-0058 D5 ①）：同一段忙等里，clock()/CLOCKS_PER_SEC 与
  * gettimeofday() 的秒数在 5% 内一致。semihosting 的 clock() 走
@@ -12,7 +13,7 @@
  * 本探针只按修后口径判定。
  *
  * 探针只打印观测值（clock 秒数、wall 秒数、相对差）；5% 断言在驱动
- * `run_ansibench_tiny.py` 里做。忙等是固定的，不做时间校准。
+ * `run_picolibc_clock_probe.py` 里做。忙等是固定的，不做时间校准。
  */
 #include <stdio.h>
 #include <sys/time.h>
