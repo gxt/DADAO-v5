@@ -1,9 +1,9 @@
 diff --git a/configs/dadao/fs.py b/configs/dadao/fs.py
 new file mode 100644
-index 0000000..1e41dd3
+index 0000000..9b373ca
 --- /dev/null
 +++ b/configs/dadao/fs.py
-@@ -0,0 +1,486 @@
+@@ -0,0 +1,537 @@
 +#!/usr/bin/env python3
 +# DADAO FS configuration (GEM5-015t Tiny, GEM5-016t Vast).
 +#
@@ -70,6 +70,35 @@ index 0000000..1e41dd3
 +# cycles and one cycle is one nanosecond here (same clock as the SE config).
 +CLOCK = "1GHz"
 +CYCLE_NS = 1.0
++
++# L1 geometry of the classic caches (`--caches`): one private I and D cache,
++# 8 ways x 128 sets x 64 B = 64 KiB each, the RTL geometry
++# (m16-gem5-020).  `cache-model=off` (the default) adds none of this: the
++# memory system stays exactly as before.
++L1_SIZE = "64KiB"
++L1_ASSOC = 8
++L1_LINE_SIZE = 64
++
++
++class DadaoL1Cache(Cache):
++    """Timing-neutral classic L1 (tag/data/response latency only; the cache
++    serves the arch coverage, not the cycle criterion -- m16-gem5-020)."""
++
++    tag_latency = 2
++    data_latency = 2
++    response_latency = 2
++    mshrs = 8
++    tgts_per_mshr = 20
++
++
++class DadaoL1ICache(DadaoL1Cache):
++    is_read_only = True
++    writeback_clean = True
++
++
++class DadaoL1DCache(DadaoL1Cache):
++    pass
++
 +
 +PROFILES = {
 +    # Kaiwu-Tiny (spec/Kaiwu §1.1; contracts/machine.yaml tiny).
@@ -151,6 +180,18 @@ index 0000000..1e41dd3
 +                             "guest exit); the same N on two CPU models "
 +                             "compares them on the identical instruction "
 +                             "prefix")
++    parser.add_argument("--caches", action="store_true",
++                        help="enable the private classic L1 I/D caches "
++                             "(cache-model=on; the default off path adds no "
++                             "cache and is byte-identical to before)")
++    parser.add_argument("--l1-size", default=L1_SIZE,
++                        help=f"L1 I/D cache size (default {L1_SIZE} = "
++                             f"{L1_ASSOC} ways x 128 sets x {L1_LINE_SIZE} B)")
++    parser.add_argument("--l1-assoc", type=int, default=L1_ASSOC,
++                        help=f"L1 set associativity (default {L1_ASSOC})")
++    parser.add_argument("--l1-line-size", type=int, default=L1_LINE_SIZE,
++                        help=f"cache line size in bytes (default "
++                             f"{L1_LINE_SIZE})")
 +    parser.add_argument("--wuming-cycles", action="store_true",
 +                        help="enable the wuming cycle table (DadaoISA "
 +                             "enable_wuming_cycles); off = upstream 1-cycle")
@@ -348,7 +389,7 @@ index 0000000..1e41dd3
 +    timing = args.cpu_type == "timing"
 +    system = System()
 +    system.mem_mode = "timing" if timing else "atomic"
-+    system.cache_line_size = 64
++    system.cache_line_size = args.l1_line_size
 +
 +    voltage = VoltageDomain()
 +    system.clk_domain = SrcClockDomain(clock=CLOCK, voltage_domain=voltage)
@@ -398,8 +439,18 @@ index 0000000..1e41dd3
 +
 +    system.cpu.mmu = mmu
 +    system.cpu.createInterruptController()
-+    system.cpu.icache_port = system.membus.cpu_side_ports
-+    system.cpu.dcache_port = system.membus.cpu_side_ports
++    if args.caches:
++        # Private L1 I/D in front of the system bus.  addPrivateSplitL1Caches
++        # rewires icache_port/dcache_port to the caches and makes
++        # connectCachedPorts() attach the cache memory sides (the DADAO MMU
++        # has no walker ports, so there is nothing else to connect).
++        icache = DadaoL1ICache(size=args.l1_size, assoc=args.l1_assoc)
++        dcache = DadaoL1DCache(size=args.l1_size, assoc=args.l1_assoc)
++        system.cpu.addPrivateSplitL1Caches(icache, dcache)
++        system.cpu.connectCachedPorts(system.membus.cpu_side_ports)
++    else:
++        system.cpu.icache_port = system.membus.cpu_side_ports
++        system.cpu.dcache_port = system.membus.cpu_side_ports
 +    system.cpu.createThreads()
 +
 +    if args.wuming_cycles and timing:

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.hh b/src/arch/dadao/inst.hh
 new file mode 100644
-index 0000000..6ddd9c2
+index 0000000..9b88ee2
 --- /dev/null
 +++ b/src/arch/dadao/inst.hh
-@@ -0,0 +1,77 @@
+@@ -0,0 +1,87 @@
 +// DADAO StaticInst (B0 decode + B1/B2/B3/B4/B5/B6/B7 execution).
 +#
 +// One instruction class carries the decode result.  Batches B1 (load/store),
@@ -41,6 +41,16 @@ index 0000000..6ddd9c2
 +    explicit DadaoInst(DadaoISA::ExtMachInst word);
 +
 +    Fault execute(ExecContext *xc, trace::InstRecord *traceData) const override;
++
++    /** TimingSimpleCPU runs a memory reference through initiateAcc() instead
++     *  of execute().  The DADAO cores read memory synchronously inside
++     *  execute() (the data side is functional in timing mode, m16-gem5-006/
++     *  015), so the whole instruction completes here: there is no outstanding
++     *  packet and completeAcc() is never reached.  The per-instruction count
++     *  that timing's non-memory path performs is mirrored so totalInsts() and
++     *  --max-insts keep counting memory instructions too. */
++    Fault initiateAcc(ExecContext *xc,
++                      trace::InstRecord *traceData) const override;
 +
 +    void
 +    advancePC(PCStateBase &pc) const override

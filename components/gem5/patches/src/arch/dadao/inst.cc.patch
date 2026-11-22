@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..0da2d3d
+index 0000000..b5c3bb3
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,882 @@
+@@ -0,0 +1,974 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -13,6 +13,8 @@ index 0000000..0da2d3d
 +#include <string_view>
 +#include <vector>
 +
++#include "arch/dadao/exec/b1.hh"
++#include "arch/dadao/exec/b6.hh"
 +#include "arch/dadao/exec/b7.hh"
 +#include "arch/dadao/exec/dispatch.hh"
 +#include "arch/dadao/faults.hh"
@@ -25,6 +27,7 @@ index 0000000..0da2d3d
 +#include "arch/generic/mmu.hh"
 +#include "base/cprintf.hh"
 +#include "cpu/exec_context.hh"
++#include "cpu/simple/exec_context.hh"
 +#include "cpu/thread_context.hh"
 +#include "mem/port_proxy.hh"
 +#include "mem/request.hh"
@@ -47,6 +50,68 @@ index 0000000..0da2d3d
 +{
 +    const auto decoded = DadaoISA::decode::decodeWord(word);
 +    return decoded.ok() ? decoded.entry->mnemonic : "illi";
++}
++
++/** Memory classification, read from the execution cores' single dispatch
++ * tables (B1 `Access`, B6 `B6Op` LR/SC).  This is the same source the cores
++ * dispatch on, so the StaticInst flags cannot drift into a second opcode
++ * table: an id is a memory reference here exactly when a core performs the
++ * access there. */
++const DadaoISA::exec::B1Spec *
++b1SpecOf(const DadaoISA::decode::DecodedInst &decoded)
++{
++    return decoded.ok() ? DadaoISA::exec::specForId(decoded.entry->id)
++                        : nullptr;
++}
++
++const DadaoISA::exec::B6Spec *
++b6SpecOf(const DadaoISA::decode::DecodedInst &decoded)
++{
++    return decoded.ok() ? DadaoISA::exec::b6SpecForId(decoded.entry->id)
++                        : nullptr;
++}
++
++bool
++isLoadWord(const DadaoISA::decode::DecodedInst &decoded)
++{
++    if (const auto *spec = b1SpecOf(decoded))
++        return spec->access == DadaoISA::exec::Access::Load;
++    if (const auto *spec = b6SpecOf(decoded))
++        return spec->op == DadaoISA::exec::B6Op::Lr;
++    return false;
++}
++
++bool
++isStoreWord(const DadaoISA::decode::DecodedInst &decoded)
++{
++    if (const auto *spec = b1SpecOf(decoded))
++        return spec->access == DadaoISA::exec::Access::Store;
++    if (const auto *spec = b6SpecOf(decoded))
++        return spec->op == DadaoISA::exec::B6Op::Sc;
++    return false;
++}
++
++/** LR/SC are the atomic pair (contract-isa §14.2): one reservation, read then
++ * conditional write.  They are neither a plain load nor a plain store, the
++ * same split gem5's RISC-V AMO/LR-SC classes make. */
++bool
++isAtomicWord(const DadaoISA::decode::DecodedInst &decoded)
++{
++    const auto *spec = b6SpecOf(decoded);
++    return spec != nullptr &&
++           (spec->op == DadaoISA::exec::B6Op::Lr ||
++            spec->op == DadaoISA::exec::B6Op::Sc);
++}
++
++OpClass
++opClassOf(DadaoISA::ExtMachInst word)
++{
++    const auto decoded = DadaoISA::decode::decodeWord(word);
++    if (isLoadWord(decoded))
++        return MemReadOp;
++    if (isStoreWord(decoded))
++        return MemWriteOp;
++    return IntAluOp;
 +}
 +
 +/** gem5 adapter for the B1-B7 execution cores.
@@ -657,7 +722,7 @@ index 0000000..0da2d3d
 +} // anonymous namespace
 +
 +DadaoInst::DadaoInst(DadaoISA::ExtMachInst w) :
-+    StaticInst(mnemonicOf(w), IntAluOp), word(w),
++    StaticInst(mnemonicOf(w), opClassOf(w)), word(w),
 +    decoded(DadaoISA::decode::decodeWord(w))
 +{
 +    size(4);
@@ -665,6 +730,15 @@ index 0000000..0da2d3d
 +        const bool fp = std::string(decoded.entry->scope) == "fp";
 +        flags[IsInteger] = !fp;
 +        flags[IsFloating] = fp;
++        // Memory class (D21 of the gem5 difference inventory): the flags make
++        // the instruction a memory reference to gem5 (isMemRef()), feed the
++        // load/store statistics and route the TimingSimpleCPU through
++        // initiateAcc().  They do **not** gate the classic caches: with
++        // AtomicSimpleCPU the data packet is sent by ExecContext::readMem/
++        // writeMem regardless (measured in m16-gem5-020, see the task book).
++        flags[IsLoad] = isLoadWord(decoded);
++        flags[IsStore] = isStoreWord(decoded);
++        flags[IsAtomic] = isAtomicWord(decoded);
 +    } else {
 +        flags[IsInvalid] = true;
 +        flags[IsNonSpeculative] = true;
@@ -675,6 +749,24 @@ index 0000000..0da2d3d
 +DadaoInst::generateDisassembly(Addr, const loader::SymbolTable *) const
 +{
 +    return csprintf("%s 0x%08x", mnemonic, word);
++}
++
++Fault
++DadaoInst::initiateAcc(ExecContext *xc, trace::InstRecord *traceData) const
++{
++    Fault fault = execute(xc, traceData);
++    if (fault == NoFault && !isMicroop()) {
++        // TimingSimpleCPU's memory branch calls postExecute() but not
++        // countInst() (an upstream ISA completes later in completeAcc()).
++        // DADAO completes the functional access inside execute() and never
++        // sees a packet, so mirror BaseSimpleCPU::countInst() here: without
++        // it totalInsts() and --max-insts would skip every load/store.
++        if (auto *simple = dynamic_cast<SimpleExecContext *>(xc)) {
++            simple->numInst++;
++            simple->numOp++;
++        }
++    }
++    return fault;
 +}
 +
 +bool

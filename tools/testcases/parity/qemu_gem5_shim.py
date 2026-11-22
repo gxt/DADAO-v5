@@ -8,7 +8,8 @@ QEMU argv it already emits, and this shim maps that argv onto gem5.
 
 Supported QEMU subset (ADR-0048 D1/D2; task book §2):
 
-  -M / -machine  kaiwu-tiny | kaiwu-vast[,bootrom-image=<path>]
+  -M / -machine  kaiwu-tiny | kaiwu-vast[,bootrom-image=<path>][,cache-model=on|off]
+                                   (cache-model=on -> gem5 --caches + L1)
   -bios <path>                     (Tiny flat BootROM)
   -kernel <path>                   (raw or ET_EXEC DADAO ELF)
   -semihosting-config enable=on,target=native[,chardev=<id>][,arg=<s>...]
@@ -48,7 +49,7 @@ import sys
 import tempfile
 
 USAGE = """usage: qemu_gem5_shim.py [QEMU system argv subset]
-  -M|-machine kaiwu-tiny | kaiwu-vast[,bootrom-image=PATH]
+  -M|-machine kaiwu-tiny | kaiwu-vast[,bootrom-image=PATH][,cache-model=on|off]
   -bios PATH | -kernel PATH
   -semihosting-config enable=on,target=native[,chardev=ID][,arg=S]...
   -chardev file,id=ID,path=PATH[,input-path=PATH]
@@ -95,12 +96,15 @@ def _split_kv(value: str, what: str) -> list[tuple[str, str]]:
 FIXED_MACHINES = {"kaiwu-tiny": "tiny", "kaiwu-vast": "vast"}
 
 
-def parse_machine(value: str) -> tuple[str | None, str | None, str | None]:
-    """Return (profile, bootrom, machine) from `-M/-machine`.
+def parse_machine(value: str) -> tuple[str | None, str | None, str | None,
+                                         str]:
+    """Return (profile, bootrom, machine, cache_model) from `-M/-machine`.
 
     `machine` is returned only for callers that need the identity; the shim
     accepts `kaiwu-tiny` and `kaiwu-vast`.  The profile is implied by the
     machine name, so `profile=` is rejected (the machines are separate types).
+    `cache-model=on|off` (default off) selects the classic L1 caches; `off`
+    adds no cache flag at all, so the mapping is byte-identical to before.
     """
     parts = _split_kv(value, "-machine")
     machine = parts[0][0]
@@ -109,16 +113,22 @@ def parse_machine(value: str) -> tuple[str | None, str | None, str | None]:
             f"-machine: unsupported machine {machine!r} (kaiwu-tiny or "
             f"kaiwu-vast)")
     bootrom = None
+    cache_model = "off"
     for key, val in parts[1:]:
         if key == "bootrom-image":
             bootrom = val
+        elif key == "cache-model":
+            if val not in ("on", "off"):
+                raise ShimError(
+                    f"-machine: cache-model={val!r} (only on or off)")
+            cache_model = val
         elif key == "profile":
             raise ShimError(
                 f"-machine: {machine} has a fixed profile; drop `profile=` "
                 f"(got {val!r})")
         else:
             raise ShimError(f"-machine: unsupported property {key!r}")
-    return FIXED_MACHINES[machine], bootrom, machine
+    return FIXED_MACHINES[machine], bootrom, machine, cache_model
 
 
 def parse_semihosting(value: str) -> dict:
@@ -179,6 +189,7 @@ def parse(argv: list[str]) -> dict:
         "debug_cpu": False,
         "dfilter": [],
         "input_path": None,
+        "cache_model": "off",
     }
     i = 0
     n = len(argv)
@@ -187,12 +198,13 @@ def parse(argv: list[str]) -> dict:
         if arg in ("-M", "-machine"):
             if i + 1 >= n:
                 raise ShimError(f"{arg}: missing value")
-            prof, boot, _m = parse_machine(argv[i + 1])
+            prof, boot, _m, cache_model = parse_machine(argv[i + 1])
             if cfg["profile"] is not None and prof is not None \
                     and cfg["profile"] != prof:
                 raise ShimError("conflicting --profile values")
             cfg["profile"] = prof or cfg["profile"]
             cfg["bootrom"] = boot or cfg["bootrom"]
+            cfg["cache_model"] = cache_model
             i += 2
         elif arg == "-bios":
             if i + 1 >= n:
@@ -269,6 +281,13 @@ def build_gem5_argv(cfg: dict, outdir: str, gem5: str, config: str) -> list[str]
         raise ShimError("vast profile requires a BootROM (-machine "
                         "bootrom-image=... or PARITY_GEM5_BOOTROM)")
     argv = [gem5, "--outdir", outdir, config, "--profile", profile]
+    if cfg["cache_model"] == "on":
+        # cache-model=on -> classic L1 caches with the RTL geometry
+        # (8 ways x 128 sets x 64 B = 64 KiB per L1, m16-gem5-020).
+        # cache-model=off (default) emits nothing, so the argv is the same as
+        # before the option existed.
+        argv += ["--caches", "--l1-size", "64KiB", "--l1-assoc", "8",
+                 "--l1-line-size", "64"]
     if bootrom:
         argv += ["--bootrom", bootrom]
     if cfg["kernel"]:
