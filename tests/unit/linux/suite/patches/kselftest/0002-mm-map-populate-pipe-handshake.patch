@@ -1,0 +1,96 @@
+--- a/mm/map_populate.c
++++ b/mm/map_populate.c
+@@ -39,18 +39,18 @@
+ 
+ #define TESTS_IN_CHILD 2
+ 
+-static void parent_f(int sock, unsigned long *smap, int child)
++static void parent_f(int rd, int wr, unsigned long *smap, int child)
+ {
+ 	int status, ret;
+ 
+-	ret = read(sock, &status, sizeof(int));
++	ret = read(rd, &status, sizeof(int));
+ 	BUG_ON(ret <= 0, "read(sock)");
+ 
+ 	*smap = 0x22222BAD;
+ 	ret = msync(smap, MMAP_SZ, MS_SYNC);
+ 	BUG_ON(ret, "msync()");
+ 
+-	ret = write(sock, &status, sizeof(int));
++	ret = write(wr, &status, sizeof(int));
+ 	BUG_ON(ret <= 0, "write(sock)");
+ 
+ 	waitpid(child, &status, 0);
+@@ -60,7 +60,7 @@
+ 	ksft_cnt.ksft_fail = TESTS_IN_CHILD - WEXITSTATUS(status);
+ }
+ 
+-static int child_f(int sock, unsigned long *smap, int fd)
++static int child_f(int wr, int rd, unsigned long *smap, int fd)
+ {
+ 	int ret, buf = 0;
+ 
+@@ -70,10 +70,10 @@
+ 
+ 	BUG_ON(*smap != 0xdeadbabe, "MAP_PRIVATE | MAP_POPULATE changed file");
+ 
+-	ret = write(sock, &buf, sizeof(int));
++	ret = write(wr, &buf, sizeof(int));
+ 	BUG_ON(ret <= 0, "write(sock)");
+ 
+-	ret = read(sock, &buf, sizeof(int));
++	ret = read(rd, &buf, sizeof(int));
+ 	BUG_ON(ret <= 0, "read(sock)");
+ 
+ 	ksft_test_result(*smap != 0x22222BAD, "MAP_POPULATE COW private page\n");
+@@ -85,7 +85,7 @@
+ 
+ int main(int argc, char **argv)
+ {
+-	int sock[2], child, ret;
++	int p2c[2], c2p[2], child, ret;
+ 	FILE *ftmp;
+ 	unsigned long *smap;
+ 
+@@ -110,23 +110,34 @@
+ 	ret = msync(smap, MMAP_SZ, MS_SYNC);
+ 	BUG_ON(ret, "msync()");
+ 
+-	ret = socketpair(PF_LOCAL, SOCK_SEQPACKET, 0, sock);
+-	BUG_ON(ret, "socketpair()");
++	/*
++	 * Parent/child handshake only: two pipes instead of a socketpair.  The
++	 * DADAO Linux port has no socket family yet (CONFIG_NET=n), and the
++	 * assertions about MAP_POPULATE/COW below are untouched by this.
++	 */
++	ret = pipe(c2p);
++	BUG_ON(ret, "pipe(c2p)");
++	ret = pipe(p2c);
++	BUG_ON(ret, "pipe(p2c)");
+ 
+ 	child = fork();
+ 	BUG_ON(child == -1, "fork()");
+ 
+ 	if (child) {
+-		ret = close(sock[0]);
++		ret = close(c2p[1]);
++		BUG_ON(ret, "close()");
++		ret = close(p2c[0]);
+ 		BUG_ON(ret, "close()");
+ 
+-		parent_f(sock[1], smap, child);
++		parent_f(c2p[0], p2c[1], smap, child);
+ 
+ 		ksft_finished();
+ 	}
+ 
+-	ret = close(sock[1]);
++	ret = close(c2p[0]);
++	BUG_ON(ret, "close()");
++	ret = close(p2c[1]);
+ 	BUG_ON(ret, "close()");
+ 
+-	return child_f(sock[0], smap, fileno(ftmp));
++	return child_f(c2p[1], p2c[0], smap, fileno(ftmp));
+ }

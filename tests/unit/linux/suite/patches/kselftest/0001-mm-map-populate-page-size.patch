@@ -1,0 +1,18 @@
+--- a/mm/map_populate.c
++++ b/mm/map_populate.c
+@@ -20,7 +20,14 @@
+ 
+ #include "vm_util.h"
+ 
+-#define MMAP_SZ		4096
++/*
++ * One mapping of this machine's page size (64 KiB on DADAO, m18-linux-005):
++ * the test means "a page-sized mapping of the file", not a 4 KiB one.
++ * A 4096-byte mapping is sub-page on this machine, so the file is shorter
++ * than the page the mapping faulted in and the MAP_POPULATE/COW handover
++ * the test is about is not exercised at all.
++ */
++#define MMAP_SZ		((size_t)sysconf(_SC_PAGESIZE))
+ 
+ #define BUG_ON(condition, description)						\
+ 	do {									\

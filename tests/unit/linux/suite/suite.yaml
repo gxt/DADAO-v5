@@ -1,0 +1,59 @@
+format: 1
+# kselftest pilot (m18-linux-005): the cases the suite image ships, how long each
+# may run in the guest, and the **recorded baseline verdict** of the current
+# implementation.  `expect` is a record, not a wish: run_suite.py fails when a
+# run departs from it (that is how a tampered criterion becomes visible), and the
+# triage ledger (triage.yaml) explains every non-PASS verdict.
+cases:
+  - id: mm-map-fixed-noreplace
+    dir: mm
+    prog: map_fixed_noreplace
+    timeout: 60
+    expect: PASS
+  # Adapted by patches/kselftest/0001-...: the test's 4 KiB MMAP_SZ is a page
+  # size on x86 but one sixteenth of a page on DADAO, so the file it maps is
+  # shorter than the faulted-in page and the MAP_POPULATE/COW handover it tests
+  # never happens.  Patched it runs to the child's COW fault and then wedges on
+  # a kernel rwsem warning (KERNEL_BUG in triage.yaml), so it runs in its own
+  # boot: a wedged run must not take the other cases with it.
+  - id: mm-map-populate
+    dir: mm
+    prog: map_populate
+    timeout: 60
+    expect: HOST_TIMEOUT
+    stall: true
+  - id: mm-mlock2-tests
+    dir: mm
+    prog: mlock2-tests
+    timeout: 60
+    expect: SIGNAL
+  - id: mm-mremap-dontunmap
+    dir: mm
+    prog: mremap_dontunmap
+    timeout: 60
+    expect: FAIL
+  - id: mm-pfnmap
+    dir: mm
+    prog: pfnmap
+    timeout: 60
+    expect: SKIP
+  - id: mm-on-fault-limit
+    dir: mm
+    prog: on-fault-limit
+    timeout: 60
+    expect: SKIP
+  - id: futex-wait-timeout
+    dir: futex/functional
+    prog: futex_wait_timeout
+    timeout: 90
+    expect: FAIL
+  # Runs last on purpose: the absolute-time `clock_nanosleep(CLOCK_REALTIME,
+  # TIMER_ABSTIME, now+10ns)` wedges the machine (no console output at all, so
+  # neither the guest-side alarm nor the host can attribute the case), recorded
+  # as KERNEL_BUG in triage.yaml.
+  - id: timers-nanosleep
+    dir: timers
+    prog: nanosleep
+    timeout: 60
+    expect: HOST_TIMEOUT
+    stall: true

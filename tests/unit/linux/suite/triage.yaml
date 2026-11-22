@@ -1,0 +1,104 @@
+format: 1
+# In-repo triage ledger (m18-linux-005).  One row per **non-PASS** verdict of the
+# current baseline; `suite_checks.py` S3 fails when a non-PASS case has no row, a
+# row is stale, or a row's verdict differs from the run.  `case_output` is quoted
+# verbatim from the run that produced the row, so the evidence can be re-checked
+# in the console log of any run.
+#
+# class:
+#   KERNEL_BUG    the kernel's behaviour is wrong (would be fixed in the kernel)
+#   TEST_ADAPT    the test encodes a wrong assumption for this machine (64 KiB
+#                 pages, big endian, ...); the fix lives in patches/kselftest
+#   UNSUPPORTED   a facility this port does not implement at all (recorded, not
+#                 silently skipped)
+#   SUITE_ENV     the environment cannot run it yet (image/loader/libc), with the
+#                 dependency and the re-run condition named
+rows:
+  - id: mm-map-populate
+    class: KERNEL_BUG
+    verdict: HOST_TIMEOUT
+    case_output: "WARNING: include/linux/rwsem.h:81 at 0x0000000000000000, CPU#0: map_populate/16"
+    evidence: >-
+      With the 64 KiB adaptation applied (patches/kselftest/0001, 0002) the case
+      gets past tmpfile/ftruncate/mmap/msync/fork and into the child's
+      MAP_POPULATE COW fault; there the kernel warns at include/linux/rwsem.h:81
+      and the machine stops printing (no further kernel or test output, so the
+      guest-side alarm cannot fire and the host labels the case HOST_TIMEOUT).
+      Without patch 0001 the case wedges earlier, inside the same child, on the
+      sub-page (4096 B) mapping — the adaptation is what makes this a kernel
+      finding instead of a test-assumption artefact.
+    recheck: >-
+      Rerun `run_suite.py --only mm-map-populate` when the rwsem usage on the
+      fork/mmap-populate path is fixed; the case then either passes or fails on
+      its COW assertion, and this row is replaced by the new evidence.
+  - id: mm-mlock2-tests
+    class: KERNEL_BUG
+    verdict: SIGNAL
+    case_output: "SUITE CASE END mm-mlock2-tests rc=139 status=signal"
+    evidence: >-
+      The program prints only its TAP header and plan (1..15) and then takes
+      SIGSEGV (rc=139) before the first sub-test result: `mlock2_(3 * page_size,
+      MLOCK_ONFAULT)` did not fail with ENOSYS, so the test proceeds into
+      test_mlock_lock() and the process dies inside it. No userspace assertion
+      was reached, so this is a kernel (or libc/kernel ABI) fault, not a test
+      assumption.
+    recheck: >-
+      Rerun `run_suite.py --only mm-mlock2-tests` after the mlock2/MLOCK_ONFAULT
+      path is fixed; the per-sub-test output then says which case dies.
+  - id: mm-mremap-dontunmap
+    class: SUITE_ENV
+    verdict: FAIL
+    case_output: "Bail out! [FAIL]	mremap_dontunmap_simple_shmem:134	memfd_create:No such file or directory"
+    evidence: >-
+      `ok 1 mremap_dontunmap_simple` passes (mremap(MREMAP_DONTUNMAP) on an
+      anonymous mapping works); the next case needs memfd_create, which the image
+      cannot back because the suite kernel is built with CONFIG_TMPFS=n (no
+      shmem), so memfd_create returns ENOENT and the harness bails out.
+    recheck: >-
+      Rerun after the suite image enables CONFIG_TMPFS (and MEMFD_CREATE) — a
+      kernel-image config decision for the kernel owner, not a test change.
+  - id: mm-pfnmap
+    class: SUITE_ENV
+    verdict: SKIP
+    case_output: "1..0 # SKIP Cannot find ram target in '/proc/iomem': No such file or directory"
+    evidence: >-
+      The test needs a RAM region advertised in /proc/iomem; the DADAO machine
+      has no /proc/iomem ram target (no firmware memory map is exported), so the
+      whole case self-skips (kselftest SKIP exit code 4).
+    recheck: Rerun when the kernel exports memory regions in /proc/iomem.
+  - id: mm-on-fault-limit
+    class: SUITE_ENV
+    verdict: SKIP
+    case_output: "ok 1 # SKIP The test must be run from a normal user"
+    evidence: >-
+      The suite runs every case as PID 1's uid (0); the test refuses to run as
+      root and skips itself. It is not a kernel verdict either way.
+    recheck: >-
+      Rerun after the suite supervisor drops to a non-root uid for cases (needs
+      ownership/setuid support in the image) — tracked as the SUITE_ENV reason.
+  - id: futex-wait-timeout
+    class: KERNEL_BUG
+    verdict: FAIL
+    case_output: "not ok 1 futex_waitv monotonic returned 22"
+    evidence: >-
+      Three of the four groups pass (relative futex_wait, FUTEX_WAIT_BITSET on
+      CLOCK_REALTIME/MONOTONIC, FUTEX_WAIT_REQUEUE_PI, FUTEX_LOCK_PI); the
+      futex_waitv syscall returns EINVAL (22) for a plain relative wait, so the
+      multi-wait interface is not implemented by this port.
+    recheck: >-
+      Rerun `run_suite.py --only futex-wait-timeout` after futex_waitv lands; the
+      row disappears when the case passes.
+  - id: timers-nanosleep
+    class: KERNEL_BUG
+    verdict: HOST_TIMEOUT
+    case_output: "TAP version 13\n1..12"
+    evidence: >-
+      The program prints its TAP header and plan and then nothing at all — not
+      one kernel line, no guest alarm, no case end. The first sub-test calls
+      clock_nanosleep(CLOCK_REALTIME, TIMER_ABSTIME, now+10ns); the machine stops
+      making progress there, which is why the case is marked `stall: true` and
+      runs in its own boot (otherwise every later case would be lost).
+    recheck: >-
+      Rerun `run_suite.py --only timers-nanosleep` after the absolute-time sleep
+      path is fixed; a live machine then either passes the sub-test or names a
+      failing clock.

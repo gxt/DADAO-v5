@@ -1,0 +1,51 @@
+format: 1
+# Adaptation-patch manifest (m18-linux-005).
+#
+# The patches under this directory are applied **to the suite copy** of
+# `tools/testing/selftests` (never to the locked kernel tree).  This manifest is
+# the single list of them: `build_suite.apply_patches()` applies exactly these
+# files in this order (it does not glob the directory), and
+# `check_suite.py --patches-only` fails when the directory and the manifest name
+# different sets — an unregistered `*.patch` is red, a manifest record without a
+# file is red.
+#
+# What makes the adaptation auditable:
+#
+#   * `upstream.commit` is checked against `manifests/components.lock.toml`;
+#   * `sha256` pins the patch text itself;
+#   * per touched file, `upstream_sha256` is the hash **before that patch is
+#     applied** — the locked kernel tree for the first patch, the previous
+#     patch's result for a chained one — and `patched_sha256` is the hash after
+#     it.  The checker replays the chain one patch at a time and compares both
+#     ends of every step, so two patches touching the same file cannot mask each
+#     other.
+upstream:
+  component: linux
+  version: v7.2.10
+  commit: 7b20d05fd38de8e0be168956f6fd241d750c7d69
+patches:
+  - file: 0001-mm-map-populate-page-size.patch
+    sha256: e43bea87a4c054fea24520b41c81bd669ca0397ab0f56aa71a8a65c4cc98e70f
+    class: TEST_ADAPT
+    why: >-
+      mm/map_populate.c maps `MMAP_SZ = 4096` bytes of a 4096-byte file.  That is
+      one page on a 4 KiB machine, but one sixteenth of a page on DADAO (64 KiB),
+      so the file is shorter than the page the mapping faults in and the
+      MAP_POPULATE/COW handover the test is about never happens: unpatched the
+      machine wedges inside the first child (recorded run: HOST_TIMEOUT).
+    files:
+      - path: mm/map_populate.c
+        upstream_sha256: b63ff2897aa2b085f737ec4d603b7a3976a1a937eacba122fe6f1a3085bee8f0
+        patched_sha256: 1e9a60b3cc0c497e01b28a71cab11d8937150cf3cc1611b116ef4904621d8977
+  - file: 0002-mm-map-populate-pipe-handshake.patch
+    sha256: 24b7ae2fb8c3a196425130de7ab2f839f9885c6003672dbdc6b781487ea6db5d
+    class: TEST_ADAPT
+    why: >-
+      The same test uses `socketpair(AF_UNIX)` only to hand a word between parent
+      and child; the DADAO Linux port has no socket family yet (CONFIG_NET=n), so
+      the harness dies with ENOSYS before the COW assertions.  Two pipes carry
+      the same handshake; the assertions about MAP_POPULATE/COW are untouched.
+    files:
+      - path: mm/map_populate.c
+        upstream_sha256: 1e9a60b3cc0c497e01b28a71cab11d8937150cf3cc1611b116ef4904621d8977
+        patched_sha256: 88887957ce7cf65dcddf303126920470220cc1c7ebf67254ae4985ec46b46e54
