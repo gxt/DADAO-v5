@@ -25,6 +25,8 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-testcases-006 | 2026-11-22 12:23 | 中 | `tests/arch` 落点与驱动骨架（`run_arch.py`、`machine: vast`、Tiny hmon 迁出） |
+| m16-gem5-020 | 2026-11-22 12:23 | 中 | gem5 cache 前置：`IsLoad/IsStore/IsAtomic` + `--caches` 接线（不含 cfx5） |
 
 ## 已验证
 
