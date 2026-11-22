@@ -22,14 +22,12 @@
 | --- | --- | --- |
 | m16-testcases-009 | 3–4 h | cfx5 用例三方跑（寄存器面 + 命令 + 数据语义） |
 | m16-chipyard-018 | 3–4 h | cfx4 RTL PTW/TLB 探针纳管并三方对齐 |
-| m16-chipyard-020 | 6–8 h | RTL cfx0/2 模式进入路由（B；U/S 进入、switch_run_mode、异常帧） |
 | m16-chipyard-021 | 3–4 h | RTL cfx15 hart（寄存器 + cycle/insn + timer 中断） |
 | m16-chipyard-022 | 4–5 h | RTL cfx32 pmem（寄存器 + DMA + 完成中断） |
 | m16-chipyard-023 | 2–3 h | RTL cfx34 time（全局时间，无中断） |
 | m16-testcases-012 | 2–3 h | fence 基础验证（三方；完整覆盖不作验收要求） |
 | m16-testcases-013 | 2–3 h | cfx15 timer 中断（单独测试；单 hart，mask/pending/清除） |
 | m16-testcases-016 | 2–3 h | cfx63 power 基础用例（寄存器面 + power→hmon 移交，三方） |
-| m16-testcases-017 | 2–3 h | env 权限准备（H/S/U 下按用例声明打开 cfx 掩码） |
 
 | m16-testcases-018 | 2–3 h | `tests/arch` 命名规范化整理（env-* 目录、`.S`、check/gen 前缀、引用同步） |
 
@@ -40,8 +38,8 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m16-gem5-024 | 2026-11-22 22:04 | 2–3 h | gem5 cfx5 两轴权限/trap/escape（进 kCfxhaMap） |
-
-| m16-testcases-015 | 2026-11-22 20:47 | 4–6 h | `tests/arch` 运行模式环境（hmon/smon/umon；body 与 env 分离；代表迁移） |
+| m16-testcases-017 | 2026-11-22 21:32 | 2–3 h | env 权限准备（H/S/U 下按用例声明打开 cfx 掩码） |
+| m16-chipyard-020 | 2026-11-23 00:51 | 6–8 h | RTL cfx0/2 模式进入路由（B；U/S 进入、switch_run_mode、异常帧、两轴 CFXPERM） |
 
 ## 已验证
 
