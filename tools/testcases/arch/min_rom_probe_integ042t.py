@@ -749,14 +749,47 @@ def _pmem_dma_masked_pending():
 
 
 # -- cfx numbering / aliases ---------------------------------------------
-@case("cfx5_cache_cfxreg", "cfx5 = cache is allocated but unimplemented => CFXREG")
-def _cfx5_cache_cfxreg():
+OFF_HMON_FAIL = 0x980                     # second hmon vector slot
+HMON_FAIL = ROM_BASE + OFF_HMON_FAIL
+# Any exception during the "legal commands" phase means a legal encoding was
+# rejected: exit with a code the case does not expect.
+LEGAL_PHASE_FAIL_HANDLER = exit_seq(0x19)
+
+
+@case("cfx5_cache_noop",
+      "cfx5 off: exist reads 0; legal cache_ctrl no-op; illegal encoding => CFXREG")
+def _cfx5_cache_noop():
+    # User ruling 2026-11-22 (discussing.md「M16 三方差分」cache 段): the cache
+    # *model* decides whether cfx5 has effects, never whether it exists -- a
+    # Linux kernel runs its cache maintenance unconditionally.  With the
+    # default machine (cache-model=off) three things must hold:
+    #   1. cache_exist (cg8 rc0) reads 0;
+    #   2. every legal cache_ctrl encoding (selection I/D/both x operation
+    #      none/clean/invalidate/flush x range all/PA line/PA span, with
+    #      addr_size != 0 for the span) is accepted and completes silently;
+    #   3. encoding validation is model-independent (CACHE-08/14): an illegal
+    #      encoding still raises CFXREG with cause_info = the instruction word.
+    # Failure modes are distinguishable: a legal command that raises exits
+    # 0x19 (legal-phase handler), an illegal command that is accepted falls
+    # through to exit 0x7E, and a wrong cause leaves a different rd10/rd11.
     p = []
-    setup_hmon_vector(p, HMON_HANDLER)
-    p.append(cfx2rd(CACHE_HA, 8, 0, 5))     # cfx_cache cg8 rc0
-    p += exit_seq(0x7E)
-    return build_rom(p, {OFF_HMON_HANDLER: HMON_CFXREG_HANDLER}), \
-        {"exit": EXIT_PASS, "rd10": CAUSE_CFXREG}
+    setup_hmon_vector(p, HMON_FAIL)         # legal phase: any fault => 0x19
+    p.append(cfx2rd(CACHE_HA, 8, 0, 5))      # cache_exist => 0 with model off
+    p += load_rd(17, 0x1000)                  # PA span needs size != 0
+    p.append(cfx2rc(CACHE_HA, 8, 11, 17))     # cache_addr_size (cg8 rc11)
+    for sel in (1, 2, 3):                     # bit15 = I, bit14 = D
+        for op in (0, 1, 2, 3):               # none/clean/invalidate/flush
+            for rng in (0, 1, 2):             # all / PA line / PA span
+                p += load_rd(17, (sel << 14) | (rng << 2) | op)
+                p.append(cfx2rc(CACHE_HA, 8, 9, 17))
+    setup_hmon_vector(p, HMON_HANDLER)        # illegal phase: record cause
+    p += load_rd(17, (3 << 14) | (3 << 2) | 1)  # [3:2] = 11 => illegal
+    bad = cfx2rc(CACHE_HA, 8, 9, 17)
+    p.append(bad)
+    p += exit_seq(0x7E)                       # not reached: handler exits
+    return build_rom(p, {OFF_HMON_HANDLER: HMON_CFXREG_HANDLER,
+                         OFF_HMON_FAIL: LEGAL_PHASE_FAIL_HANDLER}), \
+        {"exit": EXIT_PASS, "rd5": 0, "rd10": CAUSE_CFXREG, "rd11": bad}
 
 
 @case("cfx6_reserved_cfxmem", "cfx6 is reserved: plain ld/st => CFXMEM")

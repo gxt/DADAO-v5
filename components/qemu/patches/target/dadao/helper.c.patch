@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..7308493
+index 0000000..f989857
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,3179 @@
+@@ -0,0 +1,3335 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -1892,7 +1892,7 @@ index 0000000..7308493
 + * other allocated-but-unimplemented cfx => CFXREG.
 + * =================================================================== */
 +
-+const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 4, 15, 32, 34, 63 };
++const int dadao_cfxha_map[DADAO_NUM_CFX] = { 0, 1, 2, 3, 4, 5, 15, 32, 34, 63 };
 +
 +/* cfxha -> compact index into env->cfx[], or -1 if the active profile does not
 + * implement that cfx (spec/Kaiwu §3 per-profile list).  A profile that
@@ -1902,7 +1902,18 @@ index 0000000..7308493
 +{
 +    int i;
 +
-+    if (!dadao_cfx_implemented(DADAO_PROFILE(env), cfxha)) {
++    /* cfx_cache (cfx5) exists on a cache-capable core in *both* cache
++     * models (user ruling 2026-11-22: the model decides whether the cache
++     * has effects, never whether cfx5 exists -- a Linux kernel runs its
++     * maintenance unconditionally).  It is not in `cfx_impl_mask` because
++     * that mask is also the "allocated-but-unimplemented => CFXREG / plain
++     * ld-st path" selector; cfx5 has its own row and register set.  Tiny has
++     * no cfx5 at all (spec/Kaiwu §3.2). */
++    if (cfxha == DADAO_CFXHA_CACHE) {
++        if (!DADAO_PROFILE(env)->cache_cfx) {
++            return -1;
++        }
++    } else if (!dadao_cfx_implemented(DADAO_PROFILE(env), cfxha)) {
 +        return -1;
 +    }
 +    for (i = 0; i < DADAO_NUM_CFX; i++) {
@@ -2580,6 +2591,110 @@ index 0000000..7308493
 +    }
 +}
 +
++/* ── cfx_cache register face (contract-cache §1/§2; m16-qemu-001) ──────
++ * Register numbers and bit positions come from contract-cache, never from
++ * this implementation:
++ *   cg8 rc0  cache_exist      RO   bit0 = I, bit1 = D (CACHE-03/06)
++ *   cg8 rc8  cache_enable     RW   bit0 = I, bit1 = D (CACHE-03/07)
++ *   cg8 rc9  cache_ctrl       WO   write-executes a command (CACHE-03/09)
++ *   cg8 rc10 cache_addr_start RW   PA[55:0]; [63:56] read 0 (CACHE-03/18)
++ *   cg8 rc11 cache_addr_size  RW   byte count (CACHE-03)
++ * Any other rc of cg8 is reserved => CFXREG (CACHE-04), and cfx5 implements
++ * no cg other than cg8 (the shared cg0-cg6 rows and cg7 stay reserved).
++ *
++ * `cache-model` only decides *effects* (user ruling 2026-11-22): with `on`
++ * the machine reports I+D (`cache_exist` = 0b11, CACHE-27) and with `off` it
++ * reports no cache (`cache_exist` = 0) -- but the register face answers in
++ * both settings, and a legal `cache_ctrl` write is accepted, completes
++ * synchronously (CACHE-24/CACHE-25) and has no effect while the shadow
++ * D-cache is absent (later task).  An illegal encoding still raises CFXREG
++ * before any maintenance action.
++ */
++/* cache_ctrl fields (CACHE-09): [1:0] op, [3:2] range, [15:14] selection
++ * (bit15 = I, bit14 = D).  Unused bits are reserved and ignored. */
++#define DADAO_CACHE_CTRL_OP_SHIFT     0
++#define DADAO_CACHE_CTRL_RANGE_SHIFT  2
++#define DADAO_CACHE_CTRL_SEL_SHIFT   14
++#define DADAO_CACHE_CTRL_FIELD_MASK   0x3ULL
++#define DADAO_CACHE_OP_NONE           0x0
++#define DADAO_CACHE_RANGE_SPAN        0x2
++#define DADAO_CACHE_RANGE_RESERVED    0x3
++#define DADAO_CACHE_SEL_NONE          0x0
++
++static bool dadao_cache_reg_read(CPUDADAOState *env, uint32_t rc, uint64_t *val)
++{
++    switch (rc) {
++    case 0:                             /* cache_exist (RO) */
++        *val = dadao_cache_exist(env);
++        return true;
++    case 8:                             /* cache_enable (RW) */
++        *val = env->cache_enable & dadao_cache_exist(env);
++        return true;
++    case 9:                             /* cache_ctrl is WO (CACHE-03) */
++        return false;
++    case 10:                            /* cache_addr_start (RW) */
++        *val = env->cache_addr_start & DADAO_CACHE_PA_MASK;
++        return true;
++    case 11:                            /* cache_addr_size (RW) */
++        *val = env->cache_addr_size;
++        return true;
++    default:                            /* CACHE-04: reserved rc => CFXREG */
++        return false;
++    }
++}
++
++/* Execute a cache_ctrl write (CACHE-09..CACHE-14).  Returns false when the
++ * encoding is illegal and the caller must raise CFXREG. */
++static bool dadao_cache_ctrl_exec(CPUDADAOState *env, uint64_t val)
++{
++    unsigned sel = (val >> DADAO_CACHE_CTRL_SEL_SHIFT) &
++                   DADAO_CACHE_CTRL_FIELD_MASK;
++    unsigned op = (val >> DADAO_CACHE_CTRL_OP_SHIFT) &
++                  DADAO_CACHE_CTRL_FIELD_MASK;
++    unsigned range = (val >> DADAO_CACHE_CTRL_RANGE_SHIFT) &
++                     DADAO_CACHE_CTRL_FIELD_MASK;
++
++    /* CACHE-11 order: selection, then operation, then range/operand. */
++    if (sel == DADAO_CACHE_SEL_NONE) {
++        return true;                    /* CACHE-12: unconditional no-op */
++    }
++    if (op == DADAO_CACHE_OP_NONE) {
++        return true;                    /* CACHE-13: unconditional no-op */
++    }
++    if (range == DADAO_CACHE_RANGE_RESERVED) {
++        return false;                   /* CACHE-14: [3:2] = 11 */
++    }
++    if (range == DADAO_CACHE_RANGE_SPAN && env->cache_addr_size == 0) {
++        return false;                   /* CACHE-14: PA span needs size != 0 */
++    }
++    /* Legal command: the array effect is a later task; complete silently. */
++    return true;
++}
++
++/* Write a cfx_cache cg8 register (CACHE-03/07/09/18).  Returns false when the
++ * register is read-only/reserved or the ctrl encoding is illegal (CFXREG). */
++static bool dadao_cache_reg_write(CPUDADAOState *env, uint32_t rc, uint64_t val)
++{
++    switch (rc) {
++    case 0:                             /* cache_exist is RO (CACHE-03) */
++        return false;
++    case 8:                             /* bit0 = I, bit1 = D (CACHE-07);
++                                         * `exist=0` bits ignore writes */
++        env->cache_enable = val & dadao_cache_exist(env);
++        return true;
++    case 9:                             /* WO, write-executes (CACHE-09) */
++        return dadao_cache_ctrl_exec(env, val);
++    case 10:                            /* PA[55:0]; [63:56] read 0 (CACHE-18) */
++        env->cache_addr_start = val & DADAO_CACHE_PA_MASK;
++        return true;
++    case 11:
++        env->cache_addr_size = val;
++        return true;
++    default:                            /* CACHE-04: reserved rc => CFXREG */
++        return false;
++    }
++}
++
 +#ifndef CONFIG_USER_ONLY
 +
 +/* Wake the vCPU for TIMER.  The timer callback runs in the main loop with
@@ -2965,6 +3080,13 @@ index 0000000..7308493
 +        cfx_raise_perm(env, info, pc);
 +        return;
 +    }
++    /* cfx_cache implements only the cg8 register face (contract-cache
++     * CACHE-03/04): every other cg -- including the shared cg0-cg6 rows and
++     * cg7 -- is reserved for cfx5 => CFXREG. */
++    if (dadao_cfxha_map[ci] == DADAO_CFXHA_CACHE && cg != 8) {
++        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++        return;
++    }
 +    /* cfx_pmem cg15: DMA registers (DADAO-12 §4.9; ADR-0042 D7.3). */
 +    if (cg == 15 && dadao_cfxha_map[ci] == DADAO_CFXHA_PMEM) {
 +        uint64_t v;
@@ -3000,6 +3122,21 @@ index 0000000..7308493
 +        uint64_t v;
 +
 +        if (!dadao_hart_reg_read(env, rc, &v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++            return;
++        }
++        if (rd != 0) {
++            env->rd[rd] = v;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
++        return;
++    }
++    /* cfx_cache cg8 register face (contract-cache §1/§2; m16-qemu-001). */
++    if (cg == 8 && dadao_cfxha_map[ci] == DADAO_CFXHA_CACHE) {
++        uint64_t v;
++
++        if (!dadao_cache_reg_read(env, rc, &v)) {
 +            cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
 +            return;
 +        }
@@ -3064,6 +3201,13 @@ index 0000000..7308493
 +        cfx_raise_perm(env, info, pc);
 +        return;
 +    }
++    /* cfx_cache implements only the cg8 register face (contract-cache
++     * CACHE-03/04): every other cg -- including the shared cg0-cg6 rows and
++     * cg7 -- is reserved for cfx5 => CFXREG. */
++    if (dadao_cfxha_map[ci] == DADAO_CFXHA_CACHE && cg != 8) {
++        cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++        return;
++    }
 +    /* cfx_pmem cg15: DMA registers (DADAO-12 §4.9; ADR-0042 D7.3). */
 +    if (cg == 15 && dadao_cfxha_map[ci] == DADAO_CFXHA_PMEM) {
 +        uint64_t v = (rd == 0) ? 0 : env->rd[rd];
@@ -3086,6 +3230,18 @@ index 0000000..7308493
 +        uint64_t v = (rd == 0) ? 0 : env->rd[rd];
 +
 +        if (!dadao_hart_reg_write(env, rc, v)) {
++            cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
++            return;
++        }
++        env->pc = pc + 4;
++        env->rb[0] = pc + 4;
++        return;
++    }
++    /* cfx_cache cg8 register face (contract-cache §1/§2; m16-qemu-001). */
++    if (cg == 8 && dadao_cfxha_map[ci] == DADAO_CFXHA_CACHE) {
++        uint64_t v = (rd == 0) ? 0 : env->rd[rd];
++
++        if (!dadao_cache_reg_write(env, rc, v)) {
 +            cfx_raise(env, DADAO_CAUSE_CFXREG, env->inner_run_mode, pc, info);
 +            return;
 +        }

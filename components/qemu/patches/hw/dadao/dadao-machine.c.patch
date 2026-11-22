@@ -1,9 +1,9 @@
 diff --git a/hw/dadao/dadao-machine.c b/hw/dadao/dadao-machine.c
 new file mode 100644
-index 0000000..e58ecfe
+index 0000000..dff8858
 --- /dev/null
 +++ b/hw/dadao/dadao-machine.c
-@@ -0,0 +1,1321 @@
+@@ -0,0 +1,1385 @@
 +/*
 + * DADAO Kaiwu bare-metal test machines for QEMU
 + *
@@ -461,11 +461,27 @@ index 0000000..e58ecfe
 +    close(fd);
 +}
 +
++/* cfx5 cache model (`-machine kaiwu-vast,cache-model=off|on`; m16-qemu-001).
++ * The model decides whether the cache has *effects*, never whether cfx5
++ * exists (user ruling 2026-11-22: a Linux kernel runs its cache maintenance
++ * unconditionally).  OFF is the historical direct-map test machine
++ * (Linux/K0/inst unchanged): `cache_exist` reads 0 and every maintenance
++ * command completes as a no-op.  ON reports I and D (`cache_exist` = 0b11)
++ * for the arch test scope; the shadow D-cache data path is still absent.
++ * The enum is zero-initialised like every other QOM field, so OFF is the
++ * default. */
++typedef enum DadaoCacheModel {
++    DADAO_CACHE_MODEL_OFF = 0,
++    DADAO_CACHE_MODEL_ON,
++} DadaoCacheModel;
++
 +/* DADAO Kaiwu machine state.  Both registered types share it. */
 +typedef struct DadaoMachineState {
 +    MachineState parent_obj;
 +    /* BootROM image path (ADR-0043 D1/D2); NULL => -bios / ELF paths. */
 +    char *bootrom_image;
++    /* cfx5 cache model; only Kaiwu-Vast accepts ON (CACHE-27/28). */
++    DadaoCacheModel cache_model;
 +} DadaoMachineState;
 +
 +/* One registered machine type (M12): the profile is fixed per type. */
@@ -505,6 +521,40 @@ index 0000000..e58ecfe
 +
 +    g_free(ms->bootrom_image);
 +    ms->bootrom_image = g_strdup(value);
++}
++
++static char *dadao_machine_get_cache_model(Object *obj, Error **errp)
++{
++    DadaoMachineState *ms = dadao_machine_state(MACHINE(obj));
++
++    return g_strdup(ms->cache_model == DADAO_CACHE_MODEL_ON ? "on" : "off");
++}
++
++static void dadao_machine_set_cache_model(Object *obj, const char *value,
++                                          Error **errp)
++{
++    DadaoMachineState *ms = dadao_machine_state(MACHINE(obj));
++    DadaoMachineClass *dc = dadao_machine_class(MACHINE_GET_CLASS(obj));
++
++    if (g_strcmp0(value, "off") == 0) {
++        ms->cache_model = DADAO_CACHE_MODEL_OFF;
++        return;
++    }
++    if (g_strcmp0(value, "on") == 0) {
++        /* cfx5 exists only on Kaiwu-Vast (contract-cache CACHE-27); Tiny does
++         * not implement it (CACHE-28), so ON is a start-up error there
++         * instead of a silently ignored capability. */
++        if (dc->profile != &dadao_profile_vast) {
++            error_setg(errp, "cache-model=on is Kaiwu-Vast only: machine '%s' "
++                       "does not implement cfx5 (contract-cache CACHE-28)",
++                       dc->profile->name);
++            return;
++        }
++        ms->cache_model = DADAO_CACHE_MODEL_ON;
++        return;
++    }
++    error_setg(errp, "invalid cache-model '%s' (expected off|on)",
++               value ? value : "");
 +}
 +
 +/*
@@ -1087,6 +1137,9 @@ index 0000000..e58ecfe
 +     * geometry from env->prof (spec/Kaiwu §1; QEMU-079t). */
 +    cpu = DADAO_CPU(qdev_new(DADAO_CPU_TYPE_NAME("any")));
 +    cpu->env.prof = prof;
++    /* cfx5 register face is a runtime capability of this machine instance
++     * (m16-qemu-001); the CPU reset derives cache_enable from it. */
++    cpu->env.cache_model_on = (ms->cache_model == DADAO_CACHE_MODEL_ON);
 +    qdev_realize_and_unref(DEVICE(cpu), NULL, &error_fatal);
 +
 +    system_memory = get_system_memory();
@@ -1291,6 +1344,17 @@ index 0000000..e58ecfe
 +                                  dadao_machine_set_bootrom_image);
 +    object_class_property_set_description(oc, "bootrom-image",
 +        "BootROM image loaded at the profile ROM base (exact ROM size)");
++
++    /* cfx5 cache model property (m16-qemu-001; contract-cache CACHE-27):
++     * a machine property so every existing command line keeps working.
++     * Default off; "on" is Kaiwu-Vast only and enables the cfx5 register
++     * face (shadow D-cache data path is a later task). */
++    object_class_property_add_str(oc, "cache-model",
++                                  dadao_machine_get_cache_model,
++                                  dadao_machine_set_cache_model);
++    object_class_property_set_description(oc, "cache-model",
++        "cfx5 cache model: 'off' (default; cache_exist 0, commands no-op) or "
++        "'on' (Kaiwu-Vast I+D, cache_exist 0b11)");
 +}
 +
 +/*

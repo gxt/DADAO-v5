@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..226f90f
+index 0000000..0698861
 --- /dev/null
 +++ b/target/dadao/cpu.c
-@@ -0,0 +1,657 @@
+@@ -0,0 +1,668 @@
 +/*
 + * DADAO CPU for QEMU
 + *
@@ -80,6 +80,7 @@ index 0000000..226f90f
 +    .unimpl_cfx_trap_illi = false,  /* allocated-but-unimplemented => CFXREG */
 +    .mon_elf_segments = false,      /* power loads hmon from the BootROM */
 +    .ptw_supported = true,
++    .cache_cfx = true,          /* cfx5 exists in both cache models (ruling) */
 +    .rom_elf_segments = false,  /* Vast test bodies load into PA RAM only */
 +    .unmapped_is_cfxmem = false,
 +    .sync_exc_monitor_entry = true,     /* one route: current run-mode monitor */
@@ -110,7 +111,8 @@ index 0000000..226f90f
 +    .unimpl_cfx_trap_illi = true,   /* spec/Kaiwu §3 (Tiny) */
 +    .mon_elf_segments = false,      /* power copies hmon; host never loads it */
 +    .ptw_supported = false,
-+    .rom_elf_segments = false,      /* crt links with the app into SRAM */
++    .cache_cfx = false,         /* Tiny has no cfx5 (spec/Kaiwu §3.2) */
++    .rom_elf_segments = false,  /* crt links with the app into SRAM */
 +    .unmapped_is_cfxmem = true,
 +    .sync_exc_monitor_entry = true,    /* hmon carries every sync exception */
 +    .user_mode = false,
@@ -349,6 +351,15 @@ index 0000000..226f90f
 +        r->pending = 0;                       /* cg5 rc5 */
 +        /* cg6 scratch[]/cg7 left 0 (scratch undefined at reset) */
 +    }
++
++    /* cfx_cache register face (contract-cache CACHE-07; m16-qemu-001):
++     * cache_enable resets to the cache_exist value -- 0b11 with
++     * `cache-model=on`, 0 with `off` (where cfx5 still answers, but every
++     * command is a no-op).  There is no storage for the write-only
++     * cache_ctrl. */
++    env->cache_enable = dadao_cache_exist(env);
++    env->cache_addr_start = 0;
++    env->cache_addr_size = 0;
 +}
 +
 +static void dadao_cpu_realizefn(DeviceState *dev, Error **errp)
