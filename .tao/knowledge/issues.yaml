@@ -1283,3 +1283,12 @@
   closed_in: null
   resolved_by: null
   title: "【P3】`f88c726a` 立 M16 批次时台账写 `预估时间：中`，不符合 `check-milestones-fresh` 的 `N h` / `N–M h` / `N 天` / `N–M 天` / `min` 格式 ⇒ `make check-milestones-fresh` rc=2（`m16-testcases-006`、`m16-gem5-020` 两条）；两册任务书 `**预估**` 同为「中」。处置：M16 批次收尾时按档位（中改）改台账与任务书为具体时长，恢复 L1 绿。"
+- id: ISS-509
+  scope:
+  - testcases
+  - llvm
+  milestone: null
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`check-unit` 的 `test-codegen` **基线红**：raw single-TU 组装 19/19 `SHT_RELA present`（`Results: 0/19 passed`）；`m16-testcases-008` 以 `git archive HEAD` 干净树逐行 diff 为空判 KNOWN-RED（非任务引入）。处置：修 `tests/unit/llvm/codegen` 的 raw 单文件产物/lit 期望（去掉不应出现的 `SHT_RELA`），恢复 `check-unit` 绿。"

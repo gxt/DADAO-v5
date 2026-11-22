@@ -1,12 +1,12 @@
 # tests/unit.yaml — unit scope 根级用例清单（Process-09 §5）
 #
-# 字段（每条目恰好五项）：
+# 字段（五必需 + 可选 `kind: asm|driver`）：
 #   id         unit-<module>-nnn（如 unit-llvm-001；四份索引内全局唯一）
-#   file       tests/unit/ 下的相对路径（必须存在）
-#   platforms  非空列表；unit: host | toolchain
+#   file       tests/unit/ 下的相对路径（必须存在；可为 `.py` 驱动）
+#   platforms  非空列表；unit: host | toolchain | system（system = gem5 裸机 FS）
 #   level      smoke | full（smoke = 由 L2 `check-unit` 覆盖；full = 不在 L2
-#              代表集——lit 全量档 MC-gen、M6 执行向量（手工））
-#   requires   依赖项列表（可为空）：toolchain / qemu / lli / picolibc
+#              代表集——lit 全量档 MC-gen、M6 执行向量（手工）、gem5 FS 用例）
+#   requires   依赖项列表（可为空）：toolchain / qemu / lli / picolibc / gem5-fs
 #
 # 门控：make check-tests-index（L1，静态）；`TESTCASES-074t` 首次填入实际 case。
 # 本清单逐文件一条（lit MC/CodeGen 用例、codegen 程序、ir-lli 清单、picolibc 套件入口）；
@@ -1356,3 +1356,11 @@
   level: smoke
   requires:
   - picolibc
+- id: unit-gem5-hmon-001
+  file: unit/gem5/check_tiny_hmon.py
+  kind: driver
+  platforms:
+  - system
+  level: full
+  requires:
+  - gem5-fs

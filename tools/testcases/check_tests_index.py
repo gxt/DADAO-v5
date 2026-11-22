@@ -12,13 +12,14 @@
   3. 每条目字段**至少** `id/file/platforms/level/requires`（无缺字段）；可选
      `kind`（asm|driver）与 `machine`（tiny|vast|user）。arch 条目两者必填且
      `machine: vast`；`kind: asm` 的 `file` 须是 .s/.S，`kind: driver` 的 `file`
-     是驱动（存在即可，不限定后缀）。未知字段一律 FAIL。
+     是驱动（存在即可，不限定后缀）。非 arch scope 的 `file` 同样只校验存在
+     （如 `unit` 的 `.py` 驱动）。未知字段一律 FAIL。
   4. `id` 形如 `<scope>-<name>[-<name>...]-<nnn>`（三段以上），且前缀 scope
      必须等于所在索引的 scope。
   5. `file` 是 `tests/` 下的相对路径、位于 `<scope>/` 下、且实际存在（且为文件）。
   6. `platforms` 非空、无重复、取值属于该 scope 的允许集：
      inst = system（user/hw 预留）；arch = system（hw 预留）；
-     unit = host/toolchain；tset = user（hw 预留）。
+     unit = host/toolchain/system（system = gem5 裸机 FS）；tset = user（hw 预留）。
   7. `level ∈ {smoke, full}`；`requires` = 无重复的非空字符串列表。
   8. `id` 在四份索引内**全局唯一**。
   9. **载体↔索引双向断言**：`tests/<scope>/**/*<后缀>` 现场派生的载体集合必须与
@@ -61,10 +62,12 @@ ROOT = Path(__file__).resolve().parents[2]
 TESTS_REL = "tests"
 SCOPES = ("inst", "arch", "unit", "tset")
 # Process-09 §7：inst 首期只 system，user 预留；hw = 将来硬件在环（全 scope 预留）。
+# unit 的 system = gem5 Tiny FS 承载（`m16-testcases-008`）：hmon 用例依赖 gem5
+# 构建，只做静态登记（file 存在/字段合法），`level: full` 不进 L2 `check-unit`。
 SCOPE_PLATFORMS = {
     "inst": ("system", "user", "hw"),
     "arch": ("system", "hw"),
-    "unit": ("host", "toolchain"),
+    "unit": ("host", "toolchain", "system"),
     "tset": ("user", "hw"),
 }
 FIELDS = ("id", "file", "platforms", "level", "requires")
@@ -815,6 +818,15 @@ VALID_ARCH_DRIVER_ENTRY = """\
   requires: [qemu]
 """
 
+VALID_UNIT_DRIVER_ENTRY = """\
+- id: unit-gem5-hmon-001
+  file: unit/gem5/check_tiny_hmon.py
+  kind: driver
+  platforms: [system]
+  level: full
+  requires: [gem5-fs]
+"""
+
 
 def _run(root: Path, registry: dict[str, str] | None = None) -> tuple[int, str]:
     """跑一次 audit。合成树默认**空登记表**（仓库自带的非 id 载体不在临时树里）。"""
@@ -899,6 +911,19 @@ def self_test() -> int:
         case("干净基线·arch driver 条目", arch_driver, None,
              extra_files={"arch/ptw/check_tlb.py": "#!/usr/bin/env python3\n"},
              expect_rc=0)
+
+        # unit 的 `system` + `.py` 驱动（m16-testcases-008）：gem5 FS 承载只做静态
+        # 登记，`file` 只校验存在；改动前 `[system]` 会因平台非法而 FAIL。
+        unit_driver = _empty_indexes()
+        unit_driver["unit"] = VALID_UNIT_DRIVER_ENTRY
+        case("干净基线·unit system .py 驱动", unit_driver, None,
+             extra_files={"unit/gem5/check_tiny_hmon.py": "#!/usr/bin/env python3\n"},
+             expect_rc=0)
+
+        bad = dict(unit_driver)
+        bad["unit"] = VALID_UNIT_DRIVER_ENTRY.replace("[system]", "[linux]")
+        case("注入·unit platform 非法", bad, "platforms",
+             extra_files={"unit/gem5/check_tiny_hmon.py": "#!/usr/bin/env python3\n"})
 
         bad = dict(arch_asm)
         bad["arch"] = VALID_ARCH_ASM_ENTRY.replace("machine: vast",

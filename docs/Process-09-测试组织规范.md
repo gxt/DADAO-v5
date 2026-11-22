@@ -16,7 +16,7 @@
 |---|---|---|
 | **inst** | **每条指令/短序列**在平台上的执行语义 | **`system`（`qemu-system-dadao`）**；`user` 后置（`platforms` 字段预留） |
 | **arch** | **cfx 资源管理与权限控制**：trap/escape/cfx2rd/cfx2rc、inner/global/switch/instruction 掩码、异常 cause、per-hart/per-system、TIMER/power（UART / J / 多核不在本 scope，见 §1 注记） | 仅 `system` |
-| **unit** | **各模块自身功能**：LLVM（MC/CodeGen）、lld、QEMU、picolibc（仅 picolibc 下跑）、仓库工具 | host / toolchain |
+| **unit** | **各模块自身功能**：LLVM（MC/CodeGen）、lld、QEMU、picolibc（仅 picolibc 下跑）、仓库工具 | host / toolchain / system |
 | **tset** | **外部套件**（third-party test suites）在成品系统上的运行：libc-test、llvm-test-suite、Embench | `user`（成品系统） |
 
 - **boot**（Linux/busybox）**预留**：整系统启动到用户态；下一里程碑再建，本册不排。原顶层 `e2e/` 已归 **unit**（`tests/unit/llvm/e2e/`，工具链编译/链接/运行用例），不构成 `boot` scope。
