@@ -1,46 +1,50 @@
-# m16-testcases-013: cfx15 timer 中断（hart-first）
+# m16-testcases-013: cfx15 timer 中断（源 cfxha 15、一帧一源）
 
 **模块**：testcases
 **项目里程碑**：M16
-**依赖**：`ADR-0060`（hart-first、Accepted）；`m16-chipyard-021`（RTL cg9）合入后升三方
+**依赖**：`m18-spec-004`（ADR-0061 落地）；`m16-chipyard-024`（RTL 新 cg9）合入后升三方
 **可并行分片**：否
 **预估**：2–3 h
 **档位**：中改（复核 ≤40 min）
 **状态**：待开始
 
-## 背景（ADR-0060 取代 ADR-0059）
+## 背景（ADR-0061）
 
-异步投递统一为 **hart-first**：TIMER（`1<<17`，源 cfx_hart）与 PMEM_DMA（`1<<18`，源 cfx_pmem）都投 **`cfx_hart`（cfxha 15）** 的 **supv 单向量**；现场/mask/pending 全在新增 `cfx_hart cg9`。本任务只测 **cfx15 的 TIMER**；cfx32 的 PMEM_DMA 由 `m16-testcases-014` 单独测。
+异步源以**源 cfxha**标识：TIMER = `cfx_hart`（15），pending/帧内位都是 `1<<15`；来源掩码在各运行模式的 monitor（`cfx0–3 cg8 rc1`，复位全 1）；`cg9` 七槽、两个位图 HW/RO；帧由 `escape` 结束。本任务只测 **cfx15 的 TIMER**；PMEM_DMA（32）与"同帧多源"由 `m16-testcases-014`。
 
 ## 要做
 
-1. **触发与进入**：`timer_cmp` 到期 + `timer_ctrl` 使能 ⇒ `async_cause_id = 1<<17`；投 `cfx_hart` 的 supv 单向量（`cg9 rc6 async_excp_vector`、`rc7 async_switch_run_mode=2`）。
-2. **现场**：硬件写 `cg9 rc0 prev_run_mode`、`rc1 prev_cfx_code`、`rc2 cause_ip`、`rc3 cause_id`；保存 `async_global_intr_mask` 到 `rc4` 并置全 1。
-3. **mask / pending**：五个 mask 在 `cg9 rc8–rc12`，**位索引 = 源 cfxha（15）**；pending 在 `cg9 rc5`，**位 = cause id（1<<17）**；屏蔽时置 pending、不进入。
-4. **无嵌套**：`async_cause_id != 0` 时新事件只置 pending，不再次进入。
-5. **释放/重建**：软件写 `async_cause_id=0` 释放帧、写 pending 0 清位；可快照/重建现场。
-6. **返回**：`escape cfx_hart, [async_cause_ip, imms18]`，`imms18=2` 选 cg9 偏移 0；`imms18=3` ⇒ `ILLI`；`imms18[17:2]` SBZ。
-7. **清除**：清 pending/cause 后不再重复进入。
-8. **三方**：QEMU + gem5 先跑；`m16-chipyard-021` 合入后升 RTL 三方，签名逐槽一致。
+1. **放行**：写当前模式 monitor 的 `cg8 rc1` 清 bit15（`0=允许`）；断言其它位仍为 1。
+2. **触发与进入**：`timer_cmp` 到期 + `timer_ctrl.ENABLE=1` ⇒ 投 `cfx_hart` 的 supv 单向量（`cg9 rc5 excp_vector`、`rc6 switch_run_mode=2`）。
+3. **现场**：`cg9 rc0 prev_run_mode`、`rc1 prev_cfx`、`rc2 cause_ip`（= 提交后的 `rb0`）、`rc3 src_frame` = `1<<15`、`rc4 src_pending` = 0（投递即清）。
+4. **只读**：对 `rc3`/`rc4` 写入不应改变读数（具体写行为按 spec：忽略或 `CFXREG`）。
+5. **屏蔽与 pending**：monitor 掩码 bit15=1 时只置 `src_pending`（`1<<15`）、不投递；清掩码后下一指令边界投递。
+6. **源 ack 决定 pending**：帧活动期重装 `timer_cmp`（清 `ISTATUS`）⇒ pending 落、不产生遗留投递；不重装 ⇒ `escape` 后立即再次投递（电平语义）。
+7. **无嵌套**：帧活动期再触发 ⇒ 只置 pending，`src_frame` 不变。
+8. **返回**：`escape cfx_hart, [async_cause_ip, 8]`（`imms18=2`）恢复 mode/cfx/IP 并释放帧（`src_frame` 回 0）；`3`/`[17:2]≠0` ⇒ `ILLI`。
+9. **精确点**：补一条"跳转后到期"用例——`jump` 目标处到期，断言 `cause_ip` = 目标、`escape` 从目标继续（`SimRISC-06` 的 `jump`，不是 RISC-V `jal`）。
+10. **H/S/U 三模式**：同一份 body，`TMODE=3/2/0`；每模式写自己 monitor 的掩码。
+11. **三方**：QEMU + gem5 先跑；`m16-chipyard-024` 合入后升 RTL 三方，签名逐槽一致。
 
 ## 不做
 
-- 不做 monitor-first（ADR-0059 作废）、不做跨 cfx 仲裁、uart、多核、嵌套。
+- 不做 monitor-first、跨 cfx 仲裁、uart、多核、嵌套帧；
+- 不做 PMEM_DMA 与同帧多源（014）。
 
 ## 约束
 
-- 独立 `git worktree`；**不提交 git**；用例/期望集中 `tests/arch/`；不写运行期路径；术语「寄存器组」。
+- 独立 `git worktree`；**不提交 git**；用例/期望集中 `tests/arch/`；不写运行期路径；术语"寄存器组"；
+- 失败路径短 timeout，禁长时间 `-d cpu` dump（ISS-522）。
 
 ## 验证
 
 运行期证据目录内的 `run.sh`：
 
-1. TIMER 进入 `cfx_hart` supv 向量，`cg9` 现场字段逐项；`async_pending` 位 = `1<<17`；mask 位 = 15；
-2. 屏蔽时 pending 保留、解除后补投；`cause_id != 0` 时不嵌套；写 0 释放后不再进入；
-3. `escape` `imms18=2` 恢复 cg9；`imms18=3` ⇒ `ILLI`；
-4. 三方签名逐槽一致（RTL 未合入时两方，登记“RTL 待 021”）；
-5. **可达 FAIL**：注入「投递到 monitor」/「pending 记 cause 位」⇒ 红；`cp`+md5 还原回绿；
-6. `check-tests-index`、`check-tasks`、`check-knowledge-refs` 记录 rc；`--inject` ≥2 路。
+1. 进入/现场/只读/屏蔽→pending→放行/无嵌套/ack 语义/返回释放 逐项；
+2. `cause_ip` = 提交后 `rb0`（含 `br.*`/`jump` 后到期一条）；
+3. 三方签名逐槽一致（RTL 未合入时两方，显式登记"RTL 待 024"）；
+4. **可达 FAIL ≥2**：注入"掩码留 cfx_hart"、"pending 位记 17" ⇒ 红；`cp`+md5 还原回绿；
+5. `check-tests-index`、`check-tasks`、`check-knowledge-refs` 记录 rc。
 
 ## 完成区
 

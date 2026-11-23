@@ -22,12 +22,11 @@
 | --- | --- | --- |
 | m16-testcases-009 | 3–4 h | cfx5 用例三方跑（寄存器面 + 命令 + 数据语义） |
 | m16-chipyard-018 | 3–4 h | cfx4 RTL PTW/TLB 探针纳管并三方对齐 |
-| m16-chipyard-022 | 4–6 h | RTL cfx32 pmem（DMA + hart-first 完成中断，依赖 021 的 cg9） |
+| m16-chipyard-024 | 4–6 h | RTL 异步模型修订（cg9 七槽、掩码归 monitor、源位图；ADR-0061） |
+| m16-chipyard-022 | 4–6 h | RTL cfx32 pmem（DMA + 源 cfxha 32 的完成投递；依赖 024） |
 | m16-chipyard-023 | 2–3 h | RTL cfx34 time（全局时间，无中断） |
-| m16-testcases-012 | 2–3 h | fence 基础验证（三方；完整覆盖不作验收要求） |
-| m16-testcases-013 | 2–3 h | cfx15 timer 中断（hart-first：投 cfx_hart cg9；mask 位 15、pending 位 1<<17） |
-| m16-testcases-016 | 2–3 h | cfx63 power 基础用例（寄存器面 + power→hmon 移交，三方） |
-| m16-testcases-014 | 2–3 h | cfx32 pmem DMA 完成中断（hart-first：投 cfx_hart cg9；mask 位 32、pending 位 1<<18） |
+| m16-testcases-013 | 2–3 h | cfx15 timer 中断（源位 15；掩码在 monitor；`cg9` 只读位图） |
+| m16-testcases-014 | 3–4 h | cfx32 pmem 完成中断 + 同帧多源（源位 32/15；一帧位图） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
