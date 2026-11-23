@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..fb1293a
+index 0000000..ef47931
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,2267 @@
+@@ -0,0 +1,2278 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -338,9 +338,18 @@ index 0000000..fb1293a
 +  val sIdle :: sFreq :: sFwait :: sExec :: sTrap :: sSemi :: sExc :: sMreq :: sMwait :: sSlow :: sCopy :: sCls :: sFpSlow :: sXlate :: sFault :: sHalt :: Nil = Enum(16)
 +  val state = RegInit(sIdle)
 +
-+  // Simulation-time cycle stamp for the timing evidence (`+verbose`).
++  // Simulation-time cycle stamp for the timing evidence (`+verbose`).  It is
++  // also the `cfx_hart cg8 rc2 cycle` / `cfx_time_value` time base
++  // (`DADAO-12` §4.7/§4.10: 1 count = 1 ns on the test machine).
 +  val cycles = RegInit(0.U(64.W))
 +  cycles := cycles + 1.U
++
++  // `cfx_hart cg8 rc3 insn`: one pulse per retired instruction (`§4.7`).
++  private val retirePulse = WireDefault(false.B)
++  gewu.io.hart.foreach { h =>
++    h.timeValue := cycles
++    h.retire := retirePulse
++  }
 +
 +  // Semihosting return register (contract-semihosting: scalar result in rd8).
 +  val semiRetReg = 8.U(6.W)
@@ -389,7 +398,7 @@ index 0000000..fb1293a
 +  val inst = Mux(ip(2), beatData(31, 0), beatData(63, 32))
 +
 +  // ---- decode ------------------------------------------------------------
-+  val dec = Module(new WumingDecoder)
++  val dec = Module(new WumingDecoder(gewuParams.hart.isDefined))
 +  dec.io.inst := inst
 +  val d = dec.io.dec
 +
@@ -403,6 +412,7 @@ index 0000000..fb1293a
 +  // (cfxha, byte offset) and `gewu` decides whether it is legal.
 +  gewu.io.escape.ha := d.cfxHa
 +  gewu.io.escape.off := d.escOff
++  gewu.io.escape.frame := d.escFrame
 +  gewu.io.escape.valid := false.B
 +  val cfxRegOk = Mux(d.cfxWrite, gewu.io.writeOk, gewu.io.readOk)
 +  // Two-axis authority (`DADAO-12` §5.2 (一), `m16-chipyard-020`): the target
@@ -1409,6 +1419,7 @@ index 0000000..fb1293a
 +  }
 +
 +  def finish(nextIp: UInt): Unit = {
++    retirePulse := true.B
 +    ip := nextIp
 +    // The translated demand-fetch address belongs to the previous `ip`.
 +    if (params.useVM) { vx.get.fetchDone := false.B }
@@ -2258,7 +2269,7 @@ index 0000000..fb1293a
 +    printf(p"WumingCore: cfxtrap ip=0x${Hexadecimal(ip(47, 0))} magic=0x${Hexadecimal(inst(17, 0))} vector=0x${Hexadecimal(gewu.io.vector(47, 0))} cycle=${cycles}\n")
 +  }
 +  when(state === sExec && d.isEscape && !execFault) {
-+    printf(p"WumingCore: escape ip=0x${Hexadecimal(ip(47, 0))} frame=0x${Hexadecimal(gewu.io.causeId)} cause_ip=0x${Hexadecimal(gewu.io.causeIp(47, 0))} target=0x${Hexadecimal((gewu.io.causeIp + d.escOff)(47, 0))} mode=${gewu.io.runMode} cfx=${gewu.io.curCfx} prev_cfx=${Hexadecimal(gewu.io.prevCfx(5, 0))} cycle=${cycles}\n")
++    printf(p"WumingCore: escape ip=0x${Hexadecimal(ip(47, 0))} frame=0x${Hexadecimal(gewu.io.causeId)} cause_ip=0x${Hexadecimal(gewu.io.causeIp(47, 0))} target=0x${Hexadecimal(gewu.io.escapeTarget(47, 0))} mode=${gewu.io.runMode} cfx=${gewu.io.curCfx} prev_cfx=${Hexadecimal(gewu.io.prevCfx(5, 0))} cycle=${cycles}\n")
 +  }
 +  when(state === sExec && d.isCfx2 && !execFault) {
 +    printf(p"WumingCore: cfx2 ip=0x${Hexadecimal(ip(47, 0))} ha=${d.cfxHa} cg=${d.cfxCg} rc=${d.cfxRc} write=${d.cfxWrite} ok=${cfxRegOk} mode=${gewu.io.runMode} data=0x${Hexadecimal(cfxRdata)} wdata=0x${Hexadecimal(srcA)} cycle=${cycles}\n")

@@ -27,22 +27,20 @@
 | m16-testcases-012 | 2–3 h | fence 基础验证（三方；完整覆盖不作验收要求） |
 | m16-testcases-013 | 2–3 h | cfx15 timer 中断（hart-first：投 cfx_hart cg9；mask 位 15、pending 位 1<<17） |
 | m16-testcases-016 | 2–3 h | cfx63 power 基础用例（寄存器面 + power→hmon 移交，三方） |
-
-| m16-testcases-018 | 2–3 h | `tests/arch` 命名规范化整理（env-* 目录、`.S`、check/gen 前缀、引用同步） |
-
 | m16-testcases-014 | 2–3 h | cfx32 pmem DMA 完成中断（hart-first：投 cfx_hart cg9；mask 位 32、pending 位 1<<18） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-chipyard-021 | 2026-11-23 12:44 | 4–6 h | RTL cfx15 hart（cg8 + 新增 cg9 + hart-first TIMER 投递） |
+| m16-testcases-018 | 2026-11-23 16:00 | 2–3 h | `tests/arch` 命名规范化整理（env-* 目录、`.S`、check/gen 前缀、引用同步） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
 | m16-chipyard-020 | 2026-11-23 12:44 | RTL cfx0/2 同步模式路由（U/S 进入、switch_run_mode、同步帧、两轴 CFXPERM；异步按 ADR-0060 移交 021/022） |
+| m16-chipyard-021 | 2026-11-23 16:00 | RTL cfx15 hart（cg8 + 新增 cg9 16 rc + hart-first TIMER 投 cfx_hart/supv；H 58 槽、U/S 14 槽） |
 | m16-testcases-017 | 2026-11-23 09:18 | env 权限准备 + BootROM hmon 源（三模式 cfx5/cfx4 签名一致；回归 26/26；45 项 + 5 路注入） |
 | m16-gem5-024 | 2026-11-23 07:24 | cfx5 进 kCfxhaMap（9→10），通用 cg0–cg7 + cg8 专属、两轴权限/trap/escape；25/25 + 43/43 |
 | m16-chipyard-019 | 2026-11-23 00:51 | RTL cfx0/2 寄存器面（A；47 记录、Tiny 38/38 不回归；CFXPERM 判定留 020） |

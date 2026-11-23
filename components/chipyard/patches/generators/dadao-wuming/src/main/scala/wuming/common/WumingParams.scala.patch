@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..dadf588
+index 0000000..ef0e474
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,361 @@
+@@ -0,0 +1,379 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -27,7 +27,7 @@ index 0000000..dadf588
 +import freechips.rocketchip.tile._
 +import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, MulDivParams}
 +import freechips.rocketchip.prci.ClockSinkParameters
-+import gewu.{GewuCacheParams, GewuCfxParams, GewuParams, GewuPtwParams}
++import gewu.{GewuCacheParams, GewuCfxParams, GewuHartParams, GewuParams, GewuPtwParams}
 +
 +/** DADAO core parameters: no RISC-V semantics. */
 +case class WumingCoreParams(
@@ -101,6 +101,8 @@ index 0000000..dadf588
 +  val ptw: Int = 4
 +  /** Cache maintenance (`DADAO-12` §4.6, `contract-cache`); `Kaiwu-Vast` only. */
 +  val cache: Int = 5
++  /** Hart management + asynchronous frame (`DADAO-12` §4.7, `ADR-0060`); Vast only. */
++  val hart: Int = 15
 +}
 +
 +/**
@@ -195,7 +197,20 @@ index 0000000..dadf588
 +          spaceDesc = 0,
 +          spaceSize = 0,
 +          spaceAttr = 0,
-+          sourceMaskReset = maskInitCfx)) else Nil),
++          sourceMaskReset = maskInitCfx),
++        // cfx_hart (`m16-chipyard-021`, `ADR-0060`): per-hart management
++        // (cg8) plus the asynchronous frame (cg9).  It opts into the common
++        // mode rows so the two-axis access model of `contract-see §6.3` gives
++        // supv a `<mode>_cfxreg` mask and the `cg3 rc12` delegation bitmap;
++        // `cg8 rc1 global_cfx_intr_mask` stays cfx0-cfx3 only.
++        GewuCfxParams(
++          id = WumingCfxHa.hart,
++          vectorBase = 0,
++          spaceDesc = 0,
++          spaceSize = 0,
++          spaceAttr = 0,
++          sourceMaskReset = maskInitCfx,
++          commonRows = true)) else Nil),
 +    monitor = 0, // cfx_hmon owns the exception frame (spec/Kaiwu §4.1)
 +    dataBits = 64,
 +    modeBits = 2,
@@ -214,6 +229,9 @@ index 0000000..dadf588
 +    // cfx_cache's register rows exist only on Kaiwu-Vast (CACHE-27); Tiny
 +    // keeps the rows undefined, i.e. CFXREG (CACHE-28).
 +    cache = if (p.useVM) Some(GewuCacheParams(WumingCfxHa.cache, 0x3)) else None,
++    // `cfx_hart`'s cg8/cg9 face exists only on Kaiwu-Vast (`m16-chipyard-021`);
++    // Kaiwu-Tiny has no cfx15 and gains neither ports nor flops.
++    hart = if (p.useVM) Some(GewuHartParams(WumingCfxHa.hart, 0)) else None,
 +    // `m16-chipyard-020`: Kaiwu-Vast runs the DADAO-12 §5.2 run-mode entry
 +    // routing (U/S/H monitors, `<mode>_switch_run_mode`, two-axis `cfxreg`
 +    // checks).  Kaiwu-Tiny has no U/S/J mode at all (`spec/Kaiwu §2` keeps the

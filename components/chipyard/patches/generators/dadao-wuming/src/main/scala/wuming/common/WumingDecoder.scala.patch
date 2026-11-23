@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
 new file mode 100644
-index 0000000..1f1f21f
+index 0000000..2730c5c
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingDecoder.scala
-@@ -0,0 +1,1219 @@
+@@ -0,0 +1,1233 @@
 +// See LICENSE for license details.
 +//
 +// DADAO decoder for the M12 integer core.
@@ -171,6 +171,8 @@ index 0000000..1f1f21f
 +  val isTrap   = Bool()
 +  val isEscape = Bool()
 +  val escOff   = UInt(64.W)
++  /** `ADR-0060` D4: `imms18[1]` selects the `cg9` asynchronous frame. */
++  val escFrame = Bool()
 +  val isCfx2   = Bool()
 +  val cfxWrite = Bool()
 +  val cfxHa    = UInt(6.W)
@@ -226,7 +228,7 @@ index 0000000..1f1f21f
 +  val isFpSclb  = Bool()
 +}
 +
-+class WumingDecoder extends Module {
++class WumingDecoder(withHart: Boolean = false) extends Module {
 +  val io = IO(new Bundle {
 +    val inst = Input(UInt(32.W))
 +    val dec  = Output(new WumingDecode)
@@ -280,6 +282,7 @@ index 0000000..1f1f21f
 +  d.isSemi := false.B
 +  d.isBr := false.B; d.brCond := 0.U; d.brOff := 0.U
 +  d.isTrap := false.B; d.isEscape := false.B; d.escOff := 0.U
++  d.escFrame := false.B
 +  d.isCfx2 := false.B; d.cfxWrite := false.B
 +  d.cfxHa := 0.U; d.cfxCg := 0.U; d.cfxRc := 0.U; d.cfxDst := 0.U
 +  d.isLr := false.B; d.isSc := false.B
@@ -1187,12 +1190,23 @@ index 0000000..1f1f21f
 +    }
 +    when(!d.isSemi && !cfxAccessible(ha)) { d.ill := true.B }
 +  }.elsewhen(opc === 0x7E.U) {
-+    // escape (DADAO-12 §5.3): imms18[17:1] is SBZ, the byte offset is 0 or +4.
++    // escape (DADAO-12 §5.3, ADR-0060 D4): imms18[0] is the byte offset
++    // (0 / +4) and imms18[1] the frame selector (0 = cg5 sync frame,
++    // 1 = cfx_hart cg9 async frame).  imms18[17:2] stays SBZ and imms18 = 3
++    // (cg9 with a non-zero offset) is ILLI.
 +    recognized := true.B
 +    d.isEscape := true.B
 +    d.cfxHa := ha
 +    d.escOff := Cat(imm18(0), 0.U(2.W))
-+    when(imm18(17, 1) =/= 0.U) { d.ill := true.B }
++    // The frame selector bit exists only on a machine with `cfx_hart`
++    // (`ADR-0060` D4).  A profile without cfx15 keeps the pre-0060 SBZ rule
++    // (`imms18[17:1]` must be 0) so its observable encoding set does not move.
++    d.escFrame := withHart.B && imm18(1)
++    when((if (withHart) {
++      imm18(17, 2) =/= 0.U || (imm18(1) && imm18(0))
++    } else {
++      imm18(17, 1) =/= 0.U
++    })) { d.ill := true.B }
 +    when(!cfxAccessible(ha)) { d.ill := true.B }
 +  }.elsewhen(opc === 0x7A.U || opc === 0x7B.U) {
 +    // cfx2rd / cfx2rc: cfxha[23:18], cg[17:12], rc[11:6], rd[5:0].

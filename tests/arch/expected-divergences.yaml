@@ -67,6 +67,24 @@ divergences:
     status: active
     close_when: "RTL 交付链改为 cfx_hmon 源（与 QEMU 017 对齐；另立任务）"
 
+  - id: DIV-11
+    kind: temporary
+    scope: [chipyard]
+    impact: "`escape` 的 frame selector（`imms18` bit1）只在实现 cfx_hart 的机器（Vast）上生效；Tiny 保留旧 SBZ 规则（`imms18[17:1] ≠ 0` ⇒ `ILLI`）。"
+    reason: "Tiny 无 cfx15（没有 cfx_hart），`m16-chipyard-021` 又以「Tiny 无 cfx15 不回归」为硬判据；`11-cfx/escape_ciii_cfx` 仍按旧编码集断言 `imms18 = 2` ⇒ `ILLI`。ADR-0060 D4 的编码集变更随工具链（`m16-llvm-001`）/spec（`m16-spec-003`）同步后统一。"
+    user_ruling: "2026-11-23（任务书：Tiny 无 cfx15 不回归）"
+    status: active
+    close_when: "spec/工具链落地 `imms18 ∈ {0,1,2}` 并更新 `tests/inst/11-cfx/escape_ciii_cfx.S`（Tiny 侧改为 CFXESC 或显式 N/A）"
+
+  - id: DIV-10
+    kind: temporary
+    scope: [chipyard]
+    impact: "`tests/arch/umon/mode_entry.S` 的异步段（异步 pending 写 monitor 的 `cg5 rc5`、投递进当前模式 monitor）是 monitor-first（020），随 `ADR-0060` 作废；hart-first 的异步用例改由 `tests/arch/hart/cfx15.S` 承接。"
+    reason: "`ADR-0060` 把异步投递改为 `cfx_hart` supv 单向量（cg9）；020 的异步槽不再代表当前语义。同步部分（模式进入、switch_run_mode、trap/escape、CFXPERM）不受影响。"
+    user_ruling: "2026-11-23（ADR-0060 Accepted：monitor-first 作废）"
+    status: active
+    close_when: "mode_entry 的异步段迁 hart-first（或删除异步槽），由后续用例迁移任务完成"
+
   - id: DIV-09
     kind: temporary
     scope: [chipyard]

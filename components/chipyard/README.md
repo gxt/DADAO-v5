@@ -388,3 +388,12 @@ make check-patch-tree
 - **内部 clean/invalidate**：缓存带 `cmd` 端口（`op` 1 = 按 PA 单行 clean【回写+保留】、2 = 单行 invalidate【不回写】、3 = 全表 flush【回写+失效】），`cmdDone`/`cmdError` 单拍返回；`cfx5` 接线另立任务，核当前把它驱动为空闲。
 - **零增益**：缓存只在 `useVM` 的机器实例化，Tiny 的 FIRRTL 里 `WumingCache` 出现 **0** 次；首册 38 个镜像在改前/改后 Tiny 二进制上仍逐字节相同。
 - **验证**：`tools/chipyard/dcache/vastdcache.S`（+ `vastdcache.lds`）把页表、同组 8 行数据、代码页与 PTW 新旧目标放在 PA 固定地址；`gen_vastdcache_tables.py` 是几何/PTE/magic/组索引的**单一真源**（cause one-hot 从 `contract-see §6.1` 现场解析），`check_vastdcache.py` 比对 35 条 8 字节记录 + 日志事件（组索引、受害者序列、写回顺序、PTW 命中；`--self-test` 11 条可达 FAIL）。覆盖：同址 1 缺失 + 4 命中；同组 8 行共存、第 9/10 行按 LRU 淘汰（受害者 B1→B2）；写后读命中不回内存；**写回时机以取指端口为独立观测量**（当时无 I-Cache）：把 `trap cfx_hmon` 指令字经缓存写入代码页后，淘汰前取指仍读到内存里的旧值（UNDI），强制淘汰（同组 8 次填充）后取指读到 `trap`（CFXTRAP）；PTW 读到核内经缓存写入的新 PTE（改 L2 PTE → `invalid/all` → 重走查 ⇒ 新映射的数据）。注入：替换策略改 MRU / `writeBack = false` / 组索引 6 位 ⇒ 均判据红；`cp`+md5 还原并强制重建后回绿。
+
+## cfx_hart：cg8 管理 + cg9 异步现场 + TIMER（`m16-chipyard-021`）
+
+- **范围**：`ADR-0060`（hart-first）的 RTL 落点。`cfx_hart`（cfxha 15）新增 `cg9` 异步现场，`cg8` 的定时器到期后**统一投 cfx_hart 的 supv 单向量**（与当前运行模式无关）。
+- **cg8**（`DADAO-12 §4.7`）：`rc0 hart_id = 0`、`rc2 cycle`（= 核的 `cycles`，与 `cfx_time_value` 同基准）、`rc3 insn`（退休脉冲计数）、`rc4 timer_cmp`、`rc5 timer_ctrl`（bit0 ENABLE / bit1 IMASK / bit2 ISTATUS 只读）。`rc1`/`rc6`/`rc7` 保留。
+- **cg9**（`ADR-0060` D2，16 rc）：`async_prev_run_mode`(2b)、`async_prev_cfx_code`(6b)、`async_cause_ip`(48b)、`async_cause_id`(64b，非 0=有效帧)、`async_saved_global_intr_mask`、`async_pending`（位 = cause id，TIMER = `1 << 17`）、`async_excp_vector`(48b)、`async_switch_run_mode`（固定 supv=2，写忽略）、`async_global/user/jail/supv/hypv_intr_mask`（位索引 = 源 cfxha 15）；`rc13–15` 保留 ⇒ `CFXREG`。
+- **投递/返回**：TIMER 到期置 `ISTATUS`；`IMASK=0` 且两级 mask（`rc8` + 当前模式行）允许且无活动帧时投递。进入写 `rc0–rc4`、`async_global_intr_mask` 保存后置全 1、`runMode := supv`、`curCfx := cfx_hart`；帧活动期只置 pending。`escape` 的 `imms18` bit1 选 cg9（偏移恒 0），恢复 mode/cfx/global mask 并释放帧；`imms18 = 3` 或 `[17:2] ≠ 0` ⇒ `ILLI`。该 frame selector 只在实现 cfx_hart 的机器上生效（Tiny 无 cfx15，保留旧 SBZ 规则 `imms18[17:1] ≠ 0` ⇒ `ILLI`，既有编码集不变）。
+- **范围**：cfx_hart 只在 `Kaiwu-Vast` 实现（Tiny 无 cfx15）；它打开公共模式行以支持 `contract-see §6.3` 的两轴放行，`cg8 rc1` 仍仅 cfx0–cfx3。PMEM_DMA 源归 `m16-chipyard-022`。
+- **验证**：`tests/arch/hart/cfx15.S` + `check_cfx15.py`（`TMODE=3/2/0` 三个镜像，H 58 槽 / U/S 14 槽）；H/S/U 三模式投递目标均为 cfx_hart+supv；`cfx5_regs`/`cfx02_regs` 不回归；Tiny `11-cfx`/`01-load-store` 与 020 基线逐镜像字节相同；注入 2 路（投 monitor、pending 记 cfxha 位）均红，`cp`+md5 还原并强制重建后回绿。
