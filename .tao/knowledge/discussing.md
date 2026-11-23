@@ -394,6 +394,7 @@
 - **期望差异清单（2026-11-22 用户裁）**：**不建**——实测 0 差异（M13 FP 232/232、阶段一 222/222），白名单无对象；真出现差异再立。
 - **`ISS-480`（2026-11-22 裁定）**：`__pycache__` 是**生成物**，`check-manifests-guard` 是**文件系统**双向集合断言（不读 `.gitignore`），故冲突真实存在；修法 = 清单新增 `ignore = ["__pycache__"]`（**数据面**声明，非代码硬编码），且条目须被 `git check-ignore` 判为忽略、不得与已登记项同名；其它游离目录仍红。
 - **执行器依据锁（2026-11-22 裁 B）**：`idl/data/exec_anchor.toml` 锁 263 个 op 正文 + `idl/lib/*.idl` 的 sha256；`check-idl-exec-anchor` 进 L1；改 `.idl` ⇒ 必须 `--update` 并在评审里说明实现是否跟改。**不**声称语义等价（`m17-idl-017`）。
+- **cfx 权限轴（2026-11-23 裁 B）**：补 `cfxreg`/`cfxexe` 掩码 + 2 个拒绝路径载体（`CFXPERM`，272→274）；`cfxmem`（cfx SRAM/MMIO 窗口）单列不建模；平台分叉（如 `ISS-469`）只归因不改组件（`m17-idl-020`）。
 - **`check-inst-sig` 退役（2026-11-22 裁 A）**：`check-idl` 在 272 例上对每一方都比同一份 `expected.tsv`，且含四方互比 ⇒ `check-inst-sig` 退出 L2 并删除 target；保留 `inst-signature-data`（期望值生成）、`signature.py` 与脚本 `--write`（`m17-testcases-003`）。
 - **gem5/chipyard 常驻门控（2026-11-22 裁 B）**：全四方进 `night-run`（新成员 `idl:four-way` → `make check-idl-full`）；L1/L2/L3 不变（L2 仍 IDL+QEMU）；缺引擎该成员 rc=2 可见、不静默跳过；`m17-idl-014` 落地。
 - **阶段二完成（2026-11-23）**：`m17-idl-013` 把 FP 50 纳入四方，**272/272**；016 后 master 复跑 `check-idl-full` 272/272（122 s，四方聚合 md5 同值）；`check-idl-exec-anchor` 进 L1、`check-inst-sig` 退役；台账 20 件已验证。**收口/归档等用户安排**。
