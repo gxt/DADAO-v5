@@ -44,7 +44,6 @@
 | m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |
 | m18-linux-017 | 3–4 h | `clock_nanosleep(TIMER_ABSTIME)` 整机停摆（KERNEL_BUG） |
 | m18-linux-018 | 2–3 h | 套件环境补齐（TMPFS/MEMFD、非 root uid、`/proc/iomem`；SUITE_ENV） |
-| m18-linux-019 | 1–2 h | `k5_syscall_selftest` 锁外 `find_vma` 触发 rwsem 警告（014 复核发现） |
 | m18-infra-003 | 2–3 h | musl 补丁集同步（ISS-507）与信号帧复核（纠正 006 的「无信号帧 ABI」误判；`p_raise3` 反证内核帧可用） |
 
 > **已作废（2026-11-23，ADR-0060）**：`m18-qemu-002`（monitor-first QEMU）reviewer Accepted 但**不合入 master**，分支留参考；`m18-qemu-003`（旧探针迁 monitor-first）未开工、被 hart-first 取代。
@@ -53,6 +52,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m18-linux-019 | 2026-11-23 21:05 | 1–2 h | `k5_syscall_selftest` 锁外 `find_vma` 触发 rwsem 警告 |
 | m18-linux-022 | 2026-11-23 20:12 | 3–5 h | 内核异步新模型（mask 归 monitor、src 位 cfxha、一帧多源） |
 | m18-testcases-003 | 2026-11-23 20:12 | 2–3 h | 旧异步探针 094t/050t/042t + `escape` cg9 向量迁新模型 |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
