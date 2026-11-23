@@ -16,7 +16,9 @@
 - `spec/SimRISC-11-其它.md` 正文与 263 个 IDL 渲染块中的 `escape` 编码/合法立即数；
 - `idl/SimRISC-11.idl` 的 `escape` 语义/约束；
 - `spec/Toolchain-01 §2.4/§5`（汇编 `imms20` 合法值）；
-- `.tao/contracts/contract-asm.md §5`。
+- `.tao/contracts/contract-asm.md §5`；
+- `spec/Kaiwu-测试机运行环境.md` §4.2 的 escape 编码说明；
+- `.tao/contracts/contract-asm-list.md`、`contracts/opcodes.yaml`、`contracts/legality_rules.yaml` 与 `tools/spec/gen_asm_list.py` 中的 escape 编码/合法立即数真源。
 
 ## 目标
 
@@ -24,7 +26,8 @@
 2. `idl/SimRISC-11.idl`：同步 `escape` 的编码/约束；重新渲染受影响的 `SimRISC-11` 块（只改 `escape` 相关块，其它块逐字节不变）。
 3. `spec/Toolchain-01`：汇编器接受 `imms20 ∈ {0,4,8}`、拒绝其它；`8` 对应 cg9。
 4. `.tao/contracts/contract-asm.md §5`：同步该编码口径。
-5. `spec/.manifests.toml` 重算 `SimRISC-11` 与 `Toolchain-01` 的 sha256；版本仍 `0.8.0-rc`。
+5. `spec/Kaiwu §4.2`、`contract-asm-list.md`、`contracts/opcodes.yaml`、`contracts/legality_rules.yaml`、`tools/spec/gen_asm_list.py`：同步 escape 的编码/合法立即数（`check-spec-codeblocks`/`check-asm-list`/`check-legality-drift` 以它们为真源）。
+6. `spec/.manifests.toml` 重算 `SimRISC-11`、`Toolchain-01`、`Kaiwu` 的 sha256；版本仍 `0.8.0-rc`。
 
 ## 验收（逐条贴真实 rc）
 
@@ -38,7 +41,7 @@
 ## 硬约束
 
 1. 独立 worktree；不提交 git；证据脚本 = 运行期证据目录内 `run.sh`。
-2. 只动：`spec/SimRISC-11-其它.md`、`idl/SimRISC-11.idl`、`spec/Toolchain-01-*.md`、`.tao/contracts/contract-asm.md`、`spec/.manifests.toml`、本任务书；不改实现/QEMU/RTL/gem5/LLVM 代码。
+2. 只动：`spec/SimRISC-11-其它.md`、`idl/SimRISC-11.idl`、`spec/Toolchain-01-*.md`、`spec/Kaiwu-测试机运行环境.md`、`.tao/contracts/contract-asm.md`、`.tao/contracts/contract-asm-list.md`、`contracts/opcodes.yaml`、`contracts/legality_rules.yaml`、`tools/spec/gen_asm_list.py`、`spec/.manifests.toml`、本任务书；不改实现/QEMU/RTL/gem5/LLVM 代码。
 3. 不改版本号；不复制 spec 正文；IDL 渲染必须用仓库工具，不手改生成块。
 4. 还原一律 `cp`+md5；禁 `git checkout`/`restore`/`stash`；术语「bank = 寄存器组」。
 
