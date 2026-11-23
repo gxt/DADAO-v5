@@ -75,13 +75,14 @@ EXPECTED_RULES = {
 }
 
 _CFX = "cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"
-_SBZ_ESCAPE = "imms18[17:1] == 0"
+_SBZ_ESCAPE = "imms18[17:2] == 0"
+_ESCAPE_CG9 = "imms18 != 3"
 _SBZ_FENCE = "immu18[17:12] == 0"
 
 EXPECTED_LEGALITY = {
     "swym_oiii_imm": (),
     "trap_ciii_cfx": (_CFX,),
-    "escape_ciii_cfx": (_SBZ_ESCAPE, _CFX),
+    "escape_ciii_cfx": (_SBZ_ESCAPE, _ESCAPE_CG9, _CFX),
     "cfx2rd_crrr_cfx": (_CFX,),
     "cfx2rc_crrr_cfx": (_CFX,),
     "fence_ciii_cfx": (_SBZ_FENCE, _CFX),

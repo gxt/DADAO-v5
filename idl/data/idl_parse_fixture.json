@@ -4718,23 +4718,24 @@
         },
         "escape_ciii_cfx": {
           "kinds": {
-            "Binary": 2,
+            "Binary": 7,
             "BitsType": 1,
-            "Block": 4,
-            "Call": 16,
+            "Block": 9,
+            "Call": 26,
             "Concat": 1,
-            "EnumRef": 4,
-            "ExprStmt": 5,
-            "Ident": 7,
-            "If": 4,
-            "Index": 1,
-            "IntLit": 6,
+            "EnumRef": 7,
+            "ExprStmt": 8,
+            "Ident": 12,
+            "If": 8,
+            "Index": 3,
+            "IntLit": 16,
             "Slice": 1,
+            "Ternary": 1,
             "Unary": 1,
             "VarDecl": 1
           },
-          "nodes": 54,
-          "sha256": "0d376cbaa050f04165780a6120e0f99e7563d41a1197a0d32a13fea34419ec49"
+          "nodes": 102,
+          "sha256": "72276448278903c00960511e1c8752c74fe91ed4ea18abfb652f14ce9759962a"
         },
         "fence_ciii_cfx": {
           "kinds": {

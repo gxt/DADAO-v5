@@ -59,7 +59,7 @@ if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ 进
 escape  cfxHA, [excp_cause_ip, imms20]
 ```
 
-其中，cfx_\<cfxname\> 指定核芯功能扩展名称；imms20 指定目标地址偏移（字节，**只允许 0 或 4**；实际地址 = excp_cause_ip + imms20；编码层 `imms18 = imms20 >> 2 ∈ {0, 1}`，`imms18[0]` 即字节偏移 bit2，`imms18[17:1]` 为 SBZ、手工编码非零 ⇒ ILLI；`Addr = excp_cause_ip + (imms18 << 2)`）。
+其中，cfx_\<cfxname\> 指定核芯功能扩展名称；imms20 指定目标地址偏移（字节）。编码层 `imms18 = imms20 >> 2`，其中 `imms18[0]` 为字节偏移 bit2、`imms18[1]` 为**帧选择位**（0 = `cg5` 同步异常帧，1 = `cg9` 异步现场），`imms18[17:2]` 为 SBZ、手工编码非零 ⇒ ILLI。合法 `imms18` 集合为 `{0, 1, 2}`：`0`/`1` 为 `cg5` 帧、字节偏移 0/+4，实际地址 = `excp_cause_ip + (imms18 << 2)`；`2` 为 `cg9` 异步现场、**只允许偏移 0**（仅 `cfx_hart` 持有该现场），实际地址 = `async_cause_ip`；`3`（`cg9` 帧 + 偏移 +4）⇒ ILLI。汇编层 `imms20` 以字节为单位（`imms20 = imms18 << 2`），合法值 `{0, 4, 8}`，其中 `8` 表示选 `cg9` 现场、实际偏移 0。偏移是编译期固定的立即数，不支持任意地址跳转。
 
 ### 3.1 形式化语义（IDL）
 
@@ -69,9 +69,12 @@ escape  cfxHA, [excp_cause_ip, imms20]
 <!-- 本块由 IDL 源生成，禁手改；生成器见 `idl/tools/` -->
 **`escape_ciii_cfx`**
 ```idl
-# 步骤 0（DADAO-12 §5.3）：SBZ 非零 / 保留 cfx ⇒ ILLI（进当前运行模式 monitor）；
-# 目标错或帧无效 ⇒ 当前 cfx 的 CFXESC（切换任何状态之前）
-if (imms18[17:1] != 17'd0) {                  # imms18[17:1] 为 SBZ，非零 ⇒ ILLI
+# 步骤 0（DADAO-12 §5.3）：SBZ 非零 / imms18 = 3 / 保留 cfx ⇒ ILLI（进当前运行模式 monitor）；
+# 目标错或所选帧无效 ⇒ 当前 cfx 的 CFXESC（切换任何状态之前）
+if (imms18[17:2] != 16'd0) {                  # imms18[17:2] 为 SBZ，非零 ⇒ ILLI
+  raise(ExceptionCode::Illegal, mode(), ip());
+}
+if (imms18 == 18'd3) {                        # 帧选择位 1 且偏移 bit2 = 1（cg9 只允许偏移 0）⇒ ILLI
   raise(ExceptionCode::Illegal, mode(), ip());
 }
 if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ ILLI
@@ -80,14 +83,23 @@ if (cfx_is_reserved(cfxHA)) {                 # 保留核芯功能扩展 ⇒ ILL
 if (cfxHA != inner_cfx_code()) {              # cfxha 必须是当前 cfx，否则 ⇒ CFXESC
   raise(ExceptionCode::CfxEsc, mode(), ip());
 }
-if (!cfx_frame_valid(cfxHA)) {                # 当前 cfx 无有效帧（excp_cause_id == 0）⇒ CFXESC
-  raise(ExceptionCode::CfxEsc, mode(), ip());
+if (imms18[1] == 1'b0) {                      # 帧选择位 0 = cg5 同步异常帧
+  if (!cfx_frame_valid(cfxHA)) {              # 当前 cfx 无有效同步帧（excp_cause_id == 0）⇒ CFXESC
+    raise(ExceptionCode::CfxEsc, mode(), ip());
+  }
+} else {                                      # 帧选择位 1 = cg9 异步现场（仅 cfx_hart，偏移恒 0）
+  if (cfxHA != 6'd15) {                       # cg9 只属 cfx_hart
+    raise(ExceptionCode::CfxEsc, mode(), ip());
+  }
+  if (cfx_read(cfxHA, 6'd9, 6'd3) == 64'd0) { # async_cause_id == 0 ⇒ 无有效异步现场
+    raise(ExceptionCode::CfxEsc, mode(), ip());
+  }
 }
 
-# 步骤 1–3：恢复 global_cfx_intr_mask、inner_run_mode 与 inner_cfx_code（后者取自
+# 步骤 1–3：恢复中断屏蔽、inner_run_mode 与 inner_cfx_code（后者取自
 # cfx_<cfxname>_excp_prev_cfx_code = cg5 rc1，m14-spec-009 2026-11-18 裁定 B），escape_num++，
-# 控制转到 excp_cause_ip + (imms18 << 2)；字节偏移只允许 0 或 4 ⇒ 由 imms18[0] 给出 bit2
-Bits<64> imm = {61'd0, imms18[0], 2'b00};     # 字节偏移 = imms18[0] << 2 ∈ {0, 4}
+# 控制转到所选帧的返回地址：cg5 帧 = excp_cause_ip + ((imms18 & 1) << 2)，cg9 现场 = async_cause_ip（偏移恒 0）
+Bits<64> imm = (imms18[1] == 1'b0) ? {61'd0, imms18[0], 2'b00} : 64'd0;  # cg5 字节偏移 ∈ {0, 4}；cg9 恒 0
 cfx_escape_enter(cfxHA, imm);
 ```
 <!-- IDL:escape_ciii_cfx END -->

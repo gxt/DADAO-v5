@@ -347,10 +347,11 @@ def build_main_table(records):
 
     # ── 0001-0xxx 末：RF load/store（excluded）──
     records.append(rec("ld.t-rf", "ld.t", "rrii", 0x16,
-                       f_rrii("rfha", "rbhb", "imms12"), [], S00_QFC, scope="fp"))
-    records.append(rec("st.t-rf", "st.t", "rrii", 0x17,
-                       f_rrii("rfha", "rbhb", "imms12", roles=("src", "src")), [],
+                       f_rrii("rfha", "rbhb", "imms12"), [aligned(4)],
                        S00_QFC, scope="fp"))
+    records.append(rec("st.t-rf", "st.t", "rrii", 0x17,
+                       f_rrii("rfha", "rbhb", "imms12", roles=("src", "src")),
+                       [aligned(4)], S00_QFC, scope="fp"))
 
     # ── 0001-1xxx：RD 单 store（rrii）──
     # 语义变更：st 的 rdha != rd0 已删除（store 的 ha 是源操作数，允许 rd0）
@@ -382,10 +383,11 @@ def build_main_table(records):
                        f_rrii("raha", "rbhb", "imms12", roles=("src", "src")),
                        [aligned(8)], S01_RA_LD))
     records.append(rec("ld.o-rf", "ld.o", "rrii", 0x26,
-                       f_rrii("rfha", "rbhb", "imms12"), [], S00_QFC, scope="fp"))
-    records.append(rec("st.o-rf", "st.o", "rrii", 0x27,
-                       f_rrii("rfha", "rbhb", "imms12", roles=("src", "src")), [],
+                       f_rrii("rfha", "rbhb", "imms12"), [aligned(8)],
                        S00_QFC, scope="fp"))
+    records.append(rec("st.o-rf", "st.o", "rrii", 0x27,
+                       f_rrii("rfha", "rbhb", "imms12", roles=("src", "src")),
+                       [aligned(8)], S00_QFC, scope="fp"))
 
     # ── 0010-1xxx：RD 多 load（rrri）──
     for op, mnem, align in [
@@ -400,11 +402,12 @@ def build_main_table(records):
                            f_rrri("rdha", "rbhb", "rdhc", "immu6"), leg, S01_LD))
     records.append(rec("ldm.t-rf", "ldm.t", "rrri", 0x2E,
                        f_rrri("rfha", "rbhb", "rdhc", "immu6"),
-                       [LEG_IMMU6, "rfha + immu6 <= 64"],
+                       [LEG_IMMU6, "rfha + immu6 <= 64", aligned(4)],
                        S00_QFC, scope="fp"))
     records.append(rec("stm.t-rf", "stm.t", "rrri", 0x2F,
                        f_rrri("rfha", "rbhb", "rdhc", "immu6", roles=("src", "src", "src")),
-                       [LEG_IMMU6, "rfha + immu6 <= 64"], S00_QFC, scope="fp"))
+                       [LEG_IMMU6, "rfha + immu6 <= 64", aligned(4)],
+                       S00_QFC, scope="fp"))
 
     # ── 0011-0xxx：RD 多 store（rrri）──
     # 语义变更：stm 的 rdha != rd0 已删除
@@ -442,11 +445,12 @@ def build_main_table(records):
                        [LEG_IMMU6, "raha + immu6 <= 64", aligned(8)], S01_RA_LD))
     records.append(rec("ldm.o-rf", "ldm.o", "rrri", 0x3E,
                        f_rrri("rfha", "rbhb", "rdhc", "immu6"),
-                       [LEG_IMMU6, "rfha + immu6 <= 64"],
+                       [LEG_IMMU6, "rfha + immu6 <= 64", aligned(8)],
                        S00_QFC, scope="fp"))
     records.append(rec("stm.o-rf", "stm.o", "rrri", 0x3F,
                        f_rrri("rfha", "rbhb", "rdhc", "immu6", roles=("src", "src", "src")),
-                       [LEG_IMMU6, "rfha + immu6 <= 64"], S00_QFC, scope="fp"))
+                       [LEG_IMMU6, "rfha + immu6 <= 64", aligned(8)],
+                       S00_QFC, scope="fp"))
 
     # ── 0100-1xxx：立即数赋值（rwii）──
     records.append(rec("or.w-rd", "or.w", "rwii", 0x48,
@@ -585,8 +589,11 @@ def build_main_table(records):
                        f_crrr(), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
     records.append(rec("cfx2rc-crrr", "cfx2rc", "crrr", 0x7B,
                        f_crrr(), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
+    # escape 的 imms18：bit0 = cg5 字节偏移 bit2、bit1 = 帧选择位（0=cg5/1=cg9）、
+    # [17:2] 为 SBZ；imms18 = 3（cg9 帧 + 偏移 +4）非法（SimRISC-11 §3）。
     records.append(rec("escape-ciii", "escape", "ciii", 0x7E,
-                       f_ciii("imms18"), ["imms18[17:1] == 0", CFX_RESERVED_EXPR],
+                       f_ciii("imms18"),
+                       ["imms18[17:2] == 0", "imms18 != 3", CFX_RESERVED_EXPR],
                        S00_QFC, scope="m1"))
     records.append(rec("trap-ciii", "trap", "ciii", 0x7F,
                        f_ciii("immu18"), [CFX_RESERVED_EXPR], S00_QFC, scope="m1"))
@@ -922,7 +929,8 @@ EXPR_TO_RULE = OrderedDict([
     ("rdhb == rd0",                               "encode_sbz"),
     ("immu6 == 0",                                "encode_sbz"),
     ("immu18[17:12] == 0",                        "encode_sbz"),
-    ("imms18[17:1] == 0",                         "encode_sbz"),
+    ("imms18[17:2] == 0",                         "encode_sbz"),
+    ("imms18 != 3",                               "encode_sbz"),
     (CFX_RESERVED_EXPR,                           "encode_cfx_reserved"),
     ("immu18[11:10] == 0",                        "encode_sbz"),
     ("immu18[11:6] == 0",                         "encode_sbz"),

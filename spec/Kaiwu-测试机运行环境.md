@@ -145,7 +145,7 @@ TLB 属 `cfx_ptw`，其匹配键、命中检查、填充条件、A/D 维护与�
 
 ### 4.2 `escape` → 异常退出流程
 
-`escape` 指令完成异常退出：恢复 `excp_prev_run_mode`、递增 `escape_num`，并以 `escape` 的 `imms18`（指令字偏移）计算返回地址并跳转——`Addr = excp_cause_ip + (imms18 << 2)`。[DADAO-12 §异常退出流程] 汇编层写 `escape cfxha, [excp_cause_ip, imms20]`，`imms20` 以字节为单位、**只允许 0 或 4**（`imms18 ∈ {0, 1}`）；`imms18[17:1]` 为 SBZ，手工编码非零 ⇒ `ILLI`（先于任何状态切换）。[SimRISC-11]
+`escape` 指令完成异常退出：恢复 `excp_prev_run_mode`、递增 `escape_num`，并以 `escape` 的 `imms18`（指令字偏移）计算返回地址并跳转——所选帧为 `cg5` 同步异常帧时 `Addr = excp_cause_ip + (imms18 << 2)`，为 `cg9` 异步现场时 `Addr = async_cause_ip`（偏移恒 0）。[DADAO-12 §异常退出流程] 汇编层写 `escape cfxha, [excp_cause_ip, imms20]`，`imms20` 以字节为单位、合法值 **`{0, 4, 8}`**（`imms18 = imms20 >> 2 ∈ {0, 1, 2}`；`8` 选 `cg9` 现场、实际偏移 0，仅 `cfx_hart`）；编码层 `imms18[1]` 为帧选择位（0 = `cg5`、1 = `cg9`），`imms18[17:2]` 为 SBZ、`imms18 = 3` ⇒ `ILLI`（先于任何状态切换）。[SimRISC-11]
 
 被调方通过 `escape cfxha, [excp_cause_ip, 4]` 返回 trap 指令的下一条指令（`excp_cause_ip + 4`）。[DADAO-22 §1. 调用约定]
 
@@ -583,7 +583,7 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 
 **④ 异常**
 
-- **`escape` 偏移合法集**：0 / +4（`imms18 ∈ {0, 1}`）；`imms18[17:1]` 为 SBZ，非零 ⇒ `ILLI`（§4.2）。
+- **`escape` 偏移合法集**：`{0, 4, 8}`（`imms18 ∈ {0, 1, 2}`；`8` = `cg9` 异步现场、偏移恒 0）；`imms18[17:2]` 为 SBZ，`imms18 = 3` ⇒ `ILLI`（§4.2）。
 
 **⑤ 退出码**
 

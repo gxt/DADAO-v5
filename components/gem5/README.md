@@ -48,7 +48,9 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
 - **B6 执行语义**（`exec/b6.{hh,cc}`，30 条系统/原子/屏障）：
   `swym`（no-op + `swymHint` 时延提示，`immu18` 非功能操作数）；`trap`/
   `escape`/`cfx2rd`/`cfx2rc`（cfxha 保留 6–14/16–31/35–61 ⇒ ILLI；`escape`
-  `imms18[17:1] != 0` ⇒ ILLI、字节偏移仅 0/4；`cfx2rd/cfx2rc` 未建模组合 ⇒
+  合法 `imms18 ∈ {0,1,2}`（bit1 = 帧选择位：0 = `cg5`、1 = `cg9`）、`imms18[17:2]` SBZ、
+  `imms18 = 3` ⇒ ILLI；汇编层 `imms20 ∈ {0,4,8}`，`cg5` 偏移 0/4、`cg9` 偏移恒 0；
+  gem5 模型按旧编码的跟改随 M18 实现任务；`cfx2rd/cfx2rc` 未建模组合 ⇒
   CFXREG、`trap` 控制转移 `trapTo`、帧错误 ⇒ CFXESC；`cfx2rd` 目的 `rd0`
   丢弃写不 ILLI）；`fence`（`immu18[17:12]` SBZ、`pred/succ` 六位掩码、
   `cfxha=0` = all cfx、`pred=succ=0` 合法 no-op，`ordering()` 为平台接入点）；
