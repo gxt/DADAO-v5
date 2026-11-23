@@ -42,7 +42,7 @@
 | m18-linux-017 | 3–4 h | `clock_nanosleep(TIMER_ABSTIME)` 整机停摆（KERNEL_BUG） |
 | m18-linux-018 | 2–3 h | 套件环境补齐（TMPFS/MEMFD、非 root uid、`/proc/iomem`；SUITE_ENV） |
 | m18-linux-019 | 1–2 h | `k5_syscall_selftest` 锁外 `find_vma` 触发 rwsem 警告（014 复核发现） |
-| m18-linux-020 | 4–6 h | DADAO 用户态信号帧 ABI（LTP `tst_test` heartbeat `SIGUSR1` 投递即 SIGSEGV；阻塞 006 的 TEST_ADAPT） |
+| m18-infra-003 | 2–3 h | musl 补丁集同步（ISS-507）与信号帧复核（纠正 006 的「无信号帧 ABI」误判；`p_raise3` 反证内核帧可用） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
