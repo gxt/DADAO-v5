@@ -15,7 +15,7 @@
 # `tests/arch/<cfx>/check_*.py`。cfx 划分按 `spec/DADAO-12 §3` 与 bootrom 行为：
 # m5 向量由 SEE bootrom 装入 cfx_umon 用户向量后以 user 模式运行 ⇒ `umon`。
 - id: arch-umon-001
-  file: arch/umon/m5_perm_badcombo_cfxreg.s
+  file: arch/umon/m5_perm_badcombo_cfxreg.S
   kind: asm
   machine: vast
   platforms:
@@ -24,7 +24,7 @@
   requires:
   - bootrom
 - id: arch-umon-002
-  file: arch/umon/m5_perm_mask_cfxperm.s
+  file: arch/umon/m5_perm_mask_cfxperm.S
   kind: asm
   machine: vast
   platforms:
@@ -33,7 +33,7 @@
   requires:
   - bootrom
 - id: arch-umon-003
-  file: arch/umon/m5_perm_reserved_illi.s
+  file: arch/umon/m5_perm_reserved_illi.S
   kind: asm
   machine: vast
   platforms:
@@ -42,7 +42,7 @@
   requires:
   - bootrom
 - id: arch-umon-004
-  file: arch/umon/m5_perm_unimpl_cfxreg.s
+  file: arch/umon/m5_perm_unimpl_cfxreg.S
   kind: asm
   machine: vast
   platforms:
@@ -51,7 +51,7 @@
   requires:
   - bootrom
 - id: arch-umon-005
-  file: arch/umon/m5_semi_exit.s
+  file: arch/umon/m5_semi_exit.S
   kind: asm
   machine: vast
   platforms:
@@ -61,7 +61,7 @@
   - bootrom
   - semihosting
 - id: arch-umon-006
-  file: arch/umon/m5_semi_exit_extended.s
+  file: arch/umon/m5_semi_exit_extended.S
   kind: asm
   machine: vast
   platforms:
@@ -71,7 +71,7 @@
   - bootrom
   - semihosting
 - id: arch-umon-007
-  file: arch/umon/m5_semi_write.s
+  file: arch/umon/m5_semi_write.S
   kind: asm
   machine: vast
   platforms:
@@ -81,7 +81,7 @@
   - bootrom
   - semihosting
 - id: arch-umon-008
-  file: arch/umon/m5_semi_write0.s
+  file: arch/umon/m5_semi_write0.S
   kind: asm
   machine: vast
   platforms:
@@ -91,7 +91,7 @@
   - bootrom
   - semihosting
 - id: arch-umon-009
-  file: arch/umon/m5_semi_writec.s
+  file: arch/umon/m5_semi_writec.S
   kind: asm
   machine: vast
   platforms:
@@ -101,7 +101,7 @@
   - bootrom
   - semihosting
 - id: arch-umon-010
-  file: arch/umon/m5_trap_escape.s
+  file: arch/umon/m5_trap_escape.S
   kind: asm
   machine: vast
   platforms:
@@ -251,13 +251,13 @@
   - qemu
 
 # 运行模式环境代表用例（m16-testcases-015）：同一份 body
-# （`tests/arch/umon/mode_regs.body.S`）在 hmon/smon/umon 三种模式下各跑一次；
-# 驱动 `arch/umon/check_mode_env.py` 现场派生期望签名，并从 QEMU `-d cpu` 的
+# （`tests/arch/umon/umon_mode_regs.body.S`）在 hmon/smon/umon 三种模式下各跑一次；
+# 驱动 `arch/common/check_mode_env.py` 现场派生期望签名，并从 QEMU `-d cpu` 的
 # `MODE:` 核对 body 实际运行模式（不由 body 自述）。运行模式允许集与被排除
 # 模式的原因登记在 `tests/arch/modes.yaml`（`tests/arch.yaml` 的字段由
 # `check-tests-index` 白名单约束，故不放这里）。
 - id: arch-umon-011
-  file: arch/umon/check_mode_env.py
+  file: arch/common/check_mode_env.py
   kind: driver
   machine: vast
   platforms:

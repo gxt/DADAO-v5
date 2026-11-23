@@ -1,4 +1,4 @@
-@@ m5_perm_badcombo_cfxreg.s — M5 L3 execution vector: out-of-range cfx register combo => CFXREG (TESTCASES-033t).
+@@ m5_perm_badcombo_cfxreg.S — M5 L3 execution vector: out-of-range cfx register combo => CFXREG (TESTCASES-033t).
 @@
 @@ Capability / permission counter-example: reading a non-existent / over-count
 @@ cfx register combination must fail with CFXREG.  contract-see.md §3 (SimRISC-11

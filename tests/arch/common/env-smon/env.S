@@ -1,4 +1,4 @@
-@@ tests/arch/common/env/smon/env.S — smon（supv）运行模式环境（m16-testcases-015/017）
+@@ tests/arch/common/env-smon/env.S — smon（supv）运行模式环境（m16-testcases-015/017）
 @@
 @@ 进入：镜像由 step5 BootROM 的 hmon 阶段**直接跳转**交付（m16-testcases-017），
 @@ 故环境在 ENTRY 处就以 **cfx_hmon（源 cfx = 3）**、hypv 运行；cfx_hmon 的 hypv

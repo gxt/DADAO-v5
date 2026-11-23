@@ -197,7 +197,7 @@ def load_programs(expected_path: str):
         sys.exit(2)
     programs = []
     for entry in doc["programs"]:
-        rules = [s for s in entry.get("sources", []) if s.endswith(".s")]
+        rules = [s for s in entry.get("sources", []) if s.endswith(".S")]
         programs.append({
             "name": entry["name"],
             "category": entry.get("category", "?"),

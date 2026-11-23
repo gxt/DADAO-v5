@@ -1,5 +1,5 @@
 /*
- * tests/arch/common/env/env.lds — 运行模式环境的镜像布局（m16-testcases-015）
+ * tests/arch/common/env.lds — 运行模式环境的镜像布局（m16-testcases-015）
  *
  * 四段互不重叠（驱动按 ENV_BODY_OFF / ENV_TAIL_OFF / ENV_PERM_OFF 现场传入，
  * 不写死）：

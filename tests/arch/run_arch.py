@@ -41,6 +41,9 @@ DIR_CFX = {
     "umon": 0, "smon": 2, "hmon": 3, "ptw": 4, "cache": 5,
     "hart": 15, "pmem": 32, "time": 34, "power": 63,
 }
+# `common/` 承载跨 cfx 的驱动（`check_mode_env.py`）；其 cfx 归属由用例 id 的
+# 第二段（`arch-<cfx>-...`）现场派生，不把 `common` 当作可声明的 cfx 名。
+COMMON_DIR = "common"
 VALID_CFX = tuple(sorted(DIR_CFX.values()))
 PLATFORMS = arch_platform.BACKENDS
 CACHE_MODELS = ("on", "off")
@@ -83,10 +86,21 @@ def load_index(path=None, modes_path=None):
             problems.append("%s: `file` 必须是非空字符串" % where)
             continue
         parts = PurePosixPath(rel).parts
-        if len(parts) < 2 or parts[0] != "arch" or parts[1] not in DIR_CFX:
+        cfx_dir = parts[1] if len(parts) > 1 else ""
+        if len(parts) < 2 or parts[0] != "arch" or (
+                cfx_dir != COMMON_DIR and cfx_dir not in DIR_CFX):
             problems.append("%s: `file` 必须是 arch/<cfx>/…，实为 %r"
                             % (where, rel))
             continue
+        if cfx_dir == COMMON_DIR:
+            # 跨 cfx 驱动（如 `arch-umon-011` 的 check_mode_env.py）：归属取 id
+            # 第二段，仍按该 cfx 过滤/归类；`common` 本身不是 cfx 名。
+            owner = cid.split("-")[1] if len(cid.split("-")) > 1 else ""
+            if owner not in DIR_CFX:
+                problems.append("%s: `file` 在 common/ 下，但 id `%s` 的第二段"
+                                " %r 不是 cfx 名" % (where, cid, owner))
+                continue
+            cfx_dir = owner
         if not (ROOT / "tests" / rel).is_file():
             problems.append("%s: `file` 不存在: tests/%s" % (where, rel))
         kind = entry.get("kind", "asm")
@@ -100,7 +114,7 @@ def load_index(path=None, modes_path=None):
                             % (where, machine))
         cases.append({
             "id": cid, "file": rel, "kind": kind, "machine": machine,
-            "cfx": DIR_CFX[parts[1]],
+            "cfx": DIR_CFX[cfx_dir], "cfx_dir": cfx_dir,
             "level": entry.get("level"),
         })
     if problems:
@@ -238,12 +252,13 @@ def _perm_sources():
     """
     problems = []
     for mode in ("hmon", "smon", "umon"):
-        text = (ARCH / "common" / "env" / mode / "env.S").read_text(
+        text = (ARCH / "common" / ("env-%s" % mode) / "env.S").read_text(
             encoding="utf-8")
         if PERM_INCLUDE not in text:
-            problems.append("%s/env.S 缺 `%s`" % (mode, PERM_INCLUDE))
+            problems.append("env-%s/env.S 缺 `%s`" % (mode, PERM_INCLUDE))
         if ".macro\tENV_PERM_OPEN_RC" in text:
-            problems.append("%s/env.S 内联了权限准备宏（应只用 cfx_perm.inc）" % mode)
+            problems.append("env-%s/env.S 内联了权限准备宏（应只用 cfx_perm.inc）"
+                            % mode)
     inc = ARCH / "common" / "env" / "cfx_perm.inc"
     if not inc.is_file():
         problems.append("缺 common/env/cfx_perm.inc")
@@ -282,7 +297,7 @@ def self_test() -> int:
 
     by_dir = {}
     for case in cases:
-        by_dir.setdefault(PurePosixPath(case["file"]).parts[1], []).append(case)
+        by_dir.setdefault(case["cfx_dir"], []).append(case)
     for cfx_dir, dir_cases in sorted(by_dir.items()):
         expected = ARCH / cfx_dir / "expected.yaml"
         issues = arch_sig.validate_expected(expected)
@@ -561,7 +576,7 @@ def list_plan(args) -> int:
           % ("cfx", "dir", "case", "kind", "level", "modes", "platforms"))
     for case in cases:
         print("%-4d %-12s %-22s %-7s %-5s %-14s %s"
-              % (case["cfx"], PurePosixPath(case["file"]).parts[1],
+              % (case["cfx"], case["cfx_dir"],
                  case["id"], case["kind"], case["level"],
                  ",".join(case["modes"]), ",".join(platforms)))
     print("%d case × %d 平台" % (len(cases), len(platforms)))

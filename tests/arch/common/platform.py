@@ -128,8 +128,12 @@ def _carrier_path(ctx, case) -> Path:
 
 
 def _expected_yaml(ctx, case) -> Path:
-    parts = PurePosixPath(case["file"]).parts
-    cfx_dir = parts[1] if len(parts) > 1 else ""
+    # `common/` 下的跨 cfx 驱动由 `run_arch.load_index` 给出逻辑 cfx 目录
+    # （`cfx_dir`）；缺省退回 `file` 的第二段（旧调用方）。
+    cfx_dir = case.get("cfx_dir")
+    if not cfx_dir:
+        parts = PurePosixPath(case["file"]).parts
+        cfx_dir = parts[1] if len(parts) > 1 else ""
     return Path(ctx.arch_root) / cfx_dir / "expected.yaml"
 
 

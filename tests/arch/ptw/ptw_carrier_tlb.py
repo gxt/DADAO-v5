@@ -74,11 +74,11 @@ which is one of the injected counter-examples used to prove the assertion is
 reachable.
 
 Usage:
-  carrier_tlb.py                 # all 15 cases, all checks
-  carrier_tlb.py --only arch-ptw-005
-  carrier_tlb.py --list
-  carrier_tlb.py --selfcheck     # contract tables + expected.yaml
-  carrier_tlb.py --qemu PATH     # QEMU 或 qemu_gem5_shim.py（gem5 承载）
+  ptw_carrier_tlb.py                 # all 15 cases, all checks
+  ptw_carrier_tlb.py --only arch-ptw-005
+  ptw_carrier_tlb.py --list
+  ptw_carrier_tlb.py --selfcheck     # contract tables + expected.yaml
+  ptw_carrier_tlb.py --qemu PATH     # QEMU 或 qemu_gem5_shim.py（gem5 承载）
 Exit code: 0 iff every requested check passed.
 """
 
@@ -149,21 +149,21 @@ def parse_contract():
             bit, wyde, name, target = (int(m.group(1)), int(m.group(2)),
                                        m.group(3), m.group(4))
             if name in sub_bits:
-                raise SystemExit("carrier_tlb: duplicate sub-cause %r"
+                raise SystemExit("ptw_carrier_tlb: duplicate sub-cause %r"
                                  % name)
             sub_bits[name], sub_wyde[name], sub_cause[name] = bit, wyde, target
     if not causes or not sub_bits:
-        raise SystemExit("carrier_tlb: cannot parse the contract tables "
+        raise SystemExit("ptw_carrier_tlb: cannot parse the contract tables "
                          "(%s §6.1/§6.1.1)" % CONTRACT_SEE)
     # §6.1.1 is the authority; DADAO-12 §3.6 must agree bit by bit.
     spec_bits = {m.group(2): int(m.group(1))
                  for m in (_RE_SPEC_SUB.match(x)
                            for x in _read(SPEC_SEE).splitlines()) if m}
     if not spec_bits:
-        raise SystemExit("carrier_tlb: cannot parse spec/DADAO-12 §3.6")
+        raise SystemExit("ptw_carrier_tlb: cannot parse spec/DADAO-12 §3.6")
     diff = sorted(set(spec_bits.items()) ^ set(sub_bits.items()))
     if diff:
-        raise SystemExit("carrier_tlb: contract-see §6.1.1 and "
+        raise SystemExit("ptw_carrier_tlb: contract-see §6.1.1 and "
                          "spec/DADAO-12 §3.6 disagree: %r" % (diff,))
     return causes, sub_bits, sub_wyde, sub_cause
 
@@ -185,7 +185,7 @@ def sub_one_hot(name):
     64-bit mask (`WYDE2`/`WYDE3`), so the value has to stay absolute as well.
     """
     if name not in SUB_BIT:
-        raise SystemExit("carrier_tlb: %r is not in contract-see §6.1.1"
+        raise SystemExit("ptw_carrier_tlb: %r is not in contract-see §6.1.1"
                          % (name,))
     return 1 << SUB_BIT[name]
 
@@ -340,7 +340,7 @@ class Check:
     def code(self, desc):
         self.fields.append(desc)
         if len(self.fields) > MAX_FAIL_CODE:
-            raise SystemExit("carrier_tlb: case %d/%s has more than %d "
+            raise SystemExit("ptw_carrier_tlb: case %d/%s has more than %d "
                              "assertions; extend the fail-code scheme"
                              % (self.case_no, self.label, MAX_FAIL_CODE))
         return len(self.fields)
@@ -539,7 +539,7 @@ def fault_handler(chk, cls, sub, info=None, resume=True, post=None):
     from `contract-see §6.1.1` or `None` (`CFXREG` carries no sub-cause).
     """
     if sub is not None and SUB_CAUSE.get(sub) != cls:
-        raise SystemExit("carrier_tlb: %s belongs to %s, not %s "
+        raise SystemExit("ptw_carrier_tlb: %s belongs to %s, not %s "
                          "(contract-see §6.1.1)"
                          % (sub, SUB_CAUSE.get(sub), cls))
     chk.expect = (cls, sub) if cls else None
@@ -1488,7 +1488,7 @@ def main():
 
     QEMU = args.qemu or DEFAULT_QEMU
     if not os.access(QEMU, os.X_OK):
-        print("carrier_tlb: ERROR: qemu not executable: %s" % QEMU)
+        print("ptw_carrier_tlb: ERROR: qemu not executable: %s" % QEMU)
         return 2
 
     results = selected(args.only)
@@ -1507,7 +1507,7 @@ def main():
             nfail += 1
     total = npass + nfail
     if total == 0:
-        print("carrier_tlb: no check matched --only %r" % (args.only,))
+        print("ptw_carrier_tlb: no check matched --only %r" % (args.only,))
         return 2
     # `run_arch` 按 expected.yaml 的 checks 顺序拼接比较；每个检查是独立镜像，
     # 这里把同一 case 的全部已接线签名流按检查顺序聚合到同一个产物。

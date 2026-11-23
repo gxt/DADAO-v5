@@ -1,4 +1,4 @@
-@@ m5_semi_write0.s — M5 L3 execution vector: semihosting SYS_WRITE0 (TESTCASES-033t).
+@@ m5_semi_write0.S — M5 L3 execution vector: semihosting SYS_WRITE0 (TESTCASES-033t).
 @@
 @@ Capability: semihosting SYS_WRITE0 (0x04) writes the NUL-terminated string at
 @@ the argument pointer (rb16) to the semihosting console

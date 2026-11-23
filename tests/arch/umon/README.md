@@ -1,6 +1,6 @@
 # `tests/arch/umon/` — cfx_umon（SEE / semihosting）执行向量（M5 起）
 
-Hand-written `.s` execution vectors for the SEE/semihosting + cfx-level permission
+Hand-written `.S` execution vectors for the SEE/semihosting + cfx-level permission
 face, driven end-to-end by `tools/testcases/arch/run_m5_e2e.py`.  Unlike the M3/M4
 directories (LLVM IR `*.ll` linked to an executable) these vectors exercise the
 *system* instructions (`trap`, `escape`, `cfx2rd`, `cfx2rc`) and semihosting,
@@ -13,7 +13,7 @@ which have no high-level IR form.
 ## Pipeline
 
 ```
-llvm-mc --triple=dadao-unknown-elf -filetype=obj <vector>.s -> <vector>.o
+llvm-mc --triple=dadao-unknown-elf -filetype=obj <vector>.S -> <vector>.o
 llvm-objcopy -O binary --only-section=.text <vector>.o        -> <vector>.bin
 qemu-system-dadao -machine kaiwu-vast,bootrom-image=.dadao/tests/bootrom/step5/bootrom_step5.bin \
     -kernel <vector>.bin \

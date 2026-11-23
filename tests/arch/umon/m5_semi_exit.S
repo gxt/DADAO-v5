@@ -1,4 +1,4 @@
-@@ m5_semi_exit.s — M5 L3 execution vector: semihosting SYS_EXIT (TESTCASES-033t).
+@@ m5_semi_exit.S — M5 L3 execution vector: semihosting SYS_EXIT (TESTCASES-033t).
 @@
 @@ Capability: semihosting SYS_EXIT (0x18) terminates the guest and propagates its
 @@ status code to the host $?.  The argument block is {reason, subcode}; reason

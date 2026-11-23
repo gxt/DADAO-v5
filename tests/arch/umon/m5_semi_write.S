@@ -1,4 +1,4 @@
-@@ m5_semi_write.s — M5 L3 execution vector: semihosting SYS_OPEN + SYS_WRITE (TESTCASES-033t).
+@@ m5_semi_write.S — M5 L3 execution vector: semihosting SYS_OPEN + SYS_WRITE (TESTCASES-033t).
 @@
 @@ Capability: semihosting file service SYS_OPEN (0x01) followed by SYS_WRITE
 @@ (0x05); the argument block is {handle, buffer pointer, byte count} and the

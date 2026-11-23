@@ -1754,9 +1754,9 @@ ARCH_CARRIER_LOG = .work/log/arch/check-arch-smoke-carrier.log
 # `integ050t` = cfx_time 1 GHz/64 位 + 单 hart cfx_hart；`integ051t` = 统一异步中断仲裁；
 # `integ007t` = Tiny hmon「最小保存-跳转」算法（QEMU 先行契约）。
 # `tlb` 已由 m16-testcases-010 从本清单拆出，成为 `ARCH_PTW_CARRIER`
-# （`tests/arch/ptw/carrier_tlb.py`，15 条 TLB/PTW 探针）。
+# （`tests/arch/ptw/ptw_carrier_tlb.py`，15 条 TLB/PTW 探针）。
 ARCH_CFX_PROBES = 044t 045t 049t integ039t integ040t integ042t integ044t integ046t integ047t integ048t integ049t integ050t integ051t integ007t
-ARCH_PTW_CARRIER = tests/arch/ptw/carrier_tlb.py
+ARCH_PTW_CARRIER = tests/arch/ptw/ptw_carrier_tlb.py
 
 _locked-check-arch-smoke: install-host build-bootrom
 	@test -f $(ARCH_DRIVER) || { echo "check-arch-smoke: ERROR: $(ARCH_DRIVER) not found"; exit 1; }
@@ -1786,7 +1786,7 @@ _locked-check-arch-smoke: install-host build-bootrom
 	  DADAO_TEST_PROFILE=vast $(PYTHON) $(ARCH_PTW_CARRIER) --qemu $(QEMU_BIN) > $(ARCH_CARRIER_LOG) 2>&1; \
 	  rc=$$?; \
 	  tail -n 4 $(ARCH_CARRIER_LOG); \
-	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (carrier_tlb rc=$$rc)"; exit $$rc; fi
+	  if [ $$rc -ne 0 ]; then echo "check-arch-smoke: FAIL (ptw_carrier_tlb rc=$$rc)"; exit $$rc; fi
 	@echo "check-arch-smoke: PASS (level=smoke representative set + 25-service + ptw/tlb carrier)"
 
 # L3：与 check-arch-smoke **同一代表集**（用户 2026-11-22 裁定）。

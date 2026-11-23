@@ -1,4 +1,4 @@
-@@ tests/arch/common/env/hmon/env.S — hmon（hypv）运行模式环境（m16-testcases-015/017）
+@@ tests/arch/common/env-hmon/env.S — hmon（hypv）运行模式环境（m16-testcases-015/017）
 @@
 @@ 进入：step5 BootROM 的 hmon 阶段已 `jump` 到 profile ENTRY，交付时
 @@ `inner_cfx_code` = cfx_hmon（源 cfx = 3）、`inner_run_mode` = hypv

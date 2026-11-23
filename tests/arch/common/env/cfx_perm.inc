@@ -1,6 +1,6 @@
 @@ tests/arch/common/env/cfx_perm.inc — cfx 访问权限准备 / 收窄（m16-testcases-017）
 @@
-@@ 由 `common/env/{hmon,smon,umon}/env.S` 各自 `.include` 一次；驱动给 llvm-mc 传
+@@ 由 `common/env-{hmon,smon,umon}/env.S` 各自 `.include` 一次；驱动给 llvm-mc 传
 @@ `-I tests/arch/common/env`（llvm-mc **不搜索源文件所在目录**）。
 @@
 @@ 用法（每个 env 在 `.envperm` 段里各写三行入口）：

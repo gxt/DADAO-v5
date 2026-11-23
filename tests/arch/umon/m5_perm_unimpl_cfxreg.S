@@ -1,4 +1,4 @@
-@@ m5_perm_unimpl_cfxreg.s — M5 L3 execution vector: unimplemented cfx => CFXREG (TESTCASES-033t).
+@@ m5_perm_unimpl_cfxreg.S — M5 L3 execution vector: unimplemented cfx => CFXREG (TESTCASES-033t).
 @@
 @@ Capability / permission counter-example: accessing an allocated-but-unimplemented
 @@ core function extension must fail with CFXREG (not ILLI).  contract-see.md §3:

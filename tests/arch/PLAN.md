@@ -101,7 +101,7 @@ python3 tests/arch/run_arch.py \
 | `tools/chipyard/icache/vasticache.S`、`gen_vasticache_tables.py`、`check_vasticache.py` | `tests/arch/cache/icache/` | cfx5 阵列面 |
 | `tools/chipyard/excp/causeid.S`、`check_causeid.py` | `tests/arch/hmon/` | cfx3 异常帧全宽 |
 | `tools/chipyard/excp/prevcfx.S`、`check_prevcfx.py` | `tests/arch/power/` | cfx63→cfx3 移交 |
-| `tools/testcases/arch/min_rom_probe_tlb.py` | `tests/arch/ptw/carrier_tlb.py` + `check_tlb.py` | 15 条 `arch-ptw-*` driver（`m16-testcases-010` 已完成迁移） |
+| `tools/testcases/arch/min_rom_probe_tlb.py` | `tests/arch/ptw/ptw_carrier_tlb.py` + `check_tlb.py` | 15 条 `arch-ptw-*` driver（`m16-testcases-010` 已完成迁移） |
 | `tools/testcases/arch/min_rom_probe_integ039t.py`、`integ040t.py` | `tests/arch/ptw/` | 页表/TLB 场景 |
 | `tools/testcases/arch/min_rom_probe_integ042t.py`、`integ047t.py` | `tests/arch/pmem/` | SRAM/DMA |
 | `tools/testcases/arch/min_rom_probe_integ050t.py` | `tests/arch/time/` | cfx34 + cfx15 计数 |

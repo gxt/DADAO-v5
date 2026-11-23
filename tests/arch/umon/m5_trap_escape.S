@@ -1,4 +1,4 @@
-@@ m5_trap_escape.s — M5 L3 execution vector: general trap enters the vector, escape returns (TESTCASES-033t).
+@@ m5_trap_escape.S — M5 L3 execution vector: general trap enters the vector, escape returns (TESTCASES-033t).
 @@
 @@ Capability: a general (non-semihosting) `trap cfx_umon, immu18` with
 @@ immu18 < 0x3FF00 records cause CFXTRAP (1<<0) and enters the target cfx

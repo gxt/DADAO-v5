@@ -1,4 +1,4 @@
-@@ m5_perm_mask_cfxperm.s — M5 L3 execution vector: cfx cfxtrap mask forbidden => CFXPERM (TESTCASES-033t).
+@@ m5_perm_mask_cfxperm.S — M5 L3 execution vector: cfx cfxtrap mask forbidden => CFXPERM (TESTCASES-033t).
 @@
 @@ Capability / permission counter-example: a general `trap` to a *legal but
 @@ denied* cfx raises CFXPERM.  DADAO-12 §3 (cfxtrap source mask, 1 = masked);

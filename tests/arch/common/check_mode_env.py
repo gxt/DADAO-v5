@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""`tests/arch/umon/check_mode_env.py` — `arch-umon-011` 驱动（m16-testcases-015）。
+"""`tests/arch/common/check_mode_env.py` — `arch-umon-011` 驱动（m16-testcases-015）。
 
-代表用例：**cfx_umon 寄存器面**（body `mode_regs.body.S`）在
+代表用例：**cfx_umon 寄存器面**（body `umon/umon_mode_regs.body.S`）在
 hmon（hypv）/ smon（supv）/ umon（user）三种运行模式下各跑一次。
 
 判据（Independent oracle：期望值现场从 `spec/` + `.tao/contracts/` 派生，
@@ -54,9 +54,10 @@ import signature as _signature             # noqa: E402  真源
 
 CASE_ID = "arch-umon-011"
 MODES = ("hmon", "smon", "umon")
-BODY = _ARCH / "umon" / "mode_regs.body.S"
-ENV_DIR = _ARCH / "common" / "env"   # 环境目录：`-I` 传进去给 `cfx_perm.inc`
-ENV_LDS = ENV_DIR / "env.lds"
+BODY = _ARCH / "umon" / "umon_mode_regs.body.S"
+ENV_INC_DIR = _ARCH / "common" / "env"   # `-I` 传进去给共享 `cfx_perm.inc`
+ENV_LDS = _ARCH / "common" / "env.lds"
+ENV_DIRS = {mode: _ARCH / "common" / ("env-%s" % mode) for mode in MODES}
 ARCH_YAML = _REPO / "tests" / "arch.yaml"
 MODES_YAML = _REPO / "tests" / "arch" / "modes.yaml"
 
@@ -175,7 +176,7 @@ def _run(cmd, timeout, cwd=None):
 def assemble_env(mode, tools, work, octas=None):
     cmd = [str(tools["llvm-mc"]), "--triple=dadao-unknown-elf",
            "-filetype=obj", "-I", str(_REPO / "tests" / "shared" / "asm"),
-           "-I", str(ENV_DIR),
+           "-I", str(ENV_INC_DIR),
            "--defsym", "ENV_SIG_BUF=%#x" % SIG_BUF,
            "--defsym", "ENV_SIG_SLOTS=%d" % SIG_SLOTS,
            "--defsym", "ENV_STACK=%#x" % STACK,
@@ -188,15 +189,15 @@ def assemble_env(mode, tools, work, octas=None):
     if octas is not None:
         cmd += ["--defsym", "ENV_COPY_OCTAS=%d" % octas]
     obj = work / ("env_%s.o" % mode)
-    rc, out = _run(cmd + [str(ENV_DIR / mode / "env.S"), "-o", str(obj)], 60)
+    rc, out = _run(cmd + [str(ENV_DIRS[mode] / "env.S"), "-o", str(obj)], 60)
     if rc != 0:
-        raise SetupError("llvm-mc env/%s 失败 rc=%d: %s"
+        raise SetupError("llvm-mc env-%s 失败 rc=%d: %s"
                          % (mode, rc, out.decode("utf-8", "replace")[-400:]))
     return obj
 
 
 def assemble_body(tools, work):
-    obj = work / "mode_regs.body.o"
+    obj = work / "umon_mode_regs.body.o"
     rc, out = _run([str(tools["llvm-mc"]), "--triple=dadao-unknown-elf",
                     "-filetype=obj",
                     "-I", str(_REPO / "tests" / "shared" / "asm"),
@@ -344,7 +345,7 @@ def selfcheck() -> int:
     print("check_mode_env --selfcheck（%s；不启动模拟器）" % CASE_ID)
     print("=" * 72)
     for mode in MODES:
-        env = ENV_DIR / mode / "env.S"
+        env = ENV_DIRS[mode] / "env.S"
         if env.is_file():
             print("  PASS  env 存在: %s" % env.relative_to(_REPO))
         else:
@@ -432,7 +433,7 @@ def main() -> int:
     if args.list:
         for mode in MODES:
             print("%s %s（%s）"
-                  % (CASE_ID, mode, (ENV_DIR / mode / "env.S").relative_to(_REPO)))
+                  % (CASE_ID, mode, (ENV_DIRS[mode] / "env.S").relative_to(_REPO)))
         return 0
     if args.selfcheck:
         return selfcheck()

@@ -1,4 +1,4 @@
-@@ m5_semi_exit_extended.s — M5 L3 execution vector: semihosting SYS_EXIT_EXTENDED (TESTCASES-033t).
+@@ m5_semi_exit_extended.S — M5 L3 execution vector: semihosting SYS_EXIT_EXTENDED (TESTCASES-033t).
 @@
 @@ Capability: semihosting SYS_EXIT_EXTENDED (0x20) is the Arm Semihosting v2.0
 @@ service that reports an exit with an explicit status code.  The argument block

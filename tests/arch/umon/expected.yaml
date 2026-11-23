@@ -44,7 +44,7 @@ conventions:
 
 programs:
   - name: m5_semi_writec
-    sources: [m5_semi_writec.s]
+    sources: [m5_semi_writec.S]
     category: semihosting
     expected_exit_code: 0x10
     expected_console: "A"
@@ -55,7 +55,7 @@ programs:
       exactly "A".  The pass token (SYS_EXIT subcode) is 0x10.
 
   - name: m5_semi_write0
-    sources: [m5_semi_write0.s]
+    sources: [m5_semi_write0.S]
     category: semihosting
     expected_exit_code: 0x11
     expected_console: "OK\n"
@@ -66,7 +66,7 @@ programs:
       the three bytes 4f 4b 0a.  Pass token 0x11.
 
   - name: m5_semi_write
-    sources: [m5_semi_write.s]
+    sources: [m5_semi_write.S]
     category: semihosting
     expected_exit_code: 0x12
     expected_console: ""
@@ -84,7 +84,7 @@ programs:
       bytes) is 0.  Pass token 0x12.
 
   - name: m5_semi_exit
-    sources: [m5_semi_exit.s]
+    sources: [m5_semi_exit.S]
     category: semihosting
     expected_exit_code: 0x13
     expected_console: ""
@@ -96,7 +96,7 @@ programs:
       (contract-semihosting.md §5), so $? = 0x13.
 
   - name: m5_semi_exit_extended
-    sources: [m5_semi_exit_extended.s]
+    sources: [m5_semi_exit_extended.S]
     category: semihosting
     expected_exit_code: 0x14
     expected_console: ""
@@ -107,7 +107,7 @@ programs:
       (contract-semihosting.md §3/§5).
 
   - name: m5_perm_reserved_illi
-    sources: [m5_perm_reserved_illi.s]
+    sources: [m5_perm_reserved_illi.S]
     category: permission
     expected_exit_code: 0x20
     expected_cause: ILLI
@@ -123,7 +123,7 @@ programs:
       ILLI (1<<8); pass token 0x20, mismatch token 0x71.
 
   - name: m5_perm_mask_cfxperm
-    sources: [m5_perm_mask_cfxperm.s]
+    sources: [m5_perm_mask_cfxperm.S]
     category: permission
     expected_exit_code: 0x21
     expected_cause: CFXPERM
@@ -143,7 +143,7 @@ programs:
       pass token 0x21, mismatch 0x71.
 
   - name: m5_perm_unimpl_cfxreg
-    sources: [m5_perm_unimpl_cfxreg.s]
+    sources: [m5_perm_unimpl_cfxreg.S]
     category: permission
     expected_exit_code: 0x22
     expected_cause: CFXREG
@@ -159,7 +159,7 @@ programs:
       0x22, mismatch token 0x71.
 
   - name: m5_perm_badcombo_cfxreg
-    sources: [m5_perm_badcombo_cfxreg.s]
+    sources: [m5_perm_badcombo_cfxreg.S]
     category: permission
     expected_exit_code: 0x23
     expected_cause: CFXREG
@@ -177,7 +177,7 @@ programs:
       the pre-QEMU-083t workaround for ISS-342.
 
   - name: m5_trap_escape
-    sources: [m5_trap_escape.s]
+    sources: [m5_trap_escape.S]
     category: trap
     expected_exit_code: 0x30
     expected_cause: CFXTRAP

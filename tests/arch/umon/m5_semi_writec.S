@@ -1,4 +1,4 @@
-@@ m5_semi_writec.s — M5 L3 execution vector: semihosting SYS_WRITEC (TESTCASES-033t).
+@@ m5_semi_writec.S — M5 L3 execution vector: semihosting SYS_WRITEC (TESTCASES-033t).
 @@
 @@ Capability: semihosting "console" service SYS_WRITEC (0x03) writes the single
 @@ character at the argument pointer (rb16) to the semihosting console

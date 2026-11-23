@@ -1,7 +1,7 @@
-@@ tests/arch/umon/mode_regs.body.S — `arch-umon-011` 的测试 body（m16-testcases-015）
+@@ tests/arch/umon/umon_mode_regs.body.S — `arch-umon-011` 的测试 body（m16-testcases-015）
 @@
 @@ **代表迁移**：本文件只放「测什么」，运行模式环境在
-@@ `tests/arch/common/env/{hmon,smon,umon}/env.S`（进入模式、栈、异常向量、退出、
+@@ `tests/arch/common/env-{hmon,smon,umon}/env.S`（进入模式、栈、异常向量、退出、
 @@ 签名区）。同一份 body 在三种模式下各跑一次，签名流（除无模式相关槽外）必须
 @@ 逐槽一致；实际运行模式由驱动从 QEMU `-d cpu` 的 `MODE:` 现场核对，不由 body
 @@ 自述。

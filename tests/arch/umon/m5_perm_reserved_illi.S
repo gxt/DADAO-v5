@@ -1,4 +1,4 @@
-@@ m5_perm_reserved_illi.s — M5 L3 execution vector: reserved cfxha => ILLI (TESTCASES-033t).
+@@ m5_perm_reserved_illi.S — M5 L3 execution vector: reserved cfxha => ILLI (TESTCASES-033t).
 @@
 @@ Capability / permission counter-example: a general `trap` whose cfxha is a
 @@ reserved code (6-14, 16-31, 35-61) must fail with ILLI, redirected to the current-mode

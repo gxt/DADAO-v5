@@ -1,16 +1,16 @@
-# `tests/arch/common/env/` — 运行模式环境（hmon / smon / umon）
+# `tests/arch/common/` — 运行模式环境（hmon / smon / umon）
 
 本目录把「测试 body」与「运行模式环境」分开（`m16-testcases-015`）：body 只写
 **测什么**，环境负责**进入哪种运行模式、栈、异常向量、签名区与退出**。
 
 ```text
-common/env/
-  cfx_perm.inc 权限准备/收窄的**唯一**宏块（三份 env 共用；驱动给 llvm-mc 传 `-I`）
-  hmon/env.S   hypv：只做准备后直跳 body（不降模式）
-  smon/env.S   supv：cfx_hmon 的 hypv 行 switch_run_mode = 2 + trap 自身
-  umon/env.S   user：先给 L1[3] 加 U 位并拷贝 body，再 switch_run_mode = 0
-  env.lds      镜像布局：.env @ ENTRY、.body @ +0x1000、.envtail @ +0x2000、
-               .envperm @ +0x4000（权限准备段，只在 hypv 跑、不拷进 U 页）
+common/
+  env/cfx_perm.inc  权限准备/收窄的**唯一**宏块（三份 env 共用；驱动给 llvm-mc 传 `-I`）
+  env-hmon/env.S    hypv：只做准备后直跳 body（不降模式）
+  env-smon/env.S    supv：cfx_hmon 的 hypv 行 switch_run_mode = 2 + trap 自身
+  env-umon/env.S    user：先给 L1[3] 加 U 位并拷贝 body，再 switch_run_mode = 0
+  env.lds           镜像布局：.env @ ENTRY、.body @ +0x1000、.envtail @ +0x2000、
+                    .envperm @ +0x4000（权限准备段，只在 hypv 跑、不拷进 U 页）
 ```
 
 ## 模式与环境
@@ -116,8 +116,8 @@ supv 全拒）；self 只绕过 cfx 轴，不绕过模式轴。
   去（015 已登记）；env 只提供「显式 `trap cfx_umon`」的 fail-closed 回落。
 - **umon 的 U 页**：仍靠把 L1[3] 的 PTE 改成 `0xF` 并把 body/tail 拷进该超页。
 
-代表用例 `arch-umon-011`（驱动 `tests/arch/umon/check_mode_env.py`，
-body `tests/arch/umon/mode_regs.body.S`）在三种模式下各跑一次：
+代表用例 `arch-umon-011`（驱动 `tests/arch/common/check_mode_env.py`，
+body `tests/arch/umon/umon_mode_regs.body.S`）在三种模式下各跑一次：
 
 ```sh
 python3 tests/arch/run_arch.py --case arch-umon-011 --mode hmon --platforms qemu
@@ -160,5 +160,5 @@ python3 tests/arch/run_arch.py --case arch-umon-011 --mode umon --platforms qemu
 
 ## 未迁移用例
 
-见 `MIGRATION.md`。本目录只交付 1 条代表用例，其余用例仍按原载体运行
+见 `env-MIGRATION.md`。本目录只交付 1 条代表用例，其余用例仍按原载体运行
 （`modes.yaml` 里只登记 `hmon`，并写明原因）。

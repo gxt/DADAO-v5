@@ -48,9 +48,9 @@ python3 tests/arch/run_arch.py --list
 |------|-----|------|
 | `run_arch.py` | — | 唯一驱动（`--cfx/--platforms/--cache-model/--level/--self-test/--list`） |
 | `common/` | — | arch 内共享薄壳：`signature.py` 转调 `tests/shared/signature.py`；`platform.py` 的 qemu/gem5（driver 经 shim）/chipyard（fail-closed）后端 |
-| `common/env-{hmon,smon,umon}/` | — | **运行模式环境**（每个模式一个目录，`env.S`；共享 `common/env.lds`）：进入模式、栈、异常向量、退出与签名区；body 与模式解耦（`m16-testcases-015`，见 `common/env-README.md` / `MIGRATION.md`） |
-| `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.s`，10 条）+ `expected.yaml`；代表迁移用例 `mode_regs.body.S` + 驱动 `check_mode_env.py`（`arch-umon-011`，三模式）；**cfx0+cfx2 寄存器面 RTL 探针** `cfx02_regs.S` + `check_cfx02_regs.py`（`m16-chipyard-019`，47 条记录）；**U/S/H 模式进入路由 RTL 探针** `mode_entry.S` + `check_mode_entry.py`（`m16-chipyard-020`，同一份 case 链接 TMODE=0/2/3，14/21/14 槽）；两者均暂未登记 `tests/arch.yaml`——chipyard 后端仍 fail-closed，且 hmon 模式环境只在 QEMU/gem5 载体上可用 |
-| `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针：载体/生成器 `carrier_tlb.py`（`m16-testcases-010` 由 `tools/testcases/arch/` 迁入）、期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §）、驱动型入口 `check_tlb.py`（`kind: driver`）；QEMU 与 gem5（shim）逐条跑，RTL 由 `m16-chipyard-018` |
+| `common/env-{hmon,smon,umon}/` | — | **运行模式环境**（每个模式一个目录，`env.S`；共享 `common/env.lds`）：进入模式、栈、异常向量、退出与签名区；body 与模式解耦（`m16-testcases-015`，见 `common/env-README.md` / `common/env-MIGRATION.md`） |
+| `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.S`，10 条）+ `expected.yaml`；代表迁移用例 `umon_mode_regs.body.S` + 驱动 `common/check_mode_env.py`（`arch-umon-011`，三模式）；**cfx0+cfx2 寄存器面 RTL 探针** `cfx02_regs.S` + `check_cfx02_regs.py`（`m16-chipyard-019`，47 条记录）；**U/S/H 模式进入路由 RTL 探针** `mode_entry.S` + `check_mode_entry.py`（`m16-chipyard-020`，同一份 case 链接 TMODE=0/2/3，14/21/14 槽）；两者均暂未登记 `tests/arch.yaml`——chipyard 后端仍 fail-closed，且 hmon 模式环境只在 QEMU/gem5 载体上可用 |
+| `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针：载体/生成器 `ptw_carrier_tlb.py`（`m16-testcases-010` 由 `tools/testcases/arch/` 迁入）、期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §）、驱动型入口 `check_tlb.py`（`kind: driver`）；QEMU 与 gem5（shim）逐条跑，RTL 由 `m16-chipyard-018` |
 | `cache/` | `cfx5`（cache） | 寄存器面 RTL 探针 `cfx5_regs.S` + `check_cfx5_regs.py`（`m16-chipyard-016`）；I/D 维护命令 RTL 探针 `cfx5_maint.S` + `gen_cfx5_maint_tables.py` + `check_cfx5_maint.py`（`m16-chipyard-017`，记录 + 缓存日志时序）；暂未登记 `tests/arch.yaml`（chipyard 后端仍 fail-closed） |
 | `hart/` | `cfx15`（cfx_hart） | cg8 管理寄存器 + cg9 异步现场 + TIMER 投递 RTL 探针 `cfx15.S` + `check_cfx15.py`（`m16-chipyard-021`；`TMODE=3/2/0` 出 H/S/U 三个镜像，一份 case）；暂未登记 `tests/arch.yaml` |
 
@@ -89,7 +89,7 @@ python3 tests/arch/run_arch.py --list
   `CFXPERM`），退出还原打开的项并回读校验；声明由 `common/platform.py` 的
   `--cfx-access` 交给驱动、驱动再落成逐 cfx 的 `--defsym ENV_CFX_ACCESS_<n>=1`。
   非法/重复/空列表、或只有 `hmon` 的用例上声明 ⇒ `run_arch.py` 报配置错误。
-  语义、失败码与已知边界见 `common/env/README.md`。
+  语义、失败码与已知边界见 `common/env-README.md`。
 - 门控：`make check-tests-index`（L1，静态）校验字段、`machine/kind` 取值与
   `file` 存在；条数现场统计，不写死。
 
@@ -115,7 +115,7 @@ make check-arch         # L3：与 check-arch-smoke 同一套检查（用户 202
 
 - 代表集条数由 `tests/arch.yaml` 的 `level: smoke` **现场派生**，不写死；代表集为空 /
   `run_arch.py` 或索引缺失 / 任一 case 失败 ⇒ 非零（fail-closed，不得 `|| true`）。
-- cfx4 PTW/TLB carrier（`ARCH_PTW_CARRIER = tests/arch/ptw/carrier_tlb.py`，15 条）
+- cfx4 PTW/TLB carrier（`ARCH_PTW_CARRIER = tests/arch/ptw/ptw_carrier_tlb.py`，15 条）
   **并入 `check-arch-smoke`**；`check-arch` 只依赖 smoke + echo，两目标同跑。
 - 旧 `ARCH_CFX_PROBES`（010 后 14 项、无 `tlb`）**不再被 `check-arch` 调用**；
   文件与变量保留，**待 cfx4 迁移任务处理**（`m16-testcases-007`）。
