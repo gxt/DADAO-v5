@@ -576,3 +576,9 @@
 - **2026-11-16 m15-spec-003**
   - 摘要：**伪指令 `set.ft rf, rs` / `set.fo rf, rs` 合并为 `set.rf rf, rs`（spec 侧见 `Toolchain-01 §6.1`/`§6.2.3`）**：`DADAOAsmParser::expandPseudoInstruction` 新增 `set.rf`（rd 源 ⇒ `rd2rf`、rf 源 ⇒ `rf2rf`，整 64 位复制），`set.ft`/`set.fo` 的寄存器源分支删除并改为**显式报错**（`this pseudo-instruction takes an immediate only`；不静默接受、不留旧名别名），`set.rf` 的立即数形同样显式报错；`matchAndEmitInstruction` 的伪指令分发表加 `set.rf`；立即数两形（`set.ft rf, imm32` = 2×`set.w`、`set.fo rf, imm64` = `rd2rf rd0` + 非零 wyde 的 `set.w`）展开逐条不变。lit `set-ft-fo.s` 的寄存器源用例改 `set.rf`（含 `rf0` 作**源**的 `rf2rf` 边界）并新增 4 条负例（`set.rf` 立即数 / `set.ft`·`set.fo` 寄存器源 / `set.rf rf0, rf` 的 `dst_rf0`）；`m4-pseudo-set.s` 同改；`tools/testcases/validate_mc_vectors.py` 独立 oracle 加 `set.rf`、旧形改判错。语义不变（改名前后的载体目标文件 md5 相同）。补丁 1 份改，`series` 99 不变。
   - 执行者：engineer
+
+## M18
+
+- **2026-11-23 m18-llvm-001**
+  - 摘要：**`escape` 帧选择位（`imms18` bit1）的汇编/反汇编支持**（真源 `SimRISC-11 §3`/`Toolchain-01 §2.4/§5`，`m18-spec-003`）：`DADAOAsmParser` 的 escape 偏移校验由「只接受 `{0, 4}`」改为**只接受 `{0, 4, 8}`**（其它值硬报错，诊断含 `must be 0, 4 or 8`，并注明 `imms18[17:2]` SBZ、`8` 选 cg9 帧），`imms18 = imms20 >> 2 ∈ {0,1,2}`：bit0 = cg5 字节偏移 bit2（0/+4）、bit1 = 帧选择位（0 = cg5 同步帧、1 = cg9 异步现场且偏移恒 0）；`imms18 = 3` 与 `[17:2]` 非零是**架构 ILLI**，汇编器不生成。反汇编沿用规范长形 `escape cfxHA, [excp_cause_ip, imms18 << 2]`，cg5 回显 0/4、cg9 回显 8，字节级往返一致（无需改解码逻辑，仅补注释说明帧位语义）。测试：新增 `lit/MC/DADAO/cfx2-escape-frame.s`（cfx_cache/cfx_smon/cfx_hart/cfx_umon 的 0/4/8 正向 + objdump 回显 + `obj→asm→obj` 往返 + `cfx15` 数字形等价）与 `cfx2-escape-frame-err.s`（1/2/3/5/6/7/12/16/-4/524288 + 非常量 + 错基址，全部 rc≠0），更新 `cfx2-trap-escape{,-err}.s`（`8` 由负向转正向、诊断串同步）与独立 oracle `validate_cfx_vectors.py`（合法集改 `{0,4,8}`）。补丁 **2 份改**（AsmParser/MCInstPrinter，后者仅注释），`series` **99** 不变。
+  - 执行者：engineer

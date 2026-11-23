@@ -256,8 +256,10 @@ def derive(code: str, opcodes, scalar, generic, specific) -> str:
         if len(inner) != 2 or inner[0] != "excp_cause_ip":
             raise ValueError("escape base must be excp_cause_ip: %r" % code)
         bytes_ = eval_expr(inner[1])
-        if bytes_ % 4 != 0:
-            raise ValueError("escape offset not %%4: %r" % code)
+        if bytes_ not in (0, 4, 8):
+            # Toolchain-01 §2.4/§5: assembly imms20 ∈ {0, 4, 8}
+            # (imms18 = imms20 >> 2 ∈ {0, 1, 2}; 8 = cg9 frame, offset 0).
+            raise ValueError("escape offset not in {0,4,8}: %r" % code)
         assigns = {"cfxha": resolve_scalar(ops[0], scalar),
                    "imms18": bytes_ >> 2}
     else:

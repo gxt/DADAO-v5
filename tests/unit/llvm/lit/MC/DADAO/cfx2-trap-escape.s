@@ -16,8 +16,9 @@
 @@ cfx2rd/cfx2rc 的 `cfx_<cfxname>_<regname>` 简写展开为 `cfxHA, cgHB, rcHC`；
 @@ 反汇编优先打印**名字**（运行时表 contracts/cfx-aliases.txt；LLVM-135t），
 @@ 无名字（reserved cfx / 未知 cg-rc 组合）回退 `cfx<HA>, cgN, rcN`。
-@@ escape 汇编层 `imms20`（字节，合法值只有 0 或 4）⇔ 编码 `imms18 = bytes >> 2`
-@@ ∈ {0,1}（Toolchain-01 §3.2；反汇编还原 `<<2`）。
+@@ escape 汇编层 `imms20`（字节，合法值 0/4/8）⇔ 编码 `imms18 = bytes >> 2`
+@@ ∈ {0,1,2}（Toolchain-01 §2.4/§5；反汇编还原 `<<2`；8 = cg9 帧，
+@@ 帧选择位/round-trip 见 cfx2-escape-frame.s）。
 @@
 @@ `@enc` 为独立派生的期望编码；同目录 oracle 从 opcodes.yaml + 别名表重算并比对。
 

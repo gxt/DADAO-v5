@@ -1,9 +1,9 @@
 diff --git a/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
 new file mode 100644
-index 000000000..96fdc52ec
+index 000000000..4b5f962ff
 --- /dev/null
 +++ b/llvm/lib/Target/DADAO/AsmParser/DADAOAsmParser.cpp
-@@ -0,0 +1,2749 @@
+@@ -0,0 +1,2753 @@
 +//===-- DADAOAsmParser.cpp - DADAO Assembly Parser -------------------------===//
 +//
 +// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -1183,7 +1183,11 @@ index 000000000..96fdc52ec
 +      // escape cfxHA, [excp_cause_ip, imms20]
 +      // The base `excp_cause_ip` is NOT encoded (like rb0 for jump-iiii), so it
 +      // is written explicitly and dropped here; the byte offset is shifted
-+      // right by 2 into the 18-bit encoding field (Toolchain-01 §3.2).
++      // right by 2 into the 18-bit encoding field (Toolchain-01 §3.2/§5):
++      // `imms18 = imms20 >> 2 ∈ {0, 1, 2}`.  Bit 0 is the cg5 byte offset
++      // bit2; bit 1 is the frame selector (0 = cg5 sync frame, 1 = cg9 async
++      // frame, offset fixed 0), so the assembly-level byte offsets are
++      // exactly {0, 4, 8} (8 => imms18 = 2).
 +      if (parseOperand(Operands))
 +        return true;
 +      if (getParser().getTok().isNot(AsmToken::Comma))
@@ -1211,10 +1215,10 @@ index 000000000..96fdc52ec
 +      int64_t Bytes;
 +      if (!OffExpr->evaluateAsAbsolute(Bytes))
 +        return Error(OffStart, "escape offset must be a constant (imms20)");
-+      if (Bytes != 0 && Bytes != 4)
++      if (Bytes != 0 && Bytes != 4 && Bytes != 8)
 +        return Error(OffStart,
-+                     "escape offset must be 0 or 4 (imms20; imms18[17:1] is "
-+                     "SBZ)");
++                     "escape offset must be 0, 4 or 8 (imms20; imms18[17:2] is "
++                     "SBZ; 8 selects the cg9 frame at offset 0)");
 +      if (getParser().getTok().isNot(AsmToken::RBrac))
 +        return Error(getParser().getTok().getLoc(), "expected ']'");
 +      getParser().Lex(); // consume ']'

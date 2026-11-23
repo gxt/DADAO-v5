@@ -5468,6 +5468,15 @@ lit	tests/unit/llvm/lit/MC/DADAO/atomics-lrsc.s	476c8241	sc.b.ar	1
 lit	tests/unit/llvm/lit/MC/DADAO/basic-encoding.s	59200001	add.si	1
 lit	tests/unit/llvm/lit/MC/DADAO/basic-encoding.s	5923ffff	add.si	1
 lit	tests/unit/llvm/lit/MC/DADAO/basic-encoding.s	5b040001	add.si	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-escape-frame.s	7e000002	escape	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-escape-frame.s	7e080000	escape	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-escape-frame.s	7e080001	escape	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-escape-frame.s	7e080002	escape	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-escape-frame.s	7e140000	escape	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-escape-frame.s	7e140001	escape	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-escape-frame.s	7e3c0000	escape	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-escape-frame.s	7e3c0001	escape	1
+lit	tests/unit/llvm/lit/MC/DADAO/cfx2-escape-frame.s	7e3c0002	escape	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-space-stride.s	7a0060c1	cfx2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-space-stride.s	7a007001	cfx2rd	1
 lit	tests/unit/llvm/lit/MC/DADAO/cfx2-space-stride.s	7a007501	cfx2rd	1
