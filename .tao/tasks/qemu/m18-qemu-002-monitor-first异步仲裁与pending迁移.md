@@ -34,7 +34,7 @@
 ## 硬约束
 
 1. 独立 worktree；不提交 git；证据脚本 = 运行期证据目录内 `run.sh`。
-2. 只动：`components/qemu/**`（补丁 + changelog）、`tests/arch/**`（探针与归档）、`tests/unit/qemu/**`、`.tao/knowledge/issues.yaml`、本任务书。
+2. 只动：`components/qemu/**`（补丁 + changelog）、`tests/arch/**`（探针与归档）、`tests/unit/qemu/**`、`tests/unit/linux/**`（仅 K2/K5 异步探针期望随 monitor-first 更新）、`.tao/knowledge/issues.yaml`、本任务书。
 3. **不改** `spec/`、`.tao/contracts/`（monitor-first + cause 17/18 对齐已由架构师同笔完成，本任务不改）、`Makefile`、`components/linux/**`、`components/musl/**`；不改版本号。
 4. **排队**：`m16-qemu-002 → m18-qemu-002 → m16-qemu-003 → m16-testcases-009`；本任务**必须在 `m16-qemu-003` 之前合入**，且**不得与 `m16-qemu-002` 并发写 `components/qemu`**。合入后 M16 的 003/009 基于新模型重跑（其依赖/背景已由主会话标注，本任务不改那两份 M16 任务书）。
 5. 源码还原一律 `cp`+md5；禁 `git checkout`/`restore`/`stash`；还原后重建。
