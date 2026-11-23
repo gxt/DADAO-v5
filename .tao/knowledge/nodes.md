@@ -306,10 +306,12 @@
 
 - **装在哪**：`/tools/Xilinx/2025.1/`（`Vivado`/`Vitis`/`Model_Composer`/`DocNav`/`xic` + `.xinstall`），`root:root`，整棵 **133 G**（`140,641,898,105` B / **455,198** 个文件）；许可放 `/tools/Xilinx_lic/`。
 - **版本**：`source /tools/Xilinx/2025.1/Vivado/settings64.sh && vivado -version` ⇒ `vivado v2025.1 (64-bit)`，SW Build 2025-05-21；`vivado` 不在 PATH。
-- **许可**：4 份 `.lic`；`Vivado_System_Edition`/`VIVADO_HLS` = `permanent`、`HOSTID=ANY`（2037.05）⇒ 不绑机器、可复制。**变量名必须用 `XILINXD_LICENSE_FILE`（带 `D`，FlexNet 的 `xilinxd` 守护进程名）**：实测 `XILINX_LICENSE_FILE`（不带 D）在 Vivado 2025.1 下不被采纳，`synth_design` 直接报 `ERROR: [Common 17-345] A valid license was not found`；改成 `XILINXD_LICENSE_FILE=/tools/Xilinx_lic/vivado_lic2037.lic` 后同一设计 rc=0。
+- **许可**：4 份 `.lic`；`Vivado_System_Edition`/`VIVADO_HLS` = `permanent`、`HOSTID=ANY`（2037.05）⇒ 不绑机器、可复制。
+  - **变量名认 `XILINXD_LICENSE_FILE`（带 `D`，FlexNet 的 `xilinxd` 守护进程名）**；不带 D 的 `XILINX_LICENSE_FILE` **不被采纳**。用干净 `HOME` 做的三路对照（2026-11-23，207，同一 blinky）：带 D ⇒ `rc=0`/`SYNTH_OK`；只设不带 D ⇒ `rc=1` + `ERROR: [Common 17-345] A valid license was not found`；两者都不设 ⇒ `rc=1` + 同一错误。
+  - **坑：成功跑过一次后 Vivado 会把许可目录写进 `$HOME/.flexlmrc`（内容 `XILINXD_LICENSE_FILE=/tools/Xilinx_lic`）**，此后**即使不设任何变量也 rc=0** ⇒ 复测「不带 D 也通过」是缓存假象；把 `HOME` 指到空目录即复现失败。新节点的确定性做法：设带 D 的变量，或把 `.lic` 放进 `~/.Xilinx/`，或先带 D 跑一次让它生成 `.flexlmrc`。
 - **综合验证（2026-11-23，`m19-infra-001`）**：`synth_design -top blinky -part xc7k325tffg900-2` **rc=0 / `SYNTH_OK`**，综合 34 s、峰值内存 2.5 GB；`report_utilization` 报 `Device: xc7k325tffg900-2`、`Design State: Synthesized`。
 - **复制方式与实测**：主控机中继 `ssh zzx 'tar -cf -' | zstd -3 -T8 | ssh <node> 'zstd -d | tar -xf -'`，两段隧道各约 10 MB/s、压缩比约 2.0×；`server207` 落地后与源端**逐字节一致**（体积与文件数完全相同），装完 `/` 剩 452 G。
-- **踩坑**：`zzx` 上只有装好的树、**没有安装包**；`/root/.Xilinx/*.lic` 才是那里的默认搜索位置（所以原机能用、直接 `export` 错变量名的新机不能用）。
+- **踩坑**：`zzx` 上只有装好的树、**没有安装包**；那里的许可放在 `/root/.Xilinx/*.lic`（默认搜索位置）且 `/root/.flexlmrc` 记着目录 ⇒ 原机不设变量也能综合，照搬到新机却不成立（见上条）。
 - 用途：M19（Genesys2 shell + Vivado 流程）综合优先用 `server207`/`server208`，`zzx-NF5280` 保留为源副本。
 
 ## 12. 主控机 `/tmp`（待切回磁盘，用户自理）
