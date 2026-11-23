@@ -247,7 +247,7 @@ d9fffd71ac5f5c59b9d331ba9b4af02991fb4b1966fd5f0bece8339dace6a272  tests/inst/10-
 6cb14447b8f4abd7d75b6df818f45f05c8f2e12886d2f4eedb5fc36d20338092  tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S
 39a4de1971bafe9a70063f9af31b65436cd6f2c6267e106801883001ef223de5  tests/inst/11-cfx/cfx2rc_crrr_cfx.S
 1adf70268331cc3815351d980abaa845567181f2385949ad4fbdb56fde8e1069  tests/inst/11-cfx/cfx2rd_crrr_cfx.S
-8d3163f24b2a1ba4497c0d3aee314bacc9a692c05fdeaa7025e262947c01ee89  tests/inst/11-cfx/escape_ciii_cfx.S
+5aba9e4ca21e80f2aa52c58085c5b6ba3325e48c2c5ec9ceb68566673cc4a99b  tests/inst/11-cfx/escape_ciii_cfx.S
 f91db23b937c0842ac23d83ca94ebd2acb5395757bd32402b71c58cfe129e7a6  tests/inst/11-cfx/fence_ciii_cfx.S
 2a8a19d9f5988414905ac8e74a6b7717469738e6fe8c252e2ec2c8a304df6195  tests/inst/11-cfx/trap_ciii_cfx.S
 db01c5b781a8bb3b8875e3f5ae933166e4fe62b8d1c5044d3213a690957064e2  tests/inst/12-misc/12-misc.inc

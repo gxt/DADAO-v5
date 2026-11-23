@@ -307,8 +307,9 @@ builtin function cfx_frame_valid {
   returns Boolean
   arguments Bits<6> cfxha
   description {
-    该核芯功能扩展当前是否持有**有效异常帧**（`cfx_⟨cfxname⟩_excp_cause_id != 0`）。
-    帧无效时 `escape` 触发当前核芯功能扩展的 `CFXESC`。
+    该核芯功能扩展当前是否持有**有效同步异常帧**（`cfx_⟨cfxname⟩_excp_cause_id != 0`，
+    `cg5`）。帧无效时 `escape` 触发当前核芯功能扩展的 `CFXESC`。异步现场的有效性不归本函数：
+    `cfx_hart cg9` 的 `async_cause_id != 0` 由 operation 直接判定。
   }
 }
 
@@ -316,10 +317,16 @@ builtin function cfx_escape_enter {
   arguments Bits<6> cfxha, Bits<64> imm
   description {
     异常退出（`escape`）：按 SEE 的异常退出流程恢复中断屏蔽、运行模式（`inner_run_mode`）与
-    当前核芯功能扩展（`inner_cfx_code`），`escape_num` 递增，控制转到
-    `excp_cause_ip + imm`（`imm` 为**字节**偏移，合法值 0 或 4）。
-    目标是否为保留编号、`cfxha == inner_cfx_code`、帧是否有效、SBZ 是否为零，均由 operation
-    先判定再调用本函数。
+    当前核芯功能扩展（`inner_cfx_code`），`escape_num` 递增，控制转到**所选帧**的返回地址；
+    所选帧由 operation 的帧选择位（`imms18[1]`）决定。选 `cg5` 同步异常帧时恢复 trap 进入时
+    保存的 `global_cfx_intr_mask`，返回地址 = `excp_cause_ip + imm`（`imm` 为**字节**偏移，
+    合法值 0 或 4）；选 `cfx_hart cg9` 异步现场时返回地址 = `async_cause_ip`（偏移恒 0，
+    `imm` 传 0），并恢复 `async_prev_run_mode`、`async_prev_cfx_code` 与
+    `async_saved_global_intr_mask`（`cfx_hart cg9` 的 `rc4` 写回 `rc8`）。
+    目标是否为保留编号、`cfxha == inner_cfx_code`、所选帧是否有效（`cg5` 帧
+    `excp_cause_id != 0`；`cg9` 现场 `async_cause_id != 0`，且该帧仅 `cfx_hart` 持有）、
+    SBZ 是否为零、`imms18 = 3`（`cg9` 帧带偏移 +4）是否出现，均由 operation 先判定再调用
+    本函数。
   }
 }
 
@@ -454,6 +461,7 @@ UDB 本身若干转写错误（溢出判据、无符号比较、qNaN 置 NV、�
 - **控制流写回**：`jump` 把 `target` 的**完整 64 位**写回 `rb0`（`[63:48]` 保留进位、不强制清 0），取指取低 48 位；`ip()` 不再假定高 16 位为 0（与 `SimRISC-06 §1/§2` 及三执行机一致）。
 - **浮点库**：新增 `idl/lib/fp.idl`（ft/binary32 族，§4.7）；`render.py` 的「已声明函数」扫描面加 `idl/lib/*.idl`（含 `?` 后缀的函数名）。fo/binary64 族同库追加：位操作底座 + 64 位整型转换 + `fo_to_ft`/`ft_to_fo` + `is_dp_*` 谓词；算术 `fo_add`/`fo_sub`/`fo_mul`/`fo_div`/`fo_muladd`/`fo_sqrt`、取整/缩放、以及 `ft_rem`/`fo_rem` 取余；§4.7 指针同步扩到两族 + 取余。
 - **ft 族补正**：f32 舍入原语的 tininess 改「舍入后」检测（IEEE 754-2019 §7.5）；`ft_sqrt`/`round_ft_to_integral` 的类型层缺陷修掉（函数体 type_check 0 例外）；补 `i32_to_fo`/`ui32_to_fo`（精确转换）与 `ft_scale`（scaleB）。
+- **异常退出的帧选择**：§4.6 `cfx_escape_enter` 的 `imm` 只表示 `cg5` 同步异常帧的字节偏移（0/4）；`cfx_hart cg9` 异步现场偏移恒 0、返回地址取 `async_cause_ip`，并恢复异步现场的运行模式、核芯功能扩展与保存的全局中断掩码；`cfx_frame_valid` 明确只判同步帧，异步现场有效性（`async_cause_id != 0`）由 operation 判定。
 
 ### 0.1.0（初版后修订）
 

@@ -59,9 +59,19 @@ RESERVED_CFX = set(range(6, 15)) | set(range(16, 32)) | set(range(35, 62))
 # Tiny 实现的两个 cfx（spec/Kaiwu §3、contract-see §3）。
 IMPLEMENTED_CFX = {3: "hmon", 63: "power"}
 
+# cfx_hart（spec/DADAO-12 §4.7）：`cg9` 异步现场的唯一持有者。Tiny profile 不实现该 cfx
+# （`IMPLEMENTED_CFX`），本模型仍按 spec 实现 `cg9` 现场的 escape 语义（golden-model 覆盖）。
+CFX_HART = 15
+
 # cg5 异常现场（spec/DADAO-12 §3.6）。
 CG5_PREV_MODE, CG5_PREV_CFX, CG5_CAUSE_ID, CG5_CAUSE_IP, \
     CG5_CAUSE_INFO, CG5_PENDING = 0, 1, 2, 3, 4, 5
+# cg9 异步现场（spec/DADAO-12 §3.9）：0 prev_run_mode、1 prev_cfx_code、2 cause_ip、
+# 3 cause_id（非零 = 有效帧）、4 saved_global_intr_mask、5 pending、6 vector、7 switch、
+# 8 global_intr_mask。
+CG9_PREV_MODE, CG9_PREV_CFX, CG9_CAUSE_IP, CG9_CAUSE_ID, CG9_SAVED_GLOBAL, \
+    CG9_PENDING, CG9_VECTOR, CG9_SWITCH, CG9_GLOBAL_INTR_MASK = \
+    0, 1, 2, 3, 4, 5, 6, 7, 8
 # cg3（spec/DADAO-12 §3.4）：0..3 四类同步来源 mask、4 中断 mask、8 切模式、10 向量。
 CG3_TRAP, CG3_MEM, CG3_REG, CG3_EXE, CG3_INTR, CG3_SWITCH, CG3_VECTOR = \
     0, 1, 2, 3, 4, 8, 10
@@ -308,6 +318,8 @@ class Cfx:
             self.cg5[rc] = 0
         self.cg5[CG5_PENDING] = 0
         self.saved_global = None
+        # cg9 异步现场（spec/DADAO-12 §3.9）：仅 `cfx_hart` 持有；None = 该 cfx 不实现 cg9。
+        self.cg9 = None
 
     def set_space(self, block, desc, start, size, attr):
         self.cg7[4 * block + CG7_DESC] = desc
@@ -600,13 +612,35 @@ class Machine:
         self.jumped = True
         return cfx
 
-    def escape(self, cfxha, offset):
+    def escape(self, cfxha, imms18):
+        """escape 的步骤 0（目标/帧）与步骤 1–3（spec/DADAO-12 §5.1/§5.3）。
+
+        帧由 `imms18[1]` 选择（spec/SimRISC-11 §3）：0 = `cg5` 同步异常帧（偏移
+        `imms18[0] << 2`）、1 = `cfx_hart cg9` 异步现场（偏移恒 0）。SBZ / `imms18 = 3` /
+        保留 cfx 的 ILLI 判定在 operation 里先行（先于任何状态切换）。
+        """
         cur = self.cfx.get(self.cfx_code)
         if cur is None:
             raise ExecError("escape in unimplemented cfx %r" % (self.cfx_code,))
         if cfxha != self.cfx_code:
             raise Fault("CfxEsc", cause_ip=self.ip)
-        if cur.cg5[CG5_CAUSE_ID] == 0:
+        if imms18 & 0x2:
+            # 帧选择位 1 ⇒ `cfx_hart cg9` 异步现场：只有 cfx_hart 持有 cg9，偏移恒 0。
+            if cfxha != CFX_HART:
+                raise Fault("CfxEsc", cause_ip=self.ip)
+            cg9 = cur.cg9
+            if cg9 is None or cg9[CG9_CAUSE_ID] == 0:   # §3.9：非零 = 有效帧
+                raise Fault("CfxEsc", cause_ip=self.ip)
+            # §5.3 第 1 步：恢复异步进入时保存的 `async_global_intr_mask`（rc4 → rc8）。
+            cg9[CG9_GLOBAL_INTR_MASK] = cg9[CG9_SAVED_GLOBAL] & MASK64
+            self.mode = cg9[CG9_PREV_MODE] & 0x3
+            prev = cg9[CG9_PREV_CFX] & 0x3F
+            cur.cg4[CG4_ESCAPE_NUM] += 1
+            self.cfx_code = prev
+            self.ip = cg9[CG9_CAUSE_IP] & MASK64
+            self.jumped = True
+            return
+        if cur.cg5[CG5_CAUSE_ID] == 0:       # §3.6：excp_cause_id == 0 ⇒ 无有效同步帧
             raise Fault("CfxEsc", cause_ip=self.ip)
         if cur.saved_global is not None:     # §5.3 第 1 步：恢复 trap 保存的 global mask
             mon_id, mask = cur.saved_global
@@ -616,7 +650,7 @@ class Machine:
         prev = cur.cg5[CG5_PREV_CFX] & 0x3F
         cur.cg4[CG4_ESCAPE_NUM] += 1
         self.cfx_code = prev
-        self.ip = (cur.cg5[CG5_CAUSE_IP] + offset) & MASK64
+        self.ip = (cur.cg5[CG5_CAUSE_IP] + ((imms18 & 1) << 2)) & MASK64
         self.jumped = True
 
     # -- semihosting（contract-semihosting §1/§4/§5） ----------------------
@@ -1994,13 +2028,19 @@ def _op_trap(m, insn):
 
 @sem("escape_ciii_cfx")
 def _op_escape(m, insn):
-    imm = insn["imms18"]
-    if imm & ~1:
+    # spec/SimRISC-11 §3（编码层）：合法 `imms18` ∈ {0,1,2}——bit1 = 帧选择位（0 = cg5、
+    # 1 = cfx_hart cg9），bit0 = cg5 帧的字节偏移 bit2；`imms18[17:2]` 为 SBZ（非零 ⇒ ILLI），
+    # `imms18 = 3`（cg9 帧 + 偏移 +4，cg9 只允许偏移 0）⇒ ILLI。两者都先于 reserved-cfx /
+    # 目标 / 帧判定与任何状态切换（spec/DADAO-12 §5.3 步骤 0）。
+    imms18 = insn["imms18"]
+    if imms18 >> 2:
+        raise Fault("Illegal")
+    if imms18 == 3:
         raise Fault("Illegal")
     cfxha = insn["cfxha"]
     if cfxha in RESERVED_CFX:
         raise Fault("Illegal")
-    m.escape(cfxha, (imm & 1) << 2)
+    m.escape(cfxha, imms18)
 
 
 @sem("fence_ciii_cfx")
@@ -2573,6 +2613,80 @@ def self_test():
     m5._semihost(SEMIHOST_TAG)
     eq("semihost_write_unavailable",
        (m5.get("rd", 8), m5.rd8_defined, len(m5.output)), (16, True, 0))
+
+    # 8. escape 帧选择位（spec/SimRISC-11 §3；spec/DADAO-12 §5.1/§5.3、§3.9）
+    #    imms18 ∈ {0,1} = cg5 帧（偏移 0/+4）、2 = cfx_hart cg9 异步现场（偏移恒 0）、
+    #    3 ⇒ ILLI、imms18[17:2] 非零（SBZ）⇒ ILLI。Tiny 不实现 cfx_hart
+    #    （IMPLEMENTED_CFX），cg9 现场按 spec/§3.9 白盒注入后断言模型语义。
+    CAUSE_IP6 = 0xFFFF_FF01_0200
+    m6 = _mk_machine()
+    m6.cfx_code = 3                       # hmon 上下文（应用经 trap 进入后的 inner_cfx_code）
+    m6.ip = 0xFFFF_FF01_0100
+    hmon = m6.cfx[3]
+    hmon.cg5[CG5_CAUSE_IP] = CAUSE_IP6
+    hmon.cg5[CG5_PREV_CFX] = 63
+    hmon.cg5[CG5_PREV_MODE] = MODE_HYPV
+    hmon.saved_global = (3, 0x3)          # trap 进入时保存的 monitor global mask
+    hmon.cg3[CG3_INTR] = MASK64
+    _op_escape(m6, m6.dec.decode(0x7E0C0000))       # cfx3，imms18 = 0（cg5、偏移 0）
+    eq("escape_cg5_off0_ip", m6.ip, CAUSE_IP6)
+    eq("escape_cg5_off0_restore", (m6.mode, m6.cfx_code), (MODE_HYPV, 63))
+    eq("escape_cg5_restore_global_mask", hmon.cg3[CG3_INTR], 0x3)
+    eq("escape_cg5_escape_num", hmon.cg4[CG4_ESCAPE_NUM], 1)
+
+    m6b = _mk_machine()
+    m6b.cfx_code = 3
+    m6b.ip = 0xFFFF_FF01_0100
+    m6b.cfx[3].cg5[CG5_CAUSE_IP] = CAUSE_IP6
+    _op_escape(m6b, m6b.dec.decode(0x7E0C0001))     # imms18 = 1（cg5、偏移 +4）
+    eq("escape_cg5_off4_ip", m6b.ip, CAUSE_IP6 + 4)
+
+    m6c = _mk_machine()
+    m6c.cfx_code = 3
+    for word, name in ((0x7E0C0003, "escape_imms18_3_illi"),
+                       (0x7E0C0004, "escape_sbz_imms18_4_illi"),
+                       (0x7E0C0006, "escape_sbz_imms18_6_illi")):
+        try:
+            _op_escape(m6c, m6c.dec.decode(word))
+            eq(name, "no-fault", "Illegal")
+        except Fault as exc:
+            eq(name, exc.cause, "Illegal")
+
+    # 合法 imms18 = 2 但当前 cfx 不是 cfx_hart ⇒ 帧选择失败 ⇒ CFXESC（不是 ILLI）
+    m6d = _mk_machine()
+    m6d.cfx_code = 3
+    m6d.ip = 0xFFFF_FF01_0100
+    m6d.cfx[3].cg5[CG5_CAUSE_IP] = CAUSE_IP6
+    try:
+        _op_escape(m6d, m6d.dec.decode(0x7E0C0002))
+        eq("escape_cg9_on_non_hart_cfxesc", "no-fault", "CfxEsc")
+    except Fault as exc:
+        eq("escape_cg9_on_non_hart_cfxesc", exc.cause, "CfxEsc")
+
+    # cfx_hart cg9 现场：无帧 ⇒ CFXESC；有帧 ⇒ 恢复 prev_run_mode/prev_cfx_code/cause_ip
+    # 与 async_saved_global_intr_mask（rc4 → rc8）
+    m6e = _mk_machine()
+    hart = Cfx(CFX_HART, 0, MODE_SUPV, MASK64)
+    hart.cg9 = [0] * 16
+    m6e.cfx[CFX_HART] = hart
+    m6e.cfx_code = CFX_HART
+    m6e.ip = 0xFFFF_FF01_0100
+    try:
+        _op_escape(m6e, m6e.dec.decode(0x7E3C0002))
+        eq("escape_cg9_no_frame_cfxesc", "no-fault", "CfxEsc")
+    except Fault as exc:
+        eq("escape_cg9_no_frame_cfxesc", exc.cause, "CfxEsc")
+    hart.cg9[CG9_CAUSE_ID] = 1 << 17      # TIMER
+    hart.cg9[CG9_PREV_MODE] = MODE_JAIL
+    hart.cg9[CG9_PREV_CFX] = 63
+    hart.cg9[CG9_CAUSE_IP] = 0xFFFF_FF01_0300
+    hart.cg9[CG9_SAVED_GLOBAL] = 0x5
+    hart.cg9[CG9_GLOBAL_INTR_MASK] = MASK64
+    _op_escape(m6e, m6e.dec.decode(0x7E3C0002))     # imms18 = 2（cg9、偏移恒 0）
+    eq("escape_cg9_ip_ignores_offset", m6e.ip, 0xFFFF_FF01_0300)
+    eq("escape_cg9_restore", (m6e.mode, m6e.cfx_code), (MODE_JAIL, 63))
+    eq("escape_cg9_restore_global_mask", hart.cg9[CG9_GLOBAL_INTR_MASK], 0x5)
+    eq("escape_cg9_escape_num", hart.cg4[CG4_ESCAPE_NUM], 1)
 
     failed = [c for c in checks if not c[1]]
     for name, ok, got, want in checks:
