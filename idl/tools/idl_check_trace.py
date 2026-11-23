@@ -26,13 +26,20 @@
         [--json-out <f>]
     python3 idl/tools/idl_check_trace.py ... --sample-out idl/docs/trace-sample.jsonl
     python3 idl/tools/idl_check_trace.py ... --sample-check idl/docs/trace-sample.jsonl
+    python3 idl/tools/idl_check_trace.py --self-test   # 清单键自检
+
+`--cases` 清单的 `[[case]]` 以 `image`（`tests/inst/**/*.S`，相对仓库根；用例名取
+`Path(image).stem`）为主键，并接受旧格式的 `id` 作诊断别名（两者都缺 ⇒ 报错）。
 
 退出码：0 = 全部一致；1 = 有差异；2 = 环境/输入问题。
 """
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -51,22 +58,55 @@ SAMPLE_CASE = "add.st_orrr_rd"
 SAMPLE_RECORDS = 8
 
 
+def _fail(msg):
+    """清单/输入问题：stderr 打印并 rc=2（与 `--only` 未知 id 等输入错误同口径）。"""
+    print("idl_check_trace: %s" % msg, file=sys.stderr)
+    raise SystemExit(2)
+
+
+def resolve_image(image):
+    """`image` 相对路径按仓库根解析（与 `idl_four_way.py` 同口径）。"""
+    path = Path(image)
+    return path if path.is_absolute() else REPO_ROOT / path
+
+
 def load_cases(path):
     try:
         import tomllib
     except ImportError:  # pragma: no cover
-        raise SystemExit("idl_check_trace: Python 3.11+ (tomllib) required")
-    with open(path, "rb") as fh:
-        doc = tomllib.load(fh)
+        _fail("Python 3.11+ (tomllib) required")
+    try:
+        with open(path, "rb") as fh:
+            doc = tomllib.load(fh)
+    except (OSError, ValueError) as exc:      # 读不到 / 清单格式错
+        _fail("%s: 读不到或解析不了清单：%s" % (path, exc))
     cases = doc.get("case")
     if not isinstance(cases, list) or not cases:
-        raise SystemExit("idl_check_trace: %s: no [[case]] entries" % path)
+        _fail("%s: no [[case]] entries" % path)
+    out = []
     for case in cases:
-        for key in ("id", "category"):
-            if key not in case:
-                raise SystemExit("idl_check_trace: case missing %r: %r"
-                                 % (key, case))
-    return cases
+        if not isinstance(case, dict):
+            _fail("%s: [[case]] 不是表：%r" % (path, case))
+        image = case.get("image")
+        legacy = case.get("id")
+        if image is None and legacy is None:
+            _fail("%s: [[case]] 缺 'image'（或旧别名 'id'）：%r" % (path, case))
+        if image is not None and not isinstance(image, str):
+            _fail("%s: [[case]] image 不是字符串：%r" % (path, case))
+        if image is None:
+            if not isinstance(legacy, str):
+                _fail("%s: [[case]] id 不是字符串：%r" % (path, case))
+            cid = legacy         # 旧格式：`id` 即用例名，无镜像可核
+        else:
+            path_image = resolve_image(image)
+            if not path_image.is_file():
+                _fail("%s: [[case]] image 不存在：%r（解析为 %s）"
+                      % (path, image, path_image))
+            cid = Path(image).stem
+        if not case.get("category"):
+            _fail("%s: [[case]] 缺 'category'：%r" % (path, case))
+        out.append(dict(case, id=cid))
+    return out
 
 
 def compare_records(qrecs, erecs):
@@ -177,14 +217,72 @@ def build_sample(cases, cfg, cid, count, around_exc=False):
     return window_e
 
 
+def self_test():
+    """`--cases` 清单键自检：`image` 可通过、缺键/缺文件明确报错。"""
+    checks = []
+
+    def eq(name, got, want):
+        checks.append((name, got == want, got, want))
+
+    def probe(path):
+        """返回 (cases, rc, stderr 文本)；rc=None 表示成功。"""
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            try:
+                return load_cases(path), None, buf.getvalue()
+            except SystemExit as exc:
+                return [], exc.code, buf.getvalue()
+
+    with tempfile.TemporaryDirectory(prefix="trace-cases-") as td:
+        tmp = Path(td)
+        image = tmp / "add.st_orrr_rd.S"
+        image.write_text("", encoding="utf-8")
+        # 1) `image` 清单可通过：相对仓库根解析、用例名取 `Path(image).stem`
+        rel = Path(os.path.relpath(image, REPO_ROOT)).as_posix()
+        good = tmp / "good.toml"
+        good.write_text('[[case]]\nimage = %s\ncategory = "alu"\n'
+                        % json.dumps(rel), encoding="utf-8")
+        cases, rc, text = probe(good)
+        eq("image_manifest_rc", rc, None)
+        eq("image_case_count", len(cases), 1)
+        eq("image_case_id", cases[0]["id"] if cases else None, "add.st_orrr_rd")
+        # 2) `image`/`id` 都缺 ⇒ rc=2 且指名缺键（不得是 KeyError 栈）
+        bad = tmp / "missing.toml"
+        bad.write_text('[[case]]\ncategory = "alu"\n', encoding="utf-8")
+        cases, rc, text = probe(bad)
+        eq("missing_key_rc", rc, 2)
+        eq("missing_key_names_image", "image" in text, True)
+        eq("missing_key_no_keyerror", "KeyError" not in text, True)
+        # 3) `image` 指向不存在的文件 ⇒ rc=2 且指名（不得是 KeyError/回退）
+        ghost = tmp / "ghost.toml"
+        ghost.write_text('[[case]]\nimage = "tests/inst/00-ghost/none.S"\n'
+                         'category = "alu"\n', encoding="utf-8")
+        cases, rc, text = probe(ghost)
+        eq("missing_file_rc", rc, 2)
+        eq("missing_file_names_path", "不存在" in text, True)
+        eq("missing_file_no_keyerror", "KeyError" not in text, True)
+
+    failed = [c for c in checks if not c[1]]
+    for name, ok, got, want in checks:
+        if ok:
+            print("PASS %s" % name)
+        else:
+            print("FAIL %s (got=%r want=%r)" % (name, got, want))
+    print("self-test: %d/%d checks passed" % (len(checks) - len(failed),
+                                              len(checks)))
+    return 0 if not failed else 1
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--self-test", action="store_true",
+                    help="清单键自检（image 清单可通过 / 缺键、缺文件明确报错）")
     ap.add_argument("--cases", default=str(REPO_ROOT / "idl" / "data"
                                            / "idl_exec_cases.toml"))
-    ap.add_argument("--images", required=True,
+    ap.add_argument("--images", default=None,
                     help="run_inst_tiny.py 的 --work-dir（内含 <id>/<id>.elf）")
-    ap.add_argument("--bootrom", required=True)
+    ap.add_argument("--bootrom", default=None)
     ap.add_argument("--qemu", default=None)
     ap.add_argument("--only", action="append", default=None,
                     help="只跑这些 id（可重复；用于注入自检缩小范围）")
@@ -198,11 +296,15 @@ def main(argv=None):
     ap.add_argument("--sample-around-exc", action="store_true",
                     help="样例取第一个异常记录前后窗口（否则取开头窗口）")
     args = ap.parse_args(argv)
+    if args.self_test:
+        return self_test()
+    if not args.images or not args.bootrom:
+        ap.error("--images and --bootrom required unless --self-test")
 
+    cases = load_cases(args.cases)
     cfg = make_cfg(args)
     if cfg is None:
         return 2
-    cases = load_cases(args.cases)
     if args.only:
         wanted = set(args.only)
         cases = [c for c in cases if c["id"] in wanted]
