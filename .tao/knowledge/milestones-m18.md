@@ -38,8 +38,6 @@
 | m18-spec-001 | 2–4 h | cg4 `scratch_regs_num` 缺省值：每个非 reserved cfx = 2（QEMU/gem5/RTL 由 4 改 2）；spec/契约 + 探针 |
 | m18-gem5-001 | 2–3 h | gem5 `escape` frame selector 语义/断言（b6 + decode assertions + check_b6） |
 | m18-chipyard-001 | 3–5 h | RTL `escape` frame selector 语义（cg9；等 M16 chipyard 批次） |
-| m18-testcases-002 | 1–2 h | `escape` cg9 向量（qemu-004 后：imms18=2/CFXESC/ILLI + 签名重生成） |
-| m18-testcases-001 | 1–2 h | 旧异步探针 094t/050t 迁 hart-first（投 cfx_hart、pending cg9、mask 位源 cfxha） |
 | m18-linux-015 | 2–3 h | `mlock2`/`MLOCK_ONFAULT` 路径 SIGSEGV（KERNEL_BUG） |
 | m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |
 | m18-linux-017 | 3–4 h | `clock_nanosleep(TIMER_ABSTIME)` 整机停摆（KERNEL_BUG） |
@@ -53,6 +51,8 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m18-testcases-001 | 2026-11-23 17:26 | 1–2 h | 旧异步探针 094t/050t/042t 迁 hart-first + README 摘要 |
+| m18-testcases-002 | 2026-11-23 17:26 | 1–2 h | `escape` cg9 向量（imms18=2/CFXESC/ILLI + 签名重生成） |
 | m18-linux-021 | 2026-11-23 17:26 | 3–5 h | 内核 hart-first 异步入口/返回/调度（`cfx_hart cg9`、`escape imms18=2`、jiffies/抢占/500 启动） |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
