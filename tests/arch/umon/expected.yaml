@@ -191,3 +191,39 @@ programs:
       (DADAO-12 §5 / contract-see.md §4; TESTCASES-092t §4).  The vector
       requires cause_id == CFXTRAP (1<<0) and escape_num == 1 (the escape
       really ran); pass token 0x30, mismatch token 0x72.
+
+# ---------------------------------------------------------------------------
+# `fence cfxHA, immu18` 基础验证（m16-testcases-012）
+#
+# 载体/驱动：`umon_fence.py` / `check_fence.py`；判据现场从
+# `contracts/opcodes.yaml`（fence 合法性/编码）、`spec/SimRISC-11 §5`（hb SBZ、
+# 保留 cfxha ⇒ ILLI、零掩码 no-op、资源域位表）与 `.tao/contracts/
+# contract-see.md §6.1`（ILLI = `1 << 8`）派生，本清单只登记同一套签名流并由
+# `umon_fence.py --selfcheck` 与现场派生值**双向**核对（不是第二套判据）。
+#
+# 槽 = 一个 probe 的观测值：`0` = 未异常（fence 正常执行）；`0x100` = `ILLI`
+# （hb≠0 或保留 cfxha）。放行面在 hmon/smon/umon 三模式各跑一次，保留面只在
+# hmon（原因见 `tests/arch/modes.yaml`）。完整 cfx × 六位组合的穷举**不做**
+# （用户 2026-11-22 裁定；未覆盖项见 `tests/arch/README.md`）。
+cases:
+- id: arch-umon-012
+  only: fence_pass
+  title: fence 放行面（cfx0=all cfx、六位资源域、指定 cfx、允许集边界）
+  checks:
+  - label: pass_matrix
+    cause: none
+    subcause: null
+    info: none
+    signature: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+    source: [SimRISC-11 §5, contract-isa §14.1, opcodes.yaml fence_ciii_cfx]
+
+- id: arch-umon-013
+  only: fence_fault
+  title: fence 保留面（保留 cfxha 采样/边界、hb≠0 ⇒ ILLI）
+  checks:
+  - label: fault_matrix
+    cause: ILLI
+    subcause: null
+    info: inst
+    signature: [0x100, 0x100, 0x100, 0x100, 0x100, 0x100, 0x100, 0x100, 0x100, 0x100]
+    source: [contract-see §6.1, SimRISC-11 §5, opcodes.yaml fence_ciii_cfx]

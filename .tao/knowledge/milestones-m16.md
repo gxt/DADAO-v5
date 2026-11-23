@@ -33,15 +33,15 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-testcases-012 | 2026-11-23 16:33 | 2–3 h | fence 基础验证（三方；完整覆盖不作验收要求） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-testcases-012 | 2026-11-23 17:24 | fence 基础验证三方（012 三模式 QEMU/gem5 + hmon RTL，013 hmon 三方；保留集/hb 逐条；未覆盖 5 条已登记） |
 | m16-testcases-018 | 2026-11-23 16:32 | `tests/arch` 命名规范化（env-* 目录、`.S`、check/gen 前缀、引用同步；改名逐字节 md5 对账、3 路注入） |
-| m16-chipyard-020 | 2026-11-23 12:44 | RTL cfx0/2 同步模式路由（U/S 进入、switch_run_mode、同步帧、两轴 CFXPERM；异步按 ADR-0060 移交 021/022） |
 | m16-chipyard-021 | 2026-11-23 16:00 | RTL cfx15 hart（cg8 + 新增 cg9 16 rc + hart-first TIMER 投 cfx_hart/supv；H 58 槽、U/S 14 槽） |
+| m16-chipyard-020 | 2026-11-23 12:44 | RTL cfx0/2 同步模式路由（U/S 进入、switch_run_mode、同步帧、两轴 CFXPERM；异步按 ADR-0060 移交 021/022） |
 | m16-testcases-017 | 2026-11-23 09:18 | env 权限准备 + BootROM hmon 源（三模式 cfx5/cfx4 签名一致；回归 26/26；45 项 + 5 路注入） |
 | m16-gem5-024 | 2026-11-23 07:24 | cfx5 进 kCfxhaMap（9→10），通用 cg0–cg7 + cg8 专属、两轴权限/trap/escape；25/25 + 43/43 |
 | m16-chipyard-019 | 2026-11-23 00:51 | RTL cfx0/2 寄存器面（A；47 记录、Tiny 38/38 不回归；CFXPERM 判定留 020） |

@@ -266,3 +266,27 @@
   requires:
   - bootrom
   - semihosting
+
+# fence 基础验证（m16-testcases-012）：放行面/保留面各一条 driver 用例；
+# 载体 `arch/umon/umon_fence.py`（4 MiB BootROM 镜像，QEMU 与 gem5 同一份字节），
+# 驱动 `arch/umon/check_fence.py`。放行面在 hmon/smon/umon 三模式各跑一次；
+# 保留面只在 hmon（`tests/arch/modes.yaml` 写明排除原因）。登记 `level: full`，
+# 不进 L2/L3 代表集（仿真按需 `check-arch-vast`）。
+- id: arch-umon-012
+  file: arch/umon/check_fence.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-umon-013
+  file: arch/umon/check_fence.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu

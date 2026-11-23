@@ -175,3 +175,17 @@ cases:
   arch-umon-011:
     modes: [hmon, smon, umon]
     cfx_access: [umon]
+
+  # fence 基础验证（m16-testcases-012）：放行面三模式各跑一次（载体的模式切换
+  # 协议与 `common/env-*` 相同；不访问任何 cfx，故不声明 `cfx_access`）。
+  # 签名值模式无关（0 = fence 正常执行），三模式逐槽同。
+  arch-umon-012:
+    modes: [hmon, smon, umon]
+
+  # 保留面（保留 cfxha / hb≠0 ⇒ ILLI）只在 hmon：ILLI 由**当前模式监视器**
+  # 处理并记录 cause（DADAO-12 §5.2）；smon/umon 下当前模式监视器不可用。
+  arch-umon-013:
+    modes: [hmon]
+    reasons:
+      smon: "supv 的同步异常进 cfx_smon，而本测试链不装载 cfx_smon（common/env-README「已知限制」）⇒ ILLI 的 cause 观测不到，镜像会中止/短流；fail-closed 排除"
+      umon: "user 的同步异常进 cfx_umon 的 user 行，需把处理程序装进 U 页并单独授予执行权限（common/env-README「已知限制」）；ILLI 的 cause 取不到 ⇒ 排除"

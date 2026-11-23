@@ -49,13 +49,53 @@ python3 tests/arch/run_arch.py --list
 | `run_arch.py` | — | 唯一驱动（`--cfx/--platforms/--cache-model/--level/--self-test/--list`） |
 | `common/` | — | arch 内共享薄壳：`signature.py` 转调 `tests/shared/signature.py`；`platform.py` 的 qemu/gem5（driver 经 shim）/chipyard（fail-closed）后端 |
 | `common/env-{hmon,smon,umon}/` | — | **运行模式环境**（每个模式一个目录，`env.S`；共享 `common/env.lds`）：进入模式、栈、异常向量、退出与签名区；body 与模式解耦（`m16-testcases-015`，见 `common/env-README.md` / `common/env-MIGRATION.md`） |
-| `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.S`，10 条）+ `expected.yaml`；代表迁移用例 `umon_mode_regs.body.S` + 驱动 `common/check_mode_env.py`（`arch-umon-011`，三模式）；**cfx0+cfx2 寄存器面 RTL 探针** `cfx02_regs.S` + `check_cfx02_regs.py`（`m16-chipyard-019`，47 条记录）；**U/S/H 模式进入路由 RTL 探针** `mode_entry.S` + `check_mode_entry.py`（`m16-chipyard-020`，同一份 case 链接 TMODE=0/2/3，14/21/14 槽）；两者均暂未登记 `tests/arch.yaml`——chipyard 后端仍 fail-closed，且 hmon 模式环境只在 QEMU/gem5 载体上可用 |
+| `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.S`，10 条）+ `expected.yaml`；代表迁移用例 `umon_mode_regs.body.S` + 驱动 `common/check_mode_env.py`（`arch-umon-011`，三模式）；**fence 基础验证** `umon_fence.py`（载体）/ `check_fence.py`（驱动，`arch-umon-012` 放行面三模式、`arch-umon-013` 保留面 hmon）+ `gen_fence_rtl.py` / `check_fence_rtl.py`（按需 RTL 承载，`fence_rtl.lds`）；**cfx0+cfx2 寄存器面 RTL 探针** `cfx02_regs.S` + `check_cfx02_regs.py`（`m16-chipyard-019`，47 条记录）；**U/S/H 模式进入路由 RTL 探针** `mode_entry.S` + `check_mode_entry.py`（`m16-chipyard-020`，同一份 case 链接 TMODE=0/2/3，14/21/14 槽）；cfx0/cfx2 两个 RTL 探针暂未登记 `tests/arch.yaml`——chipyard 后端仍 fail-closed，且 hmon 模式环境只在 QEMU/gem5 载体上可用 |
 | `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针：载体/生成器 `ptw_carrier_tlb.py`（`m16-testcases-010` 由 `tools/testcases/arch/` 迁入）、期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §）、驱动型入口 `check_tlb.py`（`kind: driver`）；QEMU 与 gem5（shim）逐条跑，RTL 由 `m16-chipyard-018` |
 | `cache/` | `cfx5`（cache） | 寄存器面 RTL 探针 `cfx5_regs.S` + `check_cfx5_regs.py`（`m16-chipyard-016`）；I/D 维护命令 RTL 探针 `cfx5_maint.S` + `gen_cfx5_maint_tables.py` + `check_cfx5_maint.py`（`m16-chipyard-017`，记录 + 缓存日志时序）；暂未登记 `tests/arch.yaml`（chipyard 后端仍 fail-closed） |
 | `hart/` | `cfx15`（cfx_hart） | cg8 管理寄存器 + cg9 异步现场 + TIMER 投递 RTL 探针 `cfx15.S` + `check_cfx15.py`（`m16-chipyard-021`；`TMODE=3/2/0` 出 H/S/U 三个镜像，一份 case）；暂未登记 `tests/arch.yaml` |
 
 其余 cfx 按已有用例增建（`smon/`、`hmon/`、`cache/`、`hart/`、`pmem/`、`time/`、
 `power/`）；**不建**空壳子目录。Tiny 的 hmon 用例已迁出 arch（见下）。
+
+## fence 基础验证（`m16-testcases-012`，cfx0）
+
+`fence cfxHA, immu18` 按 `cfxha` 选资源域（`cfx0` = all cfx），`immu18` 的
+`hb`（`[17:12]`）SBZ、`pred`（`[11:6]`）/`succ`（`[5:0]`）为六位访问类型掩码
+（`cr/cw/ci/co/mr/mw`）。保留 cfxha 或 `hb ≠ 0` ⇒ `ILLI`
+（`spec/SimRISC-11 §5`；合法集见 `contracts/opcodes.yaml` 的
+`fence_ciii_cfx`）。
+
+| case | 内容 | 模式 | 尺寸 |
+|------|------|------|------|
+| `arch-umon-012` | 放行面：`cfx0` 零掩码/全掩码、六个资源域各一位、指定 cfx（3/4/5/32/33/34）、允许集边界（15/62/63） | hmon/smon/umon 各一次 | 17 槽 |
+| `arch-umon-013` | 保留面：采样 16/17/18、边界 6/14/31/35/61、`hb=1` 与 `hb` 全 1 | hmon（原因见 `modes.yaml`） | 10 槽 |
+
+- 载体 `umon/umon_fence.py` 现场生成 4 MiB BootROM 镜像（power → hmon 预置
+  页表/PTW → body），QEMU 与 gem5（经 `qemu_gem5_shim.py`）跑**同一份字节**；
+  模式切换沿用 `common/env-README.md` 的协议（`cfx_hmon` 的 `<mode>` 行
+  `switch_run_mode` + `excp_vector` + `trap cfx_hmon`），并用 `-d cpu` 的 `MODE:`
+  现场核对 body 实际运行模式（不由 body 自述）。
+- 签名槽 = 一个 probe：`0` = fence 正常执行；`ILLI` = 异常（精确值现场从
+  `contract-see §6.1` 派生）。放行面在 smon/umon 用「fence 之后写槽」作见证；
+  保留面需要当前模式监视器记录 cause（`DADAO-12 §5.2`），故只在 hmon。
+- **RTL 按需**：`gen_fence_rtl.py` 从同一张探针表生成 `.S`，
+  `check_fence_rtl.py` 经 `tools/testcases/lib/chipyard_engine.py` 在
+  `WumingVastConfig` 上跑并逐槽比对（RTL 测试体固定 hypv、同步异常固定进
+  hmon；`+loadmem` + semihosting）。`run_arch.py` 的 chipyard 后端仍
+  fail-closed（`m16-chipyard-018` / 按需 `check-arch-vast`），故 RTL 不进
+  `run_arch` 的常规路径。
+
+**未覆盖项（显式登记，不假装全覆盖；用户 2026-11-22 裁定完整覆盖暂不做）**：
+
+- 全部 cfxha（0–63）× `pred` × `succ` 六位组合的穷举（6 × 6 × 6 × 6 位域组合）
+  不做；只取每个资源域一位、`pred = succ`、以及零掩码/全掩码。
+- `pred ≠ succ` 的交叉组合、单侧掩码（只 `pred` 或只 `succ`）不做。
+- 资源域掩码的**顺序/可见性语义**不测：本实现（QEMU/gem5/RTL）均为「本 hart
+  已顺序执行」的 no-op 语义，DMA 不等待（`spec/SimRISC-11 §5`），无 Guest 侧
+  可观测差异；只在「不产生异常」层面覆盖。
+- cfx1（jmon）在 arch 范围外（`tests/arch/README.md` 顶部 cfx 范围），只按其
+  编码合法性间接落在允许集里（未单列 probe）。
+- 保留集只采样 6/14/16/17/18/31/35/61（含边界），其余保留编号不逐个跑。
 
 ## 命名规范
 
