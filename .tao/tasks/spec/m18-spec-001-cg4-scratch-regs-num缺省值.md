@@ -45,7 +45,10 @@
 
 ## 待裁定
 
-无。
+- **cfx4（`cfx_ptw`）是否也置 0**：当前 `dadao_switch_mm()` 的 `contract-tlb TLB-30` 步骤 ④ 会读写 `cfx_ptw cg6 rc0/rc1`；若 cfx4 缺省 0，这两次访问会 `CFXREG`、启动即失败。两个选择：
+  - A：cfx4 也缺省 2（作为例外）；
+  - B：保持 cfx4=0，并删除 `dadao_switch_mm()` 的 cfx_ptw cg6 读写、同步改 `contract-tlb TLB-30`（该注释称步骤 ④ 当前只是“可组合性”，未被 ①–③ 使用）。
+  未定前不派实现。
 
 ## 完成区
 
