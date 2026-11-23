@@ -21,7 +21,6 @@
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
 | m16-testcases-009 | 3–4 h | cfx5 用例三方跑（寄存器面 + 命令 + 数据语义） |
-| m16-chipyard-025 | 2–4 h | RTL Vast 4 MiB BootROM（窗口 + 稀疏镜像 + 启动路径；删 DIV-12；依赖 024） |
 | m16-chipyard-022 | 4–6 h | RTL cfx32 pmem（DMA + 源 cfxha 32 的完成投递；依赖 024） |
 | m16-chipyard-023 | 2–3 h | RTL cfx34 time（全局时间，无中断） |
 | m16-testcases-013 | 2–3 h | cfx15 timer 中断（源位 15；掩码在 monitor；`cg9` 只读位图） |
@@ -31,6 +30,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-chipyard-025 | 2026-11-24 00:38 | 2–4 h | RTL Vast 4 MiB BootROM（窗口 + 稀疏镜像 + 启动路径；删 DIV-12；依赖 024） |
 
 ## 已验证
 
