@@ -37,6 +37,7 @@
 | m18-linux-012 | 1–2 h | ISS-503 K6 门控五条 finding（恒真断言并入 region、计数/标签/符号名订正） |
 | m18-linux-013 | 3–5 h | ISS-500 用户态异步投递与抢占完整修复（monitor-first：async 进 `cfx_umon`/`cfx_smon`，`irqentry_exit` 工作循环；依赖 `m18-qemu-002` + ADR-0059） |
 | m18-qemu-001 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
+| m18-qemu-003 | 1–2 h | 旧异步探针（`min_rom_probe_async_094t`/`integ050t`）迁 monitor-first + cause 17/18 |
 | m18-linux-015 | 2–3 h | `mlock2`/`MLOCK_ONFAULT` 路径 SIGSEGV（KERNEL_BUG） |
 | m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |
 | m18-linux-017 | 3–4 h | `clock_nanosleep(TIMER_ABSTIME)` 整机停摆（KERNEL_BUG） |
