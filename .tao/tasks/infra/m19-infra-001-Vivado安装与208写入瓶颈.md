@@ -6,7 +6,7 @@
 **可并行分片**：否（共享隧道带宽，两节点串行）
 **预估**：5–8 h
 **档位**：大改（节点软件安装 + 磁盘/控制器诊断）
-**状态**：待验收
+**状态**：已验证
 
 ## 背景
 
@@ -69,3 +69,16 @@
 2. 若坚持原口径：在覆盖 `.flexlmrc` 影响的条件下（如 `HOME` 指向空目录）重跑正①带 D → rc=0、反②不带 D → 失败且含 17-345，贴两路 rc；跑完删临时件并确认两节点 `git status` 空。
 3. 复制对账、综合 rc=0、写瓶颈证据三项已由我独立复核 PASS，无需重做。
 4. 把本任务书 30/41/42/43 行的具体 `.work/**` 路径改为「运行期证据目录」措辞（或升格入库数据），使 `make check-knowledge-refs` 由基线红转绿；改后重跑该门控贴 rc。
+
+### 第 2 轮 reviewer 验收（2026-11-23，返工提交 `257b98d0` / 基线 `2340c916`；重跑均为本人执行，rc=被检命令自身）
+
+1. **license 三路对照（207，干净 `HOME`）— PASS**：命令形如 `env -u XILINXD_LICENSE_FILE -u XILINX_LICENSE_FILE -u LM_LICENSE_FILE HOME=<空目录> <变量=…> vivado -mode batch -nojournal -log r2_N.log -source synth.tcl`，设计用任务证据目录内 `blinky.v`/`synth.tcl` 的副本：
+   - ① 仅设带 D ⇒ `RC1=0`、`SYNTH_OK`=2、`17-345`=0；
+   - ② 仅设不带 D ⇒ `RC2=1`、`SYNTH_OK`=0、`17-345`=1，日志含 `ERROR: [Common 17-345] A valid license was not found for feature 'Synthesis'`；
+   - ③ 两者都不设 ⇒ `RC3=1`、`SYNTH_OK`=0、`17-345`=1；三路与文档口径逐条一致。
+   - 临时 `HOME`/日志已删（`ls` 不存在，rc=2）；207、208 `git status --porcelain -uall` 均空（rc=0）。
+2. **文档一致性 — PASS**：完成区第 2 条改为三路对照口径，并写明「成功一次后 Vivado 把 `XILINXD_LICENSE_FILE=/tools/Xilinx_lic` 写进 `$HOME/.flexlmrc`，此后不设变量也 rc=0（复测缓存假象），`HOME` 指空目录即复现失败」——与我第 1 轮根因、本轮③结果一致；第 9 条记录返工依据、第 10 条记录门控转绿（原 4 处字面路径 / FAIL 3 条 ⇒ 0），与我第 1 轮第 6 条及修复清单第 4 条对齐。`nodes.md §11.7` 许可两条（带 D 三路 rc、不带 D 不被采纳）与踩坑条（`/root/.Xilinx/*.lic` + `/root/.flexlmrc` ⇒ 原机不设变量也能用）均与我实测相符。
+3. **门控 — PASS**：`make check-knowledge-refs` ⇒ `结果: PASS (0 具体 .work/** 引用; 0 悬空小节级互指…)`、rc=0；任务书内字面运行期路径已清零，仅存 `.work/**` 通配形 2 处（豁免形）。
+4. **越界 — PASS**：`git show --stat 257b98d0` ⇒ 仅 `.tao/knowledge/nodes.md` 与本任务书（2 文件，31 insertions / 6 deletions），无其它文件。
+
+**判决：Accepted**——第 1 轮阻断项与修复清单 4 条全部闭环（三路实测复现、文档改写、门控转绿、提交范围合规）；复制对账 / 综合 rc=0 / 写瓶颈三项沿用第 1 轮 PASS，本轮未重跑。

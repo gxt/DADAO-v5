@@ -53,7 +53,7 @@
 | m16-qemu-004 | 2026-11-22 22:06 | QEMU fence 保留集对齐（`6–14, 16–31, 35–61`；三载体 56 B 签名同；ISS-432 关闭） |
 | m16-gem5-023 | 2026-11-22 22:04 | off 下 cfx5 no-op（exist=0、五寄存器可访问、合法命令无效果、非法 CFXREG；on 不回归） |
 | m16-testcases-015 | 2026-11-22 21:29 | `tests/arch` hmon/smon/umon 运行模式环境（三模式签名一致；26 条未迁移清单） |
-| m16-qemu-001 | 2026-11-22 21:26 | QEMU `cache-model=off\|on` + cfx5 寄存器面（off 合法 no-op/非法 CFXREG；32/32 + 51/51） |
+| m16-qemu-001 | 2026-11-22 21:26 | QEMU `cache-model=off/on` + cfx5 寄存器面（off 合法 no-op/非法 CFXREG；32/32 + 51/51） |
 | m16-spec-002 | 2026-11-22 20:20 | CACHE-27 补 `cache-model` 维度（off=存在/no-op、非法仍 CFXREG；on=0b11/真维护）；版本不升 |
 | m16-gem5-022 | 2026-11-22 18:25 | I 侧自修改证伪成功（正确构造单行/区间均 0x10，去 clean D 才 0x92）+ monitor 交接 flush；021 结论作废记 ISS-514 |
 | m16-infra-001 | 2026-11-22 18:10 | 新增评测节点 `zzx-NF5280` 并引导到就绪（L1 红集与主控机逐项相同；inst 双门控 PASS；修引导脚本 step 6 乱序） |
