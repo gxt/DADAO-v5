@@ -35,10 +35,10 @@
 | m18-linux-010 | 30 min | ISS-486 措辞订正（libc 侧检查；3 处注释/文档，产物不变） |
 | m18-linux-011 | 30 min | ISS-496 applet 计数改按白名单/符号表派生（去 `enabled - infra` 抵消假设） |
 | m18-linux-012 | 1–2 h | ISS-503 K6 门控五条 finding（恒真断言并入 region、计数/标签/符号名订正） |
-| m18-linux-013 | 3–5 h | ISS-500 用户态异步投递与抢占完整修复（monitor-first：async 进 `cfx_umon`/`cfx_smon`，`irqentry_exit` 工作循环；依赖 `m18-qemu-002` + ADR-0059） |
+| m18-linux-013 | 3–5 h | 用户态异步投递与抢占（hart-first/cg9；等 `m18-spec-002` + 新 QEMU 任务后重写） |
 | m18-qemu-001 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
-| m18-qemu-003 | 1–2 h | 旧异步探针（`min_rom_probe_async_094t`/`integ050t`）迁 monitor-first + cause 17/18 |
 | m18-spec-001 | 2–4 h | cg4 `scratch_regs_num` 缺省值：每个非 reserved cfx = 2（QEMU/gem5/RTL 由 4 改 2）；spec/契约 + 探针 |
+| m18-spec-002 | 4–6 h | hart-first/cg9 规格与契约同步（`§5.2`/cg9/`§4.7`/`§4.9`/`escape` frame selector；ADR-0059 Superseded；版本仍 0.8.0-rc） |
 | m18-linux-015 | 2–3 h | `mlock2`/`MLOCK_ONFAULT` 路径 SIGSEGV（KERNEL_BUG） |
 | m18-linux-016 | 2–3 h | `futex_waitv` 返回 EINVAL（多等待接口缺失；KERNEL_BUG） |
 | m18-linux-017 | 3–4 h | `clock_nanosleep(TIMER_ABSTIME)` 整机停摆（KERNEL_BUG） |
@@ -46,11 +46,12 @@
 | m18-linux-019 | 1–2 h | `k5_syscall_selftest` 锁外 `find_vma` 触发 rwsem 警告（014 复核发现） |
 | m18-infra-003 | 2–3 h | musl 补丁集同步（ISS-507）与信号帧复核（纠正 006 的「无信号帧 ABI」误判；`p_raise3` 反证内核帧可用） |
 
+> **已作废（2026-11-23，ADR-0060）**：`m18-qemu-002`（monitor-first QEMU）reviewer Accepted 但**不合入 master**，分支留参考；`m18-qemu-003`（旧探针迁 monitor-first）未开工、被 hart-first 取代。
+
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-qemu-002 | 2026-11-23 08:38 | 4–6 h | QEMU monitor-first：异步仲裁/pending 迁到当前 mode monitor + cause 17/18；更新 `min_rom_probe_integ051t`/K2/K5 探针 |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
 ## 已验证
