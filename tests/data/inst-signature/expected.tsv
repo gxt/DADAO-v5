@@ -694,6 +694,7 @@ tests/inst/01-load-store/st.o_rrii_rf.S	17	value	0xffffffffffffffff	0xFFFFFFFFFF
 tests/inst/01-load-store/st.o_rrii_rf.S	18	value	0x1111111111111111	0x1111111111111111	tests/inst/01-load-store/st.o_rrii_rf.S:57
 tests/inst/01-load-store/st.o_rrii_rf.S	19	relation	-	运行期关系断言（__REC）	tests/inst/01-load-store/st.o_rrii_rf.S:64
 tests/inst/01-load-store/st.o_rrii_rf.S	20	value	0x1111111111111111	0x1111111111111111	tests/inst/01-load-store/st.o_rrii_rf.S:76
+tests/inst/01-load-store/st.o_rrii_rf.S	21	value	0x7ff800007fc00000	0x7FF800007FC00000	tests/inst/01-load-store/st.o_rrii_rf.S:87
 tests/inst/01-load-store/st.t_rrii_rd.S	1	value	0xcafef00d11111111	0xCAFEF00D11111111	tests/inst/01-load-store/st.t_rrii_rd.S:18
 tests/inst/01-load-store/st.t_rrii_rd.S	2	value	0xcafef00df0f0f0f0	0xCAFEF00DF0F0F0F0	tests/inst/01-load-store/st.t_rrii_rd.S:19
 tests/inst/01-load-store/st.t_rrii_rd.S	3	value	0xcafef00dccddeeff	0xCAFEF00DCCDDEEFF	tests/inst/01-load-store/st.t_rrii_rd.S:22

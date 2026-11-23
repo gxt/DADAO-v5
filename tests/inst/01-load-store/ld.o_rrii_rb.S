@@ -4,7 +4,7 @@
 @@ 语义：目的 ← zero_extend(mem[EA])；EA = rb[47:0] + imms12（大端；64 位零扩展）
 @@ 对齐：EA 需 8 B 自然对齐，未对齐 ⇒ MALIGN
 @@ 合法性：目的为 0 号寄存器 ⇒ ILLI
-@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节 beat，字面量见该文件）
+@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节数据单元，字面量见该文件）
 @@ 用例：encoding 2 / legality 3 / semantic 5 / boundary 9 / overlap 2 / rb0 3（链例 21 + 故障例 3；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -57,7 +57,7 @@ __ck_\@:
 
 
 	@@ ==== m15-testcases-010 追补：boundary 极值 + rb0 作基址三档 ====
-	@@ ---- boundary：宽度极值（正向极大 / 负向极小 / 全 1；取自 TEST_DATA 现有 beat）----
+	@@ ---- boundary：宽度极值（正向极大 / 负向极小 / 全 1；取自 TEST_DATA 现有 8 字节数据单元）----
 	TEST_LD_RB  16, ld.o,    rb5,   rb6,   TEST_DATA,          0x028,    0x7FFFFFFFFFFFFFFF
 	TEST_LD_RB  17, ld.o,    rb5,   rb6,   TEST_DATA,          0x020,    0x8000000000000000
 	TEST_LD_RB  18, ld.o,    rb5,   rb6,   TEST_DATA,          0x088,    0xFFFFFFFFFFFFFFFF

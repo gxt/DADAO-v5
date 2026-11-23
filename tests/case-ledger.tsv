@@ -779,8 +779,8 @@ asm	tests/inst/01-load-store/st.o_rrii_rb.S	TEST_ST_RB  20, st.o,    rb5,   rb6,
 asm	tests/inst/01-load-store/st.o_rrii_rb.S	__CHECK_MEM        17, TEST_DATA, 0x090, (ENTRY + 0x1800)	1
 asm	tests/inst/01-load-store/st.o_rrii_rb.S	__CHECK_MEM 21, (ENTRY + 0x2000), 0, 0x1111111111111111	@@ 负档槽（零）只被写低 64 位	1
 asm	tests/inst/01-load-store/st.o_rrii_rb.S	__CHECK_MEM 23, (ENTRY + 0x2188), 0, 0x1111111111111111	1
-asm	tests/inst/01-load-store/st.o_rrii_rb.S	__CHECK_MEM_RB     15, TEST_DATA, 0x040, rb12      @@ beat == IP 派生期望（方式一）	1
-asm	tests/inst/01-load-store/st.o_rrii_rb.S	__CHECK_MEM_RB     16, TEST_DATA, 0x058, rb13      @@ beat == IP 派生期望（方式二）	1
+asm	tests/inst/01-load-store/st.o_rrii_rb.S	__CHECK_MEM_RB     15, TEST_DATA, 0x040, rb12      @@ 数据单元（8 字节） == IP 派生期望（方式一）	1
+asm	tests/inst/01-load-store/st.o_rrii_rb.S	__CHECK_MEM_RB     16, TEST_DATA, 0x058, rb13      @@ 数据单元（8 字节） == IP 派生期望（方式二）	1
 asm	tests/inst/01-load-store/st.o_rrii_rb.S	__CHECK_RD_ST_IP 22, st.o, rb5, rb	1
 asm	tests/inst/01-load-store/st.o_rrii_rd.S	TEST_FAULT        23, st.o,   rd1,   MALIGN, rb3,                TEST_DATA, 0x004  @@ EA 未按 8 B 自然对齐 ⇒ MALIGN	1
 asm	tests/inst/01-load-store/st.o_rrii_rd.S	TEST_FAULT        24, st.o,   rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
@@ -808,8 +808,8 @@ asm	tests/inst/01-load-store/st.o_rrii_rd.S	__CHECK_MEM 15, TEST_DATA, 0x070, 0x
 asm	tests/inst/01-load-store/st.o_rrii_rd.S	__CHECK_MEM 20, (ENTRY + 0x2000), 0, 0x1111111111111111	@@ 负档槽（零）只被写低 64 位	1
 asm	tests/inst/01-load-store/st.o_rrii_rd.S	__CHECK_MEM 22, (ENTRY + 0x2188), 0, 0x1111111111111111	1
 asm	tests/inst/01-load-store/st.o_rrii_rd.S	__CHECK_RD_ST_IP 21, st.o, rd5, rd	1
-asm	tests/inst/01-load-store/st.o_rrii_rf.S	TEST_FAULT        21, st.o,   rf1,   MALIGN, rb3,                TEST_DATA, 0x004  @@ EA 未按 8 B 自然对齐 ⇒ MALIGN	1
-asm	tests/inst/01-load-store/st.o_rrii_rf.S	TEST_FAULT        22, st.o,   rf1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
+asm	tests/inst/01-load-store/st.o_rrii_rf.S	TEST_FAULT        22, st.o,   rf1,   MALIGN, rb3,                TEST_DATA, 0x004  @@ EA 未按 8 B 自然对齐 ⇒ MALIGN	1
+asm	tests/inst/01-load-store/st.o_rrii_rf.S	TEST_FAULT        23, st.o,   rf1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1
 asm	tests/inst/01-load-store/st.o_rrii_rf.S	TEST_ST_RF         1, st.o,   rf63,  rb63,  TEST_DATA,          0x0B8,    0xDEADBEEFCAFEF00D, 0xDEADBEEFCAFEF00D	1
 asm	tests/inst/01-load-store/st.o_rrii_rf.S	TEST_ST_RF         2, st.o,   rf1,   rb1,   TEST_DATA + 0x008,  0x0A8,    0xDEADBEEFCAFEF00D, 0xDEADBEEFCAFEF00D	1
 asm	tests/inst/01-load-store/st.o_rrii_rf.S	TEST_ST_RF         3, st.o,   rf2,   rb3,   TEST_DATA,          0x010,    0xDEADBEEFCAFEF00D, 0xDEADBEEFCAFEF00D	1
@@ -829,6 +829,7 @@ asm	tests/inst/01-load-store/st.o_rrii_rf.S	TEST_ST_RF  16, st.o,    rf5,   rb6,
 asm	tests/inst/01-load-store/st.o_rrii_rf.S	TEST_ST_RF  17, st.o,    rf5,   rb6,   MSTORE + 0x1D0,   0x000,    0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/01-load-store/st.o_rrii_rf.S	__CHECK_MEM 18, (ENTRY + 0x2000), 0, 0x1111111111111111	@@ 负档槽（零）只被写低 64 位	1
 asm	tests/inst/01-load-store/st.o_rrii_rf.S	__CHECK_MEM 20, (ENTRY + 0x2188), 0, 0x1111111111111111	1
+asm	tests/inst/01-load-store/st.o_rrii_rf.S	__CHECK_MEM 21, TEST_DATA, 0x038, 0x7FF800007FC00000	1
 asm	tests/inst/01-load-store/st.o_rrii_rf.S	__CHECK_RD_ST_IP 19, st.o, rf5, rf	1
 asm	tests/inst/01-load-store/st.t_rrii_rd.S	TEST_FAULT        22, st.t,   rd1,   MALIGN, rb3,                TEST_DATA, 0x002  @@ EA 未按 4 B 自然对齐 ⇒ MALIGN	1
 asm	tests/inst/01-load-store/st.t_rrii_rd.S	TEST_FAULT        23, st.t,   rd1,   CFXMEM, rb3,                0x0,      0x000  @@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM	1

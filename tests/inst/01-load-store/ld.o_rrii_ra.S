@@ -5,7 +5,7 @@
 @@ 对齐：EA 需 8 B 自然对齐，未对齐 ⇒ MALIGN
 @@ 合法性：该银行 0 号寄存器可作目的（无 dst_0 限制）；`ra0` 是 **DADAO MemRAS 窗口**：
 @@   `[63:54]` = SBZ（**写无效**）、`[53:48]` = `RACNT`、`[47:0]` = `MRPTR`（`spec/SimRISC-00 §2.4`）
-@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节 beat，字面量见该文件）
+@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节数据单元，字面量见该文件）
 @@ 用例：encoding 2 / legality 2 / semantic 5 / boundary 9 / overlap 2 / ra0 7 / rb0 3（链例 28 + 故障例 2；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -116,7 +116,7 @@ __r4_land:
 	__CHECK_RD 19, rd25, (MEMRAS + 0x80)
 
 	@@ ---- ra0 写：`[63:54]` 的 SBZ 10 位写无效（`spec/SimRISC-00 §2.4`）----
-	@@ 源值用 `st.o`（rd 银行）就地预置到 TEST_DATA 的空闲 beat，被测指令 = `ld.o ra0`；
+	@@ 源值用 `st.o`（rd 银行）就地预置到 TEST_DATA 的空闲 8 字节数据单元，被测指令 = `ld.o ra0`；
 	@@ 读回用 `ra2rd`（全 64 位块赋值，含 RA 高 16 位）；期望 = 源值的低 54 位。
 	@@ **三平台分歧点**：chipyard 写入丢弃 `[63:54]`（读回 0）；QEMU/gem5 全 64 位可写
 	@@   （读回保留写入位）⇒ 这三点在 QEMU/gem5 记红并登记 issue（候选号见任务书「遗留问题」）；
@@ -144,7 +144,7 @@ __r4_land:
 
 
 	@@ ==== m15-testcases-010 追补：boundary 极值 + rb0 作基址三档 ====
-	@@ ---- boundary：宽度极值（正向极大 / 负向极小 / 全 1；取自 TEST_DATA 现有 beat）----
+	@@ ---- boundary：宽度极值（正向极大 / 负向极小 / 全 1；取自 TEST_DATA 现有 8 字节数据单元）----
 	TEST_LD_RA  23, ld.o,    ra5,   rb6,   TEST_DATA,          0x028,    0x7FFFFFFFFFFFFFFF
 	TEST_LD_RA  24, ld.o,    ra5,   rb6,   TEST_DATA,          0x020,    0x8000000000000000
 	TEST_LD_RA  25, ld.o,    ra5,   rb6,   TEST_DATA,          0x088,    0xFFFFFFFFFFFFFFFF

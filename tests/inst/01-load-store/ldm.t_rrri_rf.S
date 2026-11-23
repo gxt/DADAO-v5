@@ -85,7 +85,7 @@
 
 
 	@@ ==== m15-testcases-010 追补：boundary 极值 + rb0 作基址三档 ====
-	@@ ---- boundary：宽度极值（正向极大 / 负向极小 / 全 1；取自 TEST_DATA 现有 beat）----
+	@@ ---- boundary：宽度极值（正向极大 / 负向极小 / 全 1；取自 TEST_DATA 现有 8 字节数据单元）----
 	@@   `ld.t`/`ldm.t` 只写低 32 位 ⇒ 目的先清 0（高 32 位保持 0）
 	set.fo	rf5, 0x0000000000000000
 	TEST_LDM  13, ldm.t,   {rf5:rf5}, rb3, TEST_DATA + 0x028, rd19, 0x000, MDUMP + 0x1C0, 1, 0x7FFFFFFF00000000

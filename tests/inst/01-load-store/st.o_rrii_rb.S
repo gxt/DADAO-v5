@@ -1,10 +1,10 @@
 @@ st.o_rrii_rb.S — st.o rbHA, [rbHB, imms12]（rrii, opc 0x23）
 @@ 大类：01-load-store（取数存数，`spec/SimRISC-01 §1`）
 @@ id：st.o_rrii_rb　形式：rrii　opc：0x23　mask：0xFF000000
-@@ 语义：mem[EA] ← 源寄存器低 64 位；EA = rb[47:0] + imms12（大端）；只改这几条字节通道，beat 其余字节保持
+@@ 语义：mem[EA] ← 源寄存器整 64 位；EA = rb[47:0] + imms12（大端）；整 8 字节全部写入
 @@ 对齐：EA 需 8 B 自然对齐，未对齐 ⇒ MALIGN
 @@ 合法性：源 0 号寄存器：rb0 读出**当前指令地址**（合法，见下方 rb0 段）；无 dst_0 限制
-@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节 beat，字面量见该文件）
+@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节数据单元，字面量见该文件）
 @@ 用例：encoding 2 / legality 2 / semantic 5 / boundary 8 / overlap 2 / rb0 6（链例 23 + 故障例 2；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -72,14 +72,14 @@ __ck_\@:
 	aip.si	rb12, 0
 	add.si	rb12, 8
 	st.o	rb0, [rb3, 0x040]
-	__CHECK_MEM_RB     15, TEST_DATA, 0x040, rb12      @@ beat == IP 派生期望（方式一）
+	__CHECK_MEM_RB     15, TEST_DATA, 0x040, rb12      @@ 数据单元（8 字节） == IP 派生期望（方式一）
 
 	@@ 方式二：`rb2rb rbX, rb0, 1` 直接拷出 rb0；布局 rb2rb(B) / add.si(B+4) / st.o(B+8)
 	@@   ⇒ delta = 8 ⇒ rb13 = 被测 st.o 的地址
 	rb2rb	{rb13:rb13}, {rb0:rb0}
 	add.si	rb13, 8
 	st.o	rb0, [rb3, 0x058]
-	__CHECK_MEM_RB     16, TEST_DATA, 0x058, rb13      @@ beat == IP 派生期望（方式二）
+	__CHECK_MEM_RB     16, TEST_DATA, 0x058, rb13      @@ 数据单元（8 字节） == IP 派生期望（方式二）
 
 	@@ 链接期绝对期望：`.org 0x1800` 把被测 st.o 钉住 ⇒ 存入值必须恰为 ENTRY + 0x1800
 	@@   （「IP 派生期望」两路同错也自洽，本点用绝对常量再钉一次真实地址）
@@ -94,7 +94,7 @@ __rb0_abs_ck:
 
 
 	@@ ==== m15-testcases-010 追补：boundary 极值 + rb0 作基址三档 ====
-	@@ ---- boundary：宽度极值（正向极大 / 负向极小 / 全 1；取自 TEST_DATA 现有 beat）----
+	@@ ---- boundary：宽度极值（正向极大 / 负向极小 / 全 1；取自 TEST_DATA 现有 8 字节数据单元）----
 	TEST_ST_RB  18, st.o,    rb5,   rb6,   MSTORE + 0x1C0,   0x000,    0x7FFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF
 	TEST_ST_RB  19, st.o,    rb5,   rb6,   MSTORE + 0x1C8,   0x000,    0x8000000000000000, 0x8000000000000000
 	TEST_ST_RB  20, st.o,    rb5,   rb6,   MSTORE + 0x1D0,   0x000,    0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF

@@ -70,7 +70,7 @@
 
 
 	@@ ==== m15-testcases-010 追补：boundary 极值 + rb0 作基址三档 ====
-	@@ ---- boundary：宽度极值（正向极大 / 负向极小 / 全 1；取自 TEST_DATA 现有 beat）----
+	@@ ---- boundary：宽度极值（正向极大 / 负向极小 / 全 1；取自 TEST_DATA 现有 8 字节数据单元）----
 	TEST_STM  13, stm.b,   rd, {rd5:rd5}, rb4, MSTORE, rd19, 0x1C7, TEST_DATA + 0x028, 0xC0DE00000000007F
 	TEST_STM  14, stm.b,   rd, {rd5:rd5}, rb4, MSTORE, rd19, 0x1CF, TEST_DATA + 0x020, 0xC0DE000000000080
 	TEST_STM  15, stm.b,   rd, {rd5:rd5}, rb4, MSTORE, rd19, 0x1D7, TEST_DATA + 0x088, 0xC0DE0000000000FF

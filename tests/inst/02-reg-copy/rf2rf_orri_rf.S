@@ -27,7 +27,7 @@
 	.include "tests/inst/02-reg-copy/02-reg-copy.inc"
 
 @@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
-@@ 内存 beat vs **运行期** rf 期望（`rf2rf` 的 31 元边界例用「目的 == 源内存」判据）：
+@@ 内存数据单元（8 字节） vs **运行期** rf 期望（`rf2rf` 的 31 元边界例用「目的 == 源内存」判据）：
 @@   探针 = `rf2rd` 跨组读回 + `ld.o`（两者都不是被测的块复制指令），不引入期望常量。
 @@   命名/参数与 `__CHECK_MEM_RB` 对齐（baseval/off 在前、组内寄存器在后）。
 @@   `__VERIFY_*` 不占点号，`__CHECK_*` 是最后一条、点号在这里（失败点号 = 用例序号）。
@@ -61,7 +61,7 @@ __cmrf_\@:
 .endm
 
 @@ 多元素用例的「逐元素落 SCRATCH + 比内存」两行（m15-testcases-003 收敛）：
-@@   目的 rf 经 `st.o` 落 SCRATCH（8 B 独立落点、逐次覆写）再 `__VERIFY_MEM` 整 beat 比。
+@@   目的 rf 经 `st.o` 落 SCRATCH（8 B 独立落点、逐次覆写）再 `__VERIFY_MEM` 整 8 字节比。
 @@   `__VERIFY_MEM` 不占点号 ⇒ 一条用例的多元素断言共用点号，只有最后一条 `__CHECK_MEM`
 @@   记结果缓冲（点号行留在用例处，失败点号 = 用例序号在文件里可见）。
 .macro __PREP_ST_VERIFY pt, reg, exp

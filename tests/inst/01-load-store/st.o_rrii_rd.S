@@ -1,10 +1,10 @@
 @@ st.o_rrii_rd.S — st.o rdHA, [rbHB, imms12]（rrii, opc 0x21）
 @@ 大类：01-load-store（取数存数，`spec/SimRISC-01 §1`）
 @@ id：st.o_rrii_rd　形式：rrii　opc：0x21　mask：0xFF000000
-@@ 语义：mem[EA] ← 源寄存器低 64 位；EA = rb[47:0] + imms12（大端）；只改这几条字节通道，beat 其余字节保持
+@@ 语义：mem[EA] ← 源寄存器整 64 位；EA = rb[47:0] + imms12（大端）；整 8 字节全部写入
 @@ 对齐：EA 需 8 B 自然对齐，未对齐 ⇒ MALIGN
 @@ 合法性：源 0 号寄存器：rd0 读出 0（合法）；无 dst_0 限制。基址可用 rb0（= 当前指令地址）
-@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节 beat，字面量见该文件）
+@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA（24 个 8 字节数据单元，字面量见该文件）
 @@ 用例：encoding 2 / legality 5 / semantic 5 / boundary 8 / overlap 2 / rb0 4（链例 22 + 故障例 4；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
@@ -69,7 +69,7 @@ __rb0b_ck:
 
 
 	@@ ==== m15-testcases-010 追补：boundary 极值 + rb0 作基址三档 ====
-	@@ ---- boundary：宽度极值（正向极大 / 负向极小 / 全 1；取自 TEST_DATA 现有 beat）----
+	@@ ---- boundary：宽度极值（正向极大 / 负向极小 / 全 1；取自 TEST_DATA 现有 8 字节数据单元）----
 	TEST_ST    17, st.o,    rd5,   rb6,   MSTORE + 0x1C0,   0x000,    0x7FFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF
 	TEST_ST    18, st.o,    rd5,   rb6,   MSTORE + 0x1C8,   0x000,    0x8000000000000000, 0x8000000000000000
 	TEST_ST    19, st.o,    rd5,   rb6,   MSTORE + 0x1D0,   0x000,    0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF
