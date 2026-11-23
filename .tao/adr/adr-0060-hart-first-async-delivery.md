@@ -1,6 +1,6 @@
 # ADR-0060: 异步中断投递改为 hart-first（统一进 `cfx_hart` + 新增 `cg9` 异步现场）
 
-**状态**：Accepted
+**状态**：Accepted（**部分被 `ADR-0061` 取代**：D2 的 `cg9` 表、D3 的释放/返回语义、D6 的掩码归属、D7 的「保留 cause 17/18」由 `ADR-0061` 改写；D0/D1/D4/D5/D9 继续有效）
 **日期**：2026-11-23
 **关联**：`ADR-0059`（monitor-first，已 Accepted，本 ADR 推翻并 Superseded）；`m18-qemu-002`（monitor-first QEMU，reviewer Accepted，**不合入**，留作参考分支）；`m18-qemu-003`（旧异步探针迁 monitor-first，同步标记被取代）；`spec/DADAO-12 §5.2`、`§3.6`（cg5）、`§3.1–§3.4`（cg0–cg3 rc4 异步 mask）、`§3.7`（cg6）、`§4.7`（cfx_hart）、`§4.9`（cfx_pmem）；`contract-see §3/§6.3/§6.4`；`ADR-0045 D3/D9`、`ADR-0042 D7.4`、`ADR-0056`（cause 分层）；`ISS-500`、`ISS-498`
 

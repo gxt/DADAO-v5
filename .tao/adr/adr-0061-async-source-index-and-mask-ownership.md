@@ -1,6 +1,6 @@
 # ADR-0061: 异步中断模型修订（掩码归 monitor、源索引统一 cfxha、cg9 精简为软件只读）
 
-**状态**：Proposed（待用户逐条确认后转 Accepted）
+**状态**：Accepted（2026-11-23；用户确认"统一"并批准派发 `m18-spec-004`；D5 掩码更名、D6 pending 跟随源事件、D12 版本按本 ADR 草案执行，spec-004 复核时如与预期不符再改）
 **日期**：2026-11-23
 **关联**：`ADR-0060`（Accepted；本 ADR 取代其 D2/D3 的 cg9 表与释放语义、D6 的掩码归属、D7 的「保留 cause 17/18」；D0/D1/D4/D5/D9 继续有效并 Super­sede 记录待 Accepted 后追加）；`ADR-0059`（已 Superseded）；`m18-spec-002`、`m18-qemu-004`、`m16-chipyard-021`、`m16-chipyard-020`；`ISS-500`、`ISS-498`
 
@@ -103,4 +103,6 @@
 - `src_frame`/`src_pending` 硬件写、软件只读：✅
 - 掩码初值全 1：✅
 - `escape` 暂不改：✅
-- 待确认：D6 的"pending 跟随源事件（ack 即落）"；D5 的掩码更名；D12 版本仍 `0.8.0-rc`。
+- D5 掩码更名 `cfx_<monitor>_async_intr_mask` / D6 pending 跟随源事件 / D12 版本仍 `0.8.0-rc`：随本轮"统一"确认，按草案执行（2026-11-23）。
+- 落地：`m18-spec-004`（已派单）→ `m18-qemu-005` / `m16-chipyard-024` → `m18-linux-021` 改写。
+
