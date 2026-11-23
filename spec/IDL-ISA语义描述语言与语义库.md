@@ -308,25 +308,25 @@ builtin function cfx_frame_valid {
   arguments Bits<6> cfxha
   description {
     该核芯功能扩展当前是否持有**有效同步异常帧**（`cfx_⟨cfxname⟩_excp_cause_id != 0`，
-    `cg5`）。帧无效时 `escape` 触发当前核芯功能扩展的 `CFXESC`。异步现场的有效性不归本函数：
-    `cfx_hart cg9` 的 `async_cause_id != 0` 由 operation 直接判定。
+    `cg5`）。帧无效时 `escape` 触发当前核芯功能扩展的 `CFXESC`。异步进入的捕获缓冲
+    （`cfx_hart cg9`）没有有效位，也不作为 `escape` 的返回帧，不归本函数判定。
   }
 }
 
 builtin function cfx_escape_enter {
   arguments Bits<6> cfxha, Bits<64> imm
   description {
-    异常退出（`escape`）：按 SEE 的异常退出流程恢复中断屏蔽、运行模式（`inner_run_mode`）与
-    当前核芯功能扩展（`inner_cfx_code`），`escape_num` 递增，控制转到**所选帧**的返回地址；
-    所选帧由 operation 的帧选择位（`imms18[1]`）决定。选 `cg5` 同步异常帧时恢复 trap 进入时
-    保存的 `global_cfx_intr_mask`，返回地址 = `excp_cause_ip + imm`（`imm` 为**字节**偏移，
-    合法值 0 或 4）；选 `cfx_hart cg9` 异步现场时返回地址 = `async_cause_ip`（偏移恒 0，
-    `imm` 传 0），并恢复 `async_prev_run_mode`、`async_prev_cfx_code` 与
-    `async_saved_global_intr_mask`（`cfx_hart cg9` 的 `rc4` 写回 `rc8`）。
-    目标是否为保留编号、`cfxha == inner_cfx_code`、所选帧是否有效（`cg5` 帧
-    `excp_cause_id != 0`；`cg9` 现场 `async_cause_id != 0`，且该帧仅 `cfx_hart` 持有）、
-    SBZ 是否为零、`imms18 = 3`（`cg9` 帧带偏移 +4）是否出现，均由 operation 先判定再调用
-    本函数。
+    同步异常退出（`escape`）：按 SEE 的异常退出流程恢复运行模式（`inner_run_mode`）与
+    当前核芯功能扩展（`inner_cfx_code`），`escape_num` 递增，控制转到 `cg5` 同步异常帧的
+    返回地址 `excp_cause_ip + imm`（`imm` 为**字节**偏移，合法值 0 或 4）。`escape`
+    **不保存、不恢复**任何中断来源掩码（来源掩码是策略，不是现场）。
+    异步没有 `escape` 返回路径：`cfx_hart cg9` 只是异步进入瞬间的捕获缓冲（每次进入覆盖，
+    无有效位），由软件在关中断窗口搬运到任务现场后进入 `cfx_smon`，返回走 smon/umon
+    正常路径。`imms18[1] = 1`（`imm = 0` 的 `cg9` 帧选择）编码仍合法，但执行时
+    `cg9` 不是返回帧 ⇒ 当前 cfx 的 `CFXESC`（不改变 cfx/运行模式/`cg9`）。
+    目标是否为保留编号、`cfxha == inner_cfx_code`、所选同步帧是否有效（`cg5` 帧
+    `excp_cause_id != 0`）、SBZ 是否为零、`imms18 = 3`（帧选择位 1 且偏移 +4）
+    是否出现，均由 operation 先判定再调用本函数。
   }
 }
 

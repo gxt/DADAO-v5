@@ -300,11 +300,13 @@ cfx_hart_supv_excp_handler:
 cfx_hart_unknown:
     escape cfx_hart, [excp_cause_ip, 4]
 
-cfx_hart_async_excp_handler:
-    cfx2rd  cfx_hart_async_src_frame, rd2     @@ 本帧源集合，位 = 源 cfxha（TIMER=15、PMEM_DMA=32）
+cfx_hart_async_excp_handler:                     @@ 由 cfx_hart cg9 rc5（async_excp_vector）进入，不是本 cfx 的同步向量
+    @@ 异步进入瞬间已把源集合捕获进 cfx_hart cg9（位 = 源 cfxha：TIMER=15、PMEM_DMA=32）
+    cfx2rd  cfx_hart_async_src_frame, rd2        @@ 本次捕获的源集合
     @@ TIMER：rd2 的 bit15 置位时回 cfx_hart cg8 rc5 读 ISTATUS
     @@ PMEM_DMA：rd2 的 bit32 置位时回 cfx_pmem cg15 rc4 读 dma_status（含 ERR_CODE）
-    escape cfx_hart, [async_cause_ip, 8]      @@ 释放本帧并续跑（异步不携带 cause_info）
+    @@ 关中断窗口：把 cg9（prev_*/cause_ip/src_frame）与 GPR 搬到本任务现场（task_pt_regs）
+    trap    cfx_smon, 0x0                        @@ handoff 到 smon；本处不返回，用户/内核返回走 smon/umon 正常路径
 
 cfx_hart_trap_dispatch:
     cfx2rd  cfx_hart_excp_cause_info, rd2
@@ -331,9 +333,8 @@ cfx_hart_set_timer:
     cfx2rc  cfx_hart_timer_ctrl, rd2
     escape cfx_hart, [excp_cause_ip, 4]
 
-cfx_hart_timer_int:
-    @@ 定时器中断：返回被中断的指令边界
-    escape cfx_hart, [excp_cause_ip, 0]
+@@ `cfx_hart_timer_int` 为旧同步定时器入口，已删除：定时器与 PMEM_DMA 的异步中断不进入本 cfx 的同步分派，
+@@ 入口见 §7.1 的 `cfx_hart_async_excp_handler`（捕获缓冲 → `trap cfx_smon`，不用 `escape` 返回）。
 ```
 
 ## 8. LLC管理（cfx_llc）
@@ -743,6 +744,8 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.8.0-rc（未发布）
+
+- 与 SEE 的异步捕获缓冲修订同步（内容改，版本仍 `0.8.0-rc`）：异步入口示例不再用 `escape` 返回——`cfx_hart cg9` 只是进入瞬间的捕获缓冲，示例改为「关中断窗口把 `cg9` + GPR 搬到本任务现场 → `trap cfx_smon`」并以 `trap cfx_smon, 0x0` 终结（不返回本处，返回走 smon/umon 正常路径）；删除旧的同步定时器入口 `cfx_hart_timer_int`（定时器/PMEM_DMA 异步中断只走 `cg9 rc5` 异步向量）。`escape imms18=2` 编码仍合法但不作为异步返回，`imms18=3` ⇒ `ILLI` 不变。源身份（cfxha 15/32）、来源掩码（monitor `cg8 rc1`）、同一界多源一次性捕获均不变。**SBI 语义未变**（功能码、入参、返回值与调用约定均不变）。
 
 - 与 SEE 的异步模型修订同步（内容改，版本仍 `0.8.0-rc`）：同步入口示例只保留 `CFXTRAP` 分支；新增异步入口示例，按 `cfx_hart cg9 async_src_frame` 的源 cfxha 位（`TIMER`=15、`PMEM_DMA`=32）回源 cfx 读寄存器，并用 `escape cfx_hart, [async_cause_ip, 8]` 释放帧。异步源不再使用宏 cause 17/18、不占 `excp_cause_id`；来源掩码在**当前运行模式 monitor** 的 `cg8 rc1`。**SBI 语义未变**（功能码、入参、返回值与调用约定均不变）。
 

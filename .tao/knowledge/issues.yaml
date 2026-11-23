@@ -1454,10 +1454,20 @@
   - spec
   - docs
   milestone: M18
+  status: closed
+  closed_in: M18
+  resolved_by: m18-spec-005（①Kaiwu 活正文 §2/§3/§4.2 改 monitor 掩码/捕获缓冲/cfxha 32 投递；②IDL-ISA §4.6 builtin 正文改同步 escape + cg9 捕获缓冲；④DD-C002/C003/C004 改单层 monitor 掩码、pending 归 cg9、escape 仅同步帧；⑥R2 删除「无嵌套」判据，该项失效。残项另立 ISS-530）
+  title: "【P2】`m18-spec-004`（ADR-0061）落地后的活文档残留与口径矛盾（`m18-spec-005` 收尾）：① `spec/Kaiwu` L74/92/152/595 仍写 `rc4=cfx_intr_mask`、`cg8 rc1=global_cfx_intr_mask`、escape 恢复掩码；② `spec/IDL-ISA…` L312/322/325/327/464 仍用 `async_cause_id`/`async_saved_global_intr_mask`/恢复掩码；③ `spec/SimRISC-11` L94 注释名 `async_cause_id`；④ `docs/DDLN/C-资源管理` DD-C002 L56、DD-C003 L53/56/58、DD-C004 L71 仍写 monitor 掩码/pending；⑤ `DADAO-12`/`DADAO-22` 变更记录并存互斥两条（改 17/18 与取消 17/18）且引已删 `§3.9`；⑥ `m18-spec-004` 的 `run.sh` 对 §5.4 无嵌套判据无语义断言（仅靠 manifest sha 变红），需补一条。另：`ADR-0061` Consequences 未列上述文档，architect 补列。"
+- id: ISS-530
+  scope:
+  - spec
+  - docs
+  - idl
+  milestone: M18
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2】`m18-spec-004`（ADR-0061）落地后的活文档残留与口径矛盾，需 M18 会话立册收尾（建议 `m18-spec-005`）：① `spec/Kaiwu` L74/92/152/595 仍写 `rc4=cfx_intr_mask`、`cg8 rc1=global_cfx_intr_mask`、escape 恢复掩码；② `spec/IDL-ISA…` L312/322/325/327/464 仍用 `async_cause_id`/`async_saved_global_intr_mask`/恢复掩码；③ `spec/SimRISC-11` L94 注释名 `async_cause_id`；④ `docs/DDLN/C-资源管理` DD-C002 L56、DD-C003 L53/56/58、DD-C004 L71 仍写 monitor 掩码/pending；⑤ `DADAO-12`/`DADAO-22` 变更记录并存互斥两条（改 17/18 与取消 17/18）且引已删 `§3.9`；⑥ `m18-spec-004` 的 `run.sh` 对 §5.4 无嵌套判据无语义断言（仅靠 manifest sha 变红），需补一条。另：`ADR-0061` Consequences 未列上述文档，architect 补列。"
+  title: "【P3】`m18-spec-005`（ADR-0061 R2）收尾后仍存在的活文档残留：① `spec/SimRISC-11 §3.1` 的 `escape_ciii_cfx` IDL 块由 `idl/SimRISC-11.idl` 渲染（禁手改），仍按「cg9 有效帧 + 返回」建模，须随 `m18-idl-002` 改语义源并重渲染（同笔更新 `idl/data/exec_anchor.toml` 与 `idl/.manifests.toml`，避免只改锁造成假绿）；② `docs/DDLN/C-资源管理` DD-C008 L9/L47、DD-C009 L66 仍写「低编号 cfx 优先」「两层掩码」，本任务白名单未列；③ `DADAO-12`/`DADAO-22`/`Kaiwu`/`IDL-ISA` 变更记录内旧模型条目按「历史记录不改」保留，另需 architect 决定是否补一条互斥说明。"
 - id: ISS-528
   scope:
   - testcases
