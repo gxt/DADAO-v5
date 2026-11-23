@@ -9,6 +9,8 @@
 **状态**：待开始
 **执行环境**：本地（QEMU system `-M kaiwu-vast`）
 
+> **R2 修订（2026-11-23，ADR-0061）**：`cg9` 为捕获缓冲，入口在关中断窗口搬运到 `task_pt_regs` 后进 `cfx_smon`；smon 按普通系统态处理，嵌套由软件处理；`escape imms18=2` 不再异步返回。本任务按 R2 重写入口/返回/调度，旧 cg9 escape 方案作废。
+
 ## 背景
 
 `ADR-0061`：异步源以 cfxha 标识（TIMER 15、PMEM_DMA 32），pending/帧内位同索引；掩码在**当前运行模式 monitor** 的 `cg8 rc1`（`cfx0` umon / `cfx1` jmon / `cfx2` smon / `cfx3` hmon，复位全 1）；`cg9` 七槽，`src_frame`/`src_pending` 只读；同一界面多源**一帧承载**；帧由 `escape`（`imms18=2`）结束；异步**无 cause_info**，细节回源 cfx 读。原 `m18-linux-021` 按旧口径（掩码在 cg9、位 17/18、`cause_id`），已作废。

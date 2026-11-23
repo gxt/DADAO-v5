@@ -8,6 +8,8 @@
 **档位**：中改（复核 ≤40 min）
 **状态**：待开始
 
+> **R2 修订（2026-11-23，ADR-0061）**：`cg9` 改为进入瞬间的捕获缓冲，每次 async 进入覆盖；硬件不再因 `src_frame != 0` 只置 pending；`escape imms18=2` 不再异步返回。本任务旧验收（防重入/escape 返回/`src_frame` 有效位）作废；待 `m18-spec-005`/`m18-qemu-006` 后重写。
+
 ## 背景
 
 `ADR-0061` 改写异步模型：来源掩码在**运行模式 monitor**（`cfx0–3 cg8 rc1`，位=源 cfxha）、源身份统一 cfxha（`1<<15`/`1<<32`，取消 `1<<17`/`1<<18`）、`cg9` 七槽且 `src_frame`/`src_pending` 只读、同一界面多源**一帧承载**、帧由 `escape` 结束。原 `m18-testcases-001`（探针迁 hart-first）与 `m18-testcases-002`（escape cg9 向量）按旧口径，已作废，内容合并到本任务。

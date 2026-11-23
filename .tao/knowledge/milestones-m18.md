@@ -38,6 +38,7 @@
 | m18-linux-012 | 1–2 h | ISS-503 K6 门控五条 finding（恒真断言并入 region、计数/标签/符号名订正） |
 | m18-qemu-001 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
 | m18-spec-001 | 2–4 h | cg4 `scratch_regs_num` 缺省值：每个非 reserved cfx = 2（QEMU/gem5/RTL 由 4 改 2）；spec/契约 + 探针 |
+| m18-spec-005 | 4–6 h | ADR-0061 R2 规格/活文档修订（cg9 捕获缓冲、smon handoff、escape 不异步返回） |
 | m18-gem5-001 | 2–3 h | gem5 `escape` frame selector 语义/断言（b6 + decode assertions + check_b6） |
 | m18-chipyard-001 | 3–5 h | RTL `escape` frame selector 语义（cg9；等 M16 chipyard 批次） |
 | m18-linux-015 | 2–3 h | `mlock2`/`MLOCK_ONFAULT` 路径 SIGSEGV（KERNEL_BUG） |
@@ -62,6 +63,7 @@
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
 | m18-qemu-005 | 2026-11-23 20:12 | QEMU 异步模型修订（ADR-0061：mask 归 monitor、src 位 cfxha、cg9 七槽、一帧多源；13+33 证据） |
+| m18-qemu-006 | 2–3 h | QEMU 异步捕获缓冲修订（去帧活动 gating、escape 不异步返回；R2） |
 | m18-spec-004 | 2026-11-23 18:33 | 异步模型修订（掩码归 monitor、源索引 cfxha、`cg9` 七槽只读、§5.4 专节；ADR-0061；版本仍 0.8.0-rc） |
 | m18-testcases-001 | 2026-11-23 17:57 | **作废**（ADR-0061）：旧异步探针迁 hart-first 口径，未完工；替代 `m18-testcases-003` |
 | m18-testcases-002 | 2026-11-23 17:57 | **作废**（ADR-0061）：`escape` cg9 向量，口径并入 `m18-testcases-003` |
