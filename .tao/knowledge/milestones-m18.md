@@ -55,13 +55,13 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m18-llvm-001 | 2026-11-23 15:01 | 2–3 h | LLVM `escape` frame selector 汇编/反汇编 + lit |
-| m18-idl-001 | 2026-11-23 15:01 | 3–5 h | `escape` 帧选择位在 IDL 执行器/语义库/向量同步（`_op_escape`/`§4.6`/`11-cfx` case 13/14） |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-idl-001 | 2026-11-23 15:53 | `escape` 帧选择位 IDL/语义库/向量（cg9 自检 14 条；11-cfx case13/14/19/20；cg9 向量延至 testcases-002） |
 | m18-spec-003 | 2026-11-23 15:01 | `escape` frame selector 编码真源（SimRISC-11/IDL/Toolchain-01/contract-asm/Kaiwu/opcodes/legality；19 路径） |
 | m18-linux-013 | 2026-11-23 13:45 | **作废**（ADR-0060）：monitor-first 内核异步方案，未开工 |
 | m18-qemu-002 | 2026-11-23 13:45 | **作废**（ADR-0060）：monitor-first QEMU，reviewer Accepted 但未合入，分支留参考 |
