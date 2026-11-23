@@ -39,7 +39,7 @@ DADAO定义了四种运行模式，用两位编码：
 
 - 执行期同步异常先进入当前运行模式的 monitor（`cfx_umon`/`cfx_jmon`/`cfx_smon`/`cfx_hmon`），由 monitor 自行处理或 `trap` 分发到源 cfx；显式 `trap` 仍隶属目标 cfx，`escape` 仍隶属当前 cfx
 - 地址转换过程中触发的异常（页表步进与 TLB 命中）先进入当前运行模式 monitor：未映射与 A/D 回写失败归 `CFXMEM`，权限拒绝归 `CFXPERM`；不再由 `cfx_ptw` 处理
-- 异步中断统一进入 `cfx_hart`（cfxha 15，hart-first），与同步异常分流：不进入当前运行模式 monitor，也不直接进入源 cfx；异步现场、来源掩码与 pending 都落在 `cfx_hart cg9`（§3.9），入口为 `cfx_hart` 的 supv 单向量（§5.2）
+- 异步中断统一进入 `cfx_hart`（cfxha 15，hart-first），与同步异常分流：不进入当前运行模式 monitor，也不直接进入源 cfx；异步源以**源 cfxha** 标识（TIMER=15、PMEM_DMA=32），不占 `excp_cause_id`；异步现场与 pending 在 `cfx_hart cg9`（§4.7），来源掩码在**当前运行模式 monitor** 的 `cg8 rc1`（§4.1–§4.4），入口为 `cfx_hart` 的 supv 单向量（§5.4）
 
 多核系统中各资源的作用域：
 
@@ -52,7 +52,7 @@ DADAO定义了四种运行模式，用两位编码：
 
 > `per-task`：`cfx16`–`cfx31` 由内核或进程在**申请后使用**，使用完毕**释放**；持有期间即使发生进程上下文切换，该 cfx 的状态与运行不受影响，**不需要**随上下文切换保存/恢复。
 
-> `inner_*` 为硬件内部寄存器（不对外暴露），用于异常处理流程中的中间状态保存。`inner_run_mode`（2 位）记录当前运行模式（0=user, 1=jail, 2=supv, 3=hypv），`inner_excp_cause_*` 等用于现场保存。同步异常全部不可屏蔽，不使用异常原因掩码与不可屏蔽掩码；异步中断的来源过滤、pending 与现场由 `cfx_hart` 的 `cg9` 承担（§3.9）。详细语义见 §5.2。
+> `inner_*` 为硬件内部寄存器（不对外暴露），用于异常处理流程中的中间状态保存。`inner_run_mode`（2 位）记录当前运行模式（0=user, 1=jail, 2=supv, 3=hypv），`inner_excp_cause_*` 等用于现场保存。同步异常全部不可屏蔽，不使用异常原因掩码与不可屏蔽掩码；异步中断的来源过滤按**当前运行模式 monitor** 的 `cg8 rc1`（§4.1–§4.4），pending 与现场由 `cfx_hart` 的 `cg9` 承担（§4.7）。同步语义见 §5.2，异步语义见 §5.4。
 
 ## 2. 地址空间
 
@@ -83,7 +83,7 @@ CPU 地址固定为 48 位。高 6 位 `addr[47:42]` 是地址空间分区键：
 - cfxha 5 为 `cfx_cache`；未实现的已分配 cfx 由实现约定其未实现行为（测试机按未实现 cfx 处理）。
 - cfx_pmem 的 64 KiB SRAM 固定在内部偏移 0x3ff_0000_0000（§4.9），CPU 用普通 `ld/st` 访问；SRAM 之外的核内偏移触发 CFXMEM。
 - 屏障指令 `fence cfxHA, immu18` 用 `cfxHA` 选择资源域：`cfx0` 与 `cfx_umon` 都表示 **all cfx**，`cfx1`–`cfx63` 表示指定 cfx；`immu18` 中的 `cr`/`cw`/`ci`/`co` 位作用于所选 cfx 的 memory/IO 访问，`mr`/`mw` 位作用于系统内存。屏障只约束本 hart 的访问顺序/可见性，不等待 DMA。
-- cfx1–cfx63 的访问权限按 §1 两轴模型与 §3/§5 的四类同步 mask、两类中断 mask 判定；每个 cfx 的 `cg0`–`cg3` 按当前运行模式分别配置来源 cfx。
+- cfx1–cfx63 的访问权限按 §1 两轴模型与 §3/§5 的四类同步 mask、monitor 的异步来源掩码（`cg8 rc1`）判定；每个 cfx 的 `cg0`–`cg3` 按当前运行模式分别配置来源 cfx。
 
 ### 2.2 虚实地址转换
 
@@ -310,13 +310,12 @@ cg0-cg7 为共有寄存器设计，不同的核芯功能扩展设计规范相同
 | 0 | 1 | user cfxmem cfx mask | cfx_⟨cfxname⟩_user_cfxmem | 同上 | RW | 直接 `ld/st` 访问该 cfx 的 SRAM/MMIO，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
 | 0 | 2 | user cfxreg cfx mask | cfx_⟨cfxname⟩_user_cfxreg | 同上 | RW | `cfx2rd`/`cfx2rc` 访问，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
 | 0 | 3 | user cfxexe cfx mask | cfx_⟨cfxname⟩_user_cfxexe | 同上 | RW | 直接跳转/取指进入该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
-| 0 | 4 | user cfx intr mask（字段保留，异步用途作废） | cfx_⟨cfxname⟩_user_cfx_intr_mask | 全1 | RW | **不承担异步用途**：字段保留、读写不产生异常，其值不参与任何投递判定；异步来源掩码见 `cfx_hart cg9`（§3.9） |
 | 0 | 8 | user switch run mode | cfx_⟨cfxname⟩_user_switch_run_mode | 2 (S-mode) | RW | 从user陷入时切换的运行模式 |
 | 0 | 9 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 | 0 | 10 | user excp vector | cfx_⟨cfxname⟩_user_excp_vector | 0 | RW | 从user陷入时的异常向量入口地址 |
 | 0 | 11 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 
-`rc0`–`rc3` 为**四类同步来源 mask**，位索引均为**源 cfxha**，`0=允许`、`1=屏蔽`；`rc4` 不承担异步用途（字段保留，见上表），异步中断的来源过滤见 `cfx_hart cg9`（§3.9）。访问自身 cfx 时只绕过 cfx 轴（位测试），仍使用当前运行模式对应的寄存器行（模式轴）。`rc5`–`rc7` 保留，访问触发 `CFXREG`。
+`rc0`–`rc3` 为**四类同步来源 mask**，位索引均为**源 cfxha**，`0=允许`、`1=屏蔽`；`rc4` 不定义（保留，访问触发 `CFXREG`）；异步来源掩码见**当前运行模式 monitor** 的 `cg8 rc1`（§4.1–§4.4）。访问自身 cfx 时只绕过 cfx 轴（位测试），仍使用当前运行模式对应的寄存器行（模式轴）。`rc5`–`rc7` 保留，访问触发 `CFXREG`。
 
 为支持用户程序通过系统调用陷入操作系统内核，硬件应至少支持 `cfx_umon_user_*` 这一组寄存器或 `cfx_smon_user_*` 这一组寄存器。
 
@@ -334,7 +333,6 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 | 1 | 1 | jail cfxmem cfx mask | cfx_⟨cfxname⟩_jail_cfxmem | 同上 | RW | 直接 `ld/st` 访问该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
 | 1 | 2 | jail cfxreg cfx mask | cfx_⟨cfxname⟩_jail_cfxreg | 同上 | RW | `cfx2rd`/`cfx2rc` 访问，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
 | 1 | 3 | jail cfxexe cfx mask | cfx_⟨cfxname⟩_jail_cfxexe | 同上 | RW | 直接跳转/取指进入该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
-| 1 | 4 | jail cfx intr mask（字段保留，异步用途作废） | cfx_⟨cfxname⟩_jail_cfx_intr_mask | 全1 | RW | **不承担异步用途**：字段保留、读写不产生异常，其值不参与任何投递判定；异步来源掩码见 `cfx_hart cg9`（§3.9） |
 | 1 | 8 | jail switch run mode | cfx_⟨cfxname⟩_jail_switch_run_mode | 2 (supv) | RW | 从jail陷入时切换的运行模式 |
 | 1 | 9 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 | 1 | 10 | jail excp vector | cfx_⟨cfxname⟩_jail_excp_vector | 0 | RW | 从jail陷入时的异常向量入口地址 |
@@ -350,7 +348,6 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 | 2 | 1 | supv cfxmem cfx mask | cfx_⟨cfxname⟩_supv_cfxmem | 同上 | RW | 直接 `ld/st` 访问该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
 | 2 | 2 | supv cfxreg cfx mask | cfx_⟨cfxname⟩_supv_cfxreg | 同上 | RW | `cfx2rd`/`cfx2rc` 访问，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
 | 2 | 3 | supv cfxexe cfx mask | cfx_⟨cfxname⟩_supv_cfxexe | 同上 | RW | 直接跳转/取指进入该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
-| 2 | 4 | supv cfx intr mask（字段保留，异步用途作废） | cfx_⟨cfxname⟩_supv_cfx_intr_mask | 全1 | RW | **不承担异步用途**：字段保留、读写不产生异常，其值不参与任何投递判定；异步来源掩码见 `cfx_hart cg9`（§3.9） |
 | 2 | 8 | supv switch run mode | cfx_⟨cfxname⟩_supv_switch_run_mode | 2 (supv) | RW | 从supv陷入时切换的运行模式 |
 | 2 | 9 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 | 2 | 10 | supv excp vector | cfx_⟨cfxname⟩_supv_excp_vector | 0 | RW | 从supv陷入时的异常向量入口地址 |
@@ -366,14 +363,13 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 | 3 | 1 | hypv cfxmem cfx mask | cfx_⟨cfxname⟩_hypv_cfxmem | 同上 | RW | 直接 `ld/st` 访问该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
 | 3 | 2 | hypv cfxreg cfx mask | cfx_⟨cfxname⟩_hypv_cfxreg | 同上 | RW | `cfx2rd`/`cfx2rc` 访问，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
 | 3 | 3 | hypv cfxexe cfx mask | cfx_⟨cfxname⟩_hypv_cfxexe | 同上 | RW | 直接跳转/取指进入该 cfx，0=允许，1=屏蔽。位索引=源 cfx；自身对应位忽略 |
-| 3 | 4 | hypv cfx intr mask（字段保留，异步用途作废） | cfx_⟨cfxname⟩_hypv_cfx_intr_mask | 全1 | RW | **不承担异步用途**：字段保留、读写不产生异常，其值不参与任何投递判定；异步来源掩码见 `cfx_hart cg9`（§3.9） |
 | 3 | 8 | hypv switch run mode | cfx_⟨cfxname⟩_hypv_switch_run_mode | 3 (hypv) | RW | 从hypv陷入时切换的运行模式 |
 | 3 | 9 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 | 3 | 10 | hypv excp vector | cfx_⟨cfxname⟩_hypv_excp_vector | 该 cfx 内部 SRAM 的起始地址（无内部 SRAM 者由平台/实现定义） | RW | 从hypv陷入时的异常向量入口地址；**写入忽略低 2 位**（`value[1:0] ← 0`，按 4 字节对齐落盘），不产生异常 |
 | 3 | 11 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 | 3 | 12 | hypv cg reg delegation | cfx_⟨cfxname⟩_hypv_cg_reg_deleg | 全1 | RW | cg访问授权，bit=0时允许supv访问。bit3固定为1 |
 
-`rc0`–`rc3` 为四类同步来源 mask，位索引=源 cfx，`0=允许`、`1=屏蔽`，自身只绕过 cfx 轴；`rc4` 不承担异步用途（字段保留，见 §3.1）。`rc5`–`rc7` 保留，访问触发 `CFXREG`。`cfx0`–`cfx3` 的 `cg8`/`rc1` 为 `global_cfx_intr_mask`；该字段的异步用途已作废（字段保留、读写不产生异常），异步全局来源掩码见 `cfx_hart cg9 rc8`（§3.9）。
+`rc0`–`rc3` 为四类同步来源 mask，位索引=源 cfx，`0=允许`、`1=屏蔽`，自身只绕过 cfx 轴；`rc4` 不定义（保留，访问触发 `CFXREG`）。`rc5`–`rc7` 保留，访问触发 `CFXREG`。`cfx0`–`cfx3` 的 `cg8 rc1` 为 `cfx_<monitor>_async_intr_mask`（本运行模式的异步来源掩码，位索引 = 源 cfxha，`0=允许`/`1=屏蔽`，复位全 1；见 §4.1–§4.4）。
 
 `rc10`（`hypv_excp_vector`）的初值与写入：
 
@@ -402,17 +398,17 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 |----|----|---------|---------|--------|------|------|
 | 5 | 0 | excp prev run mode | cfx_⟨cfxname⟩_excp_prev_run_mode | 0 | RW | 异常前运行模式，硬件陷入时保存，软件可写 |
 | 5 | 1 | excp prev cfx code | cfx_⟨cfxname⟩_excp_prev_cfx_code | 0 | RW | 异常前当前核芯功能扩展编号，硬件陷入时保存，软件可写 |
-| 5 | 2 | excp cause id | cfx_⟨cfxname⟩_excp_cause_id | 0 | HW | 异常原因编号（分层：`[15:0]` 为同步 cause one-hot；`[31:16]` 为宏 cause 空间（`1<<17`=`TIMER`、`1<<18`=`PMEM_DMA` 异步源）；wyde2 `[47:32]`/wyde3 `[63:48]` 为子原因，见下），硬件在异常进入时写入 |
+| 5 | 2 | excp cause id | cfx_⟨cfxname⟩_excp_cause_id | 0 | HW | 异常原因编号（分层：`[15:0]` 为同步 cause one-hot；`[31:16]` 保留，异步源**不占** `excp_cause_id`；wyde2 `[47:32]`/wyde3 `[63:48]` 为子原因，见下），硬件在异常进入时写入 |
 | 5 | 3 | excp cause ip | cfx_⟨cfxname⟩_excp_cause_ip | 0 | RW | 异常发生前的指令指针，硬件陷入时保存，软件可写 |
 | 5 | 4 | excp cause info | cfx_⟨cfxname⟩_excp_cause_info | 0 | HW | 发生异常的辅助信息（`CFXMEM`/`CFXPERM` 恒为地址，见下） |
-| 5 | 5 | excp pending | cfx_⟨cfxname⟩_excp_pending | 0 | RW | 待处理**同步**异常位图（one-hot，OR 语义），写 0 清位；异步 pending 见 `cfx_hart cg9 rc5`（§3.9） |
+| 5 | 5 | excp pending | cfx_⟨cfxname⟩_excp_pending | 0 | RW | 待处理**同步**异常位图（one-hot，OR 语义），写 0 清位；异步 pending 见 `cfx_hart cg9 rc4`（§4.7） |
 | 5 | 63 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
 
-异常原因编号 `cfx_⟨cfxname⟩_excp_cause_id` 为**分层编码**（64 位）：低 16 位是**同步 cause one-hot**；`[31:16]` 为**宏 cause 空间**（异步中断 bitmap：`1<<17` = `TIMER`、`1<<18` = `PMEM_DMA`，可多源同时置位/OR）；子原因按 16 位 **wyde**（双字节）分段——**wyde2 `[47:32]` 专供 `CFXPERM`、wyde3 `[63:48]` 专供 `CFXMEM`**，每个同步 cause 独占一个 wyde。各核芯功能扩展的异常原因表只定义该核芯功能扩展可处理的**同步** cause 位；宏 cause 跨 cfx 全局编号。
+异常原因编号 `cfx_⟨cfxname⟩_excp_cause_id` 为**分层编码**（64 位）：低 16 位是**同步 cause one-hot**；`[31:16]` 保留（**异步源不占** `excp_cause_id`）；子原因按 16 位 **wyde**（双字节）分段——**wyde2 `[47:32]` 专供 `CFXPERM`、wyde3 `[63:48]` 专供 `CFXMEM`**，每个同步 cause 独占一个 wyde。各核芯功能扩展的异常原因表只定义该核芯功能扩展可处理的**同步** cause 位；异步源以**源 cfxha** 标识（见下）。
 
-**（一）`[15:0]`：同步 cause one-hot**。表中未列出的位属于保留或未使用，若硬件错误触发此类位，表示该核芯功能扩展出现不可恢复的错误。`1 << 3` 为 `CFXESC`（escape 帧/目标错误，每个 cfx）；`1 << 4` 至 `1 << 6` 保留用于未来扩展（debug 异常等）；`1 << 7` 在 `cfx0`–`cfx3` 为 `CFXPERM`（两轴权限拒绝），在 `cfx_ptw` 保留（见 §4.5）。`[15:0]` 为**同步** one-hot，与 `[31:16]` 宏 cause 空间互斥（异步源不占 `[15:0]`）。
+**（一）`[15:0]`：同步 cause one-hot**。表中未列出的位属于保留或未使用，若硬件错误触发此类位，表示该核芯功能扩展出现不可恢复的错误。`1 << 3` 为 `CFXESC`（escape 帧/目标错误，每个 cfx）；`1 << 4` 至 `1 << 6` 保留用于未来扩展（debug 异常等）；`1 << 7` 在 `cfx0`–`cfx3` 为 `CFXPERM`（两轴权限拒绝），在 `cfx_ptw` 保留（见 §4.5）。`[15:0]` 为**同步** one-hot；异步源不占本段。
 
-**（二）`[31:16]`：宏 cause 空间（异步中断）**。`1 << 17` = `TIMER`（`cfx_hart`，§4.7）、`1 << 18` = `PMEM_DMA`（`cfx_pmem`，§4.9）；其余位（`1 << 16`、`1 << 19`–`1 << 31`）保留给未来大类 cause。异步 cause 按 **bit 编号**（非 `[15:0]` 同步 one-hot），可多源同时置位/OR；子原因编码**不得占用**本段。`[15:0]` 同步 one-hot 与 `[31:16]` 宏 cause 空间**互斥**（同一 `excp_cause_id` 不同时携带同步与异步 cause）。
+**（二）`[31:16]`：保留（异步源标识不占 `excp_cause_id`）**。异步中断**没有独立的 cause 编号**：源身份 = **源 cfxha**（`TIMER` = 15、`PMEM_DMA` = 32），投递到 `cfx_hart` 后由 `cfx_hart cg9` 的 `async_src_frame`（§4.7）按源 cfxha 位集合给出本帧源集合。**约束**：一个源 cfx 至多一个异步 cause；同源内的差异（`DONE`/`ERROR`、`ISTATUS` 等）回源 cfx 寄存器区分。本段保留给未来新的大类 cause，当前必须全 0、子原因编码不得占用；同一 `excp_cause_id` 从不携带异步源。
 
 **（三）wyde2 `[47:32]`：`CFXPERM` 的子原因**。低字节 `[39:32]`（8 位，字节对齐）为 one-hot 权限原因；高字节 `[47:40]` **保留（必须 0）**。
 
@@ -485,35 +481,6 @@ jail mode 为受限用户模式，MVP 阶段与 user mode 行为一致。受限�
 | 7 | 4i+2 | space size | cfx_⟨cfxname⟩_space_size[i] | HW | RO | 空间块 `i` 的字节数；须满足 start + size ≤ 2^42；exists=0 时读 0 |
 | 7 | 4i+3 | space attr | cfx_⟨cfxname⟩_space_attr[i] | HW | RO | 空间块 `i` 的属性：bit0=R；bit1=W；bit2=X；bit3=cacheable；bit4=shareable；bit5=volatile/device；其余位保留读 0；exists=0 时读 0 |
 
-### 3.9 cg9 - cfx_hart 异步现场寄存器
-
-`cg9` 是 `cfx_hart`（cfxha 15，§4.7）专有的**异步现场寄存器组**；其他 cfx 不实现 `cg9`（访问 ⇒ `CFXREG`）。异步中断的现场、来源掩码与 pending 全部落在 `cg9`（§5.2），本表 16 项含 `rc13`–`rc15` reserved。
-
-- **有效帧判据** = `async_cause_id != 0`；**from_user** = `async_prev_run_mode == user`（`rc0`）。
-- `async_prev_run_mode` 取 2 位（0=user、1=jail、2=supv、3=hypv）；`async_prev_cfx_code` 取 6 位（cfxha）；`async_cause_ip`/`async_excp_vector` 取 48 位核内地址（按 4 字节对齐落盘，写入忽略低 2 位、不产生异常）。
-- `rc0`–`rc4` 的 `HW/RW` = 硬件在异步进入时写、软件可读写（快照/重建用）；`rc5`–`rc12` 为纯软件可读写配置。
-
-| cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
-|----|----|---------|---------|--------|------|------|
-| 9 | 0 | async prev run mode | cfx_hart_async_prev_run_mode | 0 | HW/RW | 异步前运行模式（2 位）；硬件进入时写，软件可写（快照/重建用） |
-| 9 | 1 | async prev cfx code | cfx_hart_async_prev_cfx_code | 0 | HW/RW | 异步前当前核芯功能扩展编号（6 位）；硬件进入时写，软件可写 |
-| 9 | 2 | async cause ip | cfx_hart_async_cause_ip | 0 | HW/RW | 异步发生处的**下一条指令地址**（48 位，4 字节对齐）；硬件进入时写，软件可写 |
-| 9 | 3 | async cause id | cfx_hart_async_cause_id | 0 | HW/RW | 异步 cause id（`1<<17`=TIMER、`1<<18`=PMEM_DMA）；**非零 = 有效帧**；软件写 0 释放帧 |
-| 9 | 4 | async saved global intr mask | cfx_hart_async_saved_global_intr_mask | 0 | HW/RW | 进入时保存的 `async_global_intr_mask`，供 `escape` 恢复 |
-| 9 | 5 | async pending | cfx_hart_async_pending | 0 | RW | 待处理异步位图（一个位图足够）；**位 = 源 cause id**（`1<<17`/`1<<18`），写 0 清位 |
-| 9 | 6 | async excp vector | cfx_hart_async_excp_vector | 0 | RW | supv 异步向量入口（48 位，4 字节对齐；写忽略低 2 位） |
-| 9 | 7 | async switch run mode | cfx_hart_async_switch_run_mode | 2 | RW | 异步进入时切换的运行模式；固定 supv（2） |
-| 9 | 8 | async global intr mask | cfx_hart_async_global_intr_mask | 全1 | RW | 全局异步来源掩码；位索引 = 来源 cfxha（15/32），0=允许、1=屏蔽 |
-| 9 | 9 | async user intr mask | cfx_hart_async_user_intr_mask | 全1 | RW | user 运行期异步来源掩码；位索引 = 来源 cfxha |
-| 9 | 10 | async jail intr mask | cfx_hart_async_jail_intr_mask | 全1 | RW | jail 运行期异步来源掩码；位索引 = 来源 cfxha |
-| 9 | 11 | async supv intr mask | cfx_hart_async_supv_intr_mask | 全1 | RW | supv 运行期异步来源掩码；位索引 = 来源 cfxha |
-| 9 | 12 | async hypv intr mask | cfx_hart_async_hypv_intr_mask | 全1 | RW | hypv 运行期异步来源掩码；位索引 = 来源 cfxha |
-| 9 | 13–15 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
-
-- **两套位索引不得混用**：`async_pending`（`rc5`）的位 = 源 **cause id**（`1<<17`/`1<<18`）；五个来源掩码（`rc8`–`rc12`）的位索引 = 来源 **cfxha**（TIMER=15、PMEM_DMA=32）。`0=允许`、`1=屏蔽`。
-- `rc9`–`rc12` 按事件到达时的当前运行模式（`inner_run_mode`）选行；`rc8` 为全局来源掩码，与运行期行同时生效（任一为 1 即屏蔽）。
-- 五个来源掩码初值全 1（与既有中断来源掩码口径一致），软件须按需清位放行。
-
 ## 4. 专有寄存器设计规范
 
 cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不同。此外，不同核芯功能扩展的异常编号不同，也在这部分分别说明。
@@ -524,7 +491,9 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 8 | 1 | global cfx intr mask（字段保留，异步用途作废） | cfx_umon_global_cfx_intr_mask | 全1 | RW | **不承担异步用途**：字段保留、读写不产生异常，其值不参与任何投递判定；异步全局来源掩码见 `cfx_hart cg9 rc8`（§3.9） |
+| 8 | 1 | async intr mask | cfx_umon_async_intr_mask | 全1 | RW | 本运行模式的异步来源掩码；位索引 = 源 cfxha（TIMER=15、PMEM_DMA=32），0=允许、1=屏蔽；投递时按**当前运行模式**取对应 monitor 的该寄存器求值（§5.4） |
+
+`trap`/`escape` **不保存、不恢复**该掩码（它是来源策略，不是异常现场）。
 
 **异常原因表**
 
@@ -548,7 +517,7 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 8 | 1 | global cfx intr mask（字段保留，异步用途作废） | cfx_jmon_global_cfx_intr_mask | 全1 | RW | **不承担异步用途**：字段保留、读写不产生异常，其值不参与任何投递判定；异步全局来源掩码见 `cfx_hart cg9 rc8`（§3.9） |
+| 8 | 1 | async intr mask | cfx_jmon_async_intr_mask | 全1 | RW | 本运行模式的异步来源掩码；位索引 = 源 cfxha，0=允许、1=屏蔽；投递时按当前运行模式取对应 monitor 的该寄存器求值（§5.4） |
 
 异常原因编码与 cfx_umon 一致；`CFXMEM`/`CFXPERM` 的 `cause_info` 恒为地址，子原因见 §3.6（wyde3 / wyde2）。
 
@@ -558,7 +527,7 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 8 | 1 | global cfx intr mask（字段保留，异步用途作废） | cfx_smon_global_cfx_intr_mask | 全1 | RW | **不承担异步用途**：字段保留、读写不产生异常，其值不参与任何投递判定；异步全局来源掩码见 `cfx_hart cg9 rc8`（§3.9） |
+| 8 | 1 | async intr mask | cfx_smon_async_intr_mask | 全1 | RW | 本运行模式的异步来源掩码；位索引 = 源 cfxha，0=允许、1=屏蔽；投递时按当前运行模式取对应 monitor 的该寄存器求值（§5.4） |
 
 异常原因编码与 cfx_umon 一致；`CFXMEM`/`CFXPERM` 的 `cause_info` 恒为地址，子原因见 §3.6（wyde3 / wyde2）。
 
@@ -568,7 +537,7 @@ cg8-cg63 为专有寄存器设计，不同的核芯功能扩展设计规范不�
 
 | cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
 |----|----|---------|---------|--------|------|------|
-| 8 | 1 | global cfx intr mask（字段保留，异步用途作废） | cfx_hmon_global_cfx_intr_mask | 全1 | RW | **不承担异步用途**：字段保留、读写不产生异常，其值不参与任何投递判定；异步全局来源掩码见 `cfx_hart cg9 rc8`（§3.9） |
+| 8 | 1 | async intr mask | cfx_hmon_async_intr_mask | 全1 | RW | 本运行模式的异步来源掩码；位索引 = 源 cfxha，0=允许、1=屏蔽；投递时按当前运行模式取对应 monitor 的该寄存器求值（§5.4） |
 
 hmon 为 hypv 下的同步异常处理核芯功能扩展，处理 hypv 下的同步异常。hmon 核芯功能扩展的寄存器的读写，只有当前运行环境是 hypv 时才能进行，否则触发 CFXREG 异常。
 
@@ -683,13 +652,32 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 | 8 | 5 | timer ctrl | cfx_hart_timer_ctrl | 0 | RW | bit0=ENABLE，bit1=IMASK，bit2=ISTATUS（RO）；其余保留 |
 | 8 | 6 | — | — | — | — | 保留 |
 | 8 | 7 | — | — | — | — | 保留 |
-| 9 | 0–15 | 异步现场 / 来源掩码 / pending | — | — | — | `cfx_hart` 专有异步现场寄存器组（16 项，逐项见 §3.9） |
+| 9 | 0–15 | 异步现场寄存器组 | — | — | — | `cfx_hart` 专有，7 槽 + `rc7`–`rc15` reserved，逐项见下表 |
 
-`cfx_time_value >= cfx_hart_timer_cmp` 且 `ENABLE=1` 时置 `ISTATUS`；`IMASK=0` 时触发 TIMER 中断。写新的 `timer_cmp` 即清除本次条件；写全 1 关闭。
+**cg9 异步现场寄存器（`cfx_hart` 专有）**
+
+`cg9` 是 `cfx_hart`（cfxha 15）专有的**异步现场寄存器组**；其他 cfx 不实现 `cg9`（访问 ⇒ `CFXREG`）。本表 7 槽，`rc7`–`rc15` reserved（访问触发 `CFXREG`）。
+
+| cg | rc | 寄存器名 | regname | 初始值 | 访问 | 说明 |
+|----|----|---------|---------|--------|------|------|
+| 9 | 0 | async prev run mode | cfx_hart_async_prev_run_mode | 0 | HW/RW | 异步前运行模式（2 位）；硬件进入时写，软件可写（快照/重建用） |
+| 9 | 1 | async prev cfx code | cfx_hart_async_prev_cfx_code | 0 | HW/RW | 异步前当前核芯功能扩展编号（6 位）；硬件进入时写，软件可写 |
+| 9 | 2 | async cause ip | cfx_hart_async_cause_ip | 0 | HW/RW | 异步精确点 = **已提交指令之后的 `rb0`**（48 位，4 字节对齐；跳转即目标）；硬件进入时写，软件可写 |
+| 9 | 3 | async src frame | cfx_hart_async_src_frame | 0 | HW/RO | 本帧源集合（64 位位图，位 = 源 cfxha）；**非 0 = 有效帧**；硬件进入时写，合法 `escape` 返回时清 0 释放帧；软件写忽略 |
+| 9 | 4 | async src pending | cfx_hart_async_src_pending | 0 | HW/RO | 未投递源集合（64 位位图，位 = 源 cfxha）；源事件置位、投递即清、源 ack 即落；软件写忽略 |
+| 9 | 5 | async excp vector | cfx_hart_async_excp_vector | 0 | RW | supv 异步向量入口（48 位，4 字节对齐；写忽略低 2 位、不产生异常） |
+| 9 | 6 | async switch run mode | cfx_hart_async_switch_run_mode | 2 | RW | 异步进入时切换的运行模式；固定 supv（2） |
+| 9 | 7–15 | reserved | — | — | — | 保留；访问触发 `CFXREG` |
+
+- **有效帧判据** = `async_src_frame != 0`；**from_user** = `async_prev_run_mode == user`（`rc0`）。
+- `async_prev_run_mode` 取 2 位（0=user、1=jail、2=supv、3=hypv）；`async_prev_cfx_code` 取 6 位（cfxha）；`async_cause_ip`/`async_excp_vector` 取 48 位核内地址（按 4 字节对齐落盘）。
+- `rc3`/`rc4` 两个位图**只由硬件写、软件只读**；`rc0`–`rc2` 为 `HW/RW`（硬件进入时写、软件可读写，供快照/重建）；`rc5`/`rc6` 为软件可读写配置。
+
+`cfx_time_value >= cfx_hart_timer_cmp` 且 `ENABLE=1` 时置 `ISTATUS`；`IMASK=0` 时触发 TIMER 中断。写新的 `timer_cmp` 即清除本次条件（并落 `async_src_pending` 的 bit 15）；写全 1 关闭。
 
 **异步中断入口与返回（hart-first）**
 
-`cfx_hart` 是所有异步源（`TIMER` = 本 cfx、`PMEM_DMA` = `cfx_pmem`）的**唯一投递目标**（§5.2）：入口为 **supv 单向量**——向量 = `cg9 rc6`（`async_excp_vector`）、目标模式 = `cg9 rc7`（`async_switch_run_mode`，固定 supv）、现场 = `cg9`（§3.9）；`cg9` 同时持有五个异步来源掩码（`rc8`–`rc12`）与 `async_pending`（`rc5`）。**无嵌套**：帧活动期（`async_cause_id != 0`）到达的新事件只置 `async_pending`；软件可快照整组 `cg9`、写 0 释放帧（`async_cause_id = 0`）或改写现场后返回。返回用 `escape cfx_hart` 并以 `imms18` bit1 = 1 选 `cg9` 现场（§5.1、§5.3），恢复 `async_prev_run_mode`/`async_prev_cfx_code`/`async_cause_ip` 与 `async_saved_global_intr_mask`。本 cfx 的 `excp_async_num`（`cg4 rc4`）计异步进入次数，`escape_num`（`cg4 rc5`）计退出次数。
+`cfx_hart` 是所有异步源（`TIMER` = 本 cfx、`PMEM_DMA` = `cfx_pmem`）的**唯一投递目标**（§5.4）：源身份 = **源 cfxha**（15/32），不占 `excp_cause_id`；入口为 **supv 单向量**——向量 = `cg9 rc5`（`async_excp_vector`）、目标模式 = `cg9 rc6`（`async_switch_run_mode`，固定 supv）、现场 = `cg9`；来源掩码不在本 cfx，而由**当前运行模式 monitor** 的 `cg8 rc1` 求值（§4.1–§4.4、§5.4）。**一帧多源**：同一指令边界上所有 pending 且放行的源一次性进入同一帧（`async_src_frame` 位图并集），`async_src_pending` 扣除对应位，`excp_async_num` 每次进入 +1、与源个数无关。**无嵌套**：帧活动期（`async_src_frame != 0`）到达的新事件只置 `async_src_pending`，不进入。**pending 跟随源**：源事件置位、投递即清、源 ack 即落（`timer_cmp` 重装 / `dma_status` W1C），不计数、软件不写。返回用 `escape cfx_hart` 并以 `imms18` bit1 = 1 选 `cg9` 现场（§5.1、§5.4）：合法返回即由硬件清 `async_src_frame` 释放帧，恢复 `async_prev_run_mode`/`async_prev_cfx_code` 并以 `async_cause_ip` 续跑，**不重放**被中断指令。本 cfx 的 `excp_async_num`（`cg4 rc4`）计异步进入次数，`escape_num`（`cg4 rc5`）计退出次数。
 
 **异常原因表**
 
@@ -700,7 +688,8 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 | `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 | `1 << 3`   | CFXESC   | escape 帧或目标错误 | 否 | 指令编码         |
 | `1 << 8`   | IPI       | 核间中断      | 可 | 中断源 hart ID（低 6 位有效，高 58 位保留为 0） |
-| `1 << 17`  | TIMER     | 本地定时器比较匹配 | 可 | 全零 |
+
+异步源（`TIMER`/`PMEM_DMA`）**不占本表**：源身份 = 源 cfxha，见 `cg9 async_src_frame` 的位（§5.4）；`IPI` 为可屏蔽的核间中断，沿用本表行。
 
 ### 4.8 cfx_llc - last level cache
 
@@ -734,7 +723,7 @@ SRAM 与物理存储器（PA）之间的块搬运由 cfx_pmem 的 DMA 完成（�
 - **地址**：`dma_src`/`dma_dst` 为 64 位；CFX 侧只取低 42 位、PA 侧只取低 56 位，高位**忽略**（不因高位非 0 报错）。
 - **长度**：`dma_size` 为 30 位，合法范围 `1..2^29`（512 MiB）。实际传输还受 64 KiB SRAM 范围、PA 56 位不溢出与目标可访问性约束。
 - **异步**：写 `dma_ctrl.START=1` 后 `dma_status.BUSY=1`，完成后硬件清 BUSY 并置 DONE（或 ERROR）；完成前软件不得复用 SRAM 与寄存器。
-- **单 hart**：`PMEM_DMA` 作为异步源统一投递到本 hart 的 `cfx_hart`（cfxha 15，§5.2），不进入 `cfx_pmem` 自身入口；多 hart 的接收者规则后续定义。
+- **单 hart**：`PMEM_DMA` 作为异步源统一投递到本 hart 的 `cfx_hart`（cfxha 15，§5.4），不进入 `cfx_pmem` 自身入口；多 hart 的接收者规则后续定义。
 
 **专有寄存器表**
 
@@ -773,9 +762,8 @@ cg15 其余 rc 保留，读写触发 CFXREG。`dma_ctrl` 写入时 START 自清�
 | `1 << 1`   | CFXMEM   | 访问核内地址空间或内部存储块故障 | 否 | 访存地址         |
 | `1 << 2`   | CFXREG   | 非法核芯功能扩展寄存器访问 | 否 | 指令编码         |
 | `1 << 3`   | CFXESC   | escape 帧或目标错误 | 否 | 指令编码         |
-| `1 << 18`  | PMEM_DMA | DMA 完成（DONE）或出错（ERROR） | 可 | `dma_status`（含 `ERR_CODE`） |
 
-`PMEM_DMA` 为异步异常（宏 cause `1 << 18`）：`dma_ctrl.IRQ_EN=1` 时 `DONE` 或 `ERROR` 置位触发；投递目标为 `cfx_hart`（§5.2），来源掩码位索引 = 本 cfx 的 cfxha（32）、pending 位 = `1 << 18`；被掩码屏蔽或 `cfx_hart` 异步帧活动期时置 `cfx_hart cg9` 的 `async_pending`（§3.9）。`cause_info` 携带触发时的 `dma_status` 值。
+**异步源标识（不占 `excp_cause_id`）**：`PMEM_DMA` 是异步源，**没有独立的 cause 编号**；源身份 = 本 cfx 的 cfxha（32），在 `cfx_hart cg9 async_src_frame` 中对应 bit 32。`dma_ctrl.IRQ_EN=1` 时 `DONE` 或 `ERROR` 置位触发，投递目标为 `cfx_hart`（§5.4）；被当前运行模式 monitor 的掩码屏蔽或 `cfx_hart` 帧活动期时置 `cfx_hart cg9 async_src_pending` 的 bit 32。异步进入**不携带 `cause_info`**：handler 按帧内位回本源读 `cfx_pmem_dma_status`（`cg15 rc4`，含 `ERR_CODE`）区分完成/出错。
 
 > shareability、inner/outer cacheability 等进阶属性留待多核 SMP 阶段再定义。当前单核 MVP 仅需 prefetchable 和 coherent 位即可满足。
 
@@ -850,9 +838,9 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 
 ## 5. 异常进入与异常退出
 
-**重要**：异常原因编码（`excp cause id`）分层——`[15:0]` **同步 cause one-hot** 在各核芯功能扩展间 **独立编址**（例如 `1<<8` 在 cfx_umon 中为 ILLI、在 cfx_hart 中为 IPI，互不干扰）；`[31:16]` **宏 cause 空间**承载**异步源**（`1<<17` = TIMER、`1<<18` = PMEM_DMA），**跨 cfx 全局编号**、与 `[15:0]` 同步 cause 互斥。每个 cfx 的同步 cause 空间为 0-15，硬件通过 cfxha 区分目标。
+**重要**：异常原因编码（`excp cause id`）分层——`[15:0]` **同步 cause one-hot** 在各核芯功能扩展间 **独立编址**（例如 `1<<8` 在 cfx_umon 中为 ILLI、在 cfx_hart 中为 IPI，互不干扰）；`[31:16]` **保留**，**异步源不占 `excp_cause_id`**（源身份 = 源 cfxha，见 §5.4）。每个 cfx 的同步 cause 空间为 0-15，硬件通过 cfxha 区分目标。
 
-**精确异常**：除下段的**多元素内存指令例外**外，所有同步异常和异步中断均为精确异常——IP 指向触发指令（同步）或下一条指令边界（异步），指令未完成，目标寄存器/内存/RA 未更新（无副作用）。页表步进异常（页表未映射 `CFXMEM`、权限拒绝 `CFXPERM`）同为精确——访存未执行。IALIGN 为精确异常——取指前检测 IP[1:0] ≠ 00，IP 停留在非法地址。浮点指令不触发异常，始终按 IEEE 754 标准返回结果，异常状态记录在 rf0[4:0] 中。
+**精确异常**：除下段的**多元素内存指令例外**外，所有同步异常和异步中断均为精确异常——同步异常的 `cause_ip` 指向触发指令、指令未完成（目标寄存器/内存/RA 未更新，无副作用）；异步中断在**指令边界**识别、被中断指令**已提交**（`rb0` 已更新；`call` 已写 `ra63`、`ret` 已弹栈），返回点是提交后的 `rb0`（§5.4）。页表步进异常（页表未映射 `CFXMEM`、权限拒绝 `CFXPERM`）同为精确——访存未执行。IALIGN 为精确异常——取指前检测 IP[1:0] ≠ 00，IP 停留在非法地址。浮点指令不触发异常，始终按 IEEE 754 标准返回结果，异常状态记录在 rf0[4:0] 中。
 
 **多元素内存指令例外（允许部分生效）**：取数存数类的多元素内存指令 `ldm.*`/`stm.*`（含 rf 形式 `ldm.t`/`ldm.o`/`stm.t`/`stm.o`，见 SimRISC-01）——**不要求**无副作用：处理多个元素的过程中若触发同步异常（如 `MALIGN`/`CFXMEM`/`CFXPERM`），异常进入时**允许此前已处理的元素已经生效**，即目的寄存器或内存可能已被部分更新。本条只解除「无副作用」要求，**不改变**异常原因、触发条件与 `excp_cause_ip`：**异常原因码必须与触发元素一致**，`excp_cause_ip` 仍指向该指令；软件因此不得假定这类指令异常时目的寄存器/内存保持原状。本例外成立的前提是**地址寄存器不被传送过程改写**：`ldm` 的基址/索引寄存器落入传送范围已被禁止（违反 ⇒ `ILLI`，见 SimRISC-01），`stm` 不写寄存器 ⇒ 无论异常落在哪个元素，地址都不随已生效元素改变。**单元素** `ld`/`st`（`rrii` 形式）仍须精确，本例外不适用；多元素指令即使异常源自页表步进或地址窗口检查，也按本条允许部分生效，而非按上段「页表步进异常访存未执行」处理。
 
@@ -860,7 +848,7 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 
 **精确是允许的更强行为，非必需**：实现可以在执行前对全部元素做**整段预检**，任一检查失败即不产生任何副作用，从而让上述多元素内存指令表现为精确。这是**允许的更强行为**；软件**不得依赖**它——未做整段预检的实现同样合规，同一程序在该实现上可能观察到部分生效。
 
-**中断信号为电平触发**：硬件源持续有效且 mask 开启时，中断在指令边界检查并触发。mask 解除后若 pending 仍置 1，在下一指令边界触发中断。多个 pending 位同时置 1 或不同 cfx 同时产生中断时，低编号 cfxha 优先。
+**中断信号为电平触发**：硬件源持续有效且掩码放行时，中断在指令边界检查。mask 解除后若 pending 仍置 1，在下一指令边界进入。同一指令边界上所有 pending 且放行的源**一次性进入同一帧**（`async_src_frame` 位图并集），不按 cfxha 串行投递，也不拆成多帧（§5.4）。
 
 **系统控制例外**：POWEROFF/HARD_RESET/SOFT_RESET 为系统控制动作，不适用一般异常处理的 IP/寄存器保存语义。
 
@@ -870,7 +858,7 @@ UART寄存器的读写操作通过 `cfx2rd`/`cfx2rc` 指令完成。若寄存器
 
 trap/escape/cfx2rd/cfx2rc 指令可以在任意运行模式下执行。若 cfxha 为 reserved 核芯功能扩展（6-14、16-31、35-61），硬件触发 ILLI 异常。对于常见的操作系统而言，并不希望由 user/jail 直接陷入或访问 hmon 到 power 之间的核芯功能扩展，则需要在这些核芯功能扩展的初始化代码中，设置好 `cfxtrap`/`cfxreg`/`cfxmem`/`cfxexe` 的来源 mask（缺省只允许 hmon）。
 
-`escape` 指令的第一个参数 `cfxha` 必须是**当前执行的 cfx**；返回的 cfx、运行模式和指令指针全部取自当前 cfx 的**所选帧**——同步异常帧为 `cg5`（§3.6），异步现场为 `cfx_hart cg9`（§3.9）。若 `cfxha` 非当前 cfx（目标错误）或所选帧无效（同步帧 `excp_cause_id = 0`；异步现场 `async_cause_id = 0`，或当前 cfx 无 `cg9`），硬件在切换前触发当前 cfx 的 `CFXESC`，不改变 cfx/运行模式。
+`escape` 指令的第一个参数 `cfxha` 必须是**当前执行的 cfx**；返回的 cfx、运行模式和指令指针全部取自当前 cfx 的**所选帧**——同步异常帧为 `cg5`（§3.6），异步现场为 `cfx_hart cg9`（§4.7）。若 `cfxha` 非当前 cfx（目标错误）或所选帧无效（同步帧 `excp_cause_id = 0`；异步现场 `async_src_frame = 0`，或当前 cfx 无 `cg9`），硬件在切换前触发当前 cfx 的 `CFXESC`，不改变 cfx/运行模式。
 
 `escape` 指令的第二个参数：**编码层** `imms18`（指令字偏移），其中 `imms18[0]` 为字节偏移的 bit2、`imms18[1]` 为**帧选择位**（0 = `cg5` 同步异常帧，1 = `cg9` 异步现场），`imms18[17:2]` 为 **SBZ**（手工编码非零 ⇒ `ILLI`）。合法 `imms18` 集合为 **`{0, 1, 2}`**：`0` = `cg5` 帧、字节偏移 0；`1` = `cg5` 帧、字节偏移 +4；`2` = `cg9` 异步现场、偏移恒 0（`cg9` **只允许偏移 0**）；`3`（`cg9` 帧 + 偏移 +4）⇒ `ILLI`。帧选择位为 0 时 `Addr = excp_cause_ip + (imms18 << 2)`，为 1 时 `Addr = async_cause_ip`。**汇编层** `imms20` 以字节为单位（`imms20 = imms18 << 2`），合法值 **`{0, 4, 8}`**，其中 `8` 表示选 `cg9` 现场、实际偏移 0。偏移是编译期固定的立即数，不支持任意地址跳转。常见用法如下：
 
@@ -880,14 +868,13 @@ trap/escape/cfx2rd/cfx2rc 指令可以在任意运行模式下执行。若 cfxha
 | 跳过触发指令（继续执行，`cg5` 帧） | `escape cfxha, [excp_cause_ip, 4]` | cause_ip + 4 |
 | 异步中断返回（`cg9` 现场） | `escape cfx_hart, [async_cause_ip, 8]` | async_cause_ip（偏移 0） |
 
-`escape` 选 `cg5` 帧时恢复 `excp_prev_run_mode`、`excp_prev_cfx_code`，以及 trap 进入时保存的 `global_cfx_intr_mask`；选 `cg9` 现场时恢复 `async_prev_run_mode`、`async_prev_cfx_code` 与 `async_saved_global_intr_mask`（§3.9），并把 `async_cause_ip` 作为返回地址。
+`escape` 选 `cg5` 帧时恢复 `excp_prev_run_mode`、`excp_prev_cfx_code`，并把 `excp_cause_ip`（加固定偏移）作为返回地址；选 `cg9` 现场时恢复 `async_prev_run_mode`、`async_prev_cfx_code`，把 `async_cause_ip` 作为返回地址，并由硬件**清 `async_src_frame` 释放本帧**（§4.7）。`escape` **不保存、不恢复**任何中断来源掩码（同步/异步皆然）：来源掩码是策略，不是异常现场。
 
 ### 5.2 异常进入流程
 
-X-mode（任意运行模式）下发生异常时，硬件自动执行以下操作序列。**执行期同步异常先进入当前运行模式的 monitor**；monitor 是第一处理者，可自行处理并 `escape`，也可 `trap` 到源 cfx。**异步中断统一进入 `cfx_hart`**（cfxha 15，hart-first），使用 `cfx_hart` 的 supv 单向量与 `cg9` 异步现场（§3.9），与同步异常彻底分流。
+X-mode（任意运行模式）下发生同步异常时，硬件自动执行以下操作序列。**执行期同步异常先进入当前运行模式的 monitor**；monitor 是第一处理者，可自行处理并 `escape`，也可 `trap` 到源 cfx。异步中断的进入/退出见 §5.4，与同步异常彻底分流。
 
 - 同步异常：当前运行模式到 monitor 的对应关系：`U-mode → cfx_umon (cfx0)`、`J-mode → cfx_jmon (cfx1)`、`S-mode → cfx_smon (cfx2)`、`H-mode → cfx_hmon (cfx3)`；使用**异常前**运行模式对应的 `<mode>_*` 寄存器行。
-- 异步中断：目标固定为 `cfx_hart`，不进入上述任一 monitor，也不进入源 cfx。
 
 **（一）同步异常路由（全部不可屏蔽）**
 
@@ -930,30 +917,19 @@ monitor 不再有独立的页表异常原因：页表未映射与 A/D 回写失�
 
 **（三）异常进入步骤**
 
-1. **确定异常原因与目标 cfx**：同步异常按（一）与（二）确定；异步中断的目标固定为 `cfx_hart`（cfxha 15，§3.9）。（`CFXTRAP` 目标为目标 `cfxha`，`CFXESC` 目标为当前核芯功能扩展。）
-2. **同步异常不可屏蔽**：同步异常全部不可屏蔽，不查任何异常原因掩码；异步中断只按来源过滤（下一步），也不查异常原因掩码。
-3. **异步中断来源过滤**（仅异步）：检查 `cfx_hart cg9` 的 `async_global_intr_mask`（`rc8`）与 `async_<mode>_intr_mask`（`rc9`–`rc12`，按事件到达时的当前运行模式选行）第 cfxha 位（位索引 = 中断来源 cfx）；任一为 1 则不投递，置 `cfx_hart cg9` 的 `async_pending`（`rc5`，位 = 源 cause id）。源 cfx（`cfx_hart`/`cfx_pmem`）不另设 delivery pending。
-4. **更新陷入计数**：根据异常类型递增目标 cfx 的 `trap_num`（`trap` 指令）、`excp_sync_num`（同步异常）或 `excp_async_num`（异步中断）。
-5. **保存现场**：同步异常把 `excp_prev_run_mode`（异常前运行模式）、`excp_prev_cfx_code`（异常前的当前核芯功能扩展编号 `inner_cfx_code`，**在本步之后才被第 6 步改写**）、`excp_cause_ip`（触发指令地址）、`excp_cause_id`、`excp_cause_info` 写入目标 cfx 的 `cg5`。异步中断把 `async_prev_run_mode`、`async_prev_cfx_code`、`async_cause_ip`（**下一条指令地址**）、`async_cause_id` 写入 `cfx_hart cg9`，并把 `async_global_intr_mask` 存入 `async_saved_global_intr_mask` 后将 `async_global_intr_mask` 置全 1，供 `escape` 恢复。`trap` 进入时另保存当前模式 monitor 的 `global_cfx_intr_mask` 并置全 1，供 `escape` 恢复（该字段不参与投递判定）；不保存独立的 cfx 屏蔽状态。
-6. **模式/目标切换**：`inner_run_mode` 取目标 cfx 的 `<mode>_switch_run_mode`（异步取 `cfx_hart cg9 rc7`，固定 supv），`inner_cfx_code` 取目标 cfx；**不切换独立 cfx 屏蔽层**（同步屏蔽层已拆除；异步来源过滤与 pending 由 `cfx_hart cg9` 承担）。
-7. **跳转至异常向量**：同步异常跳转至目标 cfx 的 `<mode>_excp_vector`，异步中断跳转至 `cfx_hart cg9 rc6`（`async_excp_vector`）。该地址与普通访存规则一致：`ptw_enable=0` 或地址 `addr[47:42] != 0` 时为核内地址，`ptw_enable=1` 且 `addr[47:42] = 0` 时为虚拟地址。软件须保证异常向量所在页不会发生页缺失，硬件不提供向量缺失的恢复机制。
+1. **确定异常原因与目标 cfx**：同步异常按（一）与（二）确定（`CFXTRAP` 目标为目标 `cfxha`，`CFXESC` 目标为当前核芯功能扩展）。
+2. **同步异常不可屏蔽**：同步异常全部不可屏蔽，不查任何异常原因掩码。
+3. **更新陷入计数**：按异常类型递增目标 cfx 的 `trap_num`（`trap` 指令）或 `excp_sync_num`（其它同步异常）。
+4. **保存现场**：把 `excp_prev_run_mode`（异常前运行模式）、`excp_prev_cfx_code`（异常前的当前核芯功能扩展编号 `inner_cfx_code`，**在本步之后才被第 5 步改写**）、`excp_cause_ip`（触发指令地址）、`excp_cause_id`、`excp_cause_info` 写入目标 cfx 的 `cg5`。**不保存任何中断来源掩码**（`trap`/`escape` 不搬移 monitor 的 `cg8 rc1`）。
+5. **模式/目标切换**：`inner_run_mode` 取目标 cfx 的 `<mode>_switch_run_mode`，`inner_cfx_code` 取目标 cfx。
+6. **跳转至异常向量**：跳转至目标 cfx 的 `<mode>_excp_vector`。该地址与普通访存规则一致：`ptw_enable=0` 或地址 `addr[47:42] != 0` 时为核内地址，`ptw_enable=1` 且 `addr[47:42] = 0` 时为虚拟地址。软件须保证异常向量所在页不会发生页缺失，硬件不提供向量缺失的恢复机制。
 
-**（四）异步中断（hart-first：统一进 `cfx_hart` 的 supv 单向量）**
-
-- 执行过程中的异步中断**统一投递 `cfx_hart`**（cfxha 15）：不进入当前运行模式 monitor，也不直接进入源 cfx。
-- **单帧单向量**：入口为 `cfx_hart` 的 supv 单向量（向量 = `cg9 rc6`、目标模式 = `cg9 rc7` 固定 supv），现场 = `cg9`（§3.9）；有效帧判据 = `async_cause_id != 0`，`from_user` = `async_prev_run_mode == user`。
-- **无嵌套**：帧活动期（`async_cause_id != 0`）到达的新事件**只置 `async_pending`**（位 = 源 cause id，按 OR 语义置位），不再进入；软件处理完并释放帧后由硬件补投。
-- **软件可管**：软件可**快照**整组 `cg9`（含五个来源掩码）、**写 0 释放帧**（`async_cause_id = 0` 并清 `async_pending` 对应位），或**重建**现场（改写 `async_prev_*`/`async_cause_ip`）后返回。释放帧应在 `escape` **之前**完成：此时 `async_global_intr_mask` 仍为全 1，新事件只置 `async_pending`、不会重入；`escape` 恢复 `async_saved_global_intr_mask` 后由硬件补投。`escape` 本身**不清** `async_cause_id`——帧的释放与重建一律由软件写 `cg9` 决定。
-- **返回**：`escape cfx_hart, [async_cause_ip, imms20]` 以 `imms18` bit1 = 1 选 `cg9` 现场（偏移恒 0），恢复运行模式、cfx 与 IP 并恢复 `async_saved_global_intr_mask`（§5.1、§5.3）。
-- **pending 不迁移**：`async_pending` 记在 `cfx_hart`（per-hart 单归处），跨模式（user↔supv）切换**不搬移**——归处唯一，实际无迁移动作；任务退出时其 pending **丢弃**，依赖源（TIMER 周期等）重触发。
-- 异步中断的抢占顺序列入后续修订；本节冻结「统一投递 `cfx_hart`」「处理期间不嵌套」「软件可快照/释放/重建」三条。
-
-**（五）伪代码**
+**（四）伪代码**
 
 ```
 // 注：伪代码中 cause 为 one-hot 值（如 CFXTRAP = 1<<0 = 1，ILLI = 1<<8 = 256）；
 //     异常原因表中 `1 << n` 的 n 即位索引，cause = 1 << n。
-//     同步异常全部不可屏蔽；异步中断统一进入 cfx_hart（cfxha 15），走 cg9 异步现场。
+//     同步异常全部不可屏蔽；异步中断的进入/退出见 §5.4。
 // 1. 确定异常原因与目标 cfx
 // temp_monitor_code 为伪代码临时变量：当前运行模式 monitor（U-mode→0、J-mode→1、S-mode→2、H-mode→3）
 case inner_run_mode of
@@ -987,123 +963,135 @@ elif instruction == ESCAPE:
 elif sync_cause ∈ {CFXREG, CFXPERM, CFXMEM, ILLI, UNDI, RASOF, RASUF, MALIGN, IALIGN}:
     ; 同步异常（非 trap/escape/cfx2* 路径）一律进入当前运行模式 monitor
     temp_cfx_code  <= temp_monitor_code
-elif async_intr:
-    ; 异步中断统一投递 cfx_hart（hart-first），不进入当前运行模式 monitor、不进入源 cfx
-    temp_cfx_code  <= 15
 
-// 2. 同步异常全部不可屏蔽，不查任何异常原因掩码；异步中断只按来源过滤（下一步）
-if async_intr:
+// 2. 同步异常全部不可屏蔽，不查任何异常原因掩码
 
-    // 3. 异步中断来源过滤（位索引 = 来源 cfxha；mask 与 pending 都在 cfx_hart cg9）
-    case inner_run_mode of                        // 运行期掩码按事件到达时的运行模式选行
-        U-mode: temp_async_mask <= cfx_hart_async_user_intr_mask
-        J-mode: temp_async_mask <= cfx_hart_async_jail_intr_mask
-        S-mode: temp_async_mask <= cfx_hart_async_supv_intr_mask
-        H-mode: temp_async_mask <= cfx_hart_async_hypv_intr_mask
-    if (temp_async_mask & (1 << intr_cfx)) != 0
-       or (cfx_hart_async_global_intr_mask & (1 << intr_cfx)) != 0:
-        cfx_hart_async_pending <= cfx_hart_async_pending | cause      // 位 = 源 cause id
-        return
-    // 无嵌套：帧活动期只置 pending，不再次进入
-    if cfx_hart_async_cause_id != 0:
-        cfx_hart_async_pending <= cfx_hart_async_pending | cause
-        return
-    cfx_hart_async_pending <= cfx_hart_async_pending & ~cause         // 投递即清该源位
-
-// 4. 更新陷入计数（异步的目标 cfx 为 cfx_hart）
+// 3. 更新陷入计数
 if cause == CFXTRAP:
     cfx_⟨cfxname⟩_trap_num        <= cfx_⟨cfxname⟩_trap_num + 1
-elif async_intr:
-    cfx_hart_excp_async_num       <= cfx_hart_excp_async_num + 1
 else:
     cfx_⟨cfxname⟩_excp_sync_num   <= cfx_⟨cfxname⟩_excp_sync_num + 1
 
-// 5. 保存现场
-if async_intr:
-    cfx_hart_async_prev_run_mode         <= inner_run_mode
-    cfx_hart_async_prev_cfx_code         <= inner_cfx_code    // 必须在第 6 步改写 inner_cfx_code 之前
-    cfx_hart_async_cause_ip              <= inner_excp_cause_ip  // 异步为下一条指令地址
-    cfx_hart_async_cause_id              <= inner_excp_cause_id
-    cfx_hart_async_saved_global_intr_mask <= cfx_hart_async_global_intr_mask
-    cfx_hart_async_global_intr_mask      <= 全1              // 帧活动期屏蔽新异步源，供 escape 恢复
-else:
-    cfx_⟨cfxname⟩_excp_prev_run_mode  <= inner_run_mode
-    cfx_⟨cfxname⟩_excp_prev_cfx_code  <= inner_cfx_code
-    cfx_⟨cfxname⟩_excp_cause_ip       <= inner_excp_cause_ip     // 同步为触发指令地址
-    cfx_⟨cfxname⟩_excp_cause_id       <= inner_excp_cause_id
-    cfx_⟨cfxname⟩_excp_cause_info     <= inner_excp_cause_info
-    if cause == CFXTRAP:                          // trap 保存 global 中断源掩码，供 escape 恢复
-        saved_global_cfx_intr_mask             <= cfx_⟨mode_monitor⟩_global_cfx_intr_mask
-        cfx_⟨mode_monitor⟩_global_cfx_intr_mask <= 全1
+// 4. 保存现场（不保存/恢复任何中断来源掩码）
+cfx_⟨cfxname⟩_excp_prev_run_mode  <= inner_run_mode
+cfx_⟨cfxname⟩_excp_prev_cfx_code  <= inner_cfx_code
+cfx_⟨cfxname⟩_excp_cause_ip       <= inner_excp_cause_ip     // 同步为触发指令地址
+cfx_⟨cfxname⟩_excp_cause_id       <= inner_excp_cause_id
+cfx_⟨cfxname⟩_excp_cause_info     <= inner_excp_cause_info
 
-// 6. 模式/目标切换（不切换独立 cfx 屏蔽层）
-if async_intr:
-    inner_run_mode <= cfx_hart_async_switch_run_mode    // 固定 supv
-else:
-    inner_run_mode <= cfx_⟨cfxname⟩_<mode>_switch_run_mode
+// 5. 模式/目标切换
+inner_run_mode <= cfx_⟨cfxname⟩_<mode>_switch_run_mode
 inner_cfx_code <= temp_cfx_code
 
-// 7. 跳转至异常向量
-if async_intr:
-    inner_inst_pointer <= cfx_hart_async_excp_vector
-else:
-    inner_inst_pointer <= cfx_⟨cfxname⟩_<mode>_excp_vector
+// 6. 跳转至异常向量
+inner_inst_pointer <= cfx_⟨cfxname⟩_<mode>_excp_vector
 ```
 
-异步中断统一进入 `cfx_hart` 的 supv 单向量；帧活动期到达的新事件只置 `async_pending`，不嵌套进入；软件可自行处理并 `escape`（`imms18` bit1 = 1 选 `cg9` 现场）。
+同步异常全部不可屏蔽，不查异常原因掩码；异步中断的进入与退出见 §5.4。
 
 ### 5.3 异常退出流程
 
-通过 `escape` 指令完成异常退出。`escape` 指令编码中指定了 `cfxha`，它必须是当前执行的核芯功能扩展（`inner_cfx_code`）；返回 cfx、运行模式与 IP 均取自当前 cfx 的**所选帧**——`imms18[1] = 0` 选 `cg5` 同步异常帧（§3.6），`imms18[1] = 1` 选 `cg9` 异步现场（仅 `cfx_hart`，§3.9）。下面的步骤和伪代码描述 `escape` 指令的硬件语义：
+通过 `escape` 指令完成同步异常退出（`cg5` 帧，`imms18[1] = 0`）；`cfxha` 必须是当前执行的核芯功能扩展（`inner_cfx_code`）。异步现场（`cg9` 帧）的返回见 §5.4；两种帧的编码与合法性检查统一见 §5.1。下面的步骤和伪代码描述 `escape` 在 `cg5` 帧上的硬件语义：
 
-0. **检查目标/帧**：若 `imms18[17:2] != 0`（SBZ 非零）或 `imms18 = 3`（`cg9` 现场且偏移 +4，非法），触发 ILLI；若 `cfxha` 为 reserved，触发 ILLI；若 `cfxha` 非当前 cfx，或所选帧无效（`cg5`：`excp_cause_id = 0`；`cg9`：非 `cfx_hart` 或 `async_cause_id = 0`），在切换任何状态前触发当前 cfx 的 `CFXESC`
-1. **恢复中断屏蔽**：`cg5` 帧恢复 trap 进入时保存的 `global_cfx_intr_mask`；`cg9` 现场恢复 `async_saved_global_intr_mask`（`async_cause_id` 的清零由软件写 `cg9` 完成，`escape` 不改写它）
-2. **恢复运行模式与当前 cfx**：`cg5` 帧依据 `cfx_⟨cfxname⟩_excp_prev_run_mode` / `cfx_⟨cfxname⟩_excp_prev_cfx_code`；`cg9` 现场依据 `cfx_hart_async_prev_run_mode` / `cfx_hart_async_prev_cfx_code`；均还原为异常发生前的运行模式与当前核芯功能扩展（`inner_cfx_code`）
-3. **更新退出计数并跳转**：`cfx_⟨cfxname⟩_escape_num` 递增 1；返回地址 = `cg5` 帧 `excp_cause_ip + ((imms18 & 1) << 2)`（编译期固定偏移）、`cg9` 现场 `async_cause_ip`（偏移恒 0）
+0. **检查目标/帧**：若 `imms18[17:2] != 0`（SBZ 非零）或 `imms18 = 3`（`cg9` 现场且偏移 +4，非法），触发 ILLI；若 `cfxha` 为 reserved，触发 ILLI；若 `cfxha` 非当前 cfx，或所选帧无效（`cg5`：`excp_cause_id = 0`），在切换任何状态前触发当前 cfx 的 `CFXESC`。
+1. **恢复运行模式与当前 cfx**：依据 `cfx_⟨cfxname⟩_excp_prev_run_mode` / `cfx_⟨cfxname⟩_excp_prev_cfx_code`，还原为异常发生前的运行模式与当前核芯功能扩展（`inner_cfx_code`）。
+2. **更新退出计数并跳转**：`cfx_⟨cfxname⟩_escape_num` 递增 1；返回地址 = `excp_cause_ip + ((imms18 & 1) << 2)`（编译期固定偏移）。
+3. **不恢复任何来源掩码**：`trap`/`escape` 不保存、不恢复 `cfx_<monitor>_async_intr_mask`（`cg8 rc1`），也不恢复其它 cfx 屏蔽状态。
 
 ```
-// 0. 检查目标/帧（imms18[1] = 帧选择位：0 = cg5，1 = cg9）
+// 0. 检查目标/帧（本节仅 cg5 同步帧；imms18[1] = 0）
 if imms18[17:2] != 0:
     cause <= ILLI                            // SBZ 非零
     ; 进入当前模式 monitor
     goto check_nonmaskable
 if imms18 == 3:
-    cause <= ILLI                            // cg9 现场只允许偏移 0
+    cause <= ILLI                            // cg9 现场只允许偏移 0（本帧选择位为 0 时不会命中）
     ; 进入当前模式 monitor
     goto check_nonmaskable
 if cfxha ∈ {6..14, 16..31, 35..61}:
     cause <= ILLI
     ; 进入当前模式 monitor
     goto check_nonmaskable
-if imms18[1] == 0:
-    frame_ok <= (cfx_⟨cfxname⟩_excp_cause_id != 0)          // cg5 同步帧
-else:
-    frame_ok <= (cfxha == 15 and cfx_hart_async_cause_id != 0)   // cg9 异步现场，仅 cfx_hart
+frame_ok <= (cfx_⟨cfxname⟩_excp_cause_id != 0)          // cg5 同步帧
 if cfxha != inner_cfx_code or !frame_ok:
     cause <= CFXESC                            // 当前 cfx 帧/目标错误
     ; 进入当前 cfx（CFXESC 为不可屏蔽）
     temp_cfx_code <= inner_cfx_code
     goto check_nonmaskable
 
-if imms18[1] == 0:
-    // 1a. 恢复 trap 保存的 global 中断屏蔽
-    cfx_⟨saved_mode_monitor⟩_global_cfx_intr_mask <= saved_global_cfx_intr_mask
-    // 2a. 恢复运行模式与当前 cfx（取自 cg5 帧）
-    inner_run_mode   <= cfx_⟨cfxname⟩_excp_prev_run_mode
-    inner_cfx_code   <= cfx_⟨cfxname⟩_excp_prev_cfx_code
-    // 3a. 更新退出计数并跳转
-    cfx_⟨cfxname⟩_escape_num <= cfx_⟨cfxname⟩_escape_num + 1
-    inner_inst_pointer       <= cfx_⟨cfxname⟩_excp_cause_ip + ((imms18 & 1) << 2)
-else:
-    // 1b. 恢复异步进入时保存的全局来源掩码
-    cfx_hart_async_global_intr_mask <= cfx_hart_async_saved_global_intr_mask
-    // 2b. 恢复运行模式与当前 cfx（取自 cg9 现场）
-    inner_run_mode   <= cfx_hart_async_prev_run_mode
-    inner_cfx_code   <= cfx_hart_async_prev_cfx_code
-    // 3b. 更新退出计数并跳转（偏移恒 0）
-    cfx_hart_escape_num <= cfx_hart_escape_num + 1
-    inner_inst_pointer  <= cfx_hart_async_cause_ip
+// 1. 恢复运行模式与当前 cfx（取自 cg5 帧）
+inner_run_mode   <= cfx_⟨cfxname⟩_excp_prev_run_mode
+inner_cfx_code   <= cfx_⟨cfxname⟩_excp_prev_cfx_code
+// 2. 更新退出计数并跳转
+cfx_⟨cfxname⟩_escape_num <= cfx_⟨cfxname⟩_escape_num + 1
+inner_inst_pointer       <= cfx_⟨cfxname⟩_excp_cause_ip + ((imms18 & 1) << 2)
 ```
+
+### 5.4 异步中断进入与退出
+
+异步中断由 `cfx_hart`（cfxha 15）统一承接（hart-first），与同步异常分流：不进入当前运行模式 monitor，也不直接进入源 cfx。本节冻结进入/退出语义；源内动作（如 TIMER 计数、DMA 完成）仍由源 cfx 定义。
+
+**（一）源身份与来源掩码**
+
+- **源身份 = 源 cfxha**：`TIMER` = 15（本 cfx）、`PMEM_DMA` = 32（`cfx_pmem`）。异步源**不占 `excp_cause_id`**，没有独立 cause 编号；一个源 cfx 至多一个异步 cause，同源内的差异（`DONE`/`ERROR`、`ISTATUS`）回源 cfx 寄存器区分。
+- **来源掩码归 monitor**：`cfx0`/`cfx1`/`cfx2`/`cfx3`（`umon`/`jmon`/`smon`/`hmon`）的 `cg8 rc1` 为 `cfx_<monitor>_async_intr_mask`：位 = 源 cfxha，`0=允许`、`1=屏蔽`，复位全 1。投递时按**当前运行模式**取该模式 monitor 的掩码求值（U→umon、J→jmon、S→smon、H→hmon）。
+- **没有全局掩码/运行期行/保存掩码**：`cfx_hart cg9` 只放现场与两个位图；`trap`/`escape` 不保存、不恢复来源掩码。
+
+**（二）pending 语义（跟随源事件）**
+
+- `cfx_hart cg9 rc4`（`async_src_pending`）表达"该源当前有未投递事件"：源事件到达时硬件置对应位；投递时清除该位；源在源 cfx 被 ack（`timer_cmp` 重装 / `dma_status` W1C）后自动落位。
+- **不计数**（事件幂等）且**软件不写**：两个位图均为 HW 写 / SW 只读，软件写忽略、不产生异常。
+
+**（三）一帧多源（无嵌套）**
+
+- 在同一指令边界上，所有 `async_src_pending` 中置位且被当前运行模式掩码**放行**的源，**一次性**进入**同一帧**：`async_src_frame` = 这些位的并集，`async_src_pending` 扣除这些位，`excp_async_num` **每次进入 +1**（与源个数无关）。
+- **不串行、不嵌套**：不允许把同一 IP 的多个源拆成两帧串行投递。帧活动期（`async_src_frame != 0`）到达的新事件只置 `async_src_pending`，不再次进入；`escape` 释放帧后由硬件按下一指令边界补投。
+
+**（四）精确点**
+
+- 异步在**指令边界**识别；被中断指令**已提交**（`rb0` 已更新；`call` 已写 `ra63`、`ret` 已弹栈）。
+- `async_cause_ip` = **提交后的 `rb0`**（跳转即目标）；`escape` 用它返回、**不重放**被中断指令。因此"跳转指令执行后、目标指令取指前到期"的异步，返回点是跳转目标。
+
+**（五）进入步骤**
+
+```
+// 源侧（任一指令边界之外）：事件到达即置 pending 位，与当前模式无关
+cfx_hart_async_src_pending <= cfx_hart_async_src_pending | (1 << src_cfxha)
+
+// 指令边界（当前指令已提交）：
+case inner_run_mode of
+    U-mode: temp_mask <= cfx_umon_async_intr_mask
+    J-mode: temp_mask <= cfx_jmon_async_intr_mask
+    S-mode: temp_mask <= cfx_smon_async_intr_mask
+    H-mode: temp_mask <= cfx_hmon_async_intr_mask
+
+temp_allowed <= cfx_hart_async_src_pending & ~temp_mask
+if cfx_hart_async_src_frame == 0 and temp_allowed != 0:
+    cfx_hart_async_src_frame             <= temp_allowed      // 一帧多源：位图并集
+    cfx_hart_async_src_pending          <= cfx_hart_async_src_pending & ~temp_allowed
+    cfx_hart_async_prev_run_mode        <= inner_run_mode
+    cfx_hart_async_prev_cfx_code        <= inner_cfx_code
+    cfx_hart_async_cause_ip             <= rb0               // 已提交指令之后
+    inner_run_mode                      <= cfx_hart_async_switch_run_mode   // 固定 supv
+    inner_cfx_code                      <= 15
+    inner_inst_pointer                  <= cfx_hart_async_excp_vector
+    cfx_hart_excp_async_num             <= cfx_hart_excp_async_num + 1
+// 否则：无放行源或帧活动期 ⇒ 不进入，pending 保留
+```
+
+**（六）handler 取值（异步无 `cause_info`）**
+
+- 异步进入**不携带 `cause_info`**：`async_src_frame` 的位集合即"本帧有哪些源"；handler 按帧内位回**源 cfx**读寄存器或调用该 cfx 的系统功能——`TIMER` → `cfx_hart cg8 rc5`（`ISTATUS`）、`PMEM_DMA` → `cfx_pmem cg15 rc4`（`dma_status`，含 `ERR_CODE`）。
+- `from_user` = `async_prev_run_mode == user`；`async_prev_run_mode`/`async_prev_cfx_code` 为 HW/RW，软件可在 `escape` 前重建现场。
+
+**（七）退出（`escape` 返回并释放帧）**
+
+- 返回用 `escape cfx_hart, [async_cause_ip, 8]`（`imms18 = 2`，帧选择位 `imms18[1] = 1`、偏移恒 0）；编码与合法性检查见 §5.1。
+- 若 `cfxha != inner_cfx_code`、当前 cfx 非 `cfx_hart`，或 `async_src_frame = 0`，在切换任何状态前触发当前 cfx 的 `CFXESC`。
+- 合法返回：恢复 `async_prev_run_mode`/`async_prev_cfx_code`，`inner_inst_pointer <= async_cause_ip`，`cfx_hart_escape_num` 递增，并由硬件**清 `async_src_frame`**（合法返回即释放帧）。**没有**"软件写 0 丢弃帧"的路径；需要换上下文就先改写 `prev_*`/`async_cause_ip` 再 `escape`。`escape` 不恢复任何来源掩码。
+- **计数**：`cfx_hart` 的 `excp_async_num`（`cg4 rc4`）按进入次数计（一帧 +1），`escape_num`（`cg4 rc5`）按退出次数计。
+- **pending 不迁移**：`async_src_pending` 记在 per-hart 的 `cfx_hart`（单一归处），跨模式切换不搬移；任务退出时其 pending 丢弃，依赖源重触发。
+- 异步中断的抢占顺序与多 hart 接收规则列入后续修订；本节冻结"统一投递 `cfx_hart`""一帧多源""处理期间不嵌套""合法 `escape` 释放帧"四条。
 
 ---
 
@@ -1112,6 +1100,8 @@ else:
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.8.0-rc（未发布）
+
+- 异步中断模型修订（内容改，版本仍 0.8.0-rc）：异步来源掩码由 `cfx_hart cg9` 改为**当前运行模式 monitor** 的 `cg8 rc1`（`cfx_<monitor>_async_intr_mask`：位 = 源 cfxha、`0=允许`/`1=屏蔽`、复位全 1），删除 `cg0`–`cg3` 的 `rc4` 与 `cfx_hart` 的五个来源掩码及保存掩码；`trap`/`escape` 不再保存/恢复掩码。源身份统一为**源 cfxha**（`TIMER`=15、`PMEM_DMA`=32），取消宏 cause 17/18，异步不占 `excp_cause_id`。`cfx_hart cg9` 精简为 7 槽（`prev_run_mode`/`prev_cfx_code`/`cause_ip`/`src_frame`/`src_pending`/`excp_vector`/`switch_run_mode`，`rc7`–`rc15` 保留），`src_frame`/`src_pending` 硬件写、软件只读；同一指令边界上的多个 pending 且放行的源一次性进入同一帧（位图并集），无嵌套；pending 跟随源事件（投递即清、源 ack 即落、不计数）；异步无 `cause_info`。第 5 章新增「异步中断进入与退出」专节，`§5.2`/`§5.3` 收窄为同步并指向该节。`escape` 编码不变。
 
 - 异步中断投递由「先入当前运行模式 monitor」改为 **hart-first**：所有异步源（`TIMER`、`PMEM_DMA`）统一投递 `cfx_hart`（cfxha 15），入口为其 **supv 单向量**（`async_excp_vector` 与 `async_switch_run_mode` 固定 supv）；异步现场、五个来源掩码与 pending 集中在 `cfx_hart` 新增的 `cg9`（16 项，`§3.9`），**无嵌套**（帧活动期只置 pending）、**pending 不迁移**（per-hart 单归处），软件可**快照**整组 `cg9`、**写 0 释放帧**或**重建**现场后返回。`escape` 增加**帧选择位 `imms18[1]`**（0 = `cg5` 同步帧、1 = `cg9` 异步现场）：合法 `imms18 ∈ {0, 1, 2}`（`3` ⇒ `ILLI`）、`imms18[17:2]` 为 SBZ、`cg9` 只允许偏移 0，汇编层 `imms20 ∈ {0, 4, 8}`（`§5.1`/`§5.3` 同步）。`cg0`–`cg3` 的 `rc4`（`<mode>_cfx_intr_mask`）与 `cfx0`–`cfx3` 的 `cg8 rc1`（`global_cfx_intr_mask`）的**异步用途作废**（字段保留、不参与投递判定）。`§1`/`§3.1`–`§3.4`/`§3.9`/`§4.1`–`§4.4`/`§4.7`/`§4.9`/`§5.1`/`§5.2`/`§5.3` 同步。版本号保持 0.8.0-rc（不升号）。
 

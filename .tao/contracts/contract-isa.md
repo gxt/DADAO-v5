@@ -1204,7 +1204,7 @@ OPC-MISC 编码变更后，32 位全零指令字（0x00000000）的 op = 0x00 �
 
 - **执行模式**：`trap`/`escape`/`cfx2rd`/`cfx2rc` 可在任意运行模式下执行，具体是否允许由各核芯功能扩展的 cfx mask 寄存器和指令类型 cfx mask 寄存器控制。[SimRISC-11 §指令域与执行条件]
 - **cfxha 写法**：`cfx<cfxha>`（如 `cfx63`）与 `cfx_<cfxname>`（如 `cfx_power`）等价，均编码为 6 位 cfxha。[SimRISC-11 §指令域与执行条件]（别名表见 `contract-cfx-aliases.md`、`ADR-0017`。）
-- **`escape` 位宽关系**：汇编层 `imms20` 为**字节**值（`imms20 = imms18 << 2`，合法值 `{0, 4, 8}`：`0`/`4` = `cg5` 同步帧偏移 0/+4，`8` = `cg9` 异步现场偏移 0）；编码层 `imms18[0]` 为字节偏移 bit2、`imms18[1]` 为**帧选择位**（`0` = `cg5`、`1` = `cg9`）、`imms18[17:2]` 为 SBZ（非零 ⇒ ILLI），`imms18 = 3`（`cg9` 帧 + 偏移 +4）⇒ ILLI；`cg5` 帧实际地址 `Addr = excp_cause_ip + ((imms18 & 1) << 2)`，`cg9` 现场取 `async_cause_ip`（偏移恒 0）。[DADAO-12 §5.1 指令行为说明][DADAO-12 §5.3 异常退出流程][DADAO-12 §3.9 cg9 - cfx_hart 异步现场寄存器][SimRISC-11 §退出指令][Toolchain-01 §3.2]
+- **`escape` 位宽关系**：汇编层 `imms20` 为**字节**值（`imms20 = imms18 << 2`，合法值 `{0, 4, 8}`：`0`/`4` = `cg5` 同步帧偏移 0/+4，`8` = `cg9` 异步现场偏移 0）；编码层 `imms18[0]` 为字节偏移 bit2、`imms18[1]` 为**帧选择位**（`0` = `cg5`、`1` = `cg9`）、`imms18[17:2]` 为 SBZ（非零 ⇒ ILLI），`imms18 = 3`（`cg9` 帧 + 偏移 +4）⇒ ILLI；`cg5` 帧实际地址 `Addr = excp_cause_ip + ((imms18 & 1) << 2)`，`cg9` 现场取 `async_cause_ip`（偏移恒 0）。[DADAO-12 §5.1 指令行为说明][DADAO-12 §5.3 异常退出流程][DADAO-12 §4.7 cfx_hart - hart management][SimRISC-11 §退出指令][Toolchain-01 §3.2]
 - **legality**：这 4 条的静态编码规则为 **`encode_cfx_reserved`**——`cfxha` 为保留核芯功能扩展（6–14、16–31、35–61）⇒ **ILLI**（`contracts/opcodes.yaml` 的 `legality`/`rule_refs` 由此派生；`fence` 同）。读写不存在组合 / 权限不匹配 → **CFXREG** 属**实现/运行期**语义，不在汇编/编码期约束（见 `ADR-0020`）。[SimRISC-11 §指令域与执行条件][SimRISC-11 §寄存器传输指令]
 - **编码位置**：op = `0111-1010`/`0111-1011`/`0111-1110`/`0111-1111`（0x7A/0x7B/0x7E/0x7F），均 `mask = 0xFF000000`。[SimRISC-00 §SimRISC QFC]
 

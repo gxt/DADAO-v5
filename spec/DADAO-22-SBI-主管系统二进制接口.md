@@ -297,12 +297,14 @@ cfx_hart_supv_excp_handler:
     set.rd   rd3, 1
     br.eq {rd2, rd3}?, [rb0, cfx_hart_trap_dispatch]
 
-    @@ TIMER (1<<10) → 定时器中断
-    set.rd   rd3, 1024
-    br.eq {rd2, rd3}?, [rb0, cfx_hart_timer_int]
-
 cfx_hart_unknown:
     escape cfx_hart, [excp_cause_ip, 4]
+
+cfx_hart_async_excp_handler:
+    cfx2rd  cfx_hart_async_src_frame, rd2     @@ 本帧源集合，位 = 源 cfxha（TIMER=15、PMEM_DMA=32）
+    @@ TIMER：rd2 的 bit15 置位时回 cfx_hart cg8 rc5 读 ISTATUS
+    @@ PMEM_DMA：rd2 的 bit32 置位时回 cfx_pmem cg15 rc4 读 dma_status（含 ERR_CODE）
+    escape cfx_hart, [async_cause_ip, 8]      @@ 释放本帧并续跑（异步不携带 cause_info）
 
 cfx_hart_trap_dispatch:
     cfx2rd  cfx_hart_excp_cause_info, rd2
@@ -741,6 +743,8 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.8.0-rc（未发布）
+
+- 与 SEE 的异步模型修订同步（内容改，版本仍 `0.8.0-rc`）：同步入口示例只保留 `CFXTRAP` 分支；新增异步入口示例，按 `cfx_hart cg9 async_src_frame` 的源 cfxha 位（`TIMER`=15、`PMEM_DMA`=32）回源 cfx 读寄存器，并用 `escape cfx_hart, [async_cause_ip, 8]` 释放帧。异步源不再使用宏 cause 17/18、不占 `excp_cause_id`；来源掩码在**当前运行模式 monitor** 的 `cg8 rc1`。**SBI 语义未变**（功能码、入参、返回值与调用约定均不变）。
 
 - 与 SEE 同步：异步投递模型由 SEE 册定为 **hart-first**（所有异步源统一投递 `cfx_hart`，现场/来源掩码/pending 在其 `cg9`；投递与返回语义见 SEE 册 §5.2、§3.9）；**SBI 语义未变**（功能码、入参、返回值与调用约定均不变）。异步 cause 号改**宏 cause 空间 `[31:16]`**（`TIMER = 1<<17`、`PMEM_DMA = 1<<18`），与 `[15:0]` 同步 cause 不撞号。不兼容语义变更，版本升 **0.8.0**。
 

@@ -17,7 +17,7 @@
 1. **`cg9` 改 7 槽**（`DADAO-12 §4.7`）：
    - `rc0 prev_run_mode`、`rc1 prev_cfx`、`rc2 cause_ip`（= 提交后的 `rb0`）、`rc3 src_frame`（64b，**HW/RO**，位 = 源 cfxha，非 0 = 有效帧）、`rc4 src_pending`（64b，**HW/RO**，位 = 源 cfxha）、`rc5 excp_vector`、`rc6 switch_run_mode`（固定 supv=2）；`rc7–15` reserved ⇒ `CFXREG`。
    - 删除原 `rc3 cause_id` 的 17/18 语义、`rc4 saved_global_intr_mask`、`rc8–rc12` 五个掩码。
-   - 读写属性按 `m18-spec-004` 落地结果（RO 字段写的行为以 spec 为准，探针同步）。
+   - 读写属性按 `m18-spec-004` 落地结果：`src_frame`/`src_pending` 为 **HW/RO，软件写忽略、读回不变、不产生异常**（与 cycle/insn 的"写 ⇒ `CFXREG`"不同）。
 2. **来源掩码移 monitor**：`cfx0`/`cfx1`/`cfx2`/`cfx3` 的 `cg8 rc1` 实现为"本运行模式异步来源掩码"（位 = 源 cfxha，复位全 1，`0=允许`/`1=屏蔽`）；投递时按 `inner_run_mode` 选行求值。删除 `cfx_hart` 侧掩码相关逻辑。
 3. **仲裁**：同一指令边界把**所有** `pending && !masked` 的源一次性投进一帧：`src_frame` = 这些位的并集、`src_pending` 扣除这些位、`excp_async_num` +1；`src_frame != 0` 时新事件只置 pending（无嵌套）；**不要**逐源循环投递。
 4. **pending 跟随源事件**：投递即清位；源被 ack（`timer_cmp` 重装 / `dma_status` W1C）后 pending 自动落；软件不写。

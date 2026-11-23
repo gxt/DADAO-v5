@@ -1449,3 +1449,12 @@
   closed_in: null
   resolved_by: null
   title: "【P4】`contract-see` 的 power `start` 写 `0x3_ffc0_0000`，与 `spec/Kaiwu §3`/`machine.yaml(vast)` 的 `0x3ff_ffc0_0000` 差一位（`m16-testcases-016` 复核发现，既有笔误、非该任务引入）。随下次 contract-see 变更订正。"
+- id: ISS-527
+  scope:
+  - spec
+  - docs
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`m18-spec-004`（ADR-0061）落地后的活文档残留与口径矛盾，需 M18 会话立册收尾（建议 `m18-spec-005`）：① `spec/Kaiwu` L74/92/152/595 仍写 `rc4=cfx_intr_mask`、`cg8 rc1=global_cfx_intr_mask`、escape 恢复掩码；② `spec/IDL-ISA…` L312/322/325/327/464 仍用 `async_cause_id`/`async_saved_global_intr_mask`/恢复掩码；③ `spec/SimRISC-11` L94 注释名 `async_cause_id`；④ `docs/DDLN/C-资源管理` DD-C002 L56、DD-C003 L53/56/58、DD-C004 L71 仍写 monitor 掩码/pending；⑤ `DADAO-12`/`DADAO-22` 变更记录并存互斥两条（改 17/18 与取消 17/18）且引已删 `§3.9`；⑥ `m18-spec-004` 的 `run.sh` 对 §5.4 无嵌套判据无语义断言（仅靠 manifest sha 变红），需补一条。另：`ADR-0061` Consequences 未列上述文档，architect 补列。"
