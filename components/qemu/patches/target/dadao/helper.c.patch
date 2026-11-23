@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..7978774
+index 0000000..4ce0a20
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,3857 @@
+@@ -0,0 +1,3844 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -3148,22 +3148,23 @@ index 0000000..7978774
 + * pending store.  Source identity never occupies excp_cause_id.  The only
 + * mask is the *running mode* monitor's cg8 rc1 (`async_intr_mask`, bit = source
 + * cfxha, 1 = masked).  One instruction boundary merges every pending and
-+ * allowed source into one frame; a live frame (src_frame != 0) accepts no new
-+ * frame, only more pending bits. */
++ * allowed source into one capture.  cg9 is a capture buffer, not a live
++ * frame: a previous capture (src_frame != 0) never blocks a new entry, the
++ * entry overwrites cg9 and there is no valid bit (ADR-0061 R2 D3/D4). */
 +
 +/* The two sources this machine implements. */
 +#define DADAO_ASYNC_SOURCE_MASK (DADAO_ASYNC_SRC_TIMER | DADAO_ASYNC_SRC_PMEM)
 +
-+/* Bits that may enter a frame at this instruction boundary: pending, allowed
++/* Bits that may enter a capture at this instruction boundary: pending, allowed
 + * by the running mode monitor's mask, and opened by the source-local gate
-+ * (TIMER IMASK).  0 while a frame is live (no nesting) or without a hart. */
++ * (TIMER IMASK).  0 without a hart or when nothing is deliverable. */
 +static uint64_t dadao_async_allowed(CPUDADAOState *env)
 +{
 +    DadaoHartAsync *a = dadao_hart_async(env);
 +    int mon;
 +    uint64_t allowed;
 +
-+    if (!a || a->src_frame != 0) {
++    if (!a) {
 +        return 0;
 +    }
 +    mon = cfx_idx(env, env->inner_run_mode & 0x3);
@@ -3178,9 +3179,11 @@ index 0000000..7978774
 +    return allowed;
 +}
 +
-+/* DADAO-12 §5.4(五): enter one frame carrying `src_bits`.  The caller has
-+ * already filtered by mask and nesting; the bits are consumed from pending and
-+ * become the frame's source set.  `excp_async_num` counts frames, not sources. */
++/* DADAO-12 §5.4(五): enter one capture carrying `src_bits`.  The caller has
++ * already filtered by the running mode mask; the bits are consumed from
++ * pending and become the capture's source set.  Every entry overwrites cg9
++ * (`prev_*`/`cause_ip`/`src_frame`), even while a previous capture is still
++ * readable; `excp_async_num` counts entries, not sources. */
 +static bool dadao_async_enter(CPUDADAOState *env, uint64_t src_bits,
 +                              uint64_t cause_ip)
 +{
@@ -3191,12 +3194,12 @@ index 0000000..7978774
 +    if (!a || ci < 0 || src_bits == 0) {
 +        return false;                   /* profile has no cfx_hart */
 +    }
-+    a->src_frame = src_bits;            /* one frame, union of the sources */
++    a->src_frame = src_bits;            /* capture: union of these sources */
 +    a->src_pending &= ~src_bits;        /* delivered: consumed from pending */
-+    /* cfx_hart's async-entry counter: once per frame (D3). */
++    /* cfx_hart's async-entry counter: once per entry (D3). */
 +    env->cfx[ci].excp_async_num++;
-+    /* Save the frame.  prev_cfx_code is sampled before the switch rewrites
-+     * inner_cfx_code; async_cause_ip is the next instruction address. */
++    /* Overwrite the capture.  prev_cfx_code is sampled before the switch
++     * rewrites inner_cfx_code; async_cause_ip is the next instruction address. */
 +    a->prev_run_mode = entry_mode & 0x3;
 +    a->prev_cfx_code = env->inner_cfx_code & 0x3F;
 +    a->cause_ip = cause_ip & 0x0000FFFFFFFFFFFFULL & ~0x3ULL;  /* 48-bit, aligned */
@@ -3214,8 +3217,9 @@ index 0000000..7978774
 +}
 +
 +/* Re-raise CPU_INTERRUPT_HARD when a source may now be delivered.  Called from
-+ * every point that can unblock one (mask/pending writes, escape, a new source
-+ * event); never spins, because exec_interrupt clears HARD on each call. */
++ * every point that can unblock one (mask writes, a new source event, the
++ * cg5 sync escape); never spins, because exec_interrupt clears HARD on each
++ * call. */
 +static void dadao_async_kick(CPUDADAOState *env)
 +{
 +    if (dadao_async_allowed(env) != 0) {
@@ -3223,14 +3227,14 @@ index 0000000..7978774
 +    }
 +}
 +
-+/* Deliver one frame with every pending and allowed source; true iff entered. */
++/* Deliver one capture with every pending and allowed source; true iff entered. */
 +bool dadao_async_arbitrate(CPUState *cs)
 +{
 +    CPUDADAOState *env = cpu_env(cs);
 +    uint64_t allowed = dadao_async_allowed(env);
 +
 +    if (allowed == 0) {
-+        return false;                   /* nothing runnable / live frame */
++        return false;                   /* nothing deliverable */
 +    }
 +    return dadao_async_enter(env, allowed, env->pc);
 +}
@@ -3465,21 +3469,22 @@ index 0000000..7978774
 +
 +/* escape cfxha, imms18 : §5 exception-exit flow (steps 0-4).  `cfxha` is the
 + * current cfx.  `imms18[0]` is the cg5 byte-offset bit (0 / +4) and
-+ * `imms18[1]` is the frame selector: 0 = cg5 synchronous frame, 1 = cfx_hart
-+ * cg9 async frame (offset fixed 0).  Legal `imms18` values are {0, 1, 2}:
-+ * 3 (cg9 + offset +4) and any imms18[17:2] != 0 raise ILLI before any state
-+ * switch; a wrong target or an invalid frame raises CFXESC (current cfx). */
++ * `imms18[1]` is the frame selector: 0 = cg5 synchronous frame, 1 = the cfx_hart
++ * cg9 capture buffer.  Legal `imms18` values are {0, 1, 2}: 3 (cg9 + offset +4)
++ * and any imms18[17:2] != 0 raise ILLI before any state switch; a wrong target
++ * raises CFXESC.  cg9 is a capture buffer, not a return frame: selecting it
++ * (imms18 = 2) is an invalid frame and also raises the current cfx's CFXESC,
++ * leaving run mode / cfx / cg9 untouched (ADR-0061 R2 D9; DADAO-12 §5.1/§5.4(七)). */
 +void helper_cfx_escape(CPUDADAOState *env, uint32_t cfxha, uint32_t imms18,
 +                       uint64_t pc)
 +{
 +    uint64_t info = ((uint64_t)0x7E << 24) | ((uint64_t)(cfxha & 0x3F) << 18) |
 +                    (uint64_t)(imms18 & 0x3FFFF);
 +    uint32_t sel = imms18 & 0x3u;
-+    bool async_frame;
 +    int ci;
 +
 +    /* step 0: encoding check (imms18[17:2] SBZ; imms18 == 3 is cg9 + offset
-+     * +4, which the async frame does not allow). */
++     * +4, which no frame allows). */
 +    if ((imms18 & ~0x3u) != 0 || sel == 3) {
 +        cfx_raise(env, DADAO_CAUSE_ILLI, env->inner_run_mode, pc, info);
 +        return;
@@ -3489,36 +3494,18 @@ index 0000000..7978774
 +        return;
 +    }
 +    ci = cfx_idx(env, env->inner_cfx_code);
-+    /* CFXESC: target error (cfxha must be the current cfx) or no frame. */
++    /* CFXESC: target error (cfxha must be the current cfx) or invalid frame. */
 +    if (ci < 0 || cfxha != env->inner_cfx_code) {
 +        cfx_raise(env, DADAO_CAUSE_CFXESC, env->inner_cfx_code, pc, info);
 +        return;
 +    }
-+    async_frame = (sel & 0x2u) != 0;
-+    if (async_frame) {
-+        DadaoHartAsync *a = &env->cfx[ci].async;
-+
-+        if (dadao_cfxha_map[ci] != DADAO_CFXHA_HART || a->src_frame == 0) {
-+            cfx_raise(env, DADAO_CAUSE_CFXESC, env->inner_cfx_code, pc, info);
-+            return;
-+        }
-+        /* step 1b: a legal return releases the frame (no software "write 0"
-+         * path); the frame bitmap is the validity bit (DADAO-12 §5.4(七)). */
-+        a->src_frame = 0;
-+        /* step 2b: restore the pre-async run mode / cfx from cg9.  No mask is
-+         * saved or restored: it is the running mode's policy, not frame state. */
-+        env->inner_run_mode = a->prev_run_mode & 0x3;
-+        env->inner_cfx_code = a->prev_cfx_code & 0x3F;
-+        dadao_soft_tlb_flush(env);
-+        /* step 3b: counter and return IP (async offset is fixed 0). */
-+        env->cfx[ci].escape_num++;
-+        env->pc = a->cause_ip & ~0x3ULL;
-+        env->rb[0] = env->pc;
-+#ifndef CONFIG_USER_ONLY
-+        /* Deliver what accumulated while the frame was live: the next
-+         * instruction boundary evaluates the restored mode's mask. */
-+        dadao_async_kick(env);
-+#endif
++    if (sel & 0x2u) {
++        /* imms18[1] = 1 names cg9, the capture buffer of the last entry; it is
++         * never a return frame (the software copies it out and discards it, and
++         * returns through smon/umon), so the selected frame is invalid: raise
++         * CFXESC before changing any state.  Neither cg9 nor run mode / cfx
++         * move here (no "release the frame", no counter). */
++        cfx_raise(env, DADAO_CAUSE_CFXESC, env->inner_cfx_code, pc, info);
 +        return;
 +    }
 +    if (env->cfx[ci].cause_id == 0) {

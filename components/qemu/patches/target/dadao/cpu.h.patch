@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..f58f689
+index 0000000..a81320e
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,789 @@
+@@ -0,0 +1,790 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -535,9 +535,9 @@ index 0000000..f58f689
 + * implements cg9; every other cfx reports CFXREG.  Seven slots: the frame
 + * (prev_run_mode/prev_cfx_code/cause_ip), two HW/RO bitmaps indexed by the
 + * source cfxha (TIMER = 15, PMEM_DMA = 32), the vector and the switch mode.
-+ * `src_frame != 0` means a live frame; `escape` clears it.  rc7-rc15 are
-+ * reserved (CFXREG).  There is no mask here: masks belong to the running
-+ * mode monitor's cg8 rc1. */
++ * cg9 is the capture buffer of one entry, not a live frame: every entry
++ * overwrites it and there is no valid bit.  rc7-rc15 are reserved (CFXREG).
++ * There is no mask here: masks belong to the running mode monitor's cg8 rc1. */
 +typedef struct DadaoHartAsync {
 +    uint64_t prev_run_mode;          /* rc0 (2 bits: user/jail/supv/hypv) */
 +    uint64_t prev_cfx_code;          /* rc1 (6 bits: cfxha before entry) */
@@ -774,11 +774,12 @@ index 0000000..f58f689
 +/* cfx_time + single-hart cfx_hart timer (DADAO-12 §4.7/§4.10; INTEG-050t) */
 +void dadao_hart_timer_init(CPUState *cs);
 +void dadao_hart_timer_reset(CPUDADAOState *env);
-+/* Unified async arbitration (INTEG-051t; hart-first, ADR-0061 D1/D3): every
-+ * asynchronous source records its pending bit in cfx_hart cg9 rc4 (bit =
++/* Unified async arbitration (INTEG-051t; hart-first, ADR-0061 D1/D3/R2):
++ * every asynchronous source records its pending bit in cfx_hart cg9 rc4 (bit =
 + * source cfxha 15/32); one instruction boundary merges all pending sources
-+ * allowed by the running mode monitor's cg8 rc1 into a single frame
-+ * (cg9 rc3 src_frame), delivered to cfx_hart's supv async vector (cg9 rc5). */
++ * allowed by the running mode monitor's cg8 rc1 into one capture (cg9 rc3
++ * src_frame, overwritten on every entry), delivered to cfx_hart's supv async
++ * vector (cg9 rc5). */
 +bool dadao_async_arbitrate(CPUState *cs);
 +#endif
 +

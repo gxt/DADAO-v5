@@ -1,6 +1,6 @@
 diff --git a/target/dadao/cpu.c b/target/dadao/cpu.c
 new file mode 100644
-index 0000000..d78e78f
+index 0000000..508b9fa
 --- /dev/null
 +++ b/target/dadao/cpu.c
 @@ -0,0 +1,679 @@
@@ -610,10 +610,10 @@ index 0000000..d78e78f
 +     * delivery record of every asynchronous source lives in cfx_hart cg9 rc4
 +     * (bit = source cfxha: TIMER 15, PMEM_DMA 32); no monitor or source cfx
 +     * holds a pending bit.  One instruction boundary merges every pending and
-+     * allowed source into a single frame (cg9 rc3 src_frame) delivered to
-+     * cfx_hart's supv async vector (cg9 rc5/rc6).  A masked source, or a live
-+     * frame, only accumulates pending; mask writes, `escape` and new events
-+     * re-kick.  Clearing HARD unconditionally keeps the model from spinning;
++     * allowed source into one capture (cg9 rc3 src_frame, overwritten on every
++     * entry) delivered to cfx_hart's supv async vector (cg9 rc5/rc6).  Only a
++     * masked source accumulates pending; mask writes and new events re-kick.
++     * Clearing HARD unconditionally keeps the model from spinning;
 +     * cfx_hart cg9 rc4 is the only re-delivery record.
 +     */
 +    delivered = dadao_async_arbitrate(cs);

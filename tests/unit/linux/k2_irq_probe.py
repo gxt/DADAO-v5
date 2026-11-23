@@ -14,7 +14,7 @@ Boot path under test:
 
     power -> hmon -> smon -> kernel entry -> setup_arch -> time_init ->
     async vector -> monitor source mask -> arm -> TIMER tick -> [P1, P3, P5, P2] ->
-    [P4: in-frame + after-escape] -> masked exit
+    [P4: in-capture copy + return through smon] -> masked exit
 
 What is derived live (nothing is restated):
 
@@ -32,8 +32,9 @@ Checks: C0 static inputs / C1 image + stage order / P1 save-restore round trip
 (plus the absolute anchor ISS-457 added: the saved word == the contract's reset
 value — all-ones — minus the source bit, so a high-half truncation cannot stay
 self-consistent) /
-P2 masked window + merged re-delivery / P3 nested saves / P4 no nesting inside a
-live frame and delivery right after `escape` / P5 `arch_irqs_disabled()` versus
+P2 masked window + merged re-delivery / P3 nested saves / P4 capture overwrite
+inside the async handler (every entry overwrites cg9; nesting is the software's
+job) and the software copy/return through smon / P5 `arch_irqs_disabled()` versus
 the live register and the enable-granularity anchor (ISS-457: enable == disable
 with only the source bits cleared) / U1 hard-IRQ context inside the handler
 (`in_hardirq()` == 1; m14-linux-044) / U2 `sched_clock()` vs `cfx_time` (same
@@ -126,7 +127,7 @@ CONFIG_PINS = {
 IMAGE = config_pins.config_lines(CONFIG_PINS)
 
 #: Deliveries the case sequence forces: the first tick, the event merged out of
-#: the P2 masked window, and the P4 event delivered after `escape`.  The floor is
+#: the P2 masked window, and the P4 capture copied out of cg9.  The floor is
 #: the capability claim; the exact count is not pinned.
 TICK_FLOOR = 3
 
@@ -627,7 +628,8 @@ def check_p2(rep: Report, text: str, d: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# P4: a live frame blocks nesting; `escape` delivers the parked event
+# P4: every entry overwrites cg9; the software copies the capture out and
+# returns through smon (ADR-0061 R2: no "live frame", no `escape` async return)
 # ---------------------------------------------------------------------------
 
 def check_p4(rep: Report, text: str, d: dict) -> None:
@@ -642,11 +644,15 @@ def check_p4(rep: Report, text: str, d: dict) -> None:
     rep.check("P4", "帧内窗口 == period/2（现场派生）", period // 2, window)
     rep.check("P4", "帧内已等满窗口（测量真实）", True, elapsed >= window)
     rep.check("P4", "帧内事件到期（ISTATUS 置位）", 1, (ctrl >> 2) & 1)
-    rep.check("P4", "帧内不再进第二次 tick（global 仍挡）", 0, waited)
+    # R2: a nested capture inside the handler overwrites cg9 instead of being
+    # parked behind a "live frame" bit; the kernel copies the capture out and
+    # returns through smon.  No hardware anti-reentry assertion is derivable
+    # (the "waited" count is reported, not judged).
     rep.check("P4", "帧内报告的 period == freq/HZ", period, printed_period)
-    rep.check("P4", "escape 后补投恰 +1", tick + 1, after)
-    rep.check("P4", "补投紧跟在帧结束之后（不是周期重挂那一次）", True,
-              gap < period // 2)
+    # Return/copy path: the ticks that follow may not lose the one the capture
+    # carries, so the post-return count never moves backwards.
+    rep.check("P4", "返回后 tick 计数不倒退（软件搬运不丢帧）", True,
+              after >= tick)
     rep.stat(f"P4 frame tick={tick} waited={waited} ctrl={ctrl:#x} "
              f"after={after} gap={gap} period={printed_period}")
 
@@ -805,8 +811,8 @@ def run_selfcheck(result: dict, spec: dict) -> int:
          "enable 把整行写 0（其余位没保持）"),
         ("P2", lambda t: re.sub(r"(P2: masked ticks=)0", r"\g<1>3", t),
          "屏蔽窗内照样 tick"),
-        ("P4", lambda t: re.sub(r"(waited_ticks=)0", r"\g<1>1", t),
-         "同一帧内进了第二次 tick"),
+        ("P4", lambda t: re.sub(r"(P4: frame tick=)\d+", r"\g<1>9999", t),
+         "返回后 tick 倒退（搬运丢帧）"),
         ("C9", lambda t: re.sub(r"(done ticks=\d+ mask=)\S+", r"\g<1>0x0", t),
          "退出时掩码已被放开"),
         ("C1", lambda t: re.sub(r"^K2 irq: done ticks=\d+ mask=\S+\n", "", t,
@@ -902,20 +908,6 @@ INJECTIONS: dict[str, tuple] = {
         ("monitor", "supv", "CFXREG"),
         r"^dadao: unrecoverable supv exception cause=CFXREG", r"^K2 irq: done",
         ("C0",),
-    ),
-    # ②b restore also clears the source bit in the mode-level global row: the
-    #     frame's own protection is that row, so the P4 event is delivered
-    #     *inside* the live frame — the hazard contract-see §6.3/§6.4 names.
-    "global-row-unmask": (
-        IRQFLAGS,
-        [(("static inline void arch_local_irq_restore(unsigned long flags)\n"
-           "{\n\tdadao_irq_mask_row_write(flags);\n}\n"),
-          ("static inline void arch_local_irq_restore(unsigned long flags)\n"
-           "{\n\tdadao_irq_mask_row_write(flags);\n"
-           "\tDADAO_CFX_WRITE(cfx_smon, 8, 1,\n"
-           "\t\t\tdadao_irq_mask_row_smon() & ~DADAO_IRQ_SOURCE_BITS);\t"
-           "/* injected */\n}\n"))],
-        None, r"^K2 irq P2: released ", r"^K2 irq P4: ", ("P4",),
     ),
     # ③ arch_irqs_disabled_flags() judged as `flags == 0` instead of a bit test.
     "flags-is-zero": (

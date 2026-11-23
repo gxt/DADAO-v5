@@ -690,10 +690,10 @@ def check_single_row(rep: Report, rc: int, text: str, hart: int) -> None:
     (`cg2 rc4`); `cfx_hart`'s row keeps its reset all-1 value.
     spec/DADAO-12 §5.2 step 3 filters asynchronous sources on the mode monitor's
     `<mode>_cfx_intr_mask`, so the whole tick series must still complete.  A
-    filter that reads the *current cfx's* row delivers exactly one tick after
-    the first frame (current cfx = cfx_hart) and parks every later event in
-    pending — m14-linux-007's measurement, and the `two-row` injection below
-    puts the second write back to show the gate still notices it.
+    filter that reads the *current cfx's* row would stop matching the running
+    mode's policy (cg9 is only the capture buffer of one entry, ADR-0061 R2),
+    and the `two-row` injection below puts the second write back to show the
+    gate still notices it.
     """
     bit = 1 << hart
     # The source half: one row, and the delivered cfx's row is not one of them.

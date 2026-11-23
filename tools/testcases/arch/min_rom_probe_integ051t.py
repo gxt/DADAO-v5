@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
 """Min ROM probe for INTEG-051t: hart-first asynchronous arbitration.
 
-The probe checks the test-machine convention after ADR-0061:
+The probe checks the test-machine convention after ADR-0061 (including R2):
 
   * ``doc`` (pure Python, no QEMU): the contract-see arbitration entry and the
     patch tree (pending/frame bitmaps in cfx_hart cg9, masks on the running
     mode monitor only, no macro cause id, no async_enable, one async entry).
   * ``runtime`` (min-ROM, QEMU): every asynchronous source is identified by its
     **source cfxha** (TIMER 15, PMEM_DMA 32), never by an ``excp_cause_id``.
-    Delivery is hart-first: ``cfx_hart cg9 rc3`` is the frame source bitmap and
-    ``rc4`` the pending bitmap (both HW/RO); the source mask is the *running
+    Delivery is hart-first: ``cfx_hart cg9 rc3`` is the capture's source bitmap
+    and ``rc4`` the pending bitmap (both HW/RO); the source mask is the *running
     mode* monitor's ``cg8 rc1`` (``cfx_<monitor>_async_intr_mask``, reset all-1).
     One instruction boundary merges every pending and allowed source into one
-    frame; a live frame (``src_frame != 0``) admits no nesting; a legal
-    ``escape`` releases the frame.
+    capture.  cg9 is a **capture buffer**, not a live frame: every entry
+    overwrites ``prev_*``/``cause_ip``/``src_frame`` (no ``frame_valid``, no
+    software clear, no ``src_frame != 0`` gate); the software copies the
+    capture into its task context and returns through smon (the probe models
+    that with ``trap cfx_smon`` + a cfx_smon ``cg5`` frame rewrite).  Executing
+    ``escape imms18 = 2`` is not an async return: cg9 is not a return frame, so
+    it raises the current cfx's ``CFXESC`` and changes nothing.
 
 Expectations are derived by hand from the frozen spec / contract:
   - spec/DADAO-12 §4.1-§4.4 (monitor async mask), §4.7 (cg9 seven slots,
-    timer), §4.9 (cfx_pmem DMA), §5.1/§5.4 (escape frame selector, entry/exit).
+    timer), §4.9 (cfx_pmem DMA), §5.1/§5.4 (escape frame selector, capture),
+    §5.2/§5.3 (sync entry/exit, escape on cg5).
   - .tao/contracts/contract-see.md §3 «统一异步中断（测试机约定，hart-first）».
   Never from the QEMU implementation.
 
@@ -26,9 +32,10 @@ checked in-program and reported through the semihosting SYS_EXIT code, so no
 case depends on a ``-d cpu`` dump block.
 
 Bootstrap (body runs in hmon / cfx3, hypv, via the shared prelude):
-  1. open cfx_hart's cg9 and cfx_smon's cg5 for supv (``hypv_cg_reg_deleg=0x8``);
+  1. open cfx_hart's cg9 and cfx_smon's cg5 for supv (``hypv_cg_reg_deleg=0x8``),
+     and let supv ``trap`` into cfx_smon (cfx_smon's supv ``cg2 rc0`` bit15 = 0);
   2. install ``cfx_hart cg9 rc5`` = async handler, ``rc6`` = supv (2);
-  3. install cfx_smon's supv vector = sync-exception recorder;
+  3. install cfx_smon's supv vector = async-return / sync-exception recorder;
   4. poison cfx_hmon's hypv vector (any monitor hop would exit FAIL);
   5. leave every monitor mask at its reset value (all-1); each case opens the
      source bits it needs through ``cfx2rc <monitor>, cg8, rc1``.
@@ -105,6 +112,7 @@ SRC_BOTH = SRC_TIMER | SRC_PMEM
 
 ILLI = 1 << 8
 CFXREG = 1 << 2
+CFXESC = 1 << 3
 CTRL_START = 1 << 0
 CTRL_IRQ_EN = 1 << 2
 CTRL_ENABLE = 1 << 0
@@ -135,12 +143,14 @@ W_TMP = 19
 W_NOW, W_CMP = 20, 21
 W_DEAD, W_BOUND, W_MAX, W_WIT = 26, 27, 28, 29
 
-# ROM layout: body-relative handler slots.
+# ROM layout: body-relative handler slots (0x400 apart: the smon handler holds
+# the async hand-off plus the sync-cause recorder).
 OFF_MAIN_HND = 0x2000
-OFF_FRAME_HND = 0x2200
-OFF_SMON_HND = 0x2400
-OFF_POISON = 0x2600
-ROM_END = 0x2800
+OFF_FRAME_HND = 0x2400
+OFF_SMON_HND = 0x2800
+OFF_POISON = 0x2C00
+OFF_HART_SYNC_HND = 0x3000     # cfx_hart's own supv sync vector (CFXESC)
+ROM_END = 0x3200
 
 # RAM state block (zero-filled; rb5 = RAM_BASE).
 RAM_STATE = 0x3000
@@ -159,6 +169,8 @@ RAM_SYNC_ID = RAM_STATE + 0x58
 RAM_ILLI_N = RAM_STATE + 0x60
 RAM_CFXREG_N = RAM_STATE + 0x68
 RAM_ARM_IP = RAM_STATE + 0x70        # body address of the arm marker
+RAM_CFXESC_N = RAM_STATE + 0x78      # sync CFXESC count (escape on cg9)
+RAM_HANDOFF = RAM_STATE + 0x80       # 1 while the async handler hands off to smon
 
 SEMIHOST_TAG = 0x3FF00
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
@@ -326,14 +338,13 @@ def _count_source(a, frame_rd, srcbit, off, tag):
     a.mark(skip)
 
 
-def build_async_handler(extra=None):
-    """Record the cg9 frame, then escape back to ``async_cause_ip``.
+def _record_capture(a):
+    """Read the cg9 capture into rd30..rd34, then count it in RAM.
 
-    Registers 30..39 are handler scratch; the body only uses 5..25.
-    `extra` words run inside the frame after the recording (ILLI/CFXREG
-    encoding cases).  Each word must not clobber rd30..rd39 expectations.
+    Registers 30..39 are handler scratch; the body only uses 5..25.  The
+    capture is read first (it is overwritten by any later entry), so the
+    software-side copy is done before anything else runs.
     """
-    a = Asm()
     a.emit(cfx2rd(HART_HA, 9, RC_FRAME, 30))
     a.emit(cfx2rd(HART_HA, 9, RC_PENDING, 31))
     a.emit(cfx2rd(HART_HA, 9, RC_CAUSE_IP, 32))
@@ -357,64 +368,140 @@ def build_async_handler(extra=None):
     a.emit(st_o(34, 5, RAM_LAST_PREVC))
     _count_source(a, 30, SRC_TIMER, RAM_TIMER_N, "t")
     _count_source(a, 30, SRC_PMEM, RAM_PMEM_N, "p")
+
+
+def _hand_off(a):
+    """Software hand-off: `trap cfx_smon`, then the smon handler rebuilds a cg5
+    frame from the copied capture and `escape`s to its cause_ip (ADR-0061 D4).
+
+    A correct hand-off never returns here: the cfx_smon `cg5` escape jumps to
+    the capture's `async_cause_ip`.  Reaching the trailing exit means the
+    hand-off path was lost.
+    """
+    a.emit(*load_rd(36, 1))
+    a.emit(st_o(36, 5, RAM_HANDOFF))
+    a.emit(trap(SMON_HA, 0))            # cfx_smon supv vector = hand-off handler
+    a.emit(*exit_seq(0x6F))             # unreachable on a correct return
+
+
+def build_async_handler(extra=None):
+    """Record the cg9 capture, then hand off to smon and return.
+
+    `extra` words run inside the capture before the hand-off (ILLI/CFXREG/
+    CFXESC encoding cases).  Each word must not clobber rd30..rd39.
+    """
+    a = Asm()
+    _record_capture(a)
     if extra:
         a.emit(*extra)
     a.emit(*load_rd(36, 0))
     a.emit(st_o(36, 5, RAM_DEPTH))
-    a.emit(escape(HART_HA, 2))          # cg9 frame, offset 0 (releases it)
+    _hand_off(a)
     return a.resolve()
 
 
-def build_frame_handler():
-    """PMEM frame: arm TIMER inside the live frame, prove no nesting."""
+def build_nested_handler():
+    """First capture arms a second event; the nested capture exits the guest.
+
+    Under R2 an entry while the handler runs overwrites cg9 as usual (the
+    event is not parked behind a "live frame"): the nested handler sees
+    prev_mode = supv / prev_cfx = cfx_hart and a capture bitmap that is exactly
+    the new source set.  The guest exits from the nested instance, so no
+    unwinding is needed.
+    """
     a = Asm()
-    body = build_async_handler()[:-1]   # drop the trailing escape
-    a.emit(*body)
-    # Arm TIMER for now+500 while src_frame != 0.  The event may only become
-    # pending; the frame bitmap must not change and no second frame may enter.
+    _record_capture(a)
+    # Nested capture (seq became 2): assert the overwrite and end the case.
+    a.emit(ld_o(36, 5, RAM_SEQ))
+    a.emit(*load_rd(37, 2))
+    nested = "nest_capture_%d" % len(a.words)
+    a.br("eq", 36, 37, nested)
+    # First capture: arm TIMER so it expires at the current cycle, then idle.
+    # The expiry sets pending bit 15 and the running mode's (smon) mask decides
+    # delivery, i.e. the second entry.
     a.emit(cfx2rd(HART_HA, HART_CG, 2, 36))
-    a.emit(add_si(36, -1))           # already expired: the ctrl write fires it
+    a.emit(add_si(36, -1))
     a.emit(cfx2rc(HART_HA, HART_CG, 4, 36))
     a.emit(*load_rd(36, CTRL_ENABLE))
     a.emit(cfx2rc(HART_HA, HART_CG, 5, 36))
-    # Inside the frame the TIMER source must not appear in src_frame ...
-    a.emit(cfx2rd(HART_HA, 9, RC_FRAME, 38))
-    ok0 = "frame_kept"
-    a.emit(*load_rd(39, SRC_PMEM))
-    a.br("eq", 38, 39, ok0)
-    a.emit(*exit_seq(0x71))
-    a.mark(ok0)
-    # ... no TIMER frame may have entered ...
-    a.emit(ld_o(38, 5, RAM_TIMER_N))
-    ok1 = "frame_nohart"
-    a.br("z", 38, 0, ok1)
-    a.emit(*exit_seq(0x72))
-    a.mark(ok1)
-    # ... but the TIMER pending bit (source cfxha 15) must be recorded.  Poll
-    # with cfx2rd so the main loop can run the virtual-clock timer callback.
-    a.emit(*load_rd(37, 4000))
-    poll = "frame_poll"
-    ok2 = "frame_pending"
-    a.mark(poll)
-    a.emit(cfx2rd(HART_HA, 9, RC_PENDING, 38))
-    a.emit(*load_rd(39, SRC_TIMER))
-    a.emit(and_o(38, 38, 39))
-    a.br("nz", 38, 0, ok2)
-    a.emit(add_si(37, -1))
-    a.br("nz", 37, 0, poll)
-    a.emit(*exit_seq(0x73))
-    a.mark(ok2)
-    # The parked TIMER becomes the next frame after this escape; point the
-    # vector back at the plain handler (this handler would arm another timer).
-    a.emit(*load_rd(36, hmon_addr(OFF_MAIN_HND)))
-    a.emit(cfx2rc(HART_HA, 9, RC_VECTOR, 36))
-    a.emit(escape(HART_HA, 2))
+    delay_loop(a, 20000, "nest")        # the nested capture exits the guest
+    a.emit(*exit_seq(0x0C1))             # no nested entry happened
+    a.mark(nested)
+    # The nested capture must be exactly the TIMER source (overwrite, not union).
+    a.emit(*load_rd(37, SRC_TIMER))
+    nok0 = "nest_frame"
+    a.br("eq", 30, 37, nok0)
+    a.emit(*exit_seq(0x0C2))
+    a.mark(nok0)
+    # It entered from supv / cfx_hart: the first handler was still running.
+    a.emit(*load_rd(37, 2))
+    nok1 = "nest_mode"
+    a.br("eq", 33, 37, nok1)
+    a.emit(*exit_seq(0x0C3))
+    a.mark(nok1)
+    a.emit(*load_rd(37, HART_HA))
+    nok2 = "nest_cfx"
+    a.br("eq", 34, 37, nok2)
+    a.emit(*exit_seq(0x0C4))
+    a.mark(nok2)
+    # The first handler was still running: depth was non-zero at this entry.
+    a.emit(ld_o(37, 5, RAM_REENT))
+    a.emit(*load_rd(38, 1))
+    nokr = "nest_reent"
+    a.br("eq", 37, 38, nokr)
+    a.emit(*exit_seq(0x0C8))
+    a.mark(nokr)
+    # cause_ip points inside the async-handler slot (the interrupted handler).
+    a.emit(*load_rd(37, ROM_BASE + OFF_FRAME_HND))
+    a.emit(cmp_uo(38, 32, 37))
+    nok3 = "nest_ip"
+    a.br("nn", 38, 0, nok3)
+    a.emit(*exit_seq(0x0C5))
+    a.mark(nok3)
+    # Pending was consumed by the capture; both sources were captured once.
+    a.emit(*load_rd(37, SRC_TIMER))
+    a.emit(and_o(38, 31, 37))
+    nok4 = "nest_pending"
+    a.br("z", 38, 0, nok4)
+    a.emit(*exit_seq(0x0C6))
+    a.mark(nok4)
+    a.emit(ld_o(37, 5, RAM_PMEM_N))
+    a.emit(*load_rd(38, 1))
+    nok5 = "nest_counts"
+    a.br("eq", 37, 38, nok5)
+    a.emit(*exit_seq(0x0C7))
+    a.mark(nok5)
+    a.emit(*exit_seq(EXIT_PASS))
     return a.resolve()
 
 
 def build_smon_handler():
-    """cfx_smon supv vector: record a sync cause and skip the instruction."""
+    """cfx_smon supv vector: async hand-off return, or sync-cause recorder.
+
+    The hand-off (`RAM_HANDOFF = 1`) rebuilds cfx_smon's `cg5` frame from the
+    capture the async handler copied into RAM — the software-side equivalent of
+    entering smon and returning to the interrupted context — then `escape`s to
+    the capture's `cause_ip` with offset 0.  A sync exception raised inside the
+    async handler (ILLI / CFXREG / CFXESC) is recorded and skipped.
+    """
     a = Asm()
+    a.emit(ld_o(30, 5, RAM_HANDOFF))
+    sync_path = "smon_sync_%d" % len(a.words)
+    a.br("z", 30, 0, sync_path)
+    # Hand-off: rewrite the cfx_smon cg5 frame (rc0/rc1/rc3 are software-writable)
+    # from the copied capture, then return to its cause_ip.
+    a.emit(ld_o(30, 5, RAM_LAST_PREVM))
+    a.emit(cfx2rc(SMON_HA, 5, 0, 30))
+    a.emit(ld_o(30, 5, RAM_LAST_PREVC))
+    a.emit(cfx2rc(SMON_HA, 5, 1, 30))
+    a.emit(ld_o(30, 5, RAM_LAST_IP))
+    a.emit(cfx2rc(SMON_HA, 5, 3, 30))
+    a.emit(*load_rd(30, 0))
+    a.emit(st_o(30, 5, RAM_HANDOFF))
+    a.emit(escape(SMON_HA, 0))          # cg5 frame, offset 0: capture's cause_ip
+    a.emit(*exit_seq(0x7F))             # unreachable: escape switches away
+
+    a.mark(sync_path)
     a.emit(cfx2rd(SMON_HA, 5, CG5_CAUSE_ID_RC, 30))
     a.emit(cfx2rd(SMON_HA, 5, CG5_CAUSE_IP_RC, 31))
     _inc(a, RAM_SYNC_N, 32)
@@ -425,17 +512,45 @@ def build_smon_handler():
     a.br("eq", 30, 33, illi_lbl)
     a.emit(*load_rd(33, CFXREG))
     cfxreg_lbl = "s_cfxr_%d" % len(a.words)
-    after_all = "s_all_%d" % len(a.words)
     a.br("eq", 30, 33, cfxreg_lbl)
+    a.emit(*load_rd(33, CFXESC))
+    cfxesc_lbl = "s_cfxesc_%d" % len(a.words)
+    after_all = "s_all_%d" % len(a.words)
+    a.br("eq", 30, 33, cfxesc_lbl)
     a.br("z", 0, 0, after_all)
     a.mark(illi_lbl)
     _inc(a, RAM_ILLI_N, 32)
+    a.br("z", 0, 0, after_all)
+    a.mark(cfxesc_lbl)
+    _inc(a, RAM_CFXESC_N, 32)
     a.br("z", 0, 0, after_all)
     a.mark(cfxreg_lbl)
     _inc(a, RAM_CFXREG_N, 32)
     a.mark(after_all)
     a.mark(after_illi)
     a.emit(escape(SMON_HA, 1))          # cg5 frame, +4: skip the bad instruction
+    return a.resolve()
+
+
+def build_hart_sync_handler():
+    """cfx_hart's own supv sync vector: `escape` frame errors raise CFXESC in
+    the *current cfx* (§5.1), i.e. here.  Record the cause and skip the
+    instruction through cfx_hart's own cg5 frame."""
+    a = Asm()
+    a.emit(cfx2rd(HART_HA, 5, CG5_CAUSE_ID_RC, 30))
+    a.emit(cfx2rd(HART_HA, 5, CG5_CAUSE_IP_RC, 31))
+    _inc(a, RAM_SYNC_N, 32)
+    a.emit(st_o(30, 5, RAM_SYNC_ID))
+    cfxesc_lbl = "h_cfxesc_%d" % len(a.words)
+    other = "h_other_%d" % len(a.words)
+    a.emit(*load_rd(33, CFXESC))
+    a.br("eq", 30, 33, cfxesc_lbl)
+    _inc(a, RAM_ILLI_N, 32)
+    a.br("z", 0, 0, other)
+    a.mark(cfxesc_lbl)
+    _inc(a, RAM_CFXESC_N, 32)
+    a.mark(other)
+    a.emit(escape(HART_HA, 1))          # cfx_hart cg5 frame, +4
     return a.resolve()
 
 
@@ -449,8 +564,9 @@ def build_poison():
 def handlers(main_extra=None, frame=False):
     return {
         OFF_MAIN_HND: build_async_handler(main_extra),
-        OFF_FRAME_HND: build_frame_handler(),
+        OFF_FRAME_HND: build_nested_handler(),
         OFF_SMON_HND: build_smon_handler(),
+        OFF_HART_SYNC_HND: build_hart_sync_handler(),
         OFF_POISON: build_poison(),
     }
 
@@ -671,10 +787,19 @@ def hmon_setup(vector_off=OFF_MAIN_HND):
     # contract's "0x8" whole-group opening (bit3 stays hardware-fixed 1).
     ins += load_rd(21, DELEG_OPEN)
     ins += [cfx2rc(HART_HA, 3, 12, 21), cfx2rc(SMON_HA, 3, 12, 21)]
+    # Let supv `trap cfx_smon` through: cfx_smon's supv cfxtrap mask (cg2 rc0)
+    # bit15 = 0 (source cfxha = cfx_hart).  Needed only by the probe's software
+    # hand-off (ADR-0061 D4); the hardware async entry itself is not masked.
+    ins += load_rd(21, ALL1 & ~SRC_TIMER)
+    ins += [cfx2rc(SMON_HA, 2, 0, 21)]
     # cfx_smon supv vector: sync-exception recorder (ILLI/CFXREG from the
     # async handler runs in supv, so this is the current-mode monitor).
     ins += load_rd(21, hmon_addr(OFF_SMON_HND))
     ins += [cfx2rc(SMON_HA, 2, CG3_EXCP_VECTOR_RC, 21)]
+    # cfx_hart supv sync vector: `escape` frame errors raise CFXESC in the
+    # current cfx (§5.1), which inside the async handler is cfx_hart itself.
+    ins += load_rd(21, hmon_addr(OFF_HART_SYNC_HND))
+    ins += [cfx2rc(HART_HA, 2, CG3_EXCP_VECTOR_RC, 21)]
     # cfx_hart cg9: supv async vector + fixed switch mode; masks stay at reset.
     ins += load_rd(21, hmon_addr(vector_off))
     ins += [cfx2rc(HART_HA, 9, RC_VECTOR, 21)]
@@ -731,14 +856,14 @@ def _cg9_reset_defaults():
 
 
 @case("timer_frame_hart",
-      "TIMER -> cfx_hart frame bit15, prev hypv/hmon, escape releases")
+      "TIMER -> capture bit15, prev hypv/hmon; capture kept after the return")
 def _timer_frame_hart():
     a = Asm()
     set_mon_mask(a, HMON_HA, ALL1 & ~SRC_TIMER)       # open TIMER only
     timer_arm_window(a, tag="tfh")
     wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 1), True, "tfh", 0x011, 0x012)
     ram_ld(a, RAM_LAST_FRAME, 5)
-    need_eq(a, 5, SRC_TIMER, 0x013, "frame")
+    need_eq(a, 5, SRC_TIMER, 0x013, "capture")
     ram_ld(a, RAM_LAST_PENDING, 6)
     need_eq(a, 6, 0, 0x014, "pending_consumed")
     ram_ld(a, RAM_LAST_PREVM, 7)
@@ -757,17 +882,18 @@ def _timer_frame_hart():
     a.br("nn", 24, 0, "ip_after_arm")
     a.emit(*exit_seq(0x01A))
     a.mark("ip_after_arm")
-    # One frame entered; cfx_hart's counter counts frames, not sources.
+    # One entry; cfx_hart's counter counts entries, not sources.
     a.emit(cfx2rd(HART_HA, 4, CG4_ASYNC_NUM_RC, 12))
     need_eq(a, 12, 1, 0x01B, "async_num")
-    # escape (in the handler) released the frame and consumed the pending bit.
+    # The capture is a snapshot, not a live frame: it stays readable after the
+    # software hand-off (no clear, no valid bit), and the pending bit is gone.
     frame_rd(a, 13)
-    need_eq(a, 13, 0, 0x01C, "frame_released")
+    need_eq(a, 13, SRC_TIMER, 0x01C, "capture_kept")
     pending_rd(a, 14)
     need_mask_clr(a, 14, SRC_TIMER, 0x01D, "pending_cleared")
     delay_loop(a, 3000, "quiet")
     ram_ld(a, RAM_TIMER_N, 15)
-    need_eq(a, 15, 1, 0x01E, "no_reentry")
+    need_eq(a, 15, 1, 0x01E, "no_extra_entry")
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
 
@@ -796,7 +922,7 @@ def _pmem_frame_hart():
     a.emit(cfx2rd(HART_HA, 4, CG4_ASYNC_NUM_RC, 10))
     need_eq(a, 10, 1, 0x028, "hart_entry")
     frame_rd(a, 11)
-    need_eq(a, 11, 0, 0x029, "frame_released")
+    need_eq(a, 11, SRC_PMEM, 0x029, "capture_kept")
     dma_status_clear(a)                               # source ack
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
@@ -821,8 +947,8 @@ def _mask_index_source():
     need_mask_set(a, 6, SRC_TIMER, 0x036, "pend15")
     need_mask_clr(a, 6, 1 << 17, 0x037, "no_pend17")
     frame_rd(a, 7)
-    need_eq(a, 7, 0, 0x038, "no_frame")
-    # Phase 3: release the monitor mask -> delivery.
+    need_eq(a, 7, SRC_TIMER, 0x038, "capture_unchanged")
+    # Phase 3: release the monitor mask -> delivery (one more capture).
     set_mon_mask(a, HMON_HA, 0)
     settle_bound(a)
     wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 2), True, "mi3", 0x039, 0x03A)
@@ -872,8 +998,8 @@ def _one_frame_multi():
     ram_ld(a, RAM_SEQ, 6)
     need_eq(a, 6, 0, 0x055, "none_yet")
     frame_rd(a, 7)
-    need_eq(a, 7, 0, 0x056, "no_frame")
-    # One mask write opens both; one instruction boundary => one frame.
+    need_eq(a, 7, 0, 0x056, "no_capture")
+    # One mask write opens both; one instruction boundary => one capture.
     set_mon_mask(a, HMON_HA, 0)
     settle_bound(a)
     wait_cond(a, W_BOUND, _count_cond(RAM_SEQ, 1), True, "ofm2", 0x057, 0x058)
@@ -882,13 +1008,13 @@ def _one_frame_multi():
     ram_ld(a, RAM_LAST_PENDING, 9)
     need_eq(a, 9, 0, 0x05A, "consumed")
     ram_ld(a, RAM_TIMER_N, 10)
-    need_eq(a, 10, 1, 0x05B, "timer_in_frame")
+    need_eq(a, 10, 1, 0x05B, "timer_in_capture")
     ram_ld(a, RAM_PMEM_N, 11)
-    need_eq(a, 11, 1, 0x05C, "pmem_in_frame")
+    need_eq(a, 11, 1, 0x05C, "pmem_in_capture")
     a.emit(cfx2rd(HART_HA, 4, CG4_ASYNC_NUM_RC, 12))
     need_eq(a, 12, 1, 0x05D, "one_entry")
     frame_rd(a, 13)
-    need_eq(a, 13, 0, 0x05E, "released")
+    need_eq(a, 13, SRC_BOTH, 0x05E, "capture_kept")
     delay_loop(a, 5000, "no_second")
     ram_ld(a, RAM_SEQ, 14)
     need_eq(a, 14, 1, 0x05F, "not_serial")
@@ -923,34 +1049,64 @@ def _dedup_same_source():
     return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
 
 
-@case("no_nest_frame",
-      "TIMER inside a live PMEM frame => pending only, delivered after escape")
-def _no_nest_frame():
+@case("overwrite_two_entries",
+      "two entries: the second overwrites cg9 (no src_frame gate, no pending block)")
+def _overwrite_two_entries():
     a = Asm()
-    set_mon_mask(a, HMON_HA, ALL1 & ~SRC_BOTH)        # open both sources
+    set_mon_mask(a, HMON_HA, 0)                       # open TIMER + PMEM
     dma_status_clear(a)
     dma_start(a)
     dma_wait(a)
     settle_bound(a)
-    wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "nn1", 0x071, 0x072)
-    # The frame handler armed TIMER inside the live frame and proved:
-    # src_frame stayed bit32, no TIMER frame entered, pending bit15 landed.
-    # Its escape releases the frame; the parked TIMER is then delivered at the
-    # next instruction boundary, so the body sees two completed frames.
+    wait_cond(a, W_BOUND, _count_cond(RAM_SEQ, 1), True, "ow1", 0x0B1, 0x0B2)
+    ram_ld(a, RAM_LAST_FRAME, 5)
+    need_eq(a, 5, SRC_PMEM, 0x0B3, "first_capture")
+    # The first capture is still in cg9 (nothing cleared it): the second entry
+    # therefore happens with src_frame != 0 and must overwrite it anyway.
+    frame_rd(a, 6)
+    need_eq(a, 6, SRC_PMEM, 0x0B4, "first_kept")
+    ram_ld(a, RAM_SEQ, 7)
+    need_eq(a, 7, 1, 0x0B5, "seq1")
+    timer_arm_window(a, base_seq=1, base_hart=0, tag="ow2")
     settle_bound(a)
-    wait_cond(a, W_BOUND, _count_cond(RAM_SEQ, 2), True, "nn2", 0x076, 0x077)
-    ram_ld(a, RAM_TIMER_N, 5)
-    need_eq(a, 5, 1, 0x073, "two_frames")
-    ram_ld(a, RAM_PMEM_N, 6)
-    need_eq(a, 6, 1, 0x074, "pmem_once")
-    ram_ld(a, RAM_REENT, 7)
-    need_eq(a, 7, 0, 0x075, "no_nesting")
-    frame_rd(a, 8)
-    need_eq(a, 8, 0, 0x078, "frame_released")
-    pending_rd(a, 9)
-    need_eq(a, 9, 0, 0x079, "pending_drained")
+    wait_cond(a, W_BOUND, _count_cond(RAM_SEQ, 2), True, "ow3", 0x0B6, 0x0B7)
+    ram_ld(a, RAM_LAST_FRAME, 8)
+    need_eq(a, 8, SRC_TIMER, 0x0B8, "second_overwrites")
+    ram_ld(a, RAM_LAST_PENDING, 9)
+    need_eq(a, 9, 0, 0x0B9, "pending_consumed")
+    ram_ld(a, RAM_LAST_PREVM, 10)
+    need_eq(a, 10, 3, 0x0BA, "second_prev_mode")
+    ram_ld(a, RAM_LAST_PREVC, 11)
+    need_eq(a, 11, HMON_HA, 0x0BB, "second_prev_cfx")
+    a.emit(cfx2rd(HART_HA, 4, CG4_ASYNC_NUM_RC, 12))
+    need_eq(a, 12, 2, 0x0BC, "two_entries")
+    ram_ld(a, RAM_TIMER_N, 13)
+    need_eq(a, 13, 1, 0x0BD, "timer_once")
+    ram_ld(a, RAM_PMEM_N, 14)
+    need_eq(a, 14, 1, 0x0BE, "pmem_once")
+    delay_loop(a, 3000, "quiet2")
+    ram_ld(a, RAM_SEQ, 15)
+    need_eq(a, 15, 2, 0x0BF, "no_extra_entry")
     a.emit(*exit_seq(EXIT_PASS))
-    return build_rom(a.resolve(), handlers(), vector_off=OFF_FRAME_HND), {"exit": EXIT_PASS}
+    return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
+
+
+@case("nested_capture",
+      "entry inside the async handler overwrites cg9 (smon nesting by software)")
+def _nested_capture():
+    a = Asm()
+    # Body (hypv/hmon) opens PMEM; the handler (supv) opens TIMER so its own
+    # armed event is delivered while it runs.
+    set_mon_mask(a, HMON_HA, ALL1 & ~SRC_PMEM)
+    set_mon_mask(a, SMON_HA, ALL1 & ~SRC_TIMER)
+    dma_status_clear(a)
+    dma_start(a)
+    dma_wait(a)
+    settle_bound(a)
+    delay_loop(a, 20000, "nested")    # the nested capture exits the guest
+    a.emit(*exit_seq(0x0C0))          # no nested capture happened
+    return build_rom(a.resolve(), handlers(),
+                     vector_off=OFF_FRAME_HND), {"exit": EXIT_PASS}
 
 
 @case("ack_semantics",
@@ -997,7 +1153,7 @@ def _ill_extra():
 
 
 @case("escape_ill",
-      "escape imms18=3 and [17:2]!=0 => ILLI in supv (recorded), then normal escape")
+      "escape imms18=3 and [17:2]!=0 => ILLI in supv (recorded), then hand-off")
 def _escape_ill():
     a = Asm()
     set_mon_mask(a, HMON_HA, ALL1 & ~SRC_TIMER)
@@ -1007,10 +1163,50 @@ def _escape_ill():
     need_eq(a, 5, 2, 0x093, "illi_twice")
     ram_ld(a, RAM_CFXREG_N, 6)
     need_eq(a, 6, 0, 0x094, "no_cfxreg")
-    frame_rd(a, 7)
-    need_eq(a, 7, 0, 0x095, "released")
+    ram_ld(a, RAM_CFXESC_N, 7)
+    need_eq(a, 7, 0, 0x095, "no_cfxesc")
+    frame_rd(a, 8)
+    need_eq(a, 8, SRC_TIMER, 0x096, "capture_untouched")
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers(main_extra=_ill_extra())), {"exit": EXIT_PASS}
+
+
+def _no_async_return_extra():
+    """escape imms18 = 2 (cg9 frame selector): not an async return."""
+    return [escape(HART_HA, 2)]
+
+
+@case("escape_no_async_return",
+      "escape imms18=2 => CFXESC; cg9/run mode/cfx unchanged (R2)")
+def _escape_no_async_return():
+    a = Asm()
+    set_mon_mask(a, HMON_HA, ALL1 & ~SRC_TIMER)
+    timer_arm_window(a, tag="enr")
+    wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 1), True, "enr", 0x0A5, 0x0A6)
+    # The extra `escape hart, 2` ran inside the capture and must have raised
+    # CFXESC in supv: recorded by the cfx_smon vector, no return to the body.
+    ram_ld(a, RAM_CFXESC_N, 5)
+    need_eq(a, 5, 1, 0x0A7, "cfxesc_once")
+    ram_ld(a, RAM_ILLI_N, 6)
+    need_eq(a, 6, 0, 0x0A8, "no_illi")
+    ram_ld(a, RAM_CFXREG_N, 7)
+    need_eq(a, 7, 0, 0x0A9, "no_cfxreg")
+    ram_ld(a, RAM_LAST_FRAME, 8)
+    need_eq(a, 8, SRC_TIMER, 0x0AA, "capture_kept")
+    frame_rd(a, 9)
+    need_eq(a, 9, SRC_TIMER, 0x0AB, "cg9_unchanged")
+    ram_ld(a, RAM_LAST_PREVM, 10)
+    need_eq(a, 10, 3, 0x0AC, "prev_untouched")
+    a.emit(cfx2rd(HART_HA, 4, CG4_ASYNC_NUM_RC, 11))
+    need_eq(a, 11, 1, 0x0AD, "one_entry")
+    ram_ld(a, RAM_SEQ, 12)
+    need_eq(a, 12, 1, 0x0AE, "one_capture")
+    delay_loop(a, 3000, "quiet_esc")
+    ram_ld(a, RAM_SEQ, 13)
+    need_eq(a, 13, 1, 0x0AF, "still_one_capture")
+    a.emit(*exit_seq(EXIT_PASS))
+    return build_rom(a.resolve(), handlers(main_extra=_no_async_return_extra())), \
+        {"exit": EXIT_PASS}
 
 
 def _reserved_extra():
@@ -1122,8 +1318,9 @@ def run_doc():
             ("投递目标 = `cfx_hart`", "hart-first delivery target named"),
             ("一帧多源", "one-frame multi-source is defined"),
             ("不串行", "no serial split of one boundary"),
-            ("无嵌套", "no nesting inside a live frame"),
-            ("补投", "mask release re-delivers"),
+            ("每次进入覆盖", "every entry overwrites the capture"),
+            ("frame_valid", "the absent valid bit is named"),
+            ("task_pt_regs", "software copies the capture out and returns via smon"),
             ("不引入", "no async_enable-style gate"),
             ("async_enable", "async_enable named as not introduced"),
             ("ADR-0061", "the revision decision is cited"),
@@ -1180,9 +1377,16 @@ def run_structure():
     for bad in ("mode_intr_mask", "global_intr_mask", "cause_id"):
         check("enter_no_%s" % bad, bad not in enter,
               "no cfx_hart mask/cause state in the entry")
-    check("escape_frame_valid", "a->src_frame == 0" in src and
-          "a->src_frame = 0" in src,
-          "escape validates and clears src_frame")
+    # ADR-0061 R2: cg9 is a capture buffer.  No entry gate on a previous
+    # capture, no validity bit, and `escape` never returns through cg9.
+    escape_body = _function_body(src, "void helper_cfx_escape(")
+    check("no_capture_gate", "src_frame != 0" not in allowed,
+          "a previous capture never blocks a new entry")
+    check("enter_overwrites", "a->src_frame = src_bits" in enter,
+          "each entry overwrites the capture bitmap")
+    check("escape_no_cg9_frame",
+          "src_frame" not in escape_body and "sel & 0x2u" in escape_body,
+          "escape never reads/clears cg9 (cg9 selector => CFXESC)")
     check("no_macro_cause_check", "DADAO_CAUSE_MACRO16" not in src and
           "DADAO_CAUSE_TIMER" not in src,
           "dadao_cause_check has no macro-cause branch")
