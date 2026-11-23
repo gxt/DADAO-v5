@@ -22,7 +22,6 @@
 | --- | --- | --- |
 | m16-testcases-009 | 3–4 h | cfx5 用例三方跑（寄存器面 + 命令 + 数据语义） |
 | m16-chipyard-018 | 3–4 h | cfx4 RTL PTW/TLB 探针纳管并三方对齐 |
-| m16-chipyard-021 | 4–6 h | RTL cfx15 hart（cg8 + 新增 cg9 + hart-first TIMER 投递） |
 | m16-chipyard-022 | 4–6 h | RTL cfx32 pmem（DMA + hart-first 完成中断，依赖 021 的 cg9） |
 | m16-chipyard-023 | 2–3 h | RTL cfx34 time（全局时间，无中断） |
 | m16-testcases-012 | 2–3 h | fence 基础验证（三方；完整覆盖不作验收要求） |
@@ -37,6 +36,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-chipyard-021 | 2026-11-23 12:44 | 4–6 h | RTL cfx15 hart（cg8 + 新增 cg9 + hart-first TIMER 投递） |
 
 ## 已验证
 
