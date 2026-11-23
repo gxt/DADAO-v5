@@ -1393,10 +1393,10 @@
   - qemu
   - infra
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P1】共享 `.work/source/qemu` 停在 002/003 之前的旧态（`helper.c` 3322 行、无 dcache/无 003 维护代码），与 master 补丁集差 +476/-19 行 ⇒ master 侧 `check-patch-tree` qemu 段 8 条 ⑥⑨，且 `make_patch.py qemu` 会静默导出旧内容、删掉 002/003。处置（`docs/Process-01`，禁 `reset --hard`）：确认写者空闲后删共享源树 → `make fetch` → `apply_series.py --component qemu` → `make build-qemu` → 判据 `check_patch_tree.py` qemu 段 0 problem + `--source-state` E1。"
+  status: closed
+  closed_in: M16
+  resolved_by: m16-qemu-005
+  title: "【P1·已修复 2026-11-23】共享 `.work/source/qemu` 停在 002/003 之前的旧态（`helper.c` 3322 行、无 dcache/无 003 维护代码），与 master 补丁集差 +476/-19 行 ⇒ master 侧 `check-patch-tree` qemu 段 8 条 ⑥⑨，且 `make_patch.py qemu` 会静默导出旧内容、删掉 002/003。处置（`docs/Process-01`，禁 `reset --hard`）：确认写者空闲后删共享源树 → `make fetch` → `apply_series.py --component qemu` → `make build-qemu` → 判据 `check_patch_tree.py` qemu 段 0 problem + `--source-state` E1。**已按此重放 69 补丁并 `install-host`（安装根与构建树 qemu md5 同为 `f734b701…`，qemu 段 0 problem）。**"
 - id: ISS-521
   scope:
   - spec
