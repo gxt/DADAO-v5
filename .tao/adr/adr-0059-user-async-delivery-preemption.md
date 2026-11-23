@@ -85,6 +85,10 @@ R1 曾以「early escape」为主路径，根源是 target-first 下异步帧落
 - **阶段 2（kernel）**：`m18-linux-013` 落地 umon 异步入口 + user 行 + irqentry work loop（抢占/信号）；可再拆「先时间可见（只开 user 行，复用现有 umon 捕获）、再做抢占/信号」两小步。
 - **阶段 3（后续，另立任务）**：RTL/gem5 的 monitor-first 同步 + cause 17/18、H1（帧软件可管）可选改进——等 M16 当前批次（`m16-qemu-003`、`m16-testcases-009`）收口后另立。
 
+### D9 pending 不随模式切换迁移
+
+monitor-first 下 **pending 不迁移**：事件到达时记入**当时**当前运行模式 monitor 的 `cg5 rc5`，之后运行模式切换不搬移；只有该 monitor 再次成为当前模式才投递；任务退出时其 pending **丢弃**，依赖源（TIMER 周期等）重触发。此口径使「用户态投递进 `cfx_umon`、内核态进 `cfx_smon`」的 D1 成立——跨模式（user↔supv）切换不产生 pending 搬运，也无「投递到已退出的任务」语义。
+
 ## Rationale（理由）
 
 - **为什么 monitor-first 是正解**：spec 已定；它让异步帧落在 monitor（umon/smon），而 monitor 帧本就是 switch-safe 的软件帧（`task_pt_regs` + escape 前写回），`schedule()` 成为普通内核代码，不需要任何 early-escape 特例。
@@ -107,6 +111,7 @@ R1 曾以「early escape」为主路径，根源是 target-first 下异步帧落
 - **cause 号**：`1<<17`（TIMER）/`1<<18`（PMEM_DMA），`[31:16]` 宏 cause 空间 —— ✅ 确认。
 - **版本**：**0.8.0-rc**（SEE/SBI 互锁同升，`y+1`，不兼容语义变更）—— ✅ 确认。
 - **RTL/gem5 节奏**：**QEMU 先行，RTL/gem5 等 M16 当前批次收口后另立任务** —— ✅ 确认。
+- **D9 pending 不迁移**（2026-11-23 追加裁定）：monitor-first 下 pending 不随模式切换迁移——到达时记当时 mode monitor、之后不搬移，只有该 monitor 再成当前模式才投递，任务退出丢弃、依赖源重触发 —— ✅ 确认。
 
 ## 实施注记
 

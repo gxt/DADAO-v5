@@ -29,7 +29,8 @@
 2. **可达 FAIL ≥3 路**（`cp`+md5 还原 + 重建）：① 仲裁目标仍传源 cfx ⇒ 探针红；② pending 仍记源 cfx ⇒ 探针红；③ 两级 mask 未按 monitor（按源 cfx 行）⇒ 探针红。
 3. **既有 M16 cfx5/cache 代表集不回归**：`check-qemu-*` 既有 qemu 门控 rc=0；异步 pending 迁移后 K2/K5 异步探针更新且可达 FAIL。
 4. 不回归：`check-patch-tree` qemu 段与基线**逐行相同**（0 problem）；`check-component-changelog`、`check-knowledge-refs` rc=0；`make check` 与基线逐行相同。
-5. `min_rom_probe_integ051t`、`tests/arch/vast-arch-inventory.md` 更新为 monitor-first + cause 17/18 表述（只改 cause 语义，不动 mask 位索引 15/32）；完成区 ≤30 行；状态 → `待验收`。
+5. **模式切换 pending 不迁移探针**：屏蔽期内发生运行模式切换后，pending 仍保留在**原 monitor** 的 `cg5 rc5`（不随模式切换搬到新 monitor）；该 monitor 再成当前模式时才补投（`cfx2rd` 读回证实）。
+6. `min_rom_probe_integ051t`、`tests/arch/vast-arch-inventory.md` 更新为 monitor-first + cause 17/18 表述（只改 cause 语义，不动 mask 位索引 15/32）；完成区 ≤30 行；状态 → `待验收`。
 
 ## 硬约束
 
@@ -41,7 +42,8 @@
 
 ## 待裁定
 
-- `ADR-0059` 已定：异步 cause 号 = `1<<17`（TIMER）/`1<<18`（PMEM_DMA），落在 `[31:16]` 宏 cause 空间，与 monitor 同步 cause（`RASOF`/`ILLI`）不撞号（用户 2026-11-23 裁定）；QEMU 侧 `DADAO_CAUSE_TIMER`/`DADAO_CAUSE_PMEM_DMA` 常量与 `dadao_cause_check` 的 `[31:16]` 放行相应落地。无未决项阻塞派单。
+- `ADR-0059` 已定：异步 cause 号 = `1<<17`（TIMER）/`1<<18`（PMEM_DMA），落在 `[31:16]` 宏 cause 空间，与 monitor 同步 cause（`RASOF`/`ILLI`）不撞号（用户 2026-11-23 裁定）；QEMU 侧 `DADAO_CAUSE_TIMER`/`DADAO_CAUSE_PMEM_DMA` 常量与 `dadao_cause_check` 的 `[31:16]` 放行相应落地。
+- `ADR-0059` 已定（D9，用户 2026-11-23 裁定）：**pending 不随模式切换迁移**——事件到达时记入当时 mode monitor 的 `cg5 rc5`、之后运行模式切换不搬移，只有该 monitor 再成当前模式才投递，任务退出丢弃、依赖源重触发。QEMU 仲裁/pending 实现须符合此口径，无未决项阻塞派单。
 
 ## 完成区
 

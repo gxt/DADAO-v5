@@ -907,6 +907,7 @@ monitor 不再有独立的页表异常原因：页表未映射与 A/D 回写失�
 - 执行过程中的异步中断**先进入当前运行模式的 monitor**，不直接进入源 cfx。
 - monitor 拥有异步来源屏蔽、pending 与分发决策：可自行处理并 `escape`，也可 `trap` 到源 cfx。
 - monitor 处理期间到达的新事件**置 pending、不嵌套 monitor**；`excp_pending` 按 OR 语义置位，软件写 0 清位。
+- **pending 不随模式切换迁移**：事件到达时记入**当时**当前运行模式 monitor 的 `excp_pending`，之后运行模式切换**不搬移**；只有该 monitor 再次成为当前模式时才投递；任务退出时其 pending **丢弃**，依赖源（TIMER 周期等）重触发。
 - 异步中断的 pending 位布局、优先级与抢占顺序列入后续修订；本节只冻结「先入当前 monitor」「处理期间不嵌套」「monitor 可分发给源 cfx」三条。
 
 **（五）伪代码**
