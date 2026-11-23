@@ -12,7 +12,7 @@ hmon（hypv）/ smon（supv）/ umon（user）三种运行模式下各跑一次�
     body 的执行窗口内（hmon/smon：`ENTRY+0x1000`；umon：`0x6000_0000`）。
   * **签名流**：8 槽，逐槽比对（槽位含义见 body 头注释）：
       槽 0 暂存寄存器写后回读（输入值 0x0123456789ABCDEF，`DADAO-12 §3.7`）
-      槽 1 `global_cfx_intr_mask` 初值全 1（`contract-see` §3）
+      槽 1 `cg8 rc1` 异步来源掩码初值全 1（`contract-see` §3，`ADR-0061` D5）
       槽 2 `cfx_id`（cg4 rc0）= cfx_umon 的 cfxha（`DADAO-12 §3.5`/§1）
       槽 3 第二个暂存寄存器 cg6.rc1 写后回读（`§3.5`：暂存寄存器至少 2）
             —— 槽 2/3 与交付方式无关（m16-testcases-017 起替换原入口 trap 现场）
@@ -141,8 +141,8 @@ def expected_signature(root: Path) -> list:
     """
     see = (root / ".tao" / "contracts" / "contract-see.md").read_text(
         encoding="utf-8")
-    if not re.search(r"`cfx_intr_mask`/`global_cfx_intr_mask` 初值全 1", see):
-        raise SetupError("contract-see §3 缺 global_cfx_intr_mask 初值句")
+    if not re.search(r"`cfx0`–`cfx3` 的 `cg8 rc1`（异步来源掩码）初值全 1", see):
+        raise SetupError("contract-see §3 缺 cg8 rc1 异步来源掩码初值句")
     kaiwu = (root / "spec" / "Kaiwu-测试机运行环境.md").read_text(
         encoding="utf-8")
     if "`cfx0` 没有内部空间" not in kaiwu:

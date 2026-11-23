@@ -10,8 +10,8 @@
   * 运行模式编码（`user`/`supv`/`hypv`）与 cfx 编号（`umon`/`smon`/`hmon`）：
     `spec` §1 的模式表与 cfx 表；
   * `<mode>_switch_run_mode` 复位值：`spec` §3.1/§3.4 的寄存器表；
-  * `TIMER`（`1<<10`，源 `cfx_hart`）与 `PMEM_DMA`（`1<<8`，源 `cfx_pmem`）：
-    `spec` §4.7/§4.9 的异常原因表；
+  * 异步（`ADR-0061` 后由 `tests/arch/hart/cfx15.S` 覆盖）不在本判据内：
+    本文件只判同步进入/退出、`switch_run_mode` 与两轴判权；
   * `cause_ip` 的期望地址：ELF 符号表（`llvm-nm`，由驱动传入工具路径）——
     它是**链接期**已知的指令地址，不是注入后的观测值。
 
@@ -101,24 +101,12 @@ def spec_facts(root):
         if need not in switch:
             raise OracleError("spec §3: %s switch_run_mode reset not found" % need)
 
-    # Async source cause bits (§4.7 TIMER, §4.9 PMEM_DMA).
-    def cause_bit(label):
-        m = re.search(r"^\|\s*`1 << (\d+)`\s*\|\s*%s\s*\|" % label, spec, re.M)
-        if not m:
-            raise OracleError("spec: cause bit for %s not found" % label)
-        return int(m.group(1))
-
-    timer = cause_bit("TIMER")
-    pmem = cause_bit("PMEM_DMA")
-
     return dict(
         cause=cause_bits,
         ncfxperm_bit=ncfxperm_bit,
         modes=modes,
         cfx=cfxha,
         switch=switch,
-        timer=timer,
-        pmem=pmem,
     )
 
 
@@ -143,8 +131,6 @@ def expected_slots(facts, syms, mode):
     cfxtrap = 1 << bits["CFXTRAP"]
     cfxreg = 1 << bits["CFXREG"]
     illi = 1 << bits["ILLI"]
-    timer = 1 << facts["timer"]
-    pmem = 1 << facts["pmem"]
 
     def sym(name):
         if name not in syms:
@@ -183,13 +169,6 @@ def expected_slots(facts, syms, mode):
             ("U CFXPERM cause (cfx5, no U row)", perm),
             ("U frame prev_run_mode (2nd)", M["user"]),
             ("U frame cause_ip (cfx5)", sym("u_f_cfx5")),
-            ("masked async marker", 0xAA55AA55),
-            ("masked async pending kept (TIMER)", timer),
-            ("async cause (TIMER)", timer),
-            ("async frame prev_run_mode", M["user"]),
-            ("async frame prev_cfx_code", C["umon"]),
-            ("async frame cause_ip", sym("u_async_resume")),
-            ("async pending consumed", 0),
             ("trap->smon prev_run_mode", M["user"]),
             ("trap->smon prev_cfx_code", C["umon"]),
             ("trap->smon cause (CFXTRAP)", cfxtrap),
@@ -200,13 +179,6 @@ def expected_slots(facts, syms, mode):
     if mode == M["supv"]:
         return [
             ("smon.cg4.cfx_id (deleg opened)", C["smon"]),
-            ("masked async marker", 0x5A5A5A5A),
-            ("masked async pending kept (PMEM_DMA)", pmem),
-            ("async cause (PMEM_DMA)", pmem),
-            ("async frame prev_run_mode", M["supv"]),
-            ("async frame prev_cfx_code", C["smon"]),
-            ("async frame cause_ip", sym("s_async_resume")),
-            ("async pending consumed", 0),
             ("S CFXPERM cause (umon supv row)", perm),
             ("S frame prev_run_mode (cfxreg)", M["supv"]),
             ("S frame cause_ip (umon)", sym("s_f_umon")),

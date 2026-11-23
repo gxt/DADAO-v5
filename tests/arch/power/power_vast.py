@@ -179,9 +179,16 @@ def space_bits() -> dict:
     """`spec/DADAO-12 §3.8` 的 `desc`/`attr` 位号（现场解析，不写死）。"""
     text = _read(_REPO / "spec" / "DADAO-12-SEE-主管系统运行环境.md")
     start = text.find("### 3.8 cg7")
-    end = text.find("### 3.9", start)
+    # The section ends at the next top-level chapter ("## 4. …").  Do not key on
+    # a following sub-section number: `m18-spec-004` deleted §3.9 (cg9 moved to
+    # §4.7), which broke a "### 3.9" end marker while §3.8 itself is unchanged.
+    end = -1
+    if start >= 0:
+        m = re.search(r"^## 4\.", text[start:], re.M)
+        if m:
+            end = start + m.start()
     if start < 0 or end < 0:
-        raise SetupError("spec/DADAO-12 §3.8 未找到")
+        raise SetupError("spec/DADAO-12 §3.8 未找到（小节起点或下一章起点缺失）")
     sec = text[start:end]
     bits = {}
     for m in re.finditer(r"bit(\d) = ([A-Za-z]+)", sec):

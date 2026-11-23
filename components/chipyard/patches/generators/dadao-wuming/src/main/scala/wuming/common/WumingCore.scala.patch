@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..ef47931
+index 0000000..3439283
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,2278 @@
+@@ -0,0 +1,2282 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -312,8 +312,11 @@ index 0000000..ef47931
 +  gewu.io.excp.cause := excpCause
 +  gewu.io.excp.causeIp := excpCauseIp
 +  gewu.io.excp.info := excpInfo
-+  // Asynchronous delivery (`m16-chipyard-020`): checked at the instruction
-+  // boundary in `sFreq`, acked below so `gewu` performs the entry.
++  // Asynchronous delivery (`DADAO-12 §5.4`, `ADR-0061`): checked at the
++  // instruction boundary in `sFreq`/`sExec`.  `gewu` offers one frame with
++  // every pending-and-allowed source (bits = source cfxha); acking performs
++  // the entry (frame, supv switch, vector).  The core never sees a source or a
++  // cause id, only the vector it must jump to.
 +  private val intrAck = WireDefault(false.B)
 +  gewu.io.intr.ack := intrAck
 +  gewu.io.intr.causeIp := ip
@@ -1449,10 +1452,11 @@ index 0000000..ef47931
 +    is(sFreq) {
 +      waitBeat := false.B
 +      when(gewu.io.intr.valid) {
-+        // Instruction boundary: deliver one pending asynchronous source to the
-+        // current run-mode monitor (`DADAO-12` §5.2 (四)).  The source, cause
-+        // and vector are already filtered/routed by `gewu`; the ack performs
-+        // the frame/cfx/mode update and consumes the pending bit.
++        // Instruction boundary: deliver the pending asynchronous sources as
++        // one `cfx_hart` supv frame (`DADAO-12` §5.4 (五), `ADR-0061` D1/D3).
++        // `gewu` has already filtered them (running-mode monitor mask, source
++        // gate, no live frame) and owns the frame/vector; the ack performs the
++        // entry and consumes exactly the delivered bits.
 +        intrAck := true.B
 +        resvValid := false.B
 +        jumpFlush(gewu.io.intr.vector)
@@ -1524,9 +1528,9 @@ index 0000000..ef47931
 +    }
 +    is(sExec) {
 +      when(asyncTake) {
-+        // Asynchronous delivery at the instruction boundary (`DADAO-12` §5.2
-+        // (四)).  `continueAt` reaches `sExec` directly when the next beat is
-+        // already queued, so the check cannot live only in `sFreq`.
++        // Asynchronous delivery at the instruction boundary (`DADAO-12`
++        // §5.4 (四)/(五)).  `continueAt` reaches `sExec` directly when the next
++        // beat is already queued, so the check cannot live only in `sFreq`.
 +        intrAck := true.B
 +        resvValid := false.B
 +        jumpFlush(gewu.io.intr.vector)

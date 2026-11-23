@@ -8,17 +8,17 @@ RTL 探针判据（`m16-chipyard-019`）。
     64 KiB SRAM）与 §3.1/§3.3/§3.4（模式行 `switch_run_mode` 初值）、§3.6
     （异常帧/pending 初值）、§3.7（暂存寄存器数量 2..64）、§3.8（cg7 位域）
     解析；
-  * `.tao/contracts/contract-see.md` §3（四类同步 mask / `cfx_intr_mask` /
-    `global_cfx_intr_mask` 初值、`cg_reg_deleg` 复位与 bit3、smon/hmon 空间块、
-    cfx0 无空间）与 §6.1（`CFXREG` 位号）解析；
+  * `.tao/contracts/contract-see.md` §3（四类同步 mask 初值、`cg0`–`cg3 rc4`
+    不定义、`cg8 rc1` 异步来源掩码初值全 1、`cg_reg_deleg` 复位与 bit3、
+    smon/hmon 空间块、cfx0 无空间）与 §6.1（`CFXREG` 位号）解析；
 
 再构造期望记录。探针只把实测值 `__REC` 进结果缓冲，因此判据与 RTL 不共享任何
 期望常量（`AGENTS.md`「Independent oracle」）。
 
 记录顺序 = `tests/arch/umon/cfx02_regs.S` 的 `__REC` 顺序：
   cfx0  A 模式行 / B 四 mask 独立 / C cg3 rc12 / D cg4·cg5·cg6·cg8
-        E cg7 与空帧 / G 三个 CFXREG
-  cfx2  F cg3·cg0·cg4·cg6·cg8·cg7 / G' 两个 CFXREG
+        E cg7 与空帧 / G 四个 CFXREG（含 `cg0 rc4` 保留）
+  cfx2  F cg3·cg0·cg4·cg6·cg8·cg7 / G' 三个 CFXREG（含 `cg3 rc4` 保留）
 
 `scratch_regs_num`（cg4 rc6）是规范允许 2..64 的实现自选值，探针只读回它；
 判据按 §3.7 的范围校验（`range` 记录），不写死 Kaiwu-Vast 的选择。
@@ -81,8 +81,10 @@ def parse(root: pathlib.Path) -> dict:
     m = _need(r"四类同步 mask 初值：power 与普通 cfx `0x([0-9a-fA-F_]+)`",
               see, "contract-see §3 mask reset")
     mask_reset = int(m.group(1).replace("_", ""), 16)
-    _need(r"`cfx_intr_mask`/`global_cfx_intr_mask` 初值全 1", see,
-          "contract-see §3 all-ones masks")
+    _need(r"`cfx0`–`cfx3` 的 `cg8 rc1`（异步来源掩码）初值全 1", see,
+          "contract-see §3 all-ones async mask")
+    _need(r"`cg0`–`cg3 rc4` 不定义（保留）", see,
+          "contract-see §3 rc4 reserved")
 
     # cg_reg_deleg: reset all ones, bit3 hardware-fixed 1.
     _need(r"`cfx_⟨cfxname⟩_hypv_cg_reg_deleg`（`cg3 rc12`，复位全 1、RW）", see,
@@ -142,7 +144,6 @@ def expected_records(root: pathlib.Path) -> list:
     recs = [
         # ---- cfx0 A ----
         ("umon cg2 rc0 cfxtrap reset", mask, "exact"),
-        ("umon cg0 rc4 intr mask reset", ones, "exact"),
         ("umon cg1 rc8 switch reset", sw[1], "exact"),
         ("umon cg2 rc10 vector reset", 0, "exact"),
         ("umon cg2 rc10 vector write drops low 2", VECTOR_READ, "exact"),
@@ -164,8 +165,8 @@ def expected_records(root: pathlib.Path) -> list:
         ("umon cg5 rc5 write/read", PATTERN64, "exact"),
         ("umon cg6 rc0 write/read", PATTERN64, "exact"),
         ("umon cg6 rc1 write/read", SCRATCH1, "exact"),
-        ("umon cg8 rc1 global mask reset", ones, "exact"),
-        ("umon cg8 rc1 write/read", PATTERN64, "exact"),
+        ("umon cg8 rc1 async mask reset", ones, "exact"),
+        ("umon cg8 rc1 async mask write/read", PATTERN64, "exact"),
         # ---- cfx0 E ----
         ("umon cg7 rc0 no space", 0, "exact"),
         ("umon cg7 rc1 no space", 0, "exact"),
@@ -177,9 +178,9 @@ def expected_records(root: pathlib.Path) -> list:
         ("CFXREG umon cg0 rc9 reserved", cfxreg, "exact"),
         ("CFXREG umon cg4 rc7 reserved", cfxreg, "exact"),
         ("CFXREG umon write cg4 rc0 (RO)", cfxreg, "exact"),
+        ("CFXREG umon cg0 rc4 reserved", cfxreg, "exact"),
         # ---- cfx2 F ----
         ("smon cg3 rc0 cfxtrap reset", mask, "exact"),
-        ("smon cg3 rc4 intr mask reset", ones, "exact"),
         ("smon cg3 rc8 switch reset", sw[3], "exact"),
         ("smon cg3 rc10 vector reset = SRAM start", c["smon_base"], "exact"),
         ("smon cg0 rc8 switch reset", sw[0], "exact"),
@@ -187,7 +188,7 @@ def expected_records(root: pathlib.Path) -> list:
         ("smon cg4 rc0 cfx_id", smon, "exact"),
         ("smon cg4 rc6 scratch_regs_num", 2, "range"),
         ("smon cg6 rc0 write/read", PATTERN64, "exact"),
-        ("smon cg8 rc1 global mask reset", ones, "exact"),
+        ("smon cg8 rc1 async mask reset", ones, "exact"),
         ("smon cg7 rc0 desc exists|SRAM", c["desc"], "exact"),
         ("smon cg7 rc1 start", smon_start, "exact"),
         ("smon cg7 rc2 size", c["smon_size"], "exact"),
@@ -195,6 +196,7 @@ def expected_records(root: pathlib.Path) -> list:
         # ---- cfx2 G'/H' ----
         ("CFXREG smon cg5 rc6 reserved", cfxreg, "exact"),
         ("CFXREG smon cg8 rc2 reserved", cfxreg, "exact"),
+        ("CFXREG smon cg3 rc4 reserved", cfxreg, "exact"),
     ]
     return recs
 

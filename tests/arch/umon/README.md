@@ -78,21 +78,22 @@ cfx0/cfx2（以及既有 cfx4/cfx5）整体不可达。判定随 020 的进入�
 `mode_entry.S` / `mode_entry.lds` / `check_mode_entry.py` 是 **Kaiwu-Vast RTL
 （chipyard `WumingVastConfig`）** 的运行模式进入主控制流探针（`DADAO-12 §5.2/§5.3`）：
 
-- 同步异常 / 异步中断的入口目标 = **异常前运行模式的 monitor**（U→cfx0、S→cfx2、
+- 同步异常的入口目标 = **异常前运行模式的 monitor**（U→cfx0、S→cfx2、
   H→cfx3）；第 6 步 `inner_run_mode` 取目标 cfx 的 `<mode>_switch_run_mode`；
   帧的 `excp_prev_run_mode / excp_prev_cfx_code / excp_cause_id / excp_cause_ip /
   excp_cause_info` 逐项断言，`escape` 恢复并回到编译期固定偏移；
 - `trap cfxHA` 的“目标 cfx”组合（U 下 `trap cfx_smon`、H 下 `trap cfx_umon`）；
 - U/S 下 `cfx2rd` 的两轴判权：目标 cfx 的 `<mode>_cfxreg` 源掩码 + `cg3 rc12`
   `cg_reg_deleg`，拒绝 ⇒ `CFXPERM` + `[39] NCFXPERM`；
-- 异步 monitor-first 投递：pending 记录在当前模式 monitor 的 `cg5 rc5`
-  （TIMER `1<<10`、PMEM_DMA `1<<8`），两级源掩码按源 cfxha（15/32）过滤，
-  屏蔽期间保留 pending、放开后投递。
+- **异步不在本探针**：`ADR-0061` 起异步统一投 `cfx_hart`（位图 = 源 cfxha、
+  掩码在当前运行模式 monitor 的 `cg8 rc1`），由 `tests/arch/hart/cfx15.S` 按
+  H/S/U 三模式覆盖（`m16-chipyard-024`）；020 的 monitor-first 异步段已删除，
+  `DIV-10` 条目随之删除。
 
 **一份 case、三个镜像**：`--defsym TMODE={0,2,3}` 在链接期选择 umon/smon/hmon，
 同一份 `.S` 与同一份期望表（`check_mode_entry.py` 现场从 `spec/` +
 `.tao/contracts/contract-see.md` 派生 cause 位号/模式编码/cfx 编号/switch 复位值/
-`[39]` 子原因）。签名槽 14（H）/21（U）/14（S），槽序是 case 定义。
+`[39]` 子原因）。签名槽 14（H）/14（U）/7（S），槽序是 case 定义。
 
 **运行模式口径（RTL）**：chipyard 的固定 BootROM（`spec/Kaiwu §6.2`）以
 `cfx_power` 在 hypv 直接跳到 `ENTRY`，本探针在 `_start` 即 cfx_power/hypv，写目标

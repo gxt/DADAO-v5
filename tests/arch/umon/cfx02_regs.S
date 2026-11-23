@@ -8,16 +8,17 @@
 @@ 比对；本文件只按规范字段摆放地址/数据，不当判据。
 @@
 @@ 覆盖（`DADAO-12` §3.1–§3.8、`contract-see` §3/§6.1.1）：
-@@   A cfx0 模式行：cg2 rc0 同步 mask 复位、cg0 rc4 intr mask 复位、cg1 rc8
-@@     switch_run_mode 复位、cg2 rc10 excp_vector 复位与「写丢低 2 位」
+@@   A cfx0 模式行：cg2 rc0 同步 mask 复位、cg1 rc8 switch_run_mode 复位、
+@@     cg2 rc10 excp_vector 复位与「写丢低 2 位」
 @@   B 四个同步 mask 互相独立：写 cg0 rc2 后 cg3 rc2 仍为复位值
 @@   C cfx0 cg3 行（rc0/rc2 mask、rc12 deleg 复位与 bit3 恒 1）
 @@   D cfx0 cg4 配置/计数（cfx_id / 三个计数 / escape_num / scratch_regs_num）、
-@@     cg5 rc5 pending、cg6 rc0/rc1 暂存、cg8 rc1 全局中断掩码
+@@     cg5 rc5 pending、cg6 rc0/rc1 暂存、cg8 rc1 异步来源掩码（`ADR-0061` D5）
 @@   E cfx0 cg7 无内部空间（4 个字段全 0）；cfx0 空异常帧（prev_mode/cause_id）
-@@   F cfx2：cg3 rc0/rc4/rc8/rc10（向量 = smon SRAM 起始）、cg0 rc8、
+@@   F cfx2：cg3 rc0/rc8/rc10（向量 = smon SRAM 起始）、cg0 rc8、
 @@     cg3 rc12、cg4 cfx_id/scratch_regs_num、cg6 暂存、cg8 rc1、cg7 块 0
-@@   G CFXREG：保留 rc（cg0 rc9 / cg4 rc7 / cg5 rc6 / cg8 rc2）与写 RO（cg4 rc0）
+@@   G CFXREG：保留 rc（cg0 rc9 / cg4 rc7 / cg8 rc2）、写 RO（cg4 rc0）与
+@@     `ADR-0061` D5 之后作废的 `cg0`/`cg3 rc4`（保留，访问 ⇒ CFXREG）
 @@
 @@ 两轴掩码的**存储面**（cg0-cg3 rc0-3 四个独立同步 mask、cg3 rc12 deleg）由本
 @@ 探针覆盖；其**强制判定**（CFXPERM）不在本任务启用：chipyard 的 BootROM 链以
@@ -49,8 +50,6 @@
 
 	@@ ---- A. cfx0 模式行 ----
 	cfx2rd	cfx_umon, cg2, rc0, rd5		@@ supv 行 cfxtrap mask 复位
-	__REC	rd5
-	cfx2rd	cfx_umon, cg0, rc4, rd5		@@ user 行 intr mask 复位 = 全 1
 	__REC	rd5
 	cfx2rd	cfx_umon, cg1, rc8, rd5		@@ jail 行 switch_run_mode 复位 = 2
 	__REC	rd5
@@ -106,7 +105,7 @@
 	cfx2rc	cfx_umon, cg6, rc1, rd6
 	cfx2rd	cfx_umon, cg6, rc1, rd5
 	__REC	rd5
-	cfx2rd	cfx_umon, cg8, rc1, rd5		@@ global_cfx_intr_mask 复位 = 全 1
+	cfx2rd	cfx_umon, cg8, rc1, rd5		@@ 异步来源掩码复位 = 全 1（ADR-0061 D5）
 	__REC	rd5
 	set.rd	rd6, PATTERN64
 	cfx2rc	cfx_umon, cg8, rc1, rd6
@@ -167,6 +166,20 @@ f3_resume:
 	ld.o	rd5, [rb20, 0xE0]
 	__REC	rd5
 
+	@@ `cg0`–`cg3 rc4` 自 `ADR-0061` D5 起不定义（保留，访问 ⇒ CFXREG）
+	.globl	f6_aip
+f6_aip:
+	aip.si	rb21, 0
+	add.si	rb21, 16
+	st.o	rb21, [rb20, 0xF8]
+	.globl	f6_fault
+f6_fault:
+	cfx2rd	cfx_umon, cg0, rc4, rd5		@@ 模式行 rc4 保留
+	.globl	f6_resume
+f6_resume:
+	ld.o	rd5, [rb20, 0xE0]
+	__REC	rd5
+
 	@@ cfx2 段之前把返回槽复位为 abort：cfx2 整体缺失时第一条访问即
 	@@ CFXREG ⇒ 直接显式失败（否则会复用 f3 的回落点、回到 cfx2 段反复触发）。
 	set.rb rb21, abort
@@ -174,8 +187,6 @@ f3_resume:
 
 	@@ ---- F. cfx2 寄存器面 ----
 	cfx2rd	cfx_smon, cg3, rc0, rd5
-	__REC	rd5
-	cfx2rd	cfx_smon, cg3, rc4, rd5
 	__REC	rd5
 	cfx2rd	cfx_smon, cg3, rc8, rd5		@@ hypv switch_run_mode = 3
 	__REC	rd5
@@ -228,6 +239,19 @@ f5_fault:
 	cfx2rd	cfx_smon, cg8, rc2, rd5		@@ cg8 rc2 保留（monitor 只有 rc1）
 	.globl	f5_resume
 f5_resume:
+	ld.o	rd5, [rb20, 0xE0]
+	__REC	rd5
+
+	.globl	f7_aip
+f7_aip:
+	aip.si	rb21, 0
+	add.si	rb21, 16
+	st.o	rb21, [rb20, 0xF8]
+	.globl	f7_fault
+f7_fault:
+	cfx2rd	cfx_smon, cg3, rc4, rd5		@@ hypv 行 rc4 保留
+	.globl	f7_resume
+f7_resume:
 	ld.o	rd5, [rb20, 0xE0]
 	__REC	rd5
 

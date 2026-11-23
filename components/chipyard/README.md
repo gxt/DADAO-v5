@@ -389,6 +389,17 @@ make check-patch-tree
 - **零增益**：缓存只在 `useVM` 的机器实例化，Tiny 的 FIRRTL 里 `WumingCache` 出现 **0** 次；首册 38 个镜像在改前/改后 Tiny 二进制上仍逐字节相同。
 - **验证**：`tools/chipyard/dcache/vastdcache.S`（+ `vastdcache.lds`）把页表、同组 8 行数据、代码页与 PTW 新旧目标放在 PA 固定地址；`gen_vastdcache_tables.py` 是几何/PTE/magic/组索引的**单一真源**（cause one-hot 从 `contract-see §6.1` 现场解析），`check_vastdcache.py` 比对 35 条 8 字节记录 + 日志事件（组索引、受害者序列、写回顺序、PTW 命中；`--self-test` 11 条可达 FAIL）。覆盖：同址 1 缺失 + 4 命中；同组 8 行共存、第 9/10 行按 LRU 淘汰（受害者 B1→B2）；写后读命中不回内存；**写回时机以取指端口为独立观测量**（当时无 I-Cache）：把 `trap cfx_hmon` 指令字经缓存写入代码页后，淘汰前取指仍读到内存里的旧值（UNDI），强制淘汰（同组 8 次填充）后取指读到 `trap`（CFXTRAP）；PTW 读到核内经缓存写入的新 PTE（改 L2 PTE → `invalid/all` → 重走查 ⇒ 新映射的数据）。注入：替换策略改 MRU / `writeBack = false` / 组索引 6 位 ⇒ 均判据红；`cp`+md5 还原并强制重建后回绿。
 
+## cfx_hart 异步模型修订：cg9 七槽 + 掩码归 monitor + 源位图（`m16-chipyard-024`）
+
+- **范围**：`ADR-0061`（Accepted）取代 `ADR-0060` 的 cg9 表、掩码归属与释放语义；上一节（021）的 16 槽/五掩码/`1 << 17` 已**作废**，保留为历史记录。
+- **cg9 = 七槽**（`DADAO-12 §4.7`）：`rc0 async_prev_run_mode`、`rc1 async_prev_cfx_code`、`rc2 async_cause_ip`（= 提交后的 `rb0`）、`rc3 async_src_frame`（64b，**HW/RO**，位 = 源 cfxha，非 0 = 有效帧）、`rc4 async_src_pending`（64b，**HW/RO**）、`rc5 async_excp_vector`、`rc6 async_switch_run_mode`（固定 supv = 2）；`rc7`–`rc15` reserved ⇒ `CFXREG`。删除 `async_cause_id`、`async_saved_global_intr_mask` 与五个来源掩码；两个位图的**软件写忽略、读回不变、不报异常**。
+- **掩码归 monitor**：`cfx0`/`cfx1`/`cfx2`/`cfx3` 的 `cg8 rc1` = 本运行模式的异步来源掩码（位 = 源 cfxha、`0=允许`/`1=屏蔽`、复位全 1），投递时按 `inner_run_mode` 选行；`trap`/`escape` 不保存/不恢复它。`cg0`–`cg3 rc4`（旧 `<mode>_cfx_intr_mask`）在异步机器上作废（保留，访问 ⇒ `CFXREG`）。
+- **仲裁**：同一指令边界把所有 `pending && !masked` 的源一次性投一帧（`src_frame` = 位并集、`src_pending` 扣除、`excp_async_num` 每帧 +1），不逐源循环、不串行；`src_frame != 0` 时新事件只置 pending（无嵌套）。
+- **pending 跟随源**：`timer_cmp` 到期（条件上升沿）置 bit 15；投递即清；源 ack（重写 `timer_cmp`）即落；软件不写。`timer_ctrl` 的 IMASK 是源本地门，屏蔽期仍记录 pending。
+- **返回**：`escape cfx_hart, [async_cause_ip, 8]`（`imms18 = 2`，汇编层 `imms20 = 8`）合法返回即恢复 mode/cfx 并由硬件清 `src_frame` 释放帧；`imms18 = 3` / `[17:2] ≠ 0` ⇒ `ILLI`。编码集不变。
+- **不回归**：Tiny 无 cfx_hart，异步模型整体不接线（寄存器面保持旧行为）；cfx3/4/5 的既有行与 020 两轴判权不变。
+- **验证**：`tests/arch/hart/cfx15.S` + `check_cfx15.py` 改到新模型（H 56 槽 / U/S 各 16 槽；掩码写各自模式 monitor 的 `cg8 rc1` 放行 bit15、七槽逐项、`src_frame`/`src_pending` 只读、ack 后 pending 落）；`tests/arch/umon/cfx02_regs.S` 的 `cg0`/`cg3 rc4` 改为 `CFXREG` 用例；`mode_entry.S` 移除 monitor-first 异步段（DIV-10 条目删除）；注入「掩码留在 cfx_hart（投递不看 monitor 行）」「pending 位记 17」两路均红，`cp`+md5 还原并强制重建后回绿；Tiny `11-cfx`/`01-load-store` 结果字节不变。
+
 ## cfx_hart：cg8 管理 + cg9 异步现场 + TIMER（`m16-chipyard-021`）
 
 - **范围**：`ADR-0060`（hart-first）的 RTL 落点。`cfx_hart`（cfxha 15）新增 `cg9` 异步现场，`cg8` 的定时器到期后**统一投 cfx_hart 的 supv 单向量**（与当前运行模式无关）。

@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..ef0e474
+index 0000000..e603d7f
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,379 @@
+@@ -0,0 +1,380 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -198,11 +198,12 @@ index 0000000..ef0e474
 +          spaceSize = 0,
 +          spaceAttr = 0,
 +          sourceMaskReset = maskInitCfx),
-+        // cfx_hart (`m16-chipyard-021`, `ADR-0060`): per-hart management
-+        // (cg8) plus the asynchronous frame (cg9).  It opts into the common
-+        // mode rows so the two-axis access model of `contract-see §6.3` gives
-+        // supv a `<mode>_cfxreg` mask and the `cg3 rc12` delegation bitmap;
-+        // `cg8 rc1 global_cfx_intr_mask` stays cfx0-cfx3 only.
++        // cfx_hart (`m16-chipyard-021`/`024`, `ADR-0061`): per-hart management
++        // (cg8) plus the seven-slot asynchronous frame (cg9).  It opts into the
++        // common mode rows so the two-axis access model of `contract-see §6.3`
++        // gives supv a `<mode>_cfxreg` mask and the `cg3 rc12` delegation
++        // bitmap; `cg8 rc1` (the running mode's async source mask) stays
++        // cfx0-cfx3 only.
 +        GewuCfxParams(
 +          id = WumingCfxHa.hart,
 +          vectorBase = 0,

@@ -10,10 +10,9 @@
 @@   * `trap cfxHA` 的“目标 cfx”组合（U 下 trap 到 smon、H 下 trap 到 umon）；
 @@   * U/S 下 `cfx2rd` 的两轴判权：目标 cfx 的 `<mode>_cfxreg` 源掩码 +
 @@     `cg3 rc12` `cg_reg_deleg`，拒绝 ⇒ `CFXPERM` + `[39] NCFXPERM`；
-@@   * 异步中断的 monitor-first 投递：pending 记录在**当前模式 monitor** 的
-@@     `cg5 rc5`（TIMER = `1<<10`，源 cfxha 15；PMEM_DMA = `1<<8`，源 cfxha 32），
-@@     两级源掩码（`<mode>_cfx_intr_mask` 与 `global_cfx_intr_mask`）按源 cfxha
-@@     过滤，被屏蔽时保留 pending，放开后投递。
+@@ 异步中断**不在本探针**：`ADR-0061` 后异步统一投 `cfx_hart`（源位图 = 源
+@@ cfxha、掩码在当前运行模式 monitor 的 `cg8 rc1`），由 `tests/arch/hart/cfx15.S`
+@@ 按 H/S/U 三模式覆盖；本探针只保留同步进入/退出与两轴判权。
 @@
 @@ **一份 case、三种运行模式**：本文件是唯一载体，链接期用 `--defsym TMODE=`
 @@ 选择目标模式（0 = umon/U、2 = smon/S、3 = hmon/H），同一份期望表见
@@ -26,7 +25,7 @@
 @@ H 模式用 `trap cfx_hmon` 让测试体在 `cfx_hmon + hypv` 跑。
 @@
 @@ 不变量（判据侧同样使用）：
-@@   * 每一处同步异常/异步中断的 `excp_cause_ip` 都记为**完整 64 位地址**，期望值
+@@   * 每一处同步异常的 `excp_cause_ip` 都记为**完整 64 位地址**，期望值
 @@     由 ELF 符号表（`llvm-nm`）给出，不从注入后的镜像反推；
 @@   * `cause_id` 记**完整 64 位**（`ADR-0056` 分层编码），期望由
 @@     `spec/DADAO-12` + `.tao/contracts/contract-see.md §6.1.1` 现场派生；
@@ -134,7 +133,7 @@ _start:
 @@ ---------------------------------------------------------------------------
 setup_u:
 	set.rb	rb1, sig_bytes
-	set.rd	rd6, 168			@@ 21 槽
+	set.rd	rd6, 112			@@ 14 槽（异步段移出后）
 	st.o	rd6, [rb1, 0]
 	@@ 误入 hmon 的检出器（若 U 异常被错误路由到 hmon，本向量会命中）
 	WCFX_LABEL cfx_hmon, cg3, rc10, wrong_monitor
@@ -163,7 +162,7 @@ setup_u:
 @@ ---------------------------------------------------------------------------
 setup_s:
 	set.rb	rb1, sig_bytes
-	set.rd	rd6, 112			@@ 14 槽
+	set.rd	rd6, 56			@@ 7 槽（异步段移出后）
 	st.o	rd6, [rb1, 0]
 	WCFX_LABEL cfx_hmon, cg3, rc10, wrong_monitor
 	WCFX_LABEL cfx_smon, cg3, rc10, s_entry
@@ -291,27 +290,6 @@ u_f_cfx5:
 	cfx2rd	cfx5, cg8, rc0, rd5
 	jump	[rb0, fail_no_fault]
 u_resume_cfx5:
-	@@ 异步：masked 时置 pending、不投递
-	set.rd	rd6, 0x400			@@ TIMER = 1<<10
-	cfx2rc	cfx_umon, cg5, rc5, rd6
-	set.rd	rd5, 0xAA55AA55
-	REC	rd5				@@ 槽 10：屏蔽期间照常执行
-	cfx2rd	cfx_umon, cg5, rc5, rd5
-	REC	rd5				@@ 槽 11：pending 仍 = 0x400
-	@@ 放开源掩码（源 cfxha 15 ⇒ bit15），下一条指令边界投递
-	SET_EXP u_async_resume
-	SET_PHASE 2
-	set.rd	rd7, 0xFFFFFFFFFFFF7FFF
-	cfx2rd	cfx_umon, cg0, rc4, rd6
-	and.o	rd6, rd6, rd7
-	cfx2rc	cfx_umon, cg0, rc4, rd6
-	cfx2rd	cfx_umon, cg8, rc1, rd6
-	and.o	rd6, rd6, rd7
-	cfx2rc	cfx_umon, cg8, rc1, rd6
-u_async_resume:
-	swym	0
-	cfx2rd	cfx_umon, cg5, rc5, rd5
-	REC	rd5				@@ 槽 16：pending 已消费 = 0
 	@@ U 下 trap 到 cfx_smon：目标 cfx + switch=2 + 帧
 	SET_EXP u_f_trap
 u_f_trap:
@@ -323,9 +301,7 @@ u_fault:
 	set.rb	rb1, phase
 	ld.o	rd6, [rb1, 0]
 	br.z	{rd6}?, [rb0, u_fault_phase0]
-	set.rd	rd7, 1
-	br.eq	{rd6, rd7}?, [rb0, u_fault_phase1]
-	jump	[rb0, u_fault_async]
+	jump	[rb0, u_fault_phase1]
 
 u_fault_phase0:
 	cfx2rd	cfx_umon, cg5, rc2, rd5
@@ -351,18 +327,6 @@ u_fault_phase1:
 	escape	cfx_umon, [excp_cause_ip, 0]
 	swym	0
 
-u_fault_async:
-	cfx2rd	cfx_umon, cg5, rc2, rd5
-	REC	rd5
-	cfx2rd	cfx_umon, cg5, rc0, rd5
-	REC	rd5
-	cfx2rd	cfx_umon, cg5, rc1, rd5
-	REC	rd5
-	cfx2rd	cfx_umon, cg5, rc3, rd5
-	REC	rd5
-	escape	cfx_umon, [excp_cause_ip, 0]
-	swym	0
-
 @@ U 下 trap 到 smon 的处理器（cfx_smon + supv）
 s_from_u:
 	cfx2rd	cfx_smon, cg5, rc0, rd5
@@ -384,34 +348,14 @@ s_entry:
 	@@ 槽 0：self + deleg（bit4 = 0）⇒ 可访问自身 cg4
 	cfx2rd	cfx_smon, cg4, rc0, rd5
 	REC	rd5
-	@@ 异步：masked 时置 pending（PMEM_DMA = 1<<8，源 cfxha 32）
-	set.rd	rd6, 0x100
-	cfx2rc	cfx_smon, cg5, rc5, rd6
-	set.rd	rd5, 0x5A5A5A5A
-	REC	rd5				@@ 槽 1：屏蔽期间照常执行
-	cfx2rd	cfx_smon, cg5, rc5, rd5
-	REC	rd5				@@ 槽 2：pending = 0x100
-	SET_EXP s_async_resume
-	SET_PHASE 0
-	set.rd	rd7, 0xFFFFFFFEFFFFFFFF		@@ ~(1<<32)
-	cfx2rd	cfx_smon, cg2, rc4, rd6
-	and.o	rd6, rd6, rd7
-	cfx2rc	cfx_smon, cg2, rc4, rd6
-	cfx2rd	cfx_smon, cg8, rc1, rd6
-	and.o	rd6, rd6, rd7
-	cfx2rc	cfx_smon, cg8, rc1, rd6
-s_async_resume:
-	swym	0
-	cfx2rd	cfx_smon, cg5, rc5, rd5
-	REC	rd5				@@ 槽 7：pending 已消费
-	@@ 槽 8–11：S 下访问 cfx_umon 被其 supv_cfxreg 拒绝 ⇒ CFXPERM
+	@@ 槽 1–3：S 下访问 cfx_umon 被其 supv_cfxreg 拒绝 ⇒ CFXPERM
 	SET_EXP s_f_umon
 	SET_PHASE 1
 s_f_umon:
 	cfx2rd	cfx_umon, cg4, rc0, rd5
 	jump	[rb0, fail_no_fault]
 s_resume_umon:
-	@@ 槽 12–14：S 访问自身 cg3 被 deleg bit3 恒 1 拒绝（同时证明 runMode = 2）
+	@@ 槽 4–6：S 访问自身 cg3 被 deleg bit3 恒 1 拒绝（同时证明 runMode = 2）
 	SET_EXP s_f_cg3
 	SET_PHASE 2
 s_f_cg3:
@@ -421,22 +365,9 @@ s_f_cg3:
 s_fault:
 	set.rb	rb1, phase
 	ld.o	rd6, [rb1, 0]
-	br.z	{rd6}?, [rb0, s_fault_async]
 	set.rd	rd7, 1
 	br.eq	{rd6, rd7}?, [rb0, s_fault_perm]
 	jump	[rb0, s_fault_mode]
-
-s_fault_async:
-	cfx2rd	cfx_smon, cg5, rc2, rd5
-	REC	rd5
-	cfx2rd	cfx_smon, cg5, rc0, rd5
-	REC	rd5
-	cfx2rd	cfx_smon, cg5, rc1, rd5
-	REC	rd5
-	cfx2rd	cfx_smon, cg5, rc3, rd5
-	REC	rd5
-	escape	cfx_smon, [excp_cause_ip, 0]
-	swym	0
 
 s_fault_perm:
 	cfx2rd	cfx_smon, cg5, rc2, rd5
