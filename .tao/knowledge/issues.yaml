@@ -1415,3 +1415,37 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`tests/arch` 的 smon/umon 异常路径失败形态过重（`m16-testcases-012` 复核发现）：载体未装载当前模式监视器时只能等 60 s 超时，且 carrier 开 `-d cpu`，实测单次失败写约 11.7 GB 日志（tmpfs 16 G 被打满）。建议：失败路径短 timeout（如 5 s）+ 关闭或截断 `-d cpu` dump，并让超时判据在写满磁盘前终止；另核其它 driver 是否有同类形态。"
+- id: ISS-523
+  scope:
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】chipyard RTL 的 Vast BootROM 几何复用 Tiny：`bootROMBase/Size = 0xffff_ffff_0000/64 KiB` ⇒ `cfx_power cg7` 块 0 的 `start/size` = `0x3ff_ffff_0000`/`0x1_0000`，与 `spec/Kaiwu §3`/`machine.yaml(vast)` 的 `0x3ff_ffc0_0000`/`0x40_0000` 不符（`m16-testcases-016` 登记 DIV-12）。待裁定：修 RTL 的 Vast 地址映射，还是改 spec 口径；修好前 `arch-power-001` 槽 5/6 走登记例外。"
+- id: ISS-524
+  scope:
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】chipyard RTL 的 `cfx_power` 未开 common face：`cg4`（计数）/`cg6`（scratch）读出 `CFXREG`，而 `DADAO-12 §3.5/§3.7` 要求每个非 reserved cfx 都实现（`m16-testcases-016` 登记 DIV-13，QEMU/gem5 合规范）。应补 RTL 而非改口径。"
+- id: ISS-525
+  scope:
+  - qemu
+  - gem5
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`cfx_power_ctrl` 的写侧（WO，写被接受）三个实现都未实现：写 0 均报 `CFXREG`（`m16-testcases-016` 诊断项）。该行为未写入判据（未拿实现当期望），需三方补齐后升为判据。"
+- id: ISS-526
+  scope:
+  - spec
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P4】`contract-see` 的 power `start` 写 `0x3_ffc0_0000`，与 `spec/Kaiwu §3`/`machine.yaml(vast)` 的 `0x3ff_ffc0_0000` 差一位（`m16-testcases-016` 复核发现，既有笔误、非该任务引入）。随下次 contract-see 变更订正。"

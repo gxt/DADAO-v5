@@ -189,3 +189,18 @@ cases:
     reasons:
       smon: "supv 的同步异常进 cfx_smon，而本测试链不装载 cfx_smon（common/env-README「已知限制」）⇒ ILLI 的 cause 观测不到，镜像会中止/短流；fail-closed 排除"
       umon: "user 的同步异常进 cfx_umon 的 user 行，需把处理程序装进 U 页并单独授予执行权限（common/env-README「已知限制」）；ILLI 的 cause 取不到 ⇒ 排除"
+
+  # cfx63 power 基础用例（m16-testcases-016）：寄存器面（cg7 BootROM 块）与
+  # power→hmon 移交在 hmon/smon/umon 三模式各跑一次。移交帧在 hmon 阶段读，
+  # 寄存器面在目标模式读（smon 的 cg 授权由载体在 hypv 按 DADAO-12 §3.4 打开
+  # `cfx_power cg3 rc12 = 0x8` 并回读校验/还原）。
+  arch-power-001:
+    modes: [hmon, smon, umon]
+
+  # 属性拒绝面（cg7 写 / power ctrl 读 / 未定义 rc 读 ⇒ CFXREG）只在 hmon：
+  # 拒绝异常进「当前运行模式监视器」，载体只装 cfx_hmon 的 hypv 处理程序。
+  arch-power-002:
+    modes: [hmon]
+    reasons:
+      smon: "supv 的同步异常进 cfx_smon（本载体只装 cfx_hmon 的 hypv 处理程序）；且 supv 访问 cfx_power 的 cg 受 cg3 rc12 授权约束，拒绝面观测不到 ⇒ fail-closed 排除"
+      umon: "user 的同步异常进 cfx_umon 的 user 行，需把处理程序装进 U 页并单独授予执行权限；拒绝面的 cause 取不到 ⇒ 排除"

@@ -1,0 +1,37 @@
+# tests/arch/power/expected.yaml — `cfx_power`（cfx63）基础用例的签名流登记
+# （`m16-testcases-016`）。
+#
+# **登记，不是判据**：期望值的唯一真源是 `tests/arch/power/power_vast.py` 的
+# 派生函数（`contract-see` / `DADAO-12 §3.8` / `spec/Kaiwu §3` / `machine.yaml`），
+# 本文件的 `signature` 由驱动 `--selfcheck` 与现场派生值**双向**核对；两者不符
+# 即红（不许单侧手改）。
+#
+# 槽序 = 探针执行序；`_in_rom` 槽是归一化标志（cause_ip 落在 BootROM 窗口 = 1）。
+# `0x25`/`0x3f` 是 `cg5 rc1` 的 RW 回读（写哨兵、还原 `cfx_power` 的 cfxha）。
+#
+# 判据来源：
+#   * `cfx_power = 63` / `cfx_hmon = 3`：`.tao/contracts/contract-cfx-aliases.md §1`
+#   * `cg7` 块 0（BootROM）：`DADAO-12 §3.8` + `spec/Kaiwu §3` + `contracts/machine.yaml`
+#   * `CFXTRAP = 1<<0` / `CFXREG = 1<<2`：`.tao/contracts/contract-see.md §6.1`
+#   * 寄存器的只读/只写属性：`DADAO-12 §3.8`（cg7 只读）、`§4.12`（power ctrl WO）
+schema: 1
+cases:
+  - id: arch-power-001
+    carrier: arch/power/power_vast.py
+    checks:
+      - label: handover
+        note: power→hmon 移交帧：prev_cfx=cfx_power、prev_mode=hypv、cause=CFXTRAP、cause_ip 在 BootROM 窗口
+        signature: [0x3f, 0x3, 0x1, 0x1]
+      - label: space
+        note: cg7：块 0 = BootROM（desc/start/size/attr）、块 1–15 desc = 0、块 15 start/size/attr = 0
+        signature: [0x5, 0x3ffffc00000, 0x400000, 0x5, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0]
+      - label: rw
+        note: cg5 rc1 的 RW 回读：写 0x25 读回 0x25，写回 cfxha 读回 0x3f
+        signature: [0x25, 0x3f]
+
+  - id: arch-power-002
+    carrier: arch/power/power_vast.py
+    checks:
+      - label: reject
+        note: 属性拒绝面：cg7 写、cfx_power_ctrl 读、cg8 rc2 读 ⇒ 均 CFXREG（1<<2）
+        signature: [0x4, 0x4, 0x4]

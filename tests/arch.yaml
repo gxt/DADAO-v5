@@ -290,3 +290,28 @@
   level: full
   requires:
   - qemu
+
+# cfx63 power 基础用例（m16-testcases-016）：载体 `arch/power/power_vast.py`
+# （4 MiB BootROM：power→hmon→body，QEMU 与 gem5 同一份字节）。001 = 寄存器面
+# （cg7 BootROM 块）+ power→hmon 移交，三模式各跑一次；002 = 属性拒绝面
+# （cg7 写 / power ctrl 读 / 未定义 rc 读 ⇒ CFXREG），只 hmon
+# （`tests/arch/modes.yaml` 写明排除原因）。登记 `level: full`，不进 L2/L3
+# 代表集（仿真按需 `check-arch-vast`）。
+- id: arch-power-001
+  file: arch/power/check_power.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-power-002
+  file: arch/power/check_power.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu

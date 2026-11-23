@@ -53,6 +53,7 @@ python3 tests/arch/run_arch.py --list
 | `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针：载体/生成器 `ptw_carrier_tlb.py`（`m16-testcases-010` 由 `tools/testcases/arch/` 迁入）、期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §）、驱动型入口 `check_tlb.py`（`kind: driver`）；QEMU 与 gem5（shim）逐条跑，RTL 由 `m16-chipyard-018` |
 | `cache/` | `cfx5`（cache） | 寄存器面 RTL 探针 `cfx5_regs.S` + `check_cfx5_regs.py`（`m16-chipyard-016`）；I/D 维护命令 RTL 探针 `cfx5_maint.S` + `gen_cfx5_maint_tables.py` + `check_cfx5_maint.py`（`m16-chipyard-017`，记录 + 缓存日志时序）；暂未登记 `tests/arch.yaml`（chipyard 后端仍 fail-closed） |
 | `hart/` | `cfx15`（cfx_hart） | cg8 管理寄存器 + cg9 异步现场 + TIMER 投递 RTL 探针 `cfx15.S` + `check_cfx15.py`（`m16-chipyard-021`；`TMODE=3/2/0` 出 H/S/U 三个镜像，一份 case）；暂未登记 `tests/arch.yaml` |
+| `power/` | `cfx63`（power） | 寄存器面（`cg7` BootROM 块）+ power→hmon 移交：`arch-power-001`（hmon/smon/umon 各一次，28 槽）+ `arch-power-002`（属性拒绝面，只 hmon，3 槽）；载体/驱动 `power_vast.py` / `check_power.py`，RTL 承载 `gen_power_rtl.py` / `check_power_rtl.py`（`power_rtl.lds`） |
 
 其余 cfx 按已有用例增建（`smon/`、`hmon/`、`cache/`、`hart/`、`pmem/`、`time/`、
 `power/`）；**不建**空壳子目录。Tiny 的 hmon 用例已迁出 arch（见下）。
@@ -96,6 +97,62 @@ python3 tests/arch/run_arch.py --list
 - cfx1（jmon）在 arch 范围外（`tests/arch/README.md` 顶部 cfx 范围），只按其
   编码合法性间接落在允许集里（未单列 probe）。
 - 保留集只采样 6/14/16/17/18/31/35/61（含边界），其余保留编号不逐个跑。
+
+## cfx63 power 基础用例（`m16-testcases-016`，cfx63）
+
+power 阶段的寄存器面与 power→hmon 移交（`trap cfx_hmon`）由 `tests/arch/power/`
+覆盖；载体复用 `node_probe_prelude` 的 step5 同序启动链（power → hmon → body），
+QEMU 与 gem5 跑**同一份 4 MiB BootROM 字节**。
+
+| case | 内容 | 模式 | 尺寸 |
+|------|------|------|------|
+| `arch-power-001` | 移交帧（`prev_cfx` = 63、`prev_mode` = hypv、`cause_id` = `CFXTRAP`、`cause_ip` 落在 BootROM 窗口）+ `cg7` 块 0 四字段 + 块 1–15 `desc` + 块 15 `start/size/attr` + 收尾 `cg5 rc1` 的 RW 回读 | hmon/smon/umon 各一次 | 28 槽 |
+| `arch-power-002` | 属性拒绝面：`cg7` 写 ⇒ `CFXREG`、`cfx_power_ctrl`（`cg8 rc1`，WO）读 ⇒ `CFXREG`、`cg8 rc2` 读 ⇒ `CFXREG` | hmon（原因见 `modes.yaml`） | 3 槽 |
+
+- 期望值全部现场派生：cfx 编号取 `contract-cfx-aliases.md §1`、`cg7` 位号取
+  `DADAO-12 §3.8`、`desc/start/size/attr` 取 `spec/Kaiwu §3` 并与
+  `contracts/machine.yaml`（vast）双向核对、cause 编号取 `contract-see §6.1`、
+  模式编码取 `spec/Kaiwu §7.1`。`expected.yaml` 只是登记，`--selfcheck` 双向核对。
+- **复位 `inner_cfx_code = 63` 的可观测形式**是 power→hmon 帧里的
+  `excp_prev_cfx_code`（`DADAO-12 §5.2` 第 5/6 步）⇒ `hmon_prev_cfx` 槽。
+- smon 的 `cg` 授权：载体在 hypv 把 `cfx_power cg3 rc12`（`cg_reg_deleg`）写成
+  `0x8`（`§3.4` 的整组开放）并回读校验，收尾还原；回读不符 ⇒ `SYS_EXIT(0xE3)`
+  （fail-closed，不是 PASS）。umon 不需要（`user` 不查 deleg）。
+- 运行模式由 QEMU/gem5 的 `-d cpu` 的 `MODE:` **现场观测**（不由 body 自述；
+  窗口限定为 body 的 `-dfilter`）；失败路径 15 s 短超时 + dump 上限 128 MiB
+  （`ISS-522` 的教训：不复制「60 s + 全量 dump 写爆磁盘」的形态）。
+- **RTL 按需**：`gen_power_rtl.py` 从同一张探针表生成 `.S`，
+  `check_power_rtl.py` 经 `chipyard_engine` 在 `WumingVastConfig` 上跑并逐槽比对
+  （RTL 测试体固定 `cfx_power`/hypv ⇒ `arch-power-001` 只跑一次）。`run_arch.py`
+  的 chipyard 后端仍 fail-closed，故 RTL 不进 `run_arch` 的常规路径。
+  `tools/chipyard/excp/prevcfx.S` 的检查点（`cfx_hmon cg5 rc1` 的 boot 保存值 =
+  `cfx_power` 编号、RW 回读、还原）已并入同一张探针表（槽 0/26/27），不再有两套判据。
+
+**三方差异（登记在 `expected-divergences.yaml`，不静默跳过）**：
+
+- **DIV-12**：RTL 的 `cfx_power cg7` 块 0 描述 **64 KiB** BootROM
+  （`start = 0x3ff_ffff_0000`、`size = 0x1_0000`；chipyard 的 Vast 地址图复用
+  Tiny 的 BootROM 几何），QEMU/gem5 按规范为 4 MiB ⇒ `arch-power-001` 的
+  `space0_start`/`space0_size` 两槽不一致；RTL 承载按登记的例外值判，**规范值
+  与 QEMU/gem5 仍照判**，例外被修好时承载判红提示删条目。
+- **DIV-13**：RTL 的 `cfx_power cg4/cg6` ⇒ `CFXREG`（未开 common face），
+  QEMU/gem5 返回 `cfx_id = 63` / scratch 可读写 ⇒ **不在比较面**（不把实现缺口
+  写进判据），由 `--diagnose` 逐方报告。
+
+**未覆盖项（显式登记，不假装全覆盖）**：
+
+1. `cfx_power_ctrl` 的**写侧**：规范为 WO（写 0 应被接受），但 QEMU/gem5/RTL
+   当前都没有该寄存器（写 0 收 `CFXREG`）⇒ 不写进判据（不拿实现现状当期望），
+   `--diagnose` 逐方报告（三方一致 = `CFXREG`，与规范不符，需修实现）。
+2. 电源语义本身（`bit0/1/2` = 关机/硬复位/软复位）：写入即停机/复位，没有
+   「执行后仍可观测」的判据（任务书「不做」第 1 条）。
+3. `cfx_power` 的 `cg3` 行（hypv 向量/switch 模式）不复位断言：`DADAO-12 §3.4`
+   把无 SRAM cfx 的 `hypv_excp_vector` 初值留给平台/实现。
+4. 移交后 **hmon 的 `escape` 回 power** 不测：`D14`（`ADR-0043`）声明 power
+   不恢复，无可观测语义。
+5. `cfx_power` 的 `cg7` 只读面只采样 `desc`（块 1–15 全部）与块 15 的
+   `start/size/attr`；块 1–14 的 `start/size/attr` 不逐个跑（`exists=0` 时三字段读
+   0 的规则由块 15 与块 0 覆盖）。
 
 ## 命名规范
 
