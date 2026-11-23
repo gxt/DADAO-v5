@@ -8,8 +8,8 @@
 | 主机名 | 核数 | 内存 | 测试 `--jobs` | 角色 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | `tao-clab` | 64 | 125 G | 62 | **主控机**：唯一装 OpenCode 的机器，会话 / 派单 / 合并都在这里 | 在用 |
-| `server207` | 64 | 125 G | 62 | 评测节点（纯执行；**反向隧道访问**，用户 `ubuntu`；2026-11-13 重装并引导，仓库+自制工具链就绪） | **就绪** |
-| `server208` | 64 | 125 G | 62 | 评测节点（纯执行；**反向隧道访问**，用户 `ubuntu`；2026-11-13 重装并引导，仓库+自制工具链就绪） | **就绪** |
+| `server207` | 64 | 125 G | 62 | 评测节点（纯执行；**反向隧道访问**，用户 `ubuntu`；2026-11-13 重装并引导，仓库+自制工具链就绪；**Vivado 2025.1 已装**，见 §11.7） | **就绪** |
+| `server208` | 64 | 125 G | 62 | 评测节点（纯执行；**反向隧道访问**，用户 `ubuntu`；2026-11-13 重装并引导，仓库+自制工具链就绪；**Vivado 2025.1 已装**，见 §11.7） | **就绪** |
 | `ics150` | 40 | 125 G | 38 | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
 | `ics160` | 40 | 125 G | 38 | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
 | `ics170` | 40 | 125 G | 38 | 构建 / 测试节点（纯执行；经端口转发访问） | 就绪 |
@@ -79,6 +79,8 @@
 - **权限**：`gxt` 账号，`sudo` 免密
 - **时区**：**`Asia/Shanghai`（CST, UTC+8）**，与主控机一致（2026-11-09 统一；两台原为 `Etc/UTC`，跨机比对日志时间曾因此误判）
 - **没有 GPU**：本仓库当前构建/测试链路不依赖 GPU
+- **磁盘控制器（2026-11-23 实测）**：`megaraid_sas` 报 **`controller type: iMR(0MB)`**（无缓存模块）⇒ `/sys/block/sda/queue/write_cache = write through`；`max_hw_sectors_kb = 128`（试改 1024 被内核拒 `EINVAL`，硬件限死）。盘阵 = 4×`ST3300657SS`（300 GB 15k SAS）RAID5、卷 898 GB，4 盘 SMART 全 OK（`grown defect` 59/37/0/0）。
+- **顺序写 ~35 MB/s 的正常性**：`dd oflag=direct conv=fdatasync` 实测 208 = **35.1 MB/s**、207 = **31.4 MB/s**；`iostat -x` 272 次写/秒 × 128 KB、`%util 97–98 %`、`w_await 18.6 ms` ⇒ 瓶颈是「写通 RAID5 的 IOPS 上限」，**不是坏盘**（同机顺序读 451/353 MB/s）。要实质提升只能加控制器 cache/BBU 或改 RAID10（重建阵列属破坏性操作，须用户确认）；OS 层调参无效（`max_sectors_kb` 已试）。
 
 判据含义：64 vCPU 支持 `JOBS=32`（单机一半核）稳定跑；128 GiB 内存使 LLVM/gem5 并行链接不触发 swap。
 
@@ -300,13 +302,15 @@
 - **同一节点不要并发起两轮解包**：`rm -rf` 与 `tar` 竞态会留下半残 env（实测缺 `verilator`），只能整包重解。
 - **六台环境就绪（2026-11-13 实测）**：`gem5`（`.work/source/gem5/build/DADAO/gem5.opt`）、`musl`（`.work/source/musl/lib/libc.a`）、chipyard conda env + `simulator-chipyard.harness-WumingTinyConfig` 六台齐全；`+loadmem` 冒烟六台输出与主控机逐字一致；`server207` 上 `tests/inst/02-reg-copy` 三平台 **58/58** 与主控机相同 ⇒ 节点可承担 chipyard/qemu/gem5 评测。
 
-### 11.7 现成的 Vivado（仅 `zzx-NF5280`，2026-11-22 核查）
+### 11.7 Vivado 2025.1（源：`zzx-NF5280`；`server207`/`server208` 已复制安装）
 
-- **装在哪**：`/tools/Xilinx/2025.1/`（`Vivado`/`Vitis`/`Model_Composer`/`DocNav`/`xic`），属 `root:root`，整棵 **133 G**；`/tools/Xilinx_lic/` 放许可。
-- **版本**：`source /tools/Xilinx/2025.1/Vivado/settings64.sh && vivado -version` ⇒ `vivado v2025.1 (64-bit)`，Build 2025-05-21，rc=0；`vivado` 不在 PATH。
-- **许可**：`Vivado_System_Edition`/`VIVADO_HLS` = `permanent`、`HOSTID=ANY`（2037.05）⇒ 不绑机器；`/etc/profile.d`/`~/.bashrc` 均无 `XILINX_LICENSE_FILE`，`~/.Xilinx/*.lic` 只在 `root` 家目录 ⇒ 用 `ubuntu` 时须先 `export XILINX_LICENSE_FILE=/tools/Xilinx_lic/vivado_lic2037.lic`（或把 lic 复制到自己的 `~/.Xilinx/`）。
-- **可用性**：用户 2026-11-22 告知**本机已跑过完整综合**（即实现/bitstream 流程可用）；证据面仅限 `vivado -version` rc=0 与我未做综合，故不另立「已验证」。
-- 用途：M19（Genesys2 shell + Vivado 流程）需要综合时优先这台，不必装第二份。
+- **装在哪**：`/tools/Xilinx/2025.1/`（`Vivado`/`Vitis`/`Model_Composer`/`DocNav`/`xic` + `.xinstall`），`root:root`，整棵 **133 G**（`140,641,898,105` B / **455,198** 个文件）；许可放 `/tools/Xilinx_lic/`。
+- **版本**：`source /tools/Xilinx/2025.1/Vivado/settings64.sh && vivado -version` ⇒ `vivado v2025.1 (64-bit)`，SW Build 2025-05-21；`vivado` 不在 PATH。
+- **许可**：4 份 `.lic`；`Vivado_System_Edition`/`VIVADO_HLS` = `permanent`、`HOSTID=ANY`（2037.05）⇒ 不绑机器、可复制。**变量名必须用 `XILINXD_LICENSE_FILE`（带 `D`，FlexNet 的 `xilinxd` 守护进程名）**：实测 `XILINX_LICENSE_FILE`（不带 D）在 Vivado 2025.1 下不被采纳，`synth_design` 直接报 `ERROR: [Common 17-345] A valid license was not found`；改成 `XILINXD_LICENSE_FILE=/tools/Xilinx_lic/vivado_lic2037.lic` 后同一设计 rc=0。
+- **综合验证（2026-11-23，`m19-infra-001`）**：`synth_design -top blinky -part xc7k325tffg900-2` **rc=0 / `SYNTH_OK`**，综合 34 s、峰值内存 2.5 GB；`report_utilization` 报 `Device: xc7k325tffg900-2`、`Design State: Synthesized`。
+- **复制方式与实测**：主控机中继 `ssh zzx 'tar -cf -' | zstd -3 -T8 | ssh <node> 'zstd -d | tar -xf -'`，两段隧道各约 10 MB/s、压缩比约 2.0×；`server207` 落地后与源端**逐字节一致**（体积与文件数完全相同），装完 `/` 剩 452 G。
+- **踩坑**：`zzx` 上只有装好的树、**没有安装包**；`/root/.Xilinx/*.lic` 才是那里的默认搜索位置（所以原机能用、直接 `export` 错变量名的新机不能用）。
+- 用途：M19（Genesys2 shell + Vivado 流程）综合优先用 `server207`/`server208`，`zzx-NF5280` 保留为源副本。
 
 ## 12. 主控机 `/tmp`（待切回磁盘，用户自理）
 
