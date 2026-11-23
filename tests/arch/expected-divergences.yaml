@@ -43,11 +43,11 @@ divergences:
   - id: DIV-05
     kind: temporary
     scope: [chipyard]
-    impact: "cfx0/2 的 U/S 模式进入暂不参与三方；A 阶段只比寄存器面与权限。"
-    reason: "RTL 的 U/S 路由尚未补（m16-chipyard-019 只做 A；B 为 m16-chipyard-020）。"
+    impact: "cfx0/2 的 U/S/H 模式进入路由（进入目标 / switch_run_mode / 异常帧 / trap / escape / CFXPERM / 异步 pending）目前只在 RTL 探针上验证，不参与三方逐槽比较。"
+    reason: "RTL 的 U/S 路由已在 m16-chipyard-020 落地并由 `tests/arch/umon/mode_entry.S` 覆盖；三方载体要等 `run_arch.py` 的 chipyard 后端接入（当前 fail-closed）与 QEMU/gem5 复用同一 case。"
     user_ruling: "2026-11-22"
     status: active
-    close_when: "m16-chipyard-020 合入"
+    close_when: "chipyard 后端接入 run_arch 且 QEMU/gem5 跑同一 mode_entry case"
 
   - id: DIV-06
     kind: temporary
@@ -57,3 +57,21 @@ divergences:
     user_ruling: "2026-11-22"
     status: active
     close_when: "m16-chipyard-021/022/023 全部合入"
+
+  - id: DIV-07
+    kind: temporary
+    scope: [chipyard]
+    impact: "RTL 的两轴 `cfxreg`/`cfxtrap` 强制判定只作用于 U/S 行；hypv 行不强制。"
+    reason: "chipyard 的固定 BootROM（`spec/Kaiwu §6.2`）以 `cfx_power` 在 hypv 跳入测试体，规范复位掩码只允许 `cfx_hmon`（`ADR-0045 D4`）；若强制 hypv 行，测试体第一条 cfx0/cfx2（以及既有 cfx4/5）访问即 `CFXPERM`。QEMU 的 BootROM 有 hmon 阶段、测试体以 `cfx_hmon` 交付，故可全模式强制。U/S 判权与拒绝路径 `CFXPERM [39]` 不因此放宽。"
+    user_ruling: "2026-11-22（任务书：U/S 下判权）；2026-11-23 reviewer 指出这是真实偏离，permanent 定性待用户确认"
+    status: active
+    close_when: "RTL 交付链改为 cfx_hmon 源（与 QEMU 017 对齐；另立任务）"
+
+  - id: DIV-09
+    kind: temporary
+    scope: [chipyard]
+    impact: "U/S 访问**无 `<mode>` 行**的 cfx（cfx3/4/5/63…）一律 fail-closed ⇒ `CFXPERM`；QEMU 为每个 cfx 建有模式行，可由固件按需开放。"
+    reason: "019/020 只给 cfx0/cfx2 打开模式行（cfx3 保持 legacy、cfx4/5 只实现 cg8/cg9/cg12），cfx15/32/34 的模式行随 021–023 落地；落地后按目标 cfx 的 `<mode>_cfxreg` 正常判定，本项删除。"
+    user_ruling: "2026-11-22（任务书：020 仅补 cfx0/2 路由）"
+    status: active
+    close_when: "cfx3/4/5/15/32/34 的 `<mode>` 行落地"

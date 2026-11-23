@@ -2,7 +2,11 @@
 
 > 粒度：**按任务一条**，追加式。**体例 = 列表式（不用表格）+ 按里程碑分节**：每条 = `- **<日期> <任务号或 —>**`，**摘要另起缩进行** `  - 摘要：<摘要正文>`；节 = `## M<k>`（节序 M1→M2→…）。补丁集的生成/应用/校验规范见 `docs/Process-01-组件补丁组织与构建编排.md §10`。
 
-## M12
+## M16
+
+- **2026-11-23 `m16-chipyard-020`**
+  - 摘要：**Kaiwu-Vast 的 cfx0/cfx2/cfx3 运行模式进入路由 + 两轴 `cfxreg` 判权**（`DADAO-12 §5.2/§5.3`，用户 2026-11-22 裁定「先 A（019）再做 B」）。`GewuParams.modeEntry`（Vast=true/Tiny=false）：同步异常/异步中断的目标 = 异常前运行模式的 monitor（U→cfx0、J→cfx1、S→cfx2、H→cfx3，未实现回退帧 monitor）；`<mode>_excp_vector` 与第 6 步 `<mode>_switch_run_mode` 按目标 cfx 选择，common cfx 的 `cg3 rc8` 落成真实寄存器（复位 3）；`trap` 走「reserved⇒ILLI / 未实现⇒CFXREG / `<mode>_cfxtrap` 拒绝⇒CFXPERM / 合法⇒目标 cfx」；`cfx2rd`/`cfx2rc` 按目标 cfx 的 `<mode>_cfxreg` + `cg3 rc12` deleg 判权，拒绝 ⇒ `CFXPERM [39]`（self 只绕 cfx 轴；强制范围 = U/S 行，hypv 不强制，见 README/DIV-07）；异步 monitor-first（pending 在 monitor `cg5 rc5`、TIMER/PMEM_DMA 优先级、源 cfxha 两级掩码、`frameLive` 防嵌套、`sFreq`/`sExec` 两处边界 + `jumpFlush` + 投递拍关需求取指）。**验证**：`tests/arch/umon/mode_entry.S` 一份 case 链接 TMODE=0/2/3，H/U/S 三模式 14/21/14 槽逐槽等于现场从 spec/合约派生的期望；注入「去掉模式路由」「忽略 switch_run_mode」均红，`cp`+md5 还原强制重建后回绿；Tiny `11-cfx` 5 + `01-load-store` 38 镜像与 pre-020 基线逐字节相同；`check-patch-tree` chipyard 段 0 problem、`make_patch` 幂等。
+  - 执行者：engineer
 
 - **2026-11-14 文档补齐（`ISS-421`）**
   - 摘要：`m12-chipyard-027` 新增的合法性规则 `mreg_range_addr_overlap`（`ldm`/`stm` 的**地址寄存器**落入传送范围 ⇒ ILLI；`stm` 允许、RA/RF 不适用）此前只在 RTL 与补丁里落地，本 README 的合法性清单漏列，现补入；规则真源见 `contracts/legality_rules.yaml` 的 `mreg_range_addr_overlap` 与 `spec/SimRISC-01`。

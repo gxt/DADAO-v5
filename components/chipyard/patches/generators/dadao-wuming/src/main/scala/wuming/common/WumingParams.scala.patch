@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..184a185
+index 0000000..dadf588
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,355 @@
+@@ -0,0 +1,361 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -213,7 +213,13 @@ index 0000000..184a185
 +    ptw = if (p.useVM) Some(GewuPtwParams(WumingCfxHa.ptw)) else None,
 +    // cfx_cache's register rows exist only on Kaiwu-Vast (CACHE-27); Tiny
 +    // keeps the rows undefined, i.e. CFXREG (CACHE-28).
-+    cache = if (p.useVM) Some(GewuCacheParams(WumingCfxHa.cache, 0x3)) else None)
++    cache = if (p.useVM) Some(GewuCacheParams(WumingCfxHa.cache, 0x3)) else None,
++    // `m16-chipyard-020`: Kaiwu-Vast runs the DADAO-12 §5.2 run-mode entry
++    // routing (U/S/H monitors, `<mode>_switch_run_mode`, two-axis `cfxreg`
++    // checks).  Kaiwu-Tiny has no U/S/J mode at all (`spec/Kaiwu §2` keeps the
++    // run mode at hypv and every non-hmon general trap is ILLI), so the flag
++    // stays off there and the pre-020 RTL behaviour is preserved bit for bit.
++    modeEntry = p.useVM)
 +}
 +
 +/**

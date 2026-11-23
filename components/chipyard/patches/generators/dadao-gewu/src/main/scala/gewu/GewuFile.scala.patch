@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..571d9a8
+index 0000000..3858c90
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
-@@ -0,0 +1,1121 @@
+@@ -0,0 +1,1406 @@
 +// See LICENSE for license details.
 +//
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
@@ -332,7 +332,24 @@ index 0000000..571d9a8
 +  hypvMode: Int,
 +  switchModeValue: Int,
 +  ptw: Option[GewuPtwParams] = None,
-+  cache: Option[GewuCacheParams] = None
++  cache: Option[GewuCacheParams] = None,
++  /**
++    * `m16-chipyard-020`: enable the DADAO-12 §5.2 run-mode entry routing and
++    * the two-axis `cfxreg` authority checks.
++    *
++    * Off (`Kaiwu-Tiny`, whose profile has no U/S/J mode at all — `§Kaiwu` §2
++    * keeps the run mode at hypv and routes every general trap to ILLI) keeps
++    * the pre-020 behaviour bit for bit: the entry target is always the frame
++    * monitor and the run mode never leaves `hypvMode`.  On (`Kaiwu-Vast`) the
++    * target of a synchronous exception or asynchronous interrupt is the
++    * monitor of the *exception-time* run mode (`U→cfx0`, `J→cfx1`, `S→cfx2`,
++    * `H→cfx3`, §5.2 step 1), the new run mode is the target cfx's
++    * `<mode>_switch_run_mode` (step 6), `trap` may name any implemented cfx
++    * (step 1) and `cfx2rd`/`cfx2rc`/`trap` are refused by the target cfx's
++    * `<mode>_cfxreg`/`<mode>_cfxtrap` source mask plus the `cg3 rc12`
++    * `cg_reg_deleg` bitmap (`ADR-0045`, `contract-see` §3).
++    */
++  modeEntry: Boolean = false
 +) {
 +  require(cfx.nonEmpty, "Gewu: at least one cfx must be implemented")
 +  require(cfx.map(_.id).distinct.length == cfx.length,
@@ -391,12 +408,20 @@ index 0000000..571d9a8
 +  val writeOk = Output(Bool())
 +
 +  // ---- architectural events ---------------------------------------------
-+  /** Exception entry into `monitor`: latch the cause frame and force hypv. */
++  /** Exception entry: latch the cause frame and switch to the entry target. */
 +  val excp = new Bundle {
 +    val valid = Input(Bool())
-+    /** Enter the *current* cfx instead of the monitor (`CFXESC` is delivered to
-+      * the current cfx, `DADAO-12` §5.2/§5.3 step 0). */
-+    val toCurrent = Input(Bool())
++    /**
++      * Entry target (`DADAO-12` §5.2 step 1/step 6):
++      *   0 = the monitor of the exception-time run mode (`U→cfx0`,
++      *       `J→cfx1`, `S→cfx2`, `H→cfx3`; falls back to the frame monitor
++      *       when that cfx is not implemented);
++      *   1 = the *current* cfx (`CFXESC` is delivered to the current cfx,
++      *       §5.3 step 0);
++      *   2 = the explicit `targetHa` (`CFXTRAP`: "合法且被允许 → 目标 cfx").
++      */
++    val targetSel = Input(UInt(2.W))
++    val targetHa = Input(UInt(6.W))
 +    val cause = Input(UInt(gp.dataBits.W)) // one-hot excp_cause_id
 +    val causeIp = Input(UInt(gp.dataBits.W)) // excp_cause_ip
 +    val info = Input(UInt(gp.dataBits.W)) // excp_cause_info
@@ -409,6 +434,11 @@ index 0000000..571d9a8
 +  }
 +  /** The `escape` is legal: `ha` is the current cfx and its frame is valid. */
 +  val escapeOk = Output(Bool())
++  /** `escape` return address = `excp_cause_ip + (imms18 << 2)` (§5.3 step 4);
++    * exposed separately so the core's redirect never routes through the
++    * entry-vector mux (which would close a combinational loop through
++    * `entrySel`). */
++  val escapeTarget = Output(UInt(gp.dataBits.W))
 +
 +  // ---- redirect request (D4: PC and flush stay in the core) --------------
 +  val redirect = new Bundle {
@@ -444,6 +474,37 @@ index 0000000..571d9a8
 +  val curCfx = Output(UInt(6.W))
 +  /** `cfx_intr_mask` of the monitor (cg3 rc4). */
 +  val intrMask = Output(UInt(gp.sourceMaskBits.W))
++
++  // ---- `m16-chipyard-020`: entry routing and two-axis authority -----------
++  /** `true` when `addr.ha` names an implemented cfx (`DADAO-12` §3.8). */
++  val implemented = Output(Bool())
++  /** Two-axis denial of the addressed row for `cfx2rd`/`cfx2rc`
++    * (`<mode>_cfxreg` source mask + `cg3 rc12` `cg_reg_deleg`); the caller
++    * reports `CFXPERM` `[39] NCFXPERM` **before** the row's own CFXREG rule. */
++  val permDenied = Output(Bool())
++  /** Two-axis denial of `trap` on the addressed cfx (`<mode>_cfxtrap`). */
++  val trapDenied = Output(Bool())
++
++  /**
++    * Asynchronous delivery (`DADAO-12` §5.2 step 3 / (四)).
++    *
++    * A source cfx records its pending bit in its own `cg5 rc5`
++    * `excp_pending`; at an instruction boundary the arbiter picks the lowest
++    * pending cfx, applies the current-mode monitor's two source masks
++    * (`<mode>_cfx_intr_mask` and `global_cfx_intr_mask`) and — when both let
++    * it through and no frame is live on that monitor — offers one delivery.
++    * `ack` performs the entry (frame, `<mode>_switch_run_mode`, vector) and
++    * consumes the pending bit.  A masked source simply keeps its pending bit,
++    * so lifting the mask later delivers it (the level-triggered rule of §5).
++    */
++  val intr = new Bundle {
++    val valid = Output(Bool())
++    val source = Output(UInt(6.W))
++    val cause = Output(UInt(gp.dataBits.W))
++    val causeIp = Input(UInt(gp.dataBits.W))
++    val vector = Output(UInt(gp.dataBits.W))
++    val ack = Input(Bool())
++  }
 +
 +  // ---- `cfx_ptw` state a core's address path consumes (`DADAO-12` §4.5) ----
 +  //
@@ -603,10 +664,22 @@ index 0000000..571d9a8
 +      Seq.tabulate(5) { rc =>
 +        (if (rc == 4) allOnes else c.sourceMaskReset.U(gp.sourceMaskBits.W))
 +      }))))
-+    /** cg0-cg2 rc8: `switch_run_mode` resets to supv (`§3.1`-`§3.3`). */
-+    val switchMode = RegInit(VecInit(Seq.fill(3)(2.U(gp.dataBits.W))))
++    /** cg0-cg3 rc8: `switch_run_mode`; modes 0-2 reset to supv, cg3 to hypv
++      * (`§3.1`-`§3.4`).  `m16-chipyard-020` makes the cg3 row a real register so
++      * the hypv→U/S hand-off (`trap` with a software-chosen switch value, the
++      * three-mode environment) is expressible. */
++    val switchMode = RegInit(VecInit(Seq(
++      2.U(gp.dataBits.W), 2.U(gp.dataBits.W), 2.U(gp.dataBits.W),
++      3.U(gp.dataBits.W))))
 +    /** cg0-cg2 rc10: `excp_vector` resets to 0 (`§3.1`-`§3.3`). */
 +    val vector = RegInit(VecInit(Seq.fill(3)(0.U(gp.dataBits.W))))
++    /** Hidden `trap` save of the entry-mode monitor's `global_cfx_intr_mask`
++      * (`§5.2` step 5 / `§5.3` step 1): `escape` restores it. */
++    val savedGlobal = RegInit(0.U(gp.dataBits.W))
++    val savedMon = RegInit(0.U(2.W))
++    /** Sequence index of the entry-mode monitor (`frameLive` dimension). */
++    val savedIdx = RegInit(0.U(log2Ceil(gp.cfx.length).W))
++    val savedValid = RegInit(false.B)
 +
 +    /** cg3 rc12 `hypv_cg_reg_deleg`; bit3 is hardware-fixed 1 (`§3.4`). */
 +    val deleg = RegInit(Fill(gp.dataBits, 1.U(1.W)))
@@ -635,6 +708,8 @@ index 0000000..571d9a8
 +    val isMode = hit && io.addr.cg <= 2.U
 +    val isMask = isMode && io.addr.rc <= 4.U
 +    val isSwitch = isMode && io.addr.rc === 8.U
++    /** `cg3 rc8`: the hypv-mode `switch_run_mode` of a common cfx. */
++    val isHypvSwitch = hit && io.addr.cg === 3.U && io.addr.rc === 8.U
 +    val isVector = isMode && io.addr.rc === 10.U
 +    val isDeleg = hit && io.addr.cg === 3.U && io.addr.rc === 12.U
 +    val isCfg = hit && io.addr.cg === 4.U
@@ -649,6 +724,12 @@ index 0000000..571d9a8
 +  private val commonEntries: Seq[CommonEntry] =
 +    gp.cfx.filter(_.commonRows).map(c => new CommonEntry(c))
 +  private val commonHits: Seq[Bool] = commonEntries.map(_.hit)
++  /** `cfx.id` -> its common-face entry (only cfx that opt in). */
++  private val commonById: Map[Int, CommonEntry] =
++    commonEntries.map(e => e.c.id -> e).toMap
++  /** `cfx.id` -> index in `gp.cfx` (for per-cfx register vectors). */
++  private val cfxIndexById: Map[Int, Int] =
++    gp.cfx.zipWithIndex.map { case (c, i) => c.id -> i }.toMap
 +
 +  // ---- register access ----------------------------------------------------
 +  private val isCg3 = io.addr.cg === 3.U
@@ -721,11 +802,11 @@ index 0000000..571d9a8
 +    if (commonEntries.isEmpty) false.B
 +    else commonEntries.map(f).reduce(_ || _)
 +  private val commonRead = anyCommon(e =>
-+    e.isMask || e.isSwitch || e.isVector || e.isDeleg ||
++    e.isMask || e.isSwitch || e.isHypvSwitch || e.isVector || e.isDeleg ||
 +      (e.isCfg && io.addr.rc <= 6.U) || e.isPending || e.isScratch || e.isGlobal)
 +  // cg4 is read-only (`DADAO-12 §3.5`); every other common row is RW.
 +  private val commonWrite = anyCommon(e =>
-+    e.isMask || e.isSwitch || e.isVector || e.isDeleg ||
++    e.isMask || e.isSwitch || e.isHypvSwitch || e.isVector || e.isDeleg ||
 +      e.isPending || e.isScratch || e.isGlobal)
 +
 +  // Base rows of every implemented cfx (`DADAO-13` §1, `DADAO-12` §3).
@@ -854,20 +935,21 @@ index 0000000..571d9a8
 +      Mux(e.isMask, Mux(io.addr.rc === 4.U, r.mask(e.mode)(4),
 +          r.mask(e.mode)(rcIdx)),
 +        Mux(e.isSwitch, r.switchMode(e.mode),
-+          Mux(e.isVector, r.vector(e.mode),
-+            Mux(e.isDeleg, r.deleg,
-+              Mux(e.isCfg, MuxLookup(io.addr.rc, 0.U(gp.dataBits.W))(Seq(
-+                0.U -> e.c.id.U(gp.dataBits.W),
-+                1.U -> e.c.version.U(gp.dataBits.W),
-+                2.U -> r.trapNum,
-+                3.U -> r.syncNum,
-+                4.U -> r.asyncNum,
-+                5.U -> r.escapeNum,
-+                6.U -> e.c.scratchRegs.U(gp.dataBits.W))),
-+                Mux(e.isPending, r.pending,
-+                  Mux(e.isGlobal, r.globalIntrMask,
-+                    Mux(e.isScratch, r.scratch(scratchIdx),
-+                      0.U(gp.dataBits.W)))))))))
++          Mux(e.isHypvSwitch, r.switchMode(3.U),
++            Mux(e.isVector, r.vector(e.mode),
++              Mux(e.isDeleg, r.deleg,
++                Mux(e.isCfg, MuxLookup(io.addr.rc, 0.U(gp.dataBits.W))(Seq(
++                  0.U -> e.c.id.U(gp.dataBits.W),
++                  1.U -> e.c.version.U(gp.dataBits.W),
++                  2.U -> r.trapNum,
++                  3.U -> r.syncNum,
++                  4.U -> r.asyncNum,
++                  5.U -> r.escapeNum,
++                  6.U -> e.c.scratchRegs.U(gp.dataBits.W))),
++                  Mux(e.isPending, r.pending,
++                    Mux(e.isGlobal, r.globalIntrMask,
++                      Mux(e.isScratch, r.scratch(scratchIdx),
++                        0.U(gp.dataBits.W))))))))))
 +    })
 +
 +  io.rdata := Mux(commonRead, commonRdata, basePtwCache)
@@ -904,6 +986,8 @@ index 0000000..571d9a8
 +        r.mask(e.mode)(rcIdx) := io.wdata
 +      }.elsewhen(e.isSwitch) {
 +        r.switchMode(e.mode) := io.wdata
++      }.elsewhen(e.isHypvSwitch) {
++        r.switchMode(3.U) := io.wdata
 +      }.elsewhen(e.isVector) {
 +        // Same alignment rule as cg3 rc10 (`DADAO-12 §3.4`).
 +        r.vector(e.mode) := Cat(io.wdata(gp.dataBits - 1, 2), 0.U(2.W))
@@ -981,19 +1065,31 @@ index 0000000..571d9a8
 +    }
 +  }
 +
-+  // ---- observable state ---------------------------------------------------
-+  // Entry target (`DADAO-12` §5.2): the monitor, or the current cfx when the
-+  // entry asks for it (`CFXESC` goes to the current cfx, §5.3 step 0).  A
-+  // software-written `excp_prev_cfx_code` can name a cfx this machine does not
-+  // implement; such a code has no vector and no frame, so the entry falls back
-+  // to the monitor instead of addressing nothing.
++  // ---- entry target, per-mode vector/switch (`m16-chipyard-020`) ----------
++  // §5.2 step 1: a synchronous exception / asynchronous interrupt enters the
++  // monitor of the *exception-time* run mode (`U→cfx0`, `J→cfx1`, `S→cfx2`,
++  // `H→cfx3`).  A profile that does not implement that cfx (Tiny has no U/S
++  // monitors; J is absent everywhere) falls back to the frame monitor, which is
++  // exactly the pre-020 behaviour.  `targetSel = 1` keeps the `CFXESC` path
++  // (enter the current cfx, §5.3 step 0) and `targetSel = 2` is a legal
++  // `trap` (enter the named cfx, §5.2 step 1).
 +  private val hitCur = VecInit(gp.cfx.map(c => curCfx === c.id.U(6.W)))
 +  private val curImplemented = hitCur.asUInt.orR
++  private val curIdx = PriorityEncoder(hitCur)
 +  private val hitMonitor = VecInit(gp.cfx.zipWithIndex.map {
 +    case (_, i) => i.U === monitor.U })
-+  private val curIdx = PriorityEncoder(hitCur)
++  private val hitModeMon = VecInit(gp.cfx.map(c => c.id.U(6.W) === runMode))
++  private val modeMonImplemented = hitModeMon.asUInt.orR
++  private val modeSel =
++    if (gp.modeEntry) Mux(modeMonImplemented, hitModeMon, hitMonitor)
++    else hitMonitor
++  private val modeIdx = PriorityEncoder(modeSel)
++  private val modeHa = Mux1H(modeSel, gp.cfx.map(c => c.id.U(6.W)))
++  private val hitExplicit = VecInit(gp.cfx.map(c => c.id.U(6.W) === io.excp.targetHa))
++  private val explicitImplemented = hitExplicit.asUInt.orR
 +  private val entrySel =
-+    Mux(io.excp.toCurrent && curImplemented, hitCur, hitMonitor)
++    Mux(io.excp.targetSel === 1.U && curImplemented, hitCur,
++      Mux(io.excp.targetSel === 2.U && explicitImplemented, hitExplicit, modeSel))
 +  private val entryIdx = PriorityEncoder(entrySel)
 +  private val entryHa = Mux1H(entrySel, gp.cfx.map(c => c.id.U(6.W)))
 +  // The frame the core observes and `escape` returns from is the current
@@ -1001,10 +1097,34 @@ index 0000000..571d9a8
 +  // for the traces only).
 +  private val viewIdx = Mux(curImplemented, curIdx, monitor.U)
 +
++  // Per-cfx `<mode>_excp_vector` (step 7) and `<mode>_switch_run_mode`
++  // (step 6).  A common cfx carries real cg0-cg2 rows and its cg3 row is the
++  // legacy hypv one; a cfx without the common face has only the cg3 row, so its
++  // switch value stays the configured constant for every mode.
++  private val perModeVectors: Seq[UInt] = gp.cfx.zipWithIndex.map { case (c, i) =>
++    commonById.get(c.id) match {
++      case Some(e) => MuxLookup(runMode, vector(i))(Seq(
++        0.U -> e.regs.vector(0), 1.U -> e.regs.vector(1),
++        2.U -> e.regs.vector(2)))
++      case None => vector(i)
++    }
++  }
++  private val perModeSwitches: Seq[UInt] = gp.cfx.map { c =>
++    commonById.get(c.id) match {
++      case Some(e) => MuxLookup(runMode, gp.switchModeValue.U(gp.dataBits.W))(Seq(
++        0.U -> e.regs.switchMode(0), 1.U -> e.regs.switchMode(1),
++        2.U -> e.regs.switchMode(2), 3.U -> e.regs.switchMode(3)))
++      case None => gp.switchModeValue.U(gp.dataBits.W)
++    }
++  }
++  private def perModeVector(idx: UInt): UInt = VecInit(perModeVectors)(idx)
++  private def perModeSwitch(idx: UInt): UInt = VecInit(perModeSwitches)(idx)
++
 +  private val hasFrame = causeId(viewIdx) =/= 0.U
 +  io.monitorHa := gp.cfx(monitor).id.U(6.W)
 +  io.vector := vector(monitor)
-+  io.entryVector := vector(entryIdx)
++  io.entryVector := (if (gp.modeEntry) perModeVector(entryIdx)
++    else vector(entryIdx))
 +  io.frameValid := hasFrame
 +  io.causeId := causeId(viewIdx)
 +  io.causeIp := causeIp(viewIdx)
@@ -1014,6 +1134,100 @@ index 0000000..571d9a8
 +  io.runMode := runMode
 +  io.curCfx := curCfx
 +  io.intrMask := intrMask(monitor)
++
++  // ---- two-axis authority (`m16-chipyard-020`, ADR-0045 D1/D2/D6) --------
++  // Final allow = run-mode axis AND cfx-resource axis.  The cfx axis is the
++  // addressed cfx's `<mode>_cfxreg` source mask (bit = *source* cfx,
++  // `inner_cfx_code`); the mode axis is the supv-only `cg3 rc12`
++  // `cg_reg_deleg` bitmap (bit = addressed cg, no self exemption,
++  // `contract-see` §3).  Self bypasses the cfx axis only.
++  //
++  // Scope: the mask/deleg enforcement is applied to the U and S rows only.
++  // This RTL's fixed BootROM handoff (`spec/Kaiwu §6.2`) leaves the test body
++  // as `cfx_power` in hypv, and the four `hypv_*` masks reset to "cfx_hmon
++  // only" (`ADR-0045 D4`) — enforcing the hypv row here would refuse the
++  // body's own first access and would also break the cfx4/cfx5 probes.  The
++  // gap is recorded in the task's completion notes (QEMU's boot chain starts
++  // the body as `cfx_hmon` and therefore can enforce every row).
++  private val addrIsCur = curImplemented && io.addr.ha === curCfx
++  private val sourceBit = (1.U(gp.dataBits.W) << curCfx)(gp.dataBits - 1, 0)
++  private def legacyMaskOf(id: Int, kind: Int): UInt =
++    sourceMask(cfxIndexById(id))(kind)
++  private val modeRowIdx = Mux(runMode <= 2.U, runMode, 0.U)
++  private val targetIsCommon: Bool = Mux1H(hit, gp.cfx.map { c =>
++    if (commonById.contains(c.id)) true.B else false.B
++  })
++  /** The addressed cfx's `<mode>_<kind>` source mask word (U/S rows). */
++  private def targetMask(kind: Int): UInt = Mux1H(hit, gp.cfx.map { c =>
++    commonById.get(c.id) match {
++      case Some(e) => Mux(runMode <= 2.U, e.regs.mask(modeRowIdx)(kind),
++        legacyMaskOf(c.id, kind))
++      case None => legacyMaskOf(c.id, kind)
++    }
++  })
++  /** The addressed cfx's `cg3 rc12` delegation bitmap (legacy cfx: reset). */
++  private val targetDeleg: UInt = Mux1H(hit, gp.cfx.map { c =>
++    commonById.get(c.id).map(_.regs.deleg).getOrElse(allOnes)
++  })
++  /** U and S rows only (see the scope note above). */
++  private val modeEnforced = gp.modeEntry.B && runMode =/= gp.hypvMode.U
++  // A U/S access to a cfx without `<mode>` rows has no mask to allow it:
++  // fail closed (the register rules still report CFXREG for the row itself).
++  private val cfxAxisDenied = !addrIsCur &&
++    (!targetIsCommon || ((targetMask(2) & sourceBit) =/= 0.U))
++  private val delegDenied = runMode === 2.U && ((targetDeleg >> io.addr.cg)(0))
++  io.implemented := implemented
++  io.permDenied := modeEnforced && implemented && (cfxAxisDenied || delegDenied)
++  // `trap` checks only the target's `<mode>_cfxtrap`; the delegation bitmap is
++  // a direct-access rule (`contract-see` §3; QEMU `helper_cfx_trap` matches).
++  io.trapDenied := modeEnforced && implemented && !addrIsCur &&
++    (!targetIsCommon || ((targetMask(0) & sourceBit) =/= 0.U))
++
++  // ---- asynchronous delivery (`DADAO-12` §5.2 (四), monitor-first) --------
++  // The only delivery pending record is the *current run-mode monitor's*
++  // `cg5 rc5` (`contract-see` §3): bit = source cause id.  TIMER (`1 << 10`,
++  // source cfx_hart = 15) is selected before PMEM_DMA (`1 << 8`, source
++  // cfx_pmem = 32) — source cfxha ascending.  Delivery is filtered by that
++  // monitor's `<mode>_cfx_intr_mask` (cg0-cg3 rc4) and `global_cfx_intr_mask`
++  // (cg8 rc1), both indexed by the *source* cfxha; a masked source keeps its
++  // pending bit.  One frame per monitor: while `frameLive` the source waits.
++  private val TIMER_BIT = 10
++  private val PMEM_BIT = 8
++  private val HART_HA = 15
++  private val PMEM_HA = 32
++  private val modeIsCommon: Bool = Mux1H(modeSel, gp.cfx.map { c =>
++    if (commonById.contains(c.id)) true.B else false.B
++  })
++  private val monPending: UInt = Mux1H(modeSel, gp.cfx.map { c =>
++    commonById.get(c.id).map(_.regs.pending).getOrElse(0.U(gp.dataBits.W))
++  })
++  private val monMaskIntr: UInt = Mux1H(modeSel, gp.cfx.map { c =>
++    commonById.get(c.id) match {
++      case Some(e) => e.regs.mask(modeRowIdx)(4)
++      case None => intrMask(cfxIndexById(c.id))
++    }
++  })
++  private val monGlobalIntr: UInt = Mux1H(modeSel, gp.cfx.map { c =>
++    commonById.get(c.id).map(_.regs.globalIntrMask).getOrElse(0.U(gp.dataBits.W))
++  })
++  private val frameLive = RegInit(VecInit(gp.cfx.map(_ => false.B)))
++  private val monBusy = frameLive(modeIdx)
++  private def bitOf(word: UInt, n: Int): Bool = word(n)
++  private def intrMasked(ha: Int): Bool =
++    bitOf(monMaskIntr, ha) || bitOf(monGlobalIntr, ha)
++  private val timerPending = bitOf(monPending, TIMER_BIT)
++  private val pmemPending = bitOf(monPending, PMEM_BIT)
++  private val intrArb = gp.modeEntry.B && modeIsCommon && !monBusy
++  private val timerDeliver = intrArb && timerPending && !intrMasked(HART_HA)
++  private val pmemDeliver =
++    intrArb && !timerDeliver && pmemPending && !intrMasked(PMEM_HA)
++  io.intr.valid := timerDeliver || pmemDeliver
++  io.intr.source := Mux(timerDeliver, HART_HA.U, PMEM_HA.U)
++  io.intr.cause := Mux(timerDeliver,
++    (1.U(gp.dataBits.W) << TIMER_BIT)(gp.dataBits - 1, 0),
++    (1.U(gp.dataBits.W) << PMEM_BIT)(gp.dataBits - 1, 0))
++  io.intr.vector := (if (gp.modeEntry) perModeVector(modeIdx)
++    else 0.U(gp.dataBits.W))
 +
 +  // ---- `cfx_ptw` state to the core's address path (D3: outputs) -----------
 +  // On a machine without `cfx_ptw` no row can be written, so these keep their
@@ -1048,6 +1262,7 @@ index 0000000..571d9a8
 +    io.escape.valid && curImplemented && io.escape.ha === curCfx && hasFrame
 +  io.escapeOk := escapeOk
 +  private val escapeTarget = (causeIp(viewIdx) + io.escape.off)(gp.dataBits - 1, 0)
++  io.escapeTarget := escapeTarget
 +
 +  io.redirect.valid := io.excp.valid || escapeOk
 +  // The target must not depend on `excp.valid`: the core feeds it back into its
@@ -1083,25 +1298,95 @@ index 0000000..571d9a8
 +    prevMode(entryIdx) := Mux(escapeOk, prevMode(viewIdx), runMode)
 +    prevCfx(entryIdx) :=
 +      Mux(escapeOk, prevCfx(viewIdx), curCfx.pad(gp.dataBits))
-+    runMode := gp.hypvMode.U(gp.modeBits.W)
-+    // §5.2 step 6: switch to the entry target (monitor, or the current cfx for
-+    // CFXESC).  A `toCurrent` entry keeps the code it entered as.
++    // §5.2 step 6: the new run mode is the entry target's `<mode>` switch
++    // value; without the mode routing (Tiny) it stays hypv exactly as before.
++    runMode := (if (gp.modeEntry) perModeSwitch(entryIdx)
++      else gp.hypvMode.U(gp.modeBits.W))
 +    curCfx := entryHa
++    // One frame per entry-mode monitor: a `trap` from hypv into cfx_umon must
++    // not block umon's own later async delivery (QEMU
++    // `cfx_frame_block_async(ci=target, entry_mode)` blocks
++    // `cfx[entry_mode]`, not the target).
++    frameLive(modeIdx) := true.B
++    when(escapeOk && curIdx =/= modeIdx) { frameLive(curIdx) := false.B }
 +  }.elsewhen(escapeOk) {
 +    runMode := prevMode(viewIdx)
 +    // §5.3 step 2: restore the current cfx of the frame being returned from.
 +    curCfx := prevCfx(viewIdx)(5, 0)
++    frameLive(curIdx) := false.B
++  }
++
++  // ---- asynchronous entry (`DADAO-12` §5.2 (四)) --------------------------
++  // One source per ack; `pending` loses exactly the delivered bit, a masked
++  // source keeps it (`contract-see` §3).  The frame, mode switch and vector are
++  // the same as a synchronous entry into the current-mode monitor.
++  when(io.intr.ack && io.intr.valid) {
++    causeId(modeIdx) := io.intr.cause
++    causeIp(modeIdx) := io.intr.causeIp
++    causeInfo(modeIdx) := 0.U
++    prevMode(modeIdx) := runMode
++    prevCfx(modeIdx) := curCfx.pad(gp.dataBits)
++    runMode := perModeSwitch(modeIdx)
++    curCfx := modeHa
++    frameLive(modeIdx) := true.B
++  }
++
++  // ---- `trap` / async frame saves the monitor's global interrupt mask ------
++  // `DADAO-12` §5.2 step 5 / §5.3 step 1, `ADR-0045 D9` + rev 2026-11-22:
++  // the frame's cfx saves the *entry-mode monitor's* `global_cfx_intr_mask`,
++  // that monitor is blocked while the frame is live, and `escape` restores it.
++  // A plain synchronous fault saves nothing (QEMU `cfx_frame_block_async`
++  // matches: only CFXTRAP and async deliveries call it).
++  private val frameSaveNow = io.intr.ack && io.intr.valid
++  for (e <- commonEntries) {
++    // The target cfx keeps the saved copy: `trap` into a common cfx, or the
++    // async delivery whose monitor is the common cfx itself.
++    when((io.excp.valid && io.excp.cause(0) && entryHa === e.c.id.U(6.W)) ||
++         (frameSaveNow && modeHa === e.c.id.U(6.W))) {
++      e.regs.savedGlobal := monGlobalIntr
++      e.regs.savedMon := modeHa(1, 0)  // cfx *id*, not the seq index
++      e.regs.savedIdx := modeIdx
++      e.regs.savedValid := true.B
++    }
++    // Block the entry-mode monitor while its frame is live.
++    when(modeSel(cfxIndexById(e.c.id)) &&
++         ((io.excp.valid && io.excp.cause(0)) || frameSaveNow)) {
++      e.regs.globalIntrMask := allOnes
++    }
++    // `escape` from a cfx with a saved copy restores the blocked monitor.
++    for (m <- commonEntries) {
++      when(escapeOk && curCfx === e.c.id.U(6.W) && e.regs.savedValid &&
++           e.regs.savedMon === m.c.id.U(2.W)) {
++        m.regs.globalIntrMask := e.regs.savedGlobal
++      }
++    }
++    // The entry-mode monitor was blocked for the lifetime of the frame; an
++    // `escape` from the frame's cfx may differ from that monitor (a U-mode
++    // `trap cfx_smon`), so clear the blocked monitor too — otherwise its async
++    // delivery stays suppressed after the handler returns.
++    when(escapeOk && curCfx === e.c.id.U(6.W) && e.regs.savedValid) {
++      frameLive(e.regs.savedIdx) := false.B
++      e.regs.savedValid := false.B
++    }
++  }
++  // A delivered source consumes its pending bit.
++  for (e <- commonEntries) {
++    when(frameSaveNow && modeHa === e.c.id.U(6.W)) {
++      e.regs.pending := e.regs.pending & ~io.intr.cause
++    }
 +  }
 +
 +  // ---- cfx config counters (`DADAO-12 §3.5`) ------------------------------
 +  // `trap_num` counts `trap` entries (cause bit0 = CFXTRAP), `excp_sync_num`
-+  // every other synchronous entry, `escape_num` legal `escape` returns from
-+  // this cfx.  `excp_async_num` stays 0: this milestone models no asynchronous
-+  // source for the monitors (`m16-chipyard-020` brings the routing).
++  // every other synchronous entry, `excp_async_num` a delivered asynchronous
++  // source and `escape_num` legal `escape` returns from this cfx.
 +  for (e <- commonEntries) {
 +    when(io.excp.valid && entryHa === e.c.id.U(6.W)) {
 +      when(io.excp.cause(0)) { e.regs.trapNum := e.regs.trapNum + 1.U }
 +        .otherwise { e.regs.syncNum := e.regs.syncNum + 1.U }
++    }
++    when(io.intr.ack && modeHa === e.c.id.U(6.W)) {
++      e.regs.asyncNum := e.regs.asyncNum + 1.U
 +    }
 +    when(escapeOk && curCfx === e.c.id.U(6.W)) {
 +      e.regs.escapeNum := e.regs.escapeNum + 1.U

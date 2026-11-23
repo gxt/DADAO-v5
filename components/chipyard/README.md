@@ -273,6 +273,48 @@ make check-patch-tree
   `cp`+md5 还原重建后回绿；Tiny `11-cfx`/`01-load-store` 与 016/017 的 cfx5
   探针不回归。
 
+## Kaiwu-Vast 的运行模式进入路由（`m16-chipyard-020`）
+
+- **范围**：补 `DADAO-12 §5.2/§5.3` 的主控制流——同步异常 / 异步中断进入
+  **异常前运行模式的 monitor**（U→cfx0 umon、J→cfx1（未实现 ⇒ 回退帧
+  monitor）、S→cfx2 smon、H→cfx3 hmon）；第 6 步 `inner_run_mode` 取**目标
+  cfx** 的 `<mode>_switch_run_mode`；第 7 步向量取 `<mode>_excp_vector`（common
+  cfx 的 `cg0`–`cg3 rc10`，legacy cfx 仍 cg3）。`trap` 按 §5.2 路由（reserved
+  ⇒ ILLI、已分配未实现 ⇒ CFXREG、目标 `<mode>_cfxtrap` 拒绝 ⇒ `CFXPERM`、
+  合法 ⇒ 目标 cfx 的 `CFXTRAP`）。
+- **`switch_run_mode`**：common cfx 的 `cg0`–`cg2 rc8` 之外，`cg3 rc8`（hypv
+  行）也变成真实寄存器（复位 3）；没有 common face 的 cfx 保持
+  `switchModeValue` 常量。三模式环境用 `trap cfx_umon` + 写 `cg3 rc8` 从 hypv
+  进入 U/S。
+- **两轴判权**（承接 019 遗留①）：`cfx2rd`/`cfx2rc` 访问按**目标 cfx** 的
+  `<mode>_cfxreg` 源掩码（位索引 = 源 cfx = `inner_cfx_code`）+ `cg3 rc12`
+  `cg_reg_deleg`（S 行，位索引 = 目标 cg，无 self 豁免）判定；拒绝 ⇒
+  `CFXPERM` + `[39] NCFXPERM`（`cause_info` = 指令地址）。`trap` 只查
+  `<mode>_cfxtrap`。self 只绕 cfx 轴。**强制范围 = U/S 行**：固定 BootROM
+  （`spec/Kaiwu §6.2`）以 `cfx_power` 在 hypv 运行测试体、规范复位掩码只允许
+  `cfx_hmon`，强制 hypv 会让既有探针整体不可达（`tests/arch/expected-divergences.yaml`
+  DIV-07；QEMU 的 BootROM 有 hmon 阶段故可全模式强制）。U/S 访问**无 `<mode>`
+  行**的 cfx（3/4/5/63…）fail-closed ⇒ `CFXPERM`（DIV-09）。
+- **异步 monitor-first**（`§5.2` 步骤 3 /（四））：pending 记录在当前模式
+  monitor 的 `cg5 rc5`；TIMER（`1<<10`，源 cfxha 15）先于 PMEM_DMA（`1<<8`，
+  源 32）；两级源掩码（`<mode>_cfx_intr_mask` + `global_cfx_intr_mask`，按源
+  cfxha）过滤，被屏蔽时保留 pending，放开后在指令边界投递；同一 monitor 的
+  帧有效期间不嵌套（`frameLive` 按**入口模式 monitor** 置位，`escape` 清除）。
+  投递在 `sFreq`/`sExec` 两处边界检查：`continueAt` 在快路径上会直接进
+  `sExec`，只查 `sFreq` 会漏；投递拍用 `jumpFlush`（清队列后重取）并**关掉该
+  拍的需求取指 A 通道**，否则重定向后的取指会与在飞请求复用 source 0
+  （TileLink “A channel re-used a source ID”）。硬件源（cfx15/32）归
+  `m16-chipyard-021`/`022`（DIV-08）。
+- **不回归**：Tiny（`modeEntry = false`）保持 020 前的行为；`11-cfx` 5 镜像与
+  `01-load-store` 38 镜像与 019 的 pre-020 基线逐字节相同。019 的
+  `cfx02_regs` 探针在 hypv 不强制的前提下继续全绿。
+- **验证**：`tests/arch/umon/mode_entry.S` + `mode_entry.lds` +
+  `check_mode_entry.py`（一份 case，链接期 `--defsym TMODE=0/2/3` 出三个镜像；
+  14/21/14 条签名槽，期望现场从 `spec/` + `contract-see §6.1.1` 派生；H/U/S
+  三模式各跑一次）。注入 2 路（去掉模式路由 ⇒ U 异常进 hmon 的检出器 0xE2 红；
+  忽略 `switch_run_mode` ⇒ U 体在 hypv 跑、走 0xE3 红），`cp`+md5 还原并强制
+  重建后回绿。
+
 ## Kaiwu-Vast 的 cfx5 寄存器面（`m16-chipyard-016`）
 
 - **范围**：只接 `cfx_cache`（cfx5）的**寄存器文件**（`contract-cache` CACHE-03…CACHE-18/27），

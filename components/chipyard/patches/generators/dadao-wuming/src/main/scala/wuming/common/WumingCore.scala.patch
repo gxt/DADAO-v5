@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..b872b3a
+index 0000000..fb1293a
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,2160 @@
+@@ -0,0 +1,2267 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -301,15 +301,22 @@ index 0000000..b872b3a
 +  // Exception entry: the cause triple is driven by `enterHmon` below, which is
 +  // called from every faulting branch (and from the `trap` handoff).
 +  private val excpValid = WireDefault(false.B)
-+  private val excpToCurrent = WireDefault(false.B)
++  private val excpTargetSel = WireDefault(0.U(2.W))
++  private val excpTargetHa = WireDefault(0.U(6.W))
 +  private val excpCause = WireDefault(0.U(64.W))
 +  private val excpCauseIp = WireDefault(0.U(64.W))
 +  private val excpInfo = WireDefault(0.U(64.W))
 +  gewu.io.excp.valid := excpValid
-+  gewu.io.excp.toCurrent := excpToCurrent
++  gewu.io.excp.targetSel := excpTargetSel
++  gewu.io.excp.targetHa := excpTargetHa
 +  gewu.io.excp.cause := excpCause
 +  gewu.io.excp.causeIp := excpCauseIp
 +  gewu.io.excp.info := excpInfo
++  // Asynchronous delivery (`m16-chipyard-020`): checked at the instruction
++  // boundary in `sFreq`, acked below so `gewu` performs the entry.
++  private val intrAck = WireDefault(false.B)
++  gewu.io.intr.ack := intrAck
++  gewu.io.intr.causeIp := ip
 +
 +  val CFXTRAP_BIT = 0
 +  val CFXMEM_BIT  = GewuCauseId.MEM_BIT
@@ -322,6 +329,11 @@ index 0000000..b872b3a
 +  val RASUF_BIT   = 11
 +  val MALIGN_BIT  = 12
 +  val IALIGN_BIT  = 13
++
++  /** Reserved `cfxha` set (`DADAO-12` §2.1: 6-14, 16-31, 35-61). */
++  private def isReservedCfx(ha: UInt): Bool =
++    (ha >= 6.U && ha <= 14.U) || (ha >= 16.U && ha <= 31.U) ||
++      (ha >= 35.U && ha <= 61.U)
 +
 +  val sIdle :: sFreq :: sFwait :: sExec :: sTrap :: sSemi :: sExc :: sMreq :: sMwait :: sSlow :: sCopy :: sCls :: sFpSlow :: sXlate :: sFault :: sHalt :: Nil = Enum(16)
 +  val state = RegInit(sIdle)
@@ -393,9 +405,15 @@ index 0000000..b872b3a
 +  gewu.io.escape.off := d.escOff
 +  gewu.io.escape.valid := false.B
 +  val cfxRegOk = Mux(d.cfxWrite, gewu.io.writeOk, gewu.io.readOk)
-+  // A rejected cfx2 access is a precise CFXREG: the destination register must
++  // Two-axis authority (`DADAO-12` §5.2 (一), `m16-chipyard-020`): the target
++  // cfx's `<mode>_cfxreg` source mask / `cg3 rc12` delegation is checked
++  // **before** the row's own validity, and a denial is `CFXPERM` `[39]`, not
++  // `CFXREG`.  On a machine without the mode routing the output is constant
++  // false, so Tiny keeps the pre-020 CFXREG-only behaviour.
++  val cfxPermFault = d.isCfx2 && gewu.io.permDenied
++  // A rejected cfx2 access is a precise fault: the destination register must
 +  // not be modified (DADAO-12 §5 "目标寄存器/内存/RA 未更新").
-+  val cfxFault = d.isCfx2 && !cfxRegOk
++  val cfxFault = d.isCfx2 && (cfxPermFault || !cfxRegOk)
 +  val cfxRdata = gewu.io.rdata
 +
 +  // ---- lr/sc reservation + block copy state (m12-chipyard-010) ------------
@@ -898,16 +916,21 @@ index 0000000..b872b3a
 +
 +  // ---- write-back --------------------------------------------------------
 +  val execFault = d.ill || d.undi
++  // `m16-chipyard-020`: an asynchronous delivery taken at this instruction
++  // boundary must not let the fetched instruction commit anything (write-back,
++  // cfx write strobe, FP flags, reservation flag).
++  val asyncTake = state === sExec && gewu.io.intr.valid
 +
 +  // Flags of this cycle's FP conversion (see the `rf.io.fflags` comment
 +  // above); a faulting instruction raises nothing.
-+  when(state === sExec && !execFault && d.isCvt) {
++  when(state === sExec && !execFault && !asyncTake && d.isCvt) {
 +    rf.io.fflags := fpConvert.io.flags
-+  }.elsewhen(state === sExec && !execFault && d.isFpArith) {
++  }.elsewhen(state === sExec && !execFault && !asyncTake && d.isFpArith) {
 +    rf.io.fflags := fpArith.io.flags
 +  }.elsewhen(state === sFpSlow && fpSlow.io.done) {
 +    rf.io.fflags := fpSlow.io.flags
-+  }.elsewhen(state === sExec && !execFault && (d.isFpRnd || d.isFpSclb)) {
++  }.elsewhen(state === sExec && !execFault && !asyncTake &&
++    (d.isFpRnd || d.isFpSclb)) {
 +    rf.io.fflags := fpMisc.io.flags
 +  }
 +
@@ -938,13 +961,13 @@ index 0000000..b872b3a
 +  // `sc` writes its flag / reservation result after the memory phases.
 +  val w0Copy     = state === sCopy
 +  val w0Cls      = state === sCls
-+  val scFailExec = state === sExec && scFailNow
++  val scFailExec = state === sExec && scFailNow && !asyncTake
 +  val scStoreDone = state === sMwait && memStore && dataRespFire && memAux === 3.U &&
 +    memElem === memCount
 +
 +  val execW0 = state === sExec && !execFault && !cfxFault && !aluIsSlow && d.w0En &&
 +    !rasExecFault && !retDeferred && !d.isSc && !d.isCopy && csTaken &&
-+    !d.isFpSlow
++    !d.isFpSlow && !asyncTake
 +  val slowW0 = state === sSlow && slowW0En
 +  val semiW0 = state === sSemi && io.semi.resp.valid
 +  // The multi-cycle FP family writes back one cycle after its last iteration.
@@ -995,8 +1018,8 @@ index 0000000..b872b3a
 +  rf.io.w0Ft := d.w0Ft
 +
 +  // rrrr: w0 = high half (w0Sel = 1), w1 = low half (m12-005 shape).
-+  rf.io.w1En := (state === sExec && !execFault && !cfxFault && !aluIsSlow && d.w1En) ||
-+    (state === sSlow && slowW1En)
++  rf.io.w1En := (state === sExec && !execFault && !cfxFault && !aluIsSlow && d.w1En &&
++    !asyncTake) || (state === sSlow && slowW1En)
 +  rf.io.w1Idx := Mux(state === sSlow, slowW1Idx, d.w1Idx)
 +  rf.io.w1Bank := Mux(state === sSlow, slowW1Bank, d.w1Bank)
 +  rf.io.w1Data := alu.io.lo
@@ -1062,7 +1085,12 @@ index 0000000..b872b3a
 +  val imemD = io.imem.d.bits
 +  val imemFirePrefetch = imemFire && imemD.source =/= FETCH_SRC
 +
-+  val atDemand = if (params.useVM) state === sFreq && (!vastFetchNow || vx.get.fetchDone) else state === sFreq  // address must be final (m16-008)
++  // The async take in `sFreq` redirects `ip`; the demand-fetch A channel must
++  // not go out for the *old* address in that cycle (the redirect's own fetch
++  // would then reuse source 0 while the old beat is in flight — TileLink
++  // "A channel re-used a source ID").
++  private val intrFreqTake = state === sFreq && gewu.io.intr.valid
++  val atDemand = (if (params.useVM) state === sFreq && (!vastFetchNow || vx.get.fetchDone) else state === sFreq) && !intrFreqTake  // address must be final (m16-008)
 +
 +  // ---- instruction cache (`m16-chipyard-010`) ----------------------------
 +  // The same `WumingCache` class as the data side, with `readOnly = true`
@@ -1158,7 +1186,8 @@ index 0000000..b872b3a
 +  // speculative walk must not fault.  This milestone is functional (the walk is
 +  // exercised per beat), so a translating machine runs demand-fetch only; the
 +  // cycle model for Vast comes with the TLB/caches (`m16-chipyard-008`…`010`).
-+  val pfWanted = pfStreamLive && pfRoom && !atDemand && !dataBusy && !fifoFlush &&
++  val pfWanted = pfStreamLive && pfRoom && !atDemand && !intrFreqTake &&
++    !dataBusy && !fifoFlush &&
 +    !pfReqValid && pfAddrLegal && !params.useVM.B
 +  when(pfWanted) {
 +    val freeSlot = PriorityEncoder(pfValid.map(!_))
@@ -1215,6 +1244,22 @@ index 0000000..b872b3a
 +
 +  // ---- completion exit (§5.3: ip <- nextIp, then IALIGN, then hit) -------
 +  /** Continue at `nextIp` (4-byte aligned): queue hit / wait / re-fetch. */
++  /**
++    * Redirect to an address the current fetch stream says nothing about
++    * (asynchronous entry): flush the beat queue and re-fetch from `sFreq`.
++    * Unlike `continueAt`, this never trusts `qCount`/prefetch slots to contain
++    * the target — an async vector is outside the current stream and a
++    * "wait for a beat in flight" there would wait for a beat nobody requested
++    * (`m16-chipyard-020`; the sync paths keep using `continueAt`).
++    */
++  def jumpFlush(nextIp: UInt): Unit = {
++    ip := nextIp
++    fifoFlush := true.B
++    waitBeat := false.B
++    if (params.useVM) { vx.get.fetchDone := false.B }
++    state := sFreq
++  }
++
 +  def continueAt(nextIp: UInt): Unit = {
 +    val off = nextIp(addrBits - 1, 3) - headBeat
 +    when(qCount =/= 0.U && off < qCount) {
@@ -1267,7 +1312,8 @@ index 0000000..b872b3a
 +      (if (sub < 0) BigInt(0) else BigInt(1) << sub).U(GewuCauseId.WYDE_BITS.W))
 +    printf(p"WumingCore: excp cause=0x${Hexadecimal(causeId)} cause_ip=0x${Hexadecimal(causeIpValue(47, 0))} info=0x${Hexadecimal(info)} vector=0x${Hexadecimal(gewu.io.entryVector(47, 0))} cycle=${cycles}\n")
 +    excpValid := true.B
-+    excpToCurrent := toCurrent.B
++    excpTargetSel := Mux(toCurrent.B, 1.U, 0.U)
++    excpTargetHa := 0.U
 +    excpCause := causeId
 +    excpCauseIp := causeIpValue
 +    excpInfo := info
@@ -1277,6 +1323,22 @@ index 0000000..b872b3a
 +    ip := gewu.io.entryVector
 +    if (params.useVM) { vx.get.fetchDone := false.B }
 +    continueAt(gewu.io.entryVector)
++  }
++
++  /**
++    * A legal `trap cfxHA, immu18` (`DADAO-12` §5.2 step 1 "合法且被允许 →
++    * `CFXTRAP`, 目标 `cfxha`"): the same entry as `enterHmon`, but the target is
++    * the named cfx instead of the current-mode monitor.  The target's
++    * `<mode>_excp_vector` / `<mode>_switch_run_mode` are selected inside
++    * `gewu` from the exception-time run mode, so `trap cfx_umon` from hypv with
++    * `cfx_umon.hypv_switch_run_mode = 0` lands in user mode as `cfx_umon`
++    * (the three-mode environment's hand-off).
++    */
++  def enterTrapTo(ha: UInt, causeIpValue: UInt, causeOneHot: UInt,
++                  info: UInt): Unit = {
++    enterHmon(causeIpValue, causeOneHot, info)
++    excpTargetSel := 2.U
++    excpTargetHa := ha
 +  }
 +
 +  /**
@@ -1308,7 +1370,8 @@ index 0000000..b872b3a
 +    val causeId = GewuCauseId.encode(causeOneHot, (1.U << sub)(GewuCauseId.WYDE_BITS - 1, 0))
 +    printf(p"WumingCore: excp cause=0x${Hexadecimal(causeId)} cause_ip=0x${Hexadecimal(causeIpValue(47, 0))} info=0x${Hexadecimal(info)} vector=0x${Hexadecimal(gewu.io.entryVector(47, 0))} cycle=${cycles}\n")
 +    excpValid := true.B
-+    excpToCurrent := false.B
++    excpTargetSel := 0.U
++    excpTargetHa := 0.U
 +    excpCause := causeId
 +    excpCauseIp := causeIpValue
 +    excpInfo := info
@@ -1374,41 +1437,53 @@ index 0000000..b872b3a
 +    }
 +    is(sFreq) {
 +      waitBeat := false.B
-+      if (params.useVM) {
-+        when(vastFetchNow && !vx.get.fetchDone) {
-+          // Memory window: translate before the fetch may reach a bus
-+          // (`contract-tlb` TLB-42).  `ptw_enable = 0` has no mapping at all
-+          // (TLB-41: CFXMEM `[57] NONPTW`, never a pass-through).
-+          when(!ptwEnable) {
++      when(gewu.io.intr.valid) {
++        // Instruction boundary: deliver one pending asynchronous source to the
++        // current run-mode monitor (`DADAO-12` §5.2 (四)).  The source, cause
++        // and vector are already filtered/routed by `gewu`; the ack performs
++        // the frame/cfx/mode update and consumes the pending bit.
++        intrAck := true.B
++        resvValid := false.B
++        jumpFlush(gewu.io.intr.vector)
++      }.otherwise {
++        // Normal fetch path (unchanged; `sFreq` is the instruction boundary
++        // `finish`/`continueAt` return to).
++        if (params.useVM) {
++          when(vastFetchNow && !vx.get.fetchDone) {
++            // Memory window: translate before the fetch may reach a bus
++            // (`contract-tlb` TLB-42).  `ptw_enable = 0` has no mapping at all
++            // (TLB-41: CFXMEM `[57] NONPTW`, never a pass-through).
++            when(!ptwEnable) {
++              enterMemFault(ip, isFetch = true)
++            }.otherwise {
++              ptwReqValid := true.B
++              ptwReqVa := ip
++              ptwReqFetch := true.B
++              ptwReqWrite := false.B
++              vx.get.kind := 0.U
++              vx.get.va := ip
++              vx.get.write := false.B
++              state := sXlate
++            }
++          }.elsewhen(!fetchLegal) {
++            // The translated address is not backed physically, or a
++            // core-internal address has no window: CFXMEM with the fetch
++            // address as `cause_info` (spec/Kaiwu §4.4).
 +            enterMemFault(ip, isFetch = true)
-+          }.otherwise {
-+            ptwReqValid := true.B
-+            ptwReqVa := ip
-+            ptwReqFetch := true.B
-+            ptwReqWrite := false.B
-+            vx.get.kind := 0.U
-+            vx.get.va := ip
-+            vx.get.write := false.B
-+            state := sXlate
++          }.elsewhen(fetchFire) {
++            demandBeat := ip(addrBits - 1, 3)
++            vx.get.fetchDone := false.B
++            state := sFwait
 +          }
-+        }.elsewhen(!fetchLegal) {
-+          // The translated address is not backed physically, or a
-+          // core-internal address has no window: CFXMEM with the fetch
-+          // address as `cause_info` (spec/Kaiwu §4.4).
-+          enterMemFault(ip, isFetch = true)
-+        }.elsewhen(fetchFire) {
-+          demandBeat := ip(addrBits - 1, 3)
-+          vx.get.fetchDone := false.B
-+          state := sFwait
-+        }
-+      } else {
-+        when(!fetchLegal) {
-+          // No manager backs this address: CFXMEM with the fetch address as
-+          // `cause_info` (spec/Kaiwu §4.4).
-+          enterMemFault(ip, isFetch = true)
-+        }.elsewhen(fetchFire) {
-+          demandBeat := ip(addrBits - 1, 3)
-+          state := sFwait
++        } else {
++          when(!fetchLegal) {
++            // No manager backs this address: CFXMEM with the fetch address as
++            // `cause_info` (spec/Kaiwu §4.4).
++            enterMemFault(ip, isFetch = true)
++          }.elsewhen(fetchFire) {
++            demandBeat := ip(addrBits - 1, 3)
++            state := sFwait
++          }
 +        }
 +      }
 +    }
@@ -1437,7 +1512,14 @@ index 0000000..b872b3a
 +      }
 +    }
 +    is(sExec) {
-+      when(!queueHit) {
++      when(asyncTake) {
++        // Asynchronous delivery at the instruction boundary (`DADAO-12` §5.2
++        // (四)).  `continueAt` reaches `sExec` directly when the next beat is
++        // already queued, so the check cannot live only in `sFreq`.
++        intrAck := true.B
++        resvValid := false.B
++        jumpFlush(gewu.io.intr.vector)
++      }.elsewhen(!queueHit) {
 +        // Row 0 of the §5.3 table: the current beat is not queued, so there is
 +        // nothing to decode; re-fetch it instead of executing garbage.
 +        fifoFlush := true.B
@@ -1448,6 +1530,12 @@ index 0000000..b872b3a
 +        enterHmon(ip,
 +          Mux(d.undi, (1.U << UNDI_BIT).pad(64), (1.U << ILLI_BIT).pad(64)),
 +          inst.pad(64))
++      }.elsewhen(cfxPermFault) {
++        // Two-axis denial (target cfx's `<mode>_cfxreg` source mask or the
++        // `cg3 rc12` delegation bitmap): `CFXPERM` + `[39] NCFXPERM` to the
++        // current run-mode monitor (`DADAO-12 §5.2 (一)`, `ADR-0045 D6`).
++        enterHmon(ip,
++          (1.U << CFXPERM_BIT).pad(64), ip, GewuCauseId.PERM_NCFXPERM)
 +      }.elsewhen(cfxFault) {
 +        // Unsupported cfx register access -> CFXREG to the current monitor
 +        // (DADAO-12 §5.2(一)).
@@ -1607,7 +1695,7 @@ index 0000000..b872b3a
 +          enterHmon(ip, (1.U << CFXESC_BIT).pad(64), inst.pad(64),
 +            toCurrent = true)
 +        }.otherwise {
-+          finish(gewu.io.redirect.target)
++          finish(gewu.io.escapeTarget)
 +        }
 +      }.elsewhen(d.isCfx2) {
 +        // cfx2rd writes rd through the normal write-back path (the decoder
@@ -1778,16 +1866,34 @@ index 0000000..b872b3a
 +      }
 +    }
 +    is(sTrap) {
-+      // §5.3 TRAP row: the semihosting window goes to SEMI; `trap cfx_hmon`
-+      // outside it is the CFXTRAP handoff into the hmon vector (m12-007).
++      // §5.3 TRAP row: the semihosting window goes to SEMI; every other
++      // `trap` is the CFXTRAP handoff (`DADAO-12` §5.2 step 1).  Tiny keeps
++      // the m12-007 rule (only `cfx_hmon`; anything else is ILLI,
++      // `spec/Kaiwu §3`); the mode-routing profile follows §5.2: reserved cfx
++      // ⇒ ILLI, allocated-but-unimplemented ⇒ CFXREG, a target `<mode>_cfxtrap`
++      // mask denial ⇒ CFXPERM in the current monitor, otherwise CFXTRAP into
++      // the named cfx.
 +      when(semiIsHost) {
 +        state := sSemi
-+      }.elsewhen(d.cfxHa === gewu.io.monitorHa) {
-+        enterHmon(ip, (1.U << CFXTRAP_BIT).pad(64), inst.pad(64))
 +      }.otherwise {
-+        // `trap` to a cfx other than hmon: Tiny routes non-semihosting traps to
-+        // cfx_hmon only (spec/Kaiwu §4.1); every other target is ILLI.
-+        enterHmon(ip, (1.U << ILLI_BIT).pad(64), inst.pad(64))
++        if (!params.useVM) {
++          when(d.cfxHa === gewu.io.monitorHa) {
++            enterHmon(ip, (1.U << CFXTRAP_BIT).pad(64), inst.pad(64))
++          }.otherwise {
++            enterHmon(ip, (1.U << ILLI_BIT).pad(64), inst.pad(64))
++          }
++        } else {
++          when(isReservedCfx(d.cfxHa)) {
++            enterHmon(ip, (1.U << ILLI_BIT).pad(64), inst.pad(64))
++          }.elsewhen(!gewu.io.implemented) {
++            enterHmon(ip, (1.U << CFXREG_BIT).pad(64), inst.pad(64))
++          }.elsewhen(gewu.io.trapDenied) {
++            enterHmon(ip, (1.U << CFXPERM_BIT).pad(64), ip,
++              GewuCauseId.PERM_NCFXPERM)
++          }.otherwise {
++            enterTrapTo(d.cfxHa, ip, (1.U << CFXTRAP_BIT).pad(64), inst.pad(64))
++          }
++        }
 +      }
 +    }
 +    is(sSemi) {
@@ -2068,7 +2174,8 @@ index 0000000..b872b3a
 +  // "This cycle commits a cfx register write": `gewu` applies it only when the
 +  // addressed register is writable, so a rejected write stays a precise CFXREG.
 +  gewu.io.wdata := srcA
-+  gewu.io.wEn := state === sExec && d.isCfx2 && d.cfxWrite
++  gewu.io.wEn := state === sExec && d.isCfx2 && d.cfxWrite && !gewu.io.permDenied &&
++    !asyncTake
 +
 +  // ---- observability ------------------------------------------------------
 +  when(state === sIdle && io.bootEnable) {
