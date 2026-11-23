@@ -21,7 +21,6 @@
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
 | m16-testcases-009 | 3–4 h | cfx5 用例三方跑（寄存器面 + 命令 + 数据语义） |
-| m16-chipyard-018 | 3–4 h | cfx4 RTL PTW/TLB 探针纳管并三方对齐 |
 | m16-chipyard-024 | 4–6 h | RTL 异步模型修订（cg9 七槽、掩码归 monitor、源位图；ADR-0061） |
 | m16-chipyard-022 | 4–6 h | RTL cfx32 pmem（DMA + 源 cfxha 32 的完成投递；依赖 024） |
 | m16-chipyard-023 | 2–3 h | RTL cfx34 time（全局时间，无中断） |
@@ -32,6 +31,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-chipyard-018 | 2026-11-23 18:22 | 3–4 h | cfx4 RTL PTW/TLB 探针纳管并三方对齐 |
 
 ## 已验证
 
