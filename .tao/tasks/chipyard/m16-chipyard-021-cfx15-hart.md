@@ -1,33 +1,34 @@
-# m16-chipyard-021: RTL cfx15 hart（寄存器 + timer 中断）
+# m16-chipyard-021: RTL cfx15 hart（cg8 管理 + cg9 异步现场 + timer 中断）
 
 **模块**：chipyard
 **项目里程碑**：M16
-**依赖**：`m16-chipyard-020` 合入（cfx0/2 模式路由已就位）
+**依赖**：`m16-chipyard-020` 合入（同步路由已就位）；`ADR-0060`（hart-first，Accepted）
 **可并行分片**：否
-**预估**：3–4 h
-**档位**：中改（复核 ≤40 min）
+**预估**：4–6 h
+**档位**：大改（复核 ≤60 min）
 **状态**：待开始
 
 ## 背景
 
-004 盘点：RTL 缺 cfx15 hart（QEMU/gem5 已有）。用户 2026-11-22 定：三个 cfx（15/32/34）都补、每个 cfx 一件；**中断源只有 cfx15 的 timer 与 cfx32 的 pmem DMA 完成；cfx34/63 没有中断**。
+`ADR-0060` 取代 `ADR-0059`：异步投递统一 **hart-first**——TIMER（`1<<17`）与 PMEM_DMA（`1<<18`）都投 **`cfx_hart`（cfxha 15）** 的 supv 单向量，现场/mask/pending 全在新增 **`cfx_hart cg9`**。本任务补 RTL 的 `cfx_hart`：cg8 原有管理寄存器 + 新增 cg9。
 
 ## 要做
 
-1. **寄存器面**：cfx15 的 `hart_id`、`cycle`、`insn`、`timer_cmp`、`timer_ctrl`（`DADAO-12 §4.7`；位域/读写属性按 `contract-see` 现场解析）。
-2. **计数**：`cycle`/`insn` 按实现时钟计数；`hart_id` 单 hart 下为 0（或平台约定，写清）。
-3. **timer 中断**：`timer_cmp` 到期按 `timer_ctrl` 触发 **TIMER**（`cfx_hart bit10`，按 `DADAO-12 §4.7`），进入当前运行模式 monitor；清除/重装语义按契约。
-4. **探针**：RTL 探针读 hart_id/cycle/insn、写/读 timer_cmp/timer_ctrl、触发一次 timer 中断并观察进入 monitor。
-5. **不回归**：Tiny 无 cfx15（保持现状）；cfx3/4/5 既有语义不变。
-
-6. **三方用例（B）**：cfx15 的 case 定义/期望只写一份；RTL 探针与 QEMU/gem5 后端复用同一 case（非必要不为每个平台写三份载体），由 `check-arch-vast` 按需跑三方。
-
-**H/S/U 三模式**（用户 2026-11-22）：cfx15 的寄存器面与 timer 中断应在 `hmon`/`smon`/`umon` 三种运行模式下各跑一次（复用 `tests/arch/common/env/`）；权限不允许的模式显式标注 `modes` 排除原因。
+1. **cg8（原 hart 管理）**：`hart_id`/`cycle`/`insn`/`timer_cmp`/`timer_ctrl`（`DADAO-12 §4.7`）；`cycle`/`insn` 按时钟计数；`hart_id` 单 hart 为 0。
+2. **新增 cg9（16 rc，ADR-0060 D2）**：`async_prev_run_mode`(2b)、`async_prev_cfx_code`(6b)、`async_cause_ip`(48b)、`async_cause_id`(64b，非 0=有效帧)、`async_saved_global_intr_mask`、`async_pending`(位=**cause id** `1<<17`/`1<<18`)、`async_excp_vector`(48b)、`async_switch_run_mode`(2b，固定 supv=2)、`async_global_intr_mask`/`async_user_intr_mask`/`async_jail_intr_mask`/`async_supv_intr_mask`/`async_hypv_intr_mask`(位索引=**源 cfxha** 15/32)；rc13–15 reserved。
+3. **TIMER 投递（hart-first）**：`timer_cmp` 到期 ⇒ `async_cause_id=1<<17`；投 `cfx_hart` 的 **supv 单向量**（`cg9 rc6`/`rc7=2`），写 `cg9 rc0–rc4`；mask 查 `cg9 rc8–rc12`（位=15）；pending 置 `cg9 rc5`（位=`1<<17`）。
+4. **无嵌套/释放/重建**：`async_cause_id != 0` 时新事件只置 pending；软件写 0 释放帧、清 pending；可快照/重建。
+5. **escape frame selector（bit1）**：`imms18=2` 选 `cg9` 偏移 0；`imms18=3` ⇒ `ILLI`；`imms18[17:2]` SBZ；`cfxha` = 当前 cfx。
+6. **探针**：cg8/cg9 寄存器读写；timer 到期投 cfx_hart/supv、cg9 现场/pending/mask；`escape imms18=2` 返回；`3` ⇒ `ILLI`。
+7. **H/S/U 三模式**：timer 在 hmon/smon/umon 下都投 `cfx_hart` supv（目标固定，不随当前模式变）；权限不允许的模式显式标注。
+8. **三方用例（B）**：case 定义/期望只写一份；RTL 探针与 QEMU/gem5 复用同一 case；由 `check-arch-vast` 按需跑。
+9. **不回归**：Tiny 无 cfx15；cfx3/4/5 既有语义不变。
 
 ## 不做
 
 - 不做 cfx32/34（另两件）；
-- 不改 cfx0/2 的模式路由（020）；
+- 不改 cfx0/2 的同步路由（020）；
+- 不做 monitor-first（ADR-0059 作废）；
 - 不加多核/IPI。
 
 ## 约束
@@ -39,10 +40,12 @@
 
 运行期证据目录内的 `run.sh`：
 
-1. RTL 探针：hart_id/cycle/insn 读回合理（cycle/insn 单调）、timer_cmp/timer_ctrl 写读回、timer 到期进入 monitor；
-2. Tiny 代表例不回归；cfx3/4/5 探针不回归；
-3. **可达 FAIL**：注入「timer_cmp 不触发」⇒ 中断用例红；注入「cycle 不递增」⇒ 红；`cp`+md5 还原并强制重建后回绿；
-4. `check-patch-tree` chipyard 段 0 problem、`check-index-blobs`、`check-tests-index`、`check-tasks` 记录 rc；`--inject` ≥2 路。
+1. cg8/cg9 寄存器读写/保留；`cg9 rc13–15` ⇒ `CFXREG`；
+2. timer 到期：`async_cause_id=1<<17`、投 cfx_hart supv、`cg9` 现场逐项、pending 位 `1<<17`、mask 位 15；
+3. `escape imms18=2` 返回；`3` ⇒ `ILLI`；`imms18[17:2]≠0` ⇒ `ILLI`；
+4. H/S/U 三模式下投递目标均为 cfx_hart/supv；
+5. **可达 FAIL**：注入「timer 投 monitor」/「pending 记 cfxha 位」⇒ 红；`cp`+md5 还原并强制重建后回绿；
+6. `check-patch-tree` chipyard 段 0 problem、`check-index-blobs`、`check-tests-index`、`check-tasks` 记录 rc；`--inject` ≥2 路。
 
 ## 完成区
 
