@@ -3,7 +3,7 @@
 
 K2's second half is time: `cfx_time` (cfxha 34) offers a free-running 64-bit
 count, the single-hart timer lives in `cfx_hart` (cfxha 15) and raises the
-maskable asynchronous source `TIMER` (`1 << 10`, `cause_info = 0`) into
+maskable asynchronous source `TIMER` (`1 << 17`, `cause_info = 0`) into
 `cfx_hart`'s **supv** vector.  This gate boots the real kernel on the Vast
 machine and checks that the kernel turns that into jiffies:
 
@@ -16,7 +16,7 @@ Everything expected here is derived live (nothing is restated):
     `.tao/contracts/contract-see.md` §3 (and 1 count = 1 ns, so the count is a
     period in ns);
   * the mask bit index -> `contracts/cfx-aliases.txt` (`scalar cfx_hart 15`),
-    while the *cause* id (`TIMER = 1 << 10`) comes from the same contract — the
+    while the *cause* id (`TIMER = 1 << 17`) comes from the same contract — the
     two numbering schemes must not be mixed (contract-see §6.4);
   * `HZ` -> the build tree's `.config` (`CONFIG_HZ`), and the period ->
     `freq // HZ`; the kernel's printed hz must equal the configured one, so a
@@ -194,7 +194,7 @@ def contract_freq() -> int:
 
 
 def contract_timer_cause() -> int:
-    """The `TIMER` cause id of contract-see §3 (`1 << 10`)."""
+    """The `TIMER` cause id of contract-see §3 (`1 << 17`)."""
     text = CONTRACT_SEE.read_text(encoding="utf-8")
     m = re.search(r"到期触发可屏蔽 `TIMER`（`1 << (\d+)`）", text)
     if not m:

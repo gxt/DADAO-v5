@@ -19,7 +19,7 @@ Boot path under test:
 What is derived live (nothing is restated):
 
   * the source bit -> `scalar cfx_hart 15` of `contracts/cfx-aliases.txt`, i.e.
-    `1 << 15` — *not* the cause id (`TIMER = 1 << 10`, from contract-see §3);
+    `1 << 15` — *not* the cause id (`TIMER = 1 << 17`, from contract-see §3);
     the two numbering schemes must not be mixed (contract-see §6.4);
   * the period -> the image's `CONFIG_HZ` and the contract's `cfx_time_freq`
     (`freq // HZ`), so a hardcoded count in the kernel goes red;
