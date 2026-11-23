@@ -10,7 +10,7 @@
 
 ## 背景
 
-`m18-qemu-002`（monitor-first）被 `ADR-0060` 取代；它的遗留发现：`min_rom_probe_async_094t.py` 与 `min_rom_probe_integ050t.py` 仍按旧口径（target-first/monitor-first）写期望。`m18-qemu-003`（迁 monitor-first）已作废；本任务把两个探针直接迁到 **hart-first**。
+`m18-qemu-002`（monitor-first）被 `ADR-0060` 取代；它的遗留发现：`min_rom_probe_async_094t.py`、`min_rom_probe_integ050t.py`、`min_rom_probe_integ042t.py`（pmem DMA 异步断言）仍按旧口径（target-first/monitor-first）写期望；`tools/testcases/arch/README.md` 的 integ051t 摘要也仍旧。`m18-qemu-003`（迁 monitor-first）已作废；本任务把三个探针直接迁到 **hart-first**。
 
 ## 要做
 
@@ -21,6 +21,7 @@
 - pending = `cg9 rc5`，位 = **cause id**（`1<<17`/`1<<18`）；
 - mask = `cg9 rc8–rc12`，位 = **源 cfxha**（15/32）；
 - `escape` 选 cg9 用 `imms18=2`；`3` ⇒ `ILLI`；
+- `min_rom_probe_integ042t.py` 的 `pmem_dma_irq_delivered`/`pmem_dma_masked_pending` 改为 hart-first（`cfx_hart cg9`、pending `1<<18`），并更新 `tools/testcases/arch/README.md` 摘要。
 - **不改 QEMU 实现**，只改探针期望/读取逻辑。
 
 ## 不做
@@ -30,14 +31,14 @@
 
 ## 约束
 
-- 独立 `git worktree`；**不提交 git**；只动两个探针与本任务书；
+- 独立 `git worktree`；**不提交 git**；只动 `min_rom_probe_async_094t.py`、`min_rom_probe_integ050t.py`、`min_rom_probe_integ042t.py`、`tools/testcases/arch/README.md` 与本任务书；
 - 不写运行期路径；术语「寄存器组」。
 
 ## 验证
 
 运行期证据目录内的 `run.sh`：
 
-1. 两个探针在 hart-first QEMU 上 rc=0；对旧 QEMU（target-first/monitor-first）应判红；
+1. 三个探针在 hart-first QEMU 上 rc=0；对旧 QEMU（target-first/monitor-first）应判红；
 2. 覆盖：投递目标、pending 位置、mask 位、同源 OR、escape 补投、单层投递；
 3. **可达 FAIL**：把期望临时改回 monitor-first ⇒ 红；`cp`+md5 还原回绿；
 4. `check-qemu-forms`、`check-patch-tree` qemu 段 0 problem、`check-component-changelog` 记录 rc。
