@@ -1,7 +1,7 @@
-@@ vastwalk.S — DADAO 两级页表走查探针（`m16-chipyard-007`）
+@@ ptw_walk.S — DADAO 两级页表走查探针（`m16-chipyard-007`）
 @@
 @@ 目的：在 `WumingVastConfig` 上覆盖「PTW 两级步查」的功能面，断言值全部由
-@@ `tools/chipyard/ptw/gen_vastwalk_tables.py` 独立算出（页表几何/PTE 编码/期望
+@@ `tests/arch/ptw/gen_ptw_walk_tables.py` 独立算出（页表几何/PTE 编码/期望
 @@ A/D 值），本文件不含任何手算的索引或位号。
 @@
 @@   A 走查正确性（`DADAO-12 §2.2.1`/`§2.2.2`）
@@ -32,26 +32,26 @@
 @@
 @@ 断言方式：A/B 段用 `__CHECK_RD`（不等即 `SYS_EXIT(点号)`）；C 段把异常帧里的
 @@ `excp_cause_id`/`excp_cause_info` 原样 `__REC` 进结果缓冲，由宿主
-@@ `check_vastwalk.py` 现场从 `spec/DADAO-12 §3.6` / `contract-tlb` 解析位号后逐条
+@@ `check_ptw_walk.py` 现场从 `spec/DADAO-12 §3.6` / `contract-tlb` 解析位号后逐条
 @@ 比对（本文件不含子原因常量）。
 @@
-@@ 载体约定（与 `tools/chipyard/ptw/vastptw.S` 同源）：故障用例把回落点写进固件
+@@ 载体约定（与 `tests/arch/ptw/ptw_regs.S` 同源）：故障用例把回落点写进固件
 @@ hmon 的返回槽（hmon SRAM `+0xF8`，`aip.si` 现场取），落点读固件槽 `+0xE0`
 @@ （cause_id）与 `+0xF0`（cause_info）。数据类故障例的
 @@ `aip → add.si(+16) → st.o(返回槽) → 故障访问 → 回落点` 恒为 16 B；取指类为
-@@ 24 B（多 `sub.o`/`add.si` 求跳跃目标）。`vastwalk.lds` 对每个用例回读校验。
+@@ 24 B（多 `sub.o`/`add.si` 求跳跃目标）。`ptw_walk.lds` 对每个用例回读校验。
 @@
-@@ 页表与数据由 `+loadmem=` 装入 PA RAM（`vastwalk.lds` 的段就放在 PA：
+@@ 页表与数据由 `+loadmem=` 装入 PA RAM（`ptw_walk.lds` 的段就放在 PA：
 @@ L1 表 0、L2 表 0x1_0000、故障表 0x3_0000、可执行页 0x5_0000、超页 0x4000_0000
 @@ / 0x4400_0000）；本探针自身在核内 SRAM（`addr[47:42] ≠ 0`，不经翻译）。
 @@
 @@ 用法：
-@@   python3 tools/chipyard/ptw/gen_vastwalk_tables.py --emit inc > vastwalk_tables.inc
-@@   llvm-mc --triple=dadao-unknown-elf -filetype=obj -I . -I <dir of the inc> vastwalk.S -o vastwalk.o
-@@   ld.lld -T vastwalk.lds vastwalk.o -o vastwalk.elf
+@@   python3 tests/arch/ptw/gen_ptw_walk_tables.py --emit inc > ptw_walk_tables.inc
+@@   llvm-mc --triple=dadao-unknown-elf -filetype=obj -I . -I <dir of the inc> ptw_walk.S -o ptw_walk.o
+@@   ld.lld -T ptw_walk.lds ptw_walk.o -o ptw_walk.elf
 
 	.include "tests/inst/macros/inst_test.inc"
-	.include "vastwalk_tables.inc"
+	.include "ptw_walk_tables.inc"
 
 	__TEST_BEGIN
 	set.rb rb20, HMON_BASE		@@ 固件 hmon 的帧槽（+0xE0/0xF0/0xF8）

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""check_vasttlb -- `tools/chipyard/tlb/vasttlb.S` 的独立判据（`m16-chipyard-008`）。
+"""check_ptw_tlb -- `tests/arch/ptw/ptw_tlb.S` 的独立判据（`m16-chipyard-008`）。
 
 判据不保存期望常量：页表几何、PTE 值与数据 magic 全部从
-`tools/chipyard/tlb/gen_vasttlb_tables.py` 现场取；cause 大类与子原因位号从
+`tests/arch/ptw/gen_ptw_tlb_tables.py` 现场取；cause 大类与子原因位号从
 `.tao/contracts/contract-see.md` §6.1/§6.1.1 解析并与 `adr-0056` 逐位互校。
 
 判据分两层：
@@ -16,9 +16,9 @@
         `cause_info` = 该 PTE 的物理地址。
 
 用法：
-  check_vasttlb.py --stream <file> --log <sim log> [--root <repo>]
-  check_vasttlb.py --stream <file> --log <sim log> --or-only --expect-adwb
-  check_vasttlb.py --self-test [--root <repo>]
+  check_ptw_tlb.py --stream <file> --log <sim log> [--root <repo>]
+  check_ptw_tlb.py --stream <file> --log <sim log> --or-only --expect-adwb
+  check_ptw_tlb.py --self-test [--root <repo>]
 """
 
 from __future__ import annotations
@@ -28,6 +28,11 @@ import importlib.util
 import pathlib
 import re
 import sys
+
+_REPO = pathlib.Path(__file__).resolve().parents[3]
+if str(_REPO / "tests" / "shared") not in sys.path:
+    sys.path.insert(0, str(_REPO / "tests" / "shared"))
+import signature                      # noqa: E402  (签名流机制：单一实现)
 
 HERE = pathlib.Path(__file__).resolve().parent
 
@@ -40,13 +45,13 @@ def _load(name, path):
 
 
 def load_geometry():
-    return _load("vasttlb_geometry", HERE / "gen_vasttlb_tables.py")
+    return _load("ptw_tlb_geometry", HERE / "gen_ptw_tlb_tables.py")
 
 
 def bit_table(root: pathlib.Path) -> dict:
     """Cause classes + sub-cause bits, parsed from the contract (reuse the PTW
     checker's parser, which cross-checks `adr-0056`)."""
-    mod = _load("vastptw_bits", HERE.parent / "ptw" / "check_vastptw.py")
+    mod = _load("ptw_regs_bits", HERE / "check_ptw_regs.py")
     return mod.bit_table(root)
 
 
@@ -59,7 +64,7 @@ def tag(va: int, superpage: bool) -> int:
 
 
 def expected_full(g, table: dict) -> list:
-    """Record order = the `__REC` calls of `vasttlb.S` (full image)."""
+    """Record order = the `__REC` calls of `ptw_tlb.S` (full image)."""
     recs = []
     # P1: fill / hit after a silent PTE change / invalid+VA re-walk
     recs += [g.M_P[1], g.M_P[1], g.M_P_NEW[1]]
@@ -182,10 +187,12 @@ def structure_problems(recs: list, table: dict, or_only: bool,
     return problems
 
 
-def unpack(data: bytes) -> list:
-    if len(data) % 8:
-        raise SystemExit("check_vasttlb: stream length %d is not a multiple of 8" % len(data))
-    return [int.from_bytes(data[i:i + 8], "big") for i in range(0, len(data), 8)]
+def unpack(data: bytes, count: int) -> list:
+    """解析签名流（机制只有 `tests/shared/signature.py` 一份）。"""
+    try:
+        return signature.parse(data, count, sentinel=False)
+    except signature.SignatureError as exc:
+        raise SystemExit("check_ptw_tlb: %s" % exc)
 
 
 def check(recs, expected, table, log_text, g, or_only, expect_adwb):
@@ -319,17 +326,17 @@ def main() -> int:
     if args.self_test:
         return selftest(table)
     if not args.stream:
-        raise SystemExit("check_vasttlb: --stream is required")
-    recs = unpack(pathlib.Path(args.stream).read_bytes())
+        raise SystemExit("check_ptw_tlb: --stream is required")
+    recs = unpack(pathlib.Path(args.stream).read_bytes(), len(expected))
     log_text = pathlib.Path(args.log).read_text(errors="replace") if args.log else None
     problems = check(recs, expected, table, log_text, g, args.or_only,
                      args.expect_adwb)
     for p in problems:
         print("  [FAIL] %s" % p)
     if problems:
-        print("check_vasttlb: %d problem(s) in %d record(s)" % (len(problems), len(recs)))
+        print("check_ptw_tlb: %d problem(s) in %d record(s)" % (len(problems), len(recs)))
         return 1
-    print("check_vasttlb: %d record(s) match (evictions / A-D merge %s)"
+    print("check_ptw_tlb: %d record(s) match (evictions / A-D merge %s)"
           % (len(recs), "injected failure" if args.expect_adwb else "checked"))
     return 0
 

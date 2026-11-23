@@ -1,4 +1,4 @@
-@@ vastptw.S — `cfx_ptw` 寄存器面 + 地址路由探针（`m16-chipyard-006`）
+@@ ptw_regs.S — `cfx_ptw` 寄存器面 + 地址路由探针（`m16-chipyard-006`）
 @@
 @@ 目的：用**可失败**的访客侧断言覆盖「Kaiwu-Vast 的地基」两条语义，且判据的
 @@ 位号不写死在本文件里：
@@ -24,21 +24,21 @@
 @@
 @@ 断言方式：A 段用 `__CHECK_RD`（不等即 `SYS_EXIT(点号)`）；B 段把异常帧里的
 @@ `excp_cause_id`/`excp_cause_info` 原样 `__REC` 进结果缓冲，由宿主
-@@ `check_vastptw.py` **现场从合约解析位号**后逐条比对（本文件不含任何子原因常量，
+@@ `check_ptw_regs.py` **现场从合约解析位号**后逐条比对（本文件不含任何子原因常量，
 @@ 也不假设大类位号——`AGENTS.md`「Independent oracle」）。
 @@
 @@ 载体约定（与 `tools/chipyard/excp/causeid.S` 同源）：故障用例把回落点写进固件
 @@ hmon 的返回槽（hmon SRAM `+0xF8`，`aip.si` 现场取），落点读固件槽 `+0xE0`
 @@ （cause_id）与 `+0xF0`（cause_info）。每个故障用例的
 @@ `aip → add.si(+16) → st.o(返回槽) → 故障访问 → 回落点` 恒为 16 B（取指用例为
-@@ 24 B，多一条 `sub.o`/`add.si` 求跳跃目标），`vastptw.lds` 对每个用例回读校验。
+@@ 24 B，多一条 `sub.o`/`add.si` 求跳跃目标），`ptw_regs.lds` 对每个用例回读校验。
 @@
 @@ **本探针只能在 `WumingVastConfig` 上跑**：`Kaiwu-Tiny` 不实现 `cfx_ptw`
 @@（`contract-see §3`），第一条 `cfx2rd cfx_ptw, cg8, rc8` 就是 CFXREG。
 @@
 @@ 用法：
-@@   llvm-mc --triple=dadao-unknown-elf -filetype=obj -I . vastptw.S -o vastptw.o
-@@   ld.lld -T vastptw.lds vastptw.o -o vastptw.elf
+@@   llvm-mc --triple=dadao-unknown-elf -filetype=obj -I . ptw_regs.S -o ptw_regs.o
+@@   ld.lld -T ptw_regs.lds ptw_regs.o -o ptw_regs.elf
 
 	.include "tests/inst/macros/inst_test.inc"
 

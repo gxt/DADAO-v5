@@ -1,0 +1,93 @@
+# tests/arch/ptw/rtl-coverage.yaml — cfx4 的 RTL（chipyard `WumingVastConfig`）
+# 覆盖清单（`m16-chipyard-018`）
+#
+# 目的：把 `m16-testcases-010` 的 15 条 `arch-ptw-*` 与 RTL 承载**机械**对起来，
+# 让「没跑」不能冒充「通过」。每条的 `status`：
+#
+#   signature  RTL 产出与 QEMU/gem5 同一组签名槽（逐槽比较；登记差异见
+#              `tests/arch/expected-divergences.yaml`）
+#   guest      RTL 跑同一场景，判据 = guest 内断言（rc=0）；签名流 0 槽
+#   partial    同上，但只覆盖 QEMU 检查点的一部分（`reason` 写缺哪一项）
+#   gap        RTL 当前没有等价观测面 ⇒ `check_ptw_rtl.py` 返回 77（GAP），
+#              不当作通过；必须写 `reason` 与 `close_when`
+#
+# `rtl_case` = `ptw_sig.S` 的 `--defsym PTW_CASE=<n>`。清单与
+# `tests/arch.yaml`（cfx4 的 15 条）**双向**核对（`check_ptw_rtl.py --selfcheck`）；
+# `signature` 集必须等于 `expected.yaml` 里带 `signature:` 的 case 集。
+schema: 1
+
+cases:
+  arch-ptw-001:
+    status: guest
+    rtl_case: 1
+    note: "首次访问缺页步进+填充，第二次命中（H=1 叶 PTE）"
+
+  arch-ptw-002:
+    status: signature
+    rtl_case: 2
+    note: "命中不重读 PTE；3 槽与 QEMU/gem5 逐字节相同"
+
+  arch-ptw-003:
+    status: guest
+    rtl_case: 3
+    note: "invalid + scope=VA 只删包含 start 的条目"
+
+  arch-ptw-004:
+    status: guest
+    rtl_case: 4
+    note: "invalid + range 相交者失效；range&&size=0 / scope=11 ⇒ CFXREG；scope=all 忽略 start/size"
+
+  arch-ptw-005:
+    status: guest
+    rtl_case: 5
+    note: "ASID_ANY=0 不碰 G；ASID_ANY=1 含 G；G 跨 ASID 复用"
+
+  arch-ptw-006:
+    status: signature
+    rtl_case: 6
+    note: "clean 原子 OR 回写 A/D 且保留条目；invalid 不回写且删除；3 槽与 QEMU/gem5 相同"
+
+  arch-ptw-007:
+    status: signature
+    rtl_case: 7
+    note: "flush 回写 A/D 并删除；回写失败面在 RTL 运行期不可构造（DIV-14）"
+
+  arch-ptw-008:
+    status: guest
+    rtl_case: 8
+    note: "写 PTBR（同值/异值）、ASID、ptw_enable=1 均不隐含失效；显式 invalid 才生效"
+
+  arch-ptw-009:
+    status: guest
+    rtl_case: 9
+    note: "ptw_enable=0 ⇒ CFXMEM[57] NONPTW + cause_info=VA；TLB 旁路"
+
+  arch-ptw-010:
+    status: guest
+    rtl_case: 10
+    note: "页表未映射 ⇒ CFXMEM + DGPTRAP（数据）/ IGPTRAP（取指）"
+
+  arch-ptw-011:
+    status: guest
+    rtl_case: 11
+    note: "W=0/R=0/X=0/HSJU 缺 H ⇒ NWPERM/NRPERM/NXPERM/NHPERM（hypv 轴）"
+
+  arch-ptw-012:
+    status: guest
+    rtl_case: 12
+    note: "改 PTE 不失效仍读旧页；invalid+VA 后才生效"
+
+  arch-ptw-013:
+    status: gap
+    reason: "cfx 空间旁路（`VA[47:42]≠0` 的 cfx_pmem SRAM 访问 + 保留 cfx ⇒ CFXMEM[57]）在 RTL 上不成立：运行期证据目录的 `diag-013`（临时诊断镜像）实测 hmon 读 `cfx_pmem SRAM`（`PMEM_BASE+0x1000`）得到 `CFXMEM` + `[57] NONPTW`、`cause_info` = 该地址（`0x83ff_0000_1000`，记录 `0200000000000002` / `000083ff00001000`），即 RTL 不把该窗口当 cfx 旁路；保留 cfx 的 `NONPTW` 侧与 QEMU 同形，但正向用例缺承载。本任务只做判据与承载接线，不顺手改实现或权限面。"
+    close_when: "RTL 的 hmon→cfx_pmem SRAM 访问面确认可用（或在探针里用公开的 SRAM 窗口），并把该场景加入 `ptw_sig.S` 的 PTW_CASE=13"
+
+  arch-ptw-014:
+    status: gap
+    reason: "A/D 回写失败的「条目级 + 遇错即停」需要运行期构造回写失败；RTL 的 PA RAM 全可写（同一原因见 DIV-04/DIV-14），构造不出只读叶 PTE。"
+    close_when: "RTL 提供只读叶 PTE 承载或测试专用回写失败注入；届时把三条目/停止点场景加入 `ptw_sig.S`"
+
+  arch-ptw-015:
+    status: gap
+    reason: "`ILLI` 的 `cause_info` = 指令编码（内存窗口内的 IP）在 RTL 上未验证：需要可构造的只读内存窗口页，且 RTL 的 ILLI `cause_info` 取值未在本任务核对（不拿实现现状当期望）。"
+    close_when: "RTL 的只读内存窗口页与 ILLI `cause_info` 语义核对通过后，把该场景加入 `ptw_sig.S`"

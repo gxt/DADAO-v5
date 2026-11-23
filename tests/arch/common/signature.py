@@ -125,3 +125,38 @@ def validate_expected(expected_yaml):
                     problems.append("%s/%s: 签名值必须是整数，实为 %r"
                                     % (where, check.get("label"), value))
     return problems
+
+
+def load_divergence_slots(divergences_yaml, case_id, platform="chipyard"):
+    """`expected-divergences.yaml` 的逐槽例外：`{slot: (div_id, value)}`。
+
+    只接受 `scope` 含 `platform`、且 `close_when` 非空的条目（fail-closed：
+    例外必须登记得可关闭，不能长期潜伏）。同一 case 的同一槽被多条登记 ⇒
+    `ValueError`。`platform` 侧的值仍是**登记值**，规范值（QEMU/gem5 侧）不变。
+    """
+    import yaml
+
+    path = Path(divergences_yaml)
+    if not path.is_file():
+        raise ValueError("缺件 %s（expected-divergences.yaml）" % path)
+    try:
+        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise ValueError("expected-divergences.yaml 解析失败: %s" % exc)
+    out = {}
+    for entry in (doc or {}).get("divergences") or []:
+        if not isinstance(entry, dict):
+            continue
+        for slot in entry.get("slots") or []:
+            if not isinstance(slot, dict) or slot.get("case") != case_id:
+                continue
+            if platform not in (entry.get("scope") or []):
+                raise ValueError("%s 的逐槽例外未声明 scope: %s"
+                                 % (entry.get("id"), platform))
+            if not entry.get("close_when"):
+                raise ValueError("%s 缺 close_when" % entry.get("id"))
+            idx = int(slot["slot"])
+            if idx in out:
+                raise ValueError("%s 的槽 %d 被多条差异登记" % (case_id, idx))
+            out[idx] = (entry.get("id"), int(slot[platform]))
+    return out

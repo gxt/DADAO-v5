@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""check_vastptw — `tools/chipyard/ptw/vastptw.S` 的独立判据（`m16-chipyard-006`）。
+"""check_ptw_regs — `tests/arch/ptw/ptw_regs.S` 的独立判据（`m16-chipyard-006`）。
 
 探针把 19 个 8 字节实测值（11 个寄存器/路由检查点 + 4 个故障用例 × {cause_id,
 cause_info}）写进结果缓冲。本脚本**不保存期望常量**，而是现场从：
@@ -20,8 +20,8 @@ cause_info}）写进结果缓冲。本脚本**不保存期望常量**，而是�
   * `cause_info` == 被访问的 VA。
 
 用法：
-  check_vastptw.py --stream <file> [--root <repo>]
-  check_vastptw.py --self-test [--root <repo>]     # 合成坏流 ⇒ 每条断言都有可达 FAIL 路径
+  check_ptw_regs.py --stream <file> [--root <repo>]
+  check_ptw_regs.py --self-test [--root <repo>]     # 合成坏流 ⇒ 每条断言都有可达 FAIL 路径
 """
 
 from __future__ import annotations
@@ -29,10 +29,14 @@ from __future__ import annotations
 import argparse
 import pathlib
 import re
-import struct
 import sys
 
-# 探针的记录顺序（`vastptw.S`）：检查点 1..11 各 1 条，之后 4 个故障用例各 2 条
+_REPO = pathlib.Path(__file__).resolve().parents[3]
+if str(_REPO / "tests" / "shared") not in sys.path:
+    sys.path.insert(0, str(_REPO / "tests" / "shared"))
+import signature                      # noqa: E402  (签名流机制：单一实现)
+
+# 探针的记录顺序（`ptw_regs.S`）：检查点 1..11 各 1 条，之后 4 个故障用例各 2 条
 # （cause_id、cause_info）。这里只记「哪一个语义」，值全部现场算。
 REGISTER_CHECKS = ["enable reset", "enable write 1", "enable write 0",
                    "ptbr mask", "asid mask", "addr_start mask",
@@ -54,7 +58,7 @@ def _unique(pairs, what):
     table = {}
     for name, bit in pairs:
         if name in table and table[name] != bit:
-            raise SystemExit("check_vastptw: %s has two bit numbers for %s (%d / %d)"
+            raise SystemExit("check_ptw_regs: %s has two bit numbers for %s (%d / %d)"
                              % (what, name, table[name], bit))
         table[name] = bit
     return table
@@ -65,7 +69,7 @@ def contract_table(root: pathlib.Path) -> dict:
     start = text.find("### §6.1.1")
     end = text.find("### §6.2")
     if start < 0 or end < 0:
-        raise SystemExit("check_vastptw: contract-see §6.1.1 not found")
+        raise SystemExit("check_ptw_regs: contract-see §6.1.1 not found")
     sub_pairs = []
     for line in text[start:end].splitlines():
         m = re.match(r"^\|\s*`\[(\d+)\]`\s*\|\s*wyde(\d)\s*\|\s*`([A-Z0-9_]+)`\s*\|\s*`([A-Z0-9_]+)`",
@@ -111,7 +115,7 @@ def bit_table(root: pathlib.Path) -> dict:
     if "CFXMEM" not in c["class"]:
         problems.append("contract-see §6.1 missing the CFXMEM class row")
     if problems:
-        raise SystemExit("check_vastptw: bit table cross-check failed: " + "; ".join(problems))
+        raise SystemExit("check_ptw_regs: bit table cross-check failed: " + "; ".join(problems))
     return c
 
 
@@ -135,7 +139,7 @@ def expected_records(table: dict) -> list:
     for _, kind, va in FAULT_CASES:
         recs += [cfxmem | subs[kind], va]
     if len(recs) != N_RECORDS:
-        raise SystemExit("check_vastptw: expected %d records, built %d"
+        raise SystemExit("check_ptw_regs: expected %d records, built %d"
                          % (N_RECORDS, len(recs)))
     return recs
 
@@ -143,14 +147,16 @@ def expected_records(table: dict) -> list:
 # ---------------------------------------------------------------------------
 # 判据
 # ---------------------------------------------------------------------------
-def parse_stream(path: pathlib.Path) -> list:
-    return unpack(path.read_bytes())
+def parse_stream(path: pathlib.Path, count: int) -> list:
+    """解析签名流：机制只有 `tests/shared/signature.py` 一份。
 
-
-def unpack(data: bytes) -> list:
-    if len(data) % 8:
-        return None                     # 非整记录 ⇒ 由条数断言报 FAIL
-    return [struct.unpack(">Q", data[i:i + 8])[0] for i in range(0, len(data), 8)]
+    长度不符（短流/长流/非 8 字节整记录）⇒ `None`，由 `check()` 的条数
+    断言报 FAIL（不静默按「能读多少读多少」放过）。
+    """
+    try:
+        return signature.parse(path.read_bytes(), count, sentinel=False)
+    except signature.SignatureError:
+        return None
 
 
 def check(recs, expected: list, table: dict) -> list:
@@ -238,7 +244,7 @@ def selftest(table: dict) -> int:
 # ---------------------------------------------------------------------------
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--stream", help="result-buffer dump from the vastptw probe")
+    ap.add_argument("--stream", help="result-buffer dump from the ptw_regs probe")
     ap.add_argument("--root", default=None,
                     help="repository root (default: three levels up from this file)")
     ap.add_argument("--self-test", action="store_true",
@@ -248,21 +254,21 @@ def main() -> int:
 
     table = bit_table(root)
     if args.self_test:
-        print("check_vastptw: self-test")
+        print("check_ptw_regs: self-test")
         return selftest(table)
     if not args.stream:
         ap.error("--stream or --self-test is required")
 
     expected = expected_records(table)
-    recs = parse_stream(pathlib.Path(args.stream))
+    recs = parse_stream(pathlib.Path(args.stream), len(expected))
     fails = check(recs, expected, table)
-    print("check_vastptw: records=%s expected=%d"
+    print("check_ptw_regs: records=%s expected=%d"
           % ("?" if recs is None else len(recs), len(expected)))
     for f in fails:
         print("  [FAIL] %s" % f)
     if fails:
         return 1
-    print("check_vastptw: PASS (register face + address routing, %d records)" % len(recs))
+    print("check_ptw_regs: PASS (register face + address routing, %d records)" % len(recs))
     return 0
 
 

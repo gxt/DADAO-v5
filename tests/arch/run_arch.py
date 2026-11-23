@@ -5,6 +5,8 @@
   * **只测 Kaiwu-Vast**（`system`；cfx 0/2/3/4/5/15/32/34/63）；
   * QEMU/gem5/chipyard 是同一 scope 的三种承载；未实现的后端 **fail-closed**
     （记 SKIP 并非零退出，禁止静默降级为「其余平台通过」）；
+  * `chipyard` 的 cfx4 由 `check_ptw_rtl.py` 接（`m16-chipyard-018`）；
+    `rtl-coverage.yaml` 登记的 `gap` 记 `GAP`（退出码 77，不是 PASS）；
   * 用例/脚本/数据都在 `tests/arch/` 内；签名机制真源在 `tests/shared/`。
 
 接口：
@@ -338,7 +340,7 @@ def self_test() -> int:
             print("  FAIL  后端接线/fail-closed: %s" % problem)
     else:
         print("  PASS  后端接线: gem5 driver 承载已接（qemu_gem5_shim）；"
-              "chipyard 显式 fail-closed")
+              "chipyard 的 cfx4 已接（check_ptw_rtl.py）、其余 cfx fail-closed")
 
     print("-" * 72)
     if problems:
@@ -389,8 +391,12 @@ def _default_paths(args):
                    else Path(os.environ.get("PARITY_GEM5_CONFIG")
                              or ROOT / ".work/source/gem5/configs/dadao/fs.py"))
     gem5_shim = ROOT / "tools" / "testcases" / "parity" / "qemu_gem5_shim.py"
+    chipyard_sim = (Path(args.chipyard_sim) if args.chipyard_sim
+                    else ROOT / ".work" / "source" / "chipyard" / "sims"
+                    / "verilator"
+                    / "simulator-chipyard.harness-WumingVastConfig")
     return (qemu, llvm_mc, llvm_objcopy, bootrom, work,
-            gem5, gem5_config, gem5_shim)
+            gem5, gem5_config, gem5_shim, chipyard_sim)
 
 
 def _select_mode(cases, mode):
@@ -442,13 +448,14 @@ def run(args) -> int:
     cases = _select_mode(cases, args.mode)
 
     (qemu, llvm_mc, llvm_objcopy, bootrom, work,
-     gem5, gem5_config, gem5_shim) = _default_paths(args)
+     gem5, gem5_config, gem5_shim, chipyard_sim) = _default_paths(args)
     ctx = argparse.Namespace(arch_root=str(ARCH), repo_root=str(ROOT),
                              work=str(work), qemu=qemu,
                              llvm_mc=llvm_mc, llvm_objcopy=llvm_objcopy,
                              bootrom=bootrom,
                              gem5=gem5, gem5_config=gem5_config,
                              gem5_shim=gem5_shim,
+                             chipyard_sim=chipyard_sim,
                              m5_runner=ROOT / "tools" / "testcases" / "arch"
                              / "run_m5_e2e.py",
                              mode=args.mode,
@@ -459,6 +466,9 @@ def run(args) -> int:
             Path(qemu).is_file() and os.access(qemu, os.X_OK)):
         raise ConfigError("qemu 不存在或不可执行: %s（--qemu 或 make install-host）"
                           % qemu)
+    if "chipyard" in platforms and not Path(chipyard_sim).is_file():
+        raise ConfigError("chipyard 仿真器不存在: %s（--chipyard-sim 或 "
+                          "chipyard Vast 构建）" % chipyard_sim)
     if "qemu" in platforms and any(c["kind"] == "asm" for c in cases):
         for value, label in ((llvm_mc, "llvm-mc"),
                              (llvm_objcopy, "llvm-objcopy"),
@@ -494,14 +504,16 @@ def run(args) -> int:
             print("  %-4s  %-10s %-22s rc=%s %s"
                   % (status, res["platform"], res["case"], res["rc"],
                      res.get("reason", "")))
-            if status != "PASS":
+            if status not in ("PASS", "GAP"):
                 failures.append("%s/%s: %s"
                                 % (res["platform"], res["case"],
                                    res.get("reason", "")))
 
-    # 跨平台一致性：同一 case 的逐槽签名字节与 verdict 必须相同（多平台时）。
-    # 已接线的签名流逐字节比较；未接线的 case 是两份 0 槽空流（显式登记，
-    # 不把空流当成已验证的「签名一致」）。
+    # 跨平台一致性：同一 case 的逐槽签名与 verdict 必须相同（多平台时）。
+    # 已接线的签名流逐槽比较；未接线的 case 是两份 0 槽空流（显式登记，
+    # 不把空流当成已验证的「签名一致」）。RTL 的登记差异
+    # （`expected-divergences.yaml` 的 `slots`）按登记值判 chipyard 侧，规范值仍判
+    # QEMU/gem5 侧；`rtl-coverage.yaml` 的 `gap` 不参与比较（不是通过）。
     def _observed_checks(res):
         """驱动日志里逐检查的 PASS/FAIL 行（同一驱动 → 跨引擎可比）。"""
         try:
@@ -512,33 +524,117 @@ def run(args) -> int:
         return sorted(line.strip() for line in text.splitlines()
                       if line.startswith(("PASS ", "FAIL ")))
 
+    from common import signature as arch_sig
+
+    div_path = ARCH / "expected-divergences.yaml"
     by_case = {}
     for res in results:
         by_case.setdefault(res["case"], {})[res["platform"]] = res
+    case_by_id = {c["id"]: c for c in cases}
     cross = {}
     for case_id, per in sorted(by_case.items()):
-        if len(per) < 2:
+        gaps = sorted(name for name, res in per.items()
+                      if res["verdict"] == "GAP")
+        if gaps:
+            # GAP 只豁免 chipyard 侧；其余平台之间仍要一致（否则「缺口」会盖住
+            # QEMU/gem5 的分歧）。
+            ref = {name: res for name, res in per.items() if name not in gaps}
+            ref_verdicts = {res["verdict"] for res in ref.values()}
+            ref_blobs = {}
+            for name, res in ref.items():
+                path = Path(res["signature"])
+                ref_blobs[name] = path.read_bytes() if path.is_file() else b""
+            ref_ok = (len(ref_verdicts) == 1
+                      and len({blob for blob in ref_blobs.values()}) == 1
+                      and len({tuple(_observed_checks(res))
+                               for res in ref.values()}) <= 1)
+            entry = {"platforms": sorted(per), "gap": True,
+                     "gap_platforms": gaps, "ref_ok": ref_ok,
+                     "gap_reasons": {name: per[name].get("reason", "")
+                                     for name in gaps}}
+            cross[case_id] = entry
+            print("  GAP   %-22s %s（不参与 chipyard 签名比较；其余平台 %s）"
+                  % (case_id, ", ".join(gaps),
+                     "一致" if ref_ok else "**不一致**"))
+            if not ref_ok:
+                msg = "GAP case 的其余平台不一致 %s: verdict=%r" % (
+                    case_id, {name: res["verdict"] for name, res in ref.items()})
+                failures.append(msg)
+                print("  FAIL  %s" % msg)
             continue
         verdicts = {res["verdict"] for res in per.values()}
-        sigs = {}
-        checks = {}
+        case = case_by_id[case_id]
+        expected_yaml = ARCH / case["cfx_dir"] / "expected.yaml"
+        want = arch_sig.load_expected_signature(expected_yaml, case_id)
+        blobs = {}
+        slots = {}
         for name, res in per.items():
             path = Path(res["signature"])
-            sigs[name] = path.read_bytes() if path.is_file() else b""
-            checks[name] = _observed_checks(res)
+            blobs[name] = path.read_bytes() if path.is_file() else b""
+            if want is None:
+                slots[name] = None
+            else:
+                try:
+                    slots[name] = arch_sig.parse(blobs[name], len(want))
+                except arch_sig.SignatureError:
+                    slots[name] = "PARSE-ERROR"
+        checks = {name: _observed_checks(res) for name, res in per.items()}
+        # 日志行比较只在**同一载体**的引擎之间成立（chipyard 用另一份承载）。
+        ref_platforms = [n for n in per if n != "chipyard"]
+        checks_equal = len({tuple(checks[n]) for n in ref_platforms}) <= 1
+        sig_ok = True
+        diverged = {}
+        if want is None:
+            sig_ok = len({blob for blob in blobs.values()}) == 1
+        else:
+            try:
+                exceptions = {n: (arch_sig.load_divergence_slots(
+                    div_path, case_id, n) if n == "chipyard" else {})
+                    for n in per}
+            except ValueError as exc:
+                sig_ok = False
+                exceptions = {}
+                print("  FAIL  %s: 差异登记: %s" % (case_id, exc))
+            for name in ref_platforms:
+                got = slots.get(name)
+                problems = arch_sig.compare(got, want) \
+                    if isinstance(got, list) else ["签名流解析失败"]
+                if problems:
+                    sig_ok = False
+            if "chipyard" in per:
+                got = slots.get("chipyard")
+                if not isinstance(got, list):
+                    sig_ok = False
+                else:
+                    for idx, (g, w) in enumerate(zip(got, want)):
+                        if idx in exceptions.get("chipyard", {}):
+                            div_id, declared = exceptions["chipyard"][idx]
+                            if g != declared:
+                                sig_ok = False
+                            else:
+                                diverged[idx] = {"id": div_id, "value": g,
+                                                 "spec": w}
+                        elif g != w:
+                            sig_ok = False
         entry = {
             "platforms": sorted(per),
             "verdict_equal": len(verdicts) == 1,
-            "signature_equal": len(set(sigs.values())) == 1,
-            "checks_equal": len({tuple(v) for v in checks.values()}) == 1,
+            "signature_equal": sig_ok,
+            "checks_equal": checks_equal,
             "signature_slots": {name: len(blob) // 8
-                                for name, blob in sigs.items()},
+                                for name, blob in blobs.items()},
             "check_count": {name: len(v) for name, v in checks.items()},
         }
+        if diverged:
+            entry["diverged_slots"] = diverged
         entry["ok"] = (entry["verdict_equal"] and entry["signature_equal"]
                        and entry["checks_equal"])
         cross[case_id] = entry
         if entry["ok"]:
+            if diverged:
+                print("  DIVERGED %-22s %d 槽按登记差异判（%s）"
+                      % (case_id, len(diverged),
+                         ", ".join(sorted({v["id"] for v in diverged.values()}))))
             continue
         msg = ("跨平台不一致 %s: verdict=%r signature_slots=%r check_count=%r"
                % (case_id, {name: res["verdict"] for name, res in per.items()},
@@ -560,8 +656,13 @@ def run(args) -> int:
             print("  FAIL  %s" % failure)
         print("run_arch: FAIL（%d 项；见 %s）" % (len(failures), summary))
         return 1
-    print("run_arch: PASS（%d case × %d 平台；见 %s）"
-          % (len(cases), len(platforms), summary))
+    gap_n = sum(1 for e in cross.values() if e.get("gap"))
+    if gap_n:
+        print("run_arch: PASS（%d case × %d 平台；%d 条 RTL 登记缺口记为 GAP；"
+              "见 %s）" % (len(cases), len(platforms), gap_n, summary))
+    else:
+        print("run_arch: PASS（%d case × %d 平台；见 %s）"
+              % (len(cases), len(platforms), summary))
     return 0
 
 
@@ -610,6 +711,9 @@ def main(argv=None) -> int:
     ap.add_argument("--llvm-mc", default=None)
     ap.add_argument("--llvm-objcopy", default=None)
     ap.add_argument("--bootrom", default=None)
+    ap.add_argument("--chipyard-sim", default=None,
+                    help="Vast RTL Verilator 仿真器（缺省 = 构建树的 "
+                         "WumingVastConfig）")
     ap.add_argument("--timeout", type=int, default=180)
     ap.add_argument("--self-test", action="store_true",
                     help="不启动模拟器：索引/期望/驱动自检/后端 fail-closed")

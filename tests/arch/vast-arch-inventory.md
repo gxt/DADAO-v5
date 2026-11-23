@@ -140,8 +140,8 @@
 - **寄存器面**：有。`GewuPtwParams`（`components/chipyard/patches/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala.patch:225`）与六个行译码（`components/chipyard/patches/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala.patch:479`）；ptw 仅 `useVM = true` 的 Vast 注入（`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala.patch:147`）。
 - **命令与副作用**：有。`tlb_control` 写脉冲与 scope/size 校验（`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala.patch:1582`）；步查 `components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala.patch:415`；I/D TLB `components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingTlb.scala.patch:65`。
 - **异常与子原因**：有。`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala.patch:303`（HSJU→NU/NH PERM）、`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala.patch:306`（NX/NW/NR）、`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala.patch:491`（ADWBFAIL）、`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingPtw.scala.patch:417`（NONPTW）；`components/chipyard/patches/generators/dadao-wuming/src/main/scala/wuming/common/WumingTlb.scala.patch:171`（IGPTRAP/DGPTRAP）。
-- **现有测试载体**：RTL ELF+loadmem。`tools/chipyard/ptw/vastptw.S:1`（寄存器面 19 记录）、`tools/chipyard/ptw/vastwalk.S:1`（两级步查/A-D）、`tools/chipyard/tlb/vasttlb.S:1`（I/D TLB）。
-- **现有门控**：手工脚本（`tools/chipyard/ptw/check_vastptw.py:1`、`tools/chipyard/ptw/check_vastwalk.py`、`tools/chipyard/tlb/check_vasttlb.py`；`Makefile` 无对应目标）。
+- **现有测试载体**：RTL ELF+loadmem。`tests/arch/ptw/ptw_regs.S:1`（寄存器面 19 记录）、`tests/arch/ptw/ptw_walk.S:1`（两级步查/A-D）、`tests/arch/ptw/ptw_tlb.S:1`（I/D TLB）；`tests/arch/ptw/ptw_sig.S` 是 15 条 `arch-ptw-*` 的 RTL 承载（002/006/007 逐槽签名，其余 guest 断言）。
+- **现有门控**：`tests/arch/ptw/check_ptw_rtl.py`（cfx4 的 RTL 驱动，`rtl-coverage.yaml` 映射 15 条）；额外检查点 `check_ptw_regs.py` / `check_ptw_walk.py` / `check_ptw_tlb.py`（`Makefile` 无单独目标；RTL 经 `run_arch.py --platforms chipyard`）。
 
 ---
 

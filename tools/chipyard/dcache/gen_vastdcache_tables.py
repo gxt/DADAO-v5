@@ -144,8 +144,11 @@ for p, v in PTE_EVICT.items():
 
 def cause_one_hots(root: pathlib.Path) -> tuple[int, int]:
     """`(UNDI, CFXTRAP)` one-hots from the contract's §6.1 cause table."""
+    # `m16-chipyard-018`：cfx4 的 checker 已迁到 `tests/arch/ptw/`，位号解析
+    # 复用同一份 `bit_table`（避免第二套 contract-see §6.1/§6.1.1 解析）。
     spec = importlib.util.spec_from_file_location(
-        "vastptw_bits", HERE.parent / "ptw" / "check_vastptw.py")
+        "ptw_regs_bits",
+        HERE.parents[2] / "tests" / "arch" / "ptw" / "check_ptw_regs.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     table = mod.bit_table(root)

@@ -1,5 +1,5 @@
 /*
- * vastptw.lds — `tools/chipyard/ptw/vastptw.S` 的链接布局（`m16-chipyard-006`）。
+ * ptw_regs.lds — `tests/arch/ptw/ptw_regs.S` 的链接布局（`m16-chipyard-006`）。
  *
  * 与 `tests/ee-tiny/tests_inst_tiny.lds` 同一套固定地址（同一宏层
  * `tests/inst/macros/inst_test.inc` 的 `.equ`：TEST_BUF / TEST_EXITB）。本文件末尾的
@@ -26,7 +26,7 @@ SECTIONS
     *(.text)
   } : image
 
-  ASSERT(SIZEOF(.text) <= 0x4000, "vastptw: .text 越过 16 KiB 窗口")
+  ASSERT(SIZEOF(.text) <= 0x4000, "ptw_regs: .text 越过 16 KiB 窗口")
 
   /DISCARD/ : {
     *(.note.GNU-stack)
@@ -35,11 +35,11 @@ SECTIONS
 }
 
 /* 数据类故障用例：aip → add.si → st.o → 故障 ld → 回落点 = aip + 16 */
-ASSERT(d1_resume == d1_aip + 16, "vastptw: d1 resume must be aip + 16")
-ASSERT(d3_resume == d3_aip + 16, "vastptw: d3 resume must be aip + 16")
+ASSERT(d1_resume == d1_aip + 16, "ptw_regs: d1 resume must be aip + 16")
+ASSERT(d3_resume == d3_aip + 16, "ptw_regs: d3 resume must be aip + 16")
 
 /* 取指类故障用例：aip → add.si → st.o → sub.o → add.si → jump → 回落点 = aip + 24 */
-ASSERT(d2_resume == d2_aip + 24, "vastptw: d2 resume must be aip + 24")
-ASSERT(d4_resume == d4_aip + 24, "vastptw: d4 resume must be aip + 24")
-ASSERT(d2_jump == d2_fault + 8, "vastptw: d2 jump must be the sub.o + 8 B")
-ASSERT(d4_jump == d4_fault + 8, "vastptw: d4 jump must be the sub.o + 8 B")
+ASSERT(d2_resume == d2_aip + 24, "ptw_regs: d2 resume must be aip + 24")
+ASSERT(d4_resume == d4_aip + 24, "ptw_regs: d4 resume must be aip + 24")
+ASSERT(d2_jump == d2_fault + 8, "ptw_regs: d2 jump must be the sub.o + 8 B")
+ASSERT(d4_jump == d4_fault + 8, "ptw_regs: d4 jump must be the sub.o + 8 B")

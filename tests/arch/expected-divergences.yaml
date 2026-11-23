@@ -123,3 +123,21 @@ divergences:
     user_ruling: "待用户裁定（2026-11-23 实测登记）"
     status: active
     close_when: "RTL 给 `cfx_power` 打开 common face（cg4/cg6），届时 `--diagnose` 三方一致并把这两组纳入比较面"
+
+  - id: DIV-14
+    kind: temporary
+    scope: [chipyard]
+    impact: "`arch-ptw-007` 的 `flush_adwbfail` 后半（槽 2/3：`cause_info` = ROM 叶 PTE PA、两次 flush 的失败次数）在 RTL 上观测不到：RTL 的 PA RAM 全可写，运行期构造不出 A/D 回写失败 ⇒ 该镜像记录 `(0, 0)`（未发生异常 / 未失败），前两槽（`flush_ok`）仍按规范值逐槽判。"
+    reason: "QEMU/gem5 的页表放在只读 BootROM 镜像里，`flush` 的 A/D 回写失败可自然构造（`spec/DADAO-12 §4.5`）；RTL 的测试体经 `+loadmem` 装入 PA RAM、BootROM 固定为 64 KiB 固件（DIV-12 的同一几何），探针无法把叶 PTE 放进只读页。RTL 的回写失败路径仍由 `ptw_tlb.S` 的 `CASE_OR` 实现层注入覆盖（`m16-chipyard-008`），不在运行期判据内。"
+    user_ruling: "待用户裁定（2026-11-23 实测登记；与 DIV-04 同源）"
+    status: active
+    close_when: "RTL 提供可放置只读叶 PTE 的承载（测试页表进 BootROM），或给 PTW 加测试专用回写失败注入；届时按 QEMU 的 CFXMEM[56]/2 次判并删除本条"
+    slots:
+      - case: arch-ptw-007
+        slot: 2
+        label: flush_adwbfail_cause_info
+        chipyard: 0
+      - case: arch-ptw-007
+        slot: 3
+        label: flush_adwbfail_count
+        chipyard: 0

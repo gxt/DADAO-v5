@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-"""check_vastwalk -- `tools/chipyard/ptw/vastwalk.S` 的独立判据（`m16-chipyard-007`）。
+"""check_ptw_walk -- `tests/arch/ptw/ptw_walk.S` 的独立判据（`m16-chipyard-007`）。
 
 探针把每个检查点 / 故障帧的 8 字节实测值写进结果缓冲（`__REC`）。本脚本**不保存
 期望常量**，而是现场：
 
   * 从 `.tao/contracts/contract-see.md` §6.1/§6.1.1 解析 cause 大类与子原因位号，
     并与 `.tao/adr/adr-0056-*.md` 逐位互校（`AGENTS.md`「Independent oracle」）；
-  * 从 `tools/chipyard/ptw/gen_vastwalk_tables.py`（页表几何的单一真源）取 PA/VA/
+  * 从 `tests/arch/ptw/gen_ptw_walk_tables.py`（页表几何的单一真源）取 PA/VA/
     PTE 期望值，不复制任何索引或位域。
 
 判据：
-  * 记录数 == 31（`vastwalk.S` 的记录顺序），每条 8 字节；
+  * 记录数 == 31（`ptw_walk.S` 的记录顺序），每条 8 字节；
   * 每个检查点逐位等于期望；
   * 故障帧 = `CFXMEM`/`CFXPERM` 的 cause one-hot + 该 cause 独占 wyde 里的**一位**
     子原因（spec 顺序：缺页 → 小页缺失 → HSJU → R/W/X），`cause_info` = 访问 VA；
@@ -19,8 +19,8 @@
     值依次为 A=1,D=0 与 A=1,D=1；`ad-fail` 为零（未注入时）。
 
 用法：
-  check_vastwalk.py --stream <file> [--log <sim log>] [--root <repo>] [--expect-adwb]
-  check_vastwalk.py --self-test [--root <repo>]     # 合成坏流 ⇒ 每条断言都有可达 FAIL
+  check_ptw_walk.py --stream <file> [--log <sim log>] [--root <repo>] [--expect-adwb]
+  check_ptw_walk.py --self-test [--root <repo>]     # 合成坏流 ⇒ 每条断言都有可达 FAIL
 """
 
 from __future__ import annotations
@@ -30,6 +30,11 @@ import importlib.util
 import pathlib
 import re
 import sys
+
+_REPO = pathlib.Path(__file__).resolve().parents[3]
+if str(_REPO / "tests" / "shared") not in sys.path:
+    sys.path.insert(0, str(_REPO / "tests" / "shared"))
+import signature                      # noqa: E402  (签名流机制：单一实现)
 
 HERE = pathlib.Path(__file__).resolve().parent
 
@@ -42,11 +47,11 @@ def _load(name, path):
 
 
 def load_geometry():
-    return _load("vastwalk_geometry", HERE / "gen_vastwalk_tables.py")
+    return _load("ptw_walk_geometry", HERE / "gen_ptw_walk_tables.py")
 
 
 def load_bit_parser():
-    return _load("vastptw_bits", HERE / "check_vastptw.py")
+    return _load("ptw_regs_bits", HERE / "check_ptw_regs.py")
 
 
 def bit_table(root: pathlib.Path) -> dict:
@@ -116,15 +121,17 @@ def expected_records(table: dict, geom, expect_adwb: bool) -> list:
     else:
         recs += [0, 0]
     if len(recs) != N_RECORDS:
-        raise SystemExit("check_vastwalk: expected %d records, built %d"
+        raise SystemExit("check_ptw_walk: expected %d records, built %d"
                          % (N_RECORDS, len(recs)))
     return recs
 
 
-def unpack(data: bytes) -> list:
-    if len(data) % 8:
-        raise SystemExit("check_vastwalk: stream length %d is not a multiple of 8" % len(data))
-    return [int.from_bytes(data[i:i + 8], "big") for i in range(0, len(data), 8)]
+def unpack(data: bytes, count: int) -> list:
+    """解析签名流（机制只有 `tests/shared/signature.py` 一份）。"""
+    try:
+        return signature.parse(data, count, sentinel=False)
+    except signature.SignatureError as exc:
+        raise SystemExit("check_ptw_walk: %s" % exc)
 
 
 def structure_problems(recs: list, table: dict) -> list:
@@ -290,17 +297,17 @@ def main() -> int:
     if args.self_test:
         return selftest(expected, expected, table, geom)
     if not args.stream:
-        raise SystemExit("check_vastwalk: --stream is required")
-    recs = unpack(pathlib.Path(args.stream).read_bytes())
+        raise SystemExit("check_ptw_walk: --stream is required")
+    recs = unpack(pathlib.Path(args.stream).read_bytes(), len(expected))
     log_text = pathlib.Path(args.log).read_text(errors="replace") if args.log else None
     problems = check(recs, expected, table, log_text, geom, args.expect_adwb,
                      adwb_only=args.adwb_only)
     for p in problems:
         print("  [FAIL] %s" % p)
     if problems:
-        print("check_vastwalk: %d problem(s) in %d record(s)" % (len(problems), len(recs)))
+        print("check_ptw_walk: %d problem(s) in %d record(s)" % (len(problems), len(recs)))
         return 1
-    print("check_vastwalk: %d record(s) match (A/D write-backs %s)"
+    print("check_ptw_walk: %d record(s) match (A/D write-backs %s)"
           % (len(recs), "expected (injected failure)" if args.expect_adwb else "2, no failure"))
     return 0
 

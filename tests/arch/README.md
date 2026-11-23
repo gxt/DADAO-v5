@@ -26,8 +26,10 @@ python3 tests/arch/run_arch.py --list
   **现场派生**代表集；所选集合为空 ⇒ 退出 2（fail-closed，不当作 vacuous 通过）。
 - `--platforms`：`qemu` / `gem5` / `chipyard` 逗号列表。`qemu` 与 `gem5`（driver 经
   `tools/testcases/parity/qemu_gem5_shim.py`，`-machine kaiwu-vast`）已接；
-  **未实现的 `chipyard`（RTL）fail-closed**：记 `SKIP` 并**非零退出**，禁止静默
-  降级为「其余平台通过」。
+  `chipyard`（RTL）的 **cfx4** 由 `m16-chipyard-018` 接入（`kind: driver` +
+  cfx 目录内 `check_<cfx>_rtl.py`，仿真器由 `--chipyard-sim` 指定）；没有 RTL
+  承载的 cfx **fail-closed**（`PlatformError` ⇒ 非零退出），禁止静默降级为
+  「其余平台通过」。`rtl-coverage.yaml` 登记的 `gap` 记 `GAP`（不当作通过）。
 - `--cache-model`：arch 固定 `on`；传 `off` 退出 2。
 - `--case`：只跑 `tests/arch.yaml` 里的一个 id，用于单点复现。
 - `--mode`：`hmon` / `smon` / `umon`（缺省 `hmon`），选择运行模式环境
@@ -35,7 +37,7 @@ python3 tests/arch/run_arch.py --list
   全部被排除 ⇒ 退出 2（fail-closed）。只有声明多模式的 `kind: driver` 才接
   `--mode`；`kind: asm` 收到非 `hmon` 时**显式**报错，不静默按 hmon 跑。
 - `--self-test`：不启动模拟器，只校验索引的 `machine/kind`、各 `expected.yaml` 的
-  签名流结构、驱动的 `--selfcheck`，以及 gem5/chipyard 的 fail-closed 探针。
+  签名流结构、驱动的 `--selfcheck`，以及 gem5 承载与 chipyard 的 fail-closed 探针。
 - `--list`：打印 `cfx × case × platform` 计划表，不执行。
 - 产物：运行期证据目录下每 case × 平台一份 `signature.bin` + `run.json`
   （进程命令、rc、stdout/stderr 日志路径）；不写固定绝对路径。
@@ -47,11 +49,11 @@ python3 tests/arch/run_arch.py --list
 | 目录/文件 | cfx | 内容 |
 |------|-----|------|
 | `run_arch.py` | — | 唯一驱动（`--cfx/--platforms/--cache-model/--level/--self-test/--list`） |
-| `common/` | — | arch 内共享薄壳：`signature.py` 转调 `tests/shared/signature.py`；`platform.py` 的 qemu/gem5（driver 经 shim）/chipyard（fail-closed）后端 |
+| `common/` | — | arch 内共享薄壳：`signature.py` 转调 `tests/shared/signature.py`（含逐槽差异登记读取）；`platform.py` 的 qemu/gem5（driver 经 shim）/chipyard（cfx4 = `check_<cfx>_rtl.py`，其它 cfx fail-closed）后端 |
 | `common/env-{hmon,smon,umon}/` | — | **运行模式环境**（每个模式一个目录，`env.S`；共享 `common/env.lds`）：进入模式、栈、异常向量、退出与签名区；body 与模式解耦（`m16-testcases-015`，见 `common/env-README.md` / `common/env-MIGRATION.md`） |
-| `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.S`，10 条）+ `expected.yaml`；代表迁移用例 `umon_mode_regs.body.S` + 驱动 `common/check_mode_env.py`（`arch-umon-011`，三模式）；**fence 基础验证** `umon_fence.py`（载体）/ `check_fence.py`（驱动，`arch-umon-012` 放行面三模式、`arch-umon-013` 保留面 hmon）+ `gen_fence_rtl.py` / `check_fence_rtl.py`（按需 RTL 承载，`fence_rtl.lds`）；**cfx0+cfx2 寄存器面 RTL 探针** `cfx02_regs.S` + `check_cfx02_regs.py`（`m16-chipyard-019`，47 条记录）；**U/S/H 模式进入路由 RTL 探针** `mode_entry.S` + `check_mode_entry.py`（`m16-chipyard-020`，同一份 case 链接 TMODE=0/2/3，14/21/14 槽）；cfx0/cfx2 两个 RTL 探针暂未登记 `tests/arch.yaml`——chipyard 后端仍 fail-closed，且 hmon 模式环境只在 QEMU/gem5 载体上可用 |
-| `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针：载体/生成器 `ptw_carrier_tlb.py`（`m16-testcases-010` 由 `tools/testcases/arch/` 迁入）、期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §）、驱动型入口 `check_tlb.py`（`kind: driver`）；QEMU 与 gem5（shim）逐条跑，RTL 由 `m16-chipyard-018` |
-| `cache/` | `cfx5`（cache） | 寄存器面 RTL 探针 `cfx5_regs.S` + `check_cfx5_regs.py`（`m16-chipyard-016`）；I/D 维护命令 RTL 探针 `cfx5_maint.S` + `gen_cfx5_maint_tables.py` + `check_cfx5_maint.py`（`m16-chipyard-017`，记录 + 缓存日志时序）；暂未登记 `tests/arch.yaml`（chipyard 后端仍 fail-closed） |
+| `umon/` | `cfx0`（user monitor） | SEE/semihosting 执行向量 + cfx 级权限反例（`m5_*.S`，10 条）+ `expected.yaml`；代表迁移用例 `umon_mode_regs.body.S` + 驱动 `common/check_mode_env.py`（`arch-umon-011`，三模式）；**fence 基础验证** `umon_fence.py`（载体）/ `check_fence.py`（驱动，`arch-umon-012` 放行面三模式、`arch-umon-013` 保留面 hmon）+ `gen_fence_rtl.py` / `check_fence_rtl.py`（按需 RTL 承载，`fence_rtl.lds`）；**cfx0+cfx2 寄存器面 RTL 探针** `cfx02_regs.S` + `check_cfx02_regs.py`（`m16-chipyard-019`，47 条记录）；**U/S/H 模式进入路由 RTL 探针** `mode_entry.S` + `check_mode_entry.py`（`m16-chipyard-020`，同一份 case 链接 TMODE=0/2/3，14/21/14 槽）；cfx0/cfx2 两个 RTL 探针暂未登记 `tests/arch.yaml`——chipyard 后端目前只接 cfx4（`check_ptw_rtl.py`），且 hmon 模式环境只在 QEMU/gem5 载体上可用 |
+| `ptw/` | `cfx4`（TLB/PTW） | 15 条 TLB/PTW 探针：载体/生成器 `ptw_carrier_tlb.py`（`m16-testcases-010` 由 `tools/testcases/arch/` 迁入）、期望清单 `expected.yaml`（大类 + 子原因符号 + `cause_info` 语义 + 已接线签名流期望 + 来源 §）、驱动型入口 `check_tlb.py`（`kind: driver`）；QEMU 与 gem5（shim）逐条跑。**RTL 承载**（`m16-chipyard-018`）：`ptw_sig.S` + `gen_ptw_sig_tables.py` + `check_ptw_rtl.py`（cfx4 的 15 条映射见 `rtl-coverage.yaml`）；`ptw_regs.S`/`ptw_walk.S`/`ptw_tlb.S`（及各自 `check_ptw_*.py`/`gen_ptw_*_tables.py`）由 `tools/chipyard/{ptw,tlb}/` 迁入，是 RTL 的额外检查点 |
+| `cache/` | `cfx5`（cache） | 寄存器面 RTL 探针 `cfx5_regs.S` + `check_cfx5_regs.py`（`m16-chipyard-016`）；I/D 维护命令 RTL 探针 `cfx5_maint.S` + `gen_cfx5_maint_tables.py` + `check_cfx5_maint.py`（`m16-chipyard-017`，记录 + 缓存日志时序）；暂未登记 `tests/arch.yaml`（chipyard 后端目前只接 cfx4） |
 | `hart/` | `cfx15`（cfx_hart） | cg8 管理寄存器 + cg9 异步现场 + TIMER 投递 RTL 探针 `cfx15.S` + `check_cfx15.py`（`m16-chipyard-021`；`TMODE=3/2/0` 出 H/S/U 三个镜像，一份 case）；暂未登记 `tests/arch.yaml` |
 | `power/` | `cfx63`（power） | 寄存器面（`cg7` BootROM 块）+ power→hmon 移交：`arch-power-001`（hmon/smon/umon 各一次，28 槽）+ `arch-power-002`（属性拒绝面，只 hmon，3 槽）；载体/驱动 `power_vast.py` / `check_power.py`，RTL 承载 `gen_power_rtl.py` / `check_power_rtl.py`（`power_rtl.lds`） |
 
@@ -82,8 +84,8 @@ python3 tests/arch/run_arch.py --list
 - **RTL 按需**：`gen_fence_rtl.py` 从同一张探针表生成 `.S`，
   `check_fence_rtl.py` 经 `tools/testcases/lib/chipyard_engine.py` 在
   `WumingVastConfig` 上跑并逐槽比对（RTL 测试体固定 hypv、同步异常固定进
-  hmon；`+loadmem` + semihosting）。`run_arch.py` 的 chipyard 后端仍
-  fail-closed（`m16-chipyard-018` / 按需 `check-arch-vast`），故 RTL 不进
+  hmon；`+loadmem` + semihosting）。`run_arch.py` 的 chipyard 后端**只接 cfx4**
+  （`m16-chipyard-018`），其它 cfx 仍 fail-closed，故这些 RTL 探针不进
   `run_arch` 的常规路径。
 
 **未覆盖项（显式登记，不假装全覆盖；用户 2026-11-22 裁定完整覆盖暂不做）**：
@@ -97,6 +99,41 @@ python3 tests/arch/run_arch.py --list
 - cfx1（jmon）在 arch 范围外（`tests/arch/README.md` 顶部 cfx 范围），只按其
   编码合法性间接落在允许集里（未单列 probe）。
 - 保留集只采样 6/14/16/17/18/31/35/61（含边界），其余保留编号不逐个跑。
+
+## cfx4 RTL 承载（`m16-chipyard-018`，cfx4）
+
+RTL（chipyard `WumingVastConfig`）接入 `m16-testcases-010` 的同一组 case id /
+期望：`run_arch.py --cfx 4 --platforms qemu,gem5,chipyard` 逐槽比较，三方
+（QEMU / gem5 / RTL）一致才算通过。映射与缺口在 `ptw/rtl-coverage.yaml`
+（`signature` / `guest` / `partial` / `gap` 四类，`gap` 必须写原因与
+`close_when`；`check_ptw_rtl.py --selfcheck` 与 `tests/arch.yaml` 的 15 条
+双向核对，`gap` 不会被当成 PASS）。
+
+| 面 | 载体 | 说明 |
+|----|------|------|
+| 签名（002/006/007） | `ptw/ptw_sig.S` + `gen_ptw_sig_tables.py` | 与 QEMU 载体同一组数据地址/PTE 值 ⇒ 逐字节相同（`007` 的回写失败两槽按 DIV-14 登记） |
+| guest（001/003/004/005/008/009/010/011/012） | 同上（`PTW_CASE=1..12`） | guest 内断言（非零退出 = 该影像第 N 条断言失败）；签名流 0 槽 |
+| 额外检查点 | `ptw/ptw_regs.S`、`ptw/ptw_walk.S`、`ptw/ptw_tlb.S` | 由 `tools/chipyard/{ptw,tlb}/` 迁入（`m16-chipyard-018`）；寄存器面/两级走查/I-D TLB 的独立判据与自检保留。`ptw_walk` 31 槽、`ptw_tlb` 54 槽（loadmem 约 13 min）；`ptw_regs` 保持既有 TL `A' channel re-used a source ID` 断言（KNOWN-RED，非本任务引入） |
+| 缺口（013/014/015） | — | 013：cfx 空间旁路（hmon→cfx_pmem SRAM 访问面未验证）；014：A/D 回写失败（RTL 的 PA RAM 全可写，DIV-04/DIV-14）；015：ILLI 的 `cause_info` |
+
+- 判据来源：几何/PTE/数据 magic 与 QEMU 载体同一组值；cause 编码现场从
+  `contract-see §6.1/§6.1.1` 解析并与 `spec/DADAO-12 §3.6` 互校；
+  `gen_ptw_sig_tables.py --selfcheck` 与 `expected.yaml` 逐槽双向核对。
+- 签名机制：汇编侧 `tests/shared/asm/signature.inc`（`SIG_BEGIN`/`SIGUPD`/
+  `SIG_DUMP`），host 侧 `tests/shared/signature.py`（`parse`/`compare`）；
+  `ptw_regs/walk/tlb` 的 `__REC` 即 `SIGUPD`，host 侧不再自带解析器。
+- **H/S/U**：RTL 固定 BootROM（`spec/Kaiwu §6.2`）把测试体交付为 `cfx_hmon` +
+  `hypv`；PTE 的 `H` 位在 `ptw_sig.S` 的 011 里覆盖（H=0 ⇒ `NHPERM`，H=1 放行），
+  `S`/`U` 位不改变 hypv 的判定（与 QEMU/gem5 的 `pte_leaf(hsju=…)` 同口径）。
+  `hmon`/`smon`/`umon` 三模式由 `modes.yaml` 显式登记：cfx4 的 15 条目前**只
+  允许 hmon** —— QEMU/gem5 载体把 body 固定在 `cfx_hmon`/hypv，RTL 的 step5
+  测试路径也只交付 hmon/hypv（`tests/ee-vast/README.md`），没有 smon/umon
+  进入链；smon/umon 的排除原因逐条写在 `modes.yaml`，不静默漏跑。
+- **RTL 差异**：`expected-divergences.yaml` 的 `slots`（scope 含 chipyard、
+  `close_when` 必填）；QEMU/gem5 侧仍按规范值判，RTL 侧按登记值判；例外被修好
+  时 RTL 承载判红，提示删除条目（DIV-14）。
+- **不回归**：Tiny 无 PTW，本任务不触碰 Tiny 路径；RTL 的既有探针（cfx0/2、
+  cfx5、cfx15、power）不在本任务的判据内。
 
 ## cfx63 power 基础用例（`m16-testcases-016`，cfx63）
 
@@ -124,7 +161,7 @@ QEMU 与 gem5 跑**同一份 4 MiB BootROM 字节**。
 - **RTL 按需**：`gen_power_rtl.py` 从同一张探针表生成 `.S`，
   `check_power_rtl.py` 经 `chipyard_engine` 在 `WumingVastConfig` 上跑并逐槽比对
   （RTL 测试体固定 `cfx_power`/hypv ⇒ `arch-power-001` 只跑一次）。`run_arch.py`
-  的 chipyard 后端仍 fail-closed，故 RTL 不进 `run_arch` 的常规路径。
+  的 chipyard 后端只接 cfx4，故 cfx63 的 RTL 仍不进 `run_arch` 的常规路径。
   `tools/chipyard/excp/prevcfx.S` 的检查点（`cfx_hmon cg5 rc1` 的 boot 保存值 =
   `cfx_power` 编号、RW 回读、还原）已并入同一张探针表（槽 0/26/27），不再有两套判据。
 

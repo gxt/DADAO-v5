@@ -94,9 +94,9 @@ python3 tests/arch/run_arch.py \
 
 | 来源（现状） | 去向 | 说明 |
 |---|---|---|
-| `tools/chipyard/ptw/vastptw.S`、`vastptw.lds`、`check_vastptw.py` | `tests/arch/ptw/` | cfx4 寄存器面 carrier + 判据 |
-| `tools/chipyard/ptw/vastwalk.S`、`vastwalk.lds`、`gen_vastwalk_tables.py`、`check_vastwalk.py` | `tests/arch/ptw/` | 两级步查/A-D |
-| `tools/chipyard/tlb/vasttlb.S`、`vasttlb.lds`、`gen_vasttlb_tables.py`、`check_vasttlb.py` | `tests/arch/ptw/tlb/` | I/D TLB 同属 cfx4 |
+| `tools/chipyard/ptw/`（寄存器面载体 + checker） | `tests/arch/ptw/`（`ptw_regs.S` / `ptw_regs.lds` / `check_ptw_regs.py`） | cfx4 寄存器面 carrier + 判据（已完成：`m16-chipyard-018`） |
+| `tools/chipyard/ptw/`（两级步查载体 + 生成器 + checker） | `tests/arch/ptw/`（`ptw_walk.S` / `ptw_walk.lds` / `gen_ptw_walk_tables.py` / `check_ptw_walk.py`） | 两级步查/A-D（已完成：`m16-chipyard-018`） |
+| `tools/chipyard/tlb/`（I/D TLB 载体 + 生成器 + checker） | `tests/arch/ptw/`（`ptw_tlb.S` / `ptw_tlb.lds` / `gen_ptw_tlb_tables.py` / `check_ptw_tlb.py`） | I/D TLB 同属 cfx4（已完成：`m16-chipyard-018`，与 ptw 同目录、不建 `data/`） |
 | `tools/chipyard/dcache/vastdcache.S`、`gen_vastdcache_tables.py`、`check_vastdcache.py` | `tests/arch/cache/dcache/` | cfx5 阵列面 |
 | `tools/chipyard/icache/vasticache.S`、`gen_vasticache_tables.py`、`check_vasticache.py` | `tests/arch/cache/icache/` | cfx5 阵列面 |
 | `tools/chipyard/excp/causeid.S`、`check_causeid.py` | `tests/arch/hmon/` | cfx3 异常帧全宽 |

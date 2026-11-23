@@ -11,9 +11,11 @@ scope。本文件只定义统一入口与 fail-closed 约定：
     `tools/testcases/parity/qemu_gem5_shim.py` 跑（`-machine kaiwu-vast`、
     `--profile vast`；shim 支持 `cache-model=on` → `--caches`，当前 ptw 载体不依赖
     cache）；`kind: asm` 仍未接，显式抛 `PlatformError`（不静默跳过）。
-  * `chipyard`：**未实现**（RTL cfx4 由 `m16-chipyard-018` 接）。一律抛
-    `PlatformError`；调用方必须记 SKIP 并以非零退出，禁止静默降级为「其余平台
-    通过」。
+  * `chipyard`：**cfx4 已接**（`m16-chipyard-018`）：`kind: driver` 且本
+    cfx 目录有 `check_<cfx>_rtl.py` 时调 RTL 承载（`--only/--sim/--work-dir/
+    --signature-out`）；驱动返回 77 = `rtl-coverage.yaml` 里登记的 `gap`
+    （记为 `GAP`，非 PASS、非 FAIL）。没有 RTL 承载的 cfx ⇒ `PlatformError`
+    （fail-closed，不静默降级为「其余平台通过」）。
 
 产物：每 case × 平台一份 `run.json`（进程命令、rc、日志路径、签名流路径）；
 有签名流期望的 case 另有一份 `signature.bin`。
@@ -31,9 +33,10 @@ BACKENDS = ("qemu", "gem5", "chipyard")
 # fail-closed 开关：未实现的后端不得假绿。`--self-test` 会探测这两个开关，
 # 若被改成 True 而实际没有载体，自检必须失败（证据脚本的注入点）。
 # gem5 的 driver 承载由 `m16-testcases-010` 接入（qemu_gem5_shim）；asm 载体仍未接，
-# 由 `_run_gem5` 显式抛 PlatformError。RTL 由 `m16-chipyard-018` 接入。
+# 由 `_run_gem5` 显式抛 PlatformError。RTL 由 `m16-chipyard-018` 接入（cfx4）。
 GEM5_IMPLEMENTED = True
-CHIPYARD_IMPLEMENTED = False
+CHIPYARD_IMPLEMENTED = True
+GAP_RC = 77
 
 
 class PlatformError(RuntimeError):
@@ -79,15 +82,27 @@ def self_test_fail_closed() -> list:
     if not implemented("gem5"):
         problems.append("gem5: GEM5_IMPLEMENTED=False，但 cfx4 driver 承载应由 "
                         "qemu_gem5_shim 提供（m16-testcases-010）")
+    # chipyard：cfx4 已接；没有 RTL 承载的 cfx 必须显式 PlatformError。
+    if not implemented("chipyard"):
+        problems.append("chipyard: CHIPYARD_IMPLEMENTED=False，但 cfx4 RTL 承载"
+                        "应由 check_ptw_rtl.py 提供（m16-chipyard-018）")
+    arch_root = str(Path(__file__).resolve().parents[1])
+    ctx = type("Ctx", (), {"arch_root": arch_root})()
     try:
-        run("chipyard", [], None)
+        Path(_rtl_driver(ctx, {"id": "arch-ptw-002", "cfx_dir": "ptw",
+                               "kind": "driver"}))
+    except PlatformError as exc:
+        problems.append("chipyard: cfx4 的 RTL 承载缺失（%s）" % exc)
+    try:
+        _rtl_driver(ctx, {"id": "arch-none", "cfx_dir": "no_such_cfx",
+                          "kind": "driver"})
     except PlatformError:
         pass
     except Exception as exc:  # 任何静默成功/其它异常都不是 fail-closed
-        problems.append("chipyard: 探针得到非 PlatformError 异常 %s: %s"
-                        % (type(exc).__name__, exc))
+        problems.append("chipyard: 缺 RTL 承载的 cfx 得到非 PlatformError 异常 "
+                        "%s: %s" % (type(exc).__name__, exc))
     else:
-        problems.append("chipyard: 未实现后端未 fail-closed（假绿）")
+        problems.append("chipyard: 缺 RTL 承载的 cfx 未 fail-closed（假绿）")
     return problems
 
 
@@ -102,7 +117,7 @@ def run(platform: str, cases, ctx):
         _ensure_gem5_ready(ctx)
         return [_run_gem5(case, ctx) for case in cases]
     if platform == "chipyard":
-        return []
+        return [_run_chipyard(case, ctx) for case in cases]
     raise PlatformError("未知载体 %r" % platform)
 
 
@@ -204,6 +219,41 @@ def _run_driver(case, ctx, platform, engine, extra_env=None) -> dict:
                    platform=platform, extra_env=extra_env)
 
 
+def _rtl_driver(ctx, case) -> Path:
+    """cfx 目录内的 RTL 承载：`check_<cfx>_rtl.py`（缺 ⇒ 显式失败）。"""
+    cfx_dir = case.get("cfx_dir") or ""
+    driver = Path(ctx.arch_root) / cfx_dir / ("check_%s_rtl.py" % cfx_dir)
+    if not cfx_dir or not driver.is_file():
+        raise PlatformError(
+            "chipyard: cfx=%r case=%s 没有 RTL 承载（缺 %s）；不得静默跳过或降级。"
+            % (cfx_dir, case.get("id"), driver))
+    return driver
+
+
+def _run_chipyard(case, ctx) -> dict:
+    """RTL 承载：同一 case id、同一签名流契约（`m16-chipyard-018`）。"""
+    if case.get("kind", "asm") != "driver":
+        raise PlatformError(
+            "chipyard: kind=asm 载体未实现（case=%s）；cfx4 的 RTL 承载是 "
+            "check_ptw_rtl.py（driver）。不得静默跳过或降级。" % case["id"])
+    driver = _rtl_driver(ctx, case)
+    sim = getattr(ctx, "chipyard_sim", None)
+    if sim is None or not Path(sim).is_file():
+        raise PlatformError("chipyard: 缺 RTL 仿真器 %r（--chipyard-sim 或 "
+                            "chipyard Vast 构建）" % sim)
+    case_dir = Path(ctx.work) / case["id"] / "chipyard"
+    driver_dir = case_dir / "driver"
+    case_dir.mkdir(parents=True, exist_ok=True)
+    signature = case_dir / "signature.bin"
+    cmd = [sys.executable, str(driver), "--only", case["id"],
+           "--sim", str(Path(sim).resolve()),
+           "--work-dir", str(driver_dir),
+           "--signature-out", str(signature),
+           "--timeout", str(ctx.timeout)]
+    return _collect(case, ctx, case_dir, cmd, signature,
+                    "rtl: %s" % driver.name, platform="chipyard")
+
+
 def _run_qemu_asm(case, ctx) -> dict:
     mode = getattr(ctx, "mode", "hmon")
     if mode != "hmon":
@@ -240,6 +290,14 @@ def _run_qemu_asm(case, ctx) -> dict:
 
 def _finish(case, ctx, case_dir, cmd, signature, note,
             signature_count=None, platform="qemu", extra_env=None) -> dict:
+    return _collect(case, ctx, case_dir, cmd, signature, note,
+                    signature_count=signature_count, platform=platform,
+                    extra_env=extra_env)
+
+
+def _collect(case, ctx, case_dir, cmd, signature, note,
+             signature_count=None, platform="qemu", extra_env=None) -> dict:
+    """跑一次载体并按 `expected.yaml`（+ 登记的逐槽差异）判签名流。"""
     log = case_dir / "run.log"
     env = dict(os.environ)
     if extra_env:
@@ -265,8 +323,24 @@ def _finish(case, ctx, case_dir, cmd, signature, note,
         "verdict": "PASS" if rc == 0 else "FAIL",
         "reason": "" if rc == 0 else "载体 rc=%d（见 run.log）" % rc,
     }
+    if rc == GAP_RC:
+        # 已登记的 RTL 缺口（`rtl-coverage.yaml` 的 `gap`）：不是 PASS、不是
+        # FAIL；`run_arch` 只在清单登记过时接受它。
+        gap_reason = ""
+        try:
+            data = json.loads((Path(case_dir) / "driver" / "run.json").read_text(
+                encoding="utf-8"))
+            gap_reason = str(data.get("detail") or "")
+        except (OSError, ValueError):
+            pass
+        result.update(verdict="GAP", reason=gap_reason or "登记的 RTL 缺口")
+        if not signature.is_file():
+            signature.write_bytes(b"")
+        (case_dir / "run.json").write_text(
+            json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+        return result
     if signature_count is None:
-        # driver：按 expected.yaml 的签名流期望解析并比对。
+        # driver：按 expected.yaml 的签名流期望解析并比对（RTL 另按登记差异判）。
         from . import signature as arch_sig
 
         want = arch_sig.load_expected_signature(_expected_yaml(ctx, case),
@@ -284,12 +358,43 @@ def _finish(case, ctx, case_dir, cmd, signature, note,
                 result["verdict"] = "FAIL"
                 result["reason"] = "签名流: %s" % exc
             else:
-                problems = arch_sig.compare(got, want)
+                try:
+                    exceptions = (arch_sig.load_divergence_slots(
+                        Path(ctx.arch_root) / "expected-divergences.yaml",
+                        case["id"], platform) if platform == "chipyard" else {})
+                except ValueError as exc:
+                    result["verdict"] = "FAIL"
+                    result["reason"] = "差异登记: %s" % exc
+                    exceptions = {}
+                problems = []
+                diverged = {}
+                for idx, (g, w) in enumerate(zip(got, want)):
+                    if idx in exceptions:
+                        div_id, declared = exceptions[idx]
+                        if g is None:
+                            problems.append("槽 %d 未写（登记差异 %s）"
+                                            % (idx, div_id))
+                        elif g != declared:
+                            problems.append(
+                                "槽 %d 实测 %#x ≠ 登记差异 %s 的值 %#x"
+                                "（差异已变：或已修好，需更新/删除登记）"
+                                % (idx, g, div_id, declared))
+                        else:
+                            diverged[idx] = {"id": div_id, "value": g,
+                                             "spec": w}
+                        continue
+                    if g is None:
+                        problems.append("槽 %d 未写（期望 0x%016x）" % (idx, w))
+                    elif g != w:
+                        problems.append("槽 %d 期望 0x%016x 实际 0x%016x"
+                                        % (idx, w, g))
                 if problems:
                     result["verdict"] = "FAIL"
                     result["reason"] = "签名流: " + "; ".join(problems)
                 else:
                     result["signature_actual"] = got
+                    if diverged:
+                        result["diverged_slots"] = diverged
     (case_dir / "run.json").write_text(
         json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
     return result

@@ -1458,3 +1458,21 @@
   closed_in: null
   resolved_by: null
   title: "【P2】`m18-spec-004`（ADR-0061）落地后的活文档残留与口径矛盾，需 M18 会话立册收尾（建议 `m18-spec-005`）：① `spec/Kaiwu` L74/92/152/595 仍写 `rc4=cfx_intr_mask`、`cg8 rc1=global_cfx_intr_mask`、escape 恢复掩码；② `spec/IDL-ISA…` L312/322/325/327/464 仍用 `async_cause_id`/`async_saved_global_intr_mask`/恢复掩码；③ `spec/SimRISC-11` L94 注释名 `async_cause_id`；④ `docs/DDLN/C-资源管理` DD-C002 L56、DD-C003 L53/56/58、DD-C004 L71 仍写 monitor 掩码/pending；⑤ `DADAO-12`/`DADAO-22` 变更记录并存互斥两条（改 17/18 与取消 17/18）且引已删 `§3.9`；⑥ `m18-spec-004` 的 `run.sh` 对 §5.4 无嵌套判据无语义断言（仅靠 manifest sha 变红），需补一条。另：`ADR-0061` Consequences 未列上述文档，architect 补列。"
+- id: ISS-528
+  scope:
+  - testcases
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`tests/arch` 的 cfx4 PTW/TLB 用例只跑 `[hmon]`（`m16-chipyard-018` 复核确认）：S/U 运行模式与 PTE 的 S/U 轴未覆盖（QEMU/gem5 载体固定 `cfx_hmon`/hypv、RTL step5 只交付 hmon）；对应用户 2026-11-22「每个 cfx 三模式各跑一次」要求。需把 case 迁到 `common/env-{smon,umon}` 并补 S/U PTE 向量（H 轴已由 case 011 覆盖，J 不测）。"
+- id: ISS-529
+  scope:
+  - chipyard
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P4】`chipyard_engine` 默认不传 `+verbose`，`ptw_walk`/`ptw_tlb` 的日志事件读不到；当前以记录面为判据（已覆盖验收），建议给引擎加可选 verbose 开关，便于后续按日志断言。"
