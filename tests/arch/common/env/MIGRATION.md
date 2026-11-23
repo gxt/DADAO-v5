@@ -40,11 +40,18 @@
 
 `cfx5` 寄存器面探针（`m16-chipyard-016`），当前只在 chipyard/RTL 上跑。
 
-- 阻塞点：`cfx_cache` 的寄存器访问只能从 `cfx_hmon` 源（hypv 行 bit3=0）通过；
-  QEMU 测试链交付的 body 属于 `cfx_umon`（cfx0），对 `cfx_cache` 的 `cfxreg`
-  被缺省掩码拒绝，且无法先写其掩码（同一权限）。要迁移成「多模式」需先把
-  body 作为 `cfx_hmon` 载体（env 另加一种「进入 cfx_hmon」的启动），或由固件
-  为 cfx0 开放 `cfx_cache` 的入口。
+- 阻塞点（`m16-testcases-017` 之前）：`cfx_cache` 的寄存器访问只能从 `cfx_hmon`
+  源通过；旧交付链的 body 属于 `cfx_umon`（cfx0），对 `cfx_cache` 的 `cfxreg`
+  被缺省掩码拒绝，且无法先写其掩码（同一权限）。该阻塞点已由 017 改为
+  cfx_hmon 源解决（见下）。
+- `m16-testcases-017` 已把交付源 cfx 改成 **cfx_hmon(3)**（BootROM 的 hmon 阶段
+  直接 `jump` 到 ENTRY），并把「按 `cfx_access` 声明打开目标 cfx 掩码 / `deleg`、
+  收窄未声明 cfx、退出还原 + 回读校验」做进三份环境。cfx5 的三模式准入依赖
+  `m16-qemu-005`（cfx5 改为通用 `cg0`–`cg7`）：该任务之后 `cfx_access: [cache]`
+  在 **hmon/smon/umon** 都能访问（证据脚本已实测三模式签名一致）。
+  **ISS-520（open）**：共享 `.work/source/qemu` 仍旧态（qemu 段 8 条 ⑥⑨ 未清）、构建树已是新态，但
+  **安装根**仍是 qemu-005 之前的旧态（待 `make install-host`）⇒ 证据脚本取「最新
+  构建的那个」并按 md5 基线比对；安装根刷新后必须复跑 `run.sh` 并更新基线。
 
 ### 其它 cfx 目录
 

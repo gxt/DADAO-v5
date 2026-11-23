@@ -114,9 +114,14 @@ def load_index(path=None, modes_path=None):
 def load_modes(path, case_ids):
     """读取 `tests/arch/modes.yaml` 并做双向校验（缺项/多项/非法模式/缺原因）。
 
-    返回 `{case_id: {modes, mode_reasons}}`；任何不一致都记 ConfigError，不做
-    「缺省按 hmon」之外的静默补全（`modes` 缺省语义只对旧用例成立，这里要求
-    每条 arch 用例都显式登记）。
+    返回 `{case_id: {modes, mode_reasons, cfx_access}}`；任何不一致都记
+    ConfigError，不做「缺省按 hmon」之外的静默补全（`modes` 缺省语义只对旧用例
+    成立，这里要求每条 arch 用例都显式登记）。
+
+    `cfx_access`（m16-testcases-017）：该用例在目标模式下需要访问的 cfx 列表
+    （取 `DIR_CFX` 的名字，如 `cache`/`ptw`）。环境据此在降模式前打开目标 cfx 的
+    `<mode>` 行来源掩码（`DADAO-12 §3`）；声明本身不放宽默认掩码。非法/重复/
+    空列表，或在只有 hmon 的用例上声明（永远用不到）⇒ ConfigError，不静默忽略。
     """
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -143,10 +148,10 @@ def load_modes(path, case_ids):
         if not isinstance(entry, dict):
             problems.append("%s: 条目必须是映射" % where)
             continue
-        unknown = sorted(set(entry) - {"modes", "reasons"})
+        unknown = sorted(set(entry) - {"modes", "reasons", "cfx_access"})
         if unknown:
-            problems.append("%s: 未知字段 %s（允许: ['modes', 'reasons']）"
-                            % (where, unknown))
+            problems.append("%s: 未知字段 %s（允许: ['modes', 'reasons', "
+                            "'cfx_access']）" % (where, unknown))
         raw = entry.get("modes")
         if not isinstance(raw, list) or not raw:
             problems.append("%s: `modes` 必须是非空列表" % where)
@@ -176,7 +181,27 @@ def load_modes(path, case_ids):
         for mode in reasons:
             if mode not in MODES:
                 problems.append("%s: `reasons` 含非法模式 %r" % (where, mode))
-        out[cid] = {"modes": modes, "mode_reasons": reasons}
+        access = entry.get("cfx_access")
+        cfx_access = []
+        if access is not None:
+            if not isinstance(access, list) or not access:
+                problems.append("%s: `cfx_access` 必须是非空列表" % where)
+                access = []
+            for name in access:
+                if not isinstance(name, str) or name not in DIR_CFX:
+                    problems.append(
+                        "%s: `cfx_access` 含非法 cfx 名 %r（允许 %s）"
+                        % (where, name, sorted(DIR_CFX)))
+                elif DIR_CFX[name] in cfx_access:
+                    problems.append("%s: `cfx_access` 重复 %r" % (where, name))
+                else:
+                    cfx_access.append(DIR_CFX[name])
+            if cfx_access and not ({"smon", "umon"} & set(modes)):
+                problems.append(
+                    "%s: 声明了 `cfx_access` 但允许集只有 hmon —— hmon 模式"
+                    "不需要（也无法）做权限准备，声明永远用不到" % where)
+        out[cid] = {"modes": modes, "mode_reasons": reasons,
+                    "cfx_access": cfx_access}
     if problems:
         raise ConfigError("\n".join(problems))
     return out
@@ -201,6 +226,30 @@ def select_level(cases, level):
 # ---------------------------------------------------------------------------
 # --self-test（不启动模拟器）
 # ---------------------------------------------------------------------------
+PERM_INCLUDE = ".include \"cfx_perm.inc\""
+
+
+def _perm_sources():
+    """三个 env 必须都 include 单一宏块（`common/env/cfx_perm.inc`），不得再内联。
+
+    宏块曾因 `llvm-mc` 不搜索源文件目录而在 smon/umon 各复制一份；现在驱动给
+    llvm-mc 传了 env 目录的 `-I`（`m16-testcases-017`）⇒ 只留一份，这里机械
+    检查没有回退成多份（判据：include 行在、宏定义行不在）。
+    """
+    problems = []
+    for mode in ("hmon", "smon", "umon"):
+        text = (ARCH / "common" / "env" / mode / "env.S").read_text(
+            encoding="utf-8")
+        if PERM_INCLUDE not in text:
+            problems.append("%s/env.S 缺 `%s`" % (mode, PERM_INCLUDE))
+        if ".macro\tENV_PERM_OPEN_RC" in text:
+            problems.append("%s/env.S 内联了权限准备宏（应只用 cfx_perm.inc）" % mode)
+    inc = ARCH / "common" / "env" / "cfx_perm.inc"
+    if not inc.is_file():
+        problems.append("缺 common/env/cfx_perm.inc")
+    return problems
+
+
 def self_test() -> int:
     print("=" * 72)
     print("run_arch --self-test（不启动模拟器）")
@@ -217,6 +266,19 @@ def self_test() -> int:
                 for mode in MODES}
     print("  PASS  modes 元数据: 每用例允许集 + 被排除模式的原因齐全（%s）"
           % ", ".join("%s=%d" % (m, n) for m, n in per_mode.items()))
+    declared = [(c["id"], c["cfx_access"]) for c in cases if c["cfx_access"]]
+    print("  PASS  cfx_access 声明: %d 条用例（%s）"
+          % (len(declared),
+             ", ".join("%s=%s" % (cid, [n for n, v in sorted(DIR_CFX.items())
+                                        if v in acc])
+                       for cid, acc in declared) or "无"))
+
+    perm_problems = _perm_sources()
+    if perm_problems:
+        problems.extend(perm_problems)
+        print("  FAIL  权限准备宏块: %s" % "; ".join(perm_problems))
+    else:
+        print("  PASS  权限准备宏块: hmon/smon/umon 共用 common/env/cfx_perm.inc")
 
     by_dir = {}
     for case in cases:

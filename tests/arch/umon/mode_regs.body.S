@@ -13,10 +13,11 @@
 @@         `DADAO-12 §3.7`）
 @@   槽 1 `cfx_umon.cg8.rc1` global_cfx_intr_mask 初值全 1
 @@         （`contract-see` §3：`cfx_intr_mask`/`global_cfx_intr_mask` 初值全 1）
-@@   槽 2 `cfx_umon.cg5.rc0` excp_prev_run_mode（入口 trap 恒由 hypv 发起 = 3，
-@@         `DADAO-12 §3.6` 硬件陷入时保存；`§5.2` 第 5 步）
-@@   槽 3 `cfx_umon.cg5.rc2` excp_cause_id 低 16 位（入口 trap ⇒ CFXTRAP = 1<<0，
-@@         `contract-see` §6.1）
+@@   槽 2 `cfx_umon.cg4.rc0` cfx_id（= cfxha，`DADAO-12 §3.5` 通用寄存器 + §1
+@@         cfxha 表：cfx_umon = 0）——与交付方式（是否经 trap 进入）无关
+@@   槽 3 `cfx_umon.cg6.rc1` 第二个暂存寄存器写后回读（`§3.5`：暂存寄存器至少 2）
+@@         —— m16-testcases-017 起替换原来读入口 trap 现场的两槽（交付改为
+@@         hmon 直接跳转后没有 trap，那两个值是交付相关量）
 @@   槽 4..7 `cfx_umon.cg7.rc0..3` space[0] 的 desc/start/size/attr
 @@         （`cfx0` 没有内部空间 ⇒ 全 0；`spec/Kaiwu §1`、`DADAO-12 §3.8`）
 @@
@@ -40,14 +41,14 @@ test_body:
 	cfx2rd	cfx_umon, cg8, rc1, rd5
 	SIGUPD	rd5
 
-	@@ 槽 2：excp_prev_run_mode（入口 trap 来自 hypv）
-	cfx2rd	cfx_umon, cg5, rc0, rd5
+	@@ 槽 2：cfx_id（cg4 rc0，= cfxha；`DADAO-12 §3.5`/§1 的 cfxha 表）
+	cfx2rd	cfx_umon, cg4, rc0, rd5
 	SIGUPD	rd5
 
-	@@ 槽 3：excp_cause_id 低 16 位（CFXTRAP）
-	cfx2rd	cfx_umon, cg5, rc2, rd5
-	set.rd	rd6, 0xFFFF
-	and.o	rd5, rd5, rd6
+	@@ 槽 3：第二个暂存寄存器 rc1 写后回读（cg6；个数至少 2，`DADAO-12 §3.5`）
+	set.rd	rd6, 0xFEDCBA9876543210
+	cfx2rc	cfx_umon, cg6, rc1, rd6
+	cfx2rd	cfx_umon, cg6, rc1, rd5
 	SIGUPD	rd5
 
 	@@ 槽 4..7：cg7 space[0]（cfx0 无内部空间）

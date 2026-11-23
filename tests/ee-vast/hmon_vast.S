@@ -5,8 +5,11 @@
 @@
 @@ Vast (user ruling 2026-11-02): hmon drives cfx_pmem, installs a first-level
 @@ page table with four 512 MiB superpages covering PA [0, 2 GiB) (SPF=0xFF),
-@@ enables PTW, sets the cfx_umon hypv vector to the profile ENTRY, and traps
-@@ into the test body in hypv.  smon is reserved and not used by this stage.
+@@ enables PTW, then jumps to the profile ENTRY **still as cfx_hmon** (source
+@@ cfx = 3; `m16-testcases-017` 执行环境起点)：不再把 ENTRY 写到 cfx_umon 的
+@@ hypv 向量再 `trap`（那样 body 的源 cfx 会是 cfx0）。cfx_hmon 的 hypv 向量
+@@ 保持本固件入口，故 body 的同步异常仍由 `hmon_fault` 处理。smon 保留，本阶段
+@@ 不使用。
 @@
 @@ Page table PTE (spec/DADAO-12 §2.2.3, ADR-0043 D10):
 @@   HSJU=0xC (H=1, S=1, U=J=0), PPN[55:29]=i, SPF=0xFF,
@@ -92,14 +95,14 @@ hmon_dma_poll:
 	set.rd rd9, 0x0000000000000001
 	cfx2rc	cfx_ptw, cg8, rc8, rd9		@@ ptw_enable = 1
 
-	@@ --- 5. cfx_umon hypv: vector = ENTRY, switch mode = hypv (3) ---
-	set.rd rd5, ENTRY
-	cfx2rc	cfx_umon, cg3, rc10, rd5
-	set.rd rd6, 0x0000000000000003
-	cfx2rc	cfx_umon, cg3, rc8, rd6		@@ switch_run_mode = hypv
-
-	@@ --- 6. handoff to the test body in hypv ---
-	trap	cfx_umon, 0
+	@@ --- 5. hand-off to the test image: still cfx_hmon (source cfx = 3), hypv ---
+	@@   `jump` 而不是 `trap cfx_umon`：power 阶段的 `trap cfx_hmon` 已把
+	@@   `inner_cfx_code` 置为 3，跳转不改 cfx/ha ⇒ 测试镜像以 **cfx_hmon** 运行
+	@@   （m16-testcases-017 的执行环境起点）。cfx_hmon 的 hypv 向量保持本固件
+	@@   入口 ⇒ body 的同步异常仍走 `hmon_fault`（FAULT_RECORD + `escape` 回
+	@@   `cause_ip + 4`），fault policy 与交付前完全一致。
+	set.rb	rb2, ENTRY
+	jump	[rb2, rd0, 0]
 	swym	0
 
 @@ --- 7. synchronous machine fault in the test body (TESTCASES-092t) ---

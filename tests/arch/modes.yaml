@@ -6,8 +6,17 @@
 # 由 `run_arch.py`（含 `--self-test`）现场校验。
 #
 # 字段：
-#   cases.<id>.modes   非空列表，取值 hmon|smon|umon（每条必须显式给出，无缺省）
-#   cases.<id>.reasons 被排除模式 -> 非空原因（显式标注；不得静默不可运行）
+#   cases.<id>.modes      非空列表，取值 hmon|smon|umon（每条必须显式给出，无缺省）
+#   cases.<id>.reasons    被排除模式 -> 非空原因（显式标注；不得静默不可运行）
+#   cases.<id>.cfx_access 可选，非空列表，取值 umon/smon/hmon/ptw/cache/hart/
+#                         pmem/time/power（`run_arch.py` 的 DIR_CFX 名字）：
+#                         该用例在目标模式下**需要访问**的 cfx（m16-testcases-017）。
+#                         环境据此在降模式前（仍在 hypv）打开目标 cfx 的
+#                         `<mode>` 行来源掩码（`DADAO-12 §3`，只清源 cfx 位），
+#                         退出还原；**声明本身不放宽默认掩码**。未声明 ⇒ 保持
+#                         缺省权限（访问非自身 cfx 收 `CFXPERM`）。
+#                         只有 hmon 的用例不得声明（hmon 不插权限准备 ⇒ 用不到）。
+#                         驱动侧交付契约见 `tests/arch/common/env/README.md`。
 #
 # 模式语义（hmon/smon/umon = hypv/supv/user 的当前模式监视器）与环境实现见
 # `tests/arch/common/env/README.md`；迁移清单见 `common/env/MIGRATION.md`。
@@ -165,3 +174,4 @@ cases:
 
   arch-umon-011:
     modes: [hmon, smon, umon]
+    cfx_access: [umon]

@@ -13,8 +13,9 @@ hmon（hypv）/ smon（supv）/ umon（user）三种运行模式下各跑一次�
   * **签名流**：8 槽，逐槽比对（槽位含义见 body 头注释）：
       槽 0 暂存寄存器写后回读（输入值 0x0123456789ABCDEF，`DADAO-12 §3.7`）
       槽 1 `global_cfx_intr_mask` 初值全 1（`contract-see` §3）
-      槽 2 `excp_prev_run_mode` = hypv（入口 trap 恒由 hypv 发起，§3.6/§5.2）
-      槽 3 `excp_cause_id` 低 16 位 = CFXTRAP（`contract-see` §6.1）
+      槽 2 `cfx_id`（cg4 rc0）= cfx_umon 的 cfxha（`DADAO-12 §3.5`/§1）
+      槽 3 第二个暂存寄存器 cg6.rc1 写后回读（`§3.5`：暂存寄存器至少 2）
+            —— 槽 2/3 与交付方式无关（m16-testcases-017 起替换原入口 trap 现场）
       槽 4..7 cg7 space[0] = 0（`cfx0` 没有内部空间：`spec/Kaiwu` §1、`DADAO-12 §3.8`）
   * 退出码 0（`SYS_EXIT(0)`）；环境自己的 fail-closed 退出码（`0xE0`/`0xE1`）
     不是 PASS。
@@ -54,7 +55,7 @@ import signature as _signature             # noqa: E402  真源
 CASE_ID = "arch-umon-011"
 MODES = ("hmon", "smon", "umon")
 BODY = _ARCH / "umon" / "mode_regs.body.S"
-ENV_DIR = _ARCH / "common" / "env"
+ENV_DIR = _ARCH / "common" / "env"   # 环境目录：`-I` 传进去给 `cfx_perm.inc`
 ENV_LDS = ENV_DIR / "env.lds"
 ARCH_YAML = _REPO / "tests" / "arch.yaml"
 MODES_YAML = _REPO / "tests" / "arch" / "modes.yaml"
@@ -69,22 +70,30 @@ RANGE_SIZE = 0x1000                    # env / body / tail 各自的窗口
 
 BODY_OFF = 0x1000
 TAIL_OFF = 0x2000
-SCRATCH_PATTERN = 0x0123456789ABCDEF   # body 写进暂存寄存器的输入值
-ENTRY_MODE = "hypv"                    # 三模式都由 hypv 经 trap 进入
+PERM_OFF = 0x4000                      # cfx 权限准备段（`.envperm`，不拷进 U 页）
+SCRATCH_PATTERN = 0x0123456789ABCDEF   # body 写进 cg6.rc0 的输入值
+SCRATCH_PATTERN2 = 0xFEDCBA9876543210  # body 写进 cg6.rc1 的输入值
 
 
 class SetupError(RuntimeError):
     """缺件/配置错误（退出码 2）。"""
 
 
-def _toolchain():
+# 用例在 `tests/arch/modes.yaml` 声明的 `cfx_access`（cfxha 列表），由
+# `--cfx-access` 传入；驱动逐 cfx 产 `--defsym ENV_CFX_ACCESS_<cfxha>=1`
+# 交给环境做权限准备（m16-testcases-017）。
+CFX_ACCESS = []
+
+
+def _toolchain(bootrom_override=None):
     bin_dir = _paths.host_toolchain_bin()
     tools = {name: bin_dir / name
              for name in ("llvm-mc", "llvm-objcopy", "ld.lld")}
     for name, path in tools.items():
         if not path.is_file():
             raise SetupError("缺 %s: %s（make install-host）" % (name, path))
-    bootrom = (_paths.test_artifacts_dir() / "bootrom" / "step5"
+    bootrom = (Path(bootrom_override) if bootrom_override
+               else _paths.test_artifacts_dir() / "bootrom" / "step5"
                / "bootrom_step5.bin")
     if not bootrom.is_file():
         raise SetupError("缺 Vast step5 BootROM: %s（make build-bootrom）"
@@ -112,25 +121,37 @@ def mode_codes(root: Path) -> dict:
     return codes
 
 
+def cfx_umon_code(root: Path) -> int:
+    """`DADAO-12 §1` 的 cfxha 表：`cfx_umon` 的编码（= cfx_id 期望值）。"""
+    text = (root / "spec" / "DADAO-12-SEE-主管系统运行环境.md").read_text(
+        encoding="utf-8")
+    m = re.search(r"\|\s*(\d+)\s*\|\s*umon\s*\|[^|]*user 模式", text)
+    if not m:
+        raise SetupError("DADAO-12 §1 cfxha 表缺 umon 行")
+    return int(m.group(1))
+
+
 def expected_signature(root: Path) -> list:
-    """8 槽期望值（每槽来源见模块 docstring）。"""
-    codes = mode_codes(root)
+    """8 槽期望值（每槽来源见模块 docstring）。
+
+    m16-testcases-017：槽 2/3 换成**与交付方式无关**的观测量（cfx_id 与第二个
+    暂存寄存器写后回读）；原来的 `excp_prev_run_mode`/`excp_cause_id` 读的是
+    「入口 trap」现场，而交付已改为 hmon 直接跳转（没有 trap）。
+    """
     see = (root / ".tao" / "contracts" / "contract-see.md").read_text(
         encoding="utf-8")
-    m = re.search(r"\|\s*`1 << (\d+)`\s*\|\s*`CFXTRAP`", see)
-    if not m:
-        raise SetupError("contract-see §6.1 缺 CFXTRAP one-hot 行")
-    cfxtrap = 1 << int(m.group(1))
     if not re.search(r"`cfx_intr_mask`/`global_cfx_intr_mask` 初值全 1", see):
         raise SetupError("contract-see §3 缺 global_cfx_intr_mask 初值句")
     kaiwu = (root / "spec" / "Kaiwu-测试机运行环境.md").read_text(
         encoding="utf-8")
     if "`cfx0` 没有内部空间" not in kaiwu:
         raise SetupError("spec/Kaiwu §1 缺「cfx0 没有内部空间」")
-    if codes[ENTRY_MODE] not in (0, 1, 2, 3):
-        raise SetupError("入口模式 %r 不在 2 bit 编码内" % ENTRY_MODE)
-    return [SCRATCH_PATTERN, 0xFFFFFFFFFFFFFFFF, codes[ENTRY_MODE], cfxtrap,
-            0, 0, 0, 0]
+    spec = (root / "spec" / "DADAO-12-SEE-主管系统运行环境.md").read_text(
+        encoding="utf-8")
+    if "暂存寄存器数量，至少2，最多64" not in spec:
+        raise SetupError("DADAO-12 §3.5 缺「暂存寄存器至少 2」")
+    return [SCRATCH_PATTERN, 0xFFFFFFFFFFFFFFFF, cfx_umon_code(root),
+            SCRATCH_PATTERN2, 0, 0, 0, 0]
 
 
 def body_window(mode: str) -> tuple:
@@ -154,6 +175,7 @@ def _run(cmd, timeout, cwd=None):
 def assemble_env(mode, tools, work, octas=None):
     cmd = [str(tools["llvm-mc"]), "--triple=dadao-unknown-elf",
            "-filetype=obj", "-I", str(_REPO / "tests" / "shared" / "asm"),
+           "-I", str(ENV_DIR),
            "--defsym", "ENV_SIG_BUF=%#x" % SIG_BUF,
            "--defsym", "ENV_SIG_SLOTS=%d" % SIG_SLOTS,
            "--defsym", "ENV_STACK=%#x" % STACK,
@@ -161,6 +183,8 @@ def assemble_env(mode, tools, work, octas=None):
                                              + BODY_OFF),
            "--defsym", "ENV_TAIL=%#x" % (machine_profile.load("vast").entry
                                          + TAIL_OFF)]
+    for cfx in CFX_ACCESS:
+        cmd += ["--defsym", "ENV_CFX_ACCESS_%d=1" % cfx]
     if octas is not None:
         cmd += ["--defsym", "ENV_COPY_OCTAS=%d" % octas]
     obj = work / ("env_%s.o" % mode)
@@ -209,6 +233,7 @@ def build_image(mode, tools, work):
                     "--defsym", "ENTRY=%#x" % entry,
                     "--defsym", "ENV_BODY_OFF=%#x" % BODY_OFF,
                     "--defsym", "ENV_TAIL_OFF=%#x" % TAIL_OFF,
+                    "--defsym", "ENV_PERM_OFF=%#x" % PERM_OFF,
                     str(env_obj), str(body_obj), "-o", str(elf)], 60)
     if rc != 0:
         raise SetupError("ld.lld %s 失败 rc=%d: %s"
@@ -247,8 +272,11 @@ def run_mode(mode, args, tools, work):
     for stale in (console, cpu_log):
         if stale.exists():
             stale.unlink()
+    machine = "kaiwu-vast,bootrom-image=" + str(tools["bootrom"])
+    if getattr(args, "cache_model", "off") == "on":
+        machine += ",cache-model=on"
     cmd = [args.qemu,
-           "-machine", "kaiwu-vast,bootrom-image=" + str(tools["bootrom"]),
+           "-machine", machine,
            "-kernel", str(image),
            "-semihosting-config", "enable=on,target=native,chardev=semi",
            "-chardev", "file,id=semi,path=" + str(console),
@@ -388,6 +416,15 @@ def main() -> int:
     ap.add_argument("--work-dir", default=None)
     ap.add_argument("--signature-out", default=None)
     ap.add_argument("--timeout", type=int, default=60)
+    ap.add_argument("--cfx-access", default=None,
+                    help="modes.yaml 的 cfx_access（cfxha 逗号列表）：逐 cfx 传 "
+                         "--defsym ENV_CFX_ACCESS_<cfxha>=1 给环境做权限准备")
+    ap.add_argument("--bootrom", default=None,
+                    help="Vast step5 BootROM（缺省 = 安装根的 bootrom/step5）")
+    ap.add_argument("--cache-model", default="off", choices=("on", "off"),
+                    help="`-machine kaiwu-vast,cache-model=`（m16-qemu-001）：on 时 "
+                         "cfx5 的 cache_exist 读回 0b11（contract-cache CACHE-07）；"
+                         "缺省 off 与旧命令行一致")
     ap.add_argument("--selfcheck", action="store_true")
     ap.add_argument("--list", action="store_true")
     args = ap.parse_args()
@@ -411,12 +448,26 @@ def main() -> int:
               "fail-closed", file=sys.stderr)
         return 2
 
+    global CFX_ACCESS
+    if args.cfx_access:
+        try:
+            CFX_ACCESS = [int(x) for x in args.cfx_access.split(",") if x.strip()]
+        except ValueError:
+            print("check_mode_env: --cfx-access 须是 cfxha 逗号列表: %r"
+                  % args.cfx_access, file=sys.stderr)
+            return 2
+        bad = [c for c in CFX_ACCESS if c < 0 or c > 63]
+        if bad:
+            print("check_mode_env: --cfx-access 含越界 cfxha: %r" % bad,
+                  file=sys.stderr)
+            return 2
+
     work = (Path(args.work_dir) if args.work_dir else
             _paths.test_artifacts_dir() / "arch" / "mode_env" / args.mode)
     work = work.resolve()          # qemu 以 work 为 cwd 运行；命令参数须为绝对路径
     work.mkdir(parents=True, exist_ok=True)
     try:
-        tools = _toolchain()
+        tools = _toolchain(args.bootrom)
         result = run_mode(args.mode, args, tools, work)
     except SetupError as exc:
         print("check_mode_env: SETUP: %s" % exc, file=sys.stderr)

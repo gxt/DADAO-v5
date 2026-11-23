@@ -168,6 +168,12 @@ def _run_driver(case, ctx, platform, engine, extra_env=None) -> dict:
     运行模式（m16-testcases-015）：只有**声明了多个允许模式**的 driver 才收
     `--mode`，这样既有单模式驱动（如 ptw 的 `check_tlb.py`）的命令行不变；
     单模式用例仍按 `hmon` 语义运行。
+
+    环境型驱动（同一门槛：声明多模式）另收两件（m16-testcases-017）：
+      * `--cfx-access <cfxha,...>`：`modes.yaml` 的 `cfx_access` 声明，驱动据此
+        逐 cfx 传 `--defsym ENV_CFX_ACCESS_<cfxha>=1` 给环境做权限准备；
+      * `--bootrom <path>`：本驱动用显式 BootROM（`run_arch --bootrom`），保证
+        asm 与 driver 两条路径跑同一份固件。
     """
     case_dir = Path(ctx.work) / case["id"] / platform
     driver_dir = case_dir / "driver"
@@ -180,6 +186,15 @@ def _run_driver(case, ctx, platform, engine, extra_env=None) -> dict:
     modes = case.get("modes") or ["hmon"]
     if len(modes) > 1:
         cmd += ["--mode", getattr(ctx, "mode", "hmon")]
+        access = case.get("cfx_access") or []
+        if access:
+            cmd += ["--cfx-access", ",".join(str(c) for c in access)]
+        bootrom = getattr(ctx, "bootrom", None)
+        if bootrom:
+            cmd += ["--bootrom", str(bootrom)]
+        cache_model = getattr(ctx, "cache_model", None)
+        if cache_model:
+            cmd += ["--cache-model", str(cache_model)]
     return _finish(case, ctx, case_dir, cmd, signature,
                    "driver(%s): %s" % (platform, case["file"]),
                    platform=platform, extra_env=extra_env)

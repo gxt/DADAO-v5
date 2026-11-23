@@ -80,6 +80,15 @@ python3 tests/arch/run_arch.py --list
   **显式原因**）。与 `tests/arch.yaml` 的 id 集合**双向**核对；缺项/多项/非法
   模式/缺原因由 `run_arch.py`（含 `--self-test`）报红。不写进 `tests/arch.yaml`
   是因为该文件的字段受 `check-tests-index` 白名单约束（未知字段即红）。
+- `cases.<id>.cfx_access`（可选，`m16-testcases-017`）：该用例在目标模式下需要
+  访问的 cfx 列表（`umon`/`smon`/`hmon`/`ptw`/`cache`/`hart`/`pmem`/`time`/`power`）。
+  环境据此在**降模式之前**（仍在 hypv、源 cfx = cfx_hmon）打开目标 cfx 的
+  `<mode>` 行来源掩码（`DADAO-12 §3`，只清源 cfx 位）与 `cg_reg_deleg`
+  （supv 侧前提），并把**未声明**的 cfx 收窄（源 cfx 位置 1 ⇒ 未声明访问
+  `CFXPERM`），退出还原打开的项并回读校验；声明由 `common/platform.py` 的
+  `--cfx-access` 交给驱动、驱动再落成逐 cfx 的 `--defsym ENV_CFX_ACCESS_<n>=1`。
+  非法/重复/空列表、或只有 `hmon` 的用例上声明 ⇒ `run_arch.py` 报配置错误。
+  语义、失败码与已知边界见 `common/env/README.md`。
 - 门控：`make check-tests-index`（L1，静态）校验字段、`machine/kind` 取值与
   `file` 存在；条数现场统计，不写死。
 
