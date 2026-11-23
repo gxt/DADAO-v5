@@ -73,7 +73,7 @@
 - **四组寄存器 `rd/rb/rf/ra` 分离**；指针在 RB，返回在 `rd8/rb8/rf8`；不要套统一 GPR/常规栈帧。
 - **没有 CZSO/flags 条件码**；用 `cmp` 三值与 `br.*`/`cs.*`。
 - **立即数是 16 位 wyde-position/分片拼接**，不是 RISC-V `lui/addi` 那套。
-- **cfx 不是 CSR**：用 `trap`/`escape`/`cfx2rd`/`cfx2rc`；`escape` 偏移只允许 0/+4；`excp_cause_ip` 可写不等于安全边界。
+- **cfx 不是 CSR**：用 `trap`/`escape`/`cfx2rd`/`cfx2rc`；`escape` 的 `imms18` bit1 选帧（0=cg5、1=cg9），cg5 偏移 0/+4、cg9 只允许 0（汇编 `imms20 ∈ {0,4,8}`，其它 ILLI）；`excp_cause_ip` 可写不等于安全边界。
 - **两轴权限 + 保留 cfxha**：不要套 RISC-V 中断/CSR 模型；cfx 异常/中断按 `spec/DADAO-12` 的流程。
 - **指令「条数/功能」的判据是 id，不是助记符**（用户 2026-11-19）：id = **助记符 + 格式 + 寄存器组**（如 `ld.o` 有 `_ra`/`_rb`/`_rd`/`_rf` 四个 id，分属四节）。数指令、判覆盖、分任务、写 operation 一律以 `contracts/opcodes.yaml` 的 `id` 为准；**同一助记符在不同节/不同寄存器组出现时不得重复计数或跨节合并**（实例：按助记符统计曾把 01 册 38 条算成 90 条）。
 - **窄读不改高位**（用户 2026-11-19，`m15-idl-012` R2）：`lr.b`/`lr.w`/`lr.t` 只写 `rd` 的低 8/16/32 位，**高位保持原值**——既不是 `ld.ub/uw/ut` 的零扩展，也不是 RISC-V `lr.w` 的符号扩展（`X[xd] = sext(load_value[31:0], 32)`）。见 `discussing.md` N24。

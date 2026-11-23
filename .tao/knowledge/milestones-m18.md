@@ -37,6 +37,7 @@
 | m18-qemu-001 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
 | m18-spec-001 | 2–4 h | cg4 `scratch_regs_num` 缺省值：每个非 reserved cfx = 2（QEMU/gem5/RTL 由 4 改 2）；spec/契约 + 探针 |
 | m18-llvm-001 | 2–3 h | LLVM `escape` frame selector 汇编/反汇编 + lit |
+| m18-idl-001 | 3–5 h | `escape` 帧选择位在 IDL 执行器/语义库/向量同步（`_op_escape`/`§4.6`/`11-cfx` case 13/14） |
 | m18-qemu-004 | 4–6 h | QEMU hart-first 异步仲裁（`cfx_hart cg9`、cause 17/18、escape bit1；对照 qemu-002 骨架） |
 | m18-testcases-001 | 1–2 h | 旧异步探针 094t/050t 迁 hart-first（投 cfx_hart、pending cg9、mask 位源 cfxha） |
 | m18-linux-015 | 2–3 h | `mlock2`/`MLOCK_ONFAULT` 路径 SIGSEGV（KERNEL_BUG） |
