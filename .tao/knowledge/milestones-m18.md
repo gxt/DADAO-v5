@@ -60,7 +60,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
-| m18-qemu-006 | 2026-11-24 00:12 | QEMU 捕获缓冲修订（去 gating、每次覆盖、escape cg9 ⇒ CFXESC；13+33 证据） |
+| m18-qemu-006 | 2026-11-24 00:31 | QEMU 捕获缓冲修订（去 gating、每次覆盖、escape cg9 ⇒ CFXESC；13+33 证据） |
 | m18-linux-019 | 2026-11-23 22:41 | `k5_syscall_selftest` 锁内 `find_vma`（K5 282/282、S 组 rwsem 0；源码锁断言+注入） |
 | m18-spec-005 | 2026-11-23 22:36 | ADR-0061 R2 规格/活文档（cg9 捕获缓冲、smon handoff、escape 不异步返回；14 文件；63+20 证据） |
 | m18-qemu-005 | 2026-11-23 20:12 | QEMU 异步模型修订（ADR-0061：mask 归 monitor、src 位 cfxha、cg9 七槽、一帧多源；13+33 证据） |
