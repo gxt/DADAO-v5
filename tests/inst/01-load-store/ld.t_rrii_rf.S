@@ -28,8 +28,8 @@ __ck_\@:
 
 @@ rf 目的，比**完整 64 位**（m15-testcases-017）：`ld.t` 只写目的寄存器低 32 位、
 @@   高 32 位保持原值（`spec/SimRISC-01 §4` 写入宽度注；`spec/SimRISC-00 §2.3`）⇒
-@@   先用 `ld.o` 把目的装成**高位已知非零**的 8 B 拍（`\preoff`），再执行 `ld.t`（`\off`），
-@@   `rf2rd` 读回完整 64 位。期望 = 预置拍的高半 + 该偏移处的字（两半都是数据区字面量，
+@@   先用 `ld.o` 把目的装成**高位已知非零**的 8 字节数据单元（`\preoff`），再执行 `ld.t`（`\off`），
+@@   `rf2rd` 读回完整 64 位。期望 = 预置数据单元的高半 + 该偏移处的字（两半都是数据区字面量，
 @@   独立 oracle，不从实现反推）。**零扩展实现（高半清 0）⇒ 本宏用例必红。**
 .macro TEST_LD_RF_FULL pt, mnem, dst, base, baseval, preoff, off, exp
 	set.rb \base, \baseval
@@ -115,8 +115,8 @@ __rb0p_ck:
 	__CHECK_RD 21, rd21, 0x000000007FFFFFFF	@@ 正向极大
 
 	@@ ==== m15-testcases-017：窄写补测（高 32 位保持，`spec/SimRISC-01 §4` 注）====
-	@@ 构造：`ld.o` 先把目的 rf 装成高位已知非零的 8 B 拍，再 `ld.t`；`rf2rd` 比完整 64 位。
-	@@ 期望两半都取自 TEST_DATA 字面量（高半 = 预置拍高 32、低半 = 装入处的大端字）：
+	@@ 构造：`ld.o` 先把目的 rf 装成高位已知非零的 8 字节数据单元，再 `ld.t`；`rf2rd` 比完整 64 位。
+	@@ 期望两半都取自 TEST_DATA 字面量（高半 = 预置数据单元高 32、低半 = 装入处的大端字）：
 	@@   +0x078 = 0xDEADBEEFCAFEF00D、+0x070 = 0xA5A5A5A55A5A5A5A；+0x008 字 = 0x00112233、+0x018 字 = 0xFFEEDDCC
 	@@   ⇒ 实现若把 `ld.t` 做成零扩展（高 32 清 0），期望 ≠ 实测 ⇒ 本两点必红。
 	TEST_LD_RF_FULL 22, ld.t,   rf5,   rb6,   TEST_DATA,          0x078,   0x008,   0xDEADBEEF00112233

@@ -2,7 +2,7 @@
 @@ 大类：05-arith-addr（64 位地址运算，`spec/SimRISC-05 §4`）；册目录 `tests/inst/05-arith-addr/`
 @@ id：aip.si_riii_rb　形式：riii（rb）　opc：0x5A　mask：0xFF000000　value：0x5A000000　目的银行：RB
 @@ 语义：rbHA ← IP + (SX(imms18) << 12)；**IP = 该指令自身地址**（`rb0` 读出值，非下一条、
-@@   无 ±4 流水偏移、低位不清零）；立即数单位为 4 KiB 块、有符号 ⇒ 可达 ±512 MiB
+@@   无 ±4 修正项、低位不清零）；立即数单位为 4 KiB 块、有符号 ⇒ 可达 ±512 MiB
 @@   汇编层操作数按**字节**书写（`imms30`，须为 4096 整数倍；编码层 imms18 = 字节 >> 12）；
 @@   全 64 位结果（不截断；仅当以结果访存时取 [47:0]）
 @@ 合法性：目的 rbHA 为 rb0 ⇒ ILLI（`dst_rb0`）；rb0 作源读出 IP（本指令的基址即 rb0）

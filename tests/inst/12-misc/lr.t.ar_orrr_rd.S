@@ -7,7 +7,7 @@
 @@ 存储序：.ar（获取+释放）；单 hart 链例下只约束访存顺序，不改变数值结果
 @@ 保留机制（contract-isa §14.2）：粒度 = 精确地址 + 访问宽度；另一条 lr / 每次 sc（成败）/
 @@   异常或中断进入 清本 hart 全部标记；sc 失败不写内存并返回 1、成功返回 0（本文件一律内联期望）
-@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA 零区；每例独立 8 B 拍（运行时置初值）
+@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA 零区；每例独立 8 字节数据单元（运行时置初值）
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 用例：encoding 3 / semantic 7 / boundary 6 / overlap 2（链例 18 + 故障例 2）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
@@ -19,7 +19,7 @@
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/12-misc/12-misc.inc"
 
-@@ 数据区（TEST_DATA 零区；每例独立 8 B 拍，例间不共享可写字节）：
+@@ 数据区（TEST_DATA 零区；每例独立 8 字节数据单元，例间不共享可写字节）：
 @@   A0..A17 / B0..B17 / L / SCR 在册宏层 `tests/inst/12-misc/12-misc.inc`（单源）；
 @@   本文件只补**宽度专属**的「故意不对齐」地址 LMAL（.w/.t/.o 的 MALIGN 例）。
 	.equ LMAL, TEST_DATA + 0x7f2     @@ 故意不对齐（.w/.t/.o 的 MALIGN 例）
@@ -119,7 +119,7 @@
 	lr.t.ar	rd2, [rb3]
 	__CHECK_RD 9, rd2, 0xDEADBEEFFFFFFFFF
 
-	@@ ---- boundary：全 0 拍 ⇒ 读出 0 ----
+	@@ ---- boundary：全 0 数据单元 ⇒ 读出 0 ----
 	@@! inputs: kind=lr sym=A8 k=0 init=0
 	__PREP_LI_ADDR	rd6, 0x0000000000000000, rb3, A8
 	__PREP_ST_ADDR	A8
@@ -133,7 +133,7 @@
 	lr.t.ar	rd2, [rb3]
 	__CHECK_RD 11, rd2, 0xDEADBEEF80000000
 
-	@@ ---- boundary：数据区末拍（地址上界）装载 ----
+	@@ ---- boundary：数据区最后一个数据单元（地址上界）装载 ----
 	@@! inputs: kind=lr sym=L k=0 init=0x1122334455667788
 	__PREP_LI_ADDR	rd6, 0x1122334455667788, rb3, L
 	__PREP_ST_ADDR	L

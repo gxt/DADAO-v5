@@ -20,7 +20,7 @@
 @@   ⇒ 三方比较的是字节流（同一 ELF，chipyard/qemu/gem5）。
 @@ 探针：初值一律经普通 `st.o` 给（不用 lr/sc 造初值）；"抢走保留标记"用本 hart 第二条
 @@   `lr`（`spec/SimRISC-12 §1` 的第一条清标记事件）⇒ 单 hart 可构造、可重复。
-@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA 零区；每例独立 8 B 拍（0x500 起），
+@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA 零区；每例独立 8 字节数据单元（0x500 起），
 @@   例间不共享可写字节 ⇒ 用例可单独阅读、顺序无关。
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；`run_asm_suite` 默认布局）。
 @@ GAP（不可构造，不伪造、不写用例）：
@@ -32,7 +32,7 @@
 
 	.include "tests/inst/macros/inst_test.inc"
 
-@@ 数据区（TEST_DATA 零区；每例独立 8 B 拍）
+@@ 数据区（TEST_DATA 零区；每例独立 8 字节数据单元）
 	.equ A0, TEST_DATA + 0x500       @@ 1–3  fetch_add（含强制失败重试）
 	.equ A1, TEST_DATA + 0x508       @@ 4    fetch_sub
 	.equ A2, TEST_DATA + 0x510       @@ 5    fetch_and

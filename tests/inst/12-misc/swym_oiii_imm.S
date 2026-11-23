@@ -24,7 +24,7 @@
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/12-misc/12-misc.inc"
 
-@@ 数据区（TEST_DATA 零区；每例独立 8 B 拍）
+@@ 数据区（TEST_DATA 零区；每例独立 8 字节数据单元）
 	.equ S0, TEST_DATA + 0x500
 	.equ S1, TEST_DATA + 0x508
 

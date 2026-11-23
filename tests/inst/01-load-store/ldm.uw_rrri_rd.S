@@ -1,7 +1,7 @@
 @@ ldm.uw_rrri_rd.S — ldm.uw {rdHA:rdHA+immu6-1}, [rbHB, rdHC]（rrri, opc 0x29）
 @@ 大类：01-load-store（取数存数，`spec/SimRISC-01 §1`）
 @@ id：ldm.uw_rrri_rd　形式：rrri　opc：0x29　mask：0xFF000000
-@@ 语义：目的 i ← zero_extend(mem16[EA + 2i])；EA = rb[47:0] + rd[63:0]（immu6 = 元素个数 1..63；元素宽度整除 8 且起址按宽度对齐 ⇒ 元素不跨 8 B 拍）
+@@ 语义：目的 i ← zero_extend(mem16[EA + 2i])；EA = rb[47:0] + rd[63:0]（immu6 = 元素个数 1..63；元素宽度整除 8 且起址按宽度对齐 ⇒ 元素不跨 8 字节数据单元）
 @@ 合法性：目的 rdHA 为 rd0 ⇒ ILLI；索引 rdHC 落在传送范围 rd[HA..HA+immu6-1] 内 ⇒ ILLI（`ldm` 禁重叠）；immu6=0 ⇒ ILLI；rdHA+immu6>64 ⇒ ILLI（不环绕、不截断）；首址未按 2 B 对齐 ⇒ MALIGN
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的多元素区（MDATA_B/W/T/O、MUNI、MDUMP、MSTORE；字面量见该文件）
 @@ 用例：boundary 3 / rb0 3 / 最大个数 1（链例 21 + 故障例 9；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
@@ -22,7 +22,7 @@
 	@@ semantic：count=3 三个连续元素
 	TEST_LDM         3, ldm.uw, {rd5:rd7}, rb3, MDATA_W + 0x010, rd19, 0x000, MDUMP + 0x010, 1, 0x80088009800A0000
 
-	@@ semantic：count=16（多拍，元素不跨 8 B 拍）
+	@@ semantic：count=16（多个数据单元，元素不跨 8 字节数据单元）
 	TEST_LDM         4, ldm.uw, {rd24:rd39}, rb3, MDATA_W + 0x020, rd19, 0x000, MDUMP + 0x018, 4, 0x8010801180128013, 0x8014801580168017, 0x80188019801A801B, 0x801C801D801E801F
 
 	@@ semantic：宽度/符号扩展逐元素核对（零扩展）
@@ -86,18 +86,18 @@ __rb0p:
 	__CHECK_RD 17, rd21, 0x000000000000FFFF	@@ 全 1（正偏移 ⇒ 数据区）
 
 	@@ ==== m17-testcases-002：immu6=63（最大合法个数）整组装入 + 回写 ====
-	@@   MUNI 的拍 0x0F1E2D3C4B5A6978 ⇒ 16 位元素按 0x0F1E/0x2D3C/0x4B5A/0x6978 循环；
-	@@   MSTORE 是保持区模式，回写后逐拍比「源字节 + 未覆盖字节」。
+	@@   MUNI 的数据单元 0x0F1E2D3C4B5A6978 ⇒ 16 位元素按 0x0F1E/0x2D3C/0x4B5A/0x6978 循环；
+	@@   MSTORE 是保持区模式，回写后逐个数据单元比「源字节 + 未覆盖字节」。
 	@@   索引用 rd0（rd1..rd63 全在传送范围 ⇒ 用 rd19 会 ILLI）。
 	set.rb rb3, MUNI
 	ldm.uw	{rd1:rd63}, [rb3, rd0]
 	set.rb rb28, MSTORE
 	stm.w	{rd1:rd63}, [rb28, rd0]
 	__CHECK_MEM        18, MSTORE, 0x000, 0x0F1E2D3C4B5A6978
-	__VERIFY_MEM       18, MSTORE, 0x038, 0x0F1E2D3C4B5A6978	@@ 中段（循环拍 ⇒ 全拍同期望）
+	__VERIFY_MEM       18, MSTORE, 0x038, 0x0F1E2D3C4B5A6978	@@ 中段（循环数据单元 ⇒ 整个数据单元同期望）
 	__VERIFY_MEM       18, MSTORE, 0x050, 0x0F1E2D3C4B5A6978	@@ 中段
 	__CHECK_MEM        19, MSTORE, 0x070, 0x0F1E2D3C4B5A6978
-	__CHECK_MEM        20, MSTORE, 0x078, 0x0F1E2D3C4B5A00AF	@@ 末元素只覆盖本拍低 6 B
+	__CHECK_MEM        20, MSTORE, 0x078, 0x0F1E2D3C4B5A00AF	@@ 末元素只覆盖本数据单元低 6 B
 	__VERIFY_RD        21, rd1,   0x0000000000000F1E
 	__CHECK_RD         21, rd63,  0x0000000000004B5A
 	__TEST_END

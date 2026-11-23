@@ -1,7 +1,7 @@
 @@ ldm.sw_rrri_rd.S — ldm.sw {rdHA:rdHA+immu6-1}, [rbHB, rdHC]（rrri, opc 0x2C）
 @@ 大类：01-load-store（取数存数，`spec/SimRISC-01 §1`）
 @@ id：ldm.sw_rrri_rd　形式：rrri　opc：0x2C　mask：0xFF000000
-@@ 语义：目的 i ← sign_extend(mem16[EA + 2i])；EA = rb[47:0] + rd[63:0]（immu6 = 元素个数 1..63；元素宽度整除 8 且起址按宽度对齐 ⇒ 元素不跨 8 B 拍）
+@@ 语义：目的 i ← sign_extend(mem16[EA + 2i])；EA = rb[47:0] + rd[63:0]（immu6 = 元素个数 1..63；元素宽度整除 8 且起址按宽度对齐 ⇒ 元素不跨 8 字节数据单元）
 @@ 合法性：目的 rdHA 为 rd0 ⇒ ILLI；索引 rdHC 落在传送范围 rd[HA..HA+immu6-1] 内 ⇒ ILLI（`ldm` 禁重叠）；immu6=0 ⇒ ILLI；rdHA+immu6>64 ⇒ ILLI（不环绕、不截断）；首址未按 2 B 对齐 ⇒ MALIGN
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的多元素区（MDATA_B/W/T/O、MUNI、MDUMP、MSTORE；字面量见该文件）
 @@ 用例：boundary 3 / rb0 3（链例 17 + 故障例 9；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
@@ -22,7 +22,7 @@
 	@@ semantic：count=3 三个连续元素
 	TEST_LDM         3, ldm.sw, {rd5:rd7}, rb3, MDATA_W + 0x010, rd19, 0x000, MDUMP + 0x010, 1, 0x80088009800A0000
 
-	@@ semantic：count=16（多拍，元素不跨 8 B 拍）
+	@@ semantic：count=16（多个数据单元，元素不跨 8 字节数据单元）
 	TEST_LDM         4, ldm.sw, {rd24:rd39}, rb3, MDATA_W + 0x020, rd19, 0x000, MDUMP + 0x018, 4, 0x8010801180128013, 0x8014801580168017, 0x80188019801A801B, 0x801C801D801E801F
 
 	@@ semantic：宽度/符号扩展逐元素核对（符号扩展）

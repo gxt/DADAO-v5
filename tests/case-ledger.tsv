@@ -673,7 +673,7 @@ asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_LDM  13, ldm.ut,  {rd5:rd5}, 
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	TEST_LDM  14, ldm.ut,  {rd5:rd5}, rb3, TEST_DATA + 0x088, rd19, 0x000, MDUMP + 0x1D0, 1, 0xFFFFFFFF00000000	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_MEM        18, MSTORE, 0x000, 0x0F1E2D3C4B5A6978	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_MEM        19, MSTORE, 0x0F0, 0x0F1E2D3C4B5A6978	1
-asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_MEM        20, MSTORE, 0x0F8, 0x0F1E2D3C000000BF	@@ 末元素只覆盖本拍低 4 B	1
+asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_MEM        20, MSTORE, 0x0F8, 0x0F1E2D3C000000BF	@@ 末元素只覆盖本数据单元低 4 B	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_RD         21, rd63,  0x000000000F1E2D3C	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_RD         5, rd5, 0x000000008000000C	1
 asm	tests/inst/01-load-store/ldm.ut_rrri_rd.S	__CHECK_RD         6, rd7, 0x000000008000000E	1
@@ -703,7 +703,7 @@ asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_LDM  13, ldm.uw,  {rd5:rd5}, 
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	TEST_LDM  14, ldm.uw,  {rd5:rd5}, rb3, TEST_DATA + 0x088, rd19, 0x000, MDUMP + 0x1D0, 1, 0xFFFF000000000000	1
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_MEM        18, MSTORE, 0x000, 0x0F1E2D3C4B5A6978	1
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_MEM        19, MSTORE, 0x070, 0x0F1E2D3C4B5A6978	1
-asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_MEM        20, MSTORE, 0x078, 0x0F1E2D3C4B5A00AF	@@ 末元素只覆盖本拍低 6 B	1
+asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_MEM        20, MSTORE, 0x078, 0x0F1E2D3C4B5A00AF	@@ 末元素只覆盖本数据单元低 6 B	1
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_RD         21, rd63,  0x0000000000004B5A	1
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_RD         5, rd5, 0x0000000000008018	1
 asm	tests/inst/01-load-store/ldm.uw_rrri_rd.S	__CHECK_RD         6, rd7, 0x000000000000801A	1

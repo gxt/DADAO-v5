@@ -11,7 +11,7 @@
  *   ENTRY + 0x4200  （TEST_FAULTV，落点段之后，无独立段：+0 one-hot、+8 失败码）
  *   ENTRY + 0x4300  .faulttab       后继表（点号 × 8 B + 表尾哨兵，≤ 0x480；
  *                                   `m15-testcases-007`）
- *   ENTRY + 0x5000  .testdata       数据块：0x800 负偏移区 + 单元素 24 拍模式 +
+ *   ENTRY + 0x5000  .testdata       数据块：0x800 负偏移区 + 单元素 24 个数据单元模式 +
  *                                   多元素区（MDATA_B/W/T/O、MUNI、MDUMP、MSTORE）
  *                                   （TEST_DATA = +0x5800；恒 0x2000 B）
  *   ENTRY + 0x7000  结果字节缓冲（运行时写，不进镜像；≤ 127 × 8 B）

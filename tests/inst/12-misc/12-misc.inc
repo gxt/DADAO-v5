@@ -8,13 +8,13 @@
 @@   .include "tests/inst/12-misc/12-misc.inc"
 @@
 @@ lr / sc（原子，`spec/SimRISC-12 §1` + `contract-isa §14.2`）的用例都由同一组
-@@ 「准备段 + 被测指令 + 断言行」构成：把 8 B 拍初值落地 → 用 `lr` 建本 hart 的保留
+@@ 「准备段 + 被测指令 + 断言行」构成：把 8 字节数据单元初值落地 → 用 `lr` 建本 hart 的保留
 @@ 标记 → 把条件写的源值装进寄存器 → 执行被测指令。准备段与被测的 `lr/sc` 宽度/存储序
 @@ 无关（只经宏参数传入），故按册收敛到这里；**点号行（`__CHECK_*`）与被测指令一律留在
 @@ 用例处** —— 失败点号 = 用例序号（`spec/Kaiwu §7.1`）在文件里直接可见、可逐个核对。
 @@
 @@ ---------------------------------------------------------------------------
-@@ 数据区（TEST_DATA 零区；每例独立 8 B 拍，例间不共享可写字节）
+@@ 数据区（TEST_DATA 零区；每例独立 8 字节数据单元，例间不共享可写字节）
 @@   `LMAL` 是**宽度专属**的故意不对齐地址（.w = +0x7F2 / .t = +0x7F4 / .o = +0x7F4）
 @@   ⇒ 它留在各 `.S` 内，不进本文件。
 @@ ---------------------------------------------------------------------------
@@ -54,20 +54,20 @@
 	.equ B15, TEST_DATA + 0x678
 	.equ B16, TEST_DATA + 0x680
 	.equ B17, TEST_DATA + 0x688
-	.equ L, TEST_DATA + 0x7E8        @@ 数据区末拍（末字 0x7F0）
-	.equ SCR, TEST_DATA + 0x7F8      @@ 清标记落点（全 0 拍；消费标记用）
+	.equ L, TEST_DATA + 0x7E8        @@ 数据区最后一个数据单元（末字 0x7F0）
+	.equ SCR, TEST_DATA + 0x7F8      @@ 清标记落点（全 0 数据单元；消费标记用）
 
 @@ ---------------------------------------------------------------------------
 @@ 准备段（被测指令与点号行留在用例处）
-@@   __PT_ST_INIT(ea, val)                        —— 8 B 拍初值落地
+@@   __PT_ST_INIT(ea, val)                        —— 8 字节数据单元初值落地
 @@   __PT_LRSC_PREP(lr, ea, init, reload=1, k=0)  —— 落地 + 建标记；
-@@        reload=1 时按 `ea + k` 重载基址再 `lr`（k = EA 相对拍起点的字节偏移），
+@@        reload=1 时按 `ea + k` 重载基址再 `lr`（k = EA 相对数据单元起点的字节偏移），
 @@        reload=0 时沿用 rb3（中间不再有地址计算，如「保留粒度」例）。
 @@   __PT_LRSC_LD(lr, srcreg, ea, init, src, k=0) —— PREP + 源值进 `srcreg`
 @@   __PT_LRSC_LD2(lr, srcreg, a, b, inita, initb, src)
-@@        —— 两处拍初值（a / b）+ 在 a 建标记 + 源值（标记在 a、被测指令指向 b 的例）
+@@        —— 两处数据单元初值（a / b）+ 在 a 建标记 + 源值（标记在 a、被测指令指向 b 的例）
 @@   __PT_LRSC_LD2L(lr, srcreg, a, b, mbase, inita, initb, src)
-@@        —— 两处拍初值 + `lr a` → `lr b`（另一条 lr 清 a 的标记）+ 重载 a + 源值；
+@@        —— 两处数据单元初值 + `lr a` → `lr b`（另一条 lr 清 a 的标记）+ 重载 a + 源值；
 @@           `mbase` = 第二条 lr 的基址寄存器（用例自带：原用例用 rb3/rb4 两种写法，
 @@           保持指令字节不变）
 @@   __PT_LRSC_CLEAR(lr, sc)                      —— 消费本 hart 的保留标记（lr SCR → sc SCR）
@@ -129,7 +129,7 @@
 @@   §1`），故在宏体内固定为常量；**只有点号必须来自调用方**。
 @@ ---------------------------------------------------------------------------
 
-@@ 编码字例：`__PT_SC_ENC(pt, 助记符 lr, 源寄存器, 编码字, ea, 拍初值, 源值, 期望拍)`
+@@ 编码字例：`__PT_SC_ENC(pt, 助记符 lr, 源寄存器, 编码字, ea, 数据单元初值, 源值, 期望数据单元)`
 @@   —— 直接执行规范编码字（被测 `sc` 不在宏里，`word` 自带 opc 0x47 + 位域）
 .macro __PT_SC_ENC pt, lrmnem, srcreg, word, ea, init, src, exp
 	__PT_LRSC_LD	\lrmnem, \srcreg, \ea, \init, \src
@@ -139,7 +139,7 @@
 .endm
 
 @@ 命中标记 ⇒ 成功（`rdHB=0`），仅宽度窗口被写。
-@@   `__PT_SC_LD(pt, sc, lr, 源寄存器, ea, 拍初值, 源值, 返回, 期望拍[, k])`
+@@   `__PT_SC_LD(pt, sc, lr, 源寄存器, ea, 数据单元初值, 源值, 返回, 期望数据单元[, k])`
 .macro __PT_SC_LD pt, scmnem, lrmnem, srcreg, ea, init, src, res, exp, k=0
 	__PT_LRSC_LD	\lrmnem, \srcreg, \ea, \init, \src, \k
 	\scmnem	rd5, \srcreg, [rb3]
@@ -210,7 +210,7 @@
 	__VERIFY_MEM	\pt, \ea, 0, \exp
 .endm
 
-@@ 同上但保留粒度例：`lr` 之后先有普通 store（`reload=0`：rb3 仍指向该拍）。
+@@ 同上但保留粒度例：`lr` 之后先有普通 store（`reload=0`：rb3 仍指向该数据单元）。
 .macro __PT_SC_2SC_SELF pt, scmnem, lrmnem, srcreg, ea, init, src1, src2, exp
 	__PT_LRSC_PREP	\lrmnem, \ea, \init, 0
 	set.rd	\srcreg, \src1
@@ -223,7 +223,7 @@
 .endm
 
 @@ 保留粒度：`lr` 之后夹一条**普通 store**（宽度/地址刻意与 `sc` 不同）⇒ 标记仍在、
-@@   `sc` 成功。`reload=0`：`__PT_ST_INIT` 已把 rb3 指向该拍，中间不再重算地址。
+@@   `sc` 成功。`reload=0`：`__PT_ST_INIT` 已把 rb3 指向该数据单元，中间不再重算地址。
 .macro __PT_SC_STORE_PREP pt, scmnem, lrmnem, srcreg, ea, init, stmnem, stval, stoff, src, exp
 	__PT_LRSC_PREP	\lrmnem, \ea, \init, 0
 	set.rd	rd6, \stval
@@ -236,7 +236,7 @@
 
 @@ 异常进入（`spec/SimRISC-12 §1`「保留机制」：异常或中断进入清本 hart 全部标记）：
 @@   `lr` 建标记 → 触发一次异常/陷阱 → 固件 hmon 按 `HMON_BASE + 0xF8` 的返回槽返回到
-@@   `slot` 处的落点 → `sc` 必须失败（1）、拍不变。`kind` 选进入路径：
+@@   `slot` 处的落点 → `sc` 必须失败（1）、数据单元不变。`kind` 选进入路径：
 @@     malign = `ld.o` @ `maladdr`（该宽度不对齐 ⇒ MALIGN）
 @@     mem    = `ld.o` @ 0（CFXMEM）
 @@     illi   = 原始编码 `enc`（rdHB = rd0 的 sc ⇒ ILLI）

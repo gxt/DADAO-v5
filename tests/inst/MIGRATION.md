@@ -37,7 +37,7 @@
 | 宏 | 参数 | 判据 |
 |---|---|---|
 | `TEST_LD` / `TEST_LD_RB` / `TEST_LD_RA` / `TEST_LD_RF`（`_LO32` 只比低 32 位） | `检查点, 助记符, 目的, 基址, 基址值, 偏移, 期望值` | 目的寄存器 == 期望值 |
-| `TEST_ST` / `TEST_ST_RB` / `TEST_ST_RA` / `TEST_ST_RF` | `检查点, 助记符, 源, 基址, 基址值, 偏移, 源值, beat 期望` | 存储后该 8 字节 beat 逐字节相等（b/w/t 只改几条通道，其余保持） |
+| `TEST_ST` / `TEST_ST_RB` / `TEST_ST_RA` / `TEST_ST_RF` | `检查点, 助记符, 源, 基址, 基址值, 偏移, 源值, 数据单元期望` | 存储后该 8 字节数据单元逐字节相等（b/w/t 只改其中几个字节，其余保持） |
 | `TEST_FAULT` | `检查点, 助记符, 目的/源, 故障名, 基址, 基址值, 偏移` | 该指令触发 `CFXMEM`/`CFXREG`/`ILLI`/`MALIGN`/`IALIGN`，退出码 = `0xF0|异常位索引` |
 
 - **镜像 = 每 `.S` 一个**（`m15-testcases-007`）：一个 `.S` 产出**一个** ELF/镜像 ——
@@ -401,21 +401,21 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 ### `m13-testcases-013`：`01-load-store` 多元素（`ldm.*` + `stm.*`，19 个 id）
 
 - 宏层新增（`tests/inst/macros/inst_test.inc`）：`TEST_LDM`（装入 → 同宽度/同组
-  `stm.*` 回写 → 逐 8 B 拍比内联期望）、`TEST_STM`（同宽度/同组 `ldm.*` 预装 →
-  存储 → 逐拍比期望，期望含保持字节）、`TEST_FAULT_M`（rrri 故障例）、
+  `stm.*` 回写 → 逐 8 字节数据单元比内联期望）、`TEST_STM`（同宽度/同组 `ldm.*` 预装 →
+  存储 → 逐个数据单元比期望，期望含保持字节）、`TEST_FAULT_M`（rrri 故障例）、
   `TEST_FAULT_ENC`（汇编器拒绝的编码：`immu6=0`、组首+`immu6>64`）。
   一行 = 一个检查点（宏内单次 `__REC`），点号仍 = 用例序号。
 - 数据区新增（`.testdata`，与单元素用例的 0x000–0x0E8 区不重叠）：`MDATA_B/W/T/O`
-  （逐元素可辨）、`MUNI`（同值拍，最大个数例）、`MDUMP`（装入回写落点）、
+  （逐元素可辨）、`MUNI`（同值数据单元，最大个数例）、`MDUMP`（装入回写落点）、
   `MSTORE`（存储落点 + 保持区模式）。`.testdata` 0x1000→0x2000、结果缓冲
   0x3000→0x4000、退出参数块 0x4000→0x5000（`inst-tiny.lds` ASSERT 同步）。
 - 用例：每 id 13–21 点；多元素例 `count>1` 占多数（1/2/3/8/9/16 与 63；63 只出现在
-  `ldm.o_rd`/`ldm.ub_rd`/`ldm.o_ra`/`ldm.o_rf`）；`stm.b` 9 元素 = 2 拍且第二拍只开
-  1 lane；存储例都带左右保持区核对；`ldm` 抽样元素用 `__CHECK_RD` 独立核对。
+  `ldm.o_rd`/`ldm.ub_rd`/`ldm.o_ra`/`ldm.o_rf`）；`stm.b` 9 元素 = 2 个数据单元且第二个数据单元只写
+  1 个字节；存储例都带左右保持区核对；`ldm` 抽样元素用 `__CHECK_RD` 独立核对。
 - 故障：`immu6=0`/组首+`immu6>64`/目的 rd0·rb0/`ldm` 重叠 ⇒ ILLI；`MALIGN`；
   CFXMEM 三形态（cfxha 0 段、整段越 SRAM 尾、保留 cfx 段）。
   **多元素不要求无副作用**（用户 2026-11-13 裁定：允许部分元素已生效）⇒ 故障例**只比异常码**，
-  不判目的寄存器/目标内存；「中途总线 denied」在 Tiny 不可构造（`ISS-381` F-c）。
+  不判目的寄存器/目标内存；「中途访存 denied」在 Tiny 不可构造（`ISS-381` F-c）。
 - **overlap**（规范 `SimRISC-01` + `mreg_range_addr_overlap`，`m13-spec-005` 定稿）：`ldm` **禁重叠**
   —— RD 形式索引 `rdHC`、RB 形式基址 `rbHB` 落在传送范围内 ⇒ ILLI；`stm` **允许重叠**（只读，
   行为确定）⇒ 正常执行并核源组未被改写；RA/RF 形式结构上不可能相交 ⇒ 不适用。
@@ -440,7 +440,7 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 - **探针不借被测指令**：目的在 rd 直接比；在 rb/ra/rf 用**同组 `st.o`** 落到
   `SCRATCH`（`TEST_DATA+0x1400`）再逐字节比 —— 期望不依赖另一条复制指令。
   ra/rf 初值只能经内存给（`set.zw`/`or.w` 无 ra/rf 形式）⇒ `RDATA`（`TEST_DATA+0x1300`，
-  16 拍字面量）；`+0x70` 的 `[63:54]=0` 值专供 `ra0` 作目的。
+  16 个 8 字节数据单元字面量）；`+0x70` 的 `[63:54]=0` 值专供 `ra0` 作目的。
 - **覆盖**：每 id 15–17 点；块复制含 encoding（助记符 + 规范编码字 `.dd.t32`）、
   semantic（1/2/3/7 元素、源含 0 号寄存器）、boundary（组顶端、最大个数：同组 31 /
   跨组 63）、legality（`dst_rd0`/`dst_rb0`、`immu6=0`、两侧 `起始+immu6>64`）、
@@ -468,7 +468,7 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
   `__LI` 自身用 `set.zw`/`or.w` 拼常量，故这组变体防「期望由被测指令自证」）、
   `TEST_WI_RF0_NOOP`/`TEST_WI_RF0_WRITE`（rf0 的 FCSR 写掩码，见下）、
   `TEST_FAULT_WI`（`dst_rd0`/`dst_rb0` ⇒ ILLI）。数据区新增 WDATA（`+0x1500`，
-  16 拍）/ WSCRATCH（`+0x1580`，rf0 例的前/后 8 B）。
+  16 个 8 字节数据单元）/ WSCRATCH（`+0x1580`，rf0 例的前/后 8 B）。
 - **探针不借被测指令**：目的在 rd 直接比；在 rb/rf 用同组 `st.o` 落到 SCRATCH
   再逐字节比。初值：rd 用 `set.rd`、rb 用 `set.rb`、rf 用 `set.fo`（整 64 位；`m15-testcases-006` 起装载一律用规范伪指令）。
 - 用例：每 id 14 点（encoding 2 / semantic 5 / boundary 6 / overlap 1），`set.w` 17 点
@@ -620,7 +620,7 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 - 改动（**不改已通过用例**，只追加段）：`st.o_rrii_rb.S`（+3 链例点，`rb0` 作**源** =
   当前指令地址）、`st.o_rrii_rd.S`（+1 点，`rb0` 作**基址**，该 id 的源寄存器组是 rd ⇒ 只有
   `rbhb` 能编 `rb0`）、`ld.o_rrii_ra.S`（+7 点 = `ra0` 读 4 + 写 3）；故障例点号顺延。
-  宏层新增 `__CHECK_MEM_RB`（内存 beat vs **运行期派生**的 RB 期望：先 `rb2rd` 到 rd22 再比）；
+  宏层新增 `__CHECK_MEM_RB`（内存数据单元 vs **运行期派生**的 RB 期望：先 `rb2rd` 到 rd22 再比）；
   驱动器 `run_asm_suite.py` 的链例行识别放宽为 `__CHECK_(?:RD|MEM)\w*`。
 - **`rb0` 期望值**：`llvm-mc` 只折装绝对常量（标签差折 0，`ISS-424`）⇒ ①`aip.si rbX, 0`
   + `add.si rbX, <delta>`；②`rb2rb rbX, rb0, 1` + `add.si rbX, <delta>`；③`.org` 钉住
@@ -742,7 +742,7 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
 - **语义**（`spec/SimRISC-12 §1`「保留机制」+ `contract-isa §14.2` + 用户裁定 2026-11-14
   「ISS-435 严格按 spec」）：点 17 同字异址写（`st.b@A+1`）、点 18 同址异宽写（`st.t@A`）、
   点 19 同址同宽同 hart 写 ⇒ `sc` **必须成功（0）**（清除侧只列「另一 hart 同址同宽 store」）；
-  点 20 本 hart 另一条 `lr`、点 21 `sc` 自消费后二次 `sc` ⇒ **失败（1）**。每点手算拍值内联断言
+  点 20 本 hart 另一条 `lr`、点 21 `sc` 自消费后二次 `sc` ⇒ **失败（1）**。每点手算数据单元值内联断言
   （`__VERIFY_MEM`），每点一行、点号连续。
 - **三方逐字节**：`run_asm_suite.py`（同一 ELF：chipyard / qemu / gem5）2/2 镜像（链例 21 点 =
   168 B、故障例 `0xF8`）三平台 rc=0 且字节流逐字节相同；点 17–21 实测 `0 0 0 1 1`。
@@ -773,7 +773,7 @@ QEMU 实跑 3/3 通过。文件名**不是** opcode id ⇒ 在 `check_tests_inde
   「目的 == 源内存」）、overlap/rf0 2（相邻不相交窗口合法；`rf0` 作**源**合法且读完整 64 位）、
   故障 6（`dst_rf0`/`mreg_zero`/`mreg_range_overflow` 目的侧与源侧/`mreg_range_overlap` 完全重合与部分交错）。
 - **宏层新增**（`tests/inst/macros/inst_test.inc`）：`__VERIFY_MEM_RF`/`__CHECK_MEM_RF`（rf 目的 vs
-  内存 beat，探针 = `rf2rd` 跨组读回 + `ld.o`；命名/参数与 `__CHECK_MEM_RB` 同形）、
+  内存数据单元，探针 = `rf2rd` 跨组读回 + `ld.o`；命名/参数与 `__CHECK_MEM_RB` 同形）、
   `TEST_MOV_RF0`（源 `rf0` 的单寄存器例：期望运行期取自 `rf0` 自身，不钉位型）、`TEST_MOV1` 增
   `rf2rf` 分支。
 - **门控**：`check-tests-index`/`validate-vectors`/`check-case-ledger`/`check-no-residue`/

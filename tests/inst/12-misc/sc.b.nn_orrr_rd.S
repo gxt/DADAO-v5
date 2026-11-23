@@ -9,7 +9,7 @@
 @@ 保留粒度（点 17-21，`spec/SimRISC-12 §1`「保留机制」+ 用户裁定 2026-11-14「ISS-435 严格按 spec」）：
 @@   键 = lr 的**精确地址 + 访问宽度**；同 hart 对同字另一字节 / 同址异宽 / 同址同宽的普通 store
 @@   **都不清标记**（清除侧只列「另一 hart 同址同宽 store」）⇒ 这些点上的 sc 必须成功（0）
-@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA 零区；每例独立 8 B 拍（运行时置初值）
+@@ 数据块：`tests/inst/macros/inst_test.inc` 的 TEST_DATA 零区；每例独立 8 字节数据单元（运行时置初值）
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 用例：encoding 2 / semantic 12 / boundary 5 / overlap 2 / exception 4 / 粒度 1
 @@   （链例 26 + 故障例 1）
@@ -25,7 +25,7 @@
 	.include "tests/inst/macros/inst_test.inc"
 	.include "tests/inst/12-misc/12-misc.inc"
 
-@@ 数据区（TEST_DATA 零区；每例独立 8 B 拍，例间不共享可写字节）：
+@@ 数据区（TEST_DATA 零区；每例独立 8 字节数据单元，例间不共享可写字节）：
 @@   A0..A17 / B0..B17 / L / SCR 在册宏层 `tests/inst/12-misc/12-misc.inc`（单源）；
 @@   本文件只补**宽度专属**的「故意不对齐」地址 LMAL（.w/.t/.o 的 MALIGN 例）。
 	.equ LMAL, TEST_DATA + 0x7f1     @@ 故意不对齐（.w/.t/.o 的 MALIGN 例）
@@ -77,7 +77,7 @@
 	@@! inputs: kind=sc@B(fail);sc@A sym=A6/B6 k=0 init=0x0123456789ABCDEF
 	__PT_SC_LD2_FAIL	8, sc.b.nn, lr.b.nn, rd2, A6, B6, 0x0123456789ABCDEF, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0123456789ABCDEF
 
-	@@ ---- boundary：全 1 源/拍 ⇒ 成功且仍全 1 ----
+	@@ ---- boundary：全 1 源或数据单元 ⇒ 成功且仍全 1 ----
 	@@! inputs: kind=sc sym=A7 k=0 init=all1 src=all1
 	__PT_SC_LD	9, sc.b.nn, lr.b.nn, rd2, A7, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0x0000000000000000, 0xFFFFFFFFFFFFFFFF
 
@@ -93,7 +93,7 @@
 	@@! inputs: kind=sc sym=A10 k=7 init=0xFEDCBA9876543210 src=0x5A5A5A5A5A5A5A5A
 	__PT_SC_LD	12, sc.b.nn, lr.b.nn, rd2, A10, 0xFEDCBA9876543210, 0x5A5A5A5A5A5A5A5A, 0x0000000000000000, 0xFEDCBA987654325A, 7
 
-	@@ ---- boundary：数据区末拍的 sc（地址上界） ----
+	@@ ---- boundary：数据区最后一个数据单元的 sc（地址上界） ----
 	@@! inputs: kind=sc sym=L k=0 init=0x0F1E2D3C4B5A6978 src=0xDEADBEEFCAFEF00D
 	__PT_SC_LD	13, sc.b.nn, lr.b.nn, rd2, L, 0x0F1E2D3C4B5A6978, 0xDEADBEEFCAFEF00D, 0x0000000000000000, 0x0D1E2D3C4B5A6978
 
@@ -117,19 +117,19 @@
 
 	@@ ---- 粒度：同字异址 —— lr.b[A14] 后写 [A14+1]（同 8 B 字、不同精确地址）⇒ 标记仍在 ----
 	@@! inputs: kind=lr.b;st.b@A14+1;sc.b@A14 sym=A14 k=0 init=0x0123456789ABCDEF src=0x5A
-	@@ reload=0：rb3 仍指向该拍（中间是普通 store 例）
+	@@ reload=0：rb3 仍指向该数据单元（中间是普通 store 例）
 	@@ 只改 A14+1（byte1）：01 AA 45 67 89 AB CD EF
 	__PT_SC_STORE_PREP	17, sc.b.nn, lr.b.nn, rd2, A14, 0x0123456789ABCDEF, st.b, 0xAA, 1, 0x5A5A5A5A5A5A5A5A, 0x5AAA456789ABCDEF
 
 	@@ ---- 粒度：同址异宽 —— lr.b[A15] 后 st.t[A15]（同地址、宽度 4 ≠ 1）⇒ 标记仍在 ----
 	@@! inputs: kind=lr.b;st.t@A15;sc.b@A15 sym=A15 k=0 init=0x0123456789ABCDEF src=0x5A
-	@@ reload=0：rb3 仍指向该拍（中间是普通 store 例）
+	@@ reload=0：rb3 仍指向该数据单元（中间是普通 store 例）
 	@@ .t 覆写 byte0-3：DE AD BE EF 89 AB CD EF
 	__PT_SC_STORE_PREP	18, sc.b.nn, lr.b.nn, rd2, A15, 0x0123456789ABCDEF, st.t, 0xDEADBEEF, 0, 0x5A5A5A5A5A5A5A5A, 0x5AADBEEF89ABCDEF
 
 	@@ ---- 粒度：同址同宽同 hart 写 —— lr.b[A16] 后 st.b[A16]（仅「另一 hart」才清）⇒ 标记仍在 ----
 	@@! inputs: kind=lr.b;st.b@A16;sc.b@A16 sym=A16 k=0 init=0x0123456789ABCDEF src=0x5A
-	@@ reload=0：rb3 仍指向该拍（中间是普通 store 例）
+	@@ reload=0：rb3 仍指向该数据单元（中间是普通 store 例）
 	@@ 同 hart、同精确地址、同宽度：77 23 45 67 89 AB CD EF
 	__PT_SC_STORE_PREP	19, sc.b.nn, lr.b.nn, rd2, A16, 0x0123456789ABCDEF, st.b, 0x77, 0, 0x5A5A5A5A5A5A5A5A, 0x5A23456789ABCDEF
 
@@ -139,12 +139,12 @@
 
 	@@ ---- 粒度：sc 自身消费标记 —— lr[B2] → sc（0）→ 再 sc（1），内存保留首次写 ----
 	@@! inputs: kind=lr.b;sc.b;sc.b sym=B2 k=0 init=0x0F1E2D3C4B5A6978 src=0x5A,0x99
-	@@ reload=0：rb3 仍指向该拍（中间是普通 store 例）
+	@@ reload=0：rb3 仍指向该数据单元（中间是普通 store 例）
 	__PT_SC_2SC_SELF	21, sc.b.nn, lr.b.nn, rd2, B2, 0x0F1E2D3C4B5A6978, 0x5A5A5A5A5A5A5A5A, 0x9999999999999999, 0x5A1E2D3C4B5A6978
 
 	@@ ---- 异常进入（`ISS-443`）：四路径后 sc 必失败（spec/SimRISC-12 §1）----
 	@@ 落点由 `.org` 钉在 .text 的 0x3000/0x3100/0x3200/0x3300；hmon 返回槽指向落点。
-	@@ 期望全为 1（清除事件），拍保持初值（失败不写内存）。
+	@@ 期望全为 1（清除事件），数据单元保持初值（失败不写内存）。
 
 	@@ 点 22：MALIGN —— lr.b[B7] → ld.o @TEST_DATA+0x7f1（未按 8 B 对齐）→ sc.b[B7]
 	@@! inputs: kind=lr.b;ld.o@LMAL;sc.b sym=B7 k=0 init=0x0F1E2D3C4B5A6978 src=0x5A

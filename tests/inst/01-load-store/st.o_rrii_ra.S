@@ -14,12 +14,12 @@
 
 @@ ---- 文件专用宏（m15-testcases-002 下沉；只被本文件使用）----
 @@ ra 源（rd → ra 用 orri 复制；基址寄存器不得与源同名）
-.macro TEST_ST_RA pt, mnem, src, base, baseval, off, srcval, beat
+.macro TEST_ST_RA pt, mnem, src, base, baseval, off, srcval, unit
 	set.rd	rd20, \srcval
 	rd2ra	{\src:\src}, {rd20:rd20}
 	set.rb \base, \baseval
 	\mnem	\src, [\base, \off]
-	__CHECK_MEM \pt, \baseval, \off, \beat
+	__CHECK_MEM \pt, \baseval, \off, \unit
 .endm
 
 	__TEST_BEGIN
@@ -58,7 +58,7 @@
 	TEST_ST_RA  16, st.o,    ra5,   rb6,   MSTORE + 0x1C0,   0x000,    0x7FFFFFFFFFFFFFFF, 0x7FFFFFFFFFFFFFFF
 	TEST_ST_RA  17, st.o,    ra5,   rb6,   MSTORE + 0x1C8,   0x000,    0x8000000000000000, 0x8000000000000000
 	TEST_ST_RA  18, st.o,    ra5,   rb6,   MSTORE + 0x1D0,   0x000,    0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF
-	@@   ^ 三条各写 MSTORE + 0x1C0/0x1C8/0x1D0 一拍（值 = TEST_DATA + 0x028/0x020/0x088 的 64 位分量）
+	@@   ^ 三条各在 MSTORE + 0x1C0/0x1C8/0x1D0 写一个数据单元（值 = TEST_DATA + 0x028/0x020/0x088 的 64 位分量）
 
 	@@ ---- rb0 作基址：imm 负 / 零 / 正三档（`spec/SimRISC-00 §2`：rb0 读出 = **当前指令地址**，非「下一条」）----
 	@@   槽与被测指令都由 `.org` 钉住：llvm-mc 把标签差折成 0（ISS-424）⇒ imm 只能写字面常量；
@@ -78,7 +78,7 @@ __rb0n_ck:
 	jump	[rb0, __rb0z]
 	.org	0x20C0
 __rb0z:
-	@@ 被测 @0x20D0：EA = 自身指令地址（宏内预读 8 B 拍、只改高 32 位后写回）
+	@@ 被测 @0x20D0：EA = 自身指令地址（宏内预读 8 字节数据单元、只改高 32 位后写回）
 	__CHECK_RD_ST_IP 20, st.o, ra5, ra
 __rb0z_ck:
 	set.rd	rd2, 0x1111111111111111

@@ -1,7 +1,7 @@
 @@ stm.w_rrri_rd.S — stm.w {rdHA:rdHA+immu6-1}, [rbHB, rdHC]（rrri, opc 0x31）
 @@ 大类：01-load-store（取数存数，`spec/SimRISC-01 §1`）
 @@ id：stm.w_rrri_rd　形式：rrri　opc：0x31　mask：0xFF000000
-@@ 语义：mem16[EA + 2i] ← 源 i 低 16 位；EA = rb[47:0] + rd[63:0]（immu6 = 元素个数 1..63；元素宽度整除 8 且起址按宽度对齐 ⇒ 元素不跨 8 B 拍）
+@@ 语义：mem16[EA + 2i] ← 源 i 低 16 位；EA = rb[47:0] + rd[63:0]（immu6 = 元素个数 1..63；元素宽度整除 8 且起址按宽度对齐 ⇒ 元素不跨 8 字节数据单元）
 @@ 合法性：rd0 作源合法（读出 0/当前指令地址）；允许索引 rdHC 落在源范围内（`stm` 只读，行为确定，不触发 ILLI）；immu6=0 ⇒ ILLI；rdHA+immu6>64 ⇒ ILLI（不环绕、不截断）；首址未按 2 B 对齐 ⇒ MALIGN
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的多元素区（MDATA_B/W/T/O、MUNI、MDUMP、MSTORE；字面量见该文件）
 @@ 用例：boundary 3 / rb0 3（链例 18 + 故障例 7；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
@@ -19,19 +19,19 @@
 	@@ semantic：count=3
 	TEST_STM         2, stm.w, rd, {rd5:rd7}, rb4, MSTORE, rd19, 0x018, MDATA_W + 0x010, 0x80088009800A00A3
 
-	@@ semantic：count=16（多拍，元素不跨 8 B 拍）
+	@@ semantic：count=16（多个数据单元，元素不跨 8 字节数据单元）
 	TEST_STM         3, stm.w, rd, {rd24:rd39}, rb4, MSTORE, rd19, 0x030, MDATA_W + 0x020, 0x8010801180128013, 0x8014801580168017, 0x80188019801A801B, 0x801C801D801E801F
 
-	@@ 保持区：存储区左侧拍保持不变
+	@@ 保持区：存储区左侧数据单元保持不变
 	__CHECK_MEM         4, MSTORE, 0x028, 0xC0DE0000000000A5
 
-	@@ boundary：EA 在拍内（+2）—— 首拍前 2 字节保持
+	@@ boundary：EA 在数据单元内（+2）—— 首个数据单元前 2 字节保持
 	TEST_STM         5, stm.w, rd, {rd5:rd7}, rb4, MSTORE, rd19, 0x062, MDATA_W + 0x058, 0xC0DE802C802D802E
 
 	@@ boundary：偏移寄存器为负（EA = 基址 + 负偏移，取 48 位模加）
 	TEST_STM         6, stm.w, rd, {rd5:rd6}, rb4, MSTORE + 0x878, rd19, -0x800, MDATA_W + 0x050, 0x80288029000000AF
 
-	@@ boundary：SRAM 尾拍（0xffffff7ffff8）可写，读写逐字节相等
+	@@ boundary：SRAM 尾部数据单元（0xffffff7ffff8）可写，读写逐字节相等
 	set.rb rb28, MDATA_W + 0x090
 	ldm.uw	{rd5:rd8}, [rb28, rd0]
 	set.rd    rd19, 0x000
@@ -70,7 +70,7 @@
 	TEST_STM  13, stm.w,   rd, {rd5:rd5}, rb4, MSTORE, rd19, 0x1C6, TEST_DATA + 0x028, 0xC0DE000000007FFF
 	TEST_STM  14, stm.w,   rd, {rd5:rd5}, rb4, MSTORE, rd19, 0x1CE, TEST_DATA + 0x020, 0xC0DE000000008000
 	TEST_STM  15, stm.w,   rd, {rd5:rd5}, rb4, MSTORE, rd19, 0x1D6, TEST_DATA + 0x088, 0xC0DE00000000FFFF
-	@@   ^ 三条各写 MSTORE + 0x1C0/0x1C8/0x1D0 一拍（值 = TEST_DATA + 0x028/0x020/0x088 的 16 位分量）
+	@@   ^ 三条各在 MSTORE + 0x1C0/0x1C8/0x1D0 写一个数据单元（值 = TEST_DATA + 0x028/0x020/0x088 的 16 位分量）
 
 	@@ ---- rb0 作基址：imm 负 / 零 / 正三档（`spec/SimRISC-00 §2`：rb0 读出 = **当前指令地址**，非「下一条」）----
 	@@   槽与被测指令都由 `.org` 钉住：llvm-mc 把标签差折成 0（ISS-424）⇒ imm 只能写字面常量；

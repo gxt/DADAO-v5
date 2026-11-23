@@ -48,7 +48,7 @@
 	TEST_ST    16, st.w,    rd5,   rb6,   MSTORE + 0x1C6,   0x000,    0x0000000000007FFF, 0xC0DE000000007FFF
 	TEST_ST    17, st.w,    rd5,   rb6,   MSTORE + 0x1CE,   0x000,    0x0000000000008000, 0xC0DE000000008000
 	TEST_ST    18, st.w,    rd5,   rb6,   MSTORE + 0x1D6,   0x000,    0x000000000000FFFF, 0xC0DE00000000FFFF
-	@@   ^ 三条各写 MSTORE + 0x1C0/0x1C8/0x1D0 一拍（值 = TEST_DATA + 0x028/0x020/0x088 的 16 位分量）
+	@@   ^ 三条各在 MSTORE + 0x1C0/0x1C8/0x1D0 写一个数据单元（值 = TEST_DATA + 0x028/0x020/0x088 的 16 位分量）
 
 	@@ ---- rb0 作基址：imm 负 / 零 / 正三档（`spec/SimRISC-00 §2`：rb0 读出 = **当前指令地址**，非「下一条」）----
 	@@   槽与被测指令都由 `.org` 钉住：llvm-mc 把标签差折成 0（ISS-424）⇒ imm 只能写字面常量；
