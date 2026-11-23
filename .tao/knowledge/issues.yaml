@@ -1422,7 +1422,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2】chipyard RTL 的 Vast BootROM 几何复用 Tiny：`bootROMBase/Size = 0xffff_ffff_0000/64 KiB` ⇒ `cfx_power cg7` 块 0 的 `start/size` = `0x3ff_ffff_0000`/`0x1_0000`，与 `spec/Kaiwu §3`/`machine.yaml(vast)` 的 `0x3ff_ffc0_0000`/`0x40_0000` 不符（`m16-testcases-016` 登记 DIV-12）。待裁定：修 RTL 的 Vast 地址映射，还是改 spec 口径；修好前 `arch-power-001` 槽 5/6 走登记例外。"
+  title: "【P2】chipyard RTL 的 Vast BootROM 几何复用 Tiny：`bootROMBase/Size = 0xffff_ffff_0000/64 KiB` ⇒ `cfx_power cg7` 块 0 的 `start/size` = `0x3ff_ffff_0000`/`0x1_0000`，与 `spec/Kaiwu §3`/`machine.yaml(vast)` 的 `0x3ff_ffc0_0000`/`0x40_0000` 不符（`m16-testcases-016` 登记 DIV-12）。**用户 2026-11-23 裁定 B：修 RTL**（窗口/复位向量是硬件，镜像布局是构建/装载侧；`build_step5_bootrom.py` 已产标准 Vast 4 MiB 镜像，chipyard 资源生成器吃稀疏 hex）⇒ 由 `m16-chipyard-025` 承接（几何改 4 MiB + 稀疏镜像 + 启动路径 + 删 DIV-12）。"
 - id: ISS-524
   scope:
   - chipyard

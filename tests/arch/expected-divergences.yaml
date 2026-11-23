@@ -102,7 +102,7 @@ divergences:
     scope: [chipyard]
     impact: "`cfx_power` 的 cg7 块 0 在 RTL 上描述 **64 KiB** BootROM（`start = 0x3ff_ffff_0000`、`size = 0x1_0000`），QEMU/gem5 按 `spec/Kaiwu §3` 描述 **4 MiB**（`start = 0x3ff_ffc0_0000`、`size = 0x40_0000`）⇒ `arch-power-001` 的 `space0_start`/`space0_size` 两槽三方不一致（其它 26 槽一致）。"
     reason: "`WumingVastAddressMap`（chipyard `DadaoConfigs.scala`）直接复用 `WumingTinyAddressMap` 的 `bootROMBase`/`bootROMSize`：RTL 只实现 Vast 的 64 KiB 复位窗口（测试体经 `+loadmem` 装入 PA RAM），未按 `spec/Kaiwu §3` / `contracts/machine.yaml` 的 Vast profile 铺 4 MiB BootROM。`m16-testcases-016` 实测（同一 ELF 三方逐槽）。"
-    user_ruling: "待用户裁定（2026-11-23 实测登记；定性 temporary 待确认→修 RTL 几何 / 或由 spec 裁定 Vast 用 64 KiB 复位窗口）"
+    user_ruling: "2026-11-23 用户裁定 B：修 RTL（4 MiB 窗口 + Vast 镜像布局）；由 `m16-chipyard-025` 承接，完成即删本登记"
     status: active
     close_when: "RTL 的 Vast BootROM 几何改为 `spec/Kaiwu §3` 的 4 MiB（或 spec 明确 Vast 只要求 64 KiB 复位窗口并同步 machine.yaml）"
     slots:
