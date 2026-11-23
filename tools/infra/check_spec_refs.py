@@ -8,7 +8,9 @@ Check 1: 每个 [SimRISC-XX §...] / [DADAO-XX §...] / [Toolchain-01 §...] /
          [Machine-01 §...] 可解析到 spec/ 真实内容。
          三类命中: 标题(#1~4) > 粗体引子(> **X**：/ **X**) > 正文行。
          数值节号 (§7.2) 命中标题 `7.2 对齐指示符`（标题以 `N.M ` 起始）。
-         模板占位节名 (§x / §N) 跳过。
+         标题型引用 (§5.1 标题) 同时校章号（ISS-447）: 章号必须等于该标题
+         实际所在节的编号；章号写错即使标题文本一致也 FAIL 并指出实际节号。
+         无法判定的形态（模板占位 §x / §N）跳过，摘要里打印跳过原因（不静默）。
 Check 2: 含规范标记(ILLI/UNDI/MALIGN/IALIGN/保留/reserved/必须 等) 且既无
          spec 引用也无 [spec-decision]/ADR 引用的断言 → 报「无引用断言」。
 
@@ -26,12 +28,17 @@ fail-closed: 有违规 → exit 1; 无违规 → exit 0.
 
 Usage:
     python3 tools/infra/check_spec_refs.py [--contract-dir DIR] [--spec-dir DIR]
+    python3 tools/infra/check_spec_refs.py --self-test
 """
 
 import argparse
+import contextlib
+import io
 import os
 import re
+import shutil
 import sys
+import tempfile
 from pathlib import Path
 
 # ── 显式排除名单（机械生成投影，非叙述合约，无来源头/§ 引用）──────────────
@@ -160,7 +167,18 @@ def load_spec_file(spec_dir: Path, prefix: str) -> str | None:
 
 # 标题前导章节号（SPEC-133t）：`N` / `N.M` / `N.M.K`，可带 `.`/`、` 分隔。
 # 标题加号后，按标题文本（如 `§存取RD寄存器`）的引用须先剥离前导编号再比对。
-_LEAD_NUM_RE = re.compile(r"^\d+(?:\.\d+)*[\.、]?\s+")
+# 第一组 = 章号本体（ISS-447：标题型引用须同时校章号，故须取出编号）。
+_LEAD_NUM_RE = re.compile(r"^(\d+(?:\.\d+)*)[\.、]?\s+")
+
+
+def _lead_number(text: str) -> str | None:
+    """Return the leading section number (`N` / `N.M` / `N.M.K`) or None.
+
+    `3.1 存取RD寄存器` → `3.1`; `1. 运行模式` → `1`;
+    `16位数据运算` / `0.5.0（…）` → None（编号后无空格，非标题编号）。
+    """
+    m = _LEAD_NUM_RE.match(text)
+    return m.group(1) if m else None
 
 
 def _strip_lead_number(text: str) -> str:
@@ -184,11 +202,17 @@ def _header_matches(header: str, section: str) -> bool:
        reference (`§存取RD寄存器`) still resolves to a now-numbered heading
        (`### 3.1 存取RD寄存器`), and `§2.1 核内地址空间` resolves to
        `### 2.1 核内地址空间`.
+    5. ISS-447: when the reference **pins a chapter number** (`§9.9 存取RD寄存器`),
+       that number must equal the heading's number — the title text alone can no
+       longer rescue a wrong chapter number.
     """
     if _text_matches(header, section):
         return True
     if _num_section_matches(header, section):
         return True
+    section_num = _lead_number(section)
+    if section_num is not None and section_num != _lead_number(header):
+        return False  # 章号不符：标题文本一致也不得命中
     h = _strip_lead_number(header)
     s = _strip_lead_number(section)
     if (h, s) != (header, section) and _text_matches(h, s):
@@ -342,6 +366,37 @@ def resolve_section(spec_content: str, section_name: str) -> tuple[str, bool]:
     return "", False
 
 
+def _heading_numbers_with_title(spec_content: str, title: str) -> list[str]:
+    """Return section numbers of headings whose title text agrees with `title`."""
+    nums: list[str] = []
+    for m in _HEADER_RE.finditer(spec_content):
+        header = m.group(1).strip()
+        if _text_matches(_strip_lead_number(header), title):
+            num = _lead_number(header)
+            if num and num not in nums:
+                nums.append(num)
+    return nums
+
+
+def chapter_mismatch_hint(spec_content: str, section: str) -> str:
+    """Diagnose a chapter-number/title mismatch; '' when not applicable.
+
+    For each `§`-part that pins a number (`9.9 存取RD寄存器`), look up the
+    headings carrying the same title text; if they exist under a *different*
+    number, return a message naming the actual section (ISS-447).
+    """
+    for part in (p.strip() for p in section.split("§") if p.strip()):
+        num = _lead_number(part)
+        if num is None:
+            continue
+        title = _strip_lead_number(part)
+        actual = [n for n in _heading_numbers_with_title(spec_content, title) if n != num]
+        if actual:
+            places = ", ".join(f"§{n}" for n in actual)
+            return f"章号与标题不匹配: 引用 §{num}，标题「{title}」实际位于 {places}"
+    return ""
+
+
 def is_in_code_block(line: str, in_code: bool) -> bool:
     """Track code block state (``` delimited)."""
     if line.strip().startswith("```"):
@@ -448,11 +503,12 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
                 if found:
                     check1_hit_stats[hit_type] += 1
                 else:
+                    reason = chapter_mismatch_hint(spec_content, section) or "节标题未找到"
                     check1_violations.append({
                         "file": str(cfile),
                         "line": lineno,
                         "ref": full_match,
-                        "reason": "节标题未找到",
+                        "reason": reason,
                         "hit_type": "",
                     })
 
@@ -561,7 +617,8 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
     print(f"  (Lnn) 行号形态: {check1_ln_count} 处")
     if check1_ln_count == 0:
         print(f"  注: 本轮无 (Lnn) 实例")
-    print(f"  模板占位节名 (§x/§N 等): {check1_placeholder_count} 处 (跳过校验)")
+    print(f"  跳过 — 模板占位节名 (§x/§N 等): {check1_placeholder_count} 处"
+          f"（跳过原因: 格式占位，非真实引用）")
     print(f"  命中类型统计: 标题={check1_hit_stats['header']}, "
           f"粗体={check1_hit_stats['bold']}, 正文={check1_hit_stats['text']}")
     resolved = sum(check1_hit_stats.values())
@@ -605,6 +662,107 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
     return total_violations
 
 
+def _run_quietly(contract_dir: Path, spec_dir: Path) -> tuple[int, str]:
+    """Run audit() and capture its report (used by --self-test)."""
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        rc = audit(contract_dir, spec_dir)
+    return rc, buf.getvalue()
+
+
+# ── --self-test: 合成 fixture（非仓库文本）────────────────────────────────
+# ISS-447：两条注入分别覆盖「标题对、章号错」与「章号对、标题错」。
+_SELFTEST_SPEC = """# 自检 spec（非仓库文本）
+
+## 1. 总则
+
+正文。
+
+### 3.1 存取RD寄存器
+
+寄存器存取说明。
+
+### 5.1 判定（入口 tag）
+
+判定说明。
+"""
+
+_SELFTEST_CONTRACT = """# 自检合约（非仓库文本）
+
+- 存取指令写回 RD 寄存器。[SimRISC-00 §3.1 存取RD寄存器]
+- 入口按 tag 判定。[SimRISC-00 §5.1 判定（入口 tag）]
+"""
+
+
+def self_test() -> int:
+    # 合成 fixture 落系统临时目录（tempfile 自选根），用后清理；不写死运行期路径。
+    tmp = Path(tempfile.mkdtemp(prefix="check-spec-refs-selftest-"))
+    contract_dir = tmp / "contracts"
+    spec_dir = tmp / "spec"
+    fails: list[str] = []
+
+    def note(ok: bool, what: str, detail: str = "") -> None:
+        print(f"  [{'OK' if ok else 'FAIL'}] {what}{(' — ' + detail) if detail else ''}")
+        if not ok:
+            fails.append(what)
+
+    try:
+        contract_dir.mkdir()
+        spec_dir.mkdir()
+        contract = contract_dir / "contract-selftest.md"
+        contract.write_text(_SELFTEST_CONTRACT, encoding="utf-8")
+        (spec_dir / SPEC_PREFIX_MAP["SimRISC-00"]).write_text(_SELFTEST_SPEC, encoding="utf-8")
+        pristine = tmp / "pristine-contract.md"
+        shutil.copy2(contract, pristine)  # 还原基线（cp + md5 对账见证据脚本）
+
+        # 1) 基线：标题与章号一致 ⇒ PASS
+        rc0, out0 = _run_quietly(contract_dir, spec_dir)
+        note(rc0 == 0, "基线（章号+标题均正确）必须 PASS", f"rc={rc0}")
+
+        # 2) 注入 A：标题正确、章号错（§3.1 → §9.9）⇒ FAIL 且指名实际节号
+        contract.write_text(
+            _SELFTEST_CONTRACT.replace("§3.1 存取RD寄存器", "§9.9 存取RD寄存器"),
+            encoding="utf-8",
+        )
+        rc1, out1 = _run_quietly(contract_dir, spec_dir)
+        note(
+            rc1 > 0 and "章号与标题不匹配" in out1 and "§9.9" in out1 and "§3.1" in out1
+            and "contract-selftest.md:" in out1,
+            "注入『标题对、章号错』必须 FAIL 并指名文件/行/实际节号",
+            f"rc={rc1}",
+        )
+
+        # 3) 还原 ⇒ PASS
+        shutil.copy2(pristine, contract)
+        rc2, _ = _run_quietly(contract_dir, spec_dir)
+        note(rc2 == 0, "还原后必须 PASS", f"rc={rc2}")
+
+        # 4) 注入 B：章号正确、标题错（判定（入口 tag）→ 判定（入口 tagX））⇒ FAIL
+        contract.write_text(
+            _SELFTEST_CONTRACT.replace("判定（入口 tag）", "判定（入口 tagX）"),
+            encoding="utf-8",
+        )
+        rc3, out3 = _run_quietly(contract_dir, spec_dir)
+        note(
+            rc3 > 0 and "节标题未找到" in out3 and "§5.1 判定（入口 tagX）" in out3,
+            "注入『章号对、标题错』必须 FAIL 并指名引用",
+            f"rc={rc3}",
+        )
+
+        # 5) 还原 ⇒ PASS
+        shutil.copy2(pristine, contract)
+        rc4, _ = _run_quietly(contract_dir, spec_dir)
+        note(rc4 == 0, "最终还原后必须 PASS", f"rc={rc4}")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+    if fails:
+        print(f"check-spec-refs --self-test: FAIL ({len(fails)} 项预期不成立)")
+        return 1
+    print("check-spec-refs --self-test: PASS（章号错 / 标题错 两路注入→FAIL→还原→PASS）")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="spec 引用审计器")
     default_root = Path(__file__).resolve().parents[2]
@@ -620,7 +778,15 @@ def main():
         default=default_root / "spec",
         help="spec 文件目录 (default: spec/)",
     )
+    parser.add_argument(
+        "--self-test",
+        action="store_true",
+        help="自检：合成 fixture 上『章号错 / 标题错』两路注入 → FAIL → 还原 → PASS",
+    )
     args = parser.parse_args()
+
+    if args.self_test:
+        sys.exit(self_test())
 
     violations = audit(args.contract_dir, args.spec_dir)
     sys.exit(1 if violations > 0 else 0)

@@ -764,9 +764,9 @@
   - spec
   - infra
   milestone: M17
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M17
+  resolved_by: m17-infra-001（标题型引用同时校章号）
   title: "【P2】`check-spec-refs` 对**标题型引用**不校验章号：`m13-spec-011` 复核时把 `contract-isa` 里的 `[SimRISC-00 §5.1 …]` 改成 `[SimRISC-00 §9.9 …]`，门控仍 rc=0（实现只剥前导章号后比标题文本、章号本身不比）。后果：迁章/重排后可能出现'标题对、章号错'的悬空引用而全绿。处置：改成解析『§<章号> <标题>』两段并分别校验（章号存在性 + 标题匹配），或补一条独立断言；属门控加严，非放宽。"
 - id: ISS-448
   scope:
