@@ -250,6 +250,43 @@ def repo_text(rel: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
+#: A VMA lookup must sit inside the mmap lock: `find_vma()` asserts it
+#: (mm/mmap.c) and a lock-free read WARNs at include/linux/rwsem.h — the k5
+#: probe did exactly that until m18-linux-019.
+VMA_LOOKUPS = re.compile(
+    r"(?<![A-Za-z0-9_])(?:dadao_pf_find_vma|find_vma)\s*\(")
+MMAP_LOCKS = ("mmap_read_lock(", "mmap_write_lock(")
+MMAP_UNLOCKS = ("mmap_read_unlock(", "mmap_write_unlock(")
+
+
+def vma_lookup_outside_lock(text: str) -> list[str]:
+    """``<line>: <call>`` for every VMA lookup the mmap lock does not cover.
+
+    The probe builds its address space by hand and then reads it from the
+    trap hook, so the same rule has to hold at both sites: the lock depth
+    (read or write) must be positive when the lookup runs.  A textual
+    balance is enough to catch a lookup moved out of its locked region, and
+    it is what `--inject vma-lookup-unlocked` flips.  Comments are dropped
+    first so the rule's own prose is not mistaken for a call.
+    """
+    depth = 0
+    problems: list[str] = []
+    for number, line in enumerate(text.splitlines(), 1):
+        code = line.split("/*", 1)[0]
+        if code.strip().startswith("*"):
+            code = ""
+        if any(token in code for token in MMAP_LOCKS):
+            depth += 1
+        if any(token in code for token in MMAP_UNLOCKS):
+            depth -= 1
+        if depth < 0:
+            problems.append(f"{number}: unlock without a lock")
+            depth = 0
+        if depth <= 0 and VMA_LOOKUPS.search(code):
+            problems.append(f"{number}: {line.strip()[:60]}")
+    return problems
+
+
 def config_value(config: str, symbol: str) -> str | None:
     for line in config.splitlines():
         if line.startswith(symbol + "="):
@@ -470,6 +507,14 @@ def judge_s(rep: Report, text: str, rc: int, config: str | None,
     rep.check(g, "内核没有自报 FAIL 行", [],
               [line.strip() for line in text.splitlines()
                if line.startswith("K5 selftest FAIL")])
+    # m18-linux-019: every VMA lookup of the probe is a mmap-lock guest, and
+    # a lookup moved out of its locked region must show up as the rwsem WARN
+    # (the source-level rule catches it even before the image boots).
+    rep.check(g, "VMA 查找全在 mmap 锁内（源码级）", [],
+              vma_lookup_outside_lock(
+                  kernel_text("arch/dadao/kernel/k5_syscall_selftest.c")))
+    rep.check(g, "日志无 rwsem 锁警告（rwsem.h:81）", 0,
+              text.count("rwsem.h:81"))
     rows = k5sys.check_lines(text)
     rep.check(g, "内核自评的每条 K5 check 都 ok", [],
               [name for name, row in rows if row["verdict"] != "ok"])
@@ -1228,6 +1273,13 @@ INJECTIONS = {
         "\tif (policy == DADAO_PF_FATAL && from_user) {\n",
         "\tif (policy == DADAO_PF_FATAL && from_user && 0) {\n",
         "用户态页故障仍走 DADAO_PF_FATAL（具名终止）⇒ G 组红"),
+    "vma-lookup-unlocked": (
+        "S", "arch/dadao/kernel/k5_syscall_selftest.c",
+        "\t\t\tmmap_read_lock(k5_mm);\n"
+        "\t\t\tvma = find_vma(k5_mm, K5_BRK_VA);\n"
+        "\t\t\tmmap_read_unlock(k5_mm);\n",
+        "\t\t\tvma = find_vma(k5_mm, K5_BRK_VA);\n",
+        "锁外查 VMA ⇒ rwsem.h:81 WARN 且源码锁断言红"),
     "auxv-pagesz-4k": (
         "P", "arch/dadao/include/asm/elf.h",
         "#define ELF_EXEC_PAGESIZE\tPAGE_SIZE\n",
@@ -1413,6 +1465,10 @@ def selfcheck() -> int:
                             "K5 check u3_mmap_einval want=-22 got=-5000 ok")
     flip("S", "errno 越界（-5000）", "errno 全在契约区间", base_s, broken,
          extra={"oracle": None})
+    warn = ("WARNING: CPU: 0 PID: 16 at include/linux/rwsem.h:81 "
+            "find_vma+0x0/0x0")
+    flip("S", "锁外 find_vma（rwsem.h:81 WARN）", "日志无 rwsem 锁警告",
+         base_s, base_s + "\n" + warn, extra={"oracle": None})
 
     # C — the child's rbtp is the tls argument.
     tls = k5clone.stub_constant("K5C_TLS")

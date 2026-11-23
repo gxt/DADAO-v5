@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k5_syscall_selftest.c b/arch/dadao/kernel/k5_syscall_selftest.c
 new file mode 100644
-index 000000000..807f2d05a
+index 000000000..2e4eb824d
 --- /dev/null
 +++ b/arch/dadao/kernel/k5_syscall_selftest.c
-@@ -0,0 +1,798 @@
+@@ -0,0 +1,809 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K5 user-syscall probe (CONFIG_DADAO_K5_SYSCALL_SELFTEST, m14-linux-023).
@@ -474,8 +474,19 @@ index 000000000..807f2d05a
 +		k5_expect("u8_brk_recheck", regs->rd[22], regs->rd[23],
 +			  K5_FAIL_U8);
 +		k5_expect("u8_brk_mm", K5_BRK_WANT, k5_mm->brk, K5_FAIL_U8);
-+		k5_expect("u8_brk_vma", 1,
-+			  find_vma(k5_mm, K5_BRK_VA) ? 1 : 0, K5_FAIL_U8);
++		/* The VMA lookup is the mmap lock's guest: `find_vma()` asserts
++		 * that the lock is held (mm/mmap.c) and this probe used to read
++		 * the tree without it, which WARNed at include/linux/rwsem.h
++		 * (m18-linux-019).  Take the read lock around the lookup, the
++		 * same rule `dadao_pf_find_vma()` follows in mm/fault.c. */
++		{
++			struct vm_area_struct *vma;
++
++			mmap_read_lock(k5_mm);
++			vma = find_vma(k5_mm, K5_BRK_VA);
++			mmap_read_unlock(k5_mm);
++			k5_expect("u8_brk_vma", 1, vma ? 1 : 0, K5_FAIL_U8);
++		}
 +
 +		/* U6: the internal restart codes cannot reach the frame (§9).
 +		 * A real `ERESTARTSYS` needs signal delivery (m14-linux-027),
