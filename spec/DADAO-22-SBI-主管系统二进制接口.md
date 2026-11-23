@@ -742,7 +742,7 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 
 ### 0.8.0-rc（未发布）
 
-- 与 SEE 同步：异步中断投递改为 **monitor-first**（异步先入当前运行模式 monitor、两级 mask 与 pending 都归 monitor、处理期间不嵌套、monitor 可自行处理或 `trap` 到源 cfx），异步 cause 号改**宏 cause 空间 `[31:16]`**（`TIMER = 1<<17`、`PMEM_DMA = 1<<18`），与 `[15:0]` 同步 cause 不撞号。不兼容语义变更，版本升 **0.8.0**。
+- 与 SEE 同步：异步投递模型由 SEE 册定为 **hart-first**（所有异步源统一投递 `cfx_hart`，现场/来源掩码/pending 在其 `cg9`；投递与返回语义见 SEE 册 §5.2、§3.9）；**SBI 语义未变**（功能码、入参、返回值与调用约定均不变）。异步 cause 号改**宏 cause 空间 `[31:16]`**（`TIMER = 1<<17`、`PMEM_DMA = 1<<18`），与 `[15:0]` 同步 cause 不撞号。不兼容语义变更，版本升 **0.8.0**。
 
 - cfx 初始化示例由 `global_cfx_mask` 改为按目标 cfx 的 `cfxtrap` 来源 mask 授权（位索引=源 cfx）。
 

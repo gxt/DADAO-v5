@@ -1,7 +1,8 @@
 # ADR-0059: 用户态异步投递与抢占完整修复（monitor-first 对齐 + 内核路径）
 
-**状态**：Accepted
+**状态**：Superseded by ADR-0060（2026-11-23：monitor-first 投递模型作废，异步改 hart-first）
 **日期**：2026-11-22（R2：monitor-first 重写）／2026-11-23（R3：异步 cause 号 17/18；R4：版本 0.8.0-rc + 逐条裁定落地）
+**保留口径**：以下两条继续有效，不随本 ADR 作废——① **异步 cause 号**：`1<<17` = TIMER、`1<<18` = PMEM_DMA，落在 `[31:16]` 宏 cause 空间；② **mask 位索引 = 来源 cfxha**（TIMER ⇒ 15、PMEM_DMA ⇒ 32），非 cause 位。其余决策（D0/D1/D2/D3/D9，monitor-first 投递、monitor 内 mask/pending、pending 记 mode monitor）由 `ADR-0060` 推翻。
 **关联**：`ISS-500`、`ISS-498`（`m18-linux-004`）；`m18-linux-013`、`m18-qemu-002`；`spec/DADAO-12 §5.2（三）（四）（五）`、`§3.6`（cg5）、`§3.1/§3.3`（mask 行）、`§4.7/§4.9`（TIMER/PMEM_DMA）；`contract-see §3/§6.3/§6.4`；`ADR-0045 D3/D9`、`ADR-0042 D7.4`；`m14-spec-009`
 
 ## Context（背景）

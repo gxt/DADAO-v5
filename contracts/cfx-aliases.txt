@@ -7,7 +7,7 @@
 #          reg    <name> <cfxha> <cg> <rc-base> <rc-count> [canonical]
 #          array  <name-base> <cfxha> <cg> <rc-base> <count> <stride> [canonical]
 # Read at run time from <exe-dir>/../share/dadao/cfx-aliases.txt (or $DADAO_CFX_ALIAS_FILE / --dadao-cfx-alias=).
-# scalars=12 regs=1320
+# scalars=12 regs=1335
 scalar cfx_umon 0 canonical
 scalar cfx_jmon 1 canonical
 scalar cfx_smon 2 canonical
@@ -315,6 +315,8 @@ array cfx_cache_space_attr 5 7 3 16 4 canonical
 reg cfx_cache_exist 5 8 0 1 canonical
 reg cfx_cache_enable 5 8 8 1 canonical
 reg cfx_cache_ctrl 5 8 9 1 canonical
+reg cfx_cache_addr_start 5 8 10 1 canonical
+reg cfx_cache_addr_size 5 8 11 1 canonical
 reg cfx_hart_user_cfxtrap 15 0 0 1 canonical
 reg cfx_hart_user_cfxmem 15 0 1 1 canonical
 reg cfx_hart_user_cfxreg 15 0 2 1 canonical
@@ -367,6 +369,19 @@ reg cfx_hart_cycle 15 8 2 1 canonical
 reg cfx_hart_insn 15 8 3 1 canonical
 reg cfx_hart_timer_cmp 15 8 4 1 canonical
 reg cfx_hart_timer_ctrl 15 8 5 1 canonical
+reg cfx_hart_async_prev_run_mode 15 9 0 1 canonical
+reg cfx_hart_async_prev_cfx_code 15 9 1 1 canonical
+reg cfx_hart_async_cause_ip 15 9 2 1 canonical
+reg cfx_hart_async_cause_id 15 9 3 1 canonical
+reg cfx_hart_async_saved_global_intr_mask 15 9 4 1 canonical
+reg cfx_hart_async_pending 15 9 5 1 canonical
+reg cfx_hart_async_excp_vector 15 9 6 1 canonical
+reg cfx_hart_async_switch_run_mode 15 9 7 1 canonical
+reg cfx_hart_async_global_intr_mask 15 9 8 1 canonical
+reg cfx_hart_async_user_intr_mask 15 9 9 1 canonical
+reg cfx_hart_async_jail_intr_mask 15 9 10 1 canonical
+reg cfx_hart_async_supv_intr_mask 15 9 11 1 canonical
+reg cfx_hart_async_hypv_intr_mask 15 9 12 1 canonical
 reg cfx_pmem_user_cfxtrap 32 0 0 1 canonical
 reg cfx_pmem_user_cfxmem 32 0 1 1 canonical
 reg cfx_pmem_user_cfxreg 32 0 2 1 canonical
