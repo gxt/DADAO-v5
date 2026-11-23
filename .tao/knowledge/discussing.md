@@ -8,9 +8,9 @@
 
 > **归属（主会话分诊 2026-11-20）**：未决项按里程碑分组，逐个里程碑讨论时逐条裁定。标记：**待裁** = 需你拍板；**待办** = 方向已定、只差执行；**关闭** = 已解决（保留记录，不再讨论）。
 >
-> - **M16**：`N1`（M12 spec 残留 9 条，待裁）、`N2`（`escape` 合法偏移 ADR，待逐条确认）、`N35`（cache 规模 256/512 KiB，待裁）
+> - **M16**：`N1`（M12 spec 残留 9 条，待裁）、`N35`（cache 规模 256/512 KiB，待裁）
 > - **M17**：无未决项（`N16`/`N21`/`N26`/`N34` 均已关闭）
-> - **M18**：`N3`（ADR-0046 收口，待办）、`N8`（U-mode/cg5/异步帧，待裁）、`N9`（SBI 生产 provider/W1C，待裁）、`N29`（内核差异盘点 → 整改取舍，待裁）
+> - **M18**：`N3`（ADR-0046 收口，待办）、`N9`（SBI 生产 provider/W1C，待裁）、`N29`（内核差异盘点 → 整改取舍，待裁）
 > - **M19**：`N7`（cfx 待实现范围：cache/UART/IPI/多 hart，待裁）、`N10`（UART 实例号语义，待裁）
 > - **M20**：`N4`（ADR-0057 的 D5–D7，待裁）、`N12`（长仿真心跳方案 A/B/C，待裁）
 > - **未立册方向**：`N28`（Vast 地址图 ADR，待专门讨论）
@@ -28,11 +28,6 @@
 - Tiny `cfx_power` 的 cg7（BootROM start/size）与 `cg8 rc1`（power ctrl，WO）无正文
 - Tiny `switch_run_mode` 写非 hypv 值：寄存器 RW 但无强制路径
 - **`spec-004` 候选**：Vast 的同步异常仍是 staged 机器 fault（`DADAO-12 §5.2(一)` 要求进向量），5 个 arch 探针 oracle 依赖旧口径；统一需同步改 qemu/gem5 + 探针
-
-## N2. `escape` 合法偏移 + SBZ 的 ADR（`SPEC-180t`）
-
-- 结论：escape 合法偏移集 `{0,+4}` + `imms18[17:1]` SBZ ⇒ ILLI；按 `docs/Process-03` 命中外部契约变更 / 多方案 / 结论固化。
-- 下一步：**逐条确认 decision 后**再立 ADR；未确认前只保留为遗留（不得写为 `Accepted`）。
 
 ## N3. `ADR-0046` 仍 `Proposed`
 
@@ -114,11 +109,6 @@
 - 已实现：umon / jmon / smon / hmon / ptw / pmem / time / hart / power。
 - 后置：cache / llc / uart、PMEM 区域分配、IPI、多 hart。
 - 下一步：按 Linux 需求拆任务（M14 启动时）。
-
-## N8. U-mode / cg5 / 异步帧
-
-- 结论（待讨论）：U-mode 的 cfx 目标**不设 ISA 限制**，由 OS 策略决定；cg5 单帧、同步/异步分离、递归/重入**尚未定**。
-- 下一步：等 cg7 与 escape 收口后再讨论。
 
 ## N9. SBI 生产 provider / W1C
 

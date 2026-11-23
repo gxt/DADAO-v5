@@ -55,7 +55,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-spec-003 | 2026-11-23 13:46 | 2–3 h | `escape` frame selector 编码真源（SimRISC-11/IDL/Toolchain-01/contract-asm/Kaiwu/opcodes/legality） |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
 ## 已验证
@@ -66,6 +65,7 @@
 | m18-qemu-002 | 2026-11-23 13:45 | **作废**（ADR-0060）：monitor-first QEMU，reviewer Accepted 但未合入，分支留参考 |
 | m18-qemu-003 | 2026-11-23 13:45 | **作废**（ADR-0060）：旧探针迁 monitor-first，未开工 |
 | m18-spec-002 | 2026-11-23 13:45 | hart-first/cg9 规格与契约同步（`§5.2`/cg9/`§4.7`/`§4.9`/`escape` frame selector；DADAO-23 同步；版本仍 0.8.0-rc） |
+| m18-spec-003 | 2026-11-23 15:01 | `escape` frame selector 编码真源（SimRISC-11/IDL/Toolchain-01/contract-asm/Kaiwu/opcodes/legality；19 路径） |
 | m18-infra-002 | 2026-11-23 02:40 | musl ldso 动态链接运行闭环（P3；system/qemu-user rc=42、pthread/dlopen/TLS/errno 实测；libc.a 不变；零内核/musl 补丁） |
 | m18-linux-014 | 2026-11-23 01:23 | COW 共享文件页 `VM_FAULT_COMPLETED` 双重解锁修复（`fault.c`；5/5 PASS，无 rwsem 警告/停摆；53+14/15 证据项） |
 | m18-linux-005 | 2026-11-22 19:37 | 测试集运行骨架 + kselftest 试点（8 例：PASS1/FAIL2/SKIP2/SIGNAL1/TIMEOUT2；套件校验 23/23；补丁 manifest 双向+逐补丁增量校验） |
