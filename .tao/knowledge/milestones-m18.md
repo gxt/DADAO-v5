@@ -54,13 +54,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-qemu-004 | 2026-11-23 16:05 | 4–6 h | QEMU hart-first 异步仲裁（`cfx_hart cg9`、cause 17/18、escape bit1） |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-qemu-004 | 2026-11-23 17:26 | QEMU hart-first 异步仲裁（`cfx_hart cg9`、mask 15/32、pending 17/18、escape bit1；16+12 证据） |
 | m18-llvm-001 | 2026-11-23 16:05 | `escape` 汇编/反汇编支持 0/4/8（imms18 bit1；lit 182/182；`case-ledger` 生成物） |
 | m18-idl-001 | 2026-11-23 15:53 | `escape` 帧选择位 IDL/语义库/向量（cg9 自检 14 条；11-cfx case13/14/19/20；cg9 向量延至 testcases-002） |
 | m18-spec-003 | 2026-11-23 15:01 | `escape` frame selector 编码真源（SimRISC-11/IDL/Toolchain-01/contract-asm/Kaiwu/opcodes/legality；19 路径） |
