@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
 """Min ROM probe for INTEG-051t: hart-first asynchronous arbitration.
 
-The probe checks the test-machine convention after ADR-0060:
+The probe checks the test-machine convention after ADR-0061:
 
   * ``doc`` (pure Python, no QEMU): the contract-see arbitration entry and the
-    patch tree (no monitor/source pending bitmap, no ``async_enable``, one
-    async entry function, masks read only inside it).
-  * ``runtime`` (min-ROM, QEMU): every asynchronous source (TIMER ``1<<17``,
-    PMEM_DMA ``1<<18``) is delivered to **cfx_hart** (cfxha 15) through its
-    single supv vector ``cfx_hart cg9 rc6``; the frame/masks/pending all live
-    in ``cfx_hart cg9``; masks are indexed by the *source* cfxha (15/32) while
-    ``async_pending`` is indexed by the *cause id* (1<<17/1<<18).
+    patch tree (pending/frame bitmaps in cfx_hart cg9, masks on the running
+    mode monitor only, no macro cause id, no async_enable, one async entry).
+  * ``runtime`` (min-ROM, QEMU): every asynchronous source is identified by its
+    **source cfxha** (TIMER 15, PMEM_DMA 32), never by an ``excp_cause_id``.
+    Delivery is hart-first: ``cfx_hart cg9 rc3`` is the frame source bitmap and
+    ``rc4`` the pending bitmap (both HW/RO); the source mask is the *running
+    mode* monitor's ``cg8 rc1`` (``cfx_<monitor>_async_intr_mask``, reset all-1).
+    One instruction boundary merges every pending and allowed source into one
+    frame; a live frame (``src_frame != 0``) admits no nesting; a legal
+    ``escape`` releases the frame.
 
 Expectations are derived by hand from the frozen spec / contract:
-  - spec/DADAO-12 §3.9 (cg9 register table), §5.2(四) (hart-first entry),
-    §5.1/§5.3 (escape frame selector: imms18 in {0,1,2}, 3 => ILLI),
-    §4.7 (cfx_hart TIMER/IMASK), §4.9 (cfx_pmem PMEM_DMA).
-  - .tao/contracts/contract-see.md «统一异步中断仲裁（测试机约定，hart-first）».
+  - spec/DADAO-12 §4.1-§4.4 (monitor async mask), §4.7 (cg9 seven slots,
+    timer), §4.9 (cfx_pmem DMA), §5.1/§5.4 (escape frame selector, entry/exit).
+  - .tao/contracts/contract-see.md §3 «统一异步中断（测试机约定，hart-first）».
   Never from the QEMU implementation.
 
 Observation channels: everything (frame fields, pending bits, counters) is
@@ -24,13 +26,12 @@ checked in-program and reported through the semihosting SYS_EXIT code, so no
 case depends on a ``-d cpu`` dump block.
 
 Bootstrap (body runs in hmon / cfx3, hypv, via the shared prelude):
-  1. open cfx_hart's supv deleg for cg8/cg9 (``hypv_cg_reg_deleg = 0x8``) and
-     the same for cfx_smon (the sync handler for ILLI/CFXREG);
-  2. install ``cfx_hart cg9 rc6`` = async handler, ``rc7`` = supv (2);
+  1. open cfx_hart's cg9 and cfx_smon's cg5 for supv (``hypv_cg_reg_deleg=0x8``);
+  2. install ``cfx_hart cg9 rc5`` = async handler, ``rc6`` = supv (2);
   3. install cfx_smon's supv vector = sync-exception recorder;
   4. poison cfx_hmon's hypv vector (any monitor hop would exit FAIL);
-  5. leave the five cg9 source masks at their reset value (all-1); each case
-     opens them through ``cfx2rc cfx_hart, cg9, rc8/rc11/rc12``.
+  5. leave every monitor mask at its reset value (all-1); each case opens the
+     source bits it needs through ``cfx2rc <monitor>, cg8, rc1``.
 
 Usage:
   min_rom_probe_integ051t.py --doc          # offline checks only
@@ -56,7 +57,7 @@ if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
 import machine_profile as _machine_profile  # noqa: E402
 import node_probe_prelude as _prelude  # noqa: E402
 
-_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
+_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "vast")
 RAM_BASE = _MACH.ram_base
 RAM_END = _MACH.ram_end
 SP = _MACH.sp
@@ -82,25 +83,26 @@ HART_HA = 15
 PMEM_HA = 32
 HMON_HA = 3
 SMON_HA = 2
-POWER_HA = 63
 HART_CG = 8
+MON_CG = 8
+MON_MASK_RC = 1
 PMEM_DMA_CG = 15
 
-# cfx_hart cg9 (DADAO-12 §3.9): rc0..rc12.
-RC_PREV_MODE, RC_PREV_CFX, RC_CAUSE_IP, RC_CAUSE_ID = 0, 1, 2, 3
-RC_SAVED_GLOBAL, RC_PENDING, RC_VECTOR, RC_SWITCH = 4, 5, 6, 7
-RC_GLOBAL_MASK = 8
-RC_MODE_MASK_USER, RC_MODE_MASK_JAIL, RC_MODE_MASK_SUPV, RC_MODE_MASK_HYPV = 9, 10, 11, 12
+# cfx_hart cg9 (DADAO-12 §4.7; ADR-0061 D7): rc0..rc6, rc7-rc15 reserved.
+RC_PREV_MODE, RC_PREV_CFX, RC_CAUSE_IP = 0, 1, 2
+RC_FRAME, RC_PENDING, RC_VECTOR, RC_SWITCH = 3, 4, 5, 6
 
 # cg5 (sync frame) / cg4 counters.
 CG5_CAUSE_ID_RC, CG5_CAUSE_IP_RC, CG5_CAUSE_INFO_RC, CG5_PENDING_RC = 2, 3, 4, 5
 CG4_ASYNC_NUM_RC = 4
-CG3_CFX_INTR_MASK_RC = 4
 CG3_EXCP_VECTOR_RC = 10
 DMA_SRC_RC, DMA_DST_RC, DMA_SIZE_RC, DMA_CTRL_RC, DMA_STATUS_RC = 0, 1, 2, 3, 4
 
-TIMER = 1 << 17
-PMEM_DMA = 1 << 18
+# Source identity = source cfxha (not an excp_cause_id; ADR-0061 D2).
+SRC_TIMER = 1 << HART_HA          # bit 15
+SRC_PMEM = 1 << PMEM_HA           # bit 32
+SRC_BOTH = SRC_TIMER | SRC_PMEM
+
 ILLI = 1 << 8
 CFXREG = 1 << 2
 CTRL_START = 1 << 0
@@ -117,11 +119,6 @@ PMEM_BASE = (PMEM_HA << 42) | 0x3FF00000000
 DATA_PA = RAM_BASE + 0x4000
 
 ALL1 = (1 << 64) - 1
-# Five source masks: bit = *source cfxha*, 1 = masked.
-MASK_TIMER_OPEN = ALL1 & ~(1 << HART_HA)   # TIMER (15) open, PMEM (32) masked
-MASK_PMEM_OPEN = ALL1 & ~(1 << PMEM_HA)    # PMEM (32) open, TIMER (15) masked
-MASK_BOTH = ALL1                           # both masked
-# The contract's "open a cfx for supv" value: only the fixed bit3 stays set.
 DELEG_OPEN = 0x8
 
 EXIT_PASS = 0x00
@@ -147,22 +144,21 @@ ROM_END = 0x2800
 
 # RAM state block (zero-filled; rb5 = RAM_BASE).
 RAM_STATE = 0x3000
-RAM_SEQ = RAM_STATE + 0x00           # total async deliveries
-RAM_DEPTH = RAM_STATE + 0x08         # nesting depth
-RAM_REENT = RAM_STATE + 0x10         # 1 if a delivery nested inside a handler
-RAM_LAST_ID = RAM_STATE + 0x18
-RAM_LAST_IP = RAM_STATE + 0x20
-RAM_LAST_PREVM = RAM_STATE + 0x28
-RAM_LAST_PREVC = RAM_STATE + 0x30
-RAM_LAST_SAVED = RAM_STATE + 0x38
-RAM_INSIDE_G = RAM_STATE + 0x40
-RAM_TIMER_N = RAM_STATE + 0x48
-RAM_PMEM_N = RAM_STATE + 0x50
-RAM_SYNC_N = RAM_STATE + 0x58
-RAM_SYNC_ID = RAM_STATE + 0x60
-RAM_ILLI_N = RAM_STATE + 0x68
-RAM_CFXREG_N = RAM_STATE + 0x70
-RAM_ARM_IP = RAM_STATE + 0x78        # body address of the arm marker
+RAM_SEQ = RAM_STATE + 0x00           # total async frames entered
+RAM_DEPTH = RAM_STATE + 0x08         # frame nesting depth
+RAM_REENT = RAM_STATE + 0x10         # 1 if a frame nested inside a handler
+RAM_LAST_FRAME = RAM_STATE + 0x18    # cg9 rc3 at entry
+RAM_LAST_PENDING = RAM_STATE + 0x20  # cg9 rc4 at entry
+RAM_LAST_IP = RAM_STATE + 0x28       # cg9 rc2 at entry
+RAM_LAST_PREVM = RAM_STATE + 0x30
+RAM_LAST_PREVC = RAM_STATE + 0x38
+RAM_TIMER_N = RAM_STATE + 0x40       # frames carrying bit 15
+RAM_PMEM_N = RAM_STATE + 0x48        # frames carrying bit 32
+RAM_SYNC_N = RAM_STATE + 0x50
+RAM_SYNC_ID = RAM_STATE + 0x58
+RAM_ILLI_N = RAM_STATE + 0x60
+RAM_CFXREG_N = RAM_STATE + 0x68
+RAM_ARM_IP = RAM_STATE + 0x70        # body address of the arm marker
 
 SEMIHOST_TAG = 0x3FF00
 ADP_STOPPED_APPLICATION_EXIT = 0x20026
@@ -320,6 +316,16 @@ def _inc(a, off, rd):
     a.emit(st_o(rd, 5, off))
 
 
+def _count_source(a, frame_rd, srcbit, off, tag):
+    """Increment `off` once when bit `srcbit` is in the frame bitmap."""
+    skip = "src_%s_%d" % (tag, len(a.words))
+    a.emit(*load_rd(38, srcbit))
+    a.emit(and_o(38, frame_rd, 38))
+    a.br("z", 38, 0, skip)
+    _inc(a, off, 36)
+    a.mark(skip)
+
+
 def build_async_handler(extra=None):
     """Record the cg9 frame, then escape back to ``async_cause_ip``.
 
@@ -328,12 +334,11 @@ def build_async_handler(extra=None):
     encoding cases).  Each word must not clobber rd30..rd39 expectations.
     """
     a = Asm()
-    a.emit(cfx2rd(HART_HA, 9, RC_CAUSE_ID, 30))
-    a.emit(cfx2rd(HART_HA, 9, RC_CAUSE_IP, 31))
-    a.emit(cfx2rd(HART_HA, 9, RC_PREV_MODE, 32))
-    a.emit(cfx2rd(HART_HA, 9, RC_PREV_CFX, 33))
-    a.emit(cfx2rd(HART_HA, 9, RC_SAVED_GLOBAL, 34))
-    a.emit(cfx2rd(HART_HA, 9, RC_GLOBAL_MASK, 35))
+    a.emit(cfx2rd(HART_HA, 9, RC_FRAME, 30))
+    a.emit(cfx2rd(HART_HA, 9, RC_PENDING, 31))
+    a.emit(cfx2rd(HART_HA, 9, RC_CAUSE_IP, 32))
+    a.emit(cfx2rd(HART_HA, 9, RC_PREV_MODE, 33))
+    a.emit(cfx2rd(HART_HA, 9, RC_PREV_CFX, 34))
     a.emit(ld_o(36, 5, RAM_SEQ))
     a.emit(ld_o(37, 5, RAM_DEPTH))
     okd = "depth0_%d" % len(a.words)
@@ -345,61 +350,64 @@ def build_async_handler(extra=None):
     a.emit(st_o(37, 5, RAM_DEPTH))
     a.emit(add_si(36, 1))
     a.emit(st_o(36, 5, RAM_SEQ))
-    a.emit(st_o(30, 5, RAM_LAST_ID))
-    a.emit(st_o(31, 5, RAM_LAST_IP))
-    a.emit(st_o(32, 5, RAM_LAST_PREVM))
-    a.emit(st_o(33, 5, RAM_LAST_PREVC))
-    a.emit(st_o(34, 5, RAM_LAST_SAVED))
-    a.emit(st_o(35, 5, RAM_INSIDE_G))
-    # Per-source counter: TIMER (1<<17) or PMEM_DMA (1<<18).
-    a.emit(*load_rd(38, TIMER))
-    timer_lbl = "src_t_%d" % len(a.words)
-    after_lbl = "src_a_%d" % len(a.words)
-    a.br("eq", 30, 38, timer_lbl)
-    _inc(a, RAM_PMEM_N, 36)
-    a.br("z", 0, 0, after_lbl)
-    a.mark(timer_lbl)
-    _inc(a, RAM_TIMER_N, 36)
-    a.mark(after_lbl)
+    a.emit(st_o(30, 5, RAM_LAST_FRAME))
+    a.emit(st_o(31, 5, RAM_LAST_PENDING))
+    a.emit(st_o(32, 5, RAM_LAST_IP))
+    a.emit(st_o(33, 5, RAM_LAST_PREVM))
+    a.emit(st_o(34, 5, RAM_LAST_PREVC))
+    _count_source(a, 30, SRC_TIMER, RAM_TIMER_N, "t")
+    _count_source(a, 30, SRC_PMEM, RAM_PMEM_N, "p")
     if extra:
         a.emit(*extra)
     a.emit(*load_rd(36, 0))
     a.emit(st_o(36, 5, RAM_DEPTH))
-    a.emit(escape(HART_HA, 2))          # cg9 frame, offset 0
+    a.emit(escape(HART_HA, 2))          # cg9 frame, offset 0 (releases it)
     return a.resolve()
 
 
 def build_frame_handler():
-    """PMEM handler that arms TIMER inside the live cg9 frame (no-nesting)."""
+    """PMEM frame: arm TIMER inside the live frame, prove no nesting."""
     a = Asm()
     body = build_async_handler()[:-1]   # drop the trailing escape
     a.emit(*body)
-    # Arm TIMER for now+500 while cause_id != 0 (event arrival mode = supv =>
-    # the event is filtered by cg9 rc11, which the body opened).
+    # Arm TIMER for now+500 while src_frame != 0.  The event may only become
+    # pending; the frame bitmap must not change and no second frame may enter.
     a.emit(cfx2rd(HART_HA, HART_CG, 2, 36))
-    a.emit(add_si(36, 500))
+    a.emit(add_si(36, -1))           # already expired: the ctrl write fires it
     a.emit(cfx2rc(HART_HA, HART_CG, 4, 36))
     a.emit(*load_rd(36, CTRL_ENABLE))
     a.emit(cfx2rc(HART_HA, HART_CG, 5, 36))
-    a.emit(*load_rd(37, 4000))
-    tag = "frame_delay"
-    a.mark(tag)
-    a.emit(add_si(37, -1))
-    a.br("nz", 37, 0, tag)
-    # Inside the frame the second source must not be delivered ...
-    a.emit(ld_o(38, 5, RAM_TIMER_N))
-    ok0 = "frame_nohart"
-    a.br("z", 38, 0, ok0)
+    # Inside the frame the TIMER source must not appear in src_frame ...
+    a.emit(cfx2rd(HART_HA, 9, RC_FRAME, 38))
+    ok0 = "frame_kept"
+    a.emit(*load_rd(39, SRC_PMEM))
+    a.br("eq", 38, 39, ok0)
     a.emit(*exit_seq(0x71))
     a.mark(ok0)
-    # ... but its pending bit (cause-id bit 17) must be recorded.
-    a.emit(cfx2rd(HART_HA, 9, RC_PENDING, 38))
-    a.emit(*load_rd(39, TIMER))
-    a.emit(and_o(38, 38, 39))
-    ok1 = "frame_pending"
-    a.br("nz", 38, 0, ok1)
+    # ... no TIMER frame may have entered ...
+    a.emit(ld_o(38, 5, RAM_TIMER_N))
+    ok1 = "frame_nohart"
+    a.br("z", 38, 0, ok1)
     a.emit(*exit_seq(0x72))
     a.mark(ok1)
+    # ... but the TIMER pending bit (source cfxha 15) must be recorded.  Poll
+    # with cfx2rd so the main loop can run the virtual-clock timer callback.
+    a.emit(*load_rd(37, 4000))
+    poll = "frame_poll"
+    ok2 = "frame_pending"
+    a.mark(poll)
+    a.emit(cfx2rd(HART_HA, 9, RC_PENDING, 38))
+    a.emit(*load_rd(39, SRC_TIMER))
+    a.emit(and_o(38, 38, 39))
+    a.br("nz", 38, 0, ok2)
+    a.emit(add_si(37, -1))
+    a.br("nz", 37, 0, poll)
+    a.emit(*exit_seq(0x73))
+    a.mark(ok2)
+    # The parked TIMER becomes the next frame after this escape; point the
+    # vector back at the plain handler (this handler would arm another timer).
+    a.emit(*load_rd(36, hmon_addr(OFF_MAIN_HND)))
+    a.emit(cfx2rc(HART_HA, 9, RC_VECTOR, 36))
     a.emit(escape(HART_HA, 2))
     return a.resolve()
 
@@ -473,13 +481,6 @@ def need_eq(a, rd, want, code, tag):
     a.mark(ok)
 
 
-def need_same(a, rd_a, rd_b, code, tag):
-    ok = "same_%s_%d" % (tag, len(a.words))
-    a.br("eq", rd_a, rd_b, ok)
-    a.emit(*exit_seq(code))
-    a.mark(ok)
-
-
 def need_mask_set(a, rd, mask, code, tag):
     ok = "ms_%s_%d" % (tag, len(a.words))
     a.emit(*load_rd(24, mask))
@@ -498,37 +499,18 @@ def need_mask_clr(a, rd, mask, code, tag):
     a.mark(ok)
 
 
-def async_open(a):
-    """Open the global + hypv/supv source masks (body is hypv; handler supv)."""
-    a.emit(*load_rd(22, 0))
-    for rc in (RC_GLOBAL_MASK, RC_MODE_MASK_SUPV, RC_MODE_MASK_HYPV):
-        a.emit(cfx2rc(HART_HA, 9, rc, 22))
-
-
-def set_global_mask(a, mask):
+def set_mon_mask(a, ha, mask):
+    """Write monitor `ha`'s cg8 rc1 async source mask (1 = masked)."""
     a.emit(*load_rd(22, mask))
-    a.emit(cfx2rc(HART_HA, 9, RC_GLOBAL_MASK, 22))
+    a.emit(cfx2rc(ha, MON_CG, MON_MASK_RC, 22))
 
 
-def set_mode_mask(a, rc, mask):
-    a.emit(*load_rd(22, mask))
-    a.emit(cfx2rc(HART_HA, 9, rc, 22))
-
-
-def release_frame(a, clear_pending=True):
-    """Software frame release: cause_id = 0 (and optionally pending = 0)."""
-    a.emit(*load_rd(22, 0))
-    if clear_pending:
-        a.emit(cfx2rc(HART_HA, 9, RC_PENDING, 22))
-    a.emit(cfx2rc(HART_HA, 9, RC_CAUSE_ID, 22))
+def frame_rd(a, rd):
+    a.emit(cfx2rd(HART_HA, 9, RC_FRAME, rd))
 
 
 def pending_rd(a, rd):
     a.emit(cfx2rd(HART_HA, 9, RC_PENDING, rd))
-
-
-def cause_id_rd(a, rd):
-    a.emit(cfx2rd(HART_HA, 9, RC_CAUSE_ID, rd))
 
 
 def timer_now(a, rd):
@@ -609,17 +591,6 @@ def settle_bound(a):
     _set_bound(a, W_NOW)
 
 
-def check_quiet(a, deadline_rd, cond, zero_is_met, code, tag):
-    done = "q_%s" % tag
-    cond(a, W_WIT)
-    timer_now(a, W_NOW)
-    a.emit(cmp_uo(W_CMP, W_NOW, deadline_rd))
-    a.br("nn", W_CMP, 0, done)
-    a.br("nz" if zero_is_met else "z", W_WIT, 0, done)
-    a.emit(*exit_seq(code))
-    a.mark(done)
-
-
 def wait_cond(a, bound_rd, cond, zero_is_met, tag, code_late, code_lost):
     head = "w_%s" % tag
     got = head + "_got"
@@ -651,11 +622,10 @@ def timer_arm_window(a, delta=DELTA_NS, ctrl=CTRL_ENABLE, base_hart=0,
     done = "tw_%s_ok" % tag
     a.emit(*load_rd(W_MAX, ARM_RETRIES))
     a.mark(retry)
-    a.emit(*load_rd(W_TMP, ALL1))                    # cmp = ~0: cancel
+    a.emit(*load_rd(W_TMP, ALL1))                    # cmp = ~0: cancel+ack
     a.emit(cfx2rc(HART_HA, HART_CG, 4, W_TMP))
     a.emit(*load_rd(W_TMP, 0))                       # ctrl = 0
     a.emit(cfx2rc(HART_HA, HART_CG, 5, W_TMP))
-    a.emit(cfx2rc(HART_HA, 9, RC_PENDING, W_TMP))    # clear pending (cg9 rc5)
     a.emit(*load_rd(W_TMP, base_hart))               # witness baseline
     a.emit(st_o(W_TMP, 5, RAM_TIMER_N))
     a.emit(*load_rd(W_TMP, base_seq))
@@ -697,7 +667,7 @@ def build_rom(prog, hnd=None, vector_off=OFF_MAIN_HND):
 
 def hmon_setup(vector_off=OFF_MAIN_HND):
     ins = load_rb(5, RAM_BASE)                        # handler state block base
-    # cfx_hart / cfx_smon: open the supv deleg for cg8/cg9 (and cg5), i.e. the
+    # cfx_hart / cfx_smon: open the supv deleg for cg9 (and cg5), i.e. the
     # contract's "0x8" whole-group opening (bit3 stays hardware-fixed 1).
     ins += load_rd(21, DELEG_OPEN)
     ins += [cfx2rc(HART_HA, 3, 12, 21), cfx2rc(SMON_HA, 3, 12, 21)]
@@ -705,12 +675,12 @@ def hmon_setup(vector_off=OFF_MAIN_HND):
     # async handler runs in supv, so this is the current-mode monitor).
     ins += load_rd(21, hmon_addr(OFF_SMON_HND))
     ins += [cfx2rc(SMON_HA, 2, CG3_EXCP_VECTOR_RC, 21)]
-    # cfx_hart cg9: single supv async vector; masks stay at reset (all-1).
+    # cfx_hart cg9: supv async vector + fixed switch mode; masks stay at reset.
     ins += load_rd(21, hmon_addr(vector_off))
     ins += [cfx2rc(HART_HA, 9, RC_VECTOR, 21)]
     ins += load_rd(21, 2)
     ins += [cfx2rc(HART_HA, 9, RC_SWITCH, 21)]
-    # Any async delivery to cfx_hmon (monitor hop) => poison => FAIL.
+    # Any sync exception delivered to cfx_hmon (monitor hop) => poison => FAIL.
     ins += load_rd(21, hmon_addr(OFF_POISON))
     ins += [cfx2rc(HMON_HA, 3, CG3_EXCP_VECTOR_RC, 21)]
     return ins
@@ -731,85 +701,89 @@ def case(name, desc, dump=False):
 
 
 @case("cg9_reset_defaults",
-      "cg9 reset: frame/pending 0, switch=supv, five masks all-1")
+      "cg9 7 slots at reset; monitor masks all-1; rc3/rc4 HW/RO")
 def _cg9_reset_defaults():
     a = Asm()
     for rc, want, code in ((RC_PREV_MODE, 0, 0x001), (RC_PREV_CFX, 0, 0x002),
-                           (RC_CAUSE_IP, 0, 0x003), (RC_CAUSE_ID, 0, 0x004),
-                           (RC_SAVED_GLOBAL, 0, 0x005), (RC_PENDING, 0, 0x006)):
+                           (RC_CAUSE_IP, 0, 0x003), (RC_FRAME, 0, 0x004),
+                           (RC_PENDING, 0, 0x005)):
         a.emit(cfx2rd(HART_HA, 9, rc, 5))
         need_eq(a, 5, want, code, "d%d" % rc)
     a.emit(cfx2rd(HART_HA, 9, RC_SWITCH, 5))
-    need_eq(a, 5, 2, 0x007, "swmode")
+    need_eq(a, 5, 2, 0x006, "swmode")
     a.emit(cfx2rd(HART_HA, 9, RC_VECTOR, 5))
-    need_eq(a, 5, hmon_addr(OFF_MAIN_HND), 0x008, "vector")
-    for rc, code in ((RC_GLOBAL_MASK, 0x009), (RC_MODE_MASK_USER, 0x00A),
-                     (RC_MODE_MASK_JAIL, 0x00B), (RC_MODE_MASK_SUPV, 0x00C),
-                     (RC_MODE_MASK_HYPV, 0x00D)):
-        a.emit(cfx2rd(HART_HA, 9, rc, 6))
-        need_eq(a, 6, ALL1, code, "m%d" % rc)
+    need_eq(a, 5, hmon_addr(OFF_MAIN_HND), 0x007, "vector")
+    # The two bitmaps are hardware-write/software-read-only: a write is ignored
+    # and produces no exception.
+    a.emit(*load_rd(22, ALL1))
+    a.emit(cfx2rc(HART_HA, 9, RC_FRAME, 22))
+    a.emit(cfx2rc(HART_HA, 9, RC_PENDING, 22))
+    a.emit(cfx2rd(HART_HA, 9, RC_FRAME, 6))
+    need_eq(a, 6, 0, 0x008, "ro_frame")
+    a.emit(cfx2rd(HART_HA, 9, RC_PENDING, 7))
+    need_eq(a, 7, 0, 0x009, "ro_pending")
+    # Both monitors' async masks are all-1 (masked) at reset.
+    for ha, code in ((HMON_HA, 0x00A), (SMON_HA, 0x00B)):
+        a.emit(cfx2rd(ha, MON_CG, MON_MASK_RC, 8))
+        need_eq(a, 8, ALL1, code, "mask%d" % ha)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
 
 
 @case("timer_frame_hart",
-      "TIMER -> cfx_hart cg9: cause 1<<17, prev hypv/hmon, ip aligned, escape")
+      "TIMER -> cfx_hart frame bit15, prev hypv/hmon, escape releases")
 def _timer_frame_hart():
     a = Asm()
-    async_open(a)
+    set_mon_mask(a, HMON_HA, ALL1 & ~SRC_TIMER)       # open TIMER only
     timer_arm_window(a, tag="tfh")
     wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 1), True, "tfh", 0x011, 0x012)
-    ram_ld(a, RAM_LAST_ID, 5)
-    need_eq(a, 5, TIMER, 0x013, "cid")
-    ram_ld(a, RAM_LAST_PREVM, 6)
-    need_eq(a, 6, 3, 0x014, "prev_mode")
-    ram_ld(a, RAM_LAST_PREVC, 7)
-    need_eq(a, 7, HMON_HA, 0x015, "prev_cfx")
-    ram_ld(a, RAM_LAST_SAVED, 8)
-    need_eq(a, 8, 0, 0x016, "saved_mask")
-    ram_ld(a, RAM_INSIDE_G, 9)
-    need_eq(a, 9, ALL1, 0x017, "inside_global")
+    ram_ld(a, RAM_LAST_FRAME, 5)
+    need_eq(a, 5, SRC_TIMER, 0x013, "frame")
+    ram_ld(a, RAM_LAST_PENDING, 6)
+    need_eq(a, 6, 0, 0x014, "pending_consumed")
+    ram_ld(a, RAM_LAST_PREVM, 7)
+    need_eq(a, 7, 3, 0x015, "prev_mode")
+    ram_ld(a, RAM_LAST_PREVC, 8)
+    need_eq(a, 8, HMON_HA, 0x016, "prev_cfx")
     # cause_ip: 4-byte aligned, inside the body, at/after the arm marker.
     ram_ld(a, RAM_LAST_IP, 10)
     a.emit(*load_rd(24, 3))
     a.emit(and_o(23, 10, 24))
-    need_eq(a, 23, 0, 0x018, "ip_align")
-    need_mask_set(a, 10, ALL1, 0x019, "ip_nonzero")
-    need_mask_clr(a, 10, ~((ROM_BASE + 0x1000) - 1), 0x01A, "ip_range")
+    need_eq(a, 23, 0, 0x017, "ip_align")
+    need_mask_set(a, 10, ALL1, 0x018, "ip_nonzero")
+    need_mask_clr(a, 10, ~((ROM_BASE + 0x1000) - 1), 0x019, "ip_range")
     ram_ld(a, RAM_ARM_IP, 11)
     a.emit(cmp_uo(24, 10, 11))
     a.br("nn", 24, 0, "ip_after_arm")
-    a.emit(*exit_seq(0x01B))
+    a.emit(*exit_seq(0x01A))
     a.mark("ip_after_arm")
-    # escape restored the global mask (saved value 0); frame still live.
-    a.emit(cfx2rd(HART_HA, 9, RC_GLOBAL_MASK, 12))
-    need_eq(a, 12, 0, 0x01C, "global_restored")
-    cause_id_rd(a, 13)
-    need_eq(a, 13, TIMER, 0x01D, "escape_keeps_cause")
-    # Restored run mode = hypv: cg3 is hypv-only (CFXREG otherwise); restored
-    # cfx = hmon: cfx_pmem's hypv row only allows source hmon (bit3) by reset.
-    a.emit(*load_rd(14, 0))
-    a.emit(cfx2rd(HART_HA, 3, 0, 14))
-    need_mask_set(a, 14, 1, 0x01E, "mode_hypv")
-    a.emit(cfx2rd(PMEM_HA, 4, CG4_ASYNC_NUM_RC, 15))
-    need_eq(a, 15, 0, 0x01F, "cfx_hmon")
-    release_frame(a)
+    # One frame entered; cfx_hart's counter counts frames, not sources.
+    a.emit(cfx2rd(HART_HA, 4, CG4_ASYNC_NUM_RC, 12))
+    need_eq(a, 12, 1, 0x01B, "async_num")
+    # escape (in the handler) released the frame and consumed the pending bit.
+    frame_rd(a, 13)
+    need_eq(a, 13, 0, 0x01C, "frame_released")
+    pending_rd(a, 14)
+    need_mask_clr(a, 14, SRC_TIMER, 0x01D, "pending_cleared")
+    delay_loop(a, 3000, "quiet")
+    ram_ld(a, RAM_TIMER_N, 15)
+    need_eq(a, 15, 1, 0x01E, "no_reentry")
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
 
 
 @case("pmem_frame_hart",
-      "PMEM_DMA -> cfx_hart cg9, not the source cfx or a monitor")
+      "PMEM_DMA -> cfx_hart frame bit32, not source cfx / monitor")
 def _pmem_frame_hart():
     a = Asm()
-    async_open(a)
+    set_mon_mask(a, HMON_HA, ALL1 & ~SRC_PMEM)        # open PMEM only
     dma_status_clear(a)
     dma_start(a)
     dma_wait(a)
     settle_bound(a)
     wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "pfh", 0x021, 0x022)
-    ram_ld(a, RAM_LAST_ID, 5)
-    need_eq(a, 5, PMEM_DMA, 0x023, "cid")
+    ram_ld(a, RAM_LAST_FRAME, 5)
+    need_eq(a, 5, SRC_PMEM, 0x023, "frame")
     ram_ld(a, RAM_LAST_PREVM, 6)
     need_eq(a, 6, 3, 0x024, "prev_mode")
     ram_ld(a, RAM_LAST_PREVC, 7)
@@ -819,113 +793,114 @@ def _pmem_frame_hart():
     need_eq(a, 8, 0, 0x026, "src_no_entry")
     a.emit(cfx2rd(HMON_HA, 4, CG4_ASYNC_NUM_RC, 9))
     need_eq(a, 9, 0, 0x027, "monitor_no_entry")
-    cause_id_rd(a, 10)
-    need_eq(a, 10, PMEM_DMA, 0x028, "escape_keeps_cause")
-    release_frame(a)
+    a.emit(cfx2rd(HART_HA, 4, CG4_ASYNC_NUM_RC, 10))
+    need_eq(a, 10, 1, 0x028, "hart_entry")
+    frame_rd(a, 11)
+    need_eq(a, 11, 0, 0x029, "frame_released")
+    dma_status_clear(a)                               # source ack
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
 
 
 @case("mask_index_source",
-      "mask bit = source cfxha (15), not the cause id bit (17)")
+      "mask bit = source cfxha 15; bit17 opens nothing")
 def _mask_index_source():
     a = Asm()
-    async_open(a)
-    # Phase 1: source bit15 open, cause-id bit17 masked -> must still deliver.
-    set_global_mask(a, ALL1 & ~(1 << HART_HA))
-    timer_arm_window(a, tag="m17")
+    # Phase 1: source bit15 open -> delivered.
+    set_mon_mask(a, HMON_HA, ALL1 & ~SRC_TIMER)
+    timer_arm_window(a, tag="mi1")
     wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 1), True, "mi1", 0x031, 0x032)
-    release_frame(a)
-    # Phase 2: source bit15 masked (bit17 open) -> blocks; pending keeps 1<<17.
-    set_global_mask(a, ALL1 & ~(1 << 17))
-    timer_arm_window(a, base_seq=1, base_hart=1, tag="m15")
-    wait_cond(a, W_BOUND, _mask_cond(pending_rd, TIMER), False, "mi2", 0x033, 0x034)
+    # Phase 2: bit15 masked, bit17 open -> still blocked; pending is bit15 only.
+    set_mon_mask(a, HMON_HA, ALL1 & ~(1 << 17))
+    timer_arm_window(a, base_seq=1, base_hart=1, tag="mi2")
+    wait_cond(a, W_BOUND, _mask_cond(pending_rd, SRC_TIMER), False, "mi2",
+              0x033, 0x034)
     ram_ld(a, RAM_TIMER_N, 5)
     need_eq(a, 5, 1, 0x035, "blocked")
     pending_rd(a, 6)
-    need_mask_set(a, 6, TIMER, 0x036, "pend17")
-    need_mask_clr(a, 6, 1 << 15, 0x037, "pend_not_maskbit")
-    # Phase 3: release the mask -> delivery.
-    set_global_mask(a, 0)
+    need_mask_set(a, 6, SRC_TIMER, 0x036, "pend15")
+    need_mask_clr(a, 6, 1 << 17, 0x037, "no_pend17")
+    frame_rd(a, 7)
+    need_eq(a, 7, 0, 0x038, "no_frame")
+    # Phase 3: release the monitor mask -> delivery.
+    set_mon_mask(a, HMON_HA, 0)
     settle_bound(a)
-    wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 2), True, "mi3", 0x038, 0x039)
-    pending_rd(a, 7)
-    need_mask_clr(a, 7, TIMER, 0x03A, "pend_cleared")
-    release_frame(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 2), True, "mi3", 0x039, 0x03A)
+    pending_rd(a, 8)
+    need_mask_clr(a, 8, SRC_TIMER, 0x03B, "pend_cleared")
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
 
 
 @case("mode_mask_row",
-      "mode row = run mode at arrival: hypv(rc12) blocks, supv(rc11) does not")
+      "delivery evaluates the running mode's monitor mask (hypv -> hmon)")
 def _mode_mask_row():
     a = Asm()
-    async_open(a)
-    # Phase 1: supv row fully masked, hypv row open; body is hypv -> delivers.
-    set_mode_mask(a, RC_MODE_MASK_SUPV, ALL1)
+    # Body runs hypv: hmon row masked, smon row open -> must still block.
+    set_mon_mask(a, HMON_HA, ALL1)
+    set_mon_mask(a, SMON_HA, 0)
     timer_arm_window(a, tag="mm1")
-    wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 1), True, "mm1", 0x041, 0x042)
-    release_frame(a)
-    # Phase 2: hypv row masked -> blocks with pending; supv row open.
-    set_mode_mask(a, RC_MODE_MASK_SUPV, 0)
-    set_mode_mask(a, RC_MODE_MASK_HYPV, 1 << HART_HA)
-    timer_arm_window(a, base_seq=1, base_hart=1, tag="mm2")
-    wait_cond(a, W_BOUND, _mask_cond(pending_rd, TIMER), False, "mm2", 0x043, 0x044)
+    wait_cond(a, W_BOUND, _mask_cond(pending_rd, SRC_TIMER), False, "mm1",
+              0x041, 0x042)
     ram_ld(a, RAM_TIMER_N, 5)
-    need_eq(a, 5, 1, 0x045, "blocked_hypv")
-    set_mode_mask(a, RC_MODE_MASK_HYPV, 0)
+    need_eq(a, 5, 0, 0x043, "blocked_hypv")
+    # Open the hypv row -> the event is delivered.
+    set_mon_mask(a, HMON_HA, 0)
     settle_bound(a)
-    wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 2), True, "mm3", 0x046, 0x047)
-    release_frame(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 1), True, "mm2", 0x044, 0x045)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
 
 
-@case("pending_or_order",
-      "pending bits 1<<17/1<<18 (OR); both open => source 15 first, then 32")
-def _pending_or_order():
+@case("one_frame_multi",
+      "TIMER+PMEM pending => one frame, bitmap union, async_num +1")
+def _one_frame_multi():
     a = Asm()
-    async_open(a)
-    set_global_mask(a, MASK_BOTH)
+    set_mon_mask(a, HMON_HA, ALL1)                    # both masked
     dma_status_clear(a)
-    timer_arm_window(a, tag="poo")
+    timer_arm_window(a, tag="ofm")
     dma_start(a)
     dma_wait(a)
-    wait_cond(a, W_BOUND, _mask_cond(pending_rd, TIMER), False, "poo0",
+    wait_cond(a, W_BOUND, _mask_cond(pending_rd, SRC_TIMER), False, "ofm0",
               0x04F, 0x050)
-    wait_cond(a, W_BOUND, _mask_cond(pending_rd, PMEM_DMA), False, "poo1",
+    wait_cond(a, W_BOUND, _mask_cond(pending_rd, SRC_PMEM), False, "ofm1",
               0x051, 0x052)
-    delay_loop(a, 400, "settle")
+    # Both events are pending and no frame has entered yet.
     pending_rd(a, 5)
-    need_mask_set(a, 5, TIMER, 0x053, "p17")
-    need_mask_set(a, 5, PMEM_DMA, 0x054, "p18")
-    need_mask_clr(a, 5, 1 << 15, 0x055, "no_maskbits")
+    need_mask_set(a, 5, SRC_TIMER, 0x053, "p15")
+    need_mask_set(a, 5, SRC_PMEM, 0x054, "p32")
     ram_ld(a, RAM_SEQ, 6)
-    need_eq(a, 6, 0, 0x056, "none_yet")
-    set_global_mask(a, 0)                             # single write, both ready
+    need_eq(a, 6, 0, 0x055, "none_yet")
+    frame_rd(a, 7)
+    need_eq(a, 7, 0, 0x056, "no_frame")
+    # One mask write opens both; one instruction boundary => one frame.
+    set_mon_mask(a, HMON_HA, 0)
     settle_bound(a)
-    wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 1), True, "poo2", 0x057, 0x058)
-    ram_ld(a, RAM_PMEM_N, 7)
-    need_eq(a, 7, 0, 0x059, "pmem_held")
-    pending_rd(a, 8)
-    need_mask_clr(a, 8, TIMER, 0x05A, "p17_cleared")
-    need_mask_set(a, 8, PMEM_DMA, 0x05B, "p18_kept")
-    release_frame(a, clear_pending=False)             # keep pending 18
-    settle_bound(a)
-    wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "poo3", 0x05C, 0x05D)
-    ram_ld(a, RAM_SEQ, 9)
-    need_eq(a, 9, 2, 0x05E, "both_once")
-    release_frame(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_SEQ, 1), True, "ofm2", 0x057, 0x058)
+    ram_ld(a, RAM_LAST_FRAME, 8)
+    need_eq(a, 8, SRC_BOTH, 0x059, "union")
+    ram_ld(a, RAM_LAST_PENDING, 9)
+    need_eq(a, 9, 0, 0x05A, "consumed")
+    ram_ld(a, RAM_TIMER_N, 10)
+    need_eq(a, 10, 1, 0x05B, "timer_in_frame")
+    ram_ld(a, RAM_PMEM_N, 11)
+    need_eq(a, 11, 1, 0x05C, "pmem_in_frame")
+    a.emit(cfx2rd(HART_HA, 4, CG4_ASYNC_NUM_RC, 12))
+    need_eq(a, 12, 1, 0x05D, "one_entry")
+    frame_rd(a, 13)
+    need_eq(a, 13, 0, 0x05E, "released")
+    delay_loop(a, 5000, "no_second")
+    ram_ld(a, RAM_SEQ, 14)
+    need_eq(a, 14, 1, 0x05F, "not_serial")
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
 
 
 @case("dedup_same_source",
-      "two PMEM completions while masked merge into one pending bit/delivery")
+      "two PMEM completions while masked merge into one pending bit/frame")
 def _dedup_same_source():
     a = Asm()
-    async_open(a)
-    set_global_mask(a, MASK_BOTH)
+    set_mon_mask(a, HMON_HA, ALL1)
     dma_status_clear(a)
     dma_start(a)
     dma_wait(a)
@@ -933,78 +908,85 @@ def _dedup_same_source():
     dma_start(a)
     dma_wait(a)
     pending_rd(a, 5)
-    need_mask_set(a, 5, PMEM_DMA, 0x061, "pending")
+    need_mask_set(a, 5, SRC_PMEM, 0x061, "pending")
     ram_ld(a, RAM_SEQ, 6)
     need_eq(a, 6, 0, 0x062, "none_yet")
-    set_global_mask(a, 0)
+    set_mon_mask(a, HMON_HA, 0)
     settle_bound(a)
     wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "dd", 0x063, 0x064)
-    release_frame(a)
     delay_loop(a, 5000, "still")
     ram_ld(a, RAM_PMEM_N, 7)
     need_eq(a, 7, 1, 0x065, "still_once")
+    ram_ld(a, RAM_SEQ, 8)
+    need_eq(a, 8, 1, 0x066, "one_frame")
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
 
 
 @case("no_nest_frame",
-      "TIMER inside a live PMEM cfx_hart frame => pending only, delivered after escape")
+      "TIMER inside a live PMEM frame => pending only, delivered after escape")
 def _no_nest_frame():
     a = Asm()
-    async_open(a)
+    set_mon_mask(a, HMON_HA, ALL1 & ~SRC_BOTH)        # open both sources
     dma_status_clear(a)
     dma_start(a)
     dma_wait(a)
     settle_bound(a)
     wait_cond(a, W_BOUND, _count_cond(RAM_PMEM_N, 1), True, "nn1", 0x071, 0x072)
-    ram_ld(a, RAM_SEQ, 5)
-    need_eq(a, 5, 1, 0x073, "one_frame")
-    ram_ld(a, RAM_REENT, 6)
-    need_eq(a, 6, 0, 0x074, "no_reent")
-    # The frame handler already proved pending 17 was recorded; here the cg9
-    # frame is still live (escape does not clear it) and pending 17 is kept.
-    pending_rd(a, 7)
-    need_mask_set(a, 7, TIMER, 0x075, "pending17")
-    # Software moves the vector back to the plain handler before releasing the
-    # frame; the parked TIMER then enters through it (the frame handler would
-    # arm another timer and treat itself as a first frame).
-    a.emit(*load_rd(22, hmon_addr(OFF_MAIN_HND)))
-    a.emit(cfx2rc(HART_HA, 9, RC_VECTOR, 22))
-    release_frame(a, clear_pending=False)             # frame release => deliver
+    # The frame handler armed TIMER inside the live frame and proved:
+    # src_frame stayed bit32, no TIMER frame entered, pending bit15 landed.
+    # Its escape releases the frame; the parked TIMER is then delivered at the
+    # next instruction boundary, so the body sees two completed frames.
     settle_bound(a)
-    wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 1), True, "nn2", 0x076, 0x077)
-    ram_ld(a, RAM_SEQ, 8)
-    need_eq(a, 8, 2, 0x078, "two_total")
-    ram_ld(a, RAM_REENT, 9)
-    need_eq(a, 9, 0, 0x079, "no_nesting")
-    release_frame(a)
+    wait_cond(a, W_BOUND, _count_cond(RAM_SEQ, 2), True, "nn2", 0x076, 0x077)
+    ram_ld(a, RAM_TIMER_N, 5)
+    need_eq(a, 5, 1, 0x073, "two_frames")
+    ram_ld(a, RAM_PMEM_N, 6)
+    need_eq(a, 6, 1, 0x074, "pmem_once")
+    ram_ld(a, RAM_REENT, 7)
+    need_eq(a, 7, 0, 0x075, "no_nesting")
+    frame_rd(a, 8)
+    need_eq(a, 8, 0, 0x078, "frame_released")
+    pending_rd(a, 9)
+    need_eq(a, 9, 0, 0x079, "pending_drained")
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers(), vector_off=OFF_FRAME_HND), {"exit": EXIT_PASS}
 
 
-@case("release_reenter",
-      "frame live => pending only; write cause_id=0 + pending=0 => quiet; new event enters")
-def _release_reenter():
+@case("ack_semantics",
+      "timer_cmp reload / dma_status W1C drop src_pending; no stale delivery")
+def _ack_semantics():
     a = Asm()
-    async_open(a)
-    timer_arm_window(a, tag="rr1")
-    wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 1), True, "rr1", 0x081, 0x082)
-    cause_id_rd(a, 5)
-    need_eq(a, 5, TIMER, 0x083, "cause_kept")
-    # Second event with the frame still live: pending only, no entry.
-    timer_arm_window(a, base_seq=1, base_hart=1, tag="rr2")
-    wait_cond(a, W_BOUND, _mask_cond(pending_rd, TIMER), False, "rr2", 0x084, 0x085)
+    set_mon_mask(a, HMON_HA, ALL1)                    # keep everything masked
+    # TIMER: an event is pending, then the source is acked by re-writing cmp.
+    timer_arm_window(a, tag="ack1")
+    wait_cond(a, W_BOUND, _mask_cond(pending_rd, SRC_TIMER), False, "ack1",
+              0x081, 0x082)
+    a.emit(*load_rd(22, ALL1))                        # cmp = ~0: cancel + ack
+    a.emit(cfx2rc(HART_HA, HART_CG, 4, 22))
+    pending_rd(a, 5)
+    need_mask_clr(a, 5, SRC_TIMER, 0x083, "timer_ack")
+    # Opening the mask now must not deliver a stale event.
+    set_mon_mask(a, HMON_HA, 0)
+    delay_loop(a, 3000, "quiet_t")
     ram_ld(a, RAM_TIMER_N, 6)
-    need_eq(a, 6, 1, 0x086, "no_entry")
-    # Release: cause_id = 0 and clear the pending bit.  Nothing may enter.
-    release_frame(a)
-    delay_loop(a, 2000, "quiet")
-    ram_ld(a, RAM_TIMER_N, 7)
-    need_eq(a, 7, 1, 0x087, "quiet_after_release")
-    # A new event after the release enters again.
-    timer_arm_window(a, base_seq=1, base_hart=1, tag="rr3")
-    wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 2), True, "rr3", 0x088, 0x089)
-    release_frame(a)
+    need_eq(a, 6, 0, 0x084, "no_stale_timer")
+    # PMEM: completion pending, then W1C dma_status acks it.
+    set_mon_mask(a, HMON_HA, ALL1)
+    dma_status_clear(a)
+    dma_start(a)
+    dma_wait(a)
+    wait_cond(a, W_BOUND, _mask_cond(pending_rd, SRC_PMEM), False, "ack2",
+              0x085, 0x086)
+    dma_status_clear(a)                               # W1C ack
+    pending_rd(a, 7)
+    need_mask_clr(a, 7, SRC_PMEM, 0x087, "dma_ack")
+    set_mon_mask(a, HMON_HA, 0)
+    delay_loop(a, 3000, "quiet_p")
+    ram_ld(a, RAM_PMEM_N, 8)
+    need_eq(a, 8, 0, 0x088, "no_stale_dma")
+    ram_ld(a, RAM_SEQ, 9)
+    need_eq(a, 9, 0, 0x089, "no_frame")
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers()), {"exit": EXIT_PASS}
 
@@ -1018,14 +1000,15 @@ def _ill_extra():
       "escape imms18=3 and [17:2]!=0 => ILLI in supv (recorded), then normal escape")
 def _escape_ill():
     a = Asm()
-    async_open(a)
+    set_mon_mask(a, HMON_HA, ALL1 & ~SRC_TIMER)
     timer_arm_window(a, tag="ei")
     wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 1), True, "ei", 0x091, 0x092)
     ram_ld(a, RAM_ILLI_N, 5)
     need_eq(a, 5, 2, 0x093, "illi_twice")
     ram_ld(a, RAM_CFXREG_N, 6)
     need_eq(a, 6, 0, 0x094, "no_cfxreg")
-    release_frame(a)
+    frame_rd(a, 7)
+    need_eq(a, 7, 0, 0x095, "released")
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers(main_extra=_ill_extra())), {"exit": EXIT_PASS}
 
@@ -1039,14 +1022,13 @@ def _reserved_extra():
       "cg9 rc13/rc15 are reserved: read => CFXREG (not silently 0)")
 def _cg9_reserved():
     a = Asm()
-    async_open(a)
+    set_mon_mask(a, HMON_HA, ALL1 & ~SRC_TIMER)
     timer_arm_window(a, tag="cr")
     wait_cond(a, W_BOUND, _count_cond(RAM_TIMER_N, 1), True, "cr", 0x0A1, 0x0A2)
     ram_ld(a, RAM_CFXREG_N, 5)
     need_eq(a, 5, 2, 0x0A3, "cfxreg_twice")
     ram_ld(a, RAM_ILLI_N, 6)
     need_eq(a, 6, 0, 0x0A4, "no_illi")
-    release_frame(a)
     a.emit(*exit_seq(EXIT_PASS))
     return build_rom(a.resolve(), handlers(main_extra=_reserved_extra())), {"exit": EXIT_PASS}
 
@@ -1065,10 +1047,10 @@ def _read(path):
 
 
 def _contract_entry(text):
-    """Return the «统一异步中断仲裁» bullet body (empty string when absent)."""
+    """Return the «统一异步中断» bullet body (empty string when absent)."""
     lines = text.splitlines()
     for i, line in enumerate(lines):
-        if line.startswith("- **统一异步中断仲裁"):
+        if line.startswith("- **统一异步中断"):
             body = [line]
             for nxt in lines[i + 1:]:
                 if nxt.startswith("- ") or nxt.startswith("#"):
@@ -1132,19 +1114,19 @@ def run_doc():
     contract = _read(CONTRACT_SEE)
     entry = _contract_entry(contract)
     check("contract_arbitration_entry", bool(entry),
-          "«统一异步中断仲裁» bullet found" if entry else "MISSING bullet")
+          "«统一异步中断» bullet found" if entry else "MISSING bullet")
     for token, why in (
-            ("pending", "delivery pending is defined"),
-            ("cfx_hart cg9 rc5", "the single pending record is cg9 rc5"),
-            ("源 cause id", "pending bit = source cause id"),
+            ("async_src_pending", "the single pending bitmap is named"),
+            ("cfx_hart cg9 rc4", "pending lives in cg9 rc4"),
+            ("源 cfxha", "source identity is the source cfxha"),
             ("投递目标 = `cfx_hart`", "hart-first delivery target named"),
-            ("升序", "lowest source cfxha first"),
-            ("单层", "single-layer delivery"),
+            ("一帧多源", "one-frame multi-source is defined"),
+            ("不串行", "no serial split of one boundary"),
+            ("无嵌套", "no nesting inside a live frame"),
             ("补投", "mask release re-delivers"),
-            ("合并", "same-source duplicate events merge"),
             ("不引入", "no async_enable-style gate"),
             ("async_enable", "async_enable named as not introduced"),
-            ("ADR-0060", "hart-first decision cited"),
+            ("ADR-0061", "the revision decision is cited"),
     ):
         check("entry_%s" % token.replace(" ", "_").replace("`", ""), token in entry, why)
 
@@ -1153,12 +1135,20 @@ def run_doc():
           "no target/monitor cg5 pending writes remain")
     check("patch_no_async_enable", "async_enable" not in patches,
           "no async_enable field")
-    check("patch_cg9_pending", "async.pending" in patches,
-          "pending lives in cfx_hart cg9 rc5")
-    check("patch_cause_17_18",
-          "DADAO_CAUSE_TIMER      (1ULL << 17)" in patches and
-          "DADAO_CAUSE_PMEM_DMA    (1ULL << 18)" in patches,
-          "macro cause ids 1<<17 / 1<<18")
+    check("patch_cg9_pending", "async.src_pending" in patches,
+          "pending lives in cfx_hart cg9 rc4")
+    check("patch_cg9_frame", "a->src_frame" in patches,
+          "the frame bitmap lives in cfx_hart cg9 rc3")
+    check("patch_no_macro_cause",
+          "DADAO_CAUSE_TIMER" not in patches and
+          "DADAO_CAUSE_PMEM_DMA" not in patches,
+          "no macro cause ids 1<<17 / 1<<18")
+    check("patch_mask_on_monitor", "async_intr_mask" in patches,
+          "the source mask is the monitor's cg8 rc1")
+    check("patch_no_cg9_masks",
+          "mode_intr_mask" not in patches and
+          "global_cfx_intr_mask" not in patches,
+          "no five-mask / saved-mask state on cfx_hart")
 
     print("doc: %d failed" % len(failures))
     return 0 if not failures else 1
@@ -1174,33 +1164,32 @@ def run_structure():
 
     src = _helper_source()
     arbitrate = _function_body(src, "bool dadao_async_arbitrate(CPUState *cs)")
+    allowed = _function_body(src, "static uint64_t dadao_async_allowed")
     enter = _function_body(src, "static bool dadao_async_enter(CPUDADAOState *env")
     check("arbitrate_found", bool(arbitrate), "arbiter body extracted")
     check("async_enter_found", bool(enter), "hart-first entry body extracted")
-    for bad in ("cfx_intr_mask", "global_cfx_intr_mask"):
-        check("enter_no_%s" % bad, bad not in enter,
-              "monitor masks do not decide async delivery")
-    check("masks_in_enter", "mode_intr_mask" in enter and
-          "global_intr_mask" in enter,
-          "both mask axes are evaluated in the async entry")
+    check("mask_from_running_mode", "async_intr_mask" in allowed and
+          "dadao_async_allowed(env)" in arbitrate,
+          "the running mode monitor's cg8 rc1 decides delivery")
+    check("frame_union", "a->src_frame = src_bits" in enter and
+          "src_pending &= ~src_bits" in enter,
+          "src_frame is the union and pending is consumed")
     check("single_async_entry", arbitrate.count("dadao_async_enter(") == 1,
           "one async entry call site (count=%d)" %
           arbitrate.count("dadao_async_enter("))
-    check("source_15_before_32",
-          "DADAO_CFXHA_HART" in src and "DADAO_CFXHA_PMEM" in src,
-          "candidate table lists cfx_hart (15) and cfx_pmem (32)")
-    src_table = src[src.find("dadao_async_sources[] ="):]
-    src_table = src_table[:src_table.find("};")]
-    check("lowest_cfxha_order",
-          src_table.find("DADAO_CFXHA_HART") < src_table.find("DADAO_CFXHA_PMEM"),
-          "table order is cfx_hart (15) before cfx_pmem (32)")
-    check("pending_only_cg9", "async.pending" in src and
-          "env->cfx[ci].pending |=" not in src,
-          "pending writes target cg9 only")
-    check("escape_frame_selector", "imms18 & ~0x3u" in src and "sel == 3" in src,
-          "escape validates {0,1,2} / cg9 selector")
-    check("cause_check_macro", "DADAO_CAUSE_MACRO16" in src,
-          "dadao_cause_check accepts the macro [31:16] space")
+    for bad in ("mode_intr_mask", "global_intr_mask", "cause_id"):
+        check("enter_no_%s" % bad, bad not in enter,
+              "no cfx_hart mask/cause state in the entry")
+    check("escape_frame_valid", "a->src_frame == 0" in src and
+          "a->src_frame = 0" in src,
+          "escape validates and clears src_frame")
+    check("no_macro_cause_check", "DADAO_CAUSE_MACRO16" not in src and
+          "DADAO_CAUSE_TIMER" not in src,
+          "dadao_cause_check has no macro-cause branch")
+    check("ro_bitmap_writes_ignored",
+          "case 3:" in src and "case 4:" in src and
+          "HW/RO, write ignored" in src,
+          "cg9 rc3/rc4 writes are ignored, not errors")
 
     patches = _patch_text()
     check("patch_no_async_enable", "async_enable" not in patches,

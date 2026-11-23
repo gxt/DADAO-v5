@@ -3,7 +3,7 @@
 
 K2's second half is time: `cfx_time` (cfxha 34) offers a free-running 64-bit
 count, the single-hart timer lives in `cfx_hart` (cfxha 15) and raises the
-maskable asynchronous source `TIMER` (`1 << 17`, `cause_info = 0`) into
+maskable asynchronous source `TIMER` (source cfxha 15, no cause id) into
 `cfx_hart`'s **supv** vector.  This gate boots the real kernel on the Vast
 machine and checks that the kernel turns that into jiffies:
 
@@ -15,9 +15,9 @@ Everything expected here is derived live (nothing is restated):
   * the frequency -> `cg10 rc0 = cfx_time_freq = <value>` in
     `.tao/contracts/contract-see.md` §3 (and 1 count = 1 ns, so the count is a
     period in ns);
-  * the mask bit index -> `contracts/cfx-aliases.txt` (`scalar cfx_hart 15`),
-    while the *cause* id (`TIMER = 1 << 17`) comes from the same contract — the
-    two numbering schemes must not be mixed (contract-see §6.4);
+  * the source/mask bit index -> `contracts/cfx-aliases.txt`
+    (`scalar cfx_hart 15`); an asynchronous source has no `excp_cause_id`
+    (ADR-0061 D2), so there is only one numbering scheme;
   * `HZ` -> the build tree's `.config` (`CONFIG_HZ`), and the period ->
     `freq // HZ`; the kernel's printed hz must equal the configured one, so a
     hardcoded constant in the kernel goes red;
@@ -194,12 +194,14 @@ def contract_freq() -> int:
 
 
 def contract_timer_cause() -> int:
-    """The `TIMER` cause id of contract-see §3 (`1 << 17`)."""
-    text = CONTRACT_SEE.read_text(encoding="utf-8")
-    m = re.search(r"到期触发可屏蔽 `TIMER`（`1 << (\d+)`）", text)
-    if not m:
-        raise SystemExit("k2_time_probe: contract-see §3 TIMER id not found")
-    return 1 << int(m.group(1))
+    """The `TIMER` source bit = `1 << cfxha("cfx_hart")` (15).
+
+    ADR-0061 D2 / DADAO-12 §5.4: an asynchronous source has no cause id; its
+    identity is the source cfxha, and the mask/pending bitmaps use that index.
+    The function name is kept for the callers that still ask for "the TIMER
+    selector".
+    """
+    return 1 << cfxha("cfx_hart")
 
 
 def cfxha(name: str) -> int:
@@ -473,10 +475,10 @@ def check_vector_and_masks(rep: Report, text: str, syms: dict,
     bit = 1 << hart
     rep.check("C7", "cfxha 现场读自 cg4 rc0 == 别名表的 cfx_hart", hart,
               printed_ha)
-    rep.check("C7", "mask 位 = 目标 cfxha（不是 TIMER 的 cause id）", bit,
+    rep.check("C7", "mask 位 = 源 cfxha（异步无独立 cause id）", bit,
               printed_bit)
-    rep.check("C7", "mask 位 != TIMER cause id（两套编号不混用）", True,
-              printed_bit != cause_id)
+    rep.check("C7", "mask 位 == TIMER 源位（只有一套编号）", True,
+              printed_bit == cause_id)
     rep.check("C7", "源轴 cfx_smon 行已放开该位（运行模式 monitor 行）", 0,
               smon & bit)
     rep.check("C7", "源轴 cfx_hart 行未被写（复位值，该位屏蔽，ISS-455）", bit,
@@ -804,8 +806,8 @@ def run_gate(rep: Report, build_images: bool = True) -> dict:
 
     rep.check("C0", "contract-see 的 cfx_time_freq 可解析", True,
               contract_freq() > 0)
-    rep.check("C0", "TIMER cause id 与 cfx_hart 的 mask 位是两套编号", True,
-              contract_timer_cause() != (1 << cfxha("cfx_hart")))
+    rep.check("C0", "TIMER 源位 == cfx_hart 的 mask 位（无独立 cause id）", True,
+              contract_timer_cause() == (1 << cfxha("cfx_hart")))
     rep.stat(f"freq={contract_freq()} timer_cause={contract_timer_cause():#x} "
              f"cfx_hart={cfxha('cfx_hart')} cfx_time={cfxha('cfx_time')} "
              f"declared_ticks={declared_ticks()} "

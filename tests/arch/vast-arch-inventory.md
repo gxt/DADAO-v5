@@ -177,10 +177,10 @@
 
 ### cfx15 hart — QEMU
 
-- **寄存器面**：有。cfx15 在 Vast 掩码内（`components/qemu/patches/target/dadao/cpu.c.patch:55`）；`cg8 rc0/2/3/4/5` = hart_id/cycle/insn/timer_cmp/ctrl|ISTATUS（`components/qemu/patches/target/dadao/helper.c.patch:2552`）。
-- **命令与副作用**：有。单 hart 一次性定时器：`cg8 rc4/rc5` 写、arming（`components/qemu/patches/target/dadao/helper.c.patch`，`dadao_hart_reg_write`/`dadao_hart_timer_arm`）；hart-first 下 TIMER/PMEM_DMA 的 delivery pending 落 `cfx_hart cg9 rc5`（位 = 源 cause id `1<<17`/`1<<18`），mask 在 `cg9 rc8`–`rc12`（位 = 源 cfxha 15/32），投递目标固定 `cfx_hart` 的 supv 单向量 `cg9 rc6`（`components/qemu/patches/target/dadao/helper.c.patch`，`dadao_async_enter`）。
-- **异常与子原因**：有。`TIMER = 1<<17`、`PMEM_DMA = 1<<18`（`components/qemu/patches/target/dadao/cpu.h.patch`，宏 cause 空间），`cause_info = 0`（TIMER；cg9 无 cause_info 字段）；`cfx_hart cg9`（16 项，`rc0`–`rc4` 现场/保存掩码、`rc5` pending、`rc6` 向量、`rc7` 切 supv、`rc8`–`rc12` 五 mask、`rc13`–`rc15` reserved）。
-- **现有测试载体**：QEMU bootrom 探针。`tools/testcases/arch/min_rom_probe_integ050t.py:1`（cfx_time/cfx_hart 寄存器与计数器）、`tools/testcases/arch/min_rom_probe_integ051t.py:1`（hart-first 异步仲裁/TIMER/PMEM_DMA + cg9 现场 + escape 帧选择位）。
+- **寄存器面**：有。cfx15 在 Vast 掩码内（`components/qemu/patches/target/dadao/cpu.c.patch:55`）；`cg8 rc0/2/3/4/5` = hart_id/cycle/insn/timer_cmp/ctrl|ISTATUS、`cg9` 七槽异步现场（`components/qemu/patches/target/dadao/helper.c.patch:2804`、`:3363`）。
+- **命令与副作用**：有。单 hart 一次性定时器：`cg8 rc4/rc5` 写、arming（`components/qemu/patches/target/dadao/helper.c.patch`，`dadao_hart_reg_write`/`dadao_hart_timer_arm`）；hart-first 下 TIMER/PMEM_DMA 的 delivery pending 落 `cfx_hart cg9 rc4`（`async_src_pending`，位 = **源 cfxha** 15/32），来源 mask 在**当前运行模式 monitor** 的 `cg8 rc1`（`cfx_<monitor>_async_intr_mask`，复位全 1），投递目标固定 `cfx_hart` 的 supv 单向量 `cg9 rc5`/`rc6`；同一指令边界把所有 pending 且放行的源合并成一帧（`cg9 rc3` `async_src_frame` 位图并集，`excp_async_num` 每帧 +1）（`components/qemu/patches/target/dadao/helper.c.patch:3160`、`:3184`）。
+- **异常与子原因**：有。异步源**不占 `excp_cause_id`**、无 `cause_info`，源身份 = 源 cfxha（TIMER 15、PMEM_DMA 32）；`cfx_hart cg9` 为 7 槽（`rc0` prev_run_mode、`rc1` prev_cfx_code、`rc2` cause_ip、`rc3` `async_src_frame`（HW/RO）、`rc4` `async_src_pending`（HW/RO）、`rc5` 向量、`rc6` 固定 supv，`rc7`–`rc15` reserved ⇒ `CFXREG`）；合法 `escape` 返回即清 `src_frame` 释放帧。
+- **现有测试载体**：QEMU bootrom 探针。`tools/testcases/arch/min_rom_probe_integ050t.py:1`（cfx_time/cfx_hart 寄存器与计数器）、`tools/testcases/arch/min_rom_probe_integ051t.py:1`（hart-first 异步仲裁/TIMER/PMEM_DMA + cg9 七槽/两图 + 一帧多源 + escape 帧释放）。
 - **现有门控**：`check-arch`（L3 保留清单，`integ050t`/`integ051t` 在 `ARCH_CFX_PROBES`；当前 `check-arch` 只跑 smoke/046t/tlb 载体）。
 
 ### cfx15 hart — gem5

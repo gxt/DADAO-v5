@@ -2,9 +2,9 @@
 """k2_irq_probe.py — M14 K2 interrupt-enable knob gate (`m14-linux-008`).
 
 DADAO has no interrupt-enable state bit: the software IE knob is the running
-mode monitor's `supv_cfx_intr_mask` (`cfx_smon cg2 rc4`, spec/DADAO-12 §5.2
-step 3 / user ruling ISS-455), and the kernel maps `local_irq_*` onto it
-(contract-see §6.4, ADR-0045 D3).  Whether that mapping is *real* can only be
+mode monitor's asynchronous source mask (`cfx_smon_async_intr_mask`,
+`cfx_smon cg8 rc1`, spec/DADAO-12 §4.3/§5.4 / ADR-0061 D5), and the kernel maps
+`local_irq_*` onto it (contract-see §6.4).  Whether that mapping is *real* can only be
 seen from the physical register, so the probe image (`kernel/k2_irq_test.c`,
 CONFIG_DADAO_K2_IRQ_TEST) reads the knob row back with `cfx2rd` after every step
 — and the delivered cfx's row as well, as the witness that nothing writes it —
@@ -13,14 +13,14 @@ and prints the raw words; this gate is the judge.
 Boot path under test:
 
     power -> hmon -> smon -> kernel entry -> setup_arch -> time_init ->
-    async vector -> two mask axes -> arm -> TIMER tick -> [P1, P3, P5, P2] ->
+    async vector -> monitor source mask -> arm -> TIMER tick -> [P1, P3, P5, P2] ->
     [P4: in-frame + after-escape] -> masked exit
 
 What is derived live (nothing is restated):
 
-  * the source bit -> `scalar cfx_hart 15` of `contracts/cfx-aliases.txt`, i.e.
-    `1 << 15` — *not* the cause id (`TIMER = 1 << 17`, from contract-see §3);
-    the two numbering schemes must not be mixed (contract-see §6.4);
+  * the source bit -> `scalar cfx_hart 15` of `contracts/cfx-aliases.txt`,
+    i.e. `1 << 15`; an asynchronous source has no `excp_cause_id` (ADR-0061
+    D2), so the mask/pending index is also the source identity;
   * the period -> the image's `CONFIG_HZ` and the contract's `cfx_time_freq`
     (`freq // HZ`), so a hardcoded count in the kernel goes red;
   * the exit codes / segments -> `spec/Kaiwu §7.1` (parsed by the K2
@@ -190,10 +190,14 @@ def knob_register() -> tuple[int, int]:
 
 
 def contract_knob_register() -> tuple[int, int]:
-    """``cg2 rc4`` from contract-see §6.4's single-knob bullet."""
+    """``cg8 rc1`` from contract-see §6.4's single-knob bullet.
+
+    ADR-0061 D5 moved the async source mask from the monitor's cg0-cg3 rc4
+    row to `cfx_smon`'s `cg8 rc1` (`cfx_smon_async_intr_mask`).
+    """
     text = (REPO / ".tao" / "contracts" / "contract-see.md").read_text(
         encoding="utf-8")
-    m = re.search(r"`cfx_smon_supv_cfx_intr_mask`（`cg(\d+) rc(\d+)`）", text)
+    m = re.search(r"`cfx_smon_async_intr_mask`（`cg(\d+) rc(\d+)`）", text)
     if not m:
         raise SystemExit("k2_irq_probe: contract-see §6.4 has no knob register")
     return int(m.group(1)), int(m.group(2))
@@ -400,10 +404,10 @@ def check_static(rep: Report, spec: dict) -> None:
     d = derivation()
     bit = d["bit"]
     rep.check("C0", "cfx_hart 的 cfxha 来自别名表", 15, d["hart"])
-    rep.check("C0", "源位 = 1 << 目标 cfxha（不是 TIMER 的 cause id）", bit,
+    rep.check("C0", "源位 = 1 << 源 cfxha（异步无独立 cause id）", bit,
               declared_source_bits())
-    rep.check("C0", "源位 != TIMER cause id（两套编号不混用）", True,
-              bit != d["timer"])
+    rep.check("C0", "源位 == TIMER 源位（只有一套编号）", True,
+              bit == d["timer"])
     # Register identity is a *static* property: with the knob on another row the
     # printed values stay self-consistent (the row carries its own default and
     # init_IRQ opens it), so only the source can pin it.
@@ -411,7 +415,7 @@ def check_static(rep: Report, spec: dict) -> None:
               knob_register())
     rep.check("C0", "旋钮只写运行模式 monitor 行（cfx_smon；不写 cfx_hart，"
               "ISS-455）", (True, False), knob_rows_written())
-    rep.stat(f"bit={bit:#x} cfx_hart={d['hart']} timer_cause={d['timer']:#x} "
+    rep.stat(f"bit={bit:#x} cfx_hart={d['hart']} timer_src={d['timer']:#x} "
              f"freq={d['freq']} hz={d['hz']} period={d['period']}")
 
     codes = k2time.kernel_selfcheck_codes()
