@@ -36,7 +36,6 @@
 | m18-linux-012 | 1–2 h | ISS-503 K6 门控五条 finding（恒真断言并入 region、计数/标签/符号名订正） |
 | m18-qemu-001 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
 | m18-spec-001 | 2–4 h | cg4 `scratch_regs_num` 缺省值：每个非 reserved cfx = 2（QEMU/gem5/RTL 由 4 改 2）；spec/契约 + 探针 |
-| m18-spec-003 | 2–3 h | `escape` frame selector 编码真源（SimRISC-11/IDL/Toolchain-01/contract-asm；`imms20 ∈ {0,4,8}`） |
 | m18-llvm-001 | 2–3 h | LLVM `escape` frame selector 汇编/反汇编 + lit |
 | m18-qemu-004 | 4–6 h | QEMU hart-first 异步仲裁（`cfx_hart cg9`、cause 17/18、escape bit1；对照 qemu-002 骨架） |
 | m18-testcases-001 | 1–2 h | 旧异步探针 094t/050t 迁 hart-first（投 cfx_hart、pending cg9、mask 位源 cfxha） |
@@ -53,6 +52,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m18-spec-003 | 2026-11-23 13:46 | 2–3 h | `escape` frame selector 编码真源（SimRISC-11/IDL/Toolchain-01/contract-asm/Kaiwu/opcodes/legality） |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
 ## 已验证
