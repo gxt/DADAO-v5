@@ -52,6 +52,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m18-qemu-006 | 2026-11-23 22:36 | 2–3 h | QEMU 异步捕获缓冲修订（去帧活动 gating、escape 不异步返回；R2） |
 | m18-linux-019 | 2026-11-23 21:48 | 1–2 h | `k5_syscall_selftest` 锁外 `find_vma` 触发 rwsem 警告 |
 | m18-linux-022 | 2026-11-23 20:12 | 3–5 h | 内核异步新模型（mask 归 monitor、src 位 cfxha、一帧多源） |
 | m18-testcases-003 | 2026-11-23 20:12 | 2–3 h | 旧异步探针 094t/050t/042t + `escape` cg9 向量迁新模型 |
@@ -63,7 +64,6 @@
 | --- | --- | --- |
 | m18-spec-005 | 2026-11-23 22:36 | ADR-0061 R2 规格/活文档（cg9 捕获缓冲、smon handoff、escape 不异步返回；14 文件；63+20 证据） |
 | m18-qemu-005 | 2026-11-23 20:12 | QEMU 异步模型修订（ADR-0061：mask 归 monitor、src 位 cfxha、cg9 七槽、一帧多源；13+33 证据） |
-| m18-qemu-006 | 2–3 h | QEMU 异步捕获缓冲修订（去帧活动 gating、escape 不异步返回；R2） |
 | m18-spec-004 | 2026-11-23 18:33 | 异步模型修订（掩码归 monitor、源索引 cfxha、`cg9` 七槽只读、§5.4 专节；ADR-0061；版本仍 0.8.0-rc） |
 | m18-testcases-001 | 2026-11-23 17:57 | **作废**（ADR-0061）：旧异步探针迁 hart-first 口径，未完工；替代 `m18-testcases-003` |
 | m18-testcases-002 | 2026-11-23 17:57 | **作废**（ADR-0061）：`escape` cg9 向量，口径并入 `m18-testcases-003` |
