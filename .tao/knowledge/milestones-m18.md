@@ -38,7 +38,6 @@
 | m18-linux-012 | 1–2 h | ISS-503 K6 门控五条 finding（恒真断言并入 region、计数/标签/符号名订正） |
 | m18-qemu-001 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
 | m18-spec-001 | 2–4 h | cg4 `scratch_regs_num` 缺省值：每个非 reserved cfx = 2（QEMU/gem5/RTL 由 4 改 2）；spec/契约 + 探针 |
-| m18-spec-005 | 4–6 h | ADR-0061 R2 规格/活文档修订（cg9 捕获缓冲、smon handoff、escape 不异步返回） |
 | m18-gem5-001 | 2–3 h | gem5 `escape` frame selector 语义/断言（b6 + decode assertions + check_b6） |
 | m18-chipyard-001 | 3–5 h | RTL `escape` frame selector 语义（cg9；等 M16 chipyard 批次） |
 | m18-linux-015 | 2–3 h | `mlock2`/`MLOCK_ONFAULT` 路径 SIGSEGV（KERNEL_BUG） |
@@ -53,6 +52,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m18-spec-005 | 2026-11-23 21:58 | 4–6 h | ADR-0061 R2 规格/活文档修订（cg9 捕获缓冲、smon handoff、escape 不异步返回） |
 | m18-linux-019 | 2026-11-23 21:48 | 1–2 h | `k5_syscall_selftest` 锁外 `find_vma` 触发 rwsem 警告 |
 | m18-linux-022 | 2026-11-23 20:12 | 3–5 h | 内核异步新模型（mask 归 monitor、src 位 cfxha、一帧多源） |
 | m18-testcases-003 | 2026-11-23 20:12 | 2–3 h | 旧异步探针 094t/050t/042t + `escape` cg9 向量迁新模型 |
