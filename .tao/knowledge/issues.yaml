@@ -73,7 +73,7 @@
   scope:
   - gem5
   - testcases
-  milestone: M17
+  milestone: M20
   status: open
   closed_in: null
   resolved_by: null
@@ -112,7 +112,7 @@
   scope:
   - gem5
   - testcases
-  milestone: M17
+  milestone: M20
   status: open
   closed_in: null
   resolved_by: null
@@ -1000,9 +1000,9 @@
   - idl
   - infra
   milestone: M17
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M17
+  resolved_by: won't fix（m15-idl-003 证据脚本在归档运行期，不在仓；已由复审记录覆盖）
   title: "【P3】`m15-idl-003` 证据脚本的「散文零改动」断言取 `HEAD` 作基线 ⇒ 提交后恒真（`m15-idl-003` 复核查出）：`run.sh` 用 `git diff HEAD -- spec/SimRISC-03` 判 0 deletions，而换入 `HEAD` 的正是本任务自己的改动 ⇒ 无论散文改没改都绿。本轮由 reviewer 用 `git diff <merge-base> -- spec/SimRISC-03`（0 deletions）独立闭合。处置：IDL 类任务的证据脚本统一把散文基线锚到 **merge-base / master**（与 `DD-Y003`「提交后仍须回绿」同源）。"
 - id: ISS-476
   scope:
