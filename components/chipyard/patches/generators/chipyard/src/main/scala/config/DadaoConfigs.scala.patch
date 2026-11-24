@@ -1,9 +1,9 @@
 diff --git a/generators/chipyard/src/main/scala/config/DadaoConfigs.scala b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
 new file mode 100644
-index 0000000..a0a5b55
+index 0000000..7c6867c
 --- /dev/null
 +++ b/generators/chipyard/src/main/scala/config/DadaoConfigs.scala
-@@ -0,0 +1,329 @@
+@@ -0,0 +1,336 @@
 +// See LICENSE for license details.
 +//
 +// DADAO SoC configurations.
@@ -170,8 +170,12 @@ index 0000000..a0a5b55
 +
 +/** Kaiwu-Vast address map (`m16-chipyard-006`, PA RAM `m16-chipyard-007`). */
 +object WumingVastAddressMap {
-+  val bootROMBase: BigInt = WumingTinyAddressMap.bootROMBase
-+  val bootROMSize: Int = WumingTinyAddressMap.bootROMSize
++  /** BootROM: 0xffff_ffc0_0000 .. 0xffff_ffff_ffff (4 MiB, `spec/Kaiwu §3`);
++    * the reset vector is the last 64 KiB's start, 0xffff_ffff_0000
++    * (image offset 0x3f_0000).  Tiny keeps its 64 KiB window. */
++  val bootROMBase: BigInt = BigInt("ffffffc00000", 16)
++  val bootROMSize: Int = 0x400000
++  val bootROMReset: BigInt = bootROMBase + bootROMSize - 0x10000
 +  val sramBase: BigInt = WumingTinyAddressMap.sramBase
 +  val sramSize: BigInt = WumingTinyAddressMap.sramSize
 +  val hmonBase: BigInt = WumingTinyAddressMap.hmonBase
@@ -180,7 +184,10 @@ index 0000000..a0a5b55
 +  val smonBase: BigInt = BigInt("bff00000000", 16)
 +  val smonSize: BigInt = BigInt(0x10000)
 +  val appEntry: BigInt = WumingTinyAddressMap.appEntry
-+  val bootROMImage: String = WumingTinyAddressMap.bootROMImage
++  /** Vast's 4 MiB image (image index table at offset 0, ELF payloads, power
++    * flat segment at 0x3f_0000); decoded from the sparse text hex by the
++    * `wuming` resource generator, exactly like Tiny's. */
++  val bootROMImage: String = "/dadao/bootrom/bootrom.vast.img"
 +
 +  /**
 +   * Physical memory behind the page tables (`spec/Kaiwu §1.1`: PA RAM
@@ -290,7 +297,7 @@ index 0000000..a0a5b55
 +  new chipyard.config.WithBootROM(
 +    address = WumingVastAddressMap.bootROMBase,
 +    size = WumingVastAddressMap.bootROMSize,
-+    hang = WumingVastAddressMap.bootROMBase,
++    hang = WumingVastAddressMap.bootROMReset,
 +    contentFileName = Some(WumingVastAddressMap.bootROMImage)) ++
 +  new chipyard.iobinders.WithWumingCeaseSuccess ++
 +  new chipyard.harness.WithTraceGenSuccess ++

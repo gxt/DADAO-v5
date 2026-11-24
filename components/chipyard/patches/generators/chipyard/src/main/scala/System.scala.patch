@@ -1,0 +1,33 @@
+diff --git a/generators/chipyard/src/main/scala/System.scala b/generators/chipyard/src/main/scala/System.scala
+index 6be276e..fe28f2e 100644
+--- a/generators/chipyard/src/main/scala/System.scala
++++ b/generators/chipyard/src/main/scala/System.scala
+@@ -12,7 +12,7 @@ import freechips.rocketchip.subsystem._
+ import freechips.rocketchip.tilelink._
+ import freechips.rocketchip.devices.tilelink._
+ import freechips.rocketchip.diplomacy._
+-import freechips.rocketchip.util.{DontTouch}
++import freechips.rocketchip.util.{DontTouch, ResourceFileName}
+ 
+ // ---------------------------------------------------------------------
+ // Base system that uses the debug test module (dtm) to bringup the core
+@@ -29,7 +29,18 @@ class ChipyardSystem(implicit p: Parameters) extends ChipyardSubsystem
+   with CanHaveSlaveAXI4Port
+ {
+ 
+-  val bootROM  = p(BootROMLocated(location)).map { BootROM.attach(_, this, CBUS) }
++  // m16-chipyard-025: the Vast image is sparse (4 MiB window, payload runs
++  // near offset 0 and in the last 64 KiB).  Upstream TLROM would materialise
++  // the full 4 MiB as one packed signal, which Verilator cannot elaborate in
++  // reasonable time; `DadaoSparseBootROM` keeps the address range and returns
++  // zero in the (zero) gaps.
++  val bootROM  = p(BootROMLocated(location)).map { params =>
++    params.contentFileName match {
++      case ResourceFileName(name) if name.contains("/dadao/bootrom/bootrom.vast") =>
++        wuming.common.DadaoSparseBootROM.attach(params, this, CBUS)
++      case _ => BootROM.attach(params, this, CBUS)
++    }
++  }
+   val maskROMs = p(MaskROMLocated(location)).map { MaskROM.attach(_, this, CBUS) }
+ 
+   override lazy val module = new ChipyardSystemModule(this)

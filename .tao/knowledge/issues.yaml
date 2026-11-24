@@ -1485,3 +1485,12 @@
   closed_in: null
   resolved_by: null
   title: "【P4】`chipyard_engine` 默认不传 `+verbose`，`ptw_walk`/`ptw_tlb` 的日志事件读不到；当前以记录面为判据（已覆盖验收），建议给引擎加可选 verbose 开关，便于后续按日志断言。"
+- id: ISS-530
+  scope:
+  - spec
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】spec 措辞改动未跑下游解析器自检，已连续两次打断 `tests/arch` 自检：① `m18-spec-004` 删 §3.9 ⇒ `tests/arch/power/power_vast.py` 以 `### 3.9` 作 §3.8 结束标记而断链（`m16-chipyard-024` 返工 1 行修）；② `m18-spec-005` 把 §4.7 行文改成「软件只读（写忽略）」、「§5.1 合法值 **仍为** `{0,4,8}`」⇒ `tests/arch/hart/check_cfx15.py` 两处断言失效（`m16-chipyard-025` 返工修）。建议：spec/契约任务收尾必须跑 `python3 tests/arch/run_arch.py --self-test`（或把该自检纳入 spec 门控），并要求解析器用「章节起点/下一章起点」而非固定小节号作边界。"

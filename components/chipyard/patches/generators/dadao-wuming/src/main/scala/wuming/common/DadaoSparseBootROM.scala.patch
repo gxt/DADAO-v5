@@ -1,0 +1,199 @@
+diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/DadaoSparseBootROM.scala b/generators/dadao-wuming/src/main/scala/wuming/common/DadaoSparseBootROM.scala
+new file mode 100644
+index 0000000..1d9b829
+--- /dev/null
++++ b/generators/dadao-wuming/src/main/scala/wuming/common/DadaoSparseBootROM.scala
+@@ -0,0 +1,193 @@
++// See LICENSE for license details.
++//
++// DADAO sparse BootROM (m16-chipyard-025).
++//
++// The Kaiwu-Vast BootROM window is 4 MiB (`spec/Kaiwu §3`), but its image is
++// sparse: the image index table and the hmon/smon ELFs live near offset 0 and
++// the power flat segment is the last 64 KiB.  Building upstream `TLROM` from
++// the full 4 MiB byte sequence makes firtool emit a 524288-word *packed*
++// signal (`wire [524287:0][63:0]`), which Verilator cannot reasonably
++// elaborate (observed: >5 h in model generation, killed by the harness
++// restart).
++//
++// `SparseTLROM` keeps the same 4 MiB TileLink address range but materialises
++// only the non-zero runs as small `Vec`s (a few thousand words).  Reads in
++// the zero gaps return 0, which is byte-identical to the full image because
++// those gaps are zero in the image.  The reset-vector plumbing is the same as
++// `freechips.rocketchip.devices.tilelink.BootROM.attach`.
++package wuming.common
++
++import chisel3._
++import chisel3.util._
++
++import org.chipsalliance.cde.config.Parameters
++import org.chipsalliance.diplomacy.bundlebridge._
++import org.chipsalliance.diplomacy.lazymodule._
++
++import freechips.rocketchip.diplomacy.{AddressSet, RegionType, TransferSizes}
++import freechips.rocketchip.resources.{Resource, SimpleDevice}
++import freechips.rocketchip.subsystem._
++import freechips.rocketchip.tilelink._
++import freechips.rocketchip.util.{FileName, ResourceFileName, SystemFileName}
++
++import java.nio.file.{Files, Paths}
++import scala.collection.mutable.ArrayBuffer
++
++object SparseTLROM {
++  /** Split a byte image into non-zero runs, aligned to `unit` and merging
++    * runs separated by at most `mergeGap` bytes.  Everything outside the
++    * returned runs is zero in `bytes`, so a ROM that returns 0 there is
++    * byte-identical to the full image. */
++  def sparseChunks(bytes: Seq[Byte], unit: Int, mergeGap: Int): Seq[(BigInt, Seq[Byte])] = {
++    require(unit > 0 && mergeGap >= 0)
++    val nwords = (bytes.length + unit - 1) / unit
++    def wordNonZero(w: Int): Boolean = {
++      val from = w * unit
++      val to = math.min(from + unit, bytes.length)
++      var k = from
++      var nonzero = false
++      while (k < to && !nonzero) {
++        if (bytes(k) != 0.toByte) nonzero = true
++        k += 1
++      }
++      nonzero
++    }
++    val ranges = ArrayBuffer.empty[(Int, Int)]
++    var i = 0
++    while (i < nwords) {
++      while (i < nwords && !wordNonZero(i)) i += 1
++      if (i < nwords) {
++        val start = i
++        var last = i
++        i += 1
++        // Keep absorbing non-zero words until the run of zeros since `last`
++        // exceeds `mergeGap`; that keeps the table + ELF region together and
++        // leaves the 3.9 MiB zero gap before the power segment out.
++        while (i < nwords && (i - last) * unit <= mergeGap) {
++          if (wordNonZero(i)) last = i
++          i += 1
++        }
++        ranges += ((start * unit, math.min((last + 1) * unit, bytes.length)))
++      }
++    }
++    val merged = ArrayBuffer.empty[(Int, Int)]
++    ranges.foreach { case (start, end) =>
++      if (merged.nonEmpty && start - merged.last._2 <= mergeGap) {
++        merged(merged.length - 1) = (merged.last._1, end)
++      } else {
++        merged += ((start, end))
++      }
++    }
++    merged.map { case (start, end) => (BigInt(start), bytes.slice(start, end)) }.toSeq
++  }
++}
++
++/** A TL ROM with the full `size` address range but sparse backing. */
++class SparseTLROM(
++  val base: BigInt,
++  val size: Int,
++  val contents: Seq[Byte],
++  executable: Boolean = true,
++  val beatBytes: Int = 4,
++  resources: Seq[Resource] = new SimpleDevice("rom", Seq("sifive,rom0")).reg("mem")
++)(implicit p: Parameters) extends LazyModule {
++
++  val chunks: Seq[(BigInt, Seq[Byte])] =
++    SparseTLROM.sparseChunks(contents, unit = beatBytes, mergeGap = 0x10000)
++
++  val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
++    Seq(TLSlaveParameters.v1(
++      address = List(AddressSet(base, size - 1)),
++      resources = resources,
++      regionType = RegionType.UNCACHED,
++      executable = executable,
++      supportsGet = TransferSizes(1, beatBytes),
++      fifoId = Some(0))),
++    beatBytes = beatBytes)))
++
++  lazy val module = new SparseTLROMImp(this)
++}
++
++class SparseTLROMImp(outer: SparseTLROM) extends LazyModuleImp(outer) {
++  val contents = outer.contents
++  val (in, edge) = outer.node.in(0)
++  require(edge.bundle.dataBits == outer.beatBytes * 8,
++    "SparseTLROM: beatBytes must match the negotiated data width")
++
++  private val bytesPerWord = outer.beatBytes
++  private val words = outer.chunks.map { case (offset, chunk) =>
++    val bigs = chunk.grouped(bytesPerWord).map { bs =>
++      val padded = bs ++ Seq.fill(bytesPerWord - bs.length)(0.toByte)
++      padded.foldRight(BigInt(0)) { case (x, y) => (x.toInt & 0xff) | (y << 8) }
++    }.toSeq
++    (outer.base + offset, VecInit(bigs.map(_.U((8 * bytesPerWord).W))))
++  }
++
++  val addr = in.a.bits.address
++  val selected = words.map { case (chunkBase, chunkWords) =>
++    val width = math.max(1, log2Ceil(chunkWords.length))
++    val offset = addr - chunkBase.U
++    val hit = (addr >= chunkBase.U) && (addr < (chunkBase + (chunkWords.length * bytesPerWord)).U)
++    (hit, chunkWords(offset(log2Ceil(bytesPerWord) + width - 1, log2Ceil(bytesPerWord))))
++  }
++  // Chunks are disjoint, so at most one select is high.  Keep the zero-gap
++  // default *outside* the one-hot mux: a `Mux1H` default that is always high
++  // would OR with every in-chunk word (the zero default hid that bug).
++  val data = if (selected.isEmpty) {
++    0.U((8 * bytesPerWord).W)
++  } else {
++    val hit = selected.map(_._1).reduce(_ || _)
++    Mux(hit, Mux1H(selected.map(_._1), selected.map(_._2)),
++      0.U((8 * bytesPerWord).W))
++  }
++
++  in.d.valid := in.a.valid
++  in.a.ready := in.d.ready
++  in.d.bits := edge.AccessAck(in.a.bits, data)
++
++  // Tie off unused channels.
++  in.b.valid := false.B
++  in.c.ready := true.B
++  in.e.ready := true.B
++}
++
++object DadaoSparseBootROM {
++  /** `BootROM.attach` with a sparse backing store; same reset-vector plumbing. */
++  def attach(
++    params: freechips.rocketchip.devices.tilelink.BootROMParams,
++    subsystem: BaseSubsystem with HasHierarchicalElements with HasTileInputConstants,
++    where: TLBusWrapperLocation
++  )(implicit p: Parameters): SparseTLROM = {
++    val tlbus = subsystem.locateTLBusWrapper(where)
++    val bootROMDomainWrapper =
++      tlbus.generateSynchronousDomain(params.name).suggestName(s"${params.name}_domain")
++
++    val bootROMResetVectorSourceNode = BundleBridgeSource[UInt]()
++
++    val romdata: Seq[Byte] = params.contentFileName match {
++      case SystemFileName(fileName) =>
++        Files.readAllBytes(Paths.get(fileName)).toIndexedSeq
++      case ResourceFileName(fileName) =>
++        os.read.bytes(os.resource / os.RelPath(fileName.dropWhile(_ == '/'))).toIndexedSeq
++    }
++    val contents = if (params.appendDTB) romdata ++ subsystem.dtb.contents else romdata
++
++    val bootrom = bootROMDomainWrapper {
++      LazyModule(new SparseTLROM(
++        params.address, params.size, contents, true, tlbus.beatBytes))
++    }
++
++    bootrom.node := tlbus.coupleTo(params.name) { TLFragmenter(tlbus, Some(params.name)) := _ }
++
++    if (params.driveResetVector) {
++      subsystem.tileResetVectorNexusNode := bootROMResetVectorSourceNode
++      InModuleBody {
++        val reset_vector_source = bootROMResetVectorSourceNode.bundle
++        require(reset_vector_source.getWidth >= params.hang.bitLength,
++          s"BootROM defined with a reset vector (${params.hang}) too large for physical address space (${reset_vector_source.getWidth})")
++        bootROMResetVectorSourceNode.bundle := params.hang.U
++      }
++    }
++    bootrom
++  }
++}

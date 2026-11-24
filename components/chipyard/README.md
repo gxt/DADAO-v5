@@ -30,6 +30,26 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
   - **改 hex 后必须删 `.classpath_cache/chipyard.jar`**：仿真器只把 Scala/Verilog 源当依赖，资源变更不会让缓存 jar 失效 ⇒ 不删就会拿旧固件重新 elaborate（假绿）。
 - **实测**：`WumingTile` 的 elaboration 行打印协商值，`Generated Address Map` 打印全图。
 
+## Kaiwu-Vast 的 4 MiB BootROM（`m16-chipyard-025`）
+
+- **几何**：`WumingVastAddressMap` 按 `spec/Kaiwu §3` 用 `0xffff_ffc0_0000` / `0x40_0000`，
+  复位向量 `base + size − 64 KiB = 0xffff_ffff_0000`（镜像偏移 `0x3f_0000`）；
+  `WumingTinyAddressMap` 仍是 `0xffff_ffff_0000` / 64 KiB。
+- **镜像**：`build_step5_bootrom.py --hex-out` 产 `bootrom.vast.hex`（稀疏文本：偏移 0
+  索引表 + hmon/smon ELF，末 64 KiB power flat 段）；`build.sbt` 的
+  `resourceGenerators` 解码为 `/dadao/bootrom/bootrom.vast.img`（Tiny 的 64 KiB hex
+  同表处理）。RTL 的 `make build-bootrom` 另用 `POWER_RTL_BODY=1` 汇编 power 段：
+  同一份 `tests/ee-vast/power_vast.S` 额外把 smon ELF 装入 `0x0bff_0000_0000`，并把
+  hmon 保存-跳转槽 `HMON_BASE+0xF8` 指向 `+loadmem` 的 `0xffffff010100`，于是共享的
+  Tiny hmon handler 直接回到测试本体；QEMU/gem5 的 `POWER_RTL_BODY=0` power 字节不变。
+- **稀疏 ROM**：上游 `TLROM` 会把 4 MiB 内容展开成 `wire [524287:0][63:0]`，Verilator
+  模型生成不可接受（实测 5 h+ 未完成）。`dadao-wuming` 的 `SparseTLROM` 保留 4 MiB
+  TileLink 地址范围，只把非零区段做成小 `Vec`（本镜像约 22 KiB），零间隙返回 0
+  （与整镜像逐字节等价）；`System.scala` 仅对 `bootrom.vast` 资源走该路径。
+- **回归面**：Tiny 配置与 64 KiB 镜像不变；Vast 的 RTL 探针（hart/ptw/power）仍从
+  `0xffff_ffff_0000` 启动、hmon/smon 由索引表装入各自 SRAM、测试体经 `+loadmem`
+  进入。`arch-power-001` 的 `space0_start/size` 回到规范值，DIV-12 已删。
+
 ## 启动与 `+loadmem`（`m12-chipyard-003`）
 
 - **启动约定 = 固定入口**：Tiny BootROM 是静态平铺 trampoline（`tests/shared/bootrom/bootrom.S`：装 SP、装应用入口、`jump`），入口取 `machine-tiny.inc` 的 `ENTRY = 0xffff_ff01_0100`。**不用 ELF `e_entry`**：ROM 里没有 ELF 解析器/image index table/DTB，无法在运行时得知 `e_entry`；固定入口与 `QEMU kaiwu-tiny` 的 raw-kernel 约定（`kernel_base + kernel_reserved`）同源，应用链接脚本（`tests/shared/bootrom/tiny_smoke.lds`）用同一常量。

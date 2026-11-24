@@ -7,7 +7,7 @@
 # 逃过判据）——`case` + `slot`（0 基）+ `chipyard`（RTL 侧期望）；该槽在
 # QEMU/gem5 侧仍按规范值判。差异被修好时该例外不再成立 ⇒ 承载判红，提示删除条目。
 schema: 1
-updated: "2026-11-23"
+updated: "2026-11-24"
 
 divergences:
   - id: DIV-01
@@ -88,24 +88,6 @@ divergences:
     status: active
     close_when: "cfx3/4/5/15/32/34 的 `<mode>` 行落地"
 
-  - id: DIV-12
-    kind: temporary
-    scope: [chipyard]
-    impact: "`cfx_power` 的 cg7 块 0 在 RTL 上描述 **64 KiB** BootROM（`start = 0x3ff_ffff_0000`、`size = 0x1_0000`），QEMU/gem5 按 `spec/Kaiwu §3` 描述 **4 MiB**（`start = 0x3ff_ffc0_0000`、`size = 0x40_0000`）⇒ `arch-power-001` 的 `space0_start`/`space0_size` 两槽三方不一致（其它 26 槽一致）。"
-    reason: "`WumingVastAddressMap`（chipyard `DadaoConfigs.scala`）直接复用 `WumingTinyAddressMap` 的 `bootROMBase`/`bootROMSize`：RTL 只实现 Vast 的 64 KiB 复位窗口（测试体经 `+loadmem` 装入 PA RAM），未按 `spec/Kaiwu §3` / `contracts/machine.yaml` 的 Vast profile 铺 4 MiB BootROM。`m16-testcases-016` 实测（同一 ELF 三方逐槽）。"
-    user_ruling: "2026-11-23 用户裁定 B：修 RTL（4 MiB 窗口 + Vast 镜像布局）；由 `m16-chipyard-025` 承接，完成即删本登记"
-    status: active
-    close_when: "RTL 的 Vast BootROM 几何改为 `spec/Kaiwu §3` 的 4 MiB（或 spec 明确 Vast 只要求 64 KiB 复位窗口并同步 machine.yaml）"
-    slots:
-      - case: arch-power-001
-        slot: 5
-        label: space0_start
-        chipyard: 0x3ff_ffff_0000
-      - case: arch-power-001
-        slot: 6
-        label: space0_size
-        chipyard: 0x1_0000
-
   - id: DIV-13
     kind: temporary
     scope: [chipyard]
@@ -119,7 +101,7 @@ divergences:
     kind: temporary
     scope: [chipyard]
     impact: "`arch-ptw-007` 的 `flush_adwbfail` 后半（槽 2/3：`cause_info` = ROM 叶 PTE PA、两次 flush 的失败次数）在 RTL 上观测不到：RTL 的 PA RAM 全可写，运行期构造不出 A/D 回写失败 ⇒ 该镜像记录 `(0, 0)`（未发生异常 / 未失败），前两槽（`flush_ok`）仍按规范值逐槽判。"
-    reason: "QEMU/gem5 的页表放在只读 BootROM 镜像里，`flush` 的 A/D 回写失败可自然构造（`spec/DADAO-12 §4.5`）；RTL 的测试体经 `+loadmem` 装入 PA RAM、BootROM 固定为 64 KiB 固件（DIV-12 的同一几何），探针无法把叶 PTE 放进只读页。RTL 的回写失败路径仍由 `ptw_tlb.S` 的 `CASE_OR` 实现层注入覆盖（`m16-chipyard-008`），不在运行期判据内。"
+    reason: "QEMU/gem5 的页表放在只读 BootROM 镜像里，`flush` 的 A/D 回写失败可自然构造（`spec/DADAO-12 §4.5`）；RTL 的测试体经 `+loadmem` 装入 PA RAM，BootROM 只作固定启动固件（`m16-chipyard-025` 起为 4 MiB），探针无法把叶 PTE 放进只读页。RTL 的回写失败路径仍由 `ptw_tlb.S` 的 `CASE_OR` 实现层注入覆盖（`m16-chipyard-008`），不在运行期判据内。"
     user_ruling: "待用户裁定（2026-11-23 实测登记；与 DIV-04 同源）"
     status: active
     close_when: "RTL 提供可放置只读叶 PTE 的承载（测试页表进 BootROM），或给 PTW 加测试专用回写失败注入；届时按 QEMU 的 CFXMEM[56]/2 次判并删除本条"

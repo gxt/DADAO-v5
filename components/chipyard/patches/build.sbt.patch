@@ -1,8 +1,8 @@
 diff --git a/build.sbt b/build.sbt
-index f56621c..23fb38a 100644
+index f56621c..a7a2416 100644
 --- a/build.sbt
 +++ b/build.sbt
-@@ -163,6 +163,66 @@ lazy val rocketchip = freshProject("rocketchip", rocketChipDir)
+@@ -163,6 +163,74 @@ lazy val rocketchip = freshProject("rocketchip", rocketChipDir)
    )
  lazy val rocketLibDeps = (rocketchip / Keys.libraryDependencies)
  
@@ -27,49 +27,57 @@ index f56621c..23fb38a 100644
 +  .settings(libraryDependencies ++= rocketLibDeps.value)
 +  .settings(commonSettings)
 +  .settings(
-+    // m12-002: the Kaiwu-Tiny BootROM image is checked in as a *text* hex
-+    // file (a component patch set cannot carry binary blobs).  Decode it into
-+    // the classpath resource that `WithBootROM` names; the resource rides the
++    // m12-002: the BootROM images are checked in as *text* hex files (a
++    // component patch set cannot carry binary blobs).  Decode each into the
++    // classpath resource that `WithBootROM` names; the resources ride the
 +    // wuming jar into the elaboration classpath.
 +    //
-+    // m12-007: the image became the 64 KiB fixed firmware (power stub + hmon
-+    // segment + reserved + image index table, spec/Kaiwu §6.2), so the
-+    // text form is *sparse*: `@<offset>` lines set the write offset and byte
-+    // lines append.  The 40 KiB reserved region stays implicit zeros.
++    // m12-007 made the Tiny image the 64 KiB fixed firmware (power stub + hmon
++    // segment + reserved + image index table, spec/Kaiwu §6.2);
++    // m16-chipyard-025 adds the Vast 4 MiB image (image index table at offset
++    // 0, hmon/smon ELFs, power flat segment in the last 64 KiB, spec/Kaiwu
++    // §6.1).  Both text forms are *sparse*: `@<offset>` lines set the write
++    // offset and byte lines append, so the zero regions cost one line.
 +    Compile / resourceGenerators += Def.task {
-+      val size = 64 * 1024
-+      val hex = IO.read((Compile / resourceDirectory).value / "dadao" / "bootrom" / "bootrom.tiny.hex")
-+      val bytes = Array.fill[Byte](size)(0)
-+      var pos = 0
-+      hex.linesIterator.zipWithIndex.foreach { case (raw, lineno) =>
-+        val line = raw.takeWhile(_ != '#').trim
-+        if (line.nonEmpty) {
-+          if (line.startsWith("@")) {
-+            pos = Integer.parseInt(line.drop(1), 16)
-+          } else {
-+            val digits = line.filterNot(_.isWhitespace)
-+            require(digits.length % 2 == 0,
-+              s"wuming: bootrom.tiny.hex:$lineno has an odd number of hex digits")
-+            digits.grouped(2).foreach { d =>
-+              require(pos >= 0 && pos < size,
-+                s"wuming: bootrom.tiny.hex:$lineno runs past $size bytes")
-+              bytes(pos) = Integer.parseInt(d, 16).toByte
-+              pos += 1
++      val hexDir = (Compile / resourceDirectory).value / "dadao" / "bootrom"
++      val imgDir = (Compile / resourceManaged).value / "dadao" / "bootrom"
++      Seq(
++        ("bootrom.tiny.hex", "bootrom.tiny.img", 64 * 1024),
++        ("bootrom.vast.hex", "bootrom.vast.img", 4 * 1024 * 1024)
++      ).map { case (hexName, imgName, size) =>
++        val hex = IO.read(hexDir / hexName)
++        val bytes = Array.fill[Byte](size)(0)
++        var pos = 0
++        hex.linesIterator.zipWithIndex.foreach { case (raw, lineno) =>
++          val line = raw.takeWhile(_ != '#').trim
++          if (line.nonEmpty) {
++            if (line.startsWith("@")) {
++              pos = Integer.parseInt(line.drop(1), 16)
++            } else {
++              val digits = line.filterNot(_.isWhitespace)
++              require(digits.length % 2 == 0,
++                s"wuming: $hexName:$lineno has an odd number of hex digits")
++              digits.grouped(2).foreach { d =>
++                require(pos >= 0 && pos < size,
++                  s"wuming: $hexName:$lineno runs past $size bytes")
++                bytes(pos) = Integer.parseInt(d, 16).toByte
++                pos += 1
++              }
 +            }
 +          }
 +        }
++        val out = imgDir / imgName
++        IO.createDirectory(out.getParentFile)
++        IO.write(out, bytes)
++        out
 +      }
-+      val out = (Compile / resourceManaged).value / "dadao" / "bootrom" / "bootrom.tiny.img"
-+      IO.createDirectory(out.getParentFile)
-+      IO.write(out, bytes)
-+      Seq(out)
 +    }.taskValue
 +  )
 +
  
  // -- Chipyard-managed External Projects --
  
-@@ -180,6 +240,7 @@ lazy val chipyard = {
+@@ -180,6 +248,7 @@ lazy val chipyard = {
        testchipip, rocketchip, boom, rocketchip_blocks, rocketchip_inclusive_cache,
        icenet, tracegen,
        constellation, barf, shuttle, rerocc,

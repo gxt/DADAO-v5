@@ -167,11 +167,10 @@ QEMU 与 gem5 跑**同一份 4 MiB BootROM 字节**。
 
 **三方差异（登记在 `expected-divergences.yaml`，不静默跳过）**：
 
-- **DIV-12**：RTL 的 `cfx_power cg7` 块 0 描述 **64 KiB** BootROM
-  （`start = 0x3ff_ffff_0000`、`size = 0x1_0000`；chipyard 的 Vast 地址图复用
-  Tiny 的 BootROM 几何），QEMU/gem5 按规范为 4 MiB ⇒ `arch-power-001` 的
-  `space0_start`/`space0_size` 两槽不一致；RTL 承载按登记的例外值判，**规范值
-  与 QEMU/gem5 仍照判**，例外被修好时承载判红提示删条目。
+- RTL 的 `cfx_power cg7` 块 0 自 `m16-chipyard-025` 起按 `spec/Kaiwu §3`
+  描述 **4 MiB** BootROM（`start = 0x3ff_ffc0_0000`、`size = 0x40_0000`）；
+  原 **DIV-12**（RTL 64 KiB vs 规范 4 MiB）已删除，`arch-power-001` 的
+  `space0_start`/`space0_size` 两槽三方逐槽一致。
 - **DIV-13**：RTL 的 `cfx_power cg4/cg6` ⇒ `CFXREG`（未开 common face），
   QEMU/gem5 返回 `cfx_id = 63` / scratch 可读写 ⇒ **不在比较面**（不把实现缺口
   写进判据），由 `--diagnose` 逐方报告。

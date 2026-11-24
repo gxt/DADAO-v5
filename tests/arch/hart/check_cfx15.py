@@ -7,8 +7,8 @@
   * `cfx_hart` 的 cfxha（15）与运行模式编码：`spec/DADAO-12` §1；
   * `cg8` 行号 / `timer_ctrl` 位 / 源身份 = 源 cfxha（`TIMER` = 15）：
     `spec/DADAO-12` §4.7 与 §5.4（一）；
-  * `cg9` 七槽的行号 / 访问属性 / 位宽、位图"软件写忽略"：`spec/DADAO-12`
-    §4.7 的 cg9 表（`ADR-0061` D7）；
+  * `cg9` 七槽的行号 / 访问属性 / 位宽、位图"软件只读（写忽略）"：`spec/DADAO-12`
+    §4.7 的 cg9 表（`ADR-0061` D7；`m18-spec-005` 措辞，兼容旧文"软件写忽略"）；
   * 来源掩码在 `cfx0`–`cfx3 cg8 rc1`、复位全 1、`0=允许/1=屏蔽`：
     `spec/DADAO-12` §4.1–§4.4 与 §5.4（一）；
   * `escape` 的帧选择位 `imms18[1]` 与合法编码集：`spec/DADAO-12` §5.1/§5.4（七）；
@@ -145,10 +145,15 @@ def facts(root):
     if not re.search(r"^\|\s*9\s*\|\s*7–15\s*\|\s*reserved", spec, re.M):
         raise OracleError("spec §4.7: cg9 rc7-rc15 reserved row not found")
     # Both bitmaps are HW-written, software-read-only, and a software write is
-    # ignored without an exception (`ADR-0061` D4).
+    # ignored without an exception (`ADR-0061` D4).  `m18-spec-005` changed the
+    # §4.7 wording to "软件只读（写忽略）"; accept the old wording too so the
+    # oracle keeps working across that editorial change.
     for name in ("cfx_hart_async_src_frame", "cfx_hart_async_src_pending"):
-        if "软件写忽略" not in rows[name][2]:
-            raise OracleError("spec §4.7: %s must say '软件写忽略'" % name)
+        cell = rows[name][2]
+        if "软件写忽略" not in cell and "软件只读（写忽略）" not in cell:
+            raise OracleError(
+                "spec §4.7: %s must say '软件只读（写忽略）' or '软件写忽略'"
+                % name)
     if not re.search(r"不产生异常|不计异常", spec):
         raise OracleError("spec §4.7: 'write ignored, no exception' not stated")
     if "固定 supv（2）" not in spec:
@@ -186,7 +191,7 @@ def facts(root):
         raise OracleError("spec: escape imms18 = 3 ILLI rule not found")
     if not re.search(r"合法 `imms18` 集合为 \*\*`\{0, 1, 2\}`\*\*", spec):
         raise OracleError("spec §5.1: legal imms18 set {0,1,2} not found")
-    if not re.search(r"合法值 \*\*`\{0, 4, 8\}`\*\*", spec):
+    if not re.search(r"合法值\s*(?:仍为\s*)?\*\*`\{0, 4, 8\}`\*\*", spec):
         raise OracleError("spec §5.1: assembler imms20 set {0,4,8} not found")
 
     return dict(hart=hart_ha, modes=modes, cfx=cfx, cause=cause,

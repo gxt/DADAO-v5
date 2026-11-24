@@ -845,6 +845,24 @@ _locked-build-bootrom:
 	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
 	  --compare $(STEP5_BOOTROM_DIR)/bootrom_step5.bin \
 	            $(STEP5_BOOTROM_DIR)/bootrom_step5_inst.bin
+	@# m16-chipyard-025: Vast 4 MiB image for the chipyard RTL harness.  The
+	@# shared power stage is assembled once more with POWER_RTL_BODY=1 (it also
+	@# loads smon and points hmon's save-and-jump slot at the +loadmem entry);
+	@# hmon is the shared Tiny save-and-jump handler; the image is the standard
+	@# Vast index-table format with the power flat segment in the last 64 KiB.
+	$(LLVM_MC_BIN) --triple=dadao-unknown-elf -filetype=obj --defsym POWER_RTL_BODY=1 tests/ee-vast/power_vast.S -o $(STEP5_BOOTROM_DIR)/power_rtl.o
+	$(LLD_BIN) -z max-page-size=0x1000 -T tests/ee-vast/power_vast.lds $(STEP5_BOOTROM_DIR)/power_rtl.o -o $(STEP5_BOOTROM_DIR)/power_rtl.elf
+	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
+	  --out-dir $(STEP5_BOOTROM_DIR) \
+	  --power-elf $(STEP5_BOOTROM_DIR)/power_rtl.elf \
+	  --hmon-elf $(TINY_BOOTROM_DIR)/hmon.elf \
+	  --smon-elf $(STEP5_BOOTROM_DIR)/smon.elf \
+	  --llvm-objcopy $(LLVM_OBJCOPY_BIN) --llvm-nm $(LLVM_NM_BIN) \
+	  --out-name bootrom_vast.bin \
+	  --hex-out $(STEP5_BOOTROM_DIR)/bootrom.vast.hex
+	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
+	  --check-hex $(STEP5_BOOTROM_DIR)/bootrom_vast.bin \
+	              $(STEP5_BOOTROM_DIR)/bootrom.vast.hex
 	$(PYTHON) tools/testcases/arch/build_step5_bootrom.py \
 	  --out-dir $(STEP5_BOOTROM_DIR) \
 	  --power-elf $(STEP5_BOOTROM_DIR)/power.elf \

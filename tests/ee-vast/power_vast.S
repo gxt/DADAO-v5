@@ -29,6 +29,17 @@
 
 	.include "tests/shared/asm/machine-vast.inc"
 
+@@ m16-chipyard-025: the RTL (chipyard) test path boots the fixed step5 chain
+@@ with this same source assembled once more with -defsym POWER_RTL_BODY=1.
+@@ That variant additionally loads the smon ELF into smon SRAM (the image index
+@@ table carries both entries) and points the hmon save-and-jump return slot at
+@@ the chipyard application entry (core-internal SRAM, `WumingVastAddressMap`),
+@@ so the shared Tiny hmon handler hands control to the +loadmem test body.
+@@ The QEMU/gem5 image keeps POWER_RTL_BODY=0 and is byte-identical.
+	.ifndef	POWER_RTL_BODY
+	.equ	POWER_RTL_BODY, 0
+	.endif
+
 	.text
 	.globl	_start
 
@@ -53,12 +64,40 @@ _start:
 	set.rd rd6, 0x0000000000000003
 	cfx2rc	cfx_hmon, cg3, rc8, rd6
 
+	.if POWER_RTL_BODY
+	@@ RTL payload: load the smon ELF too (type 2 -> smon SRAM), then set the
+	@@ hmon handler's return slot to just past the handoff trap (spec/Kaiwu §6).
+	set.rd	rd1, 0x0000000000000002	@@ smon entry
+	set.rb	rb9, RESET_PC + 0x2000	@@ rom_validate_table
+	call	[rb9, rd0, 0]
+	br.nz	{rd8}?, [rb0, power_exit_code]
+	set.rb	rb2, SMON_BASE
+	set.rb	rb9, RESET_PC + 0x2400	@@ elf_loader
+	call	[rb9, rd0, 0]
+	br.nz	{rd8}?, [rb0, power_exit_code]
+
+	@@ hmon's save-and-jump handler reads its return slot below; it must
+	@@ point just past the handoff trap so hmon escapes back here (the
+	@@ handover frame's cause_ip then stays inside the BootROM window).
+	set.rb	rb7, HMON_BASE
+	rb2rd	rd4, rb0, 1
+	add.si	rd4, 16
+	st.o	rd4, [rb7, 0xF8]
+	.endif
+
 	@@ power -> hmon handoff (ADR-0043 D8).  The immediate is <boot_magic>;
 	@@ the builder keeps it equal to the image table's boot_magic field and
 	@@ patches this instruction when --boot-magic overrides it.
 	.globl	boot_magic_trap
 boot_magic_trap:
 	trap	cfx_hmon, 0x30001
+	.if POWER_RTL_BODY
+	@@ hmon escapes back to the instruction after the trap; hand the test
+	@@ body (loaded by +loadmem) control.  The handover frame keeps the trap
+	@@ IP, so `cfx_hmon cg5 rc3` still reports a BootROM address.
+	set.rb	rb2, 0x00000000ffffff010100	@@ WumingVastAddressMap.appEntry
+	jump	[rb2, rd0, 0]
+	.endif
 
 power_park:
 	@@ D14: power never resumes.

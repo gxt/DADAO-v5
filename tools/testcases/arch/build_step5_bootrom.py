@@ -20,12 +20,21 @@ The table's boot_magic is also patched into the power stage's
 `boot_magic_trap` instruction (symbol address from llvm-nm), so the handoff
 immediate can be overridden without assembling a second power image.
 
+Outputs: the binary image under ``--out-dir`` and, with ``--hex-out``, the
+sparse text hex used by the chipyard ``wuming`` resource generator (a component
+patch set cannot carry binary blobs).  The text form is the same ``@<offset>``
+sparse format as ``build_tiny_bootrom.py``: only the table, the two ELF
+payloads and the power flat segment are written; the 4 MiB zero regions cost
+one offset line.
+
 Usage:
   build_step5_bootrom.py --out-dir DIR --power-elf P --hmon-elf H \
-      --smon-elf S --llvm-objcopy OBJCOPY --llvm-nm NM [--self-test]
+      --smon-elf S --llvm-objcopy OBJCOPY --llvm-nm NM [--hex-out FILE] \
+      [--self-test]
   build_step5_bootrom.py ... --max-image-size N     # injection / evidence
   build_step5_bootrom.py ... --out-name bootrom_step5_inst.bin
   build_step5_bootrom.py --compare A.bin B.bin      # variant diff report
+  build_step5_bootrom.py --check-hex A.bin A.hex    # image vs checked-in hex
 
 Exit code: 0 iff the image was produced and every check passed.
 """
@@ -240,7 +249,13 @@ def build(args, max_size, boot_magic, hmon_flags, smon_flags, out_name):
     print("step5: hmon footprint=%d smon footprint=%d power=%d" %
           (hmon.memsz, smon.memsz, len(power_bin)))
     print("step5: wrote %s (%d bytes)" % (out_path, os.path.getsize(out_path)))
-    return out_path
+    ranges = [
+        (0, 16 + COUNT * 32),
+        (hmon_off, hmon_off + len(hmon.data)),
+        (smon_off, smon_off + len(smon.data)),
+        (POWER_OFF, POWER_OFF + len(power_bin)),
+    ]
+    return out_path, ranges, (len(hmon.data), len(smon.data), len(power_bin))
 
 
 def verify_image(path, boot_magic, hmon_flags, smon_flags):
@@ -280,6 +295,66 @@ def verify_image(path, boot_magic, hmon_flags, smon_flags):
     if trap_word is None or (trap_word & 0x3FFFF) != boot_magic:
         raise BuildError("self-test: power trap immediate %r != boot magic" %
                          (None if trap_word is None else hex(trap_word)))
+
+
+def to_hex(image, comment_lines, ranges, width=32):
+    """Sparse text form: ``@<offset>`` sets the position, byte lines append.
+
+    Only the payload ranges (table / hmon ELF / smon ELF / power window) are
+    written; the 4 MiB zero regions stay implicit zeros.
+    """
+    lines = ["# " + c if c else "#" for c in comment_lines]
+    for start, end in ranges:
+        lines.append("@%06x" % start)
+        for k in range(start, end, width):
+            lines.append(" ".join("%02x" % b for b in image[k:min(k + width, end)]))
+    return "\n".join(lines) + "\n"
+
+
+def hex_to_bytes(path, size=BOOTROM_SIZE):
+    image = bytearray(size)
+    pos = 0
+    with open(path) as f:
+        for lineno, raw in enumerate(f, 1):
+            line = raw.split("#", 1)[0].strip()
+            if not line:
+                continue
+            if line.startswith("@"):
+                try:
+                    pos = int(line[1:], 16)
+                except ValueError:
+                    raise BuildError("%s:%d: bad offset line %r" % (path, lineno, line))
+                if pos > size:
+                    raise BuildError("%s:%d: offset %#x is past the image" % (path, lineno, pos))
+                continue
+            digits = "".join(line.split())
+            if len(digits) % 2:
+                raise BuildError("%s:%d: odd number of hex digits" % (path, lineno))
+            for k in range(0, len(digits), 2):
+                if pos >= size:
+                    raise BuildError("%s:%d: data runs past the image" % (path, lineno))
+                image[pos] = int(digits[k:k + 2], 16)
+                pos += 1
+    return bytes(image)
+
+
+def check_hex(image_path, hex_path):
+    with open(image_path, "rb") as f:
+        image = f.read()
+    decoded = hex_to_bytes(hex_path, len(image))
+    if decoded == image:
+        print("check-hex: %s matches %s (%d bytes)" % (hex_path, image_path, len(image)))
+        return 0
+    if len(decoded) != len(image):
+        print("check-hex: FAIL: %s decodes to %d bytes, image is %d"
+              % (hex_path, len(decoded), len(image)), file=sys.stderr)
+        return 1
+    for i in range(len(image)):
+        if decoded[i] != image[i]:
+            print("check-hex: FAIL: first difference at offset %#06x (hex=%02x image=%02x)"
+                  % (i, decoded[i], image[i]), file=sys.stderr)
+            return 1
+    return 1
 
 
 def compare_images(base_path, other_path):
@@ -360,14 +435,31 @@ def self_test(args):
     with tempfile.TemporaryDirectory(prefix="step5-selftest-") as td:
         selftest_args = argparse.Namespace(**vars(args))
         selftest_args.out_dir = td
-        path = build(selftest_args, DEFAULT_MAX, DEFAULT_BOOT_MAGIC,
-                     FLAG_REQUIRED | FLAG_LOAD | FLAG_VERIFY,
-                     FLAG_REQUIRED | FLAG_LOAD | FLAG_VERIFY,
-                     "self-test.bin")
+        path, ranges, sizes = build(selftest_args, DEFAULT_MAX, DEFAULT_BOOT_MAGIC,
+                                    FLAG_REQUIRED | FLAG_LOAD | FLAG_VERIFY,
+                                    FLAG_REQUIRED | FLAG_LOAD | FLAG_VERIFY,
+                                    "self-test.bin")
         verify_image(path, DEFAULT_BOOT_MAGIC,
                      FLAG_REQUIRED | FLAG_LOAD | FLAG_VERIFY,
                      FLAG_REQUIRED | FLAG_LOAD | FLAG_VERIFY)
         print("self-test: layout/table/trap verify PASS")
+        hex_path = os.path.join(td, "self-test.hex")
+        with open(path, "rb") as f:
+            image = f.read()
+        with open(hex_path, "w") as f:
+            f.write(to_hex(image, ["self-test"], ranges))
+        if check_hex(path, hex_path) != 0:
+            raise BuildError("self-test: hex round-trip did not match")
+        print("self-test: hex round-trip PASS")
+        # the hex check must reject a one-byte image change
+        bad = bytearray(image)
+        bad[POWER_OFF] ^= 0xFF
+        bad_hex = os.path.join(td, "bad.hex")
+        with open(bad_hex, "w") as f:
+            f.write(to_hex(bad, ["injected"], ranges))
+        if check_hex(path, bad_hex) == 0:
+            raise BuildError("self-test: hex check accepted a corrupted image")
+        print("self-test: injected hex corruption rejected PASS")
     # The size guard must reject an image bigger than an injected limit.
     try:
         with tempfile.TemporaryDirectory(prefix="step5-selftest-neg-") as td:
@@ -404,6 +496,11 @@ def main():
                          "(bootrom_step5.bin / bootrom_step5_inst.bin)")
     ap.add_argument("--compare", nargs=2, metavar=("BASE", "OTHER"), default=None,
                     help="compare two built variants and exit")
+    ap.add_argument("--hex-out", default=None,
+                    help="also write the sparse text hex image "
+                         "(checked-in bootrom.vast.hex)")
+    ap.add_argument("--check-hex", nargs=2, metavar=("IMAGE", "HEX"), default=None,
+                    help="compare a built image against a text hex file and exit")
     args = ap.parse_args()
 
     try:
@@ -417,6 +514,13 @@ def main():
             return compare_images(args.compare[0], args.compare[1])
         except BuildError as exc:
             print("step5: compare FAIL: %s" % exc, file=sys.stderr)
+            return 1
+
+    if args.check_hex:
+        try:
+            return check_hex(args.check_hex[0], args.check_hex[1])
+        except BuildError as exc:
+            print("step5: check-hex FAIL: %s" % exc, file=sys.stderr)
             return 1
 
     missing = [name for name in ("out_dir", "power_elf", "hmon_elf", "smon_elf",
@@ -441,10 +545,26 @@ def main():
     try:
         if args.self_test:
             return self_test(args)
-        build(args, args.max_image_size, boot_magic, hmon_flags, smon_flags,
-              args.out_name)
+        _path, ranges, sizes = build(args, args.max_image_size, boot_magic,
+                                     hmon_flags, smon_flags, args.out_name)
         out_path = os.path.join(args.out_dir, args.out_name)
         verify_image(out_path, boot_magic, hmon_flags, smon_flags)
+        if args.hex_out:
+            with open(out_path, "rb") as f:
+                image = f.read()
+            with open(args.hex_out, "w") as f:
+                f.write(to_hex(image, [
+                    "Kaiwu-Vast BootROM image (m16-chipyard-025)",
+                    "Generated by tools/testcases/arch/build_step5_bootrom.py"
+                    " — do not edit.",
+                    "Layout (spec/Kaiwu §6.1): image index table at %#06x,"
+                    % 0,
+                    "hmon/smon ELFs after it, power flat segment at %#06x..%#06x."
+                    % (POWER_OFF, BOOTROM_SIZE),
+                    "hmon ELF = %d B, smon ELF = %d B, power segment = %d B."
+                    % sizes,
+                ], ranges))
+            print("step5: wrote hex %s" % args.hex_out)
     except BuildError as exc:
         print("step5: FAIL: %s" % exc, file=sys.stderr)
         return 1
