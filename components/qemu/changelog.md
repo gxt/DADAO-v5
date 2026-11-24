@@ -436,6 +436,12 @@
   - 摘要：**cfx5 的 `cg0`–`cg7` 走 `cfx_reg_ptr` 通用共有寄存器表（`contract-see §3`；`spec/DADAO-12 §3`）**。`target/dadao/helper.c`：删除 `cfx2rd`/`cfx2rc` 对 cfx5 的「非 `cg8` ⇒ `CFXREG`」特判（两条对称路径），使 cfx5 的 `cg0`–`cg2`（四类同步 mask/`cfx_intr_mask`/`switch_run_mode`/`excp_vector`）、`cg3`（hypv 行 + `rc12` `hypv_cg_reg_deleg`，复位全 1、RW、bit3 硬连线 1）、`cg4`（`cfx_id`/`version`/计数/`scratch_regs_num`，只读）、`cg5`（异常现场）、`cg6`（scratch，`rc >= scratch_regs_num ⇒ CFXREG`）、`cg7`（只读空间描述，cfx5 无内部空间 ⇒ 全 0、写 ⇒ `CFXREG`）由通用路径应答；`cg8` 的 CACHE-03/04/27 专属语义不变（off/on 两模型都存在）。`cg3 rc12` 的既有通用实现（写或 bit3、`supv` 按目标 cfx 位图判定、未开放 ⇒ `CFXPERM`）即满足 cfx5 的 deleg 要求，未改语义。订正 cfx5 cg8 注释中「只实现 cg8」的过时表述。补丁 1 份改（`target/dadao/helper.c`）。
   - 执行者：engineer
 
+## M17
+
+- **2026-11-24 `m17-qemu-001`**
+  - 摘要：**异常原因编码扁平化（`ADR-0062`；`contract-see §6.1/§6.1.1` 已由 `m17-spec-002` 落扁平位图）**。`target/dadao/cpu.h`：删 `DADAO_SUB_NCFXPERM`（`[39]`）与 `DADAO_SUB_NONPTW`（`[57]`），`DADAO_CAUSE_WYDE2/WYDE3` 改为扁平位图掩码 `DADAO_CAUSE_PERM_BITS`（`[38:32]`）/`DADAO_CAUSE_MEM_BITS`（`[56:48]`）+ `DADAO_CAUSE_RESERVED`（`[31:16]`/`[39]`/`[47:40]`/`[57]`/`[63:58]` 恒 0）；`CFXMEM`/`CFXPERM` 注释收窄为「非 PTW 核内访存」/「cfx 来源掩码拒绝」。`target/dadao/helper.c`：`CFXPERM` 不再带 `[39]`，`cause_info` = **触发指令地址**（`cfx_raise_perm()` 收为 `(env, pc)`，`trap`/`cfx2rd`/`cfx2rc` 五处统一传 `pc`；`ISS-469`）；`CFXMEM` 不再带 `[57]`；PTW 权限/缺失/`ADWBFAIL` 只置高位位图之一（`[38:32]`/`[56:48]`/`[56]`）且父 `CFXPERM`/`CFXMEM` = 0，`cause_info` 按 `ADR-0062 D4`（权限/缺失 = VA、`[56]` = PTE PA）；`dadao_cause_check()` 改判扁平不变式（64 位恰一位、低位 cause 时 `[63:32]` 全 0、位图位时 `[15:0]` 全 0、保留位恒 0）。路由不变（PTW 故障进当前运行模式 monitor，`ADR-0062 D6`；Tiny 退出码不变）。测试载体：`tests/arch/umon/m5_perm_mask_cfxperm.S` 断言整字 `cause_id == 0x80` 且 `cause_info == excp_cause_ip`；`tests/arch/ptw/ptw_carrier_tlb.py` 的合约解析与断言改扁平位图（整字相等、父位为 0），`expected.yaml` 同步。补丁 2 份改（`target/dadao/{cpu.h,helper.c}`）。
+  - 执行者：engineer
+
 ## M18
 
 - **2026-11-23 `m18-qemu-004`**

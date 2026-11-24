@@ -9,12 +9,14 @@
 Expectations are derived **at run time from the contracts**, never from the
 QEMU implementation (AGENTS.md "Independent oracle"):
 
-  * sub-cause bit numbers and their target cause: `.tao/contracts/
-    contract-see.md` §6.1.1, cross-checked against `spec/DADAO-12 §3.6`
-    (two independent tables; a disagreement aborts the run);
-  * big-class values (`CFXMEM` = `1 << 1`, `CFXPERM` = `1 << 7`, `CFXREG` =
-    `1 << 2`), the "`[31:16]` reserved" and "other wyde must be 0" rules:
-    `contract-see §6.1`;
+  * bitmap bit numbers: `.tao/contracts/contract-see.md` §6.1.1, cross-checked
+    against `spec/DADAO-12 §3.6` (two independent tables; a disagreement aborts
+    the run);
+  * low cause values (`CFXMEM` = `1 << 1`, `CFXPERM` = `1 << 7`, `CFXREG` =
+    `1 << 2`) and the **flat bitmap** rules (exactly one bit in the 64-bit
+    word, `[15:0]` sync cause with `[63:32]` == 0, PTW bit with `[15:0]` == 0,
+    `[31:16]`/`[39]`/`[47:40]`/`[57]`/`[63:58]` reserved): `contract-see §6.1`
+    + `ADR-0062 D1/D2/D3`;
   * behaviour (fill only after a fully valid walk, hit does not re-read the
     PTE, `invalid`/`clean`/`flush` semantics, three address scopes,
     `ASID_ANY`/`G`, A/D write-back, writes to PTBR/ASID/`ptw_enable` do not
@@ -36,8 +38,9 @@ fetch never depends on PTW**; only the 64 KiB RAM window does.  Result:
     the assertion's ordinal inside the image (`0x01`–`0x7F`) = the failed
     assertion (guest FAIL range `0x01`–`0x7F`).
 
-Fault checks install their own `cfx_hmon` hypv vector: the handler asserts
-class / wyde2 / wyde3 / `[31:16]` / `cause_info`, then
+Fault checks install their own `cfx_hmon` hypv vector: the handler asserts the
+whole 64-bit `excp_cause_id` (one bit; a PTW bit implies `[15:0]` == 0, a low
+cause implies `[63:32]` == 0) / `cause_info`, then
 `escape cfx_hmon, [cause_ip, 4]` resumes after the faulting instruction
 (`TLB-37`: the `tlb_control` write completes synchronously, so a failed
 `clean`/`flush` leaves the entry behind for the next instruction to observe).
@@ -52,14 +55,15 @@ Case ↔ contract (`.tao/contracts/contract-tlb.md §11`):
   `flush` writes back + deletes, and the write-back failure path (`CFXMEM` +
   `[56] ADWBFAIL`, `cause_info` = PTE PA, entry kept; TLB-16/17/37) — 008
   PTBR/ASID/`ptw_enable` writes do not invalidate (TLB-29) — 009
-  `ptw_enable = 0` ⇒ `CFXMEM` + `[57] NONPTW`, TLB bypassed, no entry
-  (TLB-41/43) — 010 unmapped page ⇒ `CFXMEM` + `[52] DGPTRAP` (data) /
-  `[48] IGPTRAP` (fetch) (TLB-35) — 011 `W=0` write ⇒ `[37] NWPERM`, `R=0`
+  `ptw_enable = 0` ⇒ `CFXMEM` (no bitmap bit), TLB bypassed, no entry
+  (TLB-41/43) — 010 unmapped page ⇒ `[52] DGPTRAP` (data) / `[48] IGPTRAP`
+  (fetch) alone, `CFXMEM` = 0 (TLB-35) — 011 `W=0` write ⇒ `[37] NWPERM`, `R=0`
   read ⇒ `[36] NRPERM`, `X=0` fetch ⇒ `[38] NXPERM`, HSJU `H=0` ⇒
-  `[35] NHPERM` (TLB-32/34) — 012 a PTE change needs an explicit invalidate
+  `[35] NHPERM`, all with `CFXPERM` = 0 (TLB-32/34) — 012 a PTE change needs
+  an explicit invalidate
   (TLB-07/18) — 013 `VA[47:42] != 0` bypasses PTW/TLB: `cfx_pmem` SRAM with
-  an all-zero page table, reserved cfx ⇒ `CFXMEM` + `[57] NONPTW` with PTW on
-  *and* off (TLB-40) — 014 a write-back failure is entry-granular and stops
+  an all-zero page table, reserved cfx ⇒ `CFXMEM` alone with PTW on *and* off
+  (TLB-40) — 014 a write-back failure is entry-granular and stops
   the command: the entries before it are processed, the failing one keeps its
   state, the rest are untouched (TLB-37) — 015 `ILLI` at an IP inside the
   memory window: `cause_info` = the instruction word read back through the
@@ -124,10 +128,9 @@ EXPECTED_YAML = os.path.join(_REPO, "tests", "arch", "ptw", "expected.yaml")
 
 # `| `1 << 1` | `CFXMEM` | ...`      (contract-see §6.1)
 _RE_CAUSE = re.compile(r"^\|\s*`1 << (\d+)`\s*\|\s*`([A-Z_]+)`")
-# `| `[32]` | wyde2 | `NUPERM` | `CFXPERM` | ...`   (contract-see §6.1.1)
-_RE_SUB = re.compile(
-    r"^\|\s*`\[(\d+)\]`\s*\|\s*wyde([23])\s*\|\s*`([A-Z_]+)`\s*\|\s*`([A-Z_]+)`")
-# `| `[32]` | NUPERM | trigger ... |`   (spec/DADAO-12 §3.6, no wyde column)
+# `| `[32]` | wyde2 权限类 | `NUPERM` | HSJU ... |`   (contract-see §6.1.1)
+_RE_SUB = re.compile(r"^\|\s*`\[(\d+)\]`\s*\|[^|]*\|\s*`([A-Z_]+)`\s*\|")
+# `| `[32]` | NUPERM | trigger ... |`   (spec/DADAO-12 §3.6, 3 columns)
 _RE_SPEC_SUB = re.compile(r"^\|\s*`\[(\d+)\]`\s*\|\s*([A-Z_]+)\s*\|")
 
 
@@ -137,8 +140,12 @@ def _read(path):
 
 
 def parse_contract():
-    """Return (cause value by name, sub-cause bit by name, wyde, target cause)."""
-    causes, sub_bits, sub_wyde, sub_cause = {}, {}, {}, {}
+    """Return (cause value by name, bitmap bit by name).
+
+    The encoding is flat (`ADR-0062 D1`): a bitmap bit carries the whole reason
+    by itself, so there is no "owning wyde" or target big class to record.
+    """
+    causes, sub_bits = {}, {}
     for line in _read(CONTRACT_SEE).splitlines():
         m = _RE_CAUSE.match(line)
         if m:
@@ -146,12 +153,11 @@ def parse_contract():
             continue
         m = _RE_SUB.match(line)
         if m:
-            bit, wyde, name, target = (int(m.group(1)), int(m.group(2)),
-                                       m.group(3), m.group(4))
+            bit, name = int(m.group(1)), m.group(2)
             if name in sub_bits:
-                raise SystemExit("ptw_carrier_tlb: duplicate sub-cause %r"
+                raise SystemExit("ptw_carrier_tlb: duplicate bitmap bit %r"
                                  % name)
-            sub_bits[name], sub_wyde[name], sub_cause[name] = bit, wyde, target
+            sub_bits[name] = bit
     if not causes or not sub_bits:
         raise SystemExit("ptw_carrier_tlb: cannot parse the contract tables "
                          "(%s §6.1/§6.1.1)" % CONTRACT_SEE)
@@ -165,37 +171,30 @@ def parse_contract():
     if diff:
         raise SystemExit("ptw_carrier_tlb: contract-see §6.1.1 and "
                          "spec/DADAO-12 §3.6 disagree: %r" % (diff,))
-    return causes, sub_bits, sub_wyde, sub_cause
+    return causes, sub_bits
 
 
-CAUSE, SUB_BIT, SUB_WYDE, SUB_CAUSE = parse_contract()
+CAUSE, SUB_BIT = parse_contract()
 
-# `contract-see §6.1`: wyde ownership is exclusive and `[31:16]` is reserved.
+# `contract-see §6.1` + `ADR-0062 D1`: flat 64-bit bitmap -- `[15:0]` sync cause
+# (with `[63:32]` == 0), or one `[38:32]`/`[56:48]` PTW bit (with `[15:0]` == 0).
 LOW16 = 0xFFFF
-RESERVED_31_16 = 0xFFFF_0000
-WYDE2 = 0xFFFF_0000_0000            # `[47:32]` — `CFXPERM` only
-WYDE3 = 0xFFFF_0000_0000_0000       # `[63:48]` — `CFXMEM` only
+HIGH32 = 0xFFFF_FFFF_0000_0000      # `[63:32]` -- must be 0 for a low cause
+# `ADR-0062 D1` rule 4: these bits are deleted / reserved and always 0.
+RESERVED = (0xFFFF << 16) | (1 << 39) | (0xFF << 40) | (1 << 57) | (0x3F << 58)
 
 
 def sub_one_hot(name):
     """`1 << bit`, `bit` = the **absolute** bit number in `excp_cause_id`.
 
     `contract-see §6.1.1` lists the bits by absolute number (`DGPTRAP` is
-    `[52]`, in wyde3 `[63:48]`), and `a_masked()` compares against the absolute
-    64-bit mask (`WYDE2`/`WYDE3`), so the value has to stay absolute as well.
+    `[52]`), and the assertions compare the whole 64-bit word, so the value
+    stays absolute.
     """
     if name not in SUB_BIT:
         raise SystemExit("ptw_carrier_tlb: %r is not in contract-see §6.1.1"
                          % (name,))
     return 1 << SUB_BIT[name]
-
-
-def wyde_values(name):
-    """(expected `cause_id & WYDE2`, expected `cause_id & WYDE3`)."""
-    if name is None:
-        return 0, 0
-    v = sub_one_hot(name)
-    return (v, 0) if SUB_WYDE[name] == 2 else (0, v)
 
 
 # ---------------------------------------------------------------------------
@@ -334,7 +333,7 @@ class Check:
         self.words_at = None
         self.image_at = None     # ROM image offsets (read-only page tables)
         self.hmon_extra = None   # words run inside the prelude hmon segment
-        self.expect = None       # (cause name or None, sub-cause name or None)
+        self.expect = None       # (low cause name or None, bitmap bit name or None)
         self.sig_want = []       # 签名流期望（每个 `sig_obs` 一项；空 = 不接线）
 
     def code(self, desc):
@@ -477,12 +476,13 @@ def record_baseline(chk):
     """Snapshot the pre-existing `cfx_hmon` cause frame (the prelude's `trap`).
 
     Success-path checks then only have to prove that no *new* frame appeared:
-    `wyde2`/`wyde3` of the snapshot itself are asserted to be 0, which is the
-    `contract-see §6.1` "no exception ⇒ both wyde are 0" statement.
+    the snapshot's `[63:32]` and every reserved bit are asserted to be 0, which
+    is the `contract-see §6.1` + `ADR-0062 D1` "a low cause carries no bitmap
+    bit" statement.
     """
     chk.s.e(P.cfx2rd(HMON_HA, 5, CAUSE_ID_RC, RD_BASE))
-    a_masked(chk, chk.s, RD_BASE, WYDE2 | WYDE3 | RESERVED_31_16, 0,
-             "baseline cause_id has no sub-cause wyde and no [31:16] bit")
+    a_masked(chk, chk.s, RD_BASE, HIGH32 | RESERVED, 0,
+             "baseline cause_id carries no bitmap bit and no reserved bit")
 
 
 def assert_no_new_fault(chk, rd=7):
@@ -535,26 +535,40 @@ def unexpected_fault(chk):
 def fault_handler(chk, cls, sub, info=None, resume=True, post=None):
     """Assert the fault frame, then resume after the faulting instruction.
 
-    `cls` = big class (`CFXMEM`/`CFXPERM`/`CFXREG`), `sub` = sub-cause symbol
-    from `contract-see §6.1.1` or `None` (`CFXREG` carries no sub-cause).
+    Exactly one of the two forms (`ADR-0062 D1/D2`):
+
+      * `cls` = a low sync cause (`CFXMEM` for a non-PTW core access, `CFXREG`,
+        `ILLI`), `sub` = `None`  =>  `cause_id == 1 << index`, `[63:32]` == 0;
+      * `cls` = `None`, `sub` = a bitmap symbol from `contract-see §6.1.1`
+        (`DGPTRAP`, `NWPERM`, `ADWBFAIL`, ...)  =>  `cause_id == 1 << bit`,
+        `[15:0]` == 0 (the old parent `CFXMEM`/`CFXPERM` bit is **not** set).
     """
-    if sub is not None and SUB_CAUSE.get(sub) != cls:
-        raise SystemExit("ptw_carrier_tlb: %s belongs to %s, not %s "
-                         "(contract-see §6.1.1)"
-                         % (sub, SUB_CAUSE.get(sub), cls))
-    chk.expect = (cls, sub) if cls else None
+    if (cls is None) == (sub is None):
+        raise SystemExit("ptw_carrier_tlb: a fault frame is either a low cause "
+                         "or one bitmap bit (cls=%r, sub=%r)" % (cls, sub))
+    chk.expect = (cls, sub)
+    if sub is None:
+        want = CAUSE[cls]
+        what = "cause == %s" % cls
+    else:
+        want = sub_one_hot(sub)
+        what = "cause_id == %s alone (bit %d)" % (sub, SUB_BIT[sub])
+        if want & RESERVED:
+            raise SystemExit("ptw_carrier_tlb: %s is a reserved bit" % sub)
     h = P.Seq()
     h.e(P.add_si(RD_FAULTS, 1))         # entry counter (asserted by the body)
     h.e(P.cfx2rd(HMON_HA, 5, CAUSE_ID_RC, RD_CID))
     h.e(P.cfx2rd(HMON_HA, 5, CAUSE_INFO_RC, RD_INFO))
     h.e(P.cfx2rd(HMON_HA, 5, CAUSE_IP_RC, RD_IP))
-    a_masked(chk, h, RD_CID, LOW16, CAUSE[cls], "cause == %s" % cls)
-    a_masked(chk, h, RD_CID, RESERVED_31_16, 0, "cause_id[31:16] reserved == 0")
-    w2, w3 = wyde_values(sub)
-    a_masked(chk, h, RD_CID, WYDE2, w2,
-             "wyde2 == %s" % (sub if SUB_WYDE.get(sub) == 2 else "0"))
-    a_masked(chk, h, RD_CID, WYDE3, w3,
-             "wyde3 == %s" % (sub if SUB_WYDE.get(sub) == 3 else "0"))
+    if sub is None:
+        a_masked(chk, h, RD_CID, HIGH32, 0,
+                 "%s: [63:32] bitmap is 0" % cls)
+    else:
+        a_masked(chk, h, RD_CID, LOW16, 0,
+                 "%s: [15:0] sync cause is 0" % sub)
+    a_masked(chk, h, RD_CID, RESERVED, 0,
+             "cause_id reserved bits ([31:16]/[39]/[40..47]/[57]/[58..63]) == 0")
+    a_eq(chk, h, RD_CID, want, what)
     if info is not None:
         a_eq(chk, h, RD_INFO, info, "cause_info == 0x%x" % info)
     if post:
@@ -919,7 +933,7 @@ def _c007(no, cid):
     c = _new(no, cid, "flush_adwbfail", "ROM page table: CFXMEM + [56] ADWBFAIL")
     sig_begin(c)
     c.words_at = {ROM_PTE_OFF: list(_ROM_PTE_WORDS)}
-    set_handler(c, fault_handler(c, "CFXMEM", "ADWBFAIL", info=_ROM_PTE_PA))
+    set_handler(c, fault_handler(c, None, "ADWBFAIL", info=_ROM_PTE_PA))
     st64(c, 0x40, M1)                          # PA 0x40 (identity table)
     tlb_cmd(c, OP_INVALID, SCOPE_ALL, asid_any=True)
     set_ptbr(c, P.RESET_PC)                    # the ROM-resident page table
@@ -984,9 +998,9 @@ def _c008(no, cid):
     return [_finish(c)]
 
 
-# -- 009: ptw_enable = 0 => CFXMEM + NONPTW, TLB bypassed ------------------
+# -- 009: ptw_enable = 0 => CFXMEM (no bitmap bit), TLB bypassed -----------
 @case(9, "arch-ptw-009", "ptw_off_direct_cfxmem",
-      "ptw_enable=0: CFXMEM + [57] NONPTW, no TLB lookup, no fill")
+      "ptw_enable=0: CFXMEM alone (no bitmap bit), no TLB lookup, no fill")
 def _c009(no, cid):
     out = []
 
@@ -997,7 +1011,7 @@ def _c009(no, cid):
     ld_va(c, VA0, rd=5)
     a_eq(c, c.s, 5, M1, "page cached with PTW on")
     set_ptw(c, False)
-    set_handler(c, fault_handler(c, "CFXMEM", "NONPTW", info=VA0,
+    set_handler(c, fault_handler(c, "CFXMEM", None, info=VA0,
                                 post=load_rd(CREG, 1) + [P.cfx2rc(
                                     PTW_HA, PTW_ENABLE_CG, PTW_ENABLE_RC,
                                     CREG)]))
@@ -1012,7 +1026,7 @@ def _c009(no, cid):
     st64(c, DC, M3)
     install_table(c, {1: pte_leaf(DB, a=False, d=False)})
     set_ptw(c, False)
-    set_handler(c, fault_handler(c, "CFXMEM", "NONPTW", info=VA1,
+    set_handler(c, fault_handler(c, "CFXMEM", None, info=VA1,
                                 post=load_rd(CREG, 1) + [P.cfx2rc(
                                     PTW_HA, PTW_ENABLE_CG, PTW_ENABLE_RC,
                                     CREG)]))
@@ -1031,13 +1045,13 @@ def _c009(no, cid):
 
 # -- 010: ptw_enable = 1 with an unmapped page -----------------------------
 @case(10, "arch-ptw-010", "ptw_on_unmapped",
-      "L1/L2 P=0: CFXMEM + [52] DGPTRAP (data) / [48] IGPTRAP (fetch)")
+      "L1/L2 P=0: only [52] DGPTRAP (data) / [48] IGPTRAP (fetch), CFXMEM=0")
 def _c010(no, cid):
     out = []
 
     c = _new(no, cid, "data_unmapped", "read of an unmapped page")
     install_table(c, {})                    # L2 entry 2 stays P=0
-    set_handler(c, fault_handler(c, "CFXMEM", "DGPTRAP", info=VA2))
+    set_handler(c, fault_handler(c, None, "DGPTRAP", info=VA2))
     arm_fault(c)
     ld_va(c, VA2, rd=5)
     a_fault_count(c, 1)
@@ -1045,7 +1059,7 @@ def _c010(no, cid):
 
     c = _new(no, cid, "fetch_unmapped", "fetch of an unmapped page")
     install_table(c, {})
-    set_handler(c, fault_handler(c, "CFXMEM", "IGPTRAP", info=VA2,
+    set_handler(c, fault_handler(c, None, "IGPTRAP", info=VA2,
                                 resume=False))
     jump_va(c, VA2)
     _fail_exit(c, c.s, c.code("the fetch must fault"))
@@ -1053,7 +1067,7 @@ def _c010(no, cid):
     return out
 
 
-# -- 011: page permission failures => CFXPERM sub-causes -------------------
+# -- 011: page permission failures => permission bitmap bits -------------
 @case(11, "arch-ptw-011", "perm_denied_cfxperm",
       "W=0/R=0/X=0 and HSJU H=0 give CFXPERM + [37]/[36]/[38]/[35]")
 def _c011(no, cid):
@@ -1062,7 +1076,7 @@ def _c011(no, cid):
     c = _new(no, cid, "nwperm", "store to a W=0 page")
     st64(c, DA, M1)
     install_table(c, {0: pte_leaf(DA, w=False)})
-    set_handler(c, fault_handler(c, "CFXPERM", "NWPERM", info=VA0))
+    set_handler(c, fault_handler(c, None, "NWPERM", info=VA0))
     arm_fault(c)
     st_va(c, VA0, M2)
     a_fault_count(c, 1)
@@ -1071,7 +1085,7 @@ def _c011(no, cid):
     c = _new(no, cid, "nrperm", "load from an R=0 page")
     st64(c, DA, M1)
     install_table(c, {0: pte_leaf(DA, r=False)})
-    set_handler(c, fault_handler(c, "CFXPERM", "NRPERM", info=VA0))
+    set_handler(c, fault_handler(c, None, "NRPERM", info=VA0))
     arm_fault(c)
     ld_va(c, VA0, rd=5)
     a_fault_count(c, 1)
@@ -1080,7 +1094,7 @@ def _c011(no, cid):
     c = _new(no, cid, "nxperm", "fetch from an X=0 page")
     st64(c, DA, M1)
     install_table(c, {0: pte_leaf(DA, x=False)})
-    set_handler(c, fault_handler(c, "CFXPERM", "NXPERM", info=VA0,
+    set_handler(c, fault_handler(c, None, "NXPERM", info=VA0,
                                 resume=False))
     jump_va(c, VA0)
     _fail_exit(c, c.s, c.code("the fetch must fault"))
@@ -1090,7 +1104,7 @@ def _c011(no, cid):
     c = _new(no, cid, "nhperm", "load from a page whose HSJU has no H bit")
     st64(c, DA, M1)
     install_table(c, {0: pte_leaf(DA, hsju=0x0)})
-    set_handler(c, fault_handler(c, "CFXPERM", "NHPERM", info=VA0))
+    set_handler(c, fault_handler(c, None, "NHPERM", info=VA0))
     arm_fault(c)
     ld_va(c, VA0, rd=5)
     a_fault_count(c, 1)
@@ -1122,7 +1136,7 @@ def _c012(no, cid):
 
 # -- 013: VA[47:42] != 0 bypasses PTW/TLB ----------------------------------
 @case(13, "arch-ptw-013", "cfx_space_bypasses_ptw",
-      "cfx-internal space: cfx_pmem SRAM works with an all-zero table; reserved cfx => NONPTW")
+      "cfx-internal space: cfx_pmem SRAM works with an all-zero table; reserved cfx => CFXMEM")
 def _c013(no, cid):
     out = []
 
@@ -1144,9 +1158,9 @@ def _c013(no, cid):
     tlb_cmd(c, OP_INVALID, SCOPE_ALL, asid_any=True)
     out.append(_finish(c))
 
-    # (b) negative with PTW on: reserved cfx => CFXMEM + NONPTW
+    # (b) negative with PTW on: reserved cfx => CFXMEM (no bitmap bit)
     c = _new(no, cid, "reserved_cfx_ptw_on", "ld from a reserved cfx (PTW on)")
-    set_handler(c, fault_handler(c, "CFXMEM", "NONPTW", info=RESERVED_CFX,
+    set_handler(c, fault_handler(c, "CFXMEM", None, info=RESERVED_CFX,
                                 resume=False))
     arm_fault(c)
     ld_va(c, RESERVED_CFX, rd=5)
@@ -1156,7 +1170,7 @@ def _c013(no, cid):
     # (c) negative with PTW off: identical semantics
     c = _new(no, cid, "reserved_cfx_ptw_off", "ld from a reserved cfx (PTW off)")
     set_ptw(c, False)
-    set_handler(c, fault_handler(c, "CFXMEM", "NONPTW", info=RESERVED_CFX,
+    set_handler(c, fault_handler(c, "CFXMEM", None, info=RESERVED_CFX,
                                 resume=False))
     arm_fault(c)
     ld_va(c, RESERVED_CFX, rd=5)
@@ -1221,7 +1235,7 @@ def _c014(no, cid):
              "three entries: 1 processed, 2 fails, 3 left untouched")
     record_baseline(c)
     _three_entries(c)
-    set_handler(c, fault_handler(c, "CFXMEM", "ADWBFAIL", info=ROM_L2))
+    set_handler(c, fault_handler(c, None, "ADWBFAIL", info=ROM_L2))
     arm_fault(c)
     tlb_cmd(c, OP_FLUSH, SCOPE_ALL, asid_any=True)
     a_fault_count(c, 1)
@@ -1238,7 +1252,7 @@ def _c014(no, cid):
              "three entries: the failed one keeps its translation")
     record_baseline(c)
     _three_entries(c)
-    set_handler(c, fault_handler(c, "CFXMEM", "ADWBFAIL", info=ROM_L2))
+    set_handler(c, fault_handler(c, None, "ADWBFAIL", info=ROM_L2))
     arm_fault(c)
     tlb_cmd(c, OP_FLUSH, SCOPE_ALL, asid_any=True)
     a_fault_count(c, 1)
@@ -1369,19 +1383,26 @@ def selfcheck():
     """Cross-source contract tables + expected.yaml ↔ driver consistency."""
     problems = []
     names = ["NUPERM", "NJPERM", "NSPERM", "NHPERM", "NRPERM", "NWPERM",
-             "NXPERM", "NCFXPERM", "IGPTRAP", "ISPTRAP", "IGPFTRAP",
+             "NXPERM", "IGPTRAP", "ISPTRAP", "IGPFTRAP",
              "ISPFTRAP", "DGPTRAP", "DSPTRAP", "DGPFTRAP", "DSPFTRAP",
-             "ADWBFAIL", "NONPTW"]
+             "ADWBFAIL"]
     missing = [n for n in names if n not in SUB_BIT]
     if missing:
         problems.append("contract-see §6.1.1 is missing %r" % (missing,))
+    # ADR-0062 D1/D3: permission bits live in [38:32], miss/memory bits in
+    # [56:48]; the two "negative" bits [39]/[57] are deleted (must be absent).
     for n in names:
-        if n not in SUB_CAUSE:
+        if n not in SUB_BIT:
             continue
-        wyde = SUB_WYDE[n]
-        want = 2 if n.endswith("PERM") else 3
-        if wyde != want:
-            problems.append("%s is in wyde%d, expected wyde%d" % (n, wyde, want))
+        bit = SUB_BIT[n]
+        lo, hi = (32, 38) if n.endswith("PERM") else (48, 56)
+        if not lo <= bit <= hi:
+            problems.append("%s is bit %d, expected [%d..%d] (ADR-0062 D1)"
+                            % (n, bit, lo, hi))
+    for dead in ("NCFXPERM", "NONPTW"):
+        if dead in SUB_BIT:
+            problems.append("contract-see §6.1.1 still lists %s (ADR-0062 D3 "
+                            "deletes the bit)" % dead)
     for cls in ("CFXMEM", "CFXPERM"):
         if cls not in CAUSE:
             problems.append("contract-see §6.1 has no %s" % cls)
@@ -1435,10 +1456,14 @@ def selfcheck():
             want = {}
             for item in entry.get("checks", []):
                 cause = item.get("cause")
-                if cause in (None, "none"):
+                sub = item.get("subcause")
+                if cause in (None, "none") and sub is None:
                     want[item.get("label")] = None
                 else:
-                    want[item.get("label")] = (cause, item.get("subcause"))
+                    # A PTW bitmap fault has `cause: null` + its bitmap symbol:
+                    # the old parent `CFXMEM`/`CFXPERM` bit is 0 (ADR-0062 D2).
+                    want[item.get("label")] = (
+                        None if cause in (None, "none") else cause, sub)
             if got != want:
                 problems.append("%s: checks differ (driver %r vs yaml %r)"
                                 % (cid, got, want))

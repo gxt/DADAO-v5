@@ -1,9 +1,9 @@
 diff --git a/target/dadao/cpu.h b/target/dadao/cpu.h
 new file mode 100644
-index 0000000..a81320e
+index 0000000..373f1cf
 --- /dev/null
 +++ b/target/dadao/cpu.h
-@@ -0,0 +1,790 @@
+@@ -0,0 +1,802 @@
 +/*
 + * DADAO CPU header for QEMU
 + *
@@ -62,14 +62,14 @@ index 0000000..a81320e
 +    DADAO_EXCP_SYSCALL = 10,
 +    /*
 +     * System mode: a page-table walk / TLB-hit fault.  The model enters the
-+     * current run-mode monitor (DADAO-12 §2.2.6/§5.2) with
-+     * env->ptw_fault_cause (CFXMEM or CFXPERM) / env->ptw_fault_info instead
-+     * of mapping straight to an exit code.
++     * current run-mode monitor (DADAO-12 §2.2.6/§5.2; ADR-0062 D2/D6) with
++     * env->ptw_fault_cause (exactly one high-bitmap bit, [15:0] == 0) /
++     * env->ptw_fault_info instead of mapping straight to an exit code.
 +     */
 +    DADAO_EXCP_PTW_FAULT = 11,
 +    /*
-+     * System mode: two-axis permission denial (ADR-0045 D6).  Routed to the
-+     * current-mode monitor as CFXPERM with env->cfx_perm_info.
++     * System mode: cfx source-mask denial (ADR-0045 D6; ADR-0062 D2).  Routed
++     * to the current-mode monitor as CFXPERM with env->cfx_perm_info.
 +     */
 +    DADAO_EXCP_CFXPERM = 12,
 +    /*
@@ -308,12 +308,16 @@ index 0000000..a81320e
 +
 +/* Exception cause ids (one-hot, DADAO-12 §4 monitor exception table). */
 +#define DADAO_CAUSE_CFXTRAP   (1ULL << 0)
++/* Non-PTW core access fault: illegal access/fetch of a core-internal address,
++ * an unimplemented cfx's plain ld/st, a storage-block fault, or a memory-window
++ * access with ptw_enable = 0 (DADAO-12 §2.2.6; ADR-0062 D3).  Never carries a
++ * high bitmap bit. */
 +#define DADAO_CAUSE_CFXMEM    (1ULL << 1)
 +#define DADAO_CAUSE_CFXREG    (1ULL << 2)
 +/* Every cfx: escape frame/target error (DADAO-12 §4; ADR-0045 D6). */
 +#define DADAO_CAUSE_CFXESC    (1ULL << 3)
-+/* cfx0-3 monitors: cfx two-axis permission denial and page-table
-+ * HSJU/R/W/X denial (DADAO-12 §2.2.6/§5.2; ADR-0045 D6). */
++/* cfx source-mask denial only (ADR-0045 D6; ADR-0062 D2/D3).  Page-table
++ * HSJU/R/W/X denial is a high bitmap bit instead, never CFXPERM. */
 +#define DADAO_CAUSE_CFXPERM   (1ULL << 7)
 +#define DADAO_CAUSE_ILLI      (1ULL << 8)
 +#define DADAO_CAUSE_UNDI      (1ULL << 9)
@@ -321,21 +325,28 @@ index 0000000..a81320e
 +#define DADAO_CAUSE_RASUF     (1ULL << 11)
 +#define DADAO_CAUSE_MALIGN    (1ULL << 12)
 +#define DADAO_CAUSE_IALIGN    (1ULL << 13)
-+/* Page-table missing/fragment and A/D write-back failure are reported as
-+ * CFXMEM (DADAO-12 §2.2.6/§5.2 + Kaiwu §7.1); there is no PTWERR or
-+ * page-level one-hot cause any more. */
 +
-+/* Sub-cause bits of `excp_cause_id` (DADAO-12 §3.6; contract-see §6.1.1;
-+ * ADR-0056 D3).  `cause_id[15:0]` carries the one-hot sync class above; the
-+ * sub-cause is a second one-hot field in wyde3 [63:48] for CFXMEM and wyde2
-+ * [47:32] for CFXPERM.  The wyde that does not belong to the class must stay
-+ * 0.  [31:16] is reserved and must be 0: asynchronous sources do not occupy
-+ * `excp_cause_id` (DADAO-12 §3.6; ADR-0061 D2), their identity is the source
-+ * cfxha carried by cfx_hart cg9 rc3 (async_src_frame). */
-+#define DADAO_CAUSE_WYDE2      (0x0000FFFFULL << 32)  /* [47:32] CFXPERM */
-+#define DADAO_CAUSE_WYDE3      (0xFFFF0000ULL << 32)  /* [63:48] CFXMEM  */
++/* High bitmaps of `excp_cause_id` (DADAO-12 §3.6; contract-see §6.1/§6.1.1;
++ * ADR-0062 D1/D2).  The encoding is flat, not "class + sub-cause": a cause is
++ * exactly one bit of the 64-bit word (or 0 for "no exception").
++ *
++ *   [15:0]   one-hot sync cause above (CFXMEM/CFXPERM never carry a high bit)
++ *   [31:16]  reserved, must be 0: asynchronous sources do not occupy
++ *            `excp_cause_id` (ADR-0061 D2), their identity is the source cfxha
++ *            carried by cfx_hart cg9 rc3 (async_src_frame)
++ *   [39:32]  permission bitmap ([39] deleted, must stay 0)
++ *   [47:40]  reserved, must be 0
++ *   [55:48]  miss/memory bitmap, plus [56] ADWBFAIL ([57] deleted, must stay 0)
++ *   [63:58]  reserved, must be 0
++ *
++ * A PTW fault therefore sets one high bitmap bit and leaves [15:0] zero. */
++#define DADAO_CAUSE_PERM_BITS (0x7FULL << 32)   /* [38:32] */
++#define DADAO_CAUSE_MEM_BITS  (0x1FFULL << 48)  /* [56:48] */
++#define DADAO_CAUSE_RESERVED  ((0xFFFFULL << 16) | (1ULL << 39) | \
++                               (0xFFULL << 40) | (1ULL << 57) | \
++                               (0x3FULL << 58))
 +
-+/* wyde2: CFXPERM only (§6.1.1 [32..39]). */
++/* Permission bitmap: PTW HSJU / R / W / X denial (§6.1.1 [32..38]). */
 +#define DADAO_SUB_NUPERM      (1ULL << 32)
 +#define DADAO_SUB_NJPERM      (1ULL << 33)
 +#define DADAO_SUB_NSPERM      (1ULL << 34)
@@ -343,9 +354,9 @@ index 0000000..a81320e
 +#define DADAO_SUB_NRPERM      (1ULL << 36)
 +#define DADAO_SUB_NWPERM      (1ULL << 37)
 +#define DADAO_SUB_NXPERM      (1ULL << 38)
-+#define DADAO_SUB_NCFXPERM    (1ULL << 39)
 +
-+/* wyde3: CFXMEM only (§6.1.1 [48..57]). */
++/* Miss / memory bitmap: PTW page miss, fragment miss, A/D write-back failure
++ * (§6.1.1 [48..55]/[56]). */
 +#define DADAO_SUB_IGPTRAP     (1ULL << 48)
 +#define DADAO_SUB_ISPTRAP     (1ULL << 49)
 +#define DADAO_SUB_IGPFTRAP    (1ULL << 50)
@@ -355,7 +366,6 @@ index 0000000..a81320e
 +#define DADAO_SUB_DGPFTRAP    (1ULL << 54)
 +#define DADAO_SUB_DSPFTRAP    (1ULL << 55)
 +#define DADAO_SUB_ADWBFAIL    (1ULL << 56)
-+#define DADAO_SUB_NONPTW      (1ULL << 57)
 +
 +#define DADAO_CFXHA_PTW        4   /* cfx4 / ptw (DADAO-12 §1) */
 +#define DADAO_CFXHA_CACHE      5   /* cfx5 / cache (DADAO-12 §4.6) */
@@ -620,14 +630,16 @@ index 0000000..a81320e
 +    uint64_t ptbr;
 +    uint64_t ptw_enable;
 +    /* Pending page-table fault (DADAO_EXCP_PTW_FAULT): the full monitor
-+     * `excp_cause_id` (big class in [15:0] plus the one-hot sub-cause in its
-+     * wyde, contract-see §6.1.1) and the faulting virtual address
-+     * (cause_info).  For an A/D write-back failure (ADR-0041 D10)
-+     * cause_info is the failing PTE physical address. */
++     * `excp_cause_id` (flat bitmap: exactly one [38:32]/[56:48] bit, [15:0]
++     * zero; contract-see §6.1.1, ADR-0062 D1/D2) and the faulting virtual
++     * address (cause_info).  For an A/D write-back failure (ADR-0041 D10)
++     * cause_info is the failing PTE physical address (ADR-0062 D4). */
 +    uint64_t ptw_fault_cause;
 +    uint64_t ptw_fault_info;
-+    /* Pending two-axis permission denial (DADAO_EXCP_CFXPERM): cause_info is
-+     * the faulting address (ld/st/fetch) or the instruction encoding. */
++    /* Pending cfx source-mask denial (DADAO_EXCP_CFXPERM): cause_info is the
++     * faulting address for the `cfxmem` axis and the target IP for `cfxexe`
++     * (ADR-0062 D4); the `cfxtrap`/`cfx2rd`/`cfx2rc` paths do not use this
++     * field (they pass the triggering instruction address directly). */
 +    uint64_t cfx_perm_info;
 +    /* cause_info of a pending generic synchronous exception
 +     * (DADAO_EXCP_{ILLI,UNDI,CFXMEM,MALIGN,IALIGN,RASOF,RASUF}): the

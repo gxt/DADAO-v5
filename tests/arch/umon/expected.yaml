@@ -137,9 +137,11 @@ programs:
       ADR-0045 D6), then `trap cfx_smon, 0`.  The machine raises CFXPERM into
       the monitor of the current run mode (hypv => cfx_hmon).  hmon records the
       cause in the fault-record slot and resumes after the faulting instruction
-      (TESTCASES-092t §3/§4); the vector requires the recorded cause's low 16
-      bits == CFXPERM (1<<7) — the sub-cause wyde is a separate field
-      (contract-see §6.1.1; ADR-0056 D3), so the vector masks with 0xFFFF;
+      (TESTCASES-092t §3/§4); the vector requires the whole 64-bit cause ==
+      CFXPERM (1<<7) — the encoding is a flat bitmap, so `[39]` is deleted and
+      nothing is masked (contract-see §6.1/§6.1.1; ADR-0062 D1/D3) — and that
+      `excp_cause_info` == `excp_cause_ip` (the triggering instruction address,
+      read from this frame's `cfx_hmon cg5 rc4`/`rc3`; ADR-0062 D4, ISS-469);
       pass token 0x21, mismatch 0x71.
 
   - name: m5_perm_unimpl_cfxreg

@@ -15,9 +15,11 @@
 @@ resumes after the faulting instruction (TESTCASES-092t §3/§4); the vector
 @@ then reads that slot.
 @@
-@@ Expected: cause_id[15:0] = CFXPERM (0x80) — the big class only: the sub-cause
-@@   sits in its own wyde ([39] NCFXPERM in [47:32]; contract-see §6.1/§6.1.1,
-@@   ADR-0056 D3), so the recorded word is masked with 0xFFFF before the compare.
+@@ Expected: the whole 64-bit `excp_cause_id` == CFXPERM (0x80) — the flat
+@@   bitmap has exactly one bit and `[39]` is deleted, so nothing is masked
+@@   (contract-see §6.1/§6.1.1; ADR-0062 D1/D3) — and `excp_cause_info` ==
+@@   `excp_cause_ip` (the triggering instruction address; ADR-0062 D4, ISS-469),
+@@   read from this frame's `cfx_hmon cg5 rc3`/`rc4` after the resume.
 @@   host $? = 0x21 (SYS_EXIT pass token).
 
 @@ @m5 name=m5_perm_mask_cfxperm
@@ -41,11 +43,16 @@ _start:
 	@@ legal cfxha (smon = 2) but its cfxtrap source bit 3 is now set -> CFXPERM
 	trap	cfx_smon, 0
 	set.rb rb4, FAULT_RECORD
-	ld.o	rd10, [rb4, 0]			@@ fault-record[0] = cause id
-	set.zw	rd13, wp0, 0xFFFF		@@ cause_id[15:0] = one-hot big class
-	and.o	rd10, rd10, rd13
-	set.zw	rd12, wp0, 0x0080		@@ CFXPERM
+	ld.o	rd10, [rb4, 0]			@@ fault-record[0] = whole cause id
+	set.zw	rd12, wp0, 0x0080		@@ CFXPERM alone (no [39], no bitmap bit)
 	cmp.so	rd11, rd10, rd12
+	br.nz	{rd11}?, [rb0, fail]
+
+	@@ ADR-0062 D4 / ISS-469: cause_info = the triggering instruction address,
+	@@ i.e. the same value as excp_cause_ip (both in this frame's cg5).
+	cfx2rd	cfx_hmon, cg5, rc4, rd14	@@ excp_cause_info
+	cfx2rd	cfx_hmon, cg5, rc3, rd15	@@ excp_cause_ip
+	cmp.so	rd11, rd14, rd15
 	br.nz	{rd11}?, [rb0, fail]
 
 	@@ pass: SYS_EXIT(0x21)

@@ -1,9 +1,9 @@
 diff --git a/target/dadao/helper.c b/target/dadao/helper.c
 new file mode 100644
-index 0000000..4ce0a20
+index 0000000..82193b3
 --- /dev/null
 +++ b/target/dadao/helper.c
-@@ -0,0 +1,3844 @@
+@@ -0,0 +1,3851 @@
 +/*
 + * DADAO CPU helpers for QEMU
 + *
@@ -209,14 +209,16 @@ index 0000000..4ce0a20
 + *   ILLI / UNDI         1<<8 / 1<<9   info = instruction encoding
 + *   CFXMEM / UNMAPPED   1<<1          info = the faulting address
 + *   CFXREG              1<<2          info = instruction encoding
-+ *   CFXPERM             1<<7          info = address or instruction encoding
++ *   CFXPERM             1<<7          info = address (ADR-0062 D4)
 + *   MALIGN              1<<12         info = the faulting address
 + *   IALIGN              1<<13         info = the IP value
 + *   RASOF / RASUF       1<<10 / 1<<11 info = return address / 0
 + *
 + * ILLI/UNDI/CFXREG carry the instruction word from raise_exception();
 + * CFXMEM/MALIGN carry the faulting address from tlb_fill /
-+ * do_unaligned_access; IALIGN and RASOF/RASUF derive from the IP.
++ * do_unaligned_access; IALIGN and RASOF/RASUF derive from the IP.  The high
++ * bitmaps never appear here: page-table faults take DADAO_EXCP_PTW_FAULT with
++ * their own single bitmap bit (ADR-0062 D1/D2).
 + */
 +static void dadao_sync_cause(CPUDADAOState *env, int excp,
 +                             uint64_t *cause, uint64_t *info)
@@ -247,11 +249,12 @@ index 0000000..4ce0a20
 +        break;
 +    case DADAO_EXCP_CFXMEM:
 +    case DADAO_EXCP_UNMAPPED:
-+        /* Non-page-table CFXMEM (contract-see §6.1.1 [57]): cfx-space access
-+         * or fetch, an unimplemented cfx's plain ld/st, a storage-block fault,
-+         * or a memory-window access with ptw_enable = 0.  Page-table faults
-+         * never take this path (DADAO_EXCP_PTW_FAULT carries its own wyde). */
-+        *cause = DADAO_CAUSE_CFXMEM | DADAO_SUB_NONPTW;
++        /* Non-PTW core access fault: cfx-space access or fetch, an
++         * unimplemented cfx's plain ld/st, a storage-block fault, or a
++         * memory-window access with ptw_enable = 0 (ADR-0062 D3).  Page-table
++         * faults never take this path (DADAO_EXCP_PTW_FAULT carries exactly
++         * one high bitmap bit with [15:0] == 0). */
++        *cause = DADAO_CAUSE_CFXMEM;
 +        *info = env->sync_fault_info;
 +        break;
 +    case DADAO_EXCP_CFXREG:
@@ -259,9 +262,9 @@ index 0000000..4ce0a20
 +        *info = env->sync_fault_info;
 +        break;
 +    case DADAO_EXCP_CFXPERM:
-+        /* Two-axis cfx permission denial = "cfx access refused by a source
-+         * mask" (contract-see §6.1.1 [39] NCFXPERM; ADR-0045 D6). */
-+        *cause = DADAO_CAUSE_CFXPERM | DADAO_SUB_NCFXPERM;
++        /* cfx access refused by a source mask (ADR-0045 D6; ADR-0062 D2):
++         * CFXPERM with no high bitmap bit. */
++        *cause = DADAO_CAUSE_CFXPERM;
 +        *info = env->cfx_perm_info;
 +        break;
 +    case DADAO_EXCP_ILLI:
@@ -390,9 +393,10 @@ index 0000000..4ce0a20
 +
 +    /*
 +     * Page-table walk / TLB-hit fault (DADAO-12 §2.2.6/§5.2): the exception
-+     * goes to the *current run-mode monitor*, never to cfx_ptw.  Missing /
-+     * fragment / A-D write-back failures carry CFXMEM; HSJU/R/W/X failures
-+     * carry CFXPERM (both already encoded by the translation layer).
++     * goes to the *current run-mode monitor*, never to cfx_ptw.  The cause is
++     * a single high bitmap bit -- [48..55] miss/fragment, [56] A-D write-back
++     * failure, [32..38] HSJU/R/W/X denial -- with [15:0] == 0 (ADR-0062 D1/D2),
++     * already encoded by the translation layer.
 +     */
 +    if (cs->exception_index == DADAO_EXCP_PTW_FAULT) {
 +        bool entered = false;
@@ -797,10 +801,10 @@ index 0000000..4ce0a20
 +
 +/*
 + * Hit-path permission check: fragment presence -> HSJU -> R/W/X, the same
-+ * order and the same sub-causes as the page walk (ADR-0040 D8; §2.2.6;
++ * order and the same bitmap bits as the page walk (ADR-0040 D8; §2.2.6;
 + * contract-see §6.1.1 — a hit must not re-read the PTE but it checks the same
-+ * entry fields, so the sub-cause is identical).  Returns 1 when the access may
-+ * proceed, 0 on fault (*cause = big class | sub-cause bit).
++ * entry fields, so the bit is identical).  Returns 1 when the access may
++ * proceed, 0 on fault (*cause = exactly one high bitmap bit; ADR-0062 D1/D2).
 + */
 +static int dadao_tlb_check(const CPUDADAOState *env, const DADAOTlbEntry *e,
 +                           uint64_t va, MMUAccessType access_type,
@@ -813,33 +817,31 @@ index 0000000..4ce0a20
 +    if (!(e->frags & (1u << frag))) {
 +        /* A missing fragment is a missing page: superpage -> SPF trap,
 +         * normal page -> GPF trap, split by access type (§6.1.1 [48..55]). */
-+        *cause = DADAO_CAUSE_CFXMEM |
-+                 (super ? (fetch ? DADAO_SUB_ISPFTRAP : DADAO_SUB_DSPFTRAP)
++        *cause = (super ? (fetch ? DADAO_SUB_ISPFTRAP : DADAO_SUB_DSPFTRAP)
 +                        : (fetch ? DADAO_SUB_IGPFTRAP : DADAO_SUB_DGPFTRAP));
 +        return 0;
 +    }
 +
 +    /* HSJU: the current run mode's bit must be set (ADR-0040 D6).  The
-+     * sub-cause names the *mode* that was denied ([32..35]). */
++     * bitmap bit names the *mode* that was denied ([32..35]). */
 +    if (!(e->hsju & (1u << (env->inner_run_mode & 0x3)))) {
-+        *cause = DADAO_CAUSE_CFXPERM | (DADAO_SUB_NUPERM <<
-+                                        (env->inner_run_mode & 0x3));
++        *cause = DADAO_SUB_NUPERM << (env->inner_run_mode & 0x3);
 +        return 0;
 +    }
 +
 +    /* R/W/X, orthogonal to HSJU (ADR-0040 D7; §6.1.1 [36..38]). */
 +    if (fetch) {
 +        if (!(e->flags & DADAO_TLB_FLAG_X)) {
-+            *cause = DADAO_CAUSE_CFXPERM | DADAO_SUB_NXPERM;
++            *cause = DADAO_SUB_NXPERM;
 +            return 0;
 +        }
 +    } else if (access_type == MMU_DATA_STORE) {
 +        if (!(e->flags & DADAO_TLB_FLAG_W)) {
-+            *cause = DADAO_CAUSE_CFXPERM | DADAO_SUB_NWPERM;
++            *cause = DADAO_SUB_NWPERM;
 +            return 0;
 +        }
 +    } else if (!(e->flags & DADAO_TLB_FLAG_R)) {
-+        *cause = DADAO_CAUSE_CFXPERM | DADAO_SUB_NRPERM;
++        *cause = DADAO_SUB_NRPERM;
 +        return 0;
 +    }
 +    return 1;
@@ -878,8 +880,9 @@ index 0000000..4ce0a20
 +
 +/*
 + * Fill the TLB after a successful walk (ADR-0041 D4/D8).  A dirty entry being
-+ * replaced is written back first; a failed write-back is reported as CFXMEM
-+ * without touching the victim entry (*err_pa = its PTE PA).
++ * replaced is written back first; a failed write-back is reported as the
++ * [56] ADWBFAIL bitmap bit without touching the victim entry (*err_pa = its
++ * PTE PA; ADR-0062 D2/D4).
 + * Returns 0 and sets *out, or -1 with *err_pa set.
 + */
 +static int dadao_tlb_insert(CPUDADAOState *env, uint64_t va, uint64_t leaf_pte,
@@ -947,7 +950,8 @@ index 0000000..4ce0a20
 + * (contract-tlb TLB-37, ADR-0041 D3.2 as ruled 2026-11-16): entries already
 + * processed keep their result, the failing entry keeps its state (no write,
 + * no delete) and every entry after it is left untouched.  One command reports
-+ * at most one failure — CFXMEM + [56] ADWBFAIL, cause_info = that PTE's PA —
++ * at most one failure — the [56] ADWBFAIL bitmap bit, cause_info = that PTE's
++ * PA —
 + * and the unprocessed entries still hold the old translation, which the
 + * kernel compensates for itself.
 + */
@@ -1034,8 +1038,7 @@ index 0000000..4ce0a20
 +     * Missing L1: SP=0 -> GP trap, SP=1 -> SP trap, split by access type
 +     * (contract-see §6.1.1 [48][49][52][53]). */
 +    if (!(pte & DADAO_PTE_P)) {
-+        *cause = DADAO_CAUSE_CFXMEM |
-+                 ((pte & DADAO_PTE_SP)
++        *cause = ((pte & DADAO_PTE_SP)
 +                  ? (fetch ? DADAO_SUB_ISPTRAP : DADAO_SUB_DSPTRAP)
 +                  : (fetch ? DADAO_SUB_IGPTRAP : DADAO_SUB_DGPTRAP));
 +        return 0;
@@ -1045,8 +1048,7 @@ index 0000000..4ce0a20
 +        /* Step 2: 512 MiB superpage + SPF fragment presence. */
 +        frag = (va >> 26) & 0x7;
 +        if (!(pte & (1ULL << (DADAO_PTE_FRAG_SHIFT + frag)))) {
-+            *cause = DADAO_CAUSE_CFXMEM |
-+                     (fetch ? DADAO_SUB_ISPFTRAP : DADAO_SUB_DSPFTRAP);
++            *cause = (fetch ? DADAO_SUB_ISPFTRAP : DADAO_SUB_DSPFTRAP);
 +            return 0;
 +        }
 +        /* PPN[28:16] is forced to zero (ADR-0040 D9): mask, never fault. */
@@ -1061,14 +1063,12 @@ index 0000000..4ce0a20
 +            return -1;
 +        }
 +        if (!(pte & DADAO_PTE_P)) {
-+            *cause = DADAO_CAUSE_CFXMEM |
-+                     (fetch ? DADAO_SUB_IGPTRAP : DADAO_SUB_DGPTRAP);
++            *cause = (fetch ? DADAO_SUB_IGPTRAP : DADAO_SUB_DGPTRAP);
 +            return 0;
 +        }
 +        frag = (va >> 13) & 0x7;
 +        if (!(pte & (1ULL << (DADAO_PTE_FRAG_SHIFT + frag)))) {
-+            *cause = DADAO_CAUSE_CFXMEM |
-+                     (fetch ? DADAO_SUB_IGPFTRAP : DADAO_SUB_DGPFTRAP);
++            *cause = (fetch ? DADAO_SUB_IGPFTRAP : DADAO_SUB_DGPFTRAP);
 +            return 0;
 +        }
 +        *paddr = (pte & DADAO_PTE_PPN_MASK) | (va & 0xFFFFULL);
@@ -1077,24 +1077,23 @@ index 0000000..4ce0a20
 +
 +    /* Step 3: HSJU (current run mode) before R/W/X (ADR-0040 D6-D8). */
 +    if (!(pte & hsju)) {
-+        *cause = DADAO_CAUSE_CFXPERM | (DADAO_SUB_NUPERM <<
-+                                        (env->inner_run_mode & 0x3));
++        *cause = DADAO_SUB_NUPERM << (env->inner_run_mode & 0x3);
 +        return 0;
 +    }
 +
 +    /* Step 4: R/W/X, orthogonal to HSJU (ADR-0040 D7; §6.1.1 [36..38]). */
 +    if (fetch) {
 +        if (!(pte & DADAO_PTE_X)) {
-+            *cause = DADAO_CAUSE_CFXPERM | DADAO_SUB_NXPERM;
++            *cause = DADAO_SUB_NXPERM;
 +            return 0;
 +        }
 +    } else if (access_type == MMU_DATA_STORE) {
 +        if (!(pte & DADAO_PTE_W)) {
-+            *cause = DADAO_CAUSE_CFXPERM | DADAO_SUB_NWPERM;
++            *cause = DADAO_SUB_NWPERM;
 +            return 0;
 +        }
 +    } else if (!(pte & DADAO_PTE_R)) {
-+        *cause = DADAO_CAUSE_CFXPERM | DADAO_SUB_NRPERM;
++        *cause = DADAO_SUB_NRPERM;
 +        return 0;
 +    }
 +
@@ -1182,7 +1181,9 @@ index 0000000..4ce0a20
 +     * This check precedes address/range legality (CFXMEM/CFXREG).  A cfx the
 +     * profile does not implement has no masks at all (no rows), so it is
 +     * handled by the segment map below (CFXMEM), never by a mask denial
-+     * (spec/Kaiwu §3). */
++     * (spec/Kaiwu §3).  cause_info: the `cfxmem` axis carries this access
++     * address, the `cfxexe` axis the target IP -- which is the same value for a
++     * fetch -- per ADR-0062 D4. */
 +    if (cfxha != DADAO_CFXHA_MEM &&
 +        dadao_cfx_implemented(prof, cfxha) &&
 +        cfx_perm_denied(env, cfxha,
@@ -1284,10 +1285,11 @@ index 0000000..4ce0a20
 +
 +            if (dadao_tlb_insert(env, addr, leaf_pte, leaf_pa, superpage,
 +                                 &e, &err_pa) < 0) {
-+                /* Replacing a dirty entry failed to write back: CFXMEM +
-+                 * [56] ADWBFAIL (ADR-0041 D7/D10; contract-see §6.1.1),
-+                 * cause_info = the failing PTE PA. */
-+                env->ptw_fault_cause = DADAO_CAUSE_CFXMEM | DADAO_SUB_ADWBFAIL;
++                /* Replacing a dirty entry failed to write back: the
++                 * [56] ADWBFAIL bitmap bit alone, [15:0] == 0 (ADR-0041
++                 * D7/D10; ADR-0062 D2/D3; contract-see §6.1.1), cause_info =
++                 * the failing PTE PA. */
++                env->ptw_fault_cause = DADAO_SUB_ADWBFAIL;
 +                env->ptw_fault_info = err_pa;
 +                cs->exception_index = DADAO_EXCP_PTW_FAULT;
 +                cpu_loop_exit_restore(cs, retaddr);
@@ -2352,39 +2354,44 @@ index 0000000..4ce0a20
 +
 +/*
 + * `excp_cause_id` shape check (DADAO-12 §3.6 cg5; contract-see §6.1/§6.1.1;
-+ * ADR-0056 D3; ADR-0061 D2): the low 16 bits are the one-hot sync class
-+ * (wyde3 [63:48] may carry a CFXMEM sub-cause, wyde2 [47:32] a CFXPERM one,
-+ * and the foreign wyde must be 0); [31:16] is reserved and must be 0 because
-+ * asynchronous sources never occupy `excp_cause_id`.  A raise site that pairs
-+ * them wrongly would hand the kernel an ambiguous id, so it fails here
-+ * instead of being silently masked (cold path: one exception entry).
++ * ADR-0062 D1; ADR-0061 D2).  The encoding is a flat 64-bit bitmap: a cause is
++ * exactly one bit, or the two bitmaps carry one bit with [15:0] == 0.
++ *
++ *   [15:0]  one-hot sync cause; a low cause never carries a high bit
++ *   [31:16] reserved (async sources do not occupy `excp_cause_id`)
++ *   [39:32] permission bitmap; [47:40] reserved
++ *   [55:48]/[56] miss/memory bitmap; [57], [63:58] reserved
++ *
++ * A raise site that pairs bits wrongly would hand the kernel an ambiguous id,
++ * so it fails here instead of being silently masked (cold path: one exception
++ * entry).
 + */
 +static void dadao_cause_check(uint64_t cause)
 +{
 +    uint64_t cls = cause & 0xFFFF;
-+    uint64_t sub = cause & (DADAO_CAUSE_WYDE2 | DADAO_CAUSE_WYDE3);
-+    uint64_t own = 0;
++    uint64_t hi = cause & ~0xFFFFULL;
 +    bool ok;
 +
-+    switch (cls) {
-+    case DADAO_CAUSE_CFXMEM:  own = DADAO_CAUSE_WYDE3; break;
-+    case DADAO_CAUSE_CFXPERM: own = DADAO_CAUSE_WYDE2; break;
-+    default:                  own = 0;                 break;
-+    }
-+    if (own != 0) {
-+        /* §6.1.1: exactly one bit, in the class's own wyde. */
-+        ok = sub != 0 && (sub & (sub - 1)) == 0 && (sub & ~own) == 0;
++    /* Rule 4: reserved bits are always 0 ([31:16], [39], [47:40], [57],
++     * [63:58]). */
++    ok = (cause & DADAO_CAUSE_RESERVED) == 0;
++    /* Rule 1: at most one bit of the 64-bit word (0 = "no exception"). */
++    ok = ok && (cause & (cause - 1)) == 0;
++    /* Rule 2: CFXPERM/CFXMEM (any low cause) never carries a high bit. */
++    /* Rule 3: a bitmap bit only exists with [15:0] == 0, and only inside the
++     * two bitmaps. */
++    if (cls != 0) {
++        ok = ok && hi == 0;
 +    } else {
-+        /* Every other cause carries no sub-cause at all (ADR-0056 D2). */
-+        ok = sub == 0;
++        ok = ok && hi != 0 &&
++             (hi & ~(DADAO_CAUSE_PERM_BITS | DADAO_CAUSE_MEM_BITS)) == 0;
 +    }
-+    /* [31:16] must stay 0: no async cause id exists any more (ADR-0061 D2). */
-+    ok = ok && (cause & (0xFFFFULL << 16)) == 0;
 +    if (!ok) {
-+        error_report("dadao: malformed excp_cause_id 0x%016" PRIx64 " (sync "
-+                     "class in [15:0]; CFXMEM sub-cause in [63:48], CFXPERM "
-+                     "in [47:32]; the other wyde must be 0; [31:16] reserved 0)",
-+                     cause);
++        error_report("dadao: malformed excp_cause_id 0x%016" PRIx64 " (flat "
++                     "bitmap: exactly one bit, either a [15:0] sync cause "
++                     "with [63:32] == 0, or one [38:32]/[56:48] PTW bit with "
++                     "[15:0] == 0; [39]/[47:40]/[57]/[63:58]/[31:16] "
++                     "reserved 0)", cause);
 +        exit(1);
 +    }
 +}
@@ -2468,12 +2475,12 @@ index 0000000..4ce0a20
 +}
 +
 +/* CFXPERM is delivered to the monitor of the current run mode (cfx0-3).
-+ * Every such denial is a cfx access refused by a source mask => [39]
-+ * NCFXPERM (contract-see §6.1.1; ADR-0045 D6). */
-+static void cfx_raise_perm(CPUDADAOState *env, uint64_t info, uint64_t pc)
++ * Every such denial is a cfx access refused by a source mask: CFXPERM with no
++ * high bitmap bit, and cause_info = the triggering instruction address (= the
++ * cause_ip of the same frame; ADR-0045 D6; ADR-0062 D2/D4). */
++static void cfx_raise_perm(CPUDADAOState *env, uint64_t pc)
 +{
-+    cfx_raise(env, DADAO_CAUSE_CFXPERM | DADAO_SUB_NCFXPERM,
-+              env->inner_run_mode, pc, info);
++    cfx_raise(env, DADAO_CAUSE_CFXPERM, env->inner_run_mode, pc, pc);
 +}
 +
 +/* ===================================================================
@@ -3452,7 +3459,7 @@ index 0000000..4ce0a20
 +    /* cfxtrap permission: target's source mask, self bypasses the cfx axis
 +     * but still uses the current-mode row (ADR-0045 D1/D2). */
 +    if (cfx_perm_denied(env, cfxha, DADAO_CFX_PERM_TRAP)) {
-+        cfx_raise_perm(env, info, pc);
++        cfx_raise_perm(env, pc);
 +        return;
 +    }
 +    target = cfxha;
@@ -3560,13 +3567,13 @@ index 0000000..4ce0a20
 +        return;
 +    }
 +    if (cfx_perm_denied(env, cfxha, DADAO_CFX_PERM_REG)) {
-+        cfx_raise_perm(env, info, pc);
++        cfx_raise_perm(env, pc);
 +        return;
 +    }
 +    /* cg_reg_deleg (supv only; DADAO-13 §1).  cg3 has no exception: its bit3
 +     * is hardware-fixed 1, so a supv cg3 access is always CFXPERM. */
 +    if (cfx_deleg_denied(env, ci, cg)) {
-+        cfx_raise_perm(env, info, pc);
++        cfx_raise_perm(env, pc);
 +        return;
 +    }
 +    /* cfx_pmem cg15: DMA registers (DADAO-12 §4.9; ADR-0042 D7.3). */
@@ -3689,13 +3696,13 @@ index 0000000..4ce0a20
 +        return;
 +    }
 +    if (cfx_perm_denied(env, cfxha, DADAO_CFX_PERM_REG)) {
-+        cfx_raise_perm(env, info, pc);
++        cfx_raise_perm(env, pc);
 +        return;
 +    }
 +    /* cg_reg_deleg (supv only; DADAO-13 §1).  cg3 has no exception: its bit3
 +     * is hardware-fixed 1, so a supv cg3 access is always CFXPERM. */
 +    if (cfx_deleg_denied(env, ci, cg)) {
-+        cfx_raise_perm(env, info, pc);
++        cfx_raise_perm(env, pc);
 +        return;
 +    }
 +    /* cfx_pmem cg15: DMA registers (DADAO-12 §4.9; ADR-0042 D7.3). */
@@ -3806,7 +3813,7 @@ index 0000000..4ce0a20
 +
 +            env->pc = pc;
 +            env->rb[0] = pc;
-+            env->ptw_fault_cause = DADAO_CAUSE_CFXMEM | DADAO_SUB_ADWBFAIL;
++            env->ptw_fault_cause = DADAO_SUB_ADWBFAIL;
 +            env->ptw_fault_info = err_pa;
 +            cs->exception_index = DADAO_EXCP_PTW_FAULT;
 +            cpu_loop_exit_restore(cs, GETPC());
