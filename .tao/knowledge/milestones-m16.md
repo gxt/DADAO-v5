@@ -20,7 +20,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m16-chipyard-027 | 2–3 h | RTL 缺面补齐（power common face + cfx5 S/U 可达；ISS-524/DIV-16） |
 | m16-qemu-006 | 2–3 h | QEMU `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧（ISS-533/525） |
 | m16-gem5-025 | 2–3 h | gem5 `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧（ISS-533/525） |
 | m16-testcases-019 | 3–4 h | PTW S/U 覆盖 + `arch-ptw-013` 提升为 signature（ISS-528/532） |
@@ -32,6 +31,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-chipyard-027 | 2026-11-25 02:16 | 2–3 h | RTL 缺面补齐（power common face + cfx5 S/U 可达 + addr_start 56 位；ISS-524/534/DIV-16） |
 
 ## 已验证
 
