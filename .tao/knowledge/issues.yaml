@@ -935,7 +935,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2】`m16-chipyard-003` 收尾后遗留 5 条非阻断 finding（两轮 reviewer 一致）：① `components/chipyard/changelog.md` L133 与 `README.md` L204 仍写「`printf`+`stop()` 具名失败」，实际通道是 `chisel3.assert`（Verilator `$error`、`rc=255`）；② changelog 的 sim md5 `7bcf2e2f…` 与 README/完成区 `2fb79602…` 不一致；③ 完成区写「904/904」，实测镜像 272/272（口径混用）；④ 完成区「`m14-testcases-005` 待返工」已过时（已合入 master；但 chipyard 无 TLB ⇒ ptw 探针仍不可跑，实质正确）；⑤ 证据脚本 `run.sh` F 段 `rebuild X && eq …rc… 0 \"$?\"` 是恒真式——重建失败会被 `&&` 短路吞掉，本次正因此把「elab 被杀」误显成 `sim ends cleanly 255`；E 段 `--jobs 8` 应改「核数−2」。处置：文档三处改写 + 证据脚本改为先取 rc 再断言。"
+  title: "【P2】`m16-chipyard-003` 收尾遗留 finding ⑤（①②③④ 已关闭、不再追踪；由 `m16-testcases-021` 承接）：① `components/chipyard/changelog.md` L133 与 `README.md` L204 仍写「`printf`+`stop()` 具名失败」，实际通道是 `chisel3.assert`（Verilator `$error`、`rc=255`）；② changelog 的 sim md5 `7bcf2e2f…` 与 README/完成区 `2fb79602…` 不一致；③ 完成区写「904/904」，实测镜像 272/272（口径混用）；④ 完成区「`m14-testcases-005` 待返工」已过时（已合入 master；但 chipyard 无 TLB ⇒ ptw 探针仍不可跑，实质正确）；⑤ 证据脚本 `run.sh` F 段 `rebuild X && eq …rc… 0 \"$?\"` 是恒真式——重建失败会被 `&&` 短路吞掉，本次正因此把「elab 被杀」误显成 `sim ends cleanly 255`；E 段 `--jobs 8` 应改「核数−2」。处置：文档三处改写 + 证据脚本改为先取 rc 再断言。"
 - id: ISS-468
   scope:
   - llvm
@@ -985,7 +985,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P3】`tests/inst/11-cfx/escape_ciii_cfx.S` 链例 12 的注释称「第 3 次到达判红（不挂死）」，实测不成立（`m15-testcases-019` 复核注入①）：把 case12 改成读未写槽 `0xC4` 后，QEMU 与 chipyard **双 lane 均挂死至超时**（qemu `rc=-2`、0 B），不是「判红退出」。影响：该例的 fail 路径不可用于回归判据（超时而非具名失败）。处置建议：改注释措辞，或让 probe 在到达计数超限时走 `__EXIT` 具名失败（不用挂死）。"
+  title: "【P3】`tests/inst/11-cfx/escape_ciii_cfx.S` 链例 12 的注释（由 `m16-testcases-021` 承接）称「第 3 次到达判红（不挂死）」，实测不成立（`m15-testcases-019` 复核注入①）：把 case12 改成读未写槽 `0xC4` 后，QEMU 与 chipyard **双 lane 均挂死至超时**（qemu `rc=-2`、0 B），不是「判红退出」。影响：该例的 fail 路径不可用于回归判据（超时而非具名失败）。处置建议：改注释措辞，或让 probe 在到达计数超限时走 `__EXIT` 具名失败（不用挂死）。"
 - id: ISS-474
   scope:
   - chipyard
@@ -1085,9 +1085,9 @@
   - chipyard
   - testcases
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: won't-fix（文档级）
   title: "【P3】`m16-chipyard-009` D-Cache 两处文档级不一致（复核 Accepted 时登记，非阻断）：① `tools/chipyard/dcache/vastdcache.lds` 注释引用**不存在**的 `--check-layout` 选项，并仍写旧窗口 `0x7_8000`/`0x7_C000` 与「无需装入」，实际常量是 `0x7_0000`/`0x9_0000` 且 `.code_old` 显式 PT_LOAD；② `tools/chipyard/dcache/check_vastdcache.py` 自检日志写死到 `/tmp/opencode/check-vastdcache/`（超出 `AGENTS §8` 的 `/tmp/opencode/<任务ID>/` 约定），应改任务目录或 `tempfile.mkdtemp()`。处置：随下一次触碰这两个文件时一并修，不改判据语义。"
 - id: ISS-486
   scope:
@@ -1122,7 +1122,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P3】`m16-chipyard-010` 复核的六条非阻断 finding：f1 无提交时 `merge-tree` 判据恒真（应以改动集 ∩ `HEAD..master` 兜底）；f2 B 段 Tiny FIRRTL 计数在文件缺失时默认 0、E 段缺 before/after 静默跳过；f3 自检日志写到任务 ID 之外的共享临时目录且不清理；f4 任务书档位（中改）与派单（组件+大改）不一致；f5 changelog 遗留「银行」措辞（非本任务行）；f6 证据脚本退回共享 `.conda-env`（并行会话改动会波及工具链身份）。处置：随下次触碰 chipyard 门控/文档时修。"
+  title: "【P3】`m16-chipyard-010` 复核遗留 f1/f2/f6（f3–f5 已关闭；由 `m16-testcases-021` 承接）：f1 无提交时 `merge-tree` 判据恒真（应以改动集 ∩ `HEAD..master` 兜底）；f2 B 段 Tiny FIRRTL 计数在文件缺失时默认 0、E 段缺 before/after 静默跳过；f3 自检日志写到任务 ID 之外的共享临时目录且不清理；f4 任务书档位（中改）与派单（组件+大改）不一致；f5 changelog 遗留「银行」措辞（非本任务行）；f6 证据脚本退回共享 `.conda-env`（并行会话改动会波及工具链身份）。处置：随下次触碰 chipyard 门控/文档时修。"
 - id: ISS-490
   scope:
   - idl
@@ -1146,7 +1146,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P3】`m16-testcases-003` 复核的非阻断 finding：证据脚本的 `bin.qemu.install_eq_build` 在 `QEMU=` 覆盖时两侧取同一路径、退化为恒真（默认态「安装根 vs 构建树」才有效）；注入脚本 `mode_inject` 已正确覆盖，故只影响该行显示。处置：随下次触碰该证据脚本时改成「覆盖时跳过/标注 N/A」。"
+  title: "【P3】`m16-testcases-003` 复核的 finding（由 `m16-testcases-021` 承接）：证据脚本的 `bin.qemu.install_eq_build` 在 `QEMU=` 覆盖时两侧取同一路径、退化为恒真（默认态「安装根 vs 构建树」才有效）；注入脚本 `mode_inject` 已正确覆盖，故只影响该行显示。处置：随下次触碰该证据脚本时改成「覆盖时跳过/标注 N/A」。"
 - id: ISS-493
   scope:
   - linux
@@ -1280,9 +1280,9 @@
   - gem5
   - infra
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: won't-fix（预估格式已改为 2–3 h）
   title: "【P3】`f88c726a` 立 M16 批次时台账写 `预估时间：中`，不符合 `check-milestones-fresh` 的 `N h` / `N–M h` / `N 天` / `N–M 天` / `min` 格式 ⇒ `make check-milestones-fresh` rc=2（`m16-testcases-006`、`m16-gem5-020` 两条）；两册任务书 `**预估**` 同为「中」。处置：M16 批次收尾时按档位（中改）改台账与任务书为具体时长，恢复 L1 绿。"
 - id: ISS-509
   scope:
@@ -1379,7 +1379,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P3】`m16-qemu-002` 的证据脚本 `patch_tree_judge` 把 `qemu: source worktree absent; skipping…` 这类信息行也计为问题 ⇒ 源树缺失时假红（保守方向，且 build 已先失败）；后续与 `check_patch_tree.py` 的信息行清单对齐。另：`integ042t` 的 `_MACH` 默认 tiny、`node_probe_prelude` 默认 vast，漏设 `DADAO_TEST_PROFILE` 会对称假红（13/25），建议统一默认 profile。"
+  title: "【P3】`m16-qemu-002` 的 finding（由 `m16-testcases-021` 承接）：`patch_tree_judge` 把 `qemu: source worktree absent; skipping…` 这类信息行也计为问题 ⇒ 源树缺失时假红（保守方向，且 build 已先失败）；后续与 `check_patch_tree.py` 的信息行清单对齐。另：`integ042t` 的 `_MACH` 默认 tiny、`node_probe_prelude` 默认 vast，漏设 `DADAO_TEST_PROFILE` 会对称假红（13/25），建议统一默认 profile。"
 - id: ISS-519
   scope:
   - qemu
@@ -1388,7 +1388,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P3】`m16-qemu-003` 复核：① QEMU 系统模式下 I 侧 `tb_invalidate_phys_range` 在功能模型上不可独立观测（写 RAM 自动失效 TB），`on_i_invalidate_refetch` 例在“clean 不写回”等注入下仍绿、不能充当 I 侧失效的正向证据；I 侧仅 `on_i_leaves_d` 可达 FAIL。建议 `m16-testcases-009` 的 I 侧口径登记为“由 RAM 写自动失效保证”。② `m16-qemu-001` 探针的 `SEL_I/SEL_D` 写反（`cache_ctrl[15:14]` 是 2=I/1=D），该处只验合法/非法故未暴露，后续补正。"
+  title: "【P3】`m16-qemu-003` 复核（② 由 `m16-testcases-021` 承接；① 由 `DIV-15` 登记）：① QEMU 系统模式下 I 侧 `tb_invalidate_phys_range` 在功能模型上不可独立观测（写 RAM 自动失效 TB），`on_i_invalidate_refetch` 例在“clean 不写回”等注入下仍绿、不能充当 I 侧失效的正向证据；I 侧仅 `on_i_leaves_d` 可达 FAIL。建议 `m16-testcases-009` 的 I 侧口径登记为“由 RAM 写自动失效保证”。② `m16-qemu-001` 探针的 `SEL_I/SEL_D` 写反（`cache_ctrl[15:14]` 是 2=I/1=D），该处只验合法/非法故未暴露，后续补正。"
 - id: ISS-520
   scope:
   - qemu

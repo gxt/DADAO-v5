@@ -4,7 +4,7 @@
 **项目里程碑**：M16
 **依赖**：`m16-testcases-004`（PLAN/矩阵）、`m16-testcases-005`（`tests/shared/signature.py`）已合入
 **可并行分片**：否（共享 `tests/arch.yaml`、`check-tests-index`）
-**预估**：中（结构与骨架，不含用例）
+**预估**：2–3 h（结构与骨架，不含用例；标定：同档最近 5 件派单→合入实测中位）
 **档位**：中改（复核 ≤40 min）
 **状态**：已验证
 
