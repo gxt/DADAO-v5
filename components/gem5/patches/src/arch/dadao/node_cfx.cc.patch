@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..1adaf06
+index 0000000..b8bab7b
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
-@@ -0,0 +1,1477 @@
+@@ -0,0 +1,1492 @@
 +// DADAO Node machine model -- cfx register file, monitor flow, DMA, counters.
 +#include "arch/dadao/node_cfx.hh"
 +
@@ -460,11 +460,17 @@ index 0000000..1adaf06
 +        (ci >= 0) ? s.cfx[ci].mode[entryMode].excpVector : 0;
 +
 +    if (ci < 0 || !nodeVectorReachable(s, vec)) {
-+        // The monitor vector cannot be entered.  This is the one remaining
-+        // machine stop for a synchronous exception (spec/Kaiwu §7.1), encoded
-+        // for the *entry* run mode: the frame switch below has not happened.
++        // The target vector cannot be entered.  This is the one remaining
++        // machine stop for a synchronous exception (spec/Kaiwu §7.1).  The
++        // exit code names the destination segment: a monitor route
++        // (`target` = entry run mode) uses the monitor segment, but
++        // `CFXTRAP`/`CFXESC` are other-cfx faults and keep the
++        // `0x80 | cfxHA` segment even when the target cfx is 0..3
++        // (spec/Kaiwu §7.1「CFXTRAP/CFXESC 的编码选择」).
++        const bool toCfx = (target >= 0) &&
++            (cause == CauseCfxTrap || cause == CauseCfxEsc);
 +        machineFaultExit(static_cast<uint8_t>(__builtin_ctzll(cause)),
-+                         entryMode, (target <= 3) ? -1 : target);
++                         entryMode, toCfx || target > 3 ? target : -1);
 +        return;
 +    }
 +    // Fault-invoked redirect: gem5's advancePC() will not advance the PC, so
@@ -1277,7 +1283,10 @@ index 0000000..1adaf06
 +                          (uint64_t(cfxha & 0x3F) << 18) | imms18;
 +    const Addr pc = currentPc(tc);
 +
-+    if (imms18 & ~0x1ULL) {
++    // Step 0 (DADAO-12 §5.3): SBZ (`imms18[17:2]`), then `imms18 = 3`
++    // (cg9 frame selector with offset +4), then reserved cfx -- all ILLI
++    // before any target/frame decision or state change.
++    if ((imms18 >> 2) != 0 || imms18 == 3) {
 +        nodeCfxRaise(tc, s, CauseIlli, s.runMode, pc, info);
 +        return true;
 +    }
@@ -1286,7 +1295,13 @@ index 0000000..1adaf06
 +        return true;
 +    }
 +    const int ci = nodeCfxIndex(s.cfxCode);
-+    if (ci < 0 || cfxha != s.cfxCode || s.cfx[ci].causeId == 0) {
++    // `imms18[1] = 1` selects `cfx_hart cg9`, a capture buffer and never a
++    // return frame: the selected frame is invalid => the current cfx's
++    // CFXESC, with cfx/run mode/cg9 untouched (DADAO-12 §5.1).  A wrong
++    // target (`cfxha != inner_cfx_code`) or an empty cg5 frame (§5.3 step 0)
++    // takes the same exit.
++    if (imms18 == 2 || ci < 0 || cfxha != s.cfxCode ||
++        s.cfx[ci].causeId == 0) {
 +        nodeCfxRaise(tc, s, CauseCfxEsc, s.cfxCode, pc, info);
 +        return true;
 +    }

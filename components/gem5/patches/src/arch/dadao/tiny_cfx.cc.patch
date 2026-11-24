@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/tiny_cfx.cc b/src/arch/dadao/tiny_cfx.cc
 new file mode 100644
-index 0000000..e13a2e8
+index 0000000..63daaf1
 --- /dev/null
 +++ b/src/arch/dadao/tiny_cfx.cc
-@@ -0,0 +1,515 @@
+@@ -0,0 +1,521 @@
 +// DADAO Tiny machine model: cfx_power (cfx63) + cfx3 hmon.
 +#include "arch/dadao/tiny_cfx.hh"
 +
@@ -394,7 +394,11 @@ index 0000000..e13a2e8
 +                          uint64_t((byteOffset >> 2) & 0x3FFFF);
 +    const Addr pc = currentPc(tc);
 +
-+    if (byteOffset != 0 && byteOffset != 4) {
++    // Step 0 (DADAO-12 §5.3): SBZ (`imms18[17:2]`) and `imms18 = 3` (cg9
++    // frame selector with offset +4) are ILLI before any state change; ILLI
++    // is a monitor route, so `-1` names hmon on Tiny.
++    const uint64_t imms18 = (byteOffset >> 2) & 0x3FFFF;
++    if ((imms18 >> 2) != 0 || imms18 == 3) {
 +        tinyCfxRaise(tc, s, TinyCauseIlli, -1, pc, info);
 +        return true;
 +    }
@@ -403,9 +407,11 @@ index 0000000..e13a2e8
 +        return true;
 +    }
 +    const int ci = tinyCfxIndex(s.cfxCode);
-+    if (ci < 0 || cfxha != s.cfxCode || s.cfx[ci].causeId == 0) {
-+        // Frame/target error: CFXESC enters the current cfx, before any state
-+        // switch (spec/DADAO-12 §5.3 step 0).
++    // Frame/target error -- or `imms18[1] = 1`, where cg9 is a capture buffer
++    // and not a return frame -- enters the current cfx, before any state
++    // switch (spec/DADAO-12 §5.1/§5.3 step 0).
++    if (imms18 == 2 || ci < 0 || cfxha != s.cfxCode ||
++        s.cfx[ci].causeId == 0) {
 +        tinyCfxRaise(tc, s, TinyCauseCfxEsc, s.cfxCode, pc, info);
 +        return true;
 +    }

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/fs_machine.hh b/src/arch/dadao/fs_machine.hh
 new file mode 100644
-index 0000000..1954a20
+index 0000000..cd34d76
 --- /dev/null
 +++ b/src/arch/dadao/fs_machine.hh
-@@ -0,0 +1,187 @@
+@@ -0,0 +1,190 @@
 +// DADAO FS machine fault model.
 +//
 +// Tiny carries cfx3 hmon: a synchronous exception enters the hmon vector with
@@ -175,10 +175,13 @@ index 0000000..1954a20
 +                     uint64_t causeSub = 0);
 +
 +/** Machine fault whose exit code belongs to the other-cfx segment
-+ *  (`0x80 | cfxHA`).  Current QEMU/gem5 machines route CFXTRAP/CFXESC into
-+ *  vectors, so there is no call site yet; this is the explicit other-cfx form
-+ *  of the spec/Kaiwu §7.1 mapping (never the monitor segment). */
-+Fault machineFaultToCfx(uint8_t cause, uint8_t cfxha);
++ *  (`0x80 | cfxHA`) and whose frame carries `causeIp`/`causeInfo`
++ *  (spec/DADAO-12 §4.1: `CFXTRAP`/`CFXESC` use the instruction encoding as
++ *  `cause_info`).  This is the explicit other-cfx form of the spec/Kaiwu §7.1
++ *  mapping: a `CFXESC` addressed to the current cfx must never fall back to
++ *  the monitor segment, whichever cfx number that is. */
++Fault machineFaultToCfx(uint8_t cause, uint8_t cfxha, Addr causeIp,
++                        uint64_t causeInfo);
 +
 +/** Stop the simulation with the spec/Kaiwu §7.1 code for `cause` (bit index)
 + *  raised in `runMode`; `targetCfxha < 0` selects the monitor segment.  This

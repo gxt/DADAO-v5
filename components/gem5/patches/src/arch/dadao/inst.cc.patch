@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/inst.cc b/src/arch/dadao/inst.cc
 new file mode 100644
-index 0000000..b5c3bb3
+index 0000000..b8b5bd6
 --- /dev/null
 +++ b/src/arch/dadao/inst.cc
-@@ -0,0 +1,974 @@
+@@ -0,0 +1,1010 @@
 +// DADAO StaticInst: B0 skeleton + the B1-B7 execution dispatcher.
 +// execute() guards the batch and hands off to exec::dispatchBatch(),
 +// the single batch -> core mapping (exec/dispatch.cc).
@@ -320,6 +320,25 @@ index 0000000..b5c3bb3
 +        DadaoISA::PCState target(target64);
 +        target.npc(target64);
 +        xc->pcState(target);
++    }
++
++    /** The architectural current cfx (`inner_cfx_code`) of the running FS
++     *  machine, or -1 when neither the Tiny nor the Node cfx model is active.
++     *
++     *  A fault whose destination is the *current* cfx (CFXESC, DADAO-12
++     *  §5.2(一)) must be addressed to this number; the machine's fault
++     *  fallback cannot derive it from the run mode. */
++    int
++    currentCfx() const
++    {
++        DadaoISA::ISA *isa = dadaoIsa();
++        if (isa == nullptr)
++            return -1;
++        if (isa->nodeState().active)
++            return isa->nodeState().cfxCode;
++        if (isa->tinyState().active)
++            return isa->tinyState().cfxCode;
++        return -1;
 +    }
 +
 +    /** True when the data access cannot use the CPU's synchronous interface.
@@ -699,10 +718,27 @@ index 0000000..b5c3bb3
 +            panic("DADAO B%u: %s raised a cfx fault but B%u has no cfx "
 +                  "access", batch, id, batch);
 +        }
-+        // Tiny's escape hook raises CFXESC into the current cfx itself; this
-+        // branch is only a fallback and still enters the current monitor.
-+        if (fs)
-+            return DadaoISA::machineFaultAt(DadaoISA::FaultCfxEsc, ip, word);
++        // CFXESC belongs to the *current* cfx (DADAO-12 §5.2(一): "escape
++        // 帧错误或目标错误 ⇒ 当前核芯功能扩展，不属于 monitor 路由"), never
++        // to the current run-mode monitor.  The platform hooks deliver the
++        // target/frame errors themselves (tinyEscape/nodeEscape); this
++        // fallback is the encoding-level case in which the hook is not
++        // called at all -- B6 raises CFXESC before `escapeFrom()` for
++        // `imms18[1] = 1` (cg9 is a capture buffer, not a return frame,
++        // §5.1).  Address it to `inner_cfx_code`: an unreachable vector then
++        // stops with the Kaiwu §7.1 other-cfx code (`0x80 | cfxha`), not the
++        // monitor code.
++        if (fs) {
++            const int target = ctx.currentCfx();
++            if (target >= 0)
++                return DadaoISA::machineFaultToCfx(
++                        DadaoISA::FaultCfxEsc, static_cast<uint8_t>(target),
++                        ip, word);
++            // No cfx model on this FS machine: the fault has no architectural
++            // destination at all.  Fail loudly instead of inventing a route.
++            panic("DADAO B6: %s raised CFXESC on an FS machine with no cfx "
++                  "state", id);
++        }
 +        uint64_t cfxha = 0, imms18 = 0;
 +        exec::fieldValue(decoded, "cfxha", cfxha);
 +        exec::fieldValue(decoded, "imms18", imms18);
