@@ -2,15 +2,18 @@
 """spec 引用审计器 — Check 1 引用有效性 + Check 2 无引用规范断言.
 
 审计对象: .tao/contracts/contract-*.md
-引用目标: spec/*.md (SimRISC-00~12, DADAO-11~23, Toolchain-01, Machine-01)
+引用目标: spec/*.md (SimRISC-00~12, DADAO-11~23, Toolchain-01, Machine-01/Kaiwu)
 
 Check 1: 每个 [SimRISC-XX §...] / [DADAO-XX §...] / [Toolchain-01 §...] /
-         [Machine-01 §...] 可解析到 spec/ 真实内容。
+         [Machine-01 §...] / [Kaiwu §...] 可解析到 spec/ 真实内容。
+         前缀集按**现场实际出现**的册登记（ISS-521：非 SimRISC 册同样纳入；
+         DADAO-11~23 早已在册，缺口为 `Kaiwu` 与 `Machine-01` 同册两码）。
          三类命中: 标题(#1~4) > 粗体引子(> **X**：/ **X**) > 正文行。
          数值节号 (§7.2) 命中标题 `7.2 对齐指示符`（标题以 `N.M ` 起始）。
          标题型引用 (§5.1 标题) 同时校章号（ISS-447）: 章号必须等于该标题
          实际所在节的编号；章号写错即使标题文本一致也 FAIL 并指出实际节号。
-         无法判定的形态（模板占位 §x / §N）跳过，摘要里打印跳过原因（不静默）。
+         无法判定的形态（模板占位 §x / §N、范围 §2.1–2.3、字母附录 §A.1 /
+         §附录A、空节名）跳过，摘要与明细里逐条打印跳过原因（不静默）。
 Check 2: 含规范标记(ILLI/UNDI/MALIGN/IALIGN/保留/reserved/必须 等) 且既无
          spec 引用也无 [spec-decision]/ADR 引用的断言 → 报「无引用断言」。
 
@@ -74,15 +77,18 @@ SPEC_PREFIX_MAP = {
     # v5 自定册 (INFRA-058t): 与 SimRISC-/DADAO- 同等校验（此前缺席 ⇒ 引用不可见）。
     "Toolchain-01": "Toolchain-01-汇编语言.md",
     "Machine-01":   "Kaiwu-测试机运行环境.md",
+    # ISS-521: 同一册的现场引用码是 `Kaiwu`（`spec/README.md` 册名），与
+    # `Machine-01` 并存；此前不在前缀集 ⇒ 该册标题型引用不校章号。
+    "Kaiwu":        "Kaiwu-测试机运行环境.md",
 }
 
 # ── regex patterns ────────────────────────────────────────────────────────────
 
 # Prefix search anchor: [SimRISC-XX § or [DADAO-XX § or [SimRISC-0X § (template)
 # 注意: _tpl 形如 SimRISC-XX / DADAO-NN 的模板占位不在此匹配 (XX/NN 非数字)。
-# v5 自定册 Toolchain-01 / Machine-01 亦纳入 (INFRA-058t)。
+# v5 自定册 Toolchain-01 / Machine-01 / Kaiwu 亦纳入 (INFRA-058t / ISS-521)。
 _PREFIX_ANCHOR = re.compile(
-    r"\[(SimRISC-(?:\d+|0X)|DADAO-\d+|Toolchain-\d+|Machine-\d+) §"
+    r"\[(SimRISC-(?:\d+|0X)|DADAO-\d+|Toolchain-\d+|Machine-\d+|Kaiwu) §"
 )
 
 # 数值节号（如 7.2 / 2 / 13.7）；用于「标题以 `N.M ` 起始 ⇒ 命中 `N.M`」的匹配。
@@ -91,6 +97,34 @@ _NUMERIC_SECTION_RE = re.compile(r"\d+(?:\.\d+)*$")
 # 模板占位节名（纯 ASCII 字母，如 `x` / `N` / `XX`）——格式说明行里的占位，
 # 非真实引用，不作校验（与 [SimRISC-XX §] / [DADAO-NN §] 同性质）。
 _PLACEHOLDER_SECTION_RE = re.compile(r"[A-Za-z]+$")
+
+# ── 不可判定引用形态（ISS-521）：显式跳过并打印原因，不静默 ──────────────────
+# 范围引用 `§2.1–2.3` / `§2-3`：本工具不展开区间（端点语义未定义），故跳过。
+_RANGE_SECTION_RE = re.compile(r"^\d+(?:\.\d+)*\s*[-–—~～]\s*\d+(?:\.\d+)*")
+# 字母附录编号 `§A.1` / `§附录A`（整段只有一个字母编号、无标题文本）：spec 册标题
+# 一律数字编号，`_lead_number` 只认数字章号，故无法校章号也无标题可校 ⇒ 跳过。
+# 带标题的 `§A.1 某节` / `§附录 A：汇编指令速查` 不在此列，仍按标题型引用校验。
+_LETTER_APPENDIX_RE = re.compile(r"^(?:[A-Z](?:\.\d+)+|附录\s*[A-Z])\s*$")
+
+SKIP_EMPTY = "节名为空"
+SKIP_PLACEHOLDER = "格式占位（§x/§N），非真实引用"
+SKIP_RANGE = "范围引用（§a–b），不展开校验"
+SKIP_LETTER_APPENDIX = "字母附录编号（纯编号、无标题），无法按数字章号校验"
+_SKIP_REASONS = (SKIP_EMPTY, SKIP_PLACEHOLDER, SKIP_RANGE, SKIP_LETTER_APPENDIX)
+
+
+def skip_reason(section: str) -> str | None:
+    """Return the skip reason for an undecidable section reference, else None."""
+    if not section:
+        return SKIP_EMPTY
+    if _PLACEHOLDER_SECTION_RE.match(section):
+        return SKIP_PLACEHOLDER
+    if _RANGE_SECTION_RE.match(section):
+        return SKIP_RANGE
+    if _LETTER_APPENDIX_RE.match(section):
+        return SKIP_LETTER_APPENDIX
+    return None
+
 
 # Headers: # / ## / ### / ####  heading text
 _HEADER_RE = re.compile(r"^#{1,4}\s+(.+)$", re.MULTILINE)
@@ -456,7 +490,8 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
     check1_hit_stats = {"header": 0, "bold": 0, "text": 0}
     check1_total_refs = 0
     check1_ln_count = 0
-    check1_placeholder_count = 0
+    check1_skips: dict[str, int] = {}
+    check1_skip_items: list[dict] = []
 
     # Cache spec contents
     spec_cache: dict[str, str] = {}
@@ -474,9 +509,17 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
                     check1_ln_count += 1
                     section = section[: ln_match.start()].strip()
 
-                # 模板占位节名（§x / §N；格式说明行里的占位）不作校验（INFRA-058t）。
-                if _PLACEHOLDER_SECTION_RE.match(section):
-                    check1_placeholder_count += 1
+                # 不可判定形态（§x/§N 占位、范围、字母附录、空节名）不作校验，
+                # 逐条记账并在摘要/明细打印原因（ISS-521，不静默）。
+                reason = skip_reason(section)
+                if reason is not None:
+                    check1_skips[reason] = check1_skips.get(reason, 0) + 1
+                    check1_skip_items.append({
+                        "file": str(cfile),
+                        "line": lineno,
+                        "ref": full_match,
+                        "reason": reason,
+                    })
                     continue
 
                 # Load spec file
@@ -613,18 +656,31 @@ def audit(contract_dir: Path, spec_dir: Path) -> int:
 
     # -- Check 1 summary --
     print(f"Check 1 — 引用有效性")
+    print(f"  扫描面: 合约 {len(contract_files)} 个")
     print(f"  总引用数: {check1_total_refs}")
     print(f"  (Lnn) 行号形态: {check1_ln_count} 处")
     if check1_ln_count == 0:
         print(f"  注: 本轮无 (Lnn) 实例")
-    print(f"  跳过 — 模板占位节名 (§x/§N 等): {check1_placeholder_count} 处"
-          f"（跳过原因: 格式占位，非真实引用）")
+    skipped_total = sum(check1_skips.values())
+    print(f"  跳过: {skipped_total} 处（不可判定形态，逐条原因见「跳过明细」）")
+    for reason in _SKIP_REASONS:
+        n = check1_skips.get(reason, 0)
+        if n:
+            print(f"    - {reason}: {n} 处")
     print(f"  命中类型统计: 标题={check1_hit_stats['header']}, "
           f"粗体={check1_hit_stats['bold']}, 正文={check1_hit_stats['text']}")
     resolved = sum(check1_hit_stats.values())
     print(f"  成功解析: {resolved}")
     print(f"  失败: {len(check1_violations)}")
     print()
+
+    if check1_skip_items:
+        print("  跳过明细:")
+        for v in check1_skip_items:
+            relpath = os.path.relpath(v["file"], start=os.getcwd())
+            print(f"    {relpath}:{v['line']}  {v['ref']}")
+            print(f"      原因: {v['reason']}")
+        print()
 
     if check1_violations:
         print("  失败明细:")
@@ -672,6 +728,8 @@ def _run_quietly(contract_dir: Path, spec_dir: Path) -> tuple[int, str]:
 
 # ── --self-test: 合成 fixture（非仓库文本）────────────────────────────────
 # ISS-447：两条注入分别覆盖「标题对、章号错」与「章号对、标题错」。
+# ISS-521：另两路覆盖**非 SimRISC 册**（`Kaiwu`）——正确章号 PASS、章号错 FAIL，
+# 并覆盖「范围引用显式跳过并打印原因」。
 _SELFTEST_SPEC = """# 自检 spec（非仓库文本）
 
 ## 1. 总则
@@ -687,11 +745,33 @@ _SELFTEST_SPEC = """# 自检 spec（非仓库文本）
 判定说明。
 """
 
+_SELFTEST_KAIWU_SPEC = """# 自检 Kaiwu spec（非仓库文本）
+
+## 1. 内存映射与复位
+
+### 1.1 核内地址空间划分
+
+地址划分说明。
+
+### 1.2 越界访问与越界取指异常（含取指路径）
+
+越界异常说明。
+"""
+
 _SELFTEST_CONTRACT = """# 自检合约（非仓库文本）
 
 - 存取指令写回 RD 寄存器。[SimRISC-00 §3.1 存取RD寄存器]
 - 入口按 tag 判定。[SimRISC-00 §5.1 判定（入口 tag）]
 """
+
+# 非 SimRISC 册（Kaiwu）单引用 fixture：章号正确 / 章号错 / 不可判定形态跳过。
+_SELFTEST_KAIWU_OK = "- 越界取指按同步异常上报。[Kaiwu §1.2 越界访问与越界取指异常]\n"
+_SELFTEST_KAIWU_BAD = _SELFTEST_KAIWU_OK.replace("§1.2", "§9.9")
+# 两种不可判定形态：范围引用 + 纯字母附录编号（都应「跳过并打印原因」，不判 FAIL）。
+_SELFTEST_KAIWU_SKIP = (
+    "- 内存映射范围示例。[Kaiwu §1.1–1.2]\n"
+    "- 附录编号示例。[Kaiwu §附录A]\n"
+)
 
 
 def self_test() -> int:
@@ -712,6 +792,9 @@ def self_test() -> int:
         contract = contract_dir / "contract-selftest.md"
         contract.write_text(_SELFTEST_CONTRACT, encoding="utf-8")
         (spec_dir / SPEC_PREFIX_MAP["SimRISC-00"]).write_text(_SELFTEST_SPEC, encoding="utf-8")
+        (spec_dir / SPEC_PREFIX_MAP["Kaiwu"]).write_text(
+            _SELFTEST_KAIWU_SPEC, encoding="utf-8"
+        )
         pristine = tmp / "pristine-contract.md"
         shutil.copy2(contract, pristine)  # 还原基线（cp + md5 对账见证据脚本）
 
@@ -753,13 +836,50 @@ def self_test() -> int:
         shutil.copy2(pristine, contract)
         rc4, _ = _run_quietly(contract_dir, spec_dir)
         note(rc4 == 0, "最终还原后必须 PASS", f"rc={rc4}")
+
+        # 6) ISS-521 绿路：非 SimRISC 册（Kaiwu）正确章号 ⇒ PASS 且该引用被**计入**
+        #    扫描面（总引用数=1，命中=标题）——前缀缺席时计数会是 0，非恒真。
+        contract.write_text(_SELFTEST_KAIWU_OK, encoding="utf-8")
+        rc5, out5 = _run_quietly(contract_dir, spec_dir)
+        note(
+            rc5 == 0 and "总引用数: 1" in out5 and "标题=1" in out5,
+            "Kaiwu 正确章号（§1.2）必须 PASS 且计入扫描面",
+            f"rc={rc5}",
+        )
+
+        # 7) ISS-521 红路：Kaiwu 标题对、章号错（§1.2 → §9.9）⇒ FAIL 并指名实际节号
+        contract.write_text(_SELFTEST_KAIWU_BAD, encoding="utf-8")
+        rc6, out6 = _run_quietly(contract_dir, spec_dir)
+        note(
+            rc6 > 0 and "章号与标题不匹配" in out6 and "§9.9" in out6 and "§1.2" in out6
+            and "contract-selftest.md:" in out6,
+            "Kaiwu 章号错（§9.9，标题正确）必须 FAIL 并指名文件/行/实际节号",
+            f"rc={rc6}",
+        )
+
+        # 8) 不可判定形态（范围 §1.1–1.2 / 纯字母附录 §附录A）⇒ 不判违规，但必须
+        #    逐条打印跳过原因（不静默），且两类原因各自可辨。
+        contract.write_text(_SELFTEST_KAIWU_SKIP, encoding="utf-8")
+        rc7, out7 = _run_quietly(contract_dir, spec_dir)
+        note(
+            rc7 == 0 and "跳过: 2 处" in out7 and SKIP_RANGE in out7
+            and SKIP_LETTER_APPENDIX in out7 and out7.count("原因: ") == 2,
+            "不可判定形态（范围/字母附录）必须显式跳过并逐条打印原因（不静默、不误判 FAIL）",
+            f"rc={rc7}",
+        )
+
+        # 9) 还原 ⇒ PASS
+        shutil.copy2(pristine, contract)
+        rc8, _ = _run_quietly(contract_dir, spec_dir)
+        note(rc8 == 0, "Kaiwu 两路后还原必须 PASS", f"rc={rc8}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
     if fails:
         print(f"check-spec-refs --self-test: FAIL ({len(fails)} 项预期不成立)")
         return 1
-    print("check-spec-refs --self-test: PASS（章号错 / 标题错 两路注入→FAIL→还原→PASS）")
+    print("check-spec-refs --self-test: PASS（章号错 / 标题错 / Kaiwu 章号错 三路注入"
+          "→FAIL→还原→PASS；Kaiwu 正确章号 PASS；不可判定形态跳过并打印原因）")
     return 0
 
 

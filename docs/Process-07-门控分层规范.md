@@ -268,7 +268,7 @@ K6 门控 `check-linux-k6` 落地后，「用户态应用尚未跑通 / busybox 
 | `check-disk` | 按需（运维） | 文件系统占用 | — | — | `tools/infra/check_disk.py:2-13` | 运维守卫，非门控 |
 | `check-milestone` | 里程碑 | 归档 + 台账 + L3 报告 + 同步异常 | 覆盖（台账任务号必须存在） | sha256 锁（归档内容）+ 一致性（报告） | `Makefile:1351` | 收尾专项 |
 | `check-sync-nonmaskable` | 里程碑 | `spec/DADAO-12/22/23` 异常原因表 | — | 一致性（异步源白名单） | `tools/spec/check_sync_nonmaskable.py:41-45` | 无 |
-| `check-spec-refs` | L1 | `.tao/contracts/contract-*.md` 的 spec 引用 | — | 一致性（引用可解析；**标题型引用同时校章号**，章号须等于标题实际所在节，`ISS-447`） | `tools/infra/check_spec_refs.py:4-25` | 无 |
+| `check-spec-refs` | L1 | `.tao/contracts/contract-*.md` 的 spec 引用（前缀集 = 现场出现的 `SimRISC-*`/`DADAO-*`/`Toolchain-01`/`Machine-01`/`Kaiwu`，`ISS-521`） | — | 一致性（引用可解析；**标题型引用同时校章号**，章号须等于标题实际所在节，`ISS-447`） | `tools/infra/check_spec_refs.py:4-26` | 只校 spec 册前缀（`ADR-*`/`contract-*` 引用不校）；占位/范围/纯字母附录/空节名引用显式跳过并逐条打印原因（不静默、不计入失败） |
 | `check-knowledge-refs` | L1 | `AGENTS.md`/`spec`/`knowledge`/`tasks`/`contracts` 的 `.work/**` 引用 | 白名单（具体 `.work/**` 引用一律 FAIL） | —（悬空引用） | `tools/infra/check_knowledge_refs.py:12-52` | 无 |
 | `check-manifests-guard` | L1 | 全仓 `.manifests.toml` 所在目录（`manifests/dir-guard-roots.toml` 登记：`spec/`、`idl/`、`.tao/`、`.tao/knowledge/`、`components/`） | 双向白名单（直接子文件 == `files`、直接子目录 == `subdirs`；可选 `ignore` 只放行被 git 忽略的直接子项） | sha256 锁（条目可带）+ 递归（`recursive=true` 单向 ⊆） | `tools/infra/check_manifests_guard.py:89-236` | 清单自身可被改（加/删条目不红）⇒ 变更依据看 `git log`；`owner` 只打印 |
 | `check-idl-sync` | L1 | `idl/*.idl` + `spec/SimRISC-*` 的 IDL 标记段 | 覆盖（源 operation ↔ 落点双向）+ 命名规则（`SimRISC-NN.idl`、id ∈ `opcodes.yaml`） | 逐字节（重渲染比对） | `idl/tools/idl_render.py`（`render_all`/`run`） | 只核标记段内的块；标记外的散文不核 |

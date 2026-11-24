@@ -1403,9 +1403,9 @@
   - spec
   - infra
   milestone: M17
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M17
+  resolved_by: m17-infra-002（Kaiwu 前缀入册 + 双校）
   title: "【P3】`check-spec-refs` 的标题型引用前缀集不含 `[Kaiwu §…]` 等非 SimRISC 册（`m17-infra-001` 复核发现）：ISS-447 收紧只覆盖在册前缀，这些引用的章号仍不校验；HEAD 即如此，非该任务引入。建议扩展前缀集（并处理 `§` 与中文节名混排）后回归。"
 - id: ISS-522
   scope:
