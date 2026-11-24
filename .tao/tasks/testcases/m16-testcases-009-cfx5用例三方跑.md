@@ -12,7 +12,7 @@
 
 三个平台的 cfx5 寄存器面/命令已就位后，用同一组用例做三方签名比对。用例落 `tests/arch/cache/`，由 `tests/arch/run_arch.py --cfx 5` 驱动。
 
-> **异步模型说明（2026-11-22）**：QEMU 的异步投递已按 `spec/DADAO-12 §5.2` 改为 **monitor-first**（`m18-qemu-002`，先于本任务合入）；本任务的 cfx5/cache 用例不触达异步，不受影响。若后续用例触达异步，期望值按 monitor-first，不得按旧的 target-first 断言。
+> **异步模型说明（更新至 2026-11-24 R2）**：异步投递已按 `ADR-0061` + R2（`m18-spec-004/005`）落定——`cg9` 为捕获缓冲、掩码在当前模式 monitor、`escape imms18=2` 不异步返回。本任务的 cfx5/cache 用例不触达异步，不受影响；若后续用例触达异步，期望值按 R2，不得按旧 target-first/monitor-first 断言。
 
 ## 要做
 
