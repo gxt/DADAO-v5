@@ -33,7 +33,6 @@
 | m18-linux-023 | 4–8 h | Linux `arch/dadao` 按扁平位图解码 PTW 故障（由 M17 迁入；依赖 M17 平台迁移） |
 | m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
-| m18-linux-012 | 1–2 h | ISS-503 K6 门控五条 finding（恒真断言并入 region、计数/标签/符号名订正） |
 | m18-spec-001 | 2–4 h | cg4 `scratch_regs_num` 缺省值：每个非 reserved cfx = 2（QEMU/gem5/RTL 由 4 改 2）；spec/契约 + 探针 |
 | m18-chipyard-001 | 3–5 h | RTL `escape` frame selector 语义（cg9；等 M16 chipyard 批次） |
 | m18-linux-015 | 2–3 h | `mlock2`/`MLOCK_ONFAULT` 路径 SIGSEGV（KERNEL_BUG） |
@@ -48,6 +47,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m18-linux-012 | 2026-11-25 00:32 | 1–2 h | ISS-503 K6 门控五条 finding（恒真断言并入 region、计数/标签/符号名订正） |
 | m18-gem5-002 | 2026-11-25 00:03 | 2–3 h | gem5 `CFXESC` 交付路由：`inst.cc` fallback 应进当前 cfx（现进当前模式 monitor，与 `DADAO-12 §5.1/§5.3` 不符） |
 | m18-qemu-001 | 2026-11-24 23:18 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
 | m18-linux-022 | 2026-11-23 20:12 | 3–5 h | 内核异步新模型（mask 归 monitor、src 位 cfxha、一帧多源） |
