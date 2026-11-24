@@ -606,9 +606,9 @@
 - **前置**：M19 的 Genesys2 shell 与资源实测（复用同一 shell 骨架）、`m16-chipyard-009/010`、M18 的 Linux 套件。
 - **不预分配里程碑号**（用户 2026-11-20）：等 Tiny 上板与 Vast RTL 稳定后再立册。
 
-## SBI 的设计与开发（M21，用户 2026-11-24 裁定；**待立册**）
+## SBI 的设计与开发（**里程碑号待用户定**；用户 2026-11-24 立案，暂不立册）
 
-- **裁定**：新里程碑 **M21 = SBI（主管系统二进制接口）的设计与开发**，**参考 OpenSBI 进行**。号位 M21 预留（M19 FPGA-Tiny、M20 wuqing 已占）。
+- **裁定**：新增里程碑**「SBI（主管系统二进制接口）的设计与开发」**，**参考 OpenSBI 进行**。**号位由用户 2026-11-24 明确：等用户来定**（当前活册已用到 M20，M21 不自动占用；定号后再建 `milestones-m<NN>.md` 与本条目迁入）。
 - **现状事实**：`spec/DADAO-22-SBI-主管系统二进制接口.md`（**0.8.0-rc**）已给出调用约定与 umon/jmon、smon、`cfx_ptw`（地址转换/TLB）、`cfx_cache`、`cfx_hart`、`cfx_llc`、`cfx_pmem`、`cfx_time`、`cfx_uart` 各节；同族有 `DADAO-12-SEE`、`DADAO-23-HBI`。但**当前只是规范 + 最小探针**（M14/M18 的 K0–K6 用自研 hmon/smon 起步），没有独立固件层的 SBI 实现，也没有 OpenSBI 作为组件。
 - **OpenSBI 现状**：仓库内仅在 chipyard 子模块锁（`software/firemarshal/boards/default/firmware/opensbi`）与只读参考 `.cache/refs/vivado-risc-v` 里出现，**未作为 `components/` 组件接入**（无锁、无补丁集、无 `.cache` 裸仓库）。
 - **首期范围（用户 2026-11-24 二次裁定）**：**先做扩展层，不做独立固件**。即按 `DADAO-22-SBI` 把各核芯功能扩展的调用语义逐条做实（umon/jmon、smon、`cfx_ptw`、`cfx_cache`、`cfx_hart`、`cfx_llc`、`cfx_pmem`、`cfx_time`、`cfx_uart`），挂在现有 monitor/探针路径上验证；**不**先做 M-mode 固件、不改引导链、不 fork OpenSBI。OpenSBI 只作**设计参考**（扩展注册/错误码/状态机/DEVICE 树解析的既有做法），不引入其代码。
