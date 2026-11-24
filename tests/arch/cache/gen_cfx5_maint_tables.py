@@ -49,6 +49,9 @@ PA_R0 = 0x4_1200                   # range line 0 (group 72)
 PA_R1 = 0x4_1240                   # range line 1 (group 73, adjacent)
 PA_D = 0x4_5000                    # single/all data line (group 64)
 PA_CODE = 0x8_1000                 # code line (group 64)
+# `cache_addr_start` 的 56 位向量（`CACHE-18`/`ISS-534`）：bit48 置位，且
+# `[47:0] == PA_D` ⇒ 若维护端口按 48 位截断，单行命令会错误命中 A_D。
+PA_HIGH = 0x0001_0000_0004_5000
 
 VA_R0 = VA_BASE + PA_R0
 VA_R1 = VA_BASE + PA_R1
@@ -202,6 +205,11 @@ def expected_records(root: pathlib.Path) -> list:
     rec("enable=0: invalidate was a no-op, clean still sees the dirty line",
         IMM[7])
     rec("no-line PA: commands complete without an exception", W_MMIO)
+    # `cache_addr_start` is a full 56-bit PA (CACHE-18): the register read-back
+    # must not be truncated, and a single-line command at an address whose low
+    # 48 bits alias A_D must not touch that line (ISS-534).
+    rec("addr_start: full 56-bit PA read back (not truncated)", PA_HIGH)
+    rec("addr_start >=48 bit: the aliasing low line was not touched", N_D)
     rec("no-op: sel=00 with reserved scope completes", W_NONE_SEL)
     # f1: illegal encoding (clean with reserved scope) must not write back
     rec("CFXREG f1: cause_id", cfxreg)
@@ -240,6 +248,7 @@ def emit_inc(out, root: pathlib.Path) -> None:
     w("PA_R1", PA_R1)
     w("PA_D", PA_D)
     w("PA_CODE", PA_CODE)
+    w("PA_HIGH", PA_HIGH)
     w("PTE_L1", PTE_L1)
     w("PTE_DATA", PTE_DATA)
     w("PTE_CODE", PTE_CODE)

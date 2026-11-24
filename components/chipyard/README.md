@@ -69,6 +69,24 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
   qemu,gem5,chipyard` **三方逐槽**比较（无差异登记）；RTL 侧另从 `+verbose` 的
   `cfx2 …` trace 独立复核原始读数（`delta = 0xf3e` 级）与访问模式。
 
+## 缺面补齐：cfx_power 公共面 / cfx5 模式面 / 56 位 `addr_start`（`m16-chipyard-027`）
+
+- **`cfx_power`（cfx63）公共面**（`ISS-524`、`DADAO-12 §3.5/§3.7`）：Vast 上
+  `GewuCfxParams.commonRows = p.useVM` ⇒ `cg4` 的 `cfx_id=63`/`version`/四个计数
+  与 `cg6` scratch（默认 4 个）可访问；`cg7` 的 BootROM 空间描述与 `cg8` 语义不动。
+  Tiny 不开（`Kaiwu-Tiny` 的寄存器面是回归判据）。
+- **`cfx5` 模式面**（`DIV-16`）：`cfx_cache` 打开 `commonRows` ⇒ `cg0`–`cg2`
+  `*_cfxreg` 行、`cg3 rc12` deleg、`cg4/cg5 rc5/cg6` 共享面存在；S/U 访问要按
+  `contract-see §3` 的两轴放行，`cg8` 维护命令（`CACHE-*`）语义零改动。
+- **56 位 `cache_addr_start`**（`ISS-534`、`CACHE-18`）：`WumingCacheParams.tagBits`
+  与 `tagOf`/`lineBaseOf` 改为 `PA[55:0]`（此前 `PA[47:0]`）；维护范围比较/日志
+  不再丢 `PA[55:48]`。TileLink 端口仍是 48 位，只有总线请求在那里收窄。
+- **验证**：`tests/arch/power/` 把 `cg4/cg6` 纳入 `arch-power-001`（35 槽，删
+  `DIV-13`）；`tests/arch/cache/` 的 `arch-cache-001/002` 三模式全部由 RTL 承载
+  （删 `DIV-16`），`cfx5_maint.S` 新增高 48 位别名向量（`check_cfx5_maint.py`
+  断言寄存器读回与「低地址行未被别名删除」）。注入口「关掉 power/cfx5 common
+  face」与「tag 截回 48 位」均红，`cp`+md5 还原重建后回绿。
+
 ## 启动与 `+loadmem`（`m12-chipyard-003`）
 
 - **启动约定 = 固定入口**：Tiny BootROM 是静态平铺 trampoline（`tests/shared/bootrom/bootrom.S`：装 SP、装应用入口、`jump`），入口取 `machine-tiny.inc` 的 `ENTRY = 0xffff_ff01_0100`。**不用 ELF `e_entry`**：ROM 里没有 ELF 解析器/image index table/DTB，无法在运行时得知 `e_entry`；固定入口与 `QEMU kaiwu-tiny` 的 raw-kernel 约定（`kernel_base + kernel_reserved`）同源，应用链接脚本（`tests/shared/bootrom/tiny_smoke.lds`）用同一常量。

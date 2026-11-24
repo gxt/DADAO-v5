@@ -157,16 +157,33 @@ _start:
 	set.rd	rd6, 1
 	cfx2rc	cfx_ptw, cg8, rc8, rd6
 
-	@@ **不写 cfx5 的 cg0-cg7**：RTL 的 cfx5 只有 cg8 面（`commonRows` 未开，
-	@@ DIV-16）；写 cg0-cg3 ⇒ CFXREG。hmon 走 hypv 行（RTL 不强制），cg8 可访问；
-	@@ S/U 的 cfx5 访问在 `check_cache_rtl.py` 记 GAP（同一原因），不执行本段。
-
+	@@ S/U 可达（DIV-16 收窄）：cfx5 现在有 `commonRows`（cg0-cg3 模式行 +
+	@@ `cg3 rc12` deleg + cg4/cg5/cg6 共享面）。两轴判权不放宽：
+	@@   * 源 cfx 保持 `cfx_hmon`（与 `common/env-*` 同一交付方式）：本段仍在
+	@@     hypv，先把 supv/user 行里「源 cfx = hmon」的 `cfxreg` 位清 0
+	@@     （其余位保持屏蔽），只打开本探针需要的 cfx5；
+	@@   * supv 还查目标 cfx5 的 `cg3 rc12`（复位全 1）——在 hypv 写 0x8
+	@@     （整组开放，bit3 恒 1）；user 不查 deleg；
+	@@   * 降模式经 **cfx_hmon** 的 `<mode>` 行（`trap cfx_hmon`），因此
+	@@     `inner_cfx_code` 仍是 hmon，不同时把源 cfx 改成 smon/umon。
 	.if	TMODE == 2
+	@@ supv：**源 cfx = cfx_smon(2)**（降模式目标 = cfx_smon，hypv 行可写）。
+	@@ cfx5 的 `cg2 rc2` 只清源位 2（0x...FB），其余来源保持屏蔽；
+	@@ cfx5 的 `cg3 rc12 = 0x8`（整组开放，bit3 恒 1）是 supv 的 cg 授权。
+	WCFX_IMM   cfx_cache, cg2, rc2, 0xFFFFFFFFFFFFFFFB
+	WCFX_IMM   cfx_cache, cg3, rc12, 0x8
+	@@ 收尾 `trap cfx_umon` 的源 cfx 也是 smon ⇒ 只清 cfx_umon 的 supv
+	@@ `cfxtrap` 源位 2（保留其余位）
+	WCFX_IMM   cfx_umon, cg2, rc0, 0xFFFFFFFFFFFFFFFB
+	@@ 从 **hypv** 陷入 cfx_smon：用它的 hypv 行（cg3）选新运行模式
 	WCFX_LABEL cfx_smon, cg3, rc10, c_body
 	WCFX_IMM   cfx_smon, cg3, rc8, 2
 	trap	cfx_smon, 0
 	swym	0
 	.elseif	TMODE == 0
+	@@ user：源 cfx = cfx_umon(0)。cfx5 的 `cg0 rc2` 只清源位 0；
+	@@ user 不查 `cg3 rc12`（`contract-see §3`）
+	WCFX_IMM   cfx_cache, cg0, rc2, 0xFFFFFFFFFFFFFFFE
 	WCFX_LABEL cfx_umon, cg3, rc10, c_body
 	WCFX_IMM   cfx_umon, cg3, rc8, 0
 	trap	cfx_umon, 0

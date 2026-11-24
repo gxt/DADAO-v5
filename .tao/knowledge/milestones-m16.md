@@ -31,12 +31,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-chipyard-027 | 2026-11-25 02:16 | 2–3 h | RTL 缺面补齐（power common face + cfx5 S/U 可达 + addr_start 56 位；ISS-524/534/DIV-16） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-027 | 2026-11-25 05:23 | RTL 缺面补齐（power `cg4/cg6`、cfx5 S/U 可达、`addr_start` 56 位；DIV-13/16 删除） |
 | m16-testcases-014 | 2026-11-25 02:15 | cfx32 pmem 完成中断 + 同界多源（R2：55/10 槽、一次进入并集；QEMU+RTL 两方，DIV-17） |
 | m16-testcases-013 | 2026-11-25 01:25 | cfx15 timer 中断（R2：80/40 槽、覆盖语义、`escape` 拒绝；QEMU+RTL 逐槽，gem5 登记 DIV-17） |
 | m16-spec-003 | 2026-11-24 23:58 | DMA 与 D-cache 一致性（裁定 A：软件 clean/invalidate）+ contract power 块值订正 |

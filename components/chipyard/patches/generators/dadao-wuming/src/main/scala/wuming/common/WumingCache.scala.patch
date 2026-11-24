@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCache.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCache.scala
 new file mode 100644
-index 0000000..dcab913
+index 0000000..7385bc0
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCache.scala
-@@ -0,0 +1,781 @@
+@@ -0,0 +1,788 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" first-level cache, **one class for both sides**
@@ -96,7 +96,11 @@ index 0000000..dcab913
 +  val indexBits: Int = log2Ceil(sets)
 +  val offsetBits: Int = log2Ceil(lineBytes)
 +  val beatBits: Int = log2Ceil(beats)
-+  val tagBits: Int = 48 - indexBits - offsetBits
++  /** Physical tag width: the full 56-bit PA (`CACHE-18`).  The TileLink
++    * address is 48 bits on this machine, but the maintenance range compare
++    * (`scope = single/range`) is defined on the architectural `PA[55:0]`, so
++    * the table must not drop `PA[55:48]` (`ISS-534`). */
++  val tagBits: Int = 56 - indexBits - offsetBits
 +  val ageBits: Int = math.max(1, log2Ceil(ways))
 +  require(indexBits + offsetBits < 16,
 +    "WumingCache: line offset + group index must fit inside a 64 KiB page")
@@ -216,9 +220,12 @@ index 0000000..dcab913
 +  private val wtBeat = RegInit(0.U(64.W))
 +
 +  private def indexOf(a: UInt): UInt = a(p.indexBits + p.offsetBits - 1, p.offsetBits)
-+  private def tagOf(a: UInt): UInt = a(47, p.indexBits + p.offsetBits)
++  // The tag is `PA[55:index+offset]` (CACHE-18: the range compare uses the full
++  // 56-bit PA).  Only the low 48 bits ever reach the TileLink bus, and the bus
++  // request is narrowed there.
++  private def tagOf(a: UInt): UInt = a(55, p.indexBits + p.offsetBits)
 +  private def beatOf(a: UInt): UInt = a(p.beatBits + 2, 3)
-+  private def lineBaseOf(a: UInt): UInt = Cat(a(47, p.offsetBits), 0.U(p.offsetBits.W))
++  private def lineBaseOf(a: UInt): UInt = Cat(a(55, p.offsetBits), 0.U(p.offsetBits.W))
 +
 +  private val reqIdx = indexOf(reqAddr)
 +  private val reqTag = tagOf(reqAddr)

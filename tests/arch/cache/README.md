@@ -11,7 +11,7 @@
 | `cfx5_maint.S` | 维护命令探针：I 侧（clean no-op / invalidate 单行与区间 / flush）、D 侧（invalidate 丢弃脏行 / clean 写回 / flush 写回+删除；PA 单行、PA 区间、all）、`cache_enable=0` 不维护、无行/不可缓存 PA 无效果、非法编码 ⇒ `CFXREG`；D 侧真值以**取指端口**独立观测 |
 | `cfx5_maint.lds` | 探针自己的链接布局：核内 SRAM 的 `.text`/`.faultpad`/`.testdata` + PA RAM 的页表/数据行/代码行；三个故障例的回落点 ASSERT |
 | `gen_cfx5_maint_tables.py` | 几何/页表/控制字/magic/期望值单一真源（控制字三维字段与 CFXREG 位号现场取自合约）；`--check-geometry` 自检行分组与区间不跨页 |
-| `check_cfx5_maint.py` | 独立判据：29 条记录 + 缓存日志时序断言（invalidate 不写回、I\|clean 不进 I 侧且 I 行仍在、flush 删除后重缺失、区间两行、enable=0 命令未发出）；`--self-test` 对每条记录与四种日志变异做可达 FAIL 证明 |
+| `check_cfx5_maint.py` | 独立判据：31 条记录 + 缓存日志时序断言（invalidate 不写回、I\|clean 不进 I 侧且 I 行仍在、flush 删除后重缺失、区间两行、enable=0 命令未发出、`addr_start` 56 位不截断/不按低 48 位别名）；`--self-test` 对每条记录与四种日志变异做可达 FAIL 证明 |
 
 ## 运行
 
@@ -58,7 +58,7 @@ case、同一槽序**；期望值由 `cache_oracle.py` 现场从 `contract-cache
 | `cache_oracle.py` | 唯一期望源：契约/opcode 现场解析 + 四条 case 的槽序/期望 + RTL 地址/PTE include |
 | `check_cache.py` | QEMU/gem5 驱动（env 镜像、`-d cpu` 模式观测、签名流逐槽） |
 | `cache_rtl.S` / `cache_rtl.lds` | RTL 承载（`CCASE=1..3` × `TMODE=3/2/0`；页面/控制字来自 `cache_rtl_tables.inc`） |
-| `check_cache_rtl.py` | RTL 驱动（同一槽序 + `+verbose` 模式观测 + 缓存日志断言）；`arch-cache-004` 记 GAP |
+| `check_cache_rtl.py` | RTL 驱动（同一槽序 + `+verbose` 模式观测 + 缓存日志断言）；`arch-cache-001/002` 的 hmon/smon/umon 三种模式都跑（`m16-chipyard-027` 起 cfx5 开 `commonRows`），只有 `arch-cache-004` 记 GAP |
 | `expected.yaml` | 签名流登记（与 `cache_oracle` 双向核对） |
 | `rtl-coverage.yaml` | RTL 覆盖/缺口（`arch-cache-004` = `cache-model=off` 无 RTL 开关 ⇒ gap） |
 
@@ -66,6 +66,10 @@ case、同一槽序**；期望值由 `cache_oracle.py` 现场从 `contract-cache
 
 - `arch-cache-004` 只在 QEMU/gem5 上判（RTL 无 `cache-model` 开关，`rtl-coverage.yaml`
   登记 `gap`，`run_arch` 记 `GAP`，不是 PASS）。
+- `arch-cache-001/002` 的 smon/umon 在 RTL 上**已可达**（`DIV-16` 已删除）：
+  `cache_rtl.S` 在 hypv 打开目标 cfx5 的 supv/user 行（只清源 cfx = hmon 的位）
+  与 `cg3 rc12 = 0x8`，再经 `cfx_hmon` 的 `<mode>` 行降模式；`inner_cfx_code`
+  保持 hmon，两轴判权不因降模式被放宽。
 - I 侧 `clean` 是 no-op（CACHE-19）在**签名槽层面不可判**：QEMU 的 D 写回会经 RAM
   写自动失效 TB（`m16-qemu-003` 新发现①），「D clean 后未发 I 命令仍取到新码」在
   QEMU 上恒成立。该点由 RTL 承载的缓存日志独立断言（`icache` 不得出现 `op=clean`），

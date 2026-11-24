@@ -143,13 +143,35 @@ def run_sim(sim, elf, work, timeout):
 # ---------------------------------------------------------------------------
 # trace / cache log
 # ---------------------------------------------------------------------------
-def trace_modes(log: Path, cfxha: int):
-    modes = set()
+def trace_mode_sequence(log: Path, cfxha: int):
+    """cfx5 访问的运行模式序列（按 trace 顺序，含重复）。"""
+    modes = []
     for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
         m = CFX2_RE.search(line)
         if m and int(m.group("ha")) == cfxha:
-            modes.add(int(m.group("mode")))
-    return sorted(modes)
+            modes.append(int(m.group("mode")))
+    return modes
+
+
+def mode_problem(sequence, want_mode: int):
+    """S/U 承载的模式判据：hypv（3）只允许出现在降模式之前。
+
+    降模式前在 hypv 写两轴掩码/`cg3 rc12`（carrier 的权限准备）是合法准备，
+    不是 body 访问；一旦进入请求模式，cfx5 的任何访问都必须是它——否则
+    `mode=` 观测就会把「body 在 hypv 偷跑」放过去。
+    """
+    if want_mode not in sequence:
+        return "运行模式未观测到：期望 cfx2 trace 里 mode=%d，实际 %r" % (
+            want_mode, sequence)
+    first = sequence.index(want_mode)
+    if any(m != want_mode for m in sequence[first:]):
+        return ("cfx5 的访问出现了非请求模式（进入后）: %r（期望进入后全为 %d）"
+                % (sequence, want_mode))
+    before = set(sequence[:first])
+    if not before <= {3}:
+        return ("降模式前的 cfx5 访问出现了非 hypv 模式: %r（允许 {3}）"
+                % sorted(before))
+    return None
 
 
 def parse_cache_log(text):
@@ -238,9 +260,9 @@ def check_log(case_id, events):
                          "ran %d times, expected 1 (the enable=0 one must "
                          "not be issued)" % len(inv_out))
         # 5. 无行 PA：命令到达 cache 且报 miss（无效果、不报异常）。
-        # RTL 的维护行地址在 cache 端口上按 48 位截断（命令本身仍无效果）；
-        # 这里按端口记录的行地址找事件，语义断言仍是“无行 ⇒ miss”。
-        no_line = (oracle.PA_NOLINE & 0xFFFF_FFFF_FFFF) & ~0x3F
+        # `CACHE-18`：维护范围按完整 56 位 PA 比较，日志里的行地址不得被
+        # 截断（ISS-534）。
+        no_line = oracle.PA_NOLINE & ~0x3F
         mmio = _find(events, "dcache", "cmd", op=2, scope=1, line=no_line)
         if not mmio:
             fails.append("the no-line invalidate did not reach the dcache")
@@ -317,13 +339,11 @@ def check(case_id, mode, args) -> int:
     text = log.read_text(encoding="utf-8", errors="replace") if log.is_file() \
         else ""
     want_mode = oracle.mode_code(oracle.facts(_REPO), mode)
-    observed = trace_modes(log, oracle.facts(_REPO)["regs"]["cfxha"]) \
+    observed = trace_mode_sequence(log, oracle.facts(_REPO)["regs"]["cfxha"]) \
         if log.is_file() else []
-    if want_mode not in observed:
-        problems.append("运行模式未观测到：期望 cfx2 trace 里 mode=%d，实际 %r"
-                        % (want_mode, observed))
-    elif [m for m in observed if m != want_mode]:
-        problems.append("cfx5 的访问出现了非请求模式: %r" % observed)
+    mode_issue = mode_problem(observed, want_mode)
+    if mode_issue:
+        problems.append(mode_issue)
 
     problems.extend("缓存日志: " + p for p in
                     check_log(case_id, parse_cache_log(text)))
@@ -344,14 +364,8 @@ def check(case_id, mode, args) -> int:
 
 def gap(case_id, work, mode="hmon"):
     """登记 RTL 缺口，返回 77（不是 PASS）。"""
-    if mode != "hmon":
-        detail = ("RTL 的 cfx5 只有 cg8 寄存器面（`GewuParams` 未给 cfx5 开 "
-                  "`commonRows`，DIV-16）：hmon 走 hypv 行可读 cg8，但 smon/umon "
-                  "访问 cfx5 的 `<mode>_cfxreg` 行 ⇒ CFXREG；cfx5 的 S/U 运行模式"
-                  "在 RTL 上不可达")
-    else:
-        detail = ("RTL 无 `cache-model` 机器开关（CACHE-27 把是否暴露留给实现）；"
-                  "%s 的 off 分支只在 QEMU/gem5 上判" % case_id)
+    detail = ("RTL 无 `cache-model` 机器开关（CACHE-27 把是否暴露留给实现）；"
+              "%s 的 off 分支只在 QEMU/gem5 上判" % case_id)
     work = (Path(work) if work else _HERE.parent / "cache_rtl_work" / case_id)
     work = work.resolve()
     work.mkdir(parents=True, exist_ok=True)
@@ -436,9 +450,9 @@ def selfcheck() -> int:
         gaps = {(c.get("case"), c.get("mode") or "hmon")
                 for c in (coverage.get("cases") or [])
                 if c.get("verdict") == "gap"}
-        want_gaps = {("arch-cache-004", "hmon"),
-                     ("arch-cache-001", "smon"), ("arch-cache-001", "umon"),
-                     ("arch-cache-002", "smon"), ("arch-cache-002", "umon")}
+        # cfx5 的 common face 已在 RTL 落地（`m16-chipyard-027`）：只剩
+        # `cache-model=off` 这一机器维度没有 RTL 开关。
+        want_gaps = {("arch-cache-004", "hmon")}
         missing = sorted(want_gaps - gaps)
         extra = sorted(gaps - want_gaps)
         if missing:
@@ -488,7 +502,7 @@ def main() -> int:
               % (case_id, args.mode,
                  list(oracle.CASE_MODES[case_id])), file=sys.stderr)
         return 2
-    if case_id == "arch-cache-004" or args.mode != "hmon":
+    if case_id == "arch-cache-004":
         return gap(case_id, args.work_dir, args.mode)
     try:
         rc = check(case_id, args.mode, args)

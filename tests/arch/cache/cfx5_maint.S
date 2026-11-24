@@ -299,6 +299,22 @@ e0:
 	set.rd	rd5, W_MMIO
 	__REC	rd5
 
+	@@ ---- F2. cache_addr_start 的 56 位（CACHE-18 / ISS-534） ----
+	@@ PA_HIGH 的 [47:0] == PA_D：若维护端口按 48 位截断，下面的单行 invalidate
+	@@ 会错误命中 A_D 并丢掉脏行；正确实现按 56 位比较 ⇒ 无行、A_D 保留。
+	set.rb	rb4, N_D
+	st.o	rb4, [rb11, 0]			@@ A_D 成脏行（内存里是 P_D）
+	set.rd	rd7, PA_HIGH
+	cfx2rc	cfx_cache, cg8, rc10, rd7
+	cfx2rd	cfx_cache, cg8, rc10, rd5
+	__REC	rd5				@@ 读回 = PA_HIGH（寄存器不截断）
+	set.rd	rd7, 64
+	cfx2rc	cfx_cache, cg8, rc11, rd7
+	set.zw	rd7, wp0, CTRL_D_INVALIDATE_LINE
+	cfx2rc	cfx_cache, cg8, rc9, rd7
+	ld.o	rd5, [rb11, 0]
+	__REC	rd5				@@ 仍是脏行 N_D（未被别名删掉）
+
 	@@ ================= G. 无条件 no-op（不检查范围/操作数） =================
 	@@ 选侧 = 00、操作 = flush、范围 = reserved：no-op
 	set.rd	rd7, 0

@@ -22,6 +22,12 @@ cases:
       - label: handover
         note: power→hmon 移交帧：prev_cfx=cfx_power、prev_mode=hypv、cause=CFXTRAP、cause_ip 在 BootROM 窗口
         signature: [0x3f, 0x3, 0x1, 0x1]
+      - label: config
+        note: >-
+          cg4（cfx_id=63、四个计数器=0——探针没有以 cfx_power 为目标的进入）
+          与 cg6 rc0/rc1 的 RW 往返（DADAO-12 §3.5/§3.7）
+        signature: [0x3f, 0x0, 0x0, 0x0, 0x0,
+                    0x5a5a5a5a5a5a5a5a, 0xa5a5a5a5a5a5a5a5]
       - label: space
         note: cg7：块 0 = BootROM（desc/start/size/attr）、块 1–15 desc = 0、块 15 start/size/attr = 0
         signature: [0x5, 0x3ffffc00000, 0x400000, 0x5, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0]

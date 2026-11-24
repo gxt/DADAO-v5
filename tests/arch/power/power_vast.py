@@ -57,9 +57,9 @@ hypv 做 `cg5 rc1` 的 RW 回读（写哨兵、还原 cfxha，2 槽）。
   * `cfx_power_ctrl` 的**写侧**（规范为 WO ⇒ 写 0 应被接受）：三个实现当前都
     没有该寄存器（写 0 收 `CFXREG`），与规范不符 ⇒ 不写进判据（不拿实现现状
     当期望），由 `--diagnose` 逐方报告并登记差异；
-  * `cfx_power` 的 `cg4`/`cg6`（`cfx_id`/`version`/`scratch`）：RTL 的
-    `cfx_power` 未开放 common face（`cg4`/`cg6` ⇒ `CFXREG`），与 QEMU/gem5
-    不一致 ⇒ 不纳入三方逐槽；由 `--diagnose` 报告；
+  * `cfx_power` 的 `cg4 rc1`（`version`）是 HW 值，spec 不规定、测试机约定
+    也不在合约里 ⇒ 不写进逐槽判据（`cg4` 的 `cfx_id` 与四个计数器、`cg6`
+    的 rc0/rc1 RW 已纳入，见 `_config_slots`）；
   * 电源语义本身（`bit0/1/2` = 关机/硬复位/软复位）不做：写这三位会真的停机/
     复位，没有「执行后仍可观测」的判据（任务书「不做」第 1 条）。
 
@@ -263,6 +263,32 @@ def opcode_value(entry_id: str) -> int:
 # ---------------------------------------------------------------------------
 # 探针表（覆盖点见模块 docstring）
 # ---------------------------------------------------------------------------
+# `cg6` scratch 的 RW 哨兵（`DADAO-12 §3.7`：软件可用的 RW 寄存器）。
+SCRATCH0 = 0x5A5A_5A5A_5A5A_5A5A
+SCRATCH1 = 0xA5A5_A5A5_A5A5_A5A5
+
+
+def _config_slots(power: int):
+    """`cg4`/`cg6`（`DADAO-12 §3.5`/§3.7）的 7 个槽（`ISS-524`/DIV-13）。
+
+    `cfx_id` 取自 `contract-cfx-aliases §1`；四个计数器为 0：本探针没有任何
+    `trap`/异常/`escape` 以 `cfx_power` 为目标（移交的 `trap` 目标是
+    `cfx_hmon`），`DADAO-12 §3.5` 定义它们按**进入该 cfx** 计数。`cg6` 只
+    测试 rc0/rc1 的 RW 往返：`§3.7` 保证至少 2 个 scratch，数量本身是 HW
+    值（`cg4 rc6`），不在本槽面里写死实现值。
+    """
+    out = [
+        ("power_cfx_id", ("reg", power, 4, 0, cfx_codes()["power"])),
+        ("power_trap_num", ("reg", power, 4, 2, 0)),
+        ("power_sync_num", ("reg", power, 4, 3, 0)),
+        ("power_async_num", ("reg", power, 4, 4, 0)),
+        ("power_escape_num", ("reg", power, 4, 5, 0)),
+        ("power_scratch0_rw", ("rw", power, 6, 0, SCRATCH0)),
+        ("power_scratch1_rw", ("rw", power, 6, 1, SCRATCH1)),
+    ]
+    return [("mid", label, spec) for label, spec in out]
+
+
 def _space_slots(power: int):
     """`arch-power-001` 的 22 个寄存器面槽（同一张表也给 RTL 生成器用）。"""
     pw = power_space()
@@ -306,6 +332,7 @@ def slot_table(case_id):
                                      causes["CFXTRAP"])),
             ("pre", "hmon_cause_ip_in_rom", ("ip_in_rom", hmon, 5, 3, 1)),
         ]
+        out.extend(_config_slots(power))
         out.extend(_space_slots(power))
         out.extend([
             # `cg5 rc1` 是 RW：写哨兵读回、再还原 power 的 cfxha。

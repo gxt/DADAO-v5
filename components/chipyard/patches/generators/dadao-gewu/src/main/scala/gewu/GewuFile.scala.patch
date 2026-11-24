@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..3dd5393
+index 0000000..2518741
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
-@@ -0,0 +1,2030 @@
+@@ -0,0 +1,2034 @@
 +// See LICENSE for license details.
 +//
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
@@ -516,11 +516,15 @@ index 0000000..3dd5393
 +  // `ADR-0061` D5) is only defined for cfx0-cfx3 and is decoded outside this
 +  // matrix.  `cfx_hart` opts in for its mode rows (the two-axis access model of
 +  // `contract-see §6.3`) while its own cg8 rows are decoded by the hart face.
++  // `cfx_cache` opts in so U/S can reach its cg8 maintenance rows through the
++  // common `cfxreg`/deleg rows (`DIV-16`), and the reset cfx (the boot owner,
++  // `cfx_power` on this machine) carries the §3.5/§3.7 face (`ISS-524`).
 +  require(cfx.filter(_.commonRows).forall(c =>
-+    (c.id >= 0 && c.id <= 3) || hart.exists(_.cfxId == c.id) ||
++    (c.id >= 0 && c.id <= 3) || c.id == runCfxReset ||
++      cache.exists(_.cfxId == c.id) || hart.exists(_.cfxId == c.id) ||
 +      pmem.exists(_.cfxId == c.id) || time.exists(_.cfxId == c.id)),
-+    "Gewu: `commonRows` is defined for the cfx0-cfx3 monitors, cfx_hart, " +
-+      "cfx_pmem and cfx_time only")
++    "Gewu: `commonRows` is defined for the cfx0-cfx3 monitors, the reset " +
++      "cfx, cfx_cache, cfx_hart, cfx_pmem and cfx_time only")
 +  require(cfx.filter(_.commonRows).forall(c => c.scratchRegs >= 2 && c.scratchRegs <= 64),
 +    "Gewu: `scratchRegs` must be 2..64 (`DADAO-12 §3.7`)")
 +}

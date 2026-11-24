@@ -179,9 +179,10 @@ QEMU 与 gem5 跑**同一份 4 MiB BootROM 字节**。
   描述 **4 MiB** BootROM（`start = 0x3ff_ffc0_0000`、`size = 0x40_0000`）；
   原 **DIV-12**（RTL 64 KiB vs 规范 4 MiB）已删除，`arch-power-001` 的
   `space0_start`/`space0_size` 两槽三方逐槽一致。
-- **DIV-13**：RTL 的 `cfx_power cg4/cg6` ⇒ `CFXREG`（未开 common face），
-  QEMU/gem5 返回 `cfx_id = 63` / scratch 可读写 ⇒ **不在比较面**（不把实现缺口
-  写进判据），由 `--diagnose` 逐方报告。
+- **DIV-13 已删除**（`m16-chipyard-027`）：RTL 的 `cfx_power` 已在 Vast 打开
+  `commonRows`，`cg4`（`cfx_id = 63`、计数）/`cg6`（scratch RW）进入
+  `arch-power-001` 的比较面；`cg4 rc1 version` 是 HW 值（spec/合约不规定），
+  不入判据，仍由 `--diagnose` 报告。
 
 **未覆盖项（显式登记，不假装全覆盖）**：
 

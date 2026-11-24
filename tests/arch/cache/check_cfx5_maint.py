@@ -206,6 +206,24 @@ def check_log(events, g) -> list:
         fails.append("only %d clean-with-writeback events for the code line; "
                      "the enable=0 no-op window lost the dirty line"
                      % len(cl_code))
+
+    # 11. `cache_addr_start` = 56-bit PA (CACHE-18 / ISS-534): the single-line
+    #     invalidate at PA_HIGH must be logged with the FULL line address and
+    #     reported as a miss; no command may use its low-48 alias (PA_D).
+    high_line = g.PA_HIGH & ~0x3F
+    high = _find(events, "dcache", "cmd", op=2, scope=1, line=high_line)
+    if not high:
+        fails.append("the 56-bit addr_start invalidate was not logged at "
+                     "%#x (truncated to 48 bits?)" % high_line)
+    elif high[0][2].get("miss") != 1:
+        fails.append("the 56-bit addr_start invalidate was not a miss")
+    aliases = _find(events, "dcache", "cmd", op=2, scope=1, line=pa_d)
+    # A_D 只在 D 侧单行 flush 时被 invalidate；F2 之后不得再有别名命令。
+    if high:
+        last_high = _cyc(high[0])
+        if any(_cyc(e) > last_high for e in aliases):
+            fails.append("a command used the low-48 alias of the 56-bit "
+                         "addr_start (line %#x) after F2" % pa_d)
     return fails
 
 
@@ -296,10 +314,18 @@ def self_test(root: pathlib.Path, log_text: str) -> int:
                          % g.PA_CODE, re.M)
         return pat.sub("", text, count=1)
 
+    def truncate_high(text):
+        # Log the 56-bit single-line command at its low-48 alias: the new
+        # `CACHE-18` assertion must reject it (ISS-534).
+        return re.sub(r"(cmd op=2 scope=1 line=0x0*%x)" % (g.PA_HIGH & ~0x3F),
+                      "cmd op=2 scope=1 line=0x%x" % (g.PA_D & ~0x3F),
+                      text, count=1)
+
     mutated_log("invalidate writes back", add_wb)
     mutated_log("I|clean did not keep the line (no fetch hit)", drop_i_hit)
     mutated_log("enable=0 invalidate still issued", dup_inval)
     mutated_log("flush does not write back", drop_flush_wb)
+    mutated_log("56-bit addr_start logged truncated", truncate_high)
     print("check_cfx5_maint: self-test %s" % ("PASS" if not bad else "FAIL"))
     return 0 if not bad else 1
 

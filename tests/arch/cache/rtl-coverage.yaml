@@ -24,40 +24,7 @@ cases:
     close_when: >-
       RTL 暴露可切换的 cache-model（或在测试机层面提供等价的 off 变体）并接入
       `check_cache_rtl.py`
-  - case: arch-cache-001
-    mode: smon
-    verdict: gap
-    reason: >-
-      RTL 的 cfx5 只有 cg8 寄存器面：`GewuParams` 没有给 cfx5 开 `commonRows`
-      （`GewuFile` 的 require 只允许 cfx0–cfx3/hart/pmem/time），因此 cfx5 的
-      `cg0`–`cg3`（含 `supv_cfxreg` 行与 `cg3 rc12` deleg）不存在。hmon 走 hypv
-      行（DIV-07：RTL 的 hypv 行不强制）可读 cg8；supv 访问 cfx5 的
-      `supv_cfxreg` ⇒ `CFXREG`，本 case 的 S 模式在 RTL 上不可达。
-    close_when: >-
-      RTL 给 cfx5 开 `commonRows`（补齐 cg0–cg7 与 deleg），并把 `cache_rtl.S`
-      的 cfx5 掩码写回
-  - case: arch-cache-001
-    mode: umon
-    verdict: gap
-    reason: >-
-      同上：RTL 的 cfx5 无 `user_cfxreg` 行（无 `commonRows`），user 访问 cfx5
-      ⇒ `CFXREG`；U 模式在 RTL 上不可达（QEMU/gem5 侧正常逐槽）。
-    close_when: >-
-      RTL 给 cfx5 开 `commonRows`（补齐 cg0–cg7 与 deleg），并把 `cache_rtl.S`
-      的 cfx5 掩码写回
-  - case: arch-cache-002
-    mode: smon
-    verdict: gap
-    reason: >-
-      同 `arch-cache-001` 的 smon：RTL 的 cfx5 无 `supv_cfxreg` 行（`commonRows`
-      未开）⇒ supv 访问 cfx5 `CFXREG`。
-    close_when: >-
-      RTL 给 cfx5 开 `commonRows`（补齐 cg0–cg7 与 deleg）
-  - case: arch-cache-002
-    mode: umon
-    verdict: gap
-    reason: >-
-      同 `arch-cache-001` 的 umon：RTL 的 cfx5 无 `user_cfxreg` 行（`commonRows`
-      未开）⇒ user 访问 cfx5 `CFXREG`。
-    close_when: >-
-      RTL 给 cfx5 开 `commonRows`（补齐 cg0–cg7 与 deleg）
+  # `arch-cache-001/002` 的 smon/umon 在 `m16-chipyard-027` 起由 RTL 承载：
+  # cfx5 开 `commonRows`（cg0-cg3 模式行 + `cg3 rc12` deleg + cg4/cg5/cg6），
+  # `cache_rtl.S` 在 hypv 打开目标 cfx5 的 supv/user 行与 deleg 后经
+  # `cfx_hmon` 降模式（DIV-16 已删除）。

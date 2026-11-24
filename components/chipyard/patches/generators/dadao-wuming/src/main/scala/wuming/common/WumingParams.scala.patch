@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..2878230
+index 0000000..de6265c
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,457 @@
+@@ -0,0 +1,470 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -174,13 +174,20 @@ index 0000000..2878230
 +        spaceSize = required(p.hmonSize, "hmonSize"),
 +        spaceAttr = 0x7,
 +        sourceMaskReset = maskInitHmon),
++      // cfx_power (`DADAO-12 §3.5`/§3.7): the common face (cg4 config/counters,
++      // cg6 scratch) is required for every non-reserved cfx (`ISS-524`).  It is
++      // opened on the translating machine only: `Kaiwu-Tiny`'s register map is
++      // a regression criterion and keeps its pre-M16 partial face (cfx3/cfx63
++      // have no `commonRows` there).  `cg7` (BootROM space) and the Tiny-only
++      // `cg8 rc1` are unaffected.
 +      GewuCfxParams(
 +        id = WumingCfxHa.power,
 +        vectorBase = required(p.bootromBase, "bootromBase"),
 +        spaceDesc = 0x5,
 +        spaceSize = required(p.bootromSize, "bootromSize"),
 +        spaceAttr = 0x5,
-+        sourceMaskReset = maskInitCfx)) ++
++        sourceMaskReset = maskInitCfx,
++        commonRows = p.useVM)) ++
 +      (if (p.useVM) Seq(
 +        // cfx0 umon (`m16-chipyard-019`): no internal space, so cg7 block 0
 +        // stays `exists = 0` and `hypv_excp_vector` is platform-defined (we
@@ -213,13 +220,19 @@ index 0000000..2878230
 +          spaceSize = 0,
 +          spaceAttr = 0,
 +          sourceMaskReset = maskInitCfx),
++        // cfx_cache (cfx5, `DADAO-12 §3.1`-§3.4/§3.7): the maintenance rows are
++        // cg8, but U/S reachability needs the common mode rows (`cg0`-`cg2`
++        // `*_cfxreg`, `cg3 rc12` deleg) plus the shared cg4/cg5/cg6 face
++        // (`DIV-16`).  Opening `commonRows` adds only register rows: the
++        // `cg8` maintenance semantics (`CACHE-*`) are untouched.
 +        GewuCfxParams(
 +          id = WumingCfxHa.cache,
 +          vectorBase = 0,
 +          spaceDesc = 0,
 +          spaceSize = 0,
 +          spaceAttr = 0,
-+          sourceMaskReset = maskInitCfx),
++          sourceMaskReset = maskInitCfx,
++          commonRows = true),
 +        // cfx_hart (`m16-chipyard-021`/`024`, `ADR-0061`): per-hart management
 +        // (cg8) plus the seven-slot asynchronous frame (cg9).  It opts into the
 +        // common mode rows so the two-axis access model of `contract-see §6.3`
