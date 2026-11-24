@@ -30,6 +30,12 @@
 - 独立 `git worktree`；组件补丁按 `docs/Process-01`；不提交 git；
 - 只动 `components/linux/patches/arch/dadao/**`、`components/linux/{README.md,changelog.md}`、必要测试、本任务书；完成区 ≤30 行。
 
+## 跨里程碑依赖与冲突（2026-11-24 核对）
+
+- **同组件串行**：`m18-linux-022`（内核异步新模型，待开始）与 `m18-linux-006`（LTP 子集，进行中）同改 `arch/dadao`；本任务须与之串行并 rebase。
+- **门控期望**：K2/K5/K6（`check-linux-k2/k5/k6`）的故障码/退出码期望按扁平模型更新；`m18-linux-015..018` 的 KERNEL_BUG/SUITE_ENV 用例可能受异常解码变化影响。
+- **组件**：属 `components/linux` 补丁流程；与 QEMU/gem5/chipyard 的 Vast 侧先落地顺序为「平台 → Linux」。
+
 ## 验证
 
 1. 页权限/页缺失各一例：内核按新位图识别并正确处理（guest rc=0）；

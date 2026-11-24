@@ -34,6 +34,12 @@
 - 只动 `components/chipyard/patches/generators/dadao-wuming/**`、`components/chipyard/{README.md,changelog.md}`、`tests/arch/expected-divergences.yaml`、必要探针、本任务书；
 - 完成区 ≤30 行、不写运行期路径。
 
+## 跨里程碑依赖与冲突（2026-11-24 核对）
+
+- **同组件串行**：`m16-chipyard-021`/`022`（**待验收**）、`m16-chipyard-023`（**进行中**）同改 `WumingCore`/PTW/异步；本任务必须等它们合入后再 rebase，且 `DIV-07` 关闭会改变它们探针的 hypv 前提。
+- **返工已验证任务**：`m16-chipyard-003`（cause-id 子原因）、`m16-chipyard-020`（两轴判权）的部分判据与期望需按扁平模型返工；`tests/arch/expected-divergences.yaml` 的 `DIV-07` 要按用户确认的 `close_when` 关闭/改写。
+- **既有探针风险**：Tiny 以 `cfx_power` 跑测试体，复位掩码只允许 hmon；打开 hypv 判权会让现有 `11-cfx`/`01-load-store`/arch 探针失败 ⇒ 必须同任务改交付链或探针入口。
+
 ## 验证
 
 运行期证据目录内的 `run.sh`：
