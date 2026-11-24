@@ -1590,3 +1590,12 @@
   closed_in: null
   resolved_by: null
   title: "【P1】**用户态信号投递死在异步异常入口**（私人干净内核复现，`m18-linux-006` 返工）：`MALIGN(0x1000) ip=dadao_async_excp+0x1fc info=0xfffeffff7fff` → `die mode=2 code=0xec`；另有 `die 0xe1` 与 `clock_gettime01` 无 die 停摆；约 **1 次/10 例**。属 `m18-linux-024`（异步交付窗口）族但表现为信号路径；导致 LTP 跑批无法建立「连跑 2 次一致」的验收基线。处置：并入 024（或另立）定位异步入口的 MALIGN/现场污染，修后复跑 LTP ≥2 次。"
+- id: ISS-538
+  scope:
+  - chipyard
+  - infra
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】共享 `.work/source/chipyard` 落后于 master：2026-11-25 04:27 的补丁序列（`b555b0a`）不含 `m16-chipyard-027`（`WumingCache.tagBits` 仍是 48），而 Vast sim（05:03，md5 `da61cb6b…`）由该树构建 ⇒ `m16-testcases-019` 的 `arch-ptw-013` RTL 三方逐槽 BLOCKED（多段 `loadmem` 挂死）。需在写者空闲后 `apply_series` 重放到当前 master 并重建，或明确「验收一律用隔离树」的流程。"
