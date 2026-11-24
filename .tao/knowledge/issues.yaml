@@ -1504,7 +1504,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P3】`cfx_pmem` DMA 旁路 D-cache，PA 侧一致性在 spec 未定义（`m16-chipyard-022` 复核）：RTL 的 DMA 引擎直接读写 PA，CPU 若先缓存目标行会读到旧值；探针靠「只用 CPU 未触碰的 PA 行」回避。需在 `DADAO-12 §4.9` 明确 DMA 与 D-cache 的先后/失效语义（或规定软件须 fence/clean 后再启动），三方实现与探针同步。"
+  title: "【P3·裁定 A】`cfx_pmem` DMA 旁路 D-cache，PA 侧一致性在 spec 未定义（`m16-chipyard-022` 复核）：RTL 的 DMA 引擎直接读写 PA，CPU 若先缓存目标行会读到旧值；探针靠「只用 CPU 未触碰的 PA 行」回避。需在 `DADAO-12 §4.9` 明确 DMA 与 D-cache 的先后/失效语义（或规定软件须 fence/clean 后再启动），三方实现与探针同步。 **用户 2026-11-24 裁定 A：软件负责 `clean`/`invalidate`，硬件不 snoop、不自动失效**；由 `m16-spec-003` 承接。"
 - id: ISS-532
   scope:
   - testcases

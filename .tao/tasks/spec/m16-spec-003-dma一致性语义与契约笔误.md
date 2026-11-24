@@ -15,10 +15,13 @@
 
 ## 要做
 
-1. **一致性语义**（先向用户提交两个候选，按其裁定落笔）：
-   - A：**DMA 与 CPU 缓存不保证一致**，软件须在 START 前对该区间 `clean`、完成后 `invalidate`（写进 `§4.9` + `§4.6` 交叉引用）；
-   - B：DMA 完成后硬件自动失效目标区间（定义失效粒度与代价）。
-   无论哪种，都要写清：DMA 目标在 BootROM/只读区的行为、`BUSY` 期间的可见性、与 `fence` 的关系。
+> **语义方向已定（用户 2026-11-24 裁定 A）**：DMA 与 CPU 缓存**不保证硬件一致**，由**软件负责**——START 前对源/目标区间 `clean`，完成后 `invalidate`；硬件不做 snoop/自动失效。
+
+1. **一致性语义（A）**：在 `§4.9` 写清：
+   - DMA **不**与 D-cache 做硬件一致性（不 snoop、不自动失效）；
+   - 软件职责：`START` 前把源区间 `clean`、完成后把目标区间 `invalidate`（顺序与时机写死）；
+   - 目标为 BootROM/只读区的行为（写 ⇒ `PA_FAULT`）、`BUSY` 期间的可见性、与 `fence` 的关系；
+   - 未按 A 操作时"读到旧值"属软件错误，不由硬件报异常。
 2. **契约笔误**：订正 `contract-see` 的 power `start` 值；顺带核 power 段其它数值与 `machine.yaml(vast)` 一致。
 3. **同步面**：`contract-see`、`contract-cfx-aliases`（若涉及）、`spec/.manifests.toml`（只重算受影响册）；版本仍 `0.8.0-rc`（内容改，不升号）。
 4. **不改**实现与测试（QEMU/RTL/gem5 的 DMA 语义如与裁定不符，另立任务）。
