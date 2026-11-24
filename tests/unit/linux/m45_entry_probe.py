@@ -88,6 +88,15 @@ CONFIG_PINS = {
 
 IMAGE = config_pins.config_lines(CONFIG_PINS)
 
+#: The probe image is deliberately rootfs-free: its verdict is a *kernel* task
+#: (`M45 selftest: begin pid=1 mm=0`) that runs from `late_initcall`, so a
+#: built-in initramfs would hand the machine to `/init` first and the probe
+#: would never run.  The shared build tree keeps whatever image configured it
+#: last (`ISS-470` class), so the slice empties it too.  It is not a
+#: ``CONFIG_DADAO_*`` symbol, so it cannot live in ``CONFIG_PINS`` (that dict
+#: must equal the Kconfig set exactly, `tests/unit/linux/check_config_pins.py`).
+NO_INITRAMFS = ['CONFIG_INITRAMFS_SOURCE=""']
+
 TIMEOUT_BUILD = int(os.environ.get("M45_BUILD_TIMEOUT", "2400"))
 TIMEOUT_QEMU = int(os.environ.get("M45_QEMU_TIMEOUT", "180"))
 JOBS = os.environ.get("JOBS", "32")
@@ -171,15 +180,14 @@ def kernel_path() -> Path:
 
 
 def build_image(label: str = "m45") -> tuple[int, dict | None]:
-    rc = defconfig.apply_config_lines(IMAGE)
+    rc = defconfig.apply_config_lines(IMAGE + NO_INITRAMFS)
     if rc != 0:
         print(f"m45_entry_probe: FAIL: config slice rc={rc}", file=sys.stderr)
         return rc, None
     # Kbuild does not reliably re-evaluate the int Kconfig symbols used in
-    # `#if`; force the two objects whose compiled case changes with the image.
-    # Kbuild does not reliably re-evaluate the int Kconfig symbols used in
-    # `#if`, and the injection round restores sources after building; drop every
-    # kernel object so each image is compiled from the sources on disk.
+    # `#if`, and an injection round restores the sources after building; drop
+    # every arch/dadao/kernel object so each image is compiled from the sources
+    # on disk.
     for obj in (build_dir() / "arch/dadao/kernel").glob("*.o"):
         obj.unlink(missing_ok=True)
     cmd = [sys.executable, str(_REPO / "tools" / "linux" / "make_vmlinux.py"),
@@ -318,6 +326,8 @@ def static_recon(rep: Report, snap: dict | None) -> None:
     # The image really carries this probe and none of the others.
     rep.check("B", "镜像配置：CONFIG_DADAO_M45_ENTRY_SELFTEST=y", True,
               config_enabled(config, "CONFIG_DADAO_M45_ENTRY_SELFTEST"))
+    rep.check("B", "镜像配置：无内建 initramfs（共享构建树不串味）", '""',
+              config_value(config, "CONFIG_INITRAMFS_SOURCE"))
     rep.check("B", "别的探针符号全关", [],
               [sym for sym in CONFIG_PINS
                if sym != "CONFIG_DADAO_M45_ENTRY_SELFTEST"
@@ -494,10 +504,44 @@ def selfcheck() -> int:
     return 0
 
 
+def boot_series(count: int) -> int:
+    """Build one image, then boot *the same image* `count` times.
+
+    A stalled boot is exactly what this task's R2 async entry was fixing: the
+    console stops mid-run (`K2 async user` lines stop, no `probe cases done`)
+    and QEMU has to be killed at the timeout.  Each boot is judged on its own;
+    one stall makes the run FAIL — there is no retry here on purpose.
+    """
+    rep = Report()
+    rc, snap = build_image()
+    static_recon(rep, snap)
+    if snap is None or rc != 0:
+        print("m45_entry_probe: no image; the boot series stops here",
+              file=sys.stderr)
+        return 1
+    rom = firmware()
+    stalls = 0
+    for i in range(1, count + 1):
+        run_rc, out = boot(f"boots-{i}", rom)
+        if run_rc == 0 and "M45 selftest: probe cases done" in out:
+            print(f"[PASS] boot {i}: rc=0 async="
+                  f"{out.count('K2 async user')}", flush=True)
+            continue
+        stalls += 1
+        tail = [line for line in out.splitlines() if line.strip()][-2:]
+        print(f"[FAIL] boot {i}: rc={run_rc} async={out.count('K2 async user')} "
+              f"last={tail}", flush=True)
+    print(f"m45_entry_probe: boots={count} stalls={stalls}")
+    return 0 if stalls == 0 else 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="M14 entry/exit work-loop probe")
     parser.add_argument("--selfcheck", action="store_true",
                         help="prove the judging can fail (no build, no boot)")
+    parser.add_argument("--boots", type=int, metavar="N",
+                        help="build the image once and boot it N times; every "
+                             "boot must end with 'probe cases done' (no retries)")
     parser.add_argument("--inject", action="append", default=[], metavar="NAME",
                         help=f"one of: {', '.join(sorted(INJECTIONS))}")
     parser.add_argument("--no-inject", action="store_true",
@@ -507,6 +551,9 @@ def main() -> int:
     if args.selfcheck:
         return selfcheck()
 
+    if args.boots:
+        return boot_series(args.boots)
+
     rep = Report()
     rc, snap = build_image()
     static_recon(rep, snap)
@@ -515,6 +562,11 @@ def main() -> int:
         return 1
     rom = firmware()
     rc, out = boot("m45", rom)
+    # One machine-readable line: the evidence script judges the *boot*'s exit
+    # status (124 = the timeout killed a stalled boot) separately from this
+    # probe's verdict, which is 1 for any red.
+    print(f"[INFO] m45 boot rc={rc} async={out.count('K2 async user')}",
+          flush=True)
     judge(rep, out, rc)
 
     if not args.no_inject:
