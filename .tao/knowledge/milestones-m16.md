@@ -21,7 +21,6 @@
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
 | m16-testcases-009 | 3–4 h | cfx5 用例三方跑（寄存器面 + 命令 + 数据语义） |
-| m16-chipyard-022 | 4–6 h | RTL cfx32 pmem（DMA + 源 cfxha 32 的捕获投递；依赖 026） |
 | m16-chipyard-023 | 2–3 h | RTL cfx34 time（全局时间，无中断） |
 | m16-testcases-013 | 2–3 h | cfx15 timer 中断（R2 捕获缓冲：覆盖语义、`escape` 拒绝、三模式） |
 | m16-testcases-014 | 3–4 h | cfx32 pmem 完成中断 + 同界多源（R2 捕获缓冲；源位 32/15） |
@@ -30,6 +29,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-chipyard-022 | 2026-11-24 14:39 | 4–6 h | RTL cfx32 pmem（DMA + 源 cfxha 32 的捕获投递；R2） |
 
 ## 已验证
 
