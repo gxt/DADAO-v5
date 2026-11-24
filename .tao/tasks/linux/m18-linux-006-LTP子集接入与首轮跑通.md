@@ -2,12 +2,14 @@
 
 **模块**：linux
 **项目里程碑**：M18
-**依赖**：`m18-linux-005`（运行骨架）、`m18-infra-002`（动态链接；静态优先，动态用例不得静态绕过）
+**依赖**：`m18-linux-005`（运行骨架）、`m18-infra-002`（动态链接）、`m18-infra-003`（musl 补丁集/信号帧，已验证）、`m18-linux-022`（内核新异步模型，合入后重跑 K5/K6）
 **可并行分片**：否
 **预估**：3–5 h（标定：同档最近 5 件派单→合入实测 31/62/86/124/182 min，中位 86 min；本任务新增组件与构建链，取 2–4× 中位）
 **档位**：大改（新组件 + 交叉构建 + 首轮分诊）
-**状态**：待开始
+**状态**：待返工
 **执行环境**：本地（QEMU system `-M kaiwu-vast`）
+
+> **返工说明（2026-11-24）**：`m18-infra-003` 已证明 `sigaction01`/`open01` 可直接 PASS（原 UNSUPPORTED 是 musl 源树未打补丁集，非无信号帧 ABI）。返工时：`suite.yaml` 改 expect PASS、删两行 UNSUPPORTED、`mlockall02` verdict 改 TBROK；补 `TEST_ADAPT`（64 KiB 候选 `mmap01`/`brk01`/`munmap01` 现在可跑）；`run.sh` 的按类豁免改为基线逐行 diff；待 `m18-linux-022` 合入后用安装根新 QEMU/新内核重跑 K5/K6。
 
 ## 背景
 
