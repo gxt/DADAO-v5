@@ -606,6 +606,19 @@
 - **前置**：M19 的 Genesys2 shell 与资源实测（复用同一 shell 骨架）、`m16-chipyard-009/010`、M18 的 Linux 套件。
 - **不预分配里程碑号**（用户 2026-11-20）：等 Tiny 上板与 Vast RTL 稳定后再立册。
 
+## SBI 的设计与开发（M21，用户 2026-11-24 裁定；**待立册**）
+
+- **裁定**：新里程碑 **M21 = SBI（主管系统二进制接口）的设计与开发**，**参考 OpenSBI 进行**。号位 M21 预留（M19 FPGA-Tiny、M20 wuqing 已占）。
+- **现状事实**：`spec/DADAO-22-SBI-主管系统二进制接口.md`（**0.8.0-rc**）已给出调用约定与 umon/jmon、smon、`cfx_ptw`（地址转换/TLB）、`cfx_cache`、`cfx_hart`、`cfx_llc`、`cfx_pmem`、`cfx_time`、`cfx_uart` 各节；同族有 `DADAO-12-SEE`、`DADAO-23-HBI`。但**当前只是规范 + 最小探针**（M14/M18 的 K0–K6 用自研 hmon/smon 起步），没有独立固件层的 SBI 实现，也没有 OpenSBI 作为组件。
+- **OpenSBI 现状**：仓库内仅在 chipyard 子模块锁（`software/firemarshal/boards/default/firmware/opensbi`）与只读参考 `.cache/refs/vivado-risc-v` 里出现，**未作为 `components/` 组件接入**（无锁、无补丁集、无 `.cache` 裸仓库）。
+- **立册前必须裁定（未定，逐条问用户）**：
+  1. **参考方式**：① fork OpenSBI 改造成 DADAO 后端（借其 hart 状态机/扩展注册/设备树解析/打印框架）；② 只借架构与接口分层、自研实现；③ 混合——先 fork 拿骨架、把 SBI 调用层换成 DADAO `trap cfxha` 约定。
+  2. **SBI 与 RISC-V SBI 的关系**：DADAO-22 的 `trap cfxha, immu18` 与 RISC-V ecall 不同 ⇒ 需要明确「接口语义按 DADAO-22、扩展清单是否对齐 RISC-V SBI（TIME/IPI/RFENCE/HSM/CPPC 等）」。
+  3. **目标平台与形态**：M-mode 固件 ELF？覆盖 QEMU / gem5 FS / chipyard RTL / Genesys2（M19 shell）中的哪些？tiny 与 vast 是否同源。
+  4. **与现有 hmon/smon 的关系**：替换、并存、还是分阶段（先 smon 扩展 → 再独立固件）。
+  5. **交付与验收判据**：Linux 经 SBI 引导成功（替代当前直连 monitor 路径）、`cfx_time`/IPI/hart start-stop/RFENCE 等扩展逐条可用、三平台签名/引导一致；是否需要 `check-*` 门控与三平台矩阵。
+  6. **工程面**：是否新增 `components/opensbi`（锁 + 补丁集 + `.cache` 镜像 + 节点 synced），以及版本/许可（BSD-2-Clause）记录与 `manifests/` 锁口径。
+
 ## issues（backlog，2026-11-20 分诊）
 
 - `ISS-355`【P2】`tools/gem5/build_gem5.py:191` 在 运行期目录 不存在时抛 `ValueError`： 首次 `make build-gem5` rc=2，需先跑…
