@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b6.cc b/src/arch/dadao/exec/b6.cc
 new file mode 100644
-index 0000000..9b31359
+index 0000000..7025a4d
 --- /dev/null
 +++ b/src/arch/dadao/exec/b6.cc
-@@ -0,0 +1,409 @@
+@@ -0,0 +1,423 @@
 +// DADAO gem5 B6 execution core -- implementation.
 +//
 +// The 30 B6 ids are dispatched through the table below, by `entry->id` (never
@@ -267,20 +267,34 @@ index 0000000..9b31359
 +    return Fault::None;
 +}
 +
-+/** escape: imms18 encodes the byte offset (0 or 4) as imms18 << 2; bits
-+ * imms18[17:1] are SBZ.  A rejected frame/target is CFXESC, decided before
-+ * the privilege switch. */
++/** escape: `imms18[1]` selects the frame (0 = `cg5` synchronous frame,
++ * 1 = `cfx_hart cg9`), `imms18[0]` is bit 2 of the byte offset and
++ * `imms18[17:2]` are SBZ (spec/SimRISC-11 §3, DADAO-12 §5.1).  `cg9` is an
++ * async capture buffer, not a return frame (DADAO-12 §5.4): the `cg9`
++ * selection is a legal encoding whose frame is always invalid, so it faults
++ * CFXESC on the current cfx without touching any state.  A rejected `cg5`
++ * frame/target is also CFXESC, decided before the privilege switch. */
 +Fault
 +executeEscape(const decode::DecodedInst &inst, B6Context &ctx,
 +              const B6Spec &spec)
 +{
 +    const uint64_t cfxha = field(inst, spec.cfxField);
 +    const uint64_t imms18 = field(inst, spec.immField) & 0x3FFFF;
-+    if ((imms18 >> 1) != 0)
++    // Step 0 order (DADAO-12 §5.3): SBZ, then `imms18 = 3` (cg9 frame with
++    // offset +4; cg9 only allows offset 0), then reserved cfx; all ILLI
++    // before any target/frame decision or state change.
++    if ((imms18 >> 2) != 0)
++        return Fault::Illegal;
++    if (imms18 == 3)
 +        return Fault::Illegal;
 +    if (cfxReserved(cfxha))
 +        return Fault::Illegal;
-+    const uint32_t byteOffset = static_cast<uint32_t>(imms18) << 2;
++    // bit1 = 1 selects `cfx_hart cg9`; it is a capture buffer, never a
++    // return frame, so the selected frame is invalid -> CFXESC, and the
++    // platform hook is not called (no cfx/mode/ip/cg9 change).
++    if ((imms18 & 0x2) != 0)
++        return Fault::CfxEsc;
++    const uint32_t byteOffset = static_cast<uint32_t>(imms18 & 0x1) << 2;
 +    if (!ctx.escapeFrom(static_cast<uint8_t>(cfxha), byteOffset))
 +        return Fault::CfxEsc;
 +    return Fault::None;

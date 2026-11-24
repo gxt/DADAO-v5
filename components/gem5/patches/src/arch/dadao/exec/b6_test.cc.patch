@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b6_test.cc b/src/arch/dadao/exec/b6_test.cc
 new file mode 100644
-index 0000000..ceee32f
+index 0000000..d495e36
 --- /dev/null
 +++ b/src/arch/dadao/exec/b6_test.cc
-@@ -0,0 +1,1857 @@
+@@ -0,0 +1,1896 @@
 +/*
 + * DADAO gem5 B6 execution assertions (GEM5-011t).
 + *
@@ -1726,7 +1726,7 @@ index 0000000..ceee32f
 +              "trap cfx%u: no control transfer and no write", cfxha);
 +    }
 +
-+    // Legal offsets: imms18 = 0 -> byte offset 0, imms18 = 1 -> 4.
++    // Legal `cg5` offsets: imms18 = 0 -> byte offset 0, imms18 = 1 -> 4.
 +    for (uint64_t encoded : {0, 1}) {
 +        MockContext ctx;
 +        initContext(ctx);
@@ -1743,8 +1743,29 @@ index 0000000..ceee32f
 +              "escape imms18=%" PRIu64 ": no architectural write", encoded);
 +    }
 +
-+    // imms18[17:1] != 0 -> ILLI before the hook.
-+    for (uint64_t bad : {uint64_t(2), uint64_t(3), uint64_t(0x3FFFE)}) {
++    // imms18 = 2: bit1 = 1 selects `cfx_hart cg9`, an async capture buffer
++    // that is never a return frame (DADAO-12 §5.1/§5.4).  The encoding is
++    // legal but the selected frame is always invalid -> CFXESC on the
++    // current cfx, no hook call, no cfx/mode/ip change -- including when the
++    // current cfx is `cfx_hart` itself.
++    for (uint64_t cfxha : {uint64_t(15), uint64_t(32)}) {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = cfxha;
++        w.imms18 = 2;
++        const exec::Fault fault = runWord(ctx, "escape_ciii_cfx", w);
++        check(fault == exec::Fault::CfxEsc,
++              "escape cfx%" PRIu64 " imms18=2 (cg9 frame) -> CfxEsc (%s)",
++              cfxha, faultName(fault));
++        check(ctx.escapeCalls == 0 && ctx.writes.empty() &&
++                  !ctx.controlTransfer && ctx.memReads == 0,
++              "escape cfx%" PRIu64 " imms18=2 (cg9): no frame return", cfxha);
++    }
++
++    // imms18[17:2] != 0 -> ILLI before any frame/target decision.
++    for (uint64_t bad : {uint64_t(4), uint64_t(6), uint64_t(0x3FFFE)}) {
 +        MockContext ctx;
 +        initContext(ctx);
 +        resetCounters(ctx);
@@ -1757,6 +1778,24 @@ index 0000000..ceee32f
 +              faultName(fault));
 +        check(ctx.escapeCalls == 0 && ctx.writes.empty(),
 +              "escape imms18=0x%" PRIx64 ": escapeFrom not called", bad);
++    }
++
++    // imms18 = 3 (cg9 frame plus offset +4; cg9 only allows offset 0) -> ILLI
++    // before any frame/target decision.
++    {
++        MockContext ctx;
++        initContext(ctx);
++        resetCounters(ctx);
++        WordSpec w;
++        w.cfxha = 32;
++        w.imms18 = 3;
++        const exec::Fault fault = runWord(ctx, "escape_ciii_cfx", w);
++        check(fault == exec::Fault::Illegal,
++              "escape imms18=3 (cg9 + offset 4) -> Illegal (%s)",
++              faultName(fault));
++        check(ctx.escapeCalls == 0 && ctx.writes.empty() &&
++                  !ctx.controlTransfer,
++              "escape imms18=3: no frame return");
 +    }
 +
 +    // A rejected frame/target -> CFXESC with no architectural write.

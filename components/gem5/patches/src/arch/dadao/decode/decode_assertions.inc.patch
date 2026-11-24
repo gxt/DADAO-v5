@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/decode/decode_assertions.inc b/src/arch/dadao/decode/decode_assertions.inc
 new file mode 100644
-index 0000000..38f2b3e
+index 0000000..2fb8f39
 --- /dev/null
 +++ b/src/arch/dadao/decode/decode_assertions.inc
 @@ -0,0 +1,801 @@
@@ -145,7 +145,7 @@ index 0000000..38f2b3e
 +inline constexpr const char *kAssertRules83[] = {"encode_cfx_reserved"};
 +inline constexpr const char *kAssertLegality84[] = {"cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kAssertRules84[] = {"encode_cfx_reserved"};
-+inline constexpr const char *kAssertLegality85[] = {"imms18[17:1] == 0", "cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
++inline constexpr const char *kAssertLegality85[] = {"imms18[17:2] == 0", "imms18 != 3", "cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kAssertRules85[] = {"encode_sbz", "encode_cfx_reserved"};
 +inline constexpr const char *kAssertLegality86[] = {"cfxha <= 5 || cfxha == 15 || (cfxha >= 32 && cfxha <= 34) || cfxha >= 62"};
 +inline constexpr const char *kAssertRules86[] = {"encode_cfx_reserved"};
@@ -585,7 +585,7 @@ index 0000000..38f2b3e
 +    {"ret_riii_ra", "ret", "riii", "m1", "contract-isa §8.5/§8.6.2", kAssertLegality82, 1, kAssertRules82, 1, 0xff000000u, 0x76000000u, 0x76a80035u, 0x76, -1, 5, 2, {{"rdha", 23, 18, "dst", "rd", false, 0x2aull, 42}, {"imms18", 17, 0, "imm", "imm", true, 0x35ull, 53}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}}},
 +    {"cfx2rd_crrr_cfx", "cfx2rd", "crrr", "m1", "contract-isa §13.6", kAssertLegality83, 1, kAssertRules83, 1, 0xff000000u, 0x7a000000u, 0x7aab504bu, 0x7a, -1, 6, 4, {{"cfxha", 23, 18, "cfxcode", "imm", false, 0x2aull, 42}, {"cghb", 17, 12, "cfx_cg", "rb", false, 0x35ull, 53}, {"rchc", 11, 6, "cfx_rc", "rc", false, 0x1ull, 1}, {"rdhd", 5, 0, "dst", "rd", false, 0xbull, 11}}},
 +    {"cfx2rc_crrr_cfx", "cfx2rc", "crrr", "m1", "contract-isa §13.6", kAssertLegality84, 1, kAssertRules84, 1, 0xff000000u, 0x7b000000u, 0x7bab504bu, 0x7b, -1, 6, 4, {{"cfxha", 23, 18, "cfxcode", "imm", false, 0x2aull, 42}, {"cghb", 17, 12, "cfx_cg", "rb", false, 0x35ull, 53}, {"rchc", 11, 6, "cfx_rc", "rc", false, 0x1ull, 1}, {"rdhd", 5, 0, "dst", "rd", false, 0xbull, 11}}},
-+    {"escape_ciii_cfx", "escape", "ciii", "m1", "contract-isa §13.6", kAssertLegality85, 2, kAssertRules85, 2, 0xff000000u, 0x7e000000u, 0x7ea80035u, 0x7e, -1, 6, 2, {{"cfxha", 23, 18, "cfxcode", "imm", false, 0x2aull, 42}, {"imms18", 17, 0, "imm", "imm", true, 0x35ull, 53}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}}},
++    {"escape_ciii_cfx", "escape", "ciii", "m1", "contract-isa §13.6", kAssertLegality85, 3, kAssertRules85, 2, 0xff000000u, 0x7e000000u, 0x7ea80035u, 0x7e, -1, 6, 2, {{"cfxha", 23, 18, "cfxcode", "imm", false, 0x2aull, 42}, {"imms18", 17, 0, "imm", "imm", true, 0x35ull, 53}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}}},
 +    {"trap_ciii_cfx", "trap", "ciii", "m1", "contract-isa §13.6", kAssertLegality86, 1, kAssertRules86, 1, 0xff000000u, 0x7f000000u, 0x7fa80035u, 0x7f, -1, 6, 2, {{"cfxha", 23, 18, "cfxcode", "imm", false, 0x2aull, 42}, {"immu18", 17, 0, "imm", "imm", false, 0x35ull, 53}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}}},
 +    {"fence_ciii_cfx", "fence", "ciii", "m9", "contract-isa §14.1", kAssertLegality87, 2, kAssertRules87, 2, 0xff000000u, 0x79000000u, 0x79a80035u, 0x79, -1, 6, 2, {{"cfxha", 23, 18, "cfxcode", "imm", false, 0x2aull, 42}, {"immu18", 17, 0, "imm", "imm", false, 0x35ull, 53}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}}},
 +    {"swym_oiii_imm", "swym", "oiii", "m1", "contract-isa §13.1", nullptr, 0, nullptr, 0, 0xfffc0000u, 0x47880000u, 0x4788002au, 0x47, 34, 6, 1, {{"immu18", 17, 0, "imm", "imm", false, 0x2aull, 42}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}, {nullptr, 0, 0, nullptr, nullptr, false, 0, 0}}},

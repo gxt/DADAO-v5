@@ -49,7 +49,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-gem5-001 | 2026-11-24 23:18 | 2–3 h | gem5 `escape` frame selector 语义/断言（b6 + decode assertions + check_b6） |
 | m18-qemu-001 | 2026-11-24 23:18 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
 | m18-linux-008 | 2026-11-24 23:18 | 2–3 h | K1–K4 门控断言补强（ISS-444/457/487/488；可达 FAIL + §4a 退役） |
 | m18-linux-022 | 2026-11-23 20:12 | 3–5 h | 内核异步新模型（mask 归 monitor、src 位 cfxha、一帧多源） |
@@ -59,6 +58,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-gem5-001 | 2026-11-25 00:02 | gem5 `escape` frame selector（R2：cg9 捕获缓冲 ⇒ 合法编码恒 `CFXESC`；`[17:2]`/`=3`/reserved 先判 ILLI）；263/263+391/391 |
 | m18-linux-011 | 2026-11-24 23:55 | applet 期望数改为 `config.min` 白名单 ∩ `applets.h` 现场派生（去 `enabled - infra` 抵消；items 57→59） |
 | m18-linux-010 | 2026-11-24 23:42 | ISS-486 措辞订正为 libc 侧口径（musl sigaltstack 先拦）；判据订正为 crt1.o 不变 + 成员级除 version.o 外相同 |
 | m18-testcases-003 | 2026-11-24 11:49 | 异步探针迁 R2（每次覆盖/monitor mask/一次捕获）+ escape cg9 ⇒ CFXESC 向量（43/44 + 7 注入） |

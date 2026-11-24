@@ -282,3 +282,10 @@
 - **2026-11-24 m17-gem5-001**
   - 摘要：**权限编码扁平化（ADR-0062 D1–D4）**。`fs_machine.hh` 删除 `SubNcfxPerm`（`[39]`）与 `SubNonPtw`（`[57]`），`CauseSub` 只保留权限类 `[38:32]` 与访存类 `[56:48]`；`checkCauseId()` 改为扁平口径（64 位恰一位或全 0，`[31:16]`/`[39]`/`[47:40]`/`[57]`/`[63:58]` 恒 0），取代旧「大类 + wyde 归属」两级断言。PTW 权限/缺失/A-D 回写 raise 点（`node_tlb.cc`）只置高位位图、低位 cause = 0，`cause_info` 分别为访问 VA / PTE 物理地址；`cfxtrap`/`cfx2rd`/`cfx2rc` 来源掩码拒绝（`node_cfx.cc`、`tiny_cfx.cc`）只置 `CFXPERM`，`cause_info` = 触发指令地址（与 `excp_cause_ip` 同值）；`cfxmem`/`cfxexe` 轴拒绝仍按 ADR D4 取访存地址/目标 IP（`fs_tlb.cc`、`node_tlb.cc` 的 `NodePermFault`）。`NONPTW` 位删除后，非 PTW 核内访存只置 `CFXMEM`。补丁 7 份改（`fs_machine.{hh,cc}`、`fs_tlb.cc`、`node_cfx.{hh,cc}`、`node_tlb.cc`、`tiny_cfx.cc`），`make_patch.py` 重导出（106 份）。
   - 执行者：engineer
+
+## M18
+
+- **2026-11-24 m18-gem5-001**
+  - 摘要：**escape frame selector 语义与断言**。`exec/b6.cc` 的 `executeEscape()` 按 `imms18` 解码：`imms18[17:2]` 非零 ⇒ ILLI，`imms18 = 3`（cg9 帧 + 偏移 +4）⇒ ILLI，保留 cfx ⇒ ILLI（均在目标/帧判定与任何状态切换之前）；`imms18[1] = 0` 走 `cg5`，字节偏移 = `(imms18 & 1) << 2` 交 `escapeFrom()`；`imms18[1] = 1` 选 `cfx_hart cg9`，而 `cg9` 是异步捕获缓冲、不是返回帧（`DADAO-12 §5.1/§5.4`），故该合法编码恒按所选帧无效 ⇒ 当前 cfx `CFXESC`，不调 hook、不改 cfx/运行模式/`cg9`。`exec/b6_test.cc` 覆盖 `imms18 = 0/1`（cg5 偏移 0/+4）、`2`（`cfx15`/`cfx32` 均 `CFXESC` 且 `escapeFrom` 未调用）、`3` 与非零 `[17:2]` 的 ILLI；`exec/b6.hh` 注记 hook 只服务 cg5。按 `contracts/opcodes.yaml` 重生成 `decode/decode_assertions.inc`、`decode/decode_table.inc` 与 `decode-assertions.tsv`（escape legality 改为 `imms18[17:2] == 0` + `imms18 != 3`，数组长度 2→3；负例两文件逐字节不变）。`tools/gem5/check_b6.py` 的 `EXPECTED_LEGALITY` 已在 `m18-spec-003` 对齐，本任务复核 0 error。
+  - 执行者：engineer
+

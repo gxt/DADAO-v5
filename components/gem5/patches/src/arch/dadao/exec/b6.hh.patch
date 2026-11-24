@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/exec/b6.hh b/src/arch/dadao/exec/b6.hh
 new file mode 100644
-index 0000000..168b46d
+index 0000000..5fd5262
 --- /dev/null
 +++ b/src/arch/dadao/exec/b6.hh
-@@ -0,0 +1,145 @@
+@@ -0,0 +1,148 @@
 +// DADAO gem5 B6 execution core: system/cfx, fence, LR/SC and swym (30 ids).
 +//
 +// Plain C++ (no gem5 headers), like the B0 decode core, so the *same* code is
@@ -98,6 +98,9 @@ index 0000000..168b46d
 +                          uint64_t val) = 0;
 +
 +    // trap/escape control transfer (SEE frame model lives in the adapter).
++    // escapeFrom() is only reached for the `cg5` frame (bit1 = 0); the `cg9`
++    // selection is a capture buffer, not a return frame, so the core reports
++    // CFXESC itself and never calls this hook for it (DADAO-12 §5.1/§5.4).
 +    // escapeFrom() false => CFXESC (wrong frame/target), decided before any
 +    // state change.
 +    virtual void trapTo(uint8_t cfxha, uint32_t immu18) = 0;
