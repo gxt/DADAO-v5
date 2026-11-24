@@ -34,6 +34,11 @@
 - 只动 `components/chipyard/patches/generators/dadao-wuming/**`、`components/chipyard/{README.md,changelog.md}`、`tests/arch/expected-divergences.yaml`、必要探针、本任务书；
 - 完成区 ≤30 行、不写运行期路径。
 
+## 已定（用户 2026-11-24）
+
+- **`DIV-07` 的 `close_when` = 测试侧准备**：探针在访问目标 cfx 前显式打开其 `<mode>_cfx*` 掩码（复用 `m16-testcases-017` 的 env 权限准备机制）；**不改 BootROM/交付链**、不新增使能位；
+- 既有 hypv 探针按「访问前补掩码」逐个修正（清单现场派生），并在本任务里更新 `tests/arch/expected-divergences.yaml`（`DIV-07` 关闭）。
+
 ## 跨里程碑依赖与冲突（2026-11-24 核对）
 
 - **同组件串行**：`m16-chipyard-021`/`022`（**待验收**）、`m16-chipyard-023`（**进行中**）同改 `WumingCore`/PTW/异步；本任务必须等它们合入后再 rebase，且 `DIV-07` 关闭会改变它们探针的 hypv 前提。
