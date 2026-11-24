@@ -28,14 +28,14 @@
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
 | m17-chipyard-001 | 1–2 天 | RTL：扁平位图 + 关闭 `DIV-07`（hypv/Tiny 判权） |
-| m17-spec-003 | 2–4 h | `generate_opcodes.py` 与 `opcodes.yaml` 漂移收口（`ISS-416`） |
 | m17-idl-021 | 1–2 h | IDL 复核遗留清理（`ISS-490`/`ISS-491`；含 `CFXPERM` 覆盖验证） |
-| m17-infra-002 | 2–4 h | `check-spec-refs` 扩展 `[Kaiwu §…]` 等前缀（`ISS-521`） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m17-spec-003 | 2026-11-24 23:23 | 2–4 h | `generate_opcodes.py` 与 `opcodes.yaml` 漂移收口（`ISS-416`） |
+| m17-infra-002 | 2026-11-24 23:23 | 2–4 h | `check-spec-refs` 扩展 `[Kaiwu §…]` 等前缀（`ISS-521`） |
 | m17-idl-020 | 2026-11-23 08:27 | 4–6 h | cfx 权限轴：`cfxreg`/`cfxexe` + 2 个拒绝路径载体（272→274） |
 
 ## 已验证
