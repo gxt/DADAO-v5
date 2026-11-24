@@ -11,14 +11,14 @@
 > - **M16**：`N1`（M12 spec 残留 9 条，待裁）、`N35`（cache 规模 256/512 KiB，待裁）
 > - **M17**：无未决项（`N16`/`N21`/`N26`/`N34` 均已关闭）
 > - **M18**：`N3`（ADR-0046 收口，待办）、`N9`（SBI 生产 provider/W1C，待裁）、`N29`（内核差异盘点 → 整改取舍，待裁）
-> - **M19**：`N7`（cfx 待实现范围：cache/UART/IPI/多 hart，待裁）、`N10`（UART 实例号语义，待裁）
+> - **M19**：`N7`（cfx 待实现范围：cache/UART/IPI/多 hart，待裁）、`N10`（UART 实例号语义，待裁）、`N37`（Tiny 几何/启动布局，待裁）、`N38`（TSI↔power 交互，待裁）、`N39`（tohost/fromhost 与结果协议，待裁）、`N40`（cfx_uart 是否开启，待裁）、`N41`（fesvr 移植范围，待裁）、`N42`（测试/三平台迁移，待办）
 > - **M20**：`N4`（ADR-0057 的 D5–D7，待裁）、`N12`（长仿真心跳方案 A/B/C，待裁）
 > - **未立册方向**：`N28`（Vast 地址图 ADR，待专门讨论）
 > - **backlog（暂无里程碑）**：`N11`、`N13`、`N15`、`N18`
 > - **已关闭**：`N17`、`N27`、`N30`/`N30 追加`、`N31`、`N32`、`N33`
-- **未定里程碑**：`N36`（`escape` 重编码提案，暂不讨论）
+- **未定里程碑**：`N43`（`escape` 重编码提案，暂不讨论）
 
-## N36. `escape` 重编码提案（用户 2026-11-24，暂不讨论；里程碑待定）
+## N43. `escape` 重编码提案（用户 2026-11-24，暂不讨论；里程碑待定）
 
 `escape` 增加 **6 位 one-hot**，每种取值一种退出方式，其后 **12 位为载体**；`6 + 12 = 18` 正好占满 `imms18`。用户列出的 6 种：
 
@@ -202,6 +202,45 @@
 - **两条候选（未裁）**：A = 核心保持 TL、桥放 FPGA harness（`TLToAXI4` + 位宽/burst 适配 → MIG），核与仿真同构；B = 核心改回 AXI4（与 007 结论冲突）。
 - **若选 A 还需定**：DDR 映射 PA `[0,1 GiB)`、MIG UI 位宽（32/64）与时钟比、outstanding 深度、DMA 是否共用端口、板上加载通道（UART/JTAG/Flash）。
 - **归属**：M16（接口契约，若需要）与 M21（FPGA-Vast，未立册）；重启讨论时先定接线，再谈桥的参数。
+
+## N37. M19 Tiny 的缩减几何与启动布局（**待裁**；用户 2026-11-24）
+
+- **已定**：应用入口重定到 `SRAM base + 0x100`（不再是 `0xffff_ff01_0100`）；ITCM 定位 = **启动 ROM 的替代品**（放 power + hmon 源），不是测试代码 TCM；hmon 需独立 SRAM（**尺寸暂定 4 KiB**）。
+- **待裁**：boot ITCM 的**地址（是否保持复位向量 `0xffff_ffff_0000`）与大小 4 vs 8 KiB**；SRAM **128 vs 192 vs 256 KiB**；栈/堆预算（当前建议 16 KiB + 32 KiB）。
+- **算术依据**：入口重定后 128 KiB 可覆盖已测最坏（nsichneu O0 ≈ 104 KiB）；若保留 `0x10100` 入口，128 KiB 不够，需 ≥192 KiB（≈169 KiB）。以上按 **16 KiB 栈 + 32 KiB 堆**计算；预算变则重算。
+- **影响**：`spec/Kaiwu §1.1/§6.2`、`contracts/machine.yaml`、`tests/ee-tiny/runtime.yaml`、全部 `.lds`/`machine-tiny.inc`、QEMU/gem5 机器描述、`build_tiny_bootrom.py`。
+
+## N38. TSI ↔ cfx_power 的交互（**待裁**）
+
+- **背景（未定）**：用户已提出用 TSI 装载测试程序并输出结果；TSI 是否/如何与 power 交互（boot wait）尚未裁定。
+- **候选**：A = **SRAM mailbox**（host 经 TSI 写、power/hmon 轮询；不动 ISA spec，但 mailbox 地址需在 runtime/契约里定义；推荐）；B = 新增 TL 从口/CSR 窗口（把总线写翻译成 cfx 访问，类似 DM，需 spec/地址图）。
+- **约束**：TSI 是 TL master，不能直接写 cfx cg/rc；Tiny 无 MMIO 窗口；TSI 无中断线，power 只能轮询。
+- **待定**：boot wait / “load done” 握手、TSI 地址过滤（只允许 SRAM/mailbox，禁止 BootROM/ITCM/hmon）。
+
+## N39. tohost/fromhost 与测试结果协议（**待裁**）
+
+- **现状**：RISC-V HTIF 的 `tohost/fromhost` 不能直接用于 DADAO；测试现在走 semihosting `SYS_EXIT` / signature，板上无响应者。
+- **待裁**：位置（SRAM 固定字 vs 其他）、宽度（64 位）、端序（大端）、原子性（8 字节写不能被 32 位 chunk 撕裂）、host 轮询/退出码、`BLOCKED`/超时语义。
+- **建议**：先做 `signature + done/exit` 字（改动最小），semihosting-over-TSI 后置。
+
+## N40. cfx_uart 是否开启（**待裁**）
+
+- **候选**：开“最小轮询版”= `cfxha 62`、`exist=1`、仅 uart0、固定 115200 8N1、TX/RX/status、无中断/多实例；或 M19 不开，继续 TSI + signature。
+- **前置**：`N10` 实例号语义（uart1–31 读什么）、cfx_uart 寄存器表（spec §4.11 只说“参照硬件协议”）、物理 UART 与 TSI 的复用（分时 / 第二根 / 帧复用）。
+- **影响**：`DADAO-12 §4.11`、QEMU/gem5/RTL、测试 console；建议不把测试结果通道绑到 cfx_uart（未裁）。
+
+## N41. fesvr 移植范围与 TSI 64 位/大端口径（**待裁**）
+
+- **已提出（未定）**：先移植 fesvr（64 位大端），并重新制定 `tohost/fromhost` 位置。
+- **待裁**：fork fesvr vs 只复用 `tsi_t` 协议 + 自写 DADAO host tool；TSI 保持 **32 位 chunk** vs 改 64 位（`TSI.WIDTH=32` 硬编码）；大端在 host 侧处理。
+- **现状**：fesvr 是 RISC-V 小端/HTIF；`load_elf` 拒 BE；`TSIToTileLink` 的 body 是地址序，不是小端数值。
+- **影响**：host 工具、TSI 协议文档、测试驱动、M19 验收。
+
+## N42. 测试向量与三平台迁移（**待办**；用户 2026-11-24）
+
+- **已定方向**：M16/M17 收尾后统一调整 Tiny 配置与所有测试程序布局；不把 FPGA 与 Verilator 做成两套。存储后端是否必须同构未定（建议功能一致、实现可不同）。
+- **待办**：迁移清单/顺序——`contracts/machine.yaml` → `runtime.yaml` → `machine-tiny.inc`/`.lds`/`tests/inst` 固定偏移 → QEMU/gem5 机器 → RTL → 门控；`+loadmem`/`WumingLoadMem` 是否退役、Verilator 是否改用 `SimTSI`。
+- **待裁**：QEMU/gem5 是否也走 TSI，还是保留各自 loader；128 KiB 下栈/堆的硬预算。
 
 # M14：Linux bring-up
 
@@ -479,6 +518,20 @@
 - **落地要点（待立项）**：新增 profile（如 `tiny-fpga`：ROM 64 KiB + SRAM 256 KiB），**不改** `Tiny` 本体；`DadaoConfigs.scala` 加 `WumingTinyFpgaConfig`；`+loadmem=` 窗口按新 SRAM 参数化；`tests/ee-tiny/*.lds` 的 SRAM 区参数化（现在 `picolibc_tiny.ld` 写死 8 MiB 布局、栈 4 KiB）。
 - **需用户授权**：`spec/Kaiwu §1.1` 目前冻结「SRAM 8 MiB」，新 profile 需在 spec 补一段「FPGA 实现可用缩减 profile」。
 - **待定**：① 是否保留 8 MiB 地址窗口、只实现前 256 KiB（不建议：会出现「写了读不回」）；② 栈/堆水位实测方法（栈填 `0xA5` 扫高水位 + `sbrk` 记峰值）是否立任务；③ 首次 Vivado 综合的判据（时序收敛频率、LUT/FF/BRAM 占用阈值）。
+
+- **已定（用户 2026-11-24）**：
+  - 应用入口重定到 `SRAM base + 0x100`（不再是 `0xffff_ff01_0100`）；
+  - **ITCM = 启动 ROM 的替代品**（放 power + hmon 源），不是测试代码 TCM；hmon 使用独立 SRAM（4 KiB 暂定）；**hmon 代码在 ITCM 还是 SRAM 执行未裁**（当前建议复制到 SRAM，保留 `rb0` 相对数据槽）；
+  - hmon 需独立 SRAM（**尺寸暂定 4 KiB**，最终值见 `N37`）；
+  - BootROM 布局重调；所有测试向量的入口与布局重调；
+  - **M16/M17 收尾后**统一调整 Tiny 配置与测试布局；
+  - 未明确的事项不默认同意；未裁项见 `N37`–`N42`。
+- **初步方向 / 建议（未裁，见 `N37`–`N42`）**：
+  - TSI ↔ power 优先 **SRAM mailbox**（不新增 cfx 桥）；
+  - `tohost/fromhost` 放 SRAM 固定字，配 `signature + done/exit`；
+  - cfx_uart 只开最小轮询版（前提是物理 UART 能与 TSI 复用）；
+  - fesvr 只复用 `tsi_t` 协议，64 位/大端在 host 侧处理；
+  - boot ITCM 建议 8 KiB；SRAM 128 KiB（入口重定后可行，仍待余量确认）。
 
 ## issues（分诊到本册，2026-11-20）
 
