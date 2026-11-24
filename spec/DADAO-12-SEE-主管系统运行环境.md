@@ -624,6 +624,7 @@ PTE 格式、两级页表步进、HSJU/R/W/X 页权限与异常优先级见 §2.
 - **使能**：`cfx_cache_enable` 对应位 = 0 时，该侧**不被维护**（`clean`/`invalidate`/`flush` 对该侧都无效果、不改变其内容）；编码与 `addr_size` 的校验**不受使能影响**（仍按上文判序执行，非法即 `CFXREG`）。
 - **不适用地址**：`addr_start`（`PA 区间` 时连同整个区间）落在不可缓存或 MMIO/device 的 PA 上时，命令对该部分**无效果、不报异常**——判定依据是 `cg7` 空间描述（`attr.cacheable = 0`，或空间类型为 MMIO，见 §3.8）；内存窗口（`addr[47:42] = 0`）没有 `cg7` 空间描述，其可缓存性由实现决定。区间跨越可缓存与不可缓存部分时，只作用于可缓存部分。
 - **per-hart**：`cfx_cache` 的寄存器与维护命令都是 per-hart 状态，命令只作用于执行该写指令的 hart；跨 hart 的维护传播与一致性不在本节定义。
+- **与 DMA 的关系**：`cfx_pmem` 的 DMA 与 D-cache **不保证硬件一致性**，软件须在 DMA 前后自行 `clean`/`invalidate`；顺序、时机与粒度见 §4.9。
 - **正常完成不报异常**：`none`、两侧都不选、`cache_enable` 对应位为 0（该侧不被维护）这几种情形，以及各操作的正常路径，都不产生异常；非法编码仍按上文报 `CFXREG`；`cfx_cache` 自身只报下表的 `CFXTRAP`/`CFXESC`，不新增异常原因，也不因 `invalidate` 丢脏数据报任何异常。
 
 **异常原因表**
@@ -723,6 +724,23 @@ SRAM 与物理存储器（PA）之间的块搬运由 cfx_pmem 的 DMA 完成（�
 - **长度**：`dma_size` 为 30 位，合法范围 `1..2^29`（512 MiB）。实际传输还受 64 KiB SRAM 范围、PA 56 位不溢出与目标可访问性约束。
 - **异步**：写 `dma_ctrl.START=1` 后 `dma_status.BUSY=1`，完成后硬件清 BUSY 并置 DONE（或 ERROR）；完成前软件不得复用 SRAM 与寄存器。
 - **单 hart**：`PMEM_DMA` 作为异步源统一投递到本 hart 的 `cfx_hart`（cfxha 15，§5.4），不进入 `cfx_pmem` 自身入口；多 hart 的接收者规则后续定义。
+
+**DMA 与 D-cache 的一致性（软件负责）**
+
+DMA 由 `cfx_pmem` 直接以物理地址读写存储器，不经 CPU 的 D-cache。两者的关系按下列条款确定：
+
+- **硬件不保证一致**：DMA **不**与 D-cache 做硬件一致性——不 snoop D-cache、不因 DMA 自动写回或失效任何 cache 行，也不因 cache 中是否残留副本改变传输行为或报异常。
+- **软件职责（顺序与时机固定）**：
+  - `START` **之前**：方向为 `PA→CFX`（DMA 读 PA）时，对本次传输的**PA 源区间**执行 `clean`（`cfx_cache` 的 `clean` + `PA 区间` 范围，§4.6），把 CPU 已写的数据写回存储器，DMA 才能读到最新值。
+  - `DONE` 置位且 `BUSY=0` **之后**：方向为 `CFX→PA`（DMA 写 PA）时，对本次传输的**PA 目标区间**执行 `invalidate`，丢弃 CPU 可能残留的旧行，此后 CPU 的普通 `ld` 才读得到 DMA 写入的值。
+  - CFX 侧（64 KiB SRAM）属核内空间、不是 PA；`cfx_cache` 维护命令只接受 PA（§4.6），故软件无从也不需维护 SRAM——只维护 PA 侧区间。
+  - 目标 PA 区间在 `START` 前若已有脏行，上述 `invalidate` 会把它们丢弃（§4.6：丢脏不报异常）；这些数据若仍需保留，软件须在 `START` 前先 `clean`。
+- **粒度**：D-cache 以 PA 为键、按 cache 行维护（§4.6）；一次 DMA 覆盖的 PA 区间可能跨多行，软件须用 `PA 区间` 范围覆盖整个参与区间（含首尾行），不能只维护单行或单字节。
+- **目标为 BootROM / 只读区**：DMA **读** BootROM 合法；**写**只读物理存储器（如 BootROM）不改变其内容——`START` 时判定失败，置 `ERROR` 与 `ERR_CODE` 的 bit6 `PA_FAULT`，传输不启动（`BUSY` 保持 0）。
+- **`BUSY` 期间的可见性**：`BUSY=1` 表示传输未完成，SRAM 与 PA 目标区间的中间内容**无保证**——软件不得读 SRAM 或目标 PA 区间，也不得复用 SRAM 与寄存器；`BUSY=0` 且 `DONE=1` 后才保证整段传输已落到 PA，且 CPU 仍须按上文 `invalidate` 才能读到新值。
+- **与 `fence` 的关系**：`fence` 只约束本 hart 的访存顺序/可见性、**不等待 DMA**，也不改变 cache 内容（§2.1）；故 `fence` 不能替代 `clean`/`invalidate`，DMA 的完成判据只有 `dma_status` 的 `BUSY`/`DONE`。
+- **区域属性不改变本节条款**：`cfx_pmem_attr` 的 `coherent` 位不使硬件承担 DMA/D-cache 一致性——无论 PM 区域属性如何，硬件都不 snoop、不自动失效；该位的进阶语义与 shareability 等属性一并留待多核 SMP 阶段定义（见本节末）。
+- **未按上述操作的后果**：软件漏做 `clean`/`invalidate` 时读到旧值（或 DMA 读到 CPU 尚未写回的值）属**软件错误**——硬件不报异常、不置 `ERROR`；`ERROR`/`ERR_CODE` 只反映本表所列条件。
 
 **专有寄存器表**
 
@@ -1107,6 +1125,8 @@ if temp_allowed != 0:
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.8.0-rc（未发布）
+
+- `cfx_pmem` DMA 与 D-cache 的一致性语义落地（内容改，版本仍 0.8.0-rc）：DMA 直接读写 PA、**不**与 D-cache 做硬件一致性（不 snoop、不自动失效、不因 cache 状态报异常）；软件负责——`START` 前对 PA 源区间 `clean`（方向 `PA→CFX`）、`DONE` 且 `BUSY=0` 后对 PA 目标区间 `invalidate`（方向 `CFX→PA`），粒度 = cache 行按 PA 区间相交（`cfx_cache` 的 `PA 区间` 范围）；SRAM 属核内空间、不参与维护；写 BootROM/只读区 ⇒ `START` 判失败置 `ERR_CODE` 的 `PA_FAULT`；`BUSY=1` 期间 SRAM 与目标区间内容无保证；`fence` 只约束本 hart 的顺序、不等待 DMA，不能替代维护命令；漏做维护读到旧值属软件错误、硬件不报异常。`§4.6` 只增交叉引用（不复制正文），`§4.9` 增一致性条款。
 
 - 异常原因编码改为**扁平位图**（内容改，版本仍 0.8.0-rc）：`excp_cause_id` 不再区分「大类 + wyde 子原因」两级——`[15:0]` 同步 cause one-hot 与位索引不变；`[39:32]` 为权限类位图（`[32]`–`[38]`，`[39]` 删除、恒 0）、`[55:48]`/`[56]` 为访存/缺失类位图（`[48]`–`[55]`、`[56] ADWBFAIL`，`[57]` 删除、恒 0）；`CFXPERM` 只表示 cfx 来源掩码拒绝、`CFXMEM` 只表示非 PTW 核内访存故障，置位时 `[63:32]` 全 0。PTW 权限/缺失故障**只置高位位图、低位 cause = 0**；64 位内恰一位为 1（或整体 0），`[47:40]`/`[63:58]` 保留。`§1`/`§2.2.1`/`§2.2.2`/`§2.2.5`/`§2.2.6`/`§3.6`/`§4.1`–`§4.6`/`§5.2` 同步；`cause_info` 仍恒为地址（PTW 权限/缺失 = 访问 VA、`ADWBFAIL` = PTE 物理地址）。退出码编码不变（仍取低位 cause 索引；PTW 故障在 Vast 不承载该退出码）。
 
