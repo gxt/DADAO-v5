@@ -7,6 +7,14 @@
 **预估**：3–5 h（标定：同档最近 5 件派单→合入实测 31/62/86/124/182 min，中位 86 min；本任务新增组件与构建链，取 2–4× 中位）
 **档位**：大改（新组件 + 交叉构建 + 首轮分诊）
 **状态**：待返工
+
+## 阻塞（2026-11-25，第 2 轮返工结论）
+
+- 返工三项（`TEST_ADAPT`、根因口径、判据改逐行 diff）**已落地**；`mmap01`/`munmap03` 在干净内核上 PASS，**64K 无需专用补丁**（理由已写进套件 README）。
+- 验收 5/6 被内核侧阻塞：① 安装根 QEMU 已是扁平位图模型、内核解码归 `m18-linux-023`（在跑）；② 用户态信号投递死在异步异常入口（`MALIGN ip=dadao_async_excp+0x1fc` → `die 0xec`，约 1/10），归 `ISS-539`/`m18-linux-024` 族。**两者修好前无法建立「连跑 2 次一致」与注入回绿基线。**
+- 并发教训：共享 `.work/source/linux` 被 `023` 就地重放时，本轮前几跑产生假红；已改私人重放树 + `DADAO_LINUX_SOURCE`/`DADAO_LINUX_BUILD` 覆盖（`ISS-538`）。
+- 恢复条件：`m18-linux-023` + `ISS-539` 修复后，复跑 `run_suite.py --suite ltp` 两次 + `run.sh`，再走验收 5/6。
+
 **执行环境**：本地（QEMU system `-M kaiwu-vast`）
 
 > **返工说明（2026-11-24）**：`m18-infra-003` 已证明 `sigaction01`/`open01` 可直接 PASS（原 UNSUPPORTED 是 musl 源树未打补丁集，非无信号帧 ABI）。返工时：`suite.yaml` 改 expect PASS、删两行 UNSUPPORTED、`mlockall02` verdict 改 TBROK；补 `TEST_ADAPT`（64 KiB 候选 `mmap01`/`brk01`/`munmap01` 现在可跑）；`run.sh` 的按类豁免改为基线逐行 diff；待 `m18-linux-022` 合入后用安装根新 QEMU/新内核重跑 K5/K6。

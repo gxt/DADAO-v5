@@ -1573,3 +1573,20 @@
   closed_in: null
   resolved_by: null
   title: "【P2·待裁定】gem5 仍是 ADR-0061 R2 前的异步模型（无 `cfx_hart cg9`），`m16-testcases-013` 的 cfx15 异步只有 QEMU+RTL 两方逐槽（登记 `DIV-17`）。M16「三方一致」在裁定前不成立：需用户选择 ① 豁免（`DIV-17` 改 permanent/conditional，M16 收口接受 gem5 无异步面）或 ② 立 gem5 R2 迁移任务（异步捕获缓冲 + 掩码/pending，归 M18）。"
+- id: ISS-538
+  scope:
+  - linux
+  - infra
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P2】`run_suite.py` 跑内核套件时**不取写者锁**：内核写者（如 `m18-linux-023` 重放/重建共享 `.work/source/linux`）与套件跑批可并发 ⇒ 跑批落在半改写内核上产生**假红**（`m18-linux-006` 实测：`cause=CFXMEM(0x10000000000002)`、随机 `die 0xe1/0xec`、`MALIGN`）。临时绕行 = 私人重放树 + `DADAO_LINUX_SOURCE`/`DADAO_LINUX_BUILD` 覆盖。建议：`run_suite.py` 进入与 `gate.lock`/writer 登记一致的互斥，或在检测到源树有写者时拒绝启动。"
+- id: ISS-539
+  scope:
+  - linux
+  milestone: M18
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P1】**用户态信号投递死在异步异常入口**（私人干净内核复现，`m18-linux-006` 返工）：`MALIGN(0x1000) ip=dadao_async_excp+0x1fc info=0xfffeffff7fff` → `die mode=2 code=0xec`；另有 `die 0xe1` 与 `clock_gettime01` 无 die 停摆；约 **1 次/10 例**。属 `m18-linux-024`（异步交付窗口）族但表现为信号路径；导致 LTP 跑批无法建立「连跑 2 次一致」的验收基线。处置：并入 024（或另立）定位异步入口的 MALIGN/现场污染，修后复跑 LTP ≥2 次。"
