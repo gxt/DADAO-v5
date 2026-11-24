@@ -404,6 +404,7 @@
 - **期望差异清单（2026-11-22 用户裁）**：**不建**——实测 0 差异（M13 FP 232/232、阶段一 222/222），白名单无对象；真出现差异再立。
 - **`ISS-480`（2026-11-22 裁定）**：`__pycache__` 是**生成物**，`check-manifests-guard` 是**文件系统**双向集合断言（不读 `.gitignore`），故冲突真实存在；修法 = 清单新增 `ignore = ["__pycache__"]`（**数据面**声明，非代码硬编码），且条目须被 `git check-ignore` 判为忽略、不得与已登记项同名；其它游离目录仍红。
 - **执行器依据锁（2026-11-22 裁 B）**：`idl/data/exec_anchor.toml` 锁 263 个 op 正文 + `idl/lib/*.idl` 的 sha256；`check-idl-exec-anchor` 进 L1；改 `.idl` ⇒ 必须 `--update` 并在评审里说明实现是否跟改。**不**声称语义等价（`m17-idl-017`）。
+- **已知红（M17 全四方 274）**：`escape_ciii_cfx` 在 gem5 仍按旧编码返回 `rc=13`（`mms18=2` 期望 `CFXESC`），新旧二进制实测一致 ⇒ 既有缺口，归 `m18-gem5-001`（待开始）；chipyard 同例另有 `DIV-11`。
 - **权限编码扁平化（2026-11-24 用户裁 B）**：PTW 权限/访存故障只置高位位图（`[32..38]`/`[48..56]`），`CFXPERM`/`CFXMEM` 归一（分别只表示 cfx 掩码/非 PTW 访存）；**删除 `[39] NCFXPERM`、`[57] NONPTW`**；不新增 cause；PTW 的 monitor 路由与退出码属 Vast、待定。先 `m17-spec-001`（ADR-0062 + 影响清单），平台任务待 ADR 定稿后拆。
 - **cfx 权限轴（2026-11-23 裁 B）**：补 `cfxreg`/`cfxexe` 掩码 + 2 个拒绝路径载体（`CFXPERM`，272→274）；`cfxmem`（cfx SRAM/MMIO 窗口）单列不建模；平台分叉（如 `ISS-469`）只归因不改组件（`m17-idl-020`）。
 - **`check-inst-sig` 退役（2026-11-22 裁 A）**：`check-idl` 在 272 例上对每一方都比同一份 `expected.tsv`，且含四方互比 ⇒ `check-inst-sig` 退出 L2 并删除 target；保留 `inst-signature-data`（期望值生成）、`signature.py` 与脚本 `--write`（`m17-testcases-003`）。
