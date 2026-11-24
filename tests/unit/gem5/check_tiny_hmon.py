@@ -10,8 +10,11 @@ against the independent oracle in `tests/unit/gem5/tiny_hmon/expected.yaml`
 The BootROM is the *shared* firmware (power stub + the minimal save-and-jump
 hmon handler of m13-integ-007); the gem5 case carries no dispatch handler of
 its own.  Cause records are the four hmon SRAM data slots the application
-reads at its landing address (0xE0/0xE8/0xF0/0xF8).  The BootROM digest is not
-hardcoded here: it is cross-checked against
+reads at its landing address (0xE0/0xE8/0xF0/0xF8) -- except the CFXESC
+record, which `spec/DADAO-12 §5.2(一)` delivers to the *current* cfx (cfx63):
+that frame is read from cfx63's own cg5 and the monitor's slots are asserted
+to be unchanged (`kind: monitor_unchanged`, the reverse assertion).  The
+BootROM digest is not hardcoded here: it is cross-checked against
 `expected.yaml:shared_bootrom_md5`.
 
 Usage:
@@ -425,7 +428,8 @@ def main() -> int:
     for idx in range(min(len(actual), len(expected))):
         want = expected[idx]
         got = actual[idx]
-        if want["kind"] == "check":
+        kind = want.get("kind")
+        if kind == "check":
             exp = evaluate(want["expect"], ns)
             report(got[0] == want["id"], f"record {idx} check id",
                    want["id"], got[0])
@@ -435,7 +439,7 @@ def main() -> int:
                    hex(exp), hex(got[2]))
             report(got[3] == 0, f"record {idx} check {want['id']} reserved",
                    0, got[3])
-        else:
+        elif kind == "cause":
             ip = evaluate(want["ip"], ns)
             info = evaluate(want["info"], ns)
             ret = evaluate(want["return_slot"], ns)
@@ -447,6 +451,40 @@ def main() -> int:
                    hex(got[2]))
             report(got[3] == ret, f"record {idx} return_slot", hex(ret),
                    hex(got[3]))
+        elif kind == "cfx_cause":
+            # A cause frame read from the *current* cfx's own cg5 (§5.2(一):
+            # CFXESC is delivered to the current cfx, not to the monitor).
+            label = f"record {idx} cfx cause {want['cause']} ({want['cfx']})"
+            report(got[0] == evaluate(want["cause_id"], ns), label,
+                   hex(evaluate(want["cause_id"], ns)), hex(got[0]))
+            report(got[1] == evaluate(want["ip"], ns),
+                   f"record {idx} cfx cause_ip",
+                   hex(evaluate(want["ip"], ns)), hex(got[1]))
+            report(got[2] == evaluate(want["info"], ns),
+                   f"record {idx} cfx cause_info",
+                   hex(evaluate(want["info"], ns)), hex(got[2]))
+            report(got[3] == evaluate(want["prev_cfx"], ns),
+                   f"record {idx} cfx prev_cfx_code",
+                   hex(evaluate(want["prev_cfx"], ns)), hex(got[3]))
+        elif kind == "monitor_unchanged":
+            # Reverse assertion: the monitor's SRAM data slots must still hold
+            # the previous monitor entry (the CFXESC frame did not run hmon).
+            report(got[0] == evaluate(want["cause_id"], ns),
+                   f"record {idx} monitor untouched: still "
+                   f"{want['after']}", hex(evaluate(want["cause_id"], ns)),
+                   hex(got[0]))
+            report(got[1] == evaluate(want["ip"], ns),
+                   f"record {idx} monitor untouched cause_ip",
+                   hex(evaluate(want["ip"], ns)), hex(got[1]))
+            report(got[2] == evaluate(want["info"], ns),
+                   f"record {idx} monitor untouched cause_info",
+                   hex(evaluate(want["info"], ns)), hex(got[2]))
+            report(got[3] == evaluate(want["return_slot"], ns),
+                   f"record {idx} monitor untouched return_slot",
+                   hex(evaluate(want["return_slot"], ns)), hex(got[3]))
+        else:
+            report(False, f"record {idx} kind",
+                   "check|cause|cfx_cause|monitor_unchanged", kind)
 
     # ---- loader negatives: each must fail loudly, never silently -----------
     bad_dir = work / "bad"

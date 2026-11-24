@@ -34,6 +34,11 @@
 @@       application writes its landing address to slot 0xF8; at the landing it
 @@       records the four hmon data slots, so every cause record is the
 @@       handler's own saved state (no test-only dispatch path)
+@@     * CFXESC is the exception: it is delivered to the *current* cfx
+@@       (cfx63, DADAO-12 §5.2(一)), so the body installs cfx63's hypv
+@@       vector (cg3 rc10) at `esc_land`, records cfx63's own cg5 frame
+@@       there, and asserts the monitor's SRAM slots and `excp_sync_num`
+@@       were not written (reverse assertion)
 @@     * Tiny hypv invariance: write switch_run_mode = user, take CFXMEM,
 @@       read a cg3 (hypv-only) register, prev_run_mode stays 3
 @@     * exports the result table through SYS_OPEN + SYS_WRITE and stops with
@@ -348,7 +353,19 @@ f_trap:
 land_trap:
 	call	[rb21, rd0, 0]
 
-	@@ ---- escape target error => CFXESC (33) ------------------------------
+	@@ ---- escape frame error => CFXESC (33) ------------------------------
+	@@ DADAO-12 §5.1/§5.2(一): an escape target/frame error raises the
+	@@ *current* cfx's CFXESC, never the current run mode monitor.  The body
+	@@ runs with current cfx = cfx_power (63): hmon's escape restored
+	@@ `excp_prev_cfx_code` = 63 (§5.3 step 1), and cfx63's cg5 was never
+	@@ written (no earlier exception targets cfx63), so `excp_cause_id` = 0
+	@@ and the cg5 frame is invalid (§5.1 "所选帧无效").
+	@@ The frame is delivered to cfx63's hypv vector (cg3 rc10, §3.4); point
+	@@ it at `esc_land` first -- the platform initial value (BootROM base)
+	@@ would restart the machine from reset instead of recording the frame.
+	LOAD_ABS rb5, esc_land
+	rb2rd	rd10, rb5, 1			@@ rb-group address -> rd operand of cfx2rc
+	cfx2rc	cfx_power, cg3, rc10, rd10
 	LOAD_ABS rb5, land_esc
 	st.o	rb5, [rb22, 0xF8]
 	.globl	f_esc
@@ -356,21 +373,33 @@ f_esc:
 	escape	cfx_power, [excp_cause_ip, 4]
 	.globl	land_esc
 land_esc:
-	call	[rb21, rd0, 0]
+	@@ Reverse assertion (§5.2(一) last row: CFXESC is not a monitor route):
+	@@ the monitor handled only the 5 x 3 synchronous faults above, so its
+	@@ `excp_sync_num` (§5.2(三) step 3) is 15 and must not have grown.
+	cfx2rd	cfx_hmon, cg4, rc3, rd10
+	set.zw	rd11, wp0, 15
+	set.zw	rd12, wp0, 43
+	call	[rb20, rd0, 0]
 
 	@@ ---- cfxtrap mask denial => CFXPERM (34) ----------------------------
-	cfx2rd	cfx_power, cg3, rc0, rd20
-	set.zw	rd10, wp0, 8
-	cfx2rc	cfx_power, cg3, rc0, rd10
+	@@ DADAO-12 §5.2(一): a `trap` whose target cfx denies the source cfx in
+	@@ its `<mode>_cfxtrap` mask raises CFXPERM into the current run mode
+	@@ monitor (Tiny: cfx3 hmon, Kaiwu §2).  The source is the current cfx
+	@@ (63); the mask bit index is the source cfxha (§3.4 rc0), so deny bit
+	@@ 63 in hmon's hypv row.  A self-trap (`trap cfx_power` from cfx63)
+	@@ cannot produce CFXPERM: the cfx axis bypasses the source's own bit.
+	cfx2rd	cfx_hmon, cg3, rc0, rd20
+	set.rd	rd10, 0x8000000000000000
+	cfx2rc	cfx_hmon, cg3, rc0, rd10
 	LOAD_ABS rb5, land_perm
 	st.o	rb5, [rb22, 0xF8]
 	.globl	f_perm
 f_perm:
-	trap	cfx_power, 0
+	trap	cfx_hmon, 0
 	.globl	land_perm
 land_perm:
 	call	[rb21, rd0, 0]
-	cfx2rc	cfx_power, cg3, rc0, rd20
+	cfx2rc	cfx_hmon, cg3, rc0, rd20
 
 	@@ ---- unimplemented cfx register => CFXREG (35) ----------------------
 	LOAD_ABS rb5, land_reg
@@ -521,6 +550,43 @@ record_cause:
 	add.si	rb5, 32
 	st.o	rb5, [rb4, 0]
 	ret	rd0, 0
+
+@@ ---------------------------------------------------------------------------
+@@ record_esc_frame: append one cause record read from the *current* cfx's own
+@@ cg5 frame (DADAO-12 §3.6): {cause_id, cause_ip, cause_info, prev_cfx_code}.
+@@ Used at `esc_land`, where a CFXESC frame is delivered to cfx63 (§5.2(一)).
+@@ The monitor's SRAM slots are read separately: they must still hold the
+@@ previous monitor entry.
+@@ ---------------------------------------------------------------------------
+record_esc_frame:
+	set.rb rb4, SLOT_PTR
+	ld.o	rb5, [rb4, 0]
+	cfx2rd	cfx_power, cg5, rc2, rd10	@@ excp_cause_id (CFXESC = 1<<3)
+	cfx2rd	cfx_power, cg5, rc3, rd11	@@ excp_cause_ip (f_esc)
+	cfx2rd	cfx_power, cg5, rc4, rd12	@@ excp_cause_info (escape encoding)
+	cfx2rd	cfx_power, cg5, rc1, rd13	@@ excp_prev_cfx_code (63)
+	st.o	rd10, [rb5, 0]
+	st.o	rd11, [rb5, 8]
+	st.o	rd12, [rb5, 16]
+	st.o	rd13, [rb5, 24]
+	add.si	rb5, 32
+	st.o	rb5, [rb4, 0]
+	ret	rd0, 0
+
+@@ ---------------------------------------------------------------------------
+@@ esc_land: cfx63's hypv exception vector (cg3 rc10), installed by the body
+@@ before `f_esc`.  A CFXESC frame enters the current cfx (§5.2(一)), so the
+@@ frame is observed here -- not in the monitor -- then left through the same
+@@ instruction form (§5.3: `excp_cause_ip` + 4 == `land_esc`).
+@@ ---------------------------------------------------------------------------
+	.globl	esc_land
+esc_land:
+	LOAD_ABS rb5, record_esc_frame
+	call	[rb5, rd0, 0]
+	@@ Reverse assertion: the monitor's data slots still hold the previous
+	@@ monitor entry (the CFXESC entry did not run the hmon handler).
+	call	[rb21, rd0, 0]
+	escape	cfx_power, [excp_cause_ip, 4]
 
 @@ ---------------------------------------------------------------------------
 @@ Fixed data area (DATA_BASE = ENTRY + 0x3100, see tiny_hmon.lds).

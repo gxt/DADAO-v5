@@ -41,9 +41,16 @@ old gem5-only dispatch handler (`tiny_hmon_handler.{S,lds}`, 18 instructions /
    `+4` policy would land inside the record sequence and be visible.  For
    IALIGN the recorded IP is the illegal address itself (no next-IP
    write-back) and `info == ip`.
-4. `CFXTRAP` (general trap), `CFXESC` (escape target error), `CFXPERM`
-   (cfxtrap mask denial) and `CFXREG` (unimplemented cfx5 register) also enter
-   hmon (records 32–35).
+4. `CFXTRAP` (general trap), `CFXPERM` (cfxtrap mask denial) and `CFXREG`
+   (unimplemented cfx5 register) enter the current run-mode monitor hmon.
+   `CFXESC` (escape frame error) is the exception (`m18-gem5-003`):
+   `DADAO-12 §5.1/§5.2(一)` delivers it to the **current cfx** — cfx63 in
+   this body — so the case installs cfx63's hypv vector (`cg3 rc10`) at
+   `esc_land`, records cfx63's own `cg5` frame there (cause_id / cause_ip /
+   cause_info / prev_cfx_code), and asserts the monitor was **not** written:
+   a `monitor_unchanged` record reads the hmon SRAM data slots (they still
+   hold the previous monitor entry) and check 43 reads `excp_sync_num`
+   (stays `15` = 5 classes × 3 cases).
 5. Semihosting is cfxha-agnostic: the case calls `SYS_WRITE0` through
    `trap cfx_power, 0x3FF00` and the rest through `trap cfx_hmon, 0x3FF00`.
 6. The run mode stays `hypv` on Tiny (`Kaiwu §2`): the body writes

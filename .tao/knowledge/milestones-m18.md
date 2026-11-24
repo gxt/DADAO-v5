@@ -47,7 +47,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-gem5-003 | 2026-11-25 01:51 | 1–2 h | `check_tiny_hmon` 的 `CFXESC` oracle 改「当前 cfx」（基线即红 29 条）；期望按 `DADAO-12 §5.1/§5.3` 派生 |
 | m18-linux-022 | 2026-11-23 20:12 | 3–5 h | 内核异步新模型（mask 归 monitor、src 位 cfxha、一帧多源） |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
@@ -55,6 +54,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-gem5-003 | 2026-11-25 02:52 | `check_tiny_hmon` 的 `CFXESC` oracle 改「当前 cfx（cfx63）」+ monitor 无写入反向断言；29 FAIL→0（213 checks） |
 | m18-linux-012 | 2026-11-25 02:16 | ISS-503 K6 门控五条 finding（C 组 11 条恒真断言上移为真判据；`check-linux-k6` 82/82） |
 | m18-gem5-002 | 2026-11-25 01:12 | gem5 `CFXESC` 投当前 cfx（cg9/无帧路径；`currentCfx()`+`machineFaultToCfx`）；Tiny/Vast 探针与 QEMU 64 B 见证一致 |
 | m18-qemu-001 | 2026-11-25 00:40 | ISS-501 复核（不复现，`gen_sc`/`lrsc_memop` 未改、180 矩阵 0 bad）+ 同址窄 CAS 回归向量（`atomic_rmw` 点14/15）；QEMU 补丁零改动 |
