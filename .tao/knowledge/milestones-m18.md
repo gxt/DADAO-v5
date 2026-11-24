@@ -59,7 +59,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
-| m18-infra-003 | 2026-11-24 11:05 | musl 源树重放（26 patches、musl 0 problem）+ 信号帧复核（sigaction01/open01 PASS；旧 QEMU 配对） |
+| m18-infra-003 | 2026-11-24 11:18 | musl 源树重放（26 patches、musl 0 problem）+ 信号帧复核（sigaction01/open01 PASS；旧 QEMU 配对） |
 | m18-qemu-006 | 2026-11-24 00:31 | QEMU 捕获缓冲修订（去 gating、每次覆盖、escape cg9 ⇒ CFXESC；13+33 证据） |
 | m18-linux-019 | 2026-11-23 22:41 | `k5_syscall_selftest` 锁内 `find_vma`（K5 282/282、S 组 rwsem 0；源码锁断言+注入） |
 | m18-spec-005 | 2026-11-23 22:36 | ADR-0061 R2 规格/活文档（cg9 捕获缓冲、smon handoff、escape 不异步返回；14 文件；63+20 证据） |
