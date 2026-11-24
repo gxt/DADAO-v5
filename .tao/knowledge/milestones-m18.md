@@ -46,7 +46,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-linux-023 | 2026-11-25 05:45 | 4–8 h | Linux `arch/dadao` 按扁平位图解码 PTW 故障（由 M17 迁入；依赖 M17 平台迁移） |
+| m18-linux-023 | 2026-11-25 05:45 | 4–8 h | Linux `arch/dadao` 按扁平位图解码 PTW 故障（QEMU 上验证；不依赖 chipyard） |
 | m18-linux-015 | 2026-11-25 05:05 | 2–3 h | `mlock2`/`MLOCK_ONFAULT` 路径 SIGSEGV（KERNEL_BUG） |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
