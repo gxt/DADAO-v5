@@ -1235,9 +1235,9 @@
   scope:
   - linux
   milestone: M18
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-012（F1 C 组 11 条恒真断言并入 region 判据并注入证红；F2 musl 10 problem 口径与标签订正；F3 翻转计数按实况 S/C/E 各 1 + R 2；F4 证据脚本无孤儿函数；F5 `trap.S` 符号订正为 `dadao_umon_save`）
   title: "【P3】`m18-linux-003` 复核的五条非阻断 finding：F1 `check_k6.py` C 组 11 条「rc 标记是脚本期望的…」在 `region()` 成功分支内恒真（应并入 region 断言）；F2 完成区「musl 18 项」不准（实为 10 problem；18 是证据脚本按非 linux 前缀行的统计，标签 `non-linux problems` 亦失准）；F3 完成区/Process-07 的「5 次翻转（S/C/E/R×2）」与「四组各一次」不符；F4 `run.sh` 有未使用的 `check_absent_lines`；F5 §4a.3 表符号名 `dadao_umon_frame` 应为 `dadao_umon_save`。处置：随下次触碰 K6 门控/文档时修。"
 - id: ISS-504
   scope:

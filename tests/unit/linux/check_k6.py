@@ -565,13 +565,16 @@ def judge_c(rep: Report, text: str, manifest: dict | None = None) -> None:
     rep.stat(f"commands={len(REPRESENTATIVE)} cases={len(COMMANDS)}")
 
     for name, line, outputs, marker in COMMANDS:
+        # The presence check *is* the rc-marker check: `region()` only returns
+        # a body when the echoed command line and a later line carrying the
+        # script's `marker=N` both exist (ISS-503 F1 — the old `marker in text`
+        # line was true by construction inside this branch).
         lines = region(text, line, marker)
+        rep.check(g, f"{name}: 命令行与 rc 标记 {marker} 都出现", True,
+                  lines is not None)
         if lines is None:
-            rep.check(g, f"{name}: 命令与 rc 行都出现", True, False)
             continue
         body = visible(lines)
-        rep.check(g, f"{name}: rc 标记是脚本期望的 {marker}", True,
-                  marker in text)
         if name == "ls-file":
             rep.check(g, "ls 列出刚写的文件 f", True, "f" in body)
         elif name == "ls-empty":
