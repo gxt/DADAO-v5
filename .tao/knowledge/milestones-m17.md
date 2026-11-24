@@ -29,12 +29,12 @@
 | --- | --- | --- |
 | m17-chipyard-001 | 1–2 天 | RTL：扁平位图 + 关闭 `DIV-07`（hypv/Tiny 判权） |
 | m17-linux-001 | 4–8 h | Linux `arch/dadao` 按扁平位图解码 PTW 故障 |
-| m17-testcases-006 | 2–4 h | `stm` 第 5 行注释按寄存器订正 + `immu6=63` 边界用例（stm.b/stm.o） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m17-testcases-006 | 2026-11-24 20:26 | 2–4 h | `stm` 注释按寄存器订正 + `immu6=63` 边界（stm.b/stm.o） |
 | m17-qemu-001 | 2026-11-24 20:22 | 2–4 h | QEMU：`CFXPERM cause_info` 改地址 + 删 `NCFXPERM`/`NONPTW` |
 | m17-gem5-001 | 2026-11-24 20:22 | 2–4 h | gem5：同上 + PTW 位图（按 ADR-0062） |
 | m17-idl-020 | 2026-11-23 08:27 | 4–6 h | cfx 权限轴：`cfxreg`/`cfxexe` + 2 个拒绝路径载体（272→274） |
