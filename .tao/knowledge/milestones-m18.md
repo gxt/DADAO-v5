@@ -52,13 +52,13 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m18-linux-022 | 2026-11-23 20:12 | 3–5 h | 内核异步新模型（mask 归 monitor、src 位 cfxha、一帧多源） |
-| m18-testcases-003 | 2026-11-23 20:12 | 2–3 h | 旧异步探针 094t/050t/042t + `escape` cg9 向量迁新模型 |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-testcases-003 | 2026-11-24 11:35 | 异步探针迁 R2（每次覆盖/monitor mask/一次捕获）+ escape cg9 ⇒ CFXESC 向量（43/44 + 7 注入） |
 | m18-infra-003 | 2026-11-24 11:18 | musl 源树重放（26 patches、musl 0 problem）+ 信号帧复核（sigaction01/open01 PASS；旧 QEMU 配对） |
 | m18-qemu-006 | 2026-11-24 00:31 | QEMU 捕获缓冲修订（去 gating、每次覆盖、escape cg9 ⇒ CFXESC；13+33 证据） |
 | m18-linux-019 | 2026-11-23 22:41 | `k5_syscall_selftest` 锁内 `find_vma`（K5 282/282、S 组 rwsem 0；源码锁断言+注入） |
