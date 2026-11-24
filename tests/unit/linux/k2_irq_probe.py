@@ -35,11 +35,8 @@ self-consistent) /
 P2 masked window + merged re-delivery / P3 nested saves / P4 capture overwrite
 inside the async handler (every entry overwrites cg9; nesting is the software's
 job) and the software copy/return through smon / P5 `arch_irqs_disabled()` versus
-the live register plus the enable-granularity anchor (ISS-457: `enable` ==
-`disable` with only the source bits cleared, **and** the absolute reset-value
-anchors — `enable` == all-ones minus the source bit, `disable` == all-ones —
-because the relative form alone is green once a blanket write has already wiped
-the row earlier in the boot) / U1 hard-IRQ context inside the handler
+the live register and the enable-granularity anchor (ISS-457: enable == disable
+with only the source bits cleared) / U1 hard-IRQ context inside the handler
 (`in_hardirq()` == 1; m14-linux-044) / U2 `sched_clock()` vs `cfx_time` (same
 source, monotone) / U3 a bad user pointer through copy_from_user/copy_to_user is
 fixed up to -EFAULT instead of ending the boot / C9 totals (masked exit).
@@ -174,7 +171,7 @@ class Report:
 def declared_source_bits() -> int:
     """``DADAO_IRQ_SOURCE_BITS`` as asm/irqflags.h spells it."""
     path = SOURCE / IRQFLAGS
-    m = re.search(r"^#define\s+DADAO_IRQ_SOURCE_BITS\s+\(1UL << (\d+)\)",
+    m = re.search(r"^#define\s+DADAO_IRQ_SOURCE_BITS\s+\(\(1UL << (\d+)\)",
                   path.read_text(encoding="utf-8"), re.MULTILINE)
     if not m:
         raise SystemExit(f"k2_irq_probe: {path} has no DADAO_IRQ_SOURCE_BITS")
@@ -243,7 +240,9 @@ def derivation(cfg: str | None = None) -> dict:
     period = freq // hz
     if not period:
         raise SystemExit("k2_irq_probe: freq / CONFIG_HZ is zero")
-    return {"bit": 1 << hart, "hart": hart, "freq": freq, "hz": hz,
+    pmem = k2time.cfxha("cfx_pmem")
+    return {"bit": 1 << hart, "bits": (1 << hart) | (1 << pmem),
+            "hart": hart, "freq": freq, "hz": hz,
             "period": period, "timer": k2time.contract_timer_cause(),
             "config": cfg}
 
@@ -257,6 +256,10 @@ def config() -> int:
     if rc != 0:
         print(f"k2_irq_probe: FAIL: config slice rc={rc}", file=sys.stderr)
         return rc
+    # Kbuild does not always re-evaluate an int Kconfig symbol used in #if;
+    # touch the two files whose compiled case changes with the image.
+    for rel in ("arch/dadao/kernel/irq.c", "arch/dadao/kernel/time.c"):
+        (SOURCE / rel).touch()
     cmd = [sys.executable, str(REPO / "tools" / "linux" / "make_vmlinux.py"),
            f"--jobs={JOBS}", "--skip-code-range"]
     print(f"[INFO] build irq image (JOBS={JOBS})", flush=True)
@@ -335,21 +338,19 @@ IRQ_VEC = re.compile(
     r"^K2 irq: vec cfx_hart_supv_excp_vector=(\S+) want=(\S+) mode=(\d+)$",
     re.MULTILINE)
 IRQ_MASK = re.compile(
-    r"^K2 irq: mask cfx_smon_supv_cfx_intr_mask=(\S+) "
-    r"cfx_hart_supv_cfx_intr_mask=(\S+) cfx_smon_global_cfx_intr_mask=(\S+) "
-    r"cfxha=(\d+) bit=(\S+)$", re.MULTILINE)
+    r"^K2 irq: mask cfx_smon_async_intr_mask=(\S+) "
+    r"cfx_umon_async_intr_mask=(\S+) cfxha=(\d+) bits=(\S+)$",
+    re.MULTILINE)
 ARMED = re.compile(r"^K2 irq: armed ticks period=(\d+)$", re.MULTILINE)
 P1 = re.compile(
-    r"^K2 irq P1: before_smon=(\S+) before_hart=(\S+) flags=(\S+) "
-    r"masked_smon=(\S+) masked_hart=(\S+) restored_smon=(\S+) "
-    r"restored_hart=(\S+)$", re.MULTILINE)
+    r"^K2 irq P1: before_smon=(\S+) flags=(\S+) "
+    r"masked_smon=(\S+) restored_smon=(\S+)$", re.MULTILINE)
 P3 = re.compile(
-    r"^K2 irq P3: before_smon=(\S+) before_hart=(\S+) outer=(\S+) inner=(\S+) "
-    r"inner_smon=(\S+) inner_hart=(\S+) outer_smon=(\S+) outer_hart=(\S+)$",
-    re.MULTILINE)
+    r"^K2 irq P3: before_smon=(\S+) outer=(\S+) inner=(\S+) "
+    r"inner_smon=(\S+) outer_smon=(\S+)$", re.MULTILINE)
 P5 = re.compile(
     r"^K2 irq P5: state=(\w+) flags=(\S+) disabled=(\d+) flags_disabled=(\d+) "
-    r"smon=(\S+) hart=(\S+)$", re.MULTILINE)
+    r"smon=(\S+)$", re.MULTILINE)
 P2_MASKED = re.compile(r"^K2 irq P2: masked ticks=(\d+) ctrl=(\S+) "
                        r"window=(\d+)$", re.MULTILINE)
 P2_RELEASED = re.compile(r"^K2 irq P2: released ticks=(\d+) window=(\d+) "
@@ -376,8 +377,8 @@ STAGES = (
     ("bootinfo", r"^K1 bootinfo magic="),
     ("setup_arch", r"^K2 setup_arch: memblock_add "),
     ("time_init", r"^K2 time_init: freq="),
-    ("irq-vector", r"^K2 irq: vec cfx_hart_supv_excp_vector="),
-    ("irq-mask", r"^K2 irq: mask cfx_smon_supv_cfx_intr_mask="),
+    ("irq-vector", r"^K2 irq: vec cfx_hart_async_excp_vector="),
+    ("irq-mask", r"^K2 irq: mask cfx_smon_async_intr_mask="),
     ("armed", r"^K2 irq: armed ticks period="),
     ("P1", r"^K2 irq P1: "),
     ("P3", r"^K2 irq P3: "),
@@ -492,14 +493,14 @@ def check_mask_axes(rep: Report, text: str, d: dict) -> None:
     if not m:
         rep.check("C1", "两轴 mask 行存在", "存在", "缺失")
         return
-    smon, hart, glob = ints(m.group(1, 2, 3))
-    bit = d["bit"]
-    rep.check("C1", "源轴 cfx_smon 行已放开该位（运行模式 monitor 行，§5.2 step 3）",
-              0, smon & bit)
-    rep.check("C1", "cfx_hart 行未被内核写过（仍是复位值，该位屏蔽，ISS-455）",
-              bit, hart & bit)
-    rep.check("C1", "全局轴已放开该位（帧内由硬件接管，不是旋钮）", 0, glob & bit)
-    rep.check("C1", "mask 位 = 目标 cfxha", bit, int(m.group(5), 0))
+    smon, umon = ints(m.group(1, 2))
+    bit, bits = d["bit"], d["bits"]
+    rep.check("C1", "cfx_smon 行已放开源位（运行模式 monitor 行）", 0,
+              smon & bits)
+    rep.check("C1", "cfx_umon 行已放开源位（用户抢占策略）", 0, umon & bits)
+    rep.check("C1", "mask 位包含 TIMER 的源 cfxha", True, bool(int(m.group(4), 0) & bit))
+    rep.check("C1", "mask 位索引 = 源 cfxha（TIMER 15 / PMEM_DMA 32）", bits,
+              int(m.group(4), 0))
 
 
 # ---------------------------------------------------------------------------
@@ -511,31 +512,18 @@ def check_p1(rep: Report, text: str, d: dict) -> None:
     if not m:
         rep.check("P1", "P1 行存在", "存在", "缺失")
         return
-    before_smon, before_hart, flags, masked_smon, masked_hart, rest_smon, \
-        rest_hart = ints(m.groups())
-    bit = d["bit"]
-    # Absolute anchor (ISS-457): contract-see §3 pins `cfx_intr_mask`'s reset
-    # value to all-ones and the kernel's single knob only ever clears the source
-    # bits it owns, so the saved word must be exactly "all-ones minus that bit".
-    # A truncated save stays self-consistent everywhere else — including the row
-    # `init_IRQ` prints, because start_kernel's own `local_irq_*` calls run
-    # through the same save and have already written the truncated word back
-    # (measured) — so the reset value is the only anchor left.
+    before, flags, masked, rest = ints(m.groups())
+    bits = d["bits"]
     all_ones = (1 << 64) - 1
+    # Absolute anchor (ISS-457): the reset value is all-ones and the kernel
+    # only clears the source bits it owns (TIMER 15, PMEM_DMA 32).
     rep.check("P1", "save 的整字 == 复位全 1 只清源位（64 位，高位参与）",
-              all_ones & ~bit, before_smon)
-    rep.check("P1", "before: cfx_hart 行的源位仍屏蔽（内核从未写过它）", bit,
-              before_hart & bit)
-    rep.check("P1", "save 后 cfx_smon 行置位源位", before_smon | bit,
-              masked_smon)
-    rep.check("P1", "save 返回的是保存前的整字", before_smon, flags)
-    rep.check("P1", "save 没有写 cfx_hart 行（值不变）", before_hart, masked_hart)
-    rep.check("P1", "restore 后 cfx_smon 逐位等于保存值", flags, rest_smon)
+              all_ones & ~bits, before)
+    rep.check("P1", "save 后 cfx_smon 行置位源位", before | bits, masked)
+    rep.check("P1", "save 返回的是保存前的整字", before, flags)
+    rep.check("P1", "restore 后 cfx_smon 逐位等于保存值", flags, rest)
     rep.check("P1", "restore 后整字 == 复位全 1 只清源位（逐位复原的绝对锚点）",
-              all_ones & ~bit, rest_smon)
-    rep.check("P1", "restore 后 cfx_smon 回到保存前", before_smon, rest_smon)
-    rep.check("P1", "restore 后 cfx_hart 行仍不变（旋钮只写 monitor 行）",
-              before_hart, rest_hart)
+              all_ones & ~bits, rest)
 
 
 def check_p3(rep: Report, text: str, d: dict) -> None:
@@ -543,78 +531,61 @@ def check_p3(rep: Report, text: str, d: dict) -> None:
     if not m:
         rep.check("P3", "P3 行存在", "存在", "缺失")
         return
-    before_smon, before_hart, outer, inner, inner_smon, inner_hart, \
-        outer_smon, outer_hart = ints(m.groups())
-    bit = d["bit"]
-    rep.check("P3", "外层 save 返回保存前的整字", before_smon, outer)
-    rep.check("P3", "内层 save 返回外层值 | 源位", outer | bit, inner)
+    before, outer, inner, inner_smon, outer_smon = ints(m.groups())
+    bits = d["bits"]
+    rep.check("P3", "外层 save 返回保存前的整字", before, outer)
+    rep.check("P3", "内层 save 返回外层值 | 源位", outer | bits, inner)
     rep.check("P3", "内层 restore 后 cfx_smon 仍屏蔽（外层未恢复）", inner,
               inner_smon)
-    rep.check("P3", "内层 restore 后 cfx_hart 行仍不变", before_hart, inner_hart)
-    rep.check("P3", "外层 restore 后 cfx_smon 回到最初", before_smon, outer_smon)
-    rep.check("P3", "外层 restore 后 cfx_hart 行仍不变", before_hart, outer_hart)
+    rep.check("P3", "外层 restore 后 cfx_smon 回到最初", before, outer_smon)
     rep.check("P3", "源位在最终状态是放开的（嵌套没有泄漏成屏蔽）", 0,
-              outer_smon & bit)
+              outer_smon & bits)
 
 
 P5_STATES = ("disable", "enable", "save", "restore")
 
 
 def check_p5(rep: Report, text: str, d: dict) -> None:
-    bit = d["bit"]
+    bits = d["bits"]
     rows = {}
-    for state, flags, disabled, flags_disabled, smon, hart in P5.findall(text):
+    for state, flags, disabled, flags_disabled, smon in P5.findall(text):
         rows[state] = (int(flags, 0), int(disabled), int(flags_disabled),
-                       int(smon, 0), int(hart, 0))
+                       int(smon, 0))
     rep.check("P5", "四个状态各一行", sorted(P5_STATES), sorted(rows))
     if sorted(rows) != sorted(P5_STATES):
         return
     for state in P5_STATES:
-        flags, disabled, flags_disabled, smon, hart = rows[state]
-        live = 1 if (smon & bit) else 0
+        flags, disabled, flags_disabled, smon = rows[state]
+        live = 1 if (smon & bits) else 0
         rep.check("P5", f"{state}: arch_irqs_disabled() == 现场 cfx_smon 位", live,
                   disabled)
         rep.check("P5", f"{state}: arch_irqs_disabled_flags(flags) == 位与结果",
-                  1 if (flags & bit) else 0, flags_disabled)
-        rep.check("P5", f"{state}: cfx_hart 行的源位仍屏蔽（旋钮不写它）", bit,
-                  hart & bit)
-    # The witness that the delivered cfx's row is never written: it holds one
-    # value across all four states.
-    rep.check("P5", "cfx_hart 行四态恒定（旋钮只写 monitor 行）", 1,
-              len({rows[state][4] for state in P5_STATES}))
-    # The three saved/live pairs have to differ, otherwise the "3 mask states"
-    # claim would be vacuous.
+                  1 if (flags & bits) else 0, flags_disabled)
     rep.check("P5", "disable 与 enable 的现场值不同", True,
               rows["disable"][3] != rows["enable"][3])
     rep.check("P5", "save 返回的字与现场寄存器不同（保存值 != 现场值）", True,
               rows["save"][0] != rows["save"][3])
-    rep.check("P5", "save 返回的字 == 现场寄存器清掉源位", rows["save"][3] & ~bit,
+    rep.check("P5", "save 返回的字 == 现场寄存器清掉源位", rows["save"][3] & ~bits,
               rows["save"][0])
     rep.check("P5", "restore 后 flags == 现场 cfx_smon 行", rows["restore"][3],
               rows["restore"][0])
-    # Granularity anchor (ISS-457): `enable` may only clear the source bits; a
-    # blanket write of 0 would also discard a policy the kernel does not own, and
-    # every other P5 assertion stays green under it.
+    rep.check("P5", "restore 后现场源位放开", 0, rows["restore"][3] & bits)
+    # Granularity anchor (ISS-457, m18-linux-008): `enable` may only clear the
+    # source bits; a blanket write of 0 would also discard policy the kernel does
+    # not own, and every relative assertion above stays green under it.
     rep.check("P5", "enable == disable 清掉源位（其余位保持）",
-              rows["disable"][3] & ~bit, rows["enable"][3])
-    # Absolute anchors (ISS-457, m18-linux-008): the *relative* form above is
-    # green under a blanket "write 0" as soon as the row's other policy bits
-    # were already wiped earlier in the same boot — which is exactly what the
-    # blanket write does at `start_kernel`'s own `local_irq_enable()` calls
-    # (measured with the `enable-write-zero` injection: `disable=0x8000`,
-    # `enable=0x0` ⇒ the relative anchor compares 0 == 0).  The contract's reset
-    # value is the only invariant that survives: the kernel clears its own
-    # source bits and nothing else, so outside `bit` the word stays all-ones.
+              rows["disable"][3] & ~bits, rows["enable"][3])
+    # Absolute anchors (ISS-457, m18-linux-008): the relative form is green under
+    # a blanket "write 0" as soon as the row's other policy bits were already
+    # wiped earlier in the same boot.  The monitor row's contract reset value is
+    # the only invariant that survives: the kernel clears its own source bits and
+    # nothing else, so outside `bits` the word stays all-ones.
     all_ones = (1 << 64) - 1
     rep.check("P5", "enable 的整字 == 复位全 1 只清源位（绝对锚点，ISS-457）",
-              all_ones & ~bit, rows["enable"][3])
+              all_ones & ~bits, rows["enable"][3])
     rep.check("P5", "disable 的整字 == 复位全 1（绝对锚点，ISS-457）",
               all_ones, rows["disable"][3])
 
-
-# ---------------------------------------------------------------------------
-# P2: the masked window and its single merged delivery
-# ---------------------------------------------------------------------------
 
 def check_p2(rep: Report, text: str, d: dict) -> None:
     period = d["period"]
@@ -892,9 +863,9 @@ INJECTIONS: dict[str, tuple] = {
         [(("static inline void arch_local_irq_restore(unsigned long flags)\n"
            "{\n\tdadao_irq_mask_row_write(flags);\n}\n"),
           ("static inline void arch_local_irq_restore(unsigned long flags)\n"
-           "{\n\t(void)flags;\n\tdadao_irq_mask_row_write(0UL);\t"
-           "/* injected */\n}\n"))],
-        0, r"^K2 irq: done ticks=", None, ("P3",),
+           "{\n\tdadao_irq_mask_row_write(flags | DADAO_IRQ_SOURCE_BITS);\t"
+           "/* injected: restore never re-opens */\n}\n"))],
+        0x15, r"^K2 fail: irq test: P4 sequence code=0x15$", None, ("P3",),
     ),
     # ①b `restore` writes only the low 32 bits of the saved word: the round trip
     #    stops being bit-identical to the save, which is precisely what P1's
@@ -917,9 +888,9 @@ INJECTIONS: dict[str, tuple] = {
     #    kernel gets a named `CFXREG` instead of reaching its boot marker.
     "knob-on-global": (
         IRQFLAGS,
-        [(("#define DADAO_IRQ_CG_SUPV\t\t2\t/* supv row, spec/DADAO-12 §3.3 */\n"
-           "#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK\t4\n"),
-          ("#define DADAO_IRQ_CG_SUPV\t\t8\t/* injected: global row */\n"
+        [(("#define DADAO_IRQ_CG_SUPV\t\t8\t/* cfx_smon_async_intr_mask */\n"
+           "#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK\t1\n"),
+          ("#define DADAO_IRQ_CG_SUPV\t\t9\t/* injected: nonexistent row */\n"
            "#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK\t1\n"))],
         ("monitor", "supv", "CFXREG"),
         r"^dadao: unrecoverable supv exception cause=CFXREG", r"^K2 irq: done",
@@ -929,10 +900,7 @@ INJECTIONS: dict[str, tuple] = {
     "flags-is-zero": (
         IRQFLAGS,
         [(("static inline int arch_irqs_disabled_flags(unsigned long flags)\n"
-           "{\n\t/* \"does this knob value block a source the kernel cares about\" — a bit\n"
-           "\t * test, not `flags == 0` (the mask is all-1 at reset, so zero means\n"
-           "\t * something else). */\n"
-           "\treturn (flags & DADAO_IRQ_SOURCE_BITS) != 0;\n}\n"),
+           "{\n\treturn (flags & DADAO_IRQ_SOURCE_BITS) != 0;\n}\n"),
           ("static inline int arch_irqs_disabled_flags(unsigned long flags)\n"
            "{\n\treturn flags == 0;\t/* injected */\n}\n"))],
         0, r"^K2 irq: done ticks=", None, ("P5",),
@@ -967,8 +935,8 @@ INJECTIONS: dict[str, tuple] = {
           ("\tunsigned long flags = dadao_irq_mask_row_smon();\n"
            "\n"
            "\tdadao_irq_mask_row_write(flags | DADAO_IRQ_SOURCE_BITS);\n"
-           "\treturn flags & 0xffffffffUL;\t"
-           "/* injected: high half dropped */\n"))],
+           "\treturn flags & ~0x1UL;\t"
+           "/* injected: bit 0 dropped */\n"))],
         0, r"^K2 irq: done ticks=", None, ("P1",),
     ),
     # ⑦ `enable` writes 0 instead of clearing only the source bits (ISS-457):
@@ -980,8 +948,9 @@ INJECTIONS: dict[str, tuple] = {
            "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK,\n"
            "\t\t\tdadao_irq_mask_row_smon() & ~DADAO_IRQ_SOURCE_BITS);\n"),
           ("\tDADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,\n"
-           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, 0UL);\t/* injected */\n"))],
-        0, r"^K2 irq: done ticks=", None, ("P5",),
+           "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK,\n"
+           "\t\t\tdadao_irq_mask_row_smon());\t/* injected: stays masked */\n"))],
+        0x15, r"^K2 fail: irq test: P4 sequence code=0x15$", None, ("P5",),
     ),
     # ⑤ cfx_hart's row left alone: since m14-linux-010 that is the *shipped*
     #    state, so the "does the kernel still write a second row" direction is
@@ -995,11 +964,11 @@ INJECTIONS: dict[str, tuple] = {
     #    reachable FAIL and touches nothing else.
     "no-irq-enter": (
         TIME_C,
-        [(("\tflags = arch_local_save_flags();\n\tirq_enter_rcu();\n"),
-          ("\tflags = arch_local_save_flags();\t"
+        [(("\tdadao_in_frame = 1;\n\tirq_enter_rcu();\n"),
+          ("\tdadao_in_frame = 1;\t"
            "/* injected: no irq_enter_rcu */\n")),
-         (("\tdadao_timer_interrupt();\n\tirq_exit_rcu();\n"),
-          ("\tdadao_timer_interrupt();\t"
+         (("\tset_irq_regs(old_regs);\n\tirq_exit_rcu();\n"),
+          ("\tset_irq_regs(old_regs);\t"
            "/* injected: no irq_exit_rcu */\n"))],
         0, r"^K2 irq U1: inframe=1 in_hardirq=0 ", None, ("U1",),
     ),

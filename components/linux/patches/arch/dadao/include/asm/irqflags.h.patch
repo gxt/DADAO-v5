@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/irqflags.h b/arch/dadao/include/asm/irqflags.h
 new file mode 100644
-index 000000000..9413e51c5
+index 000000000..54b8b019b
 --- /dev/null
 +++ b/arch/dadao/include/asm/irqflags.h
-@@ -0,0 +1,172 @@
+@@ -0,0 +1,110 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_IRQFLAGS_H
 +#define __ASM_IRQFLAGS_H
@@ -13,70 +13,44 @@ index 000000000..9413e51c5
 +#include <asm/cfx.h>
 +
 +/*
-+ * DADAO has no interrupt-enable state bit (spec/DADAO-12 §3.1/§3.3): the only
-+ * gates in front of an asynchronous source are the two source-mask levels —
++ * DADAO has no interrupt-enable state bit.  ADR-0061 R2 leaves exactly one
++ * asynchronous gate: the **running mode monitor's** `cg8 rc1`
++ * (`cfx_<monitor>_async_intr_mask`, DADAO-12 §4.1-§4.4/§5.4).  The bit index is
++ * the *source cfxha* (`TIMER` = 15, `PMEM_DMA` = 32), `0 = allow`, `1 = mask`,
++ * and the reset value is all ones.
 + *
-+ *   per-cfx   <mode>_cfx_intr_mask       `cg2 rc4` in supv (contract-see §3)
-+ *   per-mode  global_cfx_intr_mask       `cg8 rc1` of the mode monitor (cfx0-3)
++ * The kernel runs in `supv`, so its software IE knob is `cfx_smon`'s
++ * `cg8 rc1`.  A user task runs against `cfx_umon`'s same row; whether a user
++ * context may be preempted is a scheduling policy, set at init and around the
++ * mode switch (kernel/process.c).  This header owns only the kernel row.
 + *
-+ * both indexed by the *target cfxha* and both "0 = allow, 1 = mask".
-+ *
-+ * The knob is the **running mode monitor's** `<mode>_cfx_intr_mask` row
-+ * (spec/DADAO-12 §5.2(三) step 3, user ruling ISS-455): the kernel runs in
-+ * `supv`, so the row is `cfx_smon`'s `cg2 rc4`.  Which register the knob writes
-+ * follows from the *run mode* alone — it is not derived from "which cfx is
-+ * current".
-+ *
-+ * `global_cfx_intr_mask` is not usable as the software knob: the hardware saves
-+ * it when a frame is established, sets it all-1, and restores it on `escape`
-+ * (contract-see §6.3/§6.4, ADR-0045 D9), so a software write-back would collide
-+ * with the frame's own save/restore.  It stays a one-time mode-level release
-+ * owned by init_IRQ().
-+ *
-+ * m14-linux-008 also wrote `cfx_hart`'s row, justified by "after the first
-+ * delivery the current cfx is cfx_hart".  ISS-454 retired that reason: `escape`
-+ * restores only the run mode and never `inner_cfx_code` (spec/DADAO-12 §5.3),
-+ * so the current cfx indeed stays at the target — but the run mode is still
-+ * `supv`, so the monitor row is still the one the filter consults, and writing
-+ * the delivered cfx's row only obscured the reading it was meant to support.
-+ * The knob writes one row (m14-linux-010).
++ * `flags` is the whole 64-bit mask word: the mask register *is* the state,
++ * there is no separate IE bit to pack, and a whole-word save/restore is
++ * bit-identical.  Nesting is plain value passing.
 + */
-+#define DADAO_IRQ_CG_SUPV		2	/* supv row, spec/DADAO-12 §3.3 */
-+#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK	4
-+/*
-+ * The same row of the *user* mode monitor (m14-linux-045).  A delivery is
-+ * filtered by the running mode's rows (spec/DADAO-12 §5.2(三) step 3), so while
-+ * a task runs in user mode the source mask that matters is `cfx_umon`'s `cg0
-+ * rc4`, and the mode-level gate is its `cg8 rc1`.  Both are all-1 at reset.
-+ */
-+#define DADAO_IRQ_CG_USER		0
-+#define DADAO_IRQ_RC_USER_CFX_INTR_MASK	4
-+#define DADAO_IRQ_CG_GLOBAL		8
-+#define DADAO_IRQ_RC_GLOBAL_CFX_INTR_MASK 1
++#define DADAO_IRQ_CG_SUPV		8	/* cfx_smon_async_intr_mask */
++#define DADAO_IRQ_RC_SUPV_CFX_INTR_MASK	1
++#define DADAO_IRQ_CG_USER		8	/* cfx_umon_async_intr_mask */
++#define DADAO_IRQ_RC_USER_CFX_INTR_MASK	1
 +
 +/*
-+ * The sources this kernel cares about: one mask bit per *target cfxha*, not per
-+ * cause id (contract-see §6.4 names the two numbering schemes explicitly).  K2
-+ * enables exactly one source — `TIMER` (`1 << 10`) is delivered to `cfx_hart`,
-+ * cfxha 15 (contracts/cfx-aliases.txt) — so the knob owns bit 15.  This is the
-+ * single definition; no other site may spell the bit out.
++ * The sources this kernel owns: one mask bit per *source cfxha* (ADR-0061 D2).
++ * `TIMER` is cfx_hart (15), `PMEM_DMA` is cfx_pmem (32).  This is the single
++ * definition; no other site spells the bits out.
 + */
-+#define DADAO_IRQ_SOURCE_BITS		(1UL << 15)
++#define DADAO_IRQ_SOURCE_BITS		((1UL << 15) | (1UL << 32))
 +
-+/* Raw row access.  Two one-liners so a probe image can read the physical
-+ * registers back (`cfx2rd`) instead of trusting a recorded shadow.  Only the
-+ * `smon` row is written below; the `hart` reader exists so the probe can show
-+ * that the delivered cfx's row is not touched at all. */
++/* Physical row access: the probe images read these back with `cfx2rd`. */
 +static inline unsigned long dadao_irq_mask_row_smon(void)
 +{
 +	return DADAO_CFX_READ(cfx_smon, DADAO_IRQ_CG_SUPV,
 +			      DADAO_IRQ_RC_SUPV_CFX_INTR_MASK);
 +}
 +
-+static inline unsigned long dadao_irq_mask_row_hart(void)
++static inline unsigned long dadao_irq_mask_row_umon(void)
 +{
-+	return DADAO_CFX_READ(cfx_hart, DADAO_IRQ_CG_SUPV,
-+			      DADAO_IRQ_RC_SUPV_CFX_INTR_MASK);
++	return DADAO_CFX_READ(cfx_umon, DADAO_IRQ_CG_USER,
++			      DADAO_IRQ_RC_USER_CFX_INTR_MASK);
 +}
 +
 +static inline void dadao_irq_mask_row_write(unsigned long value)
@@ -85,34 +59,11 @@ index 000000000..9413e51c5
 +			DADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);
 +}
 +
-+/*
-+ * `flags` is the whole 64-bit `cg2 rc4` value (task m14-linux-008 ruling 1):
-+ * the mask register IS the state, there is no separate IE bit to pack, and a
-+ * whole-word save needs no field layout that would have to change when a
-+ * second source (or a second mask register) appears.  The assumption to revisit
-+ * then is stated here on purpose: `restore` writes this one word back to the
-+ * one row the run mode selects.
-+ */
-+
 +static inline unsigned long arch_local_save_flags(void)
 +{
 +	return dadao_irq_mask_row_smon();
 +}
 +
-+/*
-+ * Mask every source this kernel cares about and return the previous knob value.
-+ *
-+ * Round trip: `arch_local_irq_restore(arch_local_irq_save())` writes `flags`
-+ * back to the same row, so afterwards it reads *bit-identically* what it read
-+ * before — not merely "the same masked state".  Nesting is therefore plain
-+ * value passing: an inner save records `flags | DADAO_IRQ_SOURCE_BITS`, and
-+ * only the outer restore re-enables.
-+ *
-+ * A masked source is not lost: the event is still recorded in the *target*
-+ * cfx's `cg5 rc5` pending bit and the hardware re-kicks it after a mask write /
-+ * `escape` (contract-see §3/§6.4).  This header keeps no software pending
-+ * bitmap, and it must not grow one.
-+ */
 +static inline unsigned long arch_local_irq_save(void)
 +{
 +	unsigned long flags = dadao_irq_mask_row_smon();
@@ -133,10 +84,8 @@ index 000000000..9413e51c5
 +
 +/*
 + * Enable: clear the kernel's source bits only, keeping every other bit the row
-+ * already carried (task ruling 2) — a blanket "write 0" would also discard a
-+ * source policy this kernel does not own (firmware, later K4 source
-+ * management).  The row is a physical read-modify-write, so the result stays
-+ * observable with `cfx2rd`.
++ * already carried.  The row is a physical read-modify-write, so the result
++ * stays observable with `cfx2rd`.
 + */
 +static inline void arch_local_irq_enable(void)
 +{
@@ -147,9 +96,6 @@ index 000000000..9413e51c5
 +
 +static inline int arch_irqs_disabled_flags(unsigned long flags)
 +{
-+	/* "does this knob value block a source the kernel cares about" — a bit
-+	 * test, not `flags == 0` (the mask is all-1 at reset, so zero means
-+	 * something else). */
 +	return (flags & DADAO_IRQ_SOURCE_BITS) != 0;
 +}
 +
@@ -157,14 +103,6 @@ index 000000000..9413e51c5
 +{
 +	return arch_irqs_disabled_flags(arch_local_save_flags());
 +}
-+
-+/*
-+ * Boundary (task ruling 3): the frame rewrite that precedes `escape` is *not*
-+ * wrapped in a critical section.  `escape` is a control transfer, not an
-+ * interruptible point, and a live frame is already protected by the hardware's
-+ * all-1 `global_cfx_intr_mask` (contract-see §6.3); masking around it would
-+ * only describe a race that the frame itself excludes.
-+ */
 +
 +#define arch_local_irq_save	arch_local_irq_save
 +#define arch_local_irq_restore	arch_local_irq_restore

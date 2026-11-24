@@ -283,6 +283,10 @@ def config(image: str) -> int:
         print(f"k2_time_probe: FAIL: config slice for {image} rc={rc}",
               file=sys.stderr)
         return rc
+    # Kbuild does not always re-evaluate an int Kconfig symbol used in #if;
+    # touch the two files whose compiled case changes with the image.
+    for rel in ("arch/dadao/kernel/irq.c", "arch/dadao/kernel/time.c"):
+        (SOURCE / rel).touch()
     cmd = [sys.executable, str(_REPO / "tools" / "linux" / "make_vmlinux.py"),
            f"--jobs={JOBS}", "--skip-code-range"]
     print(f"[INFO] build {image} image (JOBS={JOBS})", flush=True)
@@ -352,12 +356,12 @@ TIME_INIT = re.compile(
     r"^K2 time_init: freq=(\d+) hz=(\d+) period=(\d+) n_ticks=(\d+) "
     r"first=(\d+)$", re.MULTILINE)
 IRQ_VEC = re.compile(
-    r"^K2 irq: vec cfx_hart_supv_excp_vector=(\S+) want=(\S+) mode=(\d+)$",
+    r"^K2 irq: vec cfx_hart_async_excp_vector=(\S+) want=(\S+) mode=(\d+)$",
     re.MULTILINE)
 IRQ_MASK = re.compile(
-    r"^K2 irq: mask cfx_smon_supv_cfx_intr_mask=(\S+) "
-    r"cfx_hart_supv_cfx_intr_mask=(\S+) cfx_smon_global_cfx_intr_mask=(\S+) "
-    r"cfxha=(\d+) bit=(\S+)$", re.MULTILINE)
+    r"^K2 irq: mask cfx_smon_async_intr_mask=(\S+) "
+    r"cfx_umon_async_intr_mask=(\S+) cfxha=(\d+) bits=(\S+)$",
+    re.MULTILINE)
 TICK = re.compile(r"^K2 tick (\d+): time=(\d+) jiffies=(\d+)$", re.MULTILINE)
 SUMMARY = re.compile(r"^K2 time: ticks=(\d+) jiffies_delta=(\d+)$", re.MULTILINE)
 AFTER_STOP = re.compile(r"^K2 time: after stop ticks=(\d+) window=(\d+)$",
@@ -369,6 +373,8 @@ IMASK_RELEASED = re.compile(r"^K2 imask: released ctrl=(\S+) ticks=(\d+)$",
                             re.MULTILINE)
 AXIS = re.compile(r"^K2 axistest: axis=(\w+) ticks=(\d+) window=(\d+)$",
                   re.MULTILINE)
+AXIS_CLOSE = re.compile(
+    r"^K2 axisclose: axis=(\w+) smon=(\S+) umon=(\S+)$", re.MULTILINE)
 
 STAGE_ANCHORS = (
     ("bootinfo", r"^K1 bootinfo magic="),
@@ -380,8 +386,8 @@ STAGE_ANCHORS = (
     ("table-done", r"^K1 ptw done: running on the kernel-built table$"),
     ("setup_arch", r"^K2 setup_arch: memblock_add "),
     ("time_init", r"^K2 time_init: freq="),
-    ("irq-vector", r"^K2 irq: vec cfx_hart_supv_excp_vector="),
-    ("irq-mask", r"^K2 irq: mask cfx_smon_supv_cfx_intr_mask="),
+    ("irq-vector", r"^K2 irq: vec cfx_hart_async_excp_vector="),
+    ("irq-mask", r"^K2 irq: mask cfx_smon_async_intr_mask="),
     ("arm", r"^K2 time: arm period="),
     ("ticks", r"^K2 tick 1: time="),
     ("summary", r"^K2 time: ticks="),
@@ -460,32 +466,30 @@ def check_vector_and_masks(rep: Report, text: str, syms: dict,
         rep.check("C1", "异步向量安装行存在", "存在", "缺失")
     else:
         readback, want, mode = m.group(1), m.group(2), int(m.group(3))
-        rep.check("C1", "cfx_hart 向量读回 == 写入（含 4 字节对齐）", want,
+        rep.check("C1", "cfx_hart cg9 向量读回 == 写入（含 4 字节对齐）", want,
                   readback)
         rep.check("C1", "写入值 == dadao_async_excp 符号",
                   hex(syms["dadao_async_excp"]), want)
-        rep.check("C1", "cfx_hart supv switch_run_mode == supv(2)", 2, mode)
+        rep.check("C1", "cfx_hart async switch_run_mode == supv(2)", 2, mode)
 
     m = IRQ_MASK.search(text)
     if not m:
-        rep.check("C1", "两轴 mask 行存在", "存在", "缺失")
+        rep.check("C1", "monitor mask 行存在", "存在", "缺失")
         return
-    smon, hart_row, global_row = ints(m.group(1, 2, 3))
-    printed_ha, printed_bit = int(m.group(4)), int(m.group(5), 0)
+    smon, umon = ints(m.group(1, 2))
+    printed_ha, printed_bits = int(m.group(3)), int(m.group(4), 0)
     bit = 1 << hart
     rep.check("C7", "cfxha 现场读自 cg4 rc0 == 别名表的 cfx_hart", hart,
               printed_ha)
-    rep.check("C7", "mask 位 = 源 cfxha（异步无独立 cause id）", bit,
-              printed_bit)
+    rep.check("C7", "mask 位 = 源 cfxha（异步无独立 cause id）", True,
+              bool(printed_bits & bit))
     rep.check("C7", "mask 位 == TIMER 源位（只有一套编号）", True,
-              printed_bit == cause_id)
-    rep.check("C7", "源轴 cfx_smon 行已放开该位（运行模式 monitor 行）", 0,
+              bool(printed_bits & cause_id))
+    rep.check("C7", "mask 在运行模式 monitor（cfx_smon 行已放开该位）", 0,
               smon & bit)
-    rep.check("C7", "源轴 cfx_hart 行未被写（复位值，该位屏蔽，ISS-455）", bit,
-              hart_row & bit)
-    rep.check("C7", "全局轴 cfx_smon 行已放开该位", 0, global_row & bit)
-    rep.stat(f"masks: smon_supv={smon:#x} hart_supv={hart_row:#x} "
-             f"global={global_row:#x} bit={bit:#x}")
+    rep.check("C7", "用户模式 monitor 行也已放开该位（可抢占用户态）", 0,
+              umon & bit)
+    rep.stat(f"masks: smon={smon:#x} umon={umon:#x} bits={printed_bits:#x}")
 
 
 def check_series(rep: Report, text: str, base: dict) -> None:
@@ -581,7 +585,7 @@ def check_image(name: str, rc: int, text: str, cmd: list[str], rep: Report,
     cfxha("cfx_time")
     cause_id = contract_timer_cause()
 
-    if name == "source" or name == "global":
+    if name == "source":
         check_axis(rep, name, text, case)
         return {}
 
@@ -622,7 +626,7 @@ def check_imask(rep: Report, text: str) -> None:
 
 
 def check_axis(rep: Report, name: str, text: str, case: int) -> None:
-    """C7: closing exactly one axis blocks delivery on its own."""
+    """C7: only the running mode monitor's row gates a kernel delivery."""
     m = AXIS.search(text)
     if not m:
         rep.check("C7", f"{name} 轴测试行存在", "存在", "缺失")
@@ -631,29 +635,19 @@ def check_axis(rep: Report, name: str, text: str, case: int) -> None:
     base = TIME_INIT.search(text)
     period = (int(base.group(1)) // int(base.group(2))) if base else 0
     rep.check("C7", f"{name} 镜像报告的轴 == case 选择", name, axis)
-    rep.check("C7", f"{name} 镜像：该轴关闭 ⇒ 无 tick", 0, ticks)
+    rep.check("C7", f"{name} 镜像：supv 行仍屏蔽 ⇒ 无 tick", 0, ticks)
     rep.check("C7", f"{name} 镜像：等待窗 >= 2 个 period（现场派生）", True,
               bool(period) and window >= 2 * period)
 
-    mask = IRQ_MASK.search(text)
-    if not mask:
-        rep.check("C7", f"{name} 镜像 mask 行存在", "存在", "缺失")
+    cm = AXIS_CLOSE.search(text)
+    if not cm:
+        rep.check("C7", f"{name} 镜像 axisclose 行存在", "存在", "缺失")
         return
-    smon, hart_row, global_row = ints(mask.group(1, 2, 3))
+    smon, umon = ints(cm.group(2, 3))
     bit = 1 << cfxha("cfx_hart")
-    # `cfx_hart`'s row is never written by the kernel (m14-linux-010): it keeps
-    # the contract's reset all-ones value, so its bit stays masked in both
-    # images and says nothing about which axis the case closed.
-    rep.check("C7", f"{name} 镜像：cfx_hart 行未被写（复位值，该位屏蔽）", bit,
-              hart_row & bit)
-    if name == "source":
-        rep.check("C7", "source 镜像：源轴（monitor 行）仍屏蔽", bit, smon & bit)
-        rep.check("C7", "source 镜像：全局轴已放开（只关了一轴）", 0,
-                  global_row & bit)
-    else:
-        rep.check("C7", "global 镜像：全局轴仍屏蔽", bit, global_row & bit)
-        rep.check("C7", "global 镜像：源轴（monitor 行）已放开（只关了一轴）", 0,
-                  smon & bit)
+    rep.check("C7", "source 镜像：supv 行仍屏蔽", bit, smon & bit)
+    rep.check("C7", "source 镜像：用户行已放开（不是它门控内核投递）", 0,
+              umon & bit)
 
 
 def knob_rows_written() -> tuple[bool, bool]:
@@ -705,10 +699,10 @@ def check_single_row(rep: Report, rc: int, text: str, hart: int) -> None:
     if not m:
         rep.check("C10", "single-row mask 行存在", "存在", "缺失")
         return
-    smon, hart_row, _global = ints(m.group(1, 2, 3))
-    rep.check("C10", "single-row：源轴只剩 cfx_smon 行放开该位", 0, smon & bit)
-    rep.check("C10", "single-row：cfx_hart 行仍是复位值（该位屏蔽）", True,
-              bool(hart_row & bit))
+    smon, umon = ints(m.group(1, 2))
+    rep.check("C10", "single-row：cfx_smon 行放开该位", 0, smon & bit)
+    rep.check("C10", "single-row：cfx_umon 行也放开该位（用户抢占策略）", 0,
+              umon & bit)
     declared = declared_ticks()
     rep.check("C10", "single-row：tick 行数 == 内核声明（首投后仍持续投递）",
               declared, len(TICK.findall(text)))
@@ -982,43 +976,30 @@ INJECTIONS: dict[str, tuple] = {
     #    first delivered tick executes at address 0 instead of the kernel.
     "vector-to-smon": (
         "time",
-        [(("\tDADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_SUPV,\n"
-           "\t\t\tCFX_HART_RC_SUPV_EXCP_VECTOR, vec);\n"),
-          ("\tDADAO_CFX_WRITE(cfx_smon, CFX_HART_CG_SUPV,\n"
-           "\t\t\tCFX_HART_RC_SUPV_EXCP_VECTOR, vec);\t/* injected */\n")),
-         (("\tvread = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_SUPV,\n"
-           "\t\t\t       CFX_HART_RC_SUPV_EXCP_VECTOR);\n"),
-          ("\tvread = DADAO_CFX_READ(cfx_smon, CFX_HART_CG_SUPV,\n"
-           "\t\t\t       CFX_HART_RC_SUPV_EXCP_VECTOR);\t/* injected */\n"))],
-        # cfx_hart keeps its reset vector, and writing cfx_smon's spv row also
-        # overwrites the *synchronous* vector, so the first delivery loops in
-        # CFXESC: the machine never returns and no tick is ever accounted.
-        124, r"^K2 time: arm period=", r"^K2 (tick 1:|time: done)", ("C1", "C3"),
-        30,
+        [(("\tDADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_ASYNC,\n"
+           "\t\t\tCFX_HART_RC_ASYNC_VECTOR, vec);\n"),
+          ("\tDADAO_CFX_WRITE(cfx_smon, CFX_HART_CG_ASYNC,\n"
+           "\t\t\tCFX_HART_RC_ASYNC_VECTOR, vec);\t/* injected */\n"))],
+        ("monitor", "supv", "CFXREG"),
+        r"^dadao: unrecoverable supv exception cause=CFXREG", None,
+        ("C1",), None,
     ),
-    # ⑥ The same vector in the same cfx but the wrong mode row (user instead of
-    #    supv): cfx_hart's supv vector keeps its reset value 0, so the first
-    #    delivered tick fetches at VA 0 — an unmapped address, i.e. a clean
-    #    named CFXMEM termination instead of a tick.
+    # ⑥ The async vector written with a zero target: the read-back check fires
+    #    by name (guest 0x11) before any tick can land on address 0.
     "vector-user-row": (
         "time",
-        [(("\tDADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_SUPV,\n"
-           "\t\t\tCFX_HART_RC_SUPV_EXCP_VECTOR, vec);\n"),
-          ("\tDADAO_CFX_WRITE(cfx_hart, 0 /* user row */,\n"
-           "\t\t\tCFX_HART_RC_SUPV_EXCP_VECTOR, vec);\t/* injected */\n")),
-         (("\tvread = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_SUPV,\n"
-           "\t\t\t       CFX_HART_RC_SUPV_EXCP_VECTOR);\n"),
-          ("\tvread = DADAO_CFX_READ(cfx_hart, 0 /* user row */,\n"
-           "\t\t\t       CFX_HART_RC_SUPV_EXCP_VECTOR);\t/* injected */\n"))],
-        ("monitor", "supv", "CFXMEM"),
-        r"^dadao: unrecoverable supv exception cause=CFXMEM", r"^K2 time: done",
-        ("C1", "C3"), None,
+        [(("\tDADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_ASYNC,\n"
+           "\t\t\tCFX_HART_RC_ASYNC_VECTOR, vec);\n"),
+          ("\tDADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_ASYNC,\n"
+           "\t\t\tCFX_HART_RC_ASYNC_VECTOR, 0UL);\t/* injected */\n"))],
+        0x11, r"^K2 fail: cfx_hart async vector read-back", None,
+        ("C1",), None,
     ),
-    # ③ Neither mask axis opened: no tick can be delivered at all.
+    # ③ The running-mode monitor row is not opened: no tick is delivered.
     "no-mask-open": (
-        "time", [(("#if K2_AXIS_GLOBAL_OPEN\n"), ("#if 0\t/* injected */\n")),
-                 (("#if K2_AXIS_SOURCE_OPEN\n"), ("#if 0\t/* injected */\n"))],
-        None, r"^K2 fail: timer delivered no tick code=0x13$", r"^K2 time: done",
+        "time",
+        [(("smon_mask() & ~bits);\n"), ("smon_mask());\t/* injected */\n"))],
+        0x13, r"^K2 fail: timer delivered no tick code=0x13$", r"^K2 time: done",
         ("C1", "C3"), None,
     ),
     # ④ The handler re-arms with twice the period: the tick count is still N
@@ -1057,7 +1038,8 @@ INJECTIONS: dict[str, tuple] = {
            "\t\t\tDADAO_IRQ_RC_SUPV_CFX_INTR_MASK, value);\t"
            "/* injected: second row back */\n"
            "}\n"))],
-        0, r"^K2 time: done ticks=", None, ("C10",), None,
+        None, r"^dadao: unrecoverable supv exception cause=CFXREG", None,
+        ("C10",), None,
     ),
 }
 

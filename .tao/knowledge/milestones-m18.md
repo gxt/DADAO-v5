@@ -48,13 +48,13 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-linux-022 | 2026-11-23 20:12 | 3–5 h | 内核异步新模型（mask 归 monitor、src 位 cfxha、一帧多源） |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-linux-022 | 2026-11-25 03:40 | 内核异步新模型 R2（mask 归 monitor、src 位 cfxha、一帧多源；m45 静默死循环根因修复）；K2 170/170、K5 282/282、K6 71/71 |
 | m18-gem5-003 | 2026-11-25 02:52 | `check_tiny_hmon` 的 `CFXESC` oracle 改「当前 cfx（cfx63）」+ monitor 无写入反向断言；29 FAIL→0（213 checks） |
 | m18-linux-012 | 2026-11-25 02:16 | ISS-503 K6 门控五条 finding（C 组 11 条恒真断言上移为真判据；`check-linux-k6` 82/82） |
 | m18-gem5-002 | 2026-11-25 01:12 | gem5 `CFXESC` 投当前 cfx（cg9/无帧路径；`currentCfx()`+`machineFaultToCfx`）；Tiny/Vast 探针与 QEMU 64 B 见证一致 |

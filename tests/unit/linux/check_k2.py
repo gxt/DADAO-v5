@@ -333,6 +333,10 @@ def build_image(image: str) -> tuple[int, dict | None]:
     rc = config_image(image)
     if rc != 0:
         return rc, None
+    # Kbuild does not always re-evaluate an int Kconfig symbol used in #if;
+    # touch the two files whose compiled case changes with the image.
+    for rel in ("arch/dadao/kernel/irq.c", "arch/dadao/kernel/time.c"):
+        (linux_paths.linux_source_dir() / rel).touch()
     cmd = [sys.executable, str(_REPO / "tools" / "linux" / "make_vmlinux.py"),
            f"--jobs={JOBS}", "--skip-code-range"]
     print(f"[INFO] build {image} image (JOBS={JOBS})", flush=True)
@@ -784,9 +788,9 @@ def check_mask(rep: Report, text: str, d: dict) -> None:
         return
     tick, waited, ctrl, _window, _elapsed = ints(frame.groups())
     delivered, gap, printed_period = ints(after.groups())
-    rep.check("M7", "帧内不再投递第二次 tick（硬件全局轴仍挡）", 0, waited)
+    rep.check("M7", "帧内软件窗口屏蔽，不投递第二次 tick", 0, waited)
     rep.check("M8", "帧内事件已到期（ISTATUS 置位）", 1, (ctrl >> 2) & 1)
-    rep.check("M9", "escape 释放帧后补投恰 +1", tick + 1, delivered)
+    rep.check("M9", "软件窗口释放后补投恰 +1（每次进入覆盖 cg9）", tick + 1, delivered)
     rep.check("M10", "补投紧跟帧结束（gap < period/2，不是周期重挂）", True,
               gap < period // 2)
     rep.check("M11", "帧内报告的 period == freq/HZ（现场派生）", period,
@@ -814,8 +818,8 @@ STAGE_ANCHORS = (
     ("table-done", r"^K1 ptw done: running on the kernel-built table$"),
     ("start_kernel", r"^K2 setup_arch: memblock_add "),
     ("time_init", r"^K2 time_init: freq="),
-    ("async-vector", r"^K2 irq: vec cfx_hart_supv_excp_vector="),
-    ("mask-axes", r"^K2 irq: mask cfx_smon_supv_cfx_intr_mask="),
+    ("async-vector", r"^K2 irq: vec cfx_hart_async_excp_vector="),
+    ("mask-monitor", r"^K2 irq: mask cfx_smon_async_intr_mask="),
     ("armed", r"^K2 irq: armed ticks period="),
     ("first-tick", r"^K2 irq P1: "),
     ("masked-window", r"^K2 irq P2: masked "),

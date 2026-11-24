@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..2205c6808
+index 000000000..069f8b5be
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,683 @@
+@@ -0,0 +1,756 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -28,6 +28,8 @@ index 000000000..2205c6808
 +#include <linux/kernel.h>
 +#include <linux/init.h>
 +#include <linux/bitops.h>
++#include <linux/hardirq.h>
++#include <linux/irq.h>
 +#include <linux/extable.h>
 +#include <linux/ptrace.h>
 +#include <linux/interrupt.h>
@@ -43,6 +45,7 @@ index 000000000..2205c6808
 +#include <asm/cause-sub.h>
 +#include <asm/elf.h>
 +#include <asm/page.h>
++#include <asm/processor.h>
 +#include <asm/ptrace.h>
 +#include <asm/ptw.h>
 +#include <asm/setup.h>
@@ -50,6 +53,13 @@ index 000000000..2205c6808
 +
 +/* m14-linux-017: no semihosting while a frame is live (待裁定 4 / C). */
 +extern int dadao_in_frame;
++
++/* ADR-0061 R2 async handoff (kernel/time.c, kernel/entry_common.c). */
++void dadao_async_ack_sources(struct pt_regs *regs);
++void __noreturn dadao_async_user_return(struct pt_regs *regs);
++#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
++void m45_note_irq(struct pt_regs *regs);
++#endif
 +#include <asm/trap.h>
 +
 +/* Semihosting SYS_EXIT: contract-semihosting §1/§2/§5 (rd16 = service,
@@ -417,6 +427,39 @@ index 000000000..2205c6808
 +	return DADAO_TRAP_RESUME_SKIP;
 +}
 +
++/*
++ * The smon half of ADR-0061 R2's kernel-context asynchronous handoff.
++ *
++ * Called from the supv stub *before* its register capture (kernel/trap.S): the
++ * asynchronous entry switched the hardware's current cfx to `cfx_hart`, and
++ * there is no asynchronous `escape` to put it back (§5.4).  Left there, the
++ * next `escape cfx_<interrupted>` — every umon/smon stub ends that way — fails
++ * its "cfxha == inner_cfx_code" check and raises `CFXESC` (§5.3 step 0) into
++ * `cfx_hart`'s vector, which is 0: a fetch at address 0 on the interrupted
++ * stack.
++ *
++ * `cg5`'s `excp_prev_run_mode`/`excp_prev_cfx_code`/`excp_cause_ip` are
++ * software-writable (§3.6), so writing the captured values makes the stub's
++ * `escape` restore the interrupted mode and cfx code before it lands on
++ * `dadao_async_kernel_return` (kernel/async_trap.S).  The stub keeps its static
++ * frame and mask untouched on purpose: this exception is normally nested inside
++ * an active supv exception (`dadao_trap_busy`), whose `escape` still needs
++ * them — and the delivery's own register file is the asynchronous capture.
++ */
++void dadao_async_kernel_handoff(void)
++{
++	extern unsigned long dadao_async_prev_mode;
++	extern unsigned long dadao_async_prev_cfx;
++	extern void dadao_async_kernel_return(void);
++
++	DADAO_CFX_WRITE(cfx_smon, SMON_CG_FRAME, SMON_RC_FRAME_PREV_MODE,
++			READ_ONCE(dadao_async_prev_mode));
++	DADAO_CFX_WRITE(cfx_smon, SMON_CG_FRAME, SMON_RC_FRAME_PREV_CFX,
++			READ_ONCE(dadao_async_prev_cfx));
++	DADAO_CFX_WRITE(cfx_smon, SMON_CG_FRAME, SMON_RC_FRAME_CAUSE_IP,
++			(unsigned long)dadao_async_kernel_return);
++}
++
 +static unsigned long dadao_trap_dispatch(struct pt_regs *regs,
 +					 unsigned long cause,
 +					 unsigned long info)
@@ -473,6 +516,36 @@ index 000000000..2205c6808
 +		dadao_trap_busy = 0;
 +		dadao_in_frame = 0;
 +		return policy;
++	}
++
++	/*
++	 * ADR-0061 R2: a user-context asynchronous capture was adopted into
++	 * `task_pt_regs(current)` by kernel/async_trap.S and handed here.  Ack
++	 * the captured source bits, then leave through the normal return-to-user
++	 * work loop and umon entry.  The smon frame this trap built is abandoned
++	 * (the path never returns).
++	 */
++	if (cause == DADAO_CAUSE_CFXTRAP &&
++	    (info & 0x3ffffUL) == DADAO_SMON_FROM_ASYNC) {
++		struct pt_regs *uframe = task_pt_regs(current);
++		struct pt_regs *old_regs;
++
++		dadao_early_printf("K2 async user: frame_ip=%#lx sp=%#lx\n",
++				   (unsigned long)uframe->ip,
++				   (unsigned long)uframe->rb[1]);
++		arch_local_irq_disable();
++		irq_enter_rcu();
++		old_regs = set_irq_regs(uframe);
++#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
++		m45_note_irq(uframe);
++#endif
++		dadao_async_ack_sources(uframe);
++		set_irq_regs(old_regs);
++		irq_exit_rcu();
++
++		dadao_trap_busy = 0;
++		dadao_in_frame = 0;
++		dadao_async_user_return(uframe);
 +	}
 +
 +	/*

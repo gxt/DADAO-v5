@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/trap.h b/arch/dadao/include/asm/trap.h
 new file mode 100644
-index 000000000..26f885022
+index 000000000..82cf6a3b8
 --- /dev/null
 +++ b/arch/dadao/include/asm/trap.h
-@@ -0,0 +1,141 @@
+@@ -0,0 +1,164 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception entry: the contract between the assembly
@@ -43,6 +43,28 @@ index 000000000..26f885022
 + * causes).  It is a kernel-private selector, not a syscall number.
 + */
 +#define DADAO_SMON_FROM_USER	0x2f5
++
++/*
++ * ADR-0061 R2: the asynchronous stub's handoff selectors.
++ *
++ * FROM_ASYNC: the user-context capture.  It is already in
++ * `task_pt_regs(current)`; this immediate tells the smon dispatcher to ack
++ * `async_src_frame`, run the return-to-user loop and leave through
++ * `dadao_enter_user()`.
++ *
++ * FROM_ASYNC_KERNEL: the kernel-context capture.  The handler has already run
++ * in place (kernel/time.c); the immediate asks the smon half to rebuild the
++ * interrupted run mode / current cfx from the capture and `escape` to the
++ * software-return trampoline.  The hardware switched the current cfx to
++ * `cfx_hart` on the asynchronous entry and there is no asynchronous `escape`
++ * (§5.4), so a direct jump back would leave it at `cfx_hart` and the next
++ * `escape cfx_<interrupted>` would raise `CFXESC` (§5.3 step 0); `cfx_hart`'s
++ * supv vector is 0, so that fault lands on address 0.  `cg5`'s
++ * `excp_prev_run_mode`/`excp_prev_cfx_code`/`excp_cause_ip` are software-
++ * writable (§3.6), which is what makes the rebuild possible.
++ */
++#define DADAO_SMON_FROM_ASYNC	0x2f6
++#define DADAO_SMON_FROM_ASYNC_KERNEL	0x2f7
 +
 +/*
 + * `struct pt_regs.status` low 4 bits: the exception's *pre-entry* run mode as
@@ -129,9 +151,10 @@ index 000000000..26f885022
 + */
 +extern char dadao_async_excp[];		/* the entry (installed by init_IRQ) */
 +extern char dadao_async_save[];		/* its static frame */
-+/* Handles one delivered source; returns to the interrupted instruction. */
-+void dadao_async_handler(struct pt_regs *regs, unsigned long cause,
-+			 unsigned long info);
++/* Kernel-context handle; the asm stub resumes `async_cause_ip` afterwards. */
++void dadao_async_kernel_handler(struct pt_regs *regs);
++/* Ack the captured source bits (kernel/time.c). */
++void dadao_async_ack_sources(struct pt_regs *regs);
 +/* A cause/source this kernel has no handler for: name it and stop. */
 +void __noreturn dadao_async_die(unsigned long cause, unsigned long info);
 +

@@ -175,6 +175,13 @@ def build_image(label: str = "m45") -> tuple[int, dict | None]:
     if rc != 0:
         print(f"m45_entry_probe: FAIL: config slice rc={rc}", file=sys.stderr)
         return rc, None
+    # Kbuild does not reliably re-evaluate the int Kconfig symbols used in
+    # `#if`; force the two objects whose compiled case changes with the image.
+    # Kbuild does not reliably re-evaluate the int Kconfig symbols used in
+    # `#if`, and the injection round restores sources after building; drop every
+    # kernel object so each image is compiled from the sources on disk.
+    for obj in (build_dir() / "arch/dadao/kernel").glob("*.o"):
+        obj.unlink(missing_ok=True)
     cmd = [sys.executable, str(_REPO / "tools" / "linux" / "make_vmlinux.py"),
            f"--jobs={JOBS}", "--skip-code-range"]
     print(f"[INFO] build the {label} image (JOBS={JOBS})", flush=True)
@@ -328,8 +335,13 @@ def static_recon(rep: Report, snap: dict | None) -> None:
     for rel, tag in (("arch/dadao/kernel/trap.S", "supv/umon 桩"),
                      ("arch/dadao/kernel/async_trap.S", "异步桩")):
         text = kernel_text(rel)
-        rep.check("E4", f"{tag}都写 status（不再写 0）", True,
-                  "DADAO_SAVE_STATUS" in text)
+        if rel == "arch/dadao/kernel/trap.S":
+            wrote = "DADAO_SAVE_STATUS" in text
+        else:
+            # ADR-0061 R2: the async stub writes status from cg9 rc0
+            # (async_prev_run_mode), not from a cg5 frame.
+            wrote = ("PT_STATUS" in text and "dadao_async_prev_mode" in text)
+        rep.check("E4", f"{tag}都写 status（不再写 0）", True, wrote)
         rep.check("E4", f"{tag}不再把 status 写成 0", False,
                   re.search(r"st\.o\s+rd0, \[r\w+, PT_STATUS\]", text) is not None)
 

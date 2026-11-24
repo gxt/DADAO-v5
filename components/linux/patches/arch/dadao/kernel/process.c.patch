@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/process.c b/arch/dadao/kernel/process.c
 new file mode 100644
-index 000000000..0fb6a60d9
+index 000000000..a0a5d13e4
 --- /dev/null
 +++ b/arch/dadao/kernel/process.c
-@@ -0,0 +1,849 @@
+@@ -0,0 +1,834 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO process model (K4, m14-linux-016).
@@ -412,36 +412,23 @@ index 000000000..0fb6a60d9
 +			DADAO_MODE_USER);
 +
 +	/*
-+	 * The asynchronous source the kernel delivers in *user* mode
-+	 * (m14-linux-045): `TIMER` targets `cfx_hart`, and a delivery is gated by
-+	 * the **running mode monitor's** rows (spec/DADAO-12 §5.2(三)) — so with a
-+	 * task in user mode the rows consulted are `cfx_umon`'s `user` row and its
-+	 * mode-level `global_cfx_intr_mask`, not the supv ones init_IRQ() opened.
-+	 * Both are all-1 at reset, which is why a tick never reached user mode
-+	 * before this task: the source was open for the kernel's own mode only.
-+	 *
-+	 * Only the bit of the source this kernel owns is cleared (the mask index is
-+	 * the *target cfxha*, contract-see §6.4), and only in the user monitor's
-+	 * rows: the jail/hypv monitors are not used by this port.
++	 * The user mode source mask (ADR-0061 R2): while a task runs in user
++	 * mode the running mode monitor is `cfx_umon`, so its `cg8 rc1` word is
++	 * the preemption policy.  Open the sources this kernel owns; the mode
++	 * switch below is covered by the supv row, which `arch_local_irq_disable`
++	 * masks right before the trap.
 +	 */
 +	{
-+		unsigned long bit = DADAO_IRQ_SOURCE_BITS;
-+		unsigned long mask;
++		unsigned long mask = DADAO_CFX_READ(cfx_umon, DADAO_IRQ_CG_USER,
++						    DADAO_IRQ_RC_USER_CFX_INTR_MASK);
 +
-+		mask = DADAO_CFX_READ(cfx_umon, UMON_CG_USER,
-+				      DADAO_IRQ_RC_USER_CFX_INTR_MASK);
-+		DADAO_CFX_WRITE(cfx_umon, UMON_CG_USER,
-+				DADAO_IRQ_RC_USER_CFX_INTR_MASK, mask & ~bit);
-+		mask = DADAO_CFX_READ(cfx_umon, DADAO_IRQ_CG_GLOBAL,
-+				      DADAO_IRQ_RC_GLOBAL_CFX_INTR_MASK);
-+		DADAO_CFX_WRITE(cfx_umon, DADAO_IRQ_CG_GLOBAL,
-+				DADAO_IRQ_RC_GLOBAL_CFX_INTR_MASK, mask & ~bit);
-+		dadao_early_printf("K4 umon irq: user_mask=%#lx global=%#lx bit=%#lx\n",
-+				   DADAO_CFX_READ(cfx_umon, UMON_CG_USER,
++		DADAO_CFX_WRITE(cfx_umon, DADAO_IRQ_CG_USER,
++				DADAO_IRQ_RC_USER_CFX_INTR_MASK,
++				mask & ~DADAO_IRQ_SOURCE_BITS);
++		dadao_early_printf("K4 umon irq: user_mask=%#lx bits=%#lx\n",
++				   DADAO_CFX_READ(cfx_umon, DADAO_IRQ_CG_USER,
 +						  DADAO_IRQ_RC_USER_CFX_INTR_MASK),
-+				   DADAO_CFX_READ(cfx_umon, DADAO_IRQ_CG_GLOBAL,
-+						  DADAO_IRQ_RC_GLOBAL_CFX_INTR_MASK),
-+				   bit);
++				   DADAO_IRQ_SOURCE_BITS);
 +	}
 +
 +	/*
@@ -603,8 +590,6 @@ index 000000000..0fb6a60d9
 +	 * the tick itself.
 +	 */
 +	arch_local_irq_disable();
-+	DADAO_CFX_WRITE(cfx_umon, DADAO_IRQ_CG_USER,
-+			DADAO_IRQ_RC_USER_CFX_INTR_MASK, ~0UL);
 +	dadao_umon_busy = 0;
 +	dadao_umon_enter();
 +}

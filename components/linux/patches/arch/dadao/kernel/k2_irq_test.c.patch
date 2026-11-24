@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k2_irq_test.c b/arch/dadao/kernel/k2_irq_test.c
 new file mode 100644
-index 000000000..0591cfcd1
+index 000000000..4736a75e4
 --- /dev/null
 +++ b/arch/dadao/kernel/k2_irq_test.c
-@@ -0,0 +1,623 @@
+@@ -0,0 +1,610 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K2 interrupt-enable knob self-test (CONFIG_DADAO_K2_IRQ_TEST, m14-linux-008).
@@ -123,63 +123,50 @@ index 000000000..0591cfcd1
 +static void __init k2_irq_case_p1(void)
 +{
 +	unsigned long before_smon = dadao_irq_mask_row_smon();
-+	unsigned long before_hart = dadao_irq_mask_row_hart();
-+	unsigned long flags, masked_smon, masked_hart;
-+	unsigned long restored_smon, restored_hart;
++	unsigned long flags, masked_smon, restored_smon;
 +
 +	local_irq_save(flags);
 +	masked_smon = dadao_irq_mask_row_smon();
-+	masked_hart = dadao_irq_mask_row_hart();
 +	local_irq_restore(flags);
 +	restored_smon = dadao_irq_mask_row_smon();
-+	restored_hart = dadao_irq_mask_row_hart();
 +
-+	dadao_early_printf("K2 irq P1: before_smon=%#lx before_hart=%#lx "
-+			   "flags=%#lx masked_smon=%#lx masked_hart=%#lx "
-+			   "restored_smon=%#lx restored_hart=%#lx\n",
-+			   before_smon, before_hart, flags, masked_smon,
-+			   masked_hart, restored_smon, restored_hart);
++	dadao_early_printf("K2 irq P1: before_smon=%#lx flags=%#lx "
++			   "masked_smon=%#lx restored_smon=%#lx\n",
++			   before_smon, flags, masked_smon, restored_smon);
 +}
 +
 +static void __init k2_irq_case_p3(void)
 +{
 +	unsigned long before_smon = dadao_irq_mask_row_smon();
-+	unsigned long before_hart = dadao_irq_mask_row_hart();
-+	unsigned long outer, inner, inner_smon, inner_hart;
-+	unsigned long outer_smon, outer_hart;
++	unsigned long outer, inner, inner_smon, outer_smon;
 +
 +	outer = arch_local_irq_save();
 +	inner = arch_local_irq_save();
 +	/* The inner pair must not re-enable: the outer save is still live. */
 +	local_irq_restore(inner);
 +	inner_smon = dadao_irq_mask_row_smon();
-+	inner_hart = dadao_irq_mask_row_hart();
 +	local_irq_restore(outer);
 +	outer_smon = dadao_irq_mask_row_smon();
-+	outer_hart = dadao_irq_mask_row_hart();
 +
-+	dadao_early_printf("K2 irq P3: before_smon=%#lx before_hart=%#lx "
-+			   "outer=%#lx inner=%#lx inner_smon=%#lx "
-+			   "inner_hart=%#lx outer_smon=%#lx outer_hart=%#lx\n",
-+			   before_smon, before_hart, outer, inner, inner_smon,
-+			   inner_hart, outer_smon, outer_hart);
++	dadao_early_printf("K2 irq P3: before_smon=%#lx outer=%#lx inner=%#lx "
++			   "inner_smon=%#lx outer_smon=%#lx\n",
++			   before_smon, outer, inner, inner_smon, outer_smon);
 +}
 +
 +/*
 + * Three mask states.  `flags` is what local_irq_save()/save_flags() returned
-+ * (a *saved* word, possibly pre-mask); `disabled` is the live answer and
-+ * `smon`/`hart` are the live registers — the probe compares the two against
-+ * the words rather than against each other's claims.
++ * (a saved word, possibly pre-mask); `disabled` is the live answer and `smon`
++ * is the live register — the probe compares the two against the words rather
++ * than against each other's claims.
 + */
 +static void __init k2_irq_case_p5_print(const char *state,
 +					unsigned long flags)
 +{
 +	dadao_early_printf("K2 irq P5: state=%s flags=%#lx disabled=%d "
-+			   "flags_disabled=%d smon=%#lx hart=%#lx\n",
++			   "flags_disabled=%d smon=%#lx\n",
 +			   state, flags, arch_irqs_disabled(),
 +			   arch_irqs_disabled_flags(flags),
-+			   dadao_irq_mask_row_smon(),
-+			   dadao_irq_mask_row_hart());
++			   dadao_irq_mask_row_smon());
 +}
 +
 +static void __init k2_irq_case_p5(void)

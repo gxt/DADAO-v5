@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/time.c b/arch/dadao/kernel/time.c
 new file mode 100644
-index 000000000..32c3a8bc1
+index 000000000..992e63742
 --- /dev/null
 +++ b/arch/dadao/kernel/time.c
-@@ -0,0 +1,867 @@
+@@ -0,0 +1,908 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO time base and single-hart timer.
@@ -60,6 +60,7 @@ index 000000000..32c3a8bc1
 +#include <linux/kernel.h>
 +#include <linux/ktime.h>
 +#include <linux/sched_clock.h>
++#include <linux/string.h>
 +#include <linux/types.h>
 +
 +#include <asm/cfx.h>
@@ -308,8 +309,8 @@ index 000000000..32c3a8bc1
 + */
 +void __noreturn dadao_async_die(unsigned long cause, unsigned long info)
 +{
-+	unsigned long mode = DADAO_CFX_READ(cfx_hart, CFX_HART_CG_FRAME,
-+					    CFX_HART_RC_FRAME_PREV_MODE) & 0x3;
++	extern unsigned long dadao_async_prev_mode;
++	unsigned long mode = READ_ONCE(dadao_async_prev_mode) & 0x3;
 +	/* spec/Kaiwu §7.1: 0xc0 | mode << 4 | bit index of the cause id.
 +	 * A zero cause id has no bit index; it is not an event this entry can
 +	 * classify, so it keeps 0 instead of calling __ffs(0). */
@@ -523,80 +524,99 @@ index 000000000..32c3a8bc1
 +}
 +
 +/*
-+ * The C half of the asynchronous entry (kernel/async_trap.S).  Runs with
-+ * `inner_cfx_code` = cfx_hart, so every register below is the cfx the frame
-+ * belongs to; cfx_hart cg8 and cg5 are *self* accesses there (§3, self bypasses
-+ * the cfx axis and the cg is delegated to supv by the boot SEE).
++ * The C half of the asynchronous entry (kernel/async_trap.S, ADR-0061 R2).
++ *
++ * The stub closed `cfx_smon cg8 rc1` before reading `cg9`; the capture fields
++ * are in the globals below, the register file is in @regs (the task frame for a
++ * user delivery, the static async frame for a kernel one).  One capture may
++ * carry several sources; the bit index is the source cfxha (TIMER 15,
++ * PMEM_DMA 32, DADAO-12 §5.4).
 + */
-+void dadao_async_handler(struct pt_regs *regs, unsigned long cause,
-+			 unsigned long info)
++extern unsigned long dadao_async_prev_mode;
++extern unsigned long dadao_async_prev_cfx;
++extern unsigned long dadao_async_cause_ip;
++extern unsigned long dadao_async_src_frame;
++extern unsigned long dadao_async_saved_mask;
++
++#define DADAO_ASYNC_SRC_TIMER		(1UL << 15)
++#define DADAO_ASYNC_SRC_PMEM		(1UL << 32)
++
++/* cfx_pmem cg15 rc4: dma_status (bit1 DONE W1C, bit2 ERROR W1C). */
++#define CFX_PMEM_CG_DMA			15
++#define CFX_PMEM_RC_DMA_STATUS		4
++
++static void dadao_dma_interrupt(void)
 +{
-+	/* m14-linux-017: no semihosting while this frame is live (待裁定 4 / C). */
++	unsigned long status = DADAO_CFX_READ(cfx_pmem, CFX_PMEM_CG_DMA,
++					      CFX_PMEM_RC_DMA_STATUS);
++
++	/*
++	 * DONE/ERROR are sticky and cleared by writing them back (W1C); the
++	 * source then drops its pending bit by itself (DADAO-12 §4.9/§5.4).
++	 * The event is acked even if no client is registered: the kernel has no
++	 * DMA consumer yet and a permanently pending source would spin.
++	 */
++	if (status & ((1UL << 1) | (1UL << 2)))
++		DADAO_CFX_WRITE(cfx_pmem, CFX_PMEM_CG_DMA,
++				CFX_PMEM_RC_DMA_STATUS,
++				status & ((1UL << 1) | (1UL << 2)));
++}
++
++/* Ack every source carried by the capture; called with IRQs disabled. */
++void dadao_async_ack_sources(struct pt_regs *regs)
++{
++	unsigned long frame = READ_ONCE(dadao_async_src_frame);
++	unsigned long unknown = frame & ~(DADAO_ASYNC_SRC_TIMER |
++					  DADAO_ASYNC_SRC_PMEM);
++
++	if (!frame || unknown)
++		dadao_async_die(frame ? unknown : 0, dadao_async_cause_ip);
++
++	if (frame & DADAO_ASYNC_SRC_TIMER) {
++		/* ISTATUS distinguishes the event at its source (§5.4(六)); the
++		 * tick handler re-arms `timer_cmp`, which clears it. */
++		if (!(dadao_timer_status() & DADAO_TIMER_ISTATUS))
++			dadao_async_die(DADAO_ASYNC_SRC_TIMER,
++					dadao_timer_status());
++		dadao_timer_interrupt();
++	}
++	if (frame & DADAO_ASYNC_SRC_PMEM)
++		dadao_dma_interrupt();
++}
++
++/*
++ * A delivery taken in kernel context: the interrupted context is a kernel
++ * stack, so process in place and set `need_resched`; the asm stub resumes the
++ * next instruction itself.
++ */
++void dadao_async_kernel_handler(struct pt_regs *regs)
++{
 +	extern int dadao_in_frame;
 +	struct pt_regs *old_regs;
-+	unsigned long flags;
 +
 +	/*
-+	 * Re-open this kernel's async source (m18-linux-004, ISS-498): the user
-+	 * entry masks it across the mode switch, and a tick taken *in* user mode
-+	 * is the third kernel entry a task can take.  Before `flags` is read, so
-+	 * the row this handler writes back on the way out is the enabled one it
-+	 * inherits here.
++	 * The stub masked the sources before reading cg9.  They stay masked
++	 * through the ack and through the register restore; the asm tail
++	 * re-opens the saved word immediately before it jumps back (a source
++	 * that arrives in that window is a new capture, handled by the nested
++	 * path).
 +	 */
-+	local_irq_enable();
++	arch_local_irq_disable();
 +	dadao_in_frame = 1;
-+
-+	/*
-+	 * Hard-IRQ context (m14-linux-044).  `irq_enter_rcu()` adds
-+	 * HARDIRQ_OFFSET to preempt_count -- what `in_hardirq()` and the
-+	 * hard-IRQ half of `in_interrupt()` read -- and `irq_exit_rcu()` runs
-+	 * the softirq backlog (the tick's timer softirq included) on the way
-+	 * out.  Delivery/nesting is still the hardware's business: the frame's
-+	 * all-ones `global_cfx_intr_mask` blocks a nested source
-+	 * (contract-see §6.3), so this is bookkeeping only.
-+	 *
-+	 * `set_irq_regs()` publishes this frame as the interrupted context
-+	 * (m14-linux-045): `get_irq_regs()` is what the tick's accounting, the
-+	 * timer softirq and any handler deeper down read to find out *what* was
-+	 * interrupted, and it is NULL outside the handler.  The pair around the
-+	 * body is upstream's order (`arch/riscv/kernel/traps.c`, `handle_riscv_irq`).
-+	 *
-+	 * `irq_exit_rcu()` masks local IRQs (kernel/softirq.c:__irq_exit_rcu)
-+	 * and leaves the interrupted state to the arch's return path.  On this
-+	 * machine that state is the monitor row, which `escape` does *not*
-+	 * restore (it restores the hardware global mask), so a stale "masked"
-+	 * word would stop the next TIMER: write the saved word back here.
-+	 * `dadao_timer_interrupt()` already saves/restores the same row around
-+	 * its own body, so @flags is the value it returns to as well.
-+	 *
-+	 * Why not `irqentry_enter()`/`irqentry_exit()` here as well: their exit
-+	 * side would run the return-to-user work loop, which can schedule, and
-+	 * this frame lives in `cfx_hart` -- the frame a *kernel-mode* TIMER
-+	 * delivery also uses, whose saved `global_cfx_intr_mask` is internal and
-+	 * cannot be re-established by software (kernel/entry_common.c has the
-+	 * full argument).  The work loop therefore runs on the umon return path.
-+	 */
-+	flags = arch_local_save_flags();
 +	irq_enter_rcu();
 +	old_regs = set_irq_regs(regs);
-+
 +#ifdef CONFIG_DADAO_M45_ENTRY_SELFTEST
 +	m45_note_irq(regs);
 +#endif
-+
-+	if (cause != DADAO_CAUSE_TIMER)
-+		dadao_async_die(cause, info);
-+	if (info != 0) {
-+		/* The TIMER source carries no information (§4.7); a non-zero
-+		 * word means the delivery is not the event this kernel expects. */
-+		dadao_async_die(cause, info);
-+	}
-+
-+	dadao_timer_interrupt();
++	dadao_async_ack_sources(regs);
 +	set_irq_regs(old_regs);
 +	irq_exit_rcu();
-+	arch_local_irq_restore(flags);
 +	dadao_in_frame = 0;
++
++	/* Kernel async does not switch tasks here; it only makes the request. */
++	if (!test_tsk_need_resched(current))
++		set_tsk_need_resched(current);
++
 +}
 +
 +/* -------------------------------------------------------------------------
@@ -833,6 +853,19 @@ index 000000000..32c3a8bc1
 +{
 +	unsigned long window = (DADAO_K2_TIME_TICKS + 2) * dadao_period;
 +
++	/* Close the running-mode row at run time (init_IRQ opens both), so the
++	 * image that exercises "masked" does not depend on a rebuild ordering. */
++	if (strcmp(axis, "source") == 0)
++		DADAO_CFX_WRITE(cfx_smon, DADAO_IRQ_CG_SUPV,
++				DADAO_IRQ_RC_SUPV_CFX_INTR_MASK,
++				dadao_irq_mask_row_smon() | DADAO_IRQ_SOURCE_BITS);
++	else
++		DADAO_CFX_WRITE(cfx_umon, DADAO_IRQ_CG_USER,
++				DADAO_IRQ_RC_USER_CFX_INTR_MASK,
++				dadao_irq_mask_row_umon() | DADAO_IRQ_SOURCE_BITS);
++	dadao_early_printf("K2 axisclose: axis=%s smon=%#lx umon=%#lx\n", axis,
++			   dadao_irq_mask_row_smon(), dadao_irq_mask_row_umon());
++
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CMP,
 +			dadao_read_time() + dadao_period);
 +	DADAO_CFX_WRITE(cfx_hart, CFX_HART_CG_TIMER, CFX_HART_RC_TIMER_CTRL,
@@ -866,7 +899,15 @@ index 000000000..32c3a8bc1
 +#elif CONFIG_DADAO_K2_TIME_CASE == 2
 +	dadao_time_case_axis("source");
 +#elif CONFIG_DADAO_K2_TIME_CASE == 3
-+	dadao_time_case_axis("global");
++	/* Only the (irrelevant) umon row is closed: the supv row still gates a
++	 * kernel delivery, so the series must run normally. */
++	DADAO_CFX_WRITE(cfx_umon, DADAO_IRQ_CG_USER,
++			DADAO_IRQ_RC_USER_CFX_INTR_MASK,
++			dadao_irq_mask_row_umon() | DADAO_IRQ_SOURCE_BITS);
++	dadao_early_printf("K2 axisclose: axis=umon smon=%#lx umon=%#lx\n",
++			   dadao_irq_mask_row_smon(),
++			   dadao_irq_mask_row_umon());
++	dadao_time_run();
 +#else
 +	dadao_time_run();
 +#endif
