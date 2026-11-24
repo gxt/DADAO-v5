@@ -20,7 +20,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m16-testcases-013 | 2–3 h | cfx15 timer 中断（R2 捕获缓冲：覆盖语义、`escape` 拒绝、三模式） |
 | m16-testcases-014 | 3–4 h | cfx32 pmem 完成中断 + 同界多源（R2 捕获缓冲；源位 32/15） |
 | m16-chipyard-027 | 2–3 h | RTL 缺面补齐（power common face + cfx5 S/U 可达；ISS-524/DIV-16） |
 | m16-qemu-006 | 2–3 h | QEMU `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧（ISS-533/525） |
@@ -34,6 +33,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-testcases-013 | 2026-11-24 23:40 | 2–3 h | cfx15 timer 中断（R2 捕获缓冲：覆盖语义、`escape` 拒绝、三模式） |
 | m16-spec-003 | 2026-11-24 23:31 | 1–2 h | DMA 与 D-cache 一致性（裁定 A：软件 clean/invalidate）+ contract power 笔误 |
 
 ## 已验证
