@@ -740,7 +740,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P3】K1 门控的「阶段顺序」证据是**间接**的：共享 BootROM 固件的 power/hmon/smon **不打印任何东西**，而 K1 任务禁 `-d` 逐指令日志，故 `check-linux-k1` 只能用「镜像索引表（hmon<smon 各 1 条）+ 各阶段唯一产物」（boot info 15 字段 = hmon；`ptw_enable`/传入 PTBR/预建表 1 超页/`rb16+rb17` = smon）证明**三阶段都跑过**，**不能直接观测三阶段的相对顺序**（`m14-linux-005` 复核 §4 判定：够用但非直接观测、不阻断）。处置：给共享固件三阶段各加 1 行 semihosting 标记（改 `tests/shared/bootrom/**`，同时影响 `check-linux-k0` 与 `k0_boot_probe`），另立任务；补强后门控改为直接断言顺序。"
+  title: "【P3】K1 门控的「阶段顺序」证据是**间接**的：共享 BootROM 固件的 power/hmon/smon **不打印任何东西**，而 K1 任务禁 `-d` 逐指令日志，故 `check-linux-k1` 只能用「镜像索引表（hmon<smon 各 1 条）+ 各阶段唯一产物」（boot info 15 字段 = hmon；`ptw_enable`/传入 PTBR/预建表 1 超页/`rb16+rb17` = smon）证明**三阶段都跑过**，**不能直接观测三阶段的相对顺序**（`m14-linux-005` 复核 §4 判定：够用但非直接观测、不阻断）。处置：给共享固件三阶段各加 1 行 semihosting 标记（改 `tests/shared/bootrom/**`，同时影响 `check-linux-k0` 与 `k0_boot_probe`），另立任务；补强后门控改为直接断言顺序。**m18-linux-008 复核（未落地，待另立任务）**：① 该任务硬约束的 `tests/shared/bootrom/**` **不存在**，共享固件实际在 `tests/ee-vast/{power,hmon_k0_vast,smon_k0_vast}.S`，BootROM 构建器在 `tools/qemu/k0_boot_probe.py`（`build_firmware()` 现无 power 阶段 defsym 入口，需新增 `power_defs`）；② `check-linux-k0` **不启动 QEMU**，K0 侧只能对 BootROM 镜像做静态断言（三阶段标记字符串各在自己的窗口内），运行期顺序只能由 `check-linux-k1` 判；③ 交叉影响：chipyard 侧同源 `power_vast.S`（`POWER_RTL_BODY=1`）与签入的 bootrom hex 必须逐字节不变 ⇒ 标记须用 `--defsym`（默认 0）门控，仅 K0/K1 打开。"
 - id: ISS-445
   scope:
   - chipyard
@@ -849,10 +849,10 @@
   - linux
   - testcases
   milestone: M18
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P3】K2 两条派单口径缺「可达 FAIL」断言（`m14-linux-008` 复核实测）：① 把 `local_irq_save` 的 `flags` 截成低 32 位 ⇒ `k2_irq_probe` **95/95 全绿**；② 把 `enable` 改成全清 0（而非只清源位）⇒ **同样全绿**。两条都是本任务**明确要求**的性质，却无判据可抓 ⇒ 违反「每条断言须有可达 FAIL 路径」。处置：在 `m14-linux-009`（K2 收口门控）补两条绝对断言——`P1`：`before_smon` == `init_IRQ` 行值（高位参与比较）；`P5`：`enable` 态 == `disable` 态 `& ~DADAO_IRQ_SOURCE_BITS`。另订正 `run.sh --inject` 的「time 6 路」标签（实为 5 路）。"
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-008（绝对锚点已由 m14-linux-009 落地；本任务补齐「可达 FAIL」证据并订正路数标签）
+  title: "【P3】K2 两条派单口径缺「可达 FAIL」断言（`m14-linux-008` 复核实测）：① 把 `local_irq_save` 的 `flags` 截成低 32 位 ⇒ `k2_irq_probe` **95/95 全绿**；② 把 `enable` 改成全清 0（而非只清源位）⇒ **同样全绿**。两条都是本任务**明确要求**的性质，却无判据可抓 ⇒ 违反「每条断言须有可达 FAIL 路径」。处置：在 `m14-linux-009`（K2 收口门控）补两条绝对断言——`P1`：`before_smon` == `init_IRQ` 行值（高位参与比较）；`P5`：`enable` 态 == `disable` 态 `& ~DADAO_IRQ_SOURCE_BITS`。另订正 `run.sh --inject` 的「time 6 路」标签（实为 5 路）。**已修（m18-linux-008）**：`P1` 的绝对锚点在 m14-linux-009 已就位；`P5` 原仅有**相对**锚点（`enable == disable & ~bit`），实测不足以判红——`enable-write-zero` 注入下 `start_kernel` 早段的同一次全清写已把行内其余位抹掉，P5 现场变成 `disable=0x8000 / enable=0x0`，相对式比较的是 `0 == 0`；故本任务补两条**绝对**锚点（`enable == 复位全 1 只清源位`、`disable == 复位全 1`），两路注入（`flags-32`⇒P1、`enable-write-zero`⇒P5）实测判红并 `cp`+md5 还原回绿；路数标签改由 `--list` 现场派生。"
 - id: ISS-458
   scope:
   - infra
@@ -1103,10 +1103,10 @@
   - linux
   - infra
   milestone: M18
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P3】`m14-linux-026` 复核的三条非阻断 finding：F-a `tools/linux/k4_switch_probe.py` 的 S6 正向断言只钉调用字面量 `clockevents_config_and_register(&dadao`，删掉注册行后仍能命中注释 ⇒ 应改钉调用形态并补 `clocksource_register_hz` 同判（现 clocksource 半边无静态断言，靠 K5 探针 C1+T1 覆盖）；F-b 旧断言「未注册 clocksource/clockevent」被翻转，按 `docs/Process-07 §4a` 应补退役台账（替代 = `k5_clocksource_probe` C1+T1–T4，先例 = k3 R4）；F-c 两条 WARNING 白名单按 `file:line` 写死，本轮输出 0 条 WARNING（空转），应改按告警文本匹配。处置：随下次触碰这些门控脚本时一并修。"
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-008（S6 改钉调用形态 + clocksource 同判；§4a.4 退役台账；WARNING 白名单按文本/站点 + 源码锚定）
+  title: "【P3】`m14-linux-026` 复核的三条非阻断 finding：F-a `tools/linux/k4_switch_probe.py` 的 S6 正向断言只钉调用字面量 `clockevents_config_and_register(&dadao`，删掉注册行后仍能命中注释 ⇒ 应改钉调用形态并补 `clocksource_register_hz` 同判（现 clocksource 半边无静态断言，靠 K5 探针 C1+T1 覆盖）；F-b 旧断言「未注册 clocksource/clockevent」被翻转，按 `docs/Process-07 §4a` 应补退役台账（替代 = `k5_clocksource_probe` C1+T1–T4，先例 = k3 R4）；F-c 两条 WARNING 白名单按 `file:line` 写死，本轮输出 0 条 WARNING（空转），应改按告警文本匹配。处置：随下次触碰这些门控脚本时一并修。**已修（m18-linux-008）**：F-a `clock_static()` 在注释剥离后的源码上钉调用形态（`clockevents_config_and_register(&dadao_clock_event_device,` 与 `clocksource_register_hz(&dadao_clocksource,`）；F-b 记录写入 `Process-07 §4a.4` 并由 `check-linux-k6` R 组双向机械核对（`retired-back-44` 注入可判红）；F-c 白名单改 `KNOWN_WARNINGS`（按告警文本 + 无消息 `WARN_ON` 的站点文件），并用 `check_known_warnings_static()` 把白名单锚回 `init/main.c`/`fs/sysfs/group.c` 的源码，空转即红。"
 - id: ISS-488
   scope:
   - linux
@@ -1114,7 +1114,7 @@
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P3】`m14-linux-028` 复核的三条非阻断 finding：R1 `TASK_UNMAPPED_BASE` 页对齐这半个修复无断言覆盖（A2 用 `mm_alloc()` 的 mm、不经 exec，只覆盖 `mmap_min_addr` 那半）⇒ 应补「exec 后 `mm->mmap_base` 页对齐」断言；R2 完成区遗留①「18 条 musl」计数/归属不准（实为 musl 8 + 其它 11），且全局 `check-patch-tree` rc=1 属在途/基线；R3 证据脚本的补丁树判据只 grep `linux: assertion`、不打印问题总数 ⇒ 补一行现场统计。处置：随下次触碰这些门控/任务书时修。"
+  title: "【P3】`m14-linux-028` 复核的三条非阻断 finding：R1 `TASK_UNMAPPED_BASE` 页对齐这半个修复无断言覆盖（A2 用 `mm_alloc()` 的 mm、不经 exec，只覆盖 `mmap_min_addr` 那半）⇒ 应补「exec 后 `mm->mmap_base` 页对齐」断言；R2 完成区遗留①「18 条 musl」计数/归属不准（实为 musl 8 + 其它 11），且全局 `check-patch-tree` rc=1 属在途/基线；R3 证据脚本的补丁树判据只 grep `linux: assertion`、不打印问题总数 ⇒ 补一行现场统计。处置：随下次触碰这些门控/任务书时修。**m18-linux-008 处置（2026-11-24）**：R3 已落地（证据脚本从 `check_patch_tree.py` 的输出**现场派生**问题总数与逐组件归属，并校验 `total == Σrows`、`rc==0 ⇔ total==0`，另给「一致/不一致」两路解析自检）；R2 的计数口径同源（不再手写组件归属）；**R1 未落地**：`exec` 后 `mm->mmap_base` 在用户态不可观测（本端口走 `CONFIG_MMU && !HAVE_ARCH_PICK_MMAP_LAYOUT` 的 legazy 布局，`unmapped_area()` 的上取整把 mmap_base 的非对齐掩盖掉），只能由内核侧探针打印（`components/linux` 的 `k5_pagesz_selftest`），而本任务禁改组件补丁 ⇒ 待另立任务。"
 - id: ISS-489
   scope:
   - chipyard

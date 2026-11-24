@@ -174,6 +174,35 @@ AUDIT = (
      "until then the honest target", "保留"),
 )
 
+#: §4a.4 retirement table (m18-linux-008, ISS-487): (file, the retired
+#: judgement, the judgement that replaced it, disposition, alternative
+#: criterion).  The two retired judgements were *literal / file:line* pins that
+#: a comment or a line shift could satisfy; the replacements pin the call form
+#: on comment-stripped source and the warning's own text.
+RETIREMENTS_44 = (
+    ("tests/unit/linux/k4_switch_probe.py",
+     "no generic clockevent/clocksource framework is registered",
+     r"clockevents_config_and_register\(\s*&dadao_clock_event_device",
+     "删除",
+     "k5_clocksource_probe C1+T1–T4"),
+    ("tests/unit/linux/k4_switch_probe.py",
+     "that upgrade is K5's m14-linux-021",
+     r"clocksource_register_hz\(\s*&dadao_clocksource",
+     "删除",
+     "k5_clocksource_probe T1"),
+    ("tests/unit/linux/k5_clocksource_probe.py",
+     "init/main.c:1110",
+     r"KNOWN_WARNINGS",
+     "删除",
+     "Interrupts were enabled early"),
+)
+
+#: The §4a.4 audit: the second retired `file:line` pin, recorded for the same
+#: reason even though it shares a row's disposition with the first.
+AUDIT_44 = (
+    ("tests/unit/linux/k5_clocksource_probe.py", "fs/sysfs/group.c:137"),
+)
+
 
 class Report:
     """``[PASS]/[FAIL] <id> <name> | 期望=... 实际=...`` plus live ``[STAT]``."""
@@ -617,6 +646,27 @@ def retirement_problems(files: dict[str, str | None]) -> list[str]:
     return problems
 
 
+def retirement44_problems(files: dict[str, str | None]) -> list[str]:
+    """§4a.4 (m18-linux-008, ISS-487): retired judgement gone, replacement in."""
+    problems = []
+    for rel, old, new, _disposition, _alternative in RETIREMENTS_44:
+        text = files.get(rel)
+        if text is None:
+            problems.append(f"{rel}: 文件缺失")
+            continue
+        if old in text:
+            problems.append(f"{rel}: 旧判据回潮（{old[:28]}…）")
+        if re.search(new, text) is None:
+            problems.append(f"{rel}: 新判据缺失（{new[:28]}…）")
+    for rel, old in AUDIT_44:
+        text = files.get(rel)
+        if text is None:
+            problems.append(f"{rel}: 文件缺失")
+        elif old in text:
+            problems.append(f"{rel}: 旧判据回潮（{old[:28]}…）")
+    return problems
+
+
 def judge_r(rep: Report, run: dict) -> None:
     g = "R"
     text = run["text"]
@@ -666,6 +716,29 @@ def judge_r(rep: Report, run: dict) -> None:
                if rel in line and flat(anchor)[:24] in flat(line)
                and disposition in line]
         rep.check(g, f"§4a.3 审计行：{rel.split('/')[-1]}:{anchor[:16]}…",
+                  True, bool(row))
+
+    # §4a.4 (m18-linux-008, ISS-487): the retired *literal / file:line*
+    # judgements are gone and their replacements are in place.
+    files44 = {rel: (repo_text(rel) if (_REPO / rel).is_file() else None)
+               for rel, *_rest in RETIREMENTS_44 + AUDIT_44}
+    rep.check(g, "§4a.4 退役：旧字面量/旧白名单不在 / 新判据在", [],
+              retirement44_problems(files44))
+    rep.check(g, "Process-07 §4a.4 有本任务的退役记录", True,
+              "4a.4" in doc and "m18-linux-008" in doc)
+    for rel, old, _new, disposition, alternative in RETIREMENTS_44:
+        row = [line for line in doc.splitlines()
+               if rel in line and flat(old)[:20] in flat(line)
+               and disposition in line]
+        rep.check(g, f"§4a.4 记录覆盖 {rel.split('/')[-1]}:{old[:16]}…",
+                  True, bool(row))
+        rep.check(g, f"§4a.4 记录给出替代判据（{alternative[:12]}…）", True,
+                  bool(row) and any(flat(alternative)[:12] in flat(line)
+                                    for line in row))
+    for rel, old in AUDIT_44:
+        row = [line for line in doc.splitlines()
+               if rel in line and flat(old)[:20] in flat(line)]
+        rep.check(g, f"§4a.4 审计行：{rel.split('/')[-1]}:{old[:16]}…",
                   True, bool(row))
 
     make = MAKEFILE.read_text(encoding="utf-8")
@@ -756,8 +829,9 @@ INJECTIONS = {
 
 #: Static injection: the §4a "retired wording comes back" path.
 STATIC_INJECTIONS = {
-    name: (rel, old) for name, rel, old in (
-        ("retired-back", *RETIREMENTS[0][:2]),
+    name: (kind, rel, old) for name, kind, rel, old in (
+        ("retired-back", "4a.3", *RETIREMENTS[0][:2]),
+        ("retired-back-44", "4a.4", *RETIREMENTS_44[0][:2]),
     )
 }
 
@@ -792,7 +866,10 @@ def rebuild(kind: str) -> int:
 
 
 def run_static_injection(rep: Report, name: str) -> None:
-    rel, old = STATIC_INJECTIONS[name]
+    kind, rel, old = STATIC_INJECTIONS[name]
+    checker = (retirement_problems if kind == "4a.3"
+               else retirement44_problems)
+    table = RETIREMENTS if kind == "4a.3" else RETIREMENTS_44 + AUDIT_44
     path = _REPO / rel
     original = path.read_bytes()
     before = md5(path)
@@ -801,7 +878,7 @@ def run_static_injection(rep: Report, name: str) -> None:
     tmp.write_bytes(original)
     text = original.decode()
     if old in text:
-        rep.check(f"INJECT {name}", "旧文案已不在源码中（还原态）", True, False)
+        rep.check(f"INJECT {name}", "旧判据已不在源码中（还原态）", True, False)
         return
     path.write_text(text + "\n" + old + "\n", encoding="utf-8")
     try:
@@ -809,18 +886,16 @@ def run_static_injection(rep: Report, name: str) -> None:
                   path.read_bytes() != original)
         files = {rel2: (path.read_text(encoding="utf-8")
                         if rel2 == rel else repo_text(rel2))
-                 for rel2, *_rest in RETIREMENTS}
-        rep.check(f"INJECT {name}", "旧文案回潮 ⇒ R 红", True,
-                  any("旧文案回潮" in problem
-                      for problem in retirement_problems(files)))
+                 for rel2, *_rest in table}
+        rep.check(f"INJECT {name}", f"旧判据回潮 ⇒ §{kind} R 红", True,
+                  any("回潮" in problem for problem in checker(files)))
     finally:
         path.write_bytes(tmp.read_bytes())
         rep.check(f"INJECT {name}", "还原（cp + md5 对账）", before, md5(path))
         files = {rel2: (path.read_text(encoding="utf-8")
                         if rel2 == rel else repo_text(rel2))
-                 for rel2, *_rest in RETIREMENTS}
-        rep.check(f"INJECT {name}", "还原后 R 回绿", [],
-                  retirement_problems(files))
+                 for rel2, *_rest in table}
+        rep.check(f"INJECT {name}", "还原后 R 回绿", [], checker(files))
 
 
 def run_injection(rep: Report, name: str) -> None:

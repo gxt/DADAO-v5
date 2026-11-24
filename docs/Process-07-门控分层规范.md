@@ -197,6 +197,22 @@ K6 门控 `check-linux-k6` 落地后，「用户态应用尚未跑通 / busybox 
 「位置 + 锚点 + 处置」（保留项必须出现「保留」二字），且每个改限定语行给出替代判据。可达 FAIL：
 `--inject retired-back` 把旧文案加回 `k4_switch_probe.py` ⇒ R 红；`--selfcheck` 另验一次。
 
+### 4a.4 `m18-linux-008`（K1–K4 门控断言补强）的退役记录
+
+三条 finding（ISS-487 F-a/F-b/F-c）把「注册行只钉字面量」「白名单只钉 `file:line`」这两类判据换掉：
+字面量判据被注释命中即假绿，`file:line` 白名单既会随源码漂移失效、又会把**同址的新告警**当既有放过。
+换掉的判据按 §4a 三态逐条记录：
+
+| 位置 | 断言或文案（锚点） | 处置 | 新文案 / 替代判据 |
+|---|---|---|---|
+| `tests/unit/linux/k4_switch_probe.py` | S6「`no generic clockevent/clocksource framework is registered`（`that upgrade is K5's m14-linux-021`）」 | 删除（m14-linux-026 已翻转） | `time_init()` 注册 clocksource/clockevent 对；替代 = `k5_clocksource_probe` C1+T1–T4（先例 = k3 R4） |
+| `tests/unit/linux/k4_switch_probe.py` | S6「`clockevents_config_and_register` 字面量出现即算注册」（删掉注册行后仍被注释命中） | 删除 | `clock_static()` 在**注释剥离**后的源码上钉调用形态：`clockevents_config_and_register(&dadao_clock_event_device,` 与 `clocksource_register_hz(&dadao_clocksource,`；替代 = `k5_clocksource_probe` T1（clocksource 真的被选中） |
+| `tests/unit/linux/k5_clocksource_probe.py` | WARNING 白名单按 `file:line`（`init/main.c:1110` / `fs/sysfs/group.c:137`）写死 | 删除 | `KNOWN_WARNINGS` 按告警自身判：`init/main.c` 认文本 `Interrupts were enabled early`；`fs/sysfs/group.c` 只认**无消息**的 `WARN_ON`（该站点任何消息行 ⇒ 新告警）；行号不参与判据 |
+
+**机械断言**：`check-linux-k6` 的 R 组按上表双向核对 —— 两处旧判据（字面量、`file:line`）在源码中 0 命中、
+新判据（调用形态两条 + `KNOWN_WARNINGS`）在源码中出现，且本节每行都留下「位置 + 锚点 + 处置 + 替代判据」。
+可达 FAIL：`--inject retired-back` 的 §4a.4 臂把旧字面量/旧白名单加回上述两文件 ⇒ R 红；还原（`cp` + md5）后回绿。
+
 ## 5. 每层须可达 FAIL（MUST）
 
 - **每层的每个门控/检查必须"能失败"**：断言/用例须有**可达 FAIL 路径**（禁恒真、禁"两支写同一结果"）；覆盖类检查须**现场统计、不写死**。

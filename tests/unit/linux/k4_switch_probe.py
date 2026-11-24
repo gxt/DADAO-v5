@@ -22,10 +22,19 @@ What each case proves, and where its expectation comes from:
       `pgd_alloc()` carried the kernel's G = 1 L1 slots into it, TLB-26).
   S4  footprint: the switch leaves the caller-saved blocks, `rb2` (frame
       pointer, ADR-0018 C6) and `rb3` (rbtp, contract-abi §4.5) untouched.
-  S6  the minimal clockevent: `cfx_hart`'s compare register raises `TIMER`
-      `freq / HZ` apart, `jiffies` advances by exactly the number of delivered
-      ticks, and no generic clockevent/clocksource framework is registered
-      (that upgrade is K5's m14-linux-021).
+  S6  the clock boundary: `cfx_hart`'s compare register raises `TIMER`
+      `freq / HZ` apart and `jiffies` advances by exactly the number of
+      delivered ticks.  Since m14-linux-026 the production image's
+      `time_init()` registers a clocksource/clockevent pair
+      (`clocksource_register_hz(&dadao_clocksource, …)` and
+      `clockevents_config_and_register(&dadao_clock_event_device, …)` — pinned
+      as **call forms on the comment-stripped source**, so a comment naming the
+      function cannot satisfy them, ISS-487 F-a) and the generic tick owns
+      jiffies, while the raw K2 tick stays compile-time isolated to
+      `CONFIG_DADAO_K2_TIME_STOP`.  The retired "no generic
+      clockevent/clocksource framework is registered" reading is recorded in
+      `docs/Process-07 §4a.4` (ISS-487 F-b); the registration is judged
+      end-to-end by `tests/unit/linux/k5_clocksource_probe.py` T1–T4.
   S5  two *user* processes A/B alternating; needs the per-task user-mode frame
       (the umon entry still saves into one static frame, kernel/trap.S).
   S7  F3: `kernel_init` brings up the initramfs and the probe's syscall hook
@@ -395,6 +404,93 @@ def judge(rep: Report, text: str, rc: int, suffix: str = "") -> None:
 CUR_CONFIG: list[str] = [""]
 
 
+#: S6: the two registrations ``time_init()`` must actually *call* (ISS-487
+#: F-a).  Each row = (function, the call form the source must contain).  The
+#: form pins the callee *and* its device argument, so a comment naming the
+#: function, a call on some other device, or a definition without a call site
+#: cannot satisfy it.
+CLOCK_REGISTRATIONS = (
+    ("clockevents_config_and_register",
+     r"clockevents_config_and_register\s*\(\s*&dadao_clock_event_device\s*,"),
+    ("clocksource_register_hz",
+     r"clocksource_register_hz\s*\(\s*&dadao_clocksource\s*,"),
+)
+
+
+def code_only(text: str) -> str:
+    """@text with C comments blanked out; line breaks are preserved.
+
+    A comment that merely *names* a call must not satisfy "the code calls it":
+    the retired S6 check pinned the bare literal
+    ``clockevents_config_and_register``, which a comment satisfied **after the
+    registration line was deleted** (ISS-487 F-a).  Newlines survive, so a
+    diagnostic quoting ``code_only()`` still points at the real line.
+    """
+    out: list[str] = []
+    i, n = 0, len(text)
+    while i < n:
+        ch = text[i]
+        if text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            end = n if end < 0 else end + 2
+            out.append("\n" * text.count("\n", i, end))
+            i = end
+        elif text.startswith("//", i):
+            end = text.find("\n", i)
+            if end < 0:
+                i = n
+                continue
+            # A line comment continues when the line ends with a backslash.
+            while end > 0 and text[end - 1] == "\\" and end + 1 < n:
+                end = text.find("\n", end + 1)
+                if end < 0:
+                    end = n
+                    break
+            i = end
+        elif ch in ("'", '"'):
+            # A literal cannot contain a call: keep the quotes (so the shape
+            # stays readable) and blank everything between them.
+            j = i + 1
+            while j < n and text[j] != ch:
+                j += 2 if text[j] == "\\" else 1
+            body = text[i + 1:j]
+            out.append(ch + "".join("\n" if c == "\n" else " " for c in body)
+                       + (ch if j < n else ""))
+            i = j + 1
+        else:
+            out.append(ch)
+            i += 1
+    return "".join(out)
+
+
+def check_clock_static(rep: Report, time_src: str) -> None:
+    """S6's static half: what the image's clock code must (not) contain.
+
+    Split out of :func:`static_recon` so an evidence harness can drive it with
+    a mutated copy of the source: every assertion here has a reachable FAIL on
+    edited text, with no build and no boot (ISS-487 F-a).
+    """
+    code = code_only(time_src)
+    for function, call in CLOCK_REGISTRATIONS:
+        rep.check("S6", f"time_init 调用 {function}(&<device>, …)"
+                        f"（调用形态；注释命中不算）",
+                  True, re.search(call, code) is not None)
+    rep.check("S6", "最小 clockevent 只写 timer_cmp/timer_ctrl", True,
+              "dadao_timer_arm" in code and "dadao_tick_on" in code)
+    rep.check("S6", "tick 调用 sched_tick（调度记账）", True,
+              "sched_tick()" in code)
+    # m14-linux-026 upgraded this boundary; the retired opposite assertion is
+    # recorded in `docs/Process-07 §4a.4` (ISS-487 F-b).  `time_init()` now
+    # registers a clocksource/clockevent pair and the generic tick owns
+    # jiffies, while the raw K2 tick is compile-time isolated to
+    # CONFIG_DADAO_K2_TIME_STOP.  The registration is judged end-to-end by
+    # `tests/unit/linux/k5_clocksource_probe.py` (T1-T4).
+    rep.check("S6", "生产镜像走通用 clockevent；K2 裸 tick 只剩边界镜像",
+              True,
+              "#ifdef CONFIG_DADAO_K2_TIME_STOP" in code
+              and "#ifndef CONFIG_DADAO_K2_TIME_STOP" in code)
+
+
 def static_recon(rep: Report, snap: dict | None) -> None:
     """The pieces a boot cannot show: the image's own configuration and the
     source-level facts the probe's expectations rely on."""
@@ -461,22 +557,7 @@ def static_recon(rep: Report, snap: dict | None) -> None:
     rep.check("S3", "switch_mm 保存/恢复 cg6 暂存（TLB-30 ④）", True,
               "PTW_CG_SCRATCH" in mmu)
 
-    time_src = kernel_text("arch/dadao/kernel/time.c")
-    rep.check("S6", "最小 clockevent 只写 timer_cmp/timer_ctrl", True,
-              "dadao_timer_arm" in time_src and "dadao_tick_on" in time_src)
-    rep.check("S6", "tick 调用 sched_tick（调度记账）", True,
-              "sched_tick()" in time_src)
-    # m14-linux-026 upgraded this boundary: `time_init()` now registers a
-    # clocksource/clockevent pair and the generic tick owns jiffies.  The K4
-    # image therefore takes the *generic* path, and the static half asserts
-    # exactly that: the registration is present, and the raw K2 tick is
-    # compile-time isolated to CONFIG_DADAO_K2_TIME_STOP.  The registration
-    # itself is judged end-to-end by `tests/unit/linux/k5_clocksource_probe.py`
-    # (T1-T4), so this file does not restate it.
-    rep.check("S6", "生产镜像走通用 clockevent；K2 裸 tick 只剩边界镜像",
-              True,
-              "clockevents_config_and_register" in time_src and
-              "#ifdef CONFIG_DADAO_K2_TIME_STOP" in time_src)
+    check_clock_static(rep, kernel_text("arch/dadao/kernel/time.c"))
 
 
 # ---------------------------------------------------------------------------

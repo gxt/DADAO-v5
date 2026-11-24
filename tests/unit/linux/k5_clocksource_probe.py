@@ -194,6 +194,32 @@ def kernel_path() -> Path:
     return Path(linux_paths.linux_build_dir()) / "vmlinux"
 
 
+#: The two known warnings' *call sites* in the kernel source: (file, the WARN
+#: form to parse).  ISS-487 F-c anchors the whitelist to the source instead of
+#: to a console line number: the message text in :data:`KNOWN_WARNINGS` must be
+#: the one `init/main.c` actually passes to ``WARN()``, and the sysfs one must
+#: still be a message-less ``WARN_ON()``.  If either changes, the whitelist is
+#: stale and C1 goes red on the *static* half — which is what makes the
+#: whitelist non-vacuous even on a console that carries no warning at all.
+KNOWN_WARN_SITES = (
+    ("init/main.c", r'WARN\(!irqs_disabled\(\),\s*"([^"]*)\\n"\)'),
+    ("fs/sysfs/group.c", r"WARN_ON\(!kobj[^)]*\)"),
+)
+
+
+def check_known_warnings_static(rep: Report) -> None:
+    """The whitelist still names the warnings the kernel source produces."""
+    rel, pattern = KNOWN_WARN_SITES[0]
+    found = re.findall(pattern, (SOURCE / rel).read_text(encoding="utf-8"))
+    rep.check("C1", f"{rel} 的 WARN 消息集仍含白名单文本"
+                    f"（{KNOWN_WARNINGS[0][1]!r} 见于 {found}）", True,
+              KNOWN_WARNINGS[0][1] in found and bool(found))
+    rel, pattern = KNOWN_WARN_SITES[1]
+    found = re.findall(pattern, (SOURCE / rel).read_text(encoding="utf-8"))
+    rep.check("C1", f"{rel} 仍有该站点的无消息 WARN_ON（白名单第二条）",
+              1, len(found))
+
+
 def snapshot() -> dict:
     """What belongs to *this* image: its .config and its symbol table."""
     return {"config": (Path(linux_paths.linux_build_dir()) / ".config").read_text(
@@ -475,6 +501,130 @@ def check_t4(rep: Report, text: str, base: dict) -> None:
              f"window={window} samples={vals}")
 
 
+#: The pre-existing WARNING blocks of this port, by *identity* (ISS-487 F-c).
+#: Each row = (site regex, the warning's own message text, or ``None`` for a
+#: message-less ``WARN_ON``).  The site regex deliberately leaves the line
+#: number free: `init/main.c`'s ``WARN(!irqs_disabled(), "Interrupts were
+#: enabled early\n")`` and `fs/sysfs/group.c`'s ``WARN_ON(!kobj || ...)`` are
+#: the two; a *different* message at either site is a new warning.
+KNOWN_WARNINGS = (
+    (r"^WARNING: init/main\.c:\d+ ", "Interrupts were enabled early"),
+    (r"^WARNING: fs/sysfs/group\.c:\d+ ", None),
+)
+
+#: Lines that end a warning's message part (a WARN block continues with a
+#: register/trace dump, never with another message line).
+_DUMP_LINE = re.compile(r"^(CPU:|Tainted:|Stack pointer:|Hardware name:|"
+                        r"Modules linked in:|Call Trace|Code:|RIP:|\+-+\[ cut)")
+
+
+def warn_blocks(text: str) -> list[dict]:
+    """Every ``WARNING:`` block of @text as ``{header, site, line, message}``.
+
+    The kernel's warning format puts the site on the header line and the
+    ``WARN`` message (if the call has one) on the line right after it; a
+    message-less ``WARN_ON`` jumps straight to the register dump.
+    """
+    blocks: list[dict] = []
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        m = re.match(r"^WARNING: (\S+):(\d+) ", line)
+        if not m:
+            continue
+        message = ""
+        if index + 1 < len(lines):
+            follow = lines[index + 1].strip()
+            if follow and not _DUMP_LINE.match(follow):
+                message = follow
+        blocks.append({"header": line, "site": m.group(1),
+                       "line": int(m.group(2)), "message": message})
+    return blocks
+
+
+def unknown_warnings(text: str) -> list[str]:
+    """The ``WARNING:`` lines that are not one of the two known blocks.
+
+    Two ways to be unknown: a parsed block whose identity does not match, and a
+    ``WARNING:`` line that does not even parse as a block header (e.g. a
+    different banner format) — the latter must never slip through unjudged.
+    """
+    blocks = warn_blocks(text)
+    parsed = {block["header"] for block in blocks}
+    bad = []
+    for block in blocks:
+        known = False
+        for site, message in KNOWN_WARNINGS:
+            if not re.search(site, block["header"]):
+                continue
+            if message is None:
+                # Only a message-less WARN at that site is the known one.
+                known = not block["message"]
+            else:
+                known = block["message"] == message
+            if known:
+                break
+        if not known:
+            bad.append(block["header"])
+    for line in text.splitlines():
+        if line.startswith("WARNING:") and line not in parsed:
+            bad.append(line)
+    return bad
+
+
+#: Whichever arm the selfcheck needs: (name, console text, expected unknown
+#: headers).  The first arm is the *recognition* direction (both known blocks,
+#: line numbers moved); the rest are the must-go-red directions.
+WARN_CASE_KNOWN = (
+    "-------------[ cut here ]------------\n"
+    "WARNING: init/main.c:1234 at 0x0000000000000000, CPU#0: swapper/0/0\n"
+    "Interrupts were enabled early\n"
+    "CPU: 0 UID: 0 PID: 0 Comm: swapper/0 Not tainted 7.2.10 #1\n"
+    "-------------[ cut here ]------------\n"
+    "WARNING: fs/sysfs/group.c:99 at 0x0000000000000000, CPU#0: swapper/0/1\n"
+    "CPU: 0 UID: 0 PID: 1 Comm: swapper/0 Tainted: G        W   7.2.10 #1\n")
+
+WARN_CASES = (
+    ("已知两条在行号漂移后仍被认出（不按 file:line）", WARN_CASE_KNOWN, []),
+    ("init/main.c 同一站点换了告警文本 ⇒ 判新告警",
+     WARN_CASE_KNOWN.replace("Interrupts were enabled early",
+                             "A brand new warning"),
+     ["WARNING: init/main.c:1234 at 0x0000000000000000, CPU#0: swapper/0/0"]),
+    ("fs/sysfs/group.c 的无消息告警长出消息行 ⇒ 判新告警",
+     WARN_CASE_KNOWN.replace(
+         "WARNING: fs/sysfs/group.c:99 at 0x0000000000000000, CPU#0: swapper/0/1\n",
+         "WARNING: fs/sysfs/group.c:99 at 0x0000000000000000, CPU#0: swapper/0/1\n"
+         "sysfs: cannot create duplicate filename '/devices/x'\n"),
+     ["WARNING: fs/sysfs/group.c:99 at 0x0000000000000000, CPU#0: swapper/0/1"]),
+    ("未知站点 ⇒ 判新告警",
+     WARN_CASE_KNOWN
+     + "WARNING: mm/mmap.c:42 at 0x0000000000000000, CPU#0: swapper/0/2\n"
+       "something new\n",
+     ["WARNING: mm/mmap.c:42 at 0x0000000000000000, CPU#0: swapper/0/2"]),
+    ("另一种 banner 格式（内核通用的 `WARNING: CPU: …`）⇒ 判新告警",
+     WARN_CASE_KNOWN
+     + "WARNING: CPU: 0 PID: 1 at mm/mmap.c:9 do_map+0x1/0x2\n",
+     ["WARNING: CPU: 0 PID: 1 at mm/mmap.c:9 do_map+0x1/0x2"]),
+)
+
+
+def run_warn_selfcheck(problems: list[str]) -> int:
+    """Prove the C1 warning whitelist both recognises and rejects (F-c).
+
+    No build and no boot: the judging is a pure function of the console text,
+    so the evidence is the arms in :data:`WARN_CASES` (one recognition
+    direction, the rest each a way a new warning must be rejected).
+    """
+    for name, text, expected in WARN_CASES:
+        got = unknown_warnings(text)
+        ok = got == expected
+        print(f"  [{'PASS' if ok else 'FAIL'}] selfcheck C1-warn | {name} | "
+              f"期望={expected} 实际={got}", flush=True)
+        if not ok:
+            problems.append(f"selfcheck C1-warn: {name}（期望 {expected}，"
+                            f"实际 {got}）")
+    return len(WARN_CASES)
+
+
 def check_image(rc: int, text: str, cmd: list[str], rep: Report,
                 snap: dict) -> dict:
     check_config(rep, snap["config"])
@@ -487,17 +637,25 @@ def check_image(rc: int, text: str, cmd: list[str], rep: Report,
     rep.check("C1", "退出标记是最后一行", True,
               bool(non_empty) and non_empty[-1] == "K5 clock: done")
     # Two warnings are pre-existing properties of this port, measured on every
-    # full-boot image since K4/K5 (not this task): `init/main.c:1110` fires
-    # because `init_IRQ()` opens the source mask, `fs/sysfs/group.c:137` during
-    # `kernel_init`'s initcalls.  They are filtered by name, so any *new*
+    # full-boot image since K4/K5 (not this task): `init/main.c` fires because
+    # `init_IRQ()` opens the source mask, `fs/sysfs/group.c` during
+    # `kernel_init`'s initcalls.  They are filtered *by their own text* (ISS-487
+    # F-c), never by `file:line`: a pinned line both goes stale when the source
+    # moves and swallows a *different* warning that later lands on it.  Any new
     # warning, oops or panic still goes red.
-    known = (r"^WARNING: init/main\.c:1110",
-             r"^WARNING: fs/sysfs/group\.c:137")
-    rep.check("C1", "输出无 panic/oops/BUG 与新增 WARNING 痕迹", [],
+    rep.check("C1", "输出无 panic/oops/BUG/Call Trace 痕迹", [],
               [ln for ln in non_empty
                if re.search(r"(Kernel panic|\bpanic\b|\bOops\b|^BUG:|"
-                            r"^WARNING:|Call Trace)", ln)
-               and not any(re.search(k, ln) for k in known)])
+                            r"Call Trace)", ln)])
+    blocks = warn_blocks(text)
+    bad = unknown_warnings(text)
+    rep.check("C1", "WARNING 只允许既有的两条（按告警文本/站点文件判，不按 "
+                    "file:line）", [], bad)
+    rep.stat(f"warn blocks={len(blocks)} recognised={len(blocks) - len(bad)} "
+             f"unknown={len(bad)}")
+    # The whitelist itself must still describe the kernel source's warnings
+    # (a console with no warning at all would otherwise leave it untested).
+    check_known_warnings_static(rep)
     rep.check("C1", "输出无具名异常终止", [],
               [ln for ln in non_empty if ln.startswith("dadao: ")])
 
@@ -583,13 +741,19 @@ def run_selfcheck(result: dict) -> int:
     for cid, mutate, why in mutations:
         flip(cid, mutate, why)
 
+    # ISS-487 F-c: the warning whitelist is text-based now, so it gets its own
+    # arms (recognise the two known blocks wherever they land, reject a new
+    # message at a known site, a message-less warn that grew a message, an
+    # unknown site, and a banner format the block parser does not know).
+    warn_cases = run_warn_selfcheck(problems)
+
     rep = judge(result["rc"], text, result["cmd"], snap)
     print(f"  [{'PASS' if not rep.fails else 'FAIL'}] selfcheck 对照 未改动 | "
           f"期望=0 失败 实际={len(rep.fails)} 失败", flush=True)
     if rep.fails:
         problems.append(f"selfcheck 对照: {rep.fails[0]}")
 
-    total = len(mutations) + 1
+    total = len(mutations) + warn_cases + 1
     if problems:
         print(f"k5_clocksource_probe --selfcheck: FAIL ({len(problems)} 问题)")
         for problem in problems:

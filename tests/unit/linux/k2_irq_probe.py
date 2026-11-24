@@ -35,8 +35,11 @@ self-consistent) /
 P2 masked window + merged re-delivery / P3 nested saves / P4 capture overwrite
 inside the async handler (every entry overwrites cg9; nesting is the software's
 job) and the software copy/return through smon / P5 `arch_irqs_disabled()` versus
-the live register and the enable-granularity anchor (ISS-457: enable == disable
-with only the source bits cleared) / U1 hard-IRQ context inside the handler
+the live register plus the enable-granularity anchor (ISS-457: `enable` ==
+`disable` with only the source bits cleared, **and** the absolute reset-value
+anchors — `enable` == all-ones minus the source bit, `disable` == all-ones —
+because the relative form alone is green once a blanket write has already wiped
+the row earlier in the boot) / U1 hard-IRQ context inside the handler
 (`in_hardirq()` == 1; m14-linux-044) / U2 `sched_clock()` vs `cfx_time` (same
 source, monotone) / U3 a bad user pointer through copy_from_user/copy_to_user is
 fixed up to -EFAULT instead of ending the boot / C9 totals (masked exit).
@@ -594,6 +597,19 @@ def check_p5(rep: Report, text: str, d: dict) -> None:
     # every other P5 assertion stays green under it.
     rep.check("P5", "enable == disable 清掉源位（其余位保持）",
               rows["disable"][3] & ~bit, rows["enable"][3])
+    # Absolute anchors (ISS-457, m18-linux-008): the *relative* form above is
+    # green under a blanket "write 0" as soon as the row's other policy bits
+    # were already wiped earlier in the same boot — which is exactly what the
+    # blanket write does at `start_kernel`'s own `local_irq_enable()` calls
+    # (measured with the `enable-write-zero` injection: `disable=0x8000`,
+    # `enable=0x0` ⇒ the relative anchor compares 0 == 0).  The contract's reset
+    # value is the only invariant that survives: the kernel clears its own
+    # source bits and nothing else, so outside `bit` the word stays all-ones.
+    all_ones = (1 << 64) - 1
+    rep.check("P5", "enable 的整字 == 复位全 1 只清源位（绝对锚点，ISS-457）",
+              all_ones & ~bit, rows["enable"][3])
+    rep.check("P5", "disable 的整字 == 复位全 1（绝对锚点，ISS-457）",
+              all_ones, rows["disable"][3])
 
 
 # ---------------------------------------------------------------------------
