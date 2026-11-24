@@ -1,4 +1,4 @@
-# m17-testcases-004: `stm` 注释订正 + `immu6=63` 边界用例
+# m17-testcases-006: `stm` 注释订正 + `immu6=63` 边界用例
 
 **模块**：testcases
 **项目里程碑**：M17
