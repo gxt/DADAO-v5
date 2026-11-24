@@ -30,6 +30,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m18-gem5-002 | 2–3 h | gem5 `CFXESC` 交付路由：`inst.cc` fallback 应进当前 cfx（现进当前模式 monitor，与 `DADAO-12 §5.1/§5.3` 不符） |
 | m18-linux-023 | 4–8 h | Linux `arch/dadao` 按扁平位图解码 PTW 故障（由 M17 迁入；依赖 M17 平台迁移） |
 | m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
