@@ -1127,17 +1127,17 @@
   scope:
   - idl
   milestone: M17
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M17
+  resolved_by: m17-idl-021（①可达断言 ②计数现场派生 ③020 覆盖实证）
   title: "【P3】`m17-idl-003` 复核的四条非阻断 finding：① 自检 `addr48_truncate` 是 Python 常量表达式（近乎恒真），真实覆盖在 `addr48_zero_window_faults`；② 证据脚本把 self-test 期望写死 28（应现场统计，只可能多红不假绿）；③ `Cfx.access()` 未实现 `cfxreg` 掩码 ⇒ `CFXPERM`（`CG3_REG` 已定义未用），用例不触发；④ `check-temp-dirs` 红为他任务陈旧目录（只报告不删）。处置：随下次触碰 idl 执行器/证据脚本时修。"
 - id: ISS-491
   scope:
   - idl
   milestone: M17
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M17
+  resolved_by: m17-idl-021（trace-format §2.1 固化 ②③④；①不在仓）
   title: "【P3】`m17-idl-004` 复核的四条非阻断 finding：① `probe_red` 只断言 rc=1、不断言输出含 `[FAIL]`；② trace 的 `id`/`mn` 两侧同源于 `contracts/opcodes.yaml`，非独立证据；③ `dst`/`val` 派生函数两侧共用（输入分别来自 QEMU dump 与执行器状态，非同源自比）；④ `rd8_skip` 15283/24790、`ra_skip` 39173 覆盖率偏大，M20 复用时在格式文档补覆盖率。处置：随下次触碰 idl 证据/格式文档时修。"
 - id: ISS-492
   scope:
@@ -1548,3 +1548,11 @@
   closed_in: null
   resolved_by: null
   title: "【P2】**回归**：`check-tset-libc-smoke` 单例 `regression/pthread_cond_wait-cancel_ignored` 稳定红——`exit=1 … did not act on cancellation`；`TESTCASES-104t` 基线记为 `qemu_status: pass, exit=0`。复现：`m18-qemu-001` 3/3 + reviewer 独立 1 次 + 换修前 `a_cas` 的 musl 同样红（共 5 次）；`qemu-dadao` md5 前后同为 `7dcf3811`、本任务未改 QEMU 补丁 ⇒ 非窄 CAS / 非本任务引入。待定位归属（QEMU 取消/信号路径 vs musl 侧 vs 测试自身），定位后修并补可达 FAIL。"
+- id: ISS-537
+  scope:
+  - idl
+  milestone: M17
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】`idl_check_trace` 全量 273/274：`ld.o_rrii_ra` 第 205 条差异（`ra3/ra9/ra10` 与 exec 侧 `ra5/ra61`）。`m17-idl-021` 实测主树与 worktree 逐字相同 ⇒ 既有差分；属 RAS 有效区/E4 口径，未进 L1/L2 门控。建议随下次触碰 RAS/trace 时按 `SimRISC-00 §2.4` 订正判据或登记为文档化等价。"

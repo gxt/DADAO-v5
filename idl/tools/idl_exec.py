@@ -2583,8 +2583,24 @@ def self_test():
        [1, 2, 3, 4, 5, 6, 0xBE, 0xEF])
 
     # 3. 48 位地址截断 + 地址空间解码
-    ea = (0x1_0000_0000_0000 + 0x1234) & MASK48
-    eq("addr48_truncate", ea, 0x1234)
+    #    EA = (rb + imm)[47:0]：高 16 位必须在**对齐判定与访存**之前截掉。用真实
+    #    `ld.o`（译码 + 执行路径）做可达断言，不用常量折叠（`addr[63:48]` 置非零）。
+    mz = _mk_machine()
+    hi16 = 0x1234 << 48
+    mz.set("rb", 6, hi16 | 0xFFFF_FF01_5800)
+    try:
+        _op_ld_o(mz, mz.dec.decode(0x20146004))    # ld.o rd5, [rb6, +4]（64 位错位）
+        eq("addr48_ea_truncate", "no-fault", 0xFFFF_FF01_5804)
+    except Fault as exc:
+        eq("addr48_ea_truncate", (exc.cause, exc.info),
+           ("Malign", 0xFFFF_FF01_5804))
+    #    存储侧：带高位地址与 48 位地址解码到同一物理字节（Memory 先截 48 位）。
+    mz.mem.write_memory(64, 0xFFFF_FF01_5800, 0x5A5A_5A5A_0000_1234)
+    try:
+        got_mem = hex(mz.mem.read_memory(64, hi16 | 0xFFFF_FF01_5800))
+    except Fault as exc:
+        got_mem = "fault:" + exc.cause
+    eq("addr48_mem_truncate", got_mem, hex(0x5A5A_5A5A_0000_1234))
     try:
         m.mem.read_memory(64, 0x1_0000_0000_0000)
         eq("addr48_zero_window_faults", "no-fault", "CfxMem")
