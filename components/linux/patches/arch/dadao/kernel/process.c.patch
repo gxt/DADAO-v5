@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/kernel/process.c b/arch/dadao/kernel/process.c
 new file mode 100644
-index 000000000..a0a5d13e4
+index 000000000..a087d9d54
 --- /dev/null
 +++ b/arch/dadao/kernel/process.c
 @@ -0,0 +1,834 @@
@@ -461,13 +461,13 @@ index 000000000..a0a5d13e4
 +	 * the *source* cfx (spec/DADAO-12 §3.3), and after a task has trapped the
 +	 * current cfx is `cfx_umon` (0) — so the kernel's own accesses
 +	 * (`cfx2rc`/`cfx2rd` on `cfx_ptw` and `cfx_hart`'s timer, `trap cfx0` for
-+	 * the console) are refused with NCFXPERM unless source 0 is open.  The
++	 * the console) are refused with CFXPERM unless source 0 is open.  The
 +	 * firmware opens {2, 15} only; contract-syscall §8 puts the "open what the
 +	 * kernel itself needs" half on the kernel.
 +	 *
 +	 * Measured before the fix: `dadao_ptbr_read()`/`switch_mm()` from inside
 +	 * the umon handler, and the timer arming after an S5 run, all died as
-+	 * `CFXPERM + NCFXPERM`.
++	 * `CFXPERM` (ADR-0062 D3: the only form a cfx source-mask denial has).
 +	 */
 +	/*
 +	 * The cfx names are compile-time tokens (`cfx2rd`'s cfxha is an immediate),

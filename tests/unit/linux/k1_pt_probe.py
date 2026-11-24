@@ -309,7 +309,10 @@ def check_all(ctx: Ctx, rc: int, text: str, rep) -> None:
     rep.check("P5", "切换前该 VA 未映射（旧表只有 1 个超页）", "0", old[1])
     rep.check("P5", "处理掉的探针缺页次数（现场计数）", 1, len(f["fault"]))
     fault = f["fault"][0] if f["fault"] else ("<missing>",) * 3
-    rep.check("P5", "探针缺页原因", "CFXMEM", fault[0])
+    # ADR-0062: the machine reports the flat bitmap bit, not a class+wyde
+    # pair.  The peek is a data read of a VA with L1 P = 0/SP = 0 ⇒ DGPTRAP
+    # (contract-see §6.1.1 [52]).
+    rep.check("P5", "探针缺页原因（bitmap 位名）", "DGPTRAP", fault[0])
     rep.check("P5", "探针缺页地址", hex(ctx.probe_va), fault[1])
 
     mapping = one("map")
@@ -510,8 +513,12 @@ INJECTIONS = {
         PT_C,
         "\tif (dadao_trap_probe_register(&k1_pt_probe))",
         "\tif (0)",
-        0xe1,                 # supv + CFXMEM, spec/Kaiwu §7.1
-        r"^dadao: unrecoverable supv exception cause=CFXMEM\(0x2\) "
+        # ADR-0062 D1/D6: a bitmap fault has no §7.1 index (that table is
+        # Tiny-only); the kernel's diagnostic exit derives the index from the
+        # bit number's low nibble, so supv + (52 & 0xf) = 0xe4.
+        0xc0 | (2 << 4) | (52 & 0xf),
+        r"^dadao: unrecoverable supv exception cause=PTWMEM"
+        r"\(0x10000000000000\) "
         r"ip=0x[0-9a-f]+ info={probe_va:#x} ptbr=0x0 sp=0x[0-9a-f]+$",
         r"^K1 ptw done",
     ),

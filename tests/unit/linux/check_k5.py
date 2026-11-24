@@ -302,6 +302,17 @@ def hexs(value: int) -> str:
     return hex(value)
 
 
+def pf_rows(text: str) -> list[dict[str, str]]:
+    """The fault channel's one-line report (``K3 pf: key=value ...``)."""
+    rows = []
+    for line in text.splitlines():
+        if not line.startswith("K3 pf: "):
+            continue
+        rows.append({key: value for key, value in
+                     (tok.split("=", 1) for tok in line.split() if "=" in tok)})
+    return rows
+
+
 def row_of(rows: list[tuple[str, dict[str, str]]],
            name: str) -> dict[str, str] | None:
     for got_name, row in rows:
@@ -965,6 +976,21 @@ def judge_g(rep: Report, text: str, rc: int, config: str | None) -> None:
                if line.startswith("M46 selftest FAIL")])
     rep.check(g, "探针的用例阶段跑完（不是半路死掉）", True,
               "M46 selftest: probe cases done" in text)
+    # ADR-0062 D1: the s1 permission fault (a store into a read-only mapping)
+    # must reach the channel as *one flat bitmap bit*: the low class is 0, the
+    # id is exactly 1 << NWPERM of contract-see §6.1.1, and the bit is named.
+    nwperm = k2trap.contract_bitmap_bit("NWPERM")
+    perm_pf = [row for row in pf_rows(text)
+               if row.get("result") == "die-perm"
+               and row.get("sub") == "NWPERM"]
+    rep.check(g, "页权限故障以扁平位图到达通道（≥1 次 NWPERM/die-perm）", True,
+              bool(perm_pf))
+    rep.check(g, "die-perm 的 cause_id == 1 << §6.1.1 NWPERM",
+              [hex(1 << nwperm)] * len(perm_pf),
+              [row.get("id") for row in perm_pf])
+    rep.check(g, "die-perm 的原因区/位名 == PTWPERM/NWPERM",
+              [("PTWPERM", "NWPERM")] * len(perm_pf),
+              [(row.get("cause"), row.get("sub")) for row in perm_pf])
     rows = k5signal.check_lines(text)
     rep.check(g, "内核自评的每条 M46 check 都 ok", [],
               [name for name, verdict in rows if verdict != "ok"])

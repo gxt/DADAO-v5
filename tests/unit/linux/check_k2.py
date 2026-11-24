@@ -290,13 +290,6 @@ def derivations(snap: dict) -> dict:
     }
 
 
-def cause_of(table, name: str) -> tuple[int, str]:
-    for cause_id, cause_name in table:
-        if cause_name == name:
-            return cause_id, cause_name
-    raise SystemExit(f"check_k2: spec/DADAO-12 §4.1 has no cause {name!r}")
-
-
 # ---------------------------------------------------------------------------
 # build + boot
 # ---------------------------------------------------------------------------
@@ -510,7 +503,12 @@ def check_clock(rep: Report, rc: int, text: str, snap: dict, d: dict) -> None:
 
 def check_exception(rep: Report, rc: int, text: str, d: dict) -> None:
     specs = d["specs"]
-    cause_id, cause_name = cause_of(d["table"], "CFXMEM")
+    # ADR-0062: the fault at probe_va is a data read of a VA with L1 P = 0 /
+    # SP = 0, i.e. the DGPTRAP *bitmap* bit of contract-see §6.1.1 — there is
+    # no low cause bit to name any more.
+    bit = k2trap.contract_bitmap_bit("DGPTRAP")
+    cause_id = 1 << bit
+    cause_name = "PTWMEM"
     low, high = d["entry_va"], d["entry_va"] + d["kernel_size"]
 
     m = re.search(r"^K2 selftest: probe_va=(\S+) ", text, re.MULTILINE)
@@ -539,8 +537,9 @@ def check_exception(rep: Report, rc: int, text: str, d: dict) -> None:
               num(tokens.get("marker"), 0) != 0)
 
     die = k2trap.die_line(text)
-    want = k2time.monitor_code(specs, "supv", "CFXMEM")
-    rep.check("E8", "本镜像内（无 mm 子系统）未声明的 CFXMEM：退出码 == §7.1 supv+CFXMEM；K3 起同址由页故障通道接住，替代判据 = check-linux-k5 S/G 组", hex(want),
+    want = (specs["ranges"]["monitor"][0] | (specs["modes"]["supv"] << 4) |
+            (bit & 0xF))
+    rep.check("E8", "本镜像内（无 mm 子系统）未声明的页故障：退出码 == monitor 段 supv+位号低半字节（§7.1 索引表仅 Tiny，ADR-0062 D6）；替代判据 = check-linux-k5 S/G 组", hex(want),
               hex(rc))
     rep.check("E9", "未声明：终止行的原因名", cause_name,
               die["cause"] if die else "<missing>")
@@ -913,9 +912,13 @@ def check_exit_trap(rep: Report, rc: int, text: str, d: dict) -> None:
     monitor_low, monitor_high = ranges["monitor"]
     other_low, _other_high = ranges["other"]
 
-    want = k2time.monitor_code(specs, "supv", "CFXMEM")
-    rep.check("X6", "异常终止 rc == 0xC0|supv<<4|CFXMEM 位号（supv ⇒ 0xE0|bit）",
-              hex(want), hex(rc))
+    # ADR-0062 D6: the fault is a bitmap bit, so there is no §7.1 index; the
+    # kernel derives the code from the bit's low nibble and this gate restates
+    # exactly that derivation.
+    want = (monitor_low | (specs["modes"]["supv"] << 4) |
+            (k2trap.contract_bitmap_bit("DGPTRAP") & 0xF))
+    rep.check("X6", "异常终止 rc == 0xC0|supv<<4|DGPTRAP 位号低半字节", hex(want),
+              hex(rc))
     rep.check("X7", "异常终止 rc 落 monitor 段且不落 guest 段", True,
               monitor_low <= rc <= monitor_high
               and not (guest_low <= rc <= guest_high))

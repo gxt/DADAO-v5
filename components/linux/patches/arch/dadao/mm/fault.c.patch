@@ -1,19 +1,18 @@
 diff --git a/arch/dadao/mm/fault.c b/arch/dadao/mm/fault.c
 new file mode 100644
-index 000000000..72ee5e3d8
+index 000000000..f41d9ab98
 --- /dev/null
 +++ b/arch/dadao/mm/fault.c
-@@ -0,0 +1,1135 @@
+@@ -0,0 +1,1142 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
-+ * DADAO demand paging: the CFXMEM / CFXPERM fault channel (K3, m14-linux-012).
++ * DADAO demand paging: the page-table fault channel (K3, m14-linux-012).
 + *
-+ * The hardware reports a page-table failure as a *class* in
-+ * `excp_cause_id[15:0]` plus one sub-reason bit in the wyde ADR-0056 assigns to
-+ * that class (asm/cause-sub.h, contract-see §6.1.1), and `excp_cause_info` as an
-+ * address.  It does not know "page fault", "COW" or "wild access" — those are
-+ * operating-system readings and this file is where the reading happens
-+ * (user ruling 2026-11-16):
++ * The hardware reports a page-table failure as *one bit of a flat bitmap* in
++ * `excp_cause_id` (asm/cause-sub.h, ADR-0062 D1, contract-see §6.1.1) and
++ * `excp_cause_info` as an address.  It does not know "page fault", "COW" or
++ * "wild access" — those are operating-system readings and this file is where
++ * the reading happens (user ruling 2026-11-16):
 + *
 + *   missing class, inside a VMA               -> demand fill and re-execute;
 + *   missing class, outside every VMA           -> a verdict (below);
@@ -27,12 +26,14 @@ index 000000000..72ee5e3d8
 + *                                                 shared, upgraded in place when
 + *                                                 the writer is the only user
 + *                                                 (m14-linux-018);
-+ *   HSJU / cfx-mask permission class           -> a verdict;
++ *   HSJU permission class                      -> a verdict;
 + *   ADWBFAIL                                   -> a verdict (a retry
 + *                                                 would loop: nothing about the
 + *                                                 access can change);
-+ *   NONPTW                                     -> a verdict (the fault is not a
-+ *                                                 page-table one).
++ *   CFXMEM                                     -> a verdict (a non-PTW in-core
++ *                                                 access: no VMA to look up);
++ *   CFXPERM                                    -> a verdict (a cfx source-mask
++ *                                                 denial: not a page fault).
 + *
 + * "A verdict" depends on *whose* access it was (m14-linux-027):
 + *
@@ -57,11 +58,11 @@ index 000000000..72ee5e3d8
 + *
 + *  - **The missing classes do not say read or write.**  DGPTRAP covers a load
 + *    and a store alike (contract-see §6.1.1), so a missing fill maps the
-+ *    read-only shared zero page; a store then faults again with CFXPERM +
-+ *    NWPERM, and *that* is the point where the handler learns the access was a
-+ *    write and gives it a private, zeroed page.  No instruction decoding, no
-+ *    tentative writable mapping, and the zero page is never written: the write
-+ *    replaces the mapping instead of copying (user ruling 2026-11-16).
++ *    read-only shared zero page; a store then faults again with NWPERM, and
++ *    *that* is the point where the handler learns the access was a write and
++ *    gives it a private, zeroed page.  No instruction decoding, no tentative
++ *    writable mapping, and the zero page is never written: the write replaces
++ *    the mapping instead of copying (user ruling 2026-11-16).
 + *
 + * Every entry prints exactly one line (the gate parses it, and the task forbids
 + * per-instruction logging from a handler), and every "retry" has a budget: an
@@ -307,7 +308,7 @@ index 000000000..72ee5e3d8
 +	 * needs **both** bits from K4 on: U for the task itself, S for the kernel
 +	 * servicing it — `write(2)` and `brk(2)` must read the user's buffer and
 +	 * `copy_from_user()` walks the user VA, so a U-only page would turn every
-+		 * syscall that takes a pointer into CFXPERM/NSPERM.  A mapping with no
++		 * syscall that takes a pointer into NSPERM.  A mapping with no
 +	 * address space (the kernel's own) stays a kernel-only mapping (S).
 +	 */
 +	return vma && vma->vm_mm ? (_PAGE_U | _PAGE_S) : _PAGE_S;
@@ -447,7 +448,7 @@ index 000000000..72ee5e3d8
 +	}
 +
 +	/* Data (read or write): map the shared zero page read-only.  A store
-+	 * faults again with CFXPERM + NWPERM and is turned private there. */
++	 * faults again with NWPERM and is turned private there. */
 +	if (!dadao_zero_pa)
 +		return NULL;
 +	set_pte(ptep, __pte(dadao_pf_zero_pte(vma)));
@@ -600,7 +601,7 @@ index 000000000..72ee5e3d8
 + * The VMA's own verdict on a *permission*-class fault — the check that must not
 + * be left to `handle_mm_fault()`.
 + *
-+ * DADAO reports "write of a page with W = 0" as CFXPERM + NWPERM whether the
++ * DADAO reports "write of a page with W = 0" as NWPERM whether the
 + * mapping is meant to be writable or not (spec/DADAO-12 §2.2.6), so the class
 + * alone does not say "copy-on-write"; only the VMA does.  Letting a genuine
 + * violation through would not even fail loudly: `do_wp_page()` would copy,
@@ -622,7 +623,7 @@ index 000000000..72ee5e3d8
 +	case DADAO_SUB_NXPERM:
 +		return !(vma->vm_flags & VM_EXEC);
 +	default:
-+		/* NUPERM/NJPERM/NSPERM/NHPERM/NRPERM/NCFXPERM: no generic
++		/* NUPERM/NJPERM/NSPERM/NHPERM/NRPERM: no generic
 +		 * reading can make a page reachable here. */
 +		return true;
 +	}
@@ -900,9 +901,10 @@ index 000000000..72ee5e3d8
 +}
 +
 +/*
-+ * One page-fault entry.  kernel/traps.c calls this for CFXMEM and CFXPERM only,
-+ * after the class has been named and the sub-reason shape checked; the id is
-+ * passed raw so this file owns the sub-reason decoding (asm/cause-sub.h).
++ * One page-fault entry.  kernel/traps.c calls this for a bitmap page-table fault
++ * (`[38:32]`/`[56:48]`), and for the two low causes whose handler needs the same
++ * report/triage (`CFXMEM`, `CFXPERM`); the id is passed raw so this file owns
++ * the bitmap decoding (asm/cause-sub.h).
 + */
 +unsigned long dadao_do_page_fault(struct pt_regs *regs, unsigned long cause,
 +				  unsigned long info, bool from_user)
@@ -930,10 +932,13 @@ index 000000000..72ee5e3d8
 +	}
 +
 +	/*
-+	 * ADWBFAIL and NONPTW are checked *before* the VMA lookup: their
-+	 * `cause_info` is not a virtual address the walker rejected but the PTE's
-+	 * physical address (contract-see §6.1) or a cfx-space address, so there is
-+	 * no VMA to look up and nothing a fill could make accessible.
++	 * ADWBFAIL is checked *before* the VMA lookup: its `cause_info` is not a
++	 * virtual address the walker rejected but the PTE's physical address
++	 * (contract-see §6.1), so there is no VMA to look up and nothing a fill
++	 * could make accessible.  The two low causes mean the fault is not a
++	 * page-table one at all (ADR-0062 D3): CFXMEM is an in-core access outside
++	 * the page-table path, CFXPERM a cfx source-mask denial, and neither carries
++	 * a VA the channel could fill.
 +	 *
 +	 * A fault of the running process goes to the generic arm (m14-linux-035);
 +	 * the arm below is what is left for the K1-K4 probe shape (a task's mm is
@@ -944,8 +949,10 @@ index 000000000..72ee5e3d8
 +		result = "die-budget";
 +	} else if (pos == DADAO_SUB_ADWBFAIL) {
 +		result = "die-adwb";
-+	} else if (pos == DADAO_SUB_NONPTW) {
-+		result = "die-nonptw";
++	} else if (DADAO_CAUSE_CLASS(cause) == DADAO_CAUSE_CFXMEM) {
++		result = "die-cfxmem";
++	} else if (DADAO_CAUSE_CLASS(cause) == DADAO_CAUSE_CFXPERM) {
++		result = "die-cfxperm";
 +	} else if (dadao_pf_mm_active(current->mm)) {
 +		result = dadao_pf_generic(regs, pos, info, from_user, &rep_start,
 +					  &rep_end, &rep_pte);

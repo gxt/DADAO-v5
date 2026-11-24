@@ -896,12 +896,20 @@ def check_all(ctx: Ctx, rc: int, text: str, cmd: list[str], rep: Report) -> None
     for label, pattern in FATAL_PATTERNS.items():
         rep.check("K13", f"无 {label}", [],
                   [line for line in body if re.search(pattern, line, re.M)])
+    # ADR-0062: a page-table fault carries *no* low cause bit any more; the
+    # machine reports the bitmap bit (the peek is a data read of a VA with
+    # L1 P = 0/SP = 0 ⇒ DGPTRAP, contract-see §6.1.1).  So the flat-model
+    # reverse assertion is stronger: the class name CFXMEM must not appear at
+    # all.
     cfxmem = [line for line in body if "CFXMEM" in line]
-    rep.check("K13", "本镜像内（CONFIG_DADAO_K1_EARLY_STOP=y、无 mm 子系统）CFXMEM 只出现 1 次：唯一一次预先声明的探针；替代判据 = check-linux-k5 S/G 组", 1, len(cfxmem))
-    rep.check("K13", "本镜像内（无 mm 子系统）该 CFXMEM 是被处理过的探针（resumed）；替代判据 = check-linux-k5 S/G 组", True,
-              bool(cfxmem) and bool(re.match(
-                  r"^K1 ptw fault probed cause=CFXMEM va=\S+ ip=\S+ \(resumed\)$",
-                  cfxmem[0])))
+    rep.check("K13", "本镜像内（CONFIG_DADAO_K1_EARLY_STOP=y、无 mm 子系统）扁平位图下页故障不带低位 cause：全文不出现 CFXMEM；替代判据 = check-linux-k5 S/G 组", [], cfxmem)
+    probed = [line for line in body if "K1 ptw fault probed" in line]
+    rep.check("K13", "本镜像内（无 mm 子系统）唯一一次页故障是被处理过的探针（resumed，bitmap 位名 DGPTRAP）；替代判据 = check-linux-k5 S/G 组", 1,
+              len(probed))
+    rep.check("K13", "该探针行声明 bitmap 位名并由宿主管道续跑", True,
+              bool(probed) and bool(re.match(
+                  r"^K1 ptw fault probed cause=DGPTRAP va=\S+ ip=\S+ \(resumed\)$",
+                  probed[0])))
     rep.check("K13", "本镜像内（CONFIG_DADAO_K1_EARLY_STOP=y、无 mm 子系统 ⇒ 无页故障通道痕迹）无 K1 之后的子系统迹象（init/syscall/IRQ/timer/tick）；替代判据 = check-linux-k5 S/G 组", [],
               [line for line in body if re.search(POST_K1_PATTERN, line)])
 

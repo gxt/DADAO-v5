@@ -463,7 +463,8 @@ def selfcheck() -> int:
         "K4 check s1-value want=0x0 got=0x0 ok\n"
         "K4 check s1-grows want=0x1 got=0x2 BAD\n"
         "K4 check s5-grows want=0x2 got=0x3 BAD\n"
-        "K3 pf: n=1 id=0x2 cause=CFXMEM sub=DGPTRAP ip=0x1 va=0x14000030000 "
+        "K3 pf: n=1 id=0x10000000000000 cause=PTWMEM sub=DGPTRAP ip=0x1 "
+        "va=0x14000030000 "
         "vma=0x14000040000-0x14000060000 pte=0x0 pool=1 try=1 result=fill-zero\n"
     )
     judge_positive(rep, text, 1)

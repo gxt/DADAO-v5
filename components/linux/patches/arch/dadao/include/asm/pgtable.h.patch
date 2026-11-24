@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/pgtable.h b/arch/dadao/include/asm/pgtable.h
 new file mode 100644
-index 000000000..d931cb3b7
+index 000000000..5bc16b013
 --- /dev/null
 +++ b/arch/dadao/include/asm/pgtable.h
-@@ -0,0 +1,394 @@
+@@ -0,0 +1,395 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +#ifndef __ASM_PGTABLE_H
 +#define __ASM_PGTABLE_H
@@ -107,7 +107,8 @@ index 000000000..d931cb3b7
 + * may reach carries **both** U and S, the same combination the page-fault
 + * channel writes (`dadao_pf_mode_bits()`).  Mapping a user page with the
 + * kernel-only `PAGE_KERNEL*` bits leaves the page present but not user
-+ * accessible: the first user access then reports `CFXPERM + NUPERM`
++ * accessible: the first user access then reports `NUPERM` (the flat bitmap's
++ * permission bit, ADR-0062 D1)
 + * (measured: the initial process stack, whose pages come from `get_arg_page()`
 + * through the *generic* `handle_mm_fault()` path, not through this port's
 + * exception channel).

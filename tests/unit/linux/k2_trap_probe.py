@@ -42,14 +42,16 @@ Checks:
       reports the same count
   C4  the entry the kernel installed is its own vector, and the escape offsets
       it may use are the contract's two
-  C5  probe image P1: a registered CFXMEM is classified and *skipped*, so the
-      code after the faulting load runs
+  C5  probe image P1: a registered page-table fault (the DGPTRAP bitmap bit of
+      ADR-0062) is classified and *skipped*, so the code after the faulting
+      load runs
   C6  probe image P2: one retry resumes the faulting instruction itself — the
       same IP faults twice (offset 0 proven, not assumed)
   C7  probe image P5: two consecutive faults leave every GPR identical between
       the frames (126 registers compared, 0 mismatches) — frame integrity
-  C8  probe image P3: an unregistered CFXMEM terminates with the *monitor*
-      code of supv+CFXMEM from §7.1, named, exactly once (no re-entry)
+  C8  probe image P3: an unregistered page-table fault terminates with the
+      *monitor* code (supv + the bitmap bit's low nibble; §7.1's index table is
+      Tiny-only, ADR-0062 D6), named, exactly once (no re-entry)
   C9  unknown image P4: a cause outside the table is named ``unknown`` and
       stops in the guest segment (it cannot be encoded as a monitor cause)
 
@@ -99,7 +101,7 @@ SCRATCH = (Path(os.environ.get("K2_TMP")
 #: configuration into another (this is the whole point of the explicit slice).
 #:
 #:   plain     K2 image (no self-test)                       -> SYS_EXIT(0)
-#:   probe     self-test, last case = unregistered CFXMEM    -> P1..P8 + P3
+#:   probe     self-test, last case = unregistered page fault -> P1..P8 + P3
 #:   unknown   + cause rewritten to a reserved bit           -> P4
 #:   reentry   self-test, last case = fault in the handler   -> re-entrancy guard
 #:   cftrap    self-test, last case = unregistered CFXTRAP   -> "other cfx" code
@@ -278,13 +280,43 @@ def cfxha(name: str) -> int:
     raise SystemExit(f"k2_trap_probe: '{name}' is not a scalar in {path.name}")
 
 
-def contract_escape_offsets() -> list[int]:
-    """The legal ``escape`` offsets (``contract-see`` §4)."""
+def contract_bitmap_bit(name: str) -> int:
+    """Absolute bit number of a flat-model bit (``contract-see`` §6.1.1)."""
     text = CONTRACT_SEE.read_text(encoding="utf-8")
-    m = re.search(r"`imms20` 合法值只有\s*(\d+)\s*或\s*(\d+)", text)
+    cut = text.split("### §6.1.1", 1)
+    if len(cut) != 2:
+        raise SystemExit("k2_trap_probe: contract-see §6.1.1 not found")
+    body = cut[1].split("\n### ", 1)[0]
+    for line in body.splitlines():
+        m = re.match(r"^\|\s*`\[(\d+)\]`\s*\|[^|]*\|\s*`(\w+)`", line)
+        if m and m.group(2) == name:
+            return int(m.group(1))
+    raise SystemExit(f"k2_trap_probe: §6.1.1 has no bit named {name!r}")
+
+
+def bitmap_monitor_code(specs: dict, mode: str, bit: int) -> int:
+    """Monitor-segment code for a bitmap fault (see dadao_exit_code()).
+
+    ADR-0062 D6: §7.1's index table is Tiny-only and Vast reads ``cause_id``
+    directly, so a bitmap fault has no §7.1 index; the kernel derives the code
+    from the bit number's low nibble and this gate restates exactly that.
+    """
+    return (specs["ranges"]["monitor"][0] | (specs["modes"][mode] << 4) |
+            (bit & 0xF))
+
+
+def contract_escape_offsets() -> list[int]:
+    """The legal synchronous ``escape`` byte offsets (``contract-see`` §4).
+
+    m17-spec-002 reworded §4 around the frame-select bit (`imms18[1]`, `cg9` is
+    *not* a return frame), so the old "`imms20` 合法值只有 0 或 4" sentence is
+    gone; the offsets are still the `cg5` ones stated in the same sentence.
+    """
+    text = CONTRACT_SEE.read_text(encoding="utf-8")
+    m = re.search(r"`cg5` 偏移\s*0/\+(\d+)", text)
     if not m:
         raise SystemExit("k2_trap_probe: contract-see §4 escape offsets not found")
-    return [int(m.group(1)), int(m.group(2))]
+    return [0, int(m.group(1))]
 
 
 def kernel_marks() -> list[tuple[int, int, int]]:
@@ -515,6 +547,17 @@ def hits(text: str, tag: str) -> list[dict]:
     return rows
 
 
+def pf_rows(text: str) -> list[dict[str, str]]:
+    """The fault channel's one-line report (``K3 pf: key=value ...``)."""
+    rows = []
+    for line in text.splitlines():
+        if not line.startswith("K3 pf: "):
+            continue
+        rows.append({key: value for key, value in
+                     (tok.split("=", 1) for tok in line.split() if "=" in tok)})
+    return rows
+
+
 def fatal_lines(text: str) -> list[str]:
     """Every fatal `dadao: ... cause=...` line, whatever the reason string is.
 
@@ -546,8 +589,20 @@ def check_probe(rc: int, text: str, rep: Report, specs: dict) -> None:
 
     # P1: classified and skipped.
     p1 = pl.get("P1", "")
-    rep.check("C5", "P1 探针被分类（cause 名打印）", True,
-              any(r["cause"] == "CFXMEM" and r["info"] == probe_va for r in rows))
+    rep.check("C5", "P1 探针被分类（bitmap 区名打印）", True,
+              any(r["cause"] == "PTWMEM" and r["info"] == probe_va
+                  for r in rows))
+    # ADR-0062 D1: the channel's own report must show the flat-bitmap form —
+    # the low class is 0, the id is exactly 1 << the §6.1.1 bit, and the bit is
+    # named.  This is the "missing page through the new decode" case.
+    dgptrap = contract_bitmap_bit("DGPTRAP")
+    pf = [row for row in pf_rows(text) if row.get("va") == probe_va]
+    rep.check("C5", "P1 通道报告存在（缺页走新解码）", True, bool(pf))
+    rep.check("C5", "P1 cause_id == 1 << §6.1.1 DGPTRAP（低位 cause 为 0）",
+              hex(1 << dgptrap), pf[0].get("id") if pf else None)
+    rep.check("C5", "P1 原因区/位名 == PTWMEM/DGPTRAP",
+              ("PTWMEM", "DGPTRAP"),
+              (pf[0].get("cause"), pf[0].get("sub")) if pf else None)
     rep.check("C5", "P1 命中 1 次、按 +4 续跑、后续标记存在", "hits=1 resumed=yes",
               " ".join(p1.split()[:2]))
     rep.check("C5", "P1 标记值（续跑后执行到的常量）", "marker=0x5031",
@@ -606,15 +661,18 @@ def check_probe(rc: int, text: str, rep: Report, specs: dict) -> None:
     rep.check("C12", "P8 未走「跳过错页」的老路径（landed=no 不出现）", [],
               re.findall(r"^K2 probe P8: landed=no.*$", text, re.MULTILINE))
 
-    # P3: unregistered fault terminates with the monitor code of supv+CFXMEM.
-    rc_expect = _monitor_code(specs, "supv", "CFXMEM")
-    rep.check("C8", "P3 未注册的 CFXMEM 被具名终止（退出码）", rc_expect, rc)
+    # P3: unregistered fault terminates in the monitor segment.  The bit and
+    # the code derivation come from the contract / the kernel rule above, not
+    # from the value the kernel happened to print.
+    bit = contract_bitmap_bit("DGPTRAP")
+    rc_expect = bitmap_monitor_code(specs, "supv", bit)
+    rep.check("C8", "P3 未注册的页故障被具名终止（退出码）", rc_expect, rc)
     die = die_line(text)
     if die is None:
         rep.check("C8", "P3 终止行存在", "存在", "缺失")
         return
-    rep.check("C8", "P3 原因名", "CFXMEM", die["cause"])
-    rep.check("C8", "P3 原因编号", hex(1 << specs["indices"]["CFXMEM"]),
+    rep.check("C8", "P3 原因名（bitmap 区名）", "PTWMEM", die["cause"])
+    rep.check("C8", "P3 原因编号 == 1 << §6.1.1 DGPTRAP", hex(1 << bit),
               die["id"])
     rep.check("C8", "P3 info == 自检的探针 VA", probe_va, die["info"])
     rep.check("C8", "P3 不重复进入（终止行总数 == 1，含 recursive 行）", 1,
@@ -949,7 +1007,7 @@ INJECTIONS = {
         ".Lresume_skip:\n\tDADAO_TRAP_RESTORE_AND_ESCAPE 4\n",
         ".Lresume_skip:\n\tDADAO_TRAP_RESTORE_AND_ESCAPE 0\n",
         0x0f,                     # probe hit budget exhausted -> self-check
-        r"^dadao: fault probe hit too often cause=CFXMEM",
+        r"^dadao: fault probe hit too often cause=PTWMEM",
         r"^K2 probe P1: hits=1 resumed=yes",
         ("C5",),
     ),
@@ -962,7 +1020,7 @@ INJECTIONS = {
         "\t\t\t\t\tSMON_RC_FRAME_CAUSE_IP, probe->redirect);\n",
         "\t\t\t/* injected: no cg5 rc3 write */\n",
         0x0f,                     # probe budget -> self-check point 0x0f
-        r"^dadao: fault probe hit too often cause=CFXMEM",
+        r"^dadao: fault probe hit too often cause=PTWMEM",
         r"^K2 probe P8: landed=yes",
         ("C12",),
     ),
@@ -973,7 +1031,7 @@ INJECTIONS = {
         "\tif (dadao_trap_busy)\n",
         "\tif (0 && dadao_trap_busy)\n",
         0x0f,                     # -> "fault probe hit too often" (0x0f)
-        r"^dadao: fault probe hit too often cause=CFXMEM",
+        r"^dadao: fault probe hit too often cause=PTWMEM",
         r"recursive supv exception",
         ("C13",),
     ),

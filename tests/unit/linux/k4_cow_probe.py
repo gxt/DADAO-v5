@@ -18,7 +18,7 @@ Cases (each assertion of the task book's five judgements has one):
   W2  the parent's PTE still points at the original page, its contents are
       unchanged and the child's write is not visible in it;
   W3  a write to a read-only page of a `VM_SHARED` mapping is *not* COW: the
-      channel terminates by name (CFXPERM + NWPERM, `die-perm`) and allocates
+      channel terminates by name (the NWPERM bitmap bit, `die-perm`) and allocates
       no page;
   W4  references: 1 before the fork, 2 after it, 1 once the child copied,
       0 once the parent unmapped the mapping (the last reference frees it);
@@ -605,7 +605,7 @@ def judge_shared(rep: Report, text: str, rc: int, d: dict) -> None:
               [va, va + d["consts"]["COW_OFF_CHILD"],
                va + d["consts"]["COW_OFF_PARENT"]],
               [num(row.get("va")) for row in nwperm])
-    rep.check("B", "三笔 NWPERM 的 cause_id 都是 CFXPERM|NWPERM",
+    rep.check("B", "三笔 NWPERM 的 cause_id 都是位图里的单一位",
               [hex(id_nwperm)] * 3, [row.get("id") for row in nwperm])
     rep.check("B", "分支次序：建页 → 子写复制 → 父写就地",
               ["replace-zero", "cow-copy", "cow-write"],
@@ -640,10 +640,11 @@ def judge_perm(rep: Report, text: str, rc: int, d: dict) -> None:
     rep.check("W3", "通道只进了一次（不重试、不复制）", 1, len(pf))
     if pf:
         row = pf[0]
-        rep.check("W3", "大类 == CFXPERM", "CFXPERM", row.get("cause"))
-        rep.check("W3", "子原因 == NWPERM", "NWPERM", row.get("sub"))
-        rep.check("W3", "原始 cause_id == CFXPERM|NWPERM", hex(d["nwperm_id"]),
-                  row.get("id"))
+        rep.check("W3", "原因区 == PTWPERM（扁平位图的权限类）", "PTWPERM",
+                  row.get("cause"))
+        rep.check("W3", "位名 == NWPERM", "NWPERM", row.get("sub"))
+        rep.check("W3", "原始 cause_id == 1 << §6.1.1 NWPERM",
+                  hex(d["nwperm_id"]), row.get("id"))
         rep.check("W3", "分支 == die-perm（真越权，不走 COW）", "die-perm",
                   row.get("result"))
         rep.check("W3", "cause_info == 故障 VA", va, num(row.get("va")))
@@ -654,17 +655,21 @@ def judge_perm(rep: Report, text: str, rc: int, d: dict) -> None:
     named_die = die_name_row(text)
     rep.check("W3", "终止行存在", True, die is not None)
     rep.check("W3", "带原因名的终止行存在", True, named_die is not None)
+    # ADR-0062 D6: §7.1's index table is Tiny-only, so a bitmap fault has no
+    # index there; the kernel derives the monitor code from the bit number's
+    # low nibble and this gate restates that derivation.
+    want_code = (0xc0 | (2 << 4) | (d["nwperm_id"].bit_length() - 1 & 0xF))
     if die:
-        rep.check("W3", "终止的退出段 == §7.1 monitor(supv, CFXPERM)",
-                  hex(terminal_code("CFXPERM")), die.get("code"))
+        rep.check("W3", "终止的退出段 == monitor(supv, NWPERM 位号低半字节)",
+                  hex(want_code), die.get("code"))
         rep.check("W3", "终止时的运行模式 == supv（§7.1 段里的 mode）", 2,
                   num(die.get("mode")))
     if named_die:
-        rep.check("W3", "终止原因名 == CFXPERM", "CFXPERM",
+        rep.check("W3", "终止原因名 == PTWPERM", "PTWPERM",
                   named_die.get("cause"))
         rep.check("W3", "终止的 cause_info == 故障 VA", hex(va),
                   named_die.get("info"))
-    rep.check("W3", "整机以该段结束", terminal_code("CFXPERM"), rc & 0xFF)
+    rep.check("W3", "整机以该段结束", want_code, rc & 0xFF)
     rep.check("W3", "内核没有自报 FAIL 行", [],
               [line.strip() for line in text.splitlines()
                if line.startswith("K4 cow FAIL")])

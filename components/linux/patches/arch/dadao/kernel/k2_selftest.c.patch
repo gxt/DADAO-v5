@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/k2_selftest.c b/arch/dadao/kernel/k2_selftest.c
 new file mode 100644
-index 000000000..190feda8b
+index 000000000..02575196d
 --- /dev/null
 +++ b/arch/dadao/kernel/k2_selftest.c
-@@ -0,0 +1,815 @@
+@@ -0,0 +1,821 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * K2 supv-exception self-test (CONFIG_DADAO_K2_TRAP_SELFTEST).
@@ -17,7 +17,8 @@ index 000000000..190feda8b
 + *
 + * Cases, in order (each prints one line; the gate parses them):
 + *
-+ *   P1  a registered CFXMEM probe is classified (cause name + ip/info), resumed
++ *   P1  a registered page-fault probe (the DGPTRAP bitmap bit of ADR-0062) is
++ *       classified (cause name + ip/info), resumed
 + *       with `escape …, 4` (skip) and execution continues after the faulting
 + *       load;
 + *   P2  the same probe with one retry resumes the faulting instruction itself
@@ -34,8 +35,10 @@ index 000000000..190feda8b
 + *       bank must be bit-identical after the exit.  m14-linux-022 — see the
 + *       P12 block below for what each of the three counts measures.
 + *   P3  an *unregistered* fault must terminate: the dispatcher has no default
-+ *       for a CFXMEM, names it, and stops with the monitor exit code of
-+ *       spec/Kaiwu §7.1.  P3 is the last case because it ends the boot.
++ *       for a page-table fault, names it, and stops with the monitor-segment
++ *       exit code of spec/Kaiwu §7.1 (derived from the bitmap bit; the §7.1
++ *       index table itself is Tiny-only, ADR-0062 D6).  P3 is the last case
++ *       because it ends the boot.
 + *
 + * The unknown-cause case (P4) is a different probe image: `cg5 rc2` is
 + * hardware-read-only (spec/DADAO-12 §3.6), so the dispatcher's input has to be
@@ -46,6 +49,7 @@ index 000000000..190feda8b
 +#include <linux/string.h>
 +#include <linux/types.h>
 +
++#include <asm/cause-sub.h>
 +#include <asm/page.h>
 +#include <asm/ptrace.h>
 +#include <asm/ptw.h>
@@ -128,7 +132,9 @@ index 000000000..190feda8b
 +}
 +
 +static struct dadao_fault_probe k2_probe = {
-+	.cause = 1UL << 1,		/* CFXMEM (spec/DADAO-13 §2) */
++	/* The probe VA is past the mapped RAM: L1 P = 0, SP = 0, data read ⇒ the
++	 * DGPTRAP bit of the flat bitmap (contract-see §6.1.1). */
++	.cause = 1UL << DADAO_SUB_DGPTRAP,
 +	.max_hits = 8,			/* a runaway retry reports itself */
 +	.report = k2_probe_report,
 +};
@@ -607,7 +613,7 @@ index 000000000..190feda8b
 +{
 +	unsigned int pass;
 +
-+	k2_probe.cause = 1UL << 1;		/* CFXMEM */
++	k2_probe.cause = 1UL << DADAO_SUB_DGPTRAP;
 +	k2_probe.info = k2_probe_va;
 +	k2_probe.retry = 0;			/* resume past the faulting load */
 +	k2_probe.hits = 0;
@@ -703,7 +709,7 @@ index 000000000..190feda8b
 +static void __init k2_case_p8(void)
 +{
 +	k2_snap_n = 0;
-+	k2_probe.cause = 1UL << 1;		/* CFXMEM */
++	k2_probe.cause = 1UL << DADAO_SUB_DGPTRAP;
 +	k2_probe.info = k2_probe_va;
 +	k2_probe.retry = 0;
 +	k2_probe.hits = 0;
@@ -736,7 +742,7 @@ index 000000000..190feda8b
 +static void __init __noreturn k2_case_p9(void)
 +{
 +	k2_snap_n = 0;
-+	k2_probe.cause = 1UL << 1;
++	k2_probe.cause = 1UL << DADAO_SUB_DGPTRAP;
 +	k2_probe.info = k2_probe_va;
 +	k2_probe.retry = 0;
 +	k2_probe.hits = 0;
@@ -774,12 +780,12 @@ index 000000000..190feda8b
 +	dadao_early_exit(0x7f);
 +}
 +
-+/* P3: no probe registered => the CFXMEM is fatal and named.  Ends the boot. */
++/* P3: no probe registered => the page fault is fatal and named.  Ends the boot. */
 +static void __init __noreturn k2_case_p3(void)
 +{
 +	unsigned long va = k2_probe_va;
 +
-+	dadao_early_printf("K2 probe P3: unregistered CFXMEM at va=%#lx\n", va);
++	dadao_early_printf("K2 probe P3: unregistered page fault at va=%#lx\n", va);
 +	barrier();
 +	(void)k2_one_load(va);
 +	/* The dispatcher must not resume an unregistered fault. */

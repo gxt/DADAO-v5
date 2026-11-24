@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/kernel/traps.c b/arch/dadao/kernel/traps.c
 new file mode 100644
-index 000000000..069f8b5be
+index 000000000..dfa89682b
 --- /dev/null
 +++ b/arch/dadao/kernel/traps.c
-@@ -0,0 +1,756 @@
+@@ -0,0 +1,786 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO traps — the supv synchronous-exception channel (K2).
@@ -152,10 +152,10 @@ index 000000000..069f8b5be
 +
 +/* The 11 causes of spec/DADAO-13 §2 (contract-see §6.1) live in asm/trap.h so
 + * the self-tests and the dispatcher share one definition; the table below is
-+ * in bit order. Explanation of why the mask matters: a hardware
-+ * `excp_cause_id` is a class in `[15:0]` plus sub-reason wyde(s) above it
-+ * (ADR-0056), so a raw value like `CFXMEM | 1 << 52` must still be named
-+ * CFXMEM instead of falling out of the table as "unknown". */
++ * in bit order.  A page-table fault is *not* in this table: since ADR-0062 it
++ * carries no low cause bit at all, only its bitmap bit in `[56:32]`, and
++ * dadao_cause_name() names that region so a diagnostic line never calls the
++ * machine's own page faults "unknown". */
 +static const struct {
 +	unsigned long id;
 +	const char *name;
@@ -175,26 +175,33 @@ index 000000000..069f8b5be
 +
 +#define DADAO_CAUSE_COUNT	ARRAY_SIZE(dadao_cause_table)
 +
-+/* The table entry for @cause, or NULL when @cause is not one of the 11.
++/* The name of @cause for the one-line diagnostics, or NULL when the id is not
++ * one of the 11 synchronous causes and not a bitmap page-table fault.
 + *
-+ * `cause` is masked to its class first: `excp_cause_id[15:0]` is the class and
-+ * `[63:32]` carries sub-reasons (ADR-0056), so an unmasked lookup turns every
-+ * fault that has a sub-reason into "unknown". */
++ * The low cause is `excp_cause_id[15:0]`; a flat-bitmap fault (ADR-0062) has
++ * that field zero and one bit in `[56:32]`.  The two regions are mutually
++ * exclusive by the ADR's invariant, so the order below never has to guess. */
 +const char *dadao_cause_name(unsigned long cause)
 +{
++	unsigned long cls = DADAO_CAUSE_CLASS(cause);
++	unsigned long bits = cause & DADAO_SUB_BITMAP_MASK;
 +	unsigned int i;
 +
-+	cause = DADAO_CAUSE_CLASS(cause);
++	if (!cls && bits)
++		return (bits & DADAO_SUB_PERM_MASK) ? "PTWPERM" : "PTWMEM";
++
 +	for (i = 0; i < DADAO_CAUSE_COUNT; i++)
-+		if (dadao_cause_table[i].id == cause)
++		if (dadao_cause_table[i].id == cls)
 +			return dadao_cause_table[i].name;
 +	return NULL;
 +}
 +
 +/*
 + * Bit index of a one-hot cause id (spec/Kaiwu §7.1 takes the DADAO
-+ * exception bit index).  Only called for causes that are in the table, so the
-+ * result is one of 0/1/2/3/7/8/9/10/11/12/13.
++ * exception bit index).  For a table cause the result is one of
++ * 0/1/2/3/7/8/9/10/11/12/13; for a bitmap fault (ADR-0062, no §7.1 index —
++ * that table is Tiny-only, D6) it is the bitmap bit's low nibble, which keeps
++ * the code deterministic and derived from the id itself.
 + */
 +static unsigned int dadao_cause_index(unsigned long cause)
 +{
@@ -202,8 +209,11 @@ index 000000000..069f8b5be
 +	 * __ffs() is already the 0-based index (CFXMEM = 1 << 1 => 1); the
 +	 * 4-bit mask is the field width of §7.1 (`bit3:0`).  A cause outside
 +	 * the 11-item table therefore still lands on a real bit index instead
-+	 * of needing a new convention.
++	 * of needing a new convention.  `__ffs(0)` is undefined, so an empty id
++	 * is given index 0 explicitly.
 +	 */
++	if (!cause)
++		return 0;
 +	return (unsigned int)__ffs(cause) & 0xf;
 +}
 +
@@ -299,9 +309,19 @@ index 000000000..069f8b5be
 + */
 +unsigned long dadao_exit_code(unsigned long cause)
 +{
-+	/* Segment on the class, not the raw id: the sub-reason wyde lives above
-+	 * [15:0] and does not take part in the exit code (contract-tlb TLB-36
-+	 * keeps the low nibble the bit index). */
++	/*
++	 * A flat-bitmap fault (ADR-0062) has no low cause to segment on; §7.1's
++	 * index table is Tiny-only and Vast tests read `cause_id` directly (D6),
++	 * so this code only ever serves the kernel's own diagnostic exit.  Keep it
++	 * deterministic: the bitmap bit's low nibble, the same mechanical
++	 * derivation the table causes use.
++	 */
++	if (!DADAO_CAUSE_CLASS(cause))
++		return DADAO_EXIT_MONITOR(
++			DADAO_CFX_READ(cfx_smon, SMON_CG_FRAME,
++				       SMON_RC_FRAME_PREV_MODE),
++			dadao_cause_index(cause));
++
 +	cause = DADAO_CAUSE_CLASS(cause);
 +	if (cause == DADAO_CAUSE_CFXTRAP || cause == DADAO_CAUSE_CFXESC)
 +		return DADAO_EXIT_OTHER_CFX(
@@ -387,10 +407,12 @@ index 000000000..069f8b5be
 +			   (unsigned long)frame, (unsigned long)smon_regs,
 +			   cause, frame->ip, info);
 +
-+	/* The carried cause may hold a sub-reason wyde (ADR-0056); the channel
-+	 * decodes it, so only the class is judged here. */
++	/* The carried id is a flat bitmap (ADR-0062): a page-table fault has no
++	 * low cause bit at all, so the channel's two forms (bitmap bit, and the
++	 * two non-PTW low causes it also reports) are both accepted here. */
 +	if (DADAO_CAUSE_CLASS(cause) != DADAO_CAUSE_CFXMEM &&
-+	    DADAO_CAUSE_CLASS(cause) != DADAO_CAUSE_CFXPERM) {
++	    DADAO_CAUSE_CLASS(cause) != DADAO_CAUSE_CFXPERM &&
++	    !dadao_subcause_is_ptw(cause)) {
 +		dadao_early_printf("K4 umon->smon: cause %#lx is not a page-table "
 +				   "cause; the supv channel has no verdict for it\n",
 +				   cause);
@@ -487,11 +509,10 @@ index 000000000..069f8b5be
 +#endif
 +
 +	/*
-+	 * Everything below dispatches on the *class* (`cause_id[15:0]`); the
-+	 * sub-reason wyde(s) in `[63:32]` (ADR-0056) are decoded by the page
-+	 * fault path (m14-linux-012), never by a name lookup or a probe match.
-+	 * Keeping the raw value only for the unknown-cause diagnostic is what
-+	 * makes a sub-reason-carrying fault still recognisable.
++	 * `cause` (the class mask) decides the control-flow branches below; the
++	 * raw id is what the name lookup, the probe match, the page-fault channel
++	 * and every diagnostic use, because a flat-bitmap fault (ADR-0062) has no
++	 * class bit at all.
 +	 */
 +	raw_cause = cause;
 +	cause = DADAO_CAUSE_CLASS(cause);
@@ -554,28 +575,31 @@ index 000000000..069f8b5be
 +	 * point (the two would be indistinguishable in `$?`).  dadao_die() derives
 +	 * the monitor bit index mechanically and keeps printing the raw id.
 +	 */
-+	if (!dadao_cause_name(cause))
++	if (!dadao_cause_name(raw_cause))
 +		dadao_die(regs, raw_cause, info);
 +
 +	/*
-+	 * The sub-reason layout of ADR-0056 D2 (asm/cause-sub.h): CFXMEM/CFXPERM
-+	 * must carry exactly one bit in their own wyde and nothing in the other
-+	 * wyde or in [31:16]; every other class must carry nothing above [15:0].
-+	 * An id that does not have this shape is terminated by name *before* any
-+	 * decoder runs, so a malformed id can never be read as a page fault.
++	 * The flat-bitmap shape of ADR-0062 D1 (asm/cause-sub.h): the id is 0 or
++	 * exactly one bit; a bitmap bit never rides with a low cause bit, and the
++	 * deleted / reserved positions stay 0.  An id that does not have this
++	 * shape is terminated by name *before* any decoder runs, so a malformed id
++	 * can never be read as a page fault.
 +	 */
 +	if (dadao_subcause_layout(raw_cause) != DADAO_SUB_LAYOUT_OK)
 +		dadao_die(regs, raw_cause, info);
 +
-+	probe = dadao_probe_match(cause, info);
++	/* Probes register the id they serve verbatim — a bitmap bit for a page
++	 * fault (ADR-0062), a low cause for everything else — so the match below
++	 * compares the raw value; the class is only used for dispatch. */
++	probe = dadao_probe_match(raw_cause, info);
 +	if (probe) {
 +		unsigned long policy = DADAO_TRAP_RESUME_SKIP;
 +
 +		probe->hits++;
 +		if (probe->max_hits && probe->hits > probe->max_hits)
 +			dadao_selfcheck(K2_FAIL_HIT_BUDGET,
-+					"fault probe hit too often", regs, cause,
-+					info);
++					"fault probe hit too often", regs,
++					raw_cause, info);
 +		if (probe->retry) {
 +			probe->retry--;
 +			policy = DADAO_TRAP_RESUME_RETRY;
@@ -600,8 +624,10 @@ index 000000000..069f8b5be
 +	}
 +
 +	/*
-+	 * The page-fault channel (K3, mm/fault.c): only the two page-table
-+	 * classes carry a sub-reason and only they can be demand-filled.  The
++	 * The page-fault channel (K3, mm/fault.c): a flat-bitmap fault carries the
++	 * page-table reason and only it can be demand-filled; the two low causes
++	 * that reach this handler (`CFXMEM` = non-PTW in-core access, `CFXPERM` =
++	 * cfx source-mask denial) are named verdicts, not page faults.  The
 +	 * registered-probe channel above keeps its priority — K1's "is this VA
 +	 * mapped yet?" probe, K2's self-tests and the K3 page-table self-test are
 +	 * ordinary clients that must still be able to resume their own faults.
@@ -611,7 +637,8 @@ index 000000000..069f8b5be
 +	 * translation.  Anything else is FATAL and falls through to dadao_die(),
 +	 * which keeps the K2 exit-code segmentation and the one-line report.
 +	 */
-+	if (cause == DADAO_CAUSE_CFXMEM || cause == DADAO_CAUSE_CFXPERM) {
++	if (cause == DADAO_CAUSE_CFXMEM || cause == DADAO_CAUSE_CFXPERM ||
++	    dadao_subcause_is_ptw(raw_cause)) {
 +		unsigned long policy = dadao_do_page_fault(regs, raw_cause,
 +							  info, false);
 +
@@ -647,7 +674,10 @@ index 000000000..069f8b5be
 +		}
 +	}
 +
-+	dadao_die(regs, cause, info);
++	/* Name the machine's own id, not the masked class: a bitmap page fault
++	 * has no class bit, and the diagnostic must print what the hardware
++	 * actually raised (`raw_cause`). */
++	dadao_die(regs, raw_cause, info);
 +}
 +
 +/*

@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/mm/k1_pt.c b/arch/dadao/mm/k1_pt.c
 new file mode 100644
-index 000000000..72f41494e
+index 000000000..8926ef1f3
 --- /dev/null
 +++ b/arch/dadao/mm/k1_pt.c
-@@ -0,0 +1,331 @@
+@@ -0,0 +1,339 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
 + * DADAO K1: build the first-level page table and install it in cfx_ptw_ptbr
@@ -51,6 +51,7 @@ index 000000000..72f41494e
 +#include <linux/pgtable.h>
 +#include <linux/types.h>
 +
++#include <asm/cause-sub.h>
 +#include <asm/cfx.h>
 +#include <asm/page.h>
 +#include <asm/pgtable.h>
@@ -94,11 +95,16 @@ index 000000000..72f41494e
 +/*
 + * The deliberate fault this file takes — "is this VA mapped yet?" — registered
 + * through the K2 channel (dadao_trap_probe_register).  Registration is what
-+ * makes the fault resumable; the dispatcher has no default for a CFXMEM, so an
-+ * unregistered fault at the same address is fatal.
++ * makes the fault resumable; the dispatcher has no default for a page fault, so
++ * an unregistered fault at the same address is fatal.
++ *
++ * The id is the *bitmap* bit ADR-0062 assigns to the walker's reading: the peek
++ * is a data read of a VA whose L1 entry is not present (`P = 0`, `SP = 0`),
++ * i.e. DGPTRAP (contract-see §6.1.1).  The bit name printed below is derived
++ * from the registered id, so the constant and the line cannot drift apart.
 + */
 +static struct dadao_fault_probe k1_pt_probe = {
-+	.cause = 1UL << 1,		/* CFXMEM (spec/DADAO-13 §2) */
++	.cause = 1UL << DADAO_SUB_DGPTRAP,
 +	/* Two peeks, one expected fault: a third entry means the resume path
 +	 * did not skip the faulting load and the channel is looping. */
 +	.max_hits = 2,
@@ -108,8 +114,10 @@ index 000000000..72f41494e
 +static void k1_pt_probe_report(struct dadao_fault_probe *probe,
 +			       struct pt_regs *regs, unsigned long info)
 +{
-+	dadao_early_printf("K1 ptw fault probed cause=CFXMEM va=%#lx ip=%#lx (resumed)\n",
-+			   info, regs->ip);
++	const char *bit = dadao_subcause_name(dadao_subcause_pos(probe->cause));
++
++	dadao_early_printf("K1 ptw fault probed cause=%s va=%#lx ip=%#lx (resumed)\n",
++			   bit ?: "?", info, regs->ip);
 +}
 +
 +static void __noreturn k1_pt_reject(unsigned int code, const char *what,

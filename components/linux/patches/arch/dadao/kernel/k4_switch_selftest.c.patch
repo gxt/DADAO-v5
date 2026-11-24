@@ -1,6 +1,6 @@
 diff --git a/arch/dadao/kernel/k4_switch_selftest.c b/arch/dadao/kernel/k4_switch_selftest.c
 new file mode 100644
-index 000000000..ac58b899b
+index 000000000..0c6ef1edf
 --- /dev/null
 +++ b/arch/dadao/kernel/k4_switch_selftest.c
 @@ -0,0 +1,1011 @@
@@ -555,7 +555,7 @@ index 000000000..ac58b899b
 +	case __NR_write: {
 +		/*
 +		 * F59 regression (m14-linux-017): reading `cfx_ptw` from *inside*
-+		 * the umon handler used to be refused with CFXPERM + NCFXPERM,
++		 * the umon handler used to be refused with CFXPERM,
 +		 * because the cfx mask rows are indexed by the current cfx (0 =
 +		 * umon after a trap) and only source 2 was open.  One line, once.
 +		 */

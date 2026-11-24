@@ -626,9 +626,15 @@ def judge_e(rep: Report, text: str, rc: int) -> None:
     rep.check(g, "QEMU 进程状态 == 脚本最后的 exit N", want, rc)
     rep.check(g, "不是超时（rc 124 是 FAIL，不是通过）", False, rc == 124)
     rep.check(g, "exit 码在 guest 可编码范围内（1..127）", True, 1 <= want <= 127)
-    non_empty = [line for line in text.splitlines() if line.strip()]
+    # The *shell's* last input line, not the console's last line: a timer tick
+    # delivered after PID 1's exit prints a kernel line (`K2 async user: ...`)
+    # behind the prompt, and that says nothing about what the shell received.
+    # This is the same "last prompt line" the module docstring promises
+    # (m18-linux-023: it went red on that ordering, not on the shell's exit).
+    prompt = init_prompt()
+    prompts = [line for line in text.splitlines() if line.startswith(prompt)]
     rep.check(g, "最后一条输入是 exit N（shell 收到并执行）", True,
-              bool(non_empty) and f"exit {want}" in non_empty[-1])
+              bool(prompts) and f"exit {want}" in prompts[-1])
 
 
 # ---------------------------------------------------------------------------

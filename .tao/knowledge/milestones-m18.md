@@ -46,7 +46,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-linux-023 | 2026-11-25 05:45 | 4–8 h | Linux `arch/dadao` 按扁平位图解码 PTW 故障（QEMU 上验证；不依赖 chipyard） |
 | m18-linux-015 | 2026-11-25 05:05 | 2–3 h | `mlock2`/`MLOCK_ONFAULT` 路径 SIGSEGV（KERNEL_BUG） |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
@@ -54,6 +53,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-linux-023 | 2026-11-25 07:05 | Linux 侧异常解码适配扁平位图（K1 113/113、K2 170/170、K5 5/5；删 NCFXPERM/NONPTW；K6 残余红归 024/ISS-539） |
 | m18-linux-022 | 2026-11-25 03:40 | 内核异步新模型 R2（mask 归 monitor、src 位 cfxha、一帧多源；m45 静默死循环根因修复）；K2 170/170、K5 282/282、K6 71/71 |
 | m18-gem5-003 | 2026-11-25 02:52 | `check_tiny_hmon` 的 `CFXESC` oracle 改「当前 cfx（cfx63）」+ monitor 无写入反向断言；29 FAIL→0（213 checks） |
 | m18-linux-012 | 2026-11-25 02:16 | ISS-503 K6 门控五条 finding（C 组 11 条恒真断言上移为真判据；`check-linux-k6` 82/82） |

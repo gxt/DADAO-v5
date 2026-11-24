@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/include/asm/trap.h b/arch/dadao/include/asm/trap.h
 new file mode 100644
-index 000000000..82cf6a3b8
+index 000000000..d9494d1ea
 --- /dev/null
 +++ b/arch/dadao/include/asm/trap.h
-@@ -0,0 +1,164 @@
+@@ -0,0 +1,163 @@
 +/* SPDX-License-Identifier: GPL-2.0 */
 +/*
 + * DADAO supv synchronous-exception entry: the contract between the assembly
@@ -79,12 +79,11 @@ index 000000000..82cf6a3b8
 +#define DADAO_STATUS_USER	0x1
 +
 +/*
-+ * Cause ids (spec/DADAO-13 §2, contract-see §6.1): one bit each.  A hardware
-+ * `excp_cause_id` is a *class* in `[15:0]` plus sub-reason wyde(s) above it
-+ * (ADR-0056: `[47:32]` = CFXPERM sub-reason, `[63:48]` = CFXMEM sub-reason),
-+ * so every name lookup and every exit-code decision works on
-+ * `cause & DADAO_CAUSE_MASK` and only the sub-reason decoder looks at the rest
-+ * (m14-linux-012).
++ * Cause ids (spec/DADAO-13 §2, contract-see §6.1): one bit each, in `[15:0]`.
++ * A hardware `excp_cause_id` is a *flat bitmap* (ADR-0062): a page-table fault
++ * sets one bit in `[56:32]` and leaves `[15:0]` zero, so the low mask below
++ * separates "one of the 11 synchronous causes" from "a bitmap fault", and the
++ * bitmap is decoded by asm/cause-sub.h alone (m14-linux-012, m18-linux-023).
 + */
 +#define DADAO_CAUSE_CFXTRAP	(1UL << 0)
 +#define DADAO_CAUSE_CFXMEM	(1UL << 1)
