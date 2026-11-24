@@ -947,11 +947,13 @@
 - id: ISS-469
   scope:
   - qemu
+  - gem5
   milestone: M16
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P2】QEMU 的 `cfx2rd`/`cfxtrap` 掩码拒绝时 `CFXPERM` 的 `cause_info` 给的是**指令编码**，而 `contract-see §6.1` / `DADAO-12 §4.1` 要求 = **触发指令地址**（与 `excp_cause_ip` 同值）。影响：三平台 `CFXPERM` 的 `cause_info` 不一致（gem5/chipyard 按契约给地址），内核诊断打印的单位会错。来源：`m14-testcases-006` 固件复核时发现（非本任务范围）。处置建议：单立 qemu 任务修 `helper.c` 的拒绝路径 + 补探针（负例断言 `cause_info == excp_cause_ip`）。"
+  title: "【P2】QEMU 的 `cfx2rd`/`cfxtrap` 掩码拒绝时 `CFXPERM` 的 `cause_info` 给的是**指令编码**，而 `contract-see §6.1` / `DADAO-12 §4.1` 要求 = **触发指令地址**（与 `excp_cause_ip` 同值）。影响：三平台 `CFXPERM` 的 `cause_info` 不一致（gem5/chipyard 按契约给地址），内核诊断打印的单位会错。来源：`m14-testcases-006` 固件复核时发现（非本任务范围）。处置建议：单立 qemu 任务修 `helper.c` 的拒绝路径 + 补探针（负例断言 `cause_info == excp_cause_ip`）。备注：`m17-idl-020` 实测 gem5 同样给指令编码（原正文称 gem5 正确）；且 2026-11-24 起按扁平位图改造，修法需按 ADR-0062 执行。"
+
 - id: ISS-470
   scope:
   - linux
