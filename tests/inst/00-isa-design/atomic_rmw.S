@@ -14,8 +14,11 @@
 @@   **在寄存器里算新值**再 `sc`；`sc` 返回非 0 ⇒ 必须**重读**（重新 `lr`）后重算重试。
 @@   本文件把这条环的每一个可观测点写成显式断言（失败不写 / 成功才写 / 返回值 = old /
 @@   重试必须重读）。
-@@ 用例：encoding 0 / legality 0 / semantic 12 / boundary 1（链例 13 + 故障例 0）
-@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；点号 1..13 连续
+@@ 用例：encoding 0 / legality 0 / semantic 14 / boundary 1（链例 15 + 故障例 0）
+@@   14–15 = `ISS-501` 形状：**同一 TB 内前置同址窄加载（`ld.ut`）+ `lr.t`/`sc.t` 同址 CAS**
+@@   （正常路径 / 保留被抢的失败路径各一条）。期望值同样独立推导自 `spec/SimRISC-12 §1`
+@@   （`sc` 的条件写宽度 = 4 B、成败都清标记、失败不写内存），与任何实现无关。
+@@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；点号 1..15 连续
 @@   （`run_asm_suite.scan_source` 断言）。逐个检查点把实测 8 字节写入结果缓冲并逐字节打印
 @@   ⇒ 三方比较的是字节流（同一 ELF，chipyard/qemu/gem5）。
 @@ 探针：初值一律经普通 `st.o` 给（不用 lr/sc 造初值）；"抢走保留标记"用本 hart 第二条
@@ -43,6 +46,8 @@
 	.equ A7, TEST_DATA + 0x538       @@ 10   compare_exchange（不等 ⇒ 不执行 sc）
 	.equ A8, TEST_DATA + 0x540       @@ 11–12 重试必须重读
 	.equ A9, TEST_DATA + 0x548       @@ 13   fetch_add 回绕边界
+	.equ A10, TEST_DATA + 0x550      @@ 14   同址窄加载 + 窄 CAS（正常路径）
+	.equ A11, TEST_DATA + 0x558      @@ 15   同址窄加载 + 窄 CAS（保留被抢 ⇒ 失败）
 	.equ STL, TEST_DATA + 0x5F8      @@ "抢走保留标记"的落点（本 hart 第二条 lr 的目标）
 
 	__TEST_BEGIN
@@ -216,6 +221,39 @@ __ce_skip10:
 	__VERIFY_MEM	13, A9, 0, 0x0000000000000000
 	__VERIFY_RD	13, rd2, 0xFFFFFFFFFFFFFFFF
 	__CHECK_RD	13, rd7, 0x0000000000000000
+
+	@@ ---- 14：ISS-501 形状（正常路径）——同一 TB 内先 `ld.ut` 同址窄加载，
+	@@  再 `lr.t`/`sc.t` 对同一 4 B 半字做 CAS ⇒ 窄写必须落地，同字邻居半字不变 ----
+	@@! inputs: kind=ld.ut+lr.t+sc.t sym=A10 k=0 init=0x1111111122222222 src=0xDEADBEEF33333333
+	set.rd	rd6, 0x1111111122222222        @@ 8 B 字：高半 = 被 CAS 的 int，低半 = 邻居 int
+	set.rb rb3, A10
+	st.o	rd6, [rb3, 0]
+	set.rb rb3, A10
+	ld.ut	rd8, [rb3, 0]                  @@ 前置同址窄加载（与 lr/sc 同一 TB、同一地址）
+	lr.t.nn	rd2, [rb3]                     @@ old = 0x11111111
+	__VERIFY_RD	14, rd8, 0x0000000011111111
+	set.rd	rd5, 0xDEADBEEF33333333        @@ 宽度外的高位不得影响写入（只并低 32 位）
+	sc.t.nn	rd7, rd5, [rb3]
+	__VERIFY_MEM	14, A10, 0, 0x3333333322222222
+	__CHECK_RD	14, rd7, 0x0000000000000000
+
+	@@ ---- 15：同一形状（失败路径）——保留被本 hart 第二条 `lr` 抢走 ⇒
+	@@   `sc` 返回 1 且**不写内存**（反向错误「报失败但已写」必须排除） ----
+	@@! inputs: kind=ld.ut+lr.t+lr.t(steal)+sc.t sym=A11 k=0 init=0x1111111122222222 src=0xDEADBEEF33333333
+	set.rd	rd6, 0x1111111122222222
+	set.rb rb3, A11
+	st.o	rd6, [rb3, 0]
+	set.rb rb3, A11
+	ld.ut	rd8, [rb3, 0]                  @@ 同一 TB 内的同址窄加载
+	lr.t.nn	rd2, [rb3]                     @@ 建标记（old = 0x11111111）
+	set.rb rb4, STL
+	lr.t.nn	rd3, [rb4]                     @@ 本 hart 第二条 lr ⇒ 清掉 A11 的标记
+	set.rd	rd5, 0xDEADBEEF33333333
+	set.rb rb3, A11
+	sc.t.nn	rd7, rd5, [rb3]                @@ 未命中 ⇒ 失败
+	__VERIFY_RD	15, rd8, 0x0000000011111111
+	__VERIFY_MEM	15, A11, 0, 0x1111111122222222
+	__CHECK_RD	15, rd7, 0x0000000000000001
 
 	__TEST_END
 

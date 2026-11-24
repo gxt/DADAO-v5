@@ -3,19 +3,21 @@
 # 不从 QEMU/LLVM 实测反推。重新生成见同目录 README.md。
 # kind: value=内联常量 / table=WDATA 数据区独立 oracle / relation=运行期关系断言（无静态常量） / unwritten=源码缺写入口
 # image	slot	kind	expected	expr	source
-tests/inst/00-isa-design/atomic_rmw.S	1	value	0x0000000000000100	0x0000000000000100	tests/inst/00-isa-design/atomic_rmw.S:56
-tests/inst/00-isa-design/atomic_rmw.S	2	value	0x0000000000000001	0x0000000000000001	tests/inst/00-isa-design/atomic_rmw.S:66
-tests/inst/00-isa-design/atomic_rmw.S	3	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:76
-tests/inst/00-isa-design/atomic_rmw.S	4	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:89
-tests/inst/00-isa-design/atomic_rmw.S	5	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:102
-tests/inst/00-isa-design/atomic_rmw.S	6	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:115
-tests/inst/00-isa-design/atomic_rmw.S	7	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:128
-tests/inst/00-isa-design/atomic_rmw.S	8	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:140
-tests/inst/00-isa-design/atomic_rmw.S	9	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:157
-tests/inst/00-isa-design/atomic_rmw.S	10	value	0x0000000000000200	0x0000000000000200	tests/inst/00-isa-design/atomic_rmw.S:175
-tests/inst/00-isa-design/atomic_rmw.S	11	value	0x0000000000000001	0x0000000000000001	tests/inst/00-isa-design/atomic_rmw.S:192
-tests/inst/00-isa-design/atomic_rmw.S	12	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:205
-tests/inst/00-isa-design/atomic_rmw.S	13	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:218
+tests/inst/00-isa-design/atomic_rmw.S	1	value	0x0000000000000100	0x0000000000000100	tests/inst/00-isa-design/atomic_rmw.S:61
+tests/inst/00-isa-design/atomic_rmw.S	2	value	0x0000000000000001	0x0000000000000001	tests/inst/00-isa-design/atomic_rmw.S:71
+tests/inst/00-isa-design/atomic_rmw.S	3	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:81
+tests/inst/00-isa-design/atomic_rmw.S	4	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:94
+tests/inst/00-isa-design/atomic_rmw.S	5	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:107
+tests/inst/00-isa-design/atomic_rmw.S	6	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:120
+tests/inst/00-isa-design/atomic_rmw.S	7	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:133
+tests/inst/00-isa-design/atomic_rmw.S	8	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:145
+tests/inst/00-isa-design/atomic_rmw.S	9	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:162
+tests/inst/00-isa-design/atomic_rmw.S	10	value	0x0000000000000200	0x0000000000000200	tests/inst/00-isa-design/atomic_rmw.S:180
+tests/inst/00-isa-design/atomic_rmw.S	11	value	0x0000000000000001	0x0000000000000001	tests/inst/00-isa-design/atomic_rmw.S:197
+tests/inst/00-isa-design/atomic_rmw.S	12	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:210
+tests/inst/00-isa-design/atomic_rmw.S	13	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:223
+tests/inst/00-isa-design/atomic_rmw.S	14	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/atomic_rmw.S:238
+tests/inst/00-isa-design/atomic_rmw.S	15	value	0x0000000000000001	0x0000000000000001	tests/inst/00-isa-design/atomic_rmw.S:256
 tests/inst/00-isa-design/pseudo_set.fo_imm64.S	1	value	0x0000000000000000	0x0000000000000000	tests/inst/00-isa-design/pseudo_set.fo_imm64.S:29
 tests/inst/00-isa-design/pseudo_set.fo_imm64.S	2	value	0x3ff0000000000000	0x3FF0000000000000	tests/inst/00-isa-design/pseudo_set.fo_imm64.S:35
 tests/inst/00-isa-design/pseudo_set.fo_imm64.S	3	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/00-isa-design/pseudo_set.fo_imm64.S:41

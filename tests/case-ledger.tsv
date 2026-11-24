@@ -7,6 +7,8 @@ asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	10, rd2, 0x0000000000000200
 asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	11, rd7, 0x0000000000000001	1
 asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	12, rd7, 0x0000000000000000	1
 asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	13, rd7, 0x0000000000000000	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	14, rd7, 0x0000000000000000	1
+asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	15, rd7, 0x0000000000000001	1
 asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	2, rd7, 0x0000000000000001	1
 asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	3, rd7, 0x0000000000000000	1
 asm	tests/inst/00-isa-design/atomic_rmw.S	__CHECK_RD	4, rd7, 0x0000000000000000	1

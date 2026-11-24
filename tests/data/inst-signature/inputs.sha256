@@ -1,5 +1,5 @@
 c4b9b47977b3afa964f72f64b631cd474d199db704cb0ed65f4b9acd9eef0921  tests/ee-tiny/tests_inst_tiny.lds
-f60f97cc5dc903d6151bf1ed2d04e31a241d9fd717f71ed8d532bedbab14baab  tests/inst/00-isa-design/atomic_rmw.S
+0916ef49a03c67ce3051887880a0228287f5bafad1e1625bb7f809cc18e56aa5  tests/inst/00-isa-design/atomic_rmw.S
 05de104cfae954099c0a0230a553e0e01b6ee834944c11f093814ed1066ea3d8  tests/inst/00-isa-design/pseudo_set.fo_imm64.S
 26fc2d8d65ffaa994365cc47e32f179e4450c43b1d7c57fbfa6c95f440c912c4  tests/inst/00-isa-design/pseudo_set.ft_imm32.S
 eca4ed42b05eeca7bf60f8feaeed09eaece97ccd2120ac1e661112b6e3f56def  tests/inst/00-isa-design/pseudo_set.rb_imm.S
