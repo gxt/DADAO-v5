@@ -30,6 +30,7 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
+| m18-linux-023 | 4–8 h | Linux `arch/dadao` 按扁平位图解码 PTW 故障（由 M17 迁入；依赖 M17 平台迁移） |
 | m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
 | m18-linux-008 | 2–3 h | K1–K4 门控断言补强（ISS-444/457/487/488；可达 FAIL + §4a 退役） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
