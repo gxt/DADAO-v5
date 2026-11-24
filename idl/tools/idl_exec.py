@@ -84,8 +84,10 @@ CG7_DESC, CG7_START, CG7_SIZE, CG7_ATTR = 0, 1, 2, 3
 SYNC_MASK_POWER = 0xFFFF_FFFF_FFFF_FFF7
 SYNC_MASK_HMON = 0x7FFF_FFFF_FFFF_FFF7
 
-# spec/DADAO-12 §3.6（四）wyde3：CFXMEM 的非页表来源子原因 = `[57] NONPTW`。
-NONPTW_SUBCAUSE = 1 << 57
+# spec/DADAO-12 §3.6 + ADR-0062 D2/D3（扁平位图）：一条异常只置**一位**，`[63:32]` 全 0。
+# 旧的 `[57] NONPTW` / `[39] NCFXPERM` 已删除（位保留、恒 0）：
+#   * `CFXMEM`（`1 << 1`）= 非 PTW 的核内访存故障，`cause_info` = 被访问的核内地址（D4）；
+#   * `CFXPERM`（`1 << 7`）= cfx 来源掩码拒绝，`cause_info` = 触发指令地址（D4）。
 
 MODE_USER, MODE_JAIL, MODE_SUPV, MODE_HYPV = 0, 1, 2, 3
 MODE_MONITOR = {MODE_USER: 0, MODE_JAIL: 1, MODE_SUPV: 2, MODE_HYPV: 3}
@@ -574,6 +576,38 @@ class Machine:
             raise Fault("CfxReg", info=0)
         return self.cfx[cfxha]
 
+    def _cfx_perm_denied(self, cfxha, mask_rc):
+        """两轴权限的来源 mask 判定（spec/DADAO-12 §3.4 / §5.2(一)）。
+
+        位索引 = **源 cfx**（即当前 `inner_cfx_code`）：0 = 允许、1 = 屏蔽；访问
+        自身 cfx（`cfxha == cfx_code`）只绕过 cfx 轴，不查 mask。未实现的 cfx 没有
+        寄存器行 ⇒ 本函数判「不拒绝」，存在性由调用方（ILLI/CFXREG）负责。
+        本执行器只建模 cg3（hypv）行：Tiny 的运行模式恒 hypv（`spec/Kaiwu §2`），
+        cg0–cg2 的行不建模（越界即静默错，故意不做——不是本任务范围）。
+        """
+        if cfxha == self.cfx_code:
+            return False
+        cfx = self.cfx.get(cfxha)
+        if cfx is None:
+            return False
+        return ((cfx.cg3[mask_rc] >> self.cfx_code) & 1) != 0
+
+    def _check_cfxexe(self, addr):
+        """直接跳转/取指进入**其它** cfx 的 cfxexe 来源掩码（spec/DADAO-12 §3.4 cg3 rc3）。
+
+        核内地址高 6 位 `addr[47:42]` 选中目标 cfx；目标不是当前 cfx 时按其
+        `<mode>_cfxexe` 的**源 cfx 位**判定（1 = 屏蔽）。拒绝 ⇒ `CFXPERM`，
+        `cause_info` = **目标 IP**（§4.1）。`addr[47:42] = 0` 是内存窗口、不是 cfx；
+        本 profile 未实现的 cfx 没有寄存器行 ⇒ 由存储层报 `CFXMEM`，不在此拒绝。
+        允许进入时的 `inner_cfx_code` 切换不建模（cfx 内部空间归属属 `cfxmem` 轴，
+        单列不在本任务范围；`tests/inst` 无该维度载体）。
+        """
+        target = (addr & MASK48) >> 42
+        if target == 0 or target == self.cfx_code:
+            return
+        if self._cfx_perm_denied(target, CG3_EXE):
+            raise Fault("CfxPerm", info=addr, cause_ip=addr)
+
     def take_exception(self, cause, cause_ip, info=0, target=None):
         # spec/SimRISC-12 §1「保留机制」：异常/中断进入清本 hart 全部保留标记
         # （`ISS-443` 已由 qemu/gem5/chipyard 三平台收敛；单 hart 无异步中断）。
@@ -590,10 +624,8 @@ class Machine:
         cfx.cg5[CG5_PREV_MODE] = self.mode
         cfx.cg5[CG5_PREV_CFX] = self.cfx_code
         cause_val = onehot
-        if cause == "CfxMem":
-            # spec/DADAO-12 §3.6 wyde3：CFXMEM 子原因。Tiny 执行器不实现 PTW，
-            # 所有 CFXMEM 都是非页表类 ⇒ `[57] NONPTW`（不是地址低位）。
-            cause_val |= NONPTW_SUBCAUSE
+        # ADR-0062 D2/D3：`CFXMEM`/`CFXPERM` 都只置低位那一位，不再叠加任何子原因
+        # （`[57] NONPTW` / `[39] NCFXPERM` 已删除）；`cause_info` 口径见 §3.6 / ADR D4。
         cfx.cg5[CG5_CAUSE_ID] = cause_val & MASK64
         cfx.cg5[CG5_CAUSE_IP] = cause_ip & MASK64
         cfx.cg5[CG5_CAUSE_INFO] = info & MASK64
@@ -717,6 +749,7 @@ class Machine:
         try:
             if cur & 0x3:
                 raise Fault("IAlign", info=cur, cause_ip=cur)
+            self._check_cfxexe(cur)          # 直接跳转/取指进入其它 cfx（§3.4 cg3 rc3）
             word = self.mem.fetch(cur)
             self.cur_word = word
             obs["word"] = word
@@ -737,7 +770,8 @@ class Machine:
             info = exc.info
             if info == 0:
                 # spec/DADAO-12 §4.1 cause_info 表：ILLI/UNDI/CFXREG/CFXESC = 指令编码；
-                # CFXPERM(cfxtrap/cfx2rd/cfx2rc 拒绝) = 触发指令地址；RASUF = 0。
+                # CFXPERM(cfxtrap/cfx2rd/cfx2rc 拒绝) = 触发指令地址；cfxexe 拒绝 =
+                # 目标 IP（由 `_check_cfxexe` 显式给 info）；RASUF = 0。
                 if exc.cause in ("Illegal", "Undi", "CfxReg", "CfxEsc"):
                     info = self.cur_word
                 elif exc.cause == "CfxPerm":
@@ -1997,6 +2031,8 @@ def _op_cfx2r(m, insn):
     if cfxha not in IMPLEMENTED_CFX:
         raise Fault("CfxReg")
     cfx = m.cfx[cfxha]
+    if m._cfx_perm_denied(cfxha, CG3_REG):    # spec/DADAO-12 §3.4 cg3 rc2：位索引 = 源 cfx
+        raise Fault("CfxPerm")                # cause_info = 触发指令地址（step 补，§4.1）
     if insn.id.startswith("cfx2rd"):
         value = cfx.access(cg, rc, False)
     else:
@@ -2018,11 +2054,8 @@ def _op_trap(m, insn):
         # spec/Kaiwu §3：已分配但本 profile 未实现的 cfx（Tiny：cfx0/1/2/4/5/32…）
         # ⇒ ILLI（与 cfx2rd/cfx2rc 的 CFXREG 不同，见 trap_ciii 用例头）。
         raise Fault("Illegal")
-    target = m.cfx[cfxha]
-    if cfxha != m.cfx_code:
-        mask = target.cg3[CG3_TRAP]       # 位索引 = 源 cfx
-        if (mask >> m.cfx_code) & 1:
-            raise Fault("CfxPerm")
+    if m._cfx_perm_denied(cfxha, CG3_TRAP):   # 位索引 = 源 cfx（spec/DADAO-12 §5.2）
+        raise Fault("CfxPerm")
     m.take_exception("CfxTrap", m.ip, m.cur_word, target=cfxha)
 
 

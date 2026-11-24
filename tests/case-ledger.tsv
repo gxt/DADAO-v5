@@ -4597,6 +4597,12 @@ asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  19, rd0, 0	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  20, rd3, 0x10000	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  21, rd3, 0x10000	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  22, rd5, 0x25	1
+asm	tests/inst/11-cfx/cfxreg_deny_cfxperm.S	__CHECK_RD   1, rd5, 0x7FFFFFFFFFFFFFF7	1
+asm	tests/inst/11-cfx/cfxreg_deny_cfxperm.S	__CHECK_RD   2, rd6, 0x7FFFFFFFFFFFFFF6	1
+asm	tests/inst/11-cfx/cfxreg_deny_cfxperm.S	__CHECK_RD   3, rd6, 0x7FFFFFFFFFFFFFF7	1
+asm	tests/inst/11-cfx/cfxtrap_deny_cfxperm.S	__CHECK_RD   1, rd5, 0x7FFFFFFFFFFFFFF7	1
+asm	tests/inst/11-cfx/cfxtrap_deny_cfxperm.S	__CHECK_RD   2, rd6, 0x7FFFFFFFFFFFFFF6	1
+asm	tests/inst/11-cfx/cfxtrap_deny_cfxperm.S	__CHECK_RD   3, rd6, 0x7FFFFFFFFFFFFFF7	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  14, ILLI, 0x7E0C0003, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  15, ILLI, 0x7E180002, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  16, ILLI, 0x7EFDFFFF, rb12, TEST_DATA, rd11, 0	1

@@ -74,6 +74,25 @@ NON_ID_CARRIERS = {
     "tests/inst/00-isa-design/atomic_rmw.S":
         "原子 RMW 的合成序（lr→计算→sc→失败重试），跨 24 条 lr/sc 身份而非单个 id"
         "⇒ 无 opcode 身份，索引 id = inst-00-isa-design-009",
+    "tests/inst/11-cfx/cfxreg_deny_cfxperm.S":
+        "cfxreg 来源掩码拒绝（cfx2rc 置位 + cfx2rd 被拒 + 异常进入）⇒ CFXPERM；"
+        "跨两条 cfx2* 指令与异常流程，无单一 opcode 身份，索引 id = inst-11-cfx-006",
+    "tests/inst/11-cfx/cfxtrap_deny_cfxperm.S":
+        "cfxtrap 来源掩码拒绝（cfx2rc 置位 + trap 被拒 + 异常进入）⇒ CFXPERM；"
+        "跨 cfx2rc/trap 与异常流程，无单一 opcode 身份，索引 id = inst-11-cfx-007",
+    # `m17-idl-020`：`11-cfx` 目录新增 2 个「跨 id」的非 id 载体 ⇒ 按「登记目录不得有
+    # 未登记的 `.S`」的目录完备性规则，同目录另 5 个 **id 载体**一并逐条登记；它们
+    # 本身仍是 id 载体（stem = opcode id），登记只满足完备性、不放宽任何断言。
+    "tests/inst/11-cfx/cfx2rc_crrr_cfx.S":
+        "id 载体（stem = opcode id，inst-11-cfx-001）；因同目录有非 id 载体而登记",
+    "tests/inst/11-cfx/cfx2rd_crrr_cfx.S":
+        "id 载体（stem = opcode id，inst-11-cfx-002）；因同目录有非 id 载体而登记",
+    "tests/inst/11-cfx/escape_ciii_cfx.S":
+        "id 载体（stem = opcode id，inst-11-cfx-003）；因同目录有非 id 载体而登记",
+    "tests/inst/11-cfx/fence_ciii_cfx.S":
+        "id 载体（stem = opcode id，inst-11-cfx-004）；因同目录有非 id 载体而登记",
+    "tests/inst/11-cfx/trap_ciii_cfx.S":
+        "id 载体（stem = opcode id，inst-11-cfx-005）；因同目录有非 id 载体而登记",
 }
 
 DECL_NA = {"", "—", "-", "n/a", "na", "none"}

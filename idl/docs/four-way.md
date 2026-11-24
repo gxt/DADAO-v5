@@ -67,7 +67,9 @@
 
 即「主清单集合 == 现场派生集合减去 pending」；`pending` 非空 ⇒ rc=2（文案「pending
 必须为空」），不再接受「一致地把一条移进 pending」。集合按 glob 现场统计，不写死
-镜像数；FP 册（`07-floating-point`）自 `m17-idl-013` 起已整册（50 例）纳入主清单。
+镜像数；FP 册（`07-floating-point`）自 `m17-idl-013` 起已整册（50 例）纳入主清单；
+cfx 权限轴的 2 个拒绝路径载体（`11-cfx/cfxreg_deny_cfxperm.S`、
+`cfxtrap_deny_cfxperm.S`，`m17-idl-020`）同步纳入 ⇒ 主清单 274。
 
 ## 5. 用法与退出码
 
@@ -80,3 +82,14 @@ make check-idl                                                         # L2 门�
 
 退出码：`0` = 全部一致；`1` = 有 FAIL；`2` = setup/清单/输入错误；
 `75` = 共享构建树有活跃写者（`writer-guard` 拒绝，见 `docs/Process-07 §2.1`）。
+
+## 6. 平台分叉的处置（不静默跳过）
+
+某例只在个别平台红时，**不得**移入 `pending`、不得放宽断言或加「分歧即放过」的
+兼容桩：保留现场（日志/槽值/rc）→ 逐条归因到 issue/分歧登记 → 在任务书「遗留问题」
+写清「哪一例、哪一方、哪一位、归属 issue」，其余例照常收口。
+
+实例（`m17-idl-020` 的 `cfxreg`/`cfxtrap` 拒绝例）：`CFXPERM` 的 `cause_info` 给
+指令编码而非触发地址曾在 QEMU/gem5 上成立（`ISS-469`），两平台据 ADR-0062 修后
+`make check-idl` 与 gem5 全绿；**chipyard 仍红**，归 `tests/arch/expected-divergences.yaml`
+的 `DIV-07`（hypv 下不强制 cfx 来源掩码判权，等 `m17-chipyard-001` 关闭）。

@@ -1493,6 +1493,18 @@
   - system
   level: full
   requires: []
+- id: inst-11-cfx-006
+  file: inst/11-cfx/cfxreg_deny_cfxperm.S
+  platforms:
+  - system
+  level: full
+  requires: []
+- id: inst-11-cfx-007
+  file: inst/11-cfx/cfxtrap_deny_cfxperm.S
+  platforms:
+  - system
+  level: full
+  requires: []
 - id: inst-12-misc-001
   file: inst/12-misc/lr.b.an_orrr_rd.S
   platforms:

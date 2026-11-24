@@ -8,7 +8,7 @@
 # 门控断言（`idl/tools/idl_four_way.py` 现场派生，不写死计数）：
 #   {[[case]].image} == {tests/inst/*/*.S} − {[[pending]].image}
 #   **且 `[[pending]]` 必须为空**——非空 ⇒ `check_four_way` rc=2（能力缺口另立任务，
-#   不得用 pending 静默降覆盖）；当前主清单 272 == 现场派生 272（pending 0）。
+#   不得用 pending 静默降覆盖）；当前主清单 274 == 现场派生 274（pending 0）。
 # `m17-idl-006` 已迁入 `00`/`01`/`02`/`05`/`06`/`11` 六册全部镜像（`00` 册为已登记的
 # `pseudo_set.*` 与 `undi_reserved`）；`m17-idl-007` 已迁入 `04` 整册、`12-misc` 整册与
 # 00 册 `atomic_rmw`（其被测 id 属 12 册）；`m17-idl-008` 已迁入 `03`/`08`/`09`/`10`
@@ -434,6 +434,16 @@ category = "exc"
 
 [[case]]
 image = "tests/inst/11-cfx/fence_ciii_cfx.S"
+category = "exc"
+
+# ── `m17-idl-020`：cfx 权限轴（cfxreg/cfxtrap 拒绝路径，2 个镜像）──────────
+
+[[case]]
+image = "tests/inst/11-cfx/cfxreg_deny_cfxperm.S"
+category = "exc"
+
+[[case]]
+image = "tests/inst/11-cfx/cfxtrap_deny_cfxperm.S"
 category = "exc"
 
 # ── `m17-idl-007`：04 整册 + 12-misc 整册 + 00 册 atomic_rmw 迁入 ──────────

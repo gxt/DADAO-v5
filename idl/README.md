@@ -73,13 +73,15 @@ python3 idl/tools/idl_check_trace.py --images <dir> --bootrom <img>
 
 **M17 执行器补齐（浮点，阶段二）**（`m17-idl-013`）：`07-floating-point` 整册 **50 个 op**（转换 18 / 算术 12 / 比较 4 / 符号 4 / minmax 4 / 分类 2 / 取整 2 / 开方 2 / fma 2）纳入主清单；执行器只做薄封装（合法性、`rf0[33:32]` 或 `immu6` 六档取舍入方向、ft 窄写/fo 整写、标志 sticky 并入 FCSR），值与标志由 `tools/idl_fp.py` 给出 ⇒ `SEMANTICS` **263/263**（`contracts/opcodes.yaml` 全覆盖）、主清单 **272**。
 
+**M17 cfx 权限轴**（`m17-idl-020`）：执行器补齐两轴权限掩码的三条拒绝路径——`cfx2rd`/`cfx2rc` 查目标 cfx 的 `cg3[CG3_REG]`、`trap` 查 `cg3[CG3_TRAP]`（既有）、**直接跳转/取指进入其它 cfx** 查目标 cfx 的 `cg3[CG3_EXE]`（`idl_exec.py` 的 `_check_cfxexe`）；位索引 = 源 cfx（当前 `cfx_code`）、自身位忽略。拒绝 ⇒ `CFXPERM`（`1<<7`，ADR-0062 扁平位图：**不置任何子原因**，`[63:32]` 全 0），`cause_info` = 触发指令地址（cfxexe = **目标 IP**，`spec/DADAO-12 §4.1`）。新增 2 个载体（`cfxreg`/`cfxtrap` 拒绝各一）⇒ 主清单 **274**。`cfxmem`（cfx SRAM/MMIO 窗口）不在本任务、单列。ADR-0062 D3 同时删除 `[57] NONPTW`：IDL 的 `CFXMEM` 也只置 `1<<1`（`cause_info` = 被访问的核内地址，D4）。**平台现状**：IDL/QEMU/gem5 均按扁平编码且 `cause_info`=地址（`ISS-469` 已由 `m17-qemu-001`/`m17-gem5-001` 修）；**chipyard 仍红**（`DIV-07`：hypv 无来源掩码判权，等 `m17-chipyard-001`）。
+
 **执行器「依据锁」**（`m17-idl-017`）：`data/exec_anchor.toml` 锁住 `tools/idl_exec.py` 每条 `@sem` 实现所依据的 operation 正文（`# id:` 行起、至下一条之前，切分复用 `tools/idl_render.py`）与 `idl/lib/*.idl` 文件全文；判据 = 集合相等（条数现场派生）+ sha 逐条命中 + `impl` 在 `@sem` 注册里。**改 `.idl`（含 `lib/*.idl`，FP 语义在库里）⇒ 必须 `--update`**，并在评审里说明对应实现是否跟改；不跟改也要显式更新，让「正文变了、实现没动」在 diff 里可见。
 
 ## 四方差分与门控（阶段一收口，`m17-idl-009`）
 
 阶段一 = 非 FP 的 `tests/inst` 镜像在 IDL / QEMU / gem5 / chipyard 四方一致。判据 = **签名槽流逐槽全等 + 退出码全等**，且每方槽值再对独立 oracle `tests/data/inst-signature/expected.tsv` 逐槽比对（四方一致但全错仍红）；口径正文见 [`docs/four-way.md`](docs/four-way.md)。
 
-用例清单 `data/idl_exec_cases.toml`：`[[case]]` = 主清单，`[[pending]]` = **必须为空**（阶段二已收口；能力缺口另立任务）。门控在 `tools/idl_four_way.py` 内**现场派生**并断言 `{主清单} == {tests/inst/*/*.S} − {pending}` 且 `pending` 必须为空：主清单少/多一条、`pending` 非空（含「一致地把一条移进 pending」）、越界或与主清单相交 ⇒ rc=2，文案「pending 必须为空」；计数不写死。**当前 `pending` 为空、主清单 == 现场派生（272 条，含 `07-floating-point` 整册 50 例）**。
+用例清单 `data/idl_exec_cases.toml`：`[[case]]` = 主清单，`[[pending]]` = **必须为空**（阶段二已收口；能力缺口另立任务）。门控在 `tools/idl_four_way.py` 内**现场派生**并断言 `{主清单} == {tests/inst/*/*.S} − {pending}` 且 `pending` 必须为空：主清单少/多一条、`pending` 非空（含「一致地把一条移进 pending」）、越界或与主清单相交 ⇒ rc=2，文案「pending 必须为空」；计数不写死。**当前 `pending` 为空、主清单 == 现场派生（274 条，含 `07-floating-point` 整册 50 例与 cfx 权限轴 2 例）**。
 
 ```text
 make check-idl                                                      # L2：IDL + QEMU（不依赖 gem5/Verilator 构建）
