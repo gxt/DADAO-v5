@@ -177,17 +177,17 @@
 
 ### cfx15 hart — QEMU
 
-- **寄存器面**：有。cfx15 在 Vast 掩码内（`components/qemu/patches/target/dadao/cpu.c.patch:55`）；`cg8 rc0/2/3/4/5` = hart_id/cycle/insn/timer_cmp/ctrl|ISTATUS、`cg9` 七槽异步现场（`components/qemu/patches/target/dadao/helper.c.patch:2804`、`:3367`）。
+- **寄存器面**：有。cfx15 在 Vast 掩码内（`components/qemu/patches/target/dadao/cpu.c.patch:55`）；`cg8 rc0/2/3/4/5` = hart_id/cycle/insn/timer_cmp/ctrl|ISTATUS、`cg9` 七槽捕获缓冲（`components/qemu/patches/target/dadao/helper.c.patch:2804`、`:3367`）。
 - **命令与副作用**：有。单 hart 一次性定时器：`cg8 rc4/rc5` 写、arming（`components/qemu/patches/target/dadao/helper.c.patch`，`dadao_hart_reg_write`/`dadao_hart_timer_arm`）；hart-first 下 TIMER/PMEM_DMA 的 delivery pending 落 `cfx_hart cg9 rc4`（`async_src_pending`，位 = **源 cfxha** 15/32），来源 mask 在**当前运行模式 monitor** 的 `cg8 rc1`（`cfx_<monitor>_async_intr_mask`，复位全 1），投递目标固定 `cfx_hart` 的 supv 单向量 `cg9 rc5`/`rc6`；同一指令边界把所有 pending 且放行的源合并成一次捕获（`cg9 rc3` `async_src_frame` 位图并集，`excp_async_num` 每次进入 +1）（`components/qemu/patches/target/dadao/helper.c.patch:3161`、`:3187`）。
 - **异常与子原因**：有。异步源**不占 `excp_cause_id`**、无 `cause_info`，源身份 = 源 cfxha（TIMER 15、PMEM_DMA 32）；`cfx_hart cg9` 为 7 槽（`rc0` prev_run_mode、`rc1` prev_cfx_code、`rc2` cause_ip、`rc3` `async_src_frame`（HW/RO）、`rc4` `async_src_pending`（HW/RO）、`rc5` 向量、`rc6` 固定 supv，`rc7`–`rc15` reserved ⇒ `CFXREG`）；`cg9` 是**进入瞬间的捕获缓冲**：每次进入整体覆盖，无 `frame_valid`、无软件清 `src_frame`、无「帧活动期」门控；`escape imms18=2`（cg9）**不是异步返回**（所选帧无效 ⇒ 当前 cfx 的 `CFXESC`，不改变 cfx/运行模式/`cg9`），返回走 smon/umon 正常路径。
-- **现有测试载体**：QEMU bootrom 探针。`tools/testcases/arch/min_rom_probe_integ050t.py:1`（cfx_time/cfx_hart 寄存器与计数器）、`tools/testcases/arch/min_rom_probe_integ051t.py:1`（hart-first 异步仲裁/TIMER/PMEM_DMA + cg9 七槽/两图 + 一帧多源 + 每次进入覆盖/嵌套捕获 + `escape imms18=2` ⇒ `CFXESC`）。
+- **现有测试载体**：QEMU bootrom 探针。`tools/testcases/arch/min_rom_probe_async_094t.py:1`（两 cfx 最小异步探针：捕获/只读/屏蔽→pending→解除/一帧多源/每次覆盖/ack/`escape imms18=2` ⇒ `CFXESC`、`3`/SBZ ⇒ `ILLI`）、`min_rom_probe_integ050t.py:1`（cfx_time/cfx_hart 寄存器与计数器 + TIMER 捕获/IMASK 延后/重触发/ack/`SBI_HART_SET_TIMER`）、`min_rom_probe_integ051t.py:1`（hart-first 异步仲裁/TIMER/PMEM_DMA + cg9 七槽/两图 + 一帧多源 + 每次进入覆盖/嵌套捕获 + `escape imms18=2` ⇒ `CFXESC`）。
 - **现有门控**：`check-arch`（L3 保留清单，`integ050t`/`integ051t` 在 `ARCH_CFX_PROBES`；当前 `check-arch` 只跑 smoke/046t/tlb 载体）。
 
 ### cfx15 hart — gem5
 
 - **寄存器面**：有。cfx15 在 `kCfxhaMap`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:33`）；`hartRegRead`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:670`）、`hartRegWrite`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:703`）。
 - **命令与副作用**：有。定时器事件 `NodeTimerEvent`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:108`）、到期处理 `nodeTimerExpire`（同文件 `components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:880` 一带）。
-- **异常与子原因**：有。`CauseTimer = 1<<10`（`components/gem5/patches/src/arch/dadao/node_cfx.hh.patch:69`）。
+- **异常与子原因**：有。`CauseTimer = 1<<10`（`components/gem5/patches/src/arch/dadao/node_cfx.hh.patch:69`）——**仍为 ADR-0061 R2 前口径**（宏 cause + 目标 cfx 投递）；R2 的 `cg9` 捕获缓冲 / hart-first 投递 / monitor 掩码由 gem5 侧后续任务迁移，本册只记差异、不改 gem5。
 - **现有测试载体**：无（Vast cfx15 无 gem5 用例）。
 - **现有门控**：无。
 
@@ -208,14 +208,14 @@
 - **寄存器面**：有。cfx32 在 Vast 掩码内（`components/qemu/patches/target/dadao/cpu.c.patch:55`）；64 KiB SRAM 窗口（`components/qemu/patches/target/dadao/helper.c.patch:1058`；宿主侧映射 `components/qemu/patches/hw/dadao/dadao-machine.c.patch:1119`）；`cg15 rc0..4` DMA 寄存器（`components/qemu/patches/target/dadao/helper.c.patch:2386`、`components/qemu/patches/target/dadao/helper.c.patch:2404`）；cg7 pmem 块（`components/qemu/patches/target/dadao/helper.c.patch:1975`）。
 - **命令与副作用**：有。`cg15 rc3` 写 START 触发 DMA，1 ms 虚拟时间完成（`components/qemu/patches/target/dadao/helper.c.patch:2338`、`components/qemu/patches/target/dadao/helper.c.patch:2380`）；BUSY 期间写 rc0..3 被忽略（`components/qemu/patches/target/dadao/helper.c.patch:2404`）。
 - **异常与子原因**：有。`PMEM_DMA = 1<<8`（`components/qemu/patches/target/dadao/cpu.h.patch:405`）；PA/尺寸/CFX 越界错误码（`components/qemu/patches/target/dadao/helper.c.patch:2349`～`components/qemu/patches/target/dadao/helper.c.patch:2364`）。
-- **现有测试载体**：QEMU bootrom 探针。`tools/testcases/arch/min_rom_probe_integ042t.py:1`（SRAM+DMA）、`tools/testcases/arch/min_rom_probe_integ047t.py:1`（DMA 的 SBI 契约）。
+- **现有测试载体**：QEMU bootrom 探针。`tools/testcases/arch/min_rom_probe_integ042t.py:1`（SRAM+DMA + PMEM_DMA 捕获：投递 `cfx_hart cg9`、屏蔽只置 pending、`dma_status` W1C ack 落位）、`tools/testcases/arch/min_rom_probe_integ047t.py:1`（DMA 的 SBI 契约）。
 - **现有门控**：`check-arch`（L3，`integ042t`/`integ047t` 在 `ARCH_CFX_PROBES`，`Makefile:1706`）。
 
 ### cfx32 pmem — gem5
 
 - **寄存器面**：有。cfx32 在 `kCfxhaMap`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:33`）；`dmaRegRead`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:556`）、`dmaRegWrite`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:624`）；pmem 64 KiB 区间（`components/gem5/patches/configs/dadao/fs.py.patch:104`）。
 - **命令与副作用**：有。DMA 事件 `NodeDmaEvent`（`components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:93`）与完成处理（同文件 `components/gem5/patches/src/arch/dadao/node_cfx.cc.patch:600` 一带）。
-- **异常与子原因**：有。`CausePmemDma = 1<<8`（`components/gem5/patches/src/arch/dadao/node_cfx.hh.patch:70`）。
+- **异常与子原因**：有。`CausePmemDma = 1<<8`（`components/gem5/patches/src/arch/dadao/node_cfx.hh.patch:70`）——**仍为 ADR-0061 R2 前口径**（宏 cause + 目标 cfx 投递）；R2 的源身份 = 源 cfxha（bit 32）/ hart-first 捕获由 gem5 侧后续任务迁移。
 - **现有测试载体**：无（Vast cfx32 无 gem5 用例）。
 - **现有门控**：无。
 

@@ -7,7 +7,10 @@ QEMU implementation:
     cfx 6-14/16-31/35-61 => CFXMEM), §4.9 (cg15 DMA registers dma_src/dma_dst/
     dma_size/dma_ctrl/dma_status, direction, 42/56-bit masking, 30-bit size
     1..2^29, START self-clear, BUSY/DONE(W1C)/ERROR(W1C)/ERR_CODE one-hot,
-    PMEM_DMA = 1 << 8 maskable), §3.6 (1<<8 owned by cfx_pmem).
+    PMEM_DMA = 1 << 8 maskable), §3.6 (1<<8 owned by cfx_pmem),
+    §5.4 (ADR-0061 R2: every async source is delivered to cfx_hart through
+    its cg9 capture buffer; the source identity is the source cfxha 32 and the
+    source mask is the running mode monitor's cg8 rc1).
   - .tao/adr/adr-0042-cfx-internal-dma.md D3/D4/D6/D7.1-D7.4.
   - spec/Kaiwu-测试机运行环境.md §1.1 (SRAM window 0x83ff_0000_0000)
     and §3 (DMA may read RAM/boot ROM, may write RAM only).
@@ -19,7 +22,9 @@ device-local DMA, cfx access permissions (Step 6), fence.vma/fence.i.
 Observation channels (same convention as min_rom_probe_034t..integ040t):
   * register results -> QEMU `-d cpu` dump (last dump block);
   * fault cause -> the target cfx's cause id/info copied to rd10/rd11 by the
-    probe handler; pending -> cfx_pmem_excp_pending (cg5 rc5);
+    probe handler; async capture/pending -> cfx_hart cg9 rc3/rc4, copied to
+    RAM by the probe's cg9 handler (ADR-0061 R2: PMEM_DMA never enters
+    cfx_pmem and never uses cfx_pmem's cg5);
   * pass/fail -> semihosting SYS_EXIT (ADR-0020 D8).
 
 Usage:
@@ -49,7 +54,7 @@ if os.path.join(_MACH_REPO, "tools", "testcases", "lib") not in sys.path:
     sys.path.insert(0, os.path.join(_MACH_REPO, "tools", "testcases", "lib"))
 import machine_profile as _machine_profile  # noqa: E402
 import node_probe_prelude as _prelude  # noqa: E402
-_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "tiny")
+_MACH = _machine_profile.load(os.environ.get("DADAO_TEST_PROFILE") or "vast")
 RAM_BASE = _MACH.ram_base
 RAM_END = _MACH.ram_end
 SP = _MACH.sp
@@ -122,13 +127,18 @@ NONPTW = 1 << 57
 def cause_id_expect(cls, sub=0):
     """[(mask, expected)] over the three fields of `excp_cause_id`."""
     return [(CAUSE_LOW16, cls), (CAUSE_WYDES, sub), (CAUSE_RESERVED_31_16, 0)]
-CAUSE_PMEM_DMA = 1 << 8
-CG5_CAUSE_ID_RC, CG5_CAUSE_INFO_RC, CG5_CAUSE_IP_RC, CG5_PENDING_RC = 2, 4, 3, 5
+CG5_CAUSE_ID_RC, CG5_CAUSE_INFO_RC, CG5_CAUSE_IP_RC = 2, 4, 3
 CG3_SWITCH_MODE_RC, CG3_EXCP_VECTOR_RC = 8, 10
-CG3_CFX_INTR_MASK_RC = 4
-INTR_SRC_PMEM = 1 << PMEM_HA          # cfx_intr_mask bit index = source cfxha
-CG3_CFXREG_RC = 2
-CG8_GLOBAL_INTR_MASK_RC = 1
+CG3_DELEG_RC = 12
+# cfx_hart cg9 (ADR-0061 D7): capture buffer slots.
+RC_PREV_MODE, RC_PREV_CFX, RC_CAUSE_IP = 0, 1, 2
+RC_FRAME, RC_PENDING, RC_VECTOR, RC_SWITCH = 3, 4, 5, 6
+CG4_ASYNC_NUM_RC = 4
+HART_HA = 15
+SMON_HA = 2
+MON_CG, MON_MASK_RC = 8, 1
+INTR_SRC_PMEM = 1 << PMEM_HA          # async mask bit = source cfxha (32)
+DELEG_OPEN = 0x8
 MODE_H = 3
 
 EXIT_PASS = 0x00
@@ -194,6 +204,22 @@ def and_o(rdhb, rdhc, rdhd):
     return _orrr(0x40, 0x08, rdhb, rdhc, rdhd)
 
 
+def br_eq(rdha, rdhb, imms12):
+    imm = imms12 & 0xFFF
+    hc = (imm >> 6) & 0x3F
+    hd = imm & 0x3F
+    if imms12 < 0:
+        hc |= 0x20
+    return _orrr(0x6E, rdha, rdhb, hc, hd)
+
+
+def br_z(rdha, imms18):   return (0x6A << 24) | (rdha << 18) | (imms18 & 0x3FFFF)
+def br_nz(rdha, imms18):  return (0x6B << 24) | (rdha << 18) | (imms18 & 0x3FFFF)
+def br_nn(rdha, imms18):  return (0x69 << 24) | (rdha << 18) | (imms18 & 0x3FFFF)
+def add_si(rd, imms18):   return (0x59 << 24) | (rd << 18) | (imms18 & 0x3FFFF)
+def cmp_uo(rdhb, rdhc, rdhd): return _orrr(0x40, 0x2A, rdhb, rdhc, rdhd)
+
+
 def br_ne(rdha, rdhb, imms12):
     imm = imms12 & 0xFFF
     hc = (imm >> 6) & 0x3F
@@ -230,24 +256,36 @@ def exit_seq(code):
 # rb3/rb4 (addresses); observation registers rd5-rd12 stay untouched.
 # ---------------------------------------------------------------------------
 
+def _e(p, *ws):
+    """Append words to a plain list **or** to a `_prelude.Seq` label builder."""
+    if isinstance(p, list):
+        p.extend(ws)
+    else:
+        p.e(*ws)
+
+
+def _len(p):
+    return len(p) if isinstance(p, list) else len(p.w)
+
+
 def store64(p, addr, value, rb=3, rd=17):
-    p += load_rb(rb, addr)
-    p += load_rd(rd, value)
-    p.append(st_o(rd, rb, 0))
+    _e(p, *load_rb(rb, addr))
+    _e(p, *load_rd(rd, value))
+    _e(p, st_o(rd, rb, 0))
 
 
 def load64(p, addr, rd=6, rb=4):
-    p += load_rb(rb, addr)
-    p.append(ld_o(rd, rb, 0))
+    _e(p, *load_rb(rb, addr))
+    _e(p, ld_o(rd, rb, 0))
 
 
 def pmem_w(p, rc, val):
-    p += load_rd(17, val)
-    p.append(cfx2rc(PMEM_HA, PMEM_DMA_CG, rc, 17))
+    _e(p, *load_rd(17, val))
+    _e(p, cfx2rc(PMEM_HA, PMEM_DMA_CG, rc, 17))
 
 
 def pmem_r(p, rc, rd):
-    p.append(cfx2rd(PMEM_HA, PMEM_DMA_CG, rc, rd))
+    _e(p, cfx2rd(PMEM_HA, PMEM_DMA_CG, rc, rd))
 
 
 def dma_setup(p, src, dst, size, ctrl):
@@ -272,11 +310,12 @@ def status_clear(p):
 
 def poll_busy_clear(p, rd=5):
     """Spin until dma_status.BUSY is 0 (rd18 must hold 1)."""
-    p += load_rd(18, 1)
-    start = len(p)
+    _e(p, *load_rd(18, 1))
+    start = _len(p)
     pmem_r(p, DMA_STATUS_RC, rd)
-    p.append(and_o(rd, rd, 18))
-    p.append(br_ne(rd, 0, start - len(p)))
+    _e(p, and_o(rd, rd, 18))
+    idx = _len(p)
+    _e(p, br_ne(rd, 0, start - idx))
 
 
 PMEM_CFXREG_HANDLER = ([cfx2rd(PMEM_HA, 5, CG5_CAUSE_ID_RC, 10),
@@ -309,24 +348,13 @@ def setup_hmon_vector(p, handler):
     p.append(cfx2rc(3, MODE_H, CG3_EXCP_VECTOR_RC, 17))
 
 
-def mask_pmem_dma(p, mask=INTR_SRC_PMEM):
-    """Mask the PMEM_DMA source at the running mode monitor's filter level.
-
-    spec/DADAO-12 §5.2 step 3 filters async sources on the *mode monitor's*
-    `<mode>_cfx_intr_mask` (hypv => cfx_hmon `cg3 rc4`, ISS-455), not on the
-    current cfx's row: the body runs in hypv, so cfx_hmon owns the axis.
-    """
-    p += load_rd(17, mask)
-    p.append(cfx2rc(3, MODE_H, CG3_CFX_INTR_MASK_RC, 17))
-
-
 def words_to_bytes(ws):
     return b"".join(struct.pack(">I", x & 0xFFFFFFFF) for x in ws)
 
 
-def build_rom(prog, handlers=None, words_at=None):
+def build_rom(prog, handlers=None, words_at=None, hmon_extra=None):
     """Shared prelude: body at RESET_PC + 0x1000 in the 4 MiB ROM image."""
-    return _prelude.build_rom(prog, handlers, words_at)
+    return _prelude.build_rom(prog, handlers, words_at, hmon_extra=hmon_extra)
 
 # ---------------------------------------------------------------------------
 # QEMU runner + dump parsing
@@ -370,9 +398,9 @@ def case(name, desc):
 
 def fill_sram(p, off, value=MAGIC, rd=17):
     """Write `value` into the cfx_pmem SRAM at internal offset `off`."""
-    p += load_rb(3, PMEM_BASE + off)
-    p += load_rd(rd, value)
-    p.append(st_o(rd, 3, 0))
+    _e(p, *load_rb(3, PMEM_BASE + off))
+    _e(p, *load_rd(rd, value))
+    _e(p, st_o(rd, 3, 0))
 
 
 # -- CPU direct SRAM access ------------------------------------------------
@@ -651,101 +679,291 @@ def _dma_busy_w1c_ignored():
                           "rd12": 0}
 
 
-# -- PMEM_DMA async interrupt / masking ----------------------------------
+# -- PMEM_DMA async capture (ADR-0061 R2) --------------------------------
 #
-# PMEM_DMA is maskable; the probe first enters cfx_pmem through a non-maskable
-# trap, which makes cfx_pmem the current cfx.  From there the DMA completion is
-# delivered to cfx_pmem itself, filtered only by the two-level source masks —
-# both owned by the *running mode monitor* (hypv => cfx_hmon; DADAO-12 §5.2
-# step 3, §4.9, ISS-455).
-def _make_irq_handler(spin=True):
-    w = [cfx2rd(PMEM_HA, 5, CG5_CAUSE_ID_RC, 10),
-         cfx2rd(PMEM_HA, 5, CG5_CAUSE_INFO_RC, 11)]
-    w += load_rd(17, CAUSE_PMEM_DMA)
-    br_idx = len(w)
-    w.append(0)
-    w += [set_zw_rd(5, 0, 1)]
-    w += load_rd(17, ST_DONE)
-    w += [cfx2rc(PMEM_HA, PMEM_DMA_CG, DMA_STATUS_RC, 17)]
-    w += exit_seq(EXIT_PASS)
-    first = len(w)
-    w[br_idx] = br_ne(10, 17, first - br_idx)
-    # Trap entry saved + masked the current monitor's global_cfx_intr_mask
-    # (DADAO-12 §5.2 / cfx_frame_block_async).  Restore it so PMEM_DMA can be
-    # delivered; _pmem_entry_setup cleared cfx_hmon's cfxreg source bit so this
-    # cross-cfx write is permitted.
-    w += load_rd(17, 0)
-    w += [cfx2rc(3, 8, CG8_GLOBAL_INTR_MASK_RC, 17)]
-    w += load_rd(17, CTRL_START | CTRL_IRQ_EN)
-    w += [cfx2rc(PMEM_HA, PMEM_DMA_CG, DMA_CTRL_RC, 17)]
-    w += load_rd(18, 1)
-    loop = len(w)
-    w += [cfx2rd(PMEM_HA, PMEM_DMA_CG, DMA_STATUS_RC, 6)]
-    w += [and_o(6, 6, 18)]
-    w += [br_ne(6, 0, loop - len(w))]
-    if spin:
-        w += [jump_iiii(0)]
-    else:
-        w.append(cfx2rd(PMEM_HA, 5, CG5_PENDING_RC, 8))
-        w += exit_seq(EXIT_PASS)
-    return w
+# Every async source is delivered to cfx_hart (cfxha 15) through its supv
+# single vector `cg9 rc5`; the source identity is the source cfxha (32) and
+# the capture/pending bitmaps are `cg9 rc3`/`rc4` (HW/RO).  The only source
+# mask is the *running mode* monitor's `cg8 rc1` (the body runs in hypv, so
+# cfx_hmon owns it); PMEM_DMA never enters cfx_pmem and cfx_pmem's cg5 is not
+# involved.  cg9 is a capture buffer: the probe's handler copies it to RAM and
+# returns through cfx_smon (ADR-0061 D4).
+ALL1 = (1 << 64) - 1
+RAM_ASTATE = RAM_BASE + 0x500
+RAM_A_FRAME = 0x00
+RAM_A_PENDING = 0x08
+RAM_A_IP = 0x10
+RAM_A_PREVM = 0x18
+RAM_A_PREVC = 0x20
+RAM_A_SEQ = 0x28
+RAM_A_HANDOFF = 0x30
+
+OFF_ASYNC_HND = 0xC00
+OFF_SMON_HND = 0xC80
+OFF_POISON = 0xD00
+
+MAX_WAIT = 4_000_000
 
 
-PMEM_IRQ_HANDLER = _make_irq_handler(spin=True)
-PMEM_MASK_HANDLER = _make_irq_handler(spin=False)
+def build_async_handler():
+    """cfx_hart cg9 rc5 (supv): copy the capture to RAM, hand off to smon."""
+    a = _prelude.Seq()
+    a.e(cfx2rd(HART_HA, 9, RC_FRAME, 30))
+    a.e(cfx2rd(HART_HA, 9, RC_PENDING, 31))
+    a.e(cfx2rd(HART_HA, 9, RC_CAUSE_IP, 32))
+    a.e(cfx2rd(HART_HA, 9, RC_PREV_MODE, 33))
+    a.e(cfx2rd(HART_HA, 9, RC_PREV_CFX, 34))
+    a.e(ld_o(36, 5, RAM_A_SEQ))
+    a.e(add_si(36, 1))
+    a.e(st_o(36, 5, RAM_A_SEQ))
+    a.e(st_o(30, 5, RAM_A_FRAME))
+    a.e(st_o(31, 5, RAM_A_PENDING))
+    a.e(st_o(32, 5, RAM_A_IP))
+    a.e(st_o(33, 5, RAM_A_PREVM))
+    a.e(st_o(34, 5, RAM_A_PREVC))
+    a.e(*load_rd(36, 1))
+    a.e(st_o(36, 5, RAM_A_HANDOFF))
+    a.e(trap(SMON_HA, 0))                   # cfx_smon supv vector
+    a.e(*exit_seq(0x6F))                    # unreachable on a correct return
+    return a.resolve()
 
 
-def _enter_pmem_via_cfxreg(p):
-    """Enter cfx_pmem with a non-maskable trap; CFXTRAP is non-maskable and
-    targets cfx_pmem, so the pmem hypv handler takes over (DADAO-12 §5.2).
-    (Pre-QEMU-083t this used a reserved-cg15 CFXREG, whose frame used to be
-    routed to the accessed cfx; CFXREG now goes to the current-mode monitor.)"""
-    p.append(trap(PMEM_HA, 0))
+def build_smon_handler():
+    """cfx_smon supv vector: rebuild cg5 from the capture, escape to cause_ip."""
+    a = _prelude.Seq()
+    a.e(ld_o(30, 5, RAM_A_HANDOFF))
+    a.b("z", 30, "sync")
+    a.e(ld_o(30, 5, RAM_A_PREVM))
+    a.e(cfx2rc(SMON_HA, 5, 0, 30))
+    a.e(ld_o(30, 5, RAM_A_PREVC))
+    a.e(cfx2rc(SMON_HA, 5, 1, 30))
+    a.e(ld_o(30, 5, RAM_A_IP))
+    a.e(cfx2rc(SMON_HA, 5, 3, 30))
+    a.e(*load_rd(30, 0))
+    a.e(st_o(30, 5, RAM_A_HANDOFF))
+    a.e(escape(SMON_HA, 0))                 # cg5 frame, offset 0
+    a.e(*exit_seq(0x7F))                    # unreachable: escape switches away
+    a.mark("sync")
+    a.e(cfx2rd(SMON_HA, 5, CG5_CAUSE_ID_RC, 30))
+    a.e(st_o(30, 5, RAM_A_IP))             # unexpected sync cause (diagnostic)
+    a.e(escape(SMON_HA, 1))
+    return a.resolve()
 
 
-def _pmem_entry_setup(p, handler_addr, allow_irq=False):
-    setup_pmem_vector(p, handler_addr)
-    # A trap entry into cfx_pmem saves + masks the current monitor's global
-    # source mask (DADAO-12 §5.2); let cfx_pmem restore it from its handler by
-    # clearing cfx_hmon's cfxreg source bit for source cfx32.
-    p += load_rd(17, 0x7FFFFFFEFFFFFFF7)
-    p.append(cfx2rc(3, MODE_H, CG3_CFXREG_RC, 17))
-    if allow_irq:
-        # Two-level async filter (DADAO-12 §5.2 step 3, ISS-455): the source
-        # axis is the *running mode monitor's* hypv `cfx_intr_mask` (cfx_hmon
-        # cg3 rc4, bit index = source cfxha 32) and the same monitor's cg8 rc1
-        # global mask; both must allow source cfx32.
-        p += load_rd(17, 0)
-        p.append(cfx2rc(3, MODE_H, CG3_CFX_INTR_MASK_RC, 17))  # cfx_hmon row
-        p.append(cfx2rc(3, 8, 1, 17))                # cfx_hmon global_cfx_intr_mask
+def build_poison():
+    a = _prelude.Seq()
+    a.e(*exit_seq(0x7E))
+    return a.resolve()
 
 
-@case("pmem_dma_irq_delivered", "IRQ_EN=1 delivers PMEM_DMA to cfx_pmem")
-def _pmem_dma_irq_delivered():
-    p = []
-    _pmem_entry_setup(p, PMEM_HANDLER, allow_irq=True)
-    fill_sram(p, 0x0000, MAGIC)
-    status_clear(p)
-    dma_setup(p, PMEM_BASE, DATA_A, 8, 0)  # latched, not started
-    _enter_pmem_via_cfxreg(p)
-    p += exit_seq(0x7E)                    # not reached: the handler exits
-    return build_rom(p, {OFF_PMEM_HANDLER: PMEM_IRQ_HANDLER}), \
-        {"exit": EXIT_PASS, "rd10": CAUSE_PMEM_DMA, "rd11": ST_DONE,
-         "rd5": 1, "asyncn32": 1, "cid32": CAUSE_PMEM_DMA}
+ASYNC_HANDLERS = {
+    OFF_ASYNC_HND: build_async_handler(),
+    OFF_SMON_HND: build_smon_handler(),
+    OFF_POISON: build_poison(),
+}
 
 
-@case("pmem_dma_masked_pending", "masked PMEM_DMA only records cfx_pmem pending")
+def async_hmon_setup():
+    """hmon-mode setup for the async cases: supv hand-off plumbing only.
+
+    The async source mask (`cfx_hmon cg8 rc1`) is left at reset (all-1); each
+    case opens/closes bit 32 through `mask_pmem_dma`.
+    """
+    ins = load_rb(5, RAM_ASTATE)
+    ins += load_rd(17, DELEG_OPEN)
+    ins += [cfx2rc(HART_HA, 3, CG3_DELEG_RC, 17),
+            cfx2rc(SMON_HA, 3, CG3_DELEG_RC, 17)]
+    # Let supv `trap cfx_smon` through: cfx_smon's supv cfxtrap mask bit 15
+    # (source cfxha = cfx_hart) = 0.  (Not the PMEM source bit: the hand-off
+    # must be a clean CFXTRAP, not a CFXPERM fallback.)
+    ins += load_rd(17, ALL1 & ~(1 << HART_HA))
+    ins += [cfx2rc(SMON_HA, 2, 0, 17)]
+    ins += load_rd(17, ROM_BASE + OFF_SMON_HND)
+    ins += [cfx2rc(SMON_HA, 2, CG3_EXCP_VECTOR_RC, 17)]
+    ins += load_rd(17, ROM_BASE + OFF_ASYNC_HND)
+    ins += [cfx2rc(HART_HA, 9, RC_VECTOR, 17)]
+    ins += load_rd(17, 2)
+    ins += [cfx2rc(HART_HA, 9, RC_SWITCH, 17)]
+    ins += load_rd(17, ROM_BASE + OFF_POISON)
+    ins += [cfx2rc(3, 3, CG3_EXCP_VECTOR_RC, 17)]
+    return ins
+
+
+def mask_pmem_dma(a, mask=INTR_SRC_PMEM):
+    """Write the running mode monitor's async source mask (1 = masked)."""
+    a.e(*load_rd(17, mask))
+    a.e(cfx2rc(3, MON_CG, MON_MASK_RC, 17))
+
+
+def need_eq(a, rd, want, code, tag):
+    ok = "eq_%s_%d" % (tag, _len(a))
+    a.e(*load_rd(19, want))
+    a.b("eq", rd, ok, 19)
+    a.e(*exit_seq(code))
+    a.mark(ok)
+
+
+def need_mask_set(a, rd, mask, code, tag):
+    ok = "ms_%s_%d" % (tag, _len(a))
+    a.e(*load_rd(19, mask))
+    a.e(and_o(18, rd, 19))
+    a.b("nz", 18, ok)
+    a.e(*exit_seq(code))
+    a.mark(ok)
+
+
+def need_mask_clr(a, rd, mask, code, tag):
+    ok = "mc_%s_%d" % (tag, _len(a))
+    a.e(*load_rd(19, mask))
+    a.e(and_o(18, rd, 19))
+    a.b("z", 18, ok)
+    a.e(*exit_seq(code))
+    a.mark(ok)
+
+
+def ram_ld(a, off, rd):
+    a.e(ld_o(rd, 5, off))
+
+
+def wait_ram(a, off, want, code, tag):
+    head = "w_%s" % tag
+    done = head + "_ok"
+    a.e(*load_rd(20, MAX_WAIT))
+    a.mark(head)
+    a.e(ld_o(18, 5, off))
+    a.e(*load_rd(19, want))
+    a.b("eq", 18, done, 19)
+    a.e(add_si(20, -1))
+    a.b("nz", 20, head)
+    a.e(*exit_seq(code))
+    a.mark(done)
+
+
+def wait_pending(a, mask, want_set, code, tag):
+    head = "p_%s" % tag
+    done = head + "_ok"
+    a.e(*load_rd(20, MAX_WAIT))
+    a.mark(head)
+    a.e(cfx2rd(HART_HA, 9, RC_PENDING, 18))
+    a.e(*load_rd(19, mask))
+    a.e(and_o(18, 18, 19))
+    a.b("eq" if want_set else "z", 18, done, 19)
+    a.e(add_si(20, -1))
+    a.b("nz", 20, head)
+    a.e(*exit_seq(code))
+    a.mark(done)
+
+
+def delay_loop(a, count, tag, rd=20):
+    a.e(*load_rd(rd, count))
+    head = "dl_%s_%d" % (tag, _len(a))
+    tail = head + "_end"
+    a.mark(head)
+    a.b("z", rd, tail)
+    a.e(add_si(rd, -1))
+    a.b("nz", rd, head)
+    a.mark(tail)
+
+
+def _build_async_case(fn):
+    a = _prelude.Seq()
+    fn(a)
+    return build_rom(a.resolve(), ASYNC_HANDLERS, hmon_extra=async_hmon_setup())
+
+
+@case("pmem_dma_capture",
+      "PMEM_DMA enters cfx_hart once: cg9 capture bit32, source/monitor untouched")
+def _pmem_dma_capture():
+    def body(a):
+        mask_pmem_dma(a, ALL1 & ~INTR_SRC_PMEM)   # open PMEM only
+        fill_sram(a, 0x0000, MAGIC)
+        status_clear(a)
+        dma_start(a, PMEM_BASE, DATA_A, 8, irq_en=True)
+        poll_busy_clear(a)
+        wait_ram(a, RAM_A_SEQ, 1, 0x61, "cap")
+        ram_ld(a, RAM_A_FRAME, 5)
+        need_eq(a, 5, INTR_SRC_PMEM, 0x62, "frame")
+        ram_ld(a, RAM_A_PENDING, 6)
+        need_eq(a, 6, 0, 0x63, "pending_consumed")
+        ram_ld(a, RAM_A_PREVM, 7)
+        need_eq(a, 7, MODE_H, 0x64, "prev_mode")
+        ram_ld(a, RAM_A_PREVC, 8)
+        need_eq(a, 8, MODE_H, 0x65, "prev_cfx")
+        ram_ld(a, RAM_A_IP, 9)
+        a.e(*load_rd(19, 3))
+        a.e(and_o(18, 9, 19))
+        need_eq(a, 18, 0, 0x66, "ip_align")
+        # Delivery target witness: cfx_pmem and the monitor never entered.
+        a.e(cfx2rd(PMEM_HA, 4, CG4_ASYNC_NUM_RC, 10))
+        need_eq(a, 10, 0, 0x67, "source_no_entry")
+        a.e(cfx2rd(3, 4, CG4_ASYNC_NUM_RC, 11))
+        need_eq(a, 11, 0, 0x68, "monitor_no_entry")
+        a.e(cfx2rd(HART_HA, 4, CG4_ASYNC_NUM_RC, 12))
+        need_eq(a, 12, 1, 0x69, "hart_entry")
+        # The capture is a snapshot, kept after the software hand-off.
+        a.e(cfx2rd(HART_HA, 9, RC_FRAME, 6))
+        need_eq(a, 6, INTR_SRC_PMEM, 0x6A, "capture_kept")
+        status_clear(a)                          # source ack (W1C)
+        a.e(cfx2rd(HART_HA, 9, RC_PENDING, 7))
+        a.e(*load_rd(19, INTR_SRC_PMEM))
+        a.e(and_o(18, 7, 19))
+        need_eq(a, 18, 0, 0x6B, "ack_no_pending")
+        a.e(*exit_seq(EXIT_PASS))
+
+    return _build_async_case(body), {"exit": EXIT_PASS}
+
+
+@case("pmem_dma_masked_pending",
+      "masked PMEM_DMA only sets cg9 rc4 bit32; opening the mask delivers it")
 def _pmem_dma_masked_pending():
-    p = []
-    _pmem_entry_setup(p, PMEM_HANDLER)
-    mask_pmem_dma(p)                       # lower-level source filter blocks it
-    fill_sram(p, 0x0000, MAGIC)
-    status_clear(p)
-    dma_setup(p, PMEM_BASE, DATA_A, 8, 0)
-    _enter_pmem_via_cfxreg(p)
-    p += exit_seq(0x7E)                    # not reached: the handler exits
-    return build_rom(p, {OFF_PMEM_HANDLER: PMEM_MASK_HANDLER}), \
-        {"exit": EXIT_PASS, "rd5": 0, "rd8": CAUSE_PMEM_DMA, "asyncn32": 0}
+    def body(a):
+        mask_pmem_dma(a, ALL1)                   # everything masked
+        fill_sram(a, 0x0000, MAGIC)
+        status_clear(a)
+        dma_start(a, PMEM_BASE, DATA_A, 8, irq_en=True)
+        poll_busy_clear(a)
+        wait_pending(a, INTR_SRC_PMEM, True, 0x71, "mp")
+        ram_ld(a, RAM_A_SEQ, 5)
+        need_eq(a, 5, 0, 0x72, "no_entry")
+        a.e(cfx2rd(HART_HA, 9, RC_FRAME, 6))
+        need_eq(a, 6, 0, 0x73, "no_capture")
+        a.e(cfx2rd(PMEM_HA, 4, CG4_ASYNC_NUM_RC, 7))
+        need_eq(a, 7, 0, 0x74, "source_no_entry")
+        mask_pmem_dma(a, 0)                      # release
+        wait_ram(a, RAM_A_SEQ, 1, 0x75, "mpr")
+        ram_ld(a, RAM_A_FRAME, 8)
+        need_eq(a, 8, INTR_SRC_PMEM, 0x76, "frame")
+        a.e(cfx2rd(HART_HA, 9, RC_PENDING, 9))
+        a.e(*load_rd(19, INTR_SRC_PMEM))
+        a.e(and_o(18, 9, 19))
+        need_eq(a, 18, 0, 0x77, "pending_cleared")
+        a.e(*exit_seq(EXIT_PASS))
+
+    return _build_async_case(body), {"exit": EXIT_PASS}
+
+
+@case("pmem_dma_ack_w1c",
+      "dma_status W1C acks the source: cg9 pending drops, no stale delivery")
+def _pmem_dma_ack_w1c():
+    def body(a):
+        mask_pmem_dma(a, ALL1)                   # keep PMEM masked
+        fill_sram(a, 0x0000, MAGIC)
+        status_clear(a)
+        dma_start(a, PMEM_BASE, DATA_A, 8, irq_en=True)
+        poll_busy_clear(a)
+        wait_pending(a, INTR_SRC_PMEM, True, 0x81, "ack")
+        status_clear(a)                          # W1C ack at the source
+        a.e(cfx2rd(HART_HA, 9, RC_PENDING, 5))
+        a.e(*load_rd(19, INTR_SRC_PMEM))
+        a.e(and_o(18, 5, 19))
+        need_eq(a, 18, 0, 0x82, "pending_drop")
+        mask_pmem_dma(a, 0)                      # opening must not deliver
+        delay_loop(a, 20000, "ackq")
+        ram_ld(a, RAM_A_SEQ, 6)
+        need_eq(a, 6, 0, 0x83, "no_stale")
+        a.e(*exit_seq(EXIT_PASS))
+
+    return _build_async_case(body), {"exit": EXIT_PASS}
 
 
 # -- cfx numbering / aliases ---------------------------------------------

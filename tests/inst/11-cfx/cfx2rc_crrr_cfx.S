@@ -7,13 +7,15 @@
 @@   `excp_vector` 写入忽略低 2 位（`spec/Kaiwu §2`、`spec/DADAO-13 §1`）。
 @@ 编码：crrr = opc[31:24] | cfxha[23:18] | cghb[17:12] | rchc[11:6] | rdhd[5:0]
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 9 / boundary 6 / overlap 2（链例 17 + 故障例 7）
+@@ 用例：encoding 2 / semantic 9 / boundary 3 / overlap 2（链例 14 + 故障例 7）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：写入的读回用 `cfx2rd`（该 id 由同册独立文件单独覆盖，不借被测的写通路自证）；
 @@   期望值按 `spec/DADAO-12 §3.5/§3.8`、`spec/DADAO-13 §1` 与 `spec/Kaiwu §1.1/§2` 内联
 @@ GAP（不计入链例，见任务书完成区）：cg0–cg2、cg4 计数器/标识、cg5 rc5、cg6 暂存、
-@@   cg8 rc1 在 chipyard RTL 上未实现（⇒ CFXREG）⇒ 三平台不一致，待 chipyard 任务补齐
+@@   cg8 rc1（`cfx_<monitor>_async_intr_mask`，ADR-0061 D5）在 chipyard RTL 与 IDL 模型上
+@@   未实现 ⇒ 三平台不一致，待 chipyard / `m18-idl-002` 补齐；cg0–cg3 rc4 已被 ADR-0061 D5
+@@   删除（保留 ⇒ CFXREG），本文件不再覆盖该 rc
 
 	.include "tests/inst/macros/inst_test.inc"
 
@@ -78,31 +80,15 @@
 	cfx2rd	cfx_power, cg3, rc10, rd6
 	__CHECK_RD  10, rd6, BOOTROM_BASE
 
-	@@ cfx_intr_mask（cg3 rc4，RW）：整 64 位写入/读回
-	set.rd	rd5, 0x0123456789ABCDEF
-	cfx2rc	cfx_hmon, cg3, rc4, rd5
-	cfx2rd	cfx_hmon, cg3, rc4, rd6
-	__CHECK_RD  11, rd6, 0x0123456789ABCDEF
-
-	@@ ---- boundary：intr mask 全 0 与复位值（全 1）----
-	set.rd	rd5, 0x0000000000000000
-	cfx2rc	cfx_hmon, cg3, rc4, rd5
-	cfx2rd	cfx_hmon, cg3, rc4, rd6
-	__CHECK_RD  12, rd6, 0x0000000000000000
-	set.rd	rd5, 0xFFFFFFFFFFFFFFFF
-	cfx2rc	cfx_hmon, cg3, rc4, rd5
-	cfx2rd	cfx_hmon, cg3, rc4, rd6
-	__CHECK_RD  13, rd6, 0xFFFFFFFFFFFFFFFF
-
 	@@ ---- boundary：rd0 作源 ⇒ 写入 0（rd0 恒读出 0）----
 	cfx2rc	cfx_hmon, cg5, rc3, rd0
 	cfx2rd	cfx_hmon, cg5, rc3, rd6
-	__CHECK_RD  14, rd6, 0x0000000000000000
+	__CHECK_RD  11, rd6, 0x0000000000000000
 	@@ 帧恢复：cause_ip 写回本文件 .text 内的确定性地址
 	set.rd	rd5, (ENTRY + 4)
 	cfx2rc	cfx_hmon, cg5, rc3, rd5
 	cfx2rd	cfx_hmon, cg5, rc3, rd6
-	__CHECK_RD  15, rd6, (ENTRY + 4)
+	__CHECK_RD  12, rd6, (ENTRY + 4)
 
 	@@ ---- overlap：同一 cfx 寄存器连续写（后写覆盖前写；再写回旧值）----
 	set.rd	rd5, 0x1111111111111111
@@ -110,28 +96,29 @@
 	set.rd	rd5, 0x2222222222222222
 	cfx2rc	cfx_hmon, cg5, rc3, rd5
 	cfx2rd	cfx_hmon, cg5, rc3, rd6
-	__CHECK_RD  16, rd6, 0x2222222222222222
+	__CHECK_RD  13, rd6, 0x2222222222222222
 	set.rd	rd5, 0x1111111111111111
 	cfx2rc	cfx_hmon, cg5, rc3, rd5
 	cfx2rd	cfx_hmon, cg5, rc3, rd6
-	__CHECK_RD  17, rd6, 0x1111111111111111
+	__CHECK_RD  14, rd6, 0x1111111111111111
 
 	__TEST_END
 
 	@@ ---- 故障例（同镜像故障链）----
 	@@ reserved cfxha ⇒ ILLI（编号 6/61 分属两个保留段）
-	TEST_FAULT_ENC  18, ILLI,   0x7B183105, rb12, TEST_DATA, rd11, 0
-	TEST_FAULT_ENC  19, ILLI,   0x7BF43105, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  15, ILLI,   0x7B183105, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  16, ILLI,   0x7BF43105, rb12, TEST_DATA, rd11, 0
 
 	@@ 已分配但 Tiny 未实现的 cfx（cfx5 / cfx32）⇒ CFXREG
-	TEST_FAULT_ENC  20, CFXREG, 0x7B143105, rb12, TEST_DATA, rd11, 0
-	TEST_FAULT_ENC  21, CFXREG, 0x7B803105, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  17, CFXREG, 0x7B143105, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  18, CFXREG, 0x7B803105, rb12, TEST_DATA, rd11, 0
 
 	@@ 只读/硬件写寄存器（cg5 rc2 cause_id、cg7 rc0 空间描述）⇒ CFXREG
-	TEST_FAULT_ENC  22, CFXREG, 0x7B0C5085, rb12, TEST_DATA, rd11, 0
-	TEST_FAULT_ENC  23, CFXREG, 0x7B0C7005, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  19, CFXREG, 0x7B0C5085, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  20, CFXREG, 0x7B0C7005, rb12, TEST_DATA, rd11, 0
 
 	@@ 已实现 cfx 的保留 rc（cg3 rc9）⇒ CFXREG
-	TEST_FAULT_ENC  24, CFXREG, 0x7B0C3245, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  21, CFXREG, 0x7B0C3245, rb12, TEST_DATA, rd11, 0
+
 
 	__TEST_SECTIONS

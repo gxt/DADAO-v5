@@ -4529,13 +4529,13 @@ asm	tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S	TEST_AR_ORRR        15, sub.
 asm	tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S	TEST_FAULT_ALU3     16, sub.ub, ILLI, rd0, rd6, rd7	1
 asm	tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S	__CHECK_RD   1, rd5, 0x00000000000000FF	1
 asm	tests/inst/10-arith-logic-byte/sub.ub_orrr_rd.S	__CHECK_RD   2, rd63, 0x00000000000000FF	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  18, ILLI,   0x7B183105, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  19, ILLI,   0x7BF43105, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  20, CFXREG, 0x7B143105, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  21, CFXREG, 0x7B803105, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  22, CFXREG, 0x7B0C5085, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  23, CFXREG, 0x7B0C7005, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  24, CFXREG, 0x7B0C3245, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  15, ILLI,   0x7B183105, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  16, ILLI,   0x7BF43105, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  17, CFXREG, 0x7B143105, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  18, CFXREG, 0x7B803105, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  19, CFXREG, 0x7B0C5085, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  20, CFXREG, 0x7B0C7005, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	TEST_FAULT_ENC  21, CFXREG, 0x7B0C3245, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD   1, rd6, 0x0123456789ABCDEF	1
 asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD   2, rd6, 0xDEADBEEFCAFEF00D	1
 asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD   3, rd6, 0xFFFFFFFFFFFFFFFF	1
@@ -4546,19 +4546,16 @@ asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD   7, rd6, 3	1
 asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD   8, rd6, (HMON_BASE + 4)	1
 asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD   9, rd6, HMON_BASE	1
 asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  10, rd6, BOOTROM_BASE	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  11, rd6, 0x0123456789ABCDEF	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  12, rd6, 0x0000000000000000	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  13, rd6, 0xFFFFFFFFFFFFFFFF	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  14, rd6, 0x0000000000000000	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  15, rd6, (ENTRY + 4)	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  16, rd6, 0x2222222222222222	1
-asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  17, rd6, 0x1111111111111111	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  24, ILLI,   0x7A183285, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  25, ILLI,   0x7A403285, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  26, ILLI,   0x7A8C3285, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  27, CFXREG, 0x7A143285, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  28, CFXREG, 0x7A803285, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  29, CFXREG, 0x7A0C3245, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  11, rd6, 0x0000000000000000	1
+asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  12, rd6, (ENTRY + 4)	1
+asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  13, rd6, 0x2222222222222222	1
+asm	tests/inst/11-cfx/cfx2rc_crrr_cfx.S	__CHECK_RD  14, rd6, 0x1111111111111111	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  23, ILLI,   0x7A183285, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  24, ILLI,   0x7A403285, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  25, ILLI,   0x7A8C3285, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  26, CFXREG, 0x7A143285, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  27, CFXREG, 0x7A803285, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	TEST_FAULT_ENC  28, CFXREG, 0x7A0C3245, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD   1, rd5, HMON_BASE	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD   2, rd5, BOOTROM_BASE	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD   3, rd5, 0x7FFFFFFFFFFFFFF7      @@ hypv cfxtrap mask 复位值（DADAO-13 §1）	1
@@ -4576,22 +4573,22 @@ asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  14, rd5, 0x10000	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  15, rd5, 5                      @@ attr：R | X	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  16, rd5, 0	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  17, rd5, 0	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  18, rd5, 0xFFFFFFFFFFFFFFFF	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  19, rd63, HMON_BASE	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  20, rd0, 0	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  18, rd63, HMON_BASE	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  19, rd0, 0	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  20, rd3, 0x10000	1
 asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  21, rd3, 0x10000	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  22, rd3, 0x10000	1
-asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  23, rd5, 0x25	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  13, ILLI, 0x7E0C0003, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  14, ILLI, 0x7E180002, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  15, ILLI, 0x7EFDFFFF, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  16, ILLI, 0x7EFFFFFE, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  17, ILLI, 0x7E180000, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  18, ILLI, 0x7EF40000, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  19, ILLI, 0x7EFC0006, rb12, TEST_DATA, rd11, 0	1
-asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  20, ILLI, 0x7EFC0003, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/cfx2rd_crrr_cfx.S	__CHECK_RD  22, rd5, 0x25	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  14, ILLI, 0x7E0C0003, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  15, ILLI, 0x7E180002, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  16, ILLI, 0x7EFDFFFF, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  17, ILLI, 0x7EFFFFFE, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  18, ILLI, 0x7E180000, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  19, ILLI, 0x7EF40000, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  20, ILLI, 0x7EFC0006, rb12, TEST_DATA, rd11, 0	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	TEST_FAULT_ENC  21, ILLI, 0x7EFC0003, rb12, TEST_DATA, rd11, 0	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  10, HMON_BASE, 0xE0, 0x8       @@ CFXESC（1<<3）	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  11, HMON_BASE, 0xE0, 0x8	1
+asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  13, HMON_BASE, 0xE0, 0x8       @@ CFXESC（1<<3）	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_MEM  8, HMON_BASE, 0xE0, 0x2000     @@ IALIGN（1<<13）	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   1, rd5, (ENTRY + 0x884)	1
 asm	tests/inst/11-cfx/escape_ciii_cfx.S	__CHECK_RD   2, rd5, (ENTRY + 0x988)	1

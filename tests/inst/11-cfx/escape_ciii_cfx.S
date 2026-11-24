@@ -5,12 +5,13 @@
 @@   **当前 cfx**（`inner_cfx_code`）的**所选帧**上退出——步骤 0 检查目标/帧：
 @@   `imms18[17:2]` 非 0（SBZ）⇒ ILLI；`imms18 = 3`（cg9 帧 + 偏移 +4）⇒ ILLI；`cfxha` reserved
 @@   ⇒ ILLI；`cfxha != inner_cfx_code` 或所选帧无效（`cg5` 帧 `excp_cause_id == 0`；
-@@   `cfx_hart cg9` 现场 `async_cause_id == 0` 或该 cfx 无 cg9）⇒ **CFXESC**（切换任何
-@@   状态之前）；步骤 1 恢复 trap 保存的 global 中断掩码（cg9 现场为 `async_saved_global_intr_mask`）；
-@@   步骤 2 恢复 `inner_run_mode` 与 **`inner_cfx_code` ← `excp_prev_cfx_code`**（cg9 现场为
-@@   `async_prev_*`）；步骤 3 `escape_num += 1`、返回地址：`cg5` 帧 =
-@@   `excp_cause_ip + ((imms18 & 1) << 2)`，`cg9` 现场 = `async_cause_ip`（偏移恒 0）。
-@@   帧选择位 = `imms18[1]`：0 = `cg5` 同步异常帧、1 = `cg9` 异步现场（仅 `cfx_hart`）。
+@@   `imms18[1] = 1` 选的 `cg9` 是**捕获缓冲、不是返回帧**）⇒ **CFXESC**（切换任何
+@@   状态之前）。ADR-0061 R2：`escape` 不保存/不恢复任何来源掩码（策略不是现场），
+@@   不以 `cg9` 作为异步返回帧（返回走 smon/umon 正常路径）；步骤 2 恢复
+@@   `inner_run_mode` 与 **`inner_cfx_code` ← `excp_prev_cfx_code`**；步骤 3
+@@   `escape_num += 1`、返回地址 = `excp_cause_ip + ((imms18 & 1) << 2)`（仅 `cg5` 帧）。
+@@   帧选择位 = `imms18[1]`：0 = `cg5` 同步异常帧、1 = `cg9`（合法编码，但所选帧无效
+@@   ⇒ `CFXESC`，见链例 13）。
 @@ ★ 本文件的关键前提（m14-spec-009 新语义）：**boot 移交后应用运行在 cfx_power(63) 上下文**——
 @@   `spec/Kaiwu §1` 的复位 cfx 是 cfx_power(63)；固件 hmon 在 `§6.2` 第 7 步 `escape cfx_hmon`
 @@   会把 `inner_cfx_code` 从 hmon(3) 恢复成进入前的 63（旧语义「escape 不改 `inner_cfx_code`」
@@ -23,7 +24,7 @@
 @@ 编码：ciii = opc[31:24] | cfxha[23:18] | imms18[17:0]；`imms18 = imms20 >> 2` ⇒
 @@   `[excp_cause_ip, 0/4]` ⇒ imms18 = 0/1（cg5 帧）、`[async_cause_ip, 8]` ⇒ imms18 = 2（cg9 现场）
 @@ 链接布局：`tests/ee-tiny/tests_inst_tiny.lds`（全部册共用（00 + 01–12）；段地址由宏层 `inst_test.inc` 固定）
-@@ 用例：encoding 2 / semantic 5 / boundary 3 / legality 2（链例 12 + 故障例 8）
+@@ 用例：encoding 2 / semantic 5 / boundary 3 / legality 3（链例 13 + 故障例 8）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 @@ 探针：落点 IP 用 `aip.si` 取自身地址（只读观测）；三类异常的 cause 观测面都是 hmon SRAM 的
@@ -35,11 +36,11 @@
 @@   ② 模式恢复与 trap 保存的 global_cfx_intr_mask 不可观测（Tiny 恒 hypv）；③ `inner_cfx_code`
 @@   本身不可直接读 ⇒ 用「同帧第二次 escape 必判 CFXESC」间接断言恢复（链例 12）；
 @@   ④ 本文件的 handler 是**测试替身**，不是平台固件（平台固件的行为由各故障例的固件路由覆盖）；
-@@   ⑤ 帧选择位的**合法** cg9 路径（`imms18 = 2` ⇒ `cfx_hart cg9` 现场）在本载体不可写成
-@@     成功/CFXESC 断言：Tiny 不实现 `cfx_hart`（无 cg9 现场可注入），帧选择位在 QEMU 侧尚未
-@@     落地（仍按 `imms18[17:1]` SBZ 判 ILLI），且共享宏层无 `CFXESC` 故障种类。故本文件只保留
-@@     三平台可共同判定的口径（`3 ⇒ ILLI`、`imms18 = 2` 不改变 reserved 判定、SBZ 先于
-@@     CFXESC），cg9 现场语义由 IDL 执行器自检（`idl_exec.py --self-test`）覆盖。
+@@   ⑤ 帧选择位的 cg9 路径（`imms18 = 2`）在 ADR-0061 R2 下**不是**异步返回：`cg9` 是进入
+@@     瞬间的捕获缓冲、不是返回帧 ⇒ 所选帧无效 ⇒ **当前 cfx 的 `CFXESC`**（链例 13 断言，
+@@     应用在 cfx_power(63)，故由 cfx_power 的向量记三槽）。Tiny 不实现 `cfx_hart`，故本
+@@     载体只判「cg9 帧选择合法但按无效帧处理」；捕获缓冲的覆盖/一帧多源语义由
+@@     `INTEG-050t/051t` 探针与 IDL 执行器自检覆盖。
 
 	.include "tests/inst/macros/inst_test.inc"
 
@@ -174,6 +175,20 @@ __c12:
 	st.o	rd7, [rb20, 0xC8]
 	__MON_ENTER (ENTRY + 0x1B40), (ENTRY + 0x1E00)
 	__EXIT	12
+
+	@@ ---- legality：帧选择位 cg9（`imms18 = 2`）不是异步返回帧 ⇒ 当前 cfx 的 CFXESC ----
+	@@   应用在 cfx_power(63)：先装 cfx_power 的 hypv 向量（记三槽后 escape 回落点），
+	@@   再执行 `escape cfx_power, [excp_cause_ip, 8]`。ADR-0061 R2 / `§5.1`：`cg9` 是进入瞬间
+	@@   的捕获缓冲、没有返回帧语义 ⇒ 所选帧无效 ⇒ 在切换任何状态**之前**报 CFXESC；
+	@@   旧语义（cg9 可返回）会跳到 capture 的 cause_ip（本载体为 0）⇒ 不会落到本 pad。
+__c13:
+	set.rd	rd12, (ENTRY + 0x1C80)
+	cfx2rc	cfx_power, cg3, rc10, rd12
+	set.rd	rd13, (ENTRY + 0x1F00)
+	aip.si	rb25, 0                        @@ rb25 = 本指令地址；+8 = 下面 escape 的地址
+	add.si	rb25, 8
+	escape	cfx_power, [excp_cause_ip, 8]
+	__EXIT	13
 
 __end:
 	jump	[rb0, __finish]
@@ -353,7 +368,7 @@ __mon_p0:                                      @@ cfx63 侧入口：CFXESC 落�
 	br.p	{rd9}?, [rb0, __fail12]             @@ 到达 > 2 次 ⇒ 判红（旧语义必到此）
 	br.z	{rd7}?, [rb0, __t12_first]
 	__CHECK_RD  12, rd7, 0x8                    @@ 第二次到达：cause_id = CFXESC（1<<3）
-	jump	[rb0, __end]
+	jump	[rb0, __c13]
 __t12_first:
 	set.rd	rd12, (ENTRY + 0x1C40)              @@ 安装「记录 CFXESC」入口（挂 cfx_power 向量）
 	cfx2rc	cfx_power, cg3, rc10, rd12
@@ -363,6 +378,18 @@ __t12_first:
 __fail12:
 	__EXIT	12
 
+	.org	0x1F00
+	@@ case 13：cg9 帧选择 ⇒ CFXESC 落点（cause_info = escape 指令字 0x7EFC0002）
+	__VERIFY_MEM 13, HMON_BASE, 0xF0, 0x7EFC0002
+	rb2rd	{rd22:rd22}, {rb25:rb25}            @@ 运行期派生的 escape 地址
+	set.rb rb21, ((HMON_BASE + 0xE8) / 8) * 8
+	ld.o	rd21, [rb21, 0]
+	br.eq	{rd22, rd21}?, [rb0, __t13_ok]
+	__EXIT	13
+__t13_ok:
+	__CHECK_MEM  13, HMON_BASE, 0xE0, 0x8       @@ CFXESC（1<<3）
+	jump	[rb0, __end]
+
 __finish:
 	cfx2rc	cfx_hmon, cg3, rc10, rd11              @@ 还原平台固件向量（故障链经固件路由）
 	set.rd	rd12, BOOTROM_BASE                     @@ 还原 cfx_power 向量 = 其 ROM 起始（`DADAO-13 §1`）
@@ -370,21 +397,21 @@ __finish:
 	__TEST_END
 
 	@@ ---- 故障例：cg9 帧 + 偏移 +4（imms18 = 3）与 SBZ 非零（imms18[17:2] ≠ 0）⇒ ILLI ----
-	@@   13：imms18 = 3 = 帧选择位 1 + 偏移 bit2 1；cg9 现场只允许偏移 0 ⇒ ILLI（先于目标/帧判定）
-	TEST_FAULT_ENC  13, ILLI, 0x7E0C0003, rb12, TEST_DATA, rd11, 0
-	@@   14：合法帧选择（imms18 = 2，cg9 现场）不改变保留 cfx 判定 ⇒ cfx6 reserved 仍 ILLI
-	TEST_FAULT_ENC  14, ILLI, 0x7E180002, rb12, TEST_DATA, rd11, 0
-	TEST_FAULT_ENC  15, ILLI, 0x7EFDFFFF, rb12, TEST_DATA, rd11, 0
-	TEST_FAULT_ENC  16, ILLI, 0x7EFFFFFE, rb12, TEST_DATA, rd11, 0
+	@@   14：imms18 = 3 = 帧选择位 1 + 偏移 bit2 1；cg9 帧只允许偏移 0 ⇒ ILLI（先于目标/帧判定）
+	TEST_FAULT_ENC  14, ILLI, 0x7E0C0003, rb12, TEST_DATA, rd11, 0
+	@@   15：合法帧选择（imms18 = 2，cg9 捕获缓冲）不改变保留 cfx 判定 ⇒ cfx6 reserved 仍 ILLI
+	TEST_FAULT_ENC  15, ILLI, 0x7E180002, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  16, ILLI, 0x7EFDFFFF, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  17, ILLI, 0x7EFFFFFE, rb12, TEST_DATA, rd11, 0
 
 	@@ ---- 故障例：reserved cfxha（6 / 61）⇒ ILLI（先于目标/帧判定）----
-	TEST_FAULT_ENC  17, ILLI, 0x7E180000, rb12, TEST_DATA, rd11, 0
-	TEST_FAULT_ENC  18, ILLI, 0x7EF40000, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  18, ILLI, 0x7E180000, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  19, ILLI, 0x7EF40000, rb12, TEST_DATA, rd11, 0
 
 	@@ 故障例：SBZ 检查先于 CFXESC —— cfx63 非保留但非当前 cfx（3），SBZ 非零仍报 ILLI
 	@@   （并入原 YAML 的同 id 用例；若先判 cfx 匹配则会是 CFXESC `1<<3`）
-	TEST_FAULT_ENC  19, ILLI, 0x7EFC0006, rb12, TEST_DATA, rd11, 0
-	@@   20：imms18 = 3（cg9 帧 + 偏移 +4）⇒ ILLI，同样先于目标判定
-	TEST_FAULT_ENC  20, ILLI, 0x7EFC0003, rb12, TEST_DATA, rd11, 0
+	TEST_FAULT_ENC  20, ILLI, 0x7EFC0006, rb12, TEST_DATA, rd11, 0
+	@@   21：imms18 = 3（cg9 帧 + 偏移 +4）⇒ ILLI，同样先于目标判定
+	TEST_FAULT_ENC  21, ILLI, 0x7EFC0003, rb12, TEST_DATA, rd11, 0
 
 	__TEST_SECTIONS
