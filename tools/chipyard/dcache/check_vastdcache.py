@@ -3,7 +3,7 @@
 
 判据不保存期望常量：magic、PTE 值、组索引、cause one-hot 全部从
 `gen_vastdcache_tables.py` 现场取（cause 再经 `tests/arch/ptw/check_ptw_regs.bit_table`
-与 `contract-see §6.1` / `adr-0056` 三方互校）。两处"机器码字"（`.stubdata`
+与 `contract-see §6.1` / `spec/DADAO-12 §3.6` 互校；扁平模型见 `ADR-0062`）。两处"机器码字"（`.stubdata`
 的 8 B）由证据脚本从 ELF 取出后经 `--stub-word` 传入，判据不猜编码。
 
 两层断言：

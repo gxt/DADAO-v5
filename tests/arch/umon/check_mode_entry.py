@@ -5,8 +5,9 @@
 
   * cause 位索引：`spec/DADAO-12-SEE-主管系统运行环境.md` §5.2（二）的
     “monitor 异常编号”表（`CFXTRAP`/`CFXREG`/`CFXPERM`/`ILLI` …）；
-  * `CFXPERM` 子原因 `[39] NCFXPERM`：`.tao/contracts/contract-see.md` §6.1.1
-    的子原因表（绝对位号），并与 `spec` §3.6 的 `wyde2` 归属互校；
+  * `CFXPERM` 的编码：`.tao/contracts/contract-see.md` §6.1（`1 << 7`）——扁平模型下
+    cfx 来源掩码拒绝**只置 `CFXPERM`**、高位位图全 0（`ADR-0062 D2/D3`）；
+    `.tao/contracts/contract-see.md` §6.1.1 / `spec` §3.6 的权限类位图作为第二来源；
   * 运行模式编码（`user`/`supv`/`hypv`）与 cfx 编号（`umon`/`smon`/`hmon`）：
     `spec` §1 的模式表与 cfx 表；
   * `<mode>_switch_run_mode` 复位值：`spec` §3.1/§3.4 的寄存器表；
@@ -59,16 +60,16 @@ def spec_facts(root):
         if need not in cause_bits:
             raise OracleError("spec §5.2: cause bit for %s not found" % need)
 
-    # CFXPERM sub-cause NCFXPERM: absolute bit in the contract, cross-checked as
-    # a wyde2 ([47:32]) member in the spec table.
-    m = re.search(r"^\|\s*`\[(\d+)\]`\s*\|\s*wyde2\s*\|\s*`NCFXPERM`", contract, re.M)
-    if not m:
-        raise OracleError("contract-see §6.1.1: NCFXPERM absolute bit not found")
-    ncfxperm_bit = int(m.group(1))
-    if not (32 <= ncfxperm_bit < 48):
-        raise OracleError("NCFXPERM bit %d is not in wyde2" % ncfxperm_bit)
-    if not re.search(r"^\|\s*`\[%d\]`\s*\|\s*NCFXPERM\s*\|" % ncfxperm_bit, spec, re.M):
-        raise OracleError("spec §3.6 has no [%d] NCFXPERM row" % ncfxperm_bit)
+    # Flat model (ADR-0062 D3): the two negative bits are deleted; CFXPERM
+    # stands alone. The permission bitmap must still expose [32] NUPERM.
+    c611 = contract[contract.find("### §6.1.1"):contract.find("### §6.2")]
+    s36 = spec[spec.find("### 3.6 cg5"):spec.find("### 3.7")]
+    if "NCFXPERM" in c611 or "NCFXPERM" in s36:
+        raise OracleError("flat model: NCFXPERM must not appear in §6.1.1 / §3.6")
+    if not re.search(r"^\|\s*`\[32\]`\s*\|\s*wyde2\s+[^|]*\|\s*`NUPERM`", contract, re.M):
+        raise OracleError("contract-see §6.1.1: NUPERM bitmap row not found")
+    if not re.search(r"^\|\s*`\[32\]`\s*\|\s*NUPERM\s*\|", spec, re.M):
+        raise OracleError("spec §3.6: [32] NUPERM row not found")
 
     # Mode encodings (§1) and cfx ids (§1).
     modes = {}
@@ -103,7 +104,6 @@ def spec_facts(root):
 
     return dict(
         cause=cause_bits,
-        ncfxperm_bit=ncfxperm_bit,
         modes=modes,
         cfx=cfxha,
         switch=switch,
@@ -124,10 +124,9 @@ def elf_symbols(nm, elf):
 
 def expected_slots(facts, syms, mode):
     bits = facts["cause"]
-    ncfx = facts["ncfxperm_bit"]
     M = facts["modes"]
     C = facts["cfx"]
-    perm = (1 << bits["CFXPERM"]) | (1 << ncfx)
+    perm = 1 << bits["CFXPERM"]          # 扁平：cfx 来源掩码拒绝只置 CFXPERM
     cfxtrap = 1 << bits["CFXTRAP"]
     cfxreg = 1 << bits["CFXREG"]
     illi = 1 << bits["ILLI"]

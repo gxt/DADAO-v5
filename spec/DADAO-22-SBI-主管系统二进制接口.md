@@ -202,7 +202,7 @@ cfx_ptw_handle_fault:
     escape cfx_ptw, [excp_cause_ip, 4]
 ```
 
-各 cfx 之间的委托关系：页表异常由当前运行模式 monitor 接收（未映射与 A/D 回写失败 → `CFXMEM`，权限拒绝 → `CFXPERM`）；monitor 可经 `SBI_PTW_*` 服务委托 `cfx_ptw` 完成页表步进与缺页处理，`cfx_ptw` 委托 `cfx_pmem` 申请物理页。
+各 cfx 之间的委托关系：页表异常由当前运行模式 monitor 接收——未映射只置缺失类位图 `[48]`–`[55]` 之一、A/D 回写失败只置 `[56] ADWBFAIL`、权限拒绝只置权限类位图 `[32]`–`[38]` 之一（低位 cause = 0、`CFXMEM`/`CFXPERM` = 0）；monitor 可经 `SBI_PTW_*` 服务委托 `cfx_ptw` 完成页表步进与缺页处理，`cfx_ptw` 委托 `cfx_pmem` 申请物理页。
 
 ## 5. TLB维护（cfx_ptw）
 
@@ -219,7 +219,7 @@ TLB 并入 `cfx_ptw`（DADAO-12 §4.5），没有独立的 TLB 核芯功能扩�
 
 - 三个维度正交，匹配条件 = `(ASID 匹配) AND (地址匹配)`：`all` 忽略 start/size；`VA` 只匹配包含 start 的条目；`range` 匹配与 `[start, start+size)` 相交的条目；`地址范围 = 11`，或 `range` 且 `size = 0` ⇒ `CFXREG`（**仅** `clean`/`invalid`/`flush`；`op = none` 优先按 no-op，不报异常）。
 - ASID 维度：`ASID_ANY = 1` 包含 `G = 1` 的条目；`ASID_ANY = 0` 只处理 `G = 0` 且 ASID 等于 `cfx_ptw_tlb_asid` 的条目（不碰 `G` 条目）。
-- 操作：`clean` 回写 A/D 并保留条目；`invalid` 只删除、不回写；`flush` 回写后删除（回写失败保留条目，按当前运行模式 monitor 的 `CFXMEM` 处理）；`none` 为无操作。
+- 操作：`clean` 回写 A/D 并保留条目；`invalid` 只删除、不回写；`flush` 回写后删除（回写失败保留条目，只置 `[56] ADWBFAIL`，`CFXMEM` = 0）；`none` 为无操作。
 - 写 PTBR、写 ASID、写 `cfx_ptw_enable` 都不隐含 TLB 失效，软件须显式失效。
 
 ### 5.2 失效示例
@@ -246,9 +246,9 @@ set.rd   rd2, 0x11
 cfx2rc  cfx_ptw_tlb_control, rd2
 ```
 
-### 5.3 A/D 回写失败（CFXMEM）
+### 5.3 A/D 回写失败（`[56] ADWBFAIL`）
 
-页表页不可写导致 A/D 回写失败时，`clean`/`flush` 按当前运行模式 monitor 的 `CFXMEM` 进入异常处理，`excp_cause_info` = 出错的 PTE 物理地址，且失败条目保留（不静默丢弃 A/D）；不再进入 `cfx_ptw` 异常入口，也不归 `CFXPERM`。`invalid` 不回写，不受影响。
+页表页不可写导致 A/D 回写失败时，`clean`/`flush` 只置 `[56] ADWBFAIL`（低位 cause = 0、`CFXMEM`/`CFXPERM` = 0）并进入当前运行模式 monitor，`excp_cause_info` = 出错的 PTE 物理地址，且失败条目保留（不静默丢弃 A/D）；不再进入 `cfx_ptw` 异常入口。`invalid` 不回写，不受影响。
 
 ## 6. Cache管理（cfx_cache）
 
@@ -744,6 +744,8 @@ syscall_handler、illi_handler 等具体处理函数由操作系统实现。
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.8.0-rc（未发布）
+
+- 页表异常编码随 SEE 改为**扁平位图**（内容改，版本仍 `0.8.0-rc`）：§4 委托段与 §5.1/§5.3 的 `CFXMEM`/`CFXPERM` 旧归并改为——未映射只置 `[48]`–`[55]` 之一、A/D 回写失败只置 `[56] ADWBFAIL`、权限拒绝只置 `[32]`–`[38]` 之一，低位 cause = 0、`CFXMEM`/`CFXPERM` = 0；`§5.3` 标题同步。**SBI 语义未变**（功能码、入参、返回值与调用约定均不变）；页表异常位图口径见 SEE 册 §3.6。
 
 - 与 SEE 的异步捕获缓冲修订同步（内容改，版本仍 `0.8.0-rc`）：异步入口示例不再用 `escape` 返回——`cfx_hart cg9` 只是进入瞬间的捕获缓冲，示例改为「关中断窗口把 `cg9` + GPR 搬到本任务现场 → `trap cfx_smon`」并以 `trap cfx_smon, 0x0` 终结（不返回本处，返回走 smon/umon 正常路径）；删除旧的同步定时器入口 `cfx_hart_timer_int`（定时器/PMEM_DMA 异步中断只走 `cg9 rc5` 异步向量）。`escape imms18=2` 编码仍合法但不作为异步返回，`imms18=3` ⇒ `ILLI` 不变。源身份（cfxha 15/32）、来源掩码（monitor `cg8 rc1`）、同一界多源一次性捕获均不变。**SBI 语义未变**（功能码、入参、返回值与调用约定均不变）。
 

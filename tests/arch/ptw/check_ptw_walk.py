@@ -4,17 +4,18 @@
 探针把每个检查点 / 故障帧的 8 字节实测值写进结果缓冲（`__REC`）。本脚本**不保存
 期望常量**，而是现场：
 
-  * 从 `.tao/contracts/contract-see.md` §6.1/§6.1.1 解析 cause 大类与子原因位号，
-    并与 `.tao/adr/adr-0056-*.md` 逐位互校（`AGENTS.md`「Independent oracle」）；
+  * 从 `.tao/contracts/contract-see.md` §6.1/§6.1.1 解析 cause 大类与高位位图位号，
+    并与 `spec/DADAO-12 §3.6` 逐位互校（`AGENTS.md`「Independent oracle」；扁平模型见
+    `ADR-0062 D1/D3`）；
   * 从 `tests/arch/ptw/gen_ptw_walk_tables.py`（页表几何的单一真源）取 PA/VA/
     PTE 期望值，不复制任何索引或位域。
 
 判据：
   * 记录数 == 31（`ptw_walk.S` 的记录顺序），每条 8 字节；
   * 每个检查点逐位等于期望；
-  * 故障帧 = `CFXMEM`/`CFXPERM` 的 cause one-hot + 该 cause 独占 wyde 里的**一位**
-    子原因（spec 顺序：缺页 → 小页缺失 → HSJU → R/W/X），`cause_info` = 访问 VA；
-  * `CFXREG` 只有一个大类位、两个 wyde 全 0（`§3.6` (五)）；
+  * 故障帧 = 高位位图里的**一位**（PTW 缺失/权限；低位 cause = 0），
+    spec 顺序：缺页 → 小页缺失 → HSJU → R/W/X，`cause_info` = 访问 VA；
+  * `CFXREG` 只有一个大类位、`[63:32]` 全 0（`§3.6` (五)）；
   * `--log` 给出时，另比 A/D 回写事件：同一 PTE 上**恰好两次** `ad-wb`（clean 各一次），
     值依次为 A=1,D=0 与 A=1,D=1；`ad-fail` 为零（未注入时）。
 
@@ -55,7 +56,7 @@ def load_bit_parser():
 
 
 def bit_table(root: pathlib.Path) -> dict:
-    """Cause classes + sub-cause bits, parsed from the contract and cross-checked."""
+    """Cause classes + flat high-bitmap bits, from the contract / spec §3.6."""
     mod = load_bit_parser()
     return mod.bit_table(root)
 
@@ -74,7 +75,7 @@ DATA_CHECKS = [
     "stub executed through a translation",  # 10
 ]
 
-# (name, cause class, sub-cause name or None, va or None)
+# (name, cause class, high-bitmap name or None, va or None)
 FAULTS = [
     ("L1 P=0, SP=0", "CFXMEM", "DGPTRAP", "VA_L1_NP"),
     ("L1 P=0, SP=1", "CFXMEM", "DSPTRAP", "VA_L1_SP"),
@@ -93,8 +94,6 @@ N_RECORDS = len(DATA_CHECKS) + 2 * len(FAULTS) + 1 + 2
 def expected_records(table: dict, geom, expect_adwb: bool) -> list:
     cls = table["class"]
     sub = table["sub"]
-    cfxmem = 1 << cls["CFXMEM"]
-    cfxperm = 1 << cls["CFXPERM"]
     cfxreg = 1 << cls["CFXREG"]
     recs = [geom.PAYLOAD,
             geom.DATA_PTE_A0D0,
@@ -107,8 +106,11 @@ def expected_records(table: dict, geom, expect_adwb: bool) -> list:
             geom.MAGIC1,
             geom.STUB_MARK]
     for _, cause, subname, va_name in FAULTS:
-        base = cfxmem if cause == "CFXMEM" else cfxperm if cause == "CFXPERM" else cfxreg
-        word = base | (0 if subname is None else 1 << sub[subname])
+        # 扁平：PTW 权限/缺失只置高位位图（低位 cause = 0）；CFXREG 只置大类位
+        if cause in ("CFXMEM", "CFXPERM"):
+            word = 1 << sub[subname]
+        else:
+            word = cfxreg
         recs.append(word)
         # `CFXREG`'s `cause_info` is the faulting instruction's encoding — the
         # checker cannot know the word, so it only rules on the class/structure.
@@ -117,7 +119,7 @@ def expected_records(table: dict, geom, expect_adwb: bool) -> list:
             recs[-1] = None
     recs.append(geom.FRESH_MAGIC)          # check 20: the fresh page reads correctly
     if expect_adwb:
-        recs += [cfxmem | (1 << sub["ADWBFAIL"]), geom.FRESH_PTE_PA]
+        recs += [1 << sub["ADWBFAIL"], geom.FRESH_PTE_PA]
     else:
         recs += [0, 0]
     if len(recs) != N_RECORDS:
@@ -135,32 +137,30 @@ def unpack(data: bytes, count: int) -> list:
 
 
 def structure_problems(recs: list, table: dict) -> list:
-    """Cause-id layout rules (`DADAO-12` §3.6 (三)(四)(五))."""
+    """Flat layout rules (`DADAO-12` §3.6 (五); `ADR-0062` D1)."""
     cls = table["class"]
     problems = []
+    reserved = (1 << 7) | (0xFF << 8) | (1 << 25) | (0x3F << 26)
+    valid_high = (0x7F) | (0x1FF << 16)
     for i in range(len(DATA_CHECKS), len(DATA_CHECKS) + 2 * len(FAULTS), 2):
         cause = recs[i]
-        klass = cause & 0xFFFF
-        wyde2 = (cause >> 32) & 0xFFFF
-        wyde3 = (cause >> 48) & 0xFFFF
-        if klass not in (1 << cls["CFXMEM"], 1 << cls["CFXPERM"], 1 << cls["CFXREG"]):
-            problems.append("record %d: unexpected cause class 0x%x" % (i, klass))
-            continue
-        if cause >> 16 & 0xFFFF:
+        low = cause & 0xFFFF
+        high = cause >> 32
+        if (cause >> 16) & 0xFFFF:
             problems.append("record %d: [31:16] is not zero" % i)
-        if klass == 1 << cls["CFXMEM"]:
-            if wyde2:
-                problems.append("record %d: CFXMEM with a non-zero wyde2" % i)
-            if bin(wyde3).count("1") != 1:
-                problems.append("record %d: CFXMEM wyde3 is not one-hot" % i)
-        elif klass == 1 << cls["CFXPERM"]:
-            if wyde3:
-                problems.append("record %d: CFXPERM with a non-zero wyde3" % i)
-            if bin(wyde2).count("1") != 1:
-                problems.append("record %d: CFXPERM wyde2 is not one-hot" % i)
+        if high & reserved:
+            problems.append("record %d: reserved high bits set (0x%08x)"
+                            % (i, high & reserved))
+        if low:
+            if low not in (1 << cls["CFXMEM"], 1 << cls["CFXREG"]):
+                problems.append("record %d: unexpected cause class 0x%x" % (i, low))
+            if high:
+                problems.append("record %d: class cause with a non-zero bitmap" % i)
         else:
-            if wyde2 or wyde3:
-                problems.append("record %d: CFXREG with a non-zero sub-cause wyde" % i)
+            if high & ~valid_high:
+                problems.append("record %d: bits outside [32..38]/[48..56]" % i)
+            if bin(high).count("1") != 1:
+                problems.append("record %d: PTW bitmap is not one-hot" % i)
     return problems
 
 
@@ -230,9 +230,9 @@ def selftest(recs, expected, table, geom):
     add("stub not executed", lambda r: r.__setitem__(9, 0))
     add("wrong missing-page class", lambda r: r.__setitem__(10, r[10] ^ (1 << 52)))
     add("HSJU reported as CFXMEM", lambda r: r.__setitem__(20, 1 << 1 | 1 << 52))
-    add("perm sub-cause in the wrong wyde", lambda r: r.__setitem__(22, 1 << 7 | 1 << 37 << 48))
+    add("permission bit in the memory range", lambda r: r.__setitem__(22, 1 << 37 << 48))
     add("NXPERM missing", lambda r: r.__setitem__(24, 1 << 7 | 1 << 36 << 32))
-    add("CFXREG with a sub-cause", lambda r: r.__setitem__(26, 1 << 2 | 1 << 48))
+    add("CFXREG with a high bitmap bit", lambda r: r.__setitem__(26, 1 << 2 | 1 << 48))
     add("fresh page wrong", lambda r: r.__setitem__(28, 0))
     add("missing record", lambda r: r.pop())
     bad_log = "WumingPtw: ad-wb kind=cmd op=1 pte=0x%x value=0x%x\n" % (
@@ -289,9 +289,8 @@ def main() -> int:
     geom = load_geometry()
     expected = expected_records(table, geom, args.expect_adwb)
     if args.adwb_only:
-        cfxmem = 1 << table["class"]["CFXMEM"]
         expected = [geom.FRESH_MAGIC]
-        expected += ([cfxmem | (1 << table["sub"]["ADWBFAIL"]), geom.FRESH_PTE_PA]
+        expected += ([1 << table["sub"]["ADWBFAIL"], geom.FRESH_PTE_PA]
                      if args.expect_adwb else [0, 0])
 
     if args.self_test:

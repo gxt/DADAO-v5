@@ -58,10 +58,10 @@ v5 测试机使用的核内地址空间按 profile 划分如下（均为 48 位�
 - **层次与适用**：`CFXMEM` 适用于核内地址空间模型内的非法访问/取指（cfxha 段内的非法子区间、越界访问/取指），归当前运行模式 monitor（退出码编码见 `§7.1`）。
 - **精确路由（按 profile）**：
   - **Tiny**：无 PTW（`ptw_enable` 恒 0）。`addr[47:42] == 0` 的普通访存/取指 ⇒ `CFXMEM`，**不直通物理存储器**；cfxha 63 段内 BootROM/SRAM 之外、cfxha 3 段内 `hmon SRAM` 之外、以及其它 cfxha 段 ⇒ `CFXMEM`。同步异常进入当前运行模式 monitor——Tiny 唯一 monitor 为 `cfx3 hmon`（运行模式恒 `hypv`），**经 hmon 向量**处理（见 `§4.4`）。
-  - **Vast**：`addr[47:42] == 0` 且 `ptw_enable=1`：按单 PTBR 走页表（PTE 格式/页表步进/页权限/TLB 见 `DADAO-12 §2.2.1–§2.2.6`、`§4.5`）；页表步进与 TLB 命中产生的异常先进入当前运行模式 monitor：未映射与 A/D 回写失败 ⇒ `CFXMEM`，权限拒绝 ⇒ `CFXPERM`（见 `DADAO-12 §2.2.6`、`§5.2`）。`ptw_enable=0`（仅复位后 power/hmon 的早期初始化）时仍按上一条报 `CFXMEM`。
+  - **Vast**：`addr[47:42] == 0` 且 `ptw_enable=1`：按单 PTBR 走页表（PTE 格式/页表步进/页权限/TLB 见 `DADAO-12 §2.2.1–§2.2.6`、`§4.5`）；页表步进与 TLB 命中产生的异常先进入当前运行模式 monitor：未映射与 A/D 回写失败只置访存/缺失类位图（`[48..55]` 之一或 `[56] ADWBFAIL`），权限拒绝只置权限类位图（`[32..38]` 之一），低位 cause = 0、`CFXMEM`/`CFXPERM` 均为 0（见 `DADAO-12 §2.2.6`、`§3.6`、`§5.2`）。`ptw_enable=0`（仅复位后 power/hmon 的早期初始化）时仍按上一条报 `CFXMEM`。
   - 保留 cfx（判定见下条）的普通 `ld/st` ⇒ 当前运行模式 monitor 的 `CFXMEM`；`trap`/`escape`/`cfx2rd`/`cfx2rc` 到保留 cfx ⇒ 当前运行模式 monitor 的 `ILLI`（口径见 `§3`）。
   - **reserved cfx 集（全册唯一定义）**：以 `DADAO-12 §1` 的 cfxha 编号表为**唯一真源**——**表中 `cfxname = reserved` 的编号即保留 cfx**（含 `per-task` 段中尚未分配的编号）；已分配编号及其 `cfxname` 同样以该表为准。本册**不重复列举编号**，以免与上游漂移。[DADAO-12 §1. 运行模式与核芯功能扩展][DADAO-12 §2.1 核内地址空间]
-  - 其余未映射地址（Vast 的 `power` 段 BootROM 之外）⇒ 当前运行模式 monitor 的 `CFXMEM`。
+  - 其余**核内非法地址**（Vast 的 `power` 段 BootROM 之外，非 PTW）⇒ 当前运行模式 monitor 的 `CFXMEM`。
 - **取指路径同等对待**：越界**取指**与越界**数据访问**同属非法核内地址访问，**均须报异常**，不得只覆盖数据访问路径；不得静默继续或静默丢弃。
 - 两 profile 的几何与上述路由以机器接口断言固化；旧「唯一 RAM 段 + PA 别名 + 固定容量」口径随本版 profile 划分作废。
 
@@ -91,15 +91,15 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 - 每个 cfx 的 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe`（`rc0`–`rc3`）为四类 64 位同步来源 mask：**0=允许，1=屏蔽**，位索引=源 cfx；自身只绕过 cfx 轴。`rc4` **不定义（保留，访问 ⇒ `CFXREG`）**；异步来源掩码 = `cfx0`–`cfx3` 的 `cg8 rc1`（`cfx_<monitor>_async_intr_mask`，位 = 源 cfxha，0=允许、1=屏蔽，复位全 1）。[DADAO-12 §3. 共有寄存器设计规范]
 - `switch_run_mode` 为陷入时切换的运行模式。[DADAO-12 §3. 共有寄存器设计规范]
-- 权限拒绝触发 `CFXPERM`（`1<<7`，进入当前模式 monitor），escape 帧/目标错误触发 `CFXESC`（`1<<3`，进入当前 cfx）；reserved cfxha 的 `trap`/`escape`/`cfx2rd`/`cfx2rc` 见下条。[DADAO-12 §4. 专有寄存器设计规范]
+- cfx 来源掩码拒绝触发 `CFXPERM`（`1<<7`，进入当前模式 monitor），escape 帧/目标错误触发 `CFXESC`（`1<<3`，进入当前 cfx）；reserved cfxha 的 `trap`/`escape`/`cfx2rd`/`cfx2rc` 见下条。[DADAO-12 §4. 专有寄存器设计规范]
 - **`trap`/`escape`/`cfx2rd`/`cfx2rc` 到不同 cfxha 的两条互斥口径**（`§1.2`/`§7.1` 与实现共同遵守）：
   - **目标为 reserved cfxha**（集见 `§1.2`）⇒ 当前运行模式 monitor 的 **`ILLI`**，四条指令同规（`fence` 到 reserved cfx 同 ⇒ `ILLI`，见 `SimRISC-11 §5`）。据此，reserved 判定**先于**「该 cfx 是否实现」的判定。
   - **目标为非 reserved** 时按寄存器层判定：`cfx2rd`/`cfx2rc` 的目标为**已分配但本 profile 未实现**的 cfx（如 Tiny 的 `cfx5`），或为已实现 cfx 的**未定义 cg/rc** ⇒ 当前运行模式 monitor 的 **`CFXREG`**（`1<<2`；`excp_cause_info` = 指令编码）。
   - `trap`/`escape` 到**非 reserved 的未实现 cfx** 不属上一条：按本节「测试机 cfx 实现范围」处理（Tiny ⇒ `ILLI`，`DADAO-12 §2.1` 允许实现约定未实现行为）。
   - 依据（上游原文）：`DADAO-12 §5.1`「`trap`/`escape`/`cfx2rd`/`cfx2rc` 指令可以在任意运行模式下执行。若 `cfxha` 为 reserved 核芯功能扩展，硬件触发 ILLI 异常。」（原文在该句括注保留编号，本册按 `§1.2` 引用上游编号表，不重复列举）；`DADAO-12 §5.2（一）` 路由表两行「`trap`/`cfx2rd`/`cfx2rc`，`cfxha` 为 reserved ⇒ `ILLI` ⇒ 当前运行模式 monitor」「非法核芯功能扩展寄存器访问 ⇒ `CFXREG` ⇒ 当前运行模式 monitor（不进入被访问的核芯功能扩展）」。
   - 两条**不冲突**：reserved 是**编号层**判定（`ILLI`），cg/rc 与实现是**寄存器层**判定（`CFXREG`）；同一 cfxha、同一指令只命中其中一条。[DADAO-12 §5.1 指令行为说明][DADAO-12 §5.2 异常进入流程]
-- HSJU 或 R/W/X 不符属于页表/PTW 层权限异常：当前运行模式对应的 HSJU 位为 0，或取指/读/写分别不满足 X/R/W 时触发 `CFXPERM`（当前运行模式 monitor）；地址转换第一步已不再按 `VA[47:42]` 选择 PTBR，也不再有 PTBR 模式权限位图。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw]
-- **两个权限层次**：页表/PTW 层权限（HSJU 或 R/W/X 不符）与 **cfx 访问权限**（`cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` mask 拒绝，见 `§5` 异常进入流程）是**不同层次**，不可混同；两者失败后均归当前运行模式 monitor 的 `CFXPERM`（原因名收敛，权限来源不同）。[DADAO-12 §4. 专有寄存器设计规范]
+- HSJU 或 R/W/X 不符属于页表/PTW 层权限异常：当前运行模式对应的 HSJU 位为 0，或取指/读/写分别不满足 X/R/W 时只置权限类位图 `[32]`–`[38]` 之一（低位 cause = 0、`CFXPERM` = 0，进入当前运行模式 monitor）；地址转换第一步已不再按 `VA[47:42]` 选择 PTBR，也不再有 PTBR 模式权限位图。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw][DADAO-12 §3.6 cg5 - 异常现场寄存器]
+- **两个权限层次**：页表/PTW 层权限（HSJU 或 R/W/X 不符）与 **cfx 访问权限**（`cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` mask 拒绝，见 `§5` 异常进入流程）是**不同层次**，不可混同；两者均进入当前运行模式 monitor，但编码不同——页表/PTW 层只置权限类位图 `[32]`–`[38]` 之一（低位 cause = 0），cfx 访问权限只置 `CFXPERM`（`1<<7`，高位全 0）。[DADAO-12 §4. 专有寄存器设计规范][DADAO-12 §3.6 cg5 - 异常现场寄存器]
 
 - **测试机 cfx 实现范围（按 profile）**：
   - **`Kaiwu-Tiny`**：实现 **`cfx_power`（cfx63，启动移交）** 与 **`cfx3`（`hmon`，同步异常向量）**，提供其 cg0–cg7 共有寄存器与异常向量；`cfx_power`（cfx63）用于启动移交（`power → hmon`）。**不实现 `cfx2`（smon）/`cfx32`（pmem）/`cfx4`（ptw）/`cfx5`（cache）/`cfx33`（llc）/`cfx34`（time）等其它 cfx**。cfx 寄存器访问与 `cfx2rd`/`cfx2rc` 对未实现 cfx ⇒ `CFXREG`；非 semihosting 的 `trap cfx_hmon`（`cfxha=3`，`immu18 < 0x3FF00`）按 `DADAO-12 §5.2` 进入 hmon 向量（`CFXTRAP`）；`trap`/`escape` 到未实现 cfx ⇒ `ILLI`（进入 hmon 向量，见 `§4.4`）。**semihosting 判定只看 `immu18`（`§5.1`），与 `cfxha` 无关**。
@@ -116,7 +116,7 @@ DADAO 定义四种运行模式（两位编码）：`user`（`0b00`）、`jail`�
 
 TLB 属 `cfx_ptw`，其匹配键、命中检查、填充条件、A/D 维护与失效接口按 `DADAO-12 §2.2.1–§2.2.6`、`§4.5` 执行（见 `§1.2`、`§6.3.5`）；下列四条为本机的**测试机约定**，不改变上游语义。[DADAO-12 §2.2.1 超页的地址转换][DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw - page table walker]
 
-- **失效同步完成**：`cfx_ptw_tlb_control` 的写指令**同步完成**——指令返回即生效，其后的访存必见失效结果（无 busy/done 位、无异步完成信号）。`clean`/`flush` 触发的 A/D 回写失败**在该写指令上**报当前运行模式 monitor 的 `CFXMEM`（`cause_info` = PTE 物理地址），且**不得部分完成**——按**条目级**解释：处理失败的条目保持原状（`flush` 失败不删除该条目、`clean` 失败不清其挂起位），**其后条目一律不处理、保持原状**（遇错即停；一条指令最多报一处失败）。[DADAO-12 §4.5 cfx_ptw - page table walker][spec-decision]（用户 2026-11-16 确认）
+- **失效同步完成**：`cfx_ptw_tlb_control` 的写指令**同步完成**——指令返回即生效，其后的访存必见失效结果（无 busy/done 位、无异步完成信号）。`clean`/`flush` 触发的 A/D 回写失败**在该写指令上**只置 `[56] ADWBFAIL`（`CFXMEM` = 0、低位 cause = 0，进入当前运行模式 monitor；`cause_info` = PTE 物理地址），且**不得部分完成**——按**条目级**解释：处理失败的条目保持原状（`flush` 失败不删除该条目、`clean` 失败不清其挂起位），**其后条目一律不处理、保持原状**（遇错即停；一条指令最多报一处失败）。[DADAO-12 §4.5 cfx_ptw - page table walker][spec-decision]（用户 2026-11-16 确认）
 - **per-hart**：TLB 与 `cfx_ptw_tlb_control` 都是 **per-hart** 状态，失效命令只作用于执行该指令的 hart；跨 hart 的失效传播与一致性不在本册范围（多 hart 机型另行规定）。[DADAO-12 §4.5 cfx_ptw - page table walker][spec-decision]（用户 2026-11-16 确认）
 - **I/D 分表与命令作用域**：本机 TLB 的组织为 **I/D 两表**（每核各一；I 表条目无 D 状态，取指命中只置 A）——`DADAO-12 §4.5` 明写「条目数、组织与替换策略由实现决定」，故不构成对上游的偏离。`cfx_ptw_tlb_control` **不引入 I/D 选择位**，一条命令作用于两表：判序 **I 表先、D 表后**；跨两表仍按「条目级 + 首错即停、一条指令最多报一处失败」（`cause_info` 取该失败条目的 PTE 物理地址）；`scope=VA` / `range` 对两表**各自匹配**（同一 VA 在 I/D 的 PTE 可以不同）。[DADAO-12 §4.5 cfx_ptw - page table walker][spec-decision]（用户 2026-11-20 确认）
 - **实现范围**：本机的 TLB 建模由 **QEMU** 机器模型承担；`tests/arch` 的 PTW/TLB 探针是**跨实现判据**，其它实现不在本册验收面。[spec-decision]（用户 2026-11-16 确认）
@@ -495,6 +495,7 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 - **`CFXTRAP`/`CFXESC` 的编码选择**：退出码表示 `CFXTRAP`（位索引 0）或 `CFXESC`（位索引 3）时，按「其它 cfx」段编码（`0x80`–`0xBF`，`bit7=1`、`bit6=0`、`bit5:0` = 对应 cfx 的 cfxHA），**不**按 monitor 段编码；monitor 表中的 0/3 仅保留位索引定义。
 - **语义映射**：`bit5:4` 取运行模式编码、`bit3:0` 取 DADAO 异常位索引（见上表），二者组合即该退出码所指的「运行模式 + 异常原因」；异常原因与运行模式的归属由异常路由（`§1.2`/`§4.4`、`DADAO-12 §5.2`）定义，本节只约束编码。
 - **`Kaiwu-Tiny` 的编码范围**：运行模式恒 `hypv` ⇒ monitor 段取 `bit5:4 = 11`（`0xF0`–`0xFF`）。
+- **适用范围（PTW 故障）**：本节的 monitor 段退出码按 `bit3:0` 取**低位** cause 索引，**不承载** PTW 权限/缺失故障——后者在扁平位图中低位 cause = 0、只置 `[32..38]`/`[48..55]`/`[56]` 位图（`DADAO-12 §3.6`）。`Kaiwu-Vast` 的 PTW 故障测试**直接读** `cfx_<mode>_excp_cause_id` 判因，不沿用本节的 `0xF0 | bit3:0` 形态；`Kaiwu-Tiny` 无 PTW，不受影响。[DADAO-12 §3.6 cg5 - 异常现场寄存器][DADAO-12 §5.2 异常进入流程]
 - **编码冻结、不得重排**：退出码分段与 monitor/其它 cfx 位域**自本版起**一经生效**不得重排**；monitor 位索引沿用 DADAO 异常位索引，新增原因不得改变既有索引。[DADAO-12 §5.2 异常进入流程]
 
 ---
@@ -504,6 +505,8 @@ boot info 位于内核 VA 窗口的 **VA** `0x0200_0001_0000`（PA 侧 = VA − 
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期，再于其上方新开空 `-rc` 段。
 
 ### 0.4.7-rc（未发布）
+
+- **页表权限/缺失故障改为扁平位图**（内容改，版本仍 0.4.7-rc）：按 `DADAO-12 §3.6`，PTW 权限拒绝只置 `[32]`–`[38]` 之一、PTW 缺失只置 `[48]`–`[55]` 之一、A/D 回写失败只置 `[56]`，低位 cause = 0、`CFXPERM`/`CFXMEM` 均为 0；`cfx` 来源掩码拒绝仍只置 `CFXPERM`。`§1.2`/`§3`/`§3.1` 同步；`§7.1` 增「适用范围（PTW 故障）」——monitor 退出码按低位 cause 索引编码，不承载 PTW 故障，`Kaiwu-Vast` 直接读 `excp_cause_id` 判因，`Kaiwu-Tiny` 无 PTW 不受影响。
 
 - **`cfx5`（`cache`）由「已分配未实现」改为 `Kaiwu-Vast` 实现**（用户 2026-11-20 确认 `cfx5` 由 Vast 实现、Tiny 不实现）：Vast 实现其寄存器（`cache_exist` 按 §4.6 位定义 I/D 两侧均存在 ⇒ 读回 `0b11`、`cache_enable`、`cache_ctrl`、`cache_addr_start`、`cache_addr_size`）与维护命令；`Kaiwu-Tiny` 仍不实现（⇒ `CFXREG`/`ILLI`）。新增 `§3.2 cache（cfx5）的测试机约定`：维护命令同步完成、per-hart、`ctrl[15:14]` 的 I/D 选择位（bit15 = I、bit14 = D）与两侧全选「先 I 后 D」；cache 几何由实现决定、本册不规定；`§3` 的实现范围条目同步。版本号不变（0.4.7-rc）。
 

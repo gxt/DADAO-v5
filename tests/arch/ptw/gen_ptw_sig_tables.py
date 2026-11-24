@@ -239,14 +239,15 @@ def emit_inc() -> str:
         _equ("CTL_INVALID_RANGE_NOANY",
              (OP_INVALID & 3) | ((SCOPE_RANGE & 3) << 2)),
         "",
-        "@@ cause_id 期望（`contract-see §6.1` 大类 + `§6.1.1` 子原因的绝对位号）",
+        "@@ cause_id 期望（`contract-see §6.1` 大类；`§6.1.1` 高位位图为扁平绝对位号）",
     ]
     for name in ("CFXMEM", "CFXPERM", "CFXREG"):
         out.append(_equ("CAUSE_" + name, 1 << cls[name]))
-    for name in ("NONPTW", "DGPTRAP", "IGPTRAP", "NWPERM", "NRPERM", "NXPERM",
-                 "NHPERM"):
-        out.append(_equ("CAUSE_" + name,
-                        (1 << cls[table["owner"][name]]) | (1 << table["sub"][name])))
+    # 扁平模型（ADR-0062 D1/D3）：PTW 权限/缺失只置高位位图，低位 cause = 0
+    for name in ("DGPTRAP", "IGPTRAP", "NWPERM", "NRPERM", "NXPERM", "NHPERM"):
+        out.append(_equ("CAUSE_" + name, 1 << table["sub"][name]))
+    # 已删除的否定位：同义映射到非 PTW 的 CFXMEM（旧载体名保留，值按扁平模型）
+    out.append(_equ("CAUSE_NONPTW", 1 << cls["CFXMEM"]))
     out += [
         "",
         '.section .ptl1, "aw"',

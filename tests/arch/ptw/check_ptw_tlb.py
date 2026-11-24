@@ -2,8 +2,9 @@
 """check_ptw_tlb -- `tests/arch/ptw/ptw_tlb.S` 的独立判据（`m16-chipyard-008`）。
 
 判据不保存期望常量：页表几何、PTE 值与数据 magic 全部从
-`tests/arch/ptw/gen_ptw_tlb_tables.py` 现场取；cause 大类与子原因位号从
-`.tao/contracts/contract-see.md` §6.1/§6.1.1 解析并与 `adr-0056` 逐位互校。
+`tests/arch/ptw/gen_ptw_tlb_tables.py` 现场取；cause 大类与高位位图位号从
+`.tao/contracts/contract-see.md` §6.1/§6.1.1 解析并与 `spec/DADAO-12 §3.6`
+逐位互校（扁平模型见 `ADR-0062 D1/D3`）。
 
 判据分两层：
   * **结果缓冲**（`__REC` 记录）：逐条等于生成器算出的期望值（命中读旧数据、
@@ -49,8 +50,9 @@ def load_geometry():
 
 
 def bit_table(root: pathlib.Path) -> dict:
-    """Cause classes + sub-cause bits, parsed from the contract (reuse the PTW
-    checker's parser, which cross-checks `adr-0056`)."""
+    """Cause classes + flat high-bitmap bits, parsed from the contract (reuse
+    the PTW checker's parser, which cross-checks `spec/DADAO-12 §3.6` and
+    `ADR-0062` flat invariants)."""
     mod = _load("ptw_regs_bits", HERE / "check_ptw_regs.py")
     return mod.bit_table(root)
 
@@ -99,8 +101,7 @@ def expected_full(g, table: dict) -> list:
 
 def expected_or(g, table: dict, expect_adwb: bool) -> list:
     """`CASE_OR=1` image: two clean frames + the final PTE."""
-    cfxmem = 1 << table["class"]["CFXMEM"]
-    adwb = cfxmem | (1 << table["sub"]["ADWBFAIL"])
+    adwb = 1 << table["sub"]["ADWBFAIL"]
     if expect_adwb:
         return [adwb, g.PTE_PA_OR, adwb, g.PTE_PA_OR, g.OR_PTE_A1D0]
     return [0, 0, 0, 0, g.OR_PTE_A1D1]
@@ -165,25 +166,24 @@ def log_problems(log_text: str, g, table: dict, or_only: bool,
 
 def structure_problems(recs: list, table: dict, or_only: bool,
                        expect_adwb: bool) -> list:
-    """`DADAO-12` §3.6 (三)(四)(五) on the recorded ADWBFAIL frames."""
+    """Flat layout rules (`DADAO-12` §3.6 (五); `ADR-0062` D1) on ADWBFAIL frames."""
     problems = []
     if expect_adwb and or_only:
-        cls = table["class"]
+        reserved = (1 << 7) | (0xFF << 8) | (1 << 25) | (0x3F << 26)
         for i in (0, 2):
             cause = recs[i]
-            klass = cause & 0xFFFF
-            wyde2 = (cause >> 32) & 0xFFFF
-            wyde3 = (cause >> 48) & 0xFFFF
-            if klass != 1 << cls["CFXMEM"]:
-                problems.append("record %d: frame class 0x%x is not CFXMEM" % (i, klass))
+            low = cause & 0xFFFF
+            high = cause >> 32
+            if low:
+                problems.append("record %d: ADWBFAIL must not set a low cause (0x%x)"
+                                % (i, low))
                 continue
-            if wyde2:
-                problems.append("record %d: CFXMEM with a non-zero wyde2" % i)
-            if bin(wyde3).count("1") != 1:
-                problems.append("record %d: CFXMEM wyde3 is not one-hot" % i)
-            # `sub` is the absolute bit number; the frame check reads wyde3.
-            if wyde3 != 1 << (table["sub"]["ADWBFAIL"] - 48):
-                problems.append("record %d: sub-cause is not [56] ADWBFAIL" % i)
+            if (cause >> 16) & 0xFFFF:
+                problems.append("record %d: [31:16] is not zero" % i)
+            if high & reserved:
+                problems.append("record %d: reserved high bits set" % i)
+            if high != 1 << (table["sub"]["ADWBFAIL"] - 32):
+                problems.append("record %d: bitmap is not [56] ADWBFAIL" % i)
     return problems
 
 

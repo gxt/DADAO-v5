@@ -139,19 +139,20 @@ def _contract_section(start: str, end: str, what: str) -> str:
 
 
 def contract_subcauses() -> dict[str, dict]:
-    """``{name: {bit, wyde, cause}}`` from ``contract-see §6.1.1``."""
+    """``{name: {bit, wyde}}`` from ``contract-see §6.1.1``（扁平位图）."""
     body = _contract_section("### §6.1.1", "\n### ", "contract-see §6.1.1")
     rows: dict[str, dict] = {}
     for line in body.splitlines():
-        m = re.match(r"^\|\s*`\[(\d+)\]`\s*\|\s*wyde(\d)\s*\|\s*`(\w+)`\s*\|"
-                     r"\s*`(\w+)`\s*\|", line)
+        m = re.match(r"^\|\s*`\[(\d+)\]`\s*\|\s*wyde(\d)\s+[^|]*\|\s*`(\w+)`",
+                     line)
         if not m:
             continue
-        rows[m.group(3)] = {"bit": int(m.group(1)), "wyde": int(m.group(2)),
-                            "cause": m.group(4)}
-    if len(rows) != 18:
-        raise SystemExit(f"k4_cow_probe: §6.1.1 parsed {len(rows)} sub-causes, "
-                         f"expected 18: {sorted(rows)}")
+        rows[m.group(3)] = {"bit": int(m.group(1)), "wyde": int(m.group(2))}
+    if len(rows) != 16:
+        raise SystemExit(f"k4_cow_probe: §6.1.1 parsed {len(rows)} bitmap bits, "
+                         f"expected 16: {sorted(rows)}")
+    if "NCFXPERM" in rows or "NONPTW" in rows:
+        raise SystemExit("k4_cow_probe: deleted flat-model bit still in §6.1.1")
     return rows
 
 
@@ -275,7 +276,7 @@ def base_va() -> int:
 
 
 def subcauses() -> dict[str, dict]:
-    """`contract-see §6.1.1` (ADR-0056 D3), cross-checked with the header."""
+    """`contract-see §6.1.1` (ADR-0062 D1/D3), cross-checked with the header."""
     subs = contract_subcauses()
     header = header_subcauses()
     if subs["NWPERM"]["bit"] not in header.values():
@@ -284,9 +285,9 @@ def subcauses() -> dict[str, dict]:
 
 
 def perm_cause_id(subs: dict[str, dict]) -> int:
-    """`CFXPERM | (1 << NWPERM)` — the raw id the write fault must report."""
+    """`1 << NWPERM` — 扁平模型下 PTW 写权限拒绝只置位图，`CFXPERM` = 0。"""
     row = subs["NWPERM"]
-    return causes()["CFXPERM"] | (1 << row["bit"])
+    return 1 << row["bit"]
 
 
 def tlb_expectation() -> dict[str, int]:

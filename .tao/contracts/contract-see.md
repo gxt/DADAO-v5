@@ -28,10 +28,10 @@
 - 内存窗口 VA 为 42 位（`VA[41:0]`），物理地址 PA 为 56 位。[DADAO-12 §2.2 虚实地址转换]
 - 单 PTBR `cfx_ptw_ptbr`（只存 `PPN[55:16]`，64 KiB 对齐，无 valid 位）；`cfx_ptw_enable=0` 时 `addr[47:42] = 0` 访存 ⇒ `CFXMEM`，`1` 时按页表转换；写 PTBR/写 1 不隐含 TLB invalidate；复位 PTBR=0、使能=0。[DADAO-12 §2.2 虚实地址转换][DADAO-12 §4.5 cfx_ptw - page table walker]
 - 页表项 64 位：`HSJU[63:60]`、`PPN[55:16]`（超页 `PPN[55:29]`）、`SPF/GPF[15:8]`、flags `[7:0]`（`P/SP/D/A/G/X/W/R`）；L1/L2 均 64 KiB、8192 项，`VA[41:29]`/`VA[28:16]` 选索引、`VA[15:0]` 为页内偏移；PA 56 位。保留位忽略、超页 PPN 非对齐低位强制清零。[DADAO-12 §2.2.1 超页的地址转换][DADAO-12 §2.2.2 普通页的地址转换][DADAO-12 §2.2.3 一级页表条目格式][DADAO-12 §2.2.4 二级页表条目格式]
-- 页权限：HSJU 要求当前模式对应位为 1，且 R/W/X 与 HSJU 正交（取指 X、读 R、写 W）；异常优先级「页缺失 → SPF/GPF 对应位 = 0 → HSJU → R/W/X」，只报最高优先级异常；页表未映射与 A/D 回写失败 ⇒ `CFXMEM`（当前运行模式 monitor），HSJU 或 R/W/X 不符 ⇒ `CFXPERM`（当前运行模式 monitor），`cfx_ptw` 不再是页表异常目标。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §2.2.6 异常检查优先级]
+- 页权限：HSJU 要求当前模式对应位为 1，且 R/W/X 与 HSJU 正交（取指 X、读 R、写 W）；异常优先级「页缺失 → SPF/GPF 对应位 = 0 → HSJU → R/W/X」，只报最高优先级异常；页表未映射只置缺失类位图 `[48]`–`[55]` 之一、A/D 回写失败只置 `[56] ADWBFAIL`、HSJU 或 R/W/X 不符只置权限类位图 `[32]`–`[38]` 之一（均进当前运行模式 monitor，低位 cause = 0、`CFXMEM`/`CFXPERM` = 0），`cfx_ptw` 不再是页表异常目标。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §2.2.6 异常检查优先级]
 - **TLB（并入 `cfx_ptw`）**：无 `tlb_enable`/`tlb_exist`，`ptw_enable=1` 即参与查找、`0` 时旁路；按「虚拟页 + ASID（`cfx_ptw_tlb_asid`，16 位）」匹配，`G=1` 跨 ASID 复用；命中不重读 PTE，miss 走页表步进且只有成功才填充；写 PTBR/ASID/使能都不隐含失效。[DADAO-12 §2.2.1 超页的地址转换][DADAO-12 §4.5 cfx_ptw - page table walker][ADR-0041 D3/D5/D8/D9]
 - **TLB 失效**：`cfx_ptw_tlb_control` 三维正交——`op`（`00=none`/`01=clean`/`10=invalid`/`11=flush`）、`scope`（`00=all`/`01=VA`/`10=range`/`11=reserved`）、`ASID_ANY`（bit4）；`all` 忽略 start/size、`VA` 只看 start、`range` 用 `[start,start+size)`；`scope=11` 或 `range` 且 `size=0` ⇒ `CFXREG`（仅 `clean`/`invalid`/`flush`；`op=none` 优先按 no-op）；`ASID_ANY=1` 含 `G`、`0` 跳过 `G`；正常完成不报异常。[DADAO-12 §4.5 cfx_ptw - page table walker][ADR-0041 D3.1/D3.2/D6]
-- **A/D**：填充取 PTE 的 A/D 为本地值、不产生回写；读/取指置 A，写置 A/D；缺页/权限失败不更新；`clean`/`flush`/替换时原子 OR 回写 PTE（`clean` 保留、`flush` 删除、`invalid` 不写回）；回写失败按当前运行模式 monitor 的 `CFXMEM` 处理（`cause_info` = PTE 物理地址）且保留条目。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw - page table walker][ADR-0041 D4/D7/D10]
+- **A/D**：填充取 PTE 的 A/D 为本地值、不产生回写；读/取指置 A，写置 A/D；缺页/权限失败不更新；`clean`/`flush`/替换时原子 OR 回写 PTE（`clean` 保留、`flush` 删除、`invalid` 不写回）；回写失败只置 `[56] ADWBFAIL`（`CFXMEM` = 0、低位 cause = 0，进入当前运行模式 monitor；`cause_info` = PTE 物理地址）且保留条目。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw - page table walker][ADR-0041 D4/D7/D10]
 - 硬件复位启动地址 = `cfx_power_hypv_excp_vector = 0xffff_ffff_0000`（cfxha 63 / `power`），可由 CPU 直接取指执行；BootROM 大小由平台 profile 规定：`Kaiwu-Tiny` 64 KiB（`0xffff_ffff_0000`–`0xffff_ffff_ffff`）、`Kaiwu-Vast` 4 MiB（`0xffff_ffc0_0000`–`0xffff_ffff_ffff`）；复位向量两 profile 均为末 64 KiB 起点，既有 `-bios` 仍按 64 KiB 复位窗口装载。[DADAO-12 §2.1 核内地址空间][ADR-0043 D1/D2][Machine-01 §1]
 - v5 测试机地址划分按 profile（**测试机约定**）：`Kaiwu-Tiny` 为 BootROM 64 KiB + SRAM 8 MiB（cfxha 63，`0xffff_ff00_0000`–`0xffff_ff7f_ffff`）+ **hmon SRAM 64 KiB（cfxha 3，`0x0fff_0000_0000`）**，无 PTW；`Kaiwu-Vast` 为 BootROM 4 MiB + PA RAM 2 GiB（`[0, 2 GiB)`，首张页表 4 个 512 MiB 超页，`VA [0, 2 GiB)` → PA `[0, 2 GiB)`）；两 profile 都不设同一存储的多地址别名；exit port 已删。[ADR-0020 D15][ADR-0004 R3][ADR-0043 D10][Machine-01 §1]
 - **hmon/smon SRAM**：hmon（cfx3）`0x0fff_0000_0000`、smon（cfx2）`0x0bff_0000_0000`，各 64 KiB，内部偏移 `0x3ff_0000_0000`，越界 ⇒ `CFXMEM`；power 不设 SRAM。[ADR-0043 D4/D5]
@@ -46,13 +46,13 @@
 - 每个 cfx 提供 cg0–cg7 共有寄存器；`cg0`–`cg3` 的 `rc0`–`rc3` 为 `cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` 四类同步来源 mask，另有 `switch_run_mode`/`excp_vector`；`rc4` **不定义（保留，访问 ⇒ `CFXREG`）**；异步来源掩码在 `cfx0`–`cfx3` 的 `cg8 rc1`（`cfx_umon/jmon/smon/hmon_async_intr_mask`）；`cfx_hart` 另有 `cg9` 异步捕获缓冲（7 槽 + `rc7`–`rc15` reserved，见 `DADAO-12 §4.7`）。[DADAO-12 §3. 共有寄存器设计规范][DADAO-12 §4.7 cfx_hart - hart management][ADR-0061 D5/D7]
 - 两轴授权：最终允许 = 运行模式允许 AND cfx 资源允许；`self` 只绕过 cfx 轴（位测试），仍使用当前运行模式的寄存器行。mask 位索引为源 cfx，0=允许、1=屏蔽。[ADR-0045 D1/D2][DADAO-12 §3. 共有寄存器设计规范]
 - 四类同步 mask 初值：power 与普通 cfx `0xFFFF_FFFF_FFFF_FFF7`，hmon 自身 `0x7FFF_FFFF_FFFF_FFF7`；`cfx0`–`cfx3` 的 `cg8 rc1`（异步来源掩码）初值全 1；`cg0`–`cg3 rc4` 不定义（保留）。[ADR-0045 D4][DADAO-12 §3. 共有寄存器设计规范][ADR-0061 D5]
-- 权限拒绝触发 `CFXPERM`（`1<<7`，进入当前模式 monitor），不再是 ILLI；escape 帧/目标错误触发 `CFXESC`（`1<<3`，进入当前 cfx）。[ADR-0045 D6/D7][DADAO-12 §4. 专有寄存器设计规范]
+- cfx 来源掩码拒绝触发 `CFXPERM`（`1<<7`，进入当前模式 monitor），不再是 ILLI；escape 帧/目标错误触发 `CFXESC`（`1<<3`，进入当前 cfx）。[ADR-0045 D6/D7][DADAO-12 §4. 专有寄存器设计规范]
 - **cg 级授权**：每个 cfx 的 `cfx_⟨cfxname⟩_hypv_cg_reg_deleg`（`cg3 rc12`，复位全 1、RW）为 64 位位图，bit 索引 = cg 编号（0–63），`bit=0` 允许 `supv` 访问该 cg、`bit=1` 拒绝；`bit3` 硬件固定 1（软件写 0 无效、读回恒 1），故 `supv` 访问任何 cfx 的 cg3 恒被拒；`supv` 访问**任何** cfx（含自身）都查**目标 cfx** 的该位图（**不豁免 self**），拒绝走 `CFXPERM`（无 cg3 例外）；`hypv` 不受该位图约束，`user`/`jail` 不参与该检查（其 cg3 仍由寄存器组合规则报 `CFXREG`）。软件约定：需开放的 cfx 由 `hmon` 写 `cg3 rc12 = 0x8` 整组开放（唯一置位为恒 1 的 bit3），不逐 cg 清位；`cfx_power` 例外——其 deleg 保持 `~0`，仅写 `cg2 rc1` 的 bit2=0（cfxmem 轴）供 `smon` 读 BootROM，不改 deleg 语义。[DADAO-12 §3.4 cg3 - hypv mode 寄存器][DADAO-23 §3. 启动与引导移交约定]
 - reserved cfxha（`6`–`14`、`16`–`31`、`35`–`61`）触发 `ILLI`。[DADAO-12 §5. 异常进入与异常退出]
 - 异步中断来源掩码 = **当前运行模式 monitor** 的 `cg8 rc1`（`cfx_umon_async_intr_mask`/`cfx_jmon_async_intr_mask`/`cfx_smon_async_intr_mask`/`cfx_hmon_async_intr_mask`）：位索引 = **源 cfxha**（`TIMER` ⇒ 15、`PMEM_DMA` ⇒ 32），`0=允许`、`1=屏蔽`，复位全 1；**投递目标 = `cfx_hart`**（hart-first，`spec/DADAO-12 §5.4`）；被屏蔽时置 `cfx_hart cg9 rc4`（`async_src_pending`，位 = 源 cfxha）pending，mask 解除后补投；不存在"帧活动期"门控——每次放行的进入都整体覆盖 `cfx_hart cg9 rc3`（`async_src_frame`，捕获缓冲）。`trap`/`escape` **不保存、不恢复**该掩码（策略不是现场）；`cg0`–`cg3 rc4` 不定义（保留）。[ADR-0061 D2/D3/D4/D5/D6][DADAO-12 §5.4 异步中断进入与退出][DADAO-12 §4.1 cfx_umon - user monitor][DADAO-12 §4.7 cfx_hart - hart management]
 - 访问**未实现**的核芯功能扩展（其 cfx 寄存器）触发 `CFXREG`。[DADAO-22 §3. 系统信息（smon）]
-- HSJU 或 R/W/X 不符属于页表/PTW 层权限异常：当前运行模式对应的 HSJU 位为 0，或取指/读/写分别不满足 X/R/W 时触发 `CFXPERM`（当前运行模式 monitor）；地址转换第一步不再按 `VA[47:42]` 选择 PTBR，也无 PTBR 模式权限位图。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw - page table walker]
-- **两层权限不可混同**：页表/PTW 层权限（HSJU 或 R/W/X 不符）与 cfx 访问权限（`cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` mask 拒绝）分属不同层次；两者失败后均归当前运行模式 monitor 的 `CFXPERM`（原因名收敛，权限来源不同）。[ADR-0020 D9][ADR-0045 D6][DADAO-12 §4. 专有寄存器设计规范]
+- HSJU 或 R/W/X 不符属于页表/PTW 层权限异常：当前运行模式对应的 HSJU 位为 0，或取指/读/写分别不满足 X/R/W 时只置权限类位图 `[32]`–`[38]` 之一（低位 cause = 0、`CFXPERM` = 0，进入当前运行模式 monitor）；地址转换第一步不再按 `VA[47:42]` 选择 PTBR，也无 PTBR 模式权限位图。[DADAO-12 §2.2.5 操作系统页管理][DADAO-12 §4.5 cfx_ptw - page table walker]
+- **两层权限不可混同**：页表/PTW 层权限（HSJU 或 R/W/X 不符）与 cfx 访问权限（`cfxtrap`/`cfxmem`/`cfxreg`/`cfxexe` mask 拒绝）分属不同层次；两者均进入当前运行模式 monitor，但编码不同——前者只置权限类位图 `[32]`–`[38]` 之一（低位 cause = 0），后者只置 `CFXPERM`（`1<<7`，高位全 0）。[ADR-0020 D9][ADR-0045 D6][DADAO-12 §4. 专有寄存器设计规范]
 - v5 测试机 cfx 实现范围按 profile（**测试机约定**、非上游架构限制）：`Kaiwu-Tiny` **实现 `cfx_power`（cfx63，启动）+ `cfx3 hmon`（异常）**，不实现 smon/PTW；semihosting 的 `trap` 按 `immu18 ∈ 0x3FF00–0x3FFFF` 判定，与 cfxha 无关；`Kaiwu-Vast` 为 `cfx0/1/2/3/63` 以及 `cfx4` 的 PTW/TLB 寄存器（`cfx_ptw_ptbr`/`cfx_ptw_enable`/`cfx_ptw_tlb_*`）、页表步进、TLB 命中/填充/失效与 A/D 回写，加上 `cfx32` 的 64 KiB SRAM 与 `cg15` DMA，以及 `cfx15` 单 hart 定时器 + `cfx34` 全局时间，还有 `cfx5`（`cache`）的寄存器与维护命令（寄存器面与命令语义见 `contract-cache.md`）；范围外未实现 cfx 触发 `CFXREG`。[ADR-0020 D9][Machine-01 §3]
 - **cg7 内部空间描述**：每个 cfx 用 cg7 描述自身核内空间——每 4 个 rc 一个空间块、`i=0..15` 共 16 块（`rc = 4i+0..3`，寄存器名 `cfx_⟨cfxname⟩_space_desc[i]`/`space_start[i]`/`space_size[i]`/`space_attr[i]`）：desc（bit0=`exists`；bit1=SRAM/bit2=ROM/bit3=MMIO/bit4=DRAM/bit5=OTHER，存在时 one-hot）、start（42 位内部偏移，完整地址 `(cfxha << 42) | start`）、size（`start + size ≤ 2^42`）、attr（bit0=R/bit1=W/bit2=X/bit3=cacheable/bit4=shareable/bit5=volatile）；`exists=0` 时 start/size/attr 读 0；cg7 全部只读，写任意 rc ⇒ `CFXREG`；cg7 只描述空间、不做传输控制。`Kaiwu-Vast` 实测块：smon/hmon `start=0x3ff_0000_0000 size=0x1_0000 attr=R|W|X`、pmem 同 start/size 而 `X=0`、power `start=0x3_ffc0_0000 size=0x40_0000 attr=R|X`；其余已实现 cfx（umon/jmon/ptw）无空间（16 块全 `exists=0`），未实现 cfx 访问仍 `CFXREG`；`Kaiwu-Tiny` 实现 `cfx_power`（cfx63）与 `cfx3 hmon` 两个 cfx：hmon 的 cg7 描述 hmon SRAM（`start=0x3ff_0000_0000 size=0x1_0000`），`cfx_power` 的 cg7 描述 BootROM（`0x3_ffc0_0000`+`0x40_0000`，R|X）；其余 cfx 未实现（访问其寄存器 ⇒ `CFXREG`）。[DADAO-12 §3.8 cg7 - 内部空间描述寄存器][Machine-01 §3]（块值 = 测试机约定）
 - **`cfx_time`（cfxha 34）**：per-system、64 位、只读、自由运行、不产生中断；`cg10 rc0 = cfx_time_freq = 1_000_000_000`（1 GHz 测试机约定），`cg10 rc1 = cfx_time_value`（64 位，复位后从 0 起算），`rc2`–`rc63` 保留（读写 ⇒ `CFXREG`）；QEMU 以 `QEMU_CLOCK_VIRTUAL` ns 建模，1 count = 1 ns。[DADAO-12 §4.10 cfx_time - 全局时间计数器][DADAO-22 §10. 全局时间（cfx_time）]（频率/1 ns 为测试机约定）
@@ -82,18 +82,18 @@
 - **定位**：本节归一化 v5 内核（K2）消费的四类事实——异常现场 `info` 语义、`escape` 的返回目标、异步中断的内核入口、内核侧中断使能旋钮，外加时间口径的**两处缺口**；上游语义不重定义，与 `spec/` 冲突时以 `spec/` 为准并阻断实现。[spec-decision]
 - **与 §3 的分工**：§3 已冻结的寄存器级口径（两级 mask、pending 归属、统一异步中断仲裁、`cfx_time`/`cfx_hart` 寄存器语义）本节**只写指针**、不重抄，避免两处漂移。[contract-see §3]
 
-### §6.1 `excp_cause_info` 的覆盖范围与子原因位（11 项 cause + 18 位子原因；未规定者为 0）
+### §6.1 `excp_cause_info` 的覆盖范围与高位位图（11 项 cause + 16 位位图；未规定者为 0）
 
-- **本表 = monitor 视角的同步原因表**：`cfx_umon`/`cfx_jmon`/`cfx_smon`/`cfx_hmon` 同构；`excp_cause_id` 分层——`[15:0]` **同步 cause** 在各 cfx **独立编址**（`1 << 8` 在 `cfx_umon` 为 `ILLI`、在 `cfx_hart` 为 `IPI`），查 `info` 语义前须先按**目标 cfx** 选表，不得跨 cfx 套用同名同步 cause；`[31:16]` **保留**，**异步源不占 `excp_cause_id`**（源身份 = 源 cfxha），不随 cfx 选表。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3.6 cg5 - 异常现场寄存器][DADAO-12 §5.4 异步中断进入与退出][ADR-0061 D2]
-- **可解析形态**：下表一 cause 一行、列序固定（`excp_cause_id` / 名称 / `info` 语义 / 取值与单位 / 来源 / 子原因），`info` 语义列**逐字**取上游表述，供静态比对脚本现场解析。[spec-decision][DADAO-12 §4.1 cfx_umon - user monitor]
+- **本表 = monitor 视角的同步原因表**：`cfx_umon`/`cfx_jmon`/`cfx_smon`/`cfx_hmon` 同构；`excp_cause_id` **扁平位图**——`[15:0]` **同步 cause** 在各 cfx **独立编址**（`1 << 8` 在 `cfx_umon` 为 `ILLI`、在 `cfx_hart` 为 `IPI`），查 `info` 语义前须先按**目标 cfx** 选表，不得跨 cfx 套用同名同步 cause；`[31:16]` **保留**，**异步源不占 `excp_cause_id`**（源身份 = 源 cfxha），不随 cfx 选表。[DADAO-12 §5. 异常进入与异常退出][DADAO-12 §3.6 cg5 - 异常现场寄存器][DADAO-12 §5.4 异步中断进入与退出][ADR-0061 D2][ADR-0062 D1]
+- **可解析形态**：下表一 cause 一行、列序固定（`excp_cause_id` / 名称 / `info` 语义 / 取值与单位 / 来源 / 高位位图），`info` 语义列**逐字**取上游表述，供静态比对脚本现场解析。[spec-decision][DADAO-12 §4.1 cfx_umon - user monitor]
 
-| `excp_cause_id` | 名称 | `info` 语义 | 取值与单位 | 来源 | 子原因 |
+| `excp_cause_id` | 名称 | `info` 语义 | 取值与单位 | 来源 | 高位位图 |
 |-----------------|------|------------|------------|------|--------|
 | `1 << 0` | `CFXTRAP` | 指令编码 | 32 位指令字（触发 `trap` 的指令本身） | `[DADAO-12 §4.1 cfx_umon - user monitor]` | — |
-| `1 << 1` | `CFXMEM` | 访存地址 | 48 位 CPU 地址（A/D 回写失败时为 PTE 物理地址；非页表类为被访问的核内地址） | `[DADAO-12 §4.1 cfx_umon - user monitor]` `[DADAO-12 §5.2 异常进入流程]` | **wyde3 `[63:48]`**：缺失类 `[48..55]` 之一，或 `[56]` `ADWBFAIL`、`[57]` `NONPTW`；`[63:58]` 保留；**wyde2 必须全 0**；逐位见 §6.1.1 |
+| `1 << 1` | `CFXMEM` | 访存地址 | 48 位 CPU 地址（被访问的核内地址） | `[DADAO-12 §4.1 cfx_umon - user monitor]` `[DADAO-12 §5.2 异常进入流程]` | **非 PTW 核内访存**：不置高位位图（`[63:32]` 全 0） |
 | `1 << 2` | `CFXREG` | 指令编码 | 32 位指令字（非法寄存器访问指令） | `[DADAO-12 §4.1 cfx_umon - user monitor]` | — |
 | `1 << 3` | `CFXESC` | 指令编码 | 32 位指令字（`escape` 指令本身） | `[DADAO-12 §4.1 cfx_umon - user monitor]` | — |
-| `1 << 7` | `CFXPERM` | 地址 | 48 位 CPU 地址（页表/`cfxmem` 权限拒绝）或目标 `IP` / 触发指令地址（`cfxexe` / `cfxtrap`、`cfx2rd`、`cfx2rc`；后者与 `excp_cause_ip` 同值）；恒为地址 | `[DADAO-12 §4.1 cfx_umon - user monitor]` `[DADAO-12 §3.6 cg5 - 异常现场寄存器]` | **wyde2 `[47:32]`**：`[32..39]` 内存权限类之一（含 `[39]` `NCFXPERM`）；`[47:40]` 保留；**wyde3 必须全 0**；逐位见 §6.1.1 |
+| `1 << 7` | `CFXPERM` | 地址 | 48 位 CPU 地址（`cfxmem` 轴拒绝 = 访存地址；`cfxexe` = 目标 `IP`；`cfxtrap`/`cfx2rd`/`cfx2rc` = 触发指令地址，与 `excp_cause_ip` 同值）；恒为地址 | `[DADAO-12 §4.1 cfx_umon - user monitor]` `[DADAO-12 §3.6 cg5 - 异常现场寄存器]` | **cfx 来源掩码拒绝**：不置高位位图（`[63:32]` 全 0） |
 | `1 << 8` | `ILLI` | 指令编码 | 32 位指令字 | `[DADAO-12 §4.1 cfx_umon - user monitor]` | — |
 | `1 << 9` | `UNDI` | 指令编码 | 32 位指令字 | `[DADAO-12 §4.1 cfx_umon - user monitor]` | — |
 | `1 << 10` | `RASOF` | 准备压栈的返回地址 | 被压栈保护的返回地址（压栈前的 `IP`） | `[DADAO-12 §4.1 cfx_umon - user monitor]` | — |
@@ -104,34 +104,32 @@
 - **未规定者为 0**：上表之外的 cause（含保留位）`info` 为 0；`Kaiwu §4.4` 另列的 5 项（`CFXMEM`/`ILLI`/`UNDI`/`MALIGN`/`IALIGN`）与本表逐项同义，**不是**第二套口径。[Machine-01 §4.4 同步异常进入 hmon][DADAO-12 §4.1 cfx_umon - user monitor]
 - **异步源的 `info` 不走本表、也不经 `cause_info`**：源身份 = **源 cfxha**（`TIMER` = 15、`PMEM_DMA` = 32），handler 按 `cfx_hart cg9 rc3`（`async_src_frame`）的位回源 cfx 读寄存器——`TIMER` → `cfx_hart cg8 rc5`（`ISTATUS`）、`PMEM_DMA` → `cfx_pmem cg15 rc4`（`dma_status` 含 `ERR_CODE`），详见 §3 与 §6.3。[DADAO-12 §4.7 cfx_hart - hart management][DADAO-12 §4.9 cfx_pmem - physical memory management][DADAO-12 §5.4 异步中断进入与退出][ADR-0061 D2/D8]
 - **内核侧消费口径**：`CFXTRAP` 的 `info` 为触发指令字，`immu18 = info & 0x3FFFF`（该等式属合约内推导，见 `contract-syscall §8`）；诊断打印须先按目标 cfx 与 cause 选列，再解释 `info` 的单位。[contract-syscall §8][DADAO-12 §3.6 cg5 - 异常现场寄存器]
-- **子原因位按 wyde 分段（18 位 one-hot，每个 cause 独占一个 wyde）**：**wyde2 `[47:32]` 专供 `CFXPERM`**（低字节 `[39:32]` 8 位权限原因、`[47:40]` 保留）；**wyde3 `[63:48]` 专供 `CFXMEM`**（低字节 `[55:48]` 8 位缺失类、`[56]` `ADWBFAIL`、`[57]` `NONPTW`、`[63:58]` 保留）。**仅 `CFXMEM`（`1 << 1`）与 `CFXPERM`（`1 << 7`）有效**，且对应 wyde 内**恰一位**为 1：`CFXPERM` 时 **wyde3 必须全 0**、`CFXMEM` 时 **wyde2 必须全 0**；**其它任何 cause 下两个 wyde 都必须全 0**（归属不符 ⇒ 按「未列出位被错误触发」处理）。`[31:16]` 保留给未来新的大类 cause，当前必须全 0、子原因不得占用。`CFXMEM` 的页表类走缺失类或 `ADWBFAIL`，**非页表类（cfx 空间非法访问/取指、未实现 cfx 的普通 `ld/st`、存储块故障、`ptw_enable = 0` 访存）用 `NONPTW`**；`CFXPERM` 走内存权限类或 `NCFXPERM`。[DADAO-12 §3.6 cg5 - 异常现场寄存器][ADR-0056 D2]
-- **handler 取值（规范用法）**：拿到 `CFXPERM` 时子原因 = `(cause_id >> 32) & 0xFFFF`；拿到 `CFXMEM` 时子原因 = `(cause_id >> 48) & 0xFFFF`；一个 cause 只查一个 wyde，另一 wyde 恒为 0。[DADAO-12 §3.6 cg5 - 异常现场寄存器][ADR-0056 D2]
-- **`CFXMEM`/`CFXPERM` 的 `info` 恒为地址**：一个 cause 只有一种 `info` 类型，处理程序不按子原因再分支——`CFXMEM` = 访存地址（`ADWBFAIL` 时 = PTE 物理地址）；`CFXPERM` = 页表/`cfxmem` 权限拒绝的访存地址、`cfxexe` 拒绝的目标 `IP`、`cfxtrap`/`cfx2rd`/`cfx2rc` 拒绝的**触发指令地址**（与 `excp_cause_ip` 同值，刻意统一）。[DADAO-12 §3.6 cg5 - 异常现场寄存器][ADR-0056 D4]
+- **扁平位图（16 位 one-hot 位图，与 `[15:0]` 互斥）**：`[39:32]` 为**权限类位图**（有效位 `[32]`–`[38]`，`[39]` 删除、恒 0）、`[55:48]`/`[56]` 为**访存/缺失类位图**（`[48]`–`[55]`、`[56] ADWBFAIL`，`[57]` 删除、恒 0）。**一条异常只置一位**：PTW 权限/缺失故障只置高位位图之一、`[15:0]` 全 0；`CFXPERM`/`CFXMEM` 置位时 `[63:32]` 全 0；`[47:40]`/`[63:58]` 保留。`CFXMEM` 只表示非 PTW 核内访存（cfx 空间非法访问/取指、未实现 cfx 的普通 `ld/st`、存储块故障、`ptw_enable = 0` 访存），`CFXPERM` 只表示 cfx 来源掩码拒绝。[DADAO-12 §3.6 cg5 - 异常现场寄存器][ADR-0062 D1/D2/D3]
+- **handler 取值（规范用法）**：按位区间直接判因——`cause_id[15:0]` 非 0 取同步 cause；`cause_id[38:32]` 非 0 为 PTW 权限拒绝；`cause_id[55:48]`/`[56]` 非 0 为 PTW 缺失/A/D 回写失败；各区间内恰一位。[DADAO-12 §3.6 cg5 - 异常现场寄存器][ADR-0062 D1]
+- **地址类原因的 `info` 恒为地址**：一个 cause/一组位只有一种 `info` 类型，处理程序不按位再分支——`CFXMEM` = 被访问的核内地址；`[32..38]`/`[48..55]` = 访问的 VA；`[56]` = PTE 物理地址；`CFXPERM` = `cfxmem` 轴拒绝的访存地址、`cfxexe` 拒绝的目标 `IP`、`cfxtrap`/`cfx2rd`/`cfx2rc` 拒绝的**触发指令地址**（与 `excp_cause_ip` 同值，刻意统一）。[DADAO-12 §3.6 cg5 - 异常现场寄存器][ADR-0062 D4]
 
-### §6.1.1 子原因位表（wyde2 `[47:32]` / wyde3 `[63:48]`，与 `DADAO-12 §3.6` 逐位一致）
+### §6.1.1 高位位图表（权限类 `[39:32]` / 访存类 `[55:48]`/`[56]`，与 `DADAO-12 §3.6` 逐位一致）
 
-- **取值形态**：下标为 `cause_id` 的绝对位号；与低 16 位 cause **同时**写入 `excp_cause_id`（两者各自 one-hot）；取指用 `I` 前缀、数据读写用 `D` 前缀；wyde 归属互斥（`CFXPERM`→wyde2、`CFXMEM`→wyde3），不得跨 wyde。[DADAO-12 §3.6 cg5 - 异常现场寄存器][DADAO-12 §2.2.6 异常检查优先级]
+- **取值形态**：下标为 `cause_id` 的绝对位号；与低 16 位 cause **互斥**（页表故障低位 cause = 0、PTW 位图独立成立）；取指用 `I` 前缀、数据读写用 `D` 前缀；64 位内**恰一位**为 1（或整体 0），`[39]`/`[47:40]`/`[57]`/`[63:58]` 恒 0。[DADAO-12 §3.6 cg5 - 异常现场寄存器][DADAO-12 §2.2.6 异常检查优先级][ADR-0062 D1]
 
-| 子原因位 | wyde | 名称 | 目标 cause | 触发条件 |
-|----------|------|------|-----------|---------|
-| `[32]` | wyde2 | `NUPERM` | `CFXPERM` | HSJU 的 `U` 位 = 0 且当前运行模式为 `user` |
-| `[33]` | wyde2 | `NJPERM` | `CFXPERM` | HSJU 的 `J` 位 = 0 且当前运行模式为 `jail` |
-| `[34]` | wyde2 | `NSPERM` | `CFXPERM` | HSJU 的 `S` 位 = 0 且当前运行模式为 `supv` |
-| `[35]` | wyde2 | `NHPERM` | `CFXPERM` | HSJU 的 `H` 位 = 0 且当前运行模式为 `hypv` |
-| `[36]` | wyde2 | `NRPERM` | `CFXPERM` | 读访问且页的 `R` = 0 |
-| `[37]` | wyde2 | `NWPERM` | `CFXPERM` | 写访问且页的 `W` = 0 |
-| `[38]` | wyde2 | `NXPERM` | `CFXPERM` | 取指且页的 `X` = 0 |
-| `[39]` | wyde2 | `NCFXPERM` | `CFXPERM` | cfx 访问被来源掩码拒绝（`cfxtrap`/`cfxreg`/`cfxexe`） |
-| `[48]` | wyde3 | `IGPTRAP` | `CFXMEM` | 取指：L1 `P = 0` 且 `SP = 0`，或 L2 `P = 0`（普通页缺失） |
-| `[49]` | wyde3 | `ISPTRAP` | `CFXMEM` | 取指：L1 `P = 0` 且 `SP = 1`（超页缺失） |
-| `[50]` | wyde3 | `IGPFTRAP` | `CFXMEM` | 取指：L2 `P = 1` 且 GPF 对应小页位 = 0（普通页小页缺失） |
-| `[51]` | wyde3 | `ISPFTRAP` | `CFXMEM` | 取指：L1 `P = 1`、`SP = 1` 且 SPF 对应小页位 = 0（超页小页缺失） |
-| `[52]` | wyde3 | `DGPTRAP` | `CFXMEM` | 数据读写：L1 `P = 0` 且 `SP = 0`，或 L2 `P = 0` |
-| `[53]` | wyde3 | `DSPTRAP` | `CFXMEM` | 数据读写：L1 `P = 0` 且 `SP = 1`（超页缺失） |
-| `[54]` | wyde3 | `DGPFTRAP` | `CFXMEM` | 数据读写：L2 `P = 1` 且 GPF 对应小页位 = 0 |
-| `[55]` | wyde3 | `DSPFTRAP` | `CFXMEM` | 数据读写：L1 `P = 1`、`SP = 1` 且 SPF 对应小页位 = 0 |
-| `[56]` | wyde3 | `ADWBFAIL` | `CFXMEM` | PTE 物理写失败（`clean`/`flush`/条目替换的回写） |
-| `[57]` | wyde3 | `NONPTW` | `CFXMEM` | 非页表类访存故障：cfx 空间非法访问/取指、未实现 cfx 的普通 `ld/st`、核内存储块故障、`ptw_enable = 0` 的访存 |
+| 位号 | 区间 | 名称 | 触发条件 |
+|------|------|------|---------|
+| `[32]` | wyde2 权限类 | `NUPERM` | HSJU 的 `U` 位 = 0 且当前运行模式为 `user` |
+| `[33]` | wyde2 权限类 | `NJPERM` | HSJU 的 `J` 位 = 0 且当前运行模式为 `jail` |
+| `[34]` | wyde2 权限类 | `NSPERM` | HSJU 的 `S` 位 = 0 且当前运行模式为 `supv` |
+| `[35]` | wyde2 权限类 | `NHPERM` | HSJU 的 `H` 位 = 0 且当前运行模式为 `hypv` |
+| `[36]` | wyde2 权限类 | `NRPERM` | 读访问且页的 `R` = 0 |
+| `[37]` | wyde2 权限类 | `NWPERM` | 写访问且页的 `W` = 0 |
+| `[38]` | wyde2 权限类 | `NXPERM` | 取指且页的 `X` = 0 |
+| `[48]` | wyde3 缺失类 | `IGPTRAP` | 取指：L1 `P = 0` 且 `SP = 0`，或 L2 `P = 0`（普通页缺失） |
+| `[49]` | wyde3 缺失类 | `ISPTRAP` | 取指：L1 `P = 0` 且 `SP = 1`（超页缺失） |
+| `[50]` | wyde3 缺失类 | `IGPFTRAP` | 取指：L2 `P = 1` 且 GPF 对应小页位 = 0（普通页小页缺失） |
+| `[51]` | wyde3 缺失类 | `ISPFTRAP` | 取指：L1 `P = 1`、`SP = 1` 且 SPF 对应小页位 = 0（超页小页缺失） |
+| `[52]` | wyde3 缺失类 | `DGPTRAP` | 数据读写：L1 `P = 0` 且 `SP = 0`，或 L2 `P = 0` |
+| `[53]` | wyde3 缺失类 | `DSPTRAP` | 数据读写：L1 `P = 0` 且 `SP = 1`（超页缺失） |
+| `[54]` | wyde3 缺失类 | `DGPFTRAP` | 数据读写：L2 `P = 1` 且 GPF 对应小页位 = 0 |
+| `[55]` | wyde3 缺失类 | `DSPFTRAP` | 数据读写：L1 `P = 1`、`SP = 1` 且 SPF 对应小页位 = 0 |
+| `[56]` | wyde3 回写 | `ADWBFAIL` | PTE 物理写失败（`clean`/`flush`/条目替换的回写） |
 
 ### §6.2 `escape` 的返回 cfx 恒为当前 cfx（跨 cfx 返回不存在）
 
@@ -182,16 +180,17 @@
 | §3 | cfx 共有寄存器 / 同步 mask（`rc4` 不定义） / monitor 异步来源掩码（`cg8 rc1`） / PERM 层次 / 未实现 cfx / cfx_time / cfx_hart 定时器、计数与 `cg9` 异步捕获缓冲（7 槽） / 统一异步（hart-first、同一界多源一次捕获、每次进入覆盖） | `DADAO-12 §3. 共有寄存器设计规范`、`§3.8 cg7 - 内部空间描述寄存器`、`§4.7 cfx_hart - hart management`、`§4.9 cfx_pmem - physical memory management`、`§4.10 cfx_time - 全局时间计数器`、`§5. 异常进入与异常退出`、`§5.4 异步中断进入与退出`、`§2.2.1 超页的地址转换`、`§2.2.2 普通页的地址转换`；`DADAO-22 §3. 系统信息（smon）`、`§7. Hart管理（cfx_hart）`、`§10. 全局时间（cfx_time）`；`ADR-0020 D9`、`ADR-0046 D2`、`ADR-0061 D2/D3/D4/D5/D6/D7` |
 | §4 | trap/escape 路由、异常进入/退出 | `DADAO-12 §5. 异常进入与异常退出`、`§异常退出流程`；`DADAO-22 §1. 调用约定`；`SimRISC-11 §退出指令`；`ADR-0020 D10` |
 | §5 | SBI 调用约定、参数/返回寄存器、错误码 | `DADAO-22 §1. 调用约定`；`DADAO-21 §参数寄存器：Parameter registers`、`§标量类型返回值：Scalar type return`、`§系统调用规范` |
-| §6 | 内核侧异常/中断：`excp_cause_info` 11 项 + 子原因位 wyde2/wyde3（`CFXPERM`/`CFXMEM`，共 18 位）+ 未规定者为 0、`escape` 的返回帧（仅 `cg5` 同步帧；`imms18[1] = 1` 合法但不作异步返回）、异步内核入口（`cg9 rc5` supv 单向量、`rc6` 固定 supv、`rc0`–`rc4` 捕获缓冲/位图）、`cfx_smon` handoff 与软件处理嵌套、内核 IE 单旋钮（`cfx_smon_async_intr_mask`，`cg8 rc1`）、时间口径指针与两处缺口 | `DADAO-12 §4.1 cfx_umon - user monitor`、`§3.4 cg3 - hypv mode 寄存器`、`§4.7 cfx_hart - hart management`；`DADAO-12 §3.1`/`§3.3`/`§3.6`/`§2.2.6`/`§5.4`/`§4.10`/`§5`/`§5.1`/`§5.2`/`§5.3`；`Kaiwu §4.4`；`ADR-0045 D3`/`D8`/`D9`；`ADR-0056 D2`/`D4`；`ADR-0061 D2/D3/D4/D5/D6/D9`；`contract-syscall §8` |
+| §6 | 内核侧异常/中断：`excp_cause_info` 11 项 + 高位位图 16 位（权限类 `[32..38]`、访存类 `[48..55]`/`[56]`）+ 未规定者为 0、`escape` 的返回帧（仅 `cg5` 同步帧；`imms18[1] = 1` 合法但不作异步返回）、异步内核入口（`cg9 rc5` supv 单向量、`rc6` 固定 supv、`rc0`–`rc4` 捕获缓冲/位图）、`cfx_smon` handoff 与软件处理嵌套、内核 IE 单旋钮（`cfx_smon_async_intr_mask`，`cg8 rc1`）、时间口径指针与两处缺口 | `DADAO-12 §4.1 cfx_umon - user monitor`、`§3.4 cg3 - hypv mode 寄存器`、`§4.7 cfx_hart - hart management`；`DADAO-12 §3.1`/`§3.3`/`§3.6`/`§2.2.6`/`§5.4`/`§4.10`/`§5`/`§5.1`/`§5.2`/`§5.3`；`Kaiwu §4.4`；`ADR-0045 D3`/`D8`/`D9`；`ADR-0062 D1`/`D3`/`D4`；`ADR-0061 D2/D3/D4/D5/D6/D9`；`contract-syscall §8` |
 
 ---
 
 ## §7 变更记录（v5 扩展；不改版本号）
 
+- **0.8.0-rc + 异常原因扁平位图（2026-11-24，`m17-spec-002`，用户裁定 `ADR-0062`）**：§6.1/§6.1.1 由「大类 + wyde 子原因」两级改为**扁平位图**——PTW 权限拒绝只置 `[32]`–`[38]` 之一、PTW 缺失只置 `[48]`–`[55]` 之一、A/D 回写失败只置 `[56]`，低位 cause = 0；`CFXPERM`（`1<<7`）只表示 cfx 来源掩码拒绝、`CFXMEM`（`1<<1`）只表示非 PTW 核内访存，置位时 `[63:32]` 全 0；删除 `[39] NCFXPERM` 与 `[57] NONPTW`（位保留、恒 0）；64 位内恰一位为 1（或整体 0），`[31:16]`/`[47:40]`/`[63:58]` 保留。§6 的 `info` 口径不变（地址类恒为地址）。版本号仍为 **0.8.0-rc**（本任务不升号；上游册版本未变，`check-spec-drift` 不变量）。[DADAO-12 §3.6 cg5 - 异常现场寄存器][DADAO-12 §2.2.6 异常检查优先级][ADR-0062 D1/D2/D3/D4]
 - **0.7.3-rc + `cfx5`（cache）由未实现改为 Vast 实现（2026-11-20，`m16-spec-001`）**：§3 的测试机实现范围条目把 `cfx5`（`cache`）从「已分配未实现、按未实现 cfx 处理（`CFXREG`）」改为「`Kaiwu-Vast` 实现其寄存器与维护命令、`Kaiwu-Tiny` 不实现」，寄存器面与命令语义改指 `contract-cache.md`（`DADAO-12 §4.6` 同步重定义 `cache_ctrl` 为选择/操作/范围三维控制字）。版本号仍为 **0.7.3-rc**（上游册 `DADAO-12` 版本未变，`check-spec-drift` 不变量）。[DADAO-12 §4.6 cfx_cache - cache organization][Machine-01 §3.2 cache（cfx5）的测试机约定]
 - **0.7.3-rc + 引用落点随册并入（2026-11-17）**：`DADAO-13` 的 cg3 寄存器表与 hmon 说明段正文已并入 `DADAO-12 §3.4 cg3 - hypv mode 寄存器` / `§4.4 cfx_hmon - hypervisor monitor`（`DADAO-13` `§1`/`§2` 只保留引用、章节编号作锚点）；本合约相应把 cg3 与同步原因表的来源指针由 `DADAO-13 §1`/`§2` 改指 `DADAO-12`（hmon 原因表与 `cfx_umon` 同表 ⇒ 引 `§4.1`、子原因仍引 `§3.6`）。条文语义未变，版本号仍为 **0.7.3-rc**（两册版本未变）。[DADAO-12 §3.4 cg3 - hypv mode 寄存器][DADAO-12 §4.4 cfx_hmon - hypervisor monitor]
 - **0.7.3-rc + M14 K2 扩展（2026-11-15）**：新增 §6「内核侧异常与中断」——① `excp_cause_info` 的 11 项语义表 + 「本表之外为 0」+ `TIMER` 的 `info = 0`；② `escape` 的返回 cfx 恒为当前 cfx（帧内无 `prev_cfx`，跨 cfx 返回不存在）；③ 异步中断的内核入口 = `cfx_hart` 的 `supv` 行（`cg2 rc10`/`rc8`）、异步帧借走 `global_cfx_intr_mask`；④ 内核 IE 单旋钮 = `cfx_smon_supv_cfx_intr_mask`（`cg2 rc4`），`global_cfx_intr_mask` 只作一次性模式级放行；⑤ 时间口径指针与两处缺口（放行前提、`escape` 后补投）。附录 A 增 §6 一行。版本号仍随 SEE 册 `DADAO-12` 为 **0.7.3-rc**（`check-spec-drift` 不变量：spec-sourced 合约版本 == 上游册版本）。[DADAO-12 §5. 异常进入与异常退出][m14-spec-005]
-- **0.7.3-rc + 子原因位（2026-11-16，`m14-spec-007`）**：§6.1 增「子原因」列与 §6.1.1 子原因位表（**wyde2 `[47:32]` 专供 `CFXPERM`**：`[39:32]` 8 位权限原因、`[47:40]` 保留；**wyde3 `[63:48]` 专供 `CFXMEM`**：`[55:48]` 8 位缺失类、`[56] ADWBFAIL`、`[57] NONPTW`、`[63:58]` 保留；`[31:16]` 保留给未来新的大类 cause），与 `DADAO-12 §3.6` 逐位一致；`CFXMEM`/`CFXPERM` 的 `info` 改为**恒为地址**（`CFXPERM` 的 `cfxtrap`/`cfx2rd`/`cfx2rc` 拒绝 = 触发指令地址，与 `excp_cause_ip` 同值）；非页表类 `CFXMEM` 用 `NONPTW`，归属互斥（`CFXPERM`→wyde2、`CFXMEM`→wyde3，另一 wyde 全 0）。版本号仍为 **0.7.3-rc**（上游册版本未变）。[DADAO-12 §3.6 cg5 - 异常现场寄存器][ADR-0056 D2][ADR-0056 D4]
+- **0.7.3-rc + 子原因位（2026-11-16，`m14-spec-007`）**：§6.1 增「子原因」列与 §6.1.1 子原因位表（**wyde2 `[47:32]` 专供 `CFXPERM`**：`[39:32]` 8 位权限原因、`[47:40]` 保留；**wyde3 `[63:48]` 专供 `CFXMEM`**：`[55:48]` 8 位缺失类、`[56] ADWBFAIL`、`[57] NONPTW`、`[63:58]` 保留；`[31:16]` 保留给未来新的大类 cause），与 `DADAO-12 §3.6` 逐位一致；`CFXMEM`/`CFXPERM` 的 `info` 改为**恒为地址**（`CFXPERM` 的 `cfxtrap`/`cfx2rd`/`cfx2rc` 拒绝 = 触发指令地址，与 `excp_cause_ip` 同值）；非页表类 `CFXMEM` 用 `NONPTW`，归属互斥（`CFXPERM`→wyde2、`CFXMEM`→wyde3，另一 wyde 全 0）。版本号仍为 **0.7.3-rc**（上游册版本未变）。（本条的两级 wyde 编码已由 `ADR-0062` 扁平位图取代，现行口径见 §6.1/§6.1.1。）[DADAO-12 §3.6 cg5 - 异常现场寄存器][ADR-0056 D2][ADR-0056 D4]
 - **0.7.3-rc + IE 旋钮口径收敛（2026-11-16，`m14-linux-010`，用户裁定）**：§6.4 的旋钮改为**当前运行模式 monitor** 的 `<mode>_cfx_intr_mask`——按 `DADAO-12 §5.2` 步骤 3 的字面读法（`cfx_<monitor>_<mode>_cfx_intr_mask`），内核运行在 `supv` ⇒ `cfx_smon cg2 rc4`；**删去**「当前 cfx = `cfx_smon`」这一实例表述（`escape` 不恢复 `inner_cfx_code`，首投后当前 cfx 仍是投递目标，选择依据只有运行模式，`ISS-454`/`ISS-455`）；`global_cfx_intr_mask` 明确为**模式级放行**。附录 A 的 §6 行同步。版本号仍为 **0.7.3-rc**（上游册 `DADAO-12` 版本未变，`check-spec-drift` 不变量）。[DADAO-12 §5.2 异常进入流程][DADAO-12 §5.3 异常退出流程][ADR-0045 D3][ISS-455][ISS-454]
 - **0.7.3-rc + `escape` 恢复 `inner_cfx_code`（2026-11-18，`m14-spec-009`，用户裁定 B）**：`cg5 rc1` 由 `reserved` 改为 `excp prev cfx code`（`cfx_⟨cfxname⟩_excp_prev_cfx_code`，RW，初值 0）——`§5.2` 第 5 步硬件陷入时保存 `inner_cfx_code`、`§5.3` 第 2 步 `escape` 恢复；§6.2 第 1 条改为「帧内保存 `excp_prev_cfx_code`、软件不能指定返回 cfx」，§6.4 旋钮条的理由改为「cfx 与运行模式同进退」，附录 A 的 §6 行同步。动机：同步异常帧内投递异步事件后该帧 `escape` 必报 `CFXESC`（`ISS-454` 的 F36）。版本号仍为 **0.7.3-rc**（上游册 `DADAO-12` 版本未变，`check-spec-drift` 不变量）。[DADAO-12 §3.6 cg5 - 异常现场寄存器][DADAO-12 §5.2 异常进入流程][DADAO-12 §5.3 异常退出流程][ADR-0045 D8]
 - **§6 内的推导登记**：`cg2 rc10` 写入忽略低 2 位（按 `cg3 rc10` 同构）、异步帧的 `global_cfx_intr_mask` 保存/置全 1（把 `ADR-0045 D9` 的 trap 保护扩到异步帧）、`cg5 rc3` 可写 + 固定偏移的组合效果，三处上游未明文，均标 `[spec-decision]` 并在条文内写清推导链。[spec-decision][ADR-0045 D9][m14-spec-005]

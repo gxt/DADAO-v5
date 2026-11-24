@@ -10,7 +10,7 @@
 
 ## 2. cfx_hmon - hypervisor monitor
 
-本节正文见 SEE `§4.4 cfx_hmon - hypervisor monitor`；异常原因编码与 `cfx_umon` 同表（见 `§4.1 cfx_umon - user monitor`），`CFXMEM`/`CFXPERM` 的 `cause_info` 与子原因见 SEE `§3.6 cg5 - 异常现场寄存器`。
+本节正文见 SEE `§4.4 cfx_hmon - hypervisor monitor`；异常原因编码与 `cfx_umon` 同表（见 `§4.1 cfx_umon - user monitor`），地址类原因的 `cause_info` 与位图见 SEE `§3.6 cg5 - 异常现场寄存器`。
 
 ## 3. 启动与引导移交
 
@@ -23,6 +23,8 @@
 > **发布动作**：把顶部 `-rc` 段去 `-rc` 并补发布日期；`-rc` 段只在确有未发布改动时新开。
 
 ### 0.1.4-rc（未发布）
+
+- 异常原因编码随 SEE 改为**扁平位图**：`CFXMEM`/`CFXPERM` 只表示非 PTW 核内访存 / cfx 来源掩码拒绝，PTW 权限/缺失只置 SEE `§3.6` 的高位位图；本册 `§2` 的引用措辞同步（“子原因” → “位图”）。版本号不变（0.1.4-rc）。
 
 - 第 1、2 章正文并入 SEE：`cg3` 寄存器表与 `rc10` 初值/写入口径见 SEE `§3.4 cg3 - hypv mode 寄存器`，hmon 说明段见 SEE `§4.4 cfx_hmon - hypervisor monitor`；本册两节只保留引用，章节编号保留作锚点。依据原话：「请把 DADAO-13 的第一章第二章移动至 DADAO-12，DADAO-13 只保留个引用就行。」
 
