@@ -1,35 +1,35 @@
-# m16-testcases-013: cfx15 timer 中断（源 cfxha 15、一帧一源）
+# m16-testcases-013: cfx15 timer 中断（R2 捕获缓冲，源 cfxha 15）
 
 **模块**：testcases
 **项目里程碑**：M16
-**依赖**：`m18-spec-004`（ADR-0061 落地）；`m16-chipyard-024`（RTL 新 cg9）合入后升三方
+**依赖**：`m18-spec-005`（R2 规格）；`m16-chipyard-026`（RTL 捕获缓冲）合入后升三方
 **可并行分片**：否
 **预估**：2–3 h
 **档位**：中改（复核 ≤40 min）
 **状态**：待开始
 
-## 背景（ADR-0061）
+## 背景（R2）
 
-异步源以**源 cfxha**标识：TIMER = `cfx_hart`（15），pending/帧内位都是 `1<<15`；来源掩码在各运行模式的 monitor（`cfx0–3 cg8 rc1`，复位全 1）；`cg9` 七槽、两个位图 HW/RO；帧由 `escape` 结束。本任务只测 **cfx15 的 TIMER**；PMEM_DMA（32）与"同帧多源"由 `m16-testcases-014`。
+`cfx_hart cg9` 是**进入瞬间的捕获缓冲**：每次进入整体覆盖，无"帧活动期"；软件搬走 `cg9`+GPR 后 handoff 到 `cfx_smon`，返回走 smon/umon；`escape imms18=2` **不用于异步返回**（`CFXESC`）。TIMER 源 = `cfx_hart`（15），pending/捕获位 = `1<<15`，掩码在当前模式 monitor 的 `cg8 rc1`。本任务只测 cfx15 单源；多源与 DMA 由 `m16-testcases-014`。
 
 ## 要做
 
-1. **放行**：写当前模式 monitor 的 `cg8 rc1` 清 bit15（`0=允许`）；断言其它位仍为 1。
-2. **触发与进入**：`timer_cmp` 到期 + `timer_ctrl.ENABLE=1` ⇒ 投 `cfx_hart` 的 supv 单向量（`cg9 rc5 excp_vector`、`rc6 switch_run_mode=2`）。
-3. **现场**：`cg9 rc0 prev_run_mode`、`rc1 prev_cfx`、`rc2 cause_ip`（= 提交后的 `rb0`）、`rc3 src_frame` = `1<<15`、`rc4 src_pending` = 0（投递即清）。
-4. **只读**：对 `rc3`/`rc4` 写入不应改变读数（具体写行为按 spec：忽略或 `CFXREG`）。
-5. **屏蔽与 pending**：monitor 掩码 bit15=1 时只置 `src_pending`（`1<<15`）、不投递；清掩码后下一指令边界投递。
-6. **源 ack 决定 pending**：帧活动期重装 `timer_cmp`（清 `ISTATUS`）⇒ pending 落、不产生遗留投递；不重装 ⇒ `escape` 后立即再次投递（电平语义）。
-7. **无嵌套**：帧活动期再触发 ⇒ 只置 pending，`src_frame` 不变。
-8. **返回**：`escape cfx_hart, [async_cause_ip, 8]`（`imms18=2`）恢复 mode/cfx/IP 并释放帧（`src_frame` 回 0）；`3`/`[17:2]≠0` ⇒ `ILLI`。
-9. **精确点**：补一条"跳转后到期"用例——`jump` 目标处到期，断言 `cause_ip` = 目标、`escape` 从目标继续（`SimRISC-06` 的 `jump`，不是 RISC-V `jal`）。
-10. **H/S/U 三模式**：同一份 body，`TMODE=3/2/0`；每模式写自己 monitor 的掩码。
-11. **三方**：QEMU + gem5 先跑；`m16-chipyard-024` 合入后升 RTL 三方，签名逐槽一致。
+1. **放行**：写当前模式 monitor 的 `cg8 rc1` 清 bit15；断言其它位仍 1。
+2. **进入**：到期 ⇒ 投 `cfx_hart` supv 单向量（`cg9 rc5 excp_vector`、`rc6=2`）。
+3. **捕获快照**：`rc0 prev_run_mode`、`rc1 prev_cfx`、`rc2 cause_ip`（= 提交后的 `rb0`）、`rc3 src_frame = 1<<15`、`rc4 src_pending`（投递后为 0）。
+4. **RO**：`rc3`/`rc4` 写忽略、读回不变、不报异常。
+5. **覆盖语义**：第一次进入后**不搬走**、再次到期 ⇒ 整体覆盖（`cause_ip`/计数变化）；**断言不是"只置 pending、不进入"**。
+6. **屏蔽/pending/ack**：mask bit15=1 时只置 pending；放行后投递；ack（重装 `timer_cmp`）后 pending 落。
+7. **无异步返回**：`escape cfx_hart, [async_cause_ip, 8]`（`imms18=2`）⇒ `CFXESC`，`cg9` 不变、cfx/mode 不变；`3`/`[17:2]≠0` ⇒ `ILLI`。
+8. **精确点**：补"跳转后到期"用例（`jump` 目标处到期），断言 `cause_ip` = 目标（`SimRISC-06` 的 `jump`）。
+9. **H/S/U 三模式**：同一 body，`TMODE=3/2/0`，各写自己 monitor 掩码。
+10. **三方**：QEMU + gem5 先跑；`m16-chipyard-026` 合入后升 RTL 三方。
 
 ## 不做
 
-- 不做 monitor-first、跨 cfx 仲裁、uart、多核、嵌套帧；
-- 不做 PMEM_DMA 与同帧多源（014）。
+- 不做软件 handoff 到 `cfx_smon`（内核任务 `m18-linux-022`）；
+- 不做 monitor-first、跨 cfx 仲裁、uart、多核；
+- 不做 DMA（014）。
 
 ## 约束
 
@@ -40,10 +40,10 @@
 
 运行期证据目录内的 `run.sh`：
 
-1. 进入/现场/只读/屏蔽→pending→放行/无嵌套/ack 语义/返回释放 逐项；
-2. `cause_ip` = 提交后 `rb0`（含 `br.*`/`jump` 后到期一条）；
-3. 三方签名逐槽一致（RTL 未合入时两方，显式登记"RTL 待 024"）；
-4. **可达 FAIL ≥2**：注入"掩码留 cfx_hart"、"pending 位记 17" ⇒ 红；`cp`+md5 还原回绿；
+1. 进入/捕获/RO/覆盖/屏蔽→pending→放行/ack/`escape` 拒绝/`ILLI` 逐项；
+2. `cause_ip` = 提交后 `rb0`（含跳转后到期）；
+3. 三方签名逐槽一致（RTL 未合入时两方并登记）；
+4. **可达 FAIL ≥2**：注入"帧门控只置 pending"、"`escape imms18=2` 返回" ⇒ 红；`cp`+md5 还原回绿；
 5. `check-tests-index`、`check-tasks`、`check-knowledge-refs` 记录 rc。
 
 ## 完成区

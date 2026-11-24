@@ -325,6 +325,7 @@
   2026-11-23 用户裁定 **R2**（就地修订 `ADR-0061`，不新立 ADR）：`cg9` 是**进入瞬间的捕获缓冲**（每次异步进入覆盖、硬件不因 `src_frame != 0` 拒绝、无 `frame_valid`、无软件清 `src_frame`）；入口为「异步进 hart → 关中断窗口搬 cg9+GPR 到 `task_pt_regs` → 进 `cfx_smon`」，smon 为普通系统态、嵌套由软件处理；`escape imms18=2` **不再异步返回**（cg9 捕获后丢弃，返回走 smon/umon）；mask/monitor/源索引/同界多源不变。落地：`m18-spec-005`（spec/契约/旧文档收尾 + 锁）、`m18-qemu-006`、`m18-testcases-003`、`m18-linux-022` 按 R2 改写；`m18-idl-002` 的目标（escape 释放帧）已被 R2 取代，须由 architect 重排。R2 后 `m16-testcases-013/014` 的 `escape` cg9 返回断言同步作废。
 - **fence**（用户 2026-11-22 选 A）：先 `m16-qemu-004` 修 `ISS-432`（QEMU 保留集改为 `6–14, 16–31, 35–61`），再由 `m16-testcases-012` 做**基础验证**（all/指定 cfx/六位/保留集采样/`hb≠0`）；**完整覆盖（全部 cfx × 六位）不作验收要求**，未覆盖项登记。
 - **RTL cfx15/32/34**（用户 2026-11-22）：三个都补、每个 cfx 一件（`021`/`022`/`023`），串行。**中断源只有 cfx15 的 timer 与 cfx32 的 pmem DMA 完成；cfx34（time）与 cfx63（power）没有中断**（用户 2026-11-22 说明）。
+  **2026-11-24 对齐 R2**（`m18-spec-005` 已合入，spec-first）：M16 侧按 R2 重排——新立 `m16-chipyard-026`「RTL 异步捕获缓冲（R2）」（每次进入覆盖、无帧门控、`escape imms18=2 ⇒ CFXESC`）；`m16-chipyard-022`「RTL cfx32 pmem」依赖 `026`；`m16-testcases-013`「cfx15 timer 中断」与 `m16-testcases-014`「cfx32 pmem 完成中断 + 同界多源」的 `escape` cg9 返回/无嵌套断言作废，改为捕获快照、覆盖语义、`escape` 拒绝、掩码/pending/ack。
 - **gem5 I 侧自修改**（用户 2026-11-22 选 B，但先证伪）：现有 `cfx5_selfmod.s` 是 base probe（无 cfx5、无 `D|clean`），不能证明 cfx5 I 侧不可用；RTL 是 VIPT 但索引在 64 KiB 页内（`PA[15:0]==VA[15:0]`，无别名），021 用 PA 索引/标签正确。先由 `m16-gem5-022` 补「写码 → D clean → I invalidate → 跳转」的正确用例并修 020 的 monitor 脏行；022 已证伪（正确构造下 I 侧可用），**不需要改取指侧模型**；`m16-gem5-023` 号已用于「off 下 cfx5 no-op」，不再表示取指侧修复。
 
 ### 落点
