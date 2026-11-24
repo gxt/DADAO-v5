@@ -1265,14 +1265,13 @@
   title: "【P3】`m15-infra-010` 修好 `times()` 后，`sysconf(_SC_CLK_TCK)` 仍返回 `SYS_TICKFREQ`（1e9），与 `times()` 的 `CLOCKS_PER_SEC`（1e6）单位不一致（ADR-0058 D2 第 2 条后半未落地）。处置：`sysconf(_SC_CLK_TCK)` 改回 `CLOCKS_PER_SEC`，随下次触碰 picolibc semihost 时修。"
 - id: ISS-507
   scope:
-  - musl
   - gem5
   - infra
   milestone: null
   status: open
   closed_in: null
   resolved_by: null
-  title: "【P3】`check-patch-tree` 在 master 上**基线红**（13 条，非任务引入）：musl 10 条（`assertion ⑨/⑥`：`arch/dadao/{atomic_arch.h,bits/signal.h,pthread_arch.h}`、`src/thread/dadao/syscall_cp.s`、`src/signal/dadao/restore.s` 的源树本地 commit 与补丁集不一致）+ gem5 5 条（`configs/dadao/fs.py`、`src/arch/dadao/inst.cc` 在源树有未提交改动）。`m15-testcases-023` 证据按「错误集与主仓基线逐行相同」判 KNOWN-RED。处置：按 `docs/Process-01` 从源树重导 musl/gem5 补丁（或还原源树到补丁集），重导后跑 `check-patch-tree` 回绿。"
+  title: "【P3】`check-patch-tree` 在 master 上**基线红**（非任务引入）：gem5 段（`src/arch/dadao/node_cfx.cc`/`node_cfx.hh` 的源树本地 commit 与补丁集不一致，assertion ⑨/⑥）。**musl 段已由 `m18-infra-003` 闭合**：原 10 条（`arch/dadao/{atomic_arch.h,bits/signal.h,pthread_arch.h}`、`src/thread/dadao/syscall_cp.s`、`src/signal/dadao/restore.s`）按 `docs/Process-01` 重放源树（删源树 → `make fetch` → `apply_series.py --component musl`）后 0 problem；该漂移曾使 `sigaction.o` 不含 `SA_RESTORER`（0x04000000）⇒ 信号投递 SIGSEGV。`m15-testcases-023` 证据按「错误集与主仓基线逐行相同」判 KNOWN-RED。处置：按 `docs/Process-01` 从源树重导 gem5 补丁（或还原源树到补丁集），重导后跑 `check-patch-tree` 回绿。"
 - id: ISS-508
   scope:
   - testcases
