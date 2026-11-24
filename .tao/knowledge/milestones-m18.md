@@ -31,7 +31,6 @@
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
 | m18-linux-024 | 3–5 h | 异步交付 × umon 桩 `reopen→escape` 4 指令窗口的罕见 die（~1/475，`va=0x208→die 0xe1`）；两版修法已被门控否决，按「窗口不可中断+跳转不占寄存器」重做 |
-| m18-linux-023 | 4–8 h | Linux `arch/dadao` 按扁平位图解码 PTW 故障（由 M17 迁入；依赖 M17 平台迁移） |
 | m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
 | m18-spec-001 | 2–4 h | cg4 `scratch_regs_num` 缺省值：每个非 reserved cfx = 2（QEMU/gem5/RTL 由 4 改 2）；spec/契约 + 探针 |
@@ -47,6 +46,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m18-linux-023 | 2026-11-25 05:45 | 4–8 h | Linux `arch/dadao` 按扁平位图解码 PTW 故障（由 M17 迁入；依赖 M17 平台迁移） |
 | m18-linux-015 | 2026-11-25 05:05 | 2–3 h | `mlock2`/`MLOCK_ONFAULT` 路径 SIGSEGV（KERNEL_BUG） |
 | m18-linux-006 | 2026-11-23 02:40 | 3–5 h | LTP 子集接入（源 tag `20260930`，commit `2279d708…`；组件锁 + 静态构建 + 分诊）；复用 005 骨架 |
 
