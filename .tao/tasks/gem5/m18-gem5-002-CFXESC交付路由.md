@@ -19,7 +19,8 @@ case exec::Fault::CfxEsc:
     if (fs) return DadaoISA::machineFaultAt(DadaoISA::FaultCfxEsc, ip, word);
 ```
 
-`machineFaultAt(...)` 进的是**当前运行模式的 monitor**，而 `spec/DADAO-12 §5.1/§5.3` 要求 `CFXESC` 交付给**当前 cfx**（由该 cfx 的处理入口接管）。即：`escape` 的合法 `CG5`/`CG9` 编码一旦走到这条 fallback，异常被送到了错误的处理者，三方对比里会与 QEMU/RTL 出现「进错 monitor」类差异。
+`machineFaultAt(...)` 进的是**当前运行模式的 monitor**：`m18-gem5-001` 的 reviewer 已实测确认——Tiny 上 `Fault::CfxEsc` 走 `machineFaultAt(target=-1)` ⇒ `target<0` 时 `TinyCfxhaHmon`；Node 上 `target = runMode` ⇒ 当前运行模式 monitor。而 `spec/DADAO-12 §5.1/§5.3` 要求 `CFXESC`（escape 帧/目标错误）交付给**当前核芯功能扩展**、不属于 monitor 路由。对照：`cg5` 帧走 hook（`target = cfxCode`）是**正确**的，**只有 cg9/无帧路径错**。
+  ⇒ 修点明确：`inst.cc.patch` 里 `Fault::CfxEsc` 的 fallback 需把目标从 `-1`/`runMode` 改成**当前 cfx 编号**（若该处拿不到，就从 decoder/helper 带下来）。
 
 ## 目标
 
