@@ -611,6 +611,9 @@
 - **裁定**：新里程碑 **M21 = SBI（主管系统二进制接口）的设计与开发**，**参考 OpenSBI 进行**。号位 M21 预留（M19 FPGA-Tiny、M20 wuqing 已占）。
 - **现状事实**：`spec/DADAO-22-SBI-主管系统二进制接口.md`（**0.8.0-rc**）已给出调用约定与 umon/jmon、smon、`cfx_ptw`（地址转换/TLB）、`cfx_cache`、`cfx_hart`、`cfx_llc`、`cfx_pmem`、`cfx_time`、`cfx_uart` 各节；同族有 `DADAO-12-SEE`、`DADAO-23-HBI`。但**当前只是规范 + 最小探针**（M14/M18 的 K0–K6 用自研 hmon/smon 起步），没有独立固件层的 SBI 实现，也没有 OpenSBI 作为组件。
 - **OpenSBI 现状**：仓库内仅在 chipyard 子模块锁（`software/firemarshal/boards/default/firmware/opensbi`）与只读参考 `.cache/refs/vivado-risc-v` 里出现，**未作为 `components/` 组件接入**（无锁、无补丁集、无 `.cache` 裸仓库）。
+- **首期范围（用户 2026-11-24 二次裁定）**：**先做扩展层，不做独立固件**。即按 `DADAO-22-SBI` 把各核芯功能扩展的调用语义逐条做实（umon/jmon、smon、`cfx_ptw`、`cfx_cache`、`cfx_hart`、`cfx_llc`、`cfx_pmem`、`cfx_time`、`cfx_uart`），挂在现有 monitor/探针路径上验证；**不**先做 M-mode 固件、不改引导链、不 fork OpenSBI。OpenSBI 只作**设计参考**（扩展注册/错误码/状态机/DEVICE 树解析的既有做法），不引入其代码。
+  - 由此收敛：上述待裁定的第 1、3、4 条按此口径先搁置（不做固件 ⇒ 不涉及 fork 与 hmon/smon 替换）；第 6 条（是否新增 `components/opensbi`）本轮**不做**。
+  - 仍需裁定（缩小后）：① **扩展优先级顺序**（建议先 `cfx_time`/`cfx_uart`/`cfx_pmem` 这类已在 K0–K6 用到的，再 `cfx_hart`/`cfx_ptw`/`cfx_cache`/`cfx_llc`）；② 每扩展的**验收平台**（QEMU 单平台先行，还是与 gem5/chipyard 三方一致）；③ 与 RISC-V SBI 扩展清单的**取舍**（哪些语义对齐、哪些按 DADAO 自有）；
 - **立册前必须裁定（未定，逐条问用户）**：
   1. **参考方式**：① fork OpenSBI 改造成 DADAO 后端（借其 hart 状态机/扩展注册/设备树解析/打印框架）；② 只借架构与接口分层、自研实现；③ 混合——先 fork 拿骨架、把 SBI 调用层换成 DADAO `trap cfxha` 约定。
   2. **SBI 与 RISC-V SBI 的关系**：DADAO-22 的 `trap cfxha, immu18` 与 RISC-V ecall 不同 ⇒ 需要明确「接口语义按 DADAO-22、扩展清单是否对齐 RISC-V SBI（TIME/IPI/RFENCE/HSM/CPPC 等）」。
