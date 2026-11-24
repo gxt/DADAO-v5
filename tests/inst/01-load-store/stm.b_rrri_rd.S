@@ -2,9 +2,9 @@
 @@ 大类：01-load-store（取数存数，`spec/SimRISC-01 §1`）
 @@ id：stm.b_rrri_rd　形式：rrri　opc：0x30　mask：0xFF000000
 @@ 语义：mem8[EA + i] ← 源 i 低 8 位；EA = rb[47:0] + rd[63:0]（immu6 = 元素个数 1..63；元素宽度整除 8 且起址按宽度对齐 ⇒ 元素不跨 8 字节数据单元）
-@@ 合法性：rd0 作源合法（读出 0/当前指令地址）；允许索引 rdHC 落在源范围内（`stm` 只读，行为确定，不触发 ILLI）；immu6=0 ⇒ ILLI；rdHA+immu6>64 ⇒ ILLI（不环绕、不截断）；无对齐要求（字节访问）
+@@ 合法性：rd0 作源合法（读出 0）；允许索引 rdHC 落在源范围内（`stm` 只读，行为确定，不触发 ILLI）；immu6=0 ⇒ ILLI；rdHA+immu6>64 ⇒ ILLI（不环绕、不截断）；无对齐要求（字节访问）
 @@ 数据块：`tests/inst/macros/inst_test.inc` 的多元素区（MDATA_B/W/T/O、MUNI、MDUMP、MSTORE；字面量见该文件）
-@@ 用例：boundary 3 / rb0 3（链例 18 + 故障例 6；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
+@@ 用例：boundary 3 / rb0 3（链例 21 + 故障例 6；镜像 = 每 `.S` 一个：链例 + 全部故障例顺序跑，`-defsym CASE_N=<点号>` = 调试用单例模式）
 @@ 失败点号 = 用例序号 = `SYS_EXIT` 参数（`spec/Kaiwu §7.1`）；故障例退出码 = `0xF0|异常位索引`
 @@ 链例逐个检查点把实测 8 字节写入结果缓冲并逐字节打印 ⇒ 三方比较的是字节流
 
@@ -112,22 +112,38 @@ __rb0p:
 	stm.b    {rd5:rd5}, [rb0, rd19]	@@ 被测 @0x2188：EA = MSTORE + 0x1C0 + 7
 	__CHECK_MEM 18, (MSTORE + 0x1C0), 0, 0xC0DE0000000000FF
 __rb0p_ck:
+
+	@@ ---- boundary：immu6=63（最大合法个数）整组存储（MUNI 同值元素，63 字节）----
+	@@   源组 = MUNI 63 个同值数据单元的低字节 0x78；按 63 字节检查首/中/尾
+	@@   尾数据单元（0x038）先用 st.o 重植 0xC0DE0000000000A7（前面点号 3 已在此写 A0..AF）
+	@@   ⇒ 第 8 字节保留 0xA7，钉住「恰 63 字节、不写第 64 字节」
+	set.rd	rd20, 0xC0DE0000000000A7
+	set.rb rb4, MSTORE + 0x038
+	st.o	rd20, [rb4, 0]
+	set.rb rb3, MUNI
+	ldm.o	{rd1:rd63}, [rb3, rd0]
+	set.rb rb4, MSTORE
+	stm.b	{rd1:rd63}, [rb4, rd0]
+	__CHECK_MEM        19, MSTORE, 0x000, 0x7878787878787878
+	__CHECK_MEM        20, MSTORE, 0x020, 0x7878787878787878
+	__CHECK_MEM        21, MSTORE, 0x038, 0x78787878787878A7
+
 	__TEST_END
 
 	@@ ---- fault（同镜像故障链：异常不返回到被测指令之后）----
 	@@ 口径：多元素指令**允许部分元素已生效**（用户 2026-11-13 裁定）⇒ 故障例只比异常码，
 	@@   不判目的寄存器/目标内存的副作用（单元素 `ld`/`st` 的精确性见 `012`，不在本文件）
 	@@ immu6=0 ⇒ ILLI（mreg_zero；汇编器拒绝该编码，故用原始字）
-	TEST_FAULT_ENC        19, ILLI, 0x30143040, rb3, MDATA_B, rd19, 0x000
+	TEST_FAULT_ENC        22, ILLI, 0x30143040, rb3, MDATA_B, rd19, 0x000
 	@@ 组首+immu6=65 > 64 ⇒ ILLI（mreg_range_overflow）
-	TEST_FAULT_ENC        20, ILLI, 0x30DC304A, rb3, MDATA_B, rd19, 0x000
+	TEST_FAULT_ENC        23, ILLI, 0x30DC304A, rb3, MDATA_B, rd19, 0x000
 	@@ bank 顶端 63 + immu6=2 = 65 > 64 ⇒ ILLI（边界不环绕）
-	TEST_FAULT_ENC        21, ILLI, 0x30FC3042, rb3, MDATA_B, rd19, 0x000
+	TEST_FAULT_ENC        24, ILLI, 0x30FC3042, rb3, MDATA_B, rd19, 0x000
 	@@ EA=0（cfxha 0 段无 RAM）⇒ CFXMEM
-	TEST_FAULT_M        22, stm.b, {rd5:rd6}, CFXMEM, rb3, 0x0, rd19, 0x000
+	TEST_FAULT_M        25, stm.b, {rd5:rd6}, CFXMEM, rb3, 0x0, rd19, 0x000
 	@@ 整段越出地址窗口（首元素在 SRAM 尾、后续元素越界）⇒ CFXMEM
-	TEST_FAULT_M        23, stm.b, {rd5:rd6}, CFXMEM, rb3, 0xFFFFFF7FFFFF, rd19, 0x000
+	TEST_FAULT_M        26, stm.b, {rd5:rd6}, CFXMEM, rb3, 0xFFFFFF7FFFFF, rd19, 0x000
 	@@ 保留 cfx 地址空间（addr[47:42]=6）的普通访存 ⇒ CFXMEM
-	TEST_FAULT_M        24, stm.b, {rd5:rd6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000
+	TEST_FAULT_M        27, stm.b, {rd5:rd6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000
 
 	__TEST_SECTIONS

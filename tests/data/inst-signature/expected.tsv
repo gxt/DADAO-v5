@@ -775,6 +775,9 @@ tests/inst/01-load-store/stm.b_rrri_rd.S	15	value	0xc0de0000000000ff	0xC0DE00000
 tests/inst/01-load-store/stm.b_rrri_rd.S	16	value	0x00000000000000ff	0x00000000000000FF	tests/inst/01-load-store/stm.b_rrri_rd.S:93
 tests/inst/01-load-store/stm.b_rrri_rd.S	17	value	0x0000000000000011	0x0000000000000011	tests/inst/01-load-store/stm.b_rrri_rd.S:102
 tests/inst/01-load-store/stm.b_rrri_rd.S	18	value	0xc0de0000000000ff	0xC0DE0000000000FF	tests/inst/01-load-store/stm.b_rrri_rd.S:113
+tests/inst/01-load-store/stm.b_rrri_rd.S	19	value	0x7878787878787878	0x7878787878787878	tests/inst/01-load-store/stm.b_rrri_rd.S:127
+tests/inst/01-load-store/stm.b_rrri_rd.S	20	value	0x7878787878787878	0x7878787878787878	tests/inst/01-load-store/stm.b_rrri_rd.S:128
+tests/inst/01-load-store/stm.b_rrri_rd.S	21	value	0x78787878787878a7	0x78787878787878A7	tests/inst/01-load-store/stm.b_rrri_rd.S:129
 tests/inst/01-load-store/stm.o_rrri_ra.S	1	value	0x0102030405060709	0x0102030405060709	tests/inst/01-load-store/stm.o_rrri_ra.S:17
 tests/inst/01-load-store/stm.o_rrri_ra.S	2	value	0x010203040506070c	0x010203040506070C	tests/inst/01-load-store/stm.o_rrri_ra.S:20
 tests/inst/01-load-store/stm.o_rrri_ra.S	3	value	0x0102030405060713	0x0102030405060713	tests/inst/01-load-store/stm.o_rrri_ra.S:23
@@ -789,6 +792,10 @@ tests/inst/01-load-store/stm.o_rrri_ra.S	11	value	0xffffffffffffffff	0xFFFFFFFFF
 tests/inst/01-load-store/stm.o_rrri_ra.S	12	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/01-load-store/stm.o_rrri_ra.S:71
 tests/inst/01-load-store/stm.o_rrri_ra.S	13	relation	-	运行期关系断言（__REC）	tests/inst/01-load-store/stm.o_rrri_ra.S:79
 tests/inst/01-load-store/stm.o_rrri_ra.S	14	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/01-load-store/stm.o_rrri_ra.S:90
+tests/inst/01-load-store/stm.o_rrri_ra.S	15	value	0x0f1e2d3c4b5a6978	0x0F1E2D3C4B5A6978	tests/inst/01-load-store/stm.o_rrri_ra.S:100
+tests/inst/01-load-store/stm.o_rrri_ra.S	16	value	0x0f1e2d3c4b5a6978	0x0F1E2D3C4B5A6978	tests/inst/01-load-store/stm.o_rrri_ra.S:101
+tests/inst/01-load-store/stm.o_rrri_ra.S	17	value	0x0f1e2d3c4b5a6978	0x0F1E2D3C4B5A6978	tests/inst/01-load-store/stm.o_rrri_ra.S:102
+tests/inst/01-load-store/stm.o_rrri_ra.S	18	value	0xc0de0000000000df	0xC0DE0000000000DF	tests/inst/01-load-store/stm.o_rrri_ra.S:103
 tests/inst/01-load-store/stm.o_rrri_rb.S	1	value	0x0102030405060709	0x0102030405060709	tests/inst/01-load-store/stm.o_rrri_rb.S:17
 tests/inst/01-load-store/stm.o_rrri_rb.S	2	value	0x010203040506070c	0x010203040506070C	tests/inst/01-load-store/stm.o_rrri_rb.S:20
 tests/inst/01-load-store/stm.o_rrri_rb.S	3	value	0x0102030405060713	0x0102030405060713	tests/inst/01-load-store/stm.o_rrri_rb.S:23
@@ -812,6 +819,10 @@ tests/inst/01-load-store/stm.o_rrri_rb.S	20	value	0xffffffffffffffff	0xFFFFFFFFF
 tests/inst/01-load-store/stm.o_rrri_rb.S	21	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/01-load-store/stm.o_rrri_rb.S:87
 tests/inst/01-load-store/stm.o_rrri_rb.S	22	relation	-	运行期关系断言（__REC）	tests/inst/01-load-store/stm.o_rrri_rb.S:94
 tests/inst/01-load-store/stm.o_rrri_rb.S	23	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/01-load-store/stm.o_rrri_rb.S:105
+tests/inst/01-load-store/stm.o_rrri_rb.S	24	value	0x0f1e2d3c4b5a6978	0x0F1E2D3C4B5A6978	tests/inst/01-load-store/stm.o_rrri_rb.S:124
+tests/inst/01-load-store/stm.o_rrri_rb.S	25	value	0x0f1e2d3c4b5a6978	0x0F1E2D3C4B5A6978	tests/inst/01-load-store/stm.o_rrri_rb.S:125
+tests/inst/01-load-store/stm.o_rrri_rb.S	26	value	0x0f1e2d3c4b5a6978	0x0F1E2D3C4B5A6978	tests/inst/01-load-store/stm.o_rrri_rb.S:126
+tests/inst/01-load-store/stm.o_rrri_rb.S	27	value	0xc0de0000000000df	0xC0DE0000000000DF	tests/inst/01-load-store/stm.o_rrri_rb.S:127
 tests/inst/01-load-store/stm.o_rrri_rd.S	1	value	0x0102030405060709	0x0102030405060709	tests/inst/01-load-store/stm.o_rrri_rd.S:17
 tests/inst/01-load-store/stm.o_rrri_rd.S	2	value	0x010203040506070c	0x010203040506070C	tests/inst/01-load-store/stm.o_rrri_rd.S:20
 tests/inst/01-load-store/stm.o_rrri_rd.S	3	value	0x0102030405060713	0x0102030405060713	tests/inst/01-load-store/stm.o_rrri_rd.S:23
@@ -838,6 +849,10 @@ tests/inst/01-load-store/stm.o_rrri_rd.S	23	value	0xffffffffffffffff	0xFFFFFFFFF
 tests/inst/01-load-store/stm.o_rrri_rd.S	24	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/01-load-store/stm.o_rrri_rd.S:97
 tests/inst/01-load-store/stm.o_rrri_rd.S	25	relation	-	运行期关系断言（__REC）	tests/inst/01-load-store/stm.o_rrri_rd.S:104
 tests/inst/01-load-store/stm.o_rrri_rd.S	26	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/01-load-store/stm.o_rrri_rd.S:115
+tests/inst/01-load-store/stm.o_rrri_rd.S	27	value	0x0f1e2d3c4b5a6978	0x0F1E2D3C4B5A6978	tests/inst/01-load-store/stm.o_rrri_rd.S:125
+tests/inst/01-load-store/stm.o_rrri_rd.S	28	value	0x0f1e2d3c4b5a6978	0x0F1E2D3C4B5A6978	tests/inst/01-load-store/stm.o_rrri_rd.S:126
+tests/inst/01-load-store/stm.o_rrri_rd.S	29	value	0x0f1e2d3c4b5a6978	0x0F1E2D3C4B5A6978	tests/inst/01-load-store/stm.o_rrri_rd.S:127
+tests/inst/01-load-store/stm.o_rrri_rd.S	30	value	0xc0de0000000000df	0xC0DE0000000000DF	tests/inst/01-load-store/stm.o_rrri_rd.S:128
 tests/inst/01-load-store/stm.o_rrri_rf.S	1	value	0x0102030405060709	0x0102030405060709	tests/inst/01-load-store/stm.o_rrri_rf.S:17
 tests/inst/01-load-store/stm.o_rrri_rf.S	2	value	0x010203040506070c	0x010203040506070C	tests/inst/01-load-store/stm.o_rrri_rf.S:20
 tests/inst/01-load-store/stm.o_rrri_rf.S	3	value	0x0102030405060713	0x0102030405060713	tests/inst/01-load-store/stm.o_rrri_rf.S:23
@@ -852,6 +867,10 @@ tests/inst/01-load-store/stm.o_rrri_rf.S	11	value	0xffffffffffffffff	0xFFFFFFFFF
 tests/inst/01-load-store/stm.o_rrri_rf.S	12	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/01-load-store/stm.o_rrri_rf.S:71
 tests/inst/01-load-store/stm.o_rrri_rf.S	13	relation	-	运行期关系断言（__REC）	tests/inst/01-load-store/stm.o_rrri_rf.S:78
 tests/inst/01-load-store/stm.o_rrri_rf.S	14	value	0xffffffffffffffff	0xFFFFFFFFFFFFFFFF	tests/inst/01-load-store/stm.o_rrri_rf.S:89
+tests/inst/01-load-store/stm.o_rrri_rf.S	15	value	0x0f1e2d3c4b5a6978	0x0F1E2D3C4B5A6978	tests/inst/01-load-store/stm.o_rrri_rf.S:99
+tests/inst/01-load-store/stm.o_rrri_rf.S	16	value	0x0f1e2d3c4b5a6978	0x0F1E2D3C4B5A6978	tests/inst/01-load-store/stm.o_rrri_rf.S:100
+tests/inst/01-load-store/stm.o_rrri_rf.S	17	value	0x0f1e2d3c4b5a6978	0x0F1E2D3C4B5A6978	tests/inst/01-load-store/stm.o_rrri_rf.S:101
+tests/inst/01-load-store/stm.o_rrri_rf.S	18	value	0xc0de0000000000df	0xC0DE0000000000DF	tests/inst/01-load-store/stm.o_rrri_rf.S:102
 tests/inst/01-load-store/stm.t_rrri_rd.S	1	value	0x8000000080000001	0x8000000080000001	tests/inst/01-load-store/stm.t_rrri_rd.S:17
 tests/inst/01-load-store/stm.t_rrri_rd.S	2	value	0x80000006000000a4	0x80000006000000A4	tests/inst/01-load-store/stm.t_rrri_rd.S:20
 tests/inst/01-load-store/stm.t_rrri_rd.S	3	value	0x8000000e8000000f	0x8000000E8000000F	tests/inst/01-load-store/stm.t_rrri_rd.S:23

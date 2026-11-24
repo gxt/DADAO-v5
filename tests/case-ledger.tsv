@@ -899,12 +899,12 @@ asm	tests/inst/01-load-store/st.w_rrii_rd.S	__CHECK_MEM 15, TEST_DATA, 0x070, 0x
 asm	tests/inst/01-load-store/st.w_rrii_rd.S	__CHECK_MEM 19, (ENTRY + 0x2000), 0, 0x0000000000001111	@@ 负档槽（零）只被写低 16 位	1
 asm	tests/inst/01-load-store/st.w_rrii_rd.S	__CHECK_MEM 21, (ENTRY + 0x2188), 0, 0x0000000000001111	1
 asm	tests/inst/01-load-store/st.w_rrii_rd.S	__CHECK_RD 20, rd21, 0x0000000000001111	1
-asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_FAULT_ENC        19, ILLI, 0x30143040, rb3, MDATA_B, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_FAULT_ENC        20, ILLI, 0x30DC304A, rb3, MDATA_B, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_FAULT_ENC        21, ILLI, 0x30FC3042, rb3, MDATA_B, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_FAULT_M        22, stm.b, {rd5:rd6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_FAULT_M        23, stm.b, {rd5:rd6}, CFXMEM, rb3, 0xFFFFFF7FFFFF, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_FAULT_M        24, stm.b, {rd5:rd6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_FAULT_ENC        22, ILLI, 0x30143040, rb3, MDATA_B, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_FAULT_ENC        23, ILLI, 0x30DC304A, rb3, MDATA_B, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_FAULT_ENC        24, ILLI, 0x30FC3042, rb3, MDATA_B, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_FAULT_M        25, stm.b, {rd5:rd6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_FAULT_M        26, stm.b, {rd5:rd6}, CFXMEM, rb3, 0xFFFFFF7FFFFF, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_FAULT_M        27, stm.b, {rd5:rd6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
 asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_STM         1, stm.b, rd, {rd1:rd2}, rb4, MSTORE, rd19, 0x000, MDATA_B + 0x000, 0x80810000000000A0	1
 asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_STM         2, stm.b, rd, {rd5:rd7}, rb4, MSTORE, rd19, 0x018, MDATA_B + 0x010, 0x90919200000000A3	1
 asm	tests/inst/01-load-store/stm.b_rrri_rd.S	TEST_STM         3, stm.b, rd, {rd24:rd39}, rb4, MSTORE, rd19, 0x030, MDATA_B + 0x020, 0xA0A1A2A3A4A5A6A7, 0xA8A9AAABACADAEAF	1
@@ -919,17 +919,20 @@ asm	tests/inst/01-load-store/stm.b_rrri_rd.S	__CHECK_MEM         6, MSTORE, 0x06
 asm	tests/inst/01-load-store/stm.b_rrri_rd.S	__CHECK_MEM        10, MDUMP, 0x100, 0xA0A1A0A3A4000000	1
 asm	tests/inst/01-load-store/stm.b_rrri_rd.S	__CHECK_MEM        11, MSTORE, 0x0A0, 0xA0A1A0A3A40000B4	1
 asm	tests/inst/01-load-store/stm.b_rrri_rd.S	__CHECK_MEM        12, MSTORE, 0x0B8, 0x00B8B900000000B7	1
+asm	tests/inst/01-load-store/stm.b_rrri_rd.S	__CHECK_MEM        19, MSTORE, 0x000, 0x7878787878787878	1
+asm	tests/inst/01-load-store/stm.b_rrri_rd.S	__CHECK_MEM        20, MSTORE, 0x020, 0x7878787878787878	1
+asm	tests/inst/01-load-store/stm.b_rrri_rd.S	__CHECK_MEM        21, MSTORE, 0x038, 0x78787878787878A7	1
 asm	tests/inst/01-load-store/stm.b_rrri_rd.S	__CHECK_MEM 16, (ENTRY + 0x2000), 0, 0x00000000000000FF	@@ 负档槽（零）只被写低 8 位	1
 asm	tests/inst/01-load-store/stm.b_rrri_rd.S	__CHECK_MEM 18, (MSTORE + 0x1C0), 0, 0xC0DE0000000000FF	1
 asm	tests/inst/01-load-store/stm.b_rrri_rd.S	__CHECK_RD         9, rd21, 0x9091929394959697	1
 asm	tests/inst/01-load-store/stm.b_rrri_rd.S	__CHECK_RD 17, rd21, 0x0000000000000011	1
-asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_ENC         15, ILLI, 0x3D143040, rb3, MDATA_O, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_ENC        16, ILLI, 0x3DDC304A, rb3, MDATA_O, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_ENC        17, ILLI, 0x3DFC3042, rb3, MDATA_O, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_M        18, stm.o, {ra5:ra6}, MALIGN, rb3, MDATA_O, rd19, 0x001	1
-asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_M        19, stm.o, {ra5:ra6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_M        20, stm.o, {ra5:ra6}, CFXMEM, rb3, 0xFFFFFF7FFFF8, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_M        21, stm.o, {ra5:ra6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_ENC         19, ILLI, 0x3D143040, rb3, MDATA_O, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_ENC        20, ILLI, 0x3DDC304A, rb3, MDATA_O, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_ENC        21, ILLI, 0x3DFC3042, rb3, MDATA_O, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_M        22, stm.o, {ra5:ra6}, MALIGN, rb3, MDATA_O, rd19, 0x001	1
+asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_M        23, stm.o, {ra5:ra6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_M        24, stm.o, {ra5:ra6}, CFXMEM, rb3, 0xFFFFFF7FFFF8, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_FAULT_M        25, stm.o, {ra5:ra6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
 asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_STM         1, stm.o, ra, {ra1:ra2}, rb4, MSTORE, rd19, 0x000, MDATA_O + 0x000, 0x0102030405060708, 0x0102030405060709	1
 asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_STM         2, stm.o, ra, {ra5:ra7}, rb4, MSTORE, rd19, 0x020, MDATA_O + 0x010, 0x010203040506070A, 0x010203040506070B, 0x010203040506070C	1
 asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_STM         3, stm.o, ra, {ra8:ra15}, rb4, MSTORE, rd19, 0x048, MDATA_O + 0x020, 0x010203040506070C, 0x010203040506070D, 0x010203040506070E, 0x010203040506070F, 0x0102030405060710, 0x0102030405060711, 0x0102030405060712, 0x0102030405060713	1
@@ -940,17 +943,21 @@ asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_STM   9, stm.o,   ra, {ra5:ra5
 asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_STM  10, stm.o,   ra, {ra5:ra5}, rb4, MSTORE, rd19, 0x1C8, TEST_DATA + 0x020, 0x8000000000000000	1
 asm	tests/inst/01-load-store/stm.o_rrri_ra.S	TEST_STM  11, stm.o,   ra, {ra5:ra5}, rb4, MSTORE, rd19, 0x1D0, TEST_DATA + 0x088, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/01-load-store/stm.o_rrri_ra.S	__CHECK_MEM         4, MSTORE, 0x040, 0xC0DE0000000000A8	1
+asm	tests/inst/01-load-store/stm.o_rrri_ra.S	__CHECK_MEM        15, MSTORE, 0x000, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/stm.o_rrri_ra.S	__CHECK_MEM        16, MSTORE, 0x0F8, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/stm.o_rrri_ra.S	__CHECK_MEM        17, MSTORE, 0x1F0, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/stm.o_rrri_ra.S	__CHECK_MEM        18, MSTORE, 0x1F8, 0xC0DE0000000000DF	1
 asm	tests/inst/01-load-store/stm.o_rrri_ra.S	__CHECK_MEM 12, (ENTRY + 0x2000), 0, 0xFFFFFFFFFFFFFFFF	@@ 负档槽（零）只被写低 64 位	1
 asm	tests/inst/01-load-store/stm.o_rrri_ra.S	__CHECK_MEM 14, (MSTORE + 0x1C0), 0, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/01-load-store/stm.o_rrri_ra.S	__CHECK_RD         7, rd21, 0x010203040506071A	1
 asm	tests/inst/01-load-store/stm.o_rrri_ra.S	__CHECK_RD_STM_IP 13, stm.o, ra5, ra	1
-asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_ENC        24, ILLI, 0x3B143040, rb3, MDATA_O, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_ENC        25, ILLI, 0x3BDC304A, rb3, MDATA_O, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_ENC        26, ILLI, 0x3BFC3042, rb3, MDATA_O, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_M        27, stm.o, {rb5:rb6}, MALIGN, rb3, MDATA_O, rd19, 0x001	1
-asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_M        28, stm.o, {rb5:rb6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_M        29, stm.o, {rb5:rb6}, CFXMEM, rb3, 0xFFFFFF7FFFF8, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_M        30, stm.o, {rb5:rb6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_ENC        28, ILLI, 0x3B143040, rb3, MDATA_O, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_ENC        29, ILLI, 0x3BDC304A, rb3, MDATA_O, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_ENC        30, ILLI, 0x3BFC3042, rb3, MDATA_O, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_M        31, stm.o, {rb5:rb6}, MALIGN, rb3, MDATA_O, rd19, 0x001	1
+asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_M        32, stm.o, {rb5:rb6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_M        33, stm.o, {rb5:rb6}, CFXMEM, rb3, 0xFFFFFF7FFFF8, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_FAULT_M        34, stm.o, {rb5:rb6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_STM         1, stm.o, rb, {rb1:rb2}, rb4, MSTORE, rd19, 0x000, MDATA_O + 0x000, 0x0102030405060708, 0x0102030405060709	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_STM         2, stm.o, rb, {rb5:rb7}, rb4, MSTORE, rd19, 0x020, MDATA_O + 0x010, 0x010203040506070A, 0x010203040506070B, 0x010203040506070C	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	TEST_STM         3, stm.o, rb, {rb8:rb15}, rb4, MSTORE, rd19, 0x048, MDATA_O + 0x020, 0x010203040506070C, 0x010203040506070D, 0x010203040506070E, 0x010203040506070F, 0x0102030405060710, 0x0102030405060711, 0x0102030405060712, 0x0102030405060713	1
@@ -970,17 +977,21 @@ asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        13, MSTORE, 0x0C
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        14, MSTORE, 0x0C8, MSTORE        @@ 同上（源组 rb3 原值）	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        15, MSTORE, 0x0D0, 0x0102030405060720	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        16, MSTORE, 0x0D8, 0x0102030405060721	1
+asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        24, MSTORE, 0x000, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        25, MSTORE, 0x0F8, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        26, MSTORE, 0x1F0, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM        27, MSTORE, 0x1F8, 0xC0DE0000000000DF	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM 21, (ENTRY + 0x2000), 0, 0xFFFFFFFFFFFFFFFF	@@ 负档槽（零）只被写低 64 位	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_MEM 23, (MSTORE + 0x1C0), 0, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_RD         6, rd21, 0x010203040506071A	1
 asm	tests/inst/01-load-store/stm.o_rrri_rb.S	__CHECK_RD_STM_IP 22, stm.o, rb5, rb	1
-asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_ENC        27, ILLI, 0x39143040, rb3, MDATA_O, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_ENC        28, ILLI, 0x39DC304A, rb3, MDATA_O, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_ENC        29, ILLI, 0x39FC3042, rb3, MDATA_O, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_M        30, stm.o, {rd5:rd6}, MALIGN, rb3, MDATA_O, rd19, 0x001	1
-asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_M        31, stm.o, {rd5:rd6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_M        32, stm.o, {rd5:rd6}, CFXMEM, rb3, 0xFFFFFF7FFFF8, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_M        33, stm.o, {rd5:rd6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_ENC        31, ILLI, 0x39143040, rb3, MDATA_O, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_ENC        32, ILLI, 0x39DC304A, rb3, MDATA_O, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_ENC        33, ILLI, 0x39FC3042, rb3, MDATA_O, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_M        34, stm.o, {rd5:rd6}, MALIGN, rb3, MDATA_O, rd19, 0x001	1
+asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_M        35, stm.o, {rd5:rd6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_M        36, stm.o, {rd5:rd6}, CFXMEM, rb3, 0xFFFFFF7FFFF8, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_FAULT_M        37, stm.o, {rd5:rd6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
 asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_STM         1, stm.o, rd, {rd1:rd2}, rb4, MSTORE, rd19, 0x000, MDATA_O + 0x000, 0x0102030405060708, 0x0102030405060709	1
 asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_STM         2, stm.o, rd, {rd5:rd7}, rb4, MSTORE, rd19, 0x020, MDATA_O + 0x010, 0x010203040506070A, 0x010203040506070B, 0x010203040506070C	1
 asm	tests/inst/01-load-store/stm.o_rrri_rd.S	TEST_STM         3, stm.o, rd, {rd8:rd15}, rb4, MSTORE, rd19, 0x048, MDATA_O + 0x020, 0x010203040506070C, 0x010203040506070D, 0x010203040506070E, 0x010203040506070F, 0x0102030405060710, 0x0102030405060711, 0x0102030405060712, 0x0102030405060713	1
@@ -1003,18 +1014,22 @@ asm	tests/inst/01-load-store/stm.o_rrri_rd.S	__CHECK_MEM        17, MSTORE, 0x16
 asm	tests/inst/01-load-store/stm.o_rrri_rd.S	__CHECK_MEM        18, MSTORE, 0x180, 0x0000000000000000	1
 asm	tests/inst/01-load-store/stm.o_rrri_rd.S	__CHECK_MEM        19, MSTORE, 0x188, 0x0102030405060717	1
 asm	tests/inst/01-load-store/stm.o_rrri_rd.S	__CHECK_MEM        20, MSTORE, 0x190, 0x0102030405060718	1
+asm	tests/inst/01-load-store/stm.o_rrri_rd.S	__CHECK_MEM        27, MSTORE, 0x000, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/stm.o_rrri_rd.S	__CHECK_MEM        28, MSTORE, 0x0F8, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/stm.o_rrri_rd.S	__CHECK_MEM        29, MSTORE, 0x1F0, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/stm.o_rrri_rd.S	__CHECK_MEM        30, MSTORE, 0x1F8, 0xC0DE0000000000DF	1
 asm	tests/inst/01-load-store/stm.o_rrri_rd.S	__CHECK_MEM 24, (ENTRY + 0x2000), 0, 0xFFFFFFFFFFFFFFFF	@@ 负档槽（零）只被写低 64 位	1
 asm	tests/inst/01-load-store/stm.o_rrri_rd.S	__CHECK_MEM 26, (MSTORE + 0x1C0), 0, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/01-load-store/stm.o_rrri_rd.S	__CHECK_RD         7, rd21, 0x010203040506071A	1
 asm	tests/inst/01-load-store/stm.o_rrri_rd.S	__CHECK_RD_STM_IP 25, stm.o, rd5, rd	1
-asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_ENC         15, ILLI, 0x3F143040, rb3, MDATA_O, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_ENC        16, ILLI, 0x3FDC304A, rb3, MDATA_O, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_ENC        17, ILLI, 0x3FFC3042, rb3, MDATA_O, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_M        18, stm.o, {rf5:rf6}, MALIGN, rb3, MDATA_O, rd19, 0x001	1
-asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_M        19, stm.o, {rf5:rf6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_M        20, stm.o, {rf5:rf6}, CFXMEM, rb3, 0xFFFFFF7FFFF8, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_M        21, stm.o, {rf5:rf6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
-asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_M        22, stm.o, {rf0:rf1}, CFXMEM, rb3, 0xFFFFFF7FFFF8, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_ENC         19, ILLI, 0x3F143040, rb3, MDATA_O, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_ENC        20, ILLI, 0x3FDC304A, rb3, MDATA_O, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_ENC        21, ILLI, 0x3FFC3042, rb3, MDATA_O, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_M        22, stm.o, {rf5:rf6}, MALIGN, rb3, MDATA_O, rd19, 0x001	1
+asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_M        23, stm.o, {rf5:rf6}, CFXMEM, rb3, 0x0, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_M        24, stm.o, {rf5:rf6}, CFXMEM, rb3, 0xFFFFFF7FFFF8, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_M        25, stm.o, {rf5:rf6}, CFXMEM, rb3, 0x180000000000, rd19, 0x000	1
+asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_FAULT_M        26, stm.o, {rf0:rf1}, CFXMEM, rb3, 0xFFFFFF7FFFF8, rd19, 0x000	1
 asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_STM         1, stm.o, rf, {rf1:rf2}, rb4, MSTORE, rd19, 0x000, MDATA_O + 0x000, 0x0102030405060708, 0x0102030405060709	1
 asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_STM         2, stm.o, rf, {rf5:rf7}, rb4, MSTORE, rd19, 0x020, MDATA_O + 0x010, 0x010203040506070A, 0x010203040506070B, 0x010203040506070C	1
 asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_STM         3, stm.o, rf, {rf8:rf15}, rb4, MSTORE, rd19, 0x048, MDATA_O + 0x020, 0x010203040506070C, 0x010203040506070D, 0x010203040506070E, 0x010203040506070F, 0x0102030405060710, 0x0102030405060711, 0x0102030405060712, 0x0102030405060713	1
@@ -1025,6 +1040,10 @@ asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_STM   9, stm.o,   rf, {rf5:rf5
 asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_STM  10, stm.o,   rf, {rf5:rf5}, rb4, MSTORE, rd19, 0x1C8, TEST_DATA + 0x020, 0x8000000000000000	1
 asm	tests/inst/01-load-store/stm.o_rrri_rf.S	TEST_STM  11, stm.o,   rf, {rf5:rf5}, rb4, MSTORE, rd19, 0x1D0, TEST_DATA + 0x088, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/01-load-store/stm.o_rrri_rf.S	__CHECK_MEM         4, MSTORE, 0x040, 0xC0DE0000000000A8	1
+asm	tests/inst/01-load-store/stm.o_rrri_rf.S	__CHECK_MEM        15, MSTORE, 0x000, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/stm.o_rrri_rf.S	__CHECK_MEM        16, MSTORE, 0x0F8, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/stm.o_rrri_rf.S	__CHECK_MEM        17, MSTORE, 0x1F0, 0x0F1E2D3C4B5A6978	1
+asm	tests/inst/01-load-store/stm.o_rrri_rf.S	__CHECK_MEM        18, MSTORE, 0x1F8, 0xC0DE0000000000DF	1
 asm	tests/inst/01-load-store/stm.o_rrri_rf.S	__CHECK_MEM 12, (ENTRY + 0x2000), 0, 0xFFFFFFFFFFFFFFFF	@@ 负档槽（零）只被写低 64 位	1
 asm	tests/inst/01-load-store/stm.o_rrri_rf.S	__CHECK_MEM 14, (MSTORE + 0x1C0), 0, 0xFFFFFFFFFFFFFFFF	1
 asm	tests/inst/01-load-store/stm.o_rrri_rf.S	__CHECK_RD         7, rd21, 0x010203040506071A	1
