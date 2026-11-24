@@ -1017,9 +1017,9 @@
   - testcases
   - qemu
   milestone: M16
-  status: open
-  closed_in: null
-  resolved_by: null
+  status: closed
+  closed_in: M16
+  resolved_by: "won't-fix（已有 `tests/inst/07-floating-point` 覆盖，L2 `check-inst-asm` 全量执行）"
   title: "【P2】`tools/testcases/arch/min_rom_probe_035t.py` 的执行通道整体失效（`m15-testcases-020` 实测）：该探针按「裸 ROM 直接传 `-bios` + 末尾 ILLI 收尾」建模，但现 QEMU `-bios` 只接受恰 65536 B 的 BootROM 固件（raw `-kernel` 需 ≥256 B 零前缀），且 ILLI 收尾实测会挂起 ⇒ 修好 spec 章节锚点（`## 7.` → `## 5.`）与 canonical 期望后仍不能真跑。要复活须迁移到「BootROM 固件 + raw kernel + `SYS_EXIT` 收尾」模型，甚至重写故障例判据；属独立改造，本任务只落了锚点与 canonical 两项。"
 - id: ISS-478
   scope:
