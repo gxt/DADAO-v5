@@ -1175,10 +1175,10 @@
   scope:
   - linux
   milestone: M18
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P3】`m18-linux-001` 复核的非阻断 finding：F3 的 applet 计数派生式 `enabled - infra` 依赖 `SH_IS_ASH` 与无独立符号的 `sh` applet 恰好抵消；未来新增非 applet `CONFIG_*` 会使期望虚高而假红（方向安全）。处置：随下次触碰 busybox 计数判据时改为按 applet 白名单/符号表派生。"
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-011
+  title: "【P3】`m18-linux-001` 复核的非阻断 finding：F3 的 applet 计数派生式 `enabled - infra` 依赖 `SH_IS_ASH` 与无独立符号的 `sh` applet 恰好抵消；未来新增非 applet `CONFIG_*` 会使期望虚高而假红（方向安全）。处置：随下次触碰 busybox 计数判据时改为按 applet 白名单/符号表派生。**已修（`m18-linux-011`）**：`check_k6.py` 改为 `config.min` 的 `CONFIG_<SYM>=y` 白名单 ∩ busybox 静态 applet 表（`include/applets.h` 的 `IF_<SYM>(APPLET…(<name>` 行，`sh` 经 `SH_IS_ASH` 自己的 `APPLET_ODDNAME` 行成项）现场派生期望集，与构建产物 `applets.txt` 逐名比对；不再做 `enabled - infra` 抵消算术。"
 - id: ISS-497
   scope:
   - linux

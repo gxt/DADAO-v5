@@ -32,6 +32,9 @@ Every expectation is derived, never restated:
                                               (the generator's own constants)
   * applet links / busybox sha256           -> the built ``manifest.json`` and
                                               the build product on disk
+  * applet set / count                     -> ``components/busybox/config.min``
+                                              ∩ busybox's ``include/applets.h``
+                                              table, vs the built ``applets.txt``
   * command names / output / rc             -> ``COMMANDS`` below (the script
                                               this gate feeds and judges)
   * final exit status                       -> the script's own ``exit N``
@@ -232,6 +235,58 @@ def config_value(config: str, symbol: str) -> str | None:
 
 def config_enabled(config: str, symbol: str) -> bool:
     return config_value(config, symbol) in ("y", "1")
+
+
+#: The busybox fragment (the applet whitelist's data) and the applet table the
+#: build generates from busybox's own ``//applet:`` lines.  The table is
+#: config-independent -- one ``IF_<SYM>(APPLET...(<name>, ...)`` row per applet
+#: -- so an applet is enabled iff ``config.min`` sets ``CONFIG_<SYM>=y``.  No
+#: offset arithmetic: a new non-applet ``CONFIG_*`` cannot inflate the
+#: expectation, and ``sh`` counts through ``SH_IS_ASH``'s own
+#: ``APPLET_ODDNAME(sh, ash, ...)`` row instead of cancelling a hard-coded set.
+BUSYBOX_CONFIG = _REPO / "components" / "busybox" / "config.min"
+APPLET_TABLE_REL = Path("include") / "applets.h"
+APPLET_ROW_RE = re.compile(
+    r"^IF_(\w+)\(\s*APPLET(?:_ODDNAME|_NOEXEC|_NOFORK|_SCRIPTED)?"
+    r"\(\s*([^,\s]+)", re.MULTILINE)
+
+
+def busybox_module():
+    from tools.linux import build_busybox
+    return build_busybox
+
+
+def enabled_busybox_symbols() -> set[str]:
+    """``CONFIG_<SYM>=y`` symbols of the busybox fragment (the whitelist)."""
+    if not BUSYBOX_CONFIG.is_file():
+        raise SystemExit(f"check_k6: {BUSYBOX_CONFIG} missing")
+    symbols = set()
+    for line in BUSYBOX_CONFIG.read_text(encoding="utf-8").splitlines():
+        match = re.fullmatch(r"CONFIG_([A-Z0-9_]+)=y", line.strip())
+        if match:
+            symbols.add(match.group(1))
+    return symbols
+
+
+def expected_busybox_applets() -> list[str]:
+    """Applets ``config.min`` enables, via busybox's applet table (derived)."""
+    table = busybox_module().source_dir() / APPLET_TABLE_REL
+    if not table.is_file():
+        raise SystemExit(f"check_k6: {table} missing (run make fetch for busybox)")
+    symbols = enabled_busybox_symbols()
+    names = {name for symbol, name
+             in APPLET_ROW_RE.findall(table.read_text(encoding="utf-8"))
+             if symbol in symbols}
+    return sorted(names)
+
+
+def built_busybox_applets() -> list[str]:
+    """Applets the build product carries (``applets.txt``, one name per line)."""
+    path = busybox_module().build_dir() / "applets.txt"
+    if not path.is_file():
+        raise SystemExit(f"check_k6: {path} missing (run make build-busybox)")
+    return sorted(line.strip() for line
+                  in path.read_text(encoding="utf-8").splitlines() if line.strip())
 
 
 def init_script() -> str:
@@ -442,6 +497,14 @@ def judge_s(rep: Report, text: str, config: str | None,
         rep.check(g, "每个 applet 链接都指向 busybox", [],
                   sorted(name for name, target in links.items()
                          if target != initramfs.BUSYBOX_LINK))
+        expected_applets = expected_busybox_applets()
+        actual_applets = built_busybox_applets()
+        rep.stat(f"busybox applets from config.min: "
+                 f"expected={len(expected_applets)} actual={len(actual_applets)}")
+        rep.check(g, "busybox applet 数 == config.min 白名单 ∩ applet 表",
+                  len(expected_applets), len(actual_applets))
+        rep.check(g, "busybox applet 集 == config.min 白名单 ∩ applet 表",
+                  expected_applets, actual_applets)
         product = initramfs.busybox_product()
         sha = hashlib.sha256(product.read_bytes()).hexdigest()
         rep.check(g, "镜像里的 bin/busybox == 当前构建产物", sha,
