@@ -22,15 +22,15 @@
 | --- | --- | --- |
 | m16-qemu-006 | 2–3 h | QEMU `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧（ISS-533/525） |
 | m16-gem5-025 | 2–3 h | gem5 `cfx_pmem` 寄存器面 + `cfx_power_ctrl` 写侧（ISS-533/525） |
-| m16-testcases-019 | 3–4 h | PTW S/U 覆盖 + `arch-ptw-013` 提升为 signature（ISS-528/532） |
 | m16-testcases-020 | 2–3 h | `tests/arch` 收尾（cfx5 I+D 同选 + 失败时限/日志；ISS-517/522） |
 | m16-testcases-021 | 1–2 h | 证据脚本与探针收尾（恒真式、默认 profile、`SEL_I/SEL_D` 写反、挂死 fail 路径；ISS-467⑤/489/492/473/518/519②） |
-| m16-infra-002 | 1–2 h | `chipyard_engine` 可选 `+verbose` + spec 自检门控（ISS-529/530） |
 
 ## 进行中（已派单：待开始 / 待验收 / 待返工）
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m16-testcases-019 | 2026-11-25 05:24 | 3–4 h | PTW S/U 覆盖 + `arch-ptw-013` 提升为 signature |
+| m16-infra-002 | 2026-11-25 05:24 | 1–2 h | `chipyard_engine` 可选 `+verbose` + spec 自检门控 |
 
 ## 已验证
 
