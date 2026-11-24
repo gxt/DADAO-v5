@@ -312,6 +312,7 @@ K6 门控 `check-linux-k6` 落地后，「用户态应用尚未跑通 / busybox 
 | `check-qemu-forms` | L1 | `components/qemu/patches` `helper.c.patch` | — | 一致性（符号 0 命中哨兵） | `tools/qemu/semantics_gate.py:28-34` | 无 |
 | `check-scope` | L1 | `opcodes.yaml` scope 分区 | — | 一致性（分区不变量） | `tools/spec/check_scope.py:6-19` | 无 |
 | `check-rule-refs` | L1 | `opcodes.yaml` ↔ `legality_rules.yaml` | — | 一致性（双向 + 豁免文件） | `tools/spec/check_rule_refs.py:4-17` | 无 |
+| `check-opcodes-repro` | L1 | `contracts/opcodes.yaml` ↔ `tools/spec/generate_opcodes.py` 现场渲染 | — | 逐字节（重生成比对；`opcodes.yaml` 单一写者 = 生成器） | `tools/spec/generate_opcodes.py:1021-1058`（`render`/`main --check`） | 只防 yaml 手改/漏重跑，不判表本身的语义正确性（那由 `validate-encoding`/`check-fp-contract` 等承担） |
 | `check-fp-contract` | L1 | `fp_semantics.yaml` ↔ `opcodes.yaml` ↔ `contract-fp.md` | — | 一致性（三方 + 规则派生） | `tools/spec/check_fp_contract.py:4-22` | 无 |
 | `check-night-report` | 按需诊断（观测） | `.dadao/tests/night/<date>/` 三件套 | — | 一致性（rc==0，不阻断收口） | `tools/testcases/check_night_report.py:8-20` | 观测不阻断 |
 | `check-l3-report` | 里程碑 | `.dadao/tests/l3/<UTC>/` 三件套 | — | 一致性（rc + exit marker 防伪造） | `tools/testcases/check_l3_report.py:10-23` | 无 |

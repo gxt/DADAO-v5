@@ -31,8 +31,16 @@
 来源：
   - spec/SimRISC-00-指令系统设计.md  （QFC 主表 + 6 个 MISC 子表：编码权威）
   - .tao/contracts/contract-isa.md   （M1 范围与字段/legality 语义）
+
+单一写者（ISS-416 收口）：`contracts/opcodes.yaml` 是**生成物**，只由本脚本
+产出；`--check` 重新渲染并与入库文件**逐字节**比较（`make check-opcodes-repro`，
+L1）。编码/legality 的每次变更都必须让「入库 yaml」与「本脚本的表」同笔一致：
+手改 yaml 不同步本脚本、或改本脚本不重跑产出 ⇒ 门控红。
 """
 
+import argparse
+import difflib
+import io
 import os
 import re
 import sys
@@ -978,7 +986,25 @@ def _compute_rule_refs(records):
 
 # ────────────────────────────── 主流程 ──────────────────────────────
 
-def main():
+SCOPES = ("m1", "fp", "excluded", "m3", "m8", "m9")
+
+
+def _counts(records):
+    counts = {s: sum(1 for r in records if r.get("scope") == s) for s in SCOPES}
+    counts["with_refs"] = sum(1 for r in records if r.get("rule_refs"))
+    return counts
+
+
+def _summary(records):
+    c = _counts(records)
+    return (f"{len(records)} 条（M1 {c['m1']}，scope fp {c['fp']}，"
+            f"scope excluded {c['excluded']}，scope m3 {c['m3']}，"
+            f"scope m8 {c['m8']}，scope m9 {c['m9']}，"
+            f"有 rule_refs {c['with_refs']}）")
+
+
+def build_records():
+    """构造全部记录（现场派生，不读 opcodes.yaml）。"""
     records = []
     build_main_table(records)
     build_misc_amo(records)
@@ -989,38 +1015,68 @@ def main():
     build_misc_rf(records)
 
     _compute_rule_refs(records)
+    return records
 
-    n_m1 = sum(1 for r in records if r.get("scope") == "m1")
-    n_fp = sum(1 for r in records if r.get("scope") == "fp")
-    n_ex = sum(1 for r in records if r.get("scope") == "excluded")
-    n_m3 = sum(1 for r in records if r.get("scope") == "m3")
-    n_m8 = sum(1 for r in records if r.get("scope") == "m8")
-    n_m9 = sum(1 for r in records if r.get("scope") == "m9")
-    n_with_refs = sum(1 for r in records if r.get("rule_refs"))
 
-    with open(OUT_PATH, "w", encoding="utf-8") as f:
-        f.write("# SimRISC 0.5.4 指令编码表（按 scope 划分范围）\n")
-        f.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md\n")
-        f.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
-        f.write("# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；\n")
-        f.write("# scope: excluded 现 0 条（cfxld/cfxst 已删除、crii 格式撤销），\n")
-        f.write("#   词表保留：编码已定义但未实现 ⇒ ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
-        f.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
-        f.write("# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + "
-                "D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份\n")
-        f.write("# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b"
-                " + ADR-0035 GF(2) 无进位乘 clmul.o + fence/lr/sc 原子），非 M1 身份\n")
-        f.write("# 保留槽位（显式登记）：OPC-RF 子表 000-xxx/xxx-010 与 001-xxx/xxx-010 空置"
-                " ⇒ 执行 UNDI；同组块复制为 rf2rf（OPC-octa 111-100）\n")
-        f.write(f"# 共 {len(records)} 条：M1 {n_m1} 条 + scope fp {n_fp} 条"
-                f" + scope excluded {n_ex} 条 + scope m3 {n_m3} 条 + scope m8 {n_m8} 条"
-                f" + scope m9 {n_m9} 条\n")
-        f.write(f"# 有 rule_refs 的指令：{n_with_refs} 条\n\n")
-        yaml.dump(records, f, default_flow_style=False, allow_unicode=True, sort_keys=False)
+def render(records):
+    """渲染入库文本（表头 + yaml.dump）。写盘与 `--check` 共用此函数，禁两套渲染。"""
+    counts = _counts(records)
 
-    print(f"生成完成：{len(records)} 条（M1 {n_m1}，scope fp {n_fp}，scope excluded {n_ex}，"
-          f"scope m3 {n_m3}，scope m8 {n_m8}，scope m9 {n_m9}，有 rule_refs {n_with_refs}）-> {OUT_PATH}")
+    out = io.StringIO()
+    out.write("# SimRISC 0.5.4 指令编码表（按 scope 划分范围）\n")
+    out.write("# 自动生成自 spec/SimRISC-00（QFC 主表 + MISC 子表）与 .tao/contracts/contract-isa.md\n")
+    out.write("# M1：标量整数 + 地址/内存 RD/RB/RA + 控制流 + 测试机所需系统\n")
+    out.write("# scope: fp 为原生浮点范围（RF 存取/运算/转换/比较/条件赋值），已实现；\n")
+    out.write("# scope: excluded 现 0 条（cfxld/cfxst 已删除、crii 格式撤销），\n")
+    out.write("#   词表保留：编码已定义但未实现 ⇒ ILLI（decode: ILLI）；UNDI 仅用于空白单元格\n")
+    out.write("# scope: m3 为 M3 CodeGen 新增指令（ADR-0012 D9.1），非 M1 身份\n")
+    out.write("# scope: m8 为新增 ISA 指令（ADR-0012 D10 逐块反转 rev.o/.t/.w/.b + "
+              "D11 位扫描/计数 ctlz/cttz/ctpop），非 M1 身份\n")
+    out.write("# scope: m9 为新增 ISA 指令（ADR-0032 D4 逻辑循环左移 rol.o/.t/.w/.b"
+              " + ADR-0035 GF(2) 无进位乘 clmul.o + fence/lr/sc 原子），非 M1 身份\n")
+    out.write("# 保留槽位（显式登记）：OPC-RF 子表 000-xxx/xxx-010 与 001-xxx/xxx-010 空置"
+              " ⇒ 执行 UNDI；同组块复制为 rf2rf（OPC-octa 111-100）\n")
+    out.write(f"# 共 {len(records)} 条：M1 {counts['m1']} 条 + scope fp {counts['fp']} 条"
+              f" + scope excluded {counts['excluded']} 条 + scope m3 {counts['m3']} 条"
+              f" + scope m8 {counts['m8']} 条 + scope m9 {counts['m9']} 条\n")
+    out.write(f"# 有 rule_refs 的指令：{counts['with_refs']} 条\n\n")
+    yaml.dump(records, out, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    return out.getvalue()
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description="生成/校验 contracts/opcodes.yaml")
+    ap.add_argument("--check", action="store_true",
+                    help="只对照不写盘：重新渲染并与入库文件逐字节比较，漂移 ⇒ rc=1")
+    ap.add_argument("--output", default=OUT_PATH, help=f"输出/对照路径（默认 {OUT_PATH}）")
+    args = ap.parse_args(argv)
+
+    records = build_records()
+    text = render(records)
+    summary = _summary(records)
+
+    if args.check:
+        try:
+            with open(args.output, encoding="utf-8") as f:
+                committed = f.read()
+        except OSError as exc:
+            print(f"FAIL：读不到对照文件 {args.output}（{exc}）", file=sys.stderr)
+            return 2
+        if committed == text:
+            print(f"{os.path.basename(args.output)} 与生成器输出一致：{summary}")
+            return 0
+        sys.stderr.writelines(difflib.unified_diff(
+            committed.splitlines(True), text.splitlines(True),
+            fromfile=f"{args.output}（入库）", tofile="generate_opcodes.py 渲染", n=2))
+        print(f"FAIL：{args.output} 与生成器输出不一致（禁手改 yaml；"
+              f"改表后重跑 `python3 tools/spec/generate_opcodes.py`）", file=sys.stderr)
+        return 1
+
+    with open(args.output, "w", encoding="utf-8") as f:
+        f.write(text)
+    print(f"生成完成：{summary} -> {args.output}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

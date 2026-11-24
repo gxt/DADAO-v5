@@ -72,7 +72,7 @@ DOCKER_TAG ?= dadao-v5-dev:local
         check-tset-libc-full check-tset-llvm-full check-tset-embench-full \
         clean-tests test-repro night-run check-night-report check-l3-report \
         validate-vectors check-spec-refs check-spec-drift check-asm-list \
-        check-legality-drift check-interface validate-encoding check-scope \
+        check-legality-drift check-interface validate-encoding check-opcodes-repro check-scope \
         check-rule-refs check-fp-contract check-instrinfo \
         check-dirs check-no-residue check-manifests-guard check-cfx-aliases check-asm-prose check-lit \
         check-idl-parse check-idl check-idl-full \
@@ -308,6 +308,7 @@ help:
 	@echo "  make check-sync-nonmaskable  Sync exception causes must not be maskable (only IPI/TIMER/UART*/… may; SPEC-175t; not L1)"
 	@echo "  make check-interface  Check cross-module interface alignment (L1)"
 	@echo "  make validate-encoding  Validate opcodes.yaml encoding consistency"
+	@echo "  make check-opcodes-repro  Re-render opcodes.yaml from tools/spec/generate_opcodes.py and compare byte for byte (L1; ISS-416)"
 	@echo "  make check-scope     Check opcodes.yaml scope partition (m1/fp/excluded; SPEC-086t)"
 	@echo "  make check-spec-drift  Audit contract provenance against README versions"
 	@echo "  make check-spec-refs Audit spec references in contract-*.md (L1; INFRA-011t/058t)"
@@ -1146,7 +1147,7 @@ _locked-clean-work:
 # 两条排在 `check-temp-dirs` **之前**：它们在 `$DADAO_TMP`（`check_toolchain.py`
 # 默认建任务临时目录）下跑探针，先跑可让该目录 mtime 保持新鲜，避免陈旧临时
 # 目录误报；`check_k0.py`（L2）另行把 DADAO_TMP 指到自己的 scratch。
-_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-manifests-guard check-idl-sync check-idl-parse check-idl-exec-anchor check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-config-pins check-writer-guards check-temp-dirs
+_locked-check: manifest-check validate-vectors check-spec-drift check-patch-tree check-index-blobs check-asm-list check-asm-list-drift check-asm-prose check-spec-codeblocks check-legality-drift check-legality-invariants validate-encoding check-scope check-rule-refs check-fp-contract check-instrinfo check-opcodes-repro check-isa-coverage check-cfx-aliases check-cfx-alias-table check-cfx-vectors check-case-ledger check-tests-index check-inst-macro-scope check-decodetree-repro check-qemu-forms check-dirs check-no-residue check-manifests-guard check-idl-sync check-idl-parse check-idl-exec-anchor check-spec-refs check-knowledge-refs check-contracts-dir check-spec-numbering check-spec-changelog check-spec-purity check-spec-cite-targets check-component-changelog check-syscall-abi check-musl-freshness check-builtins-freshness check-milestones-fresh check-archive check-contracts-pending check-contract-relocs check-run-artifacts check-test-reports check-width-sizes check-components check-interface check-code-range check-runner-reap check-linux-toolchain check-linux-boot-contract check-config-pins check-writer-guards check-temp-dirs
 	@$(PYTHON) tools/infra/check_issues.py
 	@$(PYTHON) -m compileall -q tools
 	@echo "repository checks (L1): PASS"
@@ -1876,6 +1877,13 @@ check-interface:
 # (value/mask, field overlap, bank, legality refs, decode conflicts).
 validate-encoding: contracts/opcodes.yaml
 	@$(PYTHON) tools/spec/validate_encoding.py contracts/opcodes.yaml
+
+# opcodes.yaml 生成一致性门控 (ISS-416, L1): `contracts/opcodes.yaml` 是
+# `tools/spec/generate_opcodes.py` 的**生成物**（单一写者）。本目标重新渲染并与
+# 入库文件**逐字节**比较：手改 yaml、或改了表的生成器未重跑 ⇒ 红。只读静态
+# （不写盘、不建、不跑）⇒ 不在 $(GATE_LOCKED_TARGETS)。
+check-opcodes-repro:
+	@$(PYTHON) tools/spec/generate_opcodes.py --check
 
 # InstrInfo cross-check gate (LLVM-046t / ISS-103): the committed
 # DADAOInstrInfo.td (the .td truth, read from its patch) must match

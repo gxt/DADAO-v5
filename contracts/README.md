@@ -6,7 +6,7 @@
 
 | 文件 | 内容 | 来源 |
 |------|------|------|
-| `opcodes.yaml` | 每条指令的编码字段、mask、value、变体 | `contract-isa.md`（`SPEC-003t`） |
+| `opcodes.yaml` | 每条指令的编码字段、mask、value、变体 | `contract-isa.md`（`SPEC-003t`）；**生成物**：只由 `tools/spec/generate_opcodes.py` 产出（`make check-opcodes-repro` 逐字节守漂移，禁手改；`ISS-416`） |
 | `abi.yaml` | 参数寄存器编号、callee-saved 列表、DataLayout | `contract-abi.md`（`SPEC-004t`） |
 | `legality_rules.yaml` | 非法编码组合、非对齐访问规则 | `contract-isa.md` 异常条款（`SPEC-008t`） |
 | `fp_semantics.yaml` | FP（`scope: fp`，60 条）语义投影：FCSR 环境、12 族、`id→family→spec_cite→semantics_ref→legality_refs`（不含编码、不含期望值） | `contract-fp.md`（`SPEC-087t`） |
