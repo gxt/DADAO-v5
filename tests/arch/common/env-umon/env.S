@@ -77,6 +77,16 @@ umon_copy:
 	add.si	rd6, -1
 	br.nz	{rd6}?, [rb0, umon_copy]
 
+	@@ `cache-model=on`：上面的拷贝是**数据写**，落在 D-cache 的脏行里；user 的
+	@@ 取指走真实内存（QEMU/gem5 的取指不经影子/写回），会读到旧内容（0 字 ⇒
+	@@ UNDI）。只有声明了 cfx5 的用例（`ENV_CFX_ACCESS_5`）才在这里整侧
+	@@ `D|flush|all`（CACHE-09：bit14 = D、`[1:0] = 11` = flush、`[3:2] = 00` = all）
+	@@ 把 body 与 tail 写回内存；`cache-model=off` 时该命令被接受且无效果。
+	.ifdef	ENV_CFX_ACCESS_5
+	set.rd	rd6, 0x4003
+	cfx2rc	cfx_cache, cg8, rc9, rd6
+	.endif
+
 	@@ 权限准备（在 .envperm；row = 0 = user 行，deleg = 0）
 	set.rb	rb3, umon_vectors
 	set.rb	rb9, env_perm_prep

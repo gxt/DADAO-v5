@@ -16,7 +16,7 @@
 ## 要做
 
 1. **`cfx_power` common face**：按 `commonRows` 打开 `cg4`（计数）与 `cg6`（scratch，≥2 个）；`cfx_id = 63`；不改变 `cg7`（BootROM 空间描述）与 `cg8 rc1`（power ctrl）语义。
-2. **`cfx5` 的模式面**：按 `§3.1–§3.4` 给 cfx5 打开 `cg0–cg3`（至少 `user/supv_cfxreg` 与 `cg3 rc12`），使其 S/U 访问可达；**不放宽** `cfx5` 的维护命令语义。
+2. **`cfx5` 的模式面**：按 `§3.1–§3.4` 给 cfx5 打开 `cg0–cg3`（至少 `user/supv_cfxreg` 与 `cg3 rc12`），使其 S/U 访问可达；**不放宽** `cfx5` 的维护命令语义。顺带修 **ISS-534**：维护端口把 `cache_addr_start` 截到 48 位（`CACHE-18` 要求 56 位不截断），补一条 ≥48 位向量。
 3. **探针**：
    - `tests/arch/power/` 的 `arch-power-001` 把 `cg4/cg6` 纳入比较面（删 `DIV-13`）；
    - `tests/arch/cache/` 的 `arch-cache-001/002` 加 smon/umon 的 RTL 承载（删/收窄 `DIV-16` 的 mode gap）。

@@ -35,12 +35,12 @@
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
 | m16-spec-003 | 2026-11-24 23:31 | 1–2 h | DMA 与 D-cache 一致性（裁定 A：软件 clean/invalidate）+ contract power 笔误 |
-| m16-testcases-009 | 2026-11-24 22:15 | 3–4 h | cfx5 用例三方跑（寄存器面 + 命令 + 数据语义） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-testcases-009 | 2026-11-24 23:40 | cfx5 用例三方跑（4 case/61 槽；hmon 三方 144/96/128 B 全同；off 口径；DIV-15/16） |
 | m16-chipyard-023 | 2026-11-24 22:14 | RTL cfx34 time（`cg10` freq/value 只读、无中断；三方逐槽、H/S/U；DIV-06 收窄） |
 | m16-chipyard-022 | 2026-11-24 18:12 | RTL cfx32 pmem（寄存器面 + DMA + 源 cfxha 32 捕获投递；同界多源一次进入；H85/S8/U8 槽） |
 | m16-chipyard-026 | 2026-11-24 14:39 | RTL 异步捕获缓冲（R2：每次进入整体覆盖、无帧门控、`escape imms18=2 ⇒ CFXESC`；Tiny 43 镜像逐字节同基线） |

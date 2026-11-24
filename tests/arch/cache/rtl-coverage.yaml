@@ -1,0 +1,63 @@
+# tests/arch/cache/rtl-coverage.yaml — cfx5 在 RTL 承载上的覆盖/缺口登记
+# （m16-testcases-009）。
+#
+# `verdict: gap` 的条目不参与逐槽比较（`run_arch.py` 记 GAP，退出码 77，不是
+# PASS）。每条 gap 必须写 `reason` 与 `close_when`。
+schema: 1
+cases:
+  - case: arch-cache-001
+    verdict: signature
+    note: "与 QEMU/gem5 同一槽序（18 槽），RTL 侧另加缓存日志断言"
+  - case: arch-cache-002
+    verdict: signature
+    note: "与 QEMU/gem5 同一槽序（12 槽），RTL 侧另加范围命令的日志断言"
+  - case: arch-cache-003
+    verdict: signature
+    note: "与 QEMU/gem5 同一槽序（16 槽）；RTL 的 cause 来自固定 hmon 的 save-and-jump 槽"
+  - case: arch-cache-004
+    verdict: gap
+    reason: >-
+      `arch-cache-004` 是 `cache-model=off` 的机器维度（CACHE-27）。RTL 没有
+      该配置开关（CACHE-27 把「各实现是否暴露该开关」留给实现），`WumingVastConfig`
+      恒有 I/D cache（`cache_exist=0b11`），无法在同一 RTL 上产出 off 分支的
+      寄存器值。QEMU/gem5 侧仍按 off 期望逐槽判。
+    close_when: >-
+      RTL 暴露可切换的 cache-model（或在测试机层面提供等价的 off 变体）并接入
+      `check_cache_rtl.py`
+  - case: arch-cache-001
+    mode: smon
+    verdict: gap
+    reason: >-
+      RTL 的 cfx5 只有 cg8 寄存器面：`GewuParams` 没有给 cfx5 开 `commonRows`
+      （`GewuFile` 的 require 只允许 cfx0–cfx3/hart/pmem/time），因此 cfx5 的
+      `cg0`–`cg3`（含 `supv_cfxreg` 行与 `cg3 rc12` deleg）不存在。hmon 走 hypv
+      行（DIV-07：RTL 的 hypv 行不强制）可读 cg8；supv 访问 cfx5 的
+      `supv_cfxreg` ⇒ `CFXREG`，本 case 的 S 模式在 RTL 上不可达。
+    close_when: >-
+      RTL 给 cfx5 开 `commonRows`（补齐 cg0–cg7 与 deleg），并把 `cache_rtl.S`
+      的 cfx5 掩码写回
+  - case: arch-cache-001
+    mode: umon
+    verdict: gap
+    reason: >-
+      同上：RTL 的 cfx5 无 `user_cfxreg` 行（无 `commonRows`），user 访问 cfx5
+      ⇒ `CFXREG`；U 模式在 RTL 上不可达（QEMU/gem5 侧正常逐槽）。
+    close_when: >-
+      RTL 给 cfx5 开 `commonRows`（补齐 cg0–cg7 与 deleg），并把 `cache_rtl.S`
+      的 cfx5 掩码写回
+  - case: arch-cache-002
+    mode: smon
+    verdict: gap
+    reason: >-
+      同 `arch-cache-001` 的 smon：RTL 的 cfx5 无 `supv_cfxreg` 行（`commonRows`
+      未开）⇒ supv 访问 cfx5 `CFXREG`。
+    close_when: >-
+      RTL 给 cfx5 开 `commonRows`（补齐 cg0–cg7 与 deleg）
+  - case: arch-cache-002
+    mode: umon
+    verdict: gap
+    reason: >-
+      同 `arch-cache-001` 的 umon：RTL 的 cfx5 无 `user_cfxreg` 行（`commonRows`
+      未开）⇒ user 访问 cfx5 `CFXREG`。
+    close_when: >-
+      RTL 给 cfx5 开 `commonRows`（补齐 cg0–cg7 与 deleg）

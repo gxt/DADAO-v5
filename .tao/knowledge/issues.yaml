@@ -1522,3 +1522,20 @@
   closed_in: null
   resolved_by: null
   title: "【P2】QEMU/gem5 的 `cfx_pmem` 只实现 `cg15`（+`cg7`），`cg8/cg12/cg13/cg14` 走 `CFXREG`；RTL（`m16-chipyard-022`）按 `§4.9` 全实现 ⇒ `cfx_pmem` 寄存器面暂时不能三方逐槽比。`DIV-06` 的 `close_when`（021/022/023 合入）不足以关闭，需补 QEMU/gem5 面或改写条件。"
+- id: ISS-534
+  scope:
+  - chipyard
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P3】RTL 的 cfx5 维护端口把 `cache_addr_start` 截到 48 位（`m16-testcases-009` 复核发现）：`CACHE-18` 要求 56 位地址不截断；当前用例 PA 均低于 48 位未触达。由 `m16-chipyard-027`（同改 cfx5 RTL 面）一并修并补一条 ≥48 位的向量。"
+- id: ISS-535
+  scope:
+  - chipyard
+  - testcases
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P4·backlog】`cfx_pmem` 的 PA→SRAM DMA 直读未实现（`m16-testcases-009` 遗留）：D 侧可见性目前用 invalidate/flush 后重填读回观察；直读路径（DMA 主动读 PA 写 SRAM）需另立子用例与 RTL/探针支持。"

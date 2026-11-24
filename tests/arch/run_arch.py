@@ -169,10 +169,11 @@ def load_modes(path, case_ids):
         if not isinstance(entry, dict):
             problems.append("%s: 条目必须是映射" % where)
             continue
-        unknown = sorted(set(entry) - {"modes", "reasons", "cfx_access"})
+        unknown = sorted(set(entry) - {"modes", "reasons", "cfx_access",
+                                       "cache_model"})
         if unknown:
             problems.append("%s: 未知字段 %s（允许: ['modes', 'reasons', "
-                            "'cfx_access']）" % (where, unknown))
+                            "'cfx_access', 'cache_model']）" % (where, unknown))
         raw = entry.get("modes")
         if not isinstance(raw, list) or not raw:
             problems.append("%s: `modes` 必须是非空列表" % where)
@@ -217,8 +218,12 @@ def load_modes(path, case_ids):
                     problems.append("%s: `cfx_access` 重复 %r" % (where, name))
                 else:
                     cfx_access.append(DIR_CFX[name])
+        model = entry.get("cache_model")
+        if model is not None and model not in CACHE_MODELS:
+            problems.append("%s: `cache_model` 非法 %r（允许 %s）"
+                            % (where, model, list(CACHE_MODELS)))
         out[cid] = {"modes": modes, "mode_reasons": reasons,
-                    "cfx_access": cfx_access}
+                    "cfx_access": cfx_access, "cache_model": model}
     if problems:
         raise ConfigError("\n".join(problems))
     return out

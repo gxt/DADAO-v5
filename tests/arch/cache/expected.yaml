@@ -1,0 +1,116 @@
+# tests/arch/cache/expected.yaml — cfx5（`cfx_cache`）三方用例的签名流登记
+# （`m16-testcases-009`）。
+#
+# **登记，不是判据**：期望值的唯一真源是 `tests/arch/cache/cache_oracle.py`
+# 的现场派生（`contract-cache` / `contract-see §6.1` / `contracts/opcodes.yaml`）；
+# 两个承载（`check_cache.py` / `check_cache_rtl.py`）的 `--selfcheck` 与派生值
+# **双向**核对，`run_arch.py --self-test` 另做结构校验。两者不符即红。
+#
+# 槽序 = 探针 `SIGUPD` 顺序；`checks[].signature` 依次拼接。
+# 数据 pattern（M_*/N_*/P_*/IMM_*/W_*）是测试激励，不是从实现反推的期望：
+# 它们决定「写什么」，期望由契约语义推出「读回应是什么」（见 oracle 文件头）。
+schema: 1
+cases:
+  - id: arch-cache-001
+    carrier: arch/cache/check_cache.py
+    checks:
+      - label: registers
+        note: >-
+          cache_exist = 0b11；cache_enable 复位 = exist、写 0/3/全 1 的读回
+          （保留位与不存在的侧读 0）；cache_addr_start 只留 PA[55:0]；
+          cache_addr_size 整 64 位往返（CACHE-03/06/07/18/27）
+        signature: [0x3, 0x3, 0x0, 0x3, 0x3, 0xffffffffffffff, 0x3456789abcdef0,
+                    0x123456789abcdef0]
+      - label: d-side-single
+        note: >-
+          D 单行：invalidate 丢弃脏行 ⇒ 内存旧值；clean 写回（再失效后读新值）；
+          flush 写回 ⇒ 新值（CACHE-15/16/20）
+        signature: [0xc0de000000000600, 0xc0de000000000601,
+                    0xc0de000000000602]
+      - label: i-side-refetch
+        note: >-
+          改写代码行 + D clean 后：I|invalidate 单行 / I|flush 单行 /
+          I|invalidate PA 区间 ⇒ 取指执行新立即数（CACHE-19）
+        signature: [0x3333, 0x5555, 0x7777]
+      - label: enable-and-noop
+        note: >-
+          cache_enable=0 时 D|invalidate 不维护（脏行仍在）；无行/不可缓存 PA
+          无效果不报异常；sel=00 与 op=none 的无条件 no-op（CACHE-08/12/13/22）
+        signature: [0xc0de000000000603, 0xc0de000000000701,
+                    0xc0de000000000702, 0xc0de000000000703]
+
+  - id: arch-cache-002
+    carrier: arch/cache/check_cache.py
+    checks:
+      - label: single-line-scope
+        note: >-
+          PA 单行只命中包含 addr_start 的行；相邻行保留（CACHE-16）
+        signature: [0xc0de000000000500, 0xc0de000000000503]
+      - label: range-invalidate
+        note: "PA 区间 invalidate：相邻两行的脏数据都丢弃（CACHE-17/20）"
+        signature: [0xc0de000000000500, 0xc0de000000000502]
+      - label: range-clean
+        note: "PA 区间 clean：两行都写回（再单行失效后读新值）"
+        signature: [0xc0de000000000501, 0xc0de000000000503]
+      - label: range-flush
+        note: "PA 区间 flush：两行都写回"
+        signature: [0xc0de000000000504, 0xc0de000000000506]
+      - label: range-boundary-and-all
+        note: >-
+          区间外的行不被区间命令碰；all 忽略 addr_start/size（CACHE-15/17）：
+          invalidate 丢脏 / clean 写回 / flush 写回
+        signature: [0xc0de000000000605, 0xc0de000000000600,
+                    0xc0de000000000601, 0xc0de000000000602]
+
+  - id: arch-cache-003
+    carrier: arch/cache/check_cache.py
+    checks:
+      - label: register-face
+        note: "cache_exist 仍为 0b11 且拒绝访问不改它（CACHE-03/27）"
+        signature: [0x3]
+      - label: cfxreg-read-ctrl
+        note: >-
+          读 cache_ctrl（WO）⇒ CFXREG：cause_id = 1<<2、cause_info = 该指令
+          的 32 位编码（CACHE-03/14）
+        signature: [0x4, 0x7a148245]
+      - label: cfxreg-write-exist
+        note: "写 cache_exist（RO）⇒ CFXREG（cause_info = cfx2rc 编码）"
+        signature: [0x4, 0x7b148006]
+      - label: cfxreg-reserved-rc
+        note: "保留 rc（cg8 rc1）读 ⇒ CFXREG（CACHE-04）"
+        signature: [0x4, 0x7a148045]
+      - label: cfxreg-illegal-encoding
+        note: >-
+          `[3:2]=11` 与「PA 区间且 size=0」⇒ CFXREG（CACHE-14）
+        signature: [0x4, 0x7b148246, 0x4, 0x7b148246]
+      - label: cfxreg-under-enable0
+        note: "cache_enable=0 不抑制编码校验（CACHE-08）"
+        signature: [0x4, 0x7b148246]
+      - label: no-partial-effect
+        note: >-
+          非法 clean 不写回脏行（读回旧值）；非法 invalidate 不丢弃脏行
+          （后续 clean 仍能写回新值）（CACHE-14/25）
+        signature: [0xc0de000000000600, 0xc0de000000000601]
+      - label: exist-after
+        note: "拒绝面结束后 cache_exist 不变"
+        signature: [0x3]
+
+  - id: arch-cache-004
+    carrier: arch/cache/check_cache.py
+    checks:
+      - label: off-registers
+        note: >-
+          CACHE-27 off 分支：cfx5 存在、cache_exist 读 0、cache_enable 写 3
+          读回 0、addr_start/addr_size 仍可读写
+        signature: [0x0, 0x0, 0x0, 0xffffffffffffff, 0x3456789abcdef0,
+                    0x123456789abcdef0]
+      - label: off-legal-commands
+        note: "合法 clean/invalidate/flush 被接受、不报异常、无维护效果"
+        signature: [0xc0de000000000704, 0xc0de000000000705,
+                    0xc0de000000000706, 0xc0de000000000605]
+      - label: off-illegal-encodings
+        note: "编码校验不受 cache-model 影响：非法编码仍 ⇒ CFXREG（CACHE-27）"
+        signature: [0x4, 0x7b148246, 0x4, 0x7b148246]
+      - label: off-exist-after
+        note: "拒绝面结束后 cache_exist 仍为 0"
+        signature: [0x0]

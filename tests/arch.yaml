@@ -341,3 +341,48 @@
   level: full
   requires:
   - qemu
+
+# cfx5 cache 三方用例（m16-testcases-009）：载体 `arch/cache/check_cache.py`，
+# body 走 env 机制（`arch/cache/cache.body.S` + `common/env-{hmon,smon,umon}`），
+# QEMU 与 gem5 同一份源码；RTL 承载 `arch/cache/check_cache_rtl.py`（同一 case、
+# 同一槽序）。001 = 寄存器面 + D 单行 + I 侧取指重取 + enable 门控（18 槽，三
+# 模式）；002 = D 侧范围（单行边界 / PA 区间 / all，12 槽，三模式）；003 =
+# 拒绝面（CFXREG 与「非法命令无维护动作」，16 槽，只 hmon）；004 =
+# `cache-model=off` 的机器维度（15 槽，只 hmon，`modes.yaml` 的 `cache_model:
+# off`；RTL 无该开关 ⇒ `arch/cache/rtl-coverage.yaml` 记 GAP）。
+- id: arch-cache-001
+  file: arch/cache/check_cache.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-cache-002
+  file: arch/cache/check_cache.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-cache-003
+  file: arch/cache/check_cache.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-cache-004
+  file: arch/cache/check_cache.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu

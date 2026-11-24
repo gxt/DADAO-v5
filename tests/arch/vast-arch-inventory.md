@@ -147,6 +147,9 @@
 
 ## cfx5 cache（cache organization）
 
+> 下面三格是 `m16-testcases-004` 的**盘点基线**（cfx5 未实现）；实施状态与
+> `m16-testcases-009` 的三方用例覆盖映射见本节末「三方用例覆盖映射」。
+
 ### cfx5 cache — QEMU
 
 - **寄存器面**：缺。cfx5 不在 Vast 实现掩码（`components/qemu/patches/target/dadao/cpu.c.patch:55` 只有 0/1/2/3/4/15/32/34/63），访问按未实现 cfx 报 `CFXREG`（`components/qemu/patches/target/dadao/helper.c.patch:2955`）；现场 `grep -rn "cfx_cache\|cache-model" components/qemu/patches` = 0 命中。
@@ -171,7 +174,53 @@
 - **现有测试载体**：无 cfx5 寄存器用例。`tools/chipyard/dcache/vastdcache.S:1` 与 `tools/chipyard/icache/vasticache.S:1` 只测 cache 阵列（命中/缺失/替换），不测 cfx5 寄存器/命令。
 - **现有门控**：手工脚本（`tools/chipyard/dcache/check_vastdcache.py:1`、`tools/chipyard/icache/check_vasticache.py:1`；不覆盖 cfx5）。
 
+### cfx5 cache — 三方用例覆盖映射（`m16-testcases-009`）
+
+实际状态：QEMU（`m16-qemu-001/002/003/005`）、gem5（`m16-gem5-020/021/022/023/024`）、
+RTL（`m16-chipyard-016/017`）均已实现 cfx5；`run_arch.py --cfx 5` 的三个后端
+（QEMU/gem5 经 `check_cache.py`、RTL 经 `check_cache_rtl.py`）用**同一 case、
+同一槽序**逐槽比较（期望源 `tests/arch/cache/cache_oracle.py`）。
+
+| case / 槽组 | 覆盖条款（`m16-spec-001` 落地的 `contract-cache`） |
+| --- | --- |
+| `arch-cache-001` `exist`/`enable_*` | CACHE-03/06/07/27（bit0=I、bit1=D、复位=exist、保留位读 0） |
+| `arch-cache-001` `addr_start_*`/`addr_size` | CACHE-03/18（`PA[55:0]`，`[63:56]` 读 0）/ CACHE-17 的操作数宽度 |
+| `arch-cache-001` `d_invalidate_single` | CACHE-15/16/20（单行 invalidate 丢弃脏行、不写回） |
+| `arch-cache-001` `d_clean_single` | CACHE-16/20（clean 写回并保留行） |
+| `arch-cache-001` `d_flush_single` | CACHE-16/20（flush 写回；行删除由 RTL 日志断言） |
+| `arch-cache-001` `i_invalidate_single`/`i_flush_single`/`i_invalidate_range` | CACHE-17/19（I 侧 invalidate 丢弃、flush 等价；取指重取） |
+| `arch-cache-001` `enable0_invalidate_noop` | CACHE-08（使能位为 0 时该侧不维护） |
+| `arch-cache-001` `mmio_noop` | CACHE-22（无行/不可缓存 PA 无效果、不报异常） |
+| `arch-cache-001` `noop_sel0`/`noop_opnone` | CACHE-09/11/12/13（判序；两处无条件 no-op 不检查范围/size） |
+| `arch-cache-002` `d_line_*` | CACHE-16（PA 单行只匹配包含 `addr_start` 的行） |
+| `arch-cache-002` `d_*_range_*` | CACHE-17/20（区间相交匹配；两行都作用） |
+| `arch-cache-002` `d_range_outside_kept` | CACHE-17（区间外不匹配） |
+| `arch-cache-002` `d_*_all` | CACHE-15/20（all 忽略 start/size） |
+| `arch-cache-003` `cfxreg_*` | CACHE-03/04/08/14/25（读 WO/写 RO/保留 rc/非法编码 ⇒ `CFXREG`；`cause_info` = 指令编码；`enable=0` 不抑制校验） |
+| `arch-cache-003` `no-partial-effect` | CACHE-14/25（非法命令在任何维护动作之前失败） |
+| `arch-cache-004` `off-*` | CACHE-27（off：cfx5 存在、`exist=0`、寄存器可访问、合法命令接受无效果、非法仍 `CFXREG`） |
+| `arch-cache-001/002` RTL 缓存日志 | CACHE-08/17/19/20（I|clean 不发出；flush 写回+删除；区间只枚举两行） |
+
+**未覆盖（显式登记，不假装全覆盖）**：
+
+- CACHE-21「两侧全选先 I 后 D」的**顺序**：两侧同时选的命令没有可观测的顺序差
+  （I/D 独立、同步完成），只用两侧各自选择的路径覆盖；顺序本身不设槽。
+- CACHE-29 per-hart：本测试机单 hart，跨 hart 维护/一致性不在范围。
+- CACHE-05 组织（容量/行大小/组数/替换）：实现自由，`arch-cache-004` 之外不设
+  geometry 断言；RTL 的专项探针（`cfx5_maint.S`）仍保留日志级几何检查。
+- **Tiny 无 cfx5**（CACHE-28）不在 `tests/arch` 的 scope（本目录只测 Vast）；由
+  `tools/testcases/arch/min_rom_probe_integ042t.py` 的 Tiny 面与 `m16-qemu-001` 的
+  `-M kaiwu-tiny,cache-model=on` 启动拒绝覆盖。
+- **DMA 直读内存**：D 侧可见性由「invalidate/flush 后重填读回」观察，没有使用
+  `cfx_pmem` 的 PA→SRAM DMA；DMA 直读要访问 `cfx_pmem` SRAM（PTW 之外的内部窗口），
+  其权限/模式面另立子用例。
+- QEMU 的 I 侧「D clean 后不失效仍取到新码」不可判（TB 自动失效），见
+  `tests/arch/expected-divergences.yaml` DIV-15；该点由 RTL 缓存日志承担。
+- `arch-cache-004` 无 RTL 承载（无 `cache-model` 开关），`rtl-coverage.yaml` 记 gap。
+
 ---
+
+
 
 ## cfx15 hart（hart 标识 / 定时器）
 

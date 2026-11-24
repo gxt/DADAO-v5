@@ -209,15 +209,15 @@ def _run_driver(case, ctx, platform, engine, extra_env=None) -> dict:
     if len(modes) > 1:
         cmd += ["--mode", getattr(ctx, "mode", "hmon")]
     access = case.get("cfx_access") or []
-    if access or len(modes) > 1:
+    model = case.get("cache_model") or getattr(ctx, "cache_model", None)
+    if access or len(modes) > 1 or case.get("cache_model"):
         if access:
             cmd += ["--cfx-access", ",".join(str(c) for c in access)]
         bootrom = getattr(ctx, "bootrom", None)
         if bootrom:
             cmd += ["--bootrom", str(bootrom)]
-        cache_model = getattr(ctx, "cache_model", None)
-        if cache_model:
-            cmd += ["--cache-model", str(cache_model)]
+        if model:
+            cmd += ["--cache-model", str(model)]
     return _finish(case, ctx, case_dir, cmd, signature,
                    "driver(%s): %s" % (platform, case["file"]),
                    platform=platform, extra_env=extra_env)

@@ -8,6 +8,9 @@
 # 字段：
 #   cases.<id>.modes      非空列表，取值 hmon|smon|umon（每条必须显式给出，无缺省）
 #   cases.<id>.reasons    被排除模式 -> 非空原因（显式标注；不得静默不可运行）
+#   cases.<id>.cache_model 可选，on|off（缺省 = 跟随 `run_arch --cache-model`）：
+#                         该 case 的机器维度；`off` 只用于 cfx5 的 CACHE-27 分支
+#                         （`arch-cache-004`），RTL 无该开关时由 rtl-coverage 记 gap。
 #   cases.<id>.cfx_access 可选，非空列表，取值 umon/smon/hmon/ptw/cache/hart/
 #                         pmem/time/power（`run_arch.py` 的 DIR_CFX 名字）：
 #                         该用例在目标模式下**需要访问**的 cfx（m16-testcases-017）。
@@ -222,3 +225,37 @@ cases:
     reasons:
       smon: "supv 的同步异常进 cfx_smon，而本测试链不装载 cfx_smon（common/env-README「已知语义边界」）⇒ 四条 CFXREG 的 cause 取不到，镜像会中止；fail-closed 排除"
       umon: "user 的同步异常进 cfx_umon 的 user 行；本链不装载它（同上）⇒ CFXREG 的 cause 取不到；fail-closed 排除"
+
+  # cfx5 cache（cfx5，m16-testcases-009）：寄存器面 + D 单行 + I 侧取指重取在
+  # 三模式各跑一次；`cfx_access: [cache]` 打开目标 cfx 的三行来源掩码。
+  arch-cache-001:
+    modes: [hmon, smon, umon]
+    cfx_access: [cache]
+    cache_model: "on"
+
+  # D 侧范围（PA 单行边界 / PA 区间 / all）同样三模式。
+  arch-cache-002:
+    modes: [hmon, smon, umon]
+    cfx_access: [cache]
+    cache_model: "on"
+
+  # 拒绝面（读 WO / 写 RO / 保留 rc / 非法编码 ⇒ CFXREG）只在 hmon：
+  # supv/user 下本测试链没有同步异常处理程序（`common/env-README.md`
+  # 「已知语义边界」），cause 取不到 ⇒ fail-closed 排除。
+  arch-cache-003:
+    modes: [hmon]
+    cfx_access: [cache]
+    cache_model: "on"
+    reasons:
+      smon: "supv 的同步异常进 cfx_smon，而本测试链不装载 cfx_smon（common/env-README「已知语义边界」）⇒ 六条 CFXREG 的 cause 取不到；fail-closed 排除"
+      umon: "user 的同步异常进 cfx_umon 的 user 行；本链不装载它（同上）⇒ CFXREG 的 cause 取不到；fail-closed 排除"
+
+  # `cache-model=off` 的机器维度（CACHE-27）：只 hmon（故障观察同 003）；
+  # 机器维度由本条的 `cache_model: off` 覆盖 `run_arch --cache-model`。
+  arch-cache-004:
+    modes: [hmon]
+    cfx_access: [cache]
+    cache_model: "off"
+    reasons:
+      smon: "off 分支的故障观察需要 hmon 的同步异常处理程序；supv 无 cfx_smon ⇒ fail-closed 排除"
+      umon: "同上（user 的 cfx_umon user 行未装载）⇒ fail-closed 排除"

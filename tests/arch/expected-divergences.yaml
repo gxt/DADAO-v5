@@ -114,3 +114,20 @@ divergences:
         slot: 3
         label: flush_adwbfail_count
         chipyard: 0
+
+  - id: DIV-15
+    kind: permanent
+    scope: [qemu]
+    impact: "QEMU 的 I 侧「D 写回后未发 I 命令仍取到新码」不可判：`cache.body.S` 的 I 侧用例只断言 invalidate/flush 后取指重取（三方逐槽），不把「I|clean 是 no-op 的旧指令可见性」放进槽。"
+    reason: "QEMU 是功能模型，没有 I 阵列：任何写回 RAM 的 `address_space_write` 都会经 `DIRTY_MEMORY_CODE` 的 `tb_invalidate_phys_range()` 使 TB 失效（`m16-qemu-003` 新发现①）。因此「D clean 后未发 I 命令」在 QEMU 上恒取新码，而 CACHE-19 的 `I|clean` no-op 要求在 gem5/RTL 上仍取旧码——同一槽在 QEMU 上不可能与 gem5/RTL 同值。该点的独立判据改由 RTL 缓存日志承担（`check_cache_rtl.py`：`icache` 不得出现 `op=clean`），gem5 的负例由 `m16-gem5-022` 的证据承担。"
+    user_ruling: "2026-11-24（本任务；DIV-01 的同类功能模型限制）"
+    status: active
+
+  - id: DIV-16
+    kind: temporary
+    scope: [chipyard]
+    impact: "cfx5 的 S/U 运行模式在 RTL 上不可达：`arch-cache-001/002` 的 smon/umon 在 RTL 承载记 GAP（`cache/rtl-coverage.yaml`），QEMU/gem5 侧仍按三模式逐槽判；hmon 的三方逐槽（`arch-cache-001/002/003`）不受影响。"
+    reason: "RTL 的 cfx5 只有 cg8 寄存器面：`GewuParams` 没有给 cfx5 开 `commonRows`（`GewuFile` 的 require 只允许 cfx0–cfx3/hart/pmem/time）⇒ cfx5 的 `cg0`–`cg3`（`user/supv_cfxreg` 行与 `cg3 rc12` deleg）不存在；supv/user 访问 cfx5 ⇒ `CFXREG`。hmon 走 hypv 行（DIV-07：RTL 的 hypv 行不强制）可读 cg8，所以三方 hmon 用例可跑。"
+    user_ruling: "2026-11-24（本任务发现；是否给 RTL 补 cfx5 commonRows 待用户裁定）"
+    status: active
+    close_when: "RTL 给 cfx5 开 `commonRows`（补齐 cg0–cg7 与 deleg）并复跑 RTL 的 smon/umon，删本条与 `rtl-coverage.yaml` 的四条 mode gap"
