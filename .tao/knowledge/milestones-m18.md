@@ -58,7 +58,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
-| m18-testcases-003 | 2026-11-24 11:35 | 异步探针迁 R2（每次覆盖/monitor mask/一次捕获）+ escape cg9 ⇒ CFXESC 向量（43/44 + 7 注入） |
+| m18-testcases-003 | 2026-11-24 11:49 | 异步探针迁 R2（每次覆盖/monitor mask/一次捕获）+ escape cg9 ⇒ CFXESC 向量（43/44 + 7 注入） |
 | m18-infra-003 | 2026-11-24 11:18 | musl 源树重放（26 patches、musl 0 problem）+ 信号帧复核（sigaction01/open01 PASS；旧 QEMU 配对） |
 | m18-qemu-006 | 2026-11-24 00:31 | QEMU 捕获缓冲修订（去 gating、每次覆盖、escape cg9 ⇒ CFXESC；13+33 证据） |
 | m18-linux-019 | 2026-11-23 22:41 | `k5_syscall_selftest` 锁内 `find_vma`（K5 282/282、S 组 rwsem 0；源码锁断言+注入） |
