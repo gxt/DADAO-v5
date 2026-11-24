@@ -1599,3 +1599,12 @@
   closed_in: null
   resolved_by: null
   title: "【P2】共享 `.work/source/chipyard` 落后于 master：2026-11-25 04:27 的补丁序列（`b555b0a`）不含 `m16-chipyard-027`（`WumingCache.tagBits` 仍是 48），而 Vast sim（05:03，md5 `da61cb6b…`）由该树构建 ⇒ `m16-testcases-019` 的 `arch-ptw-013` RTL 三方逐槽 BLOCKED（多段 `loadmem` 挂死）。需在写者空闲后 `apply_series` 重放到当前 master 并重建，或明确「验收一律用隔离树」的流程。"
+- id: ISS-539
+  scope:
+  - chipyard
+  - spec
+  milestone: M16
+  status: open
+  closed_in: null
+  resolved_by: null
+  title: "【P1·跨里程碑】`m17-spec-002`（ADR-0062 扁平 cause 位图）已改 `DADAO-12`，但 RTL（chipyard）仍按 ADR-0056 ⇒ RTL 上凡比较 `CAUSE_*` 的 guest 断言必红：`m16-testcases-019` 的 `arch-ptw-009 rc=47`、`arch-ptw-011 rc=54`、`arch-ptw-013 rc=3`（隔离树、master 补丁集实测）。这不是 M16 任务缺陷；闭合路径 = `m17-chipyard-001`（RTL 扁平 cause 对齐）合入后复跑。M16 收口前需用户裁定：RTL 相关 signature 暂时退回 gap，或接受 RTL 红并登记差异。"
