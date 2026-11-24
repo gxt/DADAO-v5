@@ -30,7 +30,6 @@
 
 | 编号 | 预估时间 | 一句改动 |
 | --- | --- | --- |
-| m18-gem5-002 | 2–3 h | gem5 `CFXESC` 交付路由：`inst.cc` fallback 应进当前 cfx（现进当前模式 monitor，与 `DADAO-12 §5.1/§5.3` 不符） |
 | m18-linux-023 | 4–8 h | Linux `arch/dadao` 按扁平位图解码 PTW 故障（由 M17 迁入；依赖 M17 平台迁移） |
 | m18-linux-007 | 2–3 h | pthread create/join 闭环（K6 缺口；静态优先，动态待 002） |
 | m18-linux-009 | 2–3 h | K4 探针稳定性（ISS-493 F5 改 `task_pt_regs(current)` / ISS-494 有界等待；连跑 20 次） |
@@ -49,6 +48,7 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
+| m18-gem5-002 | 2026-11-25 00:03 | 2–3 h | gem5 `CFXESC` 交付路由：`inst.cc` fallback 应进当前 cfx（现进当前模式 monitor，与 `DADAO-12 §5.1/§5.3` 不符） |
 | m18-qemu-001 | 2026-11-24 23:18 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
 | m18-linux-008 | 2026-11-24 23:18 | 2–3 h | K1–K4 门控断言补强（ISS-444/457/487/488；可达 FAIL + §4a 退役） |
 | m18-linux-022 | 2026-11-23 20:12 | 3–5 h | 内核异步新模型（mask 归 monitor、src 位 cfxha、一帧多源） |
