@@ -116,9 +116,12 @@ __perm_ok_\@:
 	ENV_PERM_OPEN_RC \name, \ha, \row, rc3, 3
 	.if	\deleg
 	ENV_PERM_OPEN_DELEG \name, \ha
-	.else
-	add.si	rb7, 8
 	.endif
+	@@ 固定 40 B/cfx（rc0–rc3 @0/8/16/24、deleg @32、8 B 余量）：`deleg` 分支
+	@@ 也走同一步长 —— 否则下一 cfx 的 rc0 会覆盖上一 cfx 的 deleg 原值
+	@@ （`m16-chipyard-023` 用两个声明 cfx 时实测：cfx_hart 的 deleg 槽被
+	@@ cfx_time 的 supv_cfxtrap 原值 0x…F7 覆盖，还原回读判红）。
+	add.si	rb7, 8
 	add.si	rb7, 32
 .endm
 
@@ -199,9 +202,8 @@ __perm_ok_\@:
 	ENV_PERM_RESTORE_RC \name, \ha, \row, rc3, 3
 	.if	\deleg
 	ENV_PERM_RESTORE_DELEG \name, \ha
-	.else
-	add.si	rb7, 8
 	.endif
+	add.si	rb7, 8			@@ 与 ENV_PERM_OPEN 同一步长（40 B/cfx）
 	add.si	rb7, 32
 .endm
 
@@ -238,31 +240,51 @@ __perm_ok_\@:
 .endm
 
 @@ 未声明的 arch cfx 一律收窄（cfx_hmon 是源 cfx 本身 ⇒ 跳过；cfx_umon 的 rc0 留用）
+@@
+@@ `ENV_PERM_SKIP_NARROW_<ha>`：目标平台**未实现**该 cfx 时由驱动传入 —— 未实现
+@@ cfx 的任一访问本身已 `CFXREG`（fail-closed），再写它的掩码只会让准备段自己
+@@ 吃到 `CFXREG`（m16-chipyard-023：gem5 的 `kCfxhaMap` 无 cfx5）。
 .macro	ENV_PERM_NARROW_ALL row
 	set.rb	rb7, ENV_PERM_NARROW_SAVE
 	.ifndef	ENV_CFX_ACCESS_0
+	.ifndef	ENV_PERM_SKIP_NARROW_0
 	ENV_PERM_NARROW cfx0, 0, \row, 1
 	.endif
+	.endif
 	.ifndef	ENV_CFX_ACCESS_2
+	.ifndef	ENV_PERM_SKIP_NARROW_2
 	ENV_PERM_NARROW cfx2, 2, \row, 0
 	.endif
+	.endif
 	.ifndef	ENV_CFX_ACCESS_4
+	.ifndef	ENV_PERM_SKIP_NARROW_4
 	ENV_PERM_NARROW cfx4, 4, \row, 0
 	.endif
+	.endif
 	.ifndef	ENV_CFX_ACCESS_5
+	.ifndef	ENV_PERM_SKIP_NARROW_5
 	ENV_PERM_NARROW cfx5, 5, \row, 0
 	.endif
+	.endif
 	.ifndef	ENV_CFX_ACCESS_15
+	.ifndef	ENV_PERM_SKIP_NARROW_15
 	ENV_PERM_NARROW cfx15, 15, \row, 0
 	.endif
+	.endif
 	.ifndef	ENV_CFX_ACCESS_32
+	.ifndef	ENV_PERM_SKIP_NARROW_32
 	ENV_PERM_NARROW cfx32, 32, \row, 0
 	.endif
+	.endif
 	.ifndef	ENV_CFX_ACCESS_34
+	.ifndef	ENV_PERM_SKIP_NARROW_34
 	ENV_PERM_NARROW cfx34, 34, \row, 0
 	.endif
+	.endif
 	.ifndef	ENV_CFX_ACCESS_63
+	.ifndef	ENV_PERM_SKIP_NARROW_63
 	ENV_PERM_NARROW cfx63, 63, \row, 0
+	.endif
 	.endif
 .endm
 

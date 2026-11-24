@@ -50,6 +50,25 @@ Chipyard 是 DADAO 的 **RTL SoC 仿真平台 + 核迁入目标**（`ADR-0024 D1
   `0xffff_ffff_0000` 启动、hmon/smon 由索引表装入各自 SRAM、测试体经 `+loadmem`
   进入。`arch-power-001` 的 `space0_start/size` 回到规范值，DIV-12 已删。
 
+## cfx_time 的寄存器面（`m16-chipyard-023`）
+
+- **面**：`DADAO-12 §4.10` —— `cg10 rc0 = time_freq`（RO，测试机 1 GHz ⇒ 1 count =
+  1 ns，`contract-see §3`）、`cg10 rc1 = time_value`（RO，64 位自由运行）、
+  `rc2`–`rc63` 保留（读写 ⇒ `CFXREG`）。**没有中断**：per-hart 的比较/`TIMER`
+  仍在 `cfx_hart`（`§4.7`），本 cfx 不 arming、不比较、不投递。
+- **实现方式 = 计数器不是 cfx 状态**：`GewuTimeParams(cfxId, freq)` 只带频率常量；
+  `time_value` 由核经 `GewuFileIO.time.timeValue` 注入（`WumingCore` 用与
+  `cfx_hart cg8 rc2 cycle` **同一个** `cycles` 计数器 ⇒ 「同基准、单 hart 下读数
+  相等」是构造性的）。Tiny 不实例化（`time = None` ⇒ 行 `CFXREG`、无端口无触发器）。
+- **权限面**：`cfx_time` 打开 `commonRows`（`cg0`–`cg2` 模式行、`cg3 rc12`、
+  `cg4`/`cg6`…），U/S 的两轴判定才有行可开（`DIV-09` 的 cfx34 部分由此关闭）；
+  与 QEMU/gem5「每个 cfx 都有通用 `cg0`–`cg7` 面」一致。
+- **验证**：`tests/arch/time/` —— `arch-time-001`（三模式，7 槽：freq/RO 再读/
+  单调/严格递增/增量有界/epoch/与 `cycle` 同基准）与 `arch-time-002`（只 hmon，
+  6 槽：保留 rc 与 RO 写 ⇒ `CFXREG`）由 `run_arch.py --platforms
+  qemu,gem5,chipyard` **三方逐槽**比较（无差异登记）；RTL 侧另从 `+verbose` 的
+  `cfx2 …` trace 独立复核原始读数（`delta = 0xf3e` 级）与访问模式。
+
 ## 启动与 `+loadmem`（`m12-chipyard-003`）
 
 - **启动约定 = 固定入口**：Tiny BootROM 是静态平铺 trampoline（`tests/shared/bootrom/bootrom.S`：装 SP、装应用入口、`jump`），入口取 `machine-tiny.inc` 的 `ENTRY = 0xffff_ff01_0100`。**不用 ELF `e_entry`**：ROM 里没有 ELF 解析器/image index table/DTB，无法在运行时得知 `e_entry`；固定入口与 `QEMU kaiwu-tiny` 的 raw-kernel 约定（`kernel_base + kernel_reserved`）同源，应用链接脚本（`tests/shared/bootrom/tiny_smoke.lds`）用同一常量。

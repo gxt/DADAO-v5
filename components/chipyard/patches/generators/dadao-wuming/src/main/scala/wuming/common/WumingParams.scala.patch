@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
 new file mode 100644
-index 0000000..4f103a4
+index 0000000..2878230
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingParams.scala
-@@ -0,0 +1,421 @@
+@@ -0,0 +1,457 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" tile parameters (m12-chipyard-001).
@@ -27,7 +27,7 @@ index 0000000..4f103a4
 +import freechips.rocketchip.tile._
 +import freechips.rocketchip.rocket.{ICacheParams, DCacheParams, BTBParams, MulDivParams}
 +import freechips.rocketchip.prci.ClockSinkParameters
-+import gewu.{GewuCacheParams, GewuCfxParams, GewuHartParams, GewuParams, GewuPmemParams, GewuPtwParams}
++import gewu.{GewuCacheParams, GewuCfxParams, GewuHartParams, GewuParams, GewuPmemParams, GewuPtwParams, GewuTimeParams}
 +
 +/** DADAO core parameters: no RISC-V semantics. */
 +case class WumingCoreParams(
@@ -108,6 +108,12 @@ index 0000000..4f103a4
 +  val cache: Int = 5
 +  /** Hart management + asynchronous frame (`DADAO-12` §4.7, `ADR-0060`); Vast only. */
 +  val hart: Int = 15
++  /**
++    * Per-system global time counter (`DADAO-12` §4.10); Vast only
++    * (`m16-chipyard-023`).  Read-only, no interrupt: the per-hart timer stays in
++    * `cfx_hart`.
++    */
++  val time: Int = 34
 +  /** Physical-memory management (`DADAO-12` §4.9); Vast only. */
 +  val pmem: Int = 32
 +}
@@ -138,6 +144,15 @@ index 0000000..4f103a4
 +  // reset of every ordinary cfx, `cfx_ptw` included.
 +  private val maskInitHmon = BigInt("7ffffffffffffff7", 16)
 +  private val maskInitCfx = BigInt("fffffffffffffff7", 16)
++
++  /**
++    * `cfx_time_freq` of the test machine (`DADAO-12 §4.10`, `contract-see §3`):
++    * 1 GHz — one count per nanosecond, the unit of `cfx_hart cg8 rc2 cycle` on
++    * the single-hart test machine.  The spec leaves the value to the hardware;
++    * the contract fixes this convention, so it is named here rather than left
++    * as a literal at the call site.
++    */
++  private val timeFreqHz = BigInt(1000000000)
 +
 +  /**
 +    * The implemented cfx set: `cfx_hmon` (monitor), `cfx_power` (BootROM), plus
@@ -235,6 +250,21 @@ index 0000000..4f103a4
 +          // two-axis `cfxreg` rule (DIV-09: a cfx without `<mode>` rows is
 +          // fail-closed there).  `cfx_pmem` is a system-service cfx (SBI
 +          // PMEM_DMA runs from smon), so it opts in like `cfx_hart`.
++          commonRows = true),
++        // cfx_time (`m16-chipyard-023`, `DADAO-12 §4.10`): the per-system global
++        // time counter, `cg10 rc0/rc1` read-only and **no interrupt** (the
++        // per-hart timer/interrupt stays in cfx_hart).  It has no internal
++        // space and no vector, so its `vectorBase`/space fields are zero; it
++        // opts into the common mode rows so supv/user can be granted the read
++        // through its `<mode>_cfxreg` mask and `cg3 rc12` delegation
++        // (`contract-see §3`).
++        GewuCfxParams(
++          id = WumingCfxHa.time,
++          vectorBase = 0,
++          spaceDesc = 0,
++          spaceSize = 0,
++          spaceAttr = 0,
++          sourceMaskReset = maskInitCfx,
 +          commonRows = true)) else Nil),
 +    monitor = 0, // cfx_hmon owns the exception frame (spec/Kaiwu §4.1)
 +    dataBits = 64,
@@ -269,6 +299,12 @@ index 0000000..4f103a4
 +      paSize = required(p.paRamSize, "paRamSize"),
 +      romBase = required(p.bootromBase, "bootromBase"),
 +      romSize = required(p.bootromSize, "bootromSize"))) else None,
++    // `cfx_time`'s cg10 face exists only on Kaiwu-Vast (`m16-chipyard-023`):
++    // the test machine counts at 1 GHz (`contract-see §3`: 1 count = 1 ns,
++    // `cfx_time_value` and the single hart's `cycle` share this base).  Tiny
++    // has no cfx34 and gains neither ports nor flops.
++    time = if (p.useVM) Some(GewuTimeParams(WumingCfxHa.time, timeFreqHz))
++      else None,
 +    // `m16-chipyard-020`: Kaiwu-Vast runs the DADAO-12 §5.2 run-mode entry
 +    // routing (U/S/H monitors, `<mode>_switch_run_mode`, two-axis `cfxreg`
 +    // checks).  Kaiwu-Tiny has no U/S/J mode at all (`spec/Kaiwu §2` keeps the

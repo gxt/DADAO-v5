@@ -137,7 +137,12 @@ def load_modes(path, case_ids):
     `cfx_access`（m16-testcases-017）：该用例在目标模式下需要访问的 cfx 列表
     （取 `DIR_CFX` 的名字，如 `cache`/`ptw`）。环境据此在降模式前打开目标 cfx 的
     `<mode>` 行来源掩码（`DADAO-12 §3`）；声明本身不放宽默认掩码。非法/重复/
-    空列表，或在只有 hmon 的用例上声明（永远用不到）⇒ ConfigError，不静默忽略。
+    空列表 ⇒ ConfigError，不静默忽略。
+
+    只有 hmon 的用例同样**可以**声明：环境的权限准备在 hypv 跑，而 hypv 行在
+    QEMU/gem5 上是被强制的 —— 若 body 要访问一个**非自身**的 cfx（hmon 用例的
+    常见形态），不打开它就会被环境自己的「未声明 cfx 收窄」封死（`CFXPERM`，
+    `m16-chipyard-023` 实测 0xE2）。声明的作用因此与允许集无关。
     """
     try:
         data = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -212,10 +217,6 @@ def load_modes(path, case_ids):
                     problems.append("%s: `cfx_access` 重复 %r" % (where, name))
                 else:
                     cfx_access.append(DIR_CFX[name])
-            if cfx_access and not ({"smon", "umon"} & set(modes)):
-                problems.append(
-                    "%s: 声明了 `cfx_access` 但允许集只有 hmon —— hmon 模式"
-                    "不需要（也无法）做权限准备，声明永远用不到" % where)
         out[cid] = {"modes": modes, "mode_reasons": reasons,
                     "cfx_access": cfx_access}
     if problems:
@@ -340,7 +341,8 @@ def self_test() -> int:
             print("  FAIL  后端接线/fail-closed: %s" % problem)
     else:
         print("  PASS  后端接线: gem5 driver 承载已接（qemu_gem5_shim）；"
-              "chipyard 的 cfx4 已接（check_ptw_rtl.py）、其余 cfx fail-closed")
+              "chipyard 的 cfx4/cfx34 已接（check_ptw_rtl.py / "
+              "check_time_rtl.py）、其余 cfx fail-closed")
 
     print("-" * 72)
     if problems:

@@ -11,7 +11,8 @@ scope。本文件只定义统一入口与 fail-closed 约定：
     `tools/testcases/parity/qemu_gem5_shim.py` 跑（`-machine kaiwu-vast`、
     `--profile vast`；shim 支持 `cache-model=on` → `--caches`，当前 ptw 载体不依赖
     cache）；`kind: asm` 仍未接，显式抛 `PlatformError`（不静默跳过）。
-  * `chipyard`：**cfx4 已接**（`m16-chipyard-018`）：`kind: driver` 且本
+  * `chipyard`：**cfx4（`m16-chipyard-018`）与 cfx34（`m16-chipyard-023`）已接**：
+    `kind: driver` 且本
     cfx 目录有 `check_<cfx>_rtl.py` 时调 RTL 承载（`--only/--sim/--work-dir/
     --signature-out`）；驱动返回 77 = `rtl-coverage.yaml` 里登记的 `gap`
     （记为 `GAP`，非 PASS、非 FAIL）。没有 RTL 承载的 cfx ⇒ `PlatformError`
@@ -82,7 +83,7 @@ def self_test_fail_closed() -> list:
     if not implemented("gem5"):
         problems.append("gem5: GEM5_IMPLEMENTED=False，但 cfx4 driver 承载应由 "
                         "qemu_gem5_shim 提供（m16-testcases-010）")
-    # chipyard：cfx4 已接；没有 RTL 承载的 cfx 必须显式 PlatformError。
+    # chipyard：cfx4/cfx34 已接；没有 RTL 承载的 cfx 必须显式 PlatformError。
     if not implemented("chipyard"):
         problems.append("chipyard: CHIPYARD_IMPLEMENTED=False，但 cfx4 RTL 承载"
                         "应由 check_ptw_rtl.py 提供（m16-chipyard-018）")
@@ -188,11 +189,13 @@ def _run_driver(case, ctx, platform, engine, extra_env=None) -> dict:
     `--mode`，这样既有单模式驱动（如 ptw 的 `check_tlb.py`）的命令行不变；
     单模式用例仍按 `hmon` 语义运行。
 
-    环境型驱动（同一门槛：声明多模式）另收两件（m16-testcases-017）：
+    env 载体（`m16-testcases-017`）另收三件，门槛 = **声明了 `cfx_access` 或
+    多模式**（`m16-chipyard-023`：单模式的 `arch-time-002` 也要做权限准备）：
       * `--cfx-access <cfxha,...>`：`modes.yaml` 的 `cfx_access` 声明，驱动据此
         逐 cfx 传 `--defsym ENV_CFX_ACCESS_<cfxha>=1` 给环境做权限准备；
       * `--bootrom <path>`：本驱动用显式 BootROM（`run_arch --bootrom`），保证
-        asm 与 driver 两条路径跑同一份固件。
+        asm 与 driver 两条路径跑同一份固件；
+      * `--cache-model on|off`。
     """
     case_dir = Path(ctx.work) / case["id"] / platform
     driver_dir = case_dir / "driver"
@@ -205,7 +208,8 @@ def _run_driver(case, ctx, platform, engine, extra_env=None) -> dict:
     modes = case.get("modes") or ["hmon"]
     if len(modes) > 1:
         cmd += ["--mode", getattr(ctx, "mode", "hmon")]
-        access = case.get("cfx_access") or []
+    access = case.get("cfx_access") or []
+    if access or len(modes) > 1:
         if access:
             cmd += ["--cfx-access", ",".join(str(c) for c in access)]
         bootrom = getattr(ctx, "bootrom", None)
@@ -250,6 +254,12 @@ def _run_chipyard(case, ctx) -> dict:
            "--work-dir", str(driver_dir),
            "--signature-out", str(signature),
            "--timeout", str(ctx.timeout)]
+    # 运行模式（与 qemu/gem5 同一门槛）：只有**声明了多个允许模式**的 driver 才收
+    # `--mode`，单模式 RTL 承载（如 `check_ptw_rtl.py`）的命令行因此不变
+    # （`m16-chipyard-023`：`arch-time-001` 的 RTL 承载要出三个镜像）。
+    modes = case.get("modes") or ["hmon"]
+    if len(modes) > 1:
+        cmd += ["--mode", getattr(ctx, "mode", "hmon")]
     return _collect(case, ctx, case_dir, cmd, signature,
                     "rtl: %s" % driver.name, platform="chipyard")
 

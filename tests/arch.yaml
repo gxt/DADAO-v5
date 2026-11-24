@@ -315,3 +315,29 @@
   level: full
   requires:
   - qemu
+
+# cfx_time 基础用例（m16-chipyard-023）：载体 `arch/time/check_time.py`，
+# body 走 env 机制（`arch/time/time{,_reject}.body.S` + `common/env-{hmon,smon,umon}`），
+# QEMU 与 gem5 同一份源码；RTL 承载 `arch/time/check_time_rtl.py`（同一 case、
+# 同一槽序，由 `check-arch-vast` 按需跑三方）。001 = 只读时间面（7 槽，三模式各
+# 跑一次：单调 / 严格递增 / 增量有界 / epoch / 与 `cfx_hart cycle` 同基准）；
+# 002 = 保留 rc 与 RO 写的拒绝面（6 槽，只 hmon，`modes.yaml` 写明排除原因）。
+# **cfx34 没有中断**：两条 case 都不配置/不等待中断。
+- id: arch-time-001
+  file: arch/time/check_time.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu
+- id: arch-time-002
+  file: arch/time/check_time.py
+  kind: driver
+  machine: vast
+  platforms:
+  - system
+  level: full
+  requires:
+  - qemu

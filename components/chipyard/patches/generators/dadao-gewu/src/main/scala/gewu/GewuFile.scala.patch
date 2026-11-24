@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..1154e0d
+index 0000000..3dd5393
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
-@@ -0,0 +1,1939 @@
+@@ -0,0 +1,2030 @@
 +// See LICENSE for license details.
 +//
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
@@ -106,6 +106,15 @@ index 0000000..1154e0d
 +//                ignored without an exception)
 +//   cg9 rc5/rc6  async_excp_vector (RW, 4-byte aligned) / fixed supv switch
 +//   cg9 rc7-15   reserved ⇒ CFXREG
++//
++// `cfx_time` (cfx34 on `Kaiwu-Vast`; absent on `Kaiwu-Tiny`, where its rows are
++// CFXREG) is the per-system global time counter (`DADAO-12` §4.10): **read
++// only, no interrupt** — the per-hart timer and its interrupt stay in
++// `cfx_hart` (`§4.7`), so nothing here arms, compares or delivers:
++//
++//   cg10 rc0     time_freq (RO; the machine's counting frequency in Hz)
++//   cg10 rc1     time_value (RO; free-running 64-bit count, reset from 0)
++//   cg10 rc2-63  reserved ⇒ CFXREG
 +//
 +// Every other (cg, rc) of an implemented cfx is not on this profile and
 +// reads/writes as CFXREG — never as a silent zero.  A `cfxha` that names no
@@ -324,6 +333,26 @@ index 0000000..1154e0d
 +}
 +
 +/**
++  * The `cfx_time` face (`DADAO-12` §4.10).
++  *
++  * Only two read-only registers: `cg10 rc0` = `time_freq` (the machine's
++  * counting frequency in Hz) and `cg10 rc1` = `time_value` (free-running
++  * 64-bit count).  The counter itself is **not** state of this module: like
++  * `cycle`, it is an architectural time input driven by the core, because the
++  * same time base also serves `cfx_hart cg8 rc2` (`contract-see` §3: 1 count =
++  * 1 ns on the test machine, `cfx_time_value` and the single hart's `cycle`
++  * read the same value).
++  *
++  * There is **no** `timer_cmp`/`timer_ctrl` and **no** interrupt here: the
++  * per-hart compare/interrupt is `cfx_hart`'s (`§4.7`).  `freq` is a machine
++  * constant, so it is injected rather than hard-coded (`ADR-0053` D5); the row
++  * numbers are the spec's, like `GewuCauseId`'s.
++  */
++case class GewuTimeParams(cfxId: Int, freq: BigInt) {
++  require(freq > 0, "Gewu: `time_freq` is a positive counting frequency (Hz)")
++}
++
++/**
 +  * The `cfx_pmem` register face and DMA command port (`DADAO-12` §4.9,
 +  * `m16-chipyard-022`).
 +  *
@@ -414,6 +443,14 @@ index 0000000..1154e0d
 +    */
 +  hart: Option[GewuHartParams] = None,
 +  /**
++    * `m16-chipyard-023`: `cfx_time` (`cg10` freq/value) exists when this is set.
++    *
++    * `Some` means the machine implements the per-system global time counter
++    * (`DADAO-12` §4.10) and exposes `cg10 rc0/rc1` as read-only rows; `None`
++    * (Kaiwu-Tiny) leaves those rows undefined, i.e. CFXREG, and adds no ports.
++    */
++  time: Option[GewuTimeParams] = None,
++  /**
 +    * `m16-chipyard-022`: `Some` when this machine implements `cfx_pmem`
 +    * (`Kaiwu-Vast`); `None` leaves its rows undefined (CFXREG, `Kaiwu-Tiny`)
 +    * and adds neither ports nor flops.
@@ -465,6 +502,11 @@ index 0000000..1154e0d
 +  // Same rule for `cfx_hart`: its cg8/cg9 rows must belong to an implemented cfx.
 +  require(hart.forall(h => cfx.exists(_.id == h.cfxId)),
 +    "Gewu: `hart.cfxId` must name an implemented cfx")
++  // Same rule for `cfx_time`: its cg10 rows must belong to an implemented cfx.
++  require(time.forall(t => cfx.exists(_.id == t.cfxId)),
++    "Gewu: `time.cfxId` must name an implemented cfx")
++  require(time.forall(t => t.freq < (BigInt(1) << dataBits)),
++    "Gewu: `time_freq` must fit one cfx register")
 +  // Same rule for `cfx_pmem`: its cg8/cg12-cg15 rows must belong to an
 +  // implemented cfx.
 +  require(pmem.forall(m => cfx.exists(_.id == m.cfxId)),
@@ -476,8 +518,9 @@ index 0000000..1154e0d
 +  // `contract-see §6.3`) while its own cg8 rows are decoded by the hart face.
 +  require(cfx.filter(_.commonRows).forall(c =>
 +    (c.id >= 0 && c.id <= 3) || hart.exists(_.cfxId == c.id) ||
-+      pmem.exists(_.cfxId == c.id)),
-+    "Gewu: `commonRows` is defined for the cfx0-cfx3 monitors, cfx_hart and cfx_pmem only")
++      pmem.exists(_.cfxId == c.id) || time.exists(_.cfxId == c.id)),
++    "Gewu: `commonRows` is defined for the cfx0-cfx3 monitors, cfx_hart, " +
++      "cfx_pmem and cfx_time only")
 +  require(cfx.filter(_.commonRows).forall(c => c.scratchRegs >= 2 && c.scratchRegs <= 64),
 +    "Gewu: `scratchRegs` must be 2..64 (`DADAO-12 §3.7`)")
 +}
@@ -645,6 +688,14 @@ index 0000000..1154e0d
 +  // The group is absent on a machine without `cfx_hart` (Kaiwu-Tiny), so Tiny
 +  // neither sees these ports nor pays for the flops.
 +  val hart: Option[HartState] = gp.hart.map(_ => new HartState(gp.dataBits))
++
++  // ---- `cfx_time` state (`DADAO-12` §4.10) --------------------------------
++  //
++  // `time_value` is **not** cfx state: it is the per-system global count, an
++  // architectural time input driven by the core (the same base as `cycle`).
++  // The group is absent on a machine without `cfx_time` (Kaiwu-Tiny), so Tiny
++  // neither sees these ports nor pays for the flops.
++  val time: Option[TimeState] = gp.time.map(_ => new TimeState(gp.dataBits))
 +}
 +
 +/** The time base and retirement pulse `cfx_hart` consumes (`§4.7`). */
@@ -653,6 +704,12 @@ index 0000000..1154e0d
 +  val timeValue = Input(UInt(dataBits.W))
 +  /** One-cycle pulse per retired instruction (`cg8 rc3 insn`). */
 +  val retire = Input(Bool())
++}
++
++/** The per-system global time base `cfx_time` reads (`§4.10`). */
++class TimeState(dataBits: Int) extends Bundle {
++  /** Free-running count in `cfx_time_value` units (`cg10 rc1`). */
++  val timeValue = Input(UInt(dataBits.W))
 +}
 +
 +/**
@@ -1107,6 +1164,24 @@ index 0000000..1154e0d
 +    val isCfx = anyRead
 +  }
 +
++  // `cfx_time` rows (`DADAO-12` §4.10), decoded only when the machine implements
++  // the cfx: on any other profile these rows stay CFXREG and add no hardware.
++  // Both rows are **read-only** and there is no interrupt row at all.
++  private val timeRows: Option[TimeRows] = gp.time.map { t =>
++    val isCfx = io.addr.ha === t.cfxId.U(6.W)
++    new TimeRows(
++      isFreq = isCfx && io.addr.cg === 10.U && io.addr.rc === 0.U,
++      isValue = isCfx && io.addr.cg === 10.U && io.addr.rc === 1.U)
++  }
++
++  /** The two `cfx_time` row decoders (one-hot by cg/rc construction, `§4.10`). */
++  private class TimeRows(val isFreq: Bool, val isValue: Bool) {
++    // cg10 rc0/rc1 are RO; every write of them — and every other rc of cg10 —
++    // is CFXREG (`§4.10`).
++    val anyRead = isFreq || isValue
++    val isCfx = anyRead
++  }
++
 +  // Monitor common face rows (`m16-chipyard-019`): only the enabled cfx decode
 +  // them, so an opted-out profile adds no terms (all `CommonEntry`s absent).
 +  private def anyCommon(f: CommonEntry => Bool): Bool =
@@ -1151,9 +1226,11 @@ index 0000000..1154e0d
 +      ptwRows.map(_.anyRead).getOrElse(false.B) ||
 +      cacheRows.map(_.anyRead).getOrElse(false.B) ||
 +      hartRows.map(_.anyRead).getOrElse(false.B) ||
-+      pmemRows.map(_.anyRead).getOrElse(false.B))
++      pmemRows.map(_.anyRead).getOrElse(false.B) ||
++      timeRows.map(_.anyRead).getOrElse(false.B))
 +  // `tlb_control` and `cache_ctrl` are WO: writing them is legal, reading them
-+  // is not (they are not in the read sets above).
++  // is not (they are not in the read sets above).  `cfx_time`'s two rows are
++  // RO, so they never appear in the write set: any write of `cg10` is CFXREG.
 +  io.writeOk := implemented && cg3Allowed && cacheCtrlLegal &&
 +    (writeBase || commonWrite ||
 +      ptwRows.map(_.anyWrite).getOrElse(false.B) ||
@@ -1305,6 +1382,20 @@ index 0000000..1154e0d
 +    pmemRdata.map(d => Mux(pmemRows.get.isCfx, d, basePtwCacheHart))
 +      .getOrElse(basePtwCacheHart)
 +
++  // `cfx_time` read data (`DADAO-12` §4.10): `time_freq` is the machine's
++  // counting frequency, `time_value` the free-running per-system count.  Both
++  // are RO; no other rc of cg10 is decoded (writes are CFXREG via `writeOk`).
++  private val timeRdata = for {
++    rows <- timeRows
++    t <- gp.time
++  } yield Mux(rows.isFreq, t.freq.U(gp.dataBits.W),
++    Mux(rows.isValue,
++      io.time.map(_.timeValue).getOrElse(0.U(gp.dataBits.W)),
++      0.U(gp.dataBits.W)))
++  private val basePtwCacheHartPmemTime =
++    timeRdata.map(d => Mux(timeRows.get.isCfx, d, basePtwCacheHartPmem))
++      .getOrElse(basePtwCacheHartPmem)
++
 +  // Monitor common face read data (`m16-chipyard-019`, `DADAO-12 §3`).  The
 +  // mode-row index is `cg` (0/1/2); `cg3` rows stay in `baseRdata` above.
 +  private val commonRdata =
@@ -1333,7 +1424,7 @@ index 0000000..1154e0d
 +                      0.U(gp.dataBits.W)))))))))
 +    })
 +
-+  io.rdata := Mux(commonRead, commonRdata, basePtwCacheHartPmem)
++  io.rdata := Mux(commonRead, commonRdata, basePtwCacheHartPmemTime)
 +
 +  when(io.wEn && io.writeOk) {
 +    when(isMask) {

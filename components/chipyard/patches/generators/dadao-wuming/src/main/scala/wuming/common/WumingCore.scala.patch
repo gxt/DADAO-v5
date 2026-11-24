@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
 new file mode 100644
-index 0000000..3af2512
+index 0000000..fd5f7db
 --- /dev/null
 +++ b/generators/dadao-wuming/src/main/scala/wuming/common/WumingCore.scala
-@@ -0,0 +1,2323 @@
+@@ -0,0 +1,2328 @@
 +// See LICENSE for license details.
 +//
 +// DADAO "wuming" core: split fetch/data ports, 8-beat fetch queue and the
@@ -386,6 +386,11 @@ index 0000000..3af2512
 +    h.timeValue := cycles
 +    h.retire := retirePulse
 +  }
++  // `cfx_time cg10 rc1 time_value` (`DADAO-12 §4.10`, `m16-chipyard-023`): the
++  // same per-system time base as `cycle` (one count per clock on the test
++  // machine).  It is an input to `gewu` because the counter is not cfx state —
++  // and `cfx_time` has no timer/compare of its own (no interrupt).
++  gewu.io.time.foreach { t => t.timeValue := cycles }
 +
 +  // Semihosting return register (contract-semihosting: scalar result in rd8).
 +  val semiRetReg = 8.U(6.W)

@@ -1,0 +1,46 @@
+# tests/arch/time/expected.yaml — `cfx_time`（cfxha 34）用例的签名流登记
+# （`m16-chipyard-023`）。
+#
+# **登记，不是判据**：期望值的唯一真源是 `tests/arch/time/time_oracle.py` 的
+# 现场派生（`spec/DADAO-12 §4.10` / `contract-see §3` / `§6.1`）；本文件的
+# `signature` 由两个承载的 `--selfcheck` / `--self-test` 与派生值**双向**核对，
+# `run_arch.py --self-check` 另做结构校验。两者不符即红（不许单侧手改）。
+#
+# 槽里只有**契约常量**与探针算出的**静态谓词**（1 = 成立）：`time_value` 的
+# 读数本身随时间变化，不能进静态槽；原始读数（单调/严格递增/增量有界/同基准）
+# 由 RTL 承载从 `+verbose` trace 独立复核（`check_time_rtl.py`）。
+#
+# 判据来源：
+#   * `cfx_time` 的 cfxha（34）、`cg = 10`、`rc0 = freq` / `rc1 = value`、两者 RO：
+#     `DADAO-12 §4.10`；
+#   * `time_freq = 1_000_000_000`（1 GHz ⇒ 1 count = 1 ns）、复位后从 0 起算、
+#     与 `cfx_hart cg8 rc2 cycle` 同基准：`contract-see §3`；
+#   * `CFXREG = 1 << 2`：`DADAO-12 §3.6` / `contract-see §6.1`。
+schema: 1
+cases:
+  - id: arch-time-001
+    carrier: arch/time/check_time.py
+    checks:
+      - label: freq
+        note: cg10 rc0 = time_freq（两次；RO 稳定）
+        signature: [0x3b9aca00, 0x3b9aca00]
+      - label: time_value
+        note: >-
+          隔约 900 条指令两次读 cg10 rc1：单调 / 严格递增 / 增量有界（高 32 位差
+          ∈ {0,1}）/ 高位为 0（epoch）/ 与 cfx_hart cycle 同基准 ⇒ 全为 1
+        signature: [0x1, 0x1, 0x1, 0x1, 0x1]
+
+  - id: arch-time-002
+    carrier: arch/time/check_time.py
+    checks:
+      - label: freq
+        note: cg10 rc0 = time_freq（RO；被拒的写之后仍不变）
+        signature: [0x3b9aca00]
+      - label: reject
+        note: >-
+          cg10 rc2 读 / rc63 读 / rc0 写 / rc1 写 ⇒ CFXREG（cause_id = 1<<2）；
+          cg10 上没有 timer_cmp/timer_ctrl
+        signature: [0x4, 0x4, 0x4, 0x4]
+      - label: freq_after
+        note: 被拒的写没有改到 time_freq
+        signature: [0x3b9aca00]

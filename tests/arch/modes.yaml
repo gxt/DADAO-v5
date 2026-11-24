@@ -15,7 +15,9 @@
 #                         `<mode>` 行来源掩码（`DADAO-12 §3`，只清源 cfx 位），
 #                         退出还原；**声明本身不放宽默认掩码**。未声明 ⇒ 保持
 #                         缺省权限（访问非自身 cfx 收 `CFXPERM`）。
-#                         只有 hmon 的用例不得声明（hmon 不插权限准备 ⇒ 用不到）。
+#                         只有 hmon 的用例**也可以**声明：权限准备在 hypv 跑，
+#                         而 hypv 行在 QEMU/gem5 上被强制；body 访问非自身 cfx
+#                         时不打开就会被「未声明 cfx 收窄」封死（`m16-chipyard-023`）。
 #                         驱动侧交付契约见 `tests/arch/common/env-README.md`。
 #
 # 模式语义（hmon/smon/umon = hypv/supv/user 的当前模式监视器）与环境实现见
@@ -204,3 +206,19 @@ cases:
     reasons:
       smon: "supv 的同步异常进 cfx_smon（本载体只装 cfx_hmon 的 hypv 处理程序）；且 supv 访问 cfx_power 的 cg 受 cg3 rc12 授权约束，拒绝面观测不到 ⇒ fail-closed 排除"
       umon: "user 的同步异常进 cfx_umon 的 user 行，需把处理程序装进 U 页并单独授予执行权限；拒绝面的 cause 取不到 ⇒ 排除"
+
+  # cfx_time（cfx34，m16-chipyard-023）：只读时间面在三种运行模式下各跑一次；
+  # 掩码/`cg3 rc12` 授权按目标 cfx 的 `<mode>` 行打开（`cfx_access`）。
+  arch-time-001:
+    modes: [hmon, smon, umon]
+    cfx_access: [time, hart]
+
+  # 保留 rc（rc2/rc63）与 RO 写（rc0/rc1）⇒ `CFXREG` 的拒绝面只在 hmon：
+  # 本测试链在 supv/user 下没有同步异常处理程序（`common/env-README.md`
+  # 「已知语义边界」），拒绝面在 S/U 会被环境按 fail-closed 中止 ⇒ 显式排除。
+  arch-time-002:
+    modes: [hmon]
+    cfx_access: [time]
+    reasons:
+      smon: "supv 的同步异常进 cfx_smon，而本测试链不装载 cfx_smon（common/env-README「已知语义边界」）⇒ 四条 CFXREG 的 cause 取不到，镜像会中止；fail-closed 排除"
+      umon: "user 的同步异常进 cfx_umon 的 user 行；本链不装载它（同上）⇒ CFXREG 的 cause 取不到；fail-closed 排除"
