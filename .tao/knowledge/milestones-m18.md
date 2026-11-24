@@ -49,7 +49,6 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m18-linux-010 | 2026-11-24 23:18 | 30 min | ISS-486 措辞订正（libc 侧检查；3 处注释/文档，产物不变） |
 | m18-linux-011 | 2026-11-24 23:18 | 30 min | ISS-496 applet 计数改按白名单/符号表派生（去 `enabled - infra` 抵消假设） |
 | m18-gem5-001 | 2026-11-24 23:18 | 2–3 h | gem5 `escape` frame selector 语义/断言（b6 + decode assertions + check_b6） |
 | m18-qemu-001 | 2026-11-24 23:18 | 2–3 h | ISS-501 `lr`/`sc` 窄宽度条件写丢失（`gen_sc` + 同址窄 CAS 向量） |
@@ -61,6 +60,7 @@
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m18-linux-010 | 2026-11-24 23:42 | ISS-486 措辞订正为 libc 侧口径（musl sigaltstack 先拦）；判据订正为 crt1.o 不变 + 成员级除 version.o 外相同 |
 | m18-testcases-003 | 2026-11-24 11:49 | 异步探针迁 R2（每次覆盖/monitor mask/一次捕获）+ escape cg9 ⇒ CFXESC 向量（43/44 + 7 注入） |
 | m18-infra-003 | 2026-11-24 11:18 | musl 源树重放（26 patches、musl 0 problem）+ 信号帧复核（sigaction01/open01 PASS；旧 QEMU 配对） |
 | m18-qemu-006 | 2026-11-24 00:31 | QEMU 捕获缓冲修订（去 gating、每次覆盖、escape cg9 ⇒ CFXESC；13+33 证据） |

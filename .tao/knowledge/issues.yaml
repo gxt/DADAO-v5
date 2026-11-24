@@ -1094,10 +1094,10 @@
   - linux
   - infra
   milestone: M18
-  status: open
-  closed_in: null
-  resolved_by: null
-  title: "【P3】`m14-infra-005` 两处措辞把 libc 行为归给内核（复核 Accepted 时登记，非阻断）：① 任务书完成区「新发现①」写「`sigaltstack` 运行时下限实测 2376 … 建议内核侧确认 `do_sigaltstack` 的 `min_ss_size`」——实际是 musl `src/signal/sigaltstack.c` 的 `sysconf(_SC_MINSIGSTKSZ)` 在用户态先拦（本次 `MINSIGSTKSZ=2376` 生效），内核那条轮不到，engineer 建议已撤销；② `components/musl/patches/arch/dadao/bits/signal.h.patch` 与 `tools/infra/musl_sigframe_probe*.{py,c}` 头注释里「kernel refuses / kernel's bounds rules」同源措辞。处置：随下次触碰这两处源码时一并改成「libc 侧检查」，不动判据与实现。"
+  status: closed
+  closed_in: M18
+  resolved_by: m18-linux-010
+  title: "【P3】`m14-infra-005` 两处措辞把 libc 行为归给内核（复核 Accepted 时登记，非阻断）：① 任务书完成区「新发现①」写「`sigaltstack` 运行时下限实测 2376 … 建议内核侧确认 `do_sigaltstack` 的 `min_ss_size`」——实际是 musl `src/signal/sigaltstack.c` 的 `sysconf(_SC_MINSIGSTKSZ)` 在用户态先拦（本次 `MINSIGSTKSZ=2376` 生效），内核那条轮不到，engineer 建议已撤销；② `components/musl/patches/arch/dadao/bits/signal.h.patch` 与 `tools/infra/musl_sigframe_probe*.{py,c}` 头注释归因内核。**已订正（`m18-linux-010`）**：② 两处源码/探针注释改为 libc 侧口径（musl `sigaltstack()` 的 `sysconf(_SC_MINSIGSTKSZ)` 用户态先拦、先于 syscall 返回 ENOMEM），① 所在的 `m14-infra-005` 任务书已归档，属历史层不改写；判据与实现未动（`libc.a`/`crt1.o` md5 不变）。"
 - id: ISS-487
   scope:
   - linux

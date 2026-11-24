@@ -18,9 +18,9 @@
  * it in src/signal/sigaction.c) and the main flow must continue; a second
  * round uses a plain handler (no SA_SIGINFO) so the other restorer entry,
  * __restore, is exercised as well.  A third round installs a sigaltstack and
- * checks the frame is built inside it (SA_ONSTACK).  The last round asks the
- * kernel for its own sigaltstack bounds: below MINSIGSTKSZ the call must be
- * refused (ENOMEM), at and above it accepted.
+ * checks the frame is built inside it (SA_ONSTACK).  The last round probes
+ * the libc-side sigaltstack floor: musl's sigaltstack() rejects `ss_size`
+ * below MINSIGSTKSZ (ENOMEM, before the syscall), at and above it accepted.
  *
  * Output is one `SIGFRAME <key>=<value>` line per fact on fd 1 (write(2)
  * directly, so a phase that dies still leaves its lines behind); the gate
@@ -258,9 +258,9 @@ int main(void)
 		 handler_sp < (unsigned long)(altstack + sizeof altstack));
 	emit_key("SIGFRAME after-altstack", 1);
 
-	/* Round 4: the kernel's own sigaltstack bounds, at the two sides of the
-	 * libc minimum: anything below MINSIGSTKSZ (2376 = the frame size) is
-	 * refused with ENOMEM, the minimum itself and a bigger stack accepted. */
+	/* Round 4: the libc-side sigaltstack floor, at the two sides of the
+	 * libc minimum: musl's wrapper rejects anything below MINSIGSTKSZ (2376 =
+	 * the frame size) with ENOMEM, the minimum itself and above accepted. */
 	ss.ss_flags = 0;
 	ss.ss_sp = smallstack;
 

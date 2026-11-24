@@ -21,8 +21,9 @@ Facts judged (each from a `SIGFRAME <key>=<value>` line; a missing line FAILs):
     (→ __restore) both return and the main flow continues;
   * `sigaltstack` + `SA_ONSTACK`: the frame is built inside the alternate
     stack and the handler's own SP proves it;
-  * the kernel's bounds rules: `ss_size` 1024 and 2375 are refused with ENOMEM,
-    2376 (the frame size, i.e. musl's MINSIGSTKSZ) and 8192 are accepted;
+  * the libc-side sigaltstack floor: musl's wrapper refuses `ss_size` 1024 and
+    2375 with ENOMEM before the syscall, while 2376 (the frame size, i.e.
+    musl's MINSIGSTKSZ) and 8192 are accepted;
   * header constants: uc_mcontext offset 168, `ip` at 512, MINSIGSTKSZ 2376,
     sigset_t 128 B, SA_RESTORER 0x04000000.
 
@@ -293,9 +294,9 @@ def judge(rep: Report, text: str, rc: int) -> None:
               num("handler.altbase"))
     want("after-altstack", 1)
 
-    # Round 4: the kernel's own sigaltstack bounds.  The floor observed and
-    # enforced is MINSIGSTKSZ (2376 = the frame size): below it ENOMEM, at and
-    # above it accepted.
+    # Round 4: the libc-side sigaltstack floor.  musl's wrapper rejects
+    # ss_size < MINSIGSTKSZ (2376 = the frame size) with ENOMEM in user space,
+    # and hands at/above it to the kernel.
     def want_signed(key: str, expected: int) -> None:
         value = num(key)
         if isinstance(value, int) and value >= 1 << 63:

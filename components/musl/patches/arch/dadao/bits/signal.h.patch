@@ -1,9 +1,9 @@
 diff --git a/arch/dadao/bits/signal.h b/arch/dadao/bits/signal.h
 new file mode 100644
-index 0000000..797af17
+index 0000000..e9b880c
 --- /dev/null
 +++ b/arch/dadao/bits/signal.h
-@@ -0,0 +1,162 @@
+@@ -0,0 +1,165 @@
 +/*
 + * DADAO signal numbers, SA_* flags, the saved register file and _NSIG.
 + *
@@ -39,18 +39,21 @@ index 0000000..797af17
 + * SA_RESTORER (0x04000000) is mandatory on this port: there is no vDSO, so
 + * the return address pushed for a handler can only come from the caller's
 + * `sa_restorer`; `sigaction()` fills it with __restore_rt
-+ * (src/signal/dadao/restore.s), and the kernel refuses a frame without the
-+ * flag (-EFAULT -> force_sigsegv).  [.tao/contracts/contract-abi.md §4.5;
++ * (src/signal/dadao/restore.s), and a frame without the flag is rejected
++ * (-EFAULT -> force_sigsegv).  [.tao/contracts/contract-abi.md §4.5;
 + * kernel arch/dadao/{include/uapi/asm/signal.h,kernel/signal.c}]
 + *
-+ * MINSIGSTKSZ 2376 is the kernel's rt_sigframe: 128 B siginfo + 2248 B
-+ * ucontext (168 B header + 2080 B sigcontext).  The kernel's sigaltstack()
-+ * refuses anything shorter with ENOMEM (the compiled floor observed on K5 is
-+ * 2376: 2375 refused, 2376 accepted), and get_sigframe() only checks that the
-+ * frame fits when the interrupted SP is *already* on the alternate stack —
-+ * a smaller-but-accepted stack is overwritten below its buffer, so the libc
-+ * minimum has to cover the real frame.  SIGSTKSZ keeps the 8 KiB default of
-+ * the other 64-bit ports, which is 5816 B above the new minimum.
++ * MINSIGSTKSZ 2376 is the size of the kernel's rt_sigframe: 128 B siginfo +
++ * 2248 B ucontext (168 B header + 2080 B sigcontext), i.e. exactly one frame.
++ * The floor is enforced on the libc side: musl's sigaltstack()
++ * (src/signal/sigaltstack.c) compares `ss_size` with `sysconf(_SC_MINSIGSTKSZ)`
++ * and fails with ENOMEM before the syscall — the floor observed on K5 (2375
++ * refused, 2376 accepted) is this libc check, not a kernel bound.  Separately,
++ * get_sigframe() only checks that the frame fits when the interrupted SP is
++ * *already* on the alternate stack — a smaller-but-accepted stack is
++ * overwritten below its buffer, so the libc minimum has to cover the real
++ * frame.  SIGSTKSZ keeps the 8 KiB default of the other 64-bit ports, which is
++ * 5816 B above the new minimum.
 + */
 +
 +#if defined(_POSIX_SOURCE) || defined(_POSIX_C_SOURCE) \
