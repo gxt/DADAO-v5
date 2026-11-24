@@ -409,6 +409,15 @@ make check-patch-tree
 - **零增益**：缓存只在 `useVM` 的机器实例化，Tiny 的 FIRRTL 里 `WumingCache` 出现 **0** 次；首册 38 个镜像在改前/改后 Tiny 二进制上仍逐字节相同。
 - **验证**：`tools/chipyard/dcache/vastdcache.S`（+ `vastdcache.lds`）把页表、同组 8 行数据、代码页与 PTW 新旧目标放在 PA 固定地址；`gen_vastdcache_tables.py` 是几何/PTE/magic/组索引的**单一真源**（cause one-hot 从 `contract-see §6.1` 现场解析），`check_vastdcache.py` 比对 35 条 8 字节记录 + 日志事件（组索引、受害者序列、写回顺序、PTW 命中；`--self-test` 11 条可达 FAIL）。覆盖：同址 1 缺失 + 4 命中；同组 8 行共存、第 9/10 行按 LRU 淘汰（受害者 B1→B2）；写后读命中不回内存；**写回时机以取指端口为独立观测量**（当时无 I-Cache）：把 `trap cfx_hmon` 指令字经缓存写入代码页后，淘汰前取指仍读到内存里的旧值（UNDI），强制淘汰（同组 8 次填充）后取指读到 `trap`（CFXTRAP）；PTW 读到核内经缓存写入的新 PTE（改 L2 PTE → `invalid/all` → 重走查 ⇒ 新映射的数据）。注入：替换策略改 MRU / `writeBack = false` / 组索引 6 位 ⇒ 均判据红；`cp`+md5 还原并强制重建后回绿。
 
+## cfx_hart 异步捕获缓冲（R2）：每次进入整体覆盖 + `escape` 不返回（`m16-chipyard-026`）
+
+- **范围**：`m18-spec-005` 把 `cg9` 改成**进入瞬间的捕获缓冲**（`DADAO-12 §4.7`/`§5.4`）；本任务把 `m16-chipyard-024` 的 pre-R2 行为（`src_frame != 0` 防重入、`escape` 释放帧）改到 R2。
+- **仲裁去帧门控**：删除 `src_frame != 0` 的「只置 pending / 不进入」分支（`io.intr.valid` 只看 `asyncAllowed`）；同一指令边界把 `pending & ~mask` 一次投递并**整体覆盖** `cg9`（`prev_*`/`cause_ip`/`src_frame`），`src_pending` 扣除、`excp_async_num` 每次进入 +1。没有帧活动期、没有 `frame_valid`、没有软件清 `src_frame`。
+- **`escape`**：`imms18[1] = 1`（汇编 `imms20 = 8`）编码合法但**不是异步返回** ⇒ 按所选帧无效报当前 cfx 的 `CFXESC`，不改变 cfx/运行模式/`cg9`；`imms18 = 3` / `[17:2] ≠ 0` ⇒ `ILLI`；同步 `cg5` 帧语义不变（`escapeCg9Ok` 删除，`escapeOk = escapeCg5Ok`）。
+- **掩码/pending 不变**：掩码仍是当前运行模式 monitor 的 `cg8 rc1`（按 `inner_run_mode` 取行、全 1 复位）；pending 跟随源（投递即清、源 ack 即落），两个位图软件只读。
+- **不回归**：Tiny 无 cfx_hart，异步模型整体不接线；020 的两轴判权、cfx5/cfx02 探针不变。
+- **验证**：`tests/arch/hart/cfx15.S` + `check_cfx15.py` 改到 R2（H 74 槽 / U/S 各 34 槽；捕获快照、**覆盖语义**、`escape imms18=2 ⇒ CFXESC` 且 `cg9` 不变、`3`/`4` ⇒ `ILLI`、掩码/pending/ack、RO、三模式）；注入「恢复 `src_frame != 0` 门控」「恢复 `escape imms18=2` 的 cg9 返回」两路均红，`cp`+md5 还原并强制重建后回绿；Tiny `11-cfx`/`01-load-store` 结果字节不变。
+
 ## cfx_hart 异步模型修订：cg9 七槽 + 掩码归 monitor + 源位图（`m16-chipyard-024`）
 
 - **范围**：`ADR-0061`（Accepted）取代 `ADR-0060` 的 cg9 表、掩码归属与释放语义；上一节（021）的 16 槽/五掩码/`1 << 17` 已**作废**，保留为历史记录。

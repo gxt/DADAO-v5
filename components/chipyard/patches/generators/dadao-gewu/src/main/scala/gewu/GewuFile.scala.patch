@@ -1,9 +1,9 @@
 diff --git a/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
 new file mode 100644
-index 0000000..5371d62
+index 0000000..a06c96f
 --- /dev/null
 +++ b/generators/dadao-gewu/src/main/scala/gewu/GewuFile.scala
-@@ -0,0 +1,1683 @@
+@@ -0,0 +1,1656 @@
 +// See LICENSE for license details.
 +//
 +// DADAO `gewu` generator — Gewu ≡ cfx 寄存器堆（类比 Rocket `CSRFile`）。
@@ -483,9 +483,11 @@ index 0000000..5371d62
 +    val ha = Input(UInt(6.W))
 +    val off = Input(UInt(gp.dataBits.W))
 +    /**
-+      * `ADR-0060` D4: `imms18[1]` is the frame selector — 0 selects the
-+      * `cg5` synchronous frame, 1 selects `cfx_hart cg9` (asynchronous).  The
-+      * core already rejects `imms18 = 3` and `imms18[17:2] != 0` as ILLI.
++      * `DADAO-12` §5.1: `imms18[1]` is the frame selector — 0 selects the
++      * `cg5` synchronous frame; 1 selects `cg9`, but `R2` makes `cg9` a
++      * capture buffer, not a return frame, so such an `escape` always faults
++      * with the current cfx's `CFXESC` and switches nothing.  The core already
++      * rejects `imms18 = 3` and `imms18[17:2] != 0` as ILLI.
 +      */
 +    val frame = Input(Bool())
 +  }
@@ -548,9 +550,10 @@ index 0000000..5371d62
 +    * carrying **all** pending sources the running mode's monitor mask
 +    * (`cfx0`–`cfx3 cg8 rc1`) lets through.  `ack` performs the entry (frame,
 +    * supv switch, vector), consumes exactly the delivered bits and counts the
-+    * frame once.  A masked event, or an event while a frame is live
-+    * (`async_src_frame != 0`), only keeps its pending bit — lifting the mask
-+    * later delivers it; nothing is ever queued per source.
++    * frame once.  A masked event only keeps its pending bit — lifting the
++    * mask later delivers it; nothing is ever queued per source.  Every entry
++    * overwrites `cg9` (`R2`, `DADAO-12 §5.4(三)`): `async_src_frame != 0` is a
++    * capture snapshot, never a gate.
 +    */
 +  val intr = new Bundle {
 +    val valid = Output(Bool())
@@ -1442,8 +1445,10 @@ index 0000000..5371d62
 +  // whichever mode is running.  Both bitmaps of `cg9` are indexed by the
 +  // *source cfxha* (TIMER = `cfx_hart`'s own id), which is also the index of
 +  // the only mask: the running mode's monitor `cg8 rc1`.  One frame carries
-+  // every pending-and-allowed source; a live frame (`src_frame != 0`) turns a
-+  // new event into a pending bit only (no nesting, no per-source queue).
++  // every pending-and-allowed source.  `R2` (`DADAO-12 §5.4(三)`): a non-zero
++  // `src_frame` is only the last capture and never blocks an entry — each
++  // entry overwrites `cg9` as a whole, so there is no frame phase and no
++  // nesting token.
 +  private def hartOpt: Option[HartRegs] = hartRegs
 +  /** The only source wired in this milestone: the hart-local TIMER, whose
 +    * cfxha is `cfx_hart` itself.  `m16-chipyard-022` adds PMEM_DMA (cfxha 32)
@@ -1486,9 +1491,7 @@ index 0000000..5371d62
 +  // the bitmap, so reserved bits can never appear).
 +  private val asyncAllowed: UInt =
 +    asyncPendingNow & ~asyncMaskByMode & ~timerGate & timerSrcBit
-+  private val asyncFrameLive: Bool =
-+    hartOpt.map(_.asyncSrcFrame =/= 0.U).getOrElse(false.B)
-+  io.intr.valid := asyncModel.B && !asyncFrameLive && asyncAllowed =/= 0.U
++  io.intr.valid := asyncModel.B && asyncAllowed =/= 0.U
 +  io.intr.frame := asyncAllowed
 +  io.intr.vector := hartOpt.map(_.asyncVector).getOrElse(0.U(gp.dataBits.W))
 +
@@ -1535,36 +1538,24 @@ index 0000000..5371d62
 +  }
 +
 +  // ---- events and redirect request (D4) -----------------------------------
-+  // `escape` (`DADAO-12` §5.3/§5.4, `ADR-0061` D9): `cfxha` must be the
-+  // *current* cfx (`inner_cfx_code`) and the selected frame must be valid —
-+  // for `cg5` its `excp_cause_id`, for `cfx_hart cg9` its
-+  // `async_src_frame != 0`.  Otherwise the caller enters the current cfx with
-+  // CFXESC and nothing switches.  The frame selector (`imms18[1]`) picks `cg5`
-+  // (0) or `cfx_hart cg9` (1); the core has already rejected `imms18 = 3` /
-+  // `imms18[17:2] != 0` as ILLI.
++  // `escape` (`DADAO-12` §5.1/§5.3/§5.4, `ADR-0061` D9): `cfxha` must be the
++  // *current* cfx (`inner_cfx_code`) and the selected `cg5` frame must carry a
++  // cause id.  `R2`: `cg9` is a capture buffer, not a return frame, so the
++  // frame selector `imms18[1] = 1` (assembler `imms20 = 8`) is a legal
++  // encoding that always faults — "selected frame invalid" ⇒ the current cfx's
++  // `CFXESC`; it changes neither cfx/mode nor `cg9`.  The core has already
++  // rejected `imms18 = 3` / `imms18[17:2] != 0` as ILLI.
 +  private val escapeFrame: Bool = io.escape.frame
 +  private val escapeCg5Ok =
 +    io.escape.valid && !escapeFrame && curImplemented &&
 +      io.escape.ha === curCfx && hasFrame
-+  private val escapeCg9Ok: Bool = hartOpt.map { r =>
-+    io.escape.valid && escapeFrame && curImplemented &&
-+      io.escape.ha === curCfx && r.asyncSrcFrame =/= 0.U
-+  }.getOrElse(false.B)
-+  private val escapeOk = escapeCg5Ok || escapeCg9Ok
++  private val escapeOk = escapeCg5Ok
 +  io.escapeOk := escapeOk
-+  // cg9 only allows offset 0 (`ADR-0061` D9), so `io.escape.off` is 0 there.
-+  private val escapeTarget = Mux(escapeOk && escapeFrame,
-+    (hartOpt.map(_.asyncCauseIp).getOrElse(0.U(gp.dataBits.W)) +
-+      io.escape.off)(gp.dataBits - 1, 0),
-+    (causeIp(viewIdx) + io.escape.off)(gp.dataBits - 1, 0))
++  private val escapeTarget =
++    (causeIp(viewIdx) + io.escape.off)(gp.dataBits - 1, 0)
 +  io.escapeTarget := escapeTarget
-+  // An async frame carries no `excp_cause_id` (`D8`): the source set is the
-+  // frame bitmap, so the redirect of a cg9 return reports no cause id.
-+  private val escapeCause: UInt = Mux(escapeFrame,
-+    0.U(gp.dataBits.W), causeId(viewIdx))
-+  private val escapeCauseIp: UInt = Mux(escapeFrame,
-+    hartOpt.map(_.asyncCauseIp).getOrElse(0.U(gp.dataBits.W)),
-+    causeIp(viewIdx))
++  private val escapeCause: UInt = causeId(viewIdx)
++  private val escapeCauseIp: UInt = causeIp(viewIdx)
 +
 +  io.redirect.valid := io.excp.valid || escapeOk
 +  // The target must not depend on `excp.valid`: the core feeds it back into its
@@ -1596,49 +1587,31 @@ index 0000000..5371d62
 +    // values.  Saving the pre-escape ones would make the frame claim it was
 +    // entered from the handler and the next `escape` would leave the core in
 +    // the handler's cfx (the QEMU model has the same order: restore, then
-+    // raise).
-+    prevMode(entryIdx) := Mux(escapeOk,
-+      Mux(escapeFrame,
-+        hartOpt.map(_.asyncPrevMode).getOrElse(0.U(gp.modeBits.W)),
-+        prevMode(viewIdx)),
-+      runMode)
++    // raise).  `R2` has no `cg9` return, so a legal `escape` always selects
++    // the `cg5` frame above.
++    prevMode(entryIdx) := Mux(escapeOk, prevMode(viewIdx), runMode)
 +    prevCfx(entryIdx) :=
-+      Mux(escapeOk,
-+        Mux(escapeFrame,
-+          hartOpt.map(_.asyncPrevCfx.pad(gp.dataBits))
-+            .getOrElse(0.U(gp.dataBits.W)),
-+          prevCfx(viewIdx)),
-+        curCfx.pad(gp.dataBits))
++      Mux(escapeOk, prevCfx(viewIdx), curCfx.pad(gp.dataBits))
 +    // §5.2 step 6: the new run mode is the entry target's `<mode>` switch
 +    // value; without the mode routing (Tiny) it stays hypv exactly as before.
 +    runMode := (if (gp.modeEntry) perModeSwitch(entryIdx)
 +      else gp.hypvMode.U(gp.modeBits.W))
 +    curCfx := entryHa
 +  }.elsewhen(escapeOk) {
-+    when(escapeFrame) {
-+      // `ADR-0061` D7/D9: a legal cg9 return restores mode/cfx from the async
-+      // frame and releases it (`async_src_frame := 0`) — that clear is what
-+      // lets the next event enter.  The source masks are policy, not state, so
-+      // nothing is restored into `cfx0`-`cfx3 cg8 rc1`.
-+      for (r <- hartOpt) {
-+        runMode := r.asyncPrevMode
-+        curCfx := r.asyncPrevCfx
-+        r.asyncSrcFrame := 0.U
-+      }
-+    }.otherwise {
-+      runMode := prevMode(viewIdx)
-+      // §5.3 step 2: restore the current cfx of the frame being returned from.
-+      curCfx := prevCfx(viewIdx)(5, 0)
-+    }
++    runMode := prevMode(viewIdx)
++    // §5.3 step 2: restore the current cfx of the frame being returned from.
++    curCfx := prevCfx(viewIdx)(5, 0)
 +  }
 +
-+  // ---- asynchronous entry (`ADR-0061` D3/D7/D10, hart-first) --------------
++  // ---- asynchronous entry (`ADR-0061` D3/D7/D10, hart-first; `R2`) -------
 +  // One *frame* per instruction boundary, whatever the number of sources it
 +  // carries: `src_frame` := the offered union (already pending-and-allowed),
 +  // its bits are consumed from `src_pending` above, the frame is counted once
 +  // (`excp_async_num`) and the saved frame points at the committed
 +  // instruction's successor.  The target is always `cfx_hart` + the fixed
-+  // supv entry; no nested frame can be entered while `src_frame != 0`.
++  // supv entry.  Every entry overwrites all `cg9` slots; a non-zero
++  // `src_frame` from the previous entry is just the old snapshot and never
++  // blocks this one (`DADAO-12 §5.4(三)`, no frame phase, no `frame_valid`).
 +  when(io.intr.ack && io.intr.valid) {
 +    for (r <- hartOpt) {
 +      r.asyncPrevMode := runMode

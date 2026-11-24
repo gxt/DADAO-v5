@@ -73,8 +73,8 @@ divergences:
   - id: DIV-11
     kind: temporary
     scope: [chipyard]
-    impact: "`escape` 的 frame selector（`imms18` bit1）只在实现 cfx_hart 的机器（Vast）上生效：Tiny 保留旧 SBZ 规则（`imms18[17:1] ≠ 0` ⇒ `ILLI`），故规范已定为合法的 `escape …, 8`（`imms18 = 2`，选 cg9 现场）在 Tiny 上仍报 `ILLI`；Vast 上按 cg9 帧退（帧空 ⇒ `CFXESC`）。"
-    reason: "Tiny 无 cfx15（没有 cfx_hart），`m16-chipyard-024` 以「Tiny 无 cfx15 不变」为硬判据（`11-cfx`/`01-load-store` 与 020 基线逐字节相同），`WumingDecoder` 的 `withHart` 门控因此保留。spec（`DADAO-12 §5.1`：`imms18 ∈ {0,1,2}`、汇编层 `imms20 ∈ {0,4,8}`）与工具链（`m16-llvm-001`：`escape …, 8` 可汇编、`…, 12` 被拒）均已落地。`tests/inst/11-cfx/escape_ciii_cfx.S` **不受影响**：其故障例 13/20 判 `imms18 = 3` ⇒ `ILLI`、14/17/18 判 reserved cfxha（cfx6/61）⇒ `ILLI`，都不依赖 selector 的合法路径（该文件 GAP ⑤ 已写明合法 cg9 路径不在本载体断言）。"
+    impact: "`escape` 的 frame selector（`imms18` bit1）只在实现 cfx_hart 的机器（Vast）上生效：Tiny 保留旧 SBZ 规则（`imms18[17:1] ≠ 0` ⇒ `ILLI`），故规范已定为合法的 `escape …, 8`（`imms18 = 2`，选 cg9 现场）在 Tiny 上仍报 `ILLI`；Vast 上按 R2 恒为当前 cfx 的 `CFXESC`（`cg9` 是捕获缓冲、不是返回帧，`m16-chipyard-026`）。"
+    reason: "Tiny 无 cfx15（没有 cfx_hart），`m16-chipyard-024` 以「Tiny 无 cfx15 不变」为硬判据，`WumingDecoder` 的 `withHart` 门控因此保留。spec（`DADAO-12 §5.1`：`imms18 ∈ {0,1,2}`、汇编层 `imms20 ∈ {0,4,8}`）与工具链（`m16-llvm-001`：`escape …, 8` 可汇编、`…, 12` 被拒）均已落地。`m18-testcases-003` 的链例 13 断言 `escape …, 8` 在 Vast 上 ⇒ 当前 cfx 的 `CFXESC`；Tiny 因 `withHart` 门控仍判 `ILLI`，该链例因此在 Tiny 上 rc=1（`m16-chipyard-026` 的 pre-026/current 两版 Tiny RTL 对同一测试源逐镜像字节相同，属本条偏离本身）。"
     user_ruling: "2026-11-23（任务书：Tiny 无 cfx15 不回归）"
     status: active
     close_when: "放开 `WumingDecoder` 的无 cfx_hart 门控（Tiny 按 §5.1 接受 `imms18 = 2`，因无 cg9 帧 ⇒ `CFXESC`），并补一条 Tiny 侧编码用例；届时删除本条"

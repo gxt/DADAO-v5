@@ -24,6 +24,10 @@
 
 ## M16
 
+- **2026-11-24 `m16-chipyard-026`**
+  - 摘要：**`cfx_hart cg9` 改到 R2：进入瞬间的捕获缓冲**（`DADAO-12 §4.7`/`§5.4`，`m18-spec-005`）。删除 `src_frame != 0` 的“只置 pending / 不进入”分支：`io.intr.valid` 只看“pending 且被当前运行模式掩码放行”的源；同一指令边界一次投递并**整体覆盖** `cg9`（`prev_*`/`cause_ip`/`src_frame`），`src_pending` 扣除、`excp_async_num` 每次进入 +1；没有帧活动期、没有 `frame_valid`、没有软件清 `src_frame`。`escape` 的 `imms18[1] = 1`（汇编 `imms20 = 8`）编码合法但**不是异步返回**：删除 `escapeCg9Ok`，按所选帧无效报当前 cfx 的 `CFXESC`，不改 cfx/运行模式/`cg9`；`imms18 = 3` / `[17:2] ≠ 0` ⇒ `ILLI`，同步 `cg5` 帧返回不变。**验证**：`tests/arch/hart/cfx15.S`/`check_cfx15.py` 改到 R2（H 74 槽、U/S 各 34 槽：捕获快照、覆盖语义、`escape imms18=2 ⇒ CFXESC` 且 `cg9` 不变、掩码/pending/ack、RO、三模式）；注入「恢复 `src_frame != 0` 门控」「恢复 `escape imms18=2` 的 cg9 返回」两路红、`cp`+md5 还原重建后回绿；Tiny `11-cfx`/`01-load-store` 不回归。
+  - 执行者：engineer
+
 - **2026-11-24 `m16-chipyard-025`**
   - 摘要：**Vast BootROM 改为 `spec/Kaiwu §3` 的 4 MiB**（`0xffff_ffc0_0000`、`0x40_0000`，复位向量 `0xffff_ffff_0000`），Tiny 保持 64 KiB。`WumingVastAddressMap` 不再复用 Tiny 的 `bootROMBase/bootROMSize/bootROMImage`；新增 `bootROMReset = base + size - 64 KiB` 并用作 `WithBootROM.hang`，镜像名指向 `/dadao/bootrom/bootrom.vast.img`。镜像由 `build_step5_bootrom.py` 的 `--hex-out` 产出稀疏文本 hex（索引表在偏移 0、hmon/smon ELF、末 64 KiB power flat 段；RTL 变体另加载 smon 并把 hmon 保存-跳转槽指向 `+loadmem` 的 `0xffffff010100`），`build.sbt` 的 `resourceGenerators` 同时解码 Tiny/Vast 两份 hex。**Verilator 约束**：上游 `TLROM` 会把 4 MiB 内容展成 `wire [524287:0][63:0]`，实测 5 h+ 未出模型；新增 `DadaoSparseBootROM`/`SparseTLROM`（`dadao-wuming`）按非零区段建小 `Vec`、零间隙返回 0（与整镜像逐字节等价），`System.scala` 仅对 `bootrom.vast` 资源走该路径，`IOBinders` 的 SpikeCosim bootrom 字符串改为只取 `TLROM`。`expected-divergences.yaml` 删除 DIV-12（`arch-power-001` 槽 5/6 回到规范值 `0x3ff_ffc0_0000`/`0x40_0000`）。**验证**：`arch-power-001` 28 槽全绿（无例外）、`arch-hart`/`arch-ptw`/`power` 探针不回归；注入「几何回 64 KiB」「镜像按 base 放 64 KiB」均红，`cp`+md5 还原并强制重建后回绿；`check-patch-tree` chipyard 段 0 problem、`make_patch` 幂等。
   - 执行者：engineer

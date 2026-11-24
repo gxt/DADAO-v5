@@ -30,12 +30,12 @@
 
 | 编号 | 派单时间 | 预估时间 | 一句改动 |
 | --- | --- | --- | --- |
-| m16-chipyard-026 | 2026-11-24 12:16 | 2–3 h | RTL 异步捕获缓冲（R2：每次进入覆盖、无帧门控、`escape imms18=2 ⇒ CFXESC`） |
 
 ## 已验证
 
 | 编号 | 完成时间 | 一句改动 |
 | --- | --- | --- |
+| m16-chipyard-026 | 2026-11-24 14:39 | RTL 异步捕获缓冲（R2：每次进入整体覆盖、无帧门控、`escape imms18=2 ⇒ CFXESC`；Tiny 43 镜像逐字节同基线） |
 | m16-chipyard-025 | 2026-11-24 12:15 | RTL Vast 4 MiB BootROM（窗口 + 稀疏镜像 `SparseTLROM` + 启动路径；DIV-12 删除；零间隙门控） |
 | m16-chipyard-024 | 2026-11-24 00:37 | RTL 异步模型修订（cg9 七槽只读、掩码归 monitor、源位图单帧仲裁；DIV-10 删、DIV-11 改写、DIV-15 删） |
 | m16-chipyard-018 | 2026-11-23 20:55 | cfx4 RTL PTW/TLB 探针纳管三方（15 case：12 ok/3 gap；DIV-14；旧目录删除；dcache 生成器断链修复） |
