@@ -276,3 +276,9 @@
 - **2026-11-22 m16-gem5-024**
   - 摘要：**cfx5 进 cfxha 表，接两轴权限 + `trap`/`escape` 与帧字段**（`m16-gem5-023` 遗留①；用户 2026-11-22 选 A）。`node_cfx.{cc,hh}`：`kCfxhaMap` 由 9 项扩为 10 项（cfx5 **追加在末位**，前九位保持 `kTraceCfxha` 的 cfx↔索引对应；查找按值）；`NodeState::cfx` 数组改用 `NodeNumCfx`；`nodeCfxRead`/`nodeCfxWrite` 把 cfx5 的 `cg8` 分支移到 **cfxreg mask + supv `cg3 rc12` 委托检查之后**（cfx5 通用 cg0–cg7 行按 `contract-see §3` 走原路径：模式 mask、`excp_vector`、`cg4/cg5` 计数与帧字段、`cg7` 全 0 空间描述），其余 `cg8 rc` 仍 `CFXREG`（CACHE-04）；`trap cfx5` 与 `escape cfx5` 走 `nodeTrap`/`nodeEscape` 通用路径；复位 mask `0xFFFF_FFFF_FFFF_FFF7`（只允许 hmon，ADR-0045 D4），无 L1/FIFO/dma 等数据通路改动。**语义边界（未变）**：`cache-model` 仍只决定 cfx5 有没有效果（023/021 的寄存器面、命令判序与 D/I 维护逐字未动）；Tiny 不实现 cfx5（`tiny_cfx.cc` 不含本表）。**行为变化（需知会 017）**：cfx5 寄存器面从此受两轴权限约束——smon/umon（或 cfx_umon 在 supv/user 行）访问默认 ⇒ `CFXPERM + NCFXPERM`，须由固件打开对应 mode 的 `cfxtrap/cfxmem/cfxreg/cfxexe` 行与 `cg3 rc12` 委托（`tests/ee-vast/hmon_k0_vast.S` 当前未开 cfx5）。**三方**：与 QEMU `dadao_cfxha_map`（同样含 5）与 RTL `GewuCacheParams` 的通用行对齐；QEMU 侧 cfx5 的通用 cg0–cg7 已由 `m16-qemu-005` 补齐，无收窄差异。补丁 2 份改（`node_cfx.cc`、`node_cfx.hh`），`make_patch.py` 重导出。
   - 执行者：engineer
+
+## M17
+
+- **2026-11-24 m17-gem5-001**
+  - 摘要：**权限编码扁平化（ADR-0062 D1–D4）**。`fs_machine.hh` 删除 `SubNcfxPerm`（`[39]`）与 `SubNonPtw`（`[57]`），`CauseSub` 只保留权限类 `[38:32]` 与访存类 `[56:48]`；`checkCauseId()` 改为扁平口径（64 位恰一位或全 0，`[31:16]`/`[39]`/`[47:40]`/`[57]`/`[63:58]` 恒 0），取代旧「大类 + wyde 归属」两级断言。PTW 权限/缺失/A-D 回写 raise 点（`node_tlb.cc`）只置高位位图、低位 cause = 0，`cause_info` 分别为访问 VA / PTE 物理地址；`cfxtrap`/`cfx2rd`/`cfx2rc` 来源掩码拒绝（`node_cfx.cc`、`tiny_cfx.cc`）只置 `CFXPERM`，`cause_info` = 触发指令地址（与 `excp_cause_ip` 同值）；`cfxmem`/`cfxexe` 轴拒绝仍按 ADR D4 取访存地址/目标 IP（`fs_tlb.cc`、`node_tlb.cc` 的 `NodePermFault`）。`NONPTW` 位删除后，非 PTW 核内访存只置 `CFXMEM`。补丁 7 份改（`fs_machine.{hh,cc}`、`fs_tlb.cc`、`node_cfx.{hh,cc}`、`node_tlb.cc`、`tiny_cfx.cc`），`make_patch.py` 重导出（106 份）。
+  - 执行者：engineer

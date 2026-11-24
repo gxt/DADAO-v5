@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/node_cfx.cc b/src/arch/dadao/node_cfx.cc
 new file mode 100644
-index 0000000..ff2b123
+index 0000000..1adaf06
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.cc
 @@ -0,0 +1,1477 @@
@@ -351,7 +351,7 @@ index 0000000..ff2b123
 +    const int ci = nodeCfxIndex(target);
 +    uint64_t vec;
 +
-+    // contract-see §6.1.1 / ADR-0056 D3: the class/wyde pairing and the
++    // contract-see §6.1.1 / ADR-0062 D1/D3: the class/wyde pairing and the
 +    // one-hot shape are checked before the id reaches the frame, so a wrong
 +    // raise site fails by name instead of silently handing the kernel an
 +    // ambiguous id.
@@ -1244,8 +1244,8 @@ index 0000000..ff2b123
 +        return;
 +    }
 +    if (nodePermDenied(s, cfxha, 0)) {
-+        nodeCfxRaise(tc, s, CauseCfxPerm | SubNcfxPerm, s.runMode, pc,
-+                     info);
++        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc,
++                     pc);
 +        return;
 +    }
 +
@@ -1327,13 +1327,13 @@ index 0000000..ff2b123
 +        return true;
 +    }
 +    if (nodePermDenied(s, cfxha, 2)) {
-+        nodeCfxRaise(tc, s, CauseCfxPerm | SubNcfxPerm, s.runMode, pc,
-+                     info);
++        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc,
++                     pc);
 +        return true;
 +    }
 +    if (delegDenied(s, ci, cg)) {
-+        nodeCfxRaise(tc, s, CauseCfxPerm | SubNcfxPerm, s.runMode, pc,
-+                     info);
++        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc,
++                     pc);
 +        return true;
 +    }
 +    // cfx_cache (cfx5) keeps the generic cg0-cg7 rows (trap vector, frame,
@@ -1404,13 +1404,13 @@ index 0000000..ff2b123
 +        return true;
 +    }
 +    if (nodePermDenied(s, cfxha, 2)) {
-+        nodeCfxRaise(tc, s, CauseCfxPerm | SubNcfxPerm, s.runMode, pc,
-+                     info);
++        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc,
++                     pc);
 +        return true;
 +    }
 +    if (delegDenied(s, ci, cg)) {
-+        nodeCfxRaise(tc, s, CauseCfxPerm | SubNcfxPerm, s.runMode, pc,
-+                     info);
++        nodeCfxRaise(tc, s, CauseCfxPerm, s.runMode, pc,
++                     pc);
 +        return true;
 +    }
 +    // cfx_cache (cfx5) cg8 register face, after the two-axis checks; other cg
@@ -1467,7 +1467,7 @@ index 0000000..ff2b123
 +            return true;
 +        }
 +        if (ret == 2) {
-+            nodeCfxRaise(tc, s, CauseCfxMem | SubAdwbFail, s.runMode, pc,
++            nodeCfxRaise(tc, s, SubAdwbFail, s.runMode, pc,
 +                         errPa);
 +            return true;
 +        }

@@ -1,9 +1,9 @@
 diff --git a/src/arch/dadao/node_cfx.hh b/src/arch/dadao/node_cfx.hh
 new file mode 100644
-index 0000000..ce9596e
+index 0000000..67516ec
 --- /dev/null
 +++ b/src/arch/dadao/node_cfx.hh
-@@ -0,0 +1,440 @@
+@@ -0,0 +1,441 @@
 +// DADAO Node machine model: cfx register file, run modes, monitor entry/exit,
 +// the cfx_pmem DMA engine, cfx_time/cfx_hart counters and async arbitration.
 +//
@@ -72,9 +72,10 @@ index 0000000..ce9596e
 +    CauseRasUf    = 1ULL << 11,
 +    CauseMalign   = 1ULL << 12,
 +    CauseIalign   = 1ULL << 13,
-+    /* Page-table missing/fragment and A/D write-back failure are reported as
-+     * CauseCfxMem; HSJU/R/W/X denial as CauseCfxPerm (DADAO-12
-+     * §2.2.6/§5.2 + Kaiwu §7.1).  No PTWERR/page-level one-hot cause. */
++    /* A page-table fault sets one bit of the flat [38:32]/[56:48] bitmap and
++     * clears the low cause (ADR-0062 D1/D2); CauseCfxMem/CauseCfxPerm mean
++     * non-PTW internal access and cfx source-mask denial only.  No PTWERR
++     * low cause. */
 +    CauseTimer    = 1ULL << 10,
 +    CausePmemDma  = 1ULL << 8,
 +};

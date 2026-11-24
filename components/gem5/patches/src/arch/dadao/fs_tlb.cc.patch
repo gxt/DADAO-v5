@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/fs_tlb.cc b/src/arch/dadao/fs_tlb.cc
 new file mode 100644
-index 0000000..d9f1058
+index 0000000..a6ceada
 --- /dev/null
 +++ b/src/arch/dadao/fs_tlb.cc
 @@ -0,0 +1,110 @@
@@ -49,7 +49,7 @@ index 0000000..d9f1058
 +        // BootROM/SRAM, or cfxha 3 outside the hmon SRAM) is CFXMEM on both
 +        // the fetch and the data path (spec/Kaiwu §1.2).
 +        const Addr ip = (mode == BaseMMU::Execute) ? vaddr : instPc;
-+        return machineFaultAt(FaultCFXMEM, ip, vaddr, SubNonPtw);
++        return machineFaultAt(FaultCFXMEM, ip, vaddr);
 +    }
 +
 +    if (rom && mode == BaseMMU::Write) {
@@ -65,7 +65,7 @@ index 0000000..d9f1058
 +        const int kind = (mode == BaseMMU::Execute) ? 3 : 1;
 +        if (isa != nullptr && isa->tinyState().active &&
 +            tinyAccessDenied(isa->tinyState(), vaddr, kind)) {
-+            return machineFaultAt(FaultCfxPerm, instPc, vaddr, SubNcfxPerm);
++            return machineFaultAt(FaultCfxPerm, instPc, vaddr);
 +        }
 +    }
 +

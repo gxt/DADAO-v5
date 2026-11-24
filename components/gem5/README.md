@@ -521,9 +521,11 @@ DADAO 的 gem5 功能参考（M11）。上游基线与补丁序列由
   `PTBR=0`、TLB 空、ASID=0；cfx 复位行按 `spec/DADAO-12 §3` / `DADAO-13 §1`。
 - **地址路由**：`addr[47:42]==0` 且 `ptw_enable=0` ⇒ `CFXMEM`；`ptw_enable=1`
   ⇒ guest TLB → 两级步进（512 MiB 超页 / 64 KiB 页、SPF/GPF、HSJU、R/W/X、
-  A/D）；页表异常进 `cfx_ptw`（`PTWERR` 的 cause_info = PTE PA）；cfx2/3/17
-  内部 SRAM 段外 ⇒ `CFXMEM`；保留 cfxha 普通 ld/st ⇒ `CFXMEM`；其它未映射
-  ⇒ `CFXMEM`（不再有独立的 `0x87`）。
+  A/D）；页表权限/缺失/A/D 回写故障按**扁平位图**只置 `[38:32]`/`[56:48]` 之一
+  （低位 cause = 0，`CFXPERM`/`CFXMEM` = 0），`cause_info` = 访问 VA（`[56]` =
+  PTE 物理地址）；cfx2/3/17 内部 SRAM 段外 ⇒ `CFXMEM`；保留 cfxha 普通 ld/st
+  ⇒ `CFXMEM`；其它未映射 ⇒ `CFXMEM`（不再有独立的 `0x87`）。cfx 来源掩码拒绝
+  只置 `CFXPERM`、`[63:32]` 全 0，`cause_info` 按轴取地址（ADR-0062 D2/D4）。
 - **cfx/monitor**：cfx0/1/2/3/4/15/17/18/63 寄存器面（cg0–cg7，cg3 仅 hypv，
   cg6 scratch=4，cg7 只读空间描述符）、`trap`/`escape`/`cfx2rd`/`cfx2rc` 与
   `switch_run_mode`/`excp_vector`/mask/deleg（`cg0`–`cg3` `rc9`/`rc11` 与

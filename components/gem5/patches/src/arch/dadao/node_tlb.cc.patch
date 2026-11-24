@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/node_tlb.cc b/src/arch/dadao/node_tlb.cc
 new file mode 100644
-index 0000000..99ae241
+index 0000000..de16279
 --- /dev/null
 +++ b/src/arch/dadao/node_tlb.cc
 @@ -0,0 +1,558 @@
@@ -52,7 +52,7 @@ index 0000000..99ae241
 +
 +/** A page-table/TLB-hit fault: delivered to the current run-mode monitor
 + *  (spec/DADAO-12 §2.2.6/§5.2).  `cause` is the whole `excp_cause_id` value:
-+ *  the CFXMEM/CFXPERM class plus its sub-cause wyde (ADR-0056 D3). */
++ *  one bit of the flat [38:32]/[56:48] bitmap, low cause zero (ADR-0062). */
 +class NodePtwFault : public FaultBase
 +{
 +  private:
@@ -95,7 +95,7 @@ index 0000000..99ae241
 +        auto *isa = dynamic_cast<ISA *>(tc->getIsaPtr());
 +        panic_if(isa == nullptr, "DADAO Node: CFXPERM without an ISA");
 +        NodeState &s = isa->nodeState();
-+        nodeSyncEnter(tc, s, CauseCfxPerm | SubNcfxPerm, s.runMode, faultPc,
++        nodeSyncEnter(tc, s, CauseCfxPerm, s.runMode, faultPc,
 +                      addr);
 +    }
 +};
@@ -251,23 +251,23 @@ index 0000000..99ae241
 +    const unsigned frag = super ? ((va >> 26) & 0x7) : ((va >> 13) & 0x7);
 +    if (!(e.frags & (1u << frag))) {
 +        return std::make_shared<NodePtwFault>(
-+            CauseCfxMem | missingFragSub(fetch, super), va, faultPc);
++            missingFragSub(fetch, super), va, faultPc);
 +    }
 +    if (!(e.hsju & (1ULL << (s.runMode & 0x3)))) {
 +        return std::make_shared<NodePtwFault>(
-+            CauseCfxPerm | hsjuSub(s.runMode), va, faultPc);
++            hsjuSub(s.runMode), va, faultPc);
 +    }
 +    if (fetch && !e.x) {
 +        return std::make_shared<NodePtwFault>(
-+            CauseCfxPerm | SubNxPerm, va, faultPc);
++            SubNxPerm, va, faultPc);
 +    }
 +    if (write && !e.w) {
 +        return std::make_shared<NodePtwFault>(
-+            CauseCfxPerm | SubNwPerm, va, faultPc);
++            SubNwPerm, va, faultPc);
 +    }
 +    if (!fetch && !write && !e.r) {
 +        return std::make_shared<NodePtwFault>(
-+            CauseCfxPerm | SubNrPerm, va, faultPc);
++            SubNrPerm, va, faultPc);
 +    }
 +
 +    nodeTlbTouch(e, write);
@@ -303,9 +303,9 @@ index 0000000..99ae241
 +    if (victim->valid && nodeTlbDirty(*victim)) {
 +        if (!writablePte(ramBase, ramSize, victim->ptePa)) {
 +            // A/D write-back failure: `cause_info` is the PTE physical
-+            // address, not the accessed address (ADR-0056 D4).
++            // address, not the accessed address (ADR-0062 D4).
 +            return std::make_shared<NodePtwFault>(
-+                CauseCfxMem | SubAdwbFail, victim->ptePa, faultPc);
++                SubAdwbFail, victim->ptePa, faultPc);
 +        }
 +        // Atomic OR keeps any bits another table already wrote back.
 +        writePteOr(s.tc->getSystemPtr(), victim->ptePa,
@@ -375,7 +375,7 @@ index 0000000..99ae241
 +        // The fault enters the current run-mode monitor as CFXMEM with
 +        // `excp_cause_info` = the accessed address (DADAO-12 §5.2(一)).
 +        if (!(s.ptwEnable & 1))
-+            return machineFaultAt(FaultCFXMEM, faultPc, va, SubNonPtw);
++            return machineFaultAt(FaultCFXMEM, faultPc, va);
 +
 +        // Step 2: guest TLB lookup.  Fetch and data use separate first-level
 +        // tables (a design split, not an implementation detail); a hit never
@@ -412,7 +412,7 @@ index 0000000..99ae241
 +
 +        if (!(pte & PteP)) {
 +            return std::make_shared<NodePtwFault>(
-+                CauseCfxMem | missingPageSub(fetch, (pte & PteSp) != 0), va,
++                missingPageSub(fetch, (pte & PteSp) != 0), va,
 +                faultPc);
 +        }
 +
@@ -421,7 +421,7 @@ index 0000000..99ae241
 +            const unsigned frag = (va >> 26) & 0x7;
 +            if (!(pte & (1ULL << (NodeFragShift + frag)))) {
 +                return std::make_shared<NodePtwFault>(
-+                    CauseCfxMem | missingFragSub(fetch, true), va, faultPc);
++                    missingFragSub(fetch, true), va, faultPc);
 +            }
 +        } else {
 +            const Addr l2pa =
@@ -435,31 +435,31 @@ index 0000000..99ae241
 +            leafPa = l2pa;
 +            if (!(pte & PteP)) {
 +                return std::make_shared<NodePtwFault>(
-+                    CauseCfxMem | missingPageSub(fetch, false), va, faultPc);
++                    missingPageSub(fetch, false), va, faultPc);
 +            }
 +            const unsigned frag = (va >> 13) & 0x7;
 +            if (!(pte & (1ULL << (NodeFragShift + frag)))) {
 +                return std::make_shared<NodePtwFault>(
-+                    CauseCfxMem | missingFragSub(fetch, false), va, faultPc);
++                    missingFragSub(fetch, false), va, faultPc);
 +            }
 +        }
 +
 +        const uint64_t hsju = (pte >> 60) & 0xF;
 +        if (!(hsju & (1ULL << (s.runMode & 0x3)))) {
 +            return std::make_shared<NodePtwFault>(
-+                CauseCfxPerm | hsjuSub(s.runMode), va, faultPc);
++                hsjuSub(s.runMode), va, faultPc);
 +        }
 +        if (fetch && !(pte & PteX)) {
 +            return std::make_shared<NodePtwFault>(
-+                CauseCfxPerm | SubNxPerm, va, faultPc);
++                SubNxPerm, va, faultPc);
 +        }
 +        if (write && !(pte & PteW)) {
 +            return std::make_shared<NodePtwFault>(
-+                CauseCfxPerm | SubNwPerm, va, faultPc);
++                SubNwPerm, va, faultPc);
 +        }
 +        if (!fetch && !write && !(pte & PteR)) {
 +            return std::make_shared<NodePtwFault>(
-+                CauseCfxPerm | SubNrPerm, va, faultPc);
++                SubNrPerm, va, faultPc);
 +        }
 +
 +        // Fill the table of the side that missed: invalid-first/LRU victim,
@@ -483,7 +483,7 @@ index 0000000..99ae241
 +        }
 +        // Out of the SRAM window ⇒ illegal internal-space access (CFXMEM),
 +        // `cause_info` = the accessed internal address (DADAO-12 §4.1).
-+        return machineFaultAt(FaultCFXMEM, faultPc, va, SubNonPtw);
++        return machineFaultAt(FaultCFXMEM, faultPc, va);
 +    }
 +    // hmon / smon SRAM (cfxha 3 / 2, same internal offset).
 +    if (cfxha == 3 || cfxha == 2) {
@@ -493,7 +493,7 @@ index 0000000..99ae241
 +            req->setPaddr(base + (off - kPmemCfxOffset));
 +            return NoFault;
 +        }
-+        return machineFaultAt(FaultCFXMEM, faultPc, va, SubNonPtw);
++        return machineFaultAt(FaultCFXMEM, faultPc, va);
 +    }
 +    // BootROM: read/execute only; a store is ILLI (ADR-0004 D5.6) with
 +    // `cause_info` = the instruction encoding (DADAO-12 §4.1) -- the word of
@@ -511,8 +511,8 @@ index 0000000..99ae241
 +    }
 +
 +    if (nodeCfxReserved(cfxha))
-+        return machineFaultAt(FaultCFXMEM, faultPc, va, SubNonPtw);
-+    return machineFaultAt(FaultCFXMEM, faultPc, va, SubNonPtw);
++        return machineFaultAt(FaultCFXMEM, faultPc, va);
++    return machineFaultAt(FaultCFXMEM, faultPc, va);
 +}
 +
 +void

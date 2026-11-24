@@ -1,6 +1,6 @@
 diff --git a/src/arch/dadao/tiny_cfx.cc b/src/arch/dadao/tiny_cfx.cc
 new file mode 100644
-index 0000000..b47dca0
+index 0000000..e13a2e8
 --- /dev/null
 +++ b/src/arch/dadao/tiny_cfx.cc
 @@ -0,0 +1,515 @@
@@ -182,7 +182,7 @@ index 0000000..b47dca0
 +    const uint8_t entryMode = s.runMode;
 +    const int ci = tinyCfxIndex(target);
 +
-+    // contract-see §6.1.1 / ADR-0056 D3: class/wyde pairing and the one-hot
++    // contract-see §6.1.1 / ADR-0062 D1/D3: class/wyde pairing and the one-hot
 +    // shape are checked before the id reaches the frame (named failure).
 +    checkCauseId(cause);
 +
@@ -380,7 +380,7 @@ index 0000000..b47dca0
 +        return;
 +    }
 +    if (tinyPermDenied(s, cfxha, 0)) {
-+        tinyCfxRaise(tc, s, TinyCauseCfxPerm | SubNcfxPerm, -1, pc, info);
++        tinyCfxRaise(tc, s, TinyCauseCfxPerm, -1, pc, pc);
 +        return;
 +    }
 +    tinyCfxRaise(tc, s, TinyCauseCfxTrap, cfxha, pc, info);
@@ -448,7 +448,7 @@ index 0000000..b47dca0
 +        return false;
 +    }
 +    if (tinyPermDenied(s, cfxha, 2)) {
-+        tinyCfxRaise(tc, s, TinyCauseCfxPerm | SubNcfxPerm, -1, pc, info);
++        tinyCfxRaise(tc, s, TinyCauseCfxPerm, -1, pc, pc);
 +        return false;
 +    }
 +    if (cg == 7) {
@@ -485,7 +485,7 @@ index 0000000..b47dca0
 +        return false;
 +    }
 +    if (tinyPermDenied(s, cfxha, 2)) {
-+        tinyCfxRaise(tc, s, TinyCauseCfxPerm | SubNcfxPerm, -1, pc, info);
++        tinyCfxRaise(tc, s, TinyCauseCfxPerm, -1, pc, pc);
 +        return false;
 +    }
 +    if (cg == 7 || cg > 8) {
